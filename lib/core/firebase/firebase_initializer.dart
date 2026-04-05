@@ -25,7 +25,7 @@ Future<bool> initializeFirebase() async {
 
     await Firebase.initializeApp(options: options);
     return true;
-  } on Exception catch (e) {
+  } catch (e) {
     // Firebase 프로젝트 미연결 시(placeholder) 앱은 정상 실행
     debugPrint('Firebase 초기화 실패 (placeholder 상태일 수 있음): $e');
     return false;
