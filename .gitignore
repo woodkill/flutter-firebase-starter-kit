@@ -50,6 +50,9 @@ lib/core/firebase/firebase_options_*.dart
 firebase-debug.log
 firebase-debug.*.log
 
+# Firebase 프로젝트 설정 (flutterfire configure로 재생성)
+firebase.json
+
 # Firebase 캐시/배포
 .firebase/
 .firebaserc

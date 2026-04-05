@@ -176,7 +176,15 @@ lib/
 - 커버리지: `fvm flutter test --coverage`
 - 테스트 파일: `test/` 디렉토리, 원본과 동일 구조
 
+## FlutterFire CLI
+- `flutterfire` 명령을 직접 실행하지 않는다 — PATH에 `~/.pub-cache/bin`을 추가하지 않음
+- FVM이 관리하는 Dart를 통해 실행: `fvm dart pub global run flutterfire_cli:flutterfire`
+- 프로젝트에 alias가 등록되어 있음: `fff` = `fvm dart pub global run flutterfire_cli:flutterfire`
+- FlutterFire configure 실행 시: `fff configure --project=<id> --out=<path> ...`
+- FlutterFire CLI 설치/업데이트: `fvm dart pub global activate flutterfire_cli`
+
 ## 금지 사항
 - 시스템 Flutter 직접 사용 금지 — 항상 `fvm flutter`
 - `dart pub` 직접 사용 금지 — 항상 `fvm dart`
+- `flutterfire` 직접 실행 금지 — 항상 `fff` alias 사용 (FVM Dart 경유)
 - `.fvm/` 디렉토리 커밋 금지 (`.gitignore`에 추가)
