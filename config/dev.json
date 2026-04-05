@@ -1,0 +1,6 @@
+{
+  "flavor": "dev",
+  "appName": "StarterKit Dev",
+  "appSuffix": ".dev",
+  "firebaseProjectId": "your-project-dev"
+}

@@ -44,6 +44,7 @@ Thumbs.db
 # ==========================
 # FlutterFire CLI 생성 파일 (flutterfire configure로 재생성)
 lib/firebase_options*.dart
+lib/core/firebase/firebase_options_*.dart
 
 # Firebase 디버그 로그
 firebase-debug.log

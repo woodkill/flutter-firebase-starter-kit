@@ -1,0 +1,6 @@
+{
+  "flavor": "stg",
+  "appName": "StarterKit Stg",
+  "appSuffix": ".stg",
+  "firebaseProjectId": "your-project-stg"
+}
