@@ -34,7 +34,7 @@ void main() {
       addTearDown(container.dispose);
 
       // keepAlive Provider는 ProviderSubscription을 닫아도 값이 유지된다.
-      final sub = container.listen(firebaseAuthProvider, (_, __) {});
+      final sub = container.listen(firebaseAuthProvider, (_, _) {});
       sub.close();
 
       // autoDispose라면 subscription 해제 후 값이 사라지지만,

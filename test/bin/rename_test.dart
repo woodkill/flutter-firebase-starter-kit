@@ -306,7 +306,7 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     });
 
     test('dry-run 모드에서 실제 파일이 변경되지 않는다', () {
-      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      collectChanges(tempDir.path, 'com.example', 'my_app');
 
       // dry-run에서는 applyChanges를 호출하지 않아야 함
       // 원본 파일이 변경되지 않았는지 확인
