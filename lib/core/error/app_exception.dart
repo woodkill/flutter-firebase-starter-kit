@@ -3,11 +3,10 @@
 /// 모든 도메인별 예외는 이 클래스를 상속한다.
 /// sealed class이므로 switch 문에서 exhaustive 패턴 매칭이 가능하다.
 ///
-/// [userMessage]는 사용자에게 표시할 수 있는 안전한 메시지이며,
+/// [userMessage]는 ARB 키 문자열을 저장하고,
+/// UI 레이어에서 [resolveExceptionMessage]를 통해 l10n 룩업으로 번역한다.
 /// 기술 상세(스택 트레이스, 내부 에러 코드 등)를 포함하지 않는다.
 /// [cause]는 디버깅/로깅 전용으로, UI에 노출하지 않는다.
-///
-/// Phase 4(i18n) 이전에는 영어 하드코딩, Phase 4 이후 ARB 키로 교체 예정.
 sealed class AppException implements Exception {
   /// [AppException]을 생성한다.
   ///
@@ -40,21 +39,21 @@ sealed class NetworkException extends AppException {
 final class ConnectionTimeout extends NetworkException {
   /// [ConnectionTimeout]을 생성한다.
   const ConnectionTimeout({super.cause})
-      : super(userMessage: 'Connection timed out. Please try again.');
+      : super(userMessage: 'errorNetworkTimeout');
 }
 
 /// 인터넷 연결 없음.
 final class NoInternetConnection extends NetworkException {
   /// [NoInternetConnection]을 생성한다.
   const NoInternetConnection({super.cause})
-      : super(userMessage: 'No internet connection.');
+      : super(userMessage: 'errorNoInternet');
 }
 
 /// 요청 시간 초과.
 final class RequestTimeout extends NetworkException {
   /// [RequestTimeout]을 생성한다.
   const RequestTimeout({super.cause})
-      : super(userMessage: 'Request timed out. Please try again.');
+      : super(userMessage: 'errorRequestTimeout');
 }
 
 // ---------------------------------------------------------------------------
@@ -73,35 +72,35 @@ sealed class AuthException extends AppException {
 final class InvalidCredentials extends AuthException {
   /// [InvalidCredentials]을 생성한다.
   const InvalidCredentials({super.cause})
-      : super(userMessage: 'Invalid email or password.');
+      : super(userMessage: 'errorInvalidCredentials');
 }
 
 /// 사용자를 찾을 수 없음.
 final class UserNotFound extends AuthException {
   /// [UserNotFound]를 생성한다.
   const UserNotFound({super.cause})
-      : super(userMessage: 'User not found.');
+      : super(userMessage: 'errorUserNotFound');
 }
 
 /// 이미 사용 중인 이메일.
 final class EmailAlreadyInUse extends AuthException {
   /// [EmailAlreadyInUse]를 생성한다.
   const EmailAlreadyInUse({super.cause})
-      : super(userMessage: 'Email is already in use.');
+      : super(userMessage: 'errorEmailAlreadyInUse');
 }
 
 /// 비밀번호가 너무 약함.
 final class WeakPassword extends AuthException {
   /// [WeakPassword]를 생성한다.
   const WeakPassword({super.cause})
-      : super(userMessage: 'Password is too weak.');
+      : super(userMessage: 'errorWeakPassword');
 }
 
 /// 세션이 만료됨.
 final class SessionExpired extends AuthException {
   /// [SessionExpired]를 생성한다.
   const SessionExpired({super.cause})
-      : super(userMessage: 'Session expired. Please sign in again.');
+      : super(userMessage: 'errorSessionExpired');
 }
 
 // ---------------------------------------------------------------------------
@@ -120,14 +119,12 @@ sealed class ServerException extends AppException {
 final class InternalServerError extends ServerException {
   /// [InternalServerError]를 생성한다.
   const InternalServerError({super.cause})
-      : super(
-          userMessage: 'Something went wrong. Please try again later.',
-        );
+      : super(userMessage: 'errorInternalServer');
 }
 
 /// 서비스가 일시적으로 사용 불가.
 final class ServiceUnavailable extends ServerException {
   /// [ServiceUnavailable]을 생성한다.
   const ServiceUnavailable({super.cause})
-      : super(userMessage: 'Service is temporarily unavailable.');
+      : super(userMessage: 'errorServiceUnavailable');
 }
