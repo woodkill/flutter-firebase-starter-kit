@@ -46,6 +46,7 @@ dependencies:
   args: ^2.7.0
   shared_preferences: ^2.5.5
   gap: ^3.0.1
+  go_router: ^17.2.0
 
 dev_dependencies:
   flutter_test:

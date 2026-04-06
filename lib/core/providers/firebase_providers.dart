@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -25,4 +27,24 @@ part 'firebase_providers.g.dart';
 @Riverpod(keepAlive: true)
 FirebaseAuth firebaseAuth(Ref ref) {
   return FirebaseAuth.instance;
+}
+
+/// Firebase 초기화 성공 여부를 제공한다.
+///
+/// [bootstrap]에서 [ProviderScope.overrides]로 초기값을 주입한다.
+/// 기본값 `false`는 Firebase 미초기화 상태를 의미한다.
+@Riverpod(keepAlive: true)
+bool isFirebaseInitialized(Ref ref) {
+  return false; // ProviderScope overrides로 실제 값 주입
+}
+
+/// Firebase Auth의 인증 상태 변경 스트림을 제공한다.
+///
+/// Firebase 미초기화 시 빈 스트림을 반환하여 에러를 방지한다.
+/// 인증 가드([authRedirect])와 UI 모두에서 사용한다.
+@Riverpod(keepAlive: true)
+Stream<User?> authState(Ref ref) {
+  final isInitialized = ref.watch(isFirebaseInitializedProvider);
+  if (!isInitialized) return const Stream<User?>.empty();
+  return ref.watch(firebaseAuthProvider).authStateChanges();
 }
