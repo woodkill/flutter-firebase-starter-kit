@@ -81,6 +81,11 @@
     "description": "Section title for spacing showcase"
   },
 
+  "homeBuildEnvironment": "Build Environment",
+  "@homeBuildEnvironment": {
+    "description": "Section title for build environment info cards"
+  },
+
   "homeFirebaseConnected": "Connected",
   "@homeFirebaseConnected": {
     "description": "Firebase connection status when connected"

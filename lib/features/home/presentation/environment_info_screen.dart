@@ -54,7 +54,7 @@ class EnvironmentInfoScreen extends ConsumerWidget {
           padding: EdgeInsets.all(spacing.lg),
           children: [
             Text(
-              'Build Environment',
+              l10n.homeBuildEnvironment,
               style: context.appTypography.titleLarge,
             ),
             Gap(spacing.md),

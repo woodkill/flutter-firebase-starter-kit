@@ -18,6 +18,7 @@
   "homeColorPalette": "컬러 팔레트",
   "homeTypography": "타이포그래피",
   "homeSpacing": "간격",
+  "homeBuildEnvironment": "빌드 환경",
   "homeFirebaseConnected": "연결됨",
   "homeFirebaseNotConnected": "연결 안 됨",
 
