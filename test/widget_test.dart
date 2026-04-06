@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,8 +12,11 @@ void main() {
 
   testWidgets('App renders EnvironmentInfoScreen', (tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: App(isFirebaseInitialized: false),
+      ProviderScope(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(false),
+        ],
+        child: const App(),
       ),
     );
 
@@ -22,7 +26,7 @@ void main() {
     // 환경 정보 화면의 AppBar 타이틀 확인 (l10n: homeEnvironmentInfo)
     expect(find.text('Environment Info'), findsOneWidget);
 
-    // Flavor 라벨 확인 (기술적 레이블 — 영어 유지, 스크롤 영역 포함)
+    // Flavor 라벨 확인 (기술적 레이블 -- 영어 유지, 스크롤 영역 포함)
     expect(
       find.text('Flavor', skipOffstage: false),
       findsOneWidget,

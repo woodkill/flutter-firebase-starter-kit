@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 
 import '../../../core/l10n/intl_extensions.dart';
 import '../../../core/l10n/l10n_extensions.dart';
+import '../../../core/providers/firebase_providers.dart';
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/theme/theme_extensions.dart';
@@ -18,13 +19,7 @@ import '../../../l10n/generated/app_localizations.dart';
 /// 확인하는 용도이다.
 class EnvironmentInfoScreen extends ConsumerWidget {
   /// 환경 정보 화면을 생성한다.
-  const EnvironmentInfoScreen({
-    required this.isFirebaseInitialized,
-    super.key,
-  });
-
-  /// Firebase 초기화 성공 여부.
-  final bool isFirebaseInitialized;
+  const EnvironmentInfoScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,6 +32,8 @@ class EnvironmentInfoScreen extends ConsumerWidget {
       'firebaseProjectId',
       defaultValue: '-',
     );
+    final isFirebaseInitialized =
+        ref.watch(isFirebaseInitializedProvider);
 
     final spacing = context.appSpacing;
     final l10n = context.l10n;
