@@ -1,0 +1,39 @@
+{
+  "@@locale": "ko",
+
+  "commonOk": "확인",
+  "commonCancel": "취소",
+  "commonRetry": "재시도",
+  "commonClose": "닫기",
+  "commonSave": "저장",
+  "commonDelete": "삭제",
+  "commonEdit": "편집",
+
+  "homeEnvironmentInfo": "환경 정보",
+  "homeThemeMode": "테마 모드",
+  "homeLanguage": "언어",
+  "homeThemeLight": "라이트",
+  "homeThemeSystem": "시스템",
+  "homeThemeDark": "다크",
+  "homeColorPalette": "컬러 팔레트",
+  "homeTypography": "타이포그래피",
+  "homeSpacing": "간격",
+  "homeFirebaseConnected": "연결됨",
+  "homeFirebaseNotConnected": "연결 안 됨",
+
+  "errorNetworkTimeout": "연결 시간이 초과되었습니다. 다시 시도해 주세요.",
+  "errorNoInternet": "인터넷 연결이 없습니다.",
+  "errorRequestTimeout": "요청 시간이 초과되었습니다. 다시 시도해 주세요.",
+  "errorInvalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
+  "errorUserNotFound": "사용자를 찾을 수 없습니다.",
+  "errorEmailAlreadyInUse": "이미 사용 중인 이메일입니다.",
+  "errorWeakPassword": "비밀번호가 너무 약합니다.",
+  "errorSessionExpired": "세션이 만료되었습니다. 다시 로그인해 주세요.",
+  "errorInternalServer": "문제가 발생했습니다. 나중에 다시 시도해 주세요.",
+  "errorServiceUnavailable": "서비스를 일시적으로 사용할 수 없습니다.",
+
+  "showcaseItemCount": "{count, plural, =0{항목 없음} =1{1개 항목} other{{count}개 항목}}",
+  "showcaseDateFormat": "날짜 형식",
+  "showcaseNumberFormat": "숫자 형식",
+  "showcaseCurrentLocale": "현재 로케일"
+}

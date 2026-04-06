@@ -1,0 +1,169 @@
+{
+  "@@locale": "en",
+
+  "commonOk": "OK",
+  "@commonOk": {
+    "description": "Common confirmation button label"
+  },
+
+  "commonCancel": "Cancel",
+  "@commonCancel": {
+    "description": "Common cancel button label"
+  },
+
+  "commonRetry": "Retry",
+  "@commonRetry": {
+    "description": "Common retry button label"
+  },
+
+  "commonClose": "Close",
+  "@commonClose": {
+    "description": "Common close button label"
+  },
+
+  "commonSave": "Save",
+  "@commonSave": {
+    "description": "Common save button label"
+  },
+
+  "commonDelete": "Delete",
+  "@commonDelete": {
+    "description": "Common delete button label"
+  },
+
+  "commonEdit": "Edit",
+  "@commonEdit": {
+    "description": "Common edit button label"
+  },
+
+  "homeEnvironmentInfo": "Environment Info",
+  "@homeEnvironmentInfo": {
+    "description": "AppBar title for the environment info screen"
+  },
+
+  "homeThemeMode": "Theme Mode",
+  "@homeThemeMode": {
+    "description": "Section title for theme mode toggle"
+  },
+
+  "homeLanguage": "Language",
+  "@homeLanguage": {
+    "description": "Section title for language selection"
+  },
+
+  "homeThemeLight": "Light",
+  "@homeThemeLight": {
+    "description": "Light theme option label"
+  },
+
+  "homeThemeSystem": "System",
+  "@homeThemeSystem": {
+    "description": "System default theme option label"
+  },
+
+  "homeThemeDark": "Dark",
+  "@homeThemeDark": {
+    "description": "Dark theme option label"
+  },
+
+  "homeColorPalette": "Color Palette",
+  "@homeColorPalette": {
+    "description": "Section title for color palette showcase"
+  },
+
+  "homeTypography": "Typography",
+  "@homeTypography": {
+    "description": "Section title for typography showcase"
+  },
+
+  "homeSpacing": "Spacing",
+  "@homeSpacing": {
+    "description": "Section title for spacing showcase"
+  },
+
+  "homeFirebaseConnected": "Connected",
+  "@homeFirebaseConnected": {
+    "description": "Firebase connection status when connected"
+  },
+
+  "homeFirebaseNotConnected": "Not Connected",
+  "@homeFirebaseNotConnected": {
+    "description": "Firebase connection status when not connected"
+  },
+
+  "errorNetworkTimeout": "Connection timed out. Please try again.",
+  "@errorNetworkTimeout": {
+    "description": "Error message when network connection times out"
+  },
+
+  "errorNoInternet": "No internet connection.",
+  "@errorNoInternet": {
+    "description": "Error message when there is no internet connection"
+  },
+
+  "errorRequestTimeout": "Request timed out. Please try again.",
+  "@errorRequestTimeout": {
+    "description": "Error message when a request times out"
+  },
+
+  "errorInvalidCredentials": "Invalid email or password.",
+  "@errorInvalidCredentials": {
+    "description": "Error message for incorrect login credentials"
+  },
+
+  "errorUserNotFound": "User not found.",
+  "@errorUserNotFound": {
+    "description": "Error message when user account is not found"
+  },
+
+  "errorEmailAlreadyInUse": "Email is already in use.",
+  "@errorEmailAlreadyInUse": {
+    "description": "Error message when email is already registered"
+  },
+
+  "errorWeakPassword": "Password is too weak.",
+  "@errorWeakPassword": {
+    "description": "Error message when password does not meet requirements"
+  },
+
+  "errorSessionExpired": "Session expired. Please sign in again.",
+  "@errorSessionExpired": {
+    "description": "Error message when user session has expired"
+  },
+
+  "errorInternalServer": "Something went wrong. Please try again later.",
+  "@errorInternalServer": {
+    "description": "Error message for internal server errors"
+  },
+
+  "errorServiceUnavailable": "Service is temporarily unavailable.",
+  "@errorServiceUnavailable": {
+    "description": "Error message when service is temporarily down"
+  },
+
+  "showcaseItemCount": "{count, plural, =0{No items} =1{1 item} other{{count} items}}",
+  "@showcaseItemCount": {
+    "description": "Plural example showing item count",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+
+  "showcaseDateFormat": "Date Format",
+  "@showcaseDateFormat": {
+    "description": "Label for date format showcase section"
+  },
+
+  "showcaseNumberFormat": "Number Format",
+  "@showcaseNumberFormat": {
+    "description": "Label for number format showcase section"
+  },
+
+  "showcaseCurrentLocale": "Current Locale",
+  "@showcaseCurrentLocale": {
+    "description": "Label showing the currently active locale"
+  }
+}
