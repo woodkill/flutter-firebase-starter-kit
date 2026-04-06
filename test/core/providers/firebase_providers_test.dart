@@ -8,6 +8,43 @@ import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
 void main() {
+  group('isFirebaseInitializedProvider', () {
+    test('기본값은 false이다', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final result = container.read(isFirebaseInitializedProvider);
+      expect(result, isFalse);
+    });
+
+    test('overrideWithValue로 true를 주입할 수 있다', () {
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = container.read(isFirebaseInitializedProvider);
+      expect(result, isTrue);
+    });
+  });
+
+  group('authStateProvider', () {
+    test('Firebase 미초기화 시 AsyncValue 타입을 반환한다', () {
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Stream.empty()이므로 초기 상태는 AsyncLoading이다
+      final result = container.read(authStateProvider);
+      expect(result, isA<AsyncValue<User?>>());
+    });
+  });
+
   group('firebaseAuthProvider', () {
     test('FirebaseAuth 타입을 반환한다', () {
       final mockAuth = _MockFirebaseAuth();
