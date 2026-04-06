@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
+import '../../../core/l10n/intl_extensions.dart';
+import '../../../core/l10n/l10n_extensions.dart';
+import '../../../core/providers/locale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 현재 빌드 환경 정보와 디자인 토큰 쇼케이스를 표시하는 화면.
 ///
 /// Flavor, App Name, Firebase 연결 상태, Firebase Project ID를
 /// 카드 형태로 표시하고, 디자인 토큰(컬러, 타이포그래피, 스페이싱)의
-/// 시각적 쇼케이스와 테마 전환 토글을 제공한다.
-/// 개발/QA 환경에서 현재 빌드 환경과 디자인 시스템을 확인하는 용도이다.
+/// 시각적 쇼케이스와 테마 전환 토글, 언어 선택 드롭다운을 제공한다.
+/// 개발/QA 환경에서 현재 빌드 환경과 디자인 시스템, i18n 동작을
+/// 확인하는 용도이다.
 class EnvironmentInfoScreen extends ConsumerWidget {
   /// 환경 정보 화면을 생성한다.
   const EnvironmentInfoScreen({
@@ -34,16 +39,19 @@ class EnvironmentInfoScreen extends ConsumerWidget {
     );
 
     final spacing = context.appSpacing;
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Environment Info'),
+        title: Text(l10n.homeEnvironmentInfo),
         backgroundColor: context.colorScheme.inversePrimary,
       ),
       body: ListView(
         padding: EdgeInsets.all(spacing.lg),
         children: [
-          _ThemeToggleSection(ref: ref),
+          const _ThemeToggleSection(),
+          Gap(spacing.xl),
+          const _LanguageSection(),
           Gap(spacing.xl),
           _EnvironmentCard(
             icon: Icons.layers,
@@ -63,8 +71,8 @@ class EnvironmentInfoScreen extends ConsumerWidget {
                 : Icons.cloud_off,
             label: 'Firebase',
             value: isFirebaseInitialized
-                ? 'Connected'
-                : 'Not Connected',
+                ? l10n.homeFirebaseConnected
+                : l10n.homeFirebaseNotConnected,
             valueColor: isFirebaseInitialized
                 ? context.appColors.success
                 : context.appColors.warning,
@@ -89,41 +97,40 @@ class EnvironmentInfoScreen extends ConsumerWidget {
 }
 
 /// 라이트/시스템/다크 테마를 전환하는 [SegmentedButton] 토글 섹션.
-class _ThemeToggleSection extends StatelessWidget {
-  const _ThemeToggleSection({required this.ref});
-
-  final WidgetRef ref;
+class _ThemeToggleSection extends ConsumerWidget {
+  const _ThemeToggleSection();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final currentMode = ref.watch(themeProvider);
+    final l10n = context.l10n;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Theme Mode',
+          l10n.homeThemeMode,
           style: context.appTypography.titleLarge,
         ),
         Gap(context.appSpacing.md),
         SizedBox(
           width: double.infinity,
           child: SegmentedButton<ThemeMode>(
-            segments: const [
+            segments: [
               ButtonSegment(
                 value: ThemeMode.light,
-                icon: Icon(Icons.light_mode),
-                label: Text('Light'),
+                icon: const Icon(Icons.light_mode),
+                label: Text(l10n.homeThemeLight),
               ),
               ButtonSegment(
                 value: ThemeMode.system,
-                icon: Icon(Icons.brightness_auto),
-                label: Text('System'),
+                icon: const Icon(Icons.brightness_auto),
+                label: Text(l10n.homeThemeSystem),
               ),
               ButtonSegment(
                 value: ThemeMode.dark,
-                icon: Icon(Icons.dark_mode),
-                label: Text('Dark'),
+                icon: const Icon(Icons.dark_mode),
+                label: Text(l10n.homeThemeDark),
               ),
             ],
             selected: {currentMode},
@@ -136,6 +143,117 @@ class _ThemeToggleSection extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// 언어 선택 드롭다운과 i18n 포맷 쇼케이스를 표시하는 섹션.
+///
+/// [AppLocalizations.supportedLocales] 기반의 드롭다운으로 언어를 전환하고,
+/// 날짜/숫자/plural 포맷의 라이브 예제를 표시한다.
+class _LanguageSection extends ConsumerWidget {
+  const _LanguageSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentLocale = ref.watch(localeProvider);
+    final spacing = context.appSpacing;
+    final l10n = context.l10n;
+    final now = DateTime.now();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.homeLanguage,
+          style: context.appTypography.titleLarge,
+        ),
+        Gap(spacing.md),
+        // 언어 선택 드롭다운
+        DropdownButton<Locale>(
+          value: currentLocale,
+          isExpanded: true,
+          items: AppLocalizations.supportedLocales.map((locale) {
+            return DropdownMenuItem(
+              value: locale,
+              child: Text(_localeDisplayName(locale)),
+            );
+          }).toList(),
+          onChanged: (locale) {
+            if (locale != null) {
+              ref.read(localeProvider.notifier).setLocale(locale);
+            }
+          },
+        ),
+        Gap(spacing.lg),
+        // 날짜 포맷 라이브 예제
+        Text(
+          l10n.showcaseDateFormat,
+          style: context.appTypography.titleSmall,
+        ),
+        Gap(spacing.sm),
+        Text(
+          'yMd: ${now.formatYMD(currentLocale.languageCode)}',
+          style: context.appTypography.bodyMedium,
+        ),
+        Gap(spacing.xs),
+        Text(
+          'yMMMMd: ${now.formatYMMMMd(currentLocale.languageCode)}',
+          style: context.appTypography.bodyMedium,
+        ),
+        Gap(spacing.xs),
+        Text(
+          'jm: ${now.formatJm(currentLocale.languageCode)}',
+          style: context.appTypography.bodyMedium,
+        ),
+        Gap(spacing.lg),
+        // 숫자 포맷 라이브 예제
+        Text(
+          l10n.showcaseNumberFormat,
+          style: context.appTypography.titleSmall,
+        ),
+        Gap(spacing.sm),
+        Text(
+          'compact: ${1234567.formatCompact(currentLocale.languageCode)}',
+          style: context.appTypography.bodyMedium,
+        ),
+        Gap(spacing.xs),
+        Text(
+          'decimal: ${1234567.formatDecimal(currentLocale.languageCode)}',
+          style: context.appTypography.bodyMedium,
+        ),
+        Gap(spacing.lg),
+        // Plural 예제
+        Text(
+          l10n.showcaseItemCount(0),
+          style: context.appTypography.bodyMedium,
+        ),
+        Gap(spacing.xs),
+        Text(
+          l10n.showcaseItemCount(1),
+          style: context.appTypography.bodyMedium,
+        ),
+        Gap(spacing.xs),
+        Text(
+          l10n.showcaseItemCount(42),
+          style: context.appTypography.bodyMedium,
+        ),
+        Gap(spacing.lg),
+        // 현재 로케일 표시
+        Text(
+          '${l10n.showcaseCurrentLocale}: ${currentLocale.languageCode}',
+          style: context.appTypography.labelMedium,
+        ),
+      ],
+    );
+  }
+
+  /// [Locale]을 사용자 친화적인 표시 이름으로 변환한다.
+  String _localeDisplayName(Locale locale) {
+    return switch (locale.languageCode) {
+      'en' => 'English',
+      'ko' => '한국어',
+      _ => locale.languageCode,
+    };
   }
 }
 
@@ -168,7 +286,7 @@ class _ColorPaletteSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Color Palette',
+          context.l10n.homeColorPalette,
           style: context.appTypography.titleLarge,
         ),
         Gap(spacing.md),
@@ -420,7 +538,7 @@ class _TypographySection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Typography',
+          context.l10n.homeTypography,
           style: typography.titleLarge,
         ),
         Gap(spacing.md),
@@ -531,7 +649,7 @@ class _SpacingSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Spacing',
+          context.l10n.homeSpacing,
           style: context.appTypography.titleLarge,
         ),
         Gap(spacing.md),

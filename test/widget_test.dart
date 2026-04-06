@@ -16,13 +16,22 @@ void main() {
       ),
     );
 
-    // 환경 정보 화면의 AppBar 타이틀 확인
+    // l10n delegate 로딩 대기
+    await tester.pumpAndSettle();
+
+    // 환경 정보 화면의 AppBar 타이틀 확인 (l10n: homeEnvironmentInfo)
     expect(find.text('Environment Info'), findsOneWidget);
 
-    // Flavor 라벨 확인
-    expect(find.text('Flavor'), findsOneWidget);
+    // Flavor 라벨 확인 (기술적 레이블 — 영어 유지, 스크롤 영역 포함)
+    expect(
+      find.text('Flavor', skipOffstage: false),
+      findsOneWidget,
+    );
 
-    // Firebase 미연결 상태 확인
-    expect(find.text('Not Connected'), findsOneWidget);
+    // Firebase 미연결 상태 확인 (l10n: homeFirebaseNotConnected, 스크롤 영역 포함)
+    expect(
+      find.text('Not Connected', skipOffstage: false),
+      findsOneWidget,
+    );
   });
 }
