@@ -20,13 +20,12 @@ abstract final class AppTheme {
   /// [AppColors], [AppTypography], [AppSpacing] 3개 ThemeExtension을 포함한다.
   static ThemeData light() {
     final colorScheme = ColorScheme.fromSeed(seedColor: seedColor);
+    final base = ThemeData(colorScheme: colorScheme, useMaterial3: true);
 
-    return ThemeData(
-      colorScheme: colorScheme,
-      useMaterial3: true,
+    return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[
         AppColors.fromBrightness(Brightness.light),
-        AppTypography.fromTextTheme(ThemeData.light().textTheme),
+        AppTypography.fromTextTheme(_resolvedTextTheme(base)),
         const AppSpacing(),
       ],
     );
@@ -40,16 +39,28 @@ abstract final class AppTheme {
       seedColor: seedColor,
       brightness: Brightness.dark,
     );
-
-    return ThemeData(
+    final base = ThemeData(
       colorScheme: colorScheme,
       useMaterial3: true,
       brightness: Brightness.dark,
+    );
+
+    return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[
         AppColors.fromBrightness(Brightness.dark),
-        AppTypography.fromTextTheme(ThemeData.dark().textTheme),
+        AppTypography.fromTextTheme(_resolvedTextTheme(base)),
         const AppSpacing(),
       ],
     );
+  }
+
+  /// [ThemeData.textTheme]에서 fontSize가 resolve되지 않는 문제를 우회한다.
+  ///
+  /// Flutter의 M3 TextTheme은 fontSize를 [Typography] 레이어에서 merge하므로,
+  /// [ThemeData.textTheme]의 개별 TextStyle에는 fontSize가 null일 수 있다.
+  /// geometry TextTheme과 merge하여 완전한 TextStyle을 반환한다.
+  static TextTheme _resolvedTextTheme(ThemeData base) {
+    final geometry = Typography.material2021().englishLike;
+    return geometry.merge(base.textTheme);
   }
 }

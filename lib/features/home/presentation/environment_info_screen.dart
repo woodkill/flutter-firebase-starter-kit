@@ -143,6 +143,21 @@ class _ThemeToggleSection extends StatelessWidget {
 class _ColorPaletteSection extends StatelessWidget {
   const _ColorPaletteSection();
 
+  Widget _colorGroup(
+    BuildContext context,
+    String title,
+    List<Widget> swatches,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: context.appTypography.titleSmall),
+        Gap(context.appSpacing.sm),
+        ...swatches,
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
@@ -157,121 +172,237 @@ class _ColorPaletteSection extends StatelessWidget {
           style: context.appTypography.titleLarge,
         ),
         Gap(spacing.md),
-        Text(
-          'ColorScheme',
-          style: context.appTypography.titleSmall,
-        ),
-        Gap(spacing.sm),
-        Wrap(
-          spacing: spacing.sm,
-          runSpacing: spacing.sm,
-          children: [
-            _ColorSwatch(
-              color: colorScheme.primary,
-              label: 'primary',
-            ),
-            _ColorSwatch(
-              color: colorScheme.secondary,
-              label: 'secondary',
-            ),
-            _ColorSwatch(
-              color: colorScheme.tertiary,
-              label: 'tertiary',
-            ),
-            _ColorSwatch(
-              color: colorScheme.error,
-              label: 'error',
-            ),
-            _ColorSwatch(
-              color: colorScheme.surface,
-              label: 'surface',
-              borderColor: colorScheme.outline,
-            ),
-            _ColorSwatch(
-              color: colorScheme.onSurface,
-              label: 'onSurface',
-            ),
-          ],
-        ),
-        Gap(spacing.lg),
-        Text(
-          'Semantic Colors (AppColors)',
-          style: context.appTypography.titleSmall,
-        ),
-        Gap(spacing.sm),
-        Wrap(
-          spacing: spacing.sm,
-          runSpacing: spacing.sm,
-          children: [
-            _ColorSwatch(
-              color: colors.success,
-              label: 'success',
-              textColor: colors.onSuccess,
-            ),
-            _ColorSwatch(
-              color: colors.warning,
-              label: 'warning',
-              textColor: colors.onWarning,
-            ),
-            _ColorSwatch(
-              color: colors.info,
-              label: 'info',
-              textColor: colors.onInfo,
-            ),
-          ],
-        ),
+        _colorGroup(context, 'Primary', [
+          _ColorSwatch(color: colorScheme.primary, label: 'primary'),
+          _ColorSwatch(color: colorScheme.onPrimary, label: 'onPrimary'),
+          _ColorSwatch(
+            color: colorScheme.primaryContainer,
+            label: 'primaryContainer',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onPrimaryContainer,
+            label: 'onPrimaryContainer',
+          ),
+          _ColorSwatch(
+            color: colorScheme.primaryFixed,
+            label: 'primaryFixed',
+          ),
+          _ColorSwatch(
+            color: colorScheme.primaryFixedDim,
+            label: 'primaryFixedDim',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onPrimaryFixed,
+            label: 'onPrimaryFixed',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onPrimaryFixedVariant,
+            label: 'onPrimaryFixedVariant',
+          ),
+        ]),
+        Gap(spacing.md),
+        _colorGroup(context, 'Secondary', [
+          _ColorSwatch(color: colorScheme.secondary, label: 'secondary'),
+          _ColorSwatch(
+            color: colorScheme.onSecondary,
+            label: 'onSecondary',
+          ),
+          _ColorSwatch(
+            color: colorScheme.secondaryContainer,
+            label: 'secondaryContainer',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onSecondaryContainer,
+            label: 'onSecondaryContainer',
+          ),
+          _ColorSwatch(
+            color: colorScheme.secondaryFixed,
+            label: 'secondaryFixed',
+          ),
+          _ColorSwatch(
+            color: colorScheme.secondaryFixedDim,
+            label: 'secondaryFixedDim',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onSecondaryFixed,
+            label: 'onSecondaryFixed',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onSecondaryFixedVariant,
+            label: 'onSecondaryFixedVariant',
+          ),
+        ]),
+        Gap(spacing.md),
+        _colorGroup(context, 'Tertiary', [
+          _ColorSwatch(color: colorScheme.tertiary, label: 'tertiary'),
+          _ColorSwatch(
+            color: colorScheme.onTertiary,
+            label: 'onTertiary',
+          ),
+          _ColorSwatch(
+            color: colorScheme.tertiaryContainer,
+            label: 'tertiaryContainer',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onTertiaryContainer,
+            label: 'onTertiaryContainer',
+          ),
+          _ColorSwatch(
+            color: colorScheme.tertiaryFixed,
+            label: 'tertiaryFixed',
+          ),
+          _ColorSwatch(
+            color: colorScheme.tertiaryFixedDim,
+            label: 'tertiaryFixedDim',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onTertiaryFixed,
+            label: 'onTertiaryFixed',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onTertiaryFixedVariant,
+            label: 'onTertiaryFixedVariant',
+          ),
+        ]),
+        Gap(spacing.md),
+        _colorGroup(context, 'Error', [
+          _ColorSwatch(color: colorScheme.error, label: 'error'),
+          _ColorSwatch(color: colorScheme.onError, label: 'onError'),
+          _ColorSwatch(
+            color: colorScheme.errorContainer,
+            label: 'errorContainer',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onErrorContainer,
+            label: 'onErrorContainer',
+          ),
+        ]),
+        Gap(spacing.md),
+        _colorGroup(context, 'Surface', [
+          _ColorSwatch(
+            color: colorScheme.surface,
+            label: 'surface',
+            borderColor: colorScheme.outline,
+          ),
+          _ColorSwatch(color: colorScheme.onSurface, label: 'onSurface'),
+          _ColorSwatch(
+            color: colorScheme.surfaceDim,
+            label: 'surfaceDim',
+            borderColor: colorScheme.outline,
+          ),
+          _ColorSwatch(
+            color: colorScheme.surfaceBright,
+            label: 'surfaceBright',
+            borderColor: colorScheme.outline,
+          ),
+          _ColorSwatch(
+            color: colorScheme.surfaceContainerLowest,
+            label: 'containerLowest',
+            borderColor: colorScheme.outline,
+          ),
+          _ColorSwatch(
+            color: colorScheme.surfaceContainerLow,
+            label: 'containerLow',
+            borderColor: colorScheme.outline,
+          ),
+          _ColorSwatch(
+            color: colorScheme.surfaceContainer,
+            label: 'container',
+            borderColor: colorScheme.outline,
+          ),
+          _ColorSwatch(
+            color: colorScheme.surfaceContainerHigh,
+            label: 'containerHigh',
+          ),
+          _ColorSwatch(
+            color: colorScheme.surfaceContainerHighest,
+            label: 'containerHighest',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onSurfaceVariant,
+            label: 'onSurfaceVariant',
+          ),
+          _ColorSwatch(
+            color: colorScheme.surfaceTint,
+            label: 'surfaceTint',
+          ),
+        ]),
+        Gap(spacing.md),
+        _colorGroup(context, 'Outline & Utility', [
+          _ColorSwatch(color: colorScheme.outline, label: 'outline'),
+          _ColorSwatch(
+            color: colorScheme.outlineVariant,
+            label: 'outlineVariant',
+          ),
+          _ColorSwatch(color: colorScheme.shadow, label: 'shadow'),
+          _ColorSwatch(color: colorScheme.scrim, label: 'scrim'),
+          _ColorSwatch(
+            color: colorScheme.inverseSurface,
+            label: 'inverseSurface',
+          ),
+          _ColorSwatch(
+            color: colorScheme.onInverseSurface,
+            label: 'onInverseSurface',
+          ),
+          _ColorSwatch(
+            color: colorScheme.inversePrimary,
+            label: 'inversePrimary',
+          ),
+        ]),
+        Gap(spacing.md),
+        _colorGroup(context, 'Semantic (AppColors)', [
+          _ColorSwatch(color: colors.success, label: 'success'),
+          _ColorSwatch(color: colors.onSuccess, label: 'onSuccess'),
+          _ColorSwatch(color: colors.warning, label: 'warning'),
+          _ColorSwatch(color: colors.onWarning, label: 'onWarning'),
+          _ColorSwatch(color: colors.info, label: 'info'),
+          _ColorSwatch(color: colors.onInfo, label: 'onInfo'),
+        ]),
       ],
     );
   }
 }
 
-/// 단일 컬러 스와치를 표시하는 위젯.
+/// 단일 컬러를 가로 행(컬러바 + 라벨)으로 표시하는 위젯.
 class _ColorSwatch extends StatelessWidget {
   const _ColorSwatch({
     required this.color,
     required this.label,
-    this.textColor,
     this.borderColor,
   });
 
   final Color color;
   final String label;
-  final Color? textColor;
   final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
     final spacing = context.appSpacing;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(spacing.sm),
-            border: borderColor != null
-                ? Border.all(color: borderColor!)
-                : null,
+    return Padding(
+      padding: EdgeInsets.only(bottom: spacing.xs),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(spacing.sm),
+              border: borderColor != null
+                  ? Border.all(color: borderColor!)
+                  : null,
+            ),
           ),
-          child: textColor != null
-              ? Center(
-                  child: Text(
-                    'Aa',
-                    style: context.appTypography.labelSmall
-                        .copyWith(color: textColor),
-                  ),
-                )
-              : null,
-        ),
-        Gap(spacing.xs),
-        Text(
-          label,
-          style: context.appTypography.labelSmall,
-        ),
-      ],
+          Gap(spacing.md),
+          Expanded(
+            child: Text(
+              label,
+              style: context.appTypography.bodyMedium,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -299,13 +430,43 @@ class _TypographySection extends StatelessWidget {
         ),
         Gap(spacing.sm),
         _TypographySample(
+          label: 'displayMedium',
+          style: typography.displayMedium,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
+          label: 'displaySmall',
+          style: typography.displaySmall,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
+          label: 'headlineLarge',
+          style: typography.headlineLarge,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
           label: 'headlineMedium',
           style: typography.headlineMedium,
         ),
         Gap(spacing.sm),
         _TypographySample(
+          label: 'headlineSmall',
+          style: typography.headlineSmall,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
           label: 'titleLarge',
           style: typography.titleLarge,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
+          label: 'titleMedium',
+          style: typography.titleMedium,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
+          label: 'titleSmall',
+          style: typography.titleSmall,
         ),
         Gap(spacing.sm),
         _TypographySample(
@@ -319,15 +480,30 @@ class _TypographySection extends StatelessWidget {
         ),
         Gap(spacing.sm),
         _TypographySample(
+          label: 'bodySmall',
+          style: typography.bodySmall,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
           label: 'labelLarge',
           style: typography.labelLarge,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
+          label: 'labelMedium',
+          style: typography.labelMedium,
+        ),
+        Gap(spacing.sm),
+        _TypographySample(
+          label: 'labelSmall',
+          style: typography.labelSmall,
         ),
       ],
     );
   }
 }
 
-/// 단일 타이포그래피 스타일의 라벨과 샘플 텍스트를 표시하는 위젯.
+/// 타이포그래피 스타일명을 해당 스타일로 직접 표시하는 위젯.
 class _TypographySample extends StatelessWidget {
   const _TypographySample({
     required this.label,
@@ -339,19 +515,7 @@ class _TypographySample extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: context.appTypography.labelSmall.copyWith(
-            color: context.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        Gap(context.appSpacing.xs),
-        Text('Sample Text', style: style),
-      ],
-    );
+    return Text(label, style: style);
   }
 }
 
