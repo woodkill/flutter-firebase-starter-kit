@@ -46,62 +46,66 @@ class EnvironmentInfoScreen extends ConsumerWidget {
         title: Text(l10n.homeEnvironmentInfo),
         backgroundColor: context.colorScheme.inversePrimary,
       ),
-      body: ListView(
-        physics: const ClampingScrollPhysics(),
-        padding: EdgeInsets.all(spacing.lg),
-        children: [
-          const _ThemeToggleSection(),
-          Gap(spacing.md),
-          const Divider(),
-          Gap(spacing.md),
-          const _LanguageSection(),
-          Gap(spacing.md),
-          const Divider(),
-          Gap(spacing.md),
-          _EnvironmentCard(
-            icon: Icons.layers,
-            label: 'Flavor',
-            value: flavor.toUpperCase(),
-          ),
-          Gap(spacing.md),
-          const _EnvironmentCard(
-            icon: Icons.app_settings_alt,
-            label: 'App Name',
-            value: appName,
-          ),
-          Gap(spacing.md),
-          _EnvironmentCard(
-            icon: isFirebaseInitialized
-                ? Icons.cloud_done
-                : Icons.cloud_off,
-            label: 'Firebase',
-            value: isFirebaseInitialized
-                ? l10n.homeFirebaseConnected
-                : l10n.homeFirebaseNotConnected,
-            valueColor: isFirebaseInitialized
-                ? context.appColors.success
-                : context.appColors.warning,
-          ),
-          Gap(spacing.md),
-          const _EnvironmentCard(
-            icon: Icons.folder,
-            label: 'Firebase Project ID',
-            value: firebaseProjectId,
-          ),
-          Gap(spacing.md),
-          const Divider(),
-          Gap(spacing.md),
-          const _ColorPaletteSection(),
-          Gap(spacing.md),
-          const Divider(),
-          Gap(spacing.md),
-          const _TypographySection(),
-          Gap(spacing.md),
-          const Divider(),
-          Gap(spacing.md),
-          const _SpacingSection(),
-          Gap(spacing.xl),
-        ],
+      body: ScrollConfiguration(
+        behavior:
+            ScrollConfiguration.of(context).copyWith(overscroll: false),
+        child: ListView(
+          physics: const ClampingScrollPhysics(),
+          padding: EdgeInsets.all(spacing.lg),
+          children: [
+            const _ThemeToggleSection(),
+            Gap(spacing.md),
+            const Divider(),
+            Gap(spacing.md),
+            const _LanguageSection(),
+            Gap(spacing.md),
+            const Divider(),
+            Gap(spacing.md),
+            _EnvironmentCard(
+              icon: Icons.layers,
+              label: 'Flavor',
+              value: flavor.toUpperCase(),
+            ),
+            Gap(spacing.md),
+            const _EnvironmentCard(
+              icon: Icons.app_settings_alt,
+              label: 'App Name',
+              value: appName,
+            ),
+            Gap(spacing.md),
+            _EnvironmentCard(
+              icon: isFirebaseInitialized
+                  ? Icons.cloud_done
+                  : Icons.cloud_off,
+              label: 'Firebase',
+              value: isFirebaseInitialized
+                  ? l10n.homeFirebaseConnected
+                  : l10n.homeFirebaseNotConnected,
+              valueColor: isFirebaseInitialized
+                  ? context.appColors.success
+                  : context.appColors.warning,
+            ),
+            Gap(spacing.md),
+            const _EnvironmentCard(
+              icon: Icons.folder,
+              label: 'Firebase Project ID',
+              value: firebaseProjectId,
+            ),
+            Gap(spacing.md),
+            const Divider(),
+            Gap(spacing.md),
+            const _ColorPaletteSection(),
+            Gap(spacing.md),
+            const Divider(),
+            Gap(spacing.md),
+            const _TypographySection(),
+            Gap(spacing.md),
+            const Divider(),
+            Gap(spacing.md),
+            const _SpacingSection(),
+            Gap(spacing.xl),
+          ],
+        ),
       ),
     );
   }
