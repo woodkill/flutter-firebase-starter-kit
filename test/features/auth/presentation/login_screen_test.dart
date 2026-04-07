@@ -51,7 +51,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pump();
       expect(
-        find.text('Enter a valid email address.'),
+        find.text('Enter your email address.'),
         findsOneWidget,
       );
       expect(

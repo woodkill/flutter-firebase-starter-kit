@@ -59,9 +59,14 @@ Future<TextFormField> pumpPasswordField(
 
 void main() {
   group('EmailField validator', () {
-    testWidgets('빈 값 → errorInvalidEmailFormat', (tester) async {
+    testWidgets('빈 값 → errorEmailRequired', (tester) async {
       final field = await pumpEmailField(tester);
-      expect(field.validator?.call(''), 'Enter a valid email address.');
+      expect(field.validator?.call(''), 'Enter your email address.');
+    });
+
+    testWidgets('공백만 입력 → errorEmailRequired', (tester) async {
+      final field = await pumpEmailField(tester);
+      expect(field.validator?.call('   '), 'Enter your email address.');
     });
 
     testWidgets('잘못된 형식 → errorInvalidEmailFormat', (tester) async {

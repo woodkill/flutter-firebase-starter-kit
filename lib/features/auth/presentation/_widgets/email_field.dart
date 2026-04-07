@@ -5,8 +5,9 @@ import '../../../../core/l10n/l10n_extensions.dart';
 /// 이메일 입력 [TextFormField] 래퍼 (D-20, D-24).
 ///
 /// `keyboardType.emailAddress` + `autofillHints.email` + 정규식 검증을
-/// 캡슐화한다. validator 는 빈 값과 정규식 미스매치에 대해
-/// `errorInvalidEmailFormat` ARB 키 텍스트를 반환한다.
+/// 캡슐화한다. validator 는 빈 값에 대해서는 `errorEmailRequired`,
+/// 정규식 미스매치에 대해서는 `errorInvalidEmailFormat` ARB 키 텍스트를
+/// 반환하여 사용자에게 정확한 안내를 제공한다.
 class EmailField extends StatelessWidget {
   /// [EmailField] 를 생성한다.
   const EmailField({
@@ -47,7 +48,7 @@ class EmailField extends StatelessWidget {
       ),
       validator: (value) {
         final v = (value ?? '').trim();
-        if (v.isEmpty) return l10n.errorInvalidEmailFormat;
+        if (v.isEmpty) return l10n.errorEmailRequired;
         if (!_emailRegex.hasMatch(v)) {
           return l10n.errorInvalidEmailFormat;
         }

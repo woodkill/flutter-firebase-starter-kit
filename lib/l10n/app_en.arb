@@ -166,6 +166,11 @@
     "description": "Error message when Firebase rate-limits authentication attempts"
   },
 
+  "errorEmailRequired": "Enter your email address.",
+  "@errorEmailRequired": {
+    "description": "Form validation error when the email field is empty"
+  },
+
   "errorInvalidEmailFormat": "Enter a valid email address.",
   "@errorInvalidEmailFormat": {
     "description": "Form validation error when email format is invalid"

@@ -54,7 +54,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('Enter a valid email address.'),
+        find.text('Enter your email address.'),
         findsOneWidget,
       );
       verifyNever(
