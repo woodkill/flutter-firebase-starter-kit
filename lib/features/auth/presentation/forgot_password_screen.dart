@@ -72,6 +72,9 @@ class _ForgotPasswordScreenState
     await ref.read(forgotPasswordProvider.notifier).submit(
           email: _emailController.text.trim(),
         );
+    // defense-in-depth: await 후 setState/context 호출이 추가될 경우를
+    // 대비해 mounted 가드를 미리 배치한다 (WR-02).
+    if (!mounted) return;
   }
 
   /// 성공 응답 수신 시 inline 메시지를 표시하고 2 초 후 자동 pop 한다.

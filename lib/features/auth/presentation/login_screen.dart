@@ -60,6 +60,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
+    // defense-in-depth: await 후 setState/context 호출이 추가될 경우를
+    // 대비해 mounted 가드를 미리 배치한다 (WR-02).
+    if (!mounted) return;
   }
 
   @override
