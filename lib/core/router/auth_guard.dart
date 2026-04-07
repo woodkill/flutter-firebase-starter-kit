@@ -21,7 +21,13 @@ class AuthChangeNotifier extends ChangeNotifier {
   /// [stream]의 이벤트를 수신하여 [notifyListeners]를 호출하는
   /// [ChangeNotifier]를 생성한다.
   AuthChangeNotifier(Stream<fb.User?> stream) {
-    _subscription = stream.listen((_) {
+    _subscription = stream.listen((user) {
+      if (kDebugMode) {
+        debugPrint(
+          'AuthChangeNotifier: authStateChanges emit '
+          '(user=${user?.uid ?? "null"}) -> notifyListeners',
+        );
+      }
       notifyListeners();
     });
   }
@@ -73,13 +79,32 @@ const Set<String> _unauthRoutes = <String>{
 ///
 /// 인증 전환(Login<->Home)은 [go]로 스택 교체,
 /// 일반 화면 이동은 [push]로 스택 추가를 권장한다. (D-19)
+///
+/// **인증 판정 소스:** [fb.FirebaseAuth.currentUser]를 직접 읽는다.
+/// `authStateProvider`를 사용하지 않는 이유는, [AuthChangeNotifier]가
+/// `authStateChanges()`에 먼저 구독하기 때문에 (subscription #1),
+/// Riverpod StreamProvider의 구독 (#2)이 같은 이벤트를 처리하기 전에
+/// `notifyListeners`가 GoRouter의 redirect 재평가를 트리거한다. 그
+/// 시점에 `ref.read(authStateProvider).value`는 stale 값이다.
+/// `currentUser`는 Firebase SDK가 auth state 변경 시 동기적으로
+/// 업데이트하므로, 어떤 listener가 먼저 호출되더라도 일관되게 최신
+/// 값을 반환한다. (T-06.07-01)
 FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   final isInitialized = ref.read(isFirebaseInitializedProvider);
   if (!isInitialized) return null;
 
-  final authState = ref.read(authStateProvider);
-  final isAuthenticated = authState.value != null;
+  final currentUser = ref.read(firebaseAuthProvider).currentUser;
+  final isAuthenticated = currentUser != null;
   final isOnUnauthRoute = _unauthRoutes.contains(state.matchedLocation);
+
+  if (kDebugMode) {
+    debugPrint(
+      'authRedirect: matchedLocation=${state.matchedLocation}, '
+      'isAuthenticated=$isAuthenticated '
+      '(uid=${currentUser?.uid ?? "null"}), '
+      'isOnUnauthRoute=$isOnUnauthRoute',
+    );
+  }
 
   if (!isAuthenticated && !isOnUnauthRoute) return AppRoutes.login;
   if (isAuthenticated && isOnUnauthRoute) return AppRoutes.home;
