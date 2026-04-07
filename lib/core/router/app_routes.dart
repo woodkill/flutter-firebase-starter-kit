@@ -20,4 +20,16 @@ abstract final class AppRoutes {
 
   /// Splash 화면 name.
   static const String splashName = 'splash';
+
+  /// Signup 화면 path.
+  static const String signup = '/signup';
+
+  /// Signup 화면 name.
+  static const String signupName = 'signup';
+
+  /// Forgot Password 화면 path.
+  static const String forgotPassword = '/forgot-password';
+
+  /// Forgot Password 화면 name.
+  static const String forgotPasswordName = 'forgotPassword';
 }

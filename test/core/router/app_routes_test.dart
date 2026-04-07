@@ -16,6 +16,14 @@ void main() {
       test('splash path는 /splash이다', () {
         expect(AppRoutes.splash, '/splash');
       });
+
+      test('signup path는 /signup이다', () {
+        expect(AppRoutes.signup, '/signup');
+      });
+
+      test('forgotPassword path는 /forgot-password이다', () {
+        expect(AppRoutes.forgotPassword, '/forgot-password');
+      });
     });
 
     group('name 상수', () {
@@ -29,6 +37,14 @@ void main() {
 
       test('splashName은 splash이다', () {
         expect(AppRoutes.splashName, 'splash');
+      });
+
+      test('signupName은 signup이다', () {
+        expect(AppRoutes.signupName, 'signup');
+      });
+
+      test('forgotPasswordName은 forgotPassword이다', () {
+        expect(AppRoutes.forgotPasswordName, 'forgotPassword');
       });
     });
   });
