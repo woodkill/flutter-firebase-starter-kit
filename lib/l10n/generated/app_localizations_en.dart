@@ -57,6 +57,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeSpacing => 'Spacing';
 
   @override
+  String get homeBuildEnvironment => 'Build Environment';
+
+  @override
   String get homeFirebaseConnected => 'Connected';
 
   @override

@@ -57,6 +57,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeSpacing => '간격';
 
   @override
+  String get homeBuildEnvironment => '빌드 환경';
+
+  @override
   String get homeFirebaseConnected => '연결됨';
 
   @override

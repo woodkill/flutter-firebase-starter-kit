@@ -194,6 +194,12 @@ abstract class AppLocalizations {
   /// **'Spacing'**
   String get homeSpacing;
 
+  /// Section title for build environment info cards
+  ///
+  /// In en, this message translates to:
+  /// **'Build Environment'**
+  String get homeBuildEnvironment;
+
   /// Firebase connection status when connected
   ///
   /// In en, this message translates to:
