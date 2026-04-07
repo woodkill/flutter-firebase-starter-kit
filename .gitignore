@@ -134,6 +134,11 @@ app.*.map.json
 .claude/settings.local.json
 
 # ==========================
+# GSD (Get Shit Done) 내부 상태
+# ==========================
+.planning/.next-call-count
+
+# ==========================
 # 기타
 # ==========================
 *.class
