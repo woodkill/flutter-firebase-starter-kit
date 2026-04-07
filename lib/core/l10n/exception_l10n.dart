@@ -25,6 +25,9 @@ String resolveExceptionMessage(
     'errorSessionExpired' => l10n.errorSessionExpired,
     'errorInternalServer' => l10n.errorInternalServer,
     'errorServiceUnavailable' => l10n.errorServiceUnavailable,
+    'errorInvalidEmail' => l10n.errorInvalidEmail,
+    'errorUserDisabled' => l10n.errorUserDisabled,
+    'errorTooManyRequests' => l10n.errorTooManyRequests,
     final other => other,
   };
 }
