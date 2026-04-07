@@ -38,6 +38,9 @@ void main() {
         EmailAlreadyInUse(),
         WeakPassword(),
         SessionExpired(),
+        InvalidEmail(),
+        UserDisabled(),
+        TooManyRequests(),
       ];
 
       for (final ex in exceptions) {
@@ -97,6 +100,9 @@ void main() {
         EmailAlreadyInUse(),
         WeakPassword(),
         SessionExpired(),
+        InvalidEmail(),
+        UserDisabled(),
+        TooManyRequests(),
         InternalServerError(),
         ServiceUnavailable(),
       ];
@@ -124,6 +130,40 @@ void main() {
           reason: '${ex.runtimeType} userMessage에 SQL 정보 포함',
         );
       }
+    });
+  });
+
+  group('AuthException 신규 케이스', () {
+    test('InvalidEmail userMessage는 errorInvalidEmail', () {
+      const ex = InvalidEmail();
+      expect(ex.userMessage, 'errorInvalidEmail');
+      expect(ex, isA<AuthException>());
+      expect(ex, isA<AppException>());
+    });
+
+    test('UserDisabled userMessage는 errorUserDisabled', () {
+      const ex = UserDisabled();
+      expect(ex.userMessage, 'errorUserDisabled');
+      expect(ex, isA<AuthException>());
+      expect(ex, isA<AppException>());
+    });
+
+    test('TooManyRequests userMessage는 errorTooManyRequests', () {
+      const ex = TooManyRequests();
+      expect(ex.userMessage, 'errorTooManyRequests');
+      expect(ex, isA<AuthException>());
+      expect(ex, isA<AppException>());
+    });
+
+    test('신규 3종 모두 cause 파라미터로 원본 예외를 보존한다', () {
+      final originalError = Exception('Firebase original error');
+      final invalidEmail = InvalidEmail(cause: originalError);
+      final userDisabled = UserDisabled(cause: originalError);
+      final tooMany = TooManyRequests(cause: originalError);
+
+      expect(invalidEmail.cause, equals(originalError));
+      expect(userDisabled.cause, equals(originalError));
+      expect(tooMany.cause, equals(originalError));
     });
   });
 }

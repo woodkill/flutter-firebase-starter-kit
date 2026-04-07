@@ -103,6 +103,27 @@ final class SessionExpired extends AuthException {
       : super(userMessage: 'errorSessionExpired');
 }
 
+/// 잘못된 이메일 형식 (Firebase `invalid-email` 코드 매핑).
+final class InvalidEmail extends AuthException {
+  /// [InvalidEmail]을 생성한다.
+  const InvalidEmail({super.cause})
+      : super(userMessage: 'errorInvalidEmail');
+}
+
+/// 비활성화된 계정 (Firebase `user-disabled` 코드 매핑).
+final class UserDisabled extends AuthException {
+  /// [UserDisabled]를 생성한다.
+  const UserDisabled({super.cause})
+      : super(userMessage: 'errorUserDisabled');
+}
+
+/// 단시간 요청 과다 (Firebase `too-many-requests` 코드 매핑).
+final class TooManyRequests extends AuthException {
+  /// [TooManyRequests]를 생성한다.
+  const TooManyRequests({super.cause})
+      : super(userMessage: 'errorTooManyRequests');
+}
+
 // ---------------------------------------------------------------------------
 // 서버 관련 예외
 // ---------------------------------------------------------------------------
