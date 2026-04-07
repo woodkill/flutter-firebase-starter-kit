@@ -296,6 +296,12 @@ abstract class AppLocalizations {
   /// **'Too many attempts. Please try again later.'**
   String get errorTooManyRequests;
 
+  /// Form validation error when the email field is empty
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your email address.'**
+  String get errorEmailRequired;
+
   /// Form validation error when email format is invalid
   ///
   /// In en, this message translates to:

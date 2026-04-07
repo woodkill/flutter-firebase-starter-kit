@@ -108,6 +108,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get errorTooManyRequests => '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.';
 
   @override
+  String get errorEmailRequired => '이메일을 입력해 주세요.';
+
+  @override
   String get errorInvalidEmailFormat => '올바른 이메일 형식을 입력해 주세요.';
 
   @override

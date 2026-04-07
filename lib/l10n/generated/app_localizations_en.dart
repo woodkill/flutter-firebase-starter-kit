@@ -111,6 +111,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Too many attempts. Please try again later.';
 
   @override
+  String get errorEmailRequired => 'Enter your email address.';
+
+  @override
   String get errorInvalidEmailFormat => 'Enter a valid email address.';
 
   @override
