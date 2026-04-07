@@ -69,11 +69,22 @@ class AuthRepository {
         return const Result.failure(InvalidCredentials());
       }
       // displayName 업데이트는 실패해도 가입은 성공 처리한다 (D-10).
+      //
+      // reload() 는 토큰 만료 / 네트워크 오류 시 FirebaseAuthException 외에도
+      // 비-Auth FirebaseException 또는 PlatformException 을 던질 수 있으므로,
+      // Object catch 로 우회 전파를 막아 D-10 의도(가입 성공 유지)를 보존한다.
       try {
         await fbUser.updateDisplayName(displayName);
         await fbUser.reload();
       } on fb.FirebaseAuthException catch (e) {
-        debugPrint('updateDisplayName 실패: ${e.code}');
+        if (kDebugMode) {
+          debugPrint('updateDisplayName/reload 실패: ${e.code}');
+        }
+      } on Object catch (e, st) {
+        // 비-Auth Firebase/Platform 예외도 graceful 처리 (D-10 의도 보존).
+        if (kDebugMode) {
+          debugPrint('updateDisplayName/reload 비-Auth 예외: $e\n$st');
+        }
       }
       final refreshed = _auth.currentUser ?? fbUser;
       return Result.success(_mapFirebaseUser(refreshed));
