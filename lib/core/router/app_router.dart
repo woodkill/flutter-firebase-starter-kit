@@ -33,7 +33,14 @@ GoRouter appRouter(Ref ref) {
     debugLogDiagnostics: kDebugMode,
     refreshListenable: authGuard,
     redirect: (context, state) => authRedirect(ref, state),
-    errorBuilder: (context, state) => const EnvironmentInfoScreen(),
+    // TODO: production home 분리 시 dedicated NotFoundScreen 으로 교체.
+    // 현재는 EnvironmentInfoScreen 폴백 대신 임시 Scaffold 로 명시적
+    // 404 안내를 표시하여, 잘못된 deep link 에서도 home 으로 silent
+    // redirect 되지 않도록 한다 (IN-05).
+    errorBuilder: (context, state) => Scaffold(
+      appBar: AppBar(title: const Text('Page not found')),
+      body: const Center(child: Text('Page not found')),
+    ),
     routes: [
       GoRoute(
         path: AppRoutes.home,
