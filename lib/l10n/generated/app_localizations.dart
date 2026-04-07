@@ -404,10 +404,10 @@ abstract class AppLocalizations {
   /// **'Already have an account? Sign in'**
   String get authSignupHasAccount;
 
-  /// Snackbar message after a password reset email is sent
+  /// Inline confirmation shown on the forgot password screen after a reset request. Uses passive voice to remain neutral about whether the address actually exists (Email Enumeration Protection compliant — see T-06.06-01).
   ///
   /// In en, this message translates to:
-  /// **'Password reset email sent. Check your inbox.'**
+  /// **'Password reset email has been sent. Check your inbox.'**
   String get authForgotSent;
 
   /// Account section title on the home screen for signed-in users

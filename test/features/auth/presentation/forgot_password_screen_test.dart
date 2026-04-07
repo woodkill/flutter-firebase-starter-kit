@@ -84,7 +84,7 @@ void main() {
           () => mockRepo.sendPasswordReset(email: 'user@example.com'),
         ).called(1);
         expect(
-          find.text('Password reset email sent. Check your inbox.'),
+          find.text('Password reset email has been sent. Check your inbox.'),
           findsOneWidget,
         );
         expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
@@ -153,7 +153,7 @@ void main() {
             tester.widget<FilledButton>(find.byType(FilledButton));
         expect(btn.onPressed, isNull);
         expect(
-          find.text('Password reset email sent. Check your inbox.'),
+          find.text('Password reset email has been sent. Check your inbox.'),
           findsOneWidget,
         );
 

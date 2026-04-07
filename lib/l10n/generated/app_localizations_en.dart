@@ -166,7 +166,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authSignupHasAccount => 'Already have an account? Sign in';
 
   @override
-  String get authForgotSent => 'Password reset email sent. Check your inbox.';
+  String get authForgotSent =>
+      'Password reset email has been sent. Check your inbox.';
 
   @override
   String get authAccountSectionTitle => 'Account';

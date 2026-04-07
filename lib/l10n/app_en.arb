@@ -256,9 +256,9 @@
     "description": "Signup screen link to navigate back to the login screen"
   },
 
-  "authForgotSent": "Password reset email sent. Check your inbox.",
+  "authForgotSent": "Password reset email has been sent. Check your inbox.",
   "@authForgotSent": {
-    "description": "Snackbar message after a password reset email is sent"
+    "description": "Inline confirmation shown on the forgot password screen after a reset request. Uses passive voice to remain neutral about whether the address actually exists (Email Enumeration Protection compliant — see T-06.06-01)."
   },
 
   "authAccountSectionTitle": "Account",

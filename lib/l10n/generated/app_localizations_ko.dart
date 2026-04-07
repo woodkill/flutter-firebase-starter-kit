@@ -162,7 +162,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authSignupHasAccount => '이미 계정이 있으신가요? 로그인';
 
   @override
-  String get authForgotSent => '재설정 메일을 보냈습니다. 받은편지함을 확인해 주세요.';
+  String get authForgotSent => '재설정 메일이 발송되었습니다. 받은편지함을 확인해 주세요.';
 
   @override
   String get authAccountSectionTitle => '계정';
