@@ -1,25 +1,138 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/error/app_exception.dart';
+import '../../../core/error/result.dart';
+import '../../../core/providers/firebase_providers.dart';
 import '../domain/user.dart';
 
-// part 'auth_repository.g.dart'; // Task 2에서 build_runner 실행과 함께 활성화.
+part 'auth_repository.g.dart';
 
 /// Firebase Auth를 감싸는 인증 Repository.
 ///
 /// FirebaseAuth 의존성을 data 계층에 격리하고,
 /// 상위 레이어(Notifier)에는 [Result] 타입으로만 노출한다.
 /// FirebaseAuthException은 [AppException]으로 매핑되어 던져진다.
-///
-/// 본 Task 1에서는 스켈레톤만 작성되며, 메서드 본체와
-/// `@Riverpod` Provider 선언은 Task 2에서 추가된다.
 class AuthRepository {
   /// [AuthRepository]를 생성한다.
   const AuthRepository(this._auth);
 
-  // ignore: unused_field, prefer_final_fields
   final fb.FirebaseAuth _auth;
 
-  // 메서드 본체는 Task 2에서 작성된다.
+  /// 이메일/비밀번호로 로그인한다.
+  ///
+  /// 성공 시 [Success]에 도메인 [User]를 담아 반환한다.
+  /// 실패 시 [_mapAuthException]으로 변환된 [AppException]을
+  /// [Failure]에 담는다.
+  Future<Result<User>> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final fbUser = credential.user;
+      if (fbUser == null) {
+        return const Result.failure(InvalidCredentials());
+      }
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    }
+  }
+
+  /// 이메일/비밀번호로 가입한다.
+  ///
+  /// [displayName] 업데이트 실패 시에도 가입 자체는 성공 처리한다 (D-10).
+  /// 흐름: createUserWithEmailAndPassword → updateDisplayName → reload →
+  /// 도메인 User 변환.
+  Future<Result<User>> signUpWithEmail({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    // D-10 흐름:
+    // 1. createUserWithEmailAndPassword
+    // 2. updateDisplayName (실패 시 graceful: 계정은 생성됨, displayName 미설정)
+    // 3. reload (실패 시 _auth.currentUser 재획득으로 fallback)
+    // 4. _mapFirebaseUser 로 도메인 모델 변환
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final fbUser = credential.user;
+      if (fbUser == null) {
+        return const Result.failure(InvalidCredentials());
+      }
+      // displayName 업데이트는 실패해도 가입은 성공 처리한다 (D-10).
+      try {
+        await fbUser.updateDisplayName(displayName);
+        await fbUser.reload();
+      } on fb.FirebaseAuthException catch (e) {
+        debugPrint('updateDisplayName 실패: ${e.code}');
+      }
+      final refreshed = _auth.currentUser ?? fbUser;
+      return Result.success(_mapFirebaseUser(refreshed));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    }
+  }
+
+  /// 로그아웃한다.
+  ///
+  /// D-11: Repository에서 try/catch 없이 firebaseAuth.signOut()에 직접 위임.
+  /// 실패는 상위에서 처리하지 않으며, 일반적으로 발생하지 않는다.
+  Future<void> signOut() => _auth.signOut();
+
+  /// 비밀번호 재설정 메일을 발송한다.
+  ///
+  /// EEP(Email Enumeration Protection) 활성화 환경에서는 존재하지 않는
+  /// 이메일에 대해서도 에러를 던지지 않으므로, 성공 응답은 "메일이
+  /// 발송됐다"가 아니라 "요청이 처리됐다"를 의미한다.
+  Future<Result<void>> sendPasswordReset({required String email}) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return const Result.success(null);
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    }
+  }
+
+  /// FirebaseAuthException을 [AppException]으로 매핑한다 (D-18).
+  ///
+  /// EEP 활성 환경에서는 `wrong-password`/`user-not-found`가 emit되지 않고
+  /// `invalid-credential`로 통합되지만, EEP 비활성 프로젝트 호환을 위해
+  /// 모든 코드를 매핑한다.
+  ///
+  /// 매핑 규칙:
+  /// - `invalid-credential` / `wrong-password` / `user-not-found`
+  ///   → [InvalidCredentials] (Email Enumeration 방지를 위한 통합 매핑)
+  /// - `email-already-in-use` → [EmailAlreadyInUse]
+  /// - `weak-password` → [WeakPassword]
+  /// - `invalid-email` → [InvalidEmail]
+  /// - `user-disabled` → [UserDisabled]
+  /// - `network-request-failed` → [NoInternetConnection]
+  /// - `too-many-requests` → [TooManyRequests]
+  /// - 그 외 → [ServiceUnavailable]
+  AppException _mapAuthException(fb.FirebaseAuthException e) {
+    return switch (e.code) {
+      'invalid-credential' ||
+      'wrong-password' ||
+      'user-not-found' =>
+        InvalidCredentials(cause: e),
+      'email-already-in-use' => EmailAlreadyInUse(cause: e),
+      'weak-password' => WeakPassword(cause: e),
+      'invalid-email' => InvalidEmail(cause: e),
+      'user-disabled' => UserDisabled(cause: e),
+      'network-request-failed' => NoInternetConnection(cause: e),
+      'too-many-requests' => TooManyRequests(cause: e),
+      _ => ServiceUnavailable(cause: e),
+    };
+  }
 }
 
 /// firebase_auth [fb.User]를 도메인 [User]로 변환한다 (D-12).
@@ -37,5 +150,27 @@ User _mapFirebaseUser(fb.User fbUser) {
     displayName: fbUser.displayName,
     photoUrl: fbUser.photoURL,
     createdAt: fbUser.metadata.creationTime ?? DateTime.now(),
+  );
+}
+
+/// [AuthRepository] 인스턴스 Provider (D-08: keepAlive).
+///
+/// FirebaseAuth Provider를 의존하여 단일 인스턴스를 제공한다.
+@Riverpod(keepAlive: true)
+AuthRepository authRepository(Ref ref) {
+  return AuthRepository(ref.watch(firebaseAuthProvider));
+}
+
+/// 현재 인증된 사용자를 도메인 [User]로 노출한다 (D-12).
+///
+/// [authStateProvider]를 watch하여 firebase User → 도메인 User로 변환한다.
+/// 비인증 상태 또는 AsyncLoading/AsyncError 시에는 null을 반환한다.
+/// firebase_auth import는 features/auth/data 경계 안에 격리되며,
+/// presentation 계층은 본 Provider만 사용해야 한다.
+@Riverpod(keepAlive: true)
+User? currentUser(Ref ref) {
+  final asyncState = ref.watch(authStateProvider);
+  return asyncState.whenOrNull(
+    data: (fbUser) => fbUser == null ? null : _mapFirebaseUser(fbUser),
   );
 }
