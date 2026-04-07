@@ -137,5 +137,64 @@ void main() {
       final result = await callAuthRedirect(container, mockState);
       expect(result, isNull);
     });
+
+    test('미인증 + /signup 위치 시 null을 반환한다', () async {
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          authStateProvider.overrideWith(
+            (ref) => const Stream<fb.User?>.empty(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.signup);
+
+      final result = await callAuthRedirect(container, mockState);
+      expect(result, isNull);
+    });
+
+    test('미인증 + /forgot-password 위치 시 null을 반환한다', () async {
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          authStateProvider.overrideWith(
+            (ref) => const Stream<fb.User?>.empty(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      when(() => mockState.matchedLocation)
+          .thenReturn(AppRoutes.forgotPassword);
+
+      final result = await callAuthRedirect(container, mockState);
+      expect(result, isNull);
+    });
+
+    test('인증 완료 + /signup 위치 시 / 를 반환한다', () async {
+      final mockUser = _MockUser();
+
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(mockUser),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.listen(authStateProvider, (_, _) {});
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.signup);
+
+      final result = await callAuthRedirect(container, mockState);
+      expect(result, AppRoutes.home);
+    });
   });
 }

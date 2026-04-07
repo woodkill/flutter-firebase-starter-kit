@@ -51,12 +51,24 @@ AuthChangeNotifier authChangeNotifier(Ref ref) {
   return notifier;
 }
 
+/// 미인증 사용자가 접근 가능한 화이트리스트 경로 집합.
+///
+/// 본 집합에 포함된 경로는 [authRedirect]가 미인증 상태에서도
+/// /login 으로 강제 이동시키지 않는다. 신규 unauth 경로 추가 시
+/// 명시적으로 본 Set 에 포함해야 하며, 그 외 모든 경로는 default-deny
+/// 정책에 따라 차단된다 (T-06.03-01 대응).
+const Set<String> _unauthRoutes = <String>{
+  AppRoutes.login,
+  AppRoutes.signup,
+  AppRoutes.forgotPassword,
+};
+
 /// 인증 상태에 따른 redirect 로직.
 ///
 /// 판단 기준:
 /// - Firebase 미초기화 시: redirect 우회 (null 반환, Home 직행)
-/// - 미인증 + Login 아닌 곳: [AppRoutes.login]으로 redirect
-/// - 인증 완료 + Login에 있음: [AppRoutes.home]으로 redirect
+/// - 미인증 + unauth 화이트리스트 외 경로: [AppRoutes.login]으로 redirect
+/// - 인증 완료 + unauth 화이트리스트 경로: [AppRoutes.home]으로 redirect
 /// - 그 외: null (redirect 없음)
 ///
 /// 인증 전환(Login<->Home)은 [go]로 스택 교체,
@@ -67,9 +79,9 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
 
   final authState = ref.read(authStateProvider);
   final isAuthenticated = authState.value != null;
-  final isOnLogin = state.matchedLocation == AppRoutes.login;
+  final isOnUnauthRoute = _unauthRoutes.contains(state.matchedLocation);
 
-  if (!isAuthenticated && !isOnLogin) return AppRoutes.login;
-  if (isAuthenticated && isOnLogin) return AppRoutes.home;
+  if (!isAuthenticated && !isOnUnauthRoute) return AppRoutes.login;
+  if (isAuthenticated && isOnUnauthRoute) return AppRoutes.home;
   return null;
 }
