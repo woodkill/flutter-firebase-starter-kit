@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
@@ -9,6 +11,7 @@ import '../../../core/providers/locale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../auth/data/auth_repository.dart';
 
 /// 현재 빌드 환경 정보와 디자인 토큰 쇼케이스를 표시하는 화면.
 ///
@@ -105,6 +108,10 @@ class EnvironmentInfoScreen extends ConsumerWidget {
             const Divider(),
             Gap(spacing.md),
             const _SpacingSection(),
+            Gap(spacing.md),
+            const Divider(),
+            Gap(spacing.md),
+            const _AccountSection(),
             Gap(spacing.xl),
           ],
         ),
@@ -725,6 +732,176 @@ class _SpacingBar extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Phase 6 Account 섹션 (D-33 ~ D-36).
+///
+/// [currentUserProvider]를 watch하여 인증 상태에 따라 사용자 정보를 표시한다.
+/// 비인증 상태일 경우 섹션 자체를 숨긴다 (D-36).
+/// 인증 상태일 경우 displayName/email/uid/createdAt/providers/ID 토큰 복사
+/// 버튼(kDebugMode)/로그아웃 버튼을 표시한다.
+class _AccountSection extends ConsumerWidget {
+  const _AccountSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    if (user == null) return const SizedBox.shrink();
+
+    final spacing = context.appSpacing;
+    final l10n = context.l10n;
+    final locale = ref.watch(localeProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.authAccountSectionTitle,
+          style: context.appTypography.titleLarge,
+        ),
+        Gap(spacing.md),
+        _EnvironmentCard(
+          icon: Icons.person,
+          label: 'Display Name',
+          value: user.displayName ?? '-',
+        ),
+        Gap(spacing.md),
+        _EnvironmentCard(
+          icon: Icons.email,
+          label: 'Email',
+          value: user.email,
+        ),
+        Gap(spacing.md),
+        InkWell(
+          onTap: () => _copyUid(context, l10n, user.uid),
+          child: _EnvironmentCard(
+            icon: Icons.fingerprint,
+            label: l10n.authAccountUid,
+            value: user.uid.length > 8
+                ? '${user.uid.substring(0, 8)}...'
+                : user.uid,
+          ),
+        ),
+        Gap(spacing.md),
+        _EnvironmentCard(
+          icon: Icons.calendar_today,
+          label: l10n.authAccountCreatedAt,
+          value: user.createdAt.formatYMD(locale.languageCode),
+        ),
+        // Photo URL: 옵션 B (D-35 Phase 6 축소). user.photoUrl 이 null 이
+        // 아닐 때만 카드를 표시하여 User 모델 변경 없이 UI-SPEC 의 photoUrl
+        // 표시 요구를 만족한다.
+        if (user.photoUrl != null) ...[
+          Gap(spacing.md),
+          _EnvironmentCard(
+            icon: Icons.image,
+            label: 'Photo URL',
+            value: user.photoUrl!,
+          ),
+        ],
+        Gap(spacing.md),
+        // Providers: 옵션 B (D-35 Phase 6 축소). User 모델에 providerIds
+        // 필드를 도입하지 않고 Phase 6 범위에서 'Email/Password' 고정 라벨로
+        // 표시한다. 추후 소셜 로그인 phase 에서 User 모델 확장과 함께 실제
+        // providerData 매핑으로 교체 예정.
+        _EnvironmentCard(
+          icon: Icons.security,
+          label: l10n.authAccountProviders,
+          value: 'Email/Password',
+        ),
+        if (kDebugMode) ...[
+          Gap(spacing.md),
+          OutlinedButton.icon(
+            onPressed: () => _copyIdToken(context, ref, l10n),
+            icon: const Icon(Icons.key),
+            label: Text(l10n.authAccountCopyToken),
+          ),
+        ],
+        Gap(spacing.md),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: context.colorScheme.error,
+            side: BorderSide(color: context.colorScheme.error),
+          ),
+          onPressed: () => _confirmSignOut(context, ref),
+          icon: const Icon(Icons.logout),
+          label: Text(l10n.authAccountSignOut),
+        ),
+      ],
+    );
+  }
+
+  /// uid 전체를 클립보드에 복사하고 SnackBar로 안내한다.
+  Future<void> _copyUid(
+    BuildContext context,
+    AppLocalizations l10n,
+    String uid,
+  ) async {
+    await Clipboard.setData(ClipboardData(text: uid));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.authAccountCopied),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Firebase ID 토큰을 클립보드에 복사한다 (디버그 모드 전용).
+  ///
+  /// [firebaseAuthProvider] 경유로 정적 싱글톤 직접 접근을 회피한다
+  /// (D-12 + Q4 RESOLVED).
+  Future<void> _copyIdToken(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) async {
+    final auth = ref.read(firebaseAuthProvider);
+    final token = await auth.currentUser?.getIdToken();
+    if (token == null || !context.mounted) return;
+    await Clipboard.setData(ClipboardData(text: token));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.authAccountCopied),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// 로그아웃 확인 다이얼로그를 표시하고 확인 시 [signOut]을 호출한다.
+  ///
+  /// 이후 화면 이동은 authStateChanges → AuthChangeNotifier → authRedirect
+  /// 가 /login 으로 처리한다 (D-05).
+  Future<void> _confirmSignOut(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.authLogoutConfirmTitle),
+        content: Text(l10n.authLogoutConfirmMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.authAccountSignOut),
+          ),
+        ],
+      ),
+    );
+    if (confirmed ?? false) {
+      await ref.read(authRepositoryProvider).signOut();
+    }
   }
 }
 
