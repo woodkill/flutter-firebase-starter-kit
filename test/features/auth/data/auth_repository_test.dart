@@ -312,6 +312,19 @@ void main() {
         isA<TooManyRequests>(),
       );
     });
+    test(
+      'operation-not-allowed → ServiceUnavailable '
+      '(Firebase Console 인증 방식 비활성 설정 오류)',
+      () async {
+        // 회귀 방지: dev Firebase Console에서 Email/Password 가입이 꺼져 있을 때
+        // 던져지는 코드를 명시적으로 매핑한다. fallback과 동일한 결과지만,
+        // 의도가 코드에 드러나며 향후 다른 매핑으로 분리할 여지를 남긴다.
+        expect(
+          await mapViaSignIn('operation-not-allowed'),
+          isA<ServiceUnavailable>(),
+        );
+      },
+    );
     test('알 수 없는 코드 → ServiceUnavailable (fallback)', () async {
       expect(
         await mapViaSignIn('some-unknown-code'),

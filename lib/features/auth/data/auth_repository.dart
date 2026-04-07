@@ -117,7 +117,11 @@ class AuthRepository {
   /// - `user-disabled` → [UserDisabled]
   /// - `network-request-failed` → [NoInternetConnection]
   /// - `too-many-requests` → [TooManyRequests]
-  /// - 그 외 → [ServiceUnavailable]
+  /// - `operation-not-allowed` → [ServiceUnavailable]
+  ///   (Firebase Console에서 해당 인증 방식이 비활성화된 설정 오류.
+  ///    사용자에게는 일시적 서비스 불가로 표시하되, 디버그 모드에서는
+  ///    debugPrint로 코드를 출력하여 개발자가 즉시 인지하도록 한다.)
+  /// - 그 외 → [ServiceUnavailable] (debugPrint로 코드 노출)
   AppException _mapAuthException(fb.FirebaseAuthException e) {
     return switch (e.code) {
       'invalid-credential' ||
@@ -130,8 +134,27 @@ class AuthRepository {
       'user-disabled' => UserDisabled(cause: e),
       'network-request-failed' => NoInternetConnection(cause: e),
       'too-many-requests' => TooManyRequests(cause: e),
-      _ => ServiceUnavailable(cause: e),
+      'operation-not-allowed' => _logAndFallback(e),
+      _ => _logAndFallback(e),
     };
+  }
+
+  /// 매핑되지 않았거나 설정성 오류로 분류된 FirebaseAuthException을
+  /// [ServiceUnavailable]로 변환하면서, 디버그 모드에서는 원본 코드와
+  /// 메시지를 출력해 개발자가 즉시 인지할 수 있도록 한다.
+  ///
+  /// 예: Firebase Console에서 Email/Password 인증 방식이 꺼져 있어
+  /// `operation-not-allowed`가 던져지면 사용자에게는 동일한 안전 메시지
+  /// (`errorServiceUnavailable`)가 노출되지만, 콘솔에는 정확한 코드가
+  /// 찍혀 설정 누락임을 즉시 알 수 있다.
+  ServiceUnavailable _logAndFallback(fb.FirebaseAuthException e) {
+    if (kDebugMode) {
+      debugPrint(
+        'AuthRepository: 매핑되지 않은 FirebaseAuthException — '
+        'code=${e.code}, message=${e.message}',
+      );
+    }
+    return ServiceUnavailable(cause: e);
   }
 }
 
