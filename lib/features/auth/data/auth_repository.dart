@@ -158,10 +158,16 @@ class AuthRepository {
   /// `operation-not-allowed`가 던져지면 사용자에게는 동일한 안전 메시지
   /// (`errorServiceUnavailable`)가 노출되지만, 콘솔에는 정확한 코드가
   /// 찍혀 설정 누락임을 즉시 알 수 있다.
+  ///
+  /// 디버그 메시지는 명시적으로 매핑된 케이스(`operation-not-allowed`)와
+  /// fallback 케이스를 구분하여 grep 추적 시 혼선을 방지한다.
   ServiceUnavailable _logAndFallback(fb.FirebaseAuthException e) {
     if (kDebugMode) {
+      final reason = e.code == 'operation-not-allowed'
+          ? 'Firebase Console 인증 방식 비활성 (설정 오류)'
+          : '매핑되지 않은 코드 (default fallback)';
       debugPrint(
-        'AuthRepository: 매핑되지 않은 FirebaseAuthException — '
+        'AuthRepository: ServiceUnavailable 폴백 — $reason: '
         'code=${e.code}, message=${e.message}',
       );
     }
