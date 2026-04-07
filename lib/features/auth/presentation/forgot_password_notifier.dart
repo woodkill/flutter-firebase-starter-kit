@@ -32,11 +32,17 @@ class ForgotPasswordNotifier extends _$ForgotPasswordNotifier {
   ///
   /// [email] 은 이미 클라이언트 validator 를 통과한 값이어야 한다.
   /// 결과는 [state] 의 [AsyncValue] 로 반영된다.
+  ///
+  /// `await` 이후에는 [ref.mounted] 를 확인한 뒤에만 state 를 갱신한다.
+  /// 사용자가 제출 직후 뒤로가기로 화면을 떠나면 본 autoDispose notifier
+  /// 가 dispose 되는데, 그 시점에 state setter 가 호출되면
+  /// `UnmountedRefException` 이 발생하기 때문이다 (T-06.07-02).
   Future<void> submit({required String email}) async {
     state = const AsyncLoading<void>();
     final result = await ref
         .read(authRepositoryProvider)
         .sendPasswordReset(email: email);
+    if (!ref.mounted) return;
     state = switch (result) {
       Success<dynamic>() => const AsyncData<void>(null),
       Failure<dynamic>(exception: final ex) =>
