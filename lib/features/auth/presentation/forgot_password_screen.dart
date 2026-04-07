@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
+import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
@@ -79,10 +80,15 @@ class _ForgotPasswordScreenState
 
   /// 성공 응답 수신 시 inline 메시지를 표시하고 2 초 후 자동 pop 한다.
   ///
-  /// production 환경에서는 GoRouter 의 [context.pop] 을 사용하며,
-  /// GoRouter context 부재(예: 위젯 단위 테스트) 시 [Navigator] API
-  /// 로 graceful fallback 한다. D-05 강제: `context.go` /
-  /// `context.replace` 는 사용하지 않는다.
+  /// production 환경에서는 GoRouter 의 [context.pop] 을 사용한다.
+  /// 단, `/forgot-password` 가 딥링크로 직접 진입되어 pop 할 스택이
+  /// 없는 경우에는 `/login` 으로 명시 이동하여 사용자가 화면에 갇히는
+  /// dead-end 를 회피한다 (WR-03). GoRouter context 부재(예: 위젯 단위
+  /// 테스트) 시에는 [Navigator] API 로 graceful fallback 하며,
+  /// Navigator 로도 pop 이 불가한 경우 [_sentSuccessfully] 를 false 로
+  /// 되돌려 재제출을 허용한다. D-05 강제: `context.go` /
+  /// `context.replace` 는 사용하지 않되, 본 케이스는 인증 성공이 아닌
+  /// 폼 완료 후 UX flow 종료이므로 명시 go 를 예외로 허용한다.
   void _onSuccess() {
     if (!mounted || _sentSuccessfully) return;
     setState(() => _sentSuccessfully = true);
@@ -90,9 +96,21 @@ class _ForgotPasswordScreenState
       if (!mounted) return;
       final goRouter = GoRouter.maybeOf(context);
       if (goRouter != null) {
-        if (context.canPop()) context.pop();
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          // 딥링크로 진입한 최상위 forgot 화면 — login 으로 명시 이동.
+          context.go(AppRoutes.login);
+        }
       } else {
-        Navigator.of(context).maybePop();
+        final popped = Navigator.of(context).maybePop();
+        // Navigator 로도 pop 이 불가한 경우 사용자가 dead-end 에 갇히지
+        // 않도록 성공 상태를 되돌려 재제출을 허용한다.
+        // ignore: discarded_futures
+        popped.then((didPop) {
+          if (!mounted || didPop) return;
+          setState(() => _sentSuccessfully = false);
+        });
       }
     });
   }
