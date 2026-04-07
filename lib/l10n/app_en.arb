@@ -36,6 +36,11 @@
     "description": "Common edit button label"
   },
 
+  "commonLoading": "Loading",
+  "@commonLoading": {
+    "description": "Common loading indicator semantics label"
+  },
+
   "homeEnvironmentInfo": "Environment Info",
   "@homeEnvironmentInfo": {
     "description": "AppBar title for the environment info screen"
@@ -144,6 +149,166 @@
   "errorServiceUnavailable": "Service is temporarily unavailable.",
   "@errorServiceUnavailable": {
     "description": "Error message when service is temporarily down"
+  },
+
+  "errorInvalidEmail": "This email address is not valid.",
+  "@errorInvalidEmail": {
+    "description": "Error message when Firebase rejects email format"
+  },
+
+  "errorUserDisabled": "This account has been disabled. Contact support.",
+  "@errorUserDisabled": {
+    "description": "Error message when Firebase reports the account is disabled"
+  },
+
+  "errorTooManyRequests": "Too many attempts. Please try again later.",
+  "@errorTooManyRequests": {
+    "description": "Error message when Firebase rate-limits authentication attempts"
+  },
+
+  "errorInvalidEmailFormat": "Enter a valid email address.",
+  "@errorInvalidEmailFormat": {
+    "description": "Form validation error when email format is invalid"
+  },
+
+  "errorPasswordTooShort": "Password must be at least 8 characters.",
+  "@errorPasswordTooShort": {
+    "description": "Form validation error when password is shorter than the minimum length"
+  },
+
+  "errorDisplayNameRequired": "Enter your name.",
+  "@errorDisplayNameRequired": {
+    "description": "Form validation error when display name is empty"
+  },
+
+  "errorDisplayNameTooLong": "Name must be 32 characters or fewer.",
+  "@errorDisplayNameTooLong": {
+    "description": "Form validation error when display name exceeds the maximum length"
+  },
+
+  "authLoginTitle": "Sign in",
+  "@authLoginTitle": {
+    "description": "Login screen AppBar title"
+  },
+
+  "authSignupTitle": "Create account",
+  "@authSignupTitle": {
+    "description": "Signup screen AppBar title"
+  },
+
+  "authForgotTitle": "Reset password",
+  "@authForgotTitle": {
+    "description": "Forgot password screen AppBar title"
+  },
+
+  "authLoginEmailLabel": "Email",
+  "@authLoginEmailLabel": {
+    "description": "Email input field label on login and signup screens"
+  },
+
+  "authLoginPasswordLabel": "Password",
+  "@authLoginPasswordLabel": {
+    "description": "Password input field label on login and signup screens"
+  },
+
+  "authSignupDisplayNameLabel": "Display name",
+  "@authSignupDisplayNameLabel": {
+    "description": "Display name input field label on the signup screen"
+  },
+
+  "authForgotDescription": "We'll send a password reset email to your account.",
+  "@authForgotDescription": {
+    "description": "Description shown above the forgot password form"
+  },
+
+  "authLoginCta": "Sign in",
+  "@authLoginCta": {
+    "description": "Login screen submit button label"
+  },
+
+  "authSignupCta": "Create account",
+  "@authSignupCta": {
+    "description": "Signup screen submit button label"
+  },
+
+  "authForgotCta": "Send reset email",
+  "@authForgotCta": {
+    "description": "Forgot password screen submit button label"
+  },
+
+  "authLoginForgotPassword": "Forgot your password?",
+  "@authLoginForgotPassword": {
+    "description": "Login screen link to navigate to the forgot password screen"
+  },
+
+  "authLoginNoAccount": "No account? Create one",
+  "@authLoginNoAccount": {
+    "description": "Login screen link to navigate to the signup screen"
+  },
+
+  "authSignupHasAccount": "Already have an account? Sign in",
+  "@authSignupHasAccount": {
+    "description": "Signup screen link to navigate back to the login screen"
+  },
+
+  "authForgotSent": "Password reset email sent. Check your inbox.",
+  "@authForgotSent": {
+    "description": "Snackbar message after a password reset email is sent"
+  },
+
+  "authAccountSectionTitle": "Account",
+  "@authAccountSectionTitle": {
+    "description": "Account section title on the home screen for signed-in users"
+  },
+
+  "authAccountUid": "User ID",
+  "@authAccountUid": {
+    "description": "Label for the Firebase user UID field in the account section"
+  },
+
+  "authAccountCreatedAt": "Created at",
+  "@authAccountCreatedAt": {
+    "description": "Label for the account creation date in the account section"
+  },
+
+  "authAccountProviders": "Providers",
+  "@authAccountProviders": {
+    "description": "Label for the linked auth providers list in the account section"
+  },
+
+  "authAccountCopyToken": "Copy ID token",
+  "@authAccountCopyToken": {
+    "description": "Account section button label to copy the Firebase ID token to clipboard"
+  },
+
+  "authAccountCopied": "Copied to clipboard.",
+  "@authAccountCopied": {
+    "description": "Snackbar message confirming the ID token was copied to clipboard"
+  },
+
+  "authAccountSignOut": "Sign out",
+  "@authAccountSignOut": {
+    "description": "Account section sign-out button label"
+  },
+
+  "authLogoutConfirmTitle": "Sign out",
+  "@authLogoutConfirmTitle": {
+    "description": "Sign-out confirmation dialog title"
+  },
+
+  "authLogoutConfirmMessage": "Are you sure you want to sign out?",
+  "@authLogoutConfirmMessage": {
+    "description": "Sign-out confirmation dialog message body"
+  },
+
+  "authShowPassword": "Show password",
+  "@authShowPassword": {
+    "description": "Semantics label for the show-password toggle on password input"
+  },
+
+  "authHidePassword": "Hide password",
+  "@authHidePassword": {
+    "description": "Semantics label for the hide-password toggle on password input"
   },
 
   "showcaseItemCount": "{count, plural, =0{No items} =1{1 item} other{{count} items}}",

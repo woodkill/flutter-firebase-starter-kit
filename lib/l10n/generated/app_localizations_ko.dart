@@ -30,6 +30,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get commonEdit => '편집';
 
   @override
+  String get commonLoading => '불러오는 중';
+
+  @override
   String get homeEnvironmentInfo => '환경 정보';
 
   @override
@@ -94,6 +97,102 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get errorServiceUnavailable => '서비스를 일시적으로 사용할 수 없습니다.';
+
+  @override
+  String get errorInvalidEmail => '올바른 이메일 주소가 아닙니다.';
+
+  @override
+  String get errorUserDisabled => '비활성화된 계정입니다. 관리자에게 문의해 주세요.';
+
+  @override
+  String get errorTooManyRequests => '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String get errorInvalidEmailFormat => '올바른 이메일 형식을 입력해 주세요.';
+
+  @override
+  String get errorPasswordTooShort => '비밀번호는 8자 이상이어야 합니다.';
+
+  @override
+  String get errorDisplayNameRequired => '이름을 입력해 주세요.';
+
+  @override
+  String get errorDisplayNameTooLong => '이름은 32자 이하로 입력해 주세요.';
+
+  @override
+  String get authLoginTitle => '로그인';
+
+  @override
+  String get authSignupTitle => '계정 만들기';
+
+  @override
+  String get authForgotTitle => '비밀번호 재설정';
+
+  @override
+  String get authLoginEmailLabel => '이메일';
+
+  @override
+  String get authLoginPasswordLabel => '비밀번호';
+
+  @override
+  String get authSignupDisplayNameLabel => '이름';
+
+  @override
+  String get authForgotDescription => '가입하신 이메일로 비밀번호 재설정 메일을 보내드립니다.';
+
+  @override
+  String get authLoginCta => '로그인';
+
+  @override
+  String get authSignupCta => '가입하기';
+
+  @override
+  String get authForgotCta => '재설정 메일 보내기';
+
+  @override
+  String get authLoginForgotPassword => '비밀번호를 잊으셨나요?';
+
+  @override
+  String get authLoginNoAccount => '계정이 없으신가요? 가입하기';
+
+  @override
+  String get authSignupHasAccount => '이미 계정이 있으신가요? 로그인';
+
+  @override
+  String get authForgotSent => '재설정 메일을 보냈습니다. 받은편지함을 확인해 주세요.';
+
+  @override
+  String get authAccountSectionTitle => '계정';
+
+  @override
+  String get authAccountUid => '사용자 ID';
+
+  @override
+  String get authAccountCreatedAt => '가입일';
+
+  @override
+  String get authAccountProviders => '로그인 수단';
+
+  @override
+  String get authAccountCopyToken => 'ID 토큰 복사';
+
+  @override
+  String get authAccountCopied => '클립보드에 복사되었습니다.';
+
+  @override
+  String get authAccountSignOut => '로그아웃';
+
+  @override
+  String get authLogoutConfirmTitle => '로그아웃';
+
+  @override
+  String get authLogoutConfirmMessage => '로그아웃 하시겠습니까?';
+
+  @override
+  String get authShowPassword => '비밀번호 표시';
+
+  @override
+  String get authHidePassword => '비밀번호 숨기기';
 
   @override
   String showcaseItemCount(int count) {

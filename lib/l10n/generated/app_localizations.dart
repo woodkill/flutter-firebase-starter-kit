@@ -140,6 +140,12 @@ abstract class AppLocalizations {
   /// **'Edit'**
   String get commonEdit;
 
+  /// Common loading indicator semantics label
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get commonLoading;
+
   /// AppBar title for the environment info screen
   ///
   /// In en, this message translates to:
@@ -271,6 +277,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Service is temporarily unavailable.'**
   String get errorServiceUnavailable;
+
+  /// Error message when Firebase rejects email format
+  ///
+  /// In en, this message translates to:
+  /// **'This email address is not valid.'**
+  String get errorInvalidEmail;
+
+  /// Error message when Firebase reports the account is disabled
+  ///
+  /// In en, this message translates to:
+  /// **'This account has been disabled. Contact support.'**
+  String get errorUserDisabled;
+
+  /// Error message when Firebase rate-limits authentication attempts
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts. Please try again later.'**
+  String get errorTooManyRequests;
+
+  /// Form validation error when email format is invalid
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid email address.'**
+  String get errorInvalidEmailFormat;
+
+  /// Form validation error when password is shorter than the minimum length
+  ///
+  /// In en, this message translates to:
+  /// **'Password must be at least 8 characters.'**
+  String get errorPasswordTooShort;
+
+  /// Form validation error when display name is empty
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your name.'**
+  String get errorDisplayNameRequired;
+
+  /// Form validation error when display name exceeds the maximum length
+  ///
+  /// In en, this message translates to:
+  /// **'Name must be 32 characters or fewer.'**
+  String get errorDisplayNameTooLong;
+
+  /// Login screen AppBar title
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get authLoginTitle;
+
+  /// Signup screen AppBar title
+  ///
+  /// In en, this message translates to:
+  /// **'Create account'**
+  String get authSignupTitle;
+
+  /// Forgot password screen AppBar title
+  ///
+  /// In en, this message translates to:
+  /// **'Reset password'**
+  String get authForgotTitle;
+
+  /// Email input field label on login and signup screens
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get authLoginEmailLabel;
+
+  /// Password input field label on login and signup screens
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get authLoginPasswordLabel;
+
+  /// Display name input field label on the signup screen
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get authSignupDisplayNameLabel;
+
+  /// Description shown above the forgot password form
+  ///
+  /// In en, this message translates to:
+  /// **'We\'ll send a password reset email to your account.'**
+  String get authForgotDescription;
+
+  /// Login screen submit button label
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get authLoginCta;
+
+  /// Signup screen submit button label
+  ///
+  /// In en, this message translates to:
+  /// **'Create account'**
+  String get authSignupCta;
+
+  /// Forgot password screen submit button label
+  ///
+  /// In en, this message translates to:
+  /// **'Send reset email'**
+  String get authForgotCta;
+
+  /// Login screen link to navigate to the forgot password screen
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot your password?'**
+  String get authLoginForgotPassword;
+
+  /// Login screen link to navigate to the signup screen
+  ///
+  /// In en, this message translates to:
+  /// **'No account? Create one'**
+  String get authLoginNoAccount;
+
+  /// Signup screen link to navigate back to the login screen
+  ///
+  /// In en, this message translates to:
+  /// **'Already have an account? Sign in'**
+  String get authSignupHasAccount;
+
+  /// Snackbar message after a password reset email is sent
+  ///
+  /// In en, this message translates to:
+  /// **'Password reset email sent. Check your inbox.'**
+  String get authForgotSent;
+
+  /// Account section title on the home screen for signed-in users
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get authAccountSectionTitle;
+
+  /// Label for the Firebase user UID field in the account section
+  ///
+  /// In en, this message translates to:
+  /// **'User ID'**
+  String get authAccountUid;
+
+  /// Label for the account creation date in the account section
+  ///
+  /// In en, this message translates to:
+  /// **'Created at'**
+  String get authAccountCreatedAt;
+
+  /// Label for the linked auth providers list in the account section
+  ///
+  /// In en, this message translates to:
+  /// **'Providers'**
+  String get authAccountProviders;
+
+  /// Account section button label to copy the Firebase ID token to clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copy ID token'**
+  String get authAccountCopyToken;
+
+  /// Snackbar message confirming the ID token was copied to clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard.'**
+  String get authAccountCopied;
+
+  /// Account section sign-out button label
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get authAccountSignOut;
+
+  /// Sign-out confirmation dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get authLogoutConfirmTitle;
+
+  /// Sign-out confirmation dialog message body
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to sign out?'**
+  String get authLogoutConfirmMessage;
+
+  /// Semantics label for the show-password toggle on password input
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get authShowPassword;
+
+  /// Semantics label for the hide-password toggle on password input
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get authHidePassword;
 
   /// Plural example showing item count
   ///
