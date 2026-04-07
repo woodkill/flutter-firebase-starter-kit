@@ -852,6 +852,11 @@ class _AccountSection extends ConsumerWidget {
   ///
   /// [firebaseAuthProvider] 경유로 정적 싱글톤 직접 접근을 회피한다
   /// (D-12 + Q4 RESOLVED).
+  ///
+  /// `getIdToken()` 이 null 을 반환하면 (currentUser 가 null 이거나
+  /// 토큰 조회 실패) 디버그 SnackBar + debugPrint 로 사유를 안내한다.
+  /// 본 메서드는 `kDebugMode` 분기 안에서만 호출되므로 SnackBar 텍스트는
+  /// 별도 ARB 키 없이 하드코딩한다.
   Future<void> _copyIdToken(
     BuildContext context,
     WidgetRef ref,
@@ -859,7 +864,19 @@ class _AccountSection extends ConsumerWidget {
   ) async {
     final auth = ref.read(firebaseAuthProvider);
     final token = await auth.currentUser?.getIdToken();
-    if (token == null || !context.mounted) return;
+    if (!context.mounted) return;
+    if (token == null) {
+      if (kDebugMode) {
+        debugPrint('_copyIdToken: getIdToken() returned null');
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID token unavailable (debug)'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     await Clipboard.setData(ClipboardData(text: token));
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
