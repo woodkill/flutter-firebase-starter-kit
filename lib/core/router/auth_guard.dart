@@ -32,11 +32,15 @@ class AuthChangeNotifier extends ChangeNotifier {
     });
   }
 
-  late final StreamSubscription<fb.User?> _subscription;
+  /// authStateChanges 구독. nullable 로 선언하여 향후 [stream] 이
+  /// lazy-initialized 되어 [Stream.listen] 자체가 throw 하더라도
+  /// [dispose] 가 LateInitializationError 없이 안전하게 동작하도록 한다.
+  /// (flutter.md "late 사용 최소화" 규칙)
+  StreamSubscription<fb.User?>? _subscription;
 
   @override
   void dispose() {
-    _subscription.cancel();
+    _subscription?.cancel();
     super.dispose();
   }
 }
