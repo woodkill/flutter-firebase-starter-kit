@@ -35,8 +35,7 @@ class EnvironmentInfoScreen extends ConsumerWidget {
       'firebaseProjectId',
       defaultValue: '-',
     );
-    final isFirebaseInitialized =
-        ref.watch(isFirebaseInitializedProvider);
+    final isFirebaseInitialized = ref.watch(isFirebaseInitializedProvider);
 
     final spacing = context.appSpacing;
     final l10n = context.l10n;
@@ -47,8 +46,7 @@ class EnvironmentInfoScreen extends ConsumerWidget {
         backgroundColor: context.colorScheme.inversePrimary,
       ),
       body: ScrollConfiguration(
-        behavior:
-            ScrollConfiguration.of(context).copyWith(overscroll: false),
+        behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
         child: ListView(
           physics: const ClampingScrollPhysics(),
           padding: EdgeInsets.all(spacing.lg),
@@ -71,9 +69,7 @@ class EnvironmentInfoScreen extends ConsumerWidget {
             ),
             Gap(spacing.md),
             _EnvironmentCard(
-              icon: isFirebaseInitialized
-                  ? Icons.cloud_done
-                  : Icons.cloud_off,
+              icon: isFirebaseInitialized ? Icons.cloud_done : Icons.cloud_off,
               label: 'Firebase',
               value: isFirebaseInitialized
                   ? l10n.homeFirebaseConnected
@@ -132,10 +128,7 @@ class _ThemeToggleSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.homeThemeMode,
-          style: context.appTypography.titleLarge,
-        ),
+        Text(l10n.homeThemeMode, style: context.appTypography.titleLarge),
         Gap(context.appSpacing.md),
         SizedBox(
           width: double.infinity,
@@ -159,9 +152,7 @@ class _ThemeToggleSection extends ConsumerWidget {
             ],
             selected: {currentMode},
             onSelectionChanged: (modes) {
-              ref
-                  .read(themeProvider.notifier)
-                  .setThemeMode(modes.first);
+              ref.read(themeProvider.notifier).setThemeMode(modes.first);
             },
           ),
         ),
@@ -187,10 +178,7 @@ class _LanguageSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.homeLanguage,
-          style: context.appTypography.titleLarge,
-        ),
+        Text(l10n.homeLanguage, style: context.appTypography.titleLarge),
         Gap(spacing.md),
         // 언어 선택 드롭다운
         DropdownButton<Locale>(
@@ -210,10 +198,7 @@ class _LanguageSection extends ConsumerWidget {
         ),
         Gap(spacing.lg),
         // 날짜 포맷 라이브 예제
-        Text(
-          l10n.showcaseDateFormat,
-          style: context.appTypography.titleSmall,
-        ),
+        Text(l10n.showcaseDateFormat, style: context.appTypography.titleSmall),
         Gap(spacing.sm),
         Text(
           'yMd: ${now.formatYMD(currentLocale.languageCode)}',
@@ -325,10 +310,7 @@ class _ColorPaletteSection extends StatelessWidget {
             color: colorScheme.onPrimaryContainer,
             label: 'onPrimaryContainer',
           ),
-          _ColorSwatch(
-            color: colorScheme.primaryFixed,
-            label: 'primaryFixed',
-          ),
+          _ColorSwatch(color: colorScheme.primaryFixed, label: 'primaryFixed'),
           _ColorSwatch(
             color: colorScheme.primaryFixedDim,
             label: 'primaryFixedDim',
@@ -345,10 +327,7 @@ class _ColorPaletteSection extends StatelessWidget {
         Gap(spacing.md),
         _colorGroup(context, 'Secondary', [
           _ColorSwatch(color: colorScheme.secondary, label: 'secondary'),
-          _ColorSwatch(
-            color: colorScheme.onSecondary,
-            label: 'onSecondary',
-          ),
+          _ColorSwatch(color: colorScheme.onSecondary, label: 'onSecondary'),
           _ColorSwatch(
             color: colorScheme.secondaryContainer,
             label: 'secondaryContainer',
@@ -377,10 +356,7 @@ class _ColorPaletteSection extends StatelessWidget {
         Gap(spacing.md),
         _colorGroup(context, 'Tertiary', [
           _ColorSwatch(color: colorScheme.tertiary, label: 'tertiary'),
-          _ColorSwatch(
-            color: colorScheme.onTertiary,
-            label: 'onTertiary',
-          ),
+          _ColorSwatch(color: colorScheme.onTertiary, label: 'onTertiary'),
           _ColorSwatch(
             color: colorScheme.tertiaryContainer,
             label: 'tertiaryContainer',
@@ -464,10 +440,7 @@ class _ColorPaletteSection extends StatelessWidget {
             color: colorScheme.onSurfaceVariant,
             label: 'onSurfaceVariant',
           ),
-          _ColorSwatch(
-            color: colorScheme.surfaceTint,
-            label: 'surfaceTint',
-          ),
+          _ColorSwatch(color: colorScheme.surfaceTint, label: 'surfaceTint'),
         ]),
         Gap(spacing.md),
         _colorGroup(context, 'Outline & Utility', [
@@ -537,12 +510,7 @@ class _ColorSwatch extends StatelessWidget {
             ),
           ),
           Gap(spacing.md),
-          Expanded(
-            child: Text(
-              label,
-              style: context.appTypography.bodyMedium,
-            ),
-          ),
+          Expanded(child: Text(label, style: context.appTypography.bodyMedium)),
         ],
       ),
     );
@@ -561,10 +529,7 @@ class _TypographySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          context.l10n.homeTypography,
-          style: typography.titleLarge,
-        ),
+        Text(context.l10n.homeTypography, style: typography.titleLarge),
         Gap(spacing.md),
         _TypographySample(
           label: 'displayLarge',
@@ -596,50 +561,23 @@ class _TypographySection extends StatelessWidget {
           style: typography.headlineSmall,
         ),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'titleLarge',
-          style: typography.titleLarge,
-        ),
+        _TypographySample(label: 'titleLarge', style: typography.titleLarge),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'titleMedium',
-          style: typography.titleMedium,
-        ),
+        _TypographySample(label: 'titleMedium', style: typography.titleMedium),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'titleSmall',
-          style: typography.titleSmall,
-        ),
+        _TypographySample(label: 'titleSmall', style: typography.titleSmall),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'bodyLarge',
-          style: typography.bodyLarge,
-        ),
+        _TypographySample(label: 'bodyLarge', style: typography.bodyLarge),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'bodyMedium',
-          style: typography.bodyMedium,
-        ),
+        _TypographySample(label: 'bodyMedium', style: typography.bodyMedium),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'bodySmall',
-          style: typography.bodySmall,
-        ),
+        _TypographySample(label: 'bodySmall', style: typography.bodySmall),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'labelLarge',
-          style: typography.labelLarge,
-        ),
+        _TypographySample(label: 'labelLarge', style: typography.labelLarge),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'labelMedium',
-          style: typography.labelMedium,
-        ),
+        _TypographySample(label: 'labelMedium', style: typography.labelMedium),
         Gap(spacing.sm),
-        _TypographySample(
-          label: 'labelSmall',
-          style: typography.labelSmall,
-        ),
+        _TypographySample(label: 'labelSmall', style: typography.labelSmall),
       ],
     );
   }
@@ -647,10 +585,7 @@ class _TypographySection extends StatelessWidget {
 
 /// 타이포그래피 스타일명을 해당 스타일로 직접 표시하는 위젯.
 class _TypographySample extends StatelessWidget {
-  const _TypographySample({
-    required this.label,
-    required this.style,
-  });
+  const _TypographySample({required this.label, required this.style});
 
   final String label;
   final TextStyle style;
@@ -672,10 +607,7 @@ class _SpacingSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          context.l10n.homeSpacing,
-          style: context.appTypography.titleLarge,
-        ),
+        Text(context.l10n.homeSpacing, style: context.appTypography.titleLarge),
         Gap(spacing.md),
         _SpacingBar(label: 'xs', width: spacing.xs, value: 4),
         Gap(spacing.sm),
@@ -689,11 +621,7 @@ class _SpacingSection extends StatelessWidget {
         Gap(spacing.sm),
         _SpacingBar(label: 'xxl', width: spacing.xxl, value: 32),
         Gap(spacing.sm),
-        _SpacingBar(
-          label: 'xxxl',
-          width: spacing.xxxl,
-          value: 48,
-        ),
+        _SpacingBar(label: 'xxxl', width: spacing.xxxl, value: 48),
       ],
     );
   }
@@ -726,10 +654,7 @@ class _SpacingBar extends StatelessWidget {
           ),
         ),
         Gap(spacing.sm),
-        Text(
-          '$label (${value}px)',
-          style: context.appTypography.labelMedium,
-        ),
+        Text('$label (${value}px)', style: context.appTypography.labelMedium),
       ],
     );
   }
@@ -763,13 +688,13 @@ class _AccountSection extends ConsumerWidget {
         Gap(spacing.md),
         _EnvironmentCard(
           icon: Icons.person,
-          label: 'Display Name',
+          label: l10n.authAccountDisplayName,
           value: user.displayName ?? '-',
         ),
         Gap(spacing.md),
         _EnvironmentCard(
           icon: Icons.email,
-          label: 'Email',
+          label: l10n.authAccountEmail,
           value: user.email,
         ),
         Gap(spacing.md),
@@ -796,19 +721,19 @@ class _AccountSection extends ConsumerWidget {
           Gap(spacing.md),
           _EnvironmentCard(
             icon: Icons.image,
-            label: 'Photo URL',
+            label: l10n.authAccountPhotoUrl,
             value: user.photoUrl!,
           ),
         ],
         Gap(spacing.md),
         // Providers: 옵션 B (D-35 Phase 6 축소). User 모델에 providerIds
-        // 필드를 도입하지 않고 Phase 6 범위에서 'Email/Password' 고정 라벨로
-        // 표시한다. 추후 소셜 로그인 phase 에서 User 모델 확장과 함께 실제
-        // providerData 매핑으로 교체 예정.
+        // 필드를 도입하지 않고 Phase 6 범위에서 authAccountProviderEmailPassword
+        // 고정 라벨로 표시한다. 추후 소셜 로그인 phase 에서 User 모델 확장과
+        // 함께 실제 providerData 매핑으로 교체 예정.
         _EnvironmentCard(
           icon: Icons.security,
           label: l10n.authAccountProviders,
-          value: 'Email/Password',
+          value: l10n.authAccountProviderEmailPassword,
         ),
         if (kDebugMode) ...[
           Gap(spacing.md),
@@ -855,8 +780,6 @@ class _AccountSection extends ConsumerWidget {
   ///
   /// `getIdToken()` 이 null 을 반환하면 (currentUser 가 null 이거나
   /// 토큰 조회 실패) 디버그 SnackBar + debugPrint 로 사유를 안내한다.
-  /// 본 메서드는 `kDebugMode` 분기 안에서만 호출되므로 SnackBar 텍스트는
-  /// 별도 ARB 키 없이 하드코딩한다.
   Future<void> _copyIdToken(
     BuildContext context,
     WidgetRef ref,
@@ -870,8 +793,8 @@ class _AccountSection extends ConsumerWidget {
         debugPrint('_copyIdToken: getIdToken() returned null');
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ID token unavailable (debug)'),
+        SnackBar(
+          content: Text(l10n.debugAuthTokenUnavailable),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -891,10 +814,7 @@ class _AccountSection extends ConsumerWidget {
   ///
   /// 이후 화면 이동은 authStateChanges → AuthChangeNotifier → authRedirect
   /// 가 /login 으로 처리한다 (D-05).
-  Future<void> _confirmSignOut(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
+  Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -945,11 +865,7 @@ class _EnvironmentCard extends StatelessWidget {
         padding: EdgeInsets.all(spacing.lg),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 32,
-              color: context.colorScheme.primary,
-            ),
+            Icon(icon, size: 32, color: context.colorScheme.primary),
             Gap(spacing.lg),
             Expanded(
               child: Column(
