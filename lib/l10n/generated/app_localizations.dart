@@ -326,6 +326,24 @@ abstract class AppLocalizations {
   /// **'Name must be 32 characters or fewer.'**
   String get errorDisplayNameTooLong;
 
+  /// Title shown in AppBar and body of the 404 error screen when a deep link hits an unknown route
+  ///
+  /// In en, this message translates to:
+  /// **'Page not found'**
+  String get errorNotFoundTitle;
+
+  /// Body text of the 404 error screen explaining the cause
+  ///
+  /// In en, this message translates to:
+  /// **'The page you requested does not exist.'**
+  String get errorNotFoundBody;
+
+  /// Label for the recovery button on the 404 error screen that navigates back to home
+  ///
+  /// In en, this message translates to:
+  /// **'Go home'**
+  String get errorNotFoundGoHomeCta;
+
   /// Login screen AppBar title
   ///
   /// In en, this message translates to:
@@ -505,6 +523,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hide password'**
   String get authHidePassword;
+
+  /// Title text on the Phase 10 splash placeholder screen
+  ///
+  /// In en, this message translates to:
+  /// **'Splash'**
+  String get splashPlaceholderTitle;
+
+  /// Stub marker text on the splash placeholder screen indicating it is a throwaway UI that will be replaced in Phase 10
+  ///
+  /// In en, this message translates to:
+  /// **'Phase 10 placeholder'**
+  String get splashPlaceholderStub;
 
   /// Plural example showing item count
   ///

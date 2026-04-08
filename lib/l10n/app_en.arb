@@ -191,6 +191,21 @@
     "description": "Form validation error when display name exceeds the maximum length"
   },
 
+  "errorNotFoundTitle": "Page not found",
+  "@errorNotFoundTitle": {
+    "description": "Title shown in AppBar and body of the 404 error screen when a deep link hits an unknown route"
+  },
+
+  "errorNotFoundBody": "The page you requested does not exist.",
+  "@errorNotFoundBody": {
+    "description": "Body text of the 404 error screen explaining the cause"
+  },
+
+  "errorNotFoundGoHomeCta": "Go home",
+  "@errorNotFoundGoHomeCta": {
+    "description": "Label for the recovery button on the 404 error screen that navigates back to home"
+  },
+
   "authLoginTitle": "Sign in",
   "@authLoginTitle": {
     "description": "Login screen AppBar title"
@@ -339,6 +354,16 @@
   "authHidePassword": "Hide password",
   "@authHidePassword": {
     "description": "Semantics label for the hide-password toggle on password input"
+  },
+
+  "splashPlaceholderTitle": "Splash",
+  "@splashPlaceholderTitle": {
+    "description": "Title text on the Phase 10 splash placeholder screen"
+  },
+
+  "splashPlaceholderStub": "Phase 10 placeholder",
+  "@splashPlaceholderStub": {
+    "description": "Stub marker text on the splash placeholder screen indicating it is a throwaway UI that will be replaced in Phase 10"
   },
 
   "showcaseItemCount": "{count, plural, =0{No items} =1{1 item} other{{count} items}}",

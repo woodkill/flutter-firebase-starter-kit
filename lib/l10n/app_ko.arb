@@ -44,6 +44,10 @@
   "errorDisplayNameRequired": "이름을 입력해 주세요.",
   "errorDisplayNameTooLong": "이름은 32자 이하로 입력해 주세요.",
 
+  "errorNotFoundTitle": "페이지를 찾을 수 없습니다",
+  "errorNotFoundBody": "요청하신 페이지가 존재하지 않습니다.",
+  "errorNotFoundGoHomeCta": "홈으로",
+
   "authLoginTitle": "로그인",
   "authSignupTitle": "계정 만들기",
   "authForgotTitle": "비밀번호 재설정",
@@ -79,6 +83,9 @@
 
   "authShowPassword": "비밀번호 표시",
   "authHidePassword": "비밀번호 숨기기",
+
+  "splashPlaceholderTitle": "스플래시",
+  "splashPlaceholderStub": "Phase 10 플레이스홀더",
 
   "showcaseItemCount": "{count, plural, =0{항목 없음} =1{1개 항목} other{{count}개 항목}}",
   "showcaseDateFormat": "날짜 형식",

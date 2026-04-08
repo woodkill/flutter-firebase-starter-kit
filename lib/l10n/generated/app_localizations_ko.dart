@@ -123,6 +123,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get errorDisplayNameTooLong => '이름은 32자 이하로 입력해 주세요.';
 
   @override
+  String get errorNotFoundTitle => '페이지를 찾을 수 없습니다';
+
+  @override
+  String get errorNotFoundBody => '요청하신 페이지가 존재하지 않습니다.';
+
+  @override
+  String get errorNotFoundGoHomeCta => '홈으로';
+
+  @override
   String get authLoginTitle => '로그인';
 
   @override
@@ -211,6 +220,12 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get authHidePassword => '비밀번호 숨기기';
+
+  @override
+  String get splashPlaceholderTitle => '스플래시';
+
+  @override
+  String get splashPlaceholderStub => 'Phase 10 플레이스홀더';
 
   @override
   String showcaseItemCount(int count) {

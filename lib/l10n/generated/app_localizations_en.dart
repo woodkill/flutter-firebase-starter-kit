@@ -126,6 +126,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorDisplayNameTooLong => 'Name must be 32 characters or fewer.';
 
   @override
+  String get errorNotFoundTitle => 'Page not found';
+
+  @override
+  String get errorNotFoundBody => 'The page you requested does not exist.';
+
+  @override
+  String get errorNotFoundGoHomeCta => 'Go home';
+
+  @override
   String get authLoginTitle => 'Sign in';
 
   @override
@@ -216,6 +225,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authHidePassword => 'Hide password';
+
+  @override
+  String get splashPlaceholderTitle => 'Splash';
+
+  @override
+  String get splashPlaceholderStub => 'Phase 10 placeholder';
 
   @override
   String showcaseItemCount(int count) {
