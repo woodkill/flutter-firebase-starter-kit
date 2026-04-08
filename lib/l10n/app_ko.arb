@@ -62,12 +62,17 @@
   "authForgotSent": "재설정 메일이 발송되었습니다. 받은편지함을 확인해 주세요.",
 
   "authAccountSectionTitle": "계정",
+  "authAccountDisplayName": "표시 이름",
+  "authAccountEmail": "이메일",
+  "authAccountPhotoUrl": "프로필 사진 URL",
   "authAccountUid": "사용자 ID",
   "authAccountCreatedAt": "가입일",
   "authAccountProviders": "로그인 수단",
+  "authAccountProviderEmailPassword": "이메일 / 비밀번호",
   "authAccountCopyToken": "ID 토큰 복사",
   "authAccountCopied": "클립보드에 복사되었습니다.",
   "authAccountSignOut": "로그아웃",
+  "debugAuthTokenUnavailable": "ID 토큰을 사용할 수 없음 (debug)",
 
   "authLogoutConfirmTitle": "로그아웃",
   "authLogoutConfirmMessage": "로그아웃 하시겠습니까?",

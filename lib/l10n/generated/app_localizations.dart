@@ -416,6 +416,24 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get authAccountSectionTitle;
 
+  /// Label for the user's display name field in the account section
+  ///
+  /// In en, this message translates to:
+  /// **'Display Name'**
+  String get authAccountDisplayName;
+
+  /// Label for the user's email field in the account section
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get authAccountEmail;
+
+  /// Label for the user's profile photo URL field in the account section
+  ///
+  /// In en, this message translates to:
+  /// **'Photo URL'**
+  String get authAccountPhotoUrl;
+
   /// Label for the Firebase user UID field in the account section
   ///
   /// In en, this message translates to:
@@ -434,6 +452,12 @@ abstract class AppLocalizations {
   /// **'Providers'**
   String get authAccountProviders;
 
+  /// Provider value displayed in the account section when the user signed in with email and password
+  ///
+  /// In en, this message translates to:
+  /// **'Email / Password'**
+  String get authAccountProviderEmailPassword;
+
   /// Account section button label to copy the Firebase ID token to clipboard
   ///
   /// In en, this message translates to:
@@ -451,6 +475,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign out'**
   String get authAccountSignOut;
+
+  /// Debug-only snackbar shown when Firebase getIdToken() returns null in the account section
+  ///
+  /// In en, this message translates to:
+  /// **'ID token unavailable (debug)'**
+  String get debugAuthTokenUnavailable;
 
   /// Sign-out confirmation dialog title
   ///

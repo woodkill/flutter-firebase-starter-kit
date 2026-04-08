@@ -266,6 +266,21 @@
     "description": "Account section title on the home screen for signed-in users"
   },
 
+  "authAccountDisplayName": "Display Name",
+  "@authAccountDisplayName": {
+    "description": "Label for the user's display name field in the account section"
+  },
+
+  "authAccountEmail": "Email",
+  "@authAccountEmail": {
+    "description": "Label for the user's email field in the account section"
+  },
+
+  "authAccountPhotoUrl": "Photo URL",
+  "@authAccountPhotoUrl": {
+    "description": "Label for the user's profile photo URL field in the account section"
+  },
+
   "authAccountUid": "User ID",
   "@authAccountUid": {
     "description": "Label for the Firebase user UID field in the account section"
@@ -281,6 +296,11 @@
     "description": "Label for the linked auth providers list in the account section"
   },
 
+  "authAccountProviderEmailPassword": "Email / Password",
+  "@authAccountProviderEmailPassword": {
+    "description": "Provider value displayed in the account section when the user signed in with email and password"
+  },
+
   "authAccountCopyToken": "Copy ID token",
   "@authAccountCopyToken": {
     "description": "Account section button label to copy the Firebase ID token to clipboard"
@@ -294,6 +314,11 @@
   "authAccountSignOut": "Sign out",
   "@authAccountSignOut": {
     "description": "Account section sign-out button label"
+  },
+
+  "debugAuthTokenUnavailable": "ID token unavailable (debug)",
+  "@debugAuthTokenUnavailable": {
+    "description": "Debug-only snackbar shown when Firebase getIdToken() returns null in the account section"
   },
 
   "authLogoutConfirmTitle": "Sign out",

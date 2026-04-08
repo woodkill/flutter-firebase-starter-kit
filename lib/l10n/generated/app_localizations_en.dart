@@ -173,6 +173,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountSectionTitle => 'Account';
 
   @override
+  String get authAccountDisplayName => 'Display Name';
+
+  @override
+  String get authAccountEmail => 'Email';
+
+  @override
+  String get authAccountPhotoUrl => 'Photo URL';
+
+  @override
   String get authAccountUid => 'User ID';
 
   @override
@@ -182,6 +191,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountProviders => 'Providers';
 
   @override
+  String get authAccountProviderEmailPassword => 'Email / Password';
+
+  @override
   String get authAccountCopyToken => 'Copy ID token';
 
   @override
@@ -189,6 +201,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authAccountSignOut => 'Sign out';
+
+  @override
+  String get debugAuthTokenUnavailable => 'ID token unavailable (debug)';
 
   @override
   String get authLogoutConfirmTitle => 'Sign out';

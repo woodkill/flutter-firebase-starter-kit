@@ -168,6 +168,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountSectionTitle => '계정';
 
   @override
+  String get authAccountDisplayName => '표시 이름';
+
+  @override
+  String get authAccountEmail => '이메일';
+
+  @override
+  String get authAccountPhotoUrl => '프로필 사진 URL';
+
+  @override
   String get authAccountUid => '사용자 ID';
 
   @override
@@ -177,6 +186,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountProviders => '로그인 수단';
 
   @override
+  String get authAccountProviderEmailPassword => '이메일 / 비밀번호';
+
+  @override
   String get authAccountCopyToken => 'ID 토큰 복사';
 
   @override
@@ -184,6 +196,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get authAccountSignOut => '로그아웃';
+
+  @override
+  String get debugAuthTokenUnavailable => 'ID 토큰을 사용할 수 없음 (debug)';
 
   @override
   String get authLogoutConfirmTitle => '로그아웃';
