@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -8,6 +9,8 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
 import '../../features/home/presentation/environment_info_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
+import '../l10n/l10n_extensions.dart';
+import '../theme/theme_extensions.dart';
 import 'app_routes.dart';
 import 'auth_guard.dart';
 
@@ -37,10 +40,7 @@ GoRouter appRouter(Ref ref) {
     // 현재는 EnvironmentInfoScreen 폴백 대신 임시 Scaffold 로 명시적
     // 404 안내를 표시하여, 잘못된 deep link 에서도 home 으로 silent
     // redirect 되지 않도록 한다 (IN-05).
-    errorBuilder: (context, state) => Scaffold(
-      appBar: AppBar(title: const Text('Page not found')),
-      body: const Center(child: Text('Page not found')),
-    ),
+    errorBuilder: (context, state) => buildNotFoundScreen(context),
     routes: [
       GoRoute(
         path: AppRoutes.home,
@@ -68,5 +68,56 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
     ],
+  );
+}
+
+/// 404 errorBuilder 본문 — 잘못된 deep link 진입 시 표시되는 recovery UI.
+///
+/// [GoRouter.errorBuilder] 에서 호출된다.
+/// [visibleForTesting] 으로 노출하여 GoRouter 전체 스택 없이
+/// widget test 에서 직접 pump 할 수 있게 한다.
+@visibleForTesting
+Widget buildNotFoundScreen(BuildContext context) {
+  final l10n = context.l10n;
+  final spacing = context.appSpacing;
+  final colorScheme = context.colorScheme;
+  final textTheme = context.textTheme;
+  return Scaffold(
+    appBar: AppBar(title: Text(l10n.errorNotFoundTitle)),
+    body: Center(
+      child: Padding(
+        padding: EdgeInsets.all(spacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            Gap(spacing.lg),
+            Text(
+              l10n.errorNotFoundTitle,
+              style: textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            Gap(spacing.sm),
+            Text(
+              l10n.errorNotFoundBody,
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            Gap(spacing.xl),
+            FilledButton.icon(
+              onPressed: () => context.go(AppRoutes.home),
+              icon: const Icon(Icons.home),
+              label: Text(l10n.errorNotFoundGoHomeCta),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
 }
