@@ -87,6 +87,21 @@ class AuthRepository {
         }
       }
       final refreshed = _auth.currentUser ?? fbUser;
+
+      // 이메일 인증 메일 자동 발송 (D-01).
+      // 발송 실패 시 가입은 성공 유지한다 (D-11, Phase 6 D-10 패턴).
+      try {
+        await refreshed.sendEmailVerification();
+      } on fb.FirebaseAuthException catch (e) {
+        if (kDebugMode) {
+          debugPrint('sendEmailVerification 실패: ${e.code}');
+        }
+      } on Object catch (e, st) {
+        if (kDebugMode) {
+          debugPrint('sendEmailVerification 비-Auth 예외: $e\n$st');
+        }
+      }
+
       return Result.success(_mapFirebaseUser(refreshed));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
@@ -107,6 +122,33 @@ class AuthRepository {
   Future<Result<void>> sendPasswordReset({required String email}) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
+      return const Result.success(null);
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    }
+  }
+
+  /// 현재 사용자에게 이메일 인증 메일을 발송한다.
+  ///
+  /// Firebase Auth의 [fb.User.sendEmailVerification]에 위임한다.
+  /// 실패 시 [_mapAuthException]으로 변환된 [AppException]을
+  /// [Failure]에 담는다.
+  Future<Result<void>> sendEmailVerification() async {
+    try {
+      await _auth.currentUser!.sendEmailVerification();
+      return const Result.success(null);
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    }
+  }
+
+  /// 현재 사용자 정보를 Firebase에서 리로드한다.
+  ///
+  /// [fb.User.reload]를 호출하여 서버에서 최신 사용자 정보를
+  /// 가져온다. 이메일 인증 완료 여부 확인 시 사용한다.
+  Future<Result<void>> reloadUser() async {
+    try {
+      await _auth.currentUser?.reload();
       return const Result.success(null);
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));

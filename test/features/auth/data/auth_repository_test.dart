@@ -183,6 +183,9 @@ void main() {
       when(() => mockUser.updateDisplayName(any())).thenAnswer((_) async {});
       when(() => mockUser.reload()).thenAnswer((_) async {});
       when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(
+        () => mockUser.sendEmailVerification(),
+      ).thenAnswer((_) async {});
 
       final result = await repository.signUpWithEmail(
         email: 'new@example.com',
@@ -208,6 +211,9 @@ void main() {
           () => mockUser.updateDisplayName(any()),
         ).thenThrow(fb.FirebaseAuthException(code: 'unknown'));
         when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(
+          () => mockUser.sendEmailVerification(),
+        ).thenAnswer((_) async {});
 
         final result = await repository.signUpWithEmail(
           email: 'a@b.com',
