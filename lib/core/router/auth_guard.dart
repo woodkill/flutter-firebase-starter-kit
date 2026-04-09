@@ -38,6 +38,15 @@ class AuthChangeNotifier extends ChangeNotifier {
   /// (flutter.md "late 사용 최소화" 규칙)
   StreamSubscription<fb.User?>? _subscription;
 
+  /// GoRouter redirect 재평가를 강제 트리거한다.
+  ///
+  /// Firebase SDK의 authStateChanges() 스트림이 reload() 후
+  /// emailVerified 변경을 emit하지 않는 제한(FlutterFire Issue #8777)을
+  /// 우회하기 위해, 외부에서 명시적으로 redirect 재평가를 요청할 때 사용한다.
+  void triggerRedirect() {
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _subscription?.cancel();
