@@ -220,6 +220,12 @@ abstract class AppLocalizations {
   /// **'Not Connected'**
   String get homeFirebaseNotConnected;
 
+  /// Snackbar message confirming the app language was changed successfully. Displayed in the newly selected language.
+  ///
+  /// In en, this message translates to:
+  /// **'Language changed'**
+  String get languageChanged;
+
   /// Error message when network connection times out
   ///
   /// In en, this message translates to:

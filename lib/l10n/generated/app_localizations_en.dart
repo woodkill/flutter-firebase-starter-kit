@@ -69,6 +69,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeFirebaseNotConnected => 'Not Connected';
 
   @override
+  String get languageChanged => 'Language changed';
+
+  @override
   String get errorNetworkTimeout => 'Connection timed out. Please try again.';
 
   @override

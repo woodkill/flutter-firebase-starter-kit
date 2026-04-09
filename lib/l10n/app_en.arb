@@ -101,6 +101,11 @@
     "description": "Firebase connection status when not connected"
   },
 
+  "languageChanged": "Language changed",
+  "@languageChanged": {
+    "description": "Snackbar message confirming the app language was changed successfully. Displayed in the newly selected language."
+  },
+
   "errorNetworkTimeout": "Connection timed out. Please try again.",
   "@errorNetworkTimeout": {
     "description": "Error message when network connection times out"

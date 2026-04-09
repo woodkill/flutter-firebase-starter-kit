@@ -69,6 +69,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeFirebaseNotConnected => '未接続';
 
   @override
+  String get languageChanged => '言語を変更しました';
+
+  @override
   String get errorNetworkTimeout => '接続がタイムアウトしました。もう一度お試しください。';
 
   @override

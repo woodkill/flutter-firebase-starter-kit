@@ -22,6 +22,7 @@
   "homeBuildEnvironment": "ビルド環境",
   "homeFirebaseConnected": "接続済み",
   "homeFirebaseNotConnected": "未接続",
+  "languageChanged": "言語を変更しました",
 
   "errorNetworkTimeout": "接続がタイムアウトしました。もう一度お試しください。",
   "errorNoInternet": "インターネット接続がありません。",

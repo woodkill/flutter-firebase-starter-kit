@@ -69,6 +69,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeFirebaseNotConnected => '연결 안 됨';
 
   @override
+  String get languageChanged => '언어가 변경되었습니다';
+
+  @override
   String get errorNetworkTimeout => '연결 시간이 초과되었습니다. 다시 시도해 주세요.';
 
   @override
