@@ -256,6 +256,114 @@ void main() {
     });
   });
 
+  group('sendEmailVerification', () {
+    test('성공 시 Result.success(null)을 반환한다', () async {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(
+        () => mockUser.sendEmailVerification(),
+      ).thenAnswer((_) async {});
+
+      final result = await repository.sendEmailVerification();
+
+      expect(result, isA<Success<dynamic>>());
+    });
+
+    test('실패 시 _mapAuthException으로 변환된 Result.failure를 반환한다',
+        () async {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(
+        () => mockUser.sendEmailVerification(),
+      ).thenThrow(fb.FirebaseAuthException(code: 'too-many-requests'));
+
+      final result = await repository.sendEmailVerification();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result as Failure).exception, isA<TooManyRequests>());
+    });
+  });
+
+  group('reloadUser', () {
+    test('성공 시 Result.success(null)을 반환한다', () async {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(() => mockUser.reload()).thenAnswer((_) async {});
+
+      final result = await repository.reloadUser();
+
+      expect(result, isA<Success<dynamic>>());
+    });
+
+    test('실패 시 _mapAuthException으로 변환된 Result.failure를 반환한다',
+        () async {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(
+        () => mockUser.reload(),
+      ).thenThrow(
+        fb.FirebaseAuthException(code: 'network-request-failed'),
+      );
+
+      final result = await repository.reloadUser();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect(
+        (result as Failure).exception,
+        isA<NoInternetConnection>(),
+      );
+    });
+  });
+
+  group('signUpWithEmail sendEmailVerification 체이닝', () {
+    test('가입 성공 후 sendEmailVerification이 호출된다', () async {
+      when(
+        () => mockAuth.createUserWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockUser.updateDisplayName(any())).thenAnswer((_) async {});
+      when(() => mockUser.reload()).thenAnswer((_) async {});
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(
+        () => mockUser.sendEmailVerification(),
+      ).thenAnswer((_) async {});
+
+      await repository.signUpWithEmail(
+        email: 'new@example.com',
+        password: 'password123',
+        displayName: 'Newbie',
+      );
+
+      verify(() => mockUser.sendEmailVerification()).called(1);
+    });
+
+    test(
+      'sendEmailVerification 실패해도 가입은 성공 유지된다 (D-01, D-11)',
+      () async {
+        when(
+          () => mockAuth.createUserWithEmailAndPassword(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenAnswer((_) async => mockCredential);
+        when(
+          () => mockUser.updateDisplayName(any()),
+        ).thenAnswer((_) async {});
+        when(() => mockUser.reload()).thenAnswer((_) async {});
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(
+          () => mockUser.sendEmailVerification(),
+        ).thenThrow(fb.FirebaseAuthException(code: 'too-many-requests'));
+
+        final result = await repository.signUpWithEmail(
+          email: 'new@example.com',
+          password: 'password123',
+          displayName: 'Newbie',
+        );
+
+        expect(result, isA<Success<dynamic>>());
+      },
+    );
+  });
+
   group('FirebaseAuthException 매핑 (10종 코드 → AppException)', () {
     Future<AppException> mapViaSignIn(String code) async {
       when(
