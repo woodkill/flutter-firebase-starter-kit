@@ -69,6 +69,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeFirebaseNotConnected => '연결 안 됨';
 
   @override
+  String get homeFirebaseStatusConnected => 'Firebase 연결됨';
+
+  @override
+  String get homeFirebaseStatusNotConnected => 'Firebase 연결되지 않음';
+
+  @override
   String get languageChanged => '언어가 변경되었습니다';
 
   @override

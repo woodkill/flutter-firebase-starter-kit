@@ -69,6 +69,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeFirebaseNotConnected => 'Not Connected';
 
   @override
+  String get homeFirebaseStatusConnected => 'Firebase Connected';
+
+  @override
+  String get homeFirebaseStatusNotConnected => 'Firebase Not Connected';
+
+  @override
   String get languageChanged => 'Language changed';
 
   @override

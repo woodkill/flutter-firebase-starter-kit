@@ -101,6 +101,16 @@
     "description": "Firebase connection status when not connected"
   },
 
+  "homeFirebaseStatusConnected": "Firebase Connected",
+  "@homeFirebaseStatusConnected": {
+    "description": "Semantics label for the Firebase environment card when Firebase is initialized. Includes the 'Firebase' word for screen reader context (distinct from homeFirebaseConnected which is the value-only string)."
+  },
+
+  "homeFirebaseStatusNotConnected": "Firebase Not Connected",
+  "@homeFirebaseStatusNotConnected": {
+    "description": "Semantics label for the Firebase environment card when Firebase is NOT initialized. Includes the 'Firebase' word for screen reader context (distinct from homeFirebaseNotConnected which is the value-only string)."
+  },
+
   "languageChanged": "Language changed",
   "@languageChanged": {
     "description": "Snackbar message confirming the app language was changed successfully. Displayed in the newly selected language."

@@ -220,6 +220,18 @@ abstract class AppLocalizations {
   /// **'Not Connected'**
   String get homeFirebaseNotConnected;
 
+  /// Semantics label for the Firebase environment card when Firebase is initialized. Includes the 'Firebase' word for screen reader context (distinct from homeFirebaseConnected which is the value-only string).
+  ///
+  /// In en, this message translates to:
+  /// **'Firebase Connected'**
+  String get homeFirebaseStatusConnected;
+
+  /// Semantics label for the Firebase environment card when Firebase is NOT initialized. Includes the 'Firebase' word for screen reader context (distinct from homeFirebaseNotConnected which is the value-only string).
+  ///
+  /// In en, this message translates to:
+  /// **'Firebase Not Connected'**
+  String get homeFirebaseStatusNotConnected;
+
   /// Snackbar message confirming the app language was changed successfully. Displayed in the newly selected language.
   ///
   /// In en, this message translates to:
