@@ -200,12 +200,18 @@ void _collectPubspecChanges(
   final file = File('$projectRoot/pubspec.yaml');
   if (!file.existsSync()) return;
 
+  // 실제로 치환 대상 문자열이 존재할 때만 변경을 등록한다.
+  // 이미 rename된 프로젝트에서 0건 케이스 진단 메시지가 정상적으로 노출되도록.
+  final content = file.readAsStringSync();
+  final oldValue = 'name: $currentPackageName';
+  if (!content.contains(oldValue)) return;
+
   changes.add(
     FileChange(
       filePath: file.path,
       type: ChangeType.replace,
       description: 'pubspec.yaml name 필드 변경',
-      oldValue: 'name: $currentPackageName',
+      oldValue: oldValue,
       newValue: 'name: $newName',
     ),
   );
@@ -219,6 +225,10 @@ void _collectGradleChanges(
 ) {
   final file = File('$projectRoot/android/app/build.gradle.kts');
   if (!file.existsSync()) return;
+
+  // 실제로 치환 대상 문자열이 존재할 때만 변경을 등록한다.
+  final content = file.readAsStringSync();
+  if (!content.contains(currentAndroidPackage)) return;
 
   changes.add(
     FileChange(
