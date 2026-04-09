@@ -390,5 +390,30 @@
   "showcaseCurrentLocale": "Current Locale",
   "@showcaseCurrentLocale": {
     "description": "Label showing the currently active locale"
+  },
+
+  "showcaseDateShort": "Short",
+  "@showcaseDateShort": {
+    "description": "Label for ICU yMd format in the date showcase section"
+  },
+
+  "showcaseDateLong": "Long",
+  "@showcaseDateLong": {
+    "description": "Label for ICU yMMMMd format in the date showcase section"
+  },
+
+  "showcaseDateTime": "Time",
+  "@showcaseDateTime": {
+    "description": "Label for ICU jm format in the date showcase section"
+  },
+
+  "showcaseNumberCompact": "Compact",
+  "@showcaseNumberCompact": {
+    "description": "Label for ICU compact format in the number showcase section"
+  },
+
+  "showcaseNumberDecimal": "Decimal",
+  "@showcaseNumberDecimal": {
+    "description": "Label for ICU decimal format in the number showcase section"
   }
 }

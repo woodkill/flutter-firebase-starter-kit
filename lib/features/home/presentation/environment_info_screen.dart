@@ -201,17 +201,20 @@ class _LanguageSection extends ConsumerWidget {
         Text(l10n.showcaseDateFormat, style: context.appTypography.titleSmall),
         Gap(spacing.sm),
         Text(
-          'yMd: ${now.formatYMD(currentLocale.languageCode)}',
+          '${l10n.showcaseDateShort}: '
+          '${now.formatYMD(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.xs),
         Text(
-          'yMMMMd: ${now.formatYMMMMd(currentLocale.languageCode)}',
+          '${l10n.showcaseDateLong}: '
+          '${now.formatYMMMMd(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.xs),
         Text(
-          'jm: ${now.formatJm(currentLocale.languageCode)}',
+          '${l10n.showcaseDateTime}: '
+          '${now.formatJm(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.lg),
@@ -222,12 +225,14 @@ class _LanguageSection extends ConsumerWidget {
         ),
         Gap(spacing.sm),
         Text(
-          'compact: ${1234567.formatCompact(currentLocale.languageCode)}',
+          '${l10n.showcaseNumberCompact}: '
+          '${1234567.formatCompact(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.xs),
         Text(
-          'decimal: ${1234567.formatDecimal(currentLocale.languageCode)}',
+          '${l10n.showcaseNumberDecimal}: '
+          '${1234567.formatDecimal(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.lg),

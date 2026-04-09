@@ -559,6 +559,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Current Locale'**
   String get showcaseCurrentLocale;
+
+  /// Label for ICU yMd format in the date showcase section
+  ///
+  /// In en, this message translates to:
+  /// **'Short'**
+  String get showcaseDateShort;
+
+  /// Label for ICU yMMMMd format in the date showcase section
+  ///
+  /// In en, this message translates to:
+  /// **'Long'**
+  String get showcaseDateLong;
+
+  /// Label for ICU jm format in the date showcase section
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get showcaseDateTime;
+
+  /// Label for ICU compact format in the number showcase section
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get showcaseNumberCompact;
+
+  /// Label for ICU decimal format in the number showcase section
+  ///
+  /// In en, this message translates to:
+  /// **'Decimal'**
+  String get showcaseNumberDecimal;
 }
 
 class _AppLocalizationsDelegate

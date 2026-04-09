@@ -252,4 +252,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get showcaseCurrentLocale => 'Current Locale';
+
+  @override
+  String get showcaseDateShort => 'Short';
+
+  @override
+  String get showcaseDateLong => 'Long';
+
+  @override
+  String get showcaseDateTime => 'Time';
+
+  @override
+  String get showcaseNumberCompact => 'Compact';
+
+  @override
+  String get showcaseNumberDecimal => 'Decimal';
 }

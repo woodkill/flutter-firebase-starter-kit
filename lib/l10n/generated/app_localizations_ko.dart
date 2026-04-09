@@ -247,4 +247,19 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get showcaseCurrentLocale => '현재 로케일';
+
+  @override
+  String get showcaseDateShort => '짧은 형식';
+
+  @override
+  String get showcaseDateLong => '긴 형식';
+
+  @override
+  String get showcaseDateTime => '시간';
+
+  @override
+  String get showcaseNumberCompact => '축약';
+
+  @override
+  String get showcaseNumberDecimal => '소수 구분';
 }
