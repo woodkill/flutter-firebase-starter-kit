@@ -272,6 +272,68 @@ void main() {
       },
     );
 
+    test(
+      'Test 6b: resendVerification에서 ServiceUnavailable 에러 시 '
+      'error에 ServiceUnavailable 설정 '
+      '(Firebase 이메일 인증 미설정)',
+      () async {
+        // Firebase Console에서 이메일 인증이 활성화되지 않은 경우
+        // operation-not-allowed → ServiceUnavailable로 매핑된다.
+        when(() => mockRepo.sendEmailVerification()).thenAnswer(
+          (_) async => const Result.failure(ServiceUnavailable()),
+        );
+
+        final container = makeContainer();
+        container.read(verifyEmailProvider);
+
+        await container
+            .read(verifyEmailProvider.notifier)
+            .resendVerification();
+
+        final state = container.read(verifyEmailProvider);
+        expect(state.requireValue.error, isA<ServiceUnavailable>());
+        // 실패 시 쿨다운 시작하지 않는다
+        expect(state.requireValue.cooldownRemaining, 0);
+      },
+    );
+
+    test(
+      'Test 6c: resendVerification 실패 후 재시도 성공 시 '
+      'error가 null로 초기화된다 (에러 복구 가능)',
+      () async {
+        // 1차: ServiceUnavailable 실패
+        when(() => mockRepo.sendEmailVerification()).thenAnswer(
+          (_) async => const Result.failure(ServiceUnavailable()),
+        );
+
+        final container = makeContainer();
+        container.read(verifyEmailProvider);
+
+        await container
+            .read(verifyEmailProvider.notifier)
+            .resendVerification();
+
+        expect(
+          container.read(verifyEmailProvider).requireValue.error,
+          isA<ServiceUnavailable>(),
+        );
+
+        // 2차: 재시도 성공
+        when(() => mockRepo.sendEmailVerification())
+            .thenAnswer((_) async => const Result.success(null));
+
+        await container
+            .read(verifyEmailProvider.notifier)
+            .resendVerification();
+
+        final state = container.read(verifyEmailProvider);
+        // error가 null로 초기화되었는지 확인
+        expect(state.requireValue.error, isNull);
+        // 성공했으므로 쿨다운 시작
+        expect(state.requireValue.cooldownRemaining, cooldownSeconds);
+      },
+    );
+
     test('Test 8: logout 호출 시 signOut + redirect 트리거', () async {
       when(() => mockRepo.signOut()).thenAnswer((_) async {});
 
