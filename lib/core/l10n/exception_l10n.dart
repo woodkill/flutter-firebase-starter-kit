@@ -28,6 +28,7 @@ String resolveExceptionMessage(
     'errorInvalidEmail' => l10n.errorInvalidEmail,
     'errorUserDisabled' => l10n.errorUserDisabled,
     'errorTooManyRequests' => l10n.errorTooManyRequests,
+    'errorUnknown' => l10n.errorUnknown,
     final other => other,
   };
 }
