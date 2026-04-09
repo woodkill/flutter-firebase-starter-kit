@@ -78,6 +78,9 @@ class EnvironmentInfoScreen extends ConsumerWidget {
               valueColor: isFirebaseInitialized
                   ? context.appColors.success
                   : context.appColors.warning,
+              semanticLabel: isFirebaseInitialized
+                  ? l10n.homeFirebaseStatusConnected
+                  : l10n.homeFirebaseStatusNotConnected,
             ),
             Gap(spacing.md),
             const _EnvironmentCard(
@@ -846,12 +849,17 @@ class _AccountSection extends ConsumerWidget {
 }
 
 /// 환경 정보를 아이콘, 라벨, 값으로 표시하는 카드.
+///
+/// 카드 전체를 [Semantics] 컨테이너로 묶어 스크린 리더에 단일 노드로
+/// 노출한다. [semanticLabel] 미지정 시 `"$label: $value"` 형태의
+/// fallback 라벨이 자동 적용된다 (예: `"Flavor: DEV"`).
 class _EnvironmentCard extends StatelessWidget {
   const _EnvironmentCard({
     required this.icon,
     required this.label,
     required this.value,
     this.valueColor,
+    this.semanticLabel,
   });
 
   final IconData icon;
@@ -859,42 +867,55 @@ class _EnvironmentCard extends StatelessWidget {
   final String value;
   final Color? valueColor;
 
+  /// Semantics 라벨. null이면 `"$label: $value"` fallback이 자동 적용된다.
+  ///
+  /// Firebase 카드처럼 상태에 따라 라벨이 달라지는 경우 호출부에서
+  /// l10n 기반 완성 문자열을 전달한다.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
     final spacing = context.appSpacing;
+    // semanticLabel 미지정 시 "$label: $value" fallback 자동 생성.
+    final resolvedSemanticLabel = semanticLabel ?? '$label: $value';
 
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(spacing.lg),
-        child: Row(
-          children: [
-            Icon(icon, size: 32, color: context.colorScheme.primary),
-            Gap(spacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: context.textTheme.bodySmall?.copyWith(
-                      color: context.colorScheme.onSurfaceVariant,
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      label: resolvedSemanticLabel,
+      child: Card(
+        child: Padding(
+          padding: EdgeInsets.all(spacing.lg),
+          child: Row(
+            children: [
+              Icon(icon, size: 32, color: context.colorScheme.primary),
+              Gap(spacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: context.textTheme.bodySmall?.copyWith(
+                        color: context.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                  Gap(spacing.xs),
-                  Text(
-                    value,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: true,
-                    style: context.textTheme.titleMedium?.copyWith(
-                      color: valueColor,
-                      fontWeight: FontWeight.w600,
+                    Gap(spacing.xs),
+                    Text(
+                      value,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: true,
+                      style: context.textTheme.titleMedium?.copyWith(
+                        color: valueColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
