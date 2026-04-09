@@ -41,7 +41,20 @@ class ThemeNotifier extends _$ThemeNotifier {
   /// lossy persistence: UI 는 즉시 [AsyncData] 로 갱신되며, 디스크 쓰기
   /// 실패 시에도 화면 테마는 유지되고 디버그 로그만 남긴다. Phase 8
   /// (Crashlytics 통합) 시점에 [FirebaseCrashlytics.recordError] 로 교체 예정.
+  ///
+  /// 진입 즉시 [future] 를 await 하여 [build] 완료를 보장한다 — 이는 첫
+  /// 프레임에서 사용자가 테마를 토글했을 때 뒤늦게 resolve 되는 [build]
+  /// 결과가 사용자 선택을 덮어쓰는 race 를 방지한다 (코드 리뷰 MD-01).
+  /// [build] 가 실패하여 state 가 [AsyncError] 인 경우에도 사용자 선택을
+  /// 적용해 복구 경로를 유지하기 위해 [Exception] 을 삼킨다.
   Future<void> setThemeMode(ThemeMode mode) async {
+    // build() 완료 대기 — 첫 프레임 race 회피 (코드 리뷰 MD-01).
+    // build() 가 AsyncError 상태여도 아래 optimistic update 로 복구한다.
+    try {
+      await future;
+    } on Exception {
+      // build() 실패 경로 — 아래 optimistic update 만으로 복구
+    }
     state = AsyncData(mode);
     try {
       final prefs = await SharedPreferences.getInstance();

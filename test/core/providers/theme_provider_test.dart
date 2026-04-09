@@ -113,5 +113,45 @@ void main() {
 
       expect(container.read(themeProvider).value, ThemeMode.system);
     });
+
+    test(
+      'build() 완료 전 setThemeMode 를 호출해도 build() 결과에 덮어써지지 않는다 (MD-01 race 회피)',
+      () async {
+        // SharedPreferences 에 light 를 미리 저장 — build() 가 resolve 되면
+        // light 로 복원된다. 수정 전 구현이라면 뒤늦게 resolve 된 build()
+        // 결과가 사용자 선택(dark) 을 덮어써 UI 가 light 로 롤백된다.
+        SharedPreferences.setMockInitialValues({
+          'theme_mode': ThemeMode.light.index,
+        });
+
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+
+        // build() 가 아직 resolve 되지 않은 상태(`.future` 를 await 하지
+        // 않음) 에서 즉시 setThemeMode(dark) 를 호출한다.
+        // notifier 를 read 하면 Provider 가 초기화되며 build() 가 시작되지만
+        // 아직 resolve 되지는 않는다.
+        final notifier = container.read(themeProvider.notifier);
+        await notifier.setThemeMode(ThemeMode.dark);
+
+        // 수정 전 구현에서는 setThemeMode 가 먼저 optimistic update 를
+        // 수행하고, 그 다음 `await SharedPreferences.getInstance()` 사이에
+        // 뒤늦게 resolve 된 build() 결과(light) 가 state 를 덮어쓴다.
+        // `.future` 를 추가로 await 하여 build() 가 확실히 resolve 되도록
+        // 강제한 시점에도 state 는 dark 여야 한다 — 이 시점에 light 로
+        // 덮어써져 있다면 race 가 발생한 것이다.
+        await container.read(themeProvider.future);
+
+        // build() 결과(light) 가 state 를 덮어쓰지 않고 dark 가 유지되어야
+        // 한다. setThemeMode 내부에서 `await future` 로 build() 완료를
+        // 먼저 대기하면 이후 optimistic update (state = AsyncData(dark)) 가
+        // build() 결과 이후에 적용되어 race 가 사라진다.
+        expect(container.read(themeProvider).value, ThemeMode.dark);
+
+        // 저장도 되어 있어야 한다 (persistence 회귀 방지).
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getInt('theme_mode'), ThemeMode.dark.index);
+      },
+    );
   });
 }
