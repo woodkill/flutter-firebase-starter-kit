@@ -59,33 +59,31 @@ class EnvironmentInfoScreen extends ConsumerWidget {
             Gap(spacing.md),
             _EnvironmentCard(
               icon: Icons.layers,
-              label: 'Flavor',
+              label: l10n.homeEnvFlavor,
               value: flavor.toUpperCase(),
             ),
             Gap(spacing.md),
-            const _EnvironmentCard(
+            _EnvironmentCard(
               icon: Icons.app_settings_alt,
-              label: 'App Name',
+              label: l10n.homeEnvAppName,
               value: appName,
             ),
             Gap(spacing.md),
             _EnvironmentCard(
               icon: isFirebaseInitialized ? Icons.cloud_done : Icons.cloud_off,
-              label: 'Firebase',
+              label: l10n.homeEnvFirebase,
               value: isFirebaseInitialized
                   ? l10n.homeFirebaseConnected
                   : l10n.homeFirebaseNotConnected,
-              valueColor: isFirebaseInitialized
-                  ? context.appColors.success
-                  : context.appColors.warning,
+              status: isFirebaseInitialized ? _EnvStatus.ok : _EnvStatus.warn,
               semanticLabel: isFirebaseInitialized
                   ? l10n.homeFirebaseStatusConnected
                   : l10n.homeFirebaseStatusNotConnected,
             ),
             Gap(spacing.md),
-            const _EnvironmentCard(
+            _EnvironmentCard(
               icon: Icons.folder,
-              label: 'Firebase Project ID',
+              label: l10n.homeEnvFirebaseProjectId,
               value: firebaseProjectId,
             ),
             Gap(spacing.md),
@@ -126,7 +124,13 @@ class _ThemeToggleSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentMode = ref.watch(themeProvider);
+    // ThemeNotifier 가 AsyncNotifier 로 전환됨에 따라 AsyncValue<ThemeMode>
+    // 를 반환한다. SharedPreferences 복원 전(loading) 또는 실패(error)
+    // 시에는 ThemeMode.system 으로 fallback 한다 — App 위젯과 동일 패턴.
+    final currentMode = ref.watch(themeProvider).maybeWhen(
+          data: (mode) => mode,
+          orElse: () => ThemeMode.system,
+        );
     final l10n = context.l10n;
 
     return Column(
@@ -848,24 +852,49 @@ class _AccountSection extends ConsumerWidget {
   }
 }
 
+/// 환경 카드 값(value) 의 시맨틱 상태.
+///
+/// chip 패턴으로 렌더될 때 배경/전경 색 토큰 페어링을 강제하여
+/// 호출자가 토큰 계약([AppColors.success]+[AppColors.onSuccess],
+/// [AppColors.warning]+[AppColors.onWarning]) 을 깨뜨릴 수 없도록 한다.
+/// WCAG AA 대비비를 자동으로 만족한다 (light/dark 양 모드).
+enum _EnvStatus {
+  /// 상태 배지 없음 (기본). 일반 텍스트 스타일로 값을 표시한다.
+  none,
+
+  /// 정상/연결됨 상태. [AppColors.success] 배경 + [AppColors.onSuccess]
+  /// 전경의 chip 컨테이너로 값을 감싼다.
+  ok,
+
+  /// 경고/미연결 상태. [AppColors.warning] 배경 + [AppColors.onWarning]
+  /// 전경의 chip 컨테이너로 값을 감싼다.
+  warn,
+}
+
 /// 환경 정보를 아이콘, 라벨, 값으로 표시하는 카드.
 ///
 /// 카드 전체를 [Semantics] 컨테이너로 묶어 스크린 리더에 단일 노드로
 /// 노출한다. [semanticLabel] 미지정 시 `"$label: $value"` 형태의
 /// fallback 라벨이 자동 적용된다 (예: `"Flavor: DEV"`).
+///
+/// [status] 가 [_EnvStatus.ok] 또는 [_EnvStatus.warn] 인 경우 값을
+/// chip 컨테이너로 감싸 토큰 계약 (배경/전경 페어링) 을 강제한다.
+/// 기본값([_EnvStatus.none]) 은 일반 텍스트 스타일로 값을 표시한다.
 class _EnvironmentCard extends StatelessWidget {
   const _EnvironmentCard({
     required this.icon,
     required this.label,
     required this.value,
-    this.valueColor,
+    this.status = _EnvStatus.none,
     this.semanticLabel,
   });
 
   final IconData icon;
   final String label;
   final String value;
-  final Color? valueColor;
+
+  /// 값(value) 의 시맨틱 상태. chip 패턴 렌더 여부를 결정한다.
+  final _EnvStatus status;
 
   /// Semantics 라벨. null이면 `"$label: $value"` fallback이 자동 적용된다.
   ///
@@ -876,8 +905,46 @@ class _EnvironmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spacing = context.appSpacing;
+    final colors = context.appColors;
+    final typography = context.appTypography;
     // semanticLabel 미지정 시 "$label: $value" fallback 자동 생성.
     final resolvedSemanticLabel = semanticLabel ?? '$label: $value';
+
+    final Widget valueWidget;
+    if (status == _EnvStatus.none) {
+      valueWidget = Text(
+        value,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        softWrap: true,
+        style: typography.titleMedium.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    } else {
+      final bg = status == _EnvStatus.ok ? colors.success : colors.warning;
+      final fg = status == _EnvStatus.ok ? colors.onSuccess : colors.onWarning;
+      valueWidget = Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: spacing.sm,
+          vertical: spacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(spacing.xs),
+        ),
+        child: Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          softWrap: true,
+          style: typography.labelLarge.copyWith(
+            color: fg,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
 
     return Semantics(
       container: true,
@@ -896,21 +963,12 @@ class _EnvironmentCard extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: context.textTheme.bodySmall?.copyWith(
+                      style: typography.bodySmall.copyWith(
                         color: context.colorScheme.onSurfaceVariant,
                       ),
                     ),
                     Gap(spacing.xs),
-                    Text(
-                      value,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: true,
-                      style: context.textTheme.titleMedium?.copyWith(
-                        color: valueColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    valueWidget,
                   ],
                 ),
               ),

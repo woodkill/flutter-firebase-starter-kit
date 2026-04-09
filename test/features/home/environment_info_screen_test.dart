@@ -287,5 +287,37 @@ void main() {
         handle.dispose();
       },
     );
+
+    testWidgets(
+      'Firebase 연결 카드는 _EnvStatus.ok chip Container 를 success 배경으로 렌더한다',
+      (tester) async {
+        await _pumpScreenWithFirebase(tester, initialized: true);
+
+        // Firebase Connected 카드 Card 위젯을 찾는다 (en 로케일).
+        // 'Connected' 텍스트(homeFirebaseConnected) 의 조상 Card 가 대상.
+        final firebaseCard = find.ancestor(
+          of: find.text('Connected'),
+          matching: find.byType(Card),
+        );
+        expect(firebaseCard, findsOneWidget);
+
+        // chip 컨테이너 (BoxDecoration 을 가진 Container) 를 찾는다.
+        // _EnvStatus.ok 분기에서 정확히 1개 생성된다.
+        final decoratedContainers = find
+            .descendant(
+              of: firebaseCard,
+              matching: find.byType(Container),
+            )
+            .evaluate()
+            .map((e) => e.widget as Container)
+            .where((c) => c.decoration is BoxDecoration)
+            .toList();
+        expect(decoratedContainers, hasLength(1));
+
+        final decoration = decoratedContainers.first.decoration! as BoxDecoration;
+        // Light 모드 success 색 = #FF2E7D32 (VERIFIED: app_colors.dart:29)
+        expect(decoration.color, const Color(0xFF2E7D32));
+      },
+    );
   });
 }

@@ -17,7 +17,13 @@ class App extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeProvider);
+    // ThemeNotifier 가 AsyncNotifier 로 전환됨에 따라 AsyncValue<ThemeMode>
+    // 를 반환한다. SharedPreferences 복원 전(loading) 또는 실패(error)
+    // 시에는 ThemeMode.system 으로 fallback 한다.
+    final themeMode = ref.watch(themeProvider).maybeWhen(
+          data: (mode) => mode,
+          orElse: () => ThemeMode.system,
+        );
     final locale = ref.watch(localeProvider);
     final router = ref.watch(appRouterProvider);
 
