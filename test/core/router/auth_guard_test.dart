@@ -248,5 +248,22 @@ void main() {
         expect(result, AppRoutes.verifyEmail);
       },
     );
+
+    test(
+      '미인증 + /verify-email 접근 시 /login으로 redirect',
+      () async {
+        // 로그아웃 후 /verify-email에 남아있는 경우를 대비한다.
+        // verifyEmail은 _unauthRoutes에 포함되지 않으므로
+        // 미인증 사용자는 /login으로 redirect되어야 한다.
+        final container = makeContainer(isInitialized: true);
+        addTearDown(container.dispose);
+
+        when(() => mockState.matchedLocation)
+            .thenReturn(AppRoutes.verifyEmail);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(result, AppRoutes.login);
+      },
+    );
   });
 }

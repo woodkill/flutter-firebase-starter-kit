@@ -76,11 +76,13 @@ AuthChangeNotifier authChangeNotifier(Ref ref) {
 /// /login 으로 강제 이동시키지 않는다. 신규 unauth 경로 추가 시
 /// 명시적으로 본 Set 에 포함해야 하며, 그 외 모든 경로는 default-deny
 /// 정책에 따라 차단된다 (T-06.03-01 대응).
+///
+/// [AppRoutes.verifyEmail]은 미포함: 인증된 사용자만 접근 가능하며,
+/// 로그아웃 후에는 /login으로 redirect되어야 한다.
 const Set<String> _unauthRoutes = <String>{
   AppRoutes.login,
   AppRoutes.signup,
   AppRoutes.forgotPassword,
-  AppRoutes.verifyEmail, // 인증됐지만 emailVerified==false인 사용자도 접근 가능
 };
 
 /// 인증 상태에 따른 redirect 로직.
@@ -139,7 +141,8 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
 
   if (isAuthenticated &&
       currentUser.emailVerified &&
-      isOnUnauthRoute) {
+      (isOnUnauthRoute ||
+          state.matchedLocation == AppRoutes.verifyEmail)) {
     return AppRoutes.home; // (4)
   }
 

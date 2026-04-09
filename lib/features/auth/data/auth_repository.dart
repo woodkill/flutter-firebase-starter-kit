@@ -134,8 +134,12 @@ class AuthRepository {
   /// 실패 시 [_mapAuthException]으로 변환된 [AppException]을
   /// [Failure]에 담는다.
   Future<Result<void>> sendEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Result.failure(ServiceUnavailable());
+    }
     try {
-      await _auth.currentUser!.sendEmailVerification();
+      await user.sendEmailVerification();
       return const Result.success(null);
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
