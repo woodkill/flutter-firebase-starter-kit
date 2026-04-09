@@ -444,6 +444,15 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       // F1: 한국어 문자열이 남아있지 않아야 한다
       expect(result.stdout, isNot(contains('변경 대상')));
       expect(result.stdout, isNot(contains('다음 단계')));
+      // F1 회귀 가드: CJK Hangul Syllables 블록 전체 차단
+      // (FileChange.description 필드까지 포함)
+      expect(
+        result.stdout,
+        isNot(matches(RegExp(r'[\uAC00-\uD7AF]'))),
+        reason:
+            'CLI stdout must contain no Korean characters '
+            '(F1 regression guard)',
+      );
     });
 
     test("--apply without --yes는 prompt를 띄우고 'n'에서 중단한다", () async {
@@ -458,6 +467,15 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(result.stdout, contains('Apply'));
       expect(result.stdout, contains('[y/N]'));
       expect(result.stdout, contains('Aborted by user.'));
+      // F1 회귀 가드: --apply 경로도 printDryRun을 먼저 호출하므로 stdout에
+      // FileChange.description이 흐른다. 한글 유니코드 블록 전체 차단.
+      expect(
+        result.stdout,
+        isNot(matches(RegExp(r'[\uAC00-\uD7AF]'))),
+        reason:
+            'CLI stdout must contain no Korean characters '
+            '(F1 regression guard)',
+      );
       // 파일 미변경 (F2 + F4)
       expect(
         File('${tempDir.path}/pubspec.yaml').readAsStringSync(),
@@ -477,6 +495,15 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(result.exitCode, 0);
       expect(result.stdout, isNot(contains('[y/N]')));
       expect(result.stdout, contains('Done!'));
+      // F1 회귀 가드: --apply --yes 경로도 printDryRun을 먼저 호출하므로
+      // stdout에 FileChange.description이 흐른다. 한글 유니코드 블록 전체 차단.
+      expect(
+        result.stdout,
+        isNot(matches(RegExp(r'[\uAC00-\uD7AF]'))),
+        reason:
+            'CLI stdout must contain no Korean characters '
+            '(F1 regression guard)',
+      );
       expect(
         File('${tempDir.path}/pubspec.yaml').readAsStringSync(),
         contains('name: my_app'),
