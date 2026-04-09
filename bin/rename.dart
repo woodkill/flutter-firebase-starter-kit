@@ -188,7 +188,9 @@ List<FileChange> collectChanges(
   // 7. config/*.json appName
   _collectConfigChanges(projectRoot, newAppName, changes);
 
-  return changes;
+  // 동일 값 → 동일 값 변경(no-op)은 제외한다. 사용자가 현재 값과 동일한
+  // --org/--name을 넘긴 경우 0건 진단 메시지가 정상적으로 노출되도록 한다.
+  return changes.where((c) => c.oldValue != c.newValue).toList();
 }
 
 /// pubspec.yaml의 name 필드 변경을 수집한다.
