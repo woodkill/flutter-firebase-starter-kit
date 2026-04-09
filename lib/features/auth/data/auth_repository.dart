@@ -151,8 +151,12 @@ class AuthRepository {
   /// [fb.User.reload]를 호출하여 서버에서 최신 사용자 정보를
   /// 가져온다. 이메일 인증 완료 여부 확인 시 사용한다.
   Future<Result<void>> reloadUser() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Result.failure(ServiceUnavailable());
+    }
     try {
-      await _auth.currentUser?.reload();
+      await user.reload();
       return const Result.success(null);
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
