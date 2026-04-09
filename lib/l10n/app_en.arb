@@ -391,6 +391,56 @@
     "description": "Semantics label for the hide-password toggle on password input"
   },
 
+  "authVerifyEmailTitle": "Verify your email",
+  "@authVerifyEmailTitle": {
+    "description": "Email verification pending screen title"
+  },
+
+  "authVerifyEmailDescription": "We sent a verification email to {email}. Click the link in the email to verify your account.",
+  "@authVerifyEmailDescription": {
+    "description": "Email verification pending screen description with email placeholder",
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+
+  "authVerifyEmailSpamHint": "If you don't see the email, check your spam folder.",
+  "@authVerifyEmailSpamHint": {
+    "description": "Hint text suggesting the user check their spam folder"
+  },
+
+  "authVerifyEmailCheck": "I've verified my email",
+  "@authVerifyEmailCheck": {
+    "description": "Button label to check email verification status"
+  },
+
+  "authVerifyEmailResend": "Resend verification email",
+  "@authVerifyEmailResend": {
+    "description": "Button label to resend the verification email"
+  },
+
+  "authVerifyEmailResendCooldown": "Resend available in {seconds}s",
+  "@authVerifyEmailResendCooldown": {
+    "description": "Cooldown timer text showing seconds until resend is available",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+
+  "authVerifyEmailLogout": "Sign in with a different account",
+  "@authVerifyEmailLogout": {
+    "description": "Link label to sign out and use a different account"
+  },
+
+  "authVerifyEmailSuccess": "Email verified successfully.",
+  "@authVerifyEmailSuccess": {
+    "description": "Success message shown after email verification is confirmed"
+  },
+
   "splashPlaceholderTitle": "Splash",
   "@splashPlaceholderTitle": {
     "description": "Title text on the Phase 10 splash placeholder screen"

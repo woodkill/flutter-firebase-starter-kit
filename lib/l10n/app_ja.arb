@@ -91,6 +91,29 @@
   "authShowPassword": "パスワードを表示",
   "authHidePassword": "パスワードを非表示",
 
+  "authVerifyEmailTitle": "メール認証",
+  "authVerifyEmailDescription": "認証メールを{email}に送信しました。メール内のリンクをクリックして認証を完了してください。",
+  "@authVerifyEmailDescription": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authVerifyEmailSpamHint": "メールが届かない場合は、迷惑メールフォルダをご確認ください。",
+  "authVerifyEmailCheck": "認証を確認する",
+  "authVerifyEmailResend": "認証メールを再送信",
+  "authVerifyEmailResendCooldown": "再送信まで({seconds}秒)",
+  "@authVerifyEmailResendCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "authVerifyEmailLogout": "別のアカウントでログイン",
+  "authVerifyEmailSuccess": "メール認証が完了しました。",
+
   "splashPlaceholderTitle": "スプラッシュ",
   "splashPlaceholderStub": "Phase 10 プレースホルダー",
 
