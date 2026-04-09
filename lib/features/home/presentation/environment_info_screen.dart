@@ -266,6 +266,7 @@ class _LanguageSection extends ConsumerWidget {
     return switch (locale.languageCode) {
       'en' => 'English',
       'ko' => '한국어',
+      'ja' => '日本語',
       _ => locale.languageCode,
     };
   }
@@ -885,6 +886,9 @@ class _EnvironmentCard extends StatelessWidget {
                   Gap(spacing.xs),
                   Text(
                     value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
                     style: context.textTheme.titleMedium?.copyWith(
                       color: valueColor,
                       fontWeight: FontWeight.w600,
