@@ -132,6 +132,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Too many attempts. Please try again later.';
 
   @override
+  String get errorUnknown => 'An unknown error occurred.';
+
+  @override
   String get errorEmailRequired => 'Enter your email address.';
 
   @override
@@ -246,6 +249,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authHidePassword => 'Hide password';
+
+  @override
+  String get authVerifyEmailTitle => 'Verify your email';
+
+  @override
+  String authVerifyEmailDescription(String email) {
+    return 'We sent a verification email to $email. Click the link in the email to verify your account.';
+  }
+
+  @override
+  String get authVerifyEmailSpamHint =>
+      'If you don\'t see the email, check your spam folder.';
+
+  @override
+  String get authVerifyEmailCheck => 'I\'ve verified my email';
+
+  @override
+  String get authVerifyEmailResend => 'Resend verification email';
+
+  @override
+  String authVerifyEmailResendCooldown(int seconds) {
+    return 'Resend available in ${seconds}s';
+  }
+
+  @override
+  String get authVerifyEmailLogout => 'Sign in with a different account';
+
+  @override
+  String get authVerifyEmailSuccess => 'Email verified successfully.';
 
   @override
   String get splashPlaceholderTitle => 'Splash';

@@ -30,7 +30,7 @@ class AuthScaffold extends StatelessWidget {
     final spacing = context.appSpacing;
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: Text(title, style: context.textTheme.headlineMedium),
         automaticallyImplyLeading: showBackButton,
       ),
       body: SafeArea(

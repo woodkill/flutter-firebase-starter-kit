@@ -129,6 +129,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get errorTooManyRequests => '試行回数が多すぎます。しばらくしてからもう一度お試しください。';
 
   @override
+  String get errorUnknown => '不明なエラーが発生しました。';
+
+  @override
   String get errorEmailRequired => 'メールアドレスを入力してください。';
 
   @override
@@ -241,6 +244,34 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authHidePassword => 'パスワードを非表示';
+
+  @override
+  String get authVerifyEmailTitle => 'メール認証';
+
+  @override
+  String authVerifyEmailDescription(String email) {
+    return '認証メールを$emailに送信しました。メール内のリンクをクリックして認証を完了してください。';
+  }
+
+  @override
+  String get authVerifyEmailSpamHint => 'メールが届かない場合は、迷惑メールフォルダをご確認ください。';
+
+  @override
+  String get authVerifyEmailCheck => '認証を確認する';
+
+  @override
+  String get authVerifyEmailResend => '認証メールを再送信';
+
+  @override
+  String authVerifyEmailResendCooldown(int seconds) {
+    return '再送信まで($seconds秒)';
+  }
+
+  @override
+  String get authVerifyEmailLogout => '別のアカウントでログイン';
+
+  @override
+  String get authVerifyEmailSuccess => 'メール認証が完了しました。';
 
   @override
   String get splashPlaceholderTitle => 'スプラッシュ';

@@ -129,6 +129,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get errorTooManyRequests => '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.';
 
   @override
+  String get errorUnknown => '알 수 없는 오류가 발생했습니다.';
+
+  @override
   String get errorEmailRequired => '이메일을 입력해 주세요.';
 
   @override
@@ -241,6 +244,34 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get authHidePassword => '비밀번호 숨기기';
+
+  @override
+  String get authVerifyEmailTitle => '이메일 인증';
+
+  @override
+  String authVerifyEmailDescription(String email) {
+    return '인증 메일을 $email(으)로 보냈습니다. 메일의 링크를 클릭하여 인증을 완료해 주세요.';
+  }
+
+  @override
+  String get authVerifyEmailSpamHint => '메일이 보이지 않으면 스팸함을 확인해 주세요.';
+
+  @override
+  String get authVerifyEmailCheck => '인증 확인';
+
+  @override
+  String get authVerifyEmailResend => '인증 메일 재전송';
+
+  @override
+  String authVerifyEmailResendCooldown(int seconds) {
+    return '재전송 가능 ($seconds초 후)';
+  }
+
+  @override
+  String get authVerifyEmailLogout => '다른 계정으로 로그인';
+
+  @override
+  String get authVerifyEmailSuccess => '이메일 인증이 완료되었습니다.';
 
   @override
   String get splashPlaceholderTitle => '스플래시';

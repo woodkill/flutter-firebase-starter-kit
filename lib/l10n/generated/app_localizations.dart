@@ -340,6 +340,12 @@ abstract class AppLocalizations {
   /// **'Too many attempts. Please try again later.'**
   String get errorTooManyRequests;
 
+  /// Catch-all error message for unrecognized or unexpected errors
+  ///
+  /// In en, this message translates to:
+  /// **'An unknown error occurred.'**
+  String get errorUnknown;
+
   /// Form validation error when the email field is empty
   ///
   /// In en, this message translates to:
@@ -567,6 +573,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hide password'**
   String get authHidePassword;
+
+  /// Email verification pending screen title
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your email'**
+  String get authVerifyEmailTitle;
+
+  /// Email verification pending screen description with email placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'We sent a verification email to {email}. Click the link in the email to verify your account.'**
+  String authVerifyEmailDescription(String email);
+
+  /// Hint text suggesting the user check their spam folder
+  ///
+  /// In en, this message translates to:
+  /// **'If you don\'t see the email, check your spam folder.'**
+  String get authVerifyEmailSpamHint;
+
+  /// Button label to check email verification status
+  ///
+  /// In en, this message translates to:
+  /// **'I\'ve verified my email'**
+  String get authVerifyEmailCheck;
+
+  /// Button label to resend the verification email
+  ///
+  /// In en, this message translates to:
+  /// **'Resend verification email'**
+  String get authVerifyEmailResend;
+
+  /// Cooldown timer text showing seconds until resend is available
+  ///
+  /// In en, this message translates to:
+  /// **'Resend available in {seconds}s'**
+  String authVerifyEmailResendCooldown(int seconds);
+
+  /// Link label to sign out and use a different account
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with a different account'**
+  String get authVerifyEmailLogout;
+
+  /// Success message shown after email verification is confirmed
+  ///
+  /// In en, this message translates to:
+  /// **'Email verified successfully.'**
+  String get authVerifyEmailSuccess;
 
   /// Title text on the Phase 10 splash placeholder screen
   ///

@@ -201,6 +201,11 @@
     "description": "Error message when Firebase rate-limits authentication attempts"
   },
 
+  "errorUnknown": "An unknown error occurred.",
+  "@errorUnknown": {
+    "description": "Catch-all error message for unrecognized or unexpected errors"
+  },
+
   "errorEmailRequired": "Enter your email address.",
   "@errorEmailRequired": {
     "description": "Form validation error when the email field is empty"

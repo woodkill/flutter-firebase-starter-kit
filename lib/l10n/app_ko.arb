@@ -44,6 +44,7 @@
   "errorInvalidEmail": "올바른 이메일 주소가 아닙니다.",
   "errorUserDisabled": "비활성화된 계정입니다. 관리자에게 문의해 주세요.",
   "errorTooManyRequests": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  "errorUnknown": "알 수 없는 오류가 발생했습니다.",
 
   "errorEmailRequired": "이메일을 입력해 주세요.",
   "errorInvalidEmailFormat": "올바른 이메일 형식을 입력해 주세요.",
