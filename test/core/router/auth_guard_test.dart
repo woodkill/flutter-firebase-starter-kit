@@ -167,5 +167,86 @@ void main() {
         expect(result, AppRoutes.home);
       },
     );
+
+    test(
+      '인증 + emailVerified==false + /home 접근 시 /verify-email로 redirect',
+      () async {
+        final mockUser = _MockUser();
+        when(() => mockUser.uid).thenReturn('test-uid');
+        when(() => mockUser.emailVerified).thenReturn(false);
+        final container = makeContainer(
+          isInitialized: true,
+          user: mockUser,
+        );
+        addTearDown(container.dispose);
+
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(result, AppRoutes.verifyEmail);
+      },
+    );
+
+    test(
+      '인증 + emailVerified==false + /verify-email 접근 시 null (redirect 없음)',
+      () async {
+        final mockUser = _MockUser();
+        when(() => mockUser.uid).thenReturn('test-uid');
+        when(() => mockUser.emailVerified).thenReturn(false);
+        final container = makeContainer(
+          isInitialized: true,
+          user: mockUser,
+        );
+        addTearDown(container.dispose);
+
+        when(() => mockState.matchedLocation)
+            .thenReturn(AppRoutes.verifyEmail);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(result, isNull);
+      },
+    );
+
+    test(
+      '인증 + emailVerified==true + /verify-email 접근 시 /home으로 redirect',
+      () async {
+        final mockUser = _MockUser();
+        when(() => mockUser.uid).thenReturn('test-uid');
+        when(() => mockUser.emailVerified).thenReturn(true);
+        final container = makeContainer(
+          isInitialized: true,
+          user: mockUser,
+        );
+        addTearDown(container.dispose);
+
+        when(() => mockState.matchedLocation)
+            .thenReturn(AppRoutes.verifyEmail);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(result, AppRoutes.home);
+      },
+    );
+
+    test(
+      '인증 + emailVerified==false + /login 접근 시 /verify-email로 redirect',
+      () async {
+        // D-06 우선순위: (3)번 조건이 (4)번보다 먼저 평가된다.
+        // 이미 로그인된 상태에서 /login에 올 이유가 없으므로
+        // /verify-email로 보내는 것이 올바른 동작이다.
+        final mockUser = _MockUser();
+        when(() => mockUser.uid).thenReturn('test-uid');
+        when(() => mockUser.emailVerified).thenReturn(false);
+        final container = makeContainer(
+          isInitialized: true,
+          user: mockUser,
+        );
+        addTearDown(container.dispose);
+
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(result, AppRoutes.verifyEmail);
+      },
+    );
   });
 }

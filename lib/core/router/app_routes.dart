@@ -32,4 +32,10 @@ abstract final class AppRoutes {
 
   /// Forgot Password 화면 name.
   static const String forgotPasswordName = 'forgotPassword';
+
+  /// Verify Email 화면 path.
+  static const String verifyEmail = '/verify-email';
+
+  /// Verify Email 화면 name.
+  static const String verifyEmailName = 'verifyEmail';
 }

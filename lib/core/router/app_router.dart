@@ -7,6 +7,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
+import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/home/presentation/environment_info_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../l10n/l10n_extensions.dart';
@@ -66,6 +67,11 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.forgotPassword,
         name: AppRoutes.forgotPasswordName,
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.verifyEmail,
+        name: AppRoutes.verifyEmailName,
+        builder: (context, state) => const VerifyEmailScreen(),
       ),
     ],
   );

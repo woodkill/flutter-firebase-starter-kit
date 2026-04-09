@@ -71,15 +71,19 @@ const Set<String> _unauthRoutes = <String>{
   AppRoutes.login,
   AppRoutes.signup,
   AppRoutes.forgotPassword,
+  AppRoutes.verifyEmail, // 인증됐지만 emailVerified==false인 사용자도 접근 가능
 };
 
 /// 인증 상태에 따른 redirect 로직.
 ///
-/// 판단 기준:
-/// - Firebase 미초기화 시: redirect 우회 (null 반환, Home 직행)
-/// - 미인증 + unauth 화이트리스트 외 경로: [AppRoutes.login]으로 redirect
-/// - 인증 완료 + unauth 화이트리스트 경로: [AppRoutes.home]으로 redirect
-/// - 그 외: null (redirect 없음)
+/// 판단 우선순위 (D-06):
+/// 1. Firebase 미초기화 시: redirect 우회 (null 반환, Home 직행)
+/// 2. 미인증 + unauth 화이트리스트 외 경로: [AppRoutes.login]으로 redirect
+/// 3. 인증 + emailVerified==false + /verify-email 외 경로:
+///    [AppRoutes.verifyEmail]로 redirect
+/// 4. 인증 + emailVerified==true + unauth 화이트리스트 경로:
+///    [AppRoutes.home]으로 redirect
+/// 5. 그 외: null (redirect 없음)
 ///
 /// 인증 전환(Login<->Home)은 [go]로 스택 교체,
 /// 일반 화면 이동은 [push]로 스택 추가를 권장한다. (D-19)
@@ -95,7 +99,7 @@ const Set<String> _unauthRoutes = <String>{
 /// 값을 반환한다. (T-06.07-01)
 FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   final isInitialized = ref.read(isFirebaseInitializedProvider);
-  if (!isInitialized) return null;
+  if (!isInitialized) return null; // (1)
 
   final currentUser = ref.read(firebaseAuthProvider).currentUser;
   final isAuthenticated = currentUser != null;
@@ -105,12 +109,30 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
     debugPrint(
       'authRedirect: matchedLocation=${state.matchedLocation}, '
       'isAuthenticated=$isAuthenticated '
-      '(uid=${currentUser?.uid ?? "null"}), '
+      '(uid=${currentUser?.uid ?? "null"}, '
+      'emailVerified=${currentUser?.emailVerified}), '
       'isOnUnauthRoute=$isOnUnauthRoute',
     );
   }
 
-  if (!isAuthenticated && !isOnUnauthRoute) return AppRoutes.login;
-  if (isAuthenticated && isOnUnauthRoute) return AppRoutes.home;
-  return null;
+  if (!isAuthenticated && !isOnUnauthRoute) {
+    return AppRoutes.login; // (2)
+  }
+
+  // emailVerified 체크: 인증됐지만 이메일 미인증 사용자 차단 (D-04, D-06).
+  // currentUser.emailVerified는 Firebase SDK가 reload() 후
+  // 동기적으로 업데이트하므로 stale value 위험 없음.
+  if (isAuthenticated &&
+      !currentUser.emailVerified &&
+      state.matchedLocation != AppRoutes.verifyEmail) {
+    return AppRoutes.verifyEmail; // (3)
+  }
+
+  if (isAuthenticated &&
+      currentUser.emailVerified &&
+      isOnUnauthRoute) {
+    return AppRoutes.home; // (4)
+  }
+
+  return null; // (5)
 }
