@@ -314,4 +314,17 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get showcaseNumberDecimal => '区切り付き';
+
+  @override
+  String get authOrDivider => 'または';
+
+  @override
+  String get authGoogleSignIn => 'Googleでログイン';
+
+  @override
+  String get errorAccountExistsWithDifferentCredential =>
+      'このメールアドレスは別の方法で登録されています。パスワードでログインしてください。';
+
+  @override
+  String get authAccountProviderGoogle => 'Google';
 }

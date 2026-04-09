@@ -687,6 +687,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Decimal'**
   String get showcaseNumberDecimal;
+
+  /// Text divider between social sign-in buttons and email/password form
+  ///
+  /// In en, this message translates to:
+  /// **'or'**
+  String get authOrDivider;
+
+  /// Google sign-in button label
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Google'**
+  String get authGoogleSignIn;
+
+  /// Error message when account-exists-with-different-credential Firebase error occurs during social sign-in
+  ///
+  /// In en, this message translates to:
+  /// **'This email is already registered with a different sign-in method. Please sign in with your password.'**
+  String get errorAccountExistsWithDifferentCredential;
+
+  /// Provider label displayed in the account section when the user signed in with Google
+  ///
+  /// In en, this message translates to:
+  /// **'Google'**
+  String get authAccountProviderGoogle;
 }
 
 class _AppLocalizationsDelegate

@@ -126,5 +126,10 @@
   "showcaseDateLong": "長い形式",
   "showcaseDateTime": "時刻",
   "showcaseNumberCompact": "省略表記",
-  "showcaseNumberDecimal": "区切り付き"
+  "showcaseNumberDecimal": "区切り付き",
+
+  "authOrDivider": "または",
+  "authGoogleSignIn": "Googleでログイン",
+  "errorAccountExistsWithDifferentCredential": "このメールアドレスは別の方法で登録されています。パスワードでログインしてください。",
+  "authAccountProviderGoogle": "Google"
 }

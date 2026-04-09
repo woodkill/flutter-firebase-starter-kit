@@ -31,6 +31,9 @@ abstract class User with _$User {
 
     /// 계정 생성 시각.
     required DateTime createdAt,
+
+    /// 연결된 인증 프로바이더 ID 목록 (예: 'google.com', 'password').
+    @Default(<String>[]) List<String> providerIds,
   }) = _User;
 
   /// JSON에서 [User] 객체를 생성한다.

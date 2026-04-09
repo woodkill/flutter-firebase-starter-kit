@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 
 void main() {
@@ -22,6 +23,30 @@ void main() {
       expect(user.createdAt, now);
     });
 
+    test('providerIds 기본값은 빈 리스트이다', () {
+      final user = User(
+        uid: 'uid-123',
+        email: 'test@example.com',
+        emailVerified: true,
+        createdAt: now,
+      );
+
+      expect(user.providerIds, isEmpty);
+      expect(user.providerIds, isA<List<String>>());
+    });
+
+    test('providerIds를 명시적으로 설정할 수 있다', () {
+      final user = User(
+        uid: 'uid-123',
+        email: 'test@example.com',
+        emailVerified: true,
+        createdAt: now,
+        providerIds: ['google.com', 'password'],
+      );
+
+      expect(user.providerIds, ['google.com', 'password']);
+    });
+
     test('모든 필드로 생성할 수 있다', () {
       final user = User(
         uid: 'uid-456',
@@ -30,12 +55,14 @@ void main() {
         displayName: 'Test User',
         photoUrl: 'https://example.com/photo.jpg',
         createdAt: now,
+        providerIds: ['google.com'],
       );
 
       expect(user.uid, 'uid-456');
       expect(user.email, 'full@example.com');
       expect(user.displayName, 'Test User');
       expect(user.photoUrl, 'https://example.com/photo.jpg');
+      expect(user.providerIds, ['google.com']);
     });
 
     test('copyWith로 일부 필드를 변경한 새 객체를 생성할 수 있다', () {
@@ -100,6 +127,7 @@ void main() {
           displayName: 'Test User',
           photoUrl: 'https://example.com/photo.jpg',
           createdAt: now,
+          providerIds: ['google.com', 'password'],
         );
 
         final json = user.toJson();
@@ -123,6 +151,21 @@ void main() {
         expect(json['displayName'], isNull);
         expect(json['photoUrl'], isNull);
         expect(json['createdAt'], isNotNull);
+        expect(json['providerIds'], isEmpty);
+      });
+
+      test('fromJson에서 providerIds를 올바르게 파싱한다', () {
+        final json = <String, dynamic>{
+          'uid': 'uid-provider',
+          'email': 'provider@example.com',
+          'emailVerified': true,
+          'createdAt': '2026-04-05T12:00:00.000',
+          'providerIds': ['google.com'],
+        };
+
+        final user = User.fromJson(json);
+
+        expect(user.providerIds, ['google.com']);
       });
 
       test('fromJson에서 DateTime을 올바르게 파싱한다', () {
@@ -157,7 +200,51 @@ void main() {
         expect(user.uid, 'uid-minimal');
         expect(user.displayName, isNull);
         expect(user.photoUrl, isNull);
+        // providerIds가 없는 JSON에서도 기본값 빈 리스트로 동작한다.
+        expect(user.providerIds, isEmpty);
       });
+    });
+  });
+
+  group('AccountExistsWithDifferentCredential', () {
+    test('인스턴스 생성 시 email 필드에 접근할 수 있다', () {
+      const exception = AccountExistsWithDifferentCredential(
+        email: 'test@example.com',
+      );
+
+      expect(exception.email, 'test@example.com');
+    });
+
+    test('userMessage가 올바른 ARB 키를 반환한다', () {
+      const exception = AccountExistsWithDifferentCredential();
+
+      expect(
+        exception.userMessage,
+        'errorAccountExistsWithDifferentCredential',
+      );
+    });
+
+    test('email이 null일 수 있다', () {
+      const exception = AccountExistsWithDifferentCredential();
+
+      expect(exception.email, isNull);
+    });
+
+    test('AuthException을 상속한다', () {
+      const exception = AccountExistsWithDifferentCredential();
+
+      expect(exception, isA<AuthException>());
+      expect(exception, isA<AppException>());
+    });
+
+    test('cause를 전달할 수 있다', () {
+      final cause = Exception('original');
+      final exception = AccountExistsWithDifferentCredential(
+        email: 'a@b.com',
+        cause: cause,
+      );
+
+      expect(exception.cause, cause);
     });
   });
 }

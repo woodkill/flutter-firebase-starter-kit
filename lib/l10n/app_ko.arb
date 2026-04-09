@@ -126,5 +126,10 @@
   "showcaseDateLong": "긴 형식",
   "showcaseDateTime": "시간",
   "showcaseNumberCompact": "축약",
-  "showcaseNumberDecimal": "소수 구분"
+  "showcaseNumberDecimal": "소수 구분",
+
+  "authOrDivider": "또는",
+  "authGoogleSignIn": "Google로 로그인",
+  "errorAccountExistsWithDifferentCredential": "이 이메일은 다른 방식으로 가입되어 있습니다. 비밀번호로 로그인해 주세요.",
+  "authAccountProviderGoogle": "Google"
 }

@@ -505,5 +505,25 @@
   "showcaseNumberDecimal": "Decimal",
   "@showcaseNumberDecimal": {
     "description": "Label for ICU decimal format in the number showcase section"
+  },
+
+  "authOrDivider": "or",
+  "@authOrDivider": {
+    "description": "Text divider between social sign-in buttons and email/password form"
+  },
+
+  "authGoogleSignIn": "Sign in with Google",
+  "@authGoogleSignIn": {
+    "description": "Google sign-in button label"
+  },
+
+  "errorAccountExistsWithDifferentCredential": "This email is already registered with a different sign-in method. Please sign in with your password.",
+  "@errorAccountExistsWithDifferentCredential": {
+    "description": "Error message when account-exists-with-different-credential Firebase error occurs during social sign-in"
+  },
+
+  "authAccountProviderGoogle": "Google",
+  "@authAccountProviderGoogle": {
+    "description": "Provider label displayed in the account section when the user signed in with Google"
   }
 }

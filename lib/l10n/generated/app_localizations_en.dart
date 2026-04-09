@@ -320,4 +320,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get showcaseNumberDecimal => 'Decimal';
+
+  @override
+  String get authOrDivider => 'or';
+
+  @override
+  String get authGoogleSignIn => 'Sign in with Google';
+
+  @override
+  String get errorAccountExistsWithDifferentCredential =>
+      'This email is already registered with a different sign-in method. Please sign in with your password.';
+
+  @override
+  String get authAccountProviderGoogle => 'Google';
 }

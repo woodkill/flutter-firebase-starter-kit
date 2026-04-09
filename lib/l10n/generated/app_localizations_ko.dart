@@ -314,4 +314,17 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get showcaseNumberDecimal => '소수 구분';
+
+  @override
+  String get authOrDivider => '또는';
+
+  @override
+  String get authGoogleSignIn => 'Google로 로그인';
+
+  @override
+  String get errorAccountExistsWithDifferentCredential =>
+      '이 이메일은 다른 방식으로 가입되어 있습니다. 비밀번호로 로그인해 주세요.';
+
+  @override
+  String get authAccountProviderGoogle => 'Google';
 }

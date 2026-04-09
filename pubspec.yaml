@@ -47,6 +47,9 @@ dependencies:
   shared_preferences: ^2.5.5
   gap: ^3.0.1
   go_router: ^17.2.0
+  google_sign_in: ^7.2.0
+  sign_in_button: ^4.1.0
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:

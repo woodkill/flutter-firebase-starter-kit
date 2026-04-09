@@ -124,6 +124,21 @@ final class TooManyRequests extends AuthException {
       : super(userMessage: 'errorTooManyRequests');
 }
 
+/// 동일 이메일이 다른 인증 방식으로 이미 등록되어 있음.
+///
+/// Firebase `account-exists-with-different-credential` 코드에 매핑된다.
+/// [email]은 충돌이 발생한 이메일 주소로, UI에서 자동 채움용으로 사용한다.
+final class AccountExistsWithDifferentCredential extends AuthException {
+  /// [AccountExistsWithDifferentCredential]을 생성한다.
+  const AccountExistsWithDifferentCredential({this.email, super.cause})
+      : super(
+          userMessage: 'errorAccountExistsWithDifferentCredential',
+        );
+
+  /// 충돌이 발생한 이메일 주소. UI에서 자동 채움용으로 사용.
+  final String? email;
+}
+
 // ---------------------------------------------------------------------------
 // 서버 관련 예외
 // ---------------------------------------------------------------------------
