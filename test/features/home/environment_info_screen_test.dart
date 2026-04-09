@@ -58,6 +58,42 @@ Future<void> _pumpScreen(
   await tester.pumpAndSettle();
 }
 
+/// `_pumpScreen` 의 Firebase 연결 시나리오 변형.
+///
+/// `isFirebaseInitializedProvider` 만 다르게 override 하여 기존 Account 섹션
+/// 테스트의 regression 을 차단한다. Quick task 260409-gyp Accessibility
+/// 그룹 전용 헬퍼.
+Future<void> _pumpScreenWithFirebase(
+  WidgetTester tester, {
+  required bool initialized,
+}) async {
+  tester.view.physicalSize = const Size(800, 6000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        currentUserProvider.overrideWith((ref) => null),
+        authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
+        isFirebaseInitializedProvider.overrideWithValue(initialized),
+        firebaseAuthProvider.overrideWithValue(_MockFirebaseAuth()),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light(),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const EnvironmentInfoScreen(),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -190,6 +226,65 @@ void main() {
         await tester.pumpAndSettle();
 
         verify(() => mockRepo.signOut()).called(1);
+      },
+    );
+  });
+
+  group('EnvironmentInfoScreen Accessibility (260409-gyp)', () {
+    // SemanticsHandle 은 _endOfTestVerifications 시점에 살아 있으면 안 되므로
+    // testWidgets 본문 끝에서 직접 dispose 한다 (addTearDown 사용 불가 —
+    // teardown 콜백은 verification 이후에 실행됨).
+    testWidgets(
+      'Firebase 미연결 카드는 Firebase Not Connected Semantics label 노출',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+
+        // 기본 _pumpScreen 은 isFirebaseInitialized = false
+        await _pumpScreen(tester, user: null);
+
+        final firebaseSemantics = find.bySemanticsLabel(
+          'Firebase Not Connected',
+        );
+        expect(firebaseSemantics, findsOneWidget);
+        expect(
+          tester.getSemantics(firebaseSemantics),
+          matchesSemantics(label: 'Firebase Not Connected'),
+        );
+
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'Firebase 연결 카드는 Firebase Connected Semantics label 노출',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+
+        await _pumpScreenWithFirebase(tester, initialized: true);
+
+        final firebaseSemantics = find.bySemanticsLabel('Firebase Connected');
+        expect(firebaseSemantics, findsOneWidget);
+        expect(
+          tester.getSemantics(firebaseSemantics),
+          matchesSemantics(label: 'Firebase Connected'),
+        );
+
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      '일반 카드는 fallback "label: value" Semantics label 노출',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+
+        await _pumpScreen(tester, user: null);
+
+        // Flavor 카드: String.fromEnvironment('flavor', defaultValue: 'dev')
+        // → toUpperCase() = 'DEV', fallback label = 'Flavor: DEV'.
+        expect(find.bySemanticsLabel('Flavor: DEV'), findsOneWidget);
+
+        handle.dispose();
       },
     );
   });
