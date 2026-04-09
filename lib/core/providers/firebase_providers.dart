@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'firebase_providers.g.dart';
@@ -47,4 +48,13 @@ Stream<User?> authState(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);
   if (!isInitialized) return const Stream<User?>.empty();
   return ref.watch(firebaseAuthProvider).authStateChanges();
+}
+
+/// [GoogleSignIn] 인스턴스를 제공한다.
+///
+/// 싱글톤이지만 Provider로 감싸서 테스트 시 mock override를 가능하게 한다.
+/// [initialize]는 [bootstrap]에서 1회 호출되어야 한다.
+@Riverpod(keepAlive: true)
+GoogleSignIn googleSignIn(Ref ref) {
+  return GoogleSignIn.instance;
 }

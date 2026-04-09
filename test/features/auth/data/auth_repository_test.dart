@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
@@ -14,19 +15,33 @@ class _MockFbUser extends Mock implements fb.User {}
 
 class _MockUserMetadata extends Mock implements fb.UserMetadata {}
 
+class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
+
+class _MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
+
+class _MockUserInfo extends Mock implements fb.UserInfo {}
+
+class _FakeAuthCredential extends Fake implements fb.AuthCredential {}
+
 void main() {
   late _MockFirebaseAuth mockAuth;
   late _MockUserCredential mockCredential;
   late _MockFbUser mockUser;
   late _MockUserMetadata mockMetadata;
+  late _MockGoogleSignIn mockGoogleSignIn;
   late AuthRepository repository;
+
+  setUpAll(() {
+    registerFallbackValue(_FakeAuthCredential());
+  });
 
   setUp(() {
     mockAuth = _MockFirebaseAuth();
     mockCredential = _MockUserCredential();
     mockUser = _MockFbUser();
     mockMetadata = _MockUserMetadata();
-    repository = AuthRepository(mockAuth);
+    mockGoogleSignIn = _MockGoogleSignIn();
+    repository = AuthRepository(mockAuth, mockGoogleSignIn);
 
     // 기본 User 필드 stub
     when(() => mockUser.uid).thenReturn('uid-test');
@@ -37,6 +52,7 @@ void main() {
     when(() => mockUser.metadata).thenReturn(mockMetadata);
     when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
     when(() => mockCredential.user).thenReturn(mockUser);
+    when(() => mockUser.providerData).thenReturn([]);
   });
 
   group('_mapFirebaseUser via signInWithEmail (BLOCKER #1 통합 검증)', () {
@@ -368,6 +384,191 @@ void main() {
         expect(result, isA<Success<dynamic>>());
       },
     );
+  });
+
+  group('signInWithGoogle', () {
+    late _MockGoogleSignInAccount mockAccount;
+
+    setUp(() {
+      mockAccount = _MockGoogleSignInAccount();
+      when(() => mockAccount.authentication).thenReturn(
+        const GoogleSignInAuthentication(idToken: 'mock-id-token'),
+      );
+    });
+
+    test('성공 시 Result.success(User)를 반환하고 providerIds에 google.com 포함',
+        () async {
+      when(
+        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+      ).thenAnswer((_) async => mockAccount);
+
+      final mockProviderInfo = _MockUserInfo();
+      when(() => mockProviderInfo.providerId).thenReturn('google.com');
+      when(() => mockUser.providerData).thenReturn([mockProviderInfo]);
+
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+
+      final result = await repository.signInWithGoogle();
+
+      expect(result, isA<Success<dynamic>>());
+      final user = (result! as Success).data;
+      expect(user.uid, 'uid-test');
+      expect(user.providerIds, ['google.com']);
+    });
+
+    test('사용자 취소(canceled) 시 null을 반환한다', () async {
+      when(
+        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+      ).thenThrow(
+        const GoogleSignInException(
+          code: GoogleSignInExceptionCode.canceled,
+        ),
+      );
+
+      final result = await repository.signInWithGoogle();
+
+      expect(result, isNull);
+    });
+
+    test(
+      'account-exists-with-different-credential 시 '
+      'AccountExistsWithDifferentCredential 반환',
+      () async {
+        when(
+          () => mockGoogleSignIn.authenticate(
+            scopeHint: any(named: 'scopeHint'),
+          ),
+        ).thenAnswer((_) async => mockAccount);
+
+        when(
+          () => mockAuth.signInWithCredential(any()),
+        ).thenThrow(
+          fb.FirebaseAuthException(
+            code: 'account-exists-with-different-credential',
+            email: 'existing@example.com',
+          ),
+        );
+
+        final result = await repository.signInWithGoogle();
+
+        expect(result, isA<Failure<dynamic>>());
+        final exception = (result! as Failure).exception;
+        expect(exception, isA<AccountExistsWithDifferentCredential>());
+        expect(
+          (exception as AccountExistsWithDifferentCredential).email,
+          'existing@example.com',
+        );
+      },
+    );
+
+    test('기타 GoogleSignInException 시 Result.failure(ServiceUnavailable) 반환',
+        () async {
+      when(
+        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+      ).thenThrow(
+        const GoogleSignInException(
+          code: GoogleSignInExceptionCode.unknownError,
+          description: 'Something went wrong',
+        ),
+      );
+
+      final result = await repository.signInWithGoogle();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+    });
+
+    test('signInWithCredential에서 user가 null이면 ServiceUnavailable 반환',
+        () async {
+      when(
+        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+      ).thenAnswer((_) async => mockAccount);
+
+      when(() => mockCredential.user).thenReturn(null);
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+
+      final result = await repository.signInWithGoogle();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+    });
+  });
+
+  group('signOut (GoogleSignIn 병행 호출)', () {
+    test('GoogleSignIn.signOut()과 FirebaseAuth.signOut() 모두 호출된다',
+        () async {
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+      await repository.signOut();
+
+      verify(() => mockGoogleSignIn.signOut()).called(1);
+      verify(() => mockAuth.signOut()).called(1);
+    });
+
+    test('GoogleSignIn.signOut() 실패 시에도 FirebaseAuth.signOut() 호출된다',
+        () async {
+      when(
+        () => mockGoogleSignIn.signOut(),
+      ).thenThrow(Exception('Google signOut failed'));
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+      await repository.signOut();
+
+      verify(() => mockGoogleSignIn.signOut()).called(1);
+      verify(() => mockAuth.signOut()).called(1);
+    });
+  });
+
+  group('_mapFirebaseUser providerIds 매핑', () {
+    test('providerData가 providerIds로 매핑된다', () async {
+      final mockProvider1 = _MockUserInfo();
+      when(() => mockProvider1.providerId).thenReturn('google.com');
+      final mockProvider2 = _MockUserInfo();
+      when(() => mockProvider2.providerId).thenReturn('password');
+      when(() => mockUser.providerData).thenReturn([
+        mockProvider1,
+        mockProvider2,
+      ]);
+
+      when(
+        () => mockAuth.signInWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => mockCredential);
+
+      final result = await repository.signInWithEmail(
+        email: 'test@example.com',
+        password: 'password123',
+      );
+
+      final user = (result as Success).data;
+      expect(user.providerIds, ['google.com', 'password']);
+    });
+
+    test('providerData가 비어 있으면 providerIds도 빈 리스트', () async {
+      when(() => mockUser.providerData).thenReturn([]);
+
+      when(
+        () => mockAuth.signInWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => mockCredential);
+
+      final result = await repository.signInWithEmail(
+        email: 'test@example.com',
+        password: 'password123',
+      );
+
+      final user = (result as Success).data;
+      expect(user.providerIds, isEmpty);
+    });
   });
 
   group('FirebaseAuthException 매핑 (10종 코드 → AppException)', () {

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/app_exception.dart';
@@ -11,14 +12,15 @@ part 'auth_repository.g.dart';
 
 /// Firebase Auth를 감싸는 인증 Repository.
 ///
-/// FirebaseAuth 의존성을 data 계층에 격리하고,
+/// FirebaseAuth와 GoogleSignIn 의존성을 data 계층에 격리하고,
 /// 상위 레이어(Notifier)에는 [Result] 타입으로만 노출한다.
 /// FirebaseAuthException은 [AppException]으로 매핑되어 던져진다.
 class AuthRepository {
   /// [AuthRepository]를 생성한다.
-  const AuthRepository(this._auth);
+  const AuthRepository(this._auth, this._googleSignIn);
 
   final fb.FirebaseAuth _auth;
+  final GoogleSignIn _googleSignIn;
 
   /// 이메일/비밀번호로 로그인한다.
   ///
@@ -108,11 +110,49 @@ class AuthRepository {
     }
   }
 
+  /// Google 계정으로 Firebase Auth에 로그인한다.
+  ///
+  /// Google Sign-In v7 [GoogleSignIn.authenticate] API를 사용한다.
+  /// 사용자 취소([GoogleSignInExceptionCode.canceled]) 시 null을 반환하여
+  /// Notifier에서 no-op 처리한다 (D-06).
+  /// 동일 이메일 충돌 시 [AccountExistsWithDifferentCredential]을 반환한다 (D-10).
+  Future<Result<User>?> signInWithGoogle() async {
+    try {
+      final account = await _googleSignIn.authenticate();
+      final authentication = account.authentication;
+      final credential = fb.GoogleAuthProvider.credential(
+        idToken: authentication.idToken,
+      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        return null;
+      }
+      return Result.failure(_mapGoogleException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    }
+  }
+
   /// 로그아웃한다.
   ///
-  /// D-11: Repository에서 try/catch 없이 firebaseAuth.signOut()에 직접 위임.
-  /// 실패는 상위에서 처리하지 않으며, 일반적으로 발생하지 않는다.
-  Future<void> signOut() => _auth.signOut();
+  /// [GoogleSignIn.signOut]을 병행 호출하여 Google 세션도 해제한다 (D-07).
+  /// [GoogleSignIn.signOut] 실패 시에도 [fb.FirebaseAuth.signOut]은 반드시 호출한다.
+  Future<void> signOut() async {
+    try {
+      await _googleSignIn.signOut();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('GoogleSignIn.signOut() 실패 (무시): $e\n$st');
+      }
+    }
+    await _auth.signOut();
+  }
 
   /// 비밀번호 재설정 메일을 발송한다.
   ///
@@ -197,6 +237,8 @@ class AuthRepository {
       'wrong-password' ||
       'user-not-found' =>
         InvalidCredentials(cause: e),
+      'account-exists-with-different-credential' =>
+        AccountExistsWithDifferentCredential(email: e.email, cause: e),
       'email-already-in-use' => EmailAlreadyInUse(cause: e),
       'weak-password' => WeakPassword(cause: e),
       'invalid-email' => InvalidEmail(cause: e),
@@ -206,6 +248,20 @@ class AuthRepository {
       'operation-not-allowed' => _logAndFallback(e),
       _ => _logAndFallback(e),
     };
+  }
+
+  /// [GoogleSignInException]을 [AppException]으로 매핑한다.
+  ///
+  /// 취소([GoogleSignInExceptionCode.canceled])는 호출부에서 별도 처리하므로
+  /// 여기에 도달하지 않는다. 기타 에러는 [ServiceUnavailable]로 매핑한다.
+  AppException _mapGoogleException(GoogleSignInException e) {
+    if (kDebugMode) {
+      debugPrint(
+        'AuthRepository: GoogleSignIn 에러 -- '
+        'code=${e.code}, description=${e.description}',
+      );
+    }
+    return ServiceUnavailable(cause: e);
   }
 
   /// 매핑되지 않았거나 설정성 오류로 분류된 FirebaseAuthException을
@@ -249,6 +305,9 @@ User _mapFirebaseUser(fb.User fbUser) {
     displayName: fbUser.displayName,
     photoUrl: fbUser.photoURL,
     createdAt: fbUser.metadata.creationTime ?? DateTime.now(),
+    providerIds: fbUser.providerData
+        .map((info) => info.providerId)
+        .toList(),
   );
 }
 
@@ -257,7 +316,10 @@ User _mapFirebaseUser(fb.User fbUser) {
 /// FirebaseAuth Provider를 의존하여 단일 인스턴스를 제공한다.
 @Riverpod(keepAlive: true)
 AuthRepository authRepository(Ref ref) {
-  return AuthRepository(ref.watch(firebaseAuthProvider));
+  return AuthRepository(
+    ref.watch(firebaseAuthProvider),
+    ref.watch(googleSignInProvider),
+  );
 }
 
 /// 현재 인증된 사용자를 도메인 [User]로 노출한다 (D-12).
