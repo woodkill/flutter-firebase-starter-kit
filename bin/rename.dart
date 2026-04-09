@@ -212,7 +212,7 @@ void _collectPubspecChanges(
     FileChange(
       filePath: file.path,
       type: ChangeType.replace,
-      description: 'pubspec.yaml name 필드 변경',
+      description: 'pubspec.yaml name field',
       oldValue: oldValue,
       newValue: 'name: $newName',
     ),
@@ -236,7 +236,7 @@ void _collectGradleChanges(
     FileChange(
       filePath: file.path,
       type: ChangeType.replace,
-      description: 'namespace + applicationId 변경',
+      description: 'Android namespace + applicationId',
       oldValue: currentAndroidPackage,
       newValue: newAndroidPackage,
     ),
@@ -263,7 +263,7 @@ void _collectKotlinChanges(
     FileChange(
       filePath: currentDir,
       type: ChangeType.move,
-      description: 'Kotlin 소스 디렉토리 이동',
+      description: 'Kotlin source directory move',
       oldValue: '$currentOrgPath/$currentPackageName',
       newValue: '$newOrgPath/$newName',
     ),
@@ -277,7 +277,7 @@ void _collectKotlinChanges(
       FileChange(
         filePath: '$newDir/MainActivity.kt',
         type: ChangeType.replace,
-        description: 'Kotlin package 선언 변경',
+        description: 'Kotlin package declaration',
         oldValue: 'package $currentAndroidPackage',
         newValue: 'package $newAndroidPackage',
       ),
@@ -308,7 +308,8 @@ void _collectIosChanges(
       FileChange(
         filePath: file.path,
         type: ChangeType.replace,
-        description: 'Runner PRODUCT_BUNDLE_IDENTIFIER 변경 ($runnerMatches곳)',
+        description:
+            'Runner PRODUCT_BUNDLE_IDENTIFIER ($runnerMatches occurrences)',
         oldValue: currentIosBundleId,
         newValue: newIosBundleId,
       ),
@@ -328,7 +329,8 @@ void _collectIosChanges(
         filePath: file.path,
         type: ChangeType.replace,
         description:
-            'RunnerTests PRODUCT_BUNDLE_IDENTIFIER 변경 ($testsMatches곳)',
+            'RunnerTests PRODUCT_BUNDLE_IDENTIFIER '
+            '($testsMatches occurrences)',
         oldValue: '$currentIosBundleId.RunnerTests',
         newValue: '$newIosBundleId.RunnerTests',
       ),
@@ -357,7 +359,7 @@ void _collectDartImportChanges(
         FileChange(
           filePath: file.path,
           type: ChangeType.replace,
-          description: 'package import 경로 변경',
+          description: 'Dart package import path',
           oldValue: 'package:$currentPackageName/',
           newValue: 'package:$newName/',
         ),
@@ -396,7 +398,7 @@ void _collectConfigChanges(
         FileChange(
           filePath: file.path,
           type: ChangeType.replace,
-          description: 'appName 변경',
+          description: 'Flavor appName',
           oldValue: fullMatch,
           newValue: '"appName":"$newAppName$suffix"',
         ),
