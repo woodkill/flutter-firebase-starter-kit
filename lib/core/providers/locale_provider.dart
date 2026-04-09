@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -38,16 +39,25 @@ class LocaleNotifier extends _$LocaleNotifier {
   ///
   /// 저장된 언어 코드가 [AppLocalizations.supportedLocales]에 포함되지 않으면
   /// 무시하고 기본값을 유지한다 (위협 T-04-03 대응).
+  ///
+  /// I/O 예외 발생 시(SharedPreferences 디스크 장애 등) 사용자에게는 무해하므로
+  /// 기본 로케일을 유지하고 디버그 로그만 남긴다. Phase 8(Crashlytics 통합) 시점에
+  /// [FirebaseCrashlytics.recordError]로 교체 예정.
   Future<void> _loadLocale() async {
-    final prefs = await SharedPreferences.getInstance();
-    final code = prefs.getString(_key);
-    if (code != null) {
-      final isSupported = AppLocalizations.supportedLocales.any(
-        (l) => l.languageCode == code,
-      );
-      if (isSupported) {
-        state = Locale(code);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final code = prefs.getString(_key);
+      if (code != null) {
+        final isSupported = AppLocalizations.supportedLocales.any(
+          (l) => l.languageCode == code,
+        );
+        if (isSupported) {
+          state = Locale(code);
+        }
       }
+    } on Exception catch (e) {
+      // TODO(phase-08): FirebaseCrashlytics.recordError(e, st, reason: 'locale_load')
+      debugPrint('locale_load failed: $e');
     }
   }
 
