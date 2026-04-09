@@ -63,6 +63,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeBuildEnvironment => 'Build Environment';
 
   @override
+  String get homeEnvFlavor => 'Flavor';
+
+  @override
+  String get homeEnvAppName => 'App Name';
+
+  @override
+  String get homeEnvFirebase => 'Firebase';
+
+  @override
+  String get homeEnvFirebaseProjectId => 'Firebase Project ID';
+
+  @override
   String get homeFirebaseConnected => 'Connected';
 
   @override

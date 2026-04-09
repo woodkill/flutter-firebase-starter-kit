@@ -63,6 +63,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeBuildEnvironment => 'ビルド環境';
 
   @override
+  String get homeEnvFlavor => 'フレーバー';
+
+  @override
+  String get homeEnvAppName => 'アプリ名';
+
+  @override
+  String get homeEnvFirebase => 'Firebase';
+
+  @override
+  String get homeEnvFirebaseProjectId => 'Firebase プロジェクト ID';
+
+  @override
   String get homeFirebaseConnected => '接続済み';
 
   @override

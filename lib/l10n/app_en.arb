@@ -91,6 +91,26 @@
     "description": "Section title for build environment info cards"
   },
 
+  "homeEnvFlavor": "Flavor",
+  "@homeEnvFlavor": {
+    "description": "Environment card label for the build flavor (dev/stg/prod)"
+  },
+
+  "homeEnvAppName": "App Name",
+  "@homeEnvAppName": {
+    "description": "Environment card label for the application display name injected via --dart-define appName"
+  },
+
+  "homeEnvFirebase": "Firebase",
+  "@homeEnvFirebase": {
+    "description": "Environment card label for the Firebase connection status card"
+  },
+
+  "homeEnvFirebaseProjectId": "Firebase Project ID",
+  "@homeEnvFirebaseProjectId": {
+    "description": "Environment card label for the Firebase project ID injected via --dart-define firebaseProjectId"
+  },
+
   "homeFirebaseConnected": "Connected",
   "@homeFirebaseConnected": {
     "description": "Firebase connection status when connected"

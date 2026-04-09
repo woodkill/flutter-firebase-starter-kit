@@ -63,6 +63,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeBuildEnvironment => '빌드 환경';
 
   @override
+  String get homeEnvFlavor => '플레이버';
+
+  @override
+  String get homeEnvAppName => '앱 이름';
+
+  @override
+  String get homeEnvFirebase => 'Firebase';
+
+  @override
+  String get homeEnvFirebaseProjectId => 'Firebase 프로젝트 ID';
+
+  @override
   String get homeFirebaseConnected => '연결됨';
 
   @override

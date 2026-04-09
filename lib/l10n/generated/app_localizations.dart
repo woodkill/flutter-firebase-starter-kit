@@ -208,6 +208,30 @@ abstract class AppLocalizations {
   /// **'Build Environment'**
   String get homeBuildEnvironment;
 
+  /// Environment card label for the build flavor (dev/stg/prod)
+  ///
+  /// In en, this message translates to:
+  /// **'Flavor'**
+  String get homeEnvFlavor;
+
+  /// Environment card label for the application display name injected via --dart-define appName
+  ///
+  /// In en, this message translates to:
+  /// **'App Name'**
+  String get homeEnvAppName;
+
+  /// Environment card label for the Firebase connection status card
+  ///
+  /// In en, this message translates to:
+  /// **'Firebase'**
+  String get homeEnvFirebase;
+
+  /// Environment card label for the Firebase project ID injected via --dart-define firebaseProjectId
+  ///
+  /// In en, this message translates to:
+  /// **'Firebase Project ID'**
+  String get homeEnvFirebaseProjectId;
+
   /// Firebase connection status when connected
   ///
   /// In en, this message translates to:
