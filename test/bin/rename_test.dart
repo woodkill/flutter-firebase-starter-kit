@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -69,7 +71,10 @@ void main() {
   group('toUpperCamelCase', () {
     test('snake_case를 UpperCamelCase로 변환한다', () {
       expect(toUpperCamelCase('my_app'), equals('MyApp'));
-      expect(toUpperCamelCase('flutter_starter_kit'), equals('FlutterStarterKit'));
+      expect(
+        toUpperCamelCase('flutter_starter_kit'),
+        equals('FlutterStarterKit'),
+      );
       expect(toUpperCamelCase('app'), equals('App'));
     });
   });
@@ -88,10 +93,7 @@ void main() {
   group('toTitleCase', () {
     test('snake_case를 Title Case(공백 구분)로 변환한다', () {
       expect(toTitleCase('my_app'), equals('My App'));
-      expect(
-        toTitleCase('flutter_starter_kit'),
-        equals('Flutter Starter Kit'),
-      );
+      expect(toTitleCase('flutter_starter_kit'), equals('Flutter Starter Kit'));
       expect(toTitleCase('app'), equals('App'));
     });
   });
@@ -103,14 +105,13 @@ void main() {
       tempDir = Directory.systemTemp.createTempSync('rename_test_');
 
       // pubspec.yaml 생성
-      File('${tempDir.path}/pubspec.yaml').writeAsStringSync(
-        'name: flutter_starter_kit\nversion: 1.0.0\n',
-      );
+      File(
+        '${tempDir.path}/pubspec.yaml',
+      ).writeAsStringSync('name: flutter_starter_kit\nversion: 1.0.0\n');
 
       // android/app/build.gradle.kts 생성
       Directory('${tempDir.path}/android/app').createSync(recursive: true);
-      File('${tempDir.path}/android/app/build.gradle.kts').writeAsStringSync(
-        '''
+      File('${tempDir.path}/android/app/build.gradle.kts').writeAsStringSync('''
 plugins {
     id("com.android.application")
 }
@@ -122,8 +123,7 @@ android {
         applicationId = "com.slimpumpkin.flutter_starter_kit"
     }
 }
-''',
-      );
+''');
 
       // Kotlin MainActivity 생성
       Directory(
@@ -143,15 +143,13 @@ android {
       ).createSync(recursive: true);
       File(
         '${tempDir.path}/ios/Runner.xcodeproj/project.pbxproj',
-      ).writeAsStringSync(
-        '''
+      ).writeAsStringSync('''
 /* Begin section */
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.RunnerTests;
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
 /* End section */
-''',
-      );
+''');
 
       // lib/*.dart 생성
       Directory('${tempDir.path}/lib/core').createSync(recursive: true);
@@ -165,9 +163,9 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
 
       // test/*.dart 생성
       Directory('${tempDir.path}/test/core').createSync(recursive: true);
-      File('${tempDir.path}/test/widget_test.dart').writeAsStringSync(
-        "import 'package:flutter_starter_kit/main.dart';\n",
-      );
+      File(
+        '${tempDir.path}/test/widget_test.dart',
+      ).writeAsStringSync("import 'package:flutter_starter_kit/main.dart';\n");
 
       // config/*.json 생성
       Directory('${tempDir.path}/config').createSync(recursive: true);
@@ -187,18 +185,21 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
 
       // pubspec.yaml 변경 포함 확인
-      final pubspecChanges =
-          changes.where((c) => c.filePath.endsWith('pubspec.yaml'));
+      final pubspecChanges = changes.where(
+        (c) => c.filePath.endsWith('pubspec.yaml'),
+      );
       expect(pubspecChanges, isNotEmpty);
 
       // build.gradle.kts 변경 포함 확인
-      final gradleChanges =
-          changes.where((c) => c.filePath.endsWith('build.gradle.kts'));
+      final gradleChanges = changes.where(
+        (c) => c.filePath.endsWith('build.gradle.kts'),
+      );
       expect(gradleChanges, isNotEmpty);
 
       // project.pbxproj 변경 포함 확인
-      final pbxprojChanges =
-          changes.where((c) => c.filePath.endsWith('project.pbxproj'));
+      final pbxprojChanges = changes.where(
+        (c) => c.filePath.endsWith('project.pbxproj'),
+      );
       expect(pbxprojChanges, isNotEmpty);
 
       // Kotlin 디렉토리 이동 포함 확인
@@ -206,18 +207,21 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(kotlinChanges, isNotEmpty);
 
       // lib/*.dart import 변경 포함 확인
-      final libChanges =
-          changes.where((c) => c.filePath.contains('/lib/') && c.type == ChangeType.replace);
+      final libChanges = changes.where(
+        (c) => c.filePath.contains('/lib/') && c.type == ChangeType.replace,
+      );
       expect(libChanges, isNotEmpty);
 
       // test/*.dart import 변경 포함 확인
-      final testChanges =
-          changes.where((c) => c.filePath.contains('/test/') && c.type == ChangeType.replace);
+      final testChanges = changes.where(
+        (c) => c.filePath.contains('/test/') && c.type == ChangeType.replace,
+      );
       expect(testChanges, isNotEmpty);
 
       // config/*.json 변경 포함 확인
-      final configChanges =
-          changes.where((c) => c.filePath.contains('/config/'));
+      final configChanges = changes.where(
+        (c) => c.filePath.contains('/config/'),
+      );
       expect(configChanges, isNotEmpty);
     });
 
@@ -261,8 +265,9 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
 
     test('config/*.json의 appName을 Title Case로 변경한다', () {
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
-      final configChanges =
-          changes.where((c) => c.filePath.contains('/config/')).toList();
+      final configChanges = changes
+          .where((c) => c.filePath.contains('/config/'))
+          .toList();
 
       expect(configChanges.length, greaterThanOrEqualTo(2));
 
@@ -274,17 +279,21 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     test('Kotlin 디렉토리 이동과 package 선언 변경을 포함한다', () {
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
 
-      final moveChange = changes.firstWhere(
-        (c) => c.type == ChangeType.move,
+      final moveChange = changes.firstWhere((c) => c.type == ChangeType.move);
+      expect(
+        moveChange.oldValue,
+        contains('com/slimpumpkin/flutter_starter_kit'),
       );
-      expect(moveChange.oldValue, contains('com/slimpumpkin/flutter_starter_kit'));
       expect(moveChange.newValue, contains('com/example/my_app'));
 
       // Kotlin package 선언 변경
       final kotlinReplace = changes.firstWhere(
         (c) => c.filePath.endsWith('.kt') && c.type == ChangeType.replace,
       );
-      expect(kotlinReplace.oldValue, contains('com.slimpumpkin.flutter_starter_kit'));
+      expect(
+        kotlinReplace.oldValue,
+        contains('com.slimpumpkin.flutter_starter_kit'),
+      );
       expect(kotlinReplace.newValue, contains('com.example.my_app'));
     });
   });
@@ -296,9 +305,9 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       tempDir = Directory.systemTemp.createTempSync('rename_dryrun_');
 
       // 최소 구조 생성
-      File('${tempDir.path}/pubspec.yaml').writeAsStringSync(
-        'name: flutter_starter_kit\nversion: 1.0.0\n',
-      );
+      File(
+        '${tempDir.path}/pubspec.yaml',
+      ).writeAsStringSync('name: flutter_starter_kit\nversion: 1.0.0\n');
     });
 
     tearDown(() {
@@ -323,15 +332,15 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       tempDir = Directory.systemTemp.createTempSync('rename_apply_');
 
       // pubspec.yaml 생성
-      File('${tempDir.path}/pubspec.yaml').writeAsStringSync(
-        'name: flutter_starter_kit\nversion: 1.0.0\n',
-      );
+      File(
+        '${tempDir.path}/pubspec.yaml',
+      ).writeAsStringSync('name: flutter_starter_kit\nversion: 1.0.0\n');
 
       // lib dart 파일 생성
       Directory('${tempDir.path}/lib').createSync(recursive: true);
-      File('${tempDir.path}/lib/main.dart').writeAsStringSync(
-        "import 'package:flutter_starter_kit/app.dart';\n",
-      );
+      File(
+        '${tempDir.path}/lib/main.dart',
+      ).writeAsStringSync("import 'package:flutter_starter_kit/app.dart';\n");
 
       // config json 생성
       Directory('${tempDir.path}/config').createSync(recursive: true);
@@ -348,8 +357,9 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
 
       // replace 타입만 필터 (move는 디렉토리가 없으면 에러 발생하므로 제외)
-      final replaceChanges =
-          changes.where((c) => c.type == ChangeType.replace).toList();
+      final replaceChanges = changes
+          .where((c) => c.type == ChangeType.replace)
+          .toList();
       applyChanges(replaceChanges);
 
       // pubspec.yaml 확인
@@ -358,15 +368,149 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(pubspec, isNot(contains('flutter_starter_kit')));
 
       // lib/main.dart 확인
-      final mainDart =
-          File('${tempDir.path}/lib/main.dart').readAsStringSync();
+      final mainDart = File('${tempDir.path}/lib/main.dart').readAsStringSync();
       expect(mainDart, contains('package:my_app/'));
       expect(mainDart, isNot(contains('package:flutter_starter_kit/')));
 
       // config/dev.json 확인
-      final devJson =
-          File('${tempDir.path}/config/dev.json').readAsStringSync();
+      final devJson = File(
+        '${tempDir.path}/config/dev.json',
+      ).readAsStringSync();
       expect(devJson, contains('My App'));
+    });
+  });
+
+  group('CLI integration', () {
+    late Directory tempDir;
+    late String projectRoot;
+
+    setUp(() {
+      // 프로젝트 루트는 setUp 호출 시점의 cwd로 고정 (Process.start 시 cwd가
+      // tempDir로 바뀌므로 binPath 결정에 사용)
+      projectRoot = Directory.current.path;
+      tempDir = Directory.systemTemp.createTempSync('rename_cli_eie_');
+
+      // 최소 프로젝트 골격 (pubspec.yaml + lib/main.dart)
+      File(
+        '${tempDir.path}/pubspec.yaml',
+      ).writeAsStringSync('name: flutter_starter_kit\nversion: 1.0.0\n');
+      Directory('${tempDir.path}/lib').createSync(recursive: true);
+      File(
+        '${tempDir.path}/lib/main.dart',
+      ).writeAsStringSync("import 'package:flutter_starter_kit/app.dart';\n");
+    });
+
+    tearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    Future<({int exitCode, String stdout, String stderr})> runCli(
+      List<String> args, {
+      String? stdinInput,
+    }) async {
+      final binPath = '$projectRoot/bin/rename.dart';
+      final proc = await Process.start(
+        'fvm',
+        ['dart', 'run', binPath, ...args],
+        workingDirectory: tempDir.path,
+        environment: {...Platform.environment, 'NO_COLOR': '1'},
+      );
+      if (stdinInput != null) {
+        proc.stdin.writeln(stdinInput);
+      }
+      await proc.stdin.close();
+
+      // CRITICAL: exitCode await 전에 stdout/stderr 드레이닝 시작.
+      // 파이프 버퍼 포화로 인한 데드락 방지 (Pitfall 5).
+      final outFuture = proc.stdout.transform(utf8.decoder).join();
+      final errFuture = proc.stderr.transform(utf8.decoder).join();
+
+      final code = await proc.exitCode.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () =>
+            throw TimeoutException('rename CLI did not exit within 30s'),
+      );
+      return (exitCode: code, stdout: await outFuture, stderr: await errFuture);
+    }
+
+    test('dry-run은 영어 출력과 [DRY RUN] prefix를 보여준다', () async {
+      final result = await runCli(['--org', 'com.example', '--name', 'my_app']);
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('[DRY RUN]'));
+      expect(result.stdout, contains('Changes to apply:'));
+      expect(result.stdout, contains('Run with --apply to execute'));
+      // F1: 한국어 문자열이 남아있지 않아야 한다
+      expect(result.stdout, isNot(contains('변경 대상')));
+      expect(result.stdout, isNot(contains('다음 단계')));
+    });
+
+    test("--apply without --yes는 prompt를 띄우고 'n'에서 중단한다", () async {
+      final result = await runCli([
+        '--org',
+        'com.example',
+        '--name',
+        'my_app',
+        '--apply',
+      ], stdinInput: 'n');
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('Apply'));
+      expect(result.stdout, contains('[y/N]'));
+      expect(result.stdout, contains('Aborted by user.'));
+      // 파일 미변경 (F2 + F4)
+      expect(
+        File('${tempDir.path}/pubspec.yaml').readAsStringSync(),
+        contains('name: flutter_starter_kit'),
+      );
+    });
+
+    test('--apply --yes는 prompt 없이 변경을 적용한다', () async {
+      final result = await runCli([
+        '--org',
+        'com.example',
+        '--name',
+        'my_app',
+        '--apply',
+        '--yes',
+      ]);
+      expect(result.exitCode, 0);
+      expect(result.stdout, isNot(contains('[y/N]')));
+      expect(result.stdout, contains('Done!'));
+      expect(
+        File('${tempDir.path}/pubspec.yaml').readAsStringSync(),
+        contains('name: my_app'),
+      );
+    });
+
+    test('잘못된 --org는 영어 에러로 exit 1', () async {
+      final result = await runCli(['--org', 'Invalid', '--name', 'my_app']);
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains('Invalid org format'));
+      expect(result.stderr, isNot(contains('잘못된')));
+    });
+
+    test('필수 옵션 누락 시 스택 트레이스 대신 영어 에러', () async {
+      final result = await runCli(const []);
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains('--org and --name are required'));
+      // BUG-ARGS: 스택 트레이스가 사용자에게 노출되면 안 된다
+      expect(result.stderr, isNot(contains('Unhandled exception')));
+      expect(result.stderr, isNot(contains('package:args/src')));
+    });
+
+    test('0건 변경 케이스는 진단 힌트를 출력한다', () async {
+      // 이미 rename된 프로젝트 시뮬레이션
+      File(
+        '${tempDir.path}/pubspec.yaml',
+      ).writeAsStringSync('name: my_app\nversion: 1.0.0\n');
+      File(
+        '${tempDir.path}/lib/main.dart',
+      ).writeAsStringSync("import 'package:my_app/app.dart';\n");
+      final result = await runCli(['--org', 'com.example', '--name', 'my_app']);
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('No changes to apply.'));
+      expect(result.stdout, contains('Possible reasons'));
     });
   });
 }
