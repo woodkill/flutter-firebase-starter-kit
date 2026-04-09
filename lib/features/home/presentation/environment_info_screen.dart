@@ -190,10 +190,16 @@ class _LanguageSection extends ConsumerWidget {
               child: Text(_localeDisplayName(locale)),
             );
           }).toList(),
-          onChanged: (locale) {
-            if (locale != null) {
-              ref.read(localeProvider.notifier).setLocale(locale);
-            }
+          onChanged: (locale) async {
+            if (locale == null) return;
+            await ref.read(localeProvider.notifier).setLocale(locale);
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(context.l10n.languageChanged),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
           },
         ),
         Gap(spacing.lg),
