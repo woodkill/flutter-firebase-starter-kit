@@ -160,6 +160,14 @@ class AuthRepository {
       return const Result.success(null);
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      // 비-Auth Firebase/Platform 예외도 Result로 감싸 전파를 막는다.
+      // Timer.periodic 콜백(pollOnce)에서 미처리 예외는 isolate 크래시를,
+      // checkManually에서는 isChecking 플래그 영구 고정을 유발할 수 있다.
+      if (kDebugMode) {
+        debugPrint('reloadUser 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
     }
   }
 
