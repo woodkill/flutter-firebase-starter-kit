@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:sign_in_button/sign_in_button.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
@@ -194,5 +195,40 @@ void main() {
       );
       await tester.pumpAndSettle();
     });
+
+    testWidgets(
+      '6. Google 버튼(SignInButton)이 렌더링된다',
+      (tester) async {
+        await _pumpLogin(tester, mockRepo);
+        expect(find.byType(SignInButton), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '7. OrDivider "or" 텍스트가 표시된다',
+      (tester) async {
+        await _pumpLogin(tester, mockRepo);
+        expect(find.text('or'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '8. Google 버튼이 EmailField 위에 위치한다',
+      (tester) async {
+        await _pumpLogin(tester, mockRepo);
+
+        final googleButton = tester.getTopLeft(
+          find.byType(SignInButton),
+        );
+        final emailField = tester.getTopLeft(
+          find.byType(TextFormField).first,
+        );
+        expect(
+          googleButton.dy,
+          lessThan(emailField.dy),
+          reason: 'Google 버튼이 이메일 필드 위에 배치되어야 한다',
+        );
+      },
+    );
   });
 }

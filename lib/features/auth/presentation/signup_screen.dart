@@ -12,15 +12,18 @@ import '_widgets/email_field.dart';
 import '_widgets/form_error_banner.dart';
 import '_widgets/password_field.dart';
 import '_widgets/primary_cta.dart';
+import '_widgets/social_sign_in_section.dart';
+import 'google_sign_in_notifier.dart';
 import 'signup_notifier.dart';
 
-/// 이메일/비밀번호 회원가입 화면 (D-01, D-04).
+/// 이메일/비밀번호 + Google 회원가입 화면 (D-01, D-04, D-05).
 ///
 /// 폼 필드 3종(displayName / email / password) + Form validation +
-/// [SignupNotifier] 위임 구조로 동작한다. 성공 시 화면 이동은 Phase 5
-/// redirect 가드가 처리하므로 본 화면은 직접 navigation 을 호출하지 않으며
-/// redirect 가드에 위임한다 (D-05). 실패 시 [FormErrorBanner] 에 inline
-/// 으로 표시한다.
+/// [SignupNotifier] 위임 구조로 동작한다. Google 로그인은
+/// [GoogleSignInNotifier] 가 별도 관리한다 (D-13).
+/// 성공 시 화면 이동은 Phase 5 redirect 가드가 처리하므로 본 화면은
+/// 직접 navigation 을 호출하지 않으며 redirect 가드에 위임한다 (D-05).
+/// 실패 시 [FormErrorBanner] 에 inline 으로 표시한다.
 class SignupScreen extends ConsumerStatefulWidget {
   /// [SignupScreen] 을 생성한다.
   const SignupScreen({super.key});
@@ -66,10 +69,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   /// 폼 제출 핸들러.
   ///
+  /// Google 로그인 진행 중이면 제출을 차단한다 (T-07-05).
   /// validator 통과 시 키보드를 내리고 [SignupNotifier.submit] 을 호출한다.
   /// 성공/실패 전이는 [ref.listen] 으로 감시되며 본 메서드는 navigation 을
   /// 호출하지 않는다 (D-05).
   Future<void> _handleSubmit() async {
+    if (ref.read(googleSignInProvider).isLoading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _bannerError = null);
@@ -88,9 +93,20 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
     final state = ref.watch(signupProvider);
-    final isLoading = state.isLoading;
+    final googleState = ref.watch(googleSignInProvider);
+    final isLoading = state.isLoading || googleState.isLoading;
 
     ref.listen<AsyncValue<void>>(signupProvider, (previous, next) {
+      if (next is AsyncError) {
+        final err = next.error;
+        if (err is AppException) {
+          setState(() => _bannerError = err);
+        }
+      }
+    });
+
+    // Google 로그인 에러 감지. SignupScreen에서는 에러 배너만 표시.
+    ref.listen<AsyncValue<void>>(googleSignInProvider, (previous, next) {
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
@@ -110,6 +126,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Gap(spacing.xxl),
+              SocialSignInSection(isFormLoading: state.isLoading),
+              FormErrorBanner(exception: _bannerError),
+              Gap(spacing.sm),
               TextFormField(
                 controller: _nameController,
                 focusNode: _nameFocus,
@@ -135,8 +154,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 isNewPassword: true,
                 onSubmitted: (_) => _handleSubmit(),
               ),
-              Gap(spacing.sm),
-              FormErrorBanner(exception: _bannerError),
               Gap(spacing.xl),
               PrimaryCta(
                 label: l10n.authSignupCta,

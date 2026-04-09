@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:sign_in_button/sign_in_button.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
@@ -46,7 +47,8 @@ void main() {
   });
 
   group('SignupScreen', () {
-    testWidgets('1. 빈 입력 제출 시 3개 validator 에러 inline 표시', (tester) async {
+    testWidgets('1. 빈 입력 제출 시 3개 validator 에러 inline 표시',
+        (tester) async {
       await _pumpSignup(tester, mockRepo);
       await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
       await tester.pump();
@@ -69,7 +71,8 @@ void main() {
       );
     });
 
-    testWidgets('2. displayName 33자 입력 시 too long 에러 표시', (tester) async {
+    testWidgets('2. displayName 33자 입력 시 too long 에러 표시',
+        (tester) async {
       await _pumpSignup(tester, mockRepo);
       final longName = 'a' * 33;
       await tester.enterText(find.byType(TextFormField).at(0), longName);
@@ -82,7 +85,8 @@ void main() {
       );
     });
 
-    testWidgets('3. 정상 입력 제출 시 Repository 호출 (트림 검증)', (tester) async {
+    testWidgets('3. 정상 입력 제출 시 Repository 호출 (트림 검증)',
+        (tester) async {
       when(
         () => mockRepo.signUpWithEmail(
           email: any(named: 'email'),
@@ -127,7 +131,8 @@ void main() {
       ).called(1);
     });
 
-    testWidgets('4. EmailAlreadyInUse 에러 시 폼 상단 배너 표시', (tester) async {
+    testWidgets('4. EmailAlreadyInUse 에러 시 폼 상단 배너 표시',
+        (tester) async {
       when(
         () => mockRepo.signUpWithEmail(
           email: any(named: 'email'),
@@ -207,14 +212,26 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('6. 화면 렌더 시 navigation 미호출 (예외 없음)', (tester) async {
-      // SignupScreen 자체 렌더에서 navigation 콜이 발생하면 unhandled
-      // exception 이 발생한다. 본 testWidgets 가 통과하면 D-05 (성공 시
-      // navigation 은 redirect 가드가 처리) 가 화면 빌드 단계에서 위반
-      // 되지 않음을 보장한다. 정적 grep guard 는 acceptance criteria 가
-      // 별도로 검증한다.
+    testWidgets('6. 화면 렌더 시 navigation 미호출 (예외 없음)',
+        (tester) async {
       await _pumpSignup(tester, mockRepo);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+      '7. Google 버튼(SignInButton)이 렌더링된다',
+      (tester) async {
+        await _pumpSignup(tester, mockRepo);
+        expect(find.byType(SignInButton), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '8. OrDivider "or" 텍스트가 표시된다',
+      (tester) async {
+        await _pumpSignup(tester, mockRepo);
+        expect(find.text('or'), findsOneWidget);
+      },
+    );
   });
 }

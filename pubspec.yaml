@@ -74,6 +74,12 @@ dev_dependencies:
   mocktail: ^1.0.4
   test: ^1.30.0
 
+# sign_in_button 4.1.0이 font_awesome_flutter >=10.0.0 <12.0.0을
+# 의존하지만, 11.0.0에서 FaIconData가 IconData를 extends하지 않는
+# breaking change가 발생하여 비호환. 10.x로 고정한다.
+dependency_overrides:
+  font_awesome_flutter: '>=10.0.0 <11.0.0'
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
