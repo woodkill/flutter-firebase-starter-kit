@@ -6,6 +6,7 @@ import 'package:gap/gap.dart';
 
 import '../../../core/l10n/intl_extensions.dart';
 import '../../../core/l10n/l10n_extensions.dart';
+import '../../../core/l10n/locale_display_names.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
@@ -187,7 +188,7 @@ class _LanguageSection extends ConsumerWidget {
           items: AppLocalizations.supportedLocales.map((locale) {
             return DropdownMenuItem(
               value: locale,
-              child: Text(_localeDisplayName(locale)),
+              child: Text(localeDisplayName(locale)),
             );
           }).toList(),
           onChanged: (locale) async {
@@ -265,16 +266,6 @@ class _LanguageSection extends ConsumerWidget {
         ),
       ],
     );
-  }
-
-  /// [Locale]을 사용자 친화적인 표시 이름으로 변환한다.
-  String _localeDisplayName(Locale locale) {
-    return switch (locale.languageCode) {
-      'en' => 'English',
-      'ko' => '한국어',
-      'ja' => '日本語',
-      _ => locale.languageCode,
-    };
   }
 }
 
