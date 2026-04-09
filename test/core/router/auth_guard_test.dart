@@ -265,5 +265,26 @@ void main() {
         expect(result, AppRoutes.login);
       },
     );
+
+    test(
+      'Google 인증 사용자(emailVerified==true) + /login 접근 시 /home redirect',
+      () async {
+        // Google 로그인은 emailVerified==true이므로 기존 authRedirect
+        // 로직이 자연스럽게 /home으로 redirect한다 (Phase 7 D-11/D-12).
+        final mockUser = _MockUser();
+        when(() => mockUser.uid).thenReturn('google-uid-123');
+        when(() => mockUser.emailVerified).thenReturn(true);
+        final container = makeContainer(
+          isInitialized: true,
+          user: mockUser,
+        );
+        addTearDown(container.dispose);
+
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(result, AppRoutes.home);
+      },
+    );
   });
 }

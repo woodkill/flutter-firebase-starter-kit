@@ -136,13 +136,16 @@ void main() {
           find.text('Account', skipOffstage: false),
           findsOneWidget,
         );
+        // displayName: CircleAvatar Row에 표시
+        // (기존 _EnvironmentCard는 CircleAvatar Row로 교체됨).
         expect(
           find.text('Test User', skipOffstage: false),
           findsOneWidget,
         );
+        // email: CircleAvatar Row + _EnvironmentCard 양쪽에 표시.
         expect(
           find.text('user@example.com', skipOffstage: false),
-          findsOneWidget,
+          findsNWidgets(2),
         );
         // uid truncated to first 8 chars + '...'
         expect(
@@ -229,6 +232,142 @@ void main() {
         await tester.pumpAndSettle();
 
         verify(() => mockRepo.signOut()).called(1);
+      },
+    );
+  });
+
+  group('EnvironmentInfoScreen Account 섹션 (Phase 7 D-11/D-12)', () {
+    testWidgets(
+      'providerIds [password] 시 "Email / Password" 표시 (D-11)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-provider-1',
+          email: 'pw@example.com',
+          emailVerified: true,
+          displayName: 'PW User',
+          createdAt: DateTime.utc(2026),
+          providerIds: ['password'],
+        );
+
+        await _pumpScreen(tester, user: user);
+
+        expect(
+          find.text('Email / Password', skipOffstage: false),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'providerIds [password, google.com] 시 '
+      '"Email / Password, Google" 표시 (D-11)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-provider-2',
+          email: 'multi@example.com',
+          emailVerified: true,
+          displayName: 'Multi User',
+          createdAt: DateTime.utc(2026),
+          providerIds: ['password', 'google.com'],
+        );
+
+        await _pumpScreen(tester, user: user);
+
+        expect(
+          find.text('Email / Password, Google', skipOffstage: false),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'providerIds 빈 리스트 시 "-" 표시 (D-11 fallback)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-provider-3',
+          email: 'empty@example.com',
+          emailVerified: true,
+          createdAt: DateTime.utc(2026),
+        );
+
+        await _pumpScreen(tester, user: user);
+
+        // Providers 카드의 값이 '-'
+        // (displayName도 null이므로 '-'가 복수 개 존재)
+        final dashFinder = find.text('-', skipOffstage: false);
+        expect(dashFinder, findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'photoUrl null 시 CircleAvatar에 Icons.person 아이콘 표시 (D-12)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-avatar-1',
+          email: 'no-photo@example.com',
+          emailVerified: true,
+          displayName: 'No Photo',
+          createdAt: DateTime.utc(2026),
+          providerIds: ['password'],
+        );
+
+        await _pumpScreen(tester, user: user);
+
+        // CircleAvatar 존재
+        expect(
+          find.byType(CircleAvatar, skipOffstage: false),
+          findsOneWidget,
+        );
+        // CircleAvatar 내부에 person 아이콘 존재
+        final personInAvatar = find.descendant(
+          of: find.byType(CircleAvatar),
+          matching: find.byIcon(Icons.person),
+        );
+        expect(personInAvatar, findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'CircleAvatar가 Semantics 위젯으로 래핑되어 있음 (D-12 접근성)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-avatar-2',
+          email: 'sem@example.com',
+          emailVerified: true,
+          displayName: 'Semantic User',
+          createdAt: DateTime.utc(2026),
+          providerIds: ['google.com'],
+        );
+
+        await _pumpScreen(tester, user: user);
+
+        // CircleAvatar의 직접 부모가 Semantics 위젯인지 확인
+        final semanticsAncestor = find.ancestor(
+          of: find.byType(CircleAvatar),
+          matching: find.byType(Semantics),
+        );
+        expect(semanticsAncestor, findsWidgets);
+      },
+    );
+
+    testWidgets(
+      '미지원 프로바이더 raw ID 그대로 표시 (D-11 fallback)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-provider-4',
+          email: 'raw@example.com',
+          emailVerified: true,
+          displayName: 'Raw',
+          createdAt: DateTime.utc(2026),
+          providerIds: ['apple.com'],
+        );
+
+        await _pumpScreen(tester, user: user);
+
+        expect(
+          find.text('apple.com', skipOffstage: false),
+          findsOneWidget,
+        );
       },
     );
   });

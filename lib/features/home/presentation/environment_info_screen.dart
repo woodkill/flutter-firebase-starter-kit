@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -670,11 +671,12 @@ class _SpacingBar extends StatelessWidget {
   }
 }
 
-/// Phase 6 Account 섹션 (D-33 ~ D-36).
+/// Account 섹션 (Phase 6 D-33~D-36, Phase 7 D-11/D-12).
 ///
 /// [currentUserProvider]를 watch하여 인증 상태에 따라 사용자 정보를 표시한다.
 /// 비인증 상태일 경우 섹션 자체를 숨긴다 (D-36).
-/// 인증 상태일 경우 displayName/email/uid/createdAt/providers/ID 토큰 복사
+/// 인증 상태일 경우 CircleAvatar 프로필 사진(D-12) +
+/// displayName/email/uid/createdAt/providers(D-11 동적)/ID 토큰 복사
 /// 버튼(kDebugMode)/로그아웃 버튼을 표시한다.
 class _AccountSection extends ConsumerWidget {
   const _AccountSection();
@@ -696,12 +698,49 @@ class _AccountSection extends ConsumerWidget {
           style: context.appTypography.titleLarge,
         ),
         Gap(spacing.md),
-        _EnvironmentCard(
-          icon: Icons.person,
-          label: l10n.authAccountDisplayName,
-          value: user.displayName ?? '-',
+        // D-12: CircleAvatar 프로필 사진 + 사용자 기본 정보 Row.
+        Row(
+          children: [
+            Semantics(
+              label: user.displayName ?? l10n.authAccountDisplayName,
+              child: CircleAvatar(
+                radius: 24,
+                backgroundImage: user.photoUrl != null
+                    ? CachedNetworkImageProvider(user.photoUrl!)
+                    : null,
+                onBackgroundImageError: user.photoUrl != null
+                    ? (_, _) {}
+                    : null,
+                child: user.photoUrl == null
+                    ? Icon(
+                        Icons.person,
+                        size: 24,
+                        color: context.colorScheme.onSurfaceVariant,
+                      )
+                    : null,
+              ),
+            ),
+            Gap(spacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.displayName ?? '-',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Text(
+                    user.email,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        Gap(spacing.md),
+        Gap(spacing.lg),
         _EnvironmentCard(
           icon: Icons.email,
           label: l10n.authAccountEmail,
@@ -736,14 +775,11 @@ class _AccountSection extends ConsumerWidget {
           ),
         ],
         Gap(spacing.md),
-        // Providers: 옵션 B (D-35 Phase 6 축소). User 모델에 providerIds
-        // 필드를 도입하지 않고 Phase 6 범위에서 authAccountProviderEmailPassword
-        // 고정 라벨로 표시한다. 추후 소셜 로그인 phase 에서 User 모델 확장과
-        // 함께 실제 providerData 매핑으로 교체 예정.
+        // D-11: providerIds 동적 표시 (Phase 7).
         _EnvironmentCard(
           icon: Icons.security,
           label: l10n.authAccountProviders,
-          value: l10n.authAccountProviderEmailPassword,
+          value: _formatProviderIds(user.providerIds, l10n),
         ),
         if (kDebugMode) ...[
           Gap(spacing.md),
@@ -850,6 +886,27 @@ class _AccountSection extends ConsumerWidget {
       await ref.read(authRepositoryProvider).signOut();
     }
   }
+}
+
+/// providerIds를 사용자 가독형 라벨 문자열로 변환한다 (D-11).
+///
+/// - `'password'` -> [AppLocalizations.authAccountProviderEmailPassword]
+/// - `'google.com'` -> [AppLocalizations.authAccountProviderGoogle]
+/// - 미지원 프로바이더는 raw ID 그대로 표시 (Phase 8/9에서 추가 매핑).
+String _formatProviderIds(
+  List<String> providerIds,
+  AppLocalizations l10n,
+) {
+  if (providerIds.isEmpty) return '-';
+  return providerIds
+      .map(
+        (id) => switch (id) {
+          'password' => l10n.authAccountProviderEmailPassword,
+          'google.com' => l10n.authAccountProviderGoogle,
+          _ => id,
+        },
+      )
+      .join(', ');
 }
 
 /// 환경 카드 값(value) 의 시맨틱 상태.
