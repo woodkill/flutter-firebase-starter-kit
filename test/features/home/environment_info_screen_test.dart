@@ -125,6 +125,7 @@ void main() {
         final user = User(
           uid: 'abcdefgh-rest-of-uid-12345',
           email: 'user@example.com',
+          emailVerified: true,
           displayName: 'Test User',
           createdAt: DateTime.utc(2026, 1, 15),
         );
@@ -161,6 +162,7 @@ void main() {
         final user = User(
           uid: 'uid-cancel-1',
           email: 'a@b.com',
+          emailVerified: true,
           displayName: 'A',
           createdAt: DateTime.utc(2026),
         );
@@ -198,6 +200,7 @@ void main() {
         final user = User(
           uid: 'uid-confirm-1',
           email: 'a@b.com',
+          emailVerified: true,
           displayName: 'A',
           createdAt: DateTime.utc(2026),
         );

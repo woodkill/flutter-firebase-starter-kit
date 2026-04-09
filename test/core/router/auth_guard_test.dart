@@ -90,6 +90,7 @@ void main() {
     test('인증 완료 + login 위치 시 /를 반환한다', () async {
       final mockUser = _MockUser();
       when(() => mockUser.uid).thenReturn('test-uid');
+      when(() => mockUser.emailVerified).thenReturn(true);
       final container = makeContainer(isInitialized: true, user: mockUser);
       addTearDown(container.dispose);
 
@@ -102,6 +103,7 @@ void main() {
     test('인증 완료 + home 위치 시 null을 반환한다', () async {
       final mockUser = _MockUser();
       when(() => mockUser.uid).thenReturn('test-uid');
+      when(() => mockUser.emailVerified).thenReturn(true);
       final container = makeContainer(isInitialized: true, user: mockUser);
       addTearDown(container.dispose);
 
@@ -135,6 +137,7 @@ void main() {
     test('인증 완료 + /signup 위치 시 / 를 반환한다', () async {
       final mockUser = _MockUser();
       when(() => mockUser.uid).thenReturn('test-uid');
+      when(() => mockUser.emailVerified).thenReturn(true);
       final container = makeContainer(isInitialized: true, user: mockUser);
       addTearDown(container.dispose);
 
@@ -153,6 +156,7 @@ void main() {
         // 정확히 인지되는지를 검증한다.
         final mockUser = _MockUser();
         when(() => mockUser.uid).thenReturn('test-uid');
+        when(() => mockUser.emailVerified).thenReturn(true);
         final container = makeContainer(isInitialized: true, user: mockUser);
         addTearDown(container.dispose);
 

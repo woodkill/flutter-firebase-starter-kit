@@ -10,11 +10,13 @@ void main() {
       final user = User(
         uid: 'uid-123',
         email: 'test@example.com',
+        emailVerified: true,
         createdAt: now,
       );
 
       expect(user.uid, 'uid-123');
       expect(user.email, 'test@example.com');
+      expect(user.emailVerified, isTrue);
       expect(user.displayName, isNull);
       expect(user.photoUrl, isNull);
       expect(user.createdAt, now);
@@ -24,6 +26,7 @@ void main() {
       final user = User(
         uid: 'uid-456',
         email: 'full@example.com',
+        emailVerified: true,
         displayName: 'Test User',
         photoUrl: 'https://example.com/photo.jpg',
         createdAt: now,
@@ -39,6 +42,7 @@ void main() {
       final user = User(
         uid: 'uid-123',
         email: 'test@example.com',
+        emailVerified: true,
         createdAt: now,
       );
 
@@ -56,11 +60,13 @@ void main() {
       final user1 = User(
         uid: 'uid-123',
         email: 'test@example.com',
+        emailVerified: true,
         createdAt: now,
       );
       final user2 = User(
         uid: 'uid-123',
         email: 'test@example.com',
+        emailVerified: true,
         createdAt: now,
       );
 
@@ -72,11 +78,13 @@ void main() {
       final user1 = User(
         uid: 'uid-123',
         email: 'test@example.com',
+        emailVerified: true,
         createdAt: now,
       );
       final user2 = User(
         uid: 'uid-456',
         email: 'other@example.com',
+        emailVerified: true,
         createdAt: now,
       );
 
@@ -88,6 +96,7 @@ void main() {
         final user = User(
           uid: 'uid-123',
           email: 'test@example.com',
+          emailVerified: true,
           displayName: 'Test User',
           photoUrl: 'https://example.com/photo.jpg',
           createdAt: now,
@@ -103,6 +112,7 @@ void main() {
         final user = User(
           uid: 'uid-123',
           email: 'test@example.com',
+          emailVerified: true,
           createdAt: now,
         );
 
@@ -119,6 +129,7 @@ void main() {
         final json = <String, dynamic>{
           'uid': 'uid-789',
           'email': 'datetime@example.com',
+          'emailVerified': true,
           'createdAt': '2026-04-05T12:00:00.000',
           'displayName': null,
           'photoUrl': null,
@@ -137,6 +148,7 @@ void main() {
         final json = <String, dynamic>{
           'uid': 'uid-minimal',
           'email': 'minimal@example.com',
+          'emailVerified': true,
           'createdAt': '2026-01-01T00:00:00.000',
         };
 

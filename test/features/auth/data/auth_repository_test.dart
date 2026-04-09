@@ -31,6 +31,7 @@ void main() {
     // 기본 User 필드 stub
     when(() => mockUser.uid).thenReturn('uid-test');
     when(() => mockUser.email).thenReturn('test@example.com');
+    when(() => mockUser.emailVerified).thenReturn(true);
     when(() => mockUser.displayName).thenReturn('Test');
     when(() => mockUser.photoURL).thenReturn(null);
     when(() => mockUser.metadata).thenReturn(mockMetadata);
@@ -42,6 +43,7 @@ void main() {
     test('모든 필드가 채워진 fb.User 가 도메인 User 로 매핑된다', () async {
       when(() => mockUser.uid).thenReturn('uid-full');
       when(() => mockUser.email).thenReturn('full@example.com');
+      when(() => mockUser.emailVerified).thenReturn(true);
       when(() => mockUser.displayName).thenReturn('Full User');
       when(
         () => mockUser.photoURL,
@@ -65,6 +67,7 @@ void main() {
       final user = (result as Success).data;
       expect(user.uid, 'uid-full');
       expect(user.email, 'full@example.com');
+      expect(user.emailVerified, isTrue);
       expect(user.displayName, 'Full User');
       expect(user.photoUrl, 'https://example.com/photo.png');
       expect(user.createdAt, DateTime.utc(2026, 1, 15, 10, 30));
@@ -73,6 +76,7 @@ void main() {
     test('email 이 null 인 경우 빈 문자열로 fallback', () async {
       when(() => mockUser.uid).thenReturn('uid-no-email');
       when(() => mockUser.email).thenReturn(null);
+      when(() => mockUser.emailVerified).thenReturn(false);
       when(() => mockUser.displayName).thenReturn(null);
       when(() => mockUser.photoURL).thenReturn(null);
       when(
@@ -99,6 +103,7 @@ void main() {
     test('creationTime 이 null 이면 현재 시각으로 fallback', () async {
       when(() => mockUser.uid).thenReturn('uid-no-time');
       when(() => mockUser.email).thenReturn('a@b.com');
+      when(() => mockUser.emailVerified).thenReturn(true);
       when(() => mockUser.displayName).thenReturn(null);
       when(() => mockUser.photoURL).thenReturn(null);
       when(() => mockMetadata.creationTime).thenReturn(null);

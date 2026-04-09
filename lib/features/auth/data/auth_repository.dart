@@ -187,6 +187,7 @@ User _mapFirebaseUser(fb.User fbUser) {
   return User(
     uid: fbUser.uid,
     email: fbUser.email ?? '',
+    emailVerified: fbUser.emailVerified,
     displayName: fbUser.displayName,
     photoUrl: fbUser.photoURL,
     createdAt: fbUser.metadata.creationTime ?? DateTime.now(),

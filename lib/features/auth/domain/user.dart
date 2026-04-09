@@ -20,6 +20,9 @@ abstract class User with _$User {
     /// 사용자 이메일 주소.
     required String email,
 
+    /// 이메일 인증 완료 여부.
+    required bool emailVerified,
+
     /// 표시 이름 (nullable -- 소셜 로그인 시 제공될 수 있음).
     String? displayName,
 

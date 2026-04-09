@@ -99,6 +99,7 @@ void main() {
           User(
             uid: 'u1',
             email: 'user@example.com',
+            emailVerified: true,
             createdAt: DateTime.utc(2026),
           ),
         ),
@@ -186,6 +187,7 @@ void main() {
           User(
             uid: 'u',
             email: 'a@b.com',
+            emailVerified: true,
             createdAt: DateTime.utc(2026),
           ),
         ),

@@ -33,6 +33,7 @@ void main() {
       final user = User(
         uid: 'u1',
         email: 'a@b.com',
+        emailVerified: true,
         displayName: 'Name',
         createdAt: DateTime.utc(2026),
       );
@@ -95,6 +96,7 @@ void main() {
           User(
             uid: 'u1',
             email: 'new@example.com',
+            emailVerified: true,
             displayName: 'New User',
             createdAt: DateTime.utc(2026),
           ),

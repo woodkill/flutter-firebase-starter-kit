@@ -33,6 +33,7 @@ void main() {
       final user = User(
         uid: 'u1',
         email: 'a@b.com',
+        emailVerified: true,
         createdAt: DateTime.utc(2026),
       );
       when(
@@ -83,6 +84,7 @@ void main() {
           User(
             uid: 'u1',
             email: 'a@b.com',
+            emailVerified: true,
             createdAt: DateTime.utc(2026),
           ),
         ),
