@@ -52,19 +52,30 @@ class LocaleNotifier extends _$LocaleNotifier {
           (l) => l.languageCode == code,
         );
         if (isSupported) {
+          // autoDispose race 방어: dispose된 notifier에 state 쓰기 금지
+          if (!ref.mounted) return;
           state = Locale(code);
         }
       }
-    } on Exception catch (e) {
+    } on Exception catch (e, st) {
       // TODO(phase-08): FirebaseCrashlytics.recordError(e, st, reason: 'locale_load')
-      debugPrint('locale_load failed: $e');
+      debugPrint('locale_load failed: $e\n$st');
     }
   }
 
   /// 로케일을 변경하고 [SharedPreferences]에 영속화한다.
+  ///
+  /// lossy persistence: UI는 즉시 갱신되며, 디스크 쓰기 실패 시에도
+  /// 화면 로케일은 유지되고 디버그 로그만 남긴다. Phase 8(Crashlytics 통합)
+  /// 시점에 [FirebaseCrashlytics.recordError]로 교체 예정.
   Future<void> setLocale(Locale locale) async {
     state = locale;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, locale.languageCode);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_key, locale.languageCode);
+    } on Exception catch (e, st) {
+      // TODO(phase-08): FirebaseCrashlytics.recordError(e, st, reason: 'locale_save')
+      debugPrint('locale_save failed: $e\n$st');
+    }
   }
 }
