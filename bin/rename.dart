@@ -97,16 +97,18 @@ ValidateResult validateInputs(String org, String name) {
   if (!_orgPattern.hasMatch(org)) {
     return ValidateResult(
       isValid: false,
-      error: "잘못된 org 형식입니다: '$org'\n"
-          '역순 도메인 형식을 사용하세요 (예: com.example)',
+      error:
+          "Invalid org format: '$org'\n"
+          'Use reverse domain format (e.g., com.example)',
     );
   }
 
   if (!_namePattern.hasMatch(name)) {
     return ValidateResult(
       isValid: false,
-      error: "잘못된 name 형식입니다: '$name'\n"
-          'snake_case 형식을 사용하세요 (예: my_app)',
+      error:
+          "Invalid name format: '$name'\n"
+          'Use snake_case format (e.g., my_app)',
     );
   }
 
@@ -178,18 +180,10 @@ List<FileChange> collectChanges(
   _collectIosChanges(projectRoot, newIosBundleId, changes);
 
   // 5. lib/**/*.dart import 경로
-  _collectDartImportChanges(
-    '$projectRoot/lib',
-    newName,
-    changes,
-  );
+  _collectDartImportChanges('$projectRoot/lib', newName, changes);
 
   // 6. test/**/*.dart import 경로
-  _collectDartImportChanges(
-    '$projectRoot/test',
-    newName,
-    changes,
-  );
+  _collectDartImportChanges('$projectRoot/test', newName, changes);
 
   // 7. config/*.json appName
   _collectConfigChanges(projectRoot, newAppName, changes);
@@ -285,9 +279,7 @@ void _collectIosChanges(
   String newIosBundleId,
   List<FileChange> changes,
 ) {
-  final file = File(
-    '$projectRoot/ios/Runner.xcodeproj/project.pbxproj',
-  );
+  final file = File('$projectRoot/ios/Runner.xcodeproj/project.pbxproj');
   if (!file.existsSync()) return;
 
   final content = file.readAsStringSync();
@@ -304,8 +296,7 @@ void _collectIosChanges(
       FileChange(
         filePath: file.path,
         type: ChangeType.replace,
-        description:
-            'Runner PRODUCT_BUNDLE_IDENTIFIER 변경 ($runnerMatches곳)',
+        description: 'Runner PRODUCT_BUNDLE_IDENTIFIER 변경 ($runnerMatches곳)',
         oldValue: currentIosBundleId,
         newValue: newIosBundleId,
       ),
@@ -372,10 +363,9 @@ void _collectConfigChanges(
   final configDir = Directory('$projectRoot/config');
   if (!configDir.existsSync()) return;
 
-  final jsonFiles = configDir
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.json'));
+  final jsonFiles = configDir.listSync().whereType<File>().where(
+    (f) => f.path.endsWith('.json'),
+  );
 
   for (final file in jsonFiles) {
     final content = file.readAsStringSync();
@@ -387,10 +377,9 @@ void _collectConfigChanges(
       final fullMatch = match.group(0)!;
       final currentValue = match.group(1)!;
       // flavor suffix 추출 (예: "StarterKit Dev" -> " Dev")
-      final suffix =
-          currentValue.startsWith(currentAppName)
-              ? currentValue.substring(currentAppName.length)
-              : '';
+      final suffix = currentValue.startsWith(currentAppName)
+          ? currentValue.substring(currentAppName.length)
+          : '';
       changes.add(
         FileChange(
           filePath: file.path,
@@ -409,31 +398,41 @@ void _collectConfigChanges(
 // ---------------------------------------------------------------------------
 
 /// dry-run 결과를 콘솔에 출력한다.
-void printDryRun(List<FileChange> changes, String newOrg, String newName) {
-  print('[DRY RUN] Package rename: $currentPackageName -> $newName');
-  print('[DRY RUN] Organization: $currentOrg -> $newOrg');
-  print('');
-  print('Changes to apply:');
+///
+/// [projectRoot]는 표시 경로를 상대 경로로 변환하는 기준 디렉토리이다.
+void printDryRun(
+  List<FileChange> changes,
+  String newOrg,
+  String newName,
+  String projectRoot,
+) {
+  stdout.writeln(
+    '${_yellow('[DRY RUN]')} Package rename: '
+    '$currentPackageName -> $newName',
+  );
+  stdout.writeln(
+    '${_yellow('[DRY RUN]')} Organization: $currentOrg -> $newOrg',
+  );
+  stdout.writeln('');
+  stdout.writeln('Changes to apply:');
 
   for (var i = 0; i < changes.length; i++) {
     final change = changes[i];
     final prefix = '  ${i + 1}. ';
     final indent = ' ' * prefix.length;
-
-    // 상대 경로로 표시하기 위해 프로젝트 루트 제거 시도
-    final displayPath = change.filePath;
-    print('$prefix$displayPath');
+    final displayPath = _relPath(change.filePath, projectRoot);
+    stdout.writeln('$prefix$displayPath');
     if (change.type == ChangeType.move) {
-      print('${indent}Move: ${change.oldValue} -> ${change.newValue}');
+      stdout.writeln('${indent}Move: ${change.oldValue} -> ${change.newValue}');
     } else {
-      print('$indent${change.description}');
-      print('$indent  ${change.oldValue}');
-      print('$indent  -> ${change.newValue}');
+      stdout.writeln('$indent${change.description}');
+      stdout.writeln('$indent  ${change.oldValue}');
+      stdout.writeln('$indent  -> ${change.newValue}');
     }
   }
 
-  print('');
-  print('Run with --apply to execute these changes.');
+  stdout.writeln('');
+  stdout.writeln('Run with --apply to execute these changes.');
 }
 
 // ---------------------------------------------------------------------------
@@ -467,11 +466,13 @@ void _applyReplace(FileChange change) {
 }
 
 /// 디렉토리 이동을 적용한다.
+///
+/// 복사 결과를 파일 개수와 총 바이트 수로 검증한 뒤에만 원본을 삭제한다.
+/// 검증 실패 시 원본을 보존하고 stderr에 에러를 출력한 뒤 exit 1로 종료한다.
 void _applyMove(FileChange change) {
   final sourceDir = Directory(change.filePath);
   if (!sourceDir.existsSync()) return;
 
-  // 대상 디렉토리의 부모를 먼저 생성
   final targetPath = change.filePath.replaceAll(
     change.oldValue.replaceAll('/', Platform.pathSeparator),
     change.newValue.replaceAll('/', Platform.pathSeparator),
@@ -479,20 +480,52 @@ void _applyMove(FileChange change) {
   final targetDir = Directory(targetPath);
   targetDir.createSync(recursive: true);
 
-  // 파일 복사
-  for (final entity in sourceDir.listSync(recursive: true)) {
-    if (entity is File) {
-      final relativePath = entity.path.substring(sourceDir.path.length);
-      final targetFile = File('$targetPath$relativePath');
-      targetFile.parent.createSync(recursive: true);
-      entity.copySync(targetFile.path);
-    }
+  // 1. 원본 스냅샷 수집 (파일 개수 + 총 바이트)
+  final sourceFiles = sourceDir
+      .listSync(recursive: true, followLinks: false)
+      .whereType<File>()
+      .toList();
+  final sourceCount = sourceFiles.length;
+  final sourceBytes = sourceFiles.fold<int>(
+    0,
+    (sum, f) => sum + f.lengthSync(),
+  );
+
+  // 2. 복사
+  for (final file in sourceFiles) {
+    final relativePath = file.path.substring(sourceDir.path.length);
+    final targetFile = File('$targetPath$relativePath');
+    targetFile.parent.createSync(recursive: true);
+    file.copySync(targetFile.path);
   }
 
-  // 원본 삭제
-  sourceDir.deleteSync(recursive: true);
+  // 3. 복사 결과 검증 — 원본 삭제 전
+  final targetFiles = targetDir
+      .listSync(recursive: true, followLinks: false)
+      .whereType<File>()
+      .toList();
+  final targetCount = targetFiles.length;
+  final targetBytes = targetFiles.fold<int>(
+    0,
+    (sum, f) => sum + f.lengthSync(),
+  );
 
-  // 빈 부모 디렉토리 정리
+  if (targetCount != sourceCount || targetBytes != sourceBytes) {
+    stderr.writeln(
+      _red(
+        'Error: copy verification failed for ${sourceDir.path}\n'
+        '  source: $sourceCount files, $sourceBytes bytes\n'
+        '  target: $targetCount files, $targetBytes bytes\n'
+        'Source directory was NOT deleted. Run `git status` and\n'
+        '`git restore .` to recover, then re-run with corrected '
+        '--org/--name.',
+      ),
+    );
+    exit(1);
+  }
+
+  // 4. 검증 통과 — 원본 삭제
+  sourceDir.deleteSync(recursive: true);
   _cleanEmptyParents(sourceDir.parent);
 }
 
@@ -506,6 +539,57 @@ void _cleanEmptyParents(Directory dir) {
 }
 
 // ---------------------------------------------------------------------------
+// CLI 출력 helpers
+// ---------------------------------------------------------------------------
+
+/// ANSI 색상 출력 가능 여부.
+///
+/// `NO_COLOR` 환경변수가 설정되어 있으면 false. 그 외에는
+/// `stdout.supportsAnsiEscapes` 값을 따른다.
+bool get _ansiEnabled {
+  if (Platform.environment['NO_COLOR'] != null) return false;
+  return stdout.supportsAnsiEscapes;
+}
+
+/// [text]를 ANSI [code]로 감싸 색상을 적용한다.
+///
+/// [_ansiEnabled]가 false면 원본 [text]를 그대로 반환한다.
+String _color(String text, String code) =>
+    _ansiEnabled ? '\x1B[${code}m$text\x1B[0m' : text;
+
+/// 빨간색 텍스트로 변환한다.
+String _red(String s) => _color(s, '31');
+
+/// 초록색 텍스트로 변환한다.
+String _green(String s) => _color(s, '32');
+
+/// 노란색 텍스트로 변환한다.
+String _yellow(String s) => _color(s, '33');
+
+/// 절대 경로를 [projectRoot] 기준 상대 경로로 변환한다.
+///
+/// `package:path` 의존성을 도입하지 않고 단순 prefix 제거 방식으로 처리한다.
+/// 결과가 비어있으면 `'.'`을 반환한다.
+String _relPath(String absolutePath, String projectRoot) {
+  if (!absolutePath.startsWith(projectRoot)) return absolutePath;
+  final stripped = absolutePath.substring(projectRoot.length);
+  final cleaned = stripped.replaceFirst(RegExp(r'^[/\\]'), '');
+  return cleaned.isEmpty ? '.' : cleaned;
+}
+
+/// `--apply` 실행 직전 사용자에게 확인을 받는다.
+///
+/// 단일 질문이며 재시도하지 않는다. `y`/`Y`/`yes` 외 모든 입력은 거부.
+/// EOF(`null`)도 거부로 처리하여 비대화형 셸에서 안전하게 종료한다.
+bool _confirmApply(int changeCount) {
+  stdout.write('Apply $changeCount changes? [y/N]: ');
+  final answer = stdin.readLineSync();
+  if (answer == null) return false;
+  final trimmed = answer.trim().toLowerCase();
+  return trimmed == 'y' || trimmed == 'yes';
+}
+
+// ---------------------------------------------------------------------------
 // CLI 진입점
 // ---------------------------------------------------------------------------
 
@@ -514,21 +598,22 @@ void _cleanEmptyParents(Directory dir) {
 /// 사용법:
 ///   fvm dart run bin/rename.dart --org com.mycompany --name my_app
 ///   fvm dart run bin/rename.dart --org com.mycompany --name my_app --apply
+///   fvm dart run bin/rename.dart --org com.mycompany --name my_app --apply --yes
 void main(List<String> arguments) {
   final parser = ArgParser()
-    ..addOption(
-      'org',
-      help: 'Organization identifier (e.g., com.mycompany)',
-      mandatory: true,
-    )
-    ..addOption(
-      'name',
-      help: 'App name in snake_case (e.g., my_app)',
-      mandatory: true,
-    )
+    ..addOption('org', help: 'Organization identifier (e.g., com.mycompany)')
+    ..addOption('name', help: 'App name in snake_case (e.g., my_app)')
     ..addFlag(
       'apply',
       help: 'Apply changes (default: dry-run)',
+      defaultsTo: false,
+    )
+    ..addFlag(
+      'yes',
+      help:
+          'Skip confirmation prompt for --apply (required in CI / '
+          'non-interactive shells).',
+      negatable: false,
       defaultsTo: false,
     )
     ..addFlag('help', abbr: 'h', help: 'Show usage', negatable: false);
@@ -537,7 +622,7 @@ void main(List<String> arguments) {
   try {
     results = parser.parse(arguments);
   } on FormatException catch (e) {
-    stderr.writeln('Error: ${e.message}');
+    stderr.writeln(_red('Error: ${e.message}'));
     stderr.writeln('');
     stderr.writeln('Usage: fvm dart run bin/rename.dart [options]');
     stderr.writeln(parser.usage);
@@ -545,51 +630,89 @@ void main(List<String> arguments) {
   }
 
   if (results.flag('help')) {
-    print('Starter Kit Package Rename Tool');
-    print('');
-    print('Usage: fvm dart run bin/rename.dart [options]');
-    print('');
-    print(parser.usage);
+    stdout.writeln('Starter Kit Package Rename Tool');
+    stdout.writeln('');
+    stdout.writeln('Usage: fvm dart run bin/rename.dart [options]');
+    stdout.writeln('');
+    stdout.writeln(parser.usage);
     return;
+  }
+
+  // BUG-ARGS 가드: 필수 옵션 누락 시 스택 트레이스 대신 영어 에러 출력
+  if (!results.wasParsed('org') || !results.wasParsed('name')) {
+    stderr.writeln(_red('Error: --org and --name are required.'));
+    stderr.writeln('');
+    stderr.writeln('Usage: fvm dart run bin/rename.dart [options]');
+    stderr.writeln(parser.usage);
+    exit(1);
   }
 
   final org = results.option('org')!;
   final name = results.option('name')!;
   final shouldApply = results.flag('apply');
+  final skipConfirm = results.flag('yes');
 
   // 입력 유효성 검증
   final validation = validateInputs(org, name);
   if (!validation.isValid) {
-    stderr.writeln('Error: ${validation.error}');
+    stderr.writeln(_red('Error: ${validation.error}'));
     exit(1);
   }
 
-  // 프로젝트 루트 결정 (bin/rename.dart 기준으로 상위 디렉토리)
-  final scriptFile = Platform.script.toFilePath();
-  final projectRoot = File(scriptFile).parent.parent.path;
+  // 프로젝트 루트 결정: 현재 작업 디렉토리 + pubspec.yaml 존재 확인
+  final projectRoot = Directory.current.path;
+  if (!File('$projectRoot${Platform.pathSeparator}pubspec.yaml').existsSync()) {
+    stderr.writeln(
+      _red(
+        'Error: pubspec.yaml not found in current directory.\n'
+        '       Run this command from the project root.',
+      ),
+    );
+    exit(1);
+  }
 
   // 변경 대상 수집
   final changes = collectChanges(projectRoot, org, name);
 
   if (changes.isEmpty) {
-    print('변경 대상이 없습니다.');
+    stdout.writeln('No changes to apply.');
+    stdout.writeln('');
+    stdout.writeln('Possible reasons:');
+    stdout.writeln("  - Project already renamed to '$org/$name'");
+    stdout.writeln(
+      '  - Wrong --org or --name '
+      '(current: $currentOrg/$currentPackageName)',
+    );
+    stdout.writeln('  - Run from wrong directory (expected: project root)');
     return;
   }
 
   if (!shouldApply) {
     // dry-run (기본 동작)
-    printDryRun(changes, org, name);
+    printDryRun(changes, org, name, projectRoot);
     return;
   }
 
-  // --apply: 실제 적용
-  print('Applying changes...');
-  print('');
+  // --apply: 우선 변경 요약을 보여준다
+  printDryRun(changes, org, name, projectRoot);
+  stdout.writeln('');
+
+  if (!skipConfirm) {
+    if (!_confirmApply(changes.length)) {
+      stdout.writeln('Aborted by user.');
+      return; // exit 0 — 사용자 취소는 에러가 아니다
+    }
+  }
+
+  stdout.writeln('Applying changes...');
+  stdout.writeln('');
   applyChanges(changes);
-  print('Done! ${changes.length} changes applied.');
-  print('');
-  print('다음 단계:');
-  print('  1. fvm flutter pub get');
-  print('  2. fvm dart run build_runner build --delete-conflicting-outputs');
-  print('  3. 빌드 테스트: fvm flutter build apk --debug');
+  stdout.writeln('${_green('Done!')} ${changes.length} changes applied.');
+  stdout.writeln('');
+  stdout.writeln('Next steps:');
+  stdout.writeln('  1. fvm flutter pub get');
+  stdout.writeln(
+    '  2. fvm dart run build_runner build --delete-conflicting-outputs',
+  );
+  stdout.writeln('  3. Build verification: fvm flutter build apk --debug');
 }
