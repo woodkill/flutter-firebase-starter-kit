@@ -86,12 +86,12 @@ class AppColors extends ThemeExtension<AppColors> {
     if (other is! AppColors) return this;
 
     return AppColors(
-      success: Color.lerp(success, other.success, t)!,
-      warning: Color.lerp(warning, other.warning, t)!,
-      info: Color.lerp(info, other.info, t)!,
-      onSuccess: Color.lerp(onSuccess, other.onSuccess, t)!,
-      onWarning: Color.lerp(onWarning, other.onWarning, t)!,
-      onInfo: Color.lerp(onInfo, other.onInfo, t)!,
+      success: Color.lerp(success, other.success, t) ?? success,
+      warning: Color.lerp(warning, other.warning, t) ?? warning,
+      info: Color.lerp(info, other.info, t) ?? info,
+      onSuccess: Color.lerp(onSuccess, other.onSuccess, t) ?? onSuccess,
+      onWarning: Color.lerp(onWarning, other.onWarning, t) ?? onWarning,
+      onInfo: Color.lerp(onInfo, other.onInfo, t) ?? onInfo,
     );
   }
 }
