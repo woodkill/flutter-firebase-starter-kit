@@ -76,7 +76,7 @@
   "authAccountSectionTitle": "アカウント",
   "authAccountDisplayName": "表示名",
   "authAccountEmail": "メールアドレス",
-  "authAccountPhotoUrl": "プロフィール画像URL",
+  "authAccountPhotoUrl": "プロフィール写真",
   "authAccountUid": "ユーザーID",
   "authAccountCreatedAt": "作成日",
   "authAccountProviders": "ログイン方法",

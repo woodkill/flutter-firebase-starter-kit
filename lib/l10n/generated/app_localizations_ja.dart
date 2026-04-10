@@ -207,7 +207,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authAccountEmail => 'メールアドレス';
 
   @override
-  String get authAccountPhotoUrl => 'プロフィール画像URL';
+  String get authAccountPhotoUrl => 'プロフィール写真';
 
   @override
   String get authAccountUid => 'ユーザーID';

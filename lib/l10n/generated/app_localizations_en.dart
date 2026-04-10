@@ -212,7 +212,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountEmail => 'Email';
 
   @override
-  String get authAccountPhotoUrl => 'Photo URL';
+  String get authAccountPhotoUrl => 'Profile Photo';
 
   @override
   String get authAccountUid => 'User ID';

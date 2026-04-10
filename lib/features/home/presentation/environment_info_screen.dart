@@ -763,15 +763,22 @@ class _AccountSection extends ConsumerWidget {
           label: l10n.authAccountCreatedAt,
           value: user.createdAt.formatYMD(locale.languageCode),
         ),
-        // Photo URL: 옵션 B (D-35 Phase 6 축소). user.photoUrl 이 null 이
-        // 아닐 때만 카드를 표시하여 User 모델 변경 없이 UI-SPEC 의 photoUrl
-        // 표시 요구를 만족한다.
+        // Photo URL: photoUrl이 존재하면 썸네일 이미지로 표시.
         if (user.photoUrl != null) ...[
           Gap(spacing.md),
           _EnvironmentCard(
             icon: Icons.image,
             label: l10n.authAccountPhotoUrl,
-            value: user.photoUrl!,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: CachedNetworkImage(
+                imageUrl: user.photoUrl!,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorWidget: (_, _, _) => const Icon(Icons.broken_image),
+              ),
+            ),
           ),
         ],
         Gap(spacing.md),
@@ -941,7 +948,8 @@ class _EnvironmentCard extends StatelessWidget {
   const _EnvironmentCard({
     required this.icon,
     required this.label,
-    required this.value,
+    this.value = '',
+    this.child,
     this.status = _EnvStatus.none,
     this.semanticLabel,
   });
@@ -949,6 +957,9 @@ class _EnvironmentCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+
+  /// value 대신 커스텀 위젯을 표시할 때 사용한다 (예: 이미지 썸네일).
+  final Widget? child;
 
   /// 값(value) 의 시맨틱 상태. chip 패턴 렌더 여부를 결정한다.
   final _EnvStatus status;
@@ -965,7 +976,8 @@ class _EnvironmentCard extends StatelessWidget {
     final colors = context.appColors;
     final typography = context.appTypography;
     // semanticLabel 미지정 시 "$label: $value" fallback 자동 생성.
-    final resolvedSemanticLabel = semanticLabel ?? '$label: $value';
+    final resolvedSemanticLabel =
+        semanticLabel ?? '$label: ${child != null ? '' : value}';
 
     final Widget valueWidget;
     if (status == _EnvStatus.none) {
@@ -1025,7 +1037,7 @@ class _EnvironmentCard extends StatelessWidget {
                       ),
                     ),
                     Gap(spacing.xs),
-                    valueWidget,
+                    child ?? valueWidget,
                   ],
                 ),
               ),

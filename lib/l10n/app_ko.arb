@@ -76,7 +76,7 @@
   "authAccountSectionTitle": "계정",
   "authAccountDisplayName": "표시 이름",
   "authAccountEmail": "이메일",
-  "authAccountPhotoUrl": "프로필 사진 URL",
+  "authAccountPhotoUrl": "프로필 사진",
   "authAccountUid": "사용자 ID",
   "authAccountCreatedAt": "가입일",
   "authAccountProviders": "로그인 수단",

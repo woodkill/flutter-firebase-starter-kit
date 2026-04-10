@@ -207,7 +207,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountEmail => '이메일';
 
   @override
-  String get authAccountPhotoUrl => '프로필 사진 URL';
+  String get authAccountPhotoUrl => '프로필 사진';
 
   @override
   String get authAccountUid => '사용자 ID';

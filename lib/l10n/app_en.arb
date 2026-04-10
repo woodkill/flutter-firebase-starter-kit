@@ -331,7 +331,7 @@
     "description": "Label for the user's email field in the account section"
   },
 
-  "authAccountPhotoUrl": "Photo URL",
+  "authAccountPhotoUrl": "Profile Photo",
   "@authAccountPhotoUrl": {
     "description": "Label for the user's profile photo URL field in the account section"
   },

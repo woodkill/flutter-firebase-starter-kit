@@ -499,7 +499,7 @@ abstract class AppLocalizations {
   /// Label for the user's profile photo URL field in the account section
   ///
   /// In en, this message translates to:
-  /// **'Photo URL'**
+  /// **'Profile Photo'**
   String get authAccountPhotoUrl;
 
   /// Label for the Firebase user UID field in the account section
