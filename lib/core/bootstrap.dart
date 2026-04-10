@@ -25,11 +25,15 @@ Future<void> bootstrap() async {
   final isFirebaseInitialized = await initializeFirebase();
 
   // Firebase 초기화 성공 시 GoogleSignIn 초기화.
-  // serverClientId는 google-services.json / GoogleService-Info.plist에서
-  // 자동 추출되므로 별도 지정 불필요 (FlutterFire configure로 생성).
+  // Dart-only Firebase 방식이므로 google-services.json Gradle 플러그인을
+  // 사용하지 않아 serverClientId를 --dart-define-from-file에서 명시적으로 전달.
   if (isFirebaseInitialized) {
+    const serverClientId =
+        String.fromEnvironment('googleServerClientId');
     try {
-      await GoogleSignIn.instance.initialize();
+      await GoogleSignIn.instance.initialize(
+        serverClientId: serverClientId.isEmpty ? null : serverClientId,
+      );
     } on Object catch (e, st) {
       if (kDebugMode) {
         debugPrint('GoogleSignIn.initialize() 실패 (무시): $e\n$st');

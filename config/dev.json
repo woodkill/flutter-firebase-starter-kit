@@ -2,5 +2,6 @@
   "flavor": "dev",
   "appName": "StarterKit Dev",
   "appSuffix": ".dev",
-  "firebaseProjectId": "slimpumpkin-starter-kit-dev"
+  "firebaseProjectId": "slimpumpkin-starter-kit-dev",
+  "googleServerClientId": "***REDACTED_GOOGLE_SERVER_CLIENT_ID***"
 }
