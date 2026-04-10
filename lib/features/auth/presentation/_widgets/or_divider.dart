@@ -25,8 +25,8 @@ class OrDivider extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: spacing.lg),
             child: Text(
               l10n.authOrDivider,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+              style: context.appTypography.bodyMedium.copyWith(
+                    color: context.colorScheme.onSurfaceVariant,
                   ),
             ),
           ),

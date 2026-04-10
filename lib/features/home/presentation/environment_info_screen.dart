@@ -727,11 +727,11 @@ class _AccountSection extends ConsumerWidget {
                 children: [
                   Text(
                     user.displayName ?? '-',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: context.appTypography.bodyMedium,
                   ),
                   Text(
                     user.email,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    style: context.appTypography.bodyMedium.copyWith(
                       color: context.colorScheme.onSurfaceVariant,
                     ),
                   ),
