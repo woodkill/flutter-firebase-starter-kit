@@ -2,3 +2,4 @@
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutter_starter_kit.stg
 DISPLAY_NAME = FSK Stg
 FLAVOR = stg
+REVERSED_CLIENT_ID = PLACEHOLDER

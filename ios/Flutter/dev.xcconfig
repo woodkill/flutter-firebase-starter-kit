@@ -2,3 +2,4 @@
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutter_starter_kit.dev
 DISPLAY_NAME = FSK Dev
 FLAVOR = dev
+REVERSED_CLIENT_ID = com.googleusercontent.apps.775174386750-kfjvrvmu0ge7hhk2uemto9hq7u03b1qq

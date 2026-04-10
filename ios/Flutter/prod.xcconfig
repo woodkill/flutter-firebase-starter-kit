@@ -2,3 +2,4 @@
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutter_starter_kit
 DISPLAY_NAME = Flutter Starter Kit
 FLAVOR = prod
+REVERSED_CLIENT_ID = PLACEHOLDER
