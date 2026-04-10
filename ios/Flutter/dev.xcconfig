@@ -1,0 +1,3 @@
+// dev flavor 공통 변수
+PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutter_starter_kit.dev
+DISPLAY_NAME = FSK Dev
