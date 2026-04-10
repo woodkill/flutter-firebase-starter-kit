@@ -1,3 +1,4 @@
 // prod flavor 공통 변수
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutter_starter_kit
 DISPLAY_NAME = Flutter Starter Kit
+FLAVOR = prod
