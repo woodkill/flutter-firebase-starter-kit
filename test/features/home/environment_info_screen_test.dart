@@ -353,11 +353,33 @@ void main() {
     testWidgets(
       '미지원 프로바이더 raw ID 그대로 표시 (D-11 fallback)',
       (tester) async {
+        // Phase 9 예정: facebook.com 이 매핑되면 다른 미지원 프로바이더로 교체.
         final user = User(
           uid: 'uid-provider-4',
           email: 'raw@example.com',
           emailVerified: true,
           displayName: 'Raw',
+          createdAt: DateTime.utc(2026),
+          providerIds: ['facebook.com'],
+        );
+
+        await _pumpScreen(tester, user: user);
+
+        expect(
+          find.text('facebook.com', skipOffstage: false),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'providerIds [apple.com] 시 "Apple" 표시 (Phase 8)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-provider-apple',
+          email: 'apple@example.com',
+          emailVerified: true,
+          displayName: 'Apple User',
           createdAt: DateTime.utc(2026),
           providerIds: ['apple.com'],
         );
@@ -365,7 +387,7 @@ void main() {
         await _pumpScreen(tester, user: user);
 
         expect(
-          find.text('apple.com', skipOffstage: false),
+          find.text('Apple', skipOffstage: false),
           findsOneWidget,
         );
       },

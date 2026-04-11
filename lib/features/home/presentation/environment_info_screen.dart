@@ -899,7 +899,8 @@ class _AccountSection extends ConsumerWidget {
 ///
 /// - `'password'` -> [AppLocalizations.authAccountProviderEmailPassword]
 /// - `'google.com'` -> [AppLocalizations.authAccountProviderGoogle]
-/// - 미지원 프로바이더는 raw ID 그대로 표시 (Phase 8/9에서 추가 매핑).
+/// - `'apple.com'` -> [AppLocalizations.authAccountProviderApple] (Phase 8)
+/// - 미지원 프로바이더는 raw ID 그대로 표시 (Phase 9에서 facebook.com 추가 예정).
 String _formatProviderIds(
   List<String> providerIds,
   AppLocalizations l10n,
@@ -910,6 +911,7 @@ String _formatProviderIds(
         (id) => switch (id) {
           'password' => l10n.authAccountProviderEmailPassword,
           'google.com' => l10n.authAccountProviderGoogle,
+          'apple.com' => l10n.authAccountProviderApple,
           _ => id,
         },
       )
