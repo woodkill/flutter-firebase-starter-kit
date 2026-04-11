@@ -327,4 +327,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authAccountProviderGoogle => 'Google';
+
+  @override
+  String get authAppleSignIn => 'Appleでログイン';
+
+  @override
+  String get authAccountProviderApple => 'Apple';
 }

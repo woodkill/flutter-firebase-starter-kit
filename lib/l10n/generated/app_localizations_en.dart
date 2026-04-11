@@ -333,4 +333,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authAccountProviderGoogle => 'Google';
+
+  @override
+  String get authAppleSignIn => 'Sign in with Apple';
+
+  @override
+  String get authAccountProviderApple => 'Apple';
 }

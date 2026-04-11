@@ -711,6 +711,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Google'**
   String get authAccountProviderGoogle;
+
+  /// Apple sign-in button label
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Apple'**
+  String get authAppleSignIn;
+
+  /// Provider label displayed in the account section when the user signed in with Apple
+  ///
+  /// In en, this message translates to:
+  /// **'Apple'**
+  String get authAccountProviderApple;
 }
 
 class _AppLocalizationsDelegate

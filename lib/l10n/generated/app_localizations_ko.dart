@@ -327,4 +327,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get authAccountProviderGoogle => 'Google';
+
+  @override
+  String get authAppleSignIn => 'Apple로 로그인';
+
+  @override
+  String get authAccountProviderApple => 'Apple';
 }
