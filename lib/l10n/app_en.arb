@@ -525,5 +525,15 @@
   "authAccountProviderGoogle": "Google",
   "@authAccountProviderGoogle": {
     "description": "Provider label displayed in the account section when the user signed in with Google"
+  },
+
+  "authAppleSignIn": "Sign in with Apple",
+  "@authAppleSignIn": {
+    "description": "Apple sign-in button label"
+  },
+
+  "authAccountProviderApple": "Apple",
+  "@authAccountProviderApple": {
+    "description": "Provider label displayed in the account section when the user signed in with Apple"
   }
 }
