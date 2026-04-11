@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +13,8 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_field.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -233,5 +237,118 @@ void main() {
         );
       },
     );
+
+    // -----------------------------------------------------------------
+    // Phase 8 Apple 로그인 시나리오 (AUTH-03-15, 16, 17)
+    // -----------------------------------------------------------------
+    group('LoginScreen Apple sign-in integration', () {
+      testWidgets(
+        'AUTH-03-15: Apple 로그인 성공 시 FormErrorBanner에 에러 없음 '
+        '(navigation은 authRedirect 위임)',
+        (tester) async {
+          when(() => mockRepo.signInWithApple()).thenAnswer(
+            (_) async => Result<User>.success(
+              User(
+                uid: 'apple-uid',
+                email: 'x@privaterelay.appleid.com',
+                emailVerified: true,
+                displayName: 'Apple User',
+                createdAt: DateTime.utc(2026, 4, 11),
+                providerIds: const <String>['apple.com'],
+              ),
+            ),
+          );
+
+          debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+          await _pumpLogin(tester, mockRepo);
+          await tester.pumpAndSettle();
+
+          // iOS에서는 Apple 버튼이 첫 번째 SignInButton (D-05).
+          await tester.tap(find.byType(SignInButton).first);
+          await tester.pumpAndSettle();
+
+          // Repository 호출 검증.
+          verify(() => mockRepo.signInWithApple()).called(1);
+
+          // FormErrorBanner.exception == null (에러 없음).
+          final banner = tester.widget<FormErrorBanner>(
+            find.byType(FormErrorBanner),
+          );
+          expect(banner.exception, isNull);
+
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+
+      testWidgets(
+        'AUTH-03-16: Apple 에러(ServiceUnavailable) 시 FormErrorBanner 표시',
+        (tester) async {
+          when(() => mockRepo.signInWithApple()).thenAnswer(
+            (_) async => const Result<User>.failure(ServiceUnavailable()),
+          );
+
+          debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+          await _pumpLogin(tester, mockRepo);
+          await tester.pumpAndSettle();
+
+          // Apple 버튼 탭 (iOS에서 첫 번째 SignInButton).
+          await tester.tap(find.byType(SignInButton).first);
+          await tester.pumpAndSettle();
+
+          final banner = tester.widget<FormErrorBanner>(
+            find.byType(FormErrorBanner),
+          );
+          expect(banner.exception, isA<ServiceUnavailable>());
+
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+
+      testWidgets(
+        'AUTH-03-17: Apple AccountExistsWithDifferentCredential(email) 시 '
+        '이메일 필드 자동 채움 + 포커스 이동 (D-10)',
+        (tester) async {
+          when(() => mockRepo.signInWithApple()).thenAnswer(
+            (_) async => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collision@example.com',
+              ),
+            ),
+          );
+
+          debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+          await _pumpLogin(tester, mockRepo);
+          await tester.pumpAndSettle();
+
+          // Apple 버튼 탭 → AppleSignInNotifier → AsyncError 전이.
+          await tester.tap(find.byType(SignInButton).first);
+          await tester.pumpAndSettle();
+
+          // EmailField 내부 TextFormField의 controller 값을 검증.
+          // dynamic 캐스트 금지 — find.descendant + widget<TextFormField>.
+          final emailFormField = tester.widget<TextFormField>(
+            find.descendant(
+              of: find.byType(EmailField),
+              matching: find.byType(TextFormField),
+            ),
+          );
+          expect(
+            emailFormField.controller?.text,
+            'collision@example.com',
+          );
+
+          // FormErrorBanner에도 에러가 표시되어야 한다.
+          final banner = tester.widget<FormErrorBanner>(
+            find.byType(FormErrorBanner),
+          );
+          expect(
+            banner.exception,
+            isA<AccountExistsWithDifferentCredential>(),
+          );
+
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+    });
   });
 }
