@@ -1,5 +1,5 @@
 // stg flavor 공통 변수
-PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutter_starter_kit.stg
+PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.stg
 DISPLAY_NAME = FSK Stg
 FLAVOR = stg
 REVERSED_CLIENT_ID = PLACEHOLDER

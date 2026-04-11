@@ -1,5 +1,5 @@
 // prod flavor 공통 변수
-PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutter_starter_kit
+PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit
 DISPLAY_NAME = Flutter Starter Kit
 FLAVOR = prod
 REVERSED_CLIENT_ID = PLACEHOLDER
