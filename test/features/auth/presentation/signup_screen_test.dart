@@ -219,10 +219,11 @@ void main() {
     });
 
     testWidgets(
-      '7. Google 버튼(SignInButton)이 렌더링된다',
+      '7. 소셜 SignInButton이 2개(Google + Apple) 렌더링된다',
       (tester) async {
         await _pumpSignup(tester, mockRepo);
-        expect(find.byType(SignInButton), findsOneWidget);
+        // Phase 8부터 Apple 버튼이 추가되어 총 2개(Google + Apple).
+        expect(find.byType(SignInButton), findsNWidgets(2));
       },
     );
 

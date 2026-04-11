@@ -197,10 +197,11 @@ void main() {
     });
 
     testWidgets(
-      '6. Google 버튼(SignInButton)이 렌더링된다',
+      '6. 소셜 SignInButton이 2개(Google + Apple) 렌더링된다',
       (tester) async {
         await _pumpLogin(tester, mockRepo);
-        expect(find.byType(SignInButton), findsOneWidget);
+        // Phase 8부터 Apple 버튼이 추가되어 총 2개(Google + Apple).
+        expect(find.byType(SignInButton), findsNWidgets(2));
       },
     );
 
@@ -213,20 +214,22 @@ void main() {
     );
 
     testWidgets(
-      '8. Google 버튼이 EmailField 위에 위치한다',
+      '8. 소셜 버튼 영역이 EmailField 위에 위치한다',
       (tester) async {
         await _pumpLogin(tester, mockRepo);
 
-        final googleButton = tester.getTopLeft(
-          find.byType(SignInButton),
+        // 첫 번째 SignInButton(플랫폼에 따라 Google 또는 Apple)이
+        // EmailField 위에 배치되어야 한다.
+        final firstSocialButton = tester.getTopLeft(
+          find.byType(SignInButton).first,
         );
         final emailField = tester.getTopLeft(
           find.byType(TextFormField).first,
         );
         expect(
-          googleButton.dy,
+          firstSocialButton.dy,
           lessThan(emailField.dy),
-          reason: 'Google 버튼이 이메일 필드 위에 배치되어야 한다',
+          reason: '소셜 버튼 영역이 이메일 필드 위에 배치되어야 한다',
         );
       },
     );
