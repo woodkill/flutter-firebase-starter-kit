@@ -1,12 +1,18 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../domain/user.dart';
+import 'apple_sign_in_client.dart';
 
 part 'auth_repository.g.dart';
 
@@ -17,10 +23,15 @@ part 'auth_repository.g.dart';
 /// FirebaseAuthException은 [AppException]으로 매핑되어 던져진다.
 class AuthRepository {
   /// [AuthRepository]를 생성한다.
-  const AuthRepository(this._auth, this._googleSignIn);
+  const AuthRepository(
+    this._auth,
+    this._googleSignIn,
+    this._appleSignInClient,
+  );
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
+  final AppleSignInClient _appleSignInClient;
 
   /// 이메일/비밀번호로 로그인한다.
   ///
@@ -134,6 +145,99 @@ class AuthRepository {
         return null;
       }
       return Result.failure(_mapGoogleException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    }
+  }
+
+  /// Apple 계정으로 Firebase Auth에 로그인한다 (D-01).
+  ///
+  /// 흐름:
+  /// 1. [_generateNonce]로 raw nonce를 생성한다.
+  /// 2. [_sha256OfString]으로 SHA256 해시를 계산한다.
+  /// 3. Apple에는 해시된 nonce를 전달해 credential을 획득한다.
+  /// 4. Firebase [fb.OAuthProvider] `apple.com` credential을 생성하여
+  ///    [identityToken]과 rawNonce를 전달한다 (Pitfall 1 순서 유지).
+  /// 5. [fb.FirebaseAuth.signInWithCredential]로 로그인한다.
+  /// 6. 최초 로그인이면서 기존 displayName이 비어 있는 경우에만
+  ///    `givenName + familyName`을 조합하여 [fb.User.updateDisplayName]을
+  ///    호출한다 (D-07, Pitfall 2 방어).
+  ///
+  /// 사용자 취소([AuthorizationErrorCode.canceled]) 시 null을 반환하여
+  /// Notifier에서 no-op 처리한다 (D-09, Phase 7 D-06 미러링).
+  /// 동일 이메일 충돌 시 [AccountExistsWithDifferentCredential]을
+  /// 반환한다 (Phase 7 D-10 재사용).
+  Future<Result<User>?> signInWithApple() async {
+    try {
+      // 1. nonce 생성 + 해싱.
+      //    rawNonce: Firebase가 Apple identityToken 내 해시와 대조할 때 사용.
+      //    hashedNonce: Apple에 전달 (Pitfall 1 순서 유지).
+      final rawNonce = _generateNonce();
+      final hashedNonce = _sha256OfString(rawNonce);
+
+      // 2. Apple credential 획득.
+      final appleCredential = await _appleSignInClient.getCredential(
+        nonce: hashedNonce,
+      );
+
+      // 3. Firebase OAuth credential 생성.
+      //    accessToken은 불필요하다 (firebase.flutter.dev 공식 예시).
+      final oauthCredential = fb.OAuthProvider('apple.com').credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+      );
+
+      // 4. Firebase Auth 로그인.
+      final userCredential = await _auth.signInWithCredential(
+        oauthCredential,
+      );
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+
+      // 5. D-07: 최초 로그인 시 displayName 저장 (graceful 실패).
+      //    Apple은 최초 인증 시에만 givenName/familyName을 반환한다.
+      //    두 번째 로그인부터는 null이므로 조건부로 updateDisplayName을
+      //    호출한다. 기존 displayName이 이미 있으면 덮어쓰지 않는다
+      //    (Pitfall 2 방지).
+      final given = appleCredential.givenName;
+      final family = appleCredential.familyName;
+      final hasName =
+          (given != null && given.isNotEmpty) ||
+          (family != null && family.isNotEmpty);
+      final existingDisplayName = fbUser.displayName;
+      final noExistingName =
+          existingDisplayName == null || existingDisplayName.isEmpty;
+
+      if (hasName && noExistingName) {
+        final combined = <String>[
+          if (given != null && given.isNotEmpty) given,
+          if (family != null && family.isNotEmpty) family,
+        ].join(' ').trim();
+        try {
+          await fbUser.updateDisplayName(combined);
+          await fbUser.reload();
+        } on fb.FirebaseAuthException catch (e) {
+          if (kDebugMode) {
+            debugPrint('Apple updateDisplayName 실패: ${e.code}');
+          }
+        } on Object catch (e, st) {
+          // 비-Auth Firebase/Platform 예외도 graceful 처리 (D-07 의도 보존).
+          if (kDebugMode) {
+            debugPrint('Apple updateDisplayName 비-Auth 예외: $e\n$st');
+          }
+        }
+      }
+
+      final refreshed = _auth.currentUser ?? fbUser;
+      return Result.success(_mapFirebaseUser(refreshed));
+    } on SignInWithAppleAuthorizationException catch (e) {
+      // D-09: 취소는 null 반환으로 조용히 무시한다.
+      if (e.code == AuthorizationErrorCode.canceled) {
+        return null;
+      }
+      return Result.failure(_mapAppleException(e));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     }
@@ -264,6 +368,48 @@ class AuthRepository {
     return ServiceUnavailable(cause: e);
   }
 
+  /// 암호학적으로 안전한 nonce를 생성한다 (RESEARCH Pattern 2).
+  ///
+  /// [Random.secure]로 [length]자 길이의 난수 문자열을 만든다. 반환값은
+  /// 원본(raw) nonce로 Firebase에 전달되고, [_sha256OfString]의 결과는
+  /// Apple에 전달된다 (Pitfall 1 순서 유지). Firebase 공식 샘플과 동일한
+  /// charset을 사용한다 — `-._` 세 글자는 escape 없이 그대로 포함된다.
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List<String>.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  /// [input]의 SHA256 해시를 hex 문자열로 반환한다 (RESEARCH Pattern 2).
+  ///
+  /// Apple에는 본 해시값을 전달하고, Firebase에는 [input](raw nonce)을
+  /// 전달해야 한다 (Pitfall 1 순서 유지).
+  String _sha256OfString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  /// [SignInWithAppleAuthorizationException]을 [AppException]으로 매핑한다.
+  ///
+  /// 취소([AuthorizationErrorCode.canceled])는 호출부에서 별도 처리되어
+  /// 여기에 도달하지 않는다. 기타 에러는 [ServiceUnavailable]로 매핑한다.
+  /// 보안: identityToken / email 등 민감 필드는 debugPrint에 절대 출력하지
+  /// 않으며, Apple이 반환한 에러 코드와 메시지만 기록한다 (T-08-13).
+  AppException _mapAppleException(SignInWithAppleAuthorizationException e) {
+    if (kDebugMode) {
+      debugPrint(
+        'AuthRepository: SignInWithApple 에러 -- '
+        'code=${e.code}, message=${e.message}',
+      );
+    }
+    return ServiceUnavailable(cause: e);
+  }
+
   /// 매핑되지 않았거나 설정성 오류로 분류된 FirebaseAuthException을
   /// [ServiceUnavailable]로 변환하면서, 디버그 모드에서는 원본 코드와
   /// 메시지를 출력해 개발자가 즉시 인지할 수 있도록 한다.
@@ -313,12 +459,14 @@ User _mapFirebaseUser(fb.User fbUser) {
 
 /// [AuthRepository] 인스턴스 Provider (D-08: keepAlive).
 ///
-/// FirebaseAuth Provider를 의존하여 단일 인스턴스를 제공한다.
+/// FirebaseAuth / GoogleSignIn / AppleSignInClient Provider를 의존하여
+/// 단일 인스턴스를 제공한다.
 @Riverpod(keepAlive: true)
 AuthRepository authRepository(Ref ref) {
   return AuthRepository(
     ref.watch(firebaseAuthProvider),
     ref.watch(googleSignInProvider),
+    ref.watch(appleSignInClientProvider),
   );
 }
 
