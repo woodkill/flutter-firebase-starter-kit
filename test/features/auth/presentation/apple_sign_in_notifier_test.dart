@@ -1,24 +1,118 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
-/// AppleSignInNotifier 단위 테스트 스텁 (Phase 8 Wave 0).
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/apple_sign_in_notifier.dart';
+
+/// [AuthRepository]를 mocktail로 대체하기 위한 Mock.
 ///
-/// Plan 03에서 GoogleSignInNotifier 테스트를 미러링하여 채운다.
-/// 커버리지 목표: AUTH-03-08 / AUTH-03-09 / AUTH-03-10
-/// (`.planning/phases/08-apple-login/08-RESEARCH.md` §Validation Architecture).
+/// Phase 7 google_sign_in_notifier_test.dart와 동일 패턴을 따르며,
+/// 각 테스트 파일이 독립적이므로 private 네이밍 대신 public 네이밍을 쓴다.
+class MockAuthRepository extends Mock implements AuthRepository {}
+
 void main() {
-  group('AppleSignInNotifier (Wave 0 stub)', () {
+  late MockAuthRepository mockRepo;
+
+  setUp(() {
+    mockRepo = MockAuthRepository();
+  });
+
+  ProviderContainer makeContainer() {
+    final container = ProviderContainer(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(mockRepo),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
+
+  group('AppleSignInNotifier.signInWithApple', () {
     test(
-      'Plan 03에서 구현 예정 — Wave 0 스텁',
-      () {
-        // Plan 03에서 GoogleSignInNotifier 테스트를 복사 후
-        // 'google' → 'apple' 치환하여 4개 시나리오 작성:
-        //   1. 성공 시 AsyncData(null)
-        //   2. 취소(null 반환) 시 AsyncData (D-09)
-        //   3. Failure 반환 시 AsyncError
-        //   4. AccountExistsWithDifferentCredential 시 email 보존
-        expect(true, isTrue);
+      'AUTH-03-08: 성공 시 AsyncData(null) 상태로 전환된다',
+      () async {
+        final user = User(
+          uid: 'apple-uid-123',
+          email: 'test@privaterelay.appleid.com',
+          emailVerified: true,
+          createdAt: DateTime.utc(2026, 4, 11),
+          providerIds: const <String>['apple.com'],
+        );
+        when(() => mockRepo.signInWithApple())
+            .thenAnswer((_) async => Result<User>.success(user));
+
+        final container = makeContainer();
+        final notifier = container.read(appleSignInProvider.notifier);
+
+        await notifier.signInWithApple();
+
+        final state = container.read(appleSignInProvider);
+        expect(state, isA<AsyncData<void>>());
+        expect(state.hasError, isFalse);
       },
-      skip: 'Plan 03에서 구현',
+    );
+
+    test(
+      'AUTH-03-09: 취소(null 반환) 시 AsyncData 상태로 유지된다 (D-09)',
+      () async {
+        when(() => mockRepo.signInWithApple())
+            .thenAnswer((_) async => null);
+
+        final container = makeContainer();
+        final notifier = container.read(appleSignInProvider.notifier);
+
+        await notifier.signInWithApple();
+
+        final state = container.read(appleSignInProvider);
+        expect(state, isA<AsyncData<void>>());
+        expect(state.hasError, isFalse);
+      },
+    );
+
+    test(
+      'AUTH-03-10: Failure 반환 시 AsyncError 상태로 전환되고 '
+      '예외 타입이 보존된다',
+      () async {
+        when(() => mockRepo.signInWithApple()).thenAnswer(
+          (_) async => const Result<User>.failure(ServiceUnavailable()),
+        );
+
+        final container = makeContainer();
+        final notifier = container.read(appleSignInProvider.notifier);
+
+        await notifier.signInWithApple();
+
+        final state = container.read(appleSignInProvider);
+        expect(state, isA<AsyncError<void>>());
+        expect(state.error, isA<ServiceUnavailable>());
+      },
+    );
+
+    test(
+      'AccountExistsWithDifferentCredential 반환 시 AsyncError이고 '
+      'email 필드가 보존된다 (D-10 이메일 자동 채움 전제)',
+      () async {
+        when(() => mockRepo.signInWithApple()).thenAnswer(
+          (_) async => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(email: 'user@example.com'),
+          ),
+        );
+
+        final container = makeContainer();
+        final notifier = container.read(appleSignInProvider.notifier);
+
+        await notifier.signInWithApple();
+
+        final state = container.read(appleSignInProvider);
+        expect(state, isA<AsyncError<void>>());
+        expect(state.error, isA<AccountExistsWithDifferentCredential>());
+        final error = state.error! as AccountExistsWithDifferentCredential;
+        expect(error.email, 'user@example.com');
+      },
     );
   });
 }
