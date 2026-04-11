@@ -3,5 +3,7 @@
   "appName": "StarterKit Dev",
   "appSuffix": ".dev",
   "firebaseProjectId": "slimpumpkin-starter-kit-dev",
-  "googleServerClientId": "***REDACTED_GOOGLE_SERVER_CLIENT_ID***"
+  "googleServerClientId": "***REDACTED_GOOGLE_SERVER_CLIENT_ID***",
+  "APPLE_SERVICE_ID": "com.slimpumpkin.flutterStarterKit.dev.service",
+  "APPLE_REDIRECT_URI": "https://slimpumpkin-starter-kit-dev.firebaseapp.com/__/auth/handler"
 }
