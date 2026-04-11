@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +13,8 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/signup_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -234,5 +238,47 @@ void main() {
         expect(find.text('or'), findsOneWidget);
       },
     );
+
+    // -----------------------------------------------------------------
+    // Phase 8 Apple 로그인 시나리오 (AUTH-03-18)
+    // -----------------------------------------------------------------
+    group('SignupScreen Apple sign-in integration', () {
+      testWidgets(
+        'AUTH-03-18: SocialSignInSection 렌더링 + Apple 에러 시 '
+        'FormErrorBanner 표시 (이메일 자동 채움 없음)',
+        (tester) async {
+          when(() => mockRepo.signInWithApple()).thenAnswer(
+            (_) async => const Result<User>.failure(ServiceUnavailable()),
+          );
+
+          debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+          await _pumpSignup(tester, mockRepo);
+          await tester.pumpAndSettle();
+
+          // SocialSignInSection이 렌더되고 Apple+Google 두 버튼 존재.
+          expect(find.byType(SocialSignInSection), findsOneWidget);
+          expect(find.byType(SignInButton), findsNWidgets(2));
+
+          // iOS에서는 첫 번째 SignInButton == Apple (D-05).
+          await tester.tap(find.byType(SignInButton).first);
+          await tester.pumpAndSettle();
+
+          // FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
+          final banner = tester.widget<FormErrorBanner>(
+            find.byType(FormErrorBanner),
+          );
+          expect(banner.exception, isA<ServiceUnavailable>());
+
+          // SignupScreen은 이메일 자동 채움 없음 — 이메일 필드는 비어 있다
+          // (LoginScreen의 D-10 정책과 다름).
+          final emailField = tester.widget<TextFormField>(
+            find.byType(TextFormField).at(1),
+          );
+          expect(emailField.controller?.text, isEmpty);
+
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+    });
   });
 }
