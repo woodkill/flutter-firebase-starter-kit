@@ -20,7 +20,7 @@ import 'or_divider.dart';
 /// - iOS: Apple → Google (Apple HIG 권장)
 /// - Android: Google → Apple (사용자 친숙도)
 ///
-/// 플랫폼 판별은 `dart:io`의 `Platform.isIOS`가 아닌
+/// 플랫폼 판별은 `dart:io`의 runtime Platform API가 아닌
 /// [defaultTargetPlatform]을 사용한다. 위젯 테스트에서
 /// `debugDefaultTargetPlatformOverride`로 분기 검증이 가능하기 때문이다
 /// (RESEARCH Pitfall 6 / DS-05).
