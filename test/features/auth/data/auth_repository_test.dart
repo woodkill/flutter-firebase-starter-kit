@@ -2,10 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+
+import 'apple_sign_in_client_mock.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -29,6 +33,7 @@ void main() {
   late _MockFbUser mockUser;
   late _MockUserMetadata mockMetadata;
   late _MockGoogleSignIn mockGoogleSignIn;
+  late MockAppleSignInClient mockAppleClient;
   late AuthRepository repository;
 
   setUpAll(() {
@@ -41,7 +46,8 @@ void main() {
     mockUser = _MockFbUser();
     mockMetadata = _MockUserMetadata();
     mockGoogleSignIn = _MockGoogleSignIn();
-    repository = AuthRepository(mockAuth, mockGoogleSignIn);
+    mockAppleClient = MockAppleSignInClient();
+    repository = AuthRepository(mockAuth, mockGoogleSignIn, mockAppleClient);
 
     // 기본 User 필드 stub
     when(() => mockUser.uid).thenReturn('uid-test');
@@ -651,5 +657,174 @@ void main() {
         isA<ServiceUnavailable>(),
       );
     });
+  });
+
+  group('signInWithApple', () {
+    late MockAuthorizationCredentialAppleID mockAppleCredential;
+
+    setUp(() {
+      mockAppleCredential = MockAuthorizationCredentialAppleID();
+
+      // Apple credential 기본값 (각 test에서 override 가능).
+      when(() => mockAppleCredential.identityToken)
+          .thenReturn('stub-id-token');
+      when(() => mockAppleCredential.givenName).thenReturn(null);
+      when(() => mockAppleCredential.familyName).thenReturn(null);
+      when(() => mockAppleCredential.email).thenReturn(null);
+
+      // AppleSignInClient.getCredential 기본 stub.
+      when(
+        () => mockAppleClient.getCredential(nonce: any(named: 'nonce')),
+      ).thenAnswer((_) async => mockAppleCredential);
+
+      // FirebaseAuth.signInWithCredential 기본 stub.
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+
+      // Firebase User 기본 필드 — Apple 로그인 성공 시나리오.
+      when(() => mockUser.uid).thenReturn('apple-uid-123');
+      when(
+        () => mockUser.email,
+      ).thenReturn('test@privaterelay.appleid.com');
+      when(() => mockUser.emailVerified).thenReturn(true);
+      when(() => mockUser.displayName).thenReturn(null);
+      when(() => mockUser.photoURL).thenReturn(null);
+      when(
+        () => mockMetadata.creationTime,
+      ).thenReturn(DateTime.utc(2026, 4, 11));
+
+      final appleProvider = _MockUserInfo();
+      when(() => appleProvider.providerId).thenReturn('apple.com');
+      when(() => mockUser.providerData).thenReturn([appleProvider]);
+
+      when(() => mockCredential.user).thenReturn(mockUser);
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+    });
+
+    test(
+      'AUTH-03-01: 성공 시 Result.success(User)를 반환하고 '
+      'providerIds에 apple.com 포함',
+      () async {
+        final result = await repository.signInWithApple();
+
+        expect(result, isA<Success<User>>());
+        final user = (result! as Success<User>).data;
+        expect(user.providerIds, contains('apple.com'));
+        expect(user.emailVerified, isTrue);
+        verify(
+          () => mockAppleClient.getCredential(nonce: any(named: 'nonce')),
+        ).called(1);
+      },
+    );
+
+    test('AUTH-03-02: 사용자 취소 시 null을 반환한다 (D-09)', () async {
+      when(
+        () => mockAppleClient.getCredential(nonce: any(named: 'nonce')),
+      ).thenThrow(
+        const SignInWithAppleAuthorizationException(
+          code: AuthorizationErrorCode.canceled,
+          message: 'User canceled',
+        ),
+      );
+
+      final result = await repository.signInWithApple();
+
+      expect(result, isNull);
+    });
+
+    test(
+      'AUTH-03-03: account-exists-with-different-credential 시 '
+      'AccountExistsWithDifferentCredential 반환',
+      () async {
+        when(() => mockAuth.signInWithCredential(any())).thenThrow(
+          fb.FirebaseAuthException(
+            code: 'account-exists-with-different-credential',
+            email: 'user@example.com',
+            message: 'account exists',
+          ),
+        );
+
+        final result = await repository.signInWithApple();
+
+        expect(result, isA<Failure<User>>());
+        final err = (result! as Failure<User>).exception;
+        expect(err, isA<AccountExistsWithDifferentCredential>());
+        expect(
+          (err as AccountExistsWithDifferentCredential).email,
+          'user@example.com',
+        );
+      },
+    );
+
+    test(
+      'AUTH-03-04: 기타 Apple 에러는 ServiceUnavailable로 매핑된다',
+      () async {
+        when(
+          () => mockAppleClient.getCredential(nonce: any(named: 'nonce')),
+        ).thenThrow(
+          const SignInWithAppleAuthorizationException(
+            code: AuthorizationErrorCode.failed,
+            message: 'failed',
+          ),
+        );
+
+        final result = await repository.signInWithApple();
+
+        expect(result, isA<Failure<User>>());
+        expect(
+          (result! as Failure<User>).exception,
+          isA<ServiceUnavailable>(),
+        );
+      },
+    );
+
+    test(
+      'AUTH-03-05: 최초 로그인 시 givenName+familyName으로 '
+      'updateDisplayName 호출',
+      () async {
+        when(() => mockAppleCredential.givenName).thenReturn('John');
+        when(() => mockAppleCredential.familyName).thenReturn('Appleseed');
+        when(() => mockUser.displayName).thenReturn(null);
+        when(
+          () => mockUser.updateDisplayName(any()),
+        ).thenAnswer((_) async {});
+        when(() => mockUser.reload()).thenAnswer((_) async {});
+
+        await repository.signInWithApple();
+
+        verify(
+          () => mockUser.updateDisplayName('John Appleseed'),
+        ).called(1);
+      },
+    );
+
+    test(
+      'AUTH-03-06: 두 번째 로그인 시 (givenName=null) '
+      'updateDisplayName 호출 안 됨',
+      () async {
+        when(() => mockAppleCredential.givenName).thenReturn(null);
+        when(() => mockAppleCredential.familyName).thenReturn(null);
+        when(() => mockUser.displayName).thenReturn(null);
+
+        await repository.signInWithApple();
+
+        verifyNever(() => mockUser.updateDisplayName(any()));
+      },
+    );
+
+    test(
+      'AUTH-03-07: 기존 displayName이 있으면 '
+      'updateDisplayName 호출 안 됨 (Pitfall 2 방지)',
+      () async {
+        when(() => mockAppleCredential.givenName).thenReturn('John');
+        when(() => mockAppleCredential.familyName).thenReturn('Appleseed');
+        when(() => mockUser.displayName).thenReturn('Existing Name');
+
+        await repository.signInWithApple();
+
+        verifyNever(() => mockUser.updateDisplayName(any()));
+      },
+    );
   });
 }
