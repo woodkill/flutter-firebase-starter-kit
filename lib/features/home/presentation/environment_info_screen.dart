@@ -51,7 +51,12 @@ class EnvironmentInfoScreen extends ConsumerWidget {
         behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
         child: ListView(
           physics: const ClampingScrollPhysics(),
-          padding: EdgeInsets.all(spacing.lg),
+          padding: EdgeInsets.fromLTRB(
+            spacing.lg,
+            spacing.lg,
+            spacing.lg,
+            spacing.lg + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             Text(
               l10n.homeBuildEnvironment,
