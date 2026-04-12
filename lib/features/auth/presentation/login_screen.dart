@@ -155,7 +155,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 isFormLoading: state.isLoading,
                 errorBanner: FormErrorBanner(exception: _socialError),
               ),
-              FormErrorBanner(exception: _emailError),
               EmailField(
                 controller: _emailController,
                 focusNode: _emailFocus,
@@ -168,6 +167,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 isNewPassword: false,
                 onSubmitted: (_) => _handleSubmit(),
               ),
+              FormErrorBanner(exception: _emailError),
               Gap(spacing.xl),
               PrimaryCta(
                 label: l10n.authLoginCta,

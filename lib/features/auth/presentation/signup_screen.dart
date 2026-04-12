@@ -163,7 +163,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 isFormLoading: state.isLoading,
                 errorBanner: FormErrorBanner(exception: _socialError),
               ),
-              FormErrorBanner(exception: _emailError),
               TextFormField(
                 controller: _nameController,
                 focusNode: _nameFocus,
@@ -189,6 +188,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 isNewPassword: true,
                 onSubmitted: (_) => _handleSubmit(),
               ),
+              FormErrorBanner(exception: _emailError),
               Gap(spacing.xl),
               PrimaryCta(
                 label: l10n.authSignupCta,
