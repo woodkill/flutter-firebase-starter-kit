@@ -3,7 +3,5 @@
   "appName": "StarterKit Stg",
   "appSuffix": ".stg",
   "firebaseProjectId": "your-project-stg",
-  "googleServerClientId": "your-google-server-client-id-stg",
-  "APPLE_SERVICE_ID": "com.example.flutter_starter_kit.stg.service",
-  "APPLE_REDIRECT_URI": "https://flutter-starter-kit-stg.firebaseapp.com/__/auth/handler"
+  "googleServerClientId": "your-google-server-client-id-stg"
 }
