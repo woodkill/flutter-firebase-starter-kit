@@ -9,16 +9,13 @@ import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/apple_sign_in_notifier.dart';
 
 /// [AuthRepository]를 mocktail로 대체하기 위한 Mock.
-///
-/// Phase 7 google_sign_in_notifier_test.dart와 동일 패턴을 따르며,
-/// 각 테스트 파일이 독립적이므로 private 네이밍 대신 public 네이밍을 쓴다.
-class MockAuthRepository extends Mock implements AuthRepository {}
+class _MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
-  late MockAuthRepository mockRepo;
+  late _MockAuthRepository mockRepo;
 
   setUp(() {
-    mockRepo = MockAuthRepository();
+    mockRepo = _MockAuthRepository();
   });
 
   ProviderContainer makeContainer() {
