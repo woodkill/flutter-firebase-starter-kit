@@ -188,6 +188,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 isNewPassword: true,
                 onSubmitted: (_) => _handleSubmit(),
               ),
+              Gap(spacing.md),
               FormErrorBanner(exception: _emailError),
               Gap(spacing.xl),
               PrimaryCta(
