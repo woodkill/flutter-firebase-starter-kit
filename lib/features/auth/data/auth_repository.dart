@@ -176,6 +176,13 @@ class AuthRepository {
         return null;
       }
       return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      // 비-Auth 예외 (PlatformException 등)를 Result로 감싸
+      // Notifier state가 AsyncLoading에 고정되는 것을 방지한다.
+      if (kDebugMode) {
+        debugPrint('signInWithApple 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
     }
   }
 
