@@ -197,7 +197,8 @@ class AuthRepository {
     } on fb.FirebaseAuthException catch (e) {
       // D-09: 사용자 취소 시 null 반환
       // (iOS의 AuthorizationErrorCode.canceled 미러링).
-      if (e.code == 'web-context-cancelled' ||
+      if (e.code == 'web-context-canceled' ||
+          e.code == 'web-context-cancelled' ||
           e.code == 'popup-closed-by-user') {
         return null;
       }
