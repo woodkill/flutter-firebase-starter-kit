@@ -44,8 +44,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
-  /// Firebase 에러를 [FormErrorBanner] 로 노출하기 위한 로컬 상태.
-  AppException? _bannerError;
+  /// 소셜 로그인(Google/Apple) 에러를 소셜 버튼 영역에 표시하기 위한 상태.
+  AppException? _socialError;
+
+  /// 이메일/비밀번호 가입 에러를 이메일 필드 영역에 표시하기 위한 상태.
+  AppException? _emailError;
 
   @override
   void dispose() {
@@ -81,7 +84,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (ref.read(appleSignInProvider).isLoading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _bannerError = null);
+    setState(() {
+      _socialError = null;
+      _emailError = null;
+    });
     await ref.read(signupProvider.notifier).submit(
           email: _emailController.text.trim(),
           password: _passwordController.text,
@@ -102,34 +108,42 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     final isLoading =
         state.isLoading || googleState.isLoading || appleState.isLoading;
 
+    // 이메일/비밀번호 가입 에러 → _emailError (이메일 필드 영역 배너).
     ref.listen<AsyncValue<void>>(signupProvider, (previous, next) {
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
-          setState(() => _bannerError = err);
+          setState(() {
+            _emailError = err;
+            _socialError = null;
+          });
         }
       }
     });
 
-    // Google 로그인 에러 감지. SignupScreen에서는 에러 배너만 표시.
+    // Google 로그인 에러 → _socialError (소셜 버튼 영역 배너).
     ref.listen<AsyncValue<void>>(googleSignInProvider, (previous, next) {
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
-          setState(() => _bannerError = err);
+          setState(() {
+            _socialError = err;
+            _emailError = null;
+          });
         }
       }
     });
 
-    // Apple 로그인 에러 감지 (Phase 8 신규). LoginScreen과 달리
-    // SignupScreen은 이메일 자동 채움(D-10)을 적용하지 않고 에러 배너만
-    // 표시한다. 입력 중인 폼 필드에 임의로 쓰는 UX는 SignupScreen에서
-    // 어색하므로 Google listener와 동일 정책을 유지한다.
+    // Apple 로그인 에러 → _socialError (소셜 버튼 영역 배너).
+    // SignupScreen은 이메일 자동 채움(D-10)을 적용하지 않는다.
     ref.listen<AsyncValue<void>>(appleSignInProvider, (previous, next) {
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
-          setState(() => _bannerError = err);
+          setState(() {
+            _socialError = err;
+            _emailError = null;
+          });
         }
       }
     });
@@ -147,8 +161,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               Gap(spacing.xxl),
               SocialSignInSection(
                 isFormLoading: state.isLoading,
-                errorBanner: FormErrorBanner(exception: _bannerError),
+                errorBanner: FormErrorBanner(exception: _socialError),
               ),
+              FormErrorBanner(exception: _emailError),
               TextFormField(
                 controller: _nameController,
                 focusNode: _nameFocus,

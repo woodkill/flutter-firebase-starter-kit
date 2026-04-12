@@ -15,6 +15,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_field.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -270,9 +271,12 @@ void main() {
           // Repository 호출 검증.
           verify(() => mockRepo.signInWithApple()).called(1);
 
-          // FormErrorBanner.exception == null (에러 없음).
+          // 소셜 영역 FormErrorBanner.exception == null (에러 없음).
           final banner = tester.widget<FormErrorBanner>(
-            find.byType(FormErrorBanner),
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
           );
           expect(banner.exception, isNull);
 
@@ -296,7 +300,10 @@ void main() {
           await tester.pumpAndSettle();
 
           final banner = tester.widget<FormErrorBanner>(
-            find.byType(FormErrorBanner),
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
           );
           expect(banner.exception, isA<ServiceUnavailable>());
 
@@ -337,9 +344,12 @@ void main() {
             'collision@example.com',
           );
 
-          // FormErrorBanner에도 에러가 표시되어야 한다.
+          // 소셜 영역 FormErrorBanner에도 에러가 표시되어야 한다.
           final banner = tester.widget<FormErrorBanner>(
-            find.byType(FormErrorBanner),
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
           );
           expect(
             banner.exception,

@@ -263,9 +263,12 @@ void main() {
           await tester.tap(find.byType(SignInButton).first);
           await tester.pumpAndSettle();
 
-          // FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
+          // 소셜 영역 FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
           final banner = tester.widget<FormErrorBanner>(
-            find.byType(FormErrorBanner),
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
           );
           expect(banner.exception, isA<ServiceUnavailable>());
 

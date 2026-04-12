@@ -41,8 +41,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
-  /// Firebase 에러를 [FormErrorBanner] 로 노출하기 위한 로컬 상태.
-  AppException? _bannerError;
+  /// 소셜 로그인(Google/Apple) 에러를 소셜 버튼 영역에 표시하기 위한 상태.
+  AppException? _socialError;
+
+  /// 이메일/비밀번호 로그인 에러를 이메일 필드 영역에 표시하기 위한 상태.
+  AppException? _emailError;
 
   @override
   void dispose() {
@@ -64,7 +67,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (ref.read(appleSignInProvider).isLoading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _bannerError = null);
+    setState(() {
+      _socialError = null;
+      _emailError = null;
+    });
     await ref.read(loginProvider.notifier).submit(
           email: _emailController.text.trim(),
           password: _passwordController.text,
@@ -84,21 +90,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final isLoading =
         state.isLoading || googleState.isLoading || appleState.isLoading;
 
+    // 이메일/비밀번호 로그인 에러 → _emailError (이메일 필드 영역 배너).
     ref.listen<AsyncValue<void>>(loginProvider, (previous, next) {
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
-          setState(() => _bannerError = err);
+          setState(() {
+            _emailError = err;
+            _socialError = null;
+          });
         }
       }
     });
 
-    // Google 로그인 에러 감지 + D-10 이메일 자동 채움.
+    // Google 로그인 에러 → _socialError (소셜 버튼 영역 배너) + D-10.
     ref.listen<AsyncValue<void>>(googleSignInProvider, (previous, next) {
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
-          setState(() => _bannerError = err);
+          setState(() {
+            _socialError = err;
+            _emailError = null;
+          });
         }
         // D-10: 이메일 충돌 시 이메일 자동 채움.
         if (err is AccountExistsWithDifferentCredential &&
@@ -109,14 +122,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     });
 
-    // Apple 로그인 에러 감지 + D-10 이메일 자동 채움 (Phase 8 신규).
-    // Google 패턴 1:1 미러링. Apple 'Hide My Email' 릴레이 이메일도 그대로
-    // 채움 (D-08).
+    // Apple 로그인 에러 → _socialError (소셜 버튼 영역 배너) + D-10.
     ref.listen<AsyncValue<void>>(appleSignInProvider, (previous, next) {
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
-          setState(() => _bannerError = err);
+          setState(() {
+            _socialError = err;
+            _emailError = null;
+          });
         }
         // D-10: 이메일 충돌 시 이메일 자동 채움.
         if (err is AccountExistsWithDifferentCredential &&
@@ -139,8 +153,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Gap(spacing.xxl),
               SocialSignInSection(
                 isFormLoading: state.isLoading,
-                errorBanner: FormErrorBanner(exception: _bannerError),
+                errorBanner: FormErrorBanner(exception: _socialError),
               ),
+              FormErrorBanner(exception: _emailError),
               EmailField(
                 controller: _emailController,
                 focusNode: _emailFocus,
