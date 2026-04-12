@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
@@ -152,6 +153,60 @@ class AuthRepository {
 
   /// Apple 계정으로 Firebase Auth에 로그인한다 (D-01).
   ///
+  /// 플랫폼별 분기:
+  /// - **Android:** [fb.FirebaseAuth.signInWithProvider]를 사용하여 Firebase가
+  ///   Chrome Custom Tab 리다이렉트를 내부 처리한다. 별도 서버 불필요.
+  /// - **iOS:** [sign_in_with_apple] 패키지의 네이티브 ASAuthorizationController
+  ///   플로우를 사용한다 (nonce + identityToken + rawNonce).
+  ///
+  /// 사용자 취소 시 null을 반환하여 Notifier에서 no-op 처리한다
+  /// (D-09, Phase 7 D-06 미러링).
+  /// 동일 이메일 충돌 시 [AccountExistsWithDifferentCredential]을
+  /// 반환한다 (Phase 7 D-10 재사용).
+  Future<Result<User>?> signInWithApple() async {
+    // Android: Firebase built-in AppleAuthProvider로 웹 OAuth 처리.
+    // sign_in_with_apple 패키지의 Chrome Custom Tab 플로우는 별도
+    // 리다이렉트 서버가 필요하므로, Firebase가 직접 리다이렉트를
+    // 처리하는 signInWithProvider를 사용한다.
+    if (Platform.isAndroid) {
+      return _signInWithAppleViaProvider();
+    }
+    // iOS: sign_in_with_apple 네이티브 플로우 (ASAuthorizationController).
+    return _signInWithAppleNative();
+  }
+
+  /// Android 전용 Apple Sign-In — [fb.FirebaseAuth.signInWithProvider].
+  ///
+  /// Firebase가 Chrome Custom Tab 리다이렉트를 내부 처리하므로 별도
+  /// 서버 엔드포인트가 불필요하다. Android 웹 OAuth에서는 Apple이
+  /// givenName/familyName을 제공하지 않으므로 displayName 저장
+  /// 로직(D-07)은 iOS 전용이다.
+  /// 사용자 취소 시 null을 반환한다 (D-09 미러링).
+  Future<Result<User>?> _signInWithAppleViaProvider() async {
+    try {
+      final provider = fb.AppleAuthProvider()
+        ..addScope('email')
+        ..addScope('name');
+      final userCredential = await _auth.signInWithProvider(provider);
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      final refreshed = _auth.currentUser ?? fbUser;
+      return Result.success(_mapFirebaseUser(refreshed));
+    } on fb.FirebaseAuthException catch (e) {
+      // D-09: 사용자 취소 시 null 반환
+      // (iOS의 AuthorizationErrorCode.canceled 미러링).
+      if (e.code == 'web-context-cancelled' ||
+          e.code == 'popup-closed-by-user') {
+        return null;
+      }
+      return Result.failure(_mapAuthException(e));
+    }
+  }
+
+  /// iOS 전용 Apple Sign-In — [sign_in_with_apple] 네이티브 플로우.
+  ///
   /// 흐름:
   /// 1. [_generateNonce]로 raw nonce를 생성한다.
   /// 2. [_sha256OfString]으로 SHA256 해시를 계산한다.
@@ -162,12 +217,7 @@ class AuthRepository {
   /// 6. 최초 로그인이면서 기존 displayName이 비어 있는 경우에만
   ///    `givenName + familyName`을 조합하여 [fb.User.updateDisplayName]을
   ///    호출한다 (D-07, Pitfall 2 방어).
-  ///
-  /// 사용자 취소([AuthorizationErrorCode.canceled]) 시 null을 반환하여
-  /// Notifier에서 no-op 처리한다 (D-09, Phase 7 D-06 미러링).
-  /// 동일 이메일 충돌 시 [AccountExistsWithDifferentCredential]을
-  /// 반환한다 (Phase 7 D-10 재사용).
-  Future<Result<User>?> signInWithApple() async {
+  Future<Result<User>?> _signInWithAppleNative() async {
     try {
       // 1. nonce 생성 + 해싱.
       //    rawNonce: Firebase가 Apple identityToken 내 해시와 대조할 때 사용.
