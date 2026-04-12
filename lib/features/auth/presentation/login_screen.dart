@@ -137,9 +137,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Gap(spacing.xxl),
-              SocialSignInSection(isFormLoading: state.isLoading),
-              FormErrorBanner(exception: _bannerError),
-              Gap(spacing.sm),
+              SocialSignInSection(
+                isFormLoading: state.isLoading,
+                errorBanner: FormErrorBanner(exception: _bannerError),
+              ),
               EmailField(
                 controller: _emailController,
                 focusNode: _emailFocus,

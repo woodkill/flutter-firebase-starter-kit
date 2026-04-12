@@ -145,9 +145,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Gap(spacing.xxl),
-              SocialSignInSection(isFormLoading: state.isLoading),
-              FormErrorBanner(exception: _bannerError),
-              Gap(spacing.sm),
+              SocialSignInSection(
+                isFormLoading: state.isLoading,
+                errorBanner: FormErrorBanner(exception: _bannerError),
+              ),
               TextFormField(
                 controller: _nameController,
                 focusNode: _nameFocus,

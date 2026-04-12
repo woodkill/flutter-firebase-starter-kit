@@ -32,11 +32,18 @@ class SocialSignInSection extends ConsumerWidget {
   /// [SocialSignInSection]을 생성한다.
   const SocialSignInSection({
     required this.isFormLoading,
+    this.errorBanner,
     super.key,
   });
 
   /// 이메일 폼이 로딩 중인지 여부. true면 소셜 버튼도 비활성화한다.
   final bool isFormLoading;
+
+  /// 소셜 버튼과 [OrDivider] 사이에 표시할 에러 배너.
+  ///
+  /// 소셜 로그인 에러는 소셜 버튼 바로 아래에 표시되어야 의미가 명확하다.
+  /// null 또는 [SizedBox.shrink] 일 때는 공간을 차지하지 않는다.
+  final Widget? errorBanner;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -99,6 +106,10 @@ class SocialSignInSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ...socialButtons,
+        if (errorBanner != null) ...[
+          Gap(spacing.md),
+          errorBanner!,
+        ],
         Gap(spacing.lg),
         const OrDivider(),
         Gap(spacing.lg),
