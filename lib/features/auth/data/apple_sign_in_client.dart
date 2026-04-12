@@ -1,3 +1,10 @@
+/// RESERVED: 이 파일은 현재 미사용. [AuthRepository.signInWithApple]이
+/// `signInWithProvider(AppleAuthProvider())`를 통해 Apple 로그인을 처리하므로
+/// 이 수동 credential 플로우는 호출되지 않는다.
+/// signInWithProvider 대신 수동 Apple credential 플로우가 필요한 경우를 위해
+/// 보존한다.
+library;
+
 import 'dart:io';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
