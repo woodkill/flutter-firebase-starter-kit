@@ -43,6 +43,22 @@ Future<void> _pumpSignup(
   await tester.pump();
 }
 
+/// 플랫폼 override 해제 보장 wrapper.
+///
+/// `debugDefaultTargetPlatformOverride`를 설정한 뒤 [body]를 실행하고,
+/// 예외 발생 여부와 관계없이 `finally`에서 반드시 null로 복원한다.
+Future<void> withPlatform(
+  TargetPlatform platform,
+  Future<void> Function() body,
+) async {
+  debugDefaultTargetPlatformOverride = platform;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
+}
+
 void main() {
   late _MockAuthRepository mockRepo;
 
@@ -251,35 +267,34 @@ void main() {
             (_) async => const Result<User>.failure(ServiceUnavailable()),
           );
 
-          debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-          await _pumpSignup(tester, mockRepo);
-          await tester.pumpAndSettle();
+          await withPlatform(TargetPlatform.iOS, () async {
+            await _pumpSignup(tester, mockRepo);
+            await tester.pumpAndSettle();
 
-          // SocialSignInSection이 렌더되고 Apple+Google 두 버튼 존재.
-          expect(find.byType(SocialSignInSection), findsOneWidget);
-          expect(find.byType(SignInButton), findsNWidgets(2));
+            // SocialSignInSection이 렌더되고 Apple+Google 두 버튼 존재.
+            expect(find.byType(SocialSignInSection), findsOneWidget);
+            expect(find.byType(SignInButton), findsNWidgets(2));
 
-          // iOS에서는 첫 번째 SignInButton == Apple (D-05).
-          await tester.tap(find.byType(SignInButton).first);
-          await tester.pumpAndSettle();
+            // iOS에서는 첫 번째 SignInButton == Apple (D-05).
+            await tester.tap(find.byType(SignInButton).first);
+            await tester.pumpAndSettle();
 
-          // 소셜 영역 FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
-          final banner = tester.widget<FormErrorBanner>(
-            find.descendant(
-              of: find.byType(SocialSignInSection),
-              matching: find.byType(FormErrorBanner),
-            ),
-          );
-          expect(banner.exception, isA<ServiceUnavailable>());
+            // 소셜 영역 FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
+            final banner = tester.widget<FormErrorBanner>(
+              find.descendant(
+                of: find.byType(SocialSignInSection),
+                matching: find.byType(FormErrorBanner),
+              ),
+            );
+            expect(banner.exception, isA<ServiceUnavailable>());
 
-          // SignupScreen은 이메일 자동 채움 없음 — 이메일 필드는 비어 있다
-          // (LoginScreen의 D-10 정책과 다름).
-          final emailField = tester.widget<TextFormField>(
-            find.byType(TextFormField).at(1),
-          );
-          expect(emailField.controller?.text, isEmpty);
-
-          debugDefaultTargetPlatformOverride = null;
+            // SignupScreen은 이메일 자동 채움 없음 — 이메일 필드는 비어 있다
+            // (LoginScreen의 D-10 정책과 다름).
+            final emailField = tester.widget<TextFormField>(
+              find.byType(TextFormField).at(1),
+            );
+            expect(emailField.controller?.text, isEmpty);
+          });
         },
       );
     });

@@ -44,6 +44,22 @@ Future<void> _pumpLogin(
   await tester.pump();
 }
 
+/// 플랫폼 override 해제 보장 wrapper.
+///
+/// `debugDefaultTargetPlatformOverride`를 설정한 뒤 [body]를 실행하고,
+/// 예외 발생 여부와 관계없이 `finally`에서 반드시 null로 복원한다.
+Future<void> withPlatform(
+  TargetPlatform platform,
+  Future<void> Function() body,
+) async {
+  debugDefaultTargetPlatformOverride = platform;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
+}
+
 void main() {
   late _MockAuthRepository mockRepo;
 
@@ -260,27 +276,26 @@ void main() {
             ),
           );
 
-          debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-          await _pumpLogin(tester, mockRepo);
-          await tester.pumpAndSettle();
+          await withPlatform(TargetPlatform.iOS, () async {
+            await _pumpLogin(tester, mockRepo);
+            await tester.pumpAndSettle();
 
-          // iOS에서는 Apple 버튼이 첫 번째 SignInButton (D-05).
-          await tester.tap(find.byType(SignInButton).first);
-          await tester.pumpAndSettle();
+            // iOS에서는 Apple 버튼이 첫 번째 SignInButton (D-05).
+            await tester.tap(find.byType(SignInButton).first);
+            await tester.pumpAndSettle();
 
-          // Repository 호출 검증.
-          verify(() => mockRepo.signInWithApple()).called(1);
+            // Repository 호출 검증.
+            verify(() => mockRepo.signInWithApple()).called(1);
 
-          // 소셜 영역 FormErrorBanner.exception == null (에러 없음).
-          final banner = tester.widget<FormErrorBanner>(
-            find.descendant(
-              of: find.byType(SocialSignInSection),
-              matching: find.byType(FormErrorBanner),
-            ),
-          );
-          expect(banner.exception, isNull);
-
-          debugDefaultTargetPlatformOverride = null;
+            // 소셜 영역 FormErrorBanner.exception == null (에러 없음).
+            final banner = tester.widget<FormErrorBanner>(
+              find.descendant(
+                of: find.byType(SocialSignInSection),
+                matching: find.byType(FormErrorBanner),
+              ),
+            );
+            expect(banner.exception, isNull);
+          });
         },
       );
 
@@ -291,23 +306,22 @@ void main() {
             (_) async => const Result<User>.failure(ServiceUnavailable()),
           );
 
-          debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-          await _pumpLogin(tester, mockRepo);
-          await tester.pumpAndSettle();
+          await withPlatform(TargetPlatform.iOS, () async {
+            await _pumpLogin(tester, mockRepo);
+            await tester.pumpAndSettle();
 
-          // Apple 버튼 탭 (iOS에서 첫 번째 SignInButton).
-          await tester.tap(find.byType(SignInButton).first);
-          await tester.pumpAndSettle();
+            // Apple 버튼 탭 (iOS에서 첫 번째 SignInButton).
+            await tester.tap(find.byType(SignInButton).first);
+            await tester.pumpAndSettle();
 
-          final banner = tester.widget<FormErrorBanner>(
-            find.descendant(
-              of: find.byType(SocialSignInSection),
-              matching: find.byType(FormErrorBanner),
-            ),
-          );
-          expect(banner.exception, isA<ServiceUnavailable>());
-
-          debugDefaultTargetPlatformOverride = null;
+            final banner = tester.widget<FormErrorBanner>(
+              find.descendant(
+                of: find.byType(SocialSignInSection),
+                matching: find.byType(FormErrorBanner),
+              ),
+            );
+            expect(banner.exception, isA<ServiceUnavailable>());
+          });
         },
       );
 
@@ -323,40 +337,39 @@ void main() {
             ),
           );
 
-          debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-          await _pumpLogin(tester, mockRepo);
-          await tester.pumpAndSettle();
+          await withPlatform(TargetPlatform.iOS, () async {
+            await _pumpLogin(tester, mockRepo);
+            await tester.pumpAndSettle();
 
-          // Apple 버튼 탭 → AppleSignInNotifier → AsyncError 전이.
-          await tester.tap(find.byType(SignInButton).first);
-          await tester.pumpAndSettle();
+            // Apple 버튼 탭 → AppleSignInNotifier → AsyncError 전이.
+            await tester.tap(find.byType(SignInButton).first);
+            await tester.pumpAndSettle();
 
-          // EmailField 내부 TextFormField의 controller 값을 검증.
-          // dynamic 캐스트 금지 — find.descendant + widget<TextFormField>.
-          final emailFormField = tester.widget<TextFormField>(
-            find.descendant(
-              of: find.byType(EmailField),
-              matching: find.byType(TextFormField),
-            ),
-          );
-          expect(
-            emailFormField.controller?.text,
-            'collision@example.com',
-          );
+            // EmailField 내부 TextFormField의 controller 값을 검증.
+            // dynamic 캐스트 금지 — find.descendant + widget<TextFormField>.
+            final emailFormField = tester.widget<TextFormField>(
+              find.descendant(
+                of: find.byType(EmailField),
+                matching: find.byType(TextFormField),
+              ),
+            );
+            expect(
+              emailFormField.controller?.text,
+              'collision@example.com',
+            );
 
-          // 소셜 영역 FormErrorBanner에도 에러가 표시되어야 한다.
-          final banner = tester.widget<FormErrorBanner>(
-            find.descendant(
-              of: find.byType(SocialSignInSection),
-              matching: find.byType(FormErrorBanner),
-            ),
-          );
-          expect(
-            banner.exception,
-            isA<AccountExistsWithDifferentCredential>(),
-          );
-
-          debugDefaultTargetPlatformOverride = null;
+            // 소셜 영역 FormErrorBanner에도 에러가 표시되어야 한다.
+            final banner = tester.widget<FormErrorBanner>(
+              find.descendant(
+                of: find.byType(SocialSignInSection),
+                matching: find.byType(FormErrorBanner),
+              ),
+            );
+            expect(
+              banner.exception,
+              isA<AccountExistsWithDifferentCredential>(),
+            );
+          });
         },
       );
     });
