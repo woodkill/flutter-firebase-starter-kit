@@ -169,7 +169,8 @@ class AuthRepository {
       return Result.success(_mapFirebaseUser(refreshed));
     } on fb.FirebaseAuthException catch (e) {
       // D-09: 사용자 취소 시 null 반환.
-      if (e.code == 'web-context-canceled' ||
+      if (e.code == 'canceled' ||
+          e.code == 'web-context-canceled' ||
           e.code == 'web-context-cancelled' ||
           e.code == 'popup-closed-by-user') {
         return null;
