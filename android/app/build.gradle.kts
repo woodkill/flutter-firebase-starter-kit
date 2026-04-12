@@ -44,6 +44,13 @@ android {
     }
 }
 
+dependencies {
+    // Firebase Auth signInWithProvider가 Chrome Custom Tab을 사용하도록
+    // 명시적으로 추가한다. 이 의존성이 없으면 GenericIdpActivity가
+    // 전체 Chrome 브라우저로 fallback하여 인증 후 자동 닫힘이 안 된다.
+    implementation("androidx.browser:browser:1.8.0")
+}
+
 flutter {
     source = "../.."
 }
