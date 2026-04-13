@@ -25,6 +25,14 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Facebook SDK 설정 (D-06, Phase 9).
+             App ID와 Client Token은 build.gradle.kts resValue로 주입된다. -->
+        <meta-data
+            android:name="com.facebook.sdk.ApplicationId"
+            android:value="@string/facebook_app_id"/>
+        <meta-data
+            android:name="com.facebook.sdk.ClientToken"
+            android:value="@string/facebook_client_token"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -50,5 +58,7 @@
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
+        <!-- Facebook 앱 감지 (Android 11+ 패키지 가시성 제한, Phase 9). -->
+        <provider android:authorities="com.facebook.katana.provider.PlatformProvider" />
     </queries>
 </manifest>

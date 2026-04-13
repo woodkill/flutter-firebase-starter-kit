@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
@@ -20,12 +22,33 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    // Facebook SDK 네이티브 설정을 위해 dart-defines에서 값을 추출한다 (D-06).
+    // --dart-define-from-file로 전달된 값은 Base64로 인코딩되어 gradle property로 전달된다.
+    val dartDefines = mutableMapOf<String, String>()
+    if (project.hasProperty("dart-defines")) {
+        val encoded = project.property("dart-defines") as String
+        encoded.split(",").forEach { entry ->
+            val decoded = String(
+                Base64.getDecoder().decode(entry),
+                Charsets.UTF_8,
+            )
+            val parts = decoded.split("=", limit = 2)
+            if (parts.size == 2) {
+                dartDefines[parts[0]] = parts[1]
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.slimpumpkin.flutter_starter_kit"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Facebook SDK가 AndroidManifest.xml에서 참조하는 string 리소스 (D-06).
+        resValue("string", "facebook_app_id", dartDefines["facebookAppId"] ?: "")
+        resValue("string", "facebook_client_token", dartDefines["facebookClientToken"] ?: "")
     }
 
     flavorDimensions += "environment"
