@@ -3,5 +3,7 @@
   "appName": "StarterKit",
   "appSuffix": "",
   "firebaseProjectId": "your-project-prod",
-  "googleServerClientId": "your-google-server-client-id-prod"
+  "googleServerClientId": "your-google-server-client-id-prod",
+  "facebookAppId": "YOUR_FACEBOOK_APP_ID",
+  "facebookClientToken": "YOUR_FACEBOOK_CLIENT_TOKEN"
 }

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -20,10 +21,12 @@ class AuthRepository {
   const AuthRepository(
     this._auth,
     this._googleSignIn,
+    this._facebookAuth,
   );
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
+  final FacebookAuth _facebookAuth;
 
   /// 이메일/비밀번호로 로그인한다.
   ///
@@ -186,16 +189,71 @@ class AuthRepository {
     }
   }
 
+  /// Facebook 계정으로 Firebase Auth에 로그인한다 (D-01).
+  ///
+  /// [FacebookAuth.login]으로 Classic Login을 수행하고 (D-03),
+  /// 획득한 [AccessToken]의 tokenString으로
+  /// [fb.FacebookAuthProvider.credential]을 생성하여
+  /// [fb.FirebaseAuth.signInWithCredential]에 전달한다.
+  ///
+  /// 요청 권한은 email + public_profile만 사용한다 (D-02).
+  /// 사용자 취소 시 null을 반환하여 Notifier에서 no-op 처리한다 (D-09).
+  /// 동일 이메일 충돌 시 [AccountExistsWithDifferentCredential]을 반환한다.
+  Future<Result<User>?> signInWithFacebook() async {
+    try {
+      final loginResult = await _facebookAuth.login(
+        permissions: ['email', 'public_profile'],
+        loginTracking: LoginTracking.enabled,
+      );
+
+      if (loginResult.status != LoginStatus.success) {
+        return null;
+      }
+
+      final accessToken = loginResult.accessToken;
+      if (accessToken == null) {
+        return null;
+      }
+
+      final credential = fb.FacebookAuthProvider.credential(
+        accessToken.tokenString,
+      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('signInWithFacebook 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    }
+  }
+
   /// 로그아웃한다.
   ///
   /// [GoogleSignIn.signOut]을 병행 호출하여 Google 세션도 해제한다 (D-07).
-  /// [GoogleSignIn.signOut] 실패 시에도 [fb.FirebaseAuth.signOut]은 반드시 호출한다.
+  /// [FacebookAuth.logOut]을 병행 호출하여 Facebook 세션도 해제한다 (D-08).
+  /// 각 소셜 로그인 SDK의 signOut/logOut 실패 시에도
+  /// [fb.FirebaseAuth.signOut]은 반드시 호출한다.
   Future<void> signOut() async {
     try {
       await _googleSignIn.signOut();
     } on Object catch (e, st) {
       if (kDebugMode) {
         debugPrint('GoogleSignIn.signOut() 실패 (무시): $e\n$st');
+      }
+    }
+    // Facebook 세션 해제 (D-08).
+    try {
+      await _facebookAuth.logOut();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('FacebookAuth.logOut() 실패 (무시): $e\n$st');
       }
     }
     await _auth.signOut();
@@ -366,6 +424,7 @@ AuthRepository authRepository(Ref ref) {
   return AuthRepository(
     ref.watch(firebaseAuthProvider),
     ref.watch(googleSignInProvider),
+    ref.watch(facebookAuthProvider),
   );
 }
 

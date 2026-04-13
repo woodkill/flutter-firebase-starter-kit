@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
@@ -18,6 +19,8 @@ class _MockUserMetadata extends Mock implements fb.UserMetadata {}
 
 class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
 
+class _MockFacebookAuth extends Mock implements FacebookAuth {}
+
 class _MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
 class _MockUserInfo extends Mock implements fb.UserInfo {}
@@ -30,6 +33,7 @@ void main() {
   late _MockFbUser mockUser;
   late _MockUserMetadata mockMetadata;
   late _MockGoogleSignIn mockGoogleSignIn;
+  late _MockFacebookAuth mockFacebookAuth;
   late AuthRepository repository;
 
   setUpAll(() {
@@ -43,7 +47,8 @@ void main() {
     mockUser = _MockFbUser();
     mockMetadata = _MockUserMetadata();
     mockGoogleSignIn = _MockGoogleSignIn();
-    repository = AuthRepository(mockAuth, mockGoogleSignIn);
+    mockFacebookAuth = _MockFacebookAuth();
+    repository = AuthRepository(mockAuth, mockGoogleSignIn, mockFacebookAuth);
 
     // 기본 User 필드 stub
     when(() => mockUser.uid).thenReturn('uid-test');
@@ -249,6 +254,8 @@ void main() {
 
   group('signOut', () {
     test('firebaseAuth.signOut()을 호출한다', () async {
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
       when(() => mockAuth.signOut()).thenAnswer((_) async {});
 
       await repository.signOut();
@@ -500,15 +507,17 @@ void main() {
     });
   });
 
-  group('signOut (GoogleSignIn 병행 호출)', () {
-    test('GoogleSignIn.signOut()과 FirebaseAuth.signOut() 모두 호출된다',
-        () async {
+  group('signOut (GoogleSignIn + FacebookAuth 병행 호출)', () {
+    test('GoogleSignIn.signOut()과 FacebookAuth.logOut()과 '
+        'FirebaseAuth.signOut() 모두 호출된다', () async {
       when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
       when(() => mockAuth.signOut()).thenAnswer((_) async {});
 
       await repository.signOut();
 
       verify(() => mockGoogleSignIn.signOut()).called(1);
+      verify(() => mockFacebookAuth.logOut()).called(1);
       verify(() => mockAuth.signOut()).called(1);
     });
 
@@ -517,6 +526,7 @@ void main() {
       when(
         () => mockGoogleSignIn.signOut(),
       ).thenThrow(Exception('Google signOut failed'));
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
       when(() => mockAuth.signOut()).thenAnswer((_) async {});
 
       await repository.signOut();

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -57,4 +58,13 @@ Stream<User?> authState(Ref ref) {
 @Riverpod(keepAlive: true)
 GoogleSignIn googleSignIn(Ref ref) {
   return GoogleSignIn.instance;
+}
+
+/// [FacebookAuth] 인스턴스를 제공한다.
+///
+/// 싱글톤이지만 Provider로 감싸서 테스트 시 mock override를 가능하게 한다.
+/// 네이티브 SDK가 앱 시작 시 자동 초기화하므로 별도 초기화 불필요.
+@Riverpod(keepAlive: true)
+FacebookAuth facebookAuth(Ref ref) {
+  return FacebookAuth.instance;
 }
