@@ -133,5 +133,7 @@
   "errorAccountExistsWithDifferentCredential": "このメールアドレスは別の方法で登録されています。パスワードでログインしてください。",
   "authAccountProviderGoogle": "Google",
   "authAppleSignIn": "Appleでログイン",
-  "authAccountProviderApple": "Apple"
+  "authAccountProviderApple": "Apple",
+  "authFacebookSignIn": "Facebookでログイン",
+  "authAccountProviderFacebook": "Facebook"
 }

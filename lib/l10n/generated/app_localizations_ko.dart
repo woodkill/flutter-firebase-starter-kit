@@ -333,4 +333,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get authAccountProviderApple => 'Apple';
+
+  @override
+  String get authFacebookSignIn => 'Facebook으로 로그인';
+
+  @override
+  String get authAccountProviderFacebook => 'Facebook';
 }

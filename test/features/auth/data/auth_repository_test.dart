@@ -39,6 +39,9 @@ void main() {
   setUpAll(() {
     registerFallbackValue(_FakeAuthCredential());
     registerFallbackValue(fb.AppleAuthProvider());
+    registerFallbackValue(LoginTracking.enabled);
+    registerFallbackValue(LoginBehavior.nativeWithFallback);
+    registerFallbackValue(const <String>[]);
   });
 
   setUp(() {
@@ -781,4 +784,199 @@ void main() {
       },
     );
   });
+
+  group('signInWithFacebook', () {
+    test('성공 시 Result.success(User)를 반환하고 providerIds에 '
+        'facebook.com 포함', () async {
+      when(
+        () => mockFacebookAuth.login(
+          permissions: any(named: 'permissions'),
+          loginTracking: any(named: 'loginTracking'),
+          loginBehavior: any(named: 'loginBehavior'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenAnswer(
+        (_) async => LoginResult(
+          status: LoginStatus.success,
+          accessToken: _FakeClassicToken(tokenString: 'fb-token-123'),
+        ),
+      );
+
+      final mockProviderInfo = _MockUserInfo();
+      when(() => mockProviderInfo.providerId).thenReturn('facebook.com');
+      when(() => mockUser.providerData).thenReturn([mockProviderInfo]);
+
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Success<dynamic>>());
+      final user = (result! as Success).data;
+      expect(user.uid, 'uid-test');
+      expect(user.providerIds, ['facebook.com']);
+    });
+
+    test('사용자 취소 (LoginStatus.cancelled) 시 null을 반환한다', () async {
+      when(
+        () => mockFacebookAuth.login(
+          permissions: any(named: 'permissions'),
+          loginTracking: any(named: 'loginTracking'),
+          loginBehavior: any(named: 'loginBehavior'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenAnswer(
+        (_) async => LoginResult(status: LoginStatus.cancelled),
+      );
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isNull);
+    });
+
+    test('accessToken이 null이면 null을 반환한다', () async {
+      when(
+        () => mockFacebookAuth.login(
+          permissions: any(named: 'permissions'),
+          loginTracking: any(named: 'loginTracking'),
+          loginBehavior: any(named: 'loginBehavior'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenAnswer(
+        (_) async => LoginResult(
+          status: LoginStatus.success,
+          // accessToken을 null로 유지
+        ),
+      );
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isNull);
+    });
+
+    test('FirebaseAuthException 시 Result.failure(AppException)를 반환한다',
+        () async {
+      when(
+        () => mockFacebookAuth.login(
+          permissions: any(named: 'permissions'),
+          loginTracking: any(named: 'loginTracking'),
+          loginBehavior: any(named: 'loginBehavior'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenAnswer(
+        (_) async => LoginResult(
+          status: LoginStatus.success,
+          accessToken: _FakeClassicToken(tokenString: 'fb-token'),
+        ),
+      );
+
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenThrow(
+        fb.FirebaseAuthException(code: 'network-request-failed'),
+      );
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect(
+        (result! as Failure).exception,
+        isA<NoInternetConnection>(),
+      );
+    });
+
+    test(
+      'account-exists-with-different-credential 시 '
+      'AccountExistsWithDifferentCredential를 반환한다',
+      () async {
+        when(
+          () => mockFacebookAuth.login(
+            permissions: any(named: 'permissions'),
+            loginTracking: any(named: 'loginTracking'),
+          ),
+        ).thenAnswer(
+          (_) async => LoginResult(
+            status: LoginStatus.success,
+            accessToken: _FakeClassicToken(tokenString: 'fb-token'),
+          ),
+        );
+
+        when(
+          () => mockAuth.signInWithCredential(any()),
+        ).thenThrow(
+          fb.FirebaseAuthException(
+            code: 'account-exists-with-different-credential',
+            email: 'existing@example.com',
+          ),
+        );
+
+        final result = await repository.signInWithFacebook();
+
+        expect(result, isA<Failure<dynamic>>());
+        final exception = (result! as Failure).exception;
+        expect(exception, isA<AccountExistsWithDifferentCredential>());
+        expect(
+          (exception as AccountExistsWithDifferentCredential).email,
+          'existing@example.com',
+        );
+      },
+    );
+
+    test('비-Auth 예외 (PlatformException 등) 시 '
+        'Result.failure(ServiceUnavailable)를 반환한다', () async {
+      when(
+        () => mockFacebookAuth.login(
+          permissions: any(named: 'permissions'),
+          loginTracking: any(named: 'loginTracking'),
+          loginBehavior: any(named: 'loginBehavior'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenThrow(Exception('Platform error'));
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+    });
+  });
+
+  group('signOut (FacebookAuth logOut 테스트)', () {
+    test('signOut이 FacebookAuth.logOut()을 호출한다', () async {
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+      await repository.signOut();
+
+      verify(() => mockFacebookAuth.logOut()).called(1);
+    });
+
+    test('FacebookAuth.logOut() 실패 시에도 FirebaseAuth.signOut()은 '
+        '호출된다', () async {
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(
+        () => mockFacebookAuth.logOut(),
+      ).thenThrow(Exception('Facebook logOut failed'));
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+      await repository.signOut();
+
+      verify(() => mockFacebookAuth.logOut()).called(1);
+      verify(() => mockAuth.signOut()).called(1);
+    });
+  });
+}
+
+/// 테스트용 [ClassicToken] fake.
+///
+/// [AccessToken]은 abstract class이므로 [ClassicToken]을 상속한 fake를 사용한다.
+class _FakeClassicToken extends Fake implements ClassicToken {
+  _FakeClassicToken({required this.tokenString});
+
+  @override
+  final String tokenString;
+
+  @override
+  AccessTokenType get type => AccessTokenType.classic;
 }

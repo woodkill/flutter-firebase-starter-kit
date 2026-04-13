@@ -339,4 +339,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authAccountProviderApple => 'Apple';
+
+  @override
+  String get authFacebookSignIn => 'Sign in with Facebook';
+
+  @override
+  String get authAccountProviderFacebook => 'Facebook';
 }

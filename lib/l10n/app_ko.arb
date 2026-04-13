@@ -133,5 +133,7 @@
   "errorAccountExistsWithDifferentCredential": "이 이메일은 다른 방식으로 가입되어 있습니다. 비밀번호로 로그인해 주세요.",
   "authAccountProviderGoogle": "Google",
   "authAppleSignIn": "Apple로 로그인",
-  "authAccountProviderApple": "Apple"
+  "authAccountProviderApple": "Apple",
+  "authFacebookSignIn": "Facebook으로 로그인",
+  "authAccountProviderFacebook": "Facebook"
 }

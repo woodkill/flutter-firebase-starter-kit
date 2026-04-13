@@ -535,5 +535,15 @@
   "authAccountProviderApple": "Apple",
   "@authAccountProviderApple": {
     "description": "Provider label displayed in the account section when the user signed in with Apple"
+  },
+
+  "authFacebookSignIn": "Sign in with Facebook",
+  "@authFacebookSignIn": {
+    "description": "Facebook sign-in button label"
+  },
+
+  "authAccountProviderFacebook": "Facebook",
+  "@authAccountProviderFacebook": {
+    "description": "Provider label displayed in the account section when the user signed in with Facebook"
   }
 }

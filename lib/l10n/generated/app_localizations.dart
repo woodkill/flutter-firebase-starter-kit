@@ -723,6 +723,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Apple'**
   String get authAccountProviderApple;
+
+  /// Facebook sign-in button label
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Facebook'**
+  String get authFacebookSignIn;
+
+  /// Provider label displayed in the account section when the user signed in with Facebook
+  ///
+  /// In en, this message translates to:
+  /// **'Facebook'**
+  String get authAccountProviderFacebook;
 }
 
 class _AppLocalizationsDelegate

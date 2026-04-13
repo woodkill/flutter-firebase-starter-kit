@@ -333,4 +333,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authAccountProviderApple => 'Apple';
+
+  @override
+  String get authFacebookSignIn => 'Facebookでログイン';
+
+  @override
+  String get authAccountProviderFacebook => 'Facebook';
 }
