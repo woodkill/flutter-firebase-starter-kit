@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,22 +40,6 @@ Future<void> _pumpLogin(
     ),
   );
   await tester.pump();
-}
-
-/// 플랫폼 override 해제 보장 wrapper.
-///
-/// `debugDefaultTargetPlatformOverride`를 설정한 뒤 [body]를 실행하고,
-/// 예외 발생 여부와 관계없이 `finally`에서 반드시 null로 복원한다.
-Future<void> withPlatform(
-  TargetPlatform platform,
-  Future<void> Function() body,
-) async {
-  debugDefaultTargetPlatformOverride = platform;
-  try {
-    await body();
-  } finally {
-    debugDefaultTargetPlatformOverride = null;
-  }
 }
 
 void main() {
@@ -218,11 +200,13 @@ void main() {
     });
 
     testWidgets(
-      '6. 소셜 SignInButton이 2개(Google + Apple) 렌더링된다',
+      '6. 소셜 SignInButton이 3개(Google + Apple + Facebook) 렌더링된다',
       (tester) async {
+        when(() => mockRepo.signInWithFacebook())
+            .thenAnswer((_) async => null);
         await _pumpLogin(tester, mockRepo);
-        // Phase 8부터 Apple 버튼이 추가되어 총 2개(Google + Apple).
-        expect(find.byType(SignInButton), findsNWidgets(2));
+        // Phase 9부터 Facebook 버튼이 추가되어 총 3개.
+        expect(find.byType(SignInButton), findsNWidgets(3));
       },
     );
 
@@ -257,8 +241,13 @@ void main() {
 
     // -----------------------------------------------------------------
     // Phase 8 Apple 로그인 시나리오 (AUTH-03-15, 16, 17)
+    // Phase 9: 플랫폼 분기 제거(D-04). 통일 순서 Google→Apple→Facebook.
+    // Apple 버튼은 두 번째(index 1) SignInButton.
     // -----------------------------------------------------------------
     group('LoginScreen Apple sign-in integration', () {
+      /// Apple 버튼 finder — 통일 순서에서 두 번째(index 1) SignInButton.
+      Finder findAppleButton() => find.byType(SignInButton).at(1);
+
       testWidgets(
         'AUTH-03-15: Apple 로그인 성공 시 FormErrorBanner에 에러 없음 '
         '(navigation은 authRedirect 위임)',
@@ -275,27 +264,27 @@ void main() {
               ),
             ),
           );
+          when(() => mockRepo.signInWithFacebook())
+              .thenAnswer((_) async => null);
 
-          await withPlatform(TargetPlatform.iOS, () async {
-            await _pumpLogin(tester, mockRepo);
-            await tester.pumpAndSettle();
+          await _pumpLogin(tester, mockRepo);
+          await tester.pumpAndSettle();
 
-            // iOS에서는 Apple 버튼이 첫 번째 SignInButton (D-05).
-            await tester.tap(find.byType(SignInButton).first);
-            await tester.pumpAndSettle();
+          // D-04: 통일 순서에서 Apple 버튼은 두 번째.
+          await tester.tap(findAppleButton());
+          await tester.pumpAndSettle();
 
-            // Repository 호출 검증.
-            verify(() => mockRepo.signInWithApple()).called(1);
+          // Repository 호출 검증.
+          verify(() => mockRepo.signInWithApple()).called(1);
 
-            // 소셜 영역 FormErrorBanner.exception == null (에러 없음).
-            final banner = tester.widget<FormErrorBanner>(
-              find.descendant(
-                of: find.byType(SocialSignInSection),
-                matching: find.byType(FormErrorBanner),
-              ),
-            );
-            expect(banner.exception, isNull);
-          });
+          // 소셜 영역 FormErrorBanner.exception == null (에러 없음).
+          final banner = tester.widget<FormErrorBanner>(
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
+          );
+          expect(banner.exception, isNull);
         },
       );
 
@@ -305,23 +294,23 @@ void main() {
           when(() => mockRepo.signInWithApple()).thenAnswer(
             (_) async => const Result<User>.failure(ServiceUnavailable()),
           );
+          when(() => mockRepo.signInWithFacebook())
+              .thenAnswer((_) async => null);
 
-          await withPlatform(TargetPlatform.iOS, () async {
-            await _pumpLogin(tester, mockRepo);
-            await tester.pumpAndSettle();
+          await _pumpLogin(tester, mockRepo);
+          await tester.pumpAndSettle();
 
-            // Apple 버튼 탭 (iOS에서 첫 번째 SignInButton).
-            await tester.tap(find.byType(SignInButton).first);
-            await tester.pumpAndSettle();
+          // D-04: 통일 순서에서 Apple 버튼은 두 번째.
+          await tester.tap(findAppleButton());
+          await tester.pumpAndSettle();
 
-            final banner = tester.widget<FormErrorBanner>(
-              find.descendant(
-                of: find.byType(SocialSignInSection),
-                matching: find.byType(FormErrorBanner),
-              ),
-            );
-            expect(banner.exception, isA<ServiceUnavailable>());
-          });
+          final banner = tester.widget<FormErrorBanner>(
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
+          );
+          expect(banner.exception, isA<ServiceUnavailable>());
         },
       );
 
@@ -336,40 +325,40 @@ void main() {
               ),
             ),
           );
+          when(() => mockRepo.signInWithFacebook())
+              .thenAnswer((_) async => null);
 
-          await withPlatform(TargetPlatform.iOS, () async {
-            await _pumpLogin(tester, mockRepo);
-            await tester.pumpAndSettle();
+          await _pumpLogin(tester, mockRepo);
+          await tester.pumpAndSettle();
 
-            // Apple 버튼 탭 → AppleSignInNotifier → AsyncError 전이.
-            await tester.tap(find.byType(SignInButton).first);
-            await tester.pumpAndSettle();
+          // D-04: 통일 순서에서 Apple 버튼은 두 번째.
+          await tester.tap(findAppleButton());
+          await tester.pumpAndSettle();
 
-            // EmailField 내부 TextFormField의 controller 값을 검증.
-            // dynamic 캐스트 금지 — find.descendant + widget<TextFormField>.
-            final emailFormField = tester.widget<TextFormField>(
-              find.descendant(
-                of: find.byType(EmailField),
-                matching: find.byType(TextFormField),
-              ),
-            );
-            expect(
-              emailFormField.controller?.text,
-              'collision@example.com',
-            );
+          // EmailField 내부 TextFormField의 controller 값을 검증.
+          // dynamic 캐스트 금지 -- find.descendant + widget<TextFormField>.
+          final emailFormField = tester.widget<TextFormField>(
+            find.descendant(
+              of: find.byType(EmailField),
+              matching: find.byType(TextFormField),
+            ),
+          );
+          expect(
+            emailFormField.controller?.text,
+            'collision@example.com',
+          );
 
-            // 소셜 영역 FormErrorBanner에도 에러가 표시되어야 한다.
-            final banner = tester.widget<FormErrorBanner>(
-              find.descendant(
-                of: find.byType(SocialSignInSection),
-                matching: find.byType(FormErrorBanner),
-              ),
-            );
-            expect(
-              banner.exception,
-              isA<AccountExistsWithDifferentCredential>(),
-            );
-          });
+          // 소셜 영역 FormErrorBanner에도 에러가 표시되어야 한다.
+          final banner = tester.widget<FormErrorBanner>(
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
+          );
+          expect(
+            banner.exception,
+            isA<AccountExistsWithDifferentCredential>(),
+          );
         },
       );
     });

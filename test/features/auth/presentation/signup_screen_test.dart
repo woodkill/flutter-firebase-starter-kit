@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,22 +39,6 @@ Future<void> _pumpSignup(
     ),
   );
   await tester.pump();
-}
-
-/// 플랫폼 override 해제 보장 wrapper.
-///
-/// `debugDefaultTargetPlatformOverride`를 설정한 뒤 [body]를 실행하고,
-/// 예외 발생 여부와 관계없이 `finally`에서 반드시 null로 복원한다.
-Future<void> withPlatform(
-  TargetPlatform platform,
-  Future<void> Function() body,
-) async {
-  debugDefaultTargetPlatformOverride = platform;
-  try {
-    await body();
-  } finally {
-    debugDefaultTargetPlatformOverride = null;
-  }
 }
 
 void main() {
@@ -138,7 +120,11 @@ void main() {
         find.byType(TextFormField).at(2),
         'password123',
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+      final ctaFinder =
+          find.widgetWithText(FilledButton, 'Create account');
+      await tester.ensureVisible(ctaFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(ctaFinder);
       await tester.pump();
       await tester.pumpAndSettle();
 
@@ -176,7 +162,11 @@ void main() {
         find.byType(TextFormField).at(2),
         'password123',
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+      final ctaFinder =
+          find.widgetWithText(FilledButton, 'Create account');
+      await tester.ensureVisible(ctaFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(ctaFinder);
       await tester.pump();
       await tester.pumpAndSettle();
 
@@ -207,7 +197,11 @@ void main() {
         find.byType(TextFormField).at(2),
         'password123',
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+      final ctaFinder =
+          find.widgetWithText(FilledButton, 'Create account');
+      await tester.ensureVisible(ctaFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(ctaFinder);
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -215,7 +209,8 @@ void main() {
         find.widgetWithText(FilledButton, 'Create account'),
         findsNothing,
       );
-      final button = tester.widget<FilledButton>(find.byType(FilledButton));
+      final button =
+          tester.widget<FilledButton>(find.byType(FilledButton));
       expect(button.onPressed, isNull);
 
       completer.complete(
@@ -239,11 +234,13 @@ void main() {
     });
 
     testWidgets(
-      '7. 소셜 SignInButton이 2개(Google + Apple) 렌더링된다',
+      '7. 소셜 SignInButton이 3개(Google + Apple + Facebook) 렌더링된다',
       (tester) async {
+        when(() => mockRepo.signInWithFacebook())
+            .thenAnswer((_) async => null);
         await _pumpSignup(tester, mockRepo);
-        // Phase 8부터 Apple 버튼이 추가되어 총 2개(Google + Apple).
-        expect(find.byType(SignInButton), findsNWidgets(2));
+        // Phase 9부터 Facebook 버튼이 추가되어 총 3개.
+        expect(find.byType(SignInButton), findsNWidgets(3));
       },
     );
 
@@ -257,6 +254,8 @@ void main() {
 
     // -----------------------------------------------------------------
     // Phase 8 Apple 로그인 시나리오 (AUTH-03-18)
+    // Phase 9: 플랫폼 분기 제거(D-04). 통일 순서 Google->Apple->Facebook.
+    // Apple 버튼은 두 번째(index 1) SignInButton.
     // -----------------------------------------------------------------
     group('SignupScreen Apple sign-in integration', () {
       testWidgets(
@@ -266,35 +265,35 @@ void main() {
           when(() => mockRepo.signInWithApple()).thenAnswer(
             (_) async => const Result<User>.failure(ServiceUnavailable()),
           );
+          when(() => mockRepo.signInWithFacebook())
+              .thenAnswer((_) async => null);
 
-          await withPlatform(TargetPlatform.iOS, () async {
-            await _pumpSignup(tester, mockRepo);
-            await tester.pumpAndSettle();
+          await _pumpSignup(tester, mockRepo);
+          await tester.pumpAndSettle();
 
-            // SocialSignInSection이 렌더되고 Apple+Google 두 버튼 존재.
-            expect(find.byType(SocialSignInSection), findsOneWidget);
-            expect(find.byType(SignInButton), findsNWidgets(2));
+          // SocialSignInSection이 렌더되고 3개 버튼 존재 (D-04).
+          expect(find.byType(SocialSignInSection), findsOneWidget);
+          expect(find.byType(SignInButton), findsNWidgets(3));
 
-            // iOS에서는 첫 번째 SignInButton == Apple (D-05).
-            await tester.tap(find.byType(SignInButton).first);
-            await tester.pumpAndSettle();
+          // D-04: 통일 순서에서 Apple 버튼은 두 번째(index 1).
+          await tester.tap(find.byType(SignInButton).at(1));
+          await tester.pumpAndSettle();
 
-            // 소셜 영역 FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
-            final banner = tester.widget<FormErrorBanner>(
-              find.descendant(
-                of: find.byType(SocialSignInSection),
-                matching: find.byType(FormErrorBanner),
-              ),
-            );
-            expect(banner.exception, isA<ServiceUnavailable>());
+          // 소셜 영역 FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
+          final banner = tester.widget<FormErrorBanner>(
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
+          );
+          expect(banner.exception, isA<ServiceUnavailable>());
 
-            // SignupScreen은 이메일 자동 채움 없음 — 이메일 필드는 비어 있다
-            // (LoginScreen의 D-10 정책과 다름).
-            final emailField = tester.widget<TextFormField>(
-              find.byType(TextFormField).at(1),
-            );
-            expect(emailField.controller?.text, isEmpty);
-          });
+          // SignupScreen은 이메일 자동 채움 없음 -- 이메일 필드는 비어 있다
+          // (LoginScreen의 D-10 정책과 다름).
+          final emailField = tester.widget<TextFormField>(
+            find.byType(TextFormField).at(1),
+          );
+          expect(emailField.controller?.text, isEmpty);
         },
       );
     });
