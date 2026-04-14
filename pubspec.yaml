@@ -41,7 +41,7 @@ dependencies:
   riverpod_annotation: ^4.0.2
   freezed_annotation: ^3.1.0
   json_annotation: ^4.11.0
-  firebase_core: ^4.6.0
+  firebase_core: ^4.7.0
   firebase_auth: ^6.3.0
   args: ^2.7.0
   shared_preferences: ^2.5.5
@@ -51,6 +51,9 @@ dependencies:
   sign_in_button: ^4.1.0
   cached_network_image: ^3.4.1
   flutter_facebook_auth: ^7.1.6
+  flutter_native_splash: ^2.4.7
+  firebase_crashlytics: ^5.2.0
+  firebase_analytics: ^12.3.0
 
 dev_dependencies:
   flutter_test:
