@@ -234,6 +234,54 @@ class AuthRepository {
     }
   }
 
+  /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
+  ///
+  /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
+  /// 이 UID 는 [fb.User.linkWithCredential] 로 정식 계정에 연결하면 승격된다
+  /// (Phase 17 Account Linking 예정).
+  ///
+  /// 에러 매핑:
+  /// - `operation-not-allowed` → [ServiceUnavailable]
+  ///   (Firebase Console 에서 Anonymous provider 가 비활성 상태 — A4 위험).
+  ///   `_logAndFallback` 이 `kDebugMode` 로그를 출력한다.
+  /// - `network-request-failed` → [NoInternetConnection] (Pitfall 3)
+  /// - 그 외 FirebaseAuthException → [ServiceUnavailable]
+  /// - 비-Auth 예외 → [ServiceUnavailable]
+  Future<Result<User>> signInAnonymously() async {
+    try {
+      final userCredential = await _auth.signInAnonymously();
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('signInAnonymously 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    }
+  }
+
+  /// 로그아웃 후 즉시 익명 세션으로 재진입한다 (Phase 10 D-20).
+  ///
+  /// 흐름: [signOut] → [signInAnonymously].
+  /// 로그아웃으로 Home 에서 Login 화면으로 튕기는 UX 단절을 방지하고,
+  /// 사용자가 즉시 게스트 상태로 앱을 계속 사용할 수 있도록 한다.
+  ///
+  /// 실패 처리:
+  /// - [signOut] 은 기존 정책대로 내부 GoogleSignIn/FacebookAuth 실패를 무시하고
+  ///   [fb.FirebaseAuth.signOut] 을 보장한다.
+  /// - [signOut] 이 성공한 상태에서 [signInAnonymously] 가 네트워크 오류로
+  ///   실패하면 [Result.failure] 를 반환하며, 호출자(Notifier) 가 적절한
+  ///   fallback (다이얼로그 또는 /login 이동) 을 결정한다.
+  Future<Result<User>> signOutAndContinueAsGuest() async {
+    await signOut();
+    return signInAnonymously();
+  }
+
   /// 로그아웃한다.
   ///
   /// [GoogleSignIn.signOut]을 병행 호출하여 Google 세션도 해제한다 (D-07).

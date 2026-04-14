@@ -545,5 +545,210 @@
   "authAccountProviderFacebook": "Facebook",
   "@authAccountProviderFacebook": {
     "description": "Provider label displayed in the account section when the user signed in with Facebook"
+  },
+
+  "onboardingSkip": "Skip",
+  "@onboardingSkip": {
+    "description": "Onboarding carousel skip button label (top-right)"
+  },
+
+  "onboardingNext": "Next",
+  "@onboardingNext": {
+    "description": "Onboarding carousel next button label (slides 1 and 2)"
+  },
+
+  "onboardingGetStarted": "Get started",
+  "@onboardingGetStarted": {
+    "description": "Onboarding carousel primary CTA on the last slide"
+  },
+
+  "onboardingSlide1Title": "Get started quickly",
+  "@onboardingSlide1Title": {
+    "description": "Onboarding slide 1 headline (placeholder, replace per project)"
+  },
+
+  "onboardingSlide1Body": "Explore core features without creating an account.",
+  "@onboardingSlide1Body": {
+    "description": "Onboarding slide 1 body copy (placeholder, replace per project)"
+  },
+
+  "onboardingSlide2Title": "Kept safe and sound",
+  "@onboardingSlide2Title": {
+    "description": "Onboarding slide 2 headline (placeholder, replace per project)"
+  },
+
+  "onboardingSlide2Body": "Sign in when you need more, and your data carries over.",
+  "@onboardingSlide2Body": {
+    "description": "Onboarding slide 2 body copy (placeholder, replace per project)"
+  },
+
+  "onboardingSlide3Title": "Wherever you go",
+  "@onboardingSlide3Title": {
+    "description": "Onboarding slide 3 headline (placeholder, replace per project)"
+  },
+
+  "onboardingSlide3Body": "The same experience across every language and device.",
+  "@onboardingSlide3Body": {
+    "description": "Onboarding slide 3 body copy (placeholder, replace per project)"
+  },
+
+  "termsAcceptAll": "Accept all",
+  "@termsAcceptAll": {
+    "description": "Main 'accept all' checkbox label in the terms group"
+  },
+
+  "termsRequired": "Required",
+  "@termsRequired": {
+    "description": "Badge label for required terms items"
+  },
+
+  "termsOptional": "Optional",
+  "@termsOptional": {
+    "description": "Badge label for optional terms items"
+  },
+
+  "termsService": "Terms of service",
+  "@termsService": {
+    "description": "Terms of service item label"
+  },
+
+  "termsPrivacy": "Privacy policy",
+  "@termsPrivacy": {
+    "description": "Privacy policy item label"
+  },
+
+  "termsMarketing": "Marketing communications",
+  "@termsMarketing": {
+    "description": "Optional marketing communications item label"
+  },
+
+  "termsViewDetail": "View",
+  "@termsViewDetail": {
+    "description": "Inline 'view detail' link next to each terms item"
+  },
+
+  "termsRequiredError": "Please agree to all required items.",
+  "@termsRequiredError": {
+    "description": "Inline helper shown below the terms group when a required item is missing"
+  },
+
+  "termsDetailServiceTitle": "Terms of service",
+  "@termsDetailServiceTitle": {
+    "description": "AppBar title of the Terms of service detail screen"
+  },
+
+  "termsDetailPrivacyTitle": "Privacy policy",
+  "@termsDetailPrivacyTitle": {
+    "description": "AppBar title of the Privacy policy detail screen"
+  },
+
+  "termsDetailPlaceholder": "Place your terms content here. Replace this placeholder with the final copy reviewed by your legal team.",
+  "@termsDetailPlaceholder": {
+    "description": "Placeholder body of the terms detail screen (to be replaced per project)"
+  },
+
+  "splashPreparing": "Getting things ready...",
+  "@splashPreparing": {
+    "description": "Splash screen progress caption shown while initializing"
+  },
+
+  "splashFailureTitle": "Can't connect right now",
+  "@splashFailureTitle": {
+    "description": "Title of the splash failure dialog"
+  },
+
+  "splashFailureMessage": "Something's blocking the connection. You can retry or continue offline.",
+  "@splashFailureMessage": {
+    "description": "Body of the splash failure dialog"
+  },
+
+  "splashContinueOffline": "Continue offline",
+  "@splashContinueOffline": {
+    "description": "Splash failure dialog action that continues without Firebase"
+  },
+
+  "homeGuestBanner": "Browsing as a guest · Sign in to unlock more",
+  "@homeGuestBanner": {
+    "description": "Muted banner shown on Home for anonymous users"
+  },
+
+  "homeSignIn": "Sign in",
+  "@homeSignIn": {
+    "description": "Home AppBar action label that opens the login prompt sheet"
+  },
+
+  "homeProtectedExampleTitle": "Example: this feature needs sign-in",
+  "@homeProtectedExampleTitle": {
+    "description": "Section title of the AuthRequired demo on Home"
+  },
+
+  "homeProtectedExampleBody": "Wrap an action with 'AuthRequired' to open the sign-in sheet automatically.",
+  "@homeProtectedExampleBody": {
+    "description": "Section body of the AuthRequired demo on Home"
+  },
+
+  "homeProtectedExampleCta": "Run protected action",
+  "@homeProtectedExampleCta": {
+    "description": "Button label that triggers the AuthRequired demo flow"
+  },
+
+  "authPromptSheetTitle": "Sign-in required",
+  "@authPromptSheetTitle": {
+    "description": "LoginPromptSheet headline"
+  },
+
+  "authPromptSheetBody": "You'll need an account to keep using this feature.",
+  "@authPromptSheetBody": {
+    "description": "LoginPromptSheet body copy"
+  },
+
+  "authContinueWithEmail": "Continue with email",
+  "@authContinueWithEmail": {
+    "description": "LoginPromptSheet text link that navigates to the email form"
+  },
+
+  "devToolsSectionTitle": "Dev Tools",
+  "@devToolsSectionTitle": {
+    "description": "Developer tools section title (debug builds only)"
+  },
+
+  "devToolsSectionDescription": "Developer tools, visible in debug builds only.",
+  "@devToolsSectionDescription": {
+    "description": "Developer tools section description caption"
+  },
+
+  "devToolsResetOnboarding": "Reset onboarding",
+  "@devToolsResetOnboarding": {
+    "description": "Dev tools action: clear onboarding completion flag"
+  },
+
+  "devToolsResetOnboardingDone": "Onboarding state reset.",
+  "@devToolsResetOnboardingDone": {
+    "description": "SnackBar message after resetting onboarding"
+  },
+
+  "devToolsTriggerError": "Send test error",
+  "@devToolsTriggerError": {
+    "description": "Dev tools action: send a synthetic error to Crashlytics"
+  },
+
+  "devToolsTriggerErrorDone": "Test error sent to Crashlytics.",
+  "@devToolsTriggerErrorDone": {
+    "description": "SnackBar message after sending a test error"
+  },
+
+  "devToolsTriggerAnalytics": "Send analytics event",
+  "@devToolsTriggerAnalytics": {
+    "description": "Dev tools action: send a test analytics event"
+  },
+
+  "devToolsTriggerAnalyticsDone": "Test analytics event sent.",
+  "@devToolsTriggerAnalyticsDone": {
+    "description": "SnackBar message after sending a test analytics event"
+  },
+
+  "devToolsForceSignOut": "Force sign out",
+  "@devToolsForceSignOut": {
+    "description": "Dev tools action: force FirebaseAuth.signOut"
   }
 }

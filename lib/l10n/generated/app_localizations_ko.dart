@@ -339,4 +339,130 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get authAccountProviderFacebook => 'Facebook';
+
+  @override
+  String get onboardingSkip => '건너뛰기';
+
+  @override
+  String get onboardingNext => '다음';
+
+  @override
+  String get onboardingGetStarted => '시작하기';
+
+  @override
+  String get onboardingSlide1Title => '빠르게 시작하세요';
+
+  @override
+  String get onboardingSlide1Body => '회원가입 없이도 앱의 주요 기능을 둘러볼 수 있어요.';
+
+  @override
+  String get onboardingSlide2Title => '안전하게 보관해요';
+
+  @override
+  String get onboardingSlide2Body => '필요한 순간에 로그인하면 데이터가 그대로 이어져요.';
+
+  @override
+  String get onboardingSlide3Title => '어디서나 함께';
+
+  @override
+  String get onboardingSlide3Body => '모든 언어와 기기에서 동일한 경험을 제공해요.';
+
+  @override
+  String get termsAcceptAll => '전체 동의';
+
+  @override
+  String get termsRequired => '필수';
+
+  @override
+  String get termsOptional => '선택';
+
+  @override
+  String get termsService => '이용약관';
+
+  @override
+  String get termsPrivacy => '개인정보처리방침';
+
+  @override
+  String get termsMarketing => '마케팅 정보 수신';
+
+  @override
+  String get termsViewDetail => '상세 보기';
+
+  @override
+  String get termsRequiredError => '필수 항목에 모두 동의해주세요.';
+
+  @override
+  String get termsDetailServiceTitle => '이용약관';
+
+  @override
+  String get termsDetailPrivacyTitle => '개인정보처리방침';
+
+  @override
+  String get termsDetailPlaceholder =>
+      '여기에 약관 내용을 채워 넣으세요. 프로젝트의 법무팀 검토를 거친 최종 문구로 교체해야 합니다.';
+
+  @override
+  String get splashPreparing => '앱을 준비하고 있어요...';
+
+  @override
+  String get splashFailureTitle => '연결할 수 없어요';
+
+  @override
+  String get splashFailureMessage =>
+      '지금 연결에 문제가 있어요. 다시 시도하거나 오프라인으로 계속할 수 있어요.';
+
+  @override
+  String get splashContinueOffline => '오프라인으로 계속';
+
+  @override
+  String get homeGuestBanner => '게스트로 이용 중이에요 · 로그인하면 더 많은 기능을 사용할 수 있어요';
+
+  @override
+  String get homeSignIn => '로그인';
+
+  @override
+  String get homeProtectedExampleTitle => '예시: 이 기능은 로그인이 필요해요';
+
+  @override
+  String get homeProtectedExampleBody =>
+      '\'AuthRequired\' 래퍼를 사용하면 보호된 동작에서 자동으로 로그인 시트를 열 수 있어요.';
+
+  @override
+  String get homeProtectedExampleCta => '보호된 동작 실행';
+
+  @override
+  String get authPromptSheetTitle => '로그인이 필요해요';
+
+  @override
+  String get authPromptSheetBody => '이 기능을 계속 사용하려면 계정이 필요해요.';
+
+  @override
+  String get authContinueWithEmail => '이메일로 계속';
+
+  @override
+  String get devToolsSectionTitle => 'Dev Tools';
+
+  @override
+  String get devToolsSectionDescription => '디버그 빌드에서만 보이는 개발자 도구예요.';
+
+  @override
+  String get devToolsResetOnboarding => '온보딩 다시 보기';
+
+  @override
+  String get devToolsResetOnboardingDone => '온보딩 상태를 초기화했어요.';
+
+  @override
+  String get devToolsTriggerError => '테스트 에러 전송';
+
+  @override
+  String get devToolsTriggerErrorDone => 'Crashlytics에 테스트 에러를 보냈어요.';
+
+  @override
+  String get devToolsTriggerAnalytics => 'Analytics 이벤트 전송';
+
+  @override
+  String get devToolsTriggerAnalyticsDone => 'Analytics 테스트 이벤트를 보냈어요.';
+
+  @override
+  String get devToolsForceSignOut => '강제 로그아웃';
 }

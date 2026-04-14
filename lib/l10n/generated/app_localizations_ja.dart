@@ -339,4 +339,129 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authAccountProviderFacebook => 'Facebook';
+
+  @override
+  String get onboardingSkip => 'スキップ';
+
+  @override
+  String get onboardingNext => '次へ';
+
+  @override
+  String get onboardingGetStarted => 'はじめる';
+
+  @override
+  String get onboardingSlide1Title => 'すぐに始められます';
+
+  @override
+  String get onboardingSlide1Body => 'アカウント登録なしで主要機能をお試しいただけます。';
+
+  @override
+  String get onboardingSlide2Title => 'データは安全に保護';
+
+  @override
+  String get onboardingSlide2Body => '必要になったタイミングでログインすれば、データはそのまま引き継がれます。';
+
+  @override
+  String get onboardingSlide3Title => 'どこでも一緒に';
+
+  @override
+  String get onboardingSlide3Body => 'あらゆる言語と端末で同じ体験をお届けします。';
+
+  @override
+  String get termsAcceptAll => 'すべて同意する';
+
+  @override
+  String get termsRequired => '必須';
+
+  @override
+  String get termsOptional => '任意';
+
+  @override
+  String get termsService => '利用規約';
+
+  @override
+  String get termsPrivacy => 'プライバシーポリシー';
+
+  @override
+  String get termsMarketing => 'マーケティング情報の受信';
+
+  @override
+  String get termsViewDetail => '詳細を見る';
+
+  @override
+  String get termsRequiredError => '必須項目にすべて同意してください。';
+
+  @override
+  String get termsDetailServiceTitle => '利用規約';
+
+  @override
+  String get termsDetailPrivacyTitle => 'プライバシーポリシー';
+
+  @override
+  String get termsDetailPlaceholder =>
+      'ここに規約の本文を記載してください。プロジェクトの法務チームが確認した最終版に置き換えてください。';
+
+  @override
+  String get splashPreparing => 'アプリを準備しています...';
+
+  @override
+  String get splashFailureTitle => '接続できません';
+
+  @override
+  String get splashFailureMessage => '接続に問題があります。再試行するか、オフラインで続行できます。';
+
+  @override
+  String get splashContinueOffline => 'オフラインで続ける';
+
+  @override
+  String get homeGuestBanner => 'ゲストとして利用中 · ログインでさらに多くの機能を利用できます';
+
+  @override
+  String get homeSignIn => 'ログイン';
+
+  @override
+  String get homeProtectedExampleTitle => '例：この機能にはログインが必要です';
+
+  @override
+  String get homeProtectedExampleBody =>
+      '\'AuthRequired\' でラップすると、保護されたアクションで自動的にログインシートが開きます。';
+
+  @override
+  String get homeProtectedExampleCta => '保護されたアクションを実行';
+
+  @override
+  String get authPromptSheetTitle => 'ログインが必要です';
+
+  @override
+  String get authPromptSheetBody => 'この機能を使い続けるには、アカウントが必要です。';
+
+  @override
+  String get authContinueWithEmail => 'メールアドレスで続行';
+
+  @override
+  String get devToolsSectionTitle => 'Dev Tools';
+
+  @override
+  String get devToolsSectionDescription => 'デバッグビルドでのみ表示される開発者向けツールです。';
+
+  @override
+  String get devToolsResetOnboarding => 'オンボーディングをリセット';
+
+  @override
+  String get devToolsResetOnboardingDone => 'オンボーディングの状態をリセットしました。';
+
+  @override
+  String get devToolsTriggerError => 'テストエラーを送信';
+
+  @override
+  String get devToolsTriggerErrorDone => 'テストエラーをCrashlyticsに送信しました。';
+
+  @override
+  String get devToolsTriggerAnalytics => 'アナリティクスイベントを送信';
+
+  @override
+  String get devToolsTriggerAnalyticsDone => 'テスト用アナリティクスイベントを送信しました。';
+
+  @override
+  String get devToolsForceSignOut => '強制ログアウト';
 }

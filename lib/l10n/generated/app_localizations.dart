@@ -735,6 +735,252 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Facebook'**
   String get authAccountProviderFacebook;
+
+  /// Onboarding carousel skip button label (top-right)
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get onboardingSkip;
+
+  /// Onboarding carousel next button label (slides 1 and 2)
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get onboardingNext;
+
+  /// Onboarding carousel primary CTA on the last slide
+  ///
+  /// In en, this message translates to:
+  /// **'Get started'**
+  String get onboardingGetStarted;
+
+  /// Onboarding slide 1 headline (placeholder, replace per project)
+  ///
+  /// In en, this message translates to:
+  /// **'Get started quickly'**
+  String get onboardingSlide1Title;
+
+  /// Onboarding slide 1 body copy (placeholder, replace per project)
+  ///
+  /// In en, this message translates to:
+  /// **'Explore core features without creating an account.'**
+  String get onboardingSlide1Body;
+
+  /// Onboarding slide 2 headline (placeholder, replace per project)
+  ///
+  /// In en, this message translates to:
+  /// **'Kept safe and sound'**
+  String get onboardingSlide2Title;
+
+  /// Onboarding slide 2 body copy (placeholder, replace per project)
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in when you need more, and your data carries over.'**
+  String get onboardingSlide2Body;
+
+  /// Onboarding slide 3 headline (placeholder, replace per project)
+  ///
+  /// In en, this message translates to:
+  /// **'Wherever you go'**
+  String get onboardingSlide3Title;
+
+  /// Onboarding slide 3 body copy (placeholder, replace per project)
+  ///
+  /// In en, this message translates to:
+  /// **'The same experience across every language and device.'**
+  String get onboardingSlide3Body;
+
+  /// Main 'accept all' checkbox label in the terms group
+  ///
+  /// In en, this message translates to:
+  /// **'Accept all'**
+  String get termsAcceptAll;
+
+  /// Badge label for required terms items
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get termsRequired;
+
+  /// Badge label for optional terms items
+  ///
+  /// In en, this message translates to:
+  /// **'Optional'**
+  String get termsOptional;
+
+  /// Terms of service item label
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of service'**
+  String get termsService;
+
+  /// Privacy policy item label
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy policy'**
+  String get termsPrivacy;
+
+  /// Optional marketing communications item label
+  ///
+  /// In en, this message translates to:
+  /// **'Marketing communications'**
+  String get termsMarketing;
+
+  /// Inline 'view detail' link next to each terms item
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get termsViewDetail;
+
+  /// Inline helper shown below the terms group when a required item is missing
+  ///
+  /// In en, this message translates to:
+  /// **'Please agree to all required items.'**
+  String get termsRequiredError;
+
+  /// AppBar title of the Terms of service detail screen
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of service'**
+  String get termsDetailServiceTitle;
+
+  /// AppBar title of the Privacy policy detail screen
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy policy'**
+  String get termsDetailPrivacyTitle;
+
+  /// Placeholder body of the terms detail screen (to be replaced per project)
+  ///
+  /// In en, this message translates to:
+  /// **'Place your terms content here. Replace this placeholder with the final copy reviewed by your legal team.'**
+  String get termsDetailPlaceholder;
+
+  /// Splash screen progress caption shown while initializing
+  ///
+  /// In en, this message translates to:
+  /// **'Getting things ready...'**
+  String get splashPreparing;
+
+  /// Title of the splash failure dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t connect right now'**
+  String get splashFailureTitle;
+
+  /// Body of the splash failure dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Something\'s blocking the connection. You can retry or continue offline.'**
+  String get splashFailureMessage;
+
+  /// Splash failure dialog action that continues without Firebase
+  ///
+  /// In en, this message translates to:
+  /// **'Continue offline'**
+  String get splashContinueOffline;
+
+  /// Muted banner shown on Home for anonymous users
+  ///
+  /// In en, this message translates to:
+  /// **'Browsing as a guest · Sign in to unlock more'**
+  String get homeGuestBanner;
+
+  /// Home AppBar action label that opens the login prompt sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get homeSignIn;
+
+  /// Section title of the AuthRequired demo on Home
+  ///
+  /// In en, this message translates to:
+  /// **'Example: this feature needs sign-in'**
+  String get homeProtectedExampleTitle;
+
+  /// Section body of the AuthRequired demo on Home
+  ///
+  /// In en, this message translates to:
+  /// **'Wrap an action with \'AuthRequired\' to open the sign-in sheet automatically.'**
+  String get homeProtectedExampleBody;
+
+  /// Button label that triggers the AuthRequired demo flow
+  ///
+  /// In en, this message translates to:
+  /// **'Run protected action'**
+  String get homeProtectedExampleCta;
+
+  /// LoginPromptSheet headline
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in required'**
+  String get authPromptSheetTitle;
+
+  /// LoginPromptSheet body copy
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ll need an account to keep using this feature.'**
+  String get authPromptSheetBody;
+
+  /// LoginPromptSheet text link that navigates to the email form
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with email'**
+  String get authContinueWithEmail;
+
+  /// Developer tools section title (debug builds only)
+  ///
+  /// In en, this message translates to:
+  /// **'Dev Tools'**
+  String get devToolsSectionTitle;
+
+  /// Developer tools section description caption
+  ///
+  /// In en, this message translates to:
+  /// **'Developer tools, visible in debug builds only.'**
+  String get devToolsSectionDescription;
+
+  /// Dev tools action: clear onboarding completion flag
+  ///
+  /// In en, this message translates to:
+  /// **'Reset onboarding'**
+  String get devToolsResetOnboarding;
+
+  /// SnackBar message after resetting onboarding
+  ///
+  /// In en, this message translates to:
+  /// **'Onboarding state reset.'**
+  String get devToolsResetOnboardingDone;
+
+  /// Dev tools action: send a synthetic error to Crashlytics
+  ///
+  /// In en, this message translates to:
+  /// **'Send test error'**
+  String get devToolsTriggerError;
+
+  /// SnackBar message after sending a test error
+  ///
+  /// In en, this message translates to:
+  /// **'Test error sent to Crashlytics.'**
+  String get devToolsTriggerErrorDone;
+
+  /// Dev tools action: send a test analytics event
+  ///
+  /// In en, this message translates to:
+  /// **'Send analytics event'**
+  String get devToolsTriggerAnalytics;
+
+  /// SnackBar message after sending a test analytics event
+  ///
+  /// In en, this message translates to:
+  /// **'Test analytics event sent.'**
+  String get devToolsTriggerAnalyticsDone;
+
+  /// Dev tools action: force FirebaseAuth.signOut
+  ///
+  /// In en, this message translates to:
+  /// **'Force sign out'**
+  String get devToolsForceSignOut;
 }
 
 class _AppLocalizationsDelegate

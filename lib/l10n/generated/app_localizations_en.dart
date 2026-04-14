@@ -345,4 +345,135 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authAccountProviderFacebook => 'Facebook';
+
+  @override
+  String get onboardingSkip => 'Skip';
+
+  @override
+  String get onboardingNext => 'Next';
+
+  @override
+  String get onboardingGetStarted => 'Get started';
+
+  @override
+  String get onboardingSlide1Title => 'Get started quickly';
+
+  @override
+  String get onboardingSlide1Body =>
+      'Explore core features without creating an account.';
+
+  @override
+  String get onboardingSlide2Title => 'Kept safe and sound';
+
+  @override
+  String get onboardingSlide2Body =>
+      'Sign in when you need more, and your data carries over.';
+
+  @override
+  String get onboardingSlide3Title => 'Wherever you go';
+
+  @override
+  String get onboardingSlide3Body =>
+      'The same experience across every language and device.';
+
+  @override
+  String get termsAcceptAll => 'Accept all';
+
+  @override
+  String get termsRequired => 'Required';
+
+  @override
+  String get termsOptional => 'Optional';
+
+  @override
+  String get termsService => 'Terms of service';
+
+  @override
+  String get termsPrivacy => 'Privacy policy';
+
+  @override
+  String get termsMarketing => 'Marketing communications';
+
+  @override
+  String get termsViewDetail => 'View';
+
+  @override
+  String get termsRequiredError => 'Please agree to all required items.';
+
+  @override
+  String get termsDetailServiceTitle => 'Terms of service';
+
+  @override
+  String get termsDetailPrivacyTitle => 'Privacy policy';
+
+  @override
+  String get termsDetailPlaceholder =>
+      'Place your terms content here. Replace this placeholder with the final copy reviewed by your legal team.';
+
+  @override
+  String get splashPreparing => 'Getting things ready...';
+
+  @override
+  String get splashFailureTitle => 'Can\'t connect right now';
+
+  @override
+  String get splashFailureMessage =>
+      'Something\'s blocking the connection. You can retry or continue offline.';
+
+  @override
+  String get splashContinueOffline => 'Continue offline';
+
+  @override
+  String get homeGuestBanner => 'Browsing as a guest · Sign in to unlock more';
+
+  @override
+  String get homeSignIn => 'Sign in';
+
+  @override
+  String get homeProtectedExampleTitle => 'Example: this feature needs sign-in';
+
+  @override
+  String get homeProtectedExampleBody =>
+      'Wrap an action with \'AuthRequired\' to open the sign-in sheet automatically.';
+
+  @override
+  String get homeProtectedExampleCta => 'Run protected action';
+
+  @override
+  String get authPromptSheetTitle => 'Sign-in required';
+
+  @override
+  String get authPromptSheetBody =>
+      'You\'ll need an account to keep using this feature.';
+
+  @override
+  String get authContinueWithEmail => 'Continue with email';
+
+  @override
+  String get devToolsSectionTitle => 'Dev Tools';
+
+  @override
+  String get devToolsSectionDescription =>
+      'Developer tools, visible in debug builds only.';
+
+  @override
+  String get devToolsResetOnboarding => 'Reset onboarding';
+
+  @override
+  String get devToolsResetOnboardingDone => 'Onboarding state reset.';
+
+  @override
+  String get devToolsTriggerError => 'Send test error';
+
+  @override
+  String get devToolsTriggerErrorDone => 'Test error sent to Crashlytics.';
+
+  @override
+  String get devToolsTriggerAnalytics => 'Send analytics event';
+
+  @override
+  String get devToolsTriggerAnalyticsDone => 'Test analytics event sent.';
+
+  @override
+  String get devToolsForceSignOut => 'Force sign out';
 }
