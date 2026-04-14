@@ -27,6 +27,7 @@ class SocialSignInSection extends ConsumerWidget {
   const SocialSignInSection({
     required this.isFormLoading,
     this.errorBanner,
+    this.showOrDivider = true,
     super.key,
   });
 
@@ -38,6 +39,14 @@ class SocialSignInSection extends ConsumerWidget {
   /// 소셜 로그인 에러는 소셜 버튼 바로 아래에 표시되어야 의미가 명확하다.
   /// null 또는 [SizedBox.shrink] 일 때는 공간을 차지하지 않는다.
   final Widget? errorBanner;
+
+  /// 소셜 버튼 아래 [OrDivider] 노출 여부 (Phase 10 D-10).
+  ///
+  /// - `true` (기본값): LoginScreen/SignupScreen 처럼 소셜 → Divider →
+  ///   이메일 폼으로 이어지는 화면에서 사용.
+  /// - `false`: [LoginPromptSheet] 처럼 Divider 없이 소셜 버튼만 노출하는
+  ///   Bottom Sheet에서 사용 (뒤에 "이메일로 계속" TextButton 이 이어짐).
+  final bool showOrDivider;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -129,9 +138,11 @@ class SocialSignInSection extends ConsumerWidget {
           Gap(spacing.md),
           errorBanner!,
         ],
-        Gap(spacing.lg),
-        const OrDivider(),
-        Gap(spacing.lg),
+        if (showOrDivider) ...[
+          Gap(spacing.lg),
+          const OrDivider(),
+          Gap(spacing.lg),
+        ],
       ],
     );
   }
