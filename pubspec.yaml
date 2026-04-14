@@ -54,6 +54,7 @@ dependencies:
   flutter_native_splash: ^2.4.7
   firebase_crashlytics: ^5.2.0
   firebase_analytics: ^12.3.0
+  cloud_firestore: ^6.3.0
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -67,4 +70,39 @@ GoogleSignIn googleSignIn(Ref ref) {
 @Riverpod(keepAlive: true)
 FacebookAuth facebookAuth(Ref ref) {
   return FacebookAuth.instance;
+}
+
+/// [FirebaseCrashlytics] 인스턴스를 제공한다 (Phase 10 D-28).
+///
+/// 앱 생명주기 동안 유지되는 keepAlive Provider.
+/// [FirebaseCrashlytics.instance] 직접 접근 대신 이 Provider를 통해서만 접근한다.
+///
+/// **주의:** Firebase 미초기화 시 [FirebaseCrashlytics.instance] 접근은
+/// throw 할 수 있다 (Phase 1 D-13). 소비자는 반드시
+/// [isFirebaseInitializedProvider] 가드 후 접근하거나,
+/// `CrashlyticsService` 래퍼를 사용하여 미초기화 시 no-op 으로 처리한다.
+@Riverpod(keepAlive: true)
+FirebaseCrashlytics firebaseCrashlytics(Ref ref) {
+  return FirebaseCrashlytics.instance;
+}
+
+/// [FirebaseAnalytics] 인스턴스를 제공한다 (Phase 10 D-29).
+///
+/// 앱 생명주기 동안 유지되는 keepAlive Provider.
+/// [FirebaseAnalytics.instance] 직접 접근 대신 이 Provider를 통해서만 접근한다.
+///
+/// **주의:** Firebase 미초기화 시 접근은 throw 할 수 있다.
+/// 소비자는 `AnalyticsService` 래퍼로 가드된 접근을 해야 한다.
+@Riverpod(keepAlive: true)
+FirebaseAnalytics firebaseAnalytics(Ref ref) {
+  return FirebaseAnalytics.instance;
+}
+
+/// [FirebaseFirestore] 인스턴스를 제공한다 (Phase 10 D-16 약관 미러 대비).
+///
+/// 앱 생명주기 동안 유지되는 keepAlive Provider.
+/// 약관 동의 상태 미러링, 사용자 프로필 Firestore 저장 등에 사용한다.
+@Riverpod(keepAlive: true)
+FirebaseFirestore firebaseFirestore(Ref ref) {
+  return FirebaseFirestore.instance;
 }
