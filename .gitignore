@@ -76,6 +76,7 @@ env/
 # 키스토어 / 서명
 *.jks
 *.keystore
+*.p8
 key.properties
 
 # ==========================
