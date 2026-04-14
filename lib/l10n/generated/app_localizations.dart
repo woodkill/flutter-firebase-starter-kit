@@ -622,18 +622,6 @@ abstract class AppLocalizations {
   /// **'Email verified successfully.'**
   String get authVerifyEmailSuccess;
 
-  /// Title text on the Phase 10 splash placeholder screen
-  ///
-  /// In en, this message translates to:
-  /// **'Splash'**
-  String get splashPlaceholderTitle;
-
-  /// Stub marker text on the splash placeholder screen indicating it is a throwaway UI that will be replaced in Phase 10
-  ///
-  /// In en, this message translates to:
-  /// **'Phase 10 placeholder'**
-  String get splashPlaceholderStub;
-
   /// Plural example showing item count
   ///
   /// In en, this message translates to:

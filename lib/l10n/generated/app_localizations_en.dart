@@ -280,12 +280,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authVerifyEmailSuccess => 'Email verified successfully.';
 
   @override
-  String get splashPlaceholderTitle => 'Splash';
-
-  @override
-  String get splashPlaceholderStub => 'Phase 10 placeholder';
-
-  @override
   String showcaseItemCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

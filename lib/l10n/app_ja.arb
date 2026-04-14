@@ -115,9 +115,6 @@
   "authVerifyEmailLogout": "別のアカウントでログイン",
   "authVerifyEmailSuccess": "メール認証が完了しました。",
 
-  "splashPlaceholderTitle": "スプラッシュ",
-  "splashPlaceholderStub": "Phase 10 プレースホルダー",
-
   "showcaseItemCount": "{count, plural, =0{項目なし} =1{1件} other{{count}件}}",
   "showcaseDateFormat": "日付形式",
   "showcaseNumberFormat": "数値形式",

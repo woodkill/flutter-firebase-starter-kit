@@ -115,9 +115,6 @@
   "authVerifyEmailLogout": "다른 계정으로 로그인",
   "authVerifyEmailSuccess": "이메일 인증이 완료되었습니다.",
 
-  "splashPlaceholderTitle": "스플래시",
-  "splashPlaceholderStub": "Phase 10 플레이스홀더",
-
   "showcaseItemCount": "{count, plural, =0{항목 없음} =1{1개 항목} other{{count}개 항목}}",
   "showcaseDateFormat": "날짜 형식",
   "showcaseNumberFormat": "숫자 형식",

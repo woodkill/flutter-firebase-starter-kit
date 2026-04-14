@@ -274,12 +274,6 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authVerifyEmailSuccess => '이메일 인증이 완료되었습니다.';
 
   @override
-  String get splashPlaceholderTitle => '스플래시';
-
-  @override
-  String get splashPlaceholderStub => 'Phase 10 플레이스홀더';
-
-  @override
   String showcaseItemCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
