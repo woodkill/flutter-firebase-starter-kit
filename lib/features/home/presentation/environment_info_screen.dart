@@ -4,16 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/analytics/analytics_service.dart';
+import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/l10n/intl_extensions.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/l10n/locale_display_names.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../auth/presentation/_widgets/auth_required.dart';
+import '../../onboarding/presentation/onboarding_notifier.dart';
 
 /// 현재 빌드 환경 정보와 디자인 토큰 쇼케이스를 표시하는 화면.
 ///
@@ -38,6 +44,12 @@ class EnvironmentInfoScreen extends ConsumerWidget {
       defaultValue: '-',
     );
     final isFirebaseInitialized = ref.watch(isFirebaseInitializedProvider);
+    // Phase 10 D-13: 익명 사용자는 AppBar 로그인 버튼 + 게스트 배너 표시.
+    final currentUser = ref.watch(authStateProvider).maybeWhen(
+      data: (user) => user,
+      orElse: () => null,
+    );
+    final isAnonymous = currentUser?.isAnonymous ?? false;
 
     final spacing = context.appSpacing;
     final l10n = context.l10n;
@@ -46,6 +58,19 @@ class EnvironmentInfoScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.homeEnvironmentInfo),
         backgroundColor: context.colorScheme.inversePrimary,
+        actions: [
+          if (isAnonymous)
+            TextButton(
+              onPressed: () => context.push(AppRoutes.login),
+              child: Text(
+                l10n.homeSignIn,
+                style: context.appTypography.labelLarge.copyWith(
+                  color: context.colorScheme.primary,
+                ),
+              ),
+            ),
+          Gap(spacing.sm),
+        ],
       ),
       body: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
@@ -58,6 +83,11 @@ class EnvironmentInfoScreen extends ConsumerWidget {
             spacing.lg + MediaQuery.paddingOf(context).bottom,
           ),
           children: [
+            // Phase 10 D-13: 게스트 배너 (익명 사용자만 상단 우선 노출).
+            if (isAnonymous) ...[
+              const _GuestBanner(),
+              Gap(spacing.sm),
+            ],
             Text(
               l10n.homeBuildEnvironment,
               style: context.appTypography.titleLarge,
@@ -116,6 +146,18 @@ class EnvironmentInfoScreen extends ConsumerWidget {
             const Divider(),
             Gap(spacing.md),
             const _AccountSection(),
+            Gap(spacing.md),
+            const Divider(),
+            Gap(spacing.md),
+            // Phase 10 D-11: 보호 예시 섹션 (항상 렌더, 버튼은 AuthRequired 래핑).
+            const _ProtectedExampleSection(),
+            if (kDebugMode) ...[
+              Gap(spacing.md),
+              const Divider(),
+              Gap(spacing.md),
+              // Phase 10 D-32/D-33: Dev Tools (디버그 빌드 전용).
+              const _DevToolsSection(),
+            ],
             Gap(spacing.xl),
           ],
         ),
@@ -942,6 +984,227 @@ enum _EnvStatus {
   /// 경고/미연결 상태. [AppColors.warning] 배경 + [AppColors.onWarning]
   /// 전경의 chip 컨테이너로 값을 감싼다.
   warn,
+}
+
+/// 게스트 사용자에게 상단에 노출되는 안내 배너 (Phase 10 D-13).
+///
+/// 익명 로그인 상태일 때만 [EnvironmentInfoScreen] 본문 상단에 렌더되며,
+/// Material 3 [ColorScheme.surfaceContainerHigh] 배경 + rounded corner
+/// 패턴을 사용하여 주의를 끌지 않으면서도 상태를 전달한다.
+class _GuestBanner extends ConsumerWidget {
+  const _GuestBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final spacing = context.appSpacing;
+    final colorScheme = context.colorScheme;
+    final typography = context.appTypography;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.md,
+        vertical: spacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(spacing.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: spacing.lg,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          Gap(spacing.sm),
+          Expanded(
+            child: Text(
+              l10n.homeGuestBanner,
+              style: typography.bodyMedium.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// AuthRequired 래퍼 패턴의 사용법을 보여주는 예시 섹션 (Phase 10 D-11).
+///
+/// - 항상 렌더 (isAnonymous 관계없이).
+/// - 버튼은 [AuthRequired] 로 래핑되어 익명 사용자는 [LoginPromptSheet],
+///   정식 사용자는 SnackBar 피드백을 받는다.
+/// - 버튼의 `onPressed` 는 null 컨벤션 (AuthRequired 가 탭 가로챔).
+class _ProtectedExampleSection extends ConsumerWidget {
+  const _ProtectedExampleSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final spacing = context.appSpacing;
+    final typography = context.appTypography;
+    final colorScheme = context.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.homeProtectedExampleTitle,
+          style: typography.titleLarge,
+        ),
+        Gap(spacing.sm),
+        Text(
+          l10n.homeProtectedExampleBody,
+          style: typography.bodyMedium.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Gap(spacing.md),
+        AuthRequired(
+          onAuthenticated: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(l10n.homeProtectedExampleCta),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+          child: OutlinedButton.icon(
+            // AuthRequired 가 GestureDetector + AbsorbPointer 로 가로챔.
+            onPressed: null,
+            icon: const Icon(Icons.lock_outline),
+            label: Text(l10n.homeProtectedExampleCta),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 개발자 편의용 디버그 도구 섹션 (Phase 10 D-32, D-33).
+///
+/// [kDebugMode] 가드는 호출부 (EnvironmentInfoScreen build 메서드) 에서
+/// 수행되므로 본 위젯은 디버그 빌드에서만 빌드된다. Dart 컴파일러는
+/// release 빌드에서 `kDebugMode == false` 상수 분기를 tree-shake 한다
+/// (T-10-16 방어).
+///
+/// 제공 기능 4종:
+/// 1. Reset onboarding — [OnboardingNotifier.reset] 호출 (Plan 03 public,
+///    `@visibleForTesting` 없음; WARNING #8 lint clean).
+/// 2. Trigger error — [CrashlyticsService.recordError] 호출.
+/// 3. Trigger analytics — [AnalyticsService.logEvent] 호출.
+/// 4. Force sign out — [AuthRepository.signOutAndContinueAsGuest] 호출.
+class _DevToolsSection extends ConsumerWidget {
+  const _DevToolsSection();
+
+  /// 온보딩 상태를 초기화한다 (D-33).
+  Future<void> _handleResetOnboarding(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    // Plan 03 수정판: OnboardingNotifier.reset 은 public (WARNING #8).
+    await ref.read(onboardingProvider.notifier).reset();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.l10n.devToolsResetOnboardingDone),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Crashlytics 에 테스트 에러를 전송한다 (D-33).
+  Future<void> _handleTriggerError(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final err = Exception('Dev Tools test error');
+    await ref
+        .read(crashlyticsServiceProvider)
+        .recordError(err, StackTrace.current, reason: 'dev_tools_test');
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.l10n.devToolsTriggerErrorDone),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Analytics 에 테스트 이벤트를 전송한다 (D-33).
+  Future<void> _handleTriggerAnalytics(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    await ref
+        .read(analyticsServiceProvider)
+        .logEvent('dev_tools_test_event');
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.l10n.devToolsTriggerAnalyticsDone),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// 즉시 강제 로그아웃 후 익명 세션으로 복귀한다 (D-33).
+  ///
+  /// 확인 다이얼로그 없음 (D-33 기본 정책).
+  Future<void> _handleForceSignOut(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    await ref.read(authRepositoryProvider).signOutAndContinueAsGuest();
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final spacing = context.appSpacing;
+    final colorScheme = context.colorScheme;
+    final typography = context.appTypography;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(l10n.devToolsSectionTitle, style: typography.titleLarge),
+        Gap(spacing.sm),
+        Text(
+          l10n.devToolsSectionDescription,
+          style: typography.bodyMedium.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Gap(spacing.md),
+        OutlinedButton(
+          onPressed: () => _handleResetOnboarding(context, ref),
+          child: Text(l10n.devToolsResetOnboarding),
+        ),
+        Gap(spacing.md),
+        OutlinedButton(
+          onPressed: () => _handleTriggerError(context, ref),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colorScheme.error,
+          ),
+          child: Text(l10n.devToolsTriggerError),
+        ),
+        Gap(spacing.md),
+        OutlinedButton(
+          onPressed: () => _handleTriggerAnalytics(context, ref),
+          child: Text(l10n.devToolsTriggerAnalytics),
+        ),
+        Gap(spacing.md),
+        OutlinedButton(
+          onPressed: () => _handleForceSignOut(context, ref),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colorScheme.error,
+          ),
+          child: Text(l10n.devToolsForceSignOut),
+        ),
+      ],
+    );
+  }
 }
 
 /// 환경 정보를 아이콘, 라벨, 값으로 표시하는 카드.
