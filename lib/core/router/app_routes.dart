@@ -38,4 +38,22 @@ abstract final class AppRoutes {
 
   /// Verify Email 화면 name.
   static const String verifyEmailName = 'verifyEmail';
+
+  /// Onboarding 화면 path (Phase 10 D-01~D-08).
+  static const String onboarding = '/onboarding';
+
+  /// Onboarding 화면 name.
+  static const String onboardingName = 'onboarding';
+
+  /// 약관(이용약관) 상세 화면 path (Phase 10 D-21).
+  static const String termsService = '/terms/service';
+
+  /// 약관(이용약관) 상세 화면 name.
+  static const String termsServiceName = 'termsService';
+
+  /// 약관(개인정보처리방침) 상세 화면 path (Phase 10 D-21).
+  static const String termsPrivacy = '/terms/privacy';
+
+  /// 약관(개인정보처리방침) 상세 화면 name.
+  static const String termsPrivacyName = 'termsPrivacy';
 }

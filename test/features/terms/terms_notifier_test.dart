@@ -1,0 +1,334 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
+import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
+import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
+
+class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
+
+class _MockFirestore extends Mock implements FirebaseFirestore {}
+
+// cloud_firestore 의 CollectionReference / DocumentReference 는 sealed
+// 클래스이다. fake_cloud_firestore 의존성을 추가하지 않기 위해 mocktail
+// `Mock` 으로 우회하며, sealed 경고는 테스트 한정 의도된 우회임.
+// ignore: subtype_of_sealed_class
+class _MockCollection extends Mock
+    implements CollectionReference<Map<String, dynamic>> {}
+
+// ignore: subtype_of_sealed_class
+class _MockDoc extends Mock
+    implements DocumentReference<Map<String, dynamic>> {}
+
+class _FakeSetOptions extends Fake implements SetOptions {}
+
+class _FakeStackTrace extends Fake implements StackTrace {}
+
+void main() {
+  setUpAll(() {
+    registerFallbackValue(<String, dynamic>{});
+    registerFallbackValue(_FakeSetOptions());
+    registerFallbackValue(_FakeStackTrace());
+  });
+
+  late _MockCrashlyticsService mockCrashlytics;
+  late _MockFirestore mockFirestore;
+  late _MockCollection mockCollection;
+  late _MockDoc mockDoc;
+
+  setUp(() {
+    mockCrashlytics = _MockCrashlyticsService();
+    mockFirestore = _MockFirestore();
+    mockCollection = _MockCollection();
+    mockDoc = _MockDoc();
+
+    when(
+      () => mockCrashlytics.recordError(
+        any<Object>(),
+        any<StackTrace?>(),
+        reason: any(named: 'reason'),
+        fatal: any(named: 'fatal'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(() => mockFirestore.collection(any())).thenReturn(mockCollection);
+    when(() => mockCollection.doc(any())).thenReturn(mockDoc);
+    when(
+      () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+    ).thenAnswer((_) async {});
+  });
+
+  ProviderContainer createContainer() {
+    final container = ProviderContainer(
+      overrides: [
+        crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+        firebaseFirestoreProvider.overrideWithValue(mockFirestore),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
+
+  group('TermsNotifier', () {
+    test('Test 1: 빈 상태 → build() null', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+
+      expect(container.read(termsProvider), isNull);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(container.read(termsProvider), isNull);
+    });
+
+    test(
+        'Test 2: accept(true, true, false) → success + state.service/privacy=true, '
+        'marketing=false, version=1', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      final result = await notifier.accept(
+        service: true,
+        privacy: true,
+        marketing: false,
+      );
+
+      expect(result, isA<Success<dynamic>>());
+      final state = container.read(termsProvider);
+      expect(state, isNotNull);
+      expect(state!.service, isTrue);
+      expect(state.privacy, isTrue);
+      expect(state.marketing, isFalse);
+      expect(state.version, TermsNotifier.currentVersion);
+    });
+
+    test(
+        'Test 3: accept(false, true, false) 또는 accept(true, false, false) → '
+        'failure, state 변경 없음', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      final result1 = await notifier.accept(
+        service: false,
+        privacy: true,
+        marketing: false,
+      );
+      expect(result1, isA<Failure<dynamic>>());
+      expect(container.read(termsProvider), isNull);
+
+      final result2 = await notifier.accept(
+        service: true,
+        privacy: false,
+        marketing: false,
+      );
+      expect(result2, isA<Failure<dynamic>>());
+      expect(container.read(termsProvider), isNull);
+    });
+
+    test(
+        'Test 4: accept 성공 시 SharedPreferences `terms.accepted_value` 키에 '
+        '전체 JSON 문자열 저장됨 (WARNING #16 계약)', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      await notifier.accept(
+        service: true,
+        privacy: true,
+        marketing: true,
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedJson = prefs.getString('terms.accepted_value');
+      expect(savedJson, isNotNull);
+      final map = jsonDecode(savedJson!) as Map<String, dynamic>;
+      expect(map['service'], isTrue);
+      expect(map['privacy'], isTrue);
+      expect(map['marketing'], isTrue);
+      expect(map['version'], TermsNotifier.currentVersion);
+      expect(map['acceptedAt'], isNotNull);
+    });
+
+    test(
+        'Test 5: cold-start 시 `terms.accepted_value` JSON 복원 → '
+        'state 가 원본 accept() 호출 값과 동일 (marketing=true, acceptedAt 정확)',
+        () async {
+      // 1단계: accept 호출하여 SharedPreferences 에 JSON 저장
+      SharedPreferences.setMockInitialValues({});
+      final firstContainer = createContainer();
+      await firstContainer.read(termsProvider.notifier).accept(
+            service: true,
+            privacy: true,
+            marketing: true,
+          );
+      final original = firstContainer.read(termsProvider);
+      expect(original, isNotNull);
+      firstContainer.dispose();
+
+      // 2단계: cold-start 시뮬레이션 — 새 container 로 build → _loadFromPrefs
+      final secondContainer = createContainer();
+      secondContainer.read(termsProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final restored = secondContainer.read(termsProvider);
+      expect(restored, isNotNull);
+      expect(restored!.service, isTrue);
+      expect(restored.privacy, isTrue);
+      // WARNING #16 핵심 검증: marketing=true 가 정확히 복원되어야 한다.
+      expect(restored.marketing, isTrue);
+      expect(restored.version, original!.version);
+      // acceptedAt 도 epoch fallback 이 아니라 원본 시각으로 복원됨.
+      expect(
+        restored.acceptedAt.toIso8601String(),
+        original.acceptedAt.toIso8601String(),
+      );
+    });
+
+    test(
+        'Test 6: mirrorToFirestore(uid: abc-123) → users/abc-123 문서 '
+        'termsAccepted 필드 쓰기 + cold-start 후에도 marketing=true 기록 (WARNING #16)',
+        () async {
+      // 1단계: accept + cold-start 시뮬
+      SharedPreferences.setMockInitialValues({});
+      final firstContainer = createContainer();
+      await firstContainer.read(termsProvider.notifier).accept(
+            service: true,
+            privacy: true,
+            marketing: true,
+          );
+      firstContainer.dispose();
+
+      // 2단계: 새 container 로 cold-start → mirrorToFirestore
+      final secondContainer = createContainer();
+      secondContainer.read(termsProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final result = await secondContainer
+          .read(termsProvider.notifier)
+          .mirrorToFirestore(uid: 'abc-123');
+
+      expect(result, isA<Success<dynamic>>());
+      verify(() => mockFirestore.collection('users')).called(1);
+      verify(() => mockCollection.doc('abc-123')).called(1);
+
+      final captured = verify(
+        () => mockDoc.set(
+          captureAny<Map<String, dynamic>>(),
+          any<SetOptions>(),
+        ),
+      ).captured;
+      final payload = captured.single as Map<String, dynamic>;
+      final terms = payload['termsAccepted'] as Map<String, dynamic>;
+      expect(terms['service'], isTrue);
+      expect(terms['privacy'], isTrue);
+      // WARNING #16 핵심 — cold-start 후에도 marketing=true 가 기록됨.
+      expect(terms['marketing'], isTrue);
+      expect(terms['version'], TermsNotifier.currentVersion);
+      expect(terms['acceptedAt'], isA<Timestamp>());
+    });
+
+    test('Test 7: state null 상태에서 mirrorToFirestore 호출 → failure', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+
+      final result = await container
+          .read(termsProvider.notifier)
+          .mirrorToFirestore(uid: 'abc-123');
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result as Failure).exception, isA<ServiceUnavailable>());
+      verifyNever(
+        () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+      );
+    });
+
+    test('Test 8: Firestore FirebaseException throw → failure 반환, state 유지',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      await container.read(termsProvider.notifier).accept(
+            service: true,
+            privacy: true,
+            marketing: false,
+          );
+      final stateBefore = container.read(termsProvider);
+      expect(stateBefore, isNotNull);
+
+      when(
+        () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+      ).thenThrow(FirebaseException(plugin: 'firestore', code: 'unavailable'));
+
+      final result = await container
+          .read(termsProvider.notifier)
+          .mirrorToFirestore(uid: 'abc-123');
+
+      expect(result, isA<Failure<dynamic>>());
+      // state 는 유지되어 사용자가 다시 시도할 수 있다.
+      expect(container.read(termsProvider), stateBefore);
+    });
+
+    test('Test 9: reset() → state null + SharedPreferences 키 제거 (public 메서드)',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      await container.read(termsProvider.notifier).accept(
+            service: true,
+            privacy: true,
+            marketing: true,
+          );
+      expect(container.read(termsProvider), isNotNull);
+
+      // public reset() 호출 (WARNING #8: production 표면)
+      await container.read(termsProvider.notifier).reset();
+
+      expect(container.read(termsProvider), isNull);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('terms.accepted_value'), isNull);
+      expect(prefs.getInt('terms.accepted_version'), isNull);
+    });
+  });
+
+  group('TermsAcceptance', () {
+    test('Test 10a: toJson/fromJson 왕복 동일성', () {
+      final original = TermsAcceptance(
+        version: 1,
+        service: true,
+        privacy: true,
+        marketing: false,
+        acceptedAt: DateTime.utc(2026, 4, 14, 10, 30, 45),
+      );
+
+      final json = original.toJson();
+      final restored = TermsAcceptance.fromJson(json);
+
+      expect(restored, original);
+      expect(restored.acceptedAt, original.acceptedAt);
+    });
+
+    test('Test 10b: copyWith 동작', () {
+      final original = TermsAcceptance(
+        version: 1,
+        service: true,
+        privacy: true,
+        marketing: false,
+        acceptedAt: DateTime.utc(2026, 4, 14),
+      );
+
+      final updated = original.copyWith(marketing: true);
+
+      expect(updated.marketing, isTrue);
+      expect(updated.service, original.service);
+      expect(updated.privacy, original.privacy);
+      expect(updated.version, original.version);
+      expect(updated.acceptedAt, original.acceptedAt);
+    });
+  });
+}
