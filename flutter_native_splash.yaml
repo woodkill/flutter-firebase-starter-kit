@@ -1,0 +1,32 @@
+# Phase 10 AUTH-08/10 — Native Splash 설정 (D-22, D-26).
+# 프로젝트 교체 시 이 파일의 color / image 경로를 수정 후
+# `fvm dart run flutter_native_splash:create`를 재실행한다.
+#
+# 라이트 모드: 흰색 배경 + logo.png
+# 다크 모드: 검은색 배경 + logo_dark.png
+# Android 12+: adaptive icon 스타일 (128dp 제한, 하위 호환)
+flutter_native_splash:
+  color: "#FFFFFF"
+  color_dark: "#000000"
+  image: assets/images/splash/logo.png
+  image_dark: assets/images/splash/logo_dark.png
+
+  android_12:
+    image: assets/images/splash/logo.png
+    image_dark: assets/images/splash/logo_dark.png
+    color: "#FFFFFF"
+    color_dark: "#000000"
+    # Android 12+ SplashScreen API는 앱 icon을 128dp 원 안에 표시하므로
+    # image_width는 무시되며, logo 디자인이 원 프레임에 맞도록 PNG 제작 필요.
+
+  # iOS: Generic iPhone sizes 자동 생성.
+  # Android: v21 이상 스플래시 drawable 생성.
+  # 생성 경로:
+  #   android/app/src/main/res/drawable*/launch_background.xml
+  #   android/app/src/main/res/values*/styles.xml
+  #   ios/Runner/Assets.xcassets/LaunchImage.imageset/
+  #   ios/Runner/Base.lproj/LaunchScreen.storyboard
+  fullscreen: false
+  android: true
+  ios: true
+  web: false # web은 지원 범위 밖 (PROJECT.md Constraint)
