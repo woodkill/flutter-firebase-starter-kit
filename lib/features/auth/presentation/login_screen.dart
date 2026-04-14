@@ -49,6 +49,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// 이메일/비밀번호 로그인 에러를 이메일 필드 영역에 표시하기 위한 상태.
   AppException? _emailError;
 
+  /// Phase 10 D-31 / WARNING #12 : `?focus=email` 쿼리로 진입 시 이메일
+  /// 필드에 자동 포커스를 1회만 적용하도록 재호출 방지 플래그.
+  bool _didFocusFromQuery = false;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -56,6 +60,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _emailFocus.dispose();
     _passwordFocus.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didFocusFromQuery) return;
+    // Phase 10 D-31 / WARNING #12: Bottom Sheet "이메일로 계속" 진입 시
+    // 이메일 필드에 자동 포커스 + 스크롤 보장.
+    //
+    // T-10-27 방어: `focus == 'email'` 단일 값만 검사하므로 임의 쿼리
+    // 주입으로 다른 위젯에 포커스를 강제할 수 없다.
+    //
+    // 기존 테스트 (MaterialApp.home 직접 주입) 호환: GoRouter 가 위젯 트리
+    // 상위에 없으면 GoRouterState.of 는 throw 하므로 silently skip 한다.
+    final GoRouterState state;
+    try {
+      state = GoRouterState.of(context);
+    } on Object {
+      return;
+    }
+    if (state.uri.queryParameters['focus'] != 'email') return;
+    _didFocusFromQuery = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _emailFocus.requestFocus();
+      final ctx = _emailFocus.context;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.3,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   /// 폼 제출 핸들러.
