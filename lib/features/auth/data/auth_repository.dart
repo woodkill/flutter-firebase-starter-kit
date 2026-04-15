@@ -55,23 +55,43 @@ class AuthRepository {
   /// 이메일/비밀번호로 가입한다.
   ///
   /// [displayName] 업데이트 실패 시에도 가입 자체는 성공 처리한다 (D-10).
-  /// 흐름: createUserWithEmailAndPassword → updateDisplayName → reload →
+  /// 흐름: (익명 분기) `EmailAuthProvider.credential` + `linkWithCredential` /
+  /// (비익명) `createUserWithEmailAndPassword` → `updateDisplayName` → `reload` →
   /// 도메인 User 변환.
+  ///
+  /// **Phase 10 D-14 / BLOCKER #4:** `_auth.currentUser` 가 익명 사용자라면
+  /// `linkWithCredential` 로 익명 UID 를 정식 이메일/비밀번호 자격증명에 연결하여
+  /// 단일 clean `authStateChanges` emit 을 유도한다. `email-already-in-use`
+  /// 시에는 익명 계정을 유지한 채 [EmailAlreadyInUse] Failure 를 반환한다
+  /// (delete 하지 않음 — 사용자가 기존 이메일로 로그인하면 다시 정식 세션으로
+  /// 전환됨). 다중 provider linking / 재승격 / 익명 데이터 마이그레이션은
+  /// Phase 17 범위.
   Future<Result<User>> signUpWithEmail({
     required String email,
     required String password,
     required String displayName,
   }) async {
     // D-10 흐름:
-    // 1. createUserWithEmailAndPassword
+    // 1. (익명) linkWithCredential / (비익명) createUserWithEmailAndPassword
     // 2. updateDisplayName (실패 시 graceful: 계정은 생성됨, displayName 미설정)
     // 3. reload (실패 시 _auth.currentUser 재획득으로 fallback)
     // 4. _mapFirebaseUser 로 도메인 모델 변환
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final anonymous = _auth.currentUser;
+      final fb.UserCredential credential;
+      if (anonymous != null && anonymous.isAnonymous) {
+        // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
+        final emailCredential = fb.EmailAuthProvider.credential(
+          email: email,
+          password: password,
+        );
+        credential = await anonymous.linkWithCredential(emailCredential);
+      } else {
+        credential = await _auth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      }
       final fbUser = credential.user;
       if (fbUser == null) {
         return const Result.failure(InvalidCredentials());
@@ -122,6 +142,13 @@ class AuthRepository {
   /// 사용자 취소([GoogleSignInExceptionCode.canceled]) 시 null을 반환하여
   /// Notifier에서 no-op 처리한다 (D-06).
   /// 동일 이메일 충돌 시 [AccountExistsWithDifferentCredential]을 반환한다 (D-10).
+  ///
+  /// **Phase 10 D-14 / BLOCKER #4:** `_auth.currentUser` 가 익명 사용자라면
+  /// [fb.User.linkWithCredential] 로 익명 UID 를 Google 자격증명에 연결한다.
+  /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
+  /// [_safeDelete] 로 폐기하고 기존 Google 계정으로 [fb.FirebaseAuth.signInWithCredential]
+  /// fallback. 익명 UID 로 작성된 Firestore 데이터는 손실 (Starter Kit D-09 —
+  /// 1회성 승격 패턴). 다중 provider linking 은 Phase 17.
   Future<Result<User>?> signInWithGoogle() async {
     try {
       final account = await _googleSignIn.authenticate();
@@ -129,7 +156,32 @@ class AuthRepository {
       final credential = fb.GoogleAuthProvider.credential(
         idToken: authentication.idToken,
       );
-      final userCredential = await _auth.signInWithCredential(credential);
+
+      final anonymous = _auth.currentUser;
+      fb.UserCredential userCredential;
+      if (anonymous != null && anonymous.isAnonymous) {
+        // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
+        try {
+          userCredential = await anonymous.linkWithCredential(credential);
+        } on fb.FirebaseAuthException catch (e) {
+          if (e.code == 'credential-already-in-use' ||
+              e.code == 'email-already-in-use') {
+            // 이미 Google 로 가입된 계정이 있음 — 익명 데이터 폐기 + 기존 계정 로그인.
+            if (kDebugMode) {
+              debugPrint(
+                'AuthRepository.signInWithGoogle: credential-already-in-use '
+                '— 익명 계정 폐기 + 기존 Google 계정 로그인',
+              );
+            }
+            await _safeDelete(anonymous);
+            userCredential = await _auth.signInWithCredential(credential);
+          } else {
+            rethrow;
+          }
+        }
+      } else {
+        userCredential = await _auth.signInWithCredential(credential);
+      }
       final fbUser = userCredential.user;
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
@@ -158,18 +210,54 @@ class AuthRepository {
   /// (D-09, Phase 7 D-06 미러링).
   /// 동일 이메일 충돌 시 [AccountExistsWithDifferentCredential]을
   /// 반환한다 (Phase 7 D-10 재사용).
+  ///
+  /// **Phase 10 D-14 / BLOCKER #4:** `_auth.currentUser` 가 익명 사용자라면
+  /// [fb.User.linkWithProvider] 로 익명 UID 를 Apple 자격증명에 연결한다.
+  /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
+  /// [_safeDelete] 로 폐기하고 [fb.FirebaseAuth.signInWithProvider] fallback.
+  ///
+  /// **Blocker #2 — `_auth.currentUser` 재조회 제거:** linking / signIn 결과
+  /// [fb.UserCredential.user] 를 직접 [_mapFirebaseUser] 에 전달하며,
+  /// `_auth.currentUser` 재조회는 수행하지 않는다. 구현 단순화 + 테스트 stub
+  /// 복잡도 제거 이중 효과.
   Future<Result<User>?> signInWithApple() async {
     try {
       final provider = fb.AppleAuthProvider()
         ..addScope('email')
         ..addScope('name');
-      final userCredential = await _auth.signInWithProvider(provider);
+
+      final anonymous = _auth.currentUser;
+      fb.UserCredential userCredential;
+      if (anonymous != null && anonymous.isAnonymous) {
+        // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
+        try {
+          userCredential = await anonymous.linkWithProvider(provider);
+        } on fb.FirebaseAuthException catch (e) {
+          if (e.code == 'credential-already-in-use' ||
+              e.code == 'email-already-in-use') {
+            if (kDebugMode) {
+              debugPrint(
+                'AuthRepository.signInWithApple: credential-already-in-use '
+                '— 익명 계정 폐기 + 기존 Apple 계정 로그인',
+              );
+            }
+            await _safeDelete(anonymous);
+            userCredential = await _auth.signInWithProvider(provider);
+          } else {
+            rethrow;
+          }
+        }
+      } else {
+        userCredential = await _auth.signInWithProvider(provider);
+      }
+
       final fbUser = userCredential.user;
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
-      final refreshed = _auth.currentUser ?? fbUser;
-      return Result.success(_mapFirebaseUser(refreshed));
+      // Blocker #2: `_auth.currentUser` 재조회 금지. linkWithProvider /
+      // signInWithProvider 결과의 UserCredential.user 를 직접 사용한다.
+      return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       // D-09: 사용자 취소 시 null 반환.
       if (e.code == 'canceled' ||
@@ -199,6 +287,12 @@ class AuthRepository {
   /// 요청 권한은 email + public_profile만 사용한다 (D-02).
   /// 사용자 취소 시 null을 반환하여 Notifier에서 no-op 처리한다 (D-09).
   /// 동일 이메일 충돌 시 [AccountExistsWithDifferentCredential]을 반환한다.
+  ///
+  /// **Phase 10 D-14 / BLOCKER #4:** `_auth.currentUser` 가 익명 사용자라면
+  /// [fb.User.linkWithCredential] 로 익명 UID 를 Facebook 자격증명에 연결한다.
+  /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
+  /// [_safeDelete] 로 폐기하고 기존 Facebook 계정으로 [fb.FirebaseAuth.signInWithCredential]
+  /// fallback. 익명 UID 로 작성된 Firestore 데이터는 손실 (D-09 — 1회성 승격).
   Future<Result<User>?> signInWithFacebook() async {
     try {
       final loginResult = await _facebookAuth.login(
@@ -218,7 +312,32 @@ class AuthRepository {
       final credential = fb.FacebookAuthProvider.credential(
         accessToken.tokenString,
       );
-      final userCredential = await _auth.signInWithCredential(credential);
+
+      final anonymous = _auth.currentUser;
+      fb.UserCredential userCredential;
+      if (anonymous != null && anonymous.isAnonymous) {
+        // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
+        try {
+          userCredential = await anonymous.linkWithCredential(credential);
+        } on fb.FirebaseAuthException catch (e) {
+          if (e.code == 'credential-already-in-use' ||
+              e.code == 'email-already-in-use') {
+            if (kDebugMode) {
+              debugPrint(
+                'AuthRepository.signInWithFacebook: credential-already-in-use '
+                '— 익명 계정 폐기 + 기존 Facebook 계정 로그인',
+              );
+            }
+            await _safeDelete(anonymous);
+            userCredential = await _auth.signInWithCredential(credential);
+          } else {
+            rethrow;
+          }
+        }
+      } else {
+        userCredential = await _auth.signInWithCredential(credential);
+      }
+
       final fbUser = userCredential.user;
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
@@ -280,6 +399,26 @@ class AuthRepository {
   Future<Result<User>> signOutAndContinueAsGuest() async {
     await signOut();
     return signInAnonymously();
+  }
+
+  /// 익명 계정을 안전하게 폐기한다 (credential-already-in-use fallback 용).
+  ///
+  /// [fb.User.delete] 가 `requires-recent-login` 등 예외를 던질 수 있으나,
+  /// 익명 계정은 세션 직후에만 생성되어 있으므로 실패 가능성은 낮다.
+  /// 실패 시에도 진행하여 상위 fallback [fb.FirebaseAuth.signInWithCredential] /
+  /// [fb.FirebaseAuth.signInWithProvider] 가 로그인 UX 를 완결한다.
+  /// 실패는 [kDebugMode] 에서만 로깅한다.
+  ///
+  /// Phase 10 D-14 / BLOCKER #4 `credential-already-in-use` fallback 경로
+  /// 전용 헬퍼. public API 표면에는 노출하지 않는다.
+  Future<void> _safeDelete(fb.User user) async {
+    try {
+      await user.delete();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('AuthRepository._safeDelete 실패 (무시): $e\n$st');
+      }
+    }
   }
 
   /// 로그아웃한다.
