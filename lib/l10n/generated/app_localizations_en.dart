@@ -87,6 +87,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeFirebaseStatusNotConnected => 'Firebase Not Connected';
 
   @override
+  String get homeFirebaseProjectIdPlaceholderWarning =>
+      'Firebase Project ID is a placeholder. Replace it in the flavor config JSON before building.';
+
+  @override
   String get languageChanged => 'Language changed';
 
   @override

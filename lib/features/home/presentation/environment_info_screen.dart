@@ -121,6 +121,14 @@ class EnvironmentInfoScreen extends ConsumerWidget {
               icon: Icons.folder,
               label: l10n.homeEnvFirebaseProjectId,
               value: firebaseProjectId,
+              // WR-01: placeholder (`your-...`) 프로젝트 ID 가 남아있으면
+              // warn chip 으로 표시해 사용자가 실제 값으로 오인하지 않도록 경고.
+              status: firebaseProjectId.startsWith('your-')
+                  ? _EnvStatus.warn
+                  : _EnvStatus.none,
+              semanticLabel: firebaseProjectId.startsWith('your-')
+                  ? l10n.homeFirebaseProjectIdPlaceholderWarning
+                  : null,
             ),
             Gap(spacing.md),
             const Divider(),

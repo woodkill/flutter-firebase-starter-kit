@@ -256,6 +256,12 @@ abstract class AppLocalizations {
   /// **'Firebase Not Connected'**
   String get homeFirebaseStatusNotConnected;
 
+  /// Semantics label + visual warning shown on the Firebase Project ID card when the injected firebaseProjectId still starts with 'your-' (Starter Kit placeholder not yet replaced). See REVIEW WR-01.
+  ///
+  /// In en, this message translates to:
+  /// **'Firebase Project ID is a placeholder. Replace it in the flavor config JSON before building.'**
+  String get homeFirebaseProjectIdPlaceholderWarning;
+
   /// Snackbar message confirming the app language was changed successfully. Displayed in the newly selected language.
   ///
   /// In en, this message translates to:

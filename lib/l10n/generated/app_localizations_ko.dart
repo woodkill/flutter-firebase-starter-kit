@@ -87,6 +87,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeFirebaseStatusNotConnected => 'Firebase 연결되지 않음';
 
   @override
+  String get homeFirebaseProjectIdPlaceholderWarning =>
+      'Firebase 프로젝트 ID가 placeholder입니다. 빌드 전에 flavor별 config JSON을 교체하세요.';
+
+  @override
   String get languageChanged => '언어가 변경되었습니다';
 
   @override

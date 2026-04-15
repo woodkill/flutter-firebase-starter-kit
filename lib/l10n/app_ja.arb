@@ -28,6 +28,7 @@
   "homeFirebaseNotConnected": "未接続",
   "homeFirebaseStatusConnected": "Firebase 接続済み",
   "homeFirebaseStatusNotConnected": "Firebase 未接続",
+  "homeFirebaseProjectIdPlaceholderWarning": "Firebase プロジェクト ID が placeholder のままです。ビルド前に flavor 別の config JSON を置き換えてください。",
   "languageChanged": "言語を変更しました",
 
   "errorNetworkTimeout": "接続がタイムアウトしました。もう一度お試しください。",

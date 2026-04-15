@@ -131,6 +131,11 @@
     "description": "Semantics label for the Firebase environment card when Firebase is NOT initialized. Includes the 'Firebase' word for screen reader context (distinct from homeFirebaseNotConnected which is the value-only string)."
   },
 
+  "homeFirebaseProjectIdPlaceholderWarning": "Firebase Project ID is a placeholder. Replace it in the flavor config JSON before building.",
+  "@homeFirebaseProjectIdPlaceholderWarning": {
+    "description": "Semantics label + visual warning shown on the Firebase Project ID card when the injected firebaseProjectId still starts with 'your-' (Starter Kit placeholder not yet replaced). See REVIEW WR-01."
+  },
+
   "languageChanged": "Language changed",
   "@languageChanged": {
     "description": "Snackbar message confirming the app language was changed successfully. Displayed in the newly selected language."
