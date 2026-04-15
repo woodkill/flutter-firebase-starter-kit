@@ -63,6 +63,21 @@ void main() {
     when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
     when(() => mockCredential.user).thenReturn(mockUser);
     when(() => mockUser.providerData).thenReturn([]);
+
+    // Plan 10-06 Task 3 Step 4: `AuthRepository` 의 4개 로그인/가입 메서드가
+    // Plan 10-06 에서 익명 분기 진입 체크를 위해 `_auth.currentUser` 를 직접
+    // 조회한다. 기존 테스트는 "비익명 경로" (시나리오 B) 를 검증하므로 기본값을
+    // null 로 stub 하여 signInWithCredential / createUserWithEmailAndPassword
+    // 경로로 유도한다. 개별 테스트가 필요 시 override 한다 (e.g., signUpWithEmail
+    // 성공 테스트는 후속 refresh 를 위해 mockUser 로 override).
+    when(() => mockAuth.currentUser).thenReturn(null);
+
+    // `mockUser.isAnonymous` 기본값 — 개별 그룹의 setUp 이
+    // `mockAuth.currentUser` 를 `mockUser` 로 override 할 때, Plan 10-06 의
+    // 익명 분기 `isAnonymous == true` 체크에서 `MissingStubError` 가 발생하지
+    // 않도록 false 로 stub. 기존 테스트는 "비익명 경로" 를 검증하므로 false 가
+    // 올바른 기본값.
+    when(() => mockUser.isAnonymous).thenReturn(false);
   });
 
   group('_mapFirebaseUser via signInWithEmail (BLOCKER #1 통합 검증)', () {
