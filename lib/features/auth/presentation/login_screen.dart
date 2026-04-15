@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -73,11 +74,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // 주입으로 다른 위젯에 포커스를 강제할 수 없다.
     //
     // 기존 테스트 (MaterialApp.home 직접 주입) 호환: GoRouter 가 위젯 트리
-    // 상위에 없으면 GoRouterState.of 는 throw 하므로 silently skip 한다.
+    // 상위에 없으면 GoRouterState.of 는 GoError(Error 서브클래스) 를 throw.
+    // WR-03: `on Object` 로 모든 예외를 삼키되 debug 빌드에서는 원인을
+    // debugPrint 로 남겨 localization delegate race 등 비정상 케이스를
+    // 숨기지 않도록 한다.
     final GoRouterState state;
     try {
       state = GoRouterState.of(context);
-    } on Object {
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          'LoginScreen.didChangeDependencies: GoRouterState.of 실패 (무시): $e',
+        );
+      }
       return;
     }
     if (state.uri.queryParameters['focus'] != 'email') return;
