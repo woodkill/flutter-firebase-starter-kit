@@ -28,6 +28,9 @@ class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
 
   @override
   Stream<fb.User?> authStateChanges() => _stream;
+
+  @override
+  Stream<fb.User?> userChanges() => _stream;
 }
 
 /// `mirrorToFirestore` 호출 카운트를 검증하기 위한 stub TermsNotifier.

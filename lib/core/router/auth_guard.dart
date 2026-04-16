@@ -15,11 +15,13 @@ import 'app_routes.dart';
 
 part 'auth_guard.g.dart';
 
-/// authStateChanges 스트림을 GoRouter [refreshListenable]용
+/// 사용자 변경 스트림을 GoRouter [refreshListenable]용
 /// [ChangeNotifier]로 래핑한다.
 ///
-/// 스트림이 이벤트를 emit할 때마다 [notifyListeners]를 호출하여
-/// GoRouter가 redirect를 재평가하도록 트리거한다.
+/// [FirebaseAuth.userChanges] 스트림이 이벤트를 emit할 때마다
+/// [notifyListeners]를 호출하여 GoRouter가 redirect를 재평가하도록
+/// 트리거한다. `authStateChanges()` 대신 `userChanges()`를 사용하여
+/// credential linking(익명→정식 승격)에도 redirect가 재평가된다.
 /// [GoRouterRefreshStream]이 go_router v5.0.0에서 제거되었으므로
 /// 이 클래스가 동일한 역할을 수행한다.
 class AuthChangeNotifier extends ChangeNotifier {
@@ -31,7 +33,7 @@ class AuthChangeNotifier extends ChangeNotifier {
         // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
         final uidHash = user?.uid.hashCode.toString() ?? 'null';
         debugPrint(
-          'AuthChangeNotifier: authStateChanges emit '
+          'AuthChangeNotifier: userChanges emit '
           '(uidHash=$uidHash) -> notifyListeners',
         );
       }
@@ -39,7 +41,7 @@ class AuthChangeNotifier extends ChangeNotifier {
     });
   }
 
-  /// authStateChanges 구독. nullable 로 선언하여 향후 [stream] 이
+  /// userChanges 구독. nullable 로 선언하여 향후 [stream] 이
   /// lazy-initialized 되어 [Stream.listen] 자체가 throw 하더라도
   /// [dispose] 가 LateInitializationError 없이 안전하게 동작하도록 한다.
   /// (flutter.md "late 사용 최소화" 규칙)
@@ -72,7 +74,7 @@ AuthChangeNotifier authChangeNotifier(Ref ref) {
     return AuthChangeNotifier(const Stream<fb.User?>.empty());
   }
   final auth = ref.watch(firebaseAuthProvider);
-  final notifier = AuthChangeNotifier(auth.authStateChanges());
+  final notifier = AuthChangeNotifier(auth.userChanges());
   ref.onDispose(notifier.dispose);
   return notifier;
 }
@@ -116,7 +118,7 @@ const Set<String> _unauthRoutes = <String>{
 ///
 /// **인증 판정 소스:** [fb.FirebaseAuth.currentUser]를 직접 읽는다.
 /// `authStateProvider`를 사용하지 않는 이유는, [AuthChangeNotifier]가
-/// `authStateChanges()`에 먼저 구독하기 때문에 (subscription #1),
+/// `userChanges()`에 먼저 구독하기 때문에 (subscription #1),
 /// Riverpod StreamProvider의 구독 (#2)이 같은 이벤트를 처리하기 전에
 /// `notifyListeners`가 GoRouter의 redirect 재평가를 트리거한다. 그
 /// 시점에 `ref.read(authStateProvider).value`는 stale 값이다.
@@ -206,7 +208,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   return null; // (7) AUTH-13 자동 검증 — 인증 완료 사용자 Home 랜딩 허용.
 }
 
-/// authStateChanges 이벤트를 Analytics/Crashlytics setUser + Firestore mirror
+/// userChanges 이벤트를 Analytics/Crashlytics setUser + Firestore mirror
 /// 에 연결한다 (Phase 10 D-30, BLOCKER #4, INFO #21).
 ///
 /// **BLOCKER #4 이행:** 이전 스트림 값이 익명 사용자이고 현재 값이 정식
@@ -234,10 +236,10 @@ Stream<void> authUserObserver(Ref ref) async* {
   final crashlytics = ref.watch(crashlyticsServiceProvider);
   // authStateProvider 는 Stream<User?> 를 반환하지만 riverpod_generator 3.x
   // 에서는 `.stream` 게터가 노출되지 않으므로, firebaseAuthProvider 에서
-  // authStateChanges() 를 직접 구독한다 (테스트에서는 firebaseAuthProvider
+  // userChanges() 를 직접 구독한다 (테스트에서는 firebaseAuthProvider
   // override 만으로 동일 흐름을 시뮬레이션 가능).
   final auth = ref.watch(firebaseAuthProvider);
-  final authStream = auth.authStateChanges();
+  final authStream = auth.userChanges();
 
   bool? prevIsAnonymous;
 

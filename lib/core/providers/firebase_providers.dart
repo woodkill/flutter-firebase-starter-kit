@@ -43,15 +43,18 @@ bool isFirebaseInitialized(Ref ref) {
   return false; // ProviderScope overrides로 실제 값 주입
 }
 
-/// Firebase Auth의 인증 상태 변경 스트림을 제공한다.
+/// Firebase Auth의 사용자 변경 스트림을 제공한다.
 ///
+/// [FirebaseAuth.userChanges]를 사용한다. `authStateChanges()`의 상위
+/// 집합으로, credential linking/unlinking(익명→정식 승격 포함)에도
+/// emit하여 `linkWithCredential` 후 UI가 즉시 갱신된다.
 /// Firebase 미초기화 시 빈 스트림을 반환하여 에러를 방지한다.
 /// 인증 가드([authRedirect])와 UI 모두에서 사용한다.
 @Riverpod(keepAlive: true)
 Stream<User?> authState(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);
   if (!isInitialized) return const Stream<User?>.empty();
-  return ref.watch(firebaseAuthProvider).authStateChanges();
+  return ref.watch(firebaseAuthProvider).userChanges();
 }
 
 /// [GoogleSignIn] 인스턴스를 제공한다.
