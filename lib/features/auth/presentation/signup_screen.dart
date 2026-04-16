@@ -119,6 +119,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         facebookState.isLoading;
 
     // 이메일/비밀번호 가입 에러 → _emailError (이메일 필드 영역 배너).
+    //
+    // Issue #5 safety net 미적용 (의도적 — Plan 10-09): 신규 가입 직후
+    // emailVerified=false 가 일반적이며, authRedirect 분기 (4) 가
+    // /verify-email 로 강제 리다이렉트한다. safety net 을 추가하면 분기 (4)
+    // 와 충돌하여 깜빡임이 발생한다 (LoginScreen 의 emailVerified 가드와
+    // 다른 결정 — SignupScreen 은 emailVerified=false race 가 정상 흐름).
     ref.listen<AsyncValue<void>>(signupProvider, (previous, next) {
       if (next is AsyncError) {
         final err = next.error;

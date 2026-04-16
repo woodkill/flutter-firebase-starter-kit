@@ -30,7 +30,9 @@ import 'login_notifier.dart';
 /// 소셜 로그인 성공 시 [context.go] 로 Home 이동을 명시적으로 호출한다
 /// (Issue #3 safety net). authRedirect 가 정상 동작하면 중복 호출이며,
 /// GoRouter redirect 타이밍 경합 시 fallback 으로 동작한다.
-/// 이메일 로그인 성공 시에는 authRedirect 에 위임한다 (D-05).
+/// 이메일 로그인 성공 시에도 [context.go] 로 Home 이동을 명시적으로 호출한다
+/// (Issue #5 safety net). emailVerified=false 인 신규 가입 직후 race 는
+/// 분기 (4) /verify-email redirect 에 위임한다 (D-05 + Plan 10-08 패턴).
 /// 실패 시 [FormErrorBanner] 에 inline 으로 표시한다.
 /// 이메일 충돌(D-10) 시 이메일 자동 채움 + 포커스 이동 (Google/Apple 공통).
 class LoginScreen extends ConsumerStatefulWidget {
@@ -114,8 +116,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   ///
   /// Google/Apple/Facebook 로그인 진행 중이면 제출을 차단한다 (T-07-05, T-08-60).
   /// validator 통과 시 키보드를 내리고 [LoginNotifier.submit] 을 호출한다.
-  /// 성공/실패 전이는 [ref.listen] 으로 감시되며 이메일 로그인 성공 시
-  /// navigation 은 authRedirect 에 위임한다 (D-05).
+  /// 성공 + emailVerified 시 [context.go] 로 Home 이동을 명시적으로 호출한다
+  /// (Issue #5 safety net — Plan 10-08 패턴 확장). emailVerified=false 인
+  /// 신규 가입 직후 race 에서는 분기 (4) /verify-email redirect 에 위임한다.
   Future<void> _handleSubmit() async {
     if (ref.read(googleSignInProvider).isLoading) return;
     if (ref.read(appleSignInProvider).isLoading) return;
@@ -148,8 +151,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         appleState.isLoading ||
         facebookState.isLoading;
 
-    // 이메일/비밀번호 로그인 에러 → _emailError (이메일 필드 영역 배너).
+    // 이메일/비밀번호 로그인 결과: 성공 + emailVerified -> Home safety net
+    // (Issue #5 — Plan 10-08 패턴 확장), 에러 -> _emailError 배너.
     ref.listen<AsyncValue<void>>(loginProvider, (previous, next) {
+      // Issue #5 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 +
+      // emailVerified 가드. emailVerified=false 인 신규 가입 직후 race 에서는
+      // 분기 (4) /verify-email redirect 가 우선되어야 하므로 Home 이동 차단.
+      if (previous is AsyncLoading && next is AsyncData) {
+        if (!mounted) return;
+        final user = ref.read(firebaseAuthProvider).currentUser;
+        if (user != null && !user.isAnonymous && user.emailVerified) {
+          context.go(AppRoutes.home);
+        }
+        return;
+      }
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
