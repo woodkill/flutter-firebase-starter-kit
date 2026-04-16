@@ -209,12 +209,23 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
 }
 
 /// userChanges 이벤트를 Analytics/Crashlytics setUser + Firestore mirror
-/// 에 연결한다 (Phase 10 D-30, BLOCKER #4, INFO #21).
+/// + termsProvider reload 에 연결한다 (Phase 10 D-30, BLOCKER #4, INFO #21,
+/// Issue #6 — Plan 10-09).
 ///
 /// **BLOCKER #4 이행:** 이전 스트림 값이 익명 사용자이고 현재 값이 정식
 /// 사용자인 전이를 감지하면, [TermsNotifier.mirrorToFirestore] 를 호출하여
 /// 정식 UID 에 약관 동의 기록을 Firestore 에 미러링한다 (Plan 03 T-10-11
 /// threat model 이행).
+///
+/// **Issue #6 (Plan 10-09):** UID 변경 감지 시 [TermsNotifier.reloadForUser]
+/// 호출. anonymous→full / full→full(다른 UID) / full→null / full→anonymous
+/// 모든 전이를 커버하여 termsProvider 가 사용자 단위로 정확하게 평가되도록
+/// 보장한다 (D-15 1회 동의 invariant 의 사용자 단위 평가). 동일 UID 재emit
+/// 은 [prevUid] 비교로 무시하여 불필요 Firestore read 를 차단한다.
+///
+/// **호출 순서 보장:** mirrorToFirestore 가 reloadForUser 보다 **먼저**
+/// 호출된다 — anonymous→full 전이 시 Firestore 에 먼저 write 한 후 read
+/// 해야 stale read 가 발생하지 않음 (race condition 차단).
 ///
 /// **INFO #21 이행:** [Ref.keepAlive] 로 appRouter rebuild 시 구독이 churn
 /// 하지 않도록 보장한다.
@@ -242,6 +253,8 @@ Stream<void> authUserObserver(Ref ref) async* {
   final authStream = auth.userChanges();
 
   bool? prevIsAnonymous;
+  String? prevUid;
+  bool isFirstEmit = true;
 
   await for (final user in authStream) {
     final uid = user?.uid;
@@ -253,6 +266,7 @@ Stream<void> authUserObserver(Ref ref) async* {
     await crashlytics.setUserId(uid);
 
     // BLOCKER #4: 익명 -> 정식 전이 감지 시 Firestore 미러 호출.
+    // (호출 순서: mirror 가 reloadForUser 보다 먼저 — Issue #6 직렬화 보장)
     if (user != null && !curIsAnonymous && prevIsAnonymous == true) {
       final mirrorResult = await ref
           .read(termsProvider.notifier)
@@ -267,7 +281,29 @@ Stream<void> authUserObserver(Ref ref) async* {
       }
     }
 
+    // Issue #6 (Plan 10-09): UID 변경 감지 시 termsProvider reload.
+    // - 첫 emit (isFirstEmit=true) 또는 prevUid != uid 인 경우 reload.
+    // - 동일 UID 재emit 은 무시 (prevUid 비교 — 불필요 Firestore read 차단).
+    if (isFirstEmit || uid != prevUid) {
+      await ref.read(termsProvider.notifier).reloadForUser(
+            uid: uid,
+            isAnonymous: curIsAnonymous,
+          );
+      if (kDebugMode) {
+        // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
+        final prevHash = prevUid?.hashCode.toString() ?? 'null';
+        final curHash = uid?.hashCode.toString() ?? 'null';
+        debugPrint(
+          'authUserObserver: UID changed (prevHash=$prevHash, '
+          'curHash=$curHash, isAnonymous=$curIsAnonymous) '
+          '-> termsProvider.reloadForUser',
+        );
+      }
+    }
+
     prevIsAnonymous = curIsAnonymous;
+    prevUid = uid;
+    isFirstEmit = false;
     yield null;
   }
 }

@@ -34,6 +34,11 @@ class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
 }
 
 /// `mirrorToFirestore` 호출 카운트를 검증하기 위한 stub TermsNotifier.
+///
+/// Plan 10-09: [reloadForUser] 도 stub override 추가 (실제 메서드는
+/// firebaseFirestoreProvider mock 이 필요한데, 본 테스트는 Firestore 검증
+/// 범위 외이므로 no-op 으로 처리. 실제 reload 동작은
+/// terms_notifier_firestore_test 와 terms_notifier_uid_change_test 에서 검증).
 class _RecordingTermsNotifier extends TermsNotifier {
   _RecordingTermsNotifier();
 
@@ -52,6 +57,14 @@ class _RecordingTermsNotifier extends TermsNotifier {
   Future<Result<void>> mirrorToFirestore({required String uid}) async {
     mirrorCalls.add(uid);
     return const Result.success(null);
+  }
+
+  @override
+  Future<void> reloadForUser({
+    String? uid,
+    bool isAnonymous = false,
+  }) async {
+    // no-op — 본 테스트의 검증 범위 외 (Plan 10-09 신규 호출 stub).
   }
 }
 
