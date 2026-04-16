@@ -8,6 +8,8 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 
+import 'auth_test_fakes.dart';
+
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockUserCredential extends Mock implements fb.UserCredential {}
@@ -23,19 +25,6 @@ class _MockFacebookAuth extends Mock implements FacebookAuth {}
 class _MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
 class _FakeAuthCredential extends Fake implements fb.AuthCredential {}
-
-/// 테스트용 [ClassicToken] fake.
-///
-/// [AccessToken] 은 abstract class 이므로 [ClassicToken] 을 상속한 fake 를 사용한다.
-class _FakeClassicToken extends Fake implements ClassicToken {
-  _FakeClassicToken({required this.tokenString});
-
-  @override
-  final String tokenString;
-
-  @override
-  AccessTokenType get type => AccessTokenType.classic;
-}
 
 void main() {
   late _MockFirebaseAuth mockAuth;
@@ -235,7 +224,7 @@ void main() {
       ).thenAnswer(
         (_) async => LoginResult(
           status: LoginStatus.success,
-          accessToken: _FakeClassicToken(tokenString: 'fb-access-token'),
+          accessToken: FakeClassicToken(tokenString: 'fb-access-token'),
         ),
       );
     });

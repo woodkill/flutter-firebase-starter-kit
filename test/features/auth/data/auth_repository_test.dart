@@ -9,6 +9,8 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 
+import 'auth_test_fakes.dart';
+
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockUserCredential extends Mock implements fb.UserCredential {}
@@ -813,7 +815,7 @@ void main() {
       ).thenAnswer(
         (_) async => LoginResult(
           status: LoginStatus.success,
-          accessToken: _FakeClassicToken(tokenString: 'fb-token-123'),
+          accessToken: FakeClassicToken(tokenString: 'fb-token-123'),
         ),
       );
 
@@ -882,7 +884,7 @@ void main() {
       ).thenAnswer(
         (_) async => LoginResult(
           status: LoginStatus.success,
-          accessToken: _FakeClassicToken(tokenString: 'fb-token'),
+          accessToken: FakeClassicToken(tokenString: 'fb-token'),
         ),
       );
 
@@ -913,7 +915,7 @@ void main() {
         ).thenAnswer(
           (_) async => LoginResult(
             status: LoginStatus.success,
-            accessToken: _FakeClassicToken(tokenString: 'fb-token'),
+            accessToken: FakeClassicToken(tokenString: 'fb-token'),
           ),
         );
 
@@ -983,15 +985,3 @@ void main() {
   });
 }
 
-/// 테스트용 [ClassicToken] fake.
-///
-/// [AccessToken]은 abstract class이므로 [ClassicToken]을 상속한 fake를 사용한다.
-class _FakeClassicToken extends Fake implements ClassicToken {
-  _FakeClassicToken({required this.tokenString});
-
-  @override
-  final String tokenString;
-
-  @override
-  AccessTokenType get type => AccessTokenType.classic;
-}
