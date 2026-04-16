@@ -14,12 +14,16 @@ part 'terms_notifier.g.dart';
 
 /// 약관 동의 상태를 관리하는 Notifier (Phase 10 D-15, D-16, D-17).
 ///
-/// 이중 저장 전략 (D-16):
-/// - SharedPreferences `terms.accepted_value` : 전체 [TermsAcceptance] JSON
-///   문자열 (WARNING #16). 오프라인/cold-start 시에도 정확한 데이터 복원.
-/// - Firestore `users/{uid}/termsAccepted` : 정식 로그인 후 호출자(Plan 05
-///   `authUserObserver`)가 익명 → 정식 전이 시점에만 호출 (Pitfall 2,
-///   BLOCKER #4). 본 Notifier 는 호출자 가드를 신뢰한다.
+/// 이중 저장 전략 (D-16, Issue #6 — Plan 10-09 격상):
+/// - **정식 사용자:** Firestore `users/{uid}/termsAccepted` 가 권위 있는
+///   source. UID 변경 시 [reloadForUser] 호출로 자동 갱신 (D-15 1회 동의
+///   invariant 가 사용자 단위로 평가되도록 보장).
+/// - **익명 사용자:** SharedPreferences `terms.accepted_value` JSON 으로
+///   device-local 동의 추적 (오프라인 + cold-start 대응).
+/// - **로그아웃:** state=null 로 초기화하여 다음 평가 시 분기 (2)
+///   /onboarding 발동.
+/// - **Firestore read 실패:** SharedPreferences 로 graceful fallback
+///   (오프라인 대응) + Crashlytics 기록.
 ///
 /// ## D-33: Dev Tools production 표면 (Plan-checker WARNING #8)
 ///
@@ -50,6 +54,10 @@ class TermsNotifier extends _$TermsNotifier {
   }
 
   /// SharedPreferences 에서 전체 JSON 을 복원한다 (WARNING #16).
+  ///
+  /// **본 메서드는 익명 사용자 또는 Firestore 실패 시 fallback 으로만
+  /// 사용된다 (Issue #6 — Plan 10-09).** 정식 사용자의 권위 source 는
+  /// Firestore `users/{uid}/termsAccepted` 이다 ([_loadFromFirestore]).
   ///
   /// 우선순위:
   /// 1. [_key] JSON 문자열 → [TermsAcceptance.fromJson] 으로 정확 복원.
@@ -127,6 +135,100 @@ class TermsNotifier extends _$TermsNotifier {
           .recordError(e, st, reason: 'terms_save');
       return Result.failure(ServiceUnavailable(cause: e));
     }
+  }
+
+  /// Firestore `users/{uid}/termsAccepted` 를 읽어 state + [_acceptance] 를
+  /// 갱신한다 (Issue #6 — D-15 1회 동의 invariant 를 사용자 단위로 평가).
+  ///
+  /// **호출자 책임:** [uid] 는 반드시 정식(비익명) 사용자 UID 여야 한다.
+  /// 익명 사용자는 본 메서드 호출 대신 [_loadFromPrefs] 로 device-local
+  /// 동의를 사용한다. 라우팅은 [reloadForUser] 가 담당한다.
+  ///
+  /// **에러 처리:**
+  /// - Firestore 에서 문서/필드가 없거나 currentVersion 미달이면 state=null 로
+  ///   초기화한다 (재동의 강제, authRedirect 분기 (5) 발동).
+  /// - [FirebaseException] (네트워크/권한) 발생 시 SharedPreferences 로
+  ///   fallback 한 후 Crashlytics 에 reason='terms_load_firestore' 로
+  ///   기록한다.
+  Future<void> _loadFromFirestore({required String uid}) async {
+    try {
+      final firestore = ref.read(firebaseFirestoreProvider);
+      final snapshot =
+          await firestore.collection('users').doc(uid).get();
+      if (!snapshot.exists) {
+        if (!ref.mounted) return;
+        _acceptance = null;
+        state = null;
+        return;
+      }
+      final data = snapshot.data();
+      final terms = data?['termsAccepted'] as Map<String, dynamic>?;
+      if (terms == null) {
+        if (!ref.mounted) return;
+        _acceptance = null;
+        state = null;
+        return;
+      }
+      final restored = TermsAcceptance(
+        version: (terms['version'] as num?)?.toInt() ?? 0,
+        service: terms['service'] as bool? ?? false,
+        privacy: terms['privacy'] as bool? ?? false,
+        marketing: terms['marketing'] as bool? ?? false,
+        // Timestamp ↔ DateTime 역변환 ([mirrorToFirestore] 의 Timestamp.fromDate
+        // 와 대칭). 누락 시 epoch 보수값.
+        acceptedAt: (terms['acceptedAt'] as Timestamp?)?.toDate() ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+      );
+      if (!ref.mounted) return;
+      if (restored.version >= currentVersion) {
+        _acceptance = restored;
+        state = restored;
+      } else {
+        // currentVersion 미달 — 재동의 강제 (분기 (5) 발동).
+        _acceptance = null;
+        state = null;
+      }
+    } on FirebaseException catch (e, st) {
+      await ref
+          .read(crashlyticsServiceProvider)
+          .recordError(e, st, reason: 'terms_load_firestore');
+      // 네트워크/권한 실패 시 SharedPreferences fallback (오프라인 대응).
+      await _loadFromPrefs();
+    } on Object catch (e, st) {
+      await ref
+          .read(crashlyticsServiceProvider)
+          .recordError(e, st, reason: 'terms_load_firestore_other');
+      await _loadFromPrefs();
+    }
+  }
+
+  /// 정식 사용자 UID 변경 시 호출되는 public reload entry point
+  /// (Issue #6 — Plan 10-09).
+  ///
+  /// [uid] 가 null 이면 [reset] 동등 동작 (state=null + SharedPreferences 유지
+  /// — 다음 익명 진입 시 device-local fallback 가능). [isAnonymous] true 면
+  /// SharedPreferences 우선 ([_loadFromPrefs]). 정식 사용자 UID 면
+  /// [_loadFromFirestore] 호출.
+  ///
+  /// authUserObserver (Plan 10-09 Task 3) 에서 UID 변경 감지 시 호출한다.
+  Future<void> reloadForUser({
+    String? uid,
+    bool isAnonymous = false,
+  }) async {
+    if (uid == null) {
+      // 로그아웃 등 — state 만 비워 다음 평가 시 분기 (2) /onboarding 으로 보냄.
+      // SharedPreferences 키는 유지하여 익명 재진입 시 fallback 가능.
+      if (!ref.mounted) return;
+      _acceptance = null;
+      state = null;
+      return;
+    }
+    if (isAnonymous) {
+      // 익명 사용자 — device-local 우선 (기존 동작 유지).
+      await _loadFromPrefs();
+      return;
+    }
+    await _loadFromFirestore(uid: uid);
   }
 
   /// 약관 동의 내역을 Firestore 에 미러링한다 (D-16).
