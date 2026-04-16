@@ -4,8 +4,13 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
+import '../../../../core/providers/firebase_providers.dart'
+    hide googleSignInProvider;
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../apple_sign_in_notifier.dart';
+import '../facebook_sign_in_notifier.dart';
+import '../google_sign_in_notifier.dart';
 import 'social_sign_in_section.dart';
 
 /// 로그인 유도 Bottom Sheet 을 표시한다 (Phase 10 D-10).
@@ -31,29 +36,81 @@ Future<void> showLoginPromptSheet(BuildContext context) {
 
 /// 로그인 유도 Bottom Sheet 본체 (Phase 10 D-10).
 ///
-/// 레이아웃 (top → bottom):
+/// 소셜 로그인 성공 시 sheet 를 닫고 [context.go] 로 Home 이동을
+/// 명시적으로 호출한다 (Issue #3 safety net). authRedirect 가 정상
+/// 동작하면 중복 호출이며, GoRouter redirect 타이밍 경합 시 fallback
+/// 으로 동작한다.
+///
+/// 레이아웃 (top -> bottom):
 /// 1. Drag handle (Material 3 기본, `showDragHandle: true`)
 /// 2. [Gap] lg=16
-/// 3. 헤더 텍스트 (`authPromptSheetTitle` — headlineMedium, onSurface)
+/// 3. 헤더 텍스트 (`authPromptSheetTitle` -- headlineMedium, onSurface)
 /// 4. [Gap] sm=8
-/// 5. 본문 텍스트 (`authPromptSheetBody` — bodyMedium, onSurfaceVariant)
+/// 5. 본문 텍스트 (`authPromptSheetBody` -- bodyMedium, onSurfaceVariant)
 /// 6. [Gap] xl=24
-/// 7. [SocialSignInSection] (`showOrDivider: false`) — Google / Apple / Facebook
+/// 7. [SocialSignInSection] (`showOrDivider: false`) -- Google / Apple / Facebook
 /// 8. [Gap] lg=16
-/// 9. TextButton (`authContinueWithEmail`) — primary color. 탭 시
+/// 9. TextButton (`authContinueWithEmail`) -- primary color. 탭 시
 ///    Bottom Sheet 를 닫고 `${AppRoutes.login}?focus=email` 로 이동하여
 ///    LoginScreen 이메일 필드에 포커스한다 (D-31 / WARNING #12).
 /// 10. [Gap] lg=16 (safe-area 하단)
-class LoginPromptSheet extends ConsumerWidget {
+class LoginPromptSheet extends ConsumerStatefulWidget {
   /// [LoginPromptSheet] 를 생성한다.
   const LoginPromptSheet({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LoginPromptSheet> createState() =>
+      _LoginPromptSheetState();
+}
+
+class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
+  @override
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
     final typography = context.appTypography;
     final colorScheme = context.colorScheme;
+
+    // Issue #3 safety net: 소셜 로그인 성공 시 Sheet pop + Home 이동.
+    ref.listen<AsyncValue<void>>(googleSignInProvider,
+        (previous, next) {
+      if (previous is AsyncLoading && next is AsyncData) {
+        if (!mounted) return;
+        final user = ref.read(firebaseAuthProvider).currentUser;
+        if (user != null && !user.isAnonymous) {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+          context.go(AppRoutes.home);
+        }
+      }
+    });
+    ref.listen<AsyncValue<void>>(appleSignInProvider,
+        (previous, next) {
+      if (previous is AsyncLoading && next is AsyncData) {
+        if (!mounted) return;
+        final user = ref.read(firebaseAuthProvider).currentUser;
+        if (user != null && !user.isAnonymous) {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+          context.go(AppRoutes.home);
+        }
+      }
+    });
+    ref.listen<AsyncValue<void>>(facebookSignInProvider,
+        (previous, next) {
+      if (previous is AsyncLoading && next is AsyncData) {
+        if (!mounted) return;
+        final user = ref.read(firebaseAuthProvider).currentUser;
+        if (user != null && !user.isAnonymous) {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+          context.go(AppRoutes.home);
+        }
+      }
+    });
 
     return SafeArea(
       child: Padding(

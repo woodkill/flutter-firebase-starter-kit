@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
+import '../../../core/providers/firebase_providers.dart'
+    hide googleSignInProvider;
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '_widgets/auth_scaffold.dart';
@@ -25,8 +27,10 @@ import 'signup_notifier.dart';
 /// [GoogleSignInNotifier], Apple 로그인은 [AppleSignInNotifier],
 /// Facebook 로그인은 [FacebookSignInNotifier] 가 별도 관리한다
 /// (D-03, D-13, Phase 8, Phase 9).
-/// 성공 시 화면 이동은 Phase 5 redirect 가드가 처리하므로 본 화면은
-/// 직접 navigation 을 호출하지 않으며 redirect 가드에 위임한다 (D-05).
+/// 소셜 로그인 성공 시 [context.go] 로 Home 이동을 명시적으로 호출한다
+/// (Issue #3 safety net). authRedirect 가 정상 동작하면 중복 호출이며,
+/// GoRouter redirect 타이밍 경합 시 fallback 으로 동작한다.
+/// 이메일 가입 성공 시에는 authRedirect 에 위임한다 (D-05).
 /// 실패 시 [FormErrorBanner] 에 inline 으로 표시한다. 이메일 자동 채움은
 /// LoginScreen에만 적용하고 SignupScreen은 에러 배너만 표시한다.
 class SignupScreen extends ConsumerStatefulWidget {
@@ -79,8 +83,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   ///
   /// Google/Apple/Facebook 로그인 진행 중이면 제출을 차단한다 (T-07-05, T-08-60).
   /// validator 통과 시 키보드를 내리고 [SignupNotifier.submit] 을 호출한다.
-  /// 성공/실패 전이는 [ref.listen] 으로 감시되며 본 메서드는 navigation 을
-  /// 호출하지 않는다 (D-05).
+  /// 성공/실패 전이는 [ref.listen] 으로 감시되며 이메일 가입 성공 시
+  /// navigation 은 authRedirect 에 위임한다 (D-05).
   Future<void> _handleSubmit() async {
     if (ref.read(googleSignInProvider).isLoading) return;
     if (ref.read(appleSignInProvider).isLoading) return;
@@ -127,8 +131,17 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       }
     });
 
-    // Google 로그인 에러 → _socialError (소셜 버튼 영역 배너).
+    // Google 로그인 결과: 성공 -> Home safety net (Issue #3), 에러 -> 배너.
     ref.listen<AsyncValue<void>>(googleSignInProvider, (previous, next) {
+      // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
+      if (previous is AsyncLoading && next is AsyncData) {
+        if (!mounted) return;
+        final user = ref.read(firebaseAuthProvider).currentUser;
+        if (user != null && !user.isAnonymous) {
+          context.go(AppRoutes.home);
+        }
+        return;
+      }
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
@@ -140,9 +153,18 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       }
     });
 
-    // Apple 로그인 에러 → _socialError (소셜 버튼 영역 배너).
+    // Apple 로그인 결과: 성공 -> Home safety net (Issue #3), 에러 -> 배너.
     // SignupScreen은 이메일 자동 채움(D-10)을 적용하지 않는다.
     ref.listen<AsyncValue<void>>(appleSignInProvider, (previous, next) {
+      // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
+      if (previous is AsyncLoading && next is AsyncData) {
+        if (!mounted) return;
+        final user = ref.read(firebaseAuthProvider).currentUser;
+        if (user != null && !user.isAnonymous) {
+          context.go(AppRoutes.home);
+        }
+        return;
+      }
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
@@ -154,10 +176,19 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       }
     });
 
-    // Facebook 로그인 에러 → _socialError (소셜 버튼 영역 배너).
+    // Facebook 로그인 결과: 성공 -> Home safety net (Issue #3), 에러 -> 배너.
     // SignupScreen은 이메일 자동 채움(D-10)을 적용하지 않는다.
     ref.listen<AsyncValue<void>>(facebookSignInProvider,
         (previous, next) {
+      // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
+      if (previous is AsyncLoading && next is AsyncData) {
+        if (!mounted) return;
+        final user = ref.read(firebaseAuthProvider).currentUser;
+        if (user != null && !user.isAnonymous) {
+          context.go(AppRoutes.home);
+        }
+        return;
+      }
       if (next is AsyncError) {
         final err = next.error;
         if (err is AppException) {
