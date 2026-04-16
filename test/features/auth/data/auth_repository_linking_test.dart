@@ -327,6 +327,20 @@ void main() {
         // 조회한다. 단일 thenReturn 은 두 번째 호출이 첫 호출을 덮어쓰므로
         // callback 기반 sequential stub 으로 호출 횟수에 따라 다른 user 를
         // 반환한다.
+        //
+        // 주의 (유지보수): 이 stub 은 signUpWithEmail 내부의
+        // _auth.currentUser 조회 순서/횟수에 강하게 결합되어 있다.
+        // 현재 구현 기준:
+        //   - 1회차: linking 분기 진입 체크 (auth_repository.dart line 80
+        //     부근) → mockAnonUser (isAnonymous=true) 반환으로 linking
+        //     분기로 진입.
+        //   - 2회차 이후: linking 성공 후 refresh fallback
+        //     (`_auth.currentUser ?? fbUser`, auth_repository.dart line 117
+        //     부근) → mockResultUser 반환으로 sendEmailVerification 대상
+        //     정식 user 를 공급.
+        // signUpWithEmail 구현에서 currentUser 조회 위치/횟수가 변경되면
+        // 이 테스트가 잘못된 분기를 검증하거나 의도와 무관하게 실패할 수
+        // 있으므로, 구현 리팩터링 시 본 stub 도 함께 조정해야 한다.
         var currentUserCallCount = 0;
         when(() => mockAuth.currentUser).thenAnswer((_) {
           currentUserCallCount++;
