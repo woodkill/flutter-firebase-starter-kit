@@ -49,7 +49,10 @@ class TermsNotifier extends _$TermsNotifier {
 
   @override
   TermsAcceptance? build() {
-    _loadFromPrefs();
+    // CR-01 (Plan 10-09 review fix): build() 에서 prefs 를 미리 로드하지 않는다.
+    // authUserObserver 의 reloadForUser 가 모든 초기 로드를 책임지므로
+    // _loadFromPrefs (fire-and-forget) 와 reloadForUser 의 비동기 race 로 인해
+    // stale device-local JSON 이 Firestore 결과를 덮어쓰는 시나리오를 원천 차단.
     return null;
   }
 
@@ -205,10 +208,10 @@ class TermsNotifier extends _$TermsNotifier {
   /// 정식 사용자 UID 변경 시 호출되는 public reload entry point
   /// (Issue #6 — Plan 10-09).
   ///
-  /// [uid] 가 null 이면 [reset] 동등 동작 (state=null + SharedPreferences 유지
-  /// — 다음 익명 진입 시 device-local fallback 가능). [isAnonymous] true 면
-  /// SharedPreferences 우선 ([_loadFromPrefs]). 정식 사용자 UID 면
-  /// [_loadFromFirestore] 호출.
+  /// [uid] 가 null 이면 state=null + SharedPreferences 동기 삭제 (CR-02
+  /// review fix — 직전 사용자 데이터의 익명/차후 사용자 교차 누출 차단).
+  /// [isAnonymous] true 면 SharedPreferences 우선 ([_loadFromPrefs]). 정식
+  /// 사용자 UID 면 [_loadFromFirestore] 호출.
   ///
   /// authUserObserver (Plan 10-09 Task 3) 에서 UID 변경 감지 시 호출한다.
   Future<void> reloadForUser({
@@ -216,15 +219,25 @@ class TermsNotifier extends _$TermsNotifier {
     bool isAnonymous = false,
   }) async {
     if (uid == null) {
-      // 로그아웃 등 — state 만 비워 다음 평가 시 분기 (2) /onboarding 으로 보냄.
-      // SharedPreferences 키는 유지하여 익명 재진입 시 fallback 가능.
+      // 로그아웃 등 — state + device-local 모두 초기화하여 다음 익명/차후
+      // 사용자 진입 시 직전 정식 사용자 동의가 승계되지 않도록 차단 (CR-02).
       if (!ref.mounted) return;
       _acceptance = null;
       state = null;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_key);
+        await prefs.remove(_legacyVersionKey);
+      } on Exception catch (e, st) {
+        await ref
+            .read(crashlyticsServiceProvider)
+            .recordError(e, st, reason: 'terms_logout_prefs_clear');
+      }
       return;
     }
     if (isAnonymous) {
       // 익명 사용자 — device-local 우선 (기존 동작 유지).
+      // null uid 경로에서 prefs 가 이미 clear 되었으므로 stale 데이터 위험 없음.
       await _loadFromPrefs();
       return;
     }

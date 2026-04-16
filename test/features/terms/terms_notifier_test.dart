@@ -158,8 +158,9 @@ void main() {
     });
 
     test(
-        'Test 5: cold-start 시 `terms.accepted_value` JSON 복원 → '
-        'state 가 원본 accept() 호출 값과 동일 (marketing=true, acceptedAt 정확)',
+        'Test 5: cold-start + reloadForUser(isAnonymous=true) 시 '
+        '`terms.accepted_value` JSON 복원 → state 가 원본 accept() 호출 값과 동일 '
+        '(marketing=true, acceptedAt 정확)',
         () async {
       // 1단계: accept 호출하여 SharedPreferences 에 JSON 저장
       SharedPreferences.setMockInitialValues({});
@@ -173,10 +174,14 @@ void main() {
       expect(original, isNotNull);
       firstContainer.dispose();
 
-      // 2단계: cold-start 시뮬레이션 — 새 container 로 build → _loadFromPrefs
+      // 2단계: cold-start 시뮬레이션 — 새 container.
+      // CR-01 review fix 이후 build() 는 prefs 를 자동 로드하지 않으므로
+      // authUserObserver 가 호출하는 reloadForUser 경로를 명시 호출하여
+      // 익명 사용자 진입 시 device-local 복원이 정확히 동작함을 검증한다.
       final secondContainer = createContainer();
-      secondContainer.read(termsProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await secondContainer
+          .read(termsProvider.notifier)
+          .reloadForUser(uid: 'anon-cold-start', isAnonymous: true);
 
       final restored = secondContainer.read(termsProvider);
       expect(restored, isNotNull);
@@ -206,10 +211,15 @@ void main() {
           );
       firstContainer.dispose();
 
-      // 2단계: 새 container 로 cold-start → mirrorToFirestore
+      // 2단계: 새 container 로 cold-start.
+      // CR-01 review fix 이후 build() 는 prefs 자동 로드 없음 → mirror 가 참조하는
+      // _acceptance 를 채우려면 reloadForUser(isAnonymous=true) 로 prefs 를
+      // 명시 복원해야 한다. 이는 익명→정식 전이 직전 authUserObserver 가
+      // 익명 reload 를 거친 후 mirror 를 호출하는 실제 흐름과 일치한다.
       final secondContainer = createContainer();
-      secondContainer.read(termsProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await secondContainer
+          .read(termsProvider.notifier)
+          .reloadForUser(uid: 'anon-pre-mirror', isAnonymous: true);
 
       final result = await secondContainer
           .read(termsProvider.notifier)
@@ -293,6 +303,46 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('terms.accepted_value'), isNull);
       expect(prefs.getInt('terms.accepted_version'), isNull);
+    });
+
+    test(
+        'Test 9b (CR-02 review fix): 정식 사용자 logout(reloadForUser(uid: null)) → '
+        '익명 재로그인 시 직전 사용자의 device-local 동의가 승계되지 않는다 '
+        '(multi-user device 교차 누출 차단)',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+
+      // 1) 정식 사용자 A 가 약관 동의 → SharedPreferences 에 A 의 JSON 저장.
+      await container.read(termsProvider.notifier).accept(
+            service: true,
+            privacy: true,
+            marketing: true,
+          );
+      expect(container.read(termsProvider), isNotNull);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('terms.accepted_value'), isNotNull);
+
+      // 2) 사용자 A 로그아웃 — userChanges null emit 시뮬레이션.
+      await container.read(termsProvider.notifier).reloadForUser(uid: null);
+
+      expect(container.read(termsProvider), isNull,
+          reason: 'state 가 즉시 비워져야 한다');
+      // CR-02 핵심 검증: prefs 도 함께 clear 되어야 한다.
+      expect(prefs.getString('terms.accepted_value'), isNull,
+          reason: 'logout 시 device-local 동의 키도 제거되어야 한다 (CR-02)');
+      expect(prefs.getInt('terms.accepted_version'), isNull,
+          reason: 'legacy version 키도 함께 제거되어야 한다');
+
+      // 3) 익명 사용자 X 신규 로그인 — userChanges anonymous emit 시뮬레이션.
+      await container
+          .read(termsProvider.notifier)
+          .reloadForUser(uid: 'anon-X', isAnonymous: true);
+
+      expect(container.read(termsProvider), isNull,
+          reason:
+              '익명 X 진입 시 사용자 A 의 동의가 prefs 에서 복원되지 않아야 한다 '
+              '(authRedirect 분기 (5)/(2) → /onboarding 으로 보내야 한다)');
     });
   });
 
