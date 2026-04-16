@@ -314,4 +314,110 @@ void main() {
       },
     );
   });
+
+  group('authRedirect 분기 (5) — Issue #6 회귀 가드 (Plan 10-09)', () {
+    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
+    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
+    FutureOr<String?> callAuthRedirect(
+      ProviderContainer container,
+      GoRouterState state,
+    ) {
+      late FutureOr<String?> result;
+      final testProvider = Provider<Object?>((ref) {
+        result = authRedirect(ref, state);
+        return null;
+      });
+      container.read(testProvider);
+      return result;
+    }
+
+    test(
+      'Issue #6 Test A: 정식 사용자 + emailVerified=true + termsProvider=null '
+      '(reload 후 stale 평가) -> /onboarding (분기 (5) 발동)',
+      () async {
+        // Issue #6 핵심 회귀 가드: Firestore termsAccepted 가 비어 있는 정식
+        // 사용자가 로그인한 직후, authUserObserver 가 reloadForUser 호출 후
+        // termsProvider state 가 null 로 평가되면 분기 (5) 가 발동되어야 한다.
+        final container = makeContainer(
+          isInitialized: true,
+          user: regularUser(),
+          // termsAcceptance: null (Firestore reload 결과 필드 부재)
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.onboarding,
+          reason:
+              'Issue #6 — termsProvider 가 사용자 단위로 평가되어 reload 후 '
+              'null 이면 분기 (5) 가 /onboarding 으로 강제 리다이렉트',
+        );
+      },
+    );
+
+    test(
+      'Issue #6 Test B: 정식 사용자 + termsProvider=null + '
+      'matchedLocation=/onboarding -> null (이미 onboarding 화면 — '
+      '공개 경로 허용)',
+      () async {
+        final container = makeContainer(
+          isInitialized: true,
+          user: regularUser(),
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation)
+            .thenReturn(AppRoutes.onboarding);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: '분기 (5) 가 /onboarding / /terms/* 공개 경로는 허용',
+        );
+      },
+    );
+
+    test(
+      'Issue #6 Test C: 정식 사용자 + termsProvider=valid (reload 후 정상 복원) '
+      '-> null (false-positive 방어)',
+      () async {
+        // Issue #6 fix 가 정상 사용자에게도 분기 (5) 를 발동시키지 않는지 확인.
+        final container = makeContainer(
+          isInitialized: true,
+          user: regularUser(),
+          termsAcceptance: acceptedTerms(),
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason:
+              'termsProvider 가 valid TermsAcceptance 면 분기 (5) 미발동 → '
+              '분기 (7) null (Home 랜딩 허용)',
+        );
+      },
+    );
+
+    test(
+      'Issue #6 Test D: 정식 사용자 + termsProvider=null + '
+      'matchedLocation=/terms/service -> null (공개 약관 경로 허용)',
+      () async {
+        final container = makeContainer(
+          isInitialized: true,
+          user: regularUser(),
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation)
+            .thenReturn(AppRoutes.termsService);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(result, isNull);
+      },
+    );
+  });
 }
