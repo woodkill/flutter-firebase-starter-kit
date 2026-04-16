@@ -38,6 +38,15 @@ void main() {
   late AuthRepository repository;
 
   setUpAll(() {
+    // mocktail 의 `any(named: ...)` 매처는 named parameter 의 정적 타입에 대해
+    // fallback value 를 요구한다. 아래 group 의 `mockFacebookAuth.login(...)`
+    // stub 이 모든 named param 에 `any(named: ...)` 를 사용하므로,
+    // `FacebookAuth.login` 시그니처의 non-nullable typed param 별로 1회씩
+    // fallback 을 등록해야 한다:
+    //   - permissions: List<String>          → const <String>[]
+    //   - loginBehavior: LoginBehavior        → LoginBehavior.nativeWithFallback
+    //   - loginTracking: LoginTracking        → LoginTracking.enabled
+    // (`nonce` 는 String? 이라 fallback 불필요.)
     registerFallbackValue(_FakeAuthCredential());
     registerFallbackValue(fb.AppleAuthProvider());
     registerFallbackValue(LoginTracking.enabled);
