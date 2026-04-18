@@ -47,6 +47,20 @@ class TermsNotifier extends _$TermsNotifier {
   /// 내부 캐시. [mirrorToFirestore] 호출 시 [state] 대신 이 필드를 참조한다.
   TermsAcceptance? _acceptance;
 
+  /// 가장 최근 [reloadForUser] 가 로드한 uid 를 보관한다 (Issue #7 C-1 —
+  /// Plan 10-11 stale 가드).
+  ///
+  /// `authRedirect` 분기 (5) 는 본 값이 `currentUser.uid` 와 일치하는 경우에만
+  /// [state] 를 신뢰한다. UID 는 일치하지만 reload 가 아직 완료되지 않은
+  /// 시점의 stale 평가를 차단하여 오진 리다이렉트(/onboarding flash) 를
+  /// 방지한다. null 은 "한 번도 reload 된 적 없음" (cold-start) 또는
+  /// "직전에 uid=null 로 reload 되어 logout 상태" 를 의미한다.
+  String? _lastReloadedUid;
+
+  /// [_lastReloadedUid] 의 읽기 전용 접근자 (Issue #7 C-1 — Plan 10-11
+  /// authRedirect stale 가드 용).
+  String? get lastReloadedUid => _lastReloadedUid;
+
   @override
   TermsAcceptance? build() {
     // CR-01 (Plan 10-09 review fix): build() 에서 prefs 를 미리 로드하지 않는다.
@@ -233,15 +247,31 @@ class TermsNotifier extends _$TermsNotifier {
             .read(crashlyticsServiceProvider)
             .recordError(e, st, reason: 'terms_logout_prefs_clear');
       }
+      if (!ref.mounted) return;
+      // Issue #7 C-1 (Plan 10-11): uid=null 분기도 lastReloadedUid 를 명시
+      // null 로 기록 — authRedirect 는 분기 (5) 를 !isAnonymous 가드 하에
+      // 실행하므로 본 분기 갱신은 향후 정식 사용자 전이의 stale 가드 기준선을
+      // 제공한다.
+      _lastReloadedUid = null;
       return;
     }
     if (isAnonymous) {
       // 익명 사용자 — device-local 우선 (기존 동작 유지).
       // null uid 경로에서 prefs 가 이미 clear 되었으므로 stale 데이터 위험 없음.
       await _loadFromPrefs();
+      if (!ref.mounted) return;
+      // Issue #7 C-1 (Plan 10-11): 익명 uid 도 lastReloadedUid 에 기록하여
+      // authRedirect 분기 (5) stale 가드가 정식 전이 시점에 올바른 비교를
+      // 수행하도록 한다.
+      _lastReloadedUid = uid;
       return;
     }
     await _loadFromFirestore(uid: uid);
+    if (!ref.mounted) return;
+    // Issue #7 C-1 (Plan 10-11): Firestore read 성공/실패 (fallback 포함)
+    // 여부와 무관하게 uid 를 기록한다 — stale 가드의 기준은 "reload 가 이
+    // uid 에 대해 완료되었는가" 이지 "state 가 정상 값인가" 가 아니다.
+    _lastReloadedUid = uid;
   }
 
   /// 약관 동의 내역을 Firestore 에 미러링한다 (D-16).
@@ -250,13 +280,18 @@ class TermsNotifier extends _$TermsNotifier {
   /// 익명 UID 에 쓰기는 고아 문서를 생성하므로 금지 (Pitfall 2).
   /// Plan 05 `authUserObserver` 가 익명 → 정식 전이 감지 시점에 호출한다.
   ///
-  /// state 가 null 이면 [ServiceUnavailable] 을 반환한다 (accept 미호출).
+  /// state=null 은 `accept()` 미호출 또는 logout 직후 (CR-02 prefs clear) 를
+  /// 의미하며 mirror 대상 부재 — Issue #7 D-1 (Plan 10-11) 에서 에러가 아닌
+  /// no-op 성공으로 전환하여 mirror→reload 직렬화 체인 붕괴 및 로그 노이즈를
+  /// 제거한다.
+  ///
   /// FirebaseException / 기타 예외는 Crashlytics 기록 후
   /// [ServiceUnavailable] 로 래핑한다.
   Future<Result<void>> mirrorToFirestore({required String uid}) async {
     final acceptance = _acceptance;
     if (acceptance == null) {
-      return const Result.failure(ServiceUnavailable());
+      // Issue #7 D-1 (Plan 10-11): state=null 은 mirror 대상 부재 — no-op 성공.
+      return const Result.success(null);
     }
     try {
       final firestore = ref.read(firebaseFirestoreProvider);

@@ -158,6 +158,16 @@ void main() {
         // 두 번째: anon-uid → full-uid (Issue #6 핵심)
         expect(terms.reloadCalls[1].uid, 'full-uid');
         expect(terms.reloadCalls[1].isAnonymous, isFalse);
+        // Issue #7 C-1 (Plan 10-11): _RecordingTermsNotifier 는 실제
+        // reloadForUser 를 호출하지 않지만, reloadCalls 목록이 3분기 순서대로
+        // 누적됨을 확인하여 lastReloadedUid 의 "마지막 uid 추적" 계약을
+        // 메서드 수준으로 회귀 방어한다 (실제 lastReloadedUid 검증은
+        // terms_notifier_test.dart Test 9d).
+        expect(
+          terms.reloadCalls.map((e) => e.uid).toList(),
+          ['anon-uid', 'full-uid'],
+          reason: 'reload 호출 순서가 lastReloadedUid 누적 순서와 일치',
+        );
       },
     );
 

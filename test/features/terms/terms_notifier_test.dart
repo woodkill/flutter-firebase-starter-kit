@@ -7,7 +7,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
-import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
@@ -245,7 +244,10 @@ void main() {
       expect(terms['acceptedAt'], isA<Timestamp>());
     });
 
-    test('Test 7: state null 상태에서 mirrorToFirestore 호출 → failure', () async {
+    test(
+        'Test 7 (updated by Issue #7 D-1 Plan 10-11): state null 상태에서 '
+        'mirrorToFirestore 호출 → Result.success(null) no-op (ServiceUnavailable 제거)',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final container = createContainer();
 
@@ -253,8 +255,8 @@ void main() {
           .read(termsProvider.notifier)
           .mirrorToFirestore(uid: 'abc-123');
 
-      expect(result, isA<Failure<dynamic>>());
-      expect((result as Failure).exception, isA<ServiceUnavailable>());
+      // D-1 전환: state=null 은 mirror 대상 부재 → 에러가 아닌 no-op 성공.
+      expect(result, isA<Success<dynamic>>());
       verifyNever(
         () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
       );
@@ -303,6 +305,87 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('terms.accepted_value'), isNull);
       expect(prefs.getInt('terms.accepted_version'), isNull);
+    });
+
+    test(
+        'Test 9c (Issue #7 D-1 Plan 10-11): mirrorToFirestore(state=null) → '
+        'Result.success(null) no-op + Firestore.collection 미호출 '
+        '(mirror→reload 직렬화 체인 noise 제거)',
+        () async {
+      // Given: accept() 미호출 → _acceptance=null 초기 상태.
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      // When: mirrorToFirestore 호출.
+      final result = await notifier.mirrorToFirestore(uid: 'test-uid');
+
+      // Then: 성공 반환 + Firestore write 경로 미호출.
+      expect(
+        result,
+        isA<Success<dynamic>>(),
+        reason: 'state=null 은 accept() 미호출 또는 logout 직후 — mirror 대상 부재 → '
+            '에러가 아닌 no-op 성공 (Issue #7 D-1)',
+      );
+      verifyNever(() => mockFirestore.collection(any()));
+      verifyNever(
+        () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+      );
+    });
+
+    test(
+        'Test 9d (Issue #7 C-1 Plan 10-11): reloadForUser 3분기 끝에 '
+        'lastReloadedUid 가 갱신된다 (uid=null / isAnonymous=true / full uid)',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      // 초기 상태 — lastReloadedUid 가 null.
+      expect(
+        notifier.lastReloadedUid,
+        isNull,
+        reason: 'cold-start 직후 reload 이력 없음',
+      );
+
+      // 1분기 (uid=null, logout): lastReloadedUid = null.
+      await notifier.reloadForUser();
+      expect(
+        notifier.lastReloadedUid,
+        isNull,
+        reason: 'uid=null 분기는 null 을 저장한다',
+      );
+
+      // 2분기 (isAnonymous=true): lastReloadedUid = 'ANON-A'.
+      await notifier.reloadForUser(
+        uid: 'ANON-A',
+        isAnonymous: true,
+      );
+      expect(
+        notifier.lastReloadedUid,
+        'ANON-A',
+        reason: 'isAnonymous=true 분기는 uid 를 저장한다',
+      );
+
+      // 3분기 (full uid): lastReloadedUid = 'FULL-B'.
+      // Firestore mock 을 '문서 없음' 으로 두어 state 는 null 로 유지.
+      await notifier.reloadForUser(
+        uid: 'FULL-B',
+        isAnonymous: false,
+      );
+      expect(
+        notifier.lastReloadedUid,
+        'FULL-B',
+        reason: 'full uid 분기는 uid 를 저장한다 (Firestore read 성공/실패 무관)',
+      );
+
+      // 과거 값에 대한 덮어쓰기 검증: 다시 null → null 로 덮어씀.
+      await notifier.reloadForUser();
+      expect(
+        notifier.lastReloadedUid,
+        isNull,
+        reason: '직전 값이 FULL-B 여도 null 로 재할당된다',
+      );
     });
 
     test(
