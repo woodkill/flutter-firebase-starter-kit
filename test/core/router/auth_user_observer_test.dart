@@ -23,7 +23,15 @@ class _MockFirebaseCrashlytics extends Mock implements FirebaseCrashlytics {}
 class _MockUser extends Mock implements fb.User {}
 
 class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
-  _FakeFirebaseAuth(this._stream);
+  _FakeFirebaseAuth(Stream<fb.User?> stream)
+      : _stream = stream.asBroadcastStream();
+
+  /// asBroadcastStream 으로 래핑하여 multi-subscription 을 허용한다.
+  /// Plan 10-11 Issue #7 C-3 도입 이후 authUserObserver 뿐 아니라
+  /// authChangeProvider 의 [AuthChangeNotifier] 도 동일 auth.userChanges()
+  /// 를 listen 하므로, single-subscription stream 이면 두 번째 listen 에서
+  /// `Bad state: Stream has already been listened to.` 가 발생한다.
+  /// 실제 Firebase SDK 의 userChanges() 도 broadcast 성격을 갖는다.
   final Stream<fb.User?> _stream;
 
   @override
@@ -269,6 +277,70 @@ void main() {
       verify(() => crashlytics.setUserIdentifier('')).called(1);
       expect(terms.mirrorCalls, isEmpty);
     });
+
+    test(
+      'Test 6 (Issue #7 C-3 Plan 10-11): reloadForUser 완료 후 '
+      'authChangeProvider.triggerRedirect() 1회 이상 호출됨',
+      () async {
+        // Issue #7 핵심 회귀 가드: authUserObserver 가 reloadForUser 를
+        // await 한 직후 AuthChangeNotifier.triggerRedirect() 를 호출하여
+        // GoRouter refreshListenable 의 재평가를 명시적으로 유도하는지
+        // 확인한다. spy AuthChangeNotifier 의 addListener 로 notifyListeners
+        // 호출 카운트를 검증한다.
+        final controller = StreamController<fb.User?>();
+        addTearDown(controller.close);
+        final analytics = _MockFirebaseAnalytics();
+        final crashlytics = _MockFirebaseCrashlytics();
+        stubAnalytics(analytics);
+        stubCrashlytics(crashlytics);
+        final terms = _RecordingTermsNotifier();
+
+        // Spy AuthChangeNotifier — 별도 empty stream 을 구독하므로 외부
+        // userChanges 이벤트로는 notifyListeners 가 호출되지 않는다. 즉,
+        // listener 카운트 증가의 유일한 원인은 triggerRedirect() 호출이다.
+        final spyAuthChangeNotifier =
+            AuthChangeNotifier(const Stream<fb.User?>.empty());
+        addTearDown(spyAuthChangeNotifier.dispose);
+        var notifyCount = 0;
+        spyAuthChangeNotifier.addListener(() => notifyCount++);
+
+        final fakeAuth = _FakeFirebaseAuth(controller.stream);
+        final container = ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(true),
+            firebaseAuthProvider.overrideWithValue(fakeAuth),
+            firebaseAnalyticsProvider.overrideWithValue(analytics),
+            firebaseCrashlyticsProvider.overrideWithValue(crashlytics),
+            analyticsServiceProvider.overrideWith(
+              (ref) => AnalyticsService(analytics, isEnabled: true),
+            ),
+            crashlyticsServiceProvider.overrideWith(
+              (ref) => CrashlyticsService(crashlytics, isEnabled: true),
+            ),
+            termsProvider.overrideWith(() => terms),
+            authChangeProvider.overrideWithValue(spyAuthChangeNotifier),
+          ],
+        );
+        addTearDown(container.dispose);
+        final sub = container.listen(authUserObserverProvider, (_, _) {});
+        addTearDown(sub.close);
+
+        // 정식 user emit — isFirstEmit 이므로 reloadForUser 호출 + 그 직후
+        // triggerRedirect() 호출 경로에 진입한다.
+        controller.add(makeUser(uid: 'FULL-UID', isAnonymous: false));
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          notifyCount,
+          greaterThanOrEqualTo(1),
+          reason:
+              'Issue #7 C-3 — reloadForUser 완료 후 authChangeProvider.'
+              'triggerRedirect() 가 최소 1회 호출되어야 GoRouter 가 stale '
+              '가드를 벗어날 수 있다',
+        );
+      },
+    );
 
     test(
       'Test 5 (INFO #21): authUserObserver 소스에 ref.keepAlive() 호출 포함',

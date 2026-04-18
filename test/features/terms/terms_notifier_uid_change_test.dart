@@ -24,7 +24,12 @@ class _MockFirebaseCrashlytics extends Mock implements FirebaseCrashlytics {}
 class _MockUser extends Mock implements fb.User {}
 
 class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
-  _FakeFirebaseAuth(this._stream);
+  _FakeFirebaseAuth(Stream<fb.User?> stream)
+      : _stream = stream.asBroadcastStream();
+
+  /// asBroadcastStream 으로 래핑하여 multi-subscription 을 허용한다
+  /// (Plan 10-11 Issue #7 C-3 이후 authChangeProvider 가 내부적으로
+  /// userChanges 를 listen 하므로 필요).
   final Stream<fb.User?> _stream;
 
   @override

@@ -197,14 +197,39 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   // 정식 인증 + emailVerified + termsAccepted=null -> /onboarding.
   // 이메일 직접 가입 경로(`/signup` -> 가입 -> Home)에서 termsAccepted=null
   // 상태의 Home 바이패스를 차단한다. /onboarding, /terms/* 공개 경로는 허용.
+  //
+  // Issue #7 (Plan 10-11) stale 가드: AuthChangeNotifier subscription #1 이
+  // authUserObserver subscription #2 의 reloadForUser 완료보다 먼저 발동하여
+  // authRedirect 가 stale termsProvider 를 참조하는 race 를 차단한다.
+  // termsProvider 가 현재 uid 에 대해 아직 reload 되지 않은 시점의 평가는
+  // null (현재 location 유지) 을 반환하여, authUserObserver 가 reloadForUser
+  // 완료 후 authChangeProvider.triggerRedirect() 를 호출할 때까지 대기한다.
+  // 상세 명세: .planning/debug/relogin-terms-race.md Resolution C-2.
   if (isAuthenticated &&
       !isAnonymous &&
       currentUser.emailVerified &&
-      !termsAccepted &&
-      matchedLocation != AppRoutes.onboarding &&
-      matchedLocation != AppRoutes.termsService &&
-      matchedLocation != AppRoutes.termsPrivacy) {
-    return AppRoutes.onboarding;
+      !termsAccepted) {
+    final termsReloadedUid =
+        ref.read(termsProvider.notifier).lastReloadedUid;
+    if (termsReloadedUid != currentUser.uid) {
+      if (kDebugMode) {
+        // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
+        final reloadedHash =
+            termsReloadedUid?.hashCode.toString() ?? 'null';
+        final currentHash = currentUser.uid.hashCode.toString();
+        debugPrint(
+          'authRedirect: stale termsProvider '
+          '(reloadedHash=$reloadedHash, currentHash=$currentHash) '
+          '-> null (await reload) [Issue #7 C-2]',
+        );
+      }
+      return null;
+    }
+    if (matchedLocation != AppRoutes.onboarding &&
+        matchedLocation != AppRoutes.termsService &&
+        matchedLocation != AppRoutes.termsPrivacy) {
+      return AppRoutes.onboarding;
+    }
   }
 
   // (6) 정식 인증 + emailVerified + termsAccepted + (unauth/verifyEmail/
@@ -310,6 +335,12 @@ Stream<void> authUserObserver(Ref ref) async* {
           '-> termsProvider.reloadForUser',
         );
       }
+      // Issue #7 C-3 (Plan 10-11): reloadForUser 가 lastReloadedUid 를
+      // 갱신한 뒤, GoRouter 가 authRedirect 분기 (5) 의 stale 가드를 벗어날
+      // 수 있도록 명시적으로 redirect 재평가를 트리거한다. authChangeProvider
+      // 는 Provider<AuthChangeNotifier> 이므로 `.notifier` 접미어 없이 직접
+      // read — auth_guard.g.dart 의 `AuthChangeNotifierProvider` 정의 참조.
+      ref.read(authChangeProvider).triggerRedirect();
     }
 
     prevIsAnonymous = curIsAnonymous;

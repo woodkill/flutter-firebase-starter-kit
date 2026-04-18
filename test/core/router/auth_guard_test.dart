@@ -36,6 +36,42 @@ class _StubTermsNotifier extends TermsNotifier {
 
   @override
   TermsAcceptance? build() => _initial;
+
+  /// Issue #7 (Plan 10-11): 기존 테스트(Test 1~13 / Issue #6 Test A~D /
+  /// Issue #4 Test A~E) 가 authRedirect stale 가드를 통과하도록 기본값을
+  /// `regularUser` / `anonymousUser` 의 기본 uid 두 후보를 모두 수용하는
+  /// 방식으로 제공한다. 본 stub 은 분기 (5) 의 stale 가드를 **우회**하는
+  /// 방향으로만 동작해야 하므로, 'reg-uid' / 'anon-uid' 둘 중 현재 평가
+  /// 경로와 일치하는 값을 반환하면 되지만 실제로는 authRedirect 가 uid 와
+  /// lastReloadedUid 를 equality 비교하는 단일 분기뿐이므로, 본 테스트들은
+  /// regularUser 기본 uid 인 'reg-uid' 를 반환해 stale 가드가 항상
+  /// false(비-stale) 로 평가되도록 한다. 익명 사용자 경로는 분기 (3)
+  /// 에서 처리되어 stale 가드를 타지 않으므로 uid 불일치가 무해하다.
+  @override
+  String? get lastReloadedUid => 'reg-uid';
+}
+
+/// Issue #7 (Plan 10-11) stale 가드 테스트용 확장 stub.
+///
+/// 기존 [_StubTermsNotifier] 는 build() 만 override 하므로 실제
+/// [TermsNotifier.lastReloadedUid] (기본값 null) 를 그대로 노출한다.
+/// 본 서브클래스는 `reloadedUid` 를 주입 가능한 값으로 대체하여
+/// authRedirect 분기 (5) 가 stale 여부를 판단하는 시나리오를 재현한다.
+///
+/// 기존 테스트 17~22건은 이 확장 stub 을 사용하지 않으므로 무수정 회귀.
+class _StubTermsNotifierWithUid extends TermsNotifier {
+  _StubTermsNotifierWithUid({
+    required this.initial,
+    required this.reloadedUid,
+  });
+  final TermsAcceptance? initial;
+  final String? reloadedUid;
+
+  @override
+  TermsAcceptance? build() => initial;
+
+  @override
+  String? get lastReloadedUid => reloadedUid;
 }
 
 void main() {
@@ -393,6 +429,125 @@ void main() {
 
       final result = await callAuthRedirect(container, mockState);
       expect(result, isNull);
+    });
+  });
+
+  group('authRedirect 분기 (5) Issue #7 stale 가드 (Plan 10-11)', () {
+    /// Issue #7 (Plan 10-11) 전용 컨테이너 빌더 — [reloadedUid] 를 주입하여
+    /// termsProvider.lastReloadedUid 가 현재 UID 와 불일치하는 stale 상태를
+    /// 재현한다. 기존 [makeContainer] 는 `_StubTermsNotifier` 만 사용하므로
+    /// stale 가드 시나리오를 표현할 수 없어 본 빌더가 필요하다.
+    ProviderContainer makeContainerWithReloadedUid({
+      required bool isInitialized,
+      fb.User? user,
+      bool onboardingSeen = false,
+      TermsAcceptance? termsAcceptance,
+      String? reloadedUid,
+    }) {
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(user);
+      return ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(isInitialized),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+          onboardingProvider.overrideWith(
+            () => _StubOnboardingNotifier(onboardingSeen),
+          ),
+          termsProvider.overrideWith(
+            () => _StubTermsNotifierWithUid(
+              initial: termsAcceptance,
+              reloadedUid: reloadedUid,
+            ),
+          ),
+        ],
+      );
+    }
+
+    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
+    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
+    FutureOr<String?> callAuthRedirect(
+      ProviderContainer container,
+      GoRouterState state,
+    ) {
+      late FutureOr<String?> result;
+      final testProvider = Provider<Object?>((ref) {
+        result = authRedirect(ref, state);
+        return null;
+      });
+      container.read(testProvider);
+      return result;
+    }
+
+    test(
+        'Issue #7 Test A: 정식 + emailVerified + termsAcceptance=null + '
+        'lastReloadedUid != currentUser.uid (stale) + home -> null '
+        '(stale 가드 발동 — reload 완료 대기)',
+        () async {
+      // 핵심 시나리오: AuthChangeNotifier subscription #1 이 먼저 발동하여
+      // authRedirect 가 실행되는 시점에 authUserObserver 의 reloadForUser 가
+      // 아직 완료되지 않아 lastReloadedUid 가 직전 익명 uid 에 머물러 있음.
+      final container = makeContainerWithReloadedUid(
+        isInitialized: true,
+        user: regularUser(uid: 'FULL-CURRENT'),
+        reloadedUid: 'OTHER-UID',
+        // termsAcceptance: null
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+      final result = await callAuthRedirect(container, mockState);
+      expect(
+        result,
+        isNull,
+        reason: 'Issue #7 C-2 — stale 가드 발동 시 null 반환하여 현재 location '
+            '유지, authUserObserver.triggerRedirect 완료 후 재평가',
+      );
+    });
+
+    test(
+        'Issue #7 Test B: 정식 + emailVerified + termsAcceptance=null + '
+        'lastReloadedUid == currentUser.uid (reload 완료) + home -> '
+        '/onboarding (legitimate 분기 (5) 발동)',
+        () async {
+      // reloadForUser 가 완료되어 lastReloadedUid 가 현재 UID 와 일치한 뒤
+      // termsAccepted=false 이면 정상적으로 /onboarding 으로 보내야 한다.
+      final container = makeContainerWithReloadedUid(
+        isInitialized: true,
+        user: regularUser(uid: 'FULL-CURRENT'),
+        reloadedUid: 'FULL-CURRENT',
+        // termsAcceptance: null
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+      final result = await callAuthRedirect(container, mockState);
+      expect(
+        result,
+        AppRoutes.onboarding,
+        reason:
+            '재로그인 후 Firestore 에 termsAccepted 가 없는 정식 신규 사용자는 '
+            '분기 (5) 가 정상 발동되어 /onboarding 으로 가야 한다',
+      );
+    });
+
+    test(
+        'Issue #7 Test C: 정식 + emailVerified + termsAcceptance=valid + '
+        'lastReloadedUid == currentUser.uid + matchedLocation=/login -> '
+        '/home (분기 (6) 정상 경로 회귀)',
+        () async {
+      // stale 가드 도입이 분기 (6) 정상 경로를 침범하지 않음을 확인한다
+      // (Issue #7 재검증의 정상 흐름 회귀 방어).
+      final container = makeContainerWithReloadedUid(
+        isInitialized: true,
+        user: regularUser(uid: 'FULL-CURRENT'),
+        reloadedUid: 'FULL-CURRENT',
+        termsAcceptance: acceptedTerms(),
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
+
+      final result = await callAuthRedirect(container, mockState);
+      expect(result, AppRoutes.home);
     });
   });
 
