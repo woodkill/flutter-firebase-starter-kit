@@ -166,9 +166,21 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
 
   // (3) 익명 사용자: 대부분 route 허용 (게스트 모드, AuthRequired 가 보호).
   // 단 /verify-email 은 정식 사용자 전용 — 익명은 Home 으로 보낸다.
+  // Issue #4 (Plan 10-10): Dev Tools '온보딩 다시 보기' → cold restart 시
+  // 익명 세션 복원으로 분기 (2) 가 미발동하므로, 익명 사용자도 동일하게
+  // !onboardingSeen + 공개 경로 외 조합에서 /onboarding 으로 리다이렉트한다.
+  // 공개 경로 화이트리스트 = _unauthRoutes (login/signup/forgotPassword/
+  // onboarding/terms/*) + splash. 익명 사용자는 정식 승격을 위해 /login
+  // /signup 등 인증 경로 접근이 필요하므로 _unauthRoutes 전체를 허용한다
+  // (D-33 Dev Tools 완결성 + AUTH-11 상태 머신 분기 완전성).
   if (isAuthenticated && isAnonymous) {
     if (matchedLocation == AppRoutes.verifyEmail) {
       return AppRoutes.home;
+    }
+    if (!onboardingSeen &&
+        !isOnUnauthRoute &&
+        matchedLocation != AppRoutes.splash) {
+      return AppRoutes.onboarding;
     }
     return null;
   }
@@ -285,10 +297,9 @@ Stream<void> authUserObserver(Ref ref) async* {
     // - 첫 emit (isFirstEmit=true) 또는 prevUid != uid 인 경우 reload.
     // - 동일 UID 재emit 은 무시 (prevUid 비교 — 불필요 Firestore read 차단).
     if (isFirstEmit || uid != prevUid) {
-      await ref.read(termsProvider.notifier).reloadForUser(
-            uid: uid,
-            isAnonymous: curIsAnonymous,
-          );
+      await ref
+          .read(termsProvider.notifier)
+          .reloadForUser(uid: uid, isAnonymous: curIsAnonymous);
       if (kDebugMode) {
         // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
         final prevHash = prevUid?.hashCode.toString() ?? 'null';
