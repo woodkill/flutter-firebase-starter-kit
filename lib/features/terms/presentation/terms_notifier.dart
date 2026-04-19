@@ -299,9 +299,19 @@ class TermsNotifier extends _$TermsNotifier {
   /// 자체를 보존하는 것이 multi-user invariant 의 의도이므로 skip 은 일관됨.
   /// 재동의 강제는 [_loadFromFirestore] 의 version 비교 로직이 담당한다.
   ///
+  /// **Issue #9 (Plan 10-13 — 재동의 경로):** [force] 가 true 이면 pre-read 를
+  /// 건너뛰고 무조건 set(merge:true) 를 수행한다. `OnboardingScreen._handleCta`
+  /// 의 재동의 경로(정식 사용자 A 로그인 상태에서 CTA 탭) 에서만 사용되며,
+  /// 사용자가 **명시적으로 재동의** 한 의도를 Plan 10-12 skip 정책보다 우선시한다.
+  /// authUserObserver 의 자동 mirror 호출은 [force] 기본값 false 를 유지하여
+  /// multi-user invariant 방어를 보존한다.
+  ///
   /// FirebaseException / 기타 예외는 Crashlytics 기록 후
   /// [ServiceUnavailable] 로 래핑한다.
-  Future<Result<void>> mirrorToFirestore({required String uid}) async {
+  Future<Result<void>> mirrorToFirestore({
+    required String uid,
+    bool force = false,
+  }) async {
     final acceptance = _acceptance;
     if (acceptance == null) {
       // Issue #7 D-1 (Plan 10-11): state=null 은 mirror 대상 부재 — no-op 성공.
@@ -310,14 +320,19 @@ class TermsNotifier extends _$TermsNotifier {
     try {
       final firestore = ref.read(firebaseFirestoreProvider);
       final doc = firestore.collection('users').doc(uid);
-      // Issue #8 (Plan 10-12): pre-read 로 기존 문서 여부 확인 — multi-user
-      // invariant. 문서 존재 시 skip 하여 cross-user overwrite 차단.
-      final snapshot = await doc.get();
-      if (snapshot.exists) {
-        await ref
-            .read(crashlyticsServiceProvider)
-            .setCustomKey('mirror_skip_reason', 'existing_user_doc');
-        return const Result.success(null);
+      // Issue #9 (Plan 10-13): 사용자 명시적 재동의(onboarding CTA 재동의 경로)
+      // 에서만 force=true 로 호출되어 Plan 10-12 pre-read+skip 정책을 우회한다.
+      // 자동 경로(authUserObserver 익명→정식 전이) 는 force=false 기본값 유지.
+      if (!force) {
+        // Issue #8 (Plan 10-12): pre-read 로 기존 문서 여부 확인 — multi-user
+        // invariant. 문서 존재 시 skip 하여 cross-user overwrite 차단.
+        final snapshot = await doc.get();
+        if (snapshot.exists) {
+          await ref
+              .read(crashlyticsServiceProvider)
+              .setCustomKey('mirror_skip_reason', 'existing_user_doc');
+          return const Result.success(null);
+        }
       }
       await doc.set(<String, dynamic>{
         'termsAccepted': <String, dynamic>{

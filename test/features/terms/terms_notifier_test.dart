@@ -462,6 +462,79 @@ void main() {
       },
     );
 
+    test('Test 9g (Issue #9 Plan 10-13 — force 재동의 경로): '
+        'mirrorToFirestore(force: true) → 문서 존재해도 pre-read skip + set 호출 + '
+        'Crashlytics setCustomKey 미호출', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      // Given: 정식 사용자 A 가 재동의를 마쳐 _acceptance 가 채워진 상태.
+      await notifier.accept(service: true, privacy: true, marketing: true);
+
+      // And: Firestore 에 A 문서가 이미 존재 (Plan 10-12 Option B 의 skip 조건).
+      final existingSnapshot = _MockSnapshot();
+      when(() => existingSnapshot.exists).thenReturn(true);
+      when(
+        () => existingSnapshot.data(),
+      ).thenReturn(<String, dynamic>{'displayName': 'A'});
+      when(() => mockDoc.get()).thenAnswer((_) async => existingSnapshot);
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
+
+      // When: 사용자 명시적 재동의 의도로 force=true 경로 호출.
+      final result = await notifier.mirrorToFirestore(
+        uid: 'A-UID',
+        force: true,
+      );
+
+      // Then: pre-read 건너뛰기 — get 미호출 + set 호출 (재동의 재기록).
+      expect(result, isA<Success<dynamic>>());
+      verifyNever(() => mockDoc.get());
+      verify(
+        () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+      ).called(1);
+      // Skip 경로를 타지 않았으므로 Crashlytics key 미호출.
+      verifyNever(
+        () => mockCrashlytics.setCustomKey('mirror_skip_reason', any<Object>()),
+      );
+    });
+
+    test('Test 9h (Issue #9 Plan 10-13 — force 기본값 false 회귀): '
+        'mirrorToFirestore() 기본값 호출은 Plan 10-12 Option B skip 정책을 '
+        '그대로 유지 (force 파라미터 미전달)', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      await notifier.accept(service: true, privacy: true, marketing: false);
+
+      final existingSnapshot = _MockSnapshot();
+      when(() => existingSnapshot.exists).thenReturn(true);
+      when(() => existingSnapshot.data()).thenReturn(<String, dynamic>{});
+      when(() => mockDoc.get()).thenAnswer((_) async => existingSnapshot);
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
+
+      // When: force 파라미터 생략 → 기본값 false 적용.
+      final result = await notifier.mirrorToFirestore(uid: 'A-UID');
+
+      // Then: Plan 10-12 skip 경로 그대로 — get 호출 + set 미호출.
+      expect(result, isA<Success<dynamic>>());
+      verify(() => mockDoc.get()).called(1);
+      verifyNever(
+        () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+      );
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'mirror_skip_reason',
+          'existing_user_doc',
+        ),
+      ).called(1);
+    });
+
     test(
       'Test 9b (CR-02 review fix): 정식 사용자 logout(reloadForUser(uid: null)) → '
       '익명 재로그인 시 직전 사용자의 device-local 동의가 승계되지 않는다 '
