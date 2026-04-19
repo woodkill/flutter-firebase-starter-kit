@@ -25,7 +25,7 @@ class _MockUser extends Mock implements fb.User {}
 
 class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
   _FakeFirebaseAuth(Stream<fb.User?> stream)
-      : _stream = stream.asBroadcastStream();
+    : _stream = stream.asBroadcastStream();
 
   /// asBroadcastStream 으로 래핑하여 multi-subscription 을 허용한다
   /// (Plan 10-11 Issue #7 C-3 이후 authChangeProvider 가 내부적으로
@@ -48,20 +48,26 @@ class _RecordingTermsNotifier extends TermsNotifier {
   final List<({String? uid, bool isAnonymous})> reloadCalls = [];
   final List<String> mirrorCalls = [];
 
+  /// Issue #9 (Plan 10-13): authUserObserver 의 자동 mirror 경로가 force
+  /// 파라미터 기본값(false) 를 유지하는지 기록. 본 테스트는 uid 변경 경로
+  /// 검증이 주 목적이지만 signature 회귀 차단을 위해 함께 기록한다.
+  final List<bool> mirrorForceCalls = [];
+
   @override
   TermsAcceptance? build() => initial;
 
   @override
-  Future<Result<void>> mirrorToFirestore({required String uid}) async {
+  Future<Result<void>> mirrorToFirestore({
+    required String uid,
+    bool force = false,
+  }) async {
     mirrorCalls.add(uid);
+    mirrorForceCalls.add(force);
     return const Result.success(null);
   }
 
   @override
-  Future<void> reloadForUser({
-    String? uid,
-    bool isAnonymous = false,
-  }) async {
+  Future<void> reloadForUser({String? uid, bool isAnonymous = false}) async {
     reloadCalls.add((uid: uid, isAnonymous: isAnonymous));
     // state 갱신 시뮬레이션 (테스트 단순화 — 실제 reload 동작은 Task 2 에서 검증).
   }
@@ -72,10 +78,7 @@ void main() {
     registerFallbackValue(StackTrace.empty);
   });
 
-  fb.User makeUser({
-    required String uid,
-    required bool isAnonymous,
-  }) {
+  fb.User makeUser({required String uid, required bool isAnonymous}) {
     final user = _MockUser();
     when(() => user.uid).thenReturn(uid);
     when(() => user.isAnonymous).thenReturn(isAnonymous);
@@ -107,20 +110,22 @@ void main() {
   }
 
   void stubAnalytics(_MockFirebaseAnalytics analytics) {
-    when(() => analytics.setUserProperty(
-          name: any(named: 'name'),
-          value: any(named: 'value'),
-        )).thenAnswer((_) async {});
-    when(() => analytics.setUserId(id: any(named: 'id')))
-        .thenAnswer((_) async {});
+    when(
+      () => analytics.setUserProperty(
+        name: any(named: 'name'),
+        value: any(named: 'value'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => analytics.setUserId(id: any(named: 'id')),
+    ).thenAnswer((_) async {});
   }
 
   void stubCrashlytics(_MockFirebaseCrashlytics crashlytics) {
     when(() => crashlytics.setUserIdentifier(any())).thenAnswer((_) async {});
   }
 
-  group('authUserObserver UID 변경 감지 + termsProvider reload (Issue #6)',
-      () {
+  group('authUserObserver UID 변경 감지 + termsProvider reload (Issue #6)', () {
     test(
       'Test 1: anonymous(uid=A) → full(uid=B) 전이 → reloadForUser(B, false) + '
       'mirrorToFirestore(B) 직렬화',
@@ -140,8 +145,7 @@ void main() {
           terms: terms,
         );
         addTearDown(container.dispose);
-        final sub =
-            container.listen(authUserObserverProvider, (_, _) {});
+        final sub = container.listen(authUserObserverProvider, (_, _) {});
         addTearDown(sub.close);
 
         controller.add(makeUser(uid: 'anon-uid', isAnonymous: true));
@@ -150,11 +154,9 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         // Mirror 호출은 anonymous→full 전이 1회.
-        expect(
-          terms.mirrorCalls,
-          ['full-uid'],
-          reason: 'anonymous→full 전이 mirrorToFirestore 호출 유지',
-        );
+        expect(terms.mirrorCalls, [
+          'full-uid',
+        ], reason: 'anonymous→full 전이 mirrorToFirestore 호출 유지');
         // Reload 호출은 UID 변경 감지마다 발생: null→anon, anon→full.
         expect(terms.reloadCalls.length, 2);
         // 첫 번째: null → anon-uid
@@ -194,8 +196,7 @@ void main() {
           terms: terms,
         );
         addTearDown(container.dispose);
-        final sub =
-            container.listen(authUserObserverProvider, (_, _) {});
+        final sub = container.listen(authUserObserverProvider, (_, _) {});
         addTearDown(sub.close);
 
         controller.add(makeUser(uid: 'user-A', isAnonymous: false));
@@ -230,8 +231,7 @@ void main() {
           terms: terms,
         );
         addTearDown(container.dispose);
-        final sub =
-            container.listen(authUserObserverProvider, (_, _) {});
+        final sub = container.listen(authUserObserverProvider, (_, _) {});
         addTearDown(sub.close);
 
         controller.add(makeUser(uid: 'user-A', isAnonymous: false));
@@ -245,142 +245,129 @@ void main() {
       },
     );
 
-    test(
-      'Test 4: full(A) → anonymous (signOutAndContinueAsGuest) → '
-      'reloadForUser(anon-2, true) SharedPreferences fallback',
-      () async {
-        final controller = StreamController<fb.User?>();
-        addTearDown(controller.close);
-        final analytics = _MockFirebaseAnalytics();
-        final crashlytics = _MockFirebaseCrashlytics();
-        stubAnalytics(analytics);
-        stubCrashlytics(crashlytics);
-        final terms = _RecordingTermsNotifier();
+    test('Test 4: full(A) → anonymous (signOutAndContinueAsGuest) → '
+        'reloadForUser(anon-2, true) SharedPreferences fallback', () async {
+      final controller = StreamController<fb.User?>();
+      addTearDown(controller.close);
+      final analytics = _MockFirebaseAnalytics();
+      final crashlytics = _MockFirebaseCrashlytics();
+      stubAnalytics(analytics);
+      stubCrashlytics(crashlytics);
+      final terms = _RecordingTermsNotifier();
 
-        final container = makeContainer(
-          controller: controller,
-          analytics: analytics,
-          crashlytics: crashlytics,
-          terms: terms,
-        );
-        addTearDown(container.dispose);
-        final sub =
-            container.listen(authUserObserverProvider, (_, _) {});
-        addTearDown(sub.close);
+      final container = makeContainer(
+        controller: controller,
+        analytics: analytics,
+        crashlytics: crashlytics,
+        terms: terms,
+      );
+      addTearDown(container.dispose);
+      final sub = container.listen(authUserObserverProvider, (_, _) {});
+      addTearDown(sub.close);
 
-        controller.add(makeUser(uid: 'user-A', isAnonymous: false));
-        await Future<void>.delayed(Duration.zero);
-        controller.add(makeUser(uid: 'anon-2', isAnonymous: true));
-        await Future<void>.delayed(Duration.zero);
+      controller.add(makeUser(uid: 'user-A', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
+      controller.add(makeUser(uid: 'anon-2', isAnonymous: true));
+      await Future<void>.delayed(Duration.zero);
 
-        expect(terms.reloadCalls.length, 2);
-        expect(terms.reloadCalls[1].uid, 'anon-2');
-        expect(terms.reloadCalls[1].isAnonymous, isTrue);
-        // mirror 는 호출되지 않음 (full→anon 은 전이 대상 아님).
-        expect(terms.mirrorCalls, isEmpty);
-      },
-    );
+      expect(terms.reloadCalls.length, 2);
+      expect(terms.reloadCalls[1].uid, 'anon-2');
+      expect(terms.reloadCalls[1].isAnonymous, isTrue);
+      // mirror 는 호출되지 않음 (full→anon 은 전이 대상 아님).
+      expect(terms.mirrorCalls, isEmpty);
+    });
 
-    test(
-      'Test 5: 동일 UID 재emit (userChanges idle refresh) → '
-      'reloadForUser 추가 호출 없음 (불필요 Firestore read 차단)',
-      () async {
-        final controller = StreamController<fb.User?>();
-        addTearDown(controller.close);
-        final analytics = _MockFirebaseAnalytics();
-        final crashlytics = _MockFirebaseCrashlytics();
-        stubAnalytics(analytics);
-        stubCrashlytics(crashlytics);
-        final terms = _RecordingTermsNotifier();
+    test('Test 5: 동일 UID 재emit (userChanges idle refresh) → '
+        'reloadForUser 추가 호출 없음 (불필요 Firestore read 차단)', () async {
+      final controller = StreamController<fb.User?>();
+      addTearDown(controller.close);
+      final analytics = _MockFirebaseAnalytics();
+      final crashlytics = _MockFirebaseCrashlytics();
+      stubAnalytics(analytics);
+      stubCrashlytics(crashlytics);
+      final terms = _RecordingTermsNotifier();
 
-        final container = makeContainer(
-          controller: controller,
-          analytics: analytics,
-          crashlytics: crashlytics,
-          terms: terms,
-        );
-        addTearDown(container.dispose);
-        final sub =
-            container.listen(authUserObserverProvider, (_, _) {});
-        addTearDown(sub.close);
+      final container = makeContainer(
+        controller: controller,
+        analytics: analytics,
+        crashlytics: crashlytics,
+        terms: terms,
+      );
+      addTearDown(container.dispose);
+      final sub = container.listen(authUserObserverProvider, (_, _) {});
+      addTearDown(sub.close);
 
-        controller.add(makeUser(uid: 'user-A', isAnonymous: false));
-        await Future<void>.delayed(Duration.zero);
-        controller.add(makeUser(uid: 'user-A', isAnonymous: false));
-        await Future<void>.delayed(Duration.zero);
+      controller.add(makeUser(uid: 'user-A', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
+      controller.add(makeUser(uid: 'user-A', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
 
-        // reload 호출 1회 (null→A) — A→A 는 prevUid 비교로 건너뜀.
-        expect(
-          terms.reloadCalls.length,
-          1,
-          reason: '동일 UID 재emit 시 reloadForUser 호출 안 됨',
-        );
-        expect(terms.reloadCalls[0].uid, 'user-A');
-      },
-    );
+      // reload 호출 1회 (null→A) — A→A 는 prevUid 비교로 건너뜀.
+      expect(
+        terms.reloadCalls.length,
+        1,
+        reason: '동일 UID 재emit 시 reloadForUser 호출 안 됨',
+      );
+      expect(terms.reloadCalls[0].uid, 'user-A');
+    });
   });
 
   group('authUserObserver mirror→reload 직렬화 데이터 연속성 (Test 6)', () {
-    test(
-      'Test 6: anonymous→full 전이 시 mirrorToFirestore (write) → '
-      'reloadForUser (read) 직렬화로 원본 acceptance 복원',
-      () async {
-        // 사전: SharedPreferences 에 익명 단계의 acceptance 저장.
-        final originalAcceptedAt = DateTime.utc(2026, 4, 15, 9, 0, 0);
-        final original = TermsAcceptance(
-          version: TermsNotifier.currentVersion,
-          service: true,
-          privacy: true,
-          marketing: true,
-          acceptedAt: originalAcceptedAt,
-        );
-        SharedPreferences.setMockInitialValues(<String, Object>{
-          'terms.accepted_value': jsonEncode(original.toJson()),
-        });
+    test('Test 6: anonymous→full 전이 시 mirrorToFirestore (write) → '
+        'reloadForUser (read) 직렬화로 원본 acceptance 복원', () async {
+      // 사전: SharedPreferences 에 익명 단계의 acceptance 저장.
+      final originalAcceptedAt = DateTime.utc(2026, 4, 15, 9, 0, 0);
+      final original = TermsAcceptance(
+        version: TermsNotifier.currentVersion,
+        service: true,
+        privacy: true,
+        marketing: true,
+        acceptedAt: originalAcceptedAt,
+      );
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'terms.accepted_value': jsonEncode(original.toJson()),
+      });
 
-        final controller = StreamController<fb.User?>();
-        addTearDown(controller.close);
-        final analytics = _MockFirebaseAnalytics();
-        final crashlytics = _MockFirebaseCrashlytics();
-        stubAnalytics(analytics);
-        stubCrashlytics(crashlytics);
+      final controller = StreamController<fb.User?>();
+      addTearDown(controller.close);
+      final analytics = _MockFirebaseAnalytics();
+      final crashlytics = _MockFirebaseCrashlytics();
+      stubAnalytics(analytics);
+      stubCrashlytics(crashlytics);
 
-        // Recording stub 으로 호출 순서 검증 (real implementation 은 Task 2 검증).
-        final terms = _RecordingTermsNotifier(initial: original);
+      // Recording stub 으로 호출 순서 검증 (real implementation 은 Task 2 검증).
+      final terms = _RecordingTermsNotifier(initial: original);
 
-        final container = makeContainer(
-          controller: controller,
-          analytics: analytics,
-          crashlytics: crashlytics,
-          terms: terms,
-        );
-        addTearDown(container.dispose);
-        final sub =
-            container.listen(authUserObserverProvider, (_, _) {});
-        addTearDown(sub.close);
+      final container = makeContainer(
+        controller: controller,
+        analytics: analytics,
+        crashlytics: crashlytics,
+        terms: terms,
+      );
+      addTearDown(container.dispose);
+      final sub = container.listen(authUserObserverProvider, (_, _) {});
+      addTearDown(sub.close);
 
-        // 1) 익명 emit
-        controller.add(makeUser(uid: 'anon-uid', isAnonymous: true));
-        await Future<void>.delayed(Duration.zero);
-        // 2) 정식 emit (전이)
-        controller.add(
-            makeUser(uid: 'continuity-uid', isAnonymous: false));
-        await Future<void>.delayed(Duration.zero);
+      // 1) 익명 emit
+      controller.add(makeUser(uid: 'anon-uid', isAnonymous: true));
+      await Future<void>.delayed(Duration.zero);
+      // 2) 정식 emit (전이)
+      controller.add(makeUser(uid: 'continuity-uid', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
 
-        // 호출 순서 검증: anon→full 전이에서 mirror 가 reload 보다 먼저
-        // 직렬화되어야 한다 (race condition 차단).
-        expect(terms.mirrorCalls, ['continuity-uid']);
-        // reload 는 anon (idx 0), continuity-uid (idx 1).
-        expect(terms.reloadCalls.length, 2);
-        expect(terms.reloadCalls[1].uid, 'continuity-uid');
-        expect(terms.reloadCalls[1].isAnonymous, isFalse);
+      // 호출 순서 검증: anon→full 전이에서 mirror 가 reload 보다 먼저
+      // 직렬화되어야 한다 (race condition 차단).
+      expect(terms.mirrorCalls, ['continuity-uid']);
+      // reload 는 anon (idx 0), continuity-uid (idx 1).
+      expect(terms.reloadCalls.length, 2);
+      expect(terms.reloadCalls[1].uid, 'continuity-uid');
+      expect(terms.reloadCalls[1].isAnonymous, isFalse);
 
-        // 데이터 연속성 의의: build() 의 initial state 가 mirrorToFirestore
-        // payload 의 source 가 되고, reloadForUser 가 그 직후 호출되어
-        // freshly mirrored 데이터를 read 할 수 있도록 await 직렬화 보장.
-        // (실제 Firestore read 정확성은 Task 2 의 terms_notifier_firestore_test
-        // Test 4 에서 millisecond 단위로 검증된다.)
-      },
-    );
+      // 데이터 연속성 의의: build() 의 initial state 가 mirrorToFirestore
+      // payload 의 source 가 되고, reloadForUser 가 그 직후 호출되어
+      // freshly mirrored 데이터를 read 할 수 있도록 await 직렬화 보장.
+      // (실제 Firestore read 정확성은 Task 2 의 terms_notifier_firestore_test
+      // Test 4 에서 millisecond 단위로 검증된다.)
+    });
   });
 }
