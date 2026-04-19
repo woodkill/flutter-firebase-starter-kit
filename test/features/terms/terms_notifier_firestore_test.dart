@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
@@ -216,6 +217,11 @@ void main() {
         final original = container.read(termsProvider);
         expect(original, isNotNull);
 
+        // Plan 10-12 Issue #8: mirrorToFirestore 가 pre-read 를 수행. mirror
+        // 단계에서는 문서 미존재 (exists=false) 로 stub 하여 pre-read 통과 +
+        // write 경로 유지.
+        when(() => mockSnapshot.exists).thenReturn(false);
+
         // 2) mirrorToFirestore 호출 → mockDoc.set 캡처.
         await notifier.mirrorToFirestore(uid: 'rt-uid');
 
@@ -332,6 +338,64 @@ void main() {
         expect(state.marketing, isTrue);
         // 익명 경로 — Firestore read 호출되지 않아야 함.
         verifyNever(() => mockFirestore.collection(any()));
+      },
+    );
+
+    test(
+      'Test 8 (Issue #8 Plan 10-12): multi-user invariant — Firestore A 문서 '
+      '존재 + termsAccepted 필드 부재 시 mirror skip 후 reloadForUser 가 '
+      'state=null 반환 (분기 (5) /onboarding 발동 조건)',
+      () async {
+        // Given: 정식 사용자 A 의 Firestore 문서 존재, termsAccepted 필드
+        // 삭제 상태 (UAT Test 21 재현 — 관리자가 필드 수동 삭제).
+        SharedPreferences.setMockInitialValues({});
+        when(() => mockSnapshot.exists).thenReturn(true);
+        when(() => mockSnapshot.data())
+            .thenReturn(<String, dynamic>{'displayName': 'User A'});
+
+        final container = createContainer();
+        final notifier = container.read(termsProvider.notifier);
+
+        // Crashlytics setCustomKey mock (본 파일 setUp 에 setCustomKey 가
+        // 없으므로 inline stub).
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
+
+        // Given: device-local 에서 익명 B 가 약관 동의 → _acceptance=B 동의값.
+        await notifier.accept(
+          service: true,
+          privacy: true,
+          marketing: true,
+        );
+
+        // When (step 1): 익명 B → 정식 A 전이 — authUserObserver 가 mirror 호출.
+        final mirrorResult = await notifier.mirrorToFirestore(uid: 'A-UID');
+
+        // Then (step 1): mirror skip — A 의 기존 문서는 보존된다.
+        expect(mirrorResult, isA<Success<dynamic>>());
+        verifyNever(
+          () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+        );
+
+        // When (step 2): mirror 후 authUserObserver 가 reloadForUser 호출.
+        await notifier.reloadForUser(uid: 'A-UID', isAnonymous: false);
+
+        // Then (step 2): Firestore A 에 termsAccepted 필드가 없으므로 state=null.
+        // authRedirect 분기 (5) 가 /onboarding 으로 강제 리다이렉트하는 조건
+        // 성립.
+        expect(
+          container.read(termsProvider),
+          isNull,
+          reason:
+              'multi-user invariant — 기존 사용자 A 의 termsAccepted 필드 부재 시 '
+              'device-local 동의값이 승계되지 않아야 한다 (Test 21 기대)',
+        );
+        expect(
+          notifier.lastReloadedUid,
+          'A-UID',
+          reason: 'Issue #7 C-1 — reloadForUser 완료 후 lastReloadedUid 갱신',
+        );
       },
     );
   });

@@ -285,6 +285,23 @@ class TermsNotifier extends _$TermsNotifier {
   /// no-op 성공으로 전환하여 mirror→reload 직렬화 체인 붕괴 및 로그 노이즈를
   /// 제거한다.
   ///
+  /// **Issue #8 (Plan 10-12 — multi-user invariant):** `users/{uid}` 문서가
+  /// 이미 Firestore 에 존재하는 경우 mirror 를 skip (no-op 성공 반환) 한다.
+  /// device-local 익명 사용자의 동의값이 기존 정식 사용자 A 의 문서에 덮어
+  /// 씌워지는 multi-user device invariant 위반을 차단한다. 문서 미존재
+  /// (snapshot.exists=false) 인 경우에만 기존 set(merge: true) 로 write 하여
+  /// BLOCKER #4 (익명 → 정식 승격 시 약관 동의 보존) 를 유지한다.
+  /// skip 사유는 Crashlytics setCustomKey('mirror_skip_reason', ...) 로 추적.
+  ///
+  /// **revision W-1 scope note:** "문서 존재 + termsAccepted 필드 존재 +
+  /// version < currentVersion" 케이스 (버전 bump 후 재동의 유도) 는 본 Plan
+  /// 의 mirror 경로가 아닌 accept() flow 에서 처리한다. mirror 는 익명→정식
+  /// 전이 시점에만 authUserObserver 가 호출하며, version bump 는 앱 업데이트
+  /// 후 사용자가 명시적으로 재동의할 때 accept → mirror 경로로 새 Timestamp
+  /// 가 기록된다. 이 경우 문서는 존재하지만 "기존 사용자" 의 Firestore 상태
+  /// 자체를 보존하는 것이 multi-user invariant 의 의도이므로 skip 은 일관됨.
+  /// 재동의 강제는 [_loadFromFirestore] 의 version 비교 로직이 담당한다.
+  ///
   /// FirebaseException / 기타 예외는 Crashlytics 기록 후
   /// [ServiceUnavailable] 로 래핑한다.
   Future<Result<void>> mirrorToFirestore({required String uid}) async {
@@ -295,7 +312,17 @@ class TermsNotifier extends _$TermsNotifier {
     }
     try {
       final firestore = ref.read(firebaseFirestoreProvider);
-      await firestore.collection('users').doc(uid).set(
+      final doc = firestore.collection('users').doc(uid);
+      // Issue #8 (Plan 10-12): pre-read 로 기존 문서 여부 확인 — multi-user
+      // invariant. 문서 존재 시 skip 하여 cross-user overwrite 차단.
+      final snapshot = await doc.get();
+      if (snapshot.exists) {
+        await ref
+            .read(crashlyticsServiceProvider)
+            .setCustomKey('mirror_skip_reason', 'existing_user_doc');
+        return const Result.success(null);
+      }
+      await doc.set(
         <String, dynamic>{
           'termsAccepted': <String, dynamic>{
             'version': acceptance.version,

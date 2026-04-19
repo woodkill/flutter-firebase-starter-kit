@@ -27,6 +27,10 @@ class _MockCollection extends Mock
 class _MockDoc extends Mock
     implements DocumentReference<Map<String, dynamic>> {}
 
+// ignore: subtype_of_sealed_class
+class _MockSnapshot extends Mock
+    implements DocumentSnapshot<Map<String, dynamic>> {}
+
 class _FakeSetOptions extends Fake implements SetOptions {}
 
 class _FakeStackTrace extends Fake implements StackTrace {}
@@ -63,6 +67,17 @@ void main() {
     when(
       () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
     ).thenAnswer((_) async {});
+
+    // Plan 10-12 Issue #8: mirrorToFirestore 가 pre-read 를 수행하므로,
+    // 기본 stub 은 `snapshot.exists=false` 로 설정하여 기존 테스트(Test 6
+    // write 경로, Test 8 FirebaseException 경로)가 회귀하지 않도록 한다.
+    // Test 7 (Issue #7 D-1, _acceptance=null) 은 pre-read 미진입 → stub
+    // 영향 없음. Issue #8 skip 테스트(Test 9e) 는 per-test override 로
+    // exists=true 로 전환.
+    final defaultSnapshot = _MockSnapshot();
+    when(() => defaultSnapshot.exists).thenReturn(false);
+    when(() => defaultSnapshot.data()).thenReturn(null);
+    when(() => mockDoc.get()).thenAnswer((_) async => defaultSnapshot);
   });
 
   ProviderContainer createContainer() {
@@ -386,6 +401,84 @@ void main() {
         isNull,
         reason: '직전 값이 FULL-B 여도 null 로 재할당된다',
       );
+    });
+
+    test(
+        'Test 9e (Issue #8 Plan 10-12 — multi-user invariant): '
+        'mirrorToFirestore skip 경로 — `users/{uid}` 문서 존재 시 set 미호출 + '
+        'Result.success(null) + Crashlytics setCustomKey 기록', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      // Given: 익명 B 의 device-local 동의값으로 _acceptance 채움 (Test 21 재현).
+      await notifier.accept(
+        service: true,
+        privacy: true,
+        marketing: true,
+      );
+
+      // And: Firestore 에 정식 사용자 A 의 문서가 이미 존재 (termsAccepted 필드
+      // 유무와 무관 — 문서 존재 자체가 "기존 사용자" invariant 신호).
+      final existingSnapshot = _MockSnapshot();
+      when(() => existingSnapshot.exists).thenReturn(true);
+      when(() => existingSnapshot.data())
+          .thenReturn(<String, dynamic>{'displayName': 'Foo'});
+      when(() => mockDoc.get()).thenAnswer((_) async => existingSnapshot);
+
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
+
+      // When: 익명 B → 정식 A 전이 시점에 authUserObserver 가 mirror 호출.
+      final result = await notifier.mirrorToFirestore(uid: 'A-UID');
+
+      // Then: write 미발생 + 성공 반환.
+      expect(
+        result,
+        isA<Success<dynamic>>(),
+        reason: 'Option B — 기존 문서 존재 시 mirror 는 no-op 성공 반환',
+      );
+      verifyNever(
+        () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+      );
+      verify(() => mockDoc.get()).called(1);
+      // Crashlytics skip 사유 추적.
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'mirror_skip_reason',
+          'existing_user_doc',
+        ),
+      ).called(1);
+    });
+
+    test(
+        'Test 9f (Issue #8 Plan 10-12 — BLOCKER #4 회귀): '
+        'mirrorToFirestore write 경로 — `users/{uid}` 문서 미존재 시 set 정상 호출',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      // Given: 익명 사용자가 약관 동의 → _acceptance 채움.
+      await notifier.accept(
+        service: true,
+        privacy: true,
+        marketing: false,
+      );
+
+      // And: Firestore 에 신규 UID 문서 없음 (BLOCKER #4 최초 가입 시나리오).
+      //      setUp 기본 stub 그대로 사용 — defaultSnapshot.exists=false.
+
+      // When: 익명 → 정식 승격 시점에 mirror 호출.
+      final result = await notifier.mirrorToFirestore(uid: 'NEW-UID');
+
+      // Then: write 발생 + 성공 반환 (기존 BLOCKER #4 동작 유지).
+      expect(result, isA<Success<dynamic>>());
+      verify(() => mockDoc.get()).called(1);
+      verify(
+        () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+      ).called(1);
     });
 
     test(
