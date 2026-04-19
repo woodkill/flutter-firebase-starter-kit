@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -26,6 +28,10 @@ class _MockAnalyticsService extends Mock implements AnalyticsService {
 }
 
 class _MockCrashlytics extends Mock implements CrashlyticsService {}
+
+class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
+
+class _MockFbUser extends Mock implements fb.User {}
 
 GoRouter _buildRouter() {
   return GoRouter(
@@ -60,6 +66,7 @@ Future<void> _pumpOnboarding(
   required _MockAuthRepository mockRepo,
   required _MockAnalyticsService mockAnalytics,
   required _MockCrashlytics mockCrashlytics,
+  fb.FirebaseAuth? auth,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final router = _buildRouter();
@@ -69,6 +76,7 @@ Future<void> _pumpOnboarding(
         authRepositoryProvider.overrideWithValue(mockRepo),
         analyticsServiceProvider.overrideWithValue(mockAnalytics),
         crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+        if (auth != null) firebaseAuthProvider.overrideWithValue(auth),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -117,19 +125,20 @@ void main() {
 
   group('OnboardingScreen', () {
     testWidgets(
-        'Test 1: 첫 진입 시 1번 슬라이드 + AppBar "Skip" + FilledButton "Next" 렌더',
-        (tester) async {
-      await _pumpOnboarding(
-        tester,
-        mockRepo: mockRepo,
-        mockAnalytics: mockAnalytics,
-        mockCrashlytics: mockCrashlytics,
-      );
+      'Test 1: 첫 진입 시 1번 슬라이드 + AppBar "Skip" + FilledButton "Next" 렌더',
+      (tester) async {
+        await _pumpOnboarding(
+          tester,
+          mockRepo: mockRepo,
+          mockAnalytics: mockAnalytics,
+          mockCrashlytics: mockCrashlytics,
+        );
 
-      expect(find.text('Get started quickly'), findsOneWidget);
-      expect(find.text('Skip'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Next'), findsOneWidget);
-    });
+        expect(find.text('Get started quickly'), findsOneWidget);
+        expect(find.text('Skip'), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, 'Next'), findsOneWidget);
+      },
+    );
 
     testWidgets('Test 2: "Next" 탭 → 2번 슬라이드로 전환', (tester) async {
       await _pumpOnboarding(
@@ -145,10 +154,10 @@ void main() {
       expect(find.text('Kept safe and sound'), findsOneWidget);
     });
 
-    testWidgets(
-        'Test 3: 마지막 슬라이드 진입 → "Skip" 숨김 + 체크박스 그룹 표시 + '
-        'FilledButton "Get started" 표시 (필수 미동의 시 클릭 가능 — 헬퍼 표시 경로)',
-        (tester) async {
+    testWidgets('Test 3: 마지막 슬라이드 진입 → "Skip" 숨김 + 체크박스 그룹 표시 + '
+        'FilledButton "Get started" 표시 (필수 미동의 시 클릭 가능 — 헬퍼 표시 경로)', (
+      tester,
+    ) async {
       await _pumpOnboarding(
         tester,
         mockRepo: mockRepo,
@@ -175,10 +184,10 @@ void main() {
       expect(button.onPressed, isNotNull);
     });
 
-    testWidgets(
-        'Test 4: 필수 2개 체크 후 "Get started" 탭 → '
-        'termsNotifier.accept + signInAnonymously + markSeen 호출',
-        (tester) async {
+    testWidgets('Test 4: 필수 2개 체크 후 "Get started" 탭 → '
+        'termsNotifier.accept + signInAnonymously + markSeen 호출', (
+      tester,
+    ) async {
       // signInAnonymously stub: 성공 User 반환
       when(() => mockRepo.signInAnonymously()).thenAnswer(
         (_) async => Result.success(
@@ -191,11 +200,18 @@ void main() {
         ),
       );
 
+      // Issue #9 Plan 10-13: _handleCta 가 firebaseAuthProvider.currentUser 를
+      // 읽으므로 테스트 환경에서 실제 FirebaseAuth.instance 접근을 막기 위해
+      // currentUser=null (최초 사용자) 을 리턴하는 mock 을 주입한다.
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(null);
+
       await _pumpOnboarding(
         tester,
         mockRepo: mockRepo,
         mockAnalytics: mockAnalytics,
         mockCrashlytics: mockCrashlytics,
+        auth: mockAuth,
       );
 
       // 마지막 슬라이드로 이동
@@ -244,10 +260,10 @@ void main() {
       expect(find.text('HOME'), findsOneWidget);
     });
 
-    testWidgets(
-        'Test 5: 필수 미동의 상태에서 "Get started" 탭 → '
-        'termsRequiredError 헬퍼 텍스트 노출 (초기 hidden, 탭 후 visible)',
-        (tester) async {
+    testWidgets('Test 5: 필수 미동의 상태에서 "Get started" 탭 → '
+        'termsRequiredError 헬퍼 텍스트 노출 (초기 hidden, 탭 후 visible)', (
+      tester,
+    ) async {
       await _pumpOnboarding(
         tester,
         mockRepo: mockRepo,
@@ -262,23 +278,115 @@ void main() {
       await tester.pumpAndSettle();
 
       // 초기에는 termsRequiredError 미표시
-      expect(
-        find.text('Please agree to all required items.'),
-        findsNothing,
-      );
+      expect(find.text('Please agree to all required items.'), findsNothing);
 
       // 필수 미동의 상태에서 시작하기 탭 → 헬퍼 표시
       // (Plan 10-03 D-31: CTA 는 항상 enabled, _handleCta 가드가 헬퍼 노출)
       await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
       await tester.pump();
 
-      expect(
-        find.text('Please agree to all required items.'),
-        findsOneWidget,
-      );
+      expect(find.text('Please agree to all required items.'), findsOneWidget);
 
       // 호출자(AuthRepository) 는 호출되지 않아야 한다.
       verifyNever(() => mockRepo.signInAnonymously());
+    });
+
+    testWidgets('Test 6 (Issue #9 Plan 10-13 — 재동의 경로): '
+        '정식 사용자 A 로그인 상태 + 필수 체크 + "Get started" 탭 → '
+        'signInAnonymously 미호출 + analytics 이벤트 호출 + HOME 이동', (tester) async {
+      // 정식 사용자 A mock.
+      final mockAuth = _MockFirebaseAuth();
+      final mockUser = _MockFbUser();
+      when(() => mockUser.uid).thenReturn('A-UID');
+      when(() => mockUser.isAnonymous).thenReturn(false);
+      when(() => mockUser.emailVerified).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+
+      // 재동의 경로에서는 signInAnonymously 가 호출되지 않아야 하지만,
+      // defensive stub 만 등록하고 verifyNever 로 호출 자체를 검증한다.
+
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        auth: mockAuth,
+      );
+
+      // 마지막 슬라이드로 이동.
+      await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+      await tester.pumpAndSettle();
+
+      // 필수 2개 체크.
+      final tiles = find.byType(CheckboxListTile);
+      await tester.tap(tiles.at(1)); // service
+      await tester.pump();
+      await tester.tap(tiles.at(2)); // privacy
+      await tester.pump();
+
+      // CTA 탭.
+      await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
+      await tester.pumpAndSettle();
+
+      // signInAnonymously 호출되지 않아야 한다 (A 세션 보존).
+      verifyNever(() => mockRepo.signInAnonymously());
+
+      // analytics 이벤트는 기존과 동일하게 호출.
+      verify(
+        () => mockAnalytics.logEvent(
+          'onboarding_completed',
+          parameters: any(named: 'parameters'),
+        ),
+      ).called(1);
+
+      // HOME 이동.
+      expect(find.text('HOME'), findsOneWidget);
+    });
+
+    testWidgets('Test 7 (Issue #9 Plan 10-13 — 기본 경로 회귀): '
+        '최초 사용자 (currentUser=null) + CTA 탭 → '
+        'signInAnonymously 호출 유지 + HOME 이동 (Test 4 회귀 가드)', (tester) async {
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(null);
+
+      when(() => mockRepo.signInAnonymously()).thenAnswer(
+        (_) async => Result.success(
+          User(
+            uid: 'anon-uid',
+            email: '',
+            emailVerified: false,
+            createdAt: DateTime.utc(2026, 4, 19),
+          ),
+        ),
+      );
+
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        auth: mockAuth,
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+      await tester.pumpAndSettle();
+
+      final tiles = find.byType(CheckboxListTile);
+      await tester.tap(tiles.at(1));
+      await tester.pump();
+      await tester.tap(tiles.at(2));
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
+      await tester.pumpAndSettle();
+
+      // 기존 경로: signInAnonymously 호출됨.
+      verify(() => mockRepo.signInAnonymously()).called(1);
+      expect(find.text('HOME'), findsOneWidget);
     });
   });
 }

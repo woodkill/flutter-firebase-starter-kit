@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/analytics/analytics_service.dart';
 import '../../../core/error/result.dart';
 import '../../../core/l10n/l10n_extensions.dart';
+import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../auth/data/auth_repository.dart';
@@ -24,6 +25,10 @@ import 'onboarding_notifier.dart';
 ///    FilledButton "시작하기". 필수 2개 미동의 시 disabled.
 /// 3. "시작하기" 탭 → [TermsNotifier.accept] → [AuthRepository.signInAnonymously]
 ///    → [OnboardingNotifier.markSeen] → Analytics 이벤트 → [AppRoutes.home].
+/// 4. **Issue #9 (Plan 10-13):** 이미 정식(비익명) 사용자로 로그인된 상태에서
+///    `/onboarding` 에 도달한 경우(재동의), `signInAnonymously` 를 skip 하고
+///    [TermsNotifier.mirrorToFirestore] 를 `force: true` 로 호출하여 A 의
+///    Firestore 에 재동의를 기록한다.
 class OnboardingScreen extends ConsumerStatefulWidget {
   /// [OnboardingScreen] 을 생성한다.
   const OnboardingScreen({super.key});
@@ -74,30 +79,52 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
     setState(() => _isSubmitting = true);
 
-    final termsResult = await ref.read(termsProvider.notifier).accept(
-          service: _service,
-          privacy: _privacy,
-          marketing: _marketing,
-        );
+    final termsResult = await ref
+        .read(termsProvider.notifier)
+        .accept(service: _service, privacy: _privacy, marketing: _marketing);
     if (!mounted) return;
     if (termsResult is Failure<void>) {
       setState(() => _isSubmitting = false);
       return;
     }
 
-    final anonResult =
-        await ref.read(authRepositoryProvider).signInAnonymously();
-    if (!mounted) return;
-    if (anonResult is Failure) {
-      // D-27 오프라인 처리는 Splash 단계에서 수행. 여기서는 단순 fallback.
-      setState(() => _isSubmitting = false);
-      return;
+    // Issue #9 (Plan 10-13) — 재동의 경로: 이미 정식 사용자로 로그인된 상태에서
+    // `/onboarding` 으로 리다이렉트된 경우(Plan 10-11 stale 가드 + Plan 10-12
+    // mirror skip 로 발동된 분기 (5) /onboarding), signInAnonymously 호출은
+    // A 세션을 새 익명 세션으로 덮어쓰므로 skip 한다. 대신 A 의 Firestore 에
+    // 재동의 내용을 force write 하여 analytics + markSeen 경로로 마무리한다.
+    //
+    // Starter-kit 관점: "재동의 UX" 를 프로젝트에서 불필요하다고 판단하면
+    // 이 분기 조건 (`!currentFbUser.isAnonymous`) 을 주석 처리하거나, 상위
+    // `auth_guard.dart` 분기 (5) 를 비활성화하여 전체 기능을 끌 수 있다.
+    final currentFbUser = ref.read(firebaseAuthProvider).currentUser;
+    final isReConsent = currentFbUser != null && !currentFbUser.isAnonymous;
+
+    if (isReConsent) {
+      final mirrorResult = await ref
+          .read(termsProvider.notifier)
+          .mirrorToFirestore(uid: currentFbUser.uid, force: true);
+      if (!mounted) return;
+      if (mirrorResult is Failure) {
+        // Firestore 쓰기 실패는 UX 단절을 일으키지 않는다 — termsNotifier 가
+        // Crashlytics 에 이미 기록했으므로 조용히 계속. 재동의 의도가 반영되지
+        // 않을 수 있으므로 향후 재시도 여지를 남긴다 (현 Plan 에서는 silent).
+      }
+    } else {
+      // 기본 경로 (최초 사용자 / 익명 사용자) — 기존 signInAnonymously 호출.
+      final anonResult = await ref
+          .read(authRepositoryProvider)
+          .signInAnonymously();
+      if (!mounted) return;
+      if (anonResult is Failure) {
+        // D-27 오프라인 처리는 Splash 단계에서 수행. 여기서는 단순 fallback.
+        setState(() => _isSubmitting = false);
+        return;
+      }
     }
 
     await ref.read(onboardingProvider.notifier).markSeen();
-    await ref
-        .read(analyticsServiceProvider)
-        .logEvent('onboarding_completed');
+    await ref.read(analyticsServiceProvider).logEvent('onboarding_completed');
 
     if (!mounted) return;
     setState(() => _isSubmitting = false);
@@ -150,8 +177,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               onPressed: _handleSkip,
               child: Text(
                 l10n.onboardingSkip,
-                style: typography.labelLarge
-                    .copyWith(color: colorScheme.onSurfaceVariant),
+                style: typography.labelLarge.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           Gap(spacing.sm),
@@ -185,15 +213,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           body: l10n.onboardingSlide3Body,
                         ),
                         Gap(spacing.xl),
-                        TermsCheckboxGroup(
-                          onStateChanged: _handleTermsChanged,
-                        ),
+                        TermsCheckboxGroup(onStateChanged: _handleTermsChanged),
                         if (_showRequiredError) ...[
                           Gap(spacing.sm),
                           Text(
                             l10n.termsRequiredError,
-                            style: typography.bodyMedium
-                                .copyWith(color: colorScheme.error),
+                            style: typography.bodyMedium.copyWith(
+                              color: colorScheme.error,
+                            ),
                           ),
                         ],
                       ],
@@ -203,10 +230,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               ),
             ),
             Gap(spacing.xl),
-            OnboardingIndicator(
-              count: 3,
-              activeIndex: _currentPage,
-            ),
+            OnboardingIndicator(count: 3, activeIndex: _currentPage),
             Gap(spacing.xl),
             Padding(
               padding: EdgeInsets.symmetric(
