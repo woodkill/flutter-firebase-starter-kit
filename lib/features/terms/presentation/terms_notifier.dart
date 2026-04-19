@@ -170,8 +170,7 @@ class TermsNotifier extends _$TermsNotifier {
   Future<void> _loadFromFirestore({required String uid}) async {
     try {
       final firestore = ref.read(firebaseFirestoreProvider);
-      final snapshot =
-          await firestore.collection('users').doc(uid).get();
+      final snapshot = await firestore.collection('users').doc(uid).get();
       if (!snapshot.exists) {
         if (!ref.mounted) return;
         _acceptance = null;
@@ -193,7 +192,8 @@ class TermsNotifier extends _$TermsNotifier {
         marketing: terms['marketing'] as bool? ?? false,
         // Timestamp ↔ DateTime 역변환 ([mirrorToFirestore] 의 Timestamp.fromDate
         // 와 대칭). 누락 시 epoch 보수값.
-        acceptedAt: (terms['acceptedAt'] as Timestamp?)?.toDate() ??
+        acceptedAt:
+            (terms['acceptedAt'] as Timestamp?)?.toDate() ??
             DateTime.fromMillisecondsSinceEpoch(0),
       );
       if (!ref.mounted) return;
@@ -228,10 +228,7 @@ class TermsNotifier extends _$TermsNotifier {
   /// 사용자 UID 면 [_loadFromFirestore] 호출.
   ///
   /// authUserObserver (Plan 10-09 Task 3) 에서 UID 변경 감지 시 호출한다.
-  Future<void> reloadForUser({
-    String? uid,
-    bool isAnonymous = false,
-  }) async {
+  Future<void> reloadForUser({String? uid, bool isAnonymous = false}) async {
     if (uid == null) {
       // 로그아웃 등 — state + device-local 모두 초기화하여 다음 익명/차후
       // 사용자 진입 시 직전 정식 사용자 동의가 승계되지 않도록 차단 (CR-02).
@@ -322,18 +319,15 @@ class TermsNotifier extends _$TermsNotifier {
             .setCustomKey('mirror_skip_reason', 'existing_user_doc');
         return const Result.success(null);
       }
-      await doc.set(
-        <String, dynamic>{
-          'termsAccepted': <String, dynamic>{
-            'version': acceptance.version,
-            'service': acceptance.service,
-            'privacy': acceptance.privacy,
-            'marketing': acceptance.marketing,
-            'acceptedAt': Timestamp.fromDate(acceptance.acceptedAt),
-          },
+      await doc.set(<String, dynamic>{
+        'termsAccepted': <String, dynamic>{
+          'version': acceptance.version,
+          'service': acceptance.service,
+          'privacy': acceptance.privacy,
+          'marketing': acceptance.marketing,
+          'acceptedAt': Timestamp.fromDate(acceptance.acceptedAt),
         },
-        SetOptions(merge: true),
-      );
+      }, SetOptions(merge: true));
       return const Result.success(null);
     } on FirebaseException catch (e, st) {
       await ref

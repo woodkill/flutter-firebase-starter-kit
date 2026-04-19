@@ -60,10 +60,7 @@ class _StubTermsNotifier extends TermsNotifier {
 ///
 /// 기존 테스트 17~22건은 이 확장 stub 을 사용하지 않으므로 무수정 회귀.
 class _StubTermsNotifierWithUid extends TermsNotifier {
-  _StubTermsNotifierWithUid({
-    required this.initial,
-    required this.reloadedUid,
-  });
+  _StubTermsNotifierWithUid({required this.initial, required this.reloadedUid});
   final TermsAcceptance? initial;
   final String? reloadedUid;
 
@@ -478,11 +475,9 @@ void main() {
       return result;
     }
 
-    test(
-        'Issue #7 Test A: 정식 + emailVerified + termsAcceptance=null + '
+    test('Issue #7 Test A: 정식 + emailVerified + termsAcceptance=null + '
         'lastReloadedUid != currentUser.uid (stale) + home -> null '
-        '(stale 가드 발동 — reload 완료 대기)',
-        () async {
+        '(stale 가드 발동 — reload 완료 대기)', () async {
       // 핵심 시나리오: AuthChangeNotifier subscription #1 이 먼저 발동하여
       // authRedirect 가 실행되는 시점에 authUserObserver 의 reloadForUser 가
       // 아직 완료되지 않아 lastReloadedUid 가 직전 익명 uid 에 머물러 있음.
@@ -499,16 +494,15 @@ void main() {
       expect(
         result,
         isNull,
-        reason: 'Issue #7 C-2 — stale 가드 발동 시 null 반환하여 현재 location '
+        reason:
+            'Issue #7 C-2 — stale 가드 발동 시 null 반환하여 현재 location '
             '유지, authUserObserver.triggerRedirect 완료 후 재평가',
       );
     });
 
-    test(
-        'Issue #7 Test B: 정식 + emailVerified + termsAcceptance=null + '
+    test('Issue #7 Test B: 정식 + emailVerified + termsAcceptance=null + '
         'lastReloadedUid == currentUser.uid (reload 완료) + home -> '
-        '/onboarding (legitimate 분기 (5) 발동)',
-        () async {
+        '/onboarding (legitimate 분기 (5) 발동)', () async {
       // reloadForUser 가 완료되어 lastReloadedUid 가 현재 UID 와 일치한 뒤
       // termsAccepted=false 이면 정상적으로 /onboarding 으로 보내야 한다.
       final container = makeContainerWithReloadedUid(
@@ -530,11 +524,9 @@ void main() {
       );
     });
 
-    test(
-        'Issue #7 Test C: 정식 + emailVerified + termsAcceptance=valid + '
+    test('Issue #7 Test C: 정식 + emailVerified + termsAcceptance=valid + '
         'lastReloadedUid == currentUser.uid + matchedLocation=/login -> '
-        '/home (분기 (6) 정상 경로 회귀)',
-        () async {
+        '/home (분기 (6) 정상 경로 회귀)', () async {
       // stale 가드 도입이 분기 (6) 정상 경로를 침범하지 않음을 확인한다
       // (Issue #7 재검증의 정상 흐름 회귀 방어).
       final container = makeContainerWithReloadedUid(
@@ -652,112 +644,102 @@ void main() {
     );
   });
 
-  group(
-    'authRedirect 분기 (5) Issue #8 multi-user invariant (Plan 10-12)',
-    () {
-      /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
-      /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-      FutureOr<String?> callAuthRedirect(
-        ProviderContainer container,
-        GoRouterState state,
-      ) {
-        late FutureOr<String?> result;
-        final testProvider = Provider<Object?>((ref) {
-          result = authRedirect(ref, state);
-          return null;
-        });
-        container.read(testProvider);
-        return result;
-      }
+  group('authRedirect 분기 (5) Issue #8 multi-user invariant (Plan 10-12)', () {
+    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
+    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
+    FutureOr<String?> callAuthRedirect(
+      ProviderContainer container,
+      GoRouterState state,
+    ) {
+      late FutureOr<String?> result;
+      final testProvider = Provider<Object?>((ref) {
+        result = authRedirect(ref, state);
+        return null;
+      });
+      container.read(testProvider);
+      return result;
+    }
 
-      /// Issue #8 Test 21 전용 container — Issue #7 의
-      /// [_StubTermsNotifierWithUid] 를 재사용하여 lastReloadedUid 를 주입한다.
-      ProviderContainer makeIssue8Container({
-        required fb.User user,
-        required TermsAcceptance? termsAcceptance,
-        required String? reloadedUid,
-        bool onboardingSeen = true,
-      }) {
-        final mockAuth = _MockFirebaseAuth();
-        when(() => mockAuth.currentUser).thenReturn(user);
-        return ProviderContainer(
-          overrides: [
-            isFirebaseInitializedProvider.overrideWithValue(true),
-            firebaseAuthProvider.overrideWithValue(mockAuth),
-            onboardingProvider.overrideWith(
-              () => _StubOnboardingNotifier(onboardingSeen),
+    /// Issue #8 Test 21 전용 container — Issue #7 의
+    /// [_StubTermsNotifierWithUid] 를 재사용하여 lastReloadedUid 를 주입한다.
+    ProviderContainer makeIssue8Container({
+      required fb.User user,
+      required TermsAcceptance? termsAcceptance,
+      required String? reloadedUid,
+      bool onboardingSeen = true,
+    }) {
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(user);
+      return ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+          onboardingProvider.overrideWith(
+            () => _StubOnboardingNotifier(onboardingSeen),
+          ),
+          termsProvider.overrideWith(
+            () => _StubTermsNotifierWithUid(
+              initial: termsAcceptance,
+              reloadedUid: reloadedUid,
             ),
-            termsProvider.overrideWith(
-              () => _StubTermsNotifierWithUid(
-                initial: termsAcceptance,
-                reloadedUid: reloadedUid,
-              ),
-            ),
-          ],
-        );
-      }
+          ),
+        ],
+      );
+    }
 
-      test(
-        'Issue #8 Test 21: 정식 사용자 A + emailVerified + '
+    test('Issue #8 Test 21: 정식 사용자 A + emailVerified + '
         'termsAcceptance=null (Firestore A 에 termsAccepted 필드 부재 — '
         'mirror skip 후 reload 가 null 로드) + lastReloadedUid=A.uid '
         '(reload 완료) + matchedLocation=/ -> /onboarding '
-        '(multi-user invariant — device-local 동의값 승계 차단)',
-        () async {
-          // UAT Scenario 21 재현: Firestore 에 A 의 기존 문서가 존재하나
-          // termsAccepted 필드가 삭제된 상태 → mirrorToFirestore(A) 가 Plan
-          // 10-12 Option B 에 의해 skip → reloadForUser(A) 가 null 을 로드.
-          // authRedirect 분기 (5) 는 lastReloadedUid=A.uid 이므로 stale 가드
-          // 통과 + !termsAccepted 조건으로 /onboarding 리다이렉트.
-          final userA = regularUser(uid: 'A-UID');
-          final container = makeIssue8Container(
-            user: userA,
-            termsAcceptance: null,
-            reloadedUid: 'A-UID',
-            onboardingSeen: true,
-          );
-          addTearDown(container.dispose);
-          when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
-
-          final result = await callAuthRedirect(container, mockState);
-
-          expect(
-            result,
-            AppRoutes.onboarding,
-            reason:
-                'Issue #8 multi-user invariant — 기존 사용자 A 의 Firestore '
-                'termsAccepted 필드 부재 시 device-local 동의값이 승계되지 '
-                '않고 /onboarding 으로 재동의 요구해야 한다 (Test 21 기대)',
-          );
-        },
+        '(multi-user invariant — device-local 동의값 승계 차단)', () async {
+      // UAT Scenario 21 재현: Firestore 에 A 의 기존 문서가 존재하나
+      // termsAccepted 필드가 삭제된 상태 → mirrorToFirestore(A) 가 Plan
+      // 10-12 Option B 에 의해 skip → reloadForUser(A) 가 null 을 로드.
+      // authRedirect 분기 (5) 는 lastReloadedUid=A.uid 이므로 stale 가드
+      // 통과 + !termsAccepted 조건으로 /onboarding 리다이렉트.
+      final userA = regularUser(uid: 'A-UID');
+      final container = makeIssue8Container(
+        user: userA,
+        termsAcceptance: null,
+        reloadedUid: 'A-UID',
+        onboardingSeen: true,
       );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      test(
-        'Issue #8 Test 21b: 동일 조건 + matchedLocation=/onboarding -> null '
-        '(이미 onboarding 화면 — 리다이렉트 루프 차단 회귀 방어)',
-        () async {
-          final userA = regularUser(uid: 'A-UID');
-          final container = makeIssue8Container(
-            user: userA,
-            termsAcceptance: null,
-            reloadedUid: 'A-UID',
-            onboardingSeen: true,
-          );
-          addTearDown(container.dispose);
-          when(
-            () => mockState.matchedLocation,
-          ).thenReturn(AppRoutes.onboarding);
+      final result = await callAuthRedirect(container, mockState);
 
-          final result = await callAuthRedirect(container, mockState);
-
-          expect(
-            result,
-            isNull,
-            reason: '이미 /onboarding 화면이면 재리다이렉트 금지 (분기 (5) 공개 '
-                '경로 화이트리스트 회귀 방어)',
-          );
-        },
+      expect(
+        result,
+        AppRoutes.onboarding,
+        reason:
+            'Issue #8 multi-user invariant — 기존 사용자 A 의 Firestore '
+            'termsAccepted 필드 부재 시 device-local 동의값이 승계되지 '
+            '않고 /onboarding 으로 재동의 요구해야 한다 (Test 21 기대)',
       );
-    },
-  );
+    });
+
+    test('Issue #8 Test 21b: 동일 조건 + matchedLocation=/onboarding -> null '
+        '(이미 onboarding 화면 — 리다이렉트 루프 차단 회귀 방어)', () async {
+      final userA = regularUser(uid: 'A-UID');
+      final container = makeIssue8Container(
+        user: userA,
+        termsAcceptance: null,
+        reloadedUid: 'A-UID',
+        onboardingSeen: true,
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.onboarding);
+
+      final result = await callAuthRedirect(container, mockState);
+
+      expect(
+        result,
+        isNull,
+        reason:
+            '이미 /onboarding 화면이면 재리다이렉트 금지 (분기 (5) 공개 '
+            '경로 화이트리스트 회귀 방어)',
+      );
+    });
+  });
 }
