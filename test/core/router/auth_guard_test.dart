@@ -651,4 +651,113 @@ void main() {
       },
     );
   });
+
+  group(
+    'authRedirect 분기 (5) Issue #8 multi-user invariant (Plan 10-12)',
+    () {
+      /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
+      /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
+      FutureOr<String?> callAuthRedirect(
+        ProviderContainer container,
+        GoRouterState state,
+      ) {
+        late FutureOr<String?> result;
+        final testProvider = Provider<Object?>((ref) {
+          result = authRedirect(ref, state);
+          return null;
+        });
+        container.read(testProvider);
+        return result;
+      }
+
+      /// Issue #8 Test 21 전용 container — Issue #7 의
+      /// [_StubTermsNotifierWithUid] 를 재사용하여 lastReloadedUid 를 주입한다.
+      ProviderContainer makeIssue8Container({
+        required fb.User user,
+        required TermsAcceptance? termsAcceptance,
+        required String? reloadedUid,
+        bool onboardingSeen = true,
+      }) {
+        final mockAuth = _MockFirebaseAuth();
+        when(() => mockAuth.currentUser).thenReturn(user);
+        return ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(true),
+            firebaseAuthProvider.overrideWithValue(mockAuth),
+            onboardingProvider.overrideWith(
+              () => _StubOnboardingNotifier(onboardingSeen),
+            ),
+            termsProvider.overrideWith(
+              () => _StubTermsNotifierWithUid(
+                initial: termsAcceptance,
+                reloadedUid: reloadedUid,
+              ),
+            ),
+          ],
+        );
+      }
+
+      test(
+        'Issue #8 Test 21: 정식 사용자 A + emailVerified + '
+        'termsAcceptance=null (Firestore A 에 termsAccepted 필드 부재 — '
+        'mirror skip 후 reload 가 null 로드) + lastReloadedUid=A.uid '
+        '(reload 완료) + matchedLocation=/ -> /onboarding '
+        '(multi-user invariant — device-local 동의값 승계 차단)',
+        () async {
+          // UAT Scenario 21 재현: Firestore 에 A 의 기존 문서가 존재하나
+          // termsAccepted 필드가 삭제된 상태 → mirrorToFirestore(A) 가 Plan
+          // 10-12 Option B 에 의해 skip → reloadForUser(A) 가 null 을 로드.
+          // authRedirect 분기 (5) 는 lastReloadedUid=A.uid 이므로 stale 가드
+          // 통과 + !termsAccepted 조건으로 /onboarding 리다이렉트.
+          final userA = regularUser(uid: 'A-UID');
+          final container = makeIssue8Container(
+            user: userA,
+            termsAcceptance: null,
+            reloadedUid: 'A-UID',
+            onboardingSeen: true,
+          );
+          addTearDown(container.dispose);
+          when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+          final result = await callAuthRedirect(container, mockState);
+
+          expect(
+            result,
+            AppRoutes.onboarding,
+            reason:
+                'Issue #8 multi-user invariant — 기존 사용자 A 의 Firestore '
+                'termsAccepted 필드 부재 시 device-local 동의값이 승계되지 '
+                '않고 /onboarding 으로 재동의 요구해야 한다 (Test 21 기대)',
+          );
+        },
+      );
+
+      test(
+        'Issue #8 Test 21b: 동일 조건 + matchedLocation=/onboarding -> null '
+        '(이미 onboarding 화면 — 리다이렉트 루프 차단 회귀 방어)',
+        () async {
+          final userA = regularUser(uid: 'A-UID');
+          final container = makeIssue8Container(
+            user: userA,
+            termsAcceptance: null,
+            reloadedUid: 'A-UID',
+            onboardingSeen: true,
+          );
+          addTearDown(container.dispose);
+          when(
+            () => mockState.matchedLocation,
+          ).thenReturn(AppRoutes.onboarding);
+
+          final result = await callAuthRedirect(container, mockState);
+
+          expect(
+            result,
+            isNull,
+            reason: '이미 /onboarding 화면이면 재리다이렉트 금지 (분기 (5) 공개 '
+                '경로 화이트리스트 회귀 방어)',
+          );
+        },
+      );
+    },
+  );
 }
