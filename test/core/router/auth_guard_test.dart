@@ -25,7 +25,6 @@ class _MockCrashlytics extends Mock implements CrashlyticsService {}
 
 /// Issue #10 Plan 10-14 GC-04 테스트용 — 영원히 loading 상태를 유지하여
 /// AsyncLoading 판단 유보 분기를 재현한다. Task 3 (GC-04-E) 에서 사용.
-// ignore: unused_element
 class _LoadingOnboardingNotifier extends OnboardingNotifier {
   @override
   FutureOr<bool> build() async {
@@ -817,5 +816,176 @@ void main() {
             '경로 화이트리스트 회귀 방어)',
       );
     });
+  });
+
+  group('authRedirect fail-safe race guard — Issue #10 Plan 10-14 GC-04', () {
+    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
+    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
+    ///
+    /// [awaitSettle]=true (기본) 면 onboardingProvider.future 를 타임아웃
+    /// (50ms) 내에 await — 정상 settle 경로. GC-04-E (AsyncLoading 유지)
+    /// 에서는 false 로 호출하여 timeout 우회 + loading 상태로 authRedirect
+    /// 진입을 강제한다.
+    Future<String?> callAuthRedirect(
+      ProviderContainer container,
+      GoRouterState state, {
+      bool awaitSettle = true,
+    }) async {
+      if (awaitSettle) {
+        try {
+          await container
+              .read(onboardingProvider.future)
+              .timeout(const Duration(milliseconds: 50));
+        } on TimeoutException {
+          // 의도적으로 loading 유지 — GC-04-E 경로.
+        }
+      }
+      late FutureOr<String?> result;
+      final testProvider = Provider<Object?>((ref) {
+        result = authRedirect(ref, state);
+        return null;
+      });
+      container.read(testProvider);
+      return await result;
+    }
+
+    test(
+      'Test GC-04-A: 미인증 + onboardingSeen=true + matchedLocation=/ '
+      '-> /splash (fail-safe 발동)',
+      () async {
+        final mockCrashlytics = _MockCrashlytics();
+        when(() => mockCrashlytics.setCustomKey(any(), any<Object>()))
+            .thenAnswer((_) async {});
+
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingSeen: true,
+          crashlytics: mockCrashlytics,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.splash,
+          reason: 'GC-04: 미인증 + onboardingSeen=true + Home → /splash 복귀',
+        );
+      },
+    );
+
+    test(
+      'Test GC-04-B: 미인증 + onboardingSeen=false + matchedLocation=/ '
+      '-> /onboarding (기존 분기 2 우선, fail-safe 미발동)',
+      () async {
+        final container = makeContainer(isInitialized: true);
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.onboarding,
+          reason: '분기 (2) 가 먼저 처리되어 fail-safe 가 발동하지 않아야 함',
+        );
+      },
+    );
+
+    test(
+      'Test GC-04-C: 미인증 + onboardingSeen=true + matchedLocation=/login '
+      '-> null (공개 경로, fail-safe 미발동)',
+      () async {
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingSeen: true,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: 'unauth 화이트리스트 경로는 fail-safe 미발동',
+        );
+      },
+    );
+
+    test(
+      'Test GC-04-D: 미인증 + onboardingSeen=true + matchedLocation=/splash '
+      '-> null (무한루프 방지)',
+      () async {
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingSeen: true,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.splash);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: '/splash → /splash 자기 자신 복귀 방지',
+        );
+      },
+    );
+
+    test(
+      'Test GC-04-E: AsyncLoading 유지 상태 + matchedLocation=/ '
+      '-> null (판단 유보)',
+      () async {
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingNotifierFactory: _LoadingOnboardingNotifier.new,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        // 주의: awaitSettle=false — Future 가 영원히 resolve 안 되므로
+        // timeout 우회.
+        final result = await callAuthRedirect(
+          container,
+          mockState,
+          awaitSettle: false,
+        );
+        expect(
+          result,
+          isNull,
+          reason: 'onboardingProvider AsyncLoading 시 authRedirect 는 판단 유보',
+        );
+      },
+    );
+
+    test(
+      'Test GC-04-F (observability): fail-safe 발동 시 Crashlytics '
+      'setCustomKey(race_guard_triggered) 가 1회 호출',
+      () async {
+        final mockCrashlytics = _MockCrashlytics();
+        when(() => mockCrashlytics.setCustomKey(any(), any<Object>()))
+            .thenAnswer((_) async {});
+
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingSeen: true,
+          crashlytics: mockCrashlytics,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+        expect(result, AppRoutes.splash);
+
+        // unawaited 로 호출되므로 microtask 1틱 대기.
+        await Future<void>.delayed(Duration.zero);
+
+        verify(
+          () => mockCrashlytics.setCustomKey(
+            'race_guard_triggered',
+            'onboarding_race_v1',
+          ),
+        ).called(1);
+      },
+    );
   });
 }
