@@ -18,6 +18,8 @@ import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/terms_checkbox_group.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
+import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -32,6 +34,47 @@ class _MockCrashlytics extends Mock implements CrashlyticsService {}
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockFbUser extends Mock implements fb.User {}
+
+/// `mirrorToFirestore` 호출 인자를 기록하는 테스트용 TermsNotifier (WR-02).
+///
+/// Plan 10-13 must-have: 재동의 경로에서 `mirrorToFirestore(uid, force: true)`
+/// 가 호출되는지를 widget-level 에서 positive assertion 으로 검증하기 위해,
+/// `auth_user_observer_test.dart` 의 `_RecordingTermsNotifier` 패턴을 재사용.
+/// [mirrorCalls] 는 uid 순서, [mirrorForceCalls] 는 force 인자 순서를 기록한다.
+///
+/// `accept` / `reloadForUser` 는 본 테스트의 검증 범위 외이므로 최소 stub 으로
+/// 성공 반환 / no-op 처리한다. 실제 Firestore 접근은 일으키지 않는다.
+class _RecordingTermsNotifier extends TermsNotifier {
+  _RecordingTermsNotifier();
+
+  final List<String> mirrorCalls = <String>[];
+  final List<bool> mirrorForceCalls = <bool>[];
+
+  @override
+  TermsAcceptance? build() => null;
+
+  @override
+  Future<Result<void>> accept({
+    required bool service,
+    required bool privacy,
+    required bool marketing,
+  }) async => const Result.success(null);
+
+  @override
+  Future<Result<void>> mirrorToFirestore({
+    required String uid,
+    bool force = false,
+  }) async {
+    mirrorCalls.add(uid);
+    mirrorForceCalls.add(force);
+    return const Result.success(null);
+  }
+
+  @override
+  Future<void> reloadForUser({String? uid, bool isAnonymous = false}) async {
+    // no-op — 본 테스트의 검증 범위 외.
+  }
+}
 
 GoRouter _buildRouter() {
   return GoRouter(
@@ -67,6 +110,7 @@ Future<void> _pumpOnboarding(
   required _MockAnalyticsService mockAnalytics,
   required _MockCrashlytics mockCrashlytics,
   fb.FirebaseAuth? auth,
+  _RecordingTermsNotifier? termsOverride,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final router = _buildRouter();
@@ -77,6 +121,8 @@ Future<void> _pumpOnboarding(
         analyticsServiceProvider.overrideWithValue(mockAnalytics),
         crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
         if (auth != null) firebaseAuthProvider.overrideWithValue(auth),
+        if (termsOverride != null)
+          termsProvider.overrideWith(() => termsOverride),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -293,7 +339,10 @@ void main() {
 
     testWidgets('Test 6 (Issue #9 Plan 10-13 — 재동의 경로): '
         '정식 사용자 A 로그인 상태 + 필수 체크 + "Get started" 탭 → '
-        'signInAnonymously 미호출 + analytics 이벤트 호출 + HOME 이동', (tester) async {
+        'signInAnonymously 미호출 + analytics 이벤트 호출 + HOME 이동 + '
+        'mirrorToFirestore(uid: A-UID, force: true) positive assertion', (
+      tester,
+    ) async {
       // 정식 사용자 A mock.
       final mockAuth = _MockFirebaseAuth();
       final mockUser = _MockFbUser();
@@ -305,12 +354,19 @@ void main() {
       // 재동의 경로에서는 signInAnonymously 가 호출되지 않아야 하지만,
       // defensive stub 만 등록하고 verifyNever 로 호출 자체를 검증한다.
 
+      // WR-02: Plan 10-13 must-have (mirrorToFirestore(force: true)) 의
+      // positive assertion 을 위해 _RecordingTermsNotifier 를 주입한다.
+      // 실 Firestore 접근을 우회하여 "graceful degradation 경로로 GREEN" 이
+      // 아닌 success 경로가 검증되도록 보장한다.
+      final termsRec = _RecordingTermsNotifier();
+
       await _pumpOnboarding(
         tester,
         mockRepo: mockRepo,
         mockAnalytics: mockAnalytics,
         mockCrashlytics: mockCrashlytics,
         auth: mockAuth,
+        termsOverride: termsRec,
       );
 
       // 마지막 슬라이드로 이동.
@@ -343,6 +399,20 @@ void main() {
 
       // HOME 이동.
       expect(find.text('HOME'), findsOneWidget);
+
+      // WR-02 positive assertion — Plan 10-13 must-have artifact:
+      // 1) mirrorToFirestore 가 A 의 uid 로 1회 호출되었는지.
+      expect(
+        termsRec.mirrorCalls,
+        <String>['A-UID'],
+        reason: 'Plan 10-13 must-have — A 의 Firestore 에 재동의 재기록',
+      );
+      // 2) 해당 호출이 force=true 로 실행되어 Plan 10-12 skip 정책을 우회했는지.
+      expect(
+        termsRec.mirrorForceCalls,
+        <bool>[true],
+        reason: 'Plan 10-13 must-have — 사용자 명시적 재동의는 force=true',
+      );
     });
 
     testWidgets('Test 7 (Issue #9 Plan 10-13 — 기본 경로 회귀): '
