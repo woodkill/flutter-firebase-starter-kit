@@ -106,8 +106,9 @@ class _NoopAuthRepository implements AuthRepository {
 @riverpod
 SplashInitializer splashInitializer(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);
-  final currentUser =
-      isInitialized ? ref.watch(firebaseAuthProvider).currentUser : null;
+  final currentUser = isInitialized
+      ? ref.watch(firebaseAuthProvider).currentUser
+      : null;
   final onboardingFuture = ref.watch(onboardingProvider.future);
   final authRepository = isInitialized
       ? ref.watch(authRepositoryProvider)

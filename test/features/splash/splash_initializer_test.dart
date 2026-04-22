@@ -42,8 +42,9 @@ void main() {
       '호출 + 최소 대기',
       () async {
         final mockRepo = _MockAuthRepository();
-        when(mockRepo.signInAnonymously)
-            .thenAnswer((_) async => Result.success(stubUser()));
+        when(
+          mockRepo.signInAnonymously,
+        ).thenAnswer((_) async => Result.success(stubUser()));
 
         final initializer = SplashInitializer(
           authRepository: mockRepo,
@@ -92,30 +93,27 @@ void main() {
       },
     );
 
-    test(
-      'Test 4: isFirebaseInitialized=false -> signInAnonymously 호출 안 함 '
-      '(Phase 1 D-13)',
-      () async {
-        final mockRepo = _MockAuthRepository();
+    test('Test 4: isFirebaseInitialized=false -> signInAnonymously 호출 안 함 '
+        '(Phase 1 D-13)', () async {
+      final mockRepo = _MockAuthRepository();
 
-        final initializer = SplashInitializer(
-          authRepository: mockRepo,
-          isFirebaseInitialized: false,
-          currentUserIsNull: true,
-          onboardingFuture: Future.value(true),
-        );
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: false,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+      );
 
-        final result = await initializer.initialize();
-        expect(result, isA<Success<void>>());
-        verifyNever(mockRepo.signInAnonymously);
-      },
-    );
+      final result = await initializer.initialize();
+      expect(result, isA<Success<void>>());
+      verifyNever(mockRepo.signInAnonymously);
+    });
 
     test('Test 5: signInAnonymously 실패 시 Result.failure 반환', () async {
       final mockRepo = _MockAuthRepository();
-      when(mockRepo.signInAnonymously).thenAnswer(
-        (_) async => const Result.failure(NoInternetConnection()),
-      );
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => const Result.failure(NoInternetConnection()));
 
       final initializer = SplashInitializer(
         authRepository: mockRepo,
@@ -126,39 +124,34 @@ void main() {
 
       final result = await initializer.initialize();
       expect(result, isA<Failure<void>>());
-      expect(
-        (result as Failure<void>).exception,
-        isA<NoInternetConnection>(),
-      );
+      expect((result as Failure<void>).exception, isA<NoInternetConnection>());
     });
 
-    test(
-      'Test 6 (Issue #10 Plan 10-14 GC-03): onboardingFuture 가 minDuration '
-      '보다 오래 걸려도 settle 후 signInAnonymously 가 호출된다 '
-      '(race 구조적 제거 — 실측 prefs 로드 지연 336~571ms 경계 재현)',
-      () async {
-        final mockRepo = _MockAuthRepository();
-        when(mockRepo.signInAnonymously)
-            .thenAnswer((_) async => Result.success(stubUser()));
+    test('Test 6 (Issue #10 Plan 10-14 GC-03): onboardingFuture 가 minDuration '
+        '보다 오래 걸려도 settle 후 signInAnonymously 가 호출된다 '
+        '(race 구조적 제거 — 실측 prefs 로드 지연 336~571ms 경계 재현)', () async {
+      final mockRepo = _MockAuthRepository();
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => Result.success(stubUser()));
 
-        // minDuration 1ms << onboardingFuture 지연 700ms.
-        // 이전 race 구조에서는 minDuration 만 대기하고 onboardingSeen=false
-        // snapshot 으로 분기를 미발동했으나, Plan 10-14 는 onboardingFuture
-        // 를 선행 await 하므로 signInAnonymously 가 정상 호출됨.
-        final initializer = SplashInitializer(
-          authRepository: mockRepo,
-          isFirebaseInitialized: true,
-          currentUserIsNull: true,
-          onboardingFuture: Future<bool>.delayed(
-            const Duration(milliseconds: 700),
-            () => true,
-          ),
-        );
+      // minDuration 1ms << onboardingFuture 지연 700ms.
+      // 이전 race 구조에서는 minDuration 만 대기하고 onboardingSeen=false
+      // snapshot 으로 분기를 미발동했으나, Plan 10-14 는 onboardingFuture
+      // 를 선행 await 하므로 signInAnonymously 가 정상 호출됨.
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future<bool>.delayed(
+          const Duration(milliseconds: 700),
+          () => true,
+        ),
+      );
 
-        final result = await initializer.initialize();
-        expect(result, isA<Success<void>>());
-        verify(mockRepo.signInAnonymously).called(1);
-      },
-    );
+      final result = await initializer.initialize();
+      expect(result, isA<Success<void>>());
+      verify(mockRepo.signInAnonymously).called(1);
+    });
   });
 }
