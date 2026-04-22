@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/router/auth_guard.dart';
@@ -20,14 +21,33 @@ class _MockUser extends Mock implements fb.User {}
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
+class _MockCrashlytics extends Mock implements CrashlyticsService {}
+
+/// Issue #10 Plan 10-14 GC-04 테스트용 — 영원히 loading 상태를 유지하여
+/// AsyncLoading 판단 유보 분기를 재현한다. Task 3 (GC-04-E) 에서 사용.
+// ignore: unused_element
+class _LoadingOnboardingNotifier extends OnboardingNotifier {
+  @override
+  FutureOr<bool> build() async {
+    // 의도적으로 never-resolving future 를 반환하여 AsyncLoading 유지.
+    final completer = Completer<bool>();
+    return completer.future;
+  }
+}
+
 /// onboarding/terms Provider 의 build() 가 SharedPreferences 비동기 로드를
-/// 시도하므로, 테스트에서는 동기 stub Notifier 로 교체하여 race 없이 검증한다.
+/// 시도하므로, 테스트에서는 async stub Notifier 로 교체하여 race 없이 검증한다.
+///
+/// Issue #10 Plan 10-14: [OnboardingNotifier.build] 가 `FutureOr<bool> async`
+/// 로 전환되어 stub 도 동일 시그니처를 준수한다. [callAuthRedirect] 가
+/// `await container.read(onboardingProvider.future)` 로 settle 대기 후
+/// authRedirect 를 호출하도록 수정됨.
 class _StubOnboardingNotifier extends OnboardingNotifier {
   _StubOnboardingNotifier(this._initial);
   final bool _initial;
 
   @override
-  bool build() => _initial;
+  FutureOr<bool> build() async => _initial;
 }
 
 class _StubTermsNotifier extends TermsNotifier {
@@ -74,6 +94,7 @@ class _StubTermsNotifierWithUid extends TermsNotifier {
 void main() {
   setUpAll(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    registerFallbackValue(StackTrace.empty);
   });
 
   late _MockGoRouterState mockState;
@@ -82,16 +103,43 @@ void main() {
     mockState = _MockGoRouterState();
   });
 
+  /// 기본 crashlytics mock — setCustomKey / recordError / setUserId 등
+  /// 모든 메서드를 noop 으로 stub 하여 fail-safe 분기의 observability
+  /// 호출 경로에서 throw 하지 않도록 한다 (Plan 10-14).
+  _MockCrashlytics defaultCrashlytics() {
+    final mock = _MockCrashlytics();
+    when(() => mock.setCustomKey(any(), any<Object>()))
+        .thenAnswer((_) async {});
+    when(
+      () => mock.recordError(
+        any<Object>(),
+        any<StackTrace?>(),
+        reason: any(named: 'reason'),
+        fatal: any(named: 'fatal'),
+      ),
+    ).thenAnswer((_) async {});
+    when(() => mock.setUserId(any())).thenAnswer((_) async {});
+    return mock;
+  }
+
   /// 인증 상태 + onboarding/terms 상태를 시뮬레이션하는 컨테이너 빌더.
   ///
   /// [user] 가 null 이면 미인증, non-null 이면 인증 (mock isAnonymous 활용).
   /// [onboardingSeen] 기본 false (첫 실행 가정).
   /// [termsAcceptance] null 이면 약관 미동의.
+  ///
+  /// Issue #10 Plan 10-14: [crashlytics] (optional) / [onboardingOverride]
+  /// (optional) 파라미터 추가 — GC-04 fail-safe 분기의 Crashlytics
+  /// observability 주입 + AsyncLoading 유지 stub 주입을 지원한다. 기본
+  /// crashlytics 는 [defaultCrashlytics] (모든 메서드 noop stub) — 기존
+  /// 22+ 테스트가 fail-safe 분기에 의도치 않게 진입해도 throw 하지 않는다.
   ProviderContainer makeContainer({
     required bool isInitialized,
     fb.User? user,
     bool onboardingSeen = false,
     TermsAcceptance? termsAcceptance,
+    CrashlyticsService? crashlytics,
+    OnboardingNotifier Function()? onboardingNotifierFactory,
   }) {
     final mockAuth = _MockFirebaseAuth();
     when(() => mockAuth.currentUser).thenReturn(user);
@@ -100,9 +148,13 @@ void main() {
         isFirebaseInitializedProvider.overrideWithValue(isInitialized),
         firebaseAuthProvider.overrideWithValue(mockAuth),
         onboardingProvider.overrideWith(
-          () => _StubOnboardingNotifier(onboardingSeen),
+          onboardingNotifierFactory ??
+              () => _StubOnboardingNotifier(onboardingSeen),
         ),
         termsProvider.overrideWith(() => _StubTermsNotifier(termsAcceptance)),
+        crashlyticsServiceProvider.overrideWithValue(
+          crashlytics ?? defaultCrashlytics(),
+        ),
       ],
     );
   }
@@ -136,10 +188,17 @@ void main() {
     () {
       /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
       /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-      FutureOr<String?> callAuthRedirect(
+      ///
+      /// Issue #10 Plan 10-14: onboardingProvider 가 AsyncNotifier 로 전환되어
+      /// stub 도 async build 를 사용한다. authRedirect 호출 전에 settle 대기하여
+      /// 기존 테스트 (1~13 / Issue #6 Test A~D / Issue #7 Test A~C / Issue #8
+      /// Test 21/21b 등) 의 기대 분기 도달을 보장한다. AsyncLoading 분기는
+      /// Plan 10-14 신규 테스트 (GC-04-E) 에서 별도 검증.
+      Future<String?> callAuthRedirect(
         ProviderContainer container,
         GoRouterState state,
-      ) {
+      ) async {
+        await container.read(onboardingProvider.future);
         late FutureOr<String?> result;
         final testProvider = Provider<Object?>((ref) {
           result = authRedirect(ref, state);
@@ -171,8 +230,13 @@ void main() {
       );
 
       test(
-        'Test 3: 미인증 + onboardingSeen=true + home -> null (Splash 가 책임)',
+        'Test 3: 미인증 + onboardingSeen=true + home -> /splash '
+        '(Issue #10 Plan 10-14 GC-04 fail-safe — 기존 null 기대 갱신)',
         () async {
+          // Plan 10-14 GC-04 fail-safe 도입 전에는 Splash 가 signInAnonymously
+          // 를 책임지고 authRedirect 는 null 을 반환했다. Plan 10-14 는
+          // race 가 재발해도 silent 미인증 Home 랜딩을 차단하기 위해 이
+          // 조합에서 /splash 로 복귀시킨다 (2차 방어벽).
           final container = makeContainer(
             isInitialized: true,
             onboardingSeen: true,
@@ -181,7 +245,7 @@ void main() {
           when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
           final result = await callAuthRedirect(container, mockState);
-          expect(result, isNull);
+          expect(result, AppRoutes.splash);
         },
       );
 
@@ -346,10 +410,13 @@ void main() {
   group('authRedirect 분기 (5) — Issue #6 회귀 가드 (Plan 10-09)', () {
     /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
     /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    FutureOr<String?> callAuthRedirect(
+    ///
+    /// Issue #10 Plan 10-14: onboardingProvider.future settle 대기 포함.
+    Future<String?> callAuthRedirect(
       ProviderContainer container,
       GoRouterState state,
-    ) {
+    ) async {
+      await container.read(onboardingProvider.future);
       late FutureOr<String?> result;
       final testProvider = Provider<Object?>((ref) {
         result = authRedirect(ref, state);
@@ -462,10 +529,13 @@ void main() {
 
     /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
     /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    FutureOr<String?> callAuthRedirect(
+    ///
+    /// Issue #10 Plan 10-14: onboardingProvider.future settle 대기 포함.
+    Future<String?> callAuthRedirect(
       ProviderContainer container,
       GoRouterState state,
-    ) {
+    ) async {
+      await container.read(onboardingProvider.future);
       late FutureOr<String?> result;
       final testProvider = Provider<Object?>((ref) {
         result = authRedirect(ref, state);
@@ -546,10 +616,13 @@ void main() {
   group('authRedirect 분기 (3) — Issue #4 회귀 가드 (Plan 10-10)', () {
     /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
     /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    FutureOr<String?> callAuthRedirect(
+    ///
+    /// Issue #10 Plan 10-14: onboardingProvider.future settle 대기 포함.
+    Future<String?> callAuthRedirect(
       ProviderContainer container,
       GoRouterState state,
-    ) {
+    ) async {
+      await container.read(onboardingProvider.future);
       late FutureOr<String?> result;
       final testProvider = Provider<Object?>((ref) {
         result = authRedirect(ref, state);
@@ -647,10 +720,13 @@ void main() {
   group('authRedirect 분기 (5) Issue #8 multi-user invariant (Plan 10-12)', () {
     /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
     /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    FutureOr<String?> callAuthRedirect(
+    ///
+    /// Issue #10 Plan 10-14: onboardingProvider.future settle 대기 포함.
+    Future<String?> callAuthRedirect(
       ProviderContainer container,
       GoRouterState state,
-    ) {
+    ) async {
+      await container.read(onboardingProvider.future);
       late FutureOr<String?> result;
       final testProvider = Provider<Object?>((ref) {
         result = authRedirect(ref, state);

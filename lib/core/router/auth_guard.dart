@@ -134,7 +134,21 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   final isAnonymous = currentUser?.isAnonymous ?? false;
   final matchedLocation = state.matchedLocation;
   final isOnUnauthRoute = _unauthRoutes.contains(matchedLocation);
-  final onboardingSeen = ref.read(onboardingProvider);
+  // Issue #10 Plan 10-14 GC-02: onboardingProvider 가 AsyncNotifier<bool>
+  // 로 전환되어 AsyncValue 로 소비한다. AsyncLoading 상태면 판단을 유보
+  // (null 반환) 하여 prefs 로드 완료 전 stale snapshot 으로 분기를
+  // 잘못 평가하지 않도록 한다. GC-04 fail-safe 분기의 전제 조건이기도 함.
+  final onboardingAsync = ref.read(onboardingProvider);
+  if (onboardingAsync.isLoading) {
+    if (kDebugMode) {
+      debugPrint(
+        'authRedirect: onboardingProvider loading '
+        '-> null (await settle) [Issue #10 GC-02]',
+      );
+    }
+    return null;
+  }
+  final onboardingSeen = onboardingAsync.value ?? false;
   final termsAcceptance = ref.read(termsProvider);
   final termsAccepted = termsAcceptance != null;
 
@@ -240,6 +254,37 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
       termsAccepted &&
       (isOnUnauthRoute || matchedLocation == AppRoutes.verifyEmail)) {
     return AppRoutes.home;
+  }
+
+  // (6.5) Issue #10 GC-04 fail-safe (Plan 10-14):
+  // 미인증 + onboardingSeen=true + !공개경로 + matchedLocation != /splash
+  // -> /splash 복귀. 목적: OnboardingNotifier race 가 재발하거나 다른
+  // race 가 미인증 상태로 Home 접근을 허용해도, Splash 가 signInAnonymously
+  // 재시도 단일 진입점이므로 여기서 fail-safe 로 복귀시킨다. AsyncLoading
+  // 은 이미 위에서 null 로 처리되어 여기 도달하지 않는다 (판단 유보 철학).
+  //
+  // 공개 경로 (_unauthRoutes: login/signup/forgotPassword/onboarding/terms/*)
+  // 는 이미 isOnUnauthRoute=true 로 이 분기에서 제외된다. /splash 도
+  // 자기 자신 복귀 무한루프를 방지하기 위해 명시적으로 제외한다.
+  if (!isAuthenticated &&
+      onboardingSeen &&
+      !isOnUnauthRoute &&
+      matchedLocation != AppRoutes.splash) {
+    if (kDebugMode) {
+      debugPrint(
+        'authRedirect: fail-safe race guard '
+        '(currentUser=null, onboardingSeen=true, matchedLocation='
+        '$matchedLocation) -> /splash [Issue #10 GC-04]',
+      );
+    }
+    // Observability: Crashlytics custom key 1회 기록. 비용 미미 + UAT
+    // 증거로 가치 큼 (Claude 재량 — CONTEXT gap_closure_issue_10 명시).
+    unawaited(
+      ref
+          .read(crashlyticsServiceProvider)
+          .setCustomKey('race_guard_triggered', 'onboarding_race_v1'),
+    );
+    return AppRoutes.splash;
   }
 
   return null; // (7) AUTH-13 자동 검증 — 인증 완료 사용자 Home 랜딩 허용.

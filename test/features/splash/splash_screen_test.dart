@@ -82,7 +82,7 @@ void main() {
         authRepository: mockRepo,
         isFirebaseInitialized: false,
         currentUserIsNull: true,
-        onboardingSeen: false,
+        onboardingFuture: Future.value(false),
       );
       final router = _testRouter();
       addTearDown(router.dispose);
@@ -109,7 +109,7 @@ void main() {
           authRepository: mockRepo,
           isFirebaseInitialized: false, // signInAnonymously 호출 안 함
           currentUserIsNull: true,
-          onboardingSeen: false,
+          onboardingFuture: Future.value(false),
         );
         final router = _testRouter();
         addTearDown(router.dispose);
@@ -142,7 +142,7 @@ void main() {
           authRepository: mockRepo,
           isFirebaseInitialized: true,
           currentUserIsNull: true,
-          onboardingSeen: true,
+          onboardingFuture: Future.value(true),
         );
         final router = _testRouter();
         addTearDown(router.dispose);
