@@ -20,6 +20,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
+import 'provider_label_formatter.dart';
 
 /// 현재 빌드 환경 정보와 디자인 토큰 쇼케이스를 표시하는 화면.
 ///
@@ -836,7 +837,7 @@ class _AccountSection extends ConsumerWidget {
         _EnvironmentCard(
           icon: Icons.security,
           label: l10n.authAccountProviders,
-          value: _formatProviderIds(user.providerIds, l10n),
+          value: formatProviderIds(user.providerIds, l10n),
         ),
         if (kDebugMode) ...[
           Gap(spacing.md),
@@ -943,28 +944,6 @@ class _AccountSection extends ConsumerWidget {
       await ref.read(authRepositoryProvider).signOut();
     }
   }
-}
-
-/// providerIds를 사용자 가독형 라벨 문자열로 변환한다 (D-11).
-///
-/// - `'password'` -> [AppLocalizations.authAccountProviderEmailPassword]
-/// - `'google.com'` -> [AppLocalizations.authAccountProviderGoogle]
-/// - `'apple.com'` -> [AppLocalizations.authAccountProviderApple] (Phase 8)
-/// - `'facebook.com'` -> [AppLocalizations.authAccountProviderFacebook] (Phase 9)
-/// - 미지원 프로바이더는 raw ID 그대로 표시.
-String _formatProviderIds(List<String> providerIds, AppLocalizations l10n) {
-  if (providerIds.isEmpty) return '-';
-  return providerIds
-      .map(
-        (id) => switch (id) {
-          'password' => l10n.authAccountProviderEmailPassword,
-          'google.com' => l10n.authAccountProviderGoogle,
-          'apple.com' => l10n.authAccountProviderApple,
-          'facebook.com' => l10n.authAccountProviderFacebook,
-          _ => id,
-        },
-      )
-      .join(', ');
 }
 
 /// 환경 카드 값(value) 의 시맨틱 상태.
