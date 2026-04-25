@@ -65,3 +65,80 @@ Splash 이미지는 `assets/images/splash/logo.png` (light) / `logo_dark.png`
   수동 편집보다는 `flutter_native_splash.yaml` 옵션 (예: `color`, `color_dark`,
   `ios_content_mode`) 을 먼저 검토한다.
 - 자세한 배경은 `assets/images/splash/README.md` 를 참조.
+
+### Firebase Console 활성화 — Crashlytics / Analytics
+
+Starter Kit 는 dev/stg/prod 3-Flavor 구조이고 dev flavor 만 실제 Firebase 프로젝트에
+연결돼 있다. SDK 호출 코드 (`lib/core/bootstrap.dart`, `lib/core/crashlytics/`,
+`lib/core/analytics/`) 는 모든 flavor 에서 동작하지만, **Firebase Console 의
+프로젝트 단위 토글이 OFF 면 Console 도달이 차단된다 (수신 0건).**
+
+#### dev flavor — Crashlytics 활성화 절차 (필수, 최초 1회)
+
+1. [Firebase Console](https://console.firebase.google.com/) → 본인 dev 프로젝트
+   선택 → 좌측 메뉴 **Crashlytics** 클릭.
+2. 첫 진입 시 "Enable Crashlytics" 안내가 표시되면 → **Enable** 버튼 클릭.
+3. 프로젝트 설정 → **Integrations** → Crashlytics 토글이 **ON** 인지 확인.
+   - dev 프로젝트는 기본적으로 OFF 상태일 수 있다 (`fetched settings:
+     "firebase_crashlytics_enabled": false` 로그가 찍히면 확실히 OFF).
+4. (Android only) `android/app/src/main/AndroidManifest.xml` 의
+   `firebase_crashlytics_collection_enabled` 메타데이터가 명시적으로 `false`
+   설정돼 있지 않은지 확인 (Starter Kit 기본값은 미설정 → SDK 기본 활성화 ON).
+
+#### Crashlytics 동작 확인 (Smoke Test)
+
+1. `fvm flutter run --flavor dev --dart-define-from-file=config/dev.json` 으로
+   dev 빌드 실행.
+2. Home 화면 우상단 **Dev Tools** → "테스트 에러" 버튼 탭 (release 빌드에서는
+   tree-shaken 됨).
+3. 5분 이내 Firebase Console > Crashlytics > Dashboard 에서 "Dev Tools test
+   error" non-fatal 이벤트 수신 확인.
+4. **race_guard_triggered custom key 관측 (Plan 10-14 GC-04 fail-safe):** 만약
+   미인증 상태에서 silent Home 진입 race 가 재발하면 `auth_guard.dart:283` 의
+   `setCustomKey('race_guard_triggered', 'onboarding_race_v1')` 가 발동한다.
+   Crashlytics > Issues 의 임의 이벤트 → Custom keys 탭에서 `race_guard_triggered`
+   값이 `onboarding_race_v1` 로 기록됐는지 확인하면 fail-safe 동작 증거가 된다.
+
+#### Analytics DebugView 활성화 (개발 중 권장)
+
+Analytics 이벤트는 일반 보고서에는 24시간 후 반영되지만, DebugView 에서는
+즉시 확인할 수 있다. Starter Kit 의 dev flavor 에는 디버그 모드 자동 ON 코드가
+없으므로 adb 로 수동 활성화한다.
+
+```bash
+# Android 에뮬레이터/실기기 (앱 패키지명은 dev flavor 기준)
+adb shell setprop debug.firebase.analytics.app com.slimpumpkin.flutter_starter_kit.dev
+
+# iOS 시뮬레이터/실기기
+# Xcode > Product > Scheme > Edit Scheme > Run > Arguments
+# Arguments Passed On Launch 에 `-FIRDebugEnabled` 추가
+```
+
+활성화 후 Firebase Console > Analytics > **DebugView** 에 실시간 이벤트가
+표시된다. 비활성화는 동일 명령에서 패키지명을 `.none.` 으로 지정한다.
+
+#### stg/prod flavor 로 fork 하는 경우 (실 프로젝트 적용 시)
+
+Starter Kit 는 stg/prod 의 `lib/core/firebase/firebase_options_stg.dart` /
+`firebase_options_prod.dart` 를 placeholder 로 두고 있다 (dev 만 실제 프로젝트
+연결, stg/prod 는 build 통과용 더미 값). 실 프로젝트에서는 다음 절차를 거친다.
+
+1. Firebase Console 에서 stg/prod 프로젝트를 별도 생성 (dev/stg/prod 분리 원칙).
+2. `fff configure --project=<stg-project-id>
+   --out=lib/core/firebase/firebase_options_stg.dart
+   --android-package-name=com.slimpumpkin.flutter_starter_kit.stg
+   --ios-bundle-id=<stg.bundle>` 실행 (`fff` = `fvm dart pub global run
+   flutterfire_cli:flutterfire` alias). prod 는 동일 패턴으로 `.prod` suffix.
+3. 위와 동일한 Crashlytics 활성화 절차를 stg/prod 각 프로젝트에 적용.
+4. **prod 추가 필수:** Crashlytics > Settings > **dSYM upload (iOS)** 자동화 +
+   Android 의 NDK symbol upload (네이티브 크래시가 가독성 있게 deobfuscate
+   되도록).
+
+#### 알려진 이슈 — dev flavor "race_guard_triggered" 미수신 (Phase 10 Gap B)
+
+Plan 10-14 Task 5 UAT (2026-04-24) 에서 GC-04 fail-safe redirect 가 정상 발동
+했음에도 Console 에서 `race_guard_triggered` custom key 가 미수신되는 현상이
+관찰됐다. Run 1 fetched settings 로그상 `firebase_crashlytics_enabled: false`
+가 확정 — **Firebase Console 의 Crashlytics 토글이 OFF 였던 것이 원인**이고
+SDK 호출 코드 자체는 정상이다. 위 "활성화 절차" 1~3 단계를 수행한 뒤 동일
+재현 시나리오로 Console 수신을 확인할 수 있다.
