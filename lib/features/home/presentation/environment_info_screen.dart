@@ -645,16 +645,47 @@ class _TypographySection extends StatelessWidget {
   }
 }
 
-/// 타이포그래피 스타일명을 해당 스타일로 직접 표시하는 위젯.
+/// 타이포그래피 스타일명을 메타 라벨로 표시하고, 영문(라틴) + 한국어(CJK)
+/// 패가그램(Pangram)으로 폰트 메트릭/가독성을 비교 가능한 위젯.
+///
+/// 라벨 행은 작은 메타 typography 로 스타일명(예: `displayLarge`)을 표시하고,
+/// 그 아래에 동일한 [style] 로 라틴 패가그램과 한국어 패가그램을 렌더한다.
+/// 이를 통해 단일 화면에서 영문/CJK 의 fontSize·lineHeight·letterSpacing
+/// 효과를 함께 비교할 수 있다 (03-UI-REVIEW Top 3 #3 권고).
+///
+/// 패가그램 자체는 다국어 무관 fixed string 으로 i18n 키 대상에서 제외한다
+/// — 폰트 비교가 목적이므로 모든 로케일에서 동일하게 표시되어야 한다.
 class _TypographySample extends StatelessWidget {
   const _TypographySample({required this.label, required this.style});
+
+  /// M3 공식 라틴 패가그램. 모든 알파벳을 1회 이상 포함한다.
+  static const String _latinPangram =
+      'The quick brown fox jumps over the lazy dog';
+
+  /// CJK 폰트 메트릭 비교용 한국어 패가그램.
+  static const String _koreanPangram = '다람쥐 헌 쳇바퀴에 타고파';
 
   final String label;
   final TextStyle style;
 
   @override
   Widget build(BuildContext context) {
-    return Text(label, style: style);
+    final spacing = context.appSpacing;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: context.appTypography.labelSmall.copyWith(
+            color: context.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Gap(spacing.xs),
+        Text(_latinPangram, style: style),
+        Gap(spacing.xs),
+        Text(_koreanPangram, style: style),
+      ],
+    );
   }
 }
 
