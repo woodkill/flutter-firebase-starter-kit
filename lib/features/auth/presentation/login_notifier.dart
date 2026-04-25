@@ -34,10 +34,7 @@ class LoginNotifier extends _$LoginNotifier {
   /// 로그인 성공 시 `authRedirect` 가 화면을 이동시켜 본 autoDispose
   /// notifier 가 즉시 dispose 되는데, 그 시점에 state setter 가 호출되면
   /// `UnmountedRefException` 이 발생하기 때문이다 (T-06.07-02).
-  Future<void> submit({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> submit({required String email, required String password}) async {
     state = const AsyncLoading<void>();
     final result = await ref
         .read(authRepositoryProvider)
@@ -45,8 +42,10 @@ class LoginNotifier extends _$LoginNotifier {
     if (!ref.mounted) return;
     state = switch (result) {
       Success<dynamic>() => const AsyncData<void>(null),
-      Failure<dynamic>(exception: final ex) =>
-        AsyncError<void>(ex, StackTrace.current),
+      Failure<dynamic>(exception: final ex) => AsyncError<void>(
+        ex,
+        StackTrace.current,
+      ),
     };
   }
 }

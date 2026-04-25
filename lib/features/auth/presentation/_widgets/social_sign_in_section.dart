@@ -59,10 +59,8 @@ class SocialSignInSection extends ConsumerWidget {
     final isAppleLoading = appleState.isLoading;
     final isFacebookLoading = facebookState.isLoading;
     // 이메일/Google/Apple/Facebook 중 어느 하나라도 진행 중이면 이중 제출 방지.
-    final isAnyLoading = isFormLoading ||
-        isGoogleLoading ||
-        isAppleLoading ||
-        isFacebookLoading;
+    final isAnyLoading =
+        isFormLoading || isGoogleLoading || isAppleLoading || isFacebookLoading;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Google 버튼 (Phase 7 패턴 유지).
@@ -76,9 +74,7 @@ class SocialSignInSection extends ConsumerWidget {
             ? () {} // sign_in_button의 onPressed는 non-nullable
             : () {
                 FocusManager.instance.primaryFocus?.unfocus();
-                ref
-                    .read(googleSignInProvider.notifier)
-                    .signInWithGoogle();
+                ref.read(googleSignInProvider.notifier).signInWithGoogle();
               },
       ),
     );
@@ -95,9 +91,7 @@ class SocialSignInSection extends ConsumerWidget {
             ? () {}
             : () {
                 FocusManager.instance.primaryFocus?.unfocus();
-                ref
-                    .read(appleSignInProvider.notifier)
-                    .signInWithApple();
+                ref.read(appleSignInProvider.notifier).signInWithApple();
               },
       ),
     );
@@ -114,9 +108,7 @@ class SocialSignInSection extends ConsumerWidget {
             ? () {}
             : () {
                 FocusManager.instance.primaryFocus?.unfocus();
-                ref
-                    .read(facebookSignInProvider.notifier)
-                    .signInWithFacebook();
+                ref.read(facebookSignInProvider.notifier).signInWithFacebook();
               },
       ),
     );
@@ -134,10 +126,7 @@ class SocialSignInSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ...socialButtons,
-        if (errorBanner != null) ...[
-          Gap(spacing.md),
-          errorBanner!,
-        ],
+        if (errorBanner != null) ...[Gap(spacing.md), errorBanner!],
         if (showOrDivider) ...[
           Gap(spacing.lg),
           const OrDivider(),

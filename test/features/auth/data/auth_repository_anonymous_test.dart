@@ -45,9 +45,7 @@ void main() {
     when(() => mockUser.displayName).thenReturn(null);
     when(() => mockUser.photoURL).thenReturn(null);
     when(() => mockUser.metadata).thenReturn(mockMetadata);
-    when(
-      () => mockMetadata.creationTime,
-    ).thenReturn(DateTime.utc(2026, 4, 14));
+    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 4, 14));
     when(() => mockUser.providerData).thenReturn([]);
     when(() => mockCredential.user).thenReturn(mockUser);
   });
@@ -69,8 +67,7 @@ void main() {
       verify(() => mockAuth.signInAnonymously()).called(1);
     });
 
-    test('UserCredential.user 가 null 이면 ServiceUnavailable 을 반환한다',
-        () async {
+    test('UserCredential.user 가 null 이면 ServiceUnavailable 을 반환한다', () async {
       when(() => mockCredential.user).thenReturn(null);
       when(
         () => mockAuth.signInAnonymously(),
@@ -82,11 +79,10 @@ void main() {
       expect((result as Failure).exception, isA<ServiceUnavailable>());
     });
 
-    test('operation-not-allowed → ServiceUnavailable 매핑 (A4 위험)',
-        () async {
-      when(() => mockAuth.signInAnonymously()).thenThrow(
-        fb.FirebaseAuthException(code: 'operation-not-allowed'),
-      );
+    test('operation-not-allowed → ServiceUnavailable 매핑 (A4 위험)', () async {
+      when(
+        () => mockAuth.signInAnonymously(),
+      ).thenThrow(fb.FirebaseAuthException(code: 'operation-not-allowed'));
 
       final result = await repository.signInAnonymously();
 
@@ -94,29 +90,33 @@ void main() {
       expect((result as Failure).exception, isA<ServiceUnavailable>());
     });
 
-    test('network-request-failed → NoInternetConnection 매핑 (Pitfall 3)',
-        () async {
-      when(() => mockAuth.signInAnonymously()).thenThrow(
-        fb.FirebaseAuthException(code: 'network-request-failed'),
-      );
+    test(
+      'network-request-failed → NoInternetConnection 매핑 (Pitfall 3)',
+      () async {
+        when(
+          () => mockAuth.signInAnonymously(),
+        ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
 
-      final result = await repository.signInAnonymously();
+        final result = await repository.signInAnonymously();
 
-      expect(result, isA<Failure<dynamic>>());
-      expect((result as Failure).exception, isA<NoInternetConnection>());
-    });
+        expect(result, isA<Failure<dynamic>>());
+        expect((result as Failure).exception, isA<NoInternetConnection>());
+      },
+    );
 
-    test('기타 FirebaseAuthException → ServiceUnavailable 매핑 (fallback)',
-        () async {
-      when(() => mockAuth.signInAnonymously()).thenThrow(
-        fb.FirebaseAuthException(code: 'some-unknown-code'),
-      );
+    test(
+      '기타 FirebaseAuthException → ServiceUnavailable 매핑 (fallback)',
+      () async {
+        when(
+          () => mockAuth.signInAnonymously(),
+        ).thenThrow(fb.FirebaseAuthException(code: 'some-unknown-code'));
 
-      final result = await repository.signInAnonymously();
+        final result = await repository.signInAnonymously();
 
-      expect(result, isA<Failure<dynamic>>());
-      expect((result as Failure).exception, isA<ServiceUnavailable>());
-    });
+        expect(result, isA<Failure<dynamic>>());
+        expect((result as Failure).exception, isA<ServiceUnavailable>());
+      },
+    );
 
     test('비-Auth Object 예외 → ServiceUnavailable 매핑', () async {
       when(
@@ -131,8 +131,7 @@ void main() {
   });
 
   group('AuthRepository.signOutAndContinueAsGuest', () {
-    test('signOut 후 signInAnonymously 를 호출하여 새 익명 User 를 반환한다',
-        () async {
+    test('signOut 후 signInAnonymously 를 호출하여 새 익명 User 를 반환한다', () async {
       when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
       when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
       when(() => mockAuth.signOut()).thenAnswer((_) async {});
@@ -156,47 +155,41 @@ void main() {
       ]);
     });
 
-    test(
-      'signOut 은 성공했지만 signInAnonymously 가 네트워크 오류로 실패 시 '
-      'Result.failure(NoInternetConnection) 반환 (signOut 은 이미 수행)',
-      () async {
-        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
-        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-        when(() => mockAuth.signOut()).thenAnswer((_) async {});
-        when(() => mockAuth.signInAnonymously()).thenThrow(
-          fb.FirebaseAuthException(code: 'network-request-failed'),
-        );
+    test('signOut 은 성공했지만 signInAnonymously 가 네트워크 오류로 실패 시 '
+        'Result.failure(NoInternetConnection) 반환 (signOut 은 이미 수행)', () async {
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+      when(
+        () => mockAuth.signInAnonymously(),
+      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
 
-        final result = await repository.signOutAndContinueAsGuest();
+      final result = await repository.signOutAndContinueAsGuest();
 
-        expect(result, isA<Failure<dynamic>>());
-        expect((result as Failure).exception, isA<NoInternetConnection>());
-        // FirebaseAuth.signOut 은 실제로 호출되었음을 확인.
-        verify(() => mockAuth.signOut()).called(1);
-        verify(() => mockAuth.signInAnonymously()).called(1);
-      },
-    );
+      expect(result, isA<Failure<dynamic>>());
+      expect((result as Failure).exception, isA<NoInternetConnection>());
+      // FirebaseAuth.signOut 은 실제로 호출되었음을 확인.
+      verify(() => mockAuth.signOut()).called(1);
+      verify(() => mockAuth.signInAnonymously()).called(1);
+    });
 
-    test(
-      'GoogleSignIn.signOut 실패해도 FirebaseAuth.signOut 및 '
-      'signInAnonymously 는 계속 진행된다 (기존 signOut 패턴 준수)',
-      () async {
-        when(
-          () => mockGoogleSignIn.signOut(),
-        ).thenThrow(Exception('google signOut failed'));
-        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-        when(() => mockAuth.signOut()).thenAnswer((_) async {});
-        when(
-          () => mockAuth.signInAnonymously(),
-        ).thenAnswer((_) async => mockCredential);
+    test('GoogleSignIn.signOut 실패해도 FirebaseAuth.signOut 및 '
+        'signInAnonymously 는 계속 진행된다 (기존 signOut 패턴 준수)', () async {
+      when(
+        () => mockGoogleSignIn.signOut(),
+      ).thenThrow(Exception('google signOut failed'));
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+      when(
+        () => mockAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockCredential);
 
-        final result = await repository.signOutAndContinueAsGuest();
+      final result = await repository.signOutAndContinueAsGuest();
 
-        expect(result, isA<Success<dynamic>>());
-        verify(() => mockGoogleSignIn.signOut()).called(1);
-        verify(() => mockAuth.signOut()).called(1);
-        verify(() => mockAuth.signInAnonymously()).called(1);
-      },
-    );
+      expect(result, isA<Success<dynamic>>());
+      verify(() => mockGoogleSignIn.signOut()).called(1);
+      verify(() => mockAuth.signOut()).called(1);
+      verify(() => mockAuth.signInAnonymously()).called(1);
+    });
   });
 }

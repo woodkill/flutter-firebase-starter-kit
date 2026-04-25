@@ -26,9 +26,7 @@ Future<void> _pumpSignup(
 ) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-      ],
+      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
       child: MaterialApp(
         theme: AppTheme.light(),
         locale: const Locale('en'),
@@ -49,17 +47,13 @@ void main() {
   });
 
   group('SignupScreen', () {
-    testWidgets('1. 빈 입력 제출 시 3개 validator 에러 inline 표시',
-        (tester) async {
+    testWidgets('1. 빈 입력 제출 시 3개 validator 에러 inline 표시', (tester) async {
       await _pumpSignup(tester, mockRepo);
       await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
       await tester.pump();
 
       expect(find.text('Enter your name.'), findsOneWidget);
-      expect(
-        find.text('Enter your email address.'),
-        findsOneWidget,
-      );
+      expect(find.text('Enter your email address.'), findsOneWidget);
       expect(
         find.text('Password must be at least 8 characters.'),
         findsOneWidget,
@@ -73,22 +67,17 @@ void main() {
       );
     });
 
-    testWidgets('2. displayName 33자 입력 시 too long 에러 표시',
-        (tester) async {
+    testWidgets('2. displayName 33자 입력 시 too long 에러 표시', (tester) async {
       await _pumpSignup(tester, mockRepo);
       final longName = 'a' * 33;
       await tester.enterText(find.byType(TextFormField).at(0), longName);
       await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
       await tester.pump();
 
-      expect(
-        find.text('Name must be 32 characters or fewer.'),
-        findsOneWidget,
-      );
+      expect(find.text('Name must be 32 characters or fewer.'), findsOneWidget);
     });
 
-    testWidgets('3. 정상 입력 제출 시 Repository 호출 (트림 검증)',
-        (tester) async {
+    testWidgets('3. 정상 입력 제출 시 Repository 호출 (트림 검증)', (tester) async {
       when(
         () => mockRepo.signUpWithEmail(
           email: any(named: 'email'),
@@ -108,20 +97,13 @@ void main() {
       );
 
       await _pumpSignup(tester, mockRepo);
-      await tester.enterText(
-        find.byType(TextFormField).at(0),
-        '  Test User  ',
-      );
+      await tester.enterText(find.byType(TextFormField).at(0), '  Test User  ');
       await tester.enterText(
         find.byType(TextFormField).at(1),
         '  new@example.com  ',
       );
-      await tester.enterText(
-        find.byType(TextFormField).at(2),
-        'password123',
-      );
-      final ctaFinder =
-          find.widgetWithText(FilledButton, 'Create account');
+      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+      final ctaFinder = find.widgetWithText(FilledButton, 'Create account');
       await tester.ensureVisible(ctaFinder);
       await tester.pumpAndSettle();
       await tester.tap(ctaFinder);
@@ -137,33 +119,20 @@ void main() {
       ).called(1);
     });
 
-    testWidgets('4. EmailAlreadyInUse 에러 시 폼 상단 배너 표시',
-        (tester) async {
+    testWidgets('4. EmailAlreadyInUse 에러 시 폼 상단 배너 표시', (tester) async {
       when(
         () => mockRepo.signUpWithEmail(
           email: any(named: 'email'),
           password: any(named: 'password'),
           displayName: any(named: 'displayName'),
         ),
-      ).thenAnswer(
-        (_) async => const Result.failure(EmailAlreadyInUse()),
-      );
+      ).thenAnswer((_) async => const Result.failure(EmailAlreadyInUse()));
 
       await _pumpSignup(tester, mockRepo);
-      await tester.enterText(
-        find.byType(TextFormField).at(0),
-        'Name',
-      );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'a@b.com',
-      );
-      await tester.enterText(
-        find.byType(TextFormField).at(2),
-        'password123',
-      );
-      final ctaFinder =
-          find.widgetWithText(FilledButton, 'Create account');
+      await tester.enterText(find.byType(TextFormField).at(0), 'Name');
+      await tester.enterText(find.byType(TextFormField).at(1), 'a@b.com');
+      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+      final ctaFinder = find.widgetWithText(FilledButton, 'Create account');
       await tester.ensureVisible(ctaFinder);
       await tester.pumpAndSettle();
       await tester.tap(ctaFinder);
@@ -185,32 +154,18 @@ void main() {
       ).thenAnswer((_) => completer.future);
 
       await _pumpSignup(tester, mockRepo);
-      await tester.enterText(
-        find.byType(TextFormField).at(0),
-        'Name',
-      );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'a@b.com',
-      );
-      await tester.enterText(
-        find.byType(TextFormField).at(2),
-        'password123',
-      );
-      final ctaFinder =
-          find.widgetWithText(FilledButton, 'Create account');
+      await tester.enterText(find.byType(TextFormField).at(0), 'Name');
+      await tester.enterText(find.byType(TextFormField).at(1), 'a@b.com');
+      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+      final ctaFinder = find.widgetWithText(FilledButton, 'Create account');
       await tester.ensureVisible(ctaFinder);
       await tester.pumpAndSettle();
       await tester.tap(ctaFinder);
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(
-        find.widgetWithText(FilledButton, 'Create account'),
-        findsNothing,
-      );
-      final button =
-          tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(find.widgetWithText(FilledButton, 'Create account'), findsNothing);
+      final button = tester.widget<FilledButton>(find.byType(FilledButton));
       expect(button.onPressed, isNull);
 
       completer.complete(
@@ -227,30 +182,24 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('6. 화면 렌더 시 navigation 미호출 (예외 없음)',
-        (tester) async {
+    testWidgets('6. 화면 렌더 시 navigation 미호출 (예외 없음)', (tester) async {
       await _pumpSignup(tester, mockRepo);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets(
-      '7. 소셜 SignInButton이 3개(Google + Apple + Facebook) 렌더링된다',
-      (tester) async {
-        when(() => mockRepo.signInWithFacebook())
-            .thenAnswer((_) async => null);
-        await _pumpSignup(tester, mockRepo);
-        // Phase 9부터 Facebook 버튼이 추가되어 총 3개.
-        expect(find.byType(SignInButton), findsNWidgets(3));
-      },
-    );
+    testWidgets('7. 소셜 SignInButton이 3개(Google + Apple + Facebook) 렌더링된다', (
+      tester,
+    ) async {
+      when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+      await _pumpSignup(tester, mockRepo);
+      // Phase 9부터 Facebook 버튼이 추가되어 총 3개.
+      expect(find.byType(SignInButton), findsNWidgets(3));
+    });
 
-    testWidgets(
-      '8. OrDivider "or" 텍스트가 표시된다',
-      (tester) async {
-        await _pumpSignup(tester, mockRepo);
-        expect(find.text('or'), findsOneWidget);
-      },
-    );
+    testWidgets('8. OrDivider "or" 텍스트가 표시된다', (tester) async {
+      await _pumpSignup(tester, mockRepo);
+      expect(find.text('or'), findsOneWidget);
+    });
 
     // -----------------------------------------------------------------
     // Phase 8 Apple 로그인 시나리오 (AUTH-03-18)
@@ -258,44 +207,40 @@ void main() {
     // Apple 버튼은 두 번째(index 1) SignInButton.
     // -----------------------------------------------------------------
     group('SignupScreen Apple sign-in integration', () {
-      testWidgets(
-        'AUTH-03-18: SocialSignInSection 렌더링 + Apple 에러 시 '
-        'FormErrorBanner 표시 (이메일 자동 채움 없음)',
-        (tester) async {
-          when(() => mockRepo.signInWithApple()).thenAnswer(
-            (_) async => const Result<User>.failure(ServiceUnavailable()),
-          );
-          when(() => mockRepo.signInWithFacebook())
-              .thenAnswer((_) async => null);
+      testWidgets('AUTH-03-18: SocialSignInSection 렌더링 + Apple 에러 시 '
+          'FormErrorBanner 표시 (이메일 자동 채움 없음)', (tester) async {
+        when(() => mockRepo.signInWithApple()).thenAnswer(
+          (_) async => const Result<User>.failure(ServiceUnavailable()),
+        );
+        when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
 
-          await _pumpSignup(tester, mockRepo);
-          await tester.pumpAndSettle();
+        await _pumpSignup(tester, mockRepo);
+        await tester.pumpAndSettle();
 
-          // SocialSignInSection이 렌더되고 3개 버튼 존재 (D-04).
-          expect(find.byType(SocialSignInSection), findsOneWidget);
-          expect(find.byType(SignInButton), findsNWidgets(3));
+        // SocialSignInSection이 렌더되고 3개 버튼 존재 (D-04).
+        expect(find.byType(SocialSignInSection), findsOneWidget);
+        expect(find.byType(SignInButton), findsNWidgets(3));
 
-          // D-04: 통일 순서에서 Apple 버튼은 두 번째(index 1).
-          await tester.tap(find.byType(SignInButton).at(1));
-          await tester.pumpAndSettle();
+        // D-04: 통일 순서에서 Apple 버튼은 두 번째(index 1).
+        await tester.tap(find.byType(SignInButton).at(1));
+        await tester.pumpAndSettle();
 
-          // 소셜 영역 FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
-          final banner = tester.widget<FormErrorBanner>(
-            find.descendant(
-              of: find.byType(SocialSignInSection),
-              matching: find.byType(FormErrorBanner),
-            ),
-          );
-          expect(banner.exception, isA<ServiceUnavailable>());
+        // 소셜 영역 FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
+        final banner = tester.widget<FormErrorBanner>(
+          find.descendant(
+            of: find.byType(SocialSignInSection),
+            matching: find.byType(FormErrorBanner),
+          ),
+        );
+        expect(banner.exception, isA<ServiceUnavailable>());
 
-          // SignupScreen은 이메일 자동 채움 없음 -- 이메일 필드는 비어 있다
-          // (LoginScreen의 D-10 정책과 다름).
-          final emailField = tester.widget<TextFormField>(
-            find.byType(TextFormField).at(1),
-          );
-          expect(emailField.controller?.text, isEmpty);
-        },
-      );
+        // SignupScreen은 이메일 자동 채움 없음 -- 이메일 필드는 비어 있다
+        // (LoginScreen의 D-10 정책과 다름).
+        final emailField = tester.widget<TextFormField>(
+          find.byType(TextFormField).at(1),
+        );
+        expect(emailField.controller?.text, isEmpty);
+      });
     });
   });
 }

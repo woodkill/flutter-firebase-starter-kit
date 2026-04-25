@@ -18,18 +18,14 @@ import '../../../../core/theme/theme_extensions.dart';
 /// 결정하게 한다.
 class TermsCheckboxGroup extends ConsumerStatefulWidget {
   /// [TermsCheckboxGroup] 를 생성한다.
-  const TermsCheckboxGroup({
-    required this.onStateChanged,
-    super.key,
-  });
+  const TermsCheckboxGroup({required this.onStateChanged, super.key});
 
   /// (service, privacy, marketing) 3개 플래그를 부모에게 통지하는 콜백.
   final void Function(bool service, bool privacy, bool marketing)
-      onStateChanged;
+  onStateChanged;
 
   @override
-  ConsumerState<TermsCheckboxGroup> createState() =>
-      _TermsCheckboxGroupState();
+  ConsumerState<TermsCheckboxGroup> createState() => _TermsCheckboxGroupState();
 }
 
 class _TermsCheckboxGroupState extends ConsumerState<TermsCheckboxGroup> {
@@ -79,10 +75,7 @@ class _TermsCheckboxGroupState extends ConsumerState<TermsCheckboxGroup> {
         CheckboxListTile(
           value: _allChecked,
           onChanged: _toggleAll,
-          title: Text(
-            l10n.termsAcceptAll,
-            style: typography.labelLarge,
-          ),
+          title: Text(l10n.termsAcceptAll, style: typography.labelLarge),
           controlAffinity: ListTileControlAffinity.leading,
         ),
         Divider(
@@ -140,10 +133,7 @@ class _TermsRow extends StatelessWidget {
     final spacing = context.appSpacing;
 
     final badge = Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: spacing.sm,
-        vertical: 2,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: spacing.sm, vertical: 2),
       decoration: BoxDecoration(
         color: isRequired
             ? colorScheme.errorContainer
@@ -168,8 +158,9 @@ class _TermsRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: typography.bodyMedium
-                  .copyWith(color: colorScheme.onSurface),
+              style: typography.bodyMedium.copyWith(
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
           Gap(spacing.sm),

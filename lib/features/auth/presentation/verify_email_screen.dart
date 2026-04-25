@@ -104,9 +104,8 @@ class VerifyEmailScreen extends ConsumerWidget {
             // "인증 확인" Primary CTA
             PrimaryCta(
               label: l10n.authVerifyEmailCheck,
-              onPressed: () => ref
-                  .read(verifyEmailProvider.notifier)
-                  .checkManually(),
+              onPressed: () =>
+                  ref.read(verifyEmailProvider.notifier).checkManually(),
               isLoading: state.isChecking,
             ),
             Gap(spacing.md),
@@ -118,8 +117,8 @@ class VerifyEmailScreen extends ConsumerWidget {
                 onPressed: state.cooldownRemaining > 0
                     ? null
                     : () => ref
-                        .read(verifyEmailProvider.notifier)
-                        .resendVerification(),
+                          .read(verifyEmailProvider.notifier)
+                          .resendVerification(),
                 child: Text(
                   state.cooldownRemaining > 0
                       ? l10n.authVerifyEmailResendCooldown(
@@ -132,8 +131,7 @@ class VerifyEmailScreen extends ConsumerWidget {
             Gap(spacing.md),
             // "다른 계정으로 로그인" 링크
             TextButton(
-              onPressed: () =>
-                  ref.read(verifyEmailProvider.notifier).logout(),
+              onPressed: () => ref.read(verifyEmailProvider.notifier).logout(),
               child: Text(
                 l10n.authVerifyEmailLogout,
                 style: TextStyle(color: colors.onSurfaceVariant),

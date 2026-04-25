@@ -61,11 +61,8 @@ class _PasswordFieldState extends State<PasswordField> {
       decoration: InputDecoration(
         labelText: l10n.authLoginPasswordLabel,
         suffixIcon: IconButton(
-          tooltip:
-              _obscure ? l10n.authShowPassword : l10n.authHidePassword,
-          icon: Icon(
-            _obscure ? Icons.visibility : Icons.visibility_off,
-          ),
+          tooltip: _obscure ? l10n.authShowPassword : l10n.authHidePassword,
+          icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
           onPressed: () => setState(() => _obscure = !_obscure),
         ),
       ),

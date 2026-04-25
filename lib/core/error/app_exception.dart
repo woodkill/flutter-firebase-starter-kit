@@ -39,21 +39,21 @@ sealed class NetworkException extends AppException {
 final class ConnectionTimeout extends NetworkException {
   /// [ConnectionTimeout]을 생성한다.
   const ConnectionTimeout({super.cause})
-      : super(userMessage: 'errorNetworkTimeout');
+    : super(userMessage: 'errorNetworkTimeout');
 }
 
 /// 인터넷 연결 없음.
 final class NoInternetConnection extends NetworkException {
   /// [NoInternetConnection]을 생성한다.
   const NoInternetConnection({super.cause})
-      : super(userMessage: 'errorNoInternet');
+    : super(userMessage: 'errorNoInternet');
 }
 
 /// 요청 시간 초과.
 final class RequestTimeout extends NetworkException {
   /// [RequestTimeout]을 생성한다.
   const RequestTimeout({super.cause})
-      : super(userMessage: 'errorRequestTimeout');
+    : super(userMessage: 'errorRequestTimeout');
 }
 
 // ---------------------------------------------------------------------------
@@ -72,56 +72,52 @@ sealed class AuthException extends AppException {
 final class InvalidCredentials extends AuthException {
   /// [InvalidCredentials]을 생성한다.
   const InvalidCredentials({super.cause})
-      : super(userMessage: 'errorInvalidCredentials');
+    : super(userMessage: 'errorInvalidCredentials');
 }
 
 /// 사용자를 찾을 수 없음.
 final class UserNotFound extends AuthException {
   /// [UserNotFound]를 생성한다.
-  const UserNotFound({super.cause})
-      : super(userMessage: 'errorUserNotFound');
+  const UserNotFound({super.cause}) : super(userMessage: 'errorUserNotFound');
 }
 
 /// 이미 사용 중인 이메일.
 final class EmailAlreadyInUse extends AuthException {
   /// [EmailAlreadyInUse]를 생성한다.
   const EmailAlreadyInUse({super.cause})
-      : super(userMessage: 'errorEmailAlreadyInUse');
+    : super(userMessage: 'errorEmailAlreadyInUse');
 }
 
 /// 비밀번호가 너무 약함.
 final class WeakPassword extends AuthException {
   /// [WeakPassword]를 생성한다.
-  const WeakPassword({super.cause})
-      : super(userMessage: 'errorWeakPassword');
+  const WeakPassword({super.cause}) : super(userMessage: 'errorWeakPassword');
 }
 
 /// 세션이 만료됨.
 final class SessionExpired extends AuthException {
   /// [SessionExpired]를 생성한다.
   const SessionExpired({super.cause})
-      : super(userMessage: 'errorSessionExpired');
+    : super(userMessage: 'errorSessionExpired');
 }
 
 /// 잘못된 이메일 형식 (Firebase `invalid-email` 코드 매핑).
 final class InvalidEmail extends AuthException {
   /// [InvalidEmail]을 생성한다.
-  const InvalidEmail({super.cause})
-      : super(userMessage: 'errorInvalidEmail');
+  const InvalidEmail({super.cause}) : super(userMessage: 'errorInvalidEmail');
 }
 
 /// 비활성화된 계정 (Firebase `user-disabled` 코드 매핑).
 final class UserDisabled extends AuthException {
   /// [UserDisabled]를 생성한다.
-  const UserDisabled({super.cause})
-      : super(userMessage: 'errorUserDisabled');
+  const UserDisabled({super.cause}) : super(userMessage: 'errorUserDisabled');
 }
 
 /// 단시간 요청 과다 (Firebase `too-many-requests` 코드 매핑).
 final class TooManyRequests extends AuthException {
   /// [TooManyRequests]를 생성한다.
   const TooManyRequests({super.cause})
-      : super(userMessage: 'errorTooManyRequests');
+    : super(userMessage: 'errorTooManyRequests');
 }
 
 /// 동일 이메일이 다른 인증 방식으로 이미 등록되어 있음.
@@ -131,9 +127,7 @@ final class TooManyRequests extends AuthException {
 final class AccountExistsWithDifferentCredential extends AuthException {
   /// [AccountExistsWithDifferentCredential]을 생성한다.
   const AccountExistsWithDifferentCredential({this.email, super.cause})
-      : super(
-          userMessage: 'errorAccountExistsWithDifferentCredential',
-        );
+    : super(userMessage: 'errorAccountExistsWithDifferentCredential');
 
   /// 충돌이 발생한 이메일 주소. UI에서 자동 채움용으로 사용.
   final String? email;
@@ -155,12 +149,12 @@ sealed class ServerException extends AppException {
 final class InternalServerError extends ServerException {
   /// [InternalServerError]를 생성한다.
   const InternalServerError({super.cause})
-      : super(userMessage: 'errorInternalServer');
+    : super(userMessage: 'errorInternalServer');
 }
 
 /// 서비스가 일시적으로 사용 불가.
 final class ServiceUnavailable extends ServerException {
   /// [ServiceUnavailable]을 생성한다.
   const ServiceUnavailable({super.cause})
-      : super(userMessage: 'errorServiceUnavailable');
+    : super(userMessage: 'errorServiceUnavailable');
 }

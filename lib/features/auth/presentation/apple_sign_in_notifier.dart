@@ -27,8 +27,7 @@ class AppleSignInNotifier extends _$AppleSignInNotifier {
   /// 렌더링된다.
   Future<void> signInWithApple() async {
     state = const AsyncLoading<void>();
-    final result =
-        await ref.read(authRepositoryProvider).signInWithApple();
+    final result = await ref.read(authRepositoryProvider).signInWithApple();
     if (!ref.mounted) return;
 
     if (result == null) {
@@ -38,8 +37,10 @@ class AppleSignInNotifier extends _$AppleSignInNotifier {
 
     state = switch (result) {
       Success<dynamic>() => const AsyncData<void>(null),
-      Failure<dynamic>(exception: final ex) =>
-        AsyncError<void>(ex, StackTrace.current),
+      Failure<dynamic>(exception: final ex) => AsyncError<void>(
+        ex,
+        StackTrace.current,
+      ),
     };
   }
 }

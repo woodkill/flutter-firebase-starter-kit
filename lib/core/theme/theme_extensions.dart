@@ -25,12 +25,10 @@ extension ThemeX on BuildContext {
   AppColors get appColors => Theme.of(this).extension<AppColors>()!;
 
   /// 현재 테마의 [AppTypography] ThemeExtension을 반환한다.
-  AppTypography get appTypography =>
-      Theme.of(this).extension<AppTypography>()!;
+  AppTypography get appTypography => Theme.of(this).extension<AppTypography>()!;
 
   /// 현재 테마의 [AppSpacing] ThemeExtension을 반환한다.
-  AppSpacing get appSpacing =>
-      Theme.of(this).extension<AppSpacing>()!;
+  AppSpacing get appSpacing => Theme.of(this).extension<AppSpacing>()!;
 
   /// 현재 테마의 [ColorScheme]을 반환한다.
   ColorScheme get colorScheme => Theme.of(this).colorScheme;

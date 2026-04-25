@@ -34,10 +34,7 @@ void main() {
 
     testWidgets('UserDisabled → 영어 메시지', (tester) async {
       final result = await _resolve(tester, const UserDisabled());
-      expect(
-        result,
-        'This account has been disabled. Contact support.',
-      );
+      expect(result, 'This account has been disabled. Contact support.');
     });
 
     testWidgets('TooManyRequests → 영어 메시지', (tester) async {
@@ -53,8 +50,7 @@ void main() {
     });
 
     testWidgets('NoInternetConnection → 영어 메시지', (tester) async {
-      final result =
-          await _resolve(tester, const NoInternetConnection());
+      final result = await _resolve(tester, const NoInternetConnection());
       expect(result, 'No internet connection.');
     });
 

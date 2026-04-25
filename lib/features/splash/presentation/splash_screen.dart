@@ -60,22 +60,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       builder: (dialogContext) {
         final colorScheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
-          icon: Icon(
-            Icons.cloud_off,
-            color: colorScheme.onErrorContainer,
-          ),
+          icon: Icon(Icons.cloud_off, color: colorScheme.onErrorContainer),
           iconColor: colorScheme.errorContainer,
           title: Text(l10n.splashFailureTitle),
           content: Text(l10n.splashFailureMessage),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext)
-                  .pop(_SplashFailureAction.offline),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_SplashFailureAction.offline),
               child: Text(l10n.splashContinueOffline),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(dialogContext)
-                  .pop(_SplashFailureAction.retry),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_SplashFailureAction.retry),
               child: Text(l10n.commonRetry),
             ),
           ],
@@ -112,17 +109,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 'assets/images/splash/logo.png',
                 width: 128,
                 height: 128,
-                errorBuilder: (_, _, _) => const SizedBox(
-                  width: 128,
-                  height: 128,
-                ),
+                errorBuilder: (_, _, _) =>
+                    const SizedBox(width: 128, height: 128),
               ),
               Gap(spacing.xxl),
               if (!_hasFailure)
                 SizedBox.square(
                   dimension: spacing.xl,
-                  child:
-                      const CircularProgressIndicator(strokeWidth: 2),
+                  child: const CircularProgressIndicator(strokeWidth: 2),
                 ),
               Gap(spacing.sm),
               Text(

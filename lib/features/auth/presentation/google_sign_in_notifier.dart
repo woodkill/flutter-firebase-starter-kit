@@ -24,8 +24,7 @@ class GoogleSignInNotifier extends _$GoogleSignInNotifier {
   /// 성공 시 AsyncData. 실패 시 AsyncError.
   Future<void> signInWithGoogle() async {
     state = const AsyncLoading<void>();
-    final result =
-        await ref.read(authRepositoryProvider).signInWithGoogle();
+    final result = await ref.read(authRepositoryProvider).signInWithGoogle();
     if (!ref.mounted) return;
 
     if (result == null) {
@@ -35,8 +34,10 @@ class GoogleSignInNotifier extends _$GoogleSignInNotifier {
 
     state = switch (result) {
       Success<dynamic>() => const AsyncData<void>(null),
-      Failure<dynamic>(exception: final ex) =>
-        AsyncError<void>(ex, StackTrace.current),
+      Failure<dynamic>(exception: final ex) => AsyncError<void>(
+        ex,
+        StackTrace.current,
+      ),
     };
   }
 }

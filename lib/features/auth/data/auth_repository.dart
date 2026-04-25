@@ -18,11 +18,7 @@ part 'auth_repository.g.dart';
 /// FirebaseAuthException은 [AppException]으로 매핑되어 던져진다.
 class AuthRepository {
   /// [AuthRepository]를 생성한다.
-  const AuthRepository(
-    this._auth,
-    this._googleSignIn,
-    this._facebookAuth,
-  );
+  const AuthRepository(this._auth, this._googleSignIn, this._facebookAuth);
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -527,8 +523,7 @@ class AuthRepository {
     return switch (e.code) {
       'invalid-credential' ||
       'wrong-password' ||
-      'user-not-found' =>
-        InvalidCredentials(cause: e),
+      'user-not-found' => InvalidCredentials(cause: e),
       'account-exists-with-different-credential' =>
         AccountExistsWithDifferentCredential(email: e.email, cause: e),
       'email-already-in-use' => EmailAlreadyInUse(cause: e),
@@ -597,9 +592,7 @@ User _mapFirebaseUser(fb.User fbUser) {
     displayName: fbUser.displayName,
     photoUrl: fbUser.photoURL,
     createdAt: fbUser.metadata.creationTime ?? DateTime.now(),
-    providerIds: fbUser.providerData
-        .map((info) => info.providerId)
-        .toList(),
+    providerIds: fbUser.providerData.map((info) => info.providerId).toList(),
   );
 }
 

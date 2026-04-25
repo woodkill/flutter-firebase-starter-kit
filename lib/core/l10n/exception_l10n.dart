@@ -9,10 +9,7 @@ import '../error/app_exception.dart';
 /// [AppException.userMessage]에 저장된 ARB 키 문자열을
 /// [AppLocalizations]에서 룩업하여 번역된 메시지를 반환한다.
 /// 매칭되지 않는 키는 원본 문자열을 그대로 반환한다.
-String resolveExceptionMessage(
-  BuildContext context,
-  AppException exception,
-) {
+String resolveExceptionMessage(BuildContext context, AppException exception) {
   final l10n = AppLocalizations.of(context);
   return switch (exception.userMessage) {
     'errorNetworkTimeout' => l10n.errorNetworkTimeout,
@@ -29,7 +26,7 @@ String resolveExceptionMessage(
     'errorUserDisabled' => l10n.errorUserDisabled,
     'errorTooManyRequests' => l10n.errorTooManyRequests,
     'errorAccountExistsWithDifferentCredential' =>
-        l10n.errorAccountExistsWithDifferentCredential,
+      l10n.errorAccountExistsWithDifferentCredential,
     'errorUnknown' => l10n.errorUnknown,
     final other => other,
   };

@@ -25,9 +25,7 @@ Future<void> _pumpNotFound(
       locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const Builder(
-        builder: buildNotFoundScreen,
-      ),
+      home: const Builder(builder: buildNotFoundScreen),
     ),
   );
   await tester.pumpAndSettle();
@@ -39,8 +37,9 @@ void main() {
 
     setUp(() {
       final mockAuth = _MockFirebaseAuth();
-      when(() => mockAuth.authStateChanges())
-          .thenAnswer((_) => const Stream<User?>.empty());
+      when(
+        () => mockAuth.authStateChanges(),
+      ).thenAnswer((_) => const Stream<User?>.empty());
 
       container = ProviderContainer(
         overrides: [
@@ -82,23 +81,14 @@ void main() {
       expect(find.text('Go home'), findsOneWidget);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.byType(FilledButton), findsOneWidget);
-      expect(
-        find.widgetWithIcon(FilledButton, Icons.home),
-        findsOneWidget,
-      );
+      expect(find.widgetWithIcon(FilledButton, Icons.home), findsOneWidget);
     });
 
     testWidgets('2. ko 로케일에서 한글 l10n 제목/본문/CTA 렌더', (tester) async {
       await _pumpNotFound(tester, locale: const Locale('ko'));
 
-      expect(
-        find.text('페이지를 찾을 수 없습니다'),
-        findsAtLeastNWidgets(1),
-      );
-      expect(
-        find.text('요청하신 페이지가 존재하지 않습니다.'),
-        findsOneWidget,
-      );
+      expect(find.text('페이지를 찾을 수 없습니다'), findsAtLeastNWidgets(1));
+      expect(find.text('요청하신 페이지가 존재하지 않습니다.'), findsOneWidget);
       expect(find.text('홈으로'), findsOneWidget);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.byType(FilledButton), findsOneWidget);

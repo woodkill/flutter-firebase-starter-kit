@@ -59,15 +59,17 @@ class OnboardingSlide extends StatelessWidget {
             Gap(spacing.xl),
             Text(
               title,
-              style: typography.headlineMedium
-                  .copyWith(color: colorScheme.onSurface),
+              style: typography.headlineMedium.copyWith(
+                color: colorScheme.onSurface,
+              ),
               textAlign: TextAlign.center,
             ),
             Gap(spacing.md),
             Text(
               body,
-              style: typography.bodyMedium
-                  .copyWith(color: colorScheme.onSurfaceVariant),
+              style: typography.bodyMedium.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ],

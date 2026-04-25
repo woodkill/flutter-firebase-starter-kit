@@ -18,10 +18,7 @@ Future<TextFormField> pumpEmailField(WidgetTester tester) async {
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: Form(
-          child: EmailField(
-            controller: controller,
-            focusNode: focus,
-          ),
+          child: EmailField(controller: controller, focusNode: focus),
         ),
       ),
     ),

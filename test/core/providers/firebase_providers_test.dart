@@ -28,9 +28,7 @@ void main() {
 
     test('overrideWithValue로 true를 주입할 수 있다', () {
       final container = ProviderContainer(
-        overrides: [
-          isFirebaseInitializedProvider.overrideWithValue(true),
-        ],
+        overrides: [isFirebaseInitializedProvider.overrideWithValue(true)],
       );
       addTearDown(container.dispose);
 
@@ -42,9 +40,7 @@ void main() {
   group('authStateProvider', () {
     test('Firebase 미초기화 시 AsyncValue 타입을 반환한다', () {
       final container = ProviderContainer(
-        overrides: [
-          isFirebaseInitializedProvider.overrideWithValue(false),
-        ],
+        overrides: [isFirebaseInitializedProvider.overrideWithValue(false)],
       );
       addTearDown(container.dispose);
 
@@ -58,9 +54,7 @@ void main() {
     test('FirebaseAuth 타입을 반환한다', () {
       final mockAuth = _MockFirebaseAuth();
       final container = ProviderContainer(
-        overrides: [
-          firebaseAuthProvider.overrideWithValue(mockAuth),
-        ],
+        overrides: [firebaseAuthProvider.overrideWithValue(mockAuth)],
       );
       addTearDown(container.dispose);
 
@@ -73,9 +67,7 @@ void main() {
     test('keepAlive Provider이다 (autoDispose가 아니다)', () {
       final mockAuth = _MockFirebaseAuth();
       final container = ProviderContainer(
-        overrides: [
-          firebaseAuthProvider.overrideWithValue(mockAuth),
-        ],
+        overrides: [firebaseAuthProvider.overrideWithValue(mockAuth)],
       );
       addTearDown(container.dispose);
 
@@ -94,9 +86,7 @@ void main() {
     test('override로 fake 주입이 가능하다', () {
       final fake = _MockFirebaseCrashlytics();
       final container = ProviderContainer(
-        overrides: [
-          firebaseCrashlyticsProvider.overrideWithValue(fake),
-        ],
+        overrides: [firebaseCrashlyticsProvider.overrideWithValue(fake)],
       );
       addTearDown(container.dispose);
 
@@ -109,9 +99,7 @@ void main() {
     test('keepAlive Provider이다 (subscription 해제 후에도 값 유지)', () {
       final fake = _MockFirebaseCrashlytics();
       final container = ProviderContainer(
-        overrides: [
-          firebaseCrashlyticsProvider.overrideWithValue(fake),
-        ],
+        overrides: [firebaseCrashlyticsProvider.overrideWithValue(fake)],
       );
       addTearDown(container.dispose);
 
@@ -127,9 +115,7 @@ void main() {
     test('override로 fake 주입이 가능하다', () {
       final fake = _MockFirebaseAnalytics();
       final container = ProviderContainer(
-        overrides: [
-          firebaseAnalyticsProvider.overrideWithValue(fake),
-        ],
+        overrides: [firebaseAnalyticsProvider.overrideWithValue(fake)],
       );
       addTearDown(container.dispose);
 
@@ -144,9 +130,7 @@ void main() {
     test('override로 fake 주입이 가능하다', () {
       final fake = _MockFirebaseFirestore();
       final container = ProviderContainer(
-        overrides: [
-          firebaseFirestoreProvider.overrideWithValue(fake),
-        ],
+        overrides: [firebaseFirestoreProvider.overrideWithValue(fake)],
       );
       addTearDown(container.dispose);
 

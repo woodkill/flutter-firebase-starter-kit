@@ -31,8 +31,7 @@ class EmailField extends StatelessWidget {
   final TextInputAction textInputAction;
 
   /// 클라이언트 사이드 이메일 정규식 (D-20). 느슨한 검증.
-  static final RegExp _emailRegex =
-      RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
+  static final RegExp _emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
 
   @override
   Widget build(BuildContext context) {
@@ -43,9 +42,7 @@ class EmailField extends StatelessWidget {
       autofillHints: const [AutofillHints.email],
       keyboardType: TextInputType.emailAddress,
       textInputAction: textInputAction,
-      decoration: InputDecoration(
-        labelText: l10n.authLoginEmailLabel,
-      ),
+      decoration: InputDecoration(labelText: l10n.authLoginEmailLabel),
       validator: (value) {
         final v = (value ?? '').trim();
         if (v.isEmpty) return l10n.errorEmailRequired;

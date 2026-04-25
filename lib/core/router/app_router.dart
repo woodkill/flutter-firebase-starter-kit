@@ -133,9 +133,7 @@ GoRouter appRouter(Ref ref) {
     final currentName = route is GoRoute ? route.name : null;
     if (currentLocation != lastMatchedLocation) {
       lastMatchedLocation = currentLocation;
-      analytics.logScreenView(
-        screenName: currentName ?? currentLocation,
-      );
+      analytics.logScreenView(screenName: currentName ?? currentLocation);
     }
   }
 

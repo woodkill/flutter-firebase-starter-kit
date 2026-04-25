@@ -40,13 +40,11 @@ Future<void> pumpGuestHarness(
   final router = GoRouter(
     initialLocation: '/',
     routes: [
-      GoRoute(
-        path: '/',
-        builder: (_, _) => const EnvironmentInfoScreen(),
-      ),
+      GoRoute(path: '/', builder: (_, _) => const EnvironmentInfoScreen()),
       GoRoute(
         path: '/login',
-        builder: (_, _) => const Scaffold(body: Center(child: Text('LoginStub'))),
+        builder: (_, _) =>
+            const Scaffold(body: Center(child: Text('LoginStub'))),
       ),
     ],
   );
@@ -74,82 +72,79 @@ Future<void> pumpGuestHarness(
 
 void main() {
   group('EnvironmentInfoScreen 게스트 UI (Phase 10 D-13, D-11)', () {
-    testWidgets(
-      'isAnonymous=true 사용자 → body 상단에 _GuestBanner 렌더',
-      (tester) async {
-        final anonUser = _MockUser();
-        when(() => anonUser.isAnonymous).thenReturn(true);
-        when(() => anonUser.uid).thenReturn('anon-uid');
+    testWidgets('isAnonymous=true 사용자 → body 상단에 _GuestBanner 렌더', (
+      tester,
+    ) async {
+      final anonUser = _MockUser();
+      when(() => anonUser.isAnonymous).thenReturn(true);
+      when(() => anonUser.uid).thenReturn('anon-uid');
 
-        await pumpGuestHarness(
-          tester,
-          isFirebaseInitialized: true,
-          authStateUser: anonUser,
-        );
+      await pumpGuestHarness(
+        tester,
+        isFirebaseInitialized: true,
+        authStateUser: anonUser,
+      );
 
-        final l10n = AppLocalizations.of(
-          tester.element(find.byType(EnvironmentInfoScreen)),
-        );
-        expect(
-          find.text(l10n.homeGuestBanner),
-          findsOneWidget,
-          reason: '익명 사용자에게 게스트 배너가 상단에 노출되어야 함',
-        );
-      },
-    );
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(EnvironmentInfoScreen)),
+      );
+      expect(
+        find.text(l10n.homeGuestBanner),
+        findsOneWidget,
+        reason: '익명 사용자에게 게스트 배너가 상단에 노출되어야 함',
+      );
+    });
 
-    testWidgets(
-      'isAnonymous=false 사용자 → 게스트 배너/AppBar 로그인 버튼 숨김',
-      (tester) async {
-        final verifiedUser = _MockUser();
-        when(() => verifiedUser.isAnonymous).thenReturn(false);
-        when(() => verifiedUser.uid).thenReturn('verified-uid');
+    testWidgets('isAnonymous=false 사용자 → 게스트 배너/AppBar 로그인 버튼 숨김', (
+      tester,
+    ) async {
+      final verifiedUser = _MockUser();
+      when(() => verifiedUser.isAnonymous).thenReturn(false);
+      when(() => verifiedUser.uid).thenReturn('verified-uid');
 
-        await pumpGuestHarness(
-          tester,
-          isFirebaseInitialized: true,
-          authStateUser: verifiedUser,
-        );
+      await pumpGuestHarness(
+        tester,
+        isFirebaseInitialized: true,
+        authStateUser: verifiedUser,
+      );
 
-        final l10n = AppLocalizations.of(
-          tester.element(find.byType(EnvironmentInfoScreen)),
-        );
-        expect(
-          find.text(l10n.homeGuestBanner),
-          findsNothing,
-          reason: '정식 사용자는 게스트 배너 없음',
-        );
-        expect(
-          find.text(l10n.homeSignIn),
-          findsNothing,
-          reason: '정식 사용자는 AppBar 로그인 버튼 없음',
-        );
-      },
-    );
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(EnvironmentInfoScreen)),
+      );
+      expect(
+        find.text(l10n.homeGuestBanner),
+        findsNothing,
+        reason: '정식 사용자는 게스트 배너 없음',
+      );
+      expect(
+        find.text(l10n.homeSignIn),
+        findsNothing,
+        reason: '정식 사용자는 AppBar 로그인 버튼 없음',
+      );
+    });
 
-    testWidgets(
-      'isAnonymous=true 사용자 → AppBar 우측에 homeSignIn TextButton 표시',
-      (tester) async {
-        final anonUser = _MockUser();
-        when(() => anonUser.isAnonymous).thenReturn(true);
-        when(() => anonUser.uid).thenReturn('anon-uid');
+    testWidgets('isAnonymous=true 사용자 → AppBar 우측에 homeSignIn TextButton 표시', (
+      tester,
+    ) async {
+      final anonUser = _MockUser();
+      when(() => anonUser.isAnonymous).thenReturn(true);
+      when(() => anonUser.uid).thenReturn('anon-uid');
 
-        await pumpGuestHarness(
-          tester,
-          isFirebaseInitialized: true,
-          authStateUser: anonUser,
-        );
+      await pumpGuestHarness(
+        tester,
+        isFirebaseInitialized: true,
+        authStateUser: anonUser,
+      );
 
-        final l10n = AppLocalizations.of(
-          tester.element(find.byType(EnvironmentInfoScreen)),
-        );
-        final appBarLoginFinder = find.widgetWithText(
-          TextButton,
-          l10n.homeSignIn,
-        );
-        expect(appBarLoginFinder, findsOneWidget);
-      },
-    );
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(EnvironmentInfoScreen)),
+      );
+      final appBarLoginFinder = find.widgetWithText(
+        TextButton,
+        l10n.homeSignIn,
+      );
+      expect(appBarLoginFinder, findsOneWidget);
+    });
 
     testWidgets(
       '_ProtectedExampleSection 이 항상 렌더 + AuthRequired 래핑 OutlinedButton 포함',
@@ -173,15 +168,9 @@ void main() {
           findsOneWidget,
           reason: '보호 예시 섹션은 isAnonymous 관계없이 항상 렌더',
         );
+        expect(find.text(l10n.homeProtectedExampleBody), findsOneWidget);
         expect(
-          find.text(l10n.homeProtectedExampleBody),
-          findsOneWidget,
-        );
-        expect(
-          find.widgetWithText(
-            OutlinedButton,
-            l10n.homeProtectedExampleCta,
-          ),
+          find.widgetWithText(OutlinedButton, l10n.homeProtectedExampleCta),
           findsOneWidget,
           reason: 'AuthRequired 래핑된 OutlinedButton.icon 필요',
         );

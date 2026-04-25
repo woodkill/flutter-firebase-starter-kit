@@ -27,9 +27,7 @@ Future<void> _pumpLogin(
 ) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-      ],
+      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
       child: MaterialApp(
         theme: AppTheme.light(),
         locale: const Locale('en'),
@@ -54,10 +52,7 @@ void main() {
       await _pumpLogin(tester, mockRepo);
       await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pump();
-      expect(
-        find.text('Enter your email address.'),
-        findsOneWidget,
-      );
+      expect(find.text('Enter your email address.'), findsOneWidget);
       expect(
         find.text('Password must be at least 8 characters.'),
         findsOneWidget,
@@ -72,20 +67,11 @@ void main() {
 
     testWidgets('2. 잘못된 이메일/짧은 비밀번호 inline 에러', (tester) async {
       await _pumpLogin(tester, mockRepo);
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'not-an-email',
-      );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'short',
-      );
+      await tester.enterText(find.byType(TextFormField).first, 'not-an-email');
+      await tester.enterText(find.byType(TextFormField).at(1), 'short');
       await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pump();
-      expect(
-        find.text('Enter a valid email address.'),
-        findsOneWidget,
-      );
+      expect(find.text('Enter a valid email address.'), findsOneWidget);
       expect(
         find.text('Password must be at least 8 characters.'),
         findsOneWidget,
@@ -114,10 +100,7 @@ void main() {
         find.byType(TextFormField).first,
         'user@example.com',
       );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'password123',
-      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
       await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pump();
       await tester.pumpAndSettle();
@@ -136,19 +119,14 @@ void main() {
           email: any(named: 'email'),
           password: any(named: 'password'),
         ),
-      ).thenAnswer(
-        (_) async => const Result.failure(InvalidCredentials()),
-      );
+      ).thenAnswer((_) async => const Result.failure(InvalidCredentials()));
 
       await _pumpLogin(tester, mockRepo);
       await tester.enterText(
         find.byType(TextFormField).first,
         'user@example.com',
       );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'password123',
-      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
       await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pump();
       await tester.pumpAndSettle();
@@ -171,18 +149,12 @@ void main() {
         find.byType(TextFormField).first,
         'user@example.com',
       );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'password123',
-      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
       await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(
-        find.widgetWithText(FilledButton, 'Sign in'),
-        findsNothing,
-      );
+      expect(find.widgetWithText(FilledButton, 'Sign in'), findsNothing);
       final button = tester.widget<FilledButton>(find.byType(FilledButton));
       expect(button.onPressed, isNull);
 
@@ -199,45 +171,35 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets(
-      '6. 소셜 SignInButton이 3개(Google + Apple + Facebook) 렌더링된다',
-      (tester) async {
-        when(() => mockRepo.signInWithFacebook())
-            .thenAnswer((_) async => null);
-        await _pumpLogin(tester, mockRepo);
-        // Phase 9부터 Facebook 버튼이 추가되어 총 3개.
-        expect(find.byType(SignInButton), findsNWidgets(3));
-      },
-    );
+    testWidgets('6. 소셜 SignInButton이 3개(Google + Apple + Facebook) 렌더링된다', (
+      tester,
+    ) async {
+      when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+      await _pumpLogin(tester, mockRepo);
+      // Phase 9부터 Facebook 버튼이 추가되어 총 3개.
+      expect(find.byType(SignInButton), findsNWidgets(3));
+    });
 
-    testWidgets(
-      '7. OrDivider "or" 텍스트가 표시된다',
-      (tester) async {
-        await _pumpLogin(tester, mockRepo);
-        expect(find.text('or'), findsOneWidget);
-      },
-    );
+    testWidgets('7. OrDivider "or" 텍스트가 표시된다', (tester) async {
+      await _pumpLogin(tester, mockRepo);
+      expect(find.text('or'), findsOneWidget);
+    });
 
-    testWidgets(
-      '8. 소셜 버튼 영역이 EmailField 위에 위치한다',
-      (tester) async {
-        await _pumpLogin(tester, mockRepo);
+    testWidgets('8. 소셜 버튼 영역이 EmailField 위에 위치한다', (tester) async {
+      await _pumpLogin(tester, mockRepo);
 
-        // 첫 번째 SignInButton(플랫폼에 따라 Google 또는 Apple)이
-        // EmailField 위에 배치되어야 한다.
-        final firstSocialButton = tester.getTopLeft(
-          find.byType(SignInButton).first,
-        );
-        final emailField = tester.getTopLeft(
-          find.byType(TextFormField).first,
-        );
-        expect(
-          firstSocialButton.dy,
-          lessThan(emailField.dy),
-          reason: '소셜 버튼 영역이 이메일 필드 위에 배치되어야 한다',
-        );
-      },
-    );
+      // 첫 번째 SignInButton(플랫폼에 따라 Google 또는 Apple)이
+      // EmailField 위에 배치되어야 한다.
+      final firstSocialButton = tester.getTopLeft(
+        find.byType(SignInButton).first,
+      );
+      final emailField = tester.getTopLeft(find.byType(TextFormField).first);
+      expect(
+        firstSocialButton.dy,
+        lessThan(emailField.dy),
+        reason: '소셜 버튼 영역이 이메일 필드 위에 배치되어야 한다',
+      );
+    });
 
     // -----------------------------------------------------------------
     // Phase 8 Apple 로그인 시나리오 (AUTH-03-15, 16, 17)
@@ -248,45 +210,41 @@ void main() {
       /// Apple 버튼 finder — 통일 순서에서 두 번째(index 1) SignInButton.
       Finder findAppleButton() => find.byType(SignInButton).at(1);
 
-      testWidgets(
-        'AUTH-03-15: Apple 로그인 성공 시 FormErrorBanner에 에러 없음 '
-        '(navigation은 authRedirect 위임)',
-        (tester) async {
-          when(() => mockRepo.signInWithApple()).thenAnswer(
-            (_) async => Result<User>.success(
-              User(
-                uid: 'apple-uid',
-                email: 'x@privaterelay.appleid.com',
-                emailVerified: true,
-                displayName: 'Apple User',
-                createdAt: DateTime.utc(2026, 4, 11),
-                providerIds: const <String>['apple.com'],
-              ),
+      testWidgets('AUTH-03-15: Apple 로그인 성공 시 FormErrorBanner에 에러 없음 '
+          '(navigation은 authRedirect 위임)', (tester) async {
+        when(() => mockRepo.signInWithApple()).thenAnswer(
+          (_) async => Result<User>.success(
+            User(
+              uid: 'apple-uid',
+              email: 'x@privaterelay.appleid.com',
+              emailVerified: true,
+              displayName: 'Apple User',
+              createdAt: DateTime.utc(2026, 4, 11),
+              providerIds: const <String>['apple.com'],
             ),
-          );
-          when(() => mockRepo.signInWithFacebook())
-              .thenAnswer((_) async => null);
+          ),
+        );
+        when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
 
-          await _pumpLogin(tester, mockRepo);
-          await tester.pumpAndSettle();
+        await _pumpLogin(tester, mockRepo);
+        await tester.pumpAndSettle();
 
-          // D-04: 통일 순서에서 Apple 버튼은 두 번째.
-          await tester.tap(findAppleButton());
-          await tester.pumpAndSettle();
+        // D-04: 통일 순서에서 Apple 버튼은 두 번째.
+        await tester.tap(findAppleButton());
+        await tester.pumpAndSettle();
 
-          // Repository 호출 검증.
-          verify(() => mockRepo.signInWithApple()).called(1);
+        // Repository 호출 검증.
+        verify(() => mockRepo.signInWithApple()).called(1);
 
-          // 소셜 영역 FormErrorBanner.exception == null (에러 없음).
-          final banner = tester.widget<FormErrorBanner>(
-            find.descendant(
-              of: find.byType(SocialSignInSection),
-              matching: find.byType(FormErrorBanner),
-            ),
-          );
-          expect(banner.exception, isNull);
-        },
-      );
+        // 소셜 영역 FormErrorBanner.exception == null (에러 없음).
+        final banner = tester.widget<FormErrorBanner>(
+          find.descendant(
+            of: find.byType(SocialSignInSection),
+            matching: find.byType(FormErrorBanner),
+          ),
+        );
+        expect(banner.exception, isNull);
+      });
 
       testWidgets(
         'AUTH-03-16: Apple 에러(ServiceUnavailable) 시 FormErrorBanner 표시',
@@ -294,8 +252,9 @@ void main() {
           when(() => mockRepo.signInWithApple()).thenAnswer(
             (_) async => const Result<User>.failure(ServiceUnavailable()),
           );
-          when(() => mockRepo.signInWithFacebook())
-              .thenAnswer((_) async => null);
+          when(
+            () => mockRepo.signInWithFacebook(),
+          ).thenAnswer((_) async => null);
 
           await _pumpLogin(tester, mockRepo);
           await tester.pumpAndSettle();
@@ -325,8 +284,9 @@ void main() {
               ),
             ),
           );
-          when(() => mockRepo.signInWithFacebook())
-              .thenAnswer((_) async => null);
+          when(
+            () => mockRepo.signInWithFacebook(),
+          ).thenAnswer((_) async => null);
 
           await _pumpLogin(tester, mockRepo);
           await tester.pumpAndSettle();
@@ -343,10 +303,7 @@ void main() {
               matching: find.byType(TextFormField),
             ),
           );
-          expect(
-            emailFormField.controller?.text,
-            'collision@example.com',
-          );
+          expect(emailFormField.controller?.text, 'collision@example.com');
 
           // 소셜 영역 FormErrorBanner에도 에러가 표시되어야 한다.
           final banner = tester.widget<FormErrorBanner>(
@@ -355,10 +312,7 @@ void main() {
               matching: find.byType(FormErrorBanner),
             ),
           );
-          expect(
-            banner.exception,
-            isA<AccountExistsWithDifferentCredential>(),
-          );
+          expect(banner.exception, isA<AccountExistsWithDifferentCredential>());
         },
       );
     });

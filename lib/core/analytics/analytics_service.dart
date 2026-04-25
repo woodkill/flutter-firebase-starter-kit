@@ -46,10 +46,7 @@ class AnalyticsService {
   /// 커스텀 이벤트를 기록한다.
   ///
   /// [parameters] 에 PII 를 포함하지 않도록 호출부에서 주의한다.
-  Future<void> logEvent(
-    String name, {
-    Map<String, Object>? parameters,
-  }) async {
+  Future<void> logEvent(String name, {Map<String, Object>? parameters}) async {
     final client = _analytics;
     if (!isEnabled || client == null) return;
     await client.logEvent(name: name, parameters: parameters);

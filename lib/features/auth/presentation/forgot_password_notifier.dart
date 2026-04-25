@@ -45,8 +45,10 @@ class ForgotPasswordNotifier extends _$ForgotPasswordNotifier {
     if (!ref.mounted) return;
     state = switch (result) {
       Success<dynamic>() => const AsyncData<void>(null),
-      Failure<dynamic>(exception: final ex) =>
-        AsyncError<void>(ex, StackTrace.current),
+      Failure<dynamic>(exception: final ex) => AsyncError<void>(
+        ex,
+        StackTrace.current,
+      ),
     };
   }
 }

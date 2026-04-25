@@ -20,9 +20,7 @@ void main() {
 
   ProviderContainer makeContainer() {
     final container = ProviderContainer(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-      ],
+      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
     );
     addTearDown(container.dispose);
     return container;
@@ -66,9 +64,7 @@ void main() {
           password: any(named: 'password'),
           displayName: any(named: 'displayName'),
         ),
-      ).thenAnswer(
-        (_) async => const Result.failure(EmailAlreadyInUse()),
-      );
+      ).thenAnswer((_) async => const Result.failure(EmailAlreadyInUse()));
 
       final container = makeContainer();
       final notifier = container.read(signupProvider.notifier);
@@ -104,7 +100,9 @@ void main() {
       );
 
       final container = makeContainer();
-      await container.read(signupProvider.notifier).submit(
+      await container
+          .read(signupProvider.notifier)
+          .submit(
             email: 'new@example.com',
             password: 'password123',
             displayName: 'New User',

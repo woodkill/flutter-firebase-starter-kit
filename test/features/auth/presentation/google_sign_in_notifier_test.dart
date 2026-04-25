@@ -20,9 +20,7 @@ void main() {
 
   ProviderContainer makeContainer() {
     final container = ProviderContainer(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-      ],
+      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
     );
     addTearDown(container.dispose);
     return container;
@@ -36,8 +34,9 @@ void main() {
         emailVerified: true,
         createdAt: DateTime.utc(2026),
       );
-      when(() => mockRepo.signInWithGoogle())
-          .thenAnswer((_) async => Result.success(user));
+      when(
+        () => mockRepo.signInWithGoogle(),
+      ).thenAnswer((_) async => Result.success(user));
 
       final container = makeContainer();
       final notifier = container.read(googleSignInProvider.notifier);
@@ -50,8 +49,7 @@ void main() {
     });
 
     test('취소(null 반환) 시 AsyncData 상태로 유지된다 (D-06)', () async {
-      when(() => mockRepo.signInWithGoogle())
-          .thenAnswer((_) async => null);
+      when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
 
       final container = makeContainer();
       final notifier = container.read(googleSignInProvider.notifier);
@@ -64,9 +62,9 @@ void main() {
     });
 
     test('Failure 반환 시 AsyncError 상태로 전환된다', () async {
-      when(() => mockRepo.signInWithGoogle()).thenAnswer(
-        (_) async => const Result.failure(ServiceUnavailable()),
-      );
+      when(
+        () => mockRepo.signInWithGoogle(),
+      ).thenAnswer((_) async => const Result.failure(ServiceUnavailable()));
 
       final container = makeContainer();
       final notifier = container.read(googleSignInProvider.notifier);
@@ -78,27 +76,24 @@ void main() {
       expect(state.error, isA<ServiceUnavailable>());
     });
 
-    test(
-      'AccountExistsWithDifferentCredential 반환 시 '
-      'AsyncError이고 에러가 해당 타입이다',
-      () async {
-        when(() => mockRepo.signInWithGoogle()).thenAnswer(
-          (_) async => const Result.failure(
-            AccountExistsWithDifferentCredential(email: 'user@email.com'),
-          ),
-        );
+    test('AccountExistsWithDifferentCredential 반환 시 '
+        'AsyncError이고 에러가 해당 타입이다', () async {
+      when(() => mockRepo.signInWithGoogle()).thenAnswer(
+        (_) async => const Result.failure(
+          AccountExistsWithDifferentCredential(email: 'user@email.com'),
+        ),
+      );
 
-        final container = makeContainer();
-        final notifier = container.read(googleSignInProvider.notifier);
+      final container = makeContainer();
+      final notifier = container.read(googleSignInProvider.notifier);
 
-        await notifier.signInWithGoogle();
+      await notifier.signInWithGoogle();
 
-        final state = container.read(googleSignInProvider);
-        expect(state, isA<AsyncError<void>>());
-        expect(state.error, isA<AccountExistsWithDifferentCredential>());
-        final error = state.error! as AccountExistsWithDifferentCredential;
-        expect(error.email, 'user@email.com');
-      },
-    );
+      final state = container.read(googleSignInProvider);
+      expect(state, isA<AsyncError<void>>());
+      expect(state.error, isA<AccountExistsWithDifferentCredential>());
+      final error = state.error! as AccountExistsWithDifferentCredential;
+      expect(error.email, 'user@email.com');
+    });
   });
 }

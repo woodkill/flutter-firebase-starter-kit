@@ -30,46 +30,49 @@ void main() {
       );
     });
 
-    test('Test 2: FlutterError.onError 가 recordFlutterFatalError 에 할당된다 (경로 2)',
-        () {
-      expect(
-        source.contains(
-          'FlutterError.onError =\n'
-          '          FirebaseCrashlytics.instance.recordFlutterFatalError',
-        ) ||
-            source.contains(
-              'FlutterError.onError = '
-              'FirebaseCrashlytics.instance.recordFlutterFatalError',
-            ),
-        isTrue,
-        reason: 'FlutterError.onError 는 recordFlutterFatalError 로 위임.',
-      );
-    });
+    test(
+      'Test 2: FlutterError.onError 가 recordFlutterFatalError 에 할당된다 (경로 2)',
+      () {
+        expect(
+          source.contains(
+                'FlutterError.onError =\n'
+                '          FirebaseCrashlytics.instance.recordFlutterFatalError',
+              ) ||
+              source.contains(
+                'FlutterError.onError = '
+                'FirebaseCrashlytics.instance.recordFlutterFatalError',
+              ),
+          isTrue,
+          reason: 'FlutterError.onError 는 recordFlutterFatalError 로 위임.',
+        );
+      },
+    );
 
     test('Test 3: PlatformDispatcher.instance.onError 가 등록된다 (경로 3)', () {
       expect(
         source.contains('PlatformDispatcher.instance.onError'),
         isTrue,
-        reason:
-            'PlatformDispatcher.onError 는 비동기/플랫폼 에러를 Crashlytics 로 보낸다.',
+        reason: 'PlatformDispatcher.onError 는 비동기/플랫폼 에러를 Crashlytics 로 보낸다.',
       );
     });
 
-    test('Test 4: isFirebaseInitialized=true 분기 안에서만 3경로 등록 (Phase 1 D-13)',
-        () {
-      // 등록 모두 if (isFirebaseInitialized) 블록 안에서 이루어져야 한다.
-      // 단순 grep 으로는 분기 위치를 정확히 검증하기 어려우므로,
-      // 등록 직전 가드 라인 존재 여부 + flavor custom key 함께 검사한다.
-      expect(
-        source.contains('if (isFirebaseInitialized) {'),
-        isTrue,
-        reason: 'Crashlytics 등록은 isFirebaseInitialized 가드 안에서만.',
-      );
-      expect(
-        source.contains("setCustomKey('flavor', flavor)"),
-        isTrue,
-        reason: 'AUTH-11 — flavor custom key 태깅이 필요하다.',
-      );
-    });
+    test(
+      'Test 4: isFirebaseInitialized=true 분기 안에서만 3경로 등록 (Phase 1 D-13)',
+      () {
+        // 등록 모두 if (isFirebaseInitialized) 블록 안에서 이루어져야 한다.
+        // 단순 grep 으로는 분기 위치를 정확히 검증하기 어려우므로,
+        // 등록 직전 가드 라인 존재 여부 + flavor custom key 함께 검사한다.
+        expect(
+          source.contains('if (isFirebaseInitialized) {'),
+          isTrue,
+          reason: 'Crashlytics 등록은 isFirebaseInitialized 가드 안에서만.',
+        );
+        expect(
+          source.contains("setCustomKey('flavor', flavor)"),
+          isTrue,
+          reason: 'AUTH-11 — flavor custom key 태깅이 필요하다.',
+        );
+      },
+    );
   });
 }

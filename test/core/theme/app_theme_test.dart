@@ -36,10 +36,7 @@ void main() {
       test('colorScheme.brightness가 Brightness.light이다', () {
         final theme = AppTheme.light();
 
-        expect(
-          theme.colorScheme.brightness,
-          equals(Brightness.light),
-        );
+        expect(theme.colorScheme.brightness, equals(Brightness.light));
       });
     });
 
@@ -65,10 +62,7 @@ void main() {
       test('colorScheme.brightness가 Brightness.dark이다', () {
         final theme = AppTheme.dark();
 
-        expect(
-          theme.colorScheme.brightness,
-          equals(Brightness.dark),
-        );
+        expect(theme.colorScheme.brightness, equals(Brightness.dark));
       });
     });
   });

@@ -88,9 +88,7 @@ void main() {
       when(() => mockUser.email).thenReturn('full@example.com');
       when(() => mockUser.emailVerified).thenReturn(true);
       when(() => mockUser.displayName).thenReturn('Full User');
-      when(
-        () => mockUser.photoURL,
-      ).thenReturn('https://example.com/photo.png');
+      when(() => mockUser.photoURL).thenReturn('https://example.com/photo.png');
       when(
         () => mockMetadata.creationTime,
       ).thenReturn(DateTime.utc(2026, 1, 15, 10, 30));
@@ -226,9 +224,7 @@ void main() {
       when(() => mockUser.updateDisplayName(any())).thenAnswer((_) async {});
       when(() => mockUser.reload()).thenAnswer((_) async {});
       when(() => mockAuth.currentUser).thenReturn(mockUser);
-      when(
-        () => mockUser.sendEmailVerification(),
-      ).thenAnswer((_) async {});
+      when(() => mockUser.sendEmailVerification()).thenAnswer((_) async {});
 
       final result = await repository.signUpWithEmail(
         email: 'new@example.com',
@@ -254,9 +250,7 @@ void main() {
           () => mockUser.updateDisplayName(any()),
         ).thenThrow(fb.FirebaseAuthException(code: 'unknown'));
         when(() => mockAuth.currentUser).thenReturn(mockUser);
-        when(
-          () => mockUser.sendEmailVerification(),
-        ).thenAnswer((_) async {});
+        when(() => mockUser.sendEmailVerification()).thenAnswer((_) async {});
 
         final result = await repository.signUpWithEmail(
           email: 'a@b.com',
@@ -295,32 +289,32 @@ void main() {
       expect(result, isA<Success<dynamic>>());
     });
 
-    test('FirebaseAuthException invalid-email 시 InvalidEmail Failure', () async {
-      when(
-        () => mockAuth.sendPasswordResetEmail(email: any(named: 'email')),
-      ).thenThrow(fb.FirebaseAuthException(code: 'invalid-email'));
+    test(
+      'FirebaseAuthException invalid-email 시 InvalidEmail Failure',
+      () async {
+        when(
+          () => mockAuth.sendPasswordResetEmail(email: any(named: 'email')),
+        ).thenThrow(fb.FirebaseAuthException(code: 'invalid-email'));
 
-      final result = await repository.sendPasswordReset(email: 'bad');
+        final result = await repository.sendPasswordReset(email: 'bad');
 
-      expect(result, isA<Failure<dynamic>>());
-      expect((result as Failure).exception, isA<InvalidEmail>());
-    });
+        expect(result, isA<Failure<dynamic>>());
+        expect((result as Failure).exception, isA<InvalidEmail>());
+      },
+    );
   });
 
   group('sendEmailVerification', () {
     test('성공 시 Result.success(null)을 반환한다', () async {
       when(() => mockAuth.currentUser).thenReturn(mockUser);
-      when(
-        () => mockUser.sendEmailVerification(),
-      ).thenAnswer((_) async {});
+      when(() => mockUser.sendEmailVerification()).thenAnswer((_) async {});
 
       final result = await repository.sendEmailVerification();
 
       expect(result, isA<Success<dynamic>>());
     });
 
-    test('실패 시 _mapAuthException으로 변환된 Result.failure를 반환한다',
-        () async {
+    test('실패 시 _mapAuthException으로 변환된 Result.failure를 반환한다', () async {
       when(() => mockAuth.currentUser).thenReturn(mockUser);
       when(
         () => mockUser.sendEmailVerification(),
@@ -343,22 +337,16 @@ void main() {
       expect(result, isA<Success<dynamic>>());
     });
 
-    test('실패 시 _mapAuthException으로 변환된 Result.failure를 반환한다',
-        () async {
+    test('실패 시 _mapAuthException으로 변환된 Result.failure를 반환한다', () async {
       when(() => mockAuth.currentUser).thenReturn(mockUser);
       when(
         () => mockUser.reload(),
-      ).thenThrow(
-        fb.FirebaseAuthException(code: 'network-request-failed'),
-      );
+      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
 
       final result = await repository.reloadUser();
 
       expect(result, isA<Failure<dynamic>>());
-      expect(
-        (result as Failure).exception,
-        isA<NoInternetConnection>(),
-      );
+      expect((result as Failure).exception, isA<NoInternetConnection>());
     });
   });
 
@@ -373,9 +361,7 @@ void main() {
       when(() => mockUser.updateDisplayName(any())).thenAnswer((_) async {});
       when(() => mockUser.reload()).thenAnswer((_) async {});
       when(() => mockAuth.currentUser).thenReturn(mockUser);
-      when(
-        () => mockUser.sendEmailVerification(),
-      ).thenAnswer((_) async {});
+      when(() => mockUser.sendEmailVerification()).thenAnswer((_) async {});
 
       await repository.signUpWithEmail(
         email: 'new@example.com',
@@ -386,33 +372,28 @@ void main() {
       verify(() => mockUser.sendEmailVerification()).called(1);
     });
 
-    test(
-      'sendEmailVerification 실패해도 가입은 성공 유지된다 (D-01, D-11)',
-      () async {
-        when(
-          () => mockAuth.createUserWithEmailAndPassword(
-            email: any(named: 'email'),
-            password: any(named: 'password'),
-          ),
-        ).thenAnswer((_) async => mockCredential);
-        when(
-          () => mockUser.updateDisplayName(any()),
-        ).thenAnswer((_) async {});
-        when(() => mockUser.reload()).thenAnswer((_) async {});
-        when(() => mockAuth.currentUser).thenReturn(mockUser);
-        when(
-          () => mockUser.sendEmailVerification(),
-        ).thenThrow(fb.FirebaseAuthException(code: 'too-many-requests'));
+    test('sendEmailVerification 실패해도 가입은 성공 유지된다 (D-01, D-11)', () async {
+      when(
+        () => mockAuth.createUserWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockUser.updateDisplayName(any())).thenAnswer((_) async {});
+      when(() => mockUser.reload()).thenAnswer((_) async {});
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(
+        () => mockUser.sendEmailVerification(),
+      ).thenThrow(fb.FirebaseAuthException(code: 'too-many-requests'));
 
-        final result = await repository.signUpWithEmail(
-          email: 'new@example.com',
-          password: 'password123',
-          displayName: 'Newbie',
-        );
+      final result = await repository.signUpWithEmail(
+        email: 'new@example.com',
+        password: 'password123',
+        displayName: 'Newbie',
+      );
 
-        expect(result, isA<Success<dynamic>>());
-      },
-    );
+      expect(result, isA<Success<dynamic>>());
+    });
   });
 
   group('signInWithGoogle', () {
@@ -420,40 +401,41 @@ void main() {
 
     setUp(() {
       mockAccount = _MockGoogleSignInAccount();
-      when(() => mockAccount.authentication).thenReturn(
-        const GoogleSignInAuthentication(idToken: 'mock-id-token'),
-      );
+      when(
+        () => mockAccount.authentication,
+      ).thenReturn(const GoogleSignInAuthentication(idToken: 'mock-id-token'));
     });
 
-    test('성공 시 Result.success(User)를 반환하고 providerIds에 google.com 포함',
-        () async {
-      when(
-        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
-      ).thenAnswer((_) async => mockAccount);
+    test(
+      '성공 시 Result.success(User)를 반환하고 providerIds에 google.com 포함',
+      () async {
+        when(
+          () =>
+              mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+        ).thenAnswer((_) async => mockAccount);
 
-      final mockProviderInfo = _MockUserInfo();
-      when(() => mockProviderInfo.providerId).thenReturn('google.com');
-      when(() => mockUser.providerData).thenReturn([mockProviderInfo]);
+        final mockProviderInfo = _MockUserInfo();
+        when(() => mockProviderInfo.providerId).thenReturn('google.com');
+        when(() => mockUser.providerData).thenReturn([mockProviderInfo]);
 
-      when(
-        () => mockAuth.signInWithCredential(any()),
-      ).thenAnswer((_) async => mockCredential);
+        when(
+          () => mockAuth.signInWithCredential(any()),
+        ).thenAnswer((_) async => mockCredential);
 
-      final result = await repository.signInWithGoogle();
+        final result = await repository.signInWithGoogle();
 
-      expect(result, isA<Success<dynamic>>());
-      final user = (result! as Success).data;
-      expect(user.uid, 'uid-test');
-      expect(user.providerIds, ['google.com']);
-    });
+        expect(result, isA<Success<dynamic>>());
+        final user = (result! as Success).data;
+        expect(user.uid, 'uid-test');
+        expect(user.providerIds, ['google.com']);
+      },
+    );
 
     test('사용자 취소(canceled) 시 null을 반환한다', () async {
       when(
         () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
       ).thenThrow(
-        const GoogleSignInException(
-          code: GoogleSignInExceptionCode.canceled,
-        ),
+        const GoogleSignInException(code: GoogleSignInExceptionCode.canceled),
       );
 
       final result = await repository.signInWithGoogle();
@@ -461,56 +443,51 @@ void main() {
       expect(result, isNull);
     });
 
-    test(
-      'account-exists-with-different-credential 시 '
-      'AccountExistsWithDifferentCredential 반환',
-      () async {
-        when(
-          () => mockGoogleSignIn.authenticate(
-            scopeHint: any(named: 'scopeHint'),
-          ),
-        ).thenAnswer((_) async => mockAccount);
-
-        when(
-          () => mockAuth.signInWithCredential(any()),
-        ).thenThrow(
-          fb.FirebaseAuthException(
-            code: 'account-exists-with-different-credential',
-            email: 'existing@example.com',
-          ),
-        );
-
-        final result = await repository.signInWithGoogle();
-
-        expect(result, isA<Failure<dynamic>>());
-        final exception = (result! as Failure).exception;
-        expect(exception, isA<AccountExistsWithDifferentCredential>());
-        expect(
-          (exception as AccountExistsWithDifferentCredential).email,
-          'existing@example.com',
-        );
-      },
-    );
-
-    test('기타 GoogleSignInException 시 Result.failure(ServiceUnavailable) 반환',
-        () async {
+    test('account-exists-with-different-credential 시 '
+        'AccountExistsWithDifferentCredential 반환', () async {
       when(
         () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
-      ).thenThrow(
-        const GoogleSignInException(
-          code: GoogleSignInExceptionCode.unknownError,
-          description: 'Something went wrong',
+      ).thenAnswer((_) async => mockAccount);
+
+      when(() => mockAuth.signInWithCredential(any())).thenThrow(
+        fb.FirebaseAuthException(
+          code: 'account-exists-with-different-credential',
+          email: 'existing@example.com',
         ),
       );
 
       final result = await repository.signInWithGoogle();
 
       expect(result, isA<Failure<dynamic>>());
-      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      final exception = (result! as Failure).exception;
+      expect(exception, isA<AccountExistsWithDifferentCredential>());
+      expect(
+        (exception as AccountExistsWithDifferentCredential).email,
+        'existing@example.com',
+      );
     });
 
-    test('signInWithCredential에서 user가 null이면 ServiceUnavailable 반환',
-        () async {
+    test(
+      '기타 GoogleSignInException 시 Result.failure(ServiceUnavailable) 반환',
+      () async {
+        when(
+          () =>
+              mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+        ).thenThrow(
+          const GoogleSignInException(
+            code: GoogleSignInExceptionCode.unknownError,
+            description: 'Something went wrong',
+          ),
+        );
+
+        final result = await repository.signInWithGoogle();
+
+        expect(result, isA<Failure<dynamic>>());
+        expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      },
+    );
+
+    test('signInWithCredential에서 user가 null이면 ServiceUnavailable 반환', () async {
       when(
         () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
       ).thenAnswer((_) async => mockAccount);
@@ -541,8 +518,7 @@ void main() {
       verify(() => mockAuth.signOut()).called(1);
     });
 
-    test('GoogleSignIn.signOut() 실패 시에도 FirebaseAuth.signOut() 호출된다',
-        () async {
+    test('GoogleSignIn.signOut() 실패 시에도 FirebaseAuth.signOut() 호출된다', () async {
       when(
         () => mockGoogleSignIn.signOut(),
       ).thenThrow(Exception('Google signOut failed'));
@@ -562,10 +538,9 @@ void main() {
       when(() => mockProvider1.providerId).thenReturn('google.com');
       final mockProvider2 = _MockUserInfo();
       when(() => mockProvider2.providerId).thenReturn('password');
-      when(() => mockUser.providerData).thenReturn([
-        mockProvider1,
-        mockProvider2,
-      ]);
+      when(
+        () => mockUser.providerData,
+      ).thenReturn([mockProvider1, mockProvider2]);
 
       when(
         () => mockAuth.signInWithEmailAndPassword(
@@ -626,16 +601,10 @@ void main() {
       );
     });
     test('wrong-password → InvalidCredentials', () async {
-      expect(
-        await mapViaSignIn('wrong-password'),
-        isA<InvalidCredentials>(),
-      );
+      expect(await mapViaSignIn('wrong-password'), isA<InvalidCredentials>());
     });
     test('user-not-found → InvalidCredentials', () async {
-      expect(
-        await mapViaSignIn('user-not-found'),
-        isA<InvalidCredentials>(),
-      );
+      expect(await mapViaSignIn('user-not-found'), isA<InvalidCredentials>());
     });
     test('email-already-in-use → EmailAlreadyInUse', () async {
       expect(
@@ -659,24 +628,18 @@ void main() {
       );
     });
     test('too-many-requests → TooManyRequests', () async {
+      expect(await mapViaSignIn('too-many-requests'), isA<TooManyRequests>());
+    });
+    test('operation-not-allowed → ServiceUnavailable '
+        '(Firebase Console 인증 방식 비활성 설정 오류)', () async {
+      // 회귀 방지: dev Firebase Console에서 Email/Password 가입이 꺼져 있을 때
+      // 던져지는 코드를 명시적으로 매핑한다. fallback과 동일한 결과지만,
+      // 의도가 코드에 드러나며 향후 다른 매핑으로 분리할 여지를 남긴다.
       expect(
-        await mapViaSignIn('too-many-requests'),
-        isA<TooManyRequests>(),
+        await mapViaSignIn('operation-not-allowed'),
+        isA<ServiceUnavailable>(),
       );
     });
-    test(
-      'operation-not-allowed → ServiceUnavailable '
-      '(Firebase Console 인증 방식 비활성 설정 오류)',
-      () async {
-        // 회귀 방지: dev Firebase Console에서 Email/Password 가입이 꺼져 있을 때
-        // 던져지는 코드를 명시적으로 매핑한다. fallback과 동일한 결과지만,
-        // 의도가 코드에 드러나며 향후 다른 매핑으로 분리할 여지를 남긴다.
-        expect(
-          await mapViaSignIn('operation-not-allowed'),
-          isA<ServiceUnavailable>(),
-        );
-      },
-    );
     test('알 수 없는 코드 → ServiceUnavailable (fallback)', () async {
       expect(
         await mapViaSignIn('some-unknown-code'),
@@ -694,9 +657,7 @@ void main() {
 
       // Firebase User 기본 필드 — Apple 로그인 성공 시나리오.
       when(() => mockUser.uid).thenReturn('apple-uid-123');
-      when(
-        () => mockUser.email,
-      ).thenReturn('test@privaterelay.appleid.com');
+      when(() => mockUser.email).thenReturn('test@privaterelay.appleid.com');
       when(() => mockUser.emailVerified).thenReturn(true);
       when(() => mockUser.displayName).thenReturn(null);
       when(() => mockUser.photoURL).thenReturn(null);
@@ -712,19 +673,16 @@ void main() {
       when(() => mockAuth.currentUser).thenReturn(mockUser);
     });
 
-    test(
-      'AUTH-03-01: 성공 시 Result.success(User)를 반환하고 '
-      'providerIds에 apple.com 포함',
-      () async {
-        final result = await repository.signInWithApple();
+    test('AUTH-03-01: 성공 시 Result.success(User)를 반환하고 '
+        'providerIds에 apple.com 포함', () async {
+      final result = await repository.signInWithApple();
 
-        expect(result, isA<Success<User>>());
-        final user = (result! as Success<User>).data;
-        expect(user.providerIds, contains('apple.com'));
-        expect(user.emailVerified, isTrue);
-        verify(() => mockAuth.signInWithProvider(any())).called(1);
-      },
-    );
+      expect(result, isA<Success<User>>());
+      final user = (result! as Success<User>).data;
+      expect(user.providerIds, contains('apple.com'));
+      expect(user.emailVerified, isTrue);
+      verify(() => mockAuth.signInWithProvider(any())).called(1);
+    });
 
     test('AUTH-03-02: 사용자 취소 시 null을 반환한다 (D-09)', () async {
       when(() => mockAuth.signInWithProvider(any())).thenThrow(
@@ -739,67 +697,55 @@ void main() {
       expect(result, isNull);
     });
 
-    test(
-      'AUTH-03-03: account-exists-with-different-credential 시 '
-      'AccountExistsWithDifferentCredential 반환',
-      () async {
-        when(() => mockAuth.signInWithProvider(any())).thenThrow(
-          fb.FirebaseAuthException(
-            code: 'account-exists-with-different-credential',
-            email: 'user@example.com',
-            message: 'account exists',
-          ),
-        );
+    test('AUTH-03-03: account-exists-with-different-credential 시 '
+        'AccountExistsWithDifferentCredential 반환', () async {
+      when(() => mockAuth.signInWithProvider(any())).thenThrow(
+        fb.FirebaseAuthException(
+          code: 'account-exists-with-different-credential',
+          email: 'user@example.com',
+          message: 'account exists',
+        ),
+      );
 
-        final result = await repository.signInWithApple();
+      final result = await repository.signInWithApple();
 
-        expect(result, isA<Failure<User>>());
-        final err = (result! as Failure<User>).exception;
-        expect(err, isA<AccountExistsWithDifferentCredential>());
-        expect(
-          (err as AccountExistsWithDifferentCredential).email,
-          'user@example.com',
-        );
-      },
-    );
+      expect(result, isA<Failure<User>>());
+      final err = (result! as Failure<User>).exception;
+      expect(err, isA<AccountExistsWithDifferentCredential>());
+      expect(
+        (err as AccountExistsWithDifferentCredential).email,
+        'user@example.com',
+      );
+    });
 
-    test(
-      'AUTH-03-04: 기타 FirebaseAuthException은 '
-      'ServiceUnavailable로 매핑된다',
-      () async {
-        when(() => mockAuth.signInWithProvider(any())).thenThrow(
-          fb.FirebaseAuthException(
-            code: 'network-request-failed',
-            message: 'network error',
-          ),
-        );
+    test('AUTH-03-04: 기타 FirebaseAuthException은 '
+        'ServiceUnavailable로 매핑된다', () async {
+      when(() => mockAuth.signInWithProvider(any())).thenThrow(
+        fb.FirebaseAuthException(
+          code: 'network-request-failed',
+          message: 'network error',
+        ),
+      );
 
-        final result = await repository.signInWithApple();
+      final result = await repository.signInWithApple();
 
-        expect(result, isA<Failure<User>>());
-        expect(
-          (result! as Failure<User>).exception,
-          isA<NoInternetConnection>(),
-        );
-      },
-    );
+      expect(result, isA<Failure<User>>());
+      expect((result! as Failure<User>).exception, isA<NoInternetConnection>());
+    });
 
-    test(
-      'AUTH-03-02b: web-context-cancelled (영국식 스펠링)도 '
-      'null을 반환한다',
-      () async {
-        when(() => mockAuth.signInWithProvider(any())).thenThrow(
-          fb.FirebaseAuthException(
-            code: 'web-context-cancelled',
-            message: 'cancelled',
-          ),
-        );
+    test('AUTH-03-02b: web-context-cancelled (영국식 스펠링)도 '
+        'null을 반환한다', () async {
+      when(() => mockAuth.signInWithProvider(any())).thenThrow(
+        fb.FirebaseAuthException(
+          code: 'web-context-cancelled',
+          message: 'cancelled',
+        ),
+      );
 
-        final result = await repository.signInWithApple();
+      final result = await repository.signInWithApple();
 
-        expect(result, isNull);
-      },
-    );
+      expect(result, isNull);
+    });
   });
 
   group('signInWithFacebook', () {
@@ -843,9 +789,7 @@ void main() {
           loginBehavior: any(named: 'loginBehavior'),
           nonce: any(named: 'nonce'),
         ),
-      ).thenAnswer(
-        (_) async => LoginResult(status: LoginStatus.cancelled),
-      );
+      ).thenAnswer((_) async => LoginResult(status: LoginStatus.cancelled));
 
       final result = await repository.signInWithFacebook();
 
@@ -872,45 +816,15 @@ void main() {
       expect(result, isNull);
     });
 
-    test('FirebaseAuthException 시 Result.failure(AppException)를 반환한다',
-        () async {
-      when(
-        () => mockFacebookAuth.login(
-          permissions: any(named: 'permissions'),
-          loginTracking: any(named: 'loginTracking'),
-          loginBehavior: any(named: 'loginBehavior'),
-          nonce: any(named: 'nonce'),
-        ),
-      ).thenAnswer(
-        (_) async => LoginResult(
-          status: LoginStatus.success,
-          accessToken: FakeClassicToken(tokenString: 'fb-token'),
-        ),
-      );
-
-      when(
-        () => mockAuth.signInWithCredential(any()),
-      ).thenThrow(
-        fb.FirebaseAuthException(code: 'network-request-failed'),
-      );
-
-      final result = await repository.signInWithFacebook();
-
-      expect(result, isA<Failure<dynamic>>());
-      expect(
-        (result! as Failure).exception,
-        isA<NoInternetConnection>(),
-      );
-    });
-
     test(
-      'account-exists-with-different-credential 시 '
-      'AccountExistsWithDifferentCredential를 반환한다',
+      'FirebaseAuthException 시 Result.failure(AppException)를 반환한다',
       () async {
         when(
           () => mockFacebookAuth.login(
             permissions: any(named: 'permissions'),
             loginTracking: any(named: 'loginTracking'),
+            loginBehavior: any(named: 'loginBehavior'),
+            nonce: any(named: 'nonce'),
           ),
         ).thenAnswer(
           (_) async => LoginResult(
@@ -921,24 +835,46 @@ void main() {
 
         when(
           () => mockAuth.signInWithCredential(any()),
-        ).thenThrow(
-          fb.FirebaseAuthException(
-            code: 'account-exists-with-different-credential',
-            email: 'existing@example.com',
-          ),
-        );
+        ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
 
         final result = await repository.signInWithFacebook();
 
         expect(result, isA<Failure<dynamic>>());
-        final exception = (result! as Failure).exception;
-        expect(exception, isA<AccountExistsWithDifferentCredential>());
-        expect(
-          (exception as AccountExistsWithDifferentCredential).email,
-          'existing@example.com',
-        );
+        expect((result! as Failure).exception, isA<NoInternetConnection>());
       },
     );
+
+    test('account-exists-with-different-credential 시 '
+        'AccountExistsWithDifferentCredential를 반환한다', () async {
+      when(
+        () => mockFacebookAuth.login(
+          permissions: any(named: 'permissions'),
+          loginTracking: any(named: 'loginTracking'),
+        ),
+      ).thenAnswer(
+        (_) async => LoginResult(
+          status: LoginStatus.success,
+          accessToken: FakeClassicToken(tokenString: 'fb-token'),
+        ),
+      );
+
+      when(() => mockAuth.signInWithCredential(any())).thenThrow(
+        fb.FirebaseAuthException(
+          code: 'account-exists-with-different-credential',
+          email: 'existing@example.com',
+        ),
+      );
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Failure<dynamic>>());
+      final exception = (result! as Failure).exception;
+      expect(exception, isA<AccountExistsWithDifferentCredential>());
+      expect(
+        (exception as AccountExistsWithDifferentCredential).email,
+        'existing@example.com',
+      );
+    });
 
     test('비-Auth 예외 (PlatformException 등) 시 '
         'Result.failure(ServiceUnavailable)를 반환한다', () async {
@@ -984,4 +920,3 @@ void main() {
     });
   });
 }
-

@@ -37,12 +37,7 @@ class CrashlyticsService {
   }) async {
     final client = _crashlytics;
     if (!isEnabled || client == null) return;
-    await client.recordError(
-      error,
-      stack,
-      reason: reason,
-      fatal: fatal,
-    );
+    await client.recordError(error, stack, reason: reason, fatal: fatal);
   }
 
   /// 사용자 ID 를 Crashlytics 리포트에 태깅한다.

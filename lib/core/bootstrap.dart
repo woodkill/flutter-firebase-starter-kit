@@ -35,71 +35,80 @@ import 'package:intl/date_symbol_data_local.dart';
 Future<void> bootstrap() async {
   // runZonedGuarded 는 fire-and-forget 형태로 내부 Future 를 Zone 가드 안에서
   // 처리하므로 외부에서 별도 await 가 불필요 (의도적 fire-and-forget).
-  unawaited(runZonedGuarded<Future<void>>(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    await initializeDateFormatting();
+  unawaited(
+    runZonedGuarded<Future<void>>(
+      () async {
+        WidgetsFlutterBinding.ensureInitialized();
+        await initializeDateFormatting();
 
-    final isFirebaseInitialized = await initializeFirebase();
+        final isFirebaseInitialized = await initializeFirebase();
 
-    if (isFirebaseInitialized) {
-      // 경로 2: Flutter framework 에러 -> Crashlytics
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
+        if (isFirebaseInitialized) {
+          // 경로 2: Flutter framework 에러 -> Crashlytics
+          FlutterError.onError =
+              FirebaseCrashlytics.instance.recordFlutterFatalError;
 
-      // 경로 3: Platform/async 에러 -> Crashlytics. fire-and-forget.
-      PlatformDispatcher.instance.onError = (error, stack) {
-        unawaited(
-          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true),
-        );
-        return true;
-      };
+          // 경로 3: Platform/async 에러 -> Crashlytics. fire-and-forget.
+          PlatformDispatcher.instance.onError = (error, stack) {
+            unawaited(
+              FirebaseCrashlytics.instance.recordError(
+                error,
+                stack,
+                fatal: true,
+              ),
+            );
+            return true;
+          };
 
-      // Flavor custom key 태깅 (AUTH-11).
-      const flavor = String.fromEnvironment('flavor', defaultValue: 'dev');
-      await FirebaseCrashlytics.instance.setCustomKey('flavor', flavor);
+          // Flavor custom key 태깅 (AUTH-11).
+          const flavor = String.fromEnvironment('flavor', defaultValue: 'dev');
+          await FirebaseCrashlytics.instance.setCustomKey('flavor', flavor);
 
-      // GoogleSignIn 초기화 (기존 로직 유지).
-      // Dart-only Firebase 방식이므로 google-services.json Gradle 플러그인을
-      // 사용하지 않아 serverClientId 를 --dart-define-from-file 에서 명시적
-      // 으로 전달.
-      const serverClientId =
-          String.fromEnvironment('googleServerClientId');
-      try {
-        await GoogleSignIn.instance.initialize(
-          serverClientId: serverClientId.isEmpty ? null : serverClientId,
-        );
-      } on Object catch (e, st) {
-        if (kDebugMode) {
-          debugPrint('GoogleSignIn.initialize() 실패 (무시): $e\n$st');
+          // GoogleSignIn 초기화 (기존 로직 유지).
+          // Dart-only Firebase 방식이므로 google-services.json Gradle 플러그인을
+          // 사용하지 않아 serverClientId 를 --dart-define-from-file 에서 명시적
+          // 으로 전달.
+          const serverClientId = String.fromEnvironment('googleServerClientId');
+          try {
+            await GoogleSignIn.instance.initialize(
+              serverClientId: serverClientId.isEmpty ? null : serverClientId,
+            );
+          } on Object catch (e, st) {
+            if (kDebugMode) {
+              debugPrint('GoogleSignIn.initialize() 실패 (무시): $e\n$st');
+            }
+          }
         }
-      }
-    }
 
-    runApp(
-      ProviderScope(
-        overrides: [
-          isFirebaseInitializedProvider
-              .overrideWithValue(isFirebaseInitialized),
-        ],
-        child: const App(),
-      ),
-    );
-  }, (error, stack) {
-    // 경로 1: Zone 미처리 에러 -> Crashlytics
-    //
-    // Pitfall 4: Crashlytics 미초기화 상태에서도 onError 콜백이 호출될 수
-    // 있으므로 try/catch 로 recordError 호출 자체를 방어한다.
-    try {
-      unawaited(
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true),
-      );
-    } on Object catch (e, st) {
-      if (kDebugMode) {
-        debugPrint(
-          'Crashlytics 미초기화 상태 Zone 에러: $error\n$stack\n'
-          'recordError 실패: $e\n$st',
+        runApp(
+          ProviderScope(
+            overrides: [
+              isFirebaseInitializedProvider.overrideWithValue(
+                isFirebaseInitialized,
+              ),
+            ],
+            child: const App(),
+          ),
         );
-      }
-    }
-  }));
+      },
+      (error, stack) {
+        // 경로 1: Zone 미처리 에러 -> Crashlytics
+        //
+        // Pitfall 4: Crashlytics 미초기화 상태에서도 onError 콜백이 호출될 수
+        // 있으므로 try/catch 로 recordError 호출 자체를 방어한다.
+        try {
+          unawaited(
+            FirebaseCrashlytics.instance.recordError(error, stack, fatal: true),
+          );
+        } on Object catch (e, st) {
+          if (kDebugMode) {
+            debugPrint(
+              'Crashlytics 미초기화 상태 Zone 에러: $error\n$stack\n'
+              'recordError 실패: $e\n$st',
+            );
+          }
+        }
+      },
+    ),
+  );
 }

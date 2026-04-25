@@ -20,9 +20,7 @@ Future<void> pumpBanner(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: const Locale('en'),
-      home: Scaffold(
-        body: FormErrorBanner(exception: exception),
-      ),
+      home: Scaffold(body: FormErrorBanner(exception: exception)),
     ),
   );
 }
@@ -43,10 +41,7 @@ void main() {
 
     testWidgets('InvalidEmail 시 신규 에러 메시지 표시', (tester) async {
       await pumpBanner(tester, exception: const InvalidEmail());
-      expect(
-        find.text('This email address is not valid.'),
-        findsOneWidget,
-      );
+      expect(find.text('This email address is not valid.'), findsOneWidget);
     });
   });
 }

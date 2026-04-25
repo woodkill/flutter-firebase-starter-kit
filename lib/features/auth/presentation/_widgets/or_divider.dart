@@ -26,8 +26,8 @@ class OrDivider extends StatelessWidget {
             child: Text(
               l10n.authOrDivider,
               style: context.appTypography.bodyMedium.copyWith(
-                    color: context.colorScheme.onSurfaceVariant,
-                  ),
+                color: context.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const Expanded(child: Divider()),

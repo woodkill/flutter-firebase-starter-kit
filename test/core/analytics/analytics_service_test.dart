@@ -78,23 +78,21 @@ void main() {
       ).thenAnswer((_) async {});
     });
 
-    test('setGuestMode(true) → setUserProperty(name:"guest_mode", value:"true")', () async {
-      await service.setGuestMode(true);
-      verify(
-        () => mockAnalytics.setUserProperty(
-          name: 'guest_mode',
-          value: 'true',
-        ),
-      ).called(1);
-    });
+    test(
+      'setGuestMode(true) → setUserProperty(name:"guest_mode", value:"true")',
+      () async {
+        await service.setGuestMode(true);
+        verify(
+          () =>
+              mockAnalytics.setUserProperty(name: 'guest_mode', value: 'true'),
+        ).called(1);
+      },
+    );
 
     test('setGuestMode(false) → value:"false"', () async {
       await service.setGuestMode(false);
       verify(
-        () => mockAnalytics.setUserProperty(
-          name: 'guest_mode',
-          value: 'false',
-        ),
+        () => mockAnalytics.setUserProperty(name: 'guest_mode', value: 'false'),
       ).called(1);
     });
 
@@ -118,17 +116,20 @@ void main() {
       ).called(1);
     });
 
-    test('logScreenView(screenName:"home", screenClass:"HomeScreen")', () async {
-      await service.logScreenView(
-        screenName: 'home',
-        screenClass: 'HomeScreen',
-      );
-      verify(
-        () => mockAnalytics.logScreenView(
+    test(
+      'logScreenView(screenName:"home", screenClass:"HomeScreen")',
+      () async {
+        await service.logScreenView(
           screenName: 'home',
           screenClass: 'HomeScreen',
-        ),
-      ).called(1);
-    });
+        );
+        verify(
+          () => mockAnalytics.logScreenView(
+            screenName: 'home',
+            screenClass: 'HomeScreen',
+          ),
+        ).called(1);
+      },
+    );
   });
 }

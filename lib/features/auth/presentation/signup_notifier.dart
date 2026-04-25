@@ -41,7 +41,9 @@ class SignupNotifier extends _$SignupNotifier {
     required String displayName,
   }) async {
     state = const AsyncLoading<void>();
-    final result = await ref.read(authRepositoryProvider).signUpWithEmail(
+    final result = await ref
+        .read(authRepositoryProvider)
+        .signUpWithEmail(
           email: email,
           password: password,
           displayName: displayName,
@@ -49,8 +51,10 @@ class SignupNotifier extends _$SignupNotifier {
     if (!ref.mounted) return;
     state = switch (result) {
       Success<dynamic>() => const AsyncData<void>(null),
-      Failure<dynamic>(exception: final ex) =>
-        AsyncError<void>(ex, StackTrace.current),
+      Failure<dynamic>(exception: final ex) => AsyncError<void>(
+        ex,
+        StackTrace.current,
+      ),
     };
   }
 }

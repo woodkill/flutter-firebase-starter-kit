@@ -105,352 +105,292 @@ void main() {
 
       // Account 섹션 헤더 텍스트는 'Account' (en) 인데 다른 위치에 동일
       // 텍스트가 없도록 보장. 로그아웃 아이콘과 카드 라벨로 부재 확인.
-      expect(
-        find.text('Account', skipOffstage: false),
-        findsNothing,
-      );
-      expect(
-        find.byIcon(Icons.logout, skipOffstage: false),
-        findsNothing,
-      );
-      expect(
-        find.byIcon(Icons.fingerprint, skipOffstage: false),
-        findsNothing,
-      );
+      expect(find.text('Account', skipOffstage: false), findsNothing);
+      expect(find.byIcon(Icons.logout, skipOffstage: false), findsNothing);
+      expect(find.byIcon(Icons.fingerprint, skipOffstage: false), findsNothing);
     });
 
-    testWidgets(
-      '인증 시 Account 섹션이 displayName/email/uid 표시',
-      (tester) async {
-        final user = User(
-          uid: 'abcdefgh-rest-of-uid-12345',
-          email: 'user@example.com',
-          emailVerified: true,
-          displayName: 'Test User',
-          createdAt: DateTime.utc(2026, 1, 15),
-        );
+    testWidgets('인증 시 Account 섹션이 displayName/email/uid 표시', (tester) async {
+      final user = User(
+        uid: 'abcdefgh-rest-of-uid-12345',
+        email: 'user@example.com',
+        emailVerified: true,
+        displayName: 'Test User',
+        createdAt: DateTime.utc(2026, 1, 15),
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        expect(
-          find.text('Account', skipOffstage: false),
-          findsOneWidget,
-        );
-        // displayName: CircleAvatar Row에 표시
-        // (기존 _EnvironmentCard는 CircleAvatar Row로 교체됨).
-        expect(
-          find.text('Test User', skipOffstage: false),
-          findsOneWidget,
-        );
-        // email: CircleAvatar Row + _EnvironmentCard 양쪽에 표시.
-        expect(
-          find.text('user@example.com', skipOffstage: false),
-          findsNWidgets(2),
-        );
-        // uid truncated to first 8 chars + '...'
-        expect(
-          find.text('abcdefgh...', skipOffstage: false),
-          findsOneWidget,
-        );
-        expect(
-          find.byIcon(Icons.logout, skipOffstage: false),
-          findsOneWidget,
-        );
-      },
-    );
+      expect(find.text('Account', skipOffstage: false), findsOneWidget);
+      // displayName: CircleAvatar Row에 표시
+      // (기존 _EnvironmentCard는 CircleAvatar Row로 교체됨).
+      expect(find.text('Test User', skipOffstage: false), findsOneWidget);
+      // email: CircleAvatar Row + _EnvironmentCard 양쪽에 표시.
+      expect(
+        find.text('user@example.com', skipOffstage: false),
+        findsNWidgets(2),
+      );
+      // uid truncated to first 8 chars + '...'
+      expect(find.text('abcdefgh...', skipOffstage: false), findsOneWidget);
+      expect(find.byIcon(Icons.logout, skipOffstage: false), findsOneWidget);
+    });
 
-    testWidgets(
-      '로그아웃 버튼 탭 시 AlertDialog 표시, 취소 시 signOut 미호출',
-      (tester) async {
-        final user = User(
-          uid: 'uid-cancel-1',
-          email: 'a@b.com',
-          emailVerified: true,
-          displayName: 'A',
-          createdAt: DateTime.utc(2026),
-        );
-        final mockRepo = _MockAuthRepository();
-        when(() => mockRepo.signOut()).thenAnswer((_) async {});
+    testWidgets('로그아웃 버튼 탭 시 AlertDialog 표시, 취소 시 signOut 미호출', (tester) async {
+      final user = User(
+        uid: 'uid-cancel-1',
+        email: 'a@b.com',
+        emailVerified: true,
+        displayName: 'A',
+        createdAt: DateTime.utc(2026),
+      );
+      final mockRepo = _MockAuthRepository();
+      when(() => mockRepo.signOut()).thenAnswer((_) async {});
 
-        await _pumpScreen(tester, user: user, mockRepo: mockRepo);
+      await _pumpScreen(tester, user: user, mockRepo: mockRepo);
 
-        // 로그아웃 OutlinedButton 까지 스크롤
-        await tester.scrollUntilVisible(
-          find.byIcon(Icons.logout),
-          200,
-          scrollable: find.byType(Scrollable).first,
-        );
-        await tester.tap(find.byIcon(Icons.logout));
-        await tester.pumpAndSettle();
+      // 로그아웃 OutlinedButton 까지 스크롤
+      await tester.scrollUntilVisible(
+        find.byIcon(Icons.logout),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byIcon(Icons.logout));
+      await tester.pumpAndSettle();
 
-        // 다이얼로그 등장 확인 (en: 'Are you sure you want to sign out?')
-        expect(
-          find.text('Are you sure you want to sign out?'),
-          findsOneWidget,
-        );
+      // 다이얼로그 등장 확인 (en: 'Are you sure you want to sign out?')
+      expect(find.text('Are you sure you want to sign out?'), findsOneWidget);
 
-        // Cancel 버튼은 다이얼로그 actions 안에만 존재
-        await tester.tap(find.text('Cancel'));
-        await tester.pumpAndSettle();
+      // Cancel 버튼은 다이얼로그 actions 안에만 존재
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
 
-        verifyNever(() => mockRepo.signOut());
-      },
-    );
+      verifyNever(() => mockRepo.signOut());
+    });
 
-    testWidgets(
-      '로그아웃 다이얼로그 확인 시 authRepository.signOut() 호출',
-      (tester) async {
-        final user = User(
-          uid: 'uid-confirm-1',
-          email: 'a@b.com',
-          emailVerified: true,
-          displayName: 'A',
-          createdAt: DateTime.utc(2026),
-        );
-        final mockRepo = _MockAuthRepository();
-        when(() => mockRepo.signOut()).thenAnswer((_) async {});
+    testWidgets('로그아웃 다이얼로그 확인 시 authRepository.signOut() 호출', (tester) async {
+      final user = User(
+        uid: 'uid-confirm-1',
+        email: 'a@b.com',
+        emailVerified: true,
+        displayName: 'A',
+        createdAt: DateTime.utc(2026),
+      );
+      final mockRepo = _MockAuthRepository();
+      when(() => mockRepo.signOut()).thenAnswer((_) async {});
 
-        await _pumpScreen(tester, user: user, mockRepo: mockRepo);
+      await _pumpScreen(tester, user: user, mockRepo: mockRepo);
 
-        await tester.scrollUntilVisible(
-          find.byIcon(Icons.logout),
-          200,
-          scrollable: find.byType(Scrollable).first,
-        );
-        await tester.tap(find.byIcon(Icons.logout));
-        await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byIcon(Icons.logout),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byIcon(Icons.logout));
+      await tester.pumpAndSettle();
 
-        // 'Sign out' 텍스트는 다이얼로그 title + 액션 버튼 양쪽에 존재한다
-        // (authLogoutConfirmTitle == authAccountSignOut == "Sign out" en).
-        // 액션 버튼만 타겟팅하기 위해 TextButton 자손을 찾는다.
-        final dialogSignOutButton = find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.widgetWithText(TextButton, 'Sign out'),
-        );
-        expect(dialogSignOutButton, findsOneWidget);
-        await tester.tap(dialogSignOutButton);
-        await tester.pumpAndSettle();
+      // 'Sign out' 텍스트는 다이얼로그 title + 액션 버튼 양쪽에 존재한다
+      // (authLogoutConfirmTitle == authAccountSignOut == "Sign out" en).
+      // 액션 버튼만 타겟팅하기 위해 TextButton 자손을 찾는다.
+      final dialogSignOutButton = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextButton, 'Sign out'),
+      );
+      expect(dialogSignOutButton, findsOneWidget);
+      await tester.tap(dialogSignOutButton);
+      await tester.pumpAndSettle();
 
-        verify(() => mockRepo.signOut()).called(1);
-      },
-    );
+      verify(() => mockRepo.signOut()).called(1);
+    });
   });
 
   group('EnvironmentInfoScreen Account 섹션 (Phase 7 D-11/D-12)', () {
-    testWidgets(
-      'providerIds [password] 시 "Email / Password" 표시 (D-11)',
-      (tester) async {
-        final user = User(
-          uid: 'uid-provider-1',
-          email: 'pw@example.com',
-          emailVerified: true,
-          displayName: 'PW User',
-          createdAt: DateTime.utc(2026),
-          providerIds: ['password'],
-        );
+    testWidgets('providerIds [password] 시 "Email / Password" 표시 (D-11)', (
+      tester,
+    ) async {
+      final user = User(
+        uid: 'uid-provider-1',
+        email: 'pw@example.com',
+        emailVerified: true,
+        displayName: 'PW User',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['password'],
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        expect(
-          find.text('Email / Password', skipOffstage: false),
-          findsOneWidget,
-        );
-      },
-    );
+      expect(
+        find.text('Email / Password', skipOffstage: false),
+        findsOneWidget,
+      );
+    });
 
-    testWidgets(
-      'providerIds [password, google.com] 시 '
-      '"Email / Password, Google" 표시 (D-11)',
-      (tester) async {
-        final user = User(
-          uid: 'uid-provider-2',
-          email: 'multi@example.com',
-          emailVerified: true,
-          displayName: 'Multi User',
-          createdAt: DateTime.utc(2026),
-          providerIds: ['password', 'google.com'],
-        );
+    testWidgets('providerIds [password, google.com] 시 '
+        '"Email / Password, Google" 표시 (D-11)', (tester) async {
+      final user = User(
+        uid: 'uid-provider-2',
+        email: 'multi@example.com',
+        emailVerified: true,
+        displayName: 'Multi User',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['password', 'google.com'],
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        expect(
-          find.text('Email / Password, Google', skipOffstage: false),
-          findsOneWidget,
-        );
-      },
-    );
+      expect(
+        find.text('Email / Password, Google', skipOffstage: false),
+        findsOneWidget,
+      );
+    });
 
-    testWidgets(
-      'providerIds 빈 리스트 시 "-" 표시 (D-11 fallback)',
-      (tester) async {
-        final user = User(
-          uid: 'uid-provider-3',
-          email: 'empty@example.com',
-          emailVerified: true,
-          createdAt: DateTime.utc(2026),
-        );
+    testWidgets('providerIds 빈 리스트 시 "-" 표시 (D-11 fallback)', (tester) async {
+      final user = User(
+        uid: 'uid-provider-3',
+        email: 'empty@example.com',
+        emailVerified: true,
+        createdAt: DateTime.utc(2026),
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        // Providers 카드의 값이 '-'
-        // (displayName도 null이므로 '-'가 복수 개 존재)
-        final dashFinder = find.text('-', skipOffstage: false);
-        expect(dashFinder, findsWidgets);
-      },
-    );
+      // Providers 카드의 값이 '-'
+      // (displayName도 null이므로 '-'가 복수 개 존재)
+      final dashFinder = find.text('-', skipOffstage: false);
+      expect(dashFinder, findsWidgets);
+    });
 
-    testWidgets(
-      'photoUrl null 시 CircleAvatar에 Icons.person 아이콘 표시 (D-12)',
-      (tester) async {
-        final user = User(
-          uid: 'uid-avatar-1',
-          email: 'no-photo@example.com',
-          emailVerified: true,
-          displayName: 'No Photo',
-          createdAt: DateTime.utc(2026),
-          providerIds: ['password'],
-        );
+    testWidgets('photoUrl null 시 CircleAvatar에 Icons.person 아이콘 표시 (D-12)', (
+      tester,
+    ) async {
+      final user = User(
+        uid: 'uid-avatar-1',
+        email: 'no-photo@example.com',
+        emailVerified: true,
+        displayName: 'No Photo',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['password'],
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        // CircleAvatar 존재
-        expect(
-          find.byType(CircleAvatar, skipOffstage: false),
-          findsOneWidget,
-        );
-        // CircleAvatar 내부에 person 아이콘 존재
-        final personInAvatar = find.descendant(
-          of: find.byType(CircleAvatar),
-          matching: find.byIcon(Icons.person),
-        );
-        expect(personInAvatar, findsOneWidget);
-      },
-    );
+      // CircleAvatar 존재
+      expect(find.byType(CircleAvatar, skipOffstage: false), findsOneWidget);
+      // CircleAvatar 내부에 person 아이콘 존재
+      final personInAvatar = find.descendant(
+        of: find.byType(CircleAvatar),
+        matching: find.byIcon(Icons.person),
+      );
+      expect(personInAvatar, findsOneWidget);
+    });
 
-    testWidgets(
-      'CircleAvatar가 Semantics 위젯으로 래핑되어 있음 (D-12 접근성)',
-      (tester) async {
-        final user = User(
-          uid: 'uid-avatar-2',
-          email: 'sem@example.com',
-          emailVerified: true,
-          displayName: 'Semantic User',
-          createdAt: DateTime.utc(2026),
-          providerIds: ['google.com'],
-        );
+    testWidgets('CircleAvatar가 Semantics 위젯으로 래핑되어 있음 (D-12 접근성)', (
+      tester,
+    ) async {
+      final user = User(
+        uid: 'uid-avatar-2',
+        email: 'sem@example.com',
+        emailVerified: true,
+        displayName: 'Semantic User',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['google.com'],
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        // CircleAvatar의 직접 부모가 Semantics 위젯인지 확인
-        final semanticsAncestor = find.ancestor(
-          of: find.byType(CircleAvatar),
-          matching: find.byType(Semantics),
-        );
-        expect(semanticsAncestor, findsWidgets);
-      },
-    );
+      // CircleAvatar의 직접 부모가 Semantics 위젯인지 확인
+      final semanticsAncestor = find.ancestor(
+        of: find.byType(CircleAvatar),
+        matching: find.byType(Semantics),
+      );
+      expect(semanticsAncestor, findsWidgets);
+    });
 
-    testWidgets(
-      '미지원 프로바이더 raw ID 그대로 표시 (D-11 fallback)',
-      (tester) async {
-        // Phase 9 예정: facebook.com 이 매핑되면 다른 미지원 프로바이더로 교체.
-        final user = User(
-          uid: 'uid-provider-4',
-          email: 'raw@example.com',
-          emailVerified: true,
-          displayName: 'Raw',
-          createdAt: DateTime.utc(2026),
-          providerIds: ['facebook.com'],
-        );
+    testWidgets('미지원 프로바이더 raw ID 그대로 표시 (D-11 fallback)', (tester) async {
+      // Phase 9 예정: facebook.com 이 매핑되면 다른 미지원 프로바이더로 교체.
+      final user = User(
+        uid: 'uid-provider-4',
+        email: 'raw@example.com',
+        emailVerified: true,
+        displayName: 'Raw',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['facebook.com'],
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        expect(
-          find.text('facebook.com', skipOffstage: false),
-          findsOneWidget,
-        );
-      },
-    );
+      expect(find.text('facebook.com', skipOffstage: false), findsOneWidget);
+    });
 
-    testWidgets(
-      'providerIds [apple.com] 시 "Apple" 표시 (Phase 8)',
-      (tester) async {
-        final user = User(
-          uid: 'uid-provider-apple',
-          email: 'apple@example.com',
-          emailVerified: true,
-          displayName: 'Apple User',
-          createdAt: DateTime.utc(2026),
-          providerIds: ['apple.com'],
-        );
+    testWidgets('providerIds [apple.com] 시 "Apple" 표시 (Phase 8)', (
+      tester,
+    ) async {
+      final user = User(
+        uid: 'uid-provider-apple',
+        email: 'apple@example.com',
+        emailVerified: true,
+        displayName: 'Apple User',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['apple.com'],
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        expect(
-          find.text('Apple', skipOffstage: false),
-          findsOneWidget,
-        );
-      },
-    );
+      expect(find.text('Apple', skipOffstage: false), findsOneWidget);
+    });
   });
 
   group('EnvironmentInfoScreen Accessibility (260409-gyp)', () {
     // SemanticsHandle 은 _endOfTestVerifications 시점에 살아 있으면 안 되므로
     // testWidgets 본문 끝에서 직접 dispose 한다 (addTearDown 사용 불가 —
     // teardown 콜백은 verification 이후에 실행됨).
-    testWidgets(
-      'Firebase 미연결 카드는 Firebase Not Connected Semantics label 노출',
-      (tester) async {
-        final handle = tester.ensureSemantics();
+    testWidgets('Firebase 미연결 카드는 Firebase Not Connected Semantics label 노출', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
 
-        // 기본 _pumpScreen 은 isFirebaseInitialized = false
-        await _pumpScreen(tester, user: null);
+      // 기본 _pumpScreen 은 isFirebaseInitialized = false
+      await _pumpScreen(tester, user: null);
 
-        final firebaseSemantics = find.bySemanticsLabel(
-          'Firebase Not Connected',
-        );
-        expect(firebaseSemantics, findsOneWidget);
-        expect(
-          tester.getSemantics(firebaseSemantics),
-          matchesSemantics(label: 'Firebase Not Connected'),
-        );
+      final firebaseSemantics = find.bySemanticsLabel('Firebase Not Connected');
+      expect(firebaseSemantics, findsOneWidget);
+      expect(
+        tester.getSemantics(firebaseSemantics),
+        matchesSemantics(label: 'Firebase Not Connected'),
+      );
 
-        handle.dispose();
-      },
-    );
+      handle.dispose();
+    });
 
-    testWidgets(
-      'Firebase 연결 카드는 Firebase Connected Semantics label 노출',
-      (tester) async {
-        final handle = tester.ensureSemantics();
+    testWidgets('Firebase 연결 카드는 Firebase Connected Semantics label 노출', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
 
-        await _pumpScreenWithFirebase(tester, initialized: true);
+      await _pumpScreenWithFirebase(tester, initialized: true);
 
-        final firebaseSemantics = find.bySemanticsLabel('Firebase Connected');
-        expect(firebaseSemantics, findsOneWidget);
-        expect(
-          tester.getSemantics(firebaseSemantics),
-          matchesSemantics(label: 'Firebase Connected'),
-        );
+      final firebaseSemantics = find.bySemanticsLabel('Firebase Connected');
+      expect(firebaseSemantics, findsOneWidget);
+      expect(
+        tester.getSemantics(firebaseSemantics),
+        matchesSemantics(label: 'Firebase Connected'),
+      );
 
-        handle.dispose();
-      },
-    );
+      handle.dispose();
+    });
 
-    testWidgets(
-      '일반 카드는 fallback "label: value" Semantics label 노출',
-      (tester) async {
-        final handle = tester.ensureSemantics();
+    testWidgets('일반 카드는 fallback "label: value" Semantics label 노출', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
 
-        await _pumpScreen(tester, user: null);
+      await _pumpScreen(tester, user: null);
 
-        // Flavor 카드: String.fromEnvironment('flavor', defaultValue: 'dev')
-        // → toUpperCase() = 'DEV', fallback label = 'Flavor: DEV'.
-        expect(find.bySemanticsLabel('Flavor: DEV'), findsOneWidget);
+      // Flavor 카드: String.fromEnvironment('flavor', defaultValue: 'dev')
+      // → toUpperCase() = 'DEV', fallback label = 'Flavor: DEV'.
+      expect(find.bySemanticsLabel('Flavor: DEV'), findsOneWidget);
 
-        handle.dispose();
-      },
-    );
+      handle.dispose();
+    });
 
     testWidgets(
       'Firebase 연결 카드는 _EnvStatus.ok chip Container 를 success 배경으로 렌더한다',
@@ -468,17 +408,15 @@ void main() {
         // chip 컨테이너 (BoxDecoration 을 가진 Container) 를 찾는다.
         // _EnvStatus.ok 분기에서 정확히 1개 생성된다.
         final decoratedContainers = find
-            .descendant(
-              of: firebaseCard,
-              matching: find.byType(Container),
-            )
+            .descendant(of: firebaseCard, matching: find.byType(Container))
             .evaluate()
             .map((e) => e.widget as Container)
             .where((c) => c.decoration is BoxDecoration)
             .toList();
         expect(decoratedContainers, hasLength(1));
 
-        final decoration = decoratedContainers.first.decoration! as BoxDecoration;
+        final decoration =
+            decoratedContainers.first.decoration! as BoxDecoration;
         // Light 모드 success 색 = #FF2E7D32 (VERIFIED: app_colors.dart:29)
         expect(decoration.color, const Color(0xFF2E7D32));
       },

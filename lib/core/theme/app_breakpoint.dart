@@ -60,6 +60,5 @@ extension ResponsiveX on BuildContext {
       MediaQuery.orientationOf(this) == Orientation.landscape;
 
   /// 현재 기기가 portrait orientation인지 반환한다.
-  bool get isPortrait =>
-      MediaQuery.orientationOf(this) == Orientation.portrait;
+  bool get isPortrait => MediaQuery.orientationOf(this) == Orientation.portrait;
 }

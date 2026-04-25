@@ -88,8 +88,9 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   /// 실패 시 [VerifyEmailState.error]에 [AppException]을 설정한다.
   /// 쿨다운 중에는 호출하지 않아야 한다 (UI에서 버튼 비활성화).
   Future<void> resendVerification() async {
-    final result =
-        await ref.read(authRepositoryProvider).sendEmailVerification();
+    final result = await ref
+        .read(authRepositoryProvider)
+        .sendEmailVerification();
     if (!ref.mounted) return;
 
     switch (result) {
@@ -180,16 +181,13 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   /// 0에 도달하면 타이머를 정리한다.
   void _startCooldown() {
     _cooldownTimer?.cancel();
-    _cooldownTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (timer) {
-        if (!ref.mounted) {
-          timer.cancel();
-          return;
-        }
-        tickCooldown();
-      },
-    );
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!ref.mounted) {
+        timer.cancel();
+        return;
+      }
+      tickCooldown();
+    });
   }
 
   /// 모든 Timer를 정리한다.

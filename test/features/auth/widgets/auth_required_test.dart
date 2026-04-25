@@ -83,31 +83,30 @@ Future<void> pumpAuthRequired(
 
 void main() {
   group('AuthRequired (Phase 10 D-12)', () {
-    testWidgets(
-      'currentUser=null (미인증) 상태에서 탭 → LoginPromptSheet 표시',
-      (tester) async {
-        var callbackInvoked = 0;
+    testWidgets('currentUser=null (미인증) 상태에서 탭 → LoginPromptSheet 표시', (
+      tester,
+    ) async {
+      var callbackInvoked = 0;
 
-        await pumpAuthRequired(
-          tester,
-          isFirebaseInitialized: true,
-          currentUser: null,
-          onAuthenticated: () => callbackInvoked++,
-        );
+      await pumpAuthRequired(
+        tester,
+        isFirebaseInitialized: true,
+        currentUser: null,
+        onAuthenticated: () => callbackInvoked++,
+      );
 
-        // AbsorbPointer 안의 Text 는 hit test 에서 미스하지만 바깥
-        // GestureDetector 가 동일 위치에서 탭을 수신한다. 경고 억제.
-        await tester.tap(find.text('Protected'), warnIfMissed: false);
-        await tester.pumpAndSettle();
+      // AbsorbPointer 안의 Text 는 hit test 에서 미스하지만 바깥
+      // GestureDetector 가 동일 위치에서 탭을 수신한다. 경고 억제.
+      await tester.tap(find.text('Protected'), warnIfMissed: false);
+      await tester.pumpAndSettle();
 
-        expect(find.byType(LoginPromptSheet), findsOneWidget);
-        expect(
-          callbackInvoked,
-          0,
-          reason: '미인증 시 onAuthenticated 콜백은 호출되지 않아야 함',
-        );
-      },
-    );
+      expect(find.byType(LoginPromptSheet), findsOneWidget);
+      expect(
+        callbackInvoked,
+        0,
+        reason: '미인증 시 onAuthenticated 콜백은 호출되지 않아야 함',
+      );
+    });
 
     testWidgets(
       'currentUser.isAnonymous=true (익명) 상태에서 탭 → LoginPromptSheet 표시',
@@ -151,40 +150,35 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(LoginPromptSheet), findsNothing);
-        expect(
-          callbackInvoked,
-          1,
-          reason: '정식 인증 사용자는 onAuthenticated 1회 호출',
-        );
+        expect(callbackInvoked, 1, reason: '정식 인증 사용자는 onAuthenticated 1회 호출');
       },
     );
 
-    testWidgets(
-      'Firebase 미초기화 (Phase 1 D-13) → Sheet 미표시 + fallback 콜백 실행',
-      (tester) async {
-        var callbackInvoked = 0;
+    testWidgets('Firebase 미초기화 (Phase 1 D-13) → Sheet 미표시 + fallback 콜백 실행', (
+      tester,
+    ) async {
+      var callbackInvoked = 0;
 
-        await pumpAuthRequired(
-          tester,
-          isFirebaseInitialized: false,
-          currentUser: null,
-          onAuthenticated: () => callbackInvoked++,
-        );
+      await pumpAuthRequired(
+        tester,
+        isFirebaseInitialized: false,
+        currentUser: null,
+        onAuthenticated: () => callbackInvoked++,
+      );
 
-        await tester.tap(find.text('Protected'), warnIfMissed: false);
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('Protected'), warnIfMissed: false);
+      await tester.pumpAndSettle();
 
-        expect(
-          find.byType(LoginPromptSheet),
-          findsNothing,
-          reason: 'Firebase 미초기화 시 Sheet 을 표시하지 않음',
-        );
-        expect(
-          callbackInvoked,
-          1,
-          reason: 'Phase 1 D-13: Firebase 없이도 앱 정상 실행 철학',
-        );
-      },
-    );
+      expect(
+        find.byType(LoginPromptSheet),
+        findsNothing,
+        reason: 'Firebase 미초기화 시 Sheet 을 표시하지 않음',
+      );
+      expect(
+        callbackInvoked,
+        1,
+        reason: 'Phase 1 D-13: Firebase 없이도 앱 정상 실행 철학',
+      );
+    });
   });
 }

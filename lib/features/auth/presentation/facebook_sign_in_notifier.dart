@@ -27,8 +27,7 @@ class FacebookSignInNotifier extends _$FacebookSignInNotifier {
   /// 렌더링된다.
   Future<void> signInWithFacebook() async {
     state = const AsyncLoading<void>();
-    final result =
-        await ref.read(authRepositoryProvider).signInWithFacebook();
+    final result = await ref.read(authRepositoryProvider).signInWithFacebook();
     if (!ref.mounted) return;
 
     if (result == null) {
@@ -38,8 +37,10 @@ class FacebookSignInNotifier extends _$FacebookSignInNotifier {
 
     state = switch (result) {
       Success<dynamic>() => const AsyncData<void>(null),
-      Failure<dynamic>(exception: final ex) =>
-        AsyncError<void>(ex, StackTrace.current),
+      Failure<dynamic>(exception: final ex) => AsyncError<void>(
+        ex,
+        StackTrace.current,
+      ),
     };
   }
 }

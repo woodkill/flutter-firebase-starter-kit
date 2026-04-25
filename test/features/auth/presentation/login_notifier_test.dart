@@ -20,9 +20,7 @@ void main() {
 
   ProviderContainer makeContainer() {
     final container = ProviderContainer(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-      ],
+      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
     );
     addTearDown(container.dispose);
     return container;
@@ -59,9 +57,7 @@ void main() {
           email: any(named: 'email'),
           password: any(named: 'password'),
         ),
-      ).thenAnswer(
-        (_) async => const Result.failure(InvalidCredentials()),
-      );
+      ).thenAnswer((_) async => const Result.failure(InvalidCredentials()));
 
       final container = makeContainer();
       final notifier = container.read(loginProvider.notifier);
@@ -91,10 +87,9 @@ void main() {
       );
 
       final container = makeContainer();
-      await container.read(loginProvider.notifier).submit(
-            email: 'user@example.com',
-            password: 'secret123',
-          );
+      await container
+          .read(loginProvider.notifier)
+          .submit(email: 'user@example.com', password: 'secret123');
 
       verify(
         () => mockRepo.signInWithEmail(

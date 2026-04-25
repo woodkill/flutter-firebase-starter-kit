@@ -38,8 +38,7 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
       _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState
-    extends ConsumerState<ForgotPasswordScreen> {
+class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _emailFocus = FocusNode();
@@ -70,9 +69,9 @@ class _ForgotPasswordScreenState
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _bannerError = null);
-    await ref.read(forgotPasswordProvider.notifier).submit(
-          email: _emailController.text.trim(),
-        );
+    await ref
+        .read(forgotPasswordProvider.notifier)
+        .submit(email: _emailController.text.trim());
     // defense-in-depth: await 후 setState/context 호출이 추가될 경우를
     // 대비해 mounted 가드를 미리 배치한다 (WR-02).
     if (!mounted) return;
@@ -181,8 +180,7 @@ class _ForgotPasswordScreenState
                     Expanded(
                       child: Text(
                         l10n.authForgotSent,
-                        style:
-                            context.appTypography.bodyMedium.copyWith(
+                        style: context.appTypography.bodyMedium.copyWith(
                           color: colors.onPrimaryContainer,
                         ),
                       ),

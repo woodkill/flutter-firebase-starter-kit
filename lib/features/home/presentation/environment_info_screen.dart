@@ -45,10 +45,9 @@ class EnvironmentInfoScreen extends ConsumerWidget {
     );
     final isFirebaseInitialized = ref.watch(isFirebaseInitializedProvider);
     // Phase 10 D-13: 익명 사용자는 AppBar 로그인 버튼 + 게스트 배너 표시.
-    final currentUser = ref.watch(authStateProvider).maybeWhen(
-      data: (user) => user,
-      orElse: () => null,
-    );
+    final currentUser = ref
+        .watch(authStateProvider)
+        .maybeWhen(data: (user) => user, orElse: () => null);
     final isAnonymous = currentUser?.isAnonymous ?? false;
 
     final spacing = context.appSpacing;
@@ -84,10 +83,7 @@ class EnvironmentInfoScreen extends ConsumerWidget {
           ),
           children: [
             // Phase 10 D-13: 게스트 배너 (익명 사용자만 상단 우선 노출).
-            if (isAnonymous) ...[
-              const _GuestBanner(),
-              Gap(spacing.sm),
-            ],
+            if (isAnonymous) ...[const _GuestBanner(), Gap(spacing.sm)],
             Text(
               l10n.homeBuildEnvironment,
               style: context.appTypography.titleLarge,
@@ -183,10 +179,9 @@ class _ThemeToggleSection extends ConsumerWidget {
     // ThemeNotifier 가 AsyncNotifier 로 전환됨에 따라 AsyncValue<ThemeMode>
     // 를 반환한다. SharedPreferences 복원 전(loading) 또는 실패(error)
     // 시에는 ThemeMode.system 으로 fallback 한다 — App 위젯과 동일 패턴.
-    final currentMode = ref.watch(themeProvider).maybeWhen(
-          data: (mode) => mode,
-          orElse: () => ThemeMode.system,
-        );
+    final currentMode = ref
+        .watch(themeProvider)
+        .maybeWhen(data: (mode) => mode, orElse: () => ThemeMode.system);
     final l10n = context.l10n;
 
     return Column(
@@ -957,10 +952,7 @@ class _AccountSection extends ConsumerWidget {
 /// - `'apple.com'` -> [AppLocalizations.authAccountProviderApple] (Phase 8)
 /// - `'facebook.com'` -> [AppLocalizations.authAccountProviderFacebook] (Phase 9)
 /// - 미지원 프로바이더는 raw ID 그대로 표시.
-String _formatProviderIds(
-  List<String> providerIds,
-  AppLocalizations l10n,
-) {
+String _formatProviderIds(List<String> providerIds, AppLocalizations l10n) {
   if (providerIds.isEmpty) return '-';
   return providerIds
       .map(
@@ -1057,10 +1049,7 @@ class _ProtectedExampleSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.homeProtectedExampleTitle,
-          style: typography.titleLarge,
-        ),
+        Text(l10n.homeProtectedExampleTitle, style: typography.titleLarge),
         Gap(spacing.sm),
         Text(
           l10n.homeProtectedExampleBody,
@@ -1123,10 +1112,7 @@ class _DevToolsSection extends ConsumerWidget {
   }
 
   /// Crashlytics 에 테스트 에러를 전송한다 (D-33).
-  Future<void> _handleTriggerError(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
+  Future<void> _handleTriggerError(BuildContext context, WidgetRef ref) async {
     final err = Exception('Dev Tools test error');
     await ref
         .read(crashlyticsServiceProvider)
@@ -1145,9 +1131,7 @@ class _DevToolsSection extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    await ref
-        .read(analyticsServiceProvider)
-        .logEvent('dev_tools_test_event');
+    await ref.read(analyticsServiceProvider).logEvent('dev_tools_test_event');
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1160,10 +1144,7 @@ class _DevToolsSection extends ConsumerWidget {
   /// 즉시 강제 로그아웃 후 익명 세션으로 복귀한다 (D-33).
   ///
   /// 확인 다이얼로그 없음 (D-33 기본 정책).
-  Future<void> _handleForceSignOut(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
+  Future<void> _handleForceSignOut(BuildContext context, WidgetRef ref) async {
     await ref.read(authRepositoryProvider).signOutAndContinueAsGuest();
   }
 
@@ -1192,9 +1173,7 @@ class _DevToolsSection extends ConsumerWidget {
         Gap(spacing.md),
         OutlinedButton(
           onPressed: () => _handleTriggerError(context, ref),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colorScheme.error,
-          ),
+          style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
           child: Text(l10n.devToolsTriggerError),
         ),
         Gap(spacing.md),
@@ -1205,9 +1184,7 @@ class _DevToolsSection extends ConsumerWidget {
         Gap(spacing.md),
         OutlinedButton(
           onPressed: () => _handleForceSignOut(context, ref),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colorScheme.error,
-          ),
+          style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
           child: Text(l10n.devToolsForceSignOut),
         ),
       ],
@@ -1266,9 +1243,7 @@ class _EnvironmentCard extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         softWrap: true,
-        style: typography.titleMedium.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+        style: typography.titleMedium.copyWith(fontWeight: FontWeight.w600),
       );
     } else {
       final bg = status == _EnvStatus.ok ? colors.success : colors.warning;

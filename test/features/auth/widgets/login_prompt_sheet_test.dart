@@ -64,9 +64,7 @@ Future<LastLocationRecorder> pumpLoginPromptSheetHarness(
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-      ],
+      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
       child: MaterialApp.router(
         theme: AppTheme.light(),
         locale: const Locale('en'),
@@ -131,49 +129,47 @@ void main() {
       expect(emailButtonFinder, findsOneWidget);
     });
 
-    testWidgets(
-      '"이메일로 계속" 탭 → Sheet 닫힘 + /login 으로 push (focus=email 포함)',
-      (tester) async {
-        final recorder = await pumpLoginPromptSheetHarness(tester);
-        await tester.tap(find.text('Trigger'));
-        await tester.pumpAndSettle();
+    testWidgets('"이메일로 계속" 탭 → Sheet 닫힘 + /login 으로 push (focus=email 포함)', (
+      tester,
+    ) async {
+      final recorder = await pumpLoginPromptSheetHarness(tester);
+      await tester.tap(find.text('Trigger'));
+      await tester.pumpAndSettle();
 
-        final sheetContext = tester.element(find.byType(LoginPromptSheet));
-        final l10n = AppLocalizations.of(sheetContext);
-        await tester.tap(find.text(l10n.authContinueWithEmail));
-        await tester.pumpAndSettle();
+      final sheetContext = tester.element(find.byType(LoginPromptSheet));
+      final l10n = AppLocalizations.of(sheetContext);
+      await tester.tap(find.text(l10n.authContinueWithEmail));
+      await tester.pumpAndSettle();
 
-        // Sheet 은 닫혔어야 함.
-        expect(find.byType(LoginPromptSheet), findsNothing);
-        // /login 으로 이동했고, 쿼리 파라미터 focus=email 이 포함되어야 함.
-        expect(recorder.lastPushedLocation, isNotNull);
-        expect(
-          recorder.lastPushedLocation,
-          contains(AppRoutes.login),
-          reason: 'LoginScreen 경로로 이동해야 함',
-        );
-      },
-    );
+      // Sheet 은 닫혔어야 함.
+      expect(find.byType(LoginPromptSheet), findsNothing);
+      // /login 으로 이동했고, 쿼리 파라미터 focus=email 이 포함되어야 함.
+      expect(recorder.lastPushedLocation, isNotNull);
+      expect(
+        recorder.lastPushedLocation,
+        contains(AppRoutes.login),
+        reason: 'LoginScreen 경로로 이동해야 함',
+      );
+    });
 
-    testWidgets(
-      'WARNING #12 / D-31: push URL 이 focus=email 쿼리 파라미터를 포함한다',
-      (tester) async {
-        final recorder = await pumpLoginPromptSheetHarness(tester);
-        await tester.tap(find.text('Trigger'));
-        await tester.pumpAndSettle();
+    testWidgets('WARNING #12 / D-31: push URL 이 focus=email 쿼리 파라미터를 포함한다', (
+      tester,
+    ) async {
+      final recorder = await pumpLoginPromptSheetHarness(tester);
+      await tester.tap(find.text('Trigger'));
+      await tester.pumpAndSettle();
 
-        final sheetContext = tester.element(find.byType(LoginPromptSheet));
-        final l10n = AppLocalizations.of(sheetContext);
-        await tester.tap(find.text(l10n.authContinueWithEmail));
-        await tester.pumpAndSettle();
+      final sheetContext = tester.element(find.byType(LoginPromptSheet));
+      final l10n = AppLocalizations.of(sheetContext);
+      await tester.tap(find.text(l10n.authContinueWithEmail));
+      await tester.pumpAndSettle();
 
-        expect(recorder.lastPushedLocation, isNotNull);
-        expect(
-          recorder.lastPushedLocation,
-          contains('focus=email'),
-          reason: 'Bottom Sheet → LoginScreen 이메일 포커스 유도 쿼리 필수',
-        );
-      },
-    );
+      expect(recorder.lastPushedLocation, isNotNull);
+      expect(
+        recorder.lastPushedLocation,
+        contains('focus=email'),
+        reason: 'Bottom Sheet → LoginScreen 이메일 포커스 유도 쿼리 필수',
+      );
+    });
   });
 }

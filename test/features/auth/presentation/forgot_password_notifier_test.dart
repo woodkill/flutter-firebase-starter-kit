@@ -19,9 +19,7 @@ void main() {
 
   ProviderContainer makeContainer() {
     final container = ProviderContainer(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-      ],
+      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
     );
     addTearDown(container.dispose);
     return container;
@@ -38,18 +36,13 @@ void main() {
           .read(forgotPasswordProvider.notifier)
           .submit(email: 'a@b.com');
 
-      expect(
-        container.read(forgotPasswordProvider),
-        isA<AsyncData<void>>(),
-      );
+      expect(container.read(forgotPasswordProvider), isA<AsyncData<void>>());
     });
 
     test('InvalidEmail 에러 시 AsyncError 상태로 전환된다', () async {
       when(
         () => mockRepo.sendPasswordReset(email: any(named: 'email')),
-      ).thenAnswer(
-        (_) async => const Result.failure(InvalidEmail()),
-      );
+      ).thenAnswer((_) async => const Result.failure(InvalidEmail()));
 
       final container = makeContainer();
       await container

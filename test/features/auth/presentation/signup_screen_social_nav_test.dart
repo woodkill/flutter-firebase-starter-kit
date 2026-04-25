@@ -37,19 +37,12 @@ Widget _buildApp({
     routes: [
       GoRoute(
         path: AppRoutes.home,
-        builder: (_, _) => const Scaffold(
-          body: Text('HOME_REACHED'),
-        ),
+        builder: (_, _) => const Scaffold(body: Text('HOME_REACHED')),
       ),
-      GoRoute(
-        path: AppRoutes.signup,
-        builder: (_, _) => const SignupScreen(),
-      ),
+      GoRoute(path: AppRoutes.signup, builder: (_, _) => const SignupScreen()),
       GoRoute(
         path: AppRoutes.login,
-        builder: (_, _) => const Scaffold(
-          body: Text('LOGIN_SCREEN'),
-        ),
+        builder: (_, _) => const Scaffold(body: Text('LOGIN_SCREEN')),
       ),
     ],
   );
@@ -80,113 +73,102 @@ void main() {
     mockRepo = _MockAuthRepository();
     mockUser = _MockFirebaseUser();
 
-    when(() => mockAuth.authStateChanges())
-        .thenAnswer((_) => const Stream<fb.User?>.empty());
+    when(
+      () => mockAuth.authStateChanges(),
+    ).thenAnswer((_) => const Stream<fb.User?>.empty());
 
     // 기본: 다른 소셜 provider stub (취소 반환).
     when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
     when(() => mockRepo.signInWithApple()).thenAnswer((_) async => null);
-    when(() => mockRepo.signInWithFacebook())
-        .thenAnswer((_) async => null);
+    when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
   });
 
   group('SignupScreen 소셜 로그인 성공 navigation (Issue #3 safety net)', () {
-    testWidgets(
-      'Google 로그인 성공 -> Home navigation',
-      (tester) async {
-        when(() => mockUser.isAnonymous).thenReturn(false);
-        when(() => mockUser.uid).thenReturn('google-uid');
+    testWidgets('Google 로그인 성공 -> Home navigation', (tester) async {
+      when(() => mockUser.isAnonymous).thenReturn(false);
+      when(() => mockUser.uid).thenReturn('google-uid');
 
-        when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async {
-          when(() => mockAuth.currentUser).thenReturn(mockUser);
-          return Result<User>.success(
-            User(
-              uid: 'google-uid',
-              email: 'g@example.com',
-              emailVerified: true,
-              createdAt: DateTime.utc(2026),
-            ),
-          );
-        });
+      when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async {
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        return Result<User>.success(
+          User(
+            uid: 'google-uid',
+            email: 'g@example.com',
+            emailVerified: true,
+            createdAt: DateTime.utc(2026),
+          ),
+        );
+      });
 
-        when(() => mockAuth.currentUser).thenReturn(null);
+      when(() => mockAuth.currentUser).thenReturn(null);
 
-        await tester.pumpWidget(_buildApp(
-          mockAuth: mockAuth,
-          mockRepo: mockRepo,
-        ));
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _buildApp(mockAuth: mockAuth, mockRepo: mockRepo),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.byType(SignupScreen), findsOneWidget);
+      expect(find.byType(SignupScreen), findsOneWidget);
 
-        await tester.tap(find.text('Sign in with Google'));
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign in with Google'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('HOME_REACHED'), findsOneWidget);
-        expect(find.byType(SignupScreen), findsNothing);
-      },
-    );
+      expect(find.text('HOME_REACHED'), findsOneWidget);
+      expect(find.byType(SignupScreen), findsNothing);
+    });
 
-    testWidgets(
-      'Apple 로그인 성공 -> Home navigation',
-      (tester) async {
-        when(() => mockUser.isAnonymous).thenReturn(false);
-        when(() => mockUser.uid).thenReturn('apple-uid');
+    testWidgets('Apple 로그인 성공 -> Home navigation', (tester) async {
+      when(() => mockUser.isAnonymous).thenReturn(false);
+      when(() => mockUser.uid).thenReturn('apple-uid');
 
-        when(() => mockRepo.signInWithApple()).thenAnswer((_) async {
-          when(() => mockAuth.currentUser).thenReturn(mockUser);
-          return Result<User>.success(
-            User(
-              uid: 'apple-uid',
-              email: 'a@privaterelay.appleid.com',
-              emailVerified: true,
-              createdAt: DateTime.utc(2026),
-            ),
-          );
-        });
+      when(() => mockRepo.signInWithApple()).thenAnswer((_) async {
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        return Result<User>.success(
+          User(
+            uid: 'apple-uid',
+            email: 'a@privaterelay.appleid.com',
+            emailVerified: true,
+            createdAt: DateTime.utc(2026),
+          ),
+        );
+      });
 
-        when(() => mockAuth.currentUser).thenReturn(null);
+      when(() => mockAuth.currentUser).thenReturn(null);
 
-        await tester.pumpWidget(_buildApp(
-          mockAuth: mockAuth,
-          mockRepo: mockRepo,
-        ));
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _buildApp(mockAuth: mockAuth, mockRepo: mockRepo),
+      );
+      await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Sign in with Apple'));
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign in with Apple'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('HOME_REACHED'), findsOneWidget);
-        expect(find.byType(SignupScreen), findsNothing);
-      },
-    );
+      expect(find.text('HOME_REACHED'), findsOneWidget);
+      expect(find.byType(SignupScreen), findsNothing);
+    });
 
-    testWidgets(
-      'Google 로그인 취소 (currentUser anonymous) -> navigation 미호출',
-      (tester) async {
-        final anonUser = _MockFirebaseUser();
-        when(() => anonUser.isAnonymous).thenReturn(true);
-        when(() => anonUser.uid).thenReturn('anon-uid');
+    testWidgets('Google 로그인 취소 (currentUser anonymous) -> navigation 미호출', (
+      tester,
+    ) async {
+      final anonUser = _MockFirebaseUser();
+      when(() => anonUser.isAnonymous).thenReturn(true);
+      when(() => anonUser.uid).thenReturn('anon-uid');
 
-        when(() => mockRepo.signInWithGoogle())
-            .thenAnswer((_) async => null);
+      when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
 
-        when(() => mockAuth.currentUser).thenReturn(anonUser);
+      when(() => mockAuth.currentUser).thenReturn(anonUser);
 
-        await tester.pumpWidget(_buildApp(
-          mockAuth: mockAuth,
-          mockRepo: mockRepo,
-        ));
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _buildApp(mockAuth: mockAuth, mockRepo: mockRepo),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.byType(SignupScreen), findsOneWidget);
+      expect(find.byType(SignupScreen), findsOneWidget);
 
-        await tester.tap(find.text('Sign in with Google'));
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign in with Google'));
+      await tester.pumpAndSettle();
 
-        expect(find.byType(SignupScreen), findsOneWidget);
-        expect(find.text('HOME_REACHED'), findsNothing);
-      },
-    );
+      expect(find.byType(SignupScreen), findsOneWidget);
+      expect(find.text('HOME_REACHED'), findsNothing);
+    });
   });
 }

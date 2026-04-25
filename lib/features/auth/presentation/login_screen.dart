@@ -129,7 +129,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _socialError = null;
       _emailError = null;
     });
-    await ref.read(loginProvider.notifier).submit(
+    await ref
+        .read(loginProvider.notifier)
+        .submit(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
@@ -146,7 +148,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final googleState = ref.watch(googleSignInProvider);
     final appleState = ref.watch(appleSignInProvider);
     final facebookState = ref.watch(facebookSignInProvider);
-    final isLoading = state.isLoading ||
+    final isLoading =
+        state.isLoading ||
         googleState.isLoading ||
         appleState.isLoading ||
         facebookState.isLoading;
@@ -196,8 +199,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           });
         }
         // D-10: 이메일 충돌 시 이메일 자동 채움.
-        if (err is AccountExistsWithDifferentCredential &&
-            err.email != null) {
+        if (err is AccountExistsWithDifferentCredential && err.email != null) {
           _emailController.text = err.email!;
           _emailFocus.requestFocus();
         }
@@ -224,8 +226,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           });
         }
         // D-10: 이메일 충돌 시 이메일 자동 채움.
-        if (err is AccountExistsWithDifferentCredential &&
-            err.email != null) {
+        if (err is AccountExistsWithDifferentCredential && err.email != null) {
           _emailController.text = err.email!;
           _emailFocus.requestFocus();
         }
@@ -233,8 +234,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     // Facebook 로그인 결과: 성공 -> Home safety net (Issue #3), 에러 -> 배너 + D-10.
-    ref.listen<AsyncValue<void>>(facebookSignInProvider,
-        (previous, next) {
+    ref.listen<AsyncValue<void>>(facebookSignInProvider, (previous, next) {
       // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
       if (previous is AsyncLoading && next is AsyncData) {
         if (!mounted) return;
@@ -253,8 +253,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           });
         }
         // D-10: 이메일 충돌 시 이메일 자동 채움.
-        if (err is AccountExistsWithDifferentCredential &&
-            err.email != null) {
+        if (err is AccountExistsWithDifferentCredential && err.email != null) {
           _emailController.text = err.email!;
           _emailFocus.requestFocus();
         }
@@ -297,8 +296,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               Gap(spacing.md),
               TextButton(
-                onPressed: () =>
-                    context.push(AppRoutes.forgotPassword),
+                onPressed: () => context.push(AppRoutes.forgotPassword),
                 child: Text(l10n.authLoginForgotPassword),
               ),
               Gap(spacing.sm),

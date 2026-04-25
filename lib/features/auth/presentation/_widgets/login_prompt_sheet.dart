@@ -59,8 +59,7 @@ class LoginPromptSheet extends ConsumerStatefulWidget {
   const LoginPromptSheet({super.key});
 
   @override
-  ConsumerState<LoginPromptSheet> createState() =>
-      _LoginPromptSheetState();
+  ConsumerState<LoginPromptSheet> createState() => _LoginPromptSheetState();
 }
 
 class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
@@ -72,8 +71,7 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     final colorScheme = context.colorScheme;
 
     // Issue #3 safety net: 소셜 로그인 성공 시 Sheet pop + Home 이동.
-    ref.listen<AsyncValue<void>>(googleSignInProvider,
-        (previous, next) {
+    ref.listen<AsyncValue<void>>(googleSignInProvider, (previous, next) {
       if (previous is AsyncLoading && next is AsyncData) {
         if (!mounted) return;
         final user = ref.read(firebaseAuthProvider).currentUser;
@@ -85,8 +83,7 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
         }
       }
     });
-    ref.listen<AsyncValue<void>>(appleSignInProvider,
-        (previous, next) {
+    ref.listen<AsyncValue<void>>(appleSignInProvider, (previous, next) {
       if (previous is AsyncLoading && next is AsyncData) {
         if (!mounted) return;
         final user = ref.read(firebaseAuthProvider).currentUser;
@@ -98,8 +95,7 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
         }
       }
     });
-    ref.listen<AsyncValue<void>>(facebookSignInProvider,
-        (previous, next) {
+    ref.listen<AsyncValue<void>>(facebookSignInProvider, (previous, next) {
       if (previous is AsyncLoading && next is AsyncData) {
         if (!mounted) return;
         final user = ref.read(firebaseAuthProvider).currentUser;

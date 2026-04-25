@@ -17,10 +17,7 @@ void main() {
       const result = Result<String>.failure(ConnectionTimeout());
 
       expect(result, isA<Failure<String>>());
-      expect(
-        (result as Failure<String>).exception,
-        isA<ConnectionTimeout>(),
-      );
+      expect((result as Failure<String>).exception, isA<ConnectionTimeout>());
     });
 
     // Test 3: Result<String>에 대한 switch 문이 exhaustive

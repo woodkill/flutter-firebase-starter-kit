@@ -95,7 +95,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       _socialError = null;
       _emailError = null;
     });
-    await ref.read(signupProvider.notifier).submit(
+    await ref
+        .read(signupProvider.notifier)
+        .submit(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           displayName: _nameController.text.trim(),
@@ -113,7 +115,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     final googleState = ref.watch(googleSignInProvider);
     final appleState = ref.watch(appleSignInProvider);
     final facebookState = ref.watch(facebookSignInProvider);
-    final isLoading = state.isLoading ||
+    final isLoading =
+        state.isLoading ||
         googleState.isLoading ||
         appleState.isLoading ||
         facebookState.isLoading;
@@ -184,8 +187,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
     // Facebook 로그인 결과: 성공 -> Home safety net (Issue #3), 에러 -> 배너.
     // SignupScreen은 이메일 자동 채움(D-10)을 적용하지 않는다.
-    ref.listen<AsyncValue<void>>(facebookSignInProvider,
-        (previous, next) {
+    ref.listen<AsyncValue<void>>(facebookSignInProvider, (previous, next) {
       // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
       if (previous is AsyncLoading && next is AsyncData) {
         if (!mounted) return;

@@ -22,9 +22,7 @@ void main() {
 
   ProviderContainer makeContainer() {
     final container = ProviderContainer(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-      ],
+      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
     );
     addTearDown(container.dispose);
     return container;
@@ -39,8 +37,9 @@ void main() {
         createdAt: DateTime.utc(2026, 4, 13),
         providerIds: const <String>['facebook.com'],
       );
-      when(() => mockRepo.signInWithFacebook())
-          .thenAnswer((_) async => Result<User>.success(user));
+      when(
+        () => mockRepo.signInWithFacebook(),
+      ).thenAnswer((_) async => Result<User>.success(user));
 
       final container = makeContainer();
       final notifier = container.read(facebookSignInProvider.notifier);
@@ -52,22 +51,18 @@ void main() {
       expect(state.hasError, isFalse);
     });
 
-    test(
-      '취소(null 반환) 시 AsyncData 상태로 유지된다 (D-09)',
-      () async {
-        when(() => mockRepo.signInWithFacebook())
-            .thenAnswer((_) async => null);
+    test('취소(null 반환) 시 AsyncData 상태로 유지된다 (D-09)', () async {
+      when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
 
-        final container = makeContainer();
-        final notifier = container.read(facebookSignInProvider.notifier);
+      final container = makeContainer();
+      final notifier = container.read(facebookSignInProvider.notifier);
 
-        await notifier.signInWithFacebook();
+      await notifier.signInWithFacebook();
 
-        final state = container.read(facebookSignInProvider);
-        expect(state, isA<AsyncData<void>>());
-        expect(state.hasError, isFalse);
-      },
-    );
+      final state = container.read(facebookSignInProvider);
+      expect(state, isA<AsyncData<void>>());
+      expect(state.hasError, isFalse);
+    });
 
     test('Failure 반환 시 AsyncError 상태로 전환된다', () async {
       when(() => mockRepo.signInWithFacebook()).thenAnswer(
@@ -84,33 +79,31 @@ void main() {
       expect(state.error, isA<ServiceUnavailable>());
     });
 
-    test(
-      'dispose 후 signInWithFacebook이 완료되어도 '
-      'state 업데이트가 스킵된다 (ref.mounted 가드)',
-      () async {
-        final completer = Completer<Result<User>?>();
-        when(() => mockRepo.signInWithFacebook())
-            .thenAnswer((_) => completer.future);
+    test('dispose 후 signInWithFacebook이 완료되어도 '
+        'state 업데이트가 스킵된다 (ref.mounted 가드)', () async {
+      final completer = Completer<Result<User>?>();
+      when(
+        () => mockRepo.signInWithFacebook(),
+      ).thenAnswer((_) => completer.future);
 
-        final container = makeContainer();
-        final notifier = container.read(facebookSignInProvider.notifier);
+      final container = makeContainer();
+      final notifier = container.read(facebookSignInProvider.notifier);
 
-        final future = notifier.signInWithFacebook();
+      final future = notifier.signInWithFacebook();
 
-        // container dispose로 ref.mounted = false 유도.
-        container.dispose();
+      // container dispose로 ref.mounted = false 유도.
+      container.dispose();
 
-        final user = User(
-          uid: 'fb-uid-002',
-          email: 'late@facebook.com',
-          emailVerified: true,
-          createdAt: DateTime.utc(2026, 4, 13),
-        );
-        completer.complete(Result<User>.success(user));
+      final user = User(
+        uid: 'fb-uid-002',
+        email: 'late@facebook.com',
+        emailVerified: true,
+        createdAt: DateTime.utc(2026, 4, 13),
+      );
+      completer.complete(Result<User>.success(user));
 
-        // 예외 없이 완료되어야 한다 (ref.mounted 가드가 state 업데이트를 차단).
-        await future;
-      },
-    );
+      // 예외 없이 완료되어야 한다 (ref.mounted 가드가 state 업데이트를 차단).
+      await future;
+    });
   });
 }
