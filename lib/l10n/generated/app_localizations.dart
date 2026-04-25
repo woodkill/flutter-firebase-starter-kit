@@ -190,6 +190,42 @@ abstract class AppLocalizations {
   /// **'Color Palette'**
   String get homeColorPalette;
 
+  /// ColorScheme group header label for Primary color family
+  ///
+  /// In en, this message translates to:
+  /// **'Primary'**
+  String get homeColorGroupPrimary;
+
+  /// ColorScheme group header label for Secondary color family
+  ///
+  /// In en, this message translates to:
+  /// **'Secondary'**
+  String get homeColorGroupSecondary;
+
+  /// ColorScheme group header label for Tertiary color family
+  ///
+  /// In en, this message translates to:
+  /// **'Tertiary'**
+  String get homeColorGroupTertiary;
+
+  /// ColorScheme group header label for Error color family
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get homeColorGroupError;
+
+  /// ColorScheme group header label for Surface color family
+  ///
+  /// In en, this message translates to:
+  /// **'Surface'**
+  String get homeColorGroupSurface;
+
+  /// ColorScheme group header label for Outline and Utility color family
+  ///
+  /// In en, this message translates to:
+  /// **'Outline & Utility'**
+  String get homeColorGroupOutline;
+
   /// Section title for typography showcase
   ///
   /// In en, this message translates to:

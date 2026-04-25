@@ -76,6 +76,36 @@
     "description": "Section title for color palette showcase"
   },
 
+  "homeColorGroupPrimary": "Primary",
+  "@homeColorGroupPrimary": {
+    "description": "ColorScheme group header label for Primary color family"
+  },
+
+  "homeColorGroupSecondary": "Secondary",
+  "@homeColorGroupSecondary": {
+    "description": "ColorScheme group header label for Secondary color family"
+  },
+
+  "homeColorGroupTertiary": "Tertiary",
+  "@homeColorGroupTertiary": {
+    "description": "ColorScheme group header label for Tertiary color family"
+  },
+
+  "homeColorGroupError": "Error",
+  "@homeColorGroupError": {
+    "description": "ColorScheme group header label for Error color family"
+  },
+
+  "homeColorGroupSurface": "Surface",
+  "@homeColorGroupSurface": {
+    "description": "ColorScheme group header label for Surface color family"
+  },
+
+  "homeColorGroupOutline": "Outline & Utility",
+  "@homeColorGroupOutline": {
+    "description": "ColorScheme group header label for Outline and Utility color family"
+  },
+
   "homeTypography": "Typography",
   "@homeTypography": {
     "description": "Section title for typography showcase"

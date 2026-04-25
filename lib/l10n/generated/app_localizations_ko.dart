@@ -54,6 +54,24 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeColorPalette => '컬러 팔레트';
 
   @override
+  String get homeColorGroupPrimary => '프라이머리';
+
+  @override
+  String get homeColorGroupSecondary => '세컨더리';
+
+  @override
+  String get homeColorGroupTertiary => '터셔리';
+
+  @override
+  String get homeColorGroupError => '에러';
+
+  @override
+  String get homeColorGroupSurface => '서피스';
+
+  @override
+  String get homeColorGroupOutline => '아웃라인 & 유틸리티';
+
+  @override
   String get homeTypography => '타이포그래피';
 
   @override

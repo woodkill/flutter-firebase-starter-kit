@@ -29,9 +29,12 @@ Future<void> _pumpScreen(
   _MockAuthRepository? mockRepo,
 }) async {
   final repo = mockRepo ?? _MockAuthRepository();
-  // 화면 전체 ListView 컨텐츠가 약 4500dp 이상이므로 viewport 를 충분히
+  // 화면 전체 ListView 컨텐츠가 약 6000dp 이상이므로 viewport 를 충분히
   // 키워 모든 카드/버튼이 한 번에 렌더되도록 한다 (lazy ListView 회피).
-  tester.view.physicalSize = const Size(800, 6000);
+  // 260425-n31: _TypographySample 가 1행 → 3행 (라벨 + 영문 패가그램 + 한국어
+  // 패가그램) 으로 확장되며 15 인스턴스 × 추가 라인으로 컨텐츠가 증가했다.
+  // 안전 마진 포함하여 8000 으로 키운다 (dev_tools_test 와 동일 정책).
+  tester.view.physicalSize = const Size(800, 8000);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
@@ -67,7 +70,9 @@ Future<void> _pumpScreenWithFirebase(
   WidgetTester tester, {
   required bool initialized,
 }) async {
-  tester.view.physicalSize = const Size(800, 6000);
+  // 260425-n31: viewport 8000 (위 _pumpScreen 과 동일 정책 — 패가그램 3행 확장
+  // 후 컨텐츠가 6000dp 를 초과한다).
+  tester.view.physicalSize = const Size(800, 8000);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();

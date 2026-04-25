@@ -361,7 +361,7 @@ class _ColorPaletteSection extends StatelessWidget {
           style: context.appTypography.titleLarge,
         ),
         Gap(spacing.md),
-        _colorGroup(context, 'Primary', [
+        _colorGroup(context, context.l10n.homeColorGroupPrimary, [
           _ColorSwatch(color: colorScheme.primary, label: 'primary'),
           _ColorSwatch(color: colorScheme.onPrimary, label: 'onPrimary'),
           _ColorSwatch(
@@ -387,7 +387,7 @@ class _ColorPaletteSection extends StatelessWidget {
           ),
         ]),
         Gap(spacing.md),
-        _colorGroup(context, 'Secondary', [
+        _colorGroup(context, context.l10n.homeColorGroupSecondary, [
           _ColorSwatch(color: colorScheme.secondary, label: 'secondary'),
           _ColorSwatch(color: colorScheme.onSecondary, label: 'onSecondary'),
           _ColorSwatch(
@@ -416,7 +416,7 @@ class _ColorPaletteSection extends StatelessWidget {
           ),
         ]),
         Gap(spacing.md),
-        _colorGroup(context, 'Tertiary', [
+        _colorGroup(context, context.l10n.homeColorGroupTertiary, [
           _ColorSwatch(color: colorScheme.tertiary, label: 'tertiary'),
           _ColorSwatch(color: colorScheme.onTertiary, label: 'onTertiary'),
           _ColorSwatch(
@@ -445,7 +445,7 @@ class _ColorPaletteSection extends StatelessWidget {
           ),
         ]),
         Gap(spacing.md),
-        _colorGroup(context, 'Error', [
+        _colorGroup(context, context.l10n.homeColorGroupError, [
           _ColorSwatch(color: colorScheme.error, label: 'error'),
           _ColorSwatch(color: colorScheme.onError, label: 'onError'),
           _ColorSwatch(
@@ -458,7 +458,7 @@ class _ColorPaletteSection extends StatelessWidget {
           ),
         ]),
         Gap(spacing.md),
-        _colorGroup(context, 'Surface', [
+        _colorGroup(context, context.l10n.homeColorGroupSurface, [
           _ColorSwatch(
             color: colorScheme.surface,
             label: 'surface',
@@ -505,7 +505,7 @@ class _ColorPaletteSection extends StatelessWidget {
           _ColorSwatch(color: colorScheme.surfaceTint, label: 'surfaceTint'),
         ]),
         Gap(spacing.md),
-        _colorGroup(context, 'Outline & Utility', [
+        _colorGroup(context, context.l10n.homeColorGroupOutline, [
           _ColorSwatch(color: colorScheme.outline, label: 'outline'),
           _ColorSwatch(
             color: colorScheme.outlineVariant,

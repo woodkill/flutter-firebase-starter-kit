@@ -25,7 +25,10 @@ Future<void> pumpGuestHarness(
   required bool isFirebaseInitialized,
   fb.User? authStateUser,
 }) async {
-  tester.view.physicalSize = const Size(800, 6000);
+  // 260425-n31: viewport 8000 (환경 정보 화면 컨텐츠가 _TypographySample
+  // 패가그램 3행 확장으로 6000dp 를 초과한다 — environment_info_screen_test.dart
+  // 와 동일 정책).
+  tester.view.physicalSize = const Size(800, 8000);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();

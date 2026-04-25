@@ -54,6 +54,24 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeColorPalette => 'カラーパレット';
 
   @override
+  String get homeColorGroupPrimary => 'プライマリ';
+
+  @override
+  String get homeColorGroupSecondary => 'セカンダリ';
+
+  @override
+  String get homeColorGroupTertiary => 'ターシャリ';
+
+  @override
+  String get homeColorGroupError => 'エラー';
+
+  @override
+  String get homeColorGroupSurface => 'サーフェス';
+
+  @override
+  String get homeColorGroupOutline => 'アウトライン & ユーティリティ';
+
+  @override
   String get homeTypography => 'タイポグラフィ';
 
   @override

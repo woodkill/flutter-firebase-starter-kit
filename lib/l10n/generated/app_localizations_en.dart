@@ -54,6 +54,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeColorPalette => 'Color Palette';
 
   @override
+  String get homeColorGroupPrimary => 'Primary';
+
+  @override
+  String get homeColorGroupSecondary => 'Secondary';
+
+  @override
+  String get homeColorGroupTertiary => 'Tertiary';
+
+  @override
+  String get homeColorGroupError => 'Error';
+
+  @override
+  String get homeColorGroupSurface => 'Surface';
+
+  @override
+  String get homeColorGroupOutline => 'Outline & Utility';
+
+  @override
   String get homeTypography => 'Typography';
 
   @override
