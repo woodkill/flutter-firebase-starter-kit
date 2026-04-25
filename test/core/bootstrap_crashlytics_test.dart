@@ -33,15 +33,15 @@ void main() {
     test(
       'Test 2: FlutterError.onError 가 recordFlutterFatalError 에 할당된다 (경로 2)',
       () {
+        // dart format 이 if/runZonedGuarded 중첩 깊이를 바꿀 때 indent 가
+        // 변동하므로(예: quick 260424-uzl `c214bdf` 의 format 일괄 정리),
+        // 하드코딩 문자열 대신 정규식으로 공백·줄바꿈 무관하게 매칭한다.
+        final pattern = RegExp(
+          r'FlutterError\.onError\s*=\s*'
+          r'FirebaseCrashlytics\.instance\.recordFlutterFatalError',
+        );
         expect(
-          source.contains(
-                'FlutterError.onError =\n'
-                '          FirebaseCrashlytics.instance.recordFlutterFatalError',
-              ) ||
-              source.contains(
-                'FlutterError.onError = '
-                'FirebaseCrashlytics.instance.recordFlutterFatalError',
-              ),
+          pattern.hasMatch(source),
           isTrue,
           reason: 'FlutterError.onError 는 recordFlutterFatalError 로 위임.',
         );
