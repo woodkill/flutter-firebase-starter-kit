@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
@@ -20,6 +21,8 @@ class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
 
 class _MockFacebookAuth extends Mock implements FacebookAuth {}
 
+class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
+
 void main() {
   late _MockFirebaseAuth mockAuth;
   late _MockUserCredential mockCredential;
@@ -27,6 +30,7 @@ void main() {
   late _MockUserMetadata mockMetadata;
   late _MockGoogleSignIn mockGoogleSignIn;
   late _MockFacebookAuth mockFacebookAuth;
+  late _MockSocialLinkInProgress mockSocialLinkInProgress;
   late AuthRepository repository;
 
   setUp(() {
@@ -36,7 +40,14 @@ void main() {
     mockMetadata = _MockUserMetadata();
     mockGoogleSignIn = _MockGoogleSignIn();
     mockFacebookAuth = _MockFacebookAuth();
-    repository = AuthRepository(mockAuth, mockGoogleSignIn, mockFacebookAuth);
+    mockSocialLinkInProgress = _MockSocialLinkInProgress();
+    // Phase 9.1 D-03 / D-04: AuthRepository 4-arg ctor 보강.
+    repository = AuthRepository(
+      mockAuth,
+      mockGoogleSignIn,
+      mockFacebookAuth,
+      mockSocialLinkInProgress,
+    );
 
     // 익명 사용자 기본 stub — uid 만 있고 email 은 빈 값, emailVerified=false.
     when(() => mockUser.uid).thenReturn('anon-uid');
