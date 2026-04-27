@@ -263,6 +263,23 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   // 자체를 보류하여 splash 화면 churn + 자동 익명 sign-in race 를 차단한다.
   // Plan 09.1-03 의 SplashInitializer 가드와 함께 defense-in-depth 를 구성한다.
   // 상세 race 시나리오: `09-UAT.md` Gap test 6 root_cause.
+  //
+  // **invariant 의존성 (WR-02):** `socialLinkInProgressProvider` 를 `ref.read`
+  // 로 단발 read 한다 — `ref.watch` 사용 시 GoRouter redirect 의 단발 평가
+  // 의미와 충돌하므로 read 가 정해진 패턴이다. 따라서 본 분기의 정확성은
+  // 다음 시퀀스 가정에 의존한다:
+  //   1. AuthRepository 의 sign-in 메서드 진입 직후 `begin()` 이 동기적으로
+  //      state=true 로 전환한다 (try-block 첫 줄, line 168/249/332).
+  //   2. `_safeDelete(anonymous)` 가 트리거하는 userChanges emit 은 begin()
+  //      이후의 비동기 microtask 로 발행된다 (Firebase SDK 동작).
+  //   3. emit 이 `AuthChangeNotifier.notifyListeners()` -> authRedirect 재평가
+  //      을 트리거한 시점에 `ref.read(socialLinkInProgressProvider)` 는 이미
+  //      true 를 반환한다.
+  // 이 시퀀스는 `auth_repository_test.dart` SLP-7/8/9 의
+  // `verifyInOrder([begin, user.delete, signInWith*, end])` 가드가 강제하므로,
+  // 회귀 방지를 위해 해당 테스트를 절대 약화시키지 말 것. Firebase SDK 가
+  // `_safeDelete` 에서 currentUser=null 을 동기적으로 emit 하도록 변경되거나
+  // `begin()` 호출이 `authenticate()` await 이후로 이동하면 race 가 재발한다.
   if (!isAuthenticated &&
       onboardingSeen &&
       !isOnUnauthRoute &&
