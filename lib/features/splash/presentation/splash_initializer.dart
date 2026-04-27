@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/config/splash_config.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
+import '../../auth/application/social_link_in_progress.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 
@@ -31,6 +32,7 @@ class SplashInitializer {
     required this.isFirebaseInitialized,
     required this.currentUserIsNull,
     required this.onboardingFuture,
+    required this.isSocialLinkInProgress,
   });
 
   /// 익명 로그인 호출 위임 대상.
@@ -50,17 +52,35 @@ class SplashInitializer {
   /// `signInAnonymously` 분기 평가가 이루어지도록 보장한다.
   final Future<bool> onboardingFuture;
 
+  /// 소셜 IdP linking 진행 여부 (Phase 9.1 D-02-A).
+  ///
+  /// `true` 인 경우 [initialize] 의 자동 [signInAnonymously] 호출을 스킵한다.
+  /// AuthRepository 의 social sign-in 메서드(`signInWith{Google,Apple,Facebook}`)
+  /// 가 try-finally 로 [SocialLinkInProgress.begin]/end 를 호출하여 본 신호를
+  /// 활성화 — `_safeDelete(anonymous)` 직후 `currentUser=null` 윈도우 동안
+  /// splash 의 자동 익명 sign-in 이 정식 사용자 상태를 덮어쓰는 race 를 차단한다
+  /// (`09-UAT.md` Gap test 6).
+  final bool isSocialLinkInProgress;
+
   /// 스플래시 초기화 시퀀스를 실행한다.
   ///
   /// Issue #10 GC-03: onboardingFuture 를 최소 대기와 병렬 진행하되,
   /// signInAnonymously 호출 여부 판단 전에 먼저 settle 대기한다.
   /// 측정된 prefs 로드 지연 (336~571ms) 이 [SplashConfig.minDuration]
   /// (기본 2s) 안에 수렴하므로 사용자 관찰 지연은 없다.
+  ///
+  /// **Phase 9.1 D-02-A:** [isSocialLinkInProgress] 가 `true` 인 경우 분기 5번을
+  /// 스킵한다. AuthRepository 의 social sign-in 메서드가 진행 중이면 splash 의
+  /// 자동 익명 sign-in 이 정식 사용자 상태를 덮어쓰는 race 를 차단한다
+  /// (`09-UAT.md` Gap test 6).
   Future<Result<void>> initialize() async {
     final waitFuture = Future<void>.delayed(SplashConfig.minDuration);
     final onboardingSeen = await onboardingFuture;
     Future<Result<dynamic>>? authFuture;
-    if (isFirebaseInitialized && currentUserIsNull && onboardingSeen) {
+    if (isFirebaseInitialized &&
+        currentUserIsNull &&
+        onboardingSeen &&
+        !isSocialLinkInProgress) {
       authFuture = authRepository.signInAnonymously();
     }
     await waitFuture;
@@ -113,10 +133,17 @@ SplashInitializer splashInitializer(Ref ref) {
   final authRepository = isInitialized
       ? ref.watch(authRepositoryProvider)
       : const _NoopAuthRepository();
+  // Phase 9.1 D-02-A: socialLinkInProgress 가 true 면 자동 익명 sign-in 스킵.
+  // Firebase 미초기화 시에는 의미 없으므로 false 로 처리 (signInAnonymously 자체가
+  // isInitialized=false 분기에서 이미 스킵됨).
+  final isSocialLinkInProgress = isInitialized
+      ? ref.watch(socialLinkInProgressProvider)
+      : false;
   return SplashInitializer(
     authRepository: authRepository,
     isFirebaseInitialized: isInitialized,
     currentUserIsNull: currentUser == null,
     onboardingFuture: onboardingFuture,
+    isSocialLinkInProgress: isSocialLinkInProgress,
   );
 }
