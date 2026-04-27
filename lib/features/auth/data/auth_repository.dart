@@ -7,6 +7,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
+import '../application/social_link_in_progress.dart';
 import '../domain/user.dart';
 
 part 'auth_repository.g.dart';
@@ -18,11 +19,21 @@ part 'auth_repository.g.dart';
 /// FirebaseAuthException은 [AppException]으로 매핑되어 던져진다.
 class AuthRepository {
   /// [AuthRepository]를 생성한다.
-  const AuthRepository(this._auth, this._googleSignIn, this._facebookAuth);
+  ///
+  /// [_socialLinkInProgress] 는 social IdP linking 진행 중을 표시하는 race
+  /// 보호 신호 (Phase 9.1 D-01). signInWithGoogle/Apple/Facebook 의 try-finally
+  /// 블록에서 begin()/end() 가 호출된다 (D-03).
+  const AuthRepository(
+    this._auth,
+    this._googleSignIn,
+    this._facebookAuth,
+    this._socialLinkInProgress,
+  );
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
   final FacebookAuth _facebookAuth;
+  final SocialLinkInProgress _socialLinkInProgress;
 
   /// 이메일/비밀번호로 로그인한다.
   ///
@@ -605,6 +616,7 @@ AuthRepository authRepository(Ref ref) {
     ref.watch(firebaseAuthProvider),
     ref.watch(googleSignInProvider),
     ref.watch(facebookAuthProvider),
+    ref.watch(socialLinkInProgressProvider.notifier),
   );
 }
 
