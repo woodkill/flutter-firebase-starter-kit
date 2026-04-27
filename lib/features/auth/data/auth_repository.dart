@@ -156,8 +156,16 @@ class AuthRepository {
   /// [_safeDelete] 로 폐기하고 기존 Google 계정으로 [fb.FirebaseAuth.signInWithCredential]
   /// fallback. 익명 UID 로 작성된 Firestore 데이터는 손실 (Starter Kit D-09 —
   /// 1회성 승격 패턴). 다중 provider linking 은 Phase 17.
+  ///
+  /// **Phase 9.1 D-03 / D-04:** 메서드 body 전체를 try-finally 로 감싸
+  /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
+  /// 를 호출한다. 이로써 `_safeDelete` +
+  /// `signInWithCredential` 사이의 `currentUser=null` 윈도우 동안 splash 의 자동
+  /// 익명 sign-in 과 auth_guard 의 GC-04 fail-safe redirect 를 보류시킨다.
+  /// race condition 상세: `09-UAT.md` Gap test 6.
   Future<Result<User>?> signInWithGoogle() async {
     try {
+      _socialLinkInProgress.begin();
       final account = await _googleSignIn.authenticate();
       final authentication = account.authentication;
       final credential = fb.GoogleAuthProvider.credential(
@@ -201,6 +209,8 @@ class AuthRepository {
       return Result.failure(_mapGoogleException(e));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
+    } finally {
+      _socialLinkInProgress.end();
     }
   }
 
@@ -227,8 +237,16 @@ class AuthRepository {
   /// [fb.UserCredential.user] 를 직접 [_mapFirebaseUser] 에 전달하며,
   /// `_auth.currentUser` 재조회는 수행하지 않는다. 구현 단순화 + 테스트 stub
   /// 복잡도 제거 이중 효과.
+  ///
+  /// **Phase 9.1 D-03 / D-04:** 메서드 body 전체를 try-finally 로 감싸
+  /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
+  /// 를 호출한다. 이로써 `_safeDelete` +
+  /// `signInWithProvider` 사이의 `currentUser=null` 윈도우 동안 splash 의 자동
+  /// 익명 sign-in 과 auth_guard 의 GC-04 fail-safe redirect 를 보류시킨다.
+  /// race condition 상세: `09-UAT.md` Gap test 6.
   Future<Result<User>?> signInWithApple() async {
     try {
+      _socialLinkInProgress.begin();
       final provider = fb.AppleAuthProvider()
         ..addScope('email')
         ..addScope('name');
@@ -281,6 +299,8 @@ class AuthRepository {
         debugPrint('signInWithApple 비-Auth 예외: $e\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      _socialLinkInProgress.end();
     }
   }
 
@@ -300,8 +320,16 @@ class AuthRepository {
   /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
   /// [_safeDelete] 로 폐기하고 기존 Facebook 계정으로 [fb.FirebaseAuth.signInWithCredential]
   /// fallback. 익명 UID 로 작성된 Firestore 데이터는 손실 (D-09 — 1회성 승격).
+  ///
+  /// **Phase 9.1 D-03 / D-04:** 메서드 body 전체를 try-finally 로 감싸
+  /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
+  /// 를 호출한다. 이로써 `_safeDelete` +
+  /// `signInWithCredential` 사이의 `currentUser=null` 윈도우 동안 splash 의 자동
+  /// 익명 sign-in 과 auth_guard 의 GC-04 fail-safe redirect 를 보류시킨다.
+  /// race condition 상세: `09-UAT.md` Gap test 6.
   Future<Result<User>?> signInWithFacebook() async {
     try {
+      _socialLinkInProgress.begin();
       final loginResult = await _facebookAuth.login(
         permissions: ['email', 'public_profile'],
         loginTracking: LoginTracking.enabled,
@@ -357,6 +385,8 @@ class AuthRepository {
         debugPrint('signInWithFacebook 비-Auth 예외: $e\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      _socialLinkInProgress.end();
     }
   }
 
