@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../features/auth/application/social_link_in_progress.dart';
 import '../../features/onboarding/presentation/onboarding_notifier.dart';
 import '../../features/terms/presentation/terms_notifier.dart';
 import '../analytics/analytics_service.dart';
@@ -252,6 +253,35 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
       termsAccepted &&
       (isOnUnauthRoute || matchedLocation == AppRoutes.verifyEmail)) {
     return AppRoutes.home;
+  }
+
+  // (6.4) Phase 9.1 D-02-B: socialLinkInProgress 가드 (Issue #10 GC-04 보류).
+  // 미인증 + onboardingSeen=true + !공개경로 + matchedLocation != /splash 는
+  // GC-04 fail-safe 가 발동하는 조건과 동일하지만, AuthRepository 의 social
+  // sign-in 메서드(`signInWith{Google,Apple,Facebook}`) 가 진행 중이면
+  // (`_safeDelete(anonymous)` 직후 currentUser=null 윈도우) /splash redirect
+  // 자체를 보류하여 splash 화면 churn + 자동 익명 sign-in race 를 차단한다.
+  // Plan 09.1-03 의 SplashInitializer 가드와 함께 defense-in-depth 를 구성한다.
+  // 상세 race 시나리오: `09-UAT.md` Gap test 6 root_cause.
+  if (!isAuthenticated &&
+      onboardingSeen &&
+      !isOnUnauthRoute &&
+      matchedLocation != AppRoutes.splash &&
+      ref.read(socialLinkInProgressProvider)) {
+    if (kDebugMode) {
+      debugPrint(
+        'authRedirect: social link in progress '
+        '(currentUser=null, onboardingSeen=true, matchedLocation='
+        '$matchedLocation) -> null (await SDK return) [Phase 9.1 D-02-B]',
+      );
+    }
+    // Observability: Crashlytics 신호로 onboarding_race_v1 (Plan 10-14) 과 구분.
+    unawaited(
+      ref
+          .read(crashlyticsServiceProvider)
+          .setCustomKey('race_guard_triggered', 'social_link_v1'),
+    );
+    return null;
   }
 
   // (6.5) Issue #10 GC-04 fail-safe (Plan 10-14):
