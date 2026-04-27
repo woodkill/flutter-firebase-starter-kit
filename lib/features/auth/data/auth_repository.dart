@@ -209,6 +209,14 @@ class AuthRepository {
       return Result.failure(_mapGoogleException(e));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      // 비-Auth 예외 (PlatformException 등) 를 Result 로 감싸 Notifier state
+      // 가 AsyncLoading 에 고정되는 것을 방지한다 (Apple/Facebook 패턴 미러링).
+      // begin/end invariant 자체는 finally 블록이 보장하므로 race-fix 와 직교.
+      if (kDebugMode) {
+        debugPrint('signInWithGoogle 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
     } finally {
       _socialLinkInProgress.end();
     }
