@@ -135,6 +135,7 @@ void main() {
           isFirebaseInitialized: false,
           currentUserIsNull: true,
           onboardingFuture: Future.value(false),
+          isSocialLinkInProgress: false,
         );
         final router = _testRouter();
         addTearDown(router.dispose);
@@ -159,6 +160,7 @@ void main() {
         isFirebaseInitialized: false, // signInAnonymously 호출 안 함
         currentUserIsNull: true,
         onboardingFuture: Future.value(false),
+        isSocialLinkInProgress: false,
       );
       final router = _testRouter();
       addTearDown(router.dispose);
@@ -187,6 +189,7 @@ void main() {
           isFirebaseInitialized: true,
           currentUserIsNull: true,
           onboardingFuture: Future.value(true),
+          isSocialLinkInProgress: false,
         );
         final router = _testRouter();
         addTearDown(router.dispose);

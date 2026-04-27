@@ -11,6 +11,7 @@ import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/router/auth_guard.dart';
+import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
@@ -68,6 +69,18 @@ class _StubTermsNotifier extends TermsNotifier {
   /// 에서 처리되어 stale 가드를 타지 않으므로 uid 불일치가 무해하다.
   @override
   String? get lastReloadedUid => 'reg-uid';
+}
+
+/// Phase 9.1 D-02-B (Plan 09.1-04) — `socialLinkInProgressProvider` override 용
+/// stub. `_initial` 값을 `build()` 에서 직접 반환하여 authRedirect 가
+/// `ref.read(socialLinkInProgressProvider)` 시 진행 중 여부를 결정한다.
+/// 기존 `_StubOnboardingNotifier` / `_StubTermsNotifier` stub 패턴 mirror.
+class _StubSocialLinkInProgress extends SocialLinkInProgress {
+  _StubSocialLinkInProgress(this._initial);
+  final bool _initial;
+
+  @override
+  bool build() => _initial;
 }
 
 /// Issue #7 (Plan 10-11) stale 가드 테스트용 확장 stub.
@@ -961,5 +974,209 @@ void main() {
         ),
       ).called(1);
     });
+  });
+
+  /// Phase 9.1 D-02-B (Plan 09.1-04) — authRedirect 분기 (6.4)
+  /// `socialLinkInProgress` 가드 회귀 테스트.
+  ///
+  /// AuthRepository 의 social sign-in 메서드(`signInWith{Google,Apple,Facebook}`)
+  /// 가 진행 중이면 GC-04 fail-safe 직전에 분기 (6.4) 가 발동되어 redirect 자체를
+  /// 보류 (`null` 반환) 해야 한다. Crashlytics 신호는 `social_link_v1` 로 기록되어
+  /// 기존 `onboarding_race_v1` (Plan 10-14) 과 forensic 구분된다
+  /// (`09-UAT.md` Gap test 6 root_cause).
+  group('authRedirect socialLinkInProgress 가드 — Phase 9.1 D-02-B', () {
+    /// authRedirect 호출 헬퍼 (onboardingProvider settle 대기 포함).
+    Future<String?> callAuthRedirect(
+      ProviderContainer container,
+      GoRouterState state,
+    ) async {
+      await container.read(onboardingProvider.future);
+      late FutureOr<String?> result;
+      final testProvider = Provider<Object?>((ref) {
+        result = authRedirect(ref, state);
+        return null;
+      });
+      container.read(testProvider);
+      return await result;
+    }
+
+    test(
+      'Test SLP-G1: socialLinkInProgress=true + 미인증 + onboardingSeen=true + '
+      'matchedLocation=/ -> null (보류) + social_link_v1 Crashlytics 기록 + '
+      'onboarding_race_v1 미기록 (분기 6.4 가 6.5 보다 먼저 매칭)',
+      () async {
+        final mockCrashlytics = _MockCrashlytics();
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
+
+        final mockAuth = _MockFirebaseAuth();
+        when(() => mockAuth.currentUser).thenReturn(null);
+
+        final container = ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(true),
+            firebaseAuthProvider.overrideWithValue(mockAuth),
+            onboardingProvider.overrideWith(
+              () => _StubOnboardingNotifier(true),
+            ),
+            termsProvider.overrideWith(() => _StubTermsNotifier(null)),
+            crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+            // Phase 9.1 D-02-B: socialLinkInProgress=true.
+            socialLinkInProgressProvider.overrideWith(
+              () => _StubSocialLinkInProgress(true),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+
+        // Assert — null 반환 (보류).
+        expect(
+          result,
+          isNull,
+          reason: '6.4 D-02-B: 진행 중이면 GC-04 보류, null 반환',
+        );
+
+        // unawaited 호출이므로 microtask 1틱 대기.
+        await Future<void>.delayed(Duration.zero);
+
+        // social_link_v1 Crashlytics 기록 검증.
+        verify(
+          () => mockCrashlytics.setCustomKey(
+            'race_guard_triggered',
+            'social_link_v1',
+          ),
+        ).called(1);
+        // 핵심 검증: onboarding_race_v1 신호는 기록되지 않아야 함 (6.4 가
+        // 먼저 매칭되어 6.5 GC-04 분기에 도달하지 않음).
+        verifyNever(
+          () => mockCrashlytics.setCustomKey(
+            'race_guard_triggered',
+            'onboarding_race_v1',
+          ),
+        );
+      },
+    );
+
+    test(
+      'Test SLP-G2: socialLinkInProgress=false + 동일 GC-04 매칭 조건 -> '
+      '/splash + onboarding_race_v1 (기존 GC-04 회귀 가드)',
+      () async {
+        final mockCrashlytics = _MockCrashlytics();
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
+
+        final mockAuth = _MockFirebaseAuth();
+        when(() => mockAuth.currentUser).thenReturn(null);
+
+        final container = ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(true),
+            firebaseAuthProvider.overrideWithValue(mockAuth),
+            onboardingProvider.overrideWith(
+              () => _StubOnboardingNotifier(true),
+            ),
+            termsProvider.overrideWith(() => _StubTermsNotifier(null)),
+            crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+            // socialLinkInProgress=false (기본값 — override 생략 가능하지만
+            // 명시적으로 negative path 의도를 표현).
+            socialLinkInProgressProvider.overrideWith(
+              () => _StubSocialLinkInProgress(false),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+
+        // Assert — /splash 반환 (기존 GC-04) + onboarding_race_v1 기록.
+        expect(
+          result,
+          AppRoutes.splash,
+          reason: '6.4 미발동 시 6.5 GC-04 정상 동작',
+        );
+
+        await Future<void>.delayed(Duration.zero);
+
+        verify(
+          () => mockCrashlytics.setCustomKey(
+            'race_guard_triggered',
+            'onboarding_race_v1',
+          ),
+        ).called(1);
+        verifyNever(
+          () => mockCrashlytics.setCustomKey(
+            'race_guard_triggered',
+            'social_link_v1',
+          ),
+        );
+      },
+    );
+
+    test(
+      'Test SLP-G3: 정식 인증 사용자 + termsAccepted + '
+      'socialLinkInProgress=true -> 6.4 가드 미발동 (정상 인증 흐름 보존)',
+      () async {
+        final mockCrashlytics = _MockCrashlytics();
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
+
+        final user = regularUser();
+        final mockAuth = _MockFirebaseAuth();
+        when(() => mockAuth.currentUser).thenReturn(user);
+
+        final container = ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(true),
+            firebaseAuthProvider.overrideWithValue(mockAuth),
+            onboardingProvider.overrideWith(
+              () => _StubOnboardingNotifier(true),
+            ),
+            // termsAccepted 가 있는 정상 사용자.
+            termsProvider.overrideWith(
+              () => _StubTermsNotifier(acceptedTerms()),
+            ),
+            crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+            socialLinkInProgressProvider.overrideWith(
+              () => _StubSocialLinkInProgress(true),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await callAuthRedirect(container, mockState);
+
+        // Assert — 정상 Home 랜딩 (분기 (7) null) + 어떤 race_guard 신호도
+        // 기록되지 않음. 6.4 가드는 `!isAuthenticated` 조건이므로 정식 사용자
+        // 에게는 발동하지 않는다.
+        expect(
+          result,
+          isNull,
+          reason: '인증 + termsAccepted 사용자는 6.4/6.5 미진입',
+        );
+
+        await Future<void>.delayed(Duration.zero);
+
+        verifyNever(
+          () => mockCrashlytics.setCustomKey(
+            'race_guard_triggered',
+            'social_link_v1',
+          ),
+        );
+        verifyNever(
+          () => mockCrashlytics.setCustomKey(
+            'race_guard_triggered',
+            'onboarding_race_v1',
+          ),
+        );
+      },
+    );
   });
 }
