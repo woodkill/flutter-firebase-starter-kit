@@ -5,6 +5,7 @@ import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../auth/application/social_link_in_progress.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../auth/domain/user.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 
 part 'splash_initializer.g.dart';
@@ -76,7 +77,9 @@ class SplashInitializer {
   Future<Result<void>> initialize() async {
     final waitFuture = Future<void>.delayed(SplashConfig.minDuration);
     final onboardingSeen = await onboardingFuture;
-    Future<Result<dynamic>>? authFuture;
+    // Phase 9.1 IN-01: signInAnonymously 의 정확한 반환 타입 (`Result<User>`) 으로
+    // 명시화 — 미래에 `result.data` 등 generic-bound API 추가 시 타입 안전성 확보.
+    Future<Result<User>>? authFuture;
     if (isFirebaseInitialized &&
         currentUserIsNull &&
         onboardingSeen &&
@@ -86,7 +89,7 @@ class SplashInitializer {
     await waitFuture;
     if (authFuture != null) {
       final result = await authFuture;
-      if (result is Failure) {
+      if (result is Failure<User>) {
         return Result.failure(result.exception);
       }
     }
