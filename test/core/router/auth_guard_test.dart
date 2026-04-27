@@ -39,7 +39,7 @@ class _LoadingOnboardingNotifier extends OnboardingNotifier {
 /// 시도하므로, 테스트에서는 async stub Notifier 로 교체하여 race 없이 검증한다.
 ///
 /// Issue #10 Plan 10-14: [OnboardingNotifier.build] 가 `FutureOr<bool> async`
-/// 로 전환되어 stub 도 동일 시그니처를 준수한다. [callAuthRedirect] 가
+/// 로 전환되어 stub 도 동일 시그니처를 준수한다. [_callAuthRedirect] 가
 /// `await container.read(onboardingProvider.future)` 로 settle 대기 후
 /// authRedirect 를 호출하도록 수정됨.
 class _StubOnboardingNotifier extends OnboardingNotifier {
@@ -101,6 +101,43 @@ class _StubTermsNotifierWithUid extends TermsNotifier {
 
   @override
   String? get lastReloadedUid => reloadedUid;
+}
+
+/// authRedirect 호출 헬퍼 (Phase 9.1 IN-03 — DRY 추출).
+///
+/// 모든 `authRedirect 분기` group 에서 공통으로 사용한다. authRedirect 는
+/// `Ref` 를 첫 번째 파라미터로 받으므로, ProviderContainer 에서 Ref 를 얻기
+/// 위해 임시 Provider 안에서 호출한다.
+///
+/// [awaitSettle]=true (기본) 면 `onboardingProvider.future` 를 [timeout]
+/// 내에 await — 정상 settle 경로 (Issue #10 Plan 10-14: AsyncNotifier 전환에
+/// 맞춰 settle 대기 후 authRedirect 호출). [awaitSettle]=false 면 GC-04-E
+/// (AsyncLoading 영구 유지) 처럼 timeout 우회 + loading 상태로 진입을 강제한다.
+///
+/// [timeout] 기본 50ms 는 GC-04 fail-safe 분기 테스트에서 검증된 값이며,
+/// 일반 group (timeout 옵션 미사용) 에서는 stub Notifier 가 즉시 settle 하므로
+/// 도달 가능하지 않다 — 안전한 상한.
+Future<String?> _callAuthRedirect(
+  ProviderContainer container,
+  GoRouterState state, {
+  bool awaitSettle = true,
+  Duration timeout = const Duration(milliseconds: 50),
+}) async {
+  if (awaitSettle) {
+    try {
+      await container.read(onboardingProvider.future).timeout(timeout);
+    } on TimeoutException {
+      // 의도적으로 loading 유지 (예: GC-04-E) — 또는 stub 이 즉시 settle 하지
+      // 않는 비정상 상태. 어느 쪽이든 authRedirect 진입은 진행한다.
+    }
+  }
+  late FutureOr<String?> result;
+  final testProvider = Provider<Object?>((ref) {
+    result = authRedirect(ref, state);
+    return null;
+  });
+  container.read(testProvider);
+  return await result;
 }
 
 void main() {
@@ -199,34 +236,13 @@ void main() {
   group(
     'authRedirect (Phase 10 D-14 / BLOCKER #3 / BLOCKER #7 / WARNING #19)',
     () {
-      /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
-      /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-      ///
-      /// Issue #10 Plan 10-14: onboardingProvider 가 AsyncNotifier 로 전환되어
-      /// stub 도 async build 를 사용한다. authRedirect 호출 전에 settle 대기하여
-      /// 기존 테스트 (1~13 / Issue #6 Test A~D / Issue #7 Test A~C / Issue #8
-      /// Test 21/21b 등) 의 기대 분기 도달을 보장한다. AsyncLoading 분기는
-      /// Plan 10-14 신규 테스트 (GC-04-E) 에서 별도 검증.
-      Future<String?> callAuthRedirect(
-        ProviderContainer container,
-        GoRouterState state,
-      ) async {
-        await container.read(onboardingProvider.future);
-        late FutureOr<String?> result;
-        final testProvider = Provider<Object?>((ref) {
-          result = authRedirect(ref, state);
-          return null;
-        });
-        container.read(testProvider);
-        return result;
-      }
-
+      // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
       test('Test 1: Firebase 미초기화 시 null', () async {
         final container = makeContainer(isInitialized: false);
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
         expect(result, isNull);
       });
 
@@ -237,7 +253,7 @@ void main() {
           addTearDown(container.dispose);
           when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-          final result = await callAuthRedirect(container, mockState);
+          final result = await _callAuthRedirect(container, mockState);
           expect(result, AppRoutes.onboarding);
         },
       );
@@ -255,7 +271,7 @@ void main() {
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
         expect(result, AppRoutes.splash);
       });
 
@@ -269,7 +285,7 @@ void main() {
           addTearDown(container.dispose);
           when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-          final result = await callAuthRedirect(container, mockState);
+          final result = await _callAuthRedirect(container, mockState);
           expect(result, AppRoutes.verifyEmail);
         },
       );
@@ -282,7 +298,7 @@ void main() {
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
         expect(result, isNull);
       });
 
@@ -297,7 +313,7 @@ void main() {
           addTearDown(container.dispose);
           when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
 
-          final result = await callAuthRedirect(container, mockState);
+          final result = await _callAuthRedirect(container, mockState);
           expect(result, AppRoutes.home);
         },
       );
@@ -314,7 +330,7 @@ void main() {
           addTearDown(container.dispose);
           when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-          final result = await callAuthRedirect(container, mockState);
+          final result = await _callAuthRedirect(container, mockState);
           expect(
             result,
             AppRoutes.onboarding,
@@ -337,7 +353,7 @@ void main() {
             () => mockState.matchedLocation,
           ).thenReturn(AppRoutes.onboarding);
 
-          final result = await callAuthRedirect(container, mockState);
+          final result = await _callAuthRedirect(container, mockState);
           expect(result, AppRoutes.home);
         },
       );
@@ -352,7 +368,7 @@ void main() {
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
         expect(
           result,
           isNull,
@@ -369,7 +385,7 @@ void main() {
             () => mockState.matchedLocation,
           ).thenReturn(AppRoutes.termsService);
 
-          final result = await callAuthRedirect(container, mockState);
+          final result = await _callAuthRedirect(container, mockState);
           expect(result, isNull);
         },
       );
@@ -385,7 +401,7 @@ void main() {
           addTearDown(container.dispose);
           when(() => mockState.matchedLocation).thenReturn(AppRoutes.signup);
 
-          final result = await callAuthRedirect(container, mockState);
+          final result = await _callAuthRedirect(container, mockState);
           expect(result, isNull);
         },
       );
@@ -398,7 +414,7 @@ void main() {
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.verifyEmail);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
         expect(result, AppRoutes.home);
       });
 
@@ -410,7 +426,7 @@ void main() {
           addTearDown(container.dispose);
           when(() => mockState.matchedLocation).thenReturn(AppRoutes.splash);
 
-          final result = await callAuthRedirect(container, mockState);
+          final result = await _callAuthRedirect(container, mockState);
           expect(result, isNull);
         },
       );
@@ -418,24 +434,7 @@ void main() {
   );
 
   group('authRedirect 분기 (5) — Issue #6 회귀 가드 (Plan 10-09)', () {
-    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
-    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    ///
-    /// Issue #10 Plan 10-14: onboardingProvider.future settle 대기 포함.
-    Future<String?> callAuthRedirect(
-      ProviderContainer container,
-      GoRouterState state,
-    ) async {
-      await container.read(onboardingProvider.future);
-      late FutureOr<String?> result;
-      final testProvider = Provider<Object?>((ref) {
-        result = authRedirect(ref, state);
-        return null;
-      });
-      container.read(testProvider);
-      return result;
-    }
-
+    // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
     test('Issue #6 Test A: 정식 사용자 + emailVerified=true + termsProvider=null '
         '(reload 후 stale 평가) -> /onboarding (분기 (5) 발동)', () async {
       // Issue #6 핵심 회귀 가드: Firestore termsAccepted 가 비어 있는 정식
@@ -449,7 +448,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(
         result,
         AppRoutes.onboarding,
@@ -466,7 +465,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.onboarding);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(
         result,
         isNull,
@@ -485,7 +484,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(
         result,
         isNull,
@@ -501,7 +500,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.termsService);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(result, isNull);
     });
   });
@@ -537,24 +536,7 @@ void main() {
       );
     }
 
-    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
-    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    ///
-    /// Issue #10 Plan 10-14: onboardingProvider.future settle 대기 포함.
-    Future<String?> callAuthRedirect(
-      ProviderContainer container,
-      GoRouterState state,
-    ) async {
-      await container.read(onboardingProvider.future);
-      late FutureOr<String?> result;
-      final testProvider = Provider<Object?>((ref) {
-        result = authRedirect(ref, state);
-        return null;
-      });
-      container.read(testProvider);
-      return result;
-    }
-
+    // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
     test('Issue #7 Test A: 정식 + emailVerified + termsAcceptance=null + '
         'lastReloadedUid != currentUser.uid (stale) + home -> null '
         '(stale 가드 발동 — reload 완료 대기)', () async {
@@ -570,7 +552,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(
         result,
         isNull,
@@ -594,7 +576,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(
         result,
         AppRoutes.onboarding,
@@ -618,30 +600,13 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(result, AppRoutes.home);
     });
   });
 
   group('authRedirect 분기 (3) — Issue #4 회귀 가드 (Plan 10-10)', () {
-    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
-    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    ///
-    /// Issue #10 Plan 10-14: onboardingProvider.future settle 대기 포함.
-    Future<String?> callAuthRedirect(
-      ProviderContainer container,
-      GoRouterState state,
-    ) async {
-      await container.read(onboardingProvider.future);
-      late FutureOr<String?> result;
-      final testProvider = Provider<Object?>((ref) {
-        result = authRedirect(ref, state);
-        return null;
-      });
-      container.read(testProvider);
-      return result;
-    }
-
+    // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
     test('Issue #4 Test A: 익명 사용자 + onboardingSeen=false + home '
         '-> /onboarding (Dev Tools 온보딩 리셋 후 cold restart 재진입)', () async {
       // Scenario 6-(1): Dev Tools "온보딩 다시 보기" 탭 → SharedPreferences
@@ -656,7 +621,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(
         result,
         AppRoutes.onboarding,
@@ -675,7 +640,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.onboarding);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(result, isNull, reason: '이미 /onboarding 화면이면 재리다이렉트 금지 (루프 차단)');
     });
 
@@ -688,7 +653,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.termsService);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(result, isNull);
     });
 
@@ -705,7 +670,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(result, isNull, reason: 'Scenario 2 정상 익명 세션 복원 경로 — Home 랜딩 허용');
     });
 
@@ -721,30 +686,14 @@ void main() {
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.splash);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
         expect(result, isNull);
       },
     );
   });
 
   group('authRedirect 분기 (5) Issue #8 multi-user invariant (Plan 10-12)', () {
-    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
-    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    ///
-    /// Issue #10 Plan 10-14: onboardingProvider.future settle 대기 포함.
-    Future<String?> callAuthRedirect(
-      ProviderContainer container,
-      GoRouterState state,
-    ) async {
-      await container.read(onboardingProvider.future);
-      late FutureOr<String?> result;
-      final testProvider = Provider<Object?>((ref) {
-        result = authRedirect(ref, state);
-        return null;
-      });
-      container.read(testProvider);
-      return result;
-    }
+    // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
 
     /// Issue #8 Test 21 전용 container — Issue #7 의
     /// [_StubTermsNotifierWithUid] 를 재사용하여 lastReloadedUid 를 주입한다.
@@ -793,7 +742,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
 
       expect(
         result,
@@ -817,7 +766,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.onboarding);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
 
       expect(
         result,
@@ -830,35 +779,9 @@ void main() {
   });
 
   group('authRedirect fail-safe race guard — Issue #10 Plan 10-14 GC-04', () {
-    /// authRedirect 는 Ref 를 첫 번째 파라미터로 받는다.
-    /// ProviderContainer 에서 Ref 를 얻기 위해 임시 Provider 안에서 호출한다.
-    ///
-    /// [awaitSettle]=true (기본) 면 onboardingProvider.future 를 타임아웃
-    /// (50ms) 내에 await — 정상 settle 경로. GC-04-E (AsyncLoading 유지)
-    /// 에서는 false 로 호출하여 timeout 우회 + loading 상태로 authRedirect
-    /// 진입을 강제한다.
-    Future<String?> callAuthRedirect(
-      ProviderContainer container,
-      GoRouterState state, {
-      bool awaitSettle = true,
-    }) async {
-      if (awaitSettle) {
-        try {
-          await container
-              .read(onboardingProvider.future)
-              .timeout(const Duration(milliseconds: 50));
-        } on TimeoutException {
-          // 의도적으로 loading 유지 — GC-04-E 경로.
-        }
-      }
-      late FutureOr<String?> result;
-      final testProvider = Provider<Object?>((ref) {
-        result = authRedirect(ref, state);
-        return null;
-      });
-      container.read(testProvider);
-      return await result;
-    }
+    // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
+    // 본 group 의 GC-04-E 테스트는 `awaitSettle: false` 로 호출하여
+    // AsyncLoading 영구 유지 분기를 검증한다.
 
     test('Test GC-04-A: 미인증 + onboardingSeen=true + matchedLocation=/ '
         '-> /splash (fail-safe 발동)', () async {
@@ -875,7 +798,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(
         result,
         AppRoutes.splash,
@@ -889,7 +812,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(
         result,
         AppRoutes.onboarding,
@@ -906,7 +829,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(result, isNull, reason: 'unauth 화이트리스트 경로는 fail-safe 미발동');
     });
 
@@ -919,7 +842,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.splash);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(result, isNull, reason: '/splash → /splash 자기 자신 복귀 방지');
     });
 
@@ -934,7 +857,7 @@ void main() {
 
       // 주의: awaitSettle=false — Future 가 영원히 resolve 안 되므로
       // timeout 우회.
-      final result = await callAuthRedirect(
+      final result = await _callAuthRedirect(
         container,
         mockState,
         awaitSettle: false,
@@ -961,7 +884,7 @@ void main() {
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await callAuthRedirect(container, mockState);
+      final result = await _callAuthRedirect(container, mockState);
       expect(result, AppRoutes.splash);
 
       // unawaited 로 호출되므로 microtask 1틱 대기.
@@ -985,20 +908,7 @@ void main() {
   /// 기존 `onboarding_race_v1` (Plan 10-14) 과 forensic 구분된다
   /// (`09-UAT.md` Gap test 6 root_cause).
   group('authRedirect socialLinkInProgress 가드 — Phase 9.1 D-02-B', () {
-    /// authRedirect 호출 헬퍼 (onboardingProvider settle 대기 포함).
-    Future<String?> callAuthRedirect(
-      ProviderContainer container,
-      GoRouterState state,
-    ) async {
-      await container.read(onboardingProvider.future);
-      late FutureOr<String?> result;
-      final testProvider = Provider<Object?>((ref) {
-        result = authRedirect(ref, state);
-        return null;
-      });
-      container.read(testProvider);
-      return await result;
-    }
+    // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
 
     test(
       'Test SLP-G1: socialLinkInProgress=true + 미인증 + onboardingSeen=true + '
@@ -1031,7 +941,7 @@ void main() {
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
 
         // Assert — null 반환 (보류).
         expect(
@@ -1092,7 +1002,7 @@ void main() {
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
 
         // Assert — /splash 반환 (기존 GC-04) + onboarding_race_v1 기록.
         expect(
@@ -1151,7 +1061,7 @@ void main() {
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
 
         // Assert — 정상 Home 랜딩 (분기 (7) null) + 어떤 race_guard 신호도
         // 기록되지 않음. 6.4 가드는 `!isAuthenticated` 조건이므로 정식 사용자
