@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
-import 'package:sign_in_button/sign_in_button.dart';
 
-import '../../../../core/l10n/l10n_extensions.dart';
+import '../../../../core/auth/auth_strategies_registry.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../apple_sign_in_notifier.dart';
 import '../facebook_sign_in_notifier.dart';
 import '../google_sign_in_notifier.dart';
 import 'or_divider.dart';
+import 'social_button.dart';
 
-/// Google + Apple + Facebook 버튼 + [OrDivider]를 감싸는 공통 위젯.
+/// 활성화된 [AuthStrategy] 들을 [SocialButton] 으로 렌더링하는 공통 섹션
+/// (Phase 11 D-11, Pattern H).
 ///
-/// LoginScreen과 SignupScreen 양쪽에서 동일하게 사용한다.
-/// 버튼 순서는 플랫폼 무관하게 Google -> Apple -> Facebook 통일 (D-04).
+/// LoginScreen / SignupScreen / LoginPromptSheet 양쪽에서 동일하게 사용한다.
+/// 활성 Strategy 목록은 [activeStrategiesProvider] (정적 config + Remote
+/// Config kill switch overlay 합산, D-26) 가 제공한다. 인라인 Google/Apple/
+/// Facebook 빌더는 [SocialButton] 으로 통합되어 본 섹션에서 제거되었다.
 ///
-/// Apple 버튼 다크모드 변형은 `Theme.of(context).brightness`로 분기한다
-/// (D-06, Apple HIG 준수): 라이트 모드는 [Buttons.apple](검정 배경),
-/// 다크 모드는 [Buttons.appleDark](흰색 배경).
-///
-/// Facebook 버튼은 [Buttons.facebookNew] 단일 변형을 사용한다.
-/// Facebook 브랜드 가이드라인은 블루(#1877F2)를 모드 무관하게 사용하므로
-/// 라이트/다크 분기가 불필요하다 (D-05).
+/// 진행 중 상태 ([isAnyLoading]) 는 Phase 11 단계에서 3개 Provider
+/// (`google` / `apple` / `facebook`) 를 직접 watch 한다. Phase 12+ 에서 신규
+/// provider 추가 시 helper Provider 로 추출 검토 (corrections 4번).
 class SocialSignInSection extends ConsumerWidget {
   /// [SocialSignInSection]을 생성한다.
   const SocialSignInSection({
@@ -50,82 +49,27 @@ class SocialSignInSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
     final spacing = context.appSpacing;
-    final googleState = ref.watch(googleSignInProvider);
-    final appleState = ref.watch(appleSignInProvider);
-    final facebookState = ref.watch(facebookSignInProvider);
-    final isGoogleLoading = googleState.isLoading;
-    final isAppleLoading = appleState.isLoading;
-    final isFacebookLoading = facebookState.isLoading;
+    final locale = Localizations.localeOf(context);
+
     // 이메일/Google/Apple/Facebook 중 어느 하나라도 진행 중이면 이중 제출 방지.
+    // Phase 11 단계는 3개 Provider 직접 watch (corrections 4번).
     final isAnyLoading =
-        isFormLoading || isGoogleLoading || isAppleLoading || isFacebookLoading;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+        isFormLoading ||
+        ref.watch(googleSignInProvider).isLoading ||
+        ref.watch(appleSignInProvider).isLoading ||
+        ref.watch(facebookSignInProvider).isLoading;
 
-    // Google 버튼 (Phase 7 패턴 유지).
-    final googleButton = SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: SignInButton(
-        isDark ? Buttons.googleDark : Buttons.google,
-        text: l10n.authGoogleSignIn,
-        onPressed: isAnyLoading
-            ? () {} // sign_in_button의 onPressed는 non-nullable
-            : () {
-                FocusManager.instance.primaryFocus?.unfocus();
-                ref.read(googleSignInProvider.notifier).signInWithGoogle();
-              },
-      ),
-    );
-
-    // Apple 버튼 (Phase 8).
-    // D-06: 라이트 -> Buttons.apple(검정), 다크 -> Buttons.appleDark(흰색).
-    final appleButton = SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: SignInButton(
-        isDark ? Buttons.appleDark : Buttons.apple,
-        text: l10n.authAppleSignIn,
-        onPressed: isAnyLoading
-            ? () {}
-            : () {
-                FocusManager.instance.primaryFocus?.unfocus();
-                ref.read(appleSignInProvider.notifier).signInWithApple();
-              },
-      ),
-    );
-
-    // Facebook 버튼 (Phase 9 신규, D-05).
-    // Buttons.facebookNew는 라이트/다크 분기 불필요 (브랜드 가이드라인 동일 블루).
-    final facebookButton = SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: SignInButton(
-        Buttons.facebookNew,
-        text: l10n.authFacebookSignIn,
-        onPressed: isAnyLoading
-            ? () {}
-            : () {
-                FocusManager.instance.primaryFocus?.unfocus();
-                ref.read(facebookSignInProvider.notifier).signInWithFacebook();
-              },
-      ),
-    );
-
-    // D-04: 플랫폼 무관 통일 순서 Google -> Apple -> Facebook.
-    final socialButtons = <Widget>[
-      googleButton,
-      Gap(spacing.md),
-      appleButton,
-      Gap(spacing.md),
-      facebookButton,
-    ];
+    // 활성화된 Strategy 만 — 정적 config + RC overlay 합산 (D-26).
+    final strategies = ref.watch(activeStrategiesProvider(locale));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ...socialButtons,
+      children: <Widget>[
+        for (var i = 0; i < strategies.length; i++) ...[
+          if (i > 0) Gap(spacing.md),
+          SocialButton(strategy: strategies[i], isDisabled: isAnyLoading),
+        ],
         if (errorBanner != null) ...[Gap(spacing.md), errorBanner!],
         if (showOrDivider) ...[
           Gap(spacing.lg),
