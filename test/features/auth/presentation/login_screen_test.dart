@@ -6,6 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
+import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
+import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -27,7 +32,16 @@ Future<void> _pumpLogin(
 ) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [authRepositoryProvider.overrideWithValue(mockRepo)],
+      overrides: [
+        authRepositoryProvider.overrideWithValue(mockRepo),
+        activeStrategiesProvider(
+          const Locale('en'),
+        ).overrideWithValue(const <AuthStrategy>[
+          GoogleAuthStrategy(),
+          AppleAuthStrategy(),
+          FacebookAuthStrategy(),
+        ]),
+      ],
       child: MaterialApp(
         theme: AppTheme.light(),
         locale: const Locale('en'),

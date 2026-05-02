@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_strategies_registry.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart'
     hide googleSignInProvider;
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '_helpers/social_provider_resolver.dart';
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
 import '_widgets/form_error_banner.dart';
@@ -140,73 +142,37 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       }
     });
 
-    // Google 로그인 결과: 성공 -> Home safety net (Issue #3), 에러 -> 배너.
-    ref.listen<AsyncValue<void>>(googleSignInProvider, (previous, next) {
-      // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
-      if (previous is AsyncLoading && next is AsyncData) {
-        if (!mounted) return;
-        final user = ref.read(firebaseAuthProvider).currentUser;
-        if (user != null && !user.isAnonymous) {
-          context.go(AppRoutes.home);
-        }
-        return;
-      }
-      if (next is AsyncError) {
-        final err = next.error;
-        if (err is AppException) {
-          setState(() {
-            _socialError = err;
-            _emailError = null;
-          });
-        }
-      }
-    });
-
-    // Apple 로그인 결과: 성공 -> Home safety net (Issue #3), 에러 -> 배너.
+    // 소셜 로그인 결과 (Google/Apple/Facebook): activeStrategiesProvider 가
+    // 반환한 활성 Strategy 들을 순회하여 단일 ref.listen 패턴으로 통합한다
+    // (Phase 11-04 Pattern I, corrections 3번 / Pitfall 6 — 4곳 중 1곳).
     // SignupScreen은 이메일 자동 채움(D-10)을 적용하지 않는다.
-    ref.listen<AsyncValue<void>>(appleSignInProvider, (previous, next) {
-      // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
-      if (previous is AsyncLoading && next is AsyncData) {
-        if (!mounted) return;
-        final user = ref.read(firebaseAuthProvider).currentUser;
-        if (user != null && !user.isAnonymous) {
-          context.go(AppRoutes.home);
-        }
-        return;
-      }
-      if (next is AsyncError) {
-        final err = next.error;
-        if (err is AppException) {
-          setState(() {
-            _socialError = err;
-            _emailError = null;
-          });
-        }
-      }
-    });
-
-    // Facebook 로그인 결과: 성공 -> Home safety net (Issue #3), 에러 -> 배너.
-    // SignupScreen은 이메일 자동 채움(D-10)을 적용하지 않는다.
-    ref.listen<AsyncValue<void>>(facebookSignInProvider, (previous, next) {
-      // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
-      if (previous is AsyncLoading && next is AsyncData) {
-        if (!mounted) return;
-        final user = ref.read(firebaseAuthProvider).currentUser;
-        if (user != null && !user.isAnonymous) {
-          context.go(AppRoutes.home);
-        }
-        return;
-      }
-      if (next is AsyncError) {
-        final err = next.error;
-        if (err is AppException) {
-          setState(() {
-            _socialError = err;
-            _emailError = null;
-          });
-        }
-      }
-    });
+    final locale = Localizations.localeOf(context);
+    final strategies = ref.watch(activeStrategiesProvider(locale));
+    for (final strategy in strategies) {
+      ref.listen<AsyncValue<void>>(
+        resolveSocialProvider(strategy.providerId),
+        (previous, next) {
+          // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
+          if (previous is AsyncLoading && next is AsyncData) {
+            if (!mounted) return;
+            final user = ref.read(firebaseAuthProvider).currentUser;
+            if (user != null && !user.isAnonymous) {
+              context.go(AppRoutes.home);
+            }
+            return;
+          }
+          if (next is AsyncError) {
+            final err = next.error;
+            if (err is AppException) {
+              setState(() {
+                _socialError = err;
+                _emailError = null;
+              });
+            }
+          }
+        },
+      );
+    }
 
     return AuthScaffold(
       title: l10n.authSignupTitle,
