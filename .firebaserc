@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "slimpumpkin-starter-kit-dev"
+    "default": "slimpumpkin-starter-kit-dev",
+    "dev": "slimpumpkin-starter-kit-dev"
   }
 }
