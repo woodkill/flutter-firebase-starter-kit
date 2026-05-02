@@ -50,12 +50,14 @@ lib/core/firebase/firebase_options_*.dart
 firebase-debug.log
 firebase-debug.*.log
 
-# Firebase 프로젝트 설정 (flutterfire configure로 재생성)
-firebase.json
+# Firebase 프로젝트 설정
+# - firebase.json: Phase 11 부터 functions 블록을 포함하므로 commit 대상 (flutter 블록은
+#   flutterfire configure 가 재생성하지만, 신규 사용자는 본인 projectId 로 덮어쓰면 됨)
+# - .firebaserc: Phase 11 부터 firebase deploy / emulator 호출에 필요한 dev 프로젝트 alias
+#   를 starter kit 기본값으로 commit (다른 프로젝트는 firebase use --add 로 추가)
 
-# Firebase 캐시/배포
+# Firebase 캐시
 .firebase/
-.firebaserc
 
 # ==========================
 # Cloud Functions (functions/)
