@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug 전용: Firebase Local Emulator Suite 평문 HTTP 호출 허용.
+  - 10.0.2.2  : Android emulator 에서 호스트 머신 루프백
+  - 127.0.0.1 : iOS simulator / 데스크톱 호환 호스트
+  - localhost : DNS 경로 호환
+  release 빌드에서는 이 파일이 적용되지 않으며 cleartext 차단 정책이 유지된다.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>

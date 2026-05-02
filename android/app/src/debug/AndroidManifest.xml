@@ -4,4 +4,12 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Debug 전용: Firebase Functions/Auth/Firestore emulator 의 평문 HTTP
+         호출을 허용한다. 10.0.2.2 (Android emulator → 호스트 머신) /
+         127.0.0.1 / localhost 한정. release 빌드에는 영향 없음. -->
+    <application
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:replace="android:networkSecurityConfig"
+        xmlns:tools="http://schemas.android.com/tools" />
 </manifest>
