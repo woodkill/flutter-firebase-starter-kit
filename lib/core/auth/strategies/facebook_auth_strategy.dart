@@ -25,6 +25,6 @@ class FacebookAuthStrategy extends AuthStrategy {
   String get iconAsset => 'facebook';
 
   @override
-  Future<void> signIn(Ref ref) =>
+  Future<void> signIn(WidgetRef ref) =>
       ref.read(facebookSignInProvider.notifier).signInWithFacebook();
 }

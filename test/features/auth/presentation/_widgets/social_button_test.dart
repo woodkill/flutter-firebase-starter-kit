@@ -25,7 +25,7 @@ class _FakeStrategy extends AuthStrategy {
   final String _providerId;
   final String _labelKey;
   final String _iconAsset;
-  final Future<void> Function(Ref ref)? onSignIn;
+  final Future<void> Function(WidgetRef ref)? onSignIn;
 
   @override
   String get providerId => _providerId;
@@ -35,7 +35,7 @@ class _FakeStrategy extends AuthStrategy {
   String get iconAsset => _iconAsset;
 
   @override
-  Future<void> signIn(Ref ref) async {
+  Future<void> signIn(WidgetRef ref) async {
     if (onSignIn != null) {
       await onSignIn!(ref);
     }
@@ -60,13 +60,13 @@ Widget _wrap(Widget child, {Brightness brightness = Brightness.light}) {
 void main() {
   group('SocialButton _resolveButtons (Buttons enum 매핑)', () {
     testWidgets('Google providerId + light → Buttons.google', (tester) async {
-      final strategy = _FakeStrategy(
+      const strategy = _FakeStrategy(
         kProviderIdGoogle,
         'authGoogleSignIn',
         'google',
       );
       await tester.pumpWidget(
-        _wrap(SocialButton(strategy: strategy, isDisabled: false)),
+        _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
       );
       await tester.pumpAndSettle();
 
@@ -77,14 +77,14 @@ void main() {
     testWidgets('Google providerId + dark → Buttons.googleDark', (
       tester,
     ) async {
-      final strategy = _FakeStrategy(
+      const strategy = _FakeStrategy(
         kProviderIdGoogle,
         'authGoogleSignIn',
         'google',
       );
       await tester.pumpWidget(
         _wrap(
-          SocialButton(strategy: strategy, isDisabled: false),
+          const SocialButton(strategy: strategy, isDisabled: false),
           brightness: Brightness.dark,
         ),
       );
@@ -95,13 +95,13 @@ void main() {
     });
 
     testWidgets('Apple providerId + light → Buttons.apple', (tester) async {
-      final strategy = _FakeStrategy(
+      const strategy = _FakeStrategy(
         kProviderIdApple,
         'authAppleSignIn',
         'apple',
       );
       await tester.pumpWidget(
-        _wrap(SocialButton(strategy: strategy, isDisabled: false)),
+        _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
       );
       await tester.pumpAndSettle();
 
@@ -110,14 +110,14 @@ void main() {
     });
 
     testWidgets('Apple providerId + dark → Buttons.appleDark', (tester) async {
-      final strategy = _FakeStrategy(
+      const strategy = _FakeStrategy(
         kProviderIdApple,
         'authAppleSignIn',
         'apple',
       );
       await tester.pumpWidget(
         _wrap(
-          SocialButton(strategy: strategy, isDisabled: false),
+          const SocialButton(strategy: strategy, isDisabled: false),
           brightness: Brightness.dark,
         ),
       );
@@ -130,14 +130,14 @@ void main() {
     testWidgets('Facebook providerId → Buttons.facebookNew (다크 분기 없음)', (
       tester,
     ) async {
-      final strategy = _FakeStrategy(
+      const strategy = _FakeStrategy(
         kProviderIdFacebook,
         'authFacebookSignIn',
         'facebook',
       );
       await tester.pumpWidget(
         _wrap(
-          SocialButton(strategy: strategy, isDisabled: false),
+          const SocialButton(strategy: strategy, isDisabled: false),
           brightness: Brightness.dark,
         ),
       );
@@ -148,14 +148,14 @@ void main() {
     });
 
     testWidgets('Unknown providerId → UnsupportedError', (tester) async {
-      final strategy = _FakeStrategy('unknown.com', 'authUnknown', 'unknown');
-      // suppress framework error log
-      FlutterError.onError = (_) {};
+      const strategy = _FakeStrategy('unknown.com', 'authUnknown', 'unknown');
+      // build 안에서 throw → flutter test framework 의 default error handler
+      // 가 capture 후 [tester.takeException] 으로 surface 한다.
       await tester.pumpWidget(
-        _wrap(SocialButton(strategy: strategy, isDisabled: false)),
+        _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
       );
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isA<UnsupportedError>());
+      final ex = tester.takeException();
+      expect(ex, isA<UnsupportedError>());
     });
   });
 

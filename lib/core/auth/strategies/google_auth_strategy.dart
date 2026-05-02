@@ -25,6 +25,6 @@ class GoogleAuthStrategy extends AuthStrategy {
   String get iconAsset => 'google';
 
   @override
-  Future<void> signIn(Ref ref) =>
+  Future<void> signIn(WidgetRef ref) =>
       ref.read(googleSignInProvider.notifier).signInWithGoogle();
 }

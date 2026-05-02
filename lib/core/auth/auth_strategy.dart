@@ -44,7 +44,13 @@ abstract class AuthStrategy {
   ///
   /// 위임 대상 Notifier 가 `AsyncValue<void>` 로 상태를 노출한다. UI 는
   /// `ref.listen(*SignInProvider, ...)` 으로 success/error 를 구독한다.
-  Future<void> signIn(Ref ref);
+  ///
+  /// **인자 타입 결정 (Phase 11-04, Rule 1 fix):** Riverpod 3.x 에서
+  /// `ConsumerWidget` 의 [WidgetRef] 와 Provider 내부 [Ref] 는 별개 타입이며
+  /// 호환되지 않는다. UI ([SocialButton]) 진입점이 직접 호출하므로
+  /// [WidgetRef] 를 받는다. Strategy 구현체는 `ref.read(...).signInWith...()`
+  /// 위임만 수행하며, [WidgetRef] 의 `read` 가 충분하다.
+  Future<void> signIn(WidgetRef ref);
 
   /// 로케일별 기본 우선순위 — Phase 11 placeholder (D-13).
   ///
