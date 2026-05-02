@@ -1,0 +1,48 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "slimpumpkin-starter-kit-dev",
+          "appId": "1:775174386750:android:557d818eba598dbb160d6f",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "slimpumpkin-starter-kit-dev",
+          "appId": "1:775174386750:ios:6ca1fdaf30692358160d6f",
+          "uploadDebugSymbols": true,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/core/firebase/firebase_options_dev.dart": {
+          "projectId": "slimpumpkin-starter-kit-dev",
+          "configurations": {
+            "android": "1:775174386750:android:557d818eba598dbb160d6f",
+            "ios": "1:775174386750:ios:6ca1fdaf30692358160d6f",
+            "web": "1:775174386750:web:ba6a91ac5ff4efb4160d6f"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}
