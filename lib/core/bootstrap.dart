@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/app.dart';
+import 'package:flutter_starter_kit/core/config/app_config.dart';
 import 'package:flutter_starter_kit/core/firebase/firebase_initializer.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -77,6 +79,36 @@ Future<void> bootstrap() async {
             if (kDebugMode) {
               debugPrint('GoogleSignIn.initialize() 실패 (무시): $e\n$st');
             }
+          }
+
+          // Remote Config 초기화 (Phase 11 D-24, D-25 폴백, Pitfall 4 silent
+          // stale 가드). fetch 실패는 무시 + 정적 config 로 진행.
+          try {
+            final rc = FirebaseRemoteConfig.instance;
+            await rc.setConfigSettings(
+              RemoteConfigSettings(
+                fetchTimeout: const Duration(minutes: 1),
+                minimumFetchInterval: flavor == 'dev'
+                    ? Duration.zero
+                    : const Duration(hours: 12),
+              ),
+            );
+            // 정적 config 의 enabled 값을 RC default 로 동시 로드 — RC
+            // 미초기화/오프라인 상태에서도 정적 enabled provider 가 그대로
+            // 보이도록 보장 (D-25, T-11-RC-03).
+            await rc.setDefaults(<String, Object>{
+              for (final entry in AppConfig.authProviders.entries)
+                'auth_provider_${entry.key}_enabled': entry.value,
+            });
+            await rc.fetchAndActivate();
+          } on Object catch (e, st) {
+            // D-25: fetch 실패는 무시. Crashlytics 로그만 + 정적 config 로 진행.
+            if (kDebugMode) {
+              debugPrint('RemoteConfig 초기화 실패 (무시): $e\n$st');
+            }
+            unawaited(
+              FirebaseCrashlytics.instance.recordError(e, st, fatal: false),
+            );
           }
         }
 
