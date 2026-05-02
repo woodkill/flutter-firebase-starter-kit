@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -108,4 +110,26 @@ FirebaseAnalytics firebaseAnalytics(Ref ref) {
 @Riverpod(keepAlive: true)
 FirebaseFirestore firebaseFirestore(Ref ref) {
   return FirebaseFirestore.instance;
+}
+
+/// [FirebaseRemoteConfig] 인스턴스를 제공한다 (Phase 11 D-22~D-27).
+///
+/// 앱 생명주기 동안 유지되는 keepAlive Provider.
+/// `auth_provider_{id}_enabled` kill switch 키를 [activeStrategies] 가 read.
+///
+/// **주의:** Firebase 미초기화 시 [FirebaseRemoteConfig.instance] 접근은
+/// throw 할 수 있다 (Phase 1 D-13). [bootstrap] 의
+/// `if (isFirebaseInitialized)` 블록 안에서만 초기화/접근하도록 한다.
+@Riverpod(keepAlive: true)
+FirebaseRemoteConfig firebaseRemoteConfig(Ref ref) {
+  return FirebaseRemoteConfig.instance;
+}
+
+/// [FirebaseFunctions] 인스턴스를 제공한다 (Phase 11 D-04 region scoped).
+///
+/// `asia-northeast3` (서울) region 으로 고정 — `functions/src/shared/region.ts`
+/// 와 정합. Phase 12+ Custom Token 함수 호출 시 사용한다.
+@Riverpod(keepAlive: true)
+FirebaseFunctions firebaseFunctions(Ref ref) {
+  return FirebaseFunctions.instanceFor(region: 'asia-northeast3');
 }
