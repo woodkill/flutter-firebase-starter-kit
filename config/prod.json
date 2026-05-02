@@ -6,5 +6,25 @@
   "googleServerClientId": "your-google-server-client-id-prod",
   "facebookAppId": "YOUR_FACEBOOK_APP_ID",
   "facebookClientToken": "YOUR_FACEBOOK_CLIENT_TOKEN",
-  "splashMinDurationMs": 2000
+  "splashMinDurationMs": 2000,
+
+  "authProviders": {
+    "google.com": true,
+    "apple.com": true,
+    "facebook.com": true,
+    "kakao": false,
+    "naver": false,
+    "line": false,
+    "yahoojp": false,
+    "wechat": false
+  },
+
+  "authProvider_google.com_enabled": true,
+  "authProvider_apple.com_enabled": true,
+  "authProvider_facebook.com_enabled": true,
+  "authProvider_kakao_enabled": false,
+  "authProvider_naver_enabled": false,
+  "authProvider_line_enabled": false,
+  "authProvider_yahoojp_enabled": false,
+  "authProvider_wechat_enabled": false
 }
