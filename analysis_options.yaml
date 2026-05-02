@@ -10,6 +10,15 @@
 # include: package:flutter_lints/flutter.yaml
 include: package:woody_lints/analysis_options.yaml
 
+analyzer:
+  exclude:
+    # 코드 생성 파일 (Freezed, Riverpod Generator, JSON Serializable)
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    # Cloud Functions (TypeScript) — dart analyze 검사 대상 아님
+    # Phase 11 Pitfall 7 — woody_lints 가 functions/ 를 분석 시도하지 않도록 차단
+    - "functions/**"
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
