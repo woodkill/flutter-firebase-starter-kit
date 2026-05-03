@@ -4,8 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
+import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
+import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -17,14 +23,30 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 /// [brightness]로 라이트/다크 테마를 전환하고, [repository]를 주입해
 /// `authRepositoryProvider`를 override한다. [isFormLoading]은 이메일 폼
 /// 로딩 상태를 시뮬레이션한다. [errorBanner]는 소셜 에러 배너를 주입한다.
+/// 기본 활성 Strategy 리스트 — Plan 11-04 마이그레이션 후 회귀 가드.
+///
+/// 정적 config + RC overlay 미초기화 환경 (테스트) 에서는
+/// `activeStrategiesProvider` 가 RC throw 가능하므로 override 의무.
+const List<AuthStrategy> _defaultStrategies = <AuthStrategy>[
+  GoogleAuthStrategy(),
+  AppleAuthStrategy(),
+  FacebookAuthStrategy(),
+];
+
 Widget buildHarness({
   required Brightness brightness,
   required AuthRepository repository,
   bool isFormLoading = false,
   Widget? errorBanner,
+  List<AuthStrategy> strategies = _defaultStrategies,
 }) {
   return ProviderScope(
-    overrides: [authRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      authRepositoryProvider.overrideWithValue(repository),
+      activeStrategiesProvider(
+        const Locale('en'),
+      ).overrideWithValue(strategies),
+    ],
     child: MaterialApp(
       // AppTheme.light/dark는 AppSpacing/AppTypography/AppColors
       // ThemeExtension을 등록한다. context.appSpacing null 가드 필수.
@@ -186,4 +208,46 @@ void main() {
       verifyNever(() => mockRepo.signInWithApple());
     });
   });
+
+  group(
+    'SocialSignInSection 마이그레이션 회귀 가드 (Phase 11-04, Pattern H)',
+    () {
+      testWidgets(
+        'activeStrategiesProvider 결과를 SocialButton 으로 렌더링한다',
+        (tester) async {
+          await tester.pumpWidget(
+            buildHarness(
+              brightness: Brightness.light,
+              repository: mockRepo,
+              strategies: const <AuthStrategy>[
+                GoogleAuthStrategy(),
+                AppleAuthStrategy(),
+              ],
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // override 한 2개 Strategy 만 SocialButton 으로 렌더링.
+          expect(find.byType(SocialButton), findsNWidgets(2));
+        },
+      );
+
+      testWidgets(
+        '빈 strategies 리스트 → SocialButton 0개 (D-14 disabled 미표시)',
+        (tester) async {
+          await tester.pumpWidget(
+            buildHarness(
+              brightness: Brightness.light,
+              repository: mockRepo,
+              strategies: const <AuthStrategy>[],
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.byType(SocialButton), findsNothing);
+          // OrDivider 는 그대로 표시 (showOrDivider 기본 true).
+        },
+      );
+    },
+  );
 }

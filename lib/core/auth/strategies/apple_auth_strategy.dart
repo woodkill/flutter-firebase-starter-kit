@@ -25,6 +25,6 @@ class AppleAuthStrategy extends AuthStrategy {
   String get iconAsset => 'apple';
 
   @override
-  Future<void> signIn(Ref ref) =>
+  Future<void> signIn(WidgetRef ref) =>
       ref.read(appleSignInProvider.notifier).signInWithApple();
 }

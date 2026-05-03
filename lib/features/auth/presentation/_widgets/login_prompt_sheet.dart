@@ -3,14 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/auth_strategies_registry.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/providers/firebase_providers.dart'
     hide googleSignInProvider;
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
-import '../apple_sign_in_notifier.dart';
-import '../facebook_sign_in_notifier.dart';
-import '../google_sign_in_notifier.dart';
+import '../_helpers/social_provider_resolver.dart';
 import 'social_sign_in_section.dart';
 
 /// 로그인 유도 Bottom Sheet 을 표시한다 (Phase 10 D-10).
@@ -71,42 +70,27 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     final colorScheme = context.colorScheme;
 
     // Issue #3 safety net: 소셜 로그인 성공 시 Sheet pop + Home 이동.
-    ref.listen<AsyncValue<void>>(googleSignInProvider, (previous, next) {
-      if (previous is AsyncLoading && next is AsyncData) {
-        if (!mounted) return;
-        final user = ref.read(firebaseAuthProvider).currentUser;
-        if (user != null && !user.isAnonymous) {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
+    // activeStrategiesProvider 결과를 순회하여 단일 ref.listen 패턴으로 통합
+    // (Phase 11-04 Pattern I, corrections 3번 / Pitfall 6 — 4곳 중 1곳).
+    final locale = Localizations.localeOf(context);
+    final strategies = ref.watch(activeStrategiesProvider(locale));
+    for (final strategy in strategies) {
+      ref.listen<AsyncValue<void>>(
+        resolveSocialProvider(strategy.providerId),
+        (previous, next) {
+          if (previous is AsyncLoading && next is AsyncData) {
+            if (!mounted) return;
+            final user = ref.read(firebaseAuthProvider).currentUser;
+            if (user != null && !user.isAnonymous) {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+              context.go(AppRoutes.home);
+            }
           }
-          context.go(AppRoutes.home);
-        }
-      }
-    });
-    ref.listen<AsyncValue<void>>(appleSignInProvider, (previous, next) {
-      if (previous is AsyncLoading && next is AsyncData) {
-        if (!mounted) return;
-        final user = ref.read(firebaseAuthProvider).currentUser;
-        if (user != null && !user.isAnonymous) {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          }
-          context.go(AppRoutes.home);
-        }
-      }
-    });
-    ref.listen<AsyncValue<void>>(facebookSignInProvider, (previous, next) {
-      if (previous is AsyncLoading && next is AsyncData) {
-        if (!mounted) return;
-        final user = ref.read(firebaseAuthProvider).currentUser;
-        if (user != null && !user.isAnonymous) {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          }
-          context.go(AppRoutes.home);
-        }
-      }
-    });
+        },
+      );
+    }
 
     return SafeArea(
       child: Padding(
