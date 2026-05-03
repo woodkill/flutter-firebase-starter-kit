@@ -50,6 +50,14 @@ android {
         // Facebook SDK가 AndroidManifest.xml에서 참조하는 string 리소스 (D-06).
         resValue("string", "facebook_app_id", dartDefines["facebookAppId"] ?: "")
         resValue("string", "facebook_client_token", dartDefines["facebookClientToken"] ?: "")
+
+        // Kakao SDK 네이티브 앱 키 (Phase 12 D-20, D-21).
+        //
+        // AndroidManifest.xml의 com.kakao.sdk.AppKey meta-data와
+        // OAuth redirect Activity의 URL scheme intent-filter (kakao${kakaoNativeAppKey}://oauth)
+        // 가 manifestPlaceholders로 주입받는다. dart-define 미주입 시 빈 문자열 →
+        // KakaoSdk 첫 SDK API 호출 시점에 throw로 즉시 발견 가능 (silent failure 아님).
+        manifestPlaceholders["kakaoNativeAppKey"] = dartDefines["kakaoNativeAppKey"] ?: ""
     }
 
     flavorDimensions += "environment"

@@ -33,6 +33,27 @@
         <meta-data
             android:name="com.facebook.sdk.ClientToken"
             android:value="@string/facebook_client_token"/>
+
+        <!-- Kakao SDK 설정 (Phase 12 D-21).
+             Native App Key는 build.gradle.kts manifestPlaceholders로 주입된다.
+             Auth Activity (com.kakao.sdk.flutter.auth.AuthCodeHandlerActivity) 자체는
+             kakao_flutter_sdk_auth 패키지의 AndroidManifest.xml에서 자동 merge되며,
+             URL scheme (kakao${kakaoNativeAppKey}://oauth) intent-filter만 앱 측에서
+             등록한다 (앱별 nativeAppKey가 다르므로). -->
+        <meta-data
+            android:name="com.kakao.sdk.AppKey"
+            android:value="${kakaoNativeAppKey}" />
+        <activity
+            android:name="com.kakao.sdk.flutter.auth.AuthCodeHandlerActivity"
+            android:exported="true">
+            <intent-filter android:label="kakao_oauth">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kakao${kakaoNativeAppKey}" android:host="oauth" />
+            </intent-filter>
+        </activity>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -60,5 +81,10 @@
         </intent>
         <!-- Facebook 앱 감지 (Android 11+ 패키지 가시성 제한, Phase 9). -->
         <provider android:authorities="com.facebook.katana.provider.PlatformProvider" />
+        <!-- KakaoTalk 패키지 가시성 (Phase 12, Android 11+). 설치 감지 후
+             loginWithKakaoTalk vs loginWithKakaoAccount 분기 (D-01).
+             kakao_flutter_sdk_common 의 AndroidManifest.xml에도 동일 선언이
+             있어 manifest merge 시 자동 포함되지만, 명시성을 위해 앱 측에도 등록한다. -->
+        <package android:name="com.kakao.talk" />
     </queries>
 </manifest>
