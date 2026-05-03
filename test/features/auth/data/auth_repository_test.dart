@@ -1,4 +1,6 @@
+import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,6 +10,7 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 
 import 'auth_test_fakes.dart';
@@ -34,6 +37,15 @@ class _MockFacebookLoginResult extends Mock implements LoginResult {}
 
 class _MockFacebookAccessToken extends Mock implements AccessToken {}
 
+class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
+
+class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
+
+class _MockHttpsCallable extends Mock implements HttpsCallable {}
+
+class _MockHttpsCallableResult extends Mock
+    implements HttpsCallableResult<Map<String, dynamic>> {}
+
 class _FakeAuthCredential extends Fake implements fb.AuthCredential {}
 
 class _FakeAuthProvider extends Fake implements fb.AuthProvider {}
@@ -46,6 +58,8 @@ void main() {
   late _MockGoogleSignIn mockGoogleSignIn;
   late _MockFacebookAuth mockFacebookAuth;
   late _MockSocialLinkInProgress mockSocialLinkInProgress;
+  late _MockKakaoSdkClient mockKakaoSdkClient;
+  late _MockFirebaseFunctions mockFunctions;
   late AuthRepository repository;
 
   setUpAll(() {
@@ -55,6 +69,8 @@ void main() {
     registerFallbackValue(LoginTracking.enabled);
     registerFallbackValue(LoginBehavior.nativeWithFallback);
     registerFallbackValue(const <String>[]);
+    // Phase 12 — `_MockHttpsCallable.call(...)` 의 named 인자 fallback.
+    registerFallbackValue(<String, dynamic>{});
   });
 
   setUp(() {
@@ -65,14 +81,19 @@ void main() {
     mockGoogleSignIn = _MockGoogleSignIn();
     mockFacebookAuth = _MockFacebookAuth();
     mockSocialLinkInProgress = _MockSocialLinkInProgress();
-    // Phase 9.1 D-03 / D-04: AuthRepository 가 4-arg ctor 로 전환됨에 따라
-    // mock SocialLinkInProgress 를 4번째 인자로 주입한다. void 메서드인
-    // begin()/end() 는 mocktail 의 자동 noop 처리로 별도 stub 불필요.
+    mockKakaoSdkClient = _MockKakaoSdkClient();
+    mockFunctions = _MockFirebaseFunctions();
+    // Phase 9.1 D-03 / D-04 + Phase 12 D-28: AuthRepository 가 6-arg ctor 로
+    // 확장됨에 따라 mock KakaoSdkClient + FirebaseFunctions 를 5/6번째 인자로
+    // 추가 주입한다. void 메서드인 begin()/end() 는 mocktail 의 자동 noop
+    // 처리로 별도 stub 불필요.
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
       mockFacebookAuth,
       mockSocialLinkInProgress,
+      mockKakaoSdkClient,
+      mockFunctions,
     );
 
     // 기본 User 필드 stub
@@ -1327,6 +1348,184 @@ void main() {
       ]);
       verifyNever(() => mockSocialLinkInProgress.begin());
       verifyNever(() => mockSocialLinkInProgress.end());
+    });
+  });
+
+  group('Phase 12: signInWithKakao (Custom Token 흐름)', () {
+    /// Kakao 그룹 공통 setUp — 성공 path 의 4단계 (KakaoSdkClient → Cloud
+    /// Function → signInWithCustomToken → User 매핑) 를 stub 한다. 각 테스트는
+    /// 필요한 단계만 override 한다.
+    late _MockHttpsCallable mockCallable;
+
+    setUp(() {
+      mockCallable = _MockHttpsCallable();
+      // 기본: KakaoSdkClient 가 ID Token + nonce 반환.
+      when(() => mockKakaoSdkClient.signIn()).thenAnswer(
+        (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
+      );
+      // 기본: httpsCallable('kakaoCustomToken') → mockCallable.
+      when(
+        () => mockFunctions.httpsCallable(any()),
+      ).thenReturn(mockCallable);
+      // 기본: callable.call(...) → customToken 응답.
+      // HttpsCallableResult 는 private ctor 라 mocktail 로 .data 만 stub 한다.
+      final defaultResult = _MockHttpsCallableResult();
+      when(() => defaultResult.data).thenReturn(<String, dynamic>{
+        'customToken': 'CT',
+        'uid': 'kakao-uid',
+        'isNewUser': true,
+      });
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => defaultResult);
+      // 기본: signInWithCustomToken('CT') → mockCredential (mockUser 포함).
+      when(() => mockUser.uid).thenReturn('kakao-uid');
+      when(() => mockUser.email).thenReturn('kakao@example.com');
+      when(() => mockUser.providerData).thenReturn(<fb.UserInfo>[]);
+      when(
+        () => mockAuth.signInWithCustomToken('CT'),
+      ).thenAnswer((_) async => mockCredential);
+    });
+
+    test('Test K1: 사용자 취소 (kakaoSdkClient → null) → null + race-fix '
+        'begin/end 1회', () async {
+      when(() => mockKakaoSdkClient.signIn()).thenAnswer((_) async => null);
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isNull);
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      // CF / Firebase Auth 미호출 검증.
+      verifyNever(() => mockFunctions.httpsCallable(any()));
+      verifyNever(() => mockAuth.signInWithCustomToken(any()));
+    });
+
+    test('Test K2: 성공 path — KakaoSdkClient → CF → signInWithCustomToken → '
+        'User 매핑', () async {
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Success<dynamic>>());
+      final user = (result! as Success).data as User;
+      expect(user.uid, 'kakao-uid');
+      expect(user.email, 'kakao@example.com');
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('Test K3: 성공 path — httpsCallable(kakaoCustomToken).call({idToken, '
+        'nonce}) 정확히 1회 호출', () async {
+      await repository.signInWithKakao();
+
+      // CF 이름 + payload 검증 (Pitfall 2 single nonce — KakaoSignInResult 의
+      // nonce 가 그대로 callable payload 에 전달됐는지).
+      verify(() => mockFunctions.httpsCallable('kakaoCustomToken')).called(1);
+      verify(
+        () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
+          'idToken': 'IDT',
+          'nonce': 'NONCE',
+        }),
+      ).called(1);
+      verify(() => mockAuth.signInWithCustomToken('CT')).called(1);
+    });
+
+    test('Test K4: FirebaseFunctionsException(invalid-argument) → '
+        'ServiceUnavailable Failure', () async {
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenThrow(
+        FirebaseFunctionsException(
+          code: 'invalid-argument',
+          message: 'bad nonce',
+        ),
+      );
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('Test K5: FirebaseFunctionsException(unavailable) → '
+        'NoInternetConnection Failure', () async {
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenThrow(
+        FirebaseFunctionsException(
+          code: 'unavailable',
+          message: 'CF down',
+        ),
+      );
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<NoInternetConnection>());
+    });
+
+    test('Test K6: FirebaseAuthException(signInWithCustomToken) → '
+        '_mapAuthException 매핑', () async {
+      when(() => mockAuth.signInWithCustomToken('CT')).thenThrow(
+        fb.FirebaseAuthException(code: 'invalid-credential'),
+      );
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<InvalidCredentials>());
+    });
+
+    test('Test K7: KakaoSdkClient throw 비-CANCELED PlatformException → '
+        'ServiceUnavailable Failure', () async {
+      when(() => mockKakaoSdkClient.signIn())
+          .thenThrow(PlatformException(code: 'NETWORK_ERROR'));
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+    });
+
+    test('Test K8: race-fix invariant — exception 발생해도 finally 가 '
+        'end() 호출', () async {
+      when(() => mockKakaoSdkClient.signIn())
+          .thenThrow(Exception('boom'));
+
+      await repository.signInWithKakao();
+
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('Test K9: idToken null (OIDC 미활성화 — Pitfall 1) → '
+        'ServiceUnavailable Failure', () async {
+      // KakaoSdkClient 가 idToken null 시 ServiceUnavailable throw.
+      when(() => mockKakaoSdkClient.signIn())
+          .thenThrow(const ServiceUnavailable());
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('Test K10: response.data.customToken 이 null → ServiceUnavailable',
+        () async {
+      final nullTokenResult = _MockHttpsCallableResult();
+      when(() => nullTokenResult.data).thenReturn(<String, dynamic>{
+        'customToken': null,
+        'uid': 'x',
+      });
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => nullTokenResult);
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
     });
   });
 }

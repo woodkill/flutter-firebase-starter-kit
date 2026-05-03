@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 
 import 'auth_test_fakes.dart';
 
@@ -27,6 +29,10 @@ class _MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
 class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
 
+class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
+
+class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
+
 class _FakeAuthCredential extends Fake implements fb.AuthCredential {}
 
 void main() {
@@ -39,6 +45,8 @@ void main() {
   late _MockGoogleSignIn mockGoogleSignIn;
   late _MockFacebookAuth mockFacebookAuth;
   late _MockSocialLinkInProgress mockSocialLinkInProgress;
+  late _MockKakaoSdkClient mockKakaoSdkClient;
+  late _MockFirebaseFunctions mockFunctions;
   late AuthRepository repository;
 
   setUpAll(() {
@@ -68,12 +76,16 @@ void main() {
     mockGoogleSignIn = _MockGoogleSignIn();
     mockFacebookAuth = _MockFacebookAuth();
     mockSocialLinkInProgress = _MockSocialLinkInProgress();
-    // Phase 9.1 D-03 / D-04: AuthRepository 4-arg ctor 보강.
+    mockKakaoSdkClient = _MockKakaoSdkClient();
+    mockFunctions = _MockFirebaseFunctions();
+    // Phase 9.1 D-03 / D-04 + Phase 12 D-28: AuthRepository 6-arg ctor 보강.
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
       mockFacebookAuth,
       mockSocialLinkInProgress,
+      mockKakaoSdkClient,
+      mockFunctions,
     );
 
     // 익명 currentUser 기본 stub.
