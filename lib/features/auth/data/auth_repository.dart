@@ -1,3 +1,6 @@
+// `cloud_functions` 의 `Result` 와 [Result] (core/error/result.dart) 가 충돌하므로
+// 본 파일은 cloud_functions 의 Result 를 hide 한다 (본 모듈은 [Result] 만 사용).
+import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
@@ -9,6 +12,7 @@ import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../application/social_link_in_progress.dart';
 import '../domain/user.dart';
+import 'kakao_sdk_client.dart';
 
 part 'auth_repository.g.dart';
 
@@ -21,19 +25,27 @@ class AuthRepository {
   /// [AuthRepository]를 생성한다.
   ///
   /// [_socialLinkInProgress] 는 social IdP linking 진행 중을 표시하는 race
-  /// 보호 신호 (Phase 9.1 D-01). signInWithGoogle/Apple/Facebook 의 try-finally
-  /// 블록에서 begin()/end() 가 호출된다 (D-03).
+  /// 보호 신호 (Phase 9.1 D-01). signInWithGoogle/Apple/Facebook/Kakao 의
+  /// try-finally 블록에서 begin()/end() 가 호출된다 (D-03 / Phase 12 D-15).
+  ///
+  /// [_kakaoSdkClient] 와 [_functions] 는 Phase 12 Kakao 로그인 (Custom Token
+  /// 방식) 을 위해 추가됐다 — kakao_flutter_sdk_user 호출 wrapper +
+  /// `kakaoCustomToken` Cloud Function 호출 채널.
   const AuthRepository(
     this._auth,
     this._googleSignIn,
     this._facebookAuth,
     this._socialLinkInProgress,
+    this._kakaoSdkClient,
+    this._functions,
   );
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
   final FacebookAuth _facebookAuth;
   final SocialLinkInProgress _socialLinkInProgress;
+  final KakaoSdkClient _kakaoSdkClient;
+  final FirebaseFunctions _functions;
 
   /// 이메일/비밀번호로 로그인한다.
   ///
@@ -415,6 +427,84 @@ class AuthRepository {
     }
   }
 
+  /// Kakao 계정으로 Firebase Auth 에 로그인한다 (Phase 12 D-28 / SOCL-01).
+  ///
+  /// **Custom Token 방식** — Native provider (Google/Apple/Facebook) 와 달리
+  /// Firebase 가 직접 IdP 와 통신하지 않고, Cloud Function `kakaoCustomToken`
+  /// 이 Kakao OIDC ID Token 을 jose 로 자체 검증한 뒤 Custom Token 을 발급한다.
+  /// 익명 → Kakao 승격은 Cloud Function 의 `request.auth.uid` seed 로직
+  /// (12-02 Pattern 3) 이 처리하므로, 본 메서드는 `linkWithCredential` 분기를
+  /// 사용하지 않는다 (D-28 — Native provider 와의 차이).
+  ///
+  /// 흐름 (RESEARCH Pattern 4):
+  /// 1. [SocialLinkInProgress.begin] (race-fix Pitfall 8 — 단일 진실원)
+  /// 2. [_kakaoSdkClient.signIn] (D-01 KakaoTalk 우선 + fallback, D-04 nonce)
+  ///    - null 반환 (사용자 취소) → null 반환 (D-05 silent)
+  /// 3. `_functions.httpsCallable('kakaoCustomToken')(idToken, nonce)` →
+  ///    Cloud Function 이 OIDC 검증 + Identity Index lookup-first +
+  ///    `createCustomToken` (12-02)
+  /// 4. [fb.FirebaseAuth.signInWithCustomToken] → Firebase Auth 세션 시작
+  /// 5. [_mapFirebaseUser] → 도메인 [User]
+  /// 6. finally: [SocialLinkInProgress.end]
+  ///
+  /// 에러 매핑 (D-30 — 기존 [AppException] 계층 재사용):
+  /// - [PlatformException 'CANCELED'] / [KakaoClientException
+  ///   ClientErrorCause.cancelled] — wrapper 가 null 로 흡수.
+  /// - [FirebaseFunctionsException] → [_mapFunctionsException] (12-02 표준
+  ///   코드 매핑 — invalid-argument/unauthenticated → ServiceUnavailable,
+  ///   unavailable/deadline-exceeded → NoInternetConnection)
+  /// - [fb.FirebaseAuthException] → [_mapAuthException] (기존 helper 재사용)
+  /// - [ServiceUnavailable] (idToken null — Pitfall 1 OIDC 미활성화) → 그대로
+  ///   Failure 재패키징
+  /// - 그 외 → [ServiceUnavailable(cause: e)] + kDebugMode debugPrint
+  ///
+  /// **Phase 9.1 D-03 / D-04 race-fix:** body 전체 try-finally 로 감싸
+  /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
+  /// 호출. Strategy 단계 추가 호출 절대 금지 (Pitfall 8).
+  Future<Result<User>?> signInWithKakao() async {
+    try {
+      _socialLinkInProgress.begin();
+
+      final result = await _kakaoSdkClient.signIn();
+      if (result == null) {
+        // 사용자 취소 silent (D-05 — wrapper 가 null 로 흡수).
+        return null;
+      }
+
+      final callable = _functions.httpsCallable('kakaoCustomToken');
+      final response = await callable
+          .call<Map<String, dynamic>>(<String, dynamic>{
+            'idToken': result.idToken,
+            'nonce': result.nonce,
+          });
+      final customToken = response.data['customToken'] as String?;
+      if (customToken == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+
+      final userCredential = await _auth.signInWithCustomToken(customToken);
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on FirebaseFunctionsException catch (e) {
+      return Result.failure(_mapFunctionsException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on ServiceUnavailable catch (e) {
+      // KakaoSdkClient 가 idToken null 시 throw — Pitfall 1 (OIDC 미활성화).
+      return Result.failure(e);
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('signInWithKakao 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      _socialLinkInProgress.end();
+    }
+  }
+
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
   ///
   /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
@@ -603,6 +693,25 @@ class AuthRepository {
     };
   }
 
+  /// [FirebaseFunctionsException] 을 [AppException] 으로 매핑한다
+  /// (Phase 12 D-30 / RESEARCH Pattern 4).
+  ///
+  /// Cloud Function 의 [HttpsError] 표준 코드 → [AppException] 분류:
+  /// - `unauthenticated` / `invalid-argument` / `failed-precondition`
+  ///   → [ServiceUnavailable] (App Check 차단 / JWT 검증 실패 / 사전 조건 위배)
+  /// - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
+  ///   (Cloud Function 일시 장애 / 네트워크 지연)
+  /// - 그 외 → [ServiceUnavailable(cause: e)]
+  AppException _mapFunctionsException(FirebaseFunctionsException e) {
+    return switch (e.code) {
+      'unauthenticated' ||
+      'invalid-argument' ||
+      'failed-precondition' => const ServiceUnavailable(),
+      'unavailable' || 'deadline-exceeded' => const NoInternetConnection(),
+      _ => ServiceUnavailable(cause: e),
+    };
+  }
+
   /// [GoogleSignInException]을 [AppException]으로 매핑한다.
   ///
   /// 취소([GoogleSignInExceptionCode.canceled])는 호출부에서 별도 처리하므로
@@ -672,6 +781,8 @@ AuthRepository authRepository(Ref ref) {
     ref.watch(googleSignInProvider),
     ref.watch(facebookAuthProvider),
     ref.watch(socialLinkInProgressProvider.notifier),
+    ref.watch(kakaoSdkClientProvider),
+    ref.watch(firebaseFunctionsProvider),
   );
 }
 
