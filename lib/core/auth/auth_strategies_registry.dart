@@ -76,7 +76,7 @@ bool _isEnabled(
   FirebaseRemoteConfig rc,
 ) {
   if (!(staticEnabled[providerId] ?? false)) return false;
-  final key = 'auth_provider_${providerId}_enabled';
+  final key = rcKeyForProvider(providerId);
   // RC 미초기화 / 키 없음 시 default true (정적 enabled 존중).
   if (!rc.getAll().containsKey(key)) return true;
   return rc.getBool(key);

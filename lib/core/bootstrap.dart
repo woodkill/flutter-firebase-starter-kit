@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/app.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/config/app_config.dart';
 import 'package:flutter_starter_kit/core/firebase/firebase_initializer.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
@@ -98,7 +99,7 @@ Future<void> bootstrap() async {
             // 보이도록 보장 (D-25, T-11-RC-03).
             await rc.setDefaults(<String, Object>{
               for (final entry in AppConfig.authProviders.entries)
-                'auth_provider_${entry.key}_enabled': entry.value,
+                rcKeyForProvider(entry.key): entry.value,
             });
             await rc.fetchAndActivate();
           } on Object catch (e, st) {

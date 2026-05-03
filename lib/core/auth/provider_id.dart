@@ -1,7 +1,9 @@
 /// 인증 Provider 식별자 const String 상수 + 등록된 ID 리스트 (Phase 11 D-20).
 ///
-/// Strategy.providerId / config key / Remote Config 키 prefix 모두 동일 식별자
-/// 공유. Firebase Auth providerId ('google.com' 등) 와 정합한다.
+/// Strategy.providerId / config key 는 Firebase Auth providerId ('google.com'
+/// 등) 와 정합한다. Remote Config 매개변수 키만 RC 의 키 정책
+/// (`[A-Za-z_][A-Za-z0-9_]*`) 에 맞춰 점을 언더스코어로 정규화 — [rcKeyForProvider]
+/// 헬퍼를 단일 출처로 사용한다 (Phase 11-04 hotfix).
 library;
 
 /// Google 로그인 식별자 (Firebase providerId).
@@ -43,3 +45,17 @@ const List<String> kAllProviderIds = <String>[
   kProviderIdYahooJp,
   kProviderIdWeChat,
 ];
+
+/// 주어진 providerId 의 Remote Config 매개변수 키.
+///
+/// Firebase Remote Config 의 매개변수 키 정책 `[A-Za-z_][A-Za-z0-9_]*` 은
+/// 점(`.`) 을 거부하므로 OAuth URI 형식 (`google.com` 등) 의 점을 언더스코어로
+/// 치환한다. setDefaults 와 registry `_isEnabled` 가 동일한 키를 사용해야
+/// kill switch (D-28) 가 동작한다 (Phase 11-04 hotfix).
+///
+/// - `google.com`   → `auth_provider_google_com_enabled`
+/// - `apple.com`    → `auth_provider_apple_com_enabled`
+/// - `facebook.com` → `auth_provider_facebook_com_enabled`
+/// - `kakao`        → `auth_provider_kakao_enabled`
+String rcKeyForProvider(String providerId) =>
+    'auth_provider_${providerId.replaceAll('.', '_')}_enabled';

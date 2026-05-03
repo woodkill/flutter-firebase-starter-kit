@@ -11,20 +11,38 @@ void main() {
       expect(map.keys.toSet(), kAllProviderIds.toSet());
     });
 
-    test('setDefaults 인자 형태가 auth_provider_{id}_enabled 평탄 키 패턴이다', () {
-      // bootstrap.dart 의 for-comprehension 미러 — 키 prefix 회귀 가드
+    test('setDefaults 키가 rcKeyForProvider 헬퍼와 정합한다 (D-28 hotfix)', () {
+      // bootstrap.dart 의 for-comprehension 미러 — 키 prefix 회귀 가드.
+      // RC 매개변수 키 정책 (`[A-Za-z_][A-Za-z0-9_]*`) 위반 차단:
+      // OAuth URI 형식 ('google.com' 등) 의 점은 언더스코어로 정규화되어야 한다.
       final defaults = <String, Object>{
         for (final entry in AppConfig.authProviders.entries)
-          'auth_provider_${entry.key}_enabled': entry.value,
+          rcKeyForProvider(entry.key): entry.value,
       };
       expect(defaults.length, kAllProviderIds.length);
+      final rcKeyPattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
       for (final id in kAllProviderIds) {
+        final key = rcKeyForProvider(id);
         expect(
-          defaults.containsKey('auth_provider_${id}_enabled'),
+          defaults.containsKey(key),
           isTrue,
           reason: 'missing default key for $id',
         );
+        expect(
+          rcKeyPattern.hasMatch(key),
+          isTrue,
+          reason: 'RC 매개변수 키 정책 위반 ($key) — 점/대시 등 금지',
+        );
       }
+      // 핵심 회귀 가드 (D-28): OAuth URI 3개의 정규화 결과 명시.
+      expect(rcKeyForProvider('google.com'), 'auth_provider_google_com_enabled');
+      expect(rcKeyForProvider('apple.com'), 'auth_provider_apple_com_enabled');
+      expect(
+        rcKeyForProvider('facebook.com'),
+        'auth_provider_facebook_com_enabled',
+      );
+      // 점 없는 슬러그는 그대로 유지.
+      expect(rcKeyForProvider('kakao'), 'auth_provider_kakao_enabled');
     });
 
     test('bootstrap.dart 의 RC 코드 블록이 try / on Object catch 로 D-25 폴백 의무를 표현한다',
