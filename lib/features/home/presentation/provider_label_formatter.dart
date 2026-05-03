@@ -7,6 +7,12 @@ import '../../../l10n/generated/app_localizations.dart';
 /// 본 set 과 [formatProviderIds] switch 분기, 그리고 단위 테스트의 컨트랙트
 /// 검증을 함께 갱신해야 한다. 컨트랙트 테스트가 우선 실패하여 동시 갱신 의무를
 /// 강제한다.
+///
+/// **Firebase Auth providerId 형식 그대로 사용**: 본 매핑의 키들은 도메인
+/// ProviderId (slug — `'google'` 등, [kProviderIdGoogle]) 가 아니라 Firebase
+/// Auth 가 `User.providerData[i].providerId` 로 자체 반환하는 OAuth URI 형식
+/// (`'google.com'` 등) 이다. 도메인 식별자와 분리되며 Firebase 측 형식을 그대로
+/// 받아 매핑한다 (Phase 11-04 hotfix 의 ProviderId slug 통일과 무관).
 const Set<String> kSupportedAuthProviderIds = <String>{
   'password',
   'google.com',

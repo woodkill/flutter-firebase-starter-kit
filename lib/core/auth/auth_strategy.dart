@@ -26,11 +26,17 @@ abstract class AuthStrategy {
   /// `const` 생성자 — 구현체는 모두 stateless / immutable.
   const AuthStrategy();
 
-  /// Firebase providerId 와 정합한 식별자 (D-20).
+  /// 도메인 ProviderId — 단순 slug 형식 (D-20, Phase 11-04 hotfix).
   ///
-  /// 정적 config key (`authProvider_{providerId}_enabled`) 와 Remote Config
-  /// 키 (`auth_provider_{providerId}_enabled`) prefix 모두 동일 식별자
-  /// 공유.
+  /// `'google'` / `'apple'` / `'facebook'` / `'kakao'` / `'naver'` / `'line'` /
+  /// `'yahoojp'` / `'wechat'`. 정적 config key
+  /// (`authProvider_{providerId}_enabled`) 와 Remote Config 키
+  /// (`auth_provider_{providerId}_enabled`) prefix 모두 이 슬러그를 직접 사용.
+  ///
+  /// **Firebase Auth providerId 와 분리**: `User.providerData[i].providerId`
+  /// 가 노출하는 OAuth URI 형식 (`'google.com'` 등) 은 Firebase 가 자체적으로
+  /// 반환하는 외부 식별자이며 도메인 식별자가 아니다. URI ↔ slug 매핑은
+  /// boundary ([provider_label_formatter]) 에서만 처리한다.
   String get providerId;
 
   /// ARB 키 (예: `'authGoogleSignIn'`).

@@ -61,7 +61,7 @@ void main() {
           kProviderIdApple: false,
           kProviderIdFacebook: false,
         },
-        rcMap: {'auth_provider_google_com_enabled': true},
+        rcMap: {'auth_provider_google_enabled': true},
       );
       final result = c.read(activeStrategiesProvider(locale));
       expect(result.map((s) => s.providerId), [kProviderIdGoogle]);
@@ -74,7 +74,7 @@ void main() {
           kProviderIdApple: false,
           kProviderIdFacebook: false,
         },
-        rcMap: {'auth_provider_google_com_enabled': false},
+        rcMap: {'auth_provider_google_enabled': false},
       );
       final result = c.read(activeStrategiesProvider(locale));
       expect(result.map((s) => s.providerId), isEmpty);
@@ -89,7 +89,7 @@ void main() {
             kProviderIdApple: false,
             kProviderIdFacebook: false,
           },
-          rcMap: {'auth_provider_google_com_enabled': true},
+          rcMap: {'auth_provider_google_enabled': true},
         );
         final result = c.read(activeStrategiesProvider(locale));
         expect(
@@ -107,7 +107,7 @@ void main() {
           kProviderIdApple: false,
           kProviderIdFacebook: false,
         },
-        rcMap: {'auth_provider_google_com_enabled': null},
+        rcMap: {'auth_provider_google_enabled': null},
       );
       final result = c.read(activeStrategiesProvider(locale));
       expect(result.map((s) => s.providerId), isEmpty);
@@ -122,7 +122,7 @@ void main() {
           kProviderIdApple: false,
           kProviderIdFacebook: false,
         },
-        rcMap: {'auth_provider_google_com_enabled': null}, // 키 없음 시뮬레이션
+        rcMap: {'auth_provider_google_enabled': null}, // 키 없음 시뮬레이션
       );
       final result = c.read(activeStrategiesProvider(locale));
       expect(result.map((s) => s.providerId), [kProviderIdGoogle]);
@@ -138,9 +138,9 @@ void main() {
           kProviderIdFacebook: true,
         },
         rcMap: {
-          'auth_provider_google_com_enabled': true,
-          'auth_provider_apple_com_enabled': true,
-          'auth_provider_facebook_com_enabled': true,
+          'auth_provider_google_enabled': true,
+          'auth_provider_apple_enabled': true,
+          'auth_provider_facebook_enabled': true,
         },
       );
       final result = c.read(activeStrategiesProvider(locale));

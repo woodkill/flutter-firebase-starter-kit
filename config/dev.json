@@ -9,9 +9,9 @@
   "splashMinDurationMs": 2000,
 
   "authProviders": {
-    "google.com": true,
-    "apple.com": true,
-    "facebook.com": true,
+    "google": true,
+    "apple": true,
+    "facebook": true,
     "kakao": false,
     "naver": false,
     "line": false,
@@ -19,9 +19,9 @@
     "wechat": false
   },
 
-  "authProvider_google_com_enabled": true,
-  "authProvider_apple_com_enabled": true,
-  "authProvider_facebook_com_enabled": true,
+  "authProvider_google_enabled": true,
+  "authProvider_apple_enabled": true,
+  "authProvider_facebook_enabled": true,
   "authProvider_kakao_enabled": false,
   "authProvider_naver_enabled": false,
   "authProvider_line_enabled": false,
