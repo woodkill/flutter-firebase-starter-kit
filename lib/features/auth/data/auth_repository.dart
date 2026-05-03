@@ -786,16 +786,88 @@ AuthRepository authRepository(Ref ref) {
   );
 }
 
-/// 현재 인증된 사용자를 도메인 [User]로 노출한다 (D-12).
+/// 현재 인증된 사용자를 도메인 [User]로 노출한다 (D-12, Phase 12 D-16 확장).
 ///
 /// [authStateProvider]를 watch하여 firebase User → 도메인 User로 변환한다.
 /// 비인증 상태 또는 AsyncLoading/AsyncError 시에는 null을 반환한다.
 /// firebase_auth import는 features/auth/data 경계 안에 격리되며,
 /// presentation 계층은 본 Provider만 사용해야 한다.
+///
+/// **Phase 12 변경 (D-16):** Firebase `providerData[].providerId`
+/// (Native 4 — `'google.com'` 등 OAuth URI) 와 Firestore
+/// `users/{uid}.linkedProviders[].providerId` (Custom Token slug — `'kakao'`
+/// 등) 를 합집합 (Set 기반 중복 제거) 으로 [User.providerIds] 에 채운다.
+/// Firebase Auth `providerData` 는 Custom Token 흐름 (Kakao 등) 을 표시하지
+/// 않으므로, Custom Token provider 의 진실원은 Firestore `linkedProviders[]`
+/// 다 (D-15).
+///
+/// **Fallback (Plan 10-09 termsProvider 패턴):** Firestore stream 에러
+/// (네트워크 오류 / 권한 거부) 또는 미존재 문서 / AsyncLoading 시점에는
+/// Firebase `providerData` 만 사용한다 (즉시성 우선).
+///
+/// **Race 안전성 (Pitfall 12):** 12-02 Cloud Function 이 `users/{uid}` 를
+/// `set({...}, {merge: true})` 로 작성하므로 Plan 10-12 mirrorToFirestore 와
+/// 공존한다. linkedProviders 가 사라지지 않는다.
 @Riverpod(keepAlive: true)
 User? currentUser(Ref ref) {
   final asyncState = ref.watch(authStateProvider);
-  return asyncState.whenOrNull(
-    data: (fbUser) => fbUser == null ? null : _mapFirebaseUser(fbUser),
+  final fbUser = asyncState.whenOrNull(data: (u) => u);
+  if (fbUser == null) return null;
+
+  final base = _mapFirebaseUser(fbUser);
+
+  // Phase 12 D-16: Firestore linkedProviders 합산 — stream 에러 / 미존재 /
+  // 로딩은 빈 배열로 fallback (Plan 10-09 termsProvider try/catch 패턴).
+  final linkedAsync = ref.watch(linkedProvidersStreamProvider(fbUser.uid));
+  final linked = linkedAsync.maybeWhen(
+    data: (list) => list,
+    orElse: () => const <String>[],
   );
+
+  if (linked.isEmpty) return base;
+  // Set 기반 중복 제거 (Native URI + Custom Token slug 양쪽 보존).
+  final merged = <String>{...base.providerIds, ...linked}.toList();
+  return base.copyWith(providerIds: merged);
+}
+
+/// Firestore `users/{uid}.linkedProviders[].providerId` 를 stream 으로 노출한다
+/// (Phase 12 D-16, family by uid).
+///
+/// `users/{uid}` 문서가 미존재 (mirrorToFirestore 가 작성 전) 이거나
+/// `linkedProviders` 필드가 없으면 빈 배열을 emit 한다.
+///
+/// **에러 흡수 (Plan 10-09 패턴):** snapshots stream 에러 (네트워크 / 권한
+/// 거부) 시 [Stream.handleError] 로 silent 처리 — emit 자체를 차단한다.
+/// 결과적으로 [currentUserProvider] 는 AsyncLoading 상태로 머물고, fallback
+/// 분기 (`maybeWhen orElse`) 가 빈 배열을 반환하여 Firebase providerData 만
+/// 사용한다.
+///
+/// `kDebugMode` 에서는 디버그 로그를 출력한다 — release 빌드는 silent.
+///
+/// **Type-safe parsing (T-12-06-05):** Firestore 문서가 manual 변조되어
+/// `linkedProviders` 가 List 형식이 아니거나 객체 schema 가 어긋나는
+/// 경우에도 [whereType] 필터로 invalid entry 를 자동 제거한다.
+@Riverpod(keepAlive: true)
+Stream<List<String>> linkedProvidersStream(Ref ref, String uid) {
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  return firestore
+      .collection('users')
+      .doc(uid)
+      .snapshots()
+      .map<List<String>>((snap) {
+        if (!snap.exists) return const <String>[];
+        final data = snap.data();
+        final raw = data?['linkedProviders'] as List<dynamic>?;
+        if (raw == null) return const <String>[];
+        return raw
+            .whereType<Map<String, dynamic>>()
+            .map((m) => m['providerId'] as String?)
+            .whereType<String>()
+            .toList(growable: false);
+      })
+      .handleError((Object e, StackTrace st) {
+        if (kDebugMode) {
+          debugPrint('linkedProvidersStream 에러 (fallback empty): $e\n$st');
+        }
+      });
 }
