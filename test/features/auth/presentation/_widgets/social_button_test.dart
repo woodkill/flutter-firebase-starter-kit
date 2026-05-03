@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
@@ -43,13 +44,19 @@ class _FakeStrategy extends AuthStrategy {
 }
 
 /// 영문 로케일 + light theme 으로 [SocialButton] 을 pump 하는 helper.
-Widget _wrap(Widget child, {Brightness brightness = Brightness.light}) {
+///
+/// [locale] 인자로 ko/ja 로케일 회귀도 가능 (Phase 12 — Kakao 라벨 검증).
+Widget _wrap(
+  Widget child, {
+  Brightness brightness = Brightness.light,
+  Locale locale = const Locale('en'),
+}) {
   return ProviderScope(
     child: MaterialApp(
       theme: brightness == Brightness.dark
           ? AppTheme.dark()
           : AppTheme.light(),
-      locale: const Locale('en'),
+      locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: child),
@@ -201,5 +208,154 @@ void main() {
       await tester.pump();
       expect(signInCallCount, 0, reason: 'isDisabled=true 면 위임 호출 안 됨');
     });
+  });
+
+  // Phase 12 D-25 옵션 A — Kakao 분기는 sign_in_button 미지원으로
+  // Material+InkWell+SVG 로 직접 그린다. 12-UI-SPEC line 391-437.
+  group('SocialButton Kakao 분기 (Phase 12 D-25)', () {
+    /// social_button.dart 의 private 상수 _kKakaoYellow 와 동일 리터럴.
+    /// 단일 진실원은 lib/features/auth/presentation/_widgets/social_button.dart.
+    const expectedKakaoYellow = Color(0xFFFEE500);
+
+    testWidgets(
+      'Kakao providerId → SignInButton 미사용 + Material 노란 배경 + InkWell 자식',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdKakao,
+          'authKakaoSignIn',
+          'kakao',
+        );
+        await tester.pumpWidget(
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        await tester.pumpAndSettle();
+
+        // sign_in_button 패키지의 SignInButton 미사용 (Kakao 미지원).
+        expect(find.byType(SignInButton), findsNothing);
+
+        // _kKakaoYellow 배경 Material 1개 이상 매치.
+        final yellowMaterials = tester
+            .widgetList<Material>(find.byType(Material))
+            .where((m) => m.color == expectedKakaoYellow)
+            .toList();
+        expect(
+          yellowMaterials,
+          isNotEmpty,
+          reason: '_kKakaoYellow (#FEE500) 배경 Material 이 1개 이상 존재해야 한다',
+        );
+
+        // InkWell 자식 — Material + InkWell 조합으로 button semantics 확보.
+        expect(find.byType(InkWell), findsAtLeastNWidgets(1));
+      },
+    );
+
+    testWidgets(
+      'Kakao 라벨 — en 로케일에서 "Continue with Kakao" 표시 (D-29 ARB)',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdKakao,
+          'authKakaoSignIn',
+          'kakao',
+        );
+        await tester.pumpWidget(
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Continue with Kakao'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Kakao 라벨 — ko 로케일에서 "카카오 로그인" 표시 (D-29 ARB)',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdKakao,
+          'authKakaoSignIn',
+          'kakao',
+        );
+        await tester.pumpWidget(
+          _wrap(
+            const SocialButton(strategy: strategy, isDisabled: false),
+            locale: const Locale('ko'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('카카오 로그인'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Kakao 분기 — SvgPicture 로 kakao_logo.svg 자산 로드',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdKakao,
+          'authKakaoSignIn',
+          'kakao',
+        );
+        await tester.pumpWidget(
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        await tester.pumpAndSettle();
+
+        // SvgPicture 1개 이상 매치 (Kakao 분기 외에는 SVG 미사용 — 본 테스트
+        // wrap 안에 다른 SVG 미존재).
+        expect(find.byType(SvgPicture), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Kakao 분기 + isDisabled=true → InkWell.onTap == null (탭 무효)',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdKakao,
+          'authKakaoSignIn',
+          'kakao',
+        );
+        await tester.pumpWidget(
+          _wrap(const SocialButton(strategy: strategy, isDisabled: true)),
+        );
+        await tester.pumpAndSettle();
+
+        // SocialButton 내부의 첫 InkWell — onTap 이 null 이어야 함.
+        final inkWells = tester
+            .widgetList<InkWell>(find.byType(InkWell))
+            .toList();
+        expect(inkWells, isNotEmpty);
+        // 첫 번째 InkWell (Kakao 버튼 본체) 의 onTap 검증.
+        expect(
+          inkWells.first.onTap,
+          isNull,
+          reason: 'isDisabled=true 면 InkWell.onTap == null 로 탭 무효화',
+        );
+      },
+    );
+
+    testWidgets(
+      'Kakao 분기 + isDisabled=false + tap → strategy.signIn 위임 1회',
+      (tester) async {
+        var signInCallCount = 0;
+        final strategy = _FakeStrategy(
+          kProviderIdKakao,
+          'authKakaoSignIn',
+          'kakao',
+          onSignIn: (ref) async {
+            signInCallCount += 1;
+          },
+        );
+        await tester.pumpWidget(
+          _wrap(SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(SocialButton));
+        await tester.pump();
+        expect(
+          signInCallCount,
+          1,
+          reason: 'Kakao 분기 tap 시 strategy.signIn(ref) 가 1회 호출되어야 한다',
+        );
+      },
+    );
   });
 }
