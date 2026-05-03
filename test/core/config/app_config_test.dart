@@ -37,9 +37,18 @@ void main() {
         final readable = json['authProviders'] as Map<String, dynamic>;
         expect(readable.keys.toSet(), kAllProviderIds.toSet());
 
-        // 평탄 키 검증 + 가독성 객체와 동일 값
+        // 평탄 키 검증 + 가독성 객체와 동일 값.
+        // dart-define 식별자 정책 (`[A-Za-z_][A-Za-z0-9_]*`) 회귀 가드 포함
+        // (Phase 11-04 hotfix): 점이 들어간 키는 dart-define 으로 주입되지
+        // 않아 OAuth provider 들이 default false 로 떨어진다.
+        final dartDefinePattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
         for (final id in kAllProviderIds) {
-          final flatKey = 'authProvider_${id}_enabled';
+          final flatKey = configKeyForProvider(id);
+          expect(
+            dartDefinePattern.hasMatch(flatKey),
+            isTrue,
+            reason: 'dart-define 키 정책 위반 ($flatKey) — 점/대시 등 금지',
+          );
           expect(
             json.containsKey(flatKey),
             isTrue,
@@ -57,9 +66,9 @@ void main() {
           () {
         final raw = File('config/$flavor.json').readAsStringSync();
         final json = jsonDecode(raw) as Map<String, dynamic>;
-        expect(json['authProvider_${kProviderIdGoogle}_enabled'], true);
-        expect(json['authProvider_${kProviderIdApple}_enabled'], true);
-        expect(json['authProvider_${kProviderIdFacebook}_enabled'], true);
+        expect(json[configKeyForProvider(kProviderIdGoogle)], true);
+        expect(json[configKeyForProvider(kProviderIdApple)], true);
+        expect(json[configKeyForProvider(kProviderIdFacebook)], true);
         for (final id in const <String>[
           kProviderIdKakao,
           kProviderIdNaver,
@@ -68,7 +77,7 @@ void main() {
           kProviderIdWeChat,
         ]) {
           expect(
-            json['authProvider_${id}_enabled'],
+            json[configKeyForProvider(id)],
             false,
             reason: '$flavor.json: $id should be false (Phase 12-16)',
           );

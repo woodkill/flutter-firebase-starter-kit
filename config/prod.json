@@ -19,9 +19,9 @@
     "wechat": false
   },
 
-  "authProvider_google.com_enabled": true,
-  "authProvider_apple.com_enabled": true,
-  "authProvider_facebook.com_enabled": true,
+  "authProvider_google_com_enabled": true,
+  "authProvider_apple_com_enabled": true,
+  "authProvider_facebook_com_enabled": true,
   "authProvider_kakao_enabled": false,
   "authProvider_naver_enabled": false,
   "authProvider_line_enabled": false,

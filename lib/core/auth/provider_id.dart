@@ -59,3 +59,17 @@ const List<String> kAllProviderIds = <String>[
 /// - `kakao`        → `auth_provider_kakao_enabled`
 String rcKeyForProvider(String providerId) =>
     'auth_provider_${providerId.replaceAll('.', '_')}_enabled';
+
+/// 주어진 providerId 의 dart-define 평탄 키 (config/{flavor}.json + AppConfig).
+///
+/// `--dart-define-from-file` 이 주입하는 컴파일 타임 환경 변수의 키도 식별자
+/// 정책 `[A-Za-z_][A-Za-z0-9_]*` 을 따르므로 OAuth URI 형식 ('google.com' 등)
+/// 의 점을 그대로 키에 넣으면 `bool.fromEnvironment` lookup 이 실패해
+/// `defaultValue: false` 로 떨어진다 (Phase 11-04 hotfix).
+///
+/// - `google.com`   → `authProvider_google_com_enabled`
+/// - `apple.com`    → `authProvider_apple_com_enabled`
+/// - `facebook.com` → `authProvider_facebook_com_enabled`
+/// - `kakao`        → `authProvider_kakao_enabled`
+String configKeyForProvider(String providerId) =>
+    'authProvider_${providerId.replaceAll('.', '_')}_enabled';
