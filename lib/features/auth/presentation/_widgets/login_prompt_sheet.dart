@@ -10,6 +10,10 @@ import '../../../../core/providers/firebase_providers.dart'
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../_helpers/social_provider_resolver.dart';
+import '../apple_sign_in_notifier.dart';
+import '../facebook_sign_in_notifier.dart';
+import '../google_sign_in_notifier.dart';
+import 'auth_in_progress_overlay.dart';
 import 'social_sign_in_section.dart';
 
 /// 로그인 유도 Bottom Sheet 을 표시한다 (Phase 10 D-10).
@@ -92,45 +96,58 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
       );
     }
 
+    // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): sheet 안에서만 overlay
+    // 표시 — sheet 가 OAuth 성공 직후 pop 되므로 표시 시간은 짧지만
+    // signInWithCredential / Firestore mirror 구간을 시각적으로 메운다.
+    final isSocialLoading =
+        ref.watch(googleSignInProvider).isLoading ||
+        ref.watch(appleSignInProvider).isLoading ||
+        ref.watch(facebookSignInProvider).isLoading;
+
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Gap(spacing.lg),
-            Text(
-              l10n.authPromptSheetTitle,
-              style: typography.headlineMedium.copyWith(
-                color: colorScheme.onSurface,
-              ),
-            ),
-            Gap(spacing.sm),
-            Text(
-              l10n.authPromptSheetBody,
-              style: typography.bodyMedium.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            Gap(spacing.xl),
-            const SocialSignInSection(
-              isFormLoading: false,
-              showOrDivider: false,
-            ),
-            Gap(spacing.lg),
-            TextButton(
-              onPressed: () => _handleContinueWithEmail(context),
-              child: Text(
-                l10n.authContinueWithEmail,
-                style: typography.labelLarge.copyWith(
-                  color: colorScheme.primary,
+      child: Stack(
+        children: <Widget>[
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Gap(spacing.lg),
+                Text(
+                  l10n.authPromptSheetTitle,
+                  style: typography.headlineMedium.copyWith(
+                    color: colorScheme.onSurface,
+                  ),
                 ),
-              ),
+                Gap(spacing.sm),
+                Text(
+                  l10n.authPromptSheetBody,
+                  style: typography.bodyMedium.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Gap(spacing.xl),
+                const SocialSignInSection(
+                  isFormLoading: false,
+                  showOrDivider: false,
+                ),
+                Gap(spacing.lg),
+                TextButton(
+                  onPressed: () => _handleContinueWithEmail(context),
+                  child: Text(
+                    l10n.authContinueWithEmail,
+                    style: typography.labelLarge.copyWith(
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ),
+                Gap(spacing.lg),
+              ],
             ),
-            Gap(spacing.lg),
-          ],
-        ),
+          ),
+          if (isSocialLoading) const AuthInProgressOverlay(),
+        ],
       ),
     );
   }

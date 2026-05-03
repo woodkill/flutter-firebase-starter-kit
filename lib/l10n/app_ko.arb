@@ -10,6 +10,8 @@
   "commonEdit": "편집",
   "commonLoading": "불러오는 중",
 
+  "authSocialSigningIn": "로그인 처리 중…",
+
   "homeEnvironmentInfo": "환경 정보",
   "homeThemeMode": "테마 모드",
   "homeLanguage": "언어",

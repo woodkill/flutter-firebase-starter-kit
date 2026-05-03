@@ -11,6 +11,7 @@ import '../../../core/providers/firebase_providers.dart'
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '_helpers/social_provider_resolver.dart';
+import '_widgets/auth_in_progress_overlay.dart';
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
 import '_widgets/form_error_banner.dart';
@@ -117,11 +118,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     final googleState = ref.watch(googleSignInProvider);
     final appleState = ref.watch(appleSignInProvider);
     final facebookState = ref.watch(facebookSignInProvider);
-    final isLoading =
-        state.isLoading ||
+    // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): LoginScreen 과 동일한
+    // 화면 전체 오버레이 패턴.
+    final isSocialLoading =
         googleState.isLoading ||
         appleState.isLoading ||
         facebookState.isLoading;
+    final isLoading = state.isLoading || isSocialLoading;
 
     // 이메일/비밀번호 가입 에러 → _emailError (이메일 필드 영역 배너).
     //
@@ -174,69 +177,74 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       );
     }
 
-    return AuthScaffold(
-      title: l10n.authSignupTitle,
-      showBackButton: true,
-      child: Form(
-        key: _formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
-        child: AutofillGroup(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Gap(spacing.xxl),
-              SocialSignInSection(
-                isFormLoading: state.isLoading,
-                errorBanner: FormErrorBanner(exception: _socialError),
+    return Stack(
+      children: <Widget>[
+        AuthScaffold(
+          title: l10n.authSignupTitle,
+          showBackButton: true,
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: AutofillGroup(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Gap(spacing.xxl),
+                  SocialSignInSection(
+                    isFormLoading: state.isLoading,
+                    errorBanner: FormErrorBanner(exception: _socialError),
+                  ),
+                  TextFormField(
+                    controller: _nameController,
+                    focusNode: _nameFocus,
+                    autofillHints: const [AutofillHints.name],
+                    keyboardType: TextInputType.name,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: l10n.authSignupDisplayNameLabel,
+                    ),
+                    validator: _validateDisplayName,
+                    onFieldSubmitted: (_) => _emailFocus.requestFocus(),
+                  ),
+                  Gap(spacing.md),
+                  EmailField(
+                    controller: _emailController,
+                    focusNode: _emailFocus,
+                    onSubmitted: (_) => _passwordFocus.requestFocus(),
+                  ),
+                  Gap(spacing.md),
+                  PasswordField(
+                    controller: _passwordController,
+                    focusNode: _passwordFocus,
+                    isNewPassword: true,
+                    onSubmitted: (_) => _handleSubmit(),
+                  ),
+                  Gap(spacing.md),
+                  FormErrorBanner(exception: _emailError),
+                  Gap(spacing.xl),
+                  PrimaryCta(
+                    label: l10n.authSignupCta,
+                    isLoading: isLoading,
+                    onPressed: _handleSubmit,
+                  ),
+                  Gap(spacing.md),
+                  TextButton(
+                    onPressed: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.push(AppRoutes.login);
+                      }
+                    },
+                    child: Text(l10n.authSignupHasAccount),
+                  ),
+                ],
               ),
-              TextFormField(
-                controller: _nameController,
-                focusNode: _nameFocus,
-                autofillHints: const [AutofillHints.name],
-                keyboardType: TextInputType.name,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: l10n.authSignupDisplayNameLabel,
-                ),
-                validator: _validateDisplayName,
-                onFieldSubmitted: (_) => _emailFocus.requestFocus(),
-              ),
-              Gap(spacing.md),
-              EmailField(
-                controller: _emailController,
-                focusNode: _emailFocus,
-                onSubmitted: (_) => _passwordFocus.requestFocus(),
-              ),
-              Gap(spacing.md),
-              PasswordField(
-                controller: _passwordController,
-                focusNode: _passwordFocus,
-                isNewPassword: true,
-                onSubmitted: (_) => _handleSubmit(),
-              ),
-              Gap(spacing.md),
-              FormErrorBanner(exception: _emailError),
-              Gap(spacing.xl),
-              PrimaryCta(
-                label: l10n.authSignupCta,
-                isLoading: isLoading,
-                onPressed: _handleSubmit,
-              ),
-              Gap(spacing.md),
-              TextButton(
-                onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.push(AppRoutes.login);
-                  }
-                },
-                child: Text(l10n.authSignupHasAccount),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+        if (isSocialLoading) const AuthInProgressOverlay(),
+      ],
     );
   }
 }

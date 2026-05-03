@@ -41,6 +41,11 @@
     "description": "Common loading indicator semantics label"
   },
 
+  "authSocialSigningIn": "Signing you in…",
+  "@authSocialSigningIn": {
+    "description": "Overlay label shown while a social OAuth flow finishes (user returned from external auth, app is exchanging tokens / persisting profile)"
+  },
+
   "homeEnvironmentInfo": "Environment Info",
   "@homeEnvironmentInfo": {
     "description": "AppBar title for the environment info screen"
