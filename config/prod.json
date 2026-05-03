@@ -8,23 +8,5 @@
   "facebookClientToken": "YOUR_FACEBOOK_CLIENT_TOKEN",
   "splashMinDurationMs": 2000,
 
-  "authProviders": {
-    "google": true,
-    "apple": true,
-    "facebook": true,
-    "kakao": false,
-    "naver": false,
-    "line": false,
-    "yahoojp": false,
-    "wechat": false
-  },
-
-  "authProvider_google_enabled": true,
-  "authProvider_apple_enabled": true,
-  "authProvider_facebook_enabled": true,
-  "authProvider_kakao_enabled": false,
-  "authProvider_naver_enabled": false,
-  "authProvider_line_enabled": false,
-  "authProvider_yahoojp_enabled": false,
-  "authProvider_wechat_enabled": false
+  "enabledAuthProviders": "google,apple,facebook"
 }
