@@ -33,6 +33,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonLoading => 'Loading';
 
   @override
+  String get authSocialSigningIn => 'Signing you in…';
+
+  @override
   String get homeEnvironmentInfo => 'Environment Info';
 
   @override

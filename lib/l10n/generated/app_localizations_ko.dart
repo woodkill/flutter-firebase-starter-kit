@@ -33,6 +33,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get commonLoading => '불러오는 중';
 
   @override
+  String get authSocialSigningIn => '로그인 처리 중…';
+
+  @override
   String get homeEnvironmentInfo => '환경 정보';
 
   @override

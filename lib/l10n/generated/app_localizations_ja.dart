@@ -33,6 +33,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonLoading => '読み込み中';
 
   @override
+  String get authSocialSigningIn => 'サインイン処理中…';
+
+  @override
   String get homeEnvironmentInfo => '環境情報';
 
   @override

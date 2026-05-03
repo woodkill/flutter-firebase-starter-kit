@@ -148,6 +148,12 @@ abstract class AppLocalizations {
   /// **'Loading'**
   String get commonLoading;
 
+  /// Overlay label shown while a social OAuth flow finishes (user returned from external auth, app is exchanging tokens / persisting profile)
+  ///
+  /// In en, this message translates to:
+  /// **'Signing you in…'**
+  String get authSocialSigningIn;
+
   /// AppBar title for the environment info screen
   ///
   /// In en, this message translates to:
