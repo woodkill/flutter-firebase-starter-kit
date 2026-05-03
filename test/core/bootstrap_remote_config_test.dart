@@ -66,9 +66,15 @@ void main() {
       );
     });
 
-    test('RC fetch 주기: dev=0, 그 외=12h (D-23)', () {
+    test('RC fetch 주기: dev=0, 그 외=12h (D-23, WR-07 hotfix)', () {
       final source = File('lib/core/bootstrap.dart').readAsStringSync();
-      expect(source.contains("flavor == 'dev'"), isTrue);
+      // WR-07 hotfix 후: hardcoded `flavor == 'dev'` 가 아닌
+      // [AppConfig.isDev] 단일 진실원 사용 — silent fallback 차단.
+      expect(
+        source.contains('AppConfig.isDev'),
+        isTrue,
+        reason: 'D-23: bootstrap 은 AppConfig.isDev 헬퍼로 flavor 분기',
+      );
       expect(source.contains('Duration.zero'), isTrue);
       expect(source.contains('Duration(hours: 12)'), isTrue);
     });

@@ -175,6 +175,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
       if (next is AsyncError) {
+        // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
+        if (!mounted) return;
         final err = next.error;
         if (err is AppException) {
           setState(() {
@@ -205,6 +207,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             return;
           }
           if (next is AsyncError) {
+            // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
+            if (!mounted) return;
             final err = next.error;
             if (err is AppException) {
               setState(() {

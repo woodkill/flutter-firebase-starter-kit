@@ -33,6 +33,22 @@ part 'app_config.g.dart';
 abstract final class AppConfig {
   const AppConfig._();
 
+  /// 빌드 flavor 식별자 (`dev` / `stg` / `prod`).
+  ///
+  /// `--dart-define-from-file=config/{flavor}.json` 의 `flavor` 키를 컴파일
+  /// 타임 상수로 읽는다. 미주입 시 빈 문자열 — silent fallback 회피
+  /// (WR-07 hotfix). prod 빌드에서 `--dart-define-from-file` 누락 시 RC fetch
+  /// 주기가 dev (0초) 로 떨어지는 회귀를 막기 위해 [isDev] 헬퍼를 통해서만
+  /// 분기한다.
+  static const String flavor = String.fromEnvironment('flavor');
+
+  /// 현재 빌드가 dev flavor 인지 여부.
+  ///
+  /// [flavor] 가 정확히 `'dev'` 일 때만 true. 미주입 / 다른 flavor 는 false.
+  /// bootstrap 의 RC fetch 주기 (D-23: dev=0, 그 외=12h) 를 단일 진실원으로
+  /// 결정한다.
+  static bool get isDev => flavor == 'dev';
+
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///
   /// 예: `'google,apple,facebook'`. 공백 / 빈 토큰은 무시한다. dart-define
@@ -47,15 +63,19 @@ abstract final class AppConfig {
   /// CSV 토큰을 set 으로 파싱한 뒤 [kAllProviderIds] 의 8 슬러그 모두에 대해
   /// membership 을 [bool] 로 노출한다. 미주입 / 미등록 슬러그는 [false]
   /// 안전 default (D-21).
+  ///
+  /// 반환 맵은 [Map.unmodifiable] 으로 감싸 정적 진실의 런타임 변조를
+  /// 방어한다 (WR-02 hotfix) — D-26 의 "정적 false 절대 우위" invariant 가
+  /// future contributor / 테스트 코드의 잘못된 변경에 무방비하지 않도록.
   static Map<String, bool> get authProviders {
     final enabled = _enabledRaw
         .split(',')
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toSet();
-    return <String, bool>{
+    return Map<String, bool>.unmodifiable(<String, bool>{
       for (final id in kAllProviderIds) id: enabled.contains(id),
-    };
+    });
   }
 
   /// 단일 슬러그의 정적 활성화 여부를 반환한다 (테스트/UI 가독성용 헬퍼).

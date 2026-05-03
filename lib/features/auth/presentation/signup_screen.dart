@@ -135,6 +135,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     // 다른 결정 — SignupScreen 은 emailVerified=false race 가 정상 흐름).
     ref.listen<AsyncValue<void>>(signupProvider, (previous, next) {
       if (next is AsyncError) {
+        // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
+        if (!mounted) return;
         final err = next.error;
         if (err is AppException) {
           setState(() {
@@ -165,6 +167,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             return;
           }
           if (next is AsyncError) {
+            // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
+            if (!mounted) return;
             final err = next.error;
             if (err is AppException) {
               setState(() {

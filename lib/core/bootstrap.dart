@@ -63,9 +63,12 @@ Future<void> bootstrap() async {
             return true;
           };
 
-          // Flavor custom key 태깅 (AUTH-11).
-          const flavor = String.fromEnvironment('flavor', defaultValue: 'dev');
-          await FirebaseCrashlytics.instance.setCustomKey('flavor', flavor);
+          // Flavor custom key 태깅 (AUTH-11). [AppConfig.flavor] 가 단일
+          // 진실원 — silent fallback 회피 (WR-07 hotfix). 미주입 시 빈 문자열.
+          await FirebaseCrashlytics.instance.setCustomKey(
+            'flavor',
+            AppConfig.flavor,
+          );
 
           // GoogleSignIn 초기화 (기존 로직 유지).
           // Dart-only Firebase 방식이므로 google-services.json Gradle 플러그인을
@@ -89,7 +92,10 @@ Future<void> bootstrap() async {
             await rc.setConfigSettings(
               RemoteConfigSettings(
                 fetchTimeout: const Duration(minutes: 1),
-                minimumFetchInterval: flavor == 'dev'
+                // D-23: dev=0, 그 외=12h. [AppConfig.isDev] 단일 진실원으로
+                // prod 빌드의 flavor dart-define 누락 silent fallback 차단
+                // (WR-07 hotfix).
+                minimumFetchInterval: AppConfig.isDev
                     ? Duration.zero
                     : const Duration(hours: 12),
               ),

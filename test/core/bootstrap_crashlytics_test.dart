@@ -67,10 +67,15 @@ void main() {
           isTrue,
           reason: 'Crashlytics 등록은 isFirebaseInitialized 가드 안에서만.',
         );
+        // WR-07 hotfix 후: hardcoded `flavor` 변수 대신 [AppConfig.flavor]
+        // 단일 진실원 — silent fallback 차단.
         expect(
-          source.contains("setCustomKey('flavor', flavor)"),
+          source.contains("'flavor',") &&
+              source.contains('AppConfig.flavor'),
           isTrue,
-          reason: 'AUTH-11 — flavor custom key 태깅이 필요하다.',
+          reason:
+              'AUTH-11 + WR-07 — flavor custom key 태깅이 AppConfig.flavor '
+              '단일 진실원으로 이뤄져야 한다.',
         );
       },
     );
