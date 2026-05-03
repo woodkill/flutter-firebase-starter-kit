@@ -142,6 +142,8 @@
   "authAccountProviderApple": "Apple",
   "authFacebookSignIn": "Facebook으로 로그인",
   "authAccountProviderFacebook": "Facebook",
+  "authKakaoSignIn": "카카오 로그인",
+  "authAccountProviderKakao": "카카오",
 
   "onboardingSkip": "건너뛰기",
   "onboardingNext": "다음",

@@ -360,6 +360,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountProviderFacebook => 'Facebook';
 
   @override
+  String get authKakaoSignIn => '카카오 로그인';
+
+  @override
+  String get authAccountProviderKakao => '카카오';
+
+  @override
   String get onboardingSkip => '건너뛰기';
 
   @override
