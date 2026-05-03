@@ -38,6 +38,16 @@
 					<string>fb$(FACEBOOK_APP_ID)</string>
 				</array>
 			</dict>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLName</key>
+				<string>kakao</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>kakao$(KAKAO_NATIVE_APP_KEY)</string>
+				</array>
+			</dict>
 		</array>
 		<key>FacebookAppID</key>
 		<string>$(FACEBOOK_APP_ID)</string>
@@ -93,6 +103,10 @@
 		<array>
 			<string>fbapi</string>
 			<string>fb-messenger-share-api</string>
+			<!-- Kakao Login (Phase 12 D-21). KakaoTalk 설치 감지 + OAuth 호출. -->
+			<string>kakaokompassauth</string>
+			<string>kakaolink</string>
+			<string>kakaotalk</string>
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>

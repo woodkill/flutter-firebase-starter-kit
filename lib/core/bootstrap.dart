@@ -12,6 +12,10 @@ import 'package:flutter_starter_kit/core/firebase/firebase_initializer.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
+// kakao_flutter_sdk_user 가 kakao_flutter_sdk_auth 를 통해 transitive 로
+// kakao_flutter_sdk_common 을 re-export 하므로 직접 의존성 import 1개로 충분.
+// pubspec.yaml 의 직접 의존성 (`kakao_flutter_sdk_user`)과 일관 — depend_on_referenced_packages 통과.
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 /// 앱 초기화 시퀀스를 실행한다 (Phase 10 D-28).
 ///
@@ -82,6 +86,29 @@ Future<void> bootstrap() async {
           } on Object catch (e, st) {
             if (kDebugMode) {
               debugPrint('GoogleSignIn.initialize() 실패 (무시): $e\n$st');
+            }
+          }
+
+          // Kakao SDK 초기화 (Phase 12 D-04 / Pattern A).
+          //
+          // Firebase 초기화 직후 + RC fetch 전 위치 — 첫 SDK API 호출
+          // (loginWithKakaoTalk 등) 시점에 실제 PlatformChannel가 초기화된다.
+          // [KakaoSdk.init]은 [Future<void>] 반환 (kakao_flutter_sdk_common
+          // 2.0.0+1) — `await` 필수.
+          //
+          // dev flavor만 실 키 주입 (D-22), stg/prod는 placeholder —
+          // manual.md 안내. 빈 문자열 시 throw하지 않으나 (`_nativeKey = '' OK`),
+          // 첫 SDK API 호출에서 실패하므로 silent failure 회피 (D-20 의도).
+          //
+          // KakaoSdk.init이 throw할 가능성(`null` 인자 시 KakaoClientException)에
+          // 대비해 try/catch + debugPrint fallback (GoogleSignIn 패턴 일관).
+          try {
+            await KakaoSdk.init(
+              nativeAppKey: AppConfig.kakaoNativeAppKey,
+            );
+          } on Object catch (e, st) {
+            if (kDebugMode) {
+              debugPrint('KakaoSdk.init() 실패 (무시): $e\n$st');
             }
           }
 
