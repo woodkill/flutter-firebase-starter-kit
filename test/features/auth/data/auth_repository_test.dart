@@ -964,7 +964,8 @@ void main() {
           const GoogleSignInAuthentication(idToken: 'id-token-test'),
         );
         when(
-          () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+          () =>
+              mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
         ).thenAnswer((_) async => mockAccount);
         when(
           () => mockAuth.signInWithCredential(any()),
@@ -980,29 +981,26 @@ void main() {
       },
     );
 
-    test(
-      'Test SLP-2: signInWithGoogle 실패(GoogleSignInException 비-취소) 시에도 '
-      'end() 가 finally 에서 호출됨',
-      () async {
-        // Arrange — Google SDK 가 throw 하는 시나리오.
-        when(
-          () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
-        ).thenThrow(
-          const GoogleSignInException(
-            code: GoogleSignInExceptionCode.unknownError,
-            description: 'Something went wrong',
-          ),
-        );
+    test('Test SLP-2: signInWithGoogle 실패(GoogleSignInException 비-취소) 시에도 '
+        'end() 가 finally 에서 호출됨', () async {
+      // Arrange — Google SDK 가 throw 하는 시나리오.
+      when(
+        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+      ).thenThrow(
+        const GoogleSignInException(
+          code: GoogleSignInExceptionCode.unknownError,
+          description: 'Something went wrong',
+        ),
+      );
 
-        // Act
-        final result = await repository.signInWithGoogle();
+      // Act
+      final result = await repository.signInWithGoogle();
 
-        // Assert — Failure 반환 + end() 는 여전히 호출.
-        expect(result, isA<Failure<User>>());
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-      },
-    );
+      // Assert — Failure 반환 + end() 는 여전히 호출.
+      expect(result, isA<Failure<User>>());
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
 
     test(
       'Test SLP-3: signInWithApple 성공 (비익명) 시 begin() + end() 각 1회',
@@ -1023,25 +1021,22 @@ void main() {
       },
     );
 
-    test(
-      'Test SLP-4: signInWithApple FirebaseAuthException(비-취소) 발생 시에도 '
-      'end() 호출됨',
-      () async {
-        // Arrange — 비익명 경로 + signInWithProvider throw.
-        when(() => mockAuth.currentUser).thenReturn(null);
-        when(() => mockAuth.signInWithProvider(any())).thenThrow(
-          fb.FirebaseAuthException(code: 'network-request-failed'),
-        );
+    test('Test SLP-4: signInWithApple FirebaseAuthException(비-취소) 발생 시에도 '
+        'end() 호출됨', () async {
+      // Arrange — 비익명 경로 + signInWithProvider throw.
+      when(() => mockAuth.currentUser).thenReturn(null);
+      when(
+        () => mockAuth.signInWithProvider(any()),
+      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
 
-        // Act
-        final result = await repository.signInWithApple();
+      // Act
+      final result = await repository.signInWithApple();
 
-        // Assert
-        expect(result, isA<Failure<User>>());
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-      },
-    );
+      // Assert
+      expect(result, isA<Failure<User>>());
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
 
     test(
       'Test SLP-5: signInWithFacebook 성공 (비익명) 시 begin() + end() 각 1회',
@@ -1120,7 +1115,8 @@ void main() {
           const GoogleSignInAuthentication(idToken: 'id-token-test'),
         );
         when(
-          () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+          () =>
+              mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
         ).thenAnswer((_) async => mockAccount);
 
         // linkWithCredential throws → triggers race-window fallback.
@@ -1158,94 +1154,179 @@ void main() {
       },
     );
 
-    test(
-      'Test SLP-8: signInWithApple race-window — anonymous + linkWithProvider '
-      'throws credential-already-in-use → _safeDelete → signInWithProvider '
-      'success. begin → user.delete → signInWithProvider → end 순서 검증',
-      () async {
-        // Arrange — anonymous user fixture.
-        final mockAnonymous = _MockFbUser();
-        when(() => mockAnonymous.isAnonymous).thenReturn(true);
-        when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
+    /// Quick 260503-ang (Apple OAuth credential 재사용 픽스) — 기존 SLP-8
+    /// 단일 테스트를 SLP-8a/8b/8c 세 갈래로 분리한다.
+    /// - SLP-8a: `e.credential != null` → `signInWithCredential` 1회,
+    ///   `signInWithProvider` 0회 (OAuth 재진입 회피 핵심 회귀 가드).
+    /// - SLP-8b: `e.credential == null` → 기존 `signInWithProvider` fallback
+    ///   보존 (회귀 0).
+    /// - SLP-8c: `credential-already-in-use` 외 FirebaseAuthException →
+    ///   rethrow → `_mapAuthException` 매핑 → `Result.failure`.
+    test('Test SLP-8a: signInWithApple credential-reuse — anonymous + '
+        'linkWithProvider throws credential-already-in-use 이고 e.credential != '
+        'null 이면 _safeDelete 후 signInWithCredential 1회만 호출되고 '
+        'signInWithProvider 는 0회 호출됨. '
+        'begin → user.delete → signInWithCredential → end 순서 검증', () async {
+      // Arrange — anonymous user fixture.
+      final mockAnonymous = _MockFbUser();
+      when(() => mockAnonymous.isAnonymous).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
 
-        // linkWithProvider throws → triggers race-window fallback.
-        when(() => mockAnonymous.linkWithProvider(any())).thenThrow(
-          fb.FirebaseAuthException(code: 'credential-already-in-use'),
-        );
-        // _safeDelete succeeds.
-        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
-        // signInWithProvider success.
-        when(
-          () => mockAuth.signInWithProvider(any()),
-        ).thenAnswer((_) async => mockCredential);
+      // linkWithProvider throws with non-null credential → triggers
+      // credential-reuse fast-path (no OAuth re-entry).
+      final reusedCredential = _FakeAuthCredential();
+      when(() => mockAnonymous.linkWithProvider(any())).thenThrow(
+        fb.FirebaseAuthException(
+          code: 'credential-already-in-use',
+          credential: reusedCredential,
+        ),
+      );
+      // _safeDelete succeeds.
+      when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+      // signInWithCredential success (credential reuse path).
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
 
-        // Act
-        final result = await repository.signInWithApple();
+      // Act
+      final result = await repository.signInWithApple();
 
-        // Assert
-        expect(result, isA<Success<User>>());
-        verifyInOrder([
-          () => mockSocialLinkInProgress.begin(),
-          () => mockAnonymous.delete(),
-          () => mockAuth.signInWithProvider(any()),
-          () => mockSocialLinkInProgress.end(),
-        ]);
-        verifyNever(() => mockSocialLinkInProgress.begin());
-        verifyNever(() => mockSocialLinkInProgress.end());
-      },
-    );
+      // Assert — Success + 호출 순서 + OAuth 재진입 0회 invariant.
+      expect(result, isA<Success<User>>());
+      // mocktail.verifyInOrder 는 매칭된 호출을 VERIFIED 처리하므로,
+      // 동일 호출에 대한 후속 verify(...).called(1) 은 사용 불가.
+      // 대신 verifyInOrder + verifyNever(signInWithProvider) 조합으로
+      // "signInWithCredential 1회 + signInWithProvider 0회" invariant 보장.
+      verifyInOrder([
+        () => mockSocialLinkInProgress.begin(),
+        () => mockAnonymous.delete(),
+        () => mockAuth.signInWithCredential(any()),
+        () => mockSocialLinkInProgress.end(),
+      ]);
+      // 핵심 회귀 가드: OAuth 시트/Custom Tab 재진입(signInWithProvider) 0회.
+      verifyNever(() => mockAuth.signInWithProvider(any()));
+      // 추가 signInWithCredential 호출 없음 (verifyInOrder 매칭 1회 외에).
+      verifyNever(() => mockAuth.signInWithCredential(any()));
+      // 추가 begin/end 호출 없음 (try-finally 1회 invariant).
+      verifyNever(() => mockSocialLinkInProgress.begin());
+      verifyNever(() => mockSocialLinkInProgress.end());
+    });
 
-    test(
-      'Test SLP-9: signInWithFacebook race-window — anonymous + '
-      'linkWithCredential throws credential-already-in-use → _safeDelete → '
-      'signInWithCredential success. begin → user.delete → signInWithCredential '
-      '→ end 순서 검증',
-      () async {
-        // Arrange — anonymous user fixture.
-        final mockAnonymous = _MockFbUser();
-        when(() => mockAnonymous.isAnonymous).thenReturn(true);
-        when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
+    test('Test SLP-8b: signInWithApple credential null fallback — anonymous + '
+        'linkWithProvider throws credential-already-in-use 이고 e.credential == '
+        'null 이면 기존 signInWithProvider fallback 경로가 보존됨. '
+        'begin → user.delete → signInWithProvider → end 순서 검증', () async {
+      // Arrange — anonymous user fixture.
+      final mockAnonymous = _MockFbUser();
+      when(() => mockAnonymous.isAnonymous).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
 
-        // SDK flow: Facebook login + token exchange.
-        final mockLoginResult = _MockFacebookLoginResult();
-        final mockAccessToken = _MockFacebookAccessToken();
-        when(
-          () => mockFacebookAuth.login(
-            permissions: any(named: 'permissions'),
-            loginTracking: any(named: 'loginTracking'),
-            loginBehavior: any(named: 'loginBehavior'),
-            nonce: any(named: 'nonce'),
-          ),
-        ).thenAnswer((_) async => mockLoginResult);
-        when(() => mockLoginResult.status).thenReturn(LoginStatus.success);
-        when(() => mockLoginResult.accessToken).thenReturn(mockAccessToken);
-        when(() => mockAccessToken.tokenString).thenReturn('fb-token-test');
+      // linkWithProvider throws with null credential (credential 미지정).
+      when(
+        () => mockAnonymous.linkWithProvider(any()),
+      ).thenThrow(fb.FirebaseAuthException(code: 'credential-already-in-use'));
+      // _safeDelete succeeds.
+      when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+      // signInWithProvider success (legacy fallback path).
+      when(
+        () => mockAuth.signInWithProvider(any()),
+      ).thenAnswer((_) async => mockCredential);
 
-        // linkWithCredential throws → triggers race-window fallback.
-        when(() => mockAnonymous.linkWithCredential(any())).thenThrow(
-          fb.FirebaseAuthException(code: 'credential-already-in-use'),
-        );
-        // _safeDelete succeeds.
-        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
-        // signInWithCredential succeeds.
-        when(
-          () => mockAuth.signInWithCredential(any()),
-        ).thenAnswer((_) async => mockCredential);
+      // Act
+      final result = await repository.signInWithApple();
 
-        // Act
-        final result = await repository.signInWithFacebook();
+      // Assert — fallback 경로 보존 (회귀 0).
+      expect(result, isA<Success<User>>());
+      verifyInOrder([
+        () => mockSocialLinkInProgress.begin(),
+        () => mockAnonymous.delete(),
+        () => mockAuth.signInWithProvider(any()),
+        () => mockSocialLinkInProgress.end(),
+      ]);
+      // signInWithCredential 은 fallback 경로에서 호출되지 않음.
+      verifyNever(() => mockAuth.signInWithCredential(any()));
+      verifyNever(() => mockSocialLinkInProgress.begin());
+      verifyNever(() => mockSocialLinkInProgress.end());
+    });
 
-        // Assert
-        expect(result, isA<Success<User>>());
-        verifyInOrder([
-          () => mockSocialLinkInProgress.begin(),
-          () => mockAnonymous.delete(),
-          () => mockAuth.signInWithCredential(any()),
-          () => mockSocialLinkInProgress.end(),
-        ]);
-        verifyNever(() => mockSocialLinkInProgress.begin());
-        verifyNever(() => mockSocialLinkInProgress.end());
-      },
-    );
+    test('Test SLP-8c: signInWithApple linkWithProvider — '
+        'credential-already-in-use 외 FirebaseAuthException(예: '
+        'network-request-failed) 은 rethrow 되어 outer catch 가 _mapAuthException '
+        '으로 매핑한다. delete / signInWithProvider / signInWithCredential 미호출, '
+        'begin/end 는 try-finally 로 1회씩 호출됨', () async {
+      // Arrange — anonymous user fixture + 비-credential-already-in-use 예외.
+      final mockAnonymous = _MockFbUser();
+      when(() => mockAnonymous.isAnonymous).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
+
+      when(
+        () => mockAnonymous.linkWithProvider(any()),
+      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
+      // 의도적으로 anonymous.delete / signInWithProvider /
+      // signInWithCredential stub 안 함 — verifyNever 로 검증.
+
+      // Act
+      final result = await repository.signInWithApple();
+
+      // Assert — Failure + _mapAuthException 매핑 + race-fix invariant 보존.
+      expect(result, isA<Failure<User>>());
+      final failure = (result! as Failure<User>).exception;
+      expect(failure, isA<NoInternetConnection>());
+      verifyNever(() => mockAnonymous.delete());
+      verifyNever(() => mockAuth.signInWithProvider(any()));
+      verifyNever(() => mockAuth.signInWithCredential(any()));
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('Test SLP-9: signInWithFacebook race-window — anonymous + '
+        'linkWithCredential throws credential-already-in-use → _safeDelete → '
+        'signInWithCredential success. begin → user.delete → signInWithCredential '
+        '→ end 순서 검증', () async {
+      // Arrange — anonymous user fixture.
+      final mockAnonymous = _MockFbUser();
+      when(() => mockAnonymous.isAnonymous).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
+
+      // SDK flow: Facebook login + token exchange.
+      final mockLoginResult = _MockFacebookLoginResult();
+      final mockAccessToken = _MockFacebookAccessToken();
+      when(
+        () => mockFacebookAuth.login(
+          permissions: any(named: 'permissions'),
+          loginTracking: any(named: 'loginTracking'),
+          loginBehavior: any(named: 'loginBehavior'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenAnswer((_) async => mockLoginResult);
+      when(() => mockLoginResult.status).thenReturn(LoginStatus.success);
+      when(() => mockLoginResult.accessToken).thenReturn(mockAccessToken);
+      when(() => mockAccessToken.tokenString).thenReturn('fb-token-test');
+
+      // linkWithCredential throws → triggers race-window fallback.
+      when(
+        () => mockAnonymous.linkWithCredential(any()),
+      ).thenThrow(fb.FirebaseAuthException(code: 'credential-already-in-use'));
+      // _safeDelete succeeds.
+      when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+      // signInWithCredential succeeds.
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+
+      // Act
+      final result = await repository.signInWithFacebook();
+
+      // Assert
+      expect(result, isA<Success<User>>());
+      verifyInOrder([
+        () => mockSocialLinkInProgress.begin(),
+        () => mockAnonymous.delete(),
+        () => mockAuth.signInWithCredential(any()),
+        () => mockSocialLinkInProgress.end(),
+      ]);
+      verifyNever(() => mockSocialLinkInProgress.begin());
+      verifyNever(() => mockSocialLinkInProgress.end());
+    });
   });
 }

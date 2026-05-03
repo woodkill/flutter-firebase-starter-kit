@@ -239,7 +239,12 @@ class AuthRepository {
   /// **Phase 10 D-14 / BLOCKER #4:** `_auth.currentUser` 가 익명 사용자라면
   /// [fb.User.linkWithProvider] 로 익명 UID 를 Apple 자격증명에 연결한다.
   /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
-  /// [_safeDelete] 로 폐기하고 [fb.FirebaseAuth.signInWithProvider] fallback.
+  /// [_safeDelete] 로 폐기하고, 1차 [fb.User.linkWithProvider] 가 던진
+  /// [fb.FirebaseAuthException.credential] 을 우선 재사용하여
+  /// [fb.FirebaseAuth.signInWithCredential] 한 번으로 종결한다 — Apple OAuth
+  /// 플로우(Android Custom Tab / iOS ASAuthorizationController 시트) 재진입을
+  /// 회피한다 (260503-ang quick). `e.credential == null` 인 보조 경로에서만
+  /// [fb.FirebaseAuth.signInWithProvider] fallback 으로 회귀를 방지한다.
   ///
   /// **Blocker #2 — `_auth.currentUser` 재조회 제거:** linking / signIn 결과
   /// [fb.UserCredential.user] 를 직접 [_mapFirebaseUser] 에 전달하며,
@@ -268,14 +273,26 @@ class AuthRepository {
         } on fb.FirebaseAuthException catch (e) {
           if (e.code == 'credential-already-in-use' ||
               e.code == 'email-already-in-use') {
+            // Quick 260503-ang: 1차 linkWithProvider 의 credential 을 보존해
+            // signInWithCredential 로 재사용한다. Apple OAuth Custom Tab(Android) /
+            // ASAuthorizationController 시트(iOS) 가 두 번 열리는 UX 결함 차단.
+            // e.credential 이 null 인 이론적 fallback 만 signInWithProvider 재호출.
+            final pendingCredential = e.credential;
             if (kDebugMode) {
               debugPrint(
                 'AuthRepository.signInWithApple: credential-already-in-use '
-                '— 익명 계정 폐기 + 기존 Apple 계정 로그인',
+                '— 익명 계정 폐기 + 기존 Apple 계정 로그인 '
+                '(credential reuse: ${pendingCredential != null})',
               );
             }
             await _safeDelete(anonymous);
-            userCredential = await _auth.signInWithProvider(provider);
+            if (pendingCredential != null) {
+              userCredential = await _auth.signInWithCredential(
+                pendingCredential,
+              );
+            } else {
+              userCredential = await _auth.signInWithProvider(provider);
+            }
           } else {
             rethrow;
           }
