@@ -772,6 +772,18 @@ abstract class AppLocalizations {
   /// **'Facebook'**
   String get authAccountProviderFacebook;
 
+  /// Kakao 로그인 버튼 라벨 (Phase 12 D-29). Kakao 공식 영문 표기.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with Kakao'**
+  String get authKakaoSignIn;
+
+  /// Account 섹션 Kakao 프로바이더 표시 (Phase 12 D-17).
+  ///
+  /// In en, this message translates to:
+  /// **'Kakao'**
+  String get authAccountProviderKakao;
+
   /// Onboarding carousel skip button label (top-right)
   ///
   /// In en, this message translates to:

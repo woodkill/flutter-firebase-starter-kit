@@ -366,6 +366,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountProviderFacebook => 'Facebook';
 
   @override
+  String get authKakaoSignIn => 'Continue with Kakao';
+
+  @override
+  String get authAccountProviderKakao => 'Kakao';
+
+  @override
   String get onboardingSkip => 'Skip';
 
   @override

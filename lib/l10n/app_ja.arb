@@ -142,6 +142,8 @@
   "authAccountProviderApple": "Apple",
   "authFacebookSignIn": "Facebookでログイン",
   "authAccountProviderFacebook": "Facebook",
+  "authKakaoSignIn": "カカオではじめる",
+  "authAccountProviderKakao": "カカオ",
 
   "onboardingSkip": "スキップ",
   "onboardingNext": "次へ",

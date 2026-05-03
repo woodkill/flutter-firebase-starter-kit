@@ -360,6 +360,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authAccountProviderFacebook => 'Facebook';
 
   @override
+  String get authKakaoSignIn => 'カカオではじめる';
+
+  @override
+  String get authAccountProviderKakao => 'カカオ';
+
+  @override
   String get onboardingSkip => 'スキップ';
 
   @override

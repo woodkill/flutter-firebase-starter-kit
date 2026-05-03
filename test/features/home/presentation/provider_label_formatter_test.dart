@@ -1,6 +1,7 @@
 import 'package:flutter_starter_kit/features/home/presentation/provider_label_formatter.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations_ko.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -60,13 +61,82 @@ void main() {
     });
   });
 
-  group('kSupportedAuthProviderIds 컨트랙트', () {
-    test('Phase 7~9 기준 매핑 set 동등성 — Phase 12~16 신규 provider 추가 시 본 테스트가 '
-        '우선 깨져 단위 테스트/fixture 동시 갱신을 강제한다', () {
+  group('formatProviderIds — Kakao 회귀 (Phase 12 D-17)', () {
+    final AppLocalizations en = AppLocalizationsEn();
+    final AppLocalizations ko = AppLocalizationsKo();
+
+    test('kakao slug 단일 → Kakao 라벨 (en)', () {
       expect(
-        kSupportedAuthProviderIds,
-        equals(<String>{'password', 'google.com', 'apple.com', 'facebook.com'}),
+        formatProviderIds(const ['kakao'], en),
+        en.authAccountProviderKakao,
       );
+      expect(en.authAccountProviderKakao, 'Kakao');
+    });
+
+    test('kakao slug 단일 → 카카오 라벨 (ko)', () {
+      expect(
+        formatProviderIds(const ['kakao'], ko),
+        ko.authAccountProviderKakao,
+      );
+      expect(ko.authAccountProviderKakao, '카카오');
+    });
+
+    test(
+      'google.com + kakao 혼합 (Native URI + Custom Token slug 공존, D-16) → '
+      '"Google, Kakao" (en)',
+      () {
+        expect(
+          formatProviderIds(const ['google.com', 'kakao'], en),
+          '${en.authAccountProviderGoogle}, ${en.authAccountProviderKakao}',
+        );
+      },
+    );
+
+    test(
+      'kakao + password 혼합 → provider 순서 보존 + ", " 결합 (en)',
+      () {
+        expect(
+          formatProviderIds(const ['kakao', 'password'], en),
+          '${en.authAccountProviderKakao}, '
+          '${en.authAccountProviderEmailPassword}',
+        );
+      },
+    );
+
+    test(
+      'kakao slug 가 `_ => id` fallback 으로 빠지지 않음 — switch 매핑 회귀 가드',
+      () {
+        // raw 'kakao' 가 그대로 노출되면 D-17 매핑 누락. 매핑된 값과 raw slug 가
+        // 다름을 검증 (en 로케일에서 라벨 == 'Kakao' != 'kakao').
+        final formatted = formatProviderIds(const ['kakao'], en);
+        expect(formatted, isNot('kakao'));
+        expect(formatted, en.authAccountProviderKakao);
+      },
+    );
+  });
+
+  group('kSupportedAuthProviderIds 컨트랙트', () {
+    test(
+      'Phase 7~9 + Phase 12 (kakao) 기준 매핑 set 동등성 — Phase 13~16 신규 '
+      'provider 추가 시 본 테스트가 우선 깨져 단위 테스트/fixture 동시 갱신을 '
+      '강제한다',
+      () {
+        expect(
+          kSupportedAuthProviderIds,
+          equals(<String>{
+            'password',
+            'google.com',
+            'apple.com',
+            'facebook.com',
+            'kakao',
+          }),
+        );
+      },
+    );
+
+    test('kakao slug 가 set 의 5번째 원소로 등재', () {
+      expect(kSupportedAuthProviderIds.contains('kakao'), isTrue);
+      expect(kSupportedAuthProviderIds.length, 5);
     });
   });
 }
