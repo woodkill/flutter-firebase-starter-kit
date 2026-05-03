@@ -51,6 +51,8 @@ dependencies:
   sign_in_button: ^4.1.0
   cached_network_image: ^3.4.1
   flutter_facebook_auth: ^7.1.6
+  kakao_flutter_sdk_user: ^2.0.0+1
+  flutter_svg: ^2.2.4
   flutter_native_splash: ^2.4.7
   firebase_crashlytics: ^5.2.0
   firebase_analytics: ^12.3.0
@@ -101,6 +103,7 @@ flutter:
 
   assets:
     - assets/images/splash/
+    - assets/icons/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

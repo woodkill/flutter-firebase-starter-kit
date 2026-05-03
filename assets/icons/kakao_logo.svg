@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Phase 12 placeholder — 12-07 manual 단계에서 Kakao 공식 KakaoTalk 말풍선 SVG 로 교체 의무. -->
+<!-- 출처/라이센스: Kakao Developers Design Resources (https://developers.kakao.com/tool/resource/login) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
+  <path fill="#000000" d="M9 1.5C5.13 1.5 2 4.04 2 7.18c0 2.04 1.34 3.83 3.36 4.83-.15.5-.54 1.85-.62 2.13 0 0-.01.07.04.1.04.02.1.01.1.01.14-.02 1.65-1.08 2.3-1.54.6.09 1.21.14 1.82.14 3.87 0 7-2.54 7-5.67S12.87 1.5 9 1.5z"/>
+</svg>

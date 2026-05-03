@@ -90,36 +90,70 @@ void main() {
         );
       });
 
-      test('$flavor.json 의 D-19 기본값 (google/apple/facebook 활성, 나머지 비활성)',
-          () {
+      test(
+        '$flavor.json 의 기본값 (google/apple/facebook/kakao 활성, '
+        'naver/line/yahoo/wechat 비활성)',
+        () {
+          final raw = File('config/$flavor.json').readAsStringSync();
+          final json = jsonDecode(raw) as Map<String, dynamic>;
+          final csv = (json['enabledAuthProviders'] as String? ?? '');
+          final enabled = csv
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toSet();
+
+          // 활성: Google / Apple / Facebook (Phase 7~9) + Kakao (Phase 12 D-19).
+          expect(enabled.contains(kProviderIdGoogle), isTrue);
+          expect(enabled.contains(kProviderIdApple), isTrue);
+          expect(enabled.contains(kProviderIdFacebook), isTrue);
+          expect(enabled.contains(kProviderIdKakao), isTrue);
+
+          // 비활성: Phase 13~16 의 4 Custom Token.
+          for (final id in const <String>[
+            kProviderIdNaver,
+            kProviderIdLine,
+            kProviderIdYahooJp,
+            kProviderIdWeChat,
+          ]) {
+            expect(
+              enabled.contains(id),
+              isFalse,
+              reason: '$flavor.json: $id should be disabled (Phase 13-16)',
+            );
+          }
+        },
+      );
+    }
+  });
+
+  group('Phase 12 — kakaoNativeAppKey (D-20)', () {
+    test('AppConfig.kakaoNativeAppKey 는 dart-define 미주입 시 빈 문자열', () {
+      // 테스트 환경에서는 --dart-define-from-file 미적용 → 빈 문자열 default.
+      expect(AppConfig.kakaoNativeAppKey, isA<String>());
+      expect(AppConfig.kakaoNativeAppKey, isEmpty);
+    });
+
+    for (final flavor in const <String>['dev', 'stg', 'prod']) {
+      test('$flavor.json 에 kakaoNativeAppKey 키가 존재한다', () {
         final raw = File('config/$flavor.json').readAsStringSync();
         final json = jsonDecode(raw) as Map<String, dynamic>;
-        final csv = (json['enabledAuthProviders'] as String? ?? '');
-        final enabled = csv
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toSet();
-
-        // 활성: Google / Apple / Facebook.
-        expect(enabled.contains(kProviderIdGoogle), isTrue);
-        expect(enabled.contains(kProviderIdApple), isTrue);
-        expect(enabled.contains(kProviderIdFacebook), isTrue);
-
-        // 비활성: Phase 12~16 의 5 Custom Token.
-        for (final id in const <String>[
-          kProviderIdKakao,
-          kProviderIdNaver,
-          kProviderIdLine,
-          kProviderIdYahooJp,
-          kProviderIdWeChat,
-        ]) {
-          expect(
-            enabled.contains(id),
-            isFalse,
-            reason: '$flavor.json: $id should be disabled (Phase 12-16)',
-          );
-        }
+        expect(
+          json.containsKey('kakaoNativeAppKey'),
+          isTrue,
+          reason: '$flavor.json missing kakaoNativeAppKey',
+        );
+        expect(
+          json['kakaoNativeAppKey'],
+          isA<String>(),
+          reason: '$flavor.json: kakaoNativeAppKey must be String',
+        );
+        // placeholder 또는 실 키 — 빈 문자열은 D-20 에서 silent fallback 회피.
+        expect(
+          (json['kakaoNativeAppKey'] as String).isNotEmpty,
+          isTrue,
+          reason: '$flavor.json: kakaoNativeAppKey 가 빈 문자열이면 silent failure',
+        );
       });
     }
   });

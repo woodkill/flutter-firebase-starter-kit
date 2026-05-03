@@ -6,7 +6,8 @@
   "googleServerClientId": "your-google-server-client-id-stg",
   "facebookAppId": "YOUR_FACEBOOK_APP_ID",
   "facebookClientToken": "YOUR_FACEBOOK_CLIENT_TOKEN",
+  "kakaoNativeAppKey": "REPLACE_WITH_STG_NATIVE_APP_KEY",
   "splashMinDurationMs": 2000,
 
-  "enabledAuthProviders": "google,apple,facebook"
+  "enabledAuthProviders": "google,apple,facebook,kakao"
 }

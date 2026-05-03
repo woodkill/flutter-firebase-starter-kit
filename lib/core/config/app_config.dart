@@ -49,6 +49,20 @@ abstract final class AppConfig {
   /// 결정한다.
   static bool get isDev => flavor == 'dev';
 
+  /// Kakao 네이티브 앱 키 (Phase 12 D-20).
+  ///
+  /// `--dart-define-from-file=config/{flavor}.json` 의 `kakaoNativeAppKey`
+  /// 키를 컴파일 타임 상수로 읽는다. 미주입 시 빈 문자열 — silent fallback
+  /// 회피 (Phase 11-04 WR-07 hotfix 패턴). Kakao SDK 초기화는 빈 문자열
+  /// 시 PlatformException 으로 즉시 발견 가능 (silent failure 아님).
+  ///
+  /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
+  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Kakao 단락 참조.
+  static const String kakaoNativeAppKey = String.fromEnvironment(
+    'kakaoNativeAppKey',
+    defaultValue: '',
+  );
+
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///
   /// 예: `'google,apple,facebook'`. 공백 / 빈 토큰은 무시한다. dart-define
