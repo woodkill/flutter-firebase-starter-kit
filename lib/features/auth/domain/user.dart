@@ -8,6 +8,18 @@ part 'user.g.dart';
 /// Firebase Auth 사용자 정보를 앱 도메인 모델로 변환한 불변 객체.
 /// Phase 6(Email Auth)부터 실제 사용된다.
 ///
+/// **providerIds 의미 변경 (Phase 12 D-15 / D-16):**
+/// - Phase 6~9: Firebase `providerData[].providerId` 만 (`'google.com'` /
+///   `'apple.com'` / `'facebook.com'` / `'password'` — OAuth URI 형식).
+/// - Phase 12+: Firebase `providerData[].providerId` ∪ Firestore
+///   `users/{uid}.linkedProviders[].providerId` (Custom Token slug —
+///   `'kakao'` 등) 합집합 (Set 기반 중복 제거).
+/// - 매핑 책임: `lib/features/home/presentation/provider_label_formatter.dart`
+///   의 `formatProviderIds` 헬퍼가 slug + URI 양 형식을 모두 인식한다.
+///
+/// 합집합 로직은 `currentUserProvider` (auth_repository.dart) 가 수행하며,
+/// User 모델 자체는 단순 데이터 보유자로 유지된다 (Freezed 정의 변경 없음).
+///
 /// [copyWith], [==], [toJson], [fromJson]은 Freezed + json_serializable이
 /// 자동 생성한다.
 @freezed
