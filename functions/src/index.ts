@@ -33,3 +33,6 @@ export const ping = onCall((request) => {
     serverTime: new Date().toISOString(),
   };
 });
+
+// Phase 12 D-06 — Kakao OIDC ID Token → Firebase Custom Token.
+export {kakaoCustomToken} from "./auth/kakao_custom_token";
