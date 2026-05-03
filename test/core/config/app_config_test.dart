@@ -24,6 +24,17 @@ void main() {
       final mapFromProvider = container.read(staticAuthProvidersProvider);
       expect(mapFromProvider, AppConfig.authProviders);
     });
+
+    test('AppConfig.authProviders 키 셋이 kAllProviderIds 와 정합한다 (T-11-CONST-01)',
+        () {
+      // 회귀 가드 (Phase 11-04 hotfix): `bool.fromEnvironment` 의 키는
+      // 컴파일 타임 상수여야 하므로 8 entry 를 명시 const 리터럴로 풀었다.
+      // 동적 for-comprehension 으로 키 일치를 자동 보장 못 하니 본 테스트가
+      // `kAllProviderIds` 와의 동기화를 강제한다 — 새 provider 추가 시
+      // [AppConfig.authProviders] 에 반드시 entry 추가.
+      expect(AppConfig.authProviders.keys.toSet(), kAllProviderIds.toSet());
+      expect(AppConfig.authProviders.length, kAllProviderIds.length);
+    });
   });
 
   group('config JSON 무결성 (D-19, Pitfall 2)', () {
