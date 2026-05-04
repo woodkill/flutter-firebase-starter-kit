@@ -1,0 +1,4 @@
+#!/bin/bash
+# Phase 12.1 R8.2 — git pre-commit hook wrapper.
+# 활성화: docs/manual.md "## Git Hooks 활성화 (선택)" 참조.
+exec ./scripts/check_phase_refs.sh
