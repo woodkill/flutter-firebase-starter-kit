@@ -1,6 +1,6 @@
 import functionsTest from "firebase-functions-test";
 import * as logger from "firebase-functions/logger";
-import {HttpsError} from "firebase-functions/https";
+import {CallableRequest, HttpsError} from "firebase-functions/https";
 
 // firebase-functions/logger 의 export 는 read-only 라 jest.spyOn 가 동작하지 않는다.
 // 모듈 자체를 mock 해 mock fn 으로 대체 (BL-02 hotfix).
@@ -43,7 +43,7 @@ describe("ping onCall", () => {
     const result = await wrapped({
       auth: {uid: "test-user-123"},
       data: {},
-    } as any);
+    } as unknown as CallableRequest);
 
     // 1. 응답 셰이프 — region 잠금 + ISO timestamp
     const typed = result as {ok: boolean; region: string; serverTime: string};
@@ -71,7 +71,7 @@ describe("ping onCall", () => {
   it("unauthenticated: HttpsError + ping_unauthenticated warn", async () => {
     const wrapped = testEnv.wrap(myFunctions.ping);
     await expect(
-      wrapped({data: {}} as any),
+      wrapped({data: {}} as unknown as CallableRequest),
     ).rejects.toBeInstanceOf(HttpsError);
 
     // BL-02: 미인증 분기는 warn 만 호출되고 info 는 호출되지 않아야 함.

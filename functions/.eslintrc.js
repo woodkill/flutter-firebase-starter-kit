@@ -18,6 +18,7 @@ module.exports = {
     "/lib/**/*",
     "/generated/**/*",
     "jest.config.js",
+    ".eslintrc.js",
   ],
   plugins: [
     "@typescript-eslint",
