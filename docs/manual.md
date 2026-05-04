@@ -610,12 +610,54 @@ merge 하는 두 가지 옵션 중 선택.
 
 ---
 
+## Git Hooks 활성화 (선택)
+
+starter-kit 의 `scripts/check_phase_refs.sh` 는 코드 주석의 `Phase NN`
+참조와 `TODO` 주석을 진실원 (`ROADMAP.md` 의 active phase 또는
+`.planning/todos/pending/<file>.md` ad-hoc todo) 과 양방향 검증한다.
+
+production 진입 시 deferred 항목 추적에 유용. starter-kit 단순성을 위해
+CI 별도 도입 없이 git pre-commit hook 으로만 강제 (필수 아님 — D-39).
+
+활성화 (clone 직후 1회):
+
+```bash
+# scripts/git-hooks/pre-commit 을 .git/hooks/pre-commit 으로 symlink.
+# .git/hooks/ 디렉토리 자체는 git tracked 불가 — scripts/git-hooks/pre-commit
+# 만 tracked 상태로 두고 symlink 로 활성화한다.
+ln -s ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+이후 commit 시점에 자동 lint. mismatch 시 commit 차단 + 차이 요약 출력.
+
+수동 실행 (활성화 없이 1회 검증):
+
+```bash
+bash scripts/check_phase_refs.sh
+```
+
+비활성화: `rm .git/hooks/pre-commit`.
+
+검증 규칙 요약:
+
+| TODO / Phase 참조 | Pass / Fail |
+|-------------------|-------------|
+| `// TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/...md)` | PASS (todo 파일 인용) |
+| `// Phase 17 — see ROADMAP.md` | PASS (ROADMAP 인용) |
+| `// TODO(phase-08): ...` | FAIL (raw — 진실원 미명시) |
+| `// TODO: dedicated NotFoundScreen` | FAIL (raw — 진실원 미명시) |
+| `// Phase 99 — see ROADMAP.md` | FAIL (Phase 99 가 ROADMAP 미존재) |
+
+---
+
 ## 변경 이력
 
 | 일자 | Phase | 변경 |
 |------|-------|------|
 | 2026-05-03 | 12-07 | 신규 작성 — Kakao Login + Phase 13~16 stub + RC kill switch 통합 + Brand Asset 라이센스 + 회원탈퇴 TODO |
 | 2026-05-04 | 12.1 | Initial Setup 단락 신규 추가 — config 시크릿 분리 (BL-01 hotfix). config/{flavor}.json 을 .gitignore 처리하고 *.example.json placeholder 만 tracked. |
+| 2026-05-05 | 12.1-03 | Git Hooks 활성화 (선택) 단락 신규 추가 — `scripts/check_phase_refs.sh` 양방향 lint + git pre-commit hook (R8.2 / WR-08). |
 
 ---
 
