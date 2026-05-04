@@ -23,11 +23,101 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 
 ## 목차
 
+0. [Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통)
 1. [Kakao Login (Phase 12)](#kakao-login-phase-12)
 2. [Phase 13~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1316--custom-token-provider-추가-가이드-stub)
 3. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
 4. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
 5. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+
+---
+
+## Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)
+
+> **이 단락은 starter kit 을 fork / clone 한 직후 1회만 수행하는 사전 작업입니다.**
+> 이후의 Phase 별 단락 (Kakao Login, Cloud Functions 등) 은 모두 이 단락에서
+> 생성한 `config/{flavor}.json` 파일에 키를 주입하는 것을 전제로 합니다.
+
+### 왜 — 시크릿 분리 정책 (D-22 + memory `project_starter_kit_config_secrets`)
+
+Starter kit 의 `config/` 디렉토리는 dev / stg / prod 3 flavor 의 dart-define
+설정 파일 (Firebase 프로젝트 ID, Google / Facebook / Kakao 시크릿 등) 을
+관리합니다. 보안상 **실제 시크릿이 들어있는 `config/{flavor}.json` 은 git 에
+commit 하지 않고**, placeholder 만 담은 `config/{flavor}.example.json` 만 tracked
+파일로 유지합니다.
+
+- `.gitignore` 에 `config/*.json` 패턴 + `!config/*.example.json` negation
+  으로 자동 분리. 즉 `config/*.json 은 fork 사용자가 본인 키로 채워넣는 로컬
+  전용 파일` 이고, `*.example.json` 만 git tracked.
+- Fork 사용자는 본인 환경에서 `*.example.json` → `*.json` 으로 복사 후 본인
+  키를 직접 입력. 이 파일은 commit 되지 않음.
+- 기존 빌드 명령
+  (`fvm flutter run --flavor=dev --dart-define-from-file=config/dev.json`) 은
+  변경 없이 동작.
+
+### 무엇을 — 3 단계 절차
+
+#### 1단계 — `*.example.json` 을 본인 로컬 `*.json` 으로 복사
+
+```bash
+cp config/dev.example.json   config/dev.json
+cp config/stg.example.json   config/stg.json
+cp config/prod.example.json  config/prod.json
+```
+
+> dev flavor 만 우선 사용한다면 `config/dev.json` 만 복사해도 됨. stg/prod 는
+> production 진입 시점에 별도 작업 (D-22 정책 — `project_firebase_dev_only`).
+
+#### 2단계 — 각 `config/{flavor}.json` 의 placeholder 를 본인 키로 교체
+
+`config/dev.json` 을 열고 다음 키들을 본인 환경 값으로 채웁니다.
+
+| 키 | 값 출처 | 비고 |
+|----|---------|------|
+| `firebaseProjectId` | Firebase Console > 프로젝트 설정 > General | 본인 dev 프로젝트 ID |
+| `googleServerClientId` | Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client IDs > Web application | `flutterfire configure` 로 생성된 Firebase OAuth Web Client ID. iOS/Android 가 아닌 **Web** 용을 사용 (Phase 7 — Google Sign-In 정책) |
+| `facebookAppId` | Facebook Developers Console > 내 앱 > 설정 > 기본 | 숫자 문자열 |
+| `facebookClientToken` | Facebook Developers Console > 내 앱 > 설정 > 고급 > Client Token | |
+| `kakaoNativeAppKey` | Kakao Developers Console > 내 애플리케이션 > 앱 설정 > 앱 키 > **네이티브 앱 키** | REST API 키 아님 (1번 단락 — Kakao Login 1단계 #6 OIDC 활성화 함께 참조) |
+| `appName` | (선택) 앱 표시 이름 — `StarterKit Dev` 기본값 | flavor 별 구분 |
+| `appSuffix` | (선택) ApplicationId / BundleId suffix — `.dev` 기본값 | `flutter_native_splash` / Firebase 프로젝트 분리 |
+| `splashMinDurationMs` | (선택) 스플래시 최소 노출 시간 — `2000` 기본값 | UX 조정용 |
+| `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao` 기본값 | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 |
+
+> 각 키의 콘솔 등록 절차 (앱 생성, redirect URI, 키 해시 등) 는 본 매뉴얼의
+> Phase 별 단락 (Phase 12 = Kakao, 추후 Phase 13~16 = Naver / LINE / Yahoo!JP /
+> WeChat) 을 참조.
+
+#### 3단계 — iOS xcconfig 별도 주입 (Kakao 만)
+
+Kakao SDK 는 iOS 에서 `Info.plist` 의 URL Scheme + Native App Key 를 빌드
+타임에 주입받습니다. `ios/Flutter/dev.xcconfig` 의 `KAKAO_NATIVE_APP_KEY`
+라인을 본인 값으로 갱신:
+
+```
+KAKAO_NATIVE_APP_KEY=여기에_네이티브_앱_키_붙여넣기
+```
+
+(따옴표 없이 = 뒤에 값만. Phase 12-01 산출. stg/prod 는 동일 패턴으로
+`stg.xcconfig` / `prod.xcconfig`.)
+
+> `xcconfig` 파일은 현재 starter kit 에서 git tracked 입니다 (값은
+> placeholder). 본인 키로 덮어쓴 뒤 commit 하지 않도록 주의 — 향후 phase 에서
+> xcconfig 도 `.example` 패턴으로 분리 예정 (Phase 13+ 흡수 검토).
+
+### 흔한 실수
+
+- **`config/dev.json` 을 `git add` 하려는 시도** — `.gitignore` 가 차단해도
+  `git add -f config/dev.json` 으로 강제 추가 가능. 절대 강제 추가 금지.
+  `git status --ignored config/` 로 항상 ignored 상태 확인.
+- **`config/dev.example.json` 에 본인 키를 입력** — example 파일은 placeholder
+  유지. 본인 키는 반드시 `config/dev.json` (untracked) 에만.
+- **빌드 명령 변경 시도** — `--dart-define-from-file=config/dev.json` 그대로
+  유지. `*.example.json` 으로 빌드하면 SDK 초기화 단계에서 "Invalid app key"
+  에러 (Kakao / Facebook) 또는 Firebase 프로젝트 매칭 실패.
+- **placeholder 그대로 빌드 후 "왜 로그인 안 되지" 디버깅** — Kakao Login
+  1단계 #6 OIDC 활성화 누락 (Pitfall 1) 보다 흔한 trivial 실수. 빌드 전
+  `cat config/dev.json` 으로 placeholder 가 모두 교체됐는지 1차 확인.
 
 ---
 
@@ -510,6 +600,7 @@ merge 하는 두 가지 옵션 중 선택.
 | 일자 | Phase | 변경 |
 |------|-------|------|
 | 2026-05-03 | 12-07 | 신규 작성 — Kakao Login + Phase 13~16 stub + RC kill switch 통합 + Brand Asset 라이센스 + 회원탈퇴 TODO |
+| 2026-05-04 | 12.1 | Initial Setup 단락 신규 추가 — config 시크릿 분리 (BL-01 hotfix). config/{flavor}.json 을 .gitignore 처리하고 *.example.json placeholder 만 tracked. |
 
 ---
 
