@@ -3,16 +3,16 @@ rules_version = '2';
 // ============================================================================
 // Phase 12 Plan 06 — 임시 Firestore Security Rules (D-14).
 // ----------------------------------------------------------------------------
-// Phase 18 정식 ruleset 도입 전까지의 최소 보호 ruleset.
+// Phase 18 — see ROADMAP.md (정식 ruleset 도입 전까지의 최소 보호 ruleset).
 //
 // 보호 정책:
 // - identity_index: 클라이언트 read/write 전면 차단. Cloud Function (Admin
 //   SDK) 만 접근. Phase 12 D-14 / 12-02 Identity Index lookup-first.
-// - users/{uid}: 자기 자신만 read/write 임시 허용 (Phase 18 일반화 대기).
+// - users/{uid}: 자기 자신만 read/write 임시 허용 (Phase 18 — see ROADMAP.md, 일반화 대기).
 //   Plan 10-09 termsProvider stream + Plan 10-12 mirrorToFirestore +
 //   12-02 Cloud Function set-merge 가 동일 ruleset 안에서 동작.
 //
-// **TODO (Phase 18):** users/{uid} 정식 ruleset 일반화 시 본 임시 규칙
+// **TODO: Phase 18 일반화 (see ROADMAP.md):** users/{uid} 정식 ruleset 일반화 시 본 임시 규칙
 // cleanup. 회원탈퇴용 self-delete + 필드 단위 보호 (linkedProviders 는
 // Cloud Function 만 write 등) 도입 검토.
 // ============================================================================
@@ -32,7 +32,7 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------------
-    // users 컬렉션 — Phase 12 임시 ruleset (Phase 18 일반화 대기).
+    // users 컬렉션 — Phase 12 임시 ruleset (Phase 18 — see ROADMAP.md, 일반화 대기).
     // ------------------------------------------------------------------------
     // 자기 자신 (request.auth.uid == userId) 만 read / write 허용 — 다른
     // 사용자의 linkedProviders 변조 (T-12-06-02) 차단.

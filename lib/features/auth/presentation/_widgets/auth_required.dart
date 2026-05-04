@@ -27,7 +27,7 @@ import 'login_prompt_sheet.dart';
 /// [child] 의 `onPressed` 는 null 로 두는 것이 컨벤션이다. 내부 탭 이벤트는
 /// [AbsorbPointer] 가 흡수하고 외부 [GestureDetector] 가 가로챈다.
 /// 이는 T-10-15 (AuthRequired 우회 시도) 방어의 1차 방어선이며, 서버 측
-/// Firestore Security Rules (Phase 18) 이 이중 방어로 보강한다.
+/// Firestore Security Rules (Phase 18 — see ROADMAP.md) 이 이중 방어로 보강한다.
 class AuthRequired extends ConsumerWidget {
   /// [AuthRequired] 를 생성한다.
   const AuthRequired({

@@ -28,7 +28,7 @@ class ThemeNotifier extends _$ThemeNotifier {
       }
       return ThemeMode.values[index];
     } on Exception catch (e, st) {
-      // TODO(phase-08): FirebaseCrashlytics.recordError(e, st, reason: 'theme_load')
+      // TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/2026-05-04-phase08-crashlytics-recordError.md)
       debugPrint('theme_load failed: $e\n$st');
       return ThemeMode.system;
     }
@@ -58,7 +58,7 @@ class ThemeNotifier extends _$ThemeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_key, mode.index);
     } on Exception catch (e, st) {
-      // TODO(phase-08): FirebaseCrashlytics.recordError(e, st, reason: 'theme_save')
+      // TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/2026-05-04-phase08-crashlytics-recordError.md)
       debugPrint('theme_save failed: $e\n$st');
     }
   }

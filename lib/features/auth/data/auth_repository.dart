@@ -84,7 +84,7 @@ class AuthRepository {
   /// 시에는 익명 계정을 유지한 채 [EmailAlreadyInUse] Failure 를 반환한다
   /// (delete 하지 않음 — 사용자가 기존 이메일로 로그인하면 다시 정식 세션으로
   /// 전환됨). 다중 provider linking / 재승격 / 익명 데이터 마이그레이션은
-  /// Phase 17 범위.
+  /// Phase 17 (Account Linking) — see ROADMAP.md.
   Future<Result<User>> signUpWithEmail({
     required String email,
     required String password,
@@ -167,7 +167,8 @@ class AuthRepository {
   /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
   /// [_safeDelete] 로 폐기하고 기존 Google 계정으로 [fb.FirebaseAuth.signInWithCredential]
   /// fallback. 익명 UID 로 작성된 Firestore 데이터는 손실 (Starter Kit D-09 —
-  /// 1회성 승격 패턴). 다중 provider linking 은 Phase 17.
+  /// 1회성 승격 패턴). 다중 provider linking 은 Phase 17 (Account Linking) —
+  /// see ROADMAP.md.
   ///
   /// **Phase 9.1 D-03 / D-04:** 메서드 body 전체를 try-finally 로 감싸
   /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
@@ -509,7 +510,7 @@ class AuthRepository {
   ///
   /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
   /// 이 UID 는 [fb.User.linkWithCredential] 로 정식 계정에 연결하면 승격된다
-  /// (Phase 17 Account Linking 예정).
+  /// (Phase 17 (Account Linking) — see ROADMAP.md).
   ///
   /// 에러 매핑:
   /// - `operation-not-allowed` → [ServiceUnavailable]

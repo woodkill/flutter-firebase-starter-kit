@@ -8,8 +8,8 @@ import 'package:flutter/foundation.dart';
 /// 프로젝트에서 조정하려면 `config/{flavor}.json`의 값을 변경 후 앱 재빌드.
 ///
 /// **Design note:** `int.fromEnvironment`는 컴파일 타임 상수이므로
-/// runtime 변경 불가. 런타임 조정이 필요하면 Remote Config(Phase 18)로
-/// 승격 대상.
+/// runtime 변경 불가. 런타임 조정이 필요하면 Remote Config(Phase 18 —
+/// see ROADMAP.md)로 승격 대상.
 abstract final class SplashConfig {
   const SplashConfig._();
 

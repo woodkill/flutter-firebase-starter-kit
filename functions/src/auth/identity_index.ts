@@ -6,8 +6,8 @@ import {Firestore, FieldValue} from "firebase-admin/firestore";
  *
  * `identity_index/{provider}:{providerUserId}` 단일 문서 ID. Phase 12 가 첫
  * 등록자 (Kakao). Phase 13~16 (Naver/LINE/Yahoo!JP/WeChat) + Phase 17
- * (Native 4 provider 회고적 등록) 모두 동일 컬렉션 공유. 키 형식 변경은
- * 데이터 마이그레이션 의무 발생.
+ * (Account Linking — Native 4 provider 회고적 등록) — see ROADMAP.md, 모두
+ * 동일 컬렉션 공유. 키 형식 변경은 데이터 마이그레이션 의무 발생.
  *
  * @param {string} provider provider 슬러그 (예: "kakao").
  * @param {string} providerUserId IdP 가 발급한 사용자 식별자
@@ -53,8 +53,9 @@ export type IdentityResolution = {
  * **race window 분석 (preCreatedUid 패턴, Pitfall 4):** 동시 호출자 2명이
  * 같은 providerUserId 로 진입 시 createUser 가 2회 호출될 수 있다 (둘 다
  * 비-tx read 시점에 미존재 관측). transaction first-write-wins 가 두 uid
- * 중 하나만 채택, 다른 uid 는 orphan 사용자 로 남는다. Phase 17 cleanup
- * TODO — periodic sweep 또는 onAuthCreate 트리거 검사.
+ * 중 하나만 채택, 다른 uid 는 orphan 사용자 로 남는다. 본 helper 가 post-tx
+ * best-effort cleanup 처리 (Phase 12.1 R2 — see ROADMAP.md). race-loser 가
+ * cleanup 실패 시에도 다음 race 호출에서 재시도 가능 (idempotent).
  *
  * @param {Firestore} db Firestore Admin 인스턴스.
  * @param {{provider: string, providerUserId: string,
