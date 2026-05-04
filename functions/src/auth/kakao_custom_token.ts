@@ -9,8 +9,8 @@ import {KAKAO_ISSUER, KAKAO_JWKS} from "../shared/kakao_jwks";
 import {resolveIdentity} from "./identity_index";
 
 // Phase 11 D-05 — Secret Manager 주입.
-// 배포 전 의무: `firebase functions:secrets:set KAKAO_REST_API_KEY`.
-const KAKAO_REST_API_KEY = defineSecret("KAKAO_REST_API_KEY");
+// 배포 전 의무: `firebase functions:secrets:set KAKAO_NATIVE_APP_KEY`.
+const KAKAO_NATIVE_APP_KEY = defineSecret("KAKAO_NATIVE_APP_KEY");
 
 type KakaoCustomTokenRequest = {idToken: string; nonce: string};
 type KakaoCustomTokenResponse = {
@@ -49,7 +49,7 @@ type KakaoCustomTokenResponse = {
 export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
   {
     enforceAppCheck: true,
-    secrets: [KAKAO_REST_API_KEY],
+    secrets: [KAKAO_NATIVE_APP_KEY],
   },
   async (request): Promise<KakaoCustomTokenResponse> => {
     const data = request.data ?? ({} as KakaoCustomTokenRequest);
@@ -65,7 +65,7 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     try {
       const verified = await jwtVerify(idToken, KAKAO_JWKS, {
         issuer: KAKAO_ISSUER,
-        audience: KAKAO_REST_API_KEY.value(),
+        audience: KAKAO_NATIVE_APP_KEY.value(),
         algorithms: ["RS256"],
       });
       const payload = verified.payload as {
