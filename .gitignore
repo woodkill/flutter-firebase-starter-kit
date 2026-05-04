@@ -75,6 +75,12 @@ env/
 *.env
 .env.*
 
+# Flavor 설정 파일 (실제 시크릿 포함, 로컬 전용 — *.example.json 만 tracked)
+# config/dev.json, config/stg.json, config/prod.json 은 fork 사용자가 본인 키로
+# 채워넣는 로컬 파일. *.example.json 을 복사해서 사용 (docs/manual.md Initial Setup 참조).
+config/*.json
+!config/*.example.json
+
 # 키스토어 / 서명
 *.jks
 *.keystore

@@ -1,0 +1,12 @@
+{
+  "flavor": "dev",
+  "appName": "StarterKit Dev",
+  "appSuffix": ".dev",
+  "firebaseProjectId": "your-project-dev",
+  "googleServerClientId": "YOUR_GOOGLE_SERVER_CLIENT_ID_HERE",
+  "facebookAppId": "YOUR_FACEBOOK_APP_ID_HERE",
+  "facebookClientToken": "YOUR_FACEBOOK_CLIENT_TOKEN_HERE",
+  "kakaoNativeAppKey": "YOUR_KAKAO_NATIVE_APP_KEY_HERE",
+  "splashMinDurationMs": 2000,
+  "enabledAuthProviders": "google,apple,facebook,kakao"
+}
