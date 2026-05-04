@@ -90,6 +90,7 @@ import * as myFunctions from "../../src/index";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
+const errorMock = logger.error as unknown as jest.Mock;
 const jwtVerifyMock = jose.jwtVerify as unknown as jest.Mock;
 
 afterAll(() => testEnv.cleanup());
@@ -193,34 +194,14 @@ describe("kakaoCustomToken onCall", () => {
     expect(mockCreateUser).not.toHaveBeenCalled();
   });
 
-  it("기존 매핑 → 그 firebaseUid 재사용", async () => {
-    jwtVerifyMock.mockResolvedValue({
-      payload: {sub: "kakao-existing", nonce: "n"},
-    });
-    mockIdxGet.mockResolvedValue({exists: true});
-    mockTxGet.mockResolvedValue({
-      exists: true,
-      data: () => ({firebaseUid: "existing-uid-9"}),
-    });
-
-    const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
-    const result = (await wrapped({
-      auth: {uid: "anon-1"},
-      app: {appId: "test"},
-      data: {idToken: "FAKE", nonce: "n"},
-    } as never)) as {customToken: string; uid: string; isNewUser: boolean};
-
-    expect(result.uid).toBe("existing-uid-9");
-    expect(result.isNewUser).toBe(false);
-    expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-uid-9");
-  });
-
   it(
-    // eslint-disable-next-line max-len
-    "충돌 (request.auth.uid != identity_index.firebaseUid) → first-write-wins (D-12)",
+    "기존 매핑 + 미인증 호출자 → 그 firebaseUid 재사용 (정상 path, R3 conflictKind null)",
     async () => {
+      // R3 (Plan 12.1-06): callerUid 가 없으면 anonymous_existing_collision
+      // 분기 미진입 → conflictKind null → 정상 customToken 발급.
+      // 이 케이스가 "기존 매핑 정상 재사용" 의 진짜 시나리오 (재로그인 등).
       jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-conflict", nonce: "n"},
+        payload: {sub: "kakao-existing", nonce: "n"},
       });
       mockIdxGet.mockResolvedValue({exists: true});
       mockTxGet.mockResolvedValue({
@@ -230,14 +211,42 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const result = (await wrapped({
-        auth: {uid: "different-uid"},
+        // auth 없음 — 미인증 (재로그인) 호출.
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.uid).toBe("existing-uid-9");
+      expect(result.isNewUser).toBe(false);
+      expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-uid-9");
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "기존 매핑 + 동일 callerUid (재로그인) → 그 firebaseUid 재사용 (D-12, R3 conflictKind null)",
+    async () => {
+      // R3 (Plan 12.1-06): callerUid === existing.firebaseUid 면 충돌 아님 →
+      // conflictKind null → 정상 customToken 발급. 이 시나리오는 *재로그인* —
+      // 동일 사용자가 idle 후 재진입, 같은 UID 보존.
+      jwtVerifyMock.mockResolvedValue({
+        payload: {sub: "kakao-rerun", nonce: "n"},
+      });
+      mockIdxGet.mockResolvedValue({exists: true});
+      mockTxGet.mockResolvedValue({
+        exists: true,
+        data: () => ({firebaseUid: "existing-uid-9"}),
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const result = (await wrapped({
+        auth: {uid: "existing-uid-9"}, // 동일 UID (재로그인).
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "n"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
 
       // first-write-wins — identity_index 의 firebaseUid 가 우선.
       expect(result.uid).toBe("existing-uid-9");
-      expect(result.uid).not.toBe("different-uid");
       expect(result.isNewUser).toBe(false);
     },
   );
@@ -275,6 +284,177 @@ describe("kakaoCustomToken onCall", () => {
         expect(stringified).not.toContain("JWT_BODY");
         expect(stringified).not.toContain("kakao_account");
       }
+    },
+  );
+
+  // R3 (Plan 12.1-06 / BL-04 + WR-06) — D-32 caller throw responsibility.
+  // helper 가 conflictKind 로 detect → caller 가 try/catch + switch 로 안전한
+  // already-exists HttpsError 변환 (email enumeration 차단 + 사용자 recovery
+  // 가능). helper 의 unexpected throw 는 internal 매핑.
+  it(
+    // eslint-disable-next-line max-len
+    "R3: email collision (createUser auth/email-already-in-use) → already-exists HttpsError + logger.warn",
+    async () => {
+      jwtVerifyMock.mockResolvedValue({
+        payload: {
+          sub: "kakao-collision",
+          email: "collision@example.com",
+          nonce: "n",
+        },
+      });
+      // helper 의 idxRef.get() 가 미존재 + 미인증 → createUser 호출 → email
+      // collision rejection. helper 가 conflictKind: 'email_in_use' 반환,
+      // caller 가 already-exists throw.
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockCreateUser.mockRejectedValueOnce(
+        Object.assign(new Error("email exists"), {
+          code: "auth/email-already-in-use",
+        }),
+      );
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      // firebase-functions/https HttpsError — code 는 prefix 없는 형식
+      // ("already-exists"), message 는 두 번째 인자 그대로 (.message 속성).
+      const promise = wrapped({
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+      });
+      try {
+        await promise;
+      } catch (err: unknown) {
+        expect((err as HttpsError).code).toBe("already-exists");
+        expect((err as HttpsError).message).toBe(
+          "errorAccountExistsWithDifferentCredential",
+        );
+      }
+
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "kakao_email_collision"}),
+        expect.any(String),
+      );
+      // PII 회귀 — collision email 본문이 logger payload 에 미노출.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain("collision@example.com");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "R3: anonymous + existing kakao identity 충돌 → already-exists HttpsError + logger.warn",
+    async () => {
+      jwtVerifyMock.mockResolvedValue({
+        payload: {sub: "kakao-existing", nonce: "n"},
+      });
+      // 익명 사용자 'anon-A' 가 *기존* kakao identity 'existing-B' 로 로그인
+      // 시도 — helper 가 conflictKind: 'anonymous_existing_collision' 반환,
+      // caller 가 anonymous Firestore 데이터 보존 + already-exists throw.
+      mockIdxGet.mockResolvedValue({exists: true});
+      mockTxGet.mockResolvedValue({
+        exists: true,
+        data: () => ({firebaseUid: "existing-B"}),
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const promise = wrapped({
+        auth: {uid: "anon-A"},
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+      });
+      try {
+        await promise;
+      } catch (err: unknown) {
+        expect((err as HttpsError).message).toBe(
+          "errorAccountExistsWithDifferentCredential",
+        );
+      }
+
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "kakao_anonymous_conflict"}),
+        expect.any(String),
+      );
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "R3: helper unexpected throw → internal HttpsError + logger.error (event: identity_index_failed)",
+    async () => {
+      jwtVerifyMock.mockResolvedValue({
+        payload: {sub: "kakao-fail", nonce: "n"},
+      });
+      // helper 의 idxRef.get() 이 firestore 오류 throw — caller 가 catch 하여
+      // internal 로 매핑.
+      mockIdxGet.mockRejectedValueOnce(new Error("firestore unavailable"));
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const promise = wrapped({
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({code: "internal"});
+      try {
+        await promise;
+      } catch (err: unknown) {
+        expect((err as HttpsError).message).toBe("errorUnknown");
+      }
+
+      expect(errorMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "identity_index_failed"}),
+        expect.any(String),
+      );
+      // PII 회귀 — err.message ('firestore unavailable') 본문 미노출.
+      for (const args of errorMock.mock.calls) {
+        expect(JSON.stringify(args)).not.toContain("firestore unavailable");
+      }
+    },
+  );
+
+  it(
+    "R3: 정상 path (conflictKind null) → customToken 정상 발급 + throw 안 함",
+    async () => {
+      jwtVerifyMock.mockResolvedValue({
+        payload: {sub: "kakao-normal", nonce: "n"},
+      });
+      // 미인증 + 미등록 + createUser 정상 → conflictKind null → caller 가 throw
+      // 분기 미진입.
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const result = (await wrapped({
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.customToken).toBe("MOCK_CUSTOM_TOKEN");
+      expect(result.uid).toBe("new-uid-pre");
+      expect(result.isNewUser).toBe(true);
+      // R3 throw 분기에 미진입 — kakao_email_collision /
+      // kakao_anonymous_conflict warn 호출 0회.
+      const r3WarnCalls = warnMock.mock.calls.filter((args) => {
+        const ev = (args[0] as {event?: string})?.event;
+        return (
+          ev === "kakao_email_collision" ||
+          ev === "kakao_anonymous_conflict"
+        );
+      });
+      expect(r3WarnCalls.length).toBe(0);
     },
   );
 });
