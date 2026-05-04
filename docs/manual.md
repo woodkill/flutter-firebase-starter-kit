@@ -90,20 +90,35 @@ cp config/prod.example.json  config/prod.json
 
 #### 3단계 — iOS xcconfig 별도 주입 (Kakao 만)
 
-Kakao SDK 는 iOS 에서 `Info.plist` 의 URL Scheme + Native App Key 를 빌드
-타임에 주입받습니다. `ios/Flutter/dev.xcconfig` 의 `KAKAO_NATIVE_APP_KEY`
-라인을 본인 값으로 갱신:
+iOS 빌드는 `ios/Flutter/{flavor}.xcconfig` 파일을 통해 빌드 타임 변수
+(Bundle Identifier, Display Name, REVERSED_CLIENT_ID, Facebook 키, Kakao
+Native App Key 등) 를 주입합니다. 실제 시크릿이 포함되므로 `config/*.json`
+과 동일한 `.example` 패턴으로 분리되어 있습니다 (Phase 12.1 R1 — D-36).
 
+Initial Setup 절차 (clone 직후 1회):
+
+```bash
+cp ios/Flutter/dev.example.xcconfig   ios/Flutter/dev.xcconfig
+cp ios/Flutter/stg.example.xcconfig   ios/Flutter/stg.xcconfig
+cp ios/Flutter/prod.example.xcconfig  ios/Flutter/prod.xcconfig
 ```
-KAKAO_NATIVE_APP_KEY=여기에_네이티브_앱_키_붙여넣기
-```
 
-(따옴표 없이 = 뒤에 값만. Phase 12-01 산출. stg/prod 는 동일 패턴으로
-`stg.xcconfig` / `prod.xcconfig`.)
+각 파일을 열어 placeholder 를 본인 값으로 교체합니다:
 
-> `xcconfig` 파일은 현재 starter kit 에서 git tracked 입니다 (값은
-> placeholder). 본인 키로 덮어쓴 뒤 commit 하지 않도록 주의 — 향후 phase 에서
-> xcconfig 도 `.example` 패턴으로 분리 예정 (Phase 13+ 흡수 검토).
+- `KAKAO_NATIVE_APP_KEY` — Kakao Developers Console > 내 애플리케이션 > 앱 설정 >
+  앱 키 > **네이티브 앱 키** (본 매뉴얼 `## 1. Kakao Login` 단계 참조)
+- `REVERSED_CLIENT_ID` — `ios/Runner/GoogleService-Info.plist` 의 `REVERSED_CLIENT_ID`
+  값 (Phase 7 — Google Login. `flutterfire configure` 가 생성)
+- `FACEBOOK_APP_ID` — Facebook Developers Console > 내 앱 > 설정 > 기본 (숫자 문자열)
+- `FACEBOOK_CLIENT_TOKEN` — Facebook Developers Console > 내 앱 > 설정 > 고급 > Client Token
+
+`ios/Flutter/{dev,stg,prod}.xcconfig` 파일은 `.gitignored` 되어 있어 commit 되지
+않습니다 (`*.example.xcconfig` 만 tracked). 신규 키를 추가할 때는 `*.example.xcconfig`
+의 placeholder 도 함께 갱신하여 fork 사용자가 동일한 setup 절차로 시작할 수 있도록
+유지합니다.
+
+> 참고: `ios/Flutter/Debug-dev.xcconfig` 등 다른 xcconfig 파일은 본 분리 정책의
+> 영향을 받지 않습니다 (`.gitignore` 의 explicit 3 라인 패턴 — RESEARCH §R1 Landmine).
 
 ### 흔한 실수
 
