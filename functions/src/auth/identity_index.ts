@@ -67,9 +67,17 @@ export async function resolveIdentity(
     provider: string;
     providerUserId: string;
     callerUid: string | undefined;
+    /**
+     * IdP 가 ID Token 으로 제공한 사용자 정보 (옵션).
+     *
+     * Kakao 일반 앱: email 동의항목 disable 이라 보통 undefined.
+     * Kakao 비즈 앱 + email 필수 동의: ID Token 의 email claim 으로부터 채워짐.
+     * Phase 13~16 의 다른 provider 도 동일 매개변수 사용.
+     */
+    userInfo?: {email?: string};
   },
 ): Promise<IdentityResolution> {
-  const {provider, providerUserId, callerUid} = args;
+  const {provider, providerUserId, callerUid, userInfo} = args;
   const idxRef = db
     .collection("identity_index")
     .doc(identityIndexDocId(provider, providerUserId));
@@ -77,10 +85,26 @@ export async function resolveIdentity(
 
   // Step 1: 비-tx read — Pitfall 4 (transaction retry 시 createUser 다중호출)
   // 회피. 미존재 + 미인증 → createUser 1회 사전 호출.
+  //
+  // emailVerified: true — OAuth Custom Token 사용자는 외부 IdP (Kakao 등) 가
+  // 인증을 책임지므로 verified 상태로 간주. 이게 없으면 Firebase Auth 의
+  // default emailVerified=false 가 client-side router 의 verify-email
+  // 분기를 트리거 (Phase 12-04 retroactive gap closure). 본 starter kit 의
+  // 모든 OAuth Custom Token provider (Phase 13~16) 에 동일 패턴 적용.
+  //
+  // email 매개변수 — userInfo.email 이 제공되면 Firebase Auth user.email
+  // 에 저장. starter kit 의 dev 단계 (일반 앱) 는 카카오 동의항목에 이메일
+  // 비활성이라 undefined → email 미저장. 비즈 앱 전환 후 ID Token 에 email
+  // claim 포함 시 자동으로 user.email 에 저장됨. 동일 이메일로 기존 user
+  // 존재 시 createUser 가 `auth/email-already-in-use` throw — account
+  // linking 정책은 별도 phase (백로그).
   let preCreatedUid: string | null = null;
   const idxSnapPre = await idxRef.get();
   if (!idxSnapPre.exists && !callerUid) {
-    const created = await getAuth().createUser({});
+    const created = await getAuth().createUser({
+      emailVerified: true,
+      ...(userInfo?.email ? {email: userInfo.email} : {}),
+    });
     preCreatedUid = created.uid;
   }
 

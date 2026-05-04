@@ -1,8 +1,15 @@
+import {initializeApp} from "firebase-admin/app";
 import {setGlobalOptions} from "firebase-functions";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
 import {REGION} from "./shared/region";
+
+// Firebase Admin SDK 초기화 (Phase 12 D-06 retroactive gap closure -- Firestore /
+// Auth 접근 전제). 모듈 로드 시점 1회 호출. kakaoCustomToken 이 getFirestore() /
+// admin.auth().createCustomToken() 호출 전 default app 인스턴스 보장. Phase 11
+// ping 은 admin 미사용이라 누락이 드러나지 않았던 gap 의 retroactive 보완.
+initializeApp();
 
 // 전역 region + 비용 가드 (D-04, Pitfall 3 — region 변경 불가).
 setGlobalOptions({

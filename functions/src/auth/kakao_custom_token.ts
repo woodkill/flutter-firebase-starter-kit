@@ -61,13 +61,20 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
 
     // Step 1: ID Token JWT 자체 검증.
     let kakaoUserId: string | undefined;
+    let kakaoEmail: string | undefined;
     try {
       const verified = await jwtVerify(idToken, KAKAO_JWKS, {
         issuer: KAKAO_ISSUER,
         audience: KAKAO_REST_API_KEY.value(),
         algorithms: ["RS256"],
       });
-      const payload = verified.payload as {sub?: string; nonce?: string};
+      const payload = verified.payload as {
+        sub?: string;
+        nonce?: string;
+        // OIDC 표준 claim — 비즈 앱 + 카카오계정(이메일) 필수 동의 시 포함.
+        // 일반 앱 또는 사용자 미동의 시 undefined.
+        email?: string;
+      };
       // jose 6.x JWTClaimVerificationOptions 에 nonce 옵션 부재 → fallback
       // 직접 비교 (Pitfall 2 — replay attack 방어).
       const claimNonce = payload.nonce;
@@ -80,6 +87,7 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         );
       }
       kakaoUserId = payload.sub;
+      kakaoEmail = payload.email;
     } catch (err: unknown) {
       // Pitfall 1 / 7 — err.message 도 본문이 PII 가능성 있음. event 만 logger.
       logger.warn(
@@ -101,6 +109,9 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
       provider: "kakao",
       providerUserId: kakaoUserId,
       callerUid,
+      // 비즈 앱 + 카카오계정(이메일) 필수 동의 시 ID Token 의 email claim 을
+      // Firebase Auth user.email 로 저장. 일반 앱 (현재 dev) 은 undefined.
+      userInfo: kakaoEmail ? {email: kakaoEmail} : undefined,
     });
 
     // Step 3: Custom Token 발급 (admin SDK — 1h 만료).
