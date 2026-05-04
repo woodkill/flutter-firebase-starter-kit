@@ -294,4 +294,129 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
       }
     },
   );
+
+  // R3 (Plan 12.1-06 / BL-04 + WR-06) — D-32 helper detect, caller throw.
+  // helper 는 conflictKind 를 detect 만 하고, HttpsError 변환 책임은 caller.
+  it(
+    "R3: anonymous + existing kakao identity 충돌 → conflictKind 'anonymous_existing_collision'",
+    async () => {
+      // 시나리오: 익명 사용자 'anon-A' 가 *기존* kakao identity 'existing-B' 로
+      // 로그인 시도. helper 는 first-write-wins 로 'existing-B' 반환하지만
+      // conflictKind 로 충돌 사실을 caller 에 전달 → caller 가 anonymous
+      // 데이터 보존 후 already-exists throw (Phase 17 가 자동 마이그레이션).
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "existing-B"},
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-456",
+        callerUid: "anon-A",
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({
+        uid: "existing-B",
+        isNewUser: false,
+        conflictKind: "anonymous_existing_collision",
+      });
+    },
+  );
+
+  it(
+    "R3: createUser email collision detect → conflictKind 'email_in_use' (caller throw)",
+    async () => {
+      // 비-tx read 시점에 idx 미존재 + 미인증 → createUser 호출.
+      // createUser 가 'auth/email-already-in-use' throw → helper 가 detect.
+      mockCreateUser.mockRejectedValueOnce(
+        Object.assign(new Error("email exists"), {
+          code: "auth/email-already-in-use",
+        }),
+      );
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-789",
+        callerUid: undefined,
+        userInfo: {email: "test@example.com"},
+      });
+
+      // helper 는 throw 하지 않음 — caller 가 conflictKind 로 already-exists 매핑.
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+      });
+    },
+  );
+
+  it(
+    "R3: 정상 매핑 (충돌 없음) → conflictKind null",
+    async () => {
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "user-A"},
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-456",
+        callerUid: undefined,
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({
+        uid: "user-A",
+        isNewUser: false,
+        conflictKind: null,
+      });
+    },
+  );
+
+  it(
+    "R3: createUser 가 email-already-in-use 외 에러 throw 시 그대로 rethrow",
+    async () => {
+      // helper 는 'auth/email-already-in-use' 만 detect — 다른 에러는 caller
+      // 가 catch 하여 internal 매핑.
+      mockCreateUser.mockRejectedValueOnce(
+        Object.assign(new Error("internal"), {code: "auth/internal-error"}),
+      );
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await expect(
+        resolveIdentity(db, {
+          provider: "kakao",
+          providerUserId: "kakao-rethrow",
+          callerUid: undefined,
+          userInfo: {email: "rethrow@example.com"},
+        }),
+      ).rejects.toMatchObject({code: "auth/internal-error"});
+    },
+  );
+
+  it(
+    "R3: 미인증 + 미등록 + 정상 createUser 시 conflictKind null + isNewUser true",
+    async () => {
+      // 기존 Pitfall 4 회귀 케이스의 R3 변형 — conflictKind 필드 명시 검증.
+      mockCreateUser.mockResolvedValueOnce({uid: "new-uid-pre-r3"});
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-fresh",
+        callerUid: undefined,
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({
+        uid: "new-uid-pre-r3",
+        isNewUser: true,
+        conflictKind: null,
+      });
+    },
+  );
 });
