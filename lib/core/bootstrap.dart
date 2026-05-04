@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
@@ -51,6 +52,29 @@ Future<void> bootstrap() async {
         final isFirebaseInitialized = await initializeFirebase();
 
         if (isFirebaseInitialized) {
+          // App Check 활성화 (Phase 12 D-11, Pitfall 6 — Cloud Function abuse
+          // 방어). dev/debug 빌드는 debug provider, release 빌드는 Play
+          // Integrity (Android) / DeviceCheck (iOS). 활성화 실패는 무시 +
+          // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
+          //
+          // dev flavor 의 debug provider 첫 실행 시 logcat / Xcode console 에
+          // debug 토큰 출력 -- Firebase Console > App Check > 디버그 토큰 관리
+          // 에 등록 의무 (manual.md 5단계).
+          try {
+            await FirebaseAppCheck.instance.activate(
+              providerAndroid: kDebugMode
+                  ? const AndroidDebugProvider()
+                  : const AndroidPlayIntegrityProvider(),
+              providerApple: kDebugMode
+                  ? const AppleDebugProvider()
+                  : const AppleDeviceCheckProvider(),
+            );
+          } on Object catch (e, st) {
+            if (kDebugMode) {
+              debugPrint('FirebaseAppCheck.activate() 실패 (무시): $e\n$st');
+            }
+          }
+
           // 경로 2: Flutter framework 에러 -> Crashlytics
           FlutterError.onError =
               FirebaseCrashlytics.instance.recordFlutterFatalError;
