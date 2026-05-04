@@ -89,9 +89,19 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
       kakaoUserId = payload.sub;
       kakaoEmail = payload.email;
     } catch (err: unknown) {
-      // Pitfall 1 / 7 — err.message 도 본문이 PII 가능성 있음. event 만 logger.
+      // R5 (Plan 12.1-07 / WR-03, D-40) — jose 에러 code 비-PII 로깅.
+      // Pitfall 1 / 7 — err.message / err.payload / err.claim / err.reason
+      // 본문 절대 금지. err.code (jose 6.x stable public API) / err.name 만
+      // short fingerprint 로 노출 — 운영 시 JWKS 네트워크 / kid not found /
+      // clock skew / signature mismatch 등 분류 가능 (PII 안전 + 진단 가능).
+      let errCode = "unknown";
+      if (err instanceof joseErrors.JOSEError) {
+        errCode = err.code ?? err.name;
+      } else if (err instanceof Error) {
+        errCode = err.name;
+      }
       logger.warn(
-        {event: "kakao_jwt_verify_failed"},
+        {event: "kakao_jwt_verify_failed", code: errCode},
         "Kakao ID Token verification failed",
       );
       if (err instanceof joseErrors.JOSEError) {
