@@ -1,5 +1,6 @@
 import {getAuth} from "firebase-admin/auth";
 import {Firestore, FieldValue} from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 
 /**
  * Identity Index 컬렉션 키 형식 (Phase 12 D-09 — Phase 13~17 영구 고정).
@@ -110,7 +111,7 @@ export async function resolveIdentity(
   }
 
   // Step 2: race-safe transaction — first-write-wins (D-12, D-13).
-  return db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
     const idxSnap = await tx.get(idxRef);
     const now = FieldValue.serverTimestamp();
     if (idxSnap.exists) {
@@ -154,4 +155,36 @@ export async function resolveIdentity(
 
     return {uid: newUid, isNewUser: true};
   });
+
+  // Step 3 (R2 — D-31): post-tx best-effort orphan cleanup.
+  // transaction first-write-wins 결과 result.uid 가 preCreatedUid 와 다르면
+  // preCreatedUid 는 race-loser orphan Firebase Auth user. best-effort 로
+  // 삭제 — 실패해도 outer caller (kakaoCustomToken) 의 정상 path 차단 안 함.
+  // idempotent — 다음 race 호출에서 재시도 가능.
+  // **Pitfall 4 보존:** 본 블록은 db.runTransaction(...) 외부 — preCreatedUid
+  // scope (line 102) 도 transaction body 외부. cleanup 을 transaction body
+  // 안으로 절대 이동 금지 (retry 마다 deleteUser 다중호출 위험).
+  if (preCreatedUid && result.uid !== preCreatedUid) {
+    try {
+      await getAuth().deleteUser(preCreatedUid);
+    } catch (cleanupErr: unknown) {
+      // **Pitfall 7 보존:** err.message 는 본문이 PII 일 가능성 (e.g.
+      // 'user not found for uid abc...') — 절대 로깅 금지. err.code
+      // (firebase-admin standard) 또는 err.name 만 short fingerprint 노출.
+      const errCode =
+        cleanupErr instanceof Error ?
+          (cleanupErr as {code?: string}).code ?? cleanupErr.name :
+          "unknown";
+      logger.warn(
+        {
+          event: "identity_index_orphan_cleanup_failed",
+          uid: preCreatedUid,
+          code: errCode,
+        },
+        "orphan user cleanup failed",
+      );
+      // 의도적으로 재던지지 않음 — outer call 정상 반환 보장.
+    }
+  }
+  return result;
 }

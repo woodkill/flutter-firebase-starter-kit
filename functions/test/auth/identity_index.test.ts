@@ -224,12 +224,14 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
   });
 
   it(
-    "R2: race-loser orphan 시 deleteUser cleanup 호출 (preCreatedUid !== result.uid)",
+    "R2: race-loser orphan 시 deleteUser cleanup 호출 (uid mismatch)",
     async () => {
       // race window 시뮬레이션:
-      // - 비-tx read 시점: idx 미존재 (preExists: false) → createUser 1회 호출 → 'B' 받음.
-      // - transaction 내부 tx.get 시점: 다른 호출자가 먼저 commit 해서 idx 존재 (txExists: true)
-      //   → 기존 매핑 'A' 가 first-write-winner. 우리가 만든 'B' 는 race-loser orphan.
+      // - 비-tx read 시점: idx 미존재 (preExists: false) → createUser
+      //   1회 호출 → 'B' 받음.
+      // - transaction 내부 tx.get 시점: 다른 호출자가 먼저 commit 해서
+      //   idx 존재 (txExists: true) → 기존 매핑 'A' 가 first-write-winner.
+      //   우리가 만든 'B' 는 race-loser orphan.
       mockCreateUser.mockResolvedValueOnce({uid: "B"});
       const {db} = makeDb({
         preExists: false,
