@@ -6,8 +6,7 @@
   "googleServerClientId": "***REDACTED_GOOGLE_SERVER_CLIENT_ID***",
   "facebookAppId": "***REDACTED_FACEBOOK_APP_ID***",
   "facebookClientToken": "***REDACTED_FACEBOOK_CLIENT_TOKEN***",
-  "kakaoNativeAppKey": "REPLACE_WITH_DEV_NATIVE_APP_KEY",
+  "kakaoNativeAppKey": "***REDACTED_KAKAO_NATIVE_APP_KEY***",
   "splashMinDurationMs": 2000,
-
   "enabledAuthProviders": "google,apple,facebook,kakao"
 }
