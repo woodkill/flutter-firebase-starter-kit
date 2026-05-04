@@ -58,7 +58,7 @@ class LocaleNotifier extends _$LocaleNotifier {
         }
       }
     } on Exception catch (e, st) {
-      // TODO(phase-08): FirebaseCrashlytics.recordError(e, st, reason: 'locale_load')
+      // TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/2026-05-04-phase08-crashlytics-recordError.md)
       debugPrint('locale_load failed: $e\n$st');
     }
   }
@@ -74,7 +74,7 @@ class LocaleNotifier extends _$LocaleNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_key, locale.languageCode);
     } on Exception catch (e, st) {
-      // TODO(phase-08): FirebaseCrashlytics.recordError(e, st, reason: 'locale_save')
+      // TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/2026-05-04-phase08-crashlytics-recordError.md)
       debugPrint('locale_save failed: $e\n$st');
     }
   }
