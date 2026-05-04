@@ -22,10 +22,32 @@ export function identityIndexDocId(
   return `${provider}:${providerUserId}`;
 }
 
-/** Identity Index 조회 결과. */
+/**
+ * Identity Index 조회 결과.
+ *
+ * R3 (Phase 12.1-06 / BL-04 + WR-06, D-32) — `conflictKind` 필드 추가.
+ * helper 는 충돌을 *detect* 만 한다 (HttpsError throw 책임은 caller).
+ *
+ * - `null` — 정상 path (충돌 없음).
+ * - `'email_in_use'` — `createUser` 가 `auth/email-already-in-use` rejection.
+ *   Kakao ID Token 의 email 이 기존 Firebase Auth 사용자 (다른 provider 또는
+ *   email/password 로 가입한 사용자) 의 email 과 일치. caller 는 안전한
+ *   `already-exists` HttpsError 로 변환 (email enumeration 차단).
+ * - `'anonymous_existing_collision'` — 익명 사용자 (`callerUid` 가 anonymous
+ *   uid) 가 *기존* identity_index 매핑이 존재하는 provider 사용자로 로그인
+ *   시도. helper 는 first-write-wins 로 existing.firebaseUid 를 반환하지만,
+ *   caller 가 anonymous Firestore 데이터 손실 / UID hijack 위험을 인지하고
+ *   `already-exists` HttpsError throw (Phase 17 Account Linking 이 자동
+ *   마이그레이션 처리).
+ *
+ * D-33 (layering) — helper 가 `firebase-functions/https` import 미추가. caller
+ * 가 conflictKind 보고 정책 (throw / migrate / link) 자유롭게 선택. Phase
+ * 13~16 의 다른 provider 가 동일 helper 재사용 시 동일 conflictKind 자동 상속.
+ */
 export type IdentityResolution = {
   uid: string;
   isNewUser: boolean;
+  conflictKind: "email_in_use" | "anonymous_existing_collision" | null;
 };
 
 /**
@@ -103,11 +125,38 @@ export async function resolveIdentity(
   let preCreatedUid: string | null = null;
   const idxSnapPre = await idxRef.get();
   if (!idxSnapPre.exists && !callerUid) {
-    const created = await getAuth().createUser({
-      emailVerified: true,
-      ...(userInfo?.email ? {email: userInfo.email} : {}),
-    });
-    preCreatedUid = created.uid;
+    try {
+      const created = await getAuth().createUser({
+        emailVerified: true,
+        ...(userInfo?.email ? {email: userInfo.email} : {}),
+      });
+      preCreatedUid = created.uid;
+    } catch (err: unknown) {
+      // R3 (Phase 12.1-06 / BL-04, D-32) — email collision detect.
+      // Kakao 비즈 앱 + email 필수 동의 시 ID Token 의 email claim 이
+      // 기존 Firebase Auth user.email 과 일치하면 createUser 가
+      // `auth/email-already-in-use` throw. helper 는 conflictKind 로 *detect*
+      // 만 하고 caller 가 안전한 already-exists HttpsError 로 변환
+      // (email enumeration 차단 + 사용자 recovery 가능).
+      //
+      // **D-33** — `firebase-functions/https` import 미추가 — helper 는
+      // 도메인 layer (Firestore / firebase-admin) 만 의존. caller 가
+      // HTTP 응답 layer 책임.
+      if (
+        err instanceof Error &&
+        (err as {code?: string}).code === "auth/email-already-in-use"
+      ) {
+        return {
+          // caller 가 사용 안 함 — switch (conflictKind) 가 우선해서 throw.
+          uid: "",
+          isNewUser: false,
+          conflictKind: "email_in_use" as const,
+        };
+      }
+      // 그 외 에러 (e.g., 'auth/internal-error', network) 는 caller 가 catch
+      // 하여 internal 매핑.
+      throw err;
+    }
   }
 
   // Step 2: race-safe transaction — first-write-wins (D-12, D-13).
@@ -117,7 +166,24 @@ export async function resolveIdentity(
     if (idxSnap.exists) {
       const existing = idxSnap.data() as {firebaseUid: string};
       tx.update(idxRef, {lastSeenAt: now});
-      return {uid: existing.firebaseUid, isNewUser: false};
+      // R3 (Phase 12.1-06 / WR-06, D-32) — anonymous + existing kakao
+      // identity 충돌 detect. callerUid (익명 사용자 uid) 가 있고 existing
+      // identity 가 *다른* Firebase user 와 매핑 → first-write-wins 로
+      // existing.firebaseUid 반환은 유지하지만 conflictKind 로 caller 에
+      // 충돌 사실 전달. caller 는 anonymous 데이터 보존 후 already-exists
+      // throw — Phase 17 (Account Linking) 가 자동 마이그레이션 처리.
+      if (callerUid && existing.firebaseUid !== callerUid) {
+        return {
+          uid: existing.firebaseUid,
+          isNewUser: false,
+          conflictKind: "anonymous_existing_collision" as const,
+        };
+      }
+      return {
+        uid: existing.firebaseUid,
+        isNewUser: false,
+        conflictKind: null,
+      };
     }
 
     // 신규 등록 — uid 결정 우선순위: callerUid → preCreatedUid.
@@ -153,7 +219,7 @@ export async function resolveIdentity(
       {merge: true},
     );
 
-    return {uid: newUid, isNewUser: true};
+    return {uid: newUid, isNewUser: true, conflictKind: null};
   });
 
   // Step 3 (R2 — D-31): post-tx best-effort orphan cleanup.

@@ -298,6 +298,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
   // R3 (Plan 12.1-06 / BL-04 + WR-06) — D-32 helper detect, caller throw.
   // helper 는 conflictKind 를 detect 만 하고, HttpsError 변환 책임은 caller.
   it(
+    // eslint-disable-next-line max-len
     "R3: anonymous + existing kakao identity 충돌 → conflictKind 'anonymous_existing_collision'",
     async () => {
       // 시나리오: 익명 사용자 'anon-A' 가 *기존* kakao identity 'existing-B' 로
@@ -326,6 +327,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
   );
 
   it(
+    // eslint-disable-next-line max-len
     "R3: createUser email collision detect → conflictKind 'email_in_use' (caller throw)",
     async () => {
       // 비-tx read 시점에 idx 미존재 + 미인증 → createUser 호출.
