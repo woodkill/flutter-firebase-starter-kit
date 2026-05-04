@@ -457,4 +457,111 @@ describe("kakaoCustomToken onCall", () => {
       expect(r3WarnCalls.length).toBe(0);
     },
   );
+
+  // R5 (Plan 12.1-07 / WR-03, D-40) — jose 에러 code 비-PII 로깅.
+  // catch 블록 (line 91-101) 이 err.code ?? err.name 만 logger.warn 의 code
+  // 필드로 노출. err.message / err.payload 본문 절대 미포함 (Pitfall 7).
+  // jose 6.x JOSEError.code 는 stable public property
+  // ([VERIFIED via Context7] panva/jose).
+  it(
+    // eslint-disable-next-line max-len
+    "R5: JWTClaimValidationFailed → logger.warn 의 code 필드 = ERR_JWT_CLAIM_VALIDATION_FAILED",
+    async () => {
+      // jose mock 의 JWTClaimValidationFailed 에 code property set —
+      // 실제 jose 6.x 의 stable code property 을 시뮬레이션. unknown 경유
+      // double cast — 실제 jose 타입은 (message, payload, claim?, reason?)
+      // 이지만 mock factory 는 단일 인자 (test line 27-37).
+      const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
+        m: string
+      ) => Error;
+      const err = new ErrCtor("bad nonce");
+      (err as unknown as {code: string}).code =
+        "ERR_JWT_CLAIM_VALIDATION_FAILED";
+      jwtVerifyMock.mockRejectedValue(err);
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      await expect(
+        wrapped({
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never),
+      ).rejects.toMatchObject({
+        code: "invalid-argument",
+        message: "errorInvalidCredentials",
+      });
+
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "kakao_jwt_verify_failed",
+          code: "ERR_JWT_CLAIM_VALIDATION_FAILED",
+        }),
+        expect.any(String),
+      );
+    },
+  );
+
+  it(
+    "R5: PII regression — JOSEError.message PII sentinel 미노출 (Pitfall 7)",
+    async () => {
+      const sentinel =
+        "PII_SENTINEL_secret@example.com_kakao_account_nickname";
+      const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
+        m: string
+      ) => Error;
+      const err = new ErrCtor(sentinel);
+      (err as unknown as {code: string}).code =
+        "ERR_JWT_CLAIM_VALIDATION_FAILED";
+      jwtVerifyMock.mockRejectedValue(err);
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      await expect(
+        wrapped({
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never),
+      ).rejects.toBeInstanceOf(Error);
+
+      // 모든 log call 에서 sentinel + 분해 토큰 미포함 검증.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain(sentinel);
+        expect(stringified).not.toContain("secret@example.com");
+        expect(stringified).not.toContain("nickname");
+      }
+    },
+  );
+
+  it(
+    "R5: 비-jose Error 도 err.name fallback (errCode = Error.name)",
+    async () => {
+      // TypeError 같은 일반 Error throw → err instanceof Error 분기 →
+      // errCode = err.name = 'TypeError'. JOSEError 가 아니므로 internal 매핑.
+      const err = new TypeError("unrelated type error");
+      jwtVerifyMock.mockRejectedValue(err);
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      await expect(
+        wrapped({
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never),
+      ).rejects.toMatchObject({
+        code: "internal",
+        message: "errorUnknown",
+      });
+
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "kakao_jwt_verify_failed",
+          code: "TypeError",
+        }),
+        expect.any(String),
+      );
+    },
+  );
 });
