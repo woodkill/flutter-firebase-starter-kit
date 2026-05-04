@@ -194,34 +194,14 @@ describe("kakaoCustomToken onCall", () => {
     expect(mockCreateUser).not.toHaveBeenCalled();
   });
 
-  it("기존 매핑 → 그 firebaseUid 재사용", async () => {
-    jwtVerifyMock.mockResolvedValue({
-      payload: {sub: "kakao-existing", nonce: "n"},
-    });
-    mockIdxGet.mockResolvedValue({exists: true});
-    mockTxGet.mockResolvedValue({
-      exists: true,
-      data: () => ({firebaseUid: "existing-uid-9"}),
-    });
-
-    const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
-    const result = (await wrapped({
-      auth: {uid: "anon-1"},
-      app: {appId: "test"},
-      data: {idToken: "FAKE", nonce: "n"},
-    } as never)) as {customToken: string; uid: string; isNewUser: boolean};
-
-    expect(result.uid).toBe("existing-uid-9");
-    expect(result.isNewUser).toBe(false);
-    expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-uid-9");
-  });
-
   it(
-    // eslint-disable-next-line max-len
-    "충돌 (request.auth.uid != identity_index.firebaseUid) → first-write-wins (D-12)",
+    "기존 매핑 + 미인증 호출자 → 그 firebaseUid 재사용 (정상 path, R3 conflictKind null)",
     async () => {
+      // R3 (Plan 12.1-06): callerUid 가 없으면 anonymous_existing_collision
+      // 분기 미진입 → conflictKind null → 정상 customToken 발급.
+      // 이 케이스가 "기존 매핑 정상 재사용" 의 진짜 시나리오 (재로그인 등).
       jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-conflict", nonce: "n"},
+        payload: {sub: "kakao-existing", nonce: "n"},
       });
       mockIdxGet.mockResolvedValue({exists: true});
       mockTxGet.mockResolvedValue({
@@ -231,14 +211,42 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const result = (await wrapped({
-        auth: {uid: "different-uid"},
+        // auth 없음 — 미인증 (재로그인) 호출.
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.uid).toBe("existing-uid-9");
+      expect(result.isNewUser).toBe(false);
+      expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-uid-9");
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "기존 매핑 + 동일 callerUid (재로그인) → 그 firebaseUid 재사용 (D-12, R3 conflictKind null)",
+    async () => {
+      // R3 (Plan 12.1-06): callerUid === existing.firebaseUid 면 충돌 아님 →
+      // conflictKind null → 정상 customToken 발급. 이 시나리오는 *재로그인* —
+      // 동일 사용자가 idle 후 재진입, 같은 UID 보존.
+      jwtVerifyMock.mockResolvedValue({
+        payload: {sub: "kakao-rerun", nonce: "n"},
+      });
+      mockIdxGet.mockResolvedValue({exists: true});
+      mockTxGet.mockResolvedValue({
+        exists: true,
+        data: () => ({firebaseUid: "existing-uid-9"}),
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const result = (await wrapped({
+        auth: {uid: "existing-uid-9"}, // 동일 UID (재로그인).
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "n"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
 
       // first-write-wins — identity_index 의 firebaseUid 가 우선.
       expect(result.uid).toBe("existing-uid-9");
-      expect(result.uid).not.toBe("different-uid");
       expect(result.isNewUser).toBe(false);
     },
   );
@@ -305,15 +313,24 @@ describe("kakaoCustomToken onCall", () => {
       );
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
-      await expect(
-        wrapped({
-          app: {appId: "test"},
-          data: {idToken: "FAKE", nonce: "n"},
-        } as never),
-      ).rejects.toMatchObject({
-        code: "functions/already-exists",
-        message: "errorAccountExistsWithDifferentCredential",
+      // firebase-functions/https HttpsError — code 는 prefix 없는 형식
+      // ("already-exists"), message 는 두 번째 인자 그대로 (.message 속성).
+      const promise = wrapped({
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
       });
+      try {
+        await promise;
+      } catch (err: unknown) {
+        expect((err as HttpsError).code).toBe("already-exists");
+        expect((err as HttpsError).message).toBe(
+          "errorAccountExistsWithDifferentCredential",
+        );
+      }
 
       expect(warnMock).toHaveBeenCalledWith(
         expect.objectContaining({event: "kakao_email_collision"}),
@@ -349,16 +366,22 @@ describe("kakaoCustomToken onCall", () => {
       });
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
-      await expect(
-        wrapped({
-          auth: {uid: "anon-A"},
-          app: {appId: "test"},
-          data: {idToken: "FAKE", nonce: "n"},
-        } as never),
-      ).rejects.toMatchObject({
-        code: "functions/already-exists",
-        message: "errorAccountExistsWithDifferentCredential",
+      const promise = wrapped({
+        auth: {uid: "anon-A"},
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
       });
+      try {
+        await promise;
+      } catch (err: unknown) {
+        expect((err as HttpsError).message).toBe(
+          "errorAccountExistsWithDifferentCredential",
+        );
+      }
 
       expect(warnMock).toHaveBeenCalledWith(
         expect.objectContaining({event: "kakao_anonymous_conflict"}),
@@ -379,15 +402,17 @@ describe("kakaoCustomToken onCall", () => {
       mockIdxGet.mockRejectedValueOnce(new Error("firestore unavailable"));
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
-      await expect(
-        wrapped({
-          app: {appId: "test"},
-          data: {idToken: "FAKE", nonce: "n"},
-        } as never),
-      ).rejects.toMatchObject({
-        code: "functions/internal",
-        message: "errorUnknown",
-      });
+      const promise = wrapped({
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({code: "internal"});
+      try {
+        await promise;
+      } catch (err: unknown) {
+        expect((err as HttpsError).message).toBe("errorUnknown");
+      }
 
       expect(errorMock).toHaveBeenCalledWith(
         expect.objectContaining({event: "identity_index_failed"}),

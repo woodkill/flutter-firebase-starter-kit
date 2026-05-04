@@ -104,15 +104,65 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     }
 
     // Step 2: Identity Index resolve (Task 2 helper).
+    // R3 (Phase 12.1-06 / BL-04 + WR-06, D-32) — caller throw responsibility.
+    // helper 가 conflictKind 로 detect → caller 가 try/catch + switch 로 안전한
+    // already-exists HttpsError 변환 (email enumeration 차단). helper 의
+    // unexpected throw 는 internal 매핑 (D-32 fallback).
     const callerUid = request.auth?.uid; // unauthenticated 허용 (D-11).
-    const {uid, isNewUser} = await resolveIdentity(getFirestore(), {
-      provider: "kakao",
-      providerUserId: kakaoUserId,
-      callerUid,
-      // 비즈 앱 + 카카오계정(이메일) 필수 동의 시 ID Token 의 email claim 을
-      // Firebase Auth user.email 로 저장. 일반 앱 (현재 dev) 은 undefined.
-      userInfo: kakaoEmail ? {email: kakaoEmail} : undefined,
-    });
+    let resolution;
+    try {
+      resolution = await resolveIdentity(getFirestore(), {
+        provider: "kakao",
+        providerUserId: kakaoUserId,
+        callerUid,
+        // 비즈 앱 + 카카오계정(이메일) 필수 동의 시 ID Token 의 email claim 을
+        // Firebase Auth user.email 로 저장. 일반 앱 (현재 dev) 은 undefined.
+        userInfo: kakaoEmail ? {email: kakaoEmail} : undefined,
+      });
+    } catch {
+      // helper 의 unexpected error (e.g., firestore network, internal) 는
+      // internal 매핑. **Pitfall 1/7 (PII) 보존** — err.message / err.payload
+      // 절대 미로깅. catch parameter 자체 생략 (optional catch binding) —
+      // err 객체 접근 안 함 → 누구도 실수로 PII 로깅 못 함 (compile-time 보장).
+      logger.error(
+        {event: "identity_index_failed"},
+        "resolveIdentity threw unexpected error",
+      );
+      throw new HttpsError("internal", "errorUnknown");
+    }
+
+    // R3 (D-32) — exhaustive switch — TypeScript 가 conflictKind union type 의
+    // 모든 case 를 강제 (default arm 미사용 → 누락 시 컴파일 에러). Phase 13~16
+    // 가 동일 helper 재사용 시 caller 도 동일 switch 패턴 미러.
+    switch (resolution.conflictKind) {
+    case "email_in_use":
+      // Kakao ID Token 의 email 이 기존 Firebase Auth 사용자와 일치 — 안전한
+      // 메시지로 collapse (email 본문 미노출, Pitfall 1/7).
+      logger.warn(
+        {event: "kakao_email_collision"},
+        "Kakao email collides with existing account",
+      );
+      throw new HttpsError(
+        "already-exists",
+        "errorAccountExistsWithDifferentCredential",
+      );
+    case "anonymous_existing_collision":
+      // 익명 사용자가 기존 kakao identity 로 로그인 시도 — anonymous Firestore
+      // 데이터 손실 / UID hijack 위험 차단. Phase 17 (Account Linking) 가
+      // 자동 마이그레이션 처리. 사용자에게는 동일 안전 메시지로 안내.
+      logger.warn(
+        {event: "kakao_anonymous_conflict"},
+        "Anonymous user attempted to login with existing Kakao identity",
+      );
+      throw new HttpsError(
+        "already-exists",
+        "errorAccountExistsWithDifferentCredential",
+      );
+    case null:
+      break; // 정상 flow.
+    }
+
+    const {uid, isNewUser} = resolution;
 
     // Step 3: Custom Token 발급 (admin SDK — 1h 만료).
     const customToken = await getAuth().createCustomToken(uid);
