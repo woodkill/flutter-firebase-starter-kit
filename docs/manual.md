@@ -158,14 +158,21 @@ firebase deploy --only firestore:rules
 ### 4단계 — KAKAO_REST_API_KEY Secret 등록 (Phase 11-05 / 12-02)
 
 Cloud Function `kakaoCustomToken` 이 Kakao OIDC ID Token 의 audience 검증에
-사용하는 REST API 키를 Firebase Secret Manager 에 등록합니다 (코드 / config
-파일에 평문 저장 금지).
+사용하는 키를 Firebase Secret Manager 에 등록합니다 (코드 / config 파일에 평문
+저장 금지).
+
+> ⚠ **Secret 값 = 네이티브 앱 키** (REST API 키 아님). Phase 12 dev UAT 에서
+> 발견된 retroactive fix — Native SDK 흐름의 OAuth `client_id` 가 native app
+> key 라서 ID Token 의 `aud` claim 도 native app key. (secret 이름은 historical
+> 이유로 `KAKAO_REST_API_KEY` 그대로 — 향후 phase 에서 `KAKAO_APP_KEY` 같이
+> 일반화 검토. `project_oauth_custom_token_pitfalls.md` Pitfall #1 참조.)
 
 ```bash
 firebase use dev
 firebase functions:secrets:set KAKAO_REST_API_KEY
 # prompt:
-#   ? Enter a value for KAKAO_REST_API_KEY: <여기에 REST API 키 붙여넣기 + Enter>
+#   ? Enter a value for KAKAO_REST_API_KEY: <여기에 네이티브 앱 키 붙여넣기 + Enter>
+#   (config/dev.json 의 kakaoNativeAppKey 와 동일 값)
 ```
 
 기대 응답:
@@ -179,7 +186,9 @@ firebase functions:secrets:access KAKAO_REST_API_KEY
 ```
 
 > Cloud Function 의 `defineSecret('KAKAO_REST_API_KEY')` 가 배포 시점에
-> 자동으로 secret 을 함수 환경변수로 주입합니다 (Phase 11 D-05 패턴).
+> 자동으로 secret 을 함수 환경변수로 주입합니다 (Phase 11 D-05 패턴). jose
+> `jwtVerify` 의 audience 옵션으로 사용되어 ID Token 의 `aud` claim 과 일치
+> 검증.
 
 ### 5단계 — App Check Debug Provider 등록 — ⚠ Pitfall 6
 
