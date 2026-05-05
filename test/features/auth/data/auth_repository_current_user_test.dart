@@ -235,7 +235,7 @@ void main() {
     );
 
     test(
-      '4. Firestore stream 에러 → Firebase providerData 만 사용 (fallback)',
+      '4. Firestore stream 에러 → AsyncData(<String>[]) emit (fallback empty, R6)',
       () async {
         const uid = 'uid-error';
         final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
@@ -252,9 +252,17 @@ void main() {
         addTearDown(container.dispose);
 
         await _settle();
+
+        // 신규 contract (R6 — D-41): 직접 stream 소비 시에도 AsyncData([]) 정착.
+        // 기존 contract ("AsyncLoading 잔류 → maybeWhen orElse") 는 폐기 — 직접
+        // stream consumer (Account 섹션, debug widget) 가 spinner 무한 회피.
+        final asyncValue = container.read(linkedProvidersStreamProvider(uid));
+        expect(asyncValue.hasValue, isTrue);
+        expect(asyncValue.value, isEmpty);
+
+        // 합집합 결과는 동일 — Firebase providerData 만 사용 (currentUserProvider
+        // 의 maybeWhen orElse 가 이제 data:(list) => list 분기로 자연 흐름).
         final user = container.read(currentUserProvider);
-        // handleError 가 emit 자체를 차단 → AsyncLoading 잔류 → maybeWhen
-        // orElse 분기로 빈 배열 → Firebase providerData 만 사용.
         expect(user, isNotNull);
         expect(user!.providerIds, ['google.com']);
       },
