@@ -11,6 +11,7 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 
 import 'auth_test_fakes.dart';
@@ -39,6 +40,8 @@ class _MockFacebookAccessToken extends Mock implements AccessToken {}
 
 class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
 
+class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
+
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
@@ -59,6 +62,7 @@ void main() {
   late _MockFacebookAuth mockFacebookAuth;
   late _MockSocialLinkInProgress mockSocialLinkInProgress;
   late _MockKakaoSdkClient mockKakaoSdkClient;
+  late _MockNaverSdkClient mockNaverSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late AuthRepository repository;
 
@@ -82,11 +86,12 @@ void main() {
     mockFacebookAuth = _MockFacebookAuth();
     mockSocialLinkInProgress = _MockSocialLinkInProgress();
     mockKakaoSdkClient = _MockKakaoSdkClient();
+    mockNaverSdkClient = _MockNaverSdkClient();
     mockFunctions = _MockFirebaseFunctions();
-    // Phase 9.1 D-03 / D-04 + Phase 12 D-28: AuthRepository 가 6-arg ctor 로
-    // 확장됨에 따라 mock KakaoSdkClient + FirebaseFunctions 를 5/6번째 인자로
-    // 추가 주입한다. void 메서드인 begin()/end() 는 mocktail 의 자동 noop
-    // 처리로 별도 stub 불필요.
+    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43: AuthRepository
+    // 가 7-arg ctor 로 확장됨에 따라 mock KakaoSdkClient + FirebaseFunctions
+    // + NaverSdkClient 를 5/6/7번째 인자로 추가 주입한다. void 메서드인
+    // begin()/end() 는 mocktail 의 자동 noop 처리로 별도 stub 불필요.
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
@@ -94,7 +99,14 @@ void main() {
       mockSocialLinkInProgress,
       mockKakaoSdkClient,
       mockFunctions,
+      mockNaverSdkClient,
     );
+
+    // Pitfall 9 회귀 가드 — 모든 path 의 finally 블록에서 호출되는
+    // SDK logout 을 빈 stub 으로 등록 (D-57 + D-57 retroactive). 누락 시
+    // MissingStubError 발생.
+    when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+    when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
 
     // 기본 User 필드 stub
     when(() => mockUser.uid).thenReturn('uid-test');
@@ -1556,5 +1568,254 @@ void main() {
         verify(() => mockSocialLinkInProgress.end()).called(1);
       },
     );
+  });
+
+  // ==========================================================================
+  // Phase 13 — see ROADMAP.md
+  // ==========================================================================
+  // signInWithNaver — Custom Token 흐름 (Phase 12 verbatim 미러 + D-46 nonce
+  // 부재 + D-57 finally logout). Validation Architecture line 1616 —
+  // T-13-NAVER-REPO-{n}.
+  group('AuthRepository.signInWithNaver (T-13-NAVER-REPO)', () {
+    late _MockHttpsCallable mockCallable;
+
+    setUp(() {
+      mockCallable = _MockHttpsCallable();
+      // 기본: NaverSdkClient 가 access_token 반환.
+      when(() => mockNaverSdkClient.signIn()).thenAnswer(
+        (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
+      );
+      // 기본: httpsCallable('naverCustomToken') → mockCallable.
+      when(
+        () => mockFunctions.httpsCallable(any()),
+      ).thenReturn(mockCallable);
+      // 기본: callable.call(...) → customToken 응답.
+      final defaultResult = _MockHttpsCallableResult();
+      when(() => defaultResult.data).thenReturn(<String, dynamic>{
+        'customToken': 'CT_NAVER',
+        'uid': 'naver-uid',
+        'isNewUser': true,
+      });
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => defaultResult);
+      // 기본: signInWithCustomToken('CT_NAVER') → mockCredential.
+      when(() => mockUser.uid).thenReturn('naver-uid');
+      when(() => mockUser.email).thenReturn('naver@example.com');
+      when(() => mockUser.providerData).thenReturn(<fb.UserInfo>[]);
+      when(
+        () => mockAuth.signInWithCustomToken('CT_NAVER'),
+      ).thenAnswer((_) async => mockCredential);
+    });
+
+    test('T-13-NAVER-REPO-01: 정상 → Result.success(User) + finally logout '
+        '+ end()', () async {
+      final result = await repository.signInWithNaver();
+
+      expect(result, isA<Success<dynamic>>());
+      final user = (result! as Success).data as User;
+      expect(user.uid, 'naver-uid');
+      expect(user.email, 'naver@example.com');
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockNaverSdkClient.logout()).called(1); // D-57
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('T-13-NAVER-REPO-02: NaverSdkClient null (사용자 취소) → null '
+        '+ logout 호출 (D-57)', () async {
+      when(() => mockNaverSdkClient.signIn()).thenAnswer((_) async => null);
+
+      final result = await repository.signInWithNaver();
+
+      expect(result, isNull);
+      // 취소 시에도 finally 가 logout 호출 (D-57 — 디바이스 잔여 토큰 차단).
+      verify(() => mockNaverSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      // CF / Firebase Auth 미호출 검증.
+      verifyNever(() => mockFunctions.httpsCallable(any()));
+      verifyNever(() => mockAuth.signInWithCustomToken(any()));
+    });
+
+    test('T-13-NAVER-REPO-03: FirebaseFunctionsException(invalid-argument) '
+        '→ ServiceUnavailable Failure', () async {
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenThrow(
+        FirebaseFunctionsException(
+          code: 'invalid-argument',
+          message: 'bad accessToken',
+        ),
+      );
+
+      final result = await repository.signInWithNaver();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      verify(() => mockNaverSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('T-13-NAVER-REPO-04: FirebaseAuthException(signInWithCustomToken) '
+        '→ _mapAuthException 매핑', () async {
+      when(() => mockAuth.signInWithCustomToken('CT_NAVER')).thenThrow(
+        fb.FirebaseAuthException(code: 'invalid-credential'),
+      );
+
+      final result = await repository.signInWithNaver();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<InvalidCredentials>());
+    });
+
+    test('T-13-NAVER-REPO-05: 비-Auth 예외 (PlatformException 등) → '
+        'ServiceUnavailable(cause)', () async {
+      when(() => mockNaverSdkClient.signIn())
+          .thenThrow(PlatformException(code: 'NETWORK_ERROR'));
+
+      final result = await repository.signInWithNaver();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      // exception 발생해도 finally 가 logout + end 보장.
+      verify(() => mockNaverSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('T-13-NAVER-REPO-06: response.data.customToken 이 null → '
+        'ServiceUnavailable Failure', () async {
+      final nullTokenResult = _MockHttpsCallableResult();
+      when(() => nullTokenResult.data).thenReturn(<String, dynamic>{
+        'customToken': null,
+        'uid': 'x',
+      });
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => nullTokenResult);
+
+      final result = await repository.signInWithNaver();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+    });
+
+    test('T-13-NAVER-REPO-07: race-fix begin/end + logout 호출 순서 검증 '
+        '(Pitfall 2 + Pitfall 8)', () async {
+      await repository.signInWithNaver();
+
+      // begin → SDK signIn → callable → logout → end 순서 (Pitfall 2 — logout
+      // 은 race-fix end 직전 위치).
+      verifyInOrder([
+        () => mockSocialLinkInProgress.begin(),
+        () => mockNaverSdkClient.signIn(),
+        () => mockFunctions.httpsCallable('naverCustomToken'),
+        () => mockNaverSdkClient.logout(),
+        () => mockSocialLinkInProgress.end(),
+      ]);
+    });
+
+    test('T-13-NAVER-REPO-08: already-exists FirebaseFunctionsException → '
+        'AccountExistsWithDifferentCredential 자동 흡수 '
+        '(Phase 12.1 D-34 회귀 가드)', () async {
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenThrow(
+        FirebaseFunctionsException(
+          code: 'already-exists',
+          message: 'errorAccountExistsWithDifferentCredential',
+        ),
+      );
+
+      final result = await repository.signInWithNaver();
+
+      expect(result, isA<Failure<dynamic>>());
+      final failure = result! as Failure;
+      expect(failure.exception, isA<AccountExistsWithDifferentCredential>());
+      // Cloud Function PII 미응답 — email null 보존.
+      final ex = failure.exception as AccountExistsWithDifferentCredential;
+      expect(ex.email, isNull);
+      verify(() => mockNaverSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('T-13-NAVER-REPO-09: callable payload = {accessToken} 단일 (D-46 — '
+        'nonce 부재)', () async {
+      await repository.signInWithNaver();
+
+      // D-46 — Naver 는 OAuth 2.0 access_token 흐름이라 nonce 부재.
+      verify(() => mockFunctions.httpsCallable('naverCustomToken')).called(1);
+      verify(
+        () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
+          'accessToken': 'AT_NAVER',
+        }),
+      ).called(1);
+      verify(() => mockAuth.signInWithCustomToken('CT_NAVER')).called(1);
+    });
+  });
+
+  // ==========================================================================
+  // Phase 13 — see ROADMAP.md, D-57 retroactive
+  // ==========================================================================
+  // signInWithKakao 의 finally 블록에서 KakaoSdkClient.logout 이 호출되는지
+  // 회귀 가드. Validation Architecture line 1617 — T-13-KAKAO-RETRO-LOGOUT-{n}.
+  group('AuthRepository.signInWithKakao D-57 retroactive '
+      '(T-13-KAKAO-RETRO-LOGOUT)', () {
+    late _MockHttpsCallable mockCallable;
+
+    setUp(() {
+      mockCallable = _MockHttpsCallable();
+      // Phase 12 정상 path 재사용 — KakaoSdkClient signIn → CF → 인증.
+      when(() => mockKakaoSdkClient.signIn()).thenAnswer(
+        (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
+      );
+      when(
+        () => mockFunctions.httpsCallable(any()),
+      ).thenReturn(mockCallable);
+      final defaultResult = _MockHttpsCallableResult();
+      when(() => defaultResult.data).thenReturn(<String, dynamic>{
+        'customToken': 'CT',
+        'uid': 'kakao-uid',
+      });
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => defaultResult);
+      when(() => mockUser.uid).thenReturn('kakao-uid');
+      when(() => mockUser.email).thenReturn('kakao@example.com');
+      when(() => mockUser.providerData).thenReturn(<fb.UserInfo>[]);
+      when(
+        () => mockAuth.signInWithCustomToken('CT'),
+      ).thenAnswer((_) async => mockCredential);
+    });
+
+    test('T-13-KAKAO-RETRO-LOGOUT-01: 정상 종료 finally 에서 '
+        'KakaoSdkClient.logout 호출 (D-57)', () async {
+      await repository.signInWithKakao();
+
+      verify(() => mockKakaoSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('T-13-KAKAO-RETRO-LOGOUT-02: 사용자 취소 (signIn null) finally 에서 '
+        'KakaoSdkClient.logout 호출 (D-57)', () async {
+      when(() => mockKakaoSdkClient.signIn()).thenAnswer((_) async => null);
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isNull);
+      // 취소 시에도 finally 가 logout 호출.
+      verify(() => mockKakaoSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('T-13-KAKAO-RETRO-LOGOUT-03: race-fix begin/end + logout 호출 순서 '
+        '(Pitfall 2)', () async {
+      await repository.signInWithKakao();
+
+      verifyInOrder([
+        () => mockSocialLinkInProgress.begin(),
+        () => mockKakaoSdkClient.signIn(),
+        () => mockKakaoSdkClient.logout(), // D-57 — end 직전 (Pitfall 2)
+        () => mockSocialLinkInProgress.end(),
+      ]);
+    });
   });
 }
