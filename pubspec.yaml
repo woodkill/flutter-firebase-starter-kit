@@ -107,6 +107,8 @@ flutter:
   assets:
     - assets/images/splash/
     - assets/icons/
+    # Phase 13 — see ROADMAP.md (D-52 Brand Asset 명시 등록 — naver_logo.svg)
+    - assets/icons/naver_logo.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
