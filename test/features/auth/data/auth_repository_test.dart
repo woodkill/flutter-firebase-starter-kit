@@ -1527,5 +1527,34 @@ void main() {
       expect(result, isA<Failure<dynamic>>());
       expect((result! as Failure).exception, isA<ServiceUnavailable>());
     });
+
+    test(
+      'Test K11: FirebaseFunctionsException(already-exists) → '
+      'AccountExistsWithDifferentCredential Failure (R3 — D-34)',
+      () async {
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        final result = await repository.signInWithKakao();
+
+        expect(result, isA<Failure<dynamic>>());
+        final failure = result! as Failure;
+        expect(
+          failure.exception,
+          isA<AccountExistsWithDifferentCredential>(),
+        );
+        // Cloud Function PII 미응답 — email null 보존.
+        final ex = failure.exception as AccountExistsWithDifferentCredential;
+        expect(ex.email, isNull);
+        // Pitfall 8 — race-fix try-finally 보존 검증.
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+      },
+    );
   });
 }
