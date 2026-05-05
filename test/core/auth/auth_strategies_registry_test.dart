@@ -162,4 +162,84 @@ void main() {
       expect(result, isEmpty);
     });
   });
+
+  group(
+      'AuthStrategiesRegistry — Phase 13 add-only '
+      '(T-13-REGISTRY-NAVER / Phase 13 — see ROADMAP.md)', () {
+    test(
+        'T-13-REGISTRY-NAVER-01: enabledAuthProviders=naver 활성 시 '
+        'NaverAuthStrategy 자동 포함', () {
+      final c = makeContainer(
+        staticMap: {
+          kProviderIdGoogle: false,
+          kProviderIdApple: false,
+          kProviderIdFacebook: false,
+          kProviderIdKakao: false,
+          kProviderIdNaver: true,
+        },
+        rcMap: {'auth_provider_naver_enabled': true},
+      );
+      final result = c.read(activeStrategiesProvider(locale));
+      expect(
+        result.any((s) => s.providerId == kProviderIdNaver),
+        isTrue,
+        reason:
+            'Registry _allStrategies 에 NaverAuthStrategy add-only 1줄 추가 후 '
+            'activeStrategiesProvider(locale) 가 자동 포함해야 한다',
+      );
+    });
+
+    test(
+        'T-13-REGISTRY-NAVER-02: enabledAuthProviders=naver 비활성 시 '
+        'NaverAuthStrategy 미포함', () {
+      final c = makeContainer(
+        staticMap: {
+          kProviderIdGoogle: true,
+          kProviderIdApple: false,
+          kProviderIdFacebook: false,
+          kProviderIdKakao: false,
+          kProviderIdNaver: false, // 정적 false 절대 우위 (Pitfall 5)
+        },
+        rcMap: {
+          'auth_provider_google_enabled': true,
+          'auth_provider_naver_enabled': true, // RC true 도 정적 false 우위
+        },
+      );
+      final result = c.read(activeStrategiesProvider(locale));
+      expect(
+        result.every((s) => s.providerId != kProviderIdNaver),
+        isTrue,
+        reason: '정적 false 시 RC true 여도 NaverAuthStrategy 미포함 (D-26)',
+      );
+    });
+
+    test(
+        'T-13-REGISTRY-NAVER-03: 기존 4 strategy 회귀 0 — '
+        'Google/Apple/Facebook/Kakao 모두 활성 시 5 strategy 정확 포함', () {
+      final c = makeContainer(
+        staticMap: {
+          kProviderIdGoogle: true,
+          kProviderIdApple: true,
+          kProviderIdFacebook: true,
+          kProviderIdKakao: true,
+          kProviderIdNaver: true,
+        },
+        rcMap: {
+          'auth_provider_google_enabled': true,
+          'auth_provider_apple_enabled': true,
+          'auth_provider_facebook_enabled': true,
+          'auth_provider_kakao_enabled': true,
+          'auth_provider_naver_enabled': true,
+        },
+      );
+      final result = c.read(activeStrategiesProvider(locale));
+      expect(result.map((s) => s.providerId), [
+        kProviderIdGoogle,
+        kProviderIdApple,
+        kProviderIdFacebook,
+        kProviderIdKakao,
+        kProviderIdNaver,
+      ]);
+    });
+  });
 }

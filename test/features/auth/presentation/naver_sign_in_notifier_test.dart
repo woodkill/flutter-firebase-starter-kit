@@ -1,3 +1,5 @@
+// Phase 13 — see ROADMAP.md (T-13-NAVER-NOTIFIER + R7 회귀 가드)
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,9 +10,9 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
-import 'package:flutter_starter_kit/features/auth/presentation/facebook_sign_in_notifier.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/naver_sign_in_notifier.dart';
 
-/// [AuthRepository]를 mocktail로 대체하기 위한 Mock.
+/// [AuthRepository] 를 mocktail 로 대체하기 위한 Mock.
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
@@ -28,77 +30,80 @@ void main() {
     return container;
   }
 
-  group('FacebookSignInNotifier.signInWithFacebook', () {
-    test('성공 시 AsyncData(null) 상태로 전환된다', () async {
+  group('NaverSignInNotifier.signInWithNaver (T-13-NAVER-NOTIFIER)', () {
+    test('T-13-NAVER-NOTIFIER-02: 성공 → AsyncData<void>(null)', () async {
+      // Custom Token 흐름: emailVerified=true 자동 부여 (D-46/D-47).
       final user = User(
-        uid: 'fb-uid-001',
-        email: 'test@facebook.com',
+        uid: 'naver-uid-001',
+        email: 'test@naver.com',
         emailVerified: true,
-        createdAt: DateTime.utc(2026, 4, 13),
-        providerIds: const <String>['facebook.com'],
+        createdAt: DateTime.utc(2026, 5, 5),
+        providerIds: const <String>['naver'],
       );
       when(
-        () => mockRepo.signInWithFacebook(),
+        () => mockRepo.signInWithNaver(),
       ).thenAnswer((_) async => Result<User>.success(user));
 
       final container = makeContainer();
-      final notifier = container.read(facebookSignInProvider.notifier);
+      final notifier = container.read(naverSignInProvider.notifier);
 
-      await notifier.signInWithFacebook();
+      await notifier.signInWithNaver();
 
-      final state = container.read(facebookSignInProvider);
+      final state = container.read(naverSignInProvider);
       expect(state, isA<AsyncData<void>>());
       expect(state.hasError, isFalse);
     });
 
-    test('취소(null 반환) 시 AsyncData 상태로 유지된다 (D-09)', () async {
-      when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
-
-      final container = makeContainer();
-      final notifier = container.read(facebookSignInProvider.notifier);
-
-      await notifier.signInWithFacebook();
-
-      final state = container.read(facebookSignInProvider);
-      expect(state, isA<AsyncData<void>>());
-      expect(state.hasError, isFalse);
-    });
-
-    test('Failure 반환 시 AsyncError 상태로 전환된다', () async {
-      when(() => mockRepo.signInWithFacebook()).thenAnswer(
+    test('T-13-NAVER-NOTIFIER-03: 실패 → AsyncError', () async {
+      when(() => mockRepo.signInWithNaver()).thenAnswer(
         (_) async => const Result<User>.failure(ServiceUnavailable()),
       );
 
       final container = makeContainer();
-      final notifier = container.read(facebookSignInProvider.notifier);
+      final notifier = container.read(naverSignInProvider.notifier);
 
-      await notifier.signInWithFacebook();
+      await notifier.signInWithNaver();
 
-      final state = container.read(facebookSignInProvider);
+      final state = container.read(naverSignInProvider);
       expect(state, isA<AsyncError<void>>());
       expect(state.error, isA<ServiceUnavailable>());
     });
 
-    test('dispose 후 signInWithFacebook이 완료되어도 '
-        'state 업데이트가 스킵된다 (ref.mounted 가드)', () async {
+    test('T-13-NAVER-NOTIFIER-04: cancel (null) → AsyncData<void>(null) (D-45)',
+        () async {
+      when(() => mockRepo.signInWithNaver()).thenAnswer((_) async => null);
+
+      final container = makeContainer();
+      final notifier = container.read(naverSignInProvider.notifier);
+
+      await notifier.signInWithNaver();
+
+      final state = container.read(naverSignInProvider);
+      expect(state, isA<AsyncData<void>>());
+      expect(state.hasError, isFalse);
+    });
+
+    test(
+        'T-13-NAVER-NOTIFIER-05: dispose 후 signInWithNaver 완료 시 '
+        'state 미갱신 (ref.mounted 가드)', () async {
       final completer = Completer<Result<User>?>();
       when(
-        () => mockRepo.signInWithFacebook(),
+        () => mockRepo.signInWithNaver(),
       ).thenAnswer((_) => completer.future);
 
       final container = makeContainer();
-      final notifier = container.read(facebookSignInProvider.notifier);
+      final notifier = container.read(naverSignInProvider.notifier);
 
-      final future = notifier.signInWithFacebook();
+      final future = notifier.signInWithNaver();
 
-      // container dispose로 ref.mounted = false 유도.
+      // container dispose 로 ref.mounted = false 유도.
       container.dispose();
 
       final user = User(
-        uid: 'fb-uid-002',
-        email: 'late@facebook.com',
+        uid: 'naver-uid-002',
+        email: 'late@naver.com',
         emailVerified: true,
-        createdAt: DateTime.utc(2026, 4, 13),
+        createdAt: DateTime.utc(2026, 5, 5),
       );
       completer.complete(Result<User>.success(user));
 
@@ -108,10 +113,10 @@ void main() {
   });
 
   group(
-      'FacebookSignInNotifier.build '
+      'NaverSignInNotifier.build '
       '(R7 회귀 가드 — D-42 재정의 / Phase 13 — see ROADMAP.md)', () {
     test(
-        'T-13-R7-FACEBOOK-01: 초기 state == AsyncData<void>(null) — '
+        'T-13-NAVER-NOTIFIER-R7-01: 초기 state == AsyncData<void>(null) — '
         'R7 회귀 가드 (await/Future.value 추가 시 RED)', () {
       // R7 contract: `FutureOr<void> build()` 가 async work 없이 즉시
       // AsyncData<void>(null) 을 반환해야 한다. 향후 contributor 가 build 본문에
@@ -124,7 +129,7 @@ void main() {
       // 보존을 위해 `FutureOr<void>` 시그니처 유지 (Phase 12.1 Plan 11 SUMMARY
       // Rule 4 참조).
       final container = makeContainer();
-      final state = container.read(facebookSignInProvider);
+      final state = container.read(naverSignInProvider);
       expect(state, const AsyncData<void>(null));
       expect(state.hasError, isFalse);
       expect(state.isLoading, isFalse);
