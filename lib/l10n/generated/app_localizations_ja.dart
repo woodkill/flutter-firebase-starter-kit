@@ -366,6 +366,24 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authAccountProviderKakao => 'カカオ';
 
   @override
+  String get authNaverSignIn => 'Naverではじめる';
+
+  @override
+  String get authAccountProviderNaver => 'ネイバー';
+
+  @override
+  String get authAccountProviderLine => 'LINE';
+
+  @override
+  String get authAccountProviderYahooJp => 'Yahoo! JAPAN';
+
+  @override
+  String get authAccountProviderWechat => 'WeChat';
+
+  @override
+  String get errorUnknownProvider => '不明なログイン方法';
+
+  @override
   String get onboardingSkip => 'スキップ';
 
   @override

@@ -372,6 +372,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountProviderKakao => 'Kakao';
 
   @override
+  String get authNaverSignIn => 'Continue with Naver';
+
+  @override
+  String get authAccountProviderNaver => 'Naver';
+
+  @override
+  String get authAccountProviderLine => 'LINE';
+
+  @override
+  String get authAccountProviderYahooJp => 'Yahoo! JAPAN';
+
+  @override
+  String get authAccountProviderWechat => 'WeChat';
+
+  @override
+  String get errorUnknownProvider => 'Unknown sign-in method';
+
+  @override
   String get onboardingSkip => 'Skip';
 
   @override

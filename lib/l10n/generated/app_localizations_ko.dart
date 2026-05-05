@@ -366,6 +366,24 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountProviderKakao => '카카오';
 
   @override
+  String get authNaverSignIn => '네이버로 시작하기';
+
+  @override
+  String get authAccountProviderNaver => '네이버';
+
+  @override
+  String get authAccountProviderLine => '라인';
+
+  @override
+  String get authAccountProviderYahooJp => 'Yahoo! JAPAN';
+
+  @override
+  String get authAccountProviderWechat => '위챗';
+
+  @override
+  String get errorUnknownProvider => '알 수 없는 로그인 수단';
+
+  @override
   String get onboardingSkip => '건너뛰기';
 
   @override

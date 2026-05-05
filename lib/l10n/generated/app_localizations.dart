@@ -784,6 +784,42 @@ abstract class AppLocalizations {
   /// **'Kakao'**
   String get authAccountProviderKakao;
 
+  /// Phase 13 — Naver social sign-in button label (D-23 / D-52). Custom Token provider 일관성 — 'Continue with X' 패턴 (Kakao 와 대칭).
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with Naver'**
+  String get authNaverSignIn;
+
+  /// Phase 13 — Naver provider label in Account section (D-17 패턴 확장).
+  ///
+  /// In en, this message translates to:
+  /// **'Naver'**
+  String get authAccountProviderNaver;
+
+  /// Phase 13 — LINE provider label (Phase 14 pre-registered, D-53 5 provider 일반화).
+  ///
+  /// In en, this message translates to:
+  /// **'LINE'**
+  String get authAccountProviderLine;
+
+  /// Phase 13 — Yahoo! JAPAN provider label (Phase 15 pre-registered, D-53 5 provider 일반화).
+  ///
+  /// In en, this message translates to:
+  /// **'Yahoo! JAPAN'**
+  String get authAccountProviderYahooJp;
+
+  /// Phase 13 — WeChat provider label (Phase 16 pre-registered, D-53 5 provider 일반화).
+  ///
+  /// In en, this message translates to:
+  /// **'WeChat'**
+  String get authAccountProviderWechat;
+
+  /// Phase 13 D-53 — Localizable Unknown fallback for provider_label_formatter (raw slug 노출 차단).
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown sign-in method'**
+  String get errorUnknownProvider;
+
   /// Onboarding carousel skip button label (top-right)
   ///
   /// In en, this message translates to:
