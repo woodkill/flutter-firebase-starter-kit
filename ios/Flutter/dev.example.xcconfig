@@ -7,3 +7,5 @@ FACEBOOK_APP_ID = YOUR_FACEBOOK_APP_ID_HERE
 FACEBOOK_CLIENT_TOKEN = YOUR_FACEBOOK_CLIENT_TOKEN_HERE
 // Kakao SDK 네이티브 앱 키 (Phase 12 D-20 — see ROADMAP.md). manual.md "## 0. Initial Setup" 절차 참조.
 KAKAO_NATIVE_APP_KEY = REPLACE_WITH_DEV_NATIVE_APP_KEY
+// Naver Login URL scheme (Phase 13 — see ROADMAP.md). Naver Developers Console > API 설정 > iOS > URL Scheme.
+NAVER_URL_SCHEME = your-naver-url-scheme-here
