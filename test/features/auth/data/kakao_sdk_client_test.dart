@@ -185,6 +185,92 @@ void main() {
     });
   });
 
+  group(
+    'KakaoSdkClient D-56 profile_image retroactive (T-13-KAKAO-RETRO-D56)',
+    () {
+      // Phase 13 Decision #6 채택 = 대안 1 (Console only) — Kakao Console 의
+      // 동의 항목 활성화만으로 ID Token 의 `picture` claim 자동 포함 (Kakao
+      // Developers RestAPI ID Token Payload spec 인용:
+      // https://developers.kakao.com/docs/ko/kakaologin/rest-api — picture
+      // 필드 = "URL of the user's profile picture. Requires consent for
+      // profile information or profile picture").
+      //
+      // 따라서 kakao_sdk_client.dart 의 `signIn()` 본문 `serviceTerms` 인자에
+      // 'profile_image' 추가 불필요. 본 group 은 serviceTerms 가 'openid' 한
+      // 토큰만 유지되는 회귀 가드 (Decision #6 대안 1 fix point).
+
+      test(
+        'T-13-KAKAO-RETRO-D56-SCOPE-CONSOLE-ONLY-01: serviceTerms = '
+        "['openid'] 만 유지 (profile_image 추가 인자 없음 — Console only 정책)",
+        () async {
+          List<String>? capturedTalkServiceTerms;
+          List<String>? capturedAccountServiceTerms;
+
+          final clientInstalled = KakaoSdkClient.forTest(
+            isInstalled: () async => true,
+            loginWithTalk: ({serviceTerms, nonce}) async {
+              capturedTalkServiceTerms = serviceTerms;
+              return _FakeOAuthToken(idToken: 'IDT');
+            },
+            loginWithAccount: ({serviceTerms, nonce}) async =>
+                _FakeOAuthToken(idToken: 'IDT'),
+            logout: () async {},
+          );
+          await clientInstalled.signIn();
+          expect(capturedTalkServiceTerms, ['openid']);
+          // profile_image / picture 등 추가 인자 부재 검증 (D-56 대안 1 정책).
+          expect(capturedTalkServiceTerms, isNot(contains('profile_image')));
+          expect(capturedTalkServiceTerms, isNot(contains('picture')));
+
+          final clientNotInstalled = KakaoSdkClient.forTest(
+            isInstalled: () async => false,
+            loginWithTalk: ({serviceTerms, nonce}) async =>
+                _FakeOAuthToken(idToken: 'IDT'),
+            loginWithAccount: ({serviceTerms, nonce}) async {
+              capturedAccountServiceTerms = serviceTerms;
+              return _FakeOAuthToken(idToken: 'IDT');
+            },
+            logout: () async {},
+          );
+          await clientNotInstalled.signIn();
+          expect(capturedAccountServiceTerms, ['openid']);
+          expect(
+            capturedAccountServiceTerms,
+            isNot(contains('profile_image')),
+          );
+        },
+      );
+
+      test(
+        'T-13-KAKAO-RETRO-D56-PROFILE-FALLBACK-01: idToken 만 반환 — picture '
+        'claim 부재 시에도 정상 처리 (Phase 13 사용처 0, Phase 17/18 deferred)',
+        () async {
+          // KakaoSdkClient 의 signIn() 은 idToken + nonce 만 반환하고 picture
+          // claim 을 직접 다루지 않는다 (response 단위 PII 금지 정책 일관 —
+          // D-51). Console 동의 항목 retroactive 갱신은 ID Token claim 에 picture
+          // 추가될 뿐, 본 wrapper 의 코드 변경 0건. 회귀 가드는 idToken 단일
+          // 인터페이스 보존 검증.
+          final client = KakaoSdkClient.forTest(
+            isInstalled: () async => false,
+            loginWithTalk: ({serviceTerms, nonce}) async =>
+                _FakeOAuthToken(idToken: 'IDT'),
+            loginWithAccount: ({serviceTerms, nonce}) async =>
+                _FakeOAuthToken(idToken: 'IDT-no-picture-claim'),
+            logout: () async {},
+          );
+
+          final result = await client.signIn();
+
+          expect(result, isNotNull);
+          expect(result!.idToken, 'IDT-no-picture-claim');
+          // KakaoSignInResult 는 idToken + nonce 만 노출 — picture claim 파싱
+          // 책임 부재 (Phase 13 단계 미사용, Phase 17/18 forward).
+          expect(result.nonce, isNotEmpty);
+        },
+      );
+    },
+  );
+
   group('KakaoSdkClient.logout D-57 retroactive (T-13-KAKAO-RETRO)', () {
     test('T-13-KAKAO-RETRO-LOGOUT-CLIENT-01: logout → '
         'UserApi.instance.logout 호출', () async {
