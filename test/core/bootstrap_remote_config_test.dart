@@ -40,6 +40,8 @@ void main() {
       expect(rcKeyForProvider('apple'), 'auth_provider_apple_enabled');
       expect(rcKeyForProvider('facebook'), 'auth_provider_facebook_enabled');
       expect(rcKeyForProvider('kakao'), 'auth_provider_kakao_enabled');
+      // Phase 13 — see ROADMAP.md (Naver Custom Token).
+      expect(rcKeyForProvider('naver'), 'auth_provider_naver_enabled');
     });
 
     test('bootstrap.dart 의 RC 코드 블록이 try / on Object catch 로 D-25 폴백 의무를 표현한다',
