@@ -14,6 +14,7 @@ import '../apple_sign_in_notifier.dart';
 import '../facebook_sign_in_notifier.dart';
 import '../google_sign_in_notifier.dart';
 import '../kakao_sign_in_notifier.dart';
+import '../naver_sign_in_notifier.dart';
 import 'auth_in_progress_overlay.dart';
 import 'social_sign_in_section.dart';
 
@@ -100,12 +101,14 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): sheet 안에서만 overlay
     // 표시 — sheet 가 OAuth 성공 직후 pop 되므로 표시 시간은 짧지만
     // signInWithCredential / Firestore mirror 구간을 시각적으로 메운다.
-    // Phase 12 — kakaoSignInProvider 합산 (D-25).
+    // Phase 12 — kakaoSignInProvider 합산 (D-25),
+    // Phase 13 — naverSignInProvider 합산 (Plan 13-06).
     final isSocialLoading =
         ref.watch(googleSignInProvider).isLoading ||
         ref.watch(appleSignInProvider).isLoading ||
         ref.watch(facebookSignInProvider).isLoading ||
-        ref.watch(kakaoSignInProvider).isLoading;
+        ref.watch(kakaoSignInProvider).isLoading ||
+        ref.watch(naverSignInProvider).isLoading;
 
     return SafeArea(
       child: Stack(

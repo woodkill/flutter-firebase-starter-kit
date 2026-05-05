@@ -6,6 +6,7 @@ import '../apple_sign_in_notifier.dart';
 import '../facebook_sign_in_notifier.dart';
 import '../google_sign_in_notifier.dart';
 import '../kakao_sign_in_notifier.dart';
+import '../naver_sign_in_notifier.dart';
 
 /// `Strategy.providerId` → 기존 `*SignInProvider` 매핑 helper
 /// (Phase 11 D-12, Pitfall 6 / corrections 3번).
@@ -25,5 +26,7 @@ ProviderListenable<AsyncValue<void>> resolveSocialProvider(String providerId) =>
       // LoginScreen / SignupScreen / LoginPromptSheet 의 ref.listen
       // for-loop 가 자동 반영된다.
       kProviderIdKakao => kakaoSignInProvider,
+      // Phase 13 — see ROADMAP.md (Pitfall 6 helper 단일 진실원 확장).
+      kProviderIdNaver => naverSignInProvider,
       _ => throw UnsupportedError('Unknown providerId: $providerId'),
     };
