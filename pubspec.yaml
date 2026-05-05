@@ -52,6 +52,8 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_facebook_auth: ^7.1.6
   kakao_flutter_sdk_user: ^2.0.0+1
+  # Phase 13 — see ROADMAP.md (Naver Login SDK, Custom Token 방식)
+  naver_login_sdk: ^3.2.1
   flutter_svg: ^2.2.4
   flutter_native_splash: ^2.4.7
   firebase_crashlytics: ^5.2.0

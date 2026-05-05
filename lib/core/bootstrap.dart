@@ -17,6 +17,8 @@ import 'package:intl/date_symbol_data_local.dart';
 // kakao_flutter_sdk_common 을 re-export 하므로 직접 의존성 import 1개로 충분.
 // pubspec.yaml 의 직접 의존성 (`kakao_flutter_sdk_user`)과 일관 — depend_on_referenced_packages 통과.
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+// Phase 13 — see ROADMAP.md (Naver Login SDK init).
+import 'package:naver_login_sdk/naver_login_sdk.dart';
 
 /// 앱 초기화 시퀀스를 실행한다 (Phase 10 D-28).
 ///
@@ -136,6 +138,36 @@ Future<void> bootstrap() async {
             }
           }
 
+          // Naver SDK 초기화 (Phase 13 — see ROADMAP.md, RESEARCH Decision #1).
+          //
+          // Kakao SDK init 직후 + RC fetch 전 위치 — bootstrap 위치 lock 으로
+          // LoginScreen 진입 직전 사용 가능 + cold start 의 첫 클릭 지연 회피.
+          // SDK 자체 멱등성 보장 (NaverLoginSDK._isInitialize static bool —
+          // controller line 30) — Provider rebuild 시 silent.
+          //
+          // [NaverLoginSDK.initialize] 는 [Future<bool>] 반환 (3.2.1 controller
+          // line 49) — `await` 의무. clientSecret 은 D-60 — 사용처 0건이지만
+          // SDK init 의무 인자.
+          //
+          // dev flavor 만 실 키 주입, stg/prod 는 placeholder — manual.md
+          // 안내 (Plan 13-07). 빈 문자열 시 SDK assertion / 첫 API 호출에서
+          // 즉시 실패하므로 silent failure 회피 (KakaoSdk 패턴 일관).
+          //
+          // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
+          // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
+          try {
+            await NaverLoginSDK.initialize(
+              urlScheme: AppConfig.naverUrlScheme,
+              clientId: AppConfig.naverClientId,
+              clientSecret: AppConfig.naverClientSecret,
+              clientName: 'Flutter Starter Kit',
+            );
+          } on Object catch (e, st) {
+            if (kDebugMode) {
+              debugPrint('NaverLoginSDK.initialize() 실패 (무시): $e\n$st');
+            }
+          }
+
           // Remote Config 초기화 (Phase 11 D-24, D-25 폴백, Pitfall 4 silent
           // stale 가드). fetch 실패는 무시 + 정적 config 로 진행.
           try {
@@ -154,6 +186,15 @@ Future<void> bootstrap() async {
             // 정적 config 의 enabled 값을 RC default 로 동시 로드 — RC
             // 미초기화/오프라인 상태에서도 정적 enabled provider 가 그대로
             // 보이도록 보장 (D-25, T-11-RC-03).
+            //
+            // setDefaults 는 [AppConfig.authProviders] 8 슬러그 모두에 대해
+            // `auth_provider_{providerId}_enabled: <CSV 포함 여부>` 를 자동
+            // 생성한다. enabledAuthProviders CSV 토큰 기준:
+            // - 'auth_provider_google_enabled': true (Phase 6+)
+            // - 'auth_provider_apple_enabled': true (Phase 7+)
+            // - 'auth_provider_facebook_enabled': true (Phase 9+)
+            // - 'auth_provider_kakao_enabled': true (Phase 12+)
+            // - 'auth_provider_naver_enabled': true (Phase 13 — see ROADMAP.md)
             await rc.setDefaults(<String, Object>{
               for (final entry in AppConfig.authProviders.entries)
                 rcKeyForProvider(entry.key): entry.value,

@@ -63,6 +63,39 @@ abstract final class AppConfig {
     defaultValue: '',
   );
 
+  /// Naver 로그인 SDK 빌드타임 시크릿 3종 (Phase 13 — see ROADMAP.md).
+  ///
+  /// `--dart-define-from-file=config/{flavor}.json` 의 `naverClientId` /
+  /// `naverClientSecret` / `naverUrlScheme` 키를 컴파일 타임 상수로 읽는다.
+  /// Phase 12 의 [kakaoNativeAppKey] 패턴과 일관 — 미주입 시 빈 문자열,
+  /// silent fallback 회피 (WR-07 hotfix). [NaverLoginSDK.initialize] 호출
+  /// 시점에 빈 문자열이면 SDK assertion / 첫 API 호출에서 즉시 실패하므로
+  /// silent failure 아님 (D-60).
+  ///
+  /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
+  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Naver 단락 참조 (Plan 13-07).
+  static const String _naverClientId = String.fromEnvironment(
+    'naverClientId',
+    defaultValue: '',
+  );
+  static const String _naverClientSecret = String.fromEnvironment(
+    'naverClientSecret',
+    defaultValue: '',
+  );
+  static const String _naverUrlScheme = String.fromEnvironment(
+    'naverUrlScheme',
+    defaultValue: '',
+  );
+
+  /// Naver 로그인 클라이언트 ID. Naver Developers Console 의 Client ID 값.
+  static String get naverClientId => _naverClientId;
+
+  /// Naver 로그인 클라이언트 Secret. SDK init 의무 인자 (D-60 — 사용처 0건).
+  static String get naverClientSecret => _naverClientSecret;
+
+  /// Naver 로그인 URL Scheme. iOS only (Android 는 SDK 자동 머지).
+  static String get naverUrlScheme => _naverUrlScheme;
+
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///
   /// 예: `'google,apple,facebook'`. 공백 / 빈 토큰은 무시한다. dart-define

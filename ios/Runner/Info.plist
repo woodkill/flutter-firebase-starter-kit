@@ -48,6 +48,17 @@
 					<string>kakao$(KAKAO_NATIVE_APP_KEY)</string>
 				</array>
 			</dict>
+			<!-- Naver Login (Phase 13 — see ROADMAP.md). xcconfig NAVER_URL_SCHEME 변수 substitution. -->
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLName</key>
+				<string>naver</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>$(NAVER_URL_SCHEME)</string>
+				</array>
+			</dict>
 		</array>
 		<key>FacebookAppID</key>
 		<string>$(FACEBOOK_APP_ID)</string>
@@ -107,6 +118,9 @@
 			<string>kakaokompassauth</string>
 			<string>kakaolink</string>
 			<string>kakaotalk</string>
+			<!-- Naver Login (Phase 13 — see ROADMAP.md). 네이버앱 / 네이버서치앱 감지 + 1-tap deeplink. -->
+			<string>naversearchapp</string>
+			<string>naversearchthirdlogin</string>
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>

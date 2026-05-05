@@ -7,6 +7,9 @@
   "facebookAppId": "YOUR_FACEBOOK_APP_ID_HERE",
   "facebookClientToken": "YOUR_FACEBOOK_CLIENT_TOKEN_HERE",
   "kakaoNativeAppKey": "YOUR_KAKAO_NATIVE_APP_KEY_HERE",
+  "naverClientId": "YOUR_NAVER_CLIENT_ID",
+  "naverClientSecret": "YOUR_NAVER_CLIENT_SECRET",
+  "naverUrlScheme": "your-naver-url-scheme-here",
   "splashMinDurationMs": 2000,
-  "enabledAuthProviders": "google,apple,facebook,kakao"
+  "enabledAuthProviders": "google,apple,facebook,kakao,naver"
 }
