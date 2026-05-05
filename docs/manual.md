@@ -1,6 +1,7 @@
+<!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-05-03
-phases: [09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login)]
+last_updated: 2026-05-05
+phases: [09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -25,10 +26,13 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 
 0. [Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통)
 1. [Kakao Login (Phase 12)](#kakao-login-phase-12)
-2. [Phase 13~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1316--custom-token-provider-추가-가이드-stub)
-3. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-4. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-5. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+2. [Naver Login (Phase 13)](#naver-login-phase-13)
+3. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
+4. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
+5. [Phase 14~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1416--custom-token-provider-추가-가이드-stub)
+6. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+7. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+8. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
 
 ---
 
@@ -79,14 +83,17 @@ cp config/prod.example.json  config/prod.json
 | `facebookAppId` | Facebook Developers Console > 내 앱 > 설정 > 기본 | 숫자 문자열 |
 | `facebookClientToken` | Facebook Developers Console > 내 앱 > 설정 > 고급 > Client Token | |
 | `kakaoNativeAppKey` | Kakao Developers Console > 내 애플리케이션 > 앱 설정 > 앱 키 > **네이티브 앱 키** | REST API 키 아님 (1번 단락 — Kakao Login 1단계 #6 OIDC 활성화 함께 참조) |
+| `naverClientId` | Naver Developers Console > 본인 앱 > 개요 > **Client ID** | Phase 13 신규 (`## 2. Naver Login` 단락 참조) |
+| `naverClientSecret` | Naver Developers Console > 본인 앱 > 개요 > **Client Secret** | Phase 13 D-60 — 현재 사용처 0건이지만 SDK init 의무 + Phase 17+ 확장 대비 |
+| `naverUrlScheme` | Naver Developers Console > API 설정 > iOS 환경 > **URL Scheme** | iOS 빌드는 추가로 `ios/Flutter/dev.xcconfig` 의 `NAVER_URL_SCHEME` 도 동일 값 주입 필요 |
 | `appName` | (선택) 앱 표시 이름 — `StarterKit Dev` 기본값 | flavor 별 구분 |
 | `appSuffix` | (선택) ApplicationId / BundleId suffix — `.dev` 기본값 | `flutter_native_splash` / Firebase 프로젝트 분리 |
 | `splashMinDurationMs` | (선택) 스플래시 최소 노출 시간 — `2000` 기본값 | UX 조정용 |
-| `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao` 기본값 | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 |
+| `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao,naver` 기본값 | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 (Phase 13 에서 `,naver` 추가) |
 
 > 각 키의 콘솔 등록 절차 (앱 생성, redirect URI, 키 해시 등) 는 본 매뉴얼의
-> Phase 별 단락 (Phase 12 = Kakao, 추후 Phase 13~16 = Naver / LINE / Yahoo!JP /
-> WeChat) 을 참조.
+> Phase 별 단락 (Phase 12 = Kakao, Phase 13 = Naver, 추후 Phase 14~16 = LINE /
+> Yahoo!JP / WeChat) 을 참조.
 
 #### 3단계 — iOS xcconfig 별도 주입 (Kakao 만)
 
@@ -107,6 +114,9 @@ cp ios/Flutter/prod.example.xcconfig  ios/Flutter/prod.xcconfig
 
 - `KAKAO_NATIVE_APP_KEY` — Kakao Developers Console > 내 애플리케이션 > 앱 설정 >
   앱 키 > **네이티브 앱 키** (본 매뉴얼 `## 1. Kakao Login` 단계 참조)
+- `NAVER_URL_SCHEME` — Naver Developers Console > API 설정 > iOS 환경의 **URL Scheme**
+  (Phase 13 신규, `## 2. Naver Login` 단계 참조). `config/dev.json` 의 `naverUrlScheme`
+  과 동일 값.
 - `REVERSED_CLIENT_ID` — `ios/Runner/GoogleService-Info.plist` 의 `REVERSED_CLIENT_ID`
   값 (Phase 7 — Google Login. `flutterfire configure` 가 생성)
 - `FACEBOOK_APP_ID` — Facebook Developers Console > 내 앱 > 설정 > 기본 (숫자 문자열)
@@ -430,10 +440,309 @@ dev 빌드 실 단말 + KakaoTalk 설치 단말 + 미설치 단말 양쪽에서:
 
 ---
 
-## Phase 13~16 — Custom Token Provider 추가 가이드 (stub)
+## Naver Login (Phase 13)
 
-Phase 12 의 Kakao 통합 패턴을 그대로 미러링하여 Naver / LINE / Yahoo!JP /
-WeChat 등 새 Custom Token provider 를 추가할 수 있습니다. 9 단계 절차:
+Naver 로그인은 Custom Token 방식 + REST `/v1/nid/me` 검증으로 구현되어 있습니다.
+Phase 12 의 Kakao (OIDC ID Token JWT 검증) 와 같은 인프라 위에 검증 라인만 다른
+구조 — Cloud Function `naverCustomToken` 이 Naver access_token 을 Bearer 로
+`https://openapi.naver.com/v1/nid/me` 호출 → `resultcode='00'` + `response.id`
+추출 → Identity Index 등록 → `admin.auth().createCustomToken(uid)` 발급, 클라이언트가
+`signInWithCustomToken` 으로 세션을 시작합니다.
+
+`naver_login_sdk` (publisher: lagerstroemia.net, v3.2.1) 가 Naver 앱 설치
+단말에서는 1-tap (앱 → 동의 → callback), 미설치 단말에서는 자체 웹뷰 fallback 으로
+자동 분기합니다.
+
+### 1단계 — Naver Developers Center 가입 + 앱 등록
+
+콘솔: <https://developers.naver.com>
+
+1. 접속 → 가입 (이미 가입된 경우 로그인) → 우측 상단 "Application > 애플리케이션
+   등록 (API 이용신청)"
+2. 앱 이름 입력 + 사용 API 에서 **"네이버 로그인"** 선택
+
+### 2단계 — Client ID + Client Secret 확인
+
+1. 등록 완료 후 **"내 애플리케이션 > 본인 앱 > 개요"** 탭에서 다음 두 키 확인:
+   - `Client ID`
+   - `Client Secret`
+2. 양 키 메모 (다음 단계에서 사용 — `config/dev.json` 의 `naverClientId` /
+   `naverClientSecret` 에 주입).
+
+### 3단계 — Naver Login Open API Service Environment 추가
+
+"내 애플리케이션 > 본인 앱 > **API 설정**" 탭에서:
+
+1. **iOS 환경 등록**:
+   - Bundle ID 입력: `com.slimpumpkin.flutter_starter_kit.dev` (dev flavor —
+     본 starter kit 의 iOS Bundle Identifier. Xcode 의 Build Settings >
+     Product Bundle Identifier 또는 `ios/Flutter/dev.xcconfig` 기준)
+   - **iOS URL Scheme** 입력 (snake/camelCase 권장 — 예:
+     `flutterStarterKitDev`). 이 값은 `config/dev.json` 의 `naverUrlScheme`
+     + `ios/Flutter/dev.xcconfig` 의 `NAVER_URL_SCHEME` 양쪽에 동일하게
+     주입해야 합니다.
+
+2. **Android 환경 등록**:
+   - Package Name: `com.slimpumpkin.flutter_starter_kit.dev` (dev flavor —
+     `android/app/build.gradle.kts` 의 ApplicationId 와 정확히 일치)
+   - 클래스 이름 (Activity): `com.slimpumpkin.flutter_starter_kit.MainActivity`
+     (Phase 13 Plan 13-01 에서 `FlutterFragmentActivity` 로 마이그레이션됨 —
+     Naver SDK 5.4.0+ Fragment 기반 BottomSheet 호환)
+   - **Key Hash** 입력 (Kakao 와 동일 절차):
+     ```bash
+     # debug 키 해시
+     keytool -exportcert -alias androiddebugkey \
+       -keystore ~/.android/debug.keystore \
+       -storepass android -keypass android \
+       | openssl sha1 -binary | openssl base64
+
+     # release 키 해시 (production 빌드 전)
+     keytool -exportcert -alias <your-alias> \
+       -keystore <your-keystore.jks> \
+       | openssl sha1 -binary | openssl base64
+     ```
+
+### 4단계 — iOS / Android 키 해시 + Bundle ID 일치 검증
+
+Naver Console 에 등록한 iOS Bundle ID 와 Xcode 의 `Product Bundle Identifier` 가
+정확히 일치해야 인증 callback 이 앱으로 복귀합니다. 동일하게 Android Package
+Name + Key Hash 도 정확히 일치 필요.
+
+> **흔한 실수:** iOS URL Scheme 을 Naver Console 에 등록한 값과 다르게
+> `ios/Flutter/dev.xcconfig` 의 `NAVER_URL_SCHEME` 에 입력. 인증 후 단말이
+> Safari 에서 멈추거나 앱으로 복귀하지 않음.
+
+### 5단계 — 동의 항목 활성화 (Phase 13 D-56)
+
+"내 애플리케이션 > 본인 앱 > **API 설정**" 의 동의 항목 단락에서:
+
+- **필수:**
+  - `email` (이메일 주소)
+  - `nickname` (별명)
+- **선택:**
+  - `profile_image` (프로필 사진) — Phase 13 D-56. 미래 Phase 17 (Account
+    Linking 사용자 확인 다이얼로그) / Phase 18 (Cloud Storage 프로필 아바타)
+    진입 시 활용 예정. 현재 Phase 13 단계 사용처 0건.
+- **비활성:** 그 외 모든 항목 (CI / 휴대폰 번호 / 생일 / 성별 등) — starter kit
+  기본 범위 외.
+
+### 6단계 — `config/dev.json` 키 주입
+
+콘솔에서 발급받은 3 키를 `config/dev.json` 에 주입합니다 (`config/dev.example.json`
+이 본 키 placeholder 를 이미 가지고 있으므로 `cp` 후 본인 값으로 교체):
+
+```json
+{
+  "enabledAuthProviders": "google,apple,facebook,kakao,naver",
+  "naverClientId": "<발급받은 Client ID>",
+  "naverClientSecret": "<발급받은 Client Secret>",
+  "naverUrlScheme": "<발급받은 iOS URL Scheme>"
+}
+```
+
+> **stg / prod 는?** dev 와 동일한 절차로 사용자 자체 Naver 앱을 별도 등록 +
+> 키 주입. starter kit 의 stg/prod config 는 placeholder 만 포함합니다 (D-22).
+
+### 7단계 — iOS xcconfig 갱신
+
+iOS 빌드는 `ios/Flutter/dev.xcconfig` 의 `NAVER_URL_SCHEME` 을 빌드 타임 변수로
+주입합니다 (`ios/Flutter/dev.example.xcconfig` 의 placeholder 를 본인 값으로 교체):
+
+```
+NAVER_URL_SCHEME = <Naver Console 에서 입력한 iOS URL Scheme>
+```
+
+(따옴표 없이 = 뒤에 값만. `config/dev.json` 의 `naverUrlScheme` 와 정확히 동일
+값 사용.)
+
+### 8단계 — Firebase Secret Manager 등록 (Phase 13 D-60)
+
+Cloud Function `naverCustomToken` 이 D-60 정책으로 `defineSecret('NAVER_CLIENT_SECRET')`
+를 의무 선언합니다. Phase 13 단계에서는 client_secret 사용처 0건 (Cloud Function
+이 access_token 만 사용 — refresh / deauth API 미사용) 이지만, **secret 정책
+일관성 + Phase 17+ 확장 대비** 로 미리 등록 필요:
+
+```bash
+firebase use <dev-project-id>
+firebase functions:secrets:set NAVER_CLIENT_SECRET
+# prompt:
+#   ? Enter a value for NAVER_CLIENT_SECRET: <Client Secret 붙여넣기 + Enter>
+#   (config/dev.json 의 naverClientSecret 와 동일 값)
+```
+
+기대 응답:
+```
+✔ Created a new secret version projects/.../secrets/NAVER_CLIENT_SECRET/versions/1
+```
+
+확인:
+```bash
+firebase functions:secrets:access NAVER_CLIENT_SECRET
+```
+
+> Cloud Function 의 `defineSecret('NAVER_CLIENT_SECRET')` 가 배포 시점에 자동으로
+> 함수 환경변수로 주입합니다 (Phase 11 D-05 패턴). Phase 17+ 에서 Naver
+> `/oauth2.0/token` (refresh) 또는 deauth API 진입 시 즉시 활용 가능.
+
+### 9단계 — Cloud Function 배포
+
+Phase 13-02 산출 `naverCustomToken` 함수를 dev Firebase 프로젝트
+(asia-northeast3) 에 배포합니다.
+
+```bash
+cd functions
+npm install            # 최초 1회
+npm run lint           # 0 errors 확인
+npm run build          # tsc OK 확인
+npm test               # jest 44 PASS 확인 (kakao 14 + naver 15 + 베이스라인 + retroactive)
+
+# 배포
+firebase use <dev-project-id>
+firebase deploy --only functions:naverCustomToken
+```
+
+기대 응답:
+```
+✔ functions[naverCustomToken(asia-northeast3)] Successful update operation.
+```
+
+확인 — Firebase Console:
+- "빌드 > Functions" → `naverCustomToken` 함수 row → region = `asia-northeast3`
+  + "활성" 상태
+
+### 10단계 — dev flavor 실 단말 검증
+
+```bash
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android-device-id>
+```
+
+- LoginScreen 의 **"네이버로 시작하기"** 버튼 (그린 #03C75A 배경 + 흰 'N' 로고)
+  탭 → Naver 앱 설치 시 1-tap, 미설치 시 웹뷰 fallback → 사용자 동의 → 앱 복귀
+- Home 진입 + EnvironmentInfoScreen 의 Account 섹션 — `linkedProviders` 에
+  "네이버" 표시 확인
+- iOS UAT 는 보류 — `.planning/todos/pending/2026-05-XX-ios-naver-uat-deferred.md`
+  추적 (Phase 13 Decision #8 — iOS 단말 부재)
+
+자세한 8 시나리오 검증 양식: `.planning/phases/13-naver-login/13-HUMAN-UAT.md`.
+
+### Pitfall 정리 (Phase 13 RESEARCH §Pitfalls)
+
+- **Pitfall 1 (Completer 다중 complete):** `naver_login_sdk` 가 callback 기반 →
+  코드 측 `if (!completer.isCompleted)` 가드 필수. Plan 13-03 에서 정착, 사용자
+  변경 의무 0건.
+- **Pitfall 2 (race-fix logout 위치):** D-57 — `signInWithNaver` finally 블록의
+  `_naverSdkClient.logout()` 호출은 `_socialLinkInProgress.end()` 직전 위치.
+  Plan 13-03 정착, verifyInOrder 정적 가드 보유.
+- **Pitfall 4 (response.id 부재):** Cloud Function 측 nullable 가드 (Plan 13-02).
+- **Pitfall 7 (PII 로깅):** Cloud Function logger payload 는 `{event, uid,
+  resultcode, status}` 만 — `response.email` / `response.nickname` /
+  `response.profile_image` / `accessToken` 절대 로깅 금지 (D-51, jest sentinel
+  regression 5종 회귀 가드).
+- **Pitfall 10 (Android FlutterFragmentActivity):** Naver SDK 5.4.0+ Fragment
+  기반 BottomSheet 호환 — `MainActivity.kt` 가 `FlutterFragmentActivity` 상속
+  필수. Plan 13-01 정착.
+
+---
+
+## Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)
+
+소셜 로그인 버튼의 브랜드 자산 (Kakao 말풍선 / Naver 'N' 로고) 은 각 provider
+의 공식 디자인 가이드라인 준수 의무. starter kit 단계는 placeholder SVG 가
+등재되어 있으며, **production 출시 전 공식 자산으로 교체 의무**.
+
+### Production 출시 전 placeholder 교체 의무
+
+Phase 13 Plan 13-05 에서 `assets/icons/{kakao,naver}_logo.svg` 가 등재되어
+있습니다. 각 SVG 파일에는 `<!-- PLACEHOLDER -->` sentinel 메타데이터가 명시되어
+있어, production 빌드 전 다음 명령으로 교체 누락 검출 가능:
+
+```bash
+grep -l 'PLACEHOLDER' assets/icons/*.svg
+# 0 매치가 정상 — 모든 자산 교체 완료
+```
+
+### Naver 공식 자산
+
+- **다운로드 URL:** <https://developers.naver.com/docs/login/bi/bi.md>
+- **라이센스:** Naver 디자인 가이드 — 그린 배경 + 흰 'N' 로고 (메인) 또는 흰
+  배경 + 그린 'N' (역색) 변형 사용 가능
+- **변경 금지:** 색상 / 회전 / 비율 / 단순화 변형 모두 금지 (위반 시 Naver
+  Developers 정책 위반)
+- 본 starter kit 은 메인 변형 (그린 #03C75A 배경 + 흰 'N') 사용 —
+  `BrandedSocialButton.naver()` (Phase 13 Plan 13-05)
+
+### Kakao 공식 자산 (Phase 13 D-52 retroactive)
+
+- **다운로드 URL:** <https://developers.kakao.com/tool/resource/login>
+- **라이센스:** Kakao Brand Guideline — 노란 #FEE500 배경 + 검정 말풍선 (메인)
+  또는 흰 배경 + 노란 말풍선 등 변형
+- **변경 금지:** 색상 / 회전 / 비율 변경 모두 금지 (위반 시 Kakao Developer
+  Console 앱 정지 위험 — Phase 12-07 단락 참조)
+- 본 starter kit 은 노란 배경 + 검정 말풍선 사용 —
+  `BrandedSocialButton.kakao()`
+
+### 교체 절차
+
+1. 각 provider 의 다운로드 URL 에서 SVG 파일 다운로드 (또는 PNG → SVG 변환)
+2. `assets/icons/naver_logo.svg` + `assets/icons/kakao_logo.svg` 덮어쓰기
+3. SVG 의 fill 색상이 `currentColor` 인지 확인 — `BrandedSocialButton` 의
+   `ColorFilter.mode(spec.iconColor, BlendMode.srcIn)` 가 색상 적용
+4. `fvm flutter run` 으로 시각 검증 — 그린 배경 + 흰 N (Naver) / 노란 배경 +
+   검정 말풍선 (Kakao)
+5. (선택) sentinel 검출 — `grep -l 'PLACEHOLDER' assets/icons/*.svg` 결과 0 이어야
+   production 출시 가능
+
+### Phase 14~16 진입 시
+
+LINE / Yahoo!JP / WeChat 진입 시 동일 패턴 — `BrandedSocialButton.line()` /
+`.yahoojp()` / `.wechat()` factory 추가 + 각 공식 SVG 다운로드. 본 단락에
+provider 별 다운로드 URL + 라이센스 + 사용 변형 추가 의무.
+
+---
+
+## Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)
+
+Phase 12 의 Kakao Developer Console 동의 항목에 `profile_image` 추가 의무 —
+Naver 와 동시에 운영 시 양 provider 의 프로필 사진 정보 일관 제공.
+
+### 절차
+
+1. **Kakao Developers Console > 본인 앱 > 동의 항목** 탭
+2. **"프로필 사진"** 활성화 — "선택 동의" 로 설정 (사용자 동의 시 ID Token
+   `picture` claim 자동 포함)
+3. (Phase 13 Decision #6 — Kakao 측 코드 변경 0건 채택) — Console 활성화만으로
+   ID Token claim 자동 포함
+
+### Decision #6 채택 분기 (Phase 13 Plan 13-06)
+
+- **대안 1 (Console only) — 채택:** 동의 항목 활성화만으로 ID Token `picture`
+  claim 자동 포함 (Naver `/v1/nid/me` 응답의 `profile_image` 와 동일 패턴) →
+  코드 변경 0건. 근거: Kakao Developers RestAPI ID Token Payload spec —
+  `picture` field requires `consent for profile information or profile picture`.
+- 대안 2 (SDK arg) — 미채택: `lib/features/auth/data/kakao_sdk_client.dart` 의
+  `loginWithKakaoAccount(serviceTerms: ['openid', 'profile_image'])` 인자
+  갱신. `serviceTerms` 가 카카오싱크 서비스 약관 태그라 OIDC scope 와 별개
+  개념 → 의도 불일치로 미채택.
+
+상세 근거: `.planning/phases/13-naver-login/13-06-SUMMARY.md` 의 Decision #6
+단락 (Context7 / pub.dev README 인용 + 회귀 가드 2 case).
+
+### 회귀 가드
+
+Plan 13-06 commit `5038f1e` 가 다음 invariant 검증:
+
+- `serviceTerms = ['openid']` 만 유지 + `'profile_image'` / `'picture'` 추가
+  인자 부재 (대안 1 fix point)
+- KakaoSignInResult 인터페이스 = idToken + nonce 만 노출 (picture claim 파싱
+  책임 부재 — Phase 17/18 forward compat)
+
+---
+
+## Phase 14~16 — Custom Token Provider 추가 가이드 (stub)
+
+Phase 12 (Kakao OIDC) + Phase 13 (Naver REST) 의 통합 패턴을 그대로 미러링하여
+LINE / Yahoo!JP / WeChat 등 새 Custom Token provider 를 추가할 수 있습니다.
+9 단계 절차:
 
 1. **Provider ID 등록** — `lib/core/auth/provider_id.dart` 의
    `kProviderId{Provider}` 가 이미 등재되어 있음 (Phase 11-02 wave 1). 변경
@@ -664,7 +973,8 @@ bash scripts/check_phase_refs.sh
 | 2026-05-03 | 12-07 | 신규 작성 — Kakao Login + Phase 13~16 stub + RC kill switch 통합 + Brand Asset 라이센스 + 회원탈퇴 TODO |
 | 2026-05-04 | 12.1 | Initial Setup 단락 신규 추가 — config 시크릿 분리 (BL-01 hotfix). config/{flavor}.json 을 .gitignore 처리하고 *.example.json placeholder 만 tracked. |
 | 2026-05-05 | 12.1-03 | Git Hooks 활성화 (선택) 단락 신규 추가 — `scripts/check_phase_refs.sh` 양방향 lint + git pre-commit hook (R8.2 / WR-08). |
+| 2026-05-05 | 13-07 | Naver Login 단락 (10 단계) + Brand Asset 단락 (Kakao + Naver 통합, D-52) + Kakao 동의 항목 갱신 (D-56 retroactive) + Initial Setup 표에 naver 3 키 + iOS xcconfig 의 NAVER_URL_SCHEME + Firebase Secret Manager `NAVER_CLIENT_SECRET` 등록 (D-60). 목차 8 항목으로 확장. |
 
 ---
 
-*Last updated: 2026-05-03 — Phase 12 Plan 07 완료 (Kakao Login)*
+*Last updated: 2026-05-05 — Phase 13 Plan 07 완료 (Naver Login + Brand Asset + Kakao retroactive)*
