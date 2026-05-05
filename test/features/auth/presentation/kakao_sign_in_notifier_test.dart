@@ -107,4 +107,18 @@ void main() {
       await future;
     });
   });
+
+  group('KakaoSignInNotifier.build (R7 contract — D-42)', () {
+    test('초기 state == AsyncData<void>(null) — void build() 의 invariant', () {
+      // R7 contract: build() 가 async work 없이 즉시 AsyncData<void>(null) 을
+      // 반환해야 한다. void build() 시그니처가 invariant 를 강화한다 — 향후
+      // contributor 가 무심코 return Future.value() 를 추가하면 컴파일 에러로
+      // 차단된다.
+      final container = makeContainer();
+      final state = container.read(kakaoSignInProvider);
+      expect(state, const AsyncData<void>(null));
+      expect(state.hasError, isFalse);
+      expect(state.isLoading, isFalse);
+    });
+  });
 }
