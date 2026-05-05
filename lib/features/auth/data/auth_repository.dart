@@ -511,6 +511,10 @@ class AuthRepository {
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
+      // D-57 retroactive (Phase 13 — see ROADMAP.md): SDK 1회성 토큰 정책 일관.
+      // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (kDebugMode debugPrint) —
+      // outer 흐름 차단 안 함 (KakaoSdkClient.logout 내부 try/catch).
+      await _kakaoSdkClient.logout();
       _socialLinkInProgress.end();
     }
   }

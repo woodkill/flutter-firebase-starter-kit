@@ -102,8 +102,10 @@ void main() {
       mockNaverSdkClient,
     );
 
-    // Pitfall 9 회귀 가드 — Naver finally 블록의 SDK logout 빈 stub 등록.
-    // 누락 시 MissingStubError 발생.
+    // Pitfall 9 회귀 가드 — 모든 path 의 finally 블록에서 호출되는
+    // SDK logout 을 빈 stub 으로 등록 (D-57 + D-57 retroactive). 누락 시
+    // MissingStubError 발생.
+    when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
 
     // 기본 User 필드 stub
@@ -1750,4 +1752,70 @@ void main() {
     });
   });
 
+  // ==========================================================================
+  // Phase 13 — see ROADMAP.md, D-57 retroactive
+  // ==========================================================================
+  // signInWithKakao 의 finally 블록에서 KakaoSdkClient.logout 이 호출되는지
+  // 회귀 가드. Validation Architecture line 1617 — T-13-KAKAO-RETRO-LOGOUT-{n}.
+  group('AuthRepository.signInWithKakao D-57 retroactive '
+      '(T-13-KAKAO-RETRO-LOGOUT)', () {
+    late _MockHttpsCallable mockCallable;
+
+    setUp(() {
+      mockCallable = _MockHttpsCallable();
+      // Phase 12 정상 path 재사용 — KakaoSdkClient signIn → CF → 인증.
+      when(() => mockKakaoSdkClient.signIn()).thenAnswer(
+        (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
+      );
+      when(
+        () => mockFunctions.httpsCallable(any()),
+      ).thenReturn(mockCallable);
+      final defaultResult = _MockHttpsCallableResult();
+      when(() => defaultResult.data).thenReturn(<String, dynamic>{
+        'customToken': 'CT',
+        'uid': 'kakao-uid',
+      });
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => defaultResult);
+      when(() => mockUser.uid).thenReturn('kakao-uid');
+      when(() => mockUser.email).thenReturn('kakao@example.com');
+      when(() => mockUser.providerData).thenReturn(<fb.UserInfo>[]);
+      when(
+        () => mockAuth.signInWithCustomToken('CT'),
+      ).thenAnswer((_) async => mockCredential);
+    });
+
+    test('T-13-KAKAO-RETRO-LOGOUT-01: 정상 종료 finally 에서 '
+        'KakaoSdkClient.logout 호출 (D-57)', () async {
+      await repository.signInWithKakao();
+
+      verify(() => mockKakaoSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('T-13-KAKAO-RETRO-LOGOUT-02: 사용자 취소 (signIn null) finally 에서 '
+        'KakaoSdkClient.logout 호출 (D-57)', () async {
+      when(() => mockKakaoSdkClient.signIn()).thenAnswer((_) async => null);
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isNull);
+      // 취소 시에도 finally 가 logout 호출.
+      verify(() => mockKakaoSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
+
+    test('T-13-KAKAO-RETRO-LOGOUT-03: race-fix begin/end + logout 호출 순서 '
+        '(Pitfall 2)', () async {
+      await repository.signInWithKakao();
+
+      verifyInOrder([
+        () => mockSocialLinkInProgress.begin(),
+        () => mockKakaoSdkClient.signIn(),
+        () => mockKakaoSdkClient.logout(), // D-57 — end 직전 (Pitfall 2)
+        () => mockSocialLinkInProgress.end(),
+      ]);
+    });
+  });
 }

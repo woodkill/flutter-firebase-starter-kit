@@ -35,6 +35,7 @@ void main() {
           calls.add('account');
           return _FakeOAuthToken(idToken: 'IDT-account');
         },
+        logout: () async {},
       );
 
       final result = await client.signIn();
@@ -65,6 +66,7 @@ void main() {
           accountServiceTerms = serviceTerms;
           return _FakeOAuthToken(idToken: 'IDT-account');
         },
+        logout: () async {},
       );
 
       final result = await client.signIn();
@@ -90,6 +92,7 @@ void main() {
           calls.add('account');
           return _FakeOAuthToken(idToken: 'IDT-fallback');
         },
+        logout: () async {},
       );
 
       final result = await client.signIn();
@@ -107,6 +110,7 @@ void main() {
         loginWithAccount: ({serviceTerms, nonce}) async {
           throw PlatformException(code: 'CANCELED');
         },
+        logout: () async {},
       );
 
       final result = await client.signIn();
@@ -126,6 +130,7 @@ void main() {
             'User cancelled',
           );
         },
+        logout: () async {},
       );
 
       final result = await client.signIn();
@@ -141,6 +146,7 @@ void main() {
             _FakeOAuthToken(idToken: 'IDT'),
         loginWithAccount: ({serviceTerms, nonce}) async =>
             _FakeOAuthToken(),
+        logout: () async {},
       );
 
       await expectLater(client.signIn(), throwsA(isA<ServiceUnavailable>()));
@@ -153,6 +159,7 @@ void main() {
             _FakeOAuthToken(idToken: 'IDT'),
         loginWithAccount: ({serviceTerms, nonce}) async =>
             _FakeOAuthToken(idToken: 'IDT'),
+        logout: () async {},
       );
 
       final r1 = await client.signIn();
@@ -171,9 +178,47 @@ void main() {
         loginWithAccount: ({serviceTerms, nonce}) async {
           throw PlatformException(code: 'NETWORK_ERROR');
         },
+        logout: () async {},
       );
 
       await expectLater(client.signIn(), throwsA(isA<PlatformException>()));
+    });
+  });
+
+  group('KakaoSdkClient.logout D-57 retroactive (T-13-KAKAO-RETRO)', () {
+    test('T-13-KAKAO-RETRO-LOGOUT-CLIENT-01: logout → '
+        'UserApi.instance.logout 호출', () async {
+      var logoutCalled = false;
+      final client = KakaoSdkClient.forTest(
+        isInstalled: () async => false,
+        loginWithTalk: ({serviceTerms, nonce}) async =>
+            _FakeOAuthToken(idToken: 'IDT'),
+        loginWithAccount: ({serviceTerms, nonce}) async =>
+            _FakeOAuthToken(idToken: 'IDT'),
+        logout: () async {
+          logoutCalled = true;
+        },
+      );
+
+      await client.logout();
+      expect(logoutCalled, isTrue);
+    });
+
+    test('T-13-KAKAO-RETRO-LOGOUT-CLIENT-02: logout 실패 → '
+        'graceful (throw 안 함)', () async {
+      final client = KakaoSdkClient.forTest(
+        isInstalled: () async => false,
+        loginWithTalk: ({serviceTerms, nonce}) async =>
+            _FakeOAuthToken(idToken: 'IDT'),
+        loginWithAccount: ({serviceTerms, nonce}) async =>
+            _FakeOAuthToken(idToken: 'IDT'),
+        logout: () async {
+          throw Exception('SDK error');
+        },
+      );
+
+      // throw 안 함 검증 — graceful (debugPrint).
+      await client.logout();
     });
   });
 }

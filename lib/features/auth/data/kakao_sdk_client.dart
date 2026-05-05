@@ -54,7 +54,8 @@ class KakaoSdkClient {
   KakaoSdkClient()
     : _isInstalled = isKakaoTalkInstalled,
       _loginWithTalk = _defaultLoginWithKakaoTalk,
-      _loginWithAccount = _defaultLoginWithKakaoAccount;
+      _loginWithAccount = _defaultLoginWithKakaoAccount,
+      _logout = _defaultKakaoLogout;
 
   /// 테스트 전용 ctor — SDK 호출을 함수 typedef 로 fake 한다.
   ///
@@ -64,13 +65,16 @@ class KakaoSdkClient {
     required Future<bool> Function() isInstalled,
     required LoginWithKakaoFn loginWithTalk,
     required LoginWithKakaoFn loginWithAccount,
+    required KakaoLogoutFn logout,
   }) : _isInstalled = isInstalled,
        _loginWithTalk = loginWithTalk,
-       _loginWithAccount = loginWithAccount;
+       _loginWithAccount = loginWithAccount,
+       _logout = logout;
 
   final Future<bool> Function() _isInstalled;
   final LoginWithKakaoFn _loginWithTalk;
   final LoginWithKakaoFn _loginWithAccount;
+  final KakaoLogoutFn _logout;
 
   /// Kakao OIDC 로그인 — KakaoTalk 우선 + 카카오계정 웹뷰 fallback.
   ///
@@ -128,6 +132,27 @@ class KakaoSdkClient {
     }
   }
 
+  /// SDK logout — D-57 1회성 토큰 정책 (Phase 13 — see ROADMAP.md, retroactive).
+  ///
+  /// `AuthRepository.signInWithKakao` 의 finally 블록 (race-fix end 직전 —
+  /// Pitfall 2) 에서 호출한다. Kakao client-side 디바이스 토큰을 제거하여
+  /// 재로그인 시 사용자가 명시적으로 동의 화면을 다시 보도록 한다.
+  ///
+  /// `signOut` 메서드와 책임 분리:
+  /// - `signOut`: Firebase signOut 전체 ([fb.FirebaseAuth.signOut])
+  /// - `logout`: SDK 1회성 토큰만 ([UserApi.instance.logout])
+  ///
+  /// 실패 시 graceful ([kDebugMode] [debugPrint]) — outer 흐름 차단 안 함.
+  Future<void> logout() async {
+    try {
+      await _logout();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('KakaoSdkClient.logout 실패 (무시): $e\n$st');
+      }
+    }
+  }
+
   /// nonce 생성 — `Random.secure()` (OS CSPRNG) + 32 bytes + base64Url.
   ///
   /// `Random()` (MT19937 — 예측 가능) 사용 금지. RFC 7636 권장 길이.
@@ -175,6 +200,17 @@ Future<OAuthToken> _defaultLoginWithKakaoAccount({
     serviceTerms: serviceTerms,
     nonce: nonce,
   );
+}
+
+/// Kakao SDK logout 함수 시그니처 typedef (Phase 13 — see ROADMAP.md, D-57
+/// retroactive).
+///
+/// [KakaoSdkClient.forTest] 의 ctor 인자 타입 — 테스트가 fake 함수를 주입한다.
+typedef KakaoLogoutFn = Future<void> Function();
+
+/// Default `UserApi.instance.logout` 호출 — production 진입점 (D-57).
+Future<void> _defaultKakaoLogout() async {
+  await UserApi.instance.logout();
 }
 
 /// [KakaoSdkClient] Provider — keepAlive (Phase 11 facebookAuthProvider 패턴).
