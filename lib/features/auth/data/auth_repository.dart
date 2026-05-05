@@ -695,13 +695,18 @@ class AuthRepository {
   }
 
   /// [FirebaseFunctionsException] 을 [AppException] 으로 매핑한다
-  /// (Phase 12 D-30 / RESEARCH Pattern 4).
+  /// (Phase 12 D-30 / RESEARCH Pattern 4 / Phase 12.1 R3 — D-34).
   ///
   /// Cloud Function 의 [HttpsError] 표준 코드 → [AppException] 분류:
   /// - `unauthenticated` / `invalid-argument` / `failed-precondition`
   ///   → [ServiceUnavailable] (App Check 차단 / JWT 검증 실패 / 사전 조건 위배)
   /// - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
   ///   (Cloud Function 일시 장애 / 네트워크 지연)
+  /// - `already-exists` → [AccountExistsWithDifferentCredential]
+  ///   (R3 — Phase 12.1 BL-04 hotfix. Cloud Function 의 already-exists 응답을
+  ///    사용자 recovery 가능한 도메인 예외로 매핑. email field 는 Cloud Function
+  ///    이 PII 이유로 응답에 미포함 → null 유지. LoginScreen 의 자동 채움은
+  ///    `email != null` 분기에서만 트리거)
   /// - 그 외 → [ServiceUnavailable(cause: e)]
   AppException _mapFunctionsException(FirebaseFunctionsException e) {
     return switch (e.code) {
@@ -709,6 +714,10 @@ class AuthRepository {
       'invalid-argument' ||
       'failed-precondition' => const ServiceUnavailable(),
       'unavailable' || 'deadline-exceeded' => const NoInternetConnection(),
+      // R3 (D-34) — Cloud Function 의 already-exists → 사용자 recovery 가능한
+      // AccountExistsWithDifferentCredential 매핑. 신규 클래스/ARB 0건
+      // (Phase 8/9 패턴 재사용 — errorAccountExistsWithDifferentCredential).
+      'already-exists' => AccountExistsWithDifferentCredential(cause: e),
       _ => ServiceUnavailable(cause: e),
     };
   }
