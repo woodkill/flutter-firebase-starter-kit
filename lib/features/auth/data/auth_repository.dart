@@ -15,6 +15,7 @@ import '../../../core/providers/firebase_providers.dart';
 import '../application/social_link_in_progress.dart';
 import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
+import 'naver_sdk_client.dart';
 
 part 'auth_repository.g.dart';
 
@@ -33,6 +34,10 @@ class AuthRepository {
   /// [_kakaoSdkClient] 와 [_functions] 는 Phase 12 Kakao 로그인 (Custom Token
   /// 방식) 을 위해 추가됐다 — kakao_flutter_sdk_user 호출 wrapper +
   /// `kakaoCustomToken` Cloud Function 호출 채널.
+  ///
+  /// [_naverSdkClient] 는 Phase 13 Naver 로그인 (Custom Token 방식) 을 위해
+  /// 추가됐다 — naver_login_sdk callback → Future wrapper. Cloud Function
+  /// 채널 (`naverCustomToken`) 은 [_functions] 를 재사용한다.
   const AuthRepository(
     this._auth,
     this._googleSignIn,
@@ -40,6 +45,7 @@ class AuthRepository {
     this._socialLinkInProgress,
     this._kakaoSdkClient,
     this._functions,
+    this._naverSdkClient,
   );
 
   final fb.FirebaseAuth _auth;
@@ -48,6 +54,7 @@ class AuthRepository {
   final SocialLinkInProgress _socialLinkInProgress;
   final KakaoSdkClient _kakaoSdkClient;
   final FirebaseFunctions _functions;
+  final NaverSdkClient _naverSdkClient;
 
   /// 이메일/비밀번호로 로그인한다.
   ///
@@ -508,6 +515,78 @@ class AuthRepository {
     }
   }
 
+  /// Naver 계정으로 Firebase Auth 에 로그인한다 (Phase 13 — see ROADMAP.md,
+  /// SOCL-02).
+  ///
+  /// **Custom Token 방식** — Phase 12 Kakao 와 동일 흐름. 차이:
+  /// (1) SDK = naver_login_sdk (callback-based — [NaverSdkClient] wrapper)
+  /// (2) Cloud Function 페이로드 = `accessToken` 단일 (nonce 부재 — D-46)
+  /// (3) Naver 검증 = REST `/v1/nid/me` Bearer (CF 측 — Plan 13-02)
+  /// (4) finally 에서 SDK logout (D-57 — 1회성 access_token)
+  ///
+  /// 흐름:
+  /// 1. [SocialLinkInProgress.begin] (race-fix Pitfall 8 — 단일 진실원)
+  /// 2. [_naverSdkClient.signIn] — null 반환 (사용자 취소) → null silent (D-45)
+  /// 3. `_functions.httpsCallable('naverCustomToken')(accessToken)` →
+  ///    Cloud Function 이 REST 검증 + Identity Index lookup-first +
+  ///    `createCustomToken` (Plan 13-02)
+  /// 4. [fb.FirebaseAuth.signInWithCustomToken] → Firebase Auth 세션 시작
+  /// 5. [_mapFirebaseUser] → 도메인 [User]
+  /// 6. finally: [_naverSdkClient.logout] (D-57 — Pitfall 2 race-fix end 직전) +
+  ///    [SocialLinkInProgress.end]
+  ///
+  /// 에러 매핑 (Phase 12 D-30 / D-34 helper 재사용):
+  /// - [NaverSdkClient.signIn] 가 null 반환 (사용자 취소 silent — D-45) → null.
+  /// - [FirebaseFunctionsException] → [_mapFunctionsException]
+  ///   (`already-exists` 분기는 Phase 12.1 D-34 에서
+  ///   [AccountExistsWithDifferentCredential] 자동 흡수)
+  /// - [fb.FirebaseAuthException] → [_mapAuthException]
+  /// - 그 외 → [ServiceUnavailable(cause: e)] + [kDebugMode] [debugPrint]
+  ///
+  /// Returns null = 사용자 취소 silent (D-45).
+  Future<Result<User>?> signInWithNaver() async {
+    try {
+      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
+
+      final result = await _naverSdkClient.signIn();
+      if (result == null) {
+        return null; // D-45 silent
+      }
+
+      final callable = _functions.httpsCallable('naverCustomToken');
+      final response = await callable.call<Map<String, dynamic>>(
+        <String, dynamic>{'accessToken': result.accessToken},
+      );
+      final customToken = response.data['customToken'] as String?;
+      if (customToken == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+
+      final userCredential = await _auth.signInWithCustomToken(customToken);
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on FirebaseFunctionsException catch (e) {
+      // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
+      return Result.failure(_mapFunctionsException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('signInWithNaver 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      // D-57 (Phase 13 — see ROADMAP.md): SDK access_token 1회성 정책.
+      // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (NaverSdkClient.logout
+      // 내부 try/catch) — outer 흐름 차단 안 함.
+      await _naverSdkClient.logout();
+      _socialLinkInProgress.end();
+    }
+  }
+
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
   ///
   /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
@@ -795,6 +874,7 @@ AuthRepository authRepository(Ref ref) {
     ref.watch(socialLinkInProgressProvider.notifier),
     ref.watch(kakaoSdkClientProvider),
     ref.watch(firebaseFunctionsProvider),
+    ref.watch(naverSdkClientProvider),
   );
 }
 
