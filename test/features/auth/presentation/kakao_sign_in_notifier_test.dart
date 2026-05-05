@@ -108,12 +108,21 @@ void main() {
     });
   });
 
-  group('KakaoSignInNotifier.build (R7 contract — D-42)', () {
-    test('초기 state == AsyncData<void>(null) — void build() 의 invariant', () {
-      // R7 contract: build() 가 async work 없이 즉시 AsyncData<void>(null) 을
-      // 반환해야 한다. void build() 시그니처가 invariant 를 강화한다 — 향후
-      // contributor 가 무심코 return Future.value() 를 추가하면 컴파일 에러로
-      // 차단된다.
+  group('KakaoSignInNotifier.build (R7 회귀 가드 — D-42 재정의)', () {
+    test('초기 state == AsyncData<void>(null) — R7 회귀 가드 (await/Future.value 추가 시 RED)', () {
+      // R7 contract: `FutureOr<void> build()` 가 async work 없이 즉시
+      // AsyncData<void>(null) 을 반환해야 한다. 향후 contributor 가 build 본문에
+      // await 또는 `return Future.value();` 를 추가하면 build 가 Future 를 반환
+      // → 초기 state 가 AsyncLoading 으로 변경 → 본 테스트가 RED 로 전환되어
+      // PR review 단계에서 차단된다.
+      //
+      // Note: Riverpod 3.x (riverpod_generator 4.0.3) 의 build inference 규칙상
+      // `void build()` 로 변경 시 generator 가 sync $Notifier<void> 가족으로
+      // 강등시켜 AsyncNotifier API 자체가 깨진다 (Plan 12.1-11 SUMMARY Rule 4
+      // 참조). 따라서 R7 의 "컴파일러 enforced 강화" motivation 은 본질적
+      // 불가능 — 회귀 가드 테스트 + docstring 으로 enforce 하는 것이 D-42 의
+      // 재정의된 motivation. AsyncNotifier 가족 (`FutureOr<void> build()`) 은
+      // sibling Google/Apple/Facebook/login/signup/forgot_password 와 정합.
       final container = makeContainer();
       final state = container.read(kakaoSignInProvider);
       expect(state, const AsyncData<void>(null));
