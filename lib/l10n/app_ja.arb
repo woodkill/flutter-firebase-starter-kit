@@ -144,6 +144,12 @@
   "authAccountProviderFacebook": "Facebook",
   "authKakaoSignIn": "カカオではじめる",
   "authAccountProviderKakao": "カカオ",
+  "authNaverSignIn": "Naverではじめる",
+  "authAccountProviderNaver": "ネイバー",
+  "authAccountProviderLine": "LINE",
+  "authAccountProviderYahooJp": "Yahoo! JAPAN",
+  "authAccountProviderWechat": "WeChat",
+  "errorUnknownProvider": "不明なログイン方法",
 
   "onboardingSkip": "スキップ",
   "onboardingNext": "次へ",

@@ -1,6 +1,8 @@
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/features/home/presentation/provider_label_formatter.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations_ja.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_ko.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -40,10 +42,26 @@ void main() {
       );
     });
 
-    test('미지원 provider 는 raw ID fallback (`_ => id`)', () {
-      expect(formatProviderIds(const ['twitter.com'], en), 'twitter.com');
-      expect(formatProviderIds(const ['github.com'], en), 'github.com');
-    });
+    test(
+      'D-53 미지원 slug → l10n.errorUnknownProvider Localizable Unknown fallback '
+      '(raw slug 노출 차단)',
+      () {
+        // Phase 13 D-53: 기존 `_ => id` raw slug fallback 제거.
+        expect(
+          formatProviderIds(const ['twitter.com'], en),
+          en.errorUnknownProvider,
+        );
+        expect(
+          formatProviderIds(const ['github.com'], en),
+          en.errorUnknownProvider,
+        );
+        // raw slug 가 그대로 노출되지 않는지 검증 (회귀 가드).
+        expect(
+          formatProviderIds(const ['twitter.com'], en),
+          isNot(contains('twitter')),
+        );
+      },
+    );
 
     test('다중 매핑 provider 는 ", " 로 결합', () {
       expect(
@@ -53,10 +71,10 @@ void main() {
       );
     });
 
-    test('매핑 + 미매핑 혼합 → 각자 변환 후 결합', () {
+    test('매핑 + 미매핑 혼합 → 각자 변환 후 결합 (D-53 — Unknown Localizable)', () {
       expect(
         formatProviderIds(const ['google.com', 'twitter.com'], en),
-        '${en.authAccountProviderGoogle}, twitter.com',
+        '${en.authAccountProviderGoogle}, ${en.errorUnknownProvider}',
       );
     });
   });
@@ -104,39 +122,174 @@ void main() {
     );
 
     test(
-      'kakao slug 가 `_ => id` fallback 으로 빠지지 않음 — switch 매핑 회귀 가드',
+      'kakao slug 가 Localizable Unknown fallback 으로 빠지지 않음 — switch '
+      '매핑 회귀 가드',
       () {
-        // raw 'kakao' 가 그대로 노출되면 D-17 매핑 누락. 매핑된 값과 raw slug 가
-        // 다름을 검증 (en 로케일에서 라벨 == 'Kakao' != 'kakao').
+        // raw 'kakao' 가 그대로 노출되면 D-17 매핑 누락. 매핑된 값과 raw slug
+        // 가 다름을 검증 (en 로케일에서 라벨 == 'Kakao' != 'kakao').
         final formatted = formatProviderIds(const ['kakao'], en);
         expect(formatted, isNot('kakao'));
+        expect(formatted, isNot(en.errorUnknownProvider));
         expect(formatted, en.authAccountProviderKakao);
       },
     );
   });
 
-  group('kSupportedAuthProviderIds 컨트랙트', () {
+  group('formatProviderIds D-53 일반화 (T-13-FORMATTER)', () {
+    final AppLocalizations en = AppLocalizationsEn();
+    final AppLocalizations ko = AppLocalizationsKo();
+    final AppLocalizations ja = AppLocalizationsJa();
+
     test(
-      'Phase 7~9 + Phase 12 (kakao) 기준 매핑 set 동등성 — Phase 13~16 신규 '
-      'provider 추가 시 본 테스트가 우선 깨져 단위 테스트/fixture 동시 갱신을 '
-      '강제한다',
+      'T-13-FORMATTER-EXISTING-01: 기존 5 매핑 회귀 0 (password / google.com / '
+      'apple.com / facebook.com / kakao)',
+      () {
+        expect(
+          formatProviderIds(const ['password'], ko),
+          ko.authAccountProviderEmailPassword,
+        );
+        expect(formatProviderIds(const ['google.com'], en), 'Google');
+        expect(formatProviderIds(const ['apple.com'], en), 'Apple');
+        expect(formatProviderIds(const ['facebook.com'], en), 'Facebook');
+        expect(formatProviderIds(const ['kakao'], ko), '카카오');
+      },
+    );
+
+    test(
+      'T-13-FORMATTER-NEW-01: 신규 4 매핑 (naver / line / yahoojp / wechat)',
+      () {
+        // ko
+        expect(formatProviderIds(const [kProviderIdNaver], ko), '네이버');
+        expect(formatProviderIds(const [kProviderIdLine], ko), '라인');
+        expect(
+          formatProviderIds(const [kProviderIdYahooJp], ko),
+          'Yahoo! JAPAN',
+        );
+        expect(formatProviderIds(const [kProviderIdWeChat], ko), '위챗');
+        // en
+        expect(formatProviderIds(const [kProviderIdNaver], en), 'Naver');
+        expect(formatProviderIds(const [kProviderIdLine], en), 'LINE');
+        // ja
+        expect(formatProviderIds(const [kProviderIdNaver], ja), 'ネイバー');
+      },
+    );
+
+    test(
+      'T-13-FORMATTER-UNKNOWN-01: 매핑되지 않은 slug → l10n.errorUnknownProvider '
+      '(raw slug 미노출)',
+      () {
+        expect(
+          formatProviderIds(const ['unknown_slug_xyz'], ko),
+          '알 수 없는 로그인 수단',
+        );
+        // raw slug 부재 검증 (D-53 정책).
+        expect(
+          formatProviderIds(const ['unknown_slug_xyz'], ko),
+          isNot(contains('unknown_slug_xyz')),
+        );
+        expect(
+          formatProviderIds(const ['unknown_slug_xyz'], en),
+          'Unknown sign-in method',
+        );
+        expect(
+          formatProviderIds(const ['unknown_slug_xyz'], ja),
+          '不明なログイン方法',
+        );
+      },
+    );
+
+    test(
+      'T-13-FORMATTER-ASSERT-01: kDebugMode assert — kAllProviderIds 모두 '
+      'switch 에 매핑 (assert 자체는 throw 없이 통과)',
+      () {
+        // D-53 의 assert 는 kAllProviderIds 의 모든 slug 가 switch 의 knownIds
+        // set 에 포함되는지 검증한다 (knownIds = google/apple/facebook/kakao/
+        // naver/line/yahoojp/wechat 8개 — kAllProviderIds 와 정확히 같은 set).
+        // assert 자체가 throw 없이 통과하면 contract drift 없음.
+        expect(
+          () => formatProviderIds(const [kProviderIdNaver], en),
+          returnsNormally,
+        );
+        // Custom Token slug 5개는 모두 switch 에 매핑되어 Localizable Unknown
+        // 으로 떨어지지 않는다 (kakao/naver/line/yahoojp/wechat).
+        const customTokenSlugs = <String>[
+          kProviderIdKakao,
+          kProviderIdNaver,
+          kProviderIdLine,
+          kProviderIdYahooJp,
+          kProviderIdWeChat,
+        ];
+        for (final id in customTokenSlugs) {
+          final formatted = formatProviderIds(<String>[id], en);
+          expect(
+            formatted,
+            isNot(en.errorUnknownProvider),
+            reason: 'Custom Token slug $id 가 switch 에 매핑되지 않음 (D-53)',
+          );
+          expect(
+            formatted,
+            isNot(id),
+            reason: 'Custom Token slug $id 가 raw 그대로 노출됨 (D-53 위반)',
+          );
+        }
+      },
+    );
+
+    test(
+      'T-13-FORMATTER-COMPOSITE-01: 복수 provider — 콤마+공백 연결',
+      () {
+        expect(
+          formatProviderIds(const ['google.com', kProviderIdNaver], ko),
+          'Google, 네이버',
+        );
+        expect(
+          formatProviderIds(
+            const ['password', kProviderIdKakao, kProviderIdNaver],
+            ko,
+          ),
+          '이메일 / 비밀번호, 카카오, 네이버',
+        );
+      },
+    );
+
+    test('T-13-FORMATTER-EMPTY-01: 빈 리스트 → "-"', () {
+      expect(formatProviderIds(const <String>[], en), '-');
+    });
+  });
+
+  group('kSupportedAuthProviderIds 컨트랙트 (Phase 13 D-53 갱신)', () {
+    test(
+      'Phase 7~9 (4 native URI) + Phase 12 (kakao) + Phase 13 (naver) + '
+      'Phase 14~16 사전 등재 (line/yahoojp/wechat) — 총 9 IDs',
       () {
         expect(
           kSupportedAuthProviderIds,
           equals(<String>{
+            // Native URI
             'password',
             'google.com',
             'apple.com',
             'facebook.com',
-            'kakao',
+            // Custom Token slug
+            kProviderIdKakao,
+            kProviderIdNaver,
+            kProviderIdLine,
+            kProviderIdYahooJp,
+            kProviderIdWeChat,
           }),
         );
       },
     );
 
-    test('kakao slug 가 set 의 5번째 원소로 등재', () {
-      expect(kSupportedAuthProviderIds.contains('kakao'), isTrue);
-      expect(kSupportedAuthProviderIds.length, 5);
-    });
+    test(
+      'naver slug 가 set 에 등재 (Phase 13) + 총 9 원소 (Phase 14~16 사전 등재)',
+      () {
+        expect(kSupportedAuthProviderIds.contains(kProviderIdNaver), isTrue);
+        expect(kSupportedAuthProviderIds.contains(kProviderIdLine), isTrue);
+        expect(kSupportedAuthProviderIds.contains(kProviderIdYahooJp), isTrue);
+        expect(kSupportedAuthProviderIds.contains(kProviderIdWeChat), isTrue);
+        expect(kSupportedAuthProviderIds.length, 9);
+      },
+    );
   });
 }

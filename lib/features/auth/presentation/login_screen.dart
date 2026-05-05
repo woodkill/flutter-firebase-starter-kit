@@ -24,6 +24,7 @@ import 'facebook_sign_in_notifier.dart';
 import 'google_sign_in_notifier.dart';
 import 'kakao_sign_in_notifier.dart';
 import 'login_notifier.dart';
+import 'naver_sign_in_notifier.dart';
 
 /// 이메일/비밀번호 + Google + Apple + Facebook 로그인 화면 (D-01, D-04, D-05).
 ///
@@ -128,6 +129,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (ref.read(appleSignInProvider).isLoading) return;
     if (ref.read(facebookSignInProvider).isLoading) return;
     if (ref.read(kakaoSignInProvider).isLoading) return;
+    if (ref.read(naverSignInProvider).isLoading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
@@ -154,14 +156,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final appleState = ref.watch(appleSignInProvider);
     final facebookState = ref.watch(facebookSignInProvider);
     final kakaoState = ref.watch(kakaoSignInProvider);
+    final naverState = ref.watch(naverSignInProvider);
     // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): 외부 인증 복귀 후
     // signInWithCredential / Firestore mirror 동안 화면을 막아 명시적 진행
-    // 신호를 제공한다. Phase 12 — kakaoState 합산 (D-25 / 12-UI-SPEC).
+    // 신호를 제공한다. Phase 12 — kakaoState 합산 (D-25 / 12-UI-SPEC),
+    // Phase 13 — naverState 합산 (Plan 13-06 / 13-UI-SPEC).
     final isSocialLoading =
         googleState.isLoading ||
         appleState.isLoading ||
         facebookState.isLoading ||
-        kakaoState.isLoading;
+        kakaoState.isLoading ||
+        naverState.isLoading;
     final isLoading = state.isLoading || isSocialLoading;
 
     // 이메일/비밀번호 로그인 결과: 성공 + emailVerified -> Home safety net

@@ -61,10 +61,9 @@ class SocialButton extends ConsumerWidget {
     }
     if (strategy.providerId == kProviderIdNaver) {
       return BrandedSocialButton.naver(
-        // 임시 라벨 — Plan 13-06 에서 `l10n.authNaverSignIn` ARB 키로 교체
-        // (Wave 4 atomic 분리 — Plan 13-05 는 BrandedSocialButton 추상화만,
-        //  Plan 13-06 이 ARB 16 키 + _resolveLabel switch 동시 처리).
-        label: 'Naver',
+        // Phase 13 Plan 13-06 — `l10n.authNaverSignIn` ARB 키 매핑
+        // (`_resolveLabel` switch 의 'authNaverSignIn' case).
+        label: _resolveLabel(l10n, strategy.labelKey),
         onPressed: isDisabled
             ? null
             : () => strategy.signIn(ref),
@@ -105,13 +104,14 @@ class SocialButton extends ConsumerWidget {
   /// ARB 키를 `AppLocalizations` getter 로 매핑한다.
   ///
   /// Phase 12 — `authKakaoSignIn` 추가 (D-29).
-  /// Phase 13 — `authNaverSignIn` case 는 Plan 13-06 에서 추가 (Wave 4 atomic
-  /// 분리). 본 plan 13-05 는 Naver 분기에서 임시 'Naver' hardcoded 라벨 사용.
+  /// Phase 13 Plan 13-06 — `authNaverSignIn` 추가 (Wave 4 atomic 분리 —
+  /// Plan 13-05 의 임시 라벨 → ARB 키 교체).
   String _resolveLabel(AppLocalizations l10n, String key) => switch (key) {
     'authGoogleSignIn' => l10n.authGoogleSignIn,
     'authAppleSignIn' => l10n.authAppleSignIn,
     'authFacebookSignIn' => l10n.authFacebookSignIn,
     'authKakaoSignIn' => l10n.authKakaoSignIn,
+    'authNaverSignIn' => l10n.authNaverSignIn,
     _ => key,
   };
 }
