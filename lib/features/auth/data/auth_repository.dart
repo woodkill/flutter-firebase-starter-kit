@@ -1,5 +1,7 @@
 // `cloud_functions` 의 `Result` 와 [Result] (core/error/result.dart) 가 충돌하므로
 // 본 파일은 cloud_functions 의 Result 를 hide 한다 (본 모듈은 [Result] 만 사용).
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
@@ -846,11 +848,14 @@ User? currentUser(Ref ref) {
 /// `users/{uid}` 문서가 미존재 (mirrorToFirestore 가 작성 전) 이거나
 /// `linkedProviders` 필드가 없으면 빈 배열을 emit 한다.
 ///
-/// **에러 흡수 (Plan 10-09 패턴):** snapshots stream 에러 (네트워크 / 권한
-/// 거부) 시 [Stream.handleError] 로 silent 처리 — emit 자체를 차단한다.
-/// 결과적으로 [currentUserProvider] 는 AsyncLoading 상태로 머물고, fallback
-/// 분기 (`maybeWhen orElse`) 가 빈 배열을 반환하여 Firebase providerData 만
-/// 사용한다.
+/// **에러 흡수 (Phase 12.1 R6 / D-41):** snapshots stream 에러 (네트워크 /
+/// 권한 거부) 시 [StreamTransformer.fromHandlers] 의 `handleError` 로
+/// 빈 배열을 명시적으로 emit 한다 — `AsyncData(<String>[])` 정착으로
+/// `AsyncLoading` 영구 잔류를 회피한다. 직접 stream 소비 consumer (Account
+/// 섹션, debug widget) 의 spinner 무한 회피가 본 변경의 핵심.
+///
+/// 합집합 결과는 동일 — [currentUserProvider] 의 `maybeWhen orElse` 가
+/// `data:(list) => list` 분기로 자연 흐름 (Firebase providerData 만 사용).
 ///
 /// `kDebugMode` 에서는 디버그 로그를 출력한다 — release 빌드는 silent.
 ///
@@ -875,9 +880,20 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) {
             .whereType<String>()
             .toList(growable: false);
       })
-      .handleError((Object e, StackTrace st) {
-        if (kDebugMode) {
-          debugPrint('linkedProvidersStream 에러 (fallback empty): $e\n$st');
-        }
-      });
+      .transform(
+        StreamTransformer<List<String>, List<String>>.fromHandlers(
+          handleError:
+              (Object e, StackTrace st, EventSink<List<String>> sink) {
+                if (kDebugMode) {
+                  debugPrint(
+                    'linkedProvidersStream 에러 (fallback empty): $e\n$st',
+                  );
+                }
+                // R6 (D-41) — 빈 배열 명시 emit. AsyncData(<String>[]) 정착으로
+                // direct consumer (Account 섹션, debug widget) 가 spinner
+                // 무한에서 풀려난다.
+                sink.add(const <String>[]);
+              },
+        ),
+      );
 }
