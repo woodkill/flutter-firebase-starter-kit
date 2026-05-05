@@ -310,21 +310,34 @@ void main() {
       expect(semanticsAncestor, findsWidgets);
     });
 
-    testWidgets('미지원 프로바이더 raw ID 그대로 표시 (D-11 fallback)', (tester) async {
-      // twitter.com 은 _formatProviderIds switch 에 매핑되지 않아 raw ID fallback (`_ => id`) 분기를 검증한다.
-      final user = User(
-        uid: 'uid-provider-4',
-        email: 'raw@example.com',
-        emailVerified: true,
-        displayName: 'Raw',
-        createdAt: DateTime.utc(2026),
-        providerIds: ['twitter.com'],
-      );
+    testWidgets(
+      '미지원 프로바이더 → l10n.errorUnknownProvider Localizable Unknown '
+      'fallback (Phase 13 D-53 — raw slug 노출 차단)',
+      (tester) async {
+        // Phase 13 D-53: switch 에 매핑되지 않은 slug 는 l10n.errorUnknownProvider
+        // 로 fallback (raw slug 노출 절대 금지). 기존 `_ => id` raw fallback 제거.
+        final user = User(
+          uid: 'uid-provider-4',
+          email: 'raw@example.com',
+          emailVerified: true,
+          displayName: 'Raw',
+          createdAt: DateTime.utc(2026),
+          providerIds: ['twitter.com'],
+        );
 
-      await _pumpScreen(tester, user: user);
+        await _pumpScreen(tester, user: user);
 
-      expect(find.text('twitter.com', skipOffstage: false), findsOneWidget);
-    });
+        // raw slug 'twitter.com' 미노출 — Localizable Unknown 으로 교체.
+        expect(find.text('twitter.com', skipOffstage: false), findsNothing);
+        // ko 로케일 (`_pumpScreen` 기본 — env 의 `Locale('ko')` 또는 en) 에 따른
+        // Unknown 라벨 노출 검증. Phase 4 정책상 기본 en, l10n.errorUnknownProvider
+        // 의 en 값.
+        expect(
+          find.text('Unknown sign-in method', skipOffstage: false),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets('providerIds [apple.com] 시 "Apple" 표시 (Phase 8)', (
       tester,
