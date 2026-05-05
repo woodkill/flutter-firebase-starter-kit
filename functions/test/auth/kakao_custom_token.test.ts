@@ -564,4 +564,49 @@ describe("kakaoCustomToken onCall", () => {
       );
     },
   );
+
+  // Phase 13 — see ROADMAP.md
+  // D-54 retroactive — RESEARCH Example C 패턴 verbatim 인용 (line 1442-1461).
+  // 기존 R5 PII regression (line 503-537) 가 sentinel
+  // "PII_SENTINEL_secret@example.com_kakao_account_nickname" 으로 검증 중인데,
+  // 본 케이스는 다른 sentinel 분해 토큰 (email@test.com / PII_NICK) 으로 추가
+  // 검증 — Phase 13 fetch + Phase 12 jose retroactive 의 sentinel 통일성 + by-
+  // construction 한계 보강 (catch 메시지에 logger 추가 시 RED).
+  it(
+    // eslint-disable-next-line max-len
+    "T-13-PII-KAKAO-RETRO-01: D-54 retroactive — jose error message PII sentinel 강화",
+    async () => {
+      const sentinel =
+        "PII_SENTINEL_email@test.com_kakao_account_PII_NICK";
+      const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
+        m: string
+      ) => Error;
+      const err = new ErrCtor(sentinel);
+      (err as unknown as {code: string}).code =
+        "ERR_JWT_CLAIM_VALIDATION_FAILED";
+      jwtVerifyMock.mockRejectedValue(err);
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      await expect(
+        wrapped({
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never),
+      ).rejects.toBeInstanceOf(Error);
+
+      // Phase 13 신규 sentinel — 모든 logger call (info/warn/error) 에서
+      // sentinel + 분해 토큰 미노출 검증.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain(sentinel);
+        expect(stringified).not.toContain("email@test.com");
+        expect(stringified).not.toContain("PII_NICK");
+      }
+    },
+  );
 });
