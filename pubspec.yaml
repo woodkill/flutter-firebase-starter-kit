@@ -109,9 +109,10 @@ flutter:
 
   assets:
     - assets/images/splash/
+    # Phase 13 — see ROADMAP.md (D-52 Brand Asset): 신규 brand SVG 는
+    # `assets/icons/` directory 등록을 통해 자동 포함. 개별 파일 추가 등록 금지
+    # (WR-02-iter2 — directory 등록과 individual 등록 이중화 회피).
     - assets/icons/
-    # Phase 13 — see ROADMAP.md (D-52 Brand Asset 명시 등록 — naver_logo.svg)
-    - assets/icons/naver_logo.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
