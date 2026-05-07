@@ -130,6 +130,39 @@ void main() {
       await expectLater(future, throwsA(isA<ServiceUnavailable>()));
     });
 
+    // WR-02 (Phase 13 review): ServiceUnavailable.cause 가 NaverSdkError
+    // 구조 보존 — errorCode 정수 + message 분리. String concat 회귀 방어.
+    test(
+      'T-13-NAVER-SDK-06b (WR-02): onError → cause 가 NaverSdkError 구조 보존',
+      () async {
+        OAuthLoginCallback? capturedCallback;
+        final client = NaverSdkClient.forTest(
+          login: ({required OAuthLoginCallback callback}) {
+            capturedCallback = callback;
+          },
+          getAccessToken: () async => '',
+          logout: () async {},
+        );
+
+        final future = client.signIn();
+        await Future<void>.delayed(Duration.zero);
+        capturedCallback!.onError?.call(500, 'server_side_failure');
+
+        Object? captured;
+        try {
+          await future;
+        } on Object catch (e) {
+          captured = e;
+        }
+        expect(captured, isA<ServiceUnavailable>());
+        final cause = (captured! as ServiceUnavailable).cause;
+        expect(cause, isA<NaverSdkError>());
+        final sdkErr = cause! as NaverSdkError;
+        expect(sdkErr.code, equals(500));
+        expect(sdkErr.message, equals('server_side_failure'));
+      },
+    );
+
     test('T-13-NAVER-SDK-LEAK-01: Completer 다중 complete 가드 (Pitfall 1)',
         () async {
       OAuthLoginCallback? capturedCallback;

@@ -37,6 +37,29 @@ typedef NaverGetAccessTokenFn = Future<String> Function();
 /// Naver SDK `logout()` 함수 시그니처 typedef (D-57).
 typedef NaverLogoutFn = Future<void> Function();
 
+/// Naver SDK `onError(errorCode, message)` 분기를 보존하는 구조화 에러
+/// (Phase 13 review WR-02).
+///
+/// `ServiceUnavailable.cause` 가 `Object?` 이므로 `'$errorCode $message'`
+/// String concat 으로 전달하면 errorCode 정수가 message 와 융합되어 운영
+/// 진단 시 errorCode 500 ('server side') 와 errorCode -1 ('client config')
+/// 같은 분류가 사라진다. 본 wrapper 가 두 필드를 분리 보존 + `toString()`
+/// 만으로도 사람-가독.
+@immutable
+class NaverSdkError implements Exception {
+  /// SDK 가 onError 콜백에 전달한 errorCode 정수 + message 를 묶는다.
+  const NaverSdkError(this.code, this.message);
+
+  /// SDK 의 onError(errorCode) — Naver SDK 분류 (예: -1 client, 500 server).
+  final int code;
+
+  /// SDK 의 onError(message) — naver SDK 가 제공한 사람-가독 메시지.
+  final String message;
+
+  @override
+  String toString() => 'NaverSdkError(code: $code, message: $message)';
+}
+
 /// Default `NaverLoginSDK.login` 호출 — production 진입점.
 ///
 /// [Future<bool>] 반환은 무시한다 — 진실원은 callback (Pitfall 9). SDK 가
@@ -174,7 +197,11 @@ class NaverSdkClient {
             return;
           }
           // 그 외 (network / SDK 오류) → ServiceUnavailable.
-          completeError(ServiceUnavailable(cause: '$errorCode $message'));
+          // WR-02 (Phase 13 review): errorCode 정수 + message 분리 보존 —
+          // String concat 시 errorCode 분류 정보가 사라져 운영 진단 어려움.
+          completeError(
+            ServiceUnavailable(cause: NaverSdkError(errorCode, message)),
+          );
         },
       ),
     );
