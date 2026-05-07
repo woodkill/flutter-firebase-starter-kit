@@ -615,4 +615,56 @@ describe("kakaoCustomToken onCall", () => {
       }
     },
   );
+
+  // CR-01 (Phase 13 review carry-forward): createCustomToken throw → internal
+  // + errorUnknown 매핑 회귀 가드. err.message 본문은 logger 에 미노출
+  // (PII 금지 D-08).
+  it(
+    // eslint-disable-next-line max-len
+    "T-13-PII-KAKAO-RETRO-02: createCustomToken throw → internal + errorUnknown + err.message 미노출",
+    async () => {
+      // 정상 JWT 검증 통과 → resolveIdentity 통과 시뮬레이션.
+      jwtVerifyMock.mockResolvedValue({
+        payload: {sub: "kakao-uid-token-fail", nonce: "n"},
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      // admin SDK throw 시뮬레이션 — err.message 에 PII sentinel 삽입.
+      const sdkErr = Object.assign(
+        new Error("PII_SENTINEL_KAKAO_TOKEN_FAIL_MSG"),
+        {name: "FirebaseAuthError"},
+      );
+      mockCreateCustomToken.mockRejectedValueOnce(sdkErr);
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const promise = wrapped({
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "internal",
+        message: "errorUnknown",
+      });
+
+      expect(errorMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "kakao_custom_token_create_failed",
+          code: "FirebaseAuthError",
+        }),
+        expect.any(String),
+      );
+      // PII 회귀 — err.message 본문 logger 미노출.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        expect(JSON.stringify(args)).not.toContain(
+          "PII_SENTINEL_KAKAO_TOKEN_FAIL_MSG",
+        );
+      }
+    },
+  );
 });

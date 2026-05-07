@@ -252,7 +252,22 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
     const {uid, isNewUser} = resolution;
 
     // Step 5: Custom Token 발급 (admin SDK — 1h 만료).
-    const customToken = await getAuth().createCustomToken(uid);
+    // CR-01 (Phase 13 review): admin SDK throw (auth/internal-error,
+    // auth/insufficient-permission 등) 도 internal + errorUnknown 으로 매핑.
+    // 미적용 시 raw err.message 가 Cloud Functions runtime 의 INTERNAL 응답에
+    // 그대로 노출 — D-08 PII 정책 위반.
+    let customToken: string;
+    try {
+      customToken = await getAuth().createCustomToken(uid);
+    } catch (err: unknown) {
+      // PII 금지 (D-51) — err.message 본문 미로깅. err.name 만 fingerprint.
+      const errCode = err instanceof Error ? err.name : "unknown";
+      logger.error(
+        {event: "naver_custom_token_create_failed", code: errCode},
+        "createCustomToken threw",
+      );
+      throw new HttpsError("internal", "errorUnknown");
+    }
 
     // Step 6: structured log — uid + isNewUser 만 (PII 금지 D-51).
     logger.info(
