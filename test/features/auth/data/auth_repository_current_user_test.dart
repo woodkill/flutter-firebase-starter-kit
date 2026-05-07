@@ -337,6 +337,60 @@ void main() {
     );
   });
 
+  // WR-06 (Phase 13 review): R13 race condition — linkedProvidersStreamProvider
+  // 첫 emit 전 (AsyncLoading) 시점에 currentUserProvider 의
+  // linkedAsync.maybeWhen(orElse: () => const <String>[]) 가 fall-through 해서
+  // 빈 배열 fallback. linkedProviders.isEmpty → return base 분기로 base.
+  // providerIds (= Firebase providerData) 만 사용. Custom Token (Naver/Kakao)
+  // 사용자는 providerData 가 비어있어 EnvironmentInfoScreen 의 "로그인 수단:" 이
+  // 한 frame 동안 '-' 로 표시되는 ephemeral UX 가 발생.
+  //
+  // 본 invariant 를 명시적 회귀 가드 — AsyncLoading 시점에 base 가 그대로 유지
+  // 되며, currentUserProvider 가 null 이 되거나 throw 가 아니어야 한다 (R13
+  // todo: defer to Phase 17). Phase 17 이 stream 첫 emit 까지 AsyncLoading 을
+  // 기다리는 옵션 (e.g. ref.watch + waitForFirstEmit) 로 전환할 때 본 test 가
+  // semantics 변화의 회귀 알림 역할.
+  group('Phase 13 R13 (WR-06): linkedAsync AsyncLoading 첫 frame 보존', () {
+    test(
+      'linkedProvidersStream 미 emit (AsyncLoading) 시 base.providerIds 유지',
+      () async {
+        const uid = 'uid-async-loading';
+        // Custom Token (Naver) 로 로그인 — Firebase providerData 가 비어있는
+        // 시뮬레이션. 실 Naver Custom Token user record 는 providerData 가
+        // [] 이므로 base.providerIds 도 빈 배열.
+        final fbUser = _buildFbUser(uid: uid, providerIds: <String>[]);
+        // emit 안 하는 stream (AsyncLoading 상태 유지) — Firestore round-trip
+        // 미완 시뮬레이션.
+        final firestore = _buildFirestore(
+          uid: uid,
+          snapshots: const Stream<_MockDocumentSnapshot>.empty(),
+        );
+
+        final container = _makeContainer(
+          overrides: [
+            authStateProvider.overrideWith(
+              (ref) => Stream<fb.User?>.value(fbUser),
+            ),
+            firebaseFirestoreProvider.overrideWithValue(firestore),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await _settle();
+
+        // R13 invariant: AsyncLoading 첫-frame 시 user 객체는 valid (null /
+        // throw 아님), providerIds 는 base (Firebase providerData) 그대로.
+        // ephemeral '-' UX 는 EnvironmentInfoScreen 의 별도 책임 — Phase 17
+        // 까지 의도된 동작.
+        final user = container.read(currentUserProvider);
+        expect(user, isNotNull);
+        expect(user!.uid, uid);
+        // base.providerIds 보존 — linkedAsync 합산 미진행 (AsyncLoading).
+        expect(user.providerIds, isEmpty);
+      },
+    );
+  });
+
   group('Phase 12: linkedProvidersStreamProvider (직접 호출)', () {
     test(
       'Firestore linkedProviders=[{kakao}, {naver}] → providerId 만 추출',
