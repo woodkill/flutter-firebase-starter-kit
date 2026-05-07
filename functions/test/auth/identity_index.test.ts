@@ -96,10 +96,24 @@ function makeDb(opts: {
   };
   const userRef = {label: "userRef"};
 
+  // WR-05 (Phase 13 review): "all reads before all writes" Firestore
+  // transaction 제약 회귀 가드. firestore production 은 첫 write (set/update)
+  // 발화 후 read (get) 시 FAILED_PRECONDITION 으로 reject 하지만, 본 jest mock
+  // 은 phase 추적 없이 모두 받아주므로 R12 같은 회귀가 unit test 에서 GREEN
+  // 통과해 버림 (13-UAT 시나리오 3 시 실 단말 노출). MockTx state machine 으로
+  // first-write 이후 read 시 명시적 throw — 회귀 발생 시 RED.
+  let txPhase: "read" | "write" = "read";
   const tx: MockTx = {
     // R12: tx.get(idxRef) → idxSnap, tx.get(userRef) → callerUserSnap 분기.
     // ref reference 비교로 idxRef vs userRef 식별 (mock object 동일 인스턴스).
     get: jest.fn(async (ref: unknown): Promise<MockDoc> => {
+      if (txPhase === "write") {
+        throw new Error(
+          "Firestore transaction violation: tx.get() called after " +
+            "tx.set/update. All reads must precede all writes (WR-05 mock " +
+            "state-machine guard).",
+        );
+      }
       if (ref === userRef) {
         return {
           exists: opts.callerUserExists ?? true,
@@ -112,8 +126,12 @@ function makeDb(opts: {
         data: txData ? () => txData : undefined,
       };
     }),
-    set: jest.fn(),
-    update: jest.fn(),
+    set: jest.fn(() => {
+      txPhase = "write";
+    }),
+    update: jest.fn(() => {
+      txPhase = "write";
+    }),
   };
 
   const db = {
@@ -132,6 +150,29 @@ describe("identityIndexDocId", () => {
   it("provider:providerUserId 형식으로 키 생성 (D-09)", () => {
     expect(identityIndexDocId("kakao", "abc123")).toBe("kakao:abc123");
     expect(identityIndexDocId("naver", "456")).toBe("naver:456");
+  });
+});
+
+// WR-05 (Phase 13 review): MockTx state-machine sanity — mock 가드 자체가
+// "all reads before all writes" 위반을 detect 하는지 self-test. 회귀 가드의
+// 가드 (meta-test) — 향후 makeDb 가 변경돼서 phase tracker 가 무력화되면
+// 본 case 가 RED 로 회귀를 알린다.
+describe("MockTx phase tracker (WR-05 meta-test)", () => {
+  it("first-write 후 read → 명시 throw (R12 회귀 시뮬레이션)", async () => {
+    const {tx, idxRef, userRef} = makeDb({
+      preExists: true,
+      txExists: true,
+      txData: {firebaseUid: "x"},
+    });
+
+    // 정상 read.
+    await tx.get(idxRef);
+    // 명시적 write — phase 전환.
+    tx.update(idxRef, {lastSeenAt: "T"});
+    // write 후 read 시도 → 명시 throw (Firestore production 동작 미러).
+    await expect(tx.get(userRef)).rejects.toThrow(
+      /Firestore transaction violation/,
+    );
   });
 });
 
