@@ -1621,18 +1621,18 @@ void main() {
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
 
-    test('T-13-NAVER-REPO-02 (WR-03): NaverSdkClient null (사용자 취소) → '
-        'null + logout 미호출 (no token to revoke)', () async {
+    test('T-13-NAVER-REPO-02 (WR-01-iter2): NaverSdkClient null (사용자 취소) → '
+        'null + logout 1회 호출 (D-57 모든 path 일관)', () async {
       when(() => mockNaverSdkClient.signIn()).thenAnswer((_) async => null);
 
       final result = await repository.signInWithNaver();
 
       expect(result, isNull);
-      // WR-03 (Phase 13 review): result==null path 에서는 SDK 가 토큰을 발급
-      // 안 했으므로 logout() 호출이 무의미 (no token to revoke). spurious
-      // platform-channel round-trip + dev "logout 실패 (무시)" debugPrint
-      // 노이즈 회피.
-      verifyNever(() => mockNaverSdkClient.logout());
+      // WR-01-iter2 (Phase 13 review iter2): D-57 1회성 토큰 정책의 invariant
+      // 강화 — timeout / 취소 path 에서도 SDK 측 디바이스 토큰이 잔존할 가능성
+      // (24h TTL) 이 있으므로 모든 path 에서 logout. NaverSdkClient.logout 은
+      // 내부 try/catch graceful — "no session" 상태도 silent 흡수.
+      verify(() => mockNaverSdkClient.logout()).called(1);
       verify(() => mockSocialLinkInProgress.end()).called(1);
       // CF / Firebase Auth 미호출 검증.
       verifyNever(() => mockFunctions.httpsCallable(any()));
@@ -1670,8 +1670,8 @@ void main() {
       expect((result! as Failure).exception, isA<InvalidCredentials>());
     });
 
-    test('T-13-NAVER-REPO-05 (WR-03): 비-Auth 예외 (PlatformException 등) → '
-        'ServiceUnavailable(cause) + signIn 단계 throw → logout 미호출',
+    test('T-13-NAVER-REPO-05 (WR-01-iter2): 비-Auth 예외 (PlatformException 등) '
+        '→ ServiceUnavailable(cause) + signIn 단계 throw → logout 1회 호출',
         () async {
       when(() => mockNaverSdkClient.signIn())
           .thenThrow(PlatformException(code: 'NETWORK_ERROR'));
@@ -1680,9 +1680,10 @@ void main() {
 
       expect(result, isA<Failure<dynamic>>());
       expect((result! as Failure).exception, isA<ServiceUnavailable>());
-      // WR-03 (Phase 13 review): signIn 단계 throw → SDK 가 access_token 을
-      // 발급하기 전 — issuedToken=false. logout() 호출은 무의미.
-      verifyNever(() => mockNaverSdkClient.logout());
+      // WR-01-iter2 (Phase 13 review iter2): D-57 invariant — signIn 단계 throw
+      // path 에서도 SDK 가 부분적으로 토큰을 발급한 후 throw 한 가능성을 배제할
+      // 수 없으므로 모든 path 에서 logout. graceful no-op 으로 흡수.
+      verify(() => mockNaverSdkClient.logout()).called(1);
       // end 는 race-fix 보장 — exception 와 무관하게 1회.
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
@@ -1800,18 +1801,18 @@ void main() {
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
 
-    test('T-13-KAKAO-RETRO-LOGOUT-02 (WR-03): 사용자 취소 (signIn null) → '
-        'KakaoSdkClient.logout 미호출 (no token to revoke)', () async {
+    test('T-13-KAKAO-RETRO-LOGOUT-02 (WR-01-iter2): 사용자 취소 (signIn null) → '
+        'KakaoSdkClient.logout 1회 호출 (D-57 모든 path 일관)', () async {
       when(() => mockKakaoSdkClient.signIn()).thenAnswer((_) async => null);
 
       final result = await repository.signInWithKakao();
 
       expect(result, isNull);
-      // WR-03 (Phase 13 review): result==null path 에서는 SDK 가 토큰을 발급
-      // 안 했으므로 logout() 호출이 무의미 (no token to revoke). spurious
-      // platform-channel round-trip + dev "logout 실패 (무시)" debugPrint
-      // 노이즈 회피.
-      verifyNever(() => mockKakaoSdkClient.logout());
+      // WR-01-iter2 (Phase 13 review iter2): D-57 1회성 토큰 정책의 invariant
+      // 강화 — Naver path 와 대칭. timeout / 취소 path 에서도 SDK 측 토큰
+      // 잔존 가능성을 배제하기 위해 모든 path 에서 logout. KakaoSdkClient.logout
+      // 은 내부 try/catch graceful — "no session" 상태도 silent 흡수.
+      verify(() => mockKakaoSdkClient.logout()).called(1);
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
 

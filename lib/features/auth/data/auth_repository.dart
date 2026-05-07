@@ -472,13 +472,14 @@ class AuthRepository {
   /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
   /// 호출. Strategy 단계 추가 호출 절대 금지 (Pitfall 8).
   Future<Result<User>?> signInWithKakao() async {
-    // WR-03 (Phase 13 review): finally 의 logout 호출이 result==null
-    // (사용자 취소 / 빈 토큰) path 에서도 발화하던 회귀. SDK 가 발급한 토큰이
-    // 없을 때 logout() 호출은 무의미 (no token to revoke) + 불필요한 platform
-    // channel round-trip + dev 빌드의 "logout 실패 (무시)" debugPrint 노이즈를
-    // 유발. 외부 변수에 issuedToken 플래그를 두어 토큰이 *실제 발급된* path
-    // 에서만 logout 호출.
-    var issuedToken = false;
+    // WR-01-iter2 (Phase 13 review iter2): D-57 1회성 토큰 정책의 invariant 강화
+    // — 모든 path 에서 finally logout. 이전 iter1 의 `issuedToken` 가드는 timeout
+    // path 에서 SDK 측 디바이스 토큰이 잔존할 가능성 (24h TTL) 을 남겼다.
+    // KakaoSdkClient.logout 은 내부 try/catch graceful — SDK "no session" 상태에서도
+    // silent no-op (D-57 retroactive 일관). 사용자 취소 / signIn 단계 throw path
+    // 의 spurious platform-channel round-trip 비용은 운영상 무시 가능 수준이고,
+    // D-57 의 invariant ("finally 에서 즉시 logout") 가 timeout / 취소 path 에서도
+    // 일관되게 적용되는 보안 우선 정책 채택.
     try {
       _socialLinkInProgress.begin();
 
@@ -487,7 +488,6 @@ class AuthRepository {
         // 사용자 취소 silent (D-05 — wrapper 가 null 로 흡수).
         return null;
       }
-      issuedToken = true; // SDK 가 토큰을 발급한 시점 — finally 에서 logout.
 
       final callable = _functions.httpsCallable('kakaoCustomToken');
       final response = await callable
@@ -522,10 +522,10 @@ class AuthRepository {
       // D-57 retroactive (Phase 13 — see ROADMAP.md): SDK 1회성 토큰 정책 일관.
       // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (kDebugMode debugPrint) —
       // outer 흐름 차단 안 함 (KakaoSdkClient.logout 내부 try/catch).
-      // WR-03: 토큰 발급된 path 만 logout — 사용자 취소 시 spurious SDK 호출 방지.
-      if (issuedToken) {
-        await _kakaoSdkClient.logout();
-      }
+      // WR-01-iter2: timeout / 취소 path 에서도 SDK 측 디바이스 토큰이 잔존할
+      // 가능성이 있어 모든 path 에서 logout. SDK "no session" 상태는 logout 내부
+      // try/catch 가 silent 흡수.
+      await _kakaoSdkClient.logout();
       _socialLinkInProgress.end();
     }
   }
@@ -560,10 +560,12 @@ class AuthRepository {
   ///
   /// Returns null = 사용자 취소 silent (D-45).
   Future<Result<User>?> signInWithNaver() async {
-    // WR-03 (Phase 13 review): result==null path (사용자 취소 / timeout /
-    // naverapp_not_installed 후 fallback 미진행) 에서도 finally 의 logout 이
-    // 호출되던 회귀. 토큰이 발급된 path 에서만 logout — Kakao path 와 동일.
-    var issuedToken = false;
+    // WR-01-iter2 (Phase 13 review iter2): D-57 1회성 토큰 정책의 invariant 강화
+    // — 모든 path 에서 finally logout. iter1 의 `issuedToken` 가드는 timeout path
+    // (60s onTimeout 직전 SDK 가 onSuccess fire 직전 디바이스 토큰 발급) 에서 SDK
+    // 측 access_token 이 24h TTL 까지 잔존할 가능성을 남겼다. NaverSdkClient.logout
+    // 은 내부 try/catch graceful — SDK "no session" 상태에서도 silent no-op.
+    // Kakao path 와 대칭 (D-57 일관) + 보안 우선 정책 채택.
     try {
       _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
 
@@ -571,7 +573,6 @@ class AuthRepository {
       if (result == null) {
         return null; // D-45 silent
       }
-      issuedToken = true; // SDK 가 access_token 을 발급한 시점.
 
       final callable = _functions.httpsCallable('naverCustomToken');
       final response = await callable.call<Map<String, dynamic>>(
@@ -602,10 +603,10 @@ class AuthRepository {
       // D-57 (Phase 13 — see ROADMAP.md): SDK access_token 1회성 정책.
       // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (NaverSdkClient.logout
       // 내부 try/catch) — outer 흐름 차단 안 함.
-      // WR-03: 토큰 발급된 path 만 logout — 사용자 취소 시 spurious SDK 호출 방지.
-      if (issuedToken) {
-        await _naverSdkClient.logout();
-      }
+      // WR-01-iter2: timeout / 취소 path 에서도 SDK 측 디바이스 토큰이 잔존할
+      // 가능성이 있어 모든 path 에서 logout (24h TTL 잔존 회피). SDK "no session"
+      // 상태는 logout 내부 try/catch 가 silent 흡수.
+      await _naverSdkClient.logout();
       _socialLinkInProgress.end();
     }
   }
