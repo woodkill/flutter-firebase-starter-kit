@@ -92,7 +92,7 @@ void main() {
 
       test(
         '$flavor.json 의 기본값 (google/apple/facebook/kakao 활성, '
-        'naver/line/yahoo/wechat 비활성)',
+        'flavor 별 Phase 13~16 Custom Token 정책)',
         () {
           final raw = File('config/$flavor.json').readAsStringSync();
           final json = jsonDecode(raw) as Map<String, dynamic>;
@@ -109,18 +109,39 @@ void main() {
           expect(enabled.contains(kProviderIdFacebook), isTrue);
           expect(enabled.contains(kProviderIdKakao), isTrue);
 
-          // 비활성: Phase 13~16 의 4 Custom Token.
-          for (final id in const <String>[
-            kProviderIdNaver,
-            kProviderIdLine,
-            kProviderIdYahooJp,
-            kProviderIdWeChat,
-          ]) {
+          // dev 는 Phase 진행에 따라 Custom Token 점진 활성화 (Phase 13: naver).
+          // stg/prod 는 Starter Kit 정책상 placeholder — Phase 13~16 모두 비활성.
+          if (flavor == 'dev') {
             expect(
-              enabled.contains(id),
-              isFalse,
-              reason: '$flavor.json: $id should be disabled (Phase 13-16)',
+              enabled.contains(kProviderIdNaver),
+              isTrue,
+              reason: 'dev.json: naver should be enabled (Phase 13)',
             );
+            for (final id in const <String>[
+              kProviderIdLine,
+              kProviderIdYahooJp,
+              kProviderIdWeChat,
+            ]) {
+              expect(
+                enabled.contains(id),
+                isFalse,
+                reason: 'dev.json: $id should be disabled (Phase 14-16)',
+              );
+            }
+          } else {
+            for (final id in const <String>[
+              kProviderIdNaver,
+              kProviderIdLine,
+              kProviderIdYahooJp,
+              kProviderIdWeChat,
+            ]) {
+              expect(
+                enabled.contains(id),
+                isFalse,
+                reason:
+                    '$flavor.json: $id should be disabled (placeholder policy)',
+              );
+            }
           }
         },
       );
