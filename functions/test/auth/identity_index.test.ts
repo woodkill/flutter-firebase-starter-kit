@@ -82,6 +82,10 @@ function makeDb(opts: {
   preData?: Record<string, unknown>;
   txExists: boolean;
   txData?: Record<string, unknown>;
+  // R12: callerUid 의 users/<uid> 문서 존재 여부. helper 가 collision detect
+  // 시 추가로 tx.get(userRef) 호출 → 데이터 없으면 collision 우회.
+  // 기본값 true — 12.1 R3 의 보안 차단 동작이 default (기존 R3 test 보존).
+  callerUserExists?: boolean;
 }): MockDb {
   const idxRef = {
     get: jest.fn().mockResolvedValue({
@@ -93,9 +97,20 @@ function makeDb(opts: {
   const userRef = {label: "userRef"};
 
   const tx: MockTx = {
-    get: jest.fn().mockResolvedValue({
-      exists: opts.txExists,
-      data: opts.txData ? () => opts.txData : undefined,
+    // R12: tx.get(idxRef) → idxSnap, tx.get(userRef) → callerUserSnap 분기.
+    // ref reference 비교로 idxRef vs userRef 식별 (mock object 동일 인스턴스).
+    get: jest.fn(async (ref: unknown): Promise<MockDoc> => {
+      if (ref === userRef) {
+        return {
+          exists: opts.callerUserExists ?? true,
+          data: undefined,
+        };
+      }
+      const txData = opts.txData;
+      return {
+        exists: opts.txExists,
+        data: txData ? () => txData : undefined,
+      };
     }),
     set: jest.fn(),
     update: jest.fn(),
@@ -551,6 +566,60 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         email: "user@example.com",
         displayName: "홍길동",
         photoURL: "https://example.com/pic.jpg",
+      });
+    },
+  );
+
+  // R12 (Phase 13 retroactive — 12.1 R3 안전 차단 정밀화):
+  // anonymous B 의 Firestore users/<callerUid> 문서가 비어있으면 (sign-out
+  // 직후 자동 재생성된 빈 익명 user) collision 차단 우회 → existing.firebaseUid
+  // 재사용 (시나리오 3 "재로그인 동일 UID"). 데이터 있으면 12.1 R3 보안 차단 보존.
+  it(
+    "R12: anonymous + existing identity + users/<B> 부재 → collision 우회",
+    async () => {
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "existing-A"},
+        callerUserExists: false, // anonymous B 데이터 없음
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-r12-empty",
+        callerUid: "anon-B",
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({
+        uid: "existing-A",
+        isNewUser: false,
+        conflictKind: null, // collision 우회 — 정상 sign-in path
+      });
+    },
+  );
+
+  it(
+    "R12: anonymous + existing identity + users/<B> 존재 → 12.1 R3 보안 차단 보존",
+    async () => {
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "existing-A"},
+        callerUserExists: true, // anonymous B 가 onboarding/social 데이터 보유
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-r12-block",
+        callerUid: "anon-B",
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({
+        uid: "existing-A",
+        isNewUser: false,
+        conflictKind: "anonymous_existing_collision", // 차단 보존
       });
     },
   );

@@ -193,11 +193,23 @@ export async function resolveIdentity(
       // 충돌 사실 전달. caller 는 anonymous 데이터 보존 후 already-exists
       // throw — Phase 17 (Account Linking) 가 자동 마이그레이션 처리.
       if (callerUid && existing.firebaseUid !== callerUid) {
-        return {
-          uid: existing.firebaseUid,
-          isNewUser: false,
-          conflictKind: "anonymous_existing_collision" as const,
-        };
+        // R12 (Phase 13 retroactive — 12.1 R3 안전 차단 정밀화):
+        // anonymous B 의 Firestore users/<callerUid> 문서가 비어있으면 (sign-out
+        // 직후 자동 재생성된 빈 익명 user) collision 차단 불필요 — existing.
+        // firebaseUid 재사용으로 sign-in 허용 (시나리오 3 "재로그인 동일 UID").
+        // 데이터 있으면 12.1 R3 의 보안 차단 그대로 (Phase 17 Account Linking
+        // 이 자동 마이그레이션). check 는 transaction 내부 — consistency 보장.
+        // 12-UAT 의 "재로그인 동일 firebaseUid 재사용" 검증과 12.1 hotfix 의
+        // "anonymous 데이터 hijack 차단" 의도가 양립하는 경계선.
+        const callerUserSnap = await tx.get(userRefFor(callerUid));
+        if (callerUserSnap.exists) {
+          return {
+            uid: existing.firebaseUid,
+            isNewUser: false,
+            conflictKind: "anonymous_existing_collision" as const,
+          };
+        }
+        // 빈 anonymous B → 안전하게 existing 재사용 (collision 우회).
       }
       return {
         uid: existing.firebaseUid,
