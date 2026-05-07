@@ -37,6 +37,10 @@ type NaverProfileResponse = {
   response?: {
     id?: string;
     email?: string;
+    // R10: 동의 항목 활성화 + 사용자 동의 시 포함 — Firebase Auth user.
+    // displayName / photoURL 로 propagate.
+    nickname?: string;
+    profile_image?: string;
   };
 };
 
@@ -186,19 +190,29 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
       throw new HttpsError("invalid-argument", "errorInvalidCredentials");
     }
     const naverEmail = responseBody.response?.email;
+    // R10: response.nickname + response.profile_image 추출 → Firebase Auth
+    // user record 의 displayName / photoURL 에 propagate. 동의 항목 활성화 +
+    // 사용자 동의 시에만 응답에 포함 — 부재 시 undefined (silent).
+    const naverNickname = responseBody.response?.nickname;
+    const naverProfileImage = responseBody.response?.profile_image;
 
     // Step 3: Identity Index resolve (Phase 12.1 D-31~D-34 자동 상속).
     // helper 가 conflictKind 로 detect → caller 가 try/catch + switch 로 안전한
     // already-exists HttpsError 변환 (email enumeration 차단). helper 의
     // unexpected throw 는 internal 매핑 (D-32 fallback).
     const callerUid = request.auth?.uid; // unauthenticated 허용 (D-49).
+    const userInfo: {email?: string; displayName?: string; photoURL?: string} =
+      {};
+    if (naverEmail) userInfo.email = naverEmail;
+    if (naverNickname) userInfo.displayName = naverNickname;
+    if (naverProfileImage) userInfo.photoURL = naverProfileImage;
     let resolution;
     try {
       resolution = await resolveIdentity(getFirestore(), {
         provider: "naver",
         providerUserId: naverUserId,
         callerUid,
-        userInfo: naverEmail ? {email: naverEmail} : undefined,
+        userInfo: Object.keys(userInfo).length > 0 ? userInfo : undefined,
       });
     } catch {
       // PII 보존 — catch parameter 생략 (D-40 / D-51, Phase 12 동일 패턴).

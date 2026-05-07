@@ -92,13 +92,20 @@ export async function resolveIdentity(
     providerUserId: string;
     callerUid: string | undefined;
     /**
-     * IdP 가 ID Token 으로 제공한 사용자 정보 (옵션).
+     * IdP 가 제공한 사용자 프로필 정보 (옵션).
      *
-     * Kakao 일반 앱: email 동의항목 disable 이라 보통 undefined.
-     * Kakao 비즈 앱 + email 필수 동의: ID Token 의 email claim 으로부터 채워짐.
-     * Phase 13~16 의 다른 provider 도 동일 매개변수 사용.
+     * - email: Kakao 일반 앱: undefined (동의항목 disable). 비즈 앱 + 동의:
+     *   ID Token email claim. Naver: `/v1/nid/me` response.email (동의 항목).
+     * - displayName: 사용자 닉네임 (Kakao OIDC `name`/`nickname` claim, Naver
+     *   response.nickname). Firebase Auth user.displayName 에 저장.
+     * - photoURL: 프로필 사진 URL (Kakao OIDC `picture` claim, Naver
+     *   response.profile_image). Firebase Auth user.photoURL 에 저장.
+     *
+     * R10 (Phase 13 retroactive — 12-UAT 가 nickname/email/photo UI 표시
+     * 검증 누락 → Phase 12 + 13 양쪽 재발현). 모든 OAuth Custom Token
+     * provider (Phase 13~16) 에 동일 매개변수 사용.
      */
-    userInfo?: {email?: string};
+    userInfo?: {email?: string; displayName?: string; photoURL?: string};
   },
 ): Promise<IdentityResolution> {
   const {provider, providerUserId, callerUid, userInfo} = args;
@@ -122,13 +129,26 @@ export async function resolveIdentity(
   // claim 포함 시 자동으로 user.email 에 저장됨. 동일 이메일로 기존 user
   // 존재 시 createUser 가 `auth/email-already-in-use` throw — account
   // linking 정책은 별도 phase (백로그).
+  // R10: email + displayName + photoURL 을 createUser 시점에 set —
+  // !callerUid path 의 신규 user record 가 nickname/이메일/프로필 사진 모두
+  // Firebase Auth 에 저장되도록 한다. Phase 12 가 email 만 처리해서 12-UAT
+  // 가 nickname/photo 검증 누락 → 13-UAT 시나리오 2 에서 처음 노출.
+  const profileFields: {
+    email?: string;
+    displayName?: string;
+    photoURL?: string;
+  } = {};
+  if (userInfo?.email) profileFields.email = userInfo.email;
+  if (userInfo?.displayName) profileFields.displayName = userInfo.displayName;
+  if (userInfo?.photoURL) profileFields.photoURL = userInfo.photoURL;
+
   let preCreatedUid: string | null = null;
   const idxSnapPre = await idxRef.get();
   if (!idxSnapPre.exists && !callerUid) {
     try {
       const created = await getAuth().createUser({
         emailVerified: true,
-        ...(userInfo?.email ? {email: userInfo.email} : {}),
+        ...profileFields,
       });
       preCreatedUid = created.uid;
     } catch (err: unknown) {
@@ -264,8 +284,17 @@ export async function resolveIdentity(
   // 12-04 retroactive fix 가 한 path 만 커버 + 12-UAT 가 재로그인 path
   // 만 검증 → buggy "anonymous→소셜 첫 로그인" path 가 가려졌던 회귀.
   // helper 자체에 fix → kakao + naver + Phase 14~16 자동 상속 (D-08).
+  //
+  // R10 (Phase 13 retroactive): emailVerified 외에 email/displayName/
+  // photoURL 도 동시 갱신. anonymous user 는 첫 익명 로그인 시점에 user
+  // record 가 비어있어 displayName/email/photoURL 이 없는 채로 남아
+  // EnvironmentInfoScreen 의 닉네임/이메일/프로필 사진 카드가 비어 보임.
+  // 12-UAT 의 검증 누락 → Phase 13 첫 anonymous→소셜 로그인 시 처음 노출.
   if (result.isNewUser && callerUid) {
-    await getAuth().updateUser(callerUid, {emailVerified: true});
+    await getAuth().updateUser(callerUid, {
+      emailVerified: true,
+      ...profileFields,
+    });
   }
 
   return result;

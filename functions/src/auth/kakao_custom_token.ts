@@ -62,6 +62,9 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // Step 1: ID Token JWT 자체 검증.
     let kakaoUserId: string | undefined;
     let kakaoEmail: string | undefined;
+    // R10: OIDC 표준 claim — 동의 항목 활성화 + 사용자 동의 시에만 포함.
+    let kakaoNickname: string | undefined;
+    let kakaoPicture: string | undefined;
     try {
       const verified = await jwtVerify(idToken, KAKAO_JWKS, {
         issuer: KAKAO_ISSUER,
@@ -74,6 +77,11 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         // OIDC 표준 claim — 비즈 앱 + 카카오계정(이메일) 필수 동의 시 포함.
         // 일반 앱 또는 사용자 미동의 시 undefined.
         email?: string;
+        // R10: OIDC standard userinfo claim — Kakao Console 동의 항목 활성화
+        // (닉네임 / 프로필 사진) + 사용자 동의 시 포함. 일반 앱 / 미동의 시
+        // undefined (silent — Firebase Auth user record 갱신 안 함).
+        nickname?: string;
+        picture?: string;
       };
       // jose 6.x JWTClaimVerificationOptions 에 nonce 옵션 부재 → fallback
       // 직접 비교 (Pitfall 2 — replay attack 방어).
@@ -88,6 +96,8 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
       }
       kakaoUserId = payload.sub;
       kakaoEmail = payload.email;
+      kakaoNickname = payload.nickname;
+      kakaoPicture = payload.picture;
     } catch (err: unknown) {
       // R5 (Plan 12.1-07 / WR-03, D-40) — jose 에러 code 비-PII 로깅.
       // Pitfall 1 / 7 — err.message / err.payload / err.claim / err.reason
@@ -119,15 +129,21 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // already-exists HttpsError 변환 (email enumeration 차단). helper 의
     // unexpected throw 는 internal 매핑 (D-32 fallback).
     const callerUid = request.auth?.uid; // unauthenticated 허용 (D-11).
+    // R10: email + nickname + picture 모두 userInfo 에 묶어서 helper 에 전달.
+    // helper 가 createUser/updateUser 시점에 Firebase Auth user record 의
+    // email/displayName/photoURL 에 propagate. 부재 항목은 silent (undefined).
+    const userInfo: {email?: string; displayName?: string; photoURL?: string} =
+      {};
+    if (kakaoEmail) userInfo.email = kakaoEmail;
+    if (kakaoNickname) userInfo.displayName = kakaoNickname;
+    if (kakaoPicture) userInfo.photoURL = kakaoPicture;
     let resolution;
     try {
       resolution = await resolveIdentity(getFirestore(), {
         provider: "kakao",
         providerUserId: kakaoUserId,
         callerUid,
-        // 비즈 앱 + 카카오계정(이메일) 필수 동의 시 ID Token 의 email claim 을
-        // Firebase Auth user.email 로 저장. 일반 앱 (현재 dev) 은 undefined.
-        userInfo: kakaoEmail ? {email: kakaoEmail} : undefined,
+        userInfo: Object.keys(userInfo).length > 0 ? userInfo : undefined,
       });
     } catch {
       // helper 의 unexpected error (e.g., firestore network, internal) 는

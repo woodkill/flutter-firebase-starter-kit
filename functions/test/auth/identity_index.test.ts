@@ -499,6 +499,62 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
     },
   );
 
+  // R10 (Phase 13 retroactive): IdP 가 제공한 nickname/email/profile_image
+  // 를 Firebase Auth user record (displayName/email/photoURL) 에 propagate.
+  // !callerUid path 의 createUser + callerUid path 의 updateUser 양쪽 모두.
+  // 12-UAT 가 nickname/email/photo UI 표시 명시 검증 누락 → Phase 13 시나리오 2
+  // 에서 첫 노출. helper 자체에 fix → kakao + naver + Phase 14~16 자동 상속.
+  it(
+    "R10: callerUid + 신규 + userInfo → updateUser 가 모든 필드 set",
+    async () => {
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-r10",
+        callerUid: "anon-r10",
+        userInfo: {
+          email: "user@example.com",
+          displayName: "홍길동",
+          photoURL: "https://example.com/pic.jpg",
+        },
+      });
+
+      expect(mockUpdateUser).toHaveBeenCalledWith("anon-r10", {
+        emailVerified: true,
+        email: "user@example.com",
+        displayName: "홍길동",
+        photoURL: "https://example.com/pic.jpg",
+      });
+    },
+  );
+
+  it(
+    "R10: !callerUid + 신규 + userInfo → createUser 가 모든 필드 set",
+    async () => {
+      mockCreateUser.mockResolvedValueOnce({uid: "new-r10"});
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-r10",
+        callerUid: undefined,
+        userInfo: {
+          email: "user@example.com",
+          displayName: "홍길동",
+          photoURL: "https://example.com/pic.jpg",
+        },
+      });
+
+      expect(mockCreateUser).toHaveBeenCalledWith({
+        emailVerified: true,
+        email: "user@example.com",
+        displayName: "홍길동",
+        photoURL: "https://example.com/pic.jpg",
+      });
+    },
+  );
+
   it(
     "R9: updateUser 실패 시 throw (strict — caller 가 internal 매핑)",
     async () => {
