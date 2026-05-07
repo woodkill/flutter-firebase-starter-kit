@@ -11,5 +11,5 @@
   "naverClientSecret": "YOUR_NAVER_CLIENT_SECRET",
   "naverUrlScheme": "your-naver-url-scheme-here",
   "splashMinDurationMs": 2000,
-  "enabledAuthProviders": "google,apple,facebook,kakao,naver"
+  "enabledAuthProviders": "google,apple,facebook,kakao"
 }
