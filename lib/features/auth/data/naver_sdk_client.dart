@@ -136,6 +136,10 @@ class NaverSdkClient {
     _login(
       callback: OAuthLoginCallback(
         onSuccess: () async {
+          // WR-01 (Phase 13 review): timeout 후 지연 onSuccess 의 token fetch
+          // 자체를 차단. completer.isCompleted=true 이면 후속 처리가 모두
+          // silent 가드 되므로 getAccessToken() 호출 자체가 무의미 (leak 회피).
+          if (completer.isCompleted) return;
           try {
             final token = await _getAccessToken();
             if (token.isEmpty) {
@@ -176,10 +180,19 @@ class NaverSdkClient {
     );
 
     // timeout 60s — 콜백 미도착 시 silent (Decision #2, D-45 일관).
+    //
+    // WR-01 (Phase 13 review): Future.timeout 은 onTimeout 의 반환값으로
+    // 외부 Future 만 resolve 한다 — 내부 [completer] 는 isCompleted=false
+    // 상태로 남는다. SDK 가 60s 이후 onSuccess 콜백을 fire 하면 `completer.
+    // isCompleted` 가 false 라 [completeSuccess] 의 분기로 진입해 token 이
+    // 쓸데없이 fetch 되고 silent 로 GC 된다 (token leak — Pitfall 1 변종).
+    // 명시적 [completer.complete(null)] 로 isCompleted=true 정착 → 후속
+    // onSuccess / onError / onFailure 가 모두 isCompleted 가드에 막힌다.
     return completer.future.timeout(
       const Duration(seconds: 60),
       onTimeout: () {
         if (kDebugMode) debugPrint('Naver login timeout 60s');
+        completeSilent(); // 후속 콜백 isCompleted 가드 강제 (WR-01).
         return null; // D-45 일관
       },
     );

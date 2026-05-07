@@ -2,6 +2,9 @@
 //
 // NaverSdkClient 회귀 테스트 — Completer race / cancel / leak 가드 + logout 회귀.
 // Validation Architecture line 1618 — T-13-NAVER-SDK-{n}.
+import 'dart:async';
+
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naver_login_sdk/naver_login_sdk.dart';
 
@@ -202,5 +205,54 @@ void main() {
 
       await expectLater(future, throwsA(isA<ServiceUnavailable>()));
     });
+
+    // WR-01 (Phase 13 review): Future.timeout onTimeout 안에서 명시
+    // completer.complete(null) 로 후속 콜백 isCompleted 가드 강제.
+    // signIn 이 timeout 으로 null 반환 후 SDK 가 지연된 onSuccess 콜백을
+    // fire 해도 getAccessToken 이 호출되지 않아야 한다 (token leak 회귀 방어).
+    //
+    // FakeAsync 로 60s timeout 을 즉시 trigger — 실 60s 대기 회피.
+    test(
+      'T-13-NAVER-SDK-LEAK-02 (WR-01): timeout 후 지연 onSuccess → '
+      'getAccessToken 미호출 (token leak 가드)',
+      () async {
+        await fakeAsync((async) {
+          OAuthLoginCallback? capturedCallback;
+          var getAccessTokenCalled = false;
+          final client = NaverSdkClient.forTest(
+            login: ({required OAuthLoginCallback callback}) {
+              capturedCallback = callback;
+            },
+            getAccessToken: () async {
+              getAccessTokenCalled = true;
+              return 'leaked_token';
+            },
+            logout: () async {},
+          );
+
+          NaverSignInResult? result;
+          var futureCompleted = false;
+          unawaited(
+            client.signIn().then((value) {
+              result = value;
+              futureCompleted = true;
+            }),
+          );
+          // login callback 등록 시점까지 microtask drain.
+          async.flushMicrotasks();
+          // 60s 경과 시뮬레이션 — Future.timeout onTimeout 발화.
+          async.elapse(const Duration(seconds: 61));
+          async.flushMicrotasks();
+          expect(futureCompleted, isTrue);
+          expect(result, isNull); // D-45 silent
+
+          // timeout 후 SDK 가 지연된 onSuccess 콜백 fire — completer guard 가
+          // 막아 getAccessToken 이 호출되지 않아야 한다.
+          capturedCallback!.onSuccess?.call();
+          async.flushMicrotasks();
+          expect(getAccessTokenCalled, isFalse);
+        });
+      },
+    );
   });
 }
