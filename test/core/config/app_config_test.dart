@@ -49,7 +49,20 @@ void main() {
   group('config JSON 무결성 (D-19, T-11-CONST-01)', () {
     for (final flavor in const <String>['dev', 'stg', 'prod']) {
       test('$flavor.json 의 enabledAuthProviders CSV 가 형식 정합한다', () {
-        final raw = File('config/$flavor.json').readAsStringSync();
+        // CR-02 (Phase 13 review): config/{flavor}.json 은 .gitignore 대상.
+        // fresh clone / CI 에서 `cp *.example.json *.json` 미실행 시
+        // FileSystemException 으로 entire suite 가 fail 되는 것을 방지하기
+        // 위해 missing 시 graceful skip. 본 contract 는 사용자가 실제 키를
+        // 주입한 dev 환경에서만 검증되어야 하므로 skip 가 안전.
+        final file = File('config/$flavor.json');
+        if (!file.existsSync()) {
+          markTestSkipped(
+            'config/$flavor.json missing — `cp config/$flavor.example.json '
+            'config/$flavor.json` 실행 후 재시도. fresh clone / CI 에서는 정상.',
+          );
+          return;
+        }
+        final raw = file.readAsStringSync();
         final json = jsonDecode(raw) as Map<String, dynamic>;
 
         // 단일 키 존재.
@@ -94,7 +107,17 @@ void main() {
         '$flavor.json 의 기본값 (google/apple/facebook/kakao 활성, '
         'flavor 별 Phase 13~16 Custom Token 정책)',
         () {
-          final raw = File('config/$flavor.json').readAsStringSync();
+          // CR-02 (Phase 13 review): missing 시 graceful skip — 위 contract
+          // test 와 동일 정책.
+          final file = File('config/$flavor.json');
+          if (!file.existsSync()) {
+            markTestSkipped(
+              'config/$flavor.json missing — `cp config/$flavor.example.json '
+              'config/$flavor.json` 실행 후 재시도.',
+            );
+            return;
+          }
+          final raw = file.readAsStringSync();
           final json = jsonDecode(raw) as Map<String, dynamic>;
           final csv = (json['enabledAuthProviders'] as String? ?? '');
           final enabled = csv
@@ -157,7 +180,17 @@ void main() {
 
     for (final flavor in const <String>['dev', 'stg', 'prod']) {
       test('$flavor.json 에 kakaoNativeAppKey 키가 존재한다', () {
-        final raw = File('config/$flavor.json').readAsStringSync();
+        // CR-02 (Phase 13 review): missing 시 graceful skip — fresh clone / CI
+        // 에서는 정상.
+        final file = File('config/$flavor.json');
+        if (!file.existsSync()) {
+          markTestSkipped(
+            'config/$flavor.json missing — `cp config/$flavor.example.json '
+            'config/$flavor.json` 실행 후 재시도.',
+          );
+          return;
+        }
+        final raw = file.readAsStringSync();
         final json = jsonDecode(raw) as Map<String, dynamic>;
         expect(
           json.containsKey('kakaoNativeAppKey'),
