@@ -472,6 +472,13 @@ class AuthRepository {
   /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
   /// 호출. Strategy 단계 추가 호출 절대 금지 (Pitfall 8).
   Future<Result<User>?> signInWithKakao() async {
+    // WR-03 (Phase 13 review): finally 의 logout 호출이 result==null
+    // (사용자 취소 / 빈 토큰) path 에서도 발화하던 회귀. SDK 가 발급한 토큰이
+    // 없을 때 logout() 호출은 무의미 (no token to revoke) + 불필요한 platform
+    // channel round-trip + dev 빌드의 "logout 실패 (무시)" debugPrint 노이즈를
+    // 유발. 외부 변수에 issuedToken 플래그를 두어 토큰이 *실제 발급된* path
+    // 에서만 logout 호출.
+    var issuedToken = false;
     try {
       _socialLinkInProgress.begin();
 
@@ -480,6 +487,7 @@ class AuthRepository {
         // 사용자 취소 silent (D-05 — wrapper 가 null 로 흡수).
         return null;
       }
+      issuedToken = true; // SDK 가 토큰을 발급한 시점 — finally 에서 logout.
 
       final callable = _functions.httpsCallable('kakaoCustomToken');
       final response = await callable
@@ -514,7 +522,10 @@ class AuthRepository {
       // D-57 retroactive (Phase 13 — see ROADMAP.md): SDK 1회성 토큰 정책 일관.
       // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (kDebugMode debugPrint) —
       // outer 흐름 차단 안 함 (KakaoSdkClient.logout 내부 try/catch).
-      await _kakaoSdkClient.logout();
+      // WR-03: 토큰 발급된 path 만 logout — 사용자 취소 시 spurious SDK 호출 방지.
+      if (issuedToken) {
+        await _kakaoSdkClient.logout();
+      }
       _socialLinkInProgress.end();
     }
   }
@@ -549,6 +560,10 @@ class AuthRepository {
   ///
   /// Returns null = 사용자 취소 silent (D-45).
   Future<Result<User>?> signInWithNaver() async {
+    // WR-03 (Phase 13 review): result==null path (사용자 취소 / timeout /
+    // naverapp_not_installed 후 fallback 미진행) 에서도 finally 의 logout 이
+    // 호출되던 회귀. 토큰이 발급된 path 에서만 logout — Kakao path 와 동일.
+    var issuedToken = false;
     try {
       _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
 
@@ -556,6 +571,7 @@ class AuthRepository {
       if (result == null) {
         return null; // D-45 silent
       }
+      issuedToken = true; // SDK 가 access_token 을 발급한 시점.
 
       final callable = _functions.httpsCallable('naverCustomToken');
       final response = await callable.call<Map<String, dynamic>>(
@@ -586,7 +602,10 @@ class AuthRepository {
       // D-57 (Phase 13 — see ROADMAP.md): SDK access_token 1회성 정책.
       // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (NaverSdkClient.logout
       // 내부 try/catch) — outer 흐름 차단 안 함.
-      await _naverSdkClient.logout();
+      // WR-03: 토큰 발급된 path 만 logout — 사용자 취소 시 spurious SDK 호출 방지.
+      if (issuedToken) {
+        await _naverSdkClient.logout();
+      }
       _socialLinkInProgress.end();
     }
   }
