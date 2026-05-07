@@ -185,32 +185,41 @@ export async function resolveIdentity(
     const now = FieldValue.serverTimestamp();
     if (idxSnap.exists) {
       const existing = idxSnap.data() as {firebaseUid: string};
-      tx.update(idxRef, {lastSeenAt: now});
       // R3 (Phase 12.1-06 / WR-06, D-32) — anonymous + existing kakao
       // identity 충돌 detect. callerUid (익명 사용자 uid) 가 있고 existing
       // identity 가 *다른* Firebase user 와 매핑 → first-write-wins 로
       // existing.firebaseUid 반환은 유지하지만 conflictKind 로 caller 에
       // 충돌 사실 전달. caller 는 anonymous 데이터 보존 후 already-exists
       // throw — Phase 17 (Account Linking) 가 자동 마이그레이션 처리.
+      //
+      // R12 (Phase 13 retroactive — 12.1 R3 안전 차단 정밀화):
+      // anonymous B 의 Firestore users/<callerUid> 문서가 비어있으면 (sign-out
+      // 직후 자동 재생성된 빈 익명 user) collision 차단 불필요 — existing.
+      // firebaseUid 재사용으로 sign-in 허용 (시나리오 3 "재로그인 동일 UID").
+      // 데이터 있으면 12.1 R3 의 보안 차단 그대로 (Phase 17 Account Linking
+      // 이 자동 마이그레이션). check 는 transaction 내부 — consistency 보장.
+      //
+      // **Firestore transaction "all reads before all writes" 제약**:
+      // tx.update / tx.set 의 *write* 가 호출되기 전에 모든 추가 read 를
+      // 완료해야 한다. callerUserSnap read 는 tx.update(idxRef, lastSeenAt)
+      // 보다 위에 위치해야 violation 회피 (mock test 는 이 제약을 강제하지
+      // 않아 R12 첫 구현에서 누락 → 13-UAT 시나리오 3 시 실 단말 통신 시점에
+      // 노출됨).
+      let callerHasData = false;
       if (callerUid && existing.firebaseUid !== callerUid) {
-        // R12 (Phase 13 retroactive — 12.1 R3 안전 차단 정밀화):
-        // anonymous B 의 Firestore users/<callerUid> 문서가 비어있으면 (sign-out
-        // 직후 자동 재생성된 빈 익명 user) collision 차단 불필요 — existing.
-        // firebaseUid 재사용으로 sign-in 허용 (시나리오 3 "재로그인 동일 UID").
-        // 데이터 있으면 12.1 R3 의 보안 차단 그대로 (Phase 17 Account Linking
-        // 이 자동 마이그레이션). check 는 transaction 내부 — consistency 보장.
-        // 12-UAT 의 "재로그인 동일 firebaseUid 재사용" 검증과 12.1 hotfix 의
-        // "anonymous 데이터 hijack 차단" 의도가 양립하는 경계선.
         const callerUserSnap = await tx.get(userRefFor(callerUid));
-        if (callerUserSnap.exists) {
-          return {
-            uid: existing.firebaseUid,
-            isNewUser: false,
-            conflictKind: "anonymous_existing_collision" as const,
-          };
-        }
-        // 빈 anonymous B → 안전하게 existing 재사용 (collision 우회).
+        callerHasData = callerUserSnap.exists;
       }
+      tx.update(idxRef, {lastSeenAt: now});
+      if (callerUid && existing.firebaseUid !== callerUid && callerHasData) {
+        return {
+          uid: existing.firebaseUid,
+          isNewUser: false,
+          conflictKind: "anonymous_existing_collision" as const,
+        };
+      }
+      // 정상 path — existing 재사용 (callerUid 없음, callerUid===existing,
+      // 또는 R12 우회 path = 빈 anonymous B).
       return {
         uid: existing.firebaseUid,
         isNewUser: false,
