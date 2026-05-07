@@ -36,13 +36,19 @@ jest.mock("jose", () => {
   };
 });
 
-// firebase-admin/auth — getAuth().createCustomToken / createUser stub.
+// firebase-admin/auth — getAuth().createCustomToken / createUser
+// / deleteUser / updateUser (R9: emailVerified retroactive
+// — anonymous→소셜 path 가 helper 에서 updateUser 를 호출).
 const mockCreateCustomToken = jest.fn().mockResolvedValue("MOCK_CUSTOM_TOKEN");
 const mockCreateUser = jest.fn().mockResolvedValue({uid: "new-uid-pre"});
+const mockDeleteUser = jest.fn().mockResolvedValue(undefined);
+const mockUpdateUser = jest.fn().mockResolvedValue(undefined);
 jest.mock("firebase-admin/auth", () => ({
   getAuth: jest.fn(() => ({
     createCustomToken: mockCreateCustomToken,
     createUser: mockCreateUser,
+    deleteUser: mockDeleteUser,
+    updateUser: mockUpdateUser,
   })),
 }));
 

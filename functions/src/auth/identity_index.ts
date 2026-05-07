@@ -252,5 +252,21 @@ export async function resolveIdentity(
       // 의도적으로 재던지지 않음 — outer call 정상 반환 보장.
     }
   }
+
+  // R9 (Phase 13 retroactive — Pitfall 9 두 번째 path):
+  // callerUid (anonymous user) + 신규 identity 등록 시 anonymous user
+  // record 의 emailVerified=false 가 그대로 남아 client-side router 의
+  // verify-email gate (auth_guard 분기 4) 가 잘못 트리거. transaction
+  // 외부 (Pitfall 4 — retry 시 다중 호출 회피) 에서 updateUser 로 갱신.
+  // strict — 실패 시 throw → caller 가 createCustomToken 차단 + internal
+  // 매핑 (emailVerified=false 인 social user 가 Home 진입하는 보안 회귀
+  // 차단). !callerUid path 는 createUser({emailVerified: true}) 로 처리.
+  // 12-04 retroactive fix 가 한 path 만 커버 + 12-UAT 가 재로그인 path
+  // 만 검증 → buggy "anonymous→소셜 첫 로그인" path 가 가려졌던 회귀.
+  // helper 자체에 fix → kakao + naver + Phase 14~16 자동 상속 (D-08).
+  if (result.isNewUser && callerUid) {
+    await getAuth().updateUser(callerUid, {emailVerified: true});
+  }
+
   return result;
 }

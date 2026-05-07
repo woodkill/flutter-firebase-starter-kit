@@ -15,11 +15,13 @@
 
 const mockCreateUser = jest.fn();
 const mockDeleteUser = jest.fn(); // R2 추가 — orphan cleanup 검증용.
+const mockUpdateUser = jest.fn(); // R9 추가 — emailVerified retroactive 검증용.
 
 jest.mock("firebase-admin/auth", () => ({
   getAuth: jest.fn(() => ({
     createUser: mockCreateUser,
     deleteUser: mockDeleteUser, // R2 추가.
+    updateUser: mockUpdateUser, // R9 추가.
   })),
 }));
 
@@ -123,6 +125,8 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
     jest.clearAllMocks();
     mockCreateUser.mockReset();
     mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined); // R9 — default success.
     warnMock.mockReset();
   });
 
@@ -419,6 +423,104 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         isNewUser: true,
         conflictKind: null,
       });
+    },
+  );
+
+  // R9 (Phase 13 retroactive — Pitfall 9 두 번째 path):
+  // anonymous callerUid + 신규 identity 등록 시 anonymous user record 의
+  // emailVerified=false 가 그대로 남아 client-side router 의 verify-email
+  // gate (auth_guard 분기 4) 가 잘못 트리거되는 회귀. fix: transaction 후
+  // updateUser({emailVerified: true}) 호출. Phase 12 UAT 가 "재로그인" path
+  // 만 검증해서 buggy "anonymous→소셜 첫 로그인" path 가 가려졌던 회귀.
+  // helper 자체에 fix → kakao + naver + Phase 14~16 자동 상속 (D-08).
+  it(
+    "R9: 익명 callerUid + 신규 identity → updateUser({emailVerified: true})",
+    async () => {
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-anon-r9",
+        callerUid: "anon-uid-r9",
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({uid: "anon-uid-r9", isNewUser: true});
+      // R9 핵심 — updateUser 1회 호출 + emailVerified: true.
+      expect(mockUpdateUser).toHaveBeenCalledTimes(1);
+      expect(mockUpdateUser).toHaveBeenCalledWith("anon-uid-r9", {
+        emailVerified: true,
+      });
+      // Pitfall 4 회피 보존 — createUser 미호출 (callerUid path).
+      expect(mockCreateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    "R9: 기존 identity (isNewUser=false) → updateUser 미호출 (멱등성)",
+    async () => {
+      // 재로그인 path — 이미 emailVerified=true 인 user 재사용.
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "existing-r9"},
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-456",
+        callerUid: undefined,
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({uid: "existing-r9", isNewUser: false});
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    "R9: 미인증 호출 (createUser path) → updateUser 미호출 (이미 set)",
+    async () => {
+      // !callerUid path — createUser({emailVerified: true}) 가 처음부터 set.
+      // updateUser 추가 호출 불필요 (멱등성 + 비용 절감).
+      mockCreateUser.mockResolvedValueOnce({uid: "new-uid-r9"});
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-789",
+        callerUid: undefined,
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({uid: "new-uid-r9", isNewUser: true});
+      expect(mockCreateUser).toHaveBeenCalledTimes(1);
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    "R9: updateUser 실패 시 throw (strict — caller 가 internal 매핑)",
+    async () => {
+      // updateUser 실패 시 emailVerified=false 가 그대로 남아 verify-email
+      // gate 가 잘못 트리거됨 → strict 정책으로 throw → caller 가
+      // createCustomToken 차단 + internal 에러 매핑.
+      mockUpdateUser.mockReset();
+      mockUpdateUser.mockRejectedValueOnce(
+        Object.assign(new Error("update failed"), {
+          code: "auth/internal-error",
+        }),
+      );
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await expect(
+        resolveIdentity(db, {
+          provider: "naver",
+          providerUserId: "naver-fail",
+          callerUid: "anon-fail",
+          userInfo: undefined,
+        }),
+      ).rejects.toMatchObject({code: "auth/internal-error"});
     },
   );
 });
