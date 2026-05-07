@@ -44,7 +44,18 @@ void main() {
   group('config JSON 무결성', () {
     for (final flavor in <String>['dev', 'stg', 'prod']) {
       test('$flavor.json은 splashMinDurationMs 키를 가진다', () {
-        final content = File('config/$flavor.json').readAsStringSync();
+        // CR-02 (Phase 13 review): config/{flavor}.json 은 .gitignore 대상.
+        // fresh clone / CI 에서 missing 시 graceful skip — entire suite fail
+        // 회피 (app_config_test 와 동일 정책).
+        final file = File('config/$flavor.json');
+        if (!file.existsSync()) {
+          markTestSkipped(
+            'config/$flavor.json missing — `cp config/$flavor.example.json '
+            'config/$flavor.json` 실행 후 재시도.',
+          );
+          return;
+        }
+        final content = file.readAsStringSync();
         final json = jsonDecode(content) as Map<String, dynamic>;
         expect(
           json.containsKey('splashMinDurationMs'),
