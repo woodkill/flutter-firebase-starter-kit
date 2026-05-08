@@ -33,7 +33,8 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 6. [Phase 14~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1416--custom-token-provider-추가-가이드-stub)
 7. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
 8. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-9. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+9. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+10. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
 
 ---
 
@@ -1108,6 +1109,175 @@ bash scripts/check_phase_refs.sh
 
 ---
 
+## Brand Asset Management (Phase 13.1)
+
+본 단락은 starter-kit 의 social provider brand asset 출처·라이선스·다운로드·
+freshness 갱신 정책을 정리한다. 7 provider (Kakao / Naver / Google / Apple /
+Facebook / LINE / WeChat) 자산 모두 단일 표준 디렉토리 (`assets/brand/{provider}/`)
++ 7필드 README schema 를 따른다.
+
+> **⚠ 미래 갱신자 함정 경고 (Plan 13.1-07 retro):** Phase 13.1 초기 plan 은
+> "1x / 2x / 3x density bucket × ko/en" 으로 자상 차원을 가정했으나, 다운로드
+> 후 Kakao / Naver / Google 모두 공식 제공 형식이 plan 가정과 다름을 발견 —
+> Kakao 는 사이즈+가로비율 변형, Naver 는 5차원 매트릭스 (theme × locale ×
+> color × variant × height) 64 PNG, Google 은 5차원 매트릭스 (platform ×
+> format × theme × shape × label) 360+ 파일. 1년 후 자산 갱신 시 동일
+> 함정에 빠지지 않도록, 본 단락의 "Provider 별 채택 차원 매트릭스" 와 각
+> `assets/brand/{provider}/README.md` 의 "자산 형식 결정" 단락을 **반드시**
+> 먼저 읽고 공식 페이지의 현재 제공 형식과 대조하라.
+
+### 자산 디렉토리 구조
+
+```
+assets/brand/
+├── kakao/{ko,en}/light/kakao_login_{medium,large}_wide.png + LICENSE.txt + README.md
+│   # Plan 13.1-07 retro: 사이즈+가로비율 변형 (NOT 1x/2x/3x density), light only, 4 PNG
+├── naver/{ko,en}/{light,dark}/naver_login_h{48,56}_wide.png + LICENSE.txt + README.md
+│   # Plan 13.1-07 retro: Kakao 의 2배 차원 (light/dark 추가), 8 PNG.
+│   # light → 흰 배경 위 그린 BI, dark → 검정 배경 위 흰 BI (Naver BI 사용 패턴)
+├── google/{light,dark,neutral}/btn_signin_{full,icon}.svg + LICENSE.txt + README.md
+│   # Plan 13.1-07 retro: Android × rd × ctn 채택, 6 SVG. cross-platform 사용 라이선스 무관
+├── apple/README.md          # SDK 위제 (sign_in_with_apple ^8.0.0), 자상 commit 없음
+├── facebook/README.md       # sign_in_button community package (Phase 18 마이그 예정)
+├── line/.placeholder + README.md   # Phase 14 (LINE) 진입 시 자상 commit
+└── wechat/.placeholder + README.md # Phase 16 (WeChat) 진입 시 자상 commit
+```
+
+### Provider 별 출처 + 라이선스
+
+| Provider | 공식 BI URL | 자산 형식 | 라이선스 | 사용자 사전 검수 |
+|----------|------------|-----------|---------|-----------------|
+| Kakao    | https://developers.kakao.com/docs/ko/kakaologin/design-guide | PNG + PSD | Kakao Resources Terms | N/A (가이드 준수만) |
+| Naver    | https://developers.naver.com/docs/login/bi/bi.md | PNG + Figma + AI | NAVER Brand License | **사용자 책임** (가이드 준수 — starter-kit 은 검수 자동화 미제공) |
+| Google   | https://developers.google.com/identity/branding-guidelines | SVG | Google Terms of Service | N/A |
+| Apple    | https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple | (SDK 위제) | Apple HIG (`sign_in_with_apple` 패키지 BSD-3-Clause) | N/A |
+| Facebook | (현재 sign_in_button 4.1.0 community-rendered) | (community-rendered) | sign_in_button MIT | Phase 18 — Meta Brand Center 자상 교체 예정 |
+| LINE     | https://developers.line.biz/en/docs/line-login/login-button/ | PNG + PSD (19 언어) | LINE Branding License | **사용자 책임** (Phase 14 진입 시) |
+| WeChat   | https://developers.weixin.qq.com/doc/oplatform/en/Downloads/Design_Resource.html | PNG only (24/32/48/64) | WeChat Brand Guideline | **사용자 책임** (변형 절대 금지, Phase 16 진입 시) |
+
+**D-Note (Phase 13.1 R1 — Naver 색상 컨텍스트 분리):** Naver 의 회사 브랜드
+(`#03C75A`, NAVER Corp + NCloud SSO) ↔ 로그인 버튼 (`#03A94D`, NAVER ID
+로그인 BI) 는 컨텍스트가 다르다. starter-kit 의 production 코드는 `#03A94D`
+채택 (NAVER ID 로그인 BI 페이지 verbatim). 회사 브랜드 색은 starter-kit 사용
+대상이 아님 — 자상 갱신 시 `#03C75A` 가 third-party 출처 (wikipedia / blog
+등) 에서 발견되더라도 **무시**.
+
+### Provider 별 채택 차원 매트릭스 (Plan 13.1-07 결정)
+
+> 본 매트릭스는 미래 갱신자가 "Plan 가정 1x/2x/3x" 함정을 회피하기 위해
+> 핵심. 각 cell 의 "공식 제공" vs "starter-kit 채택" 차이를 인지한 뒤 갱신.
+
+| Provider | 공식 제공 차원 | starter-kit 채택 차원 | 채택 자상 수 | runtime default |
+|---------|---------------|----------------------|-------------|----------------|
+| Kakao   | 사이즈(medium/large) × 가로비율(wide/narrow) × 라벨(완성형/축약) × locale(ko/en) — light only | locale × size × **wide 만** (light only) | 4 PNG | `kakao_login_large_wide.png` (600×90) |
+| Naver   | theme × locale × color × variant(wide/narrow/center/icon) × height(H48/H56) — 5차원 64 PNG | locale × theme × height × **wide 만** (light=green / dark=white) | 8 PNG | `naver_login_h48_wide.png` (Material 표준 button height) |
+| Google  | platform(iOS/Android/Web) × format(SVG/PNG) × theme(light/dark/neutral) × shape(rd/sq) × label(ctn/SI/SU) — 5차원 360+ 파일 | **Android × SVG × theme × rd × {ctn, na}** | 6 SVG | `btn_signin_full.svg` (Android × rd × ctn) |
+
+**Cross-platform 사용 정책 (Google):** Google Identity Branding Guidelines 가
+platform 일치를 강제하지 않음 — `"You can scale the button as needed for
+different devices"` verbatim 명시 (LICENSE.txt 인용). 따라서 iOS 앱에서
+Android 자상 (`android_*_rd_*.svg`) 사용도 라이선스/정책 위반 아님 — Flutter
+mobile single codebase 단순성 + Material framework default 일관성으로 Android
+채택. 단 향후 갱신 시 cross-platform 정책 verbatim 재확인 의무 (정책 변경
+가능성 — 1년 freshness 갱신 시).
+
+### 1단계 — 자산 다운로드 (Kakao / Naver / Google)
+
+starter-kit clone 직후 `assets/brand/{kakao,naver,google}/` 에 공식 자상 +
+LICENSE.txt + README.md 가 commit 되어 있다 (Phase 13.1 commit). starter-kit
+사용자가 새 프로젝트 시작 시 다음을 검토:
+
+1. 위 표의 공식 BI 페이지 방문 → 최신 자상 갱신 여부 확인
+2. 갱신 있으면 `assets/brand/{provider}/[{lang}/][{theme}/]` 에 파일 갱신
+   (rename 금지 — starter-kit 명명 패턴 보존, 공식 ↔ starter-kit 매핑은
+   `assets/brand/{provider}/LICENSE.txt` 에 verbatim 기록)
+3. `LICENSE.txt` 의 verbatim 텍스트 갱신 (라이선스 조항 변경 시)
+4. `README.md` 의 7필드 (특히 "다운로드 일자") 갱신
+5. **공식 BI 정보 검증 의무:** wikipedia / seeklogo / 블로그 등 third-party
+   출처 채택 금지 — 위 표의 공식 BI URL 직접 방문 + verbatim 인용 (사용자
+   메모리 `feedback_official_bi_verification.md` 패턴)
+
+### 2단계 — Phase 14/16 진입 시 LINE/WeChat 자상 commit
+
+starter-kit 은 LINE/WeChat 자상 미commit (Phase 13.1 sentinel). Phase 14
+(LINE) / Phase 16 (WeChat) 시작 시:
+
+1. **LINE:** https://developers.line.biz/console/ 자상 다운 (PNG 다중 해상도
+   + PSD, 19 언어 중 채택 변형 결정).
+   **WeChat:** https://open.weixin.qq.com/ 자상 다운 (4 해상도 PNG only —
+   24/32/48/64px, **변형 절대 금지** — WeChat Brand Guideline 명시).
+2. `assets/brand/{line,wechat}/[{lang}/][{theme}/]` 에 파일 + `LICENSE.txt`
+   commit.
+3. `git rm assets/brand/{line,wechat}/.placeholder` (sentinel 해제).
+4. `assets/brand/{line,wechat}/README.md` 의 7필드 (특히 "다운로드 일자") 갱신.
+5. `fvm flutter test test/features/auth/presentation/_widgets/brand_assets_lint_test.dart`
+   실행 — sentinel 제거 검증의 **source-of-truth 는 본 lint test**.
+   `.placeholder` 가 부재 + README 7필드 모두 채워짐을 자동 검증, PASS 로
+   전환되면 sentinel 제거 절차 완료. **별도 const list 직접 수정 불필요**
+   — production widget 의 placeholder fallback 분기는 sealed switch
+   (`LineSpec` / `WechatSpec` case) 가 컴파일 시점에 처리.
+   (참고: lint test 가 의존하는 const 정의 파일의 정확한 경로는 본 manual
+   이 인용하지 않는다 — 향후 phase 에서 파일이 재배치되어도 본 절차가
+   유효하도록 lint test PASS 자체를 sentinel 제거의 source-of-truth 로
+   채택.)
+
+### 3단계 — 자산 freshness 갱신 (1년 권장)
+
+각 `assets/brand/{provider}/README.md` 의 "다운로드 일자" 필드를 기준으로 1년
+경과 시:
+
+1. 공식 BI 페이지 재방문 (위 표 참조).
+2. 자상 갱신 여부 확인 — 갱신 있으면 자상 + LICENSE + README 갱신, 변경
+   없으면 README 의 "다운로드 일자" 만 갱신.
+3. **공식 제공 차원 변동 확인** — 1단계 retro 함정 회피. 위 매트릭스의
+   "공식 제공 차원" cell 이 현재 페이지와 일치하는지 검토 (예: Kakao 가
+   density bucket 으로 전환했는지, Naver 가 5차원 → 6차원 확장했는지).
+4. `fvm flutter test --update-goldens test/features/auth/presentation/_widgets/branded_social_button_golden_test.dart`
+   재 generate (자상 갱신 시 golden 도 갱신 의무).
+5. golden PNG diff review — production 코드 색/사양 drift 부재 확인.
+6. `LICENSE.txt` verbatim 텍스트 변경 시 → 라이선스 조항 변경 의미 → 법무
+   검토 후 적용.
+
+### 자산 변형 정책
+
+- **WeChat:** 변형 절대 금지 — 24/32/48/64 px 4 해상도만 사용, 다른 사이즈
+  / 색상 / 비율 변형 금지 (WeChat Brand Guideline 명시).
+- **Naver / Kakao / Google:** 공식 자상만 — 자체 SVG 생성 / 색 변환 / resize
+  금지. 특히 PNG 자산은 `Image.asset(... fit: BoxFit.contain)` 직접 렌더 —
+  `ColorFilter.mode(BlendMode.srcIn)` 적용 시 BI 색이 단색으로 변환되어
+  guideline 위반 (Phase 13.1 RESEARCH §Pitfall 7).
+- **Apple:** `sign_in_with_apple` 패키지의 `SignInWithAppleButton` 위제 위임
+  — Apple HIG 의 3 변형 (Sign in / Sign up / Continue) 중 starter-kit 은
+  **Sign in 만** 사용. Sign up / Continue 추가는 별 phase. `borderRadius`
+  인수는 `BorderRadius.circular(12)` 형태 의무 (int 12 직접 주입 시 컴파일
+  에러). height 는 SDK 기본값 44 존종 (외부 SizedBox 래핑 안 함) — Naver/
+  Kakao height 48 과 4dp 차이는 HIG/BI 양쪽 공식 권장값 충돌의 정상 산물.
+- **Facebook:** 현재 `sign_in_button` community package — Phase 18 Brand
+  Center 권한 확보 후 공식 자상 마이그.
+- **사용자 책임:** Naver / LINE / WeChat 은 일부 사용 시 사전 검수 신청 별도
+  의무 가능 (정확한 절차는 공식 BI 페이지 — starter-kit 은 검수 자동화
+  미제공).
+
+### 회귀 가드 (3-layer)
+
+Phase 13.1 의 회귀 가드 3종이 starter-kit 에 포함:
+
+1. `test/features/auth/presentation/_widgets/brand_assets_lint_test.dart`
+   — `.placeholder` sentinel + README 7필드 schema 검증 (3 group 3 PASS).
+2. `test/features/auth/presentation/_widgets/brand_label_whitelist_test.dart`
+   — ARB↔HIG/BI verbatim 매칭 (Apple ko/en/ja + Naver/Kakao ja 영문 fallback).
+3. `test/features/auth/presentation/_widgets/branded_social_button_golden_test.dart`
+   — Naver/Kakao/Google 6 fixture brand drift detection (zero pixel
+   tolerance).
+
+자상 / 라벨 / 시각 사양 변경 시 위 3 test 중 ≥ 1 RED — 회귀 차단.
+
+> **갱신 의무:** 자상 변경 후 `fvm flutter test test/features/auth/presentation/_widgets/`
+> 실행 의무. 3 test 모두 GREEN 일 때만 commit. golden test RED 는
+> `--update-goldens` 후 PNG diff review 의무.
+
+---
+
 ## 변경 이력
 
 | 일자 | Phase | 변경 |
@@ -1116,7 +1286,8 @@ bash scripts/check_phase_refs.sh
 | 2026-05-04 | 12.1 | Initial Setup 단락 신규 추가 — config 시크릿 분리 (BL-01 hotfix). config/{flavor}.json 을 .gitignore 처리하고 *.example.json placeholder 만 tracked. |
 | 2026-05-05 | 12.1-03 | Git Hooks 활성화 (선택) 단락 신규 추가 — `scripts/check_phase_refs.sh` 양방향 lint + git pre-commit hook (R8.2 / WR-08). |
 | 2026-05-05 | 13-07 | Naver Login 단락 (10 단계) + Brand Asset 단락 (Kakao + Naver 통합, D-52) + Kakao 동의 항목 갱신 (D-56 retroactive) + Initial Setup 표에 naver 3 키 + iOS xcconfig 의 NAVER_URL_SCHEME + Firebase Secret Manager `NAVER_CLIENT_SECRET` 등록 (D-60). 목차 8 항목으로 확장. |
+| 2026-05-08 | 13.1-13 | `## Brand Asset Management (Phase 13.1)` 단락 신규 — 7 provider 매트릭스 (출처 + 라이선스 + 채택 차원) + 3단계 절차 (다운/Phase 14·16 sentinel 해제/freshness 1년) + 자산 변형 정책 + Plan 13.1-07 retro 경고 (1x/2x/3x density 가정 vs 실제 형식) + 3-layer 회귀 가드. R15 acceptance. 목차 9 항목으로 확장. |
 
 ---
 
-*Last updated: 2026-05-05 — Phase 13 Plan 07 완료 (Naver Login + Brand Asset + Kakao retroactive)*
+*Last updated: 2026-05-08 — Phase 13.1 Plan 13 완료 (Brand Asset Management 단락 신규)*
