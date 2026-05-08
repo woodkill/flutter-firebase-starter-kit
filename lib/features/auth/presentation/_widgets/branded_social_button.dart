@@ -107,7 +107,6 @@ class BrandedSocialButton extends StatelessWidget {
     required this.spec,
     required this.label,
     required this.onPressed,
-    this.semanticsLabel,
     super.key,
   });
 
@@ -143,9 +142,6 @@ class BrandedSocialButton extends StatelessWidget {
 
   /// 탭 핸들러. `null` 이면 비활성 상태 (ripple 없음).
   final VoidCallback? onPressed;
-
-  /// 접근성 라벨 — `null` 이면 [label] 사용.
-  final String? semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
