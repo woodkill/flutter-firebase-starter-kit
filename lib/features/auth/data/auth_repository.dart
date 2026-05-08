@@ -490,11 +490,9 @@ class AuthRepository {
       }
 
       final callable = _functions.httpsCallable('kakaoCustomToken');
-      final response = await callable
-          .call<Map<String, dynamic>>(<String, dynamic>{
-            'idToken': result.idToken,
-            'nonce': result.nonce,
-          });
+      final response = await callable.call<Map<String, dynamic>>(
+        <String, dynamic>{'idToken': result.idToken, 'nonce': result.nonce},
+      );
       final customToken = response.data['customToken'] as String?;
       if (customToken == null) {
         return const Result.failure(ServiceUnavailable());
@@ -917,9 +915,22 @@ AuthRepository authRepository(Ref ref) {
 /// 않으므로, Custom Token provider 의 진실원은 Firestore `linkedProviders[]`
 /// 다 (D-15).
 ///
-/// **Fallback (Plan 10-09 termsProvider 패턴):** Firestore stream 에러
-/// (네트워크 오류 / 권한 거부) 또는 미존재 문서 / AsyncLoading 시점에는
-/// Firebase `providerData` 만 사용한다 (즉시성 우선).
+/// **Fallback (Phase 13 R13 fix — 옵션 A, explicit pattern matching):**
+/// `linkedProvidersStreamProvider` 의 AsyncValue 3 분기를 명시적으로 처리한다.
+///
+/// - **AsyncData(list)**: list 그대로 합산 (기존 동일).
+/// - **AsyncLoading**: `linkedAsync.value` (직전 cached emit) 우선 활용,
+///   null (첫 진입) 이면 빈 배열 fallback. sign-in 직후 첫 emit 도착 전
+///   시점에도 cached list 가 보존되어 Custom Token user (Naver/Kakao) 의
+///   ephemeral "-" UX (R13 race) 가 차단된다.
+/// - **AsyncError**: 빈 배열 fallback (영구 spinner 회피, 옵션 A 단점 대응).
+///   실 production path 는 `linkedProvidersStream` 의 `handleError` 가
+///   `AsyncData(<String>[])` 로 정착시키므로 본 분기 도달은 거의 없으나
+///   안전망으로 유지.
+///
+/// 폐기된 contract (Phase 12 ~ Phase 13 R13 발현 전):
+/// `maybeWhen(data:..., orElse: const <String>[])` — AsyncLoading + AsyncError
+/// 모두 빈 배열 fallback 으로 fall-through → ephemeral "-" UX 회귀.
 ///
 /// **Race 안전성 (Pitfall 12):** 12-02 Cloud Function 이 `users/{uid}` 를
 /// `set({...}, {merge: true})` 로 작성하므로 Plan 10-12 mirrorToFirestore 와
@@ -932,12 +943,21 @@ User? currentUser(Ref ref) {
 
   final base = _mapFirebaseUser(fbUser);
 
-  // Phase 12 D-16: Firestore linkedProviders 합산 — stream 에러 / 미존재 /
-  // 로딩은 빈 배열로 fallback (Plan 10-09 termsProvider try/catch 패턴).
+  // Phase 12 D-16 + Phase 13 R13 fix (옵션 A): 합집합 — explicit AsyncValue
+  // pattern matching 으로 AsyncLoading 직전 cached emit 보존.
+  //
+  // - AsyncData(list)  → list 그대로 사용
+  // - AsyncLoading     → linkedAsync.value (직전 cached emit) ?? const <String>[]
+  //                      sign-in 직후 첫 emit 도착 전 시점에 base.providerIds
+  //                      만으로 fallback 하지 않음 — Custom Token user (Naver/
+  //                      Kakao) 의 ephemeral '-' UX (R13) 차단.
+  // - AsyncError       → const <String>[] (영구 spinner 회피, handleError 가
+  //                      이미 AsyncData([]) 정착하므로 실질 도달 거의 없음)
   final linkedAsync = ref.watch(linkedProvidersStreamProvider(fbUser.uid));
-  final linked = linkedAsync.maybeWhen(
+  final linked = linkedAsync.when(
     data: (list) => list,
-    orElse: () => const <String>[],
+    loading: () => linkedAsync.value ?? const <String>[],
+    error: (_, _) => const <String>[],
   );
 
   if (linked.isEmpty) return base;
@@ -986,18 +1006,15 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) {
       })
       .transform(
         StreamTransformer<List<String>, List<String>>.fromHandlers(
-          handleError:
-              (Object e, StackTrace st, EventSink<List<String>> sink) {
-                if (kDebugMode) {
-                  debugPrint(
-                    'linkedProvidersStream 에러 (fallback empty): $e\n$st',
-                  );
-                }
-                // R6 (D-41) — 빈 배열 명시 emit. AsyncData(<String>[]) 정착으로
-                // direct consumer (Account 섹션, debug widget) 가 spinner
-                // 무한에서 풀려난다.
-                sink.add(const <String>[]);
-              },
+          handleError: (Object e, StackTrace st, EventSink<List<String>> sink) {
+            if (kDebugMode) {
+              debugPrint('linkedProvidersStream 에러 (fallback empty): $e\n$st');
+            }
+            // R6 (D-41) — 빈 배열 명시 emit. AsyncData(<String>[]) 정착으로
+            // direct consumer (Account 섹션, debug widget) 가 spinner
+            // 무한에서 풀려난다.
+            sink.add(const <String>[]);
+          },
         ),
       );
 }
