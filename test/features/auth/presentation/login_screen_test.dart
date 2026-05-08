@@ -16,8 +16,10 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_field.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -185,14 +187,21 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('6. 소셜 SignInButton이 3개(Google + Apple + Facebook) 렌더링된다', (
-      tester,
-    ) async {
-      when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
-      await _pumpLogin(tester, mockRepo);
-      // Phase 9부터 Facebook 버튼이 추가되어 총 3개.
-      expect(find.byType(SignInButton), findsNWidgets(3));
-    });
+    testWidgets(
+      '6. 소셜 버튼 3개(Google + Apple + Facebook) 렌더링 — '
+      'Phase 13.1 caller refactor 후 Google/Apple 은 BrandedSocialButton, '
+      'Facebook 만 SignInButton 잔존',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithFacebook(),
+        ).thenAnswer((_) async => null);
+        await _pumpLogin(tester, mockRepo);
+        // Plan 13.1-08 — Google/Apple → BrandedSocialButton, Facebook → SignInButton.
+        expect(find.byType(SocialButton), findsNWidgets(3));
+        expect(find.byType(BrandedSocialButton), findsNWidgets(2));
+        expect(find.byType(SignInButton), findsNWidgets(1));
+      },
+    );
 
     testWidgets('7. OrDivider "or" 텍스트가 표시된다', (tester) async {
       await _pumpLogin(tester, mockRepo);
@@ -202,10 +211,10 @@ void main() {
     testWidgets('8. 소셜 버튼 영역이 EmailField 위에 위치한다', (tester) async {
       await _pumpLogin(tester, mockRepo);
 
-      // 첫 번째 SignInButton(플랫폼에 따라 Google 또는 Apple)이
-      // EmailField 위에 배치되어야 한다.
+      // Plan 13.1-08 — 첫 SocialButton (Google) 의 위치를 검증 (분기와 무관하게
+      // SocialButton wrapper 는 모든 분기에서 사용됨).
       final firstSocialButton = tester.getTopLeft(
-        find.byType(SignInButton).first,
+        find.byType(SocialButton).first,
       );
       final emailField = tester.getTopLeft(find.byType(TextFormField).first);
       expect(
@@ -218,11 +227,12 @@ void main() {
     // -----------------------------------------------------------------
     // Phase 8 Apple 로그인 시나리오 (AUTH-03-15, 16, 17)
     // Phase 9: 플랫폼 분기 제거(D-04). 통일 순서 Google→Apple→Facebook.
-    // Apple 버튼은 두 번째(index 1) SignInButton.
+    // Phase 13.1-08: Apple 버튼은 두 번째(index 1) SocialButton — 내부적으로
+    // BrandedSocialButton.apple() (SignInWithAppleButton 위제 위임) 사용.
     // -----------------------------------------------------------------
     group('LoginScreen Apple sign-in integration', () {
-      /// Apple 버튼 finder — 통일 순서에서 두 번째(index 1) SignInButton.
-      Finder findAppleButton() => find.byType(SignInButton).at(1);
+      /// Apple 버튼 finder — 통일 순서에서 두 번째(index 1) SocialButton.
+      Finder findAppleButton() => find.byType(SocialButton).at(1);
 
       testWidgets('AUTH-03-15: Apple 로그인 성공 시 FormErrorBanner에 에러 없음 '
           '(navigation은 authRedirect 위임)', (tester) async {

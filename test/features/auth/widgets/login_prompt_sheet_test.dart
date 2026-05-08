@@ -10,12 +10,12 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/login_prompt_sheet.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/or_divider.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:sign_in_button/sign_in_button.dart';
 
 /// [AuthRepository] 를 mocktail 로 대체하기 위한 Mock.
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -112,8 +112,9 @@ void main() {
         await tester.tap(find.text('Trigger'));
         await tester.pumpAndSettle();
 
-        // 소셜 3 버튼 렌더 확인.
-        expect(find.byType(SignInButton), findsNWidgets(3));
+        // 소셜 3 버튼 렌더 확인. Plan 13.1-08 — Google/Apple → BrandedSocialButton,
+        // Facebook 만 SignInButton 잔존이라 SocialButton 카운트로 검증.
+        expect(find.byType(SocialButton), findsNWidgets(3));
         // showOrDivider:false → OrDivider 없어야 함.
         expect(
           find.byType(OrDivider),

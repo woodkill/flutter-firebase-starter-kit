@@ -1,12 +1,25 @@
+// Phase 13.1 Plan 13.1-08 — caller refactor 회귀 가드.
+//
+// **갱신 의도 (D-13.1-05-CASCADE acceptance):**
+// - Plan 13.1-05 의 sealed BrandSpec 마이그레이션 + Plan 13.1-07 자상 commit +
+//   Plan 13.1-08 caller refactor 결과를 종합 검증한다.
+// - Apple/Google/Naver 분기는 BrandedSocialButton 의 named factory 위임 검증
+//   (Buttons.* enum 검증 폐기 — Buttons.{apple,googleDark,...} 는 Phase 13.1
+//   에서 사용하지 않음).
+// - Facebook 만 sign_in_button (Buttons.facebookNew) 잔존 (R12 acceptance).
+// - Kakao 6 deferred RED → GREEN 전환 (자상 PNG + BrandedSocialButton 위임).
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sign_in_button/sign_in_button.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -64,106 +77,169 @@ Widget _wrap(
   );
 }
 
+/// 좁은 시뮬레이터 surface 로 pump — 자상 placeholder 의 native size 가 큰
+/// 기본 800x600 viewport 에서 발생하는 Row overflow 회피.
+///
+/// `tester.view.physicalSize` 는 deprecated 경로라 본 helper 는
+/// `binding.setSurfaceSize` 를 사용한다. 모바일 280~674dp 범위 내 360dp 가
+/// starter-kit 의 전형적 Pixel 수준 폭이다.
+Future<void> _pumpWithMobileViewport(
+  WidgetTester tester,
+  Widget child,
+) async {
+  // iPhone 14 Pro 표준 폭 (393dp) + 약간 여유 — Google 자상 + 라벨 Row 가
+  // 360dp 에서는 ~25px overflow 발생. 마진 포함 412dp 채택.
+  await tester.binding.setSurfaceSize(const Size(412, 800));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(child);
+}
+
 void main() {
-  group('SocialButton _resolveButtons (Buttons enum 매핑)', () {
-    testWidgets('Google providerId + light → Buttons.google', (tester) async {
-      const strategy = _FakeStrategy(
-        kProviderIdGoogle,
-        'authGoogleSignIn',
-        'google',
-      );
-      await tester.pumpWidget(
-        _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
-      );
-      await tester.pumpAndSettle();
+  group('SocialButton — provider 별 BrandedSocialButton 위임 (Plan 13.1-08)', () {
+    testWidgets(
+      'Google 분기 (light) → BrandedSocialButton.google + GoogleSpec.theme=light',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdGoogle,
+          'authGoogleSignIn',
+          'google',
+        );
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        await tester.pumpAndSettle();
 
-      final btn = tester.widget<SignInButton>(find.byType(SignInButton));
-      expect(btn.button, Buttons.google);
-    });
+        // sign_in_button `Buttons` enum 사용 폐기 — SignInButton 미렌더.
+        expect(find.byType(SignInButton), findsNothing);
+        // BrandedSocialButton 위임.
+        final btn = tester.widget<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        );
+        expect(btn.spec, isA<GoogleSpec>());
+        expect((btn.spec as GoogleSpec).theme, GoogleTheme.light);
+      },
+    );
 
-    testWidgets('Google providerId + dark → Buttons.googleDark', (
-      tester,
-    ) async {
-      const strategy = _FakeStrategy(
-        kProviderIdGoogle,
-        'authGoogleSignIn',
-        'google',
-      );
-      await tester.pumpWidget(
-        _wrap(
-          const SocialButton(strategy: strategy, isDisabled: false),
-          brightness: Brightness.dark,
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Google 분기 (dark) → GoogleSpec.theme=dark',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdGoogle,
+          'authGoogleSignIn',
+          'google',
+        );
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(
+            const SocialButton(strategy: strategy, isDisabled: false),
+            brightness: Brightness.dark,
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      final btn = tester.widget<SignInButton>(find.byType(SignInButton));
-      expect(btn.button, Buttons.googleDark);
-    });
+        final btn = tester.widget<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        );
+        expect((btn.spec as GoogleSpec).theme, GoogleTheme.dark);
+      },
+    );
 
-    testWidgets('Apple providerId + light → Buttons.apple', (tester) async {
-      const strategy = _FakeStrategy(
-        kProviderIdApple,
-        'authAppleSignIn',
-        'apple',
-      );
-      await tester.pumpWidget(
-        _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Apple 분기 (light) → BrandedSocialButton.apple + AppleSpec '
+      '+ SignInWithAppleButtonStyle.black',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdApple,
+          'authAppleSignIn',
+          'apple',
+        );
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        await tester.pumpAndSettle();
 
-      final btn = tester.widget<SignInButton>(find.byType(SignInButton));
-      expect(btn.button, Buttons.apple);
-    });
+        // sign_in_button `Buttons` enum 사용 폐기 — SignInButton 미렌더.
+        expect(find.byType(SignInButton), findsNothing);
+        // BrandedSocialButton 위임 + AppleSpec + style.black.
+        final btn = tester.widget<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        );
+        expect(btn.spec, isA<AppleSpec>());
+        expect(btn.appleStyle, SignInWithAppleButtonStyle.black);
+        // Apple SDK 위제 렌더 검증.
+        expect(find.byType(SignInWithAppleButton), findsOneWidget);
+      },
+    );
 
-    testWidgets('Apple providerId + dark → Buttons.appleDark', (tester) async {
-      const strategy = _FakeStrategy(
-        kProviderIdApple,
-        'authAppleSignIn',
-        'apple',
-      );
-      await tester.pumpWidget(
-        _wrap(
-          const SocialButton(strategy: strategy, isDisabled: false),
-          brightness: Brightness.dark,
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Apple 분기 (dark) → SignInWithAppleButtonStyle.white',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdApple,
+          'authAppleSignIn',
+          'apple',
+        );
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(
+            const SocialButton(strategy: strategy, isDisabled: false),
+            brightness: Brightness.dark,
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      final btn = tester.widget<SignInButton>(find.byType(SignInButton));
-      expect(btn.button, Buttons.appleDark);
-    });
+        final btn = tester.widget<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        );
+        expect(btn.appleStyle, SignInWithAppleButtonStyle.white);
+      },
+    );
 
-    testWidgets('Facebook providerId → Buttons.facebookNew (다크 분기 없음)', (
-      tester,
-    ) async {
-      const strategy = _FakeStrategy(
-        kProviderIdFacebook,
-        'authFacebookSignIn',
-        'facebook',
-      );
-      await tester.pumpWidget(
-        _wrap(
-          const SocialButton(strategy: strategy, isDisabled: false),
-          brightness: Brightness.dark,
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Facebook 분기 → Buttons.facebookNew 잔존 (R12 acceptance)',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdFacebook,
+          'authFacebookSignIn',
+          'facebook',
+        );
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(
+            const SocialButton(strategy: strategy, isDisabled: false),
+            brightness: Brightness.dark,
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      final btn = tester.widget<SignInButton>(find.byType(SignInButton));
-      expect(btn.button, Buttons.facebookNew);
-    });
+        // Facebook 만 sign_in_button SignInButton 사용.
+        final btn = tester.widget<SignInButton>(find.byType(SignInButton));
+        expect(btn.button, Buttons.facebookNew);
+        // BrandedSocialButton 도달 안 함.
+        expect(find.byType(BrandedSocialButton), findsNothing);
+      },
+    );
 
-    testWidgets('Unknown providerId → UnsupportedError', (tester) async {
-      const strategy = _FakeStrategy('unknown.com', 'authUnknown', 'unknown');
-      // build 안에서 throw → flutter test framework 의 default error handler
-      // 가 capture 후 [tester.takeException] 으로 surface 한다.
-      await tester.pumpWidget(
-        _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
-      );
-      final ex = tester.takeException();
-      expect(ex, isA<UnsupportedError>());
-    });
+    testWidgets(
+      'Unknown providerId → UnsupportedError',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          'unknown.com',
+          'authUnknown',
+          'unknown',
+        );
+        // build 안에서 throw → flutter test framework 의 default error handler
+        // 가 capture 후 [tester.takeException] 으로 surface 한다.
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        final ex = tester.takeException();
+        expect(ex, isA<UnsupportedError>());
+      },
+    );
   });
 
   group('SocialButton 위임 invariant (D-11/D-12)', () {
@@ -177,7 +253,8 @@ void main() {
           signInCallCount += 1;
         },
       );
-      await tester.pumpWidget(
+      await _pumpWithMobileViewport(
+        tester,
         _wrap(SocialButton(strategy: strategy, isDisabled: false)),
       );
       await tester.pumpAndSettle();
@@ -200,7 +277,8 @@ void main() {
           signInCallCount += 1;
         },
       );
-      await tester.pumpWidget(
+      await _pumpWithMobileViewport(
+        tester,
         _wrap(SocialButton(strategy: strategy, isDisabled: true)),
       );
       await tester.pumpAndSettle();
@@ -210,11 +288,12 @@ void main() {
     });
   });
 
-  // Phase 12 D-25 옵션 A — Kakao 분기는 sign_in_button 미지원으로
-  // Material+InkWell+SVG 로 직접 그린다. 12-UI-SPEC line 391-437.
-  group('SocialButton Kakao 분기 (Phase 12 D-25)', () {
-    /// social_button.dart 의 private 상수 _kKakaoYellow 와 동일 리터럴.
-    /// 단일 진실원은 lib/features/auth/presentation/_widgets/social_button.dart.
+  // Phase 12 D-25 옵션 A → Phase 13.1 sealed BrandSpec.
+  // Kakao 분기는 sign_in_button 미지원으로 BrandedSocialButton.kakao 위임.
+  // Plan 13.1-07 commit 후 자상 = `kakao_login_large_wide.png` (PNG).
+  group('SocialButton Kakao 분기 (Plan 13.1-08 cascade GREEN)', () {
+    /// branded_social_button.dart 의 private 상수 _kKakaoYellow 와 동일 리터럴.
+    /// 단일 진실원은 `branded_social_button.dart`.
     const expectedKakaoYellow = Color(0xFFFEE500);
 
     testWidgets(
@@ -225,13 +304,19 @@ void main() {
           'authKakaoSignIn',
           'kakao',
         );
-        await tester.pumpWidget(
+        await _pumpWithMobileViewport(
+          tester,
           _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
         );
         await tester.pumpAndSettle();
 
         // sign_in_button 패키지의 SignInButton 미사용 (Kakao 미지원).
         expect(find.byType(SignInButton), findsNothing);
+        // BrandedSocialButton 위임 + KakaoSpec.
+        final btn = tester.widget<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        );
+        expect(btn.spec, isA<KakaoSpec>());
 
         // _kKakaoYellow 배경 Material 1개 이상 매치.
         final yellowMaterials = tester
@@ -257,7 +342,8 @@ void main() {
           'authKakaoSignIn',
           'kakao',
         );
-        await tester.pumpWidget(
+        await _pumpWithMobileViewport(
+          tester,
           _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
         );
         await tester.pumpAndSettle();
@@ -274,7 +360,8 @@ void main() {
           'authKakaoSignIn',
           'kakao',
         );
-        await tester.pumpWidget(
+        await _pumpWithMobileViewport(
+          tester,
           _wrap(
             const SocialButton(strategy: strategy, isDisabled: false),
             locale: const Locale('ko'),
@@ -287,21 +374,23 @@ void main() {
     );
 
     testWidgets(
-      'Kakao 분기 — SvgPicture 로 kakao_logo.svg 자산 로드',
+      'Kakao 분기 — Image.asset 으로 PNG 자상 로드 (Plan 13.1-07 자상 commit 결과)',
       (tester) async {
         const strategy = _FakeStrategy(
           kProviderIdKakao,
           'authKakaoSignIn',
           'kakao',
         );
-        await tester.pumpWidget(
+        await _pumpWithMobileViewport(
+          tester,
           _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
         );
         await tester.pumpAndSettle();
 
-        // SvgPicture 1개 이상 매치 (Kakao 분기 외에는 SVG 미사용 — 본 테스트
-        // wrap 안에 다른 SVG 미존재).
-        expect(find.byType(SvgPicture), findsOneWidget);
+        // SVG 미사용 (Plan 13.1-05 sealed refactor — Kakao 자상 PNG 마이그레이션).
+        expect(find.byType(SvgPicture), findsNothing);
+        // PNG 자상 1개 (KakaoSpec.assetType == AssetType.png).
+        expect(find.byType(Image), findsOneWidget);
       },
     );
 
@@ -313,7 +402,8 @@ void main() {
           'authKakaoSignIn',
           'kakao',
         );
-        await tester.pumpWidget(
+        await _pumpWithMobileViewport(
+          tester,
           _wrap(const SocialButton(strategy: strategy, isDisabled: true)),
         );
         await tester.pumpAndSettle();
@@ -344,7 +434,8 @@ void main() {
             signInCallCount += 1;
           },
         );
-        await tester.pumpWidget(
+        await _pumpWithMobileViewport(
+          tester,
           _wrap(SocialButton(strategy: strategy, isDisabled: false)),
         );
         await tester.pumpAndSettle();
@@ -355,6 +446,71 @@ void main() {
           1,
           reason: 'Kakao 분기 tap 시 strategy.signIn(ref) 가 1회 호출되어야 한다',
         );
+      },
+    );
+  });
+
+  // Phase 13.1 신규 — Naver 분기 회귀 가드 (Plan 13.1-05 NaverTheme 매개변수
+  // 추가 + Plan 13.1-07 자상 commit 결과 검증).
+  group('SocialButton Naver 분기 (Plan 13.1-08)', () {
+    /// branded_social_button.dart 의 private 상수 _kNaverGreen 과 동일 리터럴
+    /// (R1 정정 — 0xFF03A94D, NAVER ID 로그인 BI).
+    const expectedNaverGreen = Color(0xFF03A94D);
+
+    testWidgets(
+      'Naver 분기 (light) → NaverSpec.theme=light + 그린 배경',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdNaver,
+          'authNaverSignIn',
+          'naver',
+        );
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SignInButton), findsNothing);
+        final btn = tester.widget<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        );
+        expect(btn.spec, isA<NaverSpec>());
+        expect((btn.spec as NaverSpec).theme, NaverTheme.light);
+
+        final greenMaterials = tester
+            .widgetList<Material>(find.byType(Material))
+            .where((m) => m.color == expectedNaverGreen)
+            .toList();
+        expect(
+          greenMaterials,
+          isNotEmpty,
+          reason: '_kNaverGreen (#03A94D) 배경 Material 이 1개 이상 존재해야 한다',
+        );
+      },
+    );
+
+    testWidgets(
+      'Naver 분기 (dark) → NaverSpec.theme=dark',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          kProviderIdNaver,
+          'authNaverSignIn',
+          'naver',
+        );
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(
+            const SocialButton(strategy: strategy, isDisabled: false),
+            brightness: Brightness.dark,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final btn = tester.widget<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        );
+        expect((btn.spec as NaverSpec).theme, NaverTheme.dark);
       },
     );
   });

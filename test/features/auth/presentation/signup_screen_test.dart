@@ -16,7 +16,9 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/signup_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -201,14 +203,21 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('7. 소셜 SignInButton이 3개(Google + Apple + Facebook) 렌더링된다', (
-      tester,
-    ) async {
-      when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
-      await _pumpSignup(tester, mockRepo);
-      // Phase 9부터 Facebook 버튼이 추가되어 총 3개.
-      expect(find.byType(SignInButton), findsNWidgets(3));
-    });
+    testWidgets(
+      '7. 소셜 버튼 3개(Google + Apple + Facebook) 렌더링 — '
+      'Phase 13.1 caller refactor 후 Google/Apple 은 BrandedSocialButton, '
+      'Facebook 만 SignInButton 잔존',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithFacebook(),
+        ).thenAnswer((_) async => null);
+        await _pumpSignup(tester, mockRepo);
+        // Plan 13.1-08 — Google/Apple → BrandedSocialButton, Facebook → SignInButton.
+        expect(find.byType(SocialButton), findsNWidgets(3));
+        expect(find.byType(BrandedSocialButton), findsNWidgets(2));
+        expect(find.byType(SignInButton), findsNWidgets(1));
+      },
+    );
 
     testWidgets('8. OrDivider "or" 텍스트가 표시된다', (tester) async {
       await _pumpSignup(tester, mockRepo);
@@ -231,12 +240,13 @@ void main() {
         await _pumpSignup(tester, mockRepo);
         await tester.pumpAndSettle();
 
-        // SocialSignInSection이 렌더되고 3개 버튼 존재 (D-04).
+        // SocialSignInSection이 렌더되고 3개 SocialButton 존재 (D-04).
         expect(find.byType(SocialSignInSection), findsOneWidget);
-        expect(find.byType(SignInButton), findsNWidgets(3));
+        expect(find.byType(SocialButton), findsNWidgets(3));
 
         // D-04: 통일 순서에서 Apple 버튼은 두 번째(index 1).
-        await tester.tap(find.byType(SignInButton).at(1));
+        // Phase 13.1-08 — Apple 분기는 BrandedSocialButton.apple() 위임.
+        await tester.tap(find.byType(SocialButton).at(1));
         await tester.pumpAndSettle();
 
         // 소셜 영역 FormErrorBanner에 ServiceUnavailable 에러가 표시되어야 한다.
