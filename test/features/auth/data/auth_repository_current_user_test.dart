@@ -59,16 +59,12 @@ Future<void> _settle() async {
 /// `keepAlive: true` 라도 listener 가 없으면 lazy 평가만 일어나 Stream 이
 /// 구독되지 않을 수 있다. listener 를 명시적으로 등록하여 stream subscription
 /// 을 기동한다.
-ProviderContainer _makeContainer({
-  required List<Object> overrides,
-}) {
+ProviderContainer _makeContainer({required List<Object> overrides}) {
   // ignore: argument_type_not_assignable — flutter_riverpod 의 Override 타입은
   // 외부 노출 미지원이라 List<Object> 로 받고 ProviderContainer 가 sub-type
   // 동적 캐스팅한다. 호출부는 모두 *.overrideWith / *.overrideWithValue 의
   // 결과만 전달하므로 안전.
-  final container = ProviderContainer(
-    overrides: overrides.cast(),
-  );
+  final container = ProviderContainer(overrides: overrides.cast());
   // currentUserProvider listener — Stream subscription 활성화 + 안정화.
   container.listen(currentUserProvider, (_, _) {}, fireImmediately: true);
   return container;
@@ -152,12 +148,8 @@ void main() {
     test('1. Firebase user==null → currentUserProvider 가 null 반환', () async {
       final container = _makeContainer(
         overrides: [
-          authStateProvider.overrideWith(
-            (ref) => Stream<fb.User?>.value(null),
-          ),
-          firebaseFirestoreProvider.overrideWithValue(
-            _MockFirebaseFirestore(),
-          ),
+          authStateProvider.overrideWith((ref) => Stream<fb.User?>.value(null)),
+          firebaseFirestoreProvider.overrideWithValue(_MockFirebaseFirestore()),
         ],
       );
       addTearDown(container.dispose);
@@ -166,45 +158,42 @@ void main() {
       expect(container.read(currentUserProvider), isNull);
     });
 
-    test(
-      '2. Firebase providerData=[google.com] + Firestore linkedProviders='
-      '[{kakao}, {google.com}] → providerIds 합집합 + 중복 제거',
-      () async {
-        const uid = 'uid-merge';
-        final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
-        final snap = _buildSnapshot(
-          exists: true,
-          data: <String, dynamic>{
-            'linkedProviders': <Map<String, dynamic>>[
-              {'providerId': 'kakao', 'providerUserId': '12345'},
-              {'providerId': 'google.com', 'providerUserId': 'gid'},
-            ],
-          },
-        );
-        final firestore = _buildFirestore(
-          uid: uid,
-          snapshots: Stream<_MockDocumentSnapshot>.value(snap),
-        );
-
-        final container = _makeContainer(
-          overrides: [
-            authStateProvider.overrideWith(
-              (ref) => Stream<fb.User?>.value(fbUser),
-            ),
-            firebaseFirestoreProvider.overrideWithValue(firestore),
+    test('2. Firebase providerData=[google.com] + Firestore linkedProviders='
+        '[{kakao}, {google.com}] → providerIds 합집합 + 중복 제거', () async {
+      const uid = 'uid-merge';
+      final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
+      final snap = _buildSnapshot(
+        exists: true,
+        data: <String, dynamic>{
+          'linkedProviders': <Map<String, dynamic>>[
+            {'providerId': 'kakao', 'providerUserId': '12345'},
+            {'providerId': 'google.com', 'providerUserId': 'gid'},
           ],
-        );
-        addTearDown(container.dispose);
+        },
+      );
+      final firestore = _buildFirestore(
+        uid: uid,
+        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+      );
 
-        await _settle();
-        final user = container.read(currentUserProvider);
-        expect(user, isNotNull);
-        // 합집합: google.com (Firebase) ∪ {kakao, google.com} (Firestore)
-        // → {google.com, kakao} (Set 기반 중복 제거).
-        expect(user!.providerIds.toSet(), {'google.com', 'kakao'});
-        expect(user.providerIds.length, 2, reason: '중복 제거 검증');
-      },
-    );
+      final container = _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      // 합집합: google.com (Firebase) ∪ {kakao, google.com} (Firestore)
+      // → {google.com, kakao} (Set 기반 중복 제거).
+      expect(user!.providerIds.toSet(), {'google.com', 'kakao'});
+      expect(user.providerIds.length, 2, reason: '중복 제거 검증');
+    });
 
     test(
       '3. Firestore 문서 미존재 (exists=false) → Firebase providerData 만 사용',
@@ -299,18 +288,104 @@ void main() {
       },
     );
 
+    test('6. 잘못된 schema (linkedProviders 가 List<String>) → whereType 가 필터 — '
+        '빈 배열 처리 (T-12-06-05 type-safe parsing)', () async {
+      const uid = 'uid-bad-schema';
+      final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
+      // manual 변조: List<String> 형식 (객체 schema 아님). whereType<Map> 가
+      // invalid entry 를 자동 제거 → 빈 배열 → Firebase providerData 만 사용.
+      final snap = _buildSnapshot(
+        exists: true,
+        data: <String, dynamic>{
+          'linkedProviders': <dynamic>['kakao', 'google.com'],
+        },
+      );
+      final firestore = _buildFirestore(
+        uid: uid,
+        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+      );
+
+      final container = _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      // invalid schema 는 type-safe filter 가 차단 → fallback.
+      expect(user!.providerIds, ['google.com']);
+    });
+  });
+
+  // Phase 13 R13 (WR-06) fix 적용 후 invariant — 옵션 A (AsyncLoading 분기
+  // 보존, explicit pattern matching) 회귀 가드.
+  //
+  // 신규 contract (auth_repository.dart::currentUser):
+  //
+  //   final linked = linkedAsync.when(
+  //     data: (list) => list,
+  //     loading: () => linkedAsync.value ?? const <String>[],
+  //     error: (_, _) => const <String>[],
+  //   );
+  //
+  // 폐기된 invariant: "AsyncLoading 첫 frame 시 base.providerIds 유지"
+  // (기존 maybeWhen orElse: empty 의 의도적 deferred 동작) — Phase 13
+  // 시나리오 3/4 의 ephemeral '-' UX 회귀 trigger.
+  //
+  // 신규 invariant:
+  // 1. AsyncLoading + cached value 없음 → 빈 배열 fallback (첫 진입은 동일)
+  // 2. AsyncLoading + 직전 cached emit 보존 → cached list 합산 (R13 핵심 fix)
+  // 3. AsyncError → 빈 배열 fallback (영구 spinner 회피, 옵션 A 단점 대응)
+  group('Phase 13 R13 (WR-06) fix: linkedAsync.when 3-way explicit branch', () {
     test(
-      '6. 잘못된 schema (linkedProviders 가 List<String>) → whereType 가 필터 — '
-      '빈 배열 처리 (T-12-06-05 type-safe parsing)',
+      '1. AsyncLoading 첫 진입 (cached value 없음) → base.providerIds 만 사용',
       () async {
-        const uid = 'uid-bad-schema';
-        final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
-        // manual 변조: List<String> 형식 (객체 schema 아님). whereType<Map> 가
-        // invalid entry 를 자동 제거 → 빈 배열 → Firebase providerData 만 사용.
+        const uid = 'uid-async-loading-first';
+        final fbUser = _buildFbUser(uid: uid, providerIds: <String>[]);
+        // 절대 emit 안 하는 stream — AsyncLoading 영구 유지.
+        final firestore = _buildFirestore(
+          uid: uid,
+          snapshots: const Stream<_MockDocumentSnapshot>.empty(),
+        );
+
+        final container = _makeContainer(
+          overrides: [
+            authStateProvider.overrideWith(
+              (ref) => Stream<fb.User?>.value(fbUser),
+            ),
+            firebaseFirestoreProvider.overrideWithValue(firestore),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await _settle();
+
+        // 첫 진입은 cached value 없음 → linked=[] → base 만 사용 → 빈 배열.
+        final user = container.read(currentUserProvider);
+        expect(user, isNotNull);
+        expect(user!.uid, uid);
+        expect(user.providerIds, isEmpty);
+      },
+    );
+
+    test(
+      '2. AsyncLoading + 직전 cached emit 보존 → cached list 합산 (R13 핵심)',
+      () async {
+        const uid = 'uid-async-loading-cached';
+        final fbUser = _buildFbUser(uid: uid, providerIds: <String>[]);
+        // 1차 emit 으로 [{naver}] 정착. AsyncValue 의 hasValue=true 보존.
         final snap = _buildSnapshot(
           exists: true,
           data: <String, dynamic>{
-            'linkedProviders': <dynamic>['kakao', 'google.com'],
+            'linkedProviders': <Map<String, dynamic>>[
+              {'providerId': 'naver', 'providerUserId': '67890'},
+            ],
           },
         );
         final firestore = _buildFirestore(
@@ -329,66 +404,49 @@ void main() {
         addTearDown(container.dispose);
 
         await _settle();
+
+        // R13 핵심 invariant: 1차 emit 도착 후 linkedAsync.value=['naver']
+        // 가 보존되어 user.providerIds 에 'naver' 포함.
         final user = container.read(currentUserProvider);
         expect(user, isNotNull);
-        // invalid schema 는 type-safe filter 가 차단 → fallback.
-        expect(user!.providerIds, ['google.com']);
+        expect(user!.providerIds.toSet(), {'naver'});
       },
     );
-  });
 
-  // WR-06 (Phase 13 review): R13 race condition — linkedProvidersStreamProvider
-  // 첫 emit 전 (AsyncLoading) 시점에 currentUserProvider 의
-  // linkedAsync.maybeWhen(orElse: () => const <String>[]) 가 fall-through 해서
-  // 빈 배열 fallback. linkedProviders.isEmpty → return base 분기로 base.
-  // providerIds (= Firebase providerData) 만 사용. Custom Token (Naver/Kakao)
-  // 사용자는 providerData 가 비어있어 EnvironmentInfoScreen 의 "로그인 수단:" 이
-  // 한 frame 동안 '-' 로 표시되는 ephemeral UX 가 발생.
-  //
-  // 본 invariant 를 명시적 회귀 가드 — AsyncLoading 시점에 base 가 그대로 유지
-  // 되며, currentUserProvider 가 null 이 되거나 throw 가 아니어야 한다 (R13
-  // todo: defer to Phase 17). Phase 17 이 stream 첫 emit 까지 AsyncLoading 을
-  // 기다리는 옵션 (e.g. ref.watch + waitForFirstEmit) 로 전환할 때 본 test 가
-  // semantics 변화의 회귀 알림 역할.
-  group('Phase 13 R13 (WR-06): linkedAsync AsyncLoading 첫 frame 보존', () {
-    test(
-      'linkedProvidersStream 미 emit (AsyncLoading) 시 base.providerIds 유지',
-      () async {
-        const uid = 'uid-async-loading';
-        // Custom Token (Naver) 로 로그인 — Firebase providerData 가 비어있는
-        // 시뮬레이션. 실 Naver Custom Token user record 는 providerData 가
-        // [] 이므로 base.providerIds 도 빈 배열.
-        final fbUser = _buildFbUser(uid: uid, providerIds: <String>[]);
-        // emit 안 하는 stream (AsyncLoading 상태 유지) — Firestore round-trip
-        // 미완 시뮬레이션.
-        final firestore = _buildFirestore(
-          uid: uid,
-          snapshots: const Stream<_MockDocumentSnapshot>.empty(),
-        );
+    test('3. AsyncError 직접 도달 → base.providerIds 만 (영구 spinner 회피)', () async {
+      // 본 케이스는 handleError 가 우회된 가상 시나리오 — production
+      // path 는 transform handleError 가 AsyncData([]) 정착시킴.
+      // 옵션 A 단점 (AsyncError fallback 시 영구 spinner 위험) 회피
+      // path 안전망 검증.
+      const uid = 'uid-async-error';
+      final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
 
-        final container = _makeContainer(
-          overrides: [
-            authStateProvider.overrideWith(
-              (ref) => Stream<fb.User?>.value(fbUser),
+      final container = ProviderContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(_MockFirebaseFirestore()),
+          // linkedProvidersStreamProvider 직접 override — AsyncError 강제.
+          linkedProvidersStreamProvider(uid).overrideWith(
+            (ref) => Stream<List<String>>.error(
+              StateError('forced error for R13 fallback test'),
             ),
-            firebaseFirestoreProvider.overrideWithValue(firestore),
-          ],
-        );
-        addTearDown(container.dispose);
+          ),
+        ],
+      );
+      container.listen(currentUserProvider, (_, _) {}, fireImmediately: true);
+      addTearDown(container.dispose);
 
-        await _settle();
+      await _settle();
 
-        // R13 invariant: AsyncLoading 첫-frame 시 user 객체는 valid (null /
-        // throw 아님), providerIds 는 base (Firebase providerData) 그대로.
-        // ephemeral '-' UX 는 EnvironmentInfoScreen 의 별도 책임 — Phase 17
-        // 까지 의도된 동작.
-        final user = container.read(currentUserProvider);
-        expect(user, isNotNull);
-        expect(user!.uid, uid);
-        // base.providerIds 보존 — linkedAsync 합산 미진행 (AsyncLoading).
-        expect(user.providerIds, isEmpty);
-      },
-    );
+      // 영구 spinner 회피 invariant: currentUserProvider 가 즉시 valid
+      // User 반환 (null / throw 아님), providerIds 는 base 만.
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.uid, uid);
+      expect(user.providerIds, ['google.com']);
+    });
   });
 
   group('Phase 12: linkedProvidersStreamProvider (직접 호출)', () {
@@ -411,9 +469,7 @@ void main() {
         );
 
         final container = ProviderContainer(
-          overrides: [
-            firebaseFirestoreProvider.overrideWithValue(firestore),
-          ],
+          overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
         );
         addTearDown(container.dispose);
         // Stream subscription 활성화.
