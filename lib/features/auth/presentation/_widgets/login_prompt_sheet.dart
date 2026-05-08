@@ -54,7 +54,7 @@ Future<void> showLoginPromptSheet(BuildContext context) {
 /// 5. 본문 텍스트 (`authPromptSheetBody` -- bodyMedium, onSurfaceVariant)
 /// 6. [Gap] xl=24
 /// 7. [SocialSignInSection] (`showOrDivider: false`) -- Google / Apple / Facebook
-/// 8. [Gap] lg=16
+/// 8. [Gap] md=12
 /// 9. TextButton (`authContinueWithEmail`) -- primary color. 탭 시
 ///    Bottom Sheet 를 닫고 `${AppRoutes.login}?focus=email` 로 이동하여
 ///    LoginScreen 이메일 필드에 포커스한다 (D-31 / WARNING #12).
@@ -81,21 +81,21 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     final locale = Localizations.localeOf(context);
     final strategies = ref.watch(activeStrategiesProvider(locale));
     for (final strategy in strategies) {
-      ref.listen<AsyncValue<void>>(
-        resolveSocialProvider(strategy.providerId),
-        (previous, next) {
-          if (previous is AsyncLoading && next is AsyncData) {
-            if (!mounted) return;
-            final user = ref.read(firebaseAuthProvider).currentUser;
-            if (user != null && !user.isAnonymous) {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
-              context.go(AppRoutes.home);
+      ref.listen<AsyncValue<void>>(resolveSocialProvider(strategy.providerId), (
+        previous,
+        next,
+      ) {
+        if (previous is AsyncLoading && next is AsyncData) {
+          if (!mounted) return;
+          final user = ref.read(firebaseAuthProvider).currentUser;
+          if (user != null && !user.isAnonymous) {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
             }
+            context.go(AppRoutes.home);
           }
-        },
-      );
+        }
+      });
     }
 
     // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): sheet 안에서만 overlay
@@ -138,7 +138,7 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
                   isFormLoading: false,
                   showOrDivider: false,
                 ),
-                Gap(spacing.lg),
+                Gap(spacing.md),
                 TextButton(
                   onPressed: () => _handleContinueWithEmail(context),
                   child: Text(
