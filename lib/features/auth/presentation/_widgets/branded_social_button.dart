@@ -510,7 +510,17 @@ Widget _brandIcon(BuildContext context, BrandSpec spec) {
 /// 로 로드, H56 은 future-proof commit (CTA emphasis 시 향후 노출 가능).
 /// R4 acceptance: ko/en × light/dark = 4 (theme×locale) 변형 모두 commit.
 ///
-/// **Google:** 자상은 언어 중립 (텍스트 없음 또는 영문 baked-in).
+/// **Google (Plan 13.1-07 결정):** 공식 자상은 5차원 매트릭스 (platform ×
+/// format × theme × shape × label) 로 360+ 파일 제공 (iOS/Android/Web 별도
+/// ZIP). 본 starter-kit 은 mobile single codebase 단순성 + Flutter Material
+/// 기반 일관성 따라 **Android + rd shape + ctn label + SVG** 채택 — 6 SVG
+/// (3 theme × {full, icon}). cross-platform 사용 라이선스 제약 없음 (Google
+/// Identity Branding Guidelines 명시 — "scale the button as needed for
+/// different devices"). 자상은 언어 중립 (Roboto 영문 baked-in).
+///
+/// 공식 ↔ starter-kit 명명 매핑 (full = ctn 라벨, icon = na variant):
+///   android_{theme}_rd_ctn.svg → google/{theme}/btn_signin_full.svg
+///   android_{theme}_rd_na.svg  → google/{theme}/btn_signin_icon.svg
 String _iconAssetFor(BuildContext context, BrandSpec spec) {
   final lang = Localizations.localeOf(context).languageCode == 'ko'
       ? 'ko'

@@ -1,0 +1,81 @@
+Google Sign-In Brand Asset License
+====================================
+
+Source:
+  - 자상 다운로드: https://developers.google.com/identity/branding-guidelines
+    ("Download Pre-Approved Brand Icons" 섹션 — signin-assets.zip 패키지)
+  - 다운로드 일자: 2026-05-09
+  - 공식 가이드라인: Google Identity Branding Guidelines
+
+Bundled assets (6 SVG):
+  - assets/brand/google/light/btn_signin_full.svg
+  - assets/brand/google/light/btn_signin_icon.svg
+  - assets/brand/google/dark/btn_signin_full.svg
+  - assets/brand/google/dark/btn_signin_icon.svg
+  - assets/brand/google/neutral/btn_signin_full.svg
+  - assets/brand/google/neutral/btn_signin_icon.svg
+
+Official ↔ starter-kit naming map (Android platform × rd shape × ctn label):
+  공식 파일명                              starter-kit 명명
+  ─────────────────────────────────────────────────────────────────
+  android_light_rd_ctn.svg            →   light/btn_signin_full.svg
+  android_light_rd_na.svg             →   light/btn_signin_icon.svg
+  android_dark_rd_ctn.svg             →   dark/btn_signin_full.svg
+  android_dark_rd_na.svg              →   dark/btn_signin_icon.svg
+  android_neutral_rd_ctn.svg          →   neutral/btn_signin_full.svg
+  android_neutral_rd_na.svg           →   neutral/btn_signin_icon.svg
+
+Variant scope:
+  본 starter-kit 은 Google Identity 가 제공하는 360+ 자상 중 **6 SVG 만**
+  동봉합니다. 채택 차원:
+    - Platform: Android (Flutter Material framework default 와 일관)
+    - Format: SVG (vector, density-free, `flutter_svg` 의존성 이미 있음)
+    - Theme: light / dark / neutral (3)
+    - Shape: rd (rounded, BrandedSocialButton.borderRadius=12 와 일관)
+    - Label: ctn (Continue with Google) + na (icon-only)
+  미포함: iOS / Web 자상, sq shape, SI / SU label, png 형식.
+
+Cross-platform 사용 정책 (verbatim — Google Identity Branding Guidelines):
+  - "You can scale the button as needed for different devices" — 기기에 따라
+    scale 허용 (즉 platform 일치 미강제, iOS 앱에서 Android 자상 사용 가능).
+  - "Localization of this text to match the language of your app is permitted"
+    — 자상 텍스트 다국어화 허용. (본 starter-kit 은 영문 baked-in 자상 사용
+    — Roboto 폰트 의존, 한글/일문 자상은 Google 미제공으로 영문 fallback.)
+
+License terms (Google Identity Branding Guidelines verbatim, 2026-05-09 기준):
+
+  변형 금지 (Modification Prohibitions):
+    - "You can't change the size or color of the Google 'G' logo"
+    - "Use the Google icon or logo by itself without the button boundary"
+    - "Use monochrome versions of the Google 'G'"
+    - "Create your own icon for the button"
+
+  변형 허용 (Permitted Adjustments):
+    - "You can scale the button as needed for different devices"
+    - "Localization of this text to match the language of your app is
+      permitted"
+
+  사용 시 의무 사항 (Mandatory Usage Requirements):
+    - 본 자상은 "Pre-Approved" 자상 — Google 가 사전 승인한 디자인. 변형
+      없이 본 SVG 그대로 사용 의무.
+    - SVG 렌더 시 Roboto 폰트 dependency 보장 의무 ("The SVG files require
+      the Roboto font").
+    - 자상의 Google 'G' 로고는 단독 사용 금지 — button boundary 안에서만 사용.
+
+Notes:
+  1. 본 starter-kit 의 BrandedSocialButton.google(theme:) 는 GoogleTheme.light
+     /dark/neutral 매핑을 자동 처리합니다 (lib/features/auth/presentation/
+     _widgets/branded_social_button.dart).
+  2. 코드는 default 로 `btn_signin_full.svg` (ctn 라벨 — "Continue with
+     Google") 를 로드. `btn_signin_icon.svg` (na variant) 는 future-proof
+     commit — IconButton 형태 노출 시 향후 BrandedSocialButton.googleIcon
+     factory 에서 사용 가능.
+  3. SVG 의 Roboto 폰트 의존성 — Flutter 의 `flutter_svg` 가 폰트 파일
+     없이도 SVG 텍스트를 fallback 폰트로 렌더 가능하나, 시각 일관성을
+     위해 Roboto 폰트 등록 권장 (현재 starter-kit 은 Material 의 default
+     Roboto 사용으로 충족).
+  4. 자상 freshness 갱신 정책: 1년 (assets/brand/google/README.md 참조).
+     1년 경과 시 https://developers.google.com/identity/branding-guidelines
+     재방문 + 자상 갱신 여부 확인 의무.
+  5. NCloud / NAVER ID 컨텍스트 분리는 Naver 만 해당 (Google 은 brand
+     단일).

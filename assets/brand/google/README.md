@@ -9,7 +9,7 @@ https://developers.google.com/identity/branding-guidelines
 https://developers.google.com/identity/branding-guidelines (Light/Dark/Neutral × full button/icon-only — 6 SVG)
 
 ## 다운로드 일자
-YYYY-MM-DD (Plan 13.1-08 실행 시 갱신 의무)
+2026-05-09 (Plan 13.1-07 checkpoint commit)
 
 ## 라이선스
 Google Terms of Service (LICENSE.txt). Plan 13.1-08 에서 LICENSE.txt 동봉.
@@ -23,7 +23,7 @@ Google Identity Branding Guidelines 가 변형 금지 명시. 신규 변형 도�
 ## 자산 freshness 갱신 빈도
 1년 권장.
 
-## 디렉토리 구조 (Plan 13.1-08 commit 후)
+## 디렉토리 구조 (Plan 13.1-07 commit 후)
 ```
 assets/brand/google/
 ├── light/btn_signin_{full,icon}.svg
@@ -32,3 +32,19 @@ assets/brand/google/
 ├── LICENSE.txt
 └── README.md
 ```
+
+**자산 형식 결정 (Plan 13.1-07 retro):** Google 공식 자상은 5차원 매트릭스 (platform × format × theme × shape × label) 로 360+ 파일 제공 (iOS/Android/Web 별 ZIP). 본 starter-kit 은 다음 차원 채택:
+
+- **Platform:** Android (Flutter Material framework default 와 일관, mobile 양쪽 platform 에 어색하지 않음)
+- **Format:** SVG (vector, density-free, `flutter_svg` 의존성 이미 있음)
+- **Theme:** light / dark / neutral (Plan 가정 일치)
+- **Shape:** `rd` (rounded — `BrandedSocialButton.borderRadius=12` 와 일관)
+- **Label:** `ctn` (Continue with Google — sign-in + sign-up 포괄, OAuth 첫-로그인 흐름과 일치) + `na` (icon-only 변형)
+
+**Cross-platform 사용 정책:** Google Identity Branding Guidelines 가 platform 일치를 강제하지 않음 — "You can scale the button as needed for different devices" 명시. iOS 앱에서 Android 자상 사용도 라이선스/정책 위반 아님 (LICENSE.txt verbatim 인용).
+
+**공식 ↔ starter-kit 명명 매핑:**
+- `android_{light,dark,neutral}_rd_ctn.svg` → `google/{theme}/btn_signin_full.svg`
+- `android_{light,dark,neutral}_rd_na.svg` → `google/{theme}/btn_signin_icon.svg`
+
+**미포함 변형:** iOS 자상 (`ios_*_rd_*.svg`), Web 자상, sq shape, SI/SU label, png 형식. Flutter starter-kit 단순성 원칙 + Material framework default 일관성으로 위 6 SVG 만 채택.
