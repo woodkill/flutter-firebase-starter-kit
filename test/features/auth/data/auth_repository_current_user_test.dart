@@ -101,12 +101,17 @@ _MockFbUser _buildFbUser({
 
 /// Firestore stub: `users/{uid}` snapshots stream 을 [snapshots] 로 emit 한다.
 ///
-/// [shouldError] true 면 stream 이 즉시 에러를 emit (handleError fallback
-/// 검증용).
+/// [shouldError] true 면 stream 이 즉시 [errorCode] 의 [FirebaseException] 을
+/// emit 한다 (D-41 fallback 검증용). default 는 `'unavailable'` —
+/// R10-FOLLOWUP-2 fix 후 `'permission-denied'` 는 retry 진입 (yield 안 함)
+/// 이므로 D-41 즉시 fallback contract 검증용으로 적합하지 않다. 다른
+/// FirebaseException 코드 (`unavailable`/`internal` 등) 는 즉시 빈 배열
+/// fallback (I1) — 본 default 가 그 contract 를 검증한다.
 _MockFirebaseFirestore _buildFirestore({
   required String uid,
   Stream<_MockDocumentSnapshot>? snapshots,
   bool shouldError = false,
+  String errorCode = 'unavailable',
 }) {
   final firestore = _MockFirebaseFirestore();
   final collection = _MockCollectionReference();
@@ -117,7 +122,7 @@ _MockFirebaseFirestore _buildFirestore({
   if (shouldError) {
     when(() => doc.snapshots()).thenAnswer(
       (_) => Stream<_MockDocumentSnapshot>.error(
-        FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'),
+        FirebaseException(plugin: 'cloud_firestore', code: errorCode),
       ),
     );
   } else {
@@ -127,6 +132,46 @@ _MockFirebaseFirestore _buildFirestore({
   }
   return firestore;
 }
+
+/// Firestore stub for retry 시나리오 — 호출마다 다른 [Stream] 을 emit 한다.
+///
+/// `linkedProvidersStream` 의 R10-FOLLOWUP-2 fix 가 `permission-denied`
+/// 발생 시 `await Future.delayed(1s) + continue` 로 source stream 을
+/// 재구독하므로 `doc.snapshots()` 가 여러 번 호출된다. 호출 카운트별로
+/// [streamFactories] 의 다른 factory 를 사용하여 (1차 throw → 2차 정상
+/// 같은) 시나리오를 표현한다.
+///
+/// 각 factory 는 호출마다 새 [Stream] 을 반환해야 한다 — Stream subscription
+/// 1회 제약 (single-subscription) 회피.
+_MockFirebaseFirestore _buildRetryFirestore({
+  required String uid,
+  required List<Stream<_MockDocumentSnapshot> Function()> streamFactories,
+}) {
+  final firestore = _MockFirebaseFirestore();
+  final collection = _MockCollectionReference();
+  final doc = _MockDocumentReference();
+  when(() => firestore.collection('users')).thenReturn(collection);
+  when(() => collection.doc(uid)).thenReturn(doc);
+  var callIndex = 0;
+  when(() => doc.snapshots()).thenAnswer((_) {
+    final clamped = callIndex.clamp(0, streamFactories.length - 1);
+    final factory = streamFactories[clamped];
+    callIndex += 1;
+    return factory();
+  });
+  return firestore;
+}
+
+/// `permission-denied` 에러를 emit 하는 stream factory.
+Stream<_MockDocumentSnapshot> Function() _permissionDeniedFactory() =>
+    () => Stream<_MockDocumentSnapshot>.error(
+      FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'),
+    );
+
+/// 정상 emit 을 내는 stream factory — 단일 [_MockDocumentSnapshot] value.
+Stream<_MockDocumentSnapshot> Function() _valueFactory(
+  _MockDocumentSnapshot snap,
+) => () => Stream<_MockDocumentSnapshot>.value(snap);
 
 /// 한 개의 [DocumentSnapshot] mock — `linkedProviders` 데이터를 담는다.
 _MockDocumentSnapshot _buildSnapshot({
@@ -224,10 +269,14 @@ void main() {
     );
 
     test(
-      '4. Firestore stream 에러 → AsyncData(<String>[]) emit (fallback empty, R6)',
+      '4. Firestore stream 에러 (unavailable) → AsyncData(<String>[]) emit '
+      '(D-41 fallback empty, R6 + R10-FOLLOWUP-2 I1)',
       () async {
         const uid = 'uid-error';
         final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
+        // R10-FOLLOWUP-2 후, `permission-denied` 는 1s × 5회 retry 진입.
+        // D-41 (영구 spinner 회피) 정책은 다른 FirebaseException (network /
+        // unavailable 등) 에서 검증한다 — `unavailable` 코드 사용.
         final firestore = _buildFirestore(uid: uid, shouldError: true);
 
         final container = _makeContainer(
@@ -242,15 +291,15 @@ void main() {
 
         await _settle();
 
-        // 신규 contract (R6 — D-41): 직접 stream 소비 시에도 AsyncData([]) 정착.
-        // 기존 contract ("AsyncLoading 잔류 → maybeWhen orElse") 는 폐기 — 직접
-        // stream consumer (Account 섹션, debug widget) 가 spinner 무한 회피.
+        // 신규 contract (R6 D-41 + R10-FOLLOWUP-2 I1): 직접 stream 소비 시
+        // AsyncData([]) 정착. 직접 stream consumer (Account 섹션, debug
+        // widget) 가 spinner 무한 회피.
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.hasValue, isTrue);
         expect(asyncValue.value, isEmpty);
 
-        // 합집합 결과는 동일 — Firebase providerData 만 사용 (currentUserProvider
-        // 의 maybeWhen orElse 가 이제 data:(list) => list 분기로 자연 흐름).
+        // 합집합 결과는 동일 — Firebase providerData 만 사용
+        // (currentUserProvider 의 linkedAsync.when data 분기로 자연 흐름).
         final user = container.read(currentUserProvider);
         expect(user, isNotNull);
         expect(user!.providerIds, ['google.com']);
@@ -484,6 +533,233 @@ void main() {
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.value, ['kakao', 'naver']);
       },
+    );
+  });
+
+  // Phase 13 R10-FOLLOWUP-2 fix 회귀 가드.
+  //
+  // sign-in 직후 Firebase Auth ID Token 갱신과 Firestore SDK 의 token cache
+  // propagate 사이 timing window 에서 발생하는 `[cloud_firestore/permission-
+  // denied]` race 를 stream 내부 selective retry 로 흡수하는 contract 검증.
+  //
+  // 검증 invariants (auth_repository.dart::linkedProvidersStream, spec §4.6):
+  // - I1 (D-41): 다른 FirebaseException → 즉시 빈 배열 / 5회 escape → 빈 배열
+  // - I2 (R13 호환): retry 중 yield 안 함 (현 케이스 group 은 stream 직접
+  //   AsyncValue 검증 — yield 안 함은 AsyncLoading 잔류로 표현)
+  // - I3 (카운터 리셋): 정상 emit 도달 시 retry 카운터 0
+  //
+  // fakeAsync 호환성 — ProviderContainer microtask 와 mocktail thenAnswer
+  // 카운팅이 fake zone 안에서 함께 실행되어야 한다. wallclock 채택 (spec §5
+  // 의 fakeAsync 는 권장이지 의무 아님).
+  group('Phase 13 R10-FOLLOWUP-2: linkedProvidersStream permission-denied retry', () {
+    test('1. 정상 emit (회귀) — Firestore mock [{providerId: naver}] → '
+        'AsyncData([naver])', () async {
+      const uid = 'uid-r10f2-normal';
+      final snap = _buildSnapshot(
+        exists: true,
+        data: <String, dynamic>{
+          'linkedProviders': <Map<String, dynamic>>[
+            {'providerId': 'naver', 'providerUserId': 'nv1'},
+          ],
+        },
+      );
+      final firestore = _buildFirestore(
+        uid: uid,
+        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+      );
+
+      final container = ProviderContainer(
+        overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
+      );
+      addTearDown(container.dispose);
+      container.listen(
+        linkedProvidersStreamProvider(uid),
+        (_, _) {},
+        fireImmediately: true,
+      );
+
+      await _settle();
+      final asyncValue = container.read(linkedProvidersStreamProvider(uid));
+      expect(asyncValue.hasValue, isTrue);
+      expect(asyncValue.value, ['naver']);
+    });
+
+    test(
+      '2. permission-denied 1회 후 정상 (R10-FOLLOWUP-2 핵심) — 1s delay 후 '
+      'AsyncData([naver])',
+      () async {
+        const uid = 'uid-r10f2-retry-once';
+        final snap = _buildSnapshot(
+          exists: true,
+          data: <String, dynamic>{
+            'linkedProviders': <Map<String, dynamic>>[
+              {'providerId': 'naver', 'providerUserId': 'nv1'},
+            ],
+          },
+        );
+        // 1차 throw permission-denied → retry 진입 (yield 안 함) → 2차 정상.
+        final firestore = _buildRetryFirestore(
+          uid: uid,
+          streamFactories: [
+            _permissionDeniedFactory(),
+            _valueFactory(snap),
+          ],
+        );
+
+        final container = ProviderContainer(
+          overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
+        );
+        addTearDown(container.dispose);
+        container.listen(
+          linkedProvidersStreamProvider(uid),
+          (_, _) {},
+          fireImmediately: true,
+        );
+
+        // 1차 throw 시점에 yield 안 함 → AsyncLoading 잔류 (I2).
+        await _settle();
+        final pendingValue = container.read(linkedProvidersStreamProvider(uid));
+        expect(
+          pendingValue.isLoading,
+          isTrue,
+          reason: 'retry 중 yield 안 함 → AsyncLoading 잔류 (I2 invariant)',
+        );
+
+        // 1s wallclock + microtask flush — retryDelay 후 2차 정상 emit.
+        await Future<void>.delayed(const Duration(milliseconds: 1100));
+        await _settle();
+        final asyncValue = container.read(linkedProvidersStreamProvider(uid));
+        expect(asyncValue.hasValue, isTrue);
+        expect(
+          asyncValue.value,
+          ['naver'],
+          reason: 'retry 후 정상 emit 도달 (R10-FOLLOWUP-2 핵심)',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 10)),
+    );
+
+    test(
+      '3. permission-denied 5회 escape — 5s 후 AsyncData([]) (D-41 escape '
+      'hatch, I1)',
+      () async {
+        const uid = 'uid-r10f2-escape';
+        // 6 호출 모두 permission-denied — 5회 retry 후 escape hatch.
+        final firestore = _buildRetryFirestore(
+          uid: uid,
+          streamFactories: List.generate(
+            6,
+            (_) => _permissionDeniedFactory(),
+          ),
+        );
+
+        final container = ProviderContainer(
+          overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
+        );
+        addTearDown(container.dispose);
+        container.listen(
+          linkedProvidersStreamProvider(uid),
+          (_, _) {},
+          fireImmediately: true,
+        );
+
+        // 5s + buffer wallclock — 5회 retry 모두 소진 후 빈 배열 emit.
+        await Future<void>.delayed(const Duration(milliseconds: 5500));
+        await _settle();
+        final asyncValue = container.read(linkedProvidersStreamProvider(uid));
+        expect(asyncValue.hasValue, isTrue);
+        expect(
+          asyncValue.value,
+          isEmpty,
+          reason: '5회 escape → 빈 배열 fallback (영구 spinner 회피)',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 15)),
+    );
+
+    test(
+      '4. 다른 FirebaseException (unavailable) → 즉시 AsyncData([]) (D-41 '
+      '보존, I1)',
+      () async {
+        const uid = 'uid-r10f2-other-error';
+        final firestore = _buildFirestore(
+          uid: uid,
+          shouldError: true,
+          errorCode: 'unavailable',
+        );
+
+        final container = ProviderContainer(
+          overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
+        );
+        addTearDown(container.dispose);
+        container.listen(
+          linkedProvidersStreamProvider(uid),
+          (_, _) {},
+          fireImmediately: true,
+        );
+
+        // 즉시 (no delay) 빈 배열 fallback — retry 진입 안 함.
+        await _settle();
+        final asyncValue = container.read(linkedProvidersStreamProvider(uid));
+        expect(asyncValue.hasValue, isTrue);
+        expect(
+          asyncValue.value,
+          isEmpty,
+          reason: 'permission-denied 가 아닌 코드는 즉시 fallback (I1)',
+        );
+      },
+    );
+
+    test(
+      '5. 카운터 리셋 — 1차 throw → 2차 정상 → 3차 throw → 4차 정상 (5회 누적 '
+      '아님, I3)',
+      () async {
+        const uid = 'uid-r10f2-counter-reset';
+        final snap = _buildSnapshot(
+          exists: true,
+          data: <String, dynamic>{
+            'linkedProviders': <Map<String, dynamic>>[
+              {'providerId': 'naver', 'providerUserId': 'nv1'},
+            ],
+          },
+        );
+        // 1차 throw → 2차 정상 (카운터 리셋) → 3차 throw → 4차 정상.
+        // 카운터가 리셋되지 않으면 5회 escape 임계 근접; 리셋 시 재 retry 가능.
+        final firestore = _buildRetryFirestore(
+          uid: uid,
+          streamFactories: [
+            _permissionDeniedFactory(),
+            _valueFactory(snap),
+            _permissionDeniedFactory(),
+            _valueFactory(snap),
+          ],
+        );
+
+        final container = ProviderContainer(
+          overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
+        );
+        addTearDown(container.dispose);
+        container.listen(
+          linkedProvidersStreamProvider(uid),
+          (_, _) {},
+          fireImmediately: true,
+        );
+
+        // 1차 retryDelay 후 2차 정상 emit → 카운터 0 리셋 → source stream
+        // 끝나며 다시 try 진입 → 3차 throw → retryDelay → 4차 정상.
+        // 총 wallclock ≈ 2 × 1s = 2s + microtask buffer.
+        await Future<void>.delayed(const Duration(milliseconds: 2200));
+        await _settle();
+
+        final asyncValue = container.read(linkedProvidersStreamProvider(uid));
+        expect(asyncValue.hasValue, isTrue);
+        expect(
+          asyncValue.value,
+          ['naver'],
+          reason: '카운터 리셋 후 재 retry 통해 정상 emit 도달 (I3)',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 10)),
     );
   });
 }
