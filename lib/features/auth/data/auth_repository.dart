@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -972,49 +973,94 @@ User? currentUser(Ref ref) {
 /// `users/{uid}` 문서가 미존재 (mirrorToFirestore 가 작성 전) 이거나
 /// `linkedProviders` 필드가 없으면 빈 배열을 emit 한다.
 ///
-/// **에러 흡수 (Phase 12.1 R6 / D-41):** snapshots stream 에러 (네트워크 /
-/// 권한 거부) 시 [StreamTransformer.fromHandlers] 의 `handleError` 로
-/// 빈 배열을 명시적으로 emit 한다 — `AsyncData(<String>[])` 정착으로
+/// **에러 흡수 (Phase 12.1 R6 / D-41 보존):** 네트워크 / 다른 FirebaseException
+/// 발생 시 빈 배열을 명시적으로 emit 한다 — `AsyncData(<String>[])` 정착으로
 /// `AsyncLoading` 영구 잔류를 회피한다. 직접 stream 소비 consumer (Account
-/// 섹션, debug widget) 의 spinner 무한 회피가 본 변경의 핵심.
+/// 섹션, debug widget) 의 spinner 무한 회피가 본 정책의 핵심.
 ///
-/// 합집합 결과는 동일 — [currentUserProvider] 의 `maybeWhen orElse` 가
-/// `data:(list) => list` 분기로 자연 흐름 (Firebase providerData 만 사용).
+/// **Phase 13 R10-FOLLOWUP-2 race fix (본 함수 재작성, async\* generator):**
+/// sign-in 직후 Firebase Auth ID Token 갱신과 Firestore SDK 의 token cache
+/// propagate 사이의 짧은 timing window 에서 첫 snapshots subscription 이
+/// `[cloud_firestore/permission-denied]` 를 받는 race 를 stream 자체에서
+/// 흡수한다. `permission-denied` 만 선택적으로 1s × 5회 retry (총 5s envelope),
+/// 다른 FirebaseException 은 기존 D-41 정책대로 즉시 빈 배열 fallback.
+/// retry 중에는 yield 안 함 → consumer ([currentUserProvider]) 의 R13 fix
+/// (linkedAsync.when AsyncLoading 분기 cached value 보존) 가 직전 emit 을
+/// UI 에 유지. 5회 escape 시에도 빈 배열 emit (영구 spinner 회피, escape hatch).
 ///
-/// `kDebugMode` 에서는 디버그 로그를 출력한다 — release 빌드는 silent.
+/// **Invariants (spec §4.6):**
+/// - I1 (D-41 보존): 다른 FirebaseException 즉시 빈 배열 + 5회 escape 도 빈
+///   배열. 영구 spinner / 영구 "-" 회피.
+/// - I2 (R13 호환): permission-denied retry 중 yield 안 함 → consumer 의
+///   AsyncLoading 분기 유지 → cached value 노출.
+/// - I3 (카운터 리셋): 정상 emit 도달 시 retry 카운터 0 — 장기 세션에서
+///   token 재만료 시 다시 retry 가능.
+/// - I4 (Type-safe parsing): 기존 [Iterable.whereType] 필터로 invalid entry
+///   를 자동 제거 (T-12-06-05).
 ///
-/// **Type-safe parsing (T-12-06-05):** Firestore 문서가 manual 변조되어
-/// `linkedProviders` 가 List 형식이 아니거나 객체 schema 가 어긋나는
-/// 경우에도 [whereType] 필터로 invalid entry 를 자동 제거한다.
+/// `kDebugMode` 에서는 retry / 에러 로그를 출력한다 — release 빌드는 silent.
+///
+/// **참고:** Firestore SDK 자체의 token cache 자동 재구독 미동작은 known bug
+/// (firebase-android-sdk #5101, flutterfire #11146). 본 fix 는 client-side
+/// workaround. spec: `docs/superpowers/specs/2026-05-08-r10-followup-2-design.md`.
 @Riverpod(keepAlive: true)
-Stream<List<String>> linkedProvidersStream(Ref ref, String uid) {
+Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
   final firestore = ref.watch(firebaseFirestoreProvider);
-  return firestore
-      .collection('users')
-      .doc(uid)
-      .snapshots()
-      .map<List<String>>((snap) {
-        if (!snap.exists) return const <String>[];
-        final data = snap.data();
-        final raw = data?['linkedProviders'] as List<dynamic>?;
-        if (raw == null) return const <String>[];
-        return raw
+  var permissionDeniedRetries = 0;
+  const maxRetries = 5;
+  const retryDelay = Duration(seconds: 1);
+
+  while (true) {
+    try {
+      await for (final snap in firestore
+          .collection('users')
+          .doc(uid)
+          .snapshots()) {
+        // I3: 정상 emit 도달 시 카운터 리셋 — 장기 세션 token 재만료 시
+        // 다시 retry 가능.
+        permissionDeniedRetries = 0;
+        if (!snap.exists) {
+          yield const <String>[];
+          continue;
+        }
+        final raw = snap.data()?['linkedProviders'] as List<dynamic>?;
+        if (raw == null) {
+          yield const <String>[];
+          continue;
+        }
+        // I4: Type-safe parsing — invalid entry 자동 제거.
+        yield raw
             .whereType<Map<String, dynamic>>()
             .map((m) => m['providerId'] as String?)
             .whereType<String>()
             .toList(growable: false);
-      })
-      .transform(
-        StreamTransformer<List<String>, List<String>>.fromHandlers(
-          handleError: (Object e, StackTrace st, EventSink<List<String>> sink) {
-            if (kDebugMode) {
-              debugPrint('linkedProvidersStream 에러 (fallback empty): $e\n$st');
-            }
-            // R6 (D-41) — 빈 배열 명시 emit. AsyncData(<String>[]) 정착으로
-            // direct consumer (Account 섹션, debug widget) 가 spinner
-            // 무한에서 풀려난다.
-            sink.add(const <String>[]);
-          },
-        ),
-      );
+      }
+      // source stream 정상 종료 (provider dispose 등) — loop 탈출.
+      break;
+    } on FirebaseException catch (e, st) {
+      if (e.code == 'permission-denied' &&
+          permissionDeniedRetries < maxRetries) {
+        // R10-FOLLOWUP-2: sign-in 직후 SDK token cache propagate race.
+        // I2 — yield 안 함 → consumer 의 AsyncLoading 분기 유지 → cached
+        // value 보존. 1s 후 source stream 재구독.
+        permissionDeniedRetries += 1;
+        if (kDebugMode) {
+          debugPrint(
+            'linkedProvidersStream permission-denied retry '
+            '$permissionDeniedRetries/$maxRetries: $e',
+          );
+        }
+        await Future<void>.delayed(retryDelay);
+        continue;
+      }
+      // I1 (D-41 보존):
+      // (1) 다른 FirebaseException (network / unavailable 등) — 즉시 빈 배열.
+      // (2) permission-denied 5회 escape — 영구 spinner 회피 escape hatch.
+      if (kDebugMode) {
+        debugPrint('linkedProvidersStream 에러 (fallback empty): $e\n$st');
+      }
+      yield const <String>[];
+      break;
+    }
+  }
 }
