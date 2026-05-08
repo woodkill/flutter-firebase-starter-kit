@@ -29,10 +29,11 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 2. [Naver Login (Phase 13)](#naver-login-phase-13)
 3. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
 4. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
-5. [Phase 14~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1416--custom-token-provider-추가-가이드-stub)
-6. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-7. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-8. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+5. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
+6. [Phase 14~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1416--custom-token-provider-추가-가이드-stub)
+7. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+8. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+9. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
 
 ---
 
@@ -754,6 +755,101 @@ Plan 13-06 commit `5038f1e` 가 다음 invariant 검증:
   인자 부재 (대안 1 fix point)
 - KakaoSignInResult 인터페이스 = idToken + nonce 만 노출 (picture claim 파싱
   책임 부재 — Phase 17/18 forward compat)
+
+---
+
+## IdP 프로필 동기화 정책 (R10-FOLLOWUP)
+
+OAuth Custom Token provider (Kakao + Naver + Phase 14~16 LINE/Yahoo!JP/WeChat)
+의 **재로그인** 시 IdP 응답의 `displayName` / `photoURL` 을 Firebase Auth
+user record 에 어떻게 반영할지 결정하는 정책. 신규 등록 path 는 정책과 무관
+(Phase 13 R10 retroactive fix 가 createUser/updateUser 시점에 이미 propagate).
+
+### 정책
+
+`functions/src/auth/identity_index.ts` 상단의 `PROFILE_REFRESH_POLICY` 상수
+한 줄로 결정:
+
+```ts
+export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
+```
+
+| 정책 | 동작 | 적합 도메인 |
+|------|------|------------|
+| `"truth-of-source"` (default) | 응답에 필드가 있으면 update, 없으면 명시 `null` 로 clear. 사용자가 IdP 측에서 프로필 이미지/닉네임 *삭제* → 다음 로그인에 starter-kit 측에서도 즉시 clear | 일반 production app (Slack/Discord 등 패턴) + GDPR Art. 17 (right to erasure) 친화 |
+| `"preserve"` | 응답 있으면 update, 없으면 기존 값 보존 | IdP 동의 항목 일시 OFF/ON 빈번한 도메인 (일부 B2B 툴) — 데이터 안정성 우선 |
+
+### email 은 정책 무관 항상 preserve
+
+`email` 은 sign-in 식별자라 clear 시 user lockout 위험 (다음 로그인에 email
+매칭 안 되면 새 user record 충돌 가능). 정책은 `displayName` / `photoURL`
+에만 적용.
+
+### 적용 절차
+
+1. 본인 앱 도메인 검토 — 사용자가 IdP 측 프로필을 적극 변경/삭제하는가?
+   대부분 yes → **default `"truth-of-source"` 유지**.
+2. 변경 필요 시 `PROFILE_REFRESH_POLICY` 한 줄 수정:
+
+   ```ts
+   export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "preserve";
+   ```
+
+3. `cd functions && pnpm test` — `profileFieldsForRefresh` + 통합 케이스
+   회귀 0 확인.
+4. 배포:
+
+   ```bash
+   firebase deploy \
+     --only functions:naverCustomToken,functions:kakaoCustomToken \
+     --project <dev-project-id>
+   ```
+
+   Phase 14~16 추가 시 해당 함수 (`lineCustomToken` 등) 도 동시 배포.
+
+### 적용 범위 (D-08 — helper 1곳 fix → 모든 caller 자동 상속)
+
+- Phase 12 — `kakaoCustomToken`
+- Phase 13 — `naverCustomToken`
+- Phase 14~16 — LINE / Yahoo!JP / WeChat (추가 시 동일 helper 재사용 → 자동 상속)
+
+### best-effort 정책 (R9 strict 와 차이)
+
+R9 (anonymous→소셜 신규 등록의 `emailVerified` 갱신) 는 보안 회귀 차단 의무
+→ strict throw. 본 R10-FOLLOWUP 의 재로그인 프로필 refresh 는 UI freshness
+정도 → best-effort + `logger.warn` (R2 orphan cleanup 패턴과 동일).
+`updateUser` 실패가 caller 정상 path 차단 안 함 — 다음 로그인에 자동 재시도.
+
+### 발견 경위
+
+`.planning/phases/13-naver-login/13-HUMAN-UAT.md` 의 T-13-UAT-NAVER-A1 결과
+단락 (2026-05-08 Galaxy Z Fold6 1-tap UAT). 사용자가 첫 로그인 후 Naver 계정에
+프로필 이미지를 신규 등록 → 재로그인 → starter-kit 측 photoURL stale (이전
+빈 상태). Cloud Function logs `isNewUser: false` 로 재로그인 path 확인 →
+`identity_index.ts:resolveIdentity` 의 `idxSnap.exists` 분기가 `tx.update(idxRef,
+lastSeenAt)` 만 호출, Firebase Auth user record 미갱신 root cause 식별.
+
+상세 helper / test 코드: `functions/src/auth/identity_index.ts` 의
+`profileFieldsForRefresh` JSDoc + `functions/test/auth/identity_index.test.ts`
+의 R10-FOLLOWUP describe 블록 (pure 6 케이스 + 통합 4 케이스).
+
+### 알려진 한계 — sign-in 직후 linkedProvidersStream permission-denied race
+
+`PROFILE_REFRESH_POLICY = "truth-of-source"` 가 호출하는 server-side
+`updateUser` 가 client side `onIdTokenChanged` emit 가능 → Firestore SDK
+token cache propagate timing race → `linkedProvidersStream` 이 sign-in
+직후 잠시 `[cloud_firestore/permission-denied]` → `handleError` 가 빈 배열
+emit (R6 D-41 정책) → `AsyncData([])` 정착 → UI 의 EnvironmentInfoScreen
+"로그인 수단" 카드가 첫 frame `"-"` 표시.
+
+**일시적 — 앱 재시작 (cold start) 시 정상 회복**. production blocker 아님.
+
+본 race 의 fix 는 `linkedProvidersStream` 에 retry semantics (`permission-denied`
+만 1s 후 재구독, 다른 에러는 기존 빈 배열 fallback 보존) 추가로 해소 가능.
+fork 사용자가 production 진입 전 본 fix 적용 권장.
+
+후속 fix 추적: `.planning/todos/pending/2026-05-08-r10-followup-permission-denied-race.md`
+(R10-FOLLOWUP-2 — root cause + reproduction + 권장 fix 코드 spec 포함).
 
 ---
 

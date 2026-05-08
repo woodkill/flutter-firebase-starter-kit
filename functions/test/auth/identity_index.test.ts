@@ -44,6 +44,7 @@ jest.mock("firebase-functions/logger", () => ({
 // eslint-disable-next-line import/first
 import {
   identityIndexDocId,
+  profileFieldsForRefresh,
   resolveIdentity,
 } from "../../src/auth/identity_index";
 // eslint-disable-next-line import/first
@@ -687,6 +688,212 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
           userInfo: undefined,
         }),
       ).rejects.toMatchObject({code: "auth/internal-error"});
+    },
+  );
+});
+
+// R10-FOLLOWUP (2026-05-08 — T-13-UAT-NAVER-A1 발견):
+// 재로그인 시 (isNewUser=false path) IdP 측 프로필 변경 (displayName/photoURL)
+// 을 Firebase Auth user record 에 propagate. PROFILE_REFRESH_POLICY 정책 분기.
+// email 은 sign-in 식별자라 정책 무관 항상 preserve.
+describe("profileFieldsForRefresh (R10-FOLLOWUP — pure helper)", () => {
+  it("truth-of-source: 모든 필드 제공 → 모든 필드 update 객체", () => {
+    const r = profileFieldsForRefresh("truth-of-source", {
+      email: "u@example.com",
+      displayName: "닉네임",
+      photoURL: "https://x/p.jpg",
+    });
+    expect(r).toEqual({
+      email: "u@example.com",
+      displayName: "닉네임",
+      photoURL: "https://x/p.jpg",
+    });
+  });
+
+  it(
+    "truth-of-source: photoURL 부재 → photoURL=null clear (displayName 동일)",
+    () => {
+      const r = profileFieldsForRefresh("truth-of-source", {
+        email: "u@example.com",
+        displayName: "닉네임",
+      });
+      expect(r).toEqual({
+        email: "u@example.com",
+        displayName: "닉네임",
+        photoURL: null,
+      });
+    },
+  );
+
+  it(
+    "truth-of-source: 모든 필드 부재 → email 미포함 + displayName/photoURL=null",
+    () => {
+      const r = profileFieldsForRefresh("truth-of-source", {});
+      expect(r).toEqual({
+        displayName: null,
+        photoURL: null,
+      });
+    },
+  );
+
+  it("preserve: 응답에 있는 것만 update (photoURL 부재 → 미포함 = 보존)", () => {
+    const r = profileFieldsForRefresh("preserve", {
+      email: "u@example.com",
+      displayName: "닉네임",
+    });
+    expect(r).toEqual({
+      email: "u@example.com",
+      displayName: "닉네임",
+    });
+    expect(r).not.toHaveProperty("photoURL");
+  });
+
+  it(
+    "preserve: 모든 필드 부재 → 빈 객체 (caller 가 updateUser 호출 skip 시그널)",
+    () => {
+      const r = profileFieldsForRefresh("preserve", {});
+      expect(r).toEqual({});
+    },
+  );
+
+  it(
+    "email 은 정책 무관 항상 preserve — clear 시 sign-in 식별자 손실 위험",
+    () => {
+      // truth-of-source 모드에서도 email 부재 시 미포함 (null 미clear).
+      const ts = profileFieldsForRefresh("truth-of-source", {
+        displayName: "x",
+      });
+      expect(ts).not.toHaveProperty("email");
+      // preserve 모드에서도 email 부재 시 미포함 (동일 동작).
+      const pr = profileFieldsForRefresh("preserve", {displayName: "x"});
+      expect(pr).not.toHaveProperty("email");
+    },
+  );
+});
+
+describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    warnMock.mockReset();
+  });
+
+  it(
+    "재로그인 + userInfo 제공 → updateUser 호출 (truth-of-source default)",
+    async () => {
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "existing-fol1"},
+      });
+
+      await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-fol1",
+        callerUid: undefined,
+        userInfo: {
+          email: "u@example.com",
+          displayName: "신규닉",
+          photoURL: "https://x/new.jpg",
+        },
+      });
+
+      expect(mockUpdateUser).toHaveBeenCalledTimes(1);
+      expect(mockUpdateUser).toHaveBeenCalledWith("existing-fol1", {
+        email: "u@example.com",
+        displayName: "신규닉",
+        photoURL: "https://x/new.jpg",
+      });
+    },
+  );
+
+  it("재로그인 + userInfo 미제공 → updateUser 미호출", async () => {
+    const {db} = makeDb({
+      preExists: true,
+      txExists: true,
+      txData: {firebaseUid: "existing-fol2"},
+    });
+
+    await resolveIdentity(db, {
+      provider: "naver",
+      providerUserId: "naver-fol2",
+      callerUid: undefined,
+      userInfo: undefined,
+    });
+
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+  });
+
+  it(
+    "재로그인 + truth-of-source + photoURL 부재 → photoURL=null clear",
+    async () => {
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "existing-fol3"},
+      });
+
+      await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-fol3",
+        callerUid: undefined,
+        userInfo: {
+          email: "u@example.com",
+          displayName: "닉네임",
+          // photoURL 부재 — 사용자가 IdP 측에서 프로필 이미지 삭제한 시나리오.
+        },
+      });
+
+      expect(mockUpdateUser).toHaveBeenCalledWith("existing-fol3", {
+        email: "u@example.com",
+        displayName: "닉네임",
+        photoURL: null,
+      });
+    },
+  );
+
+  it(
+    "재로그인 + updateUser 실패 → best-effort (logger.warn + 정상 반환)",
+    async () => {
+      mockUpdateUser.mockRejectedValueOnce(
+        Object.assign(new Error("transient"), {
+          code: "auth/internal-error",
+        }),
+      );
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "existing-fol4"},
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-fol4",
+        callerUid: undefined,
+        userInfo: {displayName: "x"},
+      });
+
+      // 정상 반환 — best-effort (R9 strict throw 와 차이).
+      expect(res).toMatchObject({uid: "existing-fol4", isNewUser: false});
+
+      // logger.warn 1회 + payload 에 event/uid/code 포함.
+      expect(warnMock).toHaveBeenCalledTimes(1);
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_profile_refresh_failed",
+          uid: "existing-fol4",
+          code: "auth/internal-error",
+        }),
+        expect.any(String),
+      );
+
+      // PII 회귀 (Pitfall 7) — err.message 본문 ('transient') 미노출.
+      for (const args of warnMock.mock.calls) {
+        expect(JSON.stringify(args)).not.toContain("transient");
+      }
     },
   );
 });

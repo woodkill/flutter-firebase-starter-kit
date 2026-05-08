@@ -3,6 +3,81 @@ import {Firestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
 /**
+ * IdP 측 프로필 변경의 starter-kit 측 동기화 정책 (R10-FOLLOWUP, 2026-05-08).
+ *
+ * 재로그인 시 (resolveIdentity 의 isNewUser=false path) IdP 응답의
+ * displayName/photoURL 을 Firebase Auth user record 에 어떻게 반영할지 결정.
+ *
+ * - **"truth-of-source"** (default): IdP 응답을 진실로. 응답에 필드가 있으면
+ *   해당 값으로 update, 없으면 명시 `null` 로 clear (Slack/Discord 등
+ *   production app 의 일반 default + GDPR Art. 17 친화).
+ *   사용자가 IdP 측에서 프로필 이미지/닉네임을 *삭제* → 다음 로그인에
+ *   starter-kit 측에서도 즉시 clear.
+ * - **"preserve"**: 응답에 필드가 있으면 update, 없으면 기존 값 보존. 동의
+ *   항목 일시 OFF/ON 빈번한 도메인 (일부 B2B 툴 등) 에서 데이터 안정성
+ *   우선. 단점: 사용자가 IdP 에서 프로필 *삭제* 의도 reflect 안 됨.
+ *
+ * **email 은 정책 무관 항상 preserve** — sign-in 식별자라 clear 시 user
+ * lockout 위험 (다음 로그인에 email 매칭 안 되면 새 user record 충돌
+ * 가능). 정책은 displayName / photoURL 에만 적용.
+ *
+ * 첫 등록 path (createUser, isNewUser=true) 는 정책과 무관 — falsy 필드는
+ * 단순 미설정 (R10 패턴 유지).
+ *
+ * **starter-kit 사용자 customization 영역**: 자기 앱 도메인에 맞춰 본 상수
+ * 한 줄 변경. manual.md "## IdP 프로필 동기화 정책" 절 참고.
+ */
+export type ProfileRefreshPolicy = "truth-of-source" | "preserve";
+export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
+
+/**
+ * 재로그인 시 Firebase Auth `updateUser` 에 전달할 프로필 필드 객체 생성
+ * (R10-FOLLOWUP pure helper).
+ *
+ * 정책 분기 결과를 객체로 반환 — `Object.keys(...).length === 0` 이면 caller
+ * 가 `updateUser` 호출 자체를 skip 한다 (preserve + 모든 필드 부재 케이스).
+ *
+ * @param {ProfileRefreshPolicy} policy 정책 — "truth-of-source" | "preserve".
+ * @param {{email: (string|undefined), displayName: (string|undefined),
+ *     photoURL: (string|undefined)}} userInfo IdP 응답에서 추출한 프로필
+ *     필드. 모든 필드 optional.
+ * @return {{email: (string|undefined),
+ *     displayName: (string|null|undefined),
+ *     photoURL: (string|null|undefined)}} updateUser 에 그대로 전달 가능한
+ *     객체. `null` 명시 = Firebase Auth user record 에서 해당 필드 clear.
+ *     필드 부재 = 보존.
+ */
+export function profileFieldsForRefresh(
+  policy: ProfileRefreshPolicy,
+  userInfo: {email?: string; displayName?: string; photoURL?: string},
+): {
+  email?: string;
+  displayName?: string | null;
+  photoURL?: string | null;
+} {
+  const update: {
+    email?: string;
+    displayName?: string | null;
+    photoURL?: string | null;
+  } = {};
+  // email — sign-in 식별자, 정책 무관 항상 preserve (있으면 update,
+  // 없으면 미포함). clear 시 user lockout 위험.
+  if (userInfo.email) update.email = userInfo.email;
+  if (policy === "truth-of-source") {
+    // 응답 부재 시 명시 null clear (Firebase Auth updateUser spec — null 은
+    // 해당 필드 unset).
+    update.displayName = userInfo.displayName ?? null;
+    update.photoURL = userInfo.photoURL ?? null;
+  } else {
+    // preserve — 응답 있으면 update, 없으면 미포함 (Firebase Auth updateUser
+    // 가 미명시 필드 보존).
+    if (userInfo.displayName) update.displayName = userInfo.displayName;
+    if (userInfo.photoURL) update.photoURL = userInfo.photoURL;
+  }
+  return update;
+}
+
+/**
  * Identity Index 컬렉션 키 형식 (Phase 12 D-09 — Phase 13~17 영구 고정).
  *
  * `identity_index/{provider}:{providerUserId}` 단일 문서 ID. Phase 12 가 첫
@@ -316,6 +391,57 @@ export async function resolveIdentity(
       emailVerified: true,
       ...profileFields,
     });
+  }
+
+  // R10-FOLLOWUP (2026-05-08 — T-13-UAT-NAVER-A1 발견):
+  // 재로그인 시 (isNewUser=false path) IdP 측 프로필 변경 (displayName/
+  // photoURL) 을 Firebase Auth user record 에 propagate. R10 retroactive
+  // 가 신규 등록 path (createUser/updateUser+emailVerified) 만 cover →
+  // 재로그인 path 는 tx.update(idxRef, lastSeenAt) 만 호출, user record 의
+  // 프로필 필드 stale. 사용자가 IdP 측 프로필 변경/삭제 시 starter-kit 에
+  // 반영 안 되는 회귀.
+  //
+  // **best-effort 정책 (R9 strict 와 차이):** R9 (anonymous→소셜 신규 등록의
+  // emailVerified 갱신) 는 보안 회귀 차단 의무 → strict throw. 본 R10-FOLLOWUP
+  // 의 재로그인 프로필 refresh 는 UI freshness 정도 → best-effort + logger.warn
+  // (R2 orphan cleanup 패턴과 동일). updateUser 실패가 caller 정상 path 차단
+  // 하지 않음.
+  //
+  // **Pitfall 4 보존**: 본 블록은 db.runTransaction(...) 외부 — transaction
+  // body 안으로 절대 이동 금지 (retry 마다 updateUser 다중 호출 위험).
+  //
+  // **PROFILE_REFRESH_POLICY 정책 분기**: profileFieldsForRefresh helper 가
+  // 정책에 따라 분기 (truth-of-source = null clear, preserve = skip).
+  // helper 가 빈 객체 반환 시 updateUser 호출 자체 skip (preserve + 모든
+  // 필드 부재 케이스).
+  //
+  // helper 자체에 fix → kakao + naver + Phase 14~16 자동 상속 (D-08).
+  if (!result.isNewUser && result.uid && userInfo) {
+    const refreshUpdate = profileFieldsForRefresh(
+      PROFILE_REFRESH_POLICY,
+      userInfo,
+    );
+    if (Object.keys(refreshUpdate).length > 0) {
+      try {
+        await getAuth().updateUser(result.uid, refreshUpdate);
+      } catch (refreshErr: unknown) {
+        // **Pitfall 7 보존**: err.message 본문 미로깅 (PII 가능성).
+        // err.code (firebase-admin standard) 또는 err.name 만 fingerprint.
+        const errCode =
+          refreshErr instanceof Error ?
+            (refreshErr as {code?: string}).code ?? refreshErr.name :
+            "unknown";
+        logger.warn(
+          {
+            event: "identity_index_profile_refresh_failed",
+            uid: result.uid,
+            code: errCode,
+          },
+          "profile refresh failed",
+        );
+        // 의도적으로 재던지지 않음 — outer call 정상 반환 (best-effort).
+      }
+    }
   }
 
   return result;
