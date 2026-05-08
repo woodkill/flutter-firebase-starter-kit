@@ -130,6 +130,25 @@ cp ios/Flutter/prod.example.xcconfig  ios/Flutter/prod.xcconfig
 > 참고: `ios/Flutter/Debug-dev.xcconfig` 등 다른 xcconfig 파일은 본 분리 정책의
 > 영향을 받지 않습니다 (`.gitignore` 의 explicit 3 라인 패턴 — RESEARCH §R1 Landmine).
 
+### 4단계 — `functions/` 패키지 매니저 활성화 (corepack + pnpm)
+
+Cloud Functions (`functions/` 디렉토리) 는 **pnpm + corepack** 을 사용합니다.
+clone 직후 1회만 수행:
+
+```bash
+corepack enable                # Node 22+ 에 ship, 한 번만 실행
+cd functions
+pnpm install                   # pnpm-lock.yaml 기반 reproducible install
+```
+
+`functions/package.json` 의 `packageManager` 필드 (`pnpm@x.y.z`) 가 corepack
+으로 자동 핀됩니다. 따라서 별도 `npm install -g pnpm` 불필요. 시스템 pnpm 이
+이미 설치돼 있어도 corepack 의 핀 버전이 우선합니다.
+
+> Phase 11 (Cloud Functions) / Phase 12 (Kakao) / Phase 13 (Naver) 등의
+> 배포 단락에서 사용하는 `pnpm <script>` 명령은 모두 본 단계의 활성화를
+> 전제합니다.
+
 ### 흔한 실수
 
 - **`config/dev.json` 을 `git add` 하려는 시도** — `.gitignore` 가 차단해도
@@ -353,10 +372,10 @@ Phase 12-02 산출 `kakaoCustomToken` 함수를 dev Firebase 프로젝트
 
 ```bash
 cd functions
-npm install            # 최초 1회
-npm run lint           # 0 errors 확인
-npm run build          # tsc OK 확인
-npm test               # jest 14 PASS 확인 (3 suites)
+pnpm install           # 최초 1회 (corepack 활성화는 0단락의 4단계 참조)
+pnpm run lint          # 0 errors 확인
+pnpm run build         # tsc OK 확인
+pnpm test              # jest 14 PASS 확인 (3 suites)
 
 # 배포
 firebase use dev
@@ -591,10 +610,10 @@ Phase 13-02 산출 `naverCustomToken` 함수를 dev Firebase 프로젝트
 
 ```bash
 cd functions
-npm install            # 최초 1회
-npm run lint           # 0 errors 확인
-npm run build          # tsc OK 확인
-npm test               # jest 44 PASS 확인 (kakao 14 + naver 15 + 베이스라인 + retroactive)
+pnpm install           # 최초 1회 (corepack 활성화는 0단락의 4단계 참조)
+pnpm run lint          # 0 errors 확인
+pnpm run build         # tsc OK 확인
+pnpm test              # jest 44 PASS 확인 (kakao 14 + naver 15 + 베이스라인 + retroactive)
 
 # 배포
 firebase use <dev-project-id>
@@ -832,7 +851,7 @@ provider 공식 문서 재확인 의무.
    `firebase-functions-test` 패턴 (기존 `kakao_custom_token.test.ts` 미러).
 3. Secrets: `firebase functions:secrets:set MY_SECRET` +
    `defineSecret('MY_SECRET')`.
-4. `cd functions && npm run lint && npm run build && npm test` 풀 게이트
+4. `cd functions && pnpm run lint && pnpm run build && pnpm test` 풀 게이트
    GREEN 확인.
 5. 배포: `firebase deploy --only functions:myFunction`.
 
