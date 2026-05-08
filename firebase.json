@@ -40,8 +40,8 @@
         "*.local"
       ],
       "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run lint",
-        "npm --prefix \"$RESOURCE_DIR\" run build"
+        "pnpm -C \"$RESOURCE_DIR\" run lint",
+        "pnpm -C \"$RESOURCE_DIR\" run build"
       ]
     }
   ],
