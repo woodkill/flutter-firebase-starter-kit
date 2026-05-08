@@ -1,6 +1,7 @@
 // Phase 13.1 — see ROADMAP.md (D-86 6 fixture golden + D-87 zero tolerance)
 
 import 'package:flutter/material.dart';
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,11 +9,15 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// D-86 명시 — 다중 사이즈 / 다중 locale 비채택 (label drift 는
 /// brand_label_whitelist_test 가 별도 책임). brand drift detection 만 목적.
+///
+/// [AppTheme.light]/[AppTheme.dark] 주입 — `BrandedSocialButton` 이
+/// `context.appSpacing` ([AppSpacing] ThemeExtension) 에 의존하기 때문에
+/// `ThemeData.light()` 단독으로는 ThemeExtension 누락으로 null check fail.
+/// 다른 widget 테스트와 일관 (Rule 3 — blocking issue 정정, plan PATTERNS
+/// Section 14 sample 의 ThemeExtension 의존성 누락 보완).
 Widget _wrap(Widget child, {required Brightness brightness}) {
   return MaterialApp(
-    theme: brightness == Brightness.light
-        ? ThemeData.light(useMaterial3: true)
-        : ThemeData.dark(useMaterial3: true),
+    theme: brightness == Brightness.light ? AppTheme.light() : AppTheme.dark(),
     home: Scaffold(
       backgroundColor: brightness == Brightness.light
           ? const Color(0xFFFFFFFF)
@@ -41,6 +46,10 @@ void main() {
           brightness: Brightness.light,
         ),
       );
+      // 자상 비동기 load 완료 대기 (Rule 3 — SvgPicture/Image.asset 모두
+      // 첫 frame placeholder 가 자연 size 로 그려질 수 있어 layout 회귀
+      // 노출. PATTERNS Section 14 sample 의 누락 보강).
+      await tester.pumpAndSettle();
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/naver_light.png'),
@@ -59,6 +68,7 @@ void main() {
           brightness: Brightness.dark,
         ),
       );
+      await tester.pumpAndSettle();
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/naver_dark.png'),
@@ -76,6 +86,7 @@ void main() {
           brightness: Brightness.light,
         ),
       );
+      await tester.pumpAndSettle();
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/kakao_light.png'),
@@ -94,6 +105,7 @@ void main() {
           brightness: Brightness.light,
         ),
       );
+      await tester.pumpAndSettle();
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/google_light.png'),
@@ -112,6 +124,7 @@ void main() {
           brightness: Brightness.dark,
         ),
       );
+      await tester.pumpAndSettle();
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/google_dark.png'),
@@ -130,6 +143,7 @@ void main() {
           brightness: Brightness.light,
         ),
       );
+      await tester.pumpAndSettle();
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/google_neutral.png'),

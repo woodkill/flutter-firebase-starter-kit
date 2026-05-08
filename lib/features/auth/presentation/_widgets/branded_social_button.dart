@@ -471,24 +471,32 @@ Widget _renderActiveButton(
 ///
 /// **PNG 색 변환 금지 (RESEARCH Pitfall 7):** `ColorFilter.mode(BlendMode.srcIn)`
 /// 적용 시 Naver/Kakao BI 위반 — PNG 자상은 단일 색 baked-in.
+///
+/// **외부 [SizedBox] 강제 sizing (Plan 13.1-09 R1 hotfix):** [SvgPicture.asset]
+/// 는 `width`/`height` 매개변수 + `fit: BoxFit.contain` (default) 만으로는
+/// 첫 frame 에 SVG 의 자연 viewBox dimension (예: Google 자상 188×40) 으로
+/// layout 되어 부모 [Row] overflow 를 일으킨다 (vector_graphics 의 첫-frame
+/// layout 동작). [Image.asset] 도 일관성을 위해 동일 [SizedBox] wrap 적용 —
+/// 자상 width/height 가 layout 시점부터 [BrandSpec.iconSize] 로 강제된다.
 Widget _brandIcon(BuildContext context, BrandSpec spec) {
   final assetPath = _iconAssetFor(context, spec);
-  return switch (spec.assetType) {
-    AssetType.png => Image.asset(
-      assetPath,
-      width: spec.iconSize,
-      height: spec.iconSize,
-      fit: BoxFit.contain,
-      excludeFromSemantics: true,
-    ),
-    AssetType.svg => SvgPicture.asset(
-      assetPath,
-      width: spec.iconSize,
-      height: spec.iconSize,
-      excludeFromSemantics: true,
-    ),
-    AssetType.none => const SizedBox.shrink(),
-  };
+  return SizedBox(
+    width: spec.iconSize,
+    height: spec.iconSize,
+    child: switch (spec.assetType) {
+      AssetType.png => Image.asset(
+        assetPath,
+        fit: BoxFit.contain,
+        excludeFromSemantics: true,
+      ),
+      AssetType.svg => SvgPicture.asset(
+        assetPath,
+        fit: BoxFit.contain,
+        excludeFromSemantics: true,
+      ),
+      AssetType.none => const SizedBox.shrink(),
+    },
+  );
 }
 
 /// 자상 file path resolver — provider + theme + (Naver/Kakao) locale 분기.
