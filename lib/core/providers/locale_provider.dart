@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/generated/app_localizations.dart';
+import '../crashlytics/crashlytics_service.dart';
 
 part 'locale_provider.g.dart';
 
@@ -41,8 +42,8 @@ class LocaleNotifier extends _$LocaleNotifier {
   /// 무시하고 기본값을 유지한다 (위협 T-04-03 대응).
   ///
   /// I/O 예외 발생 시(SharedPreferences 디스크 장애 등) 사용자에게는 무해하므로
-  /// 기본 로케일을 유지하고 디버그 로그만 남긴다. Phase 8(Crashlytics 통합) 시점에
-  /// [FirebaseCrashlytics.recordError]로 교체 예정.
+  /// 기본 로케일을 유지하고 [CrashlyticsService.recordError]로 stg/prod 환경에
+  /// 비치명 에러를 기록한다 (dev flavor 는 wrapper 가 자동 no-op).
   Future<void> _loadLocale() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -58,24 +59,32 @@ class LocaleNotifier extends _$LocaleNotifier {
         }
       }
     } on Exception catch (e, st) {
-      // TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/2026-05-04-phase08-crashlytics-recordError.md)
       debugPrint('locale_load failed: $e\n$st');
+      await ref.read(crashlyticsServiceProvider).recordError(
+        e,
+        st,
+        reason: 'locale_load',
+      );
     }
   }
 
   /// 로케일을 변경하고 [SharedPreferences]에 영속화한다.
   ///
-  /// lossy persistence: UI는 즉시 갱신되며, 디스크 쓰기 실패 시에도
-  /// 화면 로케일은 유지되고 디버그 로그만 남긴다. Phase 8(Crashlytics 통합)
-  /// 시점에 [FirebaseCrashlytics.recordError]로 교체 예정.
+  /// lossy persistence: UI는 즉시 갱신되며, 디스크 쓰기 실패 시에도 화면
+  /// 로케일은 유지되고 [CrashlyticsService.recordError]로 stg/prod 환경에
+  /// 비치명 에러를 기록한다 (dev flavor 는 wrapper 가 자동 no-op).
   Future<void> setLocale(Locale locale) async {
     state = locale;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_key, locale.languageCode);
     } on Exception catch (e, st) {
-      // TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/2026-05-04-phase08-crashlytics-recordError.md)
       debugPrint('locale_save failed: $e\n$st');
+      await ref.read(crashlyticsServiceProvider).recordError(
+        e,
+        st,
+        reason: 'locale_save',
+      );
     }
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../crashlytics/crashlytics_service.dart';
+
 part 'theme_provider.g.dart';
 
 /// 앱 테마 모드를 관리하는 [AsyncNotifier].
@@ -28,8 +30,12 @@ class ThemeNotifier extends _$ThemeNotifier {
       }
       return ThemeMode.values[index];
     } on Exception catch (e, st) {
-      // TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/2026-05-04-phase08-crashlytics-recordError.md)
       debugPrint('theme_load failed: $e\n$st');
+      await ref.read(crashlyticsServiceProvider).recordError(
+        e,
+        st,
+        reason: 'theme_load',
+      );
       return ThemeMode.system;
     }
   }
@@ -37,8 +43,9 @@ class ThemeNotifier extends _$ThemeNotifier {
   /// 테마 모드를 변경하고 [SharedPreferences]에 영속화한다.
   ///
   /// lossy persistence: UI 는 즉시 [AsyncData] 로 갱신되며, 디스크 쓰기
-  /// 실패 시에도 화면 테마는 유지되고 디버그 로그만 남긴다. Phase 8
-  /// (Crashlytics 통합) 시점에 [FirebaseCrashlytics.recordError] 로 교체 예정.
+  /// 실패 시에도 화면 테마는 유지되고 [CrashlyticsService.recordError] 로
+  /// stg/prod 환경에 비치명 에러를 기록한다 (dev flavor 는 wrapper 가 자동
+  /// no-op).
   ///
   /// 진입 즉시 [future] 를 await 하여 [build] 완료를 보장한다 — 이는 첫
   /// 프레임에서 사용자가 테마를 토글했을 때 뒤늦게 resolve 되는 [build]
@@ -58,8 +65,12 @@ class ThemeNotifier extends _$ThemeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_key, mode.index);
     } on Exception catch (e, st) {
-      // TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/2026-05-04-phase08-crashlytics-recordError.md)
       debugPrint('theme_save failed: $e\n$st');
+      await ref.read(crashlyticsServiceProvider).recordError(
+        e,
+        st,
+        reason: 'theme_save',
+      );
     }
   }
 }
