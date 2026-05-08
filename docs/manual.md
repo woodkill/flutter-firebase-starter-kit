@@ -833,23 +833,50 @@ lastSeenAt)` 만 호출, Firebase Auth user record 미갱신 root cause 식별.
 `profileFieldsForRefresh` JSDoc + `functions/test/auth/identity_index.test.ts`
 의 R10-FOLLOWUP describe 블록 (pure 6 케이스 + 통합 4 케이스).
 
-### 알려진 한계 — sign-in 직후 linkedProvidersStream permission-denied race
+### sign-in 직후 linkedProvidersStream permission-denied race (해결됨, R10-FOLLOWUP-2 fix)
 
-`PROFILE_REFRESH_POLICY = "truth-of-source"` 가 호출하는 server-side
+**원인:** `PROFILE_REFRESH_POLICY = "truth-of-source"` 가 호출하는 server-side
 `updateUser` 가 client side `onIdTokenChanged` emit 가능 → Firestore SDK
 token cache propagate timing race → `linkedProvidersStream` 이 sign-in
-직후 잠시 `[cloud_firestore/permission-denied]` → `handleError` 가 빈 배열
-emit (R6 D-41 정책) → `AsyncData([])` 정착 → UI 의 EnvironmentInfoScreen
-"로그인 수단" 카드가 첫 frame `"-"` 표시.
+직후 잠시 `[cloud_firestore/permission-denied]` 를 받음. fix 전에는 stream
+의 `handleError` 가 즉시 빈 배열 emit (R6 D-41 정책) → `AsyncData([])`
+정착 → UI 의 EnvironmentInfoScreen "로그인 수단" 카드가 첫 frame `"-"`
+표시 (cold start 시 회복).
 
-**일시적 — 앱 재시작 (cold start) 시 정상 회복**. production blocker 아님.
+**해결됨 (R10-FOLLOWUP-2 fix):** `lib/features/auth/data/auth_repository.dart::linkedProvidersStream`
+이 `async*` generator + `permission-denied` 1s × 5회 retry 로 재작성됨
+(총 5s envelope). retry 중에는 stream emit 보류 (yield 안 함) → consumer
+(`currentUserProvider`) 의 R13 fix (`linkedAsync.when` 의 AsyncLoading
+분기에서 `linkedAsync.value` 직전 cached emit 보존) 가 직전 emit 을 UI
+에 유지. 다른 FirebaseException (network/unavailable 등) 은 즉시 빈 배열
+fallback (D-41 영구 spinner 회피 정책 보존). 5회 escape 시에도 빈 배열
+fallback (escape hatch).
 
-본 race 의 fix 는 `linkedProvidersStream` 에 retry semantics (`permission-denied`
-만 1s 후 재구독, 다른 에러는 기존 빈 배열 fallback 보존) 추가로 해소 가능.
-fork 사용자가 production 진입 전 본 fix 적용 권장.
+**Retry 정책 (코드 내장 상수):** `permissionDeniedRetries < maxRetries` 이며
+`maxRetries = 5`, `retryDelay = Duration(seconds: 1)` — 총 5s envelope.
+정책 근거 — 실측 race window 는 sub-second 추정 + Cloud Function cold
+start 보정 (~6s 관측) 까지 cover. 단순 1s 고정 backoff 가 D-41 (영구
+spinner 회피) 의도와 일치 (exponential backoff 는 envelope 만 늘리고
+race 회복 시간은 동일).
 
-후속 fix 추적: `.planning/todos/pending/2026-05-08-r10-followup-permission-denied-race.md`
-(R10-FOLLOWUP-2 — root cause + reproduction + 권장 fix 코드 spec 포함).
+**Invariants (auth_repository.dart::linkedProvidersStream doc comment):**
+- I1 (D-41 보존): 다른 FirebaseException 즉시 빈 배열 + 5회 escape 빈 배열
+- I2 (R13 호환): permission-denied retry 중 yield 안 함 → AsyncLoading 분기 유지
+- I3 (카운터 리셋): 정상 emit 도달 시 retry 카운터 0 — 장기 세션 token 재만료 대응
+- I4 (Type-safe parsing): `whereType<Map<String, dynamic>>().whereType<String>()` 보존
+
+**Layer 1 회귀 가드:** `test/features/auth/data/auth_repository_current_user_test.dart`
+의 `Phase 13 R10-FOLLOWUP-2` group (5 케이스 — 정상 emit / retry 1회 후
+정상 / 5회 escape / 다른 FirebaseException 즉시 fallback / 카운터 리셋).
+
+**참고:** Firestore SDK 자체의 token cache 자동 재구독 미동작은 known
+bug (firebase-android-sdk #5101, flutterfire #11146). 본 fix 는 client-side
+workaround. spec 평가는 옵션 A (retry) / B (handleError 분기) / C
+(subscribe 지연) 비교 후 옵션 A 채택 — D-08 helper-1곳-fix 모델 보존
+(Phase 14~16 LINE/Yahoo!JP/WeChat 자동 상속).
+
+**후속 fix 추적:** `.planning/todos/completed/2026-05-08-r10-followup-permission-denied-race.md`
+(pending → completed). spec: `docs/superpowers/specs/2026-05-08-r10-followup-2-design.md`.
 
 ---
 
