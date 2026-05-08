@@ -491,20 +491,23 @@ Widget _brandIcon(BuildContext context, BrandSpec spec) {
   };
 }
 
-/// 자상 file path resolver — provider + theme + (Naver) locale 분기.
+/// 자상 file path resolver — provider + theme + (Naver/Kakao) locale 분기.
 ///
 /// **R4 acceptance — Naver 자상은 ko/en × light/dark = 4 변형 모두 commit 됨.**
-/// 한국어 로케일 (ko) 사용자는 `naver/ko/...` 경로, 그 외는 `naver/en/...`
-/// 경로. `Localizations.localeOf(context).languageCode` 로 분기. Kakao 는
-/// ko/en 자상이 모두 commit 되더라도 본 plan 에서는 단일 en 채택 (Plan
-/// 13.1-07 자상 commit 시점에 결정), Google 자상은 언어 중립 (텍스트 없음
-/// 또는 영문 baked-in).
+/// **Kakao (Plan 13.1-07 결정):** 공식 자상은 density bucket(1x/2x/3x)이 아닌
+/// 사이즈 변형(medium 300×45 / large 600×90)을 wide·narrow 두 가로 비율로 제공.
+/// 본 starter-kit 은 `완성형 wide`만 채택 (BrandedSocialButton 가로 텍스트
+/// 버튼과 일치) — `kakao_login_large_wide.png` (600×90) 를 default 로 사용해
+/// 고밀도 디스플레이에서 sharp 하게 렌더. ko/en 두 자상 모두 commit, 로케일에
+/// 따라 분기.
+/// **Google:** 자상은 언어 중립 (텍스트 없음 또는 영문 baked-in).
 String _iconAssetFor(BuildContext context, BrandSpec spec) {
   final lang = Localizations.localeOf(context).languageCode == 'ko'
       ? 'ko'
       : 'en';
   return switch (spec) {
-    KakaoSpec() => '$kBrandAssetBase/kakao/en/light/kakao_login_2x.png',
+    KakaoSpec() =>
+      '$kBrandAssetBase/kakao/$lang/light/kakao_login_large_wide.png',
     NaverSpec(theme: final t) =>
       '$kBrandAssetBase/naver/$lang/'
           '${t == NaverTheme.dark ? 'dark' : 'light'}/naver_login_2x.png',

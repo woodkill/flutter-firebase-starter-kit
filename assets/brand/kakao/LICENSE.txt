@@ -1,0 +1,46 @@
+Kakao Login Brand Asset License
+================================
+
+Source:
+  - 자상 다운로드: https://developers.kakao.com/tool/resource/login
+  - 디자인 가이드: https://developers.kakao.com/docs/ko/kakaologin/design-guide
+  - 다운로드 일자: 2026-05-09
+
+Bundled assets:
+  - assets/brand/kakao/ko/light/kakao_login_medium_wide.png  (300×45)
+  - assets/brand/kakao/ko/light/kakao_login_large_wide.png   (600×90)
+  - assets/brand/kakao/en/light/kakao_login_medium_wide.png  (300×45)
+  - assets/brand/kakao/en/light/kakao_login_large_wide.png   (600×90)
+
+Variant scope:
+  본 starter-kit 은 카카오 로그인 자상 패키지 (kakao_login.zip) 의 완성형 wide
+  4개만 동봉합니다. 축약형 (kakao_login_simple) 및 narrow 변형은 미포함.
+
+License terms (Kakao Login 디자인 가이드 verbatim 발췌, 2026-05-09 기준):
+
+  변형 금지 (Modification Prohibitions):
+    - "심볼의 형태, 비율, 색상은 변경할 수 없습니다"
+    - "카카오 CI 를 심볼로 적용할 수 없습니다"
+    - "기능 아이콘을 카카오 로그인 버튼의 심볼로 사용할 수 없습니다"
+    - "심볼 없이 카카오 로그인 버튼을 구성할 수 없습니다"
+
+  변형 허용 (Permitted Adjustments):
+    - "컨테이너의 가로 길이를 늘려야 할 경우" 확장 가능
+    - "버튼의 크기를 전체적으로 확대해야 할 경우" 비율 유지 확대 가능
+
+  사용 시 의무 (Mandatory Usage Requirements):
+    - 규정된 색상 사용: #FEE500 (컨테이너), #000000 (심볼·레이블)
+    - 폰트 크기: 30pt 이상 사용
+    - 컨테이너 radius: 12픽셀 적용
+    - "위의 색상 규정에 벗어난 색상을 적용해서는 안 됩니다"
+
+Notes:
+  1. https://developers.kakao.com/policy/terms 는 2026-05-09 시점 404 (페이지
+     이동·통합으로 추정). Kakao 자상의 사용 조건은 카카오 로그인 디자인 가이드
+     문서에 통합되어 있음.
+  2. 본 starter-kit 의 BrandedSocialButton.kakao 는 위 의무 사항 (#FEE500
+     컨테이너, #000000 심볼/레이블, 12px radius) 을 코드로 enforce 합니다
+     (lib/features/auth/presentation/_widgets/branded_social_button.dart).
+  3. 자상 freshness 갱신 정책: 1년 (assets/brand/kakao/README.md 참조).
+     1년 경과 시 https://developers.kakao.com/tool/resource/login 재방문 +
+     자상 갱신 여부 확인 의무.
