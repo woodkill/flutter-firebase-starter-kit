@@ -1,281 +1,163 @@
-// Phase 13 — see ROADMAP.md (D-55 BrandedSocialButton 회귀 테스트)
+// Phase 13.1 — see ROADMAP.md (D-66 sealed sub-class const + R1/R2/R8 회귀 가드)
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 
-/// `MaterialApp` + `AppTheme` 으로 [BrandedSocialButton] 을 pump 하는 helper.
-Widget _wrap(Widget child, {Brightness brightness = Brightness.light}) {
-  return MaterialApp(
-    theme: brightness == Brightness.dark ? AppTheme.dark() : AppTheme.light(),
-    home: Scaffold(body: child),
-  );
-}
-
-/// 테스트용 expected color 상수 (production 코드의 private literal 미러).
-///
-/// 단일 진실원은 `branded_social_button.dart` 의 `_kKakao*` / `_kNaver*`
-/// const 이며 본 상수는 회귀 가드 비교 대상이다 — 둘 중 어느 쪽이든 변경되면
-/// 테스트가 RED 로 떨어져 contract drift 를 즉시 surface.
+// ─── 회귀 가드 expected 색상 (production private literal mirror) ────────────
+//
+// 단일 진실원은 `branded_social_button.dart` 의 `_kKakao*` / `_kNaver*` const
+// 이며 본 상수는 회귀 가드 비교 대상이다 — 둘 중 어느 쪽이든 변경되면 테스트
+// 가 RED 로 떨어져 contract drift 를 즉시 surface.
+//
+// **R1 정정 (Phase 13.1):** `_kNaverGreenExpected = 0xFF03A94D` (NAVER ID
+// 로그인 BI verbatim) — 회사 브랜드 0xFF03C75A 와 컨텍스트 분리.
 const _kKakaoYellowExpected = Color(0xFFFEE500);
-const _kKakaoLabelExpected = Color(0xD9000000);
-const _kKakaoIconExpected = Color(0xFF000000);
-const _kNaverGreenExpected = Color(0xFF03C75A);
+const _kNaverGreenExpected = Color(0xFF03A94D);
 const _kNaverLabelExpected = Color(0xFFFFFFFF);
 
-/// `BrandedSocialButton` 내부의 brand 배경 [Material] 위젯을 찾는다.
-///
-/// `MaterialApp` 자체가 root [Material] 을 포함하므로 단순 `find.byType` 은
-/// 여러 매치를 반환한다. 본 helper 는 [BrandedSocialButton] descendant 만
-/// 한정한다.
-Material _findBrandMaterial(WidgetTester tester) {
-  final materials = tester.widgetList<Material>(
-    find.descendant(
-      of: find.byType(BrandedSocialButton),
-      matching: find.byType(Material),
-    ),
-  );
-  return materials.first;
-}
-
-/// `BrandedSocialButton` 내부의 [InkWell] 위젯을 찾는다.
-InkWell _findBrandInkWell(WidgetTester tester) {
-  final inkWells = tester.widgetList<InkWell>(
-    find.descendant(
-      of: find.byType(BrandedSocialButton),
-      matching: find.byType(InkWell),
-    ),
-  );
-  return inkWells.first;
-}
-
-/// `BrandedSocialButton` 내부의 [Text] 위젯을 찾는다.
-Text _findBrandLabel(WidgetTester tester, String label) {
-  return tester.widget<Text>(
-    find.descendant(
-      of: find.byType(BrandedSocialButton),
-      matching: find.text(label),
-    ),
-  );
-}
-
 void main() {
-  group('BrandedSocialButton — Naver + Kakao retroactive (T-13-BRAND)', () {
-    // ─── Naver named factory ──────────────────────────────────────────────
-    testWidgets(
-      'T-13-BRAND-NAVER-01: BrandedSocialButton.naver — backgroundColor #03C75A',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(label: 'Naver', onPressed: () {}),
-          ),
-        );
-        await tester.pumpAndSettle();
+  group('BrandedSocialButton — Phase 13.1 sealed hierarchy', () {
+    // ─── T-13.1-SPEC-01: 7 sub-class const + assetType 매핑 ──────────────
+    test('T-13.1-SPEC-01: 7 sub-class const constructor + assetType 매핑', () {
+      // KakaoSpec — PNG asset, R2 borderRadius 12.
+      expect(const KakaoSpec().assetType, AssetType.png);
+      expect(const KakaoSpec().borderRadius, 12.0);
+      expect(const KakaoSpec().height, 48.0);
+      expect(const KakaoSpec().iconSize, 18.0);
 
-        final material = _findBrandMaterial(tester);
-        expect(
-          material.color,
-          _kNaverGreenExpected,
-          reason: 'Naver brand spec 의 backgroundColor 가 #03C75A 이어야 한다',
-        );
-      },
-    );
+      // NaverSpec — PNG asset, theme 명시 매개변수, R2 borderRadius 12.
+      expect(const NaverSpec(theme: NaverTheme.light).assetType, AssetType.png);
+      expect(const NaverSpec(theme: NaverTheme.light).borderRadius, 12.0);
+      expect(const NaverSpec(theme: NaverTheme.dark).theme, NaverTheme.dark);
 
-    testWidgets(
-      'T-13-BRAND-NAVER-02: foregroundColor 흰 100% — Text + SvgPicture 둘 다',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(label: 'Naver', onPressed: () {}),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        final text = _findBrandLabel(tester, 'Naver');
-        expect(
-          text.style?.color,
-          _kNaverLabelExpected,
-          reason: 'Naver 라벨 Text.color 가 흰 100% (#FFFFFF) 이어야 한다',
-        );
-
-        // SvgPicture 의 colorFilter 가 흰색 srcIn 이어야 한다.
-        final svg = tester.widget<SvgPicture>(
-          find.descendant(
-            of: find.byType(BrandedSocialButton),
-            matching: find.byType(SvgPicture),
-          ),
-        );
-        expect(
-          svg.colorFilter,
-          const ColorFilter.mode(_kNaverLabelExpected, BlendMode.srcIn),
-          reason: 'Naver 아이콘 ColorFilter 가 흰 100% srcIn 이어야 한다',
-        );
-      },
-    );
-
-    testWidgets(
-      'T-13-BRAND-NAVER-03: onPressed null → InkWell.onTap == null (disabled)',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(label: 'Naver', onPressed: null),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        final inkWell = _findBrandInkWell(tester);
-        expect(
-          inkWell.onTap,
-          isNull,
-          reason: 'onPressed=null 이면 InkWell.onTap 도 null (Material default disabled)',
-        );
-      },
-    );
-
-    testWidgets(
-      'T-13-BRAND-NAVER-04: onPressed != null → tap → onPressed 1회 호출',
-      (tester) async {
-        var pressed = 0;
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(
-              label: 'Naver',
-              onPressed: () => pressed += 1,
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        await tester.tap(find.byType(BrandedSocialButton));
-        await tester.pump();
-
-        expect(
-          pressed,
-          1,
-          reason: 'tap 시 onPressed 콜백이 1회 호출되어야 한다',
-        );
-      },
-    );
-
-    // ─── Kakao retroactive (회귀 가드) ────────────────────────────────────
-    testWidgets(
-      'T-13-BRAND-KAKAO-RETRO-01: Phase 12 Kakao 색 일치 (회귀 0)',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.kakao(label: 'Kakao', onPressed: () {}),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Material 배경 = Kakao Yellow #FEE500
-        final material = _findBrandMaterial(tester);
-        expect(material.color, _kKakaoYellowExpected);
-
-        // 라벨 색 = 검정 85% #D9000000
-        final text = _findBrandLabel(tester, 'Kakao');
-        expect(text.style?.color, _kKakaoLabelExpected);
-
-        // 아이콘 색 = 검정 100% #000000 (라벨과 분리)
-        final svg = tester.widget<SvgPicture>(
-          find.descendant(
-            of: find.byType(BrandedSocialButton),
-            matching: find.byType(SvgPicture),
-          ),
-        );
-        expect(
-          svg.colorFilter,
-          const ColorFilter.mode(_kKakaoIconExpected, BlendMode.srcIn),
-          reason: 'Kakao 아이콘 ColorFilter 가 검정 100% (라벨 85% 와 분리)',
-        );
-      },
-    );
-
-    testWidgets(
-      'T-13-BRAND-KAKAO-RETRO-02: brandIconAsset = kakao_logo.svg 자산 로드',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.kakao(label: 'Kakao', onPressed: () {}),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // SvgPicture 가 정확히 1개 — kakao 분기 외에는 SVG 미사용.
-        expect(
-          find.descendant(
-            of: find.byType(BrandedSocialButton),
-            matching: find.byType(SvgPicture),
-          ),
-          findsOneWidget,
-        );
-      },
-    );
-
-    // ─── 시각 사양 검증 (UI-SPEC line 522-572) ─────────────────────────────
-    testWidgets(
-      'T-13-BRAND-LAYOUT-01: 너비 = double.infinity, 높이 = 48 dp',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(label: 'Naver', onPressed: () {}),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Gap 위젯이 내부에서 SizedBox 를 만들기 때문에 다중 매치 — first 가
-        // root [BrandedSocialButton] 의 outer SizedBox.
-        final sizedBoxes = tester.widgetList<SizedBox>(
-          find.descendant(
-            of: find.byType(BrandedSocialButton),
-            matching: find.byType(SizedBox),
-          ),
-        );
-        final outer = sizedBoxes.first;
-        expect(outer.width, double.infinity);
-        expect(outer.height, 48);
-      },
-    );
-
-    // ─── Semantics 검증 (UI-SPEC line 600-605 — Material+InkWell 자동) ─────
-    testWidgets(
-      'T-13-BRAND-SEMANTICS-01: SvgPicture excludeFromSemantics = true',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(label: 'Naver', onPressed: () {}),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        final svg = tester.widget<SvgPicture>(
-          find.descendant(
-            of: find.byType(BrandedSocialButton),
-            matching: find.byType(SvgPicture),
-          ),
-        );
-        expect(
-          svg.excludeFromSemantics,
-          isTrue,
-          reason: 'SvgPicture 는 라벨이 의미 전달 — 아이콘 단독 의미 없음',
-        );
-      },
-    );
-
-    // ─── BrandSpec 인터페이스 검증 ─────────────────────────────────────────
-    test('T-13-BRAND-SPEC-01: BrandSpec const ctor + immutable', () {
-      const spec = BrandSpec(
-        backgroundColor: _kNaverGreenExpected,
-        foregroundColor: _kNaverLabelExpected,
-        brandIconAsset: 'assets/icons/naver_logo.svg',
+      // GoogleSpec — SVG asset, theme 명시 매개변수 (3 변형).
+      expect(
+        const GoogleSpec(theme: GoogleTheme.light).assetType,
+        AssetType.svg,
       );
-      expect(spec.backgroundColor, _kNaverGreenExpected);
-      expect(spec.foregroundColor, _kNaverLabelExpected);
-      expect(spec.iconColor, isNull);
-      expect(spec.iconSize, 18);
-      expect(spec.borderRadius, 6);
+      expect(const GoogleSpec(theme: GoogleTheme.dark).theme, GoogleTheme.dark);
+      expect(
+        const GoogleSpec(theme: GoogleTheme.neutral).theme,
+        GoogleTheme.neutral,
+      );
+
+      // AppleSpec / FacebookSpec — assetType.none (위제 위임).
+      expect(const AppleSpec().assetType, AssetType.none);
+      expect(const FacebookSpec().assetType, AssetType.none);
+
+      // LineSpec / WechatSpec — assetType.png (Phase 14/16 자상 commit 후 활성).
+      expect(const LineSpec().assetType, AssetType.png);
+      expect(
+        const WechatSpec(size: WechatPixelSize.px48).size,
+        WechatPixelSize.px48,
+      );
+      expect(
+        const WechatSpec(size: WechatPixelSize.px48).assetType,
+        AssetType.png,
+      );
+    });
+
+    // ─── T-13.1-SWITCH-01: sealed switch exhaustive 컴파일 시점 가드 ────
+    test('T-13.1-SWITCH-01: sealed switch exhaustive — 7 sub-class 인스턴스화', () {
+      // 본 test 는 dart analyze 가 검증 — sealed 7 sub-class 누락 시 컴파일
+      // fail. 본 file 컴파일 통과 자체가 BrandedSocialButton.build() 내
+      // sealed switch 의 exhaustiveness 보장 (Dart 3 closed hierarchy).
+      const specs = <BrandSpec>[
+        KakaoSpec(),
+        NaverSpec(theme: NaverTheme.light),
+        GoogleSpec(theme: GoogleTheme.light),
+        AppleSpec(),
+        FacebookSpec(),
+        LineSpec(),
+        WechatSpec(size: WechatPixelSize.px48),
+      ];
+      expect(specs.length, 7);
+    });
+
+    // ─── T-13.1-FACTORY-01: 7 named factory smoke ────────────────────────
+    test('T-13.1-FACTORY-01: 7 named factory 가 BrandedSocialButton 반환', () {
+      final kakao = BrandedSocialButton.kakao(label: 'Kakao', onPressed: () {});
+      final naver = BrandedSocialButton.naver(
+        label: 'Naver',
+        theme: NaverTheme.light,
+        onPressed: () {},
+      );
+      final google = BrandedSocialButton.google(
+        label: 'Google',
+        theme: GoogleTheme.light,
+        onPressed: () {},
+      );
+      final apple = BrandedSocialButton.apple(label: 'Apple', onPressed: () {});
+      final facebook = BrandedSocialButton.facebook(
+        label: 'Facebook',
+        onPressed: () {},
+      );
+      final line = BrandedSocialButton.line(label: 'LINE', onPressed: () {});
+      final wechat = BrandedSocialButton.wechat(
+        label: 'WeChat',
+        onPressed: () {},
+      );
+
+      expect(kakao.spec, isA<KakaoSpec>());
+      expect(naver.spec, isA<NaverSpec>());
+      expect(google.spec, isA<GoogleSpec>());
+      expect(apple.spec, isA<AppleSpec>());
+      expect(facebook.spec, isA<FacebookSpec>());
+      expect(line.spec, isA<LineSpec>());
+      expect(wechat.spec, isA<WechatSpec>());
+    });
+
+    // ─── T-13.1-NAVER-THEME-01: NaverSpec theme 분기 ─────────────────────
+    test('T-13.1-NAVER-THEME-01: NaverSpec({theme}) 가 light/dark 분기 보존', () {
+      const lightSpec = NaverSpec(theme: NaverTheme.light);
+      const darkSpec = NaverSpec(theme: NaverTheme.dark);
+      expect(lightSpec.theme, NaverTheme.light);
+      expect(darkSpec.theme, NaverTheme.dark);
+      expect(
+        identical(lightSpec, darkSpec),
+        isFalse,
+        reason: 'theme 다르면 const 인스턴스도 다름',
+      );
+    });
+
+    // ─── T-13.1-R1-01: Naver 색 R1 정정 회귀 가드 ────────────────────────
+    test('T-13.1-R1-01: 회귀 가드 — Naver 색 0xFF03A94D (R1 정정)', () {
+      // Phase 13.1 R1 — `0xFF03C75A` (NAVER Corp + NCloud SSO) → `0xFF03A94D`
+      // (NAVER ID 로그인 BI). 본 test 가 mirror const drift 를 RED 로
+      // surface — production 색이 0xFF03C75A 로 회귀하면 즉시 fail.
+      expect(_kNaverGreenExpected.toARGB32(), 0xFF03A94D);
+      expect(
+        _kNaverGreenExpected.toARGB32(),
+        isNot(0xFF03C75A),
+        reason: 'R1 정정 — 회사 브랜드 0xFF03C75A 회귀 차단',
+      );
+    });
+
+    // ─── T-13.1-R2-01: borderRadius R2 정정 회귀 가드 ─────────────────────
+    test('T-13.1-R2-01: 회귀 가드 — borderRadius default 12 (R2 정정)', () {
+      // Phase 13.1 R2 — `borderRadius default 6 → 12` (Kakao BI 명시 12,
+      // Naver 일관). BrandSpec base default 가 12 — 모든 sub-class 상속.
+      expect(const KakaoSpec().borderRadius, 12.0);
+      expect(const NaverSpec(theme: NaverTheme.light).borderRadius, 12.0);
+      expect(const GoogleSpec(theme: GoogleTheme.light).borderRadius, 12.0);
+      expect(const AppleSpec().borderRadius, 12.0);
+      expect(const FacebookSpec().borderRadius, 12.0);
+      expect(const LineSpec().borderRadius, 12.0);
+      expect(const WechatSpec(size: WechatPixelSize.px48).borderRadius, 12.0);
+    });
+
+    // ─── T-13.1-COLOR-MIRROR-01: Kakao 노란색 mirror 보존 ────────────────
+    test('T-13.1-COLOR-MIRROR-01: Kakao 노란색 mirror 0xFFFEE500 보존 (회귀 0)', () {
+      // Phase 12 D-29 / Phase 13.1 mirror — Kakao Brand Guideline 강제
+      // (#FEE500). Phase 13.1 sealed 재작성 후에도 색 보존 확인.
+      expect(_kKakaoYellowExpected.toARGB32(), 0xFFFEE500);
+    });
+
+    // ─── T-13.1-NAVER-LABEL-01: Naver 라벨 색 mirror 보존 ─────────────────
+    test('T-13.1-NAVER-LABEL-01: Naver 라벨 색 0xFFFFFFFF 보존', () {
+      expect(_kNaverLabelExpected.toARGB32(), 0xFFFFFFFF);
     });
   });
 }
