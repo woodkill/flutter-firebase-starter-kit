@@ -493,13 +493,23 @@ Widget _brandIcon(BuildContext context, BrandSpec spec) {
 
 /// 자상 file path resolver — provider + theme + (Naver/Kakao) locale 분기.
 ///
-/// **R4 acceptance — Naver 자상은 ko/en × light/dark = 4 변형 모두 commit 됨.**
 /// **Kakao (Plan 13.1-07 결정):** 공식 자상은 density bucket(1x/2x/3x)이 아닌
 /// 사이즈 변형(medium 300×45 / large 600×90)을 wide·narrow 두 가로 비율로 제공.
 /// 본 starter-kit 은 `완성형 wide`만 채택 (BrandedSocialButton 가로 텍스트
 /// 버튼과 일치) — `kakao_login_large_wide.png` (600×90) 를 default 로 사용해
 /// 고밀도 디스플레이에서 sharp 하게 렌더. ko/en 두 자상 모두 commit, 로케일에
-/// 따라 분기.
+/// 따라 분기. light only (Kakao BI 는 dark variant 미제공).
+///
+/// **Naver (Plan 13.1-07 결정):** 공식 자상은 5차원 매트릭스 (theme × locale ×
+/// color × variant × height) 로 64 PNG 제공. 본 starter-kit 은 Kakao 의 2배
+/// 차원으로 채택 — locale(ko/en) × theme(light/dark) × height(H48/H56) ×
+/// variant(wide) = 8 PNG. 자상 색은 Naver BI 사용 패턴 따름: light theme →
+/// `Light_${LANG}_green_wide` (흰 배경 위 그린 BI), dark theme →
+/// `Dark_${LANG}_white_wide` (검정 배경 위 흰 BI). 코드는 Kakao 패턴 미러로
+/// `naver_login_h48_wide.png` (Material Design 표준 button height) 를 default
+/// 로 로드, H56 은 future-proof commit (CTA emphasis 시 향후 노출 가능).
+/// R4 acceptance: ko/en × light/dark = 4 (theme×locale) 변형 모두 commit.
+///
 /// **Google:** 자상은 언어 중립 (텍스트 없음 또는 영문 baked-in).
 String _iconAssetFor(BuildContext context, BrandSpec spec) {
   final lang = Localizations.localeOf(context).languageCode == 'ko'
@@ -510,7 +520,7 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
       '$kBrandAssetBase/kakao/$lang/light/kakao_login_large_wide.png',
     NaverSpec(theme: final t) =>
       '$kBrandAssetBase/naver/$lang/'
-          '${t == NaverTheme.dark ? 'dark' : 'light'}/naver_login_2x.png',
+          '${t == NaverTheme.dark ? 'dark' : 'light'}/naver_login_h48_wide.png',
     GoogleSpec(theme: final t) =>
       '$kBrandAssetBase/google/'
           '${t == GoogleTheme.dark ? 'dark' : (t == GoogleTheme.neutral ? 'neutral' : 'light')}'

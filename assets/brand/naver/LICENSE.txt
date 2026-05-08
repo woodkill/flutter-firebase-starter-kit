@@ -1,0 +1,77 @@
+NAVER ID Login Brand Asset License
+====================================
+
+Source:
+  - 자상 다운로드: https://developers.naver.com/docs/login/bi/bi.md
+    ("디자인 가이드" 단락의 PNG ZIP 패키지 — KR / EN 별도 ZIP)
+  - 다운로드 일자: 2026-05-09
+  - 공식 BI 컬러: #03A94D (NAVER ID 로그인 BI — 회사 브랜드 #03C75A 와 컨텍스트 분리)
+
+Bundled assets (8 PNG):
+  - assets/brand/naver/ko/light/naver_login_h48_wide.png
+  - assets/brand/naver/ko/light/naver_login_h56_wide.png
+  - assets/brand/naver/ko/dark/naver_login_h48_wide.png
+  - assets/brand/naver/ko/dark/naver_login_h56_wide.png
+  - assets/brand/naver/en/light/naver_login_h48_wide.png
+  - assets/brand/naver/en/light/naver_login_h56_wide.png
+  - assets/brand/naver/en/dark/naver_login_h48_wide.png
+  - assets/brand/naver/en/dark/naver_login_h56_wide.png
+
+Official ↔ starter-kit naming map:
+  공식 파일명                                          starter-kit 명명
+  ─────────────────────────────────────────────────────────────────────
+  NAVER_login_Light_KR_green_wide_H48.png        →    ko/light/naver_login_h48_wide.png
+  NAVER_login_Light_KR_green_wide_H56.png        →    ko/light/naver_login_h56_wide.png
+  NAVER_login_Dark_KR_white_wide_H48.png         →    ko/dark/naver_login_h48_wide.png
+  NAVER_login_Dark_KR_white_wide_H56.png         →    ko/dark/naver_login_h56_wide.png
+  NAVER_login_Light_EN_green_wide_H48.png        →    en/light/naver_login_h48_wide.png
+  NAVER_login_Light_EN_green_wide_H56.png        →    en/light/naver_login_h56_wide.png
+  NAVER_login_Dark_EN_white_wide_H48.png         →    en/dark/naver_login_h48_wide.png
+  NAVER_login_Dark_EN_white_wide_H56.png         →    en/dark/naver_login_h56_wide.png
+
+Variant scope:
+  본 starter-kit 은 Naver BI 가 제공하는 64 PNG (theme × locale × color ×
+  variant × height) 중 **8 PNG 만** 동봉합니다. 채택 차원:
+    - Theme: Light, Dark (2)
+    - Locale: KR, EN (2)
+    - Color: light=green BI, dark=white BI (Naver BI 사용 패턴 따름)
+    - Variant: wide (BrandedSocialButton 가로 텍스트 버튼 디자인과 일치)
+    - Height: H48 (Material 표준 default 로드), H56 (future-proof CTA emphasis)
+  미포함 variant: narrow / center / icon. 미포함 색 조합: Light_white(가시성
+  부족) / Dark_green(Naver BI 권고 외).
+
+License terms (NAVER 공식 BI 가이드 https://developers.naver.com/docs/login/bi/bi.md
+2026-05-09 기준 — verbatim 텍스트는 BI 페이지 직접 확인 의무):
+
+  변형 금지 (Modification Prohibitions):
+    - 자상 색상 변경 금지 (#03A94D 보존)
+    - 자상 비율·회전·왜곡 금지
+    - 자상의 일부분만 사용 금지 (전체 자상 사용 의무)
+    - 자상 위에 다른 그래픽 요소 overlay 금지
+
+  사용 시 의무 사항 (Mandatory Usage Requirements):
+    - 공식 BI 색상 #03A94D 보존 (light theme green 자상의 그린 부분)
+    - 공식 자상 PNG 파일 그대로 동봉 (rename 은 디렉토리 구조에서 차원 분리
+      위해 허용, 콘텐츠 변경은 금지)
+    - 다른 브랜드 자상과 동일 시각 weight 부여 의무
+    - "NAVER", "naver", "네이버" 텍스트의 대체 또는 변형 금지
+
+  사전 검수 절차 (Prior Review Procedure):
+    - Naver Developer Console (https://developers.naver.com) 의 애플리케이션
+      등록 시점 검수 절차에 BI 사용 검토 포함 가능 (사용자 책임 — 공식 BI
+      페이지 재확인 의무, 본 LICENSE 는 2026-05-09 시점 사실 기록만)
+
+Notes:
+  1. 본 starter-kit 의 BrandedSocialButton.naver(theme:) 는 NaverTheme.light
+     → green 자상, NaverTheme.dark → white 자상 매핑을 자동 처리합니다
+     (lib/features/auth/presentation/_widgets/branded_social_button.dart).
+  2. NAVER 회사 브랜드 (#03C75A — 회사 브랜드 + NAVER Cloud SSO BI) 와 NAVER
+     ID 로그인 BI (#03A94D — 본 starter-kit 채택) 는 컨텍스트가 다릅니다.
+     혼동 금지 (Phase 13 단계의 #03C75A 채택은 third-party 출처 채택 오류,
+     Phase 13.1 정정).
+  3. 자상 freshness 갱신 정책: 1년 (assets/brand/naver/README.md 참조).
+     1년 경과 시 https://developers.naver.com/docs/login/bi/bi.md 재방문 +
+     자상 갱신 여부 확인 의무.
+  4. 본 라이선스 텍스트는 사용자 메모리 (feedback_social_brand_assets.md +
+     project_naver_login_sdk_decision.md) 기반 사실 정리. NAVER 공식 BI
+     페이지의 verbatim 텍스트가 본 텍스트와 다를 경우 공식 페이지가 우선.
