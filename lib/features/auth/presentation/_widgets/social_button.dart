@@ -54,19 +54,25 @@ class SocialButton extends ConsumerWidget {
     if (strategy.providerId == kProviderIdKakao) {
       return BrandedSocialButton.kakao(
         label: _resolveLabel(l10n, strategy.labelKey),
-        onPressed: isDisabled
-            ? null
-            : () => strategy.signIn(ref),
+        onPressed: isDisabled ? null : () => strategy.signIn(ref),
       );
     }
     if (strategy.providerId == kProviderIdNaver) {
+      // Phase 13.1 Plan 13.1-05 — sealed BrandSpec hierarchy 도입 (R8).
+      // Naver factory 시그니처에 `theme` 명시 매개변수 추가됨 (D-I — caller
+      // 가 `Theme.of(context).brightness` 자동 분기 책임). 본 caller 의 본격
+      // refactor (Apple/Google branch BrandedSocialButton 위임 + brightness
+      // 자동 매핑 통합) 는 Plan 13.1-08 — Wave 2 영역. 본 변경은 Plan 13.1-05
+      // sealed factory break 흡수 위한 최소 patch (Rule 3 — blocking issue).
+      final naverTheme = Theme.of(context).brightness == Brightness.dark
+          ? NaverTheme.dark
+          : NaverTheme.light;
       return BrandedSocialButton.naver(
         // Phase 13 Plan 13-06 — `l10n.authNaverSignIn` ARB 키 매핑
         // (`_resolveLabel` switch 의 'authNaverSignIn' case).
         label: _resolveLabel(l10n, strategy.labelKey),
-        onPressed: isDisabled
-            ? null
-            : () => strategy.signIn(ref),
+        theme: naverTheme,
+        onPressed: isDisabled ? null : () => strategy.signIn(ref),
       );
     }
 

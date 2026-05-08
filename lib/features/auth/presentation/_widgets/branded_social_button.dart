@@ -1,17 +1,20 @@
-// Phase 13 — see ROADMAP.md (D-55 BrandedSocialButton 5 provider 공통 추상화)
+// Phase 13.1 — see ROADMAP.md (D-61 sealed BrandSpec hierarchy + R1/R2/R8 정정)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gap/gap.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
+import '_brand_assets.dart';
 
-// 5 provider brand 색상 — 단일 진실원 (D-55 / 13-UI-SPEC line 186-198).
+// 5 active provider brand 색 — 단일 진실원 보존 (R1 정정 + Phase 13 D-55 mirror).
 //
-// 본 파일 외부 어디에도 Kakao / Naver 색상 하드코딩 금지. Kakao/Naver Brand
-// Guideline 이 강제하는 색이며 앱 디자인 토큰(`AppColors` / `colorScheme`) 과
-// 분리된 단일 진실원이다. light/dark 모두 동일 색 (Buttons.facebookNew /
-// Phase 12 Kakao 정책 일관 — D-25 / D-52 옵션 A).
+// **R1 (Phase 13.1):** Naver 그린은 NAVER ID 로그인 BI
+// (developers.naver.com/docs/login/bi/bi.md) 의 `#03A94D` — NAVER Corp 회사
+// 브랜드 (`#03C75A`, NCloud SSO 컨텍스트) 와 컨텍스트 분리. Phase 13 단계는
+// third-party 출처 채택 오류 (memory feedback_official_bi_verification),
+// Phase 13.1 정정.
 
 /// Kakao 공식 노란색 — Kakao Brand Guideline 강제 (#FEE500).
 const Color _kKakaoYellow = Color(0xFFFEE500);
@@ -21,120 +24,361 @@ const Color _kKakaoYellow = Color(0xFFFEE500);
 /// 노란 배경 0xFFFEE500 와의 contrast 약 11.7:1 으로 WCAG AAA 충족.
 const Color _kKakaoLabel = Color(0xD9000000);
 
-/// KakaoTalk 말풍선 로고 색 — 검정 100% (Kakao 디자인 자산 그대로).
+/// KakaoTalk 말풍선 로고 색 — 검정 100% (Kakao 디자인 자상 그대로).
 const Color _kKakaoIcon = Color(0xFF000000);
 
-/// Naver 공식 그린 — Naver Brand Guideline 강제 (#03C75A).
-const Color _kNaverGreen = Color(0xFF03C75A);
+/// Naver 공식 그린 — NAVER ID 로그인 BI (#03A94D). R1 정정 (Phase 13.1).
+///
+/// 회사 브랜드 (`#03C75A`, NAVER Corp + NCloud SSO) 와 컨텍스트 분리. 본
+/// 상수는 로그인 버튼 BI 전용 — `developers.naver.com/docs/login/bi/bi.md`
+/// verbatim. dark variant 자상은 별도 PNG (BlendMode.srcIn 변환 금지 — R3/R4
+/// BI 위반).
+const Color _kNaverGreen = Color(0xFF03A94D);
 
 /// Naver 가이드 권장 라벨 색 — 흰 100% (그린 배경에 contrast >= 4.5:1).
 const Color _kNaverLabel = Color(0xFFFFFFFF);
 
-/// 5 provider 공통 brand spec (D-55).
+/// 자상 렌더링 dispatch 태그 (D-68).
 ///
-/// `BrandedSocialButton` 의 색·자산·치수 사양을 단일 const 객체로 묶어
-/// 외부 호출자가 임의 spec 을 주입하지 못하도록 한다. 호출자는 named factory
-/// (`BrandedSocialButton.kakao()` / `BrandedSocialButton.naver()`) 만 사용해야
-/// 한다 — 신규 spec 생성은 본 파일 내부 const 인스턴스만 허용.
-@immutable
-class BrandSpec {
-  /// brand spec const 생성자.
-  const BrandSpec({
-    required this.backgroundColor,
-    required this.foregroundColor,
-    required this.brandIconAsset,
-    this.iconColor,
-    this.iconSize = 18,
-    this.borderRadius = 6,
-  });
+/// `BrandedSocialButton.build()` 의 sealed switch 가 본 enum 으로 분기하여
+/// PNG/SVG/위제 위임 셋 중 하나를 선택. 자상 형식 자동 추론 (확장자 string)
+/// 비채택 — fragile + 장래 WebP 추가 시 회귀 가드 명료.
+enum AssetType {
+  /// PNG 자상 — Image.asset 으로 렌더, ColorFilter 적용 절대 금지 (R3/R4).
+  png,
 
-  /// 버튼 배경 색.
-  final Color backgroundColor;
+  /// SVG 자상 — SvgPicture.asset 으로 렌더 (Google 자상 6종).
+  svg,
 
-  /// 라벨(Text) 색. [iconColor] 미지정 시 아이콘에도 동일 적용.
-  final Color foregroundColor;
-
-  /// 아이콘 색 — `null` 이면 [foregroundColor] 동일.
-  ///
-  /// Kakao 의 경우 라벨(0xD9000000 검정 85%) 과 아이콘(0xFF000000 검정 100%)
-  /// 색이 분리되어 본 필드 사용. Naver 는 동일 흰색이라 `null` 처리.
-  final Color? iconColor;
-
-  /// `assets/icons/...svg` 경로 — `pubspec.yaml` assets 등록 필수.
-  final String brandIconAsset;
-
-  /// 아이콘 width / height (dp). 기본 18 dp — sign_in_button 동등.
-  final double iconSize;
-
-  /// Material + InkWell border radius (dp). 기본 6 dp — Phase 12 Kakao 와 일관.
-  final double borderRadius;
+  /// 자상 미사용 — Apple/Facebook (위제 위임) + LINE/WeChat (placeholder).
+  none,
 }
 
-/// 5 provider brand spec — single source of truth (D-55, 13-UI-SPEC line 482-495).
-const BrandSpec _kakaoSpec = BrandSpec(
-  backgroundColor: _kKakaoYellow,
-  foregroundColor: _kKakaoLabel,
-  iconColor: _kKakaoIcon, // 라벨과 다른 색 (라벨 85% / 아이콘 100%)
-  brandIconAsset: 'assets/icons/kakao_logo.svg',
-);
+/// Naver 다크 모드 분기 (D-I — Theme.brightness 자동 매핑은 caller 책임).
+enum NaverTheme {
+  /// 흰 surface — `_kNaverGreen` 배경 + 흰 라벨.
+  light,
 
-const BrandSpec _naverSpec = BrandSpec(
-  backgroundColor: _kNaverGreen,
-  foregroundColor: _kNaverLabel,
-  // iconColor 미지정 → foregroundColor 동일 (흰 100%)
-  brandIconAsset: 'assets/icons/naver_logo.svg',
-);
+  /// dark surface — Naver BI 의 dark variant PNG 자상 (Plan 13.1-08 commit 후).
+  dark,
+}
 
-/// 5 provider 공통 — Material + InkWell + SvgPicture 컴포지션 (Phase 12
-/// `social_button.dart` line 96-147 `_buildKakaoButton` 추출 + 일반화).
+/// Naver 라벨 변형 — D-63 placeholder.
+enum NaverLabelVariant {
+  /// 한국어 라벨 — Naver BI 화이트리스트 4 변형 중 starter-kit 채택값.
+  ko,
+
+  /// 영문 라벨 — Naver BI 영문 'Continue with Naver'.
+  en,
+}
+
+/// Google 라벨/배경 변형 — D-64 명시 매개변수.
+enum GoogleTheme {
+  /// 흰 surface — Google Identity Branding Light 변형.
+  light,
+
+  /// dark surface — Google Dark 변형.
+  dark,
+
+  /// neutral 배경 — caller 명시 시만 사용.
+  neutral,
+}
+
+/// Kakao 라벨 변형 — D-63 placeholder.
+enum KakaoLabelVariant {
+  /// 한국어 라벨 — Kakao BI ko 라벨.
+  ko,
+
+  /// 영문 라벨 — Kakao BI en 라벨 'Continue with Kakao'.
+  en,
+}
+
+/// LINE 19 언어 placeholder — D-63 type-skeleton.
 ///
-/// 호출자는 [BrandedSocialButton.kakao] 또는 [BrandedSocialButton.naver]
-/// named factory 만 사용한다 — `spec` 외부 주입은 본 파일 내부 const
-/// 인스턴스만 허용 (D-55 / 13-UI-SPEC line 124).
+/// Phase 14 진입 시 19 entries 로 확장 — enum 재조정 부담 0.
+enum LineLanguage {
+  /// 한국어.
+  ko,
+
+  /// 영문.
+  en,
+
+  /// 일본어 — LINE 본사 시장.
+  ja,
+}
+
+/// WeChat 자상 4 해상도 (24/32/48/64px) — D-63 placeholder.
+enum WechatPixelSize {
+  /// 24px PNG 자상.
+  px24,
+
+  /// 32px PNG 자상.
+  px32,
+
+  /// 48px PNG 자상.
+  px48,
+
+  /// 64px PNG 자상.
+  px64,
+}
+
+/// Phase 13.1 — 7 provider brand 사양의 closed hierarchy (D-61).
 ///
-/// **위임 invariant:** [onPressed] 가 `null` 이면 InkWell.onTap 도 `null` 로
-/// 전달되어 Material default disabled 상태(ripple 없음)가 된다.
+/// 신규 provider 추가 시 [BrandSpec] sub-class 정의 + [BrandedSocialButton.build]
+/// switch case 추가 의무 — exhaustive switch 컴파일 시점 강제. abstract class /
+/// `Map<String, Object>` dynamic config 패턴 비채택 (D-61).
 ///
-/// **시각 사양 (13-UI-SPEC line 522-572 verbatim):**
-/// - 너비 = `double.infinity` / 높이 48 dp (sign_in_button 와 동일)
-/// - border radius 6 dp / 좌우 패딩 = `appSpacing.md` (12 dp)
+/// **공통 시각 사양 (D-71):** height 48 / borderRadius 12 / iconSize 18.
+/// Apple SDK 위제만 SDK 기본 height 44 별도 (D-72-CLARIFY-1).
+sealed class BrandSpec {
+  /// brand spec const 생성자.
+  const BrandSpec({
+    this.height = 48,
+    this.borderRadius = 12,
+    this.iconSize = 18,
+  });
+
+  /// 버튼 높이 (dp). default 48. Apple SDK 위제는 본 필드 미사용 — SDK 기본 44.
+  final double height;
+
+  /// Material + InkWell border radius (dp). default 12 — Kakao BI 강제 (R2)
+  /// + Naver 일관.
+  final double borderRadius;
+
+  /// 아이콘 width / height (dp). default 18.
+  final double iconSize;
+
+  /// 자상 렌더 경로 dispatch tag (D-68).
+  AssetType get assetType;
+}
+
+/// Kakao 로그인 버튼 spec — D-61 sub-class.
+class KakaoSpec extends BrandSpec {
+  /// const 생성자 — 공통 default (height 48 / radius 12 / icon 18) 사용.
+  const KakaoSpec();
+
+  @override
+  AssetType get assetType => AssetType.png;
+}
+
+/// Naver 로그인 버튼 spec — D-61 sub-class.
+///
+/// [theme] 은 caller 명시 — `social_button.dart` 가 `Theme.of(context).brightness`
+/// 로 자동 매핑한다 (D-I).
+class NaverSpec extends BrandSpec {
+  /// const 생성자 — [theme] 은 명시 매개변수.
+  const NaverSpec({required this.theme});
+
+  /// 다크 / 라이트 변형 dispatch.
+  final NaverTheme theme;
+
+  @override
+  AssetType get assetType => AssetType.png;
+}
+
+/// Google 로그인 버튼 spec — D-61 sub-class.
+///
+/// [theme] 은 caller 명시 매개변수 — Naver 의 자동 분기 (D-I) 와 다름. Google
+/// 만 3 변형 (Light/Dark/Neutral) 차원이라 명시 매개변수 의무 (D-64).
+class GoogleSpec extends BrandSpec {
+  /// const 생성자 — [theme] 은 명시 매개변수.
+  const GoogleSpec({required this.theme});
+
+  /// 라이트 / 다크 / 뉴트럴 변형 dispatch.
+  final GoogleTheme theme;
+
+  @override
+  AssetType get assetType => AssetType.svg;
+}
+
+/// Apple 로그인 버튼 spec — D-62 thin wrapper (SDK 위제 위임).
+///
+/// 본 spec 자체는 시각 사양 없음 — `SignInWithAppleButton` 위제가 HIG 강제
+/// 사양 모두 처리. height 는 SDK 기본 44 (HIG 권장값, D-72-CLARIFY-1).
+class AppleSpec extends BrandSpec {
+  /// const 생성자.
+  const AppleSpec();
+
+  @override
+  AssetType get assetType => AssetType.none;
+}
+
+/// Facebook 로그인 버튼 spec — sign_in_button community package 위임 wrapper.
+///
+/// 본 spec 의 `BrandedSocialButton.build()` 도달 시 `UnsupportedError` —
+/// `social_button.dart` 의 Facebook 분기에서 직접 `SignInButton(Buttons.facebookNew)`
+/// 호출 (R12 acceptance, sign_in_button 패키지 보존).
+class FacebookSpec extends BrandSpec {
+  /// const 생성자.
+  const FacebookSpec();
+
+  @override
+  AssetType get assetType => AssetType.none;
+}
+
+/// LINE 로그인 버튼 spec — D-73 placeholder (자상 미존재 시 fallback render).
+///
+/// Phase 14 진입 시 자상 commit 후 `_brand_assets.dart` 의
+/// `kPlaceholderProviders` 에서 'line' 제거 의무.
+class LineSpec extends BrandSpec {
+  /// const 생성자.
+  const LineSpec();
+
+  @override
+  AssetType get assetType => AssetType.png;
+}
+
+/// WeChat 로그인 버튼 spec — D-73 placeholder.
+///
+/// Phase 16 진입 시 자상 commit 후 `_brand_assets.dart` 의
+/// `kPlaceholderProviders` 에서 'wechat' 제거 의무. 4 해상도 (24/32/48/64) 중
+/// [size] 매개변수로 선택.
+class WechatSpec extends BrandSpec {
+  /// const 생성자 — [size] 는 명시 매개변수.
+  const WechatSpec({required this.size});
+
+  /// 자상 해상도 dispatch.
+  final WechatPixelSize size;
+
+  @override
+  AssetType get assetType => AssetType.png;
+}
+
+/// 7 provider brand button 통합 위제 — D-61 sealed hierarchy + D-67 sealed switch.
+///
+/// **호출자는 named factory 만 사용 의무 (D-65, D-70):**
+/// - [BrandedSocialButton.kakao]
+/// - [BrandedSocialButton.naver]
+/// - [BrandedSocialButton.google]
+/// - [BrandedSocialButton.apple]
+/// - [BrandedSocialButton.facebook]
+/// - [BrandedSocialButton.line]
+/// - [BrandedSocialButton.wechat]
+///
+/// `_kakaoSpec` 등 const 인스턴스는 private — 외부 임의 spec 주입 차단으로
+/// brand drift 최소화 (D-70).
+///
+/// **render dispatch (D-67):** [build] 내부 sealed switch 가 [BrandSpec]
+/// 7 sub-class 모두 case 처리 — 신규 provider 추가 시 컴파일 fail 강제.
+///
+/// **시각 사양 (R2 Kakao BI 강제 12dp radius):**
+/// - 너비 = `double.infinity` / 높이 48 dp (Apple SDK 위제만 SDK 기본 44,
+///   D-72-CLARIFY-1)
+/// - border radius 12 dp — Apple 은 `BorderRadius.circular(12)` (D-72-CLARIFY-2)
 /// - 아이콘 18 dp / 아이콘 ↔ 라벨 간격 = `appSpacing.sm` (8 dp)
 /// - TextStyle 14 dp / w500 / letterSpacing 0.1 / line height 20/14
-///   (Material 3 `labelLarge` 기본값 일관)
 class BrandedSocialButton extends StatelessWidget {
-  /// brand spec 외부 주입을 허용하지만 호출자는 named factory 만 사용 권장.
-  const BrandedSocialButton({
+  /// 내부 전용 const 생성자 — 호출자는 named factory 만 사용.
+  const BrandedSocialButton._({
     required this.spec,
     required this.label,
     required this.onPressed,
+    this.appleStyle,
     super.key,
   });
 
-  /// Kakao named factory — 13-UI-SPEC line 156-163.
+  /// Kakao named factory — D-65 lowercase provider 말단.
   factory BrandedSocialButton.kakao({
     required String label,
     required VoidCallback? onPressed,
     Key? key,
-  }) => BrandedSocialButton(
+  }) => BrandedSocialButton._(
     key: key,
-    spec: _kakaoSpec,
+    spec: const KakaoSpec(),
     label: label,
     onPressed: onPressed,
   );
 
-  /// Naver named factory — 13-UI-SPEC line 144-153.
+  /// Naver named factory — [theme] 명시 매개변수.
+  ///
+  /// `social_button.dart` 가 `Theme.of(context).brightness` 로 자동 매핑한다
+  /// (D-I — Naver 자동 분기는 caller 책임).
   factory BrandedSocialButton.naver({
+    required String label,
+    required NaverTheme theme,
+    required VoidCallback? onPressed,
+    Key? key,
+  }) => BrandedSocialButton._(
+    key: key,
+    spec: NaverSpec(theme: theme),
+    label: label,
+    onPressed: onPressed,
+  );
+
+  /// Google named factory — D-64 명시 매개변수 (3 변형).
+  factory BrandedSocialButton.google({
+    required String label,
+    required GoogleTheme theme,
+    required VoidCallback? onPressed,
+    Key? key,
+  }) => BrandedSocialButton._(
+    key: key,
+    spec: GoogleSpec(theme: theme),
+    label: label,
+    onPressed: onPressed,
+  );
+
+  /// Apple named factory — D-62 thin wrapper (SDK 위제 위임).
+  ///
+  /// [style] 는 `SignInWithAppleButtonStyle.black` (default) /
+  /// `SignInWithAppleButtonStyle.white` /
+  /// `SignInWithAppleButtonStyle.whiteOutlined` (D-G-CLARIFY 정확 표기).
+  factory BrandedSocialButton.apple({
+    required String label,
+    required VoidCallback? onPressed,
+    SignInWithAppleButtonStyle style = SignInWithAppleButtonStyle.black,
+    Key? key,
+  }) => BrandedSocialButton._(
+    key: key,
+    spec: const AppleSpec(),
+    label: label,
+    onPressed: onPressed,
+    appleStyle: style,
+  );
+
+  /// Facebook named factory — sign_in_button community package 위임 wrapper.
+  ///
+  /// 본 factory 는 호출자에게 통합된 인터페이스 제공 — 실제 build 는
+  /// `social_button.dart` 의 Facebook 분기에서 직접
+  /// `SignInButton(Buttons.facebookNew)` 호출 (R12 acceptance, sign_in_button
+  /// 패키지 보존).
+  factory BrandedSocialButton.facebook({
     required String label,
     required VoidCallback? onPressed,
     Key? key,
-  }) => BrandedSocialButton(
+  }) => BrandedSocialButton._(
     key: key,
-    spec: _naverSpec,
+    spec: const FacebookSpec(),
     label: label,
     onPressed: onPressed,
   );
 
-  /// brand spec — 색·자산·치수 사양.
+  /// LINE named factory — D-73 placeholder (자상 미존재 시 fallback render).
+  factory BrandedSocialButton.line({
+    required String label,
+    required VoidCallback? onPressed,
+    Key? key,
+  }) => BrandedSocialButton._(
+    key: key,
+    spec: const LineSpec(),
+    label: label,
+    onPressed: onPressed,
+  );
+
+  /// WeChat named factory — D-73 placeholder + 4 해상도 enum.
+  factory BrandedSocialButton.wechat({
+    required String label,
+    required VoidCallback? onPressed,
+    WechatPixelSize size = WechatPixelSize.px48,
+    Key? key,
+  }) => BrandedSocialButton._(
+    key: key,
+    spec: WechatSpec(size: size),
+    label: label,
+    onPressed: onPressed,
+  );
+
+  /// brand spec — sealed sub-class 인스턴스.
   final BrandSpec spec;
 
   /// 버튼 라벨 (이미 ARB 로케일 해석된 문자열).
@@ -143,52 +387,197 @@ class BrandedSocialButton extends StatelessWidget {
   /// 탭 핸들러. `null` 이면 비활성 상태 (ripple 없음).
   final VoidCallback? onPressed;
 
+  /// Apple SDK 위제 style — [AppleSpec] 일 때만 의미.
+  final SignInWithAppleButtonStyle? appleStyle;
+
   @override
   Widget build(BuildContext context) {
-    final spacing = context.appSpacing;
-    final iconColor = spec.iconColor ?? spec.foregroundColor;
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: Material(
-        color: spec.backgroundColor,
-        borderRadius: BorderRadius.circular(spec.borderRadius),
-        child: InkWell(
-          onTap: onPressed == null
-              ? null
-              : () {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                  onPressed!();
-                },
+    // D-67 — sealed switch exhaustive (Dart 3 컴파일 시점 강제).
+    return switch (spec) {
+      AppleSpec() => SizedBox(
+        width: double.infinity,
+        child: SignInWithAppleButton(
+          // D-72-CLARIFY-2 — borderRadius 는 BorderRadius 타입 의무.
           borderRadius: BorderRadius.circular(spec.borderRadius),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: spacing.md),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                SvgPicture.asset(
-                  spec.brandIconAsset,
-                  width: spec.iconSize,
-                  height: spec.iconSize,
-                  colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
-                  excludeFromSemantics: true,
+          // D-G-CLARIFY — whiteOutlined 정확 표기.
+          style: appleStyle ?? SignInWithAppleButtonStyle.black,
+          text: label,
+          onPressed: onPressed,
+          // D-72-CLARIFY-1 — height SDK 기본 44 존종, SizedBox 래핑 안 함.
+        ),
+      ),
+      FacebookSpec() => throw UnsupportedError(
+        'FacebookSpec 은 social_button.dart 의 Facebook 분기에서 '
+        'SignInButton(Buttons.facebookNew) 직접 호출 — '
+        'BrandedSocialButton 까지 도달 금지 (R12 acceptance)',
+      ),
+      LineSpec() ||
+      WechatSpec() => _renderPlaceholder(context, spec, label, onPressed),
+      KakaoSpec() => _renderActiveButton(context, spec, label, onPressed),
+      NaverSpec() => _renderActiveButton(context, spec, label, onPressed),
+      GoogleSpec() => _renderActiveButton(context, spec, label, onPressed),
+    };
+  }
+}
+
+/// Active provider (Kakao/Naver/Google) 렌더 — Material + InkWell + 자상 + Text.
+Widget _renderActiveButton(
+  BuildContext context,
+  BrandSpec spec,
+  String label,
+  VoidCallback? onPressed,
+) {
+  final spacing = context.appSpacing;
+  return SizedBox(
+    width: double.infinity,
+    height: spec.height,
+    child: Material(
+      color: _backgroundColorFor(spec),
+      borderRadius: BorderRadius.circular(spec.borderRadius),
+      child: InkWell(
+        onTap: onPressed == null
+            ? null
+            : () {
+                FocusManager.instance.primaryFocus?.unfocus();
+                onPressed();
+              },
+        borderRadius: BorderRadius.circular(spec.borderRadius),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: spacing.md),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              _brandIcon(context, spec),
+              Gap(spacing.sm),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: _foregroundColorFor(spec),
+                  height: 20 / 14,
+                  letterSpacing: 0.1,
                 ),
-                Gap(spacing.sm),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: spec.foregroundColor,
-                    height: 20 / 14,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
+
+/// 자상 렌더 — D-68 assetType 분기 (PNG: Image.asset / SVG: SvgPicture.asset).
+///
+/// **PNG 색 변환 금지 (RESEARCH Pitfall 7):** `ColorFilter.mode(BlendMode.srcIn)`
+/// 적용 시 Naver/Kakao BI 위반 — PNG 자상은 단일 색 baked-in.
+Widget _brandIcon(BuildContext context, BrandSpec spec) {
+  final assetPath = _iconAssetFor(context, spec);
+  return switch (spec.assetType) {
+    AssetType.png => Image.asset(
+      assetPath,
+      width: spec.iconSize,
+      height: spec.iconSize,
+      fit: BoxFit.contain,
+      excludeFromSemantics: true,
+    ),
+    AssetType.svg => SvgPicture.asset(
+      assetPath,
+      width: spec.iconSize,
+      height: spec.iconSize,
+      excludeFromSemantics: true,
+    ),
+    AssetType.none => const SizedBox.shrink(),
+  };
+}
+
+/// 자상 file path resolver — provider + theme + (Naver) locale 분기.
+///
+/// **R4 acceptance — Naver 자상은 ko/en × light/dark = 4 변형 모두 commit 됨.**
+/// 한국어 로케일 (ko) 사용자는 `naver/ko/...` 경로, 그 외는 `naver/en/...`
+/// 경로. `Localizations.localeOf(context).languageCode` 로 분기. Kakao 는
+/// ko/en 자상이 모두 commit 되더라도 본 plan 에서는 단일 en 채택 (Plan
+/// 13.1-07 자상 commit 시점에 결정), Google 자상은 언어 중립 (텍스트 없음
+/// 또는 영문 baked-in).
+String _iconAssetFor(BuildContext context, BrandSpec spec) {
+  final lang = Localizations.localeOf(context).languageCode == 'ko'
+      ? 'ko'
+      : 'en';
+  return switch (spec) {
+    KakaoSpec() => '$kBrandAssetBase/kakao/en/light/kakao_login_2x.png',
+    NaverSpec(theme: final t) =>
+      '$kBrandAssetBase/naver/$lang/'
+          '${t == NaverTheme.dark ? 'dark' : 'light'}/naver_login_2x.png',
+    GoogleSpec(theme: final t) =>
+      '$kBrandAssetBase/google/'
+          '${t == GoogleTheme.dark ? 'dark' : (t == GoogleTheme.neutral ? 'neutral' : 'light')}'
+          '/btn_signin_full.svg',
+    // 다른 spec 은 _brandIcon 호출 안 됨 (Apple/Facebook/Line/Wechat).
+    AppleSpec() || FacebookSpec() || LineSpec() || WechatSpec() => '',
+  };
+}
+
+/// 배경 색 resolver.
+Color _backgroundColorFor(BrandSpec spec) => switch (spec) {
+  KakaoSpec() => _kKakaoYellow,
+  NaverSpec(theme: NaverTheme.light) => _kNaverGreen,
+  NaverSpec(theme: NaverTheme.dark) => _kNaverGreen,
+  // Google 자상 자체에 배경 baked-in — 위제 surface 는 transparent.
+  GoogleSpec() => Colors.transparent,
+  AppleSpec() ||
+  FacebookSpec() ||
+  LineSpec() ||
+  WechatSpec() => Colors.transparent,
+};
+
+/// 라벨 색 resolver.
+Color _foregroundColorFor(BrandSpec spec) => switch (spec) {
+  KakaoSpec() => _kKakaoLabel,
+  NaverSpec() => _kNaverLabel,
+  // Google 자상 자체에 라벨 baked-in — 본 widget 의 Text 는 보조 (자상이
+  // full button 변형이면 미렌더).
+  GoogleSpec() => Colors.black87,
+  AppleSpec() ||
+  FacebookSpec() ||
+  LineSpec() ||
+  WechatSpec() => Colors.transparent,
+};
+
+/// LINE/WeChat placeholder render — D-73 (자상 미존재 시 회색 fallback).
+///
+/// debug 시 `debugPrint` 발생 — production 빌드는 회색 disabled 외관 (R10).
+Widget _renderPlaceholder(
+  BuildContext context,
+  BrandSpec spec,
+  String label,
+  VoidCallback? onPressed,
+) {
+  assert(() {
+    debugPrint(
+      'BrandedSocialButton placeholder render — Phase 14/16 자상 commit 후 '
+      '_brand_assets.dart 의 kPlaceholderProviders 에서 해당 provider 제거 의무',
+    );
+    return true;
+  }());
+  return SizedBox(
+    width: double.infinity,
+    height: spec.height,
+    child: Material(
+      color: Colors.grey.shade200,
+      borderRadius: BorderRadius.circular(spec.borderRadius),
+      child: Center(
+        child: Text(
+          'Asset missing: $label',
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+        ),
+      ),
+    ),
+  );
+}
+
+/// 본 파일이 미사용으로 흡수하지 않은 const 색 leak 검사용 sentinel — _kKakaoIcon
+/// 은 Kakao 자상이 PNG 마이그레이션 후 일시적으로 사용 안 되지만, 색 mirror
+/// 단일 진실원 보존을 위해 남겨둔다 (Plan 13.1-07 자상 commit 후 PNG 내부에
+/// baked-in 검정 100%).
+// ignore: unused_element
+const Color _kKakaoIconRetained = _kKakaoIcon;
