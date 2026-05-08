@@ -348,7 +348,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authAccountProviderGoogle => 'Google';
 
   @override
-  String get authAppleSignIn => 'Appleでログイン';
+  String get authAppleSignIn => 'Appleでサインイン';
 
   @override
   String get authAccountProviderApple => 'Apple';
@@ -360,13 +360,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authAccountProviderFacebook => 'Facebook';
 
   @override
-  String get authKakaoSignIn => 'カカオではじめる';
+  String get authKakaoSignIn => 'Continue with Kakao';
 
   @override
   String get authAccountProviderKakao => 'カカオ';
 
   @override
-  String get authNaverSignIn => 'Naverではじめる';
+  String get authNaverSignIn => 'Continue with Naver';
 
   @override
   String get authAccountProviderNaver => 'ネイバー';
