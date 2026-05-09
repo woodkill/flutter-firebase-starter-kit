@@ -291,13 +291,17 @@ void main() {
   // Phase 12 D-25 옵션 A → Phase 13.1 sealed BrandSpec.
   // Kakao 분기는 sign_in_button 미지원으로 BrandedSocialButton.kakao 위임.
   // Plan 13.1-07 commit 후 자상 = `kakao_login_large_wide.png` (PNG).
+  //
+  // **Phase 13.1 Gap-1 X2 (2026-05-09 자상화):** Plan 14 wide 자상 통째 buttons
+  // 패턴 도입 후 Material color 는 Colors.transparent (자상에 노란 배경 baked-in),
+  // ARB 라벨 "Continue with Kakao" / "카카오 로그인" 도 widget tree 에 렌더되지 않음
+  // (자상 baked-in). 따라서 Material 노란 배경 검증 + 라벨 텍스트 검증은 자상화로
+  // 자연 무효화 — 본 group 의 의도 (위임 invariant + 자상 형식 dispatch + 탭 동작)
+  // 만 보존하고 자상 layer 검증 3 test 는 skip 처리.
   group('SocialButton Kakao 분기 (Plan 13.1-08 cascade GREEN)', () {
-    /// branded_social_button.dart 의 private 상수 _kKakaoYellow 와 동일 리터럴.
-    /// 단일 진실원은 `branded_social_button.dart`.
-    const expectedKakaoYellow = Color(0xFFFEE500);
-
     testWidgets(
-      'Kakao providerId → SignInButton 미사용 + Material 노란 배경 + InkWell 자식',
+      'Kakao providerId → SignInButton 미사용 + KakaoSpec 위임 + InkWell 자식 '
+      '[Phase 13.1 Gap-1 X2: Material 노란 배경 검증 폐기 — 자상 baked-in]',
       (tester) async {
         const strategy = _FakeStrategy(
           kProviderIdKakao,
@@ -318,24 +322,19 @@ void main() {
         );
         expect(btn.spec, isA<KakaoSpec>());
 
-        // _kKakaoYellow 배경 Material 1개 이상 매치.
-        final yellowMaterials = tester
-            .widgetList<Material>(find.byType(Material))
-            .where((m) => m.color == expectedKakaoYellow)
-            .toList();
-        expect(
-          yellowMaterials,
-          isNotEmpty,
-          reason: '_kKakaoYellow (#FEE500) 배경 Material 이 1개 이상 존재해야 한다',
-        );
-
         // InkWell 자식 — Material + InkWell 조합으로 button semantics 확보.
         expect(find.byType(InkWell), findsAtLeastNWidgets(1));
+
+        // **Phase 13.1 Gap-1 X2:** Material color 는 Colors.transparent (자상
+        // baked-in 노란 배경) — 별도 노란 Material 검증 폐기. 자상 자체가
+        // buttons 외관 형성을 검증하는 회귀 가드는 Plan 13.1-09 golden test
+        // (kakao_light.png) 가 담당.
       },
     );
 
     testWidgets(
-      'Kakao 라벨 — en 로케일에서 "Continue with Kakao" 표시 (D-29 ARB)',
+      'Kakao 라벨 — en 로케일에서 "Continue with Kakao" 표시 (D-29 ARB) '
+      '[SKIPPED: Phase 13.1 Gap-1 X2 자상화로 라벨 layer 부재]',
       (tester) async {
         const strategy = _FakeStrategy(
           kProviderIdKakao,
@@ -350,10 +349,13 @@ void main() {
 
         expect(find.text('Continue with Kakao'), findsOneWidget);
       },
+      // 자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토.
+      skip: true,
     );
 
     testWidgets(
-      'Kakao 라벨 — ko 로케일에서 "카카오 로그인" 표시 (D-29 ARB)',
+      'Kakao 라벨 — ko 로케일에서 "카카오 로그인" 표시 (D-29 ARB) '
+      '[SKIPPED: Phase 13.1 Gap-1 X2 자상화로 라벨 layer 부재]',
       (tester) async {
         const strategy = _FakeStrategy(
           kProviderIdKakao,
@@ -371,6 +373,8 @@ void main() {
 
         expect(find.text('카카오 로그인'), findsOneWidget);
       },
+      // 자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토.
+      skip: true,
     );
 
     testWidgets(
@@ -452,13 +456,15 @@ void main() {
 
   // Phase 13.1 신규 — Naver 분기 회귀 가드 (Plan 13.1-05 NaverTheme 매개변수
   // 추가 + Plan 13.1-07 자상 commit 결과 검증).
+  //
+  // **Phase 13.1 Gap-1 X2 (2026-05-09 자상화):** Plan 14 wide 자상 통째 buttons
+  // 패턴 도입 후 Material color 는 Colors.transparent (자상에 그린 배경 baked-in).
+  // 그린 Material 검증은 자상화로 자연 무효화 — 본 group 의 의도 (위임 invariant +
+  // NaverTheme 분기 dispatch) 만 보존, 그린 배경 layer 검증 폐기.
   group('SocialButton Naver 분기 (Plan 13.1-08)', () {
-    /// branded_social_button.dart 의 private 상수 _kNaverGreen 과 동일 리터럴
-    /// (R1 정정 — 0xFF03A94D, NAVER ID 로그인 BI).
-    const expectedNaverGreen = Color(0xFF03A94D);
-
     testWidgets(
-      'Naver 분기 (light) → NaverSpec.theme=light + 그린 배경',
+      'Naver 분기 (light) → NaverSpec.theme=light '
+      '[Phase 13.1 Gap-1 X2: Material 그린 배경 검증 폐기 — 자상 baked-in]',
       (tester) async {
         const strategy = _FakeStrategy(
           kProviderIdNaver,
@@ -478,15 +484,9 @@ void main() {
         expect(btn.spec, isA<NaverSpec>());
         expect((btn.spec as NaverSpec).theme, NaverTheme.light);
 
-        final greenMaterials = tester
-            .widgetList<Material>(find.byType(Material))
-            .where((m) => m.color == expectedNaverGreen)
-            .toList();
-        expect(
-          greenMaterials,
-          isNotEmpty,
-          reason: '_kNaverGreen (#03A94D) 배경 Material 이 1개 이상 존재해야 한다',
-        );
+        // **Phase 13.1 Gap-1 X2:** Material color 는 Colors.transparent (자상
+        // baked-in 그린 배경) — 별도 그린 Material 검증 폐기. 그린 배경의
+        // 회귀 가드는 Plan 13.1-09 golden test (naver_light.png) 가 담당.
       },
     );
 
