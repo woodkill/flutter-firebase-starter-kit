@@ -110,9 +110,28 @@ class SocialButton extends ConsumerWidget {
 
   /// ARB 키를 [AppLocalizations] getter 로 매핑한다.
   ///
+  /// **Phase 13.1 Gap-1 X2 (2026-05-09 재설계 후 책임 변경):**
+  /// Kakao/Naver/Google 자상은 wide 자상 통째 buttons 패턴 (자상 자체에
+  /// 라벨/로고/배경 모두 baked-in) 으로 재설계되어, 본 메서드가 반환하는
+  /// `authKakaoSignIn` / `authNaverSignIn` / `authGoogleSignIn` 라벨은
+  /// **시각 layer 에 렌더되지 않고** [BrandedSocialButton] 내부에서 무시된다
+  /// (label 매개변수는 보존 — 호출자 호환 + 미래 fallback 가능성).
+  ///
+  /// 의미 있는 라벨 매핑:
+  /// - `authAppleSignIn` — [SignInWithAppleButton] 의 `text` 매개변수에 주입
+  ///   (Apple HIG ko/en/ja 변형 모두 표시).
+  /// - `authFacebookSignIn` — [SignInButton] 의 `text` 매개변수에 주입
+  ///   (R12 sign_in_button community package 잔존).
+  ///
+  /// 무시되는 라벨 매핑 (자상 baked-in):
+  /// - `authKakaoSignIn` / `authNaverSignIn` / `authGoogleSignIn`. 단
+  ///   접근성 (Semantics) layer 에서 향후 활용 가능 (Phase 18 검토).
+  ///
   /// Phase 12 — `authKakaoSignIn` 추가 (D-29).
   /// Phase 13 Plan 13-06 — `authNaverSignIn` 추가 (Wave 4 atomic 분리 —
   /// Plan 13-05 의 임시 라벨 → ARB 키 교체).
+  /// Phase 13.1 Gap-1 X2 — Kakao/Naver/Google 라벨 시각 layer 폐기 (자상
+  /// baked-in), 본 메서드 매핑 자체는 보존 (회귀 차단).
   String _resolveLabel(AppLocalizations l10n, String key) => switch (key) {
     'authGoogleSignIn' => l10n.authGoogleSignIn,
     'authAppleSignIn' => l10n.authAppleSignIn,
