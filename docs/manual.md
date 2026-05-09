@@ -1116,6 +1116,38 @@ freshness 갱신 정책을 정리한다. 7 provider (Kakao / Naver / Google / Ap
 Facebook / LINE / WeChat) 자산 모두 단일 표준 디렉토리 (`assets/brand/{provider}/`)
 + 7필드 README schema 를 따른다.
 
+> **⚠ 미래 갱신자 함정 경고 #2 (Phase 13.1 Gap-1 X2 — 자상 layout 패턴):**
+> Phase 13.1 Plan 13.1-05 초기 코드는 wide 자상 (Kakao 600×90 / Naver
+> 1472×192 / Google viewBox 189×40) 을 sign_in_button 패키지 모방 패턴
+> (`Container + Row(18dp icon + ARB 라벨)`) 의 18dp icon 슬롯에 fit 시도 →
+> 자상이 squash 되어 회색 작은 막대로만 보이는 시각 결함 (사용자 보고 4
+> issue, VERIFICATION.md Gap-1). Plan 13.1-14 재설계로 wide 자상 통째 buttons
+> 패턴 도입 + Plan 13.1-15 4-round 시각 검증 deviation 흡수 (`Image.asset
+> (fit: BoxFit.contain)` / `SvgPicture.asset(fit: BoxFit.contain)` +
+> ClipRRect wrapper 폐기 + Material `clipBehavior: Clip.none` + InkWell
+> `borderRadius: 12dp` ripple 영역만 제어) 채택 — 자상이 buttons 외관 전체를
+> baked-in 으로 형성, 자상의 baked-in 모서리 (Naver 사각 / Kakao 7.2px
+> scaled / Google rx=19.5 pill) 가 시각 단독 권위. letterbox 영역 (Kakao
+> 좌우 ~20dp / Google 좌우 ~67dp / Naver 1dp 미세) Scaffold 배경 자연 채움.
+> 미래 갱신자가 자상 layout 변경 시 **반드시 사전 검토:**
+>
+> 1. Wide 자상 (가로 비율 ≥ 4:1) 은 자상 통째 buttons 패턴 사용 의무 —
+>    18dp icon 슬롯 패턴 회귀 금지.
+> 2. ARB 라벨 시각 layer 추가 금지 (Kakao/Naver/Google 분기) — 자상에
+>    label baked-in. Apple/Facebook 만 ARB 라벨 명시 의무 (위제 위임).
+> 3. PNG / SVG 양쪽 `fit: BoxFit.contain` + `width: double.infinity`
+>    + `height: spec.height` 강제 sizing 의무 — `BoxFit.fitWidth` 회귀 시
+>    wide 자상 자연 종횡비 무시 + 상하 잘림 + 텍스트 1.9× 확대 결함 (Plan
+>    13.1-15 round 2 사용자 보고).
+> 4. ClipRRect wrapper 폐기 + Material `clipBehavior: Clip.none` + InkWell
+>    `borderRadius: 12dp` (ripple 영역만 제어) — ClipRRect 12dp 강제 또는
+>    Material `Clip.antiAlias` 회귀 시 자상 baked-in 모서리 추가 클립 결함
+>    (Plan 13.1-15 round 3/4 사용자 보고).
+> 5. en fallback 정책: ko 외 모든 locale (ja, fr, de, zh 등) 은 en 자상
+>    path 로딩 — `_iconAssetFor` 의 `languageCode == 'ko' ? 'ko' : 'en'`
+>    분기 보존. 신규 locale 추가 시 자상 ko/en 양쪽 commit 의무 또는 en
+>    fallback 채택.
+
 > **⚠ 미래 갱신자 함정 경고 (Plan 13.1-07 retro):** Phase 13.1 초기 plan 은
 > "1x / 2x / 3x density bucket × ko/en" 으로 자상 차원을 가정했으나, 다운로드
 > 후 Kakao / Naver / Google 모두 공식 제공 형식이 plan 가정과 다름을 발견 —
@@ -1257,6 +1289,21 @@ starter-kit 은 LINE/WeChat 자상 미commit (Phase 13.1 sentinel). Phase 14
 - **사용자 책임:** Naver / LINE / WeChat 은 일부 사용 시 사전 검수 신청 별도
   의무 가능 (정확한 절차는 공식 BI 페이지 — starter-kit 은 검수 자동화
   미제공).
+- **자상 layout 패턴 (Phase 13.1 Gap-1 X2):** Wide 자상 통째 buttons 패턴
+  의무 — `Image.asset(fit: BoxFit.contain, width: double.infinity, height:
+  spec.height)` 또는 `SvgPicture.asset(fit: BoxFit.contain, width:
+  double.infinity, height: spec.height)`. 자상이 18dp icon 슬롯에 squash
+  되지 않도록 full-width sizing 강제 + 자상 자연 종횡비 보존 (`BoxFit.contain`
+  강제). ClipRRect wrapper 폐기 + Material `clipBehavior: Clip.none` —
+  자상 baked-in 모서리 (Naver 사각 / Kakao 7.2px scaled / Google rx=19.5
+  pill) 가 시각 단독 권위. InkWell `borderRadius: 12dp` 는 ripple 영역만
+  제어 (시각 변경 0). letterbox 영역 (Kakao 좌우 ~20dp / Google 좌우
+  ~67dp / Naver 1dp 미세) Scaffold 배경 자연 채움. ARB 라벨 시각 layer
+  추가 금지 (자상 baked-in). en fallback 정책: ko 외 모든 locale 은 en
+  자상 path 로딩 (`_iconAssetFor` 의 `languageCode == 'ko' ? 'ko' : 'en'`
+  분기). 자세한 production widget tree 는 `lib/features/auth/
+  presentation/_widgets/branded_social_button.dart` 의 `_renderActiveButton`
+  함수 참조.
 
 ### 회귀 가드 (3-layer)
 
@@ -1287,7 +1334,8 @@ Phase 13.1 의 회귀 가드 3종이 starter-kit 에 포함:
 | 2026-05-05 | 12.1-03 | Git Hooks 활성화 (선택) 단락 신규 추가 — `scripts/check_phase_refs.sh` 양방향 lint + git pre-commit hook (R8.2 / WR-08). |
 | 2026-05-05 | 13-07 | Naver Login 단락 (10 단계) + Brand Asset 단락 (Kakao + Naver 통합, D-52) + Kakao 동의 항목 갱신 (D-56 retroactive) + Initial Setup 표에 naver 3 키 + iOS xcconfig 의 NAVER_URL_SCHEME + Firebase Secret Manager `NAVER_CLIENT_SECRET` 등록 (D-60). 목차 8 항목으로 확장. |
 | 2026-05-08 | 13.1-13 | `## Brand Asset Management (Phase 13.1)` 단락 신규 — 7 provider 매트릭스 (출처 + 라이선스 + 채택 차원) + 3단계 절차 (다운/Phase 14·16 sentinel 해제/freshness 1년) + 자산 변형 정책 + Plan 13.1-07 retro 경고 (1x/2x/3x density 가정 vs 실제 형식) + 3-layer 회귀 가드. R15 acceptance. 목차 9 항목으로 확장. |
+| 2026-05-09 | 13.1-16 | Brand Asset Management 단락 보강 — Phase 13.1 Gap-1 X2 (wide 자상 통째 buttons 패턴) 함정 경고 박스 #2 신규 + 자산 변형 정책 단락에 layout 패턴 bullet 추가 (`Image.asset(fit: BoxFit.contain)` / `SvgPicture.asset(fit: BoxFit.contain)` + ClipRRect 폐기 + Material `clipBehavior: Clip.none` + InkWell `borderRadius: 12dp` ripple 제어 + letterbox 영역). en fallback 정책 (ko 외 모든 locale 은 en 자상 path 로딩) 명시. Plan 13.1-14 production code + Plan 13.1-15 4-round 시각 검증 deviation 1+2 인용. |
 
 ---
 
-*Last updated: 2026-05-08 — Phase 13.1 Plan 13 완료 (Brand Asset Management 단락 신규)*
+*Last updated: 2026-05-09 — Phase 13.1 Plan 16 완료 (Gap-1 X2 wide 자상 통째 buttons 패턴 retro 정정)*
