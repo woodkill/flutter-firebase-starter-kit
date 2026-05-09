@@ -455,8 +455,13 @@ Widget _renderActiveButton(
     height: spec.height,
     child: Material(
       color: Colors.transparent,
-      borderRadius: radius,
-      clipBehavior: Clip.antiAlias,
+      // **Plan 14 deviation 정정 (2026-05-09 사용자 시각 검증 2차):** Material
+      // 의 `clipBehavior: Clip.antiAlias` 가 자상 child 를 추가로 클립 →
+      // 자상의 자연 baked-in corner 무효화 (ClipRRect 폐기로도 해소되지
+      // 않은 두 번째 클리핑 layer). `Clip.none` 으로 자상 baked-in shape 가
+      // 시각 단독 권위. InkWell 의 `borderRadius: radius` 는 ripple 영역만
+      // 계속 12dp 제어 (시각 변경 0).
+      clipBehavior: Clip.none,
       child: InkWell(
         onTap: onPressed == null
             ? null
