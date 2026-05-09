@@ -15,8 +15,12 @@ import 'package:flutter_test/flutter_test.dart';
 /// `ThemeData.light()` 단독으로는 ThemeExtension 누락으로 null check fail.
 /// 다른 widget 테스트와 일관 (Rule 3 — blocking issue 정정, plan PATTERNS
 /// Section 14 sample 의 ThemeExtension 의존성 누락 보완).
+///
+/// `debugShowCheckedModeBanner: false` — DEBUG 배너 (우측 상단 빨간 삼각형)
+/// 가 golden capture 에 포함되어 자상 baked-in 시각 검증을 방해하지 않도록.
 Widget _wrap(Widget child, {required Brightness brightness}) {
   return MaterialApp(
+    debugShowCheckedModeBanner: false,
     theme: brightness == Brightness.light ? AppTheme.light() : AppTheme.dark(),
     home: Scaffold(
       backgroundColor: brightness == Brightness.light
@@ -30,6 +34,39 @@ Widget _wrap(Widget child, {required Brightness brightness}) {
       ),
     ),
   );
+}
+
+/// Phase 13.1 Gap-1 X2 golden capture 결함 정정 — 자상 비동기 로드 wait.
+///
+/// **Background:** `Image.asset()` / `SvgPicture.asset()` 는 widget test
+/// 환경에서 비동기적으로 자상 binary 를 디코딩하는데, `tester.pumpAndSettle()`
+/// 만으로는 디코딩 완료 전에 golden capture 가 발생 → 자상이 빈 placeholder
+/// 영역으로 캡처됨 (1차 capture 결함, 2026-05-09 사용자 보고).
+///
+/// **해결:** `tester.runAsync()` 안에서 (1) `precacheImage` 로 모든 Image
+/// widget 의 ImageProvider 강제 디코딩 + (2) SvgPicture 비동기 vector_graphics
+/// 로드 흡수를 위한 짧은 delay + (3) 최종 `pumpAndSettle` 으로 모든 frame
+/// 안정화.
+Future<void> _settleAssets(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    await tester.pumpAndSettle();
+
+    // (1) Image.asset 강제 디코딩 — Naver/Kakao PNG 자상 (assetType.png)
+    for (final element in find.byType(Image).evaluate().toList()) {
+      final widget = element.widget as Image;
+      await precacheImage(widget.image, element);
+    }
+
+    // (2) SvgPicture 비동기 vector_graphics 로드 흡수 — Google SVG 자상
+    // (assetType.svg). flutter_svg 는 microtask 기반 비동기 로드 → 짧은
+    // delay 로 첫 frame layout 안정화.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    // (3) 최종 frame 안정화
+    await tester.pumpAndSettle();
+  });
+  // runAsync 외부에서 한번 더 pump — runAsync 내부 frame 을 capture 단계로 commit.
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -46,10 +83,9 @@ void main() {
           brightness: Brightness.light,
         ),
       );
-      // 자상 비동기 load 완료 대기 (Rule 3 — SvgPicture/Image.asset 모두
-      // 첫 frame placeholder 가 자연 size 로 그려질 수 있어 layout 회귀
-      // 노출. PATTERNS Section 14 sample 의 누락 보강).
-      await tester.pumpAndSettle();
+      // Phase 13.1 Gap-1 X2 — 자상 비동기 디코딩 wait (precacheImage +
+      // SvgPicture vector_graphics delay) — _settleAssets helper 참조.
+      await _settleAssets(tester);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/naver_light.png'),
@@ -68,7 +104,7 @@ void main() {
           brightness: Brightness.dark,
         ),
       );
-      await tester.pumpAndSettle();
+      await _settleAssets(tester);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/naver_dark.png'),
@@ -86,7 +122,7 @@ void main() {
           brightness: Brightness.light,
         ),
       );
-      await tester.pumpAndSettle();
+      await _settleAssets(tester);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/kakao_light.png'),
@@ -105,7 +141,7 @@ void main() {
           brightness: Brightness.light,
         ),
       );
-      await tester.pumpAndSettle();
+      await _settleAssets(tester);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/google_light.png'),
@@ -124,7 +160,7 @@ void main() {
           brightness: Brightness.dark,
         ),
       );
-      await tester.pumpAndSettle();
+      await _settleAssets(tester);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/google_dark.png'),
@@ -143,7 +179,7 @@ void main() {
           brightness: Brightness.light,
         ),
       );
-      await tester.pumpAndSettle();
+      await _settleAssets(tester);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/google_neutral.png'),
