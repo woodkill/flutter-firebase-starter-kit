@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
@@ -122,7 +124,14 @@ void main() {
       expect(find.byType(LoginScreen), findsOneWidget);
 
       // Google 버튼 탭 (통일 순서 첫 번째).
-      await tester.tap(find.text('Sign in with Google'));
+      // Phase 13.1 Gap-1 X2 — Google 자상이 wide 자상 baked-in 패턴 (라벨이
+      // SVG 내부에 통합) 이라 `find.text('Sign in with Google')` 무효. 대신
+      // SocialButton (strategy.providerId == kProviderIdGoogle) 으로 탭.
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
+        ),
+      );
       await tester.pumpAndSettle();
 
       // Home 으로 navigation 되었는지 검증.
@@ -212,7 +221,14 @@ void main() {
 
       expect(find.byType(LoginScreen), findsOneWidget);
 
-      await tester.tap(find.text('Sign in with Google'));
+      // Phase 13.1 Gap-1 X2 — Google 자상이 wide 자상 baked-in 패턴 (라벨이
+      // SVG 내부에 통합) 이라 `find.text('Sign in with Google')` 무효. 대신
+      // SocialButton (strategy.providerId == kProviderIdGoogle) 으로 탭.
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
+        ),
+      );
       await tester.pumpAndSettle();
 
       // LoginScreen 에 그대로 머문다.

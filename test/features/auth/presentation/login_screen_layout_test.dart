@@ -10,8 +10,10 @@ import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_field.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/or_divider.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -110,7 +112,17 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byType(LoginScreen)),
       );
-      expect(find.text(l10n.authGoogleSignIn), findsOneWidget);
+      // Phase 13.1 Gap-1 X2 (2026-05-09 자상화) — Google 자상이 wide 자상
+      // baked-in 패턴 (라벨이 SVG 내부에 통합) 이라 `find.text(authGoogleSignIn)`
+      // 무효. 대신 SocialButton (strategy.providerId == kProviderIdGoogle) 의
+      // 렌더 존재 검증으로 의도 변경. Apple/Facebook 은 SDK 위제 위임으로
+      // 외부 텍스트 layer 보존되어 라벨 finder 유효.
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
+        ),
+        findsOneWidget,
+      );
       expect(find.text(l10n.authAppleSignIn), findsOneWidget);
       expect(find.text(l10n.authFacebookSignIn), findsOneWidget);
     });
