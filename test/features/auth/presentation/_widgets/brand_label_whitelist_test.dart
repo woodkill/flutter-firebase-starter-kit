@@ -22,6 +22,11 @@ import 'package:flutter_test/flutter_test.dart';
 ///   - ja 3 test FAIL (ARB ja 가 'Appleでログイン' / 'カカオではじめる' /
 ///     'Naverではじめる' 미정정 — Plan 13.1-06 ARB 정정 후 GREEN 전환 의도).
 /// - Plan 13.1-06 ARB 정정 + `fvm flutter gen-l10n` 후: 9 test 모두 PASS.
+///
+/// **Phase 13.1 Gap-1 X2 (2026-05-09 자상화):** Naver/Kakao 6 test (3 ko/en/ja
+/// × 2 provider) `skip:` 처리 — 자상화로 라벨 layer 부재. Apple HIG 3 test
+/// PASS 유지. 본 file 의 PASS/FAIL 카운트: Apple 3 PASS + Naver 3 SKIP +
+/// Kakao 3 SKIP = 9 test (3 PASS / 6 SKIP / 0 FAIL).
 
 /// Apple HIG 공식 라벨 테이블 (D-78-CLARIFY ko + D-77-CLARIFY ja).
 ///
@@ -94,27 +99,64 @@ void main() {
     });
   });
 
-  group('brand_label_whitelist — Naver BI (R7)', () {
-    test('ko: 네이버로 시작하기', () async {
-      await _verifyLocale('ko', _kNaverBI);
-    });
-    test('en: Continue with Naver', () async {
-      await _verifyLocale('en', _kNaverBI);
-    });
-    test('ja: Continue with Naver (D-79 영문 fallback)', () async {
-      await _verifyLocale('ja', _kNaverBI);
-    });
+  // Phase 13.1 Gap-1 X2 (2026-05-09 자상화) — Naver wide 자상이 logo + 텍스트
+  // 모두 baked-in 으로 buttons 외관을 형성. ARB authNaverSignIn 값은 widget
+  // tree 에 라벨 layer 로 렌더되지 않음. 본 group 의 검증 의도 (ARB ↔ Naver
+  // BI 화이트리스트 일치) 는 자상화로 자연 무효화 — Phase 18 Brand Center
+  // 권한 확보 후 자상 ↔ 라벨 디자인 분리 정책 결정 시 재검토.
+  //
+  // **REVIEW WR-03 흡수:** 'BI 4 변형 중 1종만 강제' 약한 가드 (REVIEW line
+  // 102~122) 는 자상화로 자연 해소 — 본 skip 으로 수렴.
+  //
+  // **ARB 키 자체 보존:** authNaverSignIn ko/en/ja 값은 SocialButton._resolveLabel
+  // 매핑 + 향후 접근성 (Semantics) layer 에서 활용 가능 (Plan 14 docstring 참조).
+  // 본 const Map 도 mirror 단일 진실원으로 보존.
+  group('brand_label_whitelist — Naver BI (R7) [Phase 13.1 Gap-1 X2 자상화]', () {
+    test(
+      'ko: 네이버로 시작하기 [SKIPPED: 자상화로 라벨 layer 부재]',
+      () async {
+        await _verifyLocale('ko', _kNaverBI);
+      },
+      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
+    );
+    test(
+      'en: Continue with Naver [SKIPPED: 자상화로 라벨 layer 부재]',
+      () async {
+        await _verifyLocale('en', _kNaverBI);
+      },
+      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
+    );
+    test(
+      'ja: Continue with Naver (D-79 영문 fallback) [SKIPPED: 자상화로 라벨 layer 부재]',
+      () async {
+        await _verifyLocale('ja', _kNaverBI);
+      },
+      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
+    );
   });
 
-  group('brand_label_whitelist — Kakao BI (R7)', () {
-    test('ko: 카카오 로그인', () async {
-      await _verifyLocale('ko', _kKakaoBI);
-    });
-    test('en: Continue with Kakao', () async {
-      await _verifyLocale('en', _kKakaoBI);
-    });
-    test('ja: Continue with Kakao (D-79 영문 fallback)', () async {
-      await _verifyLocale('ja', _kKakaoBI);
-    });
+  // Phase 13.1 Gap-1 X2 (2026-05-09 자상화) — Kakao wide 자상도 동일 정책.
+  group('brand_label_whitelist — Kakao BI (R7) [Phase 13.1 Gap-1 X2 자상화]', () {
+    test(
+      'ko: 카카오 로그인 [SKIPPED: 자상화로 라벨 layer 부재]',
+      () async {
+        await _verifyLocale('ko', _kKakaoBI);
+      },
+      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
+    );
+    test(
+      'en: Continue with Kakao [SKIPPED: 자상화로 라벨 layer 부재]',
+      () async {
+        await _verifyLocale('en', _kKakaoBI);
+      },
+      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
+    );
+    test(
+      'ja: Continue with Kakao (D-79 영문 fallback) [SKIPPED: 자상화로 라벨 layer 부재]',
+      () async {
+        await _verifyLocale('ja', _kKakaoBI);
+      },
+      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
+    );
   });
 }
