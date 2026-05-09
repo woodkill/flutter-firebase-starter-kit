@@ -1,9 +1,18 @@
 // Phase 13.1 — see ROADMAP.md (D-66 sealed sub-class const + R1/R2/R8 회귀 가드)
+//
+// Phase 13.1 Gap-1 X2 (2026-05-09 자상화) — 본 file 카운트 8 → 14:
+// 기존 8 (sealed hierarchy 회귀 가드) + 신규 6 (wide 자상 통째 buttons
+// 패턴 검증). 사용자 보고 4 issue 해소 acceptance.
+//
+// Phase 13.1 Gap-1 X2 BLOCKER 2 fix — sentinel stub-context class 폐기 →
+// tester.pumpWidget + tester.takeException 패턴 (Flutter 권장).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 // ─── 회귀 가드 expected 색상 (production private literal mirror) ────────────
 //
@@ -159,5 +168,183 @@ void main() {
     test('T-13.1-NAVER-LABEL-01: Naver 라벨 색 0xFFFFFFFF 보존', () {
       expect(_kNaverLabelExpected.toARGB32(), 0xFFFFFFFF);
     });
+  });
+
+  group('BrandedSocialButton — Phase 13.1 Gap-1 X2 wide 자상 통째 buttons', () {
+    // ─── T-13.1-X2-CLIPRRECT-01: ClipRRect + Image.asset (Kakao) ──────────
+    testWidgets(
+        'T-13.1-X2-CLIPRRECT-01: KakaoSpec build() ClipRRect + '
+        'Image.asset full-width 패턴', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ko'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: BrandedSocialButton.kakao(
+              label: '카카오 로그인',
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // wide 자상 통째 buttons 패턴 — ClipRRect + Image.asset 위제 트리 존재.
+      expect(find.byType(ClipRRect), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
+      // Container+Row+(icon+label) 패턴 폐기 검증 — 본 test 는 Kakao buttons
+      // 만 build, 다른 spec 의 widget tree 미렌더.
+    });
+
+    // ─── T-13.1-X2-CLIPRRECT-02: ClipRRect + SvgPicture (Google) ──────────
+    testWidgets(
+        'T-13.1-X2-CLIPRRECT-02: GoogleSpec build() ClipRRect + '
+        'SvgPicture.asset full-width 패턴', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: BrandedSocialButton.google(
+              label: 'Sign in with Google',
+              theme: GoogleTheme.light,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ClipRRect), findsOneWidget);
+      // 자상 형식 dispatch 자체는 sealed switch 검증 (T-13.1-SPEC-01 의
+      // GoogleSpec.assetType == AssetType.svg) 가 보장. 본 test 는 ClipRRect
+      // 도입 + Image 부재 검증 (Google 은 SVG 이므로 Image.asset 위제는
+      // 트리에 없어야 함).
+      expect(find.byType(Image), findsNothing);
+    });
+
+    // ─── T-13.1-X2-FULLWIDTH-01: SizedBox(width: double.infinity) 검증 ────
+    testWidgets(
+        'T-13.1-X2-FULLWIDTH-01: NaverSpec build() SizedBox '
+        'width: double.infinity 강제 sizing', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ko'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: BrandedSocialButton.naver(
+                label: '네이버로 시작하기',
+                theme: NaverTheme.light,
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // BrandedSocialButton 내부 SizedBox 가 부모 width (300dp) 까지 확장.
+      // RenderBox layout 후 width = 300 이어야 (full-width 패턴).
+      final renderBox = tester.renderObject<RenderBox>(
+        find.byType(BrandedSocialButton),
+      );
+      expect(renderBox.size.width, 300.0);
+      // 높이는 BrandSpec.height (48dp) 와 일치 — Naver/Kakao 자상 통째 buttons.
+      expect(renderBox.size.height, 48.0);
+    });
+
+    // ─── T-13.1-X2-LOCALE-FALLBACK-01: ja locale → en path ────────────────
+    testWidgets(
+        'T-13.1-X2-LOCALE-FALLBACK-01: ja locale 시 KakaoSpec 자상이 '
+        'en path (kakao/en/light/) 로딩', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ja'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: BrandedSocialButton.kakao(
+              label: 'Continue with Kakao',
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final imageWidget = tester.widget<Image>(find.byType(Image));
+      final assetImage = imageWidget.image as AssetImage;
+      // ko 외 모든 locale (ja 포함) 은 en path 로 fallback (D-79 + Gap-1 X2
+      // 사용자 3번 답변).
+      expect(
+        assetImage.assetName,
+        'assets/brand/kakao/en/light/kakao_login_large_wide.png',
+        reason: 'ja locale 은 en fallback (ko 외 모두 en) — '
+            '_iconAssetFor 의 lang 분기',
+      );
+    });
+
+    // ─── T-13.1-X2-APPLE-PRESERVE-01: AppleSpec 분기 변경 0 회귀 가드 ──────
+    testWidgets(
+        'T-13.1-X2-APPLE-PRESERVE-01: AppleSpec build() '
+        'SignInWithAppleButton 위임 보존 (Gap-1 영향 없음)', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BrandedSocialButton.apple(
+              label: 'Sign in with Apple',
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // Apple 분기는 SDK 위제 위임 — ClipRRect + Image 패턴 미적용 정상.
+      // SignInWithAppleButton 위제가 트리에 존재해야 함.
+      expect(find.byType(SignInWithAppleButton), findsOneWidget);
+    });
+
+    // ─── T-13.1-X2-FACEBOOK-PRESERVE-01: FacebookSpec UnsupportedError ────
+    //
+    // **Phase 13.1 Gap-1 X2 BLOCKER 2 fix (2026-05-09):** sentinel stub-context
+    // class 폐기 → tester.pumpWidget + tester.takeException 패턴 채택.
+    // 사유: stub-context extends BuildContext + dynamic noSuchMethod 패턴은
+    // woody_lints `dynamic` 룰 충돌 + abstract method 누락 분석 경고 + 런타임
+    // NPE 위험. private constructor `BrandedSocialButton._` 는 caller 불가능
+    // 하므로 named factory `.facebook()` 를 통해 build() 까지 도달시키고
+    // tester.takeException() 으로 throw 캡처 — Flutter 권장 패턴.
+    //
+    // **검증 의도 (read-only reference, social_button.dart 의 Facebook 분기는
+    // SignInButton(Buttons.facebookNew) 직접 호출, BrandedSocialButton 까지
+    // 도달 안 함):** BrandedSocialButton.facebook() factory 도달 시 build() 의
+    // FacebookSpec 분기가 UnsupportedError 를 throw 함을 sentinel 로 검증
+    // (R12 잔존 보존 회귀 가드).
+    testWidgets(
+      'T-13.1-X2-FACEBOOK-PRESERVE-01: FacebookSpec 직접 호출 — '
+      'UnsupportedError throw (BrandedSocialButton.facebook() factory 도달 시 '
+      'build() 가 throw — social_button.dart 의 Facebook 분기는 '
+      'SignInButton(Buttons.facebookNew) 직접 호출, BrandedSocialButton 까지 '
+      '도달 안 함을 별도 test 로 검증)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: BrandedSocialButton.facebook(
+                label: 'Facebook',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        expect(
+          tester.takeException(),
+          isA<UnsupportedError>(),
+          reason: 'BrandedSocialButton.facebook() 의 build() 가 '
+              'UnsupportedError 를 throw 해야 함 (R12 acceptance — '
+              'Facebook 은 social_button.dart 에서 SignInButton 직접 호출)',
+        );
+      },
+    );
   });
 }
