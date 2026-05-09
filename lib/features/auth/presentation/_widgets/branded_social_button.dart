@@ -418,19 +418,28 @@ class BrandedSocialButton extends StatelessWidget {
   }
 }
 
-/// Active provider (Kakao/Naver/Google) 렌더 — wide 자상 통째 buttons 패턴.
+/// Active provider (Kakao/Naver/Google) 렌더 — 자상 baked-in shape 권위 패턴.
 ///
 /// **Phase 13.1 Gap-1 X2 (2026-05-09 재설계):** wide 자상 (Kakao 600×90 /
 /// Naver 1472×192 / Google viewBox 189×40) 은 logo + 텍스트가 통째로 buttons
 /// 외관을 형성하도록 BI 가이드에서 의도됨 — Plan 13.1-05 의 18dp icon 슬롯
-/// squash 패턴 폐기. 자상 자체에 배경/라벨/로고 모두 baked-in 이므로 widget
-/// 책임은 (1) full-width SizedBox 강제 sizing (2) ClipRRect borderRadius
-/// 강제 (3) InkWell 탭 영역 + 비활성 상태 처리 + 포커스 unfocus 만.
+/// squash 패턴 폐기. 자상 자체에 배경/라벨/로고/모서리 모두 baked-in 이므로
+/// widget 책임은 (1) full-width SizedBox 강제 sizing (2) Material clipBehavior
+/// 로 InkWell ripple 영역 12dp rounded 제어 (3) 탭 핸들러 + 비활성 + 포커스
+/// unfocus 만. 자상의 시각 외관은 자상이 단독 권위.
 ///
-/// **자상 squash 방지:** ClipRRect 내부 자상 위제는 fit: BoxFit.fitWidth
-/// + alignment: Alignment.center — 자상의 자연 height 가 spec.height (48dp)
-/// 보다 작으면 ClipRRect 가 vertical center 정렬, 자상 width 는 buttons
-/// width 에 맞게 scale up.
+/// **Plan 14 deviation 정정 (2026-05-09 사용자 시각 검증 후):** 1차 디자인
+/// (`fit: BoxFit.fitWidth` + `ClipRRect` 강제 12dp) 이 자상의 자연 종횡비와
+/// baked-in 모서리 무시로 4 시각 결함 발생 — (1) Kakao/Naver corner 더블
+/// 클리핑 (PNG baked radius < 12dp scaled, ClipRRect 추가 잘림), (2) Google
+/// 상하 외곽선 잘림 (4.725:1 자상이 7.5:1 button 에 fitWidth 시 height 76dp
+/// overflow), (3) Google text 1.9× 확대 (fitWidth scale-up 부작용), (4)
+/// 자상의 자연 corner 모양 (Naver 사각 / Google rx=19.5 pill) 무시.
+///
+/// **정정 채택:** `fit: BoxFit.contain` + `ClipRRect` 폐기. 자상 자연 종횡비
+/// 보존, 크롭 0, baked-in 모서리 시각 권위. letterbox 영역 (Kakao 좌우 ~20dp /
+/// Google 좌우 ~67dp) 은 Scaffold 배경 (light 흰 / dark 검정) 으로 자연 채움
+/// — Naver dark variant 도 검정 letterbox 와 검정 자상 배경 자연 융합.
 ///
 /// **AppleSpec/FacebookSpec/LineSpec/WechatSpec 영향 없음** — 본 함수는
 /// build() 의 KakaoSpec/NaverSpec/GoogleSpec 분기에서만 호출.
@@ -456,28 +465,25 @@ Widget _renderActiveButton(
                 onPressed();
               },
         borderRadius: radius,
-        child: ClipRRect(
-          borderRadius: radius,
-          child: switch (spec.assetType) {
-            AssetType.png => Image.asset(
-              assetPath,
-              fit: BoxFit.fitWidth,
-              alignment: Alignment.center,
-              width: double.infinity,
-              height: spec.height,
-              excludeFromSemantics: true,
-            ),
-            AssetType.svg => SvgPicture.asset(
-              assetPath,
-              fit: BoxFit.fitWidth,
-              alignment: Alignment.center,
-              width: double.infinity,
-              height: spec.height,
-              excludeFromSemantics: true,
-            ),
-            AssetType.none => const SizedBox.shrink(),
-          },
-        ),
+        child: switch (spec.assetType) {
+          AssetType.png => Image.asset(
+            assetPath,
+            fit: BoxFit.contain,
+            alignment: Alignment.center,
+            width: double.infinity,
+            height: spec.height,
+            excludeFromSemantics: true,
+          ),
+          AssetType.svg => SvgPicture.asset(
+            assetPath,
+            fit: BoxFit.contain,
+            alignment: Alignment.center,
+            width: double.infinity,
+            height: spec.height,
+            excludeFromSemantics: true,
+          ),
+          AssetType.none => const SizedBox.shrink(),
+        },
       ),
     ),
   );

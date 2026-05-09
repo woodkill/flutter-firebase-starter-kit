@@ -171,10 +171,16 @@ void main() {
   });
 
   group('BrandedSocialButton — Phase 13.1 Gap-1 X2 wide 자상 통째 buttons', () {
-    // ─── T-13.1-X2-CLIPRRECT-01: ClipRRect + Image.asset (Kakao) ──────────
+    // ─── T-13.1-X2-CLIPRRECT-01: Material+borderRadius + Image.asset (Kakao)
+    //
+    // **Plan 14 deviation 정정 (2026-05-09 사용자 시각 검증 후):** 1차
+    // 디자인의 ClipRRect 폐기 — 자상의 baked-in 모서리 (Naver 사각 / Kakao
+    // 7.2px scaled / Google rx=19.5 pill) 가 시각 권위, ClipRRect 12dp 강제
+    // 가 더블 클리핑 결함. test ID 는 traceability 보존, assertion 만 갱신.
     testWidgets(
-        'T-13.1-X2-CLIPRRECT-01: KakaoSpec build() ClipRRect + '
-        'Image.asset full-width 패턴', (tester) async {
+        'T-13.1-X2-CLIPRRECT-01: KakaoSpec build() Material+borderRadius + '
+        'Image.asset (Plan 14 deviation: BoxFit.contain + no ClipRRect)',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('ko'),
@@ -189,17 +195,22 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      // wide 자상 통째 buttons 패턴 — ClipRRect + Image.asset 위제 트리 존재.
-      expect(find.byType(ClipRRect), findsOneWidget);
+      // 자상 baked-in shape 권위 패턴 — Material+borderRadius (InkWell ripple
+      // 영역만 12dp 제어) + Image.asset (PNG 자연 baked-in 모서리 보존).
       expect(find.byType(Image), findsOneWidget);
-      // Container+Row+(icon+label) 패턴 폐기 검증 — 본 test 는 Kakao buttons
-      // 만 build, 다른 spec 의 widget tree 미렌더.
+      // ClipRRect 폐기 검증 — 본 widget 트리에 ClipRRect 없음 (Plan 14
+      // deviation 회귀 가드, 더블 클리핑 차단).
+      expect(find.byType(ClipRRect), findsNothing);
+      // Image.asset 의 fit: BoxFit.contain 검증 — fitWidth scale-up 결함 차단.
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(image.fit, BoxFit.contain);
     });
 
-    // ─── T-13.1-X2-CLIPRRECT-02: ClipRRect + SvgPicture (Google) ──────────
+    // ─── T-13.1-X2-CLIPRRECT-02: Material+borderRadius + SvgPicture (Google)
     testWidgets(
-        'T-13.1-X2-CLIPRRECT-02: GoogleSpec build() ClipRRect + '
-        'SvgPicture.asset full-width 패턴', (tester) async {
+        'T-13.1-X2-CLIPRRECT-02: GoogleSpec build() Material+borderRadius + '
+        'SvgPicture (Plan 14 deviation: BoxFit.contain + no ClipRRect)',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('en'),
@@ -215,11 +226,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(ClipRRect), findsOneWidget);
+      // Google SVG 의 baked-in pill (rx=19.5) 모양 보존 — ClipRRect 폐기
+      // 회귀 가드.
+      expect(find.byType(ClipRRect), findsNothing);
       // 자상 형식 dispatch 자체는 sealed switch 검증 (T-13.1-SPEC-01 의
-      // GoogleSpec.assetType == AssetType.svg) 가 보장. 본 test 는 ClipRRect
-      // 도입 + Image 부재 검증 (Google 은 SVG 이므로 Image.asset 위제는
-      // 트리에 없어야 함).
+      // GoogleSpec.assetType == AssetType.svg) 가 보장. 본 test 는 Image
+      // 부재 검증 (Google 은 SVG 이므로 Image.asset 위제는 트리에 없어야 함).
       expect(find.byType(Image), findsNothing);
     });
 
