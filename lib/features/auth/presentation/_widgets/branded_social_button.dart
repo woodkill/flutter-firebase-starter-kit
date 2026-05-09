@@ -2,10 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:gap/gap.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
-import '../../../../core/theme/theme_extensions.dart';
 import '_brand_assets.dart';
 
 // 5 active provider brand 색 — 단일 진실원 보존 (R1 정정 + Phase 13 D-55 mirror).
@@ -413,27 +411,43 @@ class BrandedSocialButton extends StatelessWidget {
       ),
       LineSpec() ||
       WechatSpec() => _renderPlaceholder(context, spec, label, onPressed),
-      KakaoSpec() => _renderActiveButton(context, spec, label, onPressed),
-      NaverSpec() => _renderActiveButton(context, spec, label, onPressed),
-      GoogleSpec() => _renderActiveButton(context, spec, label, onPressed),
+      KakaoSpec() => _renderActiveButton(context, spec, onPressed),
+      NaverSpec() => _renderActiveButton(context, spec, onPressed),
+      GoogleSpec() => _renderActiveButton(context, spec, onPressed),
     };
   }
 }
 
-/// Active provider (Kakao/Naver/Google) 렌더 — Material + InkWell + 자상 + Text.
+/// Active provider (Kakao/Naver/Google) 렌더 — wide 자상 통째 buttons 패턴.
+///
+/// **Phase 13.1 Gap-1 X2 (2026-05-09 재설계):** wide 자상 (Kakao 600×90 /
+/// Naver 1472×192 / Google viewBox 189×40) 은 logo + 텍스트가 통째로 buttons
+/// 외관을 형성하도록 BI 가이드에서 의도됨 — Plan 13.1-05 의 18dp icon 슬롯
+/// squash 패턴 폐기. 자상 자체에 배경/라벨/로고 모두 baked-in 이므로 widget
+/// 책임은 (1) full-width SizedBox 강제 sizing (2) ClipRRect borderRadius
+/// 강제 (3) InkWell 탭 영역 + 비활성 상태 처리 + 포커스 unfocus 만.
+///
+/// **자상 squash 방지:** ClipRRect 내부 자상 위제는 fit: BoxFit.fitWidth
+/// + alignment: Alignment.center — 자상의 자연 height 가 spec.height (48dp)
+/// 보다 작으면 ClipRRect 가 vertical center 정렬, 자상 width 는 buttons
+/// width 에 맞게 scale up.
+///
+/// **AppleSpec/FacebookSpec/LineSpec/WechatSpec 영향 없음** — 본 함수는
+/// build() 의 KakaoSpec/NaverSpec/GoogleSpec 분기에서만 호출.
 Widget _renderActiveButton(
   BuildContext context,
   BrandSpec spec,
-  String label,
   VoidCallback? onPressed,
 ) {
-  final spacing = context.appSpacing;
+  final assetPath = _iconAssetFor(context, spec);
+  final radius = BorderRadius.circular(spec.borderRadius);
   return SizedBox(
     width: double.infinity,
     height: spec.height,
     child: Material(
-      color: _backgroundColorFor(spec),
-      borderRadius: BorderRadius.circular(spec.borderRadius),
+      color: Colors.transparent,
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onPressed == null
             ? null
@@ -441,61 +455,31 @@ Widget _renderActiveButton(
                 FocusManager.instance.primaryFocus?.unfocus();
                 onPressed();
               },
-        borderRadius: BorderRadius.circular(spec.borderRadius),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: spacing.md),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              _brandIcon(context, spec),
-              Gap(spacing.sm),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: _foregroundColorFor(spec),
-                  height: 20 / 14,
-                  letterSpacing: 0.1,
-                ),
-              ),
-            ],
-          ),
+        borderRadius: radius,
+        child: ClipRRect(
+          borderRadius: radius,
+          child: switch (spec.assetType) {
+            AssetType.png => Image.asset(
+              assetPath,
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.center,
+              width: double.infinity,
+              height: spec.height,
+              excludeFromSemantics: true,
+            ),
+            AssetType.svg => SvgPicture.asset(
+              assetPath,
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.center,
+              width: double.infinity,
+              height: spec.height,
+              excludeFromSemantics: true,
+            ),
+            AssetType.none => const SizedBox.shrink(),
+          },
         ),
       ),
     ),
-  );
-}
-
-/// 자상 렌더 — D-68 assetType 분기 (PNG: Image.asset / SVG: SvgPicture.asset).
-///
-/// **PNG 색 변환 금지 (RESEARCH Pitfall 7):** `ColorFilter.mode(BlendMode.srcIn)`
-/// 적용 시 Naver/Kakao BI 위반 — PNG 자상은 단일 색 baked-in.
-///
-/// **외부 [SizedBox] 강제 sizing (Plan 13.1-09 R1 hotfix):** [SvgPicture.asset]
-/// 는 `width`/`height` 매개변수 + `fit: BoxFit.contain` (default) 만으로는
-/// 첫 frame 에 SVG 의 자연 viewBox dimension (예: Google 자상 188×40) 으로
-/// layout 되어 부모 [Row] overflow 를 일으킨다 (vector_graphics 의 첫-frame
-/// layout 동작). [Image.asset] 도 일관성을 위해 동일 [SizedBox] wrap 적용 —
-/// 자상 width/height 가 layout 시점부터 [BrandSpec.iconSize] 로 강제된다.
-Widget _brandIcon(BuildContext context, BrandSpec spec) {
-  final assetPath = _iconAssetFor(context, spec);
-  return SizedBox(
-    width: spec.iconSize,
-    height: spec.iconSize,
-    child: switch (spec.assetType) {
-      AssetType.png => Image.asset(
-        assetPath,
-        fit: BoxFit.contain,
-        excludeFromSemantics: true,
-      ),
-      AssetType.svg => SvgPicture.asset(
-        assetPath,
-        fit: BoxFit.contain,
-        excludeFromSemantics: true,
-      ),
-      AssetType.none => const SizedBox.shrink(),
-    },
   );
 }
 
@@ -543,36 +527,10 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
       '$kBrandAssetBase/google/'
           '${t == GoogleTheme.dark ? 'dark' : (t == GoogleTheme.neutral ? 'neutral' : 'light')}'
           '/btn_signin_full.svg',
-    // 다른 spec 은 _brandIcon 호출 안 됨 (Apple/Facebook/Line/Wechat).
+    // 다른 spec 은 자상 path 호출 안 됨 (Apple/Facebook/Line/Wechat).
     AppleSpec() || FacebookSpec() || LineSpec() || WechatSpec() => '',
   };
 }
-
-/// 배경 색 resolver.
-Color _backgroundColorFor(BrandSpec spec) => switch (spec) {
-  KakaoSpec() => _kKakaoYellow,
-  NaverSpec(theme: NaverTheme.light) => _kNaverGreen,
-  NaverSpec(theme: NaverTheme.dark) => _kNaverGreen,
-  // Google 자상 자체에 배경 baked-in — 위제 surface 는 transparent.
-  GoogleSpec() => Colors.transparent,
-  AppleSpec() ||
-  FacebookSpec() ||
-  LineSpec() ||
-  WechatSpec() => Colors.transparent,
-};
-
-/// 라벨 색 resolver.
-Color _foregroundColorFor(BrandSpec spec) => switch (spec) {
-  KakaoSpec() => _kKakaoLabel,
-  NaverSpec() => _kNaverLabel,
-  // Google 자상 자체에 라벨 baked-in — 본 widget 의 Text 는 보조 (자상이
-  // full button 변형이면 미렌더).
-  GoogleSpec() => Colors.black87,
-  AppleSpec() ||
-  FacebookSpec() ||
-  LineSpec() ||
-  WechatSpec() => Colors.transparent,
-};
 
 /// LINE/WeChat placeholder render — D-73 (자상 미존재 시 회색 fallback).
 ///
@@ -612,3 +570,16 @@ Widget _renderPlaceholder(
 /// baked-in 검정 100%).
 // ignore: unused_element
 const Color _kKakaoIconRetained = _kKakaoIcon;
+
+// Phase 13.1 Gap-1 X2 — wide 자상 통째 buttons 패턴 도입 후 background /
+// foreground color helper 함수 폐기. 자상에 색 baked-in 되어 widget render
+// path 직접 참조 0. 4 const 는 단일 진실원 mirror sentinel 로 보존 (회귀 가드
+// — 자상 색 변경 시 본 const 도 동시 갱신 의무).
+// ignore: unused_element
+const Color _kKakaoYellowRetained = _kKakaoYellow;
+// ignore: unused_element
+const Color _kKakaoLabelRetained = _kKakaoLabel;
+// ignore: unused_element
+const Color _kNaverGreenRetained = _kNaverGreen;
+// ignore: unused_element
+const Color _kNaverLabelRetained = _kNaverLabel;
