@@ -11,6 +11,17 @@ import '../error/app_exception.dart';
 /// 매칭되지 않는 키는 원본 문자열을 그대로 반환한다.
 String resolveExceptionMessage(BuildContext context, AppException exception) {
   final l10n = AppLocalizations.of(context);
+  // (Phase 9.2 D-13 — Path A-narrow) AccountExistsWithDifferentCredential
+  // 인스턴스는 항상 unknown fallback 메시지로 단일 경로 매핑한다 (R2).
+  // _mapAuthException 의 'account-exists-with-different-credential' 분기 +
+  // _mapFunctionsException 의 'already-exists' 분기 (Phase 12.1 R3 — D-34)
+  // 모두 동일 경로.
+  // Phase 17 (Account Linking) — see ROADMAP.md 부활 시 본 분기 안에서
+  // exception.provider (AccountProvider enum) 검사 + arbKey 이중 lookup
+  // (D-14) 도입.
+  if (exception is AccountExistsWithDifferentCredential) {
+    return l10n.errorAccountExistsWithUnknownProvider;
+  }
   return switch (exception.userMessage) {
     'errorNetworkTimeout' => l10n.errorNetworkTimeout,
     'errorNoInternet' => l10n.errorNoInternet,

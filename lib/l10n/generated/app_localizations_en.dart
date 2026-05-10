@@ -351,6 +351,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'This email is already registered with a different sign-in method. Please sign in with your password.';
 
   @override
+  String get errorAccountExistsWithUnknownProvider =>
+      'This email is already registered with another sign-in method. Please sign in with the method you originally used.';
+
+  @override
   String get authAccountProviderGoogle => 'Google';
 
   @override
