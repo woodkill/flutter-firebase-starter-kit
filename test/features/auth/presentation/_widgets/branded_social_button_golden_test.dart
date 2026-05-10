@@ -84,6 +84,7 @@ void main() {
   group('BrandedSocialButton golden — D-86 6 fixture / D-87 zero tolerance', () {
     testWidgets('Naver light', (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         _wrap(
           BrandedSocialButton.naver(
@@ -105,6 +106,7 @@ void main() {
 
     testWidgets('Naver dark', (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         _wrap(
           BrandedSocialButton.naver(
@@ -124,6 +126,7 @@ void main() {
 
     testWidgets('Kakao light', (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         _wrap(
           BrandedSocialButton.kakao(
@@ -142,6 +145,7 @@ void main() {
 
     testWidgets('Google light', (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         _wrap(
           BrandedSocialButton.google(
@@ -161,6 +165,7 @@ void main() {
 
     testWidgets('Google dark', (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         _wrap(
           BrandedSocialButton.google(
@@ -180,6 +185,7 @@ void main() {
 
     testWidgets('Google neutral', (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         _wrap(
           BrandedSocialButton.google(
