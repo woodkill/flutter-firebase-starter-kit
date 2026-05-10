@@ -765,10 +765,17 @@ class AuthRepository {
       final result = await _facebookAuth.getUserData(
         fields: 'picture.type(large)',
       );
+      // BL-01 (Phase 9.2 review fix): iOS 의 Facebook getUserData 응답은
+      // `Map<String, dynamic>.from(result)` shallow 변환 — `result['picture']`
+      // 가 native bridge 시 `Map<dynamic, dynamic>` (또는
+      // `_InternalLinkedHashMap<Object?, Object?>`) 로 들어옴. Dart generic
+      // invariance 로 인해 `is Map<String, dynamic>` 검사가 항상 false 가 되어
+      // R5 silent skip 회귀를 일으킨다. generic 인자 없이 `is Map` 으로 완화하여
+      // Android (typed) / iOS (untyped) 양쪽 응답 형태를 모두 흡수한다.
       final pictureData = result['picture'];
-      if (pictureData is Map<String, dynamic>) {
+      if (pictureData is Map) {
         final data = pictureData['data'];
-        if (data is Map<String, dynamic>) {
+        if (data is Map) {
           final url = data['url'];
           if (url is String && url.isNotEmpty) {
             await user.updatePhotoURL(url);

@@ -329,6 +329,54 @@ void main() {
           verifyNever(() => mockUser.updatePhotoURL(any()));
         },
       );
+
+      // -----------------------------------------------------------------
+      // F9 (BL-01 regression — Phase 9.2 review fix):
+      // iOS 시나리오 시뮬레이션 — `flutter_facebook_auth` 의 iOS 구현은
+      // `Map<String, dynamic>.from(result)` shallow 변환을 수행하므로 nested
+      // `picture` 는 `_InternalLinkedHashMap<Object?, Object?>` (Dart 에서는
+      // `Map<dynamic, dynamic>`) 로 들어온다. 이전 type guard
+      // (`is Map<String, dynamic>`) 는 Dart generic invariance 로 인해 항상
+      // false 가 되어 R5 가 iOS 디바이스에서 silent skip 되는 회귀를 만들었다.
+      // 본 테스트는 `<dynamic, dynamic>{...}` literal 로 iOS bridge 형태를
+      // 명시 시뮬레이션하여, fix 후 (`is Map`) 가 양쪽 응답 형태를 모두
+      // 흡수하는 것을 가드한다.
+      // -----------------------------------------------------------------
+
+      test(
+        'F9 (BL-01): iOS 시나리오 — nested Map<dynamic, dynamic> '
+        '응답에서도 updatePhotoURL 호출됨 (Map<String, dynamic>.from shallow '
+        '변환 회귀 가드)',
+        () async {
+          when(
+            () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+          ).thenAnswer(
+            // iOS bridge 시뮬레이션: 외부는 typed (platform interface 의
+            // `Map<String, dynamic>.from(result)` 결과), nested 는 untyped
+            // (`_InternalLinkedHashMap<Object?, Object?>` 등가).
+            (_) async => <String, dynamic>{
+              'picture': <dynamic, dynamic>{
+                'data': <dynamic, dynamic>{
+                  'url': 'https://platform-lookaside.fbsbx.com/ios.jpg',
+                  'width': 200,
+                  'height': 200,
+                  'is_silhouette': false,
+                },
+              },
+              'id': '999888777',
+            },
+          );
+          stubFacebookLogin();
+
+          await repository.signInWithFacebook();
+
+          verify(
+            () => mockUser.updatePhotoURL(
+              'https://platform-lookaside.fbsbx.com/ios.jpg',
+            ),
+          ).called(1);
+        },
+      );
     },
   );
 }
