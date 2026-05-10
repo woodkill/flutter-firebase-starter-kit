@@ -137,6 +137,7 @@
   "authOrDivider": "または",
   "authGoogleSignIn": "Googleでログイン",
   "errorAccountExistsWithDifferentCredential": "このメールアドレスは別の方法で登録されています。パスワードでログインしてください。",
+  "errorAccountExistsWithUnknownProvider": "このメールアドレスは別の方法で登録されています。最初に登録した方法でログインしてください。",
   "authAccountProviderGoogle": "Google",
   "authAppleSignIn": "Appleでサインイン",
   "@authAppleSignIn": {

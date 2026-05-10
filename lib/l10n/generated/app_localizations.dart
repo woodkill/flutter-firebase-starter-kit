@@ -742,6 +742,12 @@ abstract class AppLocalizations {
   /// **'This email is already registered with a different sign-in method. Please sign in with your password.'**
   String get errorAccountExistsWithDifferentCredential;
 
+  /// Phase 9.2 R2 — used when account-exists-with-different-credential or 'already-exists' triggers without server-side provider identification. Phase 17 may add provider-aware variant via errorAccountExistsWithDifferentCredential placeholder.
+  ///
+  /// In en, this message translates to:
+  /// **'This email is already registered with another sign-in method. Please sign in with the method you originally used.'**
+  String get errorAccountExistsWithUnknownProvider;
+
   /// Provider label displayed in the account section when the user signed in with Google
   ///
   /// In en, this message translates to:
