@@ -583,6 +583,70 @@ void main() {
       verify(() => mockGoogleSignIn.signOut()).called(1);
       verify(() => mockAuth.signOut()).called(1);
     });
+
+    // (Phase 9.2 R6 — D-26) Phase 9.2 add-only — 5 SDK 순차 logout invariant
+    // 검증. signOut() 본체 가 Google → Facebook → Kakao → Naver →
+    // FirebaseAuth 순차 호출 + 각 SDK logout 실패 시에도 후속 SDK + Auth
+    // 호출 보장 (try/catch 무시 패턴).
+    test(
+      'Phase 9.2 R6 — signOut: 5 SDK logout 순차 호출 (Google → Facebook → '
+      'Kakao → Naver → FirebaseAuth)',
+      () async {
+        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+        when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+        await repository.signOut();
+
+        // VALIDATION Mock 함정 6 — 명시 verifyInOrder 5 SDK 순차 invariant.
+        verifyInOrder([
+          () => mockGoogleSignIn.signOut(),
+          () => mockFacebookAuth.logOut(),
+          () => mockKakaoSdkClient.logout(),
+          () => mockNaverSdkClient.logout(),
+          () => mockAuth.signOut(),
+        ]);
+      },
+    );
+
+    test(
+      'Phase 9.2 R6 — signOut: Kakao SDK logout 실패 시에도 Naver + '
+      'FirebaseAuth 호출 보장',
+      () async {
+        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+        when(() => mockKakaoSdkClient.logout()).thenThrow(
+          Exception('Kakao logout failed'),
+        );
+        when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+        await repository.signOut();
+
+        verify(() => mockNaverSdkClient.logout()).called(1);
+        verify(() => mockAuth.signOut()).called(1);
+      },
+    );
+
+    test(
+      'Phase 9.2 R6 — signOut: Naver SDK logout 실패 시에도 FirebaseAuth '
+      '호출 보장',
+      () async {
+        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+        when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockNaverSdkClient.logout()).thenThrow(
+          Exception('Naver logout failed'),
+        );
+        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+        await repository.signOut();
+
+        verify(() => mockAuth.signOut()).called(1);
+      },
+    );
   });
 
   group('_mapFirebaseUser providerIds 매핑', () {
