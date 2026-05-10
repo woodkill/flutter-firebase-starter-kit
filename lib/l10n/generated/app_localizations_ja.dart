@@ -369,6 +369,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authNaverSignIn => 'Continue with Naver';
 
   @override
+  String authBrandAssetMissing(String label) {
+    return 'アセットが見つかりません: $label';
+  }
+
+  @override
   String get authAccountProviderNaver => 'ネイバー';
 
   @override

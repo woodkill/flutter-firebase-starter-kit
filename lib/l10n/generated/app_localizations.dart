@@ -790,6 +790,12 @@ abstract class AppLocalizations {
   /// **'Continue with Naver'**
   String get authNaverSignIn;
 
+  /// Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE/WeChat 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14/16 자상 commit 후 본 path 도달 0.
+  ///
+  /// In en, this message translates to:
+  /// **'Asset missing: {label}'**
+  String authBrandAssetMissing(String label);
+
   /// Phase 13 — Naver provider label in Account section (D-17 패턴 확장).
   ///
   /// In en, this message translates to:

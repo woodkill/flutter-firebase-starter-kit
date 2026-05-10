@@ -369,6 +369,11 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authNaverSignIn => '네이버로 시작하기';
 
   @override
+  String authBrandAssetMissing(String label) {
+    return '자산 없음: $label';
+  }
+
+  @override
   String get authAccountProviderNaver => '네이버';
 
   @override
