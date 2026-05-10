@@ -731,9 +731,7 @@ class AuthRepository {
       await user.sendEmailVerification();
     } on fb.FirebaseAuthException catch (e) {
       if (kDebugMode) {
-        debugPrint(
-          '_autoSendEmailVerification FirebaseAuth 실패: ${e.code}',
-        );
+        debugPrint('_autoSendEmailVerification FirebaseAuth 실패: ${e.code}');
       }
     } on Object catch (e, st) {
       if (kDebugMode) {
@@ -911,6 +909,8 @@ class AuthRepository {
       'invalid-credential' ||
       'wrong-password' ||
       'user-not-found' => InvalidCredentials(cause: e),
+      // (Phase 9.2 R2) Path A-narrow — email 필드 보존: Phase 17 (Account
+      // Linking) — see ROADMAP.md 부활 시 server-side provider 매핑 input.
       'account-exists-with-different-credential' =>
         AccountExistsWithDifferentCredential(email: e.email, cause: e),
       'email-already-in-use' => EmailAlreadyInUse(cause: e),
@@ -947,6 +947,8 @@ class AuthRepository {
       // R3 (D-34) — Cloud Function 의 already-exists → 사용자 recovery 가능한
       // AccountExistsWithDifferentCredential 매핑. 신규 클래스/ARB 0건
       // (Phase 8/9 패턴 재사용 — errorAccountExistsWithDifferentCredential).
+      // (Phase 9.2 R2) Path A-narrow — email==null 유지: Phase 17 (Account
+      // Linking) — see ROADMAP.md 부활 시 unknown fallback 동일 path 통합.
       'already-exists' => AccountExistsWithDifferentCredential(cause: e),
       _ => ServiceUnavailable(cause: e),
     };
@@ -1138,10 +1140,8 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
 
   while (true) {
     try {
-      await for (final snap in firestore
-          .collection('users')
-          .doc(uid)
-          .snapshots()) {
+      await for (final snap
+          in firestore.collection('users').doc(uid).snapshots()) {
         // I3: 정상 emit 도달 시 카운터 리셋 — 장기 세션 token 재만료 시
         // 다시 retry 가능.
         permissionDeniedRetries = 0;
