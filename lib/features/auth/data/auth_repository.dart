@@ -224,6 +224,10 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Google idToken
+      // email_verified=true claim 자연 no-op (D-19).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
@@ -330,6 +334,10 @@ class AuthRepository {
       }
       // Blocker #2: `_auth.currentUser` 재조회 금지. linkWithProvider /
       // signInWithProvider 결과의 UserCredential.user 를 직접 사용한다.
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Apple idToken
+      // email_verified=true claim 자연 no-op (D-19).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       // D-09: 사용자 취소 시 null 반환.
@@ -504,6 +512,10 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Kakao Cloud Function
+      // identity_index.ts:225 emailVerified=true 자연 no-op (D-19).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
       return Result.failure(_mapFunctionsException(e));
@@ -587,6 +599,10 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Naver Cloud Function
+      // identity_index.ts:225 emailVerified=true 자연 no-op (D-19).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
       // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
@@ -695,7 +711,6 @@ class AuthRepository {
   /// 발송 실패는 graceful (D-21 — Phase 6.1 D-10/D-11 패턴 계승). 로그인
   /// 자체는 성공 유지. [fb.FirebaseAuthException] + [Object] 양쪽 catch +
   /// [kDebugMode] [debugPrint] only.
-  // ignore: unused_element
   Future<void> _autoSendEmailVerification({
     required fb.User? user,
     required bool isNewUser,
