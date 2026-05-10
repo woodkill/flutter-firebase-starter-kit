@@ -91,14 +91,28 @@ class SocialButton extends ConsumerWidget {
         );
       case kProviderIdFacebook:
         // R12 — sign_in_button community package 잔존 (Phase 18 마이그 예정).
-        return SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: SignInButton(
-            Buttons.facebookNew,
-            text: label,
-            // sign_in_button 의 onPressed 는 non-nullable.
-            onPressed: onPressed ?? () {},
+        // Phase 13.1 REVIEW WR-04 정정 (2026-05-10): magic number `48` →
+        // `const FacebookSpec().height` 참조. Phase 18 Brand Center 마이그
+        // 시 BrandSpec.height 변경 시 Facebook 분기도 자동 동기화.
+        // Phase 13.1 REVIEW WR-05 정정 (2026-05-10): isDisabled 시 시각
+        // 피드백 부재 회귀 — sign_in_button 의 onPressed non-nullable 제약
+        // 으로 빈 콜백 교체 시 enabled 외관 보존되어 사용자 confusion. 다른
+        // provider (Apple/Google/Kakao/Naver) 의 Material default disabled
+        // 외관과 일관 위해 Opacity 0.5 + IgnorePointer 패턴으로 dim 표현.
+        return Opacity(
+          opacity: isDisabled ? 0.5 : 1.0,
+          child: IgnorePointer(
+            ignoring: isDisabled,
+            child: SizedBox(
+              width: double.infinity,
+              height: const FacebookSpec().height,
+              child: SignInButton(
+                Buttons.facebookNew,
+                text: label,
+                // sign_in_button 의 onPressed 는 non-nullable.
+                onPressed: onPressed ?? () {},
+              ),
+            ),
           ),
         );
       default:
