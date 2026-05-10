@@ -59,4 +59,45 @@ void main() {
       expect(result, 'Service is temporarily unavailable.');
     });
   });
+
+  // (Phase 9.2 R2 — Path A-narrow) AccountExistsWithDifferentCredential 인스
+  // 턴스는 email 유무와 무관하게 단일 unknown fallback 메시지로 매핑된다.
+  // exception_l10n.dart 의 special-case branch (instance type-check + 조기
+  // return) 가 _mapAuthException 의 'account-exists-with-different-credential'
+  // 분기 + _mapFunctionsException 의 'already-exists' 분기 모두 동일 경로로
+  // 흡수한다. Phase 17 (Account Linking) — see ROADMAP.md 부활 시 본 분기
+  // 안에서 server-side provider 매핑 input 으로 활용.
+  group(
+    'Phase 9.2 R2 — AccountExistsWithDifferentCredential → unknown fallback',
+    () {
+      testWidgets(
+        'email != null → errorAccountExistsWithUnknownProvider',
+        (tester) async {
+          final result = await _resolve(
+            tester,
+            const AccountExistsWithDifferentCredential(
+              email: 'old@example.com',
+            ),
+          );
+          expect(
+            result,
+            'This email is already registered with another sign-in method. '
+            'Please sign in with the method you originally used.',
+          );
+        },
+      );
+
+      testWidgets(
+        "email == null (Cloud Function 'already-exists' 경로) → 동일 unknown "
+        '메시지',
+        (tester) async {
+          final result = await _resolve(
+            tester,
+            const AccountExistsWithDifferentCredential(),
+          );
+          expect(result, contains('originally used'));
+        },
+      );
+    },
+  );
 }
