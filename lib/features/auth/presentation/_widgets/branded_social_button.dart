@@ -460,12 +460,13 @@ Widget _renderActiveButton(
         // 계속 12dp 제어 (시각 변경 0).
         clipBehavior: Clip.none,
         child: InkWell(
-          onTap: onPressed == null
-              ? null
-              : () {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                  onPressed();
-                },
+          // **Phase 13.1 REVIEW WR-03 정정 (2026-05-10):** unfocus 책임은
+          // `social_button.dart` 의 caller side wrapper 가 단독 보유 (이미
+          // `FocusManager.instance.primaryFocus?.unfocus()` 호출). 이전 버전은
+          // InkWell.onTap 에서도 한 번 더 unfocus 호출 → DRY 위반 + Apple
+          // (caller 단독) 분기와 일관성 결여. caller 가 onPressed 를 wrap
+          // 하므로 본 InkWell 은 onPressed 직접 호출만 책임.
+          onTap: onPressed,
           borderRadius: radius,
           child: switch (spec.assetType) {
             AssetType.png => Image.asset(
