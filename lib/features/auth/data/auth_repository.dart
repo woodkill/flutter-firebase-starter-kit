@@ -224,6 +224,10 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Google idToken
+      // email_verified=true claim 자연 no-op (D-19).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
@@ -330,6 +334,10 @@ class AuthRepository {
       }
       // Blocker #2: `_auth.currentUser` 재조회 금지. linkWithProvider /
       // signInWithProvider 결과의 UserCredential.user 를 직접 사용한다.
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Apple idToken
+      // email_verified=true claim 자연 no-op (D-19).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       // D-09: 사용자 취소 시 null 반환.
@@ -425,6 +433,13 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // (Phase 9.2 R4 + R5 — D-25 verify → photoURL 순차)
+      // Facebook 만 emailVerified=false 기본 → 실효적 sendEmailVerification.
+      // photoURL 은 Graph API picture.type(large) 응답 기반 갱신.
+      // 두 호출 모두 race-fix try-finally 블록 안 (D-22, Phase 9.1 D-03).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
+      await _setFacebookPhotoUrl(fbUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
@@ -504,6 +519,10 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Kakao Cloud Function
+      // identity_index.ts:225 emailVerified=true 자연 no-op (D-19).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
       return Result.failure(_mapFunctionsException(e));
@@ -587,6 +606,10 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Naver Cloud Function
+      // identity_index.ts:225 emailVerified=true 자연 no-op (D-19).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
       // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
@@ -695,7 +718,6 @@ class AuthRepository {
   /// 발송 실패는 graceful (D-21 — Phase 6.1 D-10/D-11 패턴 계승). 로그인
   /// 자체는 성공 유지. [fb.FirebaseAuthException] + [Object] 양쪽 catch +
   /// [kDebugMode] [debugPrint] only.
-  // ignore: unused_element
   Future<void> _autoSendEmailVerification({
     required fb.User? user,
     required bool isNewUser,
@@ -709,9 +731,7 @@ class AuthRepository {
       await user.sendEmailVerification();
     } on fb.FirebaseAuthException catch (e) {
       if (kDebugMode) {
-        debugPrint(
-          '_autoSendEmailVerification FirebaseAuth 실패: ${e.code}',
-        );
+        debugPrint('_autoSendEmailVerification FirebaseAuth 실패: ${e.code}');
       }
     } on Object catch (e, st) {
       if (kDebugMode) {
@@ -739,7 +759,6 @@ class AuthRepository {
   /// 직접 출력 금지 — sentinel facebook id (`'999888777'`) / sentinel CDN URL
   /// 의 logger 노출 vector 차단. Phase 12.1 D-40 catch-block sentinel 패턴
   /// 계승.
-  // ignore: unused_element
   Future<void> _setFacebookPhotoUrl(fb.User user) async {
     try {
       // (D-24) SPEC R5 의 'picture.type(large)' 명시 fields verbatim.
@@ -890,6 +909,8 @@ class AuthRepository {
       'invalid-credential' ||
       'wrong-password' ||
       'user-not-found' => InvalidCredentials(cause: e),
+      // (Phase 9.2 R2) Path A-narrow — email 필드 보존: Phase 17 (Account
+      // Linking) — see ROADMAP.md 부활 시 server-side provider 매핑 input.
       'account-exists-with-different-credential' =>
         AccountExistsWithDifferentCredential(email: e.email, cause: e),
       'email-already-in-use' => EmailAlreadyInUse(cause: e),
@@ -926,6 +947,8 @@ class AuthRepository {
       // R3 (D-34) — Cloud Function 의 already-exists → 사용자 recovery 가능한
       // AccountExistsWithDifferentCredential 매핑. 신규 클래스/ARB 0건
       // (Phase 8/9 패턴 재사용 — errorAccountExistsWithDifferentCredential).
+      // (Phase 9.2 R2) Path A-narrow — email==null 유지: Phase 17 (Account
+      // Linking) — see ROADMAP.md 부활 시 unknown fallback 동일 path 통합.
       'already-exists' => AccountExistsWithDifferentCredential(cause: e),
       _ => ServiceUnavailable(cause: e),
     };
@@ -1117,10 +1140,8 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
 
   while (true) {
     try {
-      await for (final snap in firestore
-          .collection('users')
-          .doc(uid)
-          .snapshots()) {
+      await for (final snap
+          in firestore.collection('users').doc(uid).snapshots()) {
         // I3: 정상 emit 도달 시 카운터 리셋 — 장기 세션 token 재만료 시
         // 다시 retry 가능.
         permissionDeniedRetries = 0;

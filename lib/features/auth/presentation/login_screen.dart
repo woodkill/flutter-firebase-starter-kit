@@ -225,12 +225,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 _emailError = null;
               });
             }
-            // D-10: 이메일 충돌 시 이메일 자동 채움.
-            if (err is AccountExistsWithDifferentCredential &&
-                err.email != null) {
-              _emailController.text = err.email!;
-              _emailFocus.requestFocus();
-            }
+            // D-10 자동 채움 + focus 호출 제거 (Phase 9.2 D-31 / R3 — Path
+            // A-narrow). AccountExistsWithDifferentCredential.email 필드는
+            // 보존 — Phase 17 (Account Linking) — see ROADMAP.md 부활 시
+            // server-side provider 매핑 input 으로 활용 anchor.
           }
         },
       );
