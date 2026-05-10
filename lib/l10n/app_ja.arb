@@ -154,6 +154,7 @@
   "@authNaverSignIn": {
     "description": "JA fallback to EN per BI whitelist (Phase 13.1 R7) — Naver BI ja 자산 미제공으로 영문 BI verbatim 채택."
   },
+  "authBrandAssetMissing": "アセットが見つかりません: {label}",
   "authAccountProviderNaver": "ネイバー",
   "authAccountProviderLine": "LINE",
   "authAccountProviderYahooJp": "Yahoo! JAPAN",

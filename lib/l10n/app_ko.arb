@@ -145,6 +145,7 @@
   "authKakaoSignIn": "카카오 로그인",
   "authAccountProviderKakao": "카카오",
   "authNaverSignIn": "네이버로 시작하기",
+  "authBrandAssetMissing": "자산 없음: {label}",
   "authAccountProviderNaver": "네이버",
   "authAccountProviderLine": "라인",
   "authAccountProviderYahooJp": "Yahoo! JAPAN",

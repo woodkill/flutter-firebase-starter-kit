@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '_brand_assets.dart';
 
 // 5 active provider brand 색 — 단일 진실원 보존 (R1 정정 + Phase 13 D-55 mirror).
@@ -560,6 +561,12 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
 /// LINE/WeChat placeholder render — D-73 (자상 미존재 시 회색 fallback).
 ///
 /// debug 시 `debugPrint` 발생 — production 빌드는 회색 disabled 외관 (R10).
+///
+/// **Phase 13.1 REVIEW CR-03 정정 (2026-05-10):** placeholder 본문 텍스트가
+/// `'Asset missing: $label'` 하드코딩 영어로 ARB 미경유 → ja/ko 사용자에게
+/// 영어 노출 회귀 발생. `authBrandAssetMissing` ARB 키 신규 + l10n 해석
+/// 라벨 사용. memory feedback_review_recurring_issues.md 9대 패턴 #2
+/// (ARB 미사용 하드코딩 문자열) 직접 정정.
 Widget _renderPlaceholder(
   BuildContext context,
   BrandSpec spec,
@@ -573,6 +580,7 @@ Widget _renderPlaceholder(
     );
     return true;
   }());
+  final l10n = AppLocalizations.of(context);
   return SizedBox(
     width: double.infinity,
     height: spec.height,
@@ -581,7 +589,7 @@ Widget _renderPlaceholder(
       borderRadius: BorderRadius.circular(spec.borderRadius),
       child: Center(
         child: Text(
-          'Asset missing: $label',
+          l10n.authBrandAssetMissing(label),
           style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
         ),
       ),
