@@ -226,8 +226,8 @@ class AuthRepository {
       }
       // (Phase 9.2 R4) 자동 sendEmailVerification — Google idToken
       // email_verified=true claim 자연 no-op (D-19).
-      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
+      // WR-01: helper 가 isNewUser 추출을 흡수 → call site 1줄 압축.
+      await _autoSendEmailVerification(userCredential);
       return Result.success(_mapFirebaseUser(fbUser));
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
@@ -336,8 +336,8 @@ class AuthRepository {
       // signInWithProvider 결과의 UserCredential.user 를 직접 사용한다.
       // (Phase 9.2 R4) 자동 sendEmailVerification — Apple idToken
       // email_verified=true claim 자연 no-op (D-19).
-      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
+      // WR-01: helper 가 isNewUser 추출을 흡수 → call site 1줄 압축.
+      await _autoSendEmailVerification(userCredential);
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       // D-09: 사용자 취소 시 null 반환.
@@ -437,8 +437,8 @@ class AuthRepository {
       // Facebook 만 emailVerified=false 기본 → 실효적 sendEmailVerification.
       // photoURL 은 Graph API picture.type(large) 응답 기반 갱신.
       // 두 호출 모두 race-fix try-finally 블록 안 (D-22, Phase 9.1 D-03).
-      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
+      // WR-01: helper 가 isNewUser 추출을 흡수 → call site 1줄 압축.
+      await _autoSendEmailVerification(userCredential);
       await _setFacebookPhotoUrl(fbUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
@@ -521,8 +521,8 @@ class AuthRepository {
       }
       // (Phase 9.2 R4) 자동 sendEmailVerification — Kakao Cloud Function
       // identity_index.ts:225 emailVerified=true 자연 no-op (D-19).
-      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
+      // WR-01: helper 가 isNewUser 추출을 흡수 → call site 1줄 압축.
+      await _autoSendEmailVerification(userCredential);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
       return Result.failure(_mapFunctionsException(e));
@@ -608,8 +608,8 @@ class AuthRepository {
       }
       // (Phase 9.2 R4) 자동 sendEmailVerification — Naver Cloud Function
       // identity_index.ts:225 emailVerified=true 자연 no-op (D-19).
-      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
+      // WR-01: helper 가 isNewUser 추출을 흡수 → call site 1줄 압축.
+      await _autoSendEmailVerification(userCredential);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
       // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
@@ -704,12 +704,19 @@ class AuthRepository {
   /// (Phase 9.2 D-18 — R4) Firebase Auth 의 [fb.User.sendEmailVerification] 을
   /// 5 social sign-in 메서드 success path 에서 자동 호출하는 단일 진실원.
   ///
+  /// **WR-01 (Phase 9.2 review fix):** 시그니처를 [fb.UserCredential] 채택으로
+  /// 변경 — `isNewUser` 추출을 helper 안으로 흡수하여 5 call site 의 verbatim
+  /// 복제 (`final isNewUser = userCredential.additionalUserInfo?.isNewUser
+  /// ?? false;`) 를 제거. SRP/DRY 강화.
+  ///
   /// 가드 (D-19) — 다음 5 조건 중 하나라도 true 면 no-op:
-  /// - [user] == null
+  /// - [fb.UserCredential.user] == null
   /// - [fb.User.isAnonymous] == true
-  /// - [fb.User.email] == null
+  /// - [fb.User.email] 이 null 또는 빈 문자열 (WR-04 fix — 이전 `== null`
+  ///   가드는 빈 문자열을 통과시켜 Firebase Auth 가 `auth/missing-email`
+  ///   throw 시 graceful catch 가 흡수하나 메일 미발송)
   /// - [fb.User.emailVerified] == true
-  /// - [isNewUser] == false (D-20 — 재로그인 spam 방지)
+  /// - [fb.AdditionalUserInfo.isNewUser] == false (D-20 — 재로그인 spam 방지)
   ///
   /// Apple/Google 의 idToken `email_verified=true` claim + Kakao/Naver 의
   /// Cloud Function `identity_index.ts:225` `emailVerified: true` 자동 set
@@ -718,14 +725,18 @@ class AuthRepository {
   /// 발송 실패는 graceful (D-21 — Phase 6.1 D-10/D-11 패턴 계승). 로그인
   /// 자체는 성공 유지. [fb.FirebaseAuthException] + [Object] 양쪽 catch +
   /// [kDebugMode] [debugPrint] only.
-  Future<void> _autoSendEmailVerification({
-    required fb.User? user,
-    required bool isNewUser,
-  }) async {
+  Future<void> _autoSendEmailVerification(
+    fb.UserCredential userCredential,
+  ) async {
+    final user = userCredential.user;
     if (user == null) return;
     if (user.isAnonymous) return;
-    if (user.email == null) return;
+    // WR-04: `email == null` 가드는 빈 문자열을 통과 → Firebase Auth 가
+    // `auth/missing-email` throw 시 graceful catch 흡수하나 메일 미발송.
+    // null + empty 양쪽을 단일 가드로 차단.
+    if ((user.email ?? '').isEmpty) return;
     if (user.emailVerified) return;
+    final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
     if (!isNewUser) return; // D-20 재로그인 spam 방지
     try {
       await user.sendEmailVerification();

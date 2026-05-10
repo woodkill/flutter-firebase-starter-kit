@@ -373,6 +373,29 @@ void main() {
           ]);
         },
       );
+
+      // -----------------------------------------------------------------
+      // V9 (WR-04 regression — Phase 9.2 review fix):
+      // user.email == '' 빈 문자열 가드. 이전 `email == null` 가드는 빈
+      // 문자열을 통과시켜 Firebase Auth 가 `auth/missing-email` throw 시
+      // graceful catch 가 흡수하지만 이메일 인증 메일이 발송 안 됨. 새
+      // 가드 `(user.email ?? '').isEmpty` 가 양쪽 (null + empty) 을 차단.
+      // -----------------------------------------------------------------
+
+      test(
+        'V9 (WR-04): Facebook user.email == "" → sendEmailVerification 미호출 '
+        '(빈 문자열 가드 회귀)',
+        () async {
+          when(() => mockUser.emailVerified).thenReturn(false);
+          when(() => mockUser.email).thenReturn(''); // 빈 문자열
+          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+          stubFacebookSuccess();
+
+          await repository.signInWithFacebook();
+
+          verifyNever(() => mockUser.sendEmailVerification());
+        },
+      );
     },
   );
 }
