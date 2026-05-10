@@ -720,6 +720,53 @@ class AuthRepository {
     }
   }
 
+  /// (Phase 9.2 D-23 — R5) Facebook Graph API picture.type(large) →
+  /// [fb.User.updatePhotoURL] 갱신 단일 진실원.
+  ///
+  /// 응답 path 추출 = safe navigation + type guard + graceful skip (D-24).
+  /// [FacebookAuth.getUserData] default fields 는
+  /// `'name,email,picture.width(200)'` 이지만 SPEC R5 가 `picture.type(large)`
+  /// 채택 — 명시 fields 인자 의무.
+  ///
+  /// graceful skip 발동 조건:
+  /// - `result['picture']` 가 [Map] 이 아님
+  /// - `result['picture']['data']` 가 [Map] 이 아님
+  /// - `result['picture']['data']['url']` 이 [String] 이 아님 또는 빈 string
+  /// - [FacebookAuth.getUserData] / [fb.User.updatePhotoURL] 가 throw
+  ///
+  /// **D-27 PII regression invariant:** catch 블록의 [debugPrint] 가
+  /// `e.runtimeType` 만 출력한다. `e.toString()` / `result` Map / `url` 값
+  /// 직접 출력 금지 — sentinel facebook id (`'999888777'`) / sentinel CDN URL
+  /// 의 logger 노출 vector 차단. Phase 12.1 D-40 catch-block sentinel 패턴
+  /// 계승.
+  // ignore: unused_element
+  Future<void> _setFacebookPhotoUrl(fb.User user) async {
+    try {
+      // (D-24) SPEC R5 의 'picture.type(large)' 명시 fields verbatim.
+      final result = await _facebookAuth.getUserData(
+        fields: 'picture.type(large)',
+      );
+      final pictureData = result['picture'];
+      if (pictureData is Map<String, dynamic>) {
+        final data = pictureData['data'];
+        if (data is Map<String, dynamic>) {
+          final url = data['url'];
+          if (url is String && url.isNotEmpty) {
+            await user.updatePhotoURL(url);
+          }
+        }
+      }
+    } on Object catch (e, st) {
+      // (D-27 PII invariant) e.runtimeType 만 출력 — Graph API 응답 PII
+      // (facebook id, CDN URL) 의 logger 노출 vector 차단.
+      if (kDebugMode) {
+        debugPrint(
+          '_setFacebookPhotoUrl 실패 (graceful skip): ${e.runtimeType}\n$st',
+        );
+      }
+    }
+  }
+
   /// 로그아웃한다.
   ///
   /// [GoogleSignIn.signOut]을 병행 호출하여 Google 세션도 해제한다 (D-07).
