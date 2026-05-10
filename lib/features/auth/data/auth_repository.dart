@@ -739,7 +739,12 @@ class AuthRepository {
     final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
     if (!isNewUser) return; // D-20 재로그인 spam 방지
     try {
-      await user.sendEmailVerification();
+      // WR-03 (Phase 9.2 review fix): timeout 보호. helper 가 race-fix
+      // try-finally 블록 안에서 await 되므로 hang 시 `_socialLinkInProgress.end()`
+      // 도 hang → splash 자동 익명 sign-in / auth_guard GC-04 fail-safe redirect
+      // 무한 차단 (Phase 9.1 D-03 race-fix 와 직접 충돌). [TimeoutException] 은
+      // 아래 `on Object catch` 가 graceful 흡수.
+      await user.sendEmailVerification().timeout(const Duration(seconds: 5));
     } on fb.FirebaseAuthException catch (e) {
       if (kDebugMode) {
         debugPrint('_autoSendEmailVerification FirebaseAuth 실패: ${e.code}');
@@ -773,9 +778,15 @@ class AuthRepository {
   Future<void> _setFacebookPhotoUrl(fb.User user) async {
     try {
       // (D-24) SPEC R5 의 'picture.type(large)' 명시 fields verbatim.
-      final result = await _facebookAuth.getUserData(
-        fields: 'picture.type(large)',
-      );
+      // WR-03 (Phase 9.2 review fix): Graph API (외부 서버) hang 보호 — 5s
+      // timeout. race-fix try-finally 블록 안에서 await 되므로 hang 시
+      // `_socialLinkInProgress.end()` 도 hang → splash 자동 익명 sign-in /
+      // auth_guard GC-04 fail-safe redirect 무한 차단 (Phase 9.1 D-03 race-fix
+      // 와 직접 충돌). [TimeoutException] 은 아래 `on Object catch` 가 graceful
+      // 흡수.
+      final result = await _facebookAuth
+          .getUserData(fields: 'picture.type(large)')
+          .timeout(const Duration(seconds: 5));
       // BL-01 (Phase 9.2 review fix): iOS 의 Facebook getUserData 응답은
       // `Map<String, dynamic>.from(result)` shallow 변환 — `result['picture']`
       // 가 native bridge 시 `Map<dynamic, dynamic>` (또는
@@ -789,7 +800,10 @@ class AuthRepository {
         if (data is Map) {
           final url = data['url'];
           if (url is String && url.isNotEmpty) {
-            await user.updatePhotoURL(url);
+            // WR-03: updatePhotoURL 도 동일하게 5s timeout 보호. Firebase Auth
+            // native HTTP 호출이라 platform-side timeout 가능성 있으나 보수적
+            // 로 적용.
+            await user.updatePhotoURL(url).timeout(const Duration(seconds: 5));
           }
         }
       }
