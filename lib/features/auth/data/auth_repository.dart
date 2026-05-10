@@ -433,6 +433,13 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // (Phase 9.2 R4 + R5 — D-25 verify → photoURL 순차)
+      // Facebook 만 emailVerified=false 기본 → 실효적 sendEmailVerification.
+      // photoURL 은 Graph API picture.type(large) 응답 기반 갱신.
+      // 두 호출 모두 race-fix try-finally 블록 안 (D-22, Phase 9.1 D-03).
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      await _autoSendEmailVerification(user: fbUser, isNewUser: isNewUser);
+      await _setFacebookPhotoUrl(fbUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
@@ -754,7 +761,6 @@ class AuthRepository {
   /// 직접 출력 금지 — sentinel facebook id (`'999888777'`) / sentinel CDN URL
   /// 의 logger 노출 vector 차단. Phase 12.1 D-40 catch-block sentinel 패턴
   /// 계승.
-  // ignore: unused_element
   Future<void> _setFacebookPhotoUrl(fb.User user) async {
     try {
       // (D-24) SPEC R5 의 'picture.type(large)' 명시 fields verbatim.
