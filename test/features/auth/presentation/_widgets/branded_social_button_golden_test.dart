@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 360×480 viewport + en locale + 단일 brightness 적용 wrap helper.
@@ -18,10 +19,20 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// `debugShowCheckedModeBanner: false` — DEBUG 배너 (우측 상단 빨간 삼각형)
 /// 가 golden capture 에 포함되어 자상 baked-in 시각 검증을 방해하지 않도록.
+///
+/// **Phase 13.1 REVIEW CR-04 정정 (2026-05-10):** `locale: const Locale('en')`
+/// + `localizationsDelegates: AppLocalizations.localizationsDelegates` 명시 —
+/// `_iconAssetFor` 의 `Localizations.localeOf(context).languageCode == 'ko'`
+/// 분기가 test environment system locale 에 의존하지 않도록 결정성 강제.
+/// 이전 버전은 macOS dev box (`en-US`) 에서 generate 한 golden 이 ko-locale
+/// CI 환경에서 RED 회귀 발생 가능 (Kakao/Naver 자상이 `ko/` 분기로 로딩).
 Widget _wrap(Widget child, {required Brightness brightness}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: brightness == Brightness.light ? AppTheme.light() : AppTheme.dark(),
+    locale: const Locale('en'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       backgroundColor: brightness == Brightness.light
           ? const Color(0xFFFFFFFF)
