@@ -789,6 +789,22 @@ class AuthRepository {
         debugPrint('FacebookAuth.logOut() 실패 (무시): $e\n$st');
       }
     }
+    // Kakao SDK 세션 해제 (Phase 9.2 D-26 — Phase 12 D-57 정합).
+    try {
+      await _kakaoSdkClient.logout();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('KakaoSdkClient.logout() 실패 (무시): $e\n$st');
+      }
+    }
+    // Naver SDK 세션 해제 (Phase 9.2 D-26 — Phase 13 D-57 정합).
+    try {
+      await _naverSdkClient.logout();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('NaverSdkClient.logout() 실패 (무시): $e\n$st');
+      }
+    }
     await _auth.signOut();
   }
 
