@@ -393,8 +393,7 @@ class BrandedSocialButton extends StatelessWidget {
         'SignInButton(Buttons.facebookNew) 직접 호출 — '
         'BrandedSocialButton 까지 도달 금지 (R12 acceptance)',
       ),
-      LineSpec() ||
-      WechatSpec() => _renderPlaceholder(context, spec, label, onPressed),
+      LineSpec() || WechatSpec() => _renderPlaceholder(context, spec, label),
       KakaoSpec() => _renderActiveButton(context, spec, label, onPressed),
       NaverSpec() => _renderActiveButton(context, spec, label, onPressed),
       GoogleSpec() => _renderActiveButton(context, spec, label, onPressed),
@@ -566,11 +565,16 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
 /// 영어 노출 회귀 발생. `authBrandAssetMissing` ARB 키 신규 + l10n 해석
 /// 라벨 사용. memory feedback_review_recurring_issues.md 9대 패턴 #2
 /// (ARB 미사용 하드코딩 문자열) 직접 정정.
+///
+/// **Phase 13.1 REVIEW iter2 WR-02 정정 (2026-05-10):** `onPressed` 매개변수
+/// 제거 (시그니처 단순화 — 본 함수는 InkWell/GestureDetector 미사용으로 탭
+/// 처리 없음, 호출자에게 placeholder 가 탭 가능한 것처럼 시사하던 시그니처
+/// dead parameter 정리). docstring 의 "회색 disabled 외관 (R10)" 의도를 시그
+/// 니처에도 반영 — Phase 14/16 자상 commit 시점까지 비활성 외관 보장.
 Widget _renderPlaceholder(
   BuildContext context,
   BrandSpec spec,
   String label,
-  VoidCallback? onPressed,
 ) {
   assert(() {
     debugPrint(
