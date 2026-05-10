@@ -7,35 +7,18 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '_brand_assets.dart';
 
-// 5 active provider brand 색 — 단일 진실원 보존 (R1 정정 + Phase 13 D-55 mirror).
-//
-// **R1 (Phase 13.1):** Naver 그린은 NAVER ID 로그인 BI
-// (developers.naver.com/docs/login/bi/bi.md) 의 `#03A94D` — NAVER Corp 회사
-// 브랜드 (`#03C75A`, NCloud SSO 컨텍스트) 와 컨텍스트 분리. Phase 13 단계는
-// third-party 출처 채택 오류 (memory feedback_official_bi_verification),
-// Phase 13.1 정정.
-
-/// Kakao 공식 노란색 — Kakao Brand Guideline 강제 (#FEE500).
-const Color _kKakaoYellow = Color(0xFFFEE500);
-
-/// Kakao 가이드 권장 라벨 색 — 검정 ~85% 불투명.
-///
-/// 노란 배경 0xFFFEE500 와의 contrast 약 11.7:1 으로 WCAG AAA 충족.
-const Color _kKakaoLabel = Color(0xD9000000);
-
-/// KakaoTalk 말풍선 로고 색 — 검정 100% (Kakao 디자인 자상 그대로).
-const Color _kKakaoIcon = Color(0xFF000000);
-
-/// Naver 공식 그린 — NAVER ID 로그인 BI (#03A94D). R1 정정 (Phase 13.1).
-///
-/// 회사 브랜드 (`#03C75A`, NAVER Corp + NCloud SSO) 와 컨텍스트 분리. 본
-/// 상수는 로그인 버튼 BI 전용 — `developers.naver.com/docs/login/bi/bi.md`
-/// verbatim. dark variant 자상은 별도 PNG (BlendMode.srcIn 변환 금지 — R3/R4
-/// BI 위반).
-const Color _kNaverGreen = Color(0xFF03A94D);
-
-/// Naver 가이드 권장 라벨 색 — 흰 100% (그린 배경에 contrast >= 4.5:1).
-const Color _kNaverLabel = Color(0xFFFFFFFF);
+// Phase 13.1 REVIEW WR-02 / WR-09 정정 (2026-05-10):
+// 5 active provider brand 색 (Kakao 0xFFFEE500 / 0xD9000000 / 0xFF000000 +
+// Naver 0xFF03A94D / 0xFFFFFFFF) source const 폐기. Phase 13.1 Gap-1 X2 의
+// wide 자상 통째 buttons 패턴 도입 후 widget render path 에서 직접 참조 0
+// (자상에 색 baked-in). 회귀 가드는 `branded_social_button_test.dart` 의
+// expected literal 단독 책임 — production const 가 더 이상 BI 색을 lib/
+// 트리에서 참조하지 않으므로 const mirror 책임 자체가 무의미. BI 단일
+// 진실원은 (1) `assets/brand/{kakao,naver}/` PNG 자상 (2) test expected
+// literal (3) `docs/manual.md` 의 D-Note (R1 컨텍스트 분리). 향후 Phase 18
+// Brand Center 마이그 시 fallback 색 reference 가 필요하면 그 시점에
+// 신규 const 도입 — 현재 dead retention 패턴 폐기로 woody_lints
+// unused_element 룰과 정합.
 
 /// 자상 렌더링 dispatch 태그 (D-68).
 ///
@@ -55,7 +38,7 @@ enum AssetType {
 
 /// Naver 다크 모드 분기 (D-I — Theme.brightness 자동 매핑은 caller 책임).
 enum NaverTheme {
-  /// 흰 surface — `_kNaverGreen` 배경 + 흰 라벨.
+  /// 흰 surface — Naver ID 로그인 BI 그린 (#03A94D, R1 verbatim) 배경 + 흰 라벨.
   light,
 
   /// dark surface — Naver BI 의 dark variant PNG 자상 (Plan 13.1-08 commit 후).
@@ -597,22 +580,14 @@ Widget _renderPlaceholder(
   );
 }
 
-/// 본 파일이 미사용으로 흡수하지 않은 const 색 leak 검사용 sentinel — _kKakaoIcon
-/// 은 Kakao 자상이 PNG 마이그레이션 후 일시적으로 사용 안 되지만, 색 mirror
-/// 단일 진실원 보존을 위해 남겨둔다 (Plan 13.1-07 자상 commit 후 PNG 내부에
-/// baked-in 검정 100%).
-// ignore: unused_element
-const Color _kKakaoIconRetained = _kKakaoIcon;
-
-// Phase 13.1 Gap-1 X2 — wide 자상 통째 buttons 패턴 도입 후 background /
-// foreground color helper 함수 폐기. 자상에 색 baked-in 되어 widget render
-// path 직접 참조 0. 4 const 는 단일 진실원 mirror sentinel 로 보존 (회귀 가드
-// — 자상 색 변경 시 본 const 도 동시 갱신 의무).
-// ignore: unused_element
-const Color _kKakaoYellowRetained = _kKakaoYellow;
-// ignore: unused_element
-const Color _kKakaoLabelRetained = _kKakaoLabel;
-// ignore: unused_element
-const Color _kNaverGreenRetained = _kNaverGreen;
-// ignore: unused_element
-const Color _kNaverLabelRetained = _kNaverLabel;
+// Phase 13.1 REVIEW WR-02 / WR-09 정정 (2026-05-10):
+// 5개 *_Retained mirror sentinel const + // ignore: unused_element 폐기.
+// alias 가 동일성 비교 (`_kFooRetained = _kFoo`) 만 수행해 어떤 회귀 가드도
+// 실현 안 됨 — 색 변경 시 source 와 alias 가 함께 변경되므로 drift 검출 0.
+// 진짜 회귀 가드는 `branded_social_button_test.dart` 의 expected literal
+// (`_kKakaoYellowExpected = Color(0xFFFEE500)` 등) 가 단독 책임 — production
+// const 가 expected literal 과 일치하지 않으면 RED. 본 file 의 5 source
+// const (_kKakaoYellow / _kKakaoLabel / _kKakaoIcon / _kNaverGreen /
+// _kNaverLabel) 는 wide 자상 통째 buttons 패턴 도입 후 widget render path
+// 직접 참조 0 이지만, BI 단일 진실원 보존 + future Phase 18 (Brand Center
+// 마이그) 의 fallback 색 reference 로 docstring + commit history 가치 보유.
