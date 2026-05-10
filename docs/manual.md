@@ -637,7 +637,9 @@ firebase deploy --only functions:naverCustomToken
 fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android-device-id>
 ```
 
-- LoginScreen 의 **"네이버로 시작하기"** 버튼 (그린 #03C75A 배경 + 흰 'N' 로고)
+- LoginScreen 의 **"네이버로 시작하기"** 버튼 (그린 #03A94D 배경 + 흰 'N' 로고
+  — Phase 13.1 R1 정정 후 NAVER ID 로그인 BI; `## Brand Asset Management
+  (Phase 13.1)` 단락 D-Note 참조)
   탭 → Naver 앱 설치 시 1-tap, 미설치 시 웹뷰 fallback → 사용자 동의 → 앱 복귀
 - Home 진입 + EnvironmentInfoScreen 의 Account 섹션 — `linkedProviders` 에
   "네이버" 표시 확인
@@ -665,34 +667,43 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android
 
 ---
 
-## Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)
+## Brand Asset (Phase 13 D-52 — Kakao + Naver 통합) — DEPRECATED
 
-소셜 로그인 버튼의 브랜드 자산 (Kakao 말풍선 / Naver 'N' 로고) 은 각 provider
-의 공식 디자인 가이드라인 준수 의무. starter kit 단계는 placeholder SVG 가
-등재되어 있으며, **production 출시 전 공식 자산으로 교체 의무**.
+> **⚠ 본 단락은 Phase 13.1 마이그레이션 후 stale 입니다.**
+>
+> Phase 13.1 (2026-05-08~10) 의 cross-cutting 정정으로 brand asset 표준이
+> 다음과 같이 변경되었습니다:
+>
+> - **자상 디렉토리:** `assets/icons/{kakao,naver}_logo.svg` (구) →
+>   `assets/brand/{provider}/[{lang}/][{theme}/]` (신, 7 provider 통합 매트릭스).
+>   `assets/icons/` 디렉토리는 더 이상 brand asset 보관 위치가 아닙니다.
+> - **Naver 공식 색:** `#03C75A` (구, third-party 출처 추정값) → **`#03A94D`**
+>   (신, NAVER ID 로그인 BI verbatim — `developers.naver.com/docs/login/bi/bi.md`).
+>   `#03C75A` 는 NAVER Corp 회사 브랜드 + NCloud SSO 컨텍스트 색상으로
+>   starter-kit 사용 대상 아님.
+> - **자상 색 변환:** `ColorFilter.mode(spec.iconColor, BlendMode.srcIn)`
+>   가이드 (구) → **ColorFilter 적용 절대 금지** (신, R3/R4). PNG/SVG 자상은
+>   `Image.asset(... fit: BoxFit.contain)` / `SvgPicture.asset(... fit:
+>   BoxFit.contain)` 직접 렌더, 색 변환 시 BI 위반.
+> - **PLACEHOLDER sentinel:** `<!-- PLACEHOLDER -->` SVG 메타데이터 (구) →
+>   `assets/brand/{line,wechat}/.placeholder` 빈 파일 (신, sentinel 단일 책임).
+>
+> **모든 절차는 아래 [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+> 단락을 참조하십시오.** 본 단락의 본문 (URL/라이선스/변경 금지 항목) 은
+> 기록 보존 목적으로 남겨두지만 사용자 절차는 Phase 13.1 단락이 단독 권위.
 
-### Production 출시 전 placeholder 교체 의무
-
-Phase 13 Plan 13-05 에서 `assets/icons/{kakao,naver}_logo.svg` 가 등재되어
-있습니다. 각 SVG 파일에는 `<!-- PLACEHOLDER -->` sentinel 메타데이터가 명시되어
-있어, production 빌드 전 다음 명령으로 교체 누락 검출 가능:
-
-```bash
-grep -l 'PLACEHOLDER' assets/icons/*.svg
-# 0 매치가 정상 — 모든 자산 교체 완료
-```
-
-### Naver 공식 자산
+### Naver 공식 자산 (DEPRECATED — Phase 13.1 단락 참조)
 
 - **다운로드 URL:** <https://developers.naver.com/docs/login/bi/bi.md>
 - **라이센스:** Naver 디자인 가이드 — 그린 배경 + 흰 'N' 로고 (메인) 또는 흰
   배경 + 그린 'N' (역색) 변형 사용 가능
 - **변경 금지:** 색상 / 회전 / 비율 / 단순화 변형 모두 금지 (위반 시 Naver
   Developers 정책 위반)
-- 본 starter kit 은 메인 변형 (그린 #03C75A 배경 + 흰 'N') 사용 —
-  `BrandedSocialButton.naver()` (Phase 13 Plan 13-05)
+- 본 starter kit 은 메인 변형 (그린 #03A94D 배경 + 흰 'N' — Phase 13.1 R1
+  정정 후 NAVER ID 로그인 BI verbatim) 사용 —
+  `BrandedSocialButton.naver()`
 
-### Kakao 공식 자산 (Phase 13 D-52 retroactive)
+### Kakao 공식 자산 (DEPRECATED — Phase 13.1 단락 참조)
 
 - **다운로드 URL:** <https://developers.kakao.com/tool/resource/login>
 - **라이센스:** Kakao Brand Guideline — 노란 #FEE500 배경 + 검정 말풍선 (메인)
@@ -702,22 +713,16 @@ grep -l 'PLACEHOLDER' assets/icons/*.svg
 - 본 starter kit 은 노란 배경 + 검정 말풍선 사용 —
   `BrandedSocialButton.kakao()`
 
-### 교체 절차
+### 교체 절차 (DEPRECATED)
 
-1. 각 provider 의 다운로드 URL 에서 SVG 파일 다운로드 (또는 PNG → SVG 변환)
-2. `assets/icons/naver_logo.svg` + `assets/icons/kakao_logo.svg` 덮어쓰기
-3. SVG 의 fill 색상이 `currentColor` 인지 확인 — `BrandedSocialButton` 의
-   `ColorFilter.mode(spec.iconColor, BlendMode.srcIn)` 가 색상 적용
-4. `fvm flutter run` 으로 시각 검증 — 그린 배경 + 흰 N (Naver) / 노란 배경 +
-   검정 말풍선 (Kakao)
-5. (선택) sentinel 검출 — `grep -l 'PLACEHOLDER' assets/icons/*.svg` 결과 0 이어야
-   production 출시 가능
+> 본 절차는 Phase 13 단계의 stale 절차로, 실제 디렉토리 구조 (`assets/brand/`)
+> 와 정합 안 됩니다. **[Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+> 단락의 1~3단계 절차를 사용하십시오.**
 
-### Phase 14~16 진입 시
+### Phase 14~16 진입 시 (DEPRECATED — Phase 13.1 단락 2단계 참조)
 
-LINE / Yahoo!JP / WeChat 진입 시 동일 패턴 — `BrandedSocialButton.line()` /
-`.yahoojp()` / `.wechat()` factory 추가 + 각 공식 SVG 다운로드. 본 단락에
-provider 별 다운로드 URL + 라이센스 + 사용 변형 추가 의무.
+LINE / WeChat 진입 시 동일 패턴 — Phase 13.1 단락의 "2단계 — Phase 14/16
+진입 시 LINE/WeChat 자상 commit" 절차 단독 권위.
 
 ---
 
@@ -999,47 +1004,35 @@ Phase 11-04 의 `auth_provider_{providerId}_enabled` Remote Config 키로 운영
 
 ---
 
-## Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)
+## Kakao Brand Asset 라이센스 / 출처 (Phase 12-07) — DEPRECATED
 
-- **자산 파일:** `assets/icons/kakao_logo.svg`
-- **출처:** Kakao Developers Design Resources —
-  <https://developers.kakao.com/tool/resource/login>
-- **라이센스:** Kakao Brand Guideline 준수 의무 — 형태 / 색상 / 회전 / 크기
-  비율 변형 금지. 위반 시 Kakao Developer Console 앱 정지 위험.
+> **⚠ 본 단락은 Phase 13.1 마이그레이션 후 stale 입니다.**
+>
+> Phase 13.1 (2026-05-08~10) 에서 Kakao brand asset 은 hand-crafted SVG
+> (`assets/icons/kakao_logo.svg`, 18×18 단일 검정 심볼) → **Kakao 공식 PNG**
+> (`assets/brand/kakao/{ko,en}/light/kakao_login_{medium,large}_wide.png`,
+> 600×90 wide 자상) 으로 마이그레이션되었습니다. 18dp icon 슬롯 패턴은
+> wide 자상 통째 buttons 패턴으로 폐기되었습니다 (Phase 13.1 Gap-1 X2).
+>
+> **모든 절차는 [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+> 단락을 참조하십시오.** Kakao 자상 출처 / 라이선스 / freshness 갱신은
+> Phase 13.1 단락의 표 + `assets/brand/kakao/README.md` 가 단독 권위.
 
-### ⚠ 변경 금지 항목
+### ⚠ 변경 금지 항목 (DEPRECATED — Phase 13.1 자산 변형 정책 참조)
 
-- **단일 검정 로고 (다른 색 변형 금지)** — UI-SPEC `_kKakaoIcon =
-  0xFF000000` 만 허용. 흰색 / 회색 / 다른 색상 변형 금지.
-- **18×18 logical px 비율 보존** — sign_in_button 패키지의 다른 소셜
-  아이콘과 동일 면적. SocialButton 의 Kakao 분기는 `SvgPicture.asset(...,
-  width: 18, height: 18)` 고정.
-- **다른 형태 (예: 둥근 사각형 / 반전 / 회전) 사용 금지** — Kakao 공식
-  KakaoTalk 말풍선 형태 (가로 타원 + 우하단 꼬리) 그대로.
+- 색상 / 회전 / 비율 / 단순화 변형 모두 금지 — Phase 13.1 단락 "자산 변형
+  정책" 의 Naver/Kakao/Google 항목이 단독 권위.
+- **ColorFilter 적용 금지 (R3/R4)** — `ColorFilter.mode(BlendMode.srcIn)`
+  가이드 (구) → PNG/SVG 자상은 색 변환 없이 직접 렌더 (신).
+- 18×18 logical px 비율은 wide 자상 통째 buttons 패턴 도입 후 무효화 — 자상
+  자연 종횡비 (Kakao 600×90 wide) 보존.
 
-### ⚠ Production 빌드 전 의무 — 공식 자산으로 교체
+### ⚠ Production 빌드 전 의무 (DEPRECATED — Phase 13.1 1단계 참조)
 
-본 starter kit 의 `assets/icons/kakao_logo.svg` 는 **Kakao 공식 다운로드
-자산이 아닌 hand-crafted SVG** 입니다.
-
-**이유:** Kakao Developers Design Resources 페이지
-(<https://developers.kakao.com/tool/resource/login>) 가 Single Page App 이라
-정적 fetch 로 SVG 를 자동 다운로드 받을 수 없습니다 (모든 경로가 동일
-HTML 반환). 또한 18×18 단일 색 말풍선 단독 자산이 공개 정적 URL 에 노출되어
-있지 않습니다.
-
-**Production 빌드 전 의무:**
-
-1. 위 URL 의 페이지에서 "Kakao 로그인 디자인 자산" 단락의 공식 SVG / PNG
-   자산을 직접 다운로드.
-2. 18×18 logical px 단일 검정 KakaoTalk 말풍선 형태에 가장 가까운 자산
-   선택 (예: `kakaotalk_symbol.svg` 또는 동등 단일 심볼).
-3. `assets/icons/kakao_logo.svg` 를 다운로드한 자산으로 덮어쓰기.
-4. PNG 인 경우 확장자 `.png` 로 변경하고 `pubspec.yaml` 의 `assets:` 리스트
-   + `social_button.dart` 의 `SvgPicture.asset` → `Image.asset` 으로 교체.
-
-starter kit 사용자가 production 배포 전 본 단락을 반드시 재검토할 것 —
-Kakao Brand Guideline 위반은 Console 정지 위험.
+starter-kit clone 직후 `assets/brand/kakao/{ko,en}/light/` 에 Kakao 공식
+PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
+**[Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+단락의 1단계** 의 공식 BI URL 재방문 + freshness 갱신 절차를 따르십시오.
 
 ---
 
