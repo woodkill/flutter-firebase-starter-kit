@@ -600,14 +600,12 @@ Widget _renderPlaceholder(
   );
 }
 
-// Phase 13.1 REVIEW WR-02 / WR-09 정정 (2026-05-10):
-// 5개 *_Retained mirror sentinel const + // ignore: unused_element 폐기.
-// alias 가 동일성 비교 (`_kFooRetained = _kFoo`) 만 수행해 어떤 회귀 가드도
-// 실현 안 됨 — 색 변경 시 source 와 alias 가 함께 변경되므로 drift 검출 0.
-// 진짜 회귀 가드는 `branded_social_button_test.dart` 의 expected literal
-// (`_kKakaoYellowExpected = Color(0xFFFEE500)` 등) 가 단독 책임 — production
-// const 가 expected literal 과 일치하지 않으면 RED. 본 file 의 5 source
-// const (_kKakaoYellow / _kKakaoLabel / _kKakaoIcon / _kNaverGreen /
-// _kNaverLabel) 는 wide 자상 통째 buttons 패턴 도입 후 widget render path
-// 직접 참조 0 이지만, BI 단일 진실원 보존 + future Phase 18 (Brand Center
-// 마이그) 의 fallback 색 reference 로 docstring + commit history 가치 보유.
+// Phase 13.1 REVIEW iter2 WR-04 정정 (2026-05-10):
+// 본 file 하단의 dead retention 주석 (5 source const + 5 *_Retained mirror
+// sentinel 의 "BI 단일 진실원 가치 보유" 표현) 은 file 상단 (line 10-21)
+// 주석의 "source const 폐기" 표현과 모순 — 실제 production 코드 grep 결과
+// `_kKakaoYellow` / `_kKakaoLabel` / `_kKakaoIcon` / `_kNaverGreen` /
+// `_kNaverLabel` 5개 const 모두 file 에서 제거됨. 모순 주석을 단일 진실 표현
+// 으로 정정 — 상단 주석이 권위 (해당 진실 단독 보유). 향후 Phase 18 Brand
+// Center 마이그 시 fallback 색 reference 가 필요하면 그 시점에 신규 const
+// 도입 의무 (file 상단 주석 line 18-20 명시).
