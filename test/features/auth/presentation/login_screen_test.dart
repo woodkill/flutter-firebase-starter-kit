@@ -298,8 +298,9 @@ void main() {
       );
 
       testWidgets(
-        'AUTH-03-17: Apple AccountExistsWithDifferentCredential(email) 시 '
-        '이메일 필드 자동 채움 + 포커스 이동 (D-10)',
+        'AUTH-03-17 (Phase 9.2 D-31): Apple '
+        'AccountExistsWithDifferentCredential(email) 시 이메일 필드 자동 '
+        '채움 + 포커스 이동 제거 — 빈 상태 유지 (R3 acceptance)',
         (tester) async {
           when(() => mockRepo.signInWithApple()).thenAnswer(
             (_) async => const Result<User>.failure(
@@ -319,17 +320,20 @@ void main() {
           await tester.tap(findAppleButton());
           await tester.pumpAndSettle();
 
-          // EmailField 내부 TextFormField의 controller 값을 검증.
-          // dynamic 캐스트 금지 -- find.descendant + widget<TextFormField>.
+          // (Phase 9.2 D-31 / R3) D-10 자동 채움 + focus 호출 제거.
+          // listener body 의 4줄 삭제로 EmailField 가 비어있는 상태 유지 +
+          // _emailFocus.requestFocus() 미호출. exception.email 필드는 보존
+          // (Phase 17 부활 anchor — server-side provider 매핑 input).
           final emailFormField = tester.widget<TextFormField>(
             find.descendant(
               of: find.byType(EmailField),
               matching: find.byType(TextFormField),
             ),
           );
-          expect(emailFormField.controller?.text, 'collision@example.com');
+          expect(emailFormField.controller?.text, isEmpty);
 
-          // 소셜 영역 FormErrorBanner에도 에러가 표시되어야 한다.
+          // 소셜 영역 FormErrorBanner에는 여전히 에러가 표시되어야 한다 —
+          // setState({_socialError = err, _emailError = null}) 블록 보존.
           final banner = tester.widget<FormErrorBanner>(
             find.descendant(
               of: find.byType(SocialSignInSection),
