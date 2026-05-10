@@ -678,6 +678,95 @@ class AuthRepository {
     }
   }
 
+  /// (Phase 9.2 D-18 — R4) Firebase Auth 의 [fb.User.sendEmailVerification] 을
+  /// 5 social sign-in 메서드 success path 에서 자동 호출하는 단일 진실원.
+  ///
+  /// 가드 (D-19) — 다음 5 조건 중 하나라도 true 면 no-op:
+  /// - [user] == null
+  /// - [fb.User.isAnonymous] == true
+  /// - [fb.User.email] == null
+  /// - [fb.User.emailVerified] == true
+  /// - [isNewUser] == false (D-20 — 재로그인 spam 방지)
+  ///
+  /// Apple/Google 의 idToken `email_verified=true` claim + Kakao/Naver 의
+  /// Cloud Function `identity_index.ts:225` `emailVerified: true` 자동 set
+  /// 으로 인해 4 provider 는 자연 no-op 이며, Facebook 만 실효적 호출 한다.
+  ///
+  /// 발송 실패는 graceful (D-21 — Phase 6.1 D-10/D-11 패턴 계승). 로그인
+  /// 자체는 성공 유지. [fb.FirebaseAuthException] + [Object] 양쪽 catch +
+  /// [kDebugMode] [debugPrint] only.
+  // ignore: unused_element
+  Future<void> _autoSendEmailVerification({
+    required fb.User? user,
+    required bool isNewUser,
+  }) async {
+    if (user == null) return;
+    if (user.isAnonymous) return;
+    if (user.email == null) return;
+    if (user.emailVerified) return;
+    if (!isNewUser) return; // D-20 재로그인 spam 방지
+    try {
+      await user.sendEmailVerification();
+    } on fb.FirebaseAuthException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '_autoSendEmailVerification FirebaseAuth 실패: ${e.code}',
+        );
+      }
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('_autoSendEmailVerification 비-Auth 예외: $e\n$st');
+      }
+    }
+  }
+
+  /// (Phase 9.2 D-23 — R5) Facebook Graph API picture.type(large) →
+  /// [fb.User.updatePhotoURL] 갱신 단일 진실원.
+  ///
+  /// 응답 path 추출 = safe navigation + type guard + graceful skip (D-24).
+  /// [FacebookAuth.getUserData] default fields 는
+  /// `'name,email,picture.width(200)'` 이지만 SPEC R5 가 `picture.type(large)`
+  /// 채택 — 명시 fields 인자 의무.
+  ///
+  /// graceful skip 발동 조건:
+  /// - `result['picture']` 가 [Map] 이 아님
+  /// - `result['picture']['data']` 가 [Map] 이 아님
+  /// - `result['picture']['data']['url']` 이 [String] 이 아님 또는 빈 string
+  /// - [FacebookAuth.getUserData] / [fb.User.updatePhotoURL] 가 throw
+  ///
+  /// **D-27 PII regression invariant:** catch 블록의 [debugPrint] 가
+  /// `e.runtimeType` 만 출력한다. `e.toString()` / `result` Map / `url` 값
+  /// 직접 출력 금지 — sentinel facebook id (`'999888777'`) / sentinel CDN URL
+  /// 의 logger 노출 vector 차단. Phase 12.1 D-40 catch-block sentinel 패턴
+  /// 계승.
+  // ignore: unused_element
+  Future<void> _setFacebookPhotoUrl(fb.User user) async {
+    try {
+      // (D-24) SPEC R5 의 'picture.type(large)' 명시 fields verbatim.
+      final result = await _facebookAuth.getUserData(
+        fields: 'picture.type(large)',
+      );
+      final pictureData = result['picture'];
+      if (pictureData is Map<String, dynamic>) {
+        final data = pictureData['data'];
+        if (data is Map<String, dynamic>) {
+          final url = data['url'];
+          if (url is String && url.isNotEmpty) {
+            await user.updatePhotoURL(url);
+          }
+        }
+      }
+    } on Object catch (e, st) {
+      // (D-27 PII invariant) e.runtimeType 만 출력 — Graph API 응답 PII
+      // (facebook id, CDN URL) 의 logger 노출 vector 차단.
+      if (kDebugMode) {
+        debugPrint(
+          '_setFacebookPhotoUrl 실패 (graceful skip): ${e.runtimeType}\n$st',
+        );
+      }
+    }
+  }
+
   /// 로그아웃한다.
   ///
   /// [GoogleSignIn.signOut]을 병행 호출하여 Google 세션도 해제한다 (D-07).
@@ -698,6 +787,22 @@ class AuthRepository {
     } on Object catch (e, st) {
       if (kDebugMode) {
         debugPrint('FacebookAuth.logOut() 실패 (무시): $e\n$st');
+      }
+    }
+    // Kakao SDK 세션 해제 (Phase 9.2 D-26 — Phase 12 D-57 정합).
+    try {
+      await _kakaoSdkClient.logout();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('KakaoSdkClient.logout() 실패 (무시): $e\n$st');
+      }
+    }
+    // Naver SDK 세션 해제 (Phase 9.2 D-26 — Phase 13 D-57 정합).
+    try {
+      await _naverSdkClient.logout();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('NaverSdkClient.logout() 실패 (무시): $e\n$st');
       }
     }
     await _auth.signOut();
