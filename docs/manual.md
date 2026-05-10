@@ -35,6 +35,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 8. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
 9. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
 10. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+11. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
 
 ---
 
@@ -1318,6 +1319,217 @@ Phase 13.1 의 회귀 가드 3종이 starter-kit 에 포함:
 
 ---
 
+## Multi-Provider Account Linking (Phase 9.2)
+
+본 단락은 5 social provider (Apple / Google / Facebook / Naver / Kakao) 사용 시
+`account-exists-with-different-credential` (FirebaseAuth) /
+`'already-exists'` (Cloud Function — Phase 12.1 R3) 충돌 시점의 기본 동작 +
+자동 `sendEmailVerification` (이메일 인증, Email Verification) +
+Facebook `photoURL` Graph API 보완 + 5 provider `signOut` (로그아웃)
+일관성 을 설명한다.
+
+> **🔴 Path A-narrow 채택 (2026-05-10):** RESEARCH §2.1 의 critical 결함
+> (firebase_auth 6.0.0 의 `FirebaseAuth.fetchSignInMethodsForEmail()`
+> client-side API 제거) 으로 SPEC R1 (provider-aware 정확 라벨 메시지) 은
+> **Phase 17 (Account Linking) — see ROADMAP.md** 로 이월. Phase 9.2 는
+> unknown fallback 메시지 (provider-미상 명시) 를 default path 로 채택한다.
+> R1 부활 절차는 본 단락 §2 (AccountProvider enum 확장 절차) 참조.
+
+### 1. account-exists 메시지 동작 (Phase 9.2 R2 — Path A-narrow)
+
+5 social provider 의 충돌 시 신규 ARB (Application Resource Bundle) 키
+`errorAccountExistsWithUnknownProvider` 가 default 메시지 — 3 locale 별
+다음 텍스트 (verbatim):
+
+| Locale | 메시지 |
+|--------|--------|
+| ko | 이 이메일은 다른 방식으로 가입되어 있습니다. 처음 가입한 방식으로 다시 로그인해 주세요 |
+| en | This email is already registered with another sign-in method. Please sign in with the method you originally used. |
+| ja | このメールアドレスは別の方法で登録されています。最初に登録した方法でログインしてください。 |
+
+매핑 경로 (`lib/core/l10n/exception_l10n.dart` 의 `resolveExceptionMessage`):
+
+1. `_mapAuthException` (`lib/features/auth/data/auth_repository.dart` —
+   `_mapAuthException` 본체 안 `'account-exists-with-different-credential'`
+   분기) → `AccountExistsWithDifferentCredential(email: e.email)` 매핑.
+2. `_mapFunctionsException` (동일 파일의 `_mapFunctionsException` 본체 안
+   `'already-exists'` 분기 — Phase 12.1 R3 / D-34 계승) →
+   `AccountExistsWithDifferentCredential()` (email null) 매핑.
+3. `resolveExceptionMessage` 의 D-13 조기 return (early return) —
+   `AccountExistsWithDifferentCredential` 인스턴스 →
+   `errorAccountExistsWithUnknownProvider` 단일 경로.
+
+EEP (Email Enumeration Protection, 이메일 열거 방지) 활성 환경 / Custom Token
+(Kakao / Naver — Phase 12·13 D-09) / `FirebaseAuthException.email == null`
+모두 동일 default path. 사용자에게 노출되는 정보는 "이메일이 다른 방식으로
+가입되어 있다" 단일 사실 만 — specific provider 미식별 (Path A-narrow 의
+의도된 fallback). PII (Personally Identifiable Information, 개인 식별 정보)
+노출 vector 회피.
+
+LoginScreen 의 자동 채움 (auto-fill) + focus 호출 (R3 / D-31) 도 제거 —
+충돌 시 사용자에게 잘못된 비밀번호 입력 cognitive trigger 가 작동하지 않는다.
+구체 코드 위치: `lib/features/auth/presentation/login_screen.dart` 의
+`ref.listen` listener body — D-10 자동 채움 + focus 호출 4줄을 정확히 삭제하고
+`setState({_socialError = err, _emailError = null})` 블록만 보존
+(P3 / 09.2-03-PLAN.md commit 616603c). `AccountExistsWithDifferentCredential.email`
+필드 자체는 보존 — Phase 17 (Account Linking) — see ROADMAP.md 부활 시
+server-side provider 매핑 input 으로 활용.
+
+### 2. AccountProvider enum 확장 절차 (Phase 17 add-only 가이드)
+
+**Phase 17 (Account Linking) — see ROADMAP.md** 진입 시점에 server-side
+provider 매핑 인프라 (Cloud Function `lookupSignInMethods` with App Check +
+rate limit + enumeration log alarm, 또는 Custom Token claim 기반 매핑) 위에서
+R1 (provider-aware 라벨 메시지) 부활 절차:
+
+1. **AccountProvider enum 신설** (`lib/core/auth/provider_id.dart`):
+
+   ```dart
+   enum AccountProvider {
+     google, apple, facebook, email,
+     // Phase 17 부활 시 add-only — kakao, naver, line, yahooJp, wechat 도
+     // 마지막 unknown 직전에 add-only 위치.
+     unknown,
+   }
+   ```
+
+2. **`_mapAccountExistsException` async helper 신설**
+   (`lib/features/auth/data/auth_repository.dart`): server-side
+   `lookupSignInMethods` 호출 + provider 라벨 매핑.
+
+3. **ARB `{provider}` placeholder 활용** — 기존
+   `errorAccountExistsWithDifferentCredential` 키 (3 locale, Phase 9.2 에서
+   unchanged 보존) 를 `{provider}` placeholder 메시지로 갱신. en metadata
+   description 의 placeholder spec 추가 (Phase 13.1 D-84 패턴 정합).
+
+4. **`exception_l10n.resolveExceptionMessage` 의 D-13 분기 보강** —
+   `if (exception.provider == null || arbKey == null)` → unknown fallback
+   (Phase 9.2 의 default), else → provider-aware 메시지.
+
+5. **5 case parameterized test** + 추가 UAT (User Acceptance Test, 사용자
+   인수 시험) — Apple → Facebook / Kakao → Google / password → Google /
+   EEP 활성 mock.
+
+09.2-CONTEXT.md 의 D-05 ~ D-12 / D-15 / D-29 결정 (deferred) 이 Phase 17
+SPEC 의 starting point 로 재활용 가능 — 단 server-side 인프라 디자인 추가
+의무 (PII 노출 vector 분석 + rate limit + enumeration log alarm 설계).
+
+### 3. Facebook 자동 sendEmailVerification + photoURL Graph API (R4 + R5)
+
+5 social sign-in 메서드 모두 success path 에서 `_autoSendEmailVerification`
+helper 호출 — `lib/features/auth/data/auth_repository.dart` 안 private async
+helper (정의 line 721, callsite Google line 230 / Apple line 340 / Facebook
+line 441 / Kakao line 525 / Naver line 612). 5 가드 (D-19 + D-20):
+
+- `user == null` / `user.isAnonymous` / `user.email == null` /
+  `user.emailVerified == true` / `isNewUser == false` 중 하나라도 true →
+  no-op (조기 return).
+
+이로 인해 Apple / Google (idToken `email_verified=true` claim) + Kakao /
+Naver (Cloud Function `functions/src/auth/identity_index.ts` 의
+`emailVerified: true` 자동 set) 4 provider 는 자연 no-op. **Facebook 만
+실효적 호출** — Facebook OAuth 가 verification claim 미전달 →
+`emailVerified=false` 기본.
+
+isNewUser 가드 (`UserCredential.additionalUserInfo?.isNewUser ?? false`) 가
+재로그인 spam 방지 (D-20). 검증 안 한 기존 Facebook 사용자가 매 로그인마다
+verification 메일 받는 spam 차단. 사용자가 의도적으로 검증을 재요청할 때는
+verifyEmailScreen 의 "재전송" (Resend) 버튼이 manual-resend 경로.
+
+`signInWithFacebook` 만 추가로 `_setFacebookPhotoUrl` 호출 (정의 line 762,
+callsite line 442) — Graph API `picture.type(large)` 응답의 `picture.data.url`
+path 추출 후 `user.updatePhotoURL(url)` 갱신. Apple / Google 의 idToken
+picture claim 자동 채움 차이 보완. D-25 — `_autoSendEmailVerification` →
+`_setFacebookPhotoUrl` 순차 호출 (verify 먼저, photoURL 후순).
+
+**race-fix invariant 의무** (Phase 9.1 D-03 직접 계승): 두 helper 호출 모두
+`try { _socialLinkInProgress.begin(); ... } finally { _socialLinkInProgress.end(); }`
+블록 **안** 위치. 호출이 finally 밖 또는 begin 이전 위치 = race regression
+vector — splash 자동 익명 sign-in race 재발 (Phase 9 UAT.md Gap test 6 의
+root cause). 09.2-04 Plan 의 `auth_repository_auto_verify_test.dart` 의
+`verifyInOrder([begin, sendEmailVerification, end])` 가 회귀 가드.
+
+**PII regression invariant** (D-27): `_setFacebookPhotoUrl` 의 광역 catch
+블록의 `debugPrint` 는 **`e.runtimeType` 만** 출력 — `e.toString()` /
+`result` Map / `url` 값 직접 출력 금지. Phase 12.1 D-40 catch-block sentinel
+패턴 직접 계승. 09.2-04 Plan 의 `auth_repository_facebook_picture_test.dart`
+가 sentinel facebook id + sentinel CDN URL + sentinel email 을 Exception
+message 안에 verbatim 주입 후 `verifyNever(updatePhotoURL)` 로 graceful skip
+보장.
+
+silhouette (실루엣) 정책: 본 phase 는 **허용 default** —
+`picture.data.is_silhouette == 1` 시에도 valid CDN (Content Delivery Network,
+콘텐츠 전송망) URL 로 채택. Phase 17 / 18 의 truth-of-source (출처 진실원)
+정책 결정 후 변경 가능 영역.
+
+### 4. signOut 5 SDK 일괄 해제 (R6 — D-26)
+
+`AuthRepository.signOut()` (`lib/features/auth/data/auth_repository.dart`
+의 `signOut()` 본체 — Google line 797 → Facebook line 805 → Kakao line 813 →
+Naver line 821 → Auth line 827) 가 5 SDK 순차 호출:
+
+1. `_googleSignIn.signOut()` (Google) — line 797
+2. `_facebookAuth.logOut()` (Facebook) — line 805
+3. `_kakaoSdkClient.logout()` (Kakao — Phase 9.2 추가, Phase 12 D-57 정합) —
+   line 813
+4. `_naverSdkClient.logout()` (Naver — Phase 9.2 추가, Phase 13 D-57 정합) —
+   line 821
+5. `_auth.signOut()` (Firebase Auth — 마지막 호출 보장) — line 827
+
+각 SDK logout 은 `try / on Object catch` 무시 패턴 — 한 SDK 실패가 후속
+SDK + Firebase Auth signOut 호출을 차단하지 않는다. 본 invariant 가
+09.2-04 Plan 의 `auth_repository_test.dart` signOut group 의 `verifyInOrder`
++ Kakao / Naver 실패 시뮬레이션 test (S2 / S3) 로 회귀 가드.
+
+Phase 9.2 이전 결함: Kakao / Naver SDK logout 이 sign-in finally 에서만 호출
+(1회성 토큰 정책 D-57) — `signOut()` 본체에서 누락 → 한 계정으로 로그아웃
+후 native prompt 가 같은 계정 자동 진입하는 케이스가 5 provider 일관 결함.
+Phase 9.2 의 add-only 패치가 5 SDK 세션 cache 일괄 해제 보장.
+
+실 기기 검증 (Android dev flavor): Facebook 계정 A signOut → 계정 B 재로그인
+시 native prompt 가 계정 B 선택지 표시 (계정 A cache 미잔존) —
+09.2-VALIDATION.md 의 UAT (d) 시나리오.
+
+### 커스터마이징 포인트 (사용자 관점)
+
+starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞춰 조정할 때:
+
+1. **자동 sendEmailVerification 비활성화**: 5 sign-in 메서드 success path 의
+   `_autoSendEmailVerification(user: fbUser, isNewUser: isNewUser)` 호출 두
+   줄 (`final isNewUser = ...; await _autoSendEmailVerification(...)`) 을
+   단순 제거. 또는 `_autoSendEmailVerification` 본체 첫 줄에 `return;`
+   추가하여 모든 path no-op 강제.
+2. **Facebook photoURL 자동 갱신 비활성화**: `signInWithFacebook` 의 line 442
+   `await _setFacebookPhotoUrl(fbUser);` 한 줄만 제거 → `user.photoURL` 빈 값
+   유지. verify 호출 (line 441) 은 그대로.
+3. **자동 채움 + focus 동작 복구 (D-31 inversion)**: `login_screen.dart` 의
+   listener body 안 anchor 주석 영역에 자동 채움 4줄 재도입 — 단 cognitive
+   hijack vector 재도입 위험 인지. Phase 17 (Account Linking) 부활 시
+   server-side provider 매핑 input path 와 충돌 가능성.
+4. **5 SDK signOut 순서 커스터마이즈**: `signOut()` 본체의 try/catch 블록
+   순서 재배치 가능. 단 `_auth.signOut()` 가 마지막 호출 invariant 만 보존
+   의무 — Firebase Auth 세션 해제 보장.
+5. **silhouette URL 정책 변경**: `_setFacebookPhotoUrl` 의 type guard 단계에
+   `data['is_silhouette'] != 1` 조건 추가 → silhouette URL skip. Phase 9.2
+   는 허용 default 채택 (placeholder URL 역할 가능).
+
+### 회귀 가드 매트릭스
+
+09.2-04 Plan 이 도입한 4 신규 + 2 add-only test 가 5 invariant 회귀 가드:
+
+| Invariant | 회귀 시 RED test | 책임 |
+|-----------|------------------|------|
+| R2 unknown fallback 단일 경로 | `auth_repository_unknown_fallback_test.dart` (U1+U2) + `exception_l10n_test.dart` add-only group (EL1+EL2) | `_mapAuthException` / `_mapFunctionsException` / `resolveExceptionMessage` D-13 분기 |
+| R4 5 provider no-op + isNewUser + graceful + race-fix | `auth_repository_auto_verify_test.dart` (V1~V8) | `_autoSendEmailVerification` 5 가드 + `verifyInOrder` race-fix |
+| R5 + D-27 PII | `auth_repository_facebook_picture_test.dart` (F1~F8) | `_setFacebookPhotoUrl` safe nav + sentinel 매트릭스 (facebook id / CDN URL / email — verbatim 값은 test 파일 내부에 격리) verifyNever |
+| R6 5 SDK signOut 순차 | `auth_repository_test.dart` signOut group add-only (S1~S3) | `verifyInOrder([Google, Facebook, Kakao, Naver, Auth])` + 실패 시뮬레이션 |
+| R3 widget — 자동 채움 0 + focus 0 | `login_screen_account_exists_test.dart` (W1) + `login_screen_test.dart` AUTH-03-17 inversion | EmailField focusNode `hasFocus=false` + unknown 메시지 banner verbatim |
+
+회귀 가드 실행:
+`fvm flutter test test/features/auth/`. 회귀 시 ≥ 1 RED 즉시 발생.
+
+---
+
 ## 변경 이력
 
 | 일자 | Phase | 변경 |
@@ -1329,7 +1541,8 @@ Phase 13.1 의 회귀 가드 3종이 starter-kit 에 포함:
 | 2026-05-08 | 13.1-13 | `## Brand Asset Management (Phase 13.1)` 단락 신규 — 7 provider 매트릭스 (출처 + 라이선스 + 채택 차원) + 3단계 절차 (다운/Phase 14·16 sentinel 해제/freshness 1년) + 자산 변형 정책 + Plan 13.1-07 retro 경고 (1x/2x/3x density 가정 vs 실제 형식) + 3-layer 회귀 가드. R15 acceptance. 목차 9 항목으로 확장. |
 | 2026-05-09 | 13.1-16 | Brand Asset Management 단락 보강 — Phase 13.1 Gap-1 X2 (wide 자상 통째 buttons 패턴) 함정 경고 박스 #2 신규 + 자산 변형 정책 단락에 layout 패턴 bullet 추가 (`Image.asset(fit: BoxFit.contain)` / `SvgPicture.asset(fit: BoxFit.contain)` + ClipRRect 폐기 + Material `clipBehavior: Clip.none` + InkWell `borderRadius: 12dp` ripple 제어 + letterbox 영역). en fallback 정책 (ko 외 모든 locale 은 en 자상 path 로딩) 명시. Plan 13.1-14 production code + Plan 13.1-15 4-round 시각 검증 deviation 1+2 인용. |
 | 2026-05-10 | 13.1-REVIEW | iter1 code review CR-02 정정 — `## Brand Asset (Phase 13 D-52)` + `## Kakao Brand Asset 라이센스 (Phase 12-07)` 두 단락 DEPRECATED 표시 + Phase 13.1 신규 단락 (`## Brand Asset Management (Phase 13.1)`) 으로 사용자 redirect. Phase 13.1 R1 정정 (#03A94D) + ColorFilter 절대 금지 + `assets/brand/{provider}/` 신규 디렉토리 구조 정합성 회복. |
+| 2026-05-10 | 09.2-05 | `## Multi-Provider Account Linking (Phase 9.2)` 단락 신규 (D-32, 4 sub-section + 커스터마이징 포인트 + 회귀 가드 매트릭스) — Path A-narrow R2~R6 동작 (account-exists unknown fallback 메시지 ko/en/ja verbatim, AccountProvider enum 부활 절차 — Phase 17 (Account Linking) — see ROADMAP.md, Facebook 자동 sendEmailVerification + photoURL Graph API + race-fix invariant + D-27 PII regression sentinel 매트릭스, signOut 5 SDK 순차 — Google → Facebook → Kakao → Naver → FirebaseAuth). R1 deferred to Phase 17 명시 (D-33). 코드 anchor (auth_repository.dart line 230/340/441/442/525/612/721/762/797/805/813/821/827) + 회귀 test 파일 5종 인용 (Phase 13.1 D-84 패턴 정합). 목차 11 항목으로 확장. |
 
 ---
 
-*Last updated: 2026-05-10 — Phase 13.1 iter1 code review CR-02 정정*
+*Last updated: 2026-05-10 — Phase 9.2 P5 docs (Multi-Provider Account Linking 단락 신규)*
