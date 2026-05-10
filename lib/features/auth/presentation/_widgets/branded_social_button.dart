@@ -558,7 +558,7 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
 
 /// LINE/WeChat placeholder render — D-73 (자상 미존재 시 회색 fallback).
 ///
-/// debug 시 `debugPrint` 발생 — production 빌드는 회색 disabled 외관 (R10).
+/// production 빌드는 회색 disabled 외관 (R10).
 ///
 /// **Phase 13.1 REVIEW CR-03 정정 (2026-05-10):** placeholder 본문 텍스트가
 /// `'Asset missing: $label'` 하드코딩 영어로 ARB 미경유 → ja/ko 사용자에게
@@ -571,18 +571,22 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
 /// 처리 없음, 호출자에게 placeholder 가 탭 가능한 것처럼 시사하던 시그니처
 /// dead parameter 정리). docstring 의 "회색 disabled 외관 (R10)" 의도를 시그
 /// 니처에도 반영 — Phase 14/16 자상 commit 시점까지 비활성 외관 보장.
+///
+/// **Phase 13.1 REVIEW iter3 WR-02 정정 (2026-05-10):** `assert(() {
+/// debugPrint(...); }())` side-effect 폐기. 본 assert 는 debug 빌드에서만
+/// 실행되지만 `flutter test` 환경 default 가 debug 모드라 LineSpec/WechatSpec
+/// 가 build() 진입 시마다 stdout 에 noise 출력 (T-13.1-PLACEHOLDER-01/02 +
+/// 추후 widget test 마다 1줄씩) — reviewer 가 진짜 에러 메시지와 구분 어려움.
+/// `kPlaceholderProviders` list 자체가 sentinel 단일 책임 (D-74) — list 에서
+/// 'line' / 'wechat' 제거 시 build() 의 LineSpec/WechatSpec 분기 자체가
+/// unreachable (Phase 14/16 strategy 가 BrandedSocialButton.line() /
+/// .wechat() 호출 안 함). debugPrint 가 누락 detection 가치 0 + runtime
+/// noise 만 부담 → 폐기.
 Widget _renderPlaceholder(
   BuildContext context,
   BrandSpec spec,
   String label,
 ) {
-  assert(() {
-    debugPrint(
-      'BrandedSocialButton placeholder render — Phase 14/16 자상 commit 후 '
-      '_brand_assets.dart 의 kPlaceholderProviders 에서 해당 provider 제거 의무',
-    );
-    return true;
-  }());
   final l10n = AppLocalizations.of(context);
   return SizedBox(
     width: double.infinity,
