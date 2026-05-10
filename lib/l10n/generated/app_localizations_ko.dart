@@ -346,7 +346,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get errorAccountExistsWithUnknownProvider =>
-      '이 이메일은 다른 방식으로 가입되어 있습니다. 처음 가입한 방식으로 다시 로그인해 주세요';
+      '이 이메일은 다른 방식으로 가입되어 있습니다. 처음 가입한 방식으로 다시 로그인해 주세요.';
 
   @override
   String get authAccountProviderGoogle => 'Google';
