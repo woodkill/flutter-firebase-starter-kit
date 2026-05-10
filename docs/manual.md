@@ -1328,7 +1328,8 @@ Phase 13.1 의 회귀 가드 3종이 starter-kit 에 포함:
 | 2026-05-05 | 13-07 | Naver Login 단락 (10 단계) + Brand Asset 단락 (Kakao + Naver 통합, D-52) + Kakao 동의 항목 갱신 (D-56 retroactive) + Initial Setup 표에 naver 3 키 + iOS xcconfig 의 NAVER_URL_SCHEME + Firebase Secret Manager `NAVER_CLIENT_SECRET` 등록 (D-60). 목차 8 항목으로 확장. |
 | 2026-05-08 | 13.1-13 | `## Brand Asset Management (Phase 13.1)` 단락 신규 — 7 provider 매트릭스 (출처 + 라이선스 + 채택 차원) + 3단계 절차 (다운/Phase 14·16 sentinel 해제/freshness 1년) + 자산 변형 정책 + Plan 13.1-07 retro 경고 (1x/2x/3x density 가정 vs 실제 형식) + 3-layer 회귀 가드. R15 acceptance. 목차 9 항목으로 확장. |
 | 2026-05-09 | 13.1-16 | Brand Asset Management 단락 보강 — Phase 13.1 Gap-1 X2 (wide 자상 통째 buttons 패턴) 함정 경고 박스 #2 신규 + 자산 변형 정책 단락에 layout 패턴 bullet 추가 (`Image.asset(fit: BoxFit.contain)` / `SvgPicture.asset(fit: BoxFit.contain)` + ClipRRect 폐기 + Material `clipBehavior: Clip.none` + InkWell `borderRadius: 12dp` ripple 제어 + letterbox 영역). en fallback 정책 (ko 외 모든 locale 은 en 자상 path 로딩) 명시. Plan 13.1-14 production code + Plan 13.1-15 4-round 시각 검증 deviation 1+2 인용. |
+| 2026-05-10 | 13.1-REVIEW | iter1 code review CR-02 정정 — `## Brand Asset (Phase 13 D-52)` + `## Kakao Brand Asset 라이센스 (Phase 12-07)` 두 단락 DEPRECATED 표시 + Phase 13.1 신규 단락 (`## Brand Asset Management (Phase 13.1)`) 으로 사용자 redirect. Phase 13.1 R1 정정 (#03A94D) + ColorFilter 절대 금지 + `assets/brand/{provider}/` 신규 디렉토리 구조 정합성 회복. |
 
 ---
 
-*Last updated: 2026-05-09 — Phase 13.1 Plan 16 완료 (Gap-1 X2 wide 자상 통째 buttons 패턴 retro 정정)*
+*Last updated: 2026-05-10 — Phase 13.1 iter1 code review CR-02 정정*
