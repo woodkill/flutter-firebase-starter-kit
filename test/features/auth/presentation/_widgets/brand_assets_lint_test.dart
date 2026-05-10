@@ -84,5 +84,53 @@ void main() {
         }
       }
     });
+
+    // Phase 13.1 REVIEW WR-08 정정 (2026-05-10) — production widget 의
+    // `_iconAssetFor` 가 실제 로드하는 자상 path 가 disk 에 존재하는지 검증.
+    // 기존 Group 1 (LINE/WeChat .placeholder) + Group 2 (active 5 .placeholder
+    // 부재) + Group 3 (7 README schema) 만으로는 자상 파일 자체 삭제 회귀
+    // (예: assets/brand/google/light/btn_signin_full.svg 실수 삭제) 시
+    // golden test 만 RED 로 늦게 발견. 본 group 이 생산 production widget
+    // 이 의존하는 모든 (provider × locale × theme × variant) tuple 의 자상
+    // path 존재를 컴파일 시점에 검출.
+    test('Kakao 자상 (locale × {large}_wide PNG) 모두 존재', () {
+      const sizes = <String>['large']; // production default; medium 은 future-proof
+      for (final lang in <String>['ko', 'en']) {
+        for (final size in sizes) {
+          final path =
+              '$kBrandAssetBase/kakao/$lang/light/kakao_login_${size}_wide.png';
+          expect(
+            File(path).existsSync(),
+            isTrue,
+            reason: 'production widget 의존 자상 부재: $path',
+          );
+        }
+      }
+    });
+
+    test('Naver 자상 (locale × theme × h48 PNG) 모두 존재', () {
+      for (final lang in <String>['ko', 'en']) {
+        for (final theme in <String>['light', 'dark']) {
+          final path =
+              '$kBrandAssetBase/naver/$lang/$theme/naver_login_h48_wide.png';
+          expect(
+            File(path).existsSync(),
+            isTrue,
+            reason: 'production widget 의존 자상 부재: $path',
+          );
+        }
+      }
+    });
+
+    test('Google 자상 (theme × full SVG) 모두 존재', () {
+      for (final theme in <String>['light', 'dark', 'neutral']) {
+        final path = '$kBrandAssetBase/google/$theme/btn_signin_full.svg';
+        expect(
+          File(path).existsSync(),
+          isTrue,
+          reason: 'production widget 의존 자상 부재: $path',
+        );
+      }
+    });
   });
 }
