@@ -533,10 +533,15 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
     NaverSpec(theme: final t) =>
       '$kBrandAssetBase/naver/$lang/'
           '${t == NaverTheme.dark ? 'dark' : 'light'}/naver_login_h48_wide.png',
-    GoogleSpec(theme: final t) =>
-      '$kBrandAssetBase/google/'
-          '${t == GoogleTheme.dark ? 'dark' : (t == GoogleTheme.neutral ? 'neutral' : 'light')}'
-          '/btn_signin_full.svg',
+    // Phase 13.1 REVIEW WR-07 정정 (2026-05-10): nested ternary →
+    // exhaustive switch. Kakao/Naver 의 단일 ternary 와 일관성 + Dart 3
+    // idiomatic + GoogleTheme enum 확장 시 컴파일 fail 강제.
+    GoogleSpec(theme: final t) => switch (t) {
+      GoogleTheme.dark => '$kBrandAssetBase/google/dark/btn_signin_full.svg',
+      GoogleTheme.neutral =>
+        '$kBrandAssetBase/google/neutral/btn_signin_full.svg',
+      GoogleTheme.light => '$kBrandAssetBase/google/light/btn_signin_full.svg',
+    },
     // 다른 spec 은 자상 path 호출 안 됨 (Apple/Facebook/Line/Wechat).
     AppleSpec() || FacebookSpec() || LineSpec() || WechatSpec() => '',
   };
