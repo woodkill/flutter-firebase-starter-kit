@@ -133,6 +133,21 @@ void main() {
     // 않도록 false 로 stub. 기존 테스트는 "비익명 경로" 를 검증하므로 false 가
     // 올바른 기본값.
     when(() => mockUser.isAnonymous).thenReturn(false);
+
+    // WR-02 (Phase 9.2 review fix) — Phase 9.2 R5 가 signInWithFacebook
+    // success path 에 `_setFacebookPhotoUrl(fbUser)` 를 추가했다. 본 grand
+    // suite 의 기존 Facebook 테스트들은 `getUserData` / `updatePhotoURL`
+    // stub 을 등록하지 않아 mocktail 이 `MissingStubError` (extends Error
+    // extends Object) 를 throw 했고, helper 의 광역 `on Object catch` 가
+    // 이를 silent 흡수 → 테스트가 통과하나 실 production 의 R5 wiring 회귀
+    // 가드로 작동하지 않는다 (잘못된 green). 본 default stub 이 happy path
+    // 응답을 모사하여 (1) MissingStubError surface 차단 + (2) 기존
+    // verifyInOrder/Result.success 검증의 의도된 의미 회복.
+    // (BL-01 fix 와 정합 — `is Map` guard 가 typed Map 응답도 흡수.)
+    when(
+      () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+    ).thenAnswer((_) async => <String, dynamic>{});
+    when(() => mockUser.updatePhotoURL(any())).thenAnswer((_) async {});
   });
 
   group('_mapFirebaseUser via signInWithEmail (BLOCKER #1 통합 검증)', () {
