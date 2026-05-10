@@ -26,6 +26,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// 분기가 test environment system locale 에 의존하지 않도록 결정성 강제.
 /// 이전 버전은 macOS dev box (`en-US`) 에서 generate 한 golden 이 ko-locale
 /// CI 환경에서 RED 회귀 발생 가능 (Kakao/Naver 자상이 `ko/` 분기로 로딩).
+///
+/// **Phase 13.1 REVIEW iter2 WR-03 verification trace (2026-05-10):** CR-04
+/// fix (`locale: 'en'` + delegates 명시) 후 `fvm flutter test
+/// branded_social_button_golden_test.dart` 6 PASS 검증 (자상 PNG byte-level
+/// 일치 — 기존 system-locale 환경이 정확히 'en' 였음을 사후 검증). golden
+/// 재생성 불필요 (PNG 변경 0). future 변경 시: `--update-goldens` 후 PNG
+/// diff review 의무 (analyze 만으로는 image-diff 불가 — WR-03 가드).
 Widget _wrap(Widget child, {required Brightness brightness}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
