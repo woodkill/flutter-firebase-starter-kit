@@ -222,12 +222,29 @@ void main() {
       },
     );
 
+    // ─── Phase 13.1 REVIEW iter2 CR-02 정정 (2026-05-10) ──────────────────
+    //
+    // iter1 의 WR-06 fix (`77d23e0`) 가 `_resolveLabel` default 분기를
+    // fail-loud (UnsupportedError throw) 로 전환했으나, `SocialButton.build()`
+    // 의 호출 순서상 `_resolveLabel` 가 outer providerId switch BEFORE 호출
+    // (line 53). 결과적으로 unknown providerId 단독 테스트 시 동시에
+    // unknown labelKey 도 전달하면 inner _resolveLabel throw 가 outer
+    // providerId switch default throw 를 mask — 검증 경로 silent drift.
+    //
+    // **fix:** test 를 두 개로 split — (1) Unknown providerId 분기 가드
+    // (known labelKey 사용으로 _resolveLabel 우회), (2) Unknown labelKey
+    // fail-loud 가드 (known providerId 사용). 둘 다 throw message 검증으로
+    // 미래 회귀 검출 강화.
     testWidgets(
-      'Unknown providerId → UnsupportedError',
+      'Unknown providerId → UnsupportedError (providerId 분기 가드, '
+      'iter2 CR-02 split)',
       (tester) async {
         const strategy = _FakeStrategy(
           'unknown.com',
-          'authUnknown',
+          // known labelKey 명시 — _resolveLabel 우회 의무 (iter1 WR-06 fix
+          // 이후 unknown labelKey 시 inner throw 가 outer providerId throw
+          // 를 mask 하는 silent drift 차단).
+          'authGoogleSignIn',
           'unknown',
         );
         // build 안에서 throw → flutter test framework 의 default error handler
@@ -238,6 +255,41 @@ void main() {
         );
         final ex = tester.takeException();
         expect(ex, isA<UnsupportedError>());
+        expect(
+          ex.toString(),
+          contains('Unknown providerId'),
+          reason: 'iter2 CR-02 가드 — 본 test 는 outer providerId switch 의 '
+              'default 분기 검증. inner _resolveLabel throw 가 mask 하면 '
+              "message 가 'Unknown labelKey' 로 drift — 명시 메시지 매칭으로 "
+              '검증 경로 보존.',
+        );
+      },
+    );
+
+    testWidgets(
+      'Unknown labelKey → UnsupportedError (WR-06 fail-loud 가드, '
+      'iter2 CR-02 split)',
+      (tester) async {
+        const strategy = _FakeStrategy(
+          // known providerId — outer switch 의 case 가 정상 매칭되어 inner
+          // _resolveLabel 가 호출되도록 유도. 이 경로에서 unknown labelKey
+          // 를 전달해 fail-loud 분기 (iter1 WR-06 fix) 가 trigger 됨.
+          kProviderIdGoogle,
+          'authUnknown',
+          'unknown',
+        );
+        await _pumpWithMobileViewport(
+          tester,
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
+        );
+        final ex = tester.takeException();
+        expect(ex, isA<UnsupportedError>());
+        expect(
+          ex.toString(),
+          contains('Unknown labelKey'),
+          reason: 'iter1 WR-06 fail-loud 회귀 가드 — Phase 14+ provider 추가 시 '
+              '_resolveLabel switch 갱신 누락 회귀 검출.',
+        );
       },
     );
   });
