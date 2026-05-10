@@ -453,5 +453,85 @@ void main() {
         );
       },
     );
+
+    // ─── T-13.1-PLACEHOLDER-01: LineSpec build() → placeholder 회귀 가드 ────
+    //
+    // **Phase 13.1 REVIEW iter3 WR-01 정정 (2026-05-10):** iter2 의 WR-02
+    // 정정 (`_renderPlaceholder` 시그니처에서 `VoidCallback? onPressed`
+    // 제거 + 호출 site 인자 제거) 이 widget pump test 0 인 상태에서 silent
+    // 통과했다 — `T-13.1-FACTORY-01` 는 instance 만 생성하고 build() 미도달.
+    // 본 test 는 LineSpec build() 분기를 실제 pump 하여 (1) ARB 해석 라벨
+    // (`authBrandAssetMissing`) 표시, (2) InkWell/GestureDetector 부재
+    // (placeholder 는 탭 처리 미지원 — iter2 docstring 약속), (3) 회색
+    // disabled 외관 (R10) 회귀 가드 셋 동시 검증.
+    testWidgets(
+      'T-13.1-PLACEHOLDER-01: LineSpec build() → 회색 disabled placeholder + '
+      'ARB authBrandAssetMissing 라벨 + InkWell/GestureDetector 부재 '
+      '(iter2 WR-02 시그니처 변경 회귀 가드)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.line(
+                label: 'Continue with LINE',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        // iter2 WR-02 정정 회귀 가드 — `_renderPlaceholder` 는 탭 처리
+        // 책임 0 (InkWell/GestureDetector 미사용). onPressed 가 caller 에서
+        // 전달돼도 placeholder 가 무시 — 자상 commit 전 비활성 외관 보장.
+        expect(find.byType(InkWell), findsNothing);
+        expect(find.byType(GestureDetector), findsNothing);
+        // ARB 해석 라벨 검증 — en locale 의 `authBrandAssetMissing` placeholder
+        // ('Asset missing: {label}') 가 정상 해석되어 'Continue with LINE'
+        // 로 보간된 결과 노출.
+        expect(find.text('Asset missing: Continue with LINE'), findsOneWidget);
+        // R10 disabled 외관 검증 — Material 의 회색 배경 (Colors.grey.shade200)
+        // + iter2 docstring 의 "회색 disabled 외관 (R10)" 약속 회귀 가드.
+        // _renderPlaceholder 의 Material 위제만 단독 매칭하기 위해
+        // descendantOf 로 BrandedSocialButton 하위 first Material 추출.
+        final materialFinder = find.descendant(
+          of: find.byType(BrandedSocialButton),
+          matching: find.byType(Material),
+        );
+        final material = tester.widget<Material>(materialFinder.first);
+        expect(material.color, Colors.grey.shade200);
+      },
+    );
+
+    // ─── T-13.1-PLACEHOLDER-02: WechatSpec build() → placeholder 회귀 가드 ──
+    testWidgets(
+      'T-13.1-PLACEHOLDER-02: WechatSpec build() → 회색 disabled placeholder + '
+      'ARB authBrandAssetMissing 라벨 + InkWell/GestureDetector 부재 '
+      '(LineSpec 와 동일 분기 회귀 가드)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.wechat(
+                label: 'Continue with WeChat',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(InkWell), findsNothing);
+        expect(find.byType(GestureDetector), findsNothing);
+        expect(
+          find.text('Asset missing: Continue with WeChat'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }
