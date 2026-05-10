@@ -317,6 +317,101 @@ void main() {
       expect(find.byType(SignInWithAppleButton), findsOneWidget);
     });
 
+    // ─── T-13.1-A11Y-SEMANTICS-01: Semantics 액션 핸들러 + label 회귀 가드 ─
+    //
+    // **Phase 13.1 REVIEW iter2 CR-01 정정 (2026-05-10):** iter1 fix 가
+    // `Semantics(button: true, excludeSemantics: true)` 만 추가하고 `onTap`
+    // 매개변수 미전달 → 자식 InkWell 의 GestureSemantics 가 트리에서 drop
+    // 되어 TalkBack/VoiceOver 사용자가 라벨은 듣지만 활성화 불가 회귀.
+    // 본 test 는 (1) button + label + enabled 3 노출 + (2) hasTapAction
+    // (시멘틱 액션 핸들러 명시) 둘 다 검증 — `tester.tap` (포인터) 만으로는
+    // 검출 불가능한 a11y silent 회귀 차단.
+    testWidgets(
+      'T-13.1-A11Y-SEMANTICS-01: KakaoSpec _renderActiveButton — button + '
+      'label + onTap action 시멘틱 노드 노출 (iter2 CR-01 회귀 가드)',
+      (tester) async {
+        final SemanticsHandle semHandle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ko'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.kakao(
+                label: '카카오 로그인',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        try {
+          // BrandedSocialButton 의 외부 Semantics 노드 검증.
+          // matchesSemantics(hasTapAction: true) 가 시멘틱 트리에 onTap
+          // 액션 핸들러가 정상 등록되었는지 단독 검증 — iter1 의
+          // `Semantics(button: true, excludeSemantics: true)` + onTap 미전달
+          // 패턴이 회귀하면 hasTapAction=false 로 RED.
+          expect(
+            tester.getSemantics(find.byType(BrandedSocialButton)),
+            matchesSemantics(
+              isButton: true,
+              hasTapAction: true,
+              hasEnabledState: true,
+              isEnabled: true,
+              label: '카카오 로그인',
+            ),
+            reason: 'iter2 CR-01 회귀 가드 — Semantics(onTap: onPressed) 미전달 시 '
+                'TalkBack/VoiceOver 사용자가 활성화 불가. '
+                'button/label/onTap 셋 모두 시멘틱 트리에 노출 의무. '
+                'hasTapAction=false RED 시 iter1 회귀 패턴 재발.',
+          );
+        } finally {
+          semHandle.dispose();
+        }
+      },
+    );
+
+    // ─── T-13.1-A11Y-SEMANTICS-02: 비활성 상태 hasTapAction 부재 ─────────
+    testWidgets(
+      'T-13.1-A11Y-SEMANTICS-02: NaverSpec onPressed=null → '
+      'hasTapAction false + isEnabled false (a11y 비활성 표현)',
+      (tester) async {
+        final SemanticsHandle semHandle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ko'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.naver(
+                label: '네이버로 시작하기',
+                theme: NaverTheme.light,
+                onPressed: null,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        try {
+          expect(
+            tester.getSemantics(find.byType(BrandedSocialButton)),
+            matchesSemantics(
+              isButton: true,
+              hasEnabledState: true,
+              isEnabled: false,
+              label: '네이버로 시작하기',
+              // onPressed=null 이면 Semantics.onTap 도 null → hasTapAction
+              // false.
+            ),
+            reason: 'onPressed=null → enabled=false + onTap 핸들러 미등록. '
+                '비활성 상태도 button/label 은 노출 (TalkBack 가 "비활성 버튼" 안내).',
+          );
+        } finally {
+          semHandle.dispose();
+        }
+      },
+    );
+
     // ─── T-13.1-X2-FACEBOOK-PRESERVE-01: FacebookSpec UnsupportedError ────
     //
     // **Phase 13.1 Gap-1 X2 BLOCKER 2 fix (2026-05-09):** sentinel stub-context

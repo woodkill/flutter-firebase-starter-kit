@@ -434,6 +434,15 @@ class BrandedSocialButton extends StatelessWidget {
 /// propagate 0 — screen reader 사용자가 라벨 정보 0 노출 회귀 발생. ARB 해석
 /// 라벨 (예: '카카오 로그인' / 'Continue with Kakao') 을 외부 [Semantics]
 /// 노드에 명시 주입하여 a11y layer 단독 권위.
+///
+/// **Phase 13.1 REVIEW iter2 CR-01 정정 (2026-05-10):** iter1 의
+/// `excludeSemantics: true` + `onTap` 미전달 패턴은 InkWell 의
+/// GestureSemantics (활성화 액션 핸들러) 를 시멘틱 트리에서 drop 하여
+/// TalkBack/VoiceOver 사용자가 "이중 탭" 명령으로 InkWell 을 활성화 불가
+/// 회귀. 옵션 1 채택 — [Semantics.onTap] 에 [onPressed] 명시 전달 + 자식
+/// InkWell 의 자동 GestureSemantics 와 중복 회피 위해 `excludeSemantics:
+/// true` 보존 (자상의 `excludeFromSemantics: true` 와 정합). 회귀 가드는
+/// `branded_social_button_test.dart` 의 시멘틱 액션 검증 test 신규 추가.
 Widget _renderActiveButton(
   BuildContext context,
   BrandSpec spec,
@@ -446,6 +455,7 @@ Widget _renderActiveButton(
     button: true,
     enabled: onPressed != null,
     label: label,
+    onTap: onPressed,
     excludeSemantics: true,
     child: SizedBox(
       width: double.infinity,
