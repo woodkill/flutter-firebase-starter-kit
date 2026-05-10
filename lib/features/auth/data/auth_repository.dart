@@ -678,6 +678,48 @@ class AuthRepository {
     }
   }
 
+  /// (Phase 9.2 D-18 — R4) Firebase Auth 의 [fb.User.sendEmailVerification] 을
+  /// 5 social sign-in 메서드 success path 에서 자동 호출하는 단일 진실원.
+  ///
+  /// 가드 (D-19) — 다음 5 조건 중 하나라도 true 면 no-op:
+  /// - [user] == null
+  /// - [fb.User.isAnonymous] == true
+  /// - [fb.User.email] == null
+  /// - [fb.User.emailVerified] == true
+  /// - [isNewUser] == false (D-20 — 재로그인 spam 방지)
+  ///
+  /// Apple/Google 의 idToken `email_verified=true` claim + Kakao/Naver 의
+  /// Cloud Function `identity_index.ts:225` `emailVerified: true` 자동 set
+  /// 으로 인해 4 provider 는 자연 no-op 이며, Facebook 만 실효적 호출 한다.
+  ///
+  /// 발송 실패는 graceful (D-21 — Phase 6.1 D-10/D-11 패턴 계승). 로그인
+  /// 자체는 성공 유지. [fb.FirebaseAuthException] + [Object] 양쪽 catch +
+  /// [kDebugMode] [debugPrint] only.
+  // ignore: unused_element
+  Future<void> _autoSendEmailVerification({
+    required fb.User? user,
+    required bool isNewUser,
+  }) async {
+    if (user == null) return;
+    if (user.isAnonymous) return;
+    if (user.email == null) return;
+    if (user.emailVerified) return;
+    if (!isNewUser) return; // D-20 재로그인 spam 방지
+    try {
+      await user.sendEmailVerification();
+    } on fb.FirebaseAuthException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '_autoSendEmailVerification FirebaseAuth 실패: ${e.code}',
+        );
+      }
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('_autoSendEmailVerification 비-Auth 예외: $e\n$st');
+      }
+    }
+  }
+
   /// 로그아웃한다.
   ///
   /// [GoogleSignIn.signOut]을 병행 호출하여 Google 세션도 해제한다 (D-07).
