@@ -411,9 +411,9 @@ class BrandedSocialButton extends StatelessWidget {
       ),
       LineSpec() ||
       WechatSpec() => _renderPlaceholder(context, spec, label, onPressed),
-      KakaoSpec() => _renderActiveButton(context, spec, onPressed),
-      NaverSpec() => _renderActiveButton(context, spec, onPressed),
-      GoogleSpec() => _renderActiveButton(context, spec, onPressed),
+      KakaoSpec() => _renderActiveButton(context, spec, label, onPressed),
+      NaverSpec() => _renderActiveButton(context, spec, label, onPressed),
+      GoogleSpec() => _renderActiveButton(context, spec, label, onPressed),
     };
   }
 }
@@ -443,52 +443,66 @@ class BrandedSocialButton extends StatelessWidget {
 ///
 /// **AppleSpec/FacebookSpec/LineSpec/WechatSpec 영향 없음** — 본 함수는
 /// build() 의 KakaoSpec/NaverSpec/GoogleSpec 분기에서만 호출.
+///
+/// **Phase 13.1 REVIEW CR-01 정정 (2026-05-10):** [label] 매개변수 신규 +
+/// 외부 [Semantics] wrap 추가. wide 자상 통째 buttons 패턴이
+/// `excludeFromSemantics: true` 를 명시하여 자상 내부 라벨이 a11y tree 에
+/// propagate 0 — screen reader 사용자가 라벨 정보 0 노출 회귀 발생. ARB 해석
+/// 라벨 (예: '카카오 로그인' / 'Continue with Kakao') 을 외부 [Semantics]
+/// 노드에 명시 주입하여 a11y layer 단독 권위.
 Widget _renderActiveButton(
   BuildContext context,
   BrandSpec spec,
+  String label,
   VoidCallback? onPressed,
 ) {
   final assetPath = _iconAssetFor(context, spec);
   final radius = BorderRadius.circular(spec.borderRadius);
-  return SizedBox(
-    width: double.infinity,
-    height: spec.height,
-    child: Material(
-      color: Colors.transparent,
-      // **Plan 14 deviation 정정 (2026-05-09 사용자 시각 검증 2차):** Material
-      // 의 `clipBehavior: Clip.antiAlias` 가 자상 child 를 추가로 클립 →
-      // 자상의 자연 baked-in corner 무효화 (ClipRRect 폐기로도 해소되지
-      // 않은 두 번째 클리핑 layer). `Clip.none` 으로 자상 baked-in shape 가
-      // 시각 단독 권위. InkWell 의 `borderRadius: radius` 는 ripple 영역만
-      // 계속 12dp 제어 (시각 변경 0).
-      clipBehavior: Clip.none,
-      child: InkWell(
-        onTap: onPressed == null
-            ? null
-            : () {
-                FocusManager.instance.primaryFocus?.unfocus();
-                onPressed();
-              },
-        borderRadius: radius,
-        child: switch (spec.assetType) {
-          AssetType.png => Image.asset(
-            assetPath,
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
-            width: double.infinity,
-            height: spec.height,
-            excludeFromSemantics: true,
-          ),
-          AssetType.svg => SvgPicture.asset(
-            assetPath,
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
-            width: double.infinity,
-            height: spec.height,
-            excludeFromSemantics: true,
-          ),
-          AssetType.none => const SizedBox.shrink(),
-        },
+  return Semantics(
+    button: true,
+    enabled: onPressed != null,
+    label: label,
+    excludeSemantics: true,
+    child: SizedBox(
+      width: double.infinity,
+      height: spec.height,
+      child: Material(
+        color: Colors.transparent,
+        // **Plan 14 deviation 정정 (2026-05-09 사용자 시각 검증 2차):** Material
+        // 의 `clipBehavior: Clip.antiAlias` 가 자상 child 를 추가로 클립 →
+        // 자상의 자연 baked-in corner 무효화 (ClipRRect 폐기로도 해소되지
+        // 않은 두 번째 클리핑 layer). `Clip.none` 으로 자상 baked-in shape 가
+        // 시각 단독 권위. InkWell 의 `borderRadius: radius` 는 ripple 영역만
+        // 계속 12dp 제어 (시각 변경 0).
+        clipBehavior: Clip.none,
+        child: InkWell(
+          onTap: onPressed == null
+              ? null
+              : () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  onPressed();
+                },
+          borderRadius: radius,
+          child: switch (spec.assetType) {
+            AssetType.png => Image.asset(
+              assetPath,
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+              width: double.infinity,
+              height: spec.height,
+              excludeFromSemantics: true,
+            ),
+            AssetType.svg => SvgPicture.asset(
+              assetPath,
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+              width: double.infinity,
+              height: spec.height,
+              excludeFromSemantics: true,
+            ),
+            AssetType.none => const SizedBox.shrink(),
+          },
+        ),
       ),
     ),
   );
