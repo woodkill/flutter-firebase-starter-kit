@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/config/splash_config.dart';
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -9,6 +11,28 @@ import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_initializer.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _MockCrashlytics extends Mock implements CrashlyticsService {}
+
+/// Crashlytics 호출 stub helper (Phase 10.1 D-14).
+///
+/// setCustomKey / recordError 모두 no-op 응답으로 stub. verify 시 콜 횟수
+/// 카운팅 가능.
+_MockCrashlytics _buildCrashlyticsMock() {
+  final mock = _MockCrashlytics();
+  when(
+    () => mock.setCustomKey(any(), any<Object>()),
+  ).thenAnswer((_) async {});
+  when(
+    () => mock.recordError(
+      any<Object>(),
+      any<StackTrace?>(),
+      reason: any(named: 'reason'),
+      fatal: any(named: 'fatal'),
+    ),
+  ).thenAnswer((_) async {});
+  return mock;
+}
 
 User stubUser({String uid = 'anon-uid'}) {
   return User(
@@ -30,10 +54,17 @@ void main() {
   setUp(() {
     // WARNING #13: 실대기 1ms 로 단축 (피드백 레이턴시 < 100ms).
     SplashConfig.overrideMinDuration = const Duration(milliseconds: 1);
+    // Phase 10.1 D-16: backoff 실대기 9s → 3ms 단축 (1ms × 3).
+    SplashConfig.overrideBackoffSteps = const [
+      Duration(milliseconds: 1),
+      Duration(milliseconds: 1),
+      Duration(milliseconds: 1),
+    ];
   });
 
   tearDown(() {
     SplashConfig.overrideMinDuration = null;
+    SplashConfig.overrideBackoffSteps = null;
   });
 
   group('SplashInitializer (Phase 10 D-24 / Issue #10 Plan 10-14 GC-03)', () {
@@ -113,7 +144,8 @@ void main() {
       verifyNever(mockRepo.signInAnonymously);
     });
 
-    test('Test 5: signInAnonymously 실패 시 Result.failure 반환', () async {
+    test('Test 5: signInAnonymously 실패 시 Result.failure 반환 '
+        '(Phase 10.1 — transient × 4 호출 후 retry 소진)', () async {
       final mockRepo = _MockAuthRepository();
       when(
         mockRepo.signInAnonymously,
@@ -130,6 +162,8 @@ void main() {
       final result = await initializer.initialize();
       expect(result, isA<Failure<void>>());
       expect((result as Failure<void>).exception, isA<NoInternetConnection>());
+      // Phase 10.1 D-04: transient 는 retry 3회까지 시도 (총 4 호출).
+      verify(mockRepo.signInAnonymously).called(4);
     });
 
     test('Test 6 (Issue #10 Plan 10-14 GC-03): onboardingFuture 가 minDuration '
@@ -242,5 +276,252 @@ void main() {
         verify(mockRepo.signInAnonymously).called(1);
       },
     );
+  });
+
+  /// Phase 10.1 retry 매트릭스 — transient/permanent 분류 + Crashlytics emit.
+  ///
+  /// VALIDATION.md per-task map 의 unit 영역 (I1/I2 invariant + Risk R1 +
+  /// AUTH-11 Crashlytics) 8 행을 7 신규 case 로 충족.
+  group('Phase 10.1 D-04 retry 매트릭스 + Crashlytics emit', () {
+    test('C1: NoInternetConnection × 3 retry 후 소진 → Failure + Crashlytics '
+        'emit 1회 (OOS-02 cycle 1 회귀 차단)', () async {
+      final mockRepo = _MockAuthRepository();
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => const Result.failure(NoInternetConnection()));
+      final mockCrashlytics = _buildCrashlyticsMock();
+
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+
+      final result = await initializer.initialize();
+      expect(result, isA<Failure<void>>());
+      expect((result as Failure<void>).exception, isA<NoInternetConnection>());
+      // attempt 1 + retry 3 = 4 호출 (D-04).
+      verify(mockRepo.signInAnonymously).called(4);
+      // Crashlytics emit 1회 (D-14, T-10.1-04). cause null → code 'unknown'.
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'splash_auto_signin_retry_exhausted',
+          'unknown',
+        ),
+      ).called(1);
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: false,
+        ),
+      ).called(1);
+    });
+
+    test('C2: ServiceUnavailable(cause=code="unknown") × 3 retry 소진 → '
+        'Failure + Crashlytics emit (OOS-02 cycle 2 회귀 차단)', () async {
+      final mockRepo = _MockAuthRepository();
+      final cause = fb.FirebaseAuthException(
+        code: 'unknown',
+        message: 'I/O error during system call, Connection reset by peer',
+      );
+      when(mockRepo.signInAnonymously).thenAnswer(
+        (_) async => Result.failure(ServiceUnavailable(cause: cause)),
+      );
+      final mockCrashlytics = _buildCrashlyticsMock();
+
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+
+      final result = await initializer.initialize();
+      expect(result, isA<Failure<void>>());
+      expect((result as Failure<void>).exception, isA<ServiceUnavailable>());
+      verify(mockRepo.signInAnonymously).called(4);
+      // cause.code = 'unknown' 추출 검증 (D-10 PII-safe).
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'splash_auto_signin_retry_exhausted',
+          'unknown',
+        ),
+      ).called(1);
+    });
+
+    test('C3: NoInternetConnection × 1 + Success → Success (retry 1회) + '
+        'Crashlytics 0회', () async {
+      final mockRepo = _MockAuthRepository();
+      var callCount = 0;
+      when(mockRepo.signInAnonymously).thenAnswer((_) async {
+        callCount += 1;
+        if (callCount == 1) {
+          return const Result.failure(NoInternetConnection());
+        }
+        return Result.success(stubUser());
+      });
+      final mockCrashlytics = _buildCrashlyticsMock();
+
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+
+      final result = await initializer.initialize();
+      expect(result, isA<Success<void>>());
+      verify(mockRepo.signInAnonymously).called(2);
+      // retry 성공 시 Crashlytics emit 안 함 (D-14).
+      verifyNever(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      );
+    });
+
+    test('C4: NoInternetConnection × 2 + Success → Success (retry 2회) + '
+        'Crashlytics 0회', () async {
+      final mockRepo = _MockAuthRepository();
+      var callCount = 0;
+      when(mockRepo.signInAnonymously).thenAnswer((_) async {
+        callCount += 1;
+        if (callCount <= 2) {
+          return const Result.failure(NoInternetConnection());
+        }
+        return Result.success(stubUser());
+      });
+      final mockCrashlytics = _buildCrashlyticsMock();
+
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+
+      final result = await initializer.initialize();
+      expect(result, isA<Success<void>>());
+      verify(mockRepo.signInAnonymously).called(3);
+      verifyNever(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      );
+    });
+
+    test('C5: UserDisabled × 1 → 즉시 Failure (retry 안 됨, I2 permanent)',
+        () async {
+      final mockRepo = _MockAuthRepository();
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => const Result.failure(UserDisabled()));
+      final mockCrashlytics = _buildCrashlyticsMock();
+
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+
+      final result = await initializer.initialize();
+      expect(result, isA<Failure<void>>());
+      expect((result as Failure<void>).exception, isA<UserDisabled>());
+      // permanent — retry 안 함, 1회만 호출.
+      verify(mockRepo.signInAnonymously).called(1);
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'splash_auto_signin_retry_exhausted',
+          'unknown',
+        ),
+      ).called(1);
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: false,
+        ),
+      ).called(1);
+    });
+
+    test('C6: TooManyRequests × 1 → 즉시 Failure (retry 안 됨, I2 permanent)',
+        () async {
+      final mockRepo = _MockAuthRepository();
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => const Result.failure(TooManyRequests()));
+      final mockCrashlytics = _buildCrashlyticsMock();
+
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+
+      final result = await initializer.initialize();
+      expect(result, isA<Failure<void>>());
+      expect((result as Failure<void>).exception, isA<TooManyRequests>());
+      verify(mockRepo.signInAnonymously).called(1);
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'splash_auto_signin_retry_exhausted',
+          'unknown',
+        ),
+      ).called(1);
+    });
+
+    test(
+        'C7: ServiceUnavailable(cause=code="operation-not-allowed") × 1 → '
+        '즉시 Failure (T-10.1-01 mitigation — cause 검사 검증)', () async {
+      final mockRepo = _MockAuthRepository();
+      final cause = fb.FirebaseAuthException(code: 'operation-not-allowed');
+      when(mockRepo.signInAnonymously).thenAnswer(
+        (_) async => Result.failure(ServiceUnavailable(cause: cause)),
+      );
+      final mockCrashlytics = _buildCrashlyticsMock();
+
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+
+      final result = await initializer.initialize();
+      expect(result, isA<Failure<void>>());
+      expect((result as Failure<void>).exception, isA<ServiceUnavailable>());
+      // operation-not-allowed 는 permanent → retry 안 함.
+      verify(mockRepo.signInAnonymously).called(1);
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'splash_auto_signin_retry_exhausted',
+          'operation-not-allowed',
+        ),
+      ).called(1);
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: false,
+        ),
+      ).called(1);
+    });
   });
 }
