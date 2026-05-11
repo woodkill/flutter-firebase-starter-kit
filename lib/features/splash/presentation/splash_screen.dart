@@ -221,8 +221,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (!mounted) return;
     switch (selected) {
       case _SplashFailureAction.retry:
-        setState(() => _hasFailure = false);
-        await _runInit();
+        // CR-01: 외곽 `_runInit` 의 `finally` 가 아직 `_initInFlight = true` 인
+        // 시점에 본 분기가 실행된다. 여기서 `_runInit` 을 재귀 호출하면
+        // 재entry 가드 `if (_initInFlight) return;` 가 즉시 단락시켜 retry 가
+        // no-op 가 된다. 한 frame 양보 후 — 즉 외곽 `_runInit` 의 `finally`
+        // 가 `_initInFlight` 를 false 로 리셋한 다음 — 새 init 을 트리거한다.
+        // `_hasFailure` 리셋도 새 init 시작 직전에 수행한다.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _hasFailure = false);
+          _runInit();
+        });
       case _SplashFailureAction.offline:
       case null:
         if (!mounted) return;

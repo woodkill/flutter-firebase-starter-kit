@@ -605,5 +605,72 @@ void main() {
         ),
       );
     });
+
+    /// Phase 10.1 CR-01 회귀 가드: 다이얼로그의 "Retry" 버튼 탭 시 외곽
+    /// `_runInit` 의 `_initInFlight = true` 가 아직 살아있는 시점에 재귀
+    /// 호출되면 가드가 단락시켜 retry 가 no-op 가 된다. 본 테스트는 retry
+    /// 버튼이 실제로 `signInAnonymously` 재호출을 발동하고 결과적으로 Home
+    /// 으로 진입함을 검증한다 (D-27 "사용자 재시도" path 의 직접 회귀 가드).
+    testWidgets(
+      'Test 9 (Phase 10.1 CR-01 회귀 가드): "Retry" 탭 시 signInAnonymously 가 '
+      '재호출되어 5회째 호출에서 Success → Home 진입',
+      (tester) async {
+        // 1~4회: NoInternetConnection (attempt 1 + retry 3 소진 → 다이얼로그).
+        // 5회: Success (Retry 탭 후 재호출 성공 → Home).
+        var callCount = 0;
+        final mockRepo = _MockAuthRepository();
+        when(mockRepo.signInAnonymously).thenAnswer((_) async {
+          callCount += 1;
+          if (callCount <= 4) {
+            return const Result.failure(NoInternetConnection());
+          }
+          return Result.success(_stubUser());
+        });
+        final mockCrashlytics = _MockCrashlytics();
+        when(
+          () => mockCrashlytics.recordError(
+            any<Object>(),
+            any<StackTrace?>(),
+            reason: any(named: 'reason'),
+            fatal: any(named: 'fatal'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
+        final initializer = SplashInitializer(
+          authRepository: mockRepo,
+          isFirebaseInitialized: true,
+          currentUserIsNull: true,
+          onboardingFuture: Future.value(true),
+          isSocialLinkInProgress: false,
+          crashlyticsService: mockCrashlytics,
+        );
+        final router = _testRouterWithLogin();
+        addTearDown(router.dispose);
+
+        await _pumpSplash(tester, initializer: initializer, router: router);
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pumpAndSettle();
+
+        // (1) 첫 init 4회 소진 → 다이얼로그 표시.
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.text('Retry'), findsOneWidget);
+        expect(callCount, 4, reason: '첫 init 에서 attempt 1 + retry 3 소진');
+
+        // (2) Retry 탭 → addPostFrameCallback 으로 `_runInit` 재진입
+        // (CR-01 fix — 재귀 호출 시 _initInFlight 가드 단락 회피).
+        await tester.tap(find.text('Retry'));
+        await tester.pumpAndSettle();
+
+        // (3) 5번째 호출에서 Success → Home 진입 확증.
+        verify(mockRepo.signInAnonymously).called(5);
+        expect(find.text('HOME'), findsOneWidget);
+        expect(
+          router.routerDelegate.currentConfiguration.uri.toString(),
+          AppRoutes.home,
+        );
+      },
+    );
   });
 }
