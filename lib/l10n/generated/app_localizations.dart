@@ -736,7 +736,7 @@ abstract class AppLocalizations {
   /// **'Sign in with Google'**
   String get authGoogleSignIn;
 
-  /// Error message when account-exists-with-different-credential Firebase error occurs during social sign-in
+  /// Phase 17 anchor — intentional dead code post Phase 9.2 R2 (Path A-narrow). Runtime path uses errorAccountExistsWithUnknownProvider via exception_l10n.dart D-13 instance type-check early return. Key retained as 3-tier infrastructure (ARB key + generated getter + switch arm) for Phase 17 provider-aware reactivation.
   ///
   /// In en, this message translates to:
   /// **'This email is already registered with a different sign-in method. Please sign in with your password.'**
