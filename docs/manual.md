@@ -1421,7 +1421,7 @@ helper 호출 — `lib/features/auth/data/auth_repository.dart` 안 private asyn
 helper (정의 line 728, callsite Google line 230 / Apple line 340 / Facebook
 line 441 / Kakao line 525 / Naver line 612). 5 가드 (D-19 + D-20):
 
-- `user == null` / `user.isAnonymous` / `user.email == null` /
+- `user == null` / `user.isAnonymous` / `(user.email ?? '').isEmpty` /
   `user.emailVerified == true` / `isNewUser == false` 중 하나라도 true →
   no-op (조기 return).
 
