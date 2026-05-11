@@ -1418,8 +1418,10 @@ SPEC 의 starting point 로 재활용 가능 — 단 server-side 인프라 디�
 
 5 social sign-in 메서드 모두 success path 에서 `_autoSendEmailVerification`
 helper 호출 — `lib/features/auth/data/auth_repository.dart` 안 private async
-helper (정의 line 728, callsite Google line 230 / Apple line 340 / Facebook
-line 441 / Kakao line 525 / Naver line 612). 5 가드 (D-19 + D-20):
+helper. callsite 는 `signInWithGoogle` / `signInWithApple` /
+`signInWithFacebook` / `signInWithKakao` / `signInWithNaver` 5 메서드 각
+success path 의 마지막 `await _autoSendEmailVerification(userCredential);`
+한 줄 (정의는 `_autoSendEmailVerification` 본체). 5 가드 (D-19 + D-20):
 
 - `user == null` / `user.isAnonymous` / `(user.email ?? '').isEmpty` /
   `user.emailVerified == true` / `isNewUser == false` 중 하나라도 true →
@@ -1436,8 +1438,10 @@ isNewUser 가드 (`UserCredential.additionalUserInfo?.isNewUser ?? false`) 가
 verification 메일 받는 spam 차단. 사용자가 의도적으로 검증을 재요청할 때는
 verifyEmailScreen 의 "재전송" (Resend) 버튼이 manual-resend 경로.
 
-`signInWithFacebook` 만 추가로 `_setFacebookPhotoUrl` 호출 (정의 line 778,
-callsite line 442) — Graph API `picture.type(large)` 응답의 `picture.data.url`
+`signInWithFacebook` 만 추가로 `_setFacebookPhotoUrl` 호출 (정의는
+`_setFacebookPhotoUrl` 본체, callsite 는 `signInWithFacebook` success path
+의 `_autoSendEmailVerification` 호출 직후) — Graph API
+`picture.type(large)` 응답의 `picture.data.url`
 path 추출 후 `user.updatePhotoURL(url)` 갱신. Apple / Google 의 idToken
 picture claim 자동 채움 차이 보완. D-25 — `_autoSendEmailVerification` →
 `_setFacebookPhotoUrl` 순차 호출 (verify 먼저, photoURL 후순).
@@ -1465,16 +1469,14 @@ silhouette (실루엣) 정책: 본 phase 는 **허용 default** —
 ### 4. signOut 5 SDK 일괄 해제 (R6 — D-26)
 
 `AuthRepository.signOut()` (`lib/features/auth/data/auth_repository.dart`
-의 `signOut()` 본체 — Google line 829 → Facebook line 837 → Kakao line 845 →
-Naver line 853 → Auth line 859) 가 5 SDK 순차 호출:
+의 `signOut()` 본체) 가 Google → Facebook → Kakao → Naver → Firebase
+Auth 순서로 5 SDK 순차 호출:
 
-1. `_googleSignIn.signOut()` (Google) — line 829
-2. `_facebookAuth.logOut()` (Facebook) — line 837
-3. `_kakaoSdkClient.logout()` (Kakao — Phase 9.2 추가, Phase 12 D-57 정합) —
-   line 845
-4. `_naverSdkClient.logout()` (Naver — Phase 9.2 추가, Phase 13 D-57 정합) —
-   line 853
-5. `_auth.signOut()` (Firebase Auth — 마지막 호출 보장) — line 859
+1. `_googleSignIn.signOut()` (Google)
+2. `_facebookAuth.logOut()` (Facebook)
+3. `_kakaoSdkClient.logout()` (Kakao — Phase 9.2 추가, Phase 12 D-57 정합)
+4. `_naverSdkClient.logout()` (Naver — Phase 9.2 추가, Phase 13 D-57 정합)
+5. `_auth.signOut()` (Firebase Auth — 마지막 호출 보장)
 
 각 SDK logout 은 `try / on Object catch` 무시 패턴 — 한 SDK 실패가 후속
 SDK + Firebase Auth signOut 호출을 차단하지 않는다. 본 invariant 가
@@ -1494,17 +1496,19 @@ Phase 9.2 의 add-only 패치가 5 SDK 세션 cache 일괄 해제 보장.
 
 starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞춰 조정할 때:
 
-1. **자동 sendEmailVerification 비활성화**: 5 sign-in 메서드 success path 의
-   `await _autoSendEmailVerification(userCredential);` 호출 한 줄 (Google
-   line 230 / Apple line 340 / Facebook line 441 / Kakao line 525 / Naver
-   line 612 — 5 callsite) 을 단순 제거. 또는 `_autoSendEmailVerification`
-   본체 첫 줄 (`auth_repository.dart:731`) 에 `return;` 추가하여 모든 path
-   no-op 강제. (WR-01 iter1 fix 로 시그니처가 `UserCredential` 단일 인자
-   채택 — `isNewUser` 추출은 helper 내부 `userCredential.additionalUserInfo
-   ?.isNewUser ?? false` 로 흡수됨.)
-2. **Facebook photoURL 자동 갱신 비활성화**: `signInWithFacebook` 의 line 442
-   `await _setFacebookPhotoUrl(fbUser);` 한 줄만 제거 → `user.photoURL` 빈 값
-   유지. verify 호출 (line 441) 은 그대로.
+1. **자동 sendEmailVerification 비활성화**: `signInWithGoogle` /
+   `signInWithApple` / `signInWithFacebook` / `signInWithKakao` /
+   `signInWithNaver` 5 메서드 각 success path 의
+   `await _autoSendEmailVerification(userCredential);` 호출 한 줄 (5
+   callsite) 을 단순 제거. 또는 `_autoSendEmailVerification` 함수 본체
+   첫 줄에 `return;` 추가하여 모든 path no-op 강제. (WR-01 iter1 fix 로
+   시그니처가 `UserCredential` 단일 인자 채택 — `isNewUser` 추출은 helper
+   내부 `userCredential.additionalUserInfo?.isNewUser ?? false` 로
+   흡수됨.)
+2. **Facebook photoURL 자동 갱신 비활성화**: `signInWithFacebook` 의
+   `await _setFacebookPhotoUrl(fbUser);` 호출 한 줄만 제거 →
+   `user.photoURL` 빈 값 유지. 같은 메서드의
+   `_autoSendEmailVerification` 호출은 그대로.
 3. **자동 채움 + focus 동작 복구 (D-31 inversion)**: `login_screen.dart` 의
    listener body 안 anchor 주석 영역에 자동 채움 4줄 재도입 — 단 cognitive
    hijack vector 재도입 위험 인지. Phase 17 (Account Linking) 부활 시
