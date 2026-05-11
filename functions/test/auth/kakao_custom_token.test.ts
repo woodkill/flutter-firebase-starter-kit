@@ -787,11 +787,14 @@ describe("kakaoCustomToken onCall", () => {
     async () => {
       // Plan 08 의 Dart-side propagation 단언 부재의 대체 — functions jest
       // sentinel 로 createCustomToken 호출 인자에 developerClaims 포함 검증.
+      // IN-04: Kakao OIDC ID Token 의 email_verified claim 도 mock payload 에
+      // 포함 — 비즈 앱 + email 필수 동의 + 인증 완료 케이스 시뮬레이션.
       jwtVerifyMock.mockResolvedValue({
         payload: {
           sub: "kakao-user-ok",
           nonce: "kakao-nonce-test",
           email: "PII_OPTC_ok@kakao.com",
+          email_verified: true,
         },
       });
       mockIdxGet.mockResolvedValue({exists: false});
@@ -825,6 +828,45 @@ describe("kakaoCustomToken onCall", () => {
       for (const args of warnMock.mock.calls) {
         expect(JSON.stringify(args)).not.toContain("PII_OPTC_ok@kakao.com");
       }
+    },
+  );
+
+  it(
+    "T-12-KAKAO-CT-OPTC-K2 (IN-04): email claim 만 있고 email_verified 부재 → email_verified=false 보수 매핑",
+    async () => {
+      // 일반 앱 / 미동의 / 미래 Kakao 정책 변경 시: ID Token 에 email 은
+      // 있지만 email_verified claim 미발급 케이스. starter-kit 은 unverified
+      // 가능성을 가정하고 보수적으로 false 매핑 — Firebase Auth 의 verified
+      // email 로 잘못 propagate 되는 회귀 차단.
+      jwtVerifyMock.mockResolvedValue({
+        payload: {
+          sub: "kakao-user-no-verify-claim",
+          nonce: "kakao-nonce-test",
+          email: "PII_OPTC_unverified@kakao.com",
+          // email_verified intentionally omitted
+        },
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockRejectedValueOnce(
+        Object.assign(new Error("not found"), {
+          code: "auth/user-not-found",
+        }),
+      );
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      await wrapped({
+        auth: {uid: "anon-uid-optc-k2"},
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "kakao-nonce-test"},
+      } as never);
+
+      // 핵심 회귀 가드 — email_verified=false 보수 매핑.
+      expect(mockCreateCustomToken).toHaveBeenCalledWith("anon-uid-optc-k2", {
+        email: "PII_OPTC_unverified@kakao.com",
+        email_verified: false,
+      });
     },
   );
 });

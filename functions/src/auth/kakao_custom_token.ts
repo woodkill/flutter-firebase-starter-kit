@@ -62,6 +62,13 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // Step 1: ID Token JWT 자체 검증.
     let kakaoUserId: string | undefined;
     let kakaoEmail: string | undefined;
+    // IN-04: OIDC 표준 email_verified claim — Kakao 가 발급 시 (비즈 앱 +
+    // email 필수 동의 + 이메일 인증 완료) true. 미발급 시 undefined → 기본
+    // false 로 보수 매핑. 기존에는 userInfo.email 존재만으로 무조건
+    // email_verified=true 발급해서 unverified Kakao email 이 Firebase Auth
+    // 의 verified email 로 잘못 propagate 될 가능성이 있었음 (현재 Kakao
+    // 정책상 unverified email 은 응답에 없지만 미래 정책 변경 대비).
+    let kakaoEmailVerified: boolean | undefined;
     // R10: OIDC 표준 claim — 동의 항목 활성화 + 사용자 동의 시에만 포함.
     let kakaoNickname: string | undefined;
     let kakaoPicture: string | undefined;
@@ -77,6 +84,9 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         // OIDC 표준 claim — 비즈 앱 + 카카오계정(이메일) 필수 동의 시 포함.
         // 일반 앱 또는 사용자 미동의 시 undefined.
         email?: string;
+        // IN-04: OIDC standard email_verified claim. Kakao 의 ID Token 에
+        // 발급되면 그대로 propagate. 미발급 시 undefined.
+        email_verified?: boolean;
         // R10: OIDC standard userinfo claim — Kakao Console 동의 항목 활성화
         // (닉네임 / 프로필 사진) + 사용자 동의 시 포함. 일반 앱 / 미동의 시
         // undefined (silent — Firebase Auth user record 갱신 안 함).
@@ -96,6 +106,7 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
       }
       kakaoUserId = payload.sub;
       kakaoEmail = payload.email;
+      kakaoEmailVerified = payload.email_verified;
       kakaoNickname = payload.nickname;
       kakaoPicture = payload.picture;
     } catch (err: unknown) {
@@ -213,8 +224,13 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // claim 으로만 propagate — logger 어디에도 email 본문 미노출 (D-08).
     //
     // Phase 17 (Account Linking) — see ROADMAP.md
+    //
+    // IN-04: email_verified 는 Kakao OIDC ID Token 의 email_verified claim
+    // 을 그대로 propagate. claim 미발급 시 보수적으로 false 매핑
+    // (이전에는 무조건 true 발급해서 미래 Kakao 정책 변경 시 unverified
+    // email 이 verified 로 잘못 propagate 될 가능성이 있었음).
     const developerClaims = userInfo.email ?
-      {email: userInfo.email, email_verified: true} :
+      {email: userInfo.email, email_verified: kakaoEmailVerified ?? false} :
       undefined;
     let customToken: string;
     try {

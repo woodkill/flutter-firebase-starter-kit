@@ -284,6 +284,16 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
     // claim 으로만 propagate — logger 어디에도 email 본문 미노출 (D-51).
     //
     // Phase 17 (Account Linking) — see ROADMAP.md
+    //
+    // IN-04: Naver `/v1/nid/me` 는 OIDC 가 아니라 REST API 이며
+    // email_verified 표준 claim 미제공. Naver 정책상 `email` 필드는 사용자
+    // 동의 시 항상 반환되며 verification 상태 구분이 응답에 없다 — 따라서
+    // 본 starter-kit 은 **"Naver 응답에 email 이 포함되어 있다면 verified"**
+    // 라는 가정을 채택하고 email_verified=true 를 명시 발급. Naver 가
+    // unverified email 도 응답에 포함하는 정책 변경 시 본 가정 재검토 필요
+    // (Naver 개발자 공지 / Changelog 추적). Kakao 와 달리 IdP 측 grounding
+    // claim 이 없으므로 starter-kit 측 정책 결정 영역 — 사용자 fork 시
+    // 본 단락 한 줄 (`email_verified: true` → `false`) 변경 가능.
     const developerClaims = userInfo.email ?
       {email: userInfo.email, email_verified: true} :
       undefined;
