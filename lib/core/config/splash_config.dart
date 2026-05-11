@@ -56,4 +56,55 @@ abstract final class SplashConfig {
       return true;
     }(), 'overrideMinDuration must not be set outside debug/test builds');
   }
+
+  /// 자동 익명 사인인 retry exponential backoff 스케쥴 (Phase 10.1 D-03).
+  ///
+  /// 첫 시도 실패 + transient 분류 시 본 List 의 Duration 을 순차적으로
+  /// 대기한 뒤 [signInAnonymously] 를 재호출한다. 합계 최대 7초 (1s + 2s
+  /// + 4s) — 사용자 체감 한계 (D-03 — jitter 없음, 단일 단말 가정으로
+  /// thundering herd 무관).
+  ///
+  /// 변경 시 retry 매트릭스 unit test (T5 C1~C7) 의 `verify(...).called(N)`
+  /// 횟수가 본 List 길이 + 1 (첫 시도) 에 동기되어야 한다.
+  static const List<Duration> backoffSteps = [
+    Duration(seconds: 1),
+    Duration(seconds: 2),
+    Duration(seconds: 4),
+  ];
+
+  /// 내부 override 저장소 — release 빌드에서는 항상 null 로 유지되도록
+  /// setter 에서 assert 로 게이트한다 (WR-02 verbatim 복제 — Phase 10.1 D-16).
+  static List<Duration>? _overrideBackoffSteps;
+
+  /// 테스트 전용 backoff 오버라이드 (Phase 10.1 D-16 — 실대기 9s → 3ms 단축).
+  ///
+  /// ```dart
+  /// setUp(() => SplashConfig.overrideBackoffSteps = const [
+  ///   Duration(milliseconds: 1),
+  ///   Duration(milliseconds: 1),
+  ///   Duration(milliseconds: 1),
+  /// ]);
+  /// tearDown(() => SplashConfig.overrideBackoffSteps = null);
+  /// ```
+  ///
+  /// **WR-02 방어:** setter 는 `assert` 블록 내부에서만 실제 write 를
+  /// 수행하므로 release 빌드에서는 이 필드를 실수로 대입해도 no-op 이며
+  /// 프로덕션 retry 스케쥴이 오염되지 않는다.
+  @visibleForTesting
+  static List<Duration>? get overrideBackoffSteps => _overrideBackoffSteps;
+
+  @visibleForTesting
+  static set overrideBackoffSteps(List<Duration>? value) {
+    // assert 표현식은 debug/profile 빌드에서만 평가된다. IIFE 로 부작용을
+    // 감싸 release 빌드에서는 write 자체가 실행되지 않는다.
+    assert(() {
+      _overrideBackoffSteps = value;
+      return true;
+    }(), 'overrideBackoffSteps must not be set outside debug/test builds');
+  }
+
+  /// Consumer 단일 진입점 — [overrideBackoffSteps] 가 설정되어 있으면 우선
+  /// 반환, 아니면 production [backoffSteps] 반환 (Phase 10.1 D-03/D-16).
+  static List<Duration> get effectiveBackoffSteps =>
+      overrideBackoffSteps ?? backoffSteps;
 }
