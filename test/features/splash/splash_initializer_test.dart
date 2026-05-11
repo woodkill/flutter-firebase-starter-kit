@@ -305,11 +305,12 @@ void main() {
       expect((result as Failure<void>).exception, isA<NoInternetConnection>());
       // attempt 1 + retry 3 = 4 호출 (D-04).
       verify(mockRepo.signInAnonymously).called(4);
-      // Crashlytics emit 1회 (D-14, T-10.1-04). cause null → code 'unknown'.
+      // Crashlytics emit 1회 (D-14, T-10.1-04). cause null → WR-02 fallback
+      // 으로 AppException 런타임 타입 'NoInternetConnection' 사용.
       verify(
         () => mockCrashlytics.setCustomKey(
           'splash_auto_signin_retry_exhausted',
-          'unknown',
+          'NoInternetConnection',
         ),
       ).called(1);
       verify(
@@ -439,10 +440,11 @@ void main() {
       expect((result as Failure<void>).exception, isA<UserDisabled>());
       // permanent — retry 안 함, 1회만 호출.
       verify(mockRepo.signInAnonymously).called(1);
+      // WR-02: cause null → AppException 런타임 타입 'UserDisabled' fingerprint.
       verify(
         () => mockCrashlytics.setCustomKey(
           'splash_auto_signin_retry_exhausted',
-          'unknown',
+          'UserDisabled',
         ),
       ).called(1);
       verify(
@@ -476,10 +478,11 @@ void main() {
       expect(result, isA<Failure<void>>());
       expect((result as Failure<void>).exception, isA<TooManyRequests>());
       verify(mockRepo.signInAnonymously).called(1);
+      // WR-02: cause null → AppException 런타임 타입 'TooManyRequests'.
       verify(
         () => mockCrashlytics.setCustomKey(
           'splash_auto_signin_retry_exhausted',
-          'unknown',
+          'TooManyRequests',
         ),
       ).called(1);
     });
