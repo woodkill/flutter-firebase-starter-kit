@@ -98,6 +98,37 @@ export function identityIndexDocId(
 }
 
 /**
+ * unknown 에러를 logger.code 필드용 fingerprint 문자열로 변환 (WR-07).
+ *
+ * 비-Error throw (Symbol / null / undefined / primitive) 도 명시 fingerprint
+ * 부여하여 firebase-admin 비정상 throw 경로를 ops triage 에서 분간 가능하게
+ * 한다. `err as {code?: string}` 식 unchecked assertion 패턴을 본 helper 로
+ * 일원화 — cloud-functions-typescript.md "as 타입 단언 최소화" / "any 사용
+ * 금지" 규칙 정합.
+ *
+ * **PII 정책 (D-51 / Pitfall 7)**: 본 함수는 fingerprint *문자열* 만 반환
+ * 하며 err.message / payload / claim 등 본문은 절대 노출하지 않는다.
+ *
+ * @param {unknown} err catch (err: unknown) 의 err.
+ * @return {string} logger.code 필드용 short fingerprint
+ *     ('auth/user-not-found' / 'TypeError' / 'string-thrown' / 'null-thrown'
+ *      / 'non-error-thrown' / 'unknown' 등).
+ */
+export function fingerprintError(err: unknown): string {
+  if (err instanceof Error) {
+    // firebase-admin / firebase-functions Error 는 code 프로퍼티가 stable
+    // public API. instanceof Error 가드 통과 후 code 안전 접근.
+    const code = (err as Error & {code?: unknown}).code;
+    if (typeof code === "string" && code.length > 0) return code;
+    return err.name;
+  }
+  if (typeof err === "string") return "string-thrown";
+  if (err === null) return "null-thrown";
+  if (err === undefined) return "undefined-thrown";
+  return "non-error-thrown";
+}
+
+/**
  * Identity Index 조회 결과.
  *
  * R3 (Phase 12.1-06 / BL-04 + WR-06, D-32) — `conflictKind` 필드 추가.
@@ -269,8 +300,8 @@ export async function resolveIdentity(
         };
       }
     } catch (err: unknown) {
-      const errAny = err as {code?: string; name?: string};
-      const errCode = errAny.code ?? errAny.name ?? "unknown";
+      // WR-07: as-assertion 제거, fingerprintError type-guard helper 일원화.
+      const errCode = fingerprintError(err);
       if (errCode !== "auth/user-not-found") {
         logger.warn(
           {event: "identity_index_email_lookup_failed", code: errCode},
@@ -303,10 +334,9 @@ export async function resolveIdentity(
       // **D-33** — `firebase-functions/https` import 미추가 — helper 는
       // 도메인 layer (Firestore / firebase-admin) 만 의존. caller 가
       // HTTP 응답 layer 책임.
-      if (
-        err instanceof Error &&
-        (err as {code?: string}).code === "auth/email-already-in-use"
-      ) {
+      // WR-07: fingerprintError 로 as-assertion 일원화. helper 가 'auth/...' /
+      // err.name / non-Error throw 까지 안전 추출.
+      if (fingerprintError(err) === "auth/email-already-in-use") {
         return {
           // caller 가 사용 안 함 — switch (conflictKind) 가 우선해서 throw.
           uid: "",
@@ -417,12 +447,10 @@ export async function resolveIdentity(
       await getAuth().deleteUser(preCreatedUid);
     } catch (cleanupErr: unknown) {
       // **Pitfall 7 보존:** err.message 는 본문이 PII 일 가능성 (e.g.
-      // 'user not found for uid abc...') — 절대 로깅 금지. err.code
-      // (firebase-admin standard) 또는 err.name 만 short fingerprint 노출.
-      const errCode =
-        cleanupErr instanceof Error ?
-          (cleanupErr as {code?: string}).code ?? cleanupErr.name :
-          "unknown";
+      // 'user not found for uid abc...') — 절대 로깅 금지. fingerprintError
+      // helper 가 err.code (firebase-admin standard) / err.name / non-Error
+      // throw fingerprint 만 안전 추출 (WR-07).
+      const errCode = fingerprintError(cleanupErr);
       logger.warn(
         {
           event: "identity_index_orphan_cleanup_failed",
@@ -492,11 +520,9 @@ export async function resolveIdentity(
         await getAuth().updateUser(result.uid, refreshUpdate);
       } catch (refreshErr: unknown) {
         // **Pitfall 7 보존**: err.message 본문 미로깅 (PII 가능성).
-        // err.code (firebase-admin standard) 또는 err.name 만 fingerprint.
-        const errCode =
-          refreshErr instanceof Error ?
-            (refreshErr as {code?: string}).code ?? refreshErr.name :
-            "unknown";
+        // fingerprintError helper 가 err.code / err.name / non-Error throw
+        // fingerprint 만 안전 추출 (WR-07).
+        const errCode = fingerprintError(refreshErr);
         logger.warn(
           {
             event: "identity_index_profile_refresh_failed",
