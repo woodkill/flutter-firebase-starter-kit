@@ -117,6 +117,13 @@ void main() {
     when(() => mockUser.metadata).thenReturn(mockMetadata);
     when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
     when(() => mockCredential.user).thenReturn(mockUser);
+    // (Phase 9.2 R4 — IN-03 회귀 가드 sparsity 보강) grand suite 의
+    // `_autoSendEmailVerification` 진입 시 항상 `isNewUser=false` 가드로
+    // 흡수 (helper 본체 진입 0 — sendEmailVerification side-effect 격리).
+    // 본 helper 의 실효 검증은 `auth_repository_auto_verify_test.dart`
+    // V1~V9 에 위임. 누군가 helper 의 default 동작을 (`?? true` 등으로)
+    // 뒤집을 경우 본 stub 이 명시적 contract 로 회귀 surface.
+    when(() => mockCredential.additionalUserInfo).thenReturn(null);
     when(() => mockUser.providerData).thenReturn([]);
 
     // Plan 10-06 Task 3 Step 4: `AuthRepository` 의 4개 로그인/가입 메서드가
