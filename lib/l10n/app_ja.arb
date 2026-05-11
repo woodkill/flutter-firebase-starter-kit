@@ -199,6 +199,15 @@
   "splashFailureMessage": "接続に問題があります。再試行するか、オフラインで続行できます。",
   "splashContinueOffline": "後でサインイン",
   "splashErrorCodeFingerprint": "エラーコード: {code}",
+  "@splashErrorCodeFingerprint": {
+    "description": "Caption showing Firebase Auth error code in splash failure dialog. Tap to copy. PII-free (code only, no message — Phase 10.1 D-10/D-11).",
+    "placeholders": {
+      "code": {
+        "type": "String",
+        "example": "network-request-failed"
+      }
+    }
+  },
 
   "homeGuestBanner": "ゲストとして利用中 · ログインでさらに多くの機能を利用できます",
   "homeSignIn": "ログイン",
