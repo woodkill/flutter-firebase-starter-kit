@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
+import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../data/auth_repository.dart';
@@ -53,7 +54,16 @@ class VerifyEmailScreen extends ConsumerWidget {
       title: l10n.authVerifyEmailTitle,
       child: asyncState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('$error')),
+        // IN-03: 본 화면의 verifyEmailProvider.build 는 동기 path 라 본
+        // error 분기는 사실상 unreachable. 그러나 raw '$error' toString 이
+        // 노출되면 FirebaseException 본문 (PII 가능) 이 그대로 보일 위험이
+        // 있어 FormErrorBanner + AppException 매핑 패턴으로 일관화.
+        error: (error, _) => Center(
+          child: FormErrorBanner(
+            exception:
+                error is AppException ? error : ServiceUnavailable(cause: error),
+          ),
+        ),
         data: (state) => Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
