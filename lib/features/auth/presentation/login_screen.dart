@@ -133,7 +133,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
-      _socialError = null;
+      // 이메일 에러만 reset — 소셜 에러는 사용자가 직접 다음 소셜 시도로
+      // 갱신하거나 email submit 성공 후 Home navigate 으로 자연 dismiss 될
+      // 때까지 보존한다 (Phase 9.2 R2 / Path A-narrow recovery prompt
+      // 의무 — CR-01). loginProvider AsyncError 리스너 (line 186-196) 가
+      // 이메일 실패 시 _socialError = null 로 갱신하므로 이메일 성공 후
+      // Home 이동 직전까지만 소셜 배너가 유지된다.
       _emailError = null;
     });
     await ref
