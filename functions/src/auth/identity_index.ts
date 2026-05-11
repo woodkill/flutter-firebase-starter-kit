@@ -104,10 +104,13 @@ export function identityIndexDocId(
  * helper 는 충돌을 *detect* 만 한다 (HttpsError throw 책임은 caller).
  *
  * - `null` — 정상 path (충돌 없음).
- * - `'email_in_use'` — `createUser` 가 `auth/email-already-in-use` rejection.
- *   Kakao ID Token 의 email 이 기존 Firebase Auth 사용자 (다른 provider 또는
- *   email/password 로 가입한 사용자) 의 email 과 일치. caller 는 안전한
- *   `already-exists` HttpsError 로 변환 (email enumeration 차단).
+ * - `'email_in_use'` — Two detect paths: (1) [기존, !callerUid 분기]
+ *   `createUser` 가 `auth/email-already-in-use` rejection (Kakao biz / Naver
+ *   email consent). (2) [Phase 9.2 Gap B — HUMAN-UAT 2026-05-11] callerUid
+ *   분기 + userInfo.email 제공 + `getUserByEmail` 결과 providerData[] 가
+ *   conflictingProviders 포함. caller (naverCustomToken/kakaoCustomToken)
+ *   switch case 'email_in_use' 분기가 둘 다 동일하게 already-exists HttpsError
+ *   throw. Phase 17 (Account Linking) — see ROADMAP.md.
  * - `'anonymous_existing_collision'` — 익명 사용자 (`callerUid` 가 anonymous
  *   uid) 가 *기존* identity_index 매핑이 존재하는 provider 사용자로 로그인
  *   시도. helper 는 first-write-wins 로 existing.firebaseUid 를 반환하지만,
@@ -216,6 +219,69 @@ export async function resolveIdentity(
   if (userInfo?.email) profileFields.email = userInfo.email;
   if (userInfo?.displayName) profileFields.displayName = userInfo.displayName;
   if (userInfo?.photoURL) profileFields.photoURL = userInfo.photoURL;
+
+  // Step 0.5 (Phase 9.2 Gap B close — HUMAN-UAT 2026-05-11):
+  //
+  // 익명승격 path (callerUid 가 익명 user uid + userInfo.email 제공) + 동일
+  // 이메일이 이미 *다른* provider 로 가입된 시나리오 에서 createUser pre-step
+  // 이 skip 되어 email_in_use detect 미발동 회귀를 차단.
+  //
+  // 기존 detect path (line 229~250 의 createUser try/catch) 는 !callerUid
+  // 분기에서만 활성 — 익명승격 path (callerUid 존재) 는 createUser 호출 0.
+  // 동일 이메일의 기존 user (예: Facebook 가입자) 와의 충돌은 transaction
+  // 으로 진입되어 신규 identity_index 등록 + Firebase Auth user 미창출
+  // (anonymous user record 재활용) 경로로 silent. 사용자는 verifyEmailScreen
+  // 의 'email 미설정' 상태에 stuck.
+  //
+  // **R2 Path A-narrow boundary 보존**: helper 는 detect 만 책임 (D-33 layering)
+  // — caller (naverCustomToken / kakaoCustomToken) 의 기존 switch case
+  // 'email_in_use' 분기가 'already-exists' HttpsError throw → client 측
+  // _mapFunctionsException Phase 12.1 D-34 분기 → unknown fallback ARB 메시지.
+  //
+  // **false-positive 차단 정책**: providerData 가 비어있거나 (Custom Token
+  // mirror 미지원으로 normal case) firebase 단일 식별자 (Phase 12.1 D-34
+  // carry-forward) 인 경우 → 충돌 아님. 다른 provider (google.com / apple.com /
+  // facebook.com / password) 가 포함될 때만 email_in_use 발동.
+  //
+  // **PII 정책 (D-51 / Pitfall 7)**: getUserByEmail throw 시 logger payload 에
+  // userInfo.email 본문 미노출, err.code/err.name 만 fingerprint.
+  //
+  // Phase 17 (Account Linking) — see ROADMAP.md
+  if (callerUid && userInfo?.email) {
+    try {
+      const existingByEmail = await getAuth().getUserByEmail(userInfo.email);
+      const conflictingProviders = (existingByEmail.providerData ?? [])
+        .map((p) => p.providerId)
+        .filter((id) => id !== "firebase" && id !== provider);
+      if (conflictingProviders.length > 0) {
+        logger.warn(
+          {
+            event: "identity_index_email_collision_caller_path",
+            provider,
+            conflictingProviderCount: conflictingProviders.length,
+          },
+          "email collision detected in callerUid path",
+        );
+        return {
+          uid: "",
+          isNewUser: false,
+          conflictKind: "email_in_use" as const,
+        };
+      }
+    } catch (err: unknown) {
+      const errAny = err as {code?: string; name?: string};
+      const errCode = errAny.code ?? errAny.name ?? "unknown";
+      if (errCode !== "auth/user-not-found") {
+        logger.warn(
+          {event: "identity_index_email_lookup_failed", code: errCode},
+          "getUserByEmail failed in callerUid path",
+        );
+      }
+      // graceful — 정상 path 진행 (lookup 실패가 user-facing throw 로 escalate
+      // 되지 않음). auth/user-not-found 는 expected normal case (이메일이
+      // 기존에 가입 안 되어 있음) — silent.
+    }
+  }
 
   let preCreatedUid: string | null = null;
   const idxSnapPre = await idxRef.get();

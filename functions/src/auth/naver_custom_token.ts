@@ -256,9 +256,29 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
     // auth/insufficient-permission 등) 도 internal + errorUnknown 으로 매핑.
     // 미적용 시 raw err.message 가 Cloud Functions runtime 의 INTERNAL 응답에
     // 그대로 노출 — D-08 PII 정책 위반.
+    //
+    // (Phase 9.2 Gap B 옵션 C — HUMAN-UAT 2026-05-11):
+    //
+    // 비-충돌 정상 path 에서 createCustomToken 의 developerClaims 인자로
+    // userInfo.email 명시 — Firebase Admin SDK 가 client 의
+    // getIdTokenResult().claims.email 로 propagate. 사용자 user.email=null
+    // 회귀 차단 (Gap B 의 비-충돌 신규 가입 path 보조).
+    //
+    // **scope 제약**: userInfo.email 가 validated 상태 (Naver REST response.email
+    // 정상 반환) 에서만 추가. 부재 시 undefined (Firebase Admin SDK 기본 동작).
+    // 충돌 path (conflictKind!==null) 는 switch 가 throw 우선해서 createCustomToken
+    // 자체 미도달 → developerClaims 발급 0 (의도된 동작).
+    //
+    // **PII 정책**: developerClaims 는 Firebase Auth user record 의 idToken
+    // claim 으로만 propagate — logger 어디에도 email 본문 미노출 (D-51).
+    //
+    // Phase 17 (Account Linking) — see ROADMAP.md
+    const developerClaims = userInfo.email ?
+      {email: userInfo.email, email_verified: true} :
+      undefined;
     let customToken: string;
     try {
-      customToken = await getAuth().createCustomToken(uid);
+      customToken = await getAuth().createCustomToken(uid, developerClaims);
     } catch (err: unknown) {
       // PII 금지 (D-51) — err.message 본문 미로깅. err.name 만 fingerprint.
       const errCode = err instanceof Error ? err.name : "unknown";
