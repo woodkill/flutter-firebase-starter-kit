@@ -643,6 +643,13 @@ class AuthRepository {
       return Result.failure(_mapFunctionsException(e));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
+    } on ServiceUnavailable catch (e) {
+      // IN-01: signInWithKakao 와 대칭 — NaverSdkClient 가 OAuth misconfig /
+      // SDK 내부 ServiceUnavailable throw 시 원본 ServiceUnavailable 을
+      // cause chain 으로 wrapping 하지 않고 그대로 보존. 현재 NaverSdkClient
+      // 는 null 반환 + Object catch 경로 위주이지만 미래 wrapper 변경 시
+      // 대비 + provider 간 audit 일관성.
+      return Result.failure(e);
     } on Object catch (e, st) {
       if (kDebugMode) {
         debugPrint('signInWithNaver 비-Auth 예외: $e\n$st');
