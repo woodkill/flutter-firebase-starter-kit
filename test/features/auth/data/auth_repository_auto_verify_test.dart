@@ -21,6 +21,13 @@ class _MockUserCredential extends Mock implements fb.UserCredential {}
 
 class _MockFbUser extends Mock implements fb.User {}
 
+/// (Phase 9.2 Gap A close — HUMAN-UAT 2026-05-11) 익명승격 path 의 분리
+/// mock. `mockAuth.currentUser` 가 익명 user 를 반환하는 동안 `linkWithCredential`
+/// / `linkWithProvider` 를 호출하는 분기를 검증한다. _MockFbUser 와 분리하여
+/// `mockUser.isAnonymous=false` (성공 결과 user) 와 `mockAnonymousUser.isAnonymous=true`
+/// (호출 시점 currentUser) 가 동시 stub 가능하다.
+class _MockFbAnonymousUser extends Mock implements fb.User {}
+
 class _MockUserMetadata extends Mock implements fb.UserMetadata {}
 
 class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
@@ -66,6 +73,7 @@ void main() {
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late _MockAdditionalUserInfo mockAdditionalUserInfo;
+  late _MockFbAnonymousUser mockAnonymousUser;
   late AuthRepository repository;
 
   setUpAll(() {
@@ -91,6 +99,7 @@ void main() {
     mockFunctions = _MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
     mockAdditionalUserInfo = _MockAdditionalUserInfo();
+    mockAnonymousUser = _MockFbAnonymousUser();
 
     repository = AuthRepository(
       mockAuth,
@@ -389,6 +398,189 @@ void main() {
           when(() => mockUser.emailVerified).thenReturn(false);
           when(() => mockUser.email).thenReturn(''); // 빈 문자열
           when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+          stubFacebookSuccess();
+
+          await repository.signInWithFacebook();
+
+          verifyNever(() => mockUser.sendEmailVerification());
+        },
+      );
+    },
+  );
+
+  // ===================================================================
+  // (Phase 9.2 Gap A close — HUMAN-UAT 2026-05-11)
+  // 익명 → linkWithCredential / linkWithProvider 분기의 `isNewUser=false`
+  // Firebase 사양 보강. helper 시그니처 `isLinkedFromAnonymous` named
+  // 인자를 호출 측이 명시 전달하면 D-20 spam 가드를 우회한다 — 다른 4
+  // 가드 (user==null / isAnonymous / email empty / emailVerified=true)
+  // 는 unchanged 동작.
+  //
+  // V9 ~ V13 매트릭스:
+  //   V9  Facebook 익명승격 + isNewUser=false + emailVerified=false → 1회 호출
+  //   V10 Google   익명승격 + isNewUser=false + emailVerified=true  → 미호출
+  //   V11 Apple    익명승격 + isNewUser=false + emailVerified=true  → 미호출
+  //   V12 Facebook 비-익명 + isNewUser=true  + emailVerified=false → 1회 호출
+  //   V13 Facebook 비-익명 + isNewUser=false + emailVerified=false → 미호출
+  //
+  // Naver/Kakao 익명 link 분기는 부재 (signInWithCustomToken 단독 사용)
+  // — Cloud Function 이 emailVerified=true 자동 set 으로 D-19 자연
+  // no-op (Gap B 의 영역, plan 07/08 책임).
+  // ===================================================================
+
+  /// Facebook 익명 분기 fixture — `mockAuth.currentUser` 가 익명 user 반환,
+  /// `anonymous.linkWithCredential` 가 성공 mockCredential 반환. Firebase 사양
+  /// 으로 `additionalUserInfo.isNewUser=false` 시뮬레이션 (호출 측이
+  /// `isLinkedFromAnonymous: true` 로 보강할 때 sendEmailVerification 발송).
+  void stubFacebookAnonymousLinkSuccess() {
+    when(() => mockAnonymousUser.isAnonymous).thenReturn(true);
+    when(() => mockAuth.currentUser).thenReturn(mockAnonymousUser);
+    when(
+      () => mockAnonymousUser.linkWithCredential(any()),
+    ).thenAnswer((_) async => mockCredential);
+
+    when(
+      () => mockFacebookAuth.login(
+        permissions: any(named: 'permissions'),
+        loginTracking: any(named: 'loginTracking'),
+        loginBehavior: any(named: 'loginBehavior'),
+        nonce: any(named: 'nonce'),
+      ),
+    ).thenAnswer(
+      (_) async => LoginResult(
+        status: LoginStatus.success,
+        accessToken: FakeClassicToken(tokenString: 'fb-token-anon'),
+      ),
+    );
+    final providerInfo = _MockUserInfo();
+    when(() => providerInfo.providerId).thenReturn('facebook.com');
+    when(() => mockUser.providerData).thenReturn([providerInfo]);
+    when(
+      () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+    ).thenAnswer(
+      (_) async => <String, dynamic>{
+        'picture': {
+          'data': {'url': 'https://platform-lookaside.fbsbx.com/profile.jpg'},
+        },
+      },
+    );
+    when(() => mockUser.updatePhotoURL(any())).thenAnswer((_) async {});
+    // (Gap A close) Firebase 가 linkWithCredential 후 isNewUser=false 반환
+    // — helper 의 D-20 spam 가드 short-circuit. 호출 측 `isLinkedFromAnonymous:
+    // true` 명시 전달이 가드 우회 권한.
+    when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
+  }
+
+  /// Google 익명 분기 fixture — `anonymous.linkWithCredential` 호출 경로.
+  void stubGoogleAnonymousLinkSuccess() {
+    when(() => mockAnonymousUser.isAnonymous).thenReturn(true);
+    when(() => mockAuth.currentUser).thenReturn(mockAnonymousUser);
+    when(
+      () => mockAnonymousUser.linkWithCredential(any()),
+    ).thenAnswer((_) async => mockCredential);
+
+    final mockAccount = _MockGoogleSignInAccount();
+    when(() => mockAccount.authentication).thenReturn(
+      const GoogleSignInAuthentication(idToken: 'id-token-anon'),
+    );
+    when(
+      () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+    ).thenAnswer((_) async => mockAccount);
+    final providerInfo = _MockUserInfo();
+    when(() => providerInfo.providerId).thenReturn('google.com');
+    when(() => mockUser.providerData).thenReturn([providerInfo]);
+    when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
+  }
+
+  /// Apple 익명 분기 fixture — `anonymous.linkWithProvider` 호출 경로.
+  void stubAppleAnonymousLinkSuccess() {
+    when(() => mockAnonymousUser.isAnonymous).thenReturn(true);
+    when(() => mockAuth.currentUser).thenReturn(mockAnonymousUser);
+    when(
+      () => mockAnonymousUser.linkWithProvider(any()),
+    ).thenAnswer((_) async => mockCredential);
+
+    final providerInfo = _MockUserInfo();
+    when(() => providerInfo.providerId).thenReturn('apple.com');
+    when(() => mockUser.providerData).thenReturn([providerInfo]);
+    when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
+  }
+
+  group(
+    'Phase 9.2 Gap A (HUMAN-UAT 2026-05-11) — 익명 → linkWithCredential '
+    'isNewUser=false 보강',
+    () {
+      test(
+        'V9: Facebook 익명승격 (linkWithCredential) + isNewUser=false + '
+        'emailVerified=false → sendEmailVerification 1회 호출 (Gap A close)',
+        () async {
+          when(() => mockUser.emailVerified).thenReturn(false);
+          when(() => mockUser.email).thenReturn('fb-anon@example.com');
+          stubFacebookAnonymousLinkSuccess();
+
+          await repository.signInWithFacebook();
+
+          verify(() => mockAnonymousUser.linkWithCredential(any())).called(1);
+          verify(() => mockUser.sendEmailVerification()).called(1);
+        },
+      );
+
+      test(
+        'V10: Google 익명승격 (linkWithCredential) + isNewUser=false + '
+        'emailVerified=true → sendEmailVerification 미호출 (D-19 emailVerified '
+        '가드 우선)',
+        () async {
+          when(() => mockUser.emailVerified).thenReturn(true);
+          when(() => mockUser.email).thenReturn('g-anon@example.com');
+          stubGoogleAnonymousLinkSuccess();
+
+          await repository.signInWithGoogle();
+
+          verify(() => mockAnonymousUser.linkWithCredential(any())).called(1);
+          verifyNever(() => mockUser.sendEmailVerification());
+        },
+      );
+
+      test(
+        'V11: Apple 익명승격 (linkWithProvider) + isNewUser=false + '
+        'emailVerified=true → sendEmailVerification 미호출 (D-19 emailVerified '
+        '가드 우선)',
+        () async {
+          when(() => mockUser.emailVerified).thenReturn(true);
+          when(() => mockUser.email).thenReturn('a-anon@example.com');
+          stubAppleAnonymousLinkSuccess();
+
+          await repository.signInWithApple();
+
+          verify(() => mockAnonymousUser.linkWithProvider(any())).called(1);
+          verifyNever(() => mockUser.sendEmailVerification());
+        },
+      );
+
+      test(
+        'V12: Facebook 비-익명 signInWithCredential + isNewUser=true + '
+        'emailVerified=false → sendEmailVerification 1회 호출 (기존 V5 mirror '
+        '— regression sentinel)',
+        () async {
+          when(() => mockUser.emailVerified).thenReturn(false);
+          when(() => mockUser.email).thenReturn('fb-direct@example.com');
+          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+          stubFacebookSuccess();
+
+          await repository.signInWithFacebook();
+
+          verify(() => mockUser.sendEmailVerification()).called(1);
+        },
+      );
+
+      test(
+        'V13: Facebook 비-익명 signInWithCredential + isNewUser=false '
+        '(재로그인) + emailVerified=false → sendEmailVerification 미호출 '
+        '(D-20 spam 가드 invariant 보존)',
+        () async {
+          when(() => mockUser.emailVerified).thenReturn(false);
+          when(() => mockUser.email).thenReturn('fb-relogin@example.com');
+          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
           stubFacebookSuccess();
 
           await repository.signInWithFacebook();
