@@ -279,6 +279,10 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get authVerifyEmailDescriptionNoEmail =>
+      'ご登録のメールアドレスに認証メールを送信しました。メール内のリンクをクリックして認証を完了してください。';
+
+  @override
   String get authVerifyEmailSpamHint => 'メールが届かない場合は、迷惑メールフォルダをご確認ください。';
 
   @override

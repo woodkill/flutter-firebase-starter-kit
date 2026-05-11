@@ -284,6 +284,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authVerifyEmailDescriptionNoEmail =>
+      'We sent a verification email to your registered address. Click the link in the email to verify your account.';
+
+  @override
   String get authVerifyEmailSpamHint =>
       'If you don\'t see the email, check your spam folder.';
 

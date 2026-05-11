@@ -634,6 +634,12 @@ abstract class AppLocalizations {
   /// **'We sent a verification email to {email}. Click the link in the email to verify your account.'**
   String authVerifyEmailDescription(String email);
 
+  /// Phase 9.2 Gap B (HUMAN-UAT 2026-05-11) — fallback description for verifyEmailScreen when currentUser.email is null or empty. Triggered if Custom Token (Kakao/Naver) issues a user without email field. No placeholder — used as-is. Phase 17 (Account Linking) — see ROADMAP.md
+  ///
+  /// In en, this message translates to:
+  /// **'We sent a verification email to your registered address. Click the link in the email to verify your account.'**
+  String get authVerifyEmailDescriptionNoEmail;
+
   /// Hint text suggesting the user check their spam folder
   ///
   /// In en, this message translates to:

@@ -451,6 +451,11 @@
     }
   },
 
+  "authVerifyEmailDescriptionNoEmail": "We sent a verification email to your registered address. Click the link in the email to verify your account.",
+  "@authVerifyEmailDescriptionNoEmail": {
+    "description": "Phase 9.2 Gap B (HUMAN-UAT 2026-05-11) — fallback description for verifyEmailScreen when currentUser.email is null or empty. Triggered if Custom Token (Kakao/Naver) issues a user without email field. No placeholder — used as-is. Phase 17 (Account Linking) — see ROADMAP.md"
+  },
+
   "authVerifyEmailSpamHint": "If you don't see the email, check your spam folder.",
   "@authVerifyEmailSpamHint": {
     "description": "Hint text suggesting the user check their spam folder"

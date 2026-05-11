@@ -16,6 +16,14 @@ import 'verify_email_notifier.dart';
 /// 3초 간격 자동 폴링(5분 타임아웃)과 수동 "인증 확인" 버튼을 병행하여
 /// 이메일 인증 완료를 감지한다 (D-07, D-08, D-09).
 /// 인증 완료 시 GoRouter redirect가 자동으로 Home으로 이동시킨다.
+///
+/// **Phase 9.2 Gap B Dart consumer (HUMAN-UAT 2026-05-11):**
+/// `currentUser.email` 이 null 또는 빈 문자열인 경우 graceful fallback
+/// 메시지([l10n.authVerifyEmailDescriptionNoEmail])를 표시한다. Cloud Function
+/// (`naverCustomToken` / `kakaoCustomToken`) 의 충돌 detect 가 회귀해 email
+/// 미설정 사용자가 진입한 경우의 user-visible PII 빈 표시를 차단한다.
+/// redirect / 폴링 / 재전송 등 다른 동작은 변경 0 (Path A-narrow boundary).
+/// Phase 17 (Account Linking) — see ROADMAP.md
 class VerifyEmailScreen extends ConsumerWidget {
   /// [VerifyEmailScreen]을 생성한다.
   const VerifyEmailScreen({super.key});
@@ -30,6 +38,16 @@ class VerifyEmailScreen extends ConsumerWidget {
     final asyncState = ref.watch(verifyEmailProvider);
     final currentUser = ref.watch(currentUserProvider);
     final userEmail = currentUser?.email ?? '';
+
+    // (Phase 9.2 Gap B Dart consumer — HUMAN-UAT 2026-05-11):
+    // currentUser.email 가 null/빈 문자열일 때 graceful fallback 분기.
+    // Cloud Function (naverCustomToken / kakaoCustomToken) 의 충돌 detect 회귀로
+    // email 미설정 user 가 진입할 가능성 차단. user-visible 메시지만 변경,
+    // redirect/state 동작 unchanged.
+    // Phase 17 (Account Linking) — see ROADMAP.md
+    final description = userEmail.isEmpty
+        ? l10n.authVerifyEmailDescriptionNoEmail
+        : l10n.authVerifyEmailDescription(userEmail);
 
     return AuthScaffold(
       title: l10n.authVerifyEmailTitle,
@@ -50,9 +68,9 @@ class VerifyEmailScreen extends ConsumerWidget {
               ),
             ),
             Gap(spacing.xl),
-            // 설명문 (이메일 주소 포함)
+            // 설명문 (이메일 주소 포함 — Gap B fallback 시 일반화 메시지)
             Text(
-              l10n.authVerifyEmailDescription(userEmail),
+              description,
               style: typography.bodyMedium.copyWith(
                 color: colors.onSurfaceVariant,
               ),

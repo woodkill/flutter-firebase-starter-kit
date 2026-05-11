@@ -279,6 +279,10 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get authVerifyEmailDescriptionNoEmail =>
+      '가입하신 이메일 주소로 인증 메일을 보냈습니다. 메일의 링크를 클릭하여 인증을 완료해 주세요.';
+
+  @override
   String get authVerifyEmailSpamHint => '메일이 보이지 않으면 스팸함을 확인해 주세요.';
 
   @override
