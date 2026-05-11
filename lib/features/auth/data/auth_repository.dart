@@ -771,10 +771,13 @@ class AuthRepository {
   /// - [FacebookAuth.getUserData] / [fb.User.updatePhotoURL] 가 throw
   ///
   /// **D-27 PII regression invariant:** catch 블록의 [debugPrint] 가
-  /// `e.runtimeType` 만 출력한다. `e.toString()` / `result` Map / `url` 값
-  /// 직접 출력 금지 — sentinel facebook id (`'999888777'`) / sentinel CDN URL
-  /// 의 logger 노출 vector 차단. Phase 12.1 D-40 catch-block sentinel 패턴
-  /// 계승.
+  /// `e.runtimeType` + [StackTrace] 만 출력한다 (`e.toString()` / `result`
+  /// Map / `url` 값 직접 출력 금지). Dart [StackTrace] 는 file path + function
+  /// symbol + line number 만 포함하므로 exception message body 의 PII
+  /// (sentinel facebook id `'999888777'` / sentinel CDN URL / sentinel email)
+  /// 가 logger 에 노출되지 않는다. graceful skip 디버깅 가치를 위해 stack
+  /// trace 보존을 의도된 design 으로 채택. Phase 12.1 D-40 catch-block
+  /// sentinel 패턴 계승.
   Future<void> _setFacebookPhotoUrl(fb.User user) async {
     try {
       // (D-24) SPEC R5 의 'picture.type(large)' 명시 fields verbatim.
@@ -808,8 +811,10 @@ class AuthRepository {
         }
       }
     } on Object catch (e, st) {
-      // (D-27 PII invariant) e.runtimeType 만 출력 — Graph API 응답 PII
-      // (facebook id, CDN URL) 의 logger 노출 vector 차단.
+      // (D-27 PII invariant) e.runtimeType + StackTrace 만 출력 — exception
+      // message body (Graph API 응답 PII: facebook id, CDN URL, email) 의
+      // logger 노출 vector 차단. StackTrace 는 file/symbol/line 만 포함하므로
+      // PII safe.
       if (kDebugMode) {
         debugPrint(
           '_setFacebookPhotoUrl 실패 (graceful skip): ${e.runtimeType}\n$st',

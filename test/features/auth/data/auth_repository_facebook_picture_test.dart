@@ -302,11 +302,13 @@ void main() {
       // updatePhotoURL).
       //
       // 참고 (PATTERNS.md §10 / §11): debugPrint 직접 capture 한계 — helper
-      // 의 catch 블록 debugPrint format 이 'e.runtimeType' verbatim 임은 코드
-      // 리뷰 회귀 가드 (auth_repository.dart `_setFacebookPhotoUrl` catch 블록
-      // — `e.runtimeType` 만 출력). Phase 12.1 D-40 와 동등 한계. 본 테스트는
-      // graceful skip 보장 + sentinel verbatim 매치 (코드 리뷰 anchor) 로 hard
-      // verify.
+      // 의 catch 블록 debugPrint format 이 'e.runtimeType' + StackTrace 만
+      // 출력 (exception message body 미포함) 임은 코드 리뷰 회귀 가드
+      // (auth_repository.dart `_setFacebookPhotoUrl` catch 블록 — `e.runtimeType`
+      // + `$st` 만 출력, `e.toString()` 직접 노출 금지). StackTrace 는
+      // file/symbol/line 만 포함하므로 PII safe. Phase 12.1 D-40 와 동등 한계.
+      // 본 테스트는 graceful skip 보장 + sentinel verbatim 매치 (코드 리뷰
+      // anchor) 로 hard verify.
       // -----------------------------------------------------------------
 
       test(
