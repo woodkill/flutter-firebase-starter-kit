@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -72,19 +73,21 @@ GoRouter _testRouter() {
   );
 }
 
-/// Test 6 helper — GC-04 fail-safe redirect 시뮬레이션 라우터.
+/// Test 6 helper — Gap A 재entry redirect 시뮬레이션 라우터.
 ///
-/// `/` 경로 첫 진입 시 `/splash` 로 redirect 하여 Plan 10-14 의 GC-04
-/// fail-safe 분기 (currentUser=null + onboardingSeen=true → /splash) 를
-/// 모사한다. 두 번째부터는 redirect 없이 `/` 가 통과하여 무한 루프를
-/// 방지한다 (재entry 후 init 성공 시 정상 Home 진입을 검증할 수 있도록).
+/// Phase 10.1 D-05 이후 "Sign in later" 탭 destination 이 `/login` 으로
+/// 변경되었다. GC-04 fail-safe 자체는 `/login` 에서 trigger 안 되지만
+/// (D-06 _unauthRoutes 자연 호환), 다른 redirect path 등장 시 안전망
+/// 보존을 검증하기 위해 `/login` 첫 진입을 `/splash` 로 redirect 하는
+/// 시뮬레이션을 모사한다. 두 번째 진입부터는 redirect 없이 `/login` 이
+/// 통과한다 (재entry 후 init 성공 시 정상 Home 진입을 검증할 수 있도록).
 GoRouter _testRouterWithRedirect({required void Function() onRedirect}) {
   var redirectCount = 0;
   return GoRouter(
     initialLocation: AppRoutes.splash,
     redirect: (context, state) {
-      // GC-04 fail-safe 시뮬레이션: `/` 첫 진입 시 1회만 `/splash` 로 redirect.
-      if (state.matchedLocation == AppRoutes.home && redirectCount == 0) {
+      // Gap A 시뮬레이션: `/login` 첫 진입 시 1회만 `/splash` 로 redirect.
+      if (state.matchedLocation == AppRoutes.login && redirectCount == 0) {
         redirectCount += 1;
         onRedirect();
         return AppRoutes.splash;
@@ -96,6 +99,38 @@ GoRouter _testRouterWithRedirect({required void Function() onRedirect}) {
         path: AppRoutes.splash,
         name: AppRoutes.splashName,
         builder: (_, _) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.home,
+        name: AppRoutes.homeName,
+        builder: (_, _) => const Scaffold(body: Text('HOME')),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        name: AppRoutes.loginName,
+        builder: (_, _) => const Scaffold(body: Text('LOGIN')),
+      ),
+    ],
+  );
+}
+
+/// Phase 10.1 helper — `/splash` + `/login` + `/home` 3 routes.
+///
+/// T6 widget test (Phase 10.1 W2: "Sign in later" 탭 → /login) 에서
+/// AppRoutes.login 도달 검증용. `/login` 빌더는 'LOGIN' 텍스트만 렌더.
+GoRouter _testRouterWithLogin() {
+  return GoRouter(
+    initialLocation: AppRoutes.splash,
+    routes: [
+      GoRoute(
+        path: AppRoutes.splash,
+        name: AppRoutes.splashName,
+        builder: (_, _) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        name: AppRoutes.loginName,
+        builder: (_, _) => const Scaffold(body: Text('LOGIN')),
       ),
       GoRoute(
         path: AppRoutes.home,
@@ -114,10 +149,17 @@ void main() {
   // WARNING #13: 실대기 1ms 로 단축 (피드백 레이턴시 < 100ms).
   setUp(() {
     SplashConfig.overrideMinDuration = const Duration(milliseconds: 1);
+    // Phase 10.1 D-16: retry backoff 실대기 9s → 3ms 단축 (1ms × 3).
+    SplashConfig.overrideBackoffSteps = const [
+      Duration(milliseconds: 1),
+      Duration(milliseconds: 1),
+      Duration(milliseconds: 1),
+    ];
   });
 
   tearDown(() {
     SplashConfig.overrideMinDuration = null;
+    SplashConfig.overrideBackoffSteps = null;
   });
 
   group('SplashScreen (Phase 10 AUTH-08, D-22, D-25, D-27, WARNING #13)', () {
@@ -207,7 +249,9 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(find.text('Continue offline'), findsOneWidget);
+        // Phase 10.1 D-08: splashContinueOffline 값 'Continue offline' →
+        // 'Sign in later' 로 변경 (offline 분기 destination = /login).
+        expect(find.text('Sign in later'), findsOneWidget);
         expect(find.text('Retry'), findsOneWidget);
       },
     );
@@ -303,30 +347,32 @@ void main() {
       );
     });
 
-    testWidgets('Test 6 (Gap A 회귀 가드 — GC-04 redirect 후 splash 재entry 시 '
+    testWidgets('Test 6 (Gap A 회귀 가드 — Phase 10.1 D-05 이후 "Sign in later" '
+        '→ /login redirect 시뮬레이션 후 splash 재entry 시 '
         'splashInitializerProvider invalidate + _runInit 재실행): '
-        '첫 init 실패 → "Continue offline" → context.go(/) → GC-04 redirect → '
-        '/splash 재entry → re-init → signInAnonymously 2회 호출 + Home 랜딩', (
-      tester,
-    ) async {
-      // 시나리오:
-      // 1. SplashInitializer.initialize() 첫 호출에 Failure(NoInternetConnection)
-      //    → splashFailureDialog 표시.
-      // 2. 사용자 "Continue offline" 탭 → SplashScreen 이 context.go(/) 호출.
-      // 3. _testRouterWithRedirect() 가 / 진입을 가로채서 /splash 로 redirect
-      //    (Plan 10-14 GC-04 fail-safe 시뮬레이션).
+        '첫 init 실패 (retry × 3 소진) → "Sign in later" → context.go(/login) → '
+        '시뮬레이션 redirect → /splash 재entry → re-init → '
+        'signInAnonymously 5회째 호출 Success + Home 랜딩', (tester) async {
+      // 시나리오 (Phase 10.1 D-05 + D-04 retry 도입 후):
+      // 1. SplashInitializer.initialize() 첫 호출에 transient × 4
+      //    (attempt 1 + retry 3) 모두 Failure(NoInternetConnection) →
+      //    retry 소진 → splashFailureDialog 표시.
+      // 2. 사용자 "Sign in later" 탭 → SplashScreen 이 context.go(/login) 호출.
+      // 3. _testRouterWithRedirect() 가 /login 첫 진입을 가로채서 /splash 로
+      //    redirect (D-05 이후에도 다른 redirect path 등장 시 Gap A 안전망
+      //    보존 검증 — 시뮬레이션 목적).
       // 4. SplashScreen 재entry → didChangeDependencies hook 이
       //    splashInitializerProvider 를 invalidate + _runInit 재실행.
-      // 5. 두 번째 호출에서 signInAnonymously 가 Success 반환 → Home 랜딩.
+      // 5. 5번째 호출에서 signInAnonymously 가 Success 반환 → Home 랜딩.
 
       SharedPreferences.setMockInitialValues({'onboarding.seen_version': 1});
 
-      // signInAnonymously 호출 카운터 — 1회: Failure, 2회: Success.
+      // signInAnonymously 호출 카운터 — 1~4회: Failure (retry 소진), 5회: Success.
       var signInCallCount = 0;
       final mockRepo = _MockAuthRepository();
       when(mockRepo.signInAnonymously).thenAnswer((_) async {
         signInCallCount += 1;
-        if (signInCallCount == 1) {
+        if (signInCallCount <= 4) {
           return const Result.failure(NoInternetConnection());
         }
         return Result.success(_stubUser());
@@ -383,24 +429,180 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(AlertDialog), findsOneWidget);
-      expect(find.text('Continue offline'), findsOneWidget);
+      // Phase 10.1 D-08: 'Continue offline' → 'Sign in later'.
+      expect(find.text('Sign in later'), findsOneWidget);
 
-      // "Continue offline" 탭 → context.go(/) → redirect → /splash 재entry.
-      await tester.tap(find.text('Continue offline'));
+      // "Sign in later" 탭 → context.go(/login) → 시뮬레이션 redirect →
+      // /splash 재entry.
+      await tester.tap(find.text('Sign in later'));
       await tester.pumpAndSettle();
 
-      // 재entry 시 re-init 이 실행되어 signInAnonymously 가 2회째 호출되고
-      // Home 으로 랜딩되는지 확증.
+      // 재entry 시 re-init 이 실행되어 signInAnonymously 가 5회째 호출되고
+      // Home 으로 랜딩되는지 확증 (1~4: 첫 init retry 소진, 5: 재entry success).
       expect(
         redirectFiredCount,
         1,
-        reason: 'GC-04 fail-safe redirect 가 / → /splash 로 1회 발동',
+        reason:
+            'Phase 10.1 D-05 시뮬레이션 redirect (/login → /splash) 1회 발동 '
+            '— Gap A 안전망 보존 검증',
       );
-      verify(mockRepo.signInAnonymously).called(2);
+      verify(mockRepo.signInAnonymously).called(5);
       expect(find.text('HOME'), findsOneWidget);
       expect(
         router.routerDelegate.currentConfiguration.uri.toString(),
         AppRoutes.home,
+      );
+    });
+
+    /// Phase 10.1 W1: retry 소진 후 dialog 의 fingerprint Text + tap-to-copy
+    /// SnackBar 표시 검증 (T-10.1-02 mitigation, Pattern D outer context).
+    testWidgets('Test 7 (Phase 10.1 W1): retry 소진 후 fingerprint Text '
+        '"Error code: unknown" 표시 + 탭 시 "Copied to clipboard" SnackBar', (
+      tester,
+    ) async {
+      // Clipboard platform channel mock — test 환경에서 Clipboard.setData
+      // 가 MissingPluginException 없이 통과하도록 stub.
+      final clipboardMessenger =
+          tester.binding.defaultBinaryMessenger;
+      final copiedTextStore = <String>[];
+      clipboardMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            final args = call.arguments as Map<Object?, Object?>?;
+            final text = args?['text'] as String?;
+            if (text != null) copiedTextStore.add(text);
+            return null;
+          }
+          if (call.method == 'Clipboard.getData') {
+            return <String, Object?>{'text': copiedTextStore.lastOrNull};
+          }
+          return null;
+        },
+      );
+      addTearDown(() {
+        clipboardMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        );
+      });
+
+      final mockRepo = _MockAuthRepository();
+      // 4회 모두 fail — attempt 1 + retry 3 소진.
+      when(mockRepo.signInAnonymously).thenAnswer(
+        (_) async => Result.failure(
+          ServiceUnavailable(cause: fb.FirebaseAuthException(code: 'unknown')),
+        ),
+      );
+      final mockCrashlytics = _MockCrashlytics();
+      when(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+      final router = _testRouterWithLogin();
+      addTearDown(router.dispose);
+
+      await _pumpSplash(tester, initializer: initializer, router: router);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      // (1) Fingerprint Text 표시 (D-10 — code only, message PII 제외).
+      expect(find.text('Error code: unknown'), findsOneWidget);
+
+      // (2) Tap-to-copy + SnackBar (D-12, Pattern D outer context).
+      await tester.tap(find.text('Error code: unknown'));
+      await tester.pumpAndSettle();
+      expect(find.text('Copied to clipboard'), findsOneWidget);
+
+      // (3) Clipboard 에 D-10 PII-safe 포맷 ('splash_auto_signin: <code>')
+      // 으로 저장되었는지 검증.
+      expect(copiedTextStore, contains('splash_auto_signin: unknown'));
+
+      // (4) Crashlytics emit 1회 검증 (D-14 — retry 소진 시점).
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'splash_auto_signin_retry_exhausted',
+          'unknown',
+        ),
+      ).called(1);
+    });
+
+    /// Phase 10.1 W2: "Sign in later" 탭 → /login 도달 + GC-04 race_guard
+    /// trigger 안 됨 검증 (D-05, D-06).
+    testWidgets('Test 8 (Phase 10.1 W2): "Sign in later" 탭 → '
+        'context.go(/login) + verifyNever(race_guard_triggered)', (
+      tester,
+    ) async {
+      final mockRepo = _MockAuthRepository();
+      // 4회 모두 fail — dialog 도달.
+      when(mockRepo.signInAnonymously).thenAnswer(
+        (_) async => const Result.failure(NoInternetConnection()),
+      );
+      final mockCrashlytics = _MockCrashlytics();
+      when(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+        crashlyticsService: mockCrashlytics,
+      );
+      final router = _testRouterWithLogin();
+      addTearDown(router.dispose);
+
+      await _pumpSplash(tester, initializer: initializer, router: router);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      // (1) 다이얼로그 표시 확인.
+      expect(find.byType(AlertDialog), findsOneWidget);
+
+      // (2) "Sign in later" 탭.
+      await tester.tap(find.text('Sign in later'));
+      await tester.pumpAndSettle();
+
+      // (3) /login 도달 검증.
+      expect(find.text('LOGIN'), findsOneWidget);
+      expect(
+        router.routerDelegate.currentConfiguration.uri.toString(),
+        AppRoutes.login,
+      );
+
+      // (4) GC-04 fail-safe race_guard_triggered key 가 호출되지 않음 검증
+      // (D-06 — /login 은 _unauthRoutes 자연 포함, auth_guard GC-04 trigger
+      // 안 됨). retry 소진 emit (splash_auto_signin_retry_exhausted) 만
+      // 호출되고, race_guard_triggered 는 negative assert.
+      verifyNever(
+        () => mockCrashlytics.setCustomKey(
+          'race_guard_triggered',
+          any<Object>(),
+        ),
       );
     });
   });
