@@ -1258,9 +1258,15 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
         // value 보존. 1s 후 source stream 재구독.
         permissionDeniedRetries += 1;
         if (kDebugMode) {
+          // attempt N/M = 본 거부를 받고 즉시 시도하는 N 번째 재구독
+          // (총 M 회 = maxRetries). 다음 거부가 발생하면 N+1, 마지막 N=M
+          // 의 재구독 까지 모두 permission-denied 면 다음 거부가 escape
+          // 분기로 빠진다 (WR-03 — log 가 "retry 5/5 후 즉시 escape" 로
+          // 잘못 읽히지 않게 명시).
           debugPrint(
-            'linkedProvidersStream permission-denied retry '
-            '$permissionDeniedRetries/$maxRetries: $e',
+            'linkedProvidersStream permission-denied: '
+            'retrying attempt $permissionDeniedRetries of $maxRetries '
+            '(after ${retryDelay.inMilliseconds}ms delay): $e',
           );
         }
         await Future<void>.delayed(retryDelay);
@@ -1268,7 +1274,8 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
       }
       // I1 (D-41 보존):
       // (1) 다른 FirebaseException (network / unavailable 등) — 즉시 빈 배열.
-      // (2) permission-denied 5회 escape — 영구 spinner 회피 escape hatch.
+      // (2) permission-denied — maxRetries 회 재구독 후에도 거부 → 영구
+      //     spinner 회피 escape hatch (총 maxRetries+1 회 거부 후 escape).
       if (kDebugMode) {
         debugPrint('linkedProvidersStream 에러 (fallback empty): $e\n$st');
       }
