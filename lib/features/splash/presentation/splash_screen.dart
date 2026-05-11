@@ -43,6 +43,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   /// 한다.
   bool _initInFlight = false;
 
+  /// 오프라인 분기 fail-safe 재entry 카운터 (WR-04).
+  ///
+  /// "Sign in later" → `/login` → (예상치 못한 redirect 로 인한) `/splash`
+  /// 복귀 시 `_triggerReinit` 을 1회까지만 발동한다. 카운터가 1 이상이면
+  /// 후속 addPostFrameCallback 자체를 스킵해 다이얼로그 → 오프라인 →
+  /// /splash 무한 루프를 차단한다. `_runInit` 성공 시 0 으로 리셋되어
+  /// 정상 세션에서는 다음 splash 진입까지 영향이 없다.
+  int _offlineFallbackReentryCount = 0;
+
   /// 직전 관측한 GoRouter location (Gap A 재entry 감지용 — quick-260425-01g).
   ///
   /// RouterDelegate listener 와 `didChangeDependencies` 양쪽에서 현재
@@ -151,6 +160,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         return;
       }
       if (!mounted) return;
+      // WR-04: 정상 진행 시 fail-safe 카운터 리셋 — 새 splash 세션 (예: 로그아웃
+      // 후 재진입) 에서 다시 1회 fail-safe 가 허용된다.
+      _offlineFallbackReentryCount = 0;
       context.go(AppRoutes.home);
     } finally {
       _initInFlight = false;
@@ -240,6 +252,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         // 안 됨). 아래 Gap A fail-safe 의미는 약화되었으나 다른 redirect path
         // 등장 시 안전망 보존 (PATTERNS §2.1).
         context.go(AppRoutes.login);
+        // WR-04: 다이얼로그 → 오프라인 → /splash 무한 루프 방지. fail-safe
+        // 재진입은 splash 세션 동안 1회로 제한 (1회 후에는 사용자가 /login
+        // 화면에서 직접 retry/sign-in 액션 선택). `_runInit` 성공 시 카운터
+        // 리셋되어 다음 splash 세션에는 영향 없음.
+        if (_offlineFallbackReentryCount >= 1) return;
+        _offlineFallbackReentryCount++;
         // Gap A (quick-260425-01g): GoRouter 의 GC-04 fail-safe redirect 가
         // /splash 에 다시 머물게 만든 경우 RouterDelegate.setNewRoutePath 가
         // 동일 configuration 으로 단락 (short-circuit) 되어 listener 가 발화
