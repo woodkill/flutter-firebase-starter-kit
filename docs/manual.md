@@ -1418,7 +1418,7 @@ SPEC 의 starting point 로 재활용 가능 — 단 server-side 인프라 디�
 
 5 social sign-in 메서드 모두 success path 에서 `_autoSendEmailVerification`
 helper 호출 — `lib/features/auth/data/auth_repository.dart` 안 private async
-helper (정의 line 721, callsite Google line 230 / Apple line 340 / Facebook
+helper (정의 line 728, callsite Google line 230 / Apple line 340 / Facebook
 line 441 / Kakao line 525 / Naver line 612). 5 가드 (D-19 + D-20):
 
 - `user == null` / `user.isAnonymous` / `user.email == null` /
@@ -1436,7 +1436,7 @@ isNewUser 가드 (`UserCredential.additionalUserInfo?.isNewUser ?? false`) 가
 verification 메일 받는 spam 차단. 사용자가 의도적으로 검증을 재요청할 때는
 verifyEmailScreen 의 "재전송" (Resend) 버튼이 manual-resend 경로.
 
-`signInWithFacebook` 만 추가로 `_setFacebookPhotoUrl` 호출 (정의 line 762,
+`signInWithFacebook` 만 추가로 `_setFacebookPhotoUrl` 호출 (정의 line 778,
 callsite line 442) — Graph API `picture.type(large)` 응답의 `picture.data.url`
 path 추출 후 `user.updatePhotoURL(url)` 갱신. Apple / Google 의 idToken
 picture claim 자동 채움 차이 보완. D-25 — `_autoSendEmailVerification` →
@@ -1465,16 +1465,16 @@ silhouette (실루엣) 정책: 본 phase 는 **허용 default** —
 ### 4. signOut 5 SDK 일괄 해제 (R6 — D-26)
 
 `AuthRepository.signOut()` (`lib/features/auth/data/auth_repository.dart`
-의 `signOut()` 본체 — Google line 797 → Facebook line 805 → Kakao line 813 →
-Naver line 821 → Auth line 827) 가 5 SDK 순차 호출:
+의 `signOut()` 본체 — Google line 829 → Facebook line 837 → Kakao line 845 →
+Naver line 853 → Auth line 859) 가 5 SDK 순차 호출:
 
-1. `_googleSignIn.signOut()` (Google) — line 797
-2. `_facebookAuth.logOut()` (Facebook) — line 805
+1. `_googleSignIn.signOut()` (Google) — line 829
+2. `_facebookAuth.logOut()` (Facebook) — line 837
 3. `_kakaoSdkClient.logout()` (Kakao — Phase 9.2 추가, Phase 12 D-57 정합) —
-   line 813
+   line 845
 4. `_naverSdkClient.logout()` (Naver — Phase 9.2 추가, Phase 13 D-57 정합) —
-   line 821
-5. `_auth.signOut()` (Firebase Auth — 마지막 호출 보장) — line 827
+   line 853
+5. `_auth.signOut()` (Firebase Auth — 마지막 호출 보장) — line 859
 
 각 SDK logout 은 `try / on Object catch` 무시 패턴 — 한 SDK 실패가 후속
 SDK + Firebase Auth signOut 호출을 차단하지 않는다. 본 invariant 가
@@ -1541,7 +1541,7 @@ starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞
 | 2026-05-08 | 13.1-13 | `## Brand Asset Management (Phase 13.1)` 단락 신규 — 7 provider 매트릭스 (출처 + 라이선스 + 채택 차원) + 3단계 절차 (다운/Phase 14·16 sentinel 해제/freshness 1년) + 자산 변형 정책 + Plan 13.1-07 retro 경고 (1x/2x/3x density 가정 vs 실제 형식) + 3-layer 회귀 가드. R15 acceptance. 목차 9 항목으로 확장. |
 | 2026-05-09 | 13.1-16 | Brand Asset Management 단락 보강 — Phase 13.1 Gap-1 X2 (wide 자상 통째 buttons 패턴) 함정 경고 박스 #2 신규 + 자산 변형 정책 단락에 layout 패턴 bullet 추가 (`Image.asset(fit: BoxFit.contain)` / `SvgPicture.asset(fit: BoxFit.contain)` + ClipRRect 폐기 + Material `clipBehavior: Clip.none` + InkWell `borderRadius: 12dp` ripple 제어 + letterbox 영역). en fallback 정책 (ko 외 모든 locale 은 en 자상 path 로딩) 명시. Plan 13.1-14 production code + Plan 13.1-15 4-round 시각 검증 deviation 1+2 인용. |
 | 2026-05-10 | 13.1-REVIEW | iter1 code review CR-02 정정 — `## Brand Asset (Phase 13 D-52)` + `## Kakao Brand Asset 라이센스 (Phase 12-07)` 두 단락 DEPRECATED 표시 + Phase 13.1 신규 단락 (`## Brand Asset Management (Phase 13.1)`) 으로 사용자 redirect. Phase 13.1 R1 정정 (#03A94D) + ColorFilter 절대 금지 + `assets/brand/{provider}/` 신규 디렉토리 구조 정합성 회복. |
-| 2026-05-10 | 09.2-05 | `## Multi-Provider Account Linking (Phase 9.2)` 단락 신규 (D-32, 4 sub-section + 커스터마이징 포인트 + 회귀 가드 매트릭스) — Path A-narrow R2~R6 동작 (account-exists unknown fallback 메시지 ko/en/ja verbatim, AccountProvider enum 부활 절차 — Phase 17 (Account Linking) — see ROADMAP.md, Facebook 자동 sendEmailVerification + photoURL Graph API + race-fix invariant + D-27 PII regression sentinel 매트릭스, signOut 5 SDK 순차 — Google → Facebook → Kakao → Naver → FirebaseAuth). R1 deferred to Phase 17 명시 (D-33). 코드 anchor (auth_repository.dart line 230/340/441/442/525/612/721/762/797/805/813/821/827) + 회귀 test 파일 5종 인용 (Phase 13.1 D-84 패턴 정합). 목차 11 항목으로 확장. |
+| 2026-05-10 | 09.2-05 | `## Multi-Provider Account Linking (Phase 9.2)` 단락 신규 (D-32, 4 sub-section + 커스터마이징 포인트 + 회귀 가드 매트릭스) — Path A-narrow R2~R6 동작 (account-exists unknown fallback 메시지 ko/en/ja verbatim, AccountProvider enum 부활 절차 — Phase 17 (Account Linking) — see ROADMAP.md, Facebook 자동 sendEmailVerification + photoURL Graph API + race-fix invariant + D-27 PII regression sentinel 매트릭스, signOut 5 SDK 순차 — Google → Facebook → Kakao → Naver → FirebaseAuth). R1 deferred to Phase 17 명시 (D-33). 코드 anchor (auth_repository.dart line 230/340/441/442/525/612/728/778/829/837/845/853/859) + 회귀 test 파일 5종 인용 (Phase 13.1 D-84 패턴 정합). 목차 11 항목으로 확장. |
 
 ---
 
