@@ -10,6 +10,7 @@ import '../../auth/application/social_link_in_progress.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/user.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
+import 'splash_error_code.dart';
 
 part 'splash_initializer.g.dart';
 
@@ -173,28 +174,18 @@ class SplashInitializer {
     return false;
   }
 
-  /// Firebase Auth code 추출 (Phase 10.1 D-10/D-11, T-10.1-03).
-  ///
-  /// `cause` 가 [fb.FirebaseAuthException] 이면 그 `code` 만 반환 — `message`
-  /// 는 단말 주소/스택 토큰 포함 위험이 있어 절대 노출 금지. cause 가 없으면
-  /// `'unknown'` 폴백.
-  static String _extractFirebaseAuthCode(AppException e) {
-    final cause = e.cause;
-    if (cause is fb.FirebaseAuthException) {
-      return cause.code;
-    }
-    return 'unknown';
-  }
-
   /// 최종 실패 처리 (Phase 10.1 D-14, T-10.1-04 mitigation).
   ///
   /// Crashlytics setCustomKey + recordError(fatal: false) 를 1회만 호출하고
   /// [Result.failure] 반환. attempt 별 emit 안 함 — issue grouping 활성 + 관측
   /// 노이즈 회피. crashlyticsService null 또는 isEnabled=false 시 no-op.
+  ///
+  /// **WR-03:** 코드 추출은 공통 [extractSplashErrorCode] 사용 — SplashScreen
+  /// 의 fingerprint 표시와 동일 값 보장 (drift 방지).
   Future<Result<void>> _finalize(AppException exception) async {
     final crashlytics = crashlyticsService;
     if (crashlytics != null) {
-      final code = _extractFirebaseAuthCode(exception);
+      final code = extractSplashErrorCode(exception);
       await crashlytics.setCustomKey(
         'splash_auto_signin_retry_exhausted',
         code,

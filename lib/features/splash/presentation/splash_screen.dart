@@ -5,12 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import 'splash_error_code.dart';
 import 'splash_initializer.dart';
 
 /// 앱 스플래시 화면 (Phase 10 AUTH-08, D-22, D-25, WARNING #13).
@@ -145,7 +145,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (!mounted) return;
       if (result is Failure<void>) {
         setState(() => _hasFailure = true);
-        final code = _splashErrorCode(result.exception);
+        // WR-03: SplashInitializer 와 동일한 [extractSplashErrorCode] 사용.
+        final code = extractSplashErrorCode(result.exception);
         await _showFailureDialog(code);
         return;
       }
@@ -154,20 +155,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     } finally {
       _initInFlight = false;
     }
-  }
-
-  /// Firebase Auth code 추출 (Phase 10.1 D-10/D-11, T-10.1-03 mitigation).
-  ///
-  /// `cause` 가 [fb.FirebaseAuthException] 이면 그 `code` 만 반환 — `message`
-  /// 는 단말 주소/스택 토큰 포함 위험이 있어 절대 노출 금지. cause 가 없으면
-  /// `'unknown'` 폴백. SplashInitializer._extractFirebaseAuthCode 와 동일
-  /// 로직 (cross-file 결합 회피 목적의 5줄 중복 — Phase 10.1 옵션 A).
-  static String _splashErrorCode(AppException exception) {
-    final cause = exception.cause;
-    if (cause is fb.FirebaseAuthException) {
-      return cause.code;
-    }
-    return 'unknown';
   }
 
   Future<void> _showFailureDialog(String code) async {
