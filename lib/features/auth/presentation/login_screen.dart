@@ -147,9 +147,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
-    // defense-in-depth: await 후 setState/context 호출이 추가될 경우를
-    // 대비해 mounted 가드를 미리 배치한다 (WR-02).
-    if (!mounted) return;
+    // 본 메서드의 state 전이 (성공 시 Home navigate, 실패 시 _emailError
+    // 배너 갱신) 는 build() 안 ref.listen<AsyncValue<void>>(loginProvider)
+    // 가 담당하므로 await 후 setState / context 호출 미필요.
+    //
+    // 만약 향후 post-await 액션 (setState / context.go / context.push 등)
+    // 을 추가한다면 그 줄 바로 위에 `if (!mounted) return;` 가드를 새로
+    // 배치할 것 — 본 위치에 mounted 가드를 미리 두는 dead-defense 패턴은
+    // use_build_context_synchronously 린트 가 새 가드 누락을 감지할 수
+    // 있도록 의도적으로 제거 (WR-05).
   }
 
   @override
