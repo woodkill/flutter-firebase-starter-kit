@@ -24,10 +24,12 @@ final _testUser = User(
 /// [initialState]로 [VerifyEmailNotifier]의 build 결과를 제어하여
 /// Timer 부작용 없이 순수 렌더링만 테스트한다.
 /// [currentUser]로 사용자 정보를 주입한다.
+/// [locale]로 ARB 본문 verbatim 검증 시 로케일을 변경할 수 있다 (기본 en).
 Future<void> _pumpVerifyEmail(
   WidgetTester tester, {
   VerifyEmailState initialState = const VerifyEmailState(),
   User? currentUser,
+  Locale locale = const Locale('en'),
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -38,7 +40,7 @@ Future<void> _pumpVerifyEmail(
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: const VerifyEmailScreen(),
@@ -149,5 +151,74 @@ void main() {
       await _pumpVerifyEmail(tester);
       expect(tester.takeException(), isNull);
     });
+
+    // ========================================================================
+    // Phase 9.2 Gap B Dart consumer (HUMAN-UAT 2026-05-11):
+    // currentUser.email 가 빈 문자열일 때 graceful fallback 메시지가 표시되는
+    // invariant + non-empty 시 기존 메시지가 보존되는 regression sentinel.
+    // User.email 은 freezed 모델에서 required non-null String 이므로 'email
+    // 미설정' 시나리오는 빈 문자열로 표현된다 (verify_email_screen 의
+    // `userEmail.isEmpty` 분기와 정합). 본 테스트는 generated getter 호출
+    // 대신 ARB 본문 verbatim 비교로 컴파일 의존성 최소화.
+    // ========================================================================
+    testWidgets(
+      'VE-EMAIL-NULL-01: currentUser.email 빈 문자열 → graceful fallback '
+      '메시지 표시 (ko 로케일 verbatim)',
+      (tester) async {
+        final emptyEmailUser = User(
+          uid: 'test-uid-empty-email',
+          email: '',
+          emailVerified: false,
+          createdAt: DateTime.utc(2026),
+        );
+
+        await _pumpVerifyEmail(
+          tester,
+          currentUser: emptyEmailUser,
+          locale: const Locale('ko'),
+        );
+
+        // ko ARB verbatim — graceful fallback 메시지.
+        expect(
+          find.text(
+            '가입하신 이메일 주소로 인증 메일을 보냈습니다. '
+            '메일의 링크를 클릭하여 인증을 완료해 주세요.',
+          ),
+          findsOneWidget,
+        );
+        // 기존 authVerifyEmailDescription 본문 일부 (placeholder 포함) 미발현.
+        expect(find.textContaining('(으)로 보냈습니다'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'VE-EMAIL-PRESENT-01: currentUser.email non-empty → 기존 메시지 표시 + '
+      'fallback 미발동 (ko 로케일 regression sentinel)',
+      (tester) async {
+        final presentEmailUser = User(
+          uid: 'test-uid-present-email',
+          email: 'user@example.com',
+          emailVerified: false,
+          createdAt: DateTime.utc(2026),
+        );
+
+        await _pumpVerifyEmail(
+          tester,
+          currentUser: presentEmailUser,
+          locale: const Locale('ko'),
+        );
+
+        // 기존 authVerifyEmailDescription 본문 — email 포함 표시 sentinel.
+        expect(find.textContaining('user@example.com'), findsOneWidget);
+        // fallback 메시지 미발현 — Gap B 분기 false-positive 차단.
+        expect(
+          find.text(
+            '가입하신 이메일 주소로 인증 메일을 보냈습니다. '
+            '메일의 링크를 클릭하여 인증을 완료해 주세요.',
+          ),
+          findsNothing,
+        );
+      },
+    );
   });
 }

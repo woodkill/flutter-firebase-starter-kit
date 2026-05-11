@@ -1654,6 +1654,93 @@ void main() {
         verify(() => mockSocialLinkInProgress.end()).called(1);
       },
     );
+
+    // ========================================================================
+    // Phase 9.2 Gap B Kakao 충돌 path (HUMAN-UAT 2026-05-11 — kakaoCustomToken
+    // already-exists invariant). Plan 07 의 functions side fix (resolveIdentity
+    // callerUid 분기 email collision detect) 가 배포된 후 익명승격 path 에서
+    // kakaoCustomToken 가 'already-exists' HttpsError throw → client 의
+    // _mapFunctionsException 가 Phase 12.1 D-34 분기 (AccountExistsWith-
+    // DifferentCredential cause:e, email:null) 로 자동 매핑 + _autoSend-
+    // EmailVerification 차단 + race-fix end() 1회 invariant 의 Dart-side
+    // regression sentinel.
+    test(
+      'NK-COLLISION-K1: 익명승격 + kakaoCustomToken already-exists → '
+      'AccountExistsWithDifferentCredential 매핑 (Plan 07 deploy 후 sentinel)',
+      () async {
+        // 익명승격 path 시뮬레이션 — Plan 07 의 callerUid 분기 활성 조건.
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(() => mockUser.isAnonymous).thenReturn(true);
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        final result = await repository.signInWithKakao();
+
+        expect(result, isA<Failure<dynamic>>());
+        final failure = result! as Failure;
+        expect(
+          failure.exception,
+          isA<AccountExistsWithDifferentCredential>(),
+        );
+        // Phase 12.1 D-34 매핑 — email=null + cause=FirebaseFunctionsException.
+        final ex = failure.exception as AccountExistsWithDifferentCredential;
+        expect(ex.email, isNull);
+        expect(ex.cause, isA<FirebaseFunctionsException>());
+      },
+    );
+
+    test(
+      'NK-COLLISION-K2: 익명승격 + already-exists → signInWithCustomToken / '
+      'sendEmailVerification 미진입 (Gap B autoSendEmailVerification 차단)',
+      () async {
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(() => mockUser.isAnonymous).thenReturn(true);
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        await repository.signInWithKakao();
+
+        // Cloud Function throw 이후 signInWithCustomToken 미진입 invariant.
+        verifyNever(() => mockAuth.signInWithCustomToken(any()));
+        // sendEmailVerification 미호출 — fbUser 생성 0 → side-effect 격리.
+        verifyNever(() => mockUser.sendEmailVerification());
+      },
+    );
+
+    test(
+      'NK-COLLISION-K3: 익명승격 + already-exists → race-fix begin/end + '
+      'KakaoSdkClient.logout 정확 1회 (Phase 9.1 D-03/D-04 + D-57 invariant)',
+      () async {
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(() => mockUser.isAnonymous).thenReturn(true);
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        await repository.signInWithKakao();
+
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockKakaoSdkClient.logout()).called(1);
+      },
+    );
   });
 
   // ==========================================================================
@@ -1843,6 +1930,107 @@ void main() {
       ).called(1);
       verify(() => mockAuth.signInWithCustomToken('CT_NAVER')).called(1);
     });
+  });
+
+  // ==========================================================================
+  // Phase 9.2 Gap B Naver 충돌 path (HUMAN-UAT 2026-05-11 — naverCustomToken
+  // already-exists invariant). Plan 07 의 Functions side fix (resolveIdentity
+  // callerUid 분기 email collision detect) 가 배포된 후 익명승격 path 에서
+  // naverCustomToken 가 'already-exists' HttpsError throw 시 client 의
+  // _mapFunctionsException 가 Phase 12.1 D-34 분기 (AccountExistsWith-
+  // DifferentCredential cause:e, email:null) 로 자동 매핑되는 Dart-side
+  // regression sentinel.
+  // ==========================================================================
+  group('Phase 9.2 Gap B Naver 충돌 path (NK-COLLISION-N)', () {
+    late _MockHttpsCallable mockCallable;
+
+    setUp(() {
+      mockCallable = _MockHttpsCallable();
+      when(() => mockNaverSdkClient.signIn()).thenAnswer(
+        (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
+      );
+      when(
+        () => mockFunctions.httpsCallable(any()),
+      ).thenReturn(mockCallable);
+    });
+
+    test(
+      'NK-COLLISION-N1: 익명승격 + naverCustomToken already-exists → '
+      'AccountExistsWithDifferentCredential 매핑 (Plan 07 deploy 후 sentinel)',
+      () async {
+        // 익명승격 path 시뮬레이션 — Plan 07 의 callerUid 분기 활성 조건.
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(() => mockUser.isAnonymous).thenReturn(true);
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        final result = await repository.signInWithNaver();
+
+        expect(result, isA<Failure<dynamic>>());
+        final failure = result! as Failure;
+        expect(
+          failure.exception,
+          isA<AccountExistsWithDifferentCredential>(),
+        );
+        // Phase 12.1 D-34 매핑 — email=null + cause=FirebaseFunctionsException.
+        final ex = failure.exception as AccountExistsWithDifferentCredential;
+        expect(ex.email, isNull);
+        expect(ex.cause, isA<FirebaseFunctionsException>());
+      },
+    );
+
+    test(
+      'NK-COLLISION-N2: 익명승격 + already-exists → signInWithCustomToken / '
+      'sendEmailVerification 미진입 (Gap B autoSendEmailVerification 차단)',
+      () async {
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(() => mockUser.isAnonymous).thenReturn(true);
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        await repository.signInWithNaver();
+
+        // Cloud Function throw 이후 signInWithCustomToken 미진입 invariant.
+        verifyNever(() => mockAuth.signInWithCustomToken(any()));
+        // sendEmailVerification 미호출 — fbUser 생성 0 → side-effect 격리.
+        verifyNever(() => mockUser.sendEmailVerification());
+      },
+    );
+
+    test(
+      'NK-COLLISION-N3: 익명승격 + already-exists → race-fix begin/end + '
+      'NaverSdkClient.logout 정확 1회 (Phase 9.1 D-03/D-04 + D-57 invariant)',
+      () async {
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(() => mockUser.isAnonymous).thenReturn(true);
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        await repository.signInWithNaver();
+
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockNaverSdkClient.logout()).called(1);
+      },
+    );
   });
 
   // ==========================================================================
