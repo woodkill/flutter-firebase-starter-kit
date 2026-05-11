@@ -4,6 +4,7 @@
   "commonOk": "확인",
   "commonCancel": "취소",
   "commonRetry": "재시도",
+  "commonCopied": "복사되었습니다",
   "commonClose": "닫기",
   "commonSave": "저장",
   "commonDelete": "삭제",
@@ -187,7 +188,8 @@
   "splashPreparing": "앱을 준비하고 있어요...",
   "splashFailureTitle": "연결할 수 없어요",
   "splashFailureMessage": "지금 연결에 문제가 있어요. 다시 시도하거나 오프라인으로 계속할 수 있어요.",
-  "splashContinueOffline": "오프라인으로 계속",
+  "splashContinueOffline": "나중에 다시 로그인",
+  "splashErrorCodeFingerprint": "오류 코드: {code}",
 
   "homeGuestBanner": "게스트로 이용 중이에요 · 로그인하면 더 많은 기능을 사용할 수 있어요",
   "homeSignIn": "로그인",

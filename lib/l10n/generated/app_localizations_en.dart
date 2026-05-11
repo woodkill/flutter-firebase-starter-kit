@@ -18,6 +18,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonRetry => 'Retry';
 
   @override
+  String get commonCopied => 'Copied to clipboard';
+
+  @override
   String get commonClose => 'Close';
 
   @override
@@ -477,7 +480,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Something\'s blocking the connection. You can retry or continue offline.';
 
   @override
-  String get splashContinueOffline => 'Continue offline';
+  String get splashContinueOffline => 'Sign in later';
+
+  @override
+  String splashErrorCodeFingerprint(String code) {
+    return 'Error code: $code';
+  }
 
   @override
   String get homeGuestBanner => 'Browsing as a guest · Sign in to unlock more';

@@ -16,6 +16,11 @@
     "description": "Common retry button label"
   },
 
+  "commonCopied": "Copied to clipboard",
+  "@commonCopied": {
+    "description": "SnackBar message shown after tap-to-copy clipboard action (Phase 10.1 — fingerprint copy)"
+  },
+
   "commonClose": "Close",
   "@commonClose": {
     "description": "Common close button label"
@@ -753,9 +758,20 @@
     "description": "Body of the splash failure dialog"
   },
 
-  "splashContinueOffline": "Continue offline",
+  "splashContinueOffline": "Sign in later",
   "@splashContinueOffline": {
-    "description": "Splash failure dialog action that continues without Firebase"
+    "description": "Label for the 'sign in later' button in splash failure dialog (Phase 10.1 D-05 — navigates to /login instead of /home since anonymous UID does not exist after signInAnonymously failure)."
+  },
+
+  "splashErrorCodeFingerprint": "Error code: {code}",
+  "@splashErrorCodeFingerprint": {
+    "description": "Caption showing Firebase Auth error code in splash failure dialog. Tap to copy. PII-free (code only, no message — Phase 10.1 D-10/D-11).",
+    "placeholders": {
+      "code": {
+        "type": "String",
+        "example": "network-request-failed"
+      }
+    }
   },
 
   "homeGuestBanner": "Browsing as a guest · Sign in to unlock more",

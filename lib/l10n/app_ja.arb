@@ -4,6 +4,7 @@
   "commonOk": "OK",
   "commonCancel": "キャンセル",
   "commonRetry": "再試行",
+  "commonCopied": "コピーしました",
   "commonClose": "閉じる",
   "commonSave": "保存",
   "commonDelete": "削除",
@@ -196,7 +197,8 @@
   "splashPreparing": "アプリを準備しています...",
   "splashFailureTitle": "接続できません",
   "splashFailureMessage": "接続に問題があります。再試行するか、オフラインで続行できます。",
-  "splashContinueOffline": "オフラインで続ける",
+  "splashContinueOffline": "後でサインイン",
+  "splashErrorCodeFingerprint": "エラーコード: {code}",
 
   "homeGuestBanner": "ゲストとして利用中 · ログインでさらに多くの機能を利用できます",
   "homeSignIn": "ログイン",

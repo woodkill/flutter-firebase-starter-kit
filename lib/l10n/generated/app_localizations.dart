@@ -118,6 +118,12 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get commonRetry;
 
+  /// SnackBar message shown after tap-to-copy clipboard action (Phase 10.1 — fingerprint copy)
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get commonCopied;
+
   /// Common close button label
   ///
   /// In en, this message translates to:
@@ -976,11 +982,17 @@ abstract class AppLocalizations {
   /// **'Something\'s blocking the connection. You can retry or continue offline.'**
   String get splashFailureMessage;
 
-  /// Splash failure dialog action that continues without Firebase
+  /// Label for the 'sign in later' button in splash failure dialog (Phase 10.1 D-05 — navigates to /login instead of /home since anonymous UID does not exist after signInAnonymously failure).
   ///
   /// In en, this message translates to:
-  /// **'Continue offline'**
+  /// **'Sign in later'**
   String get splashContinueOffline;
+
+  /// Caption showing Firebase Auth error code in splash failure dialog. Tap to copy. PII-free (code only, no message — Phase 10.1 D-10/D-11).
+  ///
+  /// In en, this message translates to:
+  /// **'Error code: {code}'**
+  String splashErrorCodeFingerprint(String code);
 
   /// Muted banner shown on Home for anonymous users
   ///

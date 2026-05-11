@@ -18,6 +18,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonRetry => '再試行';
 
   @override
+  String get commonCopied => 'コピーしました';
+
+  @override
   String get commonClose => '閉じる';
 
   @override
@@ -467,7 +470,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get splashFailureMessage => '接続に問題があります。再試行するか、オフラインで続行できます。';
 
   @override
-  String get splashContinueOffline => 'オフラインで続ける';
+  String get splashContinueOffline => '後でサインイン';
+
+  @override
+  String splashErrorCodeFingerprint(String code) {
+    return 'エラーコード: $code';
+  }
 
   @override
   String get homeGuestBanner => 'ゲストとして利用中 · ログインでさらに多くの機能を利用できます';

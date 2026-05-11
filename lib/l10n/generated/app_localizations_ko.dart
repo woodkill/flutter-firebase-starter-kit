@@ -18,6 +18,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get commonRetry => '재시도';
 
   @override
+  String get commonCopied => '복사되었습니다';
+
+  @override
   String get commonClose => '닫기';
 
   @override
@@ -468,7 +471,12 @@ class AppLocalizationsKo extends AppLocalizations {
       '지금 연결에 문제가 있어요. 다시 시도하거나 오프라인으로 계속할 수 있어요.';
 
   @override
-  String get splashContinueOffline => '오프라인으로 계속';
+  String get splashContinueOffline => '나중에 다시 로그인';
+
+  @override
+  String splashErrorCodeFingerprint(String code) {
+    return '오류 코드: $code';
+  }
 
   @override
   String get homeGuestBanner => '게스트로 이용 중이에요 · 로그인하면 더 많은 기능을 사용할 수 있어요';
