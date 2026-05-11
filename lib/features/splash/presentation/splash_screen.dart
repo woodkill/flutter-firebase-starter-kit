@@ -13,6 +13,19 @@ import '../../../core/theme/theme_extensions.dart';
 import 'splash_error_code.dart';
 import 'splash_initializer.dart';
 
+/// 스플래시 로고 자산 경로 (IN-02 — 프로젝트별 커스터마이징 포인트).
+///
+/// 다른 로고로 교체하려면 `assets/images/splash/` 아래에 동일 경로의 PNG 를
+/// 배치하거나 본 상수를 갱신한다. Image.asset 본체와 [Image.errorBuilder]
+/// 양쪽에서 공유한다.
+const String _kLogoAsset = 'assets/images/splash/logo.png';
+
+/// 스플래시 로고 변/높이 (logical pixel, IN-02 — 프로젝트별 커스터마이징 포인트).
+///
+/// 디자인 시스템 변경 시 본 값만 갱신하면 정상 표시 + 에러 placeholder
+/// 양쪽이 동기된다.
+const double _kLogoSize = 128.0;
+
 /// 앱 스플래시 화면 (Phase 10 AUTH-08, D-22, D-25, WARNING #13).
 ///
 /// 흐름:
@@ -312,11 +325,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Image.asset(
-                'assets/images/splash/logo.png',
-                width: 128,
-                height: 128,
-                errorBuilder: (_, _, _) =>
-                    const SizedBox(width: 128, height: 128),
+                _kLogoAsset,
+                width: _kLogoSize,
+                height: _kLogoSize,
+                errorBuilder: (_, _, _) => const SizedBox(
+                  width: _kLogoSize,
+                  height: _kLogoSize,
+                ),
               ),
               Gap(spacing.xxl),
               if (!_hasFailure)
