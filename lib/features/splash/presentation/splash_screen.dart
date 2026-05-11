@@ -126,6 +126,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final router = _attachedRouter;
     if (router == null) return;
     final currentLocation = router.routerDelegate.currentConfiguration.uri.path;
+    // IN-05: 초기 null 은 initState 의 addPostFrameCallback 이 별도로 _runInit
+    // 을 트리거함 — 본 분기는 재entry (다른 location 으로 갔다가 /splash 복귀)
+    // 만 담당. 향후 initState 의 트리거를 옮기는 리팩토링 시 본 가드도 함께
+    // 점검해야 첫 init 이 누락되지 않는다.
     if (_lastObservedLocation != null &&
         _lastObservedLocation != currentLocation &&
         currentLocation == AppRoutes.splash) {
