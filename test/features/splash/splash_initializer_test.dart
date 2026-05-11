@@ -386,6 +386,16 @@ void main() {
       verifyNever(
         () => mockCrashlytics.setCustomKey(any(), any<Object>()),
       );
+      // IN-01: setCustomKey 와 recordError 양쪽이 함께 0 회 인지 검증
+      // (둘 중 하나만 emit 되는 회귀 차단).
+      verifyNever(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
     });
 
     test('C4: NoInternetConnection × 2 + Success → Success (retry 2회) + '
@@ -415,6 +425,15 @@ void main() {
       verify(mockRepo.signInAnonymously).called(3);
       verifyNever(
         () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      );
+      // IN-01: setCustomKey 와 recordError 양쪽이 함께 0 회 인지 검증.
+      verifyNever(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
       );
     });
 
