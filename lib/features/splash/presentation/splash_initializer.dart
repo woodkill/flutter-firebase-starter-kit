@@ -1,6 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/config/splash_config.dart';
+import '../../../core/crashlytics/crashlytics_service.dart';
+import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../auth/application/social_link_in_progress.dart';
@@ -10,7 +13,7 @@ import '../../onboarding/presentation/onboarding_notifier.dart';
 
 part 'splash_initializer.g.dart';
 
-/// 스플래시 초기화 시퀀스 (Phase 10 D-24, Issue #10 Plan 10-14).
+/// 스플래시 초기화 시퀀스 (Phase 10 D-24, Issue #10 Plan 10-14, Phase 10.1).
 ///
 /// 다음 분기로 동작한다:
 /// 1. 최소 표시 시간 대기 ([SplashConfig.minDuration], 기본 2초 / 테스트 시
@@ -20,12 +23,26 @@ part 'splash_initializer.g.dart';
 /// 4. `currentUser == null` + `onboardingFuture` resolve 후 false -> 대기만
 ///    (Onboarding CTA 가 약관 동의 + signInAnonymously 책임, D-14)
 /// 5. `currentUser == null` + `onboardingFuture` resolve 후 true ->
-///    [signInAnonymously] 호출. 실패 시 [Result.failure] 반환 — 호출자
-///    (SplashScreen) UI 가 재시도/오프라인 다이얼로그 표시 (D-27).
+///    [signInAnonymously] 호출. 실패 시 transient 분류 (Phase 10.1 D-01/D-02)
+///    에 따라 graceful retry loop 진입 — [SplashConfig.effectiveBackoffSteps]
+///    1s/2s/4s exponential backoff 직렬 (D-03/D-04). retry 소진 또는 permanent
+///    fail (UserDisabled / TooManyRequests / `operation-not-allowed` cause)
+///    시점에 [Result.failure] 반환 — 호출자 (SplashScreen) UI 가 재시도/
+///    오프라인 다이얼로그 표시 (D-27).
 ///
 /// Issue #10 GC-01/GC-03 — `onboardingFuture` 를 선행 await 하여 prefs
 /// 로드 완료 전에 onboardingSeen=false snapshot 으로 signInAnonymously
 /// 호출이 스킵되는 race 를 구조적으로 제거한다.
+///
+/// **Phase 10.1 D-13:** SplashInitializer 자체는 State 가 아니므로 mounted
+/// 가드를 보유하지 않는다. 호출자 SplashScreen `_runInit` 의 `if (!mounted)
+/// return;` 이 retry loop 완료 후 결과를 흡수한다. retry 백그라운드 진행은
+/// 자원 영향 미미 (Risk R4 accept).
+///
+/// **Phase 10.1 D-14:** retry 소진 또는 permanent fail 시점에 1회만
+/// [CrashlyticsService.setCustomKey] + [recordError] (`fatal: false`) 호출.
+/// attempt 별 emit 안 함 — Crashlytics dashboard issue grouping 활성 +
+/// 관측 노이즈 회피 (T-10.1-04 mitigation).
 class SplashInitializer {
   /// 의존성 주입 생성자. Firebase 상태 및 onboarding 시청 Future 를 받는다.
   const SplashInitializer({
@@ -34,6 +51,7 @@ class SplashInitializer {
     required this.currentUserIsNull,
     required this.onboardingFuture,
     required this.isSocialLinkInProgress,
+    this.crashlyticsService,
   });
 
   /// 익명 로그인 호출 위임 대상.
@@ -63,6 +81,14 @@ class SplashInitializer {
   /// (`09-UAT.md` Gap test 6).
   final bool isSocialLinkInProgress;
 
+  /// Crashlytics observability wrapper (Phase 10.1 D-14, AUTH-11).
+  ///
+  /// `null` 일 경우 emit 미수행 — 기존 test 호환 (Phase 10 단순 test 들이
+  /// crashlyticsService 인자 미주입). dev flavor 빌드에서는
+  /// [CrashlyticsService.isEnabled] = false 로 no-op (D-28 wrapper 정책,
+  /// T-10.1-05 accept).
+  final CrashlyticsService? crashlyticsService;
+
   /// 스플래시 초기화 시퀀스를 실행한다.
   ///
   /// Issue #10 GC-03: onboardingFuture 를 최소 대기와 병렬 진행하되,
@@ -74,6 +100,15 @@ class SplashInitializer {
   /// 스킵한다. AuthRepository 의 social sign-in 메서드가 진행 중이면 splash 의
   /// 자동 익명 sign-in 이 정식 사용자 상태를 덮어쓰는 race 를 차단한다
   /// (`09-UAT.md` Gap test 6).
+  ///
+  /// **Phase 10.1 D-04 (retry sequence):**
+  /// 1. attempt 1 = minDuration 병렬 (기존 보존) — `await waitFuture` 후
+  ///    `await authFuture` 로 첫 결과 확인.
+  /// 2. attempt 1 fail + transient (`_isTransient` true) → `for (delay in
+  ///    effectiveBackoffSteps) { await delay; retry; }` 직렬 (1s/2s/4s).
+  /// 3. attempt 1 fail + permanent → 즉시 [_finalize] (retry 안 함).
+  /// 4. retry 소진 또는 permanent → [_finalize] 가 Crashlytics emit 1회 +
+  ///    [Result.failure] 반환.
   Future<Result<void>> initialize() async {
     final waitFuture = Future<void>.delayed(SplashConfig.minDuration);
     final onboardingSeen = await onboardingFuture;
@@ -87,13 +122,91 @@ class SplashInitializer {
       authFuture = authRepository.signInAnonymously();
     }
     await waitFuture;
-    if (authFuture != null) {
-      final result = await authFuture;
-      if (result is Failure<User>) {
-        return Result.failure(result.exception);
-      }
+    if (authFuture == null) {
+      return const Result.success(null);
     }
-    return const Result.success(null);
+    final firstResult = await authFuture;
+    if (firstResult is! Failure<User>) {
+      return const Result.success(null);
+    }
+    // Phase 10.1 D-04 — 첫 시도 fail. transient 면 retry, permanent 즉시 fail.
+    if (!_isTransient(firstResult.exception)) {
+      return _finalize(firstResult.exception);
+    }
+    // Phase 10.1 D-03 — exponential backoff 직렬 retry loop.
+    var lastException = firstResult.exception;
+    for (final delay in SplashConfig.effectiveBackoffSteps) {
+      await Future<void>.delayed(delay);
+      final retryResult = await authRepository.signInAnonymously();
+      if (retryResult is! Failure<User>) {
+        return const Result.success(null);
+      }
+      // retry 중 permanent 오류 발견 시 즉시 종료 (정상 분류 흐름).
+      if (!_isTransient(retryResult.exception)) {
+        return _finalize(retryResult.exception);
+      }
+      lastException = retryResult.exception;
+    }
+    // retry 소진 — 마지막 transient fail 을 final 결과로 emit (D-14).
+    return _finalize(lastException);
+  }
+
+  /// transient (재시도 가능) 분류 여부 (Phase 10.1 D-02, T-10.1-01).
+  ///
+  /// `NoInternetConnection` 은 항상 transient. `ServiceUnavailable` 은
+  /// 기본 transient 이나, `cause` 가 [fb.FirebaseAuthException] 이고 code 가
+  /// `'operation-not-allowed'` 인 경우 영구 분류 (Firebase 콘솔 익명 사인인
+  /// 비활성화 — 재시도 무의미). 나머지 sealed case (UserDisabled /
+  /// TooManyRequests / 기타) 는 permanent 로 간주.
+  static bool _isTransient(AppException e) {
+    if (e is NoInternetConnection) {
+      return true;
+    }
+    if (e is ServiceUnavailable) {
+      final cause = e.cause;
+      if (cause is fb.FirebaseAuthException &&
+          cause.code == 'operation-not-allowed') {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// Firebase Auth code 추출 (Phase 10.1 D-10/D-11, T-10.1-03).
+  ///
+  /// `cause` 가 [fb.FirebaseAuthException] 이면 그 `code` 만 반환 — `message`
+  /// 는 단말 주소/스택 토큰 포함 위험이 있어 절대 노출 금지. cause 가 없으면
+  /// `'unknown'` 폴백.
+  static String _extractFirebaseAuthCode(AppException e) {
+    final cause = e.cause;
+    if (cause is fb.FirebaseAuthException) {
+      return cause.code;
+    }
+    return 'unknown';
+  }
+
+  /// 최종 실패 처리 (Phase 10.1 D-14, T-10.1-04 mitigation).
+  ///
+  /// Crashlytics setCustomKey + recordError(fatal: false) 를 1회만 호출하고
+  /// [Result.failure] 반환. attempt 별 emit 안 함 — issue grouping 활성 + 관측
+  /// 노이즈 회피. crashlyticsService null 또는 isEnabled=false 시 no-op.
+  Future<Result<void>> _finalize(AppException exception) async {
+    final crashlytics = crashlyticsService;
+    if (crashlytics != null) {
+      final code = _extractFirebaseAuthCode(exception);
+      await crashlytics.setCustomKey(
+        'splash_auto_signin_retry_exhausted',
+        code,
+      );
+      await crashlytics.recordError(
+        exception,
+        StackTrace.current,
+        reason: 'splash_auto_signin_retry_exhausted',
+        fatal: false,
+      );
+    }
+    return Result.failure(exception);
   }
 }
 
@@ -126,6 +239,10 @@ class _NoopAuthRepository implements AuthRepository {
 /// 전환되어 `.future` 게터로 `Future<bool>` 를 얻는다. `ref.watch(.future)` 는
 /// AsyncNotifier 가 1회 build 후 settle 되면 resolve 된 Future 를 캐시하므로
 /// 재빌드가 불필요하며, keepAlive 덕분에 container 수명 동안 1회만 계산된다.
+///
+/// **Phase 10.1 D-14:** Firebase 초기화 상태일 때만 [crashlyticsServiceProvider]
+/// 를 watch 하여 SplashInitializer 에 주입. 미초기화 시 null 주입 — retry
+/// path 자체가 trigger 안 됨 (authFuture 미생성).
 @riverpod
 SplashInitializer splashInitializer(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);
@@ -142,11 +259,16 @@ SplashInitializer splashInitializer(Ref ref) {
   final isSocialLinkInProgress = isInitialized
       ? ref.watch(socialLinkInProgressProvider)
       : false;
+  // Phase 10.1 D-14: Crashlytics 주입 (Firebase 초기화 시에만).
+  final crashlytics = isInitialized
+      ? ref.watch(crashlyticsServiceProvider)
+      : null;
   return SplashInitializer(
     authRepository: authRepository,
     isFirebaseInitialized: isInitialized,
     currentUserIsNull: currentUser == null,
     onboardingFuture: onboardingFuture,
     isSocialLinkInProgress: isSocialLinkInProgress,
+    crashlyticsService: crashlytics,
   );
 }
