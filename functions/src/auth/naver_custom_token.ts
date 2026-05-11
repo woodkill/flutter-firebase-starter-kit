@@ -94,7 +94,12 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
     if (
       !accessToken ||
       typeof accessToken !== "string" ||
-      accessToken.length === 0
+      accessToken.length === 0 ||
+      // HTTP 헤더 forbidden chars (CRLF / NUL) 차단 — undici 가 internal
+      // 에서 throw 하기 전에 명시 거부. CRLF injection 회피 + 정확한
+      // invalid-argument 분류 (WR-01). 매칭 정규식은 의도적으로 control
+      // char 만 좁게 (token 본문은 base64url 등 가변).
+      /[\r\n\x00]/.test(accessToken)
     ) {
       throw new HttpsError("invalid-argument", "errorInvalidArgument");
     }
