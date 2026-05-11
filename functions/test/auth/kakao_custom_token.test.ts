@@ -832,6 +832,7 @@ describe("kakaoCustomToken onCall", () => {
   );
 
   it(
+    // eslint-disable-next-line max-len -- IN-04 testcase 라벨 verbatim
     "T-12-KAKAO-CT-OPTC-K2 (IN-04): email claim 만 있고 email_verified 부재 → email_verified=false 보수 매핑",
     async () => {
       // 일반 앱 / 미동의 / 미래 Kakao 정책 변경 시: ID Token 에 email 은

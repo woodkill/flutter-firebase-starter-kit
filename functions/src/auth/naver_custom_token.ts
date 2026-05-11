@@ -99,6 +99,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
       // 에서 throw 하기 전에 명시 거부. CRLF injection 회피 + 정확한
       // invalid-argument 분류 (WR-01). 매칭 정규식은 의도적으로 control
       // char 만 좁게 (token 본문은 base64url 등 가변).
+      // eslint-disable-next-line no-control-regex -- WR-01 의도된 CRLF/NUL 필터
       /[\r\n\x00]/.test(accessToken)
     ) {
       throw new HttpsError("invalid-argument", "errorInvalidArgument");
