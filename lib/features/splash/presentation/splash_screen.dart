@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
@@ -143,7 +145,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (!mounted) return;
       if (result is Failure<void>) {
         setState(() => _hasFailure = true);
-        await _showFailureDialog();
+        final code = _splashErrorCode(result.exception);
+        await _showFailureDialog(code);
         return;
       }
       if (!mounted) return;
@@ -153,18 +156,66 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
   }
 
-  Future<void> _showFailureDialog() async {
+  /// Firebase Auth code 추출 (Phase 10.1 D-10/D-11, T-10.1-03 mitigation).
+  ///
+  /// `cause` 가 [fb.FirebaseAuthException] 이면 그 `code` 만 반환 — `message`
+  /// 는 단말 주소/스택 토큰 포함 위험이 있어 절대 노출 금지. cause 가 없으면
+  /// `'unknown'` 폴백. SplashInitializer._extractFirebaseAuthCode 와 동일
+  /// 로직 (cross-file 결합 회피 목적의 5줄 중복 — Phase 10.1 옵션 A).
+  static String _splashErrorCode(AppException exception) {
+    final cause = exception.cause;
+    if (cause is fb.FirebaseAuthException) {
+      return cause.code;
+    }
+    return 'unknown';
+  }
+
+  Future<void> _showFailureDialog(String code) async {
     final l10n = context.l10n;
+    final spacing = context.appSpacing;
+    final colorScheme = context.colorScheme;
+    final typography = context.appTypography;
+    // Phase 10.1 Pattern D / T-10.1-02 mitigation: outer SplashScreen 의
+    // context 를 다이얼로그 빌더 이전 시점에 캡처. dialogContext 의
+    // ScaffoldMessenger 는 dialog overlay 상위라 SnackBar 가 가려지므로,
+    // tap-to-copy SnackBar 는 반드시 outer messenger 로 표시한다 (Risk R5).
+    final outerMessenger = ScaffoldMessenger.of(context);
     final selected = await showDialog<_SplashFailureAction>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        final colorScheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
           icon: Icon(Icons.cloud_off, color: colorScheme.onErrorContainer),
           iconColor: colorScheme.errorContainer,
           title: Text(l10n.splashFailureTitle),
-          content: Text(l10n.splashFailureMessage),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.splashFailureMessage),
+              Gap(spacing.sm),
+              InkWell(
+                onTap: () async {
+                  await Clipboard.setData(
+                    ClipboardData(text: 'splash_auto_signin: $code'),
+                  );
+                  // mounted 가드 — async gap 동안 위젯이 해체됐을 수 있음.
+                  // 캡처한 outerMessenger 를 사용하여 outer Scaffold 영역에
+                  // SnackBar 표시 (dialog overlay 위로 노출).
+                  if (!mounted) return;
+                  outerMessenger.showSnackBar(
+                    SnackBar(content: Text(l10n.commonCopied)),
+                  );
+                },
+                child: Text(
+                  l10n.splashErrorCodeFingerprint(code),
+                  style: typography.bodySmall.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () =>
@@ -188,7 +239,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       case _SplashFailureAction.offline:
       case null:
         if (!mounted) return;
-        context.go(AppRoutes.home);
+        // Phase 10.1 D-05: '/home' → '/login' 변경 — 익명 UID 부재 시 사용자가
+        // 직접 로그인 액션 선택 (D-06 _unauthRoutes 자연 호환, GC-04 trigger
+        // 안 됨). 아래 Gap A fail-safe 의미는 약화되었으나 다른 redirect path
+        // 등장 시 안전망 보존 (PATTERNS §2.1).
+        context.go(AppRoutes.login);
         // Gap A (quick-260425-01g): GoRouter 의 GC-04 fail-safe redirect 가
         // /splash 에 다시 머물게 만든 경우 RouterDelegate.setNewRoutePath 가
         // 동일 configuration 으로 단락 (short-circuit) 되어 listener 가 발화
