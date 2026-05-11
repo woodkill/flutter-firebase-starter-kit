@@ -180,19 +180,28 @@ class SplashInitializer {
   /// [Result.failure] 반환. attempt 별 emit 안 함 — issue grouping 활성 + 관측
   /// 노이즈 회피. crashlyticsService null 또는 isEnabled=false 시 no-op.
   ///
+  /// **WR-01:** `StackTrace.current` 는 `_finalize` 의 호출 지점 스택일 뿐
+  /// 실제 `signInAnonymously` 실패 위치를 가리키지 않는다. cause 가 [Error]
+  /// 의 인스턴스이면 그 자체의 `stackTrace` 를 사용해 Crashlytics dashboard
+  /// 의 root-cause 드릴-다운을 보존한다. cause 가 [Error] 가 아닌 경우
+  /// (예: [fb.FirebaseAuthException] 은 [Exception] 계열) Dart 가 stack 을
+  /// 자동 attach 하지 않으므로 fallback 으로 `StackTrace.current` 를 사용한다.
+  ///
   /// **WR-03:** 코드 추출은 공통 [extractSplashErrorCode] 사용 — SplashScreen
   /// 의 fingerprint 표시와 동일 값 보장 (drift 방지).
   Future<Result<void>> _finalize(AppException exception) async {
     final crashlytics = crashlyticsService;
     if (crashlytics != null) {
       final code = extractSplashErrorCode(exception);
+      final cause = exception.cause;
+      final stack = cause is Error ? cause.stackTrace : StackTrace.current;
       await crashlytics.setCustomKey(
         'splash_auto_signin_retry_exhausted',
         code,
       );
       await crashlytics.recordError(
         exception,
-        StackTrace.current,
+        stack,
         reason: 'splash_auto_signin_retry_exhausted',
         fatal: false,
       );
