@@ -196,6 +196,10 @@ class AuthRepository {
       );
 
       final anonymous = _auth.currentUser;
+      // Gap A close (HUMAN-UAT 2026-05-11): success path 합류 후 익명 분기 정보
+      // 보존. helper 의 isLinkedFromAnonymous 명시 인자로 D-20 우회.
+      // Phase 17 (Account Linking) — see ROADMAP.md.
+      final isLinkedFromAnonymous = anonymous != null && anonymous.isAnonymous;
       fb.UserCredential userCredential;
       if (anonymous != null && anonymous.isAnonymous) {
         // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
@@ -227,7 +231,12 @@ class AuthRepository {
       // (Phase 9.2 R4) 자동 sendEmailVerification — Google idToken
       // email_verified=true claim 자연 no-op (D-19).
       // WR-01: helper 가 isNewUser 추출을 흡수 → call site 1줄 압축.
-      await _autoSendEmailVerification(userCredential);
+      // Gap A close (HUMAN-UAT 2026-05-11): linkWithCredential 분기의
+      // isNewUser=false 사양 보강.
+      await _autoSendEmailVerification(
+        userCredential,
+        isLinkedFromAnonymous: isLinkedFromAnonymous,
+      );
       return Result.success(_mapFirebaseUser(fbUser));
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
@@ -292,6 +301,10 @@ class AuthRepository {
         ..addScope('name');
 
       final anonymous = _auth.currentUser;
+      // Gap A close (HUMAN-UAT 2026-05-11): success path 합류 후 익명 분기 정보
+      // 보존. helper 의 isLinkedFromAnonymous 명시 인자로 D-20 우회.
+      // Phase 17 (Account Linking) — see ROADMAP.md.
+      final isLinkedFromAnonymous = anonymous != null && anonymous.isAnonymous;
       fb.UserCredential userCredential;
       if (anonymous != null && anonymous.isAnonymous) {
         // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
@@ -337,7 +350,12 @@ class AuthRepository {
       // (Phase 9.2 R4) 자동 sendEmailVerification — Apple idToken
       // email_verified=true claim 자연 no-op (D-19).
       // WR-01: helper 가 isNewUser 추출을 흡수 → call site 1줄 압축.
-      await _autoSendEmailVerification(userCredential);
+      // Gap A close (HUMAN-UAT 2026-05-11): linkWithProvider 분기의
+      // isNewUser=false 사양 보강.
+      await _autoSendEmailVerification(
+        userCredential,
+        isLinkedFromAnonymous: isLinkedFromAnonymous,
+      );
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       // D-09: 사용자 취소 시 null 반환.
@@ -405,6 +423,10 @@ class AuthRepository {
       );
 
       final anonymous = _auth.currentUser;
+      // Gap A close (HUMAN-UAT 2026-05-11): success path 합류 후 익명 분기 정보
+      // 보존. helper 의 isLinkedFromAnonymous 명시 인자로 D-20 우회.
+      // Phase 17 (Account Linking) — see ROADMAP.md.
+      final isLinkedFromAnonymous = anonymous != null && anonymous.isAnonymous;
       fb.UserCredential userCredential;
       if (anonymous != null && anonymous.isAnonymous) {
         // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
@@ -438,7 +460,12 @@ class AuthRepository {
       // photoURL 은 Graph API picture.type(large) 응답 기반 갱신.
       // 두 호출 모두 race-fix try-finally 블록 안 (D-22, Phase 9.1 D-03).
       // WR-01: helper 가 isNewUser 추출을 흡수 → call site 1줄 압축.
-      await _autoSendEmailVerification(userCredential);
+      // Gap A close (HUMAN-UAT 2026-05-11): linkWithCredential 분기의
+      // isNewUser=false 사양 보강.
+      await _autoSendEmailVerification(
+        userCredential,
+        isLinkedFromAnonymous: isLinkedFromAnonymous,
+      );
       await _setFacebookPhotoUrl(fbUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
@@ -709,14 +736,25 @@ class AuthRepository {
   /// 복제 (`final isNewUser = userCredential.additionalUserInfo?.isNewUser
   /// ?? false;`) 를 제거. SRP/DRY 강화.
   ///
-  /// 가드 (D-19) — 다음 5 조건 중 하나라도 true 면 no-op:
+  /// **Gap A close (HUMAN-UAT 2026-05-11):** named 인자
+  /// [isLinkedFromAnonymous] 도입. Firebase Auth 가
+  /// `linkWithCredential` / `linkWithProvider` 분기에서 새 UID 를 발급함에도
+  /// `additionalUserInfo.isNewUser=false` 를 반환하는 사양 (Firebase spec) 을
+  /// 호출 측 명시 인자로 보강한다. true 일 경우 `additionalIsNewUser ||
+  /// isLinkedFromAnonymous` OR 결합으로 D-20 spam 가드를 우회 — 다른 4
+  /// 가드 (user==null / isAnonymous / email empty / emailVerified=true) 는
+  /// unchanged 동작 (short-circuit 우회 권한 없음). Phase 17 (Account Linking)
+  /// — see ROADMAP.md.
+  ///
+  /// 가드 (D-19 / D-20) — 다음 5 조건 중 하나라도 true 면 no-op:
   /// - [fb.UserCredential.user] == null
   /// - [fb.User.isAnonymous] == true
   /// - [fb.User.email] 이 null 또는 빈 문자열 (WR-04 fix — 이전 `== null`
   ///   가드는 빈 문자열을 통과시켜 Firebase Auth 가 `auth/missing-email`
   ///   throw 시 graceful catch 가 흡수하나 메일 미발송)
   /// - [fb.User.emailVerified] == true
-  /// - [fb.AdditionalUserInfo.isNewUser] == false (D-20 — 재로그인 spam 방지)
+  /// - `additionalUserInfo.isNewUser == false` **AND** [isLinkedFromAnonymous]
+  ///   == false (D-20 — 재로그인 spam 방지 + Gap A close 보강)
   ///
   /// Apple/Google 의 idToken `email_verified=true` claim + Kakao/Naver 의
   /// Cloud Function `identity_index.ts:225` `emailVerified: true` 자동 set
@@ -725,9 +763,15 @@ class AuthRepository {
   /// 발송 실패는 graceful (D-21 — Phase 6.1 D-10/D-11 패턴 계승). 로그인
   /// 자체는 성공 유지. [fb.FirebaseAuthException] + [Object] 양쪽 catch +
   /// [kDebugMode] [debugPrint] only.
+  ///
+  /// [isLinkedFromAnonymous] Google/Apple/Facebook 의 익명 →
+  /// `linkWithCredential` / `linkWithProvider` 분기에서만 `true` 명시 전달.
+  /// 비-익명 `signInWithCredential` + Kakao/Naver `signInWithCustomToken`
+  /// 분기는 default `false` 자연 유지.
   Future<void> _autoSendEmailVerification(
-    fb.UserCredential userCredential,
-  ) async {
+    fb.UserCredential userCredential, {
+    bool isLinkedFromAnonymous = false,
+  }) async {
     final user = userCredential.user;
     if (user == null) return;
     if (user.isAnonymous) return;
@@ -736,7 +780,13 @@ class AuthRepository {
     // null + empty 양쪽을 단일 가드로 차단.
     if ((user.email ?? '').isEmpty) return;
     if (user.emailVerified) return;
-    final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+    // Gap A close (HUMAN-UAT 2026-05-11): Firebase 가 linkWithCredential
+    // 분기에서 isNewUser=false 를 반환하는 사양 보강. 호출 측이
+    // isLinkedFromAnonymous=true 명시 전달 시 OR 결합으로 D-20 우회.
+    // Phase 17 (Account Linking) — see ROADMAP.md.
+    final additionalIsNewUser =
+        userCredential.additionalUserInfo?.isNewUser ?? false;
+    final isNewUser = additionalIsNewUser || isLinkedFromAnonymous;
     if (!isNewUser) return; // D-20 재로그인 spam 방지
     try {
       // WR-03 (Phase 9.2 review fix): timeout 보호. helper 가 race-fix
