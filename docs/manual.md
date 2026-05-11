@@ -1495,10 +1495,13 @@ Phase 9.2 의 add-only 패치가 5 SDK 세션 cache 일괄 해제 보장.
 starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞춰 조정할 때:
 
 1. **자동 sendEmailVerification 비활성화**: 5 sign-in 메서드 success path 의
-   `_autoSendEmailVerification(user: fbUser, isNewUser: isNewUser)` 호출 두
-   줄 (`final isNewUser = ...; await _autoSendEmailVerification(...)`) 을
-   단순 제거. 또는 `_autoSendEmailVerification` 본체 첫 줄에 `return;`
-   추가하여 모든 path no-op 강제.
+   `await _autoSendEmailVerification(userCredential);` 호출 한 줄 (Google
+   line 230 / Apple line 340 / Facebook line 441 / Kakao line 525 / Naver
+   line 612 — 5 callsite) 을 단순 제거. 또는 `_autoSendEmailVerification`
+   본체 첫 줄 (`auth_repository.dart:731`) 에 `return;` 추가하여 모든 path
+   no-op 강제. (WR-01 iter1 fix 로 시그니처가 `UserCredential` 단일 인자
+   채택 — `isNewUser` 추출은 helper 내부 `userCredential.additionalUserInfo
+   ?.isNewUser ?? false` 로 흡수됨.)
 2. **Facebook photoURL 자동 갱신 비활성화**: `signInWithFacebook` 의 line 442
    `await _setFacebookPhotoUrl(fbUser);` 한 줄만 제거 → `user.photoURL` 빈 값
    유지. verify 호출 (line 441) 은 그대로.
