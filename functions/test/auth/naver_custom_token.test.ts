@@ -297,7 +297,13 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         message: "errorInvalidCredentials",
       });
       expect(errorMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "naver_response_id_missing"}),
+        // WR-06 회귀 가드: resultcode='00' fingerprint 도 함께 기록
+        // 되는지 검증 (Naver API 가 success code 반환했는데 id 누락
+        // 케이스를 ops triage 에서 분간 가능해야 한다).
+        expect.objectContaining({
+          event: "naver_response_id_missing",
+          resultcode: "00",
+        }),
         expect.any(String),
       );
     },

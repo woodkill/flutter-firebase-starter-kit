@@ -187,9 +187,15 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
       naverUserId.length === 0
     ) {
       // Pitfall 4 — resultcode='00' but response.id missing →
-      // undefined createCustomToken 방어.
+      // undefined createCustomToken 방어. resultcode 도 함께 기록 (WR-06)
+      // — Naver API 가 success code 를 반환했는데 id 가 누락된 케이스 vs.
+      // 다른 unexpected status 로 분기 (어차피 본 분기는 resultcode='00'
+      // 만 도달하지만 ops triage 시 fingerprint 일관성 + 회귀 가드).
       logger.error(
-        {event: "naver_response_id_missing"},
+        {
+          event: "naver_response_id_missing",
+          resultcode: responseBody.resultcode,
+        },
         "Naver response.id missing",
       );
       throw new HttpsError("invalid-argument", "errorInvalidCredentials");
