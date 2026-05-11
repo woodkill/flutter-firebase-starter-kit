@@ -36,6 +36,12 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     'errorInvalidEmail' => l10n.errorInvalidEmail,
     'errorUserDisabled' => l10n.errorUserDisabled,
     'errorTooManyRequests' => l10n.errorTooManyRequests,
+    // (Phase 9.2 D-13 dead-code anchor — intentional 보존)
+    // line 22-24 의 instance type-check 이 모든
+    // AccountExistsWithDifferentCredential 을 흡수하므로 본 분기는 unreachable.
+    // Phase 17 (Account Linking) 부활 시 provider-aware 메시지 dispatch 로
+    // 활용된다 — ARB key + generated getter + present switch arm 3-tier
+    // 인프라 유지.
     'errorAccountExistsWithDifferentCredential' =>
       l10n.errorAccountExistsWithDifferentCredential,
     'errorUnknown' => l10n.errorUnknown,
