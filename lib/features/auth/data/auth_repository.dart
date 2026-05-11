@@ -1022,8 +1022,10 @@ class AuthRepository {
   /// (Phase 12 D-30 / RESEARCH Pattern 4 / Phase 12.1 R3 — D-34).
   ///
   /// Cloud Function 의 [HttpsError] 표준 코드 → [AppException] 분류:
-  /// - `unauthenticated` / `invalid-argument` / `failed-precondition`
-  ///   → [ServiceUnavailable] (App Check 차단 / JWT 검증 실패 / 사전 조건 위배)
+  /// - `unauthenticated` / `invalid-argument` / `failed-precondition` /
+  ///   `permission-denied`
+  ///   → [ServiceUnavailable] (App Check 차단 / JWT 검증 실패 / 사전 조건
+  ///    위배 / App Check enforcement 실패 / token age 위반)
   /// - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
   ///   (Cloud Function 일시 장애 / 네트워크 지연)
   /// - `already-exists` → [AccountExistsWithDifferentCredential]
@@ -1034,9 +1036,14 @@ class AuthRepository {
   /// - 그 외 → [ServiceUnavailable(cause: e)]
   AppException _mapFunctionsException(FirebaseFunctionsException e) {
     return switch (e.code) {
+      // IN-02: permission-denied 명시 분기 — App Check enforcement 차단
+      // (enforceAppCheck:true onCall) 또는 Firebase Auth token age 위반.
+      // 기존 default 분기 (ServiceUnavailable(cause: e)) 와 동일 시맨틱이나
+      // ops triage 시 unclassified default 와 분리되어 fingerprint 가능.
       'unauthenticated' ||
       'invalid-argument' ||
-      'failed-precondition' => const ServiceUnavailable(),
+      'failed-precondition' ||
+      'permission-denied' => const ServiceUnavailable(),
       'unavailable' || 'deadline-exceeded' => const NoInternetConnection(),
       // R3 (D-34) — Cloud Function 의 already-exists → 사용자 recovery 가능한
       // AccountExistsWithDifferentCredential 매핑. 신규 클래스/ARB 0건
