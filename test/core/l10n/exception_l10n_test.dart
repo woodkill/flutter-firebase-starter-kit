@@ -98,6 +98,31 @@ void main() {
           expect(result, contains('originally used'));
         },
       );
+
+      // WR-04: instance type-check early return (line 22-24) 이 switch arm
+      // (line 45-46, 'errorAccountExistsWithDifferentCredential') 보다 우선
+      // 한다는 dead-code anchor invariant. early return 이 삭제되거나
+      // 위치가 바뀌면 dead arm 의 'Please sign in with your password.' 가
+      // 노출되어 Phase 9.2 R2 Path A-narrow 의도 (unknown fallback) 가 RED
+      // 으로 깨진다. switch arm 의 ARB key + getter 자체는 Phase 17 Account
+      // Linking 부활 anchor 로 의도 보존.
+      testWidgets(
+        'INVARIANT: instance type-check early return 우선 (Phase 17 anchor '
+        '보존 + dead-arm 메시지 비노출)',
+        (tester) async {
+          const ex = AccountExistsWithDifferentCredential();
+          // 1. ARB key 가 dead-arm key 와 일치 — Phase 17 부활 anchor 유지.
+          expect(ex.userMessage, 'errorAccountExistsWithDifferentCredential');
+          // 2. 실제 해석된 메시지는 unknown fallback (early return 경로) 이며
+          //    dead arm 의 password-prompt 카피가 절대 노출되지 않는다.
+          final resolved = await _resolve(tester, ex);
+          expect(resolved, contains('originally used'));
+          expect(
+            resolved,
+            isNot(contains('Please sign in with your password')),
+          );
+        },
+      );
     },
   );
 }
