@@ -32,17 +32,23 @@ jest.mock("firebase-functions/params", () => ({
 }));
 
 // firebase-admin/auth — getAuth().createCustomToken / createUser / deleteUser
-// / updateUser (R9: emailVerified retroactive — anonymous→소셜 path).
+// / updateUser (R9: emailVerified retroactive — anonymous→소셜 path) /
+// getUserByEmail (Phase 9.2 Gap B — callerUid 분기 email collision detect).
 const mockCreateCustomToken = jest.fn().mockResolvedValue("MOCK_NAVER_TOKEN");
 const mockCreateUser = jest.fn().mockResolvedValue({uid: "new-uid-naver"});
 const mockDeleteUser = jest.fn().mockResolvedValue(undefined);
 const mockUpdateUser = jest.fn().mockResolvedValue(undefined);
+// Phase 9.2 Gap B — default: auth/user-not-found (lookup 시 충돌 없음 의도).
+const mockGetUserByEmail = jest.fn().mockRejectedValue(
+  Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+);
 jest.mock("firebase-admin/auth", () => ({
   getAuth: jest.fn(() => ({
     createCustomToken: mockCreateCustomToken,
     createUser: mockCreateUser,
     deleteUser: mockDeleteUser,
     updateUser: mockUpdateUser,
+    getUserByEmail: mockGetUserByEmail,
   })),
 }));
 
@@ -133,6 +139,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
     mockCreateCustomToken.mockResolvedValue("MOCK_NAVER_TOKEN");
     mockCreateUser.mockResolvedValue({uid: "new-uid-naver"});
     mockDeleteUser.mockResolvedValue(undefined);
+    // Phase 9.2 Gap B default — auth/user-not-found (lookup 시 충돌 없음).
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
   });
 
   it(
@@ -170,7 +181,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
           signal: expect.anything(),
         }),
       );
-      expect(mockCreateCustomToken).toHaveBeenCalledWith("anon-uid-1");
+      // Phase 9.2 Gap B 옵션 C — email 부재 시 두 번째 인자 undefined.
+      expect(mockCreateCustomToken).toHaveBeenCalledWith(
+        "anon-uid-1",
+        undefined,
+      );
       expect(infoMock).toHaveBeenCalledWith(
         expect.objectContaining({event: "naver_custom_token_issued"}),
         expect.any(String),
@@ -369,7 +384,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       expect(result.uid).toBe("existing-uid-9");
       expect(result.isNewUser).toBe(false);
-      expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-uid-9");
+      // Phase 9.2 Gap B 옵션 C — email 부재 시 두 번째 인자 undefined.
+      expect(mockCreateCustomToken).toHaveBeenCalledWith(
+        "existing-uid-9",
+        undefined,
+      );
     },
   );
 
@@ -615,6 +634,153 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         expect(JSON.stringify(args)).not.toContain(
           "PII_SENTINEL_TOKEN_FAIL_MSG",
         );
+      }
+    },
+  );
+
+  // Phase 9.2 Gap B (HUMAN-UAT 2026-05-11) — Naver Custom Token 익명승격 path
+  // 의 email collision detect integration. resolveIdentity 의 신규 callerUid
+  // 분기 + admin.auth().getUserByEmail() lookup 으로 다른 provider 가입자 detect
+  // → switch case 'email_in_use' → 'already-exists' HttpsError throw.
+  it(
+    // eslint-disable-next-line max-len
+    "T-13-NAVER-CT-COLLISION-A1: 익명승격 + Naver email + Facebook 가입자 detect → already-exists + createCustomToken 미호출",
+    async () => {
+      mockFetchOk({
+        resultcode: "00",
+        response: {
+          id: "naver-user-collision",
+          email: "PII_COLLISION_email@naver.com",
+        },
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      // Gap B 핵심 — admin.auth().getUserByEmail 가 Facebook 가입자 반환.
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "fb-uid-existing",
+        providerData: [
+          {providerId: "facebook.com", uid: "fb-platform-id-PII"},
+        ],
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      const promise = wrapped({
+        auth: {uid: "anon-uid-test"}, // 익명승격 시나리오.
+        app: {appId: "test"},
+        data: {accessToken: "naver-token-test"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+      });
+
+      // caller switch 분기 logger event 발동 검증.
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "naver_email_collision"}),
+        expect.any(String),
+      );
+      // 옵션 C 의 미도달 invariant — early throw → createCustomToken 미발급.
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+
+      // PII regression sentinel — email / IdP user_id 본문 logger 미노출.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain("PII_COLLISION_email@naver.com");
+        expect(stringified).not.toContain("fb-platform-id-PII");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-13-NAVER-CT-COLLISION-A2: 익명승격 + Naver email 부재 → getUserByEmail 미호출 + 정상 customToken + developerClaims undefined",
+    async () => {
+      // 동의 비활성 — response.email 부재. lookup skip + 정상 customToken 발급.
+      mockFetchOk({
+        resultcode: "00",
+        response: {id: "naver-user-no-email"},
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      const result = (await wrapped({
+        auth: {uid: "anon-uid-test"},
+        app: {appId: "test"},
+        data: {accessToken: "T"},
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      // 핵심 — userInfo.email 부재 → getUserByEmail lookup skip.
+      expect(mockGetUserByEmail).not.toHaveBeenCalled();
+      expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
+      // 옵션 C — email 부재 시 developerClaims undefined.
+      expect(mockCreateCustomToken).toHaveBeenCalledWith(
+        "anon-uid-test",
+        undefined,
+      );
+
+      // PII regression sentinel.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        expect(JSON.stringify(args)).not.toContain("naver-user-no-email");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-13-NAVER-CT-OPTC-N1: 정상 happy-path (충돌 0 + email validated) → createCustomToken developerClaims sentinel",
+    async () => {
+      // Plan 08 의 Dart-side propagation 단언 부재의 대체 — functions jest
+      // sentinel 로 createCustomToken 호출 인자에 developerClaims 포함 검증.
+      mockFetchOk({
+        resultcode: "00",
+        response: {
+          id: "naver-user-ok",
+          email: "PII_OPTC_ok@naver.com",
+        },
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      // 충돌 0 — auth/user-not-found (default beforeEach 가 이미 설정).
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockRejectedValueOnce(
+        Object.assign(new Error("not found"), {
+          code: "auth/user-not-found",
+        }),
+      );
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      const result = (await wrapped({
+        auth: {uid: "anon-uid-optc"},
+        app: {appId: "test"},
+        data: {accessToken: "T"},
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
+      // 옵션 C 핵심 — developerClaims propagate (strict object match).
+      expect(mockCreateCustomToken).toHaveBeenCalledWith("anon-uid-optc", {
+        email: "PII_OPTC_ok@naver.com",
+        email_verified: true,
+      });
+
+      // PII regression sentinel — logger 어디에도 email 본문 미노출.
+      // (developerClaims 자체는 Firebase Auth idToken claim 으로만 propagate.)
+      for (const args of infoMock.mock.calls) {
+        expect(JSON.stringify(args)).not.toContain("PII_OPTC_ok@naver.com");
+      }
+      for (const args of warnMock.mock.calls) {
+        expect(JSON.stringify(args)).not.toContain("PII_OPTC_ok@naver.com");
       }
     },
   );

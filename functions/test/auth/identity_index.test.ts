@@ -16,12 +16,15 @@
 const mockCreateUser = jest.fn();
 const mockDeleteUser = jest.fn(); // R2 추가 — orphan cleanup 검증용.
 const mockUpdateUser = jest.fn(); // R9 추가 — emailVerified retroactive 검증용.
+// Phase 9.2 Gap B (HUMAN-UAT 2026-05-11) — callerUid 분기 email collision detect.
+const mockGetUserByEmail = jest.fn();
 
 jest.mock("firebase-admin/auth", () => ({
   getAuth: jest.fn(() => ({
     createUser: mockCreateUser,
     deleteUser: mockDeleteUser, // R2 추가.
     updateUser: mockUpdateUser, // R9 추가.
+    getUserByEmail: mockGetUserByEmail, // Phase 9.2 Gap B.
   })),
 }));
 
@@ -184,6 +187,11 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
     mockDeleteUser.mockReset();
     mockUpdateUser.mockReset();
     mockUpdateUser.mockResolvedValue(undefined); // R9 — default success.
+    mockGetUserByEmail.mockReset();
+    // Phase 9.2 Gap B default — auth/user-not-found (lookup 시 충돌 없음 의도).
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
     warnMock.mockReset();
   });
 
@@ -692,6 +700,233 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
   );
 });
 
+// Phase 9.2 Gap B (HUMAN-UAT 2026-05-11) — callerUid 분기에서 admin.auth().
+// getUserByEmail() lookup 으로 email collision detect. 익명승격 path (callerUid
+// 익명 + userInfo.email 제공) + 동일 이메일이 이미 *다른* provider 로 가입된
+// 시나리오 close. caller (naver/kakaoCustomToken) 의 switch 분기 unchanged —
+// 기존 'errorAccountExistsWithDifferentCredential' HttpsError throw path 재사용.
+// eslint-disable-next-line max-len
+describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    warnMock.mockReset();
+  });
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-IDX-COLLISION-01: callerUid + email + 다른 provider 가입자 → conflictKind email_in_use + transaction 미진입",
+    async () => {
+      // Gap B 핵심 — 익명승격 path 에서 동일 이메일의 Facebook 가입자 detect.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "fb-uid-99",
+        providerData: [{providerId: "facebook.com", uid: "fb-platform-id"}],
+      });
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+      // db.runTransaction spy — transaction 미진입 검증.
+      const runTransactionSpy = jest.spyOn(
+        db as unknown as {runTransaction: jest.Mock},
+        "runTransaction",
+      );
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-user-1",
+        callerUid: "anon-uid-1",
+        userInfo: {email: "foo@naver.com"},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+      });
+      // transaction 미진입 — tx.get / tx.set 호출 0.
+      expect(runTransactionSpy).not.toHaveBeenCalled();
+      expect(tx.get).not.toHaveBeenCalled();
+      expect(tx.set).not.toHaveBeenCalled();
+
+      // logger.warn payload 검증 (event + count 만, email 본문 / IdP uid 미노출).
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_email_collision_caller_path",
+          provider: "naver",
+          conflictingProviderCount: 1,
+        }),
+        expect.any(String),
+      );
+      // PII regression sentinel — email / IdP uid 본문 미노출.
+      const allLogCalls = warnMock.mock.calls;
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain("foo@naver.com");
+        expect(stringified).not.toContain("fb-platform-id");
+        expect(stringified).not.toContain("fb-uid-99");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-IDX-COLLISION-02: callerUid + email + providerData 비어있음 → conflictKind null + transaction 진입",
+    async () => {
+      // false-positive 차단 — 자기 자신 또는 Custom Token mirror 미지원으로
+      // providerData 비어있는 normal case (Phase 12.1 D-34 carry-forward).
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "naver-uid-self",
+        providerData: [],
+      });
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+      const runTransactionSpy = jest.spyOn(
+        db as unknown as {runTransaction: jest.Mock},
+        "runTransaction",
+      );
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-user-2",
+        callerUid: "anon-uid-2",
+        userInfo: {email: "self@naver.com"},
+      });
+
+      expect(res.conflictKind).toBeNull();
+      // 정상 path 진입 — transaction 1회 호출 (callerUid path → updateUser 도).
+      expect(runTransactionSpy).toHaveBeenCalledTimes(1);
+      expect(tx.get).toHaveBeenCalled();
+
+      // PII regression sentinel.
+      const allLogCalls = warnMock.mock.calls;
+      for (const args of allLogCalls) {
+        expect(JSON.stringify(args)).not.toContain("self@naver.com");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-IDX-COLLISION-03: callerUid + email + getUserByEmail throws user-not-found → silent + 정상 path",
+    async () => {
+      // expected normal case — 이메일이 기존에 가입 안 되어 있음. logger.warn
+      // 미호출 (silent).
+      mockGetUserByEmail.mockRejectedValueOnce(
+        Object.assign(new Error("not found"), {
+          code: "auth/user-not-found",
+        }),
+      );
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+      const runTransactionSpy = jest.spyOn(
+        db as unknown as {runTransaction: jest.Mock},
+        "runTransaction",
+      );
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-user-3",
+        callerUid: "anon-uid-3",
+        userInfo: {email: "same@naver.com"},
+      });
+
+      expect(res.conflictKind).toBeNull();
+      expect(runTransactionSpy).toHaveBeenCalledTimes(1);
+      expect(tx.get).toHaveBeenCalled();
+
+      // lookup_failed event 미호출 (user-not-found 는 silent expected case).
+      const lookupFailedCalls = warnMock.mock.calls.filter((args) => {
+        const ev = (args[0] as {event?: string})?.event;
+        return ev === "identity_index_email_lookup_failed";
+      });
+      expect(lookupFailedCalls.length).toBe(0);
+
+      // PII regression sentinel.
+      const allLogCalls = warnMock.mock.calls;
+      for (const args of allLogCalls) {
+        expect(JSON.stringify(args)).not.toContain("same@naver.com");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-IDX-COLLISION-04: callerUid + email + getUserByEmail throws internal-error → graceful + 정상 path + logger.warn",
+    async () => {
+      // graceful skip — lookup 실패가 user-facing throw 로 escalate 안 됨.
+      // logger.warn 1회 호출 (event=identity_index_email_lookup_failed).
+      mockGetUserByEmail.mockRejectedValueOnce(
+        Object.assign(new Error("internal"), {
+          code: "auth/internal-error",
+        }),
+      );
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+      const runTransactionSpy = jest.spyOn(
+        db as unknown as {runTransaction: jest.Mock},
+        "runTransaction",
+      );
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-user-4",
+        callerUid: "anon-uid-4",
+        userInfo: {email: "transient@naver.com"},
+      });
+
+      expect(res.conflictKind).toBeNull();
+      expect(runTransactionSpy).toHaveBeenCalledTimes(1);
+      expect(tx.get).toHaveBeenCalled();
+
+      // logger.warn 1회 — event + code (PII 미포함).
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_email_lookup_failed",
+          code: "auth/internal-error",
+        }),
+        expect.any(String),
+      );
+
+      // PII regression sentinel — email 본문 미노출.
+      // (err.code = 'auth/internal-error' 는 의도된 fingerprint, PII 아님.)
+      const allLogCalls = warnMock.mock.calls;
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain("transient@naver.com");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-IDX-COLLISION-05: callerUid=undefined + email → getUserByEmail 미호출 (기존 !callerUid 분기 unchanged)",
+    async () => {
+      // !callerUid path 는 기존 createUser try/catch 분기에서 email collision
+      // detect — 신규 lookup skip (중복 lookup 회피). 정상 createUser 성공
+      // 시뮬레이션.
+      mockCreateUser.mockResolvedValueOnce({uid: "new-uid-no-caller"});
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-user-5",
+        callerUid: undefined,
+        userInfo: {email: "foo@naver.com"},
+      });
+
+      // 핵심 — !callerUid 분기에서 신규 getUserByEmail lookup skip.
+      expect(mockGetUserByEmail).not.toHaveBeenCalled();
+      // 기존 path 진입 — createUser 1회 호출.
+      expect(mockCreateUser).toHaveBeenCalledTimes(1);
+
+      // PII regression sentinel.
+      const allLogCalls = warnMock.mock.calls;
+      for (const args of allLogCalls) {
+        expect(JSON.stringify(args)).not.toContain("foo@naver.com");
+      }
+    },
+  );
+});
+
 // R10-FOLLOWUP (2026-05-08 — T-13-UAT-NAVER-A1 발견):
 // 재로그인 시 (isNewUser=false path) IdP 측 프로필 변경 (displayName/photoURL)
 // 을 Firebase Auth user record 에 propagate. PROFILE_REFRESH_POLICY 정책 분기.
@@ -778,6 +1013,10 @@ describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate"
     mockDeleteUser.mockReset();
     mockUpdateUser.mockReset();
     mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
     warnMock.mockReset();
   });
 
