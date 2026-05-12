@@ -21,8 +21,9 @@ class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 /// Plan 06-07 의 4 시나리오를 검증한다:
 ///   1. 비인증 시 Account 섹션 미표시 (D-36)
 ///   2. 인증 시 displayName/email/uid (truncated)/로그아웃 버튼 표시
-///   3. 로그아웃 다이얼로그 취소 시 signOut 미호출
-///   4. 로그아웃 다이얼로그 확인 시 signOut 호출
+///   3. 로그아웃 다이얼로그 취소 시 signOutAndResetOnboarding 미호출
+///   4. 로그아웃 다이얼로그 확인 시 signOutAndResetOnboarding 호출
+///      (Phase 10.2 D-A4 — I2 invariant 단일 진리원)
 Future<void> _pumpScreen(
   WidgetTester tester, {
   required User? user,
@@ -140,72 +141,93 @@ void main() {
       expect(find.byIcon(Icons.logout, skipOffstage: false), findsOneWidget);
     });
 
-    testWidgets('로그아웃 버튼 탭 시 AlertDialog 표시, 취소 시 signOut 미호출', (tester) async {
-      final user = User(
-        uid: 'uid-cancel-1',
-        email: 'a@b.com',
-        emailVerified: true,
-        displayName: 'A',
-        createdAt: DateTime.utc(2026),
-      );
-      final mockRepo = _MockAuthRepository();
-      when(() => mockRepo.signOut()).thenAnswer((_) async {});
+    testWidgets(
+      '로그아웃 버튼 탭 시 AlertDialog 표시, 취소 시 signOutAndResetOnboarding 미호출 '
+      '(Phase 10.2 D-A4)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-cancel-1',
+          email: 'a@b.com',
+          emailVerified: true,
+          displayName: 'A',
+          createdAt: DateTime.utc(2026),
+        );
+        final mockRepo = _MockAuthRepository();
+        // Phase 10.2 D-A1: production 가 호출하는 메서드의 stub 갱신.
+        when(
+          () => mockRepo.signOutAndResetOnboarding(),
+        ).thenAnswer((_) async {});
 
-      await _pumpScreen(tester, user: user, mockRepo: mockRepo);
+        await _pumpScreen(tester, user: user, mockRepo: mockRepo);
 
-      // 로그아웃 OutlinedButton 까지 스크롤
-      await tester.scrollUntilVisible(
-        find.byIcon(Icons.logout),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.byIcon(Icons.logout));
-      await tester.pumpAndSettle();
+        // 로그아웃 OutlinedButton 까지 스크롤
+        await tester.scrollUntilVisible(
+          find.byIcon(Icons.logout),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.byIcon(Icons.logout));
+        await tester.pumpAndSettle();
 
-      // 다이얼로그 등장 확인 (en: 'Are you sure you want to sign out?')
-      expect(find.text('Are you sure you want to sign out?'), findsOneWidget);
+        // 다이얼로그 등장 확인 (en: 'Are you sure you want to sign out?')
+        expect(
+          find.text('Are you sure you want to sign out?'),
+          findsOneWidget,
+        );
 
-      // Cancel 버튼은 다이얼로그 actions 안에만 존재
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+        // Cancel 버튼은 다이얼로그 actions 안에만 존재
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
 
-      verifyNever(() => mockRepo.signOut());
-    });
+        verifyNever(() => mockRepo.signOutAndResetOnboarding());
+      },
+    );
 
-    testWidgets('로그아웃 다이얼로그 확인 시 authRepository.signOut() 호출', (tester) async {
-      final user = User(
-        uid: 'uid-confirm-1',
-        email: 'a@b.com',
-        emailVerified: true,
-        displayName: 'A',
-        createdAt: DateTime.utc(2026),
-      );
-      final mockRepo = _MockAuthRepository();
-      when(() => mockRepo.signOut()).thenAnswer((_) async {});
+    testWidgets(
+      '로그아웃 다이얼로그 확인 시 authRepository.signOutAndResetOnboarding() 호출 '
+      '(Phase 10.2 D-A4 — I2 invariant 단일 진리원)',
+      (tester) async {
+        final user = User(
+          uid: 'uid-confirm-1',
+          email: 'a@b.com',
+          emailVerified: true,
+          displayName: 'A',
+          createdAt: DateTime.utc(2026),
+        );
+        final mockRepo = _MockAuthRepository();
+        // Phase 10.2 D-A1: production `_confirmSignOut` 는
+        // `signOutAndResetOnboarding()` 을 호출한다. 본 mock 의 stub 도
+        // 신규 메서드로 갱신 (Future<void> 반환).
+        when(
+          () => mockRepo.signOutAndResetOnboarding(),
+        ).thenAnswer((_) async {});
 
-      await _pumpScreen(tester, user: user, mockRepo: mockRepo);
+        await _pumpScreen(tester, user: user, mockRepo: mockRepo);
 
-      await tester.scrollUntilVisible(
-        find.byIcon(Icons.logout),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.byIcon(Icons.logout));
-      await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.byIcon(Icons.logout),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.byIcon(Icons.logout));
+        await tester.pumpAndSettle();
 
-      // 'Sign out' 텍스트는 다이얼로그 title + 액션 버튼 양쪽에 존재한다
-      // (authLogoutConfirmTitle == authAccountSignOut == "Sign out" en).
-      // 액션 버튼만 타겟팅하기 위해 TextButton 자손을 찾는다.
-      final dialogSignOutButton = find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.widgetWithText(TextButton, 'Sign out'),
-      );
-      expect(dialogSignOutButton, findsOneWidget);
-      await tester.tap(dialogSignOutButton);
-      await tester.pumpAndSettle();
+        // 'Sign out' 텍스트는 다이얼로그 title + 액션 버튼 양쪽에 존재한다
+        // (authLogoutConfirmTitle == authAccountSignOut == "Sign out" en).
+        // 액션 버튼만 타겟팅하기 위해 TextButton 자손을 찾는다.
+        final dialogSignOutButton = find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(TextButton, 'Sign out'),
+        );
+        expect(dialogSignOutButton, findsOneWidget);
+        await tester.tap(dialogSignOutButton);
+        await tester.pumpAndSettle();
 
-      verify(() => mockRepo.signOut()).called(1);
-    });
+        verify(() => mockRepo.signOutAndResetOnboarding()).called(1);
+        // D-A7 호출자 책임 — UI logout path 에서는 `signOut()` 단독 호출 금지.
+        verifyNever(() => mockRepo.signOut());
+      },
+    );
   });
 
   group('EnvironmentInfoScreen Account 섹션 (Phase 7 D-11/D-12)', () {

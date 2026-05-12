@@ -56,8 +56,8 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockFunctions = _MockFirebaseFunctions();
-    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43:
-    // AuthRepository 7-arg ctor 보강.
+    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43 + Phase 10.2 D-A2:
+    // AuthRepository 8-arg ctor (8번째 = onResetOnboarding 콜백 — no-op).
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
@@ -66,6 +66,7 @@ void main() {
       mockKakaoSdkClient,
       mockFunctions,
       mockNaverSdkClient,
+      () async {},
     );
 
     // 익명 사용자 기본 stub — uid 만 있고 email 은 빈 값, emailVerified=false.
@@ -160,66 +161,9 @@ void main() {
     });
   });
 
-  group('AuthRepository.signOutAndContinueAsGuest', () {
-    test('signOut 후 signInAnonymously 를 호출하여 새 익명 User 를 반환한다', () async {
-      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
-      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-      when(() => mockAuth.signOut()).thenAnswer((_) async {});
-      when(
-        () => mockAuth.signInAnonymously(),
-      ).thenAnswer((_) async => mockCredential);
-
-      final result = await repository.signOutAndContinueAsGuest();
-
-      expect(result, isA<Success<dynamic>>());
-      final user = (result as Success).data;
-      expect(user.uid, 'anon-uid');
-
-      // 호출 순서 검증: Google signOut → Facebook logOut →
-      // FirebaseAuth signOut → signInAnonymously.
-      verifyInOrder([
-        () => mockGoogleSignIn.signOut(),
-        () => mockFacebookAuth.logOut(),
-        () => mockAuth.signOut(),
-        () => mockAuth.signInAnonymously(),
-      ]);
-    });
-
-    test('signOut 은 성공했지만 signInAnonymously 가 네트워크 오류로 실패 시 '
-        'Result.failure(NoInternetConnection) 반환 (signOut 은 이미 수행)', () async {
-      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
-      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-      when(() => mockAuth.signOut()).thenAnswer((_) async {});
-      when(
-        () => mockAuth.signInAnonymously(),
-      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
-
-      final result = await repository.signOutAndContinueAsGuest();
-
-      expect(result, isA<Failure<dynamic>>());
-      expect((result as Failure).exception, isA<NoInternetConnection>());
-      // FirebaseAuth.signOut 은 실제로 호출되었음을 확인.
-      verify(() => mockAuth.signOut()).called(1);
-      verify(() => mockAuth.signInAnonymously()).called(1);
-    });
-
-    test('GoogleSignIn.signOut 실패해도 FirebaseAuth.signOut 및 '
-        'signInAnonymously 는 계속 진행된다 (기존 signOut 패턴 준수)', () async {
-      when(
-        () => mockGoogleSignIn.signOut(),
-      ).thenThrow(Exception('google signOut failed'));
-      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-      when(() => mockAuth.signOut()).thenAnswer((_) async {});
-      when(
-        () => mockAuth.signInAnonymously(),
-      ).thenAnswer((_) async => mockCredential);
-
-      final result = await repository.signOutAndContinueAsGuest();
-
-      expect(result, isA<Success<dynamic>>());
-      verify(() => mockGoogleSignIn.signOut()).called(1);
-      verify(() => mockAuth.signOut()).called(1);
-      verify(() => mockAuth.signInAnonymously()).called(1);
-    });
-  });
+  // Phase 10.2 D-A5: `signOutAndContinueAsGuest` 메서드가 완전 폐기되었다.
+  // 본 group (구 `AuthRepository.signOutAndContinueAsGuest` 단위 테스트
+  // 3 케이스) 도 함께 삭제됨. 신규 메서드 `signOutAndResetOnboarding` 의
+  // 회귀 가드는 `test/features/auth/data/auth_repository_test.dart` 의
+  // `group('signOutAndResetOnboarding (Phase 10.2 D-A3)', ...)` 가 담당한다.
 }

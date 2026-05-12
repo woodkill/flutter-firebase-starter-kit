@@ -4,11 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
-import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
-import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/home/presentation/environment_info_screen.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -86,19 +84,11 @@ Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
   ).thenAnswer((_) async {});
 
   final mockRepo = MockAuthRepository();
-  when(() => mockRepo.signOutAndContinueAsGuest()).thenAnswer(
-    (_) async => Success(
-      User(
-        uid: 'anon-new',
-        email: '',
-        emailVerified: false,
-        displayName: null,
-        photoUrl: null,
-        providerIds: const <String>[],
-        createdAt: DateTime(2026, 4, 14),
-      ),
-    ),
-  );
+  // Phase 10.2 D-A1/A4: signOutAndContinueAsGuest → signOutAndResetOnboarding
+  // (Future<void>). production 와 Dev Tools 의 단일 진리원.
+  when(
+    () => mockRepo.signOutAndResetOnboarding(),
+  ).thenAnswer((_) async {});
 
   final recordingOnboarding = RecordingOnboardingNotifier();
 
@@ -233,7 +223,8 @@ void main() {
     });
 
     testWidgets(
-      'Force sign out 탭 → AuthRepository.signOutAndContinueAsGuest 호출',
+      'Force sign out 탭 → AuthRepository.signOutAndResetOnboarding 호출 '
+      '(Phase 10.2 D-A4)',
       (tester) async {
         final env = await pumpDevToolsHarness(tester);
         final l10n = AppLocalizations.of(
@@ -242,7 +233,7 @@ void main() {
         await _scrollTo(tester, find.text(l10n.devToolsForceSignOut));
         await tester.tap(find.text(l10n.devToolsForceSignOut));
         await tester.pumpAndSettle();
-        verify(() => env.authRepo.signOutAndContinueAsGuest()).called(1);
+        verify(() => env.authRepo.signOutAndResetOnboarding()).called(1);
       },
     );
   });
