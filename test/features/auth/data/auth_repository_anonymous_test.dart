@@ -161,9 +161,9 @@ void main() {
     });
   });
 
-  // Phase 10.2 D-A5: `signOutAndContinueAsGuest` 메서드가 완전 폐기되었다.
-  // 본 group (구 `AuthRepository.signOutAndContinueAsGuest` 단위 테스트
-  // 3 케이스) 도 함께 삭제됨. 신규 메서드 `signOutAndResetOnboarding` 의
-  // 회귀 가드는 `test/features/auth/data/auth_repository_test.dart` 의
+  // Phase 10.2 D-A5: 구 D-20 로그아웃-후-익명-재진입 cascade 메서드가
+  // 완전 폐기되었다. 본 group (구 메서드 단위 테스트 3 케이스) 도 함께
+  // 삭제됨. 신규 메서드 `signOutAndResetOnboarding` 의 회귀 가드는
+  // `test/features/auth/data/auth_repository_test.dart` 의
   // `group('signOutAndResetOnboarding (Phase 10.2 D-A3)', ...)` 가 담당한다.
 }

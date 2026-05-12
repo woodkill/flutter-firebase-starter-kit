@@ -245,7 +245,7 @@ void main() {
       },
     );
 
-    test('Test 4: full(A) → anonymous (signOutAndContinueAsGuest) → '
+    test('Test 4: full(A) → anonymous (Phase 10 D-20 폐기 cascade 시뮬레이션) → '
         'reloadForUser(anon-2, true) SharedPreferences fallback', () async {
       final controller = StreamController<fb.User?>();
       addTearDown(controller.close);
