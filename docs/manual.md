@@ -36,6 +36,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 9. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
 10. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
 11. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+12. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
 
 ---
 
@@ -1534,6 +1535,71 @@ starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞
 
 회귀 가드 실행:
 `fvm flutter test test/features/auth/`. 회귀 시 ≥ 1 RED 즉시 발생.
+
+---
+
+## App Entry State Machine (Phase 10.2)
+
+> Phase 10.2 도입 (2026-05-12). authRedirect 분기 정합 + logout invariant
+> 단일 진리원. Phase 10 D-20 (`signOutAndContinueAsGuest` 자동 익명 재진입)
+> 폐기 history — `signOutAndResetOnboarding` + 4 invariants (I1~I4) 로 교체.
+> 9.2 HUMAN-UAT cycle 1+2 OOS-01 closure.
+
+### Invariants 표
+
+| ID | Invariant | 진리원 (코드 anchor) |
+|----|-----------|---------------------|
+| I1 | 익명 user `/home` 도달 == `onboardingSeen=true AND termsAccepted=true` | `lib/core/router/auth_guard.dart` 분기 (3) — `(!onboardingSeen \|\| !termsAccepted) → /onboarding` (Phase 10.2 D-C1) + `lastReloadedUid` stale guard (D-C2) |
+| I2 | 로그아웃 → `onboardingSeen=false` reset + signOut → /onboarding 자연 redirect | `lib/features/auth/data/auth_repository.dart` `signOutAndResetOnboarding()` (Phase 10.2 D-A1/A3) — reset 먼저 → signOut |
+| I3 | OAuth 정식 user 발급 → 바로 /home (emailVerified=false 만 /verify-email gate) | `lib/core/router/auth_guard.dart` authUserObserver BLOCKER #4 mirror + 분기 (5) Plan 10-11 stale guard 신뢰 (Phase 10.2 D-D1 — 추가 코드 0건) |
+| I4 | 새 device / `onboardingSeen=false` → 무조건 /onboarding (AsyncLoading 동안 라우팅 보류) | `lib/core/router/auth_guard.dart` `onboardingAsync.isLoading → null` 가드 + D-C1/C2 자연 결합 (Phase 10.2 D-C4 — 추가 코드 0건) |
+
+### `signOutAndResetOnboarding` API
+
+`AuthRepository.signOutAndResetOnboarding()` 는 I2 invariant 의 단일 진리원이다.
+
+- **호출자 (2곳):**
+  - `lib/features/home/presentation/environment_info_screen.dart` `_confirmSignOut` (production 로그아웃 다이얼로그 confirm path)
+  - `lib/features/home/presentation/environment_info_screen.dart` `_handleForceSignOut` (Dev Tools 강제 로그아웃 — Phase 10.2 D-A4 production 와 완전 동일 동작 강제)
+- **본체 (Phase 10.2 D-A3 순서):**
+  1. `await _onResetOnboarding();` — `OnboardingNotifier.reset()` 콜백 호출. state `AsyncData<bool>(false)` 동기 set + SharedPreferences `prefs.remove(_key)` lossy 정책 (실패 graceful).
+  2. `await signOut();` — Firebase Auth signOut + Google / Facebook / Kakao / Naver SDK 5개 순차 logout (Phase 9.2 R6 invariant 보존).
+- **navigation 명시 호출 0건 (Phase 10.2 D-B1):** `authStateChanges → AuthChangeNotifier → authRedirect 분기 (2)` 가 `/onboarding` 으로 자연 redirect. `context.go(AppRoutes.onboarding)` 등 explicit navigation **금지** — race condition (호출 직후 vs userChanges emit 직후) 차단.
+- **Crashlytics signal / SnackBar / Loading indicator 추가 안 함 (Phase 10.2 D-A6/B2/B4):** logout 은 정상 흐름 — over-instrumentation 회피.
+
+### D-20 폐기 history (Phase 10 → Phase 10.2)
+
+**Phase 10 D-20 (2026-04-24, `auth_repository.dart:701-715` 원본):** `signOutAndContinueAsGuest()` — 로그아웃 직후 `signInAnonymously()` 자동 cascading 으로 게스트 사용성 보존. 의도는 "Home 에서 Login 으로 튕기는 UX 단절 방지" 였다.
+
+**Defect:** `termsAccepted` 는 user-bound (Firestore `users/{uid}/termsAccepted` mirror) 이므로 새 익명 user 마다 false 로 reset. 결과적으로 "익명홈 = onboarding+termsAccepted 모두 완료" mental model 위배.
+
+**9.2 HUMAN-UAT cycle 1+2 OOS-01 driver log 인용 (2026-05-11):**
+
+```
+authRedirect: matchedLocation=/, isAuthenticated=true, emailVerified=true,
+onboardingSeen=true, termsAccepted=false — 라우터 평가는 home 인데 UI 는
+onboarding 첫 페이지 표시 (Facebook 이메일 인증 후 / Kakao 신규 가입 후 /
+Naver 신규 가입 후 3건 모두 동일)
+```
+
+Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-HUMAN-UAT-v2.md` OOS-01 (Phase 10 carry-forward, severity major).
+
+**Phase 10.2 결정 (2026-05-12):**
+
+- D-A5: 원본 `signOutAndContinueAsGuest` 완전 삭제 (소프트 transition 없음).
+- D-A1/A3: `signOutAndResetOnboarding()` 도입 — reset → signOut 순서 강제.
+- D-B1: 자연 redirect 채택 — `/onboarding` 자동 진입 (UX 단절 trade-off 수용, multi-user device 안전 우선).
+- D-C1/C2: `auth_guard.dart` 분기 (3) 단일 gate 정정 + stale guard 익명 확장 (Plan 10-11 분기 (5) 패턴 mirror).
+
+### Phase 17 (Account Linking & Withdrawal) note
+
+회원탈퇴 reauthentication + `deleteUser` 경로의 onboardingSeen reset 정책은 본 단락 scope 외 — Phase 17 논의에서 결정. `AuthRepository.signOut()` 단독 호출은 `_safeDelete` fallback 등 내부 경로 전용 (Phase 10.2 D-A7 호출자 책임).
+
+### Pitfall
+
+- **다이어그램 도구 미도입 (Phase 10.2 D-D4):** 코드 ↔ 다이어그램 동기 유지 부담 vs 시각적 가치 — 향후 manual.md 종합 개편 시 재검토. 본 단락은 markdown table + prose 만으로 명문화.
+- **별도 `docs/auth-state-machine.md` 분리 안 함 (Phase 10.2 D-D4):** Starter Kit docs 내포 원칙 — manual.md 단일 진리원 정책.
+- **invariant 표 drift 위험:** 미래 phase review 시 본 단락의 4 invariants 가 코드와 drift 가능. Phase 17 / Phase 10.3 등 신규 phase 에서 auth 영역 변경 시 본 단락 확인 의무 (LEARNINGS.md 기록 anchor — feedback_review_recurring_issues memory).
 
 ---
 

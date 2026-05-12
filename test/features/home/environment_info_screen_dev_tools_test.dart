@@ -84,8 +84,9 @@ Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
   ).thenAnswer((_) async {});
 
   final mockRepo = MockAuthRepository();
-  // Phase 10.2 D-A1/A4: signOutAndContinueAsGuest → signOutAndResetOnboarding
-  // (Future<void>). production 와 Dev Tools 의 단일 진리원.
+  // Phase 10.2 D-A1/A4: 구 D-20 로그아웃 메서드(signOut → signInAnonymously
+  // cascade)는 폐기되고 signOutAndResetOnboarding (Future<void>) 으로 교체됨.
+  // production 와 Dev Tools 의 단일 진리원.
   when(
     () => mockRepo.signOutAndResetOnboarding(),
   ).thenAnswer((_) async {});
