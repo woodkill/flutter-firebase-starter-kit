@@ -289,17 +289,29 @@ void main() {
       expect(state.requireValue.cooldownRemaining, cooldownSeconds);
     });
 
-    test('Test 8: logout 호출 시 signOut + redirect 트리거', () async {
-      when(() => mockRepo.signOut()).thenAnswer((_) async {});
+    test(
+      'Test 8: logout 호출 시 signOutAndResetOnboarding (I2 진리원) + '
+      'redirect 트리거 (Phase 10.2 CR-01 iter3)',
+      () async {
+        // Phase 10.2 D-A7 호출자 책임: UI 로그아웃 path 는 반드시
+        // signOutAndResetOnboarding 경유 (signOut 단독 호출 금지).
+        when(
+          () => mockRepo.signOutAndResetOnboarding(),
+        ).thenAnswer((_) async {});
 
-      final container = makeContainer();
-      container.read(verifyEmailProvider);
+        final container = makeContainer();
+        container.read(verifyEmailProvider);
 
-      await container.read(verifyEmailProvider.notifier).logout();
+        await container.read(verifyEmailProvider.notifier).logout();
 
-      verify(() => mockRepo.signOut()).called(1);
-      // signOut 후 redirect 트리거 확인
-      verify(() => mockChangeNotifier.triggerRedirect()).called(greaterThan(0));
-    });
+        verify(() => mockRepo.signOutAndResetOnboarding()).called(1);
+        // signOut 단독 호출 금지 회귀 가드 (CR-01 sentinel).
+        verifyNever(() => mockRepo.signOut());
+        // signOut 후 redirect 트리거 확인
+        verify(
+          () => mockChangeNotifier.triggerRedirect(),
+        ).called(greaterThan(0));
+      },
+    );
   });
 }

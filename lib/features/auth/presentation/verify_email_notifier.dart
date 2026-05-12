@@ -126,12 +126,21 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
     }
   }
 
-  /// 로그아웃한다.
+  /// 로그아웃한다 (Phase 10.2 I2 invariant 단일 진리원 경유).
   ///
-  /// [AuthRepository.signOut]을 호출하고 authStateProvider를
-  /// invalidate하여 GoRouter redirect가 /login으로 이동하도록 한다.
+  /// [AuthRepository.signOutAndResetOnboarding] 을 호출하여 onboarding
+  /// 완료 플래그 reset → 5 SDK 순차 logout 순서를 강제한다 (D-A1/A3).
+  /// 본 메서드를 [AuthRepository.signOut] 단독으로 직접 호출하면
+  /// `onboardingSeen=true` snapshot 이 유지된 채 authRedirect 가
+  /// 재평가되어 익명홈 통과 race (D-20 cycle 회귀) 가 가능하다 — Phase
+  /// 10.2 D-A7 호출자 책임 (auth_repository.dart line 919-925 doc-comment).
+  ///
+  /// 호출 후 [_triggerRedirect] 로 GoRouter 재평가를 강제한다 — Firebase
+  /// SDK authStateChanges() 가 reload() 에 반응하지 않을 가능성
+  /// (FlutterFire Issue #8777) 보강. 자연 redirect 분기 (2)
+  /// (`!isAuthenticated && !onboardingSeen`) 가 `/onboarding` 으로 이동.
   Future<void> logout() async {
-    await ref.read(authRepositoryProvider).signOut();
+    await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
     if (!ref.mounted) return;
     _triggerRedirect();
   }
