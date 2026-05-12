@@ -188,13 +188,50 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   // onboarding/terms/*) + splash. 익명 사용자는 정식 승격을 위해 /login
   // /signup 등 인증 경로 접근이 필요하므로 _unauthRoutes 전체를 허용한다
   // (D-33 Dev Tools 완결성 + AUTH-11 상태 머신 분기 완전성).
+  //
+  // Phase 10.2 D-C1 단일 gate 통합: 익명 user 의 `(!onboardingSeen ||
+  // !termsAccepted)` → /onboarding 강제. 정식 user 분기 (5) 의 destination
+  // `/onboarding` 과 일관. 9.2 HUMAN-UAT cycle 1+2 OOS-01 (Facebook /
+  // Kakao / Naver 신규) 회귀 가드 — D-20 자동 익명 재진입 폐기 후 새 익명
+  // UID 의 termsAccepted=null 누수 차단.
+  // Phase 10.2 D-C2 stale guard 익명 확장 (Plan 10-11 분기 (5)
+  // lastReloadedUid 패턴 mirror): 익명 user 의 termsProvider 가 현재 uid
+  // 에 대해 reload 완료 전 시점의 평가는 null (현재 location 유지) 을
+  // 반환. authUserObserver 의 reloadForUser 완료 후 triggerRedirect 가
+  // 재평가한다. 상세: .planning/phases/10.2-auth-state-invariant-cleanup-
+  // inserted/10.2-CONTEXT.md D-C1/C2.
   if (isAuthenticated && isAnonymous) {
     if (matchedLocation == AppRoutes.verifyEmail) {
       return AppRoutes.home;
     }
-    if (!onboardingSeen &&
+    // (D-C1) 단일 gate: onboardingSeen + termsAccepted 모두 완료 시에만
+    // /home 통과. 두 truth 중 하나라도 false 면 trip.
+    if ((!onboardingSeen || !termsAccepted) &&
         !isOnUnauthRoute &&
         matchedLocation != AppRoutes.splash) {
+      // (D-C2) `!onboardingSeen` 만으로 trip 되는 케이스에는 stale 검사
+      // 불필요 (onboardingSeen 은 SharedPreferences AsyncNotifier 의
+      // isLoading 가드 (line 142-151) 가 이미 처리 — I4 cold-start
+      // invariant + PATTERNS Pitfall 5). 따라서 stale 가드는
+      // `onboardingSeen && !termsAccepted` 단독 trip 인 경우에만 발동.
+      // Plan 10-11 분기 (5) lastReloadedUid 패턴 익명 확장.
+      if (onboardingSeen && !termsAccepted) {
+        final reloadedUid = ref.read(termsProvider.notifier).lastReloadedUid;
+        if (reloadedUid != currentUser.uid) {
+          if (kDebugMode) {
+            // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
+            final reloadedHash =
+                reloadedUid?.hashCode.toString() ?? 'null';
+            final currentHash = currentUser.uid.hashCode.toString();
+            debugPrint(
+              'authRedirect: stale termsProvider (anon) '
+              '(reloadedHash=$reloadedHash, currentHash=$currentHash) '
+              '-> null (await reload) [Phase 10.2 D-C2]',
+            );
+          }
+          return null;
+        }
+      }
       return AppRoutes.onboarding;
     }
     return null;
