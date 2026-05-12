@@ -918,11 +918,15 @@ class AuthRepository {
   ///
   /// **I2 invariant 호출자 책임 (Phase 10.2 D-A7):** 재진입 path (logout UI)
   /// 의도시 [signOutAndResetOnboarding] 사용. [signOut] 단독 호출은
-  /// [_safeDelete] fallback 등 내부 경로 전용. UI 호출자 (로그아웃 버튼)
-  /// 가 본 메서드를 직접 호출하면 `onboardingSeen=true` snapshot 이 유지된
-  /// 채 authRedirect 가 재평가되어 익명홈 통과 race 가 가능하다 (I2 위배).
-  /// Phase 17 (회원탈퇴 reauthentication + deleteUser) 는 별도 논의 —
-  /// see ROADMAP Phase 17.
+  /// [signOutAndResetOnboarding] 내부 단계 전용 (현재 production 의 유일한
+  /// 직접 호출자 — Phase 10.2 review iter3 IN-01 정정. 이전 doc 은
+  /// [_safeDelete] 를 internal caller 예시로 인용했으나 [_safeDelete] 는
+  /// `user.delete()` 만 호출하고 [signOut] 은 호출하지 않으므로 self-
+  /// inconsistent 했음). UI 호출자 (로그아웃 버튼) 가 본 메서드를 직접
+  /// 호출하면 `onboardingSeen=true` snapshot 이 유지된 채 authRedirect
+  /// 가 재평가되어 익명홈 통과 race 가 가능하다 (I2 위배 — D-20 cycle 회귀
+  /// vector). Phase 17 (회원탈퇴 reauthentication + deleteUser) 는 별도
+  /// 논의 — see ROADMAP Phase 17.
   Future<void> signOut() async {
     try {
       await _googleSignIn.signOut();
