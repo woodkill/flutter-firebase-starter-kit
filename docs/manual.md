@@ -1558,9 +1558,10 @@ starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞
 
 `AuthRepository.signOutAndResetOnboarding()` 는 I2 invariant 의 단일 진리원이다.
 
-- **호출자 (2곳):**
+- **호출자 (3곳):**
   - `lib/features/home/presentation/environment_info_screen.dart` `_confirmSignOut` (production 로그아웃 다이얼로그 confirm path)
   - `lib/features/home/presentation/environment_info_screen.dart` `_handleForceSignOut` (Dev Tools 강제 로그아웃 — Phase 10.2 D-A4 production 와 완전 동일 동작 강제)
+  - `lib/features/auth/presentation/verify_email_notifier.dart` `logout()` ("다른 계정으로 로그인" verify-email 화면 TextButton — Phase 10.2 review iter3 CR-01 정정. iter3 이전에는 `signOut()` 단독 호출로 D-A7 호출자 책임 invariant 위배 — D-20 cycle 회귀 vector 였음)
 - **본체 (Phase 10.2 D-A3 순서):**
   1. `await _onResetOnboarding();` — `OnboardingNotifier.reset()` 콜백 호출. state `AsyncData<bool>(false)` 동기 set + SharedPreferences `prefs.remove(_key)` lossy 정책 (실패 graceful).
   2. `await signOut();` — Firebase Auth signOut + Google / Facebook / Kakao / Naver SDK 5개 순차 logout (Phase 9.2 R6 invariant 보존).
@@ -1600,6 +1601,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 - **다이어그램 도구 미도입 (Phase 10.2 D-D4):** 코드 ↔ 다이어그램 동기 유지 부담 vs 시각적 가치 — 향후 manual.md 종합 개편 시 재검토. 본 단락은 markdown table + prose 만으로 명문화.
 - **별도 `docs/auth-state-machine.md` 분리 안 함 (Phase 10.2 D-D4):** Starter Kit docs 내포 원칙 — manual.md 단일 진리원 정책.
 - **invariant 표 drift 위험:** 미래 phase review 시 본 단락의 4 invariants 가 코드와 drift 가능. Phase 17 / Phase 10.3 등 신규 phase 에서 auth 영역 변경 시 본 단락 확인 의무 (LEARNINGS.md 기록 anchor — feedback_review_recurring_issues memory).
+- **Dev Tools "Reset Onboarding" full vs anonymous user 동작 비대칭 (Phase 10.2 review iter3 WR-02):** `_DevToolsSection._handleResetOnboarding` 는 `OnboardingNotifier.reset()` 만 호출하고 `signOut()` 은 호출하지 **않는다**. 정식 user (`isAuthenticated && !isAnonymous && termsAccepted=true`) 가 `/home` 에서 본 버튼을 tap 하면 즉시 상태가 `(authenticated && !anonymous && termsAccepted=true && onboardingSeen=false)` 로 전환되나 authRedirect 분기 (1)~(7) 어디에도 매치되지 않아 `/home` 에 그대로 잔류한다 (cold restart 후에도 동일 — disk `seen_version` 가 reset 되었으므로 `onboardingSeen=false` 유지 + 정식 user → 분기 (3) 익명 가드 미진입). 기능적으로 invariant 위배는 아니나 4개 invariant (I1~I4) 표가 명시적으로 다루지 않는 state 조합이다. **익명 user** 가 동일 tap 시에는 분기 (3) D-C1 stale guard 가 즉시 trip 하여 `/onboarding` 으로 redirect — 동일 버튼이 user 종류에 따라 비대칭 UX 를 produce. Dev Tools 의 의도 — "로그인 상태는 유지하면서 onboarding 만 리셋하여 onboarding flow 를 재검토" — 와 정합하므로 본 비대칭은 의도된 design 이며, 정식 user 로 onboarding 재진입을 원하면 별도의 "로그아웃" Dev Tools 액션 (D-A4 `_handleForceSignOut`) 사용을 권장. 통일된 동작이 필요해지면 `_handleResetOnboarding` 을 `signOutAndResetOnboarding()` 호출로 교체하는 옵션을 후속 phase 에서 재검토 (단, Dev Tools 버튼 라벨/시그니처 의미가 바뀌므로 별도 결정 필요).
 - **Lossy persistence drift — `OnboardingNotifier.reset()` cold restart 회복 (Phase 10.2 review WR-02):** `signOutAndResetOnboarding` 의 1단계 `_onResetOnboarding()` 은 `OnboardingNotifier.reset()` 콜백을 호출한다. `reset()` 은 in-memory state 를 즉시 `AsyncData<bool>(false)` 로 set 하고 `prefs.remove(_key)` 를 시도하나, IO 예외 (disk full / permission) 발생 시 Crashlytics `onboarding_reset` reason 으로 기록 후 silent 흡수한다 (lossy 정책 — Starter Kit D-13 철학 승계). 따라서 disk 상의 `seen_version=1` 은 잔존 가능. 이때 동작:
   1. 직후 라우터 평가 — in-memory 기준 `onboardingSeen=false` → 분기 (2) 가 `/onboarding` 으로 redirect (정상).
   2. **앱 cold restart** — disk 의 `seen_version=1` 로드 → `onboardingSeen=true` 로 부활.
