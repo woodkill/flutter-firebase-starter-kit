@@ -2168,5 +2168,60 @@ void main() {
         ]);
       },
     );
+
+    // Phase 10.2 review WR-01 (iter 3): _onResetOnboarding 이 throw 할 경우의
+    // 계약 명문화 회귀 sentinel. 현재 production 의
+    // `signOutAndResetOnboarding` 본체 (auth_repository.dart:742-745) 는
+    // `await _onResetOnboarding()` → `await signOut()` 의 직선 await 만
+    // 수행하므로, reset 콜백이 throw 하면 예외가 그대로 전파되고 signOut() 은
+    // 실행되지 않는다. 현 OnboardingNotifier.reset() 은 lossy 정책
+    // (catch + Crashlytics 기록 후 silent 흡수) 로 throw 하지 않으므로 본
+    // invariant 는 today 에서 holds. 미래 reset() 에서 try/catch 가 제거되어
+    // throw 가 surface 되는 회귀가 들어올 경우, 본 test 가 RED 로 surface 하여
+    // (a) 계약 변경 의도 검토 + (b) `try/finally` 로 signOut 보장 변경
+    // 양자택일을 강제한다.
+    test(
+      'WR-01 (iter3) 회귀 sentinel: _onResetOnboarding throws → '
+      '예외 전파 + signOut() 미호출 (현재 계약)',
+      () async {
+        Future<void> failingReset() async {
+          throw StateError('simulated reset failure');
+        }
+
+        final repo = AuthRepository(
+          mockAuth,
+          mockGoogleSignIn,
+          mockFacebookAuth,
+          mockSocialLinkInProgress,
+          mockKakaoSdkClient,
+          mockFunctions,
+          mockNaverSdkClient,
+          failingReset,
+        );
+
+        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+        when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+        await expectLater(
+          repo.signOutAndResetOnboarding(),
+          throwsA(isA<StateError>()),
+          reason: 'reset 콜백의 예외는 호출자에게 전파되어야 한다 (현 계약)',
+        );
+
+        // 현 계약: reset 실패 시 signOut 은 실행되지 않는다 — D-A3 reset →
+        // signOut 순서 invariant 의 자연 귀결. 본 contract 를 "reset 실패
+        // 와 무관하게 signOut 은 항상 실행" 으로 변경하려면 try/finally
+        // 도입 + 본 verifyNever 들을 verify(...).called(1) 로 갱신해야
+        // 한다 (의도된 회귀 surface).
+        verifyNever(() => mockGoogleSignIn.signOut());
+        verifyNever(() => mockFacebookAuth.logOut());
+        verifyNever(() => mockKakaoSdkClient.logout());
+        verifyNever(() => mockNaverSdkClient.logout());
+        verifyNever(() => mockAuth.signOut());
+      },
+    );
   });
 }
