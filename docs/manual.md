@@ -1600,6 +1600,12 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 - **다이어그램 도구 미도입 (Phase 10.2 D-D4):** 코드 ↔ 다이어그램 동기 유지 부담 vs 시각적 가치 — 향후 manual.md 종합 개편 시 재검토. 본 단락은 markdown table + prose 만으로 명문화.
 - **별도 `docs/auth-state-machine.md` 분리 안 함 (Phase 10.2 D-D4):** Starter Kit docs 내포 원칙 — manual.md 단일 진리원 정책.
 - **invariant 표 drift 위험:** 미래 phase review 시 본 단락의 4 invariants 가 코드와 drift 가능. Phase 17 / Phase 10.3 등 신규 phase 에서 auth 영역 변경 시 본 단락 확인 의무 (LEARNINGS.md 기록 anchor — feedback_review_recurring_issues memory).
+- **Lossy persistence drift — `OnboardingNotifier.reset()` cold restart 회복 (Phase 10.2 review WR-02):** `signOutAndResetOnboarding` 의 1단계 `_onResetOnboarding()` 은 `OnboardingNotifier.reset()` 콜백을 호출한다. `reset()` 은 in-memory state 를 즉시 `AsyncData<bool>(false)` 로 set 하고 `prefs.remove(_key)` 를 시도하나, IO 예외 (disk full / permission) 발생 시 Crashlytics `onboarding_reset` reason 으로 기록 후 silent 흡수한다 (lossy 정책 — Starter Kit D-13 철학 승계). 따라서 disk 상의 `seen_version=1` 은 잔존 가능. 이때 동작:
+  1. 직후 라우터 평가 — in-memory 기준 `onboardingSeen=false` → 분기 (2) 가 `/onboarding` 으로 redirect (정상).
+  2. **앱 cold restart** — disk 의 `seen_version=1` 로드 → `onboardingSeen=true` 로 부활.
+  3. splash initializer 가 익명 sign-in 후 `/home` 진입 시도.
+  4. 새 익명 user 의 `termsAccepted=null` 이므로 분기 (3) D-C1 stale guard (I1 invariant) 가 `/onboarding` 으로 다시 보냄 → **self-correcting**.
+  최종 invariant 는 충족하나 cold restart 까지의 시점 동작은 disk-vs-memory drift 가 존재한다. Crashlytics `onboarding_reset` reason 으로 추적 가능. `signOutAndResetOnboarding` 자체 시그니처를 Result 로 변경하여 호출자에게 disk 실패 신호를 surface 하는 강한 변경은 Starter Kit 수준에서 over-engineering 으로 미채택 (D-A6 over-instrumentation 회피 정책 일관).
 
 ---
 
