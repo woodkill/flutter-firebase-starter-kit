@@ -65,8 +65,20 @@ class _StubTermsNotifier extends TermsNotifier {
   /// 경로와 일치하는 값을 반환하면 되지만 실제로는 authRedirect 가 uid 와
   /// lastReloadedUid 를 equality 비교하는 단일 분기뿐이므로, 본 테스트들은
   /// regularUser 기본 uid 인 'reg-uid' 를 반환해 stale 가드가 항상
-  /// false(비-stale) 로 평가되도록 한다. 익명 사용자 경로는 분기 (3)
-  /// 에서 처리되어 stale 가드를 타지 않으므로 uid 불일치가 무해하다.
+  /// false(비-stale) 로 평가되도록 한다.
+  ///
+  /// **Phase 10.2 D-C2 갱신 (iter 2 WR-03):** 위 정당화 마지막 줄
+  /// ("익명 사용자 경로는 분기 (3) 에서 처리되어 stale 가드를 타지 않으므로
+  /// uid 불일치가 무해하다") 은 **더 이상 사실이 아니다.** Phase 10.2 D-C2
+  /// 가 분기 (3) (익명 user 경로) 에도 stale guard 를 도입했기 때문에,
+  /// 익명 user 시나리오에 본 stub 을 그대로 사용하면 'reg-uid' vs 익명 uid
+  /// (예: 'anon-uid') mismatch 로 stale guard 가 우연히 발동/우회될 수 있어
+  /// CR-01 (iter 1) 회귀의 root cause 가 된다. **익명 user 시나리오는 항상
+  /// [_StubTermsNotifierWithUid] (line 94-104) 의 named `reloadedUid: 'anon-uid'`
+  /// 를 사용하거나, 명시적 `termsAcceptance: acceptedTerms()` 를 함께 지정하여
+  /// stale guard 진입 자체를 우회시켜야 한다.** 본 stub (`_StubTermsNotifier`)
+  /// 의 하드코딩 'reg-uid' 는 정식 user 분기 (5) 시나리오 전용으로만 신규
+  /// 테스트에 채택할 것.
   @override
   String? get lastReloadedUid => 'reg-uid';
 }
