@@ -945,10 +945,12 @@ class _AccountSection extends ConsumerWidget {
     );
   }
 
-  /// 로그아웃 확인 다이얼로그를 표시하고 확인 시 [signOut]을 호출한다.
+  /// 로그아웃 확인 다이얼로그를 표시하고 확인 시
+  /// [AuthRepository.signOutAndResetOnboarding] 을 호출한다.
   ///
   /// 이후 화면 이동은 authStateChanges → AuthChangeNotifier → authRedirect
-  /// 가 /login 으로 처리한다 (D-05).
+  /// 분기 (2) 가 /onboarding 으로 처리한다 (Phase 10.2 D-B1, I2 invariant
+  /// 단일 진리원). navigation 명시 호출 없음 (자연 redirect).
   Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
@@ -972,7 +974,7 @@ class _AccountSection extends ConsumerWidget {
       ),
     );
     if (confirmed ?? false) {
-      await ref.read(authRepositoryProvider).signOut();
+      await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
     }
   }
 }
@@ -1101,7 +1103,9 @@ class _ProtectedExampleSection extends ConsumerWidget {
 ///    `@visibleForTesting` 없음; WARNING #8 lint clean).
 /// 2. Trigger error — [CrashlyticsService.recordError] 호출.
 /// 3. Trigger analytics — [AnalyticsService.logEvent] 호출.
-/// 4. Force sign out — [AuthRepository.signOutAndContinueAsGuest] 호출.
+/// 4. Force sign out — [AuthRepository.signOutAndResetOnboarding] 호출
+///    (Phase 10.2 D-A4 — production `_confirmSignOut` 와 완전 동일 동작,
+///    I2 invariant 단일 진리원).
 class _DevToolsSection extends ConsumerWidget {
   const _DevToolsSection();
 
@@ -1151,11 +1155,13 @@ class _DevToolsSection extends ConsumerWidget {
     );
   }
 
-  /// 즉시 강제 로그아웃 후 익명 세션으로 복귀한다 (D-33).
+  /// 즉시 강제 로그아웃 후 onboarding reset 한다 (Phase 10.2 D-A4).
   ///
-  /// 확인 다이얼로그 없음 (D-33 기본 정책).
+  /// 확인 다이얼로그 없음 (D-33 기본 정책). production `_confirmSignOut`
+  /// 와 완전 동일 동작 (I2 단일 진리원). 화면 이동은 authRedirect 분기 (2)
+  /// 자연 redirect (Phase 10.2 D-B1).
   Future<void> _handleForceSignOut(BuildContext context, WidgetRef ref) async {
-    await ref.read(authRepositoryProvider).signOutAndContinueAsGuest();
+    await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
   }
 
   @override

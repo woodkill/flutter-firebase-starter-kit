@@ -21,6 +21,7 @@ import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/home/presentation/environment_info_screen.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -112,6 +113,21 @@ Future<_SignOutTestEnv> _pumpSignOutHarness(WidgetTester tester) async {
   final mockAuth = _MockFirebaseAuth();
   when(() => mockAuth.currentUser).thenReturn(null);
 
+  // [Rule 1 - Bug fix] _AccountSection (line 769) 은 currentUser==null 시
+  // 섹션 자체를 SizedBox.shrink() 로 숨긴다. Plan 01 의 widget test 는
+  // `currentUserProvider.overrideWith((_) => null)` 로 두어 "Sign out" 버튼이
+  // 렌더되지 않아 `_scrollTo` 가 element 를 찾지 못하는 결함이 있었다.
+  // 로그아웃 invariant 검증을 위해 정상 인증된 (익명이 아닌) User 를 주입한다.
+  final stubUser = User(
+    uid: 'test-uid',
+    email: 'test@example.com',
+    emailVerified: true,
+    displayName: 'Test User',
+    photoUrl: null,
+    createdAt: DateTime.utc(2026, 4, 14),
+    providerIds: const <String>['password'],
+  );
+
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -137,7 +153,7 @@ Future<_SignOutTestEnv> _pumpSignOutHarness(WidgetTester tester) async {
         isFirebaseInitializedProvider.overrideWithValue(false),
         firebaseAuthProvider.overrideWithValue(mockAuth),
         authStateProvider.overrideWith((ref) => const Stream.empty()),
-        currentUserProvider.overrideWith((ref) => null),
+        currentUserProvider.overrideWith((ref) => stubUser),
         authRepositoryProvider.overrideWithValue(mockRepo),
         crashlyticsServiceProvider.overrideWithValue(mockCrash),
         analyticsServiceProvider.overrideWithValue(mockAnalytics),
@@ -198,16 +214,15 @@ void main() {
         await tester.tap(find.text(l10n.authAccountSignOut));
         await tester.pumpAndSettle();
 
-        // 다이얼로그 표시 확인 (l10n.authLogoutConfirmTitle).
-        expect(
-          find.text(l10n.authLogoutConfirmTitle),
-          findsOneWidget,
-          reason: '_confirmSignOut 다이얼로그가 표시되어야 한다',
-        );
+        // 다이얼로그 표시 확인 — [Rule 1 - Bug fix] `authLogoutConfirmTitle`
+        // 과 `authAccountSignOut` 의 ARB 값이 동일하게 "Sign out" (en) 이므로
+        // title 단독 finder 는 ListView 버튼 + 다이얼로그 confirm/title 의
+        // 3 매칭이 잡힌다. 다이얼로그 본문 메시지 (`authLogoutConfirmMessage`)
+        // 의 유일성으로 다이얼로그 표시를 검증한다.
         expect(
           find.text(l10n.authLogoutConfirmMessage),
           findsOneWidget,
-          reason: '다이얼로그 본문 메시지가 표시되어야 한다',
+          reason: '_confirmSignOut 다이얼로그가 본문 메시지와 함께 표시되어야 한다',
         );
 
         // 다이얼로그 confirm 버튼 tap — `authAccountSignOut` text 가 화면에

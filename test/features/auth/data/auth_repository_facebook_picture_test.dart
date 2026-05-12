@@ -106,6 +106,9 @@ void main() {
       mockKakaoSdkClient,
       mockFunctions,
       mockNaverSdkClient,
+      // Phase 10.2 D-A2: onResetOnboarding 콜백 no-op (logout invariant
+      // 비검증).
+      () async {},
     );
 
     // Pitfall 9 — finally logout default stub.

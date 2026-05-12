@@ -83,8 +83,8 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockFunctions = _MockFirebaseFunctions();
-    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43:
-    // AuthRepository 7-arg ctor 보강.
+    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43 + Phase 10.2 D-A2:
+    // AuthRepository 8-arg ctor (8번째 = onResetOnboarding 콜백).
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
@@ -93,6 +93,7 @@ void main() {
       mockKakaoSdkClient,
       mockFunctions,
       mockNaverSdkClient,
+      () async {},
     );
 
     // 익명 currentUser 기본 stub.

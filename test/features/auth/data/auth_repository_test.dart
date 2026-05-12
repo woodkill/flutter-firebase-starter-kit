@@ -88,10 +88,10 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockFunctions = _MockFirebaseFunctions();
-    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43: AuthRepository
-    // 가 7-arg ctor 로 확장됨에 따라 mock KakaoSdkClient + FirebaseFunctions
-    // + NaverSdkClient 를 5/6/7번째 인자로 추가 주입한다. void 메서드인
-    // begin()/end() 는 mocktail 의 자동 noop 처리로 별도 stub 불필요.
+    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43 + Phase 10.2 D-A2:
+    // AuthRepository ctor 가 8-arg 로 확장됨 (8번째 = onResetOnboarding
+    // 콜백). 본 group 의 단위 테스트는 logout invariant 가 아닌 다른 메서드
+    // 를 검증하므로 8번째 인자는 no-op closure 로 충분하다.
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
@@ -100,6 +100,7 @@ void main() {
       mockKakaoSdkClient,
       mockFunctions,
       mockNaverSdkClient,
+      () async {},
     );
 
     // Pitfall 9 회귀 가드 — 모든 path 의 finally 블록에서 호출되는

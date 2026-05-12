@@ -13,6 +13,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
+import '../../onboarding/presentation/onboarding_notifier.dart';
 import '../application/social_link_in_progress.dart';
 import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
@@ -39,6 +40,13 @@ class AuthRepository {
   /// [_naverSdkClient] 는 Phase 13 Naver 로그인 (Custom Token 방식) 을 위해
   /// 추가됐다 — naver_login_sdk callback → Future wrapper. Cloud Function
   /// 채널 (`naverCustomToken`) 은 [_functions] 를 재사용한다.
+  ///
+  /// [_onResetOnboarding] 은 로그아웃 시 onboarding 완료 플래그를 false 로
+  /// 되돌리는 콜백이다 (Phase 10.2 D-A2). OnboardingNotifier 타입을 직접
+  /// 참조하지 않아 Feature-First 결합도를 최소화한다 — `OnboardingNotifier`
+  /// import 는 본 클래스 본체가 아닌 [authRepository] factory provider 영역
+  /// 한정. 콜백 signature `Future<void> Function()` 만 의존하므로
+  /// `Notifier` 구현 교체에도 본 클래스 변경 0건.
   const AuthRepository(
     this._auth,
     this._googleSignIn,
@@ -47,6 +55,7 @@ class AuthRepository {
     this._kakaoSdkClient,
     this._functions,
     this._naverSdkClient,
+    this._onResetOnboarding,
   );
 
   final fb.FirebaseAuth _auth;
@@ -56,6 +65,7 @@ class AuthRepository {
   final KakaoSdkClient _kakaoSdkClient;
   final FirebaseFunctions _functions;
   final NaverSdkClient _naverSdkClient;
+  final Future<void> Function() _onResetOnboarding;
 
   /// 이메일/비밀번호로 로그인한다.
   ///
@@ -698,21 +708,40 @@ class AuthRepository {
     }
   }
 
-  /// 로그아웃 후 즉시 익명 세션으로 재진입한다 (Phase 10 D-20).
+  /// 로그아웃 + onboarding 완료 플래그 reset
+  /// (Phase 10.2 D-A1/A3, I2 invariant 단일 진리원).
   ///
-  /// 흐름: [signOut] → [signInAnonymously].
-  /// 로그아웃으로 Home 에서 Login 화면으로 튕기는 UX 단절을 방지하고,
-  /// 사용자가 즉시 게스트 상태로 앱을 계속 사용할 수 있도록 한다.
+  /// 흐름 (D-A3 — 순서 절대 뒤집기 금지):
+  /// 1. [_onResetOnboarding] — `OnboardingNotifier.reset` 콜백.
+  ///    state 동기 false set + SharedPreferences 키 제거. lossy persistence
+  ///    정책 (disk 실패 시 Crashlytics 기록 후 graceful 진행).
+  /// 2. [signOut] — Firebase Auth + Google + Facebook + Kakao + Naver
+  ///    5 SDK 순차 logout (Phase 9.2 R6 invariant).
   ///
-  /// 실패 처리:
-  /// - [signOut] 은 기존 정책대로 내부 GoogleSignIn/FacebookAuth 실패를 무시하고
-  ///   [fb.FirebaseAuth.signOut] 을 보장한다.
-  /// - [signOut] 이 성공한 상태에서 [signInAnonymously] 가 네트워크 오류로
-  ///   실패하면 [Result.failure] 를 반환하며, 호출자(Notifier) 가 적절한
-  ///   fallback (다이얼로그 또는 /login 이동) 을 결정한다.
-  Future<Result<User>> signOutAndContinueAsGuest() async {
+  /// 호출 후 navigation 명시 호출은 불필요하다. authStateChanges →
+  /// AuthChangeNotifier → authRedirect 분기 (2) 가 `!isAuthenticated &&
+  /// !onboardingSeen` 조합을 감지하여 `/onboarding` 으로 자연 redirect 한다
+  /// (Phase 10.2 D-B1). reset 이 signOut 보다 먼저 수행되어야 재평가 시점에
+  /// `onboardingSeen=false` 가 확정되어 분기 (2) 가 trip 한다 — 순서 뒤집기
+  /// 시 stale `onboardingSeen=true` snapshot 으로 GC-04 fail-safe /splash
+  /// churn 위험 (Pitfall 3 회귀).
+  ///
+  /// **D-20 폐기 history (Phase 10):** Phase 10 D-20 의 자동 익명 재진입 API
+  /// 는 로그아웃 직후 즉시 익명 세션으로 자동 재진입하여 Home 화면을 유지하는
+  /// 정책이었다. 그러나 새 익명 UID 마다 Firestore `users/{uid}/termsAccepted`
+  /// 가 null 로 reset 되어 I1 invariant (익명홈 = `onboardingSeen=true AND
+  /// termsAccepted=true`) 를 위배했고, 9.2 HUMAN-UAT cycle 1+2 OOS-01 driver
+  /// log 3건 (Facebook 이메일 인증 / Kakao 신규 / Naver 신규 — 2026-05-11)
+  /// 으로 재현되었다. Phase 10.2 (2026-05-12) 에서 메서드 자체를 완전 폐기
+  /// (D-A5) 하고 본 [signOutAndResetOnboarding] 으로 교체했다.
+  ///
+  /// **Phase 17 (Account Linking & Withdrawal) note:** 회원탈퇴 (reauthentication
+  /// + `fb.User.delete`) 경로는 본 메서드를 사용하지 **않는다**. deleteUser
+  /// 후의 onboardingSeen 정책은 Phase 17 에서 별도 결정한다
+  /// (see ROADMAP Phase 17).
+  Future<void> signOutAndResetOnboarding() async {
+    await _onResetOnboarding();
     await signOut();
-    return signInAnonymously();
   }
 
   /// 익명 계정을 안전하게 폐기한다 (credential-already-in-use fallback 용).
@@ -886,6 +915,14 @@ class AuthRepository {
   /// [FacebookAuth.logOut]을 병행 호출하여 Facebook 세션도 해제한다 (D-08).
   /// 각 소셜 로그인 SDK의 signOut/logOut 실패 시에도
   /// [fb.FirebaseAuth.signOut]은 반드시 호출한다.
+  ///
+  /// **I2 invariant 호출자 책임 (Phase 10.2 D-A7):** 재진입 path (logout UI)
+  /// 의도시 [signOutAndResetOnboarding] 사용. [signOut] 단독 호출은
+  /// [_safeDelete] fallback 등 내부 경로 전용. UI 호출자 (로그아웃 버튼)
+  /// 가 본 메서드를 직접 호출하면 `onboardingSeen=true` snapshot 이 유지된
+  /// 채 authRedirect 가 재평가되어 익명홈 통과 race 가 가능하다 (I2 위배).
+  /// Phase 17 (회원탈퇴 reauthentication + deleteUser) 는 별도 논의 —
+  /// see ROADMAP Phase 17.
   Future<void> signOut() async {
     try {
       await _googleSignIn.signOut();
@@ -1127,6 +1164,10 @@ AuthRepository authRepository(Ref ref) {
     ref.watch(kakaoSdkClientProvider),
     ref.watch(firebaseFunctionsProvider),
     ref.watch(naverSdkClientProvider),
+    // Phase 10.2 D-A2: cross-feature 결합도 최소화를 위한 callback 주입.
+    // OnboardingNotifier 타입은 본 factory 영역에서만 알며,
+    // AuthRepository 클래스 본체는 콜백 signature 만 의존한다.
+    () => ref.read(onboardingProvider.notifier).reset(),
   );
 }
 
