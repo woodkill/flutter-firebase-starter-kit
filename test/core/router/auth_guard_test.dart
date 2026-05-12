@@ -657,21 +657,37 @@ void main() {
       expect(result, isNull);
     });
 
-    test('Issue #4 Test D: 익명 사용자 + onboardingSeen=true + home '
-        '-> null (Scenario 2 정상 익명 세션 복원 경로 회귀 방어)', () async {
-      // Scenario 2 (정상 케이스): 익명 세션 복원 + 온보딩 시청 완료 →
-      // Home 직접 진입 허용. 본 Plan 의 분기 (3) 확장이 정상 경로에
-      // 영향을 주지 않는지 회귀 검증.
+    test('Issue #4 Test D: 익명 사용자 + onboardingSeen=true + '
+        'termsAcceptance=완료 + home -> null '
+        '(Phase 10.2 I1 — 완전한 익명 user 정상 진입)', () async {
+      // Scenario 2 (정상 케이스): 익명 세션 복원 + 온보딩 시청 완료 +
+      // 약관 동의 완료 → Home 직접 진입 허용. Phase 10.2 D-C1 단일 gate
+      // 도입 후, 익명 user 가 /home 에 도달하려면 onboardingSeen 과
+      // termsAccepted 가 모두 true 여야 한다 (I1 invariant). 본 테스트는
+      // 완전한 익명 user 의 정상 경로가 분기 (3) 에 의해 차단되지 않음을
+      // 회귀 검증한다.
+      //
+      // Phase 10.2 review CR-01 정정: 이전 버전은 termsAcceptance 를
+      // 명시하지 않아 _StubTermsNotifier.lastReloadedUid 의 'reg-uid'
+      // 하드코딩 + D-C2 stale guard 우연 발동으로 통과했다 (잘못된 green).
+      // termsAcceptance: acceptedTerms() 명시로 I1 invariant 와 일치하는
+      // 정상 통과 경로를 직접 검증한다.
       final container = makeContainer(
         isInitialized: true,
         user: anonymousUser(),
         onboardingSeen: true,
+        termsAcceptance: acceptedTerms(),
       );
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
       final result = await _callAuthRedirect(container, mockState);
-      expect(result, isNull, reason: 'Scenario 2 정상 익명 세션 복원 경로 — Home 랜딩 허용');
+      expect(
+        result,
+        isNull,
+        reason: 'Phase 10.2 I1: onboardingSeen + termsAccepted 모두 완료한 '
+            '익명 user 는 Home 통과',
+      );
     });
 
     test(
