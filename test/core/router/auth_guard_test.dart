@@ -1089,4 +1089,159 @@ void main() {
       },
     );
   });
+
+  // Phase 10.2 D-C1/C2 — Plan 02 land 시 production code 가 분기 (3) 정정 +
+  // stale guard 확장으로 GREEN 전환. 현재 RED (Plan 02 land 전) 는
+  // Wave 0 의 의도된 acceptance signal — 분기 (3) production code 가
+  // (!onboardingSeen || !termsAccepted) 단일 gate 로 통합되어야 (a)(b) 케이스
+  // 가 /onboarding 으로, (c) 가 null 로, (d) stale guard 발동 시 null 로,
+  // (e) /login 화이트리스트가 null 로 평가된다 (Pitfall 4 회귀 가드).
+  group('authRedirect 분기 (3) — 익명 user 단일 gate (Phase 10.2 D-C1/C2)', () {
+    /// Phase 10.2 D-C1/C2 — Issue #7 분기 (5) 의 `makeContainerWithReloadedUid`
+    /// 패턴을 익명 분기 (3) stale 가드 검증용으로 그대로 차용한다.
+    ProviderContainer makeContainerWithReloadedUid({
+      required bool isInitialized,
+      fb.User? user,
+      bool onboardingSeen = false,
+      TermsAcceptance? termsAcceptance,
+      String? reloadedUid,
+    }) {
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(user);
+      return ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(isInitialized),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+          onboardingProvider.overrideWith(
+            () => _StubOnboardingNotifier(onboardingSeen),
+          ),
+          termsProvider.overrideWith(
+            () => _StubTermsNotifierWithUid(
+              initial: termsAcceptance,
+              reloadedUid: reloadedUid,
+            ),
+          ),
+        ],
+      );
+    }
+
+    test(
+      '(a) 익명 + !onboardingSeen + termsAccepted + home -> /onboarding '
+      '(D-C1: !onboardingSeen 단일 gate trip)',
+      () async {
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(),
+          // onboardingSeen: false (default)
+          termsAcceptance: acceptedTerms(),
+          reloadedUid: 'anon-uid', // 비-stale
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.onboarding,
+          reason: 'D-C1: !onboardingSeen 단일 gate trip',
+        );
+      },
+    );
+
+    test(
+      '(b) 익명 + onboardingSeen + !termsAccepted (비-stale) + home '
+      '-> /onboarding (D-C1: !termsAccepted 단일 gate trip)',
+      () async {
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(),
+          onboardingSeen: true,
+          // termsAcceptance: null (!termsAccepted)
+          reloadedUid: 'anon-uid', // 비-stale
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.onboarding,
+          reason: 'D-C1: !termsAccepted 단일 gate trip',
+        );
+      },
+    );
+
+    test(
+      '(c) 익명 + onboardingSeen + termsAccepted (완전) + home -> null '
+      '(I1: 완전한 익명 user 는 /home 통과)',
+      () async {
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(),
+          onboardingSeen: true,
+          termsAcceptance: acceptedTerms(),
+          reloadedUid: 'anon-uid',
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: 'I1: onboardingSeen + termsAccepted 모두 완료한 익명 user '
+              '는 /home 통과',
+        );
+      },
+    );
+
+    test(
+      '(d) 익명 + onboardingSeen + !termsAccepted + stale lastReloadedUid + '
+      'home -> null (D-C2: stale guard 발동 → reload 완료 대기)',
+      () async {
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(), // uid = 'anon-uid'
+          onboardingSeen: true,
+          // termsAcceptance: null
+          reloadedUid: 'OTHER-UID', // stale lastReloadedUid
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: 'D-C2: termsProvider stale lastReloadedUid 면 reload 완료 '
+              '대기 (분기 (5) 패턴 익명 확장 — Plan 10-11 Issue #7 C-2)',
+        );
+      },
+    );
+
+    test(
+      '(e — Pitfall 4 회귀 가드) 익명 + !onboardingSeen + '
+      'matchedLocation=/login -> null (정식 승격 경로 보존)',
+      () async {
+        // Pitfall 4: `!isOnUnauthRoute` 가드 누락 시 /login + 익명 user 가
+        // 무한 redirect loop 회귀. 익명 user 의 정식 승격 경로 보존 보장.
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(),
+          onboardingSeen: false,
+          reloadedUid: 'anon-uid',
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: 'Pitfall 4: 익명 user 의 /login 진입은 정식 승격 경로 '
+              '이므로 onboarding 강제 redirect 금지',
+        );
+      },
+    );
+  });
 }

@@ -2102,4 +2102,70 @@ void main() {
       ]);
     });
   });
+
+  // Phase 10.2 D-A3 — Plan 02 land 시 production signOutAndResetOnboarding
+  // 도입 (8-arg ctor + 메서드 신규) 으로 GREEN 전환. 현재 RED (Plan 02 land
+  // 전) 는 의도된 Wave 0 acceptance signal: 본 group 의 8-arg ctor 호출이
+  // "Too many positional arguments: 7 expected, but 8 found" compile error
+  // 를 트리거하며, 메서드 `signOutAndResetOnboarding` 미정의도 동시 노출된다.
+  group('signOutAndResetOnboarding (Phase 10.2 D-A3)', () {
+    test(
+      'reset → signOut 순서로 5 SDK + onResetOnboarding 호출된다 '
+      '(D-A3 reset → signOut 순서 + Phase 9.2 R6 5 SDK 순서 invariant)',
+      () async {
+        // D-A3 의 핵심: reset 이 signOut (Google SDK 첫 호출) 보다 먼저
+        // 수행되어야 authRedirect 재평가 시점에 onboardingSeen=false 가
+        // 확정되어 분기 (2) 자연 redirect /onboarding 이 성립한다.
+        // 순서 뒤집기 회귀 시 GC-04 fail-safe /splash churn 가능 (Pitfall 3).
+        var callIndex = 0;
+        var resetCallOrder = 0;
+        var googleSignOutOrder = 0;
+
+        Future<void> onResetOnboarding() async {
+          resetCallOrder = ++callIndex;
+        }
+
+        // Plan 02 land 전 — AuthRepository ctor 가 아직 7-arg 이므로 본
+        // 8-arg 호출은 의도된 compile error (RED). Plan 02 가 8-arg ctor
+        // 도입 + signOutAndResetOnboarding 메서드 신규 작성으로 자동 GREEN.
+        final repo = AuthRepository(
+          mockAuth,
+          mockGoogleSignIn,
+          mockFacebookAuth,
+          mockSocialLinkInProgress,
+          mockKakaoSdkClient,
+          mockFunctions,
+          mockNaverSdkClient,
+          onResetOnboarding,
+        );
+
+        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {
+          googleSignOutOrder = ++callIndex;
+        });
+        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+        when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+        await repo.signOutAndResetOnboarding();
+
+        // D-A3 핵심: reset 이 signOut (Google SDK 첫 호출) 보다 먼저.
+        expect(
+          resetCallOrder,
+          lessThan(googleSignOutOrder),
+          reason:
+              'D-A3: onResetOnboarding 이 signOut 보다 먼저 호출되어야 한다',
+        );
+
+        // 5 SDK 호출 순서 invariant (signOut 본체 — Phase 9.2 R6 회귀 가드).
+        verifyInOrder([
+          () => mockGoogleSignIn.signOut(),
+          () => mockFacebookAuth.logOut(),
+          () => mockKakaoSdkClient.logout(),
+          () => mockNaverSdkClient.logout(),
+          () => mockAuth.signOut(),
+        ]);
+      },
+    );
+  });
 }
