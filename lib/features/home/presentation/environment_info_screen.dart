@@ -1160,6 +1160,19 @@ class _DevToolsSection extends ConsumerWidget {
   /// 확인 다이얼로그 없음 (D-33 기본 정책). production `_confirmSignOut`
   /// 와 완전 동일 동작 (I2 단일 진리원). 화면 이동은 authRedirect 분기 (2)
   /// 자연 redirect (Phase 10.2 D-B1).
+  ///
+  /// **D-A6: SnackBar / Loading indicator 의도적 미제공.** logout 은 정상
+  /// 흐름이므로 over-instrumentation 회피. 시그니처에 [context] 를 유지하는
+  /// 이유는 같은 `_DevToolsSection` 의 4 핸들러
+  /// (`_handleResetOnboarding` / `_handleTriggerError` /
+  /// `_handleTriggerAnalytics` / `_handleForceSignOut`) 통일성이며,
+  /// 본 함수에서 [context] 를 사용해 SnackBar 등을 표시하면 D-A6 결정을
+  /// silent 위배하는 것이므로 추후 변경 시 `docs/manual.md`
+  /// `## App Entry State Machine (Phase 10.2)` 단락의 D-A6 항목을 함께
+  /// 확인할 의무가 있다.
+  ///
+  /// Phase 10.2 review WR-01 정정 — context 미사용에 대한 명시적 정책 anchor.
+  // ignore: unused_element_parameter
   Future<void> _handleForceSignOut(BuildContext context, WidgetRef ref) async {
     await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
   }
