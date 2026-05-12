@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -29,12 +31,21 @@ class MockAnalyticsService extends Mock implements AnalyticsService {}
 /// [OnboardingNotifier] override 구현 (reset 호출 추적용).
 ///
 /// Plan 03 수정판: `reset()` 은 public 메서드 (no `@visibleForTesting`).
+///
+/// **Phase 10.2 review iter3 IN-02 정정:** `build()` override 시그니처를
+/// production 의 `FutureOr<bool> build() async` 와 정확히 일치시킨다.
+/// 이전 동기 `bool build() => false` 시그니처는 `bool` 이 `FutureOr<bool>`
+/// 의 subtype 이라 Dart 가 허용했으나 (a) async/sync 시그니처 contract
+/// drift 발생 + (b) 미래 Dart/Riverpod 의 `analyzer.errors.invalid_override`
+/// tightening 이 surface 시 hard error 가능 + (c) `auth_guard_test.dart`
+/// `_StubOnboardingNotifier` (line 45-51) 의 async 패턴과 정합 — test
+/// suite 전반의 stub 시그니처를 단일화.
 class RecordingOnboardingNotifier extends OnboardingNotifier {
   /// 지금까지의 [reset] 호출 횟수.
   int resetCallCount = 0;
 
   @override
-  bool build() => false;
+  FutureOr<bool> build() async => false;
 
   @override
   Future<void> reset() async {

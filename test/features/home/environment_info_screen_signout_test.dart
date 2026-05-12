@@ -9,6 +9,8 @@
 // "Path Mismatch Flagged" 결정 (CONTEXT.md 의 `presentation/` 경로는 코드
 // 베이스 실재 구조와 mismatch).
 
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,9 +45,18 @@ class _MockAnalyticsService extends Mock implements AnalyticsService {}
 /// `_confirmSignOut` widget test 는 onboarding reset 호출 추적이 직접 목적은
 /// 아니지만 (Plan 02 의 production 코드가 callback 으로 호출), Provider scope
 /// 에 onboardingProvider override 가 필요하므로 stub Notifier 를 둔다.
+///
+/// **Phase 10.2 review iter3 IN-02 정정:** `build()` override 시그니처를
+/// production 의 `FutureOr<bool> build() async` 와 정확히 일치시킨다.
+/// 이전 동기 `bool build() => true` 시그니처는 `bool` 이 `FutureOr<bool>`
+/// 의 subtype 이라 Dart 가 허용했으나 (a) async/sync 시그니처 contract
+/// drift 발생 + (b) 미래 Dart/Riverpod 의 `analyzer.errors.invalid_override`
+/// tightening 이 surface 시 hard error 가능 + (c) `auth_guard_test.dart`
+/// `_StubOnboardingNotifier` (line 45-51) 의 async 패턴과 정합 — test
+/// suite 전반의 stub 시그니처를 단일화.
 class _StubOnboardingNotifier extends OnboardingNotifier {
   @override
-  bool build() => true; // 정상 진입 상태 (onboarding 완료 후 home 도달 가정)
+  FutureOr<bool> build() async => true; // 정상 진입 상태 (onboarding 완료 후 home 도달 가정)
 }
 
 /// 테스트 시나리오 결과 컨테이너.
