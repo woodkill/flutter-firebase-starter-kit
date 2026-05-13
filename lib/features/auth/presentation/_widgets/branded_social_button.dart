@@ -32,7 +32,8 @@ enum AssetType {
   /// SVG 자상 — SvgPicture.asset 으로 렌더 (Google 자상 6종).
   svg,
 
-  /// 자상 미사용 — Apple/Facebook (위제 위임) + LINE/WeChat (placeholder).
+  /// 자상 미사용 — Apple (SDK 위제 위임, sign_in_with_apple) +
+  /// LINE/WeChat (placeholder). Facebook 은 Phase 13.2 부로 [png] 전환.
   none,
 }
 
@@ -544,10 +545,15 @@ Widget _renderFacebookButton(
 ) {
   final assetPath = _iconAssetFor(context, spec);
   final radius = BorderRadius.circular(spec.borderRadius);
+  final colorScheme = Theme.of(context).colorScheme;
   final isDark = Theme.of(context).brightness == Brightness.dark;
-  final bgColor = isDark ? Colors.black : Colors.white;
-  final fgColor = isDark ? Colors.white : Colors.black;
-  final outlineColor = isDark ? Colors.white24 : Colors.black12;
+  // Phase 13.2 UI-REVIEW Pillar 3 정정: WAVE0-LOCK render spec 명시 토큰화.
+  // light bg = Colors.white (locked literal), dark bg = colorScheme.surface,
+  // outline = Colors.grey.shade300 (light) / Colors.grey.shade700 (dark),
+  // fg = colorScheme.onSurface (Material 3 contrast 보장).
+  final bgColor = isDark ? colorScheme.surface : Colors.white;
+  final fgColor = colorScheme.onSurface;
+  final outlineColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
   return Semantics(
     button: true,
     enabled: onPressed != null,
@@ -592,12 +598,13 @@ Widget _renderFacebookButton(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.1,
-                        color: fgColor,
-                      ),
+                      // Phase 13.2 UI-REVIEW Pillar 4 정정: WAVE0-LOCK Text slot
+                      // spec — textTheme.labelLarge 토큰 사용, fg 색상은 위에서
+                      // 계산한 colorScheme.onSurface 으로 copyWith 주입.
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(color: fgColor),
                     ),
                   ),
                 ],
