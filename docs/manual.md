@@ -1104,12 +1104,16 @@ bash scripts/check_phase_refs.sh
 
 ---
 
-## Brand Asset Management (Phase 13.1)
+## Brand Asset Management (Phase 13.1 + 13.2)
+
+<!-- Updated by Phase 13.2 retroactive: R13 — Facebook entry 갱신 (Meta 공식 자상 + 라이선스 verbatim + Phase 18 단어 폐기) -->
 
 본 단락은 starter-kit 의 social provider brand asset 출처·라이선스·다운로드·
 freshness 갱신 정책을 정리한다. 7 provider (Kakao / Naver / Google / Apple /
 Facebook / LINE / WeChat) 자산 모두 단일 표준 디렉토리 (`assets/brand/{provider}/`)
-+ 7필드 README schema 를 따른다.
++ 7필드 README schema 를 따른다. Phase 13.2 진입으로 Facebook 도 Meta 공식
+Brand Resource Center 자상 마이그 완료 (D-95 PNG / D-94 theme 부재 / D-96
+Google 패턴 locale 독립).
 
 > **⚠ 미래 갱신자 함정 경고 #2 (Phase 13.1 Gap-1 X2 — 자상 layout 패턴):**
 > Phase 13.1 Plan 13.1-05 초기 코드는 wide 자상 (Kakao 600×90 / Naver
@@ -1165,7 +1169,9 @@ assets/brand/
 ├── google/{light,dark,neutral}/btn_signin_{full,icon}.svg + LICENSE.txt + README.md
 │   # Plan 13.1-07 retro: Android × rd × ctn 채택, 6 SVG. cross-platform 사용 라이선스 무관
 ├── apple/README.md          # SDK 위제 (sign_in_with_apple ^8.0.0), 자상 commit 없음
-├── facebook/README.md       # sign_in_button community package (Phase 18 마이그 예정)
+├── facebook/facebook_login.png + LICENSE.txt + README.md
+│   # Phase 13.2 — Meta 공식 자상 (Primary Logo, 2084×2084 PNG, D-95 lock)
+│   # D-94 theme 부재 (단일 #1877F2 변형) / D-96 Google 패턴 locale 독립 ('f' 마크 단독)
 ├── line/.placeholder + README.md   # Phase 14 (LINE) 진입 시 자상 commit
 └── wechat/.placeholder + README.md # Phase 16 (WeChat) 진입 시 자상 commit
 ```
@@ -1178,7 +1184,7 @@ assets/brand/
 | Naver    | https://developers.naver.com/docs/login/bi/bi.md | PNG + Figma + AI | NAVER Brand License | **사용자 책임** (가이드 준수 — starter-kit 은 검수 자동화 미제공) |
 | Google   | https://developers.google.com/identity/branding-guidelines | SVG | Google Terms of Service | N/A |
 | Apple    | https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple | (SDK 위제) | Apple HIG (`sign_in_with_apple` 패키지 BSD-3-Clause) | N/A |
-| Facebook | (현재 sign_in_button 4.1.0 community-rendered) | (community-rendered) | sign_in_button MIT | Phase 18 — Meta Brand Center 자상 교체 예정 |
+| Facebook | https://www.meta.com/brand/resources/facebook/logo/ + https://developers.facebook.com/docs/facebook-login/userexperience/ | PNG (Primary Logo, 2084×2084) | Meta Brand License (`Meta's trademarks are owned by Meta and may only be used as provided in these guidelines or with Meta's permission.` verbatim) | **사용자 책임** (Wave 0 응답 verbatim — Meta Brand Resource Center 다운, Phase 13.2 완료) |
 | LINE     | https://developers.line.biz/en/docs/line-login/login-button/ | PNG + PSD (19 언어) | LINE Branding License | **사용자 책임** (Phase 14 진입 시) |
 | WeChat   | https://developers.weixin.qq.com/doc/oplatform/en/Downloads/Design_Resource.html | PNG only (24/32/48/64) | WeChat Brand Guideline | **사용자 책임** (변형 절대 금지, Phase 16 진입 시) |
 
@@ -1279,8 +1285,13 @@ starter-kit 은 LINE/WeChat 자상 미commit (Phase 13.1 sentinel). Phase 14
   인수는 `BorderRadius.circular(12)` 형태 의무 (int 12 직접 주입 시 컴파일
   에러). height 는 SDK 기본값 44 존종 (외부 SizedBox 래핑 안 함) — Naver/
   Kakao height 48 과 4dp 차이는 HIG/BI 양쪽 공식 권장값 충돌의 정상 산물.
-- **Facebook:** 현재 `sign_in_button` community package — Phase 18 Brand
-  Center 권한 확보 후 공식 자상 마이그.
+- **Facebook:** Phase 13.2 완료 — Meta Brand Resource Center (`meta.com/brand/
+  resources/facebook/logo/`) 공식 Primary Logo PNG (2084×2084, #1877F2 파란
+  원형 + 흰 'f' 마크) 마이그. `_renderFacebookButton` 함수가 Apple
+  `SignInWithAppleButton` 패턴 mirror 로 wide button 외관 layer (white bg +
+  black text + 1dp grey outline, dark = dark bg + white text + 1dp lighter
+  outline) 형성. 자상 변형 금지 (`DON'T modify the 'f' logo in any way` —
+  `developers.facebook.com/docs/facebook-login/userexperience/` verbatim).
 - **사용자 책임:** Naver / LINE / WeChat 은 일부 사용 시 사전 검수 신청 별도
   의무 가능 (정확한 절차는 공식 BI 페이지 — starter-kit 은 검수 자동화
   미제공).
