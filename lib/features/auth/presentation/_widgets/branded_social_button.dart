@@ -581,52 +581,56 @@ Widget _renderFacebookButton(
       // (0.5 opacity wrap). 활성 시 1.0 으로 기존 외관 보존.
       child: Opacity(
         opacity: isEnabled ? 1.0 : 0.5,
+        // Phase 13.2 REVIEW WR-01 정정 (2026-05-13): borderRadius 3중 적용
+        // (Material + InkWell + DecoratedBox) → Material.shape 의
+        // RoundedRectangleBorder(side) 단일화. clipBehavior: Clip.antiAlias
+        // 가 외부 border 0.5dp 잘림 문제를 야기하던 DecoratedBox.border 폐기
+        // 후 shape side 가 Material 자체 path 의 stroke 로 그려져 1dp 완전
+        // 두께로 visible. radius 적용 layer: Material.shape (visual border) +
+        // InkWell.borderRadius (ripple 영역 제어) 의 2 layer 만 잔존.
         child: Material(
           color: bgColor,
-          borderRadius: radius,
+          shape: RoundedRectangleBorder(
+            borderRadius: radius,
+            side: BorderSide(color: outlineColor),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onPressed,
             borderRadius: radius,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                border: Border.all(color: outlineColor),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Image.asset(
-                      assetPath,
-                      width: spec.iconSize,
-                      height: spec.iconSize,
-                      excludeFromSemantics: true,
-                    ),
-                    const SizedBox(width: 8),
-                    // Phase 13.2 Plan 13.2-06 [Rule 1 - Bug]: 좁은 viewport
-                    // (예: 360dp) + 긴 라벨 ('Continue with Facebook' 21자) 시
-                    // Row mainAxisSize.max 가 Padding(horizontal:12) 안에서
-                    // 0.2px overflow. mainAxisSize.min + Flexible(child: Text)
-                    // 으로 안전 fit + 마진 환경에서 ellipsis fallback.
-                    Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        // Phase 13.2 UI-REVIEW Pillar 4 정정: WAVE0-LOCK Text
-                        // slot spec — textTheme.labelLarge 토큰 사용, fg
-                        // 색상은 위에서 계산한 fgColor (disabled 시 38%) 으로
-                        // copyWith 주입.
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: fgColor,
-                        ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    assetPath,
+                    width: spec.iconSize,
+                    height: spec.iconSize,
+                    excludeFromSemantics: true,
+                  ),
+                  const SizedBox(width: 8),
+                  // Phase 13.2 Plan 13.2-06 [Rule 1 - Bug]: 좁은 viewport
+                  // (예: 360dp) + 긴 라벨 ('Continue with Facebook' 21자) 시
+                  // Row mainAxisSize.max 가 Padding(horizontal:12) 안에서
+                  // 0.2px overflow. mainAxisSize.min + Flexible(child: Text)
+                  // 으로 안전 fit + 마진 환경에서 ellipsis fallback.
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      // Phase 13.2 UI-REVIEW Pillar 4 정정: WAVE0-LOCK Text
+                      // slot spec — textTheme.labelLarge 토큰 사용, fg
+                      // 색상은 위에서 계산한 fgColor (disabled 시 38%) 으로
+                      // copyWith 주입.
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: fgColor,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
