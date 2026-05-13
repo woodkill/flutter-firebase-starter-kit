@@ -137,5 +137,386 @@ void main() {
         );
       }
     });
+
+    // ─── Phase 13.2 — Wave 1+ 진입 acceptance signal 단일 진실원 (RED) ─────
+    //
+    // Phase 13.2 R4/R8/R9/R10/R11/R12/R13 grep + smoke acceptance 를 자동
+    // test 로 검증. Wave 1+ 진입 게이트 — 모든 신규 test 가 Wave 1+ 코드/문서
+    // 마이그 완료 후 GREEN 으로 자동 전환. Test 12 (R17) 만 시작부터 GREEN
+    // (helper 호출 path 보존 회귀 가드 sentinel — RED gate 와 분리, Plan
+    // 13.2-02 acceptance 명시).
+    //
+    // **grep gate hygiene:** comment line (`//`, `#`) 은 filter 후 카운트 —
+    // 자가 invalidating 회피 (Phase 13.1 패턴 일관).
+
+    test('Phase 13.2 R4: assets/brand/facebook/README.md 의 "Phase 18" 단어 '
+        '폐기 + 7 헤딩 모두 존재', () {
+      // Arrange — README.md 직접 읽기.
+      final readme = File('assets/brand/facebook/README.md');
+      expect(readme.existsSync(), isTrue, reason: 'facebook README 부재');
+      final content = readme.readAsStringSync();
+      final lines = content.split('\n');
+
+      // Act — "Phase 18" 단어 hit 카운트 (comment line filter).
+      final phase18Hits = lines
+          .where(
+            (l) =>
+                !l.trimLeft().startsWith('//') &&
+                !l.trimLeft().startsWith('#'),
+          )
+          .where((l) => l.contains('Phase 18'))
+          .length;
+
+      // Assert — Wave 1 README 갱신 후 0 (현재 ≥ 1 → RED).
+      expect(
+        phase18Hits,
+        0,
+        reason: 'Phase 13.2 R4 acceptance 위반 — README.md 의 "Phase 18" 단어 '
+            'hit = $phase18Hits (target = 0, Wave 1 retro 후 GREEN). '
+            'README 7 필드 모두 "Phase 18" 폐기 + 실제 값 갱신 의무.',
+      );
+
+      // Assert — 7 헤딩 모두 존재 (Phase 13.1 active provider README schema
+      // 일관).
+      const requiredHeadings = <String>[
+        '공식 BI URL',
+        '자산 다운로드 URL',
+        '다운로드 일자',
+        '라이선스',
+        '사전 검수 절차',
+        '미포함 변형 추가 절차',
+        '자산 freshness 갱신 빈도',
+      ];
+      for (final heading in requiredHeadings) {
+        expect(
+          content,
+          contains('## $heading'),
+          reason: 'Phase 13.2 R4 acceptance 위반 — README 의 "## $heading" '
+              'heading 누락 (Phase 13.1 active provider README schema 일관)',
+        );
+      }
+    });
+
+    test('Phase 13.2 R8: pubspec.yaml 에 sign_in_button + font_awesome_flutter '
+        'hit 0', () {
+      // Arrange — pubspec.yaml 직접 읽기.
+      final pubspec = File('pubspec.yaml');
+      expect(pubspec.existsSync(), isTrue, reason: 'pubspec.yaml 부재');
+      final lines = pubspec.readAsLinesSync();
+
+      // Act — comment 제외 substring 카운트.
+      int countSubstring(String needle) {
+        return lines
+            .where((l) => !l.trimLeft().startsWith('#'))
+            .where((l) => l.contains(needle))
+            .length;
+      }
+
+      final signInHits = countSubstring('sign_in_button');
+      final fontAwesomeHits = countSubstring('font_awesome_flutter');
+
+      // Assert — Wave 2 pubspec 정정 후 0 (현재 각 ≥ 1 → RED).
+      expect(
+        signInHits,
+        0,
+        reason: 'Phase 13.2 R8 acceptance 위반 — pubspec.yaml 의 '
+            'sign_in_button hit = $signInHits (target = 0, Wave 2 후 GREEN). '
+            '의존성 단락 제거 의무.',
+      );
+      expect(
+        fontAwesomeHits,
+        0,
+        reason: 'Phase 13.2 R8 acceptance 위반 — pubspec.yaml 의 '
+            'font_awesome_flutter hit = $fontAwesomeHits (target = 0, '
+            'Wave 2 후 GREEN). 제약 단락 제거 의무.',
+      );
+    });
+
+    test('Phase 13.2 R9: lib/ + test/ 트리에서 Buttons.facebookNew hit 0', () {
+      // Arrange — lib/ + test/ 의 .dart 파일 전부 재귀 walk.
+      final files = <File>[
+        ...Directory('lib').listSync(recursive: true).whereType<File>(),
+        ...Directory('test').listSync(recursive: true).whereType<File>(),
+      ].where((f) => f.path.endsWith('.dart')).toList();
+      expect(files, isNotEmpty, reason: 'lib/ + test/ Dart 파일 0건');
+
+      // Act — comment 제외 substring 카운트 (자가 invalidating 회피).
+      final hits = <String>[];
+      for (final file in files) {
+        final lines = file.readAsLinesSync();
+        for (var i = 0; i < lines.length; i += 1) {
+          final line = lines[i];
+          final trimmed = line.trimLeft();
+          if (trimmed.startsWith('//')) {
+            continue;
+          }
+          if (line.contains('Buttons.facebookNew')) {
+            hits.add('${file.path}:${i + 1}');
+          }
+        }
+      }
+
+      // Assert — Wave 2 코드/test 정정 후 0 (현재 ≥ 5 → RED).
+      expect(
+        hits,
+        isEmpty,
+        reason: 'Phase 13.2 R9 acceptance 위반 — Buttons.facebookNew '
+            'hit ${hits.length} (target = 0, Wave 2 후 GREEN). '
+            '잔존 위치: ${hits.join(", ")}',
+      );
+    });
+
+    test('Phase 13.2 R10: lib/ + test/ 트리에서 package:sign_in_button '
+        'import hit 0', () {
+      // Arrange.
+      final files = <File>[
+        ...Directory('lib').listSync(recursive: true).whereType<File>(),
+        ...Directory('test').listSync(recursive: true).whereType<File>(),
+      ].where((f) => f.path.endsWith('.dart')).toList();
+      expect(files, isNotEmpty, reason: 'lib/ + test/ Dart 파일 0건');
+
+      // Act — comment 제외 substring 카운트.
+      final hits = <String>[];
+      for (final file in files) {
+        final lines = file.readAsLinesSync();
+        for (var i = 0; i < lines.length; i += 1) {
+          final line = lines[i];
+          final trimmed = line.trimLeft();
+          if (trimmed.startsWith('//')) {
+            continue;
+          }
+          if (line.contains('package:sign_in_button')) {
+            hits.add('${file.path}:${i + 1}');
+          }
+        }
+      }
+
+      // Assert — Wave 2 정정 후 0 (현재 5 hit → RED, D-100 단일 진실원).
+      expect(
+        hits,
+        isEmpty,
+        reason: 'Phase 13.2 R10 acceptance 위반 — package:sign_in_button '
+            'import hit ${hits.length} (target = 0, Wave 2 후 GREEN). '
+            '잔존 위치: ${hits.join(", ")}',
+      );
+    });
+
+    test('Phase 13.2 R11: 13.1-PATTERNS.md 의 retro 마커 ≥ 1 + 7 잔존 어휘 '
+        'hit 0', () {
+      // Arrange.
+      final patterns = File(
+        '.planning/phases/13.1-social-brand-asset-compliance/13.1-PATTERNS.md',
+      );
+      expect(patterns.existsSync(), isTrue, reason: '13.1-PATTERNS.md 부재');
+      final content = patterns.readAsStringSync();
+
+      // Act — retro 마커 (Wave 3 retro 후 ≥ 1).
+      final retroHits = 'Updated by Phase 13.2 retroactive'
+          .allMatches(content)
+          .length;
+
+      // Assert — Wave 3 retro 후 ≥ 1 (현재 0 → RED).
+      expect(
+        retroHits,
+        greaterThanOrEqualTo(1),
+        reason: 'Phase 13.2 R11 acceptance 위반 — 13.1-PATTERNS.md retro 마커 '
+            'hit = $retroHits (target ≥ 1, Wave 3 후 GREEN). '
+            'Phase 13.1 R12 단락 retroactive 재기술 + 마커 주석 의무.',
+      );
+
+      // Act — 7 잔존 어휘 (BL-06 ground-truth verbatim substring) hit 0.
+      const staleSubstrings = <String>[
+        '잔존 — Facebook 만 sign_in_button',
+        "throw UnsupportedError('Facebook uses sign_in_button",
+        'sign_in_button: ^4.1.0',
+        'Phase 18 마이그',
+        'Phase 18 자산 교체 예정',
+        'sign_in_button community package',
+        'Buttons.facebookNew',
+      ];
+      final staleHits = <String, int>{};
+      for (final needle in staleSubstrings) {
+        final hits = needle.allMatches(content).length;
+        if (hits > 0) {
+          staleHits[needle] = hits;
+        }
+      }
+
+      // Assert — Wave 3 retro 후 모든 잔존 어휘 0 hit (현재 ≥ 7 → RED).
+      expect(
+        staleHits,
+        isEmpty,
+        reason: 'Phase 13.2 R11 acceptance 위반 — 13.1-PATTERNS.md 의 잔존 '
+            '어휘 (target = 0, Wave 3 후 GREEN): $staleHits',
+      );
+    });
+
+    test('Phase 13.2 R12: 13-UI-SPEC.md 의 retro 마커 ≥ 1 + Phase 13.1 흔적 '
+        '12건 보존', () {
+      // Arrange — BL-05 ground-truth: Phase 13.1 retro 마커는 12건 (NOT 9).
+      final uiSpec = File('.planning/phases/13-naver-login/13-UI-SPEC.md');
+      expect(uiSpec.existsSync(), isTrue, reason: '13-UI-SPEC.md 부재');
+      final content = uiSpec.readAsStringSync();
+
+      // Act — Phase 13.2 retro 마커 (Wave 3 retro 후 ≥ 1).
+      final retroHits = 'Updated by Phase 13.2 retroactive'
+          .allMatches(content)
+          .length;
+
+      // Assert — Wave 3 retro 후 ≥ 1 (현재 0 → RED).
+      expect(
+        retroHits,
+        greaterThanOrEqualTo(1),
+        reason: 'Phase 13.2 R12 acceptance 위반 — 13-UI-SPEC.md Phase 13.2 '
+            'retro 마커 hit = $retroHits (target ≥ 1, Wave 3 후 GREEN).',
+      );
+
+      // Act — Phase 13.1 retro 마커 12건 보존 검증 (BL-05 ground-truth).
+      final phase131Hits = 'Updated by Phase 13.1 retroactive'
+          .allMatches(content)
+          .length;
+
+      // Assert — Phase 13.1 흔적 12건 변경 0 (Wave 3 가 Facebook 단락만 정정,
+      // Phase 13.1 흔적 변경 0 의무).
+      expect(
+        phase131Hits,
+        12,
+        reason: 'Phase 13.2 R12 회귀 가드 — 13-UI-SPEC.md Phase 13.1 retro 마커 '
+            'hit = $phase131Hits (target = 12, history 보존 의무). '
+            'Wave 3 는 Facebook 단락만 정정, Phase 13.1 흔적 변경 0.',
+      );
+    });
+
+    test('Phase 13.2 R13: docs/manual.md 의 retro 마커 ≥ 1 + Meta 공식 URL + '
+        '라이선스 verbatim + Facebook entry "Phase 18" 폐기', () {
+      // Arrange.
+      final manual = File('docs/manual.md');
+      expect(manual.existsSync(), isTrue, reason: 'docs/manual.md 부재');
+      final content = manual.readAsStringSync();
+
+      // Act — Phase 13.2 retro 마커 (Wave 3 retro 후 ≥ 1).
+      final retroHits = 'Updated by Phase 13.2 retroactive'
+          .allMatches(content)
+          .length;
+
+      // Assert — Wave 3 retro 후 ≥ 1 (현재 0 → RED).
+      expect(
+        retroHits,
+        greaterThanOrEqualTo(1),
+        reason: 'Phase 13.2 R13 acceptance 위반 — docs/manual.md Phase 13.2 '
+            'retro 마커 hit = $retroHits (target ≥ 1, Wave 3 후 GREEN).',
+      );
+
+      // Act — Meta 공식 URL substring (둘 중 하나 hit ≥ 1).
+      final metaUrlHits =
+          'meta.com/brand/resources/facebook'.allMatches(content).length +
+              'developers.facebook.com/docs/facebook-login'
+                  .allMatches(content)
+                  .length;
+
+      // Assert — Wave 3 retro 후 Meta 공식 URL ≥ 1 hit.
+      expect(
+        metaUrlHits,
+        greaterThanOrEqualTo(1),
+        reason: 'Phase 13.2 R13 acceptance 위반 — docs/manual.md Meta 공식 URL '
+            'hit = $metaUrlHits (target ≥ 1, Wave 3 후 GREEN). '
+            'Provider 표 Facebook entry 의 공식 BI URL 갱신 의무.',
+      );
+
+      // Act — Meta 라이선스 verbatim substring (Wave 0 lock 결과 의존).
+      // Wave 0 LOCK 인용: `Meta's trademarks are owned by Meta and may only
+      // be used as provided in these guidelines or with Meta's permission.`
+      final licenseHits = "Meta's trademarks".allMatches(content).length;
+
+      // Assert — Wave 3 retro 후 라이선스 verbatim ≥ 1 hit.
+      expect(
+        licenseHits,
+        greaterThanOrEqualTo(1),
+        reason: 'Phase 13.2 R13 acceptance 위반 — docs/manual.md Meta 라이선스 '
+            "verbatim (\"Meta's trademarks\") hit = $licenseHits "
+            '(target ≥ 1, Wave 3 후 GREEN).',
+      );
+
+      // Act — Facebook entry 의 "Phase 18" 단어 0 hit 검증 (substring
+      // anchoring — line 번호 shift 회피).
+      // Wave 3 retro 가 line 1168 / 1181 의 Facebook entry 의 "Phase 18"
+      // 문자열을 폐기 의무 (manual baseline grep: 4 hit 잔존, 1168/1181 은
+      // Facebook entry, 278/369/547 은 unrelated phase reference 잔존 가능).
+      // 본 test 는 Facebook entry 의 핵심 표 column (`Facebook |`) 행을
+      // line filter 후 "Phase 18" hit 0 검증으로 anchor.
+      final lines = content.split('\n');
+      final facebookEntryHits = lines
+          .where((l) => l.contains('| Facebook') || l.contains('facebook/README'))
+          .where((l) => l.contains('Phase 18'))
+          .length;
+
+      // Assert — Facebook entry 본문 "Phase 18" 단어 0 (현재 ≥ 2 → RED).
+      expect(
+        facebookEntryHits,
+        0,
+        reason: 'Phase 13.2 R13 acceptance 위반 — docs/manual.md Facebook '
+            'entry 의 "Phase 18" 단어 hit = $facebookEntryHits (target = 0, '
+            'Wave 3 후 GREEN). Facebook entry 만 정정, 다른 unrelated phase '
+            'reference 는 변경 0 보존.',
+      );
+    });
+
+    // SENTINEL: 시작부터 GREEN — R17 회귀 가드, RED gate 와 분리 (WR-04 fix).
+    //
+    // Test 12 (R17): `signInWithFacebook` 함수 body 안에 helper 호출 path
+    // 보존 회귀 가드. Wave 1+ 코드 마이그가 `_autoSendEmailVerification` /
+    // `_setFacebookPhotoUrl` 호출 path 를 건드리면 RED — Phase 9.2 R4/R5
+    // helper 작동 회귀 차단. 본 test 는 commit 시점 GREEN (회귀 가드 sentinel),
+    // 다른 7 test (Test 5~11) 의 Wave 1+ RED gate 와 의도 분리.
+    test('Phase 13.2 R17 SENTINEL: auth_repository signInWithFacebook 의 '
+        '_autoSendEmailVerification + _setFacebookPhotoUrl 호출 path 보존', () {
+      // Arrange.
+      final repo = File('lib/features/auth/data/auth_repository.dart');
+      expect(repo.existsSync(), isTrue, reason: 'auth_repository.dart 부재');
+      final content = repo.readAsStringSync();
+
+      // Act — signInWithFacebook 함수 body 추출 (function 진입 → 다음
+      // top-level 함수 진입 직전까지). Dart source 의 indent 구조 의존
+      // (1depth 함수 body 는 2~6 space, 다음 함수 시작은 동일 indent 의
+      // signature).
+      final entryIdx = content.indexOf(
+        'Future<Result<User>?> signInWithFacebook()',
+      );
+      expect(
+        entryIdx,
+        greaterThanOrEqualTo(0),
+        reason: 'signInWithFacebook 함수 부재 — R17 sentinel 대상 미존재',
+      );
+      // 다음 함수 시그니처 발견 위치 (다음 Future\s\w+ 시작) 까지로 body
+      // 범위 추출. 단 함수 body 자체에 `Future` 출현 가능하므로 `\n  ///`
+      // (다음 doc comment) 또는 `\n  Future<` (다음 함수) 중 빠른 위치 채택.
+      final afterEntry = content.substring(entryIdx);
+      final nextFuncIdx = afterEntry.indexOf('\n  Future<', 1);
+      final nextDocIdx = afterEntry.indexOf('\n  ///', 1);
+      var bodyEnd = afterEntry.length;
+      if (nextFuncIdx > 0 && nextFuncIdx < bodyEnd) {
+        bodyEnd = nextFuncIdx;
+      }
+      if (nextDocIdx > 0 && nextDocIdx < bodyEnd) {
+        bodyEnd = nextDocIdx;
+      }
+      final body = afterEntry.substring(0, bodyEnd);
+
+      // Assert — body 안에 두 helper 호출 substring ≥ 1 each.
+      expect(
+        '_autoSendEmailVerification'.allMatches(body).length,
+        greaterThanOrEqualTo(1),
+        reason: 'Phase 13.2 R17 SENTINEL 회귀 — signInWithFacebook body 안 '
+            '_autoSendEmailVerification 호출 부재. Phase 9.2 helper 호출 '
+            'path 변경 0 의무.',
+      );
+      expect(
+        '_setFacebookPhotoUrl'.allMatches(body).length,
+        greaterThanOrEqualTo(1),
+        reason: 'Phase 13.2 R17 SENTINEL 회귀 — signInWithFacebook body 안 '
+            '_setFacebookPhotoUrl 호출 부재. Phase 9.2 helper 호출 path '
+            '변경 0 의무.',
+      );
+    });
   });
 }
