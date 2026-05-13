@@ -466,6 +466,91 @@ void main() {
       },
     );
 
+    // ─── T-13.2-FACEBOOK-A11Y-01/02: Facebook a11y semantics 회귀 가드 ─────
+    //
+    // **Phase 13.2 REVIEW WR-02 정정 (2026-05-13):** Phase 13.1 의 Kakao/
+    // Naver `T-13.1-A11Y-SEMANTICS-01/02` 와 동일 패턴으로 Facebook
+    // `_renderFacebookButton` Semantics 5 invariant (button + hasTapAction +
+    // hasEnabledState + isEnabled + label) 회귀 가드. iter2 CR-01 silent
+    // drift 패턴 (Semantics(onTap: onPressed) 누락 → InkWell GestureSemantics
+    // drop) 을 Facebook 분기에서도 surface 의무.
+    testWidgets(
+      'T-13.2-FACEBOOK-A11Y-01: Facebook 활성 → '
+      'matchesSemantics(button, hasTapAction, isEnabled, label)',
+      (tester) async {
+        final SemanticsHandle semHandle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        try {
+          expect(
+            tester.getSemantics(find.byType(BrandedSocialButton)),
+            matchesSemantics(
+              isButton: true,
+              hasTapAction: true,
+              hasEnabledState: true,
+              isEnabled: true,
+              label: 'Continue with Facebook',
+            ),
+            reason: 'WR-02 회귀 가드 — Facebook 활성 시 button + label + onTap '
+                '시멘틱 트리 노출 의무. hasTapAction=false RED 시 iter1 패턴 '
+                '(Semantics.onTap 미전달 → GestureSemantics drop) 재발.',
+          );
+        } finally {
+          semHandle.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'T-13.2-FACEBOOK-A11Y-02: Facebook 비활성 → '
+      'isEnabled: false + hasTapAction false',
+      (tester) async {
+        final SemanticsHandle semHandle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: null,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        try {
+          expect(
+            tester.getSemantics(find.byType(BrandedSocialButton)),
+            matchesSemantics(
+              isButton: true,
+              hasEnabledState: true,
+              isEnabled: false,
+              label: 'Continue with Facebook',
+            ),
+            reason: 'WR-02 회귀 가드 — onPressed=null → enabled=false + onTap '
+                '핸들러 미등록. 비활성 상태도 button/label 은 노출 (TalkBack 가 '
+                '"비활성 버튼" 안내).',
+          );
+        } finally {
+          semHandle.dispose();
+        }
+      },
+    );
+
     // ─── T-13.2-FACEBOOK-DISABLED-01: 비활성 상태 시각 cue 회귀 가드 ───────
     //
     // **Phase 13.2 REVIEW CR-01 정정 (2026-05-13):** 비활성 시 시각 disabled
