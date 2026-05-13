@@ -660,7 +660,14 @@ void main() {
         await tester.pumpAndSettle();
 
         final imageWidget = tester.widget<Image>(find.byType(Image));
-        final assetImage = imageWidget.image as AssetImage;
+        // Phase 13.2 REVIEW IN-03 정정 (2026-05-13): cacheWidth/cacheHeight
+        // 추가로 Image.asset 이 ResizeImage(AssetImage) wrapper 로 감싸짐.
+        // 본 test 는 underlying AssetImage 의 assetName 검증이 목적이므로
+        // ResizeImage.imageProvider 로 unwrap 후 cast.
+        final ImageProvider rawProvider = imageWidget.image;
+        final AssetImage assetImage = rawProvider is ResizeImage
+            ? rawProvider.imageProvider as AssetImage
+            : rawProvider as AssetImage;
 
         // D-96 Google 패턴 — locale 독립 (ko/en/ja 분기 부재), 단일 path.
         // Meta Primary Logo PNG (2084×2084 square, 'f' 마크 + #1877F2 원형).

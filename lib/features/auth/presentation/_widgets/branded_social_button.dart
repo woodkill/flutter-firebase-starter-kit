@@ -604,10 +604,23 @@ Widget _renderFacebookButton(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Phase 13.2 REVIEW IN-03 정정 (2026-05-13): Meta Primary
+                  // Logo PNG (2084×2084 square) 를 18dp icon 슬롯에 렌더 —
+                  // cacheWidth/cacheHeight 미지정 시 full 2084×2084 decoded
+                  // ARGB (~17 MB) 메모리 캐시. devicePixelRatio 기반 cache
+                  // 사이즈 (예: 3.0 DPR → 54px) 로 메모리 footprint 격감.
                   Image.asset(
                     assetPath,
                     width: spec.iconSize,
                     height: spec.iconSize,
+                    cacheWidth:
+                        (spec.iconSize *
+                                MediaQuery.of(context).devicePixelRatio)
+                            .round(),
+                    cacheHeight:
+                        (spec.iconSize *
+                                MediaQuery.of(context).devicePixelRatio)
+                            .round(),
                     excludeFromSemantics: true,
                   ),
                   const SizedBox(width: 8),
