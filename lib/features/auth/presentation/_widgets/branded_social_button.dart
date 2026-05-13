@@ -185,17 +185,24 @@ class AppleSpec extends BrandSpec {
   AssetType get assetType => AssetType.none;
 }
 
-/// Facebook 로그인 버튼 spec — sign_in_button community package 위임 wrapper.
+/// Facebook 로그인 버튼 spec — Phase 13.2 완료 (옵션 A pivot, Wave 0 lock).
 ///
-/// 본 spec 의 `BrandedSocialButton.build()` 도달 시 `UnsupportedError` —
-/// `social_button.dart` 의 Facebook 분기에서 직접 `SignInButton(Buttons.facebookNew)`
-/// 호출 (R12 acceptance, sign_in_button 패키지 보존).
+/// `_renderFacebookButton` 호출 단독 — Apple `SignInWithAppleButton` 패턴
+/// mirror. `Theme.brightness` 자동 분기 + 18dp Primary Logo PNG 자상
+/// (`assets/brand/facebook/facebook_login.png`) + ARB `authFacebookSignIn`
+/// 라벨 + 1dp outline + Material radius 12dp. Meta brand pack 의 logo-only
+/// 자상 (wide baked-in 미제공) 으로 Naver/Kakao/Google wide 자상 통째 buttons
+/// 패턴 적용 불가 — Apple SDK 위제 패턴 mirror 의무 (옵션 A pivot).
+///
+/// **D-95 lock:** `AssetType.png` (Meta Primary Logo PNG 단독, SVG 미제공).
+/// **D-94 lock:** theme 필드 부재 (Primary 단독 채택, Kakao 패턴 mirror).
+/// **D-96 lock:** locale 독립 (단일 path, lang 분기 부재).
 class FacebookSpec extends BrandSpec {
-  /// const 생성자.
+  /// const 생성자 — 공통 default (height 48 / radius 12 / icon 18) 사용.
   const FacebookSpec();
 
   @override
-  AssetType get assetType => AssetType.none;
+  AssetType get assetType => AssetType.png;
 }
 
 /// LINE 로그인 버튼 spec — D-73 placeholder (자상 미존재 시 fallback render).
@@ -318,12 +325,11 @@ class BrandedSocialButton extends StatelessWidget {
     appleStyle: style,
   );
 
-  /// Facebook named factory — sign_in_button community package 위임 wrapper.
+  /// Facebook named factory — Phase 13.2 완료 (옵션 A pivot, Wave 0 lock).
   ///
-  /// 본 factory 는 호출자에게 통합된 인터페이스 제공 — 실제 build 는
-  /// `social_button.dart` 의 Facebook 분기에서 직접
-  /// `SignInButton(Buttons.facebookNew)` 호출 (R12 acceptance, sign_in_button
-  /// 패키지 보존).
+  /// `_renderFacebookButton` 위제 직접 호출 (Apple `SignInWithAppleButton`
+  /// 패턴 mirror). `social_button.dart` 의 Facebook 분기는 본 factory 호출만
+  /// (sign_in_button 위임 폐기는 Plan 13.2-05 책임).
   factory BrandedSocialButton.facebook({
     required String label,
     required VoidCallback? onPressed,
@@ -582,11 +588,7 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
 /// unreachable (Phase 14/16 strategy 가 BrandedSocialButton.line() /
 /// .wechat() 호출 안 함). debugPrint 가 누락 detection 가치 0 + runtime
 /// noise 만 부담 → 폐기.
-Widget _renderPlaceholder(
-  BuildContext context,
-  BrandSpec spec,
-  String label,
-) {
+Widget _renderPlaceholder(BuildContext context, BrandSpec spec, String label) {
   final l10n = AppLocalizations.of(context);
   return SizedBox(
     width: double.infinity,
