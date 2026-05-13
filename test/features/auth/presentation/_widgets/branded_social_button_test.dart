@@ -14,11 +14,17 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
-// ─── 회귀 가드 expected 색상 (production private literal mirror) ────────────
+// ─── 회귀 가드 expected 색상 (BI 단일 진실원 mirror) ──────────────────────────
 //
-// 단일 진실원은 `branded_social_button.dart` 의 `_kKakao*` / `_kNaver*` const
-// 이며 본 상수는 회귀 가드 비교 대상이다 — 둘 중 어느 쪽이든 변경되면 테스트
-// 가 RED 로 떨어져 contract drift 를 즉시 surface.
+// **Phase 13.2 REVIEW WR-05 정정 (2026-05-13):** 본 주석은 이전에 production
+// const (`_kKakao*` / `_kNaver*`) 가 비교 대상인 것처럼 시사했으나, Phase
+// 13.1 REVIEW iter2 WR-04 fix 로 source const 가 모두 폐기되어 misleading
+// 상태. BI 단일 진실원은 (1) `assets/brand/{kakao,naver}/` PNG 자상
+// (baked-in 색), (2) 본 test 의 expected literal, (3) `docs/manual.md` D-Note
+// (R1 컨텍스트 분리) 3 layer. production lib/ 트리에는 BI 색 const 미존재
+// (자상 baked-in 후 dead retention 패턴 제거). 본 test 가 RED 면 expected
+// literal 또는 docs/manual.md D-Note 가 drift 한 의미 — production const
+// drift 가 아님.
 //
 // **R1 정정 (Phase 13.1):** `_kNaverGreenExpected = 0xFF03A94D` (NAVER ID
 // 로그인 BI verbatim) — 회사 브랜드 0xFF03C75A 와 컨텍스트 분리.
