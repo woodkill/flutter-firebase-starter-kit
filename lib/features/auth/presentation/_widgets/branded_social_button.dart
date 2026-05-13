@@ -545,69 +545,88 @@ Widget _renderFacebookButton(
 ) {
   final assetPath = _iconAssetFor(context, spec);
   final radius = BorderRadius.circular(spec.borderRadius);
-  final colorScheme = Theme.of(context).colorScheme;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
+  // Phase 13.2 REVIEW IN-01 정정 (2026-05-13): Theme.of(context) 중복 호출
+  // 폐기 — 단일 lookup 후 colorScheme/brightness 재사용.
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final isDark = theme.brightness == Brightness.dark;
+  // Phase 13.2 REVIEW CR-01 정정 (2026-05-13): onPressed == null 일 때 시각
+  // disabled cue 누락 회귀. social_button.dart docstring 의 "Material default
+  // disabled 외관" 약속과 일치하도록 (1) Opacity 0.5 wrap (Material 3 disabled
+  // state cue), (2) fgColor / outlineColor 의 faded variant 분기로 보강.
+  // 회귀 가드는 branded_social_button_test.dart 의 T-13.2-FACEBOOK-DISABLED-01
+  // (Opacity 검증) + T-13.2-FACEBOOK-A11Y-02 (isEnabled false) 가 책임.
+  final isEnabled = onPressed != null;
   // Phase 13.2 UI-REVIEW Pillar 3 정정: WAVE0-LOCK render spec 명시 토큰화.
   // light bg = Colors.white (locked literal), dark bg = colorScheme.surface,
   // outline = Colors.grey.shade300 (light) / Colors.grey.shade700 (dark),
   // fg = colorScheme.onSurface (Material 3 contrast 보장).
   final bgColor = isDark ? colorScheme.surface : Colors.white;
-  final fgColor = colorScheme.onSurface;
-  final outlineColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
+  final fgColor = isEnabled
+      ? colorScheme.onSurface
+      : colorScheme.onSurface.withValues(alpha: 0.38);
+  final outlineColor = isEnabled
+      ? (isDark ? Colors.grey.shade700 : Colors.grey.shade300)
+      : (isDark ? Colors.grey.shade800 : Colors.grey.shade200);
   return Semantics(
     button: true,
-    enabled: onPressed != null,
+    enabled: isEnabled,
     label: label,
     onTap: onPressed,
     excludeSemantics: true,
     child: SizedBox(
       width: double.infinity,
       height: spec.height,
-      child: Material(
-        color: bgColor,
-        borderRadius: radius,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
+      // Phase 13.2 REVIEW CR-01 — Material 3 disabled state 시각 cue
+      // (0.5 opacity wrap). 활성 시 1.0 으로 기존 외관 보존.
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.5,
+        child: Material(
+          color: bgColor,
           borderRadius: radius,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              border: Border.all(color: outlineColor),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    assetPath,
-                    width: spec.iconSize,
-                    height: spec.iconSize,
-                    excludeFromSemantics: true,
-                  ),
-                  const SizedBox(width: 8),
-                  // Phase 13.2 Plan 13.2-06 [Rule 1 - Bug]: 좁은 viewport
-                  // (예: 360dp) + 긴 라벨 ('Continue with Facebook' 21자) 시
-                  // Row mainAxisSize.max 가 Padding(horizontal:12) 안에서
-                  // 0.2px overflow. mainAxisSize.min + Flexible(child: Text)
-                  // 으로 안전 fit + 마진 환경에서 ellipsis fallback.
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      // Phase 13.2 UI-REVIEW Pillar 4 정정: WAVE0-LOCK Text slot
-                      // spec — textTheme.labelLarge 토큰 사용, fg 색상은 위에서
-                      // 계산한 colorScheme.onSurface 으로 copyWith 주입.
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(color: fgColor),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: radius,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(color: outlineColor),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      assetPath,
+                      width: spec.iconSize,
+                      height: spec.iconSize,
+                      excludeFromSemantics: true,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    // Phase 13.2 Plan 13.2-06 [Rule 1 - Bug]: 좁은 viewport
+                    // (예: 360dp) + 긴 라벨 ('Continue with Facebook' 21자) 시
+                    // Row mainAxisSize.max 가 Padding(horizontal:12) 안에서
+                    // 0.2px overflow. mainAxisSize.min + Flexible(child: Text)
+                    // 으로 안전 fit + 마진 환경에서 ellipsis fallback.
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        // Phase 13.2 UI-REVIEW Pillar 4 정정: WAVE0-LOCK Text
+                        // slot spec — textTheme.labelLarge 토큰 사용, fg
+                        // 색상은 위에서 계산한 fgColor (disabled 시 38%) 으로
+                        // copyWith 주입.
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: fgColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

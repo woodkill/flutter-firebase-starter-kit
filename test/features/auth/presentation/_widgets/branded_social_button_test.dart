@@ -466,6 +466,88 @@ void main() {
       },
     );
 
+    // ─── T-13.2-FACEBOOK-DISABLED-01: 비활성 상태 시각 cue 회귀 가드 ───────
+    //
+    // **Phase 13.2 REVIEW CR-01 정정 (2026-05-13):** 비활성 시 시각 disabled
+    // cue 부재 회귀 가드. `social_button.dart` 의 docstring 약속 ("Material
+    // default disabled 외관") 과 일치하도록 `_renderFacebookButton` 이
+    // `Opacity(0.5)` wrap + fg/outline faded 분기를 적용. 본 test 는 Opacity
+    // descendant 단독 검증 — 색 변화는 별 layer (fgColor copyWith) 가 책임.
+    testWidgets(
+      'T-13.2-FACEBOOK-DISABLED-01: onPressed=null → 시각 disabled cue '
+      '(Opacity opacity < 1.0)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: null,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // BrandedSocialButton 하위 Opacity 위제 단독 매칭 — descendant 검색.
+        final opacityFinder = find.descendant(
+          of: find.byType(BrandedSocialButton),
+          matching: find.byType(Opacity),
+        );
+        expect(
+          opacityFinder,
+          findsOneWidget,
+          reason: 'CR-01 회귀 가드 — onPressed=null 시 Opacity wrap 부재. '
+              '_renderFacebookButton 의 Material 3 disabled state cue 누락 회귀.',
+        );
+
+        // Opacity.opacity 값이 1.0 미만 (시각 fade) 검증.
+        final opacity = tester.widget<Opacity>(opacityFinder);
+        expect(
+          opacity.opacity,
+          lessThan(1.0),
+          reason: 'CR-01 회귀 가드 — Opacity.opacity 가 1.0 이면 비활성 시각 cue 0. '
+              'Material 3 disabled state spec 위반.',
+        );
+      },
+    );
+
+    // ─── T-13.2-FACEBOOK-ENABLED-01: 활성 상태 Opacity 1.0 보존 가드 ───────
+    testWidgets(
+      'T-13.2-FACEBOOK-ENABLED-01: onPressed=() {} → Opacity 1.0 (활성 시각 보존)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final opacityFinder = find.descendant(
+          of: find.byType(BrandedSocialButton),
+          matching: find.byType(Opacity),
+        );
+        expect(opacityFinder, findsOneWidget);
+        final opacity = tester.widget<Opacity>(opacityFinder);
+        expect(
+          opacity.opacity,
+          1.0,
+          reason: '활성 상태 시 Opacity 1.0 보존 — Material 3 active state 일관.',
+        );
+      },
+    );
+
     testWidgets(
       'T-13.2-FACEBOOK-ASSET-01: BrandedSocialButton.facebook() Image.asset '
       'path = "assets/brand/facebook/facebook_login.png" (D-96 Google 패턴, '
