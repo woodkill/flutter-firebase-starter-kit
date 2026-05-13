@@ -194,7 +194,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Facebook 버튼 탭 (통일 순서 세 번째).
-      await tester.tap(find.text('Sign in with Facebook'));
+      await tester.tap(find.text('Continue with Facebook'));
       await tester.pumpAndSettle();
 
       expect(find.text('HOME_REACHED'), findsOneWidget);
