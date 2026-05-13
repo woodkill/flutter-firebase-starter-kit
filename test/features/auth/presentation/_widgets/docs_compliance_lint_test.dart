@@ -50,6 +50,36 @@ void main() {
       );
     });
 
+    // ─── Phase 13.2 REVIEW WR-03 정정 (2026-05-13): brand redistribution
+    // 회귀 가드. starter-kit clone 시 사용자가 Meta/Google/Kakao/Naver
+    // 라이선스를 별도 동의 없이 받는 vector 를 차단하기 위해 자상 디렉토리에
+    // LICENSE.txt + README.md 둘 모두 존재 의무. 결락 시 RED.
+    //
+    // **Apple 제외 이유:** AppleSpec 는 SDK 위제 (SignInWithAppleButton)
+    // 위임으로 PNG/SVG 자상 미동봉. assets/brand/apple/ 디렉토리는 README.md
+    // 만 보유 (Phase 13.1 D-62 lock).
+    test('Phase 13.2 WR-03: 4 provider 자상 디렉토리 LICENSE.txt + README.md '
+        '동시 존재 검증', () {
+      const providers = <String>['facebook', 'google', 'kakao', 'naver'];
+      for (final provider in providers) {
+        final licenseFile = File('assets/brand/$provider/LICENSE.txt');
+        final readmeFile = File('assets/brand/$provider/README.md');
+        expect(
+          licenseFile.existsSync(),
+          isTrue,
+          reason: 'WR-03 회귀 — assets/brand/$provider/LICENSE.txt 부재. '
+              '$provider trademark 사용 전 라이선스 본문 사전 검토 의무.',
+        );
+        expect(
+          readmeFile.existsSync(),
+          isTrue,
+          reason: 'WR-03 회귀 — assets/brand/$provider/README.md 부재. '
+              'BI URL / 다운로드 일자 / 사전 검수 절차 결락 시 사용자가 '
+              '라이선스 의무 우회 가능.',
+        );
+      }
+    });
+
     test('R12: assets/brand/facebook/README.md 의 sign_in_button retain 명시', () {
       // Arrange.
       final readme = File('assets/brand/facebook/README.md');

@@ -16,6 +16,46 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
+## Brand Assets
+
+본 Starter Kit 는 5개 공식 소셜 로그인 provider (Apple / Facebook / Google /
+Kakao / Naver) 의 공식 brand asset (logo PNG/SVG) 을 `assets/brand/{provider}/`
+디렉토리에 동봉한다. 각 자상은 해당 회사의 trademark 이며, 사용 전 반드시
+다음 절차를 거쳐야 한다 (Meta brand license verbatim — "Meta's trademarks
+are owned by Meta and may only be used as provided in these guidelines or
+with Meta's permission").
+
+### 사용 전 의무 검토 (clone 직후 1회)
+
+1. `assets/brand/{apple,facebook,google,kakao,naver}/LICENSE.txt` — 각
+   provider 의 라이선스 본문 (verbatim 인용 + 사용자 책임 명시 단락) 을
+   숙독한다. 본 파일은 GitHub public repo 의 일부로 자동 복제되지만,
+   라이선스 의무 (예: Meta Brand Resource Center 의 사전 동의 절차) 까지
+   자동 위임되지 않는다.
+2. `assets/brand/{provider}/README.md` — 공식 BI URL / 다운로드 일자 /
+   사전 검수 절차 / 미포함 변형 추가 절차 / 자상 freshness 갱신 빈도
+   7 단락 모두 확인.
+3. `docs/manual.md` 의 `## Brand Asset Management` 단락 — 5 provider
+   라이선스 매트릭스 + 사용자 책임 정책 통합 진실원. fork 시점에 반드시
+   재검토 의무.
+
+### 비-OAuth 사용 시 추가 검토
+
+OAuth 로그인 버튼 외의 컨텍스트 (예: marketing 자료, prominent 배치,
+brand 비교 자료) 로 자상을 재사용할 경우, 각 provider 의 brand center 에
+명시된 사용 조건이 OAuth 로그인 버튼 컨텍스트와 다를 수 있다. 별도
+허가 / 사전 검수 절차 가능성이 있으므로 사용 직전 공식 가이드라인 재확인
+의무.
+
+### 자상 갱신 / 추가
+
+starter-kit 의 자상을 갱신하거나 신규 provider 를 추가할 때는
+`docs/manual.md` 의 `## Brand Asset Management` 단락 절차 (1단계 자산
+다운로드 → 2단계 사전 검수 → 3단계 commit) 를 따른다. LICENSE.txt +
+README.md 가 자상 PNG/SVG 와 동일 디렉토리에 함께 commit 되도록
+유지하며, `test/features/auth/presentation/_widgets/docs_compliance_lint_test.dart`
+의 회귀 가드 (R12 + Phase 13.2 R4) 가 결락을 RED 로 surface 한다.
+
 ## Customization
 
 ### Splash 이미지 커스터마이징 (Splash Image Customization)

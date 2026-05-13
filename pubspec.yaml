@@ -132,6 +132,8 @@ flutter:
     - assets/brand/google/dark/
     - assets/brand/google/neutral/
     - assets/brand/apple/
+    # Meta trademark — Brand Resource Center 라이선스 사전 동의 의무,
+    # assets/brand/facebook/LICENSE.txt 참조 (Phase 13.2 REVIEW WR-03 정정).
     - assets/brand/facebook/
     - assets/brand/line/
     - assets/brand/wechat/
