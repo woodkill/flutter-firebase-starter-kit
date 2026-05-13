@@ -185,17 +185,24 @@ class AppleSpec extends BrandSpec {
   AssetType get assetType => AssetType.none;
 }
 
-/// Facebook 로그인 버튼 spec — sign_in_button community package 위임 wrapper.
+/// Facebook 로그인 버튼 spec — Phase 13.2 완료 (옵션 A pivot, Wave 0 lock).
 ///
-/// 본 spec 의 `BrandedSocialButton.build()` 도달 시 `UnsupportedError` —
-/// `social_button.dart` 의 Facebook 분기에서 직접 `SignInButton(Buttons.facebookNew)`
-/// 호출 (R12 acceptance, sign_in_button 패키지 보존).
+/// `_renderFacebookButton` 호출 단독 — Apple `SignInWithAppleButton` 패턴
+/// mirror. `Theme.brightness` 자동 분기 + 18dp Primary Logo PNG 자상
+/// (`assets/brand/facebook/facebook_login.png`) + ARB `authFacebookSignIn`
+/// 라벨 + 1dp outline + Material radius 12dp. Meta brand pack 의 logo-only
+/// 자상 (wide baked-in 미제공) 으로 Naver/Kakao/Google wide 자상 통째 buttons
+/// 패턴 적용 불가 — Apple SDK 위제 패턴 mirror 의무 (옵션 A pivot).
+///
+/// **D-95 lock:** `AssetType.png` (Meta Primary Logo PNG 단독, SVG 미제공).
+/// **D-94 lock:** theme 필드 부재 (Primary 단독 채택, Kakao 패턴 mirror).
+/// **D-96 lock:** locale 독립 (단일 path, lang 분기 부재).
 class FacebookSpec extends BrandSpec {
-  /// const 생성자.
+  /// const 생성자 — 공통 default (height 48 / radius 12 / icon 18) 사용.
   const FacebookSpec();
 
   @override
-  AssetType get assetType => AssetType.none;
+  AssetType get assetType => AssetType.png;
 }
 
 /// LINE 로그인 버튼 spec — D-73 placeholder (자상 미존재 시 fallback render).
@@ -318,12 +325,11 @@ class BrandedSocialButton extends StatelessWidget {
     appleStyle: style,
   );
 
-  /// Facebook named factory — sign_in_button community package 위임 wrapper.
+  /// Facebook named factory — Phase 13.2 완료 (옵션 A pivot, Wave 0 lock).
   ///
-  /// 본 factory 는 호출자에게 통합된 인터페이스 제공 — 실제 build 는
-  /// `social_button.dart` 의 Facebook 분기에서 직접
-  /// `SignInButton(Buttons.facebookNew)` 호출 (R12 acceptance, sign_in_button
-  /// 패키지 보존).
+  /// `_renderFacebookButton` 위제 직접 호출 (Apple `SignInWithAppleButton`
+  /// 패턴 mirror). `social_button.dart` 의 Facebook 분기는 본 factory 호출만
+  /// (sign_in_button 위임 폐기는 Plan 13.2-05 책임).
   factory BrandedSocialButton.facebook({
     required String label,
     required VoidCallback? onPressed,
@@ -388,10 +394,12 @@ class BrandedSocialButton extends StatelessWidget {
           // D-72-CLARIFY-1 — height SDK 기본 44 존종, SizedBox 래핑 안 함.
         ),
       ),
-      FacebookSpec() => throw UnsupportedError(
-        'FacebookSpec 은 social_button.dart 의 Facebook 분기에서 '
-        'SignInButton(Buttons.facebookNew) 직접 호출 — '
-        'BrandedSocialButton 까지 도달 금지 (R12 acceptance)',
+      // Phase 13.2 — see ROADMAP.md (R5 — FacebookSpec active 전환, 옵션 A pivot)
+      final FacebookSpec facebookSpec => _renderFacebookButton(
+        context,
+        facebookSpec,
+        label,
+        onPressed,
       ),
       LineSpec() || WechatSpec() => _renderPlaceholder(context, spec, label),
       KakaoSpec() => _renderActiveButton(context, spec, label, onPressed),
@@ -502,6 +510,96 @@ Widget _renderActiveButton(
   );
 }
 
+/// Facebook 전용 render — 옵션 A pivot (Wave 0 lock).
+///
+/// **옵션 A pivot 의무 (13.2-WAVE0-LOCK.md):** Meta brand pack 은 logo-only
+/// 자상 (Primary Logo 2084×2084 square PNG) 단독 제공 — Kakao/Naver/Google 의
+/// wide 자상 통째 buttons 패턴 (자상에 배경+라벨+로고 모두 baked-in) 적용
+/// 불가. Apple `SignInWithAppleButton` SDK 위제 패턴 mirror 의무 — Logo 18dp
+/// icon 슬롯 + ARB 라벨 외부 layer + Theme.brightness 자동 분기 + 1dp outline.
+///
+/// **render 사양 매트릭스:**
+/// - SizedBox: `width: double.infinity` / `height: spec.height` (48dp).
+/// - Material: light = white bg / dark = black bg, `borderRadius: 12dp`,
+///   `clipBehavior: Clip.antiAlias` (Apple 패턴 mirror).
+/// - 1dp outline: light = `Colors.black12` / dark = `Colors.white24`.
+/// - InkWell: `borderRadius: 12dp`, ripple 영역 제어.
+/// - Row: `padding: EdgeInsets.symmetric(horizontal: 12)` + `gap 8dp` (SizedBox
+///   8dp, Phase 13.1 appSpacing.sm 일관).
+/// - Image.asset: `assets/brand/facebook/facebook_login.png`, 18×18 (Phase 13.1
+///   iconSize 일관), `excludeFromSemantics: true`.
+/// - Text: `authFacebookSignIn` ARB 라벨, fontSize 14 / fontWeight w500 /
+///   letterSpacing 0.1 (Phase 13.1 D-82 머레).
+/// - Semantics 외부 layer 단독 권위: `button: true`, `enabled: onPressed != null`,
+///   `label`, `onTap: onPressed`, `excludeSemantics: true` (Phase 13.1 a11y
+///   layer 패턴 머레, iter2 CR-01 정정 일관).
+///
+/// **AppleSpec/KakaoSpec/NaverSpec/GoogleSpec/LineSpec/WechatSpec 영향 없음** —
+/// 본 함수는 build() 의 FacebookSpec 분기에서만 호출.
+Widget _renderFacebookButton(
+  BuildContext context,
+  FacebookSpec spec,
+  String label,
+  VoidCallback? onPressed,
+) {
+  final assetPath = _iconAssetFor(context, spec);
+  final radius = BorderRadius.circular(spec.borderRadius);
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final bgColor = isDark ? Colors.black : Colors.white;
+  final fgColor = isDark ? Colors.white : Colors.black;
+  final outlineColor = isDark ? Colors.white24 : Colors.black12;
+  return Semantics(
+    button: true,
+    enabled: onPressed != null,
+    label: label,
+    onTap: onPressed,
+    excludeSemantics: true,
+    child: SizedBox(
+      width: double.infinity,
+      height: spec.height,
+      child: Material(
+        color: bgColor,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: radius,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(color: outlineColor),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    assetPath,
+                    width: spec.iconSize,
+                    height: spec.iconSize,
+                    excludeFromSemantics: true,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.1,
+                      color: fgColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 /// 자상 file path resolver — provider + theme + (Naver/Kakao) locale 분기.
 ///
 /// **Kakao (Plan 13.1-07 결정):** 공식 자상은 density bucket(1x/2x/3x)이 아닌
@@ -551,8 +649,12 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
         '$kBrandAssetBase/google/neutral/btn_signin_full.svg',
       GoogleTheme.light => '$kBrandAssetBase/google/light/btn_signin_full.svg',
     },
-    // 다른 spec 은 자상 path 호출 안 됨 (Apple/Facebook/Line/Wechat).
-    AppleSpec() || FacebookSpec() || LineSpec() || WechatSpec() => '',
+    // Phase 13.2 — see ROADMAP.md (R6 — FacebookSpec _iconAssetFor branch
+    // active, D-96 Google 패턴 locale 독립 단일 path).
+    FacebookSpec() => '$kBrandAssetBase/facebook/facebook_login.png',
+    // 다른 spec 은 자상 path 호출 안 됨 (Apple/Line/Wechat — SDK 위제 위임 또는
+    // placeholder render).
+    AppleSpec() || LineSpec() || WechatSpec() => '',
   };
 }
 
@@ -582,11 +684,7 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
 /// unreachable (Phase 14/16 strategy 가 BrandedSocialButton.line() /
 /// .wechat() 호출 안 함). debugPrint 가 누락 detection 가치 0 + runtime
 /// noise 만 부담 → 폐기.
-Widget _renderPlaceholder(
-  BuildContext context,
-  BrandSpec spec,
-  String label,
-) {
+Widget _renderPlaceholder(BuildContext context, BrandSpec spec, String label) {
   final l10n = AppLocalizations.of(context);
   return SizedBox(
     width: double.infinity,
