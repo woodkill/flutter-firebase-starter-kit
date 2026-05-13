@@ -1,0 +1,101 @@
+Facebook (Meta) Brand Asset License
+====================================
+
+Verbatim 라이선스 (Meta Brand Resource Center):
+
+  Meta's trademarks are owned by Meta and may only be used as provided
+  in these guidelines or with Meta's permission.
+
+Source:
+  - 공식 BI URL: https://www.meta.com/brand/resources/facebook/logo/
+                (Meta Brand Resource Center, Facebook Logo 단락)
+  - 자산 다운로드: 위 페이지의 "Download" 버튼 → "Facebook Brand Asset Pack"
+                  ZIP 다운 → 압축 해제 → `Logo/Primary Logo/Facebook_Logo_Primary.png`
+  - 다운로드 일자: 2026-05-13
+  - 공식 BI 컬러: Hex `#1877F2` (R = 24, G = 119, B = 242)
+                 (developers.facebook.com/docs/facebook-login/userexperience/
+                  Facebook Login UX Guide verbatim)
+  - 변형 금지 verbatim: `DON'T modify the 'f' logo in any way`
+                       (developers.facebook.com Facebook Login UX Guide)
+  - 라벨 옵션 verbatim: `'Continue with Facebook' or 'Login with Facebook'`
+                       (2종, developers.facebook.com Facebook Login UX Guide)
+
+Bundled assets (1 PNG):
+  - assets/brand/facebook/facebook_login.png
+
+Official ↔ starter-kit naming map:
+  공식 파일명                                          starter-kit 명명
+  ─────────────────────────────────────────────────────────────────────
+  Facebook_Logo_Primary.png                       →    facebook_login.png
+  (Primary Logo: 흰 'f' 마크 + #1877F2 원형 배경, 2084×2084 square,
+   PNG 8-bit/color RGBA non-interlaced)
+
+Variant scope:
+  본 starter-kit 은 Meta Brand Resource Center 가 `Facebook Brand Asset Pack`
+  ZIP 으로 제공하는 자상 매트릭스 중 **Primary Logo PNG 1개** 만 동봉합니다.
+  채택 차원:
+    - Form: Primary (파란 #1877F2 원형 배경 + 흰 'f') 단독 채택
+    - Theme: 미분기 (D-94 Kakao 패턴, FacebookSpec theme 필드 부재)
+    - Locale: 미분기 (D-96 Google 패턴, locale 독립 — Facebook 'f' 마크는
+              언어 중립 — Roboto/Helvetica Latin 라벨 baked-in 아님)
+    - Format: PNG only (D-95 = AssetType.png — Meta 의 logo pack 은 AI + PNG
+              제공, SVG 미제공이라 PNG 채택)
+  미포함 variant:
+    - Secondary Logo (흰 원형 배경 + 검정 'f') — 모노크롬 인쇄/단색 환경 전용
+      이라 Flutter mobile 컬러 환경에서는 Primary 단독으로 충분. Theme.dark
+      에서도 Primary 의 #1877F2 배경이 가시성 보장 (1dp grey outline + white
+      bg 패턴으로 dark theme 대응, D-93 fallback path D-94 채택과 일관).
+    - AI 원본 파일 (Facebook_Logo_Primary.ai 164217 bytes) — Flutter 가
+      Image.asset 로 PNG 직접 로드, AI 직접 사용 불가이므로 미동봉.
+    - Login Button baked-in 자상 (예: "Continue with Facebook" 라벨 포함 PNG)
+      — Meta 가 developers.facebook.com/docs/facebook-login/web/login-button
+      에서 JS SDK 동적 위젯 (`data-button-type="continue_with"`) + 사이즈
+      매트릭스 (Small 20×200 / Medium 28×200-320 / Large 40×240-400) 만
+      명시. Flutter mobile 환경에서 JS SDK 위젯 임베드 불가 → starter-kit
+      이 Apple `SignInWithAppleButton` 패턴 mirror 로 자체 render
+      (Image.asset 18×18 + Text(authFacebookSignIn ARB) Row 조합, Plan
+      13.2-04 의 `_renderFacebookButton` 함수).
+
+License terms (Meta Brand Resource Center
+https://www.meta.com/brand/resources/facebook/logo/ 2026-05-13 기준):
+
+  변형 금지 (Modification Prohibitions, developers.facebook.com verbatim):
+    - `DON'T modify the 'f' logo in any way`
+      (자상 색상 변경 금지 / 비율·회전·왜곡 금지 / 일부분만 사용 금지 /
+       overlay 금지 / texture 적용 금지 / drop shadow 추가 금지 의무 포함)
+    - 공식 색 #1877F2 보존 의무 (R = 24, G = 119, B = 242)
+
+  사용 시 의무 사항 (Mandatory Usage Requirements):
+    - Meta's trademarks are owned by Meta and may only be used as provided
+      in these guidelines or with Meta's permission. (라이선스 verbatim 그대로)
+    - 공식 자상 PNG 파일 콘텐츠 그대로 동봉 (rename 만 허용 — 디렉토리 구조에서
+      차원 분리 위해, 콘텐츠 변경은 금지)
+    - 다른 브랜드 자상과 동일 시각 weight 부여 의무 (Phase 13.1 D-A~D-L
+      균질 자상 패턴 일관)
+    - "Facebook", "facebook", "페이스북" 텍스트의 대체 또는 변형 금지
+
+  사전 검수 절차 (Prior Review Procedure):
+    - Meta Brand Resource Center (https://www.meta.com/brand/resources/) 의
+      이용 약관 + 자상 사용 가이드 라인 사용자 직접 검토 의무
+    - Meta's permission 의무 케이스 (예: 마케팅 자료에 Facebook 로고 prominent
+      배치) 의 경우 Meta Brand 팀 사전 문의 의무 (사용자 책임 — 본 starter-kit
+      은 일반 OAuth 로그인 버튼 사용 케이스, "as provided in these guidelines"
+      범위 내)
+
+Notes:
+  1. 본 starter-kit 의 `BrandedSocialButton.facebook(...)` factory (Plan
+     13.2-04 도입) 는 Apple `SignInWithAppleButton` 패턴 mirror 로 자체
+     render — `_renderFacebookButton(context, spec, label, onPressed)`
+     함수가 SizedBox(width: double.infinity, height: 48) + Material(white
+     bg, radius 12, 1dp grey outline) + InkWell(borderRadius: 12) +
+     Row(padding 12, gap 8) [Image.asset(facebook_login.png, 18×18) +
+     Text(authFacebookSignIn ARB)] 구성. Theme.brightness 자동 분기
+     (light = white bg + black text + grey outline; dark = dark bg + white
+     text + lighter outline) — D-I 일관.
+  2. 자상 freshness 갱신 정책: 1년 (assets/brand/facebook/README.md 의 7필드
+     중 #7). 1년 경과 시 https://www.meta.com/brand/resources/facebook/logo/
+     재방문 + 자상 갱신 여부 확인 의무.
+  3. 본 라이선스 텍스트는 2026-05-13 시점 Meta Brand Resource Center
+     verbatim 인용 + Phase 13.2-RESEARCH.md §Verbatim 1 / §Verbatim 2
+     검증 기반 사실 정리. Meta 공식 페이지의 라이선스 verbatim 텍스트가 본
+     텍스트와 다를 경우 공식 페이지가 우선.
