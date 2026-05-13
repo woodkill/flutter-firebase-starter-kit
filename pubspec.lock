@@ -661,14 +661,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  font_awesome_flutter:
-    dependency: "direct overridden"
-    description:
-      name: font_awesome_flutter
-      sha256: b9011df3a1fa02993630b8fb83526368cf2206a711259830325bab2f1d2a4eb0
-      url: "https://pub.dev"
-    source: hosted
-    version: "10.12.0"
   freezed:
     dependency: "direct dev"
     description:
@@ -1309,14 +1301,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
-  sign_in_button:
-    dependency: "direct main"
-    description:
-      name: sign_in_button
-      sha256: "1eeaecb2eb8566160c224a6ab243d5cc617c5a5c5a8e0d146734aa8f5f924f6c"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.1.0"
   sign_in_with_apple:
     dependency: "direct main"
     description:
