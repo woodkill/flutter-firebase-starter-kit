@@ -210,12 +210,19 @@ void main() {
     // **검증 사양 (Plan 13.2-02 acceptance verbatim):**
     // - SocialButton(strategy: facebookStrategy) pump 후
     //   find.byType(BrandedSocialButton) 매치 (위임 검증)
-    // - find.byType(Opacity) 0 매치 — Phase 13.1 WR-05 의 Opacity 0.5 dim
-    //   패턴 폐기 (BrandedSocialButton 의 Material disabled 외관 일관)
-    // - find.byType(IgnorePointer) 0 매치 — IgnorePointer 패턴 폐기
+    // - 활성 상태 (isDisabled: false) 에서 caller-side Opacity 0.5 dim 패턴
+    //   부재 검증 — Phase 13.1 WR-05 의 caller-side dim wrapper 폐기.
+    // - find.byType(IgnorePointer) 0 매치 — IgnorePointer 패턴 폐기.
+    //
+    // **Phase 13.2 REVIEW CR-01 정정 (2026-05-13):** 본 test 의 의도는
+    // "caller-side Opacity 0.5 dim wrapper 폐기" — `_renderFacebookButton`
+    // 위제 내부의 disabled state cue Opacity (CR-01 fix 로 도입) 와 의미
+    // 분리. 활성 상태에서는 internal Opacity 가 1.0 이므로 시각 dim 0 —
+    // assertion 을 "Opacity.opacity 가 모두 1.0" 으로 정정하여 두 개념을
+    // 양립.
     testWidgets(
       'T-13.2-FACEBOOK-DELEGATION-01: Facebook 분기 → BrandedSocialButton'
-      '.facebook 위임 + Opacity/IgnorePointer 0 매치 (R7 RED)',
+      '.facebook 위임 + 활성 시 caller-side dim 0 (R7 acceptance)',
       (tester) async {
         const strategy = _FakeStrategy(
           kProviderIdFacebook,
@@ -234,19 +241,26 @@ void main() {
         );
         expect(btn.spec, isA<FacebookSpec>());
 
-        // R7 verbatim acceptance — Opacity/IgnorePointer 패턴 0 매치.
-        // 단, MaterialApp/Theme 가 내부적으로 Opacity 위제를 트리에 주입할
-        // 가능성 있으므로 SocialButton descendant 한정으로 anchor.
-        final opacityFinder = find.descendant(
-          of: find.byType(SocialButton),
-          matching: find.byType(Opacity),
-        );
-        expect(
-          opacityFinder,
-          findsNothing,
-          reason: 'Phase 13.2 R7 verbatim — Opacity 0.5 dim 패턴 폐기. '
-              'BrandedSocialButton Material disabled 외관 단독 권위.',
-        );
+        // 활성 상태 — SocialButton descendant 의 모든 Opacity 위제는
+        // opacity == 1.0 (시각 dim 0). caller-side dim wrapper (Phase 13.1
+        // WR-05) 가 부활하면 본 검증이 RED 로 회귀 surface.
+        final opacityWidgets = tester
+            .widgetList<Opacity>(
+              find.descendant(
+                of: find.byType(SocialButton),
+                matching: find.byType(Opacity),
+              ),
+            )
+            .toList();
+        for (final op in opacityWidgets) {
+          expect(
+            op.opacity,
+            1.0,
+            reason: 'Phase 13.2 R7 — 활성 상태에서 caller-side 또는 widget-'
+                'internal dim 0. CR-01 fix 의 disabled cue Opacity 는 '
+                'isDisabled=true 시에만 < 1.0.',
+          );
+        }
         final ignorePointerFinder = find.descendant(
           of: find.byType(SocialButton),
           matching: find.byType(IgnorePointer),
