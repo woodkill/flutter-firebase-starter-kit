@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:sign_in_button/sign_in_button.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
@@ -35,13 +34,13 @@ Future<void> _pumpSignup(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(
-          const Locale('en'),
-        ).overrideWithValue(const <AuthStrategy>[
-          GoogleAuthStrategy(),
-          AppleAuthStrategy(),
-          FacebookAuthStrategy(),
-        ]),
+        activeStrategiesProvider(const Locale('en')).overrideWithValue(
+          const <AuthStrategy>[
+            GoogleAuthStrategy(),
+            AppleAuthStrategy(),
+            FacebookAuthStrategy(),
+          ],
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -203,21 +202,19 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets(
-      '7. 소셜 버튼 3개(Google + Apple + Facebook) 렌더링 — '
-      'Phase 13.1 caller refactor 후 Google/Apple 은 BrandedSocialButton, '
-      'Facebook 만 SignInButton 잔존',
-      (tester) async {
-        when(
-          () => mockRepo.signInWithFacebook(),
-        ).thenAnswer((_) async => null);
-        await _pumpSignup(tester, mockRepo);
-        // Plan 13.1-08 — Google/Apple → BrandedSocialButton, Facebook → SignInButton.
-        expect(find.byType(SocialButton), findsNWidgets(3));
-        expect(find.byType(BrandedSocialButton), findsNWidgets(2));
-        expect(find.byType(SignInButton), findsNWidgets(1));
-      },
-    );
+    testWidgets('7. 소셜 버튼 3개(Google + Apple + Facebook) 렌더링 — '
+        'Phase 13.2 caller refactor 후 모든 provider 가 '
+        'BrandedSocialButton 단일 위임', (tester) async {
+      when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+      await _pumpSignup(tester, mockRepo);
+      // Phase 13.2 R7/R8 (옵션 A pivot, Wave 0 lock D-94) — Facebook 분기도
+      // BrandedSocialButton.facebook 위임 (Meta 공식 자상 PNG + Apple
+      // SignInWithAppleButton 패턴 mirror 의 _renderFacebookButton 위제).
+      // Google/Apple/Facebook 3 provider 모두 BrandedSocialButton 단일
+      // 위임 — sign_in_button 패키지 의존 폐기 (R10).
+      expect(find.byType(SocialButton), findsNWidgets(3));
+      expect(find.byType(BrandedSocialButton), findsNWidgets(3));
+    });
 
     testWidgets('8. OrDivider "or" 텍스트가 표시된다', (tester) async {
       await _pumpSignup(tester, mockRepo);
