@@ -100,6 +100,14 @@ class SocialButton extends ConsumerWidget {
         // 로 18dp 'f' 아이콘 + ARB 라벨 + Theme.brightness 자동 분기 + 1dp
         // outline + Material disabled 외관 일관 표현. Phase 13.1 의 dim wrapper
         // 패턴은 위제 내부의 Material disabled 외관으로 자연 해소.
+        //
+        // **Phase 13.2 REVIEW IN-02 정정 (2026-05-13):** D-94 lock 명시 —
+        // FacebookSpec 의 theme 필드 부재 (Primary Logo 단독 채택, Kakao
+        // 패턴 mirror). 따라서 본 분기는 `brightness` 매개변수 미전달.
+        // Theme.brightness 자동 분기는 `_renderFacebookButton` 위제 내부
+        // 책임 — Naver/Google 의 caller-side `brightness` 매개변수 전달
+        // 패턴과 분리. 미래 reader 가 Facebook 분기의 brightness 사용 누락을
+        // "미완성 implementation" 으로 오해 차단.
         return BrandedSocialButton.facebook(label: label, onPressed: onPressed);
       default:
         throw UnsupportedError('Unknown providerId: ${strategy.providerId}');
