@@ -573,6 +573,7 @@ Widget _renderFacebookButton(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Image.asset(
                     assetPath,
@@ -581,13 +582,22 @@ Widget _renderFacebookButton(
                     excludeFromSemantics: true,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.1,
-                      color: fgColor,
+                  // Phase 13.2 Plan 13.2-06 [Rule 1 - Bug]: 좁은 viewport
+                  // (예: 360dp) + 긴 라벨 ('Continue with Facebook' 21자) 시
+                  // Row mainAxisSize.max 가 Padding(horizontal:12) 안에서
+                  // 0.2px overflow. mainAxisSize.min + Flexible(child: Text)
+                  // 으로 안전 fit + 마진 환경에서 ellipsis fallback.
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.1,
+                        color: fgColor,
+                      ),
                     ),
                   ),
                 ],
