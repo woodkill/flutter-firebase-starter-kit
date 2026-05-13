@@ -42,8 +42,12 @@ abstract class AuthStrategy {
   /// ARB 키 (예: `'authGoogleSignIn'`).
   String get labelKey;
 
-  /// 버튼 렌더링 식별자 — `sign_in_button` 패키지의 `Buttons` enum 매핑
-  /// (Phase 11-04).
+  /// 버튼 렌더링 식별자 (Phase 11-04 placeholder, Phase 13.2 이후 보존).
+  ///
+  /// 도메인 Strategy 의 식별 metadata 단독 — 실제 렌더링은
+  /// [BrandedSocialButton] 의 sealed [BrandSpec] 분기 + ProviderId 매핑이
+  /// 단일 진실원. 본 식별자는 미래 외부 SDK / dispatch hook 가능성을 위한
+  /// metadata 슬롯이며 현행 코드 path 에서 사용되지 않는다.
   String get iconAsset;
 
   /// 로그인 실행 진입점.

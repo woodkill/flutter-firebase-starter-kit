@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sign_in_button/sign_in_button.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../../core/auth/auth_strategy.dart';
@@ -11,8 +10,8 @@ import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import 'branded_social_button.dart';
 
-/// 단일 [AuthStrategy] 를 [BrandedSocialButton] 또는 `sign_in_button` 위제로
-/// 렌더링하는 공용 버튼 (Phase 11 D-11, Pattern G).
+/// 단일 [AuthStrategy] 를 [BrandedSocialButton] 위제로 렌더링하는 공용 버튼
+/// (Phase 11 D-11, Pattern G).
 ///
 /// **Phase 13.1 변경 (D-62 / D-64 / R5 / R6):**
 /// - Apple 분기 → [BrandedSocialButton.apple] 위임 (1st-party
@@ -20,7 +19,12 @@ import 'branded_social_button.dart';
 /// - Google 분기 → [BrandedSocialButton.google] 위임 (공식 SVG 6종)
 /// - Naver 분기 → [BrandedSocialButton.naver] (theme 매개변수 명시)
 /// - Kakao 분기 → [BrandedSocialButton.kakao] (Phase 13 D-55 기존 위임)
-/// - Facebook 만 `SignInButton(Buttons.facebookNew)` 잔존 (R12 — Phase 18 마이그)
+///
+/// **Phase 13.2 변경 (R7 / R8 — Meta 공식 자상 마이그):**
+/// - Facebook 분기 → [BrandedSocialButton.facebook] 위임 (Meta 공식 'f' 마크
+///   PNG + Apple `SignInWithAppleButton` 패턴 mirror 의 자체 위제 구현).
+///   Phase 13.2 완료 — 모든 provider 가 [BrandedSocialButton] 단일 진실원으로
+///   일관 위임.
 ///
 /// **Brand Guideline 단일 진실원:**
 /// `lib/features/auth/presentation/_widgets/branded_social_button.dart`.
@@ -41,9 +45,9 @@ class SocialButton extends ConsumerWidget {
 
   /// 다른 사회적 로그인 / 폼 로딩 등으로 인한 비활성 상태.
   ///
-  /// `sign_in_button` 의 `onPressed` 는 non-nullable 이므로 빈 콜백으로 교체.
-  /// [BrandedSocialButton] 분기에서는 `onPressed` 에 `null` 을 전달해
-  /// Material default disabled 상태로 만든다.
+  /// 모든 provider 분기에서 `onPressed` 에 `null` 을 전달해 [BrandedSocialButton]
+  /// 의 Material default disabled 외관으로 만든다 (Phase 13.2 완료 — Facebook
+  /// 분기도 [BrandedSocialButton.facebook] 위임 일관).
   final bool isDisabled;
 
   @override
@@ -90,35 +94,15 @@ class SocialButton extends ConsumerWidget {
           onPressed: onPressed,
         );
       case kProviderIdFacebook:
-        // R12 — sign_in_button community package 잔존 (Phase 18 마이그 예정).
-        // Phase 13.1 REVIEW WR-04 정정 (2026-05-10): magic number `48` →
-        // `const FacebookSpec().height` 참조. Phase 18 Brand Center 마이그
-        // 시 BrandSpec.height 변경 시 Facebook 분기도 자동 동기화.
-        // Phase 13.1 REVIEW WR-05 정정 (2026-05-10): isDisabled 시 시각
-        // 피드백 부재 회귀 — sign_in_button 의 onPressed non-nullable 제약
-        // 으로 빈 콜백 교체 시 enabled 외관 보존되어 사용자 confusion. 다른
-        // provider (Apple/Google/Kakao/Naver) 의 Material default disabled
-        // 외관과 일관 위해 Opacity 0.5 + IgnorePointer 패턴으로 dim 표현.
-        return Opacity(
-          opacity: isDisabled ? 0.5 : 1.0,
-          child: IgnorePointer(
-            ignoring: isDisabled,
-            child: SizedBox(
-              width: double.infinity,
-              height: const FacebookSpec().height,
-              child: SignInButton(
-                Buttons.facebookNew,
-                text: label,
-                // sign_in_button 의 onPressed 는 non-nullable.
-                onPressed: onPressed ?? () {},
-              ),
-            ),
-          ),
-        );
+        // Phase 13.2 R7 / R8 (옵션 A pivot, Wave 0 lock D-94) — Meta 공식
+        // 자상 마이그. `BrandedSocialButton.facebook` 이 Apple
+        // `SignInWithAppleButton` 패턴 mirror 의 자체 위제 (`_renderFacebookButton`)
+        // 로 18dp 'f' 아이콘 + ARB 라벨 + Theme.brightness 자동 분기 + 1dp
+        // outline + Material disabled 외관 일관 표현. Phase 13.1 의 dim wrapper
+        // 패턴은 위제 내부의 Material disabled 외관으로 자연 해소.
+        return BrandedSocialButton.facebook(label: label, onPressed: onPressed);
       default:
-        throw UnsupportedError(
-          'Unknown providerId: ${strategy.providerId}',
-        );
+        throw UnsupportedError('Unknown providerId: ${strategy.providerId}');
     }
   }
 
@@ -134,12 +118,12 @@ class SocialButton extends ConsumerWidget {
   /// 의미 있는 라벨 매핑:
   /// - `authAppleSignIn` — [SignInWithAppleButton] 의 `text` 매개변수에 주입
   ///   (Apple HIG ko/en/ja 변형 모두 표시).
-  /// - `authFacebookSignIn` — [SignInButton] 의 `text` 매개변수에 주입
-  ///   (R12 sign_in_button community package 잔존).
+  /// - `authFacebookSignIn` — `_renderFacebookButton` 내부 [Text] 위제로 주입
+  ///   (Phase 13.2 완료 — Meta 공식 자상 + 라벨 외부 layer).
   ///
   /// 무시되는 라벨 매핑 (자상 baked-in):
   /// - `authKakaoSignIn` / `authNaverSignIn` / `authGoogleSignIn`. 단
-  ///   접근성 (Semantics) layer 에서 향후 활용 가능 (Phase 18 검토).
+  ///   접근성 (Semantics) layer 에서 향후 활용 가능.
   ///
   /// Phase 12 — `authKakaoSignIn` 추가 (D-29).
   /// Phase 13 Plan 13-06 — `authNaverSignIn` 추가 (Wave 4 atomic 분리 —

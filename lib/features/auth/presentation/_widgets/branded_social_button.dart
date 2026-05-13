@@ -328,8 +328,8 @@ class BrandedSocialButton extends StatelessWidget {
   /// Facebook named factory — Phase 13.2 완료 (옵션 A pivot, Wave 0 lock).
   ///
   /// `_renderFacebookButton` 위제 직접 호출 (Apple `SignInWithAppleButton`
-  /// 패턴 mirror). `social_button.dart` 의 Facebook 분기는 본 factory 호출만
-  /// (sign_in_button 위임 폐기는 Plan 13.2-05 책임).
+  /// 패턴 mirror). `social_button.dart` 의 Facebook 분기가 본 factory 로 위임
+  /// (Plan 13.2-05 완료 — 모든 provider 가 [BrandedSocialButton] 단일 진실원).
   factory BrandedSocialButton.facebook({
     required String label,
     required VoidCallback? onPressed,
