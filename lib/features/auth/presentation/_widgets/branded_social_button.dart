@@ -671,15 +671,26 @@ Widget _renderFacebookButton(
 ///   android_{theme}_rd_ctn.svg → google/{theme}/btn_signin_full.svg
 ///   android_{theme}_rd_na.svg  → google/{theme}/btn_signin_icon.svg
 String _iconAssetFor(BuildContext context, BrandSpec spec) {
-  final lang = Localizations.localeOf(context).languageCode == 'ko'
-      ? 'ko'
-      : 'en';
+  // Phase 13.2 REVIEW WR-06 정정 (2026-05-13): outer scope 의 `final lang`
+  // 계산이 KakaoSpec/NaverSpec 만 사용하고 FacebookSpec/GoogleSpec/
+  // AppleSpec/LineSpec/WechatSpec 분기는 dead 계산이었음 (특히 FacebookSpec
+  // 은 D-96 locale 독립 lock). Localizations dependency 자동 register 가
+  // locale 변경 시 Facebook 버튼 불필요 rebuild trigger. IIFE 패턴으로
+  // lang 계산을 KakaoSpec/NaverSpec 분기 내부로 격리.
   return switch (spec) {
-    KakaoSpec() =>
-      '$kBrandAssetBase/kakao/$lang/light/kakao_login_large_wide.png',
-    NaverSpec(theme: final t) =>
-      '$kBrandAssetBase/naver/$lang/'
-          '${t == NaverTheme.dark ? 'dark' : 'light'}/naver_login_h48_wide.png',
+    KakaoSpec() => () {
+      final lang = Localizations.localeOf(context).languageCode == 'ko'
+          ? 'ko'
+          : 'en';
+      return '$kBrandAssetBase/kakao/$lang/light/kakao_login_large_wide.png';
+    }(),
+    NaverSpec(theme: final t) => () {
+      final lang = Localizations.localeOf(context).languageCode == 'ko'
+          ? 'ko'
+          : 'en';
+      return '$kBrandAssetBase/naver/$lang/'
+          '${t == NaverTheme.dark ? 'dark' : 'light'}/naver_login_h48_wide.png';
+    }(),
     // Phase 13.1 REVIEW WR-07 정정 (2026-05-10): nested ternary →
     // exhaustive switch. Kakao/Naver 의 단일 ternary 와 일관성 + Dart 3
     // idiomatic + GoogleTheme enum 확장 시 컴파일 fail 강제.
@@ -690,7 +701,8 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
       GoogleTheme.light => '$kBrandAssetBase/google/light/btn_signin_full.svg',
     },
     // Phase 13.2 — see ROADMAP.md (R6 — FacebookSpec _iconAssetFor branch
-    // active, D-96 Google 패턴 locale 독립 단일 path).
+    // active, D-96 Google 패턴 locale 독립 단일 path). Localizations
+    // dependency 미사용 — locale 변경 시 rebuild trigger 0.
     FacebookSpec() => '$kBrandAssetBase/facebook/facebook_login.png',
     // 다른 spec 은 자상 path 호출 안 됨 (Apple/Line/Wechat — SDK 위제 위임 또는
     // placeholder render).
