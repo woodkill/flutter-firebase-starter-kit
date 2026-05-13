@@ -554,32 +554,44 @@ void main() {
       expect(repo.existsSync(), isTrue, reason: 'auth_repository.dart 부재');
       final content = repo.readAsStringSync();
 
-      // Act — signInWithFacebook 함수 body 추출 (function 진입 → 다음
-      // top-level 함수 진입 직전까지). Dart source 의 indent 구조 의존
-      // (1depth 함수 body 는 2~6 space, 다음 함수 시작은 동일 indent 의
-      // signature).
-      final entryIdx = content.indexOf(
-        'Future<Result<User>?> signInWithFacebook()',
+      // Phase 13.2 REVIEW WR-04 정정 (2026-05-13): 함수 body 추출 fragile
+      // (literal indexOf + indent 의존 substring) → 정규식 기반 + brace
+      // counting robust 패턴 전환. (1) 함수 반환 타입 변경 (예: Stream,
+      // void) 회귀 시 root cause 가림 해소, (2) class indent 변경 시 false
+      // positive PASS 차단, (3) nested `Future<List<X>>` 등 generic 안의
+      // substring 매칭 우회.
+      final pattern = RegExp(
+        r'^\s*[A-Za-z<>?,\s]+\s+signInWithFacebook\s*\([^)]*\)\s*(?:async\s*)?\{',
+        multiLine: true,
       );
+      final match = pattern.firstMatch(content);
       expect(
-        entryIdx,
-        greaterThanOrEqualTo(0),
-        reason: 'signInWithFacebook 함수 부재 — R17 sentinel 대상 미존재',
+        match,
+        isNotNull,
+        reason:
+            'WR-04 회귀 가드 — signInWithFacebook 함수 시그니처 부재. '
+            'auth_repository 의 함수 명 변경 / 시그니처 refactor 회귀 '
+            '가능성. R17 sentinel 대상 미존재.',
       );
-      // 다음 함수 시그니처 발견 위치 (다음 Future\s\w+ 시작) 까지로 body
-      // 범위 추출. 단 함수 body 자체에 `Future` 출현 가능하므로 `\n  ///`
-      // (다음 doc comment) 또는 `\n  Future<` (다음 함수) 중 빠른 위치 채택.
-      final afterEntry = content.substring(entryIdx);
-      final nextFuncIdx = afterEntry.indexOf('\n  Future<', 1);
-      final nextDocIdx = afterEntry.indexOf('\n  ///', 1);
-      var bodyEnd = afterEntry.length;
-      if (nextFuncIdx > 0 && nextFuncIdx < bodyEnd) {
-        bodyEnd = nextFuncIdx;
+      // `{` 부터 매칭하는 `}` 까지 brace depth counting 으로 body 추출.
+      var depth = 1;
+      var idx = match!.end;
+      while (depth > 0 && idx < content.length) {
+        final ch = content[idx];
+        if (ch == '{') {
+          depth += 1;
+        } else if (ch == '}') {
+          depth -= 1;
+        }
+        idx += 1;
       }
-      if (nextDocIdx > 0 && nextDocIdx < bodyEnd) {
-        bodyEnd = nextDocIdx;
-      }
-      final body = afterEntry.substring(0, bodyEnd);
+      expect(
+        depth,
+        0,
+        reason:
+            'WR-04 회귀 가드 — signInWithFacebook brace 미균형 (구문 손상).',
+      );
+      final body = content.substring(match.end, idx);
 
       // Assert — body 안에 두 helper 호출 substring ≥ 1 each.
       expect(
