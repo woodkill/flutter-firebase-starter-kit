@@ -1,19 +1,24 @@
 // Phase 13.1 Plan 13.1-08 — caller refactor 회귀 가드.
+// Phase 13.2 Plan 13.2-02 — Facebook 분기 BrandedSocialButton 위임 검증 +
+// D-98 findsNothing sentinel 폐기 + sign_in_button 패키지 import 제거.
 //
-// **갱신 의도 (D-13.1-05-CASCADE acceptance):**
+// **갱신 의도 (D-13.1-05-CASCADE acceptance + Phase 13.2 R7/D-98):**
 // - Plan 13.1-05 의 sealed BrandSpec 마이그레이션 + Plan 13.1-07 자상 commit +
 //   Plan 13.1-08 caller refactor 결과를 종합 검증한다.
 // - Apple/Google/Naver 분기는 BrandedSocialButton 의 named factory 위임 검증
 //   (Buttons.* enum 검증 폐기 — Buttons.{apple,googleDark,...} 는 Phase 13.1
-//   에서 사용하지 않음).
-// - Facebook 만 sign_in_button (Buttons.facebookNew) 잔존 (R12 acceptance).
+//   에서 사용하지 않음). Phase 13.2 D-98 — `find.byType(SignInButton),
+//   findsNothing` sentinel 도 폐기 (sign_in_button 패키지 자체 폐기 후 타입
+//   부재). BrandedSocialButton.google / .apple find sentinel 만 보존.
+// - Facebook 분기 — Phase 13.2 R7: SignInButton(Buttons.facebookNew) 직접
+//   호출 → BrandedSocialButton.facebook(...) 위임 전환 검증 + Opacity /
+//   IgnorePointer 패턴 0 검증.
 // - Kakao 6 deferred RED → GREEN 전환 (자상 PNG + BrandedSocialButton 위임).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sign_in_button/sign_in_button.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
@@ -110,9 +115,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // sign_in_button `Buttons` enum 사용 폐기 — SignInButton 미렌더.
-        expect(find.byType(SignInButton), findsNothing);
-        // BrandedSocialButton 위임.
+        // Phase 13.2 D-98 — `find.byType(SignInButton), findsNothing`
+        // sentinel 폐기 (sign_in_button 패키지 자체 폐기 후 타입 부재).
+        // BrandedSocialButton.google find sentinel 단독 보존.
         final btn = tester.widget<BrandedSocialButton>(
           find.byType(BrandedSocialButton),
         );
@@ -160,9 +165,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // sign_in_button `Buttons` enum 사용 폐기 — SignInButton 미렌더.
-        expect(find.byType(SignInButton), findsNothing);
-        // BrandedSocialButton 위임 + AppleSpec + style.black.
+        // Phase 13.2 D-98 — `find.byType(SignInButton), findsNothing`
+        // sentinel 폐기. BrandedSocialButton.apple find + Apple SDK 위제
+        // (SignInWithAppleButton) find sentinel 단독 보존.
         final btn = tester.widget<BrandedSocialButton>(
           find.byType(BrandedSocialButton),
         );
@@ -197,8 +202,20 @@ void main() {
       },
     );
 
+    // T-13.2-FACEBOOK-DELEGATION-01: Facebook 분기 BrandedSocialButton 위임
+    // (Phase 13.2 R7 acceptance) — Wave 2 social_button.dart Facebook 분기
+    // 전환 (`SignInButton(Buttons.facebookNew)` → `BrandedSocialButton
+    // .facebook(...)`) 완료 후 GREEN 자동 전환.
+    //
+    // **검증 사양 (Plan 13.2-02 acceptance verbatim):**
+    // - SocialButton(strategy: facebookStrategy) pump 후
+    //   find.byType(BrandedSocialButton) 매치 (위임 검증)
+    // - find.byType(Opacity) 0 매치 — Phase 13.1 WR-05 의 Opacity 0.5 dim
+    //   패턴 폐기 (BrandedSocialButton 의 Material disabled 외관 일관)
+    // - find.byType(IgnorePointer) 0 매치 — IgnorePointer 패턴 폐기
     testWidgets(
-      'Facebook 분기 → Buttons.facebookNew 잔존 (R12 acceptance)',
+      'T-13.2-FACEBOOK-DELEGATION-01: Facebook 분기 → BrandedSocialButton'
+      '.facebook 위임 + Opacity/IgnorePointer 0 매치 (R7 RED)',
       (tester) async {
         const strategy = _FakeStrategy(
           kProviderIdFacebook,
@@ -207,18 +224,38 @@ void main() {
         );
         await _pumpWithMobileViewport(
           tester,
-          _wrap(
-            const SocialButton(strategy: strategy, isDisabled: false),
-            brightness: Brightness.dark,
-          ),
+          _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
         );
         await tester.pumpAndSettle();
 
-        // Facebook 만 sign_in_button SignInButton 사용.
-        final btn = tester.widget<SignInButton>(find.byType(SignInButton));
-        expect(btn.button, Buttons.facebookNew);
-        // BrandedSocialButton 도달 안 함.
-        expect(find.byType(BrandedSocialButton), findsNothing);
+        // BrandedSocialButton 위임 검증 — FacebookSpec.
+        final btn = tester.widget<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        );
+        expect(btn.spec, isA<FacebookSpec>());
+
+        // R7 verbatim acceptance — Opacity/IgnorePointer 패턴 0 매치.
+        // 단, MaterialApp/Theme 가 내부적으로 Opacity 위제를 트리에 주입할
+        // 가능성 있으므로 SocialButton descendant 한정으로 anchor.
+        final opacityFinder = find.descendant(
+          of: find.byType(SocialButton),
+          matching: find.byType(Opacity),
+        );
+        expect(
+          opacityFinder,
+          findsNothing,
+          reason: 'Phase 13.2 R7 verbatim — Opacity 0.5 dim 패턴 폐기. '
+              'BrandedSocialButton Material disabled 외관 단독 권위.',
+        );
+        final ignorePointerFinder = find.descendant(
+          of: find.byType(SocialButton),
+          matching: find.byType(IgnorePointer),
+        );
+        expect(
+          ignorePointerFinder,
+          findsNothing,
+          reason: 'Phase 13.2 R7 verbatim — IgnorePointer 패턴 폐기.',
+        );
       },
     );
 
@@ -366,8 +403,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // sign_in_button 패키지의 SignInButton 미사용 (Kakao 미지원).
-        expect(find.byType(SignInButton), findsNothing);
+        // Phase 13.2 D-98 — sign_in_button 패키지 폐기 후 SignInButton 타입
+        // 부재. findsNothing sentinel 폐기, BrandedSocialButton.kakao 위임
+        // 검증 단독.
         // BrandedSocialButton 위임 + KakaoSpec.
         final btn = tester.widget<BrandedSocialButton>(
           find.byType(BrandedSocialButton),
@@ -529,7 +567,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.byType(SignInButton), findsNothing);
+        // Phase 13.2 D-98 — sign_in_button 패키지 폐기 후 SignInButton 타입
+        // 부재. findsNothing sentinel 폐기, BrandedSocialButton.naver 위임
+        // 검증 단독.
         final btn = tester.widget<BrandedSocialButton>(
           find.byType(BrandedSocialButton),
         );

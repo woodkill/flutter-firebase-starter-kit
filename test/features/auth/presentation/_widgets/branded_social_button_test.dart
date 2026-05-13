@@ -52,9 +52,11 @@ void main() {
         GoogleTheme.neutral,
       );
 
-      // AppleSpec / FacebookSpec — assetType.none (위제 위임).
+      // AppleSpec — assetType.none (SDK 위제 위임).
       expect(const AppleSpec().assetType, AssetType.none);
-      expect(const FacebookSpec().assetType, AssetType.none);
+      // FacebookSpec — Phase 13.2 D-95 lock: AssetType.png (Meta Primary
+      // Logo PNG, Wave 1 sealed switch active 전환 후 GREEN).
+      expect(const FacebookSpec().assetType, AssetType.png);
 
       // LineSpec / WechatSpec — assetType.png (Phase 14/16 자상 commit 후 활성).
       expect(const LineSpec().assetType, AssetType.png);
@@ -412,44 +414,89 @@ void main() {
       },
     );
 
-    // ─── T-13.1-X2-FACEBOOK-PRESERVE-01: FacebookSpec UnsupportedError ────
+    // ─── Phase 13.2 — FacebookSpec active 전환 RED gate ───────────────────
     //
-    // **Phase 13.1 Gap-1 X2 BLOCKER 2 fix (2026-05-09):** sentinel stub-context
-    // class 폐기 → tester.pumpWidget + tester.takeException 패턴 채택.
-    // 사유: stub-context extends BuildContext + dynamic noSuchMethod 패턴은
-    // woody_lints `dynamic` 룰 충돌 + abstract method 누락 분석 경고 + 런타임
-    // NPE 위험. private constructor `BrandedSocialButton._` 는 caller 불가능
-    // 하므로 named factory `.facebook()` 를 통해 build() 까지 도달시키고
-    // tester.takeException() 으로 throw 캡처 — Flutter 권장 패턴.
+    // **Phase 13.2 R5/R6 acceptance + Wave 0 옵션 A pivot (13.2-WAVE0-LOCK.md):**
+    // FacebookSpec sealed switch active 전환 (UnsupportedError throw 폐기) +
+    // 신규 `_renderFacebookButton` 함수 (Apple SignInWithAppleButton 패턴
+    // mirror, Theme.brightness 자동 분기, 18dp Image.asset + Text label)
+    // 의무. D-95 = AssetType.png, D-94 = theme 필드 부재 (Primary 단독),
+    // D-96 = Google 패턴 (locale 독립, 단일 path
+    // 'assets/brand/facebook/facebook_login.png').
     //
-    // **검증 의도 (read-only reference, social_button.dart 의 Facebook 분기는
-    // SignInButton(Buttons.facebookNew) 직접 호출, BrandedSocialButton 까지
-    // 도달 안 함):** BrandedSocialButton.facebook() factory 도달 시 build() 의
-    // FacebookSpec 분기가 UnsupportedError 를 throw 함을 sentinel 로 검증
-    // (R12 잔존 보존 회귀 가드).
+    // 본 단락의 두 test 는 Wave 1+ 진입 시점에 RED — Wave 1 의
+    // branded_social_button.dart 변경 (FacebookSpec sealed switch case 갱신 +
+    // _renderFacebookButton 신규 + _iconAssetFor Facebook branch active) 후
+    // GREEN 자동 전환. T-13.1-X2-FACEBOOK-PRESERVE-01 sentinel 폐기 의도
+    // 명시 — UnsupportedError throw 검증 의도가 Phase 13.2 R5 acceptance 와
+    // 의미 반전.
     testWidgets(
-      'T-13.1-X2-FACEBOOK-PRESERVE-01: FacebookSpec 직접 호출 — '
-      'UnsupportedError throw (BrandedSocialButton.facebook() factory 도달 시 '
-      'build() 가 throw — social_button.dart 의 Facebook 분기는 '
-      'SignInButton(Buttons.facebookNew) 직접 호출, BrandedSocialButton 까지 '
-      '도달 안 함을 별도 test 로 검증)',
+      'T-13.2-FACEBOOK-ACTIVE-01: BrandedSocialButton.facebook() build() → '
+      'Image.asset (D-95 PNG) + Text(authFacebookSignIn ARB) 단일 매치 '
+      '(R5/R6 + 옵션 A pivot _renderFacebookButton 호출 검증)',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: BrandedSocialButton.facebook(
-                label: 'Facebook',
+                label: 'Continue with Facebook',
                 onPressed: () {},
               ),
             ),
           ),
         );
+        await tester.pumpAndSettle();
+
+        // BrandedSocialButton 위제 단일 매치 — UnsupportedError throw 폐기.
+        expect(find.byType(BrandedSocialButton), findsOneWidget);
+
+        // D-95 PNG — Image.asset 1 매치 (Apple 패턴 mirror, 18dp icon 슬롯).
+        // 옵션 A pivot — Kakao/Naver 의 wide 자상 통째 buttons 패턴 미적용
+        // (Facebook 자상은 square logo 단독, _renderActiveButton 호출 불가).
+        expect(find.byType(Image), findsOneWidget);
+
+        // 신규 _renderFacebookButton 의 ARB 라벨 layer — Apple/Facebook 의
+        // 외부 layer 단독 권위 패턴 일관 (Phase 13.1 D-82 ARB 머레).
+        // 본 test 는 caller 가 전달한 label 이 위제 트리에 렌더되는지 검증
+        // (외부 _renderFacebookButton 의 Text 위제 의무).
+        expect(find.text('Continue with Facebook'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'T-13.2-FACEBOOK-ASSET-01: BrandedSocialButton.facebook() Image.asset '
+      'path = "assets/brand/facebook/facebook_login.png" (D-96 Google 패턴, '
+      'locale 독립 — _iconAssetFor FacebookSpec branch active 검증)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final imageWidget = tester.widget<Image>(find.byType(Image));
+        final assetImage = imageWidget.image as AssetImage;
+
+        // D-96 Google 패턴 — locale 독립 (ko/en/ja 분기 부재), 단일 path.
+        // Meta Primary Logo PNG (2084×2084 square, 'f' 마크 + #1877F2 원형).
+        // 18dp icon 슬롯 fit — Apple SignInWithAppleButton 패턴 mirror.
         expect(
-          tester.takeException(),
-          isA<UnsupportedError>(),
-          reason: 'BrandedSocialButton.facebook() 의 build() 가 '
-              'UnsupportedError 를 throw 해야 함 (R12 acceptance — '
-              'Facebook 은 social_button.dart 에서 SignInButton 직접 호출)',
+          assetImage.assetName,
+          'assets/brand/facebook/facebook_login.png',
+          reason: 'Phase 13.2 R6 + D-96 — _iconAssetFor FacebookSpec branch '
+              'active 검증. Wave 1 코드 마이그 후 GREEN.',
         );
       },
     );
