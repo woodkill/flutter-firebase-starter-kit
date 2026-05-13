@@ -44,12 +44,7 @@ Widget _wrap(Widget child, {required Brightness brightness}) {
       backgroundColor: brightness == Brightness.light
           ? const Color(0xFFFFFFFF)
           : const Color(0xFF000000),
-      body: Center(
-        child: SizedBox(
-          width: 360,
-          child: child,
-        ),
-      ),
+      body: Center(child: SizedBox(width: 360, child: child)),
     ),
   );
 }
@@ -88,126 +83,167 @@ Future<void> _settleAssets(WidgetTester tester) async {
 }
 
 void main() {
-  group('BrandedSocialButton golden — D-86 6 fixture / D-87 zero tolerance', () {
-    testWidgets('Naver light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.naver(
-            label: 'Continue with Naver',
-            theme: NaverTheme.light,
-            onPressed: () {},
+  group(
+    'BrandedSocialButton golden — D-86 6 fixture / D-87 zero tolerance',
+    () {
+      testWidgets('Naver light', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.naver(
+              label: 'Continue with Naver',
+              theme: NaverTheme.light,
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
           ),
-          brightness: Brightness.light,
-        ),
-      );
-      // Phase 13.1 Gap-1 X2 — 자상 비동기 디코딩 wait (precacheImage +
-      // SvgPicture vector_graphics delay) — _settleAssets helper 참조.
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/naver_light.png'),
-      );
-    });
+        );
+        // Phase 13.1 Gap-1 X2 — 자상 비동기 디코딩 wait (precacheImage +
+        // SvgPicture vector_graphics delay) — _settleAssets helper 참조.
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/naver_light.png'),
+        );
+      });
 
-    testWidgets('Naver dark', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.naver(
-            label: 'Continue with Naver',
-            theme: NaverTheme.dark,
-            onPressed: () {},
+      testWidgets('Naver dark', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.naver(
+              label: 'Continue with Naver',
+              theme: NaverTheme.dark,
+              onPressed: () {},
+            ),
+            brightness: Brightness.dark,
           ),
-          brightness: Brightness.dark,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/naver_dark.png'),
-      );
-    });
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/naver_dark.png'),
+        );
+      });
 
-    testWidgets('Kakao light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.kakao(
-            label: 'Continue with Kakao',
-            onPressed: () {},
+      testWidgets('Kakao light', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.kakao(
+              label: 'Continue with Kakao',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
           ),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/kakao_light.png'),
-      );
-    });
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/kakao_light.png'),
+        );
+      });
 
-    testWidgets('Google light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.google(
-            label: 'Sign in with Google',
-            theme: GoogleTheme.light,
-            onPressed: () {},
+      testWidgets('Google light', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.google(
+              label: 'Sign in with Google',
+              theme: GoogleTheme.light,
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
           ),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/google_light.png'),
-      );
-    });
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/google_light.png'),
+        );
+      });
 
-    testWidgets('Google dark', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.google(
-            label: 'Sign in with Google',
-            theme: GoogleTheme.dark,
-            onPressed: () {},
+      testWidgets('Google dark', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.google(
+              label: 'Sign in with Google',
+              theme: GoogleTheme.dark,
+              onPressed: () {},
+            ),
+            brightness: Brightness.dark,
           ),
-          brightness: Brightness.dark,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/google_dark.png'),
-      );
-    });
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/google_dark.png'),
+        );
+      });
 
-    testWidgets('Google neutral', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.google(
-            label: 'Sign in with Google',
-            theme: GoogleTheme.neutral,
-            onPressed: () {},
+      testWidgets('Google neutral', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.google(
+              label: 'Sign in with Google',
+              theme: GoogleTheme.neutral,
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
           ),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/google_neutral.png'),
-      );
-    });
-  });
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/google_neutral.png'),
+        );
+      });
+
+      // Phase 13.2 Plan 13.2-06 — Facebook fixture 신규 (옵션 A pivot 후).
+      //
+      // **D-94 lock (Wave 0 LOCK §D-93 vs D-94):** theme 매개변수 부재
+      // (Kakao 패턴 머레). Primary Logo (#1877F2 'f' 마크 PNG) 단독 채택,
+      // Secondary Logo (모노크롬 fallback) 미동봉 — Flutter mobile 컬러 환경
+      // 에서 Theme.brightness 자동 분기는 `_renderFacebookButton` 위제 내부
+      // 책임 (light bg + black text + 1dp grey outline vs dark bg + white
+      // text + 1dp lighter outline).
+      //
+      // **fixture 차원 (Wave 0 LOCK §fixture 차원):** 360×480 canvas + en
+      // locale + zero pixel tolerance. wide button render 결과는 360×48
+      // (Material Design 표준 button height, Phase 13.1 spec.height 일관).
+      // square logo (2084×2084) 를 `Image.asset(width: 18, height: 18)` 으로
+      // 18dp icon 슬롯 위제 fit 시 letter-aligned + label center 의 wide
+      // 외관 보존.
+      //
+      // **fixture 개수 1:** light only (D-94 채택 영향 — D-93 의 2 fixture
+      // light + dark 미적용). Theme.brightness 분기 검증은
+      // `branded_social_button_test.dart` 의 위제 단위 widget test 책임.
+      testWidgets('Facebook light', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.facebook(
+              label: 'Continue with Facebook',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/facebook_light.png'),
+        );
+      });
+    },
+  );
 }

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:sign_in_button/sign_in_button.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
@@ -36,13 +35,13 @@ Future<void> _pumpLogin(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(
-          const Locale('en'),
-        ).overrideWithValue(const <AuthStrategy>[
-          GoogleAuthStrategy(),
-          AppleAuthStrategy(),
-          FacebookAuthStrategy(),
-        ]),
+        activeStrategiesProvider(const Locale('en')).overrideWithValue(
+          const <AuthStrategy>[
+            GoogleAuthStrategy(),
+            AppleAuthStrategy(),
+            FacebookAuthStrategy(),
+          ],
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -187,21 +186,19 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets(
-      '6. 소셜 버튼 3개(Google + Apple + Facebook) 렌더링 — '
-      'Phase 13.1 caller refactor 후 Google/Apple 은 BrandedSocialButton, '
-      'Facebook 만 SignInButton 잔존',
-      (tester) async {
-        when(
-          () => mockRepo.signInWithFacebook(),
-        ).thenAnswer((_) async => null);
-        await _pumpLogin(tester, mockRepo);
-        // Plan 13.1-08 — Google/Apple → BrandedSocialButton, Facebook → SignInButton.
-        expect(find.byType(SocialButton), findsNWidgets(3));
-        expect(find.byType(BrandedSocialButton), findsNWidgets(2));
-        expect(find.byType(SignInButton), findsNWidgets(1));
-      },
-    );
+    testWidgets('6. 소셜 버튼 3개(Google + Apple + Facebook) 렌더링 — '
+        'Phase 13.2 caller refactor 후 모든 provider 가 '
+        'BrandedSocialButton 단일 위임', (tester) async {
+      when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+      await _pumpLogin(tester, mockRepo);
+      // Phase 13.2 R7/R8 (옵션 A pivot, Wave 0 lock D-94) — Facebook 분기도
+      // BrandedSocialButton.facebook 위임 (Meta 공식 자상 PNG + Apple
+      // SignInWithAppleButton 패턴 mirror 의 _renderFacebookButton 위제).
+      // Google/Apple/Facebook 3 provider 모두 BrandedSocialButton 단일
+      // 위임 — sign_in_button 패키지 의존 폐기 (R10).
+      expect(find.byType(SocialButton), findsNWidgets(3));
+      expect(find.byType(BrandedSocialButton), findsNWidgets(3));
+    });
 
     testWidgets('7. OrDivider "or" 텍스트가 표시된다', (tester) async {
       await _pumpLogin(tester, mockRepo);
@@ -297,52 +294,47 @@ void main() {
         },
       );
 
-      testWidgets(
-        'AUTH-03-17 (Phase 9.2 D-31): Apple '
-        'AccountExistsWithDifferentCredential(email) 시 이메일 필드 자동 '
-        '채움 + 포커스 이동 제거 — 빈 상태 유지 (R3 acceptance)',
-        (tester) async {
-          when(() => mockRepo.signInWithApple()).thenAnswer(
-            (_) async => const Result<User>.failure(
-              AccountExistsWithDifferentCredential(
-                email: 'collision@example.com',
-              ),
+      testWidgets('AUTH-03-17 (Phase 9.2 D-31): Apple '
+          'AccountExistsWithDifferentCredential(email) 시 이메일 필드 자동 '
+          '채움 + 포커스 이동 제거 — 빈 상태 유지 (R3 acceptance)', (tester) async {
+        when(() => mockRepo.signInWithApple()).thenAnswer(
+          (_) async => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collision@example.com',
             ),
-          );
-          when(
-            () => mockRepo.signInWithFacebook(),
-          ).thenAnswer((_) async => null);
+          ),
+        );
+        when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
 
-          await _pumpLogin(tester, mockRepo);
-          await tester.pumpAndSettle();
+        await _pumpLogin(tester, mockRepo);
+        await tester.pumpAndSettle();
 
-          // D-04: 통일 순서에서 Apple 버튼은 두 번째.
-          await tester.tap(findAppleButton());
-          await tester.pumpAndSettle();
+        // D-04: 통일 순서에서 Apple 버튼은 두 번째.
+        await tester.tap(findAppleButton());
+        await tester.pumpAndSettle();
 
-          // (Phase 9.2 D-31 / R3) D-10 자동 채움 + focus 호출 제거.
-          // listener body 의 4줄 삭제로 EmailField 가 비어있는 상태 유지 +
-          // _emailFocus.requestFocus() 미호출. exception.email 필드는 보존
-          // (Phase 17 부활 anchor — server-side provider 매핑 input).
-          final emailFormField = tester.widget<TextFormField>(
-            find.descendant(
-              of: find.byType(EmailField),
-              matching: find.byType(TextFormField),
-            ),
-          );
-          expect(emailFormField.controller?.text, isEmpty);
+        // (Phase 9.2 D-31 / R3) D-10 자동 채움 + focus 호출 제거.
+        // listener body 의 4줄 삭제로 EmailField 가 비어있는 상태 유지 +
+        // _emailFocus.requestFocus() 미호출. exception.email 필드는 보존
+        // (Phase 17 부활 anchor — server-side provider 매핑 input).
+        final emailFormField = tester.widget<TextFormField>(
+          find.descendant(
+            of: find.byType(EmailField),
+            matching: find.byType(TextFormField),
+          ),
+        );
+        expect(emailFormField.controller?.text, isEmpty);
 
-          // 소셜 영역 FormErrorBanner에는 여전히 에러가 표시되어야 한다 —
-          // setState({_socialError = err, _emailError = null}) 블록 보존.
-          final banner = tester.widget<FormErrorBanner>(
-            find.descendant(
-              of: find.byType(SocialSignInSection),
-              matching: find.byType(FormErrorBanner),
-            ),
-          );
-          expect(banner.exception, isA<AccountExistsWithDifferentCredential>());
-        },
-      );
+        // 소셜 영역 FormErrorBanner에는 여전히 에러가 표시되어야 한다 —
+        // setState({_socialError = err, _emailError = null}) 블록 보존.
+        final banner = tester.widget<FormErrorBanner>(
+          find.descendant(
+            of: find.byType(SocialSignInSection),
+            matching: find.byType(FormErrorBanner),
+          ),
+        );
+        expect(banner.exception, isA<AccountExistsWithDifferentCredential>());
+      });
     });
   });
 }

@@ -1,8 +1,10 @@
-// Phase 13.1 Plan 13.1-08 — SocialSignInSection 회귀 가드.
+// Phase 13.2 Plan 13.2-06 — SocialSignInSection 회귀 가드.
 //
-// **갱신 의도:** Plan 13.1-08 caller refactor 결과로 Apple/Google 분기가
-// `BrandedSocialButton` 위임으로 전환되어 더 이상 `SignInButton` 을 사용하지
-// 않는다. Facebook 만 `SignInButton(Buttons.facebookNew)` 잔존 (R12).
+// **갱신 의도:** Phase 13.2 옵션 A pivot (Wave 0 lock D-94) 채택 후 Facebook
+// 분기도 `BrandedSocialButton.facebook` 위임으로 전환되어 모든 provider 가
+// `BrandedSocialButton` 단일 진실원으로 일관. sign_in_button 패키지 의존 폐기
+// (R10) + Meta 공식 자상 PNG + Apple SignInWithAppleButton 패턴 mirror 의
+// `_renderFacebookButton` 위제 활성.
 //
 // 본 테스트는 `SocialSignInSection` 의 통일 순서 (D-04) + 활성 strategies
 // 렌더 (Phase 11-04) + 다크 모드 변형을 BrandedSocialButton 인스턴스 검증으로
@@ -12,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:sign_in_button/sign_in_button.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
@@ -80,10 +81,7 @@ Widget buildHarness({
 /// 기본 800x600 viewport 에서 발생하는 Row overflow 회피.
 ///
 /// `binding.setSurfaceSize` 사용 (deprecated `tester.view.physicalSize` 회피).
-Future<void> _pumpWithMobileViewport(
-  WidgetTester tester,
-  Widget widget,
-) async {
+Future<void> _pumpWithMobileViewport(WidgetTester tester, Widget widget) async {
   await tester.binding.setSurfaceSize(const Size(412, 800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(widget);
@@ -101,43 +99,36 @@ void main() {
   });
 
   group('SocialSignInSection 통일 순서 (D-04)', () {
-    testWidgets(
-      '3개 버튼이 Google -> Apple -> Facebook 순서로 렌더된다',
-      (tester) async {
-        await _pumpWithMobileViewport(
-          tester,
-          buildHarness(brightness: Brightness.light, repository: mockRepo),
-        );
-        await tester.pumpAndSettle();
+    testWidgets('3개 버튼이 Google -> Apple -> Facebook 순서로 렌더된다', (tester) async {
+      await _pumpWithMobileViewport(
+        tester,
+        buildHarness(brightness: Brightness.light, repository: mockRepo),
+      );
+      await tester.pumpAndSettle();
 
-        // Plan 13.1-08 — 3 SocialButton 의 분기:
-        //   Google → BrandedSocialButton.google (GoogleSpec)
-        //   Apple  → BrandedSocialButton.apple  (AppleSpec)
-        //   Facebook → SignInButton (Buttons.facebookNew)
-        final socialButtons = tester
-            .widgetList<SocialButton>(find.byType(SocialButton))
-            .toList();
-        expect(socialButtons.length, 3);
-        expect(socialButtons[0].strategy.providerId, 'google');
-        expect(socialButtons[1].strategy.providerId, 'apple');
-        expect(socialButtons[2].strategy.providerId, 'facebook');
+      // Phase 13.2 R7/R8 — 3 SocialButton 의 분기 (모두 BrandedSocialButton
+      // 단일 위임):
+      //   Google → BrandedSocialButton.google (GoogleSpec)
+      //   Apple  → BrandedSocialButton.apple  (AppleSpec)
+      //   Facebook → BrandedSocialButton.facebook (FacebookSpec — Meta 공식
+      //     자상 PNG + _renderFacebookButton 위제)
+      final socialButtons = tester
+          .widgetList<SocialButton>(find.byType(SocialButton))
+          .toList();
+      expect(socialButtons.length, 3);
+      expect(socialButtons[0].strategy.providerId, 'google');
+      expect(socialButtons[1].strategy.providerId, 'apple');
+      expect(socialButtons[2].strategy.providerId, 'facebook');
 
-        // BrandedSocialButton 2개 (Google + Apple) — Facebook 미위임.
-        final branded = tester
-            .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
-            .toList();
-        expect(branded.length, 2);
-        expect(branded[0].spec, isA<GoogleSpec>());
-        expect(branded[1].spec, isA<AppleSpec>());
-
-        // Facebook 만 SignInButton 잔존.
-        final signInButtons = tester
-            .widgetList<SignInButton>(find.byType(SignInButton))
-            .toList();
-        expect(signInButtons.length, 1);
-        expect(signInButtons[0].button, Buttons.facebookNew);
-      },
-    );
+      // BrandedSocialButton 3개 (Google + Apple + Facebook 모두 위임).
+      final branded = tester
+          .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
+          .toList();
+      expect(branded.length, 3);
+      expect(branded[0].spec, isA<GoogleSpec>());
+      expect(branded[1].spec, isA<AppleSpec>());
+      expect(branded[2].spec, isA<FacebookSpec>());
+    });
 
     testWidgets('Facebook 버튼 탭 시 signInWithFacebook이 호출된다', (tester) async {
       await _pumpWithMobileViewport(
@@ -146,41 +137,55 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Facebook 만 SignInButton — 1개 잔존.
-      final fb = tester.widget<SignInButton>(find.byType(SignInButton));
-      expect(fb.button, Buttons.facebookNew);
+      // Phase 13.2 — Facebook 도 BrandedSocialButton 위임. SocialSignInSection
+      // 안의 세 번째 (index 2) SocialButton 이 Facebook 분기.
+      final fbSocialButton = find.byType(SocialButton).at(2);
+      final fbBranded = find.descendant(
+        of: fbSocialButton,
+        matching: find.byType(BrandedSocialButton),
+      );
+      expect(fbBranded, findsOneWidget);
+      expect(
+        tester.widget<BrandedSocialButton>(fbBranded).spec,
+        isA<FacebookSpec>(),
+      );
 
-      await tester.tap(find.byWidget(fb));
+      await tester.tap(fbBranded);
       await tester.pumpAndSettle();
 
       verify(() => mockRepo.signInWithFacebook()).called(1);
     });
 
-    testWidgets(
-      'isFormLoading=true일 때 Facebook 버튼 탭해도 '
-      'signInWithFacebook이 호출되지 않는다',
-      (tester) async {
-        await _pumpWithMobileViewport(
-          tester,
-          buildHarness(
-            brightness: Brightness.light,
-            repository: mockRepo,
-            isFormLoading: true,
-          ),
-        );
-        await tester.pumpAndSettle();
+    testWidgets('isFormLoading=true일 때 Facebook 버튼 탭해도 '
+        'signInWithFacebook이 호출되지 않는다', (tester) async {
+      await _pumpWithMobileViewport(
+        tester,
+        buildHarness(
+          brightness: Brightness.light,
+          repository: mockRepo,
+          isFormLoading: true,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        final fb = tester.widget<SignInButton>(find.byType(SignInButton));
-        expect(fb.button, Buttons.facebookNew);
+      // Phase 13.2 — Facebook BrandedSocialButton 위임. isFormLoading=true
+      // 면 onPressed=null 로 비활성 상태.
+      final fbSocialButton = find.byType(SocialButton).at(2);
+      final fbBranded = find.descendant(
+        of: fbSocialButton,
+        matching: find.byType(BrandedSocialButton),
+      );
+      expect(fbBranded, findsOneWidget);
+      final fb = tester.widget<BrandedSocialButton>(fbBranded);
+      expect(fb.spec, isA<FacebookSpec>());
+      expect(fb.onPressed, isNull);
 
-        await tester.tap(find.byWidget(fb));
-        await tester.pumpAndSettle();
+      await tester.tap(fbBranded);
+      await tester.pumpAndSettle();
 
-        // isFormLoading=true이면 onPressed가 빈 콜백으로 교체되어
-        // Repository가 호출되지 않아야 한다.
-        verifyNever(() => mockRepo.signInWithFacebook());
-      },
-    );
+      // onPressed=null 이면 Repository 호출 없음.
+      verifyNever(() => mockRepo.signInWithFacebook());
+    });
 
     testWidgets('errorBanner가 소셜 버튼과 OrDivider 사이에 표시된다', (tester) async {
       await _pumpWithMobileViewport(
@@ -197,50 +202,50 @@ void main() {
     });
   });
 
-  group('SocialSignInSection 다크모드 버튼 변형 (Plan 13.1-08)', () {
+  group('SocialSignInSection 다크모드 버튼 변형 (Phase 13.2 Plan 13.2-06)', () {
+    testWidgets('라이트 모드 → Google.theme=light, Apple.style=black, '
+        'Facebook=FacebookSpec (BrandedSocialButton 단일 위임)', (tester) async {
+      await _pumpWithMobileViewport(
+        tester,
+        buildHarness(brightness: Brightness.light, repository: mockRepo),
+      );
+      await tester.pumpAndSettle();
+
+      // Phase 13.2 — 3 BrandedSocialButton 모두 단일 위임. 통일 순서
+      // Google → Apple → Facebook.
+      final branded = tester
+          .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
+          .toList();
+      expect(branded.length, 3);
+      expect((branded[0].spec as GoogleSpec).theme, GoogleTheme.light);
+      expect(branded[1].appleStyle, SignInWithAppleButtonStyle.black);
+      expect(branded[2].spec, isA<FacebookSpec>());
+    });
+
+    testWidgets('다크 모드 → Google.theme=dark, Apple.style=white, '
+        'Facebook=FacebookSpec (Theme.brightness 자동 분기는 위제 내부 책임)', (
+      tester,
+    ) async {
+      await _pumpWithMobileViewport(
+        tester,
+        buildHarness(brightness: Brightness.dark, repository: mockRepo),
+      );
+      await tester.pumpAndSettle();
+
+      final branded = tester
+          .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
+          .toList();
+      expect(branded.length, 3);
+      expect((branded[0].spec as GoogleSpec).theme, GoogleTheme.dark);
+      expect(branded[1].appleStyle, SignInWithAppleButtonStyle.white);
+      // Facebook 은 D-94 lock (theme 매개변수 부재) — Theme.brightness 자동
+      // 분기는 _renderFacebookButton 위제 내부 책임. spec 자체는 light/dark
+      // 무관 동일.
+      expect(branded[2].spec, isA<FacebookSpec>());
+    });
+
     testWidgets(
-      '라이트 모드 → Google.theme=light, Apple.style=black, Facebook=facebookNew',
-      (tester) async {
-        await _pumpWithMobileViewport(
-          tester,
-          buildHarness(brightness: Brightness.light, repository: mockRepo),
-        );
-        await tester.pumpAndSettle();
-
-        final branded = tester
-            .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
-            .toList();
-        expect((branded[0].spec as GoogleSpec).theme, GoogleTheme.light);
-        expect(branded[1].appleStyle, SignInWithAppleButtonStyle.black);
-
-        final fb = tester.widget<SignInButton>(find.byType(SignInButton));
-        expect(fb.button, Buttons.facebookNew);
-      },
-    );
-
-    testWidgets(
-      '다크 모드 → Google.theme=dark, Apple.style=white, Facebook=facebookNew',
-      (tester) async {
-        await _pumpWithMobileViewport(
-          tester,
-          buildHarness(brightness: Brightness.dark, repository: mockRepo),
-        );
-        await tester.pumpAndSettle();
-
-        final branded = tester
-            .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
-            .toList();
-        expect((branded[0].spec as GoogleSpec).theme, GoogleTheme.dark);
-        expect(branded[1].appleStyle, SignInWithAppleButtonStyle.white);
-
-        final fb = tester.widget<SignInButton>(find.byType(SignInButton));
-        // Facebook 은 라이트/다크 무관 동일 변형 (브랜드 가이드라인).
-        expect(fb.button, Buttons.facebookNew);
-      },
-    );
-
-    testWidgets(
-      'isFormLoading=true 시 Apple BrandedSocialButton 의 onPressed 가 null',
+      'isFormLoading=true 시 3 BrandedSocialButton 의 onPressed 가 모두 null',
       (tester) async {
         await _pumpWithMobileViewport(
           tester,
@@ -255,7 +260,8 @@ void main() {
         final branded = tester
             .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
             .toList();
-        // Google + Apple 두 BrandedSocialButton 의 onPressed 모두 null.
+        expect(branded.length, 3);
+        // Google + Apple + Facebook 3 BrandedSocialButton 의 onPressed 모두 null.
         for (final b in branded) {
           expect(
             b.onPressed,
@@ -265,51 +271,47 @@ void main() {
         }
         // Repository 도 호출 안 됨.
         verifyNever(() => mockRepo.signInWithApple());
+        verifyNever(() => mockRepo.signInWithFacebook());
       },
     );
   });
 
-  group(
-    'SocialSignInSection 마이그레이션 회귀 가드 (Phase 11-04, Pattern H)',
-    () {
-      testWidgets(
-        'activeStrategiesProvider 결과를 SocialButton 으로 렌더링한다',
-        (tester) async {
-          await _pumpWithMobileViewport(
-            tester,
-            buildHarness(
-              brightness: Brightness.light,
-              repository: mockRepo,
-              strategies: const <AuthStrategy>[
-                GoogleAuthStrategy(),
-                AppleAuthStrategy(),
-              ],
-            ),
-          );
-          await tester.pumpAndSettle();
-
-          // override 한 2개 Strategy 만 SocialButton 으로 렌더링.
-          expect(find.byType(SocialButton), findsNWidgets(2));
-        },
+  group('SocialSignInSection 마이그레이션 회귀 가드 (Phase 11-04, Pattern H)', () {
+    testWidgets('activeStrategiesProvider 결과를 SocialButton 으로 렌더링한다', (
+      tester,
+    ) async {
+      await _pumpWithMobileViewport(
+        tester,
+        buildHarness(
+          brightness: Brightness.light,
+          repository: mockRepo,
+          strategies: const <AuthStrategy>[
+            GoogleAuthStrategy(),
+            AppleAuthStrategy(),
+          ],
+        ),
       );
+      await tester.pumpAndSettle();
 
-      testWidgets(
-        '빈 strategies 리스트 → SocialButton 0개 (D-14 disabled 미표시)',
-        (tester) async {
-          await _pumpWithMobileViewport(
-            tester,
-            buildHarness(
-              brightness: Brightness.light,
-              repository: mockRepo,
-              strategies: const <AuthStrategy>[],
-            ),
-          );
-          await tester.pumpAndSettle();
+      // override 한 2개 Strategy 만 SocialButton 으로 렌더링.
+      expect(find.byType(SocialButton), findsNWidgets(2));
+    });
 
-          expect(find.byType(SocialButton), findsNothing);
-          // OrDivider 는 그대로 표시 (showOrDivider 기본 true).
-        },
+    testWidgets('빈 strategies 리스트 → SocialButton 0개 (D-14 disabled 미표시)', (
+      tester,
+    ) async {
+      await _pumpWithMobileViewport(
+        tester,
+        buildHarness(
+          brightness: Brightness.light,
+          repository: mockRepo,
+          strategies: const <AuthStrategy>[],
+        ),
       );
-    },
-  );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SocialButton), findsNothing);
+      // OrDivider 는 그대로 표시 (showOrDivider 기본 true).
+    });
+  });
 }
