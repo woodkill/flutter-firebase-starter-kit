@@ -1,8 +1,9 @@
 // Phase 13.1 — see ROADMAP.md (D-62 Apple SDK 위임 + D-64 Google 명시 매개변수)
+// Phase 13.3 — see ROADMAP.md (R6 caller-side breaking change — theme/style
+//             parameter 폐기 흡수, Wave 3 D-117)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../../core/auth/auth_strategy.dart';
 import '../../../../core/auth/provider_id.dart';
@@ -25,6 +26,13 @@ import 'branded_social_button.dart';
 ///   PNG + Apple `SignInWithAppleButton` 패턴 mirror 의 자체 위제 구현).
 ///   Phase 13.2 완료 — 모든 provider 가 [BrandedSocialButton] 단일 진실원으로
 ///   일관 위임.
+///
+/// **Phase 13.3 변경 (R6 — caller-side breaking change 흡수):**
+/// - Naver/Google factory 의 `theme:` parameter + Apple factory 의 `style:`
+///   parameter 모두 폐기. caller 측 `Theme.of(context).brightness` 자동 매핑
+///   로직 제거 — Theme.brightness 자동 분기는 [BrandedSocialButton] 위제 내부
+///   책임으로 일관 (Naver 는 BI 단일 색 강제, Google 은 `_renderGoogleButton`
+///   내부 분기, Apple 은 HIG 권장값 자동 매핑).
 ///
 /// **Brand Guideline 단일 진실원:**
 /// `lib/features/auth/presentation/_widgets/branded_social_button.dart`.
@@ -53,7 +61,6 @@ class SocialButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final brightness = Theme.of(context).brightness;
     final label = _resolveLabel(l10n, strategy.labelKey);
     final onPressed = isDisabled
         ? null
@@ -62,37 +69,25 @@ class SocialButton extends ConsumerWidget {
             strategy.signIn(ref);
           };
 
+    // Phase 13.3 — see ROADMAP.md (R6 caller-side breaking change —
+    // theme/style parameter 폐기 흡수). Naver/Google/Apple 분기 모두
+    // Theme.brightness 자동 분기는 BrandedSocialButton 위제 내부 책임.
     // D-67 — provider switch (BrandedSocialButton 위임 + Facebook fallback).
     switch (strategy.providerId) {
       case kProviderIdKakao:
         return BrandedSocialButton.kakao(label: label, onPressed: onPressed);
       case kProviderIdNaver:
-        // D-I — Theme.brightness 자동 분기 (Naver 자동, Google 은 명시 매개변수).
-        return BrandedSocialButton.naver(
-          label: label,
-          theme: brightness == Brightness.dark
-              ? NaverTheme.dark
-              : NaverTheme.light,
-          onPressed: onPressed,
-        );
+        // Phase 13.3 R3 — Naver BI 단일 그린 #03A94D 강제, theme: parameter
+        // 폐기. caller 측 brightness 분기 책임 0.
+        return BrandedSocialButton.naver(label: label, onPressed: onPressed);
       case kProviderIdGoogle:
-        // D-64 — Google 만 3 변형. light/dark 자동, neutral 은 caller 명시 시만.
-        return BrandedSocialButton.google(
-          label: label,
-          theme: brightness == Brightness.dark
-              ? GoogleTheme.dark
-              : GoogleTheme.light,
-          onPressed: onPressed,
-        );
+        // Phase 13.3 R1 — theme: parameter 폐기. `_renderGoogleButton` 내부
+        // Theme.brightness 자동 분기로 차원 축소.
+        return BrandedSocialButton.google(label: label, onPressed: onPressed);
       case kProviderIdApple:
-        // D-62 — Apple SDK 위제 위임. D-G-CLARIFY 정확 표기.
-        return BrandedSocialButton.apple(
-          label: label,
-          style: brightness == Brightness.dark
-              ? SignInWithAppleButtonStyle.white
-              : SignInWithAppleButtonStyle.black,
-          onPressed: onPressed,
-        );
+        // Phase 13.3 R5 — style: parameter 폐기. AppleSpec build() 가
+        // Theme.brightness 자동 매핑 (HIG 권장값 light → .black / dark → .white).
+        return BrandedSocialButton.apple(label: label, onPressed: onPressed);
       case kProviderIdFacebook:
         // Phase 13.2 R7 / R8 (옵션 A pivot, Wave 0 lock D-94) — Meta 공식
         // 자상 마이그. `BrandedSocialButton.facebook` 이 Apple

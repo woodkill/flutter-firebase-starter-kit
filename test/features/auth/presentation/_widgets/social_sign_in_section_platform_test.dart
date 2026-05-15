@@ -1,10 +1,15 @@
 // Phase 13.2 Plan 13.2-06 — SocialSignInSection 회귀 가드.
+// Phase 13.3 Wave 3 (D-117) — caller-side compile-fail 흡수: GoogleSpec.theme
+// + appleStyle 필드 폐기. theme/style 검증 expect 폐기 (Wave 4 widget tree
+// assertion 신규 책임).
 //
-// **갱신 의도:** Phase 13.2 옵션 A pivot (Wave 0 lock D-94) 채택 후 Facebook
-// 분기도 `BrandedSocialButton.facebook` 위임으로 전환되어 모든 provider 가
-// `BrandedSocialButton` 단일 진실원으로 일관. sign_in_button 패키지 의존 폐기
-// (R10) + Meta 공식 자상 PNG + Apple SignInWithAppleButton 패턴 mirror 의
-// `_renderFacebookButton` 위제 활성.
+// **갱신 의도 (옵션 A pivot + Phase 13.3 R6):** Phase 13.2 옵션 A pivot
+// (Wave 0 lock D-94) 채택 후 Facebook 분기도 `BrandedSocialButton.facebook`
+// 위임으로 전환되어 모든 provider 가 `BrandedSocialButton` 단일 진실원으로
+// 일관. sign_in_button 패키지 의존 폐기 (R10) + Meta 공식 자상 PNG +
+// Apple SignInWithAppleButton 패턴 mirror 의 `_renderFacebookButton` 위제 활성.
+// Phase 13.3 R6 — GoogleSpec.theme 필드 + appleStyle 필드 폐기. theme 검증
+// expect 폐기 — Theme.brightness 자동 분기는 위제 내부 책임.
 //
 // 본 테스트는 `SocialSignInSection` 의 통일 순서 (D-04) + 활성 strategies
 // 렌더 (Phase 11-04) + 다크 모드 변형을 BrandedSocialButton 인스턴스 검증으로
@@ -14,7 +19,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
@@ -203,8 +207,10 @@ void main() {
   });
 
   group('SocialSignInSection 다크모드 버튼 변형 (Phase 13.2 Plan 13.2-06)', () {
-    testWidgets('라이트 모드 → Google.theme=light, Apple.style=black, '
-        'Facebook=FacebookSpec (BrandedSocialButton 단일 위임)', (tester) async {
+    testWidgets('라이트 모드 → 3 BrandedSocialButton 단일 위임 + spec 타입 검증 '
+        '(Phase 13.3 R6 — theme/style 필드 폐기, Theme.brightness 위제 내부)', (
+      tester,
+    ) async {
       await _pumpWithMobileViewport(
         tester,
         buildHarness(brightness: Brightness.light, repository: mockRepo),
@@ -213,19 +219,19 @@ void main() {
 
       // Phase 13.2 — 3 BrandedSocialButton 모두 단일 위임. 통일 순서
       // Google → Apple → Facebook.
+      // Phase 13.3 R6 — GoogleSpec.theme + appleStyle 필드 폐기. 위제 spec
+      // 타입 검증만 (Theme.brightness 자동 분기는 위제 내부 책임).
       final branded = tester
           .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
           .toList();
       expect(branded.length, 3);
-      expect((branded[0].spec as GoogleSpec).theme, GoogleTheme.light);
-      expect(branded[1].appleStyle, SignInWithAppleButtonStyle.black);
+      expect(branded[0].spec, isA<GoogleSpec>());
+      expect(branded[1].spec, isA<AppleSpec>());
       expect(branded[2].spec, isA<FacebookSpec>());
     });
 
-    testWidgets('다크 모드 → Google.theme=dark, Apple.style=white, '
-        'Facebook=FacebookSpec (Theme.brightness 자동 분기는 위제 내부 책임)', (
-      tester,
-    ) async {
+    testWidgets('다크 모드 → 3 BrandedSocialButton 단일 위임 + spec 타입 검증 '
+        '(Phase 13.3 R6 — Theme.brightness 자동 분기는 위제 내부 책임)', (tester) async {
       await _pumpWithMobileViewport(
         tester,
         buildHarness(brightness: Brightness.dark, repository: mockRepo),
@@ -236,11 +242,10 @@ void main() {
           .widgetList<BrandedSocialButton>(find.byType(BrandedSocialButton))
           .toList();
       expect(branded.length, 3);
-      expect((branded[0].spec as GoogleSpec).theme, GoogleTheme.dark);
-      expect(branded[1].appleStyle, SignInWithAppleButtonStyle.white);
-      // Facebook 은 D-94 lock (theme 매개변수 부재) — Theme.brightness 자동
-      // 분기는 _renderFacebookButton 위제 내부 책임. spec 자체는 light/dark
-      // 무관 동일.
+      // Phase 13.3 R6 — dark Theme 에서도 동일 const Spec 인스턴스. 색 분기는
+      // 위제 내부 (_renderGoogleButton / AppleSpec build / _renderFacebookButton).
+      expect(branded[0].spec, isA<GoogleSpec>());
+      expect(branded[1].spec, isA<AppleSpec>());
       expect(branded[2].spec, isA<FacebookSpec>());
     });
 

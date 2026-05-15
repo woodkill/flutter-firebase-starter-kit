@@ -6,6 +6,12 @@
 //
 // Phase 13.1 Gap-1 X2 BLOCKER 2 fix — sentinel stub-context class 폐기 →
 // tester.pumpWidget + tester.takeException 패턴 (Flutter 권장).
+//
+// Phase 13.3 — see ROADMAP.md (R6 caller-side compile-fail 흡수, Wave 3
+//             D-117). 4 enum 폐기 (NaverTheme/GoogleTheme/KakaoLabelVariant/
+//             NaverLabelVariant) + factory theme/style parameter 폐기에 따른
+//             caller-side 정리. theme 필드 검증 test 폐기 — widget tree
+//             assertion 신규는 Wave 4 책임.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,27 +42,21 @@ void main() {
   group('BrandedSocialButton — Phase 13.1 sealed hierarchy', () {
     // ─── T-13.1-SPEC-01: 7 sub-class const + assetType 매핑 ──────────────
     test('T-13.1-SPEC-01: 7 sub-class const constructor + assetType 매핑', () {
-      // KakaoSpec — PNG asset, R2 borderRadius 12.
-      expect(const KakaoSpec().assetType, AssetType.png);
+      // Phase 13.3 R2 — KakaoSpec assetType 변경: PNG → SVG (inline
+      // `_kKakaoSymbolSvg` + `_renderKakaoButton` Universal Layout Pattern).
+      expect(const KakaoSpec().assetType, AssetType.svg);
       expect(const KakaoSpec().borderRadius, 12.0);
       expect(const KakaoSpec().height, 48.0);
       expect(const KakaoSpec().iconSize, 18.0);
 
-      // NaverSpec — PNG asset, theme 명시 매개변수, R2 borderRadius 12.
-      expect(const NaverSpec(theme: NaverTheme.light).assetType, AssetType.png);
-      expect(const NaverSpec(theme: NaverTheme.light).borderRadius, 12.0);
-      expect(const NaverSpec(theme: NaverTheme.dark).theme, NaverTheme.dark);
+      // Phase 13.3 R3 — NaverSpec assetType SVG (inline `_kNaverSymbolSvg`).
+      // theme 필드 폐기 (BI 단일 그린 #03A94D 강제).
+      expect(const NaverSpec().assetType, AssetType.svg);
+      expect(const NaverSpec().borderRadius, 12.0);
 
-      // GoogleSpec — SVG asset, theme 명시 매개변수 (3 변형).
-      expect(
-        const GoogleSpec(theme: GoogleTheme.light).assetType,
-        AssetType.svg,
-      );
-      expect(const GoogleSpec(theme: GoogleTheme.dark).theme, GoogleTheme.dark);
-      expect(
-        const GoogleSpec(theme: GoogleTheme.neutral).theme,
-        GoogleTheme.neutral,
-      );
+      // Phase 13.3 R1 — GoogleSpec theme 필드 폐기 (Theme.brightness 자동
+      // 분기로 차원 축소). assetType SVG (Google Identity btn_signin_icon.svg).
+      expect(const GoogleSpec().assetType, AssetType.svg);
 
       // AppleSpec — assetType.none (SDK 위제 위임).
       expect(const AppleSpec().assetType, AssetType.none);
@@ -83,8 +83,8 @@ void main() {
       // sealed switch 의 exhaustiveness 보장 (Dart 3 closed hierarchy).
       const specs = <BrandSpec>[
         KakaoSpec(),
-        NaverSpec(theme: NaverTheme.light),
-        GoogleSpec(theme: GoogleTheme.light),
+        NaverSpec(),
+        GoogleSpec(),
         AppleSpec(),
         FacebookSpec(),
         LineSpec(),
@@ -96,14 +96,9 @@ void main() {
     // ─── T-13.1-FACTORY-01: 7 named factory smoke ────────────────────────
     test('T-13.1-FACTORY-01: 7 named factory 가 BrandedSocialButton 반환', () {
       final kakao = BrandedSocialButton.kakao(label: 'Kakao', onPressed: () {});
-      final naver = BrandedSocialButton.naver(
-        label: 'Naver',
-        theme: NaverTheme.light,
-        onPressed: () {},
-      );
+      final naver = BrandedSocialButton.naver(label: 'Naver', onPressed: () {});
       final google = BrandedSocialButton.google(
         label: 'Google',
-        theme: GoogleTheme.light,
         onPressed: () {},
       );
       final apple = BrandedSocialButton.apple(label: 'Apple', onPressed: () {});
@@ -126,18 +121,13 @@ void main() {
       expect(wechat.spec, isA<WechatSpec>());
     });
 
-    // ─── T-13.1-NAVER-THEME-01: NaverSpec theme 분기 ─────────────────────
-    test('T-13.1-NAVER-THEME-01: NaverSpec({theme}) 가 light/dark 분기 보존', () {
-      const lightSpec = NaverSpec(theme: NaverTheme.light);
-      const darkSpec = NaverSpec(theme: NaverTheme.dark);
-      expect(lightSpec.theme, NaverTheme.light);
-      expect(darkSpec.theme, NaverTheme.dark);
-      expect(
-        identical(lightSpec, darkSpec),
-        isFalse,
-        reason: 'theme 다르면 const 인스턴스도 다름',
-      );
-    });
+    // ─── T-13.1-NAVER-THEME-01 폐기 (Phase 13.3 R3) ──────────────────────
+    //
+    // Phase 13.3 R3 — NaverSpec.theme 필드 폐기 (BI 단일 그린 #03A94D 강제).
+    // 본 test 는 theme 필드 존재 자체를 검증하던 회귀 가드 — 필드 폐기로
+    // 의미 소실. NaverSpec const identity 검증은 동일 const 인스턴스 1개
+    // (theme 분기 없음) 이므로 무의미. Wave 4 widget tree assertion 신규로
+    // green-bg + N glyph 색 매핑 검증 책임 분리.
 
     // ─── T-13.1-R1-01: Naver 색 R1 정정 회귀 가드 ────────────────────────
     test('T-13.1-R1-01: 회귀 가드 — Naver 색 0xFF03A94D (R1 정정)', () {
@@ -157,8 +147,8 @@ void main() {
       // Phase 13.1 R2 — `borderRadius default 6 → 12` (Kakao BI 명시 12,
       // Naver 일관). BrandSpec base default 가 12 — 모든 sub-class 상속.
       expect(const KakaoSpec().borderRadius, 12.0);
-      expect(const NaverSpec(theme: NaverTheme.light).borderRadius, 12.0);
-      expect(const GoogleSpec(theme: GoogleTheme.light).borderRadius, 12.0);
+      expect(const NaverSpec().borderRadius, 12.0);
+      expect(const GoogleSpec().borderRadius, 12.0);
       expect(const AppleSpec().borderRadius, 12.0);
       expect(const FacebookSpec().borderRadius, 12.0);
       expect(const LineSpec().borderRadius, 12.0);
@@ -179,73 +169,70 @@ void main() {
   });
 
   group('BrandedSocialButton — Phase 13.1 Gap-1 X2 wide 자상 통째 buttons', () {
-    // ─── T-13.1-X2-CLIPRRECT-01: Material+borderRadius + Image.asset (Kakao)
+    // ─── T-13.1-X2-CLIPRRECT-01: Material+borderRadius + Image (Kakao)
     //
     // **Plan 14 deviation 정정 (2026-05-09 사용자 시각 검증 후):** 1차
     // 디자인의 ClipRRect 폐기 — 자상의 baked-in 모서리 (Naver 사각 / Kakao
     // 7.2px scaled / Google rx=19.5 pill) 가 시각 권위, ClipRRect 12dp 강제
     // 가 더블 클리핑 결함. test ID 는 traceability 보존, assertion 만 갱신.
-    testWidgets(
-        'T-13.1-X2-CLIPRRECT-01: KakaoSpec build() Material+borderRadius + '
-        'Image.asset (Plan 14 deviation: BoxFit.contain + no ClipRRect)',
-        (tester) async {
+    //
+    // **Phase 13.3 R2 caller-fix (Wave 3 D-117):** Kakao 가 wide PNG →
+    // Universal Layout Pattern (Material + Row + SvgPicture.string +
+    // Text) 로 재설계되어 Image 위제 부재. Image 검증 폐기, ClipRRect
+    // 폐기 가드만 보존 (현재 가능한 최소 회귀 가드). Wave 4 widget tree
+    // assertion 신규 (Material bg #FEE500 + SvgPicture.string +
+    // Text(authKakaoSignIn ARB)) 가 본 test 의 의미 대체 책임.
+    testWidgets('T-13.1-X2-CLIPRRECT-01: KakaoSpec build() ClipRRect 폐기 가드 '
+        '(Phase 13.3 R2 — Universal Layout Pattern 후 Image 검증 폐기)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('ko'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
-            body: BrandedSocialButton.kakao(
-              label: '카카오 로그인',
-              onPressed: () {},
-            ),
+            body: BrandedSocialButton.kakao(label: '카카오 로그인', onPressed: () {}),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      // 자상 baked-in shape 권위 패턴 — Material+borderRadius (InkWell ripple
-      // 영역만 12dp 제어) + Image.asset (PNG 자연 baked-in 모서리 보존).
-      expect(find.byType(Image), findsOneWidget);
       // ClipRRect 폐기 검증 — 본 widget 트리에 ClipRRect 없음 (Plan 14
       // deviation 회귀 가드, 더블 클리핑 차단).
       expect(find.byType(ClipRRect), findsNothing);
-      // Image.asset 의 fit: BoxFit.contain 검증 — fitWidth scale-up 결함 차단.
-      final image = tester.widget<Image>(find.byType(Image));
-      expect(image.fit, BoxFit.contain);
     });
 
     // ─── T-13.1-X2-CLIPRRECT-02: Material+borderRadius + SvgPicture (Google)
     testWidgets(
-        'T-13.1-X2-CLIPRRECT-02: GoogleSpec build() Material+borderRadius + '
-        'SvgPicture (Plan 14 deviation: BoxFit.contain + no ClipRRect)',
-        (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: BrandedSocialButton.google(
-              label: 'Sign in with Google',
-              theme: GoogleTheme.light,
-              onPressed: () {},
+      'T-13.1-X2-CLIPRRECT-02: GoogleSpec build() Material+borderRadius + '
+      'SvgPicture (Plan 14 deviation: BoxFit.contain + no ClipRRect)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () {},
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      // Google SVG 의 baked-in pill (rx=19.5) 모양 보존 — ClipRRect 폐기
-      // 회귀 가드.
-      expect(find.byType(ClipRRect), findsNothing);
-      // 자상 형식 dispatch 자체는 sealed switch 검증 (T-13.1-SPEC-01 의
-      // GoogleSpec.assetType == AssetType.svg) 가 보장. 본 test 는 Image
-      // 부재 검증 (Google 은 SVG 이므로 Image.asset 위제는 트리에 없어야 함).
-      expect(find.byType(Image), findsNothing);
-    });
+        );
+        await tester.pumpAndSettle();
+        // Google SVG 의 baked-in pill (rx=19.5) 모양 보존 — ClipRRect 폐기
+        // 회귀 가드.
+        expect(find.byType(ClipRRect), findsNothing);
+        // 자상 형식 dispatch 자체는 sealed switch 검증 (T-13.1-SPEC-01 의
+        // GoogleSpec.assetType == AssetType.svg) 가 보장. 본 test 는 Image
+        // 부재 검증 (Google 은 SVG 이므로 Image.asset 위제는 트리에 없어야 함).
+        expect(find.byType(Image), findsNothing);
+      },
+    );
 
     // ─── T-13.1-X2-FULLWIDTH-01: SizedBox(width: double.infinity) 검증 ────
-    testWidgets(
-        'T-13.1-X2-FULLWIDTH-01: NaverSpec build() SizedBox '
+    testWidgets('T-13.1-X2-FULLWIDTH-01: NaverSpec build() SizedBox '
         'width: double.infinity 강제 sizing', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -257,7 +244,6 @@ void main() {
               width: 300,
               child: BrandedSocialButton.naver(
                 label: '네이버로 시작하기',
-                theme: NaverTheme.light,
                 onPressed: () {},
               ),
             ),
@@ -275,39 +261,17 @@ void main() {
       expect(renderBox.size.height, 48.0);
     });
 
-    // ─── T-13.1-X2-LOCALE-FALLBACK-01: ja locale → en path ────────────────
-    testWidgets(
-        'T-13.1-X2-LOCALE-FALLBACK-01: ja locale 시 KakaoSpec 자상이 '
-        'en path (kakao/en/light/) 로딩', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('ja'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: BrandedSocialButton.kakao(
-              label: 'Continue with Kakao',
-              onPressed: () {},
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final imageWidget = tester.widget<Image>(find.byType(Image));
-      final assetImage = imageWidget.image as AssetImage;
-      // ko 외 모든 locale (ja 포함) 은 en path 로 fallback (D-79 + Gap-1 X2
-      // 사용자 3번 답변).
-      expect(
-        assetImage.assetName,
-        'assets/brand/kakao/en/light/kakao_login_large_wide.png',
-        reason: 'ja locale 은 en fallback (ko 외 모두 en) — '
-            '_iconAssetFor 의 lang 분기',
-      );
-    });
+    // ─── T-13.1-X2-LOCALE-FALLBACK-01 폐기 (Phase 13.3 R2) ────────────────
+    //
+    // Phase 13.3 R2 — Kakao 가 wide PNG (locale × theme leaf 디렉토리) →
+    // inline SVG (`_kKakaoSymbolSvg` + Universal Layout Pattern) 로 전환되어
+    // locale 분기 자체 부재. _iconAssetFor 의 Kakao branch 도 폐기되어
+    // ja → en path fallback 가드의 검증 대상 자체 소실. Wave 4 widget tree
+    // assertion 신규로 Material bg #FEE500 + Text(authKakaoSignIn ARB locale
+    // 해석) 검증 책임 분리.
 
     // ─── T-13.1-X2-APPLE-PRESERVE-01: AppleSpec 분기 변경 0 회귀 가드 ──────
-    testWidgets(
-        'T-13.1-X2-APPLE-PRESERVE-01: AppleSpec build() '
+    testWidgets('T-13.1-X2-APPLE-PRESERVE-01: AppleSpec build() '
         'SignInWithAppleButton 위임 보존 (Gap-1 영향 없음)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -368,7 +332,8 @@ void main() {
               isEnabled: true,
               label: '카카오 로그인',
             ),
-            reason: 'iter2 CR-01 회귀 가드 — Semantics(onTap: onPressed) 미전달 시 '
+            reason:
+                'iter2 CR-01 회귀 가드 — Semantics(onTap: onPressed) 미전달 시 '
                 'TalkBack/VoiceOver 사용자가 활성화 불가. '
                 'button/label/onTap 셋 모두 시멘틱 트리에 노출 의무. '
                 'hasTapAction=false RED 시 iter1 회귀 패턴 재발.',
@@ -380,45 +345,42 @@ void main() {
     );
 
     // ─── T-13.1-A11Y-SEMANTICS-02: 비활성 상태 hasTapAction 부재 ─────────
-    testWidgets(
-      'T-13.1-A11Y-SEMANTICS-02: NaverSpec onPressed=null → '
-      'hasTapAction false + isEnabled false (a11y 비활성 표현)',
-      (tester) async {
-        final SemanticsHandle semHandle = tester.ensureSemantics();
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: const Locale('ko'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: BrandedSocialButton.naver(
-                label: '네이버로 시작하기',
-                theme: NaverTheme.light,
-                onPressed: null,
-              ),
+    testWidgets('T-13.1-A11Y-SEMANTICS-02: NaverSpec onPressed=null → '
+        'hasTapAction false + isEnabled false (a11y 비활성 표현)', (tester) async {
+      final SemanticsHandle semHandle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ko'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: BrandedSocialButton.naver(
+              label: '네이버로 시작하기',
+              onPressed: null,
             ),
           ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      try {
+        expect(
+          tester.getSemantics(find.byType(BrandedSocialButton)),
+          matchesSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            label: '네이버로 시작하기',
+            // onPressed=null 이면 Semantics.onTap 도 null → hasTapAction
+            // false.
+          ),
+          reason:
+              'onPressed=null → enabled=false + onTap 핸들러 미등록. '
+              '비활성 상태도 button/label 은 노출 (TalkBack 가 "비활성 버튼" 안내).',
         );
-        await tester.pumpAndSettle();
-        try {
-          expect(
-            tester.getSemantics(find.byType(BrandedSocialButton)),
-            matchesSemantics(
-              isButton: true,
-              hasEnabledState: true,
-              isEnabled: false,
-              label: '네이버로 시작하기',
-              // onPressed=null 이면 Semantics.onTap 도 null → hasTapAction
-              // false.
-            ),
-            reason: 'onPressed=null → enabled=false + onTap 핸들러 미등록. '
-                '비활성 상태도 button/label 은 노출 (TalkBack 가 "비활성 버튼" 안내).',
-          );
-        } finally {
-          semHandle.dispose();
-        }
-      },
-    );
+      } finally {
+        semHandle.dispose();
+      }
+    });
 
     // ─── Phase 13.2 — FacebookSpec active 전환 RED gate ───────────────────
     //
@@ -480,82 +442,80 @@ void main() {
     // hasEnabledState + isEnabled + label) 회귀 가드. iter2 CR-01 silent
     // drift 패턴 (Semantics(onTap: onPressed) 누락 → InkWell GestureSemantics
     // drop) 을 Facebook 분기에서도 surface 의무.
-    testWidgets(
-      'T-13.2-FACEBOOK-A11Y-01: Facebook 활성 → '
-      'matchesSemantics(button, hasTapAction, isEnabled, label)',
-      (tester) async {
-        final SemanticsHandle semHandle = tester.ensureSemantics();
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
-                onPressed: () {},
-              ),
+    testWidgets('T-13.2-FACEBOOK-A11Y-01: Facebook 활성 → '
+        'matchesSemantics(button, hasTapAction, isEnabled, label)', (
+      tester,
+    ) async {
+      final SemanticsHandle semHandle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: BrandedSocialButton.facebook(
+              label: 'Continue with Facebook',
+              onPressed: () {},
             ),
           ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      try {
+        expect(
+          tester.getSemantics(find.byType(BrandedSocialButton)),
+          matchesSemantics(
+            isButton: true,
+            hasTapAction: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            label: 'Continue with Facebook',
+          ),
+          reason:
+              'WR-02 회귀 가드 — Facebook 활성 시 button + label + onTap '
+              '시멘틱 트리 노출 의무. hasTapAction=false RED 시 iter1 패턴 '
+              '(Semantics.onTap 미전달 → GestureSemantics drop) 재발.',
         );
-        await tester.pumpAndSettle();
-        try {
-          expect(
-            tester.getSemantics(find.byType(BrandedSocialButton)),
-            matchesSemantics(
-              isButton: true,
-              hasTapAction: true,
-              hasEnabledState: true,
-              isEnabled: true,
-              label: 'Continue with Facebook',
-            ),
-            reason: 'WR-02 회귀 가드 — Facebook 활성 시 button + label + onTap '
-                '시멘틱 트리 노출 의무. hasTapAction=false RED 시 iter1 패턴 '
-                '(Semantics.onTap 미전달 → GestureSemantics drop) 재발.',
-          );
-        } finally {
-          semHandle.dispose();
-        }
-      },
-    );
+      } finally {
+        semHandle.dispose();
+      }
+    });
 
-    testWidgets(
-      'T-13.2-FACEBOOK-A11Y-02: Facebook 비활성 → '
-      'isEnabled: false + hasTapAction false',
-      (tester) async {
-        final SemanticsHandle semHandle = tester.ensureSemantics();
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
-                onPressed: null,
-              ),
+    testWidgets('T-13.2-FACEBOOK-A11Y-02: Facebook 비활성 → '
+        'isEnabled: false + hasTapAction false', (tester) async {
+      final SemanticsHandle semHandle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: BrandedSocialButton.facebook(
+              label: 'Continue with Facebook',
+              onPressed: null,
             ),
           ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      try {
+        expect(
+          tester.getSemantics(find.byType(BrandedSocialButton)),
+          matchesSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            label: 'Continue with Facebook',
+          ),
+          reason:
+              'WR-02 회귀 가드 — onPressed=null → enabled=false + onTap '
+              '핸들러 미등록. 비활성 상태도 button/label 은 노출 (TalkBack 가 '
+              '"비활성 버튼" 안내).',
         );
-        await tester.pumpAndSettle();
-        try {
-          expect(
-            tester.getSemantics(find.byType(BrandedSocialButton)),
-            matchesSemantics(
-              isButton: true,
-              hasEnabledState: true,
-              isEnabled: false,
-              label: 'Continue with Facebook',
-            ),
-            reason: 'WR-02 회귀 가드 — onPressed=null → enabled=false + onTap '
-                '핸들러 미등록. 비활성 상태도 button/label 은 노출 (TalkBack 가 '
-                '"비활성 버튼" 안내).',
-          );
-        } finally {
-          semHandle.dispose();
-        }
-      },
-    );
+      } finally {
+        semHandle.dispose();
+      }
+    });
 
     // ─── T-13.2-FACEBOOK-DISABLED-01: 비활성 상태 시각 cue 회귀 가드 ───────
     //
@@ -564,47 +524,46 @@ void main() {
     // default disabled 외관") 과 일치하도록 `_renderFacebookButton` 이
     // `Opacity(0.5)` wrap + fg/outline faded 분기를 적용. 본 test 는 Opacity
     // descendant 단독 검증 — 색 변화는 별 layer (fgColor copyWith) 가 책임.
-    testWidgets(
-      'T-13.2-FACEBOOK-DISABLED-01: onPressed=null → 시각 disabled cue '
-      '(Opacity opacity < 1.0)',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
-                onPressed: null,
-              ),
+    testWidgets('T-13.2-FACEBOOK-DISABLED-01: onPressed=null → 시각 disabled cue '
+        '(Opacity opacity < 1.0)', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: BrandedSocialButton.facebook(
+              label: 'Continue with Facebook',
+              onPressed: null,
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        // BrandedSocialButton 하위 Opacity 위제 단독 매칭 — descendant 검색.
-        final opacityFinder = find.descendant(
-          of: find.byType(BrandedSocialButton),
-          matching: find.byType(Opacity),
-        );
-        expect(
-          opacityFinder,
-          findsOneWidget,
-          reason: 'CR-01 회귀 가드 — onPressed=null 시 Opacity wrap 부재. '
-              '_renderFacebookButton 의 Material 3 disabled state cue 누락 회귀.',
-        );
+      // BrandedSocialButton 하위 Opacity 위제 단독 매칭 — descendant 검색.
+      final opacityFinder = find.descendant(
+        of: find.byType(BrandedSocialButton),
+        matching: find.byType(Opacity),
+      );
+      expect(
+        opacityFinder,
+        findsOneWidget,
+        reason:
+            'CR-01 회귀 가드 — onPressed=null 시 Opacity wrap 부재. '
+            '_renderFacebookButton 의 Material 3 disabled state cue 누락 회귀.',
+      );
 
-        // Opacity.opacity 값이 1.0 미만 (시각 fade) 검증.
-        final opacity = tester.widget<Opacity>(opacityFinder);
-        expect(
-          opacity.opacity,
-          lessThan(1.0),
-          reason: 'CR-01 회귀 가드 — Opacity.opacity 가 1.0 이면 비활성 시각 cue 0. '
-              'Material 3 disabled state spec 위반.',
-        );
-      },
-    );
+      // Opacity.opacity 값이 1.0 미만 (시각 fade) 검증.
+      final opacity = tester.widget<Opacity>(opacityFinder);
+      expect(
+        opacity.opacity,
+        lessThan(1.0),
+        reason:
+            'CR-01 회귀 가드 — Opacity.opacity 가 1.0 이면 비활성 시각 cue 0. '
+            'Material 3 disabled state spec 위반.',
+      );
+    });
 
     // ─── T-13.2-FACEBOOK-ENABLED-01: 활성 상태 Opacity 1.0 보존 가드 ───────
     testWidgets(
@@ -675,7 +634,8 @@ void main() {
         expect(
           assetImage.assetName,
           'assets/brand/facebook/facebook_login.png',
-          reason: 'Phase 13.2 R6 + D-96 — _iconAssetFor FacebookSpec branch '
+          reason:
+              'Phase 13.2 R6 + D-96 — _iconAssetFor FacebookSpec branch '
               'active 검증. Wave 1 코드 마이그 후 GREEN.',
         );
       },
