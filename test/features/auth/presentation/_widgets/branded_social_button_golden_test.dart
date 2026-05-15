@@ -1,4 +1,8 @@
 // Phase 13.1 — see ROADMAP.md (D-86 6 fixture golden + D-87 zero tolerance)
+// Phase 13.3 — see ROADMAP.md (R6 caller-side compile-fail 흡수, Wave 3 D-117).
+//             NaverSpec/GoogleSpec theme: parameter 폐기로 caller 단순화.
+//             Wave 4 의 --update-goldens 가 fixture 재생성 책임 — 본 file 은
+//             compile pass 까지만 수정.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -93,7 +97,6 @@ void main() {
           _wrap(
             BrandedSocialButton.naver(
               label: 'Continue with Naver',
-              theme: NaverTheme.light,
               onPressed: () {},
             ),
             brightness: Brightness.light,
@@ -115,7 +118,6 @@ void main() {
           _wrap(
             BrandedSocialButton.naver(
               label: 'Continue with Naver',
-              theme: NaverTheme.dark,
               onPressed: () {},
             ),
             brightness: Brightness.dark,
@@ -154,7 +156,6 @@ void main() {
           _wrap(
             BrandedSocialButton.google(
               label: 'Sign in with Google',
-              theme: GoogleTheme.light,
               onPressed: () {},
             ),
             brightness: Brightness.light,
@@ -174,7 +175,6 @@ void main() {
           _wrap(
             BrandedSocialButton.google(
               label: 'Sign in with Google',
-              theme: GoogleTheme.dark,
               onPressed: () {},
             ),
             brightness: Brightness.dark,
@@ -187,14 +187,20 @@ void main() {
         );
       });
 
-      testWidgets('Google neutral', (tester) async {
+      // Phase 13.3 R1 (Wave 3 D-117) — GoogleTheme.neutral enum 폐기.
+      // case 자체 보존 (compile pass 책임 minimum), Wave 4 가 case 삭제 +
+      // google_neutral.png fixture rm 책임. 본 testWidgets 는 light fixture
+      // 와 동일한 caller 로 임시 변경 — Wave 4 가 case 자체 삭제 시 본 임시
+      // assertion 도 함께 폐기.
+      testWidgets('Google neutral (Wave 4 deprecation pending)', (
+        tester,
+      ) async {
         await tester.binding.setSurfaceSize(const Size(360, 480));
         addTearDown(() => tester.binding.setSurfaceSize(null));
         await tester.pumpWidget(
           _wrap(
             BrandedSocialButton.google(
               label: 'Sign in with Google',
-              theme: GoogleTheme.neutral,
               onPressed: () {},
             ),
             brightness: Brightness.light,

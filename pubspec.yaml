@@ -111,26 +111,23 @@ flutter:
     # (WR-02-iter2 — directory 등록과 individual 등록 이중화 회피).
     - assets/icons/
     # Phase 13.1 — see ROADMAP.md (R3/R4/R5/R9/R11/R12 — 7 provider brand assets)
+    # Phase 13.3 — see ROADMAP.md (R7 Wave 3 D-117 — wide baked-in 자상 18 file
+    # git rm + leaf 디렉토리 entry 정리. Kakao/Naver 는 README+LICENSE 만 잔존,
+    # Google 는 light/dark 의 btn_signin_icon.svg 보존, neutral/ 폐기).
     # Flutter 의 assets 디렉토리 등록은 단일 레벨만 (재귀 아님) — 자상 path 가
-    # locale × theme leaf 디렉토리에 위치하므로 모든 leaf 를 명시 등록한다
-    # (Plan 13.1-08 Rule 2 정정 — Plan 13.1-01/03 의 "자동 재귀" 가정 오류).
+    # leaf 디렉토리에 위치하므로 모든 leaf 를 명시 등록한다 (Plan 13.1-08
+    # Rule 2 정정 — Plan 13.1-01/03 의 "자동 재귀" 가정 오류).
     # .placeholder / README 파일은 bundle 에 포함되어도 무해.
+    #
+    # **Phase 13.3 Pitfall 5 가드:** `assets/brand/google/{light,dark}/` 보존
+    # 의무 — `_renderGoogleButton` 의 iconPath = '$kBrandAssetBase/google/
+    # ${isDark ? "dark" : "light"}/btn_signin_icon.svg' 참조. entry 누락 시
+    # `Unable to load asset` runtime error.
     - assets/brand/kakao/
-    - assets/brand/kakao/ko/
-    - assets/brand/kakao/ko/light/
-    - assets/brand/kakao/en/
-    - assets/brand/kakao/en/light/
     - assets/brand/naver/
-    - assets/brand/naver/ko/
-    - assets/brand/naver/ko/light/
-    - assets/brand/naver/ko/dark/
-    - assets/brand/naver/en/
-    - assets/brand/naver/en/light/
-    - assets/brand/naver/en/dark/
     - assets/brand/google/
     - assets/brand/google/light/
     - assets/brand/google/dark/
-    - assets/brand/google/neutral/
     - assets/brand/apple/
     # Meta trademark — Brand Resource Center 라이선스 사전 동의 의무,
     # assets/brand/facebook/LICENSE.txt 참조 (Phase 13.2 REVIEW WR-03 정정).
