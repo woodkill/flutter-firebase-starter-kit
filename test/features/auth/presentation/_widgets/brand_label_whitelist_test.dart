@@ -23,21 +23,24 @@ import 'package:flutter_test/flutter_test.dart';
 ///     'Naverではじめる' 미정정 — Plan 13.1-06 ARB 정정 후 GREEN 전환 의도).
 /// - Plan 13.1-06 ARB 정정 + `fvm flutter gen-l10n` 후: 9 test 모두 PASS.
 ///
-/// **Phase 13.1 Gap-1 X2 (2026-05-09 자상화):** Naver/Kakao 6 test (3 ko/en/ja
-/// × 2 provider) `skip:` 처리 — 자상화로 라벨 layer 부재. Apple HIG 3 test
-/// PASS 유지. 본 file 의 PASS/FAIL 카운트: Apple 3 PASS + Naver 3 SKIP +
-/// Kakao 3 SKIP = 9 test (3 PASS / 6 SKIP / 0 FAIL).
+/// **Phase 13.3 verbatim restored (2026-05-15 Wave 4 D-111):** Phase 13.1
+/// Gap-1 X2 (2026-05-09 자상화) 의 6 SKIP (Naver ko/en/ja + Kakao ko/en/ja)
+/// 모두 풀기 — Universal Layout Pattern (Wave 2) 으로 wide 자상 통째 buttons
+/// 패턴 폐기 + ARB 라벨 layer 부활 → ARB ↔ BI 화이트리스트 양방향 검증 부활.
+/// 본 file 의 PASS/FAIL 카운트: Apple 3 PASS + Naver 3 PASS + Kakao 3 PASS =
+/// 9 test (9 PASS / 0 SKIP / 0 FAIL).
 
 /// Apple HIG 공식 라벨 테이블 (D-78-CLARIFY ko + D-77-CLARIFY ja).
 ///
 /// `[VERIFIED:` developer.apple.com/kr/design/human-interface-guidelines/sign-in-with-apple `]`
-const Map<String, Map<String, String>> _kAppleHIG = <String, Map<String, String>>{
-  'authAppleSignIn': <String, String>{
-    'ko': 'Apple로 로그인', // D-78-CLARIFY: 띄어쓰기 없음
-    'en': 'Sign in with Apple',
-    'ja': 'Appleでサインイン', // D-77-CLARIFY: 히라가나+카타카나 일본어
-  },
-};
+const Map<String, Map<String, String>> _kAppleHIG =
+    <String, Map<String, String>>{
+      'authAppleSignIn': <String, String>{
+        'ko': 'Apple로 로그인', // D-78-CLARIFY: 띄어쓰기 없음
+        'en': 'Sign in with Apple',
+        'ja': 'Appleでサインイン', // D-77-CLARIFY: 히라가나+카타카나 일본어
+      },
+    };
 
 /// Naver BI 화이트리스트 (Phase 13.3 D-111 갱신 — D-79 ja 영문 fallback 폐기).
 ///
@@ -47,13 +50,14 @@ const Map<String, Map<String, String>> _kAppleHIG = <String, Map<String, String>
 /// - ja: [ASSUMED] 패턴 일관성 (Apple/Google/Facebook ja mirror) 채택 — user
 ///   sign-off 2026-05-15 Wave 1 Task 1.0 Step 3 옵션 (B). Starter 사용자 일본
 ///   진출 시점 공식 verbatim 재확정 의무.
-const Map<String, Map<String, String>> _kNaverBI = <String, Map<String, String>>{
-  'authNaverSignIn': <String, String>{
-    'ko': '네이버 로그인', // Phase 13.3 SPEC R8 + user sign-off 2026-05-15
-    'en': 'Log in with NAVER', // 공식 AI EN variant verbatim
-    'ja': 'NAVERでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
-  },
-};
+const Map<String, Map<String, String>> _kNaverBI =
+    <String, Map<String, String>>{
+      'authNaverSignIn': <String, String>{
+        'ko': '네이버 로그인', // Phase 13.3 SPEC R8 + user sign-off 2026-05-15
+        'en': 'Log in with NAVER', // 공식 AI EN variant verbatim
+        'ja': 'NAVERでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
+      },
+    };
 
 /// Kakao BI 화이트리스트 (Phase 13.3 D-111 갱신 — D-79 ja 영문 fallback 폐기).
 ///
@@ -63,13 +67,14 @@ const Map<String, Map<String, String>> _kNaverBI = <String, Map<String, String>>
 ///   verbatim — user sign-off 2026-05-15 Wave 1 Task 1.0 Step 4 옵션 (b) 채택
 ///   (Phase 12 D-29 'Continue with Kakao' → 'Login with Kakao' retroactive 갱신).
 /// - ja: [ASSUMED] 패턴 일관성 채택 — user sign-off 2026-05-15 Step 3 옵션 (B).
-const Map<String, Map<String, String>> _kKakaoBI = <String, Map<String, String>>{
-  'authKakaoSignIn': <String, String>{
-    'ko': '카카오 로그인',
-    'en': 'Login with Kakao', // 공식 BI en verbatim (Phase 13.3 D-111 정정)
-    'ja': 'Kakaoでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
-  },
-};
+const Map<String, Map<String, String>> _kKakaoBI =
+    <String, Map<String, String>>{
+      'authKakaoSignIn': <String, String>{
+        'ko': '카카오 로그인',
+        'en': 'Login with Kakao', // 공식 BI en verbatim (Phase 13.3 D-111 정정)
+        'ja': 'Kakaoでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
+      },
+    };
 
 /// 지정 [localeCode] 의 [AppLocalizations] 를 로드해 [table] 의 라벨이
 /// ARB 와 1:1 일치하는지 검증한다.
@@ -94,7 +99,8 @@ Future<void> _verifyLocale(
     expect(
       actual,
       expected,
-      reason: '$localeCode 의 ${entry.key} ARB 값이 BI/HIG 화이트리스트와 drift '
+      reason:
+          '$localeCode 의 ${entry.key} ARB 값이 BI/HIG 화이트리스트와 drift '
           '— production ARB 또는 본 const Map 둘 중 하나 갱신 필요',
     );
   }
@@ -113,64 +119,52 @@ void main() {
     });
   });
 
-  // Phase 13.1 Gap-1 X2 (2026-05-09 자상화) — Naver wide 자상이 logo + 텍스트
-  // 모두 baked-in 으로 buttons 외관을 형성. ARB authNaverSignIn 값은 widget
-  // tree 에 라벨 layer 로 렌더되지 않음. 본 group 의 검증 의도 (ARB ↔ Naver
-  // BI 화이트리스트 일치) 는 자상화로 자연 무효화 — Phase 18 Brand Center
-  // 권한 확보 후 자상 ↔ 라벨 디자인 분리 정책 결정 시 재검토.
+  // Phase 13.3 verbatim restored (Wave 4 D-111) — Universal Layout Pattern
+  // 으로 wide 자상 통째 buttons 패턴 폐기 (Wave 2 `_renderNaverButton`).
+  // ARB authNaverSignIn 값이 위제 트리에 Text 라벨 layer 로 부활 — ARB ↔ Naver
+  // BI 화이트리스트 양방향 검증 부활. Phase 13.1 Gap-1 X2 SKIP 정책 종료.
   //
-  // **REVIEW WR-03 흡수:** 'BI 4 변형 중 1종만 강제' 약한 가드 (REVIEW line
-  // 102~122) 는 자상화로 자연 해소 — 본 skip 으로 수렴.
-  //
-  // **ARB 키 자체 보존:** authNaverSignIn ko/en/ja 값은 SocialButton._resolveLabel
-  // 매핑 + 향후 접근성 (Semantics) layer 에서 활용 가능 (Plan 14 docstring 참조).
-  // 본 const Map 도 mirror 단일 진실원으로 보존.
-  group('brand_label_whitelist — Naver BI (R7) [Phase 13.1 Gap-1 X2 자상화]', () {
-    test(
-      'ko: 네이버로 시작하기 [SKIPPED: 자상화로 라벨 layer 부재]',
-      () async {
+  // **ARB 키 단일 진실원:** authNaverSignIn ko/en/ja 값은 SocialButton._resolveLabel
+  // 매핑 + `_renderNaverButton` 의 Text 위제 + a11y Semantics(label) 매개변수에
+  // 동시 적용. 본 const Map 이 화이트리스트 단일 진실원.
+  group(
+    'brand_label_whitelist — Naver BI (R7) [Phase 13.3 verbatim restored]',
+    () {
+      test('ko: 네이버 로그인 (Phase 13.3 D-111 verbatim)', () async {
         await _verifyLocale('ko', _kNaverBI);
-      },
-      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
-    );
-    test(
-      'en: Continue with Naver [SKIPPED: 자상화로 라벨 layer 부재]',
-      () async {
+      });
+      test('en: Log in with NAVER (공식 AI EN variant verbatim)', () async {
         await _verifyLocale('en', _kNaverBI);
-      },
-      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
-    );
-    test(
-      'ja: Continue with Naver (D-79 영문 fallback) [SKIPPED: 자상화로 라벨 layer 부재]',
-      () async {
-        await _verifyLocale('ja', _kNaverBI);
-      },
-      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
-    );
-  });
+      });
+      test(
+        'ja: NAVERでログイン (D-110 ja verbatim — D-79 영문 fallback 폐기)',
+        () async {
+          await _verifyLocale('ja', _kNaverBI);
+        },
+      );
+    },
+  );
 
-  // Phase 13.1 Gap-1 X2 (2026-05-09 자상화) — Kakao wide 자상도 동일 정책.
-  group('brand_label_whitelist — Kakao BI (R7) [Phase 13.1 Gap-1 X2 자상화]', () {
-    test(
-      'ko: 카카오 로그인 [SKIPPED: 자상화로 라벨 layer 부재]',
-      () async {
+  // Phase 13.3 verbatim restored (Wave 4 D-111) — Kakao 도 Universal Layout
+  // Pattern (Wave 2 `_renderKakaoButton`) 으로 라벨 layer 부활.
+  group(
+    'brand_label_whitelist — Kakao BI (R7) [Phase 13.3 verbatim restored]',
+    () {
+      test('ko: 카카오 로그인 (공식 Kakao Design Guide ko verbatim)', () async {
         await _verifyLocale('ko', _kKakaoBI);
-      },
-      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
-    );
-    test(
-      'en: Continue with Kakao [SKIPPED: 자상화로 라벨 layer 부재]',
-      () async {
-        await _verifyLocale('en', _kKakaoBI);
-      },
-      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
-    );
-    test(
-      'ja: Continue with Kakao (D-79 영문 fallback) [SKIPPED: 자상화로 라벨 layer 부재]',
-      () async {
-        await _verifyLocale('ja', _kKakaoBI);
-      },
-      skip: '자상화로 라벨 layer 부재 — Phase 18 Brand Center 권한 확보 후 재검토',
-    );
-  });
+      });
+      test(
+        'en: Login with Kakao (공식 Kakao Design Guide en verbatim)',
+        () async {
+          await _verifyLocale('en', _kKakaoBI);
+        },
+      );
+      test(
+        'ja: Kakaoでログイン (D-110 ja verbatim — D-79 영문 fallback 폐기)',
+        () async {
+          await _verifyLocale('ja', _kKakaoBI);
+        },
+      );
+    },
+  );
 }

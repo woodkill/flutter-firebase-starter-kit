@@ -29,10 +29,12 @@ import '_brand_assets.dart';
 // file 내 private const 단일 진실원 채택.
 //
 // Audit trail:
-// - `_kKakaoSymbolSvg`: svgrepo.com (third-party) — user sign-off 2026-05-15
-//   (RESEARCH §1.1 D-107' deviation 1회 예외). 비율 1.084:1 ≈ 공식 PSD Shape 5
-//   비율 1.081:1 verbatim. 카카오 답변 (devtalk topic 116131): "타사 아이콘과
-//   비율 차이 없다면 사이트구성에 맞게 사용 가능" 범위 내.
+// - `_kKakaoSymbolSvg`: Kakao 공식 PSD 파일 (`kakao_login_original.psd`,
+//   developers.kakao.com 다운로드) psd-tools v1.17 verbatim 추출 —
+//   `축약_국문/Large (180px X 90px)/Shape 5` layer, 9 knots Bezier path,
+//   bbox 40x37 (PSD layer 좌표 기준 normalized). 2026-05-15 Phase 13.3 Wave 4
+//   재추출 (svgrepo third-party 폐기, `feedback_official_bi_verification.md`
+//   HIGH-trust 충족). fill="currentColor" 채택 — yellow-bg = `Color(0xDD000000)`.
 // - `_kNaverSymbolSvg`: Naver 공식 AI 파일 (`developers.naver.com/docs/login/bi/bi.md`,
 //   `NAVER_login_KR.ai`, PDF-1.5 vector) PyMuPDF verbatim 추출 —
 //   drawing[31] (축약형 Large green N white glyph), 2026-05-15. HIGH-trust
@@ -40,27 +42,24 @@ import '_brand_assets.dart';
 //   fill="currentColor" 채택 — green-bg 버튼 = `Colors.white` / white-bg
 //   버튼 = `Color(0xFF03A94D)` 로 caller 측 colorFilter 일관 매핑.
 
-/// Kakao 말풍선 symbol SVG raw markup (D-107, RESEARCH §1.1).
+/// Kakao 말풍선 symbol SVG raw markup (D-107, RESEARCH §1.1, Phase 13.3 Wave 4
+/// 재추출).
 ///
-/// Source: https://www.svgrepo.com/svg/368252/kakao (user sign-off 2026-05-15).
-/// viewBox 0 0 512 512, single closed Bezier path, fill #000000 (공식 BI verbatim).
+/// Source: Kakao 공식 PSD (`developers.kakao.com` 다운로드 — `kakao_login_original.psd`,
+/// `축약_국문/Large (180px X 90px)/Shape 5` vector layer, 9 knots Bezier).
+/// psd-tools v1.17 verbatim 추출 2026-05-15. viewBox = bbox verbatim (padding 0).
 const String _kKakaoSymbolSvg =
-    '<?xml version="1.0" encoding="utf-8"?>'
-    '<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->'
-    '<svg width="800px" height="800px" viewBox="0 0 512 512" version="1.1" '
-    'xmlns="http://www.w3.org/2000/svg">'
-    '<path fill="#000000" d="M255.5 48C299.345 48 339.897 56.5332 377.156 73.5996'
-    'C414.415 90.666 443.871 113.873 465.522 143.22C487.174 172.566 498 204.577 '
-    '498 239.252C498 273.926 487.174 305.982 465.522 335.42C443.871 364.857 '
-    '414.46 388.109 377.291 405.175C340.122 422.241 299.525 430.775 255.5 430.775'
-    'C241.607 430.775 227.262 429.781 212.467 427.795C148.233 472.402 114.042 '
-    '494.977 109.892 495.518C107.907 496.241 106.012 496.15 104.208 495.248'
-    'C103.486 494.706 102.945 493.983 102.584 493.08C102.223 492.177 102.043 '
-    '491.365 102.043 490.642V489.559C103.126 482.515 111.335 453.169 126.672 '
-    '401.518C91.8486 384.181 64.1974 361.2 43.7185 332.575C23.2395 303.951 '
-    '13 272.843 13 239.252C13 204.577 23.8259 172.566 45.4777 143.22C67.1295 '
-    '113.873 96.5849 90.666 133.844 73.5996C171.103 56.5332 211.655 48 255.5 48Z"'
-    '></path></svg>';
+    '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 37" '
+    'width="40" height="37">'
+    '<path d="M20 1.94 C10.06 1.94 2 8.19 2 15.91 '
+    'C2 20.71 5.12 24.94 9.86 27.45 L7.87 34.78 '
+    'C7.69 35.43 8.43 35.95 8.99 35.57 L17.75 29.77 '
+    'C18.49 29.84 19.24 29.88 20 29.88 '
+    'C29.94 29.88 38 23.63 38 15.91 '
+    'C38 8.19 29.94 1.94 20 1.94 Z" '
+    'fill="currentColor"/>'
+    '</svg>';
 
 /// Naver N symbol SVG raw markup (D-107, RESEARCH §1.2).
 ///

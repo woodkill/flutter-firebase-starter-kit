@@ -4,7 +4,10 @@
 //             Wave 4 의 --update-goldens 가 fixture 재생성 책임 — 본 file 은
 //             compile pass 까지만 수정.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -86,7 +89,33 @@ Future<void> _settleAssets(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Phase 13.3 Wave 4 — golden test 라벨 Text 글리프 회귀 정정 (D-119).
+///
+/// **Background:** `flutter_test` 의 기본 폰트는 Ahem (모든 글리프가 동일
+/// 정사각형 box). Phase 13.1 D-86 시점부터 모든 골든 fixture 의 라벨 텍스트
+/// (`Continue with Google` / `Login with Kakao` / `Log in with NAVER` 등) 가
+/// ▮▮ box 로 렌더링되어 사용자 시각 sign-off (D-119) 가 정상 검증 불가능.
+///
+/// **해결:** Flutter SDK 의 `Roboto-Medium.ttf` (Apache 2.0) 를
+/// `assets/test_fonts/` 에 복사 commit + golden test 진입 시 `FontLoader` 로
+/// 등록. `flutter > assets` pubspec 등록 비채택 — production bundle 미포함
+/// (test 전용 자산). `File.fromUri` 직접 로드 — test working directory 가
+/// project root 라 안정적.
+///
+/// **5 provider 정합성:** Apple SDK = SF Pro (caller override 0, golden 외).
+/// Google = Roboto Medium 14/20 (verbatim 명시). Facebook/Kakao/Naver =
+/// system 위임 + Android default = Roboto → 5 provider 모두 부합 (`feedback_*`
+/// 메모리 + 13.3-UI-SPEC line 76/82-83).
+Future<void> _loadGoldenFonts() async {
+  final loader = FontLoader('Roboto');
+  final bytes = await File('assets/test_fonts/Roboto-Medium.ttf').readAsBytes();
+  loader.addFont(Future.value(ByteData.view(bytes.buffer)));
+  await loader.load();
+}
+
 void main() {
+  setUpAll(_loadGoldenFonts);
+
   group(
     'BrandedSocialButton golden — D-86 6 fixture / D-87 zero tolerance',
     () {
@@ -96,7 +125,7 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             BrandedSocialButton.naver(
-              label: 'Continue with Naver',
+              label: 'Log in with NAVER',
               onPressed: () {},
             ),
             brightness: Brightness.light,
@@ -111,24 +140,10 @@ void main() {
         );
       });
 
-      testWidgets('Naver dark', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(
-              label: 'Continue with Naver',
-              onPressed: () {},
-            ),
-            brightness: Brightness.dark,
-          ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/naver_dark.png'),
-        );
-      });
+      // Phase 13.3 Wave 4 Q4 (option-a) — Naver light/dark 외관 동일
+      // (`#03A94D` + 흰 라벨 + 흰 N glyph, `_renderNaverButton` brightness
+      // 분기 0). dark fixture single 폐기 (RESEARCH §Wave 4.5 권장,
+      // 13.3-04-PLAN Q4 결정 2026-05-15).
 
       testWidgets('Kakao light', (tester) async {
         await tester.binding.setSurfaceSize(const Size(360, 480));
@@ -136,7 +151,7 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             BrandedSocialButton.kakao(
-              label: 'Continue with Kakao',
+              label: 'Login with Kakao',
               onPressed: () {},
             ),
             brightness: Brightness.light,
@@ -187,31 +202,9 @@ void main() {
         );
       });
 
-      // Phase 13.3 R1 (Wave 3 D-117) — GoogleTheme.neutral enum 폐기.
-      // case 자체 보존 (compile pass 책임 minimum), Wave 4 가 case 삭제 +
-      // google_neutral.png fixture rm 책임. 본 testWidgets 는 light fixture
-      // 와 동일한 caller 로 임시 변경 — Wave 4 가 case 자체 삭제 시 본 임시
-      // assertion 도 함께 폐기.
-      testWidgets('Google neutral (Wave 4 deprecation pending)', (
-        tester,
-      ) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.google(
-              label: 'Sign in with Google',
-              onPressed: () {},
-            ),
-            brightness: Brightness.light,
-          ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/google_neutral.png'),
-        );
-      });
+      // Phase 13.3 R1 (Wave 3 D-117) — GoogleTheme.neutral enum 폐기 +
+      // `goldens/google_neutral.png` fixture rm (Wave 4 Task 4.5).
+      // Universal Layout Pattern 으로 통합 → light/dark 2 fixture 만 보존.
 
       // Phase 13.2 Plan 13.2-06 — Facebook fixture 신규 (옵션 A pivot 후).
       //

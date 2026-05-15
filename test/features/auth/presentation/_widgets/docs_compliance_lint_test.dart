@@ -27,26 +27,27 @@ import 'package:flutter_test/flutter_test.dart';
 /// retro 마커 제거, manual.md heading rename) 시 RED 즉시 노출.
 void main() {
   group('docs_compliance_lint', () {
-    test('R7: app_ja.arb 의 authNaverSignIn/authKakaoSignIn 영문 fallback 보존', () {
+    test('R7: app_ja.arb 의 authNaverSignIn/authKakaoSignIn BI verbatim 보존', () {
       // Arrange — ARB 파일 직접 읽기 (gen-l10n 산출물 의존 금지).
       final arb = File('lib/l10n/app_ja.arb');
       expect(arb.existsSync(), isTrue, reason: 'app_ja.arb 부재');
       final content = arb.readAsStringSync();
 
-      // Assert — D-79 영문 fallback verbatim.
+      // Assert — Phase 13.3 D-111 retroactive 갱신: D-79 영문 fallback 폐기,
+      // [ASSUMED] 패턴 일관성 ja verbatim (user sign-off 2026-05-15).
       expect(
         content,
-        contains('"authNaverSignIn": "Continue with Naver"'),
+        contains('"authNaverSignIn": "NAVERでログイン"'),
         reason:
-            'authNaverSignIn 의 D-79 영문 fallback 값이 drift — '
-            'Phase 13.1 R7 acceptance 위반',
+            'authNaverSignIn ja BI verbatim 값이 drift — '
+            'Phase 13.3 D-111 acceptance 위반',
       );
       expect(
         content,
-        contains('"authKakaoSignIn": "Continue with Kakao"'),
+        contains('"authKakaoSignIn": "Kakaoでログイン"'),
         reason:
-            'authKakaoSignIn 의 D-79 영문 fallback 값이 drift — '
-            'Phase 13.1 R7 acceptance 위반',
+            'authKakaoSignIn ja BI verbatim 값이 drift — '
+            'Phase 13.3 D-111 acceptance 위반',
       );
     });
 

@@ -93,6 +93,11 @@ void main() {
     // golden test 만 RED 로 늦게 발견. 본 group 이 생산 production widget
     // 이 의존하는 모든 (provider × locale × theme × variant) tuple 의 자상
     // path 존재를 컴파일 시점에 검출.
+    // Phase 13.3 Wave 3 (commit c73c9a3) — wide 자상 통째 buttons 패턴 폐기
+    // 결정. Kakao large_wide / Naver h48_wide / Google btn_signin_full 3 자상
+    // 모두 production widget 미참조 (logo only symbol SVG inline 패턴 채택).
+    // 본 3 test 는 Phase 13.3 새 process (사용자 제시 7-step) step 1 에서
+    // wide asset 정책 최종 결정 후 재검토 — skip 처리.
     test('Kakao 자상 (locale × {large}_wide PNG) 모두 존재', () {
       const sizes = <String>['large']; // production default; medium 은 future-proof
       for (final lang in <String>['ko', 'en']) {
@@ -106,7 +111,7 @@ void main() {
           );
         }
       }
-    });
+    }, skip: 'Phase 13.3 Wave 3 wide asset 폐기 — 새 process step 1 재검토');
 
     test('Naver 자상 (locale × theme × h48 PNG) 모두 존재', () {
       for (final lang in <String>['ko', 'en']) {
@@ -120,7 +125,7 @@ void main() {
           );
         }
       }
-    });
+    }, skip: 'Phase 13.3 Wave 3 wide asset 폐기 — 새 process step 1 재검토');
 
     test('Google 자상 (theme × full SVG) 모두 존재', () {
       for (final theme in <String>['light', 'dark', 'neutral']) {
@@ -131,6 +136,6 @@ void main() {
           reason: 'production widget 의존 자상 부재: $path',
         );
       }
-    });
+    }, skip: 'Phase 13.3 Wave 3 wide asset 폐기 — 새 process step 1 재검토');
   });
 }

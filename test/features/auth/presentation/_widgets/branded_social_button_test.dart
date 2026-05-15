@@ -14,9 +14,11 @@
 //             assertion 신규는 Wave 4 책임.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -721,4 +723,364 @@ void main() {
       },
     );
   });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // Phase 13.3 Wave 4 — R1/R2/R3/R5 widget tree structural assertion (D-117)
+  // ════════════════════════════════════════════════════════════════════════
+  //
+  // RESEARCH §Wave 4.2 widget tree assertion 매트릭스 + Pattern D
+  // (find.byWidgetPredicate). brand verbatim hex literal drift 자동 검출 +
+  // wide PNG 자상 미참조 acceptance + Naver carve-out (#03C75A NCloud SSO)
+  // 보호. Apple SDK Theme.brightness 자동 매핑 (R5) 검증.
+  //
+  // Pitfall 3: `_settleAssets(tester)` helper 가 SvgPicture.string 비동기
+  // vector_graphics 로드 wait — Kakao/Naver render assertion 전 의무 호출.
+  group(
+    'BrandedSocialButton — Phase 13.3 widget tree assertion (R1/R2/R3/R5)',
+    () {
+      // ─── T-13.3-GOOGLE-RENDER-01 (R1) ────────────────────────────────────
+      testWidgets('T-13.3-GOOGLE-RENDER-01: Google render — SvgPicture + 1dp '
+          'BorderSide + authGoogleSignIn Text (R1)', (tester) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.google(
+              label: 'Sign in with Google',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await _settleAssetsForR1R2R3(tester);
+
+        // 1. SvgPicture (Google Identity btn_signin_icon.svg) >= 1
+        expect(
+          find.byType(SvgPicture),
+          findsAtLeastNWidgets(1),
+          reason:
+              'Google render 가 SvgPicture (btn_signin_icon.svg) 보유 의무 (R1).',
+        );
+
+        // 2. Material shape = RoundedRectangleBorder + side.width == 1.0
+        expect(
+          find.byWidgetPredicate((Widget w) {
+            if (w is! Material) return false;
+            final ShapeBorder? shape = w.shape;
+            if (shape is! RoundedRectangleBorder) return false;
+            return shape.side.width == 1.0;
+          }),
+          findsAtLeastNWidgets(1),
+          reason: 'Google 1dp BorderSide outline 의무 (R1 Identity Guidelines).',
+        );
+
+        // 3. ARB authGoogleSignIn 라벨 Text
+        expect(find.text('Sign in with Google'), findsOneWidget);
+      });
+
+      // ─── T-13.3-GOOGLE-STROKE-LIGHT-01 (R1) ──────────────────────────────
+      testWidgets('T-13.3-GOOGLE-STROKE-LIGHT-01: Google light theme stroke '
+          'Color(0xFF747775) (R1 verbatim)', (tester) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.google(
+              label: 'Sign in with Google',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await _settleAssetsForR1R2R3(tester);
+
+        expect(
+          find.byWidgetPredicate((Widget w) {
+            if (w is! Material) return false;
+            final ShapeBorder? shape = w.shape;
+            if (shape is! RoundedRectangleBorder) return false;
+            return shape.side.color == const Color(0xFF747775);
+          }),
+          findsAtLeastNWidgets(1),
+          reason:
+              'Google light theme stroke 의무 Color(0xFF747775) — Google '
+              'Identity Guidelines verbatim (R1).',
+        );
+      });
+
+      // ─── T-13.3-GOOGLE-STROKE-DARK-01 (R1) ───────────────────────────────
+      testWidgets('T-13.3-GOOGLE-STROKE-DARK-01: Google dark theme stroke '
+          'Color(0xFF8E918F) (R1 verbatim)', (tester) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.google(
+              label: 'Sign in with Google',
+              onPressed: () {},
+            ),
+            brightness: Brightness.dark,
+          ),
+        );
+        await _settleAssetsForR1R2R3(tester);
+
+        expect(
+          find.byWidgetPredicate((Widget w) {
+            if (w is! Material) return false;
+            final ShapeBorder? shape = w.shape;
+            if (shape is! RoundedRectangleBorder) return false;
+            return shape.side.color == const Color(0xFF8E918F);
+          }),
+          findsAtLeastNWidgets(1),
+          reason:
+              'Google dark theme stroke 의무 Color(0xFF8E918F) — Google '
+              'Identity Guidelines verbatim (R1).',
+        );
+      });
+
+      // ─── T-13.3-KAKAO-RENDER-01 (R2) ─────────────────────────────────────
+      testWidgets('T-13.3-KAKAO-RENDER-01: Kakao render — Material #FEE500 + '
+          'SvgPicture (말풍선 symbol inline) + authKakaoSignIn Text (R2)', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.kakao(
+              label: 'Login with Kakao',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await _settleAssetsForR1R2R3(tester);
+
+        // 1. Material bg color == #FEE500 (Kakao yellow verbatim)
+        expect(
+          find.byWidgetPredicate((Widget w) {
+            return w is Material && w.color == const Color(0xFFFEE500);
+          }),
+          findsOneWidget,
+          reason: 'Kakao render 가 #FEE500 bg Material 단일 보유 의무 (R2).',
+        );
+
+        // 2. SvgPicture (말풍선 symbol SvgPicture.string inline)
+        expect(
+          find.byType(SvgPicture),
+          findsAtLeastNWidgets(1),
+          reason: 'Kakao 말풍선 symbol SVG inline render 의무 (R2 + D-105).',
+        );
+
+        // 3. ARB authKakaoSignIn 라벨 Text
+        expect(find.text('Login with Kakao'), findsOneWidget);
+      });
+
+      // ─── T-13.3-KAKAO-WIDE-PNG-MISSING-01 (R2 + R7) ──────────────────────
+      testWidgets('T-13.3-KAKAO-WIDE-PNG-MISSING-01: Kakao render 가 '
+          'kakao_login_large_wide.png 미참조 (R2 + R7 wide asset 폐기)', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.kakao(
+              label: 'Login with Kakao',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await _settleAssetsForR1R2R3(tester);
+
+        expect(
+          find.byWidgetPredicate((Widget w) {
+            if (w is! Image) return false;
+            final ImageProvider image = w.image;
+            if (image is! AssetImage) return false;
+            return image.assetName.contains('kakao_login_large_wide') ||
+                image.assetName.contains('kakao_login_medium_wide');
+          }),
+          findsNothing,
+          reason:
+              'Phase 13.3 R7 — wide PNG 자상 (kakao_login_*_wide.png) 미참조 '
+              '의무. Universal Layout Pattern (SvgPicture.string symbol) '
+              '으로 통째 전환.',
+        );
+      });
+
+      // ─── T-13.3-NAVER-RENDER-01 (R3) ─────────────────────────────────────
+      testWidgets('T-13.3-NAVER-RENDER-01: Naver render — Material #03A94D + '
+          'SvgPicture (N symbol inline) + authNaverSignIn Text (R3)', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.naver(
+              label: 'Log in with NAVER',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await _settleAssetsForR1R2R3(tester);
+
+        // 1. Material bg color == #03A94D (NAVER ID 로그인 BI verbatim)
+        expect(
+          find.byWidgetPredicate((Widget w) {
+            return w is Material && w.color == const Color(0xFF03A94D);
+          }),
+          findsOneWidget,
+          reason: 'Naver render 가 #03A94D bg Material 단일 보유 의무 (R3 BI).',
+        );
+
+        // 2. SvgPicture (N symbol SvgPicture.string inline)
+        expect(
+          find.byType(SvgPicture),
+          findsAtLeastNWidgets(1),
+          reason: 'Naver N symbol SVG inline render 의무 (R3 + D-105).',
+        );
+
+        // 3. ARB authNaverSignIn 라벨 Text
+        expect(find.text('Log in with NAVER'), findsOneWidget);
+      });
+
+      // ─── T-13.3-NAVER-WIDE-PNG-MISSING-01 (R3 + R7) ──────────────────────
+      testWidgets('T-13.3-NAVER-WIDE-PNG-MISSING-01: Naver render 가 '
+          'naver_login_h48_wide.png 미참조 (R3 + R7 wide asset 폐기)', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.naver(
+              label: 'Log in with NAVER',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await _settleAssetsForR1R2R3(tester);
+
+        expect(
+          find.byWidgetPredicate((Widget w) {
+            if (w is! Image) return false;
+            final ImageProvider image = w.image;
+            if (image is! AssetImage) return false;
+            return image.assetName.contains('naver_login_h48_wide') ||
+                image.assetName.contains('naver_login_h56_wide');
+          }),
+          findsNothing,
+          reason:
+              'Phase 13.3 R7 — wide PNG 자상 (naver_login_h*_wide.png) 미참조 '
+              '의무. Universal Layout Pattern (SvgPicture.string symbol) '
+              '으로 통째 전환.',
+        );
+      });
+
+      // ─── T-13.3-NAVER-CARVE-OUT-01 (R3 carve-out) ────────────────────────
+      testWidgets(
+        'T-13.3-NAVER-CARVE-OUT-01: Naver render 가 #03C75A (NCloud SSO '
+        '회사 브랜드) 미사용 (R3 carve-out 보호)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.naver(
+                label: 'Log in with NAVER',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              return w is Material && w.color == const Color(0xFF03C75A);
+            }),
+            findsNothing,
+            reason:
+                'R3 carve-out — #03C75A 는 NAVER Corp + NCloud SSO 별도 brand. '
+                'NAVER ID 로그인 BI 의 #03A94D 단독 강제. drift 시 즉시 RED.',
+          );
+        },
+      );
+
+      // ─── T-13.3-APPLE-LIGHT-BLACK-01 (R5) ────────────────────────────────
+      testWidgets('T-13.3-APPLE-LIGHT-BLACK-01: Apple light theme → '
+          'SignInWithAppleButtonStyle.black (R5 자동 매핑)', (tester) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.apple(
+              label: 'Sign in with Apple',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final SignInWithAppleButton appleBtn = tester
+            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton));
+        expect(
+          appleBtn.style,
+          SignInWithAppleButtonStyle.black,
+          reason:
+              'R5 Apple light theme → .black 자동 매핑 의무. caller 측 '
+              'style: parameter 폐기, Theme.brightness 단독 권위.',
+        );
+      });
+
+      // ─── T-13.3-APPLE-DARK-WHITE-01 (R5) ─────────────────────────────────
+      testWidgets('T-13.3-APPLE-DARK-WHITE-01: Apple dark theme → '
+          'SignInWithAppleButtonStyle.white (R5 자동 매핑)', (tester) async {
+        await tester.pumpWidget(
+          _wrapForR1R2R3(
+            BrandedSocialButton.apple(
+              label: 'Sign in with Apple',
+              onPressed: () {},
+            ),
+            brightness: Brightness.dark,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final SignInWithAppleButton appleBtn = tester
+            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton));
+        expect(
+          appleBtn.style,
+          SignInWithAppleButtonStyle.white,
+          reason:
+              'R5 Apple dark theme → .white 자동 매핑 의무. caller 측 '
+              'style: parameter 폐기, Theme.brightness 단독 권위.',
+        );
+      });
+    },
+  );
+}
+
+/// Phase 13.3 Wave 4 — `_wrap` 헬퍼 (위제 트리 assertion 용).
+///
+/// `branded_social_button_golden_test.dart` 의 `_wrap` helper 와 동일 구조 —
+/// AppTheme.light/dark 주입 (`context.appSpacing` ThemeExtension 의무) + en
+/// locale lock + ARB delegate 명시. golden 과의 환경 일관성 유지.
+Widget _wrapForR1R2R3(Widget child, {required Brightness brightness}) {
+  return MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: brightness == Brightness.light ? AppTheme.light() : AppTheme.dark(),
+    locale: const Locale('en'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: Scaffold(
+      body: Center(child: SizedBox(width: 360, child: child)),
+    ),
+  );
+}
+
+/// Phase 13.3 Wave 4 — `_settleAssets` 헬퍼 (SvgPicture.string 비동기 wait).
+///
+/// `branded_social_button_golden_test.dart` 의 `_settleAssets` 와 동일 패턴 —
+/// (1) Image.asset 강제 디코딩 + (2) SvgPicture vector_graphics 비동기 로드
+/// 흡수를 위한 200ms delay + (3) 최종 pumpAndSettle. Pitfall 3 가드.
+Future<void> _settleAssetsForR1R2R3(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    await tester.pumpAndSettle();
+    for (final Element element in find.byType(Image).evaluate().toList()) {
+      final Image widget = element.widget as Image;
+      await precacheImage(widget.image, element);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+  });
+  await tester.pumpAndSettle();
 }
