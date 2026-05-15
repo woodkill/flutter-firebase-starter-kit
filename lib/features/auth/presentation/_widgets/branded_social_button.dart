@@ -1,4 +1,6 @@
 // Phase 13.1 — see ROADMAP.md (D-61 sealed BrandSpec hierarchy + R1/R2/R8 정정)
+// Phase 13.3 — see ROADMAP.md (D-107 symbol SVG raw verbatim inline,
+//             RESEARCH §1.1 + §1.2 — Wave 1 const 주입)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -19,6 +21,64 @@ import '_brand_assets.dart';
 // Brand Center 마이그 시 fallback 색 reference 가 필요하면 그 시점에
 // 신규 const 도입 — 현재 dead retention 패턴 폐기로 woody_lints
 // unused_element 룰과 정합.
+
+// Phase 13.3 — Wave 1 D-107 symbol SVG raw const (RESEARCH §1.1 + §1.2):
+//
+// Wave 2 의 `_renderKakaoButton` / `_renderNaverButton` 가 `SvgPicture.string`
+// 으로 본 const 를 inline render. 외부 asset 분리 시 drift risk (D-107) —
+// file 내 private const 단일 진실원 채택.
+//
+// Audit trail:
+// - `_kKakaoSymbolSvg`: svgrepo.com (third-party) — user sign-off 2026-05-15
+//   (RESEARCH §1.1 D-107' deviation 1회 예외). 비율 1.084:1 ≈ 공식 PSD Shape 5
+//   비율 1.081:1 verbatim. 카카오 답변 (devtalk topic 116131): "타사 아이콘과
+//   비율 차이 없다면 사이트구성에 맞게 사용 가능" 범위 내.
+// - `_kNaverSymbolSvg`: Naver 공식 AI 파일 (`developers.naver.com/docs/login/bi/bi.md`,
+//   `NAVER_login_KR.ai`, PDF-1.5 vector) PyMuPDF verbatim 추출 —
+//   drawing[31] (축약형 Large green N white glyph), 2026-05-15. HIGH-trust
+//   audit trail (memory `feedback_official_bi_verification.md` 충족).
+//   fill="currentColor" 채택 — green-bg 버튼 = `Colors.white` / white-bg
+//   버튼 = `Color(0xFF03A94D)` 로 caller 측 colorFilter 일관 매핑.
+
+/// Kakao 말풍선 symbol SVG raw markup (D-107, RESEARCH §1.1).
+///
+/// Source: https://www.svgrepo.com/svg/368252/kakao (user sign-off 2026-05-15).
+/// viewBox 0 0 512 512, single closed Bezier path, fill #000000 (공식 BI verbatim).
+// ignore: unused_element — Wave 2 의 `_renderKakaoButton` 가 reference 추가 시 자동 해소.
+const String _kKakaoSymbolSvg =
+    '<?xml version="1.0" encoding="utf-8"?>'
+    '<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->'
+    '<svg width="800px" height="800px" viewBox="0 0 512 512" version="1.1" '
+    'xmlns="http://www.w3.org/2000/svg">'
+    '<path fill="#000000" d="M255.5 48C299.345 48 339.897 56.5332 377.156 73.5996'
+    'C414.415 90.666 443.871 113.873 465.522 143.22C487.174 172.566 498 204.577 '
+    '498 239.252C498 273.926 487.174 305.982 465.522 335.42C443.871 364.857 '
+    '414.46 388.109 377.291 405.175C340.122 422.241 299.525 430.775 255.5 430.775'
+    'C241.607 430.775 227.262 429.781 212.467 427.795C148.233 472.402 114.042 '
+    '494.977 109.892 495.518C107.907 496.241 106.012 496.15 104.208 495.248'
+    'C103.486 494.706 102.945 493.983 102.584 493.08C102.223 492.177 102.043 '
+    '491.365 102.043 490.642V489.559C103.126 482.515 111.335 453.169 126.672 '
+    '401.518C91.8486 384.181 64.1974 361.2 43.7185 332.575C23.2395 303.951 '
+    '13 272.843 13 239.252C13 204.577 23.8259 172.566 45.4777 143.22C67.1295 '
+    '113.873 96.5849 90.666 133.844 73.5996C171.103 56.5332 211.655 48 255.5 48Z"'
+    '></path></svg>';
+
+/// Naver N symbol SVG raw markup (D-107, RESEARCH §1.2).
+///
+/// Source: Naver 공식 AI 파일 (`NAVER_login_KR.ai`) PyMuPDF v1 verbatim 추출 —
+/// drawing[31] (축약형 Large green N white glyph), 2026-05-15.
+/// viewBox 0 0 20 20, single closed polygon (10 line segments, no Bezier).
+/// fill="currentColor" — caller 측 `ColorFilter.mode` 또는 wrapping `IconTheme`
+/// 으로 green-bg = `Colors.white` / white-bg = `Color(0xFF03A94D)` 매핑.
+// ignore: unused_element — Wave 2 의 `_renderNaverButton` 가 reference 추가 시 자동 해소.
+const String _kNaverSymbolSvg =
+    '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" '
+    'width="20" height="20">'
+    '<path d="M13.561 10.706 L6.146 0.0 L0.0 0.0 L0.0 20.0 L6.439 20.0 '
+    'L6.439 9.298 L13.854 20.0 L20.0 20.0 L20.0 0.0 L13.561 0.0 Z" '
+    'fill="currentColor"/>'
+    '</svg>';
 
 /// 자상 렌더링 dispatch 태그 (D-68).
 ///

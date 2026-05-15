@@ -371,13 +371,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authAccountProviderFacebook => 'Facebook';
 
   @override
-  String get authKakaoSignIn => 'Continue with Kakao';
+  String get authKakaoSignIn => 'Kakaoでログイン';
 
   @override
   String get authAccountProviderKakao => 'カカオ';
 
   @override
-  String get authNaverSignIn => 'Continue with Naver';
+  String get authNaverSignIn => 'NAVERでログイン';
 
   @override
   String authBrandAssetMissing(String label) {

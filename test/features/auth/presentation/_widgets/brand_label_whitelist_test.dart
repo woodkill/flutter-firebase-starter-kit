@@ -39,21 +39,35 @@ const Map<String, Map<String, String>> _kAppleHIG = <String, Map<String, String>
   },
 };
 
-/// Naver BI 화이트리스트 (D-79 ja 영문 fallback).
+/// Naver BI 화이트리스트 (Phase 13.3 D-111 갱신 — D-79 ja 영문 fallback 폐기).
+///
+/// Source-of-truth:
+/// - ko/en: Naver 공식 AI 파일 (`developers.naver.com/docs/login/bi/bi.md`,
+///   `NAVER_login_KR.ai` + `NAVER_login_EN.ai`) verbatim — Phase 13.3 RESEARCH §1.2.
+/// - ja: [ASSUMED] 패턴 일관성 (Apple/Google/Facebook ja mirror) 채택 — user
+///   sign-off 2026-05-15 Wave 1 Task 1.0 Step 3 옵션 (B). Starter 사용자 일본
+///   진출 시점 공식 verbatim 재확정 의무.
 const Map<String, Map<String, String>> _kNaverBI = <String, Map<String, String>>{
   'authNaverSignIn': <String, String>{
-    'ko': '네이버로 시작하기', // Naver BI ko 4 변형 중 채택 (D-23)
-    'en': 'Continue with Naver',
-    'ja': 'Continue with Naver', // R7 영문 fallback (D-79)
+    'ko': '네이버 로그인', // Phase 13.3 SPEC R8 + user sign-off 2026-05-15
+    'en': 'Log in with NAVER', // 공식 AI EN variant verbatim
+    'ja': 'NAVERでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
   },
 };
 
-/// Kakao BI 화이트리스트 (D-79 ja 영문 fallback).
+/// Kakao BI 화이트리스트 (Phase 13.3 D-111 갱신 — D-79 ja 영문 fallback 폐기).
+///
+/// Source-of-truth:
+/// - ko: 공식 Kakao Design Guide (`developers.kakao.com/docs/ko/kakaologin/design-guide`) verbatim.
+/// - en: 공식 Kakao Design Guide (`developers.kakao.com/docs/latest/en/kakaologin/design-guide`)
+///   verbatim — user sign-off 2026-05-15 Wave 1 Task 1.0 Step 4 옵션 (b) 채택
+///   (Phase 12 D-29 'Continue with Kakao' → 'Login with Kakao' retroactive 갱신).
+/// - ja: [ASSUMED] 패턴 일관성 채택 — user sign-off 2026-05-15 Step 3 옵션 (B).
 const Map<String, Map<String, String>> _kKakaoBI = <String, Map<String, String>>{
   'authKakaoSignIn': <String, String>{
     'ko': '카카오 로그인',
-    'en': 'Continue with Kakao',
-    'ja': 'Continue with Kakao', // R7 영문 fallback (D-79)
+    'en': 'Login with Kakao', // 공식 BI en verbatim (Phase 13.3 D-111 정정)
+    'ja': 'Kakaoでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
   },
 };
 

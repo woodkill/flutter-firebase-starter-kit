@@ -148,14 +148,14 @@
   "authAccountProviderApple": "Apple",
   "authFacebookSignIn": "Facebookでログイン",
   "authAccountProviderFacebook": "Facebook",
-  "authKakaoSignIn": "Continue with Kakao",
+  "authKakaoSignIn": "Kakaoでログイン",
   "@authKakaoSignIn": {
-    "description": "JA fallback to EN per BI whitelist (Phase 13.1 R7) — Kakao 공식 ja 자산 미제공으로 영문 BI verbatim 채택."
+    "description": "Kakao Login button label. JA 공식 BI verbatim 적용 (R8 by Phase 13.3 — ja 는 [ASSUMED] 패턴 일관성 채택, Apple/Google/Facebook ja mirror, starter 사용자 일본 진출 시점 공식 verbatim 재확정 의무). Phase 13.1 D-79 영문 fallback 폐기 — user sign-off 2026-05-15 Wave 1 Task 1.0 Step 3 옵션 (B)."
   },
   "authAccountProviderKakao": "カカオ",
-  "authNaverSignIn": "Continue with Naver",
+  "authNaverSignIn": "NAVERでログイン",
   "@authNaverSignIn": {
-    "description": "JA fallback to EN per BI whitelist (Phase 13.1 R7) — Naver BI ja 자산 미제공으로 영문 BI verbatim 채택."
+    "description": "Naver Login button label. JA 공식 BI verbatim 적용 (R8 by Phase 13.3 — ja 는 [ASSUMED] 패턴 일관성 채택, Apple/Google/Facebook ja mirror, starter 사용자 일본 진출 시점 공식 verbatim 재확정 의무). #03C75A (NCloud SSO) carve-out — Phase 13.1 D-Note 일관. Phase 13.1 D-79 영문 fallback 폐기 — user sign-off 2026-05-15 Wave 1 Task 1.0 Step 3 옵션 (B)."
   },
   "authBrandAssetMissing": "アセットが見つかりません: {label}",
   "@authBrandAssetMissing": {

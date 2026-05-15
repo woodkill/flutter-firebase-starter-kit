@@ -377,7 +377,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountProviderKakao => '카카오';
 
   @override
-  String get authNaverSignIn => '네이버로 시작하기';
+  String get authNaverSignIn => '네이버 로그인';
 
   @override
   String authBrandAssetMissing(String label) {

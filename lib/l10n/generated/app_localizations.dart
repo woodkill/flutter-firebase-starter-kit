@@ -790,10 +790,10 @@ abstract class AppLocalizations {
   /// **'Facebook'**
   String get authAccountProviderFacebook;
 
-  /// Kakao 로그인 버튼 라벨 (Phase 12 D-29). Kakao 공식 영문 표기.
+  /// Kakao Login button label. EN verbatim from Kakao Design Guide (developers.kakao.com/docs/latest/en/kakaologin/design-guide). JA 공식 BI verbatim 적용 (R8 by Phase 13.3 — ja 는 [ASSUMED] 패턴 일관성 채택, starter 사용자 일본 진출 시점 공식 verbatim 재확정 의무). Phase 13.3 D-111 retroactive 갱신: Phase 12 D-29 'Continue with Kakao' → 'Login with Kakao' (user sign-off 2026-05-15 Wave 1 Task 1.0 Step 4 옵션 (b)).
   ///
   /// In en, this message translates to:
-  /// **'Continue with Kakao'**
+  /// **'Login with Kakao'**
   String get authKakaoSignIn;
 
   /// Account 섹션 Kakao 프로바이더 표시 (Phase 12 D-17).
@@ -802,10 +802,10 @@ abstract class AppLocalizations {
   /// **'Kakao'**
   String get authAccountProviderKakao;
 
-  /// Phase 13 — Naver social sign-in button label (D-23 / D-52). Custom Token provider 일관성 — 'Continue with X' 패턴 (Kakao 와 대칭).
+  /// Naver Login button label. EN verbatim from Naver 공식 AI 파일 (developers.naver.com/docs/login/bi/bi.md, NAVER_login_EN.ai). JA 공식 BI verbatim 적용 (R8 by Phase 13.3 — ja 는 [ASSUMED] 패턴 일관성 채택, starter 사용자 일본 진출 시점 공식 verbatim 재확정 의무). #03C75A (NCloud SSO) carve-out — Phase 13.1 D-Note 일관. Phase 13.3 retroactive 갱신: Phase 13 D-23/D-52 'Continue with Naver' → 'Log in with NAVER'.
   ///
   /// In en, this message translates to:
-  /// **'Continue with Naver'**
+  /// **'Log in with NAVER'**
   String get authNaverSignIn;
 
   /// Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE/WeChat 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14/16 자상 commit 후 본 path 도달 0.
