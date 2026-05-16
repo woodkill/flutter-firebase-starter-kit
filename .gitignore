@@ -161,6 +161,24 @@ app.*.map.json
 .planning/.next-call-count
 
 # ==========================
+# Golden test — dev-only fixtures (라이센스 위험 회피)
+# ==========================
+# Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple/Google/Kakao/Naver iOS golden
+# fixtures: AppleSDGothicNeo + SF Pro Text (macOS native 시스템 폰트, Apple
+# Font License + Sandoll 라이센스) 으로 렌더된 PNG 를 repo distribute 시
+# 라이센스 위반 위험. macOS dev 환경에서만 로컬 생성 + 시각 sign-off + commit
+# 차단. CI/Linux 환경은 testWidgets `skip` 매개변수로 우회 (Platform.isMacOS
+# 게이트).
+test/features/auth/presentation/_widgets/goldens/kakao_light_ios.png
+test/features/auth/presentation/_widgets/goldens/naver_light_ios.png
+test/features/auth/presentation/_widgets/goldens/apple_light_ios.png
+test/features/auth/presentation/_widgets/goldens/apple_dark_ios.png
+test/features/auth/presentation/_widgets/goldens/google_light_ios.png
+test/features/auth/presentation/_widgets/goldens/google_dark_ios.png
+test/features/auth/presentation/_widgets/goldens/facebook_light_ios.png
+test/features/auth/presentation/_widgets/goldens/facebook_dark_ios.png
+
+# ==========================
 # 기타
 # ==========================
 *.class

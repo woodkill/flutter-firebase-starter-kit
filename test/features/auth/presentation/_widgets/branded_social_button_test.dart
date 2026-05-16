@@ -16,7 +16,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
@@ -44,27 +43,38 @@ void main() {
   group('BrandedSocialButton — Phase 13.1 sealed hierarchy', () {
     // ─── T-13.1-SPEC-01: 7 sub-class const + assetType 매핑 ──────────────
     test('T-13.1-SPEC-01: 7 sub-class const constructor + assetType 매핑', () {
-      // Phase 13.3 R2 — KakaoSpec assetType 변경: PNG → SVG (inline
-      // `_kKakaoSymbolSvg` + `_renderKakaoButton` Universal Layout Pattern).
+      // Phase 13.3 R2 (Wave 4 Step 2) — KakaoSpec assetType 변경: PNG → SVG
+      // 자산 파일 (`assets/brand/kakao/btn_signin_icon.svg` +
+      // `_renderKakaoButton` Universal Layout Pattern).
+      // **Phase 13.3 Wave 4 Step 3 (2026-05-16) supersede:** KakaoSpec
+      // 공식 PSD M Wide variant verbatim override → iconSize 20.
+      // T-13.3-KAKAO-SPEC-VERBATIM-01 별도 회귀 가드.
       expect(const KakaoSpec().assetType, AssetType.svg);
       expect(const KakaoSpec().borderRadius, 12.0);
       expect(const KakaoSpec().height, 48.0);
-      expect(const KakaoSpec().iconSize, 18.0);
+      expect(const KakaoSpec().iconSize, 20.0);
 
       // Phase 13.3 R3 — NaverSpec assetType SVG (inline `_kNaverSymbolSvg`).
       // theme 필드 폐기 (BI 단일 그린 #03A94D 강제).
+      // **Phase 13.3 Wave 4 Step 3 (2026-05-16) supersede:** NaverSpec
+      // 공식 PNG 자상 verbatim override → borderRadius 8 + iconSize 16.
+      // T-13.3-NAVER-SPEC-VERBATIM-01 별도 회귀 가드.
       expect(const NaverSpec().assetType, AssetType.svg);
-      expect(const NaverSpec().borderRadius, 12.0);
+      expect(const NaverSpec().borderRadius, 8.0);
+      expect(const NaverSpec().iconSize, 16.0);
 
       // Phase 13.3 R1 — GoogleSpec theme 필드 폐기 (Theme.brightness 자동
       // 분기로 차원 축소). assetType SVG (Google Identity btn_signin_icon.svg).
       expect(const GoogleSpec().assetType, AssetType.svg);
 
-      // AppleSpec — assetType.none (SDK 위제 위임).
-      expect(const AppleSpec().assetType, AssetType.none);
-      // FacebookSpec — Phase 13.2 D-95 lock: AssetType.png (Meta Primary
-      // Logo PNG, Wave 1 sealed switch active 전환 후 GREEN).
-      expect(const FacebookSpec().assetType, AssetType.png);
+      // AppleSpec — Phase 13.3 Wave 4 Step 2 (2026-05-15): SDK 위제 폐기 →
+      // custom render (SvgPicture.asset 'assets/brand/apple/{light,dark}/
+      // btn_signin_icon.svg'). assetType.svg.
+      expect(const AppleSpec().assetType, AssetType.svg);
+      // FacebookSpec — Phase 13.3 Wave 4 Step 2 (2026-05-15): PNG → SVG
+      // 전환 (Meta Brand Asset Pack 의 Facebook_Logo_Primary.ai PyMuPDF
+      // verbatim 추출, 2 paths blue circle + white 'f').
+      expect(const FacebookSpec().assetType, AssetType.svg);
 
       // LineSpec / WechatSpec — assetType.png (Phase 14/16 자상 commit 후 활성).
       expect(const LineSpec().assetType, AssetType.png);
@@ -148,14 +158,36 @@ void main() {
     test('T-13.1-R2-01: 회귀 가드 — borderRadius default 12 (R2 정정)', () {
       // Phase 13.1 R2 — `borderRadius default 6 → 12` (Kakao BI 명시 12,
       // Naver 일관). BrandSpec base default 가 12 — 모든 sub-class 상속.
+      //
+      // **Phase 13.3 Wave 4 Step 3 (2026-05-16) supersede:**
+      // - GoogleSpec: Google production CSS verbatim 채택 (4dp).
+      //   T-13.3-GOOGLE-SPEC-VERBATIM-01 별도 회귀 가드.
+      // - NaverSpec: 공식 PNG 자상 verbatim 채택 (8dp).
+      //   T-13.3-NAVER-SPEC-VERBATIM-01 별도 회귀 가드.
+      // - 다른 5 sub-class 는 baseline 12 유지.
       expect(const KakaoSpec().borderRadius, 12.0);
-      expect(const NaverSpec().borderRadius, 12.0);
-      expect(const GoogleSpec().borderRadius, 12.0);
       expect(const AppleSpec().borderRadius, 12.0);
       expect(const FacebookSpec().borderRadius, 12.0);
       expect(const LineSpec().borderRadius, 12.0);
       expect(const WechatSpec(size: WechatPixelSize.px48).borderRadius, 12.0);
     });
+
+    // ─── T-13.3-GOOGLE-SPEC-VERBATIM-01: Google production CSS verbatim spec ─
+    test(
+      'T-13.3-GOOGLE-SPEC-VERBATIM-01: GoogleSpec verbatim override '
+      'height 40 / borderRadius 4 / iconSize 20 (CSS verbatim)',
+      () {
+        // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Google Identity Services
+        // production CSS (`.gsi-material-button` 사용자 제공) verbatim:
+        //   height: 40px / border-radius: 4px / .gsi-material-button-icon
+        //   { width: 20px; height: 20px }
+        // BrandSpec default (48 / 12 / 18) supersede — 5 provider 시각 통일
+        // lock 의 trade-off 로 Google CSS verbatim 부합 우선 (사용자 결정).
+        expect(const GoogleSpec().height, 40.0);
+        expect(const GoogleSpec().borderRadius, 4.0);
+        expect(const GoogleSpec().iconSize, 20.0);
+      },
+    );
 
     // ─── T-13.1-COLOR-MIRROR-01: Kakao 노란색 mirror 보존 ────────────────
     test('T-13.1-COLOR-MIRROR-01: Kakao 노란색 mirror 0xFFFEE500 보존 (회귀 0)', () {
@@ -265,16 +297,24 @@ void main() {
 
     // ─── T-13.1-X2-LOCALE-FALLBACK-01 폐기 (Phase 13.3 R2) ────────────────
     //
-    // Phase 13.3 R2 — Kakao 가 wide PNG (locale × theme leaf 디렉토리) →
-    // inline SVG (`_kKakaoSymbolSvg` + Universal Layout Pattern) 로 전환되어
-    // locale 분기 자체 부재. _iconAssetFor 의 Kakao branch 도 폐기되어
-    // ja → en path fallback 가드의 검증 대상 자체 소실. Wave 4 widget tree
-    // assertion 신규로 Material bg #FEE500 + Text(authKakaoSignIn ARB locale
-    // 해석) 검증 책임 분리.
+    // Phase 13.3 R2 (Wave 4 Step 2) — Kakao 가 wide PNG (locale × theme leaf
+    // 디렉토리) → SVG 자산 파일 (`assets/brand/kakao/btn_signin_icon.svg` +
+    // Universal Layout Pattern) 로 전환되어 locale 분기 자체 부재.
+    // _iconAssetFor 의 Kakao branch 도 폐기되어 ja → en path fallback 가드의
+    // 검증 대상 자체 소실. Wave 4 widget tree assertion 신규로 Material bg
+    // #FEE500 + Text(authKakaoSignIn ARB locale 해석) 검증 책임 분리.
 
     // ─── T-13.1-X2-APPLE-PRESERVE-01: AppleSpec 분기 변경 0 회귀 가드 ──────
-    testWidgets('T-13.1-X2-APPLE-PRESERVE-01: AppleSpec build() '
-        'SignInWithAppleButton 위임 보존 (Gap-1 영향 없음)', (tester) async {
+    //
+    // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** SignInWithAppleButton
+    // SDK 위제 폐기 → custom render (`_renderAppleButton`) 전환. Apple 공식
+    // Logo-only SVG 자상 (`assets/brand/apple/{light,dark}/btn_signin_icon.svg`)
+    // + Theme.brightness 자동 분기 + ARB 라벨 외부 layer. Gap-1 (X2 wide 자상
+    // 통째 buttons) 영향 없음 검증은 BrandedSocialButton 매치 + ARB 라벨
+    // 매치 + SvgPicture (Apple logo) 매치 의 3 invariant 로 갱신.
+    testWidgets('T-13.1-X2-APPLE-PRESERVE-01: AppleSpec build() → '
+        'BrandedSocialButton + ARB 라벨 + SvgPicture (custom render, Wave 4 '
+        'Step 2 SDK 위제 폐기)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -286,9 +326,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      // Apple 분기는 SDK 위제 위임 — ClipRRect + Image 패턴 미적용 정상.
-      // SignInWithAppleButton 위제가 트리에 존재해야 함.
-      expect(find.byType(SignInWithAppleButton), findsOneWidget);
+      // BrandedSocialButton 위제 단일 매치.
+      expect(find.byType(BrandedSocialButton), findsOneWidget);
+      // ARB 라벨 (caller 전달) 매치.
+      expect(find.text('Sign in with Apple'), findsOneWidget);
+      // Apple custom render — SvgPicture (Logo-only 자상) 1 매치.
+      expect(find.byType(SvgPicture), findsOneWidget);
     });
 
     // ─── T-13.1-A11Y-SEMANTICS-01: Semantics 액션 핸들러 + label 회귀 가드 ─
@@ -400,10 +443,15 @@ void main() {
     // GREEN 자동 전환. T-13.1-X2-FACEBOOK-PRESERVE-01 sentinel 폐기 의도
     // 명시 — UnsupportedError throw 검증 의도가 Phase 13.2 R5 acceptance 와
     // 의미 반전.
+    //
+    // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** D-95 PNG 폐기 →
+    // SVG 전환 (Meta Brand Asset Pack 의 Facebook_Logo_Primary.ai PyMuPDF
+    // verbatim 추출). FacebookSpec.assetType = AssetType.svg, render 는
+    // SvgPicture.asset 사용. Image 매치 의무 → SvgPicture 매치 의무 갱신.
     testWidgets(
       'T-13.2-FACEBOOK-ACTIVE-01: BrandedSocialButton.facebook() build() → '
-      'Image.asset (D-95 PNG) + Text(authFacebookSignIn ARB) 단일 매치 '
-      '(R5/R6 + 옵션 A pivot _renderFacebookButton 호출 검증)',
+      'SvgPicture.asset (Wave 4 Step 2 SVG) + Text(authFacebookSignIn ARB) '
+      '단일 매치 (R5/R6 + 옵션 A pivot _renderFacebookButton 호출 검증)',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -423,10 +471,10 @@ void main() {
         // BrandedSocialButton 위제 단일 매치 — UnsupportedError throw 폐기.
         expect(find.byType(BrandedSocialButton), findsOneWidget);
 
-        // D-95 PNG — Image.asset 1 매치 (Apple 패턴 mirror, 18dp icon 슬롯).
+        // Wave 4 Step 2 SVG — SvgPicture 1 매치 (Apple 패턴 mirror, icon 슬롯).
         // 옵션 A pivot — Kakao/Naver 의 wide 자상 통째 buttons 패턴 미적용
         // (Facebook 자상은 square logo 단독, _renderActiveButton 호출 불가).
-        expect(find.byType(Image), findsOneWidget);
+        expect(find.byType(SvgPicture), findsOneWidget);
 
         // 신규 _renderFacebookButton 의 ARB 라벨 layer — Apple/Facebook 의
         // 외부 layer 단독 권위 패턴 일관 (Phase 13.1 D-82 ARB 머레).
@@ -524,10 +572,14 @@ void main() {
     // **Phase 13.2 REVIEW CR-01 정정 (2026-05-13):** 비활성 시 시각 disabled
     // cue 부재 회귀 가드. `social_button.dart` 의 docstring 약속 ("Material
     // default disabled 외관") 과 일치하도록 `_renderFacebookButton` 이
-    // `Opacity(0.5)` wrap + fg/outline faded 분기를 적용. 본 test 는 Opacity
-    // descendant 단독 검증 — 색 변화는 별 layer (fgColor copyWith) 가 책임.
+    // `Opacity(...)` wrap 적용. 본 test 는 Opacity descendant 단독 검증.
+    //
+    // **Phase 13.3 Wave 4 Step 3 (2026-05-17) supersede:** Opacity 0.5 → 0.38
+    // (Google CSS verbatim `.gsi-material-button:disabled { opacity: 38%; }`
+    // 머레, 사용자 결정 — 5 provider 정량 색 Google mirror 일관성). 본
+    // test 는 `lessThan(1.0)` 외 `0.38` 정확값 검증 추가.
     testWidgets('T-13.2-FACEBOOK-DISABLED-01: onPressed=null → 시각 disabled cue '
-        '(Opacity opacity < 1.0)', (tester) async {
+        '(Opacity opacity 0.38, Google CSS verbatim)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('en'),
@@ -556,7 +608,8 @@ void main() {
             '_renderFacebookButton 의 Material 3 disabled state cue 누락 회귀.',
       );
 
-      // Opacity.opacity 값이 1.0 미만 (시각 fade) 검증.
+      // Opacity.opacity 값이 1.0 미만 (시각 fade) + 0.38 정확값 검증
+      // (Wave 4 Step 3 Google CSS verbatim).
       final opacity = tester.widget<Opacity>(opacityFinder);
       expect(
         opacity.opacity,
@@ -564,6 +617,14 @@ void main() {
         reason:
             'CR-01 회귀 가드 — Opacity.opacity 가 1.0 이면 비활성 시각 cue 0. '
             'Material 3 disabled state spec 위반.',
+      );
+      expect(
+        opacity.opacity,
+        0.38,
+        reason:
+            'Wave 4 Step 3 회귀 가드 — Google CSS verbatim disabled opacity '
+            '38% (`.gsi-material-button:disabled { opacity: 38%; }`). 사용자 '
+            '결정 2026-05-17 — 5 provider 정량 색 Google mirror 일관성.',
       );
     });
 
@@ -600,10 +661,15 @@ void main() {
       },
     );
 
+    //
+    // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** D-96 PNG 폐기 →
+    // SVG 전환. `_iconAssetFor` FacebookSpec branch 의 path 가
+    // `assets/brand/facebook/facebook_login.png` → `assets/brand/facebook/
+    // btn_signin_icon.svg` 갱신. Image → SvgPicture verbatim path 검증.
     testWidgets(
-      'T-13.2-FACEBOOK-ASSET-01: BrandedSocialButton.facebook() Image.asset '
-      'path = "assets/brand/facebook/facebook_login.png" (D-96 Google 패턴, '
-      'locale 독립 — _iconAssetFor FacebookSpec branch active 검증)',
+      'T-13.2-FACEBOOK-ASSET-01: BrandedSocialButton.facebook() SvgPicture '
+      'path = "assets/brand/facebook/btn_signin_icon.svg" (Wave 4 Step 2 '
+      'SVG 전환, locale 독립 — _iconAssetFor FacebookSpec branch active 검증)',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -620,25 +686,20 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final imageWidget = tester.widget<Image>(find.byType(Image));
-        // Phase 13.2 REVIEW IN-03 정정 (2026-05-13): cacheWidth/cacheHeight
-        // 추가로 Image.asset 이 ResizeImage(AssetImage) wrapper 로 감싸짐.
-        // 본 test 는 underlying AssetImage 의 assetName 검증이 목적이므로
-        // ResizeImage.imageProvider 로 unwrap 후 cast.
-        final ImageProvider rawProvider = imageWidget.image;
-        final AssetImage assetImage = rawProvider is ResizeImage
-            ? rawProvider.imageProvider as AssetImage
-            : rawProvider as AssetImage;
-
-        // D-96 Google 패턴 — locale 독립 (ko/en/ja 분기 부재), 단일 path.
-        // Meta Primary Logo PNG (2084×2084 square, 'f' 마크 + #1877F2 원형).
-        // 18dp icon 슬롯 fit — Apple SignInWithAppleButton 패턴 mirror.
+        // Wave 4 Step 2 — SvgPicture.asset 채택 (AI PyMuPDF verbatim 추출,
+        // 2 paths blue circle #0866FF + white 'f'). asset path 정확 검증.
+        final SvgPicture svgWidget = tester.widget<SvgPicture>(
+          find.byType(SvgPicture),
+        );
+        // `SvgPicture.asset` 의 internal loader 는 SvgAssetLoader 이며
+        // `assetName` 속성을 보유. (flutter_svg ≥2.0)
+        final dynamic loader = (svgWidget.bytesLoader as dynamic);
         expect(
-          assetImage.assetName,
-          'assets/brand/facebook/facebook_login.png',
+          loader.assetName,
+          'assets/brand/facebook/btn_signin_icon.svg',
           reason:
-              'Phase 13.2 R6 + D-96 — _iconAssetFor FacebookSpec branch '
-              'active 검증. Wave 1 코드 마이그 후 GREEN.',
+              'Phase 13.3 Wave 4 Step 2 — _iconAssetFor FacebookSpec branch '
+              'SVG path verbatim. Wave 1 → Step 2 PNG 폐기 후 SVG GREEN.',
         );
       },
     );
@@ -832,6 +893,594 @@ void main() {
         );
       });
 
+      // ─── T-13.3-GOOGLE-BG-LIGHT-01 (R1 / Step 3 §3.7) ────────────────────
+      // Google Identity Guidelines verbatim bg — light theme = #FFFFFF.
+      // Material 3 colorScheme.surface 폐기 (Wave 4 Step 3 §3.7 옵션 A).
+      testWidgets(
+        'T-13.3-GOOGLE-BG-LIGHT-01: Google light theme bg '
+        '#FFFFFF (Step 3 §3.7 verbatim)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! Material) return false;
+              final ShapeBorder? shape = w.shape;
+              if (shape is! RoundedRectangleBorder) return false;
+              if (shape.side.width != 1.0) return false;
+              return w.color == Colors.white;
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Google light theme bg 의무 Colors.white (#FFFFFF) — Google '
+                'Identity Guidelines verbatim (Step 3 §3.7).',
+          );
+        },
+      );
+
+      // ─── T-13.3-GOOGLE-BG-DARK-01 (R1 / Step 3 §3.7) ─────────────────────
+      // Google Identity Guidelines verbatim bg — dark theme = #131314.
+      // Material 3 colorScheme.surface (~#1D1B20) drift 회귀 가드.
+      testWidgets(
+        'T-13.3-GOOGLE-BG-DARK-01: Google dark theme bg '
+        '#131314 (Step 3 §3.7 verbatim)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () {},
+              ),
+              brightness: Brightness.dark,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! Material) return false;
+              final ShapeBorder? shape = w.shape;
+              if (shape is! RoundedRectangleBorder) return false;
+              if (shape.side.width != 1.0) return false;
+              return w.color == const Color(0xFF131314);
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Google dark theme bg 의무 Color(0xFF131314) — Google '
+                'Identity Guidelines verbatim (Step 3 §3.7).',
+          );
+        },
+      );
+
+      // ─── T-13.3-GOOGLE-LABEL-COLOR-LIGHT-01 (R1 / starter kit drift) ─────
+      // Google 정문 필수 label color light = #1F1F1F. starter kit 사용자가
+      // ThemeData.colorScheme.onSurface override 시 brand drift 회귀 가드 —
+      // TextStyle().color 가 hardcoded #1F1F1F 로 변하지 않아야 함.
+      testWidgets(
+        'T-13.3-GOOGLE-LABEL-COLOR-LIGHT-01: Google light theme label '
+        'color #1F1F1F (verbatim hardcode)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Sign in with Google'),
+          );
+          expect(
+            textWidget.style?.color,
+            const Color(0xFF1F1F1F),
+            reason:
+                'Google light theme label color 의무 Color(0xFF1F1F1F) — '
+                'Google Identity Guidelines verbatim. colorScheme.onSurface '
+                '토큰 drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-GOOGLE-LABEL-COLOR-DARK-01 (R1 / starter kit drift) ──────
+      testWidgets(
+        'T-13.3-GOOGLE-LABEL-COLOR-DARK-01: Google dark theme label '
+        'color #E3E3E3 (verbatim hardcode)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () {},
+              ),
+              brightness: Brightness.dark,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Sign in with Google'),
+          );
+          expect(
+            textWidget.style?.color,
+            const Color(0xFFE3E3E3),
+            reason:
+                'Google dark theme label color 의무 Color(0xFFE3E3E3) — '
+                'Google Identity Guidelines verbatim. colorScheme.onSurface '
+                '토큰 drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-GOOGLE-LABEL-FONT-01 (R1 / starter kit drift) ────────────
+      // Google 정문 필수: "Roboto Medium" + "14/20" — fontSize 14pt /
+      // fontWeight w500 / lineHeight 20pt (height = 20/14). starter kit 사용자
+      // 가 textTheme.labelLarge override 시 brand drift 회귀 가드.
+      testWidgets(
+        'T-13.3-GOOGLE-LABEL-FONT-01: Google label TextStyle '
+        'fontSize 14 / w500 / height 20/14 (verbatim hardcode)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Sign in with Google'),
+          );
+          expect(
+            textWidget.style?.fontSize,
+            14,
+            reason:
+                'Google label fontSize 의무 14pt — Google Identity Guidelines '
+                '"14/20" verbatim. textTheme.labelLarge drift 회귀 방지.',
+          );
+          expect(
+            textWidget.style?.fontWeight,
+            FontWeight.w500,
+            reason:
+                'Google label fontWeight 의무 w500 (Medium) — Google '
+                'Identity Guidelines "Roboto Medium" verbatim.',
+          );
+          expect(
+            textWidget.style?.height,
+            20 / 14,
+            reason:
+                'Google label lineHeight 의무 20/14 — Google Identity '
+                'Guidelines "14/20" verbatim.',
+          );
+          expect(
+            textWidget.style?.letterSpacing,
+            0.25,
+            reason:
+                'Google label letterSpacing 의무 0.25 (Android default '
+                'platform) — Google production CSS `.gsi-material-button '
+                '{ letter-spacing: 0.25px; }` verbatim (Roboto context). '
+                'iOS branch 는 T-13.3-GOOGLE-LABEL-FONT-IOS-01 별도 검증 '
+                '(Apple HIG SF Pro Text size 14pt 권고 -0.15).',
+          );
+        },
+      );
+
+      // ─── T-13.3-GOOGLE-LABEL-FONT-IOS-01 (R1 / Apple HIG SF Pro Text) ───
+      // Google iOS branch — letterSpacing -0.15 (Apple HIG SF Pro Text size
+      // 14pt 권고 tracking, developer.apple.com/design/human-interface-
+      // guidelines/typography). Roboto 0.25 (Google CSS verbatim) 가 SF Pro
+      // Text 의 wider default tracking 위에 누적되어 시각 자간 과도 발생 →
+      // iOS 강등 패턴 채택 (padding/gap iOS 강등 mirror, 사용자 결정
+      // 2026-05-17).
+      testWidgets(
+        'T-13.3-GOOGLE-LABEL-FONT-IOS-01: Google label TextStyle iOS branch — '
+        'letterSpacing -0.15 + fontFamily SF Pro Text (Apple HIG 강등)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+              platform: TargetPlatform.iOS,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Sign in with Google'),
+          );
+          expect(
+            textWidget.style?.letterSpacing,
+            -0.15,
+            reason:
+                'Google label letterSpacing iOS branch 의무 -0.15 — Apple '
+                'HIG SF Pro Text size 14pt 권고 tracking. Roboto 0.25 (Google '
+                'CSS verbatim) 의 SF Pro Text 누적 자간 과도 방지 (사용자 '
+                '시각 보고 2026-05-17).',
+          );
+          expect(
+            textWidget.style?.fontFamily,
+            'SF Pro Text',
+            reason:
+                'Google label fontFamily iOS branch 의무 SF Pro Text — '
+                'Google 가이드 iOS 강등 정책 + Apple OS 내부 native font.',
+          );
+        },
+      );
+
+      // ─── T-13.3-GOOGLE-PLATFORM-IOS-01 (R1 / Step 3 §3.5+§3.6) ───────────
+      // Google 정문 OS 분기 필수: iOS padding.horizontal = 16dp +
+      // logoLabelGap = 12dp. platform 분기 trigger 회귀 가드.
+      testWidgets(
+        'T-13.3-GOOGLE-PLATFORM-IOS-01: Google iOS padding 16 + '
+        'gap 12 (OS 분기 verbatim)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+              platform: TargetPlatform.iOS,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          // Google iOS padding.horizontal = 16dp
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! Padding) return false;
+              final EdgeInsetsGeometry p = w.padding;
+              if (p is! EdgeInsets) return false;
+              return p.left == 16.0 && p.right == 16.0;
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Google iOS padding.horizontal 의무 16dp — Google Identity '
+                'Guidelines verbatim (Step 3 §3.6).',
+          );
+
+          // Google iOS logoLabelGap = SizedBox(width: 12)
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! SizedBox) return false;
+              return w.width == 12.0;
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Google iOS logoLabelGap 의무 SizedBox(width: 12) — Google '
+                'Identity Guidelines verbatim (Step 3 §3.5).',
+          );
+        },
+      );
+
+      // ════════════════════════════════════════════════════════════════════
+      // Phase 13.3 Wave 4 Step 3 (2026-05-17) — Facebook verbatim 회귀 가드
+      //
+      // Facebook 정문 (developers.facebook.com/docs/facebook-login/userexperience/)
+      // 은 bg / label color / fontFamily / size / weight 모두 정성 권고만 자유
+      // 영역. 5 provider 시각 consistency 위해 Google CSS verbatim 패턴 mirror
+      // 적용 (사용자 결정 2026-05-17). 본 8 test 는 starter kit drift 회귀
+      // 가드 — 사용자 ThemeData.colorScheme/textTheme override 시 brand 외관
+      // 변하지 않아야 함.
+      // ════════════════════════════════════════════════════════════════════
+
+      // ─── T-13.3-FACEBOOK-BG-LIGHT-01 (R5 / Google CSS mirror) ────────────
+      testWidgets(
+        'T-13.3-FACEBOOK-BG-LIGHT-01: Facebook light theme bg '
+        '#FFFFFF (Google CSS mirror, starter kit drift 회귀 가드)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! Material) return false;
+              final ShapeBorder? shape = w.shape;
+              if (shape is! RoundedRectangleBorder) return false;
+              return w.color == const Color(0xFFFFFFFF);
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Facebook light theme bg 의무 Color(0xFFFFFFFF) — Google CSS '
+                'verbatim mirror (사용자 결정 2026-05-17). colorScheme.surface '
+                '토큰 drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-FACEBOOK-BG-DARK-01 (R5 / Google CSS mirror) ─────────────
+      testWidgets(
+        'T-13.3-FACEBOOK-BG-DARK-01: Facebook dark theme bg '
+        '#131314 (Google CSS mirror, starter kit drift 회귀 가드)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+              brightness: Brightness.dark,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! Material) return false;
+              final ShapeBorder? shape = w.shape;
+              if (shape is! RoundedRectangleBorder) return false;
+              return w.color == const Color(0xFF131314);
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Facebook dark theme bg 의무 Color(0xFF131314) — Google CSS '
+                'verbatim mirror (사용자 결정 2026-05-17). colorScheme.surface '
+                '(~#1D1B20) drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-FACEBOOK-OUTLINE-LIGHT-01 (R5 / Google CSS mirror) ───────
+      testWidgets(
+        'T-13.3-FACEBOOK-OUTLINE-LIGHT-01: Facebook light theme outline '
+        '#DADCE0 1dp (Google CSS mirror, starter kit drift 회귀 가드)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! Material) return false;
+              final ShapeBorder? shape = w.shape;
+              if (shape is! RoundedRectangleBorder) return false;
+              return shape.side.color == const Color(0xFFDADCE0);
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Facebook light theme outline 의무 Color(0xFFDADCE0) — Google '
+                'CSS verbatim mirror (사용자 결정 2026-05-17). Material grey '
+                'shade300 drift 정정 (M3 토큰 0 일관 위해 hex hardcode).',
+          );
+        },
+      );
+
+      // ─── T-13.3-FACEBOOK-OUTLINE-DARK-01 (R5 / Google CSS mirror) ────────
+      testWidgets(
+        'T-13.3-FACEBOOK-OUTLINE-DARK-01: Facebook dark theme outline '
+        '#8E918F 1dp (Google CSS mirror, starter kit drift 회귀 가드)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+              brightness: Brightness.dark,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! Material) return false;
+              final ShapeBorder? shape = w.shape;
+              if (shape is! RoundedRectangleBorder) return false;
+              return shape.side.color == const Color(0xFF8E918F);
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Facebook dark theme outline 의무 Color(0xFF8E918F) — Google '
+                'CSS verbatim mirror (사용자 결정 2026-05-17). Material grey '
+                'shade700 drift 정정 (M3 토큰 0 일관 위해 hex hardcode).',
+          );
+        },
+      );
+
+      // ─── T-13.3-FACEBOOK-LABEL-COLOR-LIGHT-01 (R5 / starter kit drift) ───
+      testWidgets(
+        'T-13.3-FACEBOOK-LABEL-COLOR-LIGHT-01: Facebook light theme label '
+        'color #1F1F1F (Google CSS mirror, verbatim hardcode)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Continue with Facebook'),
+          );
+          expect(
+            textWidget.style?.color,
+            const Color(0xFF1F1F1F),
+            reason:
+                'Facebook light theme label color 의무 Color(0xFF1F1F1F) — '
+                'Google CSS verbatim mirror (사용자 결정 2026-05-17). '
+                'colorScheme.onSurface 토큰 drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-FACEBOOK-LABEL-COLOR-DARK-01 (R5 / starter kit drift) ────
+      testWidgets(
+        'T-13.3-FACEBOOK-LABEL-COLOR-DARK-01: Facebook dark theme label '
+        'color #E3E3E3 (Google CSS mirror, verbatim hardcode)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+              brightness: Brightness.dark,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Continue with Facebook'),
+          );
+          expect(
+            textWidget.style?.color,
+            const Color(0xFFE3E3E3),
+            reason:
+                'Facebook dark theme label color 의무 Color(0xFFE3E3E3) — '
+                'Google CSS verbatim mirror (사용자 결정 2026-05-17). '
+                'colorScheme.onSurface 토큰 drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-FACEBOOK-LABEL-FONT-01 (R5 / starter kit drift) ──────────
+      // Google CSS verbatim mirror (사용자 결정 2026-05-17 — Facebook 정문
+      // 자유, 5 provider Google 패턴 머레): fontSize 14pt / fontWeight w500 /
+      // height 20/14 / letterSpacing 0.25 (Android Roboto context) / fontFamily
+      // 'Roboto'. starter kit 사용자가 textTheme.labelLarge override 시 brand
+      // drift 회귀 가드.
+      testWidgets(
+        'T-13.3-FACEBOOK-LABEL-FONT-01: Facebook label TextStyle '
+        'fontSize 14 / w500 / height 20/14 / letter 0.25 / Roboto '
+        '(Google CSS verbatim hardcode, Android)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Continue with Facebook'),
+          );
+          expect(
+            textWidget.style?.fontSize,
+            14,
+            reason:
+                'Facebook label fontSize 의무 14pt — Google CSS "14/20" '
+                'verbatim mirror (사용자 결정 2026-05-17). textTheme.labelLarge '
+                'drift 회귀 방지.',
+          );
+          expect(
+            textWidget.style?.fontWeight,
+            FontWeight.w500,
+            reason:
+                'Facebook label fontWeight 의무 w500 (Medium) — Google CSS '
+                'verbatim mirror.',
+          );
+          expect(
+            textWidget.style?.height,
+            20 / 14,
+            reason:
+                'Facebook label lineHeight 의무 20/14 — Google CSS "14/20" '
+                'verbatim mirror.',
+          );
+          expect(
+            textWidget.style?.letterSpacing,
+            0.25,
+            reason:
+                'Facebook label letterSpacing 의무 0.25 (Android default '
+                'platform) — Google CSS `.gsi-material-button { letter-spacing: '
+                '0.25px; }` verbatim mirror (Roboto context). iOS branch 는 '
+                'T-13.3-FACEBOOK-LABEL-FONT-IOS-01 별도 검증.',
+          );
+          expect(
+            textWidget.style?.fontFamily,
+            'Roboto',
+            reason:
+                'Facebook label fontFamily 의무 Roboto (Android default '
+                'platform) — Google CSS verbatim mirror.',
+          );
+        },
+      );
+
+      // ─── T-13.3-FACEBOOK-LABEL-FONT-IOS-01 (R5 / Apple HIG SF Pro Text) ──
+      // iOS branch — letterSpacing -0.15 + fontFamily 'SF Pro Text' (Apple HIG
+      // SF Pro Text size 14pt 권고 tracking + Apple OS 내부 native font).
+      // Roboto 0.25 가 SF Pro Text 의 wider default tracking 위에 누적되어
+      // 시각 자간 과도 → iOS 강등 (Google 패턴 머레, 사용자 결정 2026-05-17).
+      testWidgets(
+        'T-13.3-FACEBOOK-LABEL-FONT-IOS-01: Facebook label TextStyle iOS '
+        'branch — letterSpacing -0.15 + fontFamily SF Pro Text (Apple HIG '
+        '강등, Google iOS 패턴 머레)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.facebook(
+                label: 'Continue with Facebook',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+              platform: TargetPlatform.iOS,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Continue with Facebook'),
+          );
+          expect(
+            textWidget.style?.letterSpacing,
+            -0.15,
+            reason:
+                'Facebook label letterSpacing iOS branch 의무 -0.15 — Apple '
+                'HIG SF Pro Text size 14pt 권고 tracking. Roboto 0.25 의 SF '
+                'Pro Text 누적 자간 과도 방지 (Google iOS 패턴 머레, 사용자 '
+                '결정 2026-05-17).',
+          );
+          expect(
+            textWidget.style?.fontFamily,
+            'SF Pro Text',
+            reason:
+                'Facebook label fontFamily iOS branch 의무 SF Pro Text — '
+                'Google 패턴 머레 iOS 강등 + Apple OS 내부 native font.',
+          );
+        },
+      );
+
       // ─── T-13.3-KAKAO-RENDER-01 (R2) ─────────────────────────────────────
       testWidgets('T-13.3-KAKAO-RENDER-01: Kakao render — Material #FEE500 + '
           'SvgPicture (말풍선 symbol inline) + authKakaoSignIn Text (R2)', (
@@ -996,9 +1645,414 @@ void main() {
         },
       );
 
-      // ─── T-13.3-APPLE-LIGHT-BLACK-01 (R5) ────────────────────────────────
-      testWidgets('T-13.3-APPLE-LIGHT-BLACK-01: Apple light theme → '
-          'SignInWithAppleButtonStyle.black (R5 자동 매핑)', (tester) async {
+      // ─── T-13.3-NAVER-LABEL-COLOR-01 (R3 / starter kit drift) ────────────
+      // Naver 정문 필수 label color (green-bg variant) = #FFFFFF. starter kit
+      // 사용자가 ThemeData.colorScheme.onSurface override 시 brand drift 회귀
+      // 가드 — TextStyle().color 가 hardcoded Colors.white 로 고정.
+      testWidgets(
+        'T-13.3-NAVER-LABEL-COLOR-01: Naver label color #FFFFFF '
+        '(verbatim hardcode)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.naver(
+                label: 'Log in with NAVER',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Log in with NAVER'),
+          );
+          expect(
+            textWidget.style?.color,
+            Colors.white,
+            reason:
+                'Naver green-bg label color 의무 Colors.white — Naver '
+                'developers.naver.com/docs/login/bi/bi.md verbatim. '
+                'colorScheme.onSurface 토큰 drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-NAVER-LABEL-FONT-01 (R3 / starter kit drift) ─────────────
+      // Naver 정문 자유 영역 (fontSize / fontFamily / fontWeight 미명시) →
+      // 사용자 결정 2026-05-16: 공식 PNG 자상 (NAVER_login_Light_EN_green_
+      // center_H48.png) 정밀 측정 부합. fontSize 18 / fontWeight w800 /
+      // fontFamily Pretendard (한국 design 표준 + 공식 PNG 글리프 시각 부합 +
+      // SIL OFL 1.1 bundled). 전 platform 단일 (asset bundled). starter kit
+      // 사용자 textTheme.labelLarge override drift 회귀 가드.
+      testWidgets(
+        'T-13.3-NAVER-LABEL-FONT-01: Naver label TextStyle '
+        'fontSize 16 / w600 / Pretendard (공식 PNG verbatim)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.naver(
+                label: 'Log in with NAVER',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Log in with NAVER'),
+          );
+          expect(
+            textWidget.style?.fontSize,
+            16,
+            reason:
+                'Naver label fontSize 의무 16pt — 사용자 시각 sign-off 부합 '
+                '(PNG cap height ~16dp 부합). 정문 조건 "로고 높이보다 작은 '
+                '크기" 는 cap-height 기준 해석 (cap height ≈ 0.7 × 16 ≈ 11 '
+                '< logo.height 16 부합). textTheme.labelLarge drift 회귀 방지.',
+          );
+          expect(
+            textWidget.style?.fontWeight,
+            FontWeight.w600,
+            reason:
+                'Naver label fontWeight 의무 w600 (SemiBold) — Pretendard 명목 '
+                'weight 매핑이 무거워 w800/w700 시도 시 stroke 과도 → w600 '
+                '채택. 정문 미명시, 사용자 결정.',
+          );
+          expect(
+            textWidget.style?.fontFamily,
+            'Pretendard',
+            reason:
+                'Naver label fontFamily 의무 Pretendard (Android default '
+                'platform) — 공식 PNG 글리프 시각 가장 부합. 한국 design '
+                '표준 web font. iOS branch 는 T-13.3-NAVER-LABEL-FONT-IOS-01 '
+                '별도 검증 (Kakao 패턴 mirror).',
+          );
+        },
+      );
+
+      // ─── T-13.3-NAVER-LABEL-FONT-IOS-01 (R3 / Kakao 패턴 mirror) ────────
+      // Naver 라벨 iOS branch — Theme.of(context).platform == TargetPlatform.iOS
+      // 분기 시 fontFamily 'AppleSDGothicNeo' (Pretendard 의 source font, native
+      // 시스템 폰트) + fontWeight w700 (Bold — NAVER 공식 PNG 굵은 stroke 시각
+      // 매칭, AppleSDGothicNeo 명목 weight 가 Pretendard 보다 가벼워 한 단계
+      // 올림, 사용자 시각 sign-off 2026-05-16). Apple Font License 부합 (Apple
+      // OS 내부 사용, bundle 0). cross-provider 일관성 (Apple/Google/Naver/
+      // Kakao 모두 platform 분기).
+      testWidgets(
+        'T-13.3-NAVER-LABEL-FONT-IOS-01: Naver label TextStyle iOS branch — '
+        'fontFamily AppleSDGothicNeo / w700 (Pretendard source font native)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.naver(
+                label: 'Log in with NAVER',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+              platform: TargetPlatform.iOS,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Log in with NAVER'),
+          );
+          expect(
+            textWidget.style?.fontFamily,
+            'AppleSDGothicNeo',
+            reason:
+                'Naver label fontFamily 의무 AppleSDGothicNeo (iOS branch) — '
+                'Pretendard 의 source font (native 시스템 폰트). bundle 0 + '
+                'Apple Font License 부합 (Apple OS 내부 사용).',
+          );
+          expect(
+            textWidget.style?.fontWeight,
+            FontWeight.w700,
+            reason:
+                'Naver label fontWeight 의무 w700 Bold (iOS branch) — '
+                'NAVER 공식 PNG (`NAVER_login_Light_EN_green_center_H48`) '
+                '굵은 stroke 시각 매칭. AppleSDGothicNeo 명목 weight 가 '
+                'Pretendard 보다 가벼워 Android w600 에서 한 단계 올림 (사용자 '
+                '시각 sign-off 2026-05-16). Kakao case 와 다른 결정 — Kakao '
+                'PSD verbatim Medium(w500) vs Naver PNG outlined (weight '
+                '없음, 시각 sign-off 우선).',
+          );
+          // fontSize 17 (iOS branch only — AppleSDGothicNeo cap height 가
+          // Pretendard 보다 작은 비율이라 시각 보정 +1pt, 사용자 시각 보고
+          // 3회 iteration 2026-05-16: 16→17→18→17 수렴).
+          expect(
+            textWidget.style?.fontSize,
+            17,
+            reason:
+                'Naver label fontSize iOS branch 의무 17pt — '
+                'AppleSDGothicNeo cap height 가 Pretendard 보다 작은 비율 '
+                '시각 보정 (Android 16 대비 +1pt, 사용자 시각 보고 '
+                '3회 iteration 2026-05-16).',
+          );
+        },
+      );
+
+      // ─── T-13.3-NAVER-SPEC-VERBATIM-01 (R3 / starter kit drift) ──────────
+      // NaverSpec 공식 PNG 자상 verbatim override: borderRadius 8 (PNG 측정
+      // ~7.5dp + AI 자산 8dp) + iconSize 16 (PNG 측정 16×16dp + 정문 ≥16
+      // 정확 대응). BrandSpec default (12/18) 와 다른 별도 값 회귀 가드.
+      testWidgets(
+        'T-13.3-NAVER-SPEC-VERBATIM-01: NaverSpec borderRadius 8 + '
+        'iconSize 16 (공식 PNG verbatim)',
+        (tester) async {
+          expect(
+            const NaverSpec().borderRadius,
+            8.0,
+            reason:
+                'NaverSpec borderRadius 의무 8dp — 공식 PNG 측정 ~7.5dp + '
+                'AI 자산 cubic Bezier 8dp 부합. BrandSpec default 12 drift '
+                '회귀 방지.',
+          );
+          expect(
+            const NaverSpec().iconSize,
+            16.0,
+            reason:
+                'NaverSpec iconSize 의무 16dp — 공식 PNG 측정 16×16dp + '
+                '정문 "완성형 16px 이상" 정확 대응. BrandSpec default 18 '
+                'drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-NAVER-LABEL-GAP-01 (R3 정문 필수) ────────────────────────
+      // Naver 정문 필수: "가운데 정렬 시 로고와 레이블의 간격은 8px". center
+      // align logo-label gap = SizedBox(width: 8) 회귀 가드.
+      testWidgets(
+        'T-13.3-NAVER-LABEL-GAP-01: Naver logoLabelGap '
+        'SizedBox(width: 8) (정문 필수)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.naver(
+                label: 'Log in with NAVER',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          expect(
+            find.byWidgetPredicate((Widget w) {
+              if (w is! SizedBox) return false;
+              return w.width == 8.0 && w.height == null;
+            }),
+            findsAtLeastNWidgets(1),
+            reason:
+                'Naver 정문 필수 "가운데 정렬 시 로고와 레이블의 간격은 '
+                '8px" — center align logoLabelGap SizedBox(width: 8) 회귀 '
+                '가드.',
+          );
+        },
+      );
+
+      // ─── T-13.3-KAKAO-SPEC-VERBATIM-01 (R2 / starter kit drift) ─────────
+      // KakaoSpec 공식 PSD M Wide variant verbatim override:
+      //   iconSize 20 (PSD Shape 1 측정 20×20dp + Google CSS 20px 정확 일치).
+      // BrandSpec default (18) 와 다른 별도 값 회귀 가드. borderRadius 12 는
+      // 정문 필수 정량 그대로 (BrandSpec default 일치).
+      testWidgets(
+        'T-13.3-KAKAO-SPEC-VERBATIM-01: KakaoSpec iconSize 20 '
+        '(PSD M Wide verbatim) + borderRadius 12 (정문 필수)',
+        (tester) async {
+          expect(
+            const KakaoSpec().iconSize,
+            20.0,
+            reason:
+                'KakaoSpec iconSize 의무 20dp — 공식 PSD M Wide Shape 1 측정 '
+                '20×20dp + Google CSS 20px 정확 일치. BrandSpec default 18 '
+                'drift 회귀 방지.',
+          );
+          expect(
+            const KakaoSpec().borderRadius,
+            12.0,
+            reason:
+                'KakaoSpec borderRadius 의무 12dp — 정문 필수 "컨테이너 박스의 '
+                'radius는 12 픽셀". BrandSpec default 와 일치.',
+          );
+        },
+      );
+
+      // ─── T-13.3-KAKAO-LABEL-COLOR-01 (R2 / starter kit drift) ───────────
+      // Kakao 정문 필수 label color = #000000 alpha 0.85 = Color(0xD9000000).
+      // 가이드 정문 우선 (PSD 자산은 #191919 100% 사용하나 디자이너 별도 적용).
+      // starter kit 사용자가 ThemeData.colorScheme.onSurface override 시 brand
+      // drift 회귀 가드 — TextStyle().color 가 hardcoded Color(0xD9000000) 로
+      // 고정.
+      testWidgets(
+        'T-13.3-KAKAO-LABEL-COLOR-01: Kakao label color #000000 α0.85 '
+        '(가이드 정문 verbatim hardcode)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.kakao(
+                label: 'Login with Kakao',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Login with Kakao'),
+          );
+          expect(
+            textWidget.style?.color,
+            const Color(0xD9000000),
+            reason:
+                'Kakao label color 의무 #000000 α0.85 = 0xD9000000 — '
+                'developers.kakao.com/docs/ko/kakaologin/design-guide '
+                'verbatim. colorScheme.onSurface 토큰 drift 회귀 방지.',
+          );
+        },
+      );
+
+      // ─── T-13.3-KAKAO-LABEL-FONT-01 (R2 / starter kit drift) ────────────
+      // Kakao 정문 "OS별 기본 시스템 서체" + PSD verbatim 결합 (사용자
+      // 2026-05-16): Pretendard — PSD `AppleSDGothicNeo` 의 open-source 대체.
+      // Pretendard 가 Apple SD Gothic Neo 기반 open-source font (SIL OFL 1.1).
+      // AppleSDGothicNeo binary 는 closed-source (Apple Font License + Sandoll
+      // 라이센스, third-party 앱 bundle + Android 사용 라이센스 위반 위험).
+      // Naver case cross-provider 일관.
+      // *audit trail*: KakaoSmallSans (kakao/kakao-font, 2025-06-18 공개) 시도
+      // → PSD 자상 (~2022) 의 AppleSDGothicNeo 글리프 character set 과 명백히
+      // 다름 (digital-optimized 신규 디자인) + bundle 의미 없음 → Pretendard
+      // 복귀.
+      // fontSize 15 — PSD M Wide variant verbatim. 모바일 UX (height 48dp) 부합.
+      // fontWeight w400 (Regular) — Step A 시각 검증 (Android 용). PSD L Wide
+      // variant `AppleSDGothicNeo-Medium` verbatim 부합 의도이나 Pretendard
+      // 명목 weight 매핑이 AppleSDGothicNeo 보다 무거워 w500 시도 시 PSD
+      // reference 대비 미세 과도 → w400 으로 한 단계 더 낮춤 (Naver case lesson
+      // #15 mirror). Step B 진입 시 iOS native AppleSDGothicNeo platform 분기
+      // 추가 예정.
+      // starter kit 사용자 textTheme.labelLarge override drift 회귀 가드.
+      testWidgets(
+        'T-13.3-KAKAO-LABEL-FONT-01: Kakao label TextStyle '
+        'fontSize 15 / w400 / Pretendard (Step A Android 시각 검증)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.kakao(
+                label: 'Login with Kakao',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Login with Kakao'),
+          );
+          expect(
+            textWidget.style?.fontSize,
+            15,
+            reason:
+                'Kakao label fontSize 의무 15pt — 공식 PSD M Wide variant '
+                'verbatim (AppleSDGothicNeo / 15pt). 모바일 UX (height 48dp) '
+                '부합. textTheme.labelLarge drift 회귀 방지.',
+          );
+          expect(
+            textWidget.style?.fontWeight,
+            FontWeight.w400,
+            reason:
+                'Kakao label fontWeight 의무 w400 (Regular) — Step A 시각 '
+                '검증 (Android 용, 사용자 시각 sign-off 2026-05-16). PSD L '
+                'Wide variant AppleSDGothicNeo-Medium verbatim 부합 의도 + '
+                'Pretendard 명목 weight 매핑이 AppleSDGothicNeo 보다 무거워 '
+                'w500 시도 시 PSD reference 대비 미세 과도 → w400 으로 한 '
+                '단계 더 낮춤 (Naver case lesson #15 mirror).',
+          );
+          expect(
+            textWidget.style?.fontFamily,
+            'Pretendard',
+            reason:
+                'Kakao label fontFamily 의무 Pretendard (Android default '
+                'platform) — PSD verbatim AppleSDGothicNeo 의 open-source 대체 '
+                '(Pretendard 가 Apple SD Gothic Neo 기반 open-source font 로 '
+                '디자인, SIL OFL 1.1). AppleSDGothicNeo binary 는 closed-source '
+                '(Apple Font License + Sandoll 한글 라이센스, third-party 앱 '
+                'bundle + Android 사용 라이센스 위반 위험). iOS branch 는 '
+                'T-13.3-KAKAO-LABEL-FONT-IOS-01 별도 검증.',
+          );
+        },
+      );
+
+      // ─── T-13.3-KAKAO-LABEL-FONT-IOS-01 (Step B platform 분기) ──────────
+      // Kakao 라벨 iOS branch — Theme.of(context).platform == TargetPlatform.iOS
+      // 분기 시 fontFamily 'AppleSDGothicNeo' + fontWeight w500 (Medium). PSD
+      // verbatim AppleSDGothicNeo-Medium 를 iOS native 시스템 폰트로 직접 명시
+      // → PSD designer 의도 그대로 iOS 렌더. Apple Font License 부합 (Apple OS
+      // 내부 사용, bundle 0). starter kit drift 회피 원칙 "허용 (분기 trigger):
+      // theme.platform" 부합.
+      testWidgets(
+        'T-13.3-KAKAO-LABEL-FONT-IOS-01: Kakao label TextStyle iOS branch — '
+        'fontFamily AppleSDGothicNeo / w500 (PSD verbatim native)',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrapForR1R2R3(
+              BrandedSocialButton.kakao(
+                label: 'Login with Kakao',
+                onPressed: () {},
+              ),
+              brightness: Brightness.light,
+              platform: TargetPlatform.iOS,
+            ),
+          );
+          await _settleAssetsForR1R2R3(tester);
+
+          final Text textWidget = tester.widget<Text>(
+            find.text('Login with Kakao'),
+          );
+          expect(
+            textWidget.style?.fontFamily,
+            'AppleSDGothicNeo',
+            reason:
+                'Kakao label fontFamily 의무 AppleSDGothicNeo (iOS branch) — '
+                'PSD verbatim native font. iOS native 시스템 폰트로 bundle 0 + '
+                'Apple Font License 부합 (Apple OS 내부 사용).',
+          );
+          expect(
+            textWidget.style?.fontWeight,
+            FontWeight.w500,
+            reason:
+                'Kakao label fontWeight 의무 w500 Medium (iOS branch) — PSD '
+                'L Wide variant AppleSDGothicNeo-Medium verbatim. iOS native '
+                '폰트 = PSD designer 의도 그대로 렌더.',
+          );
+          // fontSize 16 (iOS branch — AppleSDGothicNeo cap height 가
+          // Pretendard 보다 작은 비율이라 시각 보정 +1pt, Naver case mirror
+          // 사용자 시각 보고 3회 iteration 2026-05-16: 15→16→17→16 수렴).
+          // Android 는 PSD M Wide variant verbatim 15pt 유지.
+          expect(
+            textWidget.style?.fontSize,
+            16,
+            reason:
+                'Kakao label fontSize iOS branch 의무 16pt — '
+                'AppleSDGothicNeo cap height 가 Pretendard 보다 작은 비율 '
+                '시각 보정 (Android 15 대비 +1pt, Naver case mirror, '
+                '사용자 시각 보고 3회 iteration 2026-05-16).',
+          );
+        },
+      );
+
+      // ─── T-13.3-APPLE-BG-LIGHT-01 (R5 / Wave 4 Step 2 supersede) ─────────
+      //
+      // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** SignInWithApple
+      // Button SDK 위제 폐기 → custom render. SDK 의 `style: .black/.white`
+      // 검증 → Material.color hex 검증 갱신. Apple HIG 패턴 — light theme app
+      // 에서 light bg button (5 provider Google/Facebook 패턴 머레, 직관적
+      // theme adapting).
+      testWidgets('T-13.3-APPLE-BG-LIGHT-01: Apple light theme bg = '
+          '#FFFFFF (custom render, Wave 4 Step 2 SDK 위제 폐기)', (tester) async {
         await tester.pumpWidget(
           _wrapForR1R2R3(
             BrandedSocialButton.apple(
@@ -1010,20 +2064,24 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final SignInWithAppleButton appleBtn = tester
-            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton));
         expect(
-          appleBtn.style,
-          SignInWithAppleButtonStyle.black,
+          find.byWidgetPredicate((Widget w) {
+            if (w is! Material) return false;
+            final ShapeBorder? shape = w.shape;
+            if (shape is! RoundedRectangleBorder) return false;
+            return w.color == Colors.white;
+          }),
+          findsAtLeastNWidgets(1),
           reason:
-              'R5 Apple light theme → .black 자동 매핑 의무. caller 측 '
-              'style: parameter 폐기, Theme.brightness 단독 권위.',
+              'Apple light theme bg 의무 Colors.white (#FFFFFF) — Wave 4 '
+              'Step 2 custom render (SDK 위제 폐기). 5 provider Google/'
+              'Facebook 패턴 머레.',
         );
       });
 
-      // ─── T-13.3-APPLE-DARK-WHITE-01 (R5) ─────────────────────────────────
-      testWidgets('T-13.3-APPLE-DARK-WHITE-01: Apple dark theme → '
-          'SignInWithAppleButtonStyle.white (R5 자동 매핑)', (tester) async {
+      // ─── T-13.3-APPLE-BG-DARK-01 (R5 / Wave 4 Step 2 supersede) ──────────
+      testWidgets('T-13.3-APPLE-BG-DARK-01: Apple dark theme bg = '
+          '#000000 (custom render, Wave 4 Step 2 SDK 위제 폐기)', (tester) async {
         await tester.pumpWidget(
           _wrapForR1R2R3(
             BrandedSocialButton.apple(
@@ -1035,14 +2093,18 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final SignInWithAppleButton appleBtn = tester
-            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton));
         expect(
-          appleBtn.style,
-          SignInWithAppleButtonStyle.white,
+          find.byWidgetPredicate((Widget w) {
+            if (w is! Material) return false;
+            final ShapeBorder? shape = w.shape;
+            if (shape is! RoundedRectangleBorder) return false;
+            return w.color == Colors.black;
+          }),
+          findsAtLeastNWidgets(1),
           reason:
-              'R5 Apple dark theme → .white 자동 매핑 의무. caller 측 '
-              'style: parameter 폐기, Theme.brightness 단독 권위.',
+              'Apple dark theme bg 의무 Colors.black (#000000) — Wave 4 '
+              'Step 2 custom render (SDK 위제 폐기). 5 provider Google/'
+              'Facebook 패턴 머레.',
         );
       });
     },
@@ -1054,10 +2116,23 @@ void main() {
 /// `branded_social_button_golden_test.dart` 의 `_wrap` helper 와 동일 구조 —
 /// AppTheme.light/dark 주입 (`context.appSpacing` ThemeExtension 의무) + en
 /// locale lock + ARB delegate 명시. golden 과의 환경 일관성 유지.
-Widget _wrapForR1R2R3(Widget child, {required Brightness brightness}) {
+///
+/// **Phase 13.3 Wave 4 Step 3 (2026-05-16):** Google `_renderGoogleButton`
+/// 의 platform 분기 (Android/iOS padding/gap) 검증 위해 [platform] 매개변수
+/// 추가. `null` (default) → `AppTheme` 의 platform 그대로 사용 (기존 호출자
+/// 영향 0). 명시 시 → `ThemeData.copyWith(platform: ...)` 으로 override.
+Widget _wrapForR1R2R3(
+  Widget child, {
+  required Brightness brightness,
+  TargetPlatform? platform,
+}) {
+  final base = brightness == Brightness.light
+      ? AppTheme.light()
+      : AppTheme.dark();
+  final theme = platform == null ? base : base.copyWith(platform: platform);
   return MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: brightness == Brightness.light ? AppTheme.light() : AppTheme.dark(),
+    theme: theme,
     locale: const Locale('en'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,

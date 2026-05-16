@@ -14,6 +14,7 @@
 // 는 Phase 13.2 책임으로 보존 (Pitfall 7), 본 file 은 Phase 13.3 책임.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -76,24 +77,18 @@ void main() {
         );
         await _settleAssets(tester);
 
-        // 1. Primary Logo PNG — Meta brand pack 자상 (D-94 lock)
+        // 1. Primary Logo SVG — Meta Brand Asset Pack AI verbatim 추출
+        // (Wave 4 Step 2 supersede — PNG → SVG, D-94 lock + D-96 locale 독립)
+        final SvgPicture svgWidget = tester.widget<SvgPicture>(
+          find.byType(SvgPicture),
+        );
+        final dynamic loader = (svgWidget.bytesLoader as dynamic);
         expect(
-          find.byWidgetPredicate((Widget w) {
-            if (w is! Image) return false;
-            final ImageProvider rawProvider = w.image;
-            final AssetImage? assetImage = rawProvider is ResizeImage
-                ? rawProvider.imageProvider as AssetImage?
-                : rawProvider is AssetImage
-                ? rawProvider
-                : null;
-            if (assetImage == null) return false;
-            return assetImage.assetName ==
-                'assets/brand/facebook/facebook_login.png';
-          }),
-          findsOneWidget,
+          loader.assetName,
+          'assets/brand/facebook/btn_signin_icon.svg',
           reason:
-              'Facebook Primary Logo PNG 자상 변경 0 의무 (D-94 lock + D-96 '
-              'locale 독립 단일 path).',
+              'Facebook Primary Logo SVG 자상 변경 0 의무 (Wave 4 Step 2 '
+              'supersede — PNG 폐기, AI verbatim 추출).',
         );
 
         // 2. Material shape == RoundedRectangleBorder (Apple 패턴 mirror)
@@ -125,11 +120,14 @@ void main() {
 
     // ─── T-13.3-FACEBOOK-DARK-THEME-01 ────────────────────────────────────
     //
-    // D-94 lock: Primary Logo 단독 채택 — Theme.brightness 분기 시 Image.asset
-    // path 변경 0 (light/dark 모두 'facebook_login.png' 단일). render layer
+    // D-94 lock: Primary Logo 단독 채택 — Theme.brightness 분기 시 SvgPicture
+    // path 변경 0 (light/dark 모두 'btn_signin_icon.svg' 단일). render layer
     // (bg / outline / fg 색) 만 Theme.brightness 자동 분기.
+    //
+    // **Phase 13.3 Wave 4 Step 2 supersede:** PNG → SVG 전환 (AI verbatim 추출,
+    // Meta Brand Asset Pack 의 Facebook_Logo_Primary.ai PyMuPDF 추출).
     testWidgets(
-      'T-13.3-FACEBOOK-DARK-THEME-01: dark theme 도 동일 Image.asset path '
+      'T-13.3-FACEBOOK-DARK-THEME-01: dark theme 도 동일 SvgPicture path '
       '(D-94 Primary Logo 단독, locale/theme 독립)',
       (tester) async {
         await tester.pumpWidget(
@@ -143,23 +141,17 @@ void main() {
         );
         await _settleAssets(tester);
 
+        final SvgPicture svgWidget = tester.widget<SvgPicture>(
+          find.byType(SvgPicture),
+        );
+        final dynamic loader = (svgWidget.bytesLoader as dynamic);
         expect(
-          find.byWidgetPredicate((Widget w) {
-            if (w is! Image) return false;
-            final ImageProvider rawProvider = w.image;
-            final AssetImage? assetImage = rawProvider is ResizeImage
-                ? rawProvider.imageProvider as AssetImage?
-                : rawProvider is AssetImage
-                ? rawProvider
-                : null;
-            if (assetImage == null) return false;
-            return assetImage.assetName ==
-                'assets/brand/facebook/facebook_login.png';
-          }),
-          findsOneWidget,
+          loader.assetName,
+          'assets/brand/facebook/btn_signin_icon.svg',
           reason:
               'D-94 lock — Primary Logo 단독, dark theme 분기 시에도 동일 '
-              'asset path. Secondary Logo (모노크롬) 분기 부재.',
+              'asset path. Secondary Logo (모노크롬) 분기 부재. Wave 4 Step 2 '
+              'PNG → SVG 전환 후에도 단일 path 머레.',
         );
       },
     );

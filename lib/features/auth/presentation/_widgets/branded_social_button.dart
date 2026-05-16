@@ -2,9 +2,13 @@
 // Phase 13.3 — see ROADMAP.md (D-107 symbol SVG raw verbatim inline,
 //             RESEARCH §1.1 + §1.2 — Wave 1 const 주입)
 
+// Phase 13.3 Wave 4 Step 2 (2026-05-15): `sign_in_with_apple` package import
+// 제거. SDK Button widget (`SignInWithAppleButton`) → 자체 render
+// (`_renderAppleButton`) 전환. OAuth flow (credential 요청) 는 별도 파일
+// (`apple_auth_strategy.dart` 등) 에서 `SignInWithApple.getAppleIDCredential()`
+// 호출.
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '_brand_assets.dart';
@@ -22,60 +26,39 @@ import '_brand_assets.dart';
 // 신규 const 도입 — 현재 dead retention 패턴 폐기로 woody_lints
 // unused_element 룰과 정합.
 
-// Phase 13.3 — Wave 1 D-107 symbol SVG raw const (RESEARCH §1.1 + §1.2):
+// Phase 13.3 — Wave 1 D-107 symbol SVG (Wave 4 Step 2 자산 분리 supersede):
 //
-// Wave 2 의 `_renderKakaoButton` / `_renderNaverButton` 가 `SvgPicture.string`
-// 으로 본 const 를 inline render. 외부 asset 분리 시 drift risk (D-107) —
-// file 내 private const 단일 진실원 채택.
+// Wave 1 D-107 결정: `_renderKakaoButton` / `_renderNaverButton` 가 inline const
+// SVG 를 `SvgPicture.string` 으로 render — 외부 asset 분리 시 drift risk 회피.
+//
+// Wave 4 Step 2 (2026-05-15) supersede: Kakao + Naver 모두 자산 파일로 분리
+// (`assets/brand/{kakao,naver}/btn_signin_icon.svg`, Google 자산 파일 패턴 일관).
+// drift risk 는 source-of-truth 단일 (자산 파일) + test expected 의 verbatim
+// audit 로 mitigation.
 //
 // Audit trail:
-// - `_kKakaoSymbolSvg`: Kakao 공식 PSD 파일 (`kakao_login_original.psd`,
-//   developers.kakao.com 다운로드) psd-tools v1.17 verbatim 추출 —
-//   `축약_국문/Large (180px X 90px)/Shape 5` layer, 9 knots Bezier path,
-//   bbox 40x37 (PSD layer 좌표 기준 normalized). 2026-05-15 Phase 13.3 Wave 4
-//   재추출 (svgrepo third-party 폐기, `feedback_official_bi_verification.md`
-//   HIGH-trust 충족). fill="currentColor" 채택 — yellow-bg = `Color(0xDD000000)`.
-// - `_kNaverSymbolSvg`: Naver 공식 AI 파일 (`developers.naver.com/docs/login/bi/bi.md`,
-//   `NAVER_login_KR.ai`, PDF-1.5 vector) PyMuPDF verbatim 추출 —
-//   drawing[31] (축약형 Large green N white glyph), 2026-05-15. HIGH-trust
-//   audit trail (memory `feedback_official_bi_verification.md` 충족).
-//   fill="currentColor" 채택 — green-bg 버튼 = `Colors.white` / white-bg
-//   버튼 = `Color(0xFF03A94D)` 로 caller 측 colorFilter 일관 매핑.
+// - Kakao SVG (`assets/brand/kakao/btn_signin_icon.svg`): 공식 PSD
+//   `kakao_login_original.psd` (developers.kakao.com), `국문/Medium and Wide
+//   (300px X 45px)/Shape 1` vector layer (9 knots Bezier path), psd-tools v1.17
+//   verbatim 추출 2026-05-15. viewBox "0 0 20 20" — Google SVG (size 20×20,
+//   aspect ratio 1:1) 와 정확 일치. fill="currentColor" — caller 측
+//   colorFilter `symbolColor` (#000000 alpha 1.0) 적용.
+// - Naver SVG (`assets/brand/naver/btn_signin_icon.svg`): 공식 AI 파일
+//   `NAVER_login_KR.ai` (developers.naver.com/docs/login/bi/bi.md, PDF-1.5
+//   vector) PyMuPDF v1.x verbatim 추출 — Page 1 drawing[38] (완성형 height 48
+//   center align variant 의 logo, 16×16), single closed polygon (10 line
+//   segments, no Bezier). 20×20 scale (가이드 "≥16" 부합 + Google/Kakao 일관).
+//   fill="currentColor" — caller 측 colorFilter 으로 green-bg = `Colors.white`
+//   / white-bg = `Color(0xFF03A94D)` / dark-bg = `Colors.white` 매핑.
 
-/// Kakao 말풍선 symbol SVG raw markup (D-107, RESEARCH §1.1, Phase 13.3 Wave 4
-/// 재추출).
-///
-/// Source: Kakao 공식 PSD (`developers.kakao.com` 다운로드 — `kakao_login_original.psd`,
-/// `축약_국문/Large (180px X 90px)/Shape 5` vector layer, 9 knots Bezier).
-/// psd-tools v1.17 verbatim 추출 2026-05-15. viewBox = bbox verbatim (padding 0).
-const String _kKakaoSymbolSvg =
-    '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 37" '
-    'width="40" height="37">'
-    '<path d="M20 1.94 C10.06 1.94 2 8.19 2 15.91 '
-    'C2 20.71 5.12 24.94 9.86 27.45 L7.87 34.78 '
-    'C7.69 35.43 8.43 35.95 8.99 35.57 L17.75 29.77 '
-    'C18.49 29.84 19.24 29.88 20 29.88 '
-    'C29.94 29.88 38 23.63 38 15.91 '
-    'C38 8.19 29.94 1.94 20 1.94 Z" '
-    'fill="currentColor"/>'
-    '</svg>';
-
-/// Naver N symbol SVG raw markup (D-107, RESEARCH §1.2).
-///
-/// Source: Naver 공식 AI 파일 (`NAVER_login_KR.ai`) PyMuPDF v1 verbatim 추출 —
-/// drawing[31] (축약형 Large green N white glyph), 2026-05-15.
-/// viewBox 0 0 20 20, single closed polygon (10 line segments, no Bezier).
-/// fill="currentColor" — caller 측 `ColorFilter.mode` 또는 wrapping `IconTheme`
-/// 으로 green-bg = `Colors.white` / white-bg = `Color(0xFF03A94D)` 매핑.
-const String _kNaverSymbolSvg =
-    '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" '
-    'width="20" height="20">'
-    '<path d="M13.561 10.706 L6.146 0.0 L0.0 0.0 L0.0 20.0 L6.439 20.0 '
-    'L6.439 9.298 L13.854 20.0 L20.0 20.0 L20.0 0.0 L13.561 0.0 Z" '
-    'fill="currentColor"/>'
-    '</svg>';
+// Phase 13.3 Wave 4 Step 2 (2026-05-15) — Naver N symbol SVG 는
+// `assets/brand/naver/btn_signin_icon.svg` 자산 파일로 분리.
+// Source: Naver 공식 AI 파일 (`NAVER_login_KR.ai`) PyMuPDF v1 재추출 —
+//   Page 1 drawing[38] (완성형 height 48 center align variant 의 logo, 16×16),
+//   single closed polygon (10 line segments, no Bezier). 20×20 으로 scale (가이드
+//   "≥16" 의무 부합 + Google/Kakao SVG size 일관성). viewBox "0 0 20 20".
+//   fill="currentColor" — caller 측 colorFilter 으로 green-bg = `Colors.white` /
+//   white-bg = `Color(0xFF03A94D)` 매핑.
 
 /// 자상 렌더링 dispatch 태그 (D-68).
 ///
@@ -160,11 +143,27 @@ sealed class BrandSpec {
 
 /// Kakao 로그인 버튼 spec — D-61 sub-class.
 ///
-/// Phase 13.3 R2: `_renderKakaoButton` 가 `_kKakaoSymbolSvg` inline render —
-/// [assetType] 은 `AssetType.svg` (Wave 2 inline SVG dispatch tag 일관).
+/// Phase 13.3 R2 (Wave 4 Step 2): `_renderKakaoButton` 가
+/// `assets/brand/kakao/btn_signin_icon.svg` 자산 파일 render — [assetType] 은
+/// `AssetType.svg` (Google 자산 파일 패턴 일관).
+///
+/// **Phase 13.3 Wave 4 Step 3 (2026-05-16) — Kakao 공식 PSD M Wide verbatim
+/// override:** Kakao 공식 PSD (`kakao_login_original.psd` of
+/// developers.kakao.com, "국문/Medium and Wide (300px X 45px)" + "영문/Medium
+/// and Wide (300px X 45px)" variant) psd-tools 추출 spec 으로 BrandSpec default
+/// override:
+/// - `iconSize: 20` (PSD M Wide Shape 1 측정 20×20dp + Google CSS 20px 정확
+///   일치) — D-71 default 18 대비 별도
+/// `borderRadius: 12` 는 BrandSpec default 와 일치 (정문 필수 "12 픽셀" 정확
+/// 대응). `height: 48` 은 BrandSpec default 유지 (PSD M Wide 45 + 3dp ≈ 모바일
+/// 표준 48dp, Naver case 의 height 48 default 유지 패턴 일관).
+///
+/// **Starter kit brand drift 회피:** `_renderKakaoButton` 모든 외관 spec
+/// hardcoded — `colorScheme.*` / `textTheme.*` 토큰 의존 0 (Apple/Google/Naver
+/// 패턴 mirror).
 class KakaoSpec extends BrandSpec {
-  /// const 생성자 — 공통 default (height 48 / radius 12 / icon 18) 사용.
-  const KakaoSpec();
+  /// const 생성자 — Kakao 공식 PSD M Wide verbatim override.
+  const KakaoSpec() : super(iconSize: 20);
 
   @override
   AssetType get assetType => AssetType.svg;
@@ -172,12 +171,28 @@ class KakaoSpec extends BrandSpec {
 
 /// Naver 로그인 버튼 spec — D-61 sub-class.
 ///
-/// Phase 13.3 R3: theme 필드 폐기 (caller 측 Theme.brightness 자동 분기 미사용,
-/// Naver BI 단일 그린 #03A94D 강제). `_renderNaverButton` 가 `_kNaverSymbolSvg`
-/// inline render — [assetType] 은 `AssetType.svg`.
+/// Phase 13.3 R3 (Wave 4 Step 2): theme 필드 폐기 (caller 측 Theme.brightness
+/// 자동 분기 미사용, Naver BI 단일 그린 #03A94D 강제). `_renderNaverButton` 가
+/// `assets/brand/naver/btn_signin_icon.svg` 자산 파일 render — [assetType] 은
+/// `AssetType.svg`.
+///
+/// **Phase 13.3 Wave 4 Step 3 (2026-05-16) — Naver 공식 PNG 자상 verbatim
+/// override:** NAVER 공식 PNG 자상 (`NAVER_login_EN.zip` 의
+/// `NAVER_login_Light_EN_green_center_H48.png`, 사용자 제공 권위 출처) 정밀
+/// 측정 (368×48dp @ 4x) 으로 BrandSpec default override:
+/// - `borderRadius: 8` (공식 PNG 측정 ~7.5dp + STEP2-naver-VERBATIM AI cubic
+///   Bezier 측정 8dp 부합) — D-71 default 12 대비 별도
+/// - `iconSize: 16` (공식 PNG 측정 정확 16×16dp + 정문 "완성형 16px 이상"
+///   필수 최소점 정확 대응) — D-71 default 18 대비 별도
+/// `height: 48` 은 BrandSpec default 와 일치 (Naver AI 자산 모델 variant 48
+/// 부합).
+///
+/// **Starter kit brand drift 회피:** `_renderNaverButton` 모든 외관 spec
+/// hardcoded — `colorScheme.*` / `textTheme.*` 토큰 의존 0 (Apple/Google
+/// 패턴 mirror).
 class NaverSpec extends BrandSpec {
-  /// const 생성자.
-  const NaverSpec();
+  /// const 생성자 — NAVER 공식 PNG 자상 verbatim override.
+  const NaverSpec() : super(borderRadius: 8, iconSize: 16);
 
   @override
   AssetType get assetType => AssetType.svg;
@@ -188,36 +203,62 @@ class NaverSpec extends BrandSpec {
 /// Phase 13.3 R1: theme 필드 폐기 (caller 측 명시 매개변수 → `_renderGoogleButton`
 /// 내부 Theme.brightness 자동 분기로 차원 축소). [assetType] 은 `AssetType.svg`
 /// (Google Identity btn_signin_icon.svg).
+///
+/// **Phase 13.3 Wave 4 Step 3 (2026-05-16) — Google production CSS verbatim
+/// override:** Google Identity Services 의 권위 있는 production CSS
+/// (`.gsi-material-button` 클래스, 사용자 제공 2026-05-16) 의 외관 spec 으로
+/// `BrandSpec` default override:
+/// - `height: 40` (CSS `height: 40px`) — D-71 default 48 대비 Google 만 별도
+/// - `borderRadius: 4` (CSS `border-radius: 4px`) — D-71 default 12 대비 별도
+/// - `iconSize: 20` (CSS `.gsi-material-button-icon { width: 20px }`) — D-71
+///   default 18 대비 별도
+///
+/// 5 provider 시각 통일 lock 의 trade-off 로 Google CSS verbatim 부합 우선
+/// 채택 (사용자 결정 2026-05-16, STEP3-CONFLICT-MATRIX §3.1/§3.2/§3.3 supersede).
+/// 다른 4 provider (Kakao/Naver/Apple/Facebook) 는 BrandSpec default 유지.
 class GoogleSpec extends BrandSpec {
-  /// const 생성자.
-  const GoogleSpec();
+  /// const 생성자 — Google production CSS verbatim override.
+  const GoogleSpec()
+      : super(
+          height: 40,
+          borderRadius: 4,
+          iconSize: 20,
+        );
 
   @override
   AssetType get assetType => AssetType.svg;
 }
 
-/// Apple 로그인 버튼 spec — D-62 thin wrapper (SDK 위제 위임).
+/// Apple 로그인 버튼 spec — D-62 (Wave 4 Step 2 SDK 위제 → custom render supersede).
 ///
-/// 본 spec 자체는 시각 사양 없음 — `SignInWithAppleButton` 위제가 HIG 강제
-/// 사양 모두 처리. height 는 SDK 기본 44 (HIG 권장값, D-72-CLARIFY-1).
+/// Phase 13.3 Wave 4 Step 2 (2026-05-15): SDK 위제 (`SignInWithAppleButton`) →
+/// 자체 render (`_renderAppleButton`) 전환. Apple 공식 Logo-only SVG 자산
+/// (`Logo-Sign-in-with-Apple.dmg` from developer.apple.com/design/resources/) 채택.
+/// light = Black variant / dark = White variant — wrapper bg 색 일치 시 SVG
+/// 정사각 외곽 invisible. Universal Layout 와 일관 + HIG mandate 100% 부합
+/// (자산 변형 0, "Never crop" + "Don't add padding" 부합).
 class AppleSpec extends BrandSpec {
   /// const 생성자.
   const AppleSpec();
 
   @override
-  AssetType get assetType => AssetType.none;
+  AssetType get assetType => AssetType.svg;
 }
 
 /// Facebook 로그인 버튼 spec — Phase 13.2 완료 (옵션 A pivot, Wave 0 lock).
 ///
 /// `_renderFacebookButton` 호출 단독 — Apple `SignInWithAppleButton` 패턴
-/// mirror. `Theme.brightness` 자동 분기 + 18dp Primary Logo PNG 자상
-/// (`assets/brand/facebook/facebook_login.png`) + ARB `authFacebookSignIn`
-/// 라벨 + 1dp outline + Material radius 12dp. Meta brand pack 의 logo-only
-/// 자상 (wide baked-in 미제공) 으로 Naver/Kakao/Google wide 자상 통째 buttons
-/// 패턴 적용 불가 — Apple SDK 위제 패턴 mirror 의무 (옵션 A pivot).
+/// mirror. `Theme.brightness` 자동 분기 + 18dp Primary Logo SVG 자상
+/// (`assets/brand/facebook/btn_signin_icon.svg`, Wave 4 Step 2 AI verbatim
+/// 추출) + ARB `authFacebookSignIn` 라벨 + 1dp outline + Material radius 12dp.
+/// Meta brand pack 의 logo-only 자상 (wide baked-in 미제공) 으로 Naver/Kakao/
+/// Google wide 자상 통째 buttons 패턴 적용 불가 — Apple SDK 위제 패턴 mirror
+/// 의무 (옵션 A pivot).
 ///
-/// **D-95 lock:** `AssetType.png` (Meta Primary Logo PNG 단독, SVG 미제공).
+/// **D-95 lock (Wave 4 Step 2 supersede):** `AssetType.svg` (Wave 4 에서 PNG →
+/// SVG 전환, Naver/Kakao 패턴 일관 + 자산 형식 통일). SVG path 는 Meta Brand
+/// Asset Pack 의 `Facebook_Logo_Primary.ai` (PDF-1.5 vector) PyMuPDF verbatim
+/// 추출. 출처 audit trail = `README.md`.
 /// **D-94 lock:** theme 필드 부재 (Primary 단독 채택, Kakao 패턴 mirror).
 /// **D-96 lock:** locale 독립 (단일 path, lang 분기 부재).
 class FacebookSpec extends BrandSpec {
@@ -225,7 +266,7 @@ class FacebookSpec extends BrandSpec {
   const FacebookSpec();
 
   @override
-  AssetType get assetType => AssetType.png;
+  AssetType get assetType => AssetType.svg;
 }
 
 /// LINE 로그인 버튼 spec — D-73 placeholder (자상 미존재 시 fallback render).
@@ -405,21 +446,10 @@ class BrandedSocialButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // D-67 — sealed switch exhaustive (Dart 3 컴파일 시점 강제).
     return switch (spec) {
-      AppleSpec() => SizedBox(
-        width: double.infinity,
-        child: SignInWithAppleButton(
-          // D-72-CLARIFY-2 — borderRadius 는 BorderRadius 타입 의무.
-          borderRadius: BorderRadius.circular(spec.borderRadius),
-          // Phase 13.3 R5 — Theme.brightness 자동 매핑 (HIG 권장값):
-          // light → .black / dark → .white. caller 측 style: parameter 부재.
-          style: Theme.of(context).brightness == Brightness.dark
-              ? SignInWithAppleButtonStyle.white
-              : SignInWithAppleButtonStyle.black,
-          text: label,
-          onPressed: onPressed,
-          // D-72-CLARIFY-1 — height SDK 기본 44 존종, SizedBox 래핑 안 함.
-        ),
-      ),
+      // Phase 13.3 Wave 4 Step 2 (2026-05-15) — SDK 위제 (SignInWithAppleButton)
+      // → 자체 render. Apple 공식 Logo-only SVG (light = Black variant /
+      // dark = White variant) 채택, Universal Layout wrapper 일관 적용.
+      AppleSpec() => _renderAppleButton(context, spec, label, onPressed),
       // Phase 13.2 — see ROADMAP.md (R5 — FacebookSpec active 전환, 옵션 A pivot)
       // Phase 13.3 Pitfall 7: line 399 변경 0 강제. signature/argument 순서/명칭
       // 변경 0. Wave 5 review 단계 git diff 검증.
@@ -447,6 +477,44 @@ class BrandedSocialButton extends StatelessWidget {
 /// Universal Layout Pattern + #FEE500 bg + 말풍선 symbol SVG inline
 /// (D-105 + D-107) + ARB authKakaoSignIn 라벨. light/dark 단일 (Kakao BI
 /// 강제, theme 분기 0). outline 0 (bg-only).
+///
+/// **Starter kit brand drift 회피 (Wave 4 Step 3 — Apple/Google/Naver 패턴
+/// mirror):** 모든 외관 spec hardcoded — `colorScheme.*` / `textTheme.*` 토큰
+/// 의존 0. 스타터킷 사용자가 `ThemeData.colorScheme` 또는 `textTheme` override
+/// 시 brand 버튼 외관이 영향 받지 않도록 `TextStyle()` 직접 명시 + Color literal
+/// hardcode.
+///
+/// **Kakao 정문 + 공식 PSD M Wide variant spec (STEP2-kakao-VERBATIM):**
+/// - bg: #FEE500 (정문 필수 "컨테이너: #FEE500")
+/// - fg color: #000000 alpha 0.85 = `Color(0xD9000000)` (정문 필수 "#000000
+///   85%" — PSD 자산은 #191919 100% 사용하나 가이드 정문 우선 채택, Step 2
+///   사용자 sign-off)
+/// - symbol color: #000000 (정문 필수 "심볼: #000000")
+/// - borderRadius: 12 (정문 필수 정량 "컨테이너 박스의 radius는 12 픽셀")
+/// - iconSize: 20 (PSD M Wide Shape 1 측정 + Google CSS 20px 정확 일치),
+///   KakaoSpec override
+/// - logoLabelGap: 8 (PSD M Wide center align 자동 + Naver 일관 8dp)
+/// - fontFamily + fontWeight: `Theme.of(context).platform` 분기 (Step B,
+///   사용자 결정 2026-05-16):
+///   - **iOS**: `AppleSDGothicNeo` (native macOS/iOS 시스템 폰트, bundle 0,
+///     Apple OS 내부 사용 = Apple Font License + Sandoll 라이센스 부합) +
+///     `FontWeight.w500` (Medium — PSD L Wide variant
+///     `AppleSDGothicNeo-Medium` verbatim, PSD designer 의도 그대로 렌더)
+///   - **Android / others**: `Pretendard` (PSD `AppleSDGothicNeo` 의 open-
+///     source 대체, Pretendard 가 Apple SD Gothic Neo 기반으로 디자인, SIL
+///     OFL 1.1 bundled) + `FontWeight.w400` (Regular — Pretendard 명목 weight
+///     매핑이 AppleSDGothicNeo 보다 무거워 한 단계 낮춤, Naver case lesson
+///     #15 mirror, Step A 시각 sign-off)
+///   starter kit drift 회피 원칙 "허용 (분기 trigger): theme.platform" 부합 ✓.
+///   Naver 와 달리 한국 brand 2 provider cross-provider 일관성 일부 trade-off
+///   (Naver = Pretendard 단일) 하지만 PSD verbatim 정확도 우선.
+///   *audit trail*: KakaoSmallSans (kakao/kakao-font 2025-06-18 공개) 시도
+///   → PSD 자상 (~2022) 의 AppleSDGothicNeo 글리프 character set 과 명백히
+///   다른 신규 digital-optimized 디자인 → revert (Kakao Small Sans bundle 도
+///   제거). AppleSDGothicNeo binary bundle 은 라이센스 위반 위험으로 채택 불가
+///   → iOS native 명시 (bundle 0) + Android Pretendard 분기 패턴 채택.
+/// - fontSize 15 (전 platform 단일) — PSD M Wide variant verbatim
+///   (AppleSDGothicNeo / 15pt). 모바일 UX (height 48dp) 부합.
 Widget _renderKakaoButton(
   BuildContext context,
   BrandSpec spec,
@@ -455,11 +523,33 @@ Widget _renderKakaoButton(
 ) {
   final radius = BorderRadius.circular(spec.borderRadius);
   final isEnabled = onPressed != null;
-  // Kakao BI verbatim (UI-SPEC):
+  // Kakao BI verbatim (UI-SPEC + Phase 13.3 Wave 4 Step 3 정정):
   //   bg = #FEE500 (Kakao yellow, 단일 색)
-  //   fg = #000000 85% alpha (Kakao Design Guide).
+  //   fg = #000000 alpha 0.85 (Kakao Design Guide "#000000 85%") → 0xD9 (217/255 = 85.1%)
+  //   symbol = #000000 alpha 1.0 (Kakao Design Guide "심볼: #000000")
   const bgColor = Color(0xFFFEE500);
-  const fgColor = Color(0xDD000000);
+  const fgColor = Color(0xD9000000);
+  const symbolColor = Color(0xFF000000);
+  // Kakao 정문 "OS별 기본 시스템 서체" + PSD verbatim 결합 (Step B platform 분기,
+  // 사용자 2026-05-16):
+  //   iOS = AppleSDGothicNeo (native macOS/iOS 시스템 폰트, bundle 0, Apple OS
+  //   내부 사용 = Apple Font License + Sandoll 라이센스 부합) + w500 (Medium —
+  //   PSD L Wide variant `AppleSDGothicNeo-Medium` verbatim, PSD designer 의도
+  //   그대로 iOS 렌더).
+  //   Android / others = Pretendard (PSD `AppleSDGothicNeo` 의 open-source
+  //   대체, SIL OFL 1.1 bundled) + w400 (Regular — Pretendard 명목 weight 매핑이
+  //   AppleSDGothicNeo 보다 무거워 한 단계 낮춤, Naver case lesson #15 mirror).
+  //   starter kit drift 회피 원칙 "허용 (분기 trigger): theme.platform" 부합 ✓.
+  //
+  // *audit trail (2026-05-16)*: 사용자 의도 "카카오 자체 제작 폰트" 추구로
+  //   Kakao Small Sans (kakao/kakao-font, 2025-06-18 공개, SIL OFL 1.1) 시도
+  //   → PSD 자상 (~2022 디자인) 의 AppleSDGothicNeo 글리프 character set 과
+  //   명백히 다름 (digital-optimized 신규 디자인) → revert. AppleSDGothicNeo
+  //   binary bundle 은 라이센스 위반 위험으로 채택 불가 → iOS native 명시
+  //   (bundle 0) + Android Pretendard 분기 패턴 채택.
+  final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+  final labelFontFamily = isIOS ? 'AppleSDGothicNeo' : 'Pretendard';
+  final labelFontWeight = isIOS ? FontWeight.w500 : FontWeight.w400;
   return Semantics(
     button: true,
     enabled: isEnabled,
@@ -484,21 +574,54 @@ Widget _renderKakaoButton(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SvgPicture.string(
-                    _kKakaoSymbolSvg,
+                  SvgPicture.asset(
+                    '$kBrandAssetBase/kakao/btn_signin_icon.svg',
                     width: spec.iconSize,
                     height: spec.iconSize,
+                    colorFilter: const ColorFilter.mode(
+                      symbolColor,
+                      BlendMode.srcIn,
+                    ),
                     semanticsLabel: null,
                   ),
+                  // PSD M Wide center align 자동 + Naver 일관 8dp.
                   const SizedBox(width: 8),
                   Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelLarge?.copyWith(color: fgColor),
+                    // iOS 만 Padding(top: 2) wrap — AppleSDGothicNeo glyph
+                    // line box 안 위쪽 위치 보정 (Naver case mirror,
+                    // 사용자 시각 보고 2026-05-16).
+                    child: Padding(
+                      padding: EdgeInsets.only(top: isIOS ? 2 : 0),
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      // Kakao 라벨 spec (Step B platform 분기):
+                      //   fontFamily/fontWeight = isIOS ? AppleSDGothicNeo
+                      //   w500 : Pretendard w400 (위 분기 lookup 참조).
+                      //   fontSize = isIOS ? 16 : 15 — AppleSDGothicNeo cap
+                      //   height 가 Pretendard 보다 작은 비율이라 시각 보정
+                      //   위해 iOS 만 +1pt (Naver case mirror, 사용자 시각
+                      //   보고 3회 iteration 2026-05-16: 15→16→17→16 수렴).
+                      //   Android 는 PSD M Wide variant verbatim 15pt 유지.
+                      //   height 1.0 + leadingDistribution.even (iOS 만) —
+                      //   line box 압축 + leading 균등 분배 → text visible
+                      //   glyph 가 line box center 에 정확 align → SVG vertical
+                      //   center 와 정렬 향상.
+                      //   color fgColor = #000000 α0.85 (가이드 정문 우선).
+                      //   textTheme.labelLarge.copyWith 비채택 (사용자
+                      //   ThemeData drift 회피).
+                        style: TextStyle(
+                          color: fgColor,
+                          fontSize: isIOS ? 16 : 15,
+                          fontWeight: labelFontWeight,
+                          fontFamily: labelFontFamily,
+                          height: isIOS ? 1.0 : null,
+                          leadingDistribution: isIOS
+                              ? TextLeadingDistribution.even
+                              : null,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -516,6 +639,37 @@ Widget _renderKakaoButton(
 /// Universal Layout Pattern + #03A94D bg + N symbol SVG inline + ARB
 /// authNaverSignIn 라벨. #03C75A (NCloud SSO) carve-out 미적용 — Naver ID
 /// 로그인 BI 의 #03A94D 단일 색 강제. light/dark 단일. outline 0 (bg-only).
+///
+/// **Starter kit brand drift 회피 (Wave 4 Step 3 — Apple/Google 패턴 mirror):**
+/// 모든 외관 spec hardcoded — `colorScheme.*` / `textTheme.*` 토큰 의존 0.
+/// 스타터킷 사용자가 `ThemeData.colorScheme` 또는 `textTheme` override 시
+/// brand 버튼 외관이 영향 받지 않도록 `TextStyle()` 직접 명시 + Color literal
+/// hardcode.
+///
+/// **Naver 정문 + 공식 PNG 자상 spec (STEP2-naver-VERBATIM 매트릭스):**
+/// - bg: #03A94D (정문 필수 "반드시 지정된 녹색")
+/// - logo color: #FFFFFF (정문 필수, green-bg variant)
+/// - label color: #FFFFFF (정문 필수, green-bg variant)
+/// - logoLabelGap: 8 (정문 필수 "가운데 정렬 시 8px")
+/// - borderRadius: 8 (공식 PNG 측정 ~7.5dp + AI 자산 8dp), NaverSpec override
+/// - iconSize: 16 (공식 PNG 측정 16×16dp + 정문 "완성형 16px 이상"),
+///   NaverSpec override
+/// - fontFamily + fontWeight: `Theme.of(context).platform` 분기 (Kakao 패턴
+///   mirror, 사용자 결정 2026-05-16 — cross-provider 일관성):
+///   - **iOS**: `AppleSDGothicNeo` (Pretendard 의 source font — native macOS/
+///     iOS 시스템 폰트, bundle 0, Apple OS 내부 사용 = Apple Font License +
+///     Sandoll 라이센스 부합) + `FontWeight.w500` (Medium — Pretendard w600 의
+///     source weight 한 단계 매핑, Kakao case lesson #15 mirror)
+///   - **Android / others**: `Pretendard` (PSD `AppleSDGothicNeo` 의
+///     open-source 대체, SIL OFL 1.1 bundled) + `FontWeight.w600` (SemiBold —
+///     공식 PNG 자상 시각 sign-off Step 3 lock)
+///   `Theme.platform` 분기 trigger 채택 — starter kit drift 회피 원칙 "허용
+///   분기 trigger" 부합 ✓. iOS golden fixture (`naver_light_ios.png`) macOS
+///   dev only — `.gitignore` 처리 (Apple Font License 위반 위험 회피) +
+///   `testWidgets(skip: !Platform.isMacOS)` 게이트 (Kakao iOS golden 패턴 mirror).
+/// - fontSize 16 (전 platform 단일) — 공식 PNG 측정 + 사용자 시각 sign-off
+///   Step 3 lock. 정문 조건 "로고 높이보다 작은 크기" 는 cap-height 기준 해석
+///   (cap height ≈ fontSize × 0.7 ≈ 11dp < logo.height 16 부합).
 Widget _renderNaverButton(
   BuildContext context,
   BrandSpec spec,
@@ -524,11 +678,24 @@ Widget _renderNaverButton(
 ) {
   final radius = BorderRadius.circular(spec.borderRadius);
   final isEnabled = onPressed != null;
-  // Naver BI verbatim (UI-SPEC + 사용자 캡처 2026-05-14):
+  // Naver BI verbatim (정문 필수 정량):
   //   bg = #03A94D (Naver ID 로그인 BI green). NCloud SSO #03C75A 비채택.
-  //   fg = Colors.white (BI default — 흰 N glyph + 흰 라벨 1:1 일관).
+  //   fg = #FFFFFF (BI default — 흰 N glyph + 흰 라벨 1:1 일관).
   const bgColor = Color(0xFF03A94D);
   const fgColor = Colors.white;
+  // Naver 정문 자유 fontFamily — Kakao 패턴 mirror platform 분기 (사용자
+  // 결정 2026-05-16 cross-provider 일관성):
+  //   iOS = AppleSDGothicNeo (Pretendard 의 source font, native macOS/iOS
+  //   시스템 폰트, bundle 0, Apple OS 내부 사용 = Apple Font License +
+  //   Sandoll 라이센스 부합) + w700 (Bold — NAVER 공식 PNG 굵은 stroke 시각
+  //   매칭, AppleSDGothicNeo 명목 weight 가 Pretendard 보다 가벼워 한 단계
+  //   올림, 사용자 시각 sign-off 2026-05-16).
+  //   Android / others = Pretendard + w600 (공식 PNG 자상 시각 sign-off Step 3
+  //   lock, NAVER_login_Light_EN_green_center_H48 글리프 부합). 한국 design
+  //   표준 web font. SIL OFL 1.1.
+  final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+  final labelFontFamily = isIOS ? 'AppleSDGothicNeo' : 'Pretendard';
+  final labelFontWeight = isIOS ? FontWeight.w700 : FontWeight.w600;
   return Semantics(
     button: true,
     enabled: isEnabled,
@@ -553,8 +720,8 @@ Widget _renderNaverButton(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SvgPicture.string(
-                    _kNaverSymbolSvg,
+                  SvgPicture.asset(
+                    '$kBrandAssetBase/naver/btn_signin_icon.svg',
                     width: spec.iconSize,
                     height: spec.iconSize,
                     semanticsLabel: null,
@@ -563,15 +730,48 @@ Widget _renderNaverButton(
                       BlendMode.srcIn,
                     ),
                   ),
+                  // Naver 정문 필수 "가운데 정렬 시 8px" (logoLabelGap).
                   const SizedBox(width: 8),
                   Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelLarge?.copyWith(color: fgColor),
+                    // iOS 만 Padding(top: 2) wrap — AppleSDGothicNeo glyph 가
+                    // line box 안에서 위쪽에 위치 (font 자연 metric) → leading
+                    // Distribution.even + height 1.0 만으로 미해결 → widget
+                    // bounding box top 2dp 빈공간 추가 → Row crossAxis center
+                    // 시 visible text 가 SVG center 보다 1dp 아래로 이동 →
+                    // 정렬 향상 (사용자 시각 보고 2026-05-16).
+                    child: Padding(
+                      padding: EdgeInsets.only(top: isIOS ? 2 : 0),
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      // Naver 라벨 spec (Kakao 패턴 mirror platform 분기):
+                      //   fontFamily = isIOS ? AppleSDGothicNeo : Pretendard.
+                      //   fontWeight = isIOS ? w700 : w600 (위 분기 lookup).
+                      //   fontSize = isIOS ? 17 : 16 — AppleSDGothicNeo cap
+                      //   height 가 Pretendard 보다 작은 비율이라 시각 보정
+                      //   위해 iOS 만 +1pt (사용자 시각 보고 3회 iteration
+                      //   2026-05-16: 16→17→18→17 수렴).
+                      //   height 1.0 + leadingDistribution.even (iOS 만) —
+                      //   line box 를 fontSize 와 같게 압축 + leading 을
+                      //   ascent/descent 균등 분배 → text visible glyph 가
+                      //   line box center 에 정확 align → SVG vertical center
+                      //   와 정렬 (default proportional 시 ascent 에 leading
+                      //   많이 분배되어 text 가 line box 안에서 위쪽으로 치우침).
+                      //   color fgColor = #FFFFFF (정문 필수).
+                      //   textTheme.labelLarge.copyWith 비채택 (사용자
+                      //   ThemeData drift 회피).
+                        style: TextStyle(
+                          color: fgColor,
+                          fontSize: isIOS ? 17 : 16,
+                          fontWeight: labelFontWeight,
+                          fontFamily: labelFontFamily,
+                          height: isIOS ? 1.0 : null,
+                          leadingDistribution: isIOS
+                              ? TextLeadingDistribution.even
+                              : null,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -584,7 +784,8 @@ Widget _renderNaverButton(
   );
 }
 
-/// Facebook 전용 render — 옵션 A pivot (Wave 0 lock).
+/// Facebook 전용 render — 옵션 A pivot (Wave 0 lock) + Google CSS mirror
+/// (Wave 4 Step 3, 2026-05-17).
 ///
 /// **옵션 A pivot 의무 (13.2-WAVE0-LOCK.md):** Meta brand pack 은 logo-only
 /// 자상 (Primary Logo 2084×2084 square PNG) 단독 제공 — Kakao/Naver/Google 의
@@ -592,21 +793,37 @@ Widget _renderNaverButton(
 /// 불가. Apple `SignInWithAppleButton` SDK 위제 패턴 mirror 의무 — Logo 18dp
 /// icon 슬롯 + ARB 라벨 외부 layer + Theme.brightness 자동 분기 + 1dp outline.
 ///
+/// **Starter kit brand drift 회피 (Wave 4 Step 3 — Google 패턴 mirror):**
+/// 모든 외관 spec hardcoded — `colorScheme.*` / `textTheme.*` 토큰 의존 0.
+/// Facebook 정문 (developers.facebook.com/docs/facebook-login/userexperience/)
+/// 은 bg/label color · fontFamily · size · weight 모두 정성 권고만 ("Choose
+/// the font, font weight, and kerning that looks best in your app") — 자유
+/// 영역. 5 provider 시각 consistency 위해 Google CSS verbatim 패턴 mirror 적용
+/// (사용자 결정 2026-05-17):
+///   bg     light #FFFFFF  / dark #131314
+///   label  light #1F1F1F  / dark #E3E3E3
+///   outline light #DADCE0 / dark #8E918F (1dp inside)
+///   font   Roboto (Android) / SF Pro Text (iOS+macOS), size 14, weight w500,
+///          height 20/14, letterSpacing 0.25 (Android) / -0.15 (iOS+macOS,
+///          Apple HIG SF Pro Text 14pt 권고 tracking)
+///   disabled  Opacity 0.38 (Google CSS verbatim — `.gsi-material-button:
+///             disabled { opacity: 38%; }` 머레)
+///
 /// **render 사양 매트릭스:**
 /// - SizedBox: `width: double.infinity` / `height: spec.height` (48dp).
-/// - Material: light = white bg / dark = black bg, `borderRadius: 12dp`,
-///   `clipBehavior: Clip.antiAlias` (Apple 패턴 mirror).
-/// - 1dp outline: light = `Colors.black12` / dark = `Colors.white24`.
-/// - InkWell: `borderRadius: 12dp`, ripple 영역 제어.
+/// - Material: hex hardcoded bg + 1dp outline (BorderSide.width 1), borderRadius
+///   `spec.borderRadius` (12dp default), `clipBehavior: Clip.antiAlias`.
+/// - InkWell: `borderRadius` 머레, ripple 영역 제어.
 /// - Row: `padding: EdgeInsets.symmetric(horizontal: 12)` + `gap 8dp` (SizedBox
-///   8dp, Phase 13.1 appSpacing.sm 일관).
-/// - Image.asset: `assets/brand/facebook/facebook_login.png`, 18×18 (Phase 13.1
-///   iconSize 일관), `excludeFromSemantics: true`.
-/// - Text: `authFacebookSignIn` ARB 라벨, fontSize 14 / fontWeight w500 /
-///   letterSpacing 0.1 (Phase 13.1 D-82 머레).
+///   8dp, Facebook 정문 자유 — Phase 13.1 appSpacing.sm 머레).
+/// - SvgPicture.asset: `assets/brand/facebook/btn_signin_icon.svg` (Wave 4
+///   Step 2 PNG → SVG 전환, AI verbatim 추출 — 2 paths blue circle #0866FF +
+///   white 'f'), `spec.iconSize`, `excludeFromSemantics: true`.
+/// - Text: `authFacebookSignIn` ARB 라벨, `TextStyle()` 직접 명시 (M3 textTheme
+///   비채택).
 /// - Semantics 외부 layer 단독 권위: `button: true`, `enabled: onPressed != null`,
 ///   `label`, `onTap: onPressed`, `excludeSemantics: true` (Phase 13.1 a11y
-///   layer 패턴 머레, iter2 CR-01 정정 일관).
+///   layer 패턴 머레, iter2 CR-01 정정 머레).
 ///
 /// **AppleSpec/KakaoSpec/NaverSpec/GoogleSpec/LineSpec/WechatSpec 영향 없음** —
 /// 본 함수는 build() 의 FacebookSpec 분기에서만 호출.
@@ -618,29 +835,36 @@ Widget _renderFacebookButton(
 ) {
   final assetPath = _iconAssetFor(context, spec);
   final radius = BorderRadius.circular(spec.borderRadius);
-  // Phase 13.2 REVIEW IN-01 정정 (2026-05-13): Theme.of(context) 중복 호출
-  // 폐기 — 단일 lookup 후 colorScheme/brightness 재사용.
+  // Phase 13.3 Wave 4 Step 3 정정 (2026-05-17, Google 패턴 mirror): theme 단일
+  // lookup 으로 `brightness` + `platform` 만 분기 trigger 로 사용. `colorScheme`
+  // / `textTheme` 의존 0 (starter kit brand drift 회피, 사용자 ThemeData
+  // override 시 외관 보존). 기존 `colorScheme.surface` / `colorScheme.onSurface`
+  // / `theme.textTheme.labelLarge` 의존 4건 → Google CSS verbatim hex hardcode.
   final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
   final isDark = theme.brightness == Brightness.dark;
-  // Phase 13.2 REVIEW CR-01 정정 (2026-05-13): onPressed == null 일 때 시각
-  // disabled cue 누락 회귀. social_button.dart docstring 의 "Material default
-  // disabled 외관" 약속과 일치하도록 (1) Opacity 0.5 wrap (Material 3 disabled
-  // state cue), (2) fgColor / outlineColor 의 faded variant 분기로 보강.
-  // 회귀 가드는 branded_social_button_test.dart 의 T-13.2-FACEBOOK-DISABLED-01
-  // (Opacity 검증) + T-13.2-FACEBOOK-A11Y-02 (isEnabled false) 가 책임.
   final isEnabled = onPressed != null;
-  // Phase 13.2 UI-REVIEW Pillar 3 정정: WAVE0-LOCK render spec 명시 토큰화.
-  // light bg = Colors.white (locked literal), dark bg = colorScheme.surface,
-  // outline = Colors.grey.shade300 (light) / Colors.grey.shade700 (dark),
-  // fg = colorScheme.onSurface (Material 3 contrast 보장).
-  final bgColor = isDark ? colorScheme.surface : Colors.white;
-  final fgColor = isEnabled
-      ? colorScheme.onSurface
-      : colorScheme.onSurface.withValues(alpha: 0.38);
-  final outlineColor = isEnabled
-      ? (isDark ? Colors.grey.shade700 : Colors.grey.shade300)
-      : (isDark ? Colors.grey.shade800 : Colors.grey.shade200);
+  // Google CSS verbatim (사용자 결정 2026-05-17 — Facebook 정문 자유 영역,
+  // 5 provider 시각 consistency 위해 Google `.gsi-material-button` 패턴 mirror):
+  //   bg      = light #FFFFFF / dark #131314
+  //   label   = light #1F1F1F / dark #E3E3E3
+  //   outline = light #DADCE0 / dark #8E918F (1dp inside)
+  // disabled 처리 = Opacity 0.38 wrap (Google CSS `:disabled { opacity: 38%; }`
+  // 머레). 5 provider 일관 0.5 보다 CSS verbatim 부합 우선.
+  final bgColor = isDark ? const Color(0xFF131314) : const Color(0xFFFFFFFF);
+  final labelColor = isDark
+      ? const Color(0xFFE3E3E3)
+      : const Color(0xFF1F1F1F);
+  final outlineColor = isDark
+      ? const Color(0xFF8E918F)
+      : const Color(0xFFDADCE0);
+  // Google 패턴 mirror — fontFamily platform 분기 (사용자 결정 2026-05-17).
+  // Apple SF Pro Text (iOS/macOS) / Roboto (Android+other). letterSpacing iOS
+  // 강등 (-0.15) Google CSS 패턴 머레 (Roboto 0.25 가 SF Pro Text wider default
+  // tracking 위에 누적되어 시각 자간 과도 발생 회피).
+  final isApplePlatform =
+      theme.platform == TargetPlatform.iOS ||
+      theme.platform == TargetPlatform.macOS;
+  final labelFontFamily = isApplePlatform ? 'SF Pro Text' : 'Roboto';
   return Semantics(
     button: true,
     enabled: isEnabled,
@@ -650,10 +874,14 @@ Widget _renderFacebookButton(
     child: SizedBox(
       width: double.infinity,
       height: spec.height,
-      // Phase 13.2 REVIEW CR-01 — Material 3 disabled state 시각 cue
-      // (0.5 opacity wrap). 활성 시 1.0 으로 기존 외관 보존.
+      // Phase 13.3 Wave 4 Step 3 (2026-05-17) — Google CSS verbatim disabled
+      // state mirror: `.gsi-material-button:disabled { opacity: 38%; }`. Phase
+      // 13.2 REVIEW CR-01 의 0.5 supersede (5 provider 정량 색 Google mirror
+      // 결정 일관성). disabled 시 outline + label 색 단계 강등 폐기 — Opacity
+      // wrap 단독 의존 (Google 패턴 머레). 회귀 가드 T-13.2-FACEBOOK-DISABLED-01
+      // 도 0.38 검증으로 갱신.
       child: Opacity(
-        opacity: isEnabled ? 1.0 : 0.5,
+        opacity: isEnabled ? 1.0 : 0.38,
         // Phase 13.2 REVIEW WR-01 정정 (2026-05-13): borderRadius 3중 적용
         // (Material + InkWell + DecoratedBox) → Material.shape 의
         // RoundedRectangleBorder(side) 단일화. clipBehavior: Clip.antiAlias
@@ -677,23 +905,16 @@ Widget _renderFacebookButton(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Phase 13.2 REVIEW IN-03 정정 (2026-05-13): Meta Primary
-                  // Logo PNG (2084×2084 square) 를 18dp icon 슬롯에 렌더 —
-                  // cacheWidth/cacheHeight 미지정 시 full 2084×2084 decoded
-                  // ARGB (~17 MB) 메모리 캐시. devicePixelRatio 기반 cache
-                  // 사이즈 (예: 3.0 DPR → 54px) 로 메모리 footprint 격감.
-                  Image.asset(
+                  // Phase 13.3 Wave 4 Step 2 (2026-05-15): PNG → SVG 전환.
+                  // Meta Brand Asset Pack 의 Facebook_Logo_Primary.ai (PDF-1.5
+                  // vector) PyMuPDF verbatim 추출 — 2 paths (blue circle
+                  // #0866FF + white 'f'). viewBox "0 0 20 20" (Google/Kakao/
+                  // Naver 와 size + aspect ratio 일치). cacheWidth/cacheHeight
+                  // 불필요 (SVG render path 별 GPU layer).
+                  SvgPicture.asset(
                     assetPath,
                     width: spec.iconSize,
                     height: spec.iconSize,
-                    cacheWidth:
-                        (spec.iconSize *
-                                MediaQuery.of(context).devicePixelRatio)
-                            .round(),
-                    cacheHeight:
-                        (spec.iconSize *
-                                MediaQuery.of(context).devicePixelRatio)
-                            .round(),
                     excludeFromSemantics: true,
                   ),
                   const SizedBox(width: 8),
@@ -707,12 +928,25 @@ Widget _renderFacebookButton(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      // Phase 13.2 UI-REVIEW Pillar 4 정정: WAVE0-LOCK Text
-                      // slot spec — textTheme.labelLarge 토큰 사용, fg
-                      // 색상은 위에서 계산한 fgColor (disabled 시 38%) 으로
-                      // copyWith 주입.
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: fgColor,
+                      // Google production CSS verbatim TextStyle (사용자 결정
+                      // 2026-05-17 — Facebook 정문 자유, 5 provider 시각
+                      // consistency 위해 Google 패턴 머레):
+                      //   .gsi-material-button { font-size: 14px;
+                      //     letter-spacing: 0.25px; font-family: 'Roboto', ... }
+                      //   .gsi-material-button-contents { font-weight: 500; }
+                      //   "14/20" 가이드 → lineHeight 20pt (height = 20/14).
+                      // letterSpacing platform 분기: Roboto 0.25 (Android Google
+                      // CSS verbatim) / SF Pro Text -0.15 (iOS Apple HIG SF
+                      // Pro Text 14pt 권고 tracking). M3 textTheme.labelLarge
+                      // 비채택 (starter kit drift 회피, 사용자 ThemeData
+                      // override 무관).
+                      style: TextStyle(
+                        color: labelColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 20 / 14,
+                        letterSpacing: isApplePlatform ? -0.15 : 0.25,
+                        fontFamily: labelFontFamily,
                       ),
                     ),
                   ),
@@ -733,9 +967,24 @@ Widget _renderFacebookButton(
 
 /// Google 로그인 button render (R1).
 ///
-/// Universal Layout Pattern + surface bg + #747775(L)/#8E918F(D) 1dp outline
-/// + btn_signin_icon.svg + ARB authGoogleSignIn 라벨. Theme.brightness 자동
-/// 분기. Google Identity Guidelines stroke 색 verbatim (light/dark 2 hex).
+/// Universal Layout Pattern + Google Identity Guidelines verbatim
+/// (light bg #FFFFFF / dark bg #131314, light stroke #747775 / dark stroke
+/// #8E918F 1dp outline, light label #1F1F1F / dark label #E3E3E3, Roboto
+/// Medium 14/20, OS 분기 padding/gap) + btn_signin_icon.svg + ARB
+/// authGoogleSignIn 라벨. Theme.brightness + Theme.platform 자동 분기.
+///
+/// **Starter kit brand drift 회피 (Wave 4 Step 3 — Apple 패턴 mirror):**
+/// 모든 외관 spec hardcoded — `colorScheme.*` / `textTheme.*` 토큰 의존 0.
+/// 스타터킷 사용자가 `ThemeData.colorScheme` 또는 `textTheme` override 시
+/// brand 버튼 외관이 영향 받지 않도록 `TextStyle()` 직접 명시 + Color literal
+/// hardcode. `theme.brightness` / `theme.platform` 는 분기 trigger 단독 사용
+/// (외관 spec 자체가 아닌 어떤 variant 선택할지 결정).
+///
+/// **Google 정문 OS 분기 필수 (Step 3 §3.5 / §3.6 사용자 결정 2026-05-16):**
+/// - `padding.horizontal`: Android/Web 12 / iOS 16 (정문 필수).
+/// - `logoLabelGap`: Android/Web 10 / iOS 12 (정문 필수).
+/// 다른 4 provider 는 정문 자유 영역이라 Google 만 platform 분기 적용
+/// (Kakao/Naver/Facebook 의 단일 통일값과 의도된 비균일).
 Widget _renderGoogleButton(
   BuildContext context,
   BrandSpec spec,
@@ -743,14 +992,32 @@ Widget _renderGoogleButton(
   VoidCallback? onPressed,
 ) {
   final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
   final isDark = theme.brightness == Brightness.dark;
   final isEnabled = onPressed != null;
-  // Google Identity Guidelines stroke verbatim (UI-SPEC):
-  //   light = #747775 / dark = #8E918F (1dp outline).
+  // Google Identity Guidelines verbatim (정문 필수 정량):
+  //   bg     = light #FFFFFF / dark #131314
+  //   stroke = light #747775 / dark #8E918F (1dp inside)
+  //   label  = light #1F1F1F / dark #E3E3E3
+  final bgColor = isDark ? const Color(0xFF131314) : Colors.white;
   final outlineColor = isDark
       ? const Color(0xFF8E918F)
       : const Color(0xFF747775);
+  final labelColor = isDark
+      ? const Color(0xFFE3E3E3)
+      : const Color(0xFF1F1F1F);
+  // Google 정문 OS 분기 필수 (Step 3 §3.5 / §3.6):
+  //   padding.horizontal: Android/Web 12 / iOS 16
+  //   logoLabelGap:       Android/Web 10 / iOS 12
+  final isApplePlatform =
+      theme.platform == TargetPlatform.iOS ||
+      theme.platform == TargetPlatform.macOS;
+  final padHorizontal = isApplePlatform ? 16.0 : 12.0;
+  final logoLabelGap = isApplePlatform ? 12.0 : 10.0;
+  // Google 정문 label fontFamily 강등 정책 (STEP2-google-VERBATIM §2 row
+  // label.fontFamily): Android 필수 'Roboto Medium' / iOS 강등 'SF Pro Text'
+  // (OS 권고 fontFamily). 다른 platform 은 Roboto (Flutter 시스템 fallback —
+  // Android system Roboto 자동 매핑).
+  final labelFontFamily = isApplePlatform ? 'SF Pro Text' : 'Roboto';
   final iconPath =
       '$kBrandAssetBase/google/${isDark ? "dark" : "light"}/btn_signin_icon.svg';
   final radius = BorderRadius.circular(spec.borderRadius);
@@ -763,10 +1030,17 @@ Widget _renderGoogleButton(
     child: SizedBox(
       width: double.infinity,
       height: spec.height,
+      // Google production CSS verbatim disabled state (사용자 제공 2026-05-16):
+      //   .gsi-material-button:disabled .gsi-material-button-contents,
+      //   .gsi-material-button:disabled .gsi-material-button-icon {
+      //     opacity: 38%;
+      //   }
+      // 즉 disabled visible = 38% → `Opacity(0.38)`. 5 provider 일관 0.5 보다
+      // CSS verbatim 부합 우선.
       child: Opacity(
-        opacity: isEnabled ? 1.0 : 0.5,
+        opacity: isEnabled ? 1.0 : 0.38,
         child: Material(
-          color: colorScheme.surface,
+          color: bgColor,
           shape: RoundedRectangleBorder(
             borderRadius: radius,
             side: BorderSide(color: outlineColor, width: 1),
@@ -776,7 +1050,7 @@ Widget _renderGoogleButton(
             onTap: onPressed,
             borderRadius: radius,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: EdgeInsets.symmetric(horizontal: padHorizontal),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
@@ -787,14 +1061,184 @@ Widget _renderGoogleButton(
                     height: spec.iconSize,
                     semanticsLabel: null,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: logoLabelGap),
                   Flexible(
                     child: Text(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: colorScheme.onSurface,
+                      // Google production CSS verbatim TextStyle:
+                      //   .gsi-material-button { font-size: 14px;
+                      //     letter-spacing: 0.25px; font-family: 'Roboto', ... }
+                      //   .gsi-material-button-contents { font-weight: 500; }
+                      //   "14/20" guide → lineHeight 20pt (height = 20/14).
+                      // letterSpacing platform 분기 (사용자 결정 2026-05-17):
+                      //   Roboto 0.25 (Google CSS verbatim) / SF Pro Text -0.15
+                      //   (Apple HIG SF Pro Text size 14pt 권고 tracking,
+                      //   developer.apple.com/design/human-interface-guidelines/
+                      //   typography). Roboto 의 0.25 가 SF Pro Text 의 wider
+                      //   default tracking 위에 누적되어 시각 자간 과도 발생 →
+                      //   iOS 강등 (padding/gap iOS 강등 패턴 mirror).
+                      // Apple 패턴 mirror — textTheme.labelLarge.copyWith
+                      // 비채택 (사용자 ThemeData drift 회피).
+                      style: TextStyle(
+                        color: labelColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 20 / 14,
+                        letterSpacing: isApplePlatform ? -0.15 : 0.25,
+                        fontFamily: labelFontFamily,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// Phase 13.3 Wave 4 Step 2 (2026-05-15) — Apple 자체 render 함수.
+// SDK 위제 (`SignInWithAppleButton`) → custom render 전환. Apple 공식 Logo-only
+// SVG 자산 (developer.apple.com/design/resources/ DMG, Black + White variant)
+// 채택, Universal Layout 일관 적용.
+
+/// Apple 로그인 button render (R5 — Wave 4 Step 2 자체 render).
+///
+/// Apple HIG mandate 부합:
+/// - 자산 변형 0 ("Never crop" + "Don't add padding" 부합 — SVG 자체 padding 보존)
+/// - logo file height = button height ("Match the height of the logo file
+///   to the height of the button" HIG mandate)
+/// - light = Black variant SVG (rect 흰 + logo 검정) / dark = White variant SVG
+///   (rect 검정 + logo 흰) — Theme.brightness 자동 매핑
+///
+/// Universal Layout Pattern:
+/// - SVG 정사각 외곽 색 (rect 의 #FFFFFF or #000000) = wrapper bg 색 일치 →
+///   정사각 외곽 invisible, visual = Apple logo 단독 + 라벨
+/// - 라벨 자체 render (ARB `authAppleSignIn`)
+Widget _renderAppleButton(
+  BuildContext context,
+  BrandSpec spec,
+  String label,
+  VoidCallback? onPressed,
+) {
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
+  final isEnabled = onPressed != null;
+  // Apple HIG variant mapping (Logo-only SVG):
+  //   light theme → Black variant SVG (rect 흰 + logo 검정), wrapper bg = pure
+  //     white → SVG 정사각 invisible.
+  //   dark theme → White variant SVG (rect 검정 + logo 흰), wrapper bg = pure
+  //     black → SVG 정사각 invisible.
+  final bgColor = isDark ? Colors.black : Colors.white;
+  final fgColor = isDark ? Colors.white : Colors.black;
+  final iconPath =
+      '$kBrandAssetBase/apple/${isDark ? "dark" : "light"}/btn_signin_icon.svg';
+  final radius = BorderRadius.circular(spec.borderRadius);
+  // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple Sign-in 라벨 fontFamily 결정.
+  // iOS/macOS 환경: system 'SF Pro Text' (Apple OS system font, OS license 의
+  // 일부 — Apple Font License Agreement 부합) — 시각 Apple Button generator
+  // 와 정확 매칭. Android/Linux/Windows/test env: Inter Medium (SIL OFL 1.1,
+  // SF Pro 와 가장 유사한 license-safe alternative) asset 사용.
+  // 명시적 platform 분기 사유: Flutter font resolution 의 `fontFamilyFallback`
+  // 가 test env 에서 unregistered fontFamily 일 때 작동 안 함 (Ahem fallback
+  // 발생). platform 별 직접 fontFamily 선택으로 회피.
+  final platform = theme.platform;
+  final isApplePlatform =
+      platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+  final labelFontFamily = isApplePlatform ? 'SF Pro Text' : 'Inter';
+  return Semantics(
+    button: true,
+    enabled: isEnabled,
+    label: label,
+    onTap: onPressed,
+    excludeSemantics: true,
+    child: SizedBox(
+      width: double.infinity,
+      height: spec.height,
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.5,
+        child: Material(
+          color: bgColor,
+          shape: RoundedRectangleBorder(borderRadius: radius),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: radius,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple Button API
+                  // (id.apple.com/IDMSEmailVetting siwa-demo.js) verbatim
+                  // R['small'] geometry 채택. HIG mandate 부합 + Apple internal
+                  // detail 부합:
+                  //   logoWidth = floor(R.small.logoWidth × button.height / R.small.height)
+                  //             = floor(12 × 48/44) = 13dp
+                  //   SVG height = button.height (HIG mandate)
+                  //   viewBox "6 0 12 44" (Apple Button API _ 함수 verbatim)
+                  SvgPicture.asset(
+                    iconPath,
+                    width: 13,
+                    height: spec.height,
+                    semanticsLabel: null,
+                  ),
+                  // Apple Button API U 함수 verbatim — middleMargin SizedBox.
+                  // U 함수: c = floor(0.7 × logoWidth) = 9, default labelPosition
+                  // 0 → r 가 l = a + o + c = 28 으로 clamp → middleMargin D =
+                  // r - p - o = 28 - 6 - 13 = 9dp.
+                  // (Apple internal layout spec, HIG 미명시)
+                  const SizedBox(width: 9),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple Button API
+                      // verbatim textStyle + license-safe font 매핑.
+                      //
+                      // Font 분석 결과 (id.apple.com 의 siwa-demo.js inline WOFF
+                      // 추출): family 'SF Pro Text', weight Medium (w500, font
+                      // name table verbatim). Button API JS 의 `fontWeight: "400"`
+                      // CSS 명세는 font 파일이 단일 Medium glyph 만 가져 무시됨
+                      // → visible weight = Medium.
+                      //
+                      // License 결정: Apple SF Pro Font License Agreement
+                      // (developer.apple.com/fonts/) 의 2.A "iOS/OS X/tvOS only"
+                      // + 2.B "may not embed... in any software programs" 조항
+                      // 위반 회피 — Apple Font binary 미배포. iOS/macOS 환경에서
+                      // system 'SF Pro Text' 자동 fallback (Apple OS license 의
+                      // 일부). 다른 환경 (Android/Linux) 에서는 Inter Medium
+                      // (SIL Open Font License 1.1, SF Pro 와 가장 시각적으로
+                      // 유사한 license-safe alternative) fallback.
+                      //
+                      // 적용:
+                      //   fontFamily: 'SF Pro Text' (iOS/macOS system font)
+                      //   fontFamilyFallback: ['Inter'] (다른 환경, asset bundled)
+                      //   fontSize: 20 (= 0.43 × 48 HIG mandate)
+                      //   fontWeight: w500 (Medium, SF Pro Text / Inter 의 weight)
+                      //   letterSpacing: -0.44 (= -0.022em × 20sp, Button API verbatim)
+                      // Phase 13.3 Wave 4 Step 3 — platform 별 fontFamily 단일
+                      // 명시 (위 `labelFontFamily` 변수 참조). `fontFamilyFallback`
+                      // 비채택 사유: Flutter test env 에서 unregistered fontFamily
+                      // 의 fallback resolution 가 Ahem 으로 직접 점프 (fallback
+                      // 우회) — fontFamilyFallback 작동 안 함.
+                      style: TextStyle(
+                        color: fgColor,
+                        fontSize: 20,
+                        // Apple Button API CSS `fontWeight: "400"` verbatim.
+                        // Apple font 자체는 단일 Medium glyph 이지만 CSS 가
+                        // 400 으로 declare. Inter 는 w400 (Regular) + w500
+                        // (Medium) 두 weight asset 모두 등록 — w400 가 SF Pro
+                        // Text Medium visual weight 와 가장 가까운 매칭.
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: -0.44,
+                        fontFamily: labelFontFamily,
                       ),
                     ),
                   ),
@@ -810,19 +1254,23 @@ Widget _renderGoogleButton(
 
 /// 자상 file path resolver — Facebook 단일 caller 잔존 (Phase 13.3 cleanup 후).
 ///
-/// **Phase 13.3 Wave 2 (R1/R2/R3 정정):** Kakao/Naver/Google branch 모두 폐기
-/// — Kakao/Naver 는 inline SVG (`SvgPicture.string`), Google 은 본 함수 미경유
-/// 의 직접 path inline (`_renderGoogleButton` 내부). Facebook branch만 보존
-/// (Phase 13.2 `_renderFacebookButton` 가 호출 — Pitfall 7 변경 0 강제).
+/// **Phase 13.3 Wave 2 (R1/R2/R3 정정) + Wave 4 Step 2:** Kakao/Naver/Google
+/// branch 모두 폐기 — Kakao/Naver 는 각 `_renderXxxButton` 내부에서
+/// `SvgPicture.asset` 으로 직접 자산 파일 (`assets/brand/{kakao,naver}/
+/// btn_signin_icon.svg`) 로딩, Google 은 본 함수 미경유의 직접 path inline
+/// (`_renderGoogleButton` 내부). Facebook branch만 보존 (Phase 13.2
+/// `_renderFacebookButton` 가 호출 — Pitfall 7 변경 0 강제).
 String _iconAssetFor(BuildContext context, BrandSpec spec) {
   return switch (spec) {
     // Phase 13.2 — see ROADMAP.md (R6 — FacebookSpec _iconAssetFor branch
     // active, D-96 Google 패턴 locale 독립 단일 path). Localizations
     // dependency 미사용 — locale 변경 시 rebuild trigger 0.
-    FacebookSpec() => '$kBrandAssetBase/facebook/facebook_login.png',
+    FacebookSpec() => '$kBrandAssetBase/facebook/btn_signin_icon.svg',
     // 다른 spec 은 자상 path 호출 안 됨 (Apple/Line/Wechat — SDK 위제 위임 또는
-    // placeholder render. Kakao/Naver — inline SVG. Google — _renderGoogleButton
-    // 내부 직접 path inline).
+    // placeholder render. Kakao/Naver — 각 _renderXxxButton 내부에서
+    // SvgPicture.asset 으로 `assets/brand/{kakao,naver}/btn_signin_icon.svg`
+    // 직접 로딩 (Wave 4 Step 2 자산 분리). Google — _renderGoogleButton 내부
+    // 직접 path inline).
     AppleSpec() ||
     KakaoSpec() ||
     NaverSpec() ||

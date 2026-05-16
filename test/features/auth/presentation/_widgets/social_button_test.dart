@@ -26,7 +26,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
@@ -155,9 +154,8 @@ void main() {
     });
 
     testWidgets('Apple 분기 (light) → BrandedSocialButton.apple + AppleSpec '
-        '(Phase 13.3 R5 — Theme.brightness 자동 매핑 light → .black)', (
-      tester,
-    ) async {
+        '(Phase 13.3 Wave 4 Step 2 — SDK 위제 폐기 + custom render SvgPicture)',
+        (tester) async {
       const strategy = _FakeStrategy(
         kProviderIdApple,
         'authAppleSignIn',
@@ -169,26 +167,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Phase 13.2 D-98 — `find.byType(SignInButton), findsNothing`
-      // sentinel 폐기. BrandedSocialButton.apple find + Apple SDK 위제
-      // (SignInWithAppleButton) find sentinel 단독 보존.
-      //
-      // Phase 13.3 R5 — appleStyle 필드 폐기. AppleSpec build() 가
-      // Theme.brightness 자동 매핑 (light → .black / dark → .white).
-      // `btn.appleStyle` 직접 검증 expect 폐기 — SignInWithAppleButton.style
-      // 위제 단위 검증은 Wave 4 widget tree assertion 책임.
+      // Phase 13.3 Wave 4 Step 2 supersede — SignInWithAppleButton SDK 위제
+      // 폐기 → custom render (`_renderAppleButton`) 전환. Apple 공식 Logo-only
+      // SVG 자상 + Theme.brightness 자동 분기. `find.byType(SignInWithApple
+      // Button)` sentinel 폐기 → `find.byType(SvgPicture)` 갱신.
       final btn = tester.widget<BrandedSocialButton>(
         find.byType(BrandedSocialButton),
       );
       expect(btn.spec, isA<AppleSpec>());
-      // Apple SDK 위제 렌더 검증.
-      expect(find.byType(SignInWithAppleButton), findsOneWidget);
+      // Apple custom render — SvgPicture (Logo-only 자상) 렌더 검증.
+      expect(find.byType(SvgPicture), findsOneWidget);
     });
 
     testWidgets('Apple 분기 (dark) → BrandedSocialButton.apple '
-        '(Phase 13.3 R5 — Theme.brightness 자동 매핑 dark → .white)', (
-      tester,
-    ) async {
+        '(Phase 13.3 Wave 4 Step 2 — SDK 위제 폐기 + Theme.brightness 자동 분기)',
+        (tester) async {
       const strategy = _FakeStrategy(
         kProviderIdApple,
         'authAppleSignIn',
@@ -206,11 +199,11 @@ void main() {
       final btn = tester.widget<BrandedSocialButton>(
         find.byType(BrandedSocialButton),
       );
-      // Phase 13.3 R5 — appleStyle 필드 폐기. Theme.brightness 자동 매핑은
-      // AppleSpec build() 책임. SignInWithAppleButton 위제 자체 렌더링만
-      // 검증 (style 분기는 Wave 4 widget tree assertion).
+      // Phase 13.3 Wave 4 Step 2 supersede — SDK 위제 폐기. Theme.brightness
+      // 자동 분기는 AppleSpec build() 책임 (light = #FFFFFF / dark = #000000
+      // bg). SvgPicture (Apple logo dark variant) 렌더 검증.
       expect(btn.spec, isA<AppleSpec>());
-      expect(find.byType(SignInWithAppleButton), findsOneWidget);
+      expect(find.byType(SvgPicture), findsOneWidget);
     });
 
     // T-13.2-FACEBOOK-DELEGATION-01: Facebook 분기 BrandedSocialButton 위임
@@ -506,10 +499,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Phase 13.3 R2 — Kakao 가 wide PNG → inline SVG 로 재설계되어
-      // KakaoSpec.assetType == AssetType.svg. _renderKakaoButton 가
-      // `SvgPicture.string(_kKakaoSymbolSvg)` 렌더 — SvgPicture 1개 매치.
-      // Image 위제는 부재 (PNG 단독 caller 였던 wide 자상 path 폐기).
+      // Phase 13.3 R2 (Wave 4 Step 2) — Kakao 가 wide PNG → SVG 자산 파일로
+      // 재설계되어 KakaoSpec.assetType == AssetType.svg. _renderKakaoButton 가
+      // `SvgPicture.asset('assets/brand/kakao/btn_signin_icon.svg')` 렌더 —
+      // SvgPicture 1개 매치. Image 위제는 부재 (PNG 단독 caller 였던 wide 자상
+      // path 폐기).
       expect(find.byType(SvgPicture), findsOneWidget);
       expect(find.byType(Image), findsNothing);
     });
