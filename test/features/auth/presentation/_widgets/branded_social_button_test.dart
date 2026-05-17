@@ -175,15 +175,24 @@ void main() {
     // ─── T-13.3-GOOGLE-SPEC-VERBATIM-01: Google production CSS verbatim spec ─
     test(
       'T-13.3-GOOGLE-SPEC-VERBATIM-01: GoogleSpec verbatim override '
-      'height 40 / borderRadius 4 / iconSize 20 (CSS verbatim)',
+      'height 48 (WCAG AAA + mobile native) / borderRadius 4 / iconSize 20 '
+      '(CSS verbatim 중 mobile 적합 항목만)',
       () {
         // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Google Identity Services
         // production CSS (`.gsi-material-button` 사용자 제공) verbatim:
-        //   height: 40px / border-radius: 4px / .gsi-material-button-icon
-        //   { width: 20px; height: 20px }
+        //   height: 40px (web 한정 — mobile 은 48dp 회귀) / border-radius:
+        //   4px / .gsi-material-button-icon { width: 20px; height: 20px }
         // BrandSpec default (48 / 12 / 18) supersede — 5 provider 시각 통일
-        // lock 의 trade-off 로 Google CSS verbatim 부합 우선 (사용자 결정).
-        expect(const GoogleSpec().height, 40.0);
+        // lock 의 trade-off 로 Google CSS verbatim 중 mobile 적합 항목만
+        // 채택 (height 는 X1 supersede 2026-05-17 로 48 회귀).
+        //
+        // **Phase 13.3 X1 supersede (2026-05-17, 260517-uv4):** Google CSS
+        // verbatim `height: 40px` 는 web context (mouse 환경) 한정 mandate.
+        // Google 의 mobile native SDK (Android Material Button ~48dp / iOS
+        // UIButton ~44pt) 는 plot-form 권장 따름. WCAG 2.1 AAA (44×44) +
+        // 5 provider vertical rhythm 통일 우선. STEP3-CONFLICT-MATRIX §3.1
+        // supersede 참조.
+        expect(const GoogleSpec().height, 48.0);
         expect(const GoogleSpec().borderRadius, 4.0);
         expect(const GoogleSpec().iconSize, 20.0);
       },
@@ -285,12 +294,26 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      // BrandedSocialButton 내부 SizedBox 가 부모 width (300dp) 까지 확장.
-      // RenderBox layout 후 width = 300 이어야 (full-width 패턴).
+      // Phase 13.3 X2 옵션 B (2026-05-17 lock) — BrandedSocialButton outer
+      // 가 BrandFocusWrapper(Container padding: 2 + border: 2) 로 감싸져
+      // 외부 dimension +8dp (button 48 + wrapper 8 = 56). 따라서 button
+      // body 의 SizedBox 본체 (inner _renderNaverButton 의 SizedBox) 를 직접
+      // 측정 — Naver render path: BrandFocusWrapper → Semantics > SizedBox
+      // (width: double.infinity, height: spec.height) > Opacity > Material >
+      // InkWell. 첫 SizedBox 가 button body (full-width 강제 sizing 검증
+      // target).
       final renderBox = tester.renderObject<RenderBox>(
-        find.byType(BrandedSocialButton),
+        find
+            .descendant(
+              of: find.byType(BrandedSocialButton),
+              matching: find.byType(SizedBox),
+            )
+            .first,
       );
-      expect(renderBox.size.width, 300.0);
+      // 내부 SizedBox 가 부모 width 에서 BrandFocusWrapper layer 두께만큼
+      // 차감된 width 로 확장. Container padding 2dp + border 2dp = 양쪽 4dp
+      // 씩 → 300 - 8 = 292dp.
+      expect(renderBox.size.width, 292.0);
       // 높이는 BrandSpec.height (48dp) 와 일치 — Naver/Kakao 자상 통째 buttons.
       expect(renderBox.size.height, 48.0);
     });
@@ -363,16 +386,24 @@ void main() {
         );
         await tester.pumpAndSettle();
         try {
-          // BrandedSocialButton 의 외부 Semantics 노드 검증.
+          // BrandedSocialButton 내부 button Semantics 노드 검증.
           // matchesSemantics(hasTapAction: true) 가 시멘틱 트리에 onTap
           // 액션 핸들러가 정상 등록되었는지 단독 검증 — iter1 의
           // `Semantics(button: true, excludeSemantics: true)` + onTap 미전달
           // 패턴이 회귀하면 hasTapAction=false 로 RED.
+          //
+          // **Phase 13.3 X2 옵션 B finder 갱신 (2026-05-17):** outer
+          // BrandFocusWrapper(FocusableActionDetector) 가 root SemanticsNode
+          // (`scopesRoute` flag) 를 트리에 주입 → find.byType(BrandedSocial
+          // Button) 이 outer node 도달. find.bySemanticsLabel 로 inner
+          // button SemanticsNode (label = '카카오 로그인') 직접 도달.
           expect(
-            tester.getSemantics(find.byType(BrandedSocialButton)),
+            tester.getSemantics(find.bySemanticsLabel('카카오 로그인')),
             matchesSemantics(
               isButton: true,
               hasTapAction: true,
+              hasFocusAction: true,
+              isFocusable: true,
               hasEnabledState: true,
               isEnabled: true,
               label: '카카오 로그인',
@@ -381,7 +412,9 @@ void main() {
                 'iter2 CR-01 회귀 가드 — Semantics(onTap: onPressed) 미전달 시 '
                 'TalkBack/VoiceOver 사용자가 활성화 불가. '
                 'button/label/onTap 셋 모두 시멘틱 트리에 노출 의무. '
-                'hasTapAction=false RED 시 iter1 회귀 패턴 재발.',
+                'hasTapAction=false RED 시 iter1 회귀 패턴 재발. '
+                'X2 옵션 B (2026-05-17) 후 FocusableActionDetector 가 '
+                'hasFocusAction + isFocusable 자동 추가 (WCAG 2.4.7).',
           );
         } finally {
           semHandle.dispose();
@@ -408,8 +441,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       try {
+        // Phase 13.3 X2 옵션 B finder 갱신 — find.bySemanticsLabel inner
+        // button SemanticsNode 직접 도달 (outer FocusableActionDetector
+        // root node 우회).
         expect(
-          tester.getSemantics(find.byType(BrandedSocialButton)),
+          tester.getSemantics(find.bySemanticsLabel('네이버로 시작하기')),
           matchesSemantics(
             isButton: true,
             hasEnabledState: true,
@@ -514,11 +550,15 @@ void main() {
       );
       await tester.pumpAndSettle();
       try {
+        // Phase 13.3 X2 옵션 B finder 갱신 — find.bySemanticsLabel inner
+        // button SemanticsNode 직접 도달.
         expect(
-          tester.getSemantics(find.byType(BrandedSocialButton)),
+          tester.getSemantics(find.bySemanticsLabel('Login with Facebook')),
           matchesSemantics(
             isButton: true,
             hasTapAction: true,
+            hasFocusAction: true,
+            isFocusable: true,
             hasEnabledState: true,
             isEnabled: true,
             label: 'Login with Facebook',
@@ -526,7 +566,9 @@ void main() {
           reason:
               'WR-02 회귀 가드 — Facebook 활성 시 button + label + onTap '
               '시멘틱 트리 노출 의무. hasTapAction=false RED 시 iter1 패턴 '
-              '(Semantics.onTap 미전달 → GestureSemantics drop) 재발.',
+              '(Semantics.onTap 미전달 → GestureSemantics drop) 재발. '
+              'X2 옵션 B (2026-05-17) 후 FocusableActionDetector 가 '
+              'hasFocusAction + isFocusable 자동 추가 (WCAG 2.4.7).',
         );
       } finally {
         semHandle.dispose();
@@ -551,8 +593,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       try {
+        // Phase 13.3 X2 옵션 B finder 갱신 — find.bySemanticsLabel inner
+        // button SemanticsNode 직접 도달.
         expect(
-          tester.getSemantics(find.byType(BrandedSocialButton)),
+          tester.getSemantics(find.bySemanticsLabel('Login with Facebook')),
           matchesSemantics(
             isButton: true,
             hasEnabledState: true,
@@ -2048,15 +2092,20 @@ void main() {
         },
       );
 
-      // ─── T-13.3-APPLE-BG-LIGHT-01 (R5 / Wave 4 Step 2 supersede) ─────────
+      // ─── T-13.3-APPLE-BG-LIGHT-01 (R5 / Wave 4 Step 2 + V1 옵션 A) ───────
       //
       // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** SignInWithApple
       // Button SDK 위제 폐기 → custom render. SDK 의 `style: .black/.white`
-      // 검증 → Material.color hex 검증 갱신. Apple HIG 패턴 — light theme app
-      // 에서 light bg button (5 provider Google/Facebook 패턴 머레, 직관적
-      // theme adapting).
+      // 검증 → Material.color hex 검증 갱신.
+      //
+      // **Phase 13.3 X1 V1 옵션 A supersede (2026-05-17, 260517-uv4):** Apple
+      // HIG variant 매핑 정정 — light theme → Black filled (bg #000000 +
+      // logo+label 흰) — HIG 권장 maximum-contrast pairing. 이전 wording
+      // (light=흰 bg) 은 Phase 13.3 Wave 4 Step 2 초기 구현 시점부터 유지된
+      // HIG flip 부정확함. 사용자 1:1 Q&A 로 옵션 A 선택
+      // (13.3-UI-REVIEW-FIX-SPEC §3.1).
       testWidgets('T-13.3-APPLE-BG-LIGHT-01: Apple light theme bg = '
-          '#FFFFFF (custom render, Wave 4 Step 2 SDK 위제 폐기)', (tester) async {
+          '#000000 (V1 옵션 A HIG flip, 2026-05-17 lock)', (tester) async {
         await tester.pumpWidget(
           _wrapForR1R2R3(
             BrandedSocialButton.apple(
@@ -2073,19 +2122,18 @@ void main() {
             if (w is! Material) return false;
             final ShapeBorder? shape = w.shape;
             if (shape is! RoundedRectangleBorder) return false;
-            return w.color == Colors.white;
+            return w.color == Colors.black;
           }),
           findsAtLeastNWidgets(1),
           reason:
-              'Apple light theme bg 의무 Colors.white (#FFFFFF) — Wave 4 '
-              'Step 2 custom render (SDK 위제 폐기). 5 provider Google/'
-              'Facebook 패턴 머레.',
+              'Apple light theme bg 의무 Colors.black (#000000) — V1 옵션 A '
+              'HIG Black filled (maximum-contrast pairing). 2026-05-17 lock.',
         );
       });
 
-      // ─── T-13.3-APPLE-BG-DARK-01 (R5 / Wave 4 Step 2 supersede) ──────────
+      // ─── T-13.3-APPLE-BG-DARK-01 (R5 / Wave 4 Step 2 + V1 옵션 A) ────────
       testWidgets('T-13.3-APPLE-BG-DARK-01: Apple dark theme bg = '
-          '#000000 (custom render, Wave 4 Step 2 SDK 위제 폐기)', (tester) async {
+          '#FFFFFF (V1 옵션 A HIG flip, 2026-05-17 lock)', (tester) async {
         await tester.pumpWidget(
           _wrapForR1R2R3(
             BrandedSocialButton.apple(
@@ -2102,13 +2150,12 @@ void main() {
             if (w is! Material) return false;
             final ShapeBorder? shape = w.shape;
             if (shape is! RoundedRectangleBorder) return false;
-            return w.color == Colors.black;
+            return w.color == Colors.white;
           }),
           findsAtLeastNWidgets(1),
           reason:
-              'Apple dark theme bg 의무 Colors.black (#000000) — Wave 4 '
-              'Step 2 custom render (SDK 위제 폐기). 5 provider Google/'
-              'Facebook 패턴 머레.',
+              'Apple dark theme bg 의무 Colors.white (#FFFFFF) — V1 옵션 A '
+              'HIG White filled (maximum-contrast pairing). 2026-05-17 lock.',
         );
       });
     },
