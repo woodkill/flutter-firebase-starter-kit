@@ -1236,11 +1236,16 @@ Widget _renderAppleButton(
                       // (SIL Open Font License 1.1, SF Pro 와 가장 시각적으로
                       // 유사한 license-safe alternative) fallback.
                       //
-                      // 적용:
-                      //   fontFamily: 'SF Pro Text' (iOS/macOS system font)
-                      //   fontFamilyFallback: ['Inter'] (다른 환경, asset bundled)
+                      // 적용 (Phase 13.3 code review WR-02 정정 2026-05-17):
+                      //   fontFamily: 'SF Pro Text' (iOS/macOS system font) /
+                      //               'Inter' (Android/Linux/test env)
                       //   fontSize: 20 (= 0.43 × 48 HIG mandate)
-                      //   fontWeight: w500 (Medium, SF Pro Text / Inter 의 weight)
+                      //   fontWeight: w400 (Apple Button API CSS verbatim —
+                      //     `fontWeight: "400"`. Apple font 파일은 단일 Medium
+                      //     glyph 이라 CSS 의 400 declare 가 무시되어 visible
+                      //     weight = Medium. Inter 는 w400 (Regular) 사용 —
+                      //     Apple SF Pro Text Medium 의 visual weight 시각
+                      //     매칭. Inter Medium 자산은 future use 대비 보존).
                       //   letterSpacing: -0.44 (= -0.022em × 20sp, Button API verbatim)
                       // Phase 13.3 Wave 4 Step 3 — platform 별 fontFamily 단일
                       // 명시 (위 `labelFontFamily` 변수 참조). `fontFamilyFallback`
@@ -1250,11 +1255,14 @@ Widget _renderAppleButton(
                       style: TextStyle(
                         color: fgColor,
                         fontSize: 20,
-                        // Apple Button API CSS `fontWeight: "400"` verbatim.
-                        // Apple font 자체는 단일 Medium glyph 이지만 CSS 가
-                        // 400 으로 declare. Inter 는 w400 (Regular) + w500
-                        // (Medium) 두 weight asset 모두 등록 — w400 가 SF Pro
-                        // Text Medium visual weight 와 가장 가까운 매칭.
+                        // Apple Button API CSS `fontWeight: "400"` verbatim
+                        // (Phase 13.3 WR-02 정정 2026-05-17). Apple SF Pro Text
+                        // 자체는 system font 가 단일 Medium glyph 만 제공해
+                        // visible weight 가 Medium 이지만, Button API 의 CSS
+                        // declare 는 400 이라 verbatim 부합. Inter Regular w400
+                        // 가 SF Pro Text Medium 의 visual weight 시각 매칭.
+                        // golden 재생성 회피 위해 w400 유지 (Apple visual
+                        // weight 변경 시 사용자 visual sign-off 의무).
                         fontWeight: FontWeight.w400,
                         letterSpacing: -0.44,
                         fontFamily: labelFontFamily,
