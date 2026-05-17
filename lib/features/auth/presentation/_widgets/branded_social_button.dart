@@ -1062,8 +1062,13 @@ Widget _renderGoogleButton(
   // (OS 권고 fontFamily). 다른 platform 은 Roboto (Flutter 시스템 fallback —
   // Android system Roboto 자동 매핑).
   final labelFontFamily = isApplePlatform ? 'SF Pro Text' : 'Roboto';
-  final iconPath =
-      '$kBrandAssetBase/google/${isDark ? "dark" : "light"}/btn_signin_icon.svg';
+  // Phase 13.3 code review IN-03 정정 (2026-05-17): Google Identity Branding
+  // Guidelines 의 "G" 마크는 theme-independent (light/dark variant 는 button bg
+  // + outline + label color 만 분기, 아이콘 자체는 4-color G 단일). 기존
+  // `${isDark ? "dark" : "light"}` 분기는 byte-identical SVG 2개 path 로 갈라
+  // bundle 중복 + 한쪽만 갱신 시 silent regression 위험. Facebook 의 "single
+  // Primary Logo" 패턴 mirror — 단일 path 로 일원화.
+  final iconPath = '$kBrandAssetBase/google/btn_signin_icon.svg';
   final radius = BorderRadius.circular(spec.borderRadius);
   return Semantics(
     button: true,

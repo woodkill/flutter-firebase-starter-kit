@@ -23,15 +23,22 @@ Google Identity Branding Guidelines 가 변형 금지 명시. 신규 변형 도�
 ## 자산 freshness 갱신 빈도
 1년 권장.
 
-## 디렉토리 구조 (Plan 13.1-07 commit 후)
+## 디렉토리 구조 (Phase 13.3 code review IN-03 정정 후)
+
 ```
 assets/brand/google/
-├── light/btn_signin_{full,icon}.svg
-├── dark/btn_signin_{full,icon}.svg
-├── neutral/btn_signin_{full,icon}.svg
+├── btn_signin_icon.svg
 ├── LICENSE.txt
 └── README.md
 ```
+
+**Phase 13.3 IN-03 정정 (2026-05-17):** Google Identity Branding Guidelines 의
+"G" 마크는 theme-independent — light/dark variant 는 button bg + outline +
+label color 만 분기, 아이콘 자체는 동일 4-color "G" 단일. 기존 `light/` /
+`dark/` 디렉토리 + byte-identical SVG 2개 폐기 → 단일
+`assets/brand/google/btn_signin_icon.svg` 로 일원화 (Facebook 의 "single
+Primary Logo" 패턴 mirror). theme 분기 책임은 `_renderGoogleButton` 의
+bg/label/outline 색 분기로 일관.
 
 **자산 형식 결정 (Plan 13.1-07 retro):** Google 공식 자상은 5차원 매트릭스 (platform × format × theme × shape × label) 로 360+ 파일 제공 (iOS/Android/Web 별 ZIP). 본 starter-kit 은 다음 차원 채택:
 

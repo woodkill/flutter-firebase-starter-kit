@@ -119,15 +119,15 @@ flutter:
     # Rule 2 정정 — Plan 13.1-01/03 의 "자동 재귀" 가정 오류).
     # .placeholder / README 파일은 bundle 에 포함되어도 무해.
     #
-    # **Phase 13.3 Pitfall 5 가드:** `assets/brand/google/{light,dark}/` 보존
-    # 의무 — `_renderGoogleButton` 의 iconPath = '$kBrandAssetBase/google/
-    # ${isDark ? "dark" : "light"}/btn_signin_icon.svg' 참조. entry 누락 시
-    # `Unable to load asset` runtime error.
+    # **Phase 13.3 code review IN-03 정정 (2026-05-17):** Google Identity 의
+    # "G" 마크는 theme-independent (light/dark variant 는 bg + label color 만
+    # 분기). 기존 light/dark 디렉토리 + byte-identical SVG 2개 폐기 → 단일
+    # `assets/brand/google/btn_signin_icon.svg` 로 일원화 (Facebook 의 "single
+    # Primary Logo" 패턴 mirror). `_renderGoogleButton` 의 iconPath 도 분기
+    # 폐기 + 단일 path.
     - assets/brand/kakao/
     - assets/brand/naver/
     - assets/brand/google/
-    - assets/brand/google/light/
-    - assets/brand/google/dark/
     - assets/brand/apple/
     # Phase 13.3 Wave 4 Step 2 (2026-05-15): Apple Logo-only SVG (Logo-Sign-in-with-Apple.dmg
     # from developer.apple.com/design/resources/). light = Black variant (rect 흰 + logo 검정),
