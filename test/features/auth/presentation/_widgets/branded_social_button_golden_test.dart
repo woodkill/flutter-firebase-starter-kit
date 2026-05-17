@@ -121,10 +121,22 @@ Future<void> _settleAssets(WidgetTester tester) async {
 /// system 위임 + Android default = Roboto → 5 provider 모두 부합 (`feedback_*`
 /// 메모리 + 13.3-UI-SPEC line 76/82-83).
 Future<void> _loadGoldenFonts() async {
+  // Phase 13.3 code review IN-06 정정 (2026-05-17): 자상 부재 시 generic
+  // `FileSystemException` → `TestFailure` 로 전환 (SFNS.ttf 분기 패턴 mirror).
+  // future bundle rotation (예: Pretendard 자산 갱신, Inter 폴더 재구성) 시
+  // low-signal "No such file or directory" 대신 phase-context 명시 메시지로
+  // surface — 모든 readAsBytes 진입 전 존재 검증.
+  final robotoFile = File('assets/test_fonts/Roboto-Medium.ttf');
+  if (!robotoFile.existsSync()) {
+    throw TestFailure(
+      'Roboto-Medium.ttf 부재 (assets/test_fonts/Roboto-Medium.ttf) — '
+      'golden test 라벨 글리프 회귀 가드 불가. Phase 13.3 D-119 (golden 라벨 '
+      'Ahem ▮▮ 회피) 자산 누락 — `assets/test_fonts/` 디렉토리 / file 갱신 '
+      '의무 (IN-06 정정).',
+    );
+  }
   final robotoLoader = FontLoader('Roboto');
-  final robotoBytes = await File(
-    'assets/test_fonts/Roboto-Medium.ttf',
-  ).readAsBytes();
+  final robotoBytes = await robotoFile.readAsBytes();
   robotoLoader.addFont(Future.value(ByteData.view(robotoBytes.buffer)));
   await robotoLoader.load();
 
@@ -134,16 +146,22 @@ Future<void> _loadGoldenFonts() async {
   // Button API verbatim `fontWeight: "400"` 매칭 위해 Inter Regular (w400) 가
   // primary, Medium (w500) 는 future use 대비. production bundle 의
   // `assets/fonts/inter/` 자산 그대로 재사용.
+  final interRegularFile = File('assets/fonts/inter/Inter-Regular.ttf');
+  final interMediumFile = File('assets/fonts/inter/Inter-Medium.ttf');
+  if (!interRegularFile.existsSync() || !interMediumFile.existsSync()) {
+    throw TestFailure(
+      'Inter font 자산 부재 (assets/fonts/inter/Inter-{Regular,Medium}.ttf) — '
+      'Apple Sign-in 버튼 Android/test env golden 생성 불가 (iOS/macOS 는 '
+      'system SF Pro Text 자동). production bundle 의 Inter 자산 누락 — '
+      '`pubspec.yaml` fonts: 항목 또는 file 자체 확인 의무 (IN-06 정정).',
+    );
+  }
   final interLoader = FontLoader('Inter');
-  final interRegularBytes = await File(
-    'assets/fonts/inter/Inter-Regular.ttf',
-  ).readAsBytes();
+  final interRegularBytes = await interRegularFile.readAsBytes();
   interLoader.addFont(
     Future.value(ByteData.view(interRegularBytes.buffer)),
   );
-  final interMediumBytes = await File(
-    'assets/fonts/inter/Inter-Medium.ttf',
-  ).readAsBytes();
+  final interMediumBytes = await interMediumFile.readAsBytes();
   interLoader.addFont(Future.value(ByteData.view(interMediumBytes.buffer)));
   await interLoader.load();
 
@@ -153,10 +171,17 @@ Future<void> _loadGoldenFonts() async {
   // 의 `assets/fonts/pretendard/PretendardVariable.ttf` 자산 그대로 재사용.
   // Variable axis `wght` 100-900 — Flutter `fontWeight: FontWeight.w800` 명시
   // 시 wght axis 800 자동 매핑.
+  final pretendardFile = File('assets/fonts/pretendard/PretendardVariable.ttf');
+  if (!pretendardFile.existsSync()) {
+    throw TestFailure(
+      'Pretendard 자산 부재 (assets/fonts/pretendard/PretendardVariable.ttf) — '
+      'Naver/Kakao Android golden 생성 불가 (iOS/macOS 는 AppleSDGothicNeo 자동). '
+      'production bundle 의 Pretendard 자산 누락 — `pubspec.yaml` fonts: 항목 '
+      '또는 file 자체 확인 의무 (IN-06 정정).',
+    );
+  }
   final pretendardLoader = FontLoader('Pretendard');
-  final pretendardBytes = await File(
-    'assets/fonts/pretendard/PretendardVariable.ttf',
-  ).readAsBytes();
+  final pretendardBytes = await pretendardFile.readAsBytes();
   pretendardLoader.addFont(
     Future.value(ByteData.view(pretendardBytes.buffer)),
   );
