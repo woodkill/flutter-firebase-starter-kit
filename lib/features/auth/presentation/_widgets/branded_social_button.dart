@@ -547,9 +547,17 @@ Widget _renderKakaoButton(
   //   명백히 다름 (digital-optimized 신규 디자인) → revert. AppleSDGothicNeo
   //   binary bundle 은 라이센스 위반 위험으로 채택 불가 → iOS native 명시
   //   (bundle 0) + Android Pretendard 분기 패턴 채택.
-  final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
-  final labelFontFamily = isIOS ? 'AppleSDGothicNeo' : 'Pretendard';
-  final labelFontWeight = isIOS ? FontWeight.w500 : FontWeight.w400;
+  // Phase 13.3 code review CR-02 정정 (2026-05-17): Apple/Google/Facebook 패턴
+  // mirror — `isApplePlatform` (iOS || macOS) 분기 트리거. 사용자 결정 "iOS/
+  // macOS 환경에서 Apple OS native font 활용 = Apple Font License 부합" 의도
+  // 일관. 기존 `isIOS` 단독 분기는 macOS desktop 실행 시 Kakao/Naver 만
+  // Pretendard 로 fallback → Apple/Google/Facebook 와 cross-provider drift.
+  final theme = Theme.of(context);
+  final isApplePlatform =
+      theme.platform == TargetPlatform.iOS ||
+      theme.platform == TargetPlatform.macOS;
+  final labelFontFamily = isApplePlatform ? 'AppleSDGothicNeo' : 'Pretendard';
+  final labelFontWeight = isApplePlatform ? FontWeight.w500 : FontWeight.w400;
   return Semantics(
     button: true,
     enabled: isEnabled,
@@ -587,25 +595,28 @@ Widget _renderKakaoButton(
                   // PSD M Wide center align 자동 + Naver 일관 8dp.
                   const SizedBox(width: 8),
                   Flexible(
-                    // iOS 만 Padding(top: 2) wrap — AppleSDGothicNeo glyph
-                    // line box 안 위쪽 위치 보정 (Naver case mirror,
-                    // 사용자 시각 보고 2026-05-16).
+                    // Apple OS (iOS || macOS) 만 Padding(top: 2) wrap —
+                    // AppleSDGothicNeo glyph line box 안 위쪽 위치 보정
+                    // (Naver case mirror, 사용자 시각 보고 2026-05-16).
+                    // CR-02 정정: `isApplePlatform` 으로 트리거 통일.
                     child: Padding(
-                      padding: EdgeInsets.only(top: isIOS ? 2 : 0),
+                      padding: EdgeInsets.only(top: isApplePlatform ? 2 : 0),
                       child: Text(
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       // Kakao 라벨 spec (Step B platform 분기):
-                      //   fontFamily/fontWeight = isIOS ? AppleSDGothicNeo
-                      //   w500 : Pretendard w400 (위 분기 lookup 참조).
-                      //   fontSize = isIOS ? 16 : 15 — AppleSDGothicNeo cap
-                      //   height 가 Pretendard 보다 작은 비율이라 시각 보정
-                      //   위해 iOS 만 +1pt (Naver case mirror, 사용자 시각
-                      //   보고 3회 iteration 2026-05-16: 15→16→17→16 수렴).
+                      //   fontFamily/fontWeight = isApplePlatform ?
+                      //   AppleSDGothicNeo w500 : Pretendard w400 (위 분기
+                      //   lookup 참조).
+                      //   fontSize = isApplePlatform ? 16 : 15 —
+                      //   AppleSDGothicNeo cap height 가 Pretendard 보다 작은
+                      //   비율이라 시각 보정 위해 Apple OS 만 +1pt (Naver case
+                      //   mirror, 사용자 시각 보고 3회 iteration 2026-05-16:
+                      //   15→16→17→16 수렴).
                       //   Android 는 PSD M Wide variant verbatim 15pt 유지.
-                      //   height 1.0 + leadingDistribution.even (iOS 만) —
-                      //   line box 압축 + leading 균등 분배 → text visible
+                      //   height 1.0 + leadingDistribution.even (Apple OS 만)
+                      //   — line box 압축 + leading 균등 분배 → text visible
                       //   glyph 가 line box center 에 정확 align → SVG vertical
                       //   center 와 정렬 향상.
                       //   color fgColor = #000000 α0.85 (가이드 정문 우선).
@@ -613,11 +624,11 @@ Widget _renderKakaoButton(
                       //   ThemeData drift 회피).
                         style: TextStyle(
                           color: fgColor,
-                          fontSize: isIOS ? 16 : 15,
+                          fontSize: isApplePlatform ? 16 : 15,
                           fontWeight: labelFontWeight,
                           fontFamily: labelFontFamily,
-                          height: isIOS ? 1.0 : null,
-                          leadingDistribution: isIOS
+                          height: isApplePlatform ? 1.0 : null,
+                          leadingDistribution: isApplePlatform
                               ? TextLeadingDistribution.even
                               : null,
                         ),
@@ -693,9 +704,14 @@ Widget _renderNaverButton(
   //   Android / others = Pretendard + w600 (공식 PNG 자상 시각 sign-off Step 3
   //   lock, NAVER_login_Light_EN_green_center_H48 글리프 부합). 한국 design
   //   표준 web font. SIL OFL 1.1.
-  final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
-  final labelFontFamily = isIOS ? 'AppleSDGothicNeo' : 'Pretendard';
-  final labelFontWeight = isIOS ? FontWeight.w700 : FontWeight.w600;
+  // Phase 13.3 code review CR-02 정정 (2026-05-17): Apple/Google/Facebook 패턴
+  // mirror — `isApplePlatform` (iOS || macOS) 분기 트리거. Kakao 와 동일 사유.
+  final theme = Theme.of(context);
+  final isApplePlatform =
+      theme.platform == TargetPlatform.iOS ||
+      theme.platform == TargetPlatform.macOS;
+  final labelFontFamily = isApplePlatform ? 'AppleSDGothicNeo' : 'Pretendard';
+  final labelFontWeight = isApplePlatform ? FontWeight.w700 : FontWeight.w600;
   return Semantics(
     button: true,
     enabled: isEnabled,
@@ -733,27 +749,30 @@ Widget _renderNaverButton(
                   // Naver 정문 필수 "가운데 정렬 시 8px" (logoLabelGap).
                   const SizedBox(width: 8),
                   Flexible(
-                    // iOS 만 Padding(top: 2) wrap — AppleSDGothicNeo glyph 가
-                    // line box 안에서 위쪽에 위치 (font 자연 metric) → leading
-                    // Distribution.even + height 1.0 만으로 미해결 → widget
-                    // bounding box top 2dp 빈공간 추가 → Row crossAxis center
-                    // 시 visible text 가 SVG center 보다 1dp 아래로 이동 →
-                    // 정렬 향상 (사용자 시각 보고 2026-05-16).
+                    // Apple OS (iOS || macOS) 만 Padding(top: 2) wrap —
+                    // AppleSDGothicNeo glyph 가 line box 안에서 위쪽에 위치
+                    // (font 자연 metric) → leadingDistribution.even + height
+                    // 1.0 만으로 미해결 → widget bounding box top 2dp 빈공간
+                    // 추가 → Row crossAxis center 시 visible text 가 SVG
+                    // center 보다 1dp 아래로 이동 → 정렬 향상 (사용자 시각
+                    // 보고 2026-05-16). CR-02 정정: `isApplePlatform` 트리거 통일.
                     child: Padding(
-                      padding: EdgeInsets.only(top: isIOS ? 2 : 0),
+                      padding: EdgeInsets.only(top: isApplePlatform ? 2 : 0),
                       child: Text(
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       // Naver 라벨 spec (Kakao 패턴 mirror platform 분기):
-                      //   fontFamily = isIOS ? AppleSDGothicNeo : Pretendard.
-                      //   fontWeight = isIOS ? w700 : w600 (위 분기 lookup).
-                      //   fontSize = isIOS ? 17 : 16 — AppleSDGothicNeo cap
-                      //   height 가 Pretendard 보다 작은 비율이라 시각 보정
-                      //   위해 iOS 만 +1pt (사용자 시각 보고 3회 iteration
-                      //   2026-05-16: 16→17→18→17 수렴).
-                      //   height 1.0 + leadingDistribution.even (iOS 만) —
-                      //   line box 를 fontSize 와 같게 압축 + leading 을
+                      //   fontFamily = isApplePlatform ? AppleSDGothicNeo :
+                      //   Pretendard.
+                      //   fontWeight = isApplePlatform ? w700 : w600 (위 분기
+                      //   lookup).
+                      //   fontSize = isApplePlatform ? 17 : 16 —
+                      //   AppleSDGothicNeo cap height 가 Pretendard 보다 작은
+                      //   비율이라 시각 보정 위해 Apple OS 만 +1pt (사용자
+                      //   시각 보고 3회 iteration 2026-05-16: 16→17→18→17 수렴).
+                      //   height 1.0 + leadingDistribution.even (Apple OS 만)
+                      //   — line box 를 fontSize 와 같게 압축 + leading 을
                       //   ascent/descent 균등 분배 → text visible glyph 가
                       //   line box center 에 정확 align → SVG vertical center
                       //   와 정렬 (default proportional 시 ascent 에 leading
@@ -763,11 +782,11 @@ Widget _renderNaverButton(
                       //   ThemeData drift 회피).
                         style: TextStyle(
                           color: fgColor,
-                          fontSize: isIOS ? 17 : 16,
+                          fontSize: isApplePlatform ? 17 : 16,
                           fontWeight: labelFontWeight,
                           fontFamily: labelFontFamily,
-                          height: isIOS ? 1.0 : null,
-                          leadingDistribution: isIOS
+                          height: isApplePlatform ? 1.0 : null,
+                          leadingDistribution: isApplePlatform
                               ? TextLeadingDistribution.even
                               : null,
                         ),
