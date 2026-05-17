@@ -90,52 +90,14 @@ void main() {
     // 기존 Group 1 (LINE/WeChat .placeholder) + Group 2 (active 5 .placeholder
     // 부재) + Group 3 (7 README schema) 만으로는 자상 파일 자체 삭제 회귀
     // (예: assets/brand/google/light/btn_signin_full.svg 실수 삭제) 시
-    // golden test 만 RED 로 늦게 발견. 본 group 이 생산 production widget
-    // 이 의존하는 모든 (provider × locale × theme × variant) tuple 의 자상
-    // path 존재를 컴파일 시점에 검출.
-    // Phase 13.3 Wave 3 (commit c73c9a3) — wide 자상 통째 buttons 패턴 폐기
-    // 결정. Kakao large_wide / Naver h48_wide / Google btn_signin_full 3 자상
-    // 모두 production widget 미참조 (logo only symbol SVG inline 패턴 채택).
-    // 본 3 test 는 Phase 13.3 새 process (사용자 제시 7-step) step 1 에서
-    // wide asset 정책 최종 결정 후 재검토 — skip 처리.
-    test('Kakao 자상 (locale × {large}_wide PNG) 모두 존재', () {
-      const sizes = <String>['large']; // production default; medium 은 future-proof
-      for (final lang in <String>['ko', 'en']) {
-        for (final size in sizes) {
-          final path =
-              '$kBrandAssetBase/kakao/$lang/light/kakao_login_${size}_wide.png';
-          expect(
-            File(path).existsSync(),
-            isTrue,
-            reason: 'production widget 의존 자상 부재: $path',
-          );
-        }
-      }
-    }, skip: 'Phase 13.3 Wave 3 wide asset 폐기 — 새 process step 1 재검토');
-
-    test('Naver 자상 (locale × theme × h48 PNG) 모두 존재', () {
-      for (final lang in <String>['ko', 'en']) {
-        for (final theme in <String>['light', 'dark']) {
-          final path =
-              '$kBrandAssetBase/naver/$lang/$theme/naver_login_h48_wide.png';
-          expect(
-            File(path).existsSync(),
-            isTrue,
-            reason: 'production widget 의존 자상 부재: $path',
-          );
-        }
-      }
-    }, skip: 'Phase 13.3 Wave 3 wide asset 폐기 — 새 process step 1 재검토');
-
-    test('Google 자상 (theme × full SVG) 모두 존재', () {
-      for (final theme in <String>['light', 'dark', 'neutral']) {
-        final path = '$kBrandAssetBase/google/$theme/btn_signin_full.svg';
-        expect(
-          File(path).existsSync(),
-          isTrue,
-          reason: 'production widget 의존 자상 부재: $path',
-        );
-      }
-    }, skip: 'Phase 13.3 Wave 3 wide asset 폐기 — 새 process step 1 재검토');
+    // golden test 만 RED 로 늦게 발견.
+    //
+    // **Phase 13.3 code review IN-04 정정 (2026-05-17):** Wave 3 (commit
+    // c73c9a3) wide 자상 통째 buttons 패턴 폐기 + 5 wave 종결 후 "재검토"
+    // 의도 무효 — skip 처리된 3 test (Kakao large_wide / Naver h48_wide /
+    // Google btn_signin_full) 모두 폐기 결정 lock. 자상 자체 존재 회귀 가드는
+    // `branded_social_button_test.dart` 의 widget tree assertion (예:
+    // T-13.3-KAKAO-WIDE-PNG-MISSING-01) + `_iconAssetFor` 의 inline path
+    // string 으로 일관 위임. 본 group 은 폐기 cleanup.
   });
 }
