@@ -59,6 +59,26 @@ const Map<String, Map<String, String>> _kNaverBI =
       },
     };
 
+/// Facebook BI 화이트리스트 (Phase 13.3 Wave 5 신규 — Login mirror 통일).
+///
+/// Source-of-truth:
+/// - en: 공식 Facebook Login UX 가이드 (`developers.facebook.com/docs/
+///   facebook-login/userexperience/`) 의 preferred 화이트리스트 "Continue
+///   with Facebook" / "Login with Facebook" 중 #2 (Login) 채택 — user 결정
+///   2026-05-17 (3 locale Login mirror 통일).
+/// - ko: 정문 미명시 자유 영역 — "Facebook으로 로그인" ("Apple/Google로 로그인"
+///   외래어+조사 붙임 패턴 mirror). user 결정 2026-05-17.
+/// - ja: 정문 미명시 자유 영역 — [ASSUMED] "Facebookでログイン" (Login mirror
+///   직역, Apple/Google/Kakao/Naver ja mirror).
+const Map<String, Map<String, String>> _kFacebookBI =
+    <String, Map<String, String>>{
+      'authFacebookSignIn': <String, String>{
+        'ko': 'Facebook으로 로그인', // Wave 5 정정 — Login mirror (Apple/Google 패턴)
+        'en': 'Login with Facebook', // preferred 화이트리스트 #2 (Wave 5 정정)
+        'ja': 'Facebookでログイン', // [ASSUMED] Login mirror (자유 영역)
+      },
+    };
+
 /// Kakao BI 화이트리스트 (Phase 13.3 D-111 갱신 — D-79 ja 영문 fallback 폐기).
 ///
 /// Source-of-truth:
@@ -94,6 +114,7 @@ Future<void> _verifyLocale(
       'authAppleSignIn' => l10n.authAppleSignIn,
       'authNaverSignIn' => l10n.authNaverSignIn,
       'authKakaoSignIn' => l10n.authKakaoSignIn,
+      'authFacebookSignIn' => l10n.authFacebookSignIn,
       _ => throw UnsupportedError('Unknown key: ${entry.key}'),
     };
     expect(
@@ -140,6 +161,31 @@ void main() {
         'ja: NAVERでログイン (D-110 ja verbatim — D-79 영문 fallback 폐기)',
         () async {
           await _verifyLocale('ja', _kNaverBI);
+        },
+      );
+    },
+  );
+
+  // Phase 13.3 Wave 5 (2026-05-17) — Facebook BI 화이트리스트 회귀 가드 신규.
+  // Login mirror 통일 (en "Login with Facebook" preferred 화이트리스트 #2 +
+  // ko "Facebook으로 로그인" Apple/Google mirror + ja "Facebookでログイン"
+  // [ASSUMED] Login mirror) — 향후 silent ARB drift 회귀 방지.
+  group(
+    'brand_label_whitelist — Facebook BI (Wave 5) [Login mirror 통일]',
+    () {
+      test('ko: Facebook으로 로그인 (Wave 5 — Apple/Google mirror)', () async {
+        await _verifyLocale('ko', _kFacebookBI);
+      });
+      test(
+        'en: Login with Facebook (preferred 화이트리스트 #2, Wave 5)',
+        () async {
+          await _verifyLocale('en', _kFacebookBI);
+        },
+      );
+      test(
+        'ja: Facebookでログイン ([ASSUMED] Login mirror — 자유 영역)',
+        () async {
+          await _verifyLocale('ja', _kFacebookBI);
         },
       );
     },
