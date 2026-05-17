@@ -432,10 +432,9 @@ void main() {
     // **Phase 13.2 R5/R6 acceptance + Wave 0 옵션 A pivot (13.2-WAVE0-LOCK.md):**
     // FacebookSpec sealed switch active 전환 (UnsupportedError throw 폐기) +
     // 신규 `_renderFacebookButton` 함수 (Apple SignInWithAppleButton 패턴
-    // mirror, Theme.brightness 자동 분기, 18dp Image.asset + Text label)
-    // 의무. D-95 = AssetType.png, D-94 = theme 필드 부재 (Primary 단독),
-    // D-96 = Google 패턴 (locale 독립, 단일 path
-    // 'assets/brand/facebook/facebook_login.png').
+    // mirror, Theme.brightness 자동 분기, 18dp 자상 + Text label) 의무.
+    // D-94 = theme 필드 부재 (Primary 단독), D-96 = Google 패턴 (locale
+    // 독립, 단일 path).
     //
     // 본 단락의 두 test 는 Wave 1+ 진입 시점에 RED — Wave 1 의
     // branded_social_button.dart 변경 (FacebookSpec sealed switch case 갱신 +
@@ -444,10 +443,13 @@ void main() {
     // 명시 — UnsupportedError throw 검증 의도가 Phase 13.2 R5 acceptance 와
     // 의미 반전.
     //
-    // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** D-95 PNG 폐기 →
-    // SVG 전환 (Meta Brand Asset Pack 의 Facebook_Logo_Primary.ai PyMuPDF
-    // verbatim 추출). FacebookSpec.assetType = AssetType.svg, render 는
-    // SvgPicture.asset 사용. Image 매치 의무 → SvgPicture 매치 의무 갱신.
+    // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** D-95 PNG
+    // (`assets/brand/facebook/facebook_login.png`) 폐기 → SVG
+    // (`assets/brand/facebook/btn_signin_icon.svg`) 전환. Meta Brand Asset
+    // Pack 의 Facebook_Logo_Primary.ai PyMuPDF verbatim 추출. FacebookSpec.
+    // assetType = AssetType.svg, render 는 SvgPicture.asset 사용. Image 매치
+    // 의무 → SvgPicture 매치 의무 갱신. PNG 자상 자체는 Phase 13.3 code review
+    // CR-01 정정 commit (2026-05-17) 에서 git rm 으로 폐기.
     testWidgets(
       'T-13.2-FACEBOOK-ACTIVE-01: BrandedSocialButton.facebook() build() → '
       'SvgPicture.asset (Wave 4 Step 2 SVG) + Text(authFacebookSignIn ARB) '
@@ -662,10 +664,12 @@ void main() {
     );
 
     //
-    // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** D-96 PNG 폐기 →
-    // SVG 전환. `_iconAssetFor` FacebookSpec branch 의 path 가
-    // `assets/brand/facebook/facebook_login.png` → `assets/brand/facebook/
-    // btn_signin_icon.svg` 갱신. Image → SvgPicture verbatim path 검증.
+    // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** D-96 PNG
+    // (`assets/brand/facebook/facebook_login.png`, stale) 폐기 → SVG
+    // (`assets/brand/facebook/btn_signin_icon.svg`) 전환. `_iconAssetFor`
+    // FacebookSpec branch 의 path 갱신. Image → SvgPicture verbatim path 검증.
+    // PNG 자상 자체는 Phase 13.3 code review CR-01 정정 commit (2026-05-17)
+    // 에서 git rm 으로 폐기 — 본 주석의 PNG 명칭은 history reference.
     testWidgets(
       'T-13.2-FACEBOOK-ASSET-01: BrandedSocialButton.facebook() SvgPicture '
       'path = "assets/brand/facebook/btn_signin_icon.svg" (Wave 4 Step 2 '
