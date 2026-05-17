@@ -683,8 +683,9 @@ Widget _renderKakaoButton(
 ///   mirror, 사용자 결정 2026-05-16 — cross-provider 일관성):
 ///   - **iOS**: `AppleSDGothicNeo` (Pretendard 의 source font — native macOS/
 ///     iOS 시스템 폰트, bundle 0, Apple OS 내부 사용 = Apple Font License +
-///     Sandoll 라이센스 부합) + `FontWeight.w500` (Medium — Pretendard w600 의
-///     source weight 한 단계 매핑, Kakao case lesson #15 mirror)
+///     Sandoll 라이센스 부합) + `FontWeight.w700` (Bold — NAVER 공식 PNG 굵은
+///     stroke 시각 매칭, AppleSDGothicNeo 명목 weight 가 Pretendard 보다 가벼워
+///     Android w600 에서 한 단계 올림, 사용자 시각 sign-off 2026-05-16)
 ///   - **Android / others**: `Pretendard` (PSD `AppleSDGothicNeo` 의
 ///     open-source 대체, SIL OFL 1.1 bundled) + `FontWeight.w600` (SemiBold —
 ///     공식 PNG 자상 시각 sign-off Step 3 lock)
