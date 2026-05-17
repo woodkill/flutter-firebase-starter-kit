@@ -57,8 +57,10 @@ void main() {
   group('Phase 13.3 D-125-A Facebook 회귀 가드 (옵션 A 패턴 변경 0)', () {
     // ─── T-13.3-FACEBOOK-RENDER-UNCHANGED-01 ──────────────────────────────
     //
-    // Phase 13.2 옵션 A pivot 의 widget tree structural matching:
-    //   1. Image.asset path == 'assets/brand/facebook/facebook_login.png'
+    // Phase 13.2 옵션 A pivot + Phase 13.3 Wave 4 Step 2 supersede 의 widget
+    // tree structural matching:
+    //   1. SvgPicture asset path == 'assets/brand/facebook/btn_signin_icon.svg'
+    //      (Wave 4 Step 2 PNG → SVG 전환 — AI verbatim 추출)
     //   2. Material.shape is RoundedRectangleBorder
     //   3. RoundedRectangleBorder.side.width == 1.0
     //   4. find.text('Login with Facebook') (en locale ARB)
