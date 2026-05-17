@@ -39,7 +39,10 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 /// 생성자가 `const` — 모든 필드가 `final` 이다. 단, `onSignIn` closure 인자를
 /// 받는 invocation site 에서는 closure literal 이 const expression 이 아니므로
 /// `const _FakeStrategy(...)` 호출은 사용하지 않는다 (Dart 언어 제약).
-class _FakeStrategy extends AuthStrategy {
+// Phase 13.3 code review IN-05 정정 (2026-05-17): Dart 3 sealed class
+// hierarchy 일관성 위해 `final class` 로 명시. AuthStrategy 의 sub-class 가
+// 본 fake 외 production strategy 들이라 final 명시가 의도 부합.
+final class _FakeStrategy extends AuthStrategy {
   const _FakeStrategy(
     this._providerId,
     this._labelKey,
