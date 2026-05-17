@@ -147,7 +147,7 @@
   "authAccountProviderFacebook": "Facebook",
   "authKakaoSignIn": "카카오 로그인",
   "authAccountProviderKakao": "카카오",
-  "authNaverSignIn": "네이버 로그인",
+  "authNaverSignIn": "네이버 아이디로 로그인",
   "authBrandAssetMissing": "자산 없음: {label}",
   "@authBrandAssetMissing": {
     "description": "Phase 13.1 REVIEW iter2 WR-05 (2026-05-10) — placeholder 메타데이터 일관성. en.arb 의 metadata 블록 미러 — 미래 갱신자가 placeholder 명을 typo (예: {labelText}) 변경 시 gen-l10n parse 시점 surface 강제.",

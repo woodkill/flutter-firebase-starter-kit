@@ -53,7 +53,7 @@ const Map<String, Map<String, String>> _kAppleHIG =
 const Map<String, Map<String, String>> _kNaverBI =
     <String, Map<String, String>>{
       'authNaverSignIn': <String, String>{
-        'ko': '네이버 로그인', // Phase 13.3 SPEC R8 + user sign-off 2026-05-15
+        'ko': '네이버 아이디로 로그인', // Phase 13.3 Wave 5 (2026-05-17) — NAVER 공식 SDK (Nid-OAuth values-ko/message.xml + 공식 BI 가이드) verbatim. Phase 13.3 Wave 1 의 "네이버 로그인" supersede.
         'en': 'Log in with NAVER', // 공식 AI EN variant verbatim
         'ja': 'NAVERでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
       },
@@ -130,7 +130,7 @@ void main() {
   group(
     'brand_label_whitelist — Naver BI (R7) [Phase 13.3 verbatim restored]',
     () {
-      test('ko: 네이버 로그인 (Phase 13.3 D-111 verbatim)', () async {
+      test('ko: 네이버 아이디로 로그인 (NAVER 공식 SDK + BI 가이드 verbatim, Wave 5 정정)', () async {
         await _verifyLocale('ko', _kNaverBI);
       });
       test('en: Log in with NAVER (공식 AI EN variant verbatim)', () async {
