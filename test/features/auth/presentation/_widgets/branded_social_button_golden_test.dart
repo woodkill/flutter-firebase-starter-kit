@@ -188,13 +188,25 @@ Future<void> _loadGoldenFonts() async {
     // 됨 → FontLoader 의 명시적 family name 으로 alias 활용. Apple SF Pro
     // Font License 부합 (Apple OS 내부 로컬 사용, dev 단말 사용자 본인 시스템
     // file 접근). 결과 golden PNG 는 `.gitignore` 로 commit 차단.
+    //
+    // Phase 13.3 code review IN-06 정정 (2026-05-17): SFNS.ttf 부재 시 silent
+    // skip → fail-loud 전환. silent skip 패턴은 golden 이 Inter fallback 으로
+    // 변경되어 자동 갱신 후 production drift 가능 (macOS major upgrade 시
+    // system font 위치 변경 등). 명시 throw 로 system font 위치 갱신 의무
+    // surface.
     final sfNSFile = File('/System/Library/Fonts/SFNS.ttf');
-    if (sfNSFile.existsSync()) {
-      final sfProTextLoader = FontLoader('SF Pro Text');
-      final bytes = await sfNSFile.readAsBytes();
-      sfProTextLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
-      await sfProTextLoader.load();
+    if (!sfNSFile.existsSync()) {
+      throw TestFailure(
+        'macOS SFNS.ttf 부재 (/System/Library/Fonts/SFNS.ttf) — Apple iOS '
+        'golden 생성 불가. macOS major upgrade 등으로 system font 위치 갱신 '
+        '가능성 — Phase 13.3 IN-06 정정. silent skip 폐기 (golden 자동 갱신 '
+        '후 production drift 회피).',
+      );
     }
+    final sfProTextLoader = FontLoader('SF Pro Text');
+    final bytes = await sfNSFile.readAsBytes();
+    sfProTextLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
+    await sfProTextLoader.load();
   }
 }
 
