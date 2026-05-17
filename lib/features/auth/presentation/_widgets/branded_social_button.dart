@@ -877,7 +877,11 @@ Widget _renderFacebookButton(
   String label,
   VoidCallback? onPressed,
 ) {
-  final assetPath = _iconAssetFor(context, spec);
+  // Phase 13.3 code review IN-07 정정 (2026-05-17): `_iconAssetFor` 단일-caller
+  // indirection 폐기 + inline. sealed BrandSpec switch 의 compile-time
+  // exhaustiveness 는 `build()` switch 가 이미 보장 — 별도 dispatch 함수의
+  // dead branch (`UnsupportedError` 6개) 가 binary + 읽기 부담만 가중.
+  const assetPath = '$kBrandAssetBase/facebook/btn_signin_icon.svg';
   final radius = BorderRadius.circular(spec.borderRadius);
   // Phase 13.3 Wave 4 Step 3 정정 (2026-05-17, Google 패턴 mirror): theme 단일
   // lookup 으로 `brightness` + `platform` 만 분기 trigger 로 사용. `colorScheme`
@@ -1319,43 +1323,11 @@ Widget _renderAppleButton(
   );
 }
 
-/// 자상 file path resolver — Facebook 단일 caller 잔존 (Phase 13.3 cleanup 후).
-///
-/// **Phase 13.3 Wave 2 (R1/R2/R3 정정) + Wave 4 Step 2:** Kakao/Naver/Google
-/// branch 모두 폐기 — Kakao/Naver 는 각 `_renderXxxButton` 내부에서
-/// `SvgPicture.asset` 으로 직접 자산 파일 (`assets/brand/{kakao,naver}/
-/// btn_signin_icon.svg`) 로딩, Google 은 본 함수 미경유의 직접 path inline
-/// (`_renderGoogleButton` 내부). Facebook branch만 보존 (Phase 13.2
-/// `_renderFacebookButton` 가 호출 — Pitfall 7 변경 0 강제).
-String _iconAssetFor(BuildContext context, BrandSpec spec) {
-  return switch (spec) {
-    // Phase 13.2 — see ROADMAP.md (R6 — FacebookSpec _iconAssetFor branch
-    // active, D-96 Google 패턴 locale 독립 단일 path). Localizations
-    // dependency 미사용 — locale 변경 시 rebuild trigger 0.
-    FacebookSpec() => '$kBrandAssetBase/facebook/btn_signin_icon.svg',
-    // 다른 spec 은 자상 path 호출 안 됨 (Apple/Line/Wechat — SDK 위제 위임 또는
-    // placeholder render. Kakao/Naver — 각 _renderXxxButton 내부에서
-    // SvgPicture.asset 으로 `assets/brand/{kakao,naver}/btn_signin_icon.svg`
-    // 직접 로딩 (Wave 4 Step 2 자산 분리). Google — _renderGoogleButton 내부
-    // 직접 path inline).
-    //
-    // Phase 13.3 code review WR-05 정정 (2026-05-17): dead branch 의 sentinel
-    // `''` 반환 → `throw UnsupportedError` fail-loud 전환. future caller 가
-    // 실수로 호출 시 silent fail (빈 path → asset load runtime error) 대신
-    // 호출 자체가 즉시 surface. _resolveLabel 의 default branch 와 동일 패턴.
-    AppleSpec() ||
-    KakaoSpec() ||
-    NaverSpec() ||
-    GoogleSpec() ||
-    LineSpec() ||
-    WechatSpec() => throw UnsupportedError(
-      '_iconAssetFor: ${spec.runtimeType} 는 _renderXxxButton 내부에서 직접 '
-      '자상 path 처리 (Apple/Line/Wechat = SDK 위제 또는 placeholder, '
-      'Kakao/Naver = SvgPicture.asset 직접 로딩, Google = inline path). '
-      'Facebook 단독 caller — caller path 회귀 차단.',
-    ),
-  };
-}
+// Phase 13.3 code review IN-07 정정 (2026-05-17): `_iconAssetFor` helper 폐기.
+// 단일 caller (`_renderFacebookButton`) 가 inline const path 로 직접 참조 →
+// dead abstraction layer + 28-line throw 메시지 (binary + 읽기 부담) 제거.
+// sealed BrandSpec switch 의 compile-time exhaustiveness 는 `build()` switch
+// 가 이미 보장 (Phase 14/16 신규 provider 추가 시 build() 컴파일 fail).
 
 /// LINE/WeChat placeholder render — D-73 (자상 미존재 시 회색 fallback).
 ///
