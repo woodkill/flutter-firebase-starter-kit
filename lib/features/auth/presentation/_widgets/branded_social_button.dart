@@ -520,8 +520,9 @@ class BrandedSocialButton extends StatelessWidget {
 ///     매핑이 AppleSDGothicNeo 보다 무거워 한 단계 낮춤, Naver case lesson
 ///     #15 mirror, Step A 시각 sign-off)
 ///   starter kit drift 회피 원칙 "허용 (분기 trigger): theme.platform" 부합 ✓.
-///   Naver 와 달리 한국 brand 2 provider cross-provider 일관성 일부 trade-off
-///   (Naver = Pretendard 단일) 하지만 PSD verbatim 정확도 우선.
+///   Naver 와 같은 platform 분기 패턴 (iOS = AppleSDGothicNeo / Android =
+///   Pretendard) — 한국 brand 2 provider cross-provider 일관성 회복 (Wave 4
+///   Step 3 이후 Naver 도 동일 platform 분기 채택).
 ///   *audit trail*: KakaoSmallSans (kakao/kakao-font 2025-06-18 공개) 시도
 ///   → PSD 자상 (~2022) 의 AppleSDGothicNeo 글리프 character set 과 명백히
 ///   다른 신규 digital-optimized 디자인 → revert (Kakao Small Sans bundle 도
