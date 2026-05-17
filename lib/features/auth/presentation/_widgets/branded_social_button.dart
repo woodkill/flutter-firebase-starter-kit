@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../../core/theme/focus_wrapper.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '_brand_assets.dart';
 
@@ -205,22 +206,26 @@ class NaverSpec extends BrandSpec {
 /// (Google Identity btn_signin_icon.svg).
 ///
 /// **Phase 13.3 Wave 4 Step 3 (2026-05-16) — Google production CSS verbatim
-/// override:** Google Identity Services 의 권위 있는 production CSS
-/// (`.gsi-material-button` 클래스, 사용자 제공 2026-05-16) 의 외관 spec 으로
-/// `BrandSpec` default override:
-/// - `height: 40` (CSS `height: 40px`) — D-71 default 48 대비 Google 만 별도
+/// override (X1 supersede 2026-05-17):** Google Identity Services 의 권위
+/// 있는 production CSS (`.gsi-material-button` 클래스, 사용자 제공
+/// 2026-05-16) 의 외관 spec 으로 `BrandSpec` default override:
+/// - `height: 48` (mobile native 정합 — Google CSS 의 40 은 web context
+///   한정, mobile 은 Android Material Button ~48dp / iOS UIButton ~44pt
+///   native default 따름. WCAG 2.1 AAA + 5 provider vertical rhythm 통일
+///   부합. STEP3-CONFLICT-MATRIX §3.1 supersede 2026-05-17 X1 WCAG audit)
 /// - `borderRadius: 4` (CSS `border-radius: 4px`) — D-71 default 12 대비 별도
 /// - `iconSize: 20` (CSS `.gsi-material-button-icon { width: 20px }`) — D-71
 ///   default 18 대비 별도
 ///
-/// 5 provider 시각 통일 lock 의 trade-off 로 Google CSS verbatim 부합 우선
-/// 채택 (사용자 결정 2026-05-16, STEP3-CONFLICT-MATRIX §3.1/§3.2/§3.3 supersede).
+/// 5 provider 시각 통일 lock 의 trade-off 로 Google CSS verbatim 중 mobile
+/// 적합 항목만 채택 (사용자 결정 2026-05-16 + X1 2026-05-17,
+/// STEP3-CONFLICT-MATRIX §3.1/§3.2/§3.3 supersede).
 /// 다른 4 provider (Kakao/Naver/Apple/Facebook) 는 BrandSpec default 유지.
 class GoogleSpec extends BrandSpec {
-  /// const 생성자 — Google production CSS verbatim override.
+  /// const 생성자 — Google production CSS verbatim override (X1 height 48 회귀).
   const GoogleSpec()
       : super(
-          height: 40,
+          height: 48,
           borderRadius: 4,
           iconSize: 20,
         );
@@ -445,7 +450,7 @@ class BrandedSocialButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // D-67 — sealed switch exhaustive (Dart 3 컴파일 시점 강제).
-    return switch (spec) {
+    final Widget rendered = switch (spec) {
       // Phase 13.3 Wave 4 Step 2 (2026-05-15) — SDK 위제 (SignInWithAppleButton)
       // → 자체 render. Apple 공식 Logo-only SVG (light = Black variant /
       // dark = White variant) 채택, Universal Layout wrapper 일관 적용.
@@ -464,6 +469,15 @@ class BrandedSocialButton extends StatelessWidget {
       NaverSpec() => _renderNaverButton(context, spec, label, onPressed),
       GoogleSpec() => _renderGoogleButton(context, spec, label, onPressed),
     };
+    // Phase 13.3 X2 (2026-05-17, 260517-uv4 옵션 B) — theme-level focus
+    // indicator. 5 provider 자동 상속 (BrandedSocialButton.build 단일 boundary
+    // 에서 wrap). WCAG 2.1 SC 2.4.7 Level AA 부합. token 의존 0 (starter kit
+    // brand drift 회피). BrandFocusWrapper docstring 참조.
+    return BrandFocusWrapper(
+      borderRadius: spec.borderRadius,
+      isEnabled: onPressed != null,
+      child: rendered,
+    );
   }
 }
 
@@ -1147,15 +1161,17 @@ Widget _renderAppleButton(
   final theme = Theme.of(context);
   final isDark = theme.brightness == Brightness.dark;
   final isEnabled = onPressed != null;
-  // Apple HIG variant mapping (Logo-only SVG):
-  //   light theme → Black variant SVG (rect 흰 + logo 검정), wrapper bg = pure
-  //     white → SVG 정사각 invisible.
-  //   dark theme → White variant SVG (rect 검정 + logo 흰), wrapper bg = pure
-  //     black → SVG 정사각 invisible.
-  final bgColor = isDark ? Colors.black : Colors.white;
-  final fgColor = isDark ? Colors.white : Colors.black;
+  // Apple HIG variant mapping (V1 옵션 A, 2026-05-17 lock — 260517-uv4 X1):
+  //   light theme → Black filled (bg #000000 + Apple logo+label 흰) — HIG
+  //     maximum-contrast pairing. Logo-only SVG light variant (rect 검정 +
+  //     logo 흰), wrapper bg 일치 → SVG 정사각 외곽 invisible.
+  //   dark theme → White filled (bg #FFFFFF + Apple logo+label 검정) — HIG
+  //     maximum-contrast pairing. Logo-only SVG dark variant (rect 흰 +
+  //     logo 검정), wrapper bg 일치 → SVG 정사각 외곽 invisible.
+  final bgColor = isDark ? Colors.white : Colors.black;
+  final fgColor = isDark ? Colors.black : Colors.white;
   final iconPath =
-      '$kBrandAssetBase/apple/${isDark ? "dark" : "light"}/btn_signin_icon.svg';
+      '$kBrandAssetBase/apple/${isDark ? "light" : "dark"}/btn_signin_icon.svg';
   final radius = BorderRadius.circular(spec.borderRadius);
   // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple Sign-in 라벨 fontFamily 결정.
   // iOS/macOS 환경: system 'SF Pro Text' (Apple OS system font, OS license 의

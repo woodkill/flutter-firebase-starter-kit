@@ -271,6 +271,55 @@ void main() {
       // (`#03A94D` + 흰 라벨 + 흰 N glyph, `_renderNaverButton` brightness
       // 분기 0). dark fixture single 폐기 (RESEARCH §Wave 4.5 권장,
       // 13.3-04-PLAN Q4 결정 2026-05-15).
+      //
+      // **Phase 13.3 X3 (2026-05-17, 260517-uv4) supersede:** Kakao/Naver
+      // dark golden 4 testcase 추가 — light/dark 외관 동일 invariant 의 회귀
+      // 가드 (theme.brightness override 무관 baked-in 자상 보존 검증).
+      // Android tracked (kakao_dark.png + naver_dark.png) + iOS gitignored
+      // (kakao_dark_ios.png + naver_dark_ios.png — Apple Font License 회피).
+
+      testWidgets('Naver dark', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.naver(
+              label: 'Log in with NAVER',
+              onPressed: () {},
+            ),
+            brightness: Brightness.dark,
+          ),
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/naver_dark.png'),
+        );
+      });
+
+      testWidgets(
+        'Naver dark (iOS)',
+        skip: !Platform.isMacOS,
+        (tester) async {
+          await tester.binding.setSurfaceSize(const Size(360, 480));
+          addTearDown(() => tester.binding.setSurfaceSize(null));
+          await tester.pumpWidget(
+            _wrap(
+              BrandedSocialButton.naver(
+                label: 'Log in with NAVER',
+                onPressed: () {},
+              ),
+              brightness: Brightness.dark,
+              platform: TargetPlatform.iOS,
+            ),
+          );
+          await _settleAssets(tester);
+          await expectLater(
+            find.byType(MaterialApp),
+            matchesGoldenFile('goldens/naver_dark_ios.png'),
+          );
+        },
+      );
 
       testWidgets('Kakao light', (tester) async {
         await tester.binding.setSurfaceSize(const Size(360, 480));
@@ -322,6 +371,51 @@ void main() {
           await expectLater(
             find.byType(MaterialApp),
             matchesGoldenFile('goldens/kakao_light_ios.png'),
+          );
+        },
+      );
+
+      // Phase 13.3 X3 (2026-05-17, 260517-uv4) — Kakao dark golden testcase
+      // 추가 (light/dark 외관 동일 invariant 회귀 가드).
+      testWidgets('Kakao dark', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.kakao(
+              label: 'Login with Kakao',
+              onPressed: () {},
+            ),
+            brightness: Brightness.dark,
+          ),
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/kakao_dark.png'),
+        );
+      });
+
+      testWidgets(
+        'Kakao dark (iOS)',
+        skip: !Platform.isMacOS,
+        (tester) async {
+          await tester.binding.setSurfaceSize(const Size(360, 480));
+          addTearDown(() => tester.binding.setSurfaceSize(null));
+          await tester.pumpWidget(
+            _wrap(
+              BrandedSocialButton.kakao(
+                label: 'Login with Kakao',
+                onPressed: () {},
+              ),
+              brightness: Brightness.dark,
+              platform: TargetPlatform.iOS,
+            ),
+          );
+          await _settleAssets(tester);
+          await expectLater(
+            find.byType(MaterialApp),
+            matchesGoldenFile('goldens/kakao_dark_ios.png'),
           );
         },
       );

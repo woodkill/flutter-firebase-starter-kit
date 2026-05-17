@@ -73,7 +73,7 @@ class SocialSignInSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         for (var i = 0; i < strategies.length; i++) ...[
-          if (i > 0) Gap(spacing.md),
+          if (i > 0) Gap(spacing.sm),
           SocialButton(strategy: strategies[i], isDisabled: isAnyLoading),
         ],
         if (errorBanner != null) ...[Gap(spacing.md), errorBanner!],

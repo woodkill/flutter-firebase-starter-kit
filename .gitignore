@@ -177,6 +177,9 @@ test/features/auth/presentation/_widgets/goldens/google_light_ios.png
 test/features/auth/presentation/_widgets/goldens/google_dark_ios.png
 test/features/auth/presentation/_widgets/goldens/facebook_light_ios.png
 test/features/auth/presentation/_widgets/goldens/facebook_dark_ios.png
+# Phase 13.3 X3 (2026-05-17, 260517-uv4) — Kakao/Naver dark iOS variants.
+test/features/auth/presentation/_widgets/goldens/kakao_dark_ios.png
+test/features/auth/presentation/_widgets/goldens/naver_dark_ios.png
 
 # ==========================
 # 기타
