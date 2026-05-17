@@ -14,21 +14,20 @@ import 'branded_social_button.dart';
 /// 단일 [AuthStrategy] 를 [BrandedSocialButton] 위제로 렌더링하는 공용 버튼
 /// (Phase 11 D-11, Pattern G).
 ///
-/// **Phase 13.1 변경 (D-62 / D-64 / R5 / R6):**
-/// - Apple 분기 → [BrandedSocialButton.apple] 위임 (1st-party
-///   `sign_in_with_apple.SignInWithAppleButton` 사용)
-///   **Phase 13.3 Wave 4 Step 2 supersede (2026-05-15, R5 갱신):** Apple SDK
-///   위제 (`SignInWithAppleButton`) 폐기 → 자체 render (`_renderAppleButton`,
-///   Apple 공식 Logo-only SVG + Universal Layout). OAuth credential 요청은
-///   여전히 `SignInWithApple.getAppleIDCredential()` 호출 (별도 strategy
-///   파일). `sign_in_with_apple` package 의 widget import 만 제거.
+/// **Phase 13.3 현재 (Wave 4 Step 2 supersede):**
+/// - Apple 분기 → [BrandedSocialButton.apple] 위임 (`_renderAppleButton` 내부
+///   [Text] 위제로 라벨 주입 — Apple 공식 Logo-only SVG + 자체 라벨 layer +
+///   Universal Layout). OAuth credential 요청은 `SignInWithApple.
+///   getAppleIDCredential()` 호출 (별도 strategy 파일) — widget 위제는
+///   `sign_in_with_apple` package 미사용 (Wave 4 Step 2 import 제거).
 /// - Google 분기 → [BrandedSocialButton.google] 위임 (공식 SVG 6종)
-/// - Naver 분기 → [BrandedSocialButton.naver] (theme 매개변수 명시)
-/// - Kakao 분기 → [BrandedSocialButton.kakao] (Phase 13 D-55 기존 위임)
+/// - Naver 분기 → [BrandedSocialButton.naver] 위임 (BI 단일 색 #03A94D)
+/// - Kakao 분기 → [BrandedSocialButton.kakao] 위임 (Phase 13 D-55)
 ///
 /// **Phase 13.2 변경 (R7 / R8 — Meta 공식 자상 마이그):**
 /// - Facebook 분기 → [BrandedSocialButton.facebook] 위임 (Meta 공식 'f' 마크
-///   PNG + Apple `SignInWithAppleButton` 패턴 mirror 의 자체 위제 구현).
+///   + Apple 자체 render 패턴 mirror 의 위제 구현, Logo-only icon + 라벨
+///   외부 layer + Theme.brightness 자동 분기 + 1dp outline).
 ///   Phase 13.2 완료 — 모든 provider 가 [BrandedSocialButton] 단일 진실원으로
 ///   일관 위임.
 ///
