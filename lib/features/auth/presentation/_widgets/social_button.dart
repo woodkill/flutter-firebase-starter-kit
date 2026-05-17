@@ -116,28 +116,32 @@ class SocialButton extends ConsumerWidget {
 
   /// ARB 키를 [AppLocalizations] getter 로 매핑한다.
   ///
-  /// **Phase 13.1 Gap-1 X2 (2026-05-09 재설계 후 책임 변경):**
-  /// Kakao/Naver/Google 자상은 wide 자상 통째 buttons 패턴 (자상 자체에
-  /// 라벨/로고/배경 모두 baked-in) 으로 재설계되어, 본 메서드가 반환하는
-  /// `authKakaoSignIn` / `authNaverSignIn` / `authGoogleSignIn` 라벨은
-  /// **시각 layer 에 렌더되지 않고** [BrandedSocialButton] 내부에서 무시된다
-  /// (label 매개변수는 보존 — 호출자 호환 + 미래 fallback 가능성).
+  /// **Phase 13.3 Wave 2 (Universal Layout Pattern 재설계):**
+  /// 5 active provider (Kakao / Naver / Google / Apple / Facebook) 모두 ARB
+  /// 라벨을 `_renderXxxButton` 내부의 [Text] 위제로 렌더링한다. wide 자상
+  /// 통째 buttons 패턴 (Phase 13.1 Gap-1 X2) 은 폐기 — 자상은 logo-only +
+  /// 라벨 layer 외부 합성으로 일관 회복. `brand_label_whitelist_test.dart`
+  /// 도 Phase 13.3 진입 시 un-skip 처리 (라벨 시각 검증 활성).
   ///
-  /// 의미 있는 라벨 매핑:
-  /// - `authAppleSignIn` — [SignInWithAppleButton] 의 `text` 매개변수에 주입
-  ///   (Apple HIG ko/en/ja 변형 모두 표시).
-  /// - `authFacebookSignIn` — `_renderFacebookButton` 내부 [Text] 위제로 주입
-  ///   (Phase 13.2 완료 — Meta 공식 자상 + 라벨 외부 layer).
+  /// 라벨 렌더 매핑 (5 active provider 일관):
+  /// - `authKakaoSignIn` → `_renderKakaoButton` 내부 [Text]
+  /// - `authNaverSignIn` → `_renderNaverButton` 내부 [Text]
+  /// - `authGoogleSignIn` → `_renderGoogleButton` 내부 [Text]
+  /// - `authAppleSignIn` → `_renderAppleButton` 내부 [Text]
+  ///   (Wave 4 Step 2 supersede — `SignInWithAppleButton` SDK 위제 폐기 후
+  ///   Apple 공식 Logo-only SVG + 자체 라벨 layer)
+  /// - `authFacebookSignIn` → `_renderFacebookButton` 내부 [Text]
   ///
-  /// 무시되는 라벨 매핑 (자상 baked-in):
-  /// - `authKakaoSignIn` / `authNaverSignIn` / `authGoogleSignIn`. 단
-  ///   접근성 (Semantics) layer 에서 향후 활용 가능.
+  /// LINE/WeChat placeholder 분기는 자상 부재로 `_renderPlaceholder` 가
+  /// ARB `authBrandAssetMissing` 보간 (label 매개변수) 으로 회색 fallback 렌더.
   ///
-  /// Phase 12 — `authKakaoSignIn` 추가 (D-29).
-  /// Phase 13 Plan 13-06 — `authNaverSignIn` 추가 (Wave 4 atomic 분리 —
-  /// Plan 13-05 의 임시 라벨 → ARB 키 교체).
-  /// Phase 13.1 Gap-1 X2 — Kakao/Naver/Google 라벨 시각 layer 폐기 (자상
-  /// baked-in), 본 메서드 매핑 자체는 보존 (회귀 차단).
+  /// **Changelog 노트:**
+  /// - Phase 12 — `authKakaoSignIn` 추가 (D-29).
+  /// - Phase 13 Plan 13-06 — `authNaverSignIn` 추가 (Wave 4 atomic 분리).
+  /// - Phase 13.1 Gap-1 X2 — Kakao/Naver/Google 라벨 시각 layer 일시 폐기
+  ///   (자상 baked-in, 본 메서드 매핑은 회귀 차단 목적으로 보존).
+  /// - Phase 13.3 Wave 2 — Universal Layout Pattern 으로 라벨 시각 layer
+  ///   복원, 5 active provider 일관 회복 (위 매핑이 현재 진실원).
   String _resolveLabel(AppLocalizations l10n, String key) => switch (key) {
     'authGoogleSignIn' => l10n.authGoogleSignIn,
     'authAppleSignIn' => l10n.authAppleSignIn,
