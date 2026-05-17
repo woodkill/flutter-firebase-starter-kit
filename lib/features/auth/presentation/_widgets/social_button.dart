@@ -17,6 +17,11 @@ import 'branded_social_button.dart';
 /// **Phase 13.1 변경 (D-62 / D-64 / R5 / R6):**
 /// - Apple 분기 → [BrandedSocialButton.apple] 위임 (1st-party
 ///   `sign_in_with_apple.SignInWithAppleButton` 사용)
+///   **Phase 13.3 Wave 4 Step 2 supersede (2026-05-15, R5 갱신):** Apple SDK
+///   위제 (`SignInWithAppleButton`) 폐기 → 자체 render (`_renderAppleButton`,
+///   Apple 공식 Logo-only SVG + Universal Layout). OAuth credential 요청은
+///   여전히 `SignInWithApple.getAppleIDCredential()` 호출 (별도 strategy
+///   파일). `sign_in_with_apple` package 의 widget import 만 제거.
 /// - Google 분기 → [BrandedSocialButton.google] 위임 (공식 SVG 6종)
 /// - Naver 분기 → [BrandedSocialButton.naver] (theme 매개변수 명시)
 /// - Kakao 분기 → [BrandedSocialButton.kakao] (Phase 13 D-55 기존 위임)
