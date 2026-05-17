@@ -36,9 +36,13 @@ void main() {
     //
     // LINE placeholder (Phase 14 자상 commit 전 회색 fallback):
     //   1. SizedBox.height == 48.0 (D-71 lock)
-    //   2. Material.borderRadius topLeft.x == 12.0 (D-71 lock)
+    //   2. Material.shape is RoundedRectangleBorder + borderRadius topLeft.x == 12.0
     //   3. Material.color == Colors.grey.shade200 (D-73 회색 fallback)
     //   4. find.textContaining('LINE') (ARB authBrandAssetMissing 보간 결과)
+    //
+    // Phase 13.3 WR-04 정정 (2026-05-17): `_renderPlaceholder` 가
+    // `Material.borderRadius` → `Material.shape: RoundedRectangleBorder` 로
+    // 전환. 5 active provider 패턴 일관성 회복. 검증도 shape 기반으로 갱신.
     testWidgets('T-13.3-PLACEHOLDER-LINE-LAYOUT-01: LINE wrapper layout 변경 0 '
         '(D-71 height 48 + radius 12 + D-73 회색 fallback)', (tester) async {
       await tester.pumpWidget(
@@ -64,16 +68,21 @@ void main() {
             '14 자상 commit 전 회귀 가드).',
       );
 
-      // 2. Material borderRadius 12 (D-71 lock)
+      // 2. Material shape = RoundedRectangleBorder + borderRadius 12 (D-71 lock,
+      //    Phase 13.3 WR-04 정정 — 5 active provider 패턴 mirror).
       expect(
         find.byWidgetPredicate((Widget w) {
           if (w is! Material) return false;
-          final BorderRadiusGeometry? br = w.borderRadius;
+          final ShapeBorder? shape = w.shape;
+          if (shape is! RoundedRectangleBorder) return false;
+          final BorderRadiusGeometry br = shape.borderRadius;
           if (br is! BorderRadius) return false;
           return br.topLeft.x == 12.0;
         }),
         findsAtLeastNWidgets(1),
-        reason: 'LINE placeholder Material borderRadius 12 dp 의무 (D-71 lock).',
+        reason:
+            'LINE placeholder Material shape=RoundedRectangleBorder + '
+            'borderRadius 12 dp 의무 (D-71 lock + 5 provider 패턴 mirror).',
       );
 
       // 3. Material.color == Colors.grey.shade200 (D-73)
@@ -120,17 +129,21 @@ void main() {
               'Phase 16 자상 commit 전 회귀 가드).',
         );
 
-        // 2. Material borderRadius 12
+        // 2. Material shape = RoundedRectangleBorder + borderRadius 12
+        //    (Phase 13.3 WR-04 정정 — 5 active provider 패턴 mirror).
         expect(
           find.byWidgetPredicate((Widget w) {
             if (w is! Material) return false;
-            final BorderRadiusGeometry? br = w.borderRadius;
+            final ShapeBorder? shape = w.shape;
+            if (shape is! RoundedRectangleBorder) return false;
+            final BorderRadiusGeometry br = shape.borderRadius;
             if (br is! BorderRadius) return false;
             return br.topLeft.x == 12.0;
           }),
           findsAtLeastNWidgets(1),
           reason:
-              'WeChat placeholder Material borderRadius 12 dp 의무 (D-71 lock).',
+              'WeChat placeholder Material shape=RoundedRectangleBorder + '
+              'borderRadius 12 dp 의무 (D-71 lock).',
         );
 
         // 3. Material.color == Colors.grey.shade200

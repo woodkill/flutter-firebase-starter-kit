@@ -1335,12 +1335,20 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
 /// noise 만 부담 → 폐기.
 Widget _renderPlaceholder(BuildContext context, BrandSpec spec, String label) {
   final l10n = AppLocalizations.of(context);
+  // Phase 13.3 code review WR-04 정정 (2026-05-17): 5 active provider
+  // (Kakao/Naver/Google/Facebook/Apple) 모두 `Material(shape:
+  // RoundedRectangleBorder(...))` 패턴을 사용 — placeholder 도 5 provider
+  // 일관성 의무 (future 갱신자가 LINE/WeChat 자상화 시 5 provider 패턴 mirror
+  // 의도). `Material.borderRadius` 매개변수에서 `shape` 로 전환.
   return SizedBox(
     width: double.infinity,
     height: spec.height,
     child: Material(
       color: Colors.grey.shade200,
-      borderRadius: BorderRadius.circular(spec.borderRadius),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(spec.borderRadius),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Center(
         child: Text(
           l10n.authBrandAssetMissing(label),
