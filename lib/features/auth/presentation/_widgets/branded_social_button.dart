@@ -83,19 +83,11 @@ enum AssetType {
 // 측 Theme.brightness 자동 분기 + Kakao BI 단일 라벨 강제 + Google
 // Identity Theme.brightness 자동 분기로 차원 축소.)
 
-/// LINE 19 언어 placeholder — D-63 type-skeleton.
-///
-/// Phase 14 진입 시 19 entries 로 확장 — enum 재조정 부담 0.
-enum LineLanguage {
-  /// 한국어.
-  ko,
-
-  /// 영문.
-  en,
-
-  /// 일본어 — LINE 본사 시장.
-  ja,
-}
+// Phase 13.3 code review IN-01 정정 (2026-05-17): `LineLanguage` enum 삭제.
+// Phase 14 (LINE 자상화) 진입 전까지 lib/ / test/ 트리에서 참조 0 — dead code.
+// Phase 14 진입 시 LineSpec 이 실제 19 entries 매핑을 요구하는 시점에
+// 재도입 (현재 enum 만 선언되면 woody_lints unused_element 룰 가시화 불가
+// + 빈 placeholder 의무 0).
 
 /// WeChat 자상 4 해상도 (24/32/48/64px) — D-63 placeholder.
 enum WechatPixelSize {
