@@ -45,9 +45,17 @@ Logo/
     └── Facebook_Logo_Secondary.png (47324 bytes, 2084×2084 square, 모노크롬 흰 원 + 검정 'f')
 ```
 
-채택 자상: `Primary Logo/Facebook_Logo_Primary.png` 단독 (54771 bytes).
-starter-kit 내 명명: `assets/brand/facebook/facebook_login.png` (rename 만 허용 —
-콘텐츠 변경 금지, LICENSE.txt 의 verbatim 단락 일관).
+채택 자상: `Primary Logo/Facebook_Logo_Primary.ai` (PyMuPDF vector path 추출 →
+SVG 변환). starter-kit 내 명명: `assets/brand/facebook/btn_signin_icon.svg`
+(AI verbatim 2 paths — blue circle `#0866FF` + white 'f').
+
+**Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** 이전 Wave 0~3 에서는
+PNG 자상 (`assets/brand/facebook/facebook_login.png`, 54771 bytes) 을 채택했
+으나 Wave 4 Step 2 에서 AI 원본 vector path 추출 → SVG 전환. PNG 는
+2026-05-17 Phase 13.3 code review CR-01 정정 commit 에서 `git rm` 으로 폐기
+(stale asset 이 production bundle 에 동봉되어 Meta brand license 혼동 위험
+회피). 회귀 가드: `docs_compliance_lint_test.dart` 의 "CR-01 SENTINEL"
+test 가 PNG 파일 부재를 lint 시점에 검증.
 
 ## 다운로드 일자
 

@@ -612,5 +612,28 @@ void main() {
             '변경 0 의무.',
       );
     });
+
+    // SENTINEL: Phase 13.3 code review CR-01 정정 (2026-05-17).
+    //
+    // Wave 4 Step 2 에서 Facebook 자상을 PNG → SVG (`btn_signin_icon.svg`)
+    // 로 전환했으나 stale `facebook_login.png` 가 git tracked 잔존 +
+    // `pubspec.yaml` 의 `- assets/brand/facebook/` directory-level 등록이
+    // production bundle 에 PNG 도 동봉 → Meta brand license 혼동 위험.
+    //
+    // CR-01 fix commit 에서 `git rm` 으로 PNG 폐기 + 본 sentinel 신규로
+    // 회귀 가드. 미래 갱신자가 `facebook_login.png` 를 재commit 하면 RED.
+    test('Phase 13.3 CR-01 SENTINEL: facebook_login.png 자상 부재 의무 '
+        '(Wave 4 Step 2 PNG → SVG 전환 후 stale asset 폐기)', () {
+      final stalePng = File('assets/brand/facebook/facebook_login.png');
+      expect(
+        stalePng.existsSync(),
+        isFalse,
+        reason:
+            'Phase 13.3 CR-01 회귀 — facebook_login.png 가 재commit 됨. '
+            'Wave 4 Step 2 (2026-05-15) PNG → SVG 전환 후 Meta brand '
+            'license 혼동 위험 회피 위해 폐기 의무. Facebook 자상은 '
+            'assets/brand/facebook/btn_signin_icon.svg 단독.',
+      );
+    });
   });
 }
