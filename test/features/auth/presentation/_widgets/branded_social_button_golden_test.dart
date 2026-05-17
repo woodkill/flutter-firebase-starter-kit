@@ -436,7 +436,7 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             BrandedSocialButton.facebook(
-              label: 'Continue with Facebook',
+              label: 'Login with Facebook',
               onPressed: () {},
             ),
             brightness: Brightness.light,
@@ -455,7 +455,7 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             BrandedSocialButton.facebook(
-              label: 'Continue with Facebook',
+              label: 'Login with Facebook',
               onPressed: () {},
             ),
             brightness: Brightness.dark,
@@ -482,7 +482,7 @@ void main() {
           await tester.pumpWidget(
             _wrap(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.light,
@@ -506,7 +506,7 @@ void main() {
           await tester.pumpWidget(
             _wrap(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.dark,

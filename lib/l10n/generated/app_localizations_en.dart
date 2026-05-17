@@ -371,7 +371,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountProviderApple => 'Apple';
 
   @override
-  String get authFacebookSignIn => 'Continue with Facebook';
+  String get authFacebookSignIn => 'Login with Facebook';
 
   @override
   String get authAccountProviderFacebook => 'Facebook';

@@ -61,7 +61,7 @@ void main() {
     //   1. Image.asset path == 'assets/brand/facebook/facebook_login.png'
     //   2. Material.shape is RoundedRectangleBorder
     //   3. RoundedRectangleBorder.side.width == 1.0
-    //   4. find.text('Continue with Facebook') (en locale ARB)
+    //   4. find.text('Login with Facebook') (en locale ARB)
     testWidgets(
       'T-13.3-FACEBOOK-RENDER-UNCHANGED-01: _renderFacebookButton widget '
       'tree 구조 변경 0 (D-125-A)',
@@ -69,7 +69,7 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             BrandedSocialButton.facebook(
-              label: 'Continue with Facebook',
+              label: 'Login with Facebook',
               onPressed: () {},
             ),
             brightness: Brightness.light,
@@ -113,8 +113,8 @@ void main() {
           reason: 'Facebook outline 1dp BorderSide 변경 0 의무 (옵션 A pivot).',
         );
 
-        // 4. ARB authFacebookSignIn 라벨 (en locale = 'Continue with Facebook')
-        expect(find.text('Continue with Facebook'), findsOneWidget);
+        // 4. ARB authFacebookSignIn 라벨 (en locale = 'Login with Facebook')
+        expect(find.text('Login with Facebook'), findsOneWidget);
       },
     );
 
@@ -133,7 +133,7 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             BrandedSocialButton.facebook(
-              label: 'Continue with Facebook',
+              label: 'Login with Facebook',
               onPressed: () {},
             ),
             brightness: Brightness.dark,

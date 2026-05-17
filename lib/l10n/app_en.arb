@@ -582,7 +582,7 @@
     "description": "Provider label displayed in the account section when the user signed in with Apple"
   },
 
-  "authFacebookSignIn": "Continue with Facebook",
+  "authFacebookSignIn": "Login with Facebook",
   "@authFacebookSignIn": {
     "description": "Facebook sign-in button label"
   },

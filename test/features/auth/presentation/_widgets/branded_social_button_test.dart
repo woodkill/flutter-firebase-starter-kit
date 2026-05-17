@@ -460,7 +460,7 @@ void main() {
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
             ),
@@ -480,7 +480,7 @@ void main() {
         // 외부 layer 단독 권위 패턴 일관 (Phase 13.1 D-82 ARB 머레).
         // 본 test 는 caller 가 전달한 label 이 위제 트리에 렌더되는지 검증
         // (외부 _renderFacebookButton 의 Text 위제 의무).
-        expect(find.text('Continue with Facebook'), findsOneWidget);
+        expect(find.text('Login with Facebook'), findsOneWidget);
       },
     );
 
@@ -504,7 +504,7 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: BrandedSocialButton.facebook(
-              label: 'Continue with Facebook',
+              label: 'Login with Facebook',
               onPressed: () {},
             ),
           ),
@@ -519,7 +519,7 @@ void main() {
             hasTapAction: true,
             hasEnabledState: true,
             isEnabled: true,
-            label: 'Continue with Facebook',
+            label: 'Login with Facebook',
           ),
           reason:
               'WR-02 회귀 가드 — Facebook 활성 시 button + label + onTap '
@@ -541,7 +541,7 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: BrandedSocialButton.facebook(
-              label: 'Continue with Facebook',
+              label: 'Login with Facebook',
               onPressed: null,
             ),
           ),
@@ -555,7 +555,7 @@ void main() {
             isButton: true,
             hasEnabledState: true,
             isEnabled: false,
-            label: 'Continue with Facebook',
+            label: 'Login with Facebook',
           ),
           reason:
               'WR-02 회귀 가드 — onPressed=null → enabled=false + onTap '
@@ -587,7 +587,7 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: BrandedSocialButton.facebook(
-              label: 'Continue with Facebook',
+              label: 'Login with Facebook',
               onPressed: null,
             ),
           ),
@@ -639,7 +639,7 @@ void main() {
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
             ),
@@ -678,7 +678,7 @@ void main() {
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
             ),
@@ -1191,7 +1191,7 @@ void main() {
           await tester.pumpWidget(
             _wrapForR1R2R3(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.light,
@@ -1223,7 +1223,7 @@ void main() {
           await tester.pumpWidget(
             _wrapForR1R2R3(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.dark,
@@ -1255,7 +1255,7 @@ void main() {
           await tester.pumpWidget(
             _wrapForR1R2R3(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.light,
@@ -1287,7 +1287,7 @@ void main() {
           await tester.pumpWidget(
             _wrapForR1R2R3(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.dark,
@@ -1319,7 +1319,7 @@ void main() {
           await tester.pumpWidget(
             _wrapForR1R2R3(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.light,
@@ -1328,7 +1328,7 @@ void main() {
           await _settleAssetsForR1R2R3(tester);
 
           final Text textWidget = tester.widget<Text>(
-            find.text('Continue with Facebook'),
+            find.text('Login with Facebook'),
           );
           expect(
             textWidget.style?.color,
@@ -1349,7 +1349,7 @@ void main() {
           await tester.pumpWidget(
             _wrapForR1R2R3(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.dark,
@@ -1358,7 +1358,7 @@ void main() {
           await _settleAssetsForR1R2R3(tester);
 
           final Text textWidget = tester.widget<Text>(
-            find.text('Continue with Facebook'),
+            find.text('Login with Facebook'),
           );
           expect(
             textWidget.style?.color,
@@ -1385,7 +1385,7 @@ void main() {
           await tester.pumpWidget(
             _wrapForR1R2R3(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.light,
@@ -1394,7 +1394,7 @@ void main() {
           await _settleAssetsForR1R2R3(tester);
 
           final Text textWidget = tester.widget<Text>(
-            find.text('Continue with Facebook'),
+            find.text('Login with Facebook'),
           );
           expect(
             textWidget.style?.fontSize,
@@ -1450,7 +1450,7 @@ void main() {
           await tester.pumpWidget(
             _wrapForR1R2R3(
               BrandedSocialButton.facebook(
-                label: 'Continue with Facebook',
+                label: 'Login with Facebook',
                 onPressed: () {},
               ),
               brightness: Brightness.light,
@@ -1460,7 +1460,7 @@ void main() {
           await _settleAssetsForR1R2R3(tester);
 
           final Text textWidget = tester.widget<Text>(
-            find.text('Continue with Facebook'),
+            find.text('Login with Facebook'),
           );
           expect(
             textWidget.style?.letterSpacing,

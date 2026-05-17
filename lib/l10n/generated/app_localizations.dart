@@ -781,7 +781,7 @@ abstract class AppLocalizations {
   /// Facebook sign-in button label
   ///
   /// In en, this message translates to:
-  /// **'Continue with Facebook'**
+  /// **'Login with Facebook'**
   String get authFacebookSignIn;
 
   /// Provider label displayed in the account section when the user signed in with Facebook
