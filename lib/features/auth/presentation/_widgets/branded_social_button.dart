@@ -288,6 +288,13 @@ class WechatSpec extends BrandSpec {
   const WechatSpec({required this.size});
 
   /// 자상 해상도 dispatch.
+  ///
+  /// TODO(Phase 16): 본 필드는 현재 dead parameter — `_renderPlaceholder` 가
+  /// 회색 box 만 그리고 [size] 를 inspect 하지 않는다. `BrandedSocialButton.
+  /// wechat({size: WechatPixelSize.px24})` 호출도 `px48` placeholder 와 동일
+  /// 외관. Phase 16 (WeChat 자상화) 진입 시 `_renderWechatButton` 신설하면서
+  /// 본 필드가 실제 자상 해상도 dispatch 에 사용되도록 wire — 그 전까지는
+  /// public API 보존 (caller 호환) + 의도 signpost.
   final WechatPixelSize size;
 
   @override
