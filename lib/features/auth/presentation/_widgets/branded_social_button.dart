@@ -693,9 +693,14 @@ Widget _renderKakaoButton(
 ///   분기 trigger" 부합 ✓. iOS golden fixture (`naver_light_ios.png`) macOS
 ///   dev only — `.gitignore` 처리 (Apple Font License 위반 위험 회피) +
 ///   `testWidgets(skip: !Platform.isMacOS)` 게이트 (Kakao iOS golden 패턴 mirror).
-/// - fontSize 16 (전 platform 단일) — 공식 PNG 측정 + 사용자 시각 sign-off
-///   Step 3 lock. 정문 조건 "로고 높이보다 작은 크기" 는 cap-height 기준 해석
-///   (cap height ≈ fontSize × 0.7 ≈ 11dp < logo.height 16 부합).
+/// - fontSize: `Theme.of(context).platform` 분기 (Kakao 패턴 mirror)
+///   - **iOS**: 17pt (+1pt cap height 보정 — AppleSDGothicNeo cap height 가
+///     Pretendard 보다 작은 비율이라 Apple OS 만 +1pt, 사용자 시각 sign-off
+///     2026-05-16: 16→17→18→17 수렴)
+///   - **Android / others**: 16pt (공식 PNG 측정 + 사용자 시각 sign-off
+///     Step 3 lock)
+///   정문 조건 "로고 높이보다 작은 크기" 는 cap-height 기준 해석 (cap height
+///   ≈ fontSize × 0.7 ≈ 11dp < logo.height 16 부합).
 Widget _renderNaverButton(
   BuildContext context,
   BrandSpec spec,
