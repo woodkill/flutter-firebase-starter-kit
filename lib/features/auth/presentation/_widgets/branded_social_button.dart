@@ -527,8 +527,13 @@ class BrandedSocialButton extends StatelessWidget {
 ///   다른 신규 digital-optimized 디자인 → revert (Kakao Small Sans bundle 도
 ///   제거). AppleSDGothicNeo binary bundle 은 라이센스 위반 위험으로 채택 불가
 ///   → iOS native 명시 (bundle 0) + Android Pretendard 분기 패턴 채택.
-/// - fontSize 15 (전 platform 단일) — PSD M Wide variant verbatim
-///   (AppleSDGothicNeo / 15pt). 모바일 UX (height 48dp) 부합.
+/// - fontSize: `Theme.of(context).platform` 분기 (fontFamily/weight 분기와 동일
+///   audit-trail 패턴, 사용자 시각 sign-off 2026-05-16)
+///   - **iOS**: 16pt (+1pt cap height 보정 — AppleSDGothicNeo cap height 가
+///     Pretendard 보다 작은 비율이라 Apple OS 만 +1pt, Naver case mirror,
+///     사용자 시각 보고 3회 iteration 2026-05-16: 15→16→17→16 수렴)
+///   - **Android / others**: 15pt (PSD M Wide variant verbatim —
+///     AppleSDGothicNeo / 15pt). 모바일 UX (height 48dp) 부합.
 Widget _renderKakaoButton(
   BuildContext context,
   BrandSpec spec,
