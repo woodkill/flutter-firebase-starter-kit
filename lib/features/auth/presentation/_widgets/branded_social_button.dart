@@ -1179,15 +1179,23 @@ Widget _renderAppleButton(
   final isEnabled = onPressed != null;
   // Apple HIG variant mapping (V1 옵션 A, 2026-05-17 lock — 260517-uv4 X1):
   //   light theme → Black filled (bg #000000 + Apple logo+label 흰) — HIG
-  //     maximum-contrast pairing. Logo-only SVG light variant (rect 검정 +
-  //     logo 흰), wrapper bg 일치 → SVG 정사각 외곽 invisible.
+  //     maximum-contrast pairing. Logo-only SVG `white_logo` variant (rect
+  //     검정 + logo 흰), wrapper bg 일치 → SVG 정사각 외곽 invisible.
   //   dark theme → White filled (bg #FFFFFF + Apple logo+label 검정) — HIG
-  //     maximum-contrast pairing. Logo-only SVG dark variant (rect 흰 +
-  //     logo 검정), wrapper bg 일치 → SVG 정사각 외곽 invisible.
+  //     maximum-contrast pairing. Logo-only SVG `black_logo` variant (rect
+  //     흰 + logo 검정), wrapper bg 일치 → SVG 정사각 외곽 invisible.
+  //
+  // Phase 13.3 code review IN-04 정정 (2026-05-17): 이전 디렉토리 명명
+  // (`light/` = 검정 logo, `dark/` = 흰 logo) 은 SVG 내부 rect bg color 기준
+  // (Apple Sign-in JS API 출처)이라 Flutter theme 변수 (`isDark`) 와 정반대
+  // 매핑 (`isDark ? "light" : "dark"`) — future reader 가 bug 로 오해 가능.
+  // 디렉토리 이름을 logo 색 기준 (`black_logo` / `white_logo`) 으로 변경 →
+  // `isDark ? 'black_logo' : 'white_logo'` 표현이 "dark theme → 검정 logo on
+  // 흰 bg" 으로 자연 매핑.
   final bgColor = isDark ? Colors.white : Colors.black;
   final fgColor = isDark ? Colors.black : Colors.white;
   final iconPath =
-      '$kBrandAssetBase/apple/${isDark ? "light" : "dark"}/btn_signin_icon.svg';
+      '$kBrandAssetBase/apple/${isDark ? "black_logo" : "white_logo"}/btn_signin_icon.svg';
   final radius = BorderRadius.circular(spec.borderRadius);
   // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple Sign-in 라벨 fontFamily 결정.
   // iOS/macOS 환경: system 'SF Pro Text' (Apple OS system font, OS license 의

@@ -25,8 +25,16 @@ Sign-in JS API 의 inline SVG verbatim 채택.
 verbatim. 추출 후 변형 없이 그대로 사용:
 - viewBox: `"6 0 12 44"` (i = (width-logoWidth)/2 = 6, x origin)
 - path: `R.small.path` 전체 verbatim
-- fill: `#000000` (light variant) / `#FFFFFF` (dark variant) — wrapper bg 와
-  일치 시 visible logo 만 표시
+- fill: `#000000` (`black_logo/` variant, Flutter dark theme 매핑) / `#FFFFFF`
+  (`white_logo/` variant, Flutter light theme 매핑) — wrapper bg 와 일치 시
+  visible logo 만 표시
+
+**Phase 13.3 code review IN-04 정정 (2026-05-17):** 디렉토리 명명 변경
+(`light/` → `black_logo/`, `dark/` → `white_logo/`). 이전 명명은 SVG 내부
+rect bg color 기준 (Apple Sign-in JS API 출처) 이라 Flutter theme 변수
+(`isDark`) 와 정반대 매핑 (`isDark ? "light" : "dark"`) — future reader 가
+bug 로 오해 가능. 새 명명은 logo 색 기준 — `isDark ? 'black_logo' :
+'white_logo'` 으로 자연 표현 ("dark theme → 검정 logo on 흰 bg").
 
 ## Apple HIG mandate 부합
 

@@ -130,10 +130,14 @@ flutter:
     - assets/brand/google/
     - assets/brand/apple/
     # Phase 13.3 Wave 4 Step 2 (2026-05-15): Apple Logo-only SVG (Logo-Sign-in-with-Apple.dmg
-    # from developer.apple.com/design/resources/). light = Black variant (rect 흰 + logo 검정),
-    # dark = White variant (rect 검정 + logo 흰) — wrapper bg 와 동색 일치 시 정사각 외곽 invisible.
-    - assets/brand/apple/light/
-    - assets/brand/apple/dark/
+    # from developer.apple.com/design/resources/).
+    # Phase 13.3 code review IN-04 정정 (2026-05-17): 디렉토리 명명 logo 색 기준
+    # 으로 변경 (이전 light/dark 는 SVG 내부 rect bg 기준이라 Flutter theme 와
+    # 정반대 매핑). black_logo = 검정 logo on 흰 bg (Flutter dark theme 매핑) /
+    # white_logo = 흰 logo on 검정 bg (Flutter light theme 매핑). wrapper bg 와
+    # 동색 일치 시 정사각 외곽 invisible.
+    - assets/brand/apple/black_logo/
+    - assets/brand/apple/white_logo/
     # Meta trademark — Brand Resource Center 라이선스 사전 동의 의무,
     # assets/brand/facebook/LICENSE.txt 참조 (Phase 13.2 REVIEW WR-03 정정).
     - assets/brand/facebook/

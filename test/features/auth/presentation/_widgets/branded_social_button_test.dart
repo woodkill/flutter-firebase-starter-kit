@@ -68,8 +68,9 @@ void main() {
       expect(const GoogleSpec().assetType, AssetType.svg);
 
       // AppleSpec — Phase 13.3 Wave 4 Step 2 (2026-05-15): SDK 위제 폐기 →
-      // custom render (SvgPicture.asset 'assets/brand/apple/{light,dark}/
-      // btn_signin_icon.svg'). assetType.svg.
+      // custom render (SvgPicture.asset 'assets/brand/apple/{black_logo,
+      // white_logo}/btn_signin_icon.svg' — Phase 13.3 IN-04 정정으로
+      // light/dark → logo 색 기준 명명). assetType.svg.
       expect(const AppleSpec().assetType, AssetType.svg);
       // FacebookSpec — Phase 13.3 Wave 4 Step 2 (2026-05-15): PNG → SVG
       // 전환 (Meta Brand Asset Pack 의 Facebook_Logo_Primary.ai PyMuPDF
@@ -331,7 +332,7 @@ void main() {
     //
     // **Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** SignInWithAppleButton
     // SDK 위제 폐기 → custom render (`_renderAppleButton`) 전환. Apple 공식
-    // Logo-only SVG 자상 (`assets/brand/apple/{light,dark}/btn_signin_icon.svg`)
+    // Logo-only SVG 자상 (`assets/brand/apple/{black_logo,white_logo}/btn_signin_icon.svg`)
     // + Theme.brightness 자동 분기 + ARB 라벨 외부 layer. Gap-1 (X2 wide 자상
     // 통째 buttons) 영향 없음 검증은 BrandedSocialButton 매치 + ARB 라벨
     // 매치 + SvgPicture (Apple logo) 매치 의 3 invariant 로 갱신.
