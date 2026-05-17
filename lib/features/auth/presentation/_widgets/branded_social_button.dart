@@ -1298,12 +1298,22 @@ String _iconAssetFor(BuildContext context, BrandSpec spec) {
     // SvgPicture.asset 으로 `assets/brand/{kakao,naver}/btn_signin_icon.svg`
     // 직접 로딩 (Wave 4 Step 2 자산 분리). Google — _renderGoogleButton 내부
     // 직접 path inline).
+    //
+    // Phase 13.3 code review WR-05 정정 (2026-05-17): dead branch 의 sentinel
+    // `''` 반환 → `throw UnsupportedError` fail-loud 전환. future caller 가
+    // 실수로 호출 시 silent fail (빈 path → asset load runtime error) 대신
+    // 호출 자체가 즉시 surface. _resolveLabel 의 default branch 와 동일 패턴.
     AppleSpec() ||
     KakaoSpec() ||
     NaverSpec() ||
     GoogleSpec() ||
     LineSpec() ||
-    WechatSpec() => '',
+    WechatSpec() => throw UnsupportedError(
+      '_iconAssetFor: ${spec.runtimeType} 는 _renderXxxButton 내부에서 직접 '
+      '자상 path 처리 (Apple/Line/Wechat = SDK 위제 또는 placeholder, '
+      'Kakao/Naver = SvgPicture.asset 직접 로딩, Google = inline path). '
+      'Facebook 단독 caller — caller path 회귀 차단.',
+    ),
   };
 }
 
