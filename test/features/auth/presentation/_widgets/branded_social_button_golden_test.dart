@@ -546,12 +546,16 @@ void main() {
       // fixture 매트릭스 확장. Google 패턴 머레 — light + dark + light_ios +
       // dark_ios 의 4 fixture.
       //
-      // **starter kit drift 회피 (사용자 결정 2026-05-17):** Facebook 정문
-      // 자유 영역 (bg/label color/fontFamily/size/weight 모두 정성 권고만)
-      // → 5 provider 시각 consistency 위해 Google CSS verbatim 패턴 머레:
+      // **starter kit drift 회피 (사용자 결정 2026-05-17 + outline hotfix
+      // 2026-05-18):** Facebook 정문 자유 영역 (bg/label color/fontFamily/size/
+      // weight 모두 정성 권고만) → 5 provider 시각 consistency 위해 Google CSS
+      // verbatim 패턴 머레:
       //   bg     light #FFFFFF / dark #131314
       //   label  light #1F1F1F / dark #E3E3E3
-      //   outline light #DADCE0 / dark #8E918F (1dp inside)
+      //   outline light #747775 / dark #8E918F (1dp inside)
+      //     — 2026-05-18 UAT hotfix: light outline `#DADCE0`
+      //       (`gsi-material-button` selector) → `#747775` (`gsi-sign-in-button`
+      //       Google Identity Branding Guidelines stroke) 정정.
       //   font   Roboto (Android) / SF Pro Text (iOS), size 14 / w500 /
       //          height 20/14 / letterSpacing 0.25 (Android) / -0.15 (iOS)
       //   disabled Opacity 0.38 (`.gsi-material-button:disabled` verbatim)

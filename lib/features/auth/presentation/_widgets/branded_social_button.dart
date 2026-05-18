@@ -843,10 +843,15 @@ Widget _renderNaverButton(
 /// 은 bg/label color · fontFamily · size · weight 모두 정성 권고만 ("Choose
 /// the font, font weight, and kerning that looks best in your app") — 자유
 /// 영역. 5 provider 시각 consistency 위해 Google CSS verbatim 패턴 mirror 적용
-/// (사용자 결정 2026-05-17):
+/// (사용자 결정 2026-05-17, outline 색 hotfix 2026-05-18):
 ///   bg     light #FFFFFF  / dark #131314
 ///   label  light #1F1F1F  / dark #E3E3E3
-///   outline light #DADCE0 / dark #8E918F (1dp inside)
+///   outline light #747775 / dark #8E918F (1dp inside)
+///     — 2026-05-18 UAT hotfix: light outline `#DADCE0` (`gsi-material-button`
+///     selector) → `#747775` (`gsi-sign-in-button` Google Identity Branding
+///     Guidelines stroke) 정정. Google 버튼과 light/dark 양쪽 모두 정확 일치
+///     → 2 outline 그룹 (Google + Facebook) 시각 통일 강화. Meta 정문 자유
+///     영역 위반 0 (Meta 가이드는 Primary Logo 만 명시, outline 색 미명시).
 ///   font   Roboto (Android) / SF Pro Text (iOS+macOS), size 14, weight w500,
 ///          height 20/14, letterSpacing 0.25 (Android) / -0.15 (iOS+macOS,
 ///          Apple HIG SF Pro Text 14pt 권고 tracking)
@@ -895,16 +900,24 @@ Widget _renderFacebookButton(
   // 5 provider 시각 consistency 위해 Google `.gsi-material-button` 패턴 mirror):
   //   bg      = light #FFFFFF / dark #131314
   //   label   = light #1F1F1F / dark #E3E3E3
-  //   outline = light #DADCE0 / dark #8E918F (1dp inside)
+  //   outline = light #747775 / dark #8E918F (1dp inside)
   // disabled 처리 = Opacity 0.38 wrap (Google CSS `:disabled { opacity: 38%; }`
   // 머레). 5 provider 일관 0.5 보다 CSS verbatim 부합 우선.
+  //
+  // 2026-05-18 UAT hotfix (사용자 결정 — Phase 13.2 HUMAN-UAT Test 1 Step 3
+  // 진행 중 시각 검증 도중 light mode 에서 Google outline #747775 vs Facebook
+  // outline #DADCE0 차이 인지). Facebook light outline `#DADCE0`
+  // (`gsi-material-button` selector) → `#747775` (`gsi-sign-in-button` Google
+  // Identity Branding Guidelines stroke verbatim) 정정. 출처는 동일 Google
+  // CSS, selector 만 변경 → Meta 정문 자유 영역 위반 0 + Google + Facebook
+  // outline 색 light/dark 양쪽 정확 일치 → 2 outline 그룹 시각 통일.
   final bgColor = isDark ? const Color(0xFF131314) : const Color(0xFFFFFFFF);
   final labelColor = isDark
       ? const Color(0xFFE3E3E3)
       : const Color(0xFF1F1F1F);
   final outlineColor = isDark
       ? const Color(0xFF8E918F)
-      : const Color(0xFFDADCE0);
+      : const Color(0xFF747775);
   // Google 패턴 mirror — fontFamily platform 분기 (사용자 결정 2026-05-17).
   // Apple SF Pro Text (iOS/macOS) / Roboto (Android+other). letterSpacing iOS
   // 강등 (-0.15) Google CSS 패턴 머레 (Roboto 0.25 가 SF Pro Text wider default

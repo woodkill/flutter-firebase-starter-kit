@@ -1297,9 +1297,14 @@ void main() {
       );
 
       // ─── T-13.3-FACEBOOK-OUTLINE-LIGHT-01 (R5 / Google CSS mirror) ───────
+      // 2026-05-18 UAT hotfix: light outline `#DADCE0` (`gsi-material-button`
+      // selector) → `#747775` (`gsi-sign-in-button` Google Identity Branding
+      // Guidelines stroke verbatim). Google 버튼과 light/dark 양쪽 정확 일치
+      // → 2 outline 그룹 (Google + Facebook) 시각 통일. Meta 정문 자유 영역
+      // 위반 0 (Meta 가이드는 outline 색 미명시).
       testWidgets(
         'T-13.3-FACEBOOK-OUTLINE-LIGHT-01: Facebook light theme outline '
-        '#DADCE0 1dp (Google CSS mirror, starter kit drift 회귀 가드)',
+        '#747775 1dp (Google Identity stroke verbatim, 2026-05-18 hotfix)',
         (tester) async {
           await tester.pumpWidget(
             _wrapForR1R2R3(
@@ -1317,13 +1322,16 @@ void main() {
               if (w is! Material) return false;
               final ShapeBorder? shape = w.shape;
               if (shape is! RoundedRectangleBorder) return false;
-              return shape.side.color == const Color(0xFFDADCE0);
+              return shape.side.color == const Color(0xFF747775);
             }),
             findsAtLeastNWidgets(1),
             reason:
-                'Facebook light theme outline 의무 Color(0xFFDADCE0) — Google '
-                'CSS verbatim mirror (사용자 결정 2026-05-17). Material grey '
-                'shade300 drift 정정 (M3 토큰 0 일관 위해 hex hardcode).',
+                'Facebook light theme outline 의무 Color(0xFF747775) — Google '
+                'Identity Branding Guidelines stroke verbatim (2026-05-18 UAT '
+                'hotfix, Phase 13.2 HUMAN-UAT Test 1 Step 3 도중 사용자 결정). '
+                'Google 버튼과 light/dark 양쪽 정확 일치 → 2 outline 그룹 시각 '
+                '통일. 기존 #DADCE0 (`.gsi-material-button` selector) drift '
+                '정정.',
           );
         },
       );
