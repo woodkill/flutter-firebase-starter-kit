@@ -380,6 +380,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authNaverSignIn => '네이버 아이디로 로그인';
 
   @override
+  String get authLineSignIn => 'LINE으로 로그인';
+
+  @override
   String authBrandAssetMissing(String label) {
     return '자산 없음: $label';
   }

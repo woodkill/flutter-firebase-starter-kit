@@ -607,6 +607,11 @@
     "description": "Naver Login button label. EN verbatim from Naver 공식 AI 파일 (developers.naver.com/docs/login/bi/bi.md, NAVER_login_EN.ai). JA 공식 BI verbatim 적용 (R8 by Phase 13.3 — ja 는 [ASSUMED] 패턴 일관성 채택, starter 사용자 일본 진출 시점 공식 verbatim 재확정 의무). #03C75A (NCloud SSO) carve-out — Phase 13.1 D-Note 일관. Phase 13.3 retroactive 갱신: Phase 13 D-23/D-52 'Continue with Naver' → 'Log in with NAVER'."
   },
 
+  "authLineSignIn": "Log in with LINE",
+  "@authLineSignIn": {
+    "description": "LINE Login button label. EN verbatim from LINE 공식 가이드 'List of recommended phrases for various languages' long form (https://developers.line.biz/en/docs/line-login/login-button/). Phase 14 R6/R7 audit trail — D-LINE-10 verbatim lock. starter-kit active locale = en/ko/ja 3 종 (외 16 언어는 .planning/phases/14-line-login/14-LINE-LOCALE-REFERENCE.md 참조). Phase 13.1 D-84 lint guard sentinel 패턴 일관 — brand_label_whitelist_test 가 [ASSUMED] tag audit trail + 1년 주기 갱신 정책 enforce."
+  },
+
   "authBrandAssetMissing": "Asset missing: {label}",
   "@authBrandAssetMissing": {
     "description": "Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE/WeChat 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14/16 자상 commit 후 본 path 도달 0.",
