@@ -1,0 +1,144 @@
+LINE Login Brand Asset License
+================================
+
+Source:
+  - 자상 다운로드: https://developers.line.biz/en/docs/line-login/login-button/
+    (LINE Developers > LINE Login > LINE Login button design guidelines)
+  - 다운로드 ZIP: https://vos.line-scdn.net/line-developers/docs/media/line-login/login-button/LINE_Login_Button_Image.zip
+  - 다운로드 일자: 2026-05-19
+  - 공식 BI 컬러: #06C755 (Base), #FFFFFF (Font/logo), #1E1E1E (Disabled)
+  - Usage Guidelines (verbatim source): https://terms2.line.me/LINE_Developers_Guidelines_for_Login_Button
+    (Enacted: 12 01, 2014, retrieved 2026-05-19)
+  - Operator: LY Corporation ("the Company")
+
+Bundled asset (1 SVG):
+  - assets/brand/line/btn_signin_icon.svg
+    (Symbol SVG, viewBox 0 0 47 44, fill=currentColor)
+    Source: LINE_Login_Button_Image.zip → LINE_Login_Button_Image.psd →
+            smart-object "벡터 고급 개체.ai" (PDF native 94 x 88 pt, GCD 2 적용 정수 47:44)
+
+Variant scope:
+  본 starter-kit 은 LINE Login Button Image 의 핵심 vector symbol (LINE icon +
+  speech bubble + "LINE" wordmark) 만 SVG 로 동봉합니다. 미포함:
+    - 19 언어 baked-in 라벨 PNG (en/ja/ko/de/es/fr/id/it/ms/pt-BR/pt-PT/ru/th/
+      tr/vi/zh-CN/zh-TW 등) — ARB 기반 자체 render 채택 (Phase 13.3 Wave 4 패턴)
+    - Android drawable-{mdpi/tvdpi/hdpi/xhdpi/xxdpi} PNG
+    - iOS 1x/2x/3x × 32dp/44dp PNG
+    - PC desktop 1x/2x × 20dp/32dp/44dp PNG
+    - Disabled / Hover / Press state variant
+  채택 패턴: Symbol SVG + ARB 라벨 외부 layer + render-time 색/폰트/state
+  hardcode (Phase 13.3 D-107 + Wave 4 mirror).
+
+License terms (LINE Usage Guidelines for the LINE Login Button verbatim 발췌,
+https://terms2.line.me/LINE_Developers_Guidelines_for_Login_Button,
+Enacted: 12 01, 2014, retrieved 2026-05-19):
+
+  Section 2. Agreement to the Guidelines
+    "The Installer may only install the LINE Login Button or use the LINE
+     Login Button Image if the Installer agrees to the Guidelines. By
+     downloading the LINE Login Button Image or installing the LINE Login
+     Button on External Media Outlets, the Installer is deemed to have
+     agreed to the Guidelines."
+
+  Section 3. Retention of Rights
+    "The Company reserves all rights (including but not limited to
+     intellectual property rights such as copyrights, trademarks, patents,
+     etc.) associated with the LINE Login Button and all other aspects
+     related to the LINE Login Button Image."
+
+  Section 4. Terms of Use
+    "The Company grants permission to the Installer to install the LINE
+     Login Button and to use the LINE Login Button Image free of charge on
+     the condition that the Installer abides by the following terms of
+     use."
+
+  Section 4.3 Distortion / Modification / Alteration prohibitions (verbatim):
+    "The Installer may not distort, modify, or alter the LINE Login Button
+     Image as described in the following clauses. The Company reserves the
+     final judgment on whether distortions, modifications, or alterations
+     made fall under the following clauses.
+       4.3.1 Modification of the aspect ratio or alteration that will
+             affect legibility or image quality of the LINE Icon.
+       4.3.2 Alteration of the color scheme.
+       4.3.3 Application of a design that causes the Login Button Text in
+             the LINE Login Button Image to be displayed in two lines or
+             more.
+       4.3.4 Any other distortions, modifications, or alterations deemed
+             inappropriate by the Company."
+
+  Section 4.4 Padding requirements (verbatim):
+    "4.4.1 The width of the right and left padding for the Login Button
+           Text must be the same as or wider than that of the LINE Icon
+           Speech Bubble.
+     4.4.2 The width of the top and bottom padding for the Login Button
+           Text must be half the width of LINE Icon Speech Bubble or
+           wider."
+
+  Section 4.5 Isolation Zone (verbatim 발췌):
+    "The Installer must maintain a region of space (hereinafter 'the
+     Isolation Zone') in the area surrounding the LINE Login Button Image
+     in order to protect the image. ... The width of the Isolation Zone
+     needs to be the same as or wider than that of the left padding of the
+     LINE Icon Speech Bubble."
+
+  Section 4.7 (Logo / icon usage):
+    "The Installer may not use the LINE Login Button Image for things such
+     as an app icon or part of logo."
+
+  Section 4.16 (Update obligation):
+    "When changes are made to the LINE Login Button Image or the LINE Icon
+     and the Installer is requested to update them by the Company, the
+     Installer must immediately update the LINE Icon used for the LINE
+     Login Button, or report the reason if the Installer is unable to do
+     so."
+
+  Section 9. Governing Law and Jurisdiction
+    "The Guidelines will be governed by the laws of Japan. Conflicts
+     between the Installer and the Company related to the LINE Login
+     Button or the LINE Login Button Image will be governed primarily
+     under the exclusive jurisdiction of the District Court of Tokyo."
+
+Design guidelines (https://developers.line.biz/en/docs/line-login/login-button/
+verbatim 발췌, retrieved 2026-05-19):
+
+  Color (verbatim table):
+    Base color                          #06C755
+    Hover                               #06C755 + #000000 (opacity: 10%)
+    Press                               #06C755 + #000000 (opacity: 30%)
+    Disabled                            #FFFFFF
+    Font/logo color (other than disabled) #FFFFFF
+    Font/logo color (only disabled)     #1E1E1E (opacity: 20%)
+    Vertical line color (other than disabled) #000000 (opacity: 8%)
+    Vertical line color (only disabled) #E5E5E5 (opacity: 60%)
+    Border color (only disabled)        #E5E5E5 (opacity: 60%)
+
+  Size:
+    "You can increase or decrease the size of the LINE Login button
+     according to the device it will be displayed on as long as the image
+     complies with the following conditions.
+       - The aspect ratio of the LINE icon does not change.
+       - The LINE icon remains clearly visible."
+
+  Common mistakes to avoid (verbatim):
+    - Using a non-designated color
+    - Using an outdated LINE icon
+    - Using a different or modified icon instead of using the LINE icon
+
+Notes:
+  1. 본 starter-kit 의 BrandedSocialButton.line (Phase 14 Plan 14-06 active 전환
+     예정) 은 Section 4.3.2 (color scheme alteration prohibition) 와 Section
+     4.4 (padding) 의 hardcoded enforcement 를 위젯 spec 으로 lock 합니다 —
+     자세한 사항은 Phase 14 plan / 14-PATTERNS.md Wave 4 (`_renderLineButton`)
+     참조.
+  2. Section 4.16 update obligation 준수 — LINE 공식 BI 갱신 시 본 starter-kit
+     의 `assets/brand/line/btn_signin_icon.svg` 재추출 + LICENSE.txt 갱신 의무.
+     자산 freshness 갱신 정책: 1년 (assets/brand/line/README.md 참조).
+  3. 본 LICENSE 의 verbatim 발췌는 2026-05-19 시점 fact 기록. LINE 공식
+     terms2.line.me Usage Guidelines 가 본 텍스트와 다를 경우 공식 페이지가
+     우선. 사용자 (Installer) 는 1년 freshness 시점에 verbatim cross-verify
+     의무 (memory `feedback_official_bi_verification`).
+  4. 본 SVG 는 LINE 공식 PSD 의 vector smart-object ("벡터 고급 개체.ai") 를
+     PyMuPDF 로 직접 export 한 결과 — third-party 출처 (wikipedia / seeklogo
+     / 블로그 등) 채택 절대 금지 (memory `feedback_official_bi_verification`
+     / `feedback_psd_ai_vector_extraction`).
+  5. Governing law: Japan / District Court of Tokyo (Section 9).
