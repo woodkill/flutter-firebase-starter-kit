@@ -3,14 +3,28 @@ import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import {defineSecret} from "firebase-functions/params";
-import {jwtVerify, errors as joseErrors} from "jose";
+import {errors as joseErrors} from "jose";
 
-import {KAKAO_ISSUER, KAKAO_JWKS} from "../shared/kakao_jwks";
+import {createOidcVerifier} from "../shared/oidc_verifier";
 import {resolveIdentity} from "./identity_index";
 
 // Phase 11 D-05 — Secret Manager 주입.
 // 배포 전 의무: `firebase functions:secrets:set KAKAO_NATIVE_APP_KEY`.
 const KAKAO_NATIVE_APP_KEY = defineSecret("KAKAO_NATIVE_APP_KEY");
+
+// Phase 14 — see ROADMAP.md
+// Phase 14 D-LINE-02/04 — OIDC verifier helper 추출 + retroactive 마이그.
+// 기존 inline KAKAO_JWKS + jwtVerify + nonce 비교 로직을 createOidcVerifier
+// factory 로 흡수. JWKS singleton 은 helper internal — jose JWKS remote set
+// 생성 호출처가 functions/src/ 전체에 정확히 1곳 (oidc_verifier.ts) 만
+// 보존된다 (Pitfall 3 sentinel).
+const verifyKakaoIdToken = createOidcVerifier({
+  issuer: "https://kauth.kakao.com",
+  jwksUrl: "https://kauth.kakao.com/.well-known/jwks.json",
+  audience: () => KAKAO_NATIVE_APP_KEY.value(),
+  algorithms: ["RS256"],
+  nonceHashing: "none", // Kakao = raw nonce 비교 (Phase 12 검증된 동작)
+});
 
 type KakaoCustomTokenRequest = {idToken: string; nonce: string};
 type KakaoCustomTokenResponse = {
@@ -40,7 +54,11 @@ type KakaoCustomTokenResponse = {
  * - jose.JOSEError / payload.sub 누락 / data 누락 → invalid-argument.
  * - 그 외 catch → internal.
  *
- * Phase 14 LINE 진입 시 jose 검증 helper 추출 (D-08, YAGNI).
+ * Phase 14 — see ROADMAP.md
+ * D-LINE-02 + D-LINE-04 retroactive 이행: jose verify 로직을
+ * `createOidcVerifier` factory (functions/src/shared/oidc_verifier.ts) 로
+ * 흡수. `kakao_jwks.ts` 폐기 — jose JWKS remote set 생성 호출처가 helper 1
+ * 곳 (Pitfall 3 sentinel).
  *
  * @param {{data: KakaoCustomTokenRequest, auth?: {uid: string}}} request
  *     onCall request — data.idToken / data.nonce 의무, auth optional.
@@ -73,14 +91,11 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     let kakaoNickname: string | undefined;
     let kakaoPicture: string | undefined;
     try {
-      const verified = await jwtVerify(idToken, KAKAO_JWKS, {
-        issuer: KAKAO_ISSUER,
-        audience: KAKAO_NATIVE_APP_KEY.value(),
-        algorithms: ["RS256"],
-      });
-      const payload = verified.payload as {
+      // Phase 14 D-LINE-02 — helper 가 issuer / aud / alg / nonce 검증 모두
+      // 흡수 (raw nonce === claim.nonce, nonceHashing="none"). 위반 시
+      // joseErrors.JWTClaimValidationFailed / 기타 JOSEError throw.
+      const payload = (await verifyKakaoIdToken(idToken, nonce)) as {
         sub?: string;
-        nonce?: string;
         // OIDC 표준 claim — 비즈 앱 + 카카오계정(이메일) 필수 동의 시 포함.
         // 일반 앱 또는 사용자 미동의 시 undefined.
         email?: string;
@@ -93,17 +108,6 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         nickname?: string;
         picture?: string;
       };
-      // jose 6.x JWTClaimVerificationOptions 에 nonce 옵션 부재 → fallback
-      // 직접 비교 (Pitfall 2 — replay attack 방어).
-      const claimNonce = payload.nonce;
-      if (claimNonce !== nonce) {
-        throw new joseErrors.JWTClaimValidationFailed(
-          "unexpected nonce",
-          verified.payload,
-          "nonce",
-          "check_failed",
-        );
-      }
       kakaoUserId = payload.sub;
       kakaoEmail = payload.email;
       kakaoEmailVerified = payload.email_verified;

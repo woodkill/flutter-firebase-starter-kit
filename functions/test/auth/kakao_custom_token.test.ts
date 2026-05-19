@@ -23,7 +23,10 @@ jest.mock("firebase-functions/params", () => ({
   defineSecret: () => ({value: () => "fake-rest-api-key"}),
 }));
 
-// jose — jwtVerify mock + JOSEError 클래스 보존.
+// jose — Phase 14 D-LINE-02 retroactive 마이그 후 caller 가 jose.jwtVerify 를
+// 직접 호출하지 않는다. errors 클래스만 보존 (R5 PII regression / Phase 9.2 Gap B
+// 등 jose error 생성 시뮬레이션 케이스용). createRemoteJWKSet stub 은 jose
+// 모듈 lazy load 시 SyntaxError 차단용 (moduleNameMapper jose stub 와 동등).
 jest.mock("jose", () => {
   /** Mock JOSEError — instanceof 분기 동작용. */
   class JOSEError extends Error {}
@@ -35,6 +38,16 @@ jest.mock("jose", () => {
     errors: {JOSEError, JWTClaimValidationFailed},
   };
 });
+
+// Phase 14 D-LINE-02 — createOidcVerifier helper mock. caller 는 helper 가
+// 반환한 verifier 함수만 호출하므로 (issuer/aud/alg/nonce 검증 전부 흡수),
+// 단일 mock 함수가 resolve(payload) / reject(joseError) 로 14 시나리오 모두
+// 시뮬레이션 가능. RESEARCH Pitfall 3 — 의도적 nonce mismatch 케이스가 mock
+// 가로채기로 silently PASS 되지 않도록 reject path 도 명시.
+const mockVerifyKakaoIdToken = jest.fn();
+jest.mock("../../src/shared/oidc_verifier", () => ({
+  createOidcVerifier: jest.fn(() => mockVerifyKakaoIdToken),
+}));
 
 // firebase-admin/auth — getAuth().createCustomToken / createUser
 // / deleteUser / updateUser (R9: emailVerified retroactive
@@ -103,7 +116,9 @@ import * as myFunctions from "../../src/index";
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
 const errorMock = logger.error as unknown as jest.Mock;
-const jwtVerifyMock = jose.jwtVerify as unknown as jest.Mock;
+// Phase 14 D-LINE-02 — caller 는 createOidcVerifier 가 반환한 verifier 함수만
+// 호출. `mockVerifyKakaoIdToken.mockResolvedValue(payload)` 로 검증된 payload
+// 시뮬레이션 + `.mockRejectedValue(joseError)` 로 JWT 검증 실패 시뮬레이션.
 
 afterAll(() => testEnv.cleanup());
 
@@ -120,8 +135,9 @@ describe("kakaoCustomToken onCall", () => {
   });
 
   it("성공: ID Token 검증 + Identity Index 신규 등록 + Custom Token 발급", async () => {
-    jwtVerifyMock.mockResolvedValue({
-      payload: {sub: "kakao-user-456", nonce: "client-nonce"},
+    mockVerifyKakaoIdToken.mockResolvedValue({
+      sub: "kakao-user-456",
+      nonce: "client-nonce",
     });
     mockIdxGet.mockResolvedValue({exists: false});
     mockTxGet.mockResolvedValue({exists: false});
@@ -140,14 +156,11 @@ describe("kakaoCustomToken onCall", () => {
     expect(result.customToken).toBe("MOCK_CUSTOM_TOKEN");
     expect(result.uid).toBe("anon-uid-1");
     expect(result.isNewUser).toBe(true);
-    expect(jwtVerifyMock).toHaveBeenCalledWith(
+    // Phase 14 D-LINE-02 — helper 호출 인자 검증 (caller 가 idToken + raw nonce
+    // 만 전달, issuer/aud/alg 은 module-level factory 호출에서 lock).
+    expect(mockVerifyKakaoIdToken).toHaveBeenCalledWith(
       "FAKE_JWT",
-      "MOCK_JWKS",
-      expect.objectContaining({
-        issuer: "https://kauth.kakao.com",
-        audience: "fake-rest-api-key",
-        algorithms: ["RS256"],
-      }),
+      "client-nonce",
     );
     // Phase 9.2 Gap B 옵션 C — email 부재 시 두 번째 인자 undefined.
     expect(mockCreateCustomToken).toHaveBeenCalledWith("anon-uid-1", undefined);
@@ -157,7 +170,7 @@ describe("kakaoCustomToken onCall", () => {
   });
 
   it("ID Token 검증 실패 → invalid-argument HttpsError", async () => {
-    jwtVerifyMock.mockRejectedValue(
+    mockVerifyKakaoIdToken.mockRejectedValue(
       new (jose.errors.JOSEError as new (m: string) => Error)("bad signature"),
     );
     const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
@@ -175,8 +188,9 @@ describe("kakaoCustomToken onCall", () => {
   });
 
   it("미인증 + 미등록 → preCreatedUid 경로로 새 UID 자동 생성", async () => {
-    jwtVerifyMock.mockResolvedValue({
-      payload: {sub: "kakao-user-new", nonce: "n"},
+    mockVerifyKakaoIdToken.mockResolvedValue({
+      sub: "kakao-user-new",
+      nonce: "n",
     });
     mockIdxGet.mockResolvedValue({exists: false});
     mockTxGet.mockResolvedValue({exists: false});
@@ -193,9 +207,7 @@ describe("kakaoCustomToken onCall", () => {
   });
 
   it("익명 호출자 + 미등록 → seed UID = request.auth.uid", async () => {
-    jwtVerifyMock.mockResolvedValue({
-      payload: {sub: "kakao-anon", nonce: "n"},
-    });
+    mockVerifyKakaoIdToken.mockResolvedValue({sub: "kakao-anon", nonce: "n"});
     mockIdxGet.mockResolvedValue({exists: false});
     mockTxGet.mockResolvedValue({exists: false});
 
@@ -218,8 +230,9 @@ describe("kakaoCustomToken onCall", () => {
       // R3 (Plan 12.1-06): callerUid 가 없으면 anonymous_existing_collision
       // 분기 미진입 → conflictKind null → 정상 customToken 발급.
       // 이 케이스가 "기존 매핑 정상 재사용" 의 진짜 시나리오 (재로그인 등).
-      jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-existing", nonce: "n"},
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-existing",
+        nonce: "n",
       });
       mockIdxGet.mockResolvedValue({exists: true});
       mockTxGet.mockResolvedValue({
@@ -251,8 +264,9 @@ describe("kakaoCustomToken onCall", () => {
       // R3 (Plan 12.1-06): callerUid === existing.firebaseUid 면 충돌 아님 →
       // conflictKind null → 정상 customToken 발급. 이 시나리오는 *재로그인* —
       // 동일 사용자가 idle 후 재진입, 같은 UID 보존.
-      jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-rerun", nonce: "n"},
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-rerun",
+        nonce: "n",
       });
       mockIdxGet.mockResolvedValue({exists: true});
       mockTxGet.mockResolvedValue({
@@ -277,13 +291,11 @@ describe("kakaoCustomToken onCall", () => {
     // eslint-disable-next-line max-len
     "PII 금지 — logger 에 idToken / payload.email / kakao_account 본문 미노출 (Pitfall 1/7)",
     async () => {
-      jwtVerifyMock.mockResolvedValue({
-        payload: {
-          sub: "kakao-456",
-          email: "secret@test.com",
-          kakao_account: {profile: {nickname: "secret-nickname"}},
-          nonce: "n",
-        },
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-456",
+        email: "secret@test.com",
+        kakao_account: {profile: {nickname: "secret-nickname"}},
+        nonce: "n",
       });
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
@@ -317,12 +329,10 @@ describe("kakaoCustomToken onCall", () => {
     // eslint-disable-next-line max-len
     "R3: email collision (createUser auth/email-already-in-use) → already-exists HttpsError + logger.warn",
     async () => {
-      jwtVerifyMock.mockResolvedValue({
-        payload: {
-          sub: "kakao-collision",
-          email: "collision@example.com",
-          nonce: "n",
-        },
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-collision",
+        email: "collision@example.com",
+        nonce: "n",
       });
       // helper 의 idxRef.get() 가 미존재 + 미인증 → createUser 호출 → email
       // collision rejection. helper 가 conflictKind: 'email_in_use' 반환,
@@ -375,8 +385,9 @@ describe("kakaoCustomToken onCall", () => {
     // eslint-disable-next-line max-len
     "R3: anonymous + existing kakao identity 충돌 → already-exists HttpsError + logger.warn",
     async () => {
-      jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-existing", nonce: "n"},
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-existing",
+        nonce: "n",
       });
       // 익명 사용자 'anon-A' 가 *기존* kakao identity 'existing-B' 로 로그인
       // 시도 — helper 가 conflictKind: 'anonymous_existing_collision' 반환,
@@ -416,9 +427,7 @@ describe("kakaoCustomToken onCall", () => {
     // eslint-disable-next-line max-len
     "R3: helper unexpected throw → internal HttpsError + logger.error (event: identity_index_failed)",
     async () => {
-      jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-fail", nonce: "n"},
-      });
+      mockVerifyKakaoIdToken.mockResolvedValue({sub: "kakao-fail", nonce: "n"});
       // helper 의 idxRef.get() 이 firestore 오류 throw — caller 가 catch 하여
       // internal 로 매핑.
       mockIdxGet.mockRejectedValueOnce(new Error("firestore unavailable"));
@@ -450,8 +459,9 @@ describe("kakaoCustomToken onCall", () => {
   it(
     "R3: 정상 path (conflictKind null) → customToken 정상 발급 + throw 안 함",
     async () => {
-      jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-normal", nonce: "n"},
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-normal",
+        nonce: "n",
       });
       // 미인증 + 미등록 + createUser 정상 → conflictKind null → caller 가 throw
       // 분기 미진입.
@@ -499,7 +509,7 @@ describe("kakaoCustomToken onCall", () => {
       const err = new ErrCtor("bad nonce");
       (err as unknown as {code: string}).code =
         "ERR_JWT_CLAIM_VALIDATION_FAILED";
-      jwtVerifyMock.mockRejectedValue(err);
+      mockVerifyKakaoIdToken.mockRejectedValue(err);
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       await expect(
@@ -533,7 +543,7 @@ describe("kakaoCustomToken onCall", () => {
       const err = new ErrCtor(sentinel);
       (err as unknown as {code: string}).code =
         "ERR_JWT_CLAIM_VALIDATION_FAILED";
-      jwtVerifyMock.mockRejectedValue(err);
+      mockVerifyKakaoIdToken.mockRejectedValue(err);
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       await expect(
@@ -564,7 +574,7 @@ describe("kakaoCustomToken onCall", () => {
       // TypeError 같은 일반 Error throw → err instanceof Error 분기 →
       // errCode = err.name = 'TypeError'. JOSEError 가 아니므로 internal 매핑.
       const err = new TypeError("unrelated type error");
-      jwtVerifyMock.mockRejectedValue(err);
+      mockVerifyKakaoIdToken.mockRejectedValue(err);
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       await expect(
@@ -606,7 +616,7 @@ describe("kakaoCustomToken onCall", () => {
       const err = new ErrCtor(sentinel);
       (err as unknown as {code: string}).code =
         "ERR_JWT_CLAIM_VALIDATION_FAILED";
-      jwtVerifyMock.mockRejectedValue(err);
+      mockVerifyKakaoIdToken.mockRejectedValue(err);
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       await expect(
@@ -640,8 +650,9 @@ describe("kakaoCustomToken onCall", () => {
     "T-13-PII-KAKAO-RETRO-02: createCustomToken throw → internal + errorUnknown + err.message 미노출",
     async () => {
       // 정상 JWT 검증 통과 → resolveIdentity 통과 시뮬레이션.
-      jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-uid-token-fail", nonce: "n"},
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-uid-token-fail",
+        nonce: "n",
       });
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
@@ -691,12 +702,10 @@ describe("kakaoCustomToken onCall", () => {
     // eslint-disable-next-line max-len
     "T-12-KAKAO-CT-COLLISION-A1: 익명승격 + Kakao email + Google 가입자 detect → already-exists + createCustomToken 미호출",
     async () => {
-      jwtVerifyMock.mockResolvedValue({
-        payload: {
-          sub: "kakao-user-collision",
-          nonce: "kakao-nonce-test",
-          email: "PII_COLLISION_email@kakao.com",
-        },
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-user-collision",
+        nonce: "kakao-nonce-test",
+        email: "PII_COLLISION_email@kakao.com",
       });
       mockIdxGet.mockResolvedValue({exists: false});
       // Gap B 핵심 — admin.auth().getUserByEmail 가 Google 가입자 반환.
@@ -747,8 +756,9 @@ describe("kakaoCustomToken onCall", () => {
     "T-12-KAKAO-CT-COLLISION-A2: 익명승격 + Kakao email 부재 → getUserByEmail 미호출 + 정상 customToken + developerClaims undefined",
     async () => {
       // 동의 비활성 — payload.email 부재. lookup skip + 정상 customToken 발급.
-      jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "kakao-user-no-email", nonce: "kakao-nonce-test"},
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-user-no-email",
+        nonce: "kakao-nonce-test",
       });
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
@@ -789,13 +799,11 @@ describe("kakaoCustomToken onCall", () => {
       // sentinel 로 createCustomToken 호출 인자에 developerClaims 포함 검증.
       // IN-04: Kakao OIDC ID Token 의 email_verified claim 도 mock payload 에
       // 포함 — 비즈 앱 + email 필수 동의 + 인증 완료 케이스 시뮬레이션.
-      jwtVerifyMock.mockResolvedValue({
-        payload: {
-          sub: "kakao-user-ok",
-          nonce: "kakao-nonce-test",
-          email: "PII_OPTC_ok@kakao.com",
-          email_verified: true,
-        },
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-user-ok",
+        nonce: "kakao-nonce-test",
+        email: "PII_OPTC_ok@kakao.com",
+        email_verified: true,
       });
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
@@ -839,13 +847,11 @@ describe("kakaoCustomToken onCall", () => {
       // 있지만 email_verified claim 미발급 케이스. starter-kit 은 unverified
       // 가능성을 가정하고 보수적으로 false 매핑 — Firebase Auth 의 verified
       // email 로 잘못 propagate 되는 회귀 차단.
-      jwtVerifyMock.mockResolvedValue({
-        payload: {
-          sub: "kakao-user-no-verify-claim",
-          nonce: "kakao-nonce-test",
-          email: "PII_OPTC_unverified@kakao.com",
-          // email_verified intentionally omitted
-        },
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-user-no-verify-claim",
+        nonce: "kakao-nonce-test",
+        email: "PII_OPTC_unverified@kakao.com",
+        // email_verified intentionally omitted
       });
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
