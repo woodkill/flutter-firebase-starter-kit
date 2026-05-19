@@ -64,6 +64,12 @@ void main() {
   group('SignupScreen', () {
     testWidgets('1. 빈 입력 제출 시 3개 validator 에러 inline 표시', (tester) async {
       await _pumpSignup(tester, mockRepo);
+      // AuthScaffold(SingleChildScrollView) content 가 default 800x600 viewport
+      // 보다 길어 Create account 버튼이 viewport 밖에 위치. Test 2~ 는 enterText
+      // → EditableText.ensureVisible 자동 우회. Test 1 만 텍스트 입력 0건이라
+      // 명시적 ensureVisible 필요.
+      await tester
+          .ensureVisible(find.widgetWithText(FilledButton, 'Create account'));
       await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
       await tester.pump();
 
