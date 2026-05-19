@@ -132,7 +132,7 @@ void main() {
           expect(enabled.contains(kProviderIdFacebook), isTrue);
           expect(enabled.contains(kProviderIdKakao), isTrue);
 
-          // dev 는 Phase 진행에 따라 Custom Token 점진 활성화 (Phase 13: naver).
+          // dev 는 Phase 진행에 따라 Custom Token 점진 활성화 (Phase 13: naver, Phase 14: line).
           // stg/prod 는 Starter Kit 정책상 placeholder — Phase 13~16 모두 비활성.
           if (flavor == 'dev') {
             expect(
@@ -140,15 +140,19 @@ void main() {
               isTrue,
               reason: 'dev.json: naver should be enabled (Phase 13)',
             );
+            expect(
+              enabled.contains(kProviderIdLine),
+              isTrue,
+              reason: 'dev.json: line should be enabled (Phase 14)',
+            );
             for (final id in const <String>[
-              kProviderIdLine,
               kProviderIdYahooJp,
               kProviderIdWeChat,
             ]) {
               expect(
                 enabled.contains(id),
                 isFalse,
-                reason: 'dev.json: $id should be disabled (Phase 14-16)',
+                reason: 'dev.json: $id should be disabled (Phase 15-16)',
               );
             }
           } else {
