@@ -10,6 +10,7 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
@@ -30,6 +31,8 @@ class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
 
 class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
+class _MockLineSdkClient extends Mock implements LineSdkClient {}
+
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 void main() {
@@ -42,6 +45,7 @@ void main() {
   late _MockSocialLinkInProgress mockSocialLinkInProgress;
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
+  late _MockLineSdkClient mockLineSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late AuthRepository repository;
 
@@ -55,9 +59,10 @@ void main() {
     mockSocialLinkInProgress = _MockSocialLinkInProgress();
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
+    mockLineSdkClient = _MockLineSdkClient();
     mockFunctions = _MockFirebaseFunctions();
-    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43 + Phase 10.2 D-A2:
-    // AuthRepository 8-arg ctor (8번째 = onResetOnboarding 콜백 — no-op).
+    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43 + Phase 14 D-LINE-17
+    // + Phase 10.2 D-A2: AuthRepository 9-arg ctor (9번째 = onResetOnboarding).
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
@@ -66,6 +71,7 @@ void main() {
       mockKakaoSdkClient,
       mockFunctions,
       mockNaverSdkClient,
+      mockLineSdkClient,
       () async {},
     );
 

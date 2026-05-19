@@ -53,6 +53,8 @@ dependencies:
   kakao_flutter_sdk_user: ^2.0.0+1
   # Phase 13 — see ROADMAP.md (Naver Login SDK, Custom Token 방식)
   naver_login_sdk: ^3.2.1
+  # Phase 14 D-LINE-17 — LINE Corporation 공식 (verified publisher: line.me)
+  flutter_line_sdk: ^2.7.2
   # Phase 13.2 — see ROADMAP.md (Wave 0 lock D-100, R8 — 옛 community
   # 버튼 위제 의존성 제거). Facebook 분기는 BrandedSocialButton.facebook
   # (Meta 공식 PNG + 자체 위제) 위임 일관.

@@ -11,6 +11,7 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 
@@ -42,6 +43,8 @@ class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
 
 class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
+class _MockLineSdkClient extends Mock implements LineSdkClient {}
+
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
@@ -63,6 +66,7 @@ void main() {
   late _MockSocialLinkInProgress mockSocialLinkInProgress;
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
+  late _MockLineSdkClient mockLineSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late AuthRepository repository;
 
@@ -87,11 +91,12 @@ void main() {
     mockSocialLinkInProgress = _MockSocialLinkInProgress();
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
+    mockLineSdkClient = _MockLineSdkClient();
     mockFunctions = _MockFirebaseFunctions();
-    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43 + Phase 10.2 D-A2:
-    // AuthRepository ctor 가 8-arg 로 확장됨 (8번째 = onResetOnboarding
-    // 콜백). 본 group 의 단위 테스트는 logout invariant 가 아닌 다른 메서드
-    // 를 검증하므로 8번째 인자는 no-op closure 로 충분하다.
+    // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43 + Phase 14 D-LINE-17
+    // + Phase 10.2 D-A2: AuthRepository ctor 가 9-arg 로 확장됨 (9번째 =
+    // onResetOnboarding 콜백). 본 group 의 단위 테스트는 logout invariant 가
+    // 아닌 다른 메서드를 검증하므로 9번째 인자는 no-op closure 로 충분하다.
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
@@ -100,14 +105,16 @@ void main() {
       mockKakaoSdkClient,
       mockFunctions,
       mockNaverSdkClient,
+      mockLineSdkClient,
       () async {},
     );
 
     // Pitfall 9 회귀 가드 — 모든 path 의 finally 블록에서 호출되는
-    // SDK logout 을 빈 stub 으로 등록 (D-57 + D-57 retroactive). 누락 시
-    // MissingStubError 발생.
+    // SDK logout 을 빈 stub 으로 등록 (D-57 + D-57 retroactive + D-LINE-57).
+    // 누락 시 MissingStubError 발생.
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+    when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
 
     // 기본 User 필드 stub
     when(() => mockUser.uid).thenReturn('uid-test');
@@ -2126,9 +2133,8 @@ void main() {
           resetCallOrder = ++callIndex;
         }
 
-        // Plan 02 land 전 — AuthRepository ctor 가 아직 7-arg 이므로 본
-        // 8-arg 호출은 의도된 compile error (RED). Plan 02 가 8-arg ctor
-        // 도입 + signOutAndResetOnboarding 메서드 신규 작성으로 자동 GREEN.
+        // Plan 14 land — AuthRepository ctor 9-arg (8번째 LineSdkClient,
+        // 9번째 onResetOnboarding). Phase 12 / 13 의 8-arg 호출은 자동 확장.
         final repo = AuthRepository(
           mockAuth,
           mockGoogleSignIn,
@@ -2137,6 +2143,7 @@ void main() {
           mockKakaoSdkClient,
           mockFunctions,
           mockNaverSdkClient,
+          mockLineSdkClient,
           onResetOnboarding,
         );
 
@@ -2146,6 +2153,7 @@ void main() {
         when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
         when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
         when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+        when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
         when(() => mockAuth.signOut()).thenAnswer((_) async {});
 
         await repo.signOutAndResetOnboarding();
@@ -2158,12 +2166,14 @@ void main() {
               'D-A3: onResetOnboarding 이 signOut 보다 먼저 호출되어야 한다',
         );
 
-        // 5 SDK 호출 순서 invariant (signOut 본체 — Phase 9.2 R6 회귀 가드).
+        // 6 SDK 호출 순서 invariant (Phase 14 — LINE 추가, signOut 본체
+        // Phase 9.2 R6 회귀 가드 확장).
         verifyInOrder([
           () => mockGoogleSignIn.signOut(),
           () => mockFacebookAuth.logOut(),
           () => mockKakaoSdkClient.logout(),
           () => mockNaverSdkClient.logout(),
+          () => mockLineSdkClient.logout(),
           () => mockAuth.signOut(),
         ]);
       },
@@ -2196,6 +2206,7 @@ void main() {
           mockKakaoSdkClient,
           mockFunctions,
           mockNaverSdkClient,
+          mockLineSdkClient,
           failingReset,
         );
 
@@ -2220,7 +2231,170 @@ void main() {
         verifyNever(() => mockFacebookAuth.logOut());
         verifyNever(() => mockKakaoSdkClient.logout());
         verifyNever(() => mockNaverSdkClient.logout());
+        verifyNever(() => mockLineSdkClient.logout());
         verifyNever(() => mockAuth.signOut());
+      },
+    );
+  });
+
+  // ==========================================================================
+  // Phase 14: signInWithLine (Custom Token 흐름 — Phase 12 Kakao 패턴 mirror).
+  // ==========================================================================
+  group('Phase 14: signInWithLine (Custom Token 흐름)', () {
+    /// LINE 그룹 공통 setUp — 성공 path 의 4단계 (LineSdkClient → Cloud
+    /// Function → signInWithCustomToken → User 매핑) 를 stub 한다. 각 테스트는
+    /// 필요한 단계만 override 한다.
+    late _MockHttpsCallable mockCallable;
+
+    setUp(() {
+      mockCallable = _MockHttpsCallable();
+      // 기본: LineSdkClient 가 ID Token + nonce 반환.
+      when(() => mockLineSdkClient.signIn()).thenAnswer(
+        (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
+      );
+      // 기본: httpsCallable('lineCustomToken') → mockCallable.
+      when(
+        () => mockFunctions.httpsCallable(any()),
+      ).thenReturn(mockCallable);
+      // 기본: callable.call(...) → customToken 응답.
+      final defaultResult = _MockHttpsCallableResult();
+      when(() => defaultResult.data).thenReturn(<String, dynamic>{
+        'customToken': 'LCT',
+        'uid': 'line-uid',
+        'isNewUser': true,
+      });
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => defaultResult);
+      // 기본: signInWithCustomToken('LCT') → mockCredential.
+      when(() => mockUser.uid).thenReturn('line-uid');
+      when(() => mockUser.email).thenReturn('line@example.com');
+      when(() => mockUser.providerData).thenReturn(<fb.UserInfo>[]);
+      when(
+        () => mockAuth.signInWithCustomToken('LCT'),
+      ).thenAnswer((_) async => mockCredential);
+    });
+
+    test(
+      'Test L1 (정상): LineSdkClient → CF lineCustomToken → '
+      'signInWithCustomToken → Result.success(User) + race-fix begin/end 1회 + '
+      'LineSdkClient.logout 정확 1회',
+      () async {
+        final result = await repository.signInWithLine();
+
+        expect(result, isA<Success<dynamic>>());
+        final user = (result! as Success).data as User;
+        expect(user.uid, 'line-uid');
+        expect(user.email, 'line@example.com');
+
+        // race-fix begin/end 1회씩.
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        // D-LINE-57: 성공 path 에서 SDK logout 정확 1회.
+        verify(() => mockLineSdkClient.logout()).called(1);
+        // CF 이름 + payload (idToken + nonce) 검증.
+        verify(() => mockFunctions.httpsCallable('lineCustomToken')).called(1);
+        verify(
+          () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
+            'idToken': 'LIDT',
+            'nonce': 'LNONCE',
+          }),
+        ).called(1);
+      },
+    );
+
+    test(
+      'Test L2 (cancel): LineSdkClient → null → repository null 반환 + '
+      'race-fix begin/end 1회 + logout 1회 (D-LINE-21 silent)',
+      () async {
+        when(() => mockLineSdkClient.signIn()).thenAnswer((_) async => null);
+
+        final result = await repository.signInWithLine();
+
+        expect(result, isNull);
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        // D-LINE-57 invariant: 모든 path 에서 finally logout (Phase 13 WR-01-iter2 일관).
+        verify(() => mockLineSdkClient.logout()).called(1);
+        // CF / Firebase Auth 미진입 검증.
+        verifyNever(() => mockFunctions.httpsCallable(any()));
+        verifyNever(() => mockAuth.signInWithCustomToken(any()));
+      },
+    );
+
+    test(
+      'Test L3 (race-fix invariant): LineSdkClient throw 시에도 finally 가 '
+      'end() + logout() 호출 (Pitfall 8 단일 진실원)',
+      () async {
+        when(() => mockLineSdkClient.signIn())
+            .thenThrow(Exception('boom'));
+
+        await repository.signInWithLine();
+
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockLineSdkClient.logout()).called(1);
+      },
+    );
+
+    test(
+      'Test L4 (Functions already-exists → AccountExistsWithDifferentCredential '
+      '매핑 R3 — D-34 helper 재사용)',
+      () async {
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        final result = await repository.signInWithLine();
+
+        expect(result, isA<Failure<dynamic>>());
+        final failure = result! as Failure;
+        expect(
+          failure.exception,
+          isA<AccountExistsWithDifferentCredential>(),
+        );
+        // Cloud Function PII 미응답 — email null 보존.
+        final ex = failure.exception as AccountExistsWithDifferentCredential;
+        expect(ex.email, isNull);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockLineSdkClient.logout()).called(1);
+      },
+    );
+
+    test(
+      'Test L5 (Firebase Auth exception): signInWithCustomToken throws '
+      'FirebaseAuthException → _mapAuthException 매핑',
+      () async {
+        when(() => mockAuth.signInWithCustomToken('LCT')).thenThrow(
+          fb.FirebaseAuthException(code: 'invalid-credential'),
+        );
+
+        final result = await repository.signInWithLine();
+
+        expect(result, isA<Failure<dynamic>>());
+        expect((result! as Failure).exception, isA<InvalidCredentials>());
+        verify(() => mockLineSdkClient.logout()).called(1);
+      },
+    );
+
+    test(
+      'Test L6 (idToken null / OIDC scope 누락 — Pitfall 1): LineSdkClient 가 '
+      'ServiceUnavailable throw 시 그대로 Failure 재패키징',
+      () async {
+        when(() => mockLineSdkClient.signIn())
+            .thenThrow(const ServiceUnavailable());
+
+        final result = await repository.signInWithLine();
+
+        expect(result, isA<Failure<dynamic>>());
+        expect((result! as Failure).exception, isA<ServiceUnavailable>());
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockLineSdkClient.logout()).called(1);
       },
     );
   });

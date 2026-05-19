@@ -11,6 +11,7 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 
 import 'auth_test_fakes.dart';
@@ -44,6 +45,8 @@ class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
 
 class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
+class _MockLineSdkClient extends Mock implements LineSdkClient {}
+
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
@@ -70,6 +73,7 @@ void main() {
   late _MockSocialLinkInProgress mockSocialLinkInProgress;
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
+  late _MockLineSdkClient mockLineSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late _MockAdditionalUserInfo mockAdditionalUserInfo;
@@ -96,6 +100,7 @@ void main() {
     mockSocialLinkInProgress = _MockSocialLinkInProgress();
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
+    mockLineSdkClient = _MockLineSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
     mockAdditionalUserInfo = _MockAdditionalUserInfo();
@@ -109,14 +114,16 @@ void main() {
       mockKakaoSdkClient,
       mockFunctions,
       mockNaverSdkClient,
+      mockLineSdkClient,
       // Phase 10.2 D-A2: onResetOnboarding 콜백 no-op (logout invariant
       // 비검증).
       () async {},
     );
 
-    // Pitfall 9 — finally logout default stub.
+    // Pitfall 9 — finally logout default stub (Phase 14 LINE 포함).
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+    when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
 
     // 기본 User 필드 — 비익명 + email 존재.
     when(() => mockUser.uid).thenReturn('uid-test');

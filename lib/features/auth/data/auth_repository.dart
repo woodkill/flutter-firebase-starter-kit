@@ -17,6 +17,7 @@ import '../../onboarding/presentation/onboarding_notifier.dart';
 import '../application/social_link_in_progress.dart';
 import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
+import 'line_sdk_client.dart';
 import 'naver_sdk_client.dart';
 
 part 'auth_repository.g.dart';
@@ -41,6 +42,10 @@ class AuthRepository {
   /// 추가됐다 — naver_login_sdk callback → Future wrapper. Cloud Function
   /// 채널 (`naverCustomToken`) 은 [_functions] 를 재사용한다.
   ///
+  /// [_lineSdkClient] 는 Phase 14 LINE 로그인 (Custom Token 방식) 을 위해
+  /// 추가됐다 — flutter_line_sdk wrapper. Cloud Function 채널
+  /// (`lineCustomToken`) 은 [_functions] 를 재사용한다.
+  ///
   /// [_onResetOnboarding] 은 로그아웃 시 onboarding 완료 플래그를 false 로
   /// 되돌리는 콜백이다 (Phase 10.2 D-A2). OnboardingNotifier 타입을 직접
   /// 참조하지 않아 Feature-First 결합도를 최소화한다 — `OnboardingNotifier`
@@ -55,6 +60,7 @@ class AuthRepository {
     this._kakaoSdkClient,
     this._functions,
     this._naverSdkClient,
+    this._lineSdkClient,
     this._onResetOnboarding,
   );
 
@@ -65,6 +71,7 @@ class AuthRepository {
   final KakaoSdkClient _kakaoSdkClient;
   final FirebaseFunctions _functions;
   final NaverSdkClient _naverSdkClient;
+  final LineSdkClient _lineSdkClient;
   final Future<void> Function() _onResetOnboarding;
 
   /// 이메일/비밀번호로 로그인한다.
@@ -677,6 +684,96 @@ class AuthRepository {
     }
   }
 
+  /// LINE 계정으로 Firebase Auth 에 로그인한다 (Phase 14, SOCL-03).
+  ///
+  /// **Custom Token 방식** — Phase 12 Kakao 와 동일 흐름. 차이:
+  /// (1) SDK = flutter_line_sdk ([LineSdkClient] wrapper)
+  /// (2) Cloud Function 페이로드 = `{idToken, nonce}` (LINE OIDC — Kakao 와 동일)
+  /// (3) LINE 검증 = Cloud Function 측 jose verification + nonce SHA256 비교
+  ///     (Plan 14-04 helper nonceHashing — A1 emulator 검증 의무)
+  /// (4) finally 에서 SDK logout (D-LINE-57 — 1회성 access_token)
+  ///
+  /// 흐름:
+  /// 1. [SocialLinkInProgress.begin] (race-fix Pitfall 8 — 단일 진실원)
+  /// 2. [_lineSdkClient.signIn] — null 반환 (사용자 취소) → null silent
+  /// 3. `_functions.httpsCallable('lineCustomToken')({idToken, nonce})` →
+  ///    Cloud Function 이 jose 검증 + nonce hash 비교 + Identity Index lookup +
+  ///    `createCustomToken` (Plan 14-04)
+  /// 4. [fb.FirebaseAuth.signInWithCustomToken] → Firebase Auth 세션 시작
+  /// 5. [_mapFirebaseUser] → 도메인 [User]
+  /// 6. finally: [_lineSdkClient.logout] (D-LINE-57 — Pitfall 2 race-fix end
+  ///    직전 위치) + [SocialLinkInProgress.end]
+  ///
+  /// 에러 매핑 (Phase 12 D-30 / D-34 helper 재사용 — Kakao path 와 100% 대칭):
+  /// - [LineSdkClient.signIn] 가 null 반환 (사용자 취소 silent — D-LINE-21) → null.
+  /// - [FirebaseFunctionsException] → [_mapFunctionsException]
+  ///   (`already-exists` 분기는 Phase 12.1 D-34 에서
+  ///   [AccountExistsWithDifferentCredential] 자동 흡수)
+  /// - [fb.FirebaseAuthException] → [_mapAuthException]
+  /// - [ServiceUnavailable] (LineSdkClient 가 OIDC scope 누락 — Pitfall 1) →
+  ///   그대로 Failure 재패키징
+  /// - 그 외 → [ServiceUnavailable(cause: e)] + [kDebugMode] [debugPrint]
+  ///
+  /// **race-fix invariant (Phase 9.1 D-03 / Pitfall 8):** body 전체 try-finally
+  /// 로 감싸 진입 직후 [SocialLinkInProgress.begin] / 종료 시
+  /// [SocialLinkInProgress.end] 호출. Strategy 단계 추가 호출 절대 금지.
+  ///
+  /// **D-LINE-57 1회성 토큰 정책 (Phase 13 WR-01-iter2 일관):** 모든 path 에서
+  /// finally logout — 성공 / cancel / error / timeout 모두 일관. SDK
+  /// "no session" 상태는 [LineSdkClient.logout] 내부 try/catch 가 silent 흡수.
+  ///
+  /// Returns null = 사용자 취소 silent.
+  Future<Result<User>?> signInWithLine() async {
+    try {
+      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
+
+      final result = await _lineSdkClient.signIn();
+      if (result == null) {
+        return null; // D-LINE-21 silent cancel
+      }
+
+      final callable = _functions.httpsCallable('lineCustomToken');
+      final response = await callable.call<Map<String, dynamic>>(
+        <String, dynamic>{'idToken': result.idToken, 'nonce': result.nonce},
+      );
+      final customToken = response.data['customToken'] as String?;
+      if (customToken == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+
+      final userCredential = await _auth.signInWithCustomToken(customToken);
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      // (Phase 9.2 R4) 자동 sendEmailVerification — LINE Cloud Function
+      // identity_index.ts emailVerified=true 자연 no-op (D-19 일관).
+      await _autoSendEmailVerification(userCredential);
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on FirebaseFunctionsException catch (e) {
+      // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
+      return Result.failure(_mapFunctionsException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on ServiceUnavailable catch (e) {
+      // IN-01: signInWithKakao/Naver 와 대칭 — LineSdkClient 가 OIDC scope
+      // 누락 / SDK 내부 ServiceUnavailable throw 시 원본을 cause chain 으로
+      // wrapping 하지 않고 그대로 보존.
+      return Result.failure(e);
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('signInWithLine 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      // D-LINE-57: SDK access_token 1회성 정책 (Phase 13 D-57 retroactive 일관).
+      // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (LineSdkClient.logout
+      // 내부 try/catch) — outer 흐름 차단 안 함.
+      await _lineSdkClient.logout();
+      _socialLinkInProgress.end();
+    }
+  }
+
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
   ///
   /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
@@ -715,7 +812,7 @@ class AuthRepository {
   /// 1. [_onResetOnboarding] — `OnboardingNotifier.reset` 콜백.
   ///    state 동기 false set + SharedPreferences 키 제거. lossy persistence
   ///    정책 (disk 실패 시 Crashlytics 기록 후 graceful 진행).
-  /// 2. [signOut] — Firebase Auth + Google + Facebook + Kakao + Naver
+  /// 2. [signOut] — Firebase Auth + Google + Facebook + Kakao + Naver + LINE
   ///    5 SDK 순차 logout (Phase 9.2 R6 invariant).
   ///
   /// 호출 후 navigation 명시 호출은 불필요하다. authStateChanges →
@@ -959,6 +1056,14 @@ class AuthRepository {
         debugPrint('NaverSdkClient.logout() 실패 (무시): $e\n$st');
       }
     }
+    // LINE SDK 세션 해제 (Phase 14 D-LINE-57 — Kakao/Naver 패턴 일관).
+    try {
+      await _lineSdkClient.logout();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('LineSdkClient.logout() 실패 (무시): $e\n$st');
+      }
+    }
     await _auth.signOut();
   }
 
@@ -1168,6 +1273,8 @@ AuthRepository authRepository(Ref ref) {
     ref.watch(kakaoSdkClientProvider),
     ref.watch(firebaseFunctionsProvider),
     ref.watch(naverSdkClientProvider),
+    // Phase 14 — see ROADMAP.md (LINE Custom Token wrapper).
+    ref.watch(lineSdkClientProvider),
     // Phase 10.2 D-A2: cross-feature 결합도 최소화를 위한 callback 주입.
     // OnboardingNotifier 타입은 본 factory 영역에서만 알며,
     // AuthRepository 클래스 본체는 콜백 signature 만 의존한다.
