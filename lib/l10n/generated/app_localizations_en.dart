@@ -386,6 +386,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authNaverSignIn => 'Log in with NAVER';
 
   @override
+  String get authLineSignIn => 'Log in with LINE';
+
+  @override
   String authBrandAssetMissing(String label) {
     return 'Asset missing: $label';
   }

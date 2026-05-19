@@ -808,6 +808,12 @@ abstract class AppLocalizations {
   /// **'Log in with NAVER'**
   String get authNaverSignIn;
 
+  /// LINE Login button label. EN verbatim from LINE 공식 가이드 'List of recommended phrases for various languages' long form (https://developers.line.biz/en/docs/line-login/login-button/). Phase 14 R6/R7 audit trail — D-LINE-10 verbatim lock. starter-kit active locale = en/ko/ja 3 종 (외 16 언어는 .planning/phases/14-line-login/14-LINE-LOCALE-REFERENCE.md 참조). Phase 13.1 D-84 lint guard sentinel 패턴 일관 — brand_label_whitelist_test 가 [ASSUMED] tag audit trail + 1년 주기 갱신 정책 enforce.
+  ///
+  /// In en, this message translates to:
+  /// **'Log in with LINE'**
+  String get authLineSignIn;
+
   /// Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE/WeChat 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14/16 자상 commit 후 본 path 도달 0.
   ///
   /// In en, this message translates to:

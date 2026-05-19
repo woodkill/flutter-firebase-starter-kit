@@ -380,6 +380,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authNaverSignIn => 'NAVERでログイン';
 
   @override
+  String get authLineSignIn => 'LINEでログイン';
+
+  @override
   String authBrandAssetMissing(String label) {
     return 'アセットが見つかりません: $label';
   }

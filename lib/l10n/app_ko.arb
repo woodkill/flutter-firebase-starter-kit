@@ -154,6 +154,10 @@
   "@authNaverSignIn": {
     "description": "Naver Login button label. KO 공식 SDK verbatim (Nid-OAuth values-ko/message.xml + 공식 BI 가이드). Phase 13.3 Wave 5 (2026-05-17) — Phase 13.3 Wave 1 의 '네이버 로그인' supersede."
   },
+  "authLineSignIn": "LINE으로 로그인",
+  "@authLineSignIn": {
+    "description": "LINE Login button label. KO verbatim from LINE 공식 가이드 'List of recommended phrases for various languages' long form 19 언어 표 ko 항목 (https://developers.line.biz/en/docs/line-login/login-button/). Phase 14 R6/R7 audit trail — D-LINE-10 verbatim lock. 외래어+조사 패턴 = 'LINE'(브랜드 명사) + '으로'(조사) — LINE 공식 verbatim 부합. starter-kit active locale = en/ko/ja 3 종 (외 16 언어 참조: .planning/phases/14-line-login/14-LINE-LOCALE-REFERENCE.md)."
+  },
   "authBrandAssetMissing": "자산 없음: {label}",
   "@authBrandAssetMissing": {
     "description": "Phase 13.1 REVIEW iter2 WR-05 (2026-05-10) — placeholder 메타데이터 일관성. en.arb 의 metadata 블록 미러 — 미래 갱신자가 placeholder 명을 typo (예: {labelText}) 변경 시 gen-l10n parse 시점 surface 강제.",
