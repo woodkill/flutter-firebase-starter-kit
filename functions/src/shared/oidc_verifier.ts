@@ -19,10 +19,10 @@ import type {JWTPayload} from "jose";
  *   를 SHA256 hash 후 claim 에 embed)
  *
  * **JWKS singleton (Pitfall 3 sentinel 보존, D-LINE-04):**
- * `createRemoteJWKSet` 호출은 factory 호출 시점 1회만 evaluate (closure 외부
- * 가 아닌 factory body 내부 — provider 별 별도 singleton). 함수 내부에서
- * 매번 호출 시 캐시 무효. `grep -r createRemoteJWKSet functions/src/` 결과 = 본
- * 파일의 1줄만이어야 한다 (회귀 방어 sentinel).
+ * jose JWKS remote set 생성은 factory 호출 시점 1회만 evaluate (closure
+ * 외부가 아닌 factory body 내부 — provider 별 별도 singleton). 함수 내부
+ * 매 호출 시 jose internal 캐시가 무효화된다. 회귀 방어 sentinel grep
+ * (호출 패턴) — 본 파일의 호출 1줄만 hit.
  *
  * **jose 6.x 기본값 (D-LINE-07):**
  * - cacheMaxAge: 600_000 ms (10분)
