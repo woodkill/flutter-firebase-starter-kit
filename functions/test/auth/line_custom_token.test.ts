@@ -165,6 +165,7 @@ import * as myFunctions from "../../src/index";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
+const errorMock = logger.error as unknown as jest.Mock;
 
 afterAll(() => testEnv.cleanup());
 
@@ -412,5 +413,198 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
     expect(result.isNewUser).toBe(false);
     // D-LINE-21: developerClaims 미발급 → 두 번째 인자 없음.
     expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-line-uid-9");
+  });
+});
+
+// Task 2 — 잔여 Test 10-14 (conflictKind + PII regression).
+// Phase 12 kakao_custom_token.test.ts 의 conflict 시나리오 + PII regression
+// 패턴 직접 mirror. D-LINE-21 (email scope 미채택) 이라 자체 trigger 가능성은
+// 0 이지만 caller switch 분기는 정책 일관성 보존 — 회귀 가드 의무.
+describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateCustomToken.mockResolvedValue("MOCK_LINE_TOKEN");
+    mockCreateUser.mockResolvedValue({uid: "new-uid-line-pre"});
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+  });
+
+  // Test 10: conflictKind=email_in_use → already-exists HttpsError.
+  // helper level conflictKind injection — !callerUid 분기의 createUser
+  // auth/email-already-in-use rejection 으로 trigger 시뮬레이션.
+  // eslint-disable-next-line max-len
+  it("Test 10: conflictKind=email_in_use → already-exists HttpsError", async () => {
+    mockVerifyLineIdToken.mockResolvedValue({
+      sub: "U_line_collision",
+      name: "Tanaka",
+    });
+    mockIdxGet.mockResolvedValue({exists: false});
+    mockCreateUser.mockRejectedValueOnce(
+      Object.assign(new Error("email exists"), {
+        code: "auth/email-already-in-use",
+      }),
+    );
+
+    const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+    const promise = wrapped({
+      app: {appId: "test"},
+      data: {idToken: "FAKE", nonce: "n"},
+    } as never);
+    await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    await expect(promise).rejects.toMatchObject({
+      code: "already-exists",
+      message: "errorAccountExistsWithDifferentCredential",
+    });
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({event: "line_email_collision"}),
+      expect.any(String),
+    );
+  });
+
+  // Test 11: conflictKind=anonymous_existing_collision → already-exists.
+  // eslint-disable-next-line max-len
+  it("Test 11: anonymous + existing LINE identity → already-exists HttpsError", async () => {
+    mockVerifyLineIdToken.mockResolvedValue({
+      sub: "U_line_existing_b",
+      name: "Sato",
+    });
+    // 익명 사용자 'anon-A' 가 기존 LINE identity 'existing-B' 로 로그인 시도.
+    mockIdxGet.mockResolvedValue({exists: true});
+    mockTxGet.mockResolvedValue({
+      exists: true,
+      data: () => ({firebaseUid: "existing-line-B"}),
+    });
+
+    const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+    const promise = wrapped({
+      auth: {uid: "anon-A-line"},
+      app: {appId: "test"},
+      data: {idToken: "FAKE", nonce: "n"},
+    } as never);
+    await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    await expect(promise).rejects.toMatchObject({
+      code: "already-exists",
+      message: "errorAccountExistsWithDifferentCredential",
+    });
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({event: "line_anonymous_conflict"}),
+      expect.any(String),
+    );
+  });
+
+  // Test 12: resolveIdentity throw → internal HttpsError + logger.error.
+  // eslint-disable-next-line max-len
+  it("Test 12: resolveIdentity throw → internal HttpsError + logger.error", async () => {
+    mockVerifyLineIdToken.mockResolvedValue({
+      sub: "U_line_fail",
+      name: "Ito",
+    });
+    // helper 의 idxRef.get() 이 firestore 오류 throw — caller 가 catch 하여
+    // internal 매핑.
+    mockIdxGet.mockRejectedValueOnce(new Error("firestore unavailable"));
+
+    const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+    const promise = wrapped({
+      app: {appId: "test"},
+      data: {idToken: "FAKE", nonce: "n"},
+    } as never);
+    await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    await expect(promise).rejects.toMatchObject({
+      code: "internal",
+      message: "errorUnknown",
+    });
+    expect(errorMock).toHaveBeenCalledWith(
+      expect.objectContaining({event: "identity_index_failed"}),
+      expect.any(String),
+    );
+    // PII 회귀 — err.message ('firestore unavailable') 본문 logger 미노출.
+    for (const args of errorMock.mock.calls) {
+      expect(JSON.stringify(args)).not.toContain("firestore unavailable");
+    }
+  });
+
+  // Test 13: createCustomToken throw → internal + err.message PII 미노출.
+  // eslint-disable-next-line max-len
+  it("Test 13: createCustomToken throw → internal + err.message 미노출", async () => {
+    mockVerifyLineIdToken.mockResolvedValue({
+      sub: "U_line_token_fail",
+      name: "Watanabe",
+    });
+    mockIdxGet.mockResolvedValue({exists: false});
+    mockTxGet.mockResolvedValue({exists: false});
+    // admin SDK throw 시뮬레이션 — err.message 에 PII sentinel 삽입.
+    const sdkErr = Object.assign(
+      new Error("PII_SENTINEL_LINE_TOKEN_FAIL_MSG"),
+      {name: "FirebaseAuthError"},
+    );
+    mockCreateCustomToken.mockRejectedValueOnce(sdkErr);
+
+    const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+    const promise = wrapped({
+      app: {appId: "test"},
+      data: {idToken: "FAKE", nonce: "n"},
+    } as never);
+    await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    await expect(promise).rejects.toMatchObject({
+      code: "internal",
+      message: "errorUnknown",
+    });
+    expect(errorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "line_custom_token_create_failed",
+        code: "FirebaseAuthError",
+      }),
+      expect.any(String),
+    );
+    // PII 회귀 — err.message 본문 logger 미노출.
+    const allLogCalls = [
+      ...infoMock.mock.calls,
+      ...warnMock.mock.calls,
+      ...errorMock.mock.calls,
+    ];
+    for (const args of allLogCalls) {
+      expect(JSON.stringify(args)).not.toContain(
+        "PII_SENTINEL_LINE_TOKEN_FAIL_MSG",
+      );
+    }
+  });
+
+  // Test 14: PII regression sentinel — logger 어디에도 PII sentinel 미노출.
+  // jose error message 에 LINE PII 모형 문자열 삽입 → caller 의 catch 가
+  // err.code / err.name 만 fingerprint 노출하므로 sentinel 어디에도 등장 0.
+  // eslint-disable-next-line max-len
+  it("Test 14: PII regression — JOSEError.message PII sentinel 미노출", async () => {
+    const piiSentinel = "PII_SENTINEL_secret_line_account_PII_NICK";
+    const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
+      m: string
+    ) => Error;
+    const err = new ErrCtor(piiSentinel);
+    (err as unknown as {code: string}).code =
+      "ERR_JWT_CLAIM_VALIDATION_FAILED";
+    mockVerifyLineIdToken.mockRejectedValue(err);
+
+    const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+    await expect(
+      wrapped({
+        app: {appId: "test"},
+        data: {idToken: "JWT_BODY_LINE", nonce: "n"},
+      } as never),
+    ).rejects.toBeInstanceOf(Error);
+
+    // 모든 logger 호출에서 sentinel + 분해 토큰 미포함 검증.
+    const allLogCalls = [
+      ...infoMock.mock.calls,
+      ...warnMock.mock.calls,
+      ...errorMock.mock.calls,
+    ];
+    for (const args of allLogCalls) {
+      const stringified = JSON.stringify(args);
+      expect(stringified).not.toContain(piiSentinel);
+      expect(stringified).not.toContain("secret_line_account");
+      expect(stringified).not.toContain("PII_NICK");
+      expect(stringified).not.toContain("JWT_BODY_LINE");
+    }
   });
 });

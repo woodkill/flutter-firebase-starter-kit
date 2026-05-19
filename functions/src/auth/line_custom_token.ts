@@ -32,9 +32,9 @@ const LINE_CHANNEL_SECRET = defineSecret("LINE_CHANNEL_SECRET");
 //  - nonceHashing = "sha256" — LINE SDK 가 raw nonce 를 SHA256 hash 후 claim
 //    에 embed (Kakao 의 raw nonce 그대로 비교 모드와 분리)
 //
-// Pitfall 3 sentinel — jose 의 createRemoteJWKSet 호출처가 functions/src/ 의
-// helper 단일 파일에 1곳 (oidc_verifier.ts) 만 남아야 한다. 본 caller 는
-// jose import 시 errors 만 사용 (instanceof 분기용).
+// Pitfall 3 sentinel — jose 의 JWKS remote set 생성 호출처가 functions/src/ 의
+// helper 단일 파일 (oidc_verifier.ts) 만 남아야 한다. 본 caller 는 jose import
+// 시 errors 만 사용 (instanceof 분기용) — 직접 JWKS factory 호출 0건.
 const verifyLineIdToken = createOidcVerifier({
   issuer: "https://access.line.me",
   jwksUrl: "https://api.line.me/oauth2/v2.1/certs",
