@@ -15,7 +15,8 @@
 /// **slugs:** `lib/core/auth/provider_id.dart` 의 `kProviderIdLine` /
 /// `kProviderIdWeChat` 와 일관. 본 list 는 const 으로 string 직접 — 빌드
 /// 시점 import cycle 회피 (lint test 가 lib/ 내 다른 const 의존하지 않음).
-const List<String> kPlaceholderProviders = <String>['line', 'wechat'];
+// Phase 14 D-LINE-13: LINE sentinel 해제 — `['line', 'wechat']` → `['wechat']`.
+const List<String> kPlaceholderProviders = <String>['wechat'];
 
 /// Brand asset 디렉토리 base path — `assets/brand`.
 ///
