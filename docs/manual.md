@@ -27,16 +27,17 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 0. [Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통)
 1. [Kakao Login (Phase 12)](#kakao-login-phase-12)
 2. [Naver Login (Phase 13)](#naver-login-phase-13)
-3. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
-4. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
-5. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
-6. [Phase 14~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1416--custom-token-provider-추가-가이드-stub)
-7. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-8. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-9. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-10. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
-11. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-12. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+3. [LINE Login (Phase 14)](#line-login-phase-14)
+4. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
+5. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
+6. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
+7. [Phase 14~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1416--custom-token-provider-추가-가이드-stub)
+8. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+9. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+10. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+11. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+12. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+13. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
 
 ---
 
@@ -666,6 +667,346 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android
 - **Pitfall 10 (Android FlutterFragmentActivity):** Naver SDK 5.4.0+ Fragment
   기반 BottomSheet 호환 — `MainActivity.kt` 가 `FlutterFragmentActivity` 상속
   필수. Plan 13-01 정착.
+
+---
+
+<!-- Phase 14 — see ROADMAP.md -->
+
+## LINE Login (Phase 14)
+
+LINE 로그인은 Custom Token 방식 + OIDC ID Token JWT 검증 (Kakao 와 같은 path)
+으로 구현되어 있습니다. Cloud Function `lineCustomToken` (asia-northeast3) 이
+`jose + JWKS` 로 LINE ID Token 을 자체 검증 → Identity Index 등록 →
+`admin.auth().createCustomToken(uid)` 발급, 클라이언트가 `signInWithCustomToken`
+으로 세션을 시작합니다 (Phase 12 D-08 OIDC verifier helper 재사용).
+
+`flutter_line_sdk` (publisher: LINE Corporation, ^2.7.2) 가 LINE 앱 설치 단말
+에서는 1-tap (앱 → 동의 → callback), 미설치 단말에서는 Chrome Custom Tabs (Android)
+/ ASWebAuthenticationSession (iOS) 웹뷰 fallback 으로 자동 분기합니다.
+
+### 1단계 — LINE Developers Console Channel 생성
+
+콘솔: <https://developers.line.biz/console/>
+
+1. **Business ID 가입** (이미 가입된 경우 로그인) — LINE Business ID 는 본인
+   LINE 모바일 계정과 별도. **이메일 + 비밀번호 옵션 권장** (개인 LINE 계정
+   분리 — 검수 권한 / 멤버 추가 시 모바일 계정 oauth 가 트러블 발생).
+2. **Provider 생성** — "Create" → "Provider" → 이름 입력 (예: `Flutter Starter Kit`).
+3. **Login Channel 생성** — Provider 페이지 안의 "Create a new channel" →
+   **"LINE Login"** 선택 → 다음 입력:
+   - **Region:** `Japan` (LINE 본사 region, 기본 선택)
+   - **Channel name:** 사용자 보이는 앱 이름 (예: `Flutter Starter Kit Dev`)
+   - **Channel description:** 짧은 설명
+   - **App type:** **`Mobile app`** 단독 체크 (Web app 체크 안 함 — 본
+     starter-kit 은 Flutter 모바일 단독)
+   - **Email:** 본인 이메일
+   - 약관 동의 후 "Create"
+4. **Channel ID / Channel Secret 확인** — 생성 직후 Channel 상세 페이지의
+   "Basic settings" 탭에서 두 키 확인 + 메모:
+   - `Channel ID` — 숫자 (예: `0000000000`) — 공개 키, `config/dev.json` 의
+     `lineChannelId` 에 주입
+   - `Channel Secret` — 영숫자 32자리 — 비공개 키, **Firebase Secret Manager
+     로만** 주입 (단계 5)
+
+### 2단계 — iOS Bundle ID + Android Package + SHA-1 등록
+
+Channel 상세 페이지의 **"LINE Login"** 탭 (또는 "App settings") 으로 이동 후:
+
+1. **iOS Bundle ID 등록**:
+   - `iOS bundle ID` 입력: `com.slimpumpkin.flutterStarterKit.dev` (dev flavor
+     — Xcode 의 Build Settings > Product Bundle Identifier 또는
+     `ios/Flutter/dev.xcconfig` 의 `BUNDLE_ID_SUFFIX` 기준)
+   - `iOS scheme` 입력: `line3rdp.com.slimpumpkin.flutterStarterKit.dev`
+     (`line3rdp.` prefix + Bundle ID 그대로) — 본 값이 `Info.plist` 의
+     `CFBundleURLTypes` 와 정확히 일치해야 callback 이 앱으로 복귀.
+   - **iOS universal links:** **OFF** (D-LINE-20 — starter-kit dev 는 URL
+     scheme 방식만. Universal Links 는 AASA 파일 호스팅 + Associated Domains
+     capability 등록 의무이므로 production 진입 시 별도 확장).
+
+2. **Android Package Name 등록**:
+   - `Android package name` 입력: `com.slimpumpkin.flutter_starter_kit.dev`
+     (`android/app/build.gradle.kts` 의 ApplicationId 와 정확히 일치)
+   - `Android package signature` (SHA-1) 입력 (대문자 + 콜론 포함 형식):
+     ```bash
+     # debug SHA-1 (개발 단계)
+     keytool -list -v \
+       -keystore ~/.android/debug.keystore \
+       -alias androiddebugkey \
+       -storepass android -keypass android \
+       | grep SHA1
+     # → 출력 예: SHA1: 3F:63:50:2E:EC:9B:D9:C6:8E:A0:FA:28:88:11:D3:99:21:AF:8E:EA
+
+     # release SHA-1 (production 빌드 전)
+     keytool -list -v \
+       -keystore <your-keystore.jks> \
+       -alias <your-alias> \
+       | grep SHA1
+     ```
+
+> **흔한 실수:** SHA-1 을 소문자 / 콜론 없이 입력. LINE Console 은 대문자 +
+> 콜론 구분자 형식 (`3F:63:50:...`) 만 정확히 일치 검증 → 미일치 시 Android
+> 1-tap 실패 (silent return + LINE 앱 deeplink 후 빈 화면 복귀).
+
+### 3단계 — UAT 권한 절차 (Channel Status 처리)
+
+> **중요 — Plan 14-05 emulator UAT 학습 (2026-05-19):**
+>
+> Channel 생성 직후 default status 는 **`Developing`** — 본 상태에서는 Provider
+> Role 에 등록된 LINE 계정만 1-tap 로그인 가능합니다. 외부 사용자 시도 시
+> 400 Bad Request `This channel is now developing status. User need to have
+> developer role` 차단.
+
+두 가지 옵션 중 **(A) Tester role 등록 (Recommended)**:
+
+1. **Console > Provider** (Channel 페이지 아닌 **상위 Provider** 페이지) →
+   **"Roles"** 탭 → **"Add member"**.
+2. 본인 LINE 모바일 계정 ID 또는 이메일 입력 → 권한 **`Tester`** 선택 →
+   "Send invite".
+3. 본인 LINE 모바일 앱에서 LINE 측 invitation 알림 → "Accept".
+4. Channel Status `Developing` 유지 (검수 trigger 회피 + dev 검증 일관).
+
+**(B) Channel publish (Developing → Published)**: Channel 페이지 상단 toggle
+또는 "Publish" 버튼 → 외부 사용자도 1-tap 가능. 단 LINE 정책상 production
+검수 trigger 가능성 — dev 검증 단계 권장 X.
+
+### 4단계 — OpenID Connect 활성화 (필수)
+
+> **중요 — Plan 14-05 emulator UAT 학습:**
+>
+> OIDC 활성화 누락 시 LINE 권한 동의 화면 진입은 가능하나 "허용" 버튼이
+> frozen (disable) → callback redirect 미도달 → Cloud Function 호출 0. 가장
+> 흔한 silent-failure 원인.
+
+1. Channel 페이지의 **"LINE Login settings"** 탭 (또는 별도 **"OpenID
+   Connect"** 탭) 진입.
+2. **`OpenID Connect`** 활성화 toggle 확인 — default disabled 가능성. 비활성
+   상태이면 toggle ON.
+3. **Save** 클릭 → 변경 즉시 반영.
+
+> Cloud Function `lineCustomToken` 이 ID Token (`id_token`) 의 JWT
+> (`iss / sub / aud / exp / nonce`) 를 jose + JWKS 로 검증하므로 OIDC 활성화는
+> 의무 — access_token 단독으로는 검증 path 없음 (D-LINE-01 verifyToken endpoint
+> 대안 미채택).
+
+### 5단계 — Firebase Secret Manager 등록 + Cloud Function 배포
+
+Cloud Function `lineCustomToken` 이 D-LINE-16 정책으로 두 secret 의무 선언
+(`defineSecret('LINE_CHANNEL_ID')` + `defineSecret('LINE_CHANNEL_SECRET')`).
+Phase 14 단계에서는 `LINE_CHANNEL_SECRET` 사용처 0건 (Cloud Function 이
+ID Token 검증만 — refresh / revoke API 미사용) 이지만, **secret 정책 일관성 +
+Phase 17+ 확장 대비** 로 미리 등록 필요:
+
+```bash
+firebase use <dev-project-id>
+
+# LINE_CHANNEL_ID 등록 (1단계에서 메모한 Channel ID 숫자)
+firebase functions:secrets:set LINE_CHANNEL_ID
+# prompt:
+#   ? Enter a value for LINE_CHANNEL_ID: <Channel ID 붙여넣기 + Enter>
+
+# LINE_CHANNEL_SECRET 등록 (1단계에서 메모한 Channel Secret 32자리)
+firebase functions:secrets:set LINE_CHANNEL_SECRET
+# prompt:
+#   ? Enter a value for LINE_CHANNEL_SECRET: <Channel Secret 붙여넣기 + Enter>
+```
+
+기대 응답:
+```
+✔ Created a new secret version projects/.../secrets/LINE_CHANNEL_ID/versions/1
+✔ Created a new secret version projects/.../secrets/LINE_CHANNEL_SECRET/versions/1
+```
+
+확인:
+```bash
+firebase functions:secrets:get LINE_CHANNEL_ID
+firebase functions:secrets:get LINE_CHANNEL_SECRET
+```
+
+배포 — `lineCustomToken` 함수를 dev Firebase 프로젝트 (asia-northeast3) 에:
+
+```bash
+cd functions
+pnpm install           # 최초 1회 (corepack 활성화는 Initial Setup 4단계 참조)
+pnpm run lint          # 0 errors 확인
+pnpm run build         # tsc OK 확인
+pnpm test              # jest 22 PASS 확인 (line 14 + oidc_verifier 8)
+
+# 배포
+firebase use <dev-project-id>
+firebase deploy --only functions:lineCustomToken
+```
+
+기대 응답:
+```
+✔ functions[lineCustomToken(asia-northeast3)] Successful update operation.
+```
+
+확인 — Firebase Console > "빌드 > Functions" → `lineCustomToken` row →
+region = `asia-northeast3` + "활성" 상태.
+
+### 6단계 — iOS / Android platform manifest 검증
+
+본 starter-kit 의 `ios/Runner/Info.plist` 와 `android/app/src/main/AndroidManifest.xml`
+는 Phase 14 Plan 14-05 가 이미 LINE 필수 entry 를 등록한 상태입니다 — fork
+사용자 변경 의무 0건. 단 본인 Bundle ID 가 다르면 `Info.plist` 의
+`CFBundleURLTypes` 의 `line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)` 가 build-time
+변수 치환되므로 자동 일치 (수동 갱신 0).
+
+**iOS — `ios/Runner/Info.plist` (Phase 14 Plan 14-05 산출, 변경 0):**
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    </array>
+  </dict>
+</array>
+<key>LSApplicationQueriesSchemes</key>
+<array>
+  <string>lineauth2</string>
+</array>
+```
+
+> **흔한 실수:** `LSApplicationQueriesSchemes` 에 `line3rdp` 나 `line` 을
+> 추가. flutter_line_sdk README 의 verbatim 은 **`lineauth2` 단일 entry** 만
+> — 다른 값 추가 시 iOS 의 LINE 앱 detection 실패.
+
+**Android — `android/app/src/main/AndroidManifest.xml` (Phase 14 Plan 14-05
+산출, 변경 0):**
+```xml
+<queries>
+  <package android:name="jp.naver.line.android" />
+</queries>
+```
+
+> **흔한 실수:** Android 11+ package visibility 정책 누락. `<queries>` 부재
+> 시 LINE 앱 설치된 단말에서도 1-tap path 미동작 → webview fallback 으로
+> degrade (silent — 사용자는 차이를 못 느낌).
+
+> flutter_line_sdk 가 Activity intent-filter 자동 처리 (직접 등록 0건).
+
+### 7단계 — `config/dev.json` 키 주입
+
+콘솔에서 발급받은 Channel ID 를 `config/dev.json` 에 주입합니다
+(`config/dev.example.json` 이 placeholder 를 이미 가지고 있으므로 `cp` 후
+본인 값으로 교체):
+
+```json
+{
+  "enabledAuthProviders": "google,apple,facebook,kakao,naver,line",
+  "lineChannelId": "<발급받은 Channel ID 숫자>"
+}
+```
+
+- `Channel Secret` 은 `config/dev.json` 에 **넣지 마세요** — 5단계의
+  Firebase Secret Manager 로만 주입 (PII / secret 격리 정책).
+
+> **stg / prod 는?** dev 와 동일한 절차로 사용자 자체 LINE Channel 을 별도
+> 등록 + 키 주입. starter-kit 의 stg/prod config 는 placeholder 만 포함합니다
+> (D-LINE-19 — `project_firebase_dev_only` 정책 일관).
+
+### 8단계 — dev flavor 실 단말 / emulator 검증
+
+```bash
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <device-id>
+```
+
+- LoginScreen 의 **"LINE으로 시작하기"** 버튼 (그린 `#06C755` 배경 + 흰
+  LINE 자상 — `BrandedSocialButton.line()`) 탭 → LINE 앱 설치 시 1-tap,
+  미설치 시 Chrome Custom Tabs (Android) / ASWebAuthenticationSession (iOS)
+  webview fallback → 사용자 동의 → 앱 복귀.
+- Home 진입 + EnvironmentInfoScreen 의 Account 섹션 — `linkedProviders` 에
+  "LINE" 표시 확인.
+- Android UAT 8 시나리오: `.planning/phases/14-line-login/14-HUMAN-UAT.md`.
+- iOS UAT 는 보류 — `.planning/todos/pending/2026-05-20-ios-line-uat-deferred.md`
+  추적 (Phase 13 D-59 패턴 mirror).
+- Android emulator UAT 도 일부 보류 — `.planning/todos/pending/2026-05-20-android-line-uat-deferred.md`
+  추적 (Plan 14-05 UAT 학습: Tester role 등록 + OIDC 활성화 + LINE 앱
+  설치 단말에서 app-to-app 1-tap A3 queries 검증).
+
+### email permission 신청 절차 (선택 — Phase 17+ 책임 범위)
+
+본 starter-kit 의 Phase 14 단계는 LINE scope = `openid + profile` 만 사용
+(D-LINE-21 — email 회피). `user.email = null` 수용. Phase 17 (Account Linking)
+이후 사용자 식별 강화 시 email scope 활성화 필요:
+
+1. **신청:** LINE Console > Channel > "LINE Login settings" → "OpenID Connect"
+   탭 → "Email address permission" → "Apply" 버튼 클릭 → 사용 목적 + 사용자
+   안내 스크린샷 업로드 → LINE 검수 (수일~수 주 [ASSUMED] — 정확한 timeline
+   은 LINE 공식 미공개). 참조:
+   <https://developers.line.biz/en/docs/line-login/integrate-line-login/#applying-email-permission>
+2. **승인 후 code 변경** (Phase 17+ 책임 — starter-kit Phase 14 단계 적용 X):
+   - `lib/features/auth/data/line_sdk_client.dart` 의 `LoginOption` scopes
+     에 `'email'` 추가
+   - `functions/src/auth/line_custom_token.ts` 의 `typedPayload` type 에
+     `email?: string` + `email_verified?: boolean` 추가
+   - `userInfo.email` 설정 + `createCustomToken(uid, developerClaims: {email,
+     email_verified})` 분기
+
+### 비즈니스 인증 절차 (production 전환 시)
+
+dev 단계는 LINE Console 의 본인 Tester 계정만 사용 가능. production 출시
+시 LINE Console 의 다음 항목 추가 의무:
+
+1. **사업자 등록증 / 회사 정보** — Provider Settings > "Company information"
+   탭 → 회사명 / 사업자 등록번호 / 대표자명 / 주소 입력.
+2. **사용자 약관 + Privacy Policy URL 호스팅** — Channel > "Basic settings"
+   탭 → "Privacy policy URL" + "Terms of use URL" 등록. starter-kit 사용자가
+   자체 도메인에 호스팅 후 URL 등록.
+3. **Universal Links 확장** (선택, iOS UX 개선) — Apple Developer Console >
+   App ID > Associated Domains capability 등록 + 자체 도메인에 AASA 파일
+   호스팅 + LINE Console > iOS universal links ON. starter-kit dev only
+   범위 외 (D-LINE-20).
+4. **Channel publish** — Channel 페이지 상단 toggle Developing → Published.
+   외부 사용자 1-tap 가능 (3단계 (B) 옵션).
+
+### 19 locale 확장 절차
+
+LINE 공식 가이드는 19 언어 (en/ja/ko/zh-Hans 등) verbatim 라벨을 제공.
+starter-kit 의 Phase 14 단계는 3 locale (en/ko/ja) 만 채택 (`authLineSignIn`
+ARB 키). 19 locale 확장 시 다음 절차:
+
+1. **권위 출처 doc 참조:** `.planning/phases/14-line-login/14-LINE-LOCALE-REFERENCE.md`
+   — LINE 공식 19 언어 verbatim 표 (D-LINE-09) + ARB 추가 절차 + 자상 변경
+   0 invariant (모든 locale 이 동일 영문 LINE 자상 사용 — 자상은 brand
+   단독 권위).
+2. **ARB 신규 키 추가:** `lib/l10n/app_<locale>.arb` 에 `authLineSignIn`
+   키 verbatim 추가 (예: `app_zh_Hans.arb` → `"authLineSignIn": "使用 LINE 登录"`).
+3. **자상 변경 0 invariant:** `assets/brand/line/btn_signin_icon.svg` 단일
+   파일 — locale 별 분기 디렉토리 (`assets/brand/line/<locale>/`) 생성 절대
+   금지 (LINE BI policy — 자상은 영문 LINE 단일 source).
+4. **flutter gen-l10n 자동 호출** + 위젯 회귀 테스트 (BrandedSocialButton.line
+   golden) 확인.
+
+### Pitfall 정리 (Phase 14 RESEARCH §Pitfalls)
+
+- **Pitfall 1 (idToken null 가드):** `LineSdkClient.signIn` 본문이
+  `LineSDK.instance.login(...)` 결과 `accessToken.idToken` null 가드 필수
+  (`if (idToken == null) return null`). null 일 때 `LoginResult.cancelled`
+  (사용자 권한 거절) 패턴 — Plan 14-05 정착.
+- **Pitfall 2 (race-fix logout 위치):** D-LINE-57 — `signInWithLine` finally
+  블록의 `_lineSdkClient.logout()` 호출은 모든 path (성공 / cancel / error /
+  timeout) 에서 호출 (Phase 13 WR-01-iter2 보안 우선 정책 mirror). Plan
+  14-05 정착, verifyInOrder 정적 가드 보유.
+- **Pitfall 3 (nonce SHA256 hashing):** 클라이언트가 raw nonce 생성
+  (`Random.secure 16-byte`) → SHA256 해시 후 LINE SDK 에 전달 → Cloud Function
+  이 ID Token 의 `nonce` claim 과 raw nonce SHA256 비교 (Phase 12 D-04
+  mirror). 단계 미스매치 시 unauthenticated.
+- **Pitfall 4 (LINE Console OIDC 활성화 누락):** 4단계 OIDC toggle OFF →
+  consent 화면 "허용" 버튼 frozen → silent failure. 가장 흔한 신규 사용자
+  trap.
+- **Pitfall 5 (Android `<queries>` 누락):** Android 11+ package visibility
+  정책 누락 시 LINE 앱 설치 단말에서도 app-to-app 1-tap 미동작 → webview
+  fallback degrade (사용자 silent).
+- **Pitfall 6 (LINE_CHANNEL_ID config 미주입):** `config/dev.json` 의
+  `lineChannelId` placeholder 미교체 시 client SDK init 단계에서 silent
+  failure (LineSDK 가 빈 channelId 로 init → login 호출 시 400).
+- **Pitfall 7 (Android minSdk < 24):** flutter_line_sdk 가 minSdk 24 요구
+  (A8 verified). Flutter 3.41.4 의 flutter.minSdkVersion 가 이미 24 →
+  starter-kit 변경 0. 사용자가 minSdk 23 이하로 downgrade 시 LINE 1-tap
+  실패.
 
 ---
 
@@ -1634,7 +1975,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-05-09 | 13.1-16 | Brand Asset Management 단락 보강 — Phase 13.1 Gap-1 X2 (wide 자상 통째 buttons 패턴) 함정 경고 박스 #2 신규 + 자산 변형 정책 단락에 layout 패턴 bullet 추가 (`Image.asset(fit: BoxFit.contain)` / `SvgPicture.asset(fit: BoxFit.contain)` + ClipRRect 폐기 + Material `clipBehavior: Clip.none` + InkWell `borderRadius: 12dp` ripple 제어 + letterbox 영역). en fallback 정책 (ko 외 모든 locale 은 en 자상 path 로딩) 명시. Plan 13.1-14 production code + Plan 13.1-15 4-round 시각 검증 deviation 1+2 인용. |
 | 2026-05-10 | 13.1-REVIEW | iter1 code review CR-02 정정 — `## Brand Asset (Phase 13 D-52)` + `## Kakao Brand Asset 라이센스 (Phase 12-07)` 두 단락 DEPRECATED 표시 + Phase 13.1 신규 단락 (`## Brand Asset Management (Phase 13.1)`) 으로 사용자 redirect. Phase 13.1 R1 정정 (#03A94D) + ColorFilter 절대 금지 + `assets/brand/{provider}/` 신규 디렉토리 구조 정합성 회복. |
 | 2026-05-10 | 09.2-05 | `## Multi-Provider Account Linking (Phase 9.2)` 단락 신규 (D-32, 4 sub-section + 커스터마이징 포인트 + 회귀 가드 매트릭스) — Path A-narrow R2~R6 동작 (account-exists unknown fallback 메시지 ko/en/ja verbatim, AccountProvider enum 부활 절차 — Phase 17 (Account Linking) — see ROADMAP.md, Facebook 자동 sendEmailVerification + photoURL Graph API + race-fix invariant + D-27 PII regression sentinel 매트릭스, signOut 5 SDK 순차 — Google → Facebook → Kakao → Naver → FirebaseAuth). R1 deferred to Phase 17 명시 (D-33). 코드 anchor (auth_repository.dart line 230/340/441/442/525/612/728/778/829/837/845/853/859) + 회귀 test 파일 5종 인용 (Phase 13.1 D-84 패턴 정합). 목차 11 항목으로 확장. |
+| 2026-05-20 | 14-07 | `## LINE Login (Phase 14)` 단락 신규 (D-LINE-22a, 8 단계 종합 절차 + Pitfall 7종) — Channel 생성 (Business ID 가입 + Provider + Login Channel + Region Japan + Mobile app 단독), iOS Bundle/Android Package/SHA-1 등록 (Universal Links OFF), UAT 권한 절차 (Tester role recommended / Channel publish 분기, Plan 14-05 UAT 학습 verbatim), OpenID Connect 활성화 (silent-failure 가장 흔한 trap), Firebase Secret Manager 등록 + Cloud Function deploy, platform manifest 검증 (CFBundleURLTypes line3rdp / LSApplicationQueriesSchemes lineauth2 단일 / `<queries>` jp.naver.line.android), config/dev.json 키 주입, dev flavor 검증 + UAT 보류 todo 2건 (ios/android). email permission 신청 절차 + 비즈니스 인증 (production) + 19 locale 확장 절차 (자상 변경 0 invariant) + Pitfall 7종 (idToken null / race-fix logout / nonce SHA256 / OIDC 누락 / queries 누락 / lineChannelId 미주입 / Android minSdk < 24). 목차 13 항목으로 확장. |
 
 ---
 
-*Last updated: 2026-05-10 — Phase 9.2 P5 docs (Multi-Provider Account Linking 단락 신규)*
+*Last updated: 2026-05-20 — Phase 14-07 docs (LINE Login (Phase 14) 단락 신규)*
