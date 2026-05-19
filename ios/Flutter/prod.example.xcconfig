@@ -9,3 +9,5 @@ FACEBOOK_CLIENT_TOKEN = YOUR_FACEBOOK_CLIENT_TOKEN_HERE
 KAKAO_NATIVE_APP_KEY = REPLACE_WITH_PROD_NATIVE_APP_KEY
 // Naver Login URL scheme (Phase 13 — see ROADMAP.md). prod 는 사용자 자체 등록.
 NAVER_URL_SCHEME = your-naver-url-scheme-here
+// LINE Channel ID (Phase 14 — see ROADMAP.md, D-LINE-16). prod 는 사용자 자체 등록 (D-LINE-19 일관).
+LINE_CHANNEL_ID = REPLACE_WITH_PROD_LINE_CHANNEL_ID

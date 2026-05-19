@@ -96,6 +96,25 @@ abstract final class AppConfig {
   /// Naver 로그인 URL Scheme. iOS only (Android 는 SDK 자동 머지).
   static String get naverUrlScheme => _naverUrlScheme;
 
+  /// LINE Channel ID — public client identifier (Phase 14 D-LINE-16).
+  ///
+  /// `--dart-define-from-file=config/{flavor}.json` 의 `lineChannelId` 키를
+  /// 컴파일 타임 상수로 읽는다. Phase 12 의 [kakaoNativeAppKey] / Phase 13 의
+  /// [naverClientId] 패턴과 일관 — 미주입 시 빈 문자열, silent fallback 회피
+  /// (WR-07 hotfix). [LineSDK.instance.setup] 호출 시점에 빈 문자열이면 SDK
+  /// assertion / 첫 API 호출에서 즉시 실패하므로 silent failure 아님.
+  ///
+  /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
+  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 LINE 단락 참조.
+  ///
+  /// LINE Channel Secret 은 client 측에 미저장 (D-LINE-18 — Cloud Function
+  /// 의 Secret Manager 단독 보관). client 는 Channel ID 만 보유하면 OIDC
+  /// 흐름 수행 가능.
+  static const String lineChannelId = String.fromEnvironment(
+    'lineChannelId',
+    defaultValue: '',
+  );
+
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///
   /// 예: `'google,apple,facebook'`. 공백 / 빈 토큰은 무시한다. dart-define

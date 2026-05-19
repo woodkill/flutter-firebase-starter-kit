@@ -13,6 +13,8 @@ import 'package:flutter_starter_kit/core/firebase/firebase_initializer.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
+// Phase 14 — see ROADMAP.md (LINE Login SDK init).
+import 'package:flutter_line_sdk/flutter_line_sdk.dart';
 // kakao_flutter_sdk_user 가 kakao_flutter_sdk_auth 를 통해 transitive 로
 // kakao_flutter_sdk_common 을 re-export 하므로 직접 의존성 import 1개로 충분.
 // pubspec.yaml 의 직접 의존성 (`kakao_flutter_sdk_user`)과 일관 — depend_on_referenced_packages 통과.
@@ -168,6 +170,31 @@ Future<void> bootstrap() async {
             }
           }
 
+          // LINE SDK 초기화 (Phase 14 D-LINE-17).
+          //
+          // flutter_line_sdk 의 [LineSDK.instance.setup] 호출 의무. NaverSDK
+          // init 직후 + RC fetch 전 위치 — LoginScreen 진입 직전 사용 가능 +
+          // cold start 의 첫 클릭 지연 회피. SDK 자체 멱등성 보장 (LineSDK
+          // _channel 의 'setup' invokeMethod 가 native side 에서 idempotent
+          // 처리).
+          //
+          // [LineSDK.instance.setup] 는 [Future<void>] 반환 — `await` 의무.
+          // dev flavor 만 실 키 주입 (D-LINE-19 / memory `project_firebase_dev_only`),
+          // stg/prod 는 placeholder — manual.md D-LINE-22a (1) 절차 따름.
+          // 빈 문자열 시 SDK 첫 login() 호출에서 실패하므로 silent failure 회피
+          // (KakaoSdk / NaverLoginSDK 패턴 일관).
+          //
+          // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
+          // debugPrint fallback (GoogleSignIn / KakaoSdk / NaverLoginSDK 패턴
+          // 일관).
+          try {
+            await LineSDK.instance.setup(AppConfig.lineChannelId);
+          } on Object catch (e, st) {
+            if (kDebugMode) {
+              debugPrint('LineSDK.setup() 실패 (무시): $e\n$st');
+            }
+          }
+
           // Remote Config 초기화 (Phase 11 D-24, D-25 폴백, Pitfall 4 silent
           // stale 가드). fetch 실패는 무시 + 정적 config 로 진행.
           try {
@@ -195,6 +222,7 @@ Future<void> bootstrap() async {
             // - 'auth_provider_facebook_enabled': true (Phase 9+)
             // - 'auth_provider_kakao_enabled': true (Phase 12+)
             // - 'auth_provider_naver_enabled': true (Phase 13 — see ROADMAP.md)
+            // - 'auth_provider_line_enabled': true (Phase 14 — see ROADMAP.md)
             await rc.setDefaults(<String, Object>{
               for (final entry in AppConfig.authProviders.entries)
                 rcKeyForProvider(entry.key): entry.value,

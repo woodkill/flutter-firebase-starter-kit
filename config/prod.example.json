@@ -10,6 +10,7 @@
   "naverClientId": "YOUR_NAVER_CLIENT_ID",
   "naverClientSecret": "YOUR_NAVER_CLIENT_SECRET",
   "naverUrlScheme": "your-naver-url-scheme-here",
+  "lineChannelId": "YOUR_LINE_CHANNEL_ID_PROD_HERE",
   "splashMinDurationMs": 2000,
   "enabledAuthProviders": "google,apple,facebook,kakao"
 }

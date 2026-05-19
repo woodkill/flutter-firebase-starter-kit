@@ -86,5 +86,12 @@
              kakao_flutter_sdk_common 의 AndroidManifest.xml에도 동일 선언이
              있어 manifest merge 시 자동 포함되지만, 명시성을 위해 앱 측에도 등록한다. -->
         <package android:name="com.kakao.talk" />
+        <!-- LINE 패키지 가시성 (Phase 14 D-LINE-18 — see ROADMAP.md, Android 11+).
+             LINE 앱 설치 감지 후 app-to-app OAuth 분기. flutter_line_sdk
+             native plugin 의 manifest merge 가 본 entry 를 추가할 수도 있으나
+             명시성 + Wave 3 A3 emulator 검증 의무 (manual.md "## LINE Login").
+             패키지 미선언 시 Android 11+ 에서 LINE 앱 존재 확인 불가 → 무조건
+             web fallback 으로 강제됨. -->
+        <package android:name="jp.naver.line.android" />
     </queries>
 </manifest>
