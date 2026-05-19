@@ -215,12 +215,7 @@ class NaverSpec extends BrandSpec {
 /// 다른 4 provider (Kakao/Naver/Apple/Facebook) 는 BrandSpec default 유지.
 class GoogleSpec extends BrandSpec {
   /// const 생성자 — Google production CSS verbatim override (X1 height 48 회귀).
-  const GoogleSpec()
-      : super(
-          height: 48,
-          borderRadius: 4,
-          iconSize: 20,
-        );
+  const GoogleSpec() : super(height: 48, borderRadius: 4, iconSize: 20);
 
   @override
   AssetType get assetType => AssetType.svg;
@@ -266,16 +261,46 @@ class FacebookSpec extends BrandSpec {
   AssetType get assetType => AssetType.svg;
 }
 
-/// LINE 로그인 버튼 spec — D-73 placeholder (자상 미존재 시 fallback render).
+/// LINE 로그인 버튼 spec — Phase 14 D-LINE-08 active (sentinel → SVG).
 ///
-/// Phase 14 진입 시 자상 commit 후 `_brand_assets.dart` 의
-/// `kPlaceholderProviders` 에서 'line' 제거 의무.
+/// Phase 13.1 의 placeholder (`AssetType.png` + `kPlaceholderProviders` 등재)
+/// 가 Phase 14 D-LINE-08 (2026-05-19) 로 supersede — Symbol SVG 자상
+/// (`assets/brand/line/btn_signin_icon.svg`) + `_renderLineButton` 활성.
+/// Kakao/Naver Wave 4 Step 2 패턴 1:1 mirror.
+///
+/// **Phase 14 active spec (D-LINE-08 / D-LINE-12):**
+/// - [assetType] = `AssetType.svg` (Symbol SVG — PNG 비채택)
+/// - [iconAspectRatio] = `47.0 / 44.0 = 1.0682` (PSD 자연 비율 94:88 →
+///   GCD 2 정수 47:44). LINE 가이드 "**aspect ratio does not change**"
+///   필수 부합. caller `_renderLineButton` 가 `SizedBox(width: iconHeight ×
+///   iconAspectRatio, height: iconHeight=18)` 으로 vertical 18 canonical
+///   (5 provider 일관) + horizontal 비대육 (≈19.227dp) 렌더.
+/// - height/borderRadius/iconSize = `BrandSpec` default (48 / 12 / 18 —
+///   D-71 Universal Layout). LineSpec 별도 override 0.
+///
+/// **Starter kit brand drift 회피:** `_renderLineButton` 모든 외관 spec
+/// hardcoded — `colorScheme.*` / `textTheme.*` 토큰 의존 0 (Kakao/Naver/
+/// Apple/Google 패턴 mirror).
 class LineSpec extends BrandSpec {
-  /// const 생성자.
+  // Phase 14 — see ROADMAP.md (D-LINE-08, D-LINE-12 — sentinel → active 전환)
+
+  /// const 생성자 — `BrandSpec` default (height 48 / radius 12 / iconSize 18) 채택.
   const LineSpec();
 
+  /// Symbol SVG 자상 (`assets/brand/line/btn_signin_icon.svg`).
+  ///
+  /// Phase 13.1 의 placeholder `AssetType.png` 회귀 차단 의무 — D-LINE-08.
   @override
-  AssetType get assetType => AssetType.png;
+  AssetType get assetType => AssetType.svg;
+
+  /// LINE icon viewBox aspect — `width / height = 47 / 44 = 1.0682` (D-LINE-12).
+  ///
+  /// PSD `LINE_Login_Button_Image.psd` 의 `btn_signin` smart-object 본
+  /// 비율 (94×88 → GCD 2 정수 47:44). caller `_renderLineButton` 가
+  /// `SizedBox(width: iconHeight × iconAspectRatio, height: iconHeight)`
+  /// 으로 horizontal 비대육 렌더 (vertical 18dp canonical 유지 — 5 provider
+  /// 시각 weight 일관, horizontal 만 LINE BI 비대육 채택).
+  static const double iconAspectRatio = 47.0 / 44.0;
 }
 
 /// WeChat 로그인 버튼 spec — D-73 placeholder.
@@ -463,7 +488,17 @@ class BrandedSocialButton extends StatelessWidget {
         label,
         onPressed,
       ),
-      LineSpec() || WechatSpec() => _renderPlaceholder(context, spec, label),
+      // Phase 14 — see ROADMAP.md (D-LINE-08 — sentinel → active 전환,
+      // Phase 13.2 옵션 A 패턴 mirror). LineSpec → `_renderLineButton`
+      // 신규 분기 (capture pattern `final LineSpec lineSpec` 으로 spec
+      // narrowing). WechatSpec 단독 placeholder 유지 (Phase 16 진입까지).
+      final LineSpec lineSpec => _renderLineButton(
+        context,
+        lineSpec,
+        label,
+        onPressed,
+      ),
+      WechatSpec() => _renderPlaceholder(context, spec, label),
       KakaoSpec() => _renderKakaoButton(context, spec, label, onPressed),
       NaverSpec() => _renderNaverButton(context, spec, label, onPressed),
       GoogleSpec() => _renderGoogleButton(context, spec, label, onPressed),
@@ -624,23 +659,23 @@ Widget _renderKakaoButton(
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                      // Kakao 라벨 spec (Step B platform 분기):
-                      //   fontFamily/fontWeight = isApplePlatform ?
-                      //   AppleSDGothicNeo w500 : Pretendard w400 (위 분기
-                      //   lookup 참조).
-                      //   fontSize = isApplePlatform ? 16 : 15 —
-                      //   AppleSDGothicNeo cap height 가 Pretendard 보다 작은
-                      //   비율이라 시각 보정 위해 Apple OS 만 +1pt (Naver case
-                      //   mirror, 사용자 시각 보고 3회 iteration 2026-05-16:
-                      //   15→16→17→16 수렴).
-                      //   Android 는 PSD M Wide variant verbatim 15pt 유지.
-                      //   height 1.0 + leadingDistribution.even (Apple OS 만)
-                      //   — line box 압축 + leading 균등 분배 → text visible
-                      //   glyph 가 line box center 에 정확 align → SVG vertical
-                      //   center 와 정렬 향상.
-                      //   color fgColor = #000000 α0.85 (가이드 정문 우선).
-                      //   textTheme.labelLarge.copyWith 비채택 (사용자
-                      //   ThemeData drift 회피).
+                        // Kakao 라벨 spec (Step B platform 분기):
+                        //   fontFamily/fontWeight = isApplePlatform ?
+                        //   AppleSDGothicNeo w500 : Pretendard w400 (위 분기
+                        //   lookup 참조).
+                        //   fontSize = isApplePlatform ? 16 : 15 —
+                        //   AppleSDGothicNeo cap height 가 Pretendard 보다 작은
+                        //   비율이라 시각 보정 위해 Apple OS 만 +1pt (Naver case
+                        //   mirror, 사용자 시각 보고 3회 iteration 2026-05-16:
+                        //   15→16→17→16 수렴).
+                        //   Android 는 PSD M Wide variant verbatim 15pt 유지.
+                        //   height 1.0 + leadingDistribution.even (Apple OS 만)
+                        //   — line box 압축 + leading 균등 분배 → text visible
+                        //   glyph 가 line box center 에 정확 align → SVG vertical
+                        //   center 와 정렬 향상.
+                        //   color fgColor = #000000 α0.85 (가이드 정문 우선).
+                        //   textTheme.labelLarge.copyWith 비채택 (사용자
+                        //   ThemeData drift 회피).
                         style: TextStyle(
                           color: fgColor,
                           fontSize: isApplePlatform ? 16 : 15,
@@ -787,24 +822,24 @@ Widget _renderNaverButton(
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                      // Naver 라벨 spec (Kakao 패턴 mirror platform 분기):
-                      //   fontFamily = isApplePlatform ? AppleSDGothicNeo :
-                      //   Pretendard.
-                      //   fontWeight = isApplePlatform ? w700 : w600 (위 분기
-                      //   lookup).
-                      //   fontSize = isApplePlatform ? 17 : 16 —
-                      //   AppleSDGothicNeo cap height 가 Pretendard 보다 작은
-                      //   비율이라 시각 보정 위해 Apple OS 만 +1pt (사용자
-                      //   시각 보고 3회 iteration 2026-05-16: 16→17→18→17 수렴).
-                      //   height 1.0 + leadingDistribution.even (Apple OS 만)
-                      //   — line box 를 fontSize 와 같게 압축 + leading 을
-                      //   ascent/descent 균등 분배 → text visible glyph 가
-                      //   line box center 에 정확 align → SVG vertical center
-                      //   와 정렬 (default proportional 시 ascent 에 leading
-                      //   많이 분배되어 text 가 line box 안에서 위쪽으로 치우침).
-                      //   color fgColor = #FFFFFF (정문 필수).
-                      //   textTheme.labelLarge.copyWith 비채택 (사용자
-                      //   ThemeData drift 회피).
+                        // Naver 라벨 spec (Kakao 패턴 mirror platform 분기):
+                        //   fontFamily = isApplePlatform ? AppleSDGothicNeo :
+                        //   Pretendard.
+                        //   fontWeight = isApplePlatform ? w700 : w600 (위 분기
+                        //   lookup).
+                        //   fontSize = isApplePlatform ? 17 : 16 —
+                        //   AppleSDGothicNeo cap height 가 Pretendard 보다 작은
+                        //   비율이라 시각 보정 위해 Apple OS 만 +1pt (사용자
+                        //   시각 보고 3회 iteration 2026-05-16: 16→17→18→17 수렴).
+                        //   height 1.0 + leadingDistribution.even (Apple OS 만)
+                        //   — line box 를 fontSize 와 같게 압축 + leading 을
+                        //   ascent/descent 균등 분배 → text visible glyph 가
+                        //   line box center 에 정확 align → SVG vertical center
+                        //   와 정렬 (default proportional 시 ascent 에 leading
+                        //   많이 분배되어 text 가 line box 안에서 위쪽으로 치우침).
+                        //   color fgColor = #FFFFFF (정문 필수).
+                        //   textTheme.labelLarge.copyWith 비채택 (사용자
+                        //   ThemeData drift 회피).
                         style: TextStyle(
                           color: fgColor,
                           fontSize: isApplePlatform ? 17 : 16,
@@ -815,6 +850,127 @@ Widget _renderNaverButton(
                               ? TextLeadingDistribution.even
                               : null,
                         ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// Phase 14 — see ROADMAP.md (D-LINE-08/11/12/13/14 — LINE active render).
+
+/// LINE 로그인 button render (Phase 14, D-LINE-08~D-LINE-14).
+///
+/// Universal Layout Pattern + #06C755 bg + Symbol SVG inline + ARB
+/// `authLineSignIn`. light/dark 단일 (D-LINE-14 — Theme.brightness 분기 0).
+/// outline 0 (bg-only). Phase 13.3 Wave 4 Step 3 Kakao/Naver 패턴 1:1 mirror.
+///
+/// **Starter kit brand drift 회피 (Wave 4 Step 3 mirror):** bg/fg/symbol
+/// 색 모두 `Color` literal hardcode + `TextStyle()` 직접 명시. `colorScheme.*`
+/// / `textTheme.*` 토큰 의존 0. 스타터킷 사용자가 `ThemeData.colorScheme` 또는
+/// `textTheme` override 시 brand 버튼 외관 회귀 차단 (memory
+/// `feedback_starter_kit_brand_drift_avoidance`).
+///
+/// **LINE 공식 BI spec (D-LINE-11/12 verbatim — PSD `LINE_Login_Button_Image.psd`
+/// + `LINE Login button design guidelines.pdf` 출처):**
+/// - bg: `#06C755` (Default state — green saturated)
+/// - label color: `#FFFFFF`
+/// - icon color: `#FFFFFF` (`ColorFilter.srcIn` 적용 — SVG `fill="currentColor"`)
+/// - icon viewBox: `"0 0 47 44"` (PSD 자연 비율 94:88 → GCD 2 정수 47:44,
+///   aspect 1.0682 — LINE 가이드 "aspect ratio does not change" 부합)
+/// - icon size: `SizedBox(width: 19.227, height: 18)` — vertical 18 canonical
+///   (5 provider 일관 시각 weight) + horizontal 비대육 채택 (D-LINE-12)
+/// - logoLabelGap: 8dp (Universal Layout, Phase 13.3 D-71)
+/// - borderRadius: 12dp (Universal Layout, `spec.borderRadius` 기본값)
+/// - height: 48dp (Universal Layout, `spec.height` 기본값)
+/// - disabled: `Opacity(0.5)` wrap + `InkWell.onTap = null` (5 active provider
+///   일관 disabled 외관 — Kakao/Naver 패턴 mirror)
+///
+/// **D-LINE-14 dark theme 정책:** LINE 공식 가이드 dark variant 명시 0
+/// (single green theme only). `Theme.brightness` 분기 코드 0 — caller 가 dark
+/// scaffold 위에서 본 버튼을 띄워도 #06C755 saturated green 으로 충분한
+/// contrast 확보 (Naver Wave 3 R7 mirror).
+///
+/// **fontFamily 정책 (Kakao/Naver 와 분기 부재):** LINE 공식 BI 가 fontFamily
+/// 미명시 → system default 채택. Kakao/Naver 의 `isApplePlatform` AppleSDGothicNeo
+/// / Pretendard 분기는 PSD verbatim 의무가 있는 경우 한정 — LINE 은 자유
+/// 영역이므로 분기 0 (코드 간결성 + future drift 표면 최소화).
+Widget _renderLineButton(
+  BuildContext context,
+  LineSpec spec,
+  String label,
+  VoidCallback? onPressed,
+) {
+  final radius = BorderRadius.circular(spec.borderRadius);
+  final isEnabled = onPressed != null;
+  // D-LINE-11 verbatim: bg #06C755 / label #FFFFFF / icon #FFFFFF (single
+  // theme — Theme.brightness 분기 0, D-LINE-14).
+  const bgColor = Color(0xFF06C755);
+  const fgColor = Color(0xFFFFFFFF);
+  const symbolColor = Color(0xFFFFFFFF);
+  // D-LINE-12 verbatim: icon vertical 18 canonical (5 provider 일관 weight)
+  // + horizontal 비대육 (aspect 47:44 = 1.0682 — LINE 가이드 부합).
+  const iconHeight = 18.0;
+  const iconWidth = iconHeight * LineSpec.iconAspectRatio; // ≈ 19.227
+
+  return Semantics(
+    button: true,
+    enabled: isEnabled,
+    label: label,
+    onTap: onPressed,
+    excludeSemantics: true,
+    child: SizedBox(
+      width: double.infinity,
+      height: spec.height, // 48 — Universal Layout (Phase 13.3 D-71)
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.5,
+        child: Material(
+          color: bgColor,
+          shape: RoundedRectangleBorder(borderRadius: radius),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: radius,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+              ), // Universal Layout padding
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: iconWidth,
+                    height: iconHeight,
+                    child: SvgPicture.asset(
+                      '$kBrandAssetBase/line/btn_signin_icon.svg',
+                      colorFilter: const ColorFilter.mode(
+                        symbolColor,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8), // Universal Layout gap
+                  Flexible(
+                    child: Text(
+                      label, // caller resolveLabel: AppLocalizations.authLineSignIn
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      // starter kit brand drift 회피: TextStyle hardcode (textTheme
+                      // 의존 0). letterSpacing 0.1 + height 20/14 = 5 active
+                      // provider 공통 typographic rhythm.
+                      style: const TextStyle(
+                        color: fgColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.1,
+                        height: 20 / 14,
                       ),
                     ),
                   ),
@@ -912,9 +1068,7 @@ Widget _renderFacebookButton(
   // CSS, selector 만 변경 → Meta 정문 자유 영역 위반 0 + Google + Facebook
   // outline 색 light/dark 양쪽 정확 일치 → 2 outline 그룹 시각 통일.
   final bgColor = isDark ? const Color(0xFF131314) : const Color(0xFFFFFFFF);
-  final labelColor = isDark
-      ? const Color(0xFFE3E3E3)
-      : const Color(0xFF1F1F1F);
+  final labelColor = isDark ? const Color(0xFFE3E3E3) : const Color(0xFF1F1F1F);
   final outlineColor = isDark
       ? const Color(0xFF8E918F)
       : const Color(0xFF747775);
@@ -1063,9 +1217,7 @@ Widget _renderGoogleButton(
   final outlineColor = isDark
       ? const Color(0xFF8E918F)
       : const Color(0xFF747775);
-  final labelColor = isDark
-      ? const Color(0xFFE3E3E3)
-      : const Color(0xFF1F1F1F);
+  final labelColor = isDark ? const Color(0xFFE3E3E3) : const Color(0xFF1F1F1F);
   // Google 정문 OS 분기 필수 (Step 3 §3.5 / §3.6):
   //   padding.horizontal: Android/Web 12 / iOS 16
   //   logoLabelGap:       Android/Web 10 / iOS 12
@@ -1342,7 +1494,11 @@ Widget _renderAppleButton(
 // sealed BrandSpec switch 의 compile-time exhaustiveness 는 `build()` switch
 // 가 이미 보장 (Phase 14/16 신규 provider 추가 시 build() 컴파일 fail).
 
-/// LINE/WeChat placeholder render — D-73 (자상 미존재 시 회색 fallback).
+/// WeChat placeholder render — D-73 (자상 미존재 시 회색 fallback).
+///
+/// **Phase 14 D-LINE-08 (2026-05-19):** LineSpec sentinel 해제 — caller 는
+/// 더 이상 `_renderPlaceholder` 로 분기하지 않음. WechatSpec 단독 책임으로
+/// 축소 (Phase 16 진입까지 유지).
 ///
 /// production 빌드는 회색 disabled 외관 (R10).
 ///
