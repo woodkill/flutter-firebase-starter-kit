@@ -22,6 +22,7 @@ import 'apple_sign_in_notifier.dart';
 import 'facebook_sign_in_notifier.dart';
 import 'google_sign_in_notifier.dart';
 import 'kakao_sign_in_notifier.dart';
+import 'line_sign_in_notifier.dart';
 import 'naver_sign_in_notifier.dart';
 import 'signup_notifier.dart';
 
@@ -96,6 +97,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (ref.read(facebookSignInProvider).isLoading) return;
     if (ref.read(kakaoSignInProvider).isLoading) return;
     if (ref.read(naverSignInProvider).isLoading) return;
+    if (ref.read(lineSignInProvider).isLoading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
@@ -124,15 +126,18 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     final facebookState = ref.watch(facebookSignInProvider);
     final kakaoState = ref.watch(kakaoSignInProvider);
     final naverState = ref.watch(naverSignInProvider);
+    final lineState = ref.watch(lineSignInProvider);
     // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): LoginScreen 과 동일한
     // 화면 전체 오버레이 패턴. Phase 12 — kakaoState 합산,
-    // Phase 13 — naverState 합산 (Plan 13-06).
+    // Phase 13 — naverState 합산 (Plan 13-06),
+    // Phase 14 — lineState 합산 (Plan 14-05 / SOCL-03).
     final isSocialLoading =
         googleState.isLoading ||
         appleState.isLoading ||
         facebookState.isLoading ||
         kakaoState.isLoading ||
-        naverState.isLoading;
+        naverState.isLoading ||
+        lineState.isLoading;
     final isLoading = state.isLoading || isSocialLoading;
 
     // 이메일/비밀번호 가입 에러 → _emailError (이메일 필드 영역 배너).

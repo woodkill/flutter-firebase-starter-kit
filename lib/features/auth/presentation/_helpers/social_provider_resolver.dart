@@ -6,6 +6,7 @@ import '../apple_sign_in_notifier.dart';
 import '../facebook_sign_in_notifier.dart';
 import '../google_sign_in_notifier.dart';
 import '../kakao_sign_in_notifier.dart';
+import '../line_sign_in_notifier.dart';
 import '../naver_sign_in_notifier.dart';
 
 /// `Strategy.providerId` → 기존 `*SignInProvider` 매핑 helper
@@ -28,5 +29,7 @@ ProviderListenable<AsyncValue<void>> resolveSocialProvider(String providerId) =>
       kProviderIdKakao => kakaoSignInProvider,
       // Phase 13 — see ROADMAP.md (Pitfall 6 helper 단일 진실원 확장).
       kProviderIdNaver => naverSignInProvider,
+      // Phase 14 — see ROADMAP.md (SOCL-09 registry add-only 자동 통합).
+      kProviderIdLine => lineSignInProvider,
       _ => throw UnsupportedError('Unknown providerId: $providerId'),
     };

@@ -242,4 +242,92 @@ void main() {
       ]);
     });
   });
+
+  group(
+      'AuthStrategiesRegistry — Phase 14 add-only '
+      '(T-14-REGISTRY-LINE / Phase 14 — see ROADMAP.md)', () {
+    test(
+        'T-14-REGISTRY-LINE-01: enabledAuthProviders=line 활성 시 '
+        'LineAuthStrategy 자동 포함', () {
+      final c = makeContainer(
+        staticMap: {
+          kProviderIdGoogle: false,
+          kProviderIdApple: false,
+          kProviderIdFacebook: false,
+          kProviderIdKakao: false,
+          kProviderIdNaver: false,
+          kProviderIdLine: true,
+        },
+        rcMap: {'auth_provider_line_enabled': true},
+      );
+      final result = c.read(activeStrategiesProvider(locale));
+      expect(
+        result.any((s) => s.providerId == kProviderIdLine),
+        isTrue,
+        reason:
+            'Registry _allStrategies 에 LineAuthStrategy add-only 1줄 추가 후 '
+            'activeStrategiesProvider(locale) 가 자동 포함해야 한다',
+      );
+    });
+
+    test(
+        'T-14-REGISTRY-LINE-02: enabledAuthProviders=line 비활성 시 '
+        'LineAuthStrategy 미포함 (정적 false 절대 우위)', () {
+      final c = makeContainer(
+        staticMap: {
+          kProviderIdGoogle: true,
+          kProviderIdApple: false,
+          kProviderIdFacebook: false,
+          kProviderIdKakao: false,
+          kProviderIdNaver: false,
+          kProviderIdLine: false, // 정적 false 절대 우위 (Pitfall 5)
+        },
+        rcMap: {
+          'auth_provider_google_enabled': true,
+          'auth_provider_line_enabled': true, // RC true 도 정적 false 우위
+        },
+      );
+      final result = c.read(activeStrategiesProvider(locale));
+      expect(
+        result.every((s) => s.providerId != kProviderIdLine),
+        isTrue,
+        reason: '정적 false 시 RC true 여도 LineAuthStrategy 미포함 (D-26)',
+      );
+    });
+
+    test(
+        'T-14-REGISTRY-LINE-03: 기존 5 strategy 회귀 0 — '
+        'Google/Apple/Facebook/Kakao/Naver/LINE 모두 활성 시 6 strategy 정확 '
+        '포함 (registry _allStrategies 순서 보존)', () {
+      final c = makeContainer(
+        staticMap: {
+          kProviderIdGoogle: true,
+          kProviderIdApple: true,
+          kProviderIdFacebook: true,
+          kProviderIdKakao: true,
+          kProviderIdNaver: true,
+          kProviderIdLine: true,
+        },
+        rcMap: {
+          'auth_provider_google_enabled': true,
+          'auth_provider_apple_enabled': true,
+          'auth_provider_facebook_enabled': true,
+          'auth_provider_kakao_enabled': true,
+          'auth_provider_naver_enabled': true,
+          'auth_provider_line_enabled': true,
+        },
+      );
+      final result = c.read(activeStrategiesProvider(locale));
+      // _allStrategies 등록 순서 그대로 — google → apple → facebook → kakao
+      // → naver → line (D-13 + Phase 14 add-only 끝).
+      expect(result.map((s) => s.providerId), [
+        kProviderIdGoogle,
+        kProviderIdApple,
+        kProviderIdFacebook,
+        kProviderIdKakao,
+        kProviderIdNaver,
+        kProviderIdLine,
+      ]);
+    });
+  });
 }

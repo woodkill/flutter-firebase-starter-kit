@@ -108,6 +108,13 @@ class SocialButton extends ConsumerWidget {
         // 패턴과 분리. 미래 reader 가 Facebook 분기의 brightness 사용 누락을
         // "미완성 implementation" 으로 오해 차단.
         return BrandedSocialButton.facebook(label: label, onPressed: onPressed);
+      case kProviderIdLine:
+        // Phase 14 — see ROADMAP.md (SOCL-03 registry add-only 통합).
+        // 현 단계는 placeholder render (LineSpec / `_renderPlaceholder` —
+        // 회색 disabled box + ARB 라벨). Plan 14-06 에서 LINE 공식 brand asset
+        // + Universal Layout 으로 active 렌더 전환 의무 (LINE Corporation
+        // Login Button Design Guidelines verbatim).
+        return BrandedSocialButton.line(label: label, onPressed: onPressed);
       default:
         throw UnsupportedError('Unknown providerId: ${strategy.providerId}');
     }
@@ -147,6 +154,8 @@ class SocialButton extends ConsumerWidget {
     'authFacebookSignIn' => l10n.authFacebookSignIn,
     'authKakaoSignIn' => l10n.authKakaoSignIn,
     'authNaverSignIn' => l10n.authNaverSignIn,
+    // Phase 14 — see ROADMAP.md (SOCL-03 LineAuthStrategy 통합).
+    'authLineSignIn' => l10n.authLineSignIn,
     // Phase 13.1 REVIEW WR-06 정정 (2026-05-10): default branch fail-soft
     // (raw key 반환) → fail-loud (UnsupportedError). Phase 14 (LINE) /
     // Phase 15 (Yahoo!JP) / Phase 16 (WeChat) 진입 시 strategy 가
