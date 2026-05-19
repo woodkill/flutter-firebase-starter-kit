@@ -1246,6 +1246,153 @@ Kakao Developers 정책: **일일 활성 사용자 (DAU) 100명 이상** product
 > 사용. dev Kakao 앱은 검수 미통과 → production 사용자 로그인 시 silent
 > failure + Kakao Console 차단.
 
+<!-- Phase 14 — see ROADMAP.md -->
+
+---
+
+## Naver 검수 / 추가 항목 / member detail / stg-prod (Phase 14 D-LINE-22c retroactive)
+
+> **본 단락은 Phase 14 진입 시점에 추가된 retroactive 보강입니다** —
+> Phase 13 (Naver Login) 단계에서는 dev 단독 검증만 다루었으나, production
+> 출시 시 필요한 4 항목 (네아로 검수 신청 / 추가 항목 활성화 / `/v1/nid/me`
+> response 카탈로그 / stg-prod Console 등록) 을 통합 매뉴얼로 분리.
+>
+> **출처 검증 의무 (memory `feedback_official_bi_verification`):** 본 단락의
+> 모든 verbatim claim 은 `[ASSUMED — Phase 14 단계 cross-verify 보류,
+> 사용자 책임]` tag 입니다. starter-kit 사용자가 fork 후 production 진입 전
+> 다음 4 URL 의 최신 verbatim 직접 cross-verify 의무:
+>
+> 1. <https://developers.naver.com/docs/login/api/api.md> (네아로 검수 절차 — Console > 애플리케이션 개발 상태 > 네아로 검수요청)
+> 2. <https://developers.naver.com/docs/login/devguide/devguide.md> (API 설정 > 추가 항목 — mobile / ci / birthday / gender / age / birthyear / name)
+> 3. <https://developers.naver.com/docs/login/profile/profile.md> (`/v1/nid/me` response 필드 카탈로그 — response.email / nickname / profile_image 외)
+> 4. <https://developers.naver.com/docs/login/api/api.md#stage-environment> (stg/prod Console 등록 절차 — 별도 Naver 앱 + 검수 + iOS URL Scheme prod 분리 + Secret Manager prod)
+>
+> WebFetch developers.naver.com 403 차단 가능 — 브라우저 직접 접속 후
+> verbatim 인용.
+
+### (1) Naver Login 검수 신청 절차 (production 출시 시)
+
+`[ASSUMED — Naver 검수 정책 변경 가능, cross-verify 의무]`
+
+네아로 (네이버 아이디로 로그인) 정책: production 출시 시 검수 신청 의무.
+검수 미통과 시 외부 사용자 로그인 차단 (개발 모드 등록된 본인 계정만 허용).
+
+1. **Naver Developers Center > 내 애플리케이션 > 본인 앱 > 애플리케이션
+   개발 상태** 메뉴 진입.
+2. **"네아로 검수요청"** 버튼 클릭.
+3. 검수 요청 form 작성:
+   - 서비스 URL / 안드로이드 앱 / iOS 앱 정보
+   - 로그인 동의 항목 사용 목적 (필수 / 선택 / 추가 항목 별)
+   - 개발 환경 테스트 계정 정보 (검수자 로그인 가능 계정)
+   - 검수 화면 캡처 (로그인 버튼 + 동의 화면 + 사용 화면)
+4. "검수 요청 등록" 제출 → Naver 검수 timeline `[ASSUMED 3~7 영업일]` —
+   정확한 기간은 Naver 공식 미공개.
+5. 검수 완료 통보 후 production 배포.
+
+> **흔한 실수:** 검수 시점에 등록 안 한 동의 항목을 production 에서 활성화
+> → 재검수 의무 (검수는 동의 항목 set 별로). 모든 동의 항목 + 추가 항목
+> 미리 정리 후 일괄 검수 신청.
+
+### (2) 추가 항목 활성화 절차 (member detail info)
+
+`[ASSUMED — Naver API 설정 정책 변경 가능]`
+
+기본 동의 항목 (이메일 / 닉네임 / 프로필 사진) 외에 다음 **member detail
+info** 항목은 별도 활성화 + 검수 의무:
+
+1. **Naver Developers Center > 내 애플리케이션 > 본인 앱 > API 설정** 메뉴
+   진입.
+2. "추가 항목" 단락에서 다음 중 필요 항목 활성화:
+   - 휴대폰 번호 `mobile`
+   - CI (Connecting Information) `ci`
+   - 생일 `birthday`
+   - 성별 `gender`
+   - 연령대 `age`
+   - 출생연도 `birthyear`
+   - 실명 `name`
+3. 각 항목별 사용 목적 입력.
+4. (1) 검수 재신청 의무 — 추가 항목은 검수 통과 후 production 에서만 사용
+   가능.
+
+### (3) 인증 후 사용할 수 있는 추가 수집 정보 카탈로그
+
+`[ASSUMED — Naver `/v1/nid/me` response field 변경 가능, cross-verify 의무]`
+
+Cloud Function `naverCustomToken` 이 Naver access_token 으로 호출하는
+`https://openapi.naver.com/v1/nid/me` 응답 필드 카탈로그.
+
+**기본 동의 항목 (검수 / 추가 항목 의무 없음):**
+
+| 항목 | response field | 검수 의무 |
+|------|---------------|----------|
+| 이메일 | `response.email` | X (기본 필수 동의) |
+| 닉네임 | `response.nickname` | X (기본 필수 동의) |
+| 프로필 사진 | `response.profile_image` | X (선택 동의, Phase 13 D-56 retroactive) |
+
+**추가 항목 (검수 통과 의무):**
+
+| 항목 | response field | 검수 의무 | 추가 항목 의무 |
+|------|---------------|----------|--------------|
+| 휴대폰 번호 | `response.mobile` / `response.mobile_e164` | O | O |
+| CI (연계 정보) | `response.ci` | O | O |
+| 생일 | `response.birthday` | O | O |
+| 성별 | `response.gender` (`F` / `M` / `U`) | O | O |
+| 연령대 | `response.age` (예: `30-39`) | O | O |
+| 출생연도 | `response.birthyear` | O | O |
+| 실명 | `response.name` | O | O |
+
+**채택 시 code 변경 point:**
+
+1. `functions/src/auth/naver_custom_token.ts` 의 `/v1/nid/me` response 매핑
+   helper (`mapNaverProfile`) 에 신규 필드 추가. 현재 Phase 13 단계는
+   email / nickname / profile_image 3 필드만 매핑.
+2. **PII 정책 의무 (Phase 13 D-51 / D-54):** Cloud Function logger payload
+   에 추가 필드의 raw 값 절대 노출 금지. `{event, uid, resultcode, status}`
+   sentinel 5 회귀 가드 (`functions/test/auth/naver_custom_token.test.ts`)
+   에 신규 필드 추가 의무.
+3. Firebase Auth user record 의 `customClaims` 또는 별도 Firestore
+   `users/{uid}/extras/{field}` 분리 저장 (Firebase Auth user record 의
+   기본 필드는 displayName / email / photoURL 만 — 그 외는 customClaims
+   또는 별도 collection).
+
+### (4) stg / prod Console 등록 + 검수 절차
+
+현재 manual.md 의 "Naver Login (Phase 13)" 단락 6단계 끝 `> **stg / prod
+는?** dev 와 동일한 절차로 사용자 자체 Naver 앱을 별도 등록 + 키 주입` 한
+줄로 압축되어 있습니다. 실제 production 등록 시 다음 보강:
+
+1. **별도 Naver 앱 생성 (stg / prod 각각 1개)** — Naver Developers Center >
+   "Application > 애플리케이션 등록" → stg / prod 각각 신규 앱. dev / stg /
+   prod 의 Client ID / Client Secret 모두 다름 (보안 격리 + 검수 분리).
+2. **iOS URL Scheme prod 분리** — production 빌드용 iOS URL Scheme 등록
+   (예: `flutterStarterKitProd`). `config/prod.json` 의 `naverUrlScheme` +
+   `ios/Flutter/prod.xcconfig` 의 `NAVER_URL_SCHEME` 양쪽 prod 값 일치.
+3. **Android Key Hash release 변경** — production 빌드용 keystore
+   (`<your-keystore.jks>`) 의 release SHA-1 + base64 키 해시를 stg / prod
+   각 앱의 Android 플랫폼에 등록. dev debug 키 해시와 다름.
+   ```bash
+   # release 키 해시
+   keytool -exportcert -alias <your-alias> \
+     -keystore <your-keystore.jks> \
+     | openssl sha1 -binary | openssl base64
+   ```
+4. **Bundle ID / Package Name 분리** — stg / prod 의 Bundle ID / Package
+   Name 이 dev 와 다르면 (예: `com.example.flutter_starter_kit` vs
+   `.dev`) 본인 production 값으로 등록.
+5. **Secret Manager prod 환경 등록** — `firebase use <prod-project-id>` →
+   `firebase functions:secrets:set NAVER_CLIENT_SECRET` 로 prod Client
+   Secret 등록 (dev / stg / prod 각 Firebase 프로젝트 별 격리). Cloud
+   Function 의 `defineSecret('NAVER_CLIENT_SECRET')` 자동 환경별 분리.
+6. **네아로 검수 분리** — (1) 검수 신청을 stg / prod 양쪽 앱 별개 신청.
+   dev 검수 통과 = prod 검수 통과 의무 아님.
+7. **App Check Debug Provider Token** — stg / prod 의 Firebase Console >
+   App Check > 본인 iOS/Android 앱 > "Manage debug tokens" 에서 dev / stg /
+   prod 토큰 분리 관리.
+
+> **흔한 실수:** dev 의 Client ID 를 `config/prod.json` 에 그대로 사용.
+> dev Naver 앱은 검수 미통과 → production 사용자 로그인 시 외부 사용자
+> 차단 + silent failure.
+
 ---
 
 ## IdP 프로필 동기화 정책 (R10-FOLLOWUP)
@@ -2118,6 +2265,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-05-10 | 09.2-05 | `## Multi-Provider Account Linking (Phase 9.2)` 단락 신규 (D-32, 4 sub-section + 커스터마이징 포인트 + 회귀 가드 매트릭스) — Path A-narrow R2~R6 동작 (account-exists unknown fallback 메시지 ko/en/ja verbatim, AccountProvider enum 부활 절차 — Phase 17 (Account Linking) — see ROADMAP.md, Facebook 자동 sendEmailVerification + photoURL Graph API + race-fix invariant + D-27 PII regression sentinel 매트릭스, signOut 5 SDK 순차 — Google → Facebook → Kakao → Naver → FirebaseAuth). R1 deferred to Phase 17 명시 (D-33). 코드 anchor (auth_repository.dart line 230/340/441/442/525/612/728/778/829/837/845/853/859) + 회귀 test 파일 5종 인용 (Phase 13.1 D-84 패턴 정합). 목차 11 항목으로 확장. |
 | 2026-05-20 | 14-07 | `## LINE Login (Phase 14)` 단락 신규 (D-LINE-22a, 8 단계 종합 절차 + Pitfall 7종) — Channel 생성 (Business ID 가입 + Provider + Login Channel + Region Japan + Mobile app 단독), iOS Bundle/Android Package/SHA-1 등록 (Universal Links OFF), UAT 권한 절차 (Tester role recommended / Channel publish 분기, Plan 14-05 UAT 학습 verbatim), OpenID Connect 활성화 (silent-failure 가장 흔한 trap), Firebase Secret Manager 등록 + Cloud Function deploy, platform manifest 검증 (CFBundleURLTypes line3rdp / LSApplicationQueriesSchemes lineauth2 단일 / `<queries>` jp.naver.line.android), config/dev.json 키 주입, dev flavor 검증 + UAT 보류 todo 2건 (ios/android). email permission 신청 절차 + 비즈니스 인증 (production) + 19 locale 확장 절차 (자상 변경 0 invariant) + Pitfall 7종 (idToken null / race-fix logout / nonce SHA256 / OIDC 누락 / queries 누락 / lineChannelId 미주입 / Android minSdk < 24). 목차 13 항목으로 확장. |
 | 2026-05-20 | 14-07 | `## Kakao 검수 / 비즈앱 / 추가 수집 / stg-prod (Phase 14 D-LINE-22b retroactive)` 단락 신규 — Phase 12 Kakao Login 단계에서 dev 단독 검증만 다룬 매뉴얼에 production 출시 4 항목 retroactive 보강: (1) Kakao 검수 신청 절차 (DAU 100+ 의무 + 검수 form + 신규 동의 항목 재검수 회피) / (2) 비즈앱 인증 절차 (사업자 / 개인 인증 분기 + phone_number / CI / DI / 배송지 / 카톡 메시지 / 생일 / 성별 / 연령대 / 출생연도 트리거) / (3) 추가 수집 정보 카탈로그 (기본 3 + 비즈앱-only 8 + scope 매트릭스 + 채택 시 code 변경 point — kakao_sdk_client.dart serviceTerms / kakao_custom_token.ts zod / UserApi 호출 helper) / (4) stg / prod Console 등록 + 검수 (별도 앱 / 키 해시 release / Redirect URI prod / Secret Manager prod / OIDC 활성화 + 검수 분리 / App Check Debug Token 분리). 모든 verbatim claim 에 `[ASSUMED — Phase 14 단계 cross-verify 보류, 사용자 책임]` tag + 4 URL cross-verify 의무 명시. |
+| 2026-05-20 | 14-07 | `## Naver 검수 / 추가 항목 / member detail / stg-prod (Phase 14 D-LINE-22c retroactive)` 단락 신규 — Phase 13 Naver Login 단계에서 dev 단독 검증만 다룬 매뉴얼에 production 출시 4 항목 retroactive 보강: (1) 네아로 검수 신청 절차 (외부 사용자 차단 회피 + 검수 form + 동의 항목 일괄 등록) / (2) 추가 항목 활성화 절차 (mobile / ci / birthday / gender / age / birthyear / name member detail info, 항목별 검수 의무) / (3) `/v1/nid/me` response 카탈로그 (기본 3 + 추가 7 + response field 매트릭스 + 채택 시 code 변경 point — naver_custom_token.ts mapNaverProfile / PII 정책 의무 / Firebase Auth customClaims 분리) / (4) stg / prod Console 등록 + 검수 (별도 Naver 앱 / iOS URL Scheme prod / Android Key Hash release / Bundle ID 분리 / Secret Manager prod / 네아로 검수 분리 / App Check Debug Token 분리). 모든 verbatim claim 에 `[ASSUMED — Phase 14 단계 cross-verify 보류, 사용자 책임]` tag + 4 URL cross-verify 의무 명시. |
 
 ---
 
