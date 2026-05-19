@@ -45,3 +45,5 @@ export const ping = onCall((request) => {
 export {kakaoCustomToken} from "./auth/kakao_custom_token";
 // Phase 13 — see ROADMAP.md — Naver access_token → Firebase Custom Token.
 export {naverCustomToken} from "./auth/naver_custom_token";
+// Phase 14 D-LINE-06 — LINE OIDC ID Token → Firebase Custom Token.
+export {lineCustomToken} from "./auth/line_custom_token";
