@@ -1105,6 +1105,147 @@ Plan 13-06 commit `5038f1e` 가 다음 invariant 검증:
 - KakaoSignInResult 인터페이스 = idToken + nonce 만 노출 (picture claim 파싱
   책임 부재 — Phase 17/18 forward compat)
 
+<!-- Phase 14 — see ROADMAP.md -->
+
+---
+
+## Kakao 검수 / 비즈앱 / 추가 수집 / stg-prod (Phase 14 D-LINE-22b retroactive)
+
+> **본 단락은 Phase 14 진입 시점에 추가된 retroactive 보강입니다** —
+> Phase 12 (Kakao Login) 단계에서는 dev 단독 검증만 다루었으나, 다른 social
+> provider (Naver, LINE) 사용자가 starter-kit 을 fork 후 production 출시
+> 시 필요한 4 항목 (Kakao 검수 신청 / 비즈앱 인증 / 추가 수집 정보 카탈로그 /
+> stg-prod Console 등록) 을 통합 매뉴얼로 분리.
+>
+> **출처 검증 의무 (memory `feedback_official_bi_verification`):** 본 단락의
+> 모든 verbatim claim 은 `[ASSUMED — Phase 14 단계 cross-verify 보류,
+> 사용자 책임]` tag 입니다. starter-kit 사용자가 fork 후 production 진입 전
+> 다음 4 URL 의 최신 verbatim 직접 cross-verify 의무:
+>
+> 1. <https://developers.kakao.com/docs/ko/kakaologin/prerequisite> (사전 준비 + 검수)
+> 2. <https://kakaobusiness.gitbook.io/main/tool/kakaosync/plan> (비즈앱 전환 가이드 — Kakao 공식 third-party gitbook 이라 Kakao Console UI 와 cross-verify 의무)
+> 3. <https://developers.kakao.com/docs/ko/kakaologin/common> (동의 항목 카탈로그 + 비즈앱-only 명시)
+> 4. <https://developers.kakao.com/docs/latest/ko/getting-started/app> (stg/prod 등록 절차 — 키 해시 release 변경 + Redirect URI prod domain + Secret Manager prod 등록)
+
+### (1) Kakao 검수 신청 절차 (production 출시 시)
+
+`[ASSUMED — 정책 변경 가능, cross-verify 의무]`
+
+Kakao Developers 정책: **일일 활성 사용자 (DAU) 100명 이상** production 출시
+시 검수 신청 의무. 미신청 + DAU 초과 시 앱 일시 정지 위험.
+
+1. **Kakao Developers Console > 본인 앱 > 검수** 탭 진입.
+2. 검수 요청 form 작성:
+   - 앱 소개 / 사용 시나리오 / 동의 항목 사용 목적
+   - Privacy Policy URL / Terms of Service URL
+   - 검수용 테스트 계정 정보 (검수자 로그인 가능 계정)
+3. "검수 요청" 제출 → Kakao 검수 timeline `[ASSUMED 1~2주]` — 정확한 기간은
+   Kakao 공식 미공개.
+4. 검수 완료 통보 후 production 배포.
+
+> **흔한 실수:** 검수 시점에 등록 안 한 동의 항목을 production 에서 활성화
+> → 재검수 의무. **3 항목** (필요한 모든 동의 항목 + 비즈앱 항목 미리 등록 +
+> 사용 목적 명시) 미리 정리 후 검수 신청.
+
+### (2) 비즈앱 인증 절차 (민감 정보 사용 시)
+
+`[ASSUMED — Kakao 비즈앱 정책 변경 가능]`
+
+다음 동의 항목 중 **하나라도** 사용 시 비즈앱 전환 의무:
+
+- 휴대폰 번호 `phone_number`
+- CI (Connecting Information) / DI (Duplication Information)
+- 배송지 정보
+- 카카오톡 메시지 전송 권한
+- 생일 / 성별 / 연령대 / 출생연도 (기본 동의 항목 외 민감 정보)
+
+1. **Kakao Developers Console > 본인 앱 > 비즈앱 전환** 메뉴 진입.
+2. 분기 선택:
+   - **사업자 인증** (법인 / 개인사업자) — 사업자등록증 업로드 + 회사 정보
+     입력. 인증 완료 후 모든 비즈앱 전용 동의 항목 가용.
+   - **개인 인증** — 본인 명의 핸드폰 인증. 일부 동의 항목 제한.
+3. 카카오 검수 timeline `[ASSUMED 1~3 영업일]`.
+4. 비즈앱 승인 통보 후 동의 항목 활성화 + (1) 검수 재신청.
+
+자세한 분기는 <https://kakaobusiness.gitbook.io/main/tool/kakaosync/plan>
+공식 가이드 cross-verify 의무.
+
+### (3) 인증 후 사용할 수 있는 추가 수집 정보 카탈로그
+
+`[ASSUMED — Kakao 공식 동의 항목 변경 가능, cross-verify 의무]`
+
+**기본 동의 항목 (검수 / 비즈앱 의무 없음):**
+
+| 항목 | scope | 비즈앱 의무 | 검수 의무 (DAU 100+) |
+|------|-------|-----------|-------------------|
+| 닉네임 | `profile_nickname` | X | X |
+| 프로필 사진 | `profile_image` | X | X |
+| 카카오계정 이메일 | `account_email` | X | X |
+
+**비즈앱-only 동의 항목 (비즈앱 인증 + 검수 양쪽 의무):**
+
+| 항목 | scope | 비즈앱 의무 | 검수 의무 |
+|------|-------|-----------|----------|
+| 생일 | `birthday` | O | O |
+| 성별 | `gender` | O | O |
+| 연령대 | `age_range` | O | O |
+| 출생연도 | `birthyear` | O | O |
+| 휴대폰 번호 | `phone_number` | O | O |
+| CI (연계 정보) | `account_ci` | O | O |
+| 배송지 정보 | `shipping_address` | O | O |
+| 카카오톡 메시지 전송 | `talk_message` | O | O (카카오톡 정책 별도) |
+
+**채택 시 code 변경 point:**
+
+1. `lib/features/auth/data/kakao_sdk_client.dart` 의 `loginWithKakaoAccount`
+   호출 인자 `serviceTerms` 또는 OIDC scope 갱신 (현재 `serviceTerms =
+   ['openid']` 만 — Phase 13 D-56 Decision #6 정책 일관). 비즈앱 동의 항목은
+   대부분 OIDC scope 외 별도 API 호출 (`UserApi.instance.me()`) 필요 →
+   starter-kit 의 Custom Token path 와 별개.
+2. `functions/src/auth/kakao_custom_token.ts` 의 `typedPayload` zod schema
+   에 비즈앱 claim 추가 (단 ID Token 에 비즈앱 항목 직접 포함되지 않으면
+   Cloud Function 변경 0).
+3. 신규 `UserApi.instance.me()` 호출 helper 추가 (Cloud Function 또는
+   클라이언트 — 보안 정책에 따라 분리).
+
+### (4) stg / prod Console 등록 + 검수 절차
+
+현재 manual.md 의 "Kakao Login (Phase 12)" 단락은 `> **stg / prod 는?** dev
+와 동일한 절차로 사용자 자체 Kakao 앱을 별도 등록 + 키 주입` 한 줄로 압축
+되어 있습니다. 실제 production 등록 시 다음 보강:
+
+1. **별도 Kakao 앱 생성 (stg / prod 각각 1개)** — Kakao Console > "내
+   애플리케이션 > 애플리케이션 추가하기" → stg / prod 각각 신규 앱. dev /
+   stg / prod 의 nativeAppKey 가 모두 달라야 함 (보안 격리).
+2. **키 해시 release 변경** — production 빌드용 keystore (`<your-keystore.jks>`)
+   의 release SHA-1 + base64 키 해시를 stg / prod 각 앱의 Android 플랫폼에
+   등록. dev debug 키 해시와 다름 — 누락 시 production 빌드에서 `Invalid
+   key hash` 런타임 에러.
+   ```bash
+   # release 키 해시
+   keytool -exportcert -alias <your-alias> \
+     -keystore <your-keystore.jks> \
+     | openssl sha1 -binary | openssl base64
+   ```
+3. **Redirect URI prod domain 등록** — stg / prod 의 Kakao 앱 Redirect URI
+   섹션에 production domain (예: `kakao{prodNativeAppKey}://oauth` +
+   `https://stg.example.com/kakao/callback` 등). dev 의 nativeAppKey 와
+   다름.
+4. **Secret Manager prod 환경 등록** — `firebase use <prod-project-id>` →
+   `firebase functions:secrets:set KAKAO_NATIVE_APP_KEY` 로 prod 키 등록
+   (dev / stg / prod 각 Firebase 프로젝트 별 격리). Cloud Function 의
+   `defineSecret('KAKAO_NATIVE_APP_KEY')` 가 자동 환경별 분리.
+5. **OIDC 활성화 / 동의 항목 / Redirect URI 검수** — (1) 검수 신청 단계에서
+   stg / prod 양쪽 앱 별개 검수. dev 검수 통과 = prod 검수 통과 의무 아님
+   (Kakao 정책).
+6. **App Check Debug Provider Token** — stg / prod 의 Firebase Console >
+   App Check > 본인 iOS/Android 앱 > "Manage debug tokens" 에서 dev /
+   stg / prod 토큰 분리 관리. dev 디바이스 / CI 환경별 등록.
+
+> **흔한 실수:** dev 의 nativeAppKey 를 prod 의 `config/prod.json` 에 그대로
+> 사용. dev Kakao 앱은 검수 미통과 → production 사용자 로그인 시 silent
+> failure + Kakao Console 차단.
+
 ---
 
 ## IdP 프로필 동기화 정책 (R10-FOLLOWUP)
@@ -1976,6 +2117,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-05-10 | 13.1-REVIEW | iter1 code review CR-02 정정 — `## Brand Asset (Phase 13 D-52)` + `## Kakao Brand Asset 라이센스 (Phase 12-07)` 두 단락 DEPRECATED 표시 + Phase 13.1 신규 단락 (`## Brand Asset Management (Phase 13.1)`) 으로 사용자 redirect. Phase 13.1 R1 정정 (#03A94D) + ColorFilter 절대 금지 + `assets/brand/{provider}/` 신규 디렉토리 구조 정합성 회복. |
 | 2026-05-10 | 09.2-05 | `## Multi-Provider Account Linking (Phase 9.2)` 단락 신규 (D-32, 4 sub-section + 커스터마이징 포인트 + 회귀 가드 매트릭스) — Path A-narrow R2~R6 동작 (account-exists unknown fallback 메시지 ko/en/ja verbatim, AccountProvider enum 부활 절차 — Phase 17 (Account Linking) — see ROADMAP.md, Facebook 자동 sendEmailVerification + photoURL Graph API + race-fix invariant + D-27 PII regression sentinel 매트릭스, signOut 5 SDK 순차 — Google → Facebook → Kakao → Naver → FirebaseAuth). R1 deferred to Phase 17 명시 (D-33). 코드 anchor (auth_repository.dart line 230/340/441/442/525/612/728/778/829/837/845/853/859) + 회귀 test 파일 5종 인용 (Phase 13.1 D-84 패턴 정합). 목차 11 항목으로 확장. |
 | 2026-05-20 | 14-07 | `## LINE Login (Phase 14)` 단락 신규 (D-LINE-22a, 8 단계 종합 절차 + Pitfall 7종) — Channel 생성 (Business ID 가입 + Provider + Login Channel + Region Japan + Mobile app 단독), iOS Bundle/Android Package/SHA-1 등록 (Universal Links OFF), UAT 권한 절차 (Tester role recommended / Channel publish 분기, Plan 14-05 UAT 학습 verbatim), OpenID Connect 활성화 (silent-failure 가장 흔한 trap), Firebase Secret Manager 등록 + Cloud Function deploy, platform manifest 검증 (CFBundleURLTypes line3rdp / LSApplicationQueriesSchemes lineauth2 단일 / `<queries>` jp.naver.line.android), config/dev.json 키 주입, dev flavor 검증 + UAT 보류 todo 2건 (ios/android). email permission 신청 절차 + 비즈니스 인증 (production) + 19 locale 확장 절차 (자상 변경 0 invariant) + Pitfall 7종 (idToken null / race-fix logout / nonce SHA256 / OIDC 누락 / queries 누락 / lineChannelId 미주입 / Android minSdk < 24). 목차 13 항목으로 확장. |
+| 2026-05-20 | 14-07 | `## Kakao 검수 / 비즈앱 / 추가 수집 / stg-prod (Phase 14 D-LINE-22b retroactive)` 단락 신규 — Phase 12 Kakao Login 단계에서 dev 단독 검증만 다룬 매뉴얼에 production 출시 4 항목 retroactive 보강: (1) Kakao 검수 신청 절차 (DAU 100+ 의무 + 검수 form + 신규 동의 항목 재검수 회피) / (2) 비즈앱 인증 절차 (사업자 / 개인 인증 분기 + phone_number / CI / DI / 배송지 / 카톡 메시지 / 생일 / 성별 / 연령대 / 출생연도 트리거) / (3) 추가 수집 정보 카탈로그 (기본 3 + 비즈앱-only 8 + scope 매트릭스 + 채택 시 code 변경 point — kakao_sdk_client.dart serviceTerms / kakao_custom_token.ts zod / UserApi 호출 helper) / (4) stg / prod Console 등록 + 검수 (별도 앱 / 키 해시 release / Redirect URI prod / Secret Manager prod / OIDC 활성화 + 검수 분리 / App Check Debug Token 분리). 모든 verbatim claim 에 `[ASSUMED — Phase 14 단계 cross-verify 보류, 사용자 책임]` tag + 4 URL cross-verify 의무 명시. |
 
 ---
 
