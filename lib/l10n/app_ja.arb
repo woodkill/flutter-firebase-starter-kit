@@ -159,7 +159,7 @@
   },
   "authLineSignIn": "LINEでログイン",
   "@authLineSignIn": {
-    "description": "LINE Login button label. JA verbatim from LINE official 'Login button design guidelines' 19 언어 표 ja 항목 (https://developers.line.biz/en/docs/line-login/login-button/). LINE 은 일본 본사 (LY Corporation) 제공 → ja 는 [ASSUMED] tag 아닌 공식 1차 출처. starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조."
+    "description": "LINE Login button label. JA verbatim from LINE official 'Login button design guidelines' 19 언어 표 ja 항목 (https://developers.line.biz/en/docs/line-login/login-button/). LINE 은 일본 본사 (LY Corporation) 제공 → ja 는 [ASSUMED] tag 아닌 공식 1차 출처 (Kakao/Naver ja 의 [ASSUMED] 영문 fallback 패턴과 의도적 구별). starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조. SDK strings audit 확정 2026-05-20 (quick task 260520-blt): flutter_line_sdk 2.7.2 SDK i18n 라벨 미제공 확인 → 공식 가이드 verbatim 우선순위 1순위 승격, [ASSUMED] tag 부착 의무 해소."
   },
   "authBrandAssetMissing": "アセットが見つかりません: {label}",
   "@authBrandAssetMissing": {

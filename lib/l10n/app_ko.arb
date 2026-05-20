@@ -156,7 +156,7 @@
   },
   "authLineSignIn": "LINE으로 로그인",
   "@authLineSignIn": {
-    "description": "LINE Login button label. KO verbatim from LINE official 'Login button design guidelines' 19 언어 표 ko 항목 (https://developers.line.biz/en/docs/line-login/login-button/). 외래어+조사 패턴 = 'LINE'(브랜드 명사) + '으로'(조사) — 공식 verbatim 부합. starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조."
+    "description": "LINE Login button label. KO verbatim from LINE official 'Login button design guidelines' 19 언어 표 ko 항목 (https://developers.line.biz/en/docs/line-login/login-button/). 외래어+조사 패턴 = 'LINE'(브랜드 명사) + '으로'(조사) — 공식 verbatim 부합 (feedback_label_verbatim_audit). starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조. SDK strings audit 확정 2026-05-20 (quick task 260520-blt): flutter_line_sdk 2.7.2 SDK i18n 라벨 미제공 확인 → 공식 가이드 verbatim 우선순위 1순위 승격, [ASSUMED] tag 부착 의무 해소."
   },
   "authBrandAssetMissing": "자산 없음: {label}",
   "@authBrandAssetMissing": {

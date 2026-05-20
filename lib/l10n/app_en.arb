@@ -609,7 +609,7 @@
 
   "authLineSignIn": "Log in with LINE",
   "@authLineSignIn": {
-    "description": "LINE Login button label. EN verbatim from LINE official 'Login button design guidelines' long form (https://developers.line.biz/en/docs/line-login/login-button/). starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조. brand_label_whitelist_test 가 [ASSUMED] tag audit trail + 1년 주기 갱신 정책 enforce."
+    "description": "LINE Login button label. EN verbatim from LINE official 'Login button design guidelines' long form (https://developers.line.biz/en/docs/line-login/login-button/). starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조. brand_label_whitelist_test 가 [ASSUMED] tag audit trail + 1년 주기 갱신 정책 enforce. SDK strings audit 확정 2026-05-20 (quick task 260520-blt) — flutter_line_sdk 2.7.2 pub cache 의 strings.xml / Localizable.strings 0 hit, SDK 측 i18n 라벨 미제공 확인. 공식 가이드 long form (developers.line.biz/en/docs/line-login/login-button/) verbatim 채택, [ASSUMED] tag 부착 의무 해소. SDK version bump 시 재audit 의무 (14-LINE-LOCALE-REFERENCE.md § 4)."
   },
 
   "authBrandAssetMissing": "Asset missing: {label}",
