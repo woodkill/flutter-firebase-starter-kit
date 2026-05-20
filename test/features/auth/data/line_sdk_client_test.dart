@@ -158,6 +158,24 @@ void main() {
         throwsA(isA<ServiceUnavailable>()),
       );
     });
+
+    // WR-03 (Phase 14 review): null 만이 아닌 빈 문자열도 client-side 가드.
+    // flutter_line_sdk native 측이 사실상 null 만 반환하지만 방어적 회귀
+    // 가드로 ServiceUnavailable 분기 일관성 보장.
+    test('Test 6.5: idTokenRaw 빈 문자열 → ServiceUnavailable throw (WR-03)',
+        () async {
+      final client = LineSdkClient.forTest(
+        login: ({required scopes, required option}) async {
+          return _buildLoginResult(idTokenRaw: '');
+        },
+        logout: () async {},
+      );
+
+      await expectLater(
+        client.signIn(),
+        throwsA(isA<ServiceUnavailable>()),
+      );
+    });
   });
 
   group('LineSdkClient.logout — D-LINE-57 1회성 토큰 + graceful', () {

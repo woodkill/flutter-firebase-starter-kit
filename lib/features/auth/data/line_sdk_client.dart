@@ -129,8 +129,14 @@ class LineSdkClient {
         option: option,
       );
       final idTokenRaw = result.accessToken.idTokenRaw;
-      if (idTokenRaw == null) {
-        // Pitfall 1: LINE Developer Console 에서 'openid' scope 미선택 시.
+      // WR-03 (Phase 14 review): null 만이 아닌 빈 문자열 케이스도 client-side
+      // 차단. flutter_line_sdk native 측에서 parse 실패 시 사실상 null 만
+      // 반환하지만, 방어적 가드로 server-side errorInvalidCredentials 분기와
+      // OIDC scope 누락 안내 (ServiceUnavailable) UX 일관성 보장 + 불필요한
+      // Cloud Function round-trip / App Check / JWKS network 비용 회피.
+      if (idTokenRaw == null || idTokenRaw.isEmpty) {
+        // Pitfall 1: LINE Developer Console 에서 'openid' scope 미선택 시 (null)
+        // 또는 native parse 결과 빈 문자열 케이스.
         throw const ServiceUnavailable();
       }
       return LineSignInResult(idToken: idTokenRaw, nonce: nonce);
