@@ -1,12 +1,25 @@
 /**
  * lineCustomToken onCall 회귀 테스트 (Phase 14 Plan 14-04 Task 1).
  *
+ * **Mock 한계 명시 (Phase 14.1 D-14.1-03, memory
+ * `feedback_oidc_mock_self_referential` §2):** 본 test 는 mock LINE 서버가
+ * helper 의 nonceHashing 가정과 일관되게 동작한다는 self-referential 검증이다.
+ * 실 LINE OIDC provider 의 nonce claim embed 동작은 Phase 14.1 D-14.1-02
+ * cross-verify (line-sdk-android LineIdToken.java verbatim "the same value as
+ * in the authentication request" + line-sdk-ios-swift LoginProcess.swift
+ * verbatim `parameters["nonce"] = nonce` raw 직접 할당) 로 확인했으며, 본
+ * mock 의 `mockServerEmbedNonce` fixture 가 그 정적 사실을 mirror 한다.
+ * 그러나 본 mock 은 실 OIDC provider 의 모든 edge case (clock skew / network
+ * failure / token rotation 등) 를 reproduce 하지 않는다. 실 단말 backend tier
+ * UAT (.planning/phases/14-line-login/14-HUMAN-UAT.md §A1) 가 진짜 contract
+ * 검증.
+ *
  * Phase 12 kakao_custom_token.test.ts 직접 mirror — 5 deltas:
  *  1. helper mock = createOidcVerifier (Plan 14-01) — 직접 createRemoteJWKSet
  *     호출 0 (Pitfall 3 sentinel 보존).
  *  2. audience = LINE_CHANNEL_ID (mock value "fake-line-channel-id")
  *  3. algorithms = ES256 (Kakao = RS256)
- *  4. nonceHashing = sha256 (Kakao = none)
+ *  4. nonceHashing = none (Kakao 와 동일 mode, Phase 14.1 D-14.1-01 정정)
  *  5. provider = "line" (resolveIdentity 인자)
  *
  * Task 1 시나리오 (1-9):
@@ -173,6 +186,31 @@ const debugMock = logger.debug as unknown as jest.Mock;
 const logMock = logger.log as unknown as jest.Mock;
 
 afterAll(() => testEnv.cleanup());
+
+/**
+ * mockServerEmbedNonce — 실 LINE 서버가 ID Token nonce claim 에 어떻게
+ * nonce 를 embed 하는지를 명시적으로 fixture 로 분리. helper 의
+ * nonceHashing 가정과 독립적으로 작성 (Phase 14.1 D-14.1-03 §2).
+ *
+ * Phase 14.1 D-14.1-02 cross-verified: line-sdk-android LineIdToken.java
+ * verbatim "the same value as in the authentication request" + line-sdk-
+ * ios-swift LoginProcess.swift verbatim → raw 그대로 embed.
+ *
+ * @param {string} rawNonce client 가 SDK 에 전달한 raw nonce.
+ * @return {string} LINE 서버가 ID Token nonce claim 에 embed 할 값 (raw 동일).
+ */
+const mockServerEmbedNonce = (rawNonce: string): string => rawNonce;
+
+describe(
+  "mockServerEmbedNonce fixture (Phase 14.1 self-reference 회피 sentinel)",
+  () => {
+    // eslint-disable-next-line max-len
+    it("raw nonce 그대로 반환 — line-sdk-android LineIdToken.java verbatim mirror", () => {
+      const raw = "test-raw-nonce-xyz";
+      expect(mockServerEmbedNonce(raw)).toBe(raw);
+    });
+  },
+);
 
 describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
   beforeEach(() => {

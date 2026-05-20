@@ -1,8 +1,18 @@
 /**
  * createOidcVerifier helper 단위 테스트 (Phase 14 D-LINE-02/05/07).
  *
- * Kakao (nonceHashing="none") + LINE (nonceHashing="sha256") 두 config 모두
- * verify 케이스 + 클레임 실패 + JWKS singleton 보존 검증.
+ * **Mock 한계 명시 (Phase 14.1 D-14.1-03):** 본 test 의 mock 은 helper 가정과
+ * 일관되게 동작한다는 self-referential 검증이다 (memory
+ * `feedback_oidc_mock_self_referential` §2). 실 LINE OIDC provider 의 nonce
+ * claim embed 동작은 Phase 14.1 D-14.1-02 (line-sdk-android LineIdToken.java
+ * verbatim "the same value as in the authentication request" + line-sdk-ios-
+ * swift LoginProcess.swift verbatim `parameters["nonce"] = nonce`) 로 cross-
+ * verify 했다. 실 단말 backend tier UAT (.planning/phases/14-line-login/14-
+ * HUMAN-UAT.md §A1) 가 진짜 contract 검증.
+ *
+ * Kakao (nonceHashing="none") + LINE (nonceHashing="none" — Phase 14.1 후,
+ * Kakao 와 동일 mode) 두 config 모두 verify 케이스 + 클레임 실패 + JWKS
+ * singleton 보존 검증.
  *
  * **jest.mock hoist:** jest.mock 호출은 hoist 되므로 src import 보다 먼저
  * 정의되어야 한다 (firebase-functions-test 공식 권장 패턴 — ping.test.ts
@@ -60,8 +70,6 @@ jest.mock("jose", () => {
 // eslint-disable-next-line import/first
 import * as jose from "jose";
 // eslint-disable-next-line import/first
-import {createHash} from "node:crypto";
-// eslint-disable-next-line import/first
 import {createOidcVerifier} from "../../src/shared/oidc_verifier";
 
 const jwtVerifyMock = jose.jwtVerify as unknown as jest.Mock;
@@ -76,13 +84,15 @@ const kakaoConfig = {
   nonceHashing: "none" as const,
 };
 
-// LINE config (nonceHashing="sha256" — SHA256(raw) 비교).
+// LINE config (nonceHashing="none" — raw nonce 비교, Phase 14.1 D-14.1-02
+// cross-verified: LINE SDK 가 raw nonce 를 변환 0 으로 LINE 서버 transmit
+// + ID Token nonce claim = raw 동일값).
 const lineConfig = {
   issuer: "https://access.line.me",
   jwksUrl: "https://api.line.me/oauth2/v2.1/certs",
   audience: () => "fake-line-aud",
   algorithms: ["ES256"],
-  nonceHashing: "sha256" as const,
+  nonceHashing: "none" as const,
 };
 
 describe("createOidcVerifier", () => {
@@ -116,12 +126,13 @@ describe("createOidcVerifier", () => {
   );
 
   it(
-    "Test 2: LINE config (nonceHashing='sha256') — SHA256(raw) 일치 시 payload 반환",
+    "Test 2: LINE config (nonceHashing='none') — raw nonce 일치 시 payload 반환",
     async () => {
+      // Phase 14.1 D-14.1-02 cross-verified — LINE SDK 가 raw nonce 를 변환
+      // 없이 LINE 서버 transmit → ID Token nonce claim = raw 동일값.
       const rawNonce = "line-raw-nonce-xyz";
-      const hashedNonce = createHash("sha256").update(rawNonce).digest("hex");
       jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "line-user-1", nonce: hashedNonce},
+        payload: {sub: "line-user-1", nonce: rawNonce},
       });
 
       const verify = createOidcVerifier(lineConfig);
@@ -160,16 +171,18 @@ describe("createOidcVerifier", () => {
 
   it(
     // eslint-disable-next-line max-len
-    "Test 4: LINE config — SHA256(raw) !== claim.nonce 시 JWTClaimValidationFailed throw",
+    "Test 4: LINE config — raw nonce !== claim.nonce 시 JWTClaimValidationFailed throw",
     async () => {
-      // claim 의 nonce 가 raw 그대로 (hash 되지 않은 잘못된 값) 인 케이스.
+      // claim 의 nonce 가 client 가 전달한 raw 와 다른 의도된 값 — raw 비교
+      // path 에서 mismatch trigger (Phase 14.1 D-14.1-02 cross-verified raw
+      // 비교 mode).
       jwtVerifyMock.mockResolvedValue({
-        payload: {sub: "line-user-2", nonce: "raw-nonce-not-hashed"},
+        payload: {sub: "line-user-2", nonce: "different-nonce-value"},
       });
 
       const verify = createOidcVerifier(lineConfig);
       await expect(
-        verify("FAKE_JWT", "raw-nonce-not-hashed"),
+        verify("FAKE_JWT", "expected-raw-nonce"),
       ).rejects.toBeInstanceOf(jose.errors.JWTClaimValidationFailed);
     },
   );
