@@ -31,8 +31,10 @@ const LINE_CHANNEL_ID = defineSecret("LINE_CHANNEL_ID");
 //    시점에만 evaluate 가능, 모듈 로드 시점은 미주입)
 //  - algorithms = ["ES256"] — LINE native SDK 가 ES256 으로 서명 (RESEARCH
 //    D-LINE-RES; Kakao 의 RS256 와 alg 분리)
-//  - nonceHashing = "sha256" — LINE SDK 가 raw nonce 를 SHA256 hash 후 claim
-//    에 embed (Kakao 의 raw nonce 그대로 비교 모드와 분리)
+//  - nonceHashing = "none" — LINE SDK 가 raw nonce 를 그대로 LINE 서버에
+//    transmit + ID Token nonce claim = raw 동일값 (line-sdk-android
+//    LineIdToken.java verbatim "the same value as in the authentication
+//    request", Phase 14.1 D-14.1-02 cross-verified). Kakao 와 동일 비교 모드.
 //
 // Pitfall 3 sentinel — jose 의 JWKS remote set 생성 호출처가 functions/src/ 의
 // helper 단일 파일 (oidc_verifier.ts) 만 남아야 한다. 본 caller 는 jose import
@@ -42,7 +44,7 @@ const verifyLineIdToken = createOidcVerifier({
   jwksUrl: "https://api.line.me/oauth2/v2.1/certs",
   audience: () => LINE_CHANNEL_ID.value(),
   algorithms: ["ES256"],
-  nonceHashing: "sha256",
+  nonceHashing: "none",
 });
 
 type LineCustomTokenRequest = {idToken: string; nonce: string};
@@ -59,7 +61,7 @@ type LineCustomTokenResponse = {
  * 1. App Check enforcement (D-LINE-D11 carry-forward) — request.auth=null
  *    허용과 양립.
  * 2. createOidcVerifier helper 가 jwtVerify (issuer + audience + ES256 서명)
- *    + nonce SHA256 hash 비교 흡수. 위반 시 joseErrors.* throw.
+ *    + raw nonce === claim.nonce 비교 흡수. 위반 시 joseErrors.* throw.
  * 3. Identity Index lookup-first transaction (Phase 12.1 D-31~D-34 자동 상속).
  * 4. admin.auth().createCustomToken(uid) — 1h 만료.
  *
@@ -101,9 +103,11 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
     let lineDisplayName: string | undefined;
     let linePictureUrl: string | undefined;
     try {
-      // helper 가 issuer / aud / alg / nonce 검증 모두 흡수. nonce 는 SHA256
-      // hash 후 claim 과 비교 (LINE SDK 의 embed 정책 일치). 위반 시
-      // joseErrors.JWTClaimValidationFailed / 기타 JOSEError throw.
+      // helper 가 issuer / aud / alg / nonce 검증 모두 흡수. nonce 는 raw
+      // 그대로 claim 과 비교 (Phase 14.1 D-14.1-02 — line-sdk-android
+      // LineIdToken.java verbatim "the same value as in the authentication
+      // request"). 위반 시 joseErrors.JWTClaimValidationFailed / 기타
+      // JOSEError throw.
       const payload = await verifyLineIdToken(idToken, nonce);
       const typedPayload = payload as {
         sub?: string;

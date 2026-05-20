@@ -15,8 +15,10 @@ import type {JWTPayload} from "jose";
  * - Kakao: issuer=https://kauth.kakao.com / algorithms=["RS256"] /
  *   nonceHashing="none" (raw nonce === claim.nonce)
  * - LINE: issuer=https://access.line.me / algorithms=["ES256"] /
- *   nonceHashing="sha256" (SHA256(raw) === claim.nonce — LINE SDK 가 raw nonce
- *   를 SHA256 hash 후 claim 에 embed)
+ *   nonceHashing="none" (raw nonce === claim.nonce — Phase 14.1 D-14.1-02:
+ *   LINE iOS/Android SDK 가 raw nonce 를 그대로 LINE 서버에 transmit + ID
+ *   Token nonce claim = raw 동일값. line-sdk-android LineIdToken.java verbatim
+ *   "the same value as in the authentication request" cross-verified)
  *
  * **JWKS singleton (Pitfall 3 sentinel 보존, D-LINE-04):**
  * jose JWKS remote set 생성은 factory 호출 시점 1회만 evaluate (closure
