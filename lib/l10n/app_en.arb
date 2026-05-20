@@ -609,7 +609,7 @@
 
   "authLineSignIn": "Log in with LINE",
   "@authLineSignIn": {
-    "description": "LINE Login button label. EN verbatim from LINE 공식 가이드 'List of recommended phrases for various languages' long form (https://developers.line.biz/en/docs/line-login/login-button/). Phase 14 R6/R7 audit trail — D-LINE-10 verbatim lock. starter-kit active locale = en/ko/ja 3 종 (외 16 언어는 .planning/phases/14-line-login/14-LINE-LOCALE-REFERENCE.md 참조). Phase 13.1 D-84 lint guard sentinel 패턴 일관 — brand_label_whitelist_test 가 [ASSUMED] tag audit trail + 1년 주기 갱신 정책 enforce."
+    "description": "LINE Login button label. EN verbatim from LINE official 'Login button design guidelines' long form (https://developers.line.biz/en/docs/line-login/login-button/). starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조. brand_label_whitelist_test 가 [ASSUMED] tag audit trail + 1년 주기 갱신 정책 enforce."
   },
 
   "authBrandAssetMissing": "Asset missing: {label}",

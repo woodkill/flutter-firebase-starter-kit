@@ -156,7 +156,7 @@
   },
   "authLineSignIn": "LINE으로 로그인",
   "@authLineSignIn": {
-    "description": "LINE Login button label. KO verbatim from LINE 공식 가이드 'List of recommended phrases for various languages' long form 19 언어 표 ko 항목 (https://developers.line.biz/en/docs/line-login/login-button/). Phase 14 R6/R7 audit trail — D-LINE-10 verbatim lock. 외래어+조사 패턴 = 'LINE'(브랜드 명사) + '으로'(조사) — LINE 공식 verbatim 부합. starter-kit active locale = en/ko/ja 3 종 (외 16 언어 참조: .planning/phases/14-line-login/14-LINE-LOCALE-REFERENCE.md)."
+    "description": "LINE Login button label. KO verbatim from LINE official 'Login button design guidelines' 19 언어 표 ko 항목 (https://developers.line.biz/en/docs/line-login/login-button/). 외래어+조사 패턴 = 'LINE'(브랜드 명사) + '으로'(조사) — 공식 verbatim 부합. starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조."
   },
   "authBrandAssetMissing": "자산 없음: {label}",
   "@authBrandAssetMissing": {
