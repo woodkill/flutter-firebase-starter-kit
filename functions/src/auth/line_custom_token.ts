@@ -12,14 +12,16 @@ import {resolveIdentity} from "./identity_index";
 // Phase 14 D-LINE-16 — Secret Manager 주입.
 // 배포 전 의무:
 //   firebase functions:secrets:set LINE_CHANNEL_ID
-//   firebase functions:secrets:set LINE_CHANNEL_SECRET
 //
 // LINE_CHANNEL_ID 는 OIDC ID Token audience 검증 (aud claim) 의 정답값으로
-// runtime 시점에 사용된다. LINE_CHANNEL_SECRET 은 본 Plan 단계에서 사용처 0
-// (Phase 17+ refresh / verify-token / revoke API 대비 — Phase 13
-// NAVER_CLIENT_SECRET 와 동일한 secret 정책 일관용으로 미리 등록한다).
+// runtime 시점에 사용된다.
+//
+// WR-04 (Phase 14 review): LINE_CHANNEL_SECRET 은 Phase 17+ refresh /
+// verify-token / revoke API 진입 시점에 도입한다. 현 시점 사용처 0 인
+// secret 을 declared 하면 운영자가 deploy 전 1회성 더미 주입을 강제받아
+// starter-kit "최소 설정으로 시작" 가치와 충돌 → declaration 제거.
+// Phase 17 진입 시 본 위치에 재선언 + onCall secrets 배열에 재포함 의무.
 const LINE_CHANNEL_ID = defineSecret("LINE_CHANNEL_ID");
-const LINE_CHANNEL_SECRET = defineSecret("LINE_CHANNEL_SECRET");
 
 // Phase 14 D-LINE-01 / D-LINE-03 / D-LINE-05 — OIDC verifier factory 호출.
 // helper 가 issuer / aud / alg / nonce 검증 모두 흡수한다. LINE 특화 분기:
@@ -83,7 +85,7 @@ type LineCustomTokenResponse = {
 export const lineCustomToken = onCall<LineCustomTokenRequest>(
   {
     enforceAppCheck: true,
-    secrets: [LINE_CHANNEL_ID, LINE_CHANNEL_SECRET],
+    secrets: [LINE_CHANNEL_ID],
   },
   async (request): Promise<LineCustomTokenResponse> => {
     // Step 0: input validation (Phase 11 D-07 standard message 매핑).

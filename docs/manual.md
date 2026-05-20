@@ -790,11 +790,16 @@ Channel 상세 페이지의 **"LINE Login"** 탭 (또는 "App settings") 으로 
 
 ### 5단계 — Firebase Secret Manager 등록 + Cloud Function 배포
 
-Cloud Function `lineCustomToken` 이 D-LINE-16 정책으로 두 secret 의무 선언
-(`defineSecret('LINE_CHANNEL_ID')` + `defineSecret('LINE_CHANNEL_SECRET')`).
-Phase 14 단계에서는 `LINE_CHANNEL_SECRET` 사용처 0건 (Cloud Function 이
-ID Token 검증만 — refresh / revoke API 미사용) 이지만, **secret 정책 일관성 +
-Phase 17+ 확장 대비** 로 미리 등록 필요:
+Cloud Function `lineCustomToken` 이 D-LINE-16 정책으로 1개 secret 선언
+(`defineSecret('LINE_CHANNEL_ID')`). Channel ID 는 OIDC ID Token audience
+검증 (`aud` claim) 의 정답값으로 runtime 시점에 의무 주입:
+
+> **WR-04 (Phase 14 review 정정):** 이전 버전 manual 은 `LINE_CHANNEL_SECRET`
+> 도 함께 등록하도록 안내했으나, Cloud Function 본문에서 사용처 0 건 +
+> declaration 만으로 운영자가 deploy 전 1회성 더미 주입을 강제받는 friction
+> 회피 위해 declaration 제거. Phase 17+ refresh / verify-token / revoke API
+> 도입 시점에 `LINE_CHANNEL_SECRET` 재등록 + Cloud Function 본문 사용처
+> 추가가 한 묶음으로 진행된다.
 
 ```bash
 firebase use <dev-project-id>
@@ -803,23 +808,16 @@ firebase use <dev-project-id>
 firebase functions:secrets:set LINE_CHANNEL_ID
 # prompt:
 #   ? Enter a value for LINE_CHANNEL_ID: <Channel ID 붙여넣기 + Enter>
-
-# LINE_CHANNEL_SECRET 등록 (1단계에서 메모한 Channel Secret 32자리)
-firebase functions:secrets:set LINE_CHANNEL_SECRET
-# prompt:
-#   ? Enter a value for LINE_CHANNEL_SECRET: <Channel Secret 붙여넣기 + Enter>
 ```
 
 기대 응답:
 ```
 ✔ Created a new secret version projects/.../secrets/LINE_CHANNEL_ID/versions/1
-✔ Created a new secret version projects/.../secrets/LINE_CHANNEL_SECRET/versions/1
 ```
 
 확인:
 ```bash
 firebase functions:secrets:get LINE_CHANNEL_ID
-firebase functions:secrets:get LINE_CHANNEL_SECRET
 ```
 
 배포 — `lineCustomToken` 함수를 dev Firebase 프로젝트 (asia-northeast3) 에:
