@@ -746,8 +746,12 @@ class AuthRepository {
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
-      // (Phase 9.2 R4) 자동 sendEmailVerification — LINE Cloud Function
-      // identity_index.ts emailVerified=true 자연 no-op (D-19 일관).
+      // (Phase 9.2 R4) 자동 sendEmailVerification — IN-01 (Phase 14 review)
+      // 정정: LINE 은 D-LINE-21 (email scope 미채택) 으로 Firebase Auth user
+      // record 의 email 필드가 비어 있어 `_autoSendEmailVerification` 내부
+      // `email.isEmpty` 가드 (line 914) 가 자연 no-op 처리. Kakao/Naver 의
+      // `emailVerified=true 자동 set` no-op 와는 다른 mechanism — LINE 전용
+      // path 명시.
       await _autoSendEmailVerification(userCredential);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
