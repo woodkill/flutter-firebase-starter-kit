@@ -166,6 +166,11 @@ import * as myFunctions from "../../src/index";
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
 const errorMock = logger.error as unknown as jest.Mock;
+// WR-02 회귀 가드 — debug/log 도 PII sentinel 검사 배열 (allLogCalls) 에 포함.
+// production code 가 현재 logger.debug / logger.log 미사용이지만 향후 디버그
+// 목적 추가 시 PII 회귀를 sentinel 이 감지 못 하는 약점 차단.
+const debugMock = logger.debug as unknown as jest.Mock;
+const logMock = logger.log as unknown as jest.Mock;
 
 afterAll(() => testEnv.cleanup());
 
@@ -414,6 +419,47 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
     // D-LINE-21: developerClaims 미발급 → 두 번째 인자 없음.
     expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-line-uid-9");
   });
+
+  // WR-01 회귀 가드 (Wave 2 carry-over) — happy-path 에서 logger 가 payload
+  // 본문 (name / picture / idToken / raw nonce) 을 누출하지 않음을 명시 검증.
+  // 현재 production code (line_custom_token.ts:222-226) 는 {event, uid,
+  // isNewUser} 만 logger.info 호출 → 실질 누출 0 이지만, 향후 contributor 가
+  // 진단 목적으로 lineDisplayName / linePictureUrl 변수를 logger payload 에
+  // 추가하면 happy-path 회귀가 silently merge 될 수 있다 → 본 sentinel 이
+  // RED 로 차단.
+  // eslint-disable-next-line max-len
+  it("Test 9.5: happy-path PII 금지 — logger 에 name/picture/idToken/nonce 본문 미노출", async () => {
+    mockVerifyLineIdToken.mockResolvedValue({
+      sub: "U_line_pii",
+      name: "PII_LINE_DISPLAY_NAME",
+      picture: "https://line.example.com/PII_PIC.png",
+    });
+    mockIdxGet.mockResolvedValue({exists: false});
+    mockTxGet.mockResolvedValue({exists: false});
+
+    const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+    await wrapped({
+      auth: {uid: "anon-pii-line"},
+      app: {appId: "test"},
+      data: {idToken: "JWT_LINE_BODY", nonce: "raw-PII-nonce"},
+    } as never);
+
+    // WR-02 mirror — debug/log 도 sentinel 배열 포함.
+    const allLogCalls = [
+      ...infoMock.mock.calls,
+      ...warnMock.mock.calls,
+      ...errorMock.mock.calls,
+      ...debugMock.mock.calls,
+      ...logMock.mock.calls,
+    ];
+    for (const args of allLogCalls) {
+      const s = JSON.stringify(args);
+      expect(s).not.toContain("PII_LINE_DISPLAY_NAME");
+      expect(s).not.toContain("PII_PIC.png");
+      expect(s).not.toContain("JWT_LINE_BODY");
+      expect(s).not.toContain("raw-PII-nonce");
+    }
+  });
 });
 
 // Task 2 — 잔여 Test 10-14 (conflictKind + PII regression).
@@ -520,7 +566,15 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       expect.any(String),
     );
     // PII 회귀 — err.message ('firestore unavailable') 본문 logger 미노출.
-    for (const args of errorMock.mock.calls) {
+    // WR-02 — error 만이 아닌 info/warn/debug/log 전체 sentinel 검사.
+    const allLogCalls = [
+      ...infoMock.mock.calls,
+      ...warnMock.mock.calls,
+      ...errorMock.mock.calls,
+      ...debugMock.mock.calls,
+      ...logMock.mock.calls,
+    ];
+    for (const args of allLogCalls) {
       expect(JSON.stringify(args)).not.toContain("firestore unavailable");
     }
   });
@@ -559,10 +613,13 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       expect.any(String),
     );
     // PII 회귀 — err.message 본문 logger 미노출.
+    // WR-02 — debug/log 도 sentinel 배열 포함.
     const allLogCalls = [
       ...infoMock.mock.calls,
       ...warnMock.mock.calls,
       ...errorMock.mock.calls,
+      ...debugMock.mock.calls,
+      ...logMock.mock.calls,
     ];
     for (const args of allLogCalls) {
       expect(JSON.stringify(args)).not.toContain(
@@ -594,10 +651,13 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
     ).rejects.toBeInstanceOf(Error);
 
     // 모든 logger 호출에서 sentinel + 분해 토큰 미포함 검증.
+    // WR-02 — debug/log 도 sentinel 배열 포함.
     const allLogCalls = [
       ...infoMock.mock.calls,
       ...warnMock.mock.calls,
       ...errorMock.mock.calls,
+      ...debugMock.mock.calls,
+      ...logMock.mock.calls,
     ];
     for (const args of allLogCalls) {
       const stringified = JSON.stringify(args);
