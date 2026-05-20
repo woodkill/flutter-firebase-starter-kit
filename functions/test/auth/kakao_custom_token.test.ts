@@ -116,6 +116,12 @@ import * as myFunctions from "../../src/index";
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
 const errorMock = logger.error as unknown as jest.Mock;
+// WR-02 mirror (from LINE Phase 14 review) — debug/log 도 PII sentinel
+// 검사 배열 (allLogCalls) 에 포함. mock 선언 (line 17-18) 에 이미 등록되어
+// 있으나 sentinel 배열에는 누락되어 있었다 — production code 가 향후
+// logger.debug / log 추가 시 PII 회귀 silently merge 차단.
+const debugMock = logger.debug as unknown as jest.Mock;
+const logMock = logger.log as unknown as jest.Mock;
 // Phase 14 D-LINE-02 — caller 는 createOidcVerifier 가 반환한 verifier 함수만
 // 호출. `mockVerifyKakaoIdToken.mockResolvedValue(payload)` 로 검증된 payload
 // 시뮬레이션 + `.mockRejectedValue(joseError)` 로 JWT 검증 실패 시뮬레이션.
@@ -307,9 +313,13 @@ describe("kakaoCustomToken onCall", () => {
         data: {idToken: "JWT_BODY", nonce: "n"},
       } as never);
 
+      // WR-02 mirror — debug/log 도 sentinel 배열 포함.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
       ];
       for (const args of allLogCalls) {
         const stringified = JSON.stringify(args);
@@ -369,10 +379,13 @@ describe("kakaoCustomToken onCall", () => {
         expect.any(String),
       );
       // PII 회귀 — collision email 본문이 logger payload 에 미노출.
+      // WR-02 mirror — debug/log 도 sentinel 배열 포함.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
       ];
       for (const args of allLogCalls) {
         const stringified = JSON.stringify(args);
@@ -450,7 +463,15 @@ describe("kakaoCustomToken onCall", () => {
         expect.any(String),
       );
       // PII 회귀 — err.message ('firestore unavailable') 본문 미노출.
-      for (const args of errorMock.mock.calls) {
+      // WR-02 mirror — error 만이 아닌 info/warn/debug/log 전체 sentinel 검사.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
         expect(JSON.stringify(args)).not.toContain("firestore unavailable");
       }
     },
@@ -554,10 +575,13 @@ describe("kakaoCustomToken onCall", () => {
       ).rejects.toBeInstanceOf(Error);
 
       // 모든 log call 에서 sentinel + 분해 토큰 미포함 검증.
+      // WR-02 mirror — debug/log 도 sentinel 배열 포함.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
       ];
       for (const args of allLogCalls) {
         const stringified = JSON.stringify(args);
@@ -628,10 +652,13 @@ describe("kakaoCustomToken onCall", () => {
 
       // Phase 13 신규 sentinel — 모든 logger call (info/warn/error) 에서
       // sentinel + 분해 토큰 미노출 검증.
+      // WR-02 mirror — debug/log 도 sentinel 배열 포함.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
       ];
       for (const args of allLogCalls) {
         const stringified = JSON.stringify(args);
@@ -682,10 +709,13 @@ describe("kakaoCustomToken onCall", () => {
         expect.any(String),
       );
       // PII 회귀 — err.message 본문 logger 미노출.
+      // WR-02 mirror — debug/log 도 sentinel 배열 포함.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
       ];
       for (const args of allLogCalls) {
         expect(JSON.stringify(args)).not.toContain(
@@ -738,10 +768,13 @@ describe("kakaoCustomToken onCall", () => {
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
 
       // PII regression sentinel — email / IdP user_id 본문 logger 미노출.
+      // WR-02 mirror — debug/log 도 sentinel 배열 포함.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
       ];
       for (const args of allLogCalls) {
         const stringified = JSON.stringify(args);
@@ -780,10 +813,13 @@ describe("kakaoCustomToken onCall", () => {
       );
 
       // PII regression sentinel.
+      // WR-02 mirror — debug/log 도 sentinel 배열 포함.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
       ];
       for (const args of allLogCalls) {
         expect(JSON.stringify(args)).not.toContain("kakao-user-no-email");
