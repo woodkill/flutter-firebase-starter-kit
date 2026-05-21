@@ -1,5 +1,3 @@
-import {createHash} from "node:crypto";
-
 import {createRemoteJWKSet, jwtVerify, errors as joseErrors} from "jose";
 import type {JWTPayload} from "jose";
 
@@ -58,11 +56,20 @@ export type OidcVerifierConfig = {
   /** JWT 서명 alg whitelist (e.g., Kakao=["RS256"], LINE=["ES256"]). */
   algorithms: string[];
   /**
-   * nonce 비교 모드.
-   * - "none": raw nonce === claim.nonce (Kakao)
-   * - "sha256": SHA256(raw) === claim.nonce (LINE — SDK 가 hash 후 embed)
+   * nonce 비교 모드. 현재 Kakao + LINE 두 provider 모두 raw 비교 mode 만
+   * 사용 (Phase 14.1 D-14.1-02 cross-verified — LINE SDK 가 raw nonce 를
+   * 변환 없이 LINE 서버에 transmit + ID Token nonce claim = raw 동일값).
+   *
+   * - "none": raw nonce === claim.nonce.
+   *
+   * **Phase 15+ baseline:** SHA256(raw) === claim.nonce 등 hashing mode 가
+   * 필요한 provider 진입 시 D-14.1-02 와 동등한 4-source verbatim cross-
+   * verify 후 union 재확장 (e.g., `"none" | "sha256"`) + runtime 분기
+   * 재도입 + oidc_verifier.test.ts 에 hashing path coverage 추가 의무.
+   * Phase 14.1 hotfix 의 minimal-change 정신 + dead-code 제거 + type
+   * 안전성 우선으로 "sha256" 분기 잠정 제거.
    */
-  nonceHashing: "none" | "sha256";
+  nonceHashing: "none";
 };
 
 /**
@@ -86,12 +93,11 @@ export function createOidcVerifier(config: OidcVerifierConfig): OidcVerifier {
     });
 
     // nonce 클레임 직접 비교 — jose 6.x JWTClaimVerificationOptions 에 native
-    // nonce 옵션 부재 (Phase 12 D-06 검증). provider 별 hashing 분기.
+    // nonce 옵션 부재 (Phase 12 D-06 검증). 현재 raw 비교 mode 만 지원
+    // (config.nonceHashing === "none"). hashing mode 진입은 Phase 15+
+    // baseline (위 OidcVerifierConfig docstring 참조).
     const claimNonce = verified.payload.nonce;
-    const expectedNonce =
-      config.nonceHashing === "sha256" ?
-        createHash("sha256").update(rawNonce).digest("hex") :
-        rawNonce;
+    const expectedNonce = rawNonce;
     if (claimNonce !== expectedNonce) {
       throw new joseErrors.JWTClaimValidationFailed(
         "unexpected nonce",
