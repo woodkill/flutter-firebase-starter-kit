@@ -188,9 +188,18 @@ const logMock = logger.log as unknown as jest.Mock;
 afterAll(() => testEnv.cleanup());
 
 /**
- * mockServerEmbedNonce — 실 LINE 서버가 ID Token nonce claim 에 어떻게
- * nonce 를 embed 하는지를 명시적으로 fixture 로 분리. helper 의
- * nonceHashing 가정과 독립적으로 작성 (Phase 14.1 D-14.1-03 §2).
+ * mockServerEmbedNonce — 실 LINE 서버의 nonce embed 동작에 대한 정적
+ * 사실 (raw 그대로 embed) 의 docstring-assertion. 본 fixture 는 Test
+ * 1-14 의 mock payload 구성에 functional plug-in 되지 않으며 (verifier
+ * helper 자체가 jest.mock 으로 가로채여 payload.nonce 값이 caller code-
+ * path 에서 소비되지 않기 때문 — functional 분리의 실효성이 illusory),
+ * helper 의 nonceHashing 가정 변경 시 향후 contributor 가 본 sentinel 의
+ * describe 블록 (line 218-) RED 로 인해 의도 발견 + 4-source verbatim
+ * 재확인을 강제받게 하는 문서적 tripwire 역할이다. 진짜 보호장치 두 가지는
+ * (1) 본 docstring + describe 블록 (2) 실 단말 backend tier UAT
+ * (.planning/phases/14-line-login/14-HUMAN-UAT.md §A1). functional mock
+ * separation 은 Phase 15+ 진입 시 (helper 가 payload.nonce 를 실제로 caller
+ * 외부에서 검증하는 형태로 재설계) 별도 PR 로 도입 가능.
  *
  * Phase 14.1 D-14.1-02 cross-verified: line-sdk-android LineIdToken.java
  * verbatim "the same value as in the authentication request" + line-sdk-
