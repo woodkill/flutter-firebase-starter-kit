@@ -27,7 +27,7 @@
  *  - Test 2: iss mismatch → invalid-argument HttpsError
  *  - Test 3: aud mismatch → invalid-argument HttpsError
  *  - Test 4: exp 만료 → invalid-argument HttpsError
- *  - Test 5: nonce SHA256 mismatch → invalid-argument HttpsError
+ *  - Test 5: nonce raw mismatch → invalid-argument HttpsError
  *  - Test 6: JWKS fetch 실패 (JWKSNoMatchingKey) → invalid-argument
  *  - Test 7: 익명 호출자 + identity_index 미등록 → seed UID = request.auth.uid
  *  - Test 8: 미인증 호출자 + identity_index 미등록 → 새 UID 자동 생성
@@ -343,10 +343,11 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
     );
   });
 
-  // Test 5: helper 가 SHA256(raw) !== claim.nonce 검사 후 JWTClaimValidationFailed
-  // throw 시뮬레이션. caller 는 jose error 를 그대로 invalid-argument 매핑.
+  // Test 5: helper 가 raw !== claim.nonce 검사 후 JWTClaimValidationFailed
+  // throw 시뮬레이션 (Phase 14.1 D-14.1-02 — LINE nonceHashing="none" raw
+  // 비교 mode). caller 는 jose error 를 그대로 invalid-argument 매핑.
   // eslint-disable-next-line max-len
-  it("Test 5: nonce SHA256 mismatch → invalid-argument HttpsError", async () => {
+  it("Test 5: nonce raw mismatch → invalid-argument HttpsError", async () => {
     const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
       m: string
     ) => Error;
