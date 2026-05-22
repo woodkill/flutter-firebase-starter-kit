@@ -1008,6 +1008,298 @@ ARB 키). 19 locale 확장 시 다음 절차:
 
 ---
 
+## Yahoo! JAPAN Login (Phase 15)
+
+Yahoo! JAPAN 로그인은 Custom Token 방식 + OIDC ID Token JWT 검증 (Kakao / LINE
+과 같은 path) 으로 구현되어 있습니다. Cloud Function `yahoojpCustomToken`
+(asia-northeast3) 이 `jose + JWKS` 로 Yahoo!JP ID Token 을 자체 검증 →
+Identity Index 등록 → `admin.auth().createCustomToken(uid)` 발급, 클라이언트가
+`signInWithCustomToken` 으로 세션을 시작합니다 (Phase 12 D-08 OIDC verifier
+helper 의 세 번째 사용처 — Kakao + LINE 다음 자연 carry-forward).
+
+Yahoo! JAPAN 은 Flutter 공식 SDK 부재 (native `github.com/yahoojapan/yjlogin-{ios,android}-sdk`
+는 존재) → **`flutter_appauth` (OpenID Foundation 공식 AppAuth-iOS/Android
+래핑)** 채택 (D-YJP-01). PKCE + ID Token 추출 + nonce 자동 처리 + native
+redirect (iOS `ASWebAuthenticationSession` + Android `Custom Tabs`) 표준
+OIDC 라이브러리.
+
+### 1단계 — Yahoo Developers Console 응용프로그램 등록
+
+콘솔: <https://e.developer.yahoo.co.jp/dashboard/>
+
+1. **Yahoo! JAPAN ID 가입** (이미 가입된 경우 로그인) — 개발자 약관 동의.
+2. **응용프로그램 신규 등록** — "アプリケーションの管理" → "新しいアプリケーション
+   を開発" → 등록 유형 **「クライアントサイド・アプリケーション」** 선택
+   (D-YJP-03 verbatim — `client_secret` 0, PKCE 만으로 토큰 endpoint 호출).
+
+   > **출처:** Yahoo!JP docs verbatim "Client IDがクライアントサイド・アプリケー
+   > ションとして発行された場合は指定する必要はありません"
+   > (<https://developer.yahoo.co.jp/yconnect/v2/authorization_code/>).
+
+3. **iOS Bundle ID / Android Package Name 등록** — 본인 앱의 Bundle ID
+   (예: `com.slimpumpkin.flutterStarterKit.dev`) + Package Name
+   (예: `com.slimpumpkin.flutter_starter_kit.dev`).
+4. **redirect URI scheme 등록** — Yahoo!JP Console 이 자동 발급한 scheme
+   (`yj{client_id}://` 형식 [ASSUMED] — researcher Plan researcher Wave 단계
+   에서 verbatim cross-verify) 또는 사용자 정의 reverse-domain scheme
+   (권장 — Android intent hijack 위험 회피, 예:
+   `com.slimpumpkin.flutterStarterKit.dev.yahoojp`).
+5. **Client ID 확인 + 메모** — 등록 직후 "アプリケーション詳細" 페이지의
+   "Client ID" 표시 (영숫자 64자 [ASSUMED]). 본 값은 (a) `config/dev.json`
+   `yahoojpClientId` + (b) Firebase Secret Manager `YAHOOJP_CLIENT_ID`
+   이중 등록 의무.
+
+### 2단계 — Yahoo!JP 공식 BI 자상 사용 절차
+
+본 starter-kit 의 Phase 15 Plan 15-04 는 Yahoo!JP 공식 BI 자상 (Symbol SVG +
+Case B 패턴 — 자상은 변형 0 + 라벨은 ARB 외부 layer 자체 render) 을 이미
+동봉합니다. fork 사용자는 LICENSE 동의 + 1년 freshness 재확인 의무만 수행.
+
+1. **공식 자상 zip 다운로드 (1년 freshness 재확인):**
+   <https://s.yimg.jp/dl/developer_network/sample/download/yconnect/yahoo_japan_login_button.zip>
+   - 본 starter-kit 의 `assets/brand/yahoojp/btn_signin_icon.svg` 는 zip 안
+     `SVG/yahoo_japan_icon_white_64.svg` verbatim 추출 (2026-05-22 다운로드).
+     `fill="white"` → `fill="currentColor"` 일괄 치환만 적용 (geometry /
+     viewBox / path 수치 변경 0).
+2. **LICENSE 검토 + 동의:**
+   - `assets/brand/yahoojp/LICENSE.txt` (zip 안 번들된 공식 PDF
+     `Yahoo! JAPAN ID ログインボタン.pdf` verbatim 발췌) cross-reference.
+   - 변형 금지 verbatim 인용: **"ボタン画像をゆがめたり、ボタン内に配置されて
+     いる画像、文字を書き換えたりしないでください。"** — 자상 path / viewBox /
+     색상 절대 변경 금지.
+3. **자상 README cross-reference:**
+   - `assets/brand/yahoojp/README.md` (Phase 13.1 7필드 schema — provider
+     name / source URL / variant / license / download date / verbatim text /
+     사용자 sign-off).
+4. **공식 색상 verbatim** — `yahoo_japan_icon.ai` layer 명
+   "**アイコン（赤）#FF0033**" + "**文字色：#FFFFFF（白）**" → starter-kit
+   의 `_renderYahoojpButton` hardcode (`0xFFFF0033` bg + `0xFFFFFFFF` label/
+   icon) 부합.
+
+> **흔한 실수:** 자상 파일에 `ColorFilter` 적용 또는 SVG path 수정. Yahoo!JP
+> BI 가이드의 "サイズ、見た目が変わるような変更を加えないでください"
+> verbatim 위반 — Phase 13.1 R3/R4 의 ColorFilter 절대 금지 정책 일관.
+
+### 3단계 — iOS Info.plist + Android manifestPlaceholder + xcconfig 키 갱신
+
+본 starter-kit 의 `ios/Runner/Info.plist` 와 `android/app/build.gradle.kts`
+는 Phase 15 Plan 15-01 가 이미 Yahoo!JP 필수 entry 를 등록한 상태입니다 —
+fork 사용자는 placeholder 값을 본인 발급값으로 교체만 수행:
+
+**iOS — `ios/Flutter/dev.xcconfig` (또는 `dev.example.xcconfig` 복사 후 갱신):**
+```
+YAHOOJP_CLIENT_ID=<1단계에서 발급받은 Client ID>
+YAHOOJP_REDIRECT_SCHEME=<1단계에서 등록한 redirect URI scheme>
+```
+
+**iOS — `ios/Runner/Info.plist` (Phase 15 Plan 15-01 산출, 변경 0 — build-time 치환):**
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>$(YAHOOJP_REDIRECT_SCHEME)</string>
+    </array>
+  </dict>
+</array>
+```
+
+**Android — `android/app/build.gradle.kts` (Phase 15 Plan 15-01 산출, 변경 0):**
+```kotlin
+manifestPlaceholders["appAuthRedirectScheme"] = "<1단계 redirect URI scheme>"
+```
+
+> **흔한 실수:** scheme 값 mismatch. `config/dev.json` 의 `yahoojpRedirectScheme`
+> + `ios/Flutter/dev.xcconfig` 의 `YAHOOJP_REDIRECT_SCHEME` + Android
+> `manifestPlaceholders["appAuthRedirectScheme"]` + Yahoo!JP Console 등록
+> 4곳 모두 동일 scheme 의무. 1곳이라도 다르면 callback redirect 미도달 →
+> Cloud Function 호출 0.
+
+### 4단계 — UserInfo API 審査申請 + email scope 활성 절차 (D-YJP-09 정정 lock — production 전환 시 의무)
+
+본 starter-kit 의 Phase 15 단계는 Yahoo!JP scope = `openid + profile` 만
+사용 (D-YJP-09 정정 lock 2026-05-21). `userInfo.email` 항상 undefined →
+`users/{uid}.email` 미설정 → Phase 17 Account Linking email collision detect
+부적용 (sub-only identity_index).
+
+**현재 starter-kit 시점 (dev only):**
+- scope = `openid + profile` 만 active
+- `payload.sub` 만 사용 → `identity_index/yahoojp:${sub}` resolve
+- Cloud Function `yahoojp_custom_token.ts` 의 `userInfo.email` undefined 가
+  안전 fallback
+
+**production 전환 시 (사용자 의무):**
+
+> **VERBATIM 인용** (`https://developer.yahoo.co.jp/yconnect/v2/userinfo.html`):
+> - "**属性取得API（UserInfoAPI）を利用するには審査が必要となります。**"
+> - "アプリケーションの詳細画面内の**利用するスコープ**に「**メールアドレス**」
+>   の設定がある"
+> - "**プライバシーポリシーURL、利用規約URL**の登録が必要です。"
+
+1. **Yahoo Developers Console > application detail** > "**利用するスコープ**"
+   항목에 "**メールアドレス**" 설정 추가
+2. **プライバシーポリシー URL + 利用規約 URL 등록 의무** — production 도메인
+   호스팅 필요
+3. **UserInfo API 審査申請** — Yahoo!JP 측 review 진행 + 승인 timeline
+   [ASSUMED] (수일~수 주, 정확한 timeline 은 Yahoo!JP 공식 미공개 —
+   researcher Wave 2 단계 확인 의무, 또는 사용자가 starter-kit fork 후
+   직접 확인)
+4. **승인 후 code 변경 point** (Phase 17+ 책임 — starter-kit Phase 15
+   단계 적용 X):
+   - `lib/features/auth/data/yahoojp_sdk_client.dart` 의 scopes 에 `'email'`
+     추가 (`['openid', 'profile']` → `['openid', 'profile', 'email']`)
+   - `functions/src/auth/yahoojp_custom_token.ts` 의 `typedPayload` type 에
+     `email?: string` + `email_verified?: boolean` 추가
+   - `userInfo.email` propagate + `createCustomToken(uid, developerClaims:
+     {email, email_verified: true})` 분기
+
+> **흔한 실수:** UserInfo API 審査 미이행 후 scope=email 추가. 審査 미이행
+> 상태에서 email scope 요청 시 Yahoo!JP 측에서 silent fail 또는 invalid_scope
+> 에러 → D-YJP-09 정정 lock §(4) 절차 의무.
+
+### 5단계 — Firebase Secret Manager 등록 + Cloud Function 배포
+
+Cloud Function `yahoojpCustomToken` 이 1개 secret 선언
+(`defineSecret('YAHOOJP_CLIENT_ID')`). Client ID 는 OIDC ID Token audience
+검증 (`aud` claim) 의 정답값으로 runtime 시점에 의무 주입:
+
+```bash
+firebase use <dev-project-id>
+
+# YAHOOJP_CLIENT_ID 등록 (1단계에서 메모한 Client ID)
+firebase functions:secrets:set YAHOOJP_CLIENT_ID
+# prompt:
+#   ? Enter a value for YAHOOJP_CLIENT_ID: <Client ID 붙여넣기 + Enter>
+```
+
+기대 응답:
+```
+✔ Created a new secret version projects/.../secrets/YAHOOJP_CLIENT_ID/versions/1
+```
+
+확인:
+```bash
+firebase functions:secrets:get YAHOOJP_CLIENT_ID
+```
+
+배포 — `yahoojpCustomToken` 함수를 dev Firebase 프로젝트 (asia-northeast3) 에:
+
+```bash
+cd functions
+pnpm install           # 최초 1회 (corepack 활성화는 Initial Setup 4단계 참조)
+pnpm run lint          # 0 errors 확인
+pnpm run build         # tsc OK 확인
+pnpm test              # jest 22+ PASS 확인 (yahoojp 14 + oidc_verifier 8)
+
+# 배포
+firebase use <dev-project-id>
+firebase deploy --only functions:yahoojpCustomToken
+```
+
+기대 응답:
+```
+✔ functions[yahoojpCustomToken(asia-northeast3)] Successful update operation.
+```
+
+확인 — Firebase Console > "빌드 > Functions" → `yahoojpCustomToken` row →
+region = `asia-northeast3` + "활성" 상태.
+
+### 6단계 — `config/dev.json` 키 주입 + dev flavor 실 단말 검증 + 비즈니스 인증 (production 전환 시)
+
+콘솔에서 발급받은 Client ID 를 `config/dev.json` 에 주입합니다
+(`config/dev.example.json` 이 placeholder 를 이미 가지고 있으므로 `cp` 후
+본인 값으로 교체):
+
+```json
+{
+  "enabledAuthProviders": "google,apple,facebook,kakao,naver,line,yahoojp",
+  "yahoojpClientId": "<1단계에서 발급받은 Client ID>",
+  "yahoojpRedirectScheme": "<1단계에서 등록한 redirect URI scheme>"
+}
+```
+
+- `client_secret` 은 `config/dev.json` 에 **넣지 마세요** — Yahoo!JP 「クライアン
+  トサイド・アプリケーション」 등록 유형 = client_secret 0 (D-YJP-03 verbatim).
+- `YAHOOJP_CLIENT_ID` 는 (a) `config/dev.json` (공개 — flutter_appauth init
+  의무) + (b) Firebase Secret Manager (Cloud Function aud 검증) 이중 등록.
+
+**dev flavor 실 단말 검증:**
+```bash
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <device-id>
+```
+
+- LoginScreen 의 **"Yahoo! JAPAN IDでログイン"** 버튼 (Red `#FF0033` 배경 +
+  흰 Yahoo!JP 자상 — `BrandedSocialButton.yahoojp()`) 탭 → Android Custom
+  Tabs (iOS `ASWebAuthenticationSession`) webview → Yahoo!JP 동의 화면 →
+  사용자 동의 → 앱 복귀.
+- Home 진입 + EnvironmentInfoScreen 의 Account 섹션 — `linkedProviders` 에
+  "Yahoo! JAPAN" 표시 확인.
+- Android UAT 8 시나리오: `.planning/phases/15-yahoo-japan-login/15-HUMAN-UAT.md`
+  (Plan 15-06 산출 — sentinel-active UAT sequencing 의무, Phase 13.1 D-73 mirror).
+- iOS UAT 는 보류 — `.planning/todos/pending/2026-05-XX-ios-yahoojp-uat-deferred.md`
+  추적 (memory `project_ios_uat_batch_policy` 일관, Phase 17 batch UAT 단일 진입).
+
+**stg / prod 는?** dev 와 동일한 절차로 사용자 자체 Yahoo Developers Console
+application 을 별도 등록 + 키 주입 (Phase 12 D-22 mirror — dev/stg/prod 3
+application 분리 등록). starter-kit 의 stg/prod config 는 placeholder 만
+포함합니다 (D-YJP-22 — `project_firebase_dev_only` 정책 일관).
+
+**비즈니스 인증 절차 (production 전환 시 추가 항목):**
+
+dev 단계는 Yahoo Developers Console 의 본인 계정만 사용 가능. production
+출시 시 다음 항목 추가 의무:
+
+1. **stg/prod application 분리 등록** — Phase 12 D-22 패턴 mirror (dev/stg/prod
+   3 application 등록).
+2. **사업자 등록증 / 회사 정보** — Yahoo!JP Console 요구 시 사용자 의무
+   [ASSUMED — researcher Wave 2 단계 확인].
+3. **D-YJP-09 §(4) UserInfo API 審査申請** — 위 4단계 절차 의무 (production
+   에서 email scope 필요 시).
+4. **1년 주기 BI 가이드 재방문** — Yahoo!JP 정책 변경 대비 (`assets/brand/yahoojp/`
+   freshness, memory `feedback_label_verbatim_audit` mirror).
+
+### Pitfall 정리 (Phase 15 RESEARCH §Pitfalls + D-YJP-NN)
+
+- **Pitfall 1 (nonce raw transit):** Cloud Function `oidc_verifier.ts` 의
+  `nonceHashing: "none"` 단독 union 부합 — sha256 hashing 추가 시 회귀
+  (D-YJP-04 5-source cross-verified raw nonce only).
+- **Pitfall 2 (YAHOOJP_CLIENT_ID 미주입):** Firebase Secret 등록 + xcconfig +
+  config/dev.json 3곳 동기 의무. 1곳이라도 placeholder 잔존 시 silent failure
+  (flutter_appauth init 실패 또는 Cloud Function aud 검증 fail).
+- **Pitfall 3 (redirect URI scheme 충돌):** 다른 앱이 동일 scheme 등록 시
+  Android intent hijack 위험 → 고유 reverse-domain scheme 권장 (예:
+  `com.slimpumpkin.flutterStarterKit.dev.yahoojp`).
+- **Pitfall 4 (appAuthRedirectScheme placeholder mismatch):** manifestPlaceholders
+  + config/dev.json + xcconfig + Yahoo!JP Console 4곳 모두 동일 scheme 의무.
+- **Pitfall 5 (UserInfo API 審査 미이행):** D-YJP-09 §(4) 절차 의무 — 審査
+  미이행 후 scope=email 추가 시 동작 안 함. dev 단계는 `openid + profile` 만
+  fallback 유지.
+- **Pitfall 6 (issuer trailing slash 누락):** Cloud Function helper config
+  `issuer: "https://auth.login.yahoo.co.jp/yconnect/v2/"` verbatim — trailing
+  slash 포함 (`configuration.html` OpenID Provider Metadata truth source,
+  RFC 8414 §2 권고). 누락 시 jose `JWTClaimValidationFailed: unexpected "iss"
+  claim value`.
+- **Pitfall 7 (자상 변형 금지):** `assets/brand/yahoojp/btn_signin_icon.svg`
+  path / viewBox / 색상 직접 수정 금지 — Yahoo!JP BI 가이드 "ボタン画像をゆが
+  めたり、ボタン内に配置されている画像、文字を書き換えたりしないでください"
+  verbatim 위반. ColorFilter 적용 금지 (Phase 13.1 R3/R4 일관).
+
+### Cross-reference
+
+- **자상 + LICENSE:** `assets/brand/yahoojp/` (`btn_signin_icon.svg` + `LICENSE.txt`
+  + `README.md` — Plan 15-04 산출)
+- **STEP2 권위 매트릭스:** `.planning/phases/15-yahoo-japan-login/15-STEP2-yahoojp-VERBATIM.md`
+  (canonical key 매트릭스 + verbatim 출처)
+- **Phase 14 LINE 19 locale 가이드 비교:** `14-LINE-LOCALE-REFERENCE.md`
+  — Yahoo!JP 는 미적용 (3 locale only, D-YJP-08 — Yahoo!JP BI 가이드 ja-only,
+  en/ko 차원 번역 [ASSUMED] tag)
+- **UAT 8 시나리오:** `.planning/phases/15-yahoo-japan-login/15-HUMAN-UAT.md`
+  (Plan 15-06 산출 — A1~A8 + iOS UAT 보류, sentinel-active UAT sequencing
+  Phase 13.1 D-73 두 번째 적용)
+
+---
+
 ## Brand Asset (Phase 13 D-52 — Kakao + Naver 통합) — DEPRECATED
 
 > **⚠ 본 단락은 Phase 13.1 마이그레이션 후 stale 입니다.**
