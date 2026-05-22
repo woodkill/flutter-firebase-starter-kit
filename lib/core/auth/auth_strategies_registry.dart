@@ -13,6 +13,7 @@ import 'strategies/google_auth_strategy.dart';
 import 'strategies/kakao_auth_strategy.dart';
 import 'strategies/line_auth_strategy.dart'; // Phase 14 — see ROADMAP.md
 import 'strategies/naver_auth_strategy.dart'; // Phase 13 — see ROADMAP.md
+import 'strategies/yahoojp_auth_strategy.dart'; // Phase 15 — see ROADMAP.md
 
 part 'auth_strategies_registry.g.dart';
 
@@ -30,6 +31,7 @@ const List<AuthStrategy> _allStrategies = <AuthStrategy>[
   KakaoAuthStrategy(), // Phase 12 추가 (D-26 add-only)
   NaverAuthStrategy(), // Phase 13 — see ROADMAP.md, D-26 add-only
   LineAuthStrategy(), // Phase 14 — see ROADMAP.md, SOCL-09 add-only
+  YahoojpAuthStrategy(), // Phase 15 — see ROADMAP.md, SOCL-09 add-only
 ];
 
 /// 활성화된 [AuthStrategy] 만 반환한다 (정적 + RC overlay 합산, D-26).

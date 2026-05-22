@@ -12,6 +12,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -33,6 +34,8 @@ class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
 
+class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
+
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 void main() {
@@ -46,6 +49,7 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
+  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late AuthRepository repository;
 
@@ -60,9 +64,10 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
+    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     // Phase 9.1 D-03 / D-04 + Phase 12 D-28 + Phase 13 D-43 + Phase 14 D-LINE-17
-    // + Phase 10.2 D-A2: AuthRepository 9-arg ctor (9번째 = onResetOnboarding).
+    // + Phase 15 D-YJP-03 + Phase 10.2 D-A2: AuthRepository 10-arg ctor.
     repository = AuthRepository(
       mockAuth,
       mockGoogleSignIn,
@@ -72,6 +77,7 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
+      mockYahoojpSdkClient,
       () async {},
     );
 

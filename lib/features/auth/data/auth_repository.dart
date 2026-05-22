@@ -19,6 +19,7 @@ import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
 import 'line_sdk_client.dart';
 import 'naver_sdk_client.dart';
+import 'yahoojp_sdk_client.dart';
 
 part 'auth_repository.g.dart';
 
@@ -46,6 +47,10 @@ class AuthRepository {
   /// 추가됐다 — flutter_line_sdk wrapper. Cloud Function 채널
   /// (`lineCustomToken`) 은 [_functions] 를 재사용한다.
   ///
+  /// [_yahoojpSdkClient] 는 Phase 15 Yahoo!JP 로그인 (Custom Token 방식) 을
+  /// 위해 추가됐다 — flutter_appauth wrapper. Cloud Function 채널
+  /// (`yahoojpCustomToken`) 은 [_functions] 를 재사용한다.
+  ///
   /// [_onResetOnboarding] 은 로그아웃 시 onboarding 완료 플래그를 false 로
   /// 되돌리는 콜백이다 (Phase 10.2 D-A2). OnboardingNotifier 타입을 직접
   /// 참조하지 않아 Feature-First 결합도를 최소화한다 — `OnboardingNotifier`
@@ -61,6 +66,7 @@ class AuthRepository {
     this._functions,
     this._naverSdkClient,
     this._lineSdkClient,
+    this._yahoojpSdkClient,
     this._onResetOnboarding,
   );
 
@@ -72,6 +78,7 @@ class AuthRepository {
   final FirebaseFunctions _functions;
   final NaverSdkClient _naverSdkClient;
   final LineSdkClient _lineSdkClient;
+  final YahoojpSdkClient _yahoojpSdkClient;
   final Future<void> Function() _onResetOnboarding;
 
   /// 이메일/비밀번호로 로그인한다.
@@ -778,6 +785,108 @@ class AuthRepository {
     }
   }
 
+  /// Yahoo!JP OIDC + Firebase Custom Token 로그인 흐름 (Phase 15 D-YJP-01~22).
+  ///
+  /// Phase 14 [signInWithLine] 직접 mirror + 6 deviation (D-YJP-04/09 + race-fix +
+  /// endSession 1회성 + clientId ctor 주입 + scope openid+profile + Cloud
+  /// Function name `yahoojpCustomToken`).
+  ///
+  /// 흐름:
+  /// 1. race-fix begin (Pitfall 8 — try-finally 단일 진실원)
+  /// 2. [YahoojpSdkClient.signIn] (flutter_appauth
+  ///    `authorizeAndExchangeCode` — ASWebAuthenticationSession iOS / Custom
+  ///    Tabs Android, OIDC PKCE 자동, idToken + raw nonce 반환)
+  /// 3. [FirebaseFunctions.httpsCallable] `yahoojpCustomToken` 호출 — 본 plan
+  ///    의 Cloud Function 이 jose 검증 + nonce raw 비교 (nonceHashing=none) +
+  ///    Identity Index lookup + `createCustomToken` (Plan 15-02)
+  /// 4. [fb.FirebaseAuth.signInWithCustomToken] → Firebase Auth 세션 시작
+  /// 5. [_mapFirebaseUser] → 도메인 [User]
+  /// 6. finally: [_yahoojpSdkClient.logout] (D-YJP-08 — Pitfall 2 race-fix end
+  ///    직전 위치, endSession endpoint 미명시 시 graceful no-op) +
+  ///    [SocialLinkInProgress.end]
+  ///
+  /// 에러 매핑 (Phase 14 LINE path 와 100% 대칭):
+  /// - [YahoojpSdkClient.signIn] 가 null 반환 (사용자 취소 silent —
+  ///   FlutterAppAuthUserCancelledException → null, D-YJP-09) → null.
+  /// - [FirebaseFunctionsException] → [_mapFunctionsException]
+  ///   (`already-exists` 분기는 Phase 12.1 D-34 에서
+  ///   [AccountExistsWithDifferentCredential] 자동 흡수)
+  /// - [fb.FirebaseAuthException] → [_mapAuthException]
+  /// - [ServiceUnavailable] (YahoojpSdkClient 가 OIDC scope 누락 — Pitfall 1 /
+  ///   clientId 빈 문자열 — T-15-15) → 그대로 Failure 재패키징
+  /// - 그 외 → [ServiceUnavailable(cause: e)] + [kDebugMode] [debugPrint]
+  ///
+  /// **race-fix invariant (Phase 9.1 D-03 / Pitfall 8):** body 전체 try-finally
+  /// 로 감싸 진입 직후 [SocialLinkInProgress.begin] / 종료 시
+  /// [SocialLinkInProgress.end] 호출. Strategy 단계 추가 호출 절대 금지.
+  ///
+  /// **D-YJP-08 1회성 토큰 정책 (Phase 14 D-LINE-57 mirror):** 모든 path 에서
+  /// finally logout — 성공 / cancel / error / timeout 모두 일관. SDK 가
+  /// endSession endpoint 미명시이므로 [YahoojpSdkClient.logout] 내부
+  /// try/catch 가 PlatformException 을 silent 흡수 (T-15-14 mitigation).
+  ///
+  /// **D-YJP-09 정정 lock — email scope 미채택:** Yahoo!JP UserInfo API 審査
+  /// 절차 회피를 위해 scope openid+profile 만 채택. Firebase Auth user record
+  /// 의 email 필드가 비어 있어 `_autoSendEmailVerification` 내부
+  /// email.isEmpty 가드 (line 918) 가 자연 no-op 처리 (LINE D-LINE-21 동일
+  /// mechanism).
+  ///
+  /// Returns null = 사용자 취소 silent.
+  Future<Result<User>?> signInWithYahoojp() async {
+    try {
+      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
+
+      final result = await _yahoojpSdkClient.signIn();
+      if (result == null) {
+        return null; // D-YJP-09 silent cancel
+      }
+
+      final callable = _functions.httpsCallable('yahoojpCustomToken');
+      final response = await callable.call<Map<String, dynamic>>(
+        <String, dynamic>{'idToken': result.idToken, 'nonce': result.nonce},
+      );
+      final customToken = response.data['customToken'] as String?;
+      if (customToken == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+
+      final userCredential = await _auth.signInWithCustomToken(customToken);
+      final fbUser = userCredential.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      // (Phase 9.2 R4) 자동 sendEmailVerification — Yahoo!JP 는 D-YJP-09 정정
+      // lock (scope openid+profile 만) 으로 Firebase Auth user record 의
+      // email 필드가 비어 있어 `_autoSendEmailVerification` 내부
+      // `email.isEmpty` 가드 (line 918) 가 자연 no-op 처리 (Phase 14 LINE
+      // 와 동일 mechanism — D-LINE-21 직접 mirror).
+      await _autoSendEmailVerification(userCredential);
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on FirebaseFunctionsException catch (e) {
+      // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
+      return Result.failure(_mapFunctionsException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on ServiceUnavailable catch (e) {
+      // signInWithKakao/Naver/Line 와 대칭 — YahoojpSdkClient 가 OIDC scope
+      // 누락 (Pitfall 1) / clientId 빈 문자열 (T-15-15) / SDK 내부
+      // ServiceUnavailable throw 시 원본을 cause chain 으로 wrapping 하지
+      // 않고 그대로 보존.
+      return Result.failure(e);
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('signInWithYahoojp 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      // D-YJP-08: SDK endSession 1회성 정책 (Phase 14 D-LINE-57 mirror).
+      // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (YahoojpSdkClient.
+      // logout 내부 try/catch) — outer 흐름 차단 안 함 (T-15-14 mitigation).
+      await _yahoojpSdkClient.logout();
+      _socialLinkInProgress.end();
+    }
+  }
+
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
   ///
   /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
@@ -1068,6 +1177,14 @@ class AuthRepository {
         debugPrint('LineSdkClient.logout() 실패 (무시): $e\n$st');
       }
     }
+    // Yahoo!JP SDK 세션 해제 (Phase 15 D-YJP-08 — Kakao/Naver/LINE 패턴 일관).
+    try {
+      await _yahoojpSdkClient.logout();
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('YahoojpSdkClient.logout() 실패 (무시): $e\n$st');
+      }
+    }
     await _auth.signOut();
   }
 
@@ -1279,6 +1396,8 @@ AuthRepository authRepository(Ref ref) {
     ref.watch(naverSdkClientProvider),
     // Phase 14 — see ROADMAP.md (LINE Custom Token wrapper).
     ref.watch(lineSdkClientProvider),
+    // Phase 15 — see ROADMAP.md (Yahoo!JP Custom Token wrapper).
+    ref.watch(yahoojpSdkClientProvider),
     // Phase 10.2 D-A2: cross-feature 결합도 최소화를 위한 callback 주입.
     // OnboardingNotifier 타입은 본 factory 영역에서만 알며,
     // AuthRepository 클래스 본체는 콜백 signature 만 의존한다.

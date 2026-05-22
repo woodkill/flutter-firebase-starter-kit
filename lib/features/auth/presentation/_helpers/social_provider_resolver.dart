@@ -8,6 +8,7 @@ import '../google_sign_in_notifier.dart';
 import '../kakao_sign_in_notifier.dart';
 import '../line_sign_in_notifier.dart';
 import '../naver_sign_in_notifier.dart';
+import '../yahoojp_sign_in_notifier.dart';
 
 /// `Strategy.providerId` → 기존 `*SignInProvider` 매핑 helper
 /// (Phase 11 D-12, Pitfall 6 / corrections 3번).
@@ -31,5 +32,7 @@ ProviderListenable<AsyncValue<void>> resolveSocialProvider(String providerId) =>
       kProviderIdNaver => naverSignInProvider,
       // Phase 14 — see ROADMAP.md (SOCL-09 registry add-only 자동 통합).
       kProviderIdLine => lineSignInProvider,
+      // Phase 15 — see ROADMAP.md (SOCL-09 registry add-only 자동 통합).
+      kProviderIdYahooJp => yahoojpSignInProvider,
       _ => throw UnsupportedError('Unknown providerId: $providerId'),
     };

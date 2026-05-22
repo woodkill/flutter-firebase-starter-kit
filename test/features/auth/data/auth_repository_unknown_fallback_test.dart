@@ -14,6 +14,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -30,6 +31,8 @@ class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
 class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
+
+class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
@@ -48,6 +51,7 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
+  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late AuthRepository repository;
@@ -67,6 +71,7 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
+    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
 
@@ -79,15 +84,18 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
+      mockYahoojpSdkClient,
       // Phase 10.2 D-A2: onResetOnboarding 콜백 no-op (logout invariant
       // 비검증).
       () async {},
     );
 
-    // Pitfall 9 — finally logout default stub (Phase 14 LINE 포함).
+    // Pitfall 9 — finally logout default stub (Phase 14 LINE + Phase 15
+    // Yahoo!JP 포함).
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
+    when(() => mockYahoojpSdkClient.logout()).thenAnswer((_) async {});
 
     // mockAuth.currentUser 기본 — 비익명 경로.
     when(() => mockAuth.currentUser).thenReturn(null);

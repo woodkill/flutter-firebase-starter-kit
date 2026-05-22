@@ -13,6 +13,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 import 'auth_test_fakes.dart';
 
@@ -47,6 +48,8 @@ class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
 
+class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
+
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
@@ -74,6 +77,7 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
+  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late _MockAdditionalUserInfo mockAdditionalUserInfo;
@@ -101,6 +105,7 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
+    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
     mockAdditionalUserInfo = _MockAdditionalUserInfo();
@@ -115,15 +120,18 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
+      mockYahoojpSdkClient,
       // Phase 10.2 D-A2: onResetOnboarding 콜백 no-op (logout invariant
       // 비검증).
       () async {},
     );
 
-    // Pitfall 9 — finally logout default stub (Phase 14 LINE 포함).
+    // Pitfall 9 — finally logout default stub (Phase 14 LINE + Phase 15
+    // Yahoo!JP 포함).
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
+    when(() => mockYahoojpSdkClient.logout()).thenAnswer((_) async {});
 
     // 기본 User 필드 — 비익명 + email 존재.
     when(() => mockUser.uid).thenReturn('uid-test');

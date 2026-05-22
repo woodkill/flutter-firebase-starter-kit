@@ -115,6 +115,45 @@ abstract final class AppConfig {
     defaultValue: '',
   );
 
+  /// Yahoo!JP OAuth/OIDC Client ID — public client identifier (Phase 15 D-YJP-03).
+  ///
+  /// `--dart-define-from-file=config/{flavor}.json` 의 `yahoojpClientId` 키를
+  /// 컴파일 타임 상수로 읽는다. Phase 12 의 [kakaoNativeAppKey] / Phase 13 의
+  /// [naverClientId] / Phase 14 의 [lineChannelId] 패턴과 일관 — 미주입 시
+  /// 빈 문자열, silent fallback 회피 (WR-07 hotfix). [YahoojpSdkClient.signIn]
+  /// 호출 시점에 빈 문자열이면 [ServiceUnavailable] throw — silent failure
+  /// 회피 (T-15-15 mitigation, D-YJP-03 carry-forward).
+  ///
+  /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
+  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Yahoo!JP 단락 참조.
+  ///
+  /// Yahoo Developers Console "クライアントサイド・アプリケーション" 등록
+  /// 시 client_secret 발급 X (D-YJP-03 — public client OIDC + PKCE 전제). client
+  /// 는 Client ID 만 보유하면 OIDC 흐름 수행 가능.
+  static const String yahoojpClientId = String.fromEnvironment(
+    'yahoojpClientId',
+    defaultValue: '',
+  );
+
+  /// Yahoo!JP OAuth redirect scheme — custom URL scheme (Phase 15 D-YJP-03).
+  ///
+  /// `--dart-define-from-file=config/{flavor}.json` 의 `yahoojpRedirectScheme`
+  /// 키를 컴파일 타임 상수로 읽는다. Android 는 `manifestPlaceholders[
+  /// "appAuthRedirectScheme"]` 가 자동 inject (Plan 15-01 build.gradle.kts),
+  /// iOS 는 `Info.plist CFBundleURLTypes` 가 `$(YAHOOJP_REDIRECT_SCHEME)`
+  /// xcconfig 변수로 주입 (Plan 15-01).
+  ///
+  /// [YahoojpSdkClient] 생성자는 본 값을 `${scheme}:/oauth2redirect` 패턴으로
+  /// flutter_appauth 의 redirectUrl 인자에 주입한다.
+  ///
+  /// 미주입 시 빈 문자열 → flutter_appauth 첫 호출 시점에 즉시 실패 (silent
+  /// failure 아님). Yahoo Developers Console Redirect URI 의 custom scheme 부분과
+  /// 1:1 일치 의무 (T-15-02 mitigation).
+  static const String yahoojpRedirectScheme = String.fromEnvironment(
+    'yahoojpRedirectScheme',
+    defaultValue: '',
+  );
+
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///
   /// 예: `'google,apple,facebook'`. 공백 / 빈 토큰은 무시한다. dart-define
