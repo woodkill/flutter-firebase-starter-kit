@@ -814,7 +814,7 @@ abstract class AppLocalizations {
   /// **'Log in with LINE'**
   String get authLineSignIn;
 
-  /// Yahoo! JAPAN Login button label. EN [ASSUMED] 차원 번역 — Yahoo! JAPAN 자체가 일본어 원철 서비스이므로 공식 영문 button label 가이드라인 부재. ja 본 verbatim = 'Yahoo! JAPAN IDでログイン' (yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' verbatim, D-YJP-08 lock). starter-kit active locale = en/ko/ja 3 종; ja 외 locale 추가 시 사용자 fork 후 추가 의무. Plan 15-04 minimum stub — Plan 15-05 에서 verbatim audit 의무.
+  /// [ASSUMED — Yahoo!JP BI 가이드는 ja-only, en 권장 라벨 가이드 부재. starter-kit 차원 번역. Phase 14 LINE D-LINE-10 'Log in with LINE' 패턴 + Phase 13 Naver 'Sign in with Naver' 패턴 mirror. 1년 주기 re-audit, memory feedback_label_verbatim_audit]. ja 본 verbatim = 'Yahoo! JAPAN IDでログイン' (yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' verbatim, D-YJP-08 lock). starter-kit active locale = en/ko/ja 3 종; ja 외 locale 추가 시 사용자 fork 후 추가 의무. Plan 15-05 verbatim audit 완료.
   ///
   /// In en, this message translates to:
   /// **'Sign in with Yahoo! JAPAN'**

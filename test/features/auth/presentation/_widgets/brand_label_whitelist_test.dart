@@ -1,4 +1,5 @@
 // Phase 13.1 — see ROADMAP.md (D-77/D-78-CLARIFY/D-77-CLARIFY ARB↔HIG/BI 양방향 검증)
+// Phase 15 — see ROADMAP.md (D-YJP-08 Yahoo!JP BI 라벨 12 testcase verbatim 매트릭스)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -96,6 +97,35 @@ const Map<String, Map<String, String>> _kKakaoBI =
       },
     };
 
+/// Yahoo! JAPAN BI 화이트리스트 (Phase 15 D-YJP-08).
+///
+/// Source-of-truth:
+/// - ja: Yahoo!JP 공식 BI 가이드 verbatim
+///   (`developer.yahoo.co.jp/yconnect/loginbuttons.html` 권장값
+///   "「ログイン」または「Yahoo! JAPAN IDでログイン」" + yahoo_japan_login_button.zip
+///   안 'Yahoo! JAPAN ID ログインボタン.pdf' altText
+///   '適切な代替テキスト(例：alt="Yahoo! JAPAN IDでログイン")'). LINE ja 패턴 mirror —
+///   Yahoo! JAPAN 은 일본 본사 (LY Corporation) 제공 + 일본어 원철 서비스 → ja 는
+///   [ASSUMED] tag 아닌 공식 1차 출처.
+/// - en: [ASSUMED] 차원 번역 — Yahoo!JP BI 가이드는 ja-only, en 권장 라벨 가이드
+///   부재. starter-kit 차원 번역. Naver 'Sign in with Naver' 패턴 mirror.
+/// - ko: [ASSUMED] 차원 번역 — Yahoo!JP BI 가이드 ko 권장값 부재. 외래어+조사 붙임
+///   ('Yahoo! JAPAN' + '으로') Naver/LINE 패턴 mirror.
+///
+/// 금지어 sentinel (ja 기준 — BI 가이드 verbatim 금지어 매트릭스):
+/// - 'Yahoo!でログイン' (브랜드 명사 'Yahoo! JAPAN' 누락)
+/// - 'Yahoo! IDでログイン' ('JAPAN' 누락)
+/// - 'Yahoo! JAPANでログイン' ('ID' 누락)
+/// - 'Yahoo! JAPAN ID でログイン' (ID 뒤 띄어쓰기 회귀)
+const Map<String, Map<String, String>> _kYahoojpBI =
+    <String, Map<String, String>>{
+      'authYahoojpSignIn': <String, String>{
+        'ko': 'Yahoo! JAPAN으로 로그인', // [ASSUMED] 외래어+조사 (Naver/LINE mirror)
+        'en': 'Sign in with Yahoo! JAPAN', // [ASSUMED] 차원 번역
+        'ja': 'Yahoo! JAPAN IDでログイン', // 공식 BI 가이드 verbatim (D-YJP-08)
+      },
+    };
+
 /// 지정 [localeCode] 의 [AppLocalizations] 를 로드해 [table] 의 라벨이
 /// ARB 와 1:1 일치하는지 검증한다.
 Future<void> _verifyLocale(
@@ -115,6 +145,7 @@ Future<void> _verifyLocale(
       'authNaverSignIn' => l10n.authNaverSignIn,
       'authKakaoSignIn' => l10n.authKakaoSignIn,
       'authFacebookSignIn' => l10n.authFacebookSignIn,
+      'authYahoojpSignIn' => l10n.authYahoojpSignIn,
       _ => throw UnsupportedError('Unknown key: ${entry.key}'),
     };
     expect(
@@ -213,4 +244,112 @@ void main() {
       );
     },
   );
+
+  // Phase 15 Plan 15-05 (D-YJP-08) — Yahoo!JP BI 화이트리스트 12 testcase.
+  // 공식 가이드 (`developer.yahoo.co.jp/yconnect/loginbuttons.html`) ja 권장값
+  // 'Yahoo! JAPAN IDでログイン' verbatim + en/ko [ASSUMED] 차원 번역. ja 금지어
+  // sentinel ('Yahoo!でログイン' / 'Yahoo! IDでログイン' / 'Yahoo! JAPANでログイン')
+  // + ID 뒤 띄어쓰기 회귀 + Sign in/으로 로그인 prefix/suffix 일관 + 변형 위반
+  // (Sign up / 가입) + 3 locale brand integrity ('Yahoo! JAPAN' 포함).
+  group('brand_label_whitelist — Yahoo!JP BI (Phase 15 D-YJP-08)', () {
+    // 정상 verbatim — 3 locale 권장값 (Test 1~3)
+    test('ja: Yahoo! JAPAN IDでログイン (BI 가이드 verbatim)', () async {
+      await _verifyLocale('ja', _kYahoojpBI);
+    });
+    test('en: Sign in with Yahoo! JAPAN ([ASSUMED] tag)', () async {
+      await _verifyLocale('en', _kYahoojpBI);
+    });
+    test('ko: Yahoo! JAPAN으로 로그인 ([ASSUMED] tag)', () async {
+      await _verifyLocale('ko', _kYahoojpBI);
+    });
+    // ja 금지어 sentinel (Test 4~6) — BI 가이드 verbatim 금지어 매트릭스
+    test('ja 금지어 1: Yahoo!でログイン 채택 불가', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('ja'));
+      expect(
+        l10n.authYahoojpSignIn,
+        isNot(equals('Yahoo!でログイン')),
+        reason: '브랜드 명사 "Yahoo! JAPAN" 누락 — BI 가이드 금지어',
+      );
+    });
+    test('ja 금지어 2: Yahoo! IDでログイン 채택 불가', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('ja'));
+      expect(
+        l10n.authYahoojpSignIn,
+        isNot(equals('Yahoo! IDでログイン')),
+        reason: '"JAPAN" 누락 — BI 가이드 금지어',
+      );
+    });
+    test('ja 금지어 3: Yahoo! JAPANでログイン 채택 불가', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('ja'));
+      expect(
+        l10n.authYahoojpSignIn,
+        isNot(equals('Yahoo! JAPANでログイン')),
+        reason: '"ID" 누락 — BI 가이드 금지어',
+      );
+    });
+    // ja 띄어쓰기 회귀 가드 (Test 7) — ID 뒤 띄어쓰기 위반
+    test('ja 띄어쓰기 회귀: Yahoo! JAPAN ID でログイン 채택 불가', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('ja'));
+      expect(
+        l10n.authYahoojpSignIn,
+        isNot(equals('Yahoo! JAPAN ID でログイン')),
+        reason: 'ID 뒤 띄어쓰기 위반 — BI 가이드 verbatim 불부합',
+      );
+    });
+    // 일관 mirror — prefix/suffix (Test 8~9)
+    test('en: "Sign in with" prefix 일관 (Apple/Google/Naver mirror)', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('en'));
+      expect(
+        l10n.authYahoojpSignIn,
+        startsWith('Sign in with'),
+        reason: '"Sign in with" prefix — 5 provider en 일관 패턴',
+      );
+    });
+    test('ko: "으로 로그인" suffix 일관 (Naver/LINE mirror)', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+      expect(
+        l10n.authYahoojpSignIn,
+        endsWith('으로 로그인'),
+        reason: '외래어+조사 붙임 — Naver/LINE ko 패턴 mirror',
+      );
+    });
+    // 변형 위반 negative test (Test 10~11)
+    test('en 변형 위반: "Sign up" 채택 불가 (로그인 → 가입 substitution)', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('en'));
+      expect(
+        l10n.authYahoojpSignIn,
+        isNot(contains('Sign up')),
+        reason: 'sign-in 의도 — sign-up 변형 회귀 가드',
+      );
+    });
+    test('ko 변형 위반: "가입" 채택 불가 (로그인 → 가입 substitution)', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+      expect(
+        l10n.authYahoojpSignIn,
+        isNot(contains('가입')),
+        reason: '로그인 의도 — 가입 변형 회귀 가드',
+      );
+    });
+    // Yahoo! JAPAN brand integrity (Test 12) — 3 locale 모두 브랜드 명사 포함
+    test('3 locale 모두 "Yahoo! JAPAN" brand 포함', () async {
+      final l10nJa = await AppLocalizations.delegate.load(const Locale('ja'));
+      final l10nEn = await AppLocalizations.delegate.load(const Locale('en'));
+      final l10nKo = await AppLocalizations.delegate.load(const Locale('ko'));
+      expect(
+        l10nJa.authYahoojpSignIn,
+        contains('Yahoo! JAPAN'),
+        reason: 'ja 브랜드 명사 누락',
+      );
+      expect(
+        l10nEn.authYahoojpSignIn,
+        contains('Yahoo! JAPAN'),
+        reason: 'en 브랜드 명사 누락',
+      );
+      expect(
+        l10nKo.authYahoojpSignIn,
+        contains('Yahoo! JAPAN'),
+        reason: 'ko 브랜드 명사 누락',
+      );
+    });
+  });
 }

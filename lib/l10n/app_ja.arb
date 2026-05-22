@@ -163,7 +163,7 @@
   },
   "authYahoojpSignIn": "Yahoo! JAPAN IDでログイン",
   "@authYahoojpSignIn": {
-    "description": "Yahoo! JAPAN Login button label. JA verbatim from yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' (공식 가이드 PDF, Plan 15-04 다운로드 2026-05-22). Yahoo! JAPAN 은 일본 본사 (LY Corporation) 제공 + 일본어 원철 서비스 → ja 는 [ASSUMED] tag 아닌 공식 1차 출처 (LINE ja 패턴 mirror, Kakao/Naver ja 의 [ASSUMED] 영문 fallback 패턴과 의도적 구별). starter-kit active locale = en/ko/ja 3 종; ja 외 locale 추가 시 사용자 fork 후 추가 의무. Plan 15-04 minimum stub — Plan 15-05 에서 PDF verbatim cross-verify 의무."
+    "description": "Yahoo! JAPAN sign-in button label (Phase 15, D-YJP-08). [VERIFIED: developer.yahoo.co.jp/yconnect/loginbuttons.html verbatim — '「ログイン」または「Yahoo! JAPAN IDでログイン」' 권장값 + yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' 7-15 line altText '適切な代替テキスト(例：alt=\"Yahoo! JAPAN IDでログイン\")' verbatim 일치, fetched 2026-05-21 + Plan 15-04 다운로드 2026-05-22]. 금지어: 'Yahoo!でログイン', 'Yahoo! IDでログイン', 'Yahoo! JAPANでログイン' — brand_label_whitelist_test sentinel 검출. Phase 14 LINE ja 패턴 mirror — Yahoo! JAPAN 은 일본 본사 (LY Corporation) 제공 + 일본어 원철 서비스 → ja 는 [ASSUMED] tag 아닌 공식 1차 출처 (Kakao/Naver ja 의 [ASSUMED] 영문 fallback 패턴과 의도적 구별). starter-kit active locale = en/ko/ja 3 종; ja 외 locale 추가 시 사용자 fork 후 추가 의무. Plan 15-05 verbatim audit 완료."
   },
   "authBrandAssetMissing": "アセットが見つかりません: {label}",
   "@authBrandAssetMissing": {

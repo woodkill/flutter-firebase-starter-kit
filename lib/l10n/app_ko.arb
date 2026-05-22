@@ -160,7 +160,7 @@
   },
   "authYahoojpSignIn": "Yahoo! JAPAN으로 로그인",
   "@authYahoojpSignIn": {
-    "description": "Yahoo! JAPAN Login button label. KO [ASSUMED] 차원 번역 — Yahoo! JAPAN 자체가 일본어 원철 서비스이므로 공식 한국어 button label 가이드라인 부재. ja 본 verbatim = 'Yahoo! JAPAN IDでログイン' (yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' verbatim, D-YJP-08 lock). 외래어+조사 패턴 = 'Yahoo! JAPAN'(브랜드 명사) + '으로'(조사) — LINE 패턴 mirror. Plan 15-04 minimum stub — Plan 15-05 에서 verbatim audit 의무."
+    "description": "[ASSUMED — Yahoo!JP BI 가이드 ko 권장값 부재. starter-kit 차원 번역. Phase 13 Naver 'Naver로 로그인' + Phase 14 LINE 'LINE으로 로그인' 패턴 mirror — 외래어+조사 붙임. 1년 주기 re-audit]. ja 본 verbatim = 'Yahoo! JAPAN IDでログイン' (yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' verbatim, D-YJP-08 lock). Plan 15-05 verbatim audit 완료."
   },
   "authBrandAssetMissing": "자산 없음: {label}",
   "@authBrandAssetMissing": {
