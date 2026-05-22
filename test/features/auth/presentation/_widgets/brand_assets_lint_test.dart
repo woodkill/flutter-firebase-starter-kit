@@ -34,13 +34,19 @@ void main() {
       }
     });
 
-    test('Kakao/Naver/Google/Apple/Facebook .placeholder 부재 — 자산 commit 후 PASS', () {
+    test('Kakao/Naver/Google/Apple/Facebook/LINE/Yahoo!JP .placeholder 부재 — 자산 commit 후 PASS', () {
+      // Phase 14 D-LINE-08 (2026-05-19): LINE sentinel → active 전환.
+      // Phase 15 D-YJP-07 (2026-05-22 Plan 15-04): Yahoo!JP sentinel 미경유
+      // 신규 active 진입 — Plan 15-01 의 임시 `.placeholder` 는 Plan 15-04 에서
+      // git rm 완료. `kPlaceholderProviders = ['wechat']` 만 잔존.
       const activeProviders = <String>[
         'kakao',
         'naver',
         'google',
         'apple',
         'facebook',
+        'line',
+        'yahoojp',
       ];
       for (final p in activeProviders) {
         final placeholder = File('$kBrandAssetBase/$p/.placeholder');
@@ -52,7 +58,9 @@ void main() {
       }
     });
 
-    test('7 provider README 7필드 모두 채워짐', () {
+    test('8 provider README 7필드 모두 채워짐', () {
+      // Phase 15 (2026-05-22 Plan 15-04): Yahoo!JP README 추가 — 8 provider
+      // (kakao/naver/google/apple/facebook/line/yahoojp/wechat).
       const allProviders = <String>[
         'kakao',
         'naver',
@@ -60,6 +68,7 @@ void main() {
         'apple',
         'facebook',
         'line',
+        'yahoojp',
         'wechat',
       ];
       const requiredHeadings = <String>[
