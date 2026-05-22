@@ -814,6 +814,12 @@ abstract class AppLocalizations {
   /// **'Log in with LINE'**
   String get authLineSignIn;
 
+  /// Yahoo! JAPAN Login button label. EN [ASSUMED] 차원 번역 — Yahoo! JAPAN 자체가 일본어 원철 서비스이므로 공식 영문 button label 가이드라인 부재. ja 본 verbatim = 'Yahoo! JAPAN IDでログイン' (yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' verbatim, D-YJP-08 lock). starter-kit active locale = en/ko/ja 3 종; ja 외 locale 추가 시 사용자 fork 후 추가 의무. Plan 15-04 minimum stub — Plan 15-05 에서 verbatim audit 의무.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Yahoo! JAPAN'**
+  String get authYahoojpSignIn;
+
   /// Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE/WeChat 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14/16 자상 commit 후 본 path 도달 0.
   ///
   /// In en, this message translates to:

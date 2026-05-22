@@ -389,6 +389,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authLineSignIn => 'Log in with LINE';
 
   @override
+  String get authYahoojpSignIn => 'Sign in with Yahoo! JAPAN';
+
+  @override
   String authBrandAssetMissing(String label) {
     return 'Asset missing: $label';
   }

@@ -115,6 +115,13 @@ class SocialButton extends ConsumerWidget {
         // + Universal Layout 으로 active 렌더 전환 의무 (LINE Corporation
         // Login Button Design Guidelines verbatim).
         return BrandedSocialButton.line(label: label, onPressed: onPressed);
+      case kProviderIdYahooJp:
+        // Phase 15 — see ROADMAP.md (SOCL-04 registry add-only 통합,
+        // D-YJP-07 신규 active 진입). YahoojpSpec / `_renderYahoojpButton` —
+        // 자상 (assets/brand/yahoojp/btn_signin_icon.svg, viewBox 0 0 64 36)
+        // + ARB authYahoojpSignIn 라벨 외부 layer + Universal Layout
+        // (height 48 / radius 12 / padding 12 / gap 8) + bg #FF0033.
+        return BrandedSocialButton.yahoojp(label: label, onPressed: onPressed);
       default:
         throw UnsupportedError('Unknown providerId: ${strategy.providerId}');
     }
@@ -156,6 +163,8 @@ class SocialButton extends ConsumerWidget {
     'authNaverSignIn' => l10n.authNaverSignIn,
     // Phase 14 — see ROADMAP.md (SOCL-03 LineAuthStrategy 통합).
     'authLineSignIn' => l10n.authLineSignIn,
+    // Phase 15 — see ROADMAP.md (SOCL-04 YahoojpAuthStrategy 통합, D-YJP-07).
+    'authYahoojpSignIn' => l10n.authYahoojpSignIn,
     // Phase 13.1 REVIEW WR-06 정정 (2026-05-10): default branch fail-soft
     // (raw key 반환) → fail-loud (UnsupportedError). Phase 14 (LINE) /
     // Phase 15 (Yahoo!JP) / Phase 16 (WeChat) 진입 시 strategy 가
