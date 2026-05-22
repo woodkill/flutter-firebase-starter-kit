@@ -11,6 +11,8 @@
   "naverClientSecret": "YOUR_NAVER_CLIENT_SECRET",
   "naverUrlScheme": "your-naver-url-scheme-here",
   "lineChannelId": "YOUR_LINE_CHANNEL_ID_HERE",
+  "yahoojpClientId": "YOUR_YAHOOJP_CLIENT_ID_HERE",
+  "yahoojpRedirectScheme": "com.slimpumpkin.flutterStarterKit.dev.yahoojp",
   "splashMinDurationMs": 2000,
-  "enabledAuthProviders": "google,apple,facebook,kakao,naver,line"
+  "enabledAuthProviders": "google,apple,facebook,kakao,naver,line,yahoojp"
 }

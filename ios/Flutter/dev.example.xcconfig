@@ -12,3 +12,9 @@ NAVER_URL_SCHEME = your-naver-url-scheme-here
 // LINE Channel ID (Phase 14 — see ROADMAP.md, D-LINE-16). manual.md "## LINE Login (Phase 14)" 절차 참조.
 // dev flavor 만 실 키 주입 (D-LINE-19 / memory `project_firebase_dev_only`).
 LINE_CHANNEL_ID = REPLACE_WITH_DEV_LINE_CHANNEL_ID
+// Yahoo!JP Login (Phase 15 — see ROADMAP.md, D-YJP-03). manual.md "## Yahoo! JAPAN Login (Phase 15)" 절차 참조.
+// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`). Yahoo Developers
+// Console "クライアントサイド・アプリケーション" 등록 + client_secret 0 + Redirect URI
+// custom scheme = YAHOOJP_REDIRECT_SCHEME (Info.plist CFBundleURLSchemes 와 동일값).
+YAHOOJP_CLIENT_ID = REPLACE_WITH_DEV_YAHOOJP_CLIENT_ID
+YAHOOJP_REDIRECT_SCHEME = com.slimpumpkin.flutterStarterKit.dev.yahoojp
