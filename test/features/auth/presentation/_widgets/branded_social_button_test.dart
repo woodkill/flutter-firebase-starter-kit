@@ -80,8 +80,17 @@ void main() {
       // Phase 14 D-LINE-08 (2026-05-19): LineSpec sentinel → active 전환.
       //   assetType = AssetType.svg (Symbol SVG btn_signin_icon.svg —
       //   Kakao/Naver Wave 4 Step 2 패턴 mirror). PNG 비채택.
-      // WechatSpec 은 Phase 16 까지 placeholder 유지 → assetType.png 보존.
       expect(const LineSpec().assetType, AssetType.svg);
+      // Phase 15 D-YJP-07 (2026-05-22): YahoojpSpec 신규 active 진입 (sentinel
+      // 미경유). assetType = AssetType.svg (Symbol SVG btn_signin_icon.svg —
+      // Case B 채택, LINE/Kakao/Naver Wave 4 mirror). PNG 비채택.
+      // iconAspectRatio = 64/36 = 1.7778 (zip SVG viewBox verbatim).
+      expect(const YahoojpSpec().assetType, AssetType.svg);
+      expect(const YahoojpSpec().height, 48.0);
+      expect(const YahoojpSpec().borderRadius, 12.0);
+      expect(const YahoojpSpec().iconSize, 18.0);
+      expect(YahoojpSpec.iconAspectRatio, closeTo(64.0 / 36.0, 0.0001));
+      // WechatSpec 은 Phase 16 까지 placeholder 유지 → assetType.png 보존.
       expect(
         const WechatSpec(size: WechatPixelSize.px48).size,
         WechatPixelSize.px48,
@@ -93,10 +102,12 @@ void main() {
     });
 
     // ─── T-13.1-SWITCH-01: sealed switch exhaustive 컴파일 시점 가드 ────
-    test('T-13.1-SWITCH-01: sealed switch exhaustive — 7 sub-class 인스턴스화', () {
-      // 본 test 는 dart analyze 가 검증 — sealed 7 sub-class 누락 시 컴파일
+    test('T-13.1-SWITCH-01: sealed switch exhaustive — 8 sub-class 인스턴스화', () {
+      // 본 test 는 dart analyze 가 검증 — sealed 8 sub-class 누락 시 컴파일
       // fail. 본 file 컴파일 통과 자체가 BrandedSocialButton.build() 내
       // sealed switch 의 exhaustiveness 보장 (Dart 3 closed hierarchy).
+      // Phase 15 D-YJP-07 (2026-05-22): YahoojpSpec 신규 sub-class 추가
+      // (7 → 8) — switch 누락 시 컴파일 fail.
       const specs = <BrandSpec>[
         KakaoSpec(),
         NaverSpec(),
@@ -104,13 +115,14 @@ void main() {
         AppleSpec(),
         FacebookSpec(),
         LineSpec(),
+        YahoojpSpec(),
         WechatSpec(size: WechatPixelSize.px48),
       ];
-      expect(specs.length, 7);
+      expect(specs.length, 8);
     });
 
-    // ─── T-13.1-FACTORY-01: 7 named factory smoke ────────────────────────
-    test('T-13.1-FACTORY-01: 7 named factory 가 BrandedSocialButton 반환', () {
+    // ─── T-13.1-FACTORY-01: 8 named factory smoke ────────────────────────
+    test('T-13.1-FACTORY-01: 8 named factory 가 BrandedSocialButton 반환', () {
       final kakao = BrandedSocialButton.kakao(label: 'Kakao', onPressed: () {});
       final naver = BrandedSocialButton.naver(label: 'Naver', onPressed: () {});
       final google = BrandedSocialButton.google(
@@ -123,6 +135,11 @@ void main() {
         onPressed: () {},
       );
       final line = BrandedSocialButton.line(label: 'LINE', onPressed: () {});
+      // Phase 15 D-YJP-07 (2026-05-22): BrandedSocialButton.yahoojp() 신규.
+      final yahoojp = BrandedSocialButton.yahoojp(
+        label: 'Yahoo! JAPAN',
+        onPressed: () {},
+      );
       final wechat = BrandedSocialButton.wechat(
         label: 'WeChat',
         onPressed: () {},
@@ -134,6 +151,7 @@ void main() {
       expect(apple.spec, isA<AppleSpec>());
       expect(facebook.spec, isA<FacebookSpec>());
       expect(line.spec, isA<LineSpec>());
+      expect(yahoojp.spec, isA<YahoojpSpec>());
       expect(wechat.spec, isA<WechatSpec>());
     });
 
@@ -988,6 +1006,145 @@ void main() {
               'Phase 14 D-LINE-08 — onPressed null 시 InkWell.onTap null '
               '(ripple 미수신).',
         );
+      },
+    );
+
+    // ─── Phase 15 D-YJP-07 (2026-05-22): YahoojpSpec active 회귀 가드 신규 ───
+    //
+    // Yahoo!JP 는 sentinel 단계 미경유 신규 active 진입 (Plan 15-01 단계에서
+    // `.placeholder` git rm → Plan 15-04 자상 + render 동시 land). LINE
+    // T-14-LINE-RENDER-01/DRIFT-01/DARK-01 3 시나리오 mirror — Yahoo!JP BI
+    // 가이드 verbatim bg #FF0033 / fg #FFFFFF + Theme.brightness 분기 0 +
+    // colorScheme.fromSeed override 무관 brand drift 회피.
+    //
+    // Phase 15 신규 3 testcase 책임:
+    //   1. T-15-YJP-RENDER-01: tap → onPressed 호출 (sentinel 'yahoojp tap')
+    //   2. T-15-YJP-DRIFT-01: colorScheme.fromSeed override 무관 #FF0033 보존
+    //   3. T-15-YJP-DARK-01: dark/light 동일 외관 (D-YJP-07)
+
+    testWidgets(
+      'T-15-YJP-RENDER-01: Yahoo!JP active build → InkWell tap → onPressed 호출',
+      (tester) async {
+        var tapped = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.yahoojp(
+                label: 'Yahoo! JAPAN IDでログイン',
+                onPressed: () {
+                  tapped = true;
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        // _renderYahoojpButton 의 InkWell.onTap → callback sentinel.
+        final inkWellFinder = find.descendant(
+          of: find.byType(BrandedSocialButton),
+          matching: find.byType(InkWell),
+        );
+        await tester.tap(inkWellFinder.first);
+        await tester.pumpAndSettle();
+        expect(
+          tapped,
+          isTrue,
+          reason:
+              'Phase 15 D-YJP-07 — YahoojpSpec active 분기는 InkWell.onTap 으로 '
+              'onPressed callback 호출 (sentinel 미경유 신규 active 진입).',
+        );
+      },
+    );
+
+    testWidgets(
+      'T-15-YJP-DRIFT-01: colorScheme.fromSeed override 무관 bg #FF0033 보존',
+      (tester) async {
+        // starter kit brand drift 회피 sentinel — 사용자가 ThemeData.colorScheme
+        // 를 임의 색 (purple seed) 으로 override 해도 Yahoo!JP 버튼 Material
+        // color 가 Color(0xFFFF0033) 유지. _renderYahoojpButton 의 bg 가 Color
+        // literal hardcode 인지 검증 (colorScheme.primary 등 토큰 의존 회귀
+        // 차단). memory `feedback_starter_kit_brand_drift_avoidance` 부합.
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.purple),
+            ),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.yahoojp(
+                label: 'Yahoo! JAPAN IDでログイン',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final materialFinder = find.descendant(
+          of: find.byType(BrandedSocialButton),
+          matching: find.byType(Material),
+        );
+        final materials = tester.widgetList<Material>(materialFinder);
+        expect(
+          materials.any((m) => m.color == const Color(0xFFFF0033)),
+          isTrue,
+          reason:
+              'Phase 15 D-YJP-07 + brand drift 회피 sentinel — colorScheme '
+              'override 무관 Yahoo!JP bg #FF0033 유지 의무. _renderYahoojpButton '
+              'bg 가 colorScheme.primary 토큰 의존으로 회귀 시 fail.',
+        );
+      },
+    );
+
+    testWidgets(
+      'T-15-YJP-DARK-01: dark/light Theme 양쪽 동일 외관 (D-YJP-07)',
+      (tester) async {
+        // D-YJP-07 sentinel — Yahoo!JP 공식 BI 가이드 dark variant 명시 0.
+        // caller Theme.brightness 분기 코드 0 의무. light + dark 모두 bg
+        // #FF0033 + label #FFFFFF 동일 외관 (LINE D-LINE-14 mirror).
+        for (final brightness in [Brightness.light, Brightness.dark]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: ThemeData(brightness: brightness),
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: BrandedSocialButton.yahoojp(
+                  label: 'Yahoo! JAPAN IDでログイン',
+                  onPressed: () {},
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final materialFinder = find.descendant(
+            of: find.byType(BrandedSocialButton),
+            matching: find.byType(Material),
+          );
+          final materials = tester.widgetList<Material>(materialFinder);
+          expect(
+            materials.any((m) => m.color == const Color(0xFFFF0033)),
+            isTrue,
+            reason:
+                'Phase 15 D-YJP-07 — brightness=$brightness 에서도 bg #FF0033 '
+                '유지. Theme.brightness 분기 회귀 차단.',
+          );
+          final text = tester.widget<Text>(
+            find.text('Yahoo! JAPAN IDでログイン'),
+          );
+          expect(
+            text.style?.color,
+            const Color(0xFFFFFFFF),
+            reason:
+                'Phase 15 D-YJP-07 — brightness=$brightness 에서도 label '
+                'color #FFFFFF 유지.',
+          );
+        }
       },
     );
 
