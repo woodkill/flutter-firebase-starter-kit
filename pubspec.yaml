@@ -67,6 +67,10 @@ dependencies:
   cloud_functions: ^6.2.0
   firebase_app_check: ^0.4.3
   sign_in_with_apple: ^8.0.0
+  # Phase 15 D-YJP-01 — OpenID Foundation 공식 AppAuth-iOS/Android 래핑
+  # (verified publisher: dexterx.dev). Yahoo!JP Flutter wrapper 부재 →
+  # OIDC 표준 라이브러리로 OAuth flow + PKCE + ID Token nonce 자동 처리.
+  flutter_appauth: ^12.0.0
 
 dev_dependencies:
   flutter_test:
@@ -144,6 +148,10 @@ flutter:
     # assets/brand/facebook/LICENSE.txt 참조 (Phase 13.2 REVIEW WR-03 정정).
     - assets/brand/facebook/
     - assets/brand/line/
+    # Phase 15 D-YJP-07 — Yahoo!JP brand asset 디렉토리. Plan 15-01 (Wave 0)
+    # 의 `.placeholder` sentinel 등록 후 Plan 15-04 (Wave 1) 사용자 verbatim
+    # sign-off 시 공식 자상으로 대체 의무.
+    - assets/brand/yahoojp/
     - assets/brand/wechat/
 
   # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Inter Medium (SIL Open Font License
