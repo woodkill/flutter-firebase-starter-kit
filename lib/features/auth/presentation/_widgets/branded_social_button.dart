@@ -303,6 +303,50 @@ class LineSpec extends BrandSpec {
   static const double iconAspectRatio = 47.0 / 44.0;
 }
 
+/// Yahoo! JAPAN 로그인 버튼 spec — Phase 15 D-YJP-07 active (신규 진입).
+///
+/// Yahoo!JP 는 Phase 13.1 sentinel 단계 미경유 신규 active 진입 — Plan 15-01
+/// 의 임시 `.placeholder` 는 Plan 15-04 에서 git rm 완료. Symbol SVG 자상
+/// (`assets/brand/yahoojp/btn_signin_icon.svg`, viewBox 0 0 64 36,
+/// fill=currentColor) + `_renderYahoojpButton` 활성. LINE/Kakao/Naver Wave 4
+/// 패턴 1:1 mirror.
+///
+/// **Phase 15 active spec (D-YJP-07 / STEP2-yahoojp-VERBATIM §4):**
+/// - [assetType] = `AssetType.svg` (Symbol SVG — Case B 채택)
+/// - [iconAspectRatio] = `64.0 / 36.0 = 1.7778` (zip SVG/yahoo_japan_icon_white_64.svg
+///   verbatim — Yahoo!JP icon Y character + speech ribbon 자연 비율).
+///   caller `_renderYahoojpButton` 가 `SizedBox(width: iconHeight ×
+///   iconAspectRatio, height: iconHeight)` 으로 horizontal 비대육 렌더
+///   (vertical 18dp canonical 유지 — 5 provider 시각 weight 일관, horizontal
+///   만 Yahoo!JP BI 비대육 채택). 18 × 64/36 = 32dp horizontal.
+///
+/// **Starter kit brand drift 회피:** `_renderYahoojpButton` 모든 외관 spec
+/// hardcoded — `colorScheme.*` / `textTheme.*` 토큰 의존 0 (Kakao/Naver/
+/// Apple/Google/LINE 패턴 mirror).
+class YahoojpSpec extends BrandSpec {
+  // Phase 15 — see ROADMAP.md (D-YJP-07 — 신규 active 진입, sentinel 미경유)
+
+  /// const 생성자 — `BrandSpec` default (height 48 / radius 12 / iconSize 18) 채택.
+  const YahoojpSpec();
+
+  /// Symbol SVG 자상 (`assets/brand/yahoojp/btn_signin_icon.svg`).
+  ///
+  /// Plan 15-04 사용자 sign-off 결과 Case B 채택 (Symbol SVG + ARB 자체 render —
+  /// Case A wide baked-in 라벨 PNG 변형 위험 회피).
+  @override
+  AssetType get assetType => AssetType.svg;
+
+  /// Yahoo!JP icon viewBox aspect — `width / height = 64 / 36 = 1.7778`
+  /// (STEP2-yahoojp-VERBATIM §4 verbatim).
+  ///
+  /// zip 안 `SVG/yahoo_japan_icon_white_64.svg` 의 viewBox `0 0 64 36` 자연
+  /// 비율. caller `_renderYahoojpButton` 가 `SizedBox(width: iconHeight ×
+  /// iconAspectRatio, height: iconHeight)` 으로 horizontal 비대육 렌더
+  /// (vertical 18dp canonical 유지 — 5 provider 시각 weight 일관, horizontal
+  /// 만 Yahoo!JP BI 비대육 채택). 18 × 64/36 = 32dp horizontal.
+  static const double iconAspectRatio = 64.0 / 36.0;
+}
+
 /// WeChat 로그인 버튼 spec — D-73 placeholder.
 ///
 /// Phase 16 진입 시 자상 commit 후 `_brand_assets.dart` 의
@@ -447,6 +491,23 @@ class BrandedSocialButton extends StatelessWidget {
     onPressed: onPressed,
   );
 
+  /// Yahoo! JAPAN named factory — Phase 15 D-YJP-07 (신규 active 진입).
+  ///
+  /// Yahoo!JP 는 sentinel 단계 미경유 신규 active 진입. `_renderYahoojpButton`
+  /// 가 자상 (`assets/brand/yahoojp/btn_signin_icon.svg`) + ARB
+  /// `authYahoojpSignIn` 라벨로 active 렌더 (LineSpec / KakaoSpec / NaverSpec
+  /// Wave 4 패턴 mirror).
+  factory BrandedSocialButton.yahoojp({
+    required String label,
+    required VoidCallback? onPressed,
+    Key? key,
+  }) => BrandedSocialButton._(
+    key: key,
+    spec: const YahoojpSpec(),
+    label: label,
+    onPressed: onPressed,
+  );
+
   /// WeChat named factory — D-73 placeholder + 4 해상도 enum.
   factory BrandedSocialButton.wechat({
     required String label,
@@ -495,6 +556,16 @@ class BrandedSocialButton extends StatelessWidget {
       final LineSpec lineSpec => _renderLineButton(
         context,
         lineSpec,
+        label,
+        onPressed,
+      ),
+      // Phase 15 — see ROADMAP.md (D-YJP-07 — sentinel 미경유 신규 active
+      // 진입, Plan 15-04 LOCK). YahoojpSpec → `_renderYahoojpButton` 분기
+      // (capture pattern `final YahoojpSpec yahoojpSpec` 으로 spec narrowing,
+      // LineSpec mirror). WechatSpec 단독 placeholder 유지 (Phase 16 진입까지).
+      final YahoojpSpec yahoojpSpec => _renderYahoojpButton(
+        context,
+        yahoojpSpec,
         label,
         onPressed,
       ),
@@ -964,6 +1035,119 @@ Widget _renderLineButton(
                       overflow: TextOverflow.ellipsis,
                       // starter kit brand drift 회피: TextStyle hardcode (textTheme
                       // 의존 0). letterSpacing 0.1 + height 20/14 = 5 active
+                      // provider 공통 typographic rhythm.
+                      style: const TextStyle(
+                        color: fgColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.1,
+                        height: 20 / 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Yahoo! JAPAN 전용 render — Phase 15 D-YJP-07 (LINE `_renderLineButton`
+/// 1:1 mirror, 5 deviation).
+///
+/// Universal Layout default + Symbol SVG icon + ARB 라벨 외부 layer 패턴
+/// (Phase 13.3 Wave 4 + Phase 14 D-LINE-08 carry-forward).
+///
+/// **Yahoo!JP 공식 BI spec (D-YJP-07 verbatim — `yahoo_japan_icon.ai` layer
+/// 명 + `Yahoo! JAPAN ID ログインボタン.pdf` + zip SVG/yahoo_japan_icon_white_64.svg
+/// 출처, STEP2-yahoojp-VERBATIM §4):**
+/// - bg: `#FF0033` (AI layer 명 "アイコン（赤）#FF0033" verbatim — 사용자 정정 lock)
+/// - label color: `#FFFFFF` (PDF "文字色：#FFFFFF（白）" verbatim)
+/// - icon color: `#FFFFFF` (`ColorFilter.srcIn` 적용 — SVG `fill="currentColor"`)
+/// - icon viewBox: `"0 0 64 36"` (SVG verbatim — Yahoo!JP Y character + speech
+///   ribbon 자연 비율, aspect 1.7778 — PDF 「画像をゆがめる」 금지 부합)
+/// - icon size: `SizedBox(width: 32, height: 18)` — vertical 18 canonical
+///   (5 provider 일관 시각 weight) + horizontal 비대육 채택 (18 × 64/36 = 32dp)
+/// - logoLabelGap: 8dp (Universal Layout, Phase 13.3 D-71)
+/// - borderRadius: 12dp (Universal Layout, `spec.borderRadius` 기본값)
+/// - height: 48dp (Universal Layout, `spec.height` 기본값)
+/// - disabled: `Opacity(0.5)` wrap + `InkWell.onTap = null` (6 active provider
+///   일관 disabled 외관 — Kakao/Naver/LINE 패턴 mirror)
+///
+/// **D-YJP-07 dark theme 정책:** Yahoo!JP 공식 가이드 dark variant 명시 0
+/// (single red theme only). `Theme.brightness` 분기 코드 0 — caller 가 dark
+/// scaffold 위에서 본 버튼을 띄워도 `#FF0033` saturated red 으로 충분한
+/// contrast 확보 (LINE D-LINE-14 mirror).
+///
+/// **fontFamily 정책:** Yahoo!JP 공식 BI 가 fontFamily 미명시 → system default
+/// 채택 (LINE 패턴 mirror). 코드 간결성 + future drift 표면 최소화.
+Widget _renderYahoojpButton(
+  BuildContext context,
+  YahoojpSpec spec,
+  String label,
+  VoidCallback? onPressed,
+) {
+  final radius = BorderRadius.circular(spec.borderRadius);
+  final isEnabled = onPressed != null;
+  // D-YJP-07 verbatim: bg #FF0033 / label #FFFFFF / icon #FFFFFF (single
+  // theme — Theme.brightness 분기 0).
+  const bgColor = Color(0xFFFF0033);
+  const fgColor = Color(0xFFFFFFFF);
+  const symbolColor = Color(0xFFFFFFFF);
+  // STEP2-yahoojp-VERBATIM §4 verbatim: icon vertical 18 canonical (5 provider
+  // 일관 weight) + horizontal 비대육 (aspect 64:36 = 1.7778 — Yahoo!JP 가이드
+  // 부합). 18 × 64/36 = 32dp horizontal.
+  const iconHeight = 18.0;
+  const iconWidth = iconHeight * YahoojpSpec.iconAspectRatio; // = 32.0
+
+  return Semantics(
+    button: true,
+    enabled: isEnabled,
+    label: label,
+    onTap: onPressed,
+    excludeSemantics: true,
+    child: SizedBox(
+      width: double.infinity,
+      height: spec.height, // 48 — Universal Layout (Phase 13.3 D-71)
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.5,
+        child: Material(
+          color: bgColor,
+          shape: RoundedRectangleBorder(borderRadius: radius),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: radius,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+              ), // Universal Layout padding
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: iconWidth,
+                    height: iconHeight,
+                    child: SvgPicture.asset(
+                      '$kBrandAssetBase/yahoojp/btn_signin_icon.svg',
+                      colorFilter: const ColorFilter.mode(
+                        symbolColor,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8), // Universal Layout gap
+                  Flexible(
+                    child: Text(
+                      label, // caller resolveLabel: AppLocalizations.authYahoojpSignIn
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      // starter kit brand drift 회피: TextStyle hardcode (textTheme
+                      // 의존 0). letterSpacing 0.1 + height 20/14 = 6 active
                       // provider 공통 typographic rhythm.
                       style: const TextStyle(
                         color: fgColor,
