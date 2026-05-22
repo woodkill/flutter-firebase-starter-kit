@@ -10,6 +10,7 @@ import '../google_sign_in_notifier.dart';
 import '../kakao_sign_in_notifier.dart';
 import '../line_sign_in_notifier.dart';
 import '../naver_sign_in_notifier.dart';
+import '../yahoojp_sign_in_notifier.dart';
 import 'or_divider.dart';
 import 'social_button.dart';
 
@@ -55,12 +56,13 @@ class SocialSignInSection extends ConsumerWidget {
     final spacing = context.appSpacing;
     final locale = Localizations.localeOf(context);
 
-    // 이메일/Google/Apple/Facebook/Kakao/Naver/LINE 중 어느 하나라도 진행 중
-    // 이면 이중 제출 방지. Phase 11 단계는 3개 Provider 직접 watch
+    // 이메일/Google/Apple/Facebook/Kakao/Naver/LINE/Yahoo!JP 중 어느 하나라도
+    // 진행 중이면 이중 제출 방지. Phase 11 단계는 3개 Provider 직접 watch
     // (corrections 4번), Phase 12 에서 kakaoSignInProvider 추가 (D-25 /
     // 12-UI-SPEC line 472-477), Phase 13 에서 naverSignInProvider 추가
     // (Plan 13-06 / 13-UI-SPEC), Phase 14 에서 lineSignInProvider 추가
-    // (Plan 14-05 / SOCL-03).
+    // (Plan 14-05 / SOCL-03), Phase 15 에서 yahoojpSignInProvider 추가
+    // (Plan 15-03 / SOCL-04).
     final isAnyLoading =
         isFormLoading ||
         ref.watch(googleSignInProvider).isLoading ||
@@ -68,7 +70,8 @@ class SocialSignInSection extends ConsumerWidget {
         ref.watch(facebookSignInProvider).isLoading ||
         ref.watch(kakaoSignInProvider).isLoading ||
         ref.watch(naverSignInProvider).isLoading ||
-        ref.watch(lineSignInProvider).isLoading;
+        ref.watch(lineSignInProvider).isLoading ||
+        ref.watch(yahoojpSignInProvider).isLoading;
 
     // 활성화된 Strategy 만 — 정적 config + RC overlay 합산 (D-26).
     final strategies = ref.watch(activeStrategiesProvider(locale));

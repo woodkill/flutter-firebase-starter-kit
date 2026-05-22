@@ -2411,4 +2411,175 @@ void main() {
       },
     );
   });
+
+  // ==========================================================================
+  // Phase 15: signInWithYahoojp (Custom Token 흐름 — Phase 14 LINE 패턴 mirror).
+  // ==========================================================================
+  group('Phase 15: signInWithYahoojp (Custom Token 흐름)', () {
+    /// Yahoo!JP 그룹 공통 setUp — 성공 path 의 4단계 (YahoojpSdkClient → Cloud
+    /// Function → signInWithCustomToken → User 매핑) 를 stub 한다. 각
+    /// 테스트는 필요한 단계만 override 한다.
+    late _MockHttpsCallable mockCallable;
+
+    setUp(() {
+      mockCallable = _MockHttpsCallable();
+      // 기본: YahoojpSdkClient 가 ID Token + nonce 반환.
+      when(() => mockYahoojpSdkClient.signIn()).thenAnswer(
+        (_) async => const YahoojpSignInResult(
+          idToken: 'YJIDT',
+          nonce: 'YJNONCE',
+        ),
+      );
+      // 기본: httpsCallable('yahoojpCustomToken') → mockCallable.
+      when(
+        () => mockFunctions.httpsCallable(any()),
+      ).thenReturn(mockCallable);
+      // 기본: callable.call(...) → customToken 응답.
+      final defaultResult = _MockHttpsCallableResult();
+      when(() => defaultResult.data).thenReturn(<String, dynamic>{
+        'customToken': 'YJCT',
+        'uid': 'yj-uid',
+        'isNewUser': true,
+      });
+      when(
+        () => mockCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => defaultResult);
+      // 기본: signInWithCustomToken('YJCT') → mockCredential.
+      when(() => mockUser.uid).thenReturn('yj-uid');
+      // D-YJP-09 정정 lock — scope openid+profile 만 → email 빈 문자열
+      // (LINE D-LINE-21 와 동일 mechanism).
+      when(() => mockUser.email).thenReturn('');
+      when(() => mockUser.providerData).thenReturn(<fb.UserInfo>[]);
+      when(
+        () => mockAuth.signInWithCustomToken('YJCT'),
+      ).thenAnswer((_) async => mockCredential);
+    });
+
+    test(
+      'Test YJ1 (정상): YahoojpSdkClient → CF yahoojpCustomToken → '
+      'signInWithCustomToken → Result.success(User) + race-fix begin/end 1회 '
+      '+ YahoojpSdkClient.logout 정확 1회',
+      () async {
+        final result = await repository.signInWithYahoojp();
+
+        expect(result, isA<Success<dynamic>>());
+        final user = (result! as Success).data as User;
+        expect(user.uid, 'yj-uid');
+        // D-YJP-09: email 빈 문자열 — _autoSendEmailVerification 자연 no-op.
+        expect(user.email, '');
+
+        // race-fix begin/end 1회씩.
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        // D-YJP-08: 성공 path 에서 SDK logout 정확 1회.
+        verify(() => mockYahoojpSdkClient.logout()).called(1);
+        // CF 이름 + payload (idToken + nonce) 검증.
+        verify(
+          () => mockFunctions.httpsCallable('yahoojpCustomToken'),
+        ).called(1);
+        verify(
+          () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
+            'idToken': 'YJIDT',
+            'nonce': 'YJNONCE',
+          }),
+        ).called(1);
+      },
+    );
+
+    test(
+      'Test YJ2 (cancel): YahoojpSdkClient → null → repository null 반환 + '
+      'race-fix begin/end 1회 + logout 1회 (D-YJP-09 silent)',
+      () async {
+        when(() => mockYahoojpSdkClient.signIn()).thenAnswer((_) async => null);
+
+        final result = await repository.signInWithYahoojp();
+
+        expect(result, isNull);
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        // D-YJP-08 invariant: 모든 path 에서 finally logout
+        // (Phase 14 D-LINE-57 mirror).
+        verify(() => mockYahoojpSdkClient.logout()).called(1);
+        // CF / Firebase Auth 미진입 검증.
+        verifyNever(() => mockFunctions.httpsCallable(any()));
+        verifyNever(() => mockAuth.signInWithCustomToken(any()));
+      },
+    );
+
+    test(
+      'Test YJ3 (race-fix invariant): YahoojpSdkClient throw 시에도 finally '
+      '가 end() + logout() 호출 (Pitfall 8 단일 진실원)',
+      () async {
+        when(() => mockYahoojpSdkClient.signIn())
+            .thenThrow(Exception('boom'));
+
+        await repository.signInWithYahoojp();
+
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockYahoojpSdkClient.logout()).called(1);
+      },
+    );
+
+    test(
+      'Test YJ4 (Functions already-exists → AccountExistsWithDifferentCredential '
+      '매핑 — D-34 helper 재사용)',
+      () async {
+        when(
+          () => mockCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'already-exists',
+            message: 'errorAccountExistsWithDifferentCredential',
+          ),
+        );
+
+        final result = await repository.signInWithYahoojp();
+
+        expect(result, isA<Failure<dynamic>>());
+        final failure = result! as Failure;
+        expect(
+          failure.exception,
+          isA<AccountExistsWithDifferentCredential>(),
+        );
+        // Cloud Function PII 미응답 — email null 보존.
+        final ex = failure.exception as AccountExistsWithDifferentCredential;
+        expect(ex.email, isNull);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockYahoojpSdkClient.logout()).called(1);
+      },
+    );
+
+    test(
+      'Test YJ5 (Firebase Auth exception): signInWithCustomToken throws '
+      'FirebaseAuthException → _mapAuthException 매핑',
+      () async {
+        when(() => mockAuth.signInWithCustomToken('YJCT')).thenThrow(
+          fb.FirebaseAuthException(code: 'invalid-credential'),
+        );
+
+        final result = await repository.signInWithYahoojp();
+
+        expect(result, isA<Failure<dynamic>>());
+        expect((result! as Failure).exception, isA<InvalidCredentials>());
+        verify(() => mockYahoojpSdkClient.logout()).called(1);
+      },
+    );
+
+    test(
+      'Test YJ6 (idToken null / clientId empty — Pitfall 1 / T-15-15): '
+      'YahoojpSdkClient 가 ServiceUnavailable throw 시 그대로 Failure 재패키징',
+      () async {
+        when(() => mockYahoojpSdkClient.signIn())
+            .thenThrow(const ServiceUnavailable());
+
+        final result = await repository.signInWithYahoojp();
+
+        expect(result, isA<Failure<dynamic>>());
+        expect((result! as Failure).exception, isA<ServiceUnavailable>());
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockYahoojpSdkClient.logout()).called(1);
+      },
+    );
+  });
 }

@@ -16,6 +16,7 @@ import '../google_sign_in_notifier.dart';
 import '../kakao_sign_in_notifier.dart';
 import '../line_sign_in_notifier.dart';
 import '../naver_sign_in_notifier.dart';
+import '../yahoojp_sign_in_notifier.dart';
 import 'auth_in_progress_overlay.dart';
 import 'social_sign_in_section.dart';
 
@@ -104,14 +105,16 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     // signInWithCredential / Firestore mirror 구간을 시각적으로 메운다.
     // Phase 12 — kakaoSignInProvider 합산 (D-25),
     // Phase 13 — naverSignInProvider 합산 (Plan 13-06),
-    // Phase 14 — lineSignInProvider 합산 (Plan 14-05 / SOCL-03).
+    // Phase 14 — lineSignInProvider 합산 (Plan 14-05 / SOCL-03),
+    // Phase 15 — yahoojpSignInProvider 합산 (Plan 15-03 / SOCL-04).
     final isSocialLoading =
         ref.watch(googleSignInProvider).isLoading ||
         ref.watch(appleSignInProvider).isLoading ||
         ref.watch(facebookSignInProvider).isLoading ||
         ref.watch(kakaoSignInProvider).isLoading ||
         ref.watch(naverSignInProvider).isLoading ||
-        ref.watch(lineSignInProvider).isLoading;
+        ref.watch(lineSignInProvider).isLoading ||
+        ref.watch(yahoojpSignInProvider).isLoading;
 
     return SafeArea(
       child: Stack(
