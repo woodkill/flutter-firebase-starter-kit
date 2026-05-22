@@ -47,3 +47,5 @@ export {kakaoCustomToken} from "./auth/kakao_custom_token";
 export {naverCustomToken} from "./auth/naver_custom_token";
 // Phase 14 D-LINE-06 — LINE OIDC ID Token → Firebase Custom Token.
 export {lineCustomToken} from "./auth/line_custom_token";
+// Phase 15 D-YJP-03/04/05/09 — Yahoo!JP OIDC ID Token → Firebase Custom Token.
+export {yahoojpCustomToken} from "./auth/yahoojp_custom_token";

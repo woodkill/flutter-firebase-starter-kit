@@ -184,8 +184,13 @@ import * as myFunctions from "../../src/index";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
-// Task 2 (Test 10 PII regression sentinel) 에서 errorMock / debugMock /
-// logMock 5 logger 채널 stringify 검사에 사용 — Task 2 commit 시 추가.
+const errorMock = logger.error as unknown as jest.Mock;
+// WR-02 회귀 가드 (Phase 14) — debug/log 도 PII sentinel 검사 배열
+// (allLogCalls) 에 포함. production code 가 현재 logger.debug / logger.log
+// 미사용이지만 향후 디버그 목적 추가 시 PII 회귀를 sentinel 이 감지 못 하는
+// 약점 차단. Test 10 (PII regression sentinel) 에서 5 채널 stringify.
+const debugMock = logger.debug as unknown as jest.Mock;
+const logMock = logger.log as unknown as jest.Mock;
 
 afterAll(() => testEnv.cleanup());
 
@@ -478,5 +483,77 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
     expect(result.isNewUser).toBe(false);
     // D-YJP-09: developerClaims 미발급 → 두 번째 인자 없음.
     expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-yj-uid-9");
+  });
+});
+
+// Task 2 — Test 10 (PII regression sentinel). Phase 14 WR-01 fix 패턴
+// 직접 mirror — 5 logger 채널 (info/warn/error/debug/log) 전체 stringify 후
+// idToken / payload claims (sub/name/picture) / raw nonce 5 sentinel 값
+// 0 hit 검증. T-15-09 mitigation closed.
+describe("yahoojpCustomToken onCall — Task 2 (Test 10 PII regression)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateCustomToken.mockResolvedValue("MOCK_YAHOOJP_TOKEN");
+    mockCreateUser.mockResolvedValue({uid: "new-uid-yj-pre"});
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+  });
+
+  // eslint-disable-next-line max-len
+  it("Test 10: PII regression — 5 logger 채널 (info/warn/error/debug/log) 0 hit", async () => {
+    const sensitiveIdToken = "eyJSENSITIVE.YJ.IDTOKEN.PAYLOAD.SIG";
+    const sensitiveSub = "yj-sub-sensitive-123";
+    const sensitiveName = "Sensitive Yahoo Name";
+    const sensitivePicture = "https://sensitive.yahoojp.example.com/pic.jpg";
+    const sensitiveNonce = "raw-nonce-sensitive-yj-abc";
+
+    mockVerifyYahoojpIdToken.mockResolvedValue({
+      sub: sensitiveSub,
+      name: sensitiveName,
+      picture: sensitivePicture,
+    });
+    mockIdxGet.mockResolvedValue({exists: false});
+    mockTxGet.mockResolvedValue({exists: false});
+
+    const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
+    await wrapped({
+      auth: {uid: "caller-uid-yj"},
+      app: {appId: "test"},
+      data: {idToken: sensitiveIdToken, nonce: sensitiveNonce},
+    } as never);
+
+    // 5 logger 채널 전체 stringify — debug/log 도 sentinel 배열 포함
+    // (WR-02 회귀 가드 patch mirror).
+    const allLogs = [
+      ...infoMock.mock.calls.flat(),
+      ...warnMock.mock.calls.flat(),
+      ...errorMock.mock.calls.flat(),
+      ...debugMock.mock.calls.flat(),
+      ...logMock.mock.calls.flat(),
+    ].map((arg) => JSON.stringify(arg)).join("\n");
+
+    // (a) idToken raw value 0 hit
+    expect(allLogs).not.toContain(sensitiveIdToken);
+    // (b) payload.sub raw value 0 hit
+    expect(allLogs).not.toContain(sensitiveSub);
+    // (c) payload.name 0 hit
+    expect(allLogs).not.toContain(sensitiveName);
+    // (d) payload.picture 0 hit
+    expect(allLogs).not.toContain(sensitivePicture);
+    // (e) raw nonce value 0 hit
+    expect(allLogs).not.toContain(sensitiveNonce);
+
+    // 추가 sentinel — 정상 검증 시 logger.info 호출에 event/uid/isNewUser
+    // 만 포함, sensitive 값 미포함.
+    expect(infoMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "yahoojp_custom_token_issued",
+        uid: "caller-uid-yj",
+        isNewUser: true,
+      }),
+      expect.any(String),
+    );
   });
 });
