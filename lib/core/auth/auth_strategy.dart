@@ -33,7 +33,7 @@ abstract class AuthStrategy {
   /// 도메인 ProviderId — 단순 slug 형식 (D-20, Phase 11-04 hotfix).
   ///
   /// `'google'` / `'apple'` / `'facebook'` / `'kakao'` / `'naver'` / `'line'` /
-  /// `'yahoojp'` / `'wechat'`. 정적 config key
+  /// `'yahoojp'`. 정적 config key
   /// (`authProvider_{providerId}_enabled`) 와 Remote Config 키
   /// (`auth_provider_{providerId}_enabled`) prefix 모두 이 슬러그를 직접 사용.
   ///

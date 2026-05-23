@@ -19,9 +19,9 @@ part 'auth_strategies_registry.g.dart';
 
 /// 등록된 모든 [AuthStrategy].
 ///
-/// Phase 12~16 에서 5개 추가 (Kakao / Naver / LINE / Yahoo!JP / WeChat —
-/// 각 Custom Token Strategy). 추가 절차는 add-only:
-/// 1. [kAllProviderIds] 갱신 (이미 8개 등록됨)
+/// Phase 12~15 에서 4개 추가 (Kakao / Naver / LINE / Yahoo!JP — 각 Custom
+/// Token Strategy). 추가 절차는 add-only:
+/// 1. [kAllProviderIds] 갱신 (이미 7개 등록됨)
 /// 2. `lib/core/auth/strategies/{provider}_auth_strategy.dart` 신규
 /// 3. 본 리스트 끝에 `const {Provider}AuthStrategy()` 추가
 const List<AuthStrategy> _allStrategies = <AuthStrategy>[

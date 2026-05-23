@@ -145,8 +145,9 @@ class SocialButton extends ConsumerWidget {
   ///   Apple 공식 Logo-only SVG + 자체 라벨 layer)
   /// - `authFacebookSignIn` → `_renderFacebookButton` 내부 [Text]
   ///
-  /// LINE/WeChat placeholder 분기는 자상 부재로 `_renderPlaceholder` 가
-  /// ARB `authBrandAssetMissing` 보간 (label 매개변수) 으로 회색 fallback 렌더.
+  /// placeholder 분기는 자상 부재 provider 가 있을 경우 `_renderPlaceholder`
+  /// 가 ARB `authBrandAssetMissing` 보간 (label 매개변수) 으로 회색 fallback
+  /// 렌더 (현재 모든 active provider 자상 commit 완료).
   ///
   /// **Changelog 노트:**
   /// - Phase 12 — `authKakaoSignIn` 추가 (D-29).
@@ -167,13 +168,12 @@ class SocialButton extends ConsumerWidget {
     'authYahoojpSignIn' => l10n.authYahoojpSignIn,
     // Phase 13.1 REVIEW WR-06 정정 (2026-05-10): default branch fail-soft
     // (raw key 반환) → fail-loud (UnsupportedError). Phase 14 (LINE) /
-    // Phase 15 (Yahoo!JP) / Phase 16 (WeChat) 진입 시 strategy 가
-    // labelKey: 'authLineSignIn' 등을 호출했을 때 본 switch 갱신 누락 시
-    // raw ARB 키 ('authLineSignIn') 그대로 사용자 노출 회귀 방지. 미래
-    // provider 추가 시 본 switch 의 case 추가 의무가 컴파일 / runtime
-    // 경계에서 명시되도록 강제.
+    // Phase 15 (Yahoo!JP) 진입 시 strategy 가 labelKey: 'authLineSignIn' 등을
+    // 호출했을 때 본 switch 갱신 누락 시 raw ARB 키 ('authLineSignIn') 그대로
+    // 사용자 노출 회귀 방지. 미래 provider 추가 시 본 switch 의 case 추가
+    // 의무가 컴파일 / runtime 경계에서 명시되도록 강제.
     _ => throw UnsupportedError(
-      'Unknown labelKey: $key — Phase 14+ provider 추가 시 본 switch 갱신 의무. '
+      'Unknown labelKey: $key — 미래 provider 추가 시 본 switch 갱신 의무. '
       'social_button.dart:_resolveLabel',
     ),
   };

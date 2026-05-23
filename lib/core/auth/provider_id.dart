@@ -1,7 +1,7 @@
 /// 인증 Provider 식별자 const String 상수 + 등록된 ID 리스트 (Phase 11 D-20).
 ///
 /// **도메인 ProviderId 는 단순 슬러그**: `google` / `apple` / `facebook` /
-/// `kakao` / `naver` / `line` / `yahoojp` / `wechat`. 모든 8 provider 가
+/// `kakao` / `naver` / `line` / `yahoojp`. 모든 7 provider 가
 /// 동일한 키 패턴을 공유하며, Strategy.providerId / Remote Config 키 prefix
 /// 모두 이 슬러그를 직접 사용한다 — [rcKeyForProvider] 가 단순 prefix 결합만
 /// 수행.
@@ -38,9 +38,6 @@ const String kProviderIdLine = 'line';
 /// Yahoo! JAPAN 로그인 식별자 (Custom Token).
 const String kProviderIdYahooJp = 'yahoojp';
 
-/// WeChat 로그인 식별자 (Custom Token).
-const String kProviderIdWeChat = 'wechat';
-
 /// 등록된 모든 providerId 리스트.
 ///
 /// 정적 config 평탄화 / Strategy ↔ config 일치 assert (Phase 11-03) 의 기준점.
@@ -55,7 +52,6 @@ const List<String> kAllProviderIds = <String>[
   kProviderIdNaver,
   kProviderIdLine,
   kProviderIdYahooJp,
-  kProviderIdWeChat,
 ];
 
 /// 주어진 providerId 의 Remote Config 매개변수 키.
