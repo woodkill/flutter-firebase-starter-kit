@@ -117,8 +117,9 @@ assets/brand/yahoojp/
 - `lib/features/auth/presentation/_widgets/_brand_assets.dart` 의
   `kPlaceholderProviders` const list 변경 0 — Yahoo!JP 는 sentinel 단계
   미경유 신규 active 진입 (Phase 14 LINE sentinel 해제 패턴 직접 mirror
-  미적용). `kPlaceholderProviders = ['wechat']` 만 잔존 (Phase 16 WeChat
-  진입 시 동일 패턴 재적용 예정).
+  미적용). Phase 16 (WeChat) 폐기 (2026-05-22) 으로 `kPlaceholderProviders
+  = <String>[]` (empty, sentinel 의무 해소). 향후 placeholder 가 필요한
+  신규 provider 진입 시 본 패턴 재적용.
 
 ## 사용자 검수 sign-off
 

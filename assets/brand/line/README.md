@@ -82,7 +82,9 @@ assets/brand/line/
 - `assets/brand/line/.placeholder` git rm — D-LINE-13 invariant 충족.
 - `lib/features/auth/presentation/_widgets/_brand_assets.dart` 의
   `kPlaceholderProviders` const list 에서 `'line'` 토큰 제거 → `['wechat']`
-  만 잔존 (Phase 16 WeChat 진입 시 동일 패턴 재적용 예정).
+  잔존 → Phase 16 (WeChat) 폐기 (2026-05-22) 으로 `<String>[]` (empty,
+  sentinel 의무 해소). 향후 placeholder 가 필요한 신규 provider 진입 시
+  본 패턴 재적용.
 
 ## 주의
 - third-party 출처 (wikipedia / seeklogo / 블로그 등) 채택 절대 금지
