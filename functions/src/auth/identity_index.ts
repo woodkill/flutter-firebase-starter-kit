@@ -81,7 +81,7 @@ export function profileFieldsForRefresh(
  * Identity Index 컬렉션 키 형식 (Phase 12 D-09 — Phase 13~17 영구 고정).
  *
  * `identity_index/{provider}:{providerUserId}` 단일 문서 ID. Phase 12 가 첫
- * 등록자 (Kakao). Phase 13~16 (Naver/LINE/Yahoo!JP/WeChat) + Phase 17
+ * 등록자 (Kakao). Phase 13~15 (Naver/LINE/Yahoo!JP) + Phase 16
  * (Account Linking — Native 4 provider 회고적 등록) — see ROADMAP.md, 모두
  * 동일 컬렉션 공유. 키 형식 변경은 데이터 마이그레이션 의무 발생.
  *

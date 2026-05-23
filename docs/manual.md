@@ -97,8 +97,8 @@ cp config/prod.example.json  config/prod.json
 | `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao,naver` 기본값 | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 (Phase 13 에서 `,naver` 추가) |
 
 > 각 키의 콘솔 등록 절차 (앱 생성, redirect URI, 키 해시 등) 는 본 매뉴얼의
-> Phase 별 단락 (Phase 12 = Kakao, Phase 13 = Naver, 추후 Phase 14~16 = LINE /
-> Yahoo!JP / WeChat) 을 참조.
+> Phase 별 단락 (Phase 12 = Kakao, Phase 13 = Naver, Phase 14 = LINE,
+> Phase 15 = Yahoo!JP) 을 참조.
 
 #### 3단계 — iOS xcconfig 별도 주입 (Kakao 만)
 
@@ -1319,7 +1319,9 @@ dev 단계는 Yahoo Developers Console 의 본인 계정만 사용 가능. produ
 >   `Image.asset(... fit: BoxFit.contain)` / `SvgPicture.asset(... fit:
 >   BoxFit.contain)` 직접 렌더, 색 변환 시 BI 위반.
 > - **PLACEHOLDER sentinel:** `<!-- PLACEHOLDER -->` SVG 메타데이터 (구) →
->   `assets/brand/{line,wechat}/.placeholder` 빈 파일 (신, sentinel 단일 책임).
+>   `assets/brand/{provider}/.placeholder` 빈 파일 (신, sentinel 단일 책임).
+>   Phase 14 (LINE) active 전환 + Phase 16 (WeChat) 폐기로 현재
+>   `kPlaceholderProviders = <String>[]` empty — sentinel 의무 해소.
 >
 > **모든 절차는 아래 [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
 > 단락을 참조하십시오.** 본 단락의 본문 (URL/라이선스/변경 금지 항목) 은
@@ -1352,10 +1354,10 @@ dev 단계는 Yahoo Developers Console 의 본인 계정만 사용 가능. produ
 > 와 정합 안 됩니다. **[Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
 > 단락의 1~3단계 절차를 사용하십시오.**
 
-### Phase 14~16 진입 시 (DEPRECATED — Phase 13.1 단락 2단계 참조)
+### Phase 14 진입 시 (DEPRECATED — Phase 13.1 단락 2단계 참조)
 
-LINE / WeChat 진입 시 동일 패턴 — Phase 13.1 단락의 "2단계 — Phase 14/16
-진입 시 LINE/WeChat 자상 commit" 절차 단독 권위.
+LINE 진입 시 동일 패턴 — Phase 13.1 단락의 "2단계 — Phase 14 진입 시
+LINE 자상 commit" 절차 단독 권위.
 
 ---
 
@@ -1687,7 +1689,7 @@ Cloud Function `naverCustomToken` 이 Naver access_token 으로 호출하는
 
 ## IdP 프로필 동기화 정책 (R10-FOLLOWUP)
 
-OAuth Custom Token provider (Kakao + Naver + Phase 14~16 LINE/Yahoo!JP/WeChat)
+OAuth Custom Token provider (Kakao + Naver + Phase 14~15 LINE/Yahoo!JP)
 의 **재로그인** 시 IdP 응답의 `displayName` / `photoURL` 을 Firebase Auth
 user record 에 어떻게 반영할지 결정하는 정책. 신규 등록 path 는 정책과 무관
 (Phase 13 R10 retroactive fix 가 createUser/updateUser 시점에 이미 propagate).
@@ -1732,13 +1734,13 @@ export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
      --project <dev-project-id>
    ```
 
-   Phase 14~16 추가 시 해당 함수 (`lineCustomToken` 등) 도 동시 배포.
+   Phase 14~15 추가 시 해당 함수 (`lineCustomToken` 등) 도 동시 배포.
 
 ### 적용 범위 (D-08 — helper 1곳 fix → 모든 caller 자동 상속)
 
 - Phase 12 — `kakaoCustomToken`
 - Phase 13 — `naverCustomToken`
-- Phase 14~16 — LINE / Yahoo!JP / WeChat (추가 시 동일 helper 재사용 → 자동 상속)
+- Phase 14~15 — LINE / Yahoo!JP (추가 시 동일 helper 재사용 → 자동 상속)
 
 ### best-effort 정책 (R9 strict 와 차이)
 
@@ -1800,17 +1802,17 @@ race 회복 시간은 동일).
 bug (firebase-android-sdk #5101, flutterfire #11146). 본 fix 는 client-side
 workaround. spec 평가는 옵션 A (retry) / B (handleError 분기) / C
 (subscribe 지연) 비교 후 옵션 A 채택 — D-08 helper-1곳-fix 모델 보존
-(Phase 14~16 LINE/Yahoo!JP/WeChat 자동 상속).
+(Phase 14~15 LINE/Yahoo!JP 자동 상속).
 
 **후속 fix 추적:** `.planning/todos/completed/2026-05-08-r10-followup-permission-denied-race.md`
 (pending → completed). spec: `docs/superpowers/specs/2026-05-08-r10-followup-2-design.md`.
 
 ---
 
-## Phase 14~16 — Custom Token Provider 추가 가이드 (stub)
+## Phase 14~15 — Custom Token Provider 추가 가이드 (stub)
 
 Phase 12 (Kakao OIDC) + Phase 13 (Naver REST) 의 통합 패턴을 그대로 미러링하여
-LINE / Yahoo!JP / WeChat 등 새 Custom Token provider 를 추가할 수 있습니다.
+LINE / Yahoo!JP 등 새 Custom Token provider 를 추가할 수 있습니다.
 9 단계 절차:
 
 1. **Provider ID 등록** — `lib/core/auth/provider_id.dart` 의
@@ -1832,7 +1834,6 @@ LINE / Yahoo!JP / WeChat 등 새 Custom Token provider 를 추가할 수 있습�
    | 13 | Naver | REST `/v1/nid/me` | Naver OIDC 미지원 |
    | 14 | LINE | OIDC ID Token JWT | LINE 공식 OIDC |
    | 15 | Yahoo!JP | OIDC ID Token JWT | Yahoo! ID 連携 v2 표준 |
-   | 16 | WeChat | REST `/sns/userinfo` | WeChat OIDC 미지원 |
 
    각 phase 의 discuss-phase 진입 시 본 매트릭스 + 실 provider 공식 문서
    재확인 의무.
@@ -1859,8 +1860,8 @@ LINE / Yahoo!JP / WeChat 등 새 Custom Token provider 를 추가할 수 있습�
    `lib/features/auth/presentation/_widgets/social_button.dart` 의 `build()`
    첫 줄 if 분기 + `_build{Provider}Button` 메서드 + 색 상수 (각 Brand
    Guideline). Kakao 가 sign_in_button 패키지 미지원 provider 의 표본 패턴
-   (Material+InkWell+SVG 직접 그리기) — Naver / LINE / Yahoo!JP / WeChat
-   모두 동일 패턴.
+   (Material+InkWell+SVG 직접 그리기) — Naver / LINE / Yahoo!JP 모두 동일
+   패턴.
 
 9. **Cloud Function** —
    `functions/src/auth/{provider}_custom_token.ts` 신규. Phase 12
@@ -1869,7 +1870,7 @@ LINE / Yahoo!JP / WeChat 등 새 Custom Token provider 를 추가할 수 있습�
    - `enforceAppCheck: true` + `secrets: [PROVIDER_*_SECRET]`
    - `resolveIdentity(db, {provider, providerUserId, callerUid})` helper 재
      사용 (Phase 12 의 `functions/src/auth/identity_index.ts` 단일 진실원
-     — Phase 13~17 모두 같은 helper 호출)
+     — Phase 13~16 모두 같은 helper 호출)
    - 검증 helper 는 OIDC verifier 가 Phase 14 LINE 진입 시 일반화 (D-08)
 
 각 phase 마다 본 manual 의 Kakao 단락 + Phase 12 D-07 검증 매트릭스 + 실
@@ -1880,10 +1881,10 @@ provider 공식 문서 재확인 의무.
 ## Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)
 
 > 본 단락은 Phase 11-04 SUMMARY 의 사용자 매뉴얼 카드를 통합한 것입니다.
-> Phase 12+ 의 신규 Cloud Function (Naver/LINE/Yahoo!JP/WeChat) 도 동일
+> Phase 12+ 의 신규 Cloud Function (Naver/LINE/Yahoo!JP) 도 동일
 > 패턴 적용.
 
-### Functions 추가 절차 (Phase 12 ~ 16 의 ping 패턴 복제)
+### Functions 추가 절차 (Phase 12 ~ 15 의 ping 패턴 복제)
 
 1. `functions/src/auth/{provider}_custom_token.ts` 또는 신규
    `functions/src/index.ts` 에 새 `onCall` export 추가:
@@ -1957,19 +1958,19 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 
 ---
 
-## 회원탈퇴 cleanup TODO (Phase 17)
+## 회원탈퇴 cleanup TODO (Phase 16)
 
 현재 starter kit 의 회원탈퇴 흐름은 다음 cleanup 작업이 누락된 상태입니다
-(Phase 17 의 Account Linking 일반화 단계에서 일괄 도입 예정):
+(Phase 16 의 Account Linking 일반화 단계에서 일괄 도입 예정):
 
 - **`identity_index/{provider}:{providerUserId}` 문서 cleanup** — 회원탈퇴
-  시 사용자가 등록한 Kakao / Naver / LINE / Yahoo!JP / WeChat 의 매핑
-  문서가 잔존. 같은 외부 계정으로 재가입 시 first-write-wins 정책 (D-12)
-  으로 기존 매핑이 우선되어 새 UID 가 아닌 기존 (탈퇴된) UID 로 매핑되는
+  시 사용자가 등록한 Kakao / Naver / LINE / Yahoo!JP 의 매핑 문서가
+  잔존. 같은 외부 계정으로 재가입 시 first-write-wins 정책 (D-12) 으로
+  기존 매핑이 우선되어 새 UID 가 아닌 기존 (탈퇴된) UID 로 매핑되는
   결함 가능성.
 - **Native 4 provider (Email/Google/Apple/Facebook) 의 `linkedProviders`
   회고 등록** — Phase 12 의 Identity Index 컬렉션 등록은 Custom Token
-  provider 만 자동. Native 4 provider 도 Phase 17 에서 회고 등록 후 통합
+  provider 만 자동. Native 4 provider 도 Phase 16 에서 회고 등록 후 통합
   관리 예정.
 - **충돌 UI** — 동일 외부 계정이 다른 Firebase UID 에 등록된 상태에서 새
   사용자가 같은 계정으로 로그인 시 "이 카카오 계정은 다른 앱 계정에
@@ -2029,7 +2030,7 @@ bash scripts/check_phase_refs.sh
 
 본 단락은 starter-kit 의 social provider brand asset 출처·라이선스·다운로드·
 freshness 갱신 정책을 정리한다. 7 provider (Kakao / Naver / Google / Apple /
-Facebook / LINE / WeChat) 자산 모두 단일 표준 디렉토리 (`assets/brand/{provider}/`)
+Facebook / LINE / Yahoo!JP) 자산 모두 단일 표준 디렉토리 (`assets/brand/{provider}/`)
 + 7필드 README schema 를 따른다. Phase 13.2 진입으로 Facebook 도 Meta 공식
 Brand Resource Center 자상 마이그 완료 (D-95 PNG / D-94 theme 부재 / D-96
 Google 패턴 locale 독립).
@@ -2091,8 +2092,10 @@ assets/brand/
 ├── facebook/facebook_login.png + LICENSE.txt + README.md
 │   # Phase 13.2 — Meta 공식 자상 (Primary Logo, 2084×2084 PNG, D-95 lock)
 │   # D-94 theme 부재 (단일 #1877F2 변형) / D-96 Google 패턴 locale 독립 ('f' 마크 단독)
-├── line/.placeholder + README.md   # Phase 14 (LINE) 진입 시 자상 commit
-└── wechat/.placeholder + README.md # Phase 16 (WeChat) 진입 시 자상 commit
+├── line/{en,ko,...}/btn_signin_icon.svg + LICENSE.txt + README.md
+│   # Phase 14 D-LINE-08 (2026-05-19): sentinel → active 전환 (Symbol SVG)
+└── yahoojp/SVG/yahoo_japan_icon_white_64.svg + LICENSE.txt + README.md
+    # Phase 15 D-YJP-07 (2026-05-22): sentinel 미경유 신규 active 진입
 ```
 
 ### Provider 별 출처 + 라이선스
@@ -2105,7 +2108,7 @@ assets/brand/
 | Apple    | https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple | (SDK 위제) | Apple HIG (`sign_in_with_apple` 패키지 BSD-3-Clause) | N/A |
 | Facebook | https://www.meta.com/brand/resources/facebook/logo/ + https://developers.facebook.com/docs/facebook-login/userexperience/ | PNG (Primary Logo, 2084×2084) | Meta Brand License (`Meta's trademarks are owned by Meta and may only be used as provided in these guidelines or with Meta's permission.` verbatim) | **사용자 책임** (Wave 0 응답 verbatim — Meta Brand Resource Center 다운, Phase 13.2 완료) |
 | LINE     | https://developers.line.biz/en/docs/line-login/login-button/ | PNG + PSD (19 언어) | LINE Branding License | **사용자 책임** (Phase 14 진입 시) |
-| WeChat   | https://developers.weixin.qq.com/doc/oplatform/en/Downloads/Design_Resource.html | PNG only (24/32/48/64) | WeChat Brand Guideline | **사용자 책임** (변형 절대 금지, Phase 16 진입 시) |
+| Yahoo!JP | https://developer.yahoo.co.jp/yconnect/v2/ | SVG (64×36 viewBox) | Yahoo! JAPAN Brand Guideline | **사용자 책임** (Phase 15 진입 시) |
 
 **D-Note (Phase 13.1 R1 — Naver 색상 컨텍스트 분리):** Naver 의 회사 브랜드
 (`#03C75A`, NAVER Corp + NCloud SSO) ↔ 로그인 버튼 (`#03A94D`, NAVER ID
@@ -2149,29 +2152,26 @@ LICENSE.txt + README.md 가 commit 되어 있다 (Phase 13.1 commit). starter-ki
    출처 채택 금지 — 위 표의 공식 BI URL 직접 방문 + verbatim 인용 (사용자
    메모리 `feedback_official_bi_verification.md` 패턴)
 
-### 2단계 — Phase 14/16 진입 시 LINE/WeChat 자상 commit
+### 2단계 — sentinel-active 전환 패턴 (historical, Phase 14 LINE 완료)
 
-starter-kit 은 LINE/WeChat 자상 미commit (Phase 13.1 sentinel). Phase 14
-(LINE) / Phase 16 (WeChat) 시작 시:
+Phase 13.1 시점에 LINE/WeChat 자상 미commit `kPlaceholderProviders` sentinel
+패턴 도입 → Phase 14 D-LINE-08 (2026-05-19) 으로 LINE 자상 commit 완료 +
+Phase 16 (WeChat) 폐기 (2026-05-22) 으로 sentinel 의무 해소
+(`kPlaceholderProviders = <String>[]`). 향후 placeholder 가 필요한 신규
+provider 진입 시 본 패턴 재도입:
 
-1. **LINE:** https://developers.line.biz/console/ 자상 다운 (PNG 다중 해상도
-   + PSD, 19 언어 중 채택 변형 결정).
-   **WeChat:** https://open.weixin.qq.com/ 자상 다운 (4 해상도 PNG only —
-   24/32/48/64px, **변형 절대 금지** — WeChat Brand Guideline 명시).
-2. `assets/brand/{line,wechat}/[{lang}/][{theme}/]` 에 파일 + `LICENSE.txt`
-   commit.
-3. `git rm assets/brand/{line,wechat}/.placeholder` (sentinel 해제).
-4. `assets/brand/{line,wechat}/README.md` 의 7필드 (특히 "다운로드 일자") 갱신.
+1. 공식 BI 페이지 자상 다운 (위 표의 "공식 BI URL" + "자산 형식" 참조).
+2. `assets/brand/{provider}/[{lang}/][{theme}/]` 에 파일 + `LICENSE.txt` commit.
+3. `_brand_assets.dart` 의 `kPlaceholderProviders` 에 슬러그 추가 +
+   `assets/brand/{provider}/.placeholder` sentinel 파일 commit (sentinel
+   진입). 자상 commit 완료 후 슬러그 + sentinel 파일 모두 제거 (sentinel 해제).
+4. `assets/brand/{provider}/README.md` 7필드 (특히 "다운로드 일자") 갱신.
 5. `fvm flutter test test/features/auth/presentation/_widgets/brand_assets_lint_test.dart`
-   실행 — sentinel 제거 검증의 **source-of-truth 는 본 lint test**.
-   `.placeholder` 가 부재 + README 7필드 모두 채워짐을 자동 검증, PASS 로
-   전환되면 sentinel 제거 절차 완료. **별도 const list 직접 수정 불필요**
-   — production widget 의 placeholder fallback 분기는 sealed switch
-   (`LineSpec` / `WechatSpec` case) 가 컴파일 시점에 처리.
-   (참고: lint test 가 의존하는 const 정의 파일의 정확한 경로는 본 manual
-   이 인용하지 않는다 — 향후 phase 에서 파일이 재배치되어도 본 절차가
-   유효하도록 lint test PASS 자체를 sentinel 제거의 source-of-truth 로
-   채택.)
+   실행 — sentinel 진입/해제 검증의 **source-of-truth 는 본 lint test**.
+   `kPlaceholderProviders.isEmpty` (모든 active 자상 commit 완료) 또는
+   sentinel 파일 존재 (placeholder provider 진입) 를 자동 검증.
+   production widget 의 placeholder fallback 분기는 sealed switch 가 컴파일
+   시점에 처리 — sub-class 추가 시 build() 컴파일 fail 강제.
 
 ### 3단계 — 자산 freshness 갱신 (1년 권장)
 
@@ -2192,8 +2192,6 @@ starter-kit 은 LINE/WeChat 자상 미commit (Phase 13.1 sentinel). Phase 14
 
 ### 자산 변형 정책
 
-- **WeChat:** 변형 절대 금지 — 24/32/48/64 px 4 해상도만 사용, 다른 사이즈
-  / 색상 / 비율 변형 금지 (WeChat Brand Guideline 명시).
 - **Naver / Kakao / Google:** 공식 자상만 — 자체 SVG 생성 / 색 변환 / resize
   금지. 특히 PNG 자산은 `Image.asset(... fit: BoxFit.contain)` 직접 렌더 —
   `ColorFilter.mode(BlendMode.srcIn)` 적용 시 BI 색이 단색으로 변환되어
@@ -2211,7 +2209,7 @@ starter-kit 은 LINE/WeChat 자상 미commit (Phase 13.1 sentinel). Phase 14
   black text + 1dp grey outline, dark = dark bg + white text + 1dp lighter
   outline) 형성. 자상 변형 금지 (`DON'T modify the 'f' logo in any way` —
   `developers.facebook.com/docs/facebook-login/userexperience/` verbatim).
-- **사용자 책임:** Naver / LINE / WeChat 은 일부 사용 시 사전 검수 신청 별도
+- **사용자 책임:** Naver / LINE 은 일부 사용 시 사전 검수 신청 별도
   의무 가능 (정확한 절차는 공식 BI 페이지 — starter-kit 은 검수 자동화
   미제공).
 - **자상 layout 패턴 (Phase 13.1 Gap-1 X2):** Wide 자상 통째 buttons 패턴
@@ -2318,7 +2316,7 @@ R1 (provider-aware 라벨 메시지) 부활 절차:
    ```dart
    enum AccountProvider {
      google, apple, facebook, email,
-     // Phase 17 부활 시 add-only — kakao, naver, line, yahooJp, wechat 도
+     // Phase 16 부활 시 add-only — kakao, naver, line, yahooJp 도
      // 마지막 unknown 직전에 add-only 위치.
      unknown,
    }

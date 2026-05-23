@@ -75,7 +75,7 @@ type NaverProfileResponse = {
  * **App Check + 미인증 양립 (D-49):** request.auth = null 분기 = 재설치 후
  * 첫 진입. App Check 토큰은 디바이스 attestation 으로 abuse 방어.
  *
- * Phase 14~16 (LINE/Yahoo!JP/WeChat) 진입 시 fetch + AbortController + REST
+ * Phase 14~15 (LINE/Yahoo!JP) 진입 시 fetch + AbortController + REST
  * 검증 helper 추출 후보 (D-48, YAGNI — 본 Plan 은 verbatim 미러).
  *
  * @param {{data: NaverCustomTokenRequest, auth?: {uid: string}}} request
