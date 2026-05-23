@@ -90,24 +90,15 @@ void main() {
       expect(const YahoojpSpec().borderRadius, 12.0);
       expect(const YahoojpSpec().iconSize, 18.0);
       expect(YahoojpSpec.iconAspectRatio, closeTo(64.0 / 36.0, 0.0001));
-      // WechatSpec 은 Phase 16 까지 placeholder 유지 → assetType.png 보존.
-      expect(
-        const WechatSpec(size: WechatPixelSize.px48).size,
-        WechatPixelSize.px48,
-      );
-      expect(
-        const WechatSpec(size: WechatPixelSize.px48).assetType,
-        AssetType.png,
-      );
     });
 
     // ─── T-13.1-SWITCH-01: sealed switch exhaustive 컴파일 시점 가드 ────
-    test('T-13.1-SWITCH-01: sealed switch exhaustive — 8 sub-class 인스턴스화', () {
-      // 본 test 는 dart analyze 가 검증 — sealed 8 sub-class 누락 시 컴파일
+    test('T-13.1-SWITCH-01: sealed switch exhaustive — 7 sub-class 인스턴스화', () {
+      // 본 test 는 dart analyze 가 검증 — sealed 7 sub-class 누락 시 컴파일
       // fail. 본 file 컴파일 통과 자체가 BrandedSocialButton.build() 내
       // sealed switch 의 exhaustiveness 보장 (Dart 3 closed hierarchy).
-      // Phase 15 D-YJP-07 (2026-05-22): YahoojpSpec 신규 sub-class 추가
-      // (7 → 8) — switch 누락 시 컴파일 fail.
+      // Phase 15 D-YJP-07 (2026-05-22): YahoojpSpec 신규 sub-class 추가.
+      // Phase 16 폐기 (2026-05-22): WechatSpec 제거 (8 → 7).
       const specs = <BrandSpec>[
         KakaoSpec(),
         NaverSpec(),
@@ -116,13 +107,12 @@ void main() {
         FacebookSpec(),
         LineSpec(),
         YahoojpSpec(),
-        WechatSpec(size: WechatPixelSize.px48),
       ];
-      expect(specs.length, 8);
+      expect(specs.length, 7);
     });
 
-    // ─── T-13.1-FACTORY-01: 8 named factory smoke ────────────────────────
-    test('T-13.1-FACTORY-01: 8 named factory 가 BrandedSocialButton 반환', () {
+    // ─── T-13.1-FACTORY-01: 7 named factory smoke ────────────────────────
+    test('T-13.1-FACTORY-01: 7 named factory 가 BrandedSocialButton 반환', () {
       final kakao = BrandedSocialButton.kakao(label: 'Kakao', onPressed: () {});
       final naver = BrandedSocialButton.naver(label: 'Naver', onPressed: () {});
       final google = BrandedSocialButton.google(
@@ -140,10 +130,6 @@ void main() {
         label: 'Yahoo! JAPAN',
         onPressed: () {},
       );
-      final wechat = BrandedSocialButton.wechat(
-        label: 'WeChat',
-        onPressed: () {},
-      );
 
       expect(kakao.spec, isA<KakaoSpec>());
       expect(naver.spec, isA<NaverSpec>());
@@ -152,7 +138,6 @@ void main() {
       expect(facebook.spec, isA<FacebookSpec>());
       expect(line.spec, isA<LineSpec>());
       expect(yahoojp.spec, isA<YahoojpSpec>());
-      expect(wechat.spec, isA<WechatSpec>());
     });
 
     // ─── T-13.1-NAVER-THEME-01 폐기 (Phase 13.3 R3) ──────────────────────
@@ -191,7 +176,6 @@ void main() {
       expect(const AppleSpec().borderRadius, 12.0);
       expect(const FacebookSpec().borderRadius, 12.0);
       expect(const LineSpec().borderRadius, 12.0);
-      expect(const WechatSpec(size: WechatPixelSize.px48).borderRadius, 12.0);
     });
 
     // ─── T-13.3-GOOGLE-SPEC-VERBATIM-01: Google production CSS verbatim spec ─
@@ -779,7 +763,9 @@ void main() {
     // `_renderLineButton` (Material #06C755 + InkWell + Symbol SVG + ARB
     // authLineSignIn) 로 분기. iter3 WR-01 정정의 의도 (widget pump test 로
     // build() 실 분기 검증) 는 본 group 의 5 신규 LINE testcase 가 승계.
-    // WeChat sentinel 은 T-13.1-PLACEHOLDER-02 가 유지.
+    // Phase 16 폐기 (2026-05-22): WechatSpec 제거로 T-13.1-PLACEHOLDER-02
+    // (WeChat placeholder 회귀 가드) 도 함께 폐기 — 7 sealed sub-class 모두
+    // 자상 active, sentinel 의무 해소.
     //
     // Phase 14 신규 5 testcase 책임:
     //   1. T-14-LINE-RENDER-01: tap → onPressed 호출 (sentinel 'line tap')
@@ -1148,34 +1134,9 @@ void main() {
       },
     );
 
-    // ─── T-13.1-PLACEHOLDER-02: WechatSpec build() → placeholder 회귀 가드 ──
-    testWidgets(
-      'T-13.1-PLACEHOLDER-02: WechatSpec build() → 회색 disabled placeholder + '
-      'ARB authBrandAssetMissing 라벨 + InkWell/GestureDetector 부재 '
-      '(LineSpec 와 동일 분기 회귀 가드)',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: BrandedSocialButton.wechat(
-                label: 'Continue with WeChat',
-                onPressed: () {},
-              ),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(find.byType(InkWell), findsNothing);
-        expect(find.byType(GestureDetector), findsNothing);
-        expect(
-          find.text('Asset missing: Continue with WeChat'),
-          findsOneWidget,
-        );
-      },
-    );
+    // Phase 13.1 T-13.1-PLACEHOLDER-02 (WechatSpec build() → placeholder 회귀
+    // 가드) 폐기 (2026-05-22, Phase 16 폐기) — _renderPlaceholder helper 자체가
+    // 함께 제거됐고 caller 0. 7 sealed sub-class 모두 자상 active.
   });
 
   // ════════════════════════════════════════════════════════════════════════

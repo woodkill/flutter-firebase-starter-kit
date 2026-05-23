@@ -8,37 +8,35 @@ import 'package:flutter_test/flutter_test.dart';
 /// `assets/brand/{provider}/.placeholder` sentinel + README 7필드 schema 검증
 /// — Phase 13.1 D-76 (R9/R10/R11 covers).
 ///
-/// **scope:** 7 provider 디렉토리 순회.
-/// 1. LINE/WeChat `.placeholder` 존재 — sentinel 의도 (Phase 14/16 진입 전)
-/// 2. Kakao/Naver/Google/Apple/Facebook `.placeholder` 부재 — 자상 commit 의도
-///   - Wave 0 시점에는 active 5 provider 도 자상 미commit 이라 일부 RED.
-///     본 plan 의 acceptance 는 Plan 13.1-03 sentinel 정비 commit 후 PASS.
+/// **scope:** 7 active provider 디렉토리 순회 (모든 provider 자상 commit
+/// 완료, kPlaceholderProviders empty).
+/// 1. kPlaceholderProviders empty 검증 — sentinel 의무 해소 (Phase 14 LINE
+///   active 전환 + Phase 16 폐기 후 caller 0)
+/// 2. 7 active provider `.placeholder` 부재 — 자상 commit 완료 검증
 /// 3. 7 provider README 7필드 모두 비어있지 않음 (heading 패턴 매칭)
 ///
-/// **RED→GREEN tracking:**
-/// - Plan 13.1-04 commit 시점: 본 test 파일 단독 — 모든 group PASS
-///   (Plan 13.1-03 의 7 README + LINE/WeChat .placeholder 사전 commit 의존).
-/// - Plan 13.1-07 commit 후: Group 2 보존 (active 5 .placeholder 부재 유지) +
-///   Group 1 그대로 (LINE/WeChat sentinel 보존 — Phase 14/16 진입 전).
+/// **갱신 가이드:** 향후 placeholder 가 필요한 신규 provider 진입 시:
+/// - `_brand_assets.dart` 의 `kPlaceholderProviders` 에 슬러그 추가
+/// - `assets/brand/{provider}/.placeholder` sentinel 파일 commit
+/// - 본 Group 1 이 empty 검증 fail → sentinel 존재 검증 group 으로 보강
 void main() {
   group('brand_assets_lint', () {
-    test('LINE/WeChat .placeholder 존재 — 자상 commit 후 제거 의무', () {
-      for (final p in kPlaceholderProviders) {
-        final placeholder = File('$kBrandAssetBase/$p/.placeholder');
-        expect(
-          placeholder.existsSync(),
-          isTrue,
-          reason: '$p 디렉토리의 .placeholder 가 사라졌으나 자산이 commit '
-              '안 되었거나 _brand_assets.dart 의 list 갱신 누락',
-        );
-      }
+    test('kPlaceholderProviders empty — 모든 active provider 자상 commit 완료', () {
+      // Phase 14 D-LINE-08 (2026-05-19): LINE sentinel 해제.
+      // Phase 16 폐기 (2026-05-22): WeChat sentinel 해제.
+      expect(
+        kPlaceholderProviders,
+        isEmpty,
+        reason: 'kPlaceholderProviders 가 non-empty — 신규 placeholder '
+            'provider 진입 시 본 검증을 sentinel 파일 존재 검증으로 보강 의무',
+      );
     });
 
     test('Kakao/Naver/Google/Apple/Facebook/LINE/Yahoo!JP .placeholder 부재 — 자산 commit 후 PASS', () {
       // Phase 14 D-LINE-08 (2026-05-19): LINE sentinel → active 전환.
       // Phase 15 D-YJP-07 (2026-05-22 Plan 15-04): Yahoo!JP sentinel 미경유
-      // 신규 active 진입 — Plan 15-01 의 임시 `.placeholder` 는 Plan 15-04 에서
-      // git rm 완료. `kPlaceholderProviders = ['wechat']` 만 잔존.
+      // 신규 active 진입. Phase 16 폐기 (2026-05-22): WeChat 제외 — 7 active
+      // 모두 자상 commit 완료, kPlaceholderProviders = <String>[].
       const activeProviders = <String>[
         'kakao',
         'naver',
@@ -58,9 +56,10 @@ void main() {
       }
     });
 
-    test('8 provider README 7필드 모두 채워짐', () {
-      // Phase 15 (2026-05-22 Plan 15-04): Yahoo!JP README 추가 — 8 provider
-      // (kakao/naver/google/apple/facebook/line/yahoojp/wechat).
+    test('7 provider README 7필드 모두 채워짐', () {
+      // Phase 15 (2026-05-22 Plan 15-04): Yahoo!JP README 추가.
+      // Phase 16 폐기 (2026-05-22): WeChat README 제거 — 7 active provider
+      // (kakao/naver/google/apple/facebook/line/yahoojp).
       const allProviders = <String>[
         'kakao',
         'naver',
@@ -69,7 +68,6 @@ void main() {
         'facebook',
         'line',
         'yahoojp',
-        'wechat',
       ];
       const requiredHeadings = <String>[
         '## 공식 BI URL',
@@ -96,8 +94,8 @@ void main() {
 
     // Phase 13.1 REVIEW WR-08 정정 (2026-05-10) — production widget 의
     // `_iconAssetFor` 가 실제 로드하는 자상 path 가 disk 에 존재하는지 검증.
-    // 기존 Group 1 (LINE/WeChat .placeholder) + Group 2 (active 5 .placeholder
-    // 부재) + Group 3 (7 README schema) 만으로는 자상 파일 자체 삭제 회귀
+    // 기존 Group 1 (kPlaceholderProviders empty) + Group 2 (7 active
+    // .placeholder 부재) + Group 3 (7 README schema) 만으로는 자상 파일 자체 삭제 회귀
     // (예: assets/brand/google/light/btn_signin_full.svg 실수 삭제) 시
     // golden test 만 RED 로 늦게 발견.
     //

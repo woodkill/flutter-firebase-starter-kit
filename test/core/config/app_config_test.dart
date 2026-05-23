@@ -151,19 +151,11 @@ void main() {
               isTrue,
               reason: 'dev.json: yahoojp should be enabled (Phase 15)',
             );
-            for (final id in const <String>[kProviderIdWeChat]) {
-              expect(
-                enabled.contains(id),
-                isFalse,
-                reason: 'dev.json: $id should be disabled (Phase 16)',
-              );
-            }
           } else {
             for (final id in const <String>[
               kProviderIdNaver,
               kProviderIdLine,
               kProviderIdYahooJp,
-              kProviderIdWeChat,
             ]) {
               expect(
                 enabled.contains(id),
