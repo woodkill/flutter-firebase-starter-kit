@@ -152,7 +152,6 @@ flutter:
     # 의 `.placeholder` sentinel 등록 후 Plan 15-04 (Wave 1) 사용자 verbatim
     # sign-off 시 공식 자상으로 대체 의무.
     - assets/brand/yahoojp/
-    - assets/brand/wechat/
 
   # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Inter Medium (SIL Open Font License
   # 1.1, github.com/rsms/inter v4.1) Android/Linux test env fallback font for

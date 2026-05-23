@@ -177,7 +177,6 @@
   "authAccountProviderNaver": "ネイバー",
   "authAccountProviderLine": "LINE",
   "authAccountProviderYahooJp": "Yahoo! JAPAN",
-  "authAccountProviderWechat": "WeChat",
   "errorUnknownProvider": "不明なログイン方法",
 
   "onboardingSkip": "スキップ",

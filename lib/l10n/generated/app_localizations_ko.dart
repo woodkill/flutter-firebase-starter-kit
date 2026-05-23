@@ -400,9 +400,6 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountProviderYahooJp => 'Yahoo! JAPAN';
 
   @override
-  String get authAccountProviderWechat => '위챗';
-
-  @override
   String get errorUnknownProvider => '알 수 없는 로그인 수단';
 
   @override

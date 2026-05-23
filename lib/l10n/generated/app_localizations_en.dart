@@ -406,9 +406,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountProviderYahooJp => 'Yahoo! JAPAN';
 
   @override
-  String get authAccountProviderWechat => 'WeChat';
-
-  @override
   String get errorUnknownProvider => 'Unknown sign-in method';
 
   @override

@@ -820,7 +820,7 @@ abstract class AppLocalizations {
   /// **'Sign in with Yahoo! JAPAN'**
   String get authYahoojpSignIn;
 
-  /// Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE/WeChat 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14/16 자상 commit 후 본 path 도달 0.
+  /// Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14 자상 commit 완료 + Phase 16 폐기 후 본 path 도달 0 — caller 0 (sentinel 의무 해소, kPlaceholderProviders empty).
   ///
   /// In en, this message translates to:
   /// **'Asset missing: {label}'**
@@ -843,12 +843,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yahoo! JAPAN'**
   String get authAccountProviderYahooJp;
-
-  /// Phase 13 — WeChat provider label (Phase 16 pre-registered, D-53 5 provider 일반화).
-  ///
-  /// In en, this message translates to:
-  /// **'WeChat'**
-  String get authAccountProviderWechat;
 
   /// Phase 13 D-53 — Localizable Unknown fallback for provider_label_formatter (raw slug 노출 차단).
   ///
