@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../core/theme/focus_wrapper.dart';
-import '../../../../l10n/generated/app_localizations.dart';
 import '_brand_assets.dart';
 
 // Phase 13.1 REVIEW WR-02 / WR-09 정정 (2026-05-10):
@@ -73,8 +72,8 @@ enum AssetType {
   /// SVG 자상 — SvgPicture.asset 으로 렌더 (Google 자상 6종).
   svg,
 
-  /// 자상 미사용 — Apple (SDK 위제 위임, sign_in_with_apple) +
-  /// LINE/WeChat (placeholder). Facebook 은 Phase 13.2 부로 [png] 전환.
+  /// 자상 미사용 — Apple (SDK 위제 위임, sign_in_with_apple). Facebook 은
+  /// Phase 13.2 부로 [png] 전환. 현재 모든 active provider 자상 commit 완료.
   none,
 }
 
@@ -88,21 +87,6 @@ enum AssetType {
 // Phase 14 진입 시 LineSpec 이 실제 19 entries 매핑을 요구하는 시점에
 // 재도입 (현재 enum 만 선언되면 woody_lints unused_element 룰 가시화 불가
 // + 빈 placeholder 의무 0).
-
-/// WeChat 자상 4 해상도 (24/32/48/64px) — D-63 placeholder.
-enum WechatPixelSize {
-  /// 24px PNG 자상.
-  px24,
-
-  /// 32px PNG 자상.
-  px32,
-
-  /// 48px PNG 자상.
-  px48,
-
-  /// 64px PNG 자상.
-  px64,
-}
 
 /// Phase 13.1 — 7 provider brand 사양의 closed hierarchy (D-61).
 ///
@@ -347,29 +331,6 @@ class YahoojpSpec extends BrandSpec {
   static const double iconAspectRatio = 64.0 / 36.0;
 }
 
-/// WeChat 로그인 버튼 spec — D-73 placeholder.
-///
-/// Phase 16 진입 시 자상 commit 후 `_brand_assets.dart` 의
-/// `kPlaceholderProviders` 에서 'wechat' 제거 의무. 4 해상도 (24/32/48/64) 중
-/// [size] 매개변수로 선택.
-class WechatSpec extends BrandSpec {
-  /// const 생성자 — [size] 는 명시 매개변수.
-  const WechatSpec({required this.size});
-
-  /// 자상 해상도 dispatch.
-  ///
-  /// TODO(Phase 16): 본 필드는 현재 dead parameter — `_renderPlaceholder` 가
-  /// 회색 box 만 그리고 [size] 를 inspect 하지 않는다. `BrandedSocialButton.
-  /// wechat({size: WechatPixelSize.px24})` 호출도 `px48` placeholder 와 동일
-  /// 외관. Phase 16 (WeChat 자상화) 진입 시 `_renderWechatButton` 신설하면서
-  /// 본 필드가 실제 자상 해상도 dispatch 에 사용되도록 wire — 그 전까지는
-  /// public API 보존 (caller 호환) + 의도 signpost.
-  final WechatPixelSize size;
-
-  @override
-  AssetType get assetType => AssetType.png;
-}
-
 /// 7 provider brand button 통합 위제 — D-61 sealed hierarchy + D-67 sealed switch.
 ///
 /// **호출자는 named factory 만 사용 의무 (D-65, D-70):**
@@ -379,7 +340,6 @@ class WechatSpec extends BrandSpec {
 /// - [BrandedSocialButton.apple]
 /// - [BrandedSocialButton.facebook]
 /// - [BrandedSocialButton.line]
-/// - [BrandedSocialButton.wechat]
 ///
 /// `_kakaoSpec` 등 const 인스턴스는 private — 외부 임의 spec 주입 차단으로
 /// brand drift 최소화 (D-70).
@@ -508,19 +468,6 @@ class BrandedSocialButton extends StatelessWidget {
     onPressed: onPressed,
   );
 
-  /// WeChat named factory — D-73 placeholder + 4 해상도 enum.
-  factory BrandedSocialButton.wechat({
-    required String label,
-    required VoidCallback? onPressed,
-    WechatPixelSize size = WechatPixelSize.px48,
-    Key? key,
-  }) => BrandedSocialButton._(
-    key: key,
-    spec: WechatSpec(size: size),
-    label: label,
-    onPressed: onPressed,
-  );
-
   /// brand spec — sealed sub-class 인스턴스.
   final BrandSpec spec;
 
@@ -552,7 +499,7 @@ class BrandedSocialButton extends StatelessWidget {
       // Phase 14 — see ROADMAP.md (D-LINE-08 — sentinel → active 전환,
       // Phase 13.2 옵션 A 패턴 mirror). LineSpec → `_renderLineButton`
       // 신규 분기 (capture pattern `final LineSpec lineSpec` 으로 spec
-      // narrowing). WechatSpec 단독 placeholder 유지 (Phase 16 진입까지).
+      // narrowing).
       final LineSpec lineSpec => _renderLineButton(
         context,
         lineSpec,
@@ -562,14 +509,13 @@ class BrandedSocialButton extends StatelessWidget {
       // Phase 15 — see ROADMAP.md (D-YJP-07 — sentinel 미경유 신규 active
       // 진입, Plan 15-04 LOCK). YahoojpSpec → `_renderYahoojpButton` 분기
       // (capture pattern `final YahoojpSpec yahoojpSpec` 으로 spec narrowing,
-      // LineSpec mirror). WechatSpec 단독 placeholder 유지 (Phase 16 진입까지).
+      // LineSpec mirror).
       final YahoojpSpec yahoojpSpec => _renderYahoojpButton(
         context,
         yahoojpSpec,
         label,
         onPressed,
       ),
-      WechatSpec() => _renderPlaceholder(context, spec, label),
       KakaoSpec() => _renderKakaoButton(context, spec, label, onPressed),
       NaverSpec() => _renderNaverButton(context, spec, label, onPressed),
       GoogleSpec() => _renderGoogleButton(context, spec, label, onPressed),
@@ -1214,7 +1160,7 @@ Widget _renderYahoojpButton(
 ///   `label`, `onTap: onPressed`, `excludeSemantics: true` (Phase 13.1 a11y
 ///   layer 패턴 머레, iter2 CR-01 정정 머레).
 ///
-/// **AppleSpec/KakaoSpec/NaverSpec/GoogleSpec/LineSpec/WechatSpec 영향 없음** —
+/// **AppleSpec/KakaoSpec/NaverSpec/GoogleSpec/LineSpec/YahoojpSpec 영향 없음** —
 /// 본 함수는 build() 의 FacebookSpec 분기에서만 호출.
 Widget _renderFacebookButton(
   BuildContext context,
@@ -1676,63 +1622,14 @@ Widget _renderAppleButton(
 // 단일 caller (`_renderFacebookButton`) 가 inline const path 로 직접 참조 →
 // dead abstraction layer + 28-line throw 메시지 (binary + 읽기 부담) 제거.
 // sealed BrandSpec switch 의 compile-time exhaustiveness 는 `build()` switch
-// 가 이미 보장 (Phase 14/16 신규 provider 추가 시 build() 컴파일 fail).
+// 가 이미 보장 (미래 신규 provider 추가 시 build() 컴파일 fail).
 
-/// WeChat placeholder render — D-73 (자상 미존재 시 회색 fallback).
-///
-/// **Phase 14 D-LINE-08 (2026-05-19):** LineSpec sentinel 해제 — caller 는
-/// 더 이상 `_renderPlaceholder` 로 분기하지 않음. WechatSpec 단독 책임으로
-/// 축소 (Phase 16 진입까지 유지).
-///
-/// production 빌드는 회색 disabled 외관 (R10).
-///
-/// **Phase 13.1 REVIEW CR-03 정정 (2026-05-10):** placeholder 본문 텍스트가
-/// `'Asset missing: $label'` 하드코딩 영어로 ARB 미경유 → ja/ko 사용자에게
-/// 영어 노출 회귀 발생. `authBrandAssetMissing` ARB 키 신규 + l10n 해석
-/// 라벨 사용. memory feedback_review_recurring_issues.md 9대 패턴 #2
-/// (ARB 미사용 하드코딩 문자열) 직접 정정.
-///
-/// **Phase 13.1 REVIEW iter2 WR-02 정정 (2026-05-10):** `onPressed` 매개변수
-/// 제거 (시그니처 단순화 — 본 함수는 InkWell/GestureDetector 미사용으로 탭
-/// 처리 없음, 호출자에게 placeholder 가 탭 가능한 것처럼 시사하던 시그니처
-/// dead parameter 정리). docstring 의 "회색 disabled 외관 (R10)" 의도를 시그
-/// 니처에도 반영 — Phase 14/16 자상 commit 시점까지 비활성 외관 보장.
-///
-/// **Phase 13.1 REVIEW iter3 WR-02 정정 (2026-05-10):** `assert(() {
-/// debugPrint(...); }())` side-effect 폐기. 본 assert 는 debug 빌드에서만
-/// 실행되지만 `flutter test` 환경 default 가 debug 모드라 LineSpec/WechatSpec
-/// 가 build() 진입 시마다 stdout 에 noise 출력 (T-13.1-PLACEHOLDER-01/02 +
-/// 추후 widget test 마다 1줄씩) — reviewer 가 진짜 에러 메시지와 구분 어려움.
-/// `kPlaceholderProviders` list 자체가 sentinel 단일 책임 (D-74) — list 에서
-/// 'line' / 'wechat' 제거 시 build() 의 LineSpec/WechatSpec 분기 자체가
-/// unreachable (Phase 14/16 strategy 가 BrandedSocialButton.line() /
-/// .wechat() 호출 안 함). debugPrint 가 누락 detection 가치 0 + runtime
-/// noise 만 부담 → 폐기.
-Widget _renderPlaceholder(BuildContext context, BrandSpec spec, String label) {
-  final l10n = AppLocalizations.of(context);
-  // Phase 13.3 code review WR-04 정정 (2026-05-17): 5 active provider
-  // (Kakao/Naver/Google/Facebook/Apple) 모두 `Material(shape:
-  // RoundedRectangleBorder(...))` 패턴을 사용 — placeholder 도 5 provider
-  // 일관성 의무 (future 갱신자가 LINE/WeChat 자상화 시 5 provider 패턴 mirror
-  // 의도). `Material.borderRadius` 매개변수에서 `shape` 로 전환.
-  return SizedBox(
-    width: double.infinity,
-    height: spec.height,
-    child: Material(
-      color: Colors.grey.shade200,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(spec.borderRadius),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Center(
-        child: Text(
-          l10n.authBrandAssetMissing(label),
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-        ),
-      ),
-    ),
-  );
-}
+// Phase 14 D-LINE-08 (LineSpec sentinel 해제) + Phase 16 폐기 (2026-05-22,
+// WeChat sentinel 해제) 으로 `_renderPlaceholder` helper 폐기 — 7 sealed
+// BrandSpec 모두 자상 active. `kPlaceholderProviders` 가 `<String>[]` empty
+// 라 caller 0. 향후 placeholder 가 필요한 신규 provider 진입 시 본 helper
+// 와 sentinel-active 패턴 재도입 (Phase 13.1 D-74 + Phase 13.3 WR-04 라벨
+// l10n + Material shape 일관 패턴 reference).
 
 // Phase 13.1 REVIEW iter2 WR-04 정정 (2026-05-10):
 // 본 file 하단의 dead retention 주석 (5 source const + 5 *_Retained mirror
