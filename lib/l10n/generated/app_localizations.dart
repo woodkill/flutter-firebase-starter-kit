@@ -748,22 +748,22 @@ abstract class AppLocalizations {
   /// **'Sign in with Google'**
   String get authGoogleSignIn;
 
-  /// Phase 17 anchor — currently unreachable via D-13 early return in exception_l10n.dart. Do not delete (3-tier ARB+getter+arm infrastructure).
+  /// Phase 16 R1 부활 anchor (was Phase 17 anchor) — placeholder {provider} 활용 가능 via errorAccountExistsWithProvider. Do not delete (3-tier ARB+getter+arm infrastructure).
   ///
   /// In en, this message translates to:
   /// **'This email is already registered with a different sign-in method. Please sign in with your password.'**
   String get errorAccountExistsWithDifferentCredential;
 
-  /// Phase 9.2 R2 — used when account-exists-with-different-credential or 'already-exists' triggers without server-side provider identification. Phase 17 may add provider-aware variant via errorAccountExistsWithDifferentCredential placeholder.
+  /// Phase 9.2 R2 baseline 보존 — used when account-exists-with-different-credential or 'already-exists' triggers without server-side provider identification (lookupSignInMethods callable fail 시 fallback path). errorAccountExistsWithProvider 가 L1 (provider-aware), 본 키 가 L2 (unknown fallback).
   ///
   /// In en, this message translates to:
   /// **'This email is already registered with another sign-in method. Please sign in with the method you originally used.'**
   String get errorAccountExistsWithUnknownProvider;
 
-  /// Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point) — provider-aware variant of account-exists message. {provider} is the localized provider label (authAccountProvider{X}) injected by exception_l10n.dart#_resolveAccountExists L1 branch. R2 baseline (errorAccountExistsWithUnknownProvider) is retained for unknown fallback.
+  /// Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point). {provider} placeholder 는 8 brand verbatim 라벨 (audit trail: authAccountProvider{X} 8 ARB key — Google/Apple/Facebook/EmailPassword/Kakao/Naver/Line/YahooJp). exception_l10n.dart#_resolveAccountExists L1 branch 가 injection. SDK strings.xml > 공식 가이드 > 자산 embed 우선순위 (memory feedback_label_verbatim_audit).
   ///
   /// In en, this message translates to:
-  /// **'This email is already registered with {provider}. Please sign in with {provider}.'**
+  /// **'This email is registered with {provider}. Sign in with {provider} to link your account.'**
   String errorAccountExistsWithProvider(String provider);
 
   /// Provider label displayed in the account section when the user signed in with Google
@@ -1054,10 +1054,10 @@ abstract class AppLocalizations {
   /// **'Continue with email'**
   String get authContinueWithEmail;
 
-  /// Phase 16 D-03 — AccountLinkingSheet TextButton (cancel/dismiss). 탭 시 Navigator.pop(false) — linkedProviders 변경 0 (Phase 10.2 D-20 invariant 보존).
+  /// Phase 16 D-03 / UI-SPEC Surface A verbatim — AccountLinkingSheet TextButton (cancel/dismiss). 탭 시 Navigator.pop(false) — linkedProviders 변경 0 (Phase 10.2 D-20 invariant 보존).
   ///
   /// In en, this message translates to:
-  /// **'Sign in another way'**
+  /// **'Sign in with another method'**
   String get accountLinkingDismiss;
 
   /// Developer tools section title (debug builds only)
@@ -1113,6 +1113,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Force sign out'**
   String get devToolsForceSignOut;
+
+  /// Phase 16 D-11 / UI-SPEC Surface A verbatim — AccountLinkingSheet header title. 본문 (errorAccountExistsWithProvider) 위 표제로 노출.
+  ///
+  /// In en, this message translates to:
+  /// **'Email already in use'**
+  String get accountLinkingSheetTitle;
+
+  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings screen AppBar title.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settingsTitle;
+
+  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'My Account' section header (이메일 + 연결된 로그인 노출).
+  ///
+  /// In en, this message translates to:
+  /// **'My Account'**
+  String get settingsAccountSection;
+
+  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings account email placeholder (3 locale identical pass-through).
+  ///
+  /// In en, this message translates to:
+  /// **'{email}'**
+  String settingsAccountEmail(String email);
+
+  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings linked-providers row. {providers} 는 authAccountProvider{X} 8 brand verbatim 라벨의 comma-joined list.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked sign-in: {providers}'**
+  String settingsLinkedProviders(String providers);
+
+  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone').
+  ///
+  /// In en, this message translates to:
+  /// **'Danger zone'**
+  String get settingsDangerZoneSection;
+
+  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Danger zone subheader caption (회원탈퇴 위 경고문).
+  ///
+  /// In en, this message translates to:
+  /// **'These actions cannot be undone.'**
+  String get settingsDangerZoneExplainer;
+
+  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings withdrawal entry tile label. 탭 시 WithdrawalDialog 진입.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account'**
+  String get settingsWithdrawalLabel;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog title.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account'**
+  String get withdrawalDialogTitle;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog body line 1 (영구 삭제 명시).
+  ///
+  /// In en, this message translates to:
+  /// **'Your account and all data will be permanently deleted.'**
+  String get withdrawalDialogBodyLine1;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog body line 2 (복구 불가 명시).
+  ///
+  /// In en, this message translates to:
+  /// **'This action cannot be undone.'**
+  String get withdrawalDialogBodyLine2;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog body line 3 (재가입 시 동일 이메일/방식 신규 등록 명시).
+  ///
+  /// In en, this message translates to:
+  /// **'To rejoin, you must register again with the same email or the same sign-in method.'**
+  String get withdrawalDialogBodyLine3;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal confirm TextField hint (사용자가 입력해야 하는 phrase).
+  ///
+  /// In en, this message translates to:
+  /// **'delete'**
+  String get withdrawalConfirmFieldHint;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal confirm TextField label/description. {phrase} 는 withdrawalConfirmFieldHint 와 동일 문구.
+  ///
+  /// In en, this message translates to:
+  /// **'Type \"{phrase}\" to continue.'**
+  String withdrawalConfirmFieldLabel(String phrase);
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog confirm action button (destructive).
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get withdrawalConfirmAction;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog re-auth required SnackBar/message (recent-login 만료 시).
+  ///
+  /// In en, this message translates to:
+  /// **'For security, please sign in again and retry.'**
+  String get withdrawalReauthRequired;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal success SnackBar message.
+  ///
+  /// In en, this message translates to:
+  /// **'Account deleted.'**
+  String get withdrawalSuccess;
+
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal failure SnackBar message (generic fallback).
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete account. Please try again.'**
+  String get withdrawalFailure;
+
+  /// Phase 16 D-08 destructive intent Semantics label — UI-SPEC line 332 verbatim 채택 (Warning 7). Plan 16-06 Task 6.2 WC10 의 withdrawalConfirmAction 버튼 Semantics label 이 본 key consume 의무. 시각 라벨 (withdrawalConfirmAction='Delete') 과 분리 — 스크린리더 사용자에게 destructive intent + 영구성 + 비가역성 명시.
+  ///
+  /// In en, this message translates to:
+  /// **'Withdraw account — permanent deletion, cannot be undone'**
+  String get withdrawalConfirmActionSemantic;
 }
 
 class _AppLocalizationsDelegate

@@ -357,7 +357,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String errorAccountExistsWithProvider(String provider) {
-    return '이 이메일은 $provider(으)로 가입되어 있습니다. $provider(으)로 로그인해 주세요.';
+    return '이 이메일은 $provider로 가입되어 있습니다. $provider로 로그인하여 계정을 연결하세요.';
   }
 
   @override
@@ -540,4 +540,69 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get devToolsForceSignOut => '강제 로그아웃';
+
+  @override
+  String get accountLinkingSheetTitle => '이미 가입된 이메일입니다';
+
+  @override
+  String get settingsTitle => '설정';
+
+  @override
+  String get settingsAccountSection => '내 계정';
+
+  @override
+  String settingsAccountEmail(String email) {
+    return '$email';
+  }
+
+  @override
+  String settingsLinkedProviders(String providers) {
+    return '연결된 로그인: $providers';
+  }
+
+  @override
+  String get settingsDangerZoneSection => 'Danger zone';
+
+  @override
+  String get settingsDangerZoneExplainer => '아래 작업은 복구할 수 없습니다.';
+
+  @override
+  String get settingsWithdrawalLabel => '회원탈퇴';
+
+  @override
+  String get withdrawalDialogTitle => '회원탈퇴';
+
+  @override
+  String get withdrawalDialogBodyLine1 => '이 계정과 모든 데이터는 영구 삭제됩니다.';
+
+  @override
+  String get withdrawalDialogBodyLine2 => '삭제 후에는 복구할 수 없습니다.';
+
+  @override
+  String get withdrawalDialogBodyLine3 =>
+      '다시 가입하려면 동일 이메일 또는 동일 로그인 방식으로 신규 등록해야 합니다.';
+
+  @override
+  String get withdrawalConfirmFieldHint => '탈퇴';
+
+  @override
+  String withdrawalConfirmFieldLabel(String phrase) {
+    return '계속하려면 \"$phrase\"를 입력하세요.';
+  }
+
+  @override
+  String get withdrawalConfirmAction => '탈퇴';
+
+  @override
+  String get withdrawalReauthRequired =>
+      '보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.';
+
+  @override
+  String get withdrawalSuccess => '회원탈퇴가 완료되었습니다.';
+
+  @override
+  String get withdrawalFailure => '회원탈퇴에 실패했습니다. 다시 시도해 주세요.';
+
+  @override
+  String get withdrawalConfirmActionSemantic => '회원탈퇴 — 영구 삭제, 복구 불가';
 }

@@ -140,7 +140,7 @@
   "authGoogleSignIn": "Googleでログイン",
   "errorAccountExistsWithDifferentCredential": "このメールアドレスは別の方法で登録されています。パスワードでログインしてください。",
   "errorAccountExistsWithUnknownProvider": "このメールアドレスは別の方法で登録されています。最初に登録した方法でログインしてください。",
-  "errorAccountExistsWithProvider": "このメールアドレスは{provider}で登録されています。{provider}でログインしてください。",
+  "errorAccountExistsWithProvider": "このメールアドレスは{provider}で登録されています。{provider}でログインしてアカウントを連携してください。",
   "authAccountProviderGoogle": "Google",
   "authAppleSignIn": "Appleでサインイン",
   "@authAppleSignIn": {
@@ -235,5 +235,28 @@
   "devToolsTriggerErrorDone": "テストエラーをCrashlyticsに送信しました。",
   "devToolsTriggerAnalytics": "アナリティクスイベントを送信",
   "devToolsTriggerAnalyticsDone": "テスト用アナリティクスイベントを送信しました。",
-  "devToolsForceSignOut": "強制ログアウト"
+  "devToolsForceSignOut": "強制ログアウト",
+
+  "accountLinkingSheetTitle": "登録済みのメールアドレスです",
+
+  "settingsTitle": "設定",
+  "settingsAccountSection": "アカウント",
+  "settingsAccountEmail": "{email}",
+  "settingsLinkedProviders": "連携済みログイン: {providers}",
+  "settingsDangerZoneSection": "Danger zone",
+  "settingsDangerZoneExplainer": "以下の操作は取り消せません。",
+  "settingsWithdrawalLabel": "アカウントを削除",
+
+  "withdrawalDialogTitle": "アカウントを削除",
+  "withdrawalDialogBodyLine1": "アカウントとすべてのデータが完全に削除されます。",
+  "withdrawalDialogBodyLine2": "削除後に復元することはできません。",
+  "withdrawalDialogBodyLine3": "再登録するには、同じメールアドレスまたは同じログイン方法で新規登録する必要があります。",
+  "withdrawalConfirmFieldHint": "削除",
+  "withdrawalConfirmFieldLabel": "続行するには「{phrase}」と入力してください。",
+  "withdrawalConfirmAction": "削除",
+  "withdrawalReauthRequired": "セキュリティのため、再ログインしてから再試行してください。",
+  "withdrawalSuccess": "アカウントを削除しました。",
+  "withdrawalFailure": "アカウントを削除できませんでした。再試行してください。",
+
+  "withdrawalConfirmActionSemantic": "アカウント退会 — 永久削除、復元不可"
 }
