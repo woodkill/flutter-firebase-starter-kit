@@ -49,6 +49,7 @@ import {
   identityIndexDocId,
   profileFieldsForRefresh,
   resolveIdentity,
+  type ProviderId,
 } from "../../src/auth/identity_index";
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
@@ -1133,6 +1134,161 @@ describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate"
       for (const args of warnMock.mock.calls) {
         expect(JSON.stringify(args)).not.toContain("transient");
       }
+    },
+  );
+});
+
+// Phase 16 D-09 (Plan 16-03 Task 3.1) — IdentityResolution 에 add-only
+// `existingProvider: ProviderId | "unknown"` 필드 추가. 기존 conflictKind union
+// switch case 의 schema 보존 (회귀 0) + 신규 add-only 필드만 추가.
+// Plan 16-04 의 client catch 시 conflictKind + existingProvider 로 정확한
+// provider 라벨 즉시 전달 (server 추가 조회 0).
+describe("resolveIdentity Phase 16 D-09 — existingProvider add-only", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+    warnMock.mockReset();
+  });
+
+  it(
+    // eslint-disable-next-line max-len
+    "I1: 기존 conflictKind=null 회귀 — existingProvider 미설정 (기존 caller switch 보존)",
+    async () => {
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "user-I1"},
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-I1",
+        callerUid: undefined,
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({
+        uid: "user-I1",
+        isNewUser: false,
+        conflictKind: null,
+      });
+      // 정상 path 에는 existingProvider 필드가 노출되지 않음 (캐리어 default).
+      expect(res.existingProvider).toBeUndefined();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "I2: email_in_use (caller-path) + providerData=[google.com] → existingProvider='google'",
+    async () => {
+      // Gap B (callerUid + email) path 의 collision detect → existingProvider
+      // 가 conflicting provider 의 첫 known IdP 매핑.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "google-uid-99",
+        providerData: [{providerId: "google.com", uid: "google-platform-id"}],
+      });
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-I2",
+        callerUid: "anon-I2",
+        userInfo: {email: "i2@example.com"},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "google",
+      });
+
+      // PII regression sentinel — email / IdP uid 본문 미노출.
+      for (const args of warnMock.mock.calls) {
+        const s = JSON.stringify(args);
+        expect(s).not.toContain("i2@example.com");
+        expect(s).not.toContain("google-platform-id");
+        expect(s).not.toContain("google-uid-99");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "I3: anonymous_existing_collision → existingProvider = 충돌 trigger provider (kakao)",
+    async () => {
+      // identity_index 의 기존 매핑은 `provider:providerUserId` 의 provider 자체
+      // 가 trigger. anonymous user 가 동일 provider 의 기존 user 와 collision —
+      // existingProvider 는 caller 가 호출한 provider slug 자체 (kakao).
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "existing-B"},
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-I3",
+        callerUid: "anon-I3",
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({
+        uid: "existing-B",
+        isNewUser: false,
+        conflictKind: "anonymous_existing_collision",
+        existingProvider: "kakao",
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "I4: email_in_use (caller-path) + providerData=[twitter.com] (미정의 provider) → existingProvider='unknown'",
+    async () => {
+      // providerData 매핑 실패 (twitter.com — NATIVE_PROVIDER_MAP 미정의) →
+      // 'unknown' fallback. client 가 generic 라벨 표시 가능.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "x-uid-99",
+        providerData: [{providerId: "twitter.com", uid: "x-platform-id"}],
+      });
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-I4",
+        callerUid: "anon-I4",
+        userInfo: {email: "i4@example.com"},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "unknown",
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "I5: ProviderId type export — 8값 enum 보존 (Plan 16-04 Flutter mirror baseline)",
+    async () => {
+      // 컴파일 타임 sentinel — 본 case 는 type-level 검증. import 시점에
+      // ProviderId 가 8값 literal union 인지 확인 (TS 가 강제). 본 runtime
+      // 검증은 const literal 로 캐스팅 가능 여부만 sanity check.
+      const providers: Array<ProviderId> = [
+        "google", "apple", "facebook", "email",
+        "kakao", "naver", "line", "yahoojp",
+      ];
+      expect(providers.length).toBe(8);
     },
   );
 });
