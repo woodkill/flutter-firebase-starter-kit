@@ -97,7 +97,7 @@ void main() {
 
   group('AccountLinkingSheet — W3 cancel/dismiss (D-03)', () {
     testWidgets(
-      '"Sign in another way" TextButton 탭 → Navigator.pop(false)',
+      '"Sign in with another method" TextButton 탭 → Navigator.pop(false)',
       (tester) async {
         final handle = await _pumpAndShowSheet(
           tester,
@@ -105,14 +105,14 @@ void main() {
         );
 
         // sheet 노출 확인 (sanity)
-        expect(find.text('Sign in another way'), findsOneWidget);
+        expect(find.text('Sign in with another method'), findsOneWidget);
 
-        await tester.tap(find.text('Sign in another way'));
+        await tester.tap(find.text('Sign in with another method'));
         await tester.pump();
         await tester.pump(_kSheetEntranceDuration);
 
         // sheet 가 dismiss 되어 sentinel TextButton 사라짐
-        expect(find.text('Sign in another way'), findsNothing);
+        expect(find.text('Sign in with another method'), findsNothing);
         // Navigator.pop(false) 결과 검증 (D-03)
         expect(await handle.result, isFalse);
       },
@@ -175,7 +175,7 @@ void main() {
 
         // 좁은 viewport 에서 CTA hit-test 회피
         // (feedback_test_viewport_ensure_visible memory mirror)
-        final dismissBtn = find.text('Sign in another way');
+        final dismissBtn = find.text('Sign in with another method');
         await tester.ensureVisible(dismissBtn);
         await tester.pump();
         await tester.tap(dismissBtn);
