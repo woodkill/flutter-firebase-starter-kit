@@ -10,6 +10,7 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/auth/provider_id.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
@@ -57,7 +58,7 @@ class AuthRepository {
   /// import 는 본 클래스 본체가 아닌 [authRepository] factory provider 영역
   /// 한정. 콜백 signature `Future<void> Function()` 만 의존하므로
   /// `Notifier` 구현 교체에도 본 클래스 변경 0건.
-  const AuthRepository(
+  AuthRepository(
     this._auth,
     this._googleSignIn,
     this._facebookAuth,
@@ -67,8 +68,9 @@ class AuthRepository {
     this._naverSdkClient,
     this._lineSdkClient,
     this._yahoojpSdkClient,
-    this._onResetOnboarding,
-  );
+    this._onResetOnboarding, {
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -80,6 +82,29 @@ class AuthRepository {
   final LineSdkClient _lineSdkClient;
   final YahoojpSdkClient _yahoojpSdkClient;
   final Future<void> Function() _onResetOnboarding;
+
+  /// Phase 16 D-12 / Pitfall 5 — client-side cache for `lookupSignInMethods`
+  /// callable responses. 동일 collisionEmail 의 rate limit 누적 회피
+  /// (Cloud Function 10/min/UID 한도 보호) 및 사용자 retry path 의
+  /// 응답 latency 최소화.
+  ///
+  /// **TTL 5 분:** D-10 의 enumeration alarm threshold (UID 별 5 회/min) 와
+  /// 일관 — 동일 캐시 entry 가 5 분 후 invalidate 되면 server 측 행동
+  /// 분석은 짧은 window 만 본다.
+  ///
+  /// Map value 는 `AccountProvider?` (null 허용) — callable 가 unknown 응답
+  /// (또는 fail) 시 unknown fallback 도 cache 하여 같은 이메일 재시도 시
+  /// 다시 호출되는 비용 회피.
+  final Map<String, _CachedProvider> _accountExistsCache = {};
+
+  /// TTL 5 분 — D-10 enumeration alarm window 와 일관.
+  static const Duration _kAccountExistsCacheTtl = Duration(minutes: 5);
+
+  /// `lookupSignInMethods` callable 호출 타임아웃 — 5 초.
+  static const Duration _kLookupTimeout = Duration(seconds: 5);
+
+  /// 단위 테스트 결정성 보장을 위한 시간 주입 hook.
+  final DateTime Function() _now;
 
   /// 이메일/비밀번호로 로그인한다.
   ///
@@ -101,7 +126,8 @@ class AuthRepository {
       }
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
-      return Result.failure(_mapAuthException(e));
+      // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
+      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
     }
   }
 
@@ -185,7 +211,8 @@ class AuthRepository {
 
       return Result.success(_mapFirebaseUser(refreshed));
     } on fb.FirebaseAuthException catch (e) {
-      return Result.failure(_mapAuthException(e));
+      // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
+      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
     }
   }
 
@@ -268,7 +295,8 @@ class AuthRepository {
       }
       return Result.failure(_mapGoogleException(e));
     } on fb.FirebaseAuthException catch (e) {
-      return Result.failure(_mapAuthException(e));
+      // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
+      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
     } on Object catch (e, st) {
       // 비-Auth 예외 (PlatformException 등) 를 Result 로 감싸 Notifier state
       // 가 AsyncLoading 에 고정되는 것을 방지한다 (Apple/Facebook 패턴 미러링).
@@ -389,7 +417,8 @@ class AuthRepository {
           e.code == 'popup-closed-by-user') {
         return null;
       }
-      return Result.failure(_mapAuthException(e));
+      // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
+      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
     } on Object catch (e, st) {
       // 비-Auth 예외 (PlatformException 등)를 Result로 감싸
       // Notifier state가 AsyncLoading에 고정되는 것을 방지한다.
@@ -493,7 +522,8 @@ class AuthRepository {
       await _setFacebookPhotoUrl(fbUser);
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
-      return Result.failure(_mapAuthException(e));
+      // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
+      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
     } on Object catch (e, st) {
       if (kDebugMode) {
         debugPrint('signInWithFacebook 비-Auth 예외: $e\n$st');
@@ -1359,6 +1389,89 @@ class AuthRepository {
     }
     return ServiceUnavailable(cause: e);
   }
+
+  /// Phase 16 D-12 wiring — [AccountExistsWithDifferentCredential] 의 base
+  /// instance 가 입력으로 들어오면 (1) cache 확인, (2) miss 시
+  /// `lookupSignInMethods` callable 호출, (3) `existingProvider` 가 채워진
+  /// 새 instance 를 반환한다.
+  ///
+  /// 입력이 [AccountExistsWithDifferentCredential] 가 아니거나 email 이
+  /// null 인 경우 입력 그대로 반환 (회귀 0).
+  ///
+  /// **PII invariant (R7 / T-16-NEW-07):** 본 메서드 가 catch 시점에서
+  /// `collisionEmail` 본문을 logger / Crashlytics 페이로드에 절대 포함시키지
+  /// 않는다. cache key 는 메모리 내부에만 유지되며 외부 sink 비전파.
+  ///
+  /// **Pitfall 5 회피:** [_accountExistsCache] TTL 5 분 — 동일 이메일 두
+  /// 번째 호출 시 callable 미호출.
+  Future<AppException> _enrichAccountExistsAsync(AppException base) async {
+    if (base is! AccountExistsWithDifferentCredential) return base;
+    final email = base.email;
+    if (email == null || email.isEmpty) return base; // unknown fallback path
+    if (base.existingProvider != null) return base; // 이미 식별됨 (no-op)
+
+    final provider = await _lookupExistingProvider(email);
+    return AccountExistsWithDifferentCredential(
+      email: email,
+      existingProvider: provider,
+      cause: base.cause,
+    );
+  }
+
+  /// Phase 16 D-12 — `lookupSignInMethods` Cloud Function callable 호출
+  /// (RESEARCH § Pitfall 5 의 client cache 패턴 mirror).
+  ///
+  /// 응답 schema: `{existingProvider: "kakao" | "google" | ... | null}`.
+  /// callable 가 throw (network/App Check/rate-limit) 하거나 응답이
+  /// unknown slug 인 경우 graceful `null` 반환 — R2 unknown fallback
+  /// baseline 보존.
+  Future<AccountProvider?> _lookupExistingProvider(String email) async {
+    // Step 1 — cache 확인 (Pitfall 5: TTL 5 분 invariant).
+    final cached = _accountExistsCache[email];
+    if (cached != null && !cached.isExpired(_now())) {
+      return cached.provider;
+    }
+
+    // Step 2 — cache miss → callable 호출.
+    AccountProvider? provider;
+    try {
+      final callable = _functions.httpsCallable(
+        'lookupSignInMethods',
+        options: HttpsCallableOptions(timeout: _kLookupTimeout),
+      );
+      final response = await callable.call<Map<String, dynamic>>(
+        <String, dynamic>{'email': email},
+      );
+      final slug = response.data['existingProvider'] as String?;
+      provider = AccountProvider.tryParse(slug);
+    } on Object catch (e) {
+      // PII invariant — error 페이로드에 collisionEmail 미포함.
+      // debugPrint 본문 도 email 비포함 (T-16-NEW-07 sentinel).
+      if (kDebugMode) {
+        debugPrint(
+          'AuthRepository._lookupExistingProvider: lookup fail — '
+          'silent fallback (existingProvider=null). cause runtimeType='
+          '${e.runtimeType}',
+        );
+      }
+      provider = null;
+    }
+
+    // Step 3 — cache (success / fallback 모두 cache 하여 retry 비용 절감).
+    _accountExistsCache[email] = _CachedProvider(provider, _now());
+    return provider;
+  }
+}
+
+/// [AuthRepository._accountExistsCache] 의 entry — TTL 검증을 위한 발효
+/// 시각 보유.
+class _CachedProvider {
+  _CachedProvider(this.provider, this.cachedAt);
+  final AccountProvider? provider;
+  final DateTime cachedAt;
+
+  bool isExpired(DateTime now) =>
+      now.difference(cachedAt) >= AuthRepository._kAccountExistsCacheTtl;
 }
 
 /// firebase_auth [fb.User]를 도메인 [User]로 변환한다 (D-12).
