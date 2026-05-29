@@ -2,7 +2,7 @@
 // verbatim). 동일 이메일 충돌 직후 노출되는 modal bottom sheet — 기존
 // provider 단일 강조 (D-02 single button) + cancel 시 state 손실 0 (D-03).
 //
-// Plan 16-04 (Task 4.2) — Wave 0 sentinel placeholder 본체 채움.
+// Plan 16-04 (Task 4.2) — Plan 16-01 placeholder 본체 채움 완료.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
