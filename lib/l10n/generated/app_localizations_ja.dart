@@ -511,6 +511,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authContinueWithEmail => 'メールアドレスで続行';
 
   @override
+  String get accountLinkingDismiss => '別の方法でログイン';
+
+  @override
   String get devToolsSectionTitle => 'Dev Tools';
 
   @override

@@ -522,6 +522,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authContinueWithEmail => 'Continue with email';
 
   @override
+  String get accountLinkingDismiss => 'Sign in another way';
+
+  @override
   String get devToolsSectionTitle => 'Dev Tools';
 
   @override

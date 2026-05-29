@@ -512,6 +512,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authContinueWithEmail => '이메일로 계속';
 
   @override
+  String get accountLinkingDismiss => '다른 방식으로 로그인';
+
+  @override
   String get devToolsSectionTitle => 'Dev Tools';
 
   @override

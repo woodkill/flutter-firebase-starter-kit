@@ -1054,6 +1054,12 @@ abstract class AppLocalizations {
   /// **'Continue with email'**
   String get authContinueWithEmail;
 
+  /// Phase 16 D-03 — AccountLinkingSheet TextButton (cancel/dismiss). 탭 시 Navigator.pop(false) — linkedProviders 변경 0 (Phase 10.2 D-20 invariant 보존).
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in another way'**
+  String get accountLinkingDismiss;
+
   /// Developer tools section title (debug builds only)
   ///
   /// In en, this message translates to:
