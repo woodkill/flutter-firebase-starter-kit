@@ -1,5 +1,10 @@
 // Phase 13.1 — see ROADMAP.md (D-77/D-78-CLARIFY/D-77-CLARIFY ARB↔HIG/BI 양방향 검증)
 // Phase 15 — see ROADMAP.md (D-YJP-08 Yahoo!JP BI 라벨 12 testcase verbatim 매트릭스)
+// Phase 16 D-11 — authAccountProvider{X} 8 ARB key 의 brand verbatim audit
+//   trail 신규 5 testcase add (Google/Facebook/Email/LINE/YahooJp).
+//   Apple/Naver/Kakao 3 은 sign-in 버튼 라벨 검증으로 이미 보유 — 본 plan 은
+//   계정 표시용 provider label (settings linkedProviders + account linking
+//   sheet provider 텍스트) 의 audit trail 확장.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -146,6 +151,13 @@ Future<void> _verifyLocale(
       'authKakaoSignIn' => l10n.authKakaoSignIn,
       'authFacebookSignIn' => l10n.authFacebookSignIn,
       'authYahoojpSignIn' => l10n.authYahoojpSignIn,
+      // Phase 16 D-11 — authAccountProvider{X} 8 키 매핑
+      'authAccountProviderGoogle' => l10n.authAccountProviderGoogle,
+      'authAccountProviderFacebook' => l10n.authAccountProviderFacebook,
+      'authAccountProviderEmailPassword' =>
+        l10n.authAccountProviderEmailPassword,
+      'authAccountProviderLine' => l10n.authAccountProviderLine,
+      'authAccountProviderYahooJp' => l10n.authAccountProviderYahooJp,
       _ => throw UnsupportedError('Unknown key: ${entry.key}'),
     };
     expect(
@@ -157,6 +169,80 @@ Future<void> _verifyLocale(
     );
   }
 }
+
+/// Phase 16 D-11 — Google 계정 표시 라벨 audit trail.
+///
+/// Source-of-truth:
+/// - Google Identity 공식 brand 가이드는 'Google' wordmark 만 사용 권장 —
+///   3 locale 모두 'Google' verbatim (Phase 13.3 검증).
+const Map<String, Map<String, String>> _kGoogleAccountLabel =
+    <String, Map<String, String>>{
+      'authAccountProviderGoogle': <String, String>{
+        'ko': 'Google',
+        'en': 'Google',
+        'ja': 'Google',
+      },
+    };
+
+/// Phase 16 D-11 — Facebook 계정 표시 라벨 audit trail.
+///
+/// Source-of-truth:
+/// - Meta brand 가이드 — 'Facebook' wordmark 만 사용 권장. 3 locale verbatim.
+const Map<String, Map<String, String>> _kFacebookAccountLabel =
+    <String, Map<String, String>>{
+      'authAccountProviderFacebook': <String, String>{
+        'ko': 'Facebook',
+        'en': 'Facebook',
+        'ja': 'Facebook',
+      },
+    };
+
+/// Phase 16 D-11 — Email/Password 계정 표시 라벨 audit trail.
+///
+/// Source-of-truth:
+/// - starter-kit 일관 — Phase 9.2 P-A-narrow 산출 (auth_email_* ARB 라인 mirror).
+///   ko='이메일 / 비밀번호' / en='Email / Password' / ja='メール / パスワード'.
+///   (Plan 16-05 본문은 ko='이메일' 단순화 제안하나 P-A-narrow 락 본문 보존 —
+///   세팅 surface 의 라벨 정합성 우선.)
+const Map<String, Map<String, String>> _kEmailAccountLabel =
+    <String, Map<String, String>>{
+      'authAccountProviderEmailPassword': <String, String>{
+        'ko': '이메일 / 비밀번호',
+        'en': 'Email / Password',
+        'ja': 'メール / パスワード',
+      },
+    };
+
+/// Phase 16 D-11 — LINE 계정 표시 라벨 audit trail.
+///
+/// Source-of-truth:
+/// - LINE 공식 brand 자산 (Phase 14 verbatim 검증). en/ja 는 'LINE' 영문
+///   wordmark 권장. ko 는 starter-kit 의 Phase 9.2 P-A-narrow 산출 '라인' 한글
+///   표기 보존 (외래어 표기법 준수). [ASSUMED 2026-05-29] ko 한글 표기 —
+///   향후 공식 KR locale 자상 출시 시 재검증 의무.
+const Map<String, Map<String, String>> _kLineAccountLabel =
+    <String, Map<String, String>>{
+      'authAccountProviderLine': <String, String>{
+        'ko': '라인', // [ASSUMED 2026-05-29] starter-kit Phase 9.2 한글 표기 보존
+        'en': 'LINE',
+        'ja': 'LINE',
+      },
+    };
+
+/// Phase 16 D-11 — Yahoo!JP 계정 표시 라벨 audit trail.
+///
+/// Source-of-truth:
+/// - Yahoo!JP 공식 BI (Phase 15 D-YJP-07 mirror) — 3 locale 모두 'Yahoo! JAPAN'
+///   verbatim (with space + exclamation). 브랜드 명사 보존 — 'Yahoo!' / 'Yahoo'
+///   단독 사용 금지.
+const Map<String, Map<String, String>> _kYahoojpAccountLabel =
+    <String, Map<String, String>>{
+      'authAccountProviderYahooJp': <String, String>{
+        'ko': 'Yahoo! JAPAN',
+        'en': 'Yahoo! JAPAN',
+        'ja': 'Yahoo! JAPAN',
+      },
+    };
 
 void main() {
   group('brand_label_whitelist — Apple HIG (R6)', () {
@@ -352,4 +438,103 @@ void main() {
       );
     });
   });
+
+  // Phase 16 D-11 — authAccountProvider{X} 8 ARB key 의 brand verbatim
+  // audit trail 5 신규 testcase (Google/Facebook/Email/LINE/YahooJp).
+  // Apple/Naver/Kakao 3 provider 의 sign-in 버튼 라벨 검증은 위 group 들이
+  // 보유 — 본 group 들은 계정 표시용 provider label
+  // (settings linkedProviders + account_linking_sheet provider 텍스트) 의
+  // ARB drift 회귀 가드. Phase 13.1 D-84 + Phase 15 mirror.
+  group(
+    'brand_label_whitelist — Google AccountLabel (Phase 16 D-11) B1',
+    () {
+      test('ko: Google (Google Identity verbatim — 3 locale 동일)', () async {
+        await _verifyLocale('ko', _kGoogleAccountLabel);
+      });
+      test('en: Google (Google Identity verbatim)', () async {
+        await _verifyLocale('en', _kGoogleAccountLabel);
+      });
+      test('ja: Google (Google Identity verbatim)', () async {
+        await _verifyLocale('ja', _kGoogleAccountLabel);
+      });
+    },
+  );
+
+  group(
+    'brand_label_whitelist — Facebook AccountLabel (Phase 16 D-11) B2',
+    () {
+      test('ko: Facebook (Meta brand verbatim — 3 locale 동일)', () async {
+        await _verifyLocale('ko', _kFacebookAccountLabel);
+      });
+      test('en: Facebook (Meta brand verbatim)', () async {
+        await _verifyLocale('en', _kFacebookAccountLabel);
+      });
+      test('ja: Facebook (Meta brand verbatim)', () async {
+        await _verifyLocale('ja', _kFacebookAccountLabel);
+      });
+    },
+  );
+
+  group(
+    'brand_label_whitelist — Email AccountLabel (Phase 16 D-11) B3',
+    () {
+      test(
+        'ko: 이메일 / 비밀번호 (starter-kit Phase 9.2 P-A-narrow lock)',
+        () async {
+          await _verifyLocale('ko', _kEmailAccountLabel);
+        },
+      );
+      test('en: Email / Password (Phase 9.2 P-A-narrow lock)', () async {
+        await _verifyLocale('en', _kEmailAccountLabel);
+      });
+      test(
+        'ja: メール / パスワード (Phase 9.2 P-A-narrow lock)',
+        () async {
+          await _verifyLocale('ja', _kEmailAccountLabel);
+        },
+      );
+    },
+  );
+
+  group(
+    'brand_label_whitelist — LINE AccountLabel (Phase 16 D-11) B4',
+    () {
+      test(
+        'ko: 라인 ([ASSUMED 2026-05-29] starter-kit Phase 9.2 한글 표기 보존)',
+        () async {
+          await _verifyLocale('ko', _kLineAccountLabel);
+        },
+      );
+      test('en: LINE (LINE 공식 brand 자산 verbatim)', () async {
+        await _verifyLocale('en', _kLineAccountLabel);
+      });
+      test('ja: LINE (LINE 공식 brand 자산 verbatim)', () async {
+        await _verifyLocale('ja', _kLineAccountLabel);
+      });
+    },
+  );
+
+  group(
+    'brand_label_whitelist — YahooJp AccountLabel (Phase 16 D-11) B5',
+    () {
+      test(
+        'ko: Yahoo! JAPAN (with space + exclamation — Phase 15 D-YJP-07 mirror)',
+        () async {
+          await _verifyLocale('ko', _kYahoojpAccountLabel);
+        },
+      );
+      test(
+        'en: Yahoo! JAPAN (with space + exclamation — Phase 15 mirror)',
+        () async {
+          await _verifyLocale('en', _kYahoojpAccountLabel);
+        },
+      );
+      test(
+        'ja: Yahoo! JAPAN (with space + exclamation — Phase 15 mirror)',
+        () async {
+          await _verifyLocale('ja', _kYahoojpAccountLabel);
+        },
+      );
+    },
+  );
 }
