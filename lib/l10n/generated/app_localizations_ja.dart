@@ -356,6 +356,11 @@ class AppLocalizationsJa extends AppLocalizations {
       'このメールアドレスは別の方法で登録されています。最初に登録した方法でログインしてください。';
 
   @override
+  String errorAccountExistsWithProvider(String provider) {
+    return 'このメールアドレスは$providerで登録されています。$providerでログインしてください。';
+  }
+
+  @override
   String get authAccountProviderGoogle => 'Google';
 
   @override

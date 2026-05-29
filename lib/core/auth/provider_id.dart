@@ -64,3 +64,82 @@ const List<String> kAllProviderIds = <String>[
 /// - `kakao`    → `auth_provider_kakao_enabled`
 String rcKeyForProvider(String providerId) =>
     'auth_provider_${providerId}_enabled';
+
+/// 8 provider 인증 식별자 + ARB key 매핑 enum (Phase 9.2 deferred R1 부활).
+///
+/// **Phase 16 Task 4.1** — Phase 9.2 P-A-narrow 시점 deferred 되었던 R1 의
+/// client-side enum 인프라를 본 enum 으로 부활. `AccountLinkingSheet` (D-01/
+/// D-02/D-03) + `_resolveAccountExists` provider-aware variant (D-12) +
+/// `AccountExistsWithDifferentCredential.existingProvider` 필드 (D-12) 가
+/// 모두 본 enum 을 single source of truth 로 사용한다.
+///
+/// **slug 와의 관계:** [tryParse] 로 [kProviderIdGoogle] 등 slug 또는 Cloud
+/// Function `lookupSignInMethods` 응답 (`existingProvider: "kakao"`) 을
+/// 받아 enum 으로 변환한다. unknown slug → null (R2 unknown fallback).
+///
+/// **email 매핑 (`authAccountProviderEmailPassword`):** Email/Password 는 정확히
+/// 1 ARB key 만 보존 ("Email / Password"). slug `email` 은 `lookupSignInMethods`
+/// callable 의 native path (`providerData: ["password"]`) 응답에 사용된다.
+///
+/// **exhaustive switch 의무:** Dart 3 enhanced enum + switch expression
+/// exhaustive — 신규 provider 추가 시 analyze 가 unhandled case 발견 즉시
+/// BLOCKER. T-16-NEW-XX-ENUM mitigation.
+enum AccountProvider {
+  /// Google 로그인 (native, providerData=`google.com`).
+  google,
+
+  /// Apple 로그인 (native, providerData=`apple.com`).
+  apple,
+
+  /// Facebook 로그인 (native, providerData=`facebook.com`).
+  facebook,
+
+  /// Email/Password 로그인 (native, providerData=`password`).
+  email,
+
+  /// Kakao 로그인 (Custom Token, identity_index 기반).
+  kakao,
+
+  /// Naver 로그인 (Custom Token).
+  naver,
+
+  /// LINE 로그인 (Custom Token).
+  line,
+
+  /// Yahoo! JAPAN 로그인 (Custom Token).
+  yahoojp;
+
+  /// AppLocalizations getter 이름 — `authAccountProvider{X}` ARB key.
+  ///
+  /// 3 locale (ko/en/ja) 모두 `lib/l10n/app_*.arb` 에 정의 완료 (Phase 9.2
+  /// P-A-narrow 시점 정착). 본 getter 가 반환하는 key 는 exception_l10n.dart
+  /// 의 `_resolveProviderLabel` 와 AccountLinkingSheet 의 본문 라벨 변환에
+  /// 사용된다.
+  String get arbKey => switch (this) {
+    AccountProvider.google => 'authAccountProviderGoogle',
+    AccountProvider.apple => 'authAccountProviderApple',
+    AccountProvider.facebook => 'authAccountProviderFacebook',
+    AccountProvider.email => 'authAccountProviderEmailPassword',
+    AccountProvider.kakao => 'authAccountProviderKakao',
+    AccountProvider.naver => 'authAccountProviderNaver',
+    AccountProvider.line => 'authAccountProviderLine',
+    AccountProvider.yahoojp => 'authAccountProviderYahooJp',
+  };
+
+  /// slug 문자열을 [AccountProvider] 로 안전 변환한다.
+  ///
+  /// Cloud Function `lookupSignInMethods` 응답 (`{existingProvider: "kakao"}`
+  /// 또는 `{existingProvider: null}`) 의 매핑에 사용된다. 알 수 없는 slug 또는
+  /// `null` 입력은 `null` 반환 (R2 unknown fallback).
+  static AccountProvider? tryParse(String? slug) => switch (slug) {
+    'google' => AccountProvider.google,
+    'apple' => AccountProvider.apple,
+    'facebook' => AccountProvider.facebook,
+    'email' || 'password' => AccountProvider.email,
+    'kakao' => AccountProvider.kakao,
+    'naver' => AccountProvider.naver,
+    'line' => AccountProvider.line,
+    'yahoojp' => AccountProvider.yahoojp,
+    _ => null,
+  };
+}

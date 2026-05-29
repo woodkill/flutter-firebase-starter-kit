@@ -567,6 +567,17 @@
     "description": "Phase 9.2 R2 — used when account-exists-with-different-credential or 'already-exists' triggers without server-side provider identification. Phase 17 may add provider-aware variant via errorAccountExistsWithDifferentCredential placeholder."
   },
 
+  "errorAccountExistsWithProvider": "This email is already registered with {provider}. Please sign in with {provider}.",
+  "@errorAccountExistsWithProvider": {
+    "description": "Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point) — provider-aware variant of account-exists message. {provider} is the localized provider label (authAccountProvider{X}) injected by exception_l10n.dart#_resolveAccountExists L1 branch. R2 baseline (errorAccountExistsWithUnknownProvider) is retained for unknown fallback.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
   "authAccountProviderGoogle": "Google",
   "@authAccountProviderGoogle": {
     "description": "Provider label displayed in the account section when the user signed in with Google"

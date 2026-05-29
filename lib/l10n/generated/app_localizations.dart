@@ -760,6 +760,12 @@ abstract class AppLocalizations {
   /// **'This email is already registered with another sign-in method. Please sign in with the method you originally used.'**
   String get errorAccountExistsWithUnknownProvider;
 
+  /// Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point) — provider-aware variant of account-exists message. {provider} is the localized provider label (authAccountProvider{X}) injected by exception_l10n.dart#_resolveAccountExists L1 branch. R2 baseline (errorAccountExistsWithUnknownProvider) is retained for unknown fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'This email is already registered with {provider}. Please sign in with {provider}.'**
+  String errorAccountExistsWithProvider(String provider);
+
   /// Provider label displayed in the account section when the user signed in with Google
   ///
   /// In en, this message translates to:
