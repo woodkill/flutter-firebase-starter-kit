@@ -49,3 +49,8 @@ export {naverCustomToken} from "./auth/naver_custom_token";
 export {lineCustomToken} from "./auth/line_custom_token";
 // Phase 15 D-YJP-03/04/05/09 — Yahoo!JP OIDC ID Token → Firebase Custom Token.
 export {yahoojpCustomToken} from "./auth/yahoojp_custom_token";
+// Phase 16 Wave 0 sentinel — Plan 16-02 가 본체 채움 (D-04/06/07/08/09/10/14).
+export {linkCustomTokenProvider} from "./auth/link_custom_token_provider";
+export {deleteUserAccount} from "./auth/delete_user_account";
+export {lookupSignInMethods} from "./auth/lookup_sign_in_methods";
+export {mirrorTermsAcceptanceSnapshot} from "./auth/mirror_terms_acceptance";
