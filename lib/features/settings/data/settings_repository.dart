@@ -1,38 +1,101 @@
-// Phase 16 Plan 16-06 본체 채움 — Wave 0 sentinel placeholder.
+// Phase 16 Plan 16-06 / D-05~D-08 — SettingsRepository 본체.
 //
-// `SettingsRepository` 는 `deleteUserAccount` Cloud Function callable 을
-// 호출하는 wrapper. Plan 16-06 이 본체 (cloud_functions httpsCallable +
-// HttpsError → AppException 매핑) 를 add-only 로 확장한다.
+// `deleteUserAccount` Cloud Function callable wrapper:
+// - fresh ID Token 발급 (`getIdToken(true)`) — auth_time 갱신, 5분 boundary
+//   baseline (D-06).
+// - callable invoke + FirebaseFunctionsException 코드별 매핑
+//   (unauthenticated/permission-denied → ReauthenticationRequiredException,
+//   internal/그 외 → UnknownException).
+// - PII invariant — idToken 본문 / email 본문 logger 비전파 (S5 sentinel).
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../domain/delete_user_request.dart';
+import '../../../core/error/app_exception.dart';
+import '../../../core/providers/firebase_providers.dart';
 
 part 'settings_repository.g.dart';
 
-/// 사용자 설정 (탈퇴 등) 관련 Repository.
+/// 사용자 설정 (탈퇴 등) 관련 Repository (Phase 16 D-06).
 ///
-/// **Wave 0 sentinel placeholder** — Plan 16-06 이 본체 채움.
-///
-/// 본체 구현 시 mirror source: `lib/features/auth/data/auth_repository.dart`
-/// (Phase 6+) — cloud_functions httpsCallable + HttpsError → AppException
-/// 매핑 패턴 재사용.
+/// `deleteUserAccount` Cloud Function 호출 + FirebaseFunctionsException →
+/// [AppException] 매핑 + fresh ID Token 발급 (D-06 의 5분 auth_time
+/// boundary baseline).
 class SettingsRepository {
   /// [SettingsRepository] 를 생성한다.
-  const SettingsRepository();
+  SettingsRepository({
+    required fb.FirebaseAuth auth,
+    required FirebaseFunctions functions,
+  })  : _auth = auth,
+        _functions = functions;
 
-  /// 사용자 계정을 탈퇴 처리한다 (Phase 16 D-06).
+  final fb.FirebaseAuth _auth;
+  final FirebaseFunctions _functions;
+
+  /// `deleteUserAccount` callable 호출 타임아웃 — 10 초.
+  static const Duration _kDeleteTimeout = Duration(seconds: 10);
+
+  /// 사용자 계정을 탈퇴 처리한다 (Phase 16 D-06 / D-07 / D-08).
   ///
-  /// Plan 16-06 이 본체 (deleteUserAccount Cloud Function 호출 + HttpsError
-  /// 매핑) 를 채운다.
-  Future<void> deleteAccount(DeleteUserRequest request) {
-    throw UnimplementedError(
-      'Phase 16 Plan 16-06 implementation pending',
-    );
+  /// 흐름:
+  /// 1. `_auth.currentUser` null 검증 → null 이면 [UnauthenticatedException].
+  /// 2. `getIdToken(true /* forceRefresh */)` — fresh ID Token 발급 (D-06).
+  ///    auth_time 갱신으로 server-side 5분 boundary 통과.
+  /// 3. `deleteUserAccount` callable 호출 ({'idToken': idToken} payload).
+  /// 4. FirebaseFunctionsException 코드 매핑:
+  ///    - `unauthenticated` / `permission-denied` →
+  ///      [ReauthenticationRequiredException]
+  ///    - 그 외 (`internal` 포함) → [UnknownException]
+  ///
+  /// **PII invariant (S5 sentinel / T-16-NEW-07):** idToken 본문 / email 본문
+  /// 모두 logger payload 에 절대 전파되지 않는다. catch path 의 debugPrint 는
+  /// FirebaseFunctionsException 의 code 만 노출한다.
+  Future<void> requestAccountDeletion() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw const UnauthenticatedException();
+    }
+    final idToken = await user.getIdToken(true /* forceRefresh */);
+    try {
+      await _functions
+          .httpsCallable(
+            'deleteUserAccount',
+            options: HttpsCallableOptions(timeout: _kDeleteTimeout),
+          )
+          .call<Object?>(<String, dynamic>{'idToken': idToken});
+    } on FirebaseFunctionsException catch (e) {
+      // PII invariant: code 만 노출, message / details 본문 비전파.
+      if (kDebugMode) {
+        debugPrint(
+          'SettingsRepository.requestAccountDeletion: callable fail '
+          'code=${e.code}',
+        );
+      }
+      throw _mapDeleteError(e);
+    }
+  }
+
+  /// FirebaseFunctionsException 을 [AppException] 으로 매핑한다.
+  ///
+  /// - `unauthenticated` / `permission-denied` →
+  ///   [ReauthenticationRequiredException] (5분 boundary 초과 — 재로그인 필요)
+  /// - 그 외 (`internal`, `unknown`, `unavailable` 등) → [UnknownException]
+  AppException _mapDeleteError(FirebaseFunctionsException e) {
+    return switch (e.code) {
+      'unauthenticated' ||
+      'permission-denied' =>
+        ReauthenticationRequiredException(cause: e),
+      _ => UnknownException(cause: e),
+    };
   }
 }
 
-/// [SettingsRepository] 의 단일 인스턴스를 제공한다 (Wave 0 sentinel).
+/// [SettingsRepository] 의 단일 인스턴스를 제공한다 (Phase 16 D-06).
 @Riverpod(keepAlive: true)
 SettingsRepository settingsRepository(Ref ref) {
-  return const SettingsRepository();
+  return SettingsRepository(
+    auth: ref.watch(firebaseAuthProvider),
+    functions: ref.watch(firebaseFunctionsProvider),
+  );
 }

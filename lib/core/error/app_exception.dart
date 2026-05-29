@@ -148,6 +148,44 @@ final class AccountExistsWithDifferentCredential extends AuthException {
   final AccountProvider? existingProvider;
 }
 
+/// 재인증 필요 (Phase 16 D-06 / D-07).
+///
+/// `deleteUserAccount` Cloud Function 이 `unauthenticated` 또는
+/// `permission-denied` 코드와 함께 `errorReauthenticationRequired` 메시지를
+/// 반환할 때 매핑된다. 5분 auth_time boundary 초과 시 발생 — 사용자는
+/// `/login` 으로 redirect 후 재로그인 의무.
+final class ReauthenticationRequiredException extends AuthException {
+  /// [ReauthenticationRequiredException]을 생성한다.
+  const ReauthenticationRequiredException({super.cause})
+    : super(userMessage: 'errorReauthenticationRequired');
+}
+
+/// 인증되지 않은 호출 (Phase 16 D-06).
+///
+/// `SettingsRepository.requestAccountDeletion` 진입 시
+/// `FirebaseAuth.instance.currentUser == null` 일 때 throw 된다.
+/// 로그아웃 상태에서의 탈퇴 호출을 가드한다.
+final class UnauthenticatedException extends AuthException {
+  /// [UnauthenticatedException]을 생성한다.
+  const UnauthenticatedException({super.cause})
+    : super(userMessage: 'errorUnauthenticated');
+}
+
+// ---------------------------------------------------------------------------
+// 일반 예외
+// ---------------------------------------------------------------------------
+
+/// 분류되지 않은 일반 오류 (Phase 16 D-06).
+///
+/// `deleteUserAccount` Cloud Function 이 `internal` 등 server-side
+/// 일반 오류 코드를 반환할 때 매핑된다. 사용자에게는 "탈퇴 실패, 재시도"
+/// 안내 (UI-SPEC Surface C) 가 표시된다.
+final class UnknownException extends AppException {
+  /// [UnknownException]을 생성한다.
+  const UnknownException({super.cause})
+    : super(userMessage: 'errorUnknown');
+}
+
 // ---------------------------------------------------------------------------
 // 서버 관련 예외
 // ---------------------------------------------------------------------------
