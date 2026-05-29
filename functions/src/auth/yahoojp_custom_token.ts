@@ -58,13 +58,14 @@
  */
 // Phase 15 — see ROADMAP.md
 import {getAuth} from "firebase-admin/auth";
-import {getFirestore} from "firebase-admin/firestore";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
 import {createOidcVerifier} from "../shared/oidc_verifier";
+import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
 import {resolveIdentity} from "./identity_index";
 
 // Phase 15 D-YJP-03 — Secret Manager 주입.
@@ -104,7 +105,18 @@ const verifyYahoojpIdToken = createOidcVerifier({
   nonceHashing: "none",
 });
 
-type YahoojpCustomTokenRequest = {idToken: string; nonce: string};
+type YahoojpCustomTokenRequest = {
+  idToken: string;
+  nonce: string;
+  /**
+   * Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — add-only optional.
+   *
+   * client (Plan 16-04) 의 Custom Token sign-up path 에서 신규 정식 UID 생성
+   * 직후 termsAccepted Firestore mirror 의무. snapshot=undefined 일 때 기존
+   * behavior 보존 (회귀 0).
+   */
+  termsAcceptanceSnapshot?: TermsAcceptanceJson;
+};
 type YahoojpCustomTokenResponse = {
   customToken: string;
   uid: string;
@@ -255,6 +267,48 @@ export const yahoojpCustomToken = onCall<YahoojpCustomTokenRequest>(
         "createCustomToken threw",
       );
       throw new HttpsError("internal", "errorUnknown");
+    }
+
+    // Step 3.5 (Phase 16 D-13/D-14 — Plan 16-03 Task 3.2):
+    // termsAcceptanceSnapshot atomic mirror — Phase 14.1 A6 root cause fix
+    // 의 Custom Token branch. {merge:true} 의무. snapshot=undefined 시 skip.
+    const termsSnapshot = data.termsAcceptanceSnapshot;
+    if (termsSnapshot) {
+      try {
+        await getFirestore()
+          .collection("users")
+          .doc(uid)
+          .set(
+            {
+              termsAccepted: {
+                version: termsSnapshot.version,
+                service: termsSnapshot.service,
+                privacy: termsSnapshot.privacy,
+                marketing: termsSnapshot.marketing,
+                acceptedAt: Timestamp.fromDate(
+                  new Date(termsSnapshot.acceptedAt),
+                ),
+              },
+            },
+            {merge: true},
+          );
+        logger.info(
+          {
+            event: "yahoojp_terms_acceptance_mirrored",
+            uid,
+            terms_mirrored: true,
+            version: termsSnapshot.version,
+          },
+          "terms acceptance mirrored",
+        );
+      } catch (err: unknown) {
+        const errCode = err instanceof Error ? err.name : "unknown";
+        logger.error(
+          {event: "yahoojp_terms_acceptance_mirror_failed", uid, code: errCode},
+          "terms acceptance mirror set merge threw",
+        );
+        throw new HttpsError("internal", "errorUnknown");
+      }
     }
 
     // Step 4: structured log — uid + isNewUser 만 (PII 금지).

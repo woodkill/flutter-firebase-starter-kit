@@ -57,12 +57,17 @@ const mockTxGet = jest.fn();
 const mockTxSet = jest.fn();
 const mockTxUpdate = jest.fn();
 const mockIdxGet = jest.fn();
+// Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot mirror.
+const mockUserDocSet = jest.fn().mockResolvedValue(undefined);
 jest.mock("firebase-admin/firestore", () => {
   const idxRef = {
     get: (...args: unknown[]) => mockIdxGet(...args),
     label: "idxRef",
   };
-  const userRef = {label: "userRef"};
+  const userRef = {
+    label: "userRef",
+    set: (...args: unknown[]) => mockUserDocSet(...args),
+  };
   return {
     Firestore: class MockFirestore {},
     getFirestore: jest.fn(() => ({
@@ -75,6 +80,10 @@ jest.mock("firebase-admin/firestore", () => {
     FieldValue: {
       serverTimestamp: () => "MOCK_TIMESTAMP",
       arrayUnion: (item: unknown) => ({mockArrayUnion: item}),
+    },
+    // Phase 16 D-13/D-14 — Timestamp.fromDate sentinel.
+    Timestamp: {
+      fromDate: (d: Date) => ({_kind: "MOCK_TIMESTAMP", iso: d.toISOString()}),
     },
   };
 });
@@ -788,6 +797,91 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       for (const args of warnMock.mock.calls) {
         expect(JSON.stringify(args)).not.toContain("PII_OPTC_ok@naver.com");
       }
+    },
+  );
+
+  // Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot arg
+  // add-only. snapshot=undefined 시 기존 11 case 회귀 0 보장 (C1) + snapshot
+  // present 시 5 필드 atomic mirror (C2).
+  it(
+    // eslint-disable-next-line max-len
+    "C1: termsAcceptanceSnapshot=undefined → 기존 behavior 보존 (users/{uid} 직접 set 호출 0)",
+    async () => {
+      mockFetchOk({
+        resultcode: "00",
+        message: "success",
+        response: {id: "naver-C1"},
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      mockUserDocSet.mockClear();
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      const result = (await wrapped({
+        auth: {uid: "anon-naver-C1"},
+        app: {appId: "test"},
+        data: {accessToken: "FAKE_NAVER_TOKEN_C1"},
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
+      expect(mockUserDocSet).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "C2: termsAcceptanceSnapshot present → users/{uid}.termsAccepted 5 필드 atomic mirror (merge:true)",
+    async () => {
+      mockFetchOk({
+        resultcode: "00",
+        message: "success",
+        response: {id: "naver-C2"},
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      mockUserDocSet.mockClear();
+
+      const snapshot = {
+        version: 2,
+        service: true,
+        privacy: true,
+        marketing: true,
+        acceptedAt: "2026-05-29T13:00:00.000Z",
+      };
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      await wrapped({
+        auth: {uid: "anon-naver-C2"},
+        app: {appId: "test"},
+        data: {
+          accessToken: "FAKE_NAVER_TOKEN_C2",
+          termsAcceptanceSnapshot: snapshot,
+        },
+      } as never);
+
+      expect(mockUserDocSet).toHaveBeenCalledTimes(1);
+      const [payload, options] = mockUserDocSet.mock.calls[0] as [
+        {termsAccepted: Record<string, unknown>},
+        {merge: boolean},
+      ];
+      expect(payload.termsAccepted.version).toBe(2);
+      expect(typeof payload.termsAccepted.version).toBe("number");
+      expect(payload.termsAccepted.service).toBe(true);
+      expect(payload.termsAccepted.privacy).toBe(true);
+      expect(payload.termsAccepted.marketing).toBe(true);
+      const acceptedAt = payload.termsAccepted.acceptedAt as {
+        _kind: string;
+        iso: string;
+      };
+      expect(acceptedAt._kind).toBe("MOCK_TIMESTAMP");
+      expect(acceptedAt.iso).toBe("2026-05-29T13:00:00.000Z");
+      expect(options).toEqual({merge: true});
+      // info log — terms_mirrored sentinel.
+      const termsMirrorInfoCalls = infoMock.mock.calls.filter((args) => {
+        const ev = (args[0] as {terms_mirrored?: boolean})?.terms_mirrored;
+        return ev === true;
+      });
+      expect(termsMirrorInfoCalls.length).toBeGreaterThanOrEqual(1);
     },
   );
 });

@@ -76,12 +76,19 @@ const mockTxGet = jest.fn();
 const mockTxSet = jest.fn();
 const mockTxUpdate = jest.fn();
 const mockIdxGet = jest.fn();
+// Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot mirror
+// 의 users/{uid}.set 호출 mock. transaction 외부의 직접 set merge — endpoint
+// 본체 마지막 단계 (createCustomToken 성공 후).
+const mockUserDocSet = jest.fn().mockResolvedValue(undefined);
 jest.mock("firebase-admin/firestore", () => {
   const idxRef = {
     get: (...args: unknown[]) => mockIdxGet(...args),
     label: "idxRef",
   };
-  const userRef = {label: "userRef"};
+  const userRef = {
+    label: "userRef",
+    set: (...args: unknown[]) => mockUserDocSet(...args),
+  };
   return {
     Firestore: class MockFirestore {},
     getFirestore: jest.fn(() => ({
@@ -94,6 +101,11 @@ jest.mock("firebase-admin/firestore", () => {
     FieldValue: {
       serverTimestamp: () => "MOCK_TIMESTAMP",
       arrayUnion: (item: unknown) => ({mockArrayUnion: item}),
+    },
+    // Phase 16 D-13/D-14 — Timestamp.fromDate sentinel — 5 필드 mirror 의
+    // acceptedAt 변환 검증용 mock. ISO 문자열 round-trip 검증.
+    Timestamp: {
+      fromDate: (d: Date) => ({_kind: "MOCK_TIMESTAMP", iso: d.toISOString()}),
     },
   };
 });
@@ -910,6 +922,99 @@ describe("kakaoCustomToken onCall", () => {
         email: "PII_OPTC_unverified@kakao.com",
         email_verified: false,
       });
+    },
+  );
+
+  // Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot arg
+  // add-only. snapshot=undefined 시 기존 11 case 회귀 0 보장 (C1) + snapshot
+  // present 시 5 필드 atomic mirror (C2). Phase 14.1 A6 termsAccepted flip
+  // bug root cause fix 의 Custom Token side.
+  it(
+    // eslint-disable-next-line max-len
+    "C1: termsAcceptanceSnapshot=undefined → 기존 behavior 보존 (users/{uid} 직접 set 호출 0)",
+    async () => {
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-C1",
+        nonce: "n",
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      mockUserDocSet.mockClear();
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const result = (await wrapped({
+        auth: {uid: "anon-C1"},
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+        // termsAcceptanceSnapshot 미전달 — 기존 11 case 회귀 보존.
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.customToken).toBe("MOCK_CUSTOM_TOKEN");
+      expect(result.uid).toBe("anon-C1");
+      // 핵심 — users/{uid} 직접 set 호출 0 (transaction 내부 tx.set 만).
+      expect(mockUserDocSet).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "C2: termsAcceptanceSnapshot present → users/{uid}.termsAccepted 5 필드 atomic mirror (merge:true)",
+    async () => {
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-C2",
+        nonce: "n",
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      mockUserDocSet.mockClear();
+
+      const snapshot = {
+        version: 1,
+        service: true,
+        privacy: true,
+        marketing: false,
+        acceptedAt: "2026-05-29T12:00:00.000Z",
+      };
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const result = (await wrapped({
+        auth: {uid: "anon-C2"},
+        app: {appId: "test"},
+        data: {
+          idToken: "FAKE",
+          nonce: "n",
+          termsAcceptanceSnapshot: snapshot,
+        },
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.uid).toBe("anon-C2");
+      // 핵심 — users/{uid}.set 1회 호출 (Custom Token issue 이후).
+      expect(mockUserDocSet).toHaveBeenCalledTimes(1);
+      const [payload, options] = mockUserDocSet.mock.calls[0] as [
+        {termsAccepted: Record<string, unknown>},
+        {merge: boolean},
+      ];
+      // 5 필드 verbatim mirror (Pitfall 4 schema sentinel).
+      expect(payload.termsAccepted.version).toBe(1);
+      expect(typeof payload.termsAccepted.version).toBe("number");
+      expect(payload.termsAccepted.service).toBe(true);
+      expect(payload.termsAccepted.privacy).toBe(true);
+      expect(payload.termsAccepted.marketing).toBe(false);
+      // acceptedAt 은 Timestamp.fromDate(new Date(ISO)) — mock 가 _kind sentinel.
+      const acceptedAt = payload.termsAccepted.acceptedAt as {
+        _kind: string;
+        iso: string;
+      };
+      expect(acceptedAt._kind).toBe("MOCK_TIMESTAMP");
+      expect(acceptedAt.iso).toBe("2026-05-29T12:00:00.000Z");
+      // merge:true 의무 (기존 users/{uid} 필드 보존).
+      expect(options).toEqual({merge: true});
+      // info log — terms_mirrored sentinel (version 만 노출, 본체 미노출).
+      const termsMirrorInfoCalls = infoMock.mock.calls.filter((args) => {
+        const ev = (args[0] as {terms_mirrored?: boolean})?.terms_mirrored;
+        return ev === true;
+      });
+      expect(termsMirrorInfoCalls.length).toBeGreaterThanOrEqual(1);
     },
   );
 });

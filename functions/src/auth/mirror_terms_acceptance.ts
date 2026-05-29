@@ -19,25 +19,8 @@ import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
+import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
 import {fingerprintError} from "./identity_index";
-
-/**
- * TermsAcceptance snapshot JSON — client Freezed model 5 필드 verbatim mirror
- * (lib/features/terms/domain/terms_acceptance.dart). RESEARCH §
- * Incompatibility #1 의 정정 채택 schema.
- */
-type TermsAcceptanceJson = {
-  /** 약관 버전 (TermsNotifier.currentVersion 매칭). */
-  version: number;
-  /** 이용약관 동의 (필수). */
-  service: boolean;
-  /** 개인정보처리방침 동의 (필수). */
-  privacy: boolean;
-  /** 마케팅 정보 수신 동의 (선택). */
-  marketing: boolean;
-  /** 사용자 동의 시각 — ISO 8601 (client toJson 직렬화 후 Timestamp.fromDate). */
-  acceptedAt: string;
-};
 
 type MirrorTermsAcceptanceSnapshotRequest = {
   /** TermsAcceptance 5 필드 snapshot. */
