@@ -56,4 +56,10 @@ abstract final class AppRoutes {
 
   /// 약관(개인정보처리방침) 상세 화면 name.
   static const String termsPrivacyName = 'termsPrivacy';
+
+  /// 설정 화면 path (Phase 16 D-05).
+  static const String settings = '/settings';
+
+  /// 설정 화면 name (Phase 16 D-05).
+  static const String settingsName = 'settings';
 }

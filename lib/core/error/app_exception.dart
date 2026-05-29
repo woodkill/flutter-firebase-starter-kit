@@ -171,20 +171,6 @@ final class UnauthenticatedException extends AuthException {
     : super(userMessage: 'errorUnauthenticated');
 }
 
-// ---------------------------------------------------------------------------
-// 일반 예외
-// ---------------------------------------------------------------------------
-
-/// 분류되지 않은 일반 오류 (Phase 16 D-06).
-///
-/// `deleteUserAccount` Cloud Function 이 `internal` 등 server-side
-/// 일반 오류 코드를 반환할 때 매핑된다. 사용자에게는 "탈퇴 실패, 재시도"
-/// 안내 (UI-SPEC Surface C) 가 표시된다.
-final class UnknownException extends AppException {
-  /// [UnknownException]을 생성한다.
-  const UnknownException({super.cause})
-    : super(userMessage: 'errorUnknown');
-}
 
 // ---------------------------------------------------------------------------
 // 서버 관련 예외
@@ -210,4 +196,15 @@ final class ServiceUnavailable extends ServerException {
   /// [ServiceUnavailable]을 생성한다.
   const ServiceUnavailable({super.cause})
     : super(userMessage: 'errorServiceUnavailable');
+}
+
+/// 분류되지 않은 일반 서버 오류 (Phase 16 D-06).
+///
+/// `deleteUserAccount` Cloud Function 이 `internal` 등 server-side
+/// 일반 오류 코드를 반환할 때 매핑된다. 사용자에게는 "탈퇴 실패, 재시도"
+/// 안내 (UI-SPEC Surface C / withdrawalFailure SnackBar) 가 표시된다.
+final class UnknownException extends ServerException {
+  /// [UnknownException]을 생성한다.
+  const UnknownException({super.cause})
+    : super(userMessage: 'errorUnknown');
 }
