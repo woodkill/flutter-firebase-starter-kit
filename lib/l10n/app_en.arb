@@ -559,21 +559,21 @@
 
   "errorAccountExistsWithDifferentCredential": "This email is already registered with a different sign-in method. Please sign in with your password.",
   "@errorAccountExistsWithDifferentCredential": {
-    "description": "Phase 17 anchor — currently unreachable via D-13 early return in exception_l10n.dart. Do not delete (3-tier ARB+getter+arm infrastructure)."
+    "description": "Phase 16 R1 부활 anchor (was Phase 17 anchor) — placeholder {provider} 활용 가능 via errorAccountExistsWithProvider. Do not delete (3-tier ARB+getter+arm infrastructure)."
   },
 
   "errorAccountExistsWithUnknownProvider": "This email is already registered with another sign-in method. Please sign in with the method you originally used.",
   "@errorAccountExistsWithUnknownProvider": {
-    "description": "Phase 9.2 R2 — used when account-exists-with-different-credential or 'already-exists' triggers without server-side provider identification. Phase 17 may add provider-aware variant via errorAccountExistsWithDifferentCredential placeholder."
+    "description": "Phase 9.2 R2 baseline 보존 — used when account-exists-with-different-credential or 'already-exists' triggers without server-side provider identification (lookupSignInMethods callable fail 시 fallback path). errorAccountExistsWithProvider 가 L1 (provider-aware), 본 키 가 L2 (unknown fallback)."
   },
 
-  "errorAccountExistsWithProvider": "This email is already registered with {provider}. Please sign in with {provider}.",
+  "errorAccountExistsWithProvider": "This email is registered with {provider}. Sign in with {provider} to link your account.",
   "@errorAccountExistsWithProvider": {
-    "description": "Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point) — provider-aware variant of account-exists message. {provider} is the localized provider label (authAccountProvider{X}) injected by exception_l10n.dart#_resolveAccountExists L1 branch. R2 baseline (errorAccountExistsWithUnknownProvider) is retained for unknown fallback.",
+    "description": "Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point). {provider} placeholder 는 8 brand verbatim 라벨 (audit trail: authAccountProvider{X} 8 ARB key — Google/Apple/Facebook/EmailPassword/Kakao/Naver/Line/YahooJp). exception_l10n.dart#_resolveAccountExists L1 branch 가 injection. SDK strings.xml > 공식 가이드 > 자산 embed 우선순위 (memory feedback_label_verbatim_audit).",
     "placeholders": {
       "provider": {
         "type": "String",
-        "example": "Google"
+        "example": "Kakao"
       }
     }
   },
@@ -830,9 +830,9 @@
     "description": "LoginPromptSheet text link that navigates to the email form"
   },
 
-  "accountLinkingDismiss": "Sign in another way",
+  "accountLinkingDismiss": "Sign in with another method",
   "@accountLinkingDismiss": {
-    "description": "Phase 16 D-03 — AccountLinkingSheet TextButton (cancel/dismiss). 탭 시 Navigator.pop(false) — linkedProviders 변경 0 (Phase 10.2 D-20 invariant 보존)."
+    "description": "Phase 16 D-03 / UI-SPEC Surface A verbatim — AccountLinkingSheet TextButton (cancel/dismiss). 탭 시 Navigator.pop(false) — linkedProviders 변경 0 (Phase 10.2 D-20 invariant 보존)."
   },
 
   "devToolsSectionTitle": "Dev Tools",
@@ -878,5 +878,118 @@
   "devToolsForceSignOut": "Force sign out",
   "@devToolsForceSignOut": {
     "description": "Dev tools action: force FirebaseAuth.signOut"
+  },
+
+  "accountLinkingSheetTitle": "Email already in use",
+  "@accountLinkingSheetTitle": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface A verbatim — AccountLinkingSheet header title. 본문 (errorAccountExistsWithProvider) 위 표제로 노출."
+  },
+
+  "settingsTitle": "Settings",
+  "@settingsTitle": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings screen AppBar title."
+  },
+
+  "settingsAccountSection": "My Account",
+  "@settingsAccountSection": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'My Account' section header (이메일 + 연결된 로그인 노출)."
+  },
+
+  "settingsAccountEmail": "{email}",
+  "@settingsAccountEmail": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings account email placeholder (3 locale identical pass-through).",
+    "placeholders": {
+      "email": {
+        "type": "String",
+        "example": "user@example.com"
+      }
+    }
+  },
+
+  "settingsLinkedProviders": "Linked sign-in: {providers}",
+  "@settingsLinkedProviders": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings linked-providers row. {providers} 는 authAccountProvider{X} 8 brand verbatim 라벨의 comma-joined list.",
+    "placeholders": {
+      "providers": {
+        "type": "String",
+        "example": "Kakao, Google"
+      }
+    }
+  },
+
+  "settingsDangerZoneSection": "Danger zone",
+  "@settingsDangerZoneSection": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone')."
+  },
+
+  "settingsDangerZoneExplainer": "These actions cannot be undone.",
+  "@settingsDangerZoneExplainer": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Danger zone subheader caption (회원탈퇴 위 경고문)."
+  },
+
+  "settingsWithdrawalLabel": "Delete account",
+  "@settingsWithdrawalLabel": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings withdrawal entry tile label. 탭 시 WithdrawalDialog 진입."
+  },
+
+  "withdrawalDialogTitle": "Delete account",
+  "@withdrawalDialogTitle": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog title."
+  },
+
+  "withdrawalDialogBodyLine1": "Your account and all data will be permanently deleted.",
+  "@withdrawalDialogBodyLine1": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog body line 1 (영구 삭제 명시)."
+  },
+
+  "withdrawalDialogBodyLine2": "This action cannot be undone.",
+  "@withdrawalDialogBodyLine2": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog body line 2 (복구 불가 명시)."
+  },
+
+  "withdrawalDialogBodyLine3": "To rejoin, you must register again with the same email or the same sign-in method.",
+  "@withdrawalDialogBodyLine3": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog body line 3 (재가입 시 동일 이메일/방식 신규 등록 명시)."
+  },
+
+  "withdrawalConfirmFieldHint": "delete",
+  "@withdrawalConfirmFieldHint": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal confirm TextField hint (사용자가 입력해야 하는 phrase)."
+  },
+
+  "withdrawalConfirmFieldLabel": "Type \"{phrase}\" to continue.",
+  "@withdrawalConfirmFieldLabel": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal confirm TextField label/description. {phrase} 는 withdrawalConfirmFieldHint 와 동일 문구.",
+    "placeholders": {
+      "phrase": {
+        "type": "String",
+        "example": "delete"
+      }
+    }
+  },
+
+  "withdrawalConfirmAction": "Delete",
+  "@withdrawalConfirmAction": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog confirm action button (destructive)."
+  },
+
+  "withdrawalReauthRequired": "For security, please sign in again and retry.",
+  "@withdrawalReauthRequired": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog re-auth required SnackBar/message (recent-login 만료 시)."
+  },
+
+  "withdrawalSuccess": "Account deleted.",
+  "@withdrawalSuccess": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal success SnackBar message."
+  },
+
+  "withdrawalFailure": "Could not delete account. Please try again.",
+  "@withdrawalFailure": {
+    "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal failure SnackBar message (generic fallback)."
+  },
+
+  "withdrawalConfirmActionSemantic": "Withdraw account — permanent deletion, cannot be undone",
+  "@withdrawalConfirmActionSemantic": {
+    "description": "Phase 16 D-08 destructive intent Semantics label — UI-SPEC line 332 verbatim 채택 (Warning 7). Plan 16-06 Task 6.2 WC10 의 withdrawalConfirmAction 버튼 Semantics label 이 본 key consume 의무. 시각 라벨 (withdrawalConfirmAction='Delete') 과 분리 — 스크린리더 사용자에게 destructive intent + 영구성 + 비가역성 명시."
   }
 }

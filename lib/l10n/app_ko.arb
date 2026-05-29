@@ -140,7 +140,7 @@
   "authGoogleSignIn": "Google로 로그인",
   "errorAccountExistsWithDifferentCredential": "이 이메일은 다른 방식으로 가입되어 있습니다. 비밀번호로 로그인해 주세요.",
   "errorAccountExistsWithUnknownProvider": "이 이메일은 다른 방식으로 가입되어 있습니다. 처음 가입한 방식으로 다시 로그인해 주세요.",
-  "errorAccountExistsWithProvider": "이 이메일은 {provider}(으)로 가입되어 있습니다. {provider}(으)로 로그인해 주세요.",
+  "errorAccountExistsWithProvider": "이 이메일은 {provider}로 가입되어 있습니다. {provider}로 로그인하여 계정을 연결하세요.",
   "authAccountProviderGoogle": "Google",
   "authAppleSignIn": "Apple로 로그인",
   "authAccountProviderApple": "Apple",
@@ -232,5 +232,28 @@
   "devToolsTriggerErrorDone": "Crashlytics에 테스트 에러를 보냈어요.",
   "devToolsTriggerAnalytics": "Analytics 이벤트 전송",
   "devToolsTriggerAnalyticsDone": "Analytics 테스트 이벤트를 보냈어요.",
-  "devToolsForceSignOut": "강제 로그아웃"
+  "devToolsForceSignOut": "강제 로그아웃",
+
+  "accountLinkingSheetTitle": "이미 가입된 이메일입니다",
+
+  "settingsTitle": "설정",
+  "settingsAccountSection": "내 계정",
+  "settingsAccountEmail": "{email}",
+  "settingsLinkedProviders": "연결된 로그인: {providers}",
+  "settingsDangerZoneSection": "Danger zone",
+  "settingsDangerZoneExplainer": "아래 작업은 복구할 수 없습니다.",
+  "settingsWithdrawalLabel": "회원탈퇴",
+
+  "withdrawalDialogTitle": "회원탈퇴",
+  "withdrawalDialogBodyLine1": "이 계정과 모든 데이터는 영구 삭제됩니다.",
+  "withdrawalDialogBodyLine2": "삭제 후에는 복구할 수 없습니다.",
+  "withdrawalDialogBodyLine3": "다시 가입하려면 동일 이메일 또는 동일 로그인 방식으로 신규 등록해야 합니다.",
+  "withdrawalConfirmFieldHint": "탈퇴",
+  "withdrawalConfirmFieldLabel": "계속하려면 \"{phrase}\"를 입력하세요.",
+  "withdrawalConfirmAction": "탈퇴",
+  "withdrawalReauthRequired": "보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.",
+  "withdrawalSuccess": "회원탈퇴가 완료되었습니다.",
+  "withdrawalFailure": "회원탈퇴에 실패했습니다. 다시 시도해 주세요.",
+
+  "withdrawalConfirmActionSemantic": "회원탈퇴 — 영구 삭제, 복구 불가"
 }

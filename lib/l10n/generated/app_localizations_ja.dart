@@ -357,7 +357,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String errorAccountExistsWithProvider(String provider) {
-    return 'このメールアドレスは$providerで登録されています。$providerでログインしてください。';
+    return 'このメールアドレスは$providerで登録されています。$providerでログインしてアカウントを連携してください。';
   }
 
   @override
@@ -539,4 +539,68 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get devToolsForceSignOut => '強制ログアウト';
+
+  @override
+  String get accountLinkingSheetTitle => '登録済みのメールアドレスです';
+
+  @override
+  String get settingsTitle => '設定';
+
+  @override
+  String get settingsAccountSection => 'アカウント';
+
+  @override
+  String settingsAccountEmail(String email) {
+    return '$email';
+  }
+
+  @override
+  String settingsLinkedProviders(String providers) {
+    return '連携済みログイン: $providers';
+  }
+
+  @override
+  String get settingsDangerZoneSection => 'Danger zone';
+
+  @override
+  String get settingsDangerZoneExplainer => '以下の操作は取り消せません。';
+
+  @override
+  String get settingsWithdrawalLabel => 'アカウントを削除';
+
+  @override
+  String get withdrawalDialogTitle => 'アカウントを削除';
+
+  @override
+  String get withdrawalDialogBodyLine1 => 'アカウントとすべてのデータが完全に削除されます。';
+
+  @override
+  String get withdrawalDialogBodyLine2 => '削除後に復元することはできません。';
+
+  @override
+  String get withdrawalDialogBodyLine3 =>
+      '再登録するには、同じメールアドレスまたは同じログイン方法で新規登録する必要があります。';
+
+  @override
+  String get withdrawalConfirmFieldHint => '削除';
+
+  @override
+  String withdrawalConfirmFieldLabel(String phrase) {
+    return '続行するには「$phrase」と入力してください。';
+  }
+
+  @override
+  String get withdrawalConfirmAction => '削除';
+
+  @override
+  String get withdrawalReauthRequired => 'セキュリティのため、再ログインしてから再試行してください。';
+
+  @override
+  String get withdrawalSuccess => 'アカウントを削除しました。';
+
+  @override
+  String get withdrawalFailure => 'アカウントを削除できませんでした。再試行してください。';
+
+  @override
+  String get withdrawalConfirmActionSemantic => 'アカウント退会 — 永久削除、復元不可';
 }

@@ -363,7 +363,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String errorAccountExistsWithProvider(String provider) {
-    return 'This email is already registered with $provider. Please sign in with $provider.';
+    return 'This email is registered with $provider. Sign in with $provider to link your account.';
   }
 
   @override
@@ -522,7 +522,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authContinueWithEmail => 'Continue with email';
 
   @override
-  String get accountLinkingDismiss => 'Sign in another way';
+  String get accountLinkingDismiss => 'Sign in with another method';
 
   @override
   String get devToolsSectionTitle => 'Dev Tools';
@@ -551,4 +551,71 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get devToolsForceSignOut => 'Force sign out';
+
+  @override
+  String get accountLinkingSheetTitle => 'Email already in use';
+
+  @override
+  String get settingsTitle => 'Settings';
+
+  @override
+  String get settingsAccountSection => 'My Account';
+
+  @override
+  String settingsAccountEmail(String email) {
+    return '$email';
+  }
+
+  @override
+  String settingsLinkedProviders(String providers) {
+    return 'Linked sign-in: $providers';
+  }
+
+  @override
+  String get settingsDangerZoneSection => 'Danger zone';
+
+  @override
+  String get settingsDangerZoneExplainer => 'These actions cannot be undone.';
+
+  @override
+  String get settingsWithdrawalLabel => 'Delete account';
+
+  @override
+  String get withdrawalDialogTitle => 'Delete account';
+
+  @override
+  String get withdrawalDialogBodyLine1 =>
+      'Your account and all data will be permanently deleted.';
+
+  @override
+  String get withdrawalDialogBodyLine2 => 'This action cannot be undone.';
+
+  @override
+  String get withdrawalDialogBodyLine3 =>
+      'To rejoin, you must register again with the same email or the same sign-in method.';
+
+  @override
+  String get withdrawalConfirmFieldHint => 'delete';
+
+  @override
+  String withdrawalConfirmFieldLabel(String phrase) {
+    return 'Type \"$phrase\" to continue.';
+  }
+
+  @override
+  String get withdrawalConfirmAction => 'Delete';
+
+  @override
+  String get withdrawalReauthRequired =>
+      'For security, please sign in again and retry.';
+
+  @override
+  String get withdrawalSuccess => 'Account deleted.';
+
+  @override
+  String get withdrawalFailure => 'Could not delete account. Please try again.';
+
+  @override
+  String get withdrawalConfirmActionSemantic =>
+      'Withdraw account — permanent deletion, cannot be undone';
 }
