@@ -35,9 +35,10 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 8. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
 9. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
 10. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-11. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
-12. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-13. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+11. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
+12. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+13. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+14. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
 
 ---
 
@@ -1958,6 +1959,110 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 
 ---
 
+## Account Linking & Withdrawal
+
+> Phase 16 D-05~D-16 + Phase 9.2 R1 부활 + Phase 14.1 A6 root cause fix. 최종 수정일: 2026-05-29 (Plan 16-06).
+
+본 단락은 Phase 16 에서 추가된 동일 이메일 Account Linking 와 회원탈퇴 (Hard delete + GDPR right-to-be-forgotten) flow 의 사용자 매뉴얼이다. Phase 9.2 P-A-narrow 시점에 deferred 됐던 R1 (provider-aware account-exists 메시지) 가 Phase 16 D-12 wiring 으로 부활됐고, 회원탈퇴 (Plan 9.2 deferred) 가 Plan 16-06 까지 완성됐다.
+
+### 동일 이메일 Account Linking
+
+**진입 시나리오 (D-01~D-04):** 사용자가 이미 Google 로 가입한 이메일 (예: user@gmail.com) 로 Apple 로그인을 시도하면 Firebase Auth 가 `account-exists-with-different-credential` 코드와 함께 충돌 이메일을 반환한다. 본 starter-kit 은 다음과 같이 동작한다:
+
+1. **server-side `lookupSignInMethods` callable** (Plan 16-02) — 충돌 이메일에 대한 기존 provider 식별. identity_index 컬렉션 (Plan 16-03) 의 `conflictKind.existingProvider` 또는 Firebase Auth 의 `fetchSignInMethodsForEmail` 결과를 매핑한다.
+2. **client-side `AccountLinkingSheet`** (Plan 16-04) — Material 3 Modal Bottom Sheet 본체. 본문 메시지는 provider-aware (예: "이 이메일은 Google 로 가입되어 있습니다. Google 로 로그인하여 계정을 연결하세요.") + 단일 BrandedSocialButton (D-02 single button 정책 — 정확한 기존 provider 만 노출하여 사용자 confusion 차단) + dismiss TextButton (D-03 cancel — Navigator.pop(false)).
+3. **native↔native vs Custom Token 분기 (D-04):**
+   - **Native 4 provider (Google/Apple/Facebook/Email):** Firebase Auth 의 `User.linkWithCredential` 로 직접 연결.
+   - **Custom Token 4 provider (Kakao/Naver/LINE/Yahoo!JP):** `linkCustomTokenProvider` callable (server-side hybrid) — 외부 IdP 토큰을 server 에서 검증 후 Firebase Custom Token 으로 변환하여 link.
+4. **사용자 cancel 시 state 손실 0 (D-03):** sheet 의 dismiss 또는 backdrop tap 시 기존 세션 / onboarding 상태는 모두 보존. `Navigator.pop(false)` 만 호출 → caller 의 catch path 가 fresh 진입점으로 fallback.
+
+**PII invariant (T-16-NEW-07):** `lookupSignInMethods` 호출의 collisionEmail 본문은 client logger / Crashlytics payload 에 절대 전파되지 않는다 (memory `feedback_test_lint_quality` 의 `__` 금지 + Plan 16-04 R7 sentinel test).
+
+### 회원탈퇴 (Hard delete + GDPR right-to-be-forgotten)
+
+**GDPR 명시:** 본 starter-kit 의 탈퇴 flow 는 **계정과 데이터가 영구 삭제** 되며 **복구 불가** 하다. 사용자에게는 다음 3-line GDPR 경고가 표시된다 (UI-SPEC Surface C verbatim — withdrawalDialogBodyLine1/2/3):
+
+1. "이 계정과 모든 데이터는 영구 삭제됩니다."
+2. "삭제 후에는 복구할 수 없습니다."
+3. "다시 가입하려면 동일 이메일 또는 동일 로그인 방식으로 신규 등록해야 합니다."
+
+**진입 path (D-05~D-08):**
+
+```
+Home AppBar → Icons.settings tap → /settings route
+   → Settings screen (계정 section + Danger zone section)
+   → Danger zone "회원탈퇴" ListTile tap (Theme.colorScheme.error 강조)
+   → WithdrawalConfirmationDialog (AlertDialog)
+   → 3-line GDPR 경고 표시
+   → TextField "탈퇴" verbatim 입력 (verbatim match 만 confirm 활성화)
+   → destructive FilledButton (errorColor 배경) tap
+   → SettingsRepository.requestAccountDeletion()
+     → FirebaseAuth.currentUser.getIdToken(true) — fresh ID Token 발급
+       (D-06 의 5분 auth_time boundary 통과 baseline)
+     → deleteUserAccount callable 호출 ({'idToken': idToken})
+   → 성공: withdrawalSuccess SnackBar + signOut → /onboarding 자동 reset
+   → reauth fail (5분 boundary 초과): withdrawalReauthRequired SnackBar
+     + /login redirect (재로그인 후 재시도)
+   → server fail: withdrawalFailure SnackBar (dialog 유지 — 재시도)
+```
+
+**destructive UX 가드 (D-08):**
+
+- **`barrierDismissible:false`** — dialog 표시 중 backdrop tap 무시.
+- **confirmTextField verbatim match** — ko="탈퇴" / en="delete" / ja="削除" 의 정확한 일치 만 confirm 버튼 활성화. partial input (예: "탈") 으로는 활성화 안 됨.
+- **destructive FilledButton** — `Theme.colorScheme.error` 배경 + `colorScheme.onError` 전경.
+- **Semantics destructive intent** — 스크린리더 사용자에게 "회원탈퇴 — 영구 삭제, 복구 불가" 명시 (UI-SPEC line 332 Warning 7 채택, `withdrawalConfirmActionSemantic` ARB key consume).
+- **loading 중 cancel 버튼 비활성화** — callable 진행 중 사용자 실수 차단.
+
+**5분 boundary 의미:** `getIdToken(true)` 의 forceRefresh 호출은 새 ID Token 을 발급하여 `auth_time` claim 을 현재 시각으로 갱신한다. server-side `deleteUserAccount` Cloud Function 은 token 의 `auth_time` 가 5 분 이내인 경우에만 hard delete 를 수락한다 (D-06). 사용자가 dialog 표시 후 다른 작업으로 시간을 보낸 경우 reauth fail SnackBar 가 표시되고 /login redirect 된다.
+
+### Phase 17 deferred — Storage cascade
+
+본 Phase 16 의 `deleteUserAccount` Cloud Function 은 다음을 삭제한다:
+
+- Firebase Auth user record (Admin SDK `auth().deleteUser(uid)`).
+- Firestore `users/{uid}` document + sub-collections (best-effort batch).
+- Firestore `identity_index/{provider}:{providerUserId}` 매핑 (Phase 12+ 도입, D-16).
+
+**Cloud Storage cascade 는 Phase 17 deferred:** 본 starter-kit 은 현재 Cloud Storage 사용처가 0 이므로 Storage cleanup trigger 가 정의되어 있지 않다. 사용자가 신규 프로젝트에서 Cloud Storage 를 도입할 때는 다음 중 하나의 cascade 전략을 선택해야 한다:
+
+1. **Firestore trigger 기반 cascade** — `users/{uid}` document 삭제 onDelete 시 Cloud Storage `gs://app/users/{uid}/**` 일괄 삭제 (Cloud Functions 2nd gen).
+2. **Storage Security Rules + lifecycle** — 객체 metadata 의 ownerId 가 Firebase Auth user 와 일치하지 않는 객체를 GCS lifecycle 로 자동 삭제 (eventual consistency, 1~24h).
+
+선택 가이드: 즉시 cleanup 의무 (GDPR 30 일 이내) 가 있으면 1, 운영 단순화 우선이면 2.
+
+### App Check debug provider 등록 절차
+
+Phase 11 D-11 에서 도입된 App Check enforcement (`enforceAppCheck:true` onCall) 는 dev 단말에서도 활성화된다. dev 환경 단말 (예: Samsung Galaxy SM F966N, iOS Simulator) 에서 `deleteUserAccount` callable 가 `unauthenticated` 코드로 reject 되는 경우 App Check debug provider 등록이 누락된 것이다 (Phase 16 Plan 16-06 의 reauth fail 분기와 동일 user-facing surface 라 trial-and-error 시간 낭비 발생 — 본 절차 우선 확인).
+
+**등록 절차:**
+
+1. **dev 단말에서 debug token 확보** — `flutter run --flavor dev` 실행 후 logcat (Android) / Xcode Console (iOS) 의 `[FirebaseAppCheck/Debug]` prefix 안 token UUID (예: `12345678-90ab-cdef-1234-567890abcdef`) 확보.
+2. **Firebase Console App Check 탭 이동** — Firebase Project Settings → App Check → 해당 app 의 "Manage debug tokens" 클릭.
+3. **debug token 등록** — UUID 입력 + 별칭 (예: "Galaxy SM F966N dev") + Save. debug token 은 동일 단말에서 영구 유효 (앱 재설치 시 새 token 발급 → 재등록 필요).
+4. **enforceAppCheck 검증** — 재실행 시 `deleteUserAccount` callable 가 정상 응답 (또는 비즈니스 로직 분기) 확인.
+
+본 절차는 Phase 11 의 App Check 도입 시점에 manual.md 의 다른 단락에 정의돼 있을 수 있으나, Plan 16-06 시점의 cross-reference 안전 차원에서 본 단락에도 명시.
+
+### 사용자 커스터마이징 포인트
+
+본 starter-kit 사용자가 자신의 프로젝트에서 변경할 수 있는 surface:
+
+1. **ARB 라벨 변경 (provider 라벨, dialog 본문):**
+   - `lib/l10n/app_{en,ko,ja}.arb` 의 `withdrawalDialogBodyLine1/2/3` — GDPR 경고 문구 변경 (단, 법적 의무 보존 검증 의무).
+   - `withdrawalConfirmFieldHint` — 사용자 입력 verbatim phrase 변경 (ko="탈퇴" → 예: "확인", en="delete" → 예: "permanently delete"). 변경 시 widget test WC3/WC4 의 expected 값 동기화 의무.
+   - `errorAccountExistsWithProvider` — provider-aware 메시지 본문.
+2. **AccountLinkingSheet 의 mirror 패턴 (LoginPromptSheet 위 1-provider 강조 vs n-provider 전체):**
+   - 본 starter-kit 은 D-02 의 single button 정책 (정확한 1 provider 만 표시). n-provider 전체 (예: AccountLinkingSheet 안에서 모든 8 provider 를 노출하여 사용자가 "어떤 provider 로 가입했는지 모를 때 모두 시도" UX) 를 채택하려면 `lib/features/auth/presentation/_widgets/account_linking_sheet.dart` 의 `_BrandedLinkButton` exhaustive switch 를 `AccountProvider.values` iterate 로 교체.
+3. **WithdrawalConfirmationDialog 의 confirmTextField verbatim 변경:**
+   - 사용자 confusion 차단 의도가 약한 환경 (예: B2B 어드민 도구) 에서는 verbatim match 가드 자체를 폐기 가능. `_verbatimMatch` flag 를 `true` 상수로 교체.
+4. **deleteUserAccount Cloud Function 본문 (Plan 16-02 산출):**
+   - Firestore `users/{uid}` 외 cascade 대상 (예: notifications 컬렉션, push token 등록) 가 있는 경우 callable 본문에 batch 추가.
+   - Cloud Storage cascade (위 Phase 17 deferred 참조).
+5. **법무 자문 의무:** 본 starter-kit 의 GDPR 명시는 일반적 사용 사례를 가정한 baseline. 실제 production 에서는 변호사 / DPO (Data Protection Officer) 자문 의무 — 본 starter-kit 의 manual.md 단락 verbatim 채택은 사용자 책임 범위 (memory `project_starter_kit_review_ready_scope` mirror — starter-kit 검수 scope = review-ready, 신청 / deploy 제외).
+
+---
+
 ## 회원탈퇴 cleanup TODO (Phase 16)
 
 현재 starter kit 의 회원탈퇴 흐름은 다음 cleanup 작업이 누락된 상태입니다
@@ -2554,7 +2659,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-05-20 | 14-07 | `## LINE Login (Phase 14)` 단락 신규 (D-LINE-22a, 8 단계 종합 절차 + Pitfall 7종) — Channel 생성 (Business ID 가입 + Provider + Login Channel + Region Japan + Mobile app 단독), iOS Bundle/Android Package/SHA-1 등록 (Universal Links OFF), UAT 권한 절차 (Tester role recommended / Channel publish 분기, Plan 14-05 UAT 학습 verbatim), OpenID Connect 활성화 (silent-failure 가장 흔한 trap), Firebase Secret Manager 등록 + Cloud Function deploy, platform manifest 검증 (CFBundleURLTypes line3rdp / LSApplicationQueriesSchemes lineauth2 단일 / `<queries>` jp.naver.line.android), config/dev.json 키 주입, dev flavor 검증 + UAT 보류 todo 2건 (ios/android). email permission 신청 절차 + 비즈니스 인증 (production) + 19 locale 확장 절차 (자상 변경 0 invariant) + Pitfall 7종 (idToken null / race-fix logout / nonce SHA256 / OIDC 누락 / queries 누락 / lineChannelId 미주입 / Android minSdk < 24). 목차 13 항목으로 확장. |
 | 2026-05-20 | 14-07 | `## Kakao 검수 / 비즈앱 / 추가 수집 / stg-prod (Phase 14 D-LINE-22b retroactive)` 단락 신규 — Phase 12 Kakao Login 단계에서 dev 단독 검증만 다룬 매뉴얼에 production 출시 4 항목 retroactive 보강: (1) Kakao 검수 신청 절차 (DAU 100+ 의무 + 검수 form + 신규 동의 항목 재검수 회피) / (2) 비즈앱 인증 절차 (사업자 / 개인 인증 분기 + phone_number / CI / DI / 배송지 / 카톡 메시지 / 생일 / 성별 / 연령대 / 출생연도 트리거) / (3) 추가 수집 정보 카탈로그 (기본 3 + 비즈앱-only 8 + scope 매트릭스 + 채택 시 code 변경 point — kakao_sdk_client.dart serviceTerms / kakao_custom_token.ts zod / UserApi 호출 helper) / (4) stg / prod Console 등록 + 검수 (별도 앱 / 키 해시 release / Redirect URI prod / Secret Manager prod / OIDC 활성화 + 검수 분리 / App Check Debug Token 분리). 모든 verbatim claim 에 `[ASSUMED — Phase 14 단계 cross-verify 보류, 사용자 책임]` tag + 4 URL cross-verify 의무 명시. |
 | 2026-05-20 | 14-07 | `## Naver 검수 / 추가 항목 / member detail / stg-prod (Phase 14 D-LINE-22c retroactive)` 단락 신규 — Phase 13 Naver Login 단계에서 dev 단독 검증만 다룬 매뉴얼에 production 출시 4 항목 retroactive 보강: (1) 네아로 검수 신청 절차 (외부 사용자 차단 회피 + 검수 form + 동의 항목 일괄 등록) / (2) 추가 항목 활성화 절차 (mobile / ci / birthday / gender / age / birthyear / name member detail info, 항목별 검수 의무) / (3) `/v1/nid/me` response 카탈로그 (기본 3 + 추가 7 + response field 매트릭스 + 채택 시 code 변경 point — naver_custom_token.ts mapNaverProfile / PII 정책 의무 / Firebase Auth customClaims 분리) / (4) stg / prod Console 등록 + 검수 (별도 Naver 앱 / iOS URL Scheme prod / Android Key Hash release / Bundle ID 분리 / Secret Manager prod / 네아로 검수 분리 / App Check Debug Token 분리). 모든 verbatim claim 에 `[ASSUMED — Phase 14 단계 cross-verify 보류, 사용자 책임]` tag + 4 URL cross-verify 의무 명시. |
+| 2026-05-29 | 16-06 | `## Account Linking & Withdrawal` 단락 신규 (Phase 16 D-05~D-16 + R1 부활) — 5 sub-section: (1) 동일 이메일 Account Linking (D-01~D-04 흐름 + native↔native vs Custom Token 분기 + 사용자 cancel 시 state 손실 0 + PII invariant), (2) 회원탈퇴 Hard delete + GDPR right-to-be-forgotten (3-line 경고 verbatim + 진입 path /settings → Danger zone → confirmTextField verbatim → fresh ID Token + 5분 boundary → /onboarding 자동 reset + destructive UX 가드 5종), (3) Phase 17 deferred — Cloud Storage cascade (Firestore trigger vs Storage Security Rules + lifecycle), (4) App Check debug provider 등록 절차 (Firebase Console debug token 등록 4 단계 — Plan 16-06 reauth fail 분기와 동일 surface trial-and-error 회피), (5) 사용자 커스터마이징 포인트 5종 (ARB / AccountLinkingSheet n-provider / confirmTextField verbatim / deleteUserAccount cascade / 법무 자문 의무). |
 
 ---
 
-*Last updated: 2026-05-20 — Phase 14-07 docs (LINE Login (Phase 14) 단락 신규)*
+*Last updated: 2026-05-29 — Phase 16-06 docs (Account Linking & Withdrawal 단락 신규)*
