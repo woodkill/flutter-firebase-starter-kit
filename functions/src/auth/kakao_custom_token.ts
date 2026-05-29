@@ -1,11 +1,12 @@
 import {getAuth} from "firebase-admin/auth";
-import {getFirestore} from "firebase-admin/firestore";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
 import {createOidcVerifier} from "../shared/oidc_verifier";
+import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
 import {resolveIdentity} from "./identity_index";
 
 // Phase 11 D-05 — Secret Manager 주입.
@@ -26,7 +27,19 @@ const verifyKakaoIdToken = createOidcVerifier({
   nonceHashing: "none", // Kakao = raw nonce 비교 (Phase 12 검증된 동작)
 });
 
-type KakaoCustomTokenRequest = {idToken: string; nonce: string};
+type KakaoCustomTokenRequest = {
+  idToken: string;
+  nonce: string;
+  /**
+   * Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — add-only optional.
+   *
+   * client (Plan 16-04) 의 Custom Token sign-up path 에서 신규 정식 UID 생성
+   * 직후 termsAccepted Firestore mirror 의무 — Phase 14.1 A6 termsAccepted flip
+   * bug root cause fix 의 Custom Token branch. snapshot=undefined 일 때 기존
+   * behavior 보존 (회귀 0).
+   */
+  termsAcceptanceSnapshot?: TermsAcceptanceJson;
+};
 type KakaoCustomTokenResponse = {
   customToken: string;
   uid: string;
@@ -247,6 +260,62 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         "createCustomToken threw",
       );
       throw new HttpsError("internal", "errorUnknown");
+    }
+
+    // Step 3.5 (Phase 16 D-13/D-14 — Plan 16-03 Task 3.2):
+    // termsAcceptanceSnapshot atomic mirror — Phase 14.1 A6 termsAccepted
+    // flip bug root cause fix (Custom Token branch). client (Plan 16-04) 가
+    // Custom Token sign-up path 의 신규 정식 UID 생성 직후 termsAccepted 를
+    // Firestore 에 즉시 atomic write → client routing transient flip 0.
+    // {merge:true} 의무 (기존 users/{uid} 필드 보존). snapshot=undefined 시
+    // skip (기존 behavior 보존, 회귀 0).
+    //
+    // **Schema invariant (Pitfall 4 회피)**: 5 필드 verbatim — client 의
+    // TermsAcceptance Freezed model mirror (lib/features/terms/domain/
+    // terms_acceptance.dart). 변경 시 양쪽 동시 갱신 의무.
+    //
+    // **PII 정책**: snapshot 5 필드 (version/service/privacy/marketing/
+    // acceptedAt) 모두 PII 비대상 — logger payload 에 version 만 노출 가능
+    // (본체 미노출). best-effort 실패 처리는 hard throw — termsAccepted
+    // mirror 실패 시 client routing 회귀 (UI flip) 위험.
+    const termsSnapshot = data.termsAcceptanceSnapshot;
+    if (termsSnapshot) {
+      try {
+        await getFirestore()
+          .collection("users")
+          .doc(uid)
+          .set(
+            {
+              termsAccepted: {
+                version: termsSnapshot.version,
+                service: termsSnapshot.service,
+                privacy: termsSnapshot.privacy,
+                marketing: termsSnapshot.marketing,
+                acceptedAt: Timestamp.fromDate(
+                  new Date(termsSnapshot.acceptedAt),
+                ),
+              },
+            },
+            {merge: true},
+          );
+        logger.info(
+          {
+            event: "kakao_terms_acceptance_mirrored",
+            uid,
+            terms_mirrored: true,
+            version: termsSnapshot.version,
+          },
+          "terms acceptance mirrored",
+        );
+      } catch (err: unknown) {
+        // PII 금지 — snapshot 본문 미노출, err.name fingerprint 만.
+        const errCode = err instanceof Error ? err.name : "unknown";
+        logger.error(
+          {event: "kakao_terms_acceptance_mirror_failed", uid, code: errCode},
+          "terms acceptance mirror set merge threw",
+        );
+        throw new HttpsError("internal", "errorUnknown");
+      }
     }
 
     // Step 4: structured log — uid + isNewUser 만 (PII 금지).

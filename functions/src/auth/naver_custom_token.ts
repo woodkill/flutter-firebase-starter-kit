@@ -1,10 +1,11 @@
 // Phase 13 — see ROADMAP.md
 import {getAuth} from "firebase-admin/auth";
-import {getFirestore} from "firebase-admin/firestore";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import {defineSecret} from "firebase-functions/params";
 
+import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
 import {resolveIdentity} from "./identity_index";
 
 // Phase 13 D-60 — Secret Manager 주입.
@@ -20,7 +21,17 @@ const NAVER_PROFILE_URL = "https://openapi.naver.com/v1/nid/me" as const;
 // Cloud Function 30s timeout 까지 도달하기 전 5s 에서 abort.
 const FETCH_TIMEOUT_MS = 5000;
 
-type NaverCustomTokenRequest = {accessToken: string};
+type NaverCustomTokenRequest = {
+  accessToken: string;
+  /**
+   * Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — add-only optional.
+   *
+   * client (Plan 16-04) 의 Custom Token sign-up path 에서 신규 정식 UID 생성
+   * 직후 termsAccepted Firestore mirror 의무. snapshot=undefined 일 때 기존
+   * behavior 보존 (회귀 0).
+   */
+  termsAcceptanceSnapshot?: TermsAcceptanceJson;
+};
 type NaverCustomTokenResponse = {
   customToken: string;
   uid: string;
@@ -309,6 +320,49 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         "createCustomToken threw",
       );
       throw new HttpsError("internal", "errorUnknown");
+    }
+
+    // Step 5.5 (Phase 16 D-13/D-14 — Plan 16-03 Task 3.2):
+    // termsAcceptanceSnapshot atomic mirror — Phase 14.1 A6 root cause fix
+    // 의 Custom Token branch. {merge:true} 의무. snapshot=undefined 시 skip.
+    // PII 정책 보존 — snapshot 본체 미노출, version 만 logger payload 노출.
+    const termsSnapshot = data.termsAcceptanceSnapshot;
+    if (termsSnapshot) {
+      try {
+        await getFirestore()
+          .collection("users")
+          .doc(uid)
+          .set(
+            {
+              termsAccepted: {
+                version: termsSnapshot.version,
+                service: termsSnapshot.service,
+                privacy: termsSnapshot.privacy,
+                marketing: termsSnapshot.marketing,
+                acceptedAt: Timestamp.fromDate(
+                  new Date(termsSnapshot.acceptedAt),
+                ),
+              },
+            },
+            {merge: true},
+          );
+        logger.info(
+          {
+            event: "naver_terms_acceptance_mirrored",
+            uid,
+            terms_mirrored: true,
+            version: termsSnapshot.version,
+          },
+          "terms acceptance mirrored",
+        );
+      } catch (err: unknown) {
+        const errCode = err instanceof Error ? err.name : "unknown";
+        logger.error(
+          {event: "naver_terms_acceptance_mirror_failed", uid, code: errCode},
+          "terms acceptance mirror set merge threw",
+        );
+        throw new HttpsError("internal", "errorUnknown");
+      }
     }
 
     // Step 6: structured log — uid + isNewUser 만 (PII 금지 D-51).

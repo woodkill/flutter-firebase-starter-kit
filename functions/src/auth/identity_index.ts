@@ -153,10 +153,91 @@ export function fingerprintError(err: unknown): string {
  * 가 conflictKind 보고 정책 (throw / migrate / link) 자유롭게 선택. Phase
  * 13~16 의 다른 provider 가 동일 helper 재사용 시 동일 conflictKind 자동 상속.
  */
+/**
+ * Phase 16 D-09 (Plan 16-03 Task 3.1) — ProviderId union (8값).
+ *
+ * native 4 provider (`google` / `apple` / `facebook` / `email`) + Custom Token
+ * 4 provider (`kakao` / `naver` / `line` / `yahoojp`) 의 closed enum. identity_
+ * index 의 `existingProvider` 필드 type + Plan 16-04 의 Flutter ProviderId
+ * Freezed enum 의 server-side 진실원 (server 가 issue, Flutter 가 mirror).
+ *
+ * Phase 16 add-only — Plan 16-03 이전에는 conflictKind 만 있고 provider 라벨
+ * 부재 → caller (client) 가 추가 lookupSignInMethods callable 호출 의무.
+ * Phase 16 부터는 conflictKind + existingProvider 즉시 전달 → caller catch 시
+ * server 추가 조회 0 (D-09 핵심 가치).
+ */
+export type ProviderId =
+  | "google"
+  | "apple"
+  | "facebook"
+  | "email"
+  | "kakao"
+  | "naver"
+  | "line"
+  | "yahoojp";
+
+/**
+ * Firebase Auth providerData[].providerId → ProviderId enum 매핑 (D-09).
+ *
+ * native 4 provider 의 Firebase 표기 (`google.com` / `apple.com` /
+ * `facebook.com` / `password`) 를 ProviderId slug 로 변환. 미정의 provider
+ * (예: `twitter.com`) 는 `"unknown"` fallback.
+ */
+const NATIVE_PROVIDER_DATA_MAP: Record<string, ProviderId> = {
+  "google.com": "google",
+  "apple.com": "apple",
+  "facebook.com": "facebook",
+  "password": "email",
+};
+
+/**
+ * providerData[] 의 첫 known native provider 를 ProviderId 로 매핑 (D-09).
+ *
+ * `firebase` slug 와 본 helper 의 caller 가 호출한 `currentProvider` 자체는
+ * skip (self-identity). 매칭 0 시 'unknown' fallback.
+ *
+ * @param {object[]} providerData Firebase Auth user 의 providerData array
+ *     (admin SDK 반환) — 각 원소 `{providerId?: string}`.
+ * @param {ProviderId} currentProvider caller 가 호출한 provider slug — 자기
+ *     자신 매칭 제외 (false-positive 회피).
+ * @return {string} 첫 known native provider slug 또는 'unknown'.
+ */
+export function mapProviderDataToProviderId(
+  providerData: Array<{providerId?: string}> | undefined,
+  currentProvider: ProviderId,
+): ProviderId | "unknown" {
+  if (!providerData || providerData.length === 0) return "unknown";
+  for (const p of providerData) {
+    const pid = p.providerId;
+    if (!pid) continue;
+    if (pid === "firebase") continue;
+    const mapped = NATIVE_PROVIDER_DATA_MAP[pid];
+    if (mapped && mapped !== currentProvider) {
+      return mapped;
+    }
+  }
+  return "unknown";
+}
+
 export type IdentityResolution = {
   uid: string;
   isNewUser: boolean;
   conflictKind: "email_in_use" | "anonymous_existing_collision" | null;
+  /**
+   * Phase 16 D-09 (Plan 16-03 Task 3.1) — add-only.
+   *
+   * conflictKind != null 일 때 정확한 충돌 provider 라벨 (Plan 16-04 의 client
+   * catch 시 server 추가 조회 0). null path 에서는 미설정 (undefined). 기존
+   * caller switch case 의 schema 보존 — caller 가 본 필드를 참조하지 않아도
+   * 회귀 0 (optional add-only).
+   *
+   * - `email_in_use` path: getUserByEmail 의 providerData[] 첫 known native
+   *   provider 매핑 (mapProviderDataToProviderId helper). 매핑 실패 시
+   *   'unknown'.
+   * - `anonymous_existing_collision` path: identity_index 의 doc ID 가
+   *   `provider:providerUserId` 이므로 caller 가 호출한 provider slug 자체.
+   */
+  existingProvider?: ProviderId | "unknown";
 };
 
 /**
@@ -285,11 +366,20 @@ export async function resolveIdentity(
         .map((p) => p.providerId)
         .filter((id) => id !== "firebase" && id !== provider);
       if (conflictingProviders.length > 0) {
+        // Phase 16 D-09 (Plan 16-03) — existingProvider 매핑. providerData[]
+        // 의 첫 known native provider → ProviderId. 매핑 실패 시 'unknown'.
+        // PII 정책 보존 — existingProvider 는 slug ('google'/'apple'/등) 만,
+        // platform uid / email 본문 미노출.
+        const existingProvider = mapProviderDataToProviderId(
+          existingByEmail.providerData,
+          provider as ProviderId,
+        );
         logger.warn(
           {
             event: "identity_index_email_collision_caller_path",
             provider,
             conflictingProviderCount: conflictingProviders.length,
+            existingProvider,
           },
           "email collision detected in callerUid path",
         );
@@ -297,6 +387,7 @@ export async function resolveIdentity(
           uid: "",
           isNewUser: false,
           conflictKind: "email_in_use" as const,
+          existingProvider,
         };
       }
     } catch (err: unknown) {
@@ -337,11 +428,43 @@ export async function resolveIdentity(
       // WR-07: fingerprintError 로 as-assertion 일원화. helper 가 'auth/...' /
       // err.name / non-Error throw 까지 안전 추출.
       if (fingerprintError(err) === "auth/email-already-in-use") {
+        // Phase 16 D-09 (Plan 16-03) — !callerUid + createUser email-already-
+        // in-use path 의 existingProvider 추론. helper 는 caller email 만
+        // 알고 있으므로 추가 getUserByEmail lookup 으로 providerData inspect.
+        // lookup 실패 시 'unknown' fallback (best-effort, caller-path 와
+        // 정책 일관). PII 정책 보존 — existingProvider slug 만 노출.
+        let existingProvider: ProviderId | "unknown" = "unknown";
+        if (userInfo?.email) {
+          try {
+            const existingByEmail = await getAuth().getUserByEmail(
+              userInfo.email,
+            );
+            existingProvider = mapProviderDataToProviderId(
+              existingByEmail.providerData,
+              provider as ProviderId,
+            );
+          } catch (lookupErr: unknown) {
+            // best-effort — lookup 실패가 conflictKind 매핑을 차단하지 않음.
+            // err.code 만 fingerprint, email 본문 미노출.
+            const lookupCode = fingerprintError(lookupErr);
+            if (lookupCode !== "auth/user-not-found") {
+              logger.warn(
+                {
+                  event: "identity_index_existing_provider_lookup_failed",
+                  code: lookupCode,
+                },
+                "existingProvider inference failed in createUser path",
+              );
+            }
+            // existingProvider 는 'unknown' 으로 유지.
+          }
+        }
         return {
           // caller 가 사용 안 함 — switch (conflictKind) 가 우선해서 throw.
           uid: "",
           isNewUser: false,
           conflictKind: "email_in_use" as const,
+          existingProvider,
         };
       }
       // 그 외 에러 (e.g., 'auth/internal-error', network) 는 caller 가 catch
@@ -383,10 +506,15 @@ export async function resolveIdentity(
       }
       tx.update(idxRef, {lastSeenAt: now});
       if (callerUid && existing.firebaseUid !== callerUid && callerHasData) {
+        // Phase 16 D-09 (Plan 16-03) — existingProvider = caller 가 호출한
+        // provider slug 자체. identity_index doc ID 가 `provider:providerUserId`
+        // 이므로 existing 매핑은 동일 provider 의 기존 user (정의상 다른
+        // provider 일 수 없음). provider 는 본 helper 의 arg → 8값 ProviderId.
         return {
           uid: existing.firebaseUid,
           isNewUser: false,
           conflictKind: "anonymous_existing_collision" as const,
+          existingProvider: provider as ProviderId,
         };
       }
       // 정상 path — existing 재사용 (callerUid 없음, callerUid===existing,
