@@ -69,6 +69,13 @@ class EnvironmentInfoScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          // Phase 16 D-05 — Settings 진입점.
+          if (!isAnonymous)
+            IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: l10n.settingsTitle,
+              onPressed: () => context.push(AppRoutes.settings),
+            ),
           Gap(spacing.sm),
         ],
       ),

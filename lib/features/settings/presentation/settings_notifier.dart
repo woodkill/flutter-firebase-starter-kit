@@ -1,15 +1,26 @@
-// Phase 16 Plan 16-06 본체 채움 — Wave 0 sentinel placeholder.
+// Phase 16 Plan 16-06 / D-05~D-08 — SettingsNotifier 본체.
 //
-// `SettingsNotifier` 는 탈퇴 진행 상태 (AsyncValue<void>) 를 관리하는
-// Riverpod controller. Plan 16-06 이 본체 (requestAccountDeletion 의
-// 재인증 + Cloud Function 호출 + 라우팅) 를 add-only 로 확장한다.
+// 탈퇴 진행 상태 (AsyncValue<void>) 를 관리하는 Riverpod controller.
+// requestAccountDeletion 호출 흐름:
+// 1. state = AsyncValue.loading()
+// 2. SettingsRepository.requestAccountDeletion() 호출
+// 3. 성공: state = AsyncValue.data(null) → AuthRepository.signOut() 트리거
+// 4. 실패: state = AsyncValue.error(e, st)
+//
+// signOut 후 router 의 authRedirect 가 자동으로 `/onboarding` 으로 reset.
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../auth/data/auth_repository.dart';
+import '../data/settings_repository.dart';
 
 part 'settings_notifier.g.dart';
 
 /// 사용자 설정 화면의 상태 관리자 (Phase 16 D-06).
 ///
-/// **Wave 0 sentinel placeholder** — Plan 16-06 이 본체 채움.
+/// 탈퇴 진행 상태 (`AsyncValue<void>`) 를 노출하며, UI 는 본 Notifier 의
+/// AsyncValue 를 ref.listen 으로 구독하여 success/error 분기를 처리한다.
+///
+/// **Plan 16-06 Task 6.1 (D-06):** `requestAccountDeletion()` 본체 채움.
 @riverpod
 class SettingsNotifier extends _$SettingsNotifier {
   @override
@@ -17,12 +28,25 @@ class SettingsNotifier extends _$SettingsNotifier {
     return const AsyncValue<void>.data(null);
   }
 
-  /// 사용자 탈퇴를 요청한다 (Phase 16 D-06 / D-07).
+  /// 사용자 탈퇴를 요청한다 (Phase 16 D-06 / D-07 / D-08).
   ///
-  /// Plan 16-06 이 본체 (재인증 → deleteAccount → 라우팅) 를 채운다.
-  Future<void> requestAccountDeletion() {
-    throw UnimplementedError(
-      'Phase 16 Plan 16-06 implementation pending',
-    );
+  /// 흐름:
+  /// 1. state = [AsyncValue.loading].
+  /// 2. [SettingsRepository.requestAccountDeletion] 호출
+  ///    (fresh ID Token 발급 + deleteUserAccount callable).
+  /// 3. 성공: state = [AsyncValue.data]`(null)` + [AuthRepository.signOut]
+  ///    호출 (router 의 authRedirect 가 `/onboarding` 으로 자동 reset).
+  /// 4. 실패: state = [AsyncValue.error]`(e, st)` — UI 가 ref.listen 으로
+  ///    `ReauthenticationRequiredException` / `UnknownException` 분기 처리.
+  Future<void> requestAccountDeletion() async {
+    state = const AsyncValue<void>.loading();
+    try {
+      await ref.read(settingsRepositoryProvider).requestAccountDeletion();
+      // 성공 — signOut 트리거 (router 가 /onboarding 으로 자동 redirect).
+      await ref.read(authRepositoryProvider).signOut();
+      state = const AsyncValue<void>.data(null);
+    } on Object catch (e, st) {
+      state = AsyncValue<void>.error(e, st);
+    }
   }
 }

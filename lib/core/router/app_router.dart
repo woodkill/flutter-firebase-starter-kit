@@ -10,6 +10,7 @@ import '../../features/auth/presentation/signup_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/home/presentation/environment_info_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/terms/presentation/terms_detail_screen.dart';
 import '../analytics/analytics_observer.dart';
@@ -112,6 +113,12 @@ GoRouter appRouter(Ref ref) {
         name: AppRoutes.termsPrivacyName,
         builder: (context, state) =>
             const TermsDetailScreen(type: TermsType.privacy),
+      ),
+      // Phase 16 D-05 — Settings 진입 path.
+      GoRoute(
+        path: AppRoutes.settings,
+        name: AppRoutes.settingsName,
+        builder: (context, state) => const SettingsScreen(),
       ),
     ],
   );
