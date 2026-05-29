@@ -356,6 +356,11 @@ class AppLocalizationsKo extends AppLocalizations {
       '이 이메일은 다른 방식으로 가입되어 있습니다. 처음 가입한 방식으로 다시 로그인해 주세요.';
 
   @override
+  String errorAccountExistsWithProvider(String provider) {
+    return '이 이메일은 $provider(으)로 가입되어 있습니다. $provider(으)로 로그인해 주세요.';
+  }
+
+  @override
   String get authAccountProviderGoogle => 'Google';
 
   @override
@@ -505,6 +510,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get authContinueWithEmail => '이메일로 계속';
+
+  @override
+  String get accountLinkingDismiss => '다른 방식으로 로그인';
 
   @override
   String get devToolsSectionTitle => 'Dev Tools';

@@ -362,6 +362,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'This email is already registered with another sign-in method. Please sign in with the method you originally used.';
 
   @override
+  String errorAccountExistsWithProvider(String provider) {
+    return 'This email is already registered with $provider. Please sign in with $provider.';
+  }
+
+  @override
   String get authAccountProviderGoogle => 'Google';
 
   @override
@@ -515,6 +520,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authContinueWithEmail => 'Continue with email';
+
+  @override
+  String get accountLinkingDismiss => 'Sign in another way';
 
   @override
   String get devToolsSectionTitle => 'Dev Tools';

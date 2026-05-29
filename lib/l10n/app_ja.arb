@@ -140,6 +140,7 @@
   "authGoogleSignIn": "Googleでログイン",
   "errorAccountExistsWithDifferentCredential": "このメールアドレスは別の方法で登録されています。パスワードでログインしてください。",
   "errorAccountExistsWithUnknownProvider": "このメールアドレスは別の方法で登録されています。最初に登録した方法でログインしてください。",
+  "errorAccountExistsWithProvider": "このメールアドレスは{provider}で登録されています。{provider}でログインしてください。",
   "authAccountProviderGoogle": "Google",
   "authAppleSignIn": "Appleでサインイン",
   "@authAppleSignIn": {
@@ -224,6 +225,7 @@
   "authPromptSheetTitle": "ログインが必要です",
   "authPromptSheetBody": "この機能を使い続けるには、アカウントが必要です。",
   "authContinueWithEmail": "メールアドレスで続行",
+  "accountLinkingDismiss": "別の方法でログイン",
 
   "devToolsSectionTitle": "Dev Tools",
   "devToolsSectionDescription": "デバッグビルドでのみ表示される開発者向けツールです。",

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../l10n/generated/app_localizations.dart';
+import '../auth/provider_id.dart';
 import '../error/app_exception.dart';
 
 /// [AppException]의 [AppException.userMessage] ARB 키를
@@ -11,16 +12,19 @@ import '../error/app_exception.dart';
 /// 매칭되지 않는 키는 원본 문자열을 그대로 반환한다.
 String resolveExceptionMessage(BuildContext context, AppException exception) {
   final l10n = AppLocalizations.of(context);
-  // (Phase 9.2 D-13 — Path A-narrow) AccountExistsWithDifferentCredential
-  // 인스턴스는 항상 unknown fallback 메시지로 단일 경로 매핑한다 (R2).
-  // _mapAuthException 의 'account-exists-with-different-credential' 분기 +
-  // _mapFunctionsException 의 'already-exists' 분기 (Phase 12.1 R3 — D-34)
-  // 모두 동일 경로.
-  // Phase 17 (Account Linking) — see ROADMAP.md 부활 시 본 분기 안에서
-  // exception.provider (AccountProvider enum) 검사 + arbKey 이중 lookup
-  // (D-14) 도입.
+  // (Phase 16 D-12 / Task 4.1) AccountExistsWithDifferentCredential 인스턴스의
+  // provider-aware variant 부활. Phase 9.2 P-A-narrow 시점 단일 unknown
+  // fallback (R2) 만 노출했으나, Phase 16 의 `lookupSignInMethods` callable
+  // wiring (Plan 16-02 + 16-04 Task 4.3) 로 `existingProvider` 가 채워지면
+  // L1 provider-aware 메시지를 노출한다.
+  //
+  // - L1 (provider-aware): existingProvider != null →
+  //     errorAccountExistsWithProvider({provider}) 로 정확한 provider 라벨
+  //     (authAccountProvider{X}) 노출.
+  // - L2 (unknown fallback): existingProvider == null →
+  //     errorAccountExistsWithUnknownProvider (R2 baseline 보존, 회귀 0).
   if (exception is AccountExistsWithDifferentCredential) {
-    return l10n.errorAccountExistsWithUnknownProvider;
+    return _resolveAccountExists(l10n, exception);
   }
   return switch (exception.userMessage) {
     'errorNetworkTimeout' => l10n.errorNetworkTimeout,
@@ -37,14 +41,54 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     'errorUserDisabled' => l10n.errorUserDisabled,
     'errorTooManyRequests' => l10n.errorTooManyRequests,
     // (Phase 9.2 D-13 dead-code anchor — intentional 보존)
-    // line 22-24 의 instance type-check 이 모든
-    // AccountExistsWithDifferentCredential 을 흡수하므로 본 분기는 unreachable.
-    // Phase 17 (Account Linking) 부활 시 provider-aware 메시지 dispatch 로
-    // 활용된다 — ARB key + generated getter + present switch arm 3-tier
-    // 인프라 유지.
+    // 위 instance type-check 가 모든 AccountExistsWithDifferentCredential 을
+    // 흡수하므로 본 분기는 unreachable. Phase 16 후에도 dead-code anchor 로
+    // 보존하여 3-tier ARB+getter+arm 인프라 유지 — 향후 다른 caller 가
+    // ARB key 만 가지고 분기에 진입할 가능성에 대비.
     'errorAccountExistsWithDifferentCredential' =>
       l10n.errorAccountExistsWithDifferentCredential,
     'errorUnknown' => l10n.errorUnknown,
     final other => other,
+  };
+}
+
+/// [AccountExistsWithDifferentCredential] 인스턴스의 provider-aware variant
+/// 또는 unknown fallback 메시지를 반환한다 (Phase 16 D-12).
+///
+/// **L1 (provider-aware):** `existingProvider != null` 일 때, `_resolveProviderLabel`
+/// 로 provider 별 정확 라벨 (authAccountProvider{X}) 을 룩업한 뒤
+/// `errorAccountExistsWithProvider({provider})` placeholder 에 채운다.
+///
+/// **L2 (unknown fallback):** `existingProvider == null` 일 때 R2 baseline
+/// (`errorAccountExistsWithUnknownProvider`) 노출 — Phase 9.2 회귀 0.
+String _resolveAccountExists(
+  AppLocalizations l10n,
+  AccountExistsWithDifferentCredential exception,
+) {
+  final provider = exception.existingProvider;
+  if (provider != null) {
+    return l10n.errorAccountExistsWithProvider(
+      _resolveProviderLabel(l10n, provider),
+    );
+  }
+  return l10n.errorAccountExistsWithUnknownProvider;
+}
+
+/// [AccountProvider] 를 현재 로케일의 정확 provider 라벨로 변환한다.
+///
+/// 8 provider (google/apple/facebook/email + kakao/naver/line/yahoojp) 모두
+/// `authAccountProvider{X}` ARB key 와 매핑된다. brand_label_whitelist_test
+/// (Phase 13.1 / 15 mirror) 가 ARB key 의 verbatim brand 라벨 정확성을
+/// 별도 lock — 본 함수는 단순 dispatch.
+String _resolveProviderLabel(AppLocalizations l10n, AccountProvider provider) {
+  return switch (provider) {
+    AccountProvider.google => l10n.authAccountProviderGoogle,
+    AccountProvider.apple => l10n.authAccountProviderApple,
+    AccountProvider.facebook => l10n.authAccountProviderFacebook,
+    AccountProvider.email => l10n.authAccountProviderEmailPassword,
+    AccountProvider.kakao => l10n.authAccountProviderKakao,
+    AccountProvider.naver => l10n.authAccountProviderNaver,
+    AccountProvider.line => l10n.authAccountProviderLine,
+    AccountProvider.yahoojp => l10n.authAccountProviderYahooJp,
   };
 }

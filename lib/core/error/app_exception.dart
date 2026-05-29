@@ -1,3 +1,5 @@
+import '../auth/provider_id.dart';
+
 /// 애플리케이션 전역 예외 계층의 최상위 sealed class.
 ///
 /// 모든 도메인별 예외는 이 클래스를 상속한다.
@@ -124,13 +126,26 @@ final class TooManyRequests extends AuthException {
 ///
 /// Firebase `account-exists-with-different-credential` 코드에 매핑된다.
 /// [email]은 충돌이 발생한 이메일 주소로, UI에서 자동 채움용으로 사용한다.
+/// [existingProvider]는 Phase 16 D-12 wiring 으로 채워지는 server-side
+/// 식별 결과 — `lookupSignInMethods` callable 응답에서 매핑한다 (nullable
+/// optional: callable fail/unknown 시 null → R2 unknown fallback 경로).
 final class AccountExistsWithDifferentCredential extends AuthException {
   /// [AccountExistsWithDifferentCredential]을 생성한다.
-  const AccountExistsWithDifferentCredential({this.email, super.cause})
-    : super(userMessage: 'errorAccountExistsWithDifferentCredential');
+  const AccountExistsWithDifferentCredential({
+    this.email,
+    this.existingProvider,
+    super.cause,
+  }) : super(userMessage: 'errorAccountExistsWithDifferentCredential');
 
   /// 충돌이 발생한 이메일 주소. UI에서 자동 채움용으로 사용.
   final String? email;
+
+  /// 기존에 가입된 provider (Phase 16 D-12).
+  ///
+  /// Cloud Function `lookupSignInMethods` 또는 identity_index conflictKind
+  /// 응답으로 채워진다. `null` 인 경우 R2 unknown fallback (R2 baseline
+  /// 보존 — `errorAccountExistsWithUnknownProvider`).
+  final AccountProvider? existingProvider;
 }
 
 // ---------------------------------------------------------------------------
