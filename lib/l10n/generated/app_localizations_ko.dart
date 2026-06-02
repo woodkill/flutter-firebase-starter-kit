@@ -561,6 +561,19 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get settingsAccountLinkingSection => '계정 연결';
+
+  @override
+  String settingsLinkProviderCta(String provider) {
+    return '$provider 연결';
+  }
+
+  @override
+  String accountLinkingSucceededSnackbar(String provider) {
+    return '$provider 계정이 연결되었습니다';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

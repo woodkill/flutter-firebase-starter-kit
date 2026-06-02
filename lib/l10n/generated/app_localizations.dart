@@ -1144,6 +1144,24 @@ abstract class AppLocalizations {
   /// **'Linked sign-in: {providers}'**
   String settingsLinkedProviders(String providers);
 
+  /// Phase 16 SOCL-12 proactive linking — Surface D. Settings '계정 연결' section heading (proactive account-linking 진입점). 후보 = 소셜 provider only (email EXCLUDE — Surface D mockup §0 user sign-off 2026-06-02).
+  ///
+  /// In en, this message translates to:
+  /// **'Link an account'**
+  String get settingsAccountLinkingSection;
+
+  /// Phase 16 SOCL-12 proactive linking — Surface D. Per-provider 'connect' button label. {provider} 는 기존 authAccountProvider{X} 소셜 라벨 주입 (brand verbatim 신규 0). proactive 후보 = 소셜 provider only (email EXCLUDE).
+  ///
+  /// In en, this message translates to:
+  /// **'Link {provider}'**
+  String settingsLinkProviderCta(String provider);
+
+  /// Phase 16 SOCL-12 proactive linking — Surface D. 계정 연결 성공 토스트. {provider} 는 연결된 소셜 provider 의 authAccountProvider{X} 라벨 주입. reactive(16-08/16-09) 충돌 link 성공 시에도 재사용 가능.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked your {provider} account.'**
+  String accountLinkingSucceededSnackbar(String provider);
+
   /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone').
   ///
   /// In en, this message translates to:

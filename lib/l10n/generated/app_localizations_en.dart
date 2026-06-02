@@ -572,6 +572,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get settingsAccountLinkingSection => 'Link an account';
+
+  @override
+  String settingsLinkProviderCta(String provider) {
+    return 'Link $provider';
+  }
+
+  @override
+  String accountLinkingSucceededSnackbar(String provider) {
+    return 'Linked your $provider account.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

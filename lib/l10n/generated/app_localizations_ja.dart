@@ -560,6 +560,19 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get settingsAccountLinkingSection => 'アカウント連携';
+
+  @override
+  String settingsLinkProviderCta(String provider) {
+    return '$providerと連携';
+  }
+
+  @override
+  String accountLinkingSucceededSnackbar(String provider) {
+    return '$providerアカウントを連携しました。';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override
