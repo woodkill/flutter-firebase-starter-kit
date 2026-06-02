@@ -22,7 +22,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
+import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/yahoojp_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
@@ -69,11 +78,26 @@ Future<GoRouter> _pumpSection(
     ],
   );
 
+  // 활성 소셜 Strategy 7종 전부 (정적 + RC overlay 대신 직접 주입) — login/
+  // signup 의 activeStrategiesProvider 결과를 결정적으로 고정한다.
+  const allStrategies = <AuthStrategy>[
+    GoogleAuthStrategy(),
+    AppleAuthStrategy(),
+    FacebookAuthStrategy(),
+    KakaoAuthStrategy(),
+    NaverAuthStrategy(),
+    LineAuthStrategy(),
+    YahoojpAuthStrategy(),
+  ];
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         currentUserProvider.overrideWith((ref) => user),
         authRepositoryProvider.overrideWithValue(repo),
+        activeStrategiesProvider.overrideWith(
+          (ref, locale) => allStrategies,
+        ),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -176,12 +200,13 @@ void main() {
       await tester.tap(btn);
       await tester.pumpAndSettle();
 
-      // 재로그인 라우팅 — /login 으로 이동.
+      // 재로그인 라우팅 — /login push (withdrawal D-06 reauth gate mirror).
+      // push 후 /login 화면이 스택 top 으로 노출되는지 사용자 가시 truth 검증.
+      expect(find.text('LOGIN ROUTE'), findsOneWidget);
       expect(
-        router.routerDelegate.currentConfiguration.uri.path,
+        router.routerDelegate.currentConfiguration.last.matchedLocation,
         AppRoutes.login,
       );
-      expect(find.text('LOGIN ROUTE'), findsOneWidget);
     });
 
     testWidgets(
