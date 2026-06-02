@@ -82,14 +82,38 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// 안내 / 취소 no-op) 를 분기하기 위한 [AccountLinkOutcome]. link 성공 시
   /// `currentUserProvider` 가 Firestore linkedProviders stream 으로 자동 refresh
   /// 되어 해당 provider 버튼이 available 집합에서 제거된다.
-  Future<AccountLinkOutcome> linkProvider(AccountProvider provider) async {
-    // naver / email 은 proactive link 미지원 (deployed callable OIDC 부재 /
-    // Surface D email EXCLUDE) — graceful 안내 (크래시 0).
-    if (provider == AccountProvider.naver ||
-        provider == AccountProvider.email) {
-      return AccountLinkOutcome.unsupported;
-    }
+  Future<AccountLinkOutcome> linkProvider(AccountProvider provider) {
+    // WR-03: unsupported provider (naver: deployed callable OIDC 부재 / email:
+    // Surface D EXCLUDE) 를 switch 자체에 단일 진실원으로 둔다. 별도 early-
+    // guard 와 dead `null` switch arm 의 수동 동기화 결합을 제거해, 미래에
+    // email 을 wire 하더라도 "cancelled" 로 오보고되지 않게 한다.
+    return switch (provider) {
+      AccountProvider.naver ||
+      AccountProvider.email => Future<AccountLinkOutcome>.value(
+        AccountLinkOutcome.unsupported,
+      ),
+      AccountProvider.google ||
+      AccountProvider.apple ||
+      AccountProvider.facebook ||
+      AccountProvider.kakao ||
+      AccountProvider.line ||
+      AccountProvider.yahoojp => _dispatchLink(provider),
+    };
+  }
 
+  /// 지원 provider 의 proactive link 를 실제 dispatch 한다 (WR-03/WR-04).
+  ///
+  /// [state] 를 loading 으로 설정하고 repository link 메서드를 호출한 뒤,
+  /// 결과를 [AccountLinkOutcome] 으로 매핑한다. unsupported provider
+  /// (naver/email) 는 [linkProvider] switch 에서 사전 분기되므로 본 메서드에
+  /// 도달하지 않는다.
+  ///
+  /// **WR-04 (ref-disposed guard):** 본 Notifier 는 auto-dispose
+  /// `@riverpod` 이며, OAuth/callable round-trip 진행 중 사용자가 SettingsScreen
+  /// 을 pop 하면 disposed 될 수 있다. `await` 이후 [state] 를 쓰기 전에
+  /// `ref.mounted` 를 확인해 disposed Notifier 에 대한 write (`StateError`)
+  /// 를 회피한다.
+  Future<AccountLinkOutcome> _dispatchLink(AccountProvider provider) async {
     state = const AsyncValue<void>.loading();
     try {
       final repo = ref.read(authRepositoryProvider);
@@ -102,10 +126,12 @@ class SettingsNotifier extends _$SettingsNotifier {
         AccountProvider.yahoojp => await repo.linkCustomTokenProviderArm(
           targetProvider: provider,
         ),
-        // naver / email 은 위에서 early-return — exhaustive switch 보강.
+        // naver / email 은 linkProvider switch 에서 사전 분기 — 도달하지 않음.
         AccountProvider.naver ||
         AccountProvider.email => null,
       };
+      // WR-04: await 이후 disposed 여부 확인 후 state write.
+      if (!ref.mounted) return AccountLinkOutcome.cancelled;
       state = const AsyncValue<void>.data(null);
 
       // 사용자 SDK 취소 (null) — no-op.
@@ -119,6 +145,8 @@ class SettingsNotifier extends _$SettingsNotifier {
       };
     } on Object catch (_) {
       // 방어적 — repository 가 Result 로 흡수하므로 도달 거의 없음.
+      // WR-04: catch path 에서도 disposed 여부 확인 후 state write.
+      if (!ref.mounted) return AccountLinkOutcome.alreadyLinkedOrFailed;
       state = const AsyncValue<void>.data(null);
       return AccountLinkOutcome.alreadyLinkedOrFailed;
     }

@@ -14,8 +14,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_notifier.dart';
 
@@ -27,6 +30,10 @@ void main() {
   late _MockSettingsRepository mockSettingsRepo;
   late _MockAuthRepository mockAuthRepo;
   late ProviderContainer container;
+
+  setUpAll(() {
+    registerFallbackValue(AccountProvider.kakao);
+  });
 
   setUp(() {
     mockSettingsRepo = _MockSettingsRepository();
@@ -102,6 +109,106 @@ void main() {
       expect(state.hasError, isTrue);
       expect(state.error, isA<UnknownException>());
       verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
+    });
+  });
+
+  group('Phase 16 WR-03/WR-04 — SettingsNotifier.linkProvider 결과 매핑', () {
+    User stubUser() => User(
+      uid: 'u1',
+      email: 'user@example.com',
+      emailVerified: true,
+      createdAt: DateTime.utc(2026, 1, 1),
+      providerIds: const ['google.com'],
+    );
+
+    test('L1 naver → unsupported + repository 미호출 (WR-03 단일 진실원)',
+        () async {
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.naver);
+
+      expect(outcome, AccountLinkOutcome.unsupported);
+      verifyNever(() => mockAuthRepo.linkGoogleCredential());
+      verifyNever(() => mockAuthRepo.linkAppleCredential());
+      verifyNever(() => mockAuthRepo.linkFacebookCredential());
+      verifyNever(
+        () => mockAuthRepo.linkCustomTokenProviderArm(
+          targetProvider: any(named: 'targetProvider'),
+        ),
+      );
+    });
+
+    test('L2 email → unsupported + repository 미호출 (WR-03 단일 진실원)',
+        () async {
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.email);
+
+      expect(outcome, AccountLinkOutcome.unsupported);
+      verifyNever(() => mockAuthRepo.linkGoogleCredential());
+    });
+
+    test('L3 google 성공 → success', () async {
+      when(() => mockAuthRepo.linkGoogleCredential())
+          .thenAnswer((_) async => Result<User>.success(stubUser()));
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.google);
+
+      expect(outcome, AccountLinkOutcome.success);
+      // 종료 후 state 는 data(null) 로 복귀.
+      expect(container.read(settingsProvider), const AsyncValue<void>.data(null));
+    });
+
+    test('L4 google reauth 필요 → reauthRequired', () async {
+      when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
+        (_) async => const Result<User>.failure(
+          ReauthenticationRequiredException(),
+        ),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.google);
+
+      expect(outcome, AccountLinkOutcome.reauthRequired);
+    });
+
+    test('L5 google 기타 실패 → alreadyLinkedOrFailed', () async {
+      when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
+        (_) async => const Result<User>.failure(AccountAlreadyLinked()),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.google);
+
+      expect(outcome, AccountLinkOutcome.alreadyLinkedOrFailed);
+    });
+
+    test('L6 사용자 취소 (null) → cancelled', () async {
+      when(() => mockAuthRepo.linkGoogleCredential())
+          .thenAnswer((_) async => null);
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.google);
+
+      expect(outcome, AccountLinkOutcome.cancelled);
+    });
+
+    test('L7 Custom Token (kakao) → linkCustomTokenProviderArm dispatch',
+        () async {
+      when(
+        () => mockAuthRepo.linkCustomTokenProviderArm(
+          targetProvider: any(named: 'targetProvider'),
+        ),
+      ).thenAnswer((_) async => Result<User>.success(stubUser()));
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.kakao);
+
+      expect(outcome, AccountLinkOutcome.success);
+      verify(
+        () => mockAuthRepo.linkCustomTokenProviderArm(
+          targetProvider: AccountProvider.kakao,
+        ),
+      ).called(1);
     });
   });
 }
