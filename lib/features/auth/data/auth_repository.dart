@@ -673,6 +673,197 @@ class AuthRepository {
     }
   }
 
+  /// Custom Token provider (Kakao/LINE/YJP) reactive link arm (Phase 16 16-09).
+  ///
+  /// Custom Token 계정 충돌 (account-exists) 직후 [AccountLinkingSheet] 에서
+  /// 사용자가 기존-provider 버튼을 탭하면 본 메서드가 호출된다. 흐름
+  /// (RESEARCH § reactive Custom Token data flow + Pattern 2):
+  /// 1. [SocialLinkInProgress.begin] (Phase 9.1 D-22 race-fix invariant) —
+  ///    try-finally 로 [SocialLinkInProgress.end] 1:1 보장.
+  /// 2. [targetProvider] 별 SDK signIn 으로 **target OIDC 토큰 fresh 재획득**
+  ///    (kakao→[KakaoSdkClient.signIn], line→[LineSdkClient.signIn],
+  ///    yahoojp→[YahoojpSdkClient.signIn]). 사용자 취소 (null) 시 `null` 반환
+  ///    (silent — linkedProviders 변경 0).
+  /// 3. `_auth.currentUser.getIdToken(true /* forceRefresh */)` 로 caller
+  ///    fresh ID Token 발급 (server-side auth_time 5분 boundary 통과 의무).
+  /// 4. `_functions.httpsCallable('linkCustomTokenProvider')` 호출 —
+  ///    deployed contract `{idToken, targetProvider, targetProviderToken,
+  ///    nonce} → {ok:true}` (link_custom_token_provider.ts line 67~80 verbatim).
+  /// 5. `{ok:true}` 검증 후 `_auth.currentUser` reload → [_mapFirebaseUser].
+  /// 6. finally 에서 target SDK logout (1회성 토큰 정책 —
+  ///    [signInWithKakao]/[signInWithLine] 의 finally logout mirror) +
+  ///    [SocialLinkInProgress.end].
+  ///
+  /// **토큰 재획득 결정 (RESEARCH 검증, data flow step 6 인용):** 원본 collided
+  /// 로그인 시도의 target 토큰은 SDK 1회성 정책 (finally logout) 으로 이미
+  /// 소비/만료되었고 nonce 도 단일 사용이므로 안전 재사용 불가다. 따라서 sheet
+  /// 버튼 탭 시점에 fresh 재획득한다 (RESEARCH line 333~341 의 "user taps Kakao
+  /// button → Kakao SDK" 가 fresh 재획득을 전제). proactive arm 과 동일
+  /// mechanism.
+  ///
+  /// **targetProvider 제약:** kakao/line/yahoojp 만 허용한다 (naver/native 는
+  /// deployed callable OIDC 미지원 — link_custom_token_provider.ts line 27~33
+  /// verbatim, Naver-as-target reactive link 는 Phase 17+ carry-forward).
+  /// 그 외 입력은 [ArgumentError] throw.
+  ///
+  /// 에러 매핑 (deployed callable HttpsError code):
+  /// - `unauthenticated` / `permission-denied` →
+  ///   [ReauthenticationRequiredException] (auth_time 초과 / verifyIdToken 실패
+  ///   → 재로그인 유도).
+  /// - `already-exists` → [AccountAlreadyLinked] (identity_index 이미 존재).
+  /// - 그 외 (`failed-precondition` 익명 caller / `invalid-argument` 등) →
+  ///   [_mapFunctionsException] (적절 [AppException]).
+  ///
+  /// **PII invariant (T-16-09-02 / T-16-NEW-07):** catch path 의 [debugPrint]
+  /// 는 code/runtimeType 만 출력하고 idToken / targetProviderToken /
+  /// collisionEmail 본문은 절대 포함하지 않는다.
+  ///
+  /// 반환:
+  /// - `Result.success(User)` — link 성공.
+  /// - `Result.failure(...)` — callable 거부 / reauth 초과 / 이미 link 됨.
+  /// - `null` — target SDK signIn 사용자 취소 (no-op).
+  Future<Result<User>?> linkCustomTokenProviderArm({
+    required AccountProvider targetProvider,
+  }) async {
+    // deployed callable 미지원 target 사전 차단 (kakao/line/yahoojp 만 허용).
+    if (targetProvider != AccountProvider.kakao &&
+        targetProvider != AccountProvider.line &&
+        targetProvider != AccountProvider.yahoojp) {
+      throw ArgumentError.value(
+        targetProvider,
+        'targetProvider',
+        'linkCustomTokenProvider 는 kakao/line/yahoojp 만 지원 '
+            '(naver/native deployed callable OIDC 미지원 — Phase 17+).',
+      );
+    }
+    try {
+      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
+
+      // Step 2 — target OIDC 토큰 fresh 재획득 (1회성 정책). 사용자 취소 시
+      // null silent return.
+      final targetToken = await _acquireTargetProviderToken(targetProvider);
+      if (targetToken == null) return null; // 사용자 취소 — no-op.
+
+      // Step 3 — caller fresh ID Token (forceRefresh=true) — server-side
+      // auth_time 5분 boundary 통과 의무.
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      final callerIdToken = await currentUser.getIdToken(true);
+      if (callerIdToken == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+
+      // Step 4 — deployed linkCustomTokenProvider callable 호출.
+      final callable = _functions.httpsCallable(
+        'linkCustomTokenProvider',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 10)),
+      );
+      final response = await callable.call<Map<String, dynamic>>(
+        <String, dynamic>{
+          'idToken': callerIdToken,
+          'targetProvider': targetProvider.slug,
+          'targetProviderToken': targetToken.idToken,
+          'nonce': targetToken.nonce,
+        },
+      );
+
+      // Step 5 — {ok:true} 검증 후 reload → 도메인 User.
+      final ok = response.data['ok'] == true;
+      if (!ok) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      await currentUser.reload();
+      final refreshed = _auth.currentUser ?? currentUser;
+      return Result.success(_mapFirebaseUser(refreshed));
+    } on FirebaseFunctionsException catch (e) {
+      // deployed contract — unauthenticated/permission-denied → 재로그인 유도.
+      if (e.code == 'unauthenticated' || e.code == 'permission-denied') {
+        return Result.failure(ReauthenticationRequiredException(cause: e));
+      }
+      // already-exists → 이미 link 된 identity (회귀 안전 ARB 재사용).
+      if (e.code == 'already-exists') {
+        return Result.failure(AccountAlreadyLinked(cause: e));
+      }
+      // failed-precondition (익명 caller) / invalid-argument 등 → 표준 매핑.
+      return Result.failure(_mapFunctionsException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on ServiceUnavailable catch (e) {
+      // target SDK 가 OIDC scope 누락 등으로 ServiceUnavailable throw — Kakao/
+      // LINE/YJP signIn 과 동일 시맨틱 (Pitfall 1).
+      return Result.failure(e);
+    } on Object catch (e) {
+      // PII invariant (T-16-09-02): code/runtimeType 만 — 토큰/email 본문 비포함.
+      if (kDebugMode) {
+        debugPrint(
+          'linkCustomTokenProviderArm 비-Functions 예외: '
+          'runtimeType=${e.runtimeType}',
+        );
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      // 1회성 토큰 정책 (signInWithKakao/Line/Yahoojp finally logout mirror) —
+      // Pitfall 2 race-fix end 직전 위치.
+      await _logoutTargetProvider(targetProvider);
+      _socialLinkInProgress.end();
+    }
+  }
+
+  /// [targetProvider] 별 SDK signIn 으로 target OIDC 토큰을 fresh 재획득한다
+  /// (Phase 16 16-09). 사용자 취소 시 `null` 반환.
+  ///
+  /// 반환 [_TargetProviderToken] 은 `{idToken, nonce}` 묶음 — 4 Custom Token
+  /// SDK 의 result 타입을 단일 인터페이스로 normalize 한다.
+  Future<_TargetProviderToken?> _acquireTargetProviderToken(
+    AccountProvider targetProvider,
+  ) async {
+    switch (targetProvider) {
+      case AccountProvider.kakao:
+        final result = await _kakaoSdkClient.signIn();
+        if (result == null) return null;
+        return _TargetProviderToken(result.idToken, result.nonce);
+      case AccountProvider.line:
+        final result = await _lineSdkClient.signIn();
+        if (result == null) return null;
+        return _TargetProviderToken(result.idToken, result.nonce);
+      case AccountProvider.yahoojp:
+        final result = await _yahoojpSdkClient.signIn();
+        if (result == null) return null;
+        return _TargetProviderToken(result.idToken, result.nonce);
+      case AccountProvider.google:
+      case AccountProvider.apple:
+      case AccountProvider.facebook:
+      case AccountProvider.email:
+      case AccountProvider.naver:
+        // 호출처에서 사전 차단 (ArgumentError) — 도달하지 않음 (graceful null).
+        return null;
+    }
+  }
+
+  /// [targetProvider] SDK logout — 1회성 토큰 정책 (Phase 16 16-09).
+  ///
+  /// [linkCustomTokenProviderArm] 의 finally 블록에서 호출한다. 각 SDK 의
+  /// logout 은 내부 try/catch graceful 이므로 "no session" 상태에서도 silent.
+  Future<void> _logoutTargetProvider(AccountProvider targetProvider) async {
+    switch (targetProvider) {
+      case AccountProvider.kakao:
+        await _kakaoSdkClient.logout();
+      case AccountProvider.line:
+        await _lineSdkClient.logout();
+      case AccountProvider.yahoojp:
+        await _yahoojpSdkClient.logout();
+      case AccountProvider.google:
+      case AccountProvider.apple:
+      case AccountProvider.facebook:
+      case AccountProvider.email:
+      case AccountProvider.naver:
+        // 호출처에서 사전 차단 — 도달하지 않음.
+        break;
+    }
+  }
+
   /// Kakao 계정으로 Firebase Auth 에 로그인한다 (Phase 12 D-28 / SOCL-01).
   ///
   /// **Custom Token 방식** — Native provider (Google/Apple/Facebook) 와 달리
@@ -1608,6 +1799,22 @@ class AuthRepository {
     _accountExistsCache[email] = _CachedProvider(provider, _now());
     return provider;
   }
+}
+
+/// Custom Token target provider 의 OIDC 토큰 + nonce 묶음 (Phase 16 16-09).
+///
+/// [KakaoSignInResult] / [LineSignInResult] / [YahoojpSignInResult] 의 `idToken`
+/// + `nonce` 를 단일 인터페이스로 normalize 하여
+/// [AuthRepository.linkCustomTokenProviderArm] 가 provider-agnostic 하게
+/// callable payload 를 구성하도록 한다.
+class _TargetProviderToken {
+  const _TargetProviderToken(this.idToken, this.nonce);
+
+  /// target provider OIDC ID Token — deployed callable `targetProviderToken`.
+  final String idToken;
+
+  /// 단일 사용 raw nonce — deployed callable `nonce` (3 provider 모두 의무).
+  final String nonce;
 }
 
 /// [AuthRepository._accountExistsCache] 의 entry — TTL 검증을 위한 발효

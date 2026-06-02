@@ -127,6 +127,25 @@ enum AccountProvider {
     AccountProvider.yahoojp => false,
   };
 
+  /// 도메인 slug 문자열 (`google` / `kakao` / `line` / `yahoojp` 등).
+  ///
+  /// [tryParse] 의 역변환 — [kProviderIdGoogle] 등 const String 슬러그와 1:1
+  /// 일치한다. Phase 16 16-09 의 `linkCustomTokenProvider` callable 호출 시
+  /// `targetProvider` payload (kakao/line/yahoojp) 에 사용된다. [email] 은
+  /// Firebase Auth `password` providerData 도메인이지만 본 getter 는 slug
+  /// 형태 `email` 을 반환한다 ([tryParse] 의 `'email' || 'password'` 양방향과
+  /// 대칭 — link callable 의 target 대상은 아님).
+  String get slug => switch (this) {
+    AccountProvider.google => kProviderIdGoogle,
+    AccountProvider.apple => kProviderIdApple,
+    AccountProvider.facebook => kProviderIdFacebook,
+    AccountProvider.email => 'email',
+    AccountProvider.kakao => kProviderIdKakao,
+    AccountProvider.naver => kProviderIdNaver,
+    AccountProvider.line => kProviderIdLine,
+    AccountProvider.yahoojp => kProviderIdYahooJp,
+  };
+
   /// AppLocalizations getter 이름 — `authAccountProvider{X}` ARB key.
   ///
   /// 3 locale (ko/en/ja) 모두 `lib/l10n/app_*.arb` 에 정의 완료 (Phase 9.2
