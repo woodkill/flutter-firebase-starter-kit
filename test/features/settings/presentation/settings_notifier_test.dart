@@ -2,13 +2,13 @@
 //
 // Phase 16 Plan 16-06 Task 6.1 — SettingsNotifier 단위 테스트.
 //
-// 검증 surface:
+// 검증 surface (16-07 ec7e13d 이후 성공 path = signOutAndResetOnboarding):
 // - N1 happy path: requestAccountDeletion → AsyncValue.loading →
-//   AsyncValue.data + signOut 호출
+//   AsyncValue.data + signOutAndResetOnboarding 호출
 // - N2 reauth required: repository throws ReauthenticationRequiredException →
-//   AsyncValue.error(ReauthenticationRequiredException), signOut 미호출
+//   AsyncValue.error(ReauthenticationRequiredException), signOutAndResetOnboarding 미호출
 // - N3 server fail: repository throws UnknownException →
-//   AsyncValue.error(UnknownException), signOut 미호출
+//   AsyncValue.error(UnknownException), signOutAndResetOnboarding 미호출
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,7 +32,10 @@ void main() {
     mockSettingsRepo = _MockSettingsRepository();
     mockAuthRepo = _MockAuthRepository();
 
-    when(() => mockAuthRepo.signOut()).thenAnswer((_) async {});
+    // 16-07(ec7e13d) 이후 탈퇴 성공 path 는 signOut() 단독이 아닌
+    // signOutAndResetOnboarding() 를 호출한다 (onboardingSeen=false reset).
+    when(() => mockAuthRepo.signOutAndResetOnboarding())
+        .thenAnswer((_) async {});
 
     container = ProviderContainer(
       overrides: [
@@ -67,8 +70,8 @@ void main() {
         container.read(settingsProvider),
         const AsyncValue<void>.data(null),
       );
-      // signOut 트리거 검증.
-      verify(() => mockAuthRepo.signOut()).called(1);
+      // signOutAndResetOnboarding 트리거 검증 (16-07 D-A2).
+      verify(() => mockAuthRepo.signOutAndResetOnboarding()).called(1);
     });
 
     test('N2 reauth required — AsyncValue.error(ReauthRequired) + signOut 미호출',
@@ -83,7 +86,7 @@ void main() {
       final state = container.read(settingsProvider);
       expect(state.hasError, isTrue);
       expect(state.error, isA<ReauthenticationRequiredException>());
-      verifyNever(() => mockAuthRepo.signOut());
+      verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
     });
 
     test('N3 server fail — AsyncValue.error(UnknownException) + signOut 미호출',
@@ -98,7 +101,7 @@ void main() {
       final state = container.read(settingsProvider);
       expect(state.hasError, isTrue);
       expect(state.error, isA<UnknownException>());
-      verifyNever(() => mockAuthRepo.signOut());
+      verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
     });
   });
 }

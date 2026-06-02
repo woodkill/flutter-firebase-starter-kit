@@ -50,6 +50,8 @@ Future<_DialogHandle> _pumpAndShowDialog(
   final repo = settingsRepo ?? _MockSettingsRepository();
   final aRepo = authRepo ?? _MockAuthRepository();
   when(() => aRepo.signOut()).thenAnswer((_) async {});
+  // 16-07(ec7e13d) 이후 탈퇴 성공 path 는 signOutAndResetOnboarding 를 호출한다.
+  when(() => aRepo.signOutAndResetOnboarding()).thenAnswer((_) async {});
 
   final router = GoRouter(
     initialLocation: '/',
