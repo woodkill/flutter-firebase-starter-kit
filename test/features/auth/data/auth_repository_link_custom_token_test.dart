@@ -307,4 +307,31 @@ void main() {
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
   });
+
+  group('T9 — WR-06: 익명 caller client-side 가드 (defense-in-depth)', () {
+    test(
+      'currentUser.isAnonymous == true → Result.failure(ServiceUnavailable) + '
+      'getIdToken/callable 미호출 (서버 failed-precondition 의존 회피)',
+      () async {
+        stubLineSignInSuccess();
+        // 익명 caller — upstream 로직 오류 시뮬레이션.
+        when(() => mockCurrentUser.isAnonymous).thenReturn(true);
+
+        final result = await repository.linkCustomTokenProviderArm(
+          targetProvider: AccountProvider.line,
+        );
+
+        expect(result, isA<Failure<dynamic>>());
+        final failure = result! as Failure<dynamic>;
+        expect(failure.exception, isA<ServiceUnavailable>());
+        // client 에서 loud fail — callable round-trip / caller token 발급 회피.
+        verifyNever(() => mockCurrentUser.getIdToken(any()));
+        verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
+        // race-fix invariant + 1회성 토큰 logout 보존.
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+        verify(() => mockLineSdkClient.logout()).called(1);
+      },
+    );
+  });
 }

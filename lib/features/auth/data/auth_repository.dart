@@ -947,6 +947,15 @@ class AuthRepository {
       if (currentUser == null) {
         return const Result.failure(ServiceUnavailable());
       }
+      // WR-06: client-side 익명 caller 가드 (defense-in-depth). reactive
+      // collision arm 의 caller 는 구조상 fresh collided sign-in 이므로
+      // 익명일 수 없다 — 익명 도달은 upstream 로직 오류 신호다. 서버
+      // `failed-precondition` 거부에만 의존하지 않고 client 에서 loud
+      // fail 하여 불필요한 callable round-trip 을 회피한다 (proactive arm /
+      // deployed callable 익명 차단 mirror).
+      if (currentUser.isAnonymous) {
+        return const Result.failure(ServiceUnavailable());
+      }
       final callerIdToken = await currentUser.getIdToken(true);
       if (callerIdToken == null) {
         return const Result.failure(ServiceUnavailable());
