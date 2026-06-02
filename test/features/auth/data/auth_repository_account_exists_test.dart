@@ -273,5 +273,44 @@ void main() {
         debugPrint = originalPrint;
       }
     });
+
+    test('R8 (WR-05): 만료 entry 는 read 시점에 evict — 만료 후 재조회 시 '
+        'callable 재호출 (read-side eviction)', () async {
+      stubLookupResponse(existingProvider: 'kakao');
+
+      // 1st trigger — cache 적재.
+      await triggerAccountExists(collisionEmail: 'evict@example.com');
+      // TTL 초과 경과 → 다음 read 가 만료 entry 를 evict 후 재조회.
+      fakeNow = fakeNow.add(const Duration(minutes: 5, seconds: 1));
+      await triggerAccountExists(collisionEmail: 'evict@example.com');
+      // evict 이후 동일 email 재조회 — 새 entry 가 TTL 내이므로 cache hit.
+      await triggerAccountExists(collisionEmail: 'evict@example.com');
+
+      // 호출 2회: 최초 + 만료 후 재호출 (3번째는 fresh entry cache hit).
+      verify(
+        () => mockLookupCallable.call<Map<String, dynamic>>(any()),
+      ).called(2);
+    });
+
+    test('R9 (WR-05): cache 는 size cap (64) 으로 bound — 한도 초과 시 가장 '
+        '오래된 entry evict 되어 재조회 시 callable 재호출', () async {
+      stubLookupResponse(existingProvider: 'kakao');
+
+      // 가장 먼저 적재할 email — 이후 cap 초과로 evict 대상.
+      await triggerAccountExists(collisionEmail: 'oldest@example.com');
+
+      // cap(64) 을 채우도록 추가 64 distinct email 적재 → oldest evict.
+      for (var i = 0; i < 64; i++) {
+        await triggerAccountExists(collisionEmail: 'fill$i@example.com');
+      }
+
+      // oldest 는 evict 되어 재조회 시 callable 재호출 (cache miss).
+      clearInteractions(mockLookupCallable);
+      await triggerAccountExists(collisionEmail: 'oldest@example.com');
+
+      verify(
+        () => mockLookupCallable.call<Map<String, dynamic>>(any()),
+      ).called(1);
+    });
   });
 }

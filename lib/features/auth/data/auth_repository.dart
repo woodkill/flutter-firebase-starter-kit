@@ -100,6 +100,14 @@ class AuthRepository {
   /// TTL 5 분 — D-10 enumeration alarm window 와 일관.
   static const Duration _kAccountExistsCacheTtl = Duration(minutes: 5);
 
+  /// WR-05 — `_accountExistsCache` 최대 entry 수 (unbounded Map 성장 차단).
+  ///
+  /// keepAlive [AuthRepository] 에서 서로 다른 collisionEmail 충돌이 반복되면
+  /// plaintext email key 가 무한 누적되어 PII 가 TTL 보다 오래 메모리에
+  /// 잔류한다. 새 entry 삽입 시 본 한도를 초과하면 가장 오래된(삽입 순서)
+  /// entry 를 evict 하여 메모리·잔류 시간을 bound 한다.
+  static const int _kAccountExistsCacheMaxEntries = 64;
+
   /// `lookupSignInMethods` callable 호출 타임아웃 — 5 초.
   static const Duration _kLookupTimeout = Duration(seconds: 5);
 
@@ -1954,9 +1962,16 @@ class AuthRepository {
   /// baseline 보존.
   Future<AccountProvider?> _lookupExistingProvider(String email) async {
     // Step 1 — cache 확인 (Pitfall 5: TTL 5 분 invariant).
+    // WR-05: 만료 entry 는 read 시점에 즉시 evict 하여 plaintext email 의
+    // 메모리 잔류 시간을 TTL 로 제한한다 (기존엔 만료 후에도 덮어쓰기 전까지
+    // 무기한 잔류).
     final cached = _accountExistsCache[email];
-    if (cached != null && !cached.isExpired(_now())) {
-      return cached.provider;
+    if (cached != null) {
+      if (cached.isExpired(_now())) {
+        _accountExistsCache.remove(email);
+      } else {
+        return cached.provider;
+      }
     }
 
     // Step 2 — cache miss → callable 호출.
@@ -1985,6 +2000,13 @@ class AuthRepository {
     }
 
     // Step 3 — cache (success / fallback 모두 cache 하여 retry 비용 절감).
+    // WR-05: 새 key 삽입 전 size cap 적용 — 한도 초과 시 가장 오래된(삽입
+    // 순서) entry 를 evict (Dart Map 은 insertion-order 보존). 동일 key
+    // 갱신은 size 증가가 아니므로 evict 불요.
+    if (!_accountExistsCache.containsKey(email) &&
+        _accountExistsCache.length >= _kAccountExistsCacheMaxEntries) {
+      _accountExistsCache.remove(_accountExistsCache.keys.first);
+    }
     _accountExistsCache[email] = _CachedProvider(provider, _now());
     return provider;
   }
