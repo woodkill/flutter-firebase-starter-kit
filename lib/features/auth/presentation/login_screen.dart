@@ -163,13 +163,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // 있도록 의도적으로 제거 (WR-05).
   }
 
-  /// native account-exists 충돌 시 [AccountLinkingSheet] 를 노출한다
-  /// (Phase 16 16-08 — reactive link arm).
+  /// account-exists 충돌 시 [AccountLinkingSheet] 를 노출한다 (Phase 16 16-08
+  /// native arm + 16-09 Custom Token arm — reactive link arm).
   ///
   /// `ref.listen` 콜백 (build 동안) 안에서 직접 `showModalBottomSheet` 를
   /// 호출하면 build 중 navigator 변경 위반이 발생하므로 post-frame callback
   /// 으로 1 frame 미룬다. sheet 가 link 성공(true) 시 /home 이동은 sheet 가
   /// 직접 담당하므로 (context.go) 본 메서드는 추가 navigation 미수행.
+  ///
+  /// **Custom Token arm (16-09):** native 가 아닌 existingProvider
+  /// (kakao/line/yahoojp) 는 sheet 가 직접
+  /// [AuthRepository.linkCustomTokenProviderArm] 로 link 하고, naver 는
+  /// deployed callable OIDC 미지원이므로 sheet 가 graceful 안내 (Phase 17+
+  /// carry-forward) — 본 screen 은 sheet 노출만 담당한다.
   void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -260,13 +266,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
             if (!mounted) return;
             final err = next.error;
-            // Phase 16 16-08 — native account-exists (existingProvider 식별 +
-            // isNative) 면 AccountLinkingSheet 노출 (reactive link arm).
-            // existingProvider == null (unknown) 또는 Custom Token 미지원
-            // 경로는 기존 FormErrorBanner inline 으로 fallback (R2 회귀 0).
+            // Phase 16 16-08 native arm + 16-09 Custom Token arm —
+            // existingProvider 식별 시 (native + Custom Token 모두)
+            // AccountLinkingSheet 노출 (reactive link arm). native 는 sheet 가
+            // linkPendingNativeCredential, Custom Token (kakao/line/yahoojp) 은
+            // onCustomTokenLink → linkCustomTokenProviderArm, naver 는 graceful.
+            // existingProvider == null (unknown) 만 FormErrorBanner inline 으로
+            // fallback (R2 회귀 0).
             if (err is AccountExistsWithDifferentCredential &&
-                err.existingProvider != null &&
-                err.existingProvider!.isNative) {
+                err.existingProvider != null) {
               _showAccountLinkingSheet(err);
               return;
             }

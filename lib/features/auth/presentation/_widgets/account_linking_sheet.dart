@@ -156,18 +156,27 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
       return;
     }
 
-    // Custom Token arm — 16-09 가 주입하는 콜백에 위임 (hook).
+    // Custom Token arm (16-09) — kakao/line/yahoojp 는 본 sheet 가 직접
+    // linkCustomTokenProviderArm 로 link, naver 는 deployed callable OIDC
+    // 미지원 graceful 안내. onCustomTokenLink 가 주입된 경우 (테스트 / 호출처
+    // 커스텀 override) 그 콜백에 우선 위임한다 (16-08 hook 호환).
     if (!provider.isNative) {
-      final callback = widget.onCustomTokenLink;
-      if (callback == null) {
-        navigator.pop(false); // 16-09 미주입 graceful fallback.
-        return;
-      }
       setState(() => _isLinking = true);
-      final ok = await callback(provider);
+      final callback = widget.onCustomTokenLink;
+      final bool ok;
+      if (callback != null) {
+        ok = await callback(provider);
+      } else {
+        ok = await _linkCustomToken(provider);
+      }
       if (!mounted) return;
-      navigator.pop(ok);
-      if (ok) router.go(AppRoutes.home);
+      if (ok) {
+        navigator.pop(true);
+        router.go(AppRoutes.home);
+      } else {
+        // graceful — sheet 유지 (naver 안내 후 재시도 가능 / 취소).
+        setState(() => _isLinking = false);
+      }
       return;
     }
 
@@ -193,6 +202,32 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
       case Failure<dynamic>():
         navigator.pop(false);
     }
+  }
+
+  /// Custom Token provider (kakao/line/yahoojp) reactive link (Phase 16 16-09).
+  ///
+  /// [AuthRepository.linkCustomTokenProviderArm] 로 실제 link — 성공 시 `true`
+  /// (호출처가 pop(true) + /home). naver 는 deployed callable OIDC 미지원
+  /// (`link_custom_token_provider.ts` line 27~33) 이므로 graceful SnackBar 안내
+  /// 후 `false` (Phase 17+ carry-forward — 크래시 0 + linkedProviders 변경 0).
+  Future<bool> _linkCustomToken(AccountProvider provider) async {
+    // naver = deployed callable 미지원 → graceful 안내 (Phase 17+).
+    if (provider == AccountProvider.naver) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.errorAccountExistsWithUnknownProvider),
+        ),
+      );
+      return false;
+    }
+    final result = await ref
+        .read(authRepositoryProvider)
+        .linkCustomTokenProviderArm(targetProvider: provider);
+    if (result == null) return false; // 사용자 취소 (no-op).
+    return switch (result) {
+      Success<dynamic>() => true,
+      Failure<dynamic>() => false,
+    };
   }
 
   @override
