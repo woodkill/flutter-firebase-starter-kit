@@ -264,6 +264,121 @@ void main() {
     );
   });
 
+  group('T6 — WR-02: Custom Token reauth-expired → SnackBar + sheet dismiss + /login', () {
+    testWidgets(
+      'linkCustomTokenProviderArm → ReauthenticationRequiredException → '
+      'withdrawalReauthRequired SnackBar + sheet pop(false)',
+      (tester) async {
+        await usePortraitSurface(tester);
+        when(
+          () => mockRepo.linkCustomTokenProviderArm(
+            targetProvider: any(named: 'targetProvider'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(
+            ReauthenticationRequiredException(),
+          ),
+        );
+
+        await tester.pumpWidget(
+          buildHarness(
+            onKakaoSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collide@example.com',
+                existingProvider: AccountProvider.kakao,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await settleSheetEntrance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+        final sheetButton = find.descendant(
+          of: find.byType(AccountLinkingSheet),
+          matching: find.byType(BrandedSocialButton),
+        );
+        await tester.ensureVisible(sheetButton);
+        await tester.tap(sheetButton);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        verify(
+          () => mockRepo.linkCustomTokenProviderArm(
+            targetProvider: AccountProvider.kakao,
+          ),
+        ).called(1);
+        // WR-02: 더 이상 silent stuck sheet 가 아니라 reauth 안내 SnackBar.
+        expect(
+          find.text('For security, please sign in again and retry.'),
+          findsOneWidget,
+        );
+        // reauth 는 sheet 닫고 /login 라우팅 (초기 location 도 /login).
+        expect(find.byType(AccountLinkingSheet), findsNothing);
+      },
+    );
+  });
+
+  group('T7 — WR-02: Custom Token 기타 실패 → user-visible SnackBar + sheet 유지', () {
+    testWidgets(
+      'linkCustomTokenProviderArm → AccountAlreadyLinked → '
+      'errorAccountExistsWithUnknownProvider SnackBar (stuck sheet 방지)',
+      (tester) async {
+        await usePortraitSurface(tester);
+        when(
+          () => mockRepo.linkCustomTokenProviderArm(
+            targetProvider: any(named: 'targetProvider'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(AccountAlreadyLinked()),
+        );
+
+        await tester.pumpWidget(
+          buildHarness(
+            onKakaoSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collide@example.com',
+                existingProvider: AccountProvider.kakao,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await settleSheetEntrance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+        final sheetButton = find.descendant(
+          of: find.byType(AccountLinkingSheet),
+          matching: find.byType(BrandedSocialButton),
+        );
+        await tester.ensureVisible(sheetButton);
+        await tester.tap(sheetButton);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        verify(
+          () => mockRepo.linkCustomTokenProviderArm(
+            targetProvider: AccountProvider.kakao,
+          ),
+        ).called(1);
+        // WR-02: 기타 실패도 silent 가 아니라 user-visible 안내 SnackBar.
+        expect(
+          find.text(
+            'This email is already registered with another sign-in method. '
+            'Please sign in with the method you originally used.',
+          ),
+          findsOneWidget,
+        );
+        // 기타 실패는 sheet 유지 (재시도 가능 — naver graceful 와 동일 시맨틱).
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+      },
+    );
+  });
+
   group('T5 — viewport: 좁은 화면 ensureVisible 후 tap', () {
     testWidgets('좁은 viewport(320x560) → Custom Token 버튼 ensureVisible 후 link 호출', (
       tester,

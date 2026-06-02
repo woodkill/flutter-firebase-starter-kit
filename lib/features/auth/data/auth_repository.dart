@@ -595,11 +595,13 @@ class AuthRepository {
           pendingCredential as fb.AuthCredential,
         );
       } on fb.FirebaseAuthException catch (e) {
-        if (e.code == 'provider-already-linked' ||
-            e.code == 'credential-already-in-use') {
-          return Result.failure(AccountAlreadyLinked(cause: e));
-        }
-        return Result.failure(_mapAuthException(e));
+        // WR-01: proactive arm 과 동일 매핑으로 통일 —
+        // `requires-recent-login` → [ReauthenticationRequiredException]
+        // (sheet 가 /login 라우팅), `provider-already-linked` /
+        // `credential-already-in-use` → [AccountAlreadyLinked], 그 외 →
+        // [_mapAuthException]. 기존엔 reauth-expired 가 default fallback
+        // (ServiceUnavailable) 으로 흡수되어 sheet 가 mute pop(false) 했다.
+        return Result.failure(_mapProactiveLinkException(e));
       }
 
       final fbUser = linked.user;

@@ -285,6 +285,118 @@ void main() {
     );
   });
 
+  group('T6 — WR-01: native reauth-expired → SnackBar + sheet dismiss + /login', () {
+    testWidgets(
+      'linkPendingNativeCredential → ReauthenticationRequiredException → '
+      'withdrawalReauthRequired SnackBar + sheet pop(false)',
+      (tester) async {
+        await usePortraitSurface(tester);
+        when(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: any(named: 'existingProvider'),
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(
+            ReauthenticationRequiredException(),
+          ),
+        );
+
+        await tester.pumpWidget(
+          buildHarness(
+            onGoogleSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collide@example.com',
+                existingProvider: AccountProvider.google,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await settleSheetEntrance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+        final sheetButton = find.descendant(
+          of: find.byType(AccountLinkingSheet),
+          matching: find.byType(BrandedSocialButton),
+        );
+        await tester.ensureVisible(sheetButton);
+        await tester.tap(sheetButton);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        verify(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: AccountProvider.google,
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        ).called(1);
+        // WR-01: 더 이상 mute pop 이 아니라 user-visible reauth 안내 SnackBar.
+        expect(
+          find.text('For security, please sign in again and retry.'),
+          findsOneWidget,
+        );
+        // sheet 닫힘 (/login 라우팅 — 초기 location 도 /login).
+        expect(find.byType(AccountLinkingSheet), findsNothing);
+      },
+    );
+  });
+
+  group('T7 — WR-01: native 기타 실패 → user-visible SnackBar + sheet dismiss', () {
+    testWidgets(
+      'linkPendingNativeCredential → AccountAlreadyLinked → '
+      'errorAccountExistsWithUnknownProvider SnackBar + sheet pop(false)',
+      (tester) async {
+        await usePortraitSurface(tester);
+        when(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: any(named: 'existingProvider'),
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(AccountAlreadyLinked()),
+        );
+
+        await tester.pumpWidget(
+          buildHarness(
+            onGoogleSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collide@example.com',
+                existingProvider: AccountProvider.google,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await settleSheetEntrance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+        final sheetButton = find.descendant(
+          of: find.byType(AccountLinkingSheet),
+          matching: find.byType(BrandedSocialButton),
+        );
+        await tester.ensureVisible(sheetButton);
+        await tester.tap(sheetButton);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // WR-01: 기타 실패도 silent 가 아니라 graceful 안내 SnackBar.
+        expect(
+          find.text(
+            'This email is already registered with another sign-in method. '
+            'Please sign in with the method you originally used.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(AccountLinkingSheet), findsNothing);
+      },
+    );
+  });
+
   group('T5 — viewport: 좁은 화면에서 ensureVisible 후 tap', () {
     testWidgets('좁은 viewport (320x560) → sheet 버튼 ensureVisible 후 link 호출', (
       tester,

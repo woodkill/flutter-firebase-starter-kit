@@ -9,6 +9,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/provider_id.dart';
+import '../../../../core/error/app_exception.dart';
 import '../../../../core/error/result.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
@@ -147,6 +148,9 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
     if (_isLinking) return; // 이중 탭 가드.
     final navigator = Navigator.of(context);
     final router = GoRouter.of(context);
+    // await 이후 build context 사용 회피 — 진행 전 capture (PII 0: 라벨/ARB만).
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final provider = widget.existingProvider;
 
     // email-existing 은 reactive link arm 미적용 — /login redirect (Task 1 정책).
@@ -165,17 +169,33 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
       final callback = widget.onCustomTokenLink;
       final bool ok;
       if (callback != null) {
+        // 주입된 hook (테스트/호출처 override) 은 bool 계약만 노출하므로
+        // reauth 분기 없이 성공/실패 2값으로 처리한다 (16-08 hook 호환).
         ok = await callback(provider);
-      } else {
-        ok = await _linkCustomToken(provider);
+        if (!mounted) return;
+        if (ok) {
+          navigator.pop(true);
+          router.go(AppRoutes.home);
+        } else {
+          setState(() => _isLinking = false);
+        }
+        return;
       }
+      // 실제 경로 — _linkCustomToken 이 failure-class 별 피드백을 표시하고
+      // 분기 신호 (_CustomTokenLinkOutcome) 를 반환한다 (WR-02).
+      final outcome = await _linkCustomToken(provider);
       if (!mounted) return;
-      if (ok) {
-        navigator.pop(true);
-        router.go(AppRoutes.home);
-      } else {
-        // graceful — sheet 유지 (naver 안내 후 재시도 가능 / 취소).
-        setState(() => _isLinking = false);
+      switch (outcome) {
+        case _CustomTokenLinkOutcome.success:
+          navigator.pop(true);
+          router.go(AppRoutes.home);
+        case _CustomTokenLinkOutcome.reauthRequired:
+          // reauth-expired — sheet 닫고 재로그인 라우팅 (피드백은 이미 표시됨).
+          navigator.pop(false);
+          router.go(AppRoutes.login);
+        case _CustomTokenLinkOutcome.cancelledOrFailed:
+          // 취소(silent) / naver graceful / 기타 실패 — sheet 유지 (재시도 가능).
+          setState(() => _isLinking = false);
       }
       return;
     }
@@ -199,35 +219,81 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
       case Success<dynamic>():
         navigator.pop(true);
         router.go(AppRoutes.home);
-      case Failure<dynamic>():
+      case Failure<dynamic>(:final exception):
+        // WR-01: proactive arm (AccountLinkingSection) 과 동일 피드백 —
+        // reauth-expired 는 재로그인 라우팅, 그 외는 user-visible SnackBar
+        // (PII 0: ARB only). 기존엔 mute pop(false) 로 무피드백 dead-end.
         navigator.pop(false);
+        if (exception is ReauthenticationRequiredException) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.withdrawalReauthRequired)),
+          );
+          router.go(AppRoutes.login);
+        } else {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(l10n.errorAccountExistsWithUnknownProvider),
+            ),
+          );
+        }
     }
   }
 
   /// Custom Token provider (kakao/line/yahoojp) reactive link (Phase 16 16-09).
   ///
-  /// [AuthRepository.linkCustomTokenProviderArm] 로 실제 link — 성공 시 `true`
-  /// (호출처가 pop(true) + /home). naver 는 deployed callable OIDC 미지원
+  /// [AuthRepository.linkCustomTokenProviderArm] 로 실제 link 하고 결과를
+  /// [_CustomTokenLinkOutcome] 으로 반환한다 (호출처 [_onLinkPressed] 가
+  /// navigation 분기). naver 는 deployed callable OIDC 미지원
   /// (`link_custom_token_provider.ts` line 27~33) 이므로 graceful SnackBar 안내
-  /// 후 `false` (Phase 17+ carry-forward — 크래시 0 + linkedProviders 변경 0).
-  Future<bool> _linkCustomToken(AccountProvider provider) async {
+  /// 후 [_CustomTokenLinkOutcome.cancelledOrFailed] (Phase 17+ carry-forward —
+  /// 크래시 0 + linkedProviders 변경 0).
+  ///
+  /// **WR-02:** 사용자 취소(null) 외의 [Failure] 는 더 이상 silent 가 아니다 —
+  /// [ReauthenticationRequiredException] 은 user-visible SnackBar 표시 후
+  /// [_CustomTokenLinkOutcome.reauthRequired] (호출처가 sheet 닫고 재로그인
+  /// 라우팅), 그 외 실패는 SnackBar (PII 0: ARB only) 표시 후
+  /// [_CustomTokenLinkOutcome.cancelledOrFailed]. native arm (WR-01) /
+  /// proactive `AccountLinkingSection` 의 outcome switch mirror.
+  Future<_CustomTokenLinkOutcome> _linkCustomToken(
+    AccountProvider provider,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
+
     // naver = deployed callable 미지원 → graceful 안내 (Phase 17+).
     if (provider == AccountProvider.naver) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
-          content: Text(context.l10n.errorAccountExistsWithUnknownProvider),
+          content: Text(l10n.errorAccountExistsWithUnknownProvider),
         ),
       );
-      return false;
+      return _CustomTokenLinkOutcome.cancelledOrFailed;
     }
     final result = await ref
         .read(authRepositoryProvider)
         .linkCustomTokenProviderArm(targetProvider: provider);
-    if (result == null) return false; // 사용자 취소 (no-op).
-    return switch (result) {
-      Success<dynamic>() => true,
-      Failure<dynamic>() => false,
-    };
+    // 사용자 취소 (no-op, silent — naver 외 피드백 0).
+    if (result == null) return _CustomTokenLinkOutcome.cancelledOrFailed;
+    if (!mounted) return _CustomTokenLinkOutcome.cancelledOrFailed;
+    switch (result) {
+      case Success<dynamic>():
+        return _CustomTokenLinkOutcome.success;
+      case Failure<dynamic>(:final exception):
+        if (exception is ReauthenticationRequiredException) {
+          // reauth-expired — 안내 후 호출처가 sheet 닫고 재로그인 라우팅.
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.withdrawalReauthRequired)),
+          );
+          return _CustomTokenLinkOutcome.reauthRequired;
+        }
+        // already-linked / 기타 실패 — user-visible 안내 (stuck sheet 방지).
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(l10n.errorAccountExistsWithUnknownProvider),
+          ),
+        );
+        return _CustomTokenLinkOutcome.cancelledOrFailed;
+    }
   }
 
   @override
@@ -286,6 +352,22 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
       ],
     );
   }
+}
+
+/// Custom Token reactive link 의 navigation 분기 신호 (Phase 16 WR-02).
+///
+/// `_linkCustomToken` 이 failure-class 별 피드백 (SnackBar) 표시 책임을 지고,
+/// 본 enum 으로 호출처 [_AccountLinkingSheetState._onLinkPressed] 의 navigation
+/// (pop / route) 분기를 결정한다 — proactive `AccountLinkOutcome` mirror.
+enum _CustomTokenLinkOutcome {
+  /// link 성공 — sheet pop(true) + /home.
+  success,
+
+  /// reauth-expired (`requires-recent-login`) — sheet pop(false) + /login.
+  reauthRequired,
+
+  /// 사용자 취소(silent) / naver graceful / 기타 실패 — sheet 유지 (재시도 가능).
+  cancelledOrFailed,
 }
 
 /// [existingProvider] 에 매핑된 provider 라벨 (8 ARB key) 을 반환한다.
