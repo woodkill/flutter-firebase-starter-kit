@@ -190,7 +190,7 @@ void main() {
       final user = _testUser(providerIds: const <String>['google.com']);
       when(() => repo.linkAppleCredential()).thenAnswer(
         (_) async =>
-            Result.failure(const ReauthenticationRequiredException()),
+            const Result.failure(ReauthenticationRequiredException()),
       );
 
       final router = await _pumpSection(tester, user: user, repo: repo);
@@ -214,7 +214,7 @@ void main() {
         (tester) async {
       final user = _testUser(providerIds: const <String>['google.com']);
       when(() => repo.linkAppleCredential())
-          .thenAnswer((_) async => Result.failure(const AccountAlreadyLinked()));
+          .thenAnswer((_) async => const Result.failure(AccountAlreadyLinked()));
 
       await _pumpSection(tester, user: user, repo: repo);
 
