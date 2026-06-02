@@ -673,6 +673,185 @@ class AuthRepository {
     }
   }
 
+  /// 로그인된 사용자에게 Google 계정을 proactive 하게 연결한다
+  /// (Phase 16 16-10 — proactive native link arm / SOCL-12 / UAT A6).
+  ///
+  /// Settings "계정 연결" 섹션 (Surface D) 에서 사용자가 Google 버튼을 탭하면
+  /// 호출된다 — account-exists 충돌 없이 logged-in user 가 직접 provider 를
+  /// 추가하는 흐름. 익명 승격 분기는 타지 않으며 (currentUser 가 이미 정식
+  /// user 전제), Cloud Functions callable 을 호출하지 않는다 (native — UAT A6
+  /// invariant).
+  ///
+  /// 흐름:
+  /// 1. [SocialLinkInProgress.begin] (Phase 9.1 D-22 race-fix invariant) —
+  ///    try-finally 로 [SocialLinkInProgress.end] 1:1 보장.
+  /// 2. [GoogleSignIn.authenticate] 로 fresh Google credential 획득. 사용자
+  ///    취소 ([GoogleSignInExceptionCode.canceled]) 시 `null` 반환 (no-op —
+  ///    linkedProviders 변경 0).
+  /// 3. `_auth.currentUser.linkWithCredential(googleCredential)`.
+  /// 4. 에러 매핑 ([_mapProactiveLinkException]): `requires-recent-login` →
+  ///    [ReauthenticationRequiredException] (5분 auth_time boundary — withdrawal
+  ///    D-06 reauth gate mirror), `provider-already-linked` /
+  ///    `credential-already-in-use` → [AccountAlreadyLinked], 그 외 →
+  ///    [_mapAuthException].
+  ///
+  /// 반환: `Result.success(User)` — link 성공 / `Result.failure(...)` — 충돌·
+  /// 재인증 필요 / `null` — 사용자 취소 (no-op).
+  Future<Result<User>?> linkGoogleCredential() {
+    return _runProactiveNativeLink(() async {
+      final fb.AuthCredential credential;
+      try {
+        final account = await _googleSignIn.authenticate();
+        final authentication = account.authentication;
+        credential = fb.GoogleAuthProvider.credential(
+          idToken: authentication.idToken,
+        );
+      } on GoogleSignInException catch (e) {
+        if (e.code == GoogleSignInExceptionCode.canceled) return null;
+        rethrow;
+      }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return null;
+      return currentUser.linkWithCredential(credential);
+    });
+  }
+
+  /// 로그인된 사용자에게 Apple 계정을 proactive 하게 연결한다
+  /// (Phase 16 16-10 — proactive native link arm / SOCL-12 / UAT A6).
+  ///
+  /// Apple 은 provider 기반 — `_auth.currentUser.linkWithProvider(AppleAuthProvider)`
+  /// 로 OAuth 플로우(iOS ASAuthorizationController / Android Custom Tab) 를
+  /// Firebase 가 내부 처리한다. 사용자 취소 (`canceled` 등) 시 `null` 반환.
+  /// 에러 매핑은 [linkGoogleCredential] 과 동일 ([_mapProactiveLinkException]).
+  ///
+  /// 흐름 / 반환 시맨틱은 [linkGoogleCredential] 참조 (native — callable 미호출).
+  Future<Result<User>?> linkAppleCredential() {
+    return _runProactiveNativeLink(() async {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return null;
+      final provider = fb.AppleAuthProvider()
+        ..addScope('email')
+        ..addScope('name');
+      return currentUser.linkWithProvider(provider);
+    });
+  }
+
+  /// 로그인된 사용자에게 Facebook 계정을 proactive 하게 연결한다
+  /// (Phase 16 16-10 — proactive native link arm / SOCL-12 / UAT A6).
+  ///
+  /// [FacebookAuth.login] (email + public_profile) 로 fresh credential 획득 후
+  /// `_auth.currentUser.linkWithCredential(facebookCredential)`. 사용자 취소
+  /// (status != success) 또는 accessToken null 시 `null` 반환 (no-op).
+  ///
+  /// 흐름 / 반환 시맨틱은 [linkGoogleCredential] 참조 (native — callable 미호출).
+  Future<Result<User>?> linkFacebookCredential() {
+    return _runProactiveNativeLink(() async {
+      final loginResult = await _facebookAuth.login(
+        permissions: ['email', 'public_profile'],
+        loginTracking: LoginTracking.enabled,
+      );
+      if (loginResult.status != LoginStatus.success) return null;
+      final accessToken = loginResult.accessToken;
+      if (accessToken == null) return null;
+      final credential = fb.FacebookAuthProvider.credential(
+        accessToken.tokenString,
+      );
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return null;
+      return currentUser.linkWithCredential(credential);
+    });
+  }
+
+  /// 로그인된 사용자에게 이메일/비밀번호 자격증명을 연결한다
+  /// (Phase 16 16-10 — native link 메서드 / SOCL-12).
+  ///
+  /// **reactive(16-08) 전용 — no proactive call site.** email(이메일/비밀번호)
+  /// 은 Surface D proactive "계정 연결" 목록에서 **제외**된다 (mockup §0 사용자
+  /// 시각 sign-off 2026-06-02 — email EXCLUDE). 따라서 본 메서드는 Settings
+  /// proactive 흐름에서 호출되지 않으며, account-exists 충돌 시 reactive native
+  /// 충돌 arm 경로에서만 도달한다. proactive 신규 affordance 가 필요한
+  /// 프로젝트는 16-11 의 available-provider 후보에 email 을 추가하고 별도
+  /// password 입력 다이얼로그를 신설한 뒤 본 메서드를 그 affordance 에 wire
+  /// 하면 된다 (starter-kit 기본은 소셜만).
+  ///
+  /// [fb.EmailAuthProvider.credential] 생성 후
+  /// `_auth.currentUser.linkWithCredential(emailCredential)`. 에러 매핑은
+  /// [linkGoogleCredential] 과 동일 ([_mapProactiveLinkException]).
+  Future<Result<User>?> linkEmailCredential({
+    required String email,
+    required String password,
+  }) {
+    return _runProactiveNativeLink(() async {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return null;
+      final credential = fb.EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+      return currentUser.linkWithCredential(credential);
+    });
+  }
+
+  /// proactive native link 4 메서드의 공통 실행 래퍼 (Phase 16 16-10).
+  ///
+  /// [linkAction] 은 provider 별 fresh credential 획득 + link 호출을 수행하고
+  /// [fb.UserCredential] 을 반환한다. 사용자 취소 시 `null` 을 반환하면 본
+  /// 래퍼가 `null` (no-op) 로 전파한다. 공통 책임:
+  /// 1. [SocialLinkInProgress.begin] + try-finally [SocialLinkInProgress.end]
+  ///    1:1 (Phase 9.1 D-22 race-fix invariant).
+  /// 2. [linkAction] 이 던지는 [fb.FirebaseAuthException] →
+  ///    [_mapProactiveLinkException] (reauth gate / already-linked / 표준 매핑).
+  /// 3. Apple OAuth 사용자 취소 코드 (`canceled` 등) → `null` (no-op).
+  /// 4. 비-Auth 예외 → [ServiceUnavailable] (Notifier AsyncLoading 고정 방지).
+  Future<Result<User>?> _runProactiveNativeLink(
+    Future<fb.UserCredential?> Function() linkAction,
+  ) async {
+    try {
+      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
+      final linked = await linkAction();
+      if (linked == null) return null; // 사용자 취소 — no-op.
+      final fbUser = linked.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on fb.FirebaseAuthException catch (e) {
+      // Apple/OAuth 사용자 취소 → null (no-op, signInWithApple cancel 코드 mirror).
+      if (e.code == 'canceled' ||
+          e.code == 'web-context-canceled' ||
+          e.code == 'web-context-cancelled' ||
+          e.code == 'popup-closed-by-user') {
+        return null;
+      }
+      return Result.failure(_mapProactiveLinkException(e));
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('proactive native link 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      _socialLinkInProgress.end();
+    }
+  }
+
+  /// proactive native link 의 [fb.FirebaseAuthException] → [AppException] 매핑
+  /// (Phase 16 16-10).
+  ///
+  /// - `requires-recent-login` → [ReauthenticationRequiredException] (5분
+  ///   auth_time boundary 초과 — withdrawal D-06 reauth gate mirror. 16-11 UI
+  ///   가 재로그인 라우팅. threat T-16-10-01 mitigate).
+  /// - `provider-already-linked` / `credential-already-in-use` →
+  ///   [AccountAlreadyLinked] (회귀 안전 ARB 재사용. threat T-16-10-02 mitigate).
+  /// - 그 외 → [_mapAuthException] (기존 표준 매핑 재사용).
+  AppException _mapProactiveLinkException(fb.FirebaseAuthException e) {
+    return switch (e.code) {
+      'requires-recent-login' => ReauthenticationRequiredException(cause: e),
+      'provider-already-linked' ||
+      'credential-already-in-use' => AccountAlreadyLinked(cause: e),
+      _ => _mapAuthException(e),
+    };
+  }
+
   /// Custom Token provider (Kakao/LINE/YJP) reactive link arm (Phase 16 16-09).
   ///
   /// Custom Token 계정 충돌 (account-exists) 직후 [AccountLinkingSheet] 에서
