@@ -1,0 +1,331 @@
+// ignore_for_file: lines_longer_than_80_chars
+//
+// Phase 16 Plan 16-08 Task 2 — login/signup catch path 의 AccountLinkingSheet
+// wiring + sheet link action 검증.
+//
+// 5 behavior:
+//   T1: social notifier AsyncError(existingProvider=google, isNative) →
+//       AccountLinkingSheet 노출 + inline FormErrorBanner 미노출 (sheet 우선)
+//   T2: existingProvider == null (unknown) → sheet 미노출 + FormErrorBanner
+//       inline 노출 (R2 회귀 0)
+//   T3: sheet provider 버튼 tap → linkPendingNativeCredential 호출 → 성공 →
+//       sheet pop(true) + /home 이동
+//   T4: sheet dismiss/cancel (TextButton) → pop(false) + linkedProviders 변경 0
+//   T5 (viewport): sheet provider 버튼이 viewport 밖이면 ensureVisible 후 tap
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+
+import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
+import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/core/router/app_routes.dart';
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/account_linking_sheet.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+
+class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _FakeAuthCredential extends Fake {}
+
+void main() {
+  late _MockAuthRepository mockRepo;
+
+  setUpAll(() {
+    registerFallbackValue(AccountProvider.google);
+  });
+
+  setUp(() {
+    mockRepo = _MockAuthRepository();
+  });
+
+  /// LoginScreen 을 GoRouter 가 감싸는 harness — sheet → context.go(/home)
+  /// 검증 가능. /home 진입 시 sentinel 'HOME' 텍스트 노출.
+  Widget buildHarness({
+    required Result<User>? Function() onGoogleSignIn,
+  }) {
+    when(() => mockRepo.signInWithGoogle()).thenAnswer(
+      (_) async => onGoogleSignIn(),
+    );
+    final router = GoRouter(
+      initialLocation: AppRoutes.login,
+      routes: [
+        GoRoute(
+          path: AppRoutes.login,
+          builder: (context, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.home,
+          builder: (context, state) => const Scaffold(body: Text('HOME')),
+        ),
+      ],
+    );
+    return ProviderScope(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(mockRepo),
+        activeStrategiesProvider(const Locale('en')).overrideWithValue(
+          const <AuthStrategy>[GoogleAuthStrategy()],
+        ),
+      ],
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    );
+  }
+
+  group('T1 — native account-exists → AccountLinkingSheet 노출', () {
+    testWidgets(
+      'AsyncError(existingProvider=google, isNative) → sheet 노출 + inline banner 미노출',
+      (tester) async {
+        await tester.pumpWidget(
+          buildHarness(
+            onGoogleSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collide@example.com',
+                existingProvider: AccountProvider.google,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // sheet 노출 (sheet 안 BrandedSocialButton + dismiss TextButton).
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+        // inline FormErrorBanner 에 account-exists 미표시 (sheet 우선).
+        final inlineBanner = tester.widget<FormErrorBanner>(
+          find.descendant(
+            of: find.byType(SocialSignInSection),
+            matching: find.byType(FormErrorBanner),
+          ),
+        );
+        expect(
+          inlineBanner.exception,
+          isNot(isA<AccountExistsWithDifferentCredential>()),
+        );
+      },
+    );
+  });
+
+  group('T2 — unknown provider → FormErrorBanner inline (R2 회귀 0)', () {
+    testWidgets(
+      'existingProvider == null → sheet 미노출 + FormErrorBanner inline 노출',
+      (tester) async {
+        await tester.pumpWidget(
+          buildHarness(
+            onGoogleSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(email: 'old@example.com'),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // sheet 미노출.
+        expect(find.byType(AccountLinkingSheet), findsNothing);
+        // inline FormErrorBanner 에 account-exists 표시 (R2 baseline).
+        final inlineBanner = tester.widget<FormErrorBanner>(
+          find.descendant(
+            of: find.byType(SocialSignInSection),
+            matching: find.byType(FormErrorBanner),
+          ),
+        );
+        expect(
+          inlineBanner.exception,
+          isA<AccountExistsWithDifferentCredential>(),
+        );
+        // unknown fallback 메시지 verbatim.
+        expect(
+          find.text(
+            'This email is already registered with another sign-in method. '
+            'Please sign in with the method you originally used.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+  });
+
+  group('T3 — sheet provider 버튼 tap → link 성공 → /home', () {
+    testWidgets(
+      'sheet Google 버튼 tap → linkPendingNativeCredential 호출 → /home 이동',
+      (tester) async {
+        when(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: any(named: 'existingProvider'),
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        ).thenAnswer(
+          (_) async => Result<User>.success(
+            User(
+              uid: 'u1',
+              email: 'collide@example.com',
+              emailVerified: true,
+              createdAt: DateTime.utc(2026, 1, 1),
+              providerIds: const ['google.com'],
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(
+          buildHarness(
+            onGoogleSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collide@example.com',
+                existingProvider: AccountProvider.google,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 충돌 trigger → sheet 노출.
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+        // sheet 안 Google BrandedSocialButton tap (sheet 내부 단일 버튼).
+        final sheetButton = find.descendant(
+          of: find.byType(AccountLinkingSheet),
+          matching: find.byType(BrandedSocialButton),
+        );
+        await tester.ensureVisible(sheetButton);
+        await tester.tap(sheetButton);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pumpAndSettle();
+
+        verify(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: AccountProvider.google,
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        ).called(1);
+        // /home 이동 확인.
+        expect(find.text('HOME'), findsOneWidget);
+      },
+    );
+  });
+
+  group('T4 — sheet dismiss/cancel → pop(false) + link 미호출', () {
+    testWidgets(
+      'TextButton "Sign in with another method" tap → sheet dismiss + link 미호출',
+      (tester) async {
+        await tester.pumpWidget(
+          buildHarness(
+            onGoogleSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collide@example.com',
+                existingProvider: AccountProvider.google,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+        final dismissBtn = find.text('Sign in with another method');
+        await tester.ensureVisible(dismissBtn);
+        await tester.tap(dismissBtn);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // sheet dismiss + linkedProviders 변경 0 (link 미호출).
+        expect(find.byType(AccountLinkingSheet), findsNothing);
+        verifyNever(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: any(named: 'existingProvider'),
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        );
+      },
+    );
+  });
+
+  group('T5 — viewport: 좁은 화면에서 ensureVisible 후 tap', () {
+    testWidgets('좁은 viewport (320x560) → sheet 버튼 ensureVisible 후 link 호출', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(320, 560));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      when(
+        () => mockRepo.linkPendingNativeCredential(
+          existingProvider: any(named: 'existingProvider'),
+          pendingCredential: any(named: 'pendingCredential'),
+        ),
+      ).thenAnswer(
+        (_) async => Result<User>.success(
+          User(
+            uid: 'u1',
+            email: 'collide@example.com',
+            emailVerified: true,
+            createdAt: DateTime.utc(2026, 1, 1),
+            providerIds: const ['google.com'],
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        buildHarness(
+          onGoogleSignIn: () => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collide@example.com',
+              existingProvider: AccountProvider.google,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(BrandedSocialButton).first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+      final sheetButton = find.descendant(
+        of: find.byType(AccountLinkingSheet),
+        matching: find.byType(BrandedSocialButton),
+      );
+      await tester.ensureVisible(sheetButton);
+      await tester.tap(sheetButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      verify(
+        () => mockRepo.linkPendingNativeCredential(
+          existingProvider: AccountProvider.google,
+          pendingCredential: any(named: 'pendingCredential'),
+        ),
+      ).called(1);
+    });
+  });
+}
