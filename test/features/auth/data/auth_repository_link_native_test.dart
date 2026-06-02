@@ -49,10 +49,6 @@ class _MockGoogleSignInAuthentication extends Mock
 
 class _MockFacebookAuth extends Mock implements FacebookAuth {}
 
-class _MockLoginResult extends Mock implements LoginResult {}
-
-class _MockAccessToken extends Mock implements AccessToken {}
-
 class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
 
 class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
@@ -234,7 +230,7 @@ void main() {
     test('Google reauth canceled → null + linkWithCredential 미호출', () async {
       // GoogleSignIn.authenticate canceled.
       when(() => mockGoogleSignIn.authenticate()).thenThrow(
-        GoogleSignInException(code: GoogleSignInExceptionCode.canceled),
+        const GoogleSignInException(code: GoogleSignInExceptionCode.canceled),
       );
       when(() => mockAuth.currentUser).thenReturn(mockCurrentUser);
       final pending = _FakePendingCredential();

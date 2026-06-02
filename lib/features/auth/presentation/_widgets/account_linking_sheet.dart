@@ -6,12 +6,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/provider_id.dart';
+import '../../../../core/error/result.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../data/auth_repository.dart';
+import 'auth_in_progress_overlay.dart';
 import 'branded_social_button.dart';
+
+/// Custom Token provider (kakao/naver/line/yahoojp) link 콜백 시그니처
+/// (Phase 16 16-09 hook). native arm 은 본 sheet 가 직접 처리하고,
+/// Custom Token arm 은 16-09 가 주입하는 본 콜백에 위임한다.
+typedef CustomTokenLinkCallback =
+    Future<bool> Function(AccountProvider existingProvider);
 
 /// 계정 연동 Bottom Sheet (Phase 16 D-01 / D-02 / D-03).
 ///
@@ -41,6 +52,8 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
   const AccountLinkingSheet({
     required this.existingProvider,
     required this.collisionEmail,
+    this.pendingCredential,
+    this.onCustomTokenLink,
     super.key,
   });
 
@@ -56,16 +69,39 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
   /// 본인 데이터이므로 PII redaction 의무는 적용되지 않는다).
   final String collisionEmail;
 
+  /// 충돌 시점에 보존된 native pending credential (Phase 16 16-08).
+  ///
+  /// `AccountExistsWithDifferentCredential.pendingCredential` 에서 추출해
+  /// LoginScreen / SignupScreen 이 전달한다. native 3값
+  /// (google/apple/facebook) link 버튼 tap 시
+  /// [AuthRepository.linkPendingNativeCredential] 의 입력으로 사용한다.
+  /// `null` 인 경우 (email-existing / unknown) link action 은 재로그인
+  /// 유도 fallback 으로 동작한다.
+  final Object? pendingCredential;
+
+  /// Custom Token provider link 콜백 (Phase 16 16-09 hook).
+  ///
+  /// native arm (google/apple/facebook) 은 본 sheet 가 직접
+  /// [AuthRepository.linkPendingNativeCredential] 로 처리한다. Custom Token
+  /// 4값 (kakao/naver/line/yahoojp) 은 16-09 가 본 콜백을 주입한다 —
+  /// 미주입 (null) 시 Custom Token link 버튼은 cancel(false) 로 graceful
+  /// fallback (16-04→16-06 인계 누락 재발 방지 hook).
+  final CustomTokenLinkCallback? onCustomTokenLink;
+
   /// [AccountLinkingSheet] 를 modal bottom sheet 로 표시한다.
   ///
   /// 반환값:
-  /// - `true` — link 성공 (현재 task scope 외 — Plan 16 의 향후 wiring 책임)
-  /// - `false` — 사용자 cancel (TextButton 탭 또는 dismiss, D-03)
-  /// - `null` — 미정 (다음 단계 미실행)
+  /// - `true` — link 성공 (native arm: linkPendingNativeCredential 성공,
+  ///   Custom Token arm: onCustomTokenLink 성공). 호출처가 /home 이동.
+  /// - `false` — 사용자 cancel (TextButton 탭 또는 dismiss, D-03) /
+  ///   email-existing redirect / link 실패.
+  /// - `null` — 미정 (dismiss 외 경로 미도달).
   static Future<bool?> show(
     BuildContext context, {
     required AccountProvider existingProvider,
     required String collisionEmail,
+    Object? pendingCredential,
+    CustomTokenLinkCallback? onCustomTokenLink,
   }) {
     final size = MediaQuery.sizeOf(context);
     return showModalBottomSheet<bool>(
@@ -81,6 +117,8 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
       builder: (_) => AccountLinkingSheet(
         existingProvider: existingProvider,
         collisionEmail: collisionEmail,
+        pendingCredential: pendingCredential,
+        onCustomTokenLink: onCustomTokenLink,
       ),
     );
   }
@@ -91,6 +129,72 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
 }
 
 class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
+  /// link action 진행 중 — section-level modal overlay (UI-SPEC Surface A
+  /// State: native linkWithCredential / Custom Token linkCustomTokenProvider
+  /// 진행) + 이중 탭 차단.
+  bool _isLinking = false;
+
+  /// link 버튼 tap 핸들러 (Phase 16 16-08 actuation).
+  ///
+  /// - email-existing: pendingCredential link 대상이 아니므로 pop(false) 후
+  ///   /login redirect (Task 1 의 email-existing 정책 — D-03 cancel 동일 복귀).
+  /// - native 3값 (google/apple/facebook): [AuthRepository.linkPendingNativeCredential]
+  ///   호출 → 성공 시 pop(true) + /home, 취소(null) 시 no-op (sheet 유지),
+  ///   실패 시 pop(false) (호출처 inline banner fallback).
+  /// - Custom Token 4값: [AccountLinkingSheet.onCustomTokenLink] 위임 (16-09
+  ///   hook). 미주입 시 pop(false) graceful fallback.
+  Future<void> _onLinkPressed() async {
+    if (_isLinking) return; // 이중 탭 가드.
+    final navigator = Navigator.of(context);
+    final router = GoRouter.of(context);
+    final provider = widget.existingProvider;
+
+    // email-existing 은 reactive link arm 미적용 — /login redirect (Task 1 정책).
+    if (provider == AccountProvider.email) {
+      navigator.pop(false);
+      router.go(AppRoutes.login);
+      return;
+    }
+
+    // Custom Token arm — 16-09 가 주입하는 콜백에 위임 (hook).
+    if (!provider.isNative) {
+      final callback = widget.onCustomTokenLink;
+      if (callback == null) {
+        navigator.pop(false); // 16-09 미주입 graceful fallback.
+        return;
+      }
+      setState(() => _isLinking = true);
+      final ok = await callback(provider);
+      if (!mounted) return;
+      navigator.pop(ok);
+      if (ok) router.go(AppRoutes.home);
+      return;
+    }
+
+    // native 3값 (google/apple/facebook) — 실제 link.
+    setState(() => _isLinking = true);
+    final result = await ref
+        .read(authRepositoryProvider)
+        .linkPendingNativeCredential(
+          existingProvider: provider,
+          pendingCredential: widget.pendingCredential,
+        );
+    if (!mounted) return;
+
+    // 사용자가 재인증을 취소 (null) — no-op, sheet 유지 (재시도 가능).
+    if (result == null) {
+      setState(() => _isLinking = false);
+      return;
+    }
+    switch (result) {
+      case Success<dynamic>():
+        navigator.pop(true);
+        router.go(AppRoutes.home);
+      case Failure<dynamic>():
+        navigator.pop(false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -100,42 +204,51 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
 
     final providerLabel = _providerLabel(l10n, widget.existingProvider);
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Gap(spacing.lg),
-              Text(
-                l10n.errorAccountExistsWithProvider(providerLabel),
-                style: typography.bodyLarge.copyWith(
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              Gap(spacing.xl),
-              _BrandedLinkButton(
-                provider: widget.existingProvider,
-                label: providerLabel,
-                onPressed: () => Navigator.of(context).pop(true),
-              ),
-              Gap(spacing.md),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text(
-                  l10n.accountLinkingDismiss,
-                  style: typography.labelLarge.copyWith(
-                    color: colorScheme.primary,
+    return Stack(
+      children: <Widget>[
+        SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Gap(spacing.lg),
+                  Text(
+                    l10n.errorAccountExistsWithProvider(providerLabel),
+                    style: typography.bodyLarge.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
                   ),
-                ),
+                  Gap(spacing.xl),
+                  _BrandedLinkButton(
+                    provider: widget.existingProvider,
+                    label: providerLabel,
+                    onPressed: _isLinking ? () {} : _onLinkPressed,
+                  ),
+                  Gap(spacing.md),
+                  TextButton(
+                    onPressed: _isLinking
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    child: Text(
+                      l10n.accountLinkingDismiss,
+                      style: typography.labelLarge.copyWith(
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  Gap(spacing.lg),
+                ],
               ),
-              Gap(spacing.lg),
-            ],
+            ),
           ),
         ),
-      ),
+        // UI-SPEC Surface A State — native linkWithCredential / Custom Token
+        // linkCustomTokenProvider 진행 (section-level modal overlay).
+        if (_isLinking) const AuthInProgressOverlay(),
+      ],
     );
   }
 }

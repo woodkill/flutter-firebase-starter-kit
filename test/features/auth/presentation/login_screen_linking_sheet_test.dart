@@ -38,8 +38,6 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
-class _FakeAuthCredential extends Fake {}
-
 void main() {
   late _MockAuthRepository mockRepo;
 
@@ -50,6 +48,24 @@ void main() {
   setUp(() {
     mockRepo = _MockAuthRepository();
   });
+
+  /// 모바일 portrait viewport 로 설정한다 — modal bottom sheet 하단 컨텐츠가
+  /// default 800x600 landscape 밖에 위치해 hit-test 실패하는 함정 회피
+  /// (memory feedback_test_viewport_ensure_visible).
+  Future<void> usePortraitSurface(WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  }
+
+  /// modal bottom sheet entrance 애니메이션을 완전히 settle 시킨다 —
+  /// `pumpAndSettle` 은 BrandedSocialButton 비동기 자산 디코딩으로 hang 될
+  /// 수 있어 명시적 다단계 pump 로 sheet slide-up 종료 후 안정화한다.
+  Future<void> settleSheetEntrance(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(seconds: 1));
+  }
 
   /// LoginScreen 을 GoRouter 가 감싸는 harness — sheet → context.go(/home)
   /// 검증 가능. /home 진입 시 sentinel 'HOME' 텍스트 노출.
@@ -93,6 +109,7 @@ void main() {
     testWidgets(
       'AsyncError(existingProvider=google, isNative) → sheet 노출 + inline banner 미노출',
       (tester) async {
+        await usePortraitSurface(tester);
         await tester.pumpWidget(
           buildHarness(
             onGoogleSignIn: () => const Result<User>.failure(
@@ -106,8 +123,7 @@ void main() {
         await tester.pumpAndSettle();
 
         await tester.tap(find.byType(BrandedSocialButton).first);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 500));
+        await settleSheetEntrance(tester);
 
         // sheet 노출 (sheet 안 BrandedSocialButton + dismiss TextButton).
         expect(find.byType(AccountLinkingSheet), findsOneWidget);
@@ -172,6 +188,7 @@ void main() {
     testWidgets(
       'sheet Google 버튼 tap → linkPendingNativeCredential 호출 → /home 이동',
       (tester) async {
+        await usePortraitSurface(tester);
         when(
           () => mockRepo.linkPendingNativeCredential(
             existingProvider: any(named: 'existingProvider'),
@@ -203,8 +220,7 @@ void main() {
 
         // 충돌 trigger → sheet 노출.
         await tester.tap(find.byType(BrandedSocialButton).first);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 500));
+        await settleSheetEntrance(tester);
         expect(find.byType(AccountLinkingSheet), findsOneWidget);
 
         // sheet 안 Google BrandedSocialButton tap (sheet 내부 단일 버튼).
@@ -234,6 +250,7 @@ void main() {
     testWidgets(
       'TextButton "Sign in with another method" tap → sheet dismiss + link 미호출',
       (tester) async {
+        await usePortraitSurface(tester);
         await tester.pumpWidget(
           buildHarness(
             onGoogleSignIn: () => const Result<User>.failure(
@@ -247,8 +264,7 @@ void main() {
         await tester.pumpAndSettle();
 
         await tester.tap(find.byType(BrandedSocialButton).first);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 500));
+        await settleSheetEntrance(tester);
         expect(find.byType(AccountLinkingSheet), findsOneWidget);
 
         final dismissBtn = find.text('Sign in with another method');
@@ -306,15 +322,16 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.byType(BrandedSocialButton).first);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+      await settleSheetEntrance(tester);
       expect(find.byType(AccountLinkingSheet), findsOneWidget);
 
       final sheetButton = find.descendant(
         of: find.byType(AccountLinkingSheet),
         matching: find.byType(BrandedSocialButton),
       );
+      // 좁은 viewport 에서 CTA hit-test 회피 (ensureVisible 후 tap).
       await tester.ensureVisible(sheetButton);
+      await tester.pump();
       await tester.tap(sheetButton);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));

@@ -109,6 +109,24 @@ enum AccountProvider {
   /// Yahoo! JAPAN 로그인 (Custom Token).
   yahoojp;
 
+  /// native provider (Firebase Auth 직접 연동) 여부 (Phase 16 16-08).
+  ///
+  /// `true` — google / apple / facebook / email (native:
+  /// `linkWithCredential` 기반 reactive link arm 대상). `false` — Custom
+  /// Token 4값 (kakao / naver / line / yahoojp: `linkCustomTokenProvider`
+  /// callable 기반, 16-09 책임). LoginScreen / SignupScreen 의 sheet 분기 +
+  /// 16-09 의 Custom Token sheet 분기가 본 getter 를 공유한다.
+  bool get isNative => switch (this) {
+    AccountProvider.google ||
+    AccountProvider.apple ||
+    AccountProvider.facebook ||
+    AccountProvider.email => true,
+    AccountProvider.kakao ||
+    AccountProvider.naver ||
+    AccountProvider.line ||
+    AccountProvider.yahoojp => false,
+  };
+
   /// AppLocalizations getter 이름 — `authAccountProvider{X}` ARB key.
   ///
   /// 3 locale (ko/en/ja) 모두 `lib/l10n/app_*.arb` 에 정의 완료 (Phase 9.2

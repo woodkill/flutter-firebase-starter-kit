@@ -11,6 +11,7 @@ import '../../../core/providers/firebase_providers.dart'
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '_helpers/social_provider_resolver.dart';
+import '_widgets/account_linking_sheet.dart';
 import '_widgets/auth_in_progress_overlay.dart';
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
@@ -118,6 +119,24 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (!mounted) return;
   }
 
+  /// native account-exists 충돌 시 [AccountLinkingSheet] 를 노출한다
+  /// (Phase 16 16-08 — reactive link arm). LoginScreen 과 동일 wiring.
+  ///
+  /// `ref.listen` 콜백 (build 동안) 안에서 직접 navigator 변경을 피하기 위해
+  /// post-frame callback 으로 1 frame 미룬다. link 성공 시 /home 이동은
+  /// sheet 가 직접 담당한다.
+  void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      AccountLinkingSheet.show(
+        context,
+        existingProvider: err.existingProvider!,
+        collisionEmail: err.email ?? '',
+        pendingCredential: err.pendingCredential,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -189,6 +208,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
             if (!mounted) return;
             final err = next.error;
+            // Phase 16 16-08 — native account-exists (existingProvider 식별 +
+            // isNative) 면 AccountLinkingSheet 노출 (reactive link arm).
+            // unknown 또는 Custom Token 경로는 FormErrorBanner inline fallback
+            // (R2 회귀 0). LoginScreen 과 동일 wiring.
+            if (err is AccountExistsWithDifferentCredential &&
+                err.existingProvider != null &&
+                err.existingProvider!.isNative) {
+              _showAccountLinkingSheet(err);
+              return;
+            }
             if (err is AppException) {
               setState(() {
                 _socialError = err;

@@ -12,6 +12,7 @@ import '../../../core/providers/firebase_providers.dart'
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '_helpers/social_provider_resolver.dart';
+import '_widgets/account_linking_sheet.dart';
 import '_widgets/auth_in_progress_overlay.dart';
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
@@ -162,6 +163,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // 있도록 의도적으로 제거 (WR-05).
   }
 
+  /// native account-exists 충돌 시 [AccountLinkingSheet] 를 노출한다
+  /// (Phase 16 16-08 — reactive link arm).
+  ///
+  /// `ref.listen` 콜백 (build 동안) 안에서 직접 `showModalBottomSheet` 를
+  /// 호출하면 build 중 navigator 변경 위반이 발생하므로 post-frame callback
+  /// 으로 1 frame 미룬다. sheet 가 link 성공(true) 시 /home 이동은 sheet 가
+  /// 직접 담당하므로 (context.go) 본 메서드는 추가 navigation 미수행.
+  void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      AccountLinkingSheet.show(
+        context,
+        existingProvider: err.existingProvider!,
+        collisionEmail: err.email ?? '',
+        pendingCredential: err.pendingCredential,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -240,16 +260,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
             if (!mounted) return;
             final err = next.error;
+            // Phase 16 16-08 — native account-exists (existingProvider 식별 +
+            // isNative) 면 AccountLinkingSheet 노출 (reactive link arm).
+            // existingProvider == null (unknown) 또는 Custom Token 미지원
+            // 경로는 기존 FormErrorBanner inline 으로 fallback (R2 회귀 0).
+            if (err is AccountExistsWithDifferentCredential &&
+                err.existingProvider != null &&
+                err.existingProvider!.isNative) {
+              _showAccountLinkingSheet(err);
+              return;
+            }
             if (err is AppException) {
               setState(() {
                 _socialError = err;
                 _emailError = null;
               });
             }
-            // D-10 자동 채움 + focus 호출 제거 (Phase 9.2 D-31 / R3 — Path
-            // A-narrow). AccountExistsWithDifferentCredential.email 필드는
-            // 보존 — Phase 17 (Account Linking) — see ROADMAP.md 부활 시
-            // server-side provider 매핑 input 으로 활용 anchor.
           }
         },
       );
