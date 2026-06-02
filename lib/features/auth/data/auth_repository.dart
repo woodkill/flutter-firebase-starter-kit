@@ -765,14 +765,22 @@ class AuthRepository {
   /// 로그인된 사용자에게 이메일/비밀번호 자격증명을 연결한다
   /// (Phase 16 16-10 — native link 메서드 / SOCL-12).
   ///
-  /// **reactive(16-08) 전용 — no proactive call site.** email(이메일/비밀번호)
-  /// 은 Surface D proactive "계정 연결" 목록에서 **제외**된다 (mockup §0 사용자
-  /// 시각 sign-off 2026-06-02 — email EXCLUDE). 따라서 본 메서드는 Settings
-  /// proactive 흐름에서 호출되지 않으며, account-exists 충돌 시 reactive native
-  /// 충돌 arm 경로에서만 도달한다. proactive 신규 affordance 가 필요한
-  /// 프로젝트는 16-11 의 available-provider 후보에 email 을 추가하고 별도
-  /// password 입력 다이얼로그를 신설한 뒤 본 메서드를 그 affordance 에 wire
-  /// 하면 된다 (starter-kit 기본은 소셜만).
+  /// **의도적 latent / extensibility API — Surface D 기본 UI 에 미연결
+  /// (16-11 결정, 2026-06-02 — keep-as-documented).** email(이메일/비밀번호) 은
+  /// Surface D proactive "계정 연결" 목록에서 **제외**된다 (mockup §0 사용자
+  /// 시각 sign-off — email EXCLUDE). 본 메서드는 starter-kit 의 email-credential
+  /// linking **확장점** 으로 제공되며, 기본 동작에서는 의도적으로 어떤 UI 에도
+  /// wire 되지 않는다:
+  /// - **proactive (Settings Surface D):** call site 0 — email 후보 미포함.
+  /// - **reactive (16-08 충돌 arm):** generic `linkPendingNativeCredential`
+  ///   (pendingCredential 직접 link) 를 사용하므로 본 메서드 미경유.
+  ///
+  /// email/password proactive 연결이 필요한 프로젝트는 (1) 16-11
+  /// `_kProactiveLinkCandidates` 에 [AccountProvider.email] 을 추가하고,
+  /// (2) 별도 password 입력 다이얼로그를 신설한 뒤, (3) 본 메서드를 그
+  /// affordance 에 wire 하면 된다 (mockup §0 EXCLUDE 결정 역전 — starter-kit
+  /// 기본은 소셜만). 본 메서드를 dead code 로 제거하지 않는 이유는 위
+  /// 확장 경로의 진입 비용을 낮추기 위함이다 (16-11 deferred-items RESOLVED).
   ///
   /// [fb.EmailAuthProvider.credential] 생성 후
   /// `_auth.currentUser.linkWithCredential(emailCredential)`. 에러 매핑은
