@@ -4,10 +4,10 @@
 // requestAccountDeletion 호출 흐름:
 // 1. state = AsyncValue.loading()
 // 2. SettingsRepository.requestAccountDeletion() 호출
-// 3. 성공: state = AsyncValue.data(null) → AuthRepository.signOut() 트리거
+// 3. 성공: state = AsyncValue.data(null) → AuthRepository.signOutAndResetOnboarding() 트리거
 // 4. 실패: state = AsyncValue.error(e, st)
 //
-// signOut 후 router 의 authRedirect 가 자동으로 `/onboarding` 으로 reset.
+// signOutAndResetOnboarding 후 router 의 authRedirect 가 자동으로 `/onboarding` 으로 reset.
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../auth/data/auth_repository.dart';
@@ -34,16 +34,19 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// 1. state = [AsyncValue.loading].
   /// 2. [SettingsRepository.requestAccountDeletion] 호출
   ///    (fresh ID Token 발급 + deleteUserAccount callable).
-  /// 3. 성공: state = [AsyncValue.data]`(null)` + [AuthRepository.signOut]
-  ///    호출 (router 의 authRedirect 가 `/onboarding` 으로 자동 reset).
+  /// 3. 성공: state = [AsyncValue.data]`(null)` +
+  ///    [AuthRepository.signOutAndResetOnboarding] 호출 (onboardingSeen=false
+  ///    reset + router 의 authRedirect 가 `/onboarding` 으로 자동 reset).
   /// 4. 실패: state = [AsyncValue.error]`(e, st)` — UI 가 ref.listen 으로
   ///    `ReauthenticationRequiredException` / `UnknownException` 분기 처리.
   Future<void> requestAccountDeletion() async {
     state = const AsyncValue<void>.loading();
     try {
       await ref.read(settingsRepositoryProvider).requestAccountDeletion();
-      // 성공 — signOut 트리거 (router 가 /onboarding 으로 자동 redirect).
-      await ref.read(authRepositoryProvider).signOut();
+      // 성공 — signOutAndResetOnboarding 트리거 (onboardingSeen=false reset +
+      // router 의 authRedirect 가 /onboarding 으로 자동 redirect). 단독 signOut()
+      // 은 onboardingSeen=true snapshot 유지로 /home 안착 (auth_repository 1160~).
+      await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
       state = const AsyncValue<void>.data(null);
     } on Object catch (e, st) {
       state = AsyncValue<void>.error(e, st);
