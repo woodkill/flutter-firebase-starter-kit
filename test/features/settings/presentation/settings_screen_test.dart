@@ -49,6 +49,19 @@ const List<AuthStrategy> _allStrategies = <AuthStrategy>[
   YahoojpAuthStrategy(),
 ];
 
+/// 모든 활성 소셜 provider 가 이미 linked 인 User (계정 연결 section 미노출
+/// 상태) — Danger zone 회귀 검증을 baseline ListView 길이로 유지한다.
+List<String> get _allSocialLinked => const <String>[
+  'password',
+  'google.com',
+  'apple.com',
+  'facebook.com',
+  'kakao',
+  'naver',
+  'line',
+  'yahoojp',
+];
+
 /// 테스트용 User factory.
 User _testUser({
   List<String> providerIds = const <String>['password'],
@@ -94,7 +107,11 @@ void main() {
     testWidgets(
         'SS1 render — AppBar title + 계정 section + Danger zone section 노출',
         (tester) async {
-      await _pumpSettingsScreen(tester, user: _testUser());
+      // 소셜 전부 linked → 계정 연결 section 미노출 → baseline ListView 길이.
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(providerIds: _allSocialLinked),
+      );
 
       // AppBar title (en locale).
       expect(find.text('Settings'), findsOneWidget);
@@ -113,7 +130,10 @@ void main() {
     testWidgets(
         'SS2 Danger zone destructive color — 회원탈퇴 title color == error',
         (tester) async {
-      await _pumpSettingsScreen(tester, user: _testUser());
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(providerIds: _allSocialLinked),
+      );
 
       final dangerTile = tester.widget<ListTile>(
         find.ancestor(
@@ -129,7 +149,10 @@ void main() {
     testWidgets(
         'SS3 tap → dialog — 회원탈퇴 ListTile tap 시 WithdrawalConfirmationDialog 노출',
         (tester) async {
-      await _pumpSettingsScreen(tester, user: _testUser());
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(providerIds: _allSocialLinked),
+      );
 
       expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
 
@@ -170,11 +193,20 @@ void main() {
     testWidgets(
         'SS6 회귀 0 — 계정 section + Danger zone 모두 노출 (AccountLinkingSection 공존)',
         (tester) async {
-      await _pumpSettingsScreen(tester, user: _testUser());
+      // 단일 활성 Strategy (apple) → section 1 버튼 → ListView baseline 길이
+      // 내 Danger zone 공존.
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(),
+        strategies: const <AuthStrategy>[AppleAuthStrategy()],
+      );
 
       // 계정 section (회귀 0).
       expect(find.text('My Account'), findsOneWidget);
       expect(find.textContaining('me@example.com'), findsOneWidget);
+      // 계정 연결 section 공존.
+      expect(find.byType(AccountLinkingSection), findsOneWidget);
+      expect(find.text('Link Apple'), findsOneWidget);
       // Danger zone (회귀 0).
       expect(find.byType(DangerZoneSection), findsOneWidget);
       expect(find.text('Danger zone'), findsOneWidget);
@@ -183,12 +215,15 @@ void main() {
     testWidgets(
         'SS7 배치 순서 — 계정 section → AccountLinkingSection → DangerZoneSection',
         (tester) async {
-      await _pumpSettingsScreen(tester, user: _testUser());
+      // 단일 활성 Strategy → 3 section 모두 viewport 내 동시 측정 가능.
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(),
+        strategies: const <AuthStrategy>[AppleAuthStrategy()],
+      );
 
       final accountY = tester.getTopLeft(find.text('My Account')).dy;
-      final linkingY = tester
-          .getTopLeft(find.text('Link an account'))
-          .dy;
+      final linkingY = tester.getTopLeft(find.text('Link an account')).dy;
       final dangerY = tester.getTopLeft(find.byType(DangerZoneSection)).dy;
 
       // 계정 section < 계정 연결 < Danger zone (mockup 배치 verbatim).
@@ -204,7 +239,12 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      await _pumpSettingsScreen(tester, user: _testUser());
+      // 단일 활성 Strategy → Danger zone 이 below-fold 여도 scroll 접근 가능.
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(),
+        strategies: const <AuthStrategy>[AppleAuthStrategy()],
+      );
 
       // Danger zone 회원탈퇴 ListTile 이 below-fold 여도 scroll 후 접근 가능.
       await tester.ensureVisible(find.text('Delete account').last);

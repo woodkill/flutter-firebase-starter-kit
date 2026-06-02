@@ -13,6 +13,7 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../home/presentation/provider_label_formatter.dart';
+import '_widgets/account_linking_section.dart';
 import '_widgets/danger_zone_section.dart';
 
 /// 설정 화면 (Phase 16 D-05~D-08).
@@ -69,7 +70,12 @@ class SettingsScreen extends ConsumerWidget {
             title: Text(l10n.settingsLinkedProviders(providersLabel)),
           ),
           Gap(spacing.xxl),
-          // Danger zone — UI-SPEC line 261~275.
+          // 계정 연결 section (Surface D — 16-11). 계정 section 다음 /
+          // Danger zone 전 (mockup 배치 verbatim, add-only). available 빈
+          // set 시 SizedBox.shrink 로 graceful 미노출.
+          const AccountLinkingSection(),
+          Gap(spacing.xxl),
+          // Danger zone — UI-SPEC line 261~275 (항상 최하단 격리).
           const DangerZoneSection(),
         ],
       ),
