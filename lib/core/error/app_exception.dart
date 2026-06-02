@@ -134,6 +134,7 @@ final class AccountExistsWithDifferentCredential extends AuthException {
   const AccountExistsWithDifferentCredential({
     this.email,
     this.existingProvider,
+    this.pendingCredential,
     super.cause,
   }) : super(userMessage: 'errorAccountExistsWithDifferentCredential');
 
@@ -146,6 +147,34 @@ final class AccountExistsWithDifferentCredential extends AuthException {
   /// 응답으로 채워진다. `null` 인 경우 R2 unknown fallback (R2 baseline
   /// 보존 — `errorAccountExistsWithUnknownProvider`).
   final AccountProvider? existingProvider;
+
+  /// 충돌 시점에 보존된 native pending credential (Phase 16 16-08).
+  ///
+  /// Firebase `account-exists-with-different-credential` 예외의
+  /// `e.credential` 을 보존한다 — 사용자가 기존 provider 로 재인증한 뒤
+  /// `linkWithCredential(pendingCredential)` 로 두 자격증명을 한 계정에
+  /// 연결하기 위한 입력이다 (native reactive link arm).
+  ///
+  /// **firebase_auth 경계 보존:** 본 필드는 `Object?` 로 선언되어
+  /// core/error 계층이 firebase_auth 에 직접 의존하지 않는다. 실제
+  /// `fb.AuthCredential` 로의 cast 는 `AuthRepository`
+  /// (`features/auth/data` 경계) 안에서만 수행한다. `null` 인 경우
+  /// (Cloud Function `already-exists` path 등 credential 부재) reactive
+  /// link 대신 재로그인 유도 fallback 으로 처리한다.
+  final Object? pendingCredential;
+}
+
+/// 이미 동일 provider 가 계정에 연결되어 있음 (Phase 16 16-08).
+///
+/// `linkPendingNativeCredential` 의 `linkWithCredential` 단계에서 Firebase
+/// 가 `provider-already-linked` 또는 `credential-already-in-use` 코드를
+/// 반환할 때 매핑된다. 이미 연결된 자격증명을 중복 link 시도한 경우로,
+/// 사용자에게는 재로그인 안내 (`errorAccountExistsWithUnknownProvider`
+/// 재사용) 를 표시한다 — 신규 ARB 0건 (회귀 안전).
+final class AccountAlreadyLinked extends AuthException {
+  /// [AccountAlreadyLinked]을 생성한다.
+  const AccountAlreadyLinked({super.cause})
+    : super(userMessage: 'errorAccountExistsWithUnknownProvider');
 }
 
 /// 재인증 필요 (Phase 16 D-06 / D-07).

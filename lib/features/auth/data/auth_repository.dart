@@ -534,6 +534,145 @@ class AuthRepository {
     }
   }
 
+  /// 충돌 시점에 보존된 native pending credential 을 실제 계정에 연결한다
+  /// (Phase 16 16-08 — native reactive link arm / SOCL-12).
+  ///
+  /// account-exists 충돌 (`AccountExistsWithDifferentCredential`) 직후
+  /// [AccountLinkingSheet] 에서 사용자가 기존-provider 버튼을 탭하면 본
+  /// 메서드가 호출된다. 흐름:
+  /// 1. [SocialLinkInProgress.begin] (Phase 9.1 D-22 race-fix invariant) —
+  ///    try-finally 로 [SocialLinkInProgress.end] 1:1 보장.
+  /// 2. [existingProvider] 로 재인증 (native 3값 google/apple/facebook 의
+  ///    SDK 호출부 재사용). 사용자 취소 시 `null` 반환 (no-op — linkedProviders
+  ///    변경 0, D-03 dismiss 와 동일 시맨틱).
+  /// 3. 재인증 성공 후 `_auth.currentUser.linkWithCredential(pendingCredential)`
+  ///    으로 두 자격증명을 한 계정에 연결.
+  /// 4. `provider-already-linked` / `credential-already-in-use` →
+  ///    [AccountAlreadyLinked] 매핑 (회귀 안전). 그 외 FirebaseAuthException
+  ///    → [_mapAuthException].
+  ///
+  /// **email-existing 정책 (scope 명시):** [AccountProvider.email] 은
+  /// pendingCredential link 대상이 아니라 "이미 존재하는 비밀번호 계정으로
+  /// 로그인" 이므로 reactive link arm 을 적용하지 않는다 — sheet 에서
+  /// /login redirect (D-03 cancel 과 동일 복귀) 가 담당하고, 본 메서드는
+  /// [ServiceUnavailable] Failure 로 재로그인 유도 신호를 반환한다. native
+  /// 실제 link 는 google/apple/facebook 3값 한정. Custom Token 4값
+  /// (kakao/naver/line/yahoojp) 은 16-09 책임.
+  ///
+  /// 반환:
+  /// - `Result.success(User)` — link 성공.
+  /// - `Result.failure(...)` — link 충돌 / credential 부재 / 재인증 실패.
+  /// - `null` — 사용자가 재인증을 취소 (no-op).
+  Future<Result<User>?> linkPendingNativeCredential({
+    required AccountProvider existingProvider,
+    required Object? pendingCredential,
+  }) async {
+    try {
+      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
+      // email-existing 은 reactive link arm 미적용 — sheet 가 /login redirect.
+      // pendingCredential 부재 (Cloud Function already-exists path 등) 도
+      // 재로그인 유도.
+      if (existingProvider == AccountProvider.email ||
+          pendingCredential == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+
+      // Step 1 — 기존 provider 로 재인증해 credential 을 획득한다. 사용자
+      // 취소 시 null 신호 그대로 전파 (no-op).
+      final reauthCredential = await _reauthNativeCredential(existingProvider);
+      if (reauthCredential == null) return null; // 사용자 취소 — no-op.
+
+      // Step 2 — 재인증 성공으로 currentUser 가 존재한다고 가정. pending
+      // credential 을 현재 계정에 연결한다.
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+
+      final fb.UserCredential linked;
+      try {
+        linked = await currentUser.linkWithCredential(
+          pendingCredential as fb.AuthCredential,
+        );
+      } on fb.FirebaseAuthException catch (e) {
+        if (e.code == 'provider-already-linked' ||
+            e.code == 'credential-already-in-use') {
+          return Result.failure(AccountAlreadyLinked(cause: e));
+        }
+        return Result.failure(_mapAuthException(e));
+      }
+
+      final fbUser = linked.user;
+      if (fbUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      return Result.success(_mapFirebaseUser(fbUser));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('linkPendingNativeCredential 비-Auth 예외: $e\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      _socialLinkInProgress.end();
+    }
+  }
+
+  /// native [existingProvider] 로 재인증해 [fb.AuthCredential] 을 획득한다
+  /// (Phase 16 16-08). 사용자 취소 시 `null` 반환.
+  ///
+  /// 기존 [signInWithGoogle] / [signInWithApple] / [signInWithFacebook] 의
+  /// SDK 호출부를 재사용하되 익명 승격 분기는 타지 않는다 (재인증 컨텍스트는
+  /// 정식 사용자 currentUser 가 이미 존재함을 전제). [AccountProvider.email]
+  /// 및 Custom Token 4값은 호출처에서 사전 분기되므로 본 helper 에 도달하지
+  /// 않는다 — exhaustive switch 의 잔여 case 는 `null` 로 graceful fallback.
+  Future<fb.AuthCredential?> _reauthNativeCredential(
+    AccountProvider existingProvider,
+  ) async {
+    switch (existingProvider) {
+      case AccountProvider.google:
+        try {
+          final account = await _googleSignIn.authenticate();
+          final authentication = account.authentication;
+          return fb.GoogleAuthProvider.credential(
+            idToken: authentication.idToken,
+          );
+        } on GoogleSignInException catch (e) {
+          if (e.code == GoogleSignInExceptionCode.canceled) return null;
+          rethrow;
+        }
+      case AccountProvider.apple:
+        // Apple 은 provider 기반 재인증 — reauthenticateWithProvider 가
+        // UserCredential.credential 을 반환한다.
+        final provider = fb.AppleAuthProvider()
+          ..addScope('email')
+          ..addScope('name');
+        final currentUser = _auth.currentUser;
+        if (currentUser == null) return null;
+        final reauthResult = await currentUser.reauthenticateWithProvider(
+          provider,
+        );
+        return reauthResult.credential;
+      case AccountProvider.facebook:
+        final loginResult = await _facebookAuth.login(
+          permissions: ['email', 'public_profile'],
+          loginTracking: LoginTracking.enabled,
+        );
+        if (loginResult.status != LoginStatus.success) return null;
+        final accessToken = loginResult.accessToken;
+        if (accessToken == null) return null;
+        return fb.FacebookAuthProvider.credential(accessToken.tokenString);
+      case AccountProvider.email:
+      case AccountProvider.kakao:
+      case AccountProvider.naver:
+      case AccountProvider.line:
+      case AccountProvider.yahoojp:
+        // 호출처에서 사전 분기 — 도달하지 않음 (graceful null).
+        return null;
+    }
+  }
+
   /// Kakao 계정으로 Firebase Auth 에 로그인한다 (Phase 12 D-28 / SOCL-01).
   ///
   /// **Custom Token 방식** — Native provider (Google/Apple/Facebook) 와 달리
@@ -1300,10 +1439,15 @@ class AuthRepository {
       'invalid-credential' ||
       'wrong-password' ||
       'user-not-found' => InvalidCredentials(cause: e),
-      // (Phase 9.2 R2) Path A-narrow — email 필드 보존: Phase 17 (Account
-      // Linking) — see ROADMAP.md 부활 시 server-side provider 매핑 input.
+      // (Phase 9.2 R2) Path A-narrow — email 필드 보존: server-side provider
+      // 매핑 input. (Phase 16 16-08) pendingCredential: e.credential 보존 —
+      // native reactive link arm (linkPendingNativeCredential) 의 입력.
       'account-exists-with-different-credential' =>
-        AccountExistsWithDifferentCredential(email: e.email, cause: e),
+        AccountExistsWithDifferentCredential(
+          email: e.email,
+          pendingCredential: e.credential,
+          cause: e,
+        ),
       'email-already-in-use' => EmailAlreadyInUse(cause: e),
       'weak-password' => WeakPassword(cause: e),
       'invalid-email' => InvalidEmail(cause: e),
@@ -1414,6 +1558,9 @@ class AuthRepository {
     return AccountExistsWithDifferentCredential(
       email: email,
       existingProvider: provider,
+      // (Phase 16 16-08) enrichment 이 pendingCredential 을 떨어뜨리지 않도록
+      // carry-forward — native reactive link arm 의 입력 보존.
+      pendingCredential: base.pendingCredential,
       cause: base.cause,
     );
   }
