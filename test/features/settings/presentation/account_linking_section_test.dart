@@ -1,0 +1,270 @@
+// ignore_for_file: lines_longer_than_80_chars
+//
+// Phase 16 Plan 16-11 Task 1 — AccountLinkingSection widget test (AL1~AL8).
+//
+// 검증 surface (Surface D mockup — email EXCLUDE / 소셜 7 - linked 규칙):
+// - AL1 available 규칙: linkedProviders=[google] → google 버튼 미노출 +
+//   나머지 활성 소셜 provider "연결" 버튼 노출. email 버튼은 절대 없음.
+// - AL2 native link 성공: Apple "연결" tap → linkAppleCredential 호출 →
+//   accountLinkingSucceededSnackbar 노출.
+// - AL3 Custom Token link 성공: LINE "연결" tap →
+//   linkCustomTokenProviderArm(targetProvider: line) 호출 → 성공 snackbar.
+// - AL4 reauth gate: ReauthenticationRequiredException → 재로그인 라우팅
+//   (withdrawal reauth gate D-06 mirror).
+// - AL5 already-linked: AccountAlreadyLinked → graceful SnackBar (크래시 0).
+// - AL6 사용자 취소 (null) → no-op (snackbar 0, 버튼 유지).
+// - AL7 viewport: below-fold 버튼 tester.ensureVisible 후 tap.
+// - AL8 빈 available set: 모든 활성 소셜 provider link 완료 → 섹션 미노출.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/core/router/app_routes.dart';
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/_widgets/account_linking_section.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+
+class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// 테스트용 User factory.
+User _testUser({required List<String> providerIds}) {
+  return User(
+    uid: 'uid-1',
+    email: 'me@example.com',
+    emailVerified: true,
+    createdAt: DateTime.utc(2026, 1, 1),
+    providerIds: providerIds,
+  );
+}
+
+/// AccountLinkingSection 을 GoRouter 내에서 pump 한다 (reauth push 검증용).
+Future<GoRouter> _pumpSection(
+  WidgetTester tester, {
+  required User user,
+  required AuthRepository repo,
+  Locale locale = const Locale('en'),
+}) async {
+  final router = GoRouter(
+    initialLocation: AppRoutes.home,
+    routes: [
+      GoRoute(
+        path: AppRoutes.home,
+        builder: (context, state) => const Scaffold(
+          body: SingleChildScrollView(child: AccountLinkingSection()),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) =>
+            const Scaffold(body: Text('LOGIN ROUTE')),
+      ),
+    ],
+  );
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        currentUserProvider.overrideWith((ref) => user),
+        authRepositoryProvider.overrideWithValue(repo),
+      ],
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return router;
+}
+
+void main() {
+  late _MockAuthRepository repo;
+
+  setUpAll(() {
+    registerFallbackValue(AccountProvider.google);
+  });
+
+  setUp(() {
+    repo = _MockAuthRepository();
+  });
+
+  group('Phase 16 16-11 Task 1 — AccountLinkingSection', () {
+    testWidgets(
+        'AL1 available 규칙 — linkedProviders=[google.com] → google 미노출 + email 버튼 절대 없음',
+        (tester) async {
+      await _pumpSection(
+        tester,
+        user: _testUser(providerIds: const <String>['google.com']),
+        repo: repo,
+      );
+
+      // 섹션 heading 노출 (en).
+      expect(find.text('Link an account'), findsOneWidget);
+      // google 은 이미 linked → "Link Google" 버튼 미노출.
+      expect(find.text('Link Google'), findsNothing);
+      // 다른 활성 소셜 provider 의 "연결" 버튼 노출 (예: Apple).
+      expect(find.text('Link Apple'), findsOneWidget);
+      // email 버튼 절대 없음 (email EXCLUDE).
+      expect(find.text('Link Email / Password'), findsNothing);
+      expect(find.textContaining('Email'), findsNothing);
+    });
+
+    testWidgets(
+        'AL2 native 성공 — Apple 연결 tap → linkAppleCredential + 성공 snackbar',
+        (tester) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(() => repo.linkAppleCredential())
+          .thenAnswer((_) async => Result.success(user));
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Apple');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      verify(() => repo.linkAppleCredential()).called(1);
+      // 성공 snackbar (en, provider 라벨 주입): "Linked your Apple account."
+      expect(find.text('Linked your Apple account.'), findsOneWidget);
+    });
+
+    testWidgets(
+        'AL3 Custom Token 성공 — LINE 연결 tap → linkCustomTokenProviderArm(line)',
+        (tester) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(() => repo.linkCustomTokenProviderArm(
+            targetProvider: any(named: 'targetProvider'),
+          )).thenAnswer((_) async => Result.success(user));
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link LINE');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      verify(() => repo.linkCustomTokenProviderArm(
+            targetProvider: AccountProvider.line,
+          )).called(1);
+      expect(find.text('Linked your LINE account.'), findsOneWidget);
+    });
+
+    testWidgets(
+        'AL4 reauth gate — ReauthenticationRequired → /login 라우팅',
+        (tester) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(() => repo.linkAppleCredential()).thenAnswer(
+        (_) async =>
+            Result.failure(const ReauthenticationRequiredException()),
+      );
+
+      final router = await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Apple');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      // 재로그인 라우팅 — /login 으로 이동.
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        AppRoutes.login,
+      );
+      expect(find.text('LOGIN ROUTE'), findsOneWidget);
+    });
+
+    testWidgets(
+        'AL5 already-linked — AccountAlreadyLinked → graceful SnackBar (크래시 0)',
+        (tester) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(() => repo.linkAppleCredential())
+          .thenAnswer((_) async => Result.failure(const AccountAlreadyLinked()));
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Apple');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      // 크래시 0 + 성공 snackbar 미노출.
+      expect(tester.takeException(), isNull);
+      expect(find.text('Linked your Apple account.'), findsNothing);
+      // 안내 SnackBar 노출 (errorAccountExistsWithUnknownProvider 재사용).
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets(
+        'AL6 사용자 취소 (null) — no-op (snackbar 0, 버튼 유지)',
+        (tester) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(() => repo.linkAppleCredential()).thenAnswer((_) async => null);
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Apple');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      // snackbar 0 + 버튼 유지.
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('Link Apple'), findsOneWidget);
+    });
+
+    testWidgets(
+        'AL7 viewport — below-fold 버튼 ensureVisible 후 tap 가능',
+        (tester) async {
+      // linkedProviders 비어있음 → 모든 활성 소셜 버튼 노출 (긴 리스트).
+      final user = _testUser(providerIds: const <String>[]);
+      when(() => repo.linkCustomTokenProviderArm(
+            targetProvider: any(named: 'targetProvider'),
+          )).thenAnswer((_) async => Result.success(user));
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      // Yahoo! JAPAN 은 리스트 말단 (below-fold 가능) — ensureVisible 후 tap.
+      final btn = find.text('Link Yahoo! JAPAN');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      verify(() => repo.linkCustomTokenProviderArm(
+            targetProvider: AccountProvider.yahoojp,
+          )).called(1);
+    });
+
+    testWidgets(
+        'AL8 빈 available — 모든 활성 소셜 linked → 섹션 미노출',
+        (tester) async {
+      // 활성 소셜 7종 모두 linked (URI 3 + slug 4).
+      final user = _testUser(
+        providerIds: const <String>[
+          'google.com',
+          'apple.com',
+          'facebook.com',
+          'kakao',
+          'naver',
+          'line',
+          'yahoojp',
+        ],
+      );
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      // available 빈 set → heading 미노출 (섹션 미노출).
+      expect(find.text('Link an account'), findsNothing);
+    });
+  });
+}
