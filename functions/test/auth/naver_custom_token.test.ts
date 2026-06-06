@@ -436,6 +436,12 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         code: "already-exists",
         message: "errorAccountExistsWithDifferentCredential",
       });
+      // 16-13: details.existingProvider 전달 검증. 본 case 는 createUser path
+      // (getUserByEmail default = auth/user-not-found) 라 provider 추론 실패
+      // → 'unknown' fallback (R2 일반 배너로 graceful).
+      await expect(promise).rejects.toMatchObject({
+        details: {existingProvider: "unknown"},
+      });
 
       expect(warnMock).toHaveBeenCalledWith(
         expect.objectContaining({event: "naver_email_collision"}),
@@ -450,6 +456,13 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       for (const args of allLogCalls) {
         expect(JSON.stringify(args)).not.toContain("collision@example.com");
       }
+      // 16-13: throw 된 HttpsError 의 details 직렬화에 email/platform-uid 본문
+      // 미포함 (slug-only invariant, T-16-13-01).
+      const thrownDetails = await promise.catch(
+        (e: HttpsError) => e.details,
+      );
+      const detailsStr = JSON.stringify(thrownDetails);
+      expect(detailsStr).not.toContain("collision@example.com");
     },
   );
 
@@ -478,6 +491,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       await expect(promise).rejects.toMatchObject({
         code: "already-exists",
         message: "errorAccountExistsWithDifferentCredential",
+      });
+      // 16-13: anonymous collision 의 details.existingProvider = 호출 endpoint
+      // provider slug 자체 (doc ID = provider:sub → 호출 provider).
+      await expect(promise).rejects.toMatchObject({
+        details: {existingProvider: "naver"},
       });
       expect(warnMock).toHaveBeenCalledWith(
         expect.objectContaining({event: "naver_anonymous_conflict"}),
@@ -689,6 +707,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         code: "already-exists",
         message: "errorAccountExistsWithDifferentCredential",
       });
+      // 16-13: caller path (getUserByEmail providerData facebook) → details.
+      // existingProvider = 'facebook' (mapProviderDataToProviderId 매핑).
+      await expect(promise).rejects.toMatchObject({
+        details: {existingProvider: "facebook"},
+      });
 
       // caller switch 분기 logger event 발동 검증.
       expect(warnMock).toHaveBeenCalledWith(
@@ -709,6 +732,12 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         expect(stringified).not.toContain("PII_COLLISION_email@naver.com");
         expect(stringified).not.toContain("fb-platform-id-PII");
       }
+      // 16-13: throw details 직렬화에 email/platform-uid 본문 미포함
+      // (slug-only invariant). 'facebook' slug 만 노출.
+      const thrownDetails = await promise.catch((e: HttpsError) => e.details);
+      const detailsStr = JSON.stringify(thrownDetails);
+      expect(detailsStr).not.toContain("PII_COLLISION_email@naver.com");
+      expect(detailsStr).not.toContain("fb-platform-id-PII");
     },
   );
 

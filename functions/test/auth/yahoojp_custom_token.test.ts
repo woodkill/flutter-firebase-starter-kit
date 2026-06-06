@@ -649,3 +649,90 @@ describe("yahoojpCustomToken onCall — Task 2 (Test 10 PII regression)", () => 
     },
   );
 });
+
+// 16-13 (A4 gap closure) — yahoojp collision throw 의 details.existingProvider
+// 회귀 가드. 기존 yahoojp test 가 collision case 부재 (Test 1-9 + Task 2 +
+// C1/C2) — LINE Test 10/11 패턴 mirror 로 두 collision arm 신규 등재.
+describe("yahoojpCustomToken onCall — 16-13 collision details", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateCustomToken.mockResolvedValue("MOCK_YAHOOJP_TOKEN");
+    mockCreateUser.mockResolvedValue({uid: "new-uid-yj-pre"});
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+  });
+
+  it(
+    // eslint-disable-next-line max-len
+    "16-13 YJP-CT-COLLISION-1: conflictKind=email_in_use → already-exists + details.existingProvider='unknown'",
+    async () => {
+      mockVerifyYahoojpIdToken.mockResolvedValue({
+        sub: "yj-collision",
+        name: "Hanako",
+      });
+      // !callerUid 분기 createUser auth/email-already-in-use rejection 으로
+      // helper 가 conflictKind: 'email_in_use' 반환. Yahoo!JP 은 email scope
+      // 미채택 → userInfo.email 부재 → provider 추론 skip → 'unknown'.
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockCreateUser.mockRejectedValueOnce(
+        Object.assign(new Error("email exists"), {
+          code: "auth/email-already-in-use",
+        }),
+      );
+
+      const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
+      const promise = wrapped({
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+        details: {existingProvider: "unknown"},
+      });
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "yahoojp_email_collision"}),
+        expect.any(String),
+      );
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "16-13 YJP-CT-COLLISION-2: anonymous + existing yahoojp identity → already-exists + details.existingProvider='yahoojp'",
+    async () => {
+      mockVerifyYahoojpIdToken.mockResolvedValue({
+        sub: "yj-existing-b",
+        name: "Jiro",
+      });
+      // 익명 사용자 'anon-A' 가 기존 yahoojp identity 'existing-B' 로 로그인
+      // 시도 → conflictKind: 'anonymous_existing_collision', existingProvider
+      // = 호출 endpoint slug ('yahoojp').
+      mockIdxGet.mockResolvedValue({exists: true});
+      mockTxGet.mockResolvedValue({
+        exists: true,
+        data: () => ({firebaseUid: "existing-yj-B"}),
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
+      const promise = wrapped({
+        auth: {uid: "anon-A-yj"},
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+        details: {existingProvider: "yahoojp"},
+      });
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "yahoojp_anonymous_conflict"}),
+        expect.any(String),
+      );
+    },
+  );
+});

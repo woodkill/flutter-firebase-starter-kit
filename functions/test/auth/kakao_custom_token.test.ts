@@ -377,6 +377,11 @@ describe("kakaoCustomToken onCall", () => {
       await expect(promise).rejects.toMatchObject({
         code: "already-exists",
       });
+      // 16-13: details.existingProvider 전달. createUser path + getUserByEmail
+      // default(auth/user-not-found) → provider 추론 실패 → 'unknown' fallback.
+      await expect(promise).rejects.toMatchObject({
+        details: {existingProvider: "unknown"},
+      });
       try {
         await promise;
       } catch (err: unknown) {
@@ -432,6 +437,11 @@ describe("kakaoCustomToken onCall", () => {
       await expect(promise).rejects.toBeInstanceOf(HttpsError);
       await expect(promise).rejects.toMatchObject({
         code: "already-exists",
+      });
+      // 16-13: anonymous collision details.existingProvider = 호출 endpoint
+      // provider slug ('kakao').
+      await expect(promise).rejects.toMatchObject({
+        details: {existingProvider: "kakao"},
       });
       try {
         await promise;
@@ -770,6 +780,11 @@ describe("kakaoCustomToken onCall", () => {
         code: "already-exists",
         message: "errorAccountExistsWithDifferentCredential",
       });
+      // 16-13: caller path (getUserByEmail providerData google) → details.
+      // existingProvider = 'google' (mapProviderDataToProviderId 매핑).
+      await expect(promise).rejects.toMatchObject({
+        details: {existingProvider: "google"},
+      });
 
       // caller switch 분기 logger event 발동 검증.
       expect(warnMock).toHaveBeenCalledWith(
@@ -793,6 +808,12 @@ describe("kakaoCustomToken onCall", () => {
         expect(stringified).not.toContain("PII_COLLISION_email@kakao.com");
         expect(stringified).not.toContain("google-platform-id-PII");
       }
+      // 16-13: throw details 직렬화에 email/platform-uid 본문 미포함
+      // (slug-only invariant). 'google' slug 만 노출.
+      const thrownDetails = await promise.catch((e: HttpsError) => e.details);
+      const detailsStr = JSON.stringify(thrownDetails);
+      expect(detailsStr).not.toContain("PII_COLLISION_email@kakao.com");
+      expect(detailsStr).not.toContain("google-platform-id-PII");
     },
   );
 
