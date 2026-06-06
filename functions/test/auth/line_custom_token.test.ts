@@ -560,6 +560,11 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       code: "already-exists",
       message: "errorAccountExistsWithDifferentCredential",
     });
+    // 16-13: details.existingProvider 전달. LINE 은 email scope 미채택 →
+    // userInfo.email 부재 → createUser path provider 추론 skip → 'unknown'.
+    await expect(promise).rejects.toMatchObject({
+      details: {existingProvider: "unknown"},
+    });
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({event: "line_email_collision"}),
       expect.any(String),
@@ -590,6 +595,11 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
     await expect(promise).rejects.toMatchObject({
       code: "already-exists",
       message: "errorAccountExistsWithDifferentCredential",
+    });
+    // 16-13: anonymous collision details.existingProvider = 호출 endpoint
+    // provider slug ('line').
+    await expect(promise).rejects.toMatchObject({
+      details: {existingProvider: "line"},
     });
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({event: "line_anonymous_conflict"}),

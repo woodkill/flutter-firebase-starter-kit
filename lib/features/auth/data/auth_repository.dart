@@ -1886,11 +1886,39 @@ class AuthRepository {
       // R3 (D-34) — Cloud Function 의 already-exists → 사용자 recovery 가능한
       // AccountExistsWithDifferentCredential 매핑. 신규 클래스/ARB 0건
       // (Phase 8/9 패턴 재사용 — errorAccountExistsWithDifferentCredential).
-      // (Phase 9.2 R2) Path A-narrow — email==null 유지: Phase 17 (Account
-      // Linking) — see ROADMAP.md 부활 시 unknown fallback 동일 path 통합.
-      'already-exists' => AccountExistsWithDifferentCredential(cause: e),
+      //
+      // (16-13 A4 gap closure) Custom Token side existingProvider wiring:
+      // 서버(16-13 Task 1)가 collision throw 의 HttpsError details 에
+      // existingProvider slug 를 전달하므로 client 가 직독해
+      // existingProvider 에 매핑한다 (16-09 의 sheet 분기 도달 가능 = dead
+      // branch 해소). native side (_enrichAccountExistsAsync via
+      // lookupSignInMethods) 와 달리 Custom Token side 는 server details
+      // 직독 — 추가 callable round-trip 0. email==null 은 그대로 유지 (서버
+      // PII 정책 — server 가 email 본문 미전달). unknown/누락/non-Map details
+      // 는 _existingProviderFromDetails 가 null 반환 → R2 일반 배너 fallback.
+      'already-exists' => AccountExistsWithDifferentCredential(
+        existingProvider: _existingProviderFromDetails(e.details),
+        cause: e,
+      ),
       _ => ServiceUnavailable(cause: e),
     };
+  }
+
+  /// [FirebaseFunctionsException.details] 에서 `existingProvider` slug 를 안전
+  /// 추출해 [AccountProvider] 로 변환한다 (16-13 A4 gap closure).
+  ///
+  /// 서버 collision throw 의 `details` 는 `{existingProvider: 'kakao'}` 형태의
+  /// Map 이다. [details] 가 [Map] 이 아니거나 `existingProvider` 키가 없거나
+  /// 값이 [String] 이 아니거나 unknown slug 면 `null` 을 반환한다 (R2 일반
+  /// 배너 fallback 보존). [AccountProvider.tryParse] 가 등록 8 slug 만 enum
+  /// 변환하고 그 외 (`null` / unknown) 는 `null` 로 흡수한다.
+  ///
+  /// [details] 는 `dynamic` 이므로 [Object?] 로 받아 `is` 가드로 좁힌다
+  /// (flutter.md `dynamic` 금지 + `as` 최소화).
+  AccountProvider? _existingProviderFromDetails(Object? details) {
+    if (details is! Map) return null;
+    final raw = details['existingProvider'];
+    return raw is String ? AccountProvider.tryParse(raw) : null;
   }
 
   /// [GoogleSignInException]을 [AppException]으로 매핑한다.
