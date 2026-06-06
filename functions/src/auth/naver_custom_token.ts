@@ -6,6 +6,7 @@ import * as logger from "firebase-functions/logger";
 import {defineSecret} from "firebase-functions/params";
 
 import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
+import {buildAccountExistsError} from "./account_exists_error";
 import {resolveIdentity} from "./identity_index";
 
 // Phase 13 D-60 — Secret Manager 주입.
@@ -255,19 +256,16 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         {event: "naver_email_collision"},
         "Naver email collides with existing account",
       );
-      throw new HttpsError(
-        "already-exists",
-        "errorAccountExistsWithDifferentCredential",
-      );
+      // 16-13: existingProvider slug 를 details 로 전달 (client sheet 분기 wiring).
+      throw buildAccountExistsError(resolution.existingProvider);
     case "anonymous_existing_collision":
       logger.warn(
         {event: "naver_anonymous_conflict"},
         "Anonymous user attempted to login with existing Naver identity",
       );
-      throw new HttpsError(
-        "already-exists",
-        "errorAccountExistsWithDifferentCredential",
-      );
+      // 16-13: anonymous collision 도 resolution.existingProvider (= 호출
+      // provider slug) 를 details 로 전달.
+      throw buildAccountExistsError(resolution.existingProvider);
     case null:
       break; // 정상 flow.
     }

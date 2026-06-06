@@ -7,6 +7,7 @@ import {errors as joseErrors} from "jose";
 
 import {createOidcVerifier} from "../shared/oidc_verifier";
 import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
+import {buildAccountExistsError} from "./account_exists_error";
 import {resolveIdentity} from "./identity_index";
 
 // Phase 11 D-05 — Secret Manager 주입.
@@ -196,10 +197,8 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         {event: "kakao_email_collision"},
         "Kakao email collides with existing account",
       );
-      throw new HttpsError(
-        "already-exists",
-        "errorAccountExistsWithDifferentCredential",
-      );
+      // 16-13: existingProvider slug 를 details 로 전달 (client sheet 분기 wiring).
+      throw buildAccountExistsError(resolution.existingProvider);
     case "anonymous_existing_collision":
       // 익명 사용자가 기존 kakao identity 로 로그인 시도 — anonymous Firestore
       // 데이터 손실 / UID hijack 위험 차단. Phase 17 (Account Linking) 가
@@ -208,10 +207,9 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         {event: "kakao_anonymous_conflict"},
         "Anonymous user attempted to login with existing Kakao identity",
       );
-      throw new HttpsError(
-        "already-exists",
-        "errorAccountExistsWithDifferentCredential",
-      );
+      // 16-13: anonymous collision 도 resolution.existingProvider (= 호출
+      // provider slug) 를 details 로 전달.
+      throw buildAccountExistsError(resolution.existingProvider);
     case null:
       break; // 정상 flow.
     }
