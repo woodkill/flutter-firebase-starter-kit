@@ -18,6 +18,8 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
+// ignore: unused_import -- 16-13 Custom Token group 의 Failure<User> 캐스트용.
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
@@ -311,6 +313,122 @@ void main() {
       verify(
         () => mockLookupCallable.call<Map<String, dynamic>>(any()),
       ).called(1);
+    });
+  });
+
+  // 16-13 (A4 gap closure) — Custom Token already-exists path 의
+  // _mapFunctionsException details 추출. 서버(16-13 Task 1)가 HttpsError
+  // details.existingProvider 를 전달하므로 client 가 이를 읽어
+  // AccountExistsWithDifferentCredential.existingProvider 에 매핑한다.
+  // native side(triggerAccountExists → lookupSignInMethods enrichment)와 달리
+  // Custom Token side 는 server details 직독 (추가 callable round-trip 0).
+  group('16-13 — Custom Token _mapFunctionsException details 추출', () {
+    late _MockHttpsCallable mockCtCallable;
+
+    setUp(() {
+      mockCtCallable = _MockHttpsCallable();
+      // kakao Custom Token sign-in path 의 SDK + finally logout stub.
+      when(() => mockKakaoSdkClient.signIn()).thenAnswer(
+        (_) async =>
+            const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
+      );
+      when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+      when(
+        () => mockFunctions.httpsCallable('kakaoCustomToken'),
+      ).thenReturn(mockCtCallable);
+    });
+
+    /// kakao Custom Token sign-in 을 trigger 하되 callable 이
+    /// [details] 를 가진 already-exists [FirebaseFunctionsException] 을 throw
+    /// 하도록 stub 한다 → [AuthRepository._mapFunctionsException] 경유.
+    Future<AccountExistsWithDifferentCredential> triggerCustomTokenExists({
+      required Object? details,
+      String code = 'already-exists',
+    }) async {
+      when(
+        () => mockCtCallable.call<Map<String, dynamic>>(any()),
+      ).thenThrow(
+        FirebaseFunctionsException(
+          code: code,
+          message: 'errorAccountExistsWithDifferentCredential',
+          details: details,
+        ),
+      );
+
+      final result = await repository.signInWithKakao();
+      final failure = result! as Failure<User>;
+      return failure.exception as AccountExistsWithDifferentCredential;
+    }
+
+    test('CT-R1: details.existingProvider 각 slug → AccountProvider 매핑', () async {
+      const cases = <String, AccountProvider>{
+        'kakao': AccountProvider.kakao,
+        'naver': AccountProvider.naver,
+        'line': AccountProvider.line,
+        'yahoojp': AccountProvider.yahoojp,
+        'facebook': AccountProvider.facebook,
+        'google': AccountProvider.google,
+        'apple': AccountProvider.apple,
+        'email': AccountProvider.email,
+      };
+      for (final entry in cases.entries) {
+        final ex = await triggerCustomTokenExists(
+          details: <String, dynamic>{'existingProvider': entry.key},
+        );
+        expect(
+          ex.existingProvider,
+          entry.value,
+          reason: 'slug ${entry.key} → ${entry.value}',
+        );
+        // Custom Token path — 서버가 PII 로 email 미전달 → null 유지.
+        expect(ex.email, isNull);
+      }
+    });
+
+    test('CT-R2a: details.existingProvider=null → existingProvider == null '
+        '(R2 일반 배너 fallback)', () async {
+      final ex = await triggerCustomTokenExists(
+        details: <String, dynamic>{'existingProvider': null},
+      );
+      expect(ex.existingProvider, isNull);
+      expect(ex.email, isNull);
+    });
+
+    test('CT-R2b: details 자체 부재(null) → existingProvider == null + no throw',
+        () async {
+      final ex = await triggerCustomTokenExists(details: null);
+      expect(ex.existingProvider, isNull);
+      expect(ex.email, isNull);
+    });
+
+    test('CT-R2c: unknown slug(wechat) → existingProvider == null', () async {
+      final ex = await triggerCustomTokenExists(
+        details: <String, dynamic>{'existingProvider': 'wechat'},
+      );
+      expect(ex.existingProvider, isNull);
+    });
+
+    test('CT-R3: details 가 Map 이 아님(String) → existingProvider == null + '
+        'no throw', () async {
+      final ex = await triggerCustomTokenExists(details: 'not-a-map');
+      expect(ex.existingProvider, isNull);
+      expect(ex.email, isNull);
+    });
+
+    test('CT-R3b: details 가 Map 이나 existingProvider 키 부재 → '
+        'existingProvider == null', () async {
+      final ex = await triggerCustomTokenExists(
+        details: <String, dynamic>{'someOtherKey': 'value'},
+      );
+      expect(ex.existingProvider, isNull);
+    });
+
+    test('CT-R3c: existingProvider 값이 String 아님(int) → '
+        'existingProvider == null + no throw', () async {
+      final ex = await triggerCustomTokenExists(
+        details: <String, dynamic>{'existingProvider': 42},
+      );
+      expect(ex.existingProvider, isNull);
     });
   });
 }
