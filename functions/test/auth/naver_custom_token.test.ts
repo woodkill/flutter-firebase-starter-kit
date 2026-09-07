@@ -57,6 +57,10 @@ const mockTxGet = jest.fn();
 const mockTxSet = jest.fn();
 const mockTxUpdate = jest.fn();
 const mockIdxGet = jest.fn();
+// Plan 16-17 — identity_index 역조회 (where('firebaseUid','==',uid).get()).
+// 기본값 빈 결과 = Custom Token 후보 0 → 기존 케이스 회귀 0.
+const mockIdxWhere = jest.fn();
+const mockIdxWhereGet = jest.fn().mockResolvedValue({docs: []});
 // Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot mirror.
 const mockUserDocSet = jest.fn().mockResolvedValue(undefined);
 jest.mock("firebase-admin/firestore", () => {
@@ -73,6 +77,10 @@ jest.mock("firebase-admin/firestore", () => {
     getFirestore: jest.fn(() => ({
       collection: (name: string) => ({
         doc: () => (name === "identity_index" ? idxRef : userRef),
+        where: (...args: unknown[]) => {
+          mockIdxWhere(...args);
+          return {get: (...a: unknown[]) => mockIdxWhereGet(...a)};
+        },
       }),
       runTransaction: (fn: (t: unknown) => Promise<unknown>) =>
         fn({get: mockTxGet, set: mockTxSet, update: mockTxUpdate}),
@@ -153,6 +161,10 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
     mockGetUserByEmail.mockRejectedValue(
       Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
     );
+    // Plan 16-17 default — 역조회 후보 0 (Custom Token 기존 계정 없음).
+    mockIdxWhere.mockReset();
+    mockIdxWhereGet.mockReset();
+    mockIdxWhereGet.mockResolvedValue({docs: []});
   });
 
   it(
@@ -738,6 +750,75 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       const detailsStr = JSON.stringify(thrownDetails);
       expect(detailsStr).not.toContain("PII_COLLISION_email@naver.com");
       expect(detailsStr).not.toContain("fb-platform-id-PII");
+    },
+  );
+
+  // Plan 16-17 (A4 finding 2026-06-11) — CT↔CT collision. 기존 계정이 Kakao
+  // Custom Token 으로 생성되어 providerData 가 비어 있어도 identity_index
+  // 역조회로 'kakao' slug 가 산출되어 details 로 전달된다.
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-NAVER-CT-EXISTING-01 (A4): Kakao Custom Token 기존 계정 → details.existingProvider='kakao'",
+    async () => {
+      mockFetchOk({
+        resultcode: "00",
+        response: {
+          id: "naver-user-ct-collision",
+          email: "PII_CT_COLLISION_email@naver.com",
+        },
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      // Custom Token 계정 — providerData 비어 있음 (라이브 관측 사실).
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "PII_KAKAO_UID_EXISTING",
+        providerData: [],
+      });
+      // identity_index 역조회 → kakao 1건.
+      mockIdxWhereGet.mockResolvedValueOnce({
+        docs: [{data: () => ({provider: "kakao"})}],
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      const promise = wrapped({
+        auth: {uid: "anon-uid-ct"},
+        app: {appId: "test"},
+        data: {accessToken: "naver-token-ct"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+      });
+      await expect(promise).rejects.toMatchObject({
+        details: {existingProvider: "kakao"},
+      });
+      // 단일 필드 equality 역조회 (자동 인덱스 충족).
+      expect(mockIdxWhere).toHaveBeenCalledWith(
+        "firebaseUid",
+        "==",
+        "PII_KAKAO_UID_EXISTING",
+      );
+      // early throw invariant — Custom Token 미발급.
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+
+      // PII regression sentinel — email / 기존 uid 본문 미노출.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain("PII_CT_COLLISION_email@naver.com");
+        expect(stringified).not.toContain("PII_KAKAO_UID_EXISTING");
+      }
+      const thrownDetails2 = await promise.catch(
+        (e: HttpsError) => e.details,
+      );
+      const detailsStr2 = JSON.stringify(thrownDetails2);
+      expect(detailsStr2).not.toContain("PII_CT_COLLISION_email@naver.com");
+      expect(detailsStr2).not.toContain("PII_KAKAO_UID_EXISTING");
     },
   );
 

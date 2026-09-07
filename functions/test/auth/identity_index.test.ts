@@ -72,15 +72,23 @@ type MockDb = {
   tx: MockTx;
   idxRef: {label: string};
   userRef: {label: string};
+  // Plan 16-17: identity_index 역조회 stub.
+  where: jest.Mock;
+  whereGet: jest.Mock;
+  // Plan 16-17: 호출 순서 태그 배열 ("reverse-lookup" / "runTransaction").
+  callOrder: string[];
 };
 
 /**
  * 4 가지 분기 (preExists / txExists 조합) 에 대한 mock Firestore + tx 빌더.
  *
  * @param {{preExists: boolean, preData: (Record<string, unknown>|undefined),
- *     txExists: boolean, txData: (Record<string, unknown>|undefined)}} opts
- *     비-tx read / tx.get 분기 설정.
- * @return {MockDb} mock db + tx + ref.
+ *     txExists: boolean, txData: (Record<string, unknown>|undefined),
+ *     callerUserExists: (boolean|undefined),
+ *     reverseDocs: (Array<{provider: unknown}>|undefined),
+ *     reverseRejects: (boolean|undefined)}} opts
+ *     비-tx read / tx.get / identity_index 역조회 분기 설정.
+ * @return {MockDb} mock db + tx + ref + 역조회 stub.
  */
 function makeDb(opts: {
   preExists: boolean;
@@ -91,6 +99,11 @@ function makeDb(opts: {
   // 시 추가로 tx.get(userRef) 호출 → 데이터 없으면 collision 우회.
   // 기본값 true — 12.1 R3 의 보안 차단 동작이 default (기존 R3 test 보존).
   callerUserExists?: boolean;
+  // Plan 16-17: identity_index where('firebaseUid','==',uid).get() 결과 주입.
+  // 기본값 빈 배열 — 기존 케이스 회귀 0 (역조회 후보 0 = 충돌 아님).
+  reverseDocs?: Array<{provider: unknown}>;
+  // Plan 16-17: 역조회 쿼리 실패 시뮬레이션 (best-effort graceful 검증용).
+  reverseRejects?: boolean;
 }): MockDb {
   const idxRef = {
     get: jest.fn().mockResolvedValue({
@@ -139,16 +152,36 @@ function makeDb(opts: {
     }),
   };
 
+  // Plan 16-17: identity_index 역조회 stub. callOrder 태그로 runTransaction
+  // 대비 호출 순서를 관측 가능하게 한다 (transaction 밖 선행 read 회귀 잠금).
+  const callOrder: string[] = [];
+  const whereGet = jest.fn(async () => {
+    callOrder.push("reverse-lookup");
+    if (opts.reverseRejects) {
+      throw Object.assign(new Error("query failed"), {
+        code: "unavailable",
+      });
+    }
+    return {
+      docs: (opts.reverseDocs ?? []).map((d) => ({data: () => d})),
+    };
+  });
+  const where = jest.fn(() => ({get: whereGet}));
+
   const db = {
     collection: jest.fn((name: string) => ({
       doc: jest.fn(() => (name === "identity_index" ? idxRef : userRef)),
+      where,
     })),
     runTransaction: jest.fn(
-      (fn: (t: MockTx) => Promise<unknown>) => fn(tx),
+      (fn: (t: MockTx) => Promise<unknown>) => {
+        callOrder.push("runTransaction");
+        return fn(tx);
+      },
     ),
   };
 
-  return {db: db as never, tx, idxRef, userRef};
+  return {db: db as never, tx, idxRef, userRef, where, whereGet, callOrder};
 }
 
 describe("identityIndexDocId", () => {
@@ -1289,6 +1322,83 @@ describe("resolveIdentity Phase 16 D-09 — existingProvider add-only", () => {
         "kakao", "naver", "line", "yahoojp",
       ];
       expect(providers.length).toBe(8);
+    },
+  );
+});
+
+// Plan 16-17 (A4 finding 2026-06-11 / SC3b gap closure) — Custom Token 으로
+// 생성된 기존 계정은 Firebase Auth providerData 가 비어 있어
+// mapProviderDataToProviderId 가 구조적으로 'unknown' 만 반환한다. identity_
+// index 역조회(where firebaseUid == uid → provider)로 Custom Token
+// existingProvider 를 해석하는 2단 정책의 회귀 잠금.
+// eslint-disable-next-line max-len
+describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 역조회", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+    warnMock.mockReset();
+  });
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-01 (A4 tracer): Kakao Custom Token 기존 계정 + Naver caller → existingProvider='kakao'",
+    async () => {
+      // A4 시나리오 — Kakao 로 가입된 custom-token user (providerData 비어
+      // 있음) 와 동일 email 로 Naver 로그인 시도.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "PII_KAKAO_UID_A",
+        providerData: [],
+      });
+      const {db, where, whereGet} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [{provider: "kakao"}],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-16-17-tracer",
+        callerUid: "anon-16-17-tracer",
+        userInfo: {email: "PII_TRACER_EMAIL@example.com"},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "kakao",
+      });
+      // 역조회 쿼리 인자 검증 — 단일 필드 equality (자동 인덱스 충족).
+      expect(where).toHaveBeenCalledWith(
+        "firebaseUid",
+        "==",
+        "PII_KAKAO_UID_A",
+      );
+      expect(whereGet).toHaveBeenCalledTimes(1);
+
+      // 신규 event 발동 — provider + existingProvider slug 만.
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_email_collision_custom_token_path",
+          provider: "naver",
+          existingProvider: "kakao",
+        }),
+        expect.any(String),
+      );
+
+      // PII regression sentinel — email / 기존 uid 본문 미노출 (D-51).
+      for (const args of warnMock.mock.calls) {
+        const s = JSON.stringify(args);
+        expect(s).not.toContain("PII_TRACER_EMAIL@example.com");
+        expect(s).not.toContain("PII_KAKAO_UID_A");
+      }
     },
   );
 });

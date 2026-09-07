@@ -219,6 +219,102 @@ export function mapProviderDataToProviderId(
   return "unknown";
 }
 
+/**
+ * Custom Token provider 화이트리스트 겸 결정적 tie-break 순서 (Plan 16-17).
+ *
+ * 두 가지 책임을 겸한다.
+ * 1. **화이트리스트** — `identity_index` 역조회 결과의 `provider` 필드 값이
+ *    본 배열에 없으면 후보에서 탈락한다 (T-16-17-04 Spoofing 방어 — 임의
+ *    문자열이 사용자 노출 라벨로 주입되는 경로 차단).
+ * 2. **결정적 tie-break 순서** — 기존 계정이 2개 이상의 Custom Token
+ *    identity 를 보유할 때 앞선 값이 선택된다.
+ *
+ * **순서 변경은 사용자에게 노출되는 라벨을 바꾸는 동작 변경이다.** 단순
+ * 정렬 취향 문제가 아니라 "어느 provider 로 가입되어 있습니다" 문구가
+ * 달라지므로, 순서를 바꿀 때는 Plan 16-17 의 결정성 테스트도 함께 갱신할 것.
+ */
+export const CUSTOM_TOKEN_PROVIDER_PRIORITY: readonly ProviderId[] = [
+  "kakao",
+  "naver",
+  "line",
+  "yahoojp",
+] as const;
+
+/**
+ * `identity_index` 역조회로 Custom Token 기존 계정의 provider 를 해석한다
+ * (Plan 16-17 / A4 finding 2026-06-11 권장안).
+ *
+ * **왜 providerData 가 아닌 identity_index 인가**: Custom Token 으로 생성된
+ * Firebase Auth user 는 `customAuth: true` 이고 `providerData[]` 가 항상
+ * 비어 있다 (라이브 확인 — Kakao/Naver/LINE 계정 모두 `providerUserInfo`
+ * 부재). 따라서 `NATIVE_PROVIDER_DATA_MAP` 기반의
+ * `mapProviderDataToProviderId` 는 Custom Token 계정에 대해 구조적으로
+ * `'unknown'` 만 반환한다. Custom Token 계정의 진실원은 `identity_index`
+ * 컬렉션 (`{provider}:{providerUserId}` 문서의 `firebaseUid` / `provider`
+ * 필드) 뿐이다. native 계정은 반대로 identity_index 문서가 존재하지 않으므로
+ * 두 소스는 상호배타이며, 본 helper 는 native 매핑 실패 시의 2차 소스다.
+ *
+ * **읽기 순서 계약**: 본 helper 는 `db.runTransaction` **밖**에서만 호출되어야
+ * 한다. transaction 내부에서 호출하면 Firestore 의 "all reads before all
+ * writes" 제약을 위반할 수 있다 (WR-05 / R12 회귀 계열).
+ *
+ * **PII 정책 (D-51 / Pitfall 7)**: 반환 타입은 4 slug 화이트리스트 값 또는
+ * `null` 뿐이며, logger payload 에는 `event` 와 `code` 만 담는다 — email /
+ * firebaseUid / providerUserId 는 절대 로깅하지 않는다.
+ *
+ * **best-effort 정책**: 쿼리 실패는 `null` 로 graceful 처리한다
+ * (`identity_index_existing_provider_lookup_failed` 분기와 동일 정책) —
+ * 역조회 실패가 정당한 로그인을 차단하지 않는다 (T-16-17-02).
+ *
+ * @param {Firestore} db Firestore Admin 인스턴스.
+ * @param {string} firebaseUid 기존 계정의 Firebase UID (역조회 대상).
+ * @param {ProviderId} currentProvider caller 가 호출한 provider slug — 자기
+ *     자신 매칭은 충돌이 아니므로 후보에서 제외한다.
+ * @return {Promise<ProviderId|null>} `CUSTOM_TOKEN_PROVIDER_PRIORITY` 순서상
+ *     첫 후보 slug. 후보 0개 또는 쿼리 실패 시 `null`.
+ */
+export async function resolveCustomTokenExistingProvider(
+  db: Firestore,
+  firebaseUid: string,
+  currentProvider: ProviderId,
+): Promise<ProviderId | null> {
+  try {
+    // 단일 필드 equality 쿼리 — Firestore 자동 단일 필드 인덱스로 충족되므로
+    // 복합 인덱스(firestore.indexes.json) 신설/배포가 불필요하다.
+    const snap = await db
+      .collection("identity_index")
+      .where("firebaseUid", "==", firebaseUid)
+      .get();
+
+    const candidates = new Set<ProviderId>();
+    for (const doc of snap.docs ?? []) {
+      const data = doc.data() as {provider?: unknown};
+      const raw = data?.provider;
+      if (typeof raw !== "string") continue;
+      // 화이트리스트 필터 — 미래에 native provider 가 identity_index 에
+      // 회고적 등록되어도 Custom Token 라벨로 오분류되지 않는다.
+      const matched = CUSTOM_TOKEN_PROVIDER_PRIORITY.find((p) => p === raw);
+      if (!matched) continue;
+      // self-identity 제외 — caller 자신의 provider 는 충돌이 아니다.
+      if (matched === currentProvider) continue;
+      candidates.add(matched);
+    }
+
+    // 입력 문서 순서와 무관하게 고정 우선순위로 결정 (결정성 보장).
+    for (const p of CUSTOM_TOKEN_PROVIDER_PRIORITY) {
+      if (candidates.has(p)) return p;
+    }
+    return null;
+  } catch (err: unknown) {
+    const code = fingerprintError(err);
+    logger.warn(
+      {event: "identity_index_reverse_lookup_failed", code},
+      "identity_index reverse lookup failed",
+    );
+    return null;
+  }
+}
+
 export type IdentityResolution = {
   uid: string;
   isNewUser: boolean;
@@ -350,15 +446,24 @@ export async function resolveIdentity(
   // 'email_in_use' 분기가 'already-exists' HttpsError throw → client 측
   // _mapFunctionsException Phase 12.1 D-34 분기 → unknown fallback ARB 메시지.
   //
-  // **false-positive 차단 정책**: providerData 가 비어있거나 (Custom Token
-  // mirror 미지원으로 normal case) firebase 단일 식별자 (Phase 12.1 D-34
-  // carry-forward) 인 경우 → 충돌 아님. 다른 provider (google.com / apple.com /
-  // facebook.com / password) 가 포함될 때만 email_in_use 발동.
+  // **false-positive 차단 정책 (Plan 16-17 — 2단 해석으로 갱신)**:
+  // 1단 — native 해석. 기존 계정 providerData 에 다른 native provider
+  //   (google.com / apple.com / facebook.com / password) 가 포함되면
+  //   email_in_use 발동 (mapProviderDataToProviderId 로 slug 산출).
+  // 2단 — Custom Token 해석. providerData 매핑이 실패(비어 있음 = Custom
+  //   Token 계정의 normal case, 또는 firebase 단일 식별자)하면
+  //   `identity_index` 역조회(resolveCustomTokenExistingProvider)로 Custom
+  //   Token provider 를 해석한다.
+  // 그마저도 비면 **충돌 아님** — 어떤 provider 도 식별되지 않은 상태에서
+  // 정당한 로그인을 차단하지 않는다(T-16-17-02). 즉 "email 만 같고 provider
+  // 미식별" 은 통과가 정책이다.
   //
   // **PII 정책 (D-51 / Pitfall 7)**: getUserByEmail throw 시 logger payload 에
   // userInfo.email 본문 미노출, err.code/err.name 만 fingerprint.
   //
-  // Phase 17 (Account Linking) — see ROADMAP.md
+  // Custom Token ↔ Custom Token 충돌 감지는 Plan 16-17 이 닫았다
+  // (그 이전에는 Phase 17 이월 표기 — A4 finding 2026-06-11 참고).
+  // Account Linking actuation 자체는 Plan 16-18/16-19 책임.
   if (callerUid && userInfo?.email) {
     try {
       const existingByEmail = await getAuth().getUserByEmail(userInfo.email);
@@ -389,6 +494,34 @@ export async function resolveIdentity(
           conflictKind: "email_in_use" as const,
           existingProvider,
         };
+      }
+      // Plan 16-17 — Custom Token 기존 계정 해석 (2단). providerData 매핑이
+      // 실패한 경우에만 진입한다. 본 read 는 db.runTransaction 진입 **이전**의
+      // 비-transaction 구간이므로 Firestore "all reads before all writes"
+      // 제약과 무관하다 (T-16-17-03).
+      if (existingByEmail.uid !== callerUid) {
+        const ctExistingProvider = await resolveCustomTokenExistingProvider(
+          db,
+          existingByEmail.uid,
+          provider as ProviderId,
+        );
+        if (ctExistingProvider) {
+          logger.warn(
+            {
+              event: "identity_index_email_collision_custom_token_path",
+              provider,
+              existingProvider: ctExistingProvider,
+            },
+            "email collision detected via identity_index reverse lookup",
+          );
+          return {
+            uid: "",
+            isNewUser: false,
+            conflictKind: "email_in_use" as const,
+            existingProvider: ctExistingProvider,
+          };
+        }
+        // null → 충돌 아님. 정상 path 진행 (false-positive 차단 정책 보존).
       }
     } catch (err: unknown) {
       // WR-07: as-assertion 제거, fingerprintError type-guard helper 일원화.
