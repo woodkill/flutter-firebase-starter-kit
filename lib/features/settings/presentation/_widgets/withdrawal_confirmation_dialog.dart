@@ -14,7 +14,9 @@
 //   router 가 signOut 후 /onboarding 으로 자동 reset.
 // - AsyncValue.error(ReauthenticationRequiredException) →
 //   withdrawalReauthRequired SnackBar + Navigator.pop(false) + /login push.
-// - AsyncValue.error(기타) → withdrawalFailure SnackBar (dialog 유지 — 재시도).
+// - AsyncValue.error(NetworkException 계열 / TooManyRequests) →
+//   withdrawalFailureTransient SnackBar (WR-03 — 원인별 문구).
+// - AsyncValue.error(그 외) → withdrawalFailure SnackBar (dialog 유지 — 재시도).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -24,6 +26,7 @@ import '../../../../core/error/app_exception.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../settings_notifier.dart';
 
 /// 탈퇴 확인 다이얼로그 (Phase 16 D-05~D-08 / UI-SPEC Surface C).
@@ -104,8 +107,18 @@ class _WithdrawalConfirmationDialogState
           Navigator.of(context).pop(false);
           context.push(AppRoutes.login);
         } else {
-          // 기타 (UnknownException 포함) — SnackBar 만, dialog 유지 (재시도).
-          _showSnackBar(context, l10n.withdrawalFailure);
+          // 기타 — SnackBar 만, dialog 유지 (재시도).
+          //
+          // **WR-03:** 원인별 문구를 렌더한다. `SettingsRepository`
+          // `_mapDeleteError` 가 `unavailable` / `deadline-exceeded` 를
+          // [NoInternetConnection] ([NetworkException] 하위) 로,
+          // `resource-exhausted` 를 [TooManyRequests] 로 분리해 두었는데
+          // 표면이 모두 generic `withdrawalFailure` 로 collapse 되어 있어
+          // taxonomy 분리가 사용자에게 아무 변화도 만들지 못했다
+          // (2026-09-07 실측: dev Cloud Run 할당량 차단이 "회원탈퇴에
+          // 실패했습니다" 로 표시되어 원인 오인 유발). Surface D 의
+          // outcome 별 문구 분기와 동일한 정책이다.
+          _showSnackBar(context, _resolveFailureMessage(l10n, error));
         }
       }
     });
@@ -181,6 +194,24 @@ class _WithdrawalConfirmationDialogState
         ),
       ],
     );
+  }
+
+  /// 탈퇴 실패 [error] 를 원인별 SnackBar 문구로 변환한다 (WR-03).
+  ///
+  /// 입력 계약은 `SettingsRepository._mapDeleteError` 가 만든 [AppException]
+  /// 서브타입이다. [ReauthenticationRequiredException] 은 호출처가 라우팅
+  /// 분기로 먼저 처리하므로 본 함수에 도달하지 않는다.
+  ///
+  /// - [NetworkException] 계열 (`unavailable` / `deadline-exceeded`) /
+  ///   [TooManyRequests] (`resource-exhausted`) — 재시도로 해소 가능한
+  ///   일시 오류이므로 [AppLocalizations.withdrawalFailureTransient].
+  /// - 그 외 ([UnknownException] 등) — 기존 generic
+  ///   [AppLocalizations.withdrawalFailure] (UI-SPEC Surface C verbatim).
+  String _resolveFailureMessage(AppLocalizations l10n, Object? error) {
+    return switch (error) {
+      NetworkException() || TooManyRequests() => l10n.withdrawalFailureTransient,
+      _ => l10n.withdrawalFailure,
+    };
   }
 
   void _showSnackBar(BuildContext context, String message) {

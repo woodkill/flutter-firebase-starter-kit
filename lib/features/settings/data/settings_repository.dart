@@ -84,9 +84,18 @@ class SettingsRepository {
   /// - `resource-exhausted` → [TooManyRequests]
   /// - 그 외 (`internal`, `unknown` 등) → [UnknownException]
   ///
-  /// **taxonomy 정렬 (Phase 16 G-16-A6-2):** `unavailable` /
-  /// `deadline-exceeded` / `resource-exhausted` 분리는
-  /// `AuthRepository._mapFunctionsException` 과 동일한 프로젝트 표준 분류다.
+  /// **taxonomy 정렬 (Phase 16 G-16-A6-2 / IN-02 정정):**
+  /// `unavailable` / `deadline-exceeded` → [NoInternetConnection] 은
+  /// `AuthRepository._mapFunctionsException` 과 동일하나,
+  /// `resource-exhausted` → [TooManyRequests] arm 은 **본 매퍼에만 있다**
+  /// (auth 쪽은 default `ServiceUnavailable` 로 흡수). 3 코드 중 2 코드만
+  /// 일치하므로 "완전 동일" 이 아니다.
+  ///
+  /// **하류 계약 (WR-03):** `WithdrawalConfirmationDialog` 가 본 매퍼의
+  /// 서브타입을 원인별 SnackBar 문구로 렌더한다 —
+  /// [NetworkException] 계열 / [TooManyRequests] 는
+  /// `withdrawalFailureTransient`, 그 외는 `withdrawalFailure`. 따라서 arm 을
+  /// 넓히거나 좁힐 때 dialog 의 문구 분기를 함께 확인할 것.
   AppException _mapDeleteError(FirebaseFunctionsException e) {
     return switch (e.code) {
       'unauthenticated' ||

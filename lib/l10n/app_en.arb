@@ -1046,6 +1046,11 @@
     "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal failure SnackBar message (generic fallback)."
   },
 
+  "withdrawalFailureTransient": "Could not delete account due to a network or service error. Please try again later.",
+  "@withdrawalFailureTransient": {
+    "description": "Phase 16 WR-03 (2차 리뷰) — Surface C 탈퇴 실패 SnackBar 의 원인별 문구 (일시적 네트워크·서비스 오류). 소비: WithdrawalConfirmationDialog 가 SettingsRepository._mapDeleteError 의 NetworkException(unavailable/deadline-exceeded) / TooManyRequests(resource-exhausted) 분기에 렌더한다. 2026-09-07 실측에서 dev Cloud Run 할당량 차단이 generic withdrawalFailure 로 표시되어 원인 오인을 유발했다 — taxonomy 는 분리했으나 표면이 collapse 되어 있던 비대칭을 해소한다. Surface D 의 settingsLinkFailedTransient 와 동일 계열 문구이며 email/uid/token 을 노출하지 않는다."
+  },
+
   "withdrawalConfirmActionSemantic": "Withdraw account — permanent deletion, cannot be undone",
   "@withdrawalConfirmActionSemantic": {
     "description": "Phase 16 D-08 destructive intent Semantics label — UI-SPEC line 332 verbatim 채택 (Warning 7). Plan 16-06 Task 6.2 WC10 의 withdrawalConfirmAction 버튼 Semantics label 이 본 key consume 의무. 시각 라벨 (withdrawalConfirmAction='Delete') 과 분리 — 스크린리더 사용자에게 destructive intent + 영구성 + 비가역성 명시."

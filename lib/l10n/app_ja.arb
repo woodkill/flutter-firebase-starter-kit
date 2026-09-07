@@ -266,5 +266,7 @@
   "withdrawalSuccess": "アカウントを削除しました。",
   "withdrawalFailure": "アカウントを削除できませんでした。再試行してください。",
 
+  "withdrawalFailureTransient": "ネットワークまたはサービスエラーによりアカウントを削除できませんでした。しばらくしてから再試行してください。",
+
   "withdrawalConfirmActionSemantic": "アカウント退会 — 永久削除、復元不可"
 }

@@ -635,5 +635,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get withdrawalFailure => 'アカウントを削除できませんでした。再試行してください。';
 
   @override
+  String get withdrawalFailureTransient =>
+      'ネットワークまたはサービスエラーによりアカウントを削除できませんでした。しばらくしてから再試行してください。';
+
+  @override
   String get withdrawalConfirmActionSemantic => 'アカウント退会 — 永久削除、復元不可';
 }

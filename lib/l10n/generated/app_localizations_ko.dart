@@ -636,5 +636,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get withdrawalFailure => '회원탈퇴에 실패했습니다. 다시 시도해 주세요.';
 
   @override
+  String get withdrawalFailureTransient =>
+      '네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
   String get withdrawalConfirmActionSemantic => '회원탈퇴 — 영구 삭제, 복구 불가';
 }

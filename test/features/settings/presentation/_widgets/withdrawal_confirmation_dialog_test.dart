@@ -14,6 +14,8 @@
 // - WC8 server fail SnackBar + dialog 유지
 // - WC9 barrierDismissible:false during loading
 // - WC10 Semantics destructive intent (withdrawalConfirmActionSemantic consume)
+// - WC11/WC12 (WR-03) 원인별 실패 문구 — TooManyRequests /
+//   NoInternetConnection → withdrawalFailureTransient (generic 미노출)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -250,6 +252,64 @@ void main() {
         findsOneWidget,
       );
       // dialog 유지 (재시도 가능).
+      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+    });
+
+    // WR-03 (2차 리뷰): _mapDeleteError taxonomy 가 사용자에게 실제로
+    // 다른 문구를 만든다는 계약. 수정 전에는 NoInternetConnection /
+    // TooManyRequests / UnknownException 이 모두 withdrawalFailure 로
+    // collapse 되어 taxonomy 분리가 화면에 아무 변화도 만들지 못했다
+    // (S6~S8 은 repository 반환 타입만 단언해 이 사실을 드러내지 못한다).
+    testWidgets(
+        'WC11 (WR-03) — resource-exhausted(TooManyRequests) → withdrawalFailureTransient SnackBar (generic 미노출)',
+        (tester) async {
+      final settingsRepo = _MockSettingsRepository();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenThrow(const TooManyRequests());
+
+      await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
+
+      await tester.enterText(find.byType(TextField), koHint);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // withdrawalFailureTransient ko verbatim.
+      expect(
+        find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+        findsOneWidget,
+      );
+      // generic 문구는 노출되지 않는다 (collapse 회귀 가드).
+      expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+      // dialog 유지 (재시도 가능).
+      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+    });
+
+    testWidgets(
+        'WC12 (WR-03) — unavailable(NoInternetConnection) → withdrawalFailureTransient SnackBar',
+        (tester) async {
+      final settingsRepo = _MockSettingsRepository();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenThrow(const NoInternetConnection());
+
+      await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
+
+      await tester.enterText(find.byType(TextField), koHint);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+        findsOneWidget,
+      );
+      expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
       expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
     });
 

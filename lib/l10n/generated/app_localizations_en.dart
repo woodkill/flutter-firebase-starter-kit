@@ -650,6 +650,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get withdrawalFailure => 'Could not delete account. Please try again.';
 
   @override
+  String get withdrawalFailureTransient =>
+      'Could not delete account due to a network or service error. Please try again later.';
+
+  @override
   String get withdrawalConfirmActionSemantic =>
       'Withdraw account — permanent deletion, cannot be undone';
 }
