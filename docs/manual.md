@@ -2004,6 +2004,27 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 
 **PII invariant (T-16-NEW-07):** `lookupSignInMethods` 호출의 collisionEmail 본문은 client logger / Crashlytics payload 에 절대 전파되지 않는다 (memory `feedback_test_lint_quality` 의 `__` 금지 + Plan 16-04 R7 sentinel test).
 
+#### 충돌 시 안내 시트의 동작 — 2단계 플로우 (Phase 16 gap closure, 2026-09-08 갱신)
+
+**동작 요약:** 이미 가입된 이메일로 **다른 소셜 로그인**을 시도하면, 앱은 (1) 그 이메일이 **어떤 수단으로 가입돼 있었는지 정확한 이름**을 안내 시트에 표시하고, (2) 시트의 버튼은 **그 수단으로 로그인**시킨 뒤, (3) 다른 로그인 수단을 추가하고 싶으면 **설정 > 계정 연결**에서 하도록 안내한다. 즉 시트 버튼 한 번으로 두 계정이 자동 연결되지는 않는다 — **로그인(1단계) → 계정 연결(2단계)** 두 걸음이다.
+
+**왜 자동 연결이 아닌가.** 충돌 시트가 떠 있는 시점의 사용자는 **아직 로그인되지 않은 상태**다. 계정 연결은 "이미 로그인한 계정에 다른 수단을 덧붙이는" 동작이라 로그인되지 않은 상태에서는 성립할 수 없다. 예전 구현은 이 시점에 곧바로 연결을 시도했기 때문에 실질적으로 항상 실패했다. 그래서 지금은 **먼저 로그인시키고**, 연결은 로그인 이후 화면(설정)에서 하도록 나눴다.
+
+**사용자가 보게 되는 흐름:**
+
+1. 이미 가입된 이메일로 다른 소셜 로그인 시도 → 안내 시트가 뜬다.
+2. 시트 본문에 **기존 가입 수단의 정확한 이름**이 표시된다 (예: 카카오로 가입한 계정이면 "카카오"). 여기에는 Google / Apple / Facebook 같은 네이티브 수단뿐 아니라 **Kakao / Naver / LINE / Yahoo! JAPAN 같은 Custom Token 수단도 포함**된다 — 이전에는 Custom Token 으로 가입한 계정의 이름을 서버가 알아내지 못해 충돌 자체가 감지되지 않았다.
+3. 시트의 브랜드 버튼(예: "카카오로 로그인하기") 탭 → **그 수단으로 로그인**이 진행된다.
+4. 로그인 성공 → 시트가 닫히고 홈으로 이동하면서 `{수단} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 계정 연결에서 추가할 수 있습니다.` 안내가 잠깐 표시된다 (ko / en / ja 3 locale).
+5. 사용자가 원하면 **설정 > 계정 연결**에서 다른 수단을 추가한다 (이 화면이 본 매뉴얼 위쪽의 proactive linking 경로다).
+6. 취소하거나 로그인이 실패하면 시트는 그대로 유지되고 계정 상태는 아무것도 바뀌지 않는다.
+
+**Naver 에 대한 주의 (지원 범위가 방향에 따라 다르다):** Naver 는 **로그인 대상으로는 완전히 지원**된다 — 위 3단계에서 "네이버로 로그인하기" 버튼은 정상 동작한다. 그러나 **연결 대상으로는 아직 미지원**이다 — 이미 로그인한 계정에 Naver 를 덧붙이는 경로는 Cloud Function 쪽 OIDC 검증기가 없어 Phase 17 이후로 미뤄져 있다. 설정 > 계정 연결 목록에서 Naver 를 고르면 "지원하지 않는 수단" 안내가 뜬다.
+
+**adopter 가 건드릴 수 있는 지점:** 안내 문구는 ARB 키 `accountLinkingSignInThenLinkHint`(`lib/l10n/app_{ko,en,ja}.arb`) 하나이며 `{provider}` placeholder 에는 **기존 provider 라벨 8 키의 값만** 주입된다(서버 응답 문자열이 그대로 화면에 뜨는 경로는 없다). 시트 자체의 분기는 `lib/features/auth/presentation/_widgets/account_linking_sheet.dart`, 로그인 위임은 `lib/features/auth/data/auth_repository.dart` 의 `signInWithExistingProvider`, 서버측 provider 판별은 `functions/src/auth/identity_index.ts` 다.
+
+**로그 / 문서 PII 정책 (T-16-16-01 상속):** 본 단락과 이 매뉴얼 전체는 실제 계정 이메일, Firebase 사용자 식별자, App Check 디버그 토큰, 단말 시리얼을 기재하지 않는다. Firestore 확인 절차는 `users/{uid}` 같은 **일반형 표기**만 사용한다.
+
 ### 회원탈퇴 (Hard delete + GDPR right-to-be-forgotten)
 
 **GDPR 명시:** 본 starter-kit 의 탈퇴 flow 는 **계정과 데이터가 영구 삭제** 되며 **복구 불가** 하다. 사용자에게는 다음 3-line GDPR 경고가 표시된다 (UI-SPEC Surface C verbatim — withdrawalDialogBodyLine1/2/3):
