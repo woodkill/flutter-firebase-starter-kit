@@ -246,8 +246,11 @@ void main() {
   });
 
   group('T5 — link 충돌 → AccountAlreadyLinked 매핑 (회귀 안전)', () {
+    // WR-04 (2차 리뷰): `provider-already-linked` (이미 **현재 계정에**
+    // 연결) 와 `credential-already-in-use` (해당 자격증명이 **다른 계정에**
+    // 연결) 는 의미가 정반대라 서로 다른 타입으로 갈린다.
     test(
-      'linkWithCredential throws provider-already-linked → AccountAlreadyLinked',
+      'linkWithCredential throws provider-already-linked → ProviderAlreadyLinkedToThisAccount (WR-04)',
       () async {
         stubGoogleReauthSuccess();
         final pending = _FakePendingCredential();
@@ -262,7 +265,8 @@ void main() {
 
         expect(result, isA<Failure<dynamic>>());
         final failure = result! as Failure<dynamic>;
-        expect(failure.exception, isA<AccountAlreadyLinked>());
+        expect(failure.exception, isA<ProviderAlreadyLinkedToThisAccount>());
+        expect(failure.exception, isNot(isA<AccountAlreadyLinked>()));
       },
     );
 

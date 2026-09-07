@@ -956,6 +956,13 @@ class AuthRepository {
   /// - 그 외 (`failed-precondition` 익명 caller / `invalid-argument` 등) →
   ///   [_mapFunctionsException] (적절 [AppException]).
   ///
+  /// **구조적(결정적) 실패는 [UnknownException] 이다 (WR-06).** caller 부재 /
+  /// 익명 caller / `getIdToken` null / 응답 `ok != true` 는 재시도로 해소되지
+  /// 않는다. [ServiceUnavailable] 로 두면 하류 `SettingsNotifier._mapLinkFailure`
+  /// 가 [AccountLinkOutcome.transientFailure] ("잠시 후 다시 시도해 주세요") 로
+  /// 안내해 사용자가 매 시도마다 SDK OAuth 왕복을 반복하는 무한 루프에 든다.
+  /// [ServiceUnavailable] 은 실제 서비스 **도달** 실패에만 남긴다.
+  ///
   /// **PII invariant (T-16-09-02 / T-16-NEW-07):** catch path 의 [debugPrint]
   /// 는 code/runtimeType 만 출력하고 idToken / targetProviderToken /
   /// collisionEmail 본문은 절대 포함하지 않는다.
@@ -990,7 +997,11 @@ class AuthRepository {
       // auth_time 5분 boundary 통과 의무.
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        return const Result.failure(ServiceUnavailable());
+        // WR-06: 재시도로 해소되지 않는 **결정적** 실패다. ServiceUnavailable
+        // 로 두면 하류 _mapLinkFailure 가 transientFailure ("잠시 후 다시
+        // 시도해 주세요") 로 안내해 사용자를 무한 재시도 루프 (매 시도마다
+        // SDK OAuth 왕복) 에 몰아넣는다. UnknownException → failed.
+        return const Result.failure(UnknownException());
       }
       // WR-06: client-side 익명 caller 가드 (defense-in-depth). reactive
       // collision arm 의 caller 는 구조상 fresh collided sign-in 이므로
@@ -999,11 +1010,13 @@ class AuthRepository {
       // fail 하여 불필요한 callable round-trip 을 회피한다 (proactive arm /
       // deployed callable 익명 차단 mirror).
       if (currentUser.isAnonymous) {
-        return const Result.failure(ServiceUnavailable());
+        // WR-06: 결정적 실패 — 재시도 유도 금지 (currentUser==null 동일).
+        return const Result.failure(UnknownException());
       }
       final callerIdToken = await currentUser.getIdToken(true);
       if (callerIdToken == null) {
-        return const Result.failure(ServiceUnavailable());
+        // WR-06: 결정적 실패 — 재시도 유도 금지.
+        return const Result.failure(UnknownException());
       }
 
       // Step 4 — deployed linkCustomTokenProvider callable 호출.
@@ -1023,7 +1036,10 @@ class AuthRepository {
       // Step 5 — {ok:true} 검증 후 reload → 도메인 User.
       final ok = response.data['ok'] == true;
       if (!ok) {
-        return const Result.failure(ServiceUnavailable());
+        // WR-06: 서버 계약 위반 (도달은 성공했으나 ok != true) — 재시도로
+        // 해소되지 않는다. ServiceUnavailable 은 실제 서비스 **도달** 실패
+        // (unavailable / deadline-exceeded) 에만 남긴다.
+        return const Result.failure(UnknownException());
       }
       await currentUser.reload();
       final refreshed = _auth.currentUser ?? currentUser;
