@@ -48,6 +48,10 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
+/// client-side `account-exists-with-different-credential` 이 보존하는 native
+/// pending credential 대역 (경로 A 진입 조건).
+const Object _kPendingCredential = Object();
+
 void main() {
   late _MockAuthRepository mockRepo;
 
@@ -222,6 +226,169 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('HOME'), findsOneWidget);
+      },
+    );
+  });
+
+  group('TS3 — 취소 (경로 D silent no-op)', () {
+    testWidgets('step 1 null 반환 → 시트 유지 + 네비게이션 0', (tester) async {
+      when(
+        () => mockRepo.signInWithExistingProvider(
+          provider: any(named: 'provider'),
+        ),
+      ).thenAnswer((_) async => null);
+
+      await openSheet(tester, existingProvider: AccountProvider.kakao);
+      await tapSheetCta(tester);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.byType(AccountLinkingSheet), findsOneWidget);
+      expect(find.text('HOME'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('TS4 — 실패 graceful (경로 D, A-16-19-01 익명 caller 재충돌)', () {
+    testWidgets(
+      'Failure(AccountExistsWithDifferentCredential) → 실패 SnackBar + 시트 유지 + '
+      '네비게이션 0 + 예외 전파 0',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collide@example.com',
+              existingProvider: AccountProvider.kakao,
+            ),
+          ),
+        );
+
+        await openSheet(tester, existingProvider: AccountProvider.kakao);
+        await tapSheetCta(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(
+          find.text(
+            'This email is already registered with another sign-in method. '
+            'Please sign in with the method you originally used.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+        expect(find.text('HOME'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  });
+
+  group('TS5 — native 회귀 (경로 A, A1 시나리오 변경 0)', () {
+    testWidgets(
+      'pendingCredential 존재 native 충돌 → linkPendingNativeCredential 호출 + '
+      'signInWithExistingProvider verifyNever',
+      (tester) async {
+        when(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: any(named: 'existingProvider'),
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        ).thenAnswer((_) async => successResult());
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer((_) async => successResult());
+
+        await openSheet(
+          tester,
+          existingProvider: AccountProvider.google,
+          pendingCredential: _kPendingCredential,
+        );
+        await tapSheetCta(tester);
+
+        verify(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: AccountProvider.google,
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        ).called(1);
+        verifyNever(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        );
+      },
+    );
+  });
+
+  group('TS6 — naver 기존 provider (graceful 차단 분기 제거 확인)', () {
+    testWidgets(
+      'existingProvider=naver CTA 탭 → signInWithExistingProvider(naver) 호출',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer((_) async => successResult());
+
+        await openSheet(tester, existingProvider: AccountProvider.naver);
+        await tapSheetCta(tester);
+
+        verify(
+          () => mockRepo.signInWithExistingProvider(
+            provider: AccountProvider.naver,
+          ),
+        ).called(1);
+      },
+    );
+  });
+
+  group('TS7 — email 기존 provider (경로 C 변경 0)', () {
+    testWidgets(
+      'existingProvider=email CTA 탭 → repository 호출 0 + /login 유지',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer((_) async => successResult());
+
+        await usePortraitSurface(tester);
+        await tester.pumpWidget(
+          buildHarness(existingProvider: AccountProvider.email),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await settleSheetEntrance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+        // email 은 BrandedSocialButton 이 아닌 FilledButton fallback 이다.
+        final emailCta = find.descendant(
+          of: find.byType(AccountLinkingSheet),
+          matching: find.byType(FilledButton),
+        );
+        await tester.ensureVisible(emailCta);
+        await tester.pump();
+        await tester.tap(emailCta);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+
+        verifyNever(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        );
+        verifyNever(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: any(named: 'existingProvider'),
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        );
+        expect(find.byType(AccountLinkingSheet), findsNothing);
+        expect(find.text('HOME'), findsNothing);
+        expect(find.byType(LoginScreen), findsOneWidget);
       },
     );
   });

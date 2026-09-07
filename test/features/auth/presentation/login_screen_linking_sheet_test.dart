@@ -38,6 +38,10 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
+/// client-side `account-exists-with-different-credential` 이 보존하는 native
+/// pending credential 대역 (Plan 16-19 경로 A 진입 조건).
+const Object _kPendingCredential = Object();
+
 void main() {
   late _MockAuthRepository mockRepo;
 
@@ -116,6 +120,9 @@ void main() {
               AccountExistsWithDifferentCredential(
                 email: 'collide@example.com',
                 existingProvider: AccountProvider.google,
+                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+                // account-exists 충돌은 pendingCredential 을 보존한다.
+                pendingCredential: _kPendingCredential,
               ),
             ),
           ),
@@ -212,6 +219,9 @@ void main() {
               AccountExistsWithDifferentCredential(
                 email: 'collide@example.com',
                 existingProvider: AccountProvider.google,
+                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+                // account-exists 충돌은 pendingCredential 을 보존한다.
+                pendingCredential: _kPendingCredential,
               ),
             ),
           ),
@@ -257,6 +267,9 @@ void main() {
               AccountExistsWithDifferentCredential(
                 email: 'collide@example.com',
                 existingProvider: AccountProvider.google,
+                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+                // account-exists 충돌은 pendingCredential 을 보존한다.
+                pendingCredential: _kPendingCredential,
               ),
             ),
           ),
@@ -308,6 +321,9 @@ void main() {
               AccountExistsWithDifferentCredential(
                 email: 'collide@example.com',
                 existingProvider: AccountProvider.google,
+                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+                // account-exists 충돌은 pendingCredential 을 보존한다.
+                pendingCredential: _kPendingCredential,
               ),
             ),
           ),
@@ -365,6 +381,9 @@ void main() {
               AccountExistsWithDifferentCredential(
                 email: 'collide@example.com',
                 existingProvider: AccountProvider.google,
+                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+                // account-exists 충돌은 pendingCredential 을 보존한다.
+                pendingCredential: _kPendingCredential,
               ),
             ),
           ),
@@ -427,6 +446,9 @@ void main() {
             AccountExistsWithDifferentCredential(
               email: 'collide@example.com',
               existingProvider: AccountProvider.google,
+              // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+              // account-exists 충돌은 pendingCredential 을 보존한다.
+              pendingCredential: _kPendingCredential,
             ),
           ),
         ),
