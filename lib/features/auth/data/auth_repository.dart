@@ -1537,12 +1537,58 @@ class AuthRepository {
   /// 기존 provider 로 로그인한다 — reactive 시트 step 1 디스패처
   /// (Phase 16 Plan 16-19).
   ///
-  /// **RED 단계 스텁 (Plan 16-19 Task 1):** 본 메서드는 아직 위임 로직이 없다.
-  /// GREEN 단계에서 exhaustive switch 위임으로 채운다.
+  /// **용도 (2단계 플로우 step 1):** 서버 `already-exists` 로 열린
+  /// `AccountLinkingSheet` 의 CTA 는 link 가 아니라 **기존 provider 로의
+  /// 로그인** 을 수행한다. 충돌 시점의 caller 는 정의상 미로그인이거나 익명
+  /// 이므로 link arm (`linkPendingNativeCredential` /
+  /// [linkCustomTokenProviderArm]) 은 구조적으로 성공할 수 없다 — 본 메서드가
+  /// 그 자리를 대신한다 (mockup `surface-a-two-step-reactive.md` 경로 B).
+  ///
+  /// **step 2 계약:** 나머지 로그인 수단 추가는 Settings "계정 연결"
+  /// (proactive arm — `SettingsNotifier.linkProvider`) 가 담당한다. 본
+  /// 메서드는 link 를 수행하지 않으며 자동 연속 link 도 하지 않는다.
+  ///
+  /// **[AccountProvider.email] 제외 이유:** 이메일 로그인은 비밀번호 입력
+  /// 화면이 필요해 bottom sheet 안에서 완결될 수 없다. 호출처가 이미
+  /// `/login` 으로 분기하므로 본 메서드 도달은 로직 오류 신호이며
+  /// [ArgumentError] 로 loud fail 한다 ([linkCustomTokenProviderArm] 의
+  /// `ArgumentError.value` 선례 mirror).
+  ///
+  /// **[SocialLinkInProgress] 단일 진실원 (Pitfall 8):** 본 메서드는 자체
+  /// begin/end 를 추가하지 않는다 — 위임 대상 7 메서드가 이미 진입/`finally`
+  /// 에서 1:1 로 관리한다. 여기서 한 겹 더 감싸면 중첩 카운트가 되어 race-fix
+  /// invariant 가 깨진다.
+  ///
+  /// **PII invariant (T-16-19-02):** 본 메서드는 자체 로그를 추가하지 않는다
+  /// (위임 대상이 이미 code/runtimeType only 로그 정책을 따른다).
+  ///
+  /// 반환 3값 (위임 대상의 계약을 그대로 보존):
+  /// - `Result.success(User)` — 로그인 성공.
+  /// - `Result.failure(...)` — 로그인 실패. 예외 타입도 그대로 전파된다
+  ///   (익명 caller 재충돌의 [AccountExistsWithDifferentCredential] 포함).
+  /// - `null` — 사용자가 IdP SDK 단계에서 취소 (no-op).
   Future<Result<User>?> signInWithExistingProvider({
     required AccountProvider provider,
-  }) async {
-    throw UnimplementedError('signInWithExistingProvider (Plan 16-19 GREEN)');
+  }) {
+    return switch (provider) {
+      AccountProvider.google => signInWithGoogle(),
+      AccountProvider.apple => signInWithApple(),
+      AccountProvider.facebook => signInWithFacebook(),
+      AccountProvider.kakao => signInWithKakao(),
+      // naver 는 **로그인 대상**으로 완전히 지원된다 — deployed callable OIDC
+      // 미지원은 link *target* 에 한정된 제약이며(Phase 17+ carry-forward)
+      // step 1 로그인과는 무관하다.
+      AccountProvider.naver => signInWithNaver(),
+      AccountProvider.line => signInWithLine(),
+      AccountProvider.yahoojp => signInWithYahoojp(),
+      AccountProvider.email => throw ArgumentError.value(
+        provider,
+        'provider',
+        'signInWithExistingProvider 는 소셜 7 provider 만 지원 '
+            '(email 은 비밀번호 입력 화면이 필요해 sheet 에서 처리 불가 — '
+            '호출처가 /login 으로 분기).',
+      ),
+    };
   }
 
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
