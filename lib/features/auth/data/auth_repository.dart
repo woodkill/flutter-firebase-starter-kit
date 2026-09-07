@@ -1902,9 +1902,12 @@ class AuthRepository {
   /// int 를 보내면 파싱이 깨진다. `TermsAcceptance.toJson()` 의
   /// `toIso8601String()` 출력이 그대로 계약을 만족한다.
   Map<String, dynamic> _buildCustomTokenPayload(Map<String, dynamic> base) {
-    // RED (G-16-A9-1): reader seam 만 연결된 상태. snapshot 부착은 GREEN 단계.
-    _readTermsAcceptanceSnapshot();
-    return base;
+    final snapshot = _readTermsAcceptanceSnapshot();
+    if (snapshot == null) {
+      return base;
+    }
+    // spread 로 base 를 불변 유지한 채 새 map 을 만든다.
+    return <String, dynamic>{...base, 'termsAcceptanceSnapshot': snapshot};
   }
 
   /// [FirebaseFunctionsException] 을 [AppException] 으로 매핑한다
