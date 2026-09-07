@@ -42,42 +42,50 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
-      body: ListView(
-        padding: EdgeInsets.symmetric(vertical: spacing.md),
-        children: [
-          // 계정 section heading.
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              spacing.lg,
-              spacing.sm,
-              spacing.lg,
-              spacing.xs,
-            ),
-            child: Text(
-              l10n.settingsAccountSection,
-              style: context.textTheme.titleSmall?.copyWith(
-                color: context.colorScheme.primary,
-                fontWeight: FontWeight.w600,
+      // SafeArea — 최하단 회원탈퇴 ListTile 이 시스템 내비게이션 바에 가려져
+      // 탭 불가가 되는 것을 방지한다. Android 15(API 35)+ 는 edge-to-edge 가
+      // 강제되어 Scaffold body 가 내비게이션 바 영역까지 확장되며, 3버튼
+      // 내비게이션(48dp)은 ListView 하단 padding(spacing.md=12dp)보다 크다.
+      // AuthScaffold / TermsDetailScreen 의 `body: SafeArea(child: scrollable)`
+      // 패턴 mirror.
+      body: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.symmetric(vertical: spacing.md),
+          children: [
+            // 계정 section heading.
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                spacing.lg,
+                spacing.sm,
+                spacing.lg,
+                spacing.xs,
+              ),
+              child: Text(
+                l10n.settingsAccountSection,
+                style: context.textTheme.titleSmall?.copyWith(
+                  color: context.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.alternate_email),
-            title: Text(l10n.settingsAccountEmail(email)),
-          ),
-          ListTile(
-            leading: const Icon(Icons.link),
-            title: Text(l10n.settingsLinkedProviders(providersLabel)),
-          ),
-          Gap(spacing.xxl),
-          // 계정 연결 section (Surface D — 16-11). 계정 section 다음 /
-          // Danger zone 전 (mockup 배치 verbatim, add-only). available 빈
-          // set 시 SizedBox.shrink 로 graceful 미노출.
-          const AccountLinkingSection(),
-          Gap(spacing.xxl),
-          // Danger zone — UI-SPEC line 261~275 (항상 최하단 격리).
-          const DangerZoneSection(),
-        ],
+            ListTile(
+              leading: const Icon(Icons.alternate_email),
+              title: Text(l10n.settingsAccountEmail(email)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: Text(l10n.settingsLinkedProviders(providersLabel)),
+            ),
+            Gap(spacing.xxl),
+            // 계정 연결 section (Surface D — 16-11). 계정 section 다음 /
+            // Danger zone 전 (mockup 배치 verbatim, add-only). available 빈
+            // set 시 SizedBox.shrink 로 graceful 미노출.
+            const AccountLinkingSection(),
+            Gap(spacing.xxl),
+            // Danger zone — UI-SPEC line 261~275 (항상 최하단 격리).
+            const DangerZoneSection(),
+          ],
+        ),
       ),
     );
   }
