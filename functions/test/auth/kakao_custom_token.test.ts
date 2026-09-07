@@ -76,6 +76,10 @@ const mockTxGet = jest.fn();
 const mockTxSet = jest.fn();
 const mockTxUpdate = jest.fn();
 const mockIdxGet = jest.fn();
+// Plan 16-17 — identity_index 역조회 (where('firebaseUid','==',uid).get()).
+// 기본값 빈 결과 = Custom Token 후보 0 → 기존 케이스 회귀 0.
+const mockIdxWhere = jest.fn();
+const mockIdxWhereGet = jest.fn().mockResolvedValue({docs: []});
 // Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot mirror
 // 의 users/{uid}.set 호출 mock. transaction 외부의 직접 set merge — endpoint
 // 본체 마지막 단계 (createCustomToken 성공 후).
@@ -94,6 +98,10 @@ jest.mock("firebase-admin/firestore", () => {
     getFirestore: jest.fn(() => ({
       collection: (name: string) => ({
         doc: () => (name === "identity_index" ? idxRef : userRef),
+        where: (...args: unknown[]) => {
+          mockIdxWhere(...args);
+          return {get: (...a: unknown[]) => mockIdxWhereGet(...a)};
+        },
       }),
       runTransaction: (fn: (t: unknown) => Promise<unknown>) =>
         fn({get: mockTxGet, set: mockTxSet, update: mockTxUpdate}),
@@ -150,6 +158,10 @@ describe("kakaoCustomToken onCall", () => {
     mockGetUserByEmail.mockRejectedValue(
       Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
     );
+    // Plan 16-17 default — 역조회 후보 0 (Custom Token 기존 계정 없음).
+    mockIdxWhere.mockReset();
+    mockIdxWhereGet.mockReset();
+    mockIdxWhereGet.mockResolvedValue({docs: []});
   });
 
   it("성공: ID Token 검증 + Identity Index 신규 등록 + Custom Token 발급", async () => {
@@ -814,6 +826,72 @@ describe("kakaoCustomToken onCall", () => {
       const detailsStr = JSON.stringify(thrownDetails);
       expect(detailsStr).not.toContain("PII_COLLISION_email@kakao.com");
       expect(detailsStr).not.toContain("google-platform-id-PII");
+    },
+  );
+
+  // Plan 16-17 (A4 finding 2026-06-11) — CT↔CT 매트릭스. Kakao caller 가
+  // 다른 Custom Token 기존 계정(providerData 비어 있음)을 identity_index
+  // 역조회로 정확히 라벨링한다. A4 시나리오의 양방향 중 Naver→Kakao 방향
+  // (naver_custom_token.test.ts 의 T-16-17-NAVER-CT-EXISTING-01 이 반대 방향).
+  it.each([
+    ["naver", "PII_NAVER_UID_EXISTING"],
+    ["line", "PII_LINE_UID_EXISTING"],
+  ])(
+    // eslint-disable-next-line max-len
+    "T-16-17-KAKAO-CT-EXISTING (A4 매트릭스): 기존 %s Custom Token 계정 → details.existingProvider 가 그 slug",
+    async (existingProvider: string, existingUid: string) => {
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: `kakao-ct-${existingProvider}`,
+        nonce: "kakao-nonce-test",
+        email: "PII_CT_MATRIX_email@kakao.com",
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      // Custom Token 계정 — providerData 비어 있음 (라이브 관측 사실).
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: existingUid,
+        providerData: [],
+      });
+      mockIdxWhereGet.mockResolvedValueOnce({
+        docs: [{data: () => ({provider: existingProvider})}],
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const promise = wrapped({
+        auth: {uid: "anon-uid-ct-matrix"},
+        app: {appId: "test"},
+        data: {idToken: "kakao-token-ct", nonce: "kakao-nonce-test"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+        details: {existingProvider},
+      });
+      expect(mockIdxWhere).toHaveBeenCalledWith(
+        "firebaseUid",
+        "==",
+        existingUid,
+      );
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+
+      // PII regression sentinel — email / 기존 uid 본문 미노출.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain("PII_CT_MATRIX_email@kakao.com");
+        expect(stringified).not.toContain(existingUid);
+      }
+      const ctDetails = await promise.catch((e: HttpsError) => e.details);
+      const ctDetailsStr = JSON.stringify(ctDetails);
+      expect(ctDetailsStr).not.toContain("PII_CT_MATRIX_email@kakao.com");
+      expect(ctDetailsStr).not.toContain(existingUid);
     },
   );
 

@@ -822,6 +822,54 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
     },
   );
 
+  // Plan 16-17 — 매트릭스 보강. Naver caller ↔ Yahoo!JP 기존 계정.
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-NAVER-CT-EXISTING-02: Yahoo!JP Custom Token 기존 계정 → details.existingProvider='yahoojp'",
+    async () => {
+      mockFetchOk({
+        resultcode: "00",
+        response: {
+          id: "naver-user-ct-yj",
+          email: "PII_CT_YJ_email@naver.com",
+        },
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "PII_YJ_UID_EXISTING",
+        providerData: [],
+      });
+      mockIdxWhereGet.mockResolvedValueOnce({
+        docs: [{data: () => ({provider: "yahoojp"})}],
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      const promise = wrapped({
+        auth: {uid: "anon-uid-ct-yj"},
+        app: {appId: "test"},
+        data: {accessToken: "naver-token-ct-yj"},
+      } as never);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+        details: {existingProvider: "yahoojp"},
+      });
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain("PII_CT_YJ_email@naver.com");
+        expect(stringified).not.toContain("PII_YJ_UID_EXISTING");
+      }
+    },
+  );
+
   it(
     // eslint-disable-next-line max-len
     "T-13-NAVER-CT-COLLISION-A2: 익명승격 + Naver email 부재 → getUserByEmail 미호출 + 정상 customToken + developerClaims undefined",

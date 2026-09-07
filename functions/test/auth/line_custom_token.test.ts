@@ -139,6 +139,10 @@ const mockTxGet = jest.fn();
 const mockTxSet = jest.fn();
 const mockTxUpdate = jest.fn();
 const mockIdxGet = jest.fn();
+// Plan 16-17 — identity_index 역조회 (where('firebaseUid','==',uid).get()).
+// 기본값 빈 결과 = Custom Token 후보 0 → 기존 케이스 회귀 0.
+const mockIdxWhere = jest.fn();
+const mockIdxWhereGet = jest.fn().mockResolvedValue({docs: []});
 // Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot mirror.
 const mockUserDocSet = jest.fn().mockResolvedValue(undefined);
 jest.mock("firebase-admin/firestore", () => {
@@ -155,6 +159,10 @@ jest.mock("firebase-admin/firestore", () => {
     getFirestore: jest.fn(() => ({
       collection: (name: string) => ({
         doc: () => (name === "identity_index" ? idxRef : userRef),
+        where: (...args: unknown[]) => {
+          mockIdxWhere(...args);
+          return {get: (...a: unknown[]) => mockIdxWhereGet(...a)};
+        },
       }),
       runTransaction: (fn: (t: unknown) => Promise<unknown>) =>
         fn({get: mockTxGet, set: mockTxSet, update: mockTxUpdate}),
@@ -184,6 +192,11 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// Plan 16-17 — resolveIdentity spy 용 namespace import. 본 endpoint 는
+// scope 상 email claim 을 받지 않아(D-LINE-21 / D-YJP-09) CT-existing
+// 충돌을 자체 trigger 할 수 없다 — endpoint 의 slug 전달 배선만 검증한다.
+// eslint-disable-next-line import/first
+import * as identityIndex from "../../src/auth/identity_index";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -239,6 +252,10 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
     mockGetUserByEmail.mockRejectedValue(
       Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
     );
+    // Plan 16-17 default — 역조회 후보 0 (Custom Token 기존 계정 없음).
+    mockIdxWhere.mockReset();
+    mockIdxWhereGet.mockReset();
+    mockIdxWhereGet.mockResolvedValue({docs: []});
   });
 
   it("Test 1: 정상 검증 → Identity Index 신규 등록 + Custom Token 발급", async () => {
@@ -532,6 +549,10 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
     mockGetUserByEmail.mockRejectedValue(
       Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
     );
+    // Plan 16-17 default — 역조회 후보 0 (Custom Token 기존 계정 없음).
+    mockIdxWhere.mockReset();
+    mockIdxWhereGet.mockReset();
+    mockIdxWhereGet.mockResolvedValue({docs: []});
   });
 
   // Test 10: conflictKind=email_in_use → already-exists HttpsError.
@@ -570,6 +591,55 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       expect.any(String),
     );
   });
+
+  // Plan 16-17 (A4 매트릭스) — LINE caller 가 다른 Custom Token 기존 계정의
+  // slug 를 client 로 전달하는지 검증. LINE 은 scope=openid+profile 고정으로
+  // email claim 을 받지 않으므로(D-LINE-21) endpoint 스스로 CT-existing
+  // 충돌을 trigger 할 수 없다 → resolveIdentity 를 spy 로 stub 하여
+  // "helper 가 kakao slug 를 산출하면 endpoint 가 그대로 details 에 실어
+  // 던진다" 는 배선 계약만 잠근다. 산출 능력 자체는 identity_index.test.ts
+  // 의 T-16-17-* 케이스가 담당한다.
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-LINE-CT-EXISTING-01: existingProvider='kakao' → details 로 그대로 전달",
+    async () => {
+      mockVerifyLineIdToken.mockResolvedValue({
+        sub: "U_line_ct_existing",
+        name: "Tanaka",
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      const spy = jest
+        .spyOn(identityIndex, "resolveIdentity")
+        .mockResolvedValueOnce({
+          uid: "",
+          isNewUser: false,
+          conflictKind: "email_in_use",
+          existingProvider: "kakao",
+        });
+
+      try {
+        const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+        const promise = wrapped({
+          auth: {uid: "anon-uid-line-ct"},
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never);
+        await expect(promise).rejects.toBeInstanceOf(HttpsError);
+        await expect(promise).rejects.toMatchObject({
+          code: "already-exists",
+          message: "errorAccountExistsWithDifferentCredential",
+          details: {existingProvider: "kakao"},
+        });
+        expect(warnMock).toHaveBeenCalledWith(
+          expect.objectContaining({event: "line_email_collision"}),
+          expect.any(String),
+        );
+        expect(mockCreateCustomToken).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
 
   // Test 11: conflictKind=anonymous_existing_collision → already-exists.
   // eslint-disable-next-line max-len

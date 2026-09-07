@@ -1651,4 +1651,41 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
       );
     },
   );
+
+  // Plan 16-17 — 4 caller × CT-existing 양방향 매트릭스 (helper 레벨).
+  // LINE / Yahoo!JP endpoint 는 scope 상 email claim 을 받지 않아
+  // (D-LINE-21 / D-YJP-09) endpoint 테스트로는 이 truth 를 잠글 수 없다 —
+  // helper 는 caller 종류와 무관하게 동일 규칙으로 동작함을 여기서 잠근다.
+  it.each([
+    ["kakao", "naver"],
+    ["naver", "kakao"],
+    ["line", "kakao"],
+    ["yahoojp", "naver"],
+  ])(
+    // eslint-disable-next-line max-len
+    "T-16-17-09 (매트릭스): caller=%s + 기존 %s Custom Token 계정 → 그 slug 산출",
+    async (caller: string, existing: string) => {
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: `matrix-uid-${caller}`,
+        providerData: [],
+      });
+      const {db} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [{provider: existing}],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: caller,
+        providerUserId: `${caller}-16-17-matrix`,
+        callerUid: `anon-16-17-matrix-${caller}`,
+        userInfo: {email: `matrix-${caller}@example.com`},
+      });
+
+      expect(res).toMatchObject({
+        conflictKind: "email_in_use",
+        existingProvider: existing,
+      });
+    },
+  );
 });

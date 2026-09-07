@@ -145,6 +145,10 @@ const mockTxGet = jest.fn();
 const mockTxSet = jest.fn();
 const mockTxUpdate = jest.fn();
 const mockIdxGet = jest.fn();
+// Plan 16-17 — identity_index 역조회 (where('firebaseUid','==',uid).get()).
+// 기본값 빈 결과 = Custom Token 후보 0 → 기존 케이스 회귀 0.
+const mockIdxWhere = jest.fn();
+const mockIdxWhereGet = jest.fn().mockResolvedValue({docs: []});
 // Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot mirror.
 const mockUserDocSet = jest.fn().mockResolvedValue(undefined);
 jest.mock("firebase-admin/firestore", () => {
@@ -161,6 +165,10 @@ jest.mock("firebase-admin/firestore", () => {
     getFirestore: jest.fn(() => ({
       collection: (name: string) => ({
         doc: () => (name === "identity_index" ? idxRef : userRef),
+        where: (...args: unknown[]) => {
+          mockIdxWhere(...args);
+          return {get: (...a: unknown[]) => mockIdxWhereGet(...a)};
+        },
       }),
       runTransaction: (fn: (t: unknown) => Promise<unknown>) =>
         fn({get: mockTxGet, set: mockTxSet, update: mockTxUpdate}),
@@ -190,6 +198,11 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// Plan 16-17 — resolveIdentity spy 용 namespace import. 본 endpoint 는
+// scope 상 email claim 을 받지 않아(D-LINE-21 / D-YJP-09) CT-existing
+// 충돌을 자체 trigger 할 수 없다 — endpoint 의 slug 전달 배선만 검증한다.
+// eslint-disable-next-line import/first
+import * as identityIndex from "../../src/auth/identity_index";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -246,6 +259,10 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
     mockGetUserByEmail.mockRejectedValue(
       Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
     );
+    // Plan 16-17 default — 역조회 후보 0 (Custom Token 기존 계정 없음).
+    mockIdxWhere.mockReset();
+    mockIdxWhereGet.mockReset();
+    mockIdxWhereGet.mockResolvedValue({docs: []});
   });
 
   // eslint-disable-next-line max-len
@@ -508,6 +525,10 @@ describe("yahoojpCustomToken onCall — Task 2 (Test 10 PII regression)", () => 
     mockGetUserByEmail.mockRejectedValue(
       Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
     );
+    // Plan 16-17 default — 역조회 후보 0 (Custom Token 기존 계정 없음).
+    mockIdxWhere.mockReset();
+    mockIdxWhereGet.mockReset();
+    mockIdxWhereGet.mockResolvedValue({docs: []});
   });
 
   // eslint-disable-next-line max-len
@@ -662,6 +683,10 @@ describe("yahoojpCustomToken onCall — 16-13 collision details", () => {
     mockGetUserByEmail.mockRejectedValue(
       Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
     );
+    // Plan 16-17 default — 역조회 후보 0 (Custom Token 기존 계정 없음).
+    mockIdxWhere.mockReset();
+    mockIdxWhereGet.mockReset();
+    mockIdxWhereGet.mockResolvedValue({docs: []});
   });
 
   it(
@@ -697,6 +722,52 @@ describe("yahoojpCustomToken onCall — 16-13 collision details", () => {
         expect.objectContaining({event: "yahoojp_email_collision"}),
         expect.any(String),
       );
+    },
+  );
+
+  // Plan 16-17 (A4 매트릭스) — Yahoo!JP caller. D-YJP-09 로 email claim 을
+  // 받지 않으므로 endpoint 자체 trigger 불가 → resolveIdentity spy 로
+  // "helper 가 naver slug 를 산출하면 endpoint 가 details 로 전달" 배선만
+  // 잠근다. 산출 능력은 identity_index.test.ts 의 T-16-17-* 가 담당.
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-YJP-CT-EXISTING-01: existingProvider='naver' → details 로 그대로 전달",
+    async () => {
+      mockVerifyYahoojpIdToken.mockResolvedValue({
+        sub: "yj-ct-existing",
+        name: "Hanako",
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      const spy = jest
+        .spyOn(identityIndex, "resolveIdentity")
+        .mockResolvedValueOnce({
+          uid: "",
+          isNewUser: false,
+          conflictKind: "email_in_use",
+          existingProvider: "naver",
+        });
+
+      try {
+        const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
+        const promise = wrapped({
+          auth: {uid: "anon-uid-yj-ct"},
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never);
+        await expect(promise).rejects.toBeInstanceOf(HttpsError);
+        await expect(promise).rejects.toMatchObject({
+          code: "already-exists",
+          message: "errorAccountExistsWithDifferentCredential",
+          details: {existingProvider: "naver"},
+        });
+        expect(warnMock).toHaveBeenCalledWith(
+          expect.objectContaining({event: "yahoojp_email_collision"}),
+          expect.any(String),
+        );
+        expect(mockCreateCustomToken).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
     },
   );
 
