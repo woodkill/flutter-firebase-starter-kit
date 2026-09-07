@@ -1145,8 +1145,13 @@ class AuthRepository {
       }
 
       final callable = _functions.httpsCallable('kakaoCustomToken');
+      // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉해 서버가
+      // identity 생성과 같은 write 안에서 termsAccepted 를 mirror 하게 한다.
       final response = await callable.call<Map<String, dynamic>>(
-        <String, dynamic>{'idToken': result.idToken, 'nonce': result.nonce},
+        _buildCustomTokenPayload(<String, dynamic>{
+          'idToken': result.idToken,
+          'nonce': result.nonce,
+        }),
       );
       final customToken = response.data['customToken'] as String?;
       if (customToken == null) {
@@ -1232,8 +1237,13 @@ class AuthRepository {
       }
 
       final callable = _functions.httpsCallable('naverCustomToken');
+      // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉한다.
+      // base 키가 accessToken 단일인 것은 provider 계약 차이이며 snapshot
+      // 부착 방식은 4 provider 동일하다.
       final response = await callable.call<Map<String, dynamic>>(
-        <String, dynamic>{'accessToken': result.accessToken},
+        _buildCustomTokenPayload(<String, dynamic>{
+          'accessToken': result.accessToken,
+        }),
       );
       final customToken = response.data['customToken'] as String?;
       if (customToken == null) {
@@ -1435,8 +1445,13 @@ class AuthRepository {
       }
 
       final callable = _functions.httpsCallable('yahoojpCustomToken');
+      // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉해 서버가
+      // identity 생성과 같은 write 안에서 termsAccepted 를 mirror 하게 한다.
       final response = await callable.call<Map<String, dynamic>>(
-        <String, dynamic>{'idToken': result.idToken, 'nonce': result.nonce},
+        _buildCustomTokenPayload(<String, dynamic>{
+          'idToken': result.idToken,
+          'nonce': result.nonce,
+        }),
       );
       final customToken = response.data['customToken'] as String?;
       if (customToken == null) {
