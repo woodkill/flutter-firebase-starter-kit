@@ -1401,4 +1401,254 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
       }
     },
   );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-02 (경계 0건): 역조회 후보 0 → 충돌 아님 + 정상 sign-in path 진행",
+    async () => {
+      // false-positive 차단 정책의 회귀 잠금 (T-16-17-02) — email 만 같고
+      // 어떤 provider 도 식별되지 않으면 정당한 로그인을 막지 않는다.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "unknown-source-uid",
+        providerData: [],
+      });
+      const {db, whereGet} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-16-17-empty",
+        callerUid: "anon-16-17-empty",
+        userInfo: {email: "empty@example.com"},
+      });
+
+      expect(res.conflictKind).toBeNull();
+      expect(res.isNewUser).toBe(true);
+      expect(whereGet).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-03 (경계 자기자신): 역조회 결과가 caller 와 동일 provider 1건뿐 → 충돌 아님",
+    async () => {
+      // 동일 provider 재로그인 — self-identity 는 충돌이 아니다.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "self-source-uid",
+        providerData: [],
+      });
+      const {db} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [{provider: "naver"}],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-16-17-self",
+        callerUid: "anon-16-17-self",
+        userInfo: {email: "self@example.com"},
+      });
+
+      expect(res.conflictKind).toBeNull();
+      expect(res.existingProvider).toBeUndefined();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-04 (경계 2건 이상/결정성): 문서 입력 순서를 뒤집어도 우선순위 첫 후보가 선택된다",
+    async () => {
+      // CUSTOM_TOKEN_PROVIDER_PRIORITY = kakao > naver > line > yahoojp.
+      // caller=naver, 기존 계정이 line + kakao 보유 → 항상 'kakao'.
+      const runOnce = async (
+        docs: Array<{provider: unknown}>,
+        suffix: string,
+      ) => {
+        mockGetUserByEmail.mockResolvedValueOnce({
+          uid: `multi-source-uid-${suffix}`,
+          providerData: [],
+        });
+        const {db} = makeDb({
+          preExists: false,
+          txExists: false,
+          reverseDocs: docs,
+        });
+        return resolveIdentity(db, {
+          provider: "naver",
+          providerUserId: `naver-16-17-multi-${suffix}`,
+          callerUid: `anon-16-17-multi-${suffix}`,
+          userInfo: {email: `multi-${suffix}@example.com`},
+        });
+      };
+
+      const forward = await runOnce(
+        [{provider: "line"}, {provider: "kakao"}],
+        "fwd",
+      );
+      const reversed = await runOnce(
+        [{provider: "kakao"}, {provider: "line"}],
+        "rev",
+      );
+
+      expect(forward).toMatchObject({
+        conflictKind: "email_in_use",
+        existingProvider: "kakao",
+      });
+      // 입력 순서 무관 동일 결과 (결정성).
+      expect(reversed.existingProvider).toBe(forward.existingProvider);
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-05 (쿼리 실패): 역조회 reject → graceful null + 충돌 미보고 + PII 미노출",
+    async () => {
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "PII_REJECT_UID",
+        providerData: [],
+      });
+      const {db} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseRejects: true,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-16-17-reject",
+        callerUid: "anon-16-17-reject",
+        userInfo: {email: "PII_REJECT_EMAIL@example.com"},
+      });
+
+      // best-effort — 쿼리 실패가 정당한 로그인을 차단하지 않는다.
+      expect(res.conflictKind).toBeNull();
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_reverse_lookup_failed",
+          code: "unavailable",
+        }),
+        expect.any(String),
+      );
+      for (const args of warnMock.mock.calls) {
+        const s = JSON.stringify(args);
+        expect(s).not.toContain("PII_REJECT_EMAIL@example.com");
+        expect(s).not.toContain("PII_REJECT_UID");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-06 (native 회귀): providerData=[google.com] → 역조회 미호출 + existingProvider='google'",
+    async () => {
+      // 1단(native) 해석이 성공하면 2단(Custom Token)은 진입하지 않는다 —
+      // I2/I4 기대값 불변 + 불필요한 Firestore read 0.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "google-uid-16-17",
+        providerData: [{providerId: "google.com", uid: "google-platform-id"}],
+      });
+      const {db, where, whereGet} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [{provider: "kakao"}],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-16-17-native",
+        callerUid: "anon-16-17-native",
+        userInfo: {email: "native@example.com"},
+      });
+
+      expect(res).toMatchObject({
+        conflictKind: "email_in_use",
+        existingProvider: "google",
+      });
+      expect(where).not.toHaveBeenCalled();
+      expect(whereGet).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-07 (미인증 caller): createUser email-already-in-use + 역조회 kakao → existingProvider='kakao'",
+    async () => {
+      // !callerUid path — 충돌 자체는 기존에도 감지됐으나 라벨이 'unknown'
+      // 으로 떨어지던 경로. 역조회 fallback 으로 정확한 slug 산출.
+      mockCreateUser.mockRejectedValueOnce(
+        Object.assign(new Error("email exists"), {
+          code: "auth/email-already-in-use",
+        }),
+      );
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "PII_CREATEUSER_UID",
+        providerData: [],
+      });
+      const {db, where} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [{provider: "kakao"}],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-16-17-createuser",
+        callerUid: undefined,
+        userInfo: {email: "PII_CREATEUSER_EMAIL@example.com"},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "kakao",
+      });
+      expect(where).toHaveBeenCalledWith(
+        "firebaseUid",
+        "==",
+        "PII_CREATEUSER_UID",
+      );
+      for (const args of warnMock.mock.calls) {
+        const s = JSON.stringify(args);
+        expect(s).not.toContain("PII_CREATEUSER_EMAIL@example.com");
+        expect(s).not.toContain("PII_CREATEUSER_UID");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-08 (읽기 순서): 역조회 get 이 db.runTransaction 보다 먼저 호출된다",
+    async () => {
+      // T-16-17-03 회귀 잠금 — 역조회는 transaction *밖* 선행 read 다.
+      // (WR-05 MockTx phase tracker 는 transaction *안* 순서를 담당하고,
+      //  본 케이스는 transaction 밖 순서를 담당한다.)
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "order-source-uid",
+        providerData: [],
+      });
+      const {db, callOrder} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [],
+      });
+
+      await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-16-17-order",
+        callerUid: "anon-16-17-order",
+        userInfo: {email: "order@example.com"},
+      });
+
+      expect(callOrder).toContain("reverse-lookup");
+      expect(callOrder).toContain("runTransaction");
+      expect(callOrder.indexOf("reverse-lookup")).toBeLessThan(
+        callOrder.indexOf("runTransaction"),
+      );
+    },
+  );
 });

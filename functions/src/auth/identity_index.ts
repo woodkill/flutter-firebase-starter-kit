@@ -576,6 +576,20 @@ export async function resolveIdentity(
               existingByEmail.providerData,
               provider as ProviderId,
             );
+            // Plan 16-17 — native 매핑 실패('unknown') 시에만 Custom Token
+            // 해석으로 fallback. 기존 계정이 Custom Token 이면 providerData 가
+            // 비어 있어 여기까지 오는 것이 normal case 다. 역조회가 null 이면
+            // 'unknown' 유지 (R2 일반 배너 fallback 보존).
+            // 본 read 도 db.runTransaction 진입 이전 구간이다 (T-16-17-03).
+            if (existingProvider === "unknown") {
+              const ctExistingProvider =
+                await resolveCustomTokenExistingProvider(
+                  db,
+                  existingByEmail.uid,
+                  provider as ProviderId,
+                );
+              if (ctExistingProvider) existingProvider = ctExistingProvider;
+            }
           } catch (lookupErr: unknown) {
             // best-effort — lookup 실패가 conflictKind 매핑을 차단하지 않음.
             // err.code 만 fingerprint, email 본문 미노출.
