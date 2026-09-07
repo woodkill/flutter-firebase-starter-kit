@@ -1006,6 +1006,32 @@ ARB 키). 19 locale 확장 시 다음 절차:
   (A8 verified). Flutter 3.41.4 의 flutter.minSdkVersion 가 이미 24 →
   starter-kit 변경 0. 사용자가 minSdk 23 이하로 downgrade 시 LINE 1-tap
   실패.
+- **Pitfall 8 (LINE 인증 후 앱 자동 복귀 미보장 — 간헐):**
+  - **증상:** LINE 인증을 마쳐도 앱이 자동으로 전면 복귀하지 않고 LINE 앱
+    화면에 머무를 **수 있음**. 사용자가 recent apps 등으로 직접 앱에 돌아오면
+    그 시점에 로그인 결과가 정상 처리된다. **"항상 발생"이 아니라 "발생할 수
+    있음"** — 2026-09-07 Phase 16 UAT 에서 A7(기존 계정 재로그인)은 재현,
+    같은 날 A9(LINE 신규 가입)는 자동 복귀 성공. 재현 조건(가입 vs 재로그인 /
+    LINE 앱 상태 / 태스크 스택)은 미특정이다.
+  - **원인:** `lib/features/auth/data/line_sdk_client.dart:126` 이
+    `LoginOption(false /* onlyWebLogin */, 'normal')` 을 쓰므로 LINE 앱이
+    설치된 단말에서는 app-to-app 경로를 탄다. activity 로그 실측상 LINE 앱은
+    우리 앱의 콜백 액티비티
+    (`com.linecorp.linesdk.auth.internal.LineAuthenticationCallbackActivity`)
+    를 정상 실행해 **인증 결과 전달 자체는 성공**시킨 뒤, 자신을 백그라운드로
+    내리지 않고 자체 MainActivity 를 전면에 복귀시킨다. 전면 복귀 여부는 LINE
+    앱 재량이며 앱 측 코드로 강제하기 어렵다.
+  - **해결:** 인증이 실패한 것이 아니므로 **재시도하지 말고** 앱으로 수동
+    복귀하면 된다(recent apps / 홈에서 앱 아이콘). 앱이 포그라운드로 돌아온
+    시점에 결과 처리가 이어진다.
+  - **선택적 후속 관측 (본 starter-kit 미적용):** 인증 대기 중 "인증 후 앱으로
+    돌아와 주세요" 안내 문구를 노출하거나, `LoginOption` 의 `onlyWebLogin` 을
+    `true` 로 두어 Custom Tab 경로를 강제했을 때 복귀 동작이 개선되는지 실
+    단말 A/B 로 측정할 수 있다. **본 starter-kit 은 그 측정 전까지 경로를
+    바꾸지 않는다** — 간헐 현상이라 측정 없이 경로를 바꾸면 개선 여부를
+    확인할 수 없고 webview fallback 으로 1-tap UX 를 잃을 위험만 남는다.
+    iOS 는 `ASWebAuthenticationSession` 이라 복귀 동작이 다를 수 있어 iOS
+    batch UAT 시 재확인 대상이다.
 
 ---
 
@@ -2015,6 +2041,20 @@ Home AppBar → Icons.settings tap → /settings route
 - **loading 중 cancel 버튼 비활성화** — callable 진행 중 사용자 실수 차단.
 
 **5분 boundary 의미:** `getIdToken(true)` 의 forceRefresh 호출은 새 ID Token 을 발급하여 `auth_time` claim 을 현재 시각으로 갱신한다. server-side `deleteUserAccount` Cloud Function 은 token 의 `auth_time` 가 5 분 이내인 경우에만 hard delete 를 수락한다 (D-06). 사용자가 dialog 표시 후 다른 작업으로 시간을 보낸 경우 reauth fail SnackBar 가 표시되고 /login redirect 된다.
+
+### 약관 동의 서버 기록 (Custom Token provider — Phase 16 G-16-A9-1)
+
+**동작:** Custom Token provider (Kakao / Naver / LINE / Yahoo!JP) 로 가입할 때 클라이언트가 약관 동의 스냅샷 5 필드 (동의 버전 / 이용약관 동의 / 개인정보 처리방침 동의 / 마케팅 수신 동의 / 동의 시각) 를 callable payload 의 `termsAcceptanceSnapshot` 으로 함께 보내고, Cloud Function 이 `users/{uid}` 문서를 **생성하는 같은 시점에** `termsAccepted` 로 기록한다. native provider (Google / Apple / Facebook) 는 Cloud Function 이 사용자 문서를 만들지 않으므로 클라이언트 mirror 경로 (`TermsNotifier.mirrorToFirestore`) 가 그대로 유효하다.
+
+이 구조를 쓰는 이유는 경합 때문이다. Custom Token 경로에서는 Cloud Function 이 먼저 `users/{uid}` 를 만들고, 그 뒤에 실행되는 클라이언트 mirror 가 "이미 문서가 있다 = 기존 사용자" 로 판단해 skip 한다. 따라서 **문서 생성 시점에 서버가 직접 기록하는 것** 이 유일하게 경합이 없는 지점이다.
+
+**백필 정책 (adopter 결정 사항):** 이 수정 **이전에** Custom Token 으로 가입한 사용자는 서버측 동의 기록이 없다 (클라이언트 로컬 `SharedPreferences` 에만 남아 있어 재설치·기기 변경 시 소실된다). 본 starter-kit 은 **자동 백필을 제공하지 않는다** — 재동의를 받을지, 운영자 스크립트로 채울지, 그대로 둘지는 서비스의 법무·운영 정책에 달렸고 starter-kit 이 임의로 정할 수 없기 때문이다. 백필이 필요하면 `users` 컬렉션에서 `termsAccepted` 필드가 부재한 문서를 골라 처리하는 **1회성 관리자 작업** 으로 수행하고, 위 「사용자 커스터마이징 포인트」 5번의 **법무 자문 의무** 를 함께 적용한다 (어떤 값을 소급 기록해도 "실제 동의 시각" 은 아니므로, 소급 기록 자체가 법적으로 유효한지에 대한 판단이 선행되어야 한다).
+
+**잔여 위험 — 재동의 시각 갱신:** 서버 mirror 는 신규 가입 여부로 게이트되지 않는다. 따라서 기기에 동의 값이 남아 있는 상태에서 **기존 계정으로 재로그인** 하면 `termsAccepted.acceptedAt` 이 현재 세션 시각으로 갱신된다. 최초 동의 시각을 불변 audit 으로 남겨야 하는 서비스는 4개 Custom Token endpoint 의 mirror 블록을 **신규 사용자일 때만** 실행하도록 한 줄 게이트를 추가하면 된다 (파일: `functions/src/auth/{kakao,naver,line,yahoojp}_custom_token.ts` 의 mirror 단계 — 각 endpoint 가 이미 계산해 둔 신규/기존 사용자 판별값을 조건으로 쓴다). 기본값을 게이트 없이 둔 이유는 **최신 동의 상태 반영** 을 우선했기 때문이다 — 약관 버전이 올라간 뒤 재동의를 받은 경우 그 시각이 반영되는 편이 일반적인 서비스에서 더 안전하다.
+
+**확인 방법:** Firestore `users/{uid}` 문서에 `termsAccepted` 5 필드가 존재하는지 확인한다. 없다면 (a) 이 수정 이전에 가입한 사용자이거나, (b) 로그인 시점에 기기 로컬 동의 값이 없어 클라이언트가 스냅샷을 아예 부착하지 않은 경우다. 두 경우는 Cloud Logging 의 `{provider}_terms_acceptance_mirrored` 이벤트 유무로 구분한다.
+
+**mirror 실패는 로그인을 실패시킨다.** 4개 endpoint 모두 mirror 의 `set(merge:true)` 가 던지면 `{provider}_terms_acceptance_mirror_failed` 를 남긴 뒤 `HttpsError('internal')` 로 callable 을 실패시킨다 — 동의 기록 없이 계정만 생성되는 상태를 만들지 않기 위한 의도된 fail-closed 설계다. 따라서 "로그인은 성공했는데 `termsAccepted` 만 없다" 는 상태는 위 (a)/(b) 뿐이며, mirror 실패로는 발생하지 않는다.
 
 ### Phase 17 deferred — Storage cascade
 
