@@ -1085,4 +1085,47 @@ describe("kakaoCustomToken onCall", () => {
       expect(mockUserDocSet).not.toHaveBeenCalled();
     },
   );
+
+  // WR-02 (2차 리뷰): 신뢰할 수 없는 snapshot 의 런타임 검증 — endpoint level.
+  //
+  // 검증이 없으면 파싱 불가 acceptedAt 하나로 Timestamp.fromDate 가 throw →
+  // HttpsError('internal') → 로그인 전체가 실패한다 (payload 형태 하나로
+  // 자기 계정 로그인 영구 차단). fail-open 정책: 필드는 무시하고 로그인 계속.
+  it(
+    // eslint-disable-next-line max-len
+    "C4 (WR-02): 형식 위반 snapshot → mirror skip + 로그인 성공 (fail-open)",
+    async () => {
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-C4",
+        nonce: "n",
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      mockUserDocSet.mockClear();
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const result = (await wrapped({
+        auth: {uid: "anon-C4"},
+        app: {appId: "test"},
+        data: {
+          idToken: "FAKE",
+          nonce: "n",
+          termsAcceptanceSnapshot: {
+            version: 999,
+            // 계약 위반 — boolean 이어야 한다.
+            service: "yes",
+            privacy: true,
+            marketing: false,
+            // 계약 위반 — 파싱 불가 (Invalid Date).
+            acceptedAt: "not-a-date",
+          },
+        },
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      // 로그인은 성공한다 (throw 0).
+      expect(result.customToken).toBe("MOCK_CUSTOM_TOKEN");
+      // 오염된 값이 users/{uid} 에 착지하지 않는다.
+      expect(mockUserDocSet).not.toHaveBeenCalled();
+    },
+  );
 });

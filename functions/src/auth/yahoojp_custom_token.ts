@@ -65,7 +65,10 @@ import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
 import {createOidcVerifier} from "../shared/oidc_verifier";
-import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
+import {
+  TermsAcceptanceJson,
+  parseTermsAcceptanceJson,
+} from "../shared/terms_acceptance_json";
 import {buildAccountExistsError} from "./account_exists_error";
 import {resolveIdentity} from "./identity_index";
 
@@ -270,7 +273,11 @@ export const yahoojpCustomToken = onCall<YahoojpCustomTokenRequest>(
     // Step 3.5 (Phase 16 D-13/D-14 — Plan 16-03 Task 3.2):
     // termsAcceptanceSnapshot atomic mirror — Phase 14.1 A6 root cause fix
     // 의 Custom Token branch. {merge:true} 의무. snapshot=undefined 시 skip.
-    const termsSnapshot = data.termsAcceptanceSnapshot;
+    // WR-02: callable arg 는 신뢰할 수 없는 임의 JSON 이다 — 5 필드 타입을
+    // 런타임 검증해 좁힌다. 실패 시 null (필드 무시, 로그인은 계속).
+    const termsSnapshot = parseTermsAcceptanceJson(
+      data.termsAcceptanceSnapshot,
+    );
     // WR-01: isNewUser 게이트 — mirror 는 users/{uid} 문서가 새로
     // 만들어지는 시점에만 수행한다. 게이트 없이 매 Custom Token 로그인마다
     // set 하면, 기기에 device-local 동의가 남은 상태로 기존 계정에 재로그인할

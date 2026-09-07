@@ -41,3 +41,46 @@ export type TermsAcceptanceJson = {
   /** 사용자 동의 시각 — ISO 8601 (client toJson 직렬화 후 Timestamp.fromDate). */
   acceptedAt: string;
 };
+
+/**
+ * 신뢰할 수 없는 callable 입력을 [TermsAcceptanceJson] 으로 좁힌다 (WR-02).
+ *
+ * `TermsAcceptanceJson` 은 **컴파일타임 타입일 뿐**이고 callable arg 는 임의
+ * JSON 이다. 16-14 로 이 경로가 실제 트래픽을 받기 시작했으므로 mirror 직전에
+ * 런타임 검증이 필요하다. 미검증 시 다음이 가능했다.
+ *
+ * - `service: "yes"` / `version: 999` 같은 임의 값이 그대로
+ *   `users/{uid}.termsAccepted` 에 착지 (Firestore schema 오염).
+ * - `version` 위조로 client 가 `TermsNotifier._loadFromFirestore` 의
+ *   `restored.version >= currentVersion` 재동의 강제 로직을 스스로 무력화
+ *   (약관 개정 후 재동의 회피).
+ * - `acceptedAt` 이 파싱 불가 문자열이면 `Timestamp.fromDate(Invalid Date)`
+ *   가 throw → `HttpsError('internal')` 로 **로그인 전체가 실패** (payload
+ *   형태 하나로 자기 계정 로그인 영구 차단).
+ *
+ * **fail-open 정책 (의도적):** 검증 실패 시 `null` 을 반환해 호출자가 필드를
+ * **무시**하고 로그인은 계속하게 한다. 약관 mirror 는 보조 경로이며 (client
+ * 측 `mirrorToFirestore` 가 별도 보장), 잘못된 payload 로 로그인을 막는 것이
+ * 사용자 피해가 더 크다. 같은 파일의 `idToken` / `nonce` 검증과 달리 이 값은
+ * 인증 결정에 쓰이지 않는다.
+ *
+ * @param {unknown} value callable arg 의 `termsAcceptanceSnapshot` 원본.
+ * @return {TermsAcceptanceJson | null} 5 필드가 모두 계약 타입을 만족하면
+ *   좁혀진 값, 하나라도 어긋나면 `null`.
+ */
+export function parseTermsAcceptanceJson(
+  value: unknown,
+): TermsAcceptanceJson | null {
+  if (typeof value !== "object" || value === null) return null;
+  const o = value as Record<string, unknown>;
+  const {version, service, privacy, marketing, acceptedAt} = o;
+  if (typeof version !== "number" || !Number.isInteger(version)) return null;
+  if (typeof service !== "boolean") return null;
+  if (typeof privacy !== "boolean") return null;
+  if (typeof marketing !== "boolean") return null;
+  if (typeof acceptedAt !== "string") return null;
+  // `new Date(...)` 가 Invalid Date 를 만들면 Timestamp.fromDate 가 throw.
+  if (Number.isNaN(new Date(acceptedAt).getTime())) return null;
+  // 계약 5 키만 통과시킨다 — 여분 키가 Firestore 에 착지하지 않는다.
+  return {version, service, privacy, marketing, acceptedAt};
+}

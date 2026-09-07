@@ -6,7 +6,10 @@ import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
 import {createOidcVerifier} from "../shared/oidc_verifier";
-import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
+import {
+  TermsAcceptanceJson,
+  parseTermsAcceptanceJson,
+} from "../shared/terms_acceptance_json";
 import {buildAccountExistsError} from "./account_exists_error";
 import {resolveIdentity} from "./identity_index";
 
@@ -276,7 +279,11 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // acceptedAt) 모두 PII 비대상 — logger payload 에 version 만 노출 가능
     // (본체 미노출). best-effort 실패 처리는 hard throw — termsAccepted
     // mirror 실패 시 client routing 회귀 (UI flip) 위험.
-    const termsSnapshot = data.termsAcceptanceSnapshot;
+    // WR-02: callable arg 는 신뢰할 수 없는 임의 JSON 이다 — 5 필드 타입을
+    // 런타임 검증해 좁힌다. 실패 시 null (필드 무시, 로그인은 계속).
+    const termsSnapshot = parseTermsAcceptanceJson(
+      data.termsAcceptanceSnapshot,
+    );
     // WR-01: isNewUser 게이트 — mirror 는 users/{uid} 문서가 새로
     // 만들어지는 시점에만 수행한다. 게이트 없이 매 Custom Token 로그인마다
     // set 하면, 기기에 device-local 동의가 남은 상태로 기존 계정에 재로그인할
