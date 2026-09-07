@@ -309,6 +309,36 @@ class TermsNotifier extends _$TermsNotifier {
   /// 자체를 보존하는 것이 multi-user invariant 의 의도이므로 skip 은 일관됨.
   /// 재동의 강제는 [_loadFromFirestore] 의 version 비교 로직이 담당한다.
   ///
+  /// **G-16-A9-1 재검토 결론 (Phase 16 Plan 16-14 — 완화 반려):** gap 은 skip
+  /// 조건을 `snapshot.exists` 대신
+  /// `!snapshot.exists || snapshot.data()?['termsAccepted'] == null` 로
+  /// 완화해 Cloud Function 이 방금 만든 문서를 "기존 사용자" 로 오인하는
+  /// 경합을 해소할지 검토를 요구했다. 결론은 **완화하지 않음**이며 근거는
+  /// 세 가지다:
+  ///
+  /// 1. `terms_notifier_firestore_test.dart` **Test 8** 이 "정식 사용자 A
+  ///    문서 존재 + `termsAccepted` 필드 부재" 상태에서 익명 B 의
+  ///    device-local 동의가 mirror 되지 **않아야** 한다고 단언한다 (Plan
+  ///    10-12 Issue #8, UAT Test 21 재현). 제안된 완화 조건은 정확히 이
+  ///    케이스를 write 로 바꾸므로 기존 multi-user invariant 를 되돌린다.
+  /// 2. client 는 mirror 시점에 "이 문서가 Cloud Function 이 방금 만든
+  ///    것인지" 와 "기존 사용자 A 의 문서인지" 를 구분할 정보가 없다. 두
+  ///    경우 모두 익명→정식 전이이며 문서에 `termsAccepted` 가 없다.
+  /// 3. 경합 자체는 상류에서 해소된다 —
+  ///    `AuthRepository._buildCustomTokenPayload` 가 4 Custom Token callable
+  ///    payload 에 `termsAcceptanceSnapshot` 을 동봉하고, 서버가 identity 를
+  ///    만드는 같은 write 안에서 `termsAccepted` 를 기록한다. client mirror
+  ///    가 skip 해도 서버 기록이 남는다. 그 write 의 주체는 유효한 IdP
+  ///    토큰으로 identity 소유를 서버에 증명한 caller 이므로, Plan 10-12 가
+  ///    막으려던 "인증하지 않은 제3자 문서에 device-local 값이 착지" 와는
+  ///    위험 계열이 다르다.
+  ///
+  /// **잔여 위험:** 상류 경로를 잃으면 (예: Custom Token payload 전송 실패)
+  /// 서버 동의 기록이 비게 된다 — client mirror 는 이 경우에도 skip 한다.
+  ///
+  /// **lock 표기:** 후속 phase 가 skip 조건을 바꾸려면 Test 8 (필드 부재)
+  /// 과 Test 9 (필드 존재) 를 먼저 갱신해야 한다.
+  ///
   /// **Issue #9 (Plan 10-13 — 재동의 경로):** [force] 가 true 이면 pre-read 를
   /// 건너뛰고 무조건 set(merge:true) 를 수행한다. `OnboardingScreen._handleCta`
   /// 의 재동의 경로(정식 사용자 A 로그인 상태에서 CTA 탭) 에서만 사용되며,

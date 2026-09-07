@@ -370,5 +370,50 @@ void main() {
         reason: 'Issue #7 C-1 — reloadForUser 완료 후 lastReloadedUid 갱신',
       );
     });
+
+    test('Test 9 (G-16-A9-1 재검토 결론 lock): 문서 존재 + termsAccepted 필드 '
+        '존재 시에도 mirror skip — first-write-wins 반대편 sentinel', () async {
+      // G-16-A9-1 은 skip 조건을 `!snapshot.exists ||
+      // snapshot.data()?['termsAccepted'] == null` 로 완화할지 검토를
+      // 요구했고, 결론은 반려(완화 불가)다. Test 8 이 "문서 존재 +
+      // termsAccepted 부재" 를 잠그고, 본 Test 9 가 "문서 존재 +
+      // termsAccepted 존재" 를 잠근다. 이 단언이 깨지면 Plan 10-12
+      // multi-user invariant 도 함께 깨진 것이다.
+      SharedPreferences.setMockInitialValues({});
+      when(() => mockSnapshot.exists).thenReturn(true);
+      when(() => mockSnapshot.data()).thenReturn(<String, dynamic>{
+        'termsAccepted': <String, dynamic>{
+          'version': 1,
+          'service': true,
+          'privacy': true,
+          'marketing': false,
+          'acceptedAt': Timestamp.fromDate(DateTime.utc(2026, 3, 1)),
+        },
+      });
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
+
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      // Given: 익명 사용자가 device-local 동의를 만든 상태.
+      await notifier.accept(service: true, privacy: true, marketing: true);
+
+      // When: 기존 사용자 문서를 대상으로 자동 mirror (force=false).
+      final mirrorResult = await notifier.mirrorToFirestore(uid: 'A-UID');
+
+      // Then: no-op 성공 + write 0 (first-write-wins 보존).
+      expect(mirrorResult, isA<Success<dynamic>>());
+      verifyNever(
+        () => mockDoc.set(any<Map<String, dynamic>>(), any<SetOptions>()),
+      );
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'mirror_skip_reason',
+          'existing_user_doc',
+        ),
+      ).called(1);
+    });
   });
 }
