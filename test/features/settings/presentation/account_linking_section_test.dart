@@ -15,6 +15,11 @@
 // - AL6 사용자 취소 (null) → no-op (snackbar 0, 버튼 유지).
 // - AL7 viewport: below-fold 버튼 tester.ensureVisible 후 tap.
 // - AL8 빈 available set: 모든 활성 소셜 provider link 완료 → 섹션 미노출.
+//
+// Phase 16 G-16-A6-2 추가 (실패 원인별 문구 분기 — collapse 해소):
+// - AL9 emailInUse / AL10 transientFailure / AL11 failed / AL12 unsupported:
+//   outcome 별 en verbatim SnackBar 문구 단언.
+// - AL13 collapse 재발 방지: 5 문구 상호 비동등 + 이전 collapse 문구 미사용.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,6 +47,17 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/acco
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+// G-16-A6-2 — Surface D 실패 원인별 en verbatim 문구 (app_en.arb 와 1:1).
+const _alreadyLinkedText =
+    'This sign-in method is already linked to another account. '
+    'Unlink it first, then try again.';
+const _emailInUseText = 'This email is already in use by another account.';
+const _transientText =
+    "Couldn't link due to a network or service error. Please try again later.";
+const _unknownFailureText =
+    "Couldn't link your account. Please try again later.";
+const _unsupportedNaverText = "Linking a Naver account isn't supported yet.";
 
 /// 테스트용 User factory.
 User _testUser({required List<String> providerIds}) {
@@ -210,7 +226,7 @@ void main() {
     });
 
     testWidgets(
-        'AL5 already-linked — AccountAlreadyLinked → graceful SnackBar (크래시 0)',
+        'AL5 already-linked — AccountAlreadyLinked → 전용 문구 SnackBar (크래시 0)',
         (tester) async {
       final user = _testUser(providerIds: const <String>['google.com']);
       when(() => repo.linkAppleCredential())
@@ -226,8 +242,9 @@ void main() {
       // 크래시 0 + 성공 snackbar 미노출.
       expect(tester.takeException(), isNull);
       expect(find.text('Linked your Apple account.'), findsNothing);
-      // 안내 SnackBar 노출 (errorAccountExistsWithUnknownProvider 재사용).
+      // G-16-A6-2: already-linked 전용 문구 (이메일 문구 아님).
       expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text(_alreadyLinkedText), findsOneWidget);
     });
 
     testWidgets(
@@ -290,6 +307,91 @@ void main() {
 
       // available 빈 set → heading 미노출 (섹션 미노출).
       expect(find.text('Link an account'), findsNothing);
+    });
+  });
+
+  group('Phase 16 G-16-A6-2 — Surface D 실패 원인별 SnackBar 문구', () {
+    /// Apple 연결 버튼을 tap 해 [failure] 실패 경로를 재현한다.
+    Future<void> tapAppleWithFailure(
+      WidgetTester tester,
+      AppException failure,
+    ) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(() => repo.linkAppleCredential())
+          .thenAnswer((_) async => Result<User>.failure(failure));
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Apple');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('AL9 emailInUse — EmailAlreadyInUse → 이메일 중복 전용 문구',
+        (tester) async {
+      await tapAppleWithFailure(tester, const EmailAlreadyInUse());
+
+      expect(find.text(_emailInUseText), findsOneWidget);
+      expect(find.text(_alreadyLinkedText), findsNothing);
+    });
+
+    testWidgets('AL10 transientFailure — NoInternetConnection → 일시 오류 문구',
+        (tester) async {
+      await tapAppleWithFailure(tester, const NoInternetConnection());
+
+      expect(find.text(_transientText), findsOneWidget);
+      expect(find.text(_unknownFailureText), findsNothing);
+    });
+
+    testWidgets('AL11 failed — 미분류 예외 → catch-all 문구', (tester) async {
+      await tapAppleWithFailure(tester, const UnknownException());
+
+      expect(find.text(_unknownFailureText), findsOneWidget);
+      expect(find.text(_transientText), findsNothing);
+    });
+
+    testWidgets('AL12 unsupported — naver 탭 → 미지원 전용 문구 (provider 라벨 주입)',
+        (tester) async {
+      // naver 는 repository 미호출 (WR-03) — 실패가 아니라 미지원 경로.
+      final user = _testUser(providerIds: const <String>['google.com']);
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Naver');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      expect(find.text(_unsupportedNaverText), findsOneWidget);
+      // 미지원은 실패 4 문구 어느 것과도 겹치지 않는다.
+      expect(find.text(_unknownFailureText), findsNothing);
+      expect(find.text(_alreadyLinkedText), findsNothing);
+    });
+
+    testWidgets('AL13 collapse 재발 방지 — 실패 4 문구 + 미지원 문구 상호 비동등',
+        (tester) async {
+      // 5 문구가 서로 다른 문자열임을 한 곳에서 고정한다. 어느 두 outcome 이
+      // 같은 문구로 되돌아가면(2026-09-07 A6 collapse) 즉시 FAIL.
+      const messages = <String>[
+        _alreadyLinkedText,
+        _emailInUseText,
+        _transientText,
+        _unknownFailureText,
+        _unsupportedNaverText,
+      ];
+
+      expect(messages.toSet().length, messages.length);
+
+      // 이전 collapse 문구(errorAccountExistsWithUnknownProvider)와도 분리.
+      const oldCollapsedText =
+          'This email is already registered with another sign-in method. '
+          'Please sign in with the method you originally used.';
+      expect(messages, isNot(contains(oldCollapsedText)));
+
+      // 실제 렌더 경로에서도 실패 문구가 collapse 문구를 쓰지 않는지 확인.
+      await tapAppleWithFailure(tester, const AccountAlreadyLinked());
+      expect(find.text(oldCollapsedText), findsNothing);
+      expect(find.text(_alreadyLinkedText), findsOneWidget);
     });
   });
 }

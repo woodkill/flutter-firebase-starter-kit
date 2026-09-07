@@ -170,14 +170,37 @@ class AccountLinkingSection extends ConsumerWidget {
         );
         unawaited(router.push(AppRoutes.login));
       case AccountLinkOutcome.alreadyLinked:
-      case AccountLinkOutcome.emailInUse:
-      case AccountLinkOutcome.transientFailure:
-      case AccountLinkOutcome.failed:
-      case AccountLinkOutcome.unsupported:
-        // already-linked / 기타 실패 / 미지원 (naver) — graceful 안내
-        // (errorAccountExistsWithUnknownProvider 재사용, 신규 ARB 0건).
+        // `provider-already-linked` / `credential-already-in-use` / Custom
+        // Token callable `already-exists` — 해당 신원이 다른 계정 소유 (A6 실측).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.errorAccountExistsWithUnknownProvider)),
+          SnackBar(content: Text(l10n.settingsLinkFailedAlreadyLinked)),
+        );
+      case AccountLinkOutcome.emailInUse:
+        // `email-already-in-use` / `account-exists-with-different-credential`
+        // — 이메일 충돌. 문구에 email 값 자체는 넣지 않는다 (T-16-15-02).
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsLinkFailedEmailInUse)),
+        );
+      case AccountLinkOutcome.transientFailure:
+        // `network-request-failed` / `too-many-requests` / ServiceUnavailable
+        // — 재시도로 해소 가능한 일시 오류.
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsLinkFailedTransient)),
+        );
+      case AccountLinkOutcome.failed:
+        // 미분류 실패 catch-all — 정확한 코드는 repository 의 kDebugMode
+        // `code=` 로그로 logcat 에 남는다 (T-16-15-01).
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsLinkFailedUnknown)),
+        );
+      case AccountLinkOutcome.unsupported:
+        // naver (deployed callable OIDC 부재) / email (Surface D EXCLUDE) —
+        // 실패가 아니라 미지원. providerLabel 은 기존 authAccountProvider{X}
+        // brand verbatim 라벨 (brand 라벨 신규 0, T-16-15-03).
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(l10n.settingsLinkUnsupportedProvider(providerLabel)),
+          ),
         );
       case AccountLinkOutcome.cancelled:
         // 사용자 취소 — no-op (snackbar 0, 버튼 유지).

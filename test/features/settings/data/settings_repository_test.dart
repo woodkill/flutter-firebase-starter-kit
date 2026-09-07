@@ -12,6 +12,12 @@
 //   ReauthenticationRequiredException throw
 // - S4 callable internal → UnknownException throw
 // - S5 PII redaction sentinel — idToken/email 본문 logger 미포함
+//
+// Phase 16 G-16-A6-2 추가 (_mapDeleteError taxonomy 정렬 —
+// auth_repository._mapFunctionsException 과 동일 분류):
+// - S6 unavailable → NoInternetConnection
+// - S7 deadline-exceeded → NoInternetConnection
+// - S8 resource-exhausted → TooManyRequests (Cloud Run 할당량 차단 실측)
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -192,6 +198,46 @@ void main() {
       } finally {
         debugPrint = originalPrint;
       }
+    });
+  });
+
+  group('Phase 16 G-16-A6-2 — _mapDeleteError taxonomy 정렬', () {
+    /// [code] 로 실패하는 deleteUserAccount callable 을 스텁한다.
+    void stubCallableFailure(String code) {
+      stubCurrentUserWithFreshToken();
+      when(
+        () => mockDeleteCallable.call<Object?>(any()),
+      ).thenThrow(FirebaseFunctionsException(code: code, message: code));
+    }
+
+    test('S6 unavailable → NoInternetConnection', () async {
+      stubCallableFailure('unavailable');
+
+      await expectLater(
+        repository.requestAccountDeletion(),
+        throwsA(isA<NoInternetConnection>()),
+      );
+    });
+
+    test('S7 deadline-exceeded → NoInternetConnection', () async {
+      stubCallableFailure('deadline-exceeded');
+
+      await expectLater(
+        repository.requestAccountDeletion(),
+        throwsA(isA<NoInternetConnection>()),
+      );
+    });
+
+    test('S8 resource-exhausted → TooManyRequests (Cloud Run 할당량 차단)',
+        () async {
+      // 2026-09-07 실측: 할당량 차단이 UnknownException 으로 뭉개져
+      // "회원탈퇴에 실패했습니다" 로 표시되었다 — 재시도 가능 오류로 분리.
+      stubCallableFailure('resource-exhausted');
+
+      await expectLater(
+        repository.requestAccountDeletion(),
+        throwsA(isA<TooManyRequests>()),
+      );
     });
   });
 }

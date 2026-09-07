@@ -80,12 +80,25 @@ class SettingsRepository {
   ///
   /// - `unauthenticated` / `permission-denied` →
   ///   [ReauthenticationRequiredException] (5분 boundary 초과 — 재로그인 필요)
-  /// - 그 외 (`internal`, `unknown`, `unavailable` 등) → [UnknownException]
+  /// - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
+  /// - `resource-exhausted` → [TooManyRequests]
+  /// - 그 외 (`internal`, `unknown` 등) → [UnknownException]
+  ///
+  /// **taxonomy 정렬 (Phase 16 G-16-A6-2):** `unavailable` /
+  /// `deadline-exceeded` / `resource-exhausted` 분리는
+  /// `AuthRepository._mapFunctionsException` 과 동일한 프로젝트 표준 분류다.
   AppException _mapDeleteError(FirebaseFunctionsException e) {
     return switch (e.code) {
       'unauthenticated' ||
       'permission-denied' =>
         ReauthenticationRequiredException(cause: e),
+      // auth_repository._mapFunctionsException 과 동일 taxonomy — 서비스 도달
+      // 실패는 일시 오류로 안내해 재시도를 유도한다.
+      'unavailable' || 'deadline-exceeded' => NoInternetConnection(cause: e),
+      // 2026-09-07 실측: dev Cloud Run 할당량 차단(resource-exhausted)이
+      // "회원탈퇴에 실패했습니다"(UnknownException) 로 표시되어 원인 오인을
+      // 유발했다 — 재시도 가능한 rate-limit 으로 분리한다.
+      'resource-exhausted' => TooManyRequests(cause: e),
       _ => UnknownException(cause: e),
     };
   }
