@@ -944,6 +944,17 @@
     }
   },
 
+  "accountLinkingSignInThenLinkHint": "Signed in with your {provider} account. You can add other sign-in methods in Settings > Link an account.",
+  "@accountLinkingSignInThenLinkHint": {
+    "description": "Phase 16 Plan 16-18 (CR-02 gap closure) — Surface A 2단계 reactive 플로우의 step 1 성공 안내 SnackBar. 경로 B(서버 already-exists 로 pendingCredential 부재)에서 시트 CTA 가 기존 provider 로 '로그인'(link 아님)에 성공한 직후 /home 에서 1회 노출되며, 나머지 로그인 수단 추가는 step 2 (Settings > 계정 연결, Surface D proactive arm)에서 한다는 후속 경로를 알린다. {provider} 에는 위젯이 계산한 _providerLabel(l10n, provider) 결과 = 기존 authAccountProvider{X} 8 키의 verbatim 라벨만 주입된다 (서버 응답/예외 문자열 주입 경로 0, brand 라벨 신설 0, brand_label_whitelist 확장 0 — 위협 T-16-18-01 mitigation). 문구의 'Settings' 는 settingsTitle, 'Link an account' 는 settingsAccountLinkingSection 값의 verbatim 인용이므로 그 두 키가 바뀌면 본 문구도 함께 바꾼다. 사용자 sign-off 및 확정 문구 표: .planning/phases/16-account-linking-withdrawal/mockups/surface-a-two-step-reactive.md (§8, status locked-plan-16-18).",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Kakao"
+      }
+    }
+  },
+
   "settingsLinkFailedAlreadyLinked": "This sign-in method is already linked to another account. Unlink it first, then try again.",
   "@settingsLinkFailedAlreadyLinked": {
     "description": "Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: already-linked). 2026-09-07 A6 실측에서 실제 원인이 credential-already-in-use 였는데 errorAccountExistsWithUnknownProvider(이메일 문구)가 표시된 collapse 를 해소한다. 소비: AccountLinkOutcome.alreadyLinked (AccountAlreadyLinked — provider-already-linked / credential-already-in-use). email/uid/token 을 노출하지 않는다."

@@ -573,6 +573,11 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String accountLinkingSignInThenLinkHint(String provider) {
+    return '$providerアカウントでログインしました。他のログイン方法は「設定」>「アカウント連携」から追加できます。';
+  }
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       'このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。';
 

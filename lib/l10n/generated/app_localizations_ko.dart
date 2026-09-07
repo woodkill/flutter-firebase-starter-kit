@@ -574,6 +574,11 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String accountLinkingSignInThenLinkHint(String provider) {
+    return '$provider 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 계정 연결에서 추가할 수 있습니다.';
+  }
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       '이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.';
 

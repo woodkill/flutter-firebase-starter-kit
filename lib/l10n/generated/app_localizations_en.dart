@@ -585,6 +585,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String accountLinkingSignInThenLinkHint(String provider) {
+    return 'Signed in with your $provider account. You can add other sign-in methods in Settings > Link an account.';
+  }
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       'This sign-in method is already linked to another account. Unlink it first, then try again.';
 

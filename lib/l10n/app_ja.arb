@@ -246,6 +246,7 @@
   "settingsAccountLinkingSection": "アカウント連携",
   "settingsLinkProviderCta": "{provider}と連携",
   "accountLinkingSucceededSnackbar": "{provider}アカウントを連携しました。",
+  "accountLinkingSignInThenLinkHint": "{provider}アカウントでログインしました。他のログイン方法は「設定」>「アカウント連携」から追加できます。",
   "settingsLinkFailedAlreadyLinked": "このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。",
   "settingsLinkFailedAlreadyLinkedHere": "このログイン方法はすでにこのアカウントに連携されています。",
 
