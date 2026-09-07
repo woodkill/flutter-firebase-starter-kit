@@ -47,6 +47,16 @@ class TermsNotifier extends _$TermsNotifier {
   /// 내부 캐시. [mirrorToFirestore] 호출 시 [state] 대신 이 필드를 참조한다.
   TermsAcceptance? _acceptance;
 
+  /// [_acceptance] 의 읽기 전용 접근자 (Phase 16 G-16-A9-1 — Custom Token
+  /// callable payload 직렬화 source).
+  ///
+  /// 4 Custom Token endpoint (kakao/naver/line/yahoojp) 로 전송하는
+  /// `termsAcceptanceSnapshot` payload 를 `AuthRepository` 가 콜백으로 읽는다.
+  /// [state] 가 아니라 [_acceptance] 를 노출하는 이유는 [mirrorToFirestore]
+  /// 가 참조하는 것과 동일한 내부 캐시여야 payload 값과 Firestore mirror 값이
+  /// 항상 일치하기 때문이다.
+  TermsAcceptance? get acceptanceSnapshot => _acceptance;
+
   /// 가장 최근 [reloadForUser] 가 로드한 uid 를 보관한다 (Issue #7 C-1 —
   /// Plan 10-11 stale 가드).
   ///

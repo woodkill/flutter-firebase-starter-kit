@@ -15,6 +15,9 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
+// Phase 16 G-16-A9-1: authRepository factory provider 의 콜백 주입 전용 import.
+// AuthRepository 클래스 본체는 본 타입을 참조하지 않는다 (D-A2 관례).
+import '../../terms/presentation/terms_notifier.dart';
 import '../application/social_link_in_progress.dart';
 import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
@@ -58,6 +61,18 @@ class AuthRepository {
   /// import 는 본 클래스 본체가 아닌 [authRepository] factory provider 영역
   /// 한정. 콜백 signature `Future<void> Function()` 만 의존하므로
   /// `Notifier` 구현 교체에도 본 클래스 변경 0건.
+  ///
+  /// [readTermsAcceptanceSnapshot] 은 device-local 약관 동의를 Custom Token
+  /// callable payload 용 JSON 으로 읽는 콜백이다 (Phase 16 G-16-A9-1).
+  /// `_onResetOnboarding` 과 동일한 D-A2 논리로 `TermsNotifier` 타입은 본
+  /// 클래스 본체가 아닌 [authRepository] factory provider 영역 한정이며,
+  /// 본체는 `Map<String, dynamic>? Function()` signature 만 의존한다.
+  /// 반환 map 의 키 집합은 서버 계약
+  /// `functions/src/shared/terms_acceptance_json.ts` 의
+  /// `TermsAcceptanceJson` 5 키 (version / service / privacy / marketing /
+  /// acceptedAt) 와 정확히 일치해야 한다 (D-13 / D-14 anchor). 미주입 시
+  /// 기본값은 항상 null 을 반환하는 [_readNoTermsAcceptanceSnapshot] 이며,
+  /// 이때 payload 는 기존과 100% 동일하다 (add-only, 회귀 0).
   AuthRepository(
     this._auth,
     this._googleSignIn,
@@ -70,7 +85,10 @@ class AuthRepository {
     this._yahoojpSdkClient,
     this._onResetOnboarding, {
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+    Map<String, dynamic>? Function()? readTermsAcceptanceSnapshot,
+  }) : _now = now ?? DateTime.now,
+       _readTermsAcceptanceSnapshot =
+           readTermsAcceptanceSnapshot ?? _readNoTermsAcceptanceSnapshot;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -82,6 +100,10 @@ class AuthRepository {
   final LineSdkClient _lineSdkClient;
   final YahoojpSdkClient _yahoojpSdkClient;
   final Future<void> Function() _onResetOnboarding;
+
+  /// device-local 약관 동의 snapshot 을 서버 계약 JSON 으로 읽는 콜백
+  /// (Phase 16 G-16-A9-1). 동의 부재 시 null.
+  final Map<String, dynamic>? Function() _readTermsAcceptanceSnapshot;
 
   /// Phase 16 D-12 / Pitfall 5 — client-side cache for `lookupSignInMethods`
   /// callable responses. 동일 collisionEmail 의 rate limit 누적 회피
@@ -1306,8 +1328,13 @@ class AuthRepository {
       }
 
       final callable = _functions.httpsCallable('lineCustomToken');
+      // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉해 서버가
+      // identity 생성과 같은 write 안에서 termsAccepted 를 mirror 하게 한다.
       final response = await callable.call<Map<String, dynamic>>(
-        <String, dynamic>{'idToken': result.idToken, 'nonce': result.nonce},
+        _buildCustomTokenPayload(<String, dynamic>{
+          'idToken': result.idToken,
+          'nonce': result.nonce,
+        }),
       );
       final customToken = response.data['customToken'] as String?;
       if (customToken == null) {
@@ -1856,6 +1883,30 @@ class AuthRepository {
     };
   }
 
+  /// Custom Token callable payload 에 `termsAcceptanceSnapshot` 을 add-only 로
+  /// 부착한다 (Phase 16 G-16-A9-1 / D-13).
+  ///
+  /// **회귀 invariant (add-only):** device-local 동의가 없어 reader 가 null 을
+  /// 반환하면 [base] 를 그대로 반환한다 — 4 provider 의 기존 payload 키 집합이
+  /// 한 글자도 바뀌지 않는다. 서버 arg 도 optional 이므로 본 helper 호출만
+  /// 되돌리면 완전 복귀한다.
+  ///
+  /// **서버 계약:** 부착 값의 키 집합은
+  /// `functions/src/shared/terms_acceptance_json.ts` 의 `TermsAcceptanceJson`
+  /// 5 키 (version / service / privacy / marketing / acceptedAt) 와 정확히
+  /// 일치해야 한다. 4 endpoint (kakao/naver/line/yahoojp) 가 이를 optional 로
+  /// 수신해 `users/{uid}` 문서 생성과 같은 write 안에서 mirror 한다.
+  ///
+  /// **`acceptedAt` 은 ISO 8601 String 이어야 한다.** 서버가
+  /// `Timestamp.fromDate(new Date(...))` 로 파싱하므로 `DateTime` 객체나 epoch
+  /// int 를 보내면 파싱이 깨진다. `TermsAcceptance.toJson()` 의
+  /// `toIso8601String()` 출력이 그대로 계약을 만족한다.
+  Map<String, dynamic> _buildCustomTokenPayload(Map<String, dynamic> base) {
+    // RED (G-16-A9-1): reader seam 만 연결된 상태. snapshot 부착은 GREEN 단계.
+    _readTermsAcceptanceSnapshot();
+    return base;
+  }
+
   /// [FirebaseFunctionsException] 을 [AppException] 으로 매핑한다
   /// (Phase 12 D-30 / RESEARCH Pattern 4 / Phase 12.1 R3 — D-34).
   ///
@@ -2076,6 +2127,13 @@ class _CachedProvider {
       now.difference(cachedAt) >= AuthRepository._kAccountExistsCacheTtl;
 }
 
+/// [AuthRepository.new] 의 `readTermsAcceptanceSnapshot` 미주입 시 기본 구현
+/// (Phase 16 G-16-A9-1).
+///
+/// 항상 null 을 반환하여 Custom Token payload 를 기존 키 집합 그대로 유지한다
+/// (add-only invariant — 기존 테스트 12곳의 생성자 호출부 회귀 0).
+Map<String, dynamic>? _readNoTermsAcceptanceSnapshot() => null;
+
 /// firebase_auth [fb.User]를 도메인 [User]로 변환한다 (D-12).
 ///
 /// firebase_auth import는 features/auth/data 경계 안에만 존재해야 하며,
@@ -2117,6 +2175,12 @@ AuthRepository authRepository(Ref ref) {
     // OnboardingNotifier 타입은 본 factory 영역에서만 알며,
     // AuthRepository 클래스 본체는 콜백 signature 만 의존한다.
     () => ref.read(onboardingProvider.notifier).reset(),
+    // Phase 16 G-16-A9-1: 동일한 D-A2 콜백 주입 관례. TermsNotifier 타입은
+    // 본 factory 영역에서만 알며, AuthRepository 클래스 본체는
+    // `Map<String, dynamic>? Function()` signature 만 의존한다. toJson() 이
+    // 서버 TermsAcceptanceJson 5 키를 그대로 산출한다 (acceptedAt = ISO 8601).
+    readTermsAcceptanceSnapshot: () =>
+        ref.read(termsProvider.notifier).acceptanceSnapshot?.toJson(),
   );
 }
 
