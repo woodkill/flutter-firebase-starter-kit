@@ -74,11 +74,9 @@ class TermsNotifier extends _$TermsNotifier {
   ///
   /// 동의 기록이 없으면 `null` (payload 미부착).
   Map<String, dynamic>? get acceptanceSnapshotJson {
-    final acceptance = _acceptance;
-    if (acceptance == null) return null;
-    return acceptance
-        .copyWith(acceptedAt: acceptance.acceptedAt.toUtc())
-        .toJson();
+    // 정규화 책임은 TermsAcceptanceServerJson 확장 1곳에 모은다 (WR-05) —
+    // 계약 sentinel 테스트가 같은 메서드를 통과해야 fixture drift 가 없다.
+    return _acceptance?.toServerJson();
   }
 
   /// 가장 최근 [reloadForUser] 가 로드한 uid 를 보관한다 (Issue #7 C-1 —

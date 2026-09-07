@@ -22,6 +22,8 @@
 // TS5/TS6: naver + snapshot 유/무 (base {accessToken} — provider 계약 차이)
 // TS7/TS8: yahoojp + snapshot 유/무 (base {idToken, nonce})
 // TS9: 4 provider 대칭 sentinel — snapshot 키 집합이 서로 동일 (drift 차단)
+// TS10 (WR-05): 실제 producer(TermsAcceptance.toServerJson) 계약 —
+//      모델에 6번째 필드가 추가되면 FAIL + local DateTime 의 UTC 정규화
 
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -37,6 +39,7 @@ import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
+import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -77,17 +80,24 @@ const _serverContractKeys = <String>{
   'acceptedAt',
 };
 
-/// device-local 동의 fixture — `TermsAcceptance.toJson()` 출력과 동형.
+/// device-local 동의 snapshot — **실제 producer 를 통과시킨다** (WR-05).
 ///
-/// `acceptedAt` 은 서버가 `Timestamp.fromDate(new Date(...))` 로 파싱하므로
-/// 반드시 ISO 8601 String 이어야 한다.
-Map<String, dynamic> _snapshotFixture() => <String, dynamic>{
-  'version': 1,
-  'service': true,
-  'privacy': true,
-  'marketing': false,
-  'acceptedAt': '2026-09-07T09:00:00.000Z',
-};
+/// 손으로 쓴 fixture map 을 쓰면 `TermsAcceptance` 모델에 6번째 필드가
+/// 추가되어도 sentinel 이 GREEN 을 유지한다 (양 끝단은 GREEN 인데 사이
+/// wiring 이 감지되지 않는, 이 파일이 스스로 막겠다고 선언한 실패 계열).
+/// 프로덕션 wiring 과 동일하게 `TermsAcceptance.toServerJson()` 을
+/// 통과시켜 모델 변경이 즉시 계약 위반으로 드러나게 한다.
+///
+/// [acceptedAt] 은 **local** `DateTime` 을 의도적으로 사용한다 —
+/// `TermsNotifier.accept()` 가 만드는 값과 동일한 형태이며, CR-01 의
+/// UTC 정규화가 실제로 동작하는지 검증하기 위한 전제다.
+Map<String, dynamic> _snapshotFixture() => TermsAcceptance(
+  version: 1,
+  service: true,
+  privacy: true,
+  marketing: false,
+  acceptedAt: DateTime(2026, 9, 7, 18),
+).toServerJson();
 
 void main() {
   late _MockFirebaseAuth mockAuth;
@@ -219,6 +229,14 @@ void main() {
       returnsNormally,
       reason: 'acceptedAt 은 서버 Timestamp.fromDate 파싱 대상 (ISO 8601)',
     );
+    // CR-01: 서버(TZ=UTC)는 offset 없는 문자열을 UTC 로 해석하므로 반드시
+    // Z 접미 UTC 문자열이어야 한다. local DateTime 을 그대로
+    // toIso8601String() 하면 타임존 지시자가 없어 offset 만큼 어긋난다.
+    expect(
+      snapshotMap['acceptedAt'] as String,
+      endsWith('Z'),
+      reason: 'acceptedAt 은 UTC(Z 접미) 로 정규화되어 전송되어야 한다 (CR-01)',
+    );
     return snapshotMap;
   }
 
@@ -345,6 +363,50 @@ void main() {
       expect(result, isA<Success<dynamic>>());
       expect(capturePayload().keys.toSet(), <String>{'idToken', 'nonce'});
     });
+  });
+
+  group('TS10 (WR-05) — 실제 producer 계약 sentinel', () {
+    test(
+      'TermsAcceptance.toServerJson() 키 집합이 서버 5 키와 정확히 일치 (6번째 필드 추가 시 FAIL)',
+      () {
+        final produced = TermsAcceptance(
+          version: 1,
+          service: true,
+          privacy: true,
+          marketing: false,
+          acceptedAt: DateTime.now(),
+        ).toServerJson();
+
+        expect(
+          produced.keys.toSet(),
+          _serverContractKeys,
+          reason:
+              'Dart 모델에 필드가 추가/삭제되면 실제 전송 payload 가 달라진다 — '
+              '손으로 쓴 fixture 는 이 변화를 감지하지 못했다 (WR-05)',
+        );
+      },
+    );
+
+    test(
+      'local DateTime 으로 만든 동의도 acceptedAt 이 UTC(Z) 로 정규화된다 (CR-01)',
+      () {
+        final local = DateTime(2026, 9, 7, 23, 30, 38);
+        expect(local.isUtc, isFalse, reason: 'local 전제 고정');
+
+        final produced = TermsAcceptance(
+          version: 1,
+          service: true,
+          privacy: true,
+          marketing: false,
+          acceptedAt: local,
+        ).toServerJson();
+
+        final acceptedAt = produced['acceptedAt'] as String;
+        expect(acceptedAt, endsWith('Z'));
+        // 표현만 정규화되고 instant 는 보존된다.
+        expect(DateTime.parse(acceptedAt).isAtSameMomentAs(local), isTrue);
+      },
+    );
   });
 
   group('TS9 — 4 provider 대칭 sentinel', () {
