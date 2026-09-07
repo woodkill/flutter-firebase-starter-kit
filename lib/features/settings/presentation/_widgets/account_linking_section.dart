@@ -169,7 +169,6 @@ class AccountLinkingSection extends ConsumerWidget {
           SnackBar(content: Text(l10n.withdrawalReauthRequired)),
         );
         unawaited(router.push(AppRoutes.login));
-      case AccountLinkOutcome.alreadyLinkedOrFailed:
       case AccountLinkOutcome.alreadyLinked:
       case AccountLinkOutcome.emailInUse:
       case AccountLinkOutcome.transientFailure:

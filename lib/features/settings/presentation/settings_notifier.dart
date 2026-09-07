@@ -8,6 +8,7 @@
 // 4. 실패: state = AsyncValue.error(e, st)
 //
 // signOutAndResetOnboarding 후 router 의 authRedirect 가 자동으로 `/onboarding` 으로 reset.
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/auth/provider_id.dart';
@@ -138,26 +139,63 @@ class SettingsNotifier extends _$SettingsNotifier {
       if (result == null) return AccountLinkOutcome.cancelled;
       return switch (result) {
         Success<User>() => AccountLinkOutcome.success,
-        Failure<User>(:final exception) =>
-          exception is ReauthenticationRequiredException
-              ? AccountLinkOutcome.reauthRequired
-              : AccountLinkOutcome.alreadyLinkedOrFailed,
+        Failure<User>(:final exception) => _mapLinkFailure(exception),
       };
-    } on Object catch (_) {
+    } on Object catch (e) {
       // 방어적 — repository 가 Result 로 흡수하므로 도달 거의 없음.
+      // G-16-A6-2: 도달 시 원인을 잃지 않도록 runtimeType 만 남긴다 (PII 0).
+      if (kDebugMode) {
+        debugPrint(
+          'SettingsNotifier._dispatchLink 미흡수 예외: '
+          'runtimeType=${e.runtimeType}',
+        );
+      }
       // WR-04: catch path 에서도 disposed 여부 확인 후 state write.
-      if (!ref.mounted) return AccountLinkOutcome.alreadyLinkedOrFailed;
+      if (!ref.mounted) return AccountLinkOutcome.failed;
       state = const AsyncValue<void>.data(null);
-      return AccountLinkOutcome.alreadyLinkedOrFailed;
+      return AccountLinkOutcome.failed;
     }
+  }
+
+  /// link 실패 [exception] 을 원인별 [AccountLinkOutcome] 으로 분기한다
+  /// (Phase 16 G-16-A6-2).
+  ///
+  /// 상류 `AuthRepository._mapProactiveLinkException` /
+  /// `_mapFunctionsException` 이 만든 [AppException] 서브타입이 입력 계약이며,
+  /// 반환값이 Surface D 위젯의 SnackBar 문구를 직접 결정한다. 단일
+  /// `alreadyLinkedOrFailed` 로 뭉개던 기존 삼항을 대체한다 — 2026-09-07 A6
+  /// 실측에서 `credential-already-in-use` 실패에 이메일 문구가 표시된 원인.
+  AccountLinkOutcome _mapLinkFailure(AppException exception) {
+    return switch (exception) {
+      // `requires-recent-login` — 5분 auth_time boundary (기존 동작 유지).
+      ReauthenticationRequiredException() => AccountLinkOutcome.reauthRequired,
+      // `provider-already-linked` / `credential-already-in-use` +
+      // Custom Token arm 의 callable `already-exists`.
+      AccountAlreadyLinked() => AccountLinkOutcome.alreadyLinked,
+      // `email-already-in-use` / `account-exists-with-different-credential`.
+      EmailAlreadyInUse() ||
+      AccountExistsWithDifferentCredential() => AccountLinkOutcome.emailInUse,
+      // NetworkException 은 sealed 상위 — ConnectionTimeout /
+      // NoInternetConnection(`network-request-failed`) / RequestTimeout 흡수.
+      NetworkException() ||
+      TooManyRequests() ||
+      ServiceUnavailable() => AccountLinkOutcome.transientFailure,
+      // 미분류 catch-all — 조용히 사라지지 않게 전용 값으로 보존한다.
+      _ => AccountLinkOutcome.failed,
+    };
   }
 }
 
 /// proactive 계정 연결 결과 분기 (Phase 16 16-11 / Surface D).
 ///
 /// [SettingsNotifier.linkProvider] 가 반환하며, 위젯이 결과별 UI
-/// (성공 snackbar / reauth 라우팅 / already-linked 안내 / 취소 no-op /
-/// 미지원 graceful) 를 분기하는 데 사용한다.
+/// (성공 snackbar / reauth 라우팅 / 원인별 실패 문구 / 취소 no-op /
+/// 미지원 전용 문구) 를 분기하는 데 사용한다.
+///
+/// **G-16-A6-2:** 실패는 원인별 4 값 ([alreadyLinked] / [emailInUse] /
+/// [transientFailure] / [failed]) 으로 분리된다. 이전 단일 값
+/// `alreadyLinkedOrFailed` 는 서로 다른 원인을 같은(대부분 틀린) 문구로
+/// 표시해 2026-09-07 A6 실측 오진의 원인이 되었다.
 enum AccountLinkOutcome {
   /// link 성공 — 성공 snackbar + linkedProviders 자동 refresh.
   success,
@@ -168,22 +206,26 @@ enum AccountLinkOutcome {
   /// 재인증 필요 (`requires-recent-login`) — 재로그인 라우팅 (D-06 mirror).
   reauthRequired,
 
-  /// 이미 연결됨 / 기타 link 실패 — graceful 안내 SnackBar (크래시 0).
-  alreadyLinkedOrFailed,
-
-  /// 해당 로그인 정보가 이미 다른 계정에 연결됨 (G-16-A6-2).
+  /// 해당 로그인 정보가 이미 다른 계정에 연결됨 ([AccountAlreadyLinked],
+  /// G-16-A6-2) — `settingsLinkFailedAlreadyLinked` 로 렌더.
   alreadyLinked,
 
-  /// 이메일이 이미 다른 계정에서 사용 중 (G-16-A6-2).
+  /// 이메일이 이미 다른 계정에서 사용 중 ([EmailAlreadyInUse] /
+  /// [AccountExistsWithDifferentCredential], G-16-A6-2) —
+  /// `settingsLinkFailedEmailInUse` 로 렌더.
   emailInUse,
 
-  /// 네트워크 / 서비스 일시 오류 (G-16-A6-2).
+  /// 네트워크 / 서비스 일시 오류 ([NetworkException] 계열 / [TooManyRequests] /
+  /// [ServiceUnavailable], G-16-A6-2) — `settingsLinkFailedTransient` 로 렌더.
   transientFailure,
 
-  /// 분류되지 않은 link 실패 catch-all (G-16-A6-2).
+  /// 분류되지 않은 link 실패 catch-all (G-16-A6-2) —
+  /// `settingsLinkFailedUnknown` 으로 렌더. 정확한 코드는 repository 의
+  /// kDebugMode `code=` 로그로 logcat 에 남는다.
   failed,
 
   /// proactive link 미지원 (naver: deployed callable OIDC 부재 / email:
-  /// Surface D EXCLUDE) — graceful 안내 SnackBar.
+  /// Surface D EXCLUDE) — **실패가 아니라 미지원**이므로 실패 4 문구와 구분되는
+  /// 전용 문구 `settingsLinkUnsupportedProvider` 로 렌더한다 (G-16-A6-2).
   unsupported,
 }

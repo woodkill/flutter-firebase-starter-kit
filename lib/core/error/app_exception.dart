@@ -168,9 +168,17 @@ final class AccountExistsWithDifferentCredential extends AuthException {
 ///
 /// `linkPendingNativeCredential` 의 `linkWithCredential` 단계에서 Firebase
 /// 가 `provider-already-linked` 또는 `credential-already-in-use` 코드를
-/// 반환할 때 매핑된다. 이미 연결된 자격증명을 중복 link 시도한 경우로,
-/// 사용자에게는 재로그인 안내 (`errorAccountExistsWithUnknownProvider`
-/// 재사용) 를 표시한다 — 신규 ARB 0건 (회귀 안전).
+/// 반환할 때 매핑된다. 이미 연결된 자격증명을 중복 link 시도한 경우다.
+///
+/// **두 경로의 문구가 다르다 (Phase 16 G-16-A6-2).**
+/// - reactive (AccountLinkingSheet / `resolveExceptionMessage` 경유): [userMessage]
+///   필드값 `errorAccountExistsWithUnknownProvider` 를 그대로 사용한다 — 신규
+///   ARB 0건 결정 유지, WR-01/WR-02 산출 회귀 0.
+/// - proactive (Settings Surface D): `SettingsNotifier` 가 본 타입을
+///   `AccountLinkOutcome.alreadyLinked` 로 분기하고 위젯이 전용 문구
+///   `settingsLinkFailedAlreadyLinked` 를 렌더한다. 2026-09-07 A6 실측에서
+///   실제 원인이 `credential-already-in-use` 인데 이메일 문구가 표시된 collapse
+///   를 해소하기 위한 것으로, [userMessage] 자체는 **변경하지 않는다**.
 final class AccountAlreadyLinked extends AuthException {
   /// [AccountAlreadyLinked]을 생성한다.
   const AccountAlreadyLinked({super.cause})

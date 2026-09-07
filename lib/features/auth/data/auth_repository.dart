@@ -863,6 +863,13 @@ class AuthRepository {
           e.code == 'popup-closed-by-user') {
         return null;
       }
+      // PII invariant (T-16-15-01): code 만 — email / e.credential / token 본문
+      // 비포함. G-16-A6-2 (2026-09-07 A6) 에서 본 분기가 로그 0 이라 실 단말
+      // logcat 만으로 원인 특정이 불가능했다. linkCustomTokenProviderArm(1004~)
+      // 및 settings_repository(66~) 의 code-only 형식 mirror.
+      if (kDebugMode) {
+        debugPrint('proactive native link 실패: code=${e.code}');
+      }
       return Result.failure(_mapProactiveLinkException(e));
     } on Object catch (e, st) {
       if (kDebugMode) {
@@ -882,7 +889,17 @@ class AuthRepository {
   ///   가 재로그인 라우팅. threat T-16-10-01 mitigate).
   /// - `provider-already-linked` / `credential-already-in-use` →
   ///   [AccountAlreadyLinked] (회귀 안전 ARB 재사용. threat T-16-10-02 mitigate).
-  /// - 그 외 → [_mapAuthException] (기존 표준 매핑 재사용).
+  /// - 그 외 → [_mapAuthException] (기존 표준 매핑 재사용). 위임 결과 중
+  ///   하류가 실제로 구분하는 3 코드: `email-already-in-use` →
+  ///   [EmailAlreadyInUse], `network-request-failed` → [NoInternetConnection],
+  ///   `too-many-requests` → [TooManyRequests].
+  ///
+  /// **하류 계약 (G-16-A6-2):** `SettingsNotifier._dispatchLink` 가 본 메서드가
+  /// 만든 [AppException] 서브타입을 원인별 `AccountLinkOutcome`
+  /// (alreadyLinked / emailInUse / transientFailure / reauthRequired / failed)
+  /// 으로 type-pattern 분기하고, Surface D 위젯이 outcome 별 전용 문구를
+  /// 렌더한다. 따라서 본 매퍼의 서브타입 선택은 사용자 노출 문구를 직접
+  /// 결정한다 — arm 을 넓히거나 좁힐 때 하류 매핑을 함께 확인할 것.
   AppException _mapProactiveLinkException(fb.FirebaseAuthException e) {
     return switch (e.code) {
       'requires-recent-login' => ReauthenticationRequiredException(cause: e),
