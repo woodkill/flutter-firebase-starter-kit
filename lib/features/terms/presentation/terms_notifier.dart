@@ -57,6 +57,30 @@ class TermsNotifier extends _$TermsNotifier {
   /// 항상 일치하기 때문이다.
   TermsAcceptance? get acceptanceSnapshot => _acceptance;
 
+  /// Custom Token callable payload 로 전송할 `termsAcceptanceSnapshot` JSON
+  /// (Phase 16 CR-01 — timezone 정합성 고정).
+  ///
+  /// [acceptanceSnapshot] 을 그대로 `toJson()` 하면 안 된다. [accept] 는
+  /// `DateTime.now()` (**local**) 로 [TermsAcceptance.acceptedAt] 을 만들고,
+  /// Dart 의 `toIso8601String()` 은 UTC 가 아닌 `DateTime` 에 타임존 지시자를
+  /// 붙이지 않는다 (`2026-09-07T23:30:38.738305`). 서버(Cloud Functions, TZ=UTC)
+  /// 는 `new Date(...)` 로 offset 없는 문자열을 **런타임 local = UTC** 로
+  /// 해석하므로, KST 사용자의 동의 시각이 9시간 미래로 기록된다.
+  ///
+  /// 따라서 직렬화 시점에 [DateTime.toUtc] 로 정규화해 항상 `Z` 접미
+  /// (절대 instant) 문자열을 전송한다. 이 정규화로 Custom Token 경로와
+  /// [mirrorToFirestore] (`Timestamp.fromDate` — local `DateTime` 도 정확한
+  /// instant 로 변환) 의 기준이 일치한다.
+  ///
+  /// 동의 기록이 없으면 `null` (payload 미부착).
+  Map<String, dynamic>? get acceptanceSnapshotJson {
+    final acceptance = _acceptance;
+    if (acceptance == null) return null;
+    return acceptance
+        .copyWith(acceptedAt: acceptance.acceptedAt.toUtc())
+        .toJson();
+  }
+
   /// 가장 최근 [reloadForUser] 가 로드한 uid 를 보관한다 (Issue #7 C-1 —
   /// Plan 10-11 stale 가드).
   ///

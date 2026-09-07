@@ -1929,10 +1929,16 @@ class AuthRepository {
   /// 일치해야 한다. 4 endpoint (kakao/naver/line/yahoojp) 가 이를 optional 로
   /// 수신해 `users/{uid}` 문서 생성과 같은 write 안에서 mirror 한다.
   ///
-  /// **`acceptedAt` 은 ISO 8601 String 이어야 한다.** 서버가
+  /// **`acceptedAt` 은 UTC ISO 8601 String (`Z` 접미) 이어야 한다.** 서버가
   /// `Timestamp.fromDate(new Date(...))` 로 파싱하므로 `DateTime` 객체나 epoch
-  /// int 를 보내면 파싱이 깨진다. `TermsAcceptance.toJson()` 의
-  /// `toIso8601String()` 출력이 그대로 계약을 만족한다.
+  /// int 를 보내면 파싱이 깨진다.
+  ///
+  /// **CR-01:** `TermsAcceptance.toJson()` 출력만으로는 계약을 만족하지
+  /// **않는다** — `toIso8601String()` 은 UTC 가 아닌 `DateTime` 에 타임존
+  /// 지시자를 붙이지 않고, 서버(TZ=UTC) 는 offset 없는 문자열을 UTC 로 해석해
+  /// local offset 만큼 어긋난 시각을 기록한다. 정규화 책임은 producer 인
+  /// `TermsNotifier.acceptanceSnapshotJson` 에 있으며 본 메서드는 주입된
+  /// snapshot 을 그대로 부착한다.
   Map<String, dynamic> _buildCustomTokenPayload(Map<String, dynamic> base) {
     final snapshot = _readTermsAcceptanceSnapshot();
     if (snapshot == null) {
@@ -2212,10 +2218,11 @@ AuthRepository authRepository(Ref ref) {
     () => ref.read(onboardingProvider.notifier).reset(),
     // Phase 16 G-16-A9-1: 동일한 D-A2 콜백 주입 관례. TermsNotifier 타입은
     // 본 factory 영역에서만 알며, AuthRepository 클래스 본체는
-    // `Map<String, dynamic>? Function()` signature 만 의존한다. toJson() 이
-    // 서버 TermsAcceptanceJson 5 키를 그대로 산출한다 (acceptedAt = ISO 8601).
+    // `Map<String, dynamic>? Function()` signature 만 의존한다.
+    // acceptanceSnapshotJson 이 서버 TermsAcceptanceJson 5 키를 산출한다
+    // (acceptedAt = UTC 정규화된 ISO 8601 — CR-01).
     readTermsAcceptanceSnapshot: () =>
-        ref.read(termsProvider.notifier).acceptanceSnapshot?.toJson(),
+        ref.read(termsProvider.notifier).acceptanceSnapshotJson,
   );
 }
 
