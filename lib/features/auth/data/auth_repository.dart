@@ -1534,6 +1534,17 @@ class AuthRepository {
     }
   }
 
+  /// 기존 provider 로 로그인한다 — reactive 시트 step 1 디스패처
+  /// (Phase 16 Plan 16-19).
+  ///
+  /// **RED 단계 스텁 (Plan 16-19 Task 1):** 본 메서드는 아직 위임 로직이 없다.
+  /// GREEN 단계에서 exhaustive switch 위임으로 채운다.
+  Future<Result<User>?> signInWithExistingProvider({
+    required AccountProvider provider,
+  }) async {
+    throw UnimplementedError('signInWithExistingProvider (Plan 16-19 GREEN)');
+  }
+
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
   ///
   /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
