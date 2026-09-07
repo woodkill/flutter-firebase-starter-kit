@@ -171,6 +171,18 @@ enum AccountLinkOutcome {
   /// 이미 연결됨 / 기타 link 실패 — graceful 안내 SnackBar (크래시 0).
   alreadyLinkedOrFailed,
 
+  /// 해당 로그인 정보가 이미 다른 계정에 연결됨 (G-16-A6-2).
+  alreadyLinked,
+
+  /// 이메일이 이미 다른 계정에서 사용 중 (G-16-A6-2).
+  emailInUse,
+
+  /// 네트워크 / 서비스 일시 오류 (G-16-A6-2).
+  transientFailure,
+
+  /// 분류되지 않은 link 실패 catch-all (G-16-A6-2).
+  failed,
+
   /// proactive link 미지원 (naver: deployed callable OIDC 부재 / email:
   /// Surface D EXCLUDE) — graceful 안내 SnackBar.
   unsupported,

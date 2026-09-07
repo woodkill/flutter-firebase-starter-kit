@@ -171,15 +171,17 @@ void main() {
       expect(outcome, AccountLinkOutcome.reauthRequired);
     });
 
-    test('L5 google 기타 실패 → alreadyLinkedOrFailed', () async {
+    test('L5 google 미분류 실패 → failed (G-16-A6-2 catch-all)', () async {
+      // 분류 arm 어디에도 걸리지 않는 실패는 조용히 사라지지 않고 catch-all
+      // `failed` 로 보존된다 (기존 alreadyLinkedOrFailed collapse 대체).
       when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
-        (_) async => const Result<User>.failure(AccountAlreadyLinked()),
+        (_) async => const Result<User>.failure(UnknownException()),
       );
 
       final notifier = container.read(settingsProvider.notifier);
       final outcome = await notifier.linkProvider(AccountProvider.google);
 
-      expect(outcome, AccountLinkOutcome.alreadyLinkedOrFailed);
+      expect(outcome, AccountLinkOutcome.failed);
     });
 
     test('L6 사용자 취소 (null) → cancelled', () async {
@@ -209,6 +211,68 @@ void main() {
           targetProvider: AccountProvider.kakao,
         ),
       ).called(1);
+    });
+
+    test('L8 AccountAlreadyLinked → alreadyLinked (G-16-A6-2)', () async {
+      // A6 실측 원인 (credential-already-in-use / provider-already-linked) 이
+      // 하류에서 collapse 되지 않고 전용 outcome 으로 보존되는지 검증.
+      when(() => mockAuthRepo.linkFacebookCredential()).thenAnswer(
+        (_) async => const Result<User>.failure(AccountAlreadyLinked()),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.facebook);
+
+      expect(outcome, AccountLinkOutcome.alreadyLinked);
+    });
+
+    test('L9 EmailAlreadyInUse → emailInUse (G-16-A6-2)', () async {
+      when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
+        (_) async => const Result<User>.failure(EmailAlreadyInUse()),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.google);
+
+      expect(outcome, AccountLinkOutcome.emailInUse);
+    });
+
+    test('L9b AccountExistsWithDifferentCredential → emailInUse', () async {
+      when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
+        (_) async => const Result<User>.failure(
+          AccountExistsWithDifferentCredential(),
+        ),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.google);
+
+      expect(outcome, AccountLinkOutcome.emailInUse);
+    });
+
+    test('L10 일시적 오류 3종 → transientFailure (G-16-A6-2)', () async {
+      // NetworkException sealed 상위 1 arm 이 NoInternetConnection 을 흡수하고,
+      // TooManyRequests / ServiceUnavailable 도 같은 outcome 으로 수렴한다.
+      const transientExceptions = <AppException>[
+        NoInternetConnection(),
+        TooManyRequests(),
+        ServiceUnavailable(),
+      ];
+
+      for (final exception in transientExceptions) {
+        when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
+          (_) async => Result<User>.failure(exception),
+        );
+
+        final notifier = container.read(settingsProvider.notifier);
+        final outcome = await notifier.linkProvider(AccountProvider.google);
+
+        expect(
+          outcome,
+          AccountLinkOutcome.transientFailure,
+          reason: '${exception.runtimeType} 은 transientFailure 이어야 한다',
+        );
+      }
     });
   });
 }

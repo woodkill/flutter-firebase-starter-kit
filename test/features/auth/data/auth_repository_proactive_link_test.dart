@@ -28,9 +28,13 @@
 //   T8 (race-fix): 전 구간 _socialLinkInProgress.begin/finally end (1:1)
 //   T9 (proactive Custom Token 재사용): linkCustomTokenProviderArm 재사용
 //       (16-09) — 별도 proactive Custom Token 메서드 추가 0 sentinel
+//   T10 (PII sentinel, G-16-A6-2 / T-16-15-01): FirebaseAuthException 분기가
+//       code 만 담은 debugPrint 1줄을 남기고 email / credential 토큰 본문은
+//       남기지 않는다 (실 단말 logcat 원인 특정 가능 + PII 0)
 
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -355,6 +359,37 @@ void main() {
         // 보장 (linkCustomTokenProviderArm 시그니처 유지).
         final tearOff = repository.linkCustomTokenProviderArm;
         expect(tearOff, isNotNull);
+      },
+    );
+  });
+
+  group('T10 — PII sentinel (G-16-A6-2 / T-16-15-01)', () {
+    test(
+      'credential-already-in-use 실패 로그에 code 만 남고 email / 토큰 본문은 없다',
+      () async {
+        final captured = <String>[];
+        final originalDebugPrint = debugPrint;
+        debugPrint = (String? message, {int? wrapWidth}) {
+          if (message != null) captured.add(message);
+        };
+        addTearDown(() => debugPrint = originalDebugPrint);
+
+        stubFacebookFresh();
+        when(() => mockCurrentUser.linkWithCredential(any())).thenThrow(
+          fb.FirebaseAuthException(code: 'credential-already-in-use'),
+        );
+
+        final result = await repository.linkFacebookCredential();
+
+        expect(result, isA<Failure<dynamic>>());
+
+        final log = captured.join('\n');
+        // 진단성 — 실 단말 logcat 으로 원인 특정이 가능해야 한다.
+        expect(log, contains('code='));
+        expect(log, contains('credential-already-in-use'));
+        // PII 0 — mock email / credential 토큰 문자열이 로그에 없어야 한다.
+        expect(log, isNot(contains('user@example.com')));
+        expect(log, isNot(contains('fb-access-token')));
       },
     );
   });

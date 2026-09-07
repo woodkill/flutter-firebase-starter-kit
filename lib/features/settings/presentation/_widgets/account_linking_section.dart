@@ -170,6 +170,10 @@ class AccountLinkingSection extends ConsumerWidget {
         );
         unawaited(router.push(AppRoutes.login));
       case AccountLinkOutcome.alreadyLinkedOrFailed:
+      case AccountLinkOutcome.alreadyLinked:
+      case AccountLinkOutcome.emailInUse:
+      case AccountLinkOutcome.transientFailure:
+      case AccountLinkOutcome.failed:
       case AccountLinkOutcome.unsupported:
         // already-linked / 기타 실패 / 미지원 (naver) — graceful 안내
         // (errorAccountExistsWithUnknownProvider 재사용, 신규 ARB 0건).
