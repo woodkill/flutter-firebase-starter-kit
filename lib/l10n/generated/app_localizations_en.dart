@@ -589,6 +589,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'This sign-in method is already linked to another account. Unlink it first, then try again.';
 
   @override
+  String get settingsLinkFailedAlreadyLinkedHere =>
+      'This account is already linked to that sign-in method.';
+
+  @override
   String get settingsLinkFailedEmailInUse =>
       'This email is already in use by another account.';
 

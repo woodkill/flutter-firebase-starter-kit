@@ -170,10 +170,17 @@ class AccountLinkingSection extends ConsumerWidget {
         );
         unawaited(router.push(AppRoutes.login));
       case AccountLinkOutcome.alreadyLinked:
-        // `provider-already-linked` / `credential-already-in-use` / Custom
-        // Token callable `already-exists` — 해당 신원이 다른 계정 소유 (A6 실측).
+        // `credential-already-in-use` / Custom Token callable
+        // `already-exists` — 해당 신원이 **다른 계정** 소유 (A6 실측).
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.settingsLinkFailedAlreadyLinked)),
+        );
+      case AccountLinkOutcome.alreadyLinkedHere:
+        // WR-04: `provider-already-linked` — 이미 **현재 계정에** 연결됨.
+        // alreadyLinked 문구 ("다른 계정에 연결됨 → 먼저 해제") 는 이 경우
+        // 사실과 반대이고 수행도 불가능하다.
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsLinkFailedAlreadyLinkedHere)),
         );
       case AccountLinkOutcome.emailInUse:
         // `email-already-in-use` / `account-exists-with-different-credential`

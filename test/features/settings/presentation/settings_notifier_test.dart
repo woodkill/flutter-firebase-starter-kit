@@ -226,6 +226,24 @@ void main() {
       expect(outcome, AccountLinkOutcome.alreadyLinked);
     });
 
+    test(
+        'L8b ProviderAlreadyLinkedToThisAccount → alreadyLinkedHere (WR-04)',
+        () async {
+      // `provider-already-linked` — 이미 **현재 계정에** 연결된 경우.
+      // alreadyLinked ("다른 계정에 연결됨 → 먼저 해제") 로 뭉개면 사실과
+      // 반대이면서 수행도 불가능한 안내가 나간다.
+      when(() => mockAuthRepo.linkFacebookCredential()).thenAnswer(
+        (_) async =>
+            const Result<User>.failure(ProviderAlreadyLinkedToThisAccount()),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.facebook);
+
+      expect(outcome, AccountLinkOutcome.alreadyLinkedHere);
+      expect(outcome, isNot(AccountLinkOutcome.alreadyLinked));
+    });
+
     test('L9 EmailAlreadyInUse → emailInUse (G-16-A6-2)', () async {
       when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
         (_) async => const Result<User>.failure(EmailAlreadyInUse()),

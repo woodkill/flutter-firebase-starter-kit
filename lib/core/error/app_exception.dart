@@ -185,6 +185,28 @@ final class AccountAlreadyLinked extends AuthException {
     : super(userMessage: 'errorAccountExistsWithUnknownProvider');
 }
 
+/// 해당 provider 가 **현재 계정에** 이미 연결되어 있음 (Phase 16 WR-04).
+///
+/// Firebase `provider-already-linked` 코드에 대응한다. 의미가 정반대인
+/// `credential-already-in-use` ([AccountAlreadyLinked] — 해당 자격증명이
+/// **다른 계정에** 연결됨) 와 같은 타입으로 뭉개면 사용자에게 사실과 반대인
+/// 안내가 나간다.
+///
+/// - `provider-already-linked` → 본 타입. "이미 이 계정에 연결되어 있다" —
+///   사용자가 할 일이 없다.
+/// - `credential-already-in-use` → [AccountAlreadyLinked]. "다른 계정이
+///   쓰고 있다" — 해제는 그 계정 소유주만 가능하다.
+///
+/// [userMessage] 는 reactive 경로 (`resolveExceptionMessage`) 호환을 위해
+/// [AccountAlreadyLinked] 와 동일 키를 유지하며, proactive Surface D 만
+/// `SettingsNotifier` 가 [AccountLinkOutcome.alreadyLinkedHere] 로 분기해
+/// 전용 문구 `settingsLinkFailedAlreadyLinkedHere` 를 렌더한다.
+final class ProviderAlreadyLinkedToThisAccount extends AuthException {
+  /// [ProviderAlreadyLinkedToThisAccount]을 생성한다.
+  const ProviderAlreadyLinkedToThisAccount({super.cause})
+    : super(userMessage: 'errorAccountExistsWithUnknownProvider');
+}
+
 /// 재인증 필요 (Phase 16 D-06 / D-07).
 ///
 /// `deleteUserAccount` Cloud Function 이 `unauthenticated` 또는

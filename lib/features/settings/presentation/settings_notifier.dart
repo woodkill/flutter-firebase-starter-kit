@@ -169,7 +169,12 @@ class SettingsNotifier extends _$SettingsNotifier {
     return switch (exception) {
       // `requires-recent-login` — 5분 auth_time boundary (기존 동작 유지).
       ReauthenticationRequiredException() => AccountLinkOutcome.reauthRequired,
-      // `provider-already-linked` / `credential-already-in-use` +
+      // WR-04: `provider-already-linked` — 이미 **현재 계정에** 연결됨.
+      // AccountAlreadyLinked 보다 먼저 둘 필요는 없지만 (형제 타입),
+      // 두 arm 이 서로 다른 문구로 갈린다는 사실을 명시적으로 남긴다.
+      ProviderAlreadyLinkedToThisAccount() =>
+        AccountLinkOutcome.alreadyLinkedHere,
+      // `credential-already-in-use` (해당 자격증명이 **다른 계정에** 연결) +
       // Custom Token arm 의 callable `already-exists`.
       AccountAlreadyLinked() => AccountLinkOutcome.alreadyLinked,
       // `email-already-in-use` / `account-exists-with-different-credential`.
@@ -206,9 +211,19 @@ enum AccountLinkOutcome {
   /// 재인증 필요 (`requires-recent-login`) — 재로그인 라우팅 (D-06 mirror).
   reauthRequired,
 
-  /// 해당 로그인 정보가 이미 다른 계정에 연결됨 ([AccountAlreadyLinked],
-  /// G-16-A6-2) — `settingsLinkFailedAlreadyLinked` 로 렌더.
+  /// 해당 로그인 정보가 이미 **다른 계정에** 연결됨 ([AccountAlreadyLinked]
+  /// — `credential-already-in-use`, G-16-A6-2) —
+  /// `settingsLinkFailedAlreadyLinked` 로 렌더.
   alreadyLinked,
+
+  /// 해당 provider 가 이미 **현재 계정에** 연결됨
+  /// ([ProviderAlreadyLinkedToThisAccount] — `provider-already-linked`,
+  /// WR-04) — `settingsLinkFailedAlreadyLinkedHere` 로 렌더.
+  ///
+  /// [alreadyLinked] 와 의미가 정반대다. 하나로 뭉개면 "다른 계정에
+  /// 연결되어 있으니 먼저 해제하세요" 라는, 사실과 반대이면서 수행도
+  /// 불가능한 안내가 나간다.
+  alreadyLinkedHere,
 
   /// 이메일이 이미 다른 계정에서 사용 중 ([EmailAlreadyInUse] /
   /// [AccountExistsWithDifferentCredential], G-16-A6-2) —

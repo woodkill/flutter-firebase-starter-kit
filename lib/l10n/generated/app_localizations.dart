@@ -1168,6 +1168,12 @@ abstract class AppLocalizations {
   /// **'This sign-in method is already linked to another account. Unlink it first, then try again.'**
   String get settingsLinkFailedAlreadyLinked;
 
+  /// Phase 16 WR-04 (2차 리뷰) — Surface D proactive link 실패 문구 (원인: provider-already-linked, 즉 해당 provider 가 이미 *현재* 계정에 연결됨). 소비: AccountLinkOutcome.alreadyLinkedHere (ProviderAlreadyLinkedToThisAccount). settingsLinkFailedAlreadyLinked 는 credential-already-in-use (해당 자격증명이 *다른* 계정에 연결) 전용이며 두 문구는 의미가 정반대다 — 하나로 뭉개면 사실과 반대인 안내 + 수행 불가능한 해결책 (다른 계정 소유주만 해제 가능) 이 나간다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'This account is already linked to that sign-in method.'**
+  String get settingsLinkFailedAlreadyLinkedHere;
+
   /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: email 중복). 소비: AccountLinkOutcome.emailInUse (EmailAlreadyInUse — email-already-in-use, AccountExistsWithDifferentCredential). 문구에 email 값 자체를 echo 하지 않는다 (T-16-15-02 mitigate — 본인 link 시도 결과에만 노출되어 enumeration 표면 0).
   ///
   /// In en, this message translates to:

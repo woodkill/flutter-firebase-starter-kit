@@ -247,6 +247,8 @@
   "settingsLinkProviderCta": "{provider}と連携",
   "accountLinkingSucceededSnackbar": "{provider}アカウントを連携しました。",
   "settingsLinkFailedAlreadyLinked": "このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。",
+  "settingsLinkFailedAlreadyLinkedHere": "このログイン方法はすでにこのアカウントに連携されています。",
+
   "settingsLinkFailedEmailInUse": "このメールアドレスは既に別のアカウントで使用されています。",
   "settingsLinkFailedTransient": "ネットワークまたはサービスのエラーで連携できませんでした。しばらくしてからもう一度お試しください。",
   "settingsLinkFailedUnknown": "アカウントの連携に失敗しました。しばらくしてからもう一度お試しください。",

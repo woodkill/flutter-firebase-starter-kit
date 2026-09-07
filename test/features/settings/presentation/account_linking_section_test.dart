@@ -52,6 +52,8 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 const _alreadyLinkedText =
     'This sign-in method is already linked to another account. '
     'Unlink it first, then try again.';
+const _alreadyLinkedHereText =
+    'This account is already linked to that sign-in method.';
 const _emailInUseText = 'This email is already in use by another account.';
 const _transientText =
     "Couldn't link due to a network or service error. Please try again later.";
@@ -368,12 +370,40 @@ void main() {
       expect(find.text(_alreadyLinkedText), findsNothing);
     });
 
-    testWidgets('AL13 collapse 재발 방지 — 실패 4 문구 + 미지원 문구 상호 비동등',
+    // WR-04: `provider-already-linked` (이미 현재 계정에 연결) 와
+    // `credential-already-in-use` (다른 계정이 사용 중) 는 의미가 정반대다.
+    // 한 문구로 뭉개면 전자에는 "another account" 가 사실과 반대이고,
+    // 후자에는 "unlink it first" 가 수행 불가능한 안내가 된다.
+    testWidgets(
+        'AL5b (WR-04) — ProviderAlreadyLinkedToThisAccount → alreadyLinkedHere 전용 문구',
+        (tester) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(() => repo.linkAppleCredential()).thenAnswer(
+        (_) async => const Result.failure(ProviderAlreadyLinkedToThisAccount()),
+      );
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Apple');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text(_alreadyLinkedHereText), findsOneWidget);
+      // alreadyLinked ("다른 계정에 연결됨") 문구로 되돌아가지 않는다.
+      expect(find.text(_alreadyLinkedText), findsNothing);
+    });
+
+    testWidgets('AL13 collapse 재발 방지 — 실패 5 문구 + 미지원 문구 상호 비동등',
         (tester) async {
       // 5 문구가 서로 다른 문자열임을 한 곳에서 고정한다. 어느 두 outcome 이
       // 같은 문구로 되돌아가면(2026-09-07 A6 collapse) 즉시 FAIL.
       const messages = <String>[
         _alreadyLinkedText,
+        // WR-04 — alreadyLinkedHere 는 alreadyLinked 와 의미가 정반대다.
+        _alreadyLinkedHereText,
         _emailInUseText,
         _transientText,
         _unknownFailureText,

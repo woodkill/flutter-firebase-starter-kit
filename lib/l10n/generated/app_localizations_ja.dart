@@ -577,6 +577,10 @@ class AppLocalizationsJa extends AppLocalizations {
       'このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。';
 
   @override
+  String get settingsLinkFailedAlreadyLinkedHere =>
+      'このログイン方法はすでにこのアカウントに連携されています。';
+
+  @override
   String get settingsLinkFailedEmailInUse => 'このメールアドレスは既に別のアカウントで使用されています。';
 
   @override

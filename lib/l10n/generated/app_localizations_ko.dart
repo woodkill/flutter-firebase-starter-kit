@@ -578,6 +578,9 @@ class AppLocalizationsKo extends AppLocalizations {
       '이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.';
 
   @override
+  String get settingsLinkFailedAlreadyLinkedHere => '이미 이 계정에 연결된 로그인 방식입니다.';
+
+  @override
   String get settingsLinkFailedEmailInUse => '이 이메일은 이미 다른 계정에서 사용 중입니다.';
 
   @override

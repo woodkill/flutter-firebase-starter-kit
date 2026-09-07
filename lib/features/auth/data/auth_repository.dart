@@ -903,7 +903,13 @@ class AuthRepository {
   AppException _mapProactiveLinkException(fb.FirebaseAuthException e) {
     return switch (e.code) {
       'requires-recent-login' => ReauthenticationRequiredException(cause: e),
-      'provider-already-linked' ||
+      // WR-04: 의미가 정반대인 두 코드를 분리한다. 하나로 뭉개면 Surface D
+      // 문구가 한쪽에는 사실과 반대 ("다른 계정에 연결됨"), 다른 쪽에는
+      // 수행 불가능한 안내 ("먼저 해제하세요" — 다른 계정 소유주만 가능) 가
+      // 된다.
+      // - `provider-already-linked`: 해당 provider 가 **현재 계정에** 이미 연결.
+      'provider-already-linked' => ProviderAlreadyLinkedToThisAccount(cause: e),
+      // - `credential-already-in-use`: 해당 자격증명이 **다른 계정에** 연결.
       'credential-already-in-use' => AccountAlreadyLinked(cause: e),
       _ => _mapAuthException(e),
     };

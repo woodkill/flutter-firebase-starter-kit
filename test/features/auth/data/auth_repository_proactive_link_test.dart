@@ -21,8 +21,9 @@
 //   T4: linkEmailCredential(email, password) → EmailAuthProvider.credential →
 //       linkWithCredential → success (reactive 전용 메서드 mechanics)
 //   T5: 사용자 SDK 취소(null) → null (silent, linkedProviders 변경 0)
-//   T6: linkWithCredential 'provider-already-linked'/'credential-already-in-use'
-//       → AccountAlreadyLinked
+//   T6: linkWithCredential 'provider-already-linked' →
+//       ProviderAlreadyLinkedToThisAccount (WR-04),
+//       'credential-already-in-use' → AccountAlreadyLinked
 //   T7 (reauth boundary): linkWithCredential 'requires-recent-login' →
 //       ReauthenticationRequiredException (5분 auth_time boundary)
 //   T8 (race-fix): 전 구간 _socialLinkInProgress.begin/finally end (1:1)
@@ -261,7 +262,11 @@ void main() {
   });
 
   group('T6 — 이미 link 됨 → AccountAlreadyLinked', () {
-    test('linkWithCredential provider-already-linked → AccountAlreadyLinked', () async {
+    // WR-04: 두 코드는 의미가 정반대이므로 서로 다른 타입으로 갈린다.
+    // provider-already-linked = 이미 **현재 계정에** 연결.
+    test(
+        'linkWithCredential provider-already-linked → ProviderAlreadyLinkedToThisAccount (WR-04)',
+        () async {
       stubGoogleFresh();
       when(() => mockCurrentUser.linkWithCredential(any())).thenThrow(
         fb.FirebaseAuthException(code: 'provider-already-linked'),
@@ -270,9 +275,13 @@ void main() {
       final result = await repository.linkGoogleCredential();
 
       expect(result, isA<Failure<dynamic>>());
-      expect((result! as Failure<dynamic>).exception, isA<AccountAlreadyLinked>());
+      final exception = (result! as Failure<dynamic>).exception;
+      expect(exception, isA<ProviderAlreadyLinkedToThisAccount>());
+      // credential-already-in-use 와 같은 타입으로 뭉개지지 않는다.
+      expect(exception, isNot(isA<AccountAlreadyLinked>()));
     });
 
+    // credential-already-in-use = 해당 자격증명이 **다른 계정에** 연결.
     test('linkWithCredential credential-already-in-use → AccountAlreadyLinked', () async {
       stubGoogleFresh();
       when(() => mockCurrentUser.linkWithCredential(any())).thenThrow(
