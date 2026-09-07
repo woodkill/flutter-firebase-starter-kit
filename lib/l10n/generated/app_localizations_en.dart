@@ -585,6 +585,27 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get settingsLinkFailedAlreadyLinked =>
+      'This sign-in method is already linked to another account. Unlink it first, then try again.';
+
+  @override
+  String get settingsLinkFailedEmailInUse =>
+      'This email is already in use by another account.';
+
+  @override
+  String get settingsLinkFailedTransient =>
+      'Couldn\'t link due to a network or service error. Please try again later.';
+
+  @override
+  String get settingsLinkFailedUnknown =>
+      'Couldn\'t link your account. Please try again later.';
+
+  @override
+  String settingsLinkUnsupportedProvider(String provider) {
+    return 'Linking a $provider account isn\'t supported yet.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

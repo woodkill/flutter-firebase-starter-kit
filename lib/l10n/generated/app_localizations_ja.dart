@@ -573,6 +573,26 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get settingsLinkFailedAlreadyLinked =>
+      'このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。';
+
+  @override
+  String get settingsLinkFailedEmailInUse => 'このメールアドレスは既に別のアカウントで使用されています。';
+
+  @override
+  String get settingsLinkFailedTransient =>
+      'ネットワークまたはサービスのエラーで連携できませんでした。しばらくしてからもう一度お試しください。';
+
+  @override
+  String get settingsLinkFailedUnknown =>
+      'アカウントの連携に失敗しました。しばらくしてからもう一度お試しください。';
+
+  @override
+  String settingsLinkUnsupportedProvider(String provider) {
+    return '$providerアカウントの連携はまだ対応していません。';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

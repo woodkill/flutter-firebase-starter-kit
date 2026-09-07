@@ -574,6 +574,25 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get settingsLinkFailedAlreadyLinked =>
+      '이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.';
+
+  @override
+  String get settingsLinkFailedEmailInUse => '이 이메일은 이미 다른 계정에서 사용 중입니다.';
+
+  @override
+  String get settingsLinkFailedTransient =>
+      '네트워크 또는 서비스 오류로 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String get settingsLinkFailedUnknown => '계정 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String settingsLinkUnsupportedProvider(String provider) {
+    return '$provider 계정 연결은 아직 지원하지 않습니다.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

@@ -944,6 +944,37 @@
     }
   },
 
+  "settingsLinkFailedAlreadyLinked": "This sign-in method is already linked to another account. Unlink it first, then try again.",
+  "@settingsLinkFailedAlreadyLinked": {
+    "description": "Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: already-linked). 2026-09-07 A6 실측에서 실제 원인이 credential-already-in-use 였는데 errorAccountExistsWithUnknownProvider(이메일 문구)가 표시된 collapse 를 해소한다. 소비: AccountLinkOutcome.alreadyLinked (AccountAlreadyLinked — provider-already-linked / credential-already-in-use). email/uid/token 을 노출하지 않는다."
+  },
+
+  "settingsLinkFailedEmailInUse": "This email is already in use by another account.",
+  "@settingsLinkFailedEmailInUse": {
+    "description": "Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: email 중복). 소비: AccountLinkOutcome.emailInUse (EmailAlreadyInUse — email-already-in-use, AccountExistsWithDifferentCredential). 문구에 email 값 자체를 echo 하지 않는다 (T-16-15-02 mitigate — 본인 link 시도 결과에만 노출되어 enumeration 표면 0)."
+  },
+
+  "settingsLinkFailedTransient": "Couldn't link due to a network or service error. Please try again later.",
+  "@settingsLinkFailedTransient": {
+    "description": "Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 일시적 네트워크·서비스 오류). 소비: AccountLinkOutcome.transientFailure (NetworkException 계열 network-request-failed / TooManyRequests too-many-requests / ServiceUnavailable). 재시도 유도 문구."
+  },
+
+  "settingsLinkFailedUnknown": "Couldn't link your account. Please try again later.",
+  "@settingsLinkFailedUnknown": {
+    "description": "Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 미분류 catch-all). 소비: AccountLinkOutcome.failed. 분류되지 않은 실패가 조용히 사라지지 않도록 두는 마지막 arm 이며, 정확한 코드는 kDebugMode debugPrint(code=...) 로 logcat 에 남는다 (T-16-15-01)."
+  },
+
+  "settingsLinkUnsupportedProvider": "Linking a {provider} account isn't supported yet.",
+  "@settingsLinkUnsupportedProvider": {
+    "description": "Phase 16 G-16-A6-2 — Surface D '미지원' 전용 문구. 실패가 아니라 미지원임을 실패 4 문구와 구분해 노출한다. 소비: AccountLinkOutcome.unsupported (naver — Naver-as-target Phase 17+ 이월 / email — Surface D EXCLUDE). {provider} 에는 caller 가 기존 authAccountProvider{X} 8 키의 brand verbatim 라벨을 주입하므로 brand 라벨 신규 0 → brand_label_whitelist_test 확장 불요 (settingsLinkProviderCta 선례 동일, T-16-15-03 mitigate).",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Naver"
+      }
+    }
+  },
+
   "settingsDangerZoneSection": "Danger zone",
   "@settingsDangerZoneSection": {
     "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone')."
