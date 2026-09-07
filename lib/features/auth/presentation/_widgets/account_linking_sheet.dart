@@ -3,6 +3,7 @@
 // provider 단일 강조 (D-02 single button) + cancel 시 state 손실 0 (D-03).
 //
 // Plan 16-04 (Task 4.2) — Plan 16-01 placeholder 본체 채움 완료.
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -19,10 +20,14 @@ import '../../data/auth_repository.dart';
 import 'auth_in_progress_overlay.dart';
 import 'branded_social_button.dart';
 
-/// Custom Token provider (kakao/naver/line/yahoojp) link 콜백 시그니처
-/// (Phase 16 16-09 hook). native arm 은 본 sheet 가 직접 처리하고,
-/// Custom Token arm 은 16-09 가 주입하는 본 콜백에 위임한다.
-typedef CustomTokenLinkCallback =
+/// step 1 "기존 provider 로 로그인" 결과 override 콜백 시그니처
+/// (Phase 16 Plan 16-19 seam).
+///
+/// 반환 `true` = step 1 로그인 성공, `false` = 취소 또는 실패. 테스트 / 호출처
+/// 커스텀 override 전용 seam 이며 **프로덕션 호출처는 주입하지 않는다** —
+/// 미주입 시 sheet 가 [AuthRepository.signInWithExistingProvider] 를 직접
+/// 호출한다 (실 repository 경로).
+typedef ExistingProviderSignInCallback =
     Future<bool> Function(AccountProvider existingProvider);
 
 /// 계정 연동 Bottom Sheet (Phase 16 D-01 / D-02 / D-03).
@@ -48,13 +53,34 @@ typedef CustomTokenLinkCallback =
 ///
 /// **D-02 single button assertion:** 7 BrandedSocialButton factory (Phase 13.3 +
 /// Phase 15 yahoojp) 중 정확히 1 개만 노출 — widget test W4 가 sentinel.
+///
+/// **2단계 reactive 플로우 (Phase 16 Plan 16-19, CR-02 close):** CTA 는 더 이상
+/// 무조건 link 를 시도하지 않는다. 충돌 시점의 caller 는 정의상 미인증이거나
+/// 익명이라 link arm 이 구조적으로 성공할 수 없기 때문이다. 분기는 4 경로다
+/// (mockup `surface-a-two-step-reactive.md`):
+/// - **경로 C** — [existingProvider] 가 email: pop(false) + `/login` (변경 0).
+/// - **경로 A** — [pendingCredential] 이 존재하는 native 충돌 (client-side
+///   `account-exists-with-different-credential`): 기존
+///   [AuthRepository.linkPendingNativeCredential] 흐름 그대로 (A1 회귀 0).
+/// - **경로 B** — 그 외 (서버 `already-exists` 로 pendingCredential 부재):
+///   [AuthRepository.signInWithExistingProvider] 로 **기존 provider 에 로그인**
+///   (step 1). 성공 시 안내 SnackBar 로 step 2 위치를 알린다.
+/// - **경로 D** — step 1 취소는 silent no-op, 실패는 SnackBar 후 sheet 유지.
+///
+/// **step 2 는 Settings "계정 연결"** (proactive arm — `SettingsNotifier.
+/// linkProvider` → [AuthRepository.linkCustomTokenProviderArm]) 이 담당한다.
+/// 그 메서드는 본 sheet 에서만 호출이 사라졌을 뿐 orphan 이 아니다.
+///
+/// **Naver:** step 1 **로그인 대상**으로 완전히 지원된다. deployed callable
+/// OIDC 미지원은 link *target* 에 한정된 제약이며 Phase 17+ carry-forward —
+/// 따라서 과거의 naver 전용 graceful 차단 분기는 제거되었다.
 class AccountLinkingSheet extends ConsumerStatefulWidget {
   /// [AccountLinkingSheet] 를 생성한다.
   const AccountLinkingSheet({
     required this.existingProvider,
     required this.collisionEmail,
     this.pendingCredential,
-    this.onCustomTokenLink,
+    this.onExistingProviderSignIn,
     super.key,
   });
 
@@ -80,29 +106,29 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
   /// 유도 fallback 으로 동작한다.
   final Object? pendingCredential;
 
-  /// Custom Token provider link 콜백 (Phase 16 16-09 hook).
+  /// 경로 B step 1 로그인 결과 override 콜백 (Phase 16 Plan 16-19 seam).
   ///
-  /// native arm (google/apple/facebook) 은 본 sheet 가 직접
-  /// [AuthRepository.linkPendingNativeCredential] 로 처리한다. Custom Token
-  /// 4값 (kakao/naver/line/yahoojp) 은 16-09 가 본 콜백을 주입한다 —
-  /// 미주입 (null) 시 Custom Token link 버튼은 cancel(false) 로 graceful
-  /// fallback (16-04→16-06 인계 누락 재발 방지 hook).
-  final CustomTokenLinkCallback? onCustomTokenLink;
+  /// 주입되면 경로 B 가 [AuthRepository.signInWithExistingProvider] 대신 본
+  /// 콜백의 bool 결과를 사용한다 (`true` = 성공, `false` = 취소·실패).
+  /// **프로덕션 호출처 (LoginScreen / SignupScreen) 는 주입하지 않는다** —
+  /// 테스트 / 호출처 커스텀 override 전용 seam 이며, 미주입이 실 repository
+  /// 경로 (기본값) 다.
+  final ExistingProviderSignInCallback? onExistingProviderSignIn;
 
   /// [AccountLinkingSheet] 를 modal bottom sheet 로 표시한다.
   ///
   /// 반환값:
-  /// - `true` — link 성공 (native arm: linkPendingNativeCredential 성공,
-  ///   Custom Token arm: onCustomTokenLink 성공). 호출처가 /home 이동.
+  /// - `true` — 경로 A link 성공 또는 경로 B step 1 로그인 성공. 두 경우 모두
+  ///   sheet 가 직접 `/home` 으로 이동한다.
   /// - `false` — 사용자 cancel (TextButton 탭 또는 dismiss, D-03) /
-  ///   email-existing redirect / link 실패.
+  ///   email-existing redirect (경로 C) / 경로 A link 실패.
   /// - `null` — 미정 (dismiss 외 경로 미도달).
   static Future<bool?> show(
     BuildContext context, {
     required AccountProvider existingProvider,
     required String collisionEmail,
     Object? pendingCredential,
-    CustomTokenLinkCallback? onCustomTokenLink,
+    ExistingProviderSignInCallback? onExistingProviderSignIn,
   }) {
     final size = MediaQuery.sizeOf(context);
     return showModalBottomSheet<bool>(
@@ -119,7 +145,7 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
         existingProvider: existingProvider,
         collisionEmail: collisionEmail,
         pendingCredential: pendingCredential,
-        onCustomTokenLink: onCustomTokenLink,
+        onExistingProviderSignIn: onExistingProviderSignIn,
       ),
     );
   }
@@ -130,20 +156,29 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
 }
 
 class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
-  /// link action 진행 중 — section-level modal overlay (UI-SPEC Surface A
-  /// State: native linkWithCredential / Custom Token linkCustomTokenProvider
-  /// 진행) + 이중 탭 차단.
+  /// CTA 진행 중 — section-level modal overlay (UI-SPEC Surface A State:
+  /// native linkWithCredential / step 1 기존 provider 로그인 진행) +
+  /// 이중 탭 차단.
   bool _isLinking = false;
 
-  /// link 버튼 tap 핸들러 (Phase 16 16-08 actuation).
+  /// CTA tap 핸들러 (Phase 16 Plan 16-19 — 2단계 reactive 플로우).
   ///
-  /// - email-existing: pendingCredential link 대상이 아니므로 pop(false) 후
-  ///   /login redirect (Task 1 의 email-existing 정책 — D-03 cancel 동일 복귀).
-  /// - native 3값 (google/apple/facebook): [AuthRepository.linkPendingNativeCredential]
-  ///   호출 → 성공 시 pop(true) + /home, 취소(null) 시 no-op (sheet 유지),
-  ///   실패 시 pop(false) (호출처 inline banner fallback).
-  /// - Custom Token 4값: [AccountLinkingSheet.onCustomTokenLink] 위임 (16-09
-  ///   hook). 미주입 시 pop(false) graceful fallback.
+  /// 분기 순서는 경로 C → 경로 A → 경로 B 다.
+  /// - **경로 C (email-existing):** 비밀번호 입력 화면이 필요하므로 pop(false)
+  ///   후 `/login` redirect (현행 정책 변경 0).
+  /// - **경로 A (native + pendingCredential 존재):** client-side
+  ///   `account-exists-with-different-credential` 로 credential 이 보존된
+  ///   충돌 — [AuthRepository.linkPendingNativeCredential] 흐름 그대로
+  ///   (A1 시나리오 회귀 0). pendingCredential 이 없는 native 충돌은 이 경로에
+  ///   들어오지 않는다 — 항상 실패하던 CTA 를 없애기 위한 진입 조건이다.
+  /// - **경로 B (그 외 = 서버 already-exists):** [AccountLinkingSheet.
+  ///   onExistingProviderSignIn] 이 주입되었으면 그 bool 결과를, 아니면
+  ///   [AuthRepository.signInWithExistingProvider] 결과를 사용해 **기존
+  ///   provider 로 로그인** (step 1) 한다. 성공 시 pop(true) → 안내 SnackBar
+  ///   (step 2 = 설정 > 계정 연결) → `/home`.
+  /// - **경로 D:** 취소(null) 는 silent no-op (sheet 유지), 실패는 SnackBar
+  ///   후 sheet 유지 — 익명 caller 재충돌(A-16-19-01) 도 이 경로로 흡수되어
+  ///   crash 0 · 네비게이션 0 이다.
   Future<void> _onLinkPressed() async {
     if (_isLinking) return; // 이중 탭 가드.
     final navigator = Navigator.of(context);
@@ -152,55 +187,43 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     final provider = widget.existingProvider;
+    final providerLabel = _providerLabel(l10n, provider);
 
-    // email-existing 은 reactive link arm 미적용 — /login redirect (Task 1 정책).
+    // 경로 C — email-existing 은 sheet 안에서 완결 불가 (/login redirect).
     if (provider == AccountProvider.email) {
       navigator.pop(false);
       router.go(AppRoutes.login);
       return;
     }
 
-    // Custom Token arm (16-09) — kakao/line/yahoojp 는 본 sheet 가 직접
-    // linkCustomTokenProviderArm 로 link, naver 는 deployed callable OIDC
-    // 미지원 graceful 안내. onCustomTokenLink 가 주입된 경우 (테스트 / 호출처
-    // 커스텀 override) 그 콜백에 우선 위임한다 (16-08 hook 호환).
-    if (!provider.isNative) {
+    // 경로 B — 서버 already-exists (pendingCredential 부재) 또는 Custom Token
+    // 충돌: link 가 아니라 기존 provider 로 **로그인** (step 1).
+    if (!provider.isNative || widget.pendingCredential == null) {
       setState(() => _isLinking = true);
-      final callback = widget.onCustomTokenLink;
-      final bool ok;
-      if (callback != null) {
-        // 주입된 hook (테스트/호출처 override) 은 bool 계약만 노출하므로
-        // reauth 분기 없이 성공/실패 2값으로 처리한다 (16-08 hook 호환).
-        ok = await callback(provider);
-        if (!mounted) return;
-        if (ok) {
-          navigator.pop(true);
-          router.go(AppRoutes.home);
-        } else {
-          setState(() => _isLinking = false);
-        }
-        return;
-      }
-      // 실제 경로 — _linkCustomToken 이 failure-class 별 피드백을 표시하고
-      // 분기 신호 (_CustomTokenLinkOutcome) 를 반환한다 (WR-02).
-      final outcome = await _linkCustomToken(provider);
+      final outcome = await _signInWithExistingProvider(provider);
       if (!mounted) return;
       switch (outcome) {
-        case _CustomTokenLinkOutcome.success:
+        case _ExistingProviderSignInOutcome.success:
           navigator.pop(true);
+          // step 2 안내 — 나머지 로그인 수단은 설정 > 계정 연결에서 추가
+          // (PII 0: ARB + provider 라벨만).
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.accountLinkingSignInThenLinkHint(providerLabel),
+              ),
+            ),
+          );
           router.go(AppRoutes.home);
-        case _CustomTokenLinkOutcome.reauthRequired:
-          // reauth-expired — sheet 닫고 재로그인 라우팅 (피드백은 이미 표시됨).
-          navigator.pop(false);
-          router.go(AppRoutes.login);
-        case _CustomTokenLinkOutcome.cancelledOrFailed:
-          // 취소(silent) / naver graceful / 기타 실패 — sheet 유지 (재시도 가능).
+        case _ExistingProviderSignInOutcome.cancelledOrFailed:
+          // 취소(silent) / 실패(SnackBar 표시 완료) — sheet 유지 (재시도 가능).
           setState(() => _isLinking = false);
       }
       return;
     }
 
-    // native 3값 (google/apple/facebook) — 실제 link.
+    // 경로 A — native 3값 (google/apple/facebook) + pendingCredential 보존:
+    // 기존 link 흐름 그대로 (변경 0).
     setState(() => _isLinking = true);
     final result = await ref
         .read(authRepositoryProvider)
@@ -239,60 +262,63 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
     }
   }
 
-  /// Custom Token provider (kakao/line/yahoojp) reactive link (Phase 16 16-09).
+  /// 경로 B step 1 — 기존 provider 로 로그인 (Phase 16 Plan 16-19).
   ///
-  /// [AuthRepository.linkCustomTokenProviderArm] 로 실제 link 하고 결과를
-  /// [_CustomTokenLinkOutcome] 으로 반환한다 (호출처 [_onLinkPressed] 가
-  /// navigation 분기). naver 는 deployed callable OIDC 미지원
-  /// (`link_custom_token_provider.ts` line 27~33) 이므로 graceful SnackBar 안내
-  /// 후 [_CustomTokenLinkOutcome.cancelledOrFailed] (Phase 17+ carry-forward —
-  /// 크래시 0 + linkedProviders 변경 0).
+  /// [AccountLinkingSheet.onExistingProviderSignIn] 이 주입되어 있으면 그
+  /// bool 결과를 사용하고, 없으면 [AuthRepository.signInWithExistingProvider]
+  /// 를 직접 호출한다 (실 repository 경로 — 프로덕션 기본값).
   ///
-  /// **WR-02:** 사용자 취소(null) 외의 [Failure] 는 더 이상 silent 가 아니다 —
-  /// [ReauthenticationRequiredException] 은 user-visible SnackBar 표시 후
-  /// [_CustomTokenLinkOutcome.reauthRequired] (호출처가 sheet 닫고 재로그인
-  /// 라우팅), 그 외 실패는 SnackBar (PII 0: ARB only) 표시 후
-  /// [_CustomTokenLinkOutcome.cancelledOrFailed]. native arm (WR-01) /
-  /// proactive `AccountLinkingSection` 의 outcome switch mirror.
-  Future<_CustomTokenLinkOutcome> _linkCustomToken(
+  /// 실패 피드백 표시 책임은 본 메서드가 지고, navigation 분기는 호출처
+  /// [_onLinkPressed] 가 [_ExistingProviderSignInOutcome] 로 결정한다
+  /// (native arm WR-01 / proactive `AccountLinkingSection` outcome switch
+  /// mirror).
+  ///
+  /// - 사용자 취소 (`null`) — silent no-op (피드백 0, sheet 유지).
+  /// - [Failure] — 기존 fallback ARB (`errorAccountExistsWithUnknownProvider`)
+  ///   로 user-visible 안내 (신규 ARB 0). 익명 caller 재충돌(A-16-19-01) 도
+  ///   이 분기로 흡수되어 crash 0 · linkedProviders 변경 0 이다.
+  ///
+  /// **PII invariant (T-16-19-02):** 실패 로그는 `kDebugMode` 가드 하에
+  /// runtimeType 만 1줄 출력한다 — collisionEmail / ID Token / provider token
+  /// 본문 0 (`linkCustomTokenProviderArm` 로그 형식 mirror).
+  Future<_ExistingProviderSignInOutcome> _signInWithExistingProvider(
     AccountProvider provider,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
 
-    // naver = deployed callable 미지원 → graceful 안내 (Phase 17+).
-    if (provider == AccountProvider.naver) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(l10n.errorAccountExistsWithUnknownProvider),
-        ),
-      );
-      return _CustomTokenLinkOutcome.cancelledOrFailed;
+    final callback = widget.onExistingProviderSignIn;
+    if (callback != null) {
+      // 주입된 seam (테스트/호출처 override) 은 bool 계약만 노출한다.
+      final ok = await callback(provider);
+      return ok
+          ? _ExistingProviderSignInOutcome.success
+          : _ExistingProviderSignInOutcome.cancelledOrFailed;
     }
+
     final result = await ref
         .read(authRepositoryProvider)
-        .linkCustomTokenProviderArm(targetProvider: provider);
-    // 사용자 취소 (no-op, silent — naver 외 피드백 0).
-    if (result == null) return _CustomTokenLinkOutcome.cancelledOrFailed;
-    if (!mounted) return _CustomTokenLinkOutcome.cancelledOrFailed;
+        .signInWithExistingProvider(provider: provider);
+    // 사용자 취소 (no-op, silent).
+    if (result == null) return _ExistingProviderSignInOutcome.cancelledOrFailed;
+    if (!mounted) return _ExistingProviderSignInOutcome.cancelledOrFailed;
     switch (result) {
       case Success<dynamic>():
-        return _CustomTokenLinkOutcome.success;
+        return _ExistingProviderSignInOutcome.success;
       case Failure<dynamic>(:final exception):
-        if (exception is ReauthenticationRequiredException) {
-          // reauth-expired — 안내 후 호출처가 sheet 닫고 재로그인 라우팅.
-          messenger.showSnackBar(
-            SnackBar(content: Text(l10n.withdrawalReauthRequired)),
+        if (kDebugMode) {
+          debugPrint(
+            'AccountLinkingSheet step1 sign-in failed: '
+            'type=${exception.runtimeType}',
           );
-          return _CustomTokenLinkOutcome.reauthRequired;
         }
-        // already-linked / 기타 실패 — user-visible 안내 (stuck sheet 방지).
+        // 실패 — user-visible 안내 (stuck sheet 방지). 기존 fallback 키 재사용.
         messenger.showSnackBar(
           SnackBar(
             content: Text(l10n.errorAccountExistsWithUnknownProvider),
           ),
         );
-        return _CustomTokenLinkOutcome.cancelledOrFailed;
+        return _ExistingProviderSignInOutcome.cancelledOrFailed;
     }
   }
 
@@ -354,19 +380,17 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   }
 }
 
-/// Custom Token reactive link 의 navigation 분기 신호 (Phase 16 WR-02).
+/// 경로 B (step 1 기존 provider 로그인) 의 navigation 분기 신호
+/// (Phase 16 Plan 16-19).
 ///
-/// `_linkCustomToken` 이 failure-class 별 피드백 (SnackBar) 표시 책임을 지고,
+/// `_signInWithExistingProvider` 가 실패 피드백 (SnackBar) 표시 책임을 지고,
 /// 본 enum 으로 호출처 [_AccountLinkingSheetState._onLinkPressed] 의 navigation
 /// (pop / route) 분기를 결정한다 — proactive `AccountLinkOutcome` mirror.
-enum _CustomTokenLinkOutcome {
-  /// link 성공 — sheet pop(true) + /home.
+enum _ExistingProviderSignInOutcome {
+  /// step 1 로그인 성공 — sheet pop(true) + 안내 SnackBar + /home.
   success,
 
-  /// reauth-expired (`requires-recent-login`) — sheet pop(false) + /login.
-  reauthRequired,
-
-  /// 사용자 취소(silent) / naver graceful / 기타 실패 — sheet 유지 (재시도 가능).
+  /// 사용자 취소(silent) / 로그인 실패(SnackBar 표시 완료) — sheet 유지.
   cancelledOrFailed,
 }
 
