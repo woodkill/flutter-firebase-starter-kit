@@ -1,0 +1,228 @@
+// ignore_for_file: lines_longer_than_80_chars
+//
+// Phase 16 Plan 16-19 Task 2/3 — AccountLinkingSheet 2단계 reactive 플로우
+// 회귀 테스트 (**hook 미주입 · 실제 repository 경로**).
+//
+// **CR-02 리뷰 요구사항 근거:** 16-REVIEW-FIX.md § Skipped Issues 의
+// "hook 주입으로 repository 를 우회하는 테스트" anchor 에 대응해, 본 파일은
+// `onExistingProviderSignIn` 을 **한 건도 주입하지 않고** `authRepositoryProvider`
+// override 만으로 시트 → repository 경로를 실제로 통과시킨다.
+//
+// 역할 분담:
+//   - 본 파일 (TS1~TS7) — 실 repository 경로 (hook 주입 0).
+//   - account_linking_sheet_custom_token_test.dart — hook seam 계약 (주입 O).
+//
+// 7 behavior (mockup surface-a-two-step-reactive.md 경로 A/B/C/D):
+//   TS1: CT↔CT end-to-end — 서버 already-exists(existingProvider=kakao,
+//        pendingCredential 부재) → 시트 CTA 탭 → signInWithExistingProvider
+//        1회 호출 + linkCustomTokenProviderArm verifyNever (경로 B)
+//   TS2: 성공 후속 — 시트 닫힘 + 안내 SnackBar + /home 라우팅
+//   TS3: 취소(null) — 시트 유지 + 네비게이션 0
+//   TS4: 실패 graceful (A-16-19-01 익명 caller 재충돌) — 실패 SnackBar +
+//        시트 유지 + 네비게이션 0 + 예외 전파 0
+//   TS5: native 회귀 (A1) — pendingCredential 존재 시 linkPendingNativeCredential
+//        호출 + signInWithExistingProvider verifyNever (경로 A 변경 0)
+//   TS6: naver 기존 — 과거 graceful 차단 분기 제거 확인 (경로 B 정상 수행)
+//   TS7: email 기존 — repository 호출 0 + /login 라우팅 (경로 C 변경 0)
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+
+import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
+import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/core/router/app_routes.dart';
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/account_linking_sheet.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+
+class _MockAuthRepository extends Mock implements AuthRepository {}
+
+void main() {
+  late _MockAuthRepository mockRepo;
+
+  setUpAll(() {
+    registerFallbackValue(AccountProvider.kakao);
+  });
+
+  setUp(() {
+    mockRepo = _MockAuthRepository();
+  });
+
+  /// 모바일 portrait viewport — modal bottom sheet 하단 컨텐츠 hit-test 함정
+  /// 회피 (memory feedback_test_viewport_ensure_visible).
+  Future<void> usePortraitSurface(WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  }
+
+  /// modal bottom sheet entrance 애니메이션 settle (pumpAndSettle 은
+  /// BrandedSocialButton 비동기 자산 디코딩으로 hang 가능 → 명시적 다단계 pump).
+  Future<void> settleSheetEntrance(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  /// LoginScreen 을 GoRouter 가 감싸는 harness.
+  ///
+  /// **hook 주입 0** — LoginScreen 은 pendingCredential 만 전달하므로 시트는
+  /// `authRepositoryProvider` 를 직접 read 한다 (CR-02 요구사항).
+  Widget buildHarness({
+    required AccountProvider existingProvider,
+    Object? pendingCredential,
+  }) {
+    when(() => mockRepo.signInWithKakao()).thenAnswer(
+      (_) async => Result<User>.failure(
+        AccountExistsWithDifferentCredential(
+          email: 'collide@example.com',
+          existingProvider: existingProvider,
+          pendingCredential: pendingCredential,
+        ),
+      ),
+    );
+    final router = GoRouter(
+      initialLocation: AppRoutes.login,
+      routes: [
+        GoRoute(
+          path: AppRoutes.login,
+          builder: (context, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.home,
+          builder: (context, state) => const Scaffold(body: Text('HOME')),
+        ),
+      ],
+    );
+    return ProviderScope(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(mockRepo),
+        activeStrategiesProvider(const Locale('en')).overrideWithValue(
+          const <AuthStrategy>[KakaoAuthStrategy()],
+        ),
+      ],
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    );
+  }
+
+  /// 충돌 → 시트 노출까지 진행한다 (login screen 의 Kakao 버튼 탭).
+  Future<void> openSheet(
+    WidgetTester tester, {
+    required AccountProvider existingProvider,
+    Object? pendingCredential,
+  }) async {
+    await usePortraitSurface(tester);
+    await tester.pumpWidget(
+      buildHarness(
+        existingProvider: existingProvider,
+        pendingCredential: pendingCredential,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(BrandedSocialButton).first);
+    await settleSheetEntrance(tester);
+    expect(find.byType(AccountLinkingSheet), findsOneWidget);
+  }
+
+  /// 시트 안 CTA 를 탭한다 (form-tail 좌표 hit-test 회피 — ensureVisible 명시).
+  Future<void> tapSheetCta(WidgetTester tester) async {
+    final sheetButton = find.descendant(
+      of: find.byType(AccountLinkingSheet),
+      matching: find.byType(BrandedSocialButton),
+    );
+    await tester.ensureVisible(sheetButton);
+    await tester.pump();
+    await tester.tap(sheetButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  /// step 1 로그인 성공 응답 fixture.
+  Result<User> successResult() => Result<User>.success(
+    User(
+      uid: 'u1',
+      email: 'collide@example.com',
+      emailVerified: true,
+      createdAt: DateTime.utc(2026, 1, 1),
+      providerIds: const ['kakao'],
+    ),
+  );
+
+  group('TS1 — CT↔CT end-to-end (경로 B, hook 미주입)', () {
+    testWidgets(
+      '서버 already-exists(kakao) 시트 CTA 탭 → signInWithExistingProvider 1회 + '
+      'linkCustomTokenProviderArm verifyNever',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer((_) async => successResult());
+        when(
+          () => mockRepo.linkCustomTokenProviderArm(
+            targetProvider: any(named: 'targetProvider'),
+          ),
+        ).thenAnswer((_) async => null);
+
+        await openSheet(tester, existingProvider: AccountProvider.kakao);
+        await tapSheetCta(tester);
+
+        verify(
+          () => mockRepo.signInWithExistingProvider(
+            provider: AccountProvider.kakao,
+          ),
+        ).called(1);
+        verifyNever(
+          () => mockRepo.linkCustomTokenProviderArm(
+            targetProvider: any(named: 'targetProvider'),
+          ),
+        );
+      },
+    );
+  });
+
+  group('TS2 — 성공 후속 (시트 닫힘 + 안내 SnackBar + /home)', () {
+    testWidgets(
+      'step 1 성공 → 시트 pop + accountLinkingSignInThenLinkHint SnackBar + /home',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer((_) async => successResult());
+
+        await openSheet(tester, existingProvider: AccountProvider.kakao);
+        await tapSheetCta(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(find.byType(AccountLinkingSheet), findsNothing);
+        expect(
+          find.text(
+            'Signed in with your Kakao account. You can add other sign-in '
+            'methods in Settings > Link an account.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('HOME'), findsOneWidget);
+      },
+    );
+  });
+}
