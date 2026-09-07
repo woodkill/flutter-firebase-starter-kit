@@ -913,4 +913,47 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       expect(termsMirrorInfoCalls.length).toBeGreaterThanOrEqual(1);
     },
   );
+
+  // WR-01 (2차 리뷰): isNewUser 게이트 회귀 가드 — kakao C3 mirror.
+  //
+  // 게이트가 없으면 device-local 동의가 남은 기기의 재로그인이 서버의
+  // 권위 있는 termsAccepted (marketing opt-in / version 포함) 를 덮어쓴다.
+  it(
+    // eslint-disable-next-line max-len
+    "C3 (WR-01): 기존 사용자 재로그인 (isNewUser=false) + snapshot present → mirror skip (users/{uid} set 0)",
+    async () => {
+      mockFetchOk({
+        resultcode: "00",
+        message: "success",
+        response: {id: "naver-C3"},
+      });
+      // 기존 identity_index 매핑 존재 + 미인증 호출 → conflictKind null,
+      // isNewUser=false (재로그인).
+      mockIdxGet.mockResolvedValue({exists: true});
+      mockTxGet.mockResolvedValue({
+        exists: true,
+        data: () => ({firebaseUid: "existing-uid-C3"}),
+      });
+      mockUserDocSet.mockClear();
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      const result = (await wrapped({
+        app: {appId: "test"},
+        data: {
+          accessToken: "FAKE_NAVER_TOKEN_C3",
+          termsAcceptanceSnapshot: {
+            version: 1,
+            service: true,
+            privacy: true,
+            marketing: false,
+            acceptedAt: "2026-05-29T12:00:00.000Z",
+          },
+        },
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.isNewUser).toBe(false);
+      // 핵심 — 기존 사용자 문서는 건드리지 않는다.
+      expect(mockUserDocSet).not.toHaveBeenCalled();
+    },
+  );
 });

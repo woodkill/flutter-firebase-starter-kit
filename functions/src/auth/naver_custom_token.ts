@@ -325,7 +325,14 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
     // 의 Custom Token branch. {merge:true} 의무. snapshot=undefined 시 skip.
     // PII 정책 보존 — snapshot 본체 미노출, version 만 logger payload 노출.
     const termsSnapshot = data.termsAcceptanceSnapshot;
-    if (termsSnapshot) {
+    // WR-01: isNewUser 게이트 — mirror 는 users/{uid} 문서가 새로
+    // 만들어지는 시점에만 수행한다. 게이트 없이 매 Custom Token 로그인마다
+    // set 하면, 기기에 device-local 동의가 남은 상태로 기존 계정에 재로그인할
+    // 때 서버의 권위 있는 termsAccepted 가 device-local 값으로 덮어씌워진다
+    // (acceptedAt 뿐 아니라 marketing opt-in 과 version 까지). client 측
+    // TermsNotifier.mirrorToFirestore 의 pre-read + skip (Plan 10-12
+    // multi-user invariant) 과 대칭인 서버측 가드다.
+    if (termsSnapshot && isNewUser) {
       try {
         await getFirestore()
           .collection("users")

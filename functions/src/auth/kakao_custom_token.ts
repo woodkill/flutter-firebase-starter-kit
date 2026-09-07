@@ -277,7 +277,14 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // (본체 미노출). best-effort 실패 처리는 hard throw — termsAccepted
     // mirror 실패 시 client routing 회귀 (UI flip) 위험.
     const termsSnapshot = data.termsAcceptanceSnapshot;
-    if (termsSnapshot) {
+    // WR-01: isNewUser 게이트 — mirror 는 users/{uid} 문서가 새로
+    // 만들어지는 시점에만 수행한다. 게이트 없이 매 Custom Token 로그인마다
+    // set 하면, 기기에 device-local 동의가 남은 상태로 기존 계정에 재로그인할
+    // 때 서버의 권위 있는 termsAccepted 가 device-local 값으로 덮어씌워진다
+    // (acceptedAt 뿐 아니라 marketing opt-in 과 version 까지). client 측
+    // TermsNotifier.mirrorToFirestore 의 pre-read + skip (Plan 10-12
+    // multi-user invariant) 과 대칭인 서버측 가드다.
+    if (termsSnapshot && isNewUser) {
       try {
         await getFirestore()
           .collection("users")
