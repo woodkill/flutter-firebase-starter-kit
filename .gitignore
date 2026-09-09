@@ -159,6 +159,24 @@ app.*.map.json
 # GSD (Get Shit Done) 내부 상태
 # ==========================
 .planning/.next-call-count
+# gsd-core 런타임 디렉토리. dispatch isolation sentinel 등 run 단위 상태만 담기며
+# 세션·머신 로컬이라 공유 가치가 없다.
+.gsd/
+# milestone 점유 advisory lock. session-id + pid 바인딩 + TTL 기반이라
+# 다른 머신에서는 무의미하다.
+.planning/milestone.lock
+# STATE.md / ROADMAP.md 에서 파생된 best-effort 스냅샷 캐시. step-boundary 명령마다
+# 재발행되어 커밋 churn 만 유발한다. 진실원은 STATE.md 다.
+.planning/state.json
+
+# ==========================
+# GSD v1 → v2 마이그레이션 백업 스냅샷 (2026-09-07)
+# ==========================
+# v2 마이그레이션 직전 `.planning/` 을 통째로 복사해 둔 815파일 / 17MB 스냅샷.
+# 809개는 이미 git history 에 동일 blob 으로 존재하고, 나머지 6개는 현재 `.planning/`
+# 의 gitignore 대상 파일과 byte-identical 이다 → 100% 중복이라 커밋하지 않는다.
+# 삭제해도 안전하지만 사용자 백업이므로 untracked 로 남겨 두며, 삭제 여부는 사용자가 결정한다.
+docs/gsd-v1-backup-planning/
 
 # ==========================
 # Golden test — dev-only fixtures (라이센스 위험 회피)
