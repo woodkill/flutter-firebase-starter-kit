@@ -2188,6 +2188,8 @@ bash scripts/check_phase_refs.sh
 | `// TODO: dedicated NotFoundScreen` | FAIL (raw — 진실원 미명시) |
 | `// Phase 99 — see ROADMAP.md` | FAIL (Phase 99 가 ROADMAP 미존재) |
 
+> ⚠ 이 hook 은 `scripts/check_phase_refs.sh` 만 실행하며 **dart format 은 검사하지 않는다** — 커밋 전 `fvm dart format --output=none --set-exit-if-changed lib test` 를 별도로 실행할 것 (미실행 시 drift 누적: quick `260909-mwh` 에서 91개 파일 일괄 정리).
+
 ---
 
 ## Brand Asset Management (Phase 13.1 + 13.2)
