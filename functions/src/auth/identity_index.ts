@@ -276,10 +276,22 @@ export const CUSTOM_TOKEN_PROVIDER_PRIORITY: readonly ProviderId[] = [
  * 돌려 기존 transaction 경로 (`anonymous_existing_collision` — caller 자신의
  * slug 라벨) 에 위임한다 (T-16-17-10).
  *
+ * **self 판정의 기준은 `providerUserId` 다 (WR-03 / 4차 리뷰)**: `identity_index`
+ * 문서 ID 가 `{provider}:{providerUserId}` 이므로 **동일 provider 라도 sub 가
+ * 다르면 다른 계정**이다 (IdP 계정 탈퇴 후 동일 이메일로 재가입 → sub 변경).
+ * provider slug 일치만으로 self 판정하면 그 조합이 "충돌 아님" 으로 통과해
+ * 익명 uid 를 가리키는 `identity_index` 문서가 커밋된 뒤
+ * `getAuth().updateUser` 가 `auth/email-already-exists` 로 throw 한다 —
+ * 사용자에게는 원인 불명 `internal`, Firestore 에는 영구 잔존하는 잘못된
+ * 문서가 남는다. 따라서 sub 가 다르면 정당한 충돌로 보고 후보에 남긴다
+ * (T-16-17-12).
+ *
  * @param {Firestore} db Firestore Admin 인스턴스.
  * @param {string} firebaseUid 기존 계정의 Firebase UID (역조회 대상).
- * @param {ProviderId} currentProvider caller 가 호출한 provider slug — 자기
- *     자신 매칭은 충돌이 아니므로 후보에서 제외하고, 매칭이 **존재하면**
+ * @param {ProviderId} currentProvider caller 가 호출한 provider slug.
+ * @param {string} currentProviderUserId caller 의 IdP sub — self 판정의 진짜
+ *     기준이다. `{currentProvider, currentProviderUserId}` 가 **둘 다** 일치
+ *     하는 문서만 자기 자신으로 보아 후보에서 제외하고, 그 매칭이 존재하면
  *     전체 결과를 `null` 로 만든다 (자기 계정 재로그인).
  * @return {Promise<ProviderId|null>} `CUSTOM_TOKEN_PROVIDER_PRIORITY` 순서상
  *     첫 후보 slug. 후보 0개, caller 자신 identity 보유, 또는 쿼리 실패 시
@@ -289,6 +301,7 @@ export async function resolveCustomTokenExistingProvider(
   db: Firestore,
   firebaseUid: string,
   currentProvider: ProviderId,
+  currentProviderUserId: string,
 ): Promise<ProviderId | null> {
   try {
     // 단일 필드 equality 쿼리 — Firestore 자동 단일 필드 인덱스로 충족되므로
@@ -302,15 +315,19 @@ export async function resolveCustomTokenExistingProvider(
     // 기존 계정이 caller 자신의 identity 를 이미 보유하는지 (CR-01).
     let selfMatched = false;
     for (const doc of snap.docs ?? []) {
-      const data = doc.data() as {provider?: unknown};
+      const data = doc.data() as {provider?: unknown; providerUserId?: unknown};
       const raw = data?.provider;
       if (typeof raw !== "string") continue;
       // 화이트리스트 필터 — 미래에 native provider 가 identity_index 에
       // 회고적 등록되어도 Custom Token 라벨로 오분류되지 않는다.
       const matched = CUSTOM_TOKEN_PROVIDER_PRIORITY.find((p) => p === raw);
       if (!matched) continue;
-      // self-identity 제외 — caller 자신의 provider 는 충돌이 아니다.
-      if (matched === currentProvider) {
+      // self-identity 제외 — caller 자신의 **문서** 만 충돌이 아니다 (WR-03).
+      // 같은 provider 라도 sub 가 다르면 다른 계정이므로 후보로 남긴다.
+      if (
+        matched === currentProvider &&
+        data.providerUserId === currentProviderUserId
+      ) {
         selfMatched = true;
         continue;
       }
@@ -528,6 +545,7 @@ export async function resolveIdentity(
           db,
           existingByEmail.uid,
           provider as ProviderId,
+          providerUserId,
         );
         if (ctExistingProvider) {
           logger.warn(
@@ -611,6 +629,7 @@ export async function resolveIdentity(
                   db,
                   existingByEmail.uid,
                   provider as ProviderId,
+                  providerUserId,
                 );
               if (ctExistingProvider) existingProvider = ctExistingProvider;
             }

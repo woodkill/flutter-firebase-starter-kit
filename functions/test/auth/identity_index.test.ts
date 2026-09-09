@@ -80,12 +80,22 @@ type MockDb = {
 };
 
 /**
+ * 역조회 stub 이 돌려줄 identity_index 문서 shape.
+ *
+ * WR-03 (4차 리뷰): `providerUserId` 를 담을 수 있다. identity_index 문서 ID 가
+ * `{provider}:{providerUserId}` 이므로 self 판정의 진짜 기준은 sub 이며,
+ * provider slug 만 담는 fixture 는 "같은 provider 의 다른 sub" 상태를 표현할 수
+ * 없었다 (T-16-17-12 가 그 상태를 잠근다).
+ */
+type ReverseDoc = {provider: unknown; providerUserId?: unknown};
+
+/**
  * 4 가지 분기 (preExists / txExists 조합) 에 대한 mock Firestore + tx 빌더.
  *
  * @param {{preExists: boolean, preData: (Record<string, unknown>|undefined),
  *     txExists: boolean, txData: (Record<string, unknown>|undefined),
  *     callerUserExists: (boolean|undefined),
- *     reverseDocs: (Array<{provider: unknown}>|undefined),
+ *     reverseDocs: (Array<ReverseDoc>|undefined),
  *     reverseRejects: (boolean|undefined)}} opts
  *     비-tx read / tx.get / identity_index 역조회 분기 설정.
  * @return {MockDb} mock db + tx + ref + 역조회 stub.
@@ -101,7 +111,8 @@ function makeDb(opts: {
   callerUserExists?: boolean;
   // Plan 16-17: identity_index where('firebaseUid','==',uid).get() 결과 주입.
   // 기본값 빈 배열 — 기존 케이스 회귀 0 (역조회 후보 0 = 충돌 아님).
-  reverseDocs?: Array<{provider: unknown}>;
+  // WR-03 (4차 리뷰): 문서 shape 는 ReverseDoc (sub 포함) 이다.
+  reverseDocs?: Array<ReverseDoc>;
   // Plan 16-17: 역조회 쿼리 실패 시뮬레이션 (best-effort graceful 검증용).
   reverseRejects?: boolean;
 }): MockDb {
@@ -1435,7 +1446,10 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
     // eslint-disable-next-line max-len
     "T-16-17-03 (경계 자기자신): 역조회 결과가 caller 와 동일 provider 1건뿐 → 충돌 아님",
     async () => {
-      // 동일 provider 재로그인 — self-identity 는 충돌이 아니다.
+      // 동일 provider **동일 sub** 재로그인 — self-identity 는 충돌이 아니다.
+      // WR-03 (4차 리뷰) 이후 self 판정 기준이 providerUserId 이므로 fixture 도
+      // caller 와 같은 sub 를 담아야 이 테스트의 의도(자기 계정 재로그인)가
+      // 성립한다. sub 가 다른 경우는 T-16-17-12 가 반대 방향으로 잠근다.
       mockGetUserByEmail.mockResolvedValueOnce({
         uid: "self-source-uid",
         providerData: [],
@@ -1443,7 +1457,9 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
       const {db} = makeDb({
         preExists: false,
         txExists: false,
-        reverseDocs: [{provider: "naver"}],
+        reverseDocs: [
+          {provider: "naver", providerUserId: "naver-16-17-self"},
+        ],
       });
 
       const res = await resolveIdentity(db, {
@@ -1709,7 +1725,11 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         preExists: true,
         txExists: true,
         txData: {firebaseUid: "U-multi-identity"},
-        reverseDocs: [{provider: "kakao"}, {provider: "line"}],
+        // WR-03: caller 자신의 문서는 provider + sub 가 **둘 다** 일치한다.
+        reverseDocs: [
+          {provider: "kakao", providerUserId: "kakao-16-17-multi-identity"},
+          {provider: "line", providerUserId: "line-sub-16-17"},
+        ],
       });
 
       const res = await resolveIdentity(db, {
@@ -1770,6 +1790,51 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         conflictKind: "email_in_use",
         existingProvider: "naver",
       });
+    },
+  );
+
+  // WR-03 (4차 리뷰) — CR-01 fix 가 연 좁은 신규 경로. selfMatched 가 provider
+  // slug 만 보면 "같은 provider 의 다른 sub" 를 자기 계정으로 오인해 충돌을
+  // 통과시킨다. 그러면 tx 가 익명 uid 를 가리키는 identity_index 문서를
+  // 커밋한 뒤 getAuth().updateUser 가 auth/email-already-exists 로 throw 하고
+  // (try/catch 밖 — caller 에게 internal), 잘못된 문서는 영구 잔존한다.
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-12 (동일 provider·다른 sub): self 오인 없이 정당한 충돌로 차단 (WR-03)",
+    async () => {
+      // IdP 계정 탈퇴 후 동일 이메일로 재가입 → sub 변경 시나리오. 기존 계정
+      // U 는 kakao:subA + line:subB 를 보유하고, caller 는 같은 kakao 이지만
+      // sub 가 subC 다 — 즉 **다른 계정**이므로 통과시키면 안 된다.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "U-same-provider-other-sub",
+        providerData: [],
+      });
+      const {db} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [
+          {provider: "kakao", providerUserId: "subA"},
+          {provider: "line", providerUserId: "subB"},
+        ],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "subC",
+        callerUid: "anon-16-17-other-sub",
+        userInfo: {email: "other-sub@example.com"},
+      });
+
+      // sub 불일치 = 정당한 충돌. 라벨은 caller 와 같은 'kakao' 가 정확하다
+      // (사용자가 실제로 그 계정에 도달할 때 쓰는 수단이다).
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "kakao",
+      });
+      // 신규 identity_index 문서가 커밋되면 안 된다 (영구 잔존 오염 차단).
+      expect(res.isNewUser).toBe(false);
     },
   );
 });
