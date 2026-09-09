@@ -164,18 +164,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   /// account-exists 충돌 시 [AccountLinkingSheet] 를 노출한다 (Phase 16 16-08
-  /// native arm + 16-09 Custom Token arm — reactive link arm).
+  /// native arm + 16-19 2단계 reactive 플로우).
   ///
   /// `ref.listen` 콜백 (build 동안) 안에서 직접 `showModalBottomSheet` 를
   /// 호출하면 build 중 navigator 변경 위반이 발생하므로 post-frame callback
-  /// 으로 1 frame 미룬다. sheet 가 link 성공(true) 시 /home 이동은 sheet 가
+  /// 으로 1 frame 미룬다. sheet 가 성공(true) 시 /home 이동은 sheet 가
   /// 직접 담당하므로 (context.go) 본 메서드는 추가 navigation 미수행.
   ///
-  /// **Custom Token arm (16-09):** native 가 아닌 existingProvider
-  /// (kakao/line/yahoojp) 는 sheet 가 직접
-  /// [AuthRepository.linkCustomTokenProviderArm] 로 link 하고, naver 는
-  /// deployed callable OIDC 미지원이므로 sheet 가 graceful 안내 (Phase 17+
-  /// carry-forward) — 본 screen 은 sheet 노출만 담당한다.
+  /// **2단계 플로우 (16-19):** native + pendingCredential 보존 충돌은 시트가
+  /// [AuthRepository.linkPendingNativeCredential] 로 link 하고, 그 외(서버
+  /// already-exists / Custom Token) 는
+  /// [AuthRepository.signInWithExistingProvider] 로 **기존 provider 에
+  /// 로그인**한 뒤 설정 > 계정 연결로 안내한다. naver 는 로그인 대상으로 완전
+  /// 지원 (link *target* 만 Phase 17+ 이월) — 본 screen 은 sheet 노출만
+  /// 담당한다.
   void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -266,11 +268,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
             if (!mounted) return;
             final err = next.error;
-            // Phase 16 16-08 native arm + 16-09 Custom Token arm —
+            // Phase 16 16-08 native arm + 16-19 2단계 reactive 플로우 —
             // existingProvider 식별 시 (native + Custom Token 모두)
-            // AccountLinkingSheet 노출 (reactive link arm). native 는 sheet 가
-            // linkPendingNativeCredential, Custom Token (kakao/line/yahoojp) 은
-            // onCustomTokenLink → linkCustomTokenProviderArm, naver 는 graceful.
+            // AccountLinkingSheet 노출. native + pendingCredential 보존은
+            // sheet 가 linkPendingNativeCredential, 그 외는
+            // signInWithExistingProvider 로 **기존 provider 에 로그인** (step
+            // 1) 후 설정 > 계정 연결 안내 (step 2). naver 도 로그인 대상으로
+            // 정상 수행된다.
             // existingProvider == null (unknown) 만 FormErrorBanner inline 으로
             // fallback (R2 회귀 0).
             if (err is AccountExistsWithDifferentCredential &&

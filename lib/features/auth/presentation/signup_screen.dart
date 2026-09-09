@@ -120,13 +120,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 
   /// account-exists 충돌 시 [AccountLinkingSheet] 를 노출한다 (Phase 16 16-08
-  /// native arm + 16-09 Custom Token arm — reactive link arm). LoginScreen 과
-  /// 동일 wiring.
+  /// native arm + 16-19 2단계 reactive 플로우). LoginScreen 과 동일 wiring.
   ///
   /// `ref.listen` 콜백 (build 동안) 안에서 직접 navigator 변경을 피하기 위해
-  /// post-frame callback 으로 1 frame 미룬다. link 성공 시 /home 이동은
-  /// sheet 가 직접 담당한다. Custom Token arm (kakao/line/yahoojp link +
-  /// naver graceful) 도 sheet 가 직접 처리한다 — 본 screen 은 노출만 담당.
+  /// post-frame callback 으로 1 frame 미룬다. 성공 시 /home 이동은 sheet 가
+  /// 직접 담당한다. native + pendingCredential 보존 충돌은 시트가
+  /// [AuthRepository.linkPendingNativeCredential] 로 link 하고, 그 외(서버
+  /// already-exists / Custom Token) 는
+  /// [AuthRepository.signInWithExistingProvider] 로 기존 provider 에 로그인한
+  /// 뒤 설정 > 계정 연결로 안내한다 (naver 포함 정상 수행) — 본 screen 은
+  /// 노출만 담당.
   void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
