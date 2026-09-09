@@ -292,8 +292,9 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   /// [_onLinkPressed] 가 [_ExistingProviderSignInOutcome] 로 결정한다.
   ///
   /// - 사용자 취소 (`null`) — silent no-op (피드백 0, sheet 유지).
-  /// - [Failure] — 재시도 가능(transient) 과 그 외를 분리해 안내한다 (WR-03,
-  ///   2차 리뷰). 이전에는 `errorAccountExistsWithUnknownProvider` ("이 이메일은
+  /// - [Failure] — 재시도 가능(transient) 과 그 외를 분리해 안내한다 (WR-01,
+  ///   3차 리뷰 — IN-07 에서 정정. WR-03 은
+  ///   `ProviderAlreadyLinkedToThisAccount` 의 ARB 키 교체다). 이전에는 `errorAccountExistsWithUnknownProvider` ("이 이메일은
   ///   다른 방식으로 가입되어 있습니다. 처음 가입한 방식으로 다시 로그인해
   ///   주세요") 로 collapse 했는데, 사용자는 바로 그 순간 시트가 지목한 "처음
   ///   가입한 방식" 으로 로그인을 시도해 실패한 상태다 — 지시가 자기 자신을
