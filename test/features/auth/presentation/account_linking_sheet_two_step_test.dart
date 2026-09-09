@@ -20,6 +20,9 @@
 //   TS3: 취소(null) — 시트 유지 + 네비게이션 0
 //   TS4: 실패 graceful (A-16-19-01 익명 caller 재충돌) — 실패 SnackBar +
 //        시트 유지 + 네비게이션 0 + 예외 전파 0
+//   TS4b (WR-01, 2차 리뷰): 실패 문구가 순환 안내
+//        (errorAccountExistsWithUnknownProvider = "처음 가입한 방식으로 다시
+//        로그인해 주세요") 로 collapse 되지 않고 transient / 그 외로 분리된다
 //   TS5: native 회귀 (A1) — pendingCredential 존재 시 linkPendingNativeCredential
 //        호출 + signInWithExistingProvider verifyNever (경로 A 변경 0)
 //   TS6: naver 기존 — 과거 graceful 차단 분기 제거 확인 (경로 B 정상 수행)
@@ -270,16 +273,110 @@ void main() {
         await tapSheetCta(tester);
         await tester.pump(const Duration(seconds: 1));
 
+        // WR-01 (2차 리뷰): 순환 안내 대신 미분류 실패 문구.
         expect(
-          find.text(
-            'This email is already registered with another sign-in method. '
-            'Please sign in with the method you originally used.',
-          ),
+          find.text("Couldn't link your account. Please try again later."),
           findsOneWidget,
         );
         expect(find.byType(AccountLinkingSheet), findsOneWidget);
         expect(find.text('HOME'), findsNothing);
         expect(tester.takeException(), isNull);
+      },
+    );
+  });
+
+  // WR-01 (2차 리뷰) — step 1 실패를 errorAccountExistsWithUnknownProvider 로
+  // collapse 하면, 사용자는 바로 그 순간 시트가 지목한 "처음 가입한 방식" 으로
+  // 로그인을 시도해 실패한 상태이므로 지시가 자기 자신을 가리키는 순환이
+  // 된다. 프로젝트가 이미 한 번 진단하고 고친 collapse 패턴의 재발 방지.
+  group('TS4b — WR-01: step 1 실패 문구 분리 (순환 안내 회귀 잠금)', () {
+    /// step 1 실패 시 순환 안내 문구가 노출되지 않음을 단언한다.
+    void expectNoCircularGuidance(WidgetTester tester) {
+      expect(
+        find.text(
+          'This email is already registered with another sign-in method. '
+          'Please sign in with the method you originally used.',
+        ),
+        findsNothing,
+      );
+    }
+
+    testWidgets(
+      'Failure(NoInternetConnection) → transient 문구 (재시도 유도) + 순환 안내 0',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(NoInternetConnection()),
+        );
+
+        await openSheet(tester, existingProvider: AccountProvider.kakao);
+        await tapSheetCta(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(
+          find.text(
+            "Couldn't link due to a network or service error. "
+            'Please try again later.',
+          ),
+          findsOneWidget,
+        );
+        expectNoCircularGuidance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+        expect(find.text('HOME'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'Failure(TooManyRequests) → transient 문구 (동일 arm)',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(TooManyRequests()),
+        );
+
+        await openSheet(tester, existingProvider: AccountProvider.kakao);
+        await tapSheetCta(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(
+          find.text(
+            "Couldn't link due to a network or service error. "
+            'Please try again later.',
+          ),
+          findsOneWidget,
+        );
+        expectNoCircularGuidance(tester);
+      },
+    );
+
+    testWidgets(
+      'Failure(UnknownException) → catch-all 문구 + 순환 안내 0',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(UnknownException()),
+        );
+
+        await openSheet(tester, existingProvider: AccountProvider.kakao);
+        await tapSheetCta(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(
+          find.text("Couldn't link your account. Please try again later."),
+          findsOneWidget,
+        );
+        expectNoCircularGuidance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
       },
     );
   });

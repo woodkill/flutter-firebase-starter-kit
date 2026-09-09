@@ -273,14 +273,24 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   /// 를 직접 호출한다 (실 repository 경로 — 프로덕션 기본값).
   ///
   /// 실패 피드백 표시 책임은 본 메서드가 지고, navigation 분기는 호출처
-  /// [_onLinkPressed] 가 [_ExistingProviderSignInOutcome] 로 결정한다
-  /// (native arm WR-01 / proactive `AccountLinkingSection` outcome switch
-  /// mirror).
+  /// [_onLinkPressed] 가 [_ExistingProviderSignInOutcome] 로 결정한다.
   ///
   /// - 사용자 취소 (`null`) — silent no-op (피드백 0, sheet 유지).
-  /// - [Failure] — 기존 fallback ARB (`errorAccountExistsWithUnknownProvider`)
-  ///   로 user-visible 안내 (신규 ARB 0). 익명 caller 재충돌(A-16-19-01) 도
-  ///   이 분기로 흡수되어 crash 0 · linkedProviders 변경 0 이다.
+  /// - [Failure] — 재시도 가능(transient) 과 그 외를 분리해 안내한다 (WR-03,
+  ///   2차 리뷰). 이전에는 `errorAccountExistsWithUnknownProvider` ("이 이메일은
+  ///   다른 방식으로 가입되어 있습니다. 처음 가입한 방식으로 다시 로그인해
+  ///   주세요") 로 collapse 했는데, 사용자는 바로 그 순간 시트가 지목한 "처음
+  ///   가입한 방식" 으로 로그인을 시도해 실패한 상태다 — 지시가 자기 자신을
+  ///   가리키는 순환이며 복구 행동을 알려주지 않는다. 익명 caller
+  ///   재충돌(A-16-19-01) 도 이 분기로 흡수되어 crash 0 · linkedProviders
+  ///   변경 0 이다.
+  ///
+  /// **분기 값은 2개다** (`settingsLinkFailedTransient` /
+  /// `settingsLinkFailedUnknown`) — proactive `AccountLinkingSection` 의 5값
+  /// outcome switch (transientFailure / emailInUse / alreadyLinked /
+  /// alreadyLinkedHere / failed) 의 **부분집합**이며 mirror 가 아니다. step 1 은
+  /// link 가 아니라 *로그인* 이므로 already-linked / email-in-use 계열은 이
+  /// 경로의 실패 원인이 될 수 없다.
   ///
   /// **PII invariant (T-16-19-02):** 실패 로그는 `kDebugMode` 가드 하에
   /// runtimeType 만 1줄 출력한다 — collisionEmail / ID Token / provider token
@@ -316,12 +326,16 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
             'type=${exception.runtimeType}',
           );
         }
-        // 실패 — user-visible 안내 (stuck sheet 방지). 기존 fallback 키 재사용.
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(l10n.errorAccountExistsWithUnknownProvider),
-          ),
-        );
+        // 실패 — user-visible 안내 (stuck sheet 방지). 순환 안내 대신
+        // 재시도 유도 문구를 쓴다 (WR-01). 분류는 Surface D
+        // `SettingsNotifier._mapLinkFailure` 의 transient arm 과 동일 타입
+        // 집합이다.
+        final message = switch (exception) {
+          NetworkException() || TooManyRequests() || ServiceUnavailable() =>
+            l10n.settingsLinkFailedTransient,
+          _ => l10n.settingsLinkFailedUnknown,
+        };
+        messenger.showSnackBar(SnackBar(content: Text(message)));
         return _ExistingProviderSignInOutcome.cancelledOrFailed;
     }
   }
