@@ -249,7 +249,6 @@
   "authSignInBlockedByGuestSession": "게스트로 이용 중이어서 기존 계정으로 로그인할 수 없습니다. 아래에서 다른 방식으로 로그인해 주세요.",
   "settingsLinkFailedAlreadyLinked": "이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.",
   "settingsLinkFailedAlreadyLinkedHere": "이미 이 계정에 연결된 로그인 방식입니다.",
-
   "settingsLinkFailedEmailInUse": "이 이메일은 이미 다른 계정에서 사용 중입니다.",
   "settingsLinkFailedTransient": "네트워크 또는 서비스 오류로 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
   "settingsLinkFailedUnknown": "계정 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.",
@@ -268,8 +267,6 @@
   "withdrawalReauthRequired": "보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.",
   "withdrawalSuccess": "회원탈퇴가 완료되었습니다.",
   "withdrawalFailure": "회원탈퇴에 실패했습니다. 다시 시도해 주세요.",
-
   "withdrawalFailureTransient": "네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.",
-
   "withdrawalConfirmActionSemantic": "회원탈퇴 — 영구 삭제, 복구 불가"
 }

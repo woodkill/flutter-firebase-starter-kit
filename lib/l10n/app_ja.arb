@@ -252,7 +252,6 @@
   "authSignInBlockedByGuestSession": "ゲストとして利用中のため、既存のアカウントにログインできません。下の別の方法でログインしてください。",
   "settingsLinkFailedAlreadyLinked": "このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。",
   "settingsLinkFailedAlreadyLinkedHere": "このログイン方法はすでにこのアカウントに連携されています。",
-
   "settingsLinkFailedEmailInUse": "このメールアドレスは既に別のアカウントで使用されています。",
   "settingsLinkFailedTransient": "ネットワークまたはサービスのエラーで連携できませんでした。しばらくしてからもう一度お試しください。",
   "settingsLinkFailedUnknown": "アカウントの連携に失敗しました。しばらくしてからもう一度お試しください。",
@@ -271,8 +270,6 @@
   "withdrawalReauthRequired": "セキュリティのため、再ログインしてから再試行してください。",
   "withdrawalSuccess": "アカウントを削除しました。",
   "withdrawalFailure": "アカウントを削除できませんでした。再試行してください。",
-
   "withdrawalFailureTransient": "ネットワークまたはサービスエラーによりアカウントを削除できませんでした。しばらくしてから再試行してください。",
-
   "withdrawalConfirmActionSemantic": "アカウント退会 — 永久削除、復元不可"
 }
