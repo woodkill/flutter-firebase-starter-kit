@@ -1688,4 +1688,88 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
       });
     },
   );
+
+  // CR-01 / WR-06 (2차 리뷰 2026-09-09) — proactive linking
+  // (link_custom_token_provider) 성공 시마다 동일 firebaseUid 로 2번째
+  // identity_index 문서가 생기는 multi-identity 계정 상태. 16-17 최초 테스트
+  // 9건은 전부 reverseDocs 0~1건 단일 identity 라 이 상태를 잠그지 못했다.
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-10 (multi-identity): 기존 계정이 caller provider 를 이미 보유 → 충돌 아님 (형제 slug 미노출)",
+    async () => {
+      // Kakao 가입 후 설정 > 계정 연결로 LINE 을 연결한 계정 U 가, 새 단말의
+      // 익명 caller 로 Kakao 재로그인 하는 경로. 형제 slug 'line' 을 라벨로
+      // 내보내면 사용자에게 쓰지도 않는 provider 로 로그인하라고 안내하게
+      // 된다 (AccountLinkingSheet step 1 CTA = signInWithLine).
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "U-multi-identity",
+        providerData: [],
+      });
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "U-multi-identity"},
+        reverseDocs: [{provider: "kakao"}, {provider: "line"}],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-16-17-multi-identity",
+        callerUid: "anon-16-17-multi-identity",
+        userInfo: {email: "multi-identity@example.com"},
+      });
+
+      // 형제 slug('line')를 라벨로 내보내면 안 된다 (CR-01 회귀 잠금).
+      expect(res.existingProvider).not.toBe("line");
+      // 역조회가 null 을 돌려 기존 transaction 경로에 위임 → caller 자신의
+      // slug 라벨 (anonymous_existing_collision) 로 착지한다.
+      expect(res).toMatchObject({
+        uid: "U-multi-identity",
+        isNewUser: false,
+        conflictKind: "anonymous_existing_collision",
+        existingProvider: "kakao",
+      });
+      // custom-token 역조회 경로의 email_in_use 조기 return 미발동.
+      expect(warnMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_email_collision_custom_token_path",
+        }),
+        expect.any(String),
+      );
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16-17-11 (multi-identity, 진짜 충돌): caller 자신 identity 부재 → 우선순위 첫 slug",
+    async () => {
+      // 기존 계정이 LINE + Naver 를 보유하고 caller 는 Kakao — caller 자신의
+      // identity 가 없으므로 정당한 cross-provider 충돌이다. selfMatched
+      // 단축이 이 경로까지 삼키지 않음을 잠근다 (CR-01 fix 의 과잉 차단 방지).
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "U-multi-conflict",
+        providerData: [],
+      });
+      const {db} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [{provider: "line"}, {provider: "naver"}],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-16-17-multi-conflict",
+        callerUid: "anon-16-17-multi-conflict",
+        userInfo: {email: "multi-conflict@example.com"},
+      });
+
+      // CUSTOM_TOKEN_PROVIDER_PRIORITY = kakao > naver > line > yahoojp.
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "naver",
+      });
+    },
+  );
 });

@@ -266,12 +266,24 @@ export const CUSTOM_TOKEN_PROVIDER_PRIORITY: readonly ProviderId[] = [
  * (`identity_index_existing_provider_lookup_failed` 분기와 동일 정책) —
  * 역조회 실패가 정당한 로그인을 차단하지 않는다 (T-16-17-02).
  *
+ * **multi-identity 계정 계약 (CR-01 / 2026-09-09)**: 기존 계정이 caller 자신의
+ * provider identity 를 **이미 보유** 하면 그것은 cross-provider 충돌이 아니라
+ * "자기 계정 재로그인" 이다. proactive linking
+ * (`link_custom_token_provider.ts`) 이 동일 `firebaseUid` 로 2번째·3번째
+ * `identity_index` 문서를 만들기 때문에 이 상태는 Phase 16 의 정상 상태다.
+ * 이때 형제 slug 를 라벨로 내보내면 사용자에게 쓰지도 않는 provider 로
+ * 로그인하라고 안내하게 되므로 (`AccountLinkingSheet` step 1 CTA), `null` 을
+ * 돌려 기존 transaction 경로 (`anonymous_existing_collision` — caller 자신의
+ * slug 라벨) 에 위임한다 (T-16-17-10).
+ *
  * @param {Firestore} db Firestore Admin 인스턴스.
  * @param {string} firebaseUid 기존 계정의 Firebase UID (역조회 대상).
  * @param {ProviderId} currentProvider caller 가 호출한 provider slug — 자기
- *     자신 매칭은 충돌이 아니므로 후보에서 제외한다.
+ *     자신 매칭은 충돌이 아니므로 후보에서 제외하고, 매칭이 **존재하면**
+ *     전체 결과를 `null` 로 만든다 (자기 계정 재로그인).
  * @return {Promise<ProviderId|null>} `CUSTOM_TOKEN_PROVIDER_PRIORITY` 순서상
- *     첫 후보 slug. 후보 0개 또는 쿼리 실패 시 `null`.
+ *     첫 후보 slug. 후보 0개, caller 자신 identity 보유, 또는 쿼리 실패 시
+ *     `null`.
  */
 export async function resolveCustomTokenExistingProvider(
   db: Firestore,
@@ -287,6 +299,8 @@ export async function resolveCustomTokenExistingProvider(
       .get();
 
     const candidates = new Set<ProviderId>();
+    // 기존 계정이 caller 자신의 identity 를 이미 보유하는지 (CR-01).
+    let selfMatched = false;
     for (const doc of snap.docs ?? []) {
       const data = doc.data() as {provider?: unknown};
       const raw = data?.provider;
@@ -296,9 +310,19 @@ export async function resolveCustomTokenExistingProvider(
       const matched = CUSTOM_TOKEN_PROVIDER_PRIORITY.find((p) => p === raw);
       if (!matched) continue;
       // self-identity 제외 — caller 자신의 provider 는 충돌이 아니다.
-      if (matched === currentProvider) continue;
+      if (matched === currentProvider) {
+        selfMatched = true;
+        continue;
+      }
       candidates.add(matched);
     }
+
+    // CR-01: 기존 계정이 caller provider 를 이미 보유 → cross-provider 충돌이
+    // 아니라 자기 계정 재로그인이다. 형제 slug 를 라벨로 내보내면 사용자에게
+    // 쓰지도 않는 provider 를 안내하게 되므로 (proactive linking 이 만든
+    // multi-identity 계정에서 발생), null 로 기존 transaction 경로
+    // (anonymous_existing_collision) 에 위임한다.
+    if (selfMatched) return null;
 
     // 입력 문서 순서와 무관하게 고정 우선순위로 결정 (결정성 보장).
     for (const p of CUSTOM_TOKEN_PROVIDER_PRIORITY) {
