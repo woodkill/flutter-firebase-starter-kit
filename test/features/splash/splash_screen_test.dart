@@ -462,24 +462,22 @@ void main() {
     ) async {
       // Clipboard platform channel mock — test 환경에서 Clipboard.setData
       // 가 MissingPluginException 없이 통과하도록 stub.
-      final clipboardMessenger =
-          tester.binding.defaultBinaryMessenger;
+      final clipboardMessenger = tester.binding.defaultBinaryMessenger;
       final copiedTextStore = <String>[];
-      clipboardMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        (call) async {
-          if (call.method == 'Clipboard.setData') {
-            final args = call.arguments as Map<Object?, Object?>?;
-            final text = args?['text'] as String?;
-            if (text != null) copiedTextStore.add(text);
-            return null;
-          }
-          if (call.method == 'Clipboard.getData') {
-            return <String, Object?>{'text': copiedTextStore.lastOrNull};
-          }
+      clipboardMessenger.setMockMethodCallHandler(SystemChannels.platform, (
+        call,
+      ) async {
+        if (call.method == 'Clipboard.setData') {
+          final args = call.arguments as Map<Object?, Object?>?;
+          final text = args?['text'] as String?;
+          if (text != null) copiedTextStore.add(text);
           return null;
-        },
-      );
+        }
+        if (call.method == 'Clipboard.getData') {
+          return <String, Object?>{'text': copiedTextStore.lastOrNull};
+        }
+        return null;
+      });
       addTearDown(() {
         clipboardMessenger.setMockMethodCallHandler(
           SystemChannels.platform,
@@ -550,9 +548,9 @@ void main() {
     ) async {
       final mockRepo = _MockAuthRepository();
       // 4회 모두 fail — dialog 도달.
-      when(mockRepo.signInAnonymously).thenAnswer(
-        (_) async => const Result.failure(NoInternetConnection()),
-      );
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => const Result.failure(NoInternetConnection()));
       final mockCrashlytics = _MockCrashlytics();
       when(
         () => mockCrashlytics.recordError(
@@ -599,10 +597,8 @@ void main() {
       // 안 됨). retry 소진 emit (splash_auto_signin_retry_exhausted) 만
       // 호출되고, race_guard_triggered 는 negative assert.
       verifyNever(
-        () => mockCrashlytics.setCustomKey(
-          'race_guard_triggered',
-          any<Object>(),
-        ),
+        () =>
+            mockCrashlytics.setCustomKey('race_guard_triggered', any<Object>()),
       );
     });
 

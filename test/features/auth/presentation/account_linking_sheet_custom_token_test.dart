@@ -79,12 +79,10 @@ void main() {
 
   /// LoginScreen 을 GoRouter 가 감싸는 harness — Kakao Custom Token 충돌 시나리오
   /// (T1 의 sheet 노출 경로 — Plan 16-08/16-09 이후 변경 0).
-  Widget buildHarness({
-    required Result<User>? Function() onKakaoSignIn,
-  }) {
-    when(() => mockRepo.signInWithKakao()).thenAnswer(
-      (_) async => onKakaoSignIn(),
-    );
+  Widget buildHarness({required Result<User>? Function() onKakaoSignIn}) {
+    when(
+      () => mockRepo.signInWithKakao(),
+    ).thenAnswer((_) async => onKakaoSignIn());
     final router = GoRouter(
       initialLocation: AppRoutes.login,
       routes: [
@@ -101,9 +99,9 @@ void main() {
     return ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(const Locale('en')).overrideWithValue(
-          const <AuthStrategy>[KakaoAuthStrategy()],
-        ),
+        activeStrategiesProvider(
+          const Locale('en'),
+        ).overrideWithValue(const <AuthStrategy>[KakaoAuthStrategy()]),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -185,29 +183,28 @@ void main() {
   }
 
   group('T1 — Custom Token collision → AccountLinkingSheet 노출', () {
-    testWidgets(
-      'AsyncError(existingProvider=kakao, !isNative) → sheet 노출',
-      (tester) async {
-        await usePortraitSurface(tester);
-        await tester.pumpWidget(
-          buildHarness(
-            onKakaoSignIn: () => const Result<User>.failure(
-              AccountExistsWithDifferentCredential(
-                email: 'collide@example.com',
-                existingProvider: AccountProvider.kakao,
-              ),
+    testWidgets('AsyncError(existingProvider=kakao, !isNative) → sheet 노출', (
+      tester,
+    ) async {
+      await usePortraitSurface(tester);
+      await tester.pumpWidget(
+        buildHarness(
+          onKakaoSignIn: () => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collide@example.com',
+              existingProvider: AccountProvider.kakao,
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        // Kakao 소셜 버튼 tap → 충돌 → sheet 노출.
-        await tester.tap(find.byType(BrandedSocialButton).first);
-        await settleSheetEntrance(tester);
+      // Kakao 소셜 버튼 tap → 충돌 → sheet 노출.
+      await tester.tap(find.byType(BrandedSocialButton).first);
+      await settleSheetEntrance(tester);
 
-        expect(find.byType(AccountLinkingSheet), findsOneWidget);
-      },
-    );
+      expect(find.byType(AccountLinkingSheet), findsOneWidget);
+    });
   });
 
   group('T2 — seam 주입 + true → 시트 pop + /home', () {
@@ -267,33 +264,32 @@ void main() {
   });
 
   group('T4 — sheet cancel → hook 미호출 (D-03)', () {
-    testWidgets(
-      'TextButton dismiss → sheet pop(false) + hook 미호출',
-      (tester) async {
-        await usePortraitSurface(tester);
-        var called = false;
+    testWidgets('TextButton dismiss → sheet pop(false) + hook 미호출', (
+      tester,
+    ) async {
+      await usePortraitSurface(tester);
+      var called = false;
 
-        final sheetResult = await showSeamSheet(
-          tester,
-          existingProvider: AccountProvider.kakao,
-          onExistingProviderSignIn: (provider) async {
-            called = true;
-            return true;
-          },
-        );
+      final sheetResult = await showSeamSheet(
+        tester,
+        existingProvider: AccountProvider.kakao,
+        onExistingProviderSignIn: (provider) async {
+          called = true;
+          return true;
+        },
+      );
 
-        final dismissBtn = find.text('Sign in with another method');
-        await tester.ensureVisible(dismissBtn);
-        await tester.pump();
-        await tester.tap(dismissBtn);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 500));
+      final dismissBtn = find.text('Sign in with another method');
+      await tester.ensureVisible(dismissBtn);
+      await tester.pump();
+      await tester.tap(dismissBtn);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
-        expect(find.byType(AccountLinkingSheet), findsNothing);
-        expect(called, isFalse);
-        expect(await sheetResult, isFalse);
-      },
-    );
+      expect(find.byType(AccountLinkingSheet), findsNothing);
+      expect(called, isFalse);
+      expect(await sheetResult, isFalse);
+    });
   });
 
   group('T6 — seam 주입 + false → 시트 유지 + 네비게이션 0', () {

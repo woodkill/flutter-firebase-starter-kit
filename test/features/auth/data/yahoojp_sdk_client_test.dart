@@ -52,44 +52,41 @@ void main() {
   // Test 1: nonce 22 char base64Url + idToken 정확 매핑 (D-YJP-04)
   // ==========================================================================
   group('YahoojpSdkClient.signIn — nonce + idToken contract', () {
-    test(
-      'Test 1: 정상 응답 — fake authorize 의 idToken + 생성 nonce 매핑 + '
-      'nonce 22 char base64url 검증',
-      () async {
-        const idToken = 'JWT_HEADER.JWT_PAYLOAD.JWT_SIG';
-        String? capturedNonce;
-        final client = YahoojpSdkClient.forTest(
-          clientId: 'test-client-id',
-          redirectUrl: 'com.example.app:/oauth2redirect',
-          authorize: (request) async {
-            capturedNonce = request.nonce;
-            return _buildTokenResponse(idToken: idToken);
-          },
-          endSession: (request) async {
-            throw UnimplementedError('endSession 미호출');
-          },
-        );
+    test('Test 1: 정상 응답 — fake authorize 의 idToken + 생성 nonce 매핑 + '
+        'nonce 22 char base64url 검증', () async {
+      const idToken = 'JWT_HEADER.JWT_PAYLOAD.JWT_SIG';
+      String? capturedNonce;
+      final client = YahoojpSdkClient.forTest(
+        clientId: 'test-client-id',
+        redirectUrl: 'com.example.app:/oauth2redirect',
+        authorize: (request) async {
+          capturedNonce = request.nonce;
+          return _buildTokenResponse(idToken: idToken);
+        },
+        endSession: (request) async {
+          throw UnimplementedError('endSession 미호출');
+        },
+      );
 
-        final result = await client.signIn();
+      final result = await client.signIn();
 
-        expect(result, isNotNull);
-        expect(result!.idToken, idToken);
-        expect(result.nonce, capturedNonce);
-        expect(capturedNonce, isNotNull);
-        // 16 bytes → base64url padding 제거 = 22 chars.
-        expect(
-          capturedNonce!.length,
-          22,
-          reason: '16 bytes Random.secure() → base64Url padding 제거 = 22 chars',
-        );
-        // base64url 의 padding-stripped 형식 — A-Z / a-z / 0-9 / - / _.
-        expect(
-          RegExp(r'^[A-Za-z0-9_-]{22}$').hasMatch(capturedNonce!),
-          isTrue,
-          reason: 'nonce 가 base64url 안전 문자 집합만 포함해야 한다',
-        );
-      },
-    );
+      expect(result, isNotNull);
+      expect(result!.idToken, idToken);
+      expect(result.nonce, capturedNonce);
+      expect(capturedNonce, isNotNull);
+      // 16 bytes → base64url padding 제거 = 22 chars.
+      expect(
+        capturedNonce!.length,
+        22,
+        reason: '16 bytes Random.secure() → base64Url padding 제거 = 22 chars',
+      );
+      // base64url 의 padding-stripped 형식 — A-Z / a-z / 0-9 / - / _.
+      expect(
+        RegExp(r'^[A-Za-z0-9_-]{22}$').hasMatch(capturedNonce!),
+        isTrue,
+        reason: 'nonce 가 base64url 안전 문자 집합만 포함해야 한다',
+      );
+    });
 
     test('Test 2: 사용자 취소 silent — FlutterAppAuthUserCancelledException → null '
         '(D-YJP-09)', () async {
@@ -109,7 +106,8 @@ void main() {
       expect(
         result,
         isNull,
-        reason: 'FlutterAppAuthUserCancelledException 는 D-YJP-09 정정 lock '
+        reason:
+            'FlutterAppAuthUserCancelledException 는 D-YJP-09 정정 lock '
             'silent cancel — null 반환 (deviation #2: LINE PlatformException '
             "'CANCEL'/'AUTHENTICATION_CANCELLED' 이원 분기 대비 단일 예외 타입)",
       );
@@ -130,10 +128,7 @@ void main() {
           },
         );
 
-        await expectLater(
-          client.signIn(),
-          throwsA(isA<Exception>()),
-        );
+        await expectLater(client.signIn(), throwsA(isA<Exception>()));
       },
     );
 
@@ -152,31 +147,27 @@ void main() {
           },
         );
 
-        await expectLater(
-          client.signIn(),
-          throwsA(isA<ServiceUnavailable>()),
-        );
+        await expectLater(client.signIn(), throwsA(isA<ServiceUnavailable>()));
       },
     );
 
-    test('Test 4.5: idToken 빈 문자열 → ServiceUnavailable throw (Pitfall 1 보강)',
-        () async {
-      final client = YahoojpSdkClient.forTest(
-        clientId: 'test-client-id',
-        redirectUrl: 'com.example.app:/oauth2redirect',
-        authorize: (request) async {
-          return _buildTokenResponse(idToken: '');
-        },
-        endSession: (request) async {
-          throw UnimplementedError('endSession 미호출');
-        },
-      );
+    test(
+      'Test 4.5: idToken 빈 문자열 → ServiceUnavailable throw (Pitfall 1 보강)',
+      () async {
+        final client = YahoojpSdkClient.forTest(
+          clientId: 'test-client-id',
+          redirectUrl: 'com.example.app:/oauth2redirect',
+          authorize: (request) async {
+            return _buildTokenResponse(idToken: '');
+          },
+          endSession: (request) async {
+            throw UnimplementedError('endSession 미호출');
+          },
+        );
 
-      await expectLater(
-        client.signIn(),
-        throwsA(isA<ServiceUnavailable>()),
-      );
-    });
+        await expectLater(client.signIn(), throwsA(isA<ServiceUnavailable>()));
+      },
+    );
 
     test(
       'Test 5: clientId 빈 문자열 → ServiceUnavailable throw '
@@ -193,44 +184,39 @@ void main() {
           },
         );
 
-        await expectLater(
-          client.signIn(),
-          throwsA(isA<ServiceUnavailable>()),
-        );
+        await expectLater(client.signIn(), throwsA(isA<ServiceUnavailable>()));
       },
     );
 
-    test(
-      'Test 6: AuthorizationTokenRequest 인자 검증 — clientId/redirectUrl/'
-      'scopes openid+profile (D-YJP-09)',
-      () async {
-        AuthorizationTokenRequest? captured;
-        final client = YahoojpSdkClient.forTest(
-          clientId: 'yj-client-001',
-          redirectUrl: 'jp.example.yahoojp:/oauth2redirect',
-          authorize: (request) async {
-            captured = request;
-            return _buildTokenResponse(idToken: 'JWT');
-          },
-          endSession: (request) async {
-            throw UnimplementedError('endSession 미호출');
-          },
-        );
+    test('Test 6: AuthorizationTokenRequest 인자 검증 — clientId/redirectUrl/'
+        'scopes openid+profile (D-YJP-09)', () async {
+      AuthorizationTokenRequest? captured;
+      final client = YahoojpSdkClient.forTest(
+        clientId: 'yj-client-001',
+        redirectUrl: 'jp.example.yahoojp:/oauth2redirect',
+        authorize: (request) async {
+          captured = request;
+          return _buildTokenResponse(idToken: 'JWT');
+        },
+        endSession: (request) async {
+          throw UnimplementedError('endSession 미호출');
+        },
+      );
 
-        await client.signIn();
+      await client.signIn();
 
-        expect(captured, isNotNull);
-        expect(captured!.clientId, 'yj-client-001');
-        expect(captured!.redirectUrl, 'jp.example.yahoojp:/oauth2redirect');
-        // D-YJP-09 정정 lock — email scope 미채택.
-        expect(
-          captured!.scopes,
-          const <String>['openid', 'profile'],
-          reason: 'D-YJP-09 정정 lock — Yahoo!JP UserInfo API 審査 회피, '
-              'email scope 미채택. _autoSendEmailVerification 자연 no-op.',
-        );
-      },
-    );
+      expect(captured, isNotNull);
+      expect(captured!.clientId, 'yj-client-001');
+      expect(captured!.redirectUrl, 'jp.example.yahoojp:/oauth2redirect');
+      // D-YJP-09 정정 lock — email scope 미채택.
+      expect(
+        captured!.scopes,
+        const <String>['openid', 'profile'],
+        reason:
+            'D-YJP-09 정정 lock — Yahoo!JP UserInfo API 審査 회피, '
+            'email scope 미채택. _autoSendEmailVerification 자연 no-op.',
+      );
+    });
   });
 
   // ==========================================================================
@@ -256,26 +242,23 @@ void main() {
       expect(endSessionCallCount, 1);
     });
 
-    test(
-      'Test 8: _endSession throw 해도 logout() 가 silent swallow (graceful) — '
-      'D-YJP-08 endSession endpoint 미명시 시 PlatformException 흡수 '
-      '(T-15-14 mitigation)',
-      () async {
-        final client = YahoojpSdkClient.forTest(
-          clientId: 'test-client-id',
-          redirectUrl: 'com.example.app:/oauth2redirect',
-          authorize: (request) async {
-            throw UnimplementedError('signIn 미호출');
-          },
-          endSession: (request) async {
-            throw Exception('endSession endpoint missing');
-          },
-        );
+    test('Test 8: _endSession throw 해도 logout() 가 silent swallow (graceful) — '
+        'D-YJP-08 endSession endpoint 미명시 시 PlatformException 흡수 '
+        '(T-15-14 mitigation)', () async {
+      final client = YahoojpSdkClient.forTest(
+        clientId: 'test-client-id',
+        redirectUrl: 'com.example.app:/oauth2redirect',
+        authorize: (request) async {
+          throw UnimplementedError('signIn 미호출');
+        },
+        endSession: (request) async {
+          throw Exception('endSession endpoint missing');
+        },
+      );
 
-        // 예외 0 — graceful (outer 흐름 차단 안 함).
-        await client.logout();
-      },
-    );
+      // 예외 0 — graceful (outer 흐름 차단 안 함).
+      await client.logout();
+    });
   });
 
   // ==========================================================================
@@ -283,41 +266,39 @@ void main() {
   //          (T-15-11 mitigation — Spoofing nonce 예측 가능)
   // ==========================================================================
   group('YahoojpSdkClient — nonce 통계 회귀 (T-15-11)', () {
-    test(
-      'Test 9: 100 회 signIn 호출 — 모든 nonce 가 22 char base64Url 부합 + '
-      '모두 unique (Random.secure 검증)',
-      () async {
-        final nonces = <String>{};
-        for (var i = 0; i < 100; i++) {
-          final client = YahoojpSdkClient.forTest(
-            clientId: 'test-client-id',
-            redirectUrl: 'com.example.app:/oauth2redirect',
-            authorize: (request) async {
-              nonces.add(request.nonce ?? '');
-              return _buildTokenResponse(idToken: 'JWT');
-            },
-            endSession: (request) async {
-              throw UnimplementedError('endSession 미호출');
-            },
-          );
-          await client.signIn();
-        }
-        expect(
-          nonces.length,
-          100,
-          reason: '100 회 generate → 100 unique nonce (Random.secure 16 bytes '
-              '→ 2^128 entropy 로 collision 사실상 0)',
+    test('Test 9: 100 회 signIn 호출 — 모든 nonce 가 22 char base64Url 부합 + '
+        '모두 unique (Random.secure 검증)', () async {
+      final nonces = <String>{};
+      for (var i = 0; i < 100; i++) {
+        final client = YahoojpSdkClient.forTest(
+          clientId: 'test-client-id',
+          redirectUrl: 'com.example.app:/oauth2redirect',
+          authorize: (request) async {
+            nonces.add(request.nonce ?? '');
+            return _buildTokenResponse(idToken: 'JWT');
+          },
+          endSession: (request) async {
+            throw UnimplementedError('endSession 미호출');
+          },
         );
-        // 모든 nonce 가 22 char base64Url 부합 검증.
-        final pattern = RegExp(r'^[A-Za-z0-9_-]{22}$');
-        for (final n in nonces) {
-          expect(
-            pattern.hasMatch(n),
-            isTrue,
-            reason: '$n 가 22 char base64url 부합해야 한다',
-          );
-        }
-      },
-    );
+        await client.signIn();
+      }
+      expect(
+        nonces.length,
+        100,
+        reason:
+            '100 회 generate → 100 unique nonce (Random.secure 16 bytes '
+            '→ 2^128 entropy 로 collision 사실상 0)',
+      );
+      // 모든 nonce 가 22 char base64Url 부합 검증.
+      final pattern = RegExp(r'^[A-Za-z0-9_-]{22}$');
+      for (final n in nonces) {
+        expect(
+          pattern.hasMatch(n),
+          isTrue,
+          reason: '$n 가 22 char base64url 부합해야 한다',
+        );
+      }
+    });
   });
 }

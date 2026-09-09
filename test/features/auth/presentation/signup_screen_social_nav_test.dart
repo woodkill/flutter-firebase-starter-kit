@@ -59,13 +59,13 @@ Widget _buildApp({
       isFirebaseInitializedProvider.overrideWithValue(false),
       firebaseAuthProvider.overrideWithValue(mockAuth),
       authRepositoryProvider.overrideWithValue(mockRepo),
-      activeStrategiesProvider(
-        const Locale('en'),
-      ).overrideWithValue(const <AuthStrategy>[
-        GoogleAuthStrategy(),
-        AppleAuthStrategy(),
-        FacebookAuthStrategy(),
-      ]),
+      activeStrategiesProvider(const Locale('en')).overrideWithValue(
+        const <AuthStrategy>[
+          GoogleAuthStrategy(),
+          AppleAuthStrategy(),
+          FacebookAuthStrategy(),
+        ],
+      ),
     ],
     child: MaterialApp.router(
       theme: AppTheme.light(),
@@ -128,7 +128,8 @@ void main() {
       // SocialButton (strategy.providerId == kProviderIdGoogle) 으로 탭.
       await tester.tap(
         find.byWidgetPredicate(
-          (w) => w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
+          (w) =>
+              w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
         ),
       );
       await tester.pumpAndSettle();
@@ -190,7 +191,8 @@ void main() {
       // SocialButton (strategy.providerId == kProviderIdGoogle) 으로 탭.
       await tester.tap(
         find.byWidgetPredicate(
-          (w) => w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
+          (w) =>
+              w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
         ),
       );
       await tester.pumpAndSettle();

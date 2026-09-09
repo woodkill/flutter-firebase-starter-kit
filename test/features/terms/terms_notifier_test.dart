@@ -588,43 +588,40 @@ void main() {
   });
 
   group('TermsNotifier.acceptanceSnapshotJson (CR-01)', () {
-    test(
-      'Test 11 (CR-01): accept() 직후 acceptanceSnapshotJson.acceptedAt 이 '
-      'UTC(Z 접미) ISO 8601 이며 동일 instant 를 가리킨다',
-      () async {
-        SharedPreferences.setMockInitialValues({});
-        final container = createContainer();
-        final notifier = container.read(termsProvider.notifier);
+    test('Test 11 (CR-01): accept() 직후 acceptanceSnapshotJson.acceptedAt 이 '
+        'UTC(Z 접미) ISO 8601 이며 동일 instant 를 가리킨다', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
 
-        // accept() 는 DateTime.now() (local) 로 acceptedAt 을 만든다 —
-        // fixture 문자열이 아니라 실제 producer 출력을 검증한다.
-        await notifier.accept(service: true, privacy: true, marketing: false);
+      // accept() 는 DateTime.now() (local) 로 acceptedAt 을 만든다 —
+      // fixture 문자열이 아니라 실제 producer 출력을 검증한다.
+      await notifier.accept(service: true, privacy: true, marketing: false);
 
-        final localAcceptedAt = notifier.acceptanceSnapshot!.acceptedAt;
-        expect(
-          localAcceptedAt.isUtc,
-          isFalse,
-          reason: 'accept() 는 local DateTime 을 만든다 — 전제 고정',
-        );
+      final localAcceptedAt = notifier.acceptanceSnapshot!.acceptedAt;
+      expect(
+        localAcceptedAt.isUtc,
+        isFalse,
+        reason: 'accept() 는 local DateTime 을 만든다 — 전제 고정',
+      );
 
-        final json = notifier.acceptanceSnapshotJson;
-        expect(json, isNotNull);
-        final acceptedAt = json!['acceptedAt'] as String;
-        expect(
-          acceptedAt,
-          endsWith('Z'),
-          reason:
-              '서버(TZ=UTC)는 offset 없는 문자열을 UTC 로 해석하므로 '
-              'Z 접미 UTC 문자열이어야 한다 (CR-01)',
-        );
-        // 값이 바뀌지 않고 표현만 UTC 로 정규화되어야 한다.
-        expect(
-          DateTime.parse(acceptedAt).isAtSameMomentAs(localAcceptedAt),
-          isTrue,
-          reason: 'UTC 정규화는 instant 를 보존해야 한다',
-        );
-      },
-    );
+      final json = notifier.acceptanceSnapshotJson;
+      expect(json, isNotNull);
+      final acceptedAt = json!['acceptedAt'] as String;
+      expect(
+        acceptedAt,
+        endsWith('Z'),
+        reason:
+            '서버(TZ=UTC)는 offset 없는 문자열을 UTC 로 해석하므로 '
+            'Z 접미 UTC 문자열이어야 한다 (CR-01)',
+      );
+      // 값이 바뀌지 않고 표현만 UTC 로 정규화되어야 한다.
+      expect(
+        DateTime.parse(acceptedAt).isAtSameMomentAs(localAcceptedAt),
+        isTrue,
+        reason: 'UTC 정규화는 instant 를 보존해야 한다',
+      );
+    });
 
     test(
       'Test 12 (CR-01): 동의 기록이 없으면 acceptanceSnapshotJson 은 null 이다',
@@ -637,24 +634,21 @@ void main() {
       },
     );
 
-    test(
-      'Test 13 (CR-01): acceptanceSnapshotJson 키 집합이 서버 계약 5 키다',
-      () async {
-        SharedPreferences.setMockInitialValues({});
-        final container = createContainer();
-        final notifier = container.read(termsProvider.notifier);
+    test('Test 13 (CR-01): acceptanceSnapshotJson 키 집합이 서버 계약 5 키다', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
 
-        await notifier.accept(service: true, privacy: true, marketing: true);
+      await notifier.accept(service: true, privacy: true, marketing: true);
 
-        expect(notifier.acceptanceSnapshotJson!.keys.toSet(), <String>{
-          'version',
-          'service',
-          'privacy',
-          'marketing',
-          'acceptedAt',
-        });
-      },
-    );
+      expect(notifier.acceptanceSnapshotJson!.keys.toSet(), <String>{
+        'version',
+        'service',
+        'privacy',
+        'marketing',
+        'acceptedAt',
+      });
+    });
   });
 
   group('TermsAcceptance', () {

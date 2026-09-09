@@ -146,22 +146,25 @@ void main() {
   }
 
   group('Phase 16 D-12 — catch path → lookupSignInMethods wiring', () {
-    test('R1: account-exists + callable success (existingProvider=kakao) → '
-        'AccountExistsWithDifferentCredential.existingProvider == kakao', () async {
-      stubLookupResponse(existingProvider: 'kakao');
+    test(
+      'R1: account-exists + callable success (existingProvider=kakao) → '
+      'AccountExistsWithDifferentCredential.existingProvider == kakao',
+      () async {
+        stubLookupResponse(existingProvider: 'kakao');
 
-      final ex = await triggerAccountExists(
-        collisionEmail: 'user1@example.com',
-      );
+        final ex = await triggerAccountExists(
+          collisionEmail: 'user1@example.com',
+        );
 
-      expect(ex.existingProvider, AccountProvider.kakao);
-      expect(ex.email, 'user1@example.com');
-      verify(
-        () => mockLookupCallable.call<Map<String, dynamic>>(<String, dynamic>{
-          'email': 'user1@example.com',
-        }),
-      ).called(1);
-    });
+        expect(ex.existingProvider, AccountProvider.kakao);
+        expect(ex.email, 'user1@example.com');
+        verify(
+          () => mockLookupCallable.call<Map<String, dynamic>>(<String, dynamic>{
+            'email': 'user1@example.com',
+          }),
+        ).called(1);
+      },
+    );
 
     test('R2: account-exists + callable returns existingProvider=null → '
         'existingProvider == null (R2 fallback baseline)', () async {
@@ -261,9 +264,7 @@ void main() {
           ),
         );
 
-        await triggerAccountExists(
-          collisionEmail: 'pii-sensitive@example.com',
-        );
+        await triggerAccountExists(collisionEmail: 'pii-sensitive@example.com');
 
         // 모든 debugPrint payload 에 collisionEmail 본문 (local-part / domain
         // 어느 쪽도) 포함되지 않음 invariant (T-16-NEW-07 sentinel).
@@ -329,8 +330,7 @@ void main() {
       mockCtCallable = _MockHttpsCallable();
       // kakao Custom Token sign-in path 의 SDK + finally logout stub.
       when(() => mockKakaoSdkClient.signIn()).thenAnswer(
-        (_) async =>
-            const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
+        (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
       );
       when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
       when(
@@ -345,9 +345,7 @@ void main() {
       required Object? details,
       String code = 'already-exists',
     }) async {
-      when(
-        () => mockCtCallable.call<Map<String, dynamic>>(any()),
-      ).thenThrow(
+      when(() => mockCtCallable.call<Map<String, dynamic>>(any())).thenThrow(
         FirebaseFunctionsException(
           code: code,
           message: 'errorAccountExistsWithDifferentCredential',
@@ -360,30 +358,33 @@ void main() {
       return failure.exception as AccountExistsWithDifferentCredential;
     }
 
-    test('CT-R1: details.existingProvider 각 slug → AccountProvider 매핑', () async {
-      const cases = <String, AccountProvider>{
-        'kakao': AccountProvider.kakao,
-        'naver': AccountProvider.naver,
-        'line': AccountProvider.line,
-        'yahoojp': AccountProvider.yahoojp,
-        'facebook': AccountProvider.facebook,
-        'google': AccountProvider.google,
-        'apple': AccountProvider.apple,
-        'email': AccountProvider.email,
-      };
-      for (final entry in cases.entries) {
-        final ex = await triggerCustomTokenExists(
-          details: <String, dynamic>{'existingProvider': entry.key},
-        );
-        expect(
-          ex.existingProvider,
-          entry.value,
-          reason: 'slug ${entry.key} → ${entry.value}',
-        );
-        // Custom Token path — 서버가 PII 로 email 미전달 → null 유지.
-        expect(ex.email, isNull);
-      }
-    });
+    test(
+      'CT-R1: details.existingProvider 각 slug → AccountProvider 매핑',
+      () async {
+        const cases = <String, AccountProvider>{
+          'kakao': AccountProvider.kakao,
+          'naver': AccountProvider.naver,
+          'line': AccountProvider.line,
+          'yahoojp': AccountProvider.yahoojp,
+          'facebook': AccountProvider.facebook,
+          'google': AccountProvider.google,
+          'apple': AccountProvider.apple,
+          'email': AccountProvider.email,
+        };
+        for (final entry in cases.entries) {
+          final ex = await triggerCustomTokenExists(
+            details: <String, dynamic>{'existingProvider': entry.key},
+          );
+          expect(
+            ex.existingProvider,
+            entry.value,
+            reason: 'slug ${entry.key} → ${entry.value}',
+          );
+          // Custom Token path — 서버가 PII 로 email 미전달 → null 유지.
+          expect(ex.email, isNull);
+        }
+      },
+    );
 
     test('CT-R2a: details.existingProvider=null → existingProvider == null '
         '(R2 일반 배너 fallback)', () async {
@@ -394,12 +395,14 @@ void main() {
       expect(ex.email, isNull);
     });
 
-    test('CT-R2b: details 자체 부재(null) → existingProvider == null + no throw',
-        () async {
-      final ex = await triggerCustomTokenExists(details: null);
-      expect(ex.existingProvider, isNull);
-      expect(ex.email, isNull);
-    });
+    test(
+      'CT-R2b: details 자체 부재(null) → existingProvider == null + no throw',
+      () async {
+        final ex = await triggerCustomTokenExists(details: null);
+        expect(ex.existingProvider, isNull);
+        expect(ex.email, isNull);
+      },
+    );
 
     test('CT-R2c: unknown slug(wechat) → existingProvider == null', () async {
       final ex = await triggerCustomTokenExists(

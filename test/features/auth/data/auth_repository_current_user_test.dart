@@ -171,7 +171,8 @@ Stream<_MockDocumentSnapshot> Function() _permissionDeniedFactory() =>
 /// 정상 emit 을 내는 stream factory — 단일 [_MockDocumentSnapshot] value.
 Stream<_MockDocumentSnapshot> Function() _valueFactory(
   _MockDocumentSnapshot snap,
-) => () => Stream<_MockDocumentSnapshot>.value(snap);
+) =>
+    () => Stream<_MockDocumentSnapshot>.value(snap);
 
 /// 한 개의 [DocumentSnapshot] mock — `linkedProviders` 데이터를 담는다.
 _MockDocumentSnapshot _buildSnapshot({
@@ -268,43 +269,40 @@ void main() {
       },
     );
 
-    test(
-      '4. Firestore stream 에러 (unavailable) → AsyncData(<String>[]) emit '
-      '(D-41 fallback empty, R6 + R10-FOLLOWUP-2 I1)',
-      () async {
-        const uid = 'uid-error';
-        final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
-        // R10-FOLLOWUP-2 후, `permission-denied` 는 1s × 5회 retry 진입.
-        // D-41 (영구 spinner 회피) 정책은 다른 FirebaseException (network /
-        // unavailable 등) 에서 검증한다 — `unavailable` 코드 사용.
-        final firestore = _buildFirestore(uid: uid, shouldError: true);
+    test('4. Firestore stream 에러 (unavailable) → AsyncData(<String>[]) emit '
+        '(D-41 fallback empty, R6 + R10-FOLLOWUP-2 I1)', () async {
+      const uid = 'uid-error';
+      final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
+      // R10-FOLLOWUP-2 후, `permission-denied` 는 1s × 5회 retry 진입.
+      // D-41 (영구 spinner 회피) 정책은 다른 FirebaseException (network /
+      // unavailable 등) 에서 검증한다 — `unavailable` 코드 사용.
+      final firestore = _buildFirestore(uid: uid, shouldError: true);
 
-        final container = _makeContainer(
-          overrides: [
-            authStateProvider.overrideWith(
-              (ref) => Stream<fb.User?>.value(fbUser),
-            ),
-            firebaseFirestoreProvider.overrideWithValue(firestore),
-          ],
-        );
-        addTearDown(container.dispose);
+      final container = _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+      addTearDown(container.dispose);
 
-        await _settle();
+      await _settle();
 
-        // 신규 contract (R6 D-41 + R10-FOLLOWUP-2 I1): 직접 stream 소비 시
-        // AsyncData([]) 정착. 직접 stream consumer (Account 섹션, debug
-        // widget) 가 spinner 무한 회피.
-        final asyncValue = container.read(linkedProvidersStreamProvider(uid));
-        expect(asyncValue.hasValue, isTrue);
-        expect(asyncValue.value, isEmpty);
+      // 신규 contract (R6 D-41 + R10-FOLLOWUP-2 I1): 직접 stream 소비 시
+      // AsyncData([]) 정착. 직접 stream consumer (Account 섹션, debug
+      // widget) 가 spinner 무한 회피.
+      final asyncValue = container.read(linkedProvidersStreamProvider(uid));
+      expect(asyncValue.hasValue, isTrue);
+      expect(asyncValue.value, isEmpty);
 
-        // 합집합 결과는 동일 — Firebase providerData 만 사용
-        // (currentUserProvider 의 linkedAsync.when data 분기로 자연 흐름).
-        final user = container.read(currentUserProvider);
-        expect(user, isNotNull);
-        expect(user!.providerIds, ['google.com']);
-      },
-    );
+      // 합집합 결과는 동일 — Firebase providerData 만 사용
+      // (currentUserProvider 의 linkedAsync.when data 분기로 자연 흐름).
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.providerIds, ['google.com']);
+    });
 
     test(
       '5. linkedProviders 필드 없음 (다른 필드만) → Firebase providerData 만 사용',
@@ -551,43 +549,43 @@ void main() {
   // fakeAsync 호환성 — ProviderContainer microtask 와 mocktail thenAnswer
   // 카운팅이 fake zone 안에서 함께 실행되어야 한다. wallclock 채택 (spec §5
   // 의 fakeAsync 는 권장이지 의무 아님).
-  group('Phase 13 R10-FOLLOWUP-2: linkedProvidersStream permission-denied retry', () {
-    test('1. 정상 emit (회귀) — Firestore mock [{providerId: naver}] → '
-        'AsyncData([naver])', () async {
-      const uid = 'uid-r10f2-normal';
-      final snap = _buildSnapshot(
-        exists: true,
-        data: <String, dynamic>{
-          'linkedProviders': <Map<String, dynamic>>[
-            {'providerId': 'naver', 'providerUserId': 'nv1'},
-          ],
-        },
-      );
-      final firestore = _buildFirestore(
-        uid: uid,
-        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
-      );
+  group(
+    'Phase 13 R10-FOLLOWUP-2: linkedProvidersStream permission-denied retry',
+    () {
+      test('1. 정상 emit (회귀) — Firestore mock [{providerId: naver}] → '
+          'AsyncData([naver])', () async {
+        const uid = 'uid-r10f2-normal';
+        final snap = _buildSnapshot(
+          exists: true,
+          data: <String, dynamic>{
+            'linkedProviders': <Map<String, dynamic>>[
+              {'providerId': 'naver', 'providerUserId': 'nv1'},
+            ],
+          },
+        );
+        final firestore = _buildFirestore(
+          uid: uid,
+          snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+        );
 
-      final container = ProviderContainer(
-        overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
-      );
-      addTearDown(container.dispose);
-      container.listen(
-        linkedProvidersStreamProvider(uid),
-        (_, _) {},
-        fireImmediately: true,
-      );
+        final container = ProviderContainer(
+          overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
+        );
+        addTearDown(container.dispose);
+        container.listen(
+          linkedProvidersStreamProvider(uid),
+          (_, _) {},
+          fireImmediately: true,
+        );
 
-      await _settle();
-      final asyncValue = container.read(linkedProvidersStreamProvider(uid));
-      expect(asyncValue.hasValue, isTrue);
-      expect(asyncValue.value, ['naver']);
-    });
+        await _settle();
+        final asyncValue = container.read(linkedProvidersStreamProvider(uid));
+        expect(asyncValue.hasValue, isTrue);
+        expect(asyncValue.value, ['naver']);
+      });
 
-    test(
-      '2. permission-denied 1회 후 정상 (R10-FOLLOWUP-2 핵심) — 1s delay 후 '
-      'AsyncData([naver])',
-      () async {
+      test('2. permission-denied 1회 후 정상 (R10-FOLLOWUP-2 핵심) — 1s delay 후 '
+          'AsyncData([naver])', () async {
         const uid = 'uid-r10f2-retry-once';
         final snap = _buildSnapshot(
           exists: true,
@@ -600,10 +598,7 @@ void main() {
         // 1차 throw permission-denied → retry 진입 (yield 안 함) → 2차 정상.
         final firestore = _buildRetryFirestore(
           uid: uid,
-          streamFactories: [
-            _permissionDeniedFactory(),
-            _valueFactory(snap),
-          ],
+          streamFactories: [_permissionDeniedFactory(), _valueFactory(snap)],
         );
 
         final container = ProviderContainer(
@@ -630,27 +625,18 @@ void main() {
         await _settle();
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.hasValue, isTrue);
-        expect(
-          asyncValue.value,
-          ['naver'],
-          reason: 'retry 후 정상 emit 도달 (R10-FOLLOWUP-2 핵심)',
-        );
-      },
-      timeout: const Timeout(Duration(seconds: 10)),
-    );
+        expect(asyncValue.value, [
+          'naver',
+        ], reason: 'retry 후 정상 emit 도달 (R10-FOLLOWUP-2 핵심)');
+      }, timeout: const Timeout(Duration(seconds: 10)));
 
-    test(
-      '3. permission-denied 5회 escape — 5s 후 AsyncData([]) (D-41 escape '
-      'hatch, I1)',
-      () async {
+      test('3. permission-denied 5회 escape — 5s 후 AsyncData([]) (D-41 escape '
+          'hatch, I1)', () async {
         const uid = 'uid-r10f2-escape';
         // 6 호출 모두 permission-denied — 5회 retry 후 escape hatch.
         final firestore = _buildRetryFirestore(
           uid: uid,
-          streamFactories: List.generate(
-            6,
-            (_) => _permissionDeniedFactory(),
-          ),
+          streamFactories: List.generate(6, (_) => _permissionDeniedFactory()),
         );
 
         final container = ProviderContainer(
@@ -673,14 +659,10 @@ void main() {
           isEmpty,
           reason: '5회 escape → 빈 배열 fallback (영구 spinner 회피)',
         );
-      },
-      timeout: const Timeout(Duration(seconds: 15)),
-    );
+      }, timeout: const Timeout(Duration(seconds: 15)));
 
-    test(
-      '4. 다른 FirebaseException (unavailable) → 즉시 AsyncData([]) (D-41 '
-      '보존, I1)',
-      () async {
+      test('4. 다른 FirebaseException (unavailable) → 즉시 AsyncData([]) (D-41 '
+          '보존, I1)', () async {
         const uid = 'uid-r10f2-other-error';
         final firestore = _buildFirestore(
           uid: uid,
@@ -707,13 +689,10 @@ void main() {
           isEmpty,
           reason: 'permission-denied 가 아닌 코드는 즉시 fallback (I1)',
         );
-      },
-    );
+      });
 
-    test(
-      '5. 카운터 리셋 — 1차 throw → 2차 정상 → 3차 throw → 4차 정상 (5회 누적 '
-      '아님, I3)',
-      () async {
+      test('5. 카운터 리셋 — 1차 throw → 2차 정상 → 3차 throw → 4차 정상 (5회 누적 '
+          '아님, I3)', () async {
         const uid = 'uid-r10f2-counter-reset';
         final snap = _buildSnapshot(
           exists: true,
@@ -753,13 +732,10 @@ void main() {
 
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.hasValue, isTrue);
-        expect(
-          asyncValue.value,
-          ['naver'],
-          reason: '카운터 리셋 후 재 retry 통해 정상 emit 도달 (I3)',
-        );
-      },
-      timeout: const Timeout(Duration(seconds: 10)),
-    );
-  });
+        expect(asyncValue.value, [
+          'naver',
+        ], reason: '카운터 리셋 후 재 retry 통해 정상 emit 도달 (I3)');
+      }, timeout: const Timeout(Duration(seconds: 10)));
+    },
+  );
 }

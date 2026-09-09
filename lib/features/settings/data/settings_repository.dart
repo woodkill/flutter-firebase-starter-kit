@@ -27,8 +27,8 @@ class SettingsRepository {
   SettingsRepository({
     required fb.FirebaseAuth auth,
     required FirebaseFunctions functions,
-  })  : _auth = auth,
-        _functions = functions;
+  }) : _auth = auth,
+       _functions = functions;
 
   final fb.FirebaseAuth _auth;
   final FirebaseFunctions _functions;
@@ -99,8 +99,7 @@ class SettingsRepository {
   AppException _mapDeleteError(FirebaseFunctionsException e) {
     return switch (e.code) {
       'unauthenticated' ||
-      'permission-denied' =>
-        ReauthenticationRequiredException(cause: e),
+      'permission-denied' => ReauthenticationRequiredException(cause: e),
       // auth_repository._mapFunctionsException 과 동일 taxonomy — 서비스 도달
       // 실패는 일시 오류로 안내해 재시도를 유도한다.
       'unavailable' || 'deadline-exceeded' => NoInternetConnection(cause: e),

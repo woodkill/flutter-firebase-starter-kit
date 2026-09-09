@@ -9,11 +9,11 @@ import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 /// 정확히 매핑되는지 unit test 로 lock.
 void main() {
   group('AccountProvider enum — 8 값 + arbKey 매핑', () {
-    test('enum 값 8 개 (google/apple/facebook/email + kakao/naver/line/yahoojp)', () {
-      expect(AccountProvider.values.length, 8);
-      expect(
-        AccountProvider.values.toSet(),
-        {
+    test(
+      'enum 값 8 개 (google/apple/facebook/email + kakao/naver/line/yahoojp)',
+      () {
+        expect(AccountProvider.values.length, 8);
+        expect(AccountProvider.values.toSet(), {
           AccountProvider.google,
           AccountProvider.apple,
           AccountProvider.facebook,
@@ -22,9 +22,9 @@ void main() {
           AccountProvider.naver,
           AccountProvider.line,
           AccountProvider.yahoojp,
-        },
-      );
-    });
+        });
+      },
+    );
 
     test('google → authAccountProviderGoogle', () {
       expect(AccountProvider.google.arbKey, 'authAccountProviderGoogle');

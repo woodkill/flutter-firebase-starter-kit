@@ -96,58 +96,53 @@ void main() {
       expect(strategy.iconAsset, 'naver');
     });
 
-    test(
-        'T-13-NAVER-STRATEGY-PRIORITY: defaultPriorityFor 는 Phase 11 '
+    test('T-13-NAVER-STRATEGY-PRIORITY: defaultPriorityFor 는 Phase 11 '
         'placeholder 0 을 반환한다', () {
       expect(strategy.defaultPriorityFor(const Locale('en')), 0);
       expect(strategy.defaultPriorityFor(const Locale('ko')), 0);
     });
   });
 
-  group(
-      'NaverAuthStrategy — race-fix Pitfall 8 회귀 가드 '
+  group('NaverAuthStrategy — race-fix Pitfall 8 회귀 가드 '
       '(T-13-NAVER-STRATEGY-RACE-01)', () {
-    testWidgets(
-      'T-13-NAVER-STRATEGY-02: signIn → naverSignInProvider.notifier'
-      '.signInWithNaver delegate (1회) + '
-      'T-13-NAVER-STRATEGY-RACE-01: socialLinkInProgress.begin/end 미호출 '
-      '(T-11-RACE-01 등가)',
-      (tester) async {
-        final stubSocialLink = _StubSocialLinkInProgress();
-        final stubNaverNotifier = _StubNaverSignInNotifier();
+    testWidgets('T-13-NAVER-STRATEGY-02: signIn → naverSignInProvider.notifier'
+        '.signInWithNaver delegate (1회) + '
+        'T-13-NAVER-STRATEGY-RACE-01: socialLinkInProgress.begin/end 미호출 '
+        '(T-11-RACE-01 등가)', (tester) async {
+      final stubSocialLink = _StubSocialLinkInProgress();
+      final stubNaverNotifier = _StubNaverSignInNotifier();
 
-        const strategy = NaverAuthStrategy();
-        await _runStrategySignIn(
-          tester,
-          strategy,
-          stubSocialLink: stubSocialLink,
-          stubNaverNotifier: stubNaverNotifier,
-        );
+      const strategy = NaverAuthStrategy();
+      await _runStrategySignIn(
+        tester,
+        strategy,
+        stubSocialLink: stubSocialLink,
+        stubNaverNotifier: stubNaverNotifier,
+      );
 
-        // T-13-NAVER-STRATEGY-RACE-01 — Strategy 가 begin/end 호출하면 즉시 실패.
-        // verifyNever 등가 — 단일 진실원 = AuthRepository.signInWithNaver
-        // try-finally (Plan 13-03).
-        expect(
-          stubSocialLink.beginCount,
-          0,
-          reason:
-              'Strategy 가 race-guard begin 을 호출하면 이중 begin race '
-              '(T-11-RACE-01) 회귀',
-        );
-        expect(
-          stubSocialLink.endCount,
-          0,
-          reason: 'Strategy 가 race-guard end 를 호출하면 단일 진실원 위배',
-        );
-        // 위임 검증 — Notifier 만 호출.
-        expect(
-          stubNaverNotifier.signInCount,
-          1,
-          reason:
-              'NaverAuthStrategy.signIn 은 NaverSignInNotifier.signInWithNaver '
-              '를 정확히 1회 위임 호출해야 한다',
-        );
-      },
-    );
+      // T-13-NAVER-STRATEGY-RACE-01 — Strategy 가 begin/end 호출하면 즉시 실패.
+      // verifyNever 등가 — 단일 진실원 = AuthRepository.signInWithNaver
+      // try-finally (Plan 13-03).
+      expect(
+        stubSocialLink.beginCount,
+        0,
+        reason:
+            'Strategy 가 race-guard begin 을 호출하면 이중 begin race '
+            '(T-11-RACE-01) 회귀',
+      );
+      expect(
+        stubSocialLink.endCount,
+        0,
+        reason: 'Strategy 가 race-guard end 를 호출하면 단일 진실원 위배',
+      );
+      // 위임 검증 — Notifier 만 호출.
+      expect(
+        stubNaverNotifier.signInCount,
+        1,
+        reason:
+            'NaverAuthStrategy.signIn 은 NaverSignInNotifier.signInWithNaver '
+            '를 정확히 1회 위임 호출해야 한다',
+      );
+    });
   });
 }

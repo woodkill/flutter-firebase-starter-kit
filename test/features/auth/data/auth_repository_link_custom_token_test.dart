@@ -171,9 +171,12 @@ void main() {
 
         expect(result, isA<Success<dynamic>>());
         // deployed contract: targetProvider slug 'line' + fresh target token.
-        final captured = verify(
-          () => mockLinkCallable.call<Map<String, dynamic>>(captureAny()),
-        ).captured.single as Map<String, dynamic>;
+        final captured =
+            verify(
+                  () =>
+                      mockLinkCallable.call<Map<String, dynamic>>(captureAny()),
+                ).captured.single
+                as Map<String, dynamic>;
         expect(captured['targetProvider'], 'line');
         expect(captured['targetProviderToken'], 'line-fresh-id-token');
         expect(captured['nonce'], 'line-nonce');
@@ -195,25 +198,30 @@ void main() {
     });
   });
 
-  group('T3 — callable unauthenticated → ReauthenticationRequiredException', () {
-    test('unauthenticated → ReauthenticationRequiredException', () async {
-      stubLineSignInSuccess();
-      when(() => mockLinkCallable.call<Map<String, dynamic>>(any())).thenThrow(
-        FirebaseFunctionsException(
-          code: 'unauthenticated',
-          message: 'errorReauthenticationRequired',
-        ),
-      );
+  group(
+    'T3 — callable unauthenticated → ReauthenticationRequiredException',
+    () {
+      test('unauthenticated → ReauthenticationRequiredException', () async {
+        stubLineSignInSuccess();
+        when(
+          () => mockLinkCallable.call<Map<String, dynamic>>(any()),
+        ).thenThrow(
+          FirebaseFunctionsException(
+            code: 'unauthenticated',
+            message: 'errorReauthenticationRequired',
+          ),
+        );
 
-      final result = await repository.linkCustomTokenProviderArm(
-        targetProvider: AccountProvider.line,
-      );
+        final result = await repository.linkCustomTokenProviderArm(
+          targetProvider: AccountProvider.line,
+        );
 
-      expect(result, isA<Failure<dynamic>>());
-      final failure = result! as Failure<dynamic>;
-      expect(failure.exception, isA<ReauthenticationRequiredException>());
-    });
-  });
+        expect(result, isA<Failure<dynamic>>());
+        final failure = result! as Failure<dynamic>;
+        expect(failure.exception, isA<ReauthenticationRequiredException>());
+      });
+    },
+  );
 
   group('T4 — callable already-exists → AccountAlreadyLinked', () {
     test('already-exists → AccountAlreadyLinked', () async {
@@ -309,60 +317,54 @@ void main() {
   });
 
   group('T9 — WR-06: 익명 caller client-side 가드 (defense-in-depth)', () {
-    test(
-      'currentUser.isAnonymous == true → Result.failure(UnknownException) + '
-      'getIdToken/callable 미호출 (서버 failed-precondition 의존 회피)',
-      () async {
-        stubLineSignInSuccess();
-        // 익명 caller — upstream 로직 오류 시뮬레이션.
-        when(() => mockCurrentUser.isAnonymous).thenReturn(true);
+    test('currentUser.isAnonymous == true → Result.failure(UnknownException) + '
+        'getIdToken/callable 미호출 (서버 failed-precondition 의존 회피)', () async {
+      stubLineSignInSuccess();
+      // 익명 caller — upstream 로직 오류 시뮬레이션.
+      when(() => mockCurrentUser.isAnonymous).thenReturn(true);
 
-        final result = await repository.linkCustomTokenProviderArm(
-          targetProvider: AccountProvider.line,
-        );
+      final result = await repository.linkCustomTokenProviderArm(
+        targetProvider: AccountProvider.line,
+      );
 
-        expect(result, isA<Failure<dynamic>>());
-        final failure = result! as Failure<dynamic>;
-        // 2차 리뷰 WR-06: 결정적 실패이므로 transientFailure ("잠시 후 다시
-        // 시도") 로 안내되면 안 된다. ServiceUnavailable 이면 하류
-        // _mapLinkFailure 가 transientFailure 로 떨어뜨려 무한 재시도 루프를
-        // 유도한다 (매 시도 SDK OAuth 왕복 포함).
-        expect(failure.exception, isA<UnknownException>());
-        expect(failure.exception, isNot(isA<ServiceUnavailable>()));
-        // client 에서 loud fail — callable round-trip / caller token 발급 회피.
-        verifyNever(() => mockCurrentUser.getIdToken(any()));
-        verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
-        // race-fix invariant + 1회성 토큰 logout 보존.
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-        verify(() => mockLineSdkClient.logout()).called(1);
-      },
-    );
+      expect(result, isA<Failure<dynamic>>());
+      final failure = result! as Failure<dynamic>;
+      // 2차 리뷰 WR-06: 결정적 실패이므로 transientFailure ("잠시 후 다시
+      // 시도") 로 안내되면 안 된다. ServiceUnavailable 이면 하류
+      // _mapLinkFailure 가 transientFailure 로 떨어뜨려 무한 재시도 루프를
+      // 유도한다 (매 시도 SDK OAuth 왕복 포함).
+      expect(failure.exception, isA<UnknownException>());
+      expect(failure.exception, isNot(isA<ServiceUnavailable>()));
+      // client 에서 loud fail — callable round-trip / caller token 발급 회피.
+      verifyNever(() => mockCurrentUser.getIdToken(any()));
+      verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
+      // race-fix invariant + 1회성 토큰 logout 보존.
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      verify(() => mockLineSdkClient.logout()).called(1);
+    });
   });
 
   group('T10 — WR-06: 결정적 실패는 transientFailure 로 분류되지 않는다', () {
-    test(
-      'callable 응답 ok != true → Result.failure(UnknownException) '
-      '(재시도 유도 문구 회피)',
-      () async {
-        stubLineSignInSuccess();
-        when(() => mockCurrentUser.isAnonymous).thenReturn(false);
-        final notOkResult = _MockHttpsCallableResult();
-        when(() => notOkResult.data).thenReturn(<String, dynamic>{'ok': false});
-        when(
-          () => mockLinkCallable.call<Map<String, dynamic>>(any()),
-        ).thenAnswer((_) async => notOkResult);
+    test('callable 응답 ok != true → Result.failure(UnknownException) '
+        '(재시도 유도 문구 회피)', () async {
+      stubLineSignInSuccess();
+      when(() => mockCurrentUser.isAnonymous).thenReturn(false);
+      final notOkResult = _MockHttpsCallableResult();
+      when(() => notOkResult.data).thenReturn(<String, dynamic>{'ok': false});
+      when(
+        () => mockLinkCallable.call<Map<String, dynamic>>(any()),
+      ).thenAnswer((_) async => notOkResult);
 
-        final result = await repository.linkCustomTokenProviderArm(
-          targetProvider: AccountProvider.line,
-        );
+      final result = await repository.linkCustomTokenProviderArm(
+        targetProvider: AccountProvider.line,
+      );
 
-        expect(result, isA<Failure<dynamic>>());
-        final failure = result! as Failure<dynamic>;
-        // 서버 계약 위반 — 재시도로 해소되지 않는다.
-        expect(failure.exception, isA<UnknownException>());
-        expect(failure.exception, isNot(isA<ServiceUnavailable>()));
-      },
-    );
+      expect(result, isA<Failure<dynamic>>());
+      final failure = result! as Failure<dynamic>;
+      // 서버 계약 위반 — 재시도로 해소되지 않는다.
+      expect(failure.exception, isA<UnknownException>());
+      expect(failure.exception, isNot(isA<ServiceUnavailable>()));
+    });
   });
 }

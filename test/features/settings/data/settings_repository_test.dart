@@ -50,8 +50,7 @@ void main() {
 
   // S5 sentinel — fresh ID Token (의도적 distinct token 패턴 — 본문이
   // logger payload 에 포함되면 즉시 grep detect 가능).
-  const freshIdToken =
-      'eyPII_SENTINEL_TOKEN_DO_NOT_LOG_THIS_PAYLOAD.body.sig';
+  const freshIdToken = 'eyPII_SENTINEL_TOKEN_DO_NOT_LOG_THIS_PAYLOAD.body.sig';
   const collisionEmail = 's5-sensitive@example.com';
 
   setUpAll(() {
@@ -65,10 +64,7 @@ void main() {
     mockFunctions = _MockFirebaseFunctions();
     mockDeleteCallable = _MockHttpsCallable();
 
-    repository = SettingsRepository(
-      auth: mockAuth,
-      functions: mockFunctions,
-    );
+    repository = SettingsRepository(auth: mockAuth, functions: mockFunctions);
 
     when(
       () => mockFunctions.httpsCallable(
@@ -94,44 +90,44 @@ void main() {
   }
 
   group('Phase 16 D-06 — SettingsRepository.requestAccountDeletion', () {
-    test('S1 happy path — fresh ID Token + callable success → return void',
-        () async {
-      stubCurrentUserWithFreshToken();
-      stubCallableSuccess();
+    test(
+      'S1 happy path — fresh ID Token + callable success → return void',
+      () async {
+        stubCurrentUserWithFreshToken();
+        stubCallableSuccess();
 
-      await repository.requestAccountDeletion();
+        await repository.requestAccountDeletion();
 
-      // fresh ID Token 발급 (forceRefresh=true) 검증.
-      verify(() => mockUser.getIdToken(true)).called(1);
-      // deleteUserAccount callable 호출 검증 (idToken payload 전달).
-      verify(
-        () => mockDeleteCallable.call<Object?>(<String, dynamic>{
-          'idToken': freshIdToken,
-        }),
-      ).called(1);
-    });
+        // fresh ID Token 발급 (forceRefresh=true) 검증.
+        verify(() => mockUser.getIdToken(true)).called(1);
+        // deleteUserAccount callable 호출 검증 (idToken payload 전달).
+        verify(
+          () => mockDeleteCallable.call<Object?>(<String, dynamic>{
+            'idToken': freshIdToken,
+          }),
+        ).called(1);
+      },
+    );
 
     test(
-        'S2 no current user — currentUser==null → UnauthenticatedException',
-        () async {
-      when(() => mockAuth.currentUser).thenReturn(null);
+      'S2 no current user — currentUser==null → UnauthenticatedException',
+      () async {
+        when(() => mockAuth.currentUser).thenReturn(null);
 
-      await expectLater(
-        repository.requestAccountDeletion(),
-        throwsA(isA<UnauthenticatedException>()),
-      );
+        await expectLater(
+          repository.requestAccountDeletion(),
+          throwsA(isA<UnauthenticatedException>()),
+        );
 
-      // callable 호출 안 됨.
-      verifyNever(() => mockDeleteCallable.call<Object?>(any()));
-    });
+        // callable 호출 안 됨.
+        verifyNever(() => mockDeleteCallable.call<Object?>(any()));
+      },
+    );
 
-    test(
-        'S3 callable unauthenticated (reauth required) → '
+    test('S3 callable unauthenticated (reauth required) → '
         'ReauthenticationRequiredException', () async {
       stubCurrentUserWithFreshToken();
-      when(
-        () => mockDeleteCallable.call<Object?>(any()),
-      ).thenThrow(
+      when(() => mockDeleteCallable.call<Object?>(any())).thenThrow(
         FirebaseFunctionsException(
           code: 'unauthenticated',
           message: 'errorReauthenticationRequired',
@@ -146,13 +142,8 @@ void main() {
 
     test('S4 callable internal (server fail) → UnknownException', () async {
       stubCurrentUserWithFreshToken();
-      when(
-        () => mockDeleteCallable.call<Object?>(any()),
-      ).thenThrow(
-        FirebaseFunctionsException(
-          code: 'internal',
-          message: 'errorUnknown',
-        ),
+      when(() => mockDeleteCallable.call<Object?>(any())).thenThrow(
+        FirebaseFunctionsException(code: 'internal', message: 'errorUnknown'),
       );
 
       await expectLater(
@@ -162,43 +153,39 @@ void main() {
     });
 
     test(
-        'S5 PII invariant — debugPrint payload 가 idToken / email 본문 미포함',
-        () async {
-      stubCurrentUserWithFreshToken();
-      when(
-        () => mockDeleteCallable.call<Object?>(any()),
-      ).thenThrow(
-        FirebaseFunctionsException(
-          code: 'internal',
-          message: 'server boom',
-        ),
-      );
+      'S5 PII invariant — debugPrint payload 가 idToken / email 본문 미포함',
+      () async {
+        stubCurrentUserWithFreshToken();
+        when(() => mockDeleteCallable.call<Object?>(any())).thenThrow(
+          FirebaseFunctionsException(code: 'internal', message: 'server boom'),
+        );
 
-      final logs = <String>[];
-      final originalPrint = debugPrint;
-      debugPrint = (String? message, {int? wrapWidth}) {
-        if (message != null) logs.add(message);
-      };
+        final logs = <String>[];
+        final originalPrint = debugPrint;
+        debugPrint = (String? message, {int? wrapWidth}) {
+          if (message != null) logs.add(message);
+        };
 
-      try {
         try {
-          await repository.requestAccountDeletion();
-        } on UnknownException {
-          // expected
-        }
+          try {
+            await repository.requestAccountDeletion();
+          } on UnknownException {
+            // expected
+          }
 
-        for (final log in logs) {
-          // idToken 본문 fragment 미노출 (S5 sentinel).
-          expect(log, isNot(contains('PII_SENTINEL_TOKEN')));
-          expect(log, isNot(contains(freshIdToken)));
-          // email 본문 fragment 미노출 (local-part / 전체 모두).
-          expect(log, isNot(contains('s5-sensitive')));
-          expect(log, isNot(contains(collisionEmail)));
+          for (final log in logs) {
+            // idToken 본문 fragment 미노출 (S5 sentinel).
+            expect(log, isNot(contains('PII_SENTINEL_TOKEN')));
+            expect(log, isNot(contains(freshIdToken)));
+            // email 본문 fragment 미노출 (local-part / 전체 모두).
+            expect(log, isNot(contains('s5-sensitive')));
+            expect(log, isNot(contains(collisionEmail)));
+          }
+        } finally {
+          debugPrint = originalPrint;
         }
-      } finally {
-        debugPrint = originalPrint;
-      }
-    });
+      },
+    );
   });
 
   group('Phase 16 G-16-A6-2 — _mapDeleteError taxonomy 정렬', () {
@@ -228,16 +215,18 @@ void main() {
       );
     });
 
-    test('S8 resource-exhausted → TooManyRequests (Cloud Run 할당량 차단)',
-        () async {
-      // 2026-09-07 실측: 할당량 차단이 UnknownException 으로 뭉개져
-      // "회원탈퇴에 실패했습니다" 로 표시되었다 — 재시도 가능 오류로 분리.
-      stubCallableFailure('resource-exhausted');
+    test(
+      'S8 resource-exhausted → TooManyRequests (Cloud Run 할당량 차단)',
+      () async {
+        // 2026-09-07 실측: 할당량 차단이 UnknownException 으로 뭉개져
+        // "회원탈퇴에 실패했습니다" 로 표시되었다 — 재시도 가능 오류로 분리.
+        stubCallableFailure('resource-exhausted');
 
-      await expectLater(
-        repository.requestAccountDeletion(),
-        throwsA(isA<TooManyRequests>()),
-      );
-    });
+        await expectLater(
+          repository.requestAccountDeletion(),
+          throwsA(isA<TooManyRequests>()),
+        );
+      },
+    );
   });
 }

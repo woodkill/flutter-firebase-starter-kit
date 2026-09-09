@@ -98,42 +98,40 @@ void main() {
   });
 
   group('YahoojpAuthStrategy — race-fix Pitfall 8 회귀 가드', () {
-    testWidgets(
-      'Strategy 단계에서 socialLinkInProgress 직접 호출 절대 금지 '
-      '(T-11-RACE-01 등가)',
-      (tester) async {
-        final stubSocialLink = _StubSocialLinkInProgress();
-        final stubYahoojpNotifier = _StubYahoojpSignInNotifier();
+    testWidgets('Strategy 단계에서 socialLinkInProgress 직접 호출 절대 금지 '
+        '(T-11-RACE-01 등가)', (tester) async {
+      final stubSocialLink = _StubSocialLinkInProgress();
+      final stubYahoojpNotifier = _StubYahoojpSignInNotifier();
 
-        const strategy = YahoojpAuthStrategy();
-        await _runStrategySignIn(
-          tester,
-          strategy,
-          stubSocialLink: stubSocialLink,
-          stubYahoojpNotifier: stubYahoojpNotifier,
-        );
+      const strategy = YahoojpAuthStrategy();
+      await _runStrategySignIn(
+        tester,
+        strategy,
+        stubSocialLink: stubSocialLink,
+        stubYahoojpNotifier: stubYahoojpNotifier,
+      );
 
-        // T-11-RACE-01 등가 — Strategy 가 begin/end 호출하면 즉시 실패.
-        expect(
-          stubSocialLink.beginCount,
-          0,
-          reason: 'Strategy 가 race-guard begin 을 호출하면 이중 begin race '
-              '(T-11-RACE-01) 회귀',
-        );
-        expect(
-          stubSocialLink.endCount,
-          0,
-          reason: 'Strategy 가 race-guard end 를 호출하면 단일 진실원 위배',
-        );
-        // 위임 검증 — Notifier 만 호출.
-        expect(
-          stubYahoojpNotifier.signInCount,
-          1,
-          reason:
-              'YahoojpAuthStrategy.signIn 은 YahoojpSignInNotifier.signInWith'
-              'Yahoojp 을 정확히 1회 위임 호출해야 한다',
-        );
-      },
-    );
+      // T-11-RACE-01 등가 — Strategy 가 begin/end 호출하면 즉시 실패.
+      expect(
+        stubSocialLink.beginCount,
+        0,
+        reason:
+            'Strategy 가 race-guard begin 을 호출하면 이중 begin race '
+            '(T-11-RACE-01) 회귀',
+      );
+      expect(
+        stubSocialLink.endCount,
+        0,
+        reason: 'Strategy 가 race-guard end 를 호출하면 단일 진실원 위배',
+      );
+      // 위임 검증 — Notifier 만 호출.
+      expect(
+        stubYahoojpNotifier.signInCount,
+        1,
+        reason:
+            'YahoojpAuthStrategy.signIn 은 YahoojpSignInNotifier.signInWith'
+            'Yahoojp 을 정확히 1회 위임 호출해야 한다',
+      );
+    });
   });
 }

@@ -69,22 +69,23 @@ void main() {
       expect(state.error, isA<ServiceUnavailable>());
     });
 
-    test('T-13-NAVER-NOTIFIER-04: cancel (null) → AsyncData<void>(null) (D-45)',
-        () async {
-      when(() => mockRepo.signInWithNaver()).thenAnswer((_) async => null);
-
-      final container = makeContainer();
-      final notifier = container.read(naverSignInProvider.notifier);
-
-      await notifier.signInWithNaver();
-
-      final state = container.read(naverSignInProvider);
-      expect(state, isA<AsyncData<void>>());
-      expect(state.hasError, isFalse);
-    });
-
     test(
-        'T-13-NAVER-NOTIFIER-05: dispose 후 signInWithNaver 완료 시 '
+      'T-13-NAVER-NOTIFIER-04: cancel (null) → AsyncData<void>(null) (D-45)',
+      () async {
+        when(() => mockRepo.signInWithNaver()).thenAnswer((_) async => null);
+
+        final container = makeContainer();
+        final notifier = container.read(naverSignInProvider.notifier);
+
+        await notifier.signInWithNaver();
+
+        final state = container.read(naverSignInProvider);
+        expect(state, isA<AsyncData<void>>());
+        expect(state.hasError, isFalse);
+      },
+    );
+
+    test('T-13-NAVER-NOTIFIER-05: dispose 후 signInWithNaver 완료 시 '
         'state 미갱신 (ref.mounted 가드)', () async {
       final completer = Completer<Result<User>?>();
       when(
@@ -112,11 +113,9 @@ void main() {
     });
   });
 
-  group(
-      'NaverSignInNotifier.build '
+  group('NaverSignInNotifier.build '
       '(R7 회귀 가드 — D-42 재정의 / Phase 13 — see ROADMAP.md)', () {
-    test(
-        'T-13-NAVER-NOTIFIER-R7-01: 초기 state == AsyncData<void>(null) — '
+    test('T-13-NAVER-NOTIFIER-R7-01: 초기 state == AsyncData<void>(null) — '
         'R7 회귀 가드 (await/Future.value 추가 시 RED)', () {
       // R7 contract: `FutureOr<void> build()` 가 async work 없이 즉시
       // AsyncData<void>(null) 을 반환해야 한다. 향후 contributor 가 build 본문에

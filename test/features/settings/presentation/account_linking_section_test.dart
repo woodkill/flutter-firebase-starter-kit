@@ -90,8 +90,7 @@ Future<GoRouter> _pumpSection(
       ),
       GoRoute(
         path: AppRoutes.login,
-        builder: (context, state) =>
-            const Scaffold(body: Text('LOGIN ROUTE')),
+        builder: (context, state) => const Scaffold(body: Text('LOGIN ROUTE')),
       ),
     ],
   );
@@ -113,9 +112,7 @@ Future<GoRouter> _pumpSection(
       overrides: [
         currentUserProvider.overrideWith((ref) => user),
         authRepositoryProvider.overrideWithValue(repo),
-        activeStrategiesProvider.overrideWith(
-          (ref, locale) => allStrategies,
-        ),
+        activeStrategiesProvider.overrideWith((ref, locale) => allStrategies),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -143,124 +140,135 @@ void main() {
 
   group('Phase 16 16-11 Task 1 — AccountLinkingSection', () {
     testWidgets(
-        'AL1 available 규칙 — linkedProviders=[google.com] → google 미노출 + email 버튼 절대 없음',
-        (tester) async {
-      await _pumpSection(
-        tester,
-        user: _testUser(providerIds: const <String>['google.com']),
-        repo: repo,
-      );
+      'AL1 available 규칙 — linkedProviders=[google.com] → google 미노출 + email 버튼 절대 없음',
+      (tester) async {
+        await _pumpSection(
+          tester,
+          user: _testUser(providerIds: const <String>['google.com']),
+          repo: repo,
+        );
 
-      // 섹션 heading 노출 (en).
-      expect(find.text('Link an account'), findsOneWidget);
-      // google 은 이미 linked → "Link Google" 버튼 미노출.
-      expect(find.text('Link Google'), findsNothing);
-      // 다른 활성 소셜 provider 의 "연결" 버튼 노출 (예: Apple).
-      expect(find.text('Link Apple'), findsOneWidget);
-      // email 버튼 절대 없음 (email EXCLUDE).
-      expect(find.text('Link Email / Password'), findsNothing);
-      expect(find.textContaining('Email'), findsNothing);
-    });
-
-    testWidgets(
-        'AL2 native 성공 — Apple 연결 tap → linkAppleCredential + 성공 snackbar',
-        (tester) async {
-      final user = _testUser(providerIds: const <String>['google.com']);
-      when(() => repo.linkAppleCredential())
-          .thenAnswer((_) async => Result.success(user));
-
-      await _pumpSection(tester, user: user, repo: repo);
-
-      final btn = find.text('Link Apple');
-      await tester.ensureVisible(btn);
-      await tester.tap(btn);
-      await tester.pumpAndSettle();
-
-      verify(() => repo.linkAppleCredential()).called(1);
-      // 성공 snackbar (en, provider 라벨 주입): "Linked your Apple account."
-      expect(find.text('Linked your Apple account.'), findsOneWidget);
-    });
+        // 섹션 heading 노출 (en).
+        expect(find.text('Link an account'), findsOneWidget);
+        // google 은 이미 linked → "Link Google" 버튼 미노출.
+        expect(find.text('Link Google'), findsNothing);
+        // 다른 활성 소셜 provider 의 "연결" 버튼 노출 (예: Apple).
+        expect(find.text('Link Apple'), findsOneWidget);
+        // email 버튼 절대 없음 (email EXCLUDE).
+        expect(find.text('Link Email / Password'), findsNothing);
+        expect(find.textContaining('Email'), findsNothing);
+      },
+    );
 
     testWidgets(
-        'AL3 Custom Token 성공 — LINE 연결 tap → linkCustomTokenProviderArm(line)',
-        (tester) async {
-      final user = _testUser(providerIds: const <String>['google.com']);
-      when(() => repo.linkCustomTokenProviderArm(
+      'AL2 native 성공 — Apple 연결 tap → linkAppleCredential + 성공 snackbar',
+      (tester) async {
+        final user = _testUser(providerIds: const <String>['google.com']);
+        when(
+          () => repo.linkAppleCredential(),
+        ).thenAnswer((_) async => Result.success(user));
+
+        await _pumpSection(tester, user: user, repo: repo);
+
+        final btn = find.text('Link Apple');
+        await tester.ensureVisible(btn);
+        await tester.tap(btn);
+        await tester.pumpAndSettle();
+
+        verify(() => repo.linkAppleCredential()).called(1);
+        // 성공 snackbar (en, provider 라벨 주입): "Linked your Apple account."
+        expect(find.text('Linked your Apple account.'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'AL3 Custom Token 성공 — LINE 연결 tap → linkCustomTokenProviderArm(line)',
+      (tester) async {
+        final user = _testUser(providerIds: const <String>['google.com']);
+        when(
+          () => repo.linkCustomTokenProviderArm(
             targetProvider: any(named: 'targetProvider'),
-          )).thenAnswer((_) async => Result.success(user));
+          ),
+        ).thenAnswer((_) async => Result.success(user));
 
-      await _pumpSection(tester, user: user, repo: repo);
+        await _pumpSection(tester, user: user, repo: repo);
 
-      final btn = find.text('Link LINE');
-      await tester.ensureVisible(btn);
-      await tester.tap(btn);
-      await tester.pumpAndSettle();
+        final btn = find.text('Link LINE');
+        await tester.ensureVisible(btn);
+        await tester.tap(btn);
+        await tester.pumpAndSettle();
 
-      verify(() => repo.linkCustomTokenProviderArm(
+        verify(
+          () => repo.linkCustomTokenProviderArm(
             targetProvider: AccountProvider.line,
-          )).called(1);
-      expect(find.text('Linked your LINE account.'), findsOneWidget);
-    });
+          ),
+        ).called(1);
+        expect(find.text('Linked your LINE account.'), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'AL4 reauth gate — ReauthenticationRequired → authReauthRequired '
-        'SnackBar + /login 라우팅',
-        (tester) async {
-      final user = _testUser(providerIds: const <String>['google.com']);
-      when(() => repo.linkAppleCredential()).thenAnswer(
-        (_) async =>
-            const Result.failure(ReauthenticationRequiredException()),
-      );
+      'AL4 reauth gate — ReauthenticationRequired → authReauthRequired '
+      'SnackBar + /login 라우팅',
+      (tester) async {
+        final user = _testUser(providerIds: const <String>['google.com']);
+        when(() => repo.linkAppleCredential()).thenAnswer(
+          (_) async =>
+              const Result.failure(ReauthenticationRequiredException()),
+        );
 
-      final router = await _pumpSection(tester, user: user, repo: repo);
+        final router = await _pumpSection(tester, user: user, repo: repo);
 
-      final btn = find.text('Link Apple');
-      await tester.ensureVisible(btn);
-      await tester.tap(btn);
-      await tester.pumpAndSettle();
+        final btn = find.text('Link Apple');
+        await tester.ensureVisible(btn);
+        await tester.tap(btn);
+        await tester.pumpAndSettle();
 
-      // WR-05 (4차 리뷰): 문구는 도메인 중립 키 authReauthRequired 가 낸다.
-      // withdrawalReauthRequired 와 verbatim 동일하므로 이 단언만으로는 키
-      // 교체가 잠기지 않는다 — 키 자체의 회귀 잠금은 IN-05 소스 sentinel
-      // (account_linking_reauth_key_sentinel_test.dart) 이 담당한다.
-      expect(
-        find.text('For security, please sign in again and retry.'),
-        findsOneWidget,
-      );
-      // 재로그인 라우팅 — /login push (withdrawal D-06 reauth gate mirror).
-      // push 후 /login 화면이 스택 top 으로 노출되는지 사용자 가시 truth 검증.
-      expect(find.text('LOGIN ROUTE'), findsOneWidget);
-      expect(
-        router.routerDelegate.currentConfiguration.last.matchedLocation,
-        AppRoutes.login,
-      );
-    });
-
-    testWidgets(
-        'AL5 already-linked — AccountAlreadyLinked → 전용 문구 SnackBar (크래시 0)',
-        (tester) async {
-      final user = _testUser(providerIds: const <String>['google.com']);
-      when(() => repo.linkAppleCredential())
-          .thenAnswer((_) async => const Result.failure(AccountAlreadyLinked()));
-
-      await _pumpSection(tester, user: user, repo: repo);
-
-      final btn = find.text('Link Apple');
-      await tester.ensureVisible(btn);
-      await tester.tap(btn);
-      await tester.pumpAndSettle();
-
-      // 크래시 0 + 성공 snackbar 미노출.
-      expect(tester.takeException(), isNull);
-      expect(find.text('Linked your Apple account.'), findsNothing);
-      // G-16-A6-2: already-linked 전용 문구 (이메일 문구 아님).
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(find.text(_alreadyLinkedText), findsOneWidget);
-    });
+        // WR-05 (4차 리뷰): 문구는 도메인 중립 키 authReauthRequired 가 낸다.
+        // withdrawalReauthRequired 와 verbatim 동일하므로 이 단언만으로는 키
+        // 교체가 잠기지 않는다 — 키 자체의 회귀 잠금은 IN-05 소스 sentinel
+        // (account_linking_reauth_key_sentinel_test.dart) 이 담당한다.
+        expect(
+          find.text('For security, please sign in again and retry.'),
+          findsOneWidget,
+        );
+        // 재로그인 라우팅 — /login push (withdrawal D-06 reauth gate mirror).
+        // push 후 /login 화면이 스택 top 으로 노출되는지 사용자 가시 truth 검증.
+        expect(find.text('LOGIN ROUTE'), findsOneWidget);
+        expect(
+          router.routerDelegate.currentConfiguration.last.matchedLocation,
+          AppRoutes.login,
+        );
+      },
+    );
 
     testWidgets(
-        'AL6 사용자 취소 (null) — no-op (snackbar 0, 버튼 유지)',
-        (tester) async {
+      'AL5 already-linked — AccountAlreadyLinked → 전용 문구 SnackBar (크래시 0)',
+      (tester) async {
+        final user = _testUser(providerIds: const <String>['google.com']);
+        when(
+          () => repo.linkAppleCredential(),
+        ).thenAnswer((_) async => const Result.failure(AccountAlreadyLinked()));
+
+        await _pumpSection(tester, user: user, repo: repo);
+
+        final btn = find.text('Link Apple');
+        await tester.ensureVisible(btn);
+        await tester.tap(btn);
+        await tester.pumpAndSettle();
+
+        // 크래시 0 + 성공 snackbar 미노출.
+        expect(tester.takeException(), isNull);
+        expect(find.text('Linked your Apple account.'), findsNothing);
+        // G-16-A6-2: already-linked 전용 문구 (이메일 문구 아님).
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text(_alreadyLinkedText), findsOneWidget);
+      },
+    );
+
+    testWidgets('AL6 사용자 취소 (null) — no-op (snackbar 0, 버튼 유지)', (
+      tester,
+    ) async {
       final user = _testUser(providerIds: const <String>['google.com']);
       when(() => repo.linkAppleCredential()).thenAnswer((_) async => null);
 
@@ -276,14 +284,16 @@ void main() {
       expect(find.text('Link Apple'), findsOneWidget);
     });
 
-    testWidgets(
-        'AL7 viewport — below-fold 버튼 ensureVisible 후 tap 가능',
-        (tester) async {
+    testWidgets('AL7 viewport — below-fold 버튼 ensureVisible 후 tap 가능', (
+      tester,
+    ) async {
       // linkedProviders 비어있음 → 모든 활성 소셜 버튼 노출 (긴 리스트).
       final user = _testUser(providerIds: const <String>[]);
-      when(() => repo.linkCustomTokenProviderArm(
-            targetProvider: any(named: 'targetProvider'),
-          )).thenAnswer((_) async => Result.success(user));
+      when(
+        () => repo.linkCustomTokenProviderArm(
+          targetProvider: any(named: 'targetProvider'),
+        ),
+      ).thenAnswer((_) async => Result.success(user));
 
       await _pumpSection(tester, user: user, repo: repo);
 
@@ -293,14 +303,14 @@ void main() {
       await tester.tap(btn);
       await tester.pumpAndSettle();
 
-      verify(() => repo.linkCustomTokenProviderArm(
-            targetProvider: AccountProvider.yahoojp,
-          )).called(1);
+      verify(
+        () => repo.linkCustomTokenProviderArm(
+          targetProvider: AccountProvider.yahoojp,
+        ),
+      ).called(1);
     });
 
-    testWidgets(
-        'AL8 빈 available — 모든 활성 소셜 linked → 섹션 미노출',
-        (tester) async {
+    testWidgets('AL8 빈 available — 모든 활성 소셜 linked → 섹션 미노출', (tester) async {
       // 활성 소셜 7종 모두 linked (URI 3 + slug 4).
       final user = _testUser(
         providerIds: const <String>[
@@ -328,8 +338,9 @@ void main() {
       AppException failure,
     ) async {
       final user = _testUser(providerIds: const <String>['google.com']);
-      when(() => repo.linkAppleCredential())
-          .thenAnswer((_) async => Result<User>.failure(failure));
+      when(
+        () => repo.linkAppleCredential(),
+      ).thenAnswer((_) async => Result<User>.failure(failure));
 
       await _pumpSection(tester, user: user, repo: repo);
 
@@ -339,16 +350,18 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('AL9 emailInUse — EmailAlreadyInUse → 이메일 중복 전용 문구',
-        (tester) async {
+    testWidgets('AL9 emailInUse — EmailAlreadyInUse → 이메일 중복 전용 문구', (
+      tester,
+    ) async {
       await tapAppleWithFailure(tester, const EmailAlreadyInUse());
 
       expect(find.text(_emailInUseText), findsOneWidget);
       expect(find.text(_alreadyLinkedText), findsNothing);
     });
 
-    testWidgets('AL10 transientFailure — NoInternetConnection → 일시 오류 문구',
-        (tester) async {
+    testWidgets('AL10 transientFailure — NoInternetConnection → 일시 오류 문구', (
+      tester,
+    ) async {
       await tapAppleWithFailure(tester, const NoInternetConnection());
 
       expect(find.text(_transientText), findsOneWidget);
@@ -362,8 +375,9 @@ void main() {
       expect(find.text(_transientText), findsNothing);
     });
 
-    testWidgets('AL12 unsupported — naver 탭 → 미지원 전용 문구 (provider 라벨 주입)',
-        (tester) async {
+    testWidgets('AL12 unsupported — naver 탭 → 미지원 전용 문구 (provider 라벨 주입)', (
+      tester,
+    ) async {
       // naver 는 repository 미호출 (WR-03) — 실패가 아니라 미지원 경로.
       final user = _testUser(providerIds: const <String>['google.com']);
       await _pumpSection(tester, user: user, repo: repo);
@@ -384,29 +398,32 @@ void main() {
     // 한 문구로 뭉개면 전자에는 "another account" 가 사실과 반대이고,
     // 후자에는 "unlink it first" 가 수행 불가능한 안내가 된다.
     testWidgets(
-        'AL5b (WR-04) — ProviderAlreadyLinkedToThisAccount → alreadyLinkedHere 전용 문구',
-        (tester) async {
-      final user = _testUser(providerIds: const <String>['google.com']);
-      when(() => repo.linkAppleCredential()).thenAnswer(
-        (_) async => const Result.failure(ProviderAlreadyLinkedToThisAccount()),
-      );
+      'AL5b (WR-04) — ProviderAlreadyLinkedToThisAccount → alreadyLinkedHere 전용 문구',
+      (tester) async {
+        final user = _testUser(providerIds: const <String>['google.com']);
+        when(() => repo.linkAppleCredential()).thenAnswer(
+          (_) async =>
+              const Result.failure(ProviderAlreadyLinkedToThisAccount()),
+        );
 
-      await _pumpSection(tester, user: user, repo: repo);
+        await _pumpSection(tester, user: user, repo: repo);
 
-      final btn = find.text('Link Apple');
-      await tester.ensureVisible(btn);
-      await tester.tap(btn);
-      await tester.pumpAndSettle();
+        final btn = find.text('Link Apple');
+        await tester.ensureVisible(btn);
+        await tester.tap(btn);
+        await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(find.text(_alreadyLinkedHereText), findsOneWidget);
-      // alreadyLinked ("다른 계정에 연결됨") 문구로 되돌아가지 않는다.
-      expect(find.text(_alreadyLinkedText), findsNothing);
-    });
+        expect(tester.takeException(), isNull);
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text(_alreadyLinkedHereText), findsOneWidget);
+        // alreadyLinked ("다른 계정에 연결됨") 문구로 되돌아가지 않는다.
+        expect(find.text(_alreadyLinkedText), findsNothing);
+      },
+    );
 
-    testWidgets('AL13 collapse 재발 방지 — 실패 5 문구 + 미지원 문구 상호 비동등',
-        (tester) async {
+    testWidgets('AL13 collapse 재발 방지 — 실패 5 문구 + 미지원 문구 상호 비동등', (
+      tester,
+    ) async {
       // 5 문구가 서로 다른 문자열임을 한 곳에서 고정한다. 어느 두 outcome 이
       // 같은 문구로 되돌아가면(2026-09-07 A6 collapse) 즉시 FAIL.
       const messages = <String>[

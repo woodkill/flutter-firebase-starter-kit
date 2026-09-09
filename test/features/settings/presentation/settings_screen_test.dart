@@ -145,81 +145,85 @@ Future<void> _pumpSettingsScreen(
 void main() {
   group('Phase 16 D-05~D-08 — SettingsScreen', () {
     testWidgets(
-        'SS1 render — AppBar title + 계정 section + Danger zone section 노출',
-        (tester) async {
-      // 소셜 전부 linked → 계정 연결 section 미노출 → baseline ListView 길이.
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(providerIds: _allSocialLinked),
-      );
+      'SS1 render — AppBar title + 계정 section + Danger zone section 노출',
+      (tester) async {
+        // 소셜 전부 linked → 계정 연결 section 미노출 → baseline ListView 길이.
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(providerIds: _allSocialLinked),
+        );
 
-      // AppBar title (en locale).
-      expect(find.text('Settings'), findsOneWidget);
-      // 계정 section heading.
-      expect(find.text('My Account'), findsOneWidget);
-      // 이메일 ListTile (placeholder 채워진 형태).
-      expect(find.textContaining('me@example.com'), findsOneWidget);
-      // Danger zone section heading.
-      expect(find.text('Danger zone'), findsOneWidget);
-      // Danger zone explainer.
-      expect(find.text('These actions cannot be undone.'), findsOneWidget);
-      // 회원탈퇴 ListTile.
-      expect(find.text('Delete account'), findsAtLeast(1));
-    });
-
-    testWidgets(
-        'SS2 Danger zone destructive color — 회원탈퇴 title color == error',
-        (tester) async {
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(providerIds: _allSocialLinked),
-      );
-
-      final dangerTile = tester.widget<ListTile>(
-        find.ancestor(
-          of: find.text('Delete account').last,
-          matching: find.byType(ListTile),
-        ),
-      );
-      final titleText = dangerTile.title! as Text;
-      final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
-      expect(titleText.style?.color, equals(theme.colorScheme.error));
-    });
+        // AppBar title (en locale).
+        expect(find.text('Settings'), findsOneWidget);
+        // 계정 section heading.
+        expect(find.text('My Account'), findsOneWidget);
+        // 이메일 ListTile (placeholder 채워진 형태).
+        expect(find.textContaining('me@example.com'), findsOneWidget);
+        // Danger zone section heading.
+        expect(find.text('Danger zone'), findsOneWidget);
+        // Danger zone explainer.
+        expect(find.text('These actions cannot be undone.'), findsOneWidget);
+        // 회원탈퇴 ListTile.
+        expect(find.text('Delete account'), findsAtLeast(1));
+      },
+    );
 
     testWidgets(
-        'SS3 tap → dialog — 회원탈퇴 ListTile tap 시 WithdrawalConfirmationDialog 노출',
-        (tester) async {
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(providerIds: _allSocialLinked),
-      );
+      'SS2 Danger zone destructive color — 회원탈퇴 title color == error',
+      (tester) async {
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(providerIds: _allSocialLinked),
+        );
 
-      expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
-
-      await tester.ensureVisible(find.text('Delete account').last);
-      await tester.tap(find.text('Delete account').last);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-
-      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
-    });
-
-    testWidgets(
-        'SS4 linkedProviders empty fallback — providerIds==[] graceful',
-        (tester) async {
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(providerIds: const <String>[]),
-      );
-
-      // formatProviderIds([]) → '-' fallback (provider_label_formatter).
-      // settingsLinkedProviders('-') 렌더링 결과 (en="Linked sign-in: -").
-      expect(find.text('Linked sign-in: -'), findsOneWidget);
-    });
+        final dangerTile = tester.widget<ListTile>(
+          find.ancestor(
+            of: find.text('Delete account').last,
+            matching: find.byType(ListTile),
+          ),
+        );
+        final titleText = dangerTile.title! as Text;
+        final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
+        expect(titleText.style?.color, equals(theme.colorScheme.error));
+      },
+    );
 
     testWidgets(
-        'SS5 AccountLinkingSection 노출 — heading + 위젯 (계정 section 다음)',
-        (tester) async {
+      'SS3 tap → dialog — 회원탈퇴 ListTile tap 시 WithdrawalConfirmationDialog 노출',
+      (tester) async {
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(providerIds: _allSocialLinked),
+        );
+
+        expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
+
+        await tester.ensureVisible(find.text('Delete account').last);
+        await tester.tap(find.text('Delete account').last);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'SS4 linkedProviders empty fallback — providerIds==[] graceful',
+      (tester) async {
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(providerIds: const <String>[]),
+        );
+
+        // formatProviderIds([]) → '-' fallback (provider_label_formatter).
+        // settingsLinkedProviders('-') 렌더링 결과 (en="Linked sign-in: -").
+        expect(find.text('Linked sign-in: -'), findsOneWidget);
+      },
+    );
+
+    testWidgets('SS5 AccountLinkingSection 노출 — heading + 위젯 (계정 section 다음)', (
+      tester,
+    ) async {
       // linked=[password] (email native) → 소셜 0 linked → 활성 소셜 7 노출.
       await _pumpSettingsScreen(tester, user: _testUser());
 
@@ -231,70 +235,71 @@ void main() {
     });
 
     testWidgets(
-        'SS6 회귀 0 — 계정 section + Danger zone 모두 노출 (AccountLinkingSection 공존)',
-        (tester) async {
-      // 단일 활성 Strategy (apple) → section 1 버튼 → ListView baseline 길이
-      // 내 Danger zone 공존.
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(),
-        strategies: const <AuthStrategy>[AppleAuthStrategy()],
-      );
+      'SS6 회귀 0 — 계정 section + Danger zone 모두 노출 (AccountLinkingSection 공존)',
+      (tester) async {
+        // 단일 활성 Strategy (apple) → section 1 버튼 → ListView baseline 길이
+        // 내 Danger zone 공존.
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(),
+          strategies: const <AuthStrategy>[AppleAuthStrategy()],
+        );
 
-      // 계정 section (회귀 0).
-      expect(find.text('My Account'), findsOneWidget);
-      expect(find.textContaining('me@example.com'), findsOneWidget);
-      // 계정 연결 section 공존.
-      expect(find.byType(AccountLinkingSection), findsOneWidget);
-      expect(find.text('Link Apple'), findsOneWidget);
-      // Danger zone (회귀 0).
-      expect(find.byType(DangerZoneSection), findsOneWidget);
-      expect(find.text('Danger zone'), findsOneWidget);
-    });
-
-    testWidgets(
-        'SS7 배치 순서 — 계정 section → AccountLinkingSection → DangerZoneSection',
-        (tester) async {
-      // 단일 활성 Strategy → 3 section 모두 viewport 내 동시 측정 가능.
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(),
-        strategies: const <AuthStrategy>[AppleAuthStrategy()],
-      );
-
-      final accountY = tester.getTopLeft(find.text('My Account')).dy;
-      final linkingY = tester.getTopLeft(find.text('Link an account')).dy;
-      final dangerY = tester.getTopLeft(find.byType(DangerZoneSection)).dy;
-
-      // 계정 section < 계정 연결 < Danger zone (mockup 배치 verbatim).
-      expect(accountY, lessThan(linkingY));
-      expect(linkingY, lessThan(dangerY));
-    });
+        // 계정 section (회귀 0).
+        expect(find.text('My Account'), findsOneWidget);
+        expect(find.textContaining('me@example.com'), findsOneWidget);
+        // 계정 연결 section 공존.
+        expect(find.byType(AccountLinkingSection), findsOneWidget);
+        expect(find.text('Link Apple'), findsOneWidget);
+        // Danger zone (회귀 0).
+        expect(find.byType(DangerZoneSection), findsOneWidget);
+        expect(find.text('Danger zone'), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'SS8 viewport — 360dp ListView scroll, Danger zone (말단) 접근 가능',
-        (tester) async {
-      tester.view.physicalSize = const Size(360, 640);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+      'SS7 배치 순서 — 계정 section → AccountLinkingSection → DangerZoneSection',
+      (tester) async {
+        // 단일 활성 Strategy → 3 section 모두 viewport 내 동시 측정 가능.
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(),
+          strategies: const <AuthStrategy>[AppleAuthStrategy()],
+        );
 
-      // 단일 활성 Strategy → Danger zone 이 below-fold 여도 scroll 접근 가능.
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(),
-        strategies: const <AuthStrategy>[AppleAuthStrategy()],
-      );
+        final accountY = tester.getTopLeft(find.text('My Account')).dy;
+        final linkingY = tester.getTopLeft(find.text('Link an account')).dy;
+        final dangerY = tester.getTopLeft(find.byType(DangerZoneSection)).dy;
 
-      // Danger zone 회원탈퇴 ListTile 이 below-fold 여도 scroll 후 접근 가능.
-      await tester.ensureVisible(find.text('Delete account').last);
-      expect(find.byType(DangerZoneSection), findsOneWidget);
-    });
+        // 계정 section < 계정 연결 < Danger zone (mockup 배치 verbatim).
+        expect(accountY, lessThan(linkingY));
+        expect(linkingY, lessThan(dangerY));
+      },
+    );
 
     testWidgets(
-        'SS10 3버튼 내비 48dp viewPadding — 회원탈퇴 ListTile hit-test 가능 + '
-        'SafeArea geometry 회귀 가드 (G-16-A6-1)',
-        (tester) async {
+      'SS8 viewport — 360dp ListView scroll, Danger zone (말단) 접근 가능',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // 단일 활성 Strategy → Danger zone 이 below-fold 여도 scroll 접근 가능.
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(),
+          strategies: const <AuthStrategy>[AppleAuthStrategy()],
+        );
+
+        // Danger zone 회원탈퇴 ListTile 이 below-fold 여도 scroll 후 접근 가능.
+        await tester.ensureVisible(find.text('Delete account').last);
+        expect(find.byType(DangerZoneSection), findsOneWidget);
+      },
+    );
+
+    testWidgets('SS10 3버튼 내비 48dp viewPadding — 회원탈퇴 ListTile hit-test 가능 + '
+        'SafeArea geometry 회귀 가드 (G-16-A6-1)', (tester) async {
       // 위젯 테스트 세계에는 시스템 내비게이션 바라는 실제 occluder 가 없다.
       // 따라서 `tester.tap` 만으로는 SafeArea 유무를 구분하지 못한다 —
       // SafeArea 를 제거해도 tap 은 그대로 통과한다. 구분 가능한 관측량은
@@ -358,98 +363,107 @@ void main() {
     });
 
     testWidgets(
-        'SS9 모든 소셜 linked — AccountLinkingSection 미노출 (Danger zone 회귀 0)',
-        (tester) async {
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(
-          providerIds: const <String>[
-            'password',
-            'google.com',
-            'apple.com',
-            'facebook.com',
-            'kakao',
-            'naver',
-            'line',
-            'yahoojp',
-          ],
-        ),
-      );
+      'SS9 모든 소셜 linked — AccountLinkingSection 미노출 (Danger zone 회귀 0)',
+      (tester) async {
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(
+            providerIds: const <String>[
+              'password',
+              'google.com',
+              'apple.com',
+              'facebook.com',
+              'kakao',
+              'naver',
+              'line',
+              'yahoojp',
+            ],
+          ),
+        );
 
-      // available 빈 set → 계정 연결 heading 미노출.
-      expect(find.text('Link an account'), findsNothing);
-      // 단, Danger zone 은 계속 노출 (회귀 0).
-      expect(find.byType(DangerZoneSection), findsOneWidget);
-    });
-
-    testWidgets(
-        'SS11 section heading role·색 — heading 2곳 label 계열 role + 지정 색',
-        (tester) async {
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(providerIds: _allSocialLinked),
-      );
-
-      final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
-      final headingRole = theme.textTheme.labelMedium;
-
-      final accountHeading = tester.widget<Text>(find.text('My Account'));
-      expect(accountHeading.style?.fontSize, equals(headingRole?.fontSize));
-      expect(accountHeading.style?.fontWeight, equals(headingRole?.fontWeight));
-      expect(
-        accountHeading.style?.color,
-        equals(theme.colorScheme.onSurfaceVariant),
-      );
-
-      final dangerHeading = tester.widget<Text>(find.text('Danger zone'));
-      expect(dangerHeading.style?.fontSize, equals(headingRole?.fontSize));
-      expect(dangerHeading.style?.fontWeight, equals(headingRole?.fontWeight));
-      expect(dangerHeading.style?.color, equals(theme.colorScheme.error));
-    });
+        // available 빈 set → 계정 연결 heading 미노출.
+        expect(find.text('Link an account'), findsNothing);
+        // 단, Danger zone 은 계속 노출 (회귀 0).
+        expect(find.byType(DangerZoneSection), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'SS12 Danger zone explainer role + chevron accent (icon·title 은 error 불변)',
-        (tester) async {
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(providerIds: _allSocialLinked),
-      );
+      'SS11 section heading role·색 — heading 2곳 label 계열 role + 지정 색',
+      (tester) async {
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(providerIds: _allSocialLinked),
+        );
 
-      final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
+        final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
+        final headingRole = theme.textTheme.labelMedium;
 
-      // explainer 는 본문 보조 role 과 동일 metric.
-      final explainer = tester.widget<Text>(
-        find.text('These actions cannot be undone.'),
-      );
-      expect(
-        explainer.style?.fontSize,
-        equals(theme.textTheme.bodyMedium?.fontSize),
-      );
+        final accountHeading = tester.widget<Text>(find.text('My Account'));
+        expect(accountHeading.style?.fontSize, equals(headingRole?.fontSize));
+        expect(
+          accountHeading.style?.fontWeight,
+          equals(headingRole?.fontWeight),
+        );
+        expect(
+          accountHeading.style?.color,
+          equals(theme.colorScheme.onSurfaceVariant),
+        );
 
-      // trailing chevron 은 accent 화이트리스트 대상.
-      final chevron = tester.widget<Icon>(find.byIcon(Icons.chevron_right));
-      expect(chevron.color, equals(theme.colorScheme.primary));
-
-      // destructive intent 2요소(leading icon + title)는 그대로 유지.
-      final leadingIcon = tester.widget<Icon>(
-        find.byIcon(Icons.delete_forever),
-      );
-      expect(leadingIcon.color, equals(theme.colorScheme.error));
-      final dangerTile = tester.widget<ListTile>(
-        find.ancestor(
-          of: find.text('Delete account').last,
-          matching: find.byType(ListTile),
-        ),
-      );
-      expect(
-        (dangerTile.title! as Text).style?.color,
-        equals(theme.colorScheme.error),
-      );
-    });
+        final dangerHeading = tester.widget<Text>(find.text('Danger zone'));
+        expect(dangerHeading.style?.fontSize, equals(headingRole?.fontSize));
+        expect(
+          dangerHeading.style?.fontWeight,
+          equals(headingRole?.fontWeight),
+        );
+        expect(dangerHeading.style?.color, equals(theme.colorScheme.error));
+      },
+    );
 
     testWidgets(
-        'SS13 Danger zone Semantics — 회원탈퇴 ListTile 결합 라벨 노출',
-        (tester) async {
+      'SS12 Danger zone explainer role + chevron accent (icon·title 은 error 불변)',
+      (tester) async {
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(providerIds: _allSocialLinked),
+        );
+
+        final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
+
+        // explainer 는 본문 보조 role 과 동일 metric.
+        final explainer = tester.widget<Text>(
+          find.text('These actions cannot be undone.'),
+        );
+        expect(
+          explainer.style?.fontSize,
+          equals(theme.textTheme.bodyMedium?.fontSize),
+        );
+
+        // trailing chevron 은 accent 화이트리스트 대상.
+        final chevron = tester.widget<Icon>(find.byIcon(Icons.chevron_right));
+        expect(chevron.color, equals(theme.colorScheme.primary));
+
+        // destructive intent 2요소(leading icon + title)는 그대로 유지.
+        final leadingIcon = tester.widget<Icon>(
+          find.byIcon(Icons.delete_forever),
+        );
+        expect(leadingIcon.color, equals(theme.colorScheme.error));
+        final dangerTile = tester.widget<ListTile>(
+          find.ancestor(
+            of: find.text('Delete account').last,
+            matching: find.byType(ListTile),
+          ),
+        );
+        expect(
+          (dangerTile.title! as Text).style?.color,
+          equals(theme.colorScheme.error),
+        );
+      },
+    );
+
+    testWidgets('SS13 Danger zone Semantics — 회원탈퇴 ListTile 결합 라벨 노출', (
+      tester,
+    ) async {
       // 시맨틱 트리를 명시적으로 켠다 (environment_info_screen_test 패턴).
       final handle = tester.ensureSemantics();
       await _pumpSettingsScreen(
@@ -466,26 +480,27 @@ void main() {
     });
 
     testWidgets(
-        'SS14 계정 연결 heading role·색 — label 계열 role + onSurfaceVariant',
-        (tester) async {
-      // password-only → 계정 연결 section 노출.
-      await _pumpSettingsScreen(tester, user: _testUser());
+      'SS14 계정 연결 heading role·색 — label 계열 role + onSurfaceVariant',
+      (tester) async {
+        // password-only → 계정 연결 section 노출.
+        await _pumpSettingsScreen(tester, user: _testUser());
 
-      final linkingHeading = find.text('Link an account');
-      expect(linkingHeading, findsOneWidget);
-      // 기본 800x600 viewport 밖일 수 있으므로 먼저 노출시킨다.
-      await tester.ensureVisible(linkingHeading);
-      await tester.pump();
+        final linkingHeading = find.text('Link an account');
+        expect(linkingHeading, findsOneWidget);
+        // 기본 800x600 viewport 밖일 수 있으므로 먼저 노출시킨다.
+        await tester.ensureVisible(linkingHeading);
+        await tester.pump();
 
-      final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
-      final headingRole = theme.textTheme.labelMedium;
-      final heading = tester.widget<Text>(linkingHeading);
-      expect(heading.style?.fontSize, equals(headingRole?.fontSize));
-      expect(heading.style?.fontWeight, equals(headingRole?.fontWeight));
-      expect(
-        heading.style?.color,
-        equals(theme.colorScheme.onSurfaceVariant),
-      );
-    });
+        final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
+        final headingRole = theme.textTheme.labelMedium;
+        final heading = tester.widget<Text>(linkingHeading);
+        expect(heading.style?.fontSize, equals(headingRole?.fontSize));
+        expect(heading.style?.fontWeight, equals(headingRole?.fontWeight));
+        expect(
+          heading.style?.color,
+          equals(theme.colorScheme.onSurfaceVariant),
+        );
+      },
+    );
   });
 }

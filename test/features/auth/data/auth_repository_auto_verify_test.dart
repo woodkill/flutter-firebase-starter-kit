@@ -159,9 +159,9 @@ void main() {
   /// Google 성공 fixture — auth_repository_test.dart:462-484 mirror.
   void stubGoogleSuccess() {
     final mockAccount = _MockGoogleSignInAccount();
-    when(() => mockAccount.authentication).thenReturn(
-      const GoogleSignInAuthentication(idToken: 'id-token-test'),
-    );
+    when(
+      () => mockAccount.authentication,
+    ).thenReturn(const GoogleSignInAuthentication(idToken: 'id-token-test'));
     when(
       () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
     ).thenAnswer((_) async => mockAccount);
@@ -213,9 +213,7 @@ void main() {
     ).thenAnswer(
       (_) async => <String, dynamic>{
         'picture': {
-          'data': {
-            'url': 'https://platform-lookaside.fbsbx.com/profile.jpg',
-          },
+          'data': {'url': 'https://platform-lookaside.fbsbx.com/profile.jpg'},
         },
       },
     );
@@ -244,9 +242,9 @@ void main() {
 
   /// Naver 성공 fixture — auth_repository_test.dart:1582-1608 mirror.
   void stubNaverSuccess() {
-    when(() => mockNaverSdkClient.signIn()).thenAnswer(
-      (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
-    );
+    when(
+      () => mockNaverSdkClient.signIn(),
+    ).thenAnswer((_) async => const NaverSignInResult(accessToken: 'AT_NAVER'));
     when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
     final defaultResult = _MockHttpsCallableResult();
     when(() => defaultResult.data).thenReturn(<String, dynamic>{
@@ -325,81 +323,69 @@ void main() {
       // V5: Facebook 만 실효 호출 (D-19) — emailVerified=false + isNewUser=true.
       // -----------------------------------------------------------------
 
-      test(
-        'V5: Facebook emailVerified=false + isNewUser=true → '
-        'sendEmailVerification 1회 호출',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(false);
-          when(() => mockUser.email).thenReturn('fb@example.com');
-          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
-          stubFacebookSuccess();
+      test('V5: Facebook emailVerified=false + isNewUser=true → '
+          'sendEmailVerification 1회 호출', () async {
+        when(() => mockUser.emailVerified).thenReturn(false);
+        when(() => mockUser.email).thenReturn('fb@example.com');
+        when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+        stubFacebookSuccess();
 
-          await repository.signInWithFacebook();
+        await repository.signInWithFacebook();
 
-          verify(() => mockUser.sendEmailVerification()).called(1);
-        },
-      );
+        verify(() => mockUser.sendEmailVerification()).called(1);
+      });
 
       // -----------------------------------------------------------------
       // V6: D-20 spam 가드 — isNewUser=false → 미호출.
       // -----------------------------------------------------------------
 
-      test(
-        'V6: Facebook emailVerified=false + isNewUser=false → 미호출 '
-        '(재로그인 spam 방지 — D-20)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(false);
-          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
-          stubFacebookSuccess();
+      test('V6: Facebook emailVerified=false + isNewUser=false → 미호출 '
+          '(재로그인 spam 방지 — D-20)', () async {
+        when(() => mockUser.emailVerified).thenReturn(false);
+        when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
+        stubFacebookSuccess();
 
-          await repository.signInWithFacebook();
+        await repository.signInWithFacebook();
 
-          verifyNever(() => mockUser.sendEmailVerification());
-        },
-      );
+        verifyNever(() => mockUser.sendEmailVerification());
+      });
 
       // -----------------------------------------------------------------
       // V7: D-21 graceful — sendEmailVerification thenThrow 시 로그인 success.
       // -----------------------------------------------------------------
 
-      test(
-        'V7: Facebook sendEmailVerification thenThrow → 로그인 success 유지 '
-        '(graceful catch — D-21)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(false);
-          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
-          when(() => mockUser.sendEmailVerification()).thenThrow(
-            fb.FirebaseAuthException(code: 'too-many-requests'),
-          );
-          stubFacebookSuccess();
+      test('V7: Facebook sendEmailVerification thenThrow → 로그인 success 유지 '
+          '(graceful catch — D-21)', () async {
+        when(() => mockUser.emailVerified).thenReturn(false);
+        when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+        when(
+          () => mockUser.sendEmailVerification(),
+        ).thenThrow(fb.FirebaseAuthException(code: 'too-many-requests'));
+        stubFacebookSuccess();
 
-          final result = await repository.signInWithFacebook();
+        final result = await repository.signInWithFacebook();
 
-          expect(result, isA<Success<dynamic>>());
-        },
-      );
+        expect(result, isA<Success<dynamic>>());
+      });
 
       // -----------------------------------------------------------------
       // V8: D-22 race-fix invariant — begin → sendEmailVerification → end.
       // -----------------------------------------------------------------
 
-      test(
-        'V8: Facebook race-fix — begin() → sendEmailVerification → end() 순서 '
-        '(D-22 invariant)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(false);
-          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
-          stubFacebookSuccess();
+      test('V8: Facebook race-fix — begin() → sendEmailVerification → end() 순서 '
+          '(D-22 invariant)', () async {
+        when(() => mockUser.emailVerified).thenReturn(false);
+        when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+        stubFacebookSuccess();
 
-          await repository.signInWithFacebook();
+        await repository.signInWithFacebook();
 
-          verifyInOrder([
-            () => mockSocialLinkInProgress.begin(),
-            () => mockUser.sendEmailVerification(),
-            () => mockSocialLinkInProgress.end(),
-          ]);
-        },
-      );
+        verifyInOrder([
+          () => mockSocialLinkInProgress.begin(),
+          () => mockUser.sendEmailVerification(),
+          () => mockSocialLinkInProgress.end(),
+        ]);
+      });
 
       // -----------------------------------------------------------------
       // V9 (WR-04 regression — Phase 9.2 review fix):
@@ -409,20 +395,17 @@ void main() {
       // 가드 `(user.email ?? '').isEmpty` 가 양쪽 (null + empty) 을 차단.
       // -----------------------------------------------------------------
 
-      test(
-        'V9 (WR-04): Facebook user.email == "" → sendEmailVerification 미호출 '
-        '(빈 문자열 가드 회귀)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(false);
-          when(() => mockUser.email).thenReturn(''); // 빈 문자열
-          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
-          stubFacebookSuccess();
+      test('V9 (WR-04): Facebook user.email == "" → sendEmailVerification 미호출 '
+          '(빈 문자열 가드 회귀)', () async {
+        when(() => mockUser.emailVerified).thenReturn(false);
+        when(() => mockUser.email).thenReturn(''); // 빈 문자열
+        when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+        stubFacebookSuccess();
 
-          await repository.signInWithFacebook();
+        await repository.signInWithFacebook();
 
-          verifyNever(() => mockUser.sendEmailVerification());
-        },
-      );
+        verifyNever(() => mockUser.sendEmailVerification());
+      });
     },
   );
 
@@ -498,9 +481,9 @@ void main() {
     ).thenAnswer((_) async => mockCredential);
 
     final mockAccount = _MockGoogleSignInAccount();
-    when(() => mockAccount.authentication).thenReturn(
-      const GoogleSignInAuthentication(idToken: 'id-token-anon'),
-    );
+    when(
+      () => mockAccount.authentication,
+    ).thenReturn(const GoogleSignInAuthentication(idToken: 'id-token-anon'));
     when(
       () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
     ).thenAnswer((_) async => mockAccount);
@@ -524,88 +507,73 @@ void main() {
     when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
   }
 
-  group(
-    'Phase 9.2 Gap A (HUMAN-UAT 2026-05-11) — 익명 → linkWithCredential '
-    'isNewUser=false 보강',
-    () {
-      test(
-        'V9: Facebook 익명승격 (linkWithCredential) + isNewUser=false + '
-        'emailVerified=false → sendEmailVerification 1회 호출 (Gap A close)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(false);
-          when(() => mockUser.email).thenReturn('fb-anon@example.com');
-          stubFacebookAnonymousLinkSuccess();
+  group('Phase 9.2 Gap A (HUMAN-UAT 2026-05-11) — 익명 → linkWithCredential '
+      'isNewUser=false 보강', () {
+    test(
+      'V9: Facebook 익명승격 (linkWithCredential) + isNewUser=false + '
+      'emailVerified=false → sendEmailVerification 1회 호출 (Gap A close)',
+      () async {
+        when(() => mockUser.emailVerified).thenReturn(false);
+        when(() => mockUser.email).thenReturn('fb-anon@example.com');
+        stubFacebookAnonymousLinkSuccess();
 
-          await repository.signInWithFacebook();
+        await repository.signInWithFacebook();
 
-          verify(() => mockAnonymousUser.linkWithCredential(any())).called(1);
-          verify(() => mockUser.sendEmailVerification()).called(1);
-        },
-      );
+        verify(() => mockAnonymousUser.linkWithCredential(any())).called(1);
+        verify(() => mockUser.sendEmailVerification()).called(1);
+      },
+    );
 
-      test(
-        'V10: Google 익명승격 (linkWithCredential) + isNewUser=false + '
+    test('V10: Google 익명승격 (linkWithCredential) + isNewUser=false + '
         'emailVerified=true → sendEmailVerification 미호출 (D-19 emailVerified '
-        '가드 우선)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(true);
-          when(() => mockUser.email).thenReturn('g-anon@example.com');
-          stubGoogleAnonymousLinkSuccess();
+        '가드 우선)', () async {
+      when(() => mockUser.emailVerified).thenReturn(true);
+      when(() => mockUser.email).thenReturn('g-anon@example.com');
+      stubGoogleAnonymousLinkSuccess();
 
-          await repository.signInWithGoogle();
+      await repository.signInWithGoogle();
 
-          verify(() => mockAnonymousUser.linkWithCredential(any())).called(1);
-          verifyNever(() => mockUser.sendEmailVerification());
-        },
-      );
+      verify(() => mockAnonymousUser.linkWithCredential(any())).called(1);
+      verifyNever(() => mockUser.sendEmailVerification());
+    });
 
-      test(
-        'V11: Apple 익명승격 (linkWithProvider) + isNewUser=false + '
+    test('V11: Apple 익명승격 (linkWithProvider) + isNewUser=false + '
         'emailVerified=true → sendEmailVerification 미호출 (D-19 emailVerified '
-        '가드 우선)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(true);
-          when(() => mockUser.email).thenReturn('a-anon@example.com');
-          stubAppleAnonymousLinkSuccess();
+        '가드 우선)', () async {
+      when(() => mockUser.emailVerified).thenReturn(true);
+      when(() => mockUser.email).thenReturn('a-anon@example.com');
+      stubAppleAnonymousLinkSuccess();
 
-          await repository.signInWithApple();
+      await repository.signInWithApple();
 
-          verify(() => mockAnonymousUser.linkWithProvider(any())).called(1);
-          verifyNever(() => mockUser.sendEmailVerification());
-        },
-      );
+      verify(() => mockAnonymousUser.linkWithProvider(any())).called(1);
+      verifyNever(() => mockUser.sendEmailVerification());
+    });
 
-      test(
-        'V12: Facebook 비-익명 signInWithCredential + isNewUser=true + '
+    test('V12: Facebook 비-익명 signInWithCredential + isNewUser=true + '
         'emailVerified=false → sendEmailVerification 1회 호출 (기존 V5 mirror '
-        '— regression sentinel)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(false);
-          when(() => mockUser.email).thenReturn('fb-direct@example.com');
-          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
-          stubFacebookSuccess();
+        '— regression sentinel)', () async {
+      when(() => mockUser.emailVerified).thenReturn(false);
+      when(() => mockUser.email).thenReturn('fb-direct@example.com');
+      when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+      stubFacebookSuccess();
 
-          await repository.signInWithFacebook();
+      await repository.signInWithFacebook();
 
-          verify(() => mockUser.sendEmailVerification()).called(1);
-        },
-      );
+      verify(() => mockUser.sendEmailVerification()).called(1);
+    });
 
-      test(
-        'V13: Facebook 비-익명 signInWithCredential + isNewUser=false '
+    test('V13: Facebook 비-익명 signInWithCredential + isNewUser=false '
         '(재로그인) + emailVerified=false → sendEmailVerification 미호출 '
-        '(D-20 spam 가드 invariant 보존)',
-        () async {
-          when(() => mockUser.emailVerified).thenReturn(false);
-          when(() => mockUser.email).thenReturn('fb-relogin@example.com');
-          when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
-          stubFacebookSuccess();
+        '(D-20 spam 가드 invariant 보존)', () async {
+      when(() => mockUser.emailVerified).thenReturn(false);
+      when(() => mockUser.email).thenReturn('fb-relogin@example.com');
+      when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
+      stubFacebookSuccess();
 
-          await repository.signInWithFacebook();
+      await repository.signInWithFacebook();
 
-          verifyNever(() => mockUser.sendEmailVerification());
-        },
-      );
-    },
-  );
+      verifyNever(() => mockUser.sendEmailVerification());
+    });
+  });
 }

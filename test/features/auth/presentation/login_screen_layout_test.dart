@@ -54,13 +54,13 @@ Widget pumpWrapper({String initialLocation = '/login'}) {
       isFirebaseInitializedProvider.overrideWithValue(false),
       firebaseAuthProvider.overrideWithValue(mockAuth),
       authRepositoryProvider.overrideWithValue(mockRepo),
-      activeStrategiesProvider(
-        const Locale('en'),
-      ).overrideWithValue(const <AuthStrategy>[
-        GoogleAuthStrategy(),
-        AppleAuthStrategy(),
-        FacebookAuthStrategy(),
-      ]),
+      activeStrategiesProvider(const Locale('en')).overrideWithValue(
+        const <AuthStrategy>[
+          GoogleAuthStrategy(),
+          AppleAuthStrategy(),
+          FacebookAuthStrategy(),
+        ],
+      ),
     ],
     child: MaterialApp.router(
       theme: AppTheme.light(),
@@ -119,7 +119,8 @@ void main() {
       // 외부 텍스트 layer 보존되어 라벨 finder 유효.
       expect(
         find.byWidgetPredicate(
-          (w) => w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
+          (w) =>
+              w is SocialButton && w.strategy.providerId == kProviderIdGoogle,
         ),
         findsOneWidget,
       );

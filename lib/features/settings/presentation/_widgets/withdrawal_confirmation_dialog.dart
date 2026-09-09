@@ -209,7 +209,8 @@ class _WithdrawalConfirmationDialogState
   ///   [AppLocalizations.withdrawalFailure] (UI-SPEC Surface C verbatim).
   String _resolveFailureMessage(AppLocalizations l10n, Object? error) {
     return switch (error) {
-      NetworkException() || TooManyRequests() => l10n.withdrawalFailureTransient,
+      NetworkException() ||
+      TooManyRequests() => l10n.withdrawalFailureTransient,
       _ => l10n.withdrawalFailure,
     };
   }
@@ -217,8 +218,8 @@ class _WithdrawalConfirmationDialogState
   void _showSnackBar(BuildContext context, String message) {
     // dialog 가 같은 BuildContext 위에 떠 있어 ScaffoldMessenger 는 root 의
     // 것을 자동 사용 — root context 의 SnackBar 노출.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

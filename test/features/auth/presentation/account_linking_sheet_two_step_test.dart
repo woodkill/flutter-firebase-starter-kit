@@ -117,9 +117,9 @@ void main() {
     return ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(const Locale('en')).overrideWithValue(
-          const <AuthStrategy>[KakaoAuthStrategy()],
-        ),
+        activeStrategiesProvider(
+          const Locale('en'),
+        ).overrideWithValue(const <AuthStrategy>[KakaoAuthStrategy()]),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -338,31 +338,28 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Failure(TooManyRequests) → transient 문구 (동일 arm)',
-      (tester) async {
-        when(
-          () => mockRepo.signInWithExistingProvider(
-            provider: any(named: 'provider'),
-          ),
-        ).thenAnswer(
-          (_) async => const Result<User>.failure(TooManyRequests()),
-        );
+    testWidgets('Failure(TooManyRequests) → transient 문구 (동일 arm)', (
+      tester,
+    ) async {
+      when(
+        () => mockRepo.signInWithExistingProvider(
+          provider: any(named: 'provider'),
+        ),
+      ).thenAnswer((_) async => const Result<User>.failure(TooManyRequests()));
 
-        await openSheet(tester, existingProvider: AccountProvider.kakao);
-        await tapSheetCta(tester);
-        await tester.pump(const Duration(seconds: 1));
+      await openSheet(tester, existingProvider: AccountProvider.kakao);
+      await tapSheetCta(tester);
+      await tester.pump(const Duration(seconds: 1));
 
-        expect(
-          find.text(
-            "Couldn't sign in due to a network or service error. "
-            'Please try again later.',
-          ),
-          findsOneWidget,
-        );
-        expectNoCircularGuidance(tester);
-      },
-    );
+      expect(
+        find.text(
+          "Couldn't sign in due to a network or service error. "
+          'Please try again later.',
+        ),
+        findsOneWidget,
+      );
+      expectNoCircularGuidance(tester);
+    });
 
     // 4차 WR-01 — 이 경로의 *지배적* 실패(A-16-19-01 익명 caller 재충돌)가
     // transient / catch-all arm 으로 되돌아가면 "잠시 후 다시 시도" 안내가
@@ -402,29 +399,26 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Failure(UnknownException) → catch-all 문구 + 순환 안내 0',
-      (tester) async {
-        when(
-          () => mockRepo.signInWithExistingProvider(
-            provider: any(named: 'provider'),
-          ),
-        ).thenAnswer(
-          (_) async => const Result<User>.failure(UnknownException()),
-        );
+    testWidgets('Failure(UnknownException) → catch-all 문구 + 순환 안내 0', (
+      tester,
+    ) async {
+      when(
+        () => mockRepo.signInWithExistingProvider(
+          provider: any(named: 'provider'),
+        ),
+      ).thenAnswer((_) async => const Result<User>.failure(UnknownException()));
 
-        await openSheet(tester, existingProvider: AccountProvider.kakao);
-        await tapSheetCta(tester);
-        await tester.pump(const Duration(seconds: 1));
+      await openSheet(tester, existingProvider: AccountProvider.kakao);
+      await tapSheetCta(tester);
+      await tester.pump(const Duration(seconds: 1));
 
-        expect(
-          find.text("Couldn't sign you in. Please try again later."),
-          findsOneWidget,
-        );
-        expectNoCircularGuidance(tester);
-        expect(find.byType(AccountLinkingSheet), findsOneWidget);
-      },
-    );
+      expect(
+        find.text("Couldn't sign you in. Please try again later."),
+        findsOneWidget,
+      );
+      expectNoCircularGuidance(tester);
+      expect(find.byType(AccountLinkingSheet), findsOneWidget);
+    });
   });
 
   group('TS5 — native 회귀 (경로 A, A1 시나리오 변경 0)', () {
@@ -489,50 +483,49 @@ void main() {
   });
 
   group('TS7 — email 기존 provider (경로 C 변경 0)', () {
-    testWidgets(
-      'existingProvider=email CTA 탭 → repository 호출 0 + /login 유지',
-      (tester) async {
-        when(
-          () => mockRepo.signInWithExistingProvider(
-            provider: any(named: 'provider'),
-          ),
-        ).thenAnswer((_) async => successResult());
+    testWidgets('existingProvider=email CTA 탭 → repository 호출 0 + /login 유지', (
+      tester,
+    ) async {
+      when(
+        () => mockRepo.signInWithExistingProvider(
+          provider: any(named: 'provider'),
+        ),
+      ).thenAnswer((_) async => successResult());
 
-        await usePortraitSurface(tester);
-        await tester.pumpWidget(
-          buildHarness(existingProvider: AccountProvider.email),
-        );
-        await tester.pumpAndSettle();
-        await tester.tap(find.byType(BrandedSocialButton).first);
-        await settleSheetEntrance(tester);
-        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+      await usePortraitSurface(tester);
+      await tester.pumpWidget(
+        buildHarness(existingProvider: AccountProvider.email),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BrandedSocialButton).first);
+      await settleSheetEntrance(tester);
+      expect(find.byType(AccountLinkingSheet), findsOneWidget);
 
-        // email 은 BrandedSocialButton 이 아닌 FilledButton fallback 이다.
-        final emailCta = find.descendant(
-          of: find.byType(AccountLinkingSheet),
-          matching: find.byType(FilledButton),
-        );
-        await tester.ensureVisible(emailCta);
-        await tester.pump();
-        await tester.tap(emailCta);
-        await tester.pump();
-        await tester.pump(const Duration(seconds: 1));
+      // email 은 BrandedSocialButton 이 아닌 FilledButton fallback 이다.
+      final emailCta = find.descendant(
+        of: find.byType(AccountLinkingSheet),
+        matching: find.byType(FilledButton),
+      );
+      await tester.ensureVisible(emailCta);
+      await tester.pump();
+      await tester.tap(emailCta);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
-        verifyNever(
-          () => mockRepo.signInWithExistingProvider(
-            provider: any(named: 'provider'),
-          ),
-        );
-        verifyNever(
-          () => mockRepo.linkPendingNativeCredential(
-            existingProvider: any(named: 'existingProvider'),
-            pendingCredential: any(named: 'pendingCredential'),
-          ),
-        );
-        expect(find.byType(AccountLinkingSheet), findsNothing);
-        expect(find.text('HOME'), findsNothing);
-        expect(find.byType(LoginScreen), findsOneWidget);
-      },
-    );
+      verifyNever(
+        () => mockRepo.signInWithExistingProvider(
+          provider: any(named: 'provider'),
+        ),
+      );
+      verifyNever(
+        () => mockRepo.linkPendingNativeCredential(
+          existingProvider: any(named: 'existingProvider'),
+          pendingCredential: any(named: 'pendingCredential'),
+        ),
+      );
+      expect(find.byType(AccountLinkingSheet), findsNothing);
+      expect(find.text('HOME'), findsNothing);
+      expect(find.byType(LoginScreen), findsOneWidget);
+    });
   });
 }

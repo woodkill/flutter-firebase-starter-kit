@@ -20,9 +20,7 @@ class _MockCrashlytics extends Mock implements CrashlyticsService {}
 /// 카운팅 가능.
 _MockCrashlytics _buildCrashlyticsMock() {
   final mock = _MockCrashlytics();
-  when(
-    () => mock.setCustomKey(any(), any<Object>()),
-  ).thenAnswer((_) async {});
+  when(() => mock.setCustomKey(any(), any<Object>())).thenAnswer((_) async {});
   when(
     () => mock.recordError(
       any<Object>(),
@@ -202,80 +200,74 @@ void main() {
   /// 가 진행 중이면 splash 의 자동 익명 sign-in 이 정식 사용자 상태를 덮어쓰는
   /// race 를 차단해야 한다 (`09-UAT.md` Gap test 6).
   group('Phase 9.1 D-02-A: socialLinkInProgress 가드', () {
-    test(
-      'Test SLP-S1: isSocialLinkInProgress=true + 다른 조건 모두 sign-in 발동 path '
-      '-> signInAnonymously 호출 안 함 (skip 분기) + Failure 가 아닌 정상 반환',
-      () async {
-        final mockRepo = _MockAuthRepository();
-        // signInAnonymously 가 호출되면 stub 으로 응답하지만, 본 테스트는 호출
-        // 자체가 발생하지 않음을 verifyNever 로 검증.
-        when(
-          mockRepo.signInAnonymously,
-        ).thenAnswer((_) async => Result.success(stubUser()));
+    test('Test SLP-S1: isSocialLinkInProgress=true + 다른 조건 모두 sign-in 발동 path '
+        '-> signInAnonymously 호출 안 함 (skip 분기) + Failure 가 아닌 정상 반환', () async {
+      final mockRepo = _MockAuthRepository();
+      // signInAnonymously 가 호출되면 stub 으로 응답하지만, 본 테스트는 호출
+      // 자체가 발생하지 않음을 verifyNever 로 검증.
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => Result.success(stubUser()));
 
-        final initializer = SplashInitializer(
-          authRepository: mockRepo,
-          isFirebaseInitialized: true,
-          currentUserIsNull: true,
-          onboardingFuture: Future.value(true),
-          isSocialLinkInProgress: true, // 진행 중 — skip
-        );
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: true, // 진행 중 — skip
+      );
 
-        final result = await initializer.initialize();
+      final result = await initializer.initialize();
 
-        // splash_initializer.dart 의 정상 skip path:
-        //   - 분기 (5) [authFuture 할당] 이 isSocialLinkInProgress=true 로 인해
-        //     skip → authFuture = null
-        //   - await waitFuture 후 `if (authFuture != null)` 미진입
-        //   - `return const Result.success(null);` — Result<void> 의 Success<void>
-        //     인스턴스
-        //
-        // 1차 assertion: 정확한 매칭. Result<T=void> 시그니처 + Success<T>
-        // 정의로 런타임 인스턴스는 Success<void> 임이 보장됨.
-        expect(
-          result,
-          isA<Success<void>>(),
-          reason:
-              'initialize() 의 정상 skip 분기는 const Result.success(null) 를 '
-              '반환하며, 시그니처상 Result<void> 이므로 Success<void>.',
-        );
-        // 2차 fallback assertion: 만약 generic erasure 또는 Result 정의 변경으로
-        // Success<void> 매칭이 깨져도 적어도 Failure 가 아님은 보장됨.
-        expect(
-          result,
-          isNot(isA<Failure<void>>()),
-          reason:
-              'skip 분기는 어떤 경우에도 Failure 를 반환하지 않는다 — '
-              'authRepository.signInAnonymously 가 호출되지 않으므로 '
-              'Failure 로 가는 유일한 path 가 차단됨.',
-        );
-        verifyNever(mockRepo.signInAnonymously);
-      },
-    );
+      // splash_initializer.dart 의 정상 skip path:
+      //   - 분기 (5) [authFuture 할당] 이 isSocialLinkInProgress=true 로 인해
+      //     skip → authFuture = null
+      //   - await waitFuture 후 `if (authFuture != null)` 미진입
+      //   - `return const Result.success(null);` — Result<void> 의 Success<void>
+      //     인스턴스
+      //
+      // 1차 assertion: 정확한 매칭. Result<T=void> 시그니처 + Success<T>
+      // 정의로 런타임 인스턴스는 Success<void> 임이 보장됨.
+      expect(
+        result,
+        isA<Success<void>>(),
+        reason:
+            'initialize() 의 정상 skip 분기는 const Result.success(null) 를 '
+            '반환하며, 시그니처상 Result<void> 이므로 Success<void>.',
+      );
+      // 2차 fallback assertion: 만약 generic erasure 또는 Result 정의 변경으로
+      // Success<void> 매칭이 깨져도 적어도 Failure 가 아님은 보장됨.
+      expect(
+        result,
+        isNot(isA<Failure<void>>()),
+        reason:
+            'skip 분기는 어떤 경우에도 Failure 를 반환하지 않는다 — '
+            'authRepository.signInAnonymously 가 호출되지 않으므로 '
+            'Failure 로 가는 유일한 path 가 차단됨.',
+      );
+      verifyNever(mockRepo.signInAnonymously);
+    });
 
-    test(
-      'Test SLP-S2: isSocialLinkInProgress=false 일 때 기존 분기 5 정상 발동 '
-      '(회귀 가드 — Plan 09.1-03 가드의 negative path)',
-      () async {
-        final mockRepo = _MockAuthRepository();
-        when(
-          mockRepo.signInAnonymously,
-        ).thenAnswer((_) async => Result.success(stubUser()));
+    test('Test SLP-S2: isSocialLinkInProgress=false 일 때 기존 분기 5 정상 발동 '
+        '(회귀 가드 — Plan 09.1-03 가드의 negative path)', () async {
+      final mockRepo = _MockAuthRepository();
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => Result.success(stubUser()));
 
-        final initializer = SplashInitializer(
-          authRepository: mockRepo,
-          isFirebaseInitialized: true,
-          currentUserIsNull: true,
-          onboardingFuture: Future.value(true),
-          isSocialLinkInProgress: false, // 진행 중 아님 — 정상 sign-in
-        );
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false, // 진행 중 아님 — 정상 sign-in
+      );
 
-        final result = await initializer.initialize();
+      final result = await initializer.initialize();
 
-        expect(result, isA<Success<void>>());
-        verify(mockRepo.signInAnonymously).called(1);
-      },
-    );
+      expect(result, isA<Success<void>>());
+      verify(mockRepo.signInAnonymously).called(1);
+    });
   });
 
   /// Phase 10.1 retry 매트릭스 — transient/permanent 분류 + Crashlytics emit.
@@ -383,9 +375,7 @@ void main() {
       expect(result, isA<Success<void>>());
       verify(mockRepo.signInAnonymously).called(2);
       // retry 성공 시 Crashlytics emit 안 함 (D-14).
-      verifyNever(
-        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
-      );
+      verifyNever(() => mockCrashlytics.setCustomKey(any(), any<Object>()));
       // IN-01: setCustomKey 와 recordError 양쪽이 함께 0 회 인지 검증
       // (둘 중 하나만 emit 되는 회귀 차단).
       verifyNever(
@@ -423,9 +413,7 @@ void main() {
       final result = await initializer.initialize();
       expect(result, isA<Success<void>>());
       verify(mockRepo.signInAnonymously).called(3);
-      verifyNever(
-        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
-      );
+      verifyNever(() => mockCrashlytics.setCustomKey(any(), any<Object>()));
       // IN-01: setCustomKey 와 recordError 양쪽이 함께 0 회 인지 검증.
       verifyNever(
         () => mockCrashlytics.recordError(
@@ -437,77 +425,80 @@ void main() {
       );
     });
 
-    test('C5: UserDisabled × 1 → 즉시 Failure (retry 안 됨, I2 permanent)',
-        () async {
-      final mockRepo = _MockAuthRepository();
-      when(
-        mockRepo.signInAnonymously,
-      ).thenAnswer((_) async => const Result.failure(UserDisabled()));
-      final mockCrashlytics = _buildCrashlyticsMock();
+    test(
+      'C5: UserDisabled × 1 → 즉시 Failure (retry 안 됨, I2 permanent)',
+      () async {
+        final mockRepo = _MockAuthRepository();
+        when(
+          mockRepo.signInAnonymously,
+        ).thenAnswer((_) async => const Result.failure(UserDisabled()));
+        final mockCrashlytics = _buildCrashlyticsMock();
 
-      final initializer = SplashInitializer(
-        authRepository: mockRepo,
-        isFirebaseInitialized: true,
-        currentUserIsNull: true,
-        onboardingFuture: Future.value(true),
-        isSocialLinkInProgress: false,
-        crashlyticsService: mockCrashlytics,
-      );
+        final initializer = SplashInitializer(
+          authRepository: mockRepo,
+          isFirebaseInitialized: true,
+          currentUserIsNull: true,
+          onboardingFuture: Future.value(true),
+          isSocialLinkInProgress: false,
+          crashlyticsService: mockCrashlytics,
+        );
 
-      final result = await initializer.initialize();
-      expect(result, isA<Failure<void>>());
-      expect((result as Failure<void>).exception, isA<UserDisabled>());
-      // permanent — retry 안 함, 1회만 호출.
-      verify(mockRepo.signInAnonymously).called(1);
-      // WR-02: cause null → AppException 런타임 타입 'UserDisabled' fingerprint.
-      verify(
-        () => mockCrashlytics.setCustomKey(
-          'splash_auto_signin_retry_exhausted',
-          'UserDisabled',
-        ),
-      ).called(1);
-      verify(
-        () => mockCrashlytics.recordError(
-          any<Object>(),
-          any<StackTrace?>(),
-          reason: any(named: 'reason'),
-          fatal: false,
-        ),
-      ).called(1);
-    });
-
-    test('C6: TooManyRequests × 1 → 즉시 Failure (retry 안 됨, I2 permanent)',
-        () async {
-      final mockRepo = _MockAuthRepository();
-      when(
-        mockRepo.signInAnonymously,
-      ).thenAnswer((_) async => const Result.failure(TooManyRequests()));
-      final mockCrashlytics = _buildCrashlyticsMock();
-
-      final initializer = SplashInitializer(
-        authRepository: mockRepo,
-        isFirebaseInitialized: true,
-        currentUserIsNull: true,
-        onboardingFuture: Future.value(true),
-        isSocialLinkInProgress: false,
-        crashlyticsService: mockCrashlytics,
-      );
-
-      final result = await initializer.initialize();
-      expect(result, isA<Failure<void>>());
-      expect((result as Failure<void>).exception, isA<TooManyRequests>());
-      verify(mockRepo.signInAnonymously).called(1);
-      // WR-02: cause null → AppException 런타임 타입 'TooManyRequests'.
-      verify(
-        () => mockCrashlytics.setCustomKey(
-          'splash_auto_signin_retry_exhausted',
-          'TooManyRequests',
-        ),
-      ).called(1);
-    });
+        final result = await initializer.initialize();
+        expect(result, isA<Failure<void>>());
+        expect((result as Failure<void>).exception, isA<UserDisabled>());
+        // permanent — retry 안 함, 1회만 호출.
+        verify(mockRepo.signInAnonymously).called(1);
+        // WR-02: cause null → AppException 런타임 타입 'UserDisabled' fingerprint.
+        verify(
+          () => mockCrashlytics.setCustomKey(
+            'splash_auto_signin_retry_exhausted',
+            'UserDisabled',
+          ),
+        ).called(1);
+        verify(
+          () => mockCrashlytics.recordError(
+            any<Object>(),
+            any<StackTrace?>(),
+            reason: any(named: 'reason'),
+            fatal: false,
+          ),
+        ).called(1);
+      },
+    );
 
     test(
-        'C7: ServiceUnavailable(cause=code="operation-not-allowed") × 1 → '
+      'C6: TooManyRequests × 1 → 즉시 Failure (retry 안 됨, I2 permanent)',
+      () async {
+        final mockRepo = _MockAuthRepository();
+        when(
+          mockRepo.signInAnonymously,
+        ).thenAnswer((_) async => const Result.failure(TooManyRequests()));
+        final mockCrashlytics = _buildCrashlyticsMock();
+
+        final initializer = SplashInitializer(
+          authRepository: mockRepo,
+          isFirebaseInitialized: true,
+          currentUserIsNull: true,
+          onboardingFuture: Future.value(true),
+          isSocialLinkInProgress: false,
+          crashlyticsService: mockCrashlytics,
+        );
+
+        final result = await initializer.initialize();
+        expect(result, isA<Failure<void>>());
+        expect((result as Failure<void>).exception, isA<TooManyRequests>());
+        verify(mockRepo.signInAnonymously).called(1);
+        // WR-02: cause null → AppException 런타임 타입 'TooManyRequests'.
+        verify(
+          () => mockCrashlytics.setCustomKey(
+            'splash_auto_signin_retry_exhausted',
+            'TooManyRequests',
+          ),
+        ).called(1);
+      },
+    );
+
+    test('C7: ServiceUnavailable(cause=code="operation-not-allowed") × 1 → '
         '즉시 Failure (T-10.1-01 mitigation — cause 검사 검증)', () async {
       final mockRepo = _MockAuthRepository();
       final cause = fb.FirebaseAuthException(code: 'operation-not-allowed');

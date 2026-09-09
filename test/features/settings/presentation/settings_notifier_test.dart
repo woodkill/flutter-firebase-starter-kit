@@ -41,8 +41,9 @@ void main() {
 
     // 16-07(ec7e13d) 이후 탈퇴 성공 path 는 signOut() 단독이 아닌
     // signOutAndResetOnboarding() 를 호출한다 (onboardingSeen=false reset).
-    when(() => mockAuthRepo.signOutAndResetOnboarding())
-        .thenAnswer((_) async {});
+    when(
+      () => mockAuthRepo.signOutAndResetOnboarding(),
+    ).thenAnswer((_) async {});
 
     container = ProviderContainer(
       overrides: [
@@ -81,35 +82,39 @@ void main() {
       verify(() => mockAuthRepo.signOutAndResetOnboarding()).called(1);
     });
 
-    test('N2 reauth required — AsyncValue.error(ReauthRequired) + signOut 미호출',
-        () async {
-      when(
-        () => mockSettingsRepo.requestAccountDeletion(),
-      ).thenThrow(const ReauthenticationRequiredException());
+    test(
+      'N2 reauth required — AsyncValue.error(ReauthRequired) + signOut 미호출',
+      () async {
+        when(
+          () => mockSettingsRepo.requestAccountDeletion(),
+        ).thenThrow(const ReauthenticationRequiredException());
 
-      final notifier = container.read(settingsProvider.notifier);
-      await notifier.requestAccountDeletion();
+        final notifier = container.read(settingsProvider.notifier);
+        await notifier.requestAccountDeletion();
 
-      final state = container.read(settingsProvider);
-      expect(state.hasError, isTrue);
-      expect(state.error, isA<ReauthenticationRequiredException>());
-      verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
-    });
+        final state = container.read(settingsProvider);
+        expect(state.hasError, isTrue);
+        expect(state.error, isA<ReauthenticationRequiredException>());
+        verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
+      },
+    );
 
-    test('N3 server fail — AsyncValue.error(UnknownException) + signOut 미호출',
-        () async {
-      when(
-        () => mockSettingsRepo.requestAccountDeletion(),
-      ).thenThrow(const UnknownException());
+    test(
+      'N3 server fail — AsyncValue.error(UnknownException) + signOut 미호출',
+      () async {
+        when(
+          () => mockSettingsRepo.requestAccountDeletion(),
+        ).thenThrow(const UnknownException());
 
-      final notifier = container.read(settingsProvider.notifier);
-      await notifier.requestAccountDeletion();
+        final notifier = container.read(settingsProvider.notifier);
+        await notifier.requestAccountDeletion();
 
-      final state = container.read(settingsProvider);
-      expect(state.hasError, isTrue);
-      expect(state.error, isA<UnknownException>());
-      verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
-    });
+        final state = container.read(settingsProvider);
+        expect(state.hasError, isTrue);
+        expect(state.error, isA<UnknownException>());
+        verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
+      },
+    );
   });
 
   group('Phase 16 WR-03/WR-04 — SettingsNotifier.linkProvider 결과 매핑', () {
@@ -121,8 +126,7 @@ void main() {
       providerIds: const ['google.com'],
     );
 
-    test('L1 naver → unsupported + repository 미호출 (WR-03 단일 진실원)',
-        () async {
+    test('L1 naver → unsupported + repository 미호출 (WR-03 단일 진실원)', () async {
       final notifier = container.read(settingsProvider.notifier);
       final outcome = await notifier.linkProvider(AccountProvider.naver);
 
@@ -137,8 +141,7 @@ void main() {
       );
     });
 
-    test('L2 email → unsupported + repository 미호출 (WR-03 단일 진실원)',
-        () async {
+    test('L2 email → unsupported + repository 미호출 (WR-03 단일 진실원)', () async {
       final notifier = container.read(settingsProvider.notifier);
       final outcome = await notifier.linkProvider(AccountProvider.email);
 
@@ -147,22 +150,25 @@ void main() {
     });
 
     test('L3 google 성공 → success', () async {
-      when(() => mockAuthRepo.linkGoogleCredential())
-          .thenAnswer((_) async => Result<User>.success(stubUser()));
+      when(
+        () => mockAuthRepo.linkGoogleCredential(),
+      ).thenAnswer((_) async => Result<User>.success(stubUser()));
 
       final notifier = container.read(settingsProvider.notifier);
       final outcome = await notifier.linkProvider(AccountProvider.google);
 
       expect(outcome, AccountLinkOutcome.success);
       // 종료 후 state 는 data(null) 로 복귀.
-      expect(container.read(settingsProvider), const AsyncValue<void>.data(null));
+      expect(
+        container.read(settingsProvider),
+        const AsyncValue<void>.data(null),
+      );
     });
 
     test('L4 google reauth 필요 → reauthRequired', () async {
       when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
-        (_) async => const Result<User>.failure(
-          ReauthenticationRequiredException(),
-        ),
+        (_) async =>
+            const Result<User>.failure(ReauthenticationRequiredException()),
       );
 
       final notifier = container.read(settingsProvider.notifier);
@@ -174,9 +180,9 @@ void main() {
     test('L5 google 미분류 실패 → failed (G-16-A6-2 catch-all)', () async {
       // 분류 arm 어디에도 걸리지 않는 실패는 조용히 사라지지 않고 catch-all
       // `failed` 로 보존된다 (기존 alreadyLinkedOrFailed collapse 대체).
-      when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
-        (_) async => const Result<User>.failure(UnknownException()),
-      );
+      when(
+        () => mockAuthRepo.linkGoogleCredential(),
+      ).thenAnswer((_) async => const Result<User>.failure(UnknownException()));
 
       final notifier = container.read(settingsProvider.notifier);
       final outcome = await notifier.linkProvider(AccountProvider.google);
@@ -185,8 +191,9 @@ void main() {
     });
 
     test('L6 사용자 취소 (null) → cancelled', () async {
-      when(() => mockAuthRepo.linkGoogleCredential())
-          .thenAnswer((_) async => null);
+      when(
+        () => mockAuthRepo.linkGoogleCredential(),
+      ).thenAnswer((_) async => null);
 
       final notifier = container.read(settingsProvider.notifier);
       final outcome = await notifier.linkProvider(AccountProvider.google);
@@ -194,24 +201,26 @@ void main() {
       expect(outcome, AccountLinkOutcome.cancelled);
     });
 
-    test('L7 Custom Token (kakao) → linkCustomTokenProviderArm dispatch',
-        () async {
-      when(
-        () => mockAuthRepo.linkCustomTokenProviderArm(
-          targetProvider: any(named: 'targetProvider'),
-        ),
-      ).thenAnswer((_) async => Result<User>.success(stubUser()));
+    test(
+      'L7 Custom Token (kakao) → linkCustomTokenProviderArm dispatch',
+      () async {
+        when(
+          () => mockAuthRepo.linkCustomTokenProviderArm(
+            targetProvider: any(named: 'targetProvider'),
+          ),
+        ).thenAnswer((_) async => Result<User>.success(stubUser()));
 
-      final notifier = container.read(settingsProvider.notifier);
-      final outcome = await notifier.linkProvider(AccountProvider.kakao);
+        final notifier = container.read(settingsProvider.notifier);
+        final outcome = await notifier.linkProvider(AccountProvider.kakao);
 
-      expect(outcome, AccountLinkOutcome.success);
-      verify(
-        () => mockAuthRepo.linkCustomTokenProviderArm(
-          targetProvider: AccountProvider.kakao,
-        ),
-      ).called(1);
-    });
+        expect(outcome, AccountLinkOutcome.success);
+        verify(
+          () => mockAuthRepo.linkCustomTokenProviderArm(
+            targetProvider: AccountProvider.kakao,
+          ),
+        ).called(1);
+      },
+    );
 
     test('L8 AccountAlreadyLinked → alreadyLinked (G-16-A6-2)', () async {
       // A6 실측 원인 (credential-already-in-use / provider-already-linked) 이
@@ -227,22 +236,23 @@ void main() {
     });
 
     test(
-        'L8b ProviderAlreadyLinkedToThisAccount → alreadyLinkedHere (WR-04)',
-        () async {
-      // `provider-already-linked` — 이미 **현재 계정에** 연결된 경우.
-      // alreadyLinked ("다른 계정에 연결됨 → 먼저 해제") 로 뭉개면 사실과
-      // 반대이면서 수행도 불가능한 안내가 나간다.
-      when(() => mockAuthRepo.linkFacebookCredential()).thenAnswer(
-        (_) async =>
-            const Result<User>.failure(ProviderAlreadyLinkedToThisAccount()),
-      );
+      'L8b ProviderAlreadyLinkedToThisAccount → alreadyLinkedHere (WR-04)',
+      () async {
+        // `provider-already-linked` — 이미 **현재 계정에** 연결된 경우.
+        // alreadyLinked ("다른 계정에 연결됨 → 먼저 해제") 로 뭉개면 사실과
+        // 반대이면서 수행도 불가능한 안내가 나간다.
+        when(() => mockAuthRepo.linkFacebookCredential()).thenAnswer(
+          (_) async =>
+              const Result<User>.failure(ProviderAlreadyLinkedToThisAccount()),
+        );
 
-      final notifier = container.read(settingsProvider.notifier);
-      final outcome = await notifier.linkProvider(AccountProvider.facebook);
+        final notifier = container.read(settingsProvider.notifier);
+        final outcome = await notifier.linkProvider(AccountProvider.facebook);
 
-      expect(outcome, AccountLinkOutcome.alreadyLinkedHere);
-      expect(outcome, isNot(AccountLinkOutcome.alreadyLinked));
-    });
+        expect(outcome, AccountLinkOutcome.alreadyLinkedHere);
+        expect(outcome, isNot(AccountLinkOutcome.alreadyLinked));
+      },
+    );
 
     test('L9 EmailAlreadyInUse → emailInUse (G-16-A6-2)', () async {
       when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
@@ -257,9 +267,8 @@ void main() {
 
     test('L9b AccountExistsWithDifferentCredential → emailInUse', () async {
       when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
-        (_) async => const Result<User>.failure(
-          AccountExistsWithDifferentCredential(),
-        ),
+        (_) async =>
+            const Result<User>.failure(AccountExistsWithDifferentCredential()),
       );
 
       final notifier = container.read(settingsProvider.notifier);
@@ -278,9 +287,9 @@ void main() {
       ];
 
       for (final exception in transientExceptions) {
-        when(() => mockAuthRepo.linkGoogleCredential()).thenAnswer(
-          (_) async => Result<User>.failure(exception),
-        );
+        when(
+          () => mockAuthRepo.linkGoogleCredential(),
+        ).thenAnswer((_) async => Result<User>.failure(exception));
 
         final notifier = container.read(settingsProvider.notifier);
         final outcome = await notifier.linkProvider(AccountProvider.google);

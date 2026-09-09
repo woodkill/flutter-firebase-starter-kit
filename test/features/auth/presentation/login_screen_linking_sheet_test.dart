@@ -73,12 +73,10 @@ void main() {
 
   /// LoginScreen 을 GoRouter 가 감싸는 harness — sheet → context.go(/home)
   /// 검증 가능. /home 진입 시 sentinel 'HOME' 텍스트 노출.
-  Widget buildHarness({
-    required Result<User>? Function() onGoogleSignIn,
-  }) {
-    when(() => mockRepo.signInWithGoogle()).thenAnswer(
-      (_) async => onGoogleSignIn(),
-    );
+  Widget buildHarness({required Result<User>? Function() onGoogleSignIn}) {
+    when(
+      () => mockRepo.signInWithGoogle(),
+    ).thenAnswer((_) async => onGoogleSignIn());
     final router = GoRouter(
       initialLocation: AppRoutes.login,
       routes: [
@@ -95,9 +93,9 @@ void main() {
     return ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(const Locale('en')).overrideWithValue(
-          const <AuthStrategy>[GoogleAuthStrategy()],
-        ),
+        activeStrategiesProvider(
+          const Locale('en'),
+        ).overrideWithValue(const <AuthStrategy>[GoogleAuthStrategy()]),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -298,134 +296,135 @@ void main() {
     );
   });
 
-  group('T6 — WR-01: native reauth-expired → SnackBar + sheet dismiss + /login', () {
-    testWidgets(
-      'linkPendingNativeCredential → ReauthenticationRequiredException → '
-      'authReauthRequired SnackBar + sheet pop(false)',
-      (tester) async {
-        await usePortraitSurface(tester);
-        when(
-          () => mockRepo.linkPendingNativeCredential(
-            existingProvider: any(named: 'existingProvider'),
-            pendingCredential: any(named: 'pendingCredential'),
-          ),
-        ).thenAnswer(
-          (_) async => const Result<User>.failure(
-            ReauthenticationRequiredException(),
-          ),
-        );
+  group(
+    'T6 — WR-01: native reauth-expired → SnackBar + sheet dismiss + /login',
+    () {
+      testWidgets(
+        'linkPendingNativeCredential → ReauthenticationRequiredException → '
+        'authReauthRequired SnackBar + sheet pop(false)',
+        (tester) async {
+          await usePortraitSurface(tester);
+          when(
+            () => mockRepo.linkPendingNativeCredential(
+              existingProvider: any(named: 'existingProvider'),
+              pendingCredential: any(named: 'pendingCredential'),
+            ),
+          ).thenAnswer(
+            (_) async =>
+                const Result<User>.failure(ReauthenticationRequiredException()),
+          );
 
-        await tester.pumpWidget(
-          buildHarness(
-            onGoogleSignIn: () => const Result<User>.failure(
-              AccountExistsWithDifferentCredential(
-                email: 'collide@example.com',
-                existingProvider: AccountProvider.google,
-                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
-                // account-exists 충돌은 pendingCredential 을 보존한다.
-                pendingCredential: _kPendingCredential,
+          await tester.pumpWidget(
+            buildHarness(
+              onGoogleSignIn: () => const Result<User>.failure(
+                AccountExistsWithDifferentCredential(
+                  email: 'collide@example.com',
+                  existingProvider: AccountProvider.google,
+                  // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+                  // account-exists 충돌은 pendingCredential 을 보존한다.
+                  pendingCredential: _kPendingCredential,
+                ),
               ),
             ),
-          ),
-        );
-        await tester.pumpAndSettle();
+          );
+          await tester.pumpAndSettle();
 
-        await tester.tap(find.byType(BrandedSocialButton).first);
-        await settleSheetEntrance(tester);
-        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+          await tester.tap(find.byType(BrandedSocialButton).first);
+          await settleSheetEntrance(tester);
+          expect(find.byType(AccountLinkingSheet), findsOneWidget);
 
-        final sheetButton = find.descendant(
-          of: find.byType(AccountLinkingSheet),
-          matching: find.byType(BrandedSocialButton),
-        );
-        await tester.ensureVisible(sheetButton);
-        await tester.tap(sheetButton);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 500));
+          final sheetButton = find.descendant(
+            of: find.byType(AccountLinkingSheet),
+            matching: find.byType(BrandedSocialButton),
+          );
+          await tester.ensureVisible(sheetButton);
+          await tester.tap(sheetButton);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 500));
 
-        verify(
-          () => mockRepo.linkPendingNativeCredential(
-            existingProvider: AccountProvider.google,
-            pendingCredential: any(named: 'pendingCredential'),
-          ),
-        ).called(1);
-        // WR-01: 더 이상 mute pop 이 아니라 user-visible reauth 안내 SnackBar.
-        expect(
-          find.text('For security, please sign in again and retry.'),
-          findsOneWidget,
-        );
-        // sheet 닫힘 (/login 라우팅 — 초기 location 도 /login).
-        expect(find.byType(AccountLinkingSheet), findsNothing);
-      },
-    );
-  });
+          verify(
+            () => mockRepo.linkPendingNativeCredential(
+              existingProvider: AccountProvider.google,
+              pendingCredential: any(named: 'pendingCredential'),
+            ),
+          ).called(1);
+          // WR-01: 더 이상 mute pop 이 아니라 user-visible reauth 안내 SnackBar.
+          expect(
+            find.text('For security, please sign in again and retry.'),
+            findsOneWidget,
+          );
+          // sheet 닫힘 (/login 라우팅 — 초기 location 도 /login).
+          expect(find.byType(AccountLinkingSheet), findsNothing);
+        },
+      );
+    },
+  );
 
   group('T7 — WR-01/WR-02: native 기타 실패 → 원인별 SnackBar + sheet dismiss', () {
-    testWidgets(
-      'linkPendingNativeCredential → AccountAlreadyLinked → '
-      'settingsLinkFailedAlreadyLinked SnackBar + sheet pop(false)',
-      (tester) async {
-        await usePortraitSurface(tester);
-        when(
-          () => mockRepo.linkPendingNativeCredential(
-            existingProvider: any(named: 'existingProvider'),
-            pendingCredential: any(named: 'pendingCredential'),
-          ),
-        ).thenAnswer(
-          (_) async => const Result<User>.failure(AccountAlreadyLinked()),
-        );
+    testWidgets('linkPendingNativeCredential → AccountAlreadyLinked → '
+        'settingsLinkFailedAlreadyLinked SnackBar + sheet pop(false)', (
+      tester,
+    ) async {
+      await usePortraitSurface(tester);
+      when(
+        () => mockRepo.linkPendingNativeCredential(
+          existingProvider: any(named: 'existingProvider'),
+          pendingCredential: any(named: 'pendingCredential'),
+        ),
+      ).thenAnswer(
+        (_) async => const Result<User>.failure(AccountAlreadyLinked()),
+      );
 
-        await tester.pumpWidget(
-          buildHarness(
-            onGoogleSignIn: () => const Result<User>.failure(
-              AccountExistsWithDifferentCredential(
-                email: 'collide@example.com',
-                existingProvider: AccountProvider.google,
-                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
-                // account-exists 충돌은 pendingCredential 을 보존한다.
-                pendingCredential: _kPendingCredential,
-              ),
+      await tester.pumpWidget(
+        buildHarness(
+          onGoogleSignIn: () => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collide@example.com',
+              existingProvider: AccountProvider.google,
+              // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+              // account-exists 충돌은 pendingCredential 을 보존한다.
+              pendingCredential: _kPendingCredential,
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        await tester.tap(find.byType(BrandedSocialButton).first);
-        await settleSheetEntrance(tester);
-        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+      await tester.tap(find.byType(BrandedSocialButton).first);
+      await settleSheetEntrance(tester);
+      expect(find.byType(AccountLinkingSheet), findsOneWidget);
 
-        final sheetButton = find.descendant(
-          of: find.byType(AccountLinkingSheet),
-          matching: find.byType(BrandedSocialButton),
-        );
-        await tester.ensureVisible(sheetButton);
-        await tester.tap(sheetButton);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 500));
+      final sheetButton = find.descendant(
+        of: find.byType(AccountLinkingSheet),
+        matching: find.byType(BrandedSocialButton),
+      );
+      await tester.ensureVisible(sheetButton);
+      await tester.tap(sheetButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
-        // WR-01: 기타 실패도 silent 가 아니라 graceful 안내 SnackBar.
-        // WR-02 (4차 리뷰): 문구는 원인별 분기 결과다. AccountAlreadyLinked
-        // 의 실제 원인은 credential-already-in-use ("그 자격증명을 **다른
-        // 계정**이 쓰고 있다") 이므로 이메일 문구가 아니라 전용 문구가 뜬다.
-        expect(
-          find.text(
-            'This sign-in method is already linked to another account. '
-            'Unlink it first, then try again.',
-          ),
-          findsOneWidget,
-        );
-        // 순환 안내 문구 미노출 — 사용자는 방금 그 "처음 가입한 방식" 으로
-        // 재인증까지 마친 상태다 (경로 A 는 _reauthNativeCredential 선행).
-        expect(
-          find.text(
-            'This email is already registered with another sign-in method. '
-            'Please sign in with the method you originally used.',
-          ),
-          findsNothing,
-        );
-        expect(find.byType(AccountLinkingSheet), findsNothing);
-      },
-    );
+      // WR-01: 기타 실패도 silent 가 아니라 graceful 안내 SnackBar.
+      // WR-02 (4차 리뷰): 문구는 원인별 분기 결과다. AccountAlreadyLinked
+      // 의 실제 원인은 credential-already-in-use ("그 자격증명을 **다른
+      // 계정**이 쓰고 있다") 이므로 이메일 문구가 아니라 전용 문구가 뜬다.
+      expect(
+        find.text(
+          'This sign-in method is already linked to another account. '
+          'Unlink it first, then try again.',
+        ),
+        findsOneWidget,
+      );
+      // 순환 안내 문구 미노출 — 사용자는 방금 그 "처음 가입한 방식" 으로
+      // 재인증까지 마친 상태다 (경로 A 는 _reauthNativeCredential 선행).
+      expect(
+        find.text(
+          'This email is already registered with another sign-in method. '
+          'Please sign in with the method you originally used.',
+        ),
+        findsNothing,
+      );
+      expect(find.byType(AccountLinkingSheet), findsNothing);
+    });
   });
 
   group('T5 — viewport: 좁은 화면에서 ensureVisible 후 tap', () {

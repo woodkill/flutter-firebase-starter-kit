@@ -157,7 +157,9 @@ class AuthRepository {
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
-      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
+      return Result.failure(
+        await _enrichAccountExistsAsync(_mapAuthException(e)),
+      );
     }
   }
 
@@ -242,7 +244,9 @@ class AuthRepository {
       return Result.success(_mapFirebaseUser(refreshed));
     } on fb.FirebaseAuthException catch (e) {
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
-      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
+      return Result.failure(
+        await _enrichAccountExistsAsync(_mapAuthException(e)),
+      );
     }
   }
 
@@ -326,7 +330,9 @@ class AuthRepository {
       return Result.failure(_mapGoogleException(e));
     } on fb.FirebaseAuthException catch (e) {
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
-      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
+      return Result.failure(
+        await _enrichAccountExistsAsync(_mapAuthException(e)),
+      );
     } on Object catch (e, st) {
       // 비-Auth 예외 (PlatformException 등) 를 Result 로 감싸 Notifier state
       // 가 AsyncLoading 에 고정되는 것을 방지한다 (Apple/Facebook 패턴 미러링).
@@ -448,7 +454,9 @@ class AuthRepository {
         return null;
       }
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
-      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
+      return Result.failure(
+        await _enrichAccountExistsAsync(_mapAuthException(e)),
+      );
     } on Object catch (e, st) {
       // 비-Auth 예외 (PlatformException 등)를 Result로 감싸
       // Notifier state가 AsyncLoading에 고정되는 것을 방지한다.
@@ -553,7 +561,9 @@ class AuthRepository {
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
-      return Result.failure(await _enrichAccountExistsAsync(_mapAuthException(e)));
+      return Result.failure(
+        await _enrichAccountExistsAsync(_mapAuthException(e)),
+      );
     } on Object catch (e, st) {
       if (kDebugMode) {
         debugPrint('signInWithFacebook 비-Auth 예외: $e\n$st');
@@ -1024,14 +1034,13 @@ class AuthRepository {
         'linkCustomTokenProvider',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 10)),
       );
-      final response = await callable.call<Map<String, dynamic>>(
-        <String, dynamic>{
-          'idToken': callerIdToken,
-          'targetProvider': targetProvider.slug,
-          'targetProviderToken': targetToken.idToken,
-          'nonce': targetToken.nonce,
-        },
-      );
+      final response = await callable
+          .call<Map<String, dynamic>>(<String, dynamic>{
+            'idToken': callerIdToken,
+            'targetProvider': targetProvider.slug,
+            'targetProviderToken': targetToken.idToken,
+            'nonce': targetToken.nonce,
+          });
 
       // Step 5 — {ok:true} 검증 후 reload → 도메인 User.
       final ok = response.data['ok'] == true;

@@ -42,18 +42,11 @@ class DangerZoneSection extends StatelessWidget {
             l10n.settingsDangerZoneSection,
             // Layout Contract Surface B verbatim — role 자체가 이미
             // Medium weight 라 별도 override 를 두지 않는다.
-            style: context.textTheme.labelMedium?.copyWith(
-              color: errorColor,
-            ),
+            style: context.textTheme.labelMedium?.copyWith(color: errorColor),
           ),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(
-            spacing.lg,
-            0,
-            spacing.lg,
-            spacing.sm,
-          ),
+          padding: EdgeInsets.fromLTRB(spacing.lg, 0, spacing.lg, spacing.sm),
           child: Text(
             l10n.settingsDangerZoneExplainer,
             style: context.textTheme.bodyMedium?.copyWith(

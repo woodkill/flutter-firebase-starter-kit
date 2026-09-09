@@ -139,7 +139,9 @@ void main() {
   void stubGoogleReauthSuccess() {
     final mockAccount = _MockGoogleSignInAccount();
     final mockGoogleAuth = _MockGoogleSignInAuthentication();
-    when(() => mockGoogleSignIn.authenticate()).thenAnswer((_) async => mockAccount);
+    when(
+      () => mockGoogleSignIn.authenticate(),
+    ).thenAnswer((_) async => mockAccount);
     when(() => mockAccount.authentication).thenReturn(mockGoogleAuth);
     when(() => mockGoogleAuth.idToken).thenReturn('google-id-token');
     // 재인증 컨텍스트: currentUser 는 이미 존재 (비익명), signInWithCredential.
@@ -214,16 +216,19 @@ void main() {
   });
 
   group('T3 — pendingCredential == null → ServiceUnavailable', () {
-    test('null pendingCredential → Result.failure(ServiceUnavailable)', () async {
-      final result = await repository.linkPendingNativeCredential(
-        existingProvider: AccountProvider.google,
-        pendingCredential: null,
-      );
+    test(
+      'null pendingCredential → Result.failure(ServiceUnavailable)',
+      () async {
+        final result = await repository.linkPendingNativeCredential(
+          existingProvider: AccountProvider.google,
+          pendingCredential: null,
+        );
 
-      expect(result, isA<Failure<dynamic>>());
-      final failure = result! as Failure<dynamic>;
-      expect(failure.exception, isA<ServiceUnavailable>());
-    });
+        expect(result, isA<Failure<dynamic>>());
+        final failure = result! as Failure<dynamic>;
+        expect(failure.exception, isA<ServiceUnavailable>());
+      },
+    );
   });
 
   group('T4 — reauth 사용자 취소 → null (no-op)', () {
@@ -254,9 +259,9 @@ void main() {
       () async {
         stubGoogleReauthSuccess();
         final pending = _FakePendingCredential();
-        when(() => mockCurrentUser.linkWithCredential(any())).thenThrow(
-          fb.FirebaseAuthException(code: 'provider-already-linked'),
-        );
+        when(
+          () => mockCurrentUser.linkWithCredential(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: 'provider-already-linked'));
 
         final result = await repository.linkPendingNativeCredential(
           existingProvider: AccountProvider.google,
@@ -308,22 +313,25 @@ void main() {
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
 
-    test('email existing → reactive link arm 미적용 (ServiceUnavailable 유도)', () async {
-      final pending = _FakePendingCredential();
+    test(
+      'email existing → reactive link arm 미적용 (ServiceUnavailable 유도)',
+      () async {
+        final pending = _FakePendingCredential();
 
-      final result = await repository.linkPendingNativeCredential(
-        existingProvider: AccountProvider.email,
-        pendingCredential: pending,
-      );
+        final result = await repository.linkPendingNativeCredential(
+          existingProvider: AccountProvider.email,
+          pendingCredential: pending,
+        );
 
-      // email-existing 은 pendingCredential link 대상이 아님 (Task 1 정책):
-      // sheet 에서 /login redirect 이므로 repository 는 Result.failure 로
-      // 재로그인 유도 신호.
-      expect(result, isA<Failure<dynamic>>());
-      verifyNever(() => mockCurrentUser.linkWithCredential(any()));
-      // race-fix invariant 보존.
-      verify(() => mockSocialLinkInProgress.begin()).called(1);
-      verify(() => mockSocialLinkInProgress.end()).called(1);
-    });
+        // email-existing 은 pendingCredential link 대상이 아님 (Task 1 정책):
+        // sheet 에서 /login redirect 이므로 repository 는 Result.failure 로
+        // 재로그인 유도 신호.
+        expect(result, isA<Failure<dynamic>>());
+        verifyNever(() => mockCurrentUser.linkWithCredential(any()));
+        // race-fix invariant 보존.
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+      },
+    );
   });
 }

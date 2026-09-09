@@ -157,22 +157,19 @@ void main() {
   group(
     'Phase 9.2 R2 — AccountExistsWithDifferentCredential → unknown fallback',
     () {
-      testWidgets(
-        'email != null → errorAccountExistsWithUnknownProvider',
-        (tester) async {
-          final result = await _resolve(
-            tester,
-            const AccountExistsWithDifferentCredential(
-              email: 'old@example.com',
-            ),
-          );
-          expect(
-            result,
-            'This email is already registered with another sign-in method. '
-            'Please sign in with the method you originally used.',
-          );
-        },
-      );
+      testWidgets('email != null → errorAccountExistsWithUnknownProvider', (
+        tester,
+      ) async {
+        final result = await _resolve(
+          tester,
+          const AccountExistsWithDifferentCredential(email: 'old@example.com'),
+        );
+        expect(
+          result,
+          'This email is already registered with another sign-in method. '
+          'Please sign in with the method you originally used.',
+        );
+      });
 
       testWidgets(
         "email == null (Cloud Function 'already-exists' 경로) → 동일 unknown "

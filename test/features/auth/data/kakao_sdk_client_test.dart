@@ -18,36 +18,39 @@ class _FakeOAuthToken extends Fake implements OAuthToken {
 
 void main() {
   group('KakaoSdkClient.signIn', () {
-    test('KakaoTalk 설치 + loginWithKakaoTalk 성공 → ID Token + nonce 반환', () async {
-      final calls = <String>[];
-      String? talkNonce;
-      List<String>? talkServiceTerms;
+    test(
+      'KakaoTalk 설치 + loginWithKakaoTalk 성공 → ID Token + nonce 반환',
+      () async {
+        final calls = <String>[];
+        String? talkNonce;
+        List<String>? talkServiceTerms;
 
-      final client = KakaoSdkClient.forTest(
-        isInstalled: () async => true,
-        loginWithTalk: ({serviceTerms, nonce}) async {
-          calls.add('talk');
-          talkNonce = nonce;
-          talkServiceTerms = serviceTerms;
-          return _FakeOAuthToken(idToken: 'IDT-talk');
-        },
-        loginWithAccount: ({serviceTerms, nonce}) async {
-          calls.add('account');
-          return _FakeOAuthToken(idToken: 'IDT-account');
-        },
-        logout: () async {},
-      );
+        final client = KakaoSdkClient.forTest(
+          isInstalled: () async => true,
+          loginWithTalk: ({serviceTerms, nonce}) async {
+            calls.add('talk');
+            talkNonce = nonce;
+            talkServiceTerms = serviceTerms;
+            return _FakeOAuthToken(idToken: 'IDT-talk');
+          },
+          loginWithAccount: ({serviceTerms, nonce}) async {
+            calls.add('account');
+            return _FakeOAuthToken(idToken: 'IDT-account');
+          },
+          logout: () async {},
+        );
 
-      final result = await client.signIn();
+        final result = await client.signIn();
 
-      expect(result, isNotNull);
-      expect(result!.idToken, 'IDT-talk');
-      expect(result.nonce, isNotEmpty);
-      expect(calls, ['talk']);
-      // SDK 인자에도 같은 nonce 가 전달됐는지 (Pitfall 2 single nonce).
-      expect(talkNonce, result.nonce);
-      expect(talkServiceTerms, ['openid']);
-    });
+        expect(result, isNotNull);
+        expect(result!.idToken, 'IDT-talk');
+        expect(result.nonce, isNotEmpty);
+        expect(calls, ['talk']);
+        // SDK 인자에도 같은 nonce 가 전달됐는지 (Pitfall 2 single nonce).
+        expect(talkNonce, result.nonce);
+        expect(talkServiceTerms, ['openid']);
+      },
+    );
 
     test('KakaoTalk 미설치 → loginWithKakaoAccount 호출 + 동일 nonce 전달', () async {
       final calls = <String>[];
@@ -144,8 +147,7 @@ void main() {
         isInstalled: () async => false,
         loginWithTalk: ({serviceTerms, nonce}) async =>
             _FakeOAuthToken(idToken: 'IDT'),
-        loginWithAccount: ({serviceTerms, nonce}) async =>
-            _FakeOAuthToken(),
+        loginWithAccount: ({serviceTerms, nonce}) async => _FakeOAuthToken(),
         logout: () async {},
       );
 
@@ -234,10 +236,7 @@ void main() {
           );
           await clientNotInstalled.signIn();
           expect(capturedAccountServiceTerms, ['openid']);
-          expect(
-            capturedAccountServiceTerms,
-            isNot(contains('profile_image')),
-          );
+          expect(capturedAccountServiceTerms, isNot(contains('profile_image')));
         },
       );
 

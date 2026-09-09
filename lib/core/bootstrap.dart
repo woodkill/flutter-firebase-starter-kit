@@ -131,9 +131,7 @@ Future<void> bootstrap() async {
           // KakaoSdk.init이 throw할 가능성(`null` 인자 시 KakaoClientException)에
           // 대비해 try/catch + debugPrint fallback (GoogleSignIn 패턴 일관).
           try {
-            await KakaoSdk.init(
-              nativeAppKey: AppConfig.kakaoNativeAppKey,
-            );
+            await KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
           } on Object catch (e, st) {
             if (kDebugMode) {
               debugPrint('KakaoSdk.init() 실패 (무시): $e\n$st');

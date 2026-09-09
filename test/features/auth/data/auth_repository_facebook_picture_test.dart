@@ -172,232 +172,206 @@ void main() {
     when(() => mockUser.updatePhotoURL(any())).thenAnswer((_) async {});
   });
 
-  group(
-    'Phase 9.2 R5 — _setFacebookPhotoUrl Graph API + safe nav + graceful + '
-    'race-fix + D-27 PII regression',
-    () {
-      // -----------------------------------------------------------------
-      // F1: Happy path (R5).
-      // -----------------------------------------------------------------
+  group('Phase 9.2 R5 — _setFacebookPhotoUrl Graph API + safe nav + graceful + '
+      'race-fix + D-27 PII regression', () {
+    // -----------------------------------------------------------------
+    // F1: Happy path (R5).
+    // -----------------------------------------------------------------
 
-      test(
-        'F1: Facebook 성공 시 user.updatePhotoURL(picture.data.url) 1회 호출',
-        () async {
-          stubFacebookLogin();
+    test(
+      'F1: Facebook 성공 시 user.updatePhotoURL(picture.data.url) 1회 호출',
+      () async {
+        stubFacebookLogin();
 
-          await repository.signInWithFacebook();
+        await repository.signInWithFacebook();
 
-          verify(
-            () => mockUser.updatePhotoURL(
-              'https://platform-lookaside.fbsbx.com/profile.jpg',
-            ),
-          ).called(1);
+        verify(
+          () => mockUser.updatePhotoURL(
+            'https://platform-lookaside.fbsbx.com/profile.jpg',
+          ),
+        ).called(1);
+      },
+    );
+
+    // -----------------------------------------------------------------
+    // F2~F4: Safe navigation 4단 graceful skip (D-24).
+    // -----------------------------------------------------------------
+
+    test('F2: picture path 누락 → updatePhotoURL 미호출 (graceful)', () async {
+      when(
+        () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+      ).thenAnswer((_) async => <String, dynamic>{'id': '999888777'});
+      stubFacebookLogin();
+
+      await repository.signInWithFacebook();
+
+      verifyNever(() => mockUser.updatePhotoURL(any()));
+    });
+
+    test('F3: picture.data 타입 mismatch (List) → updatePhotoURL 미호출', () async {
+      when(
+        () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'picture': {'data': <dynamic>[]},
         },
       );
+      stubFacebookLogin();
 
-      // -----------------------------------------------------------------
-      // F2~F4: Safe navigation 4단 graceful skip (D-24).
-      // -----------------------------------------------------------------
+      await repository.signInWithFacebook();
 
-      test(
-        'F2: picture path 누락 → updatePhotoURL 미호출 (graceful)',
-        () async {
-          when(
-            () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
-          ).thenAnswer(
-            (_) async => <String, dynamic>{'id': '999888777'},
-          );
-          stubFacebookLogin();
+      verifyNever(() => mockUser.updatePhotoURL(any()));
+    });
 
-          await repository.signInWithFacebook();
-
-          verifyNever(() => mockUser.updatePhotoURL(any()));
+    test('F4: url 빈 문자열 → updatePhotoURL 미호출', () async {
+      when(
+        () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'picture': {
+            'data': {'url': ''},
+          },
         },
       );
+      stubFacebookLogin();
 
-      test(
-        'F3: picture.data 타입 mismatch (List) → updatePhotoURL 미호출',
-        () async {
-          when(
-            () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
-          ).thenAnswer(
-            (_) async => <String, dynamic>{
-              'picture': {'data': <dynamic>[]},
-            },
-          );
-          stubFacebookLogin();
+      await repository.signInWithFacebook();
 
-          await repository.signInWithFacebook();
+      verifyNever(() => mockUser.updatePhotoURL(any()));
+    });
 
-          verifyNever(() => mockUser.updatePhotoURL(any()));
-        },
-      );
+    // -----------------------------------------------------------------
+    // F5: getUserData thenThrow → 로그인 success 유지 + verifyNever.
+    // -----------------------------------------------------------------
 
-      test(
-        'F4: url 빈 문자열 → updatePhotoURL 미호출',
-        () async {
-          when(
-            () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
-          ).thenAnswer(
-            (_) async => <String, dynamic>{
-              'picture': {
-                'data': {'url': ''},
-              },
-            },
-          );
-          stubFacebookLogin();
+    test('F5: getUserData thenThrow → 로그인 success 유지 + updatePhotoURL '
+        '미호출 (graceful)', () async {
+      when(
+        () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+      ).thenThrow(Exception('Graph API down'));
+      stubFacebookLogin();
 
-          await repository.signInWithFacebook();
+      final result = await repository.signInWithFacebook();
 
-          verifyNever(() => mockUser.updatePhotoURL(any()));
-        },
-      );
+      expect(result, isA<Success<dynamic>>());
+      verifyNever(() => mockUser.updatePhotoURL(any()));
+    });
 
-      // -----------------------------------------------------------------
-      // F5: getUserData thenThrow → 로그인 success 유지 + verifyNever.
-      // -----------------------------------------------------------------
+    // -----------------------------------------------------------------
+    // F6: updatePhotoURL thenThrow → 로그인 success 유지 (광역 catch).
+    // -----------------------------------------------------------------
 
-      test(
-        'F5: getUserData thenThrow → 로그인 success 유지 + updatePhotoURL '
-        '미호출 (graceful)',
-        () async {
-          when(
-            () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
-          ).thenThrow(Exception('Graph API down'));
-          stubFacebookLogin();
+    test('F6: updatePhotoURL thenThrow → 로그인 success 유지 (광역 catch)', () async {
+      when(
+        () => mockUser.updatePhotoURL(any()),
+      ).thenThrow(Exception('Auth API down'));
+      stubFacebookLogin();
 
-          final result = await repository.signInWithFacebook();
+      final result = await repository.signInWithFacebook();
 
-          expect(result, isA<Success<dynamic>>());
-          verifyNever(() => mockUser.updatePhotoURL(any()));
-        },
-      );
+      expect(result, isA<Success<dynamic>>());
+    });
 
-      // -----------------------------------------------------------------
-      // F6: updatePhotoURL thenThrow → 로그인 success 유지 (광역 catch).
-      // -----------------------------------------------------------------
+    // -----------------------------------------------------------------
+    // F7: D-22 race-fix invariant — begin → getUserData → updatePhotoURL
+    // → end.
+    // -----------------------------------------------------------------
 
-      test(
-        'F6: updatePhotoURL thenThrow → 로그인 success 유지 (광역 catch)',
-        () async {
-          when(() => mockUser.updatePhotoURL(any())).thenThrow(
-            Exception('Auth API down'),
-          );
-          stubFacebookLogin();
+    test('F7: race-fix — begin() → getUserData → updatePhotoURL → end() 순서 '
+        '(D-22 invariant)', () async {
+      stubFacebookLogin();
 
-          final result = await repository.signInWithFacebook();
+      await repository.signInWithFacebook();
 
-          expect(result, isA<Success<dynamic>>());
-        },
-      );
+      verifyInOrder([
+        () => mockSocialLinkInProgress.begin(),
+        () => mockFacebookAuth.getUserData(fields: 'picture.type(large)'),
+        () => mockUser.updatePhotoURL(any()),
+        () => mockSocialLinkInProgress.end(),
+      ]);
+    });
 
-      // -----------------------------------------------------------------
-      // F7: D-22 race-fix invariant — begin → getUserData → updatePhotoURL
-      // → end.
-      // -----------------------------------------------------------------
+    // -----------------------------------------------------------------
+    // F8: D-27 PII regression — sentinel facebook id '999888777' + sentinel
+    // CDN URL 'leaktest.cdn' + sentinel email 'leaktest@example.com' 모두
+    // Exception message 안에 주입 → graceful skip 보장 (verifyNever
+    // updatePhotoURL).
+    //
+    // 참고 (PATTERNS.md §10 / §11): debugPrint 직접 capture 한계 — helper
+    // 의 catch 블록 debugPrint format 이 'e.runtimeType' + StackTrace 만
+    // 출력 (exception message body 미포함) 임은 코드 리뷰 회귀 가드
+    // (auth_repository.dart `_setFacebookPhotoUrl` catch 블록 — `e.runtimeType`
+    // + `$st` 만 출력, `e.toString()` 직접 노출 금지). StackTrace 는
+    // file/symbol/line 만 포함하므로 PII safe. Phase 12.1 D-40 와 동등 한계.
+    // 본 테스트는 graceful skip 보장 + sentinel verbatim 매치 (코드 리뷰
+    // anchor) 로 hard verify.
+    // -----------------------------------------------------------------
 
-      test(
-        'F7: race-fix — begin() → getUserData → updatePhotoURL → end() 순서 '
-        '(D-22 invariant)',
-        () async {
-          stubFacebookLogin();
+    test(
+      "F8: D-27 PII regression — sentinel facebook id '999888777' + sentinel "
+      "CDN URL 'leaktest.cdn' graceful skip 보장",
+      () async {
+        when(
+          () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+        ).thenThrow(
+          Exception(
+            'Graph error with sentinel email leaktest@example.com '
+            'and id 999888777 and url https://leaktest.cdn/profile.jpg',
+          ),
+        );
+        stubFacebookLogin();
 
-          await repository.signInWithFacebook();
+        final result = await repository.signInWithFacebook();
 
-          verifyInOrder([
-            () => mockSocialLinkInProgress.begin(),
-            () => mockFacebookAuth.getUserData(fields: 'picture.type(large)'),
-            () => mockUser.updatePhotoURL(any()),
-            () => mockSocialLinkInProgress.end(),
-          ]);
-        },
-      );
+        // graceful skip 보장 — sentinel CDN URL 이 user.photoURL 에 반영 0.
+        expect(result, isA<Success<dynamic>>());
+        verifyNever(() => mockUser.updatePhotoURL(any()));
+      },
+    );
 
-      // -----------------------------------------------------------------
-      // F8: D-27 PII regression — sentinel facebook id '999888777' + sentinel
-      // CDN URL 'leaktest.cdn' + sentinel email 'leaktest@example.com' 모두
-      // Exception message 안에 주입 → graceful skip 보장 (verifyNever
-      // updatePhotoURL).
-      //
-      // 참고 (PATTERNS.md §10 / §11): debugPrint 직접 capture 한계 — helper
-      // 의 catch 블록 debugPrint format 이 'e.runtimeType' + StackTrace 만
-      // 출력 (exception message body 미포함) 임은 코드 리뷰 회귀 가드
-      // (auth_repository.dart `_setFacebookPhotoUrl` catch 블록 — `e.runtimeType`
-      // + `$st` 만 출력, `e.toString()` 직접 노출 금지). StackTrace 는
-      // file/symbol/line 만 포함하므로 PII safe. Phase 12.1 D-40 와 동등 한계.
-      // 본 테스트는 graceful skip 보장 + sentinel verbatim 매치 (코드 리뷰
-      // anchor) 로 hard verify.
-      // -----------------------------------------------------------------
+    // -----------------------------------------------------------------
+    // F9 (BL-01 regression — Phase 9.2 review fix):
+    // iOS 시나리오 시뮬레이션 — `flutter_facebook_auth` 의 iOS 구현은
+    // `Map<String, dynamic>.from(result)` shallow 변환을 수행하므로 nested
+    // `picture` 는 `_InternalLinkedHashMap<Object?, Object?>` (Dart 에서는
+    // `Map<dynamic, dynamic>`) 로 들어온다. 이전 type guard
+    // (`is Map<String, dynamic>`) 는 Dart generic invariance 로 인해 항상
+    // false 가 되어 R5 가 iOS 디바이스에서 silent skip 되는 회귀를 만들었다.
+    // 본 테스트는 `<dynamic, dynamic>{...}` literal 로 iOS bridge 형태를
+    // 명시 시뮬레이션하여, fix 후 (`is Map`) 가 양쪽 응답 형태를 모두
+    // 흡수하는 것을 가드한다.
+    // -----------------------------------------------------------------
 
-      test(
-        "F8: D-27 PII regression — sentinel facebook id '999888777' + sentinel "
-        "CDN URL 'leaktest.cdn' graceful skip 보장",
-        () async {
-          when(
-            () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
-          ).thenThrow(
-            Exception(
-              'Graph error with sentinel email leaktest@example.com '
-              'and id 999888777 and url https://leaktest.cdn/profile.jpg',
-            ),
-          );
-          stubFacebookLogin();
-
-          final result = await repository.signInWithFacebook();
-
-          // graceful skip 보장 — sentinel CDN URL 이 user.photoURL 에 반영 0.
-          expect(result, isA<Success<dynamic>>());
-          verifyNever(() => mockUser.updatePhotoURL(any()));
-        },
-      );
-
-      // -----------------------------------------------------------------
-      // F9 (BL-01 regression — Phase 9.2 review fix):
-      // iOS 시나리오 시뮬레이션 — `flutter_facebook_auth` 의 iOS 구현은
-      // `Map<String, dynamic>.from(result)` shallow 변환을 수행하므로 nested
-      // `picture` 는 `_InternalLinkedHashMap<Object?, Object?>` (Dart 에서는
-      // `Map<dynamic, dynamic>`) 로 들어온다. 이전 type guard
-      // (`is Map<String, dynamic>`) 는 Dart generic invariance 로 인해 항상
-      // false 가 되어 R5 가 iOS 디바이스에서 silent skip 되는 회귀를 만들었다.
-      // 본 테스트는 `<dynamic, dynamic>{...}` literal 로 iOS bridge 형태를
-      // 명시 시뮬레이션하여, fix 후 (`is Map`) 가 양쪽 응답 형태를 모두
-      // 흡수하는 것을 가드한다.
-      // -----------------------------------------------------------------
-
-      test(
-        'F9 (BL-01): iOS 시나리오 — nested Map<dynamic, dynamic> '
+    test('F9 (BL-01): iOS 시나리오 — nested Map<dynamic, dynamic> '
         '응답에서도 updatePhotoURL 호출됨 (Map<String, dynamic>.from shallow '
-        '변환 회귀 가드)',
-        () async {
-          when(
-            () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
-          ).thenAnswer(
-            // iOS bridge 시뮬레이션: 외부는 typed (platform interface 의
-            // `Map<String, dynamic>.from(result)` 결과), nested 는 untyped
-            // (`_InternalLinkedHashMap<Object?, Object?>` 등가).
-            (_) async => <String, dynamic>{
-              'picture': <dynamic, dynamic>{
-                'data': <dynamic, dynamic>{
-                  'url': 'https://platform-lookaside.fbsbx.com/ios.jpg',
-                  'width': 200,
-                  'height': 200,
-                  'is_silhouette': false,
-                },
-              },
-              'id': '999888777',
+        '변환 회귀 가드)', () async {
+      when(
+        () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+      ).thenAnswer(
+        // iOS bridge 시뮬레이션: 외부는 typed (platform interface 의
+        // `Map<String, dynamic>.from(result)` 결과), nested 는 untyped
+        // (`_InternalLinkedHashMap<Object?, Object?>` 등가).
+        (_) async => <String, dynamic>{
+          'picture': <dynamic, dynamic>{
+            'data': <dynamic, dynamic>{
+              'url': 'https://platform-lookaside.fbsbx.com/ios.jpg',
+              'width': 200,
+              'height': 200,
+              'is_silhouette': false,
             },
-          );
-          stubFacebookLogin();
-
-          await repository.signInWithFacebook();
-
-          verify(
-            () => mockUser.updatePhotoURL(
-              'https://platform-lookaside.fbsbx.com/ios.jpg',
-            ),
-          ).called(1);
+          },
+          'id': '999888777',
         },
       );
-    },
-  );
+      stubFacebookLogin();
+
+      await repository.signInWithFacebook();
+
+      verify(
+        () => mockUser.updatePhotoURL(
+          'https://platform-lookaside.fbsbx.com/ios.jpg',
+        ),
+      ).called(1);
+    });
+  });
 }

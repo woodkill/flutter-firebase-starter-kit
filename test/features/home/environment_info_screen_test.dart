@@ -170,10 +170,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // 다이얼로그 등장 확인 (en: 'Are you sure you want to sign out?')
-        expect(
-          find.text('Are you sure you want to sign out?'),
-          findsOneWidget,
-        );
+        expect(find.text('Are you sure you want to sign out?'), findsOneWidget);
 
         // Cancel 버튼은 다이얼로그 actions 안에만 존재
         await tester.tap(find.text('Cancel'));
@@ -183,51 +180,46 @@ void main() {
       },
     );
 
-    testWidgets(
-      '로그아웃 다이얼로그 확인 시 authRepository.signOutAndResetOnboarding() 호출 '
-      '(Phase 10.2 D-A4 — I2 invariant 단일 진리원)',
-      (tester) async {
-        final user = User(
-          uid: 'uid-confirm-1',
-          email: 'a@b.com',
-          emailVerified: true,
-          displayName: 'A',
-          createdAt: DateTime.utc(2026),
-        );
-        final mockRepo = _MockAuthRepository();
-        // Phase 10.2 D-A1: production `_confirmSignOut` 는
-        // `signOutAndResetOnboarding()` 을 호출한다. 본 mock 의 stub 도
-        // 신규 메서드로 갱신 (Future<void> 반환).
-        when(
-          () => mockRepo.signOutAndResetOnboarding(),
-        ).thenAnswer((_) async {});
+    testWidgets('로그아웃 다이얼로그 확인 시 authRepository.signOutAndResetOnboarding() 호출 '
+        '(Phase 10.2 D-A4 — I2 invariant 단일 진리원)', (tester) async {
+      final user = User(
+        uid: 'uid-confirm-1',
+        email: 'a@b.com',
+        emailVerified: true,
+        displayName: 'A',
+        createdAt: DateTime.utc(2026),
+      );
+      final mockRepo = _MockAuthRepository();
+      // Phase 10.2 D-A1: production `_confirmSignOut` 는
+      // `signOutAndResetOnboarding()` 을 호출한다. 본 mock 의 stub 도
+      // 신규 메서드로 갱신 (Future<void> 반환).
+      when(() => mockRepo.signOutAndResetOnboarding()).thenAnswer((_) async {});
 
-        await _pumpScreen(tester, user: user, mockRepo: mockRepo);
+      await _pumpScreen(tester, user: user, mockRepo: mockRepo);
 
-        await tester.scrollUntilVisible(
-          find.byIcon(Icons.logout),
-          200,
-          scrollable: find.byType(Scrollable).first,
-        );
-        await tester.tap(find.byIcon(Icons.logout));
-        await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byIcon(Icons.logout),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byIcon(Icons.logout));
+      await tester.pumpAndSettle();
 
-        // 'Sign out' 텍스트는 다이얼로그 title + 액션 버튼 양쪽에 존재한다
-        // (authLogoutConfirmTitle == authAccountSignOut == "Sign out" en).
-        // 액션 버튼만 타겟팅하기 위해 TextButton 자손을 찾는다.
-        final dialogSignOutButton = find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.widgetWithText(TextButton, 'Sign out'),
-        );
-        expect(dialogSignOutButton, findsOneWidget);
-        await tester.tap(dialogSignOutButton);
-        await tester.pumpAndSettle();
+      // 'Sign out' 텍스트는 다이얼로그 title + 액션 버튼 양쪽에 존재한다
+      // (authLogoutConfirmTitle == authAccountSignOut == "Sign out" en).
+      // 액션 버튼만 타겟팅하기 위해 TextButton 자손을 찾는다.
+      final dialogSignOutButton = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextButton, 'Sign out'),
+      );
+      expect(dialogSignOutButton, findsOneWidget);
+      await tester.tap(dialogSignOutButton);
+      await tester.pumpAndSettle();
 
-        verify(() => mockRepo.signOutAndResetOnboarding()).called(1);
-        // D-A7 호출자 책임 — UI logout path 에서는 `signOut()` 단독 호출 금지.
-        verifyNever(() => mockRepo.signOut());
-      },
-    );
+      verify(() => mockRepo.signOutAndResetOnboarding()).called(1);
+      // D-A7 호출자 책임 — UI logout path 에서는 `signOut()` 단독 호출 금지.
+      verifyNever(() => mockRepo.signOut());
+    });
   });
 
   group('EnvironmentInfoScreen Account 섹션 (Phase 7 D-11/D-12)', () {
@@ -332,34 +324,31 @@ void main() {
       expect(semanticsAncestor, findsWidgets);
     });
 
-    testWidgets(
-      '미지원 프로바이더 → l10n.errorUnknownProvider Localizable Unknown '
-      'fallback (Phase 13 D-53 — raw slug 노출 차단)',
-      (tester) async {
-        // Phase 13 D-53: switch 에 매핑되지 않은 slug 는 l10n.errorUnknownProvider
-        // 로 fallback (raw slug 노출 절대 금지). 기존 `_ => id` raw fallback 제거.
-        final user = User(
-          uid: 'uid-provider-4',
-          email: 'raw@example.com',
-          emailVerified: true,
-          displayName: 'Raw',
-          createdAt: DateTime.utc(2026),
-          providerIds: ['twitter.com'],
-        );
+    testWidgets('미지원 프로바이더 → l10n.errorUnknownProvider Localizable Unknown '
+        'fallback (Phase 13 D-53 — raw slug 노출 차단)', (tester) async {
+      // Phase 13 D-53: switch 에 매핑되지 않은 slug 는 l10n.errorUnknownProvider
+      // 로 fallback (raw slug 노출 절대 금지). 기존 `_ => id` raw fallback 제거.
+      final user = User(
+        uid: 'uid-provider-4',
+        email: 'raw@example.com',
+        emailVerified: true,
+        displayName: 'Raw',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['twitter.com'],
+      );
 
-        await _pumpScreen(tester, user: user);
+      await _pumpScreen(tester, user: user);
 
-        // raw slug 'twitter.com' 미노출 — Localizable Unknown 으로 교체.
-        expect(find.text('twitter.com', skipOffstage: false), findsNothing);
-        // ko 로케일 (`_pumpScreen` 기본 — env 의 `Locale('ko')` 또는 en) 에 따른
-        // Unknown 라벨 노출 검증. Phase 4 정책상 기본 en, l10n.errorUnknownProvider
-        // 의 en 값.
-        expect(
-          find.text('Unknown sign-in method', skipOffstage: false),
-          findsOneWidget,
-        );
-      },
-    );
+      // raw slug 'twitter.com' 미노출 — Localizable Unknown 으로 교체.
+      expect(find.text('twitter.com', skipOffstage: false), findsNothing);
+      // ko 로케일 (`_pumpScreen` 기본 — env 의 `Locale('ko')` 또는 en) 에 따른
+      // Unknown 라벨 노출 검증. Phase 4 정책상 기본 en, l10n.errorUnknownProvider
+      // 의 en 값.
+      expect(
+        find.text('Unknown sign-in method', skipOffstage: false),
+        findsOneWidget,
+      );
+    });
 
     testWidgets('providerIds [apple.com] 시 "Apple" 표시 (Phase 8)', (
       tester,

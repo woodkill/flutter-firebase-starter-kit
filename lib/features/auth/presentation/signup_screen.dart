@@ -197,41 +197,41 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     final locale = Localizations.localeOf(context);
     final strategies = ref.watch(activeStrategiesProvider(locale));
     for (final strategy in strategies) {
-      ref.listen<AsyncValue<void>>(
-        resolveSocialProvider(strategy.providerId),
-        (previous, next) {
-          // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
-          if (previous is AsyncLoading && next is AsyncData) {
-            if (!mounted) return;
-            final user = ref.read(firebaseAuthProvider).currentUser;
-            if (user != null && !user.isAnonymous) {
-              context.go(AppRoutes.home);
-            }
+      ref.listen<AsyncValue<void>>(resolveSocialProvider(strategy.providerId), (
+        previous,
+        next,
+      ) {
+        // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
+        if (previous is AsyncLoading && next is AsyncData) {
+          if (!mounted) return;
+          final user = ref.read(firebaseAuthProvider).currentUser;
+          if (user != null && !user.isAnonymous) {
+            context.go(AppRoutes.home);
+          }
+          return;
+        }
+        if (next is AsyncError) {
+          // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
+          if (!mounted) return;
+          final err = next.error;
+          // Phase 16 16-08 native arm + 16-09 Custom Token arm —
+          // existingProvider 식별 시 (native + Custom Token 모두)
+          // AccountLinkingSheet 노출 (reactive link arm). unknown 만
+          // FormErrorBanner inline fallback (R2 회귀 0). LoginScreen 과
+          // 동일 wiring.
+          if (err is AccountExistsWithDifferentCredential &&
+              err.existingProvider != null) {
+            _showAccountLinkingSheet(err);
             return;
           }
-          if (next is AsyncError) {
-            // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
-            if (!mounted) return;
-            final err = next.error;
-            // Phase 16 16-08 native arm + 16-09 Custom Token arm —
-            // existingProvider 식별 시 (native + Custom Token 모두)
-            // AccountLinkingSheet 노출 (reactive link arm). unknown 만
-            // FormErrorBanner inline fallback (R2 회귀 0). LoginScreen 과
-            // 동일 wiring.
-            if (err is AccountExistsWithDifferentCredential &&
-                err.existingProvider != null) {
-              _showAccountLinkingSheet(err);
-              return;
-            }
-            if (err is AppException) {
-              setState(() {
-                _socialError = err;
-                _emailError = null;
-              });
-            }
+          if (err is AppException) {
+            setState(() {
+              _socialError = err;
+              _emailError = null;
+            });
           }
-        },
-      );
+        }
+      });
     }
 
     return Stack(

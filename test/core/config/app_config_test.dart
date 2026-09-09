@@ -103,70 +103,67 @@ void main() {
         );
       });
 
-      test(
-        '$flavor.json 의 기본값 (google/apple/facebook/kakao 활성, '
-        'flavor 별 Phase 13~16 Custom Token 정책)',
-        () {
-          // CR-02 (Phase 13 review): missing 시 graceful skip — 위 contract
-          // test 와 동일 정책.
-          final file = File('config/$flavor.json');
-          if (!file.existsSync()) {
-            markTestSkipped(
-              'config/$flavor.json missing — `cp config/$flavor.example.json '
-              'config/$flavor.json` 실행 후 재시도.',
-            );
-            return;
-          }
-          final raw = file.readAsStringSync();
-          final json = jsonDecode(raw) as Map<String, dynamic>;
-          final csv = (json['enabledAuthProviders'] as String? ?? '');
-          final enabled = csv
-              .split(',')
-              .map((s) => s.trim())
-              .where((s) => s.isNotEmpty)
-              .toSet();
+      test('$flavor.json 의 기본값 (google/apple/facebook/kakao 활성, '
+          'flavor 별 Phase 13~16 Custom Token 정책)', () {
+        // CR-02 (Phase 13 review): missing 시 graceful skip — 위 contract
+        // test 와 동일 정책.
+        final file = File('config/$flavor.json');
+        if (!file.existsSync()) {
+          markTestSkipped(
+            'config/$flavor.json missing — `cp config/$flavor.example.json '
+            'config/$flavor.json` 실행 후 재시도.',
+          );
+          return;
+        }
+        final raw = file.readAsStringSync();
+        final json = jsonDecode(raw) as Map<String, dynamic>;
+        final csv = (json['enabledAuthProviders'] as String? ?? '');
+        final enabled = csv
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toSet();
 
-          // 활성: Google / Apple / Facebook (Phase 7~9) + Kakao (Phase 12 D-19).
-          expect(enabled.contains(kProviderIdGoogle), isTrue);
-          expect(enabled.contains(kProviderIdApple), isTrue);
-          expect(enabled.contains(kProviderIdFacebook), isTrue);
-          expect(enabled.contains(kProviderIdKakao), isTrue);
+        // 활성: Google / Apple / Facebook (Phase 7~9) + Kakao (Phase 12 D-19).
+        expect(enabled.contains(kProviderIdGoogle), isTrue);
+        expect(enabled.contains(kProviderIdApple), isTrue);
+        expect(enabled.contains(kProviderIdFacebook), isTrue);
+        expect(enabled.contains(kProviderIdKakao), isTrue);
 
-          // dev 는 Phase 진행에 따라 Custom Token 점진 활성화 (Phase 13:
-          // naver, Phase 14: line, Phase 15: yahoojp).
-          // stg/prod 는 Starter Kit 정책상 placeholder — Phase 13~16 모두 비활성.
-          if (flavor == 'dev') {
+        // dev 는 Phase 진행에 따라 Custom Token 점진 활성화 (Phase 13:
+        // naver, Phase 14: line, Phase 15: yahoojp).
+        // stg/prod 는 Starter Kit 정책상 placeholder — Phase 13~16 모두 비활성.
+        if (flavor == 'dev') {
+          expect(
+            enabled.contains(kProviderIdNaver),
+            isTrue,
+            reason: 'dev.json: naver should be enabled (Phase 13)',
+          );
+          expect(
+            enabled.contains(kProviderIdLine),
+            isTrue,
+            reason: 'dev.json: line should be enabled (Phase 14)',
+          );
+          expect(
+            enabled.contains(kProviderIdYahooJp),
+            isTrue,
+            reason: 'dev.json: yahoojp should be enabled (Phase 15)',
+          );
+        } else {
+          for (final id in const <String>[
+            kProviderIdNaver,
+            kProviderIdLine,
+            kProviderIdYahooJp,
+          ]) {
             expect(
-              enabled.contains(kProviderIdNaver),
-              isTrue,
-              reason: 'dev.json: naver should be enabled (Phase 13)',
+              enabled.contains(id),
+              isFalse,
+              reason:
+                  '$flavor.json: $id should be disabled (placeholder policy)',
             );
-            expect(
-              enabled.contains(kProviderIdLine),
-              isTrue,
-              reason: 'dev.json: line should be enabled (Phase 14)',
-            );
-            expect(
-              enabled.contains(kProviderIdYahooJp),
-              isTrue,
-              reason: 'dev.json: yahoojp should be enabled (Phase 15)',
-            );
-          } else {
-            for (final id in const <String>[
-              kProviderIdNaver,
-              kProviderIdLine,
-              kProviderIdYahooJp,
-            ]) {
-              expect(
-                enabled.contains(id),
-                isFalse,
-                reason:
-                    '$flavor.json: $id should be disabled (placeholder policy)',
-              );
-            }
           }
-        },
-      );
+        }
+      });
     }
   });
 

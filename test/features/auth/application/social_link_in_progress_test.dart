@@ -50,8 +50,7 @@ void main() {
         final container = ProviderContainer();
         addTearDown(container.dispose);
 
-        final notifier =
-            container.read(socialLinkInProgressProvider.notifier);
+        final notifier = container.read(socialLinkInProgressProvider.notifier);
         notifier.begin();
         expect(
           container.read(socialLinkInProgressProvider),
@@ -74,36 +73,31 @@ void main() {
       /// ProviderSubscription 을 close 해도 Provider 가 dispose 되지 않으므로
       /// state 는 reset 되지 않아야 한다. hot reload / Provider rebuild 시
       /// state churn 방지 보장 (SUMMARY key-decisions 4번째).
-      test(
-        'SLP-P4: keepAlive — listener 해제 후에도 state 가 reset 되지 않는다',
-        () {
-          final container = ProviderContainer();
-          addTearDown(container.dispose);
+      test('SLP-P4: keepAlive — listener 해제 후에도 state 가 reset 되지 않는다', () {
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
 
-          // begin() 으로 state=true 설정.
-          container.read(socialLinkInProgressProvider.notifier).begin();
+        // begin() 으로 state=true 설정.
+        container.read(socialLinkInProgressProvider.notifier).begin();
 
-          // ProviderSubscription 획득 후 즉시 close — keepAlive 가 없으면
-          // AutoDispose Provider 는 이 시점에 dispose 되어 state 가 false 로
-          // 초기화된다.
-          final subscription = container.listen(
-            socialLinkInProgressProvider,
-            (prev, next) {},
-          );
-          subscription.close();
+        // ProviderSubscription 획득 후 즉시 close — keepAlive 가 없으면
+        // AutoDispose Provider 는 이 시점에 dispose 되어 state 가 false 로
+        // 초기화된다.
+        final subscription = container.listen(
+          socialLinkInProgressProvider,
+          (prev, next) {},
+        );
+        subscription.close();
 
-          // keepAlive: true 이므로 dispose 되지 않아 state=true 가 유지되어야 한다.
-          final stateAfterClose =
-              container.read(socialLinkInProgressProvider);
+        // keepAlive: true 이므로 dispose 되지 않아 state=true 가 유지되어야 한다.
+        final stateAfterClose = container.read(socialLinkInProgressProvider);
 
-          expect(
-            stateAfterClose,
-            isTrue,
-            reason:
-                'keepAlive: true 이므로 listener 해제 후에도 state 가 reset 되어서는 안 된다',
-          );
-        },
-      );
+        expect(
+          stateAfterClose,
+          isTrue,
+          reason: 'keepAlive: true 이므로 listener 해제 후에도 state 가 reset 되어서는 안 된다',
+        );
+      });
     },
   );
 }

@@ -60,11 +60,9 @@ class LocaleNotifier extends _$LocaleNotifier {
       }
     } on Exception catch (e, st) {
       debugPrint('locale_load failed: $e\n$st');
-      await ref.read(crashlyticsServiceProvider).recordError(
-        e,
-        st,
-        reason: 'locale_load',
-      );
+      await ref
+          .read(crashlyticsServiceProvider)
+          .recordError(e, st, reason: 'locale_load');
     }
   }
 
@@ -80,11 +78,9 @@ class LocaleNotifier extends _$LocaleNotifier {
       await prefs.setString(_key, locale.languageCode);
     } on Exception catch (e, st) {
       debugPrint('locale_save failed: $e\n$st');
-      await ref.read(crashlyticsServiceProvider).recordError(
-        e,
-        st,
-        reason: 'locale_save',
-      );
+      await ref
+          .read(crashlyticsServiceProvider)
+          .recordError(e, st, reason: 'locale_save');
     }
   }
 }

@@ -68,13 +68,15 @@ void main() {
         expect(
           licenseFile.existsSync(),
           isTrue,
-          reason: 'WR-03 회귀 — assets/brand/$provider/LICENSE.txt 부재. '
+          reason:
+              'WR-03 회귀 — assets/brand/$provider/LICENSE.txt 부재. '
               '$provider trademark 사용 전 라이선스 본문 사전 검토 의무.',
         );
         expect(
           readmeFile.existsSync(),
           isTrue,
-          reason: 'WR-03 회귀 — assets/brand/$provider/README.md 부재. '
+          reason:
+              'WR-03 회귀 — assets/brand/$provider/README.md 부재. '
               'BI URL / 다운로드 일자 / 사전 검수 절차 결락 시 사용자가 '
               '라이선스 의무 우회 가능.',
         );
@@ -589,8 +591,7 @@ void main() {
       expect(
         depth,
         0,
-        reason:
-            'WR-04 회귀 가드 — signInWithFacebook brace 미균형 (구문 손상).',
+        reason: 'WR-04 회귀 가드 — signInWithFacebook brace 미균형 (구문 손상).',
       );
       final body = content.substring(match.end, idx);
 

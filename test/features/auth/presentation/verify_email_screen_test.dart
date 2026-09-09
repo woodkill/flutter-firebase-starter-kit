@@ -161,35 +161,32 @@ void main() {
     // `userEmail.isEmpty` 분기와 정합). 본 테스트는 generated getter 호출
     // 대신 ARB 본문 verbatim 비교로 컴파일 의존성 최소화.
     // ========================================================================
-    testWidgets(
-      'VE-EMAIL-NULL-01: currentUser.email 빈 문자열 → graceful fallback '
-      '메시지 표시 (ko 로케일 verbatim)',
-      (tester) async {
-        final emptyEmailUser = User(
-          uid: 'test-uid-empty-email',
-          email: '',
-          emailVerified: false,
-          createdAt: DateTime.utc(2026),
-        );
+    testWidgets('VE-EMAIL-NULL-01: currentUser.email 빈 문자열 → graceful fallback '
+        '메시지 표시 (ko 로케일 verbatim)', (tester) async {
+      final emptyEmailUser = User(
+        uid: 'test-uid-empty-email',
+        email: '',
+        emailVerified: false,
+        createdAt: DateTime.utc(2026),
+      );
 
-        await _pumpVerifyEmail(
-          tester,
-          currentUser: emptyEmailUser,
-          locale: const Locale('ko'),
-        );
+      await _pumpVerifyEmail(
+        tester,
+        currentUser: emptyEmailUser,
+        locale: const Locale('ko'),
+      );
 
-        // ko ARB verbatim — graceful fallback 메시지.
-        expect(
-          find.text(
-            '가입하신 이메일 주소로 인증 메일을 보냈습니다. '
-            '메일의 링크를 클릭하여 인증을 완료해 주세요.',
-          ),
-          findsOneWidget,
-        );
-        // 기존 authVerifyEmailDescription 본문 일부 (placeholder 포함) 미발현.
-        expect(find.textContaining('(으)로 보냈습니다'), findsNothing);
-      },
-    );
+      // ko ARB verbatim — graceful fallback 메시지.
+      expect(
+        find.text(
+          '가입하신 이메일 주소로 인증 메일을 보냈습니다. '
+          '메일의 링크를 클릭하여 인증을 완료해 주세요.',
+        ),
+        findsOneWidget,
+      );
+      // 기존 authVerifyEmailDescription 본문 일부 (placeholder 포함) 미발현.
+      expect(find.textContaining('(으)로 보냈습니다'), findsNothing);
+    });
 
     testWidgets(
       'VE-EMAIL-PRESENT-01: currentUser.email non-empty → 기존 메시지 표시 + '

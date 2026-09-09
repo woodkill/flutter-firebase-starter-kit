@@ -27,34 +27,38 @@ void main() {
       expect(
         kPlaceholderProviders,
         isEmpty,
-        reason: 'kPlaceholderProviders 가 non-empty — 신규 placeholder '
+        reason:
+            'kPlaceholderProviders 가 non-empty — 신규 placeholder '
             'provider 진입 시 본 검증을 sentinel 파일 존재 검증으로 보강 의무',
       );
     });
 
-    test('Kakao/Naver/Google/Apple/Facebook/LINE/Yahoo!JP .placeholder 부재 — 자산 commit 후 PASS', () {
-      // Phase 14 D-LINE-08 (2026-05-19): LINE sentinel → active 전환.
-      // Phase 15 D-YJP-07 (2026-05-22 Plan 15-04): Yahoo!JP sentinel 미경유
-      // 신규 active 진입. Phase 16 폐기 (2026-05-22): WeChat 제외 — 7 active
-      // 모두 자상 commit 완료, kPlaceholderProviders = <String>[].
-      const activeProviders = <String>[
-        'kakao',
-        'naver',
-        'google',
-        'apple',
-        'facebook',
-        'line',
-        'yahoojp',
-      ];
-      for (final p in activeProviders) {
-        final placeholder = File('$kBrandAssetBase/$p/.placeholder');
-        expect(
-          placeholder.existsSync(),
-          isFalse,
-          reason: '$p 의 .placeholder 가 자산 commit 후 제거되지 않음',
-        );
-      }
-    });
+    test(
+      'Kakao/Naver/Google/Apple/Facebook/LINE/Yahoo!JP .placeholder 부재 — 자산 commit 후 PASS',
+      () {
+        // Phase 14 D-LINE-08 (2026-05-19): LINE sentinel → active 전환.
+        // Phase 15 D-YJP-07 (2026-05-22 Plan 15-04): Yahoo!JP sentinel 미경유
+        // 신규 active 진입. Phase 16 폐기 (2026-05-22): WeChat 제외 — 7 active
+        // 모두 자상 commit 완료, kPlaceholderProviders = <String>[].
+        const activeProviders = <String>[
+          'kakao',
+          'naver',
+          'google',
+          'apple',
+          'facebook',
+          'line',
+          'yahoojp',
+        ];
+        for (final p in activeProviders) {
+          final placeholder = File('$kBrandAssetBase/$p/.placeholder');
+          expect(
+            placeholder.existsSync(),
+            isFalse,
+            reason: '$p 의 .placeholder 가 자산 commit 후 제거되지 않음',
+          );
+        }
+      },
+    );
 
     test('7 provider README 7필드 모두 채워짐', () {
       // Phase 15 (2026-05-22 Plan 15-04): Yahoo!JP README 추가.

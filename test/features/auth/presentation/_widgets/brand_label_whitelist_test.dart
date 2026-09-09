@@ -56,14 +56,15 @@ const Map<String, Map<String, String>> _kAppleHIG =
 /// - ja: [ASSUMED] 패턴 일관성 (Apple/Google/Facebook ja mirror) 채택 — user
 ///   sign-off 2026-05-15 Wave 1 Task 1.0 Step 3 옵션 (B). Starter 사용자 일본
 ///   진출 시점 공식 verbatim 재확정 의무.
-const Map<String, Map<String, String>> _kNaverBI =
-    <String, Map<String, String>>{
-      'authNaverSignIn': <String, String>{
-        'ko': '네이버 아이디로 로그인', // Phase 13.3 Wave 5 (2026-05-17) — NAVER 공식 SDK (Nid-OAuth values-ko/message.xml + 공식 BI 가이드) verbatim. Phase 13.3 Wave 1 의 "네이버 로그인" supersede.
-        'en': 'Log in with NAVER', // 공식 AI EN variant verbatim
-        'ja': 'NAVERでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
-      },
-    };
+const Map<String, Map<String, String>>
+_kNaverBI = <String, Map<String, String>>{
+  'authNaverSignIn': <String, String>{
+    'ko':
+        '네이버 아이디로 로그인', // Phase 13.3 Wave 5 (2026-05-17) — NAVER 공식 SDK (Nid-OAuth values-ko/message.xml + 공식 BI 가이드) verbatim. Phase 13.3 Wave 1 의 "네이버 로그인" supersede.
+    'en': 'Log in with NAVER', // 공식 AI EN variant verbatim
+    'ja': 'NAVERでログイン', // [ASSUMED] 패턴 일관성 (Apple/Google/Facebook mirror)
+  },
+};
 
 /// Facebook BI 화이트리스트 (Phase 13.3 Wave 5 신규 — Login mirror 통일).
 ///
@@ -268,9 +269,12 @@ void main() {
   group(
     'brand_label_whitelist — Naver BI (R7) [Phase 13.3 verbatim restored]',
     () {
-      test('ko: 네이버 아이디로 로그인 (NAVER 공식 SDK + BI 가이드 verbatim, Wave 5 정정)', () async {
-        await _verifyLocale('ko', _kNaverBI);
-      });
+      test(
+        'ko: 네이버 아이디로 로그인 (NAVER 공식 SDK + BI 가이드 verbatim, Wave 5 정정)',
+        () async {
+          await _verifyLocale('ko', _kNaverBI);
+        },
+      );
       test('en: Log in with NAVER (공식 AI EN variant verbatim)', () async {
         await _verifyLocale('en', _kNaverBI);
       });
@@ -287,26 +291,17 @@ void main() {
   // Login mirror 통일 (en "Login with Facebook" preferred 화이트리스트 #2 +
   // ko "Facebook으로 로그인" Apple/Google mirror + ja "Facebookでログイン"
   // [ASSUMED] Login mirror) — 향후 silent ARB drift 회귀 방지.
-  group(
-    'brand_label_whitelist — Facebook BI (Wave 5) [Login mirror 통일]',
-    () {
-      test('ko: Facebook으로 로그인 (Wave 5 — Apple/Google mirror)', () async {
-        await _verifyLocale('ko', _kFacebookBI);
-      });
-      test(
-        'en: Login with Facebook (preferred 화이트리스트 #2, Wave 5)',
-        () async {
-          await _verifyLocale('en', _kFacebookBI);
-        },
-      );
-      test(
-        'ja: Facebookでログイン ([ASSUMED] Login mirror — 자유 영역)',
-        () async {
-          await _verifyLocale('ja', _kFacebookBI);
-        },
-      );
-    },
-  );
+  group('brand_label_whitelist — Facebook BI (Wave 5) [Login mirror 통일]', () {
+    test('ko: Facebook으로 로그인 (Wave 5 — Apple/Google mirror)', () async {
+      await _verifyLocale('ko', _kFacebookBI);
+    });
+    test('en: Login with Facebook (preferred 화이트리스트 #2, Wave 5)', () async {
+      await _verifyLocale('en', _kFacebookBI);
+    });
+    test('ja: Facebookでログイン ([ASSUMED] Login mirror — 자유 영역)', () async {
+      await _verifyLocale('ja', _kFacebookBI);
+    });
+  });
 
   // Phase 13.3 verbatim restored (Wave 4 D-111) — Kakao 도 Universal Layout
   // Pattern (Wave 2 `_renderKakaoButton`) 으로 라벨 layer 부활.
@@ -445,96 +440,75 @@ void main() {
   // 보유 — 본 group 들은 계정 표시용 provider label
   // (settings linkedProviders + account_linking_sheet provider 텍스트) 의
   // ARB drift 회귀 가드. Phase 13.1 D-84 + Phase 15 mirror.
-  group(
-    'brand_label_whitelist — Google AccountLabel (Phase 16 D-11) B1',
-    () {
-      test('ko: Google (Google Identity verbatim — 3 locale 동일)', () async {
-        await _verifyLocale('ko', _kGoogleAccountLabel);
-      });
-      test('en: Google (Google Identity verbatim)', () async {
-        await _verifyLocale('en', _kGoogleAccountLabel);
-      });
-      test('ja: Google (Google Identity verbatim)', () async {
-        await _verifyLocale('ja', _kGoogleAccountLabel);
-      });
-    },
-  );
+  group('brand_label_whitelist — Google AccountLabel (Phase 16 D-11) B1', () {
+    test('ko: Google (Google Identity verbatim — 3 locale 동일)', () async {
+      await _verifyLocale('ko', _kGoogleAccountLabel);
+    });
+    test('en: Google (Google Identity verbatim)', () async {
+      await _verifyLocale('en', _kGoogleAccountLabel);
+    });
+    test('ja: Google (Google Identity verbatim)', () async {
+      await _verifyLocale('ja', _kGoogleAccountLabel);
+    });
+  });
 
-  group(
-    'brand_label_whitelist — Facebook AccountLabel (Phase 16 D-11) B2',
-    () {
-      test('ko: Facebook (Meta brand verbatim — 3 locale 동일)', () async {
-        await _verifyLocale('ko', _kFacebookAccountLabel);
-      });
-      test('en: Facebook (Meta brand verbatim)', () async {
-        await _verifyLocale('en', _kFacebookAccountLabel);
-      });
-      test('ja: Facebook (Meta brand verbatim)', () async {
-        await _verifyLocale('ja', _kFacebookAccountLabel);
-      });
-    },
-  );
+  group('brand_label_whitelist — Facebook AccountLabel (Phase 16 D-11) B2', () {
+    test('ko: Facebook (Meta brand verbatim — 3 locale 동일)', () async {
+      await _verifyLocale('ko', _kFacebookAccountLabel);
+    });
+    test('en: Facebook (Meta brand verbatim)', () async {
+      await _verifyLocale('en', _kFacebookAccountLabel);
+    });
+    test('ja: Facebook (Meta brand verbatim)', () async {
+      await _verifyLocale('ja', _kFacebookAccountLabel);
+    });
+  });
 
-  group(
-    'brand_label_whitelist — Email AccountLabel (Phase 16 D-11) B3',
-    () {
-      test(
-        'ko: 이메일 / 비밀번호 (starter-kit Phase 9.2 P-A-narrow lock)',
-        () async {
-          await _verifyLocale('ko', _kEmailAccountLabel);
-        },
-      );
-      test('en: Email / Password (Phase 9.2 P-A-narrow lock)', () async {
-        await _verifyLocale('en', _kEmailAccountLabel);
-      });
-      test(
-        'ja: メール / パスワード (Phase 9.2 P-A-narrow lock)',
-        () async {
-          await _verifyLocale('ja', _kEmailAccountLabel);
-        },
-      );
-    },
-  );
+  group('brand_label_whitelist — Email AccountLabel (Phase 16 D-11) B3', () {
+    test('ko: 이메일 / 비밀번호 (starter-kit Phase 9.2 P-A-narrow lock)', () async {
+      await _verifyLocale('ko', _kEmailAccountLabel);
+    });
+    test('en: Email / Password (Phase 9.2 P-A-narrow lock)', () async {
+      await _verifyLocale('en', _kEmailAccountLabel);
+    });
+    test('ja: メール / パスワード (Phase 9.2 P-A-narrow lock)', () async {
+      await _verifyLocale('ja', _kEmailAccountLabel);
+    });
+  });
 
-  group(
-    'brand_label_whitelist — LINE AccountLabel (Phase 16 D-11) B4',
-    () {
-      test(
-        'ko: 라인 ([ASSUMED 2026-05-29] starter-kit Phase 9.2 한글 표기 보존)',
-        () async {
-          await _verifyLocale('ko', _kLineAccountLabel);
-        },
-      );
-      test('en: LINE (LINE 공식 brand 자산 verbatim)', () async {
-        await _verifyLocale('en', _kLineAccountLabel);
-      });
-      test('ja: LINE (LINE 공식 brand 자산 verbatim)', () async {
-        await _verifyLocale('ja', _kLineAccountLabel);
-      });
-    },
-  );
+  group('brand_label_whitelist — LINE AccountLabel (Phase 16 D-11) B4', () {
+    test(
+      'ko: 라인 ([ASSUMED 2026-05-29] starter-kit Phase 9.2 한글 표기 보존)',
+      () async {
+        await _verifyLocale('ko', _kLineAccountLabel);
+      },
+    );
+    test('en: LINE (LINE 공식 brand 자산 verbatim)', () async {
+      await _verifyLocale('en', _kLineAccountLabel);
+    });
+    test('ja: LINE (LINE 공식 brand 자산 verbatim)', () async {
+      await _verifyLocale('ja', _kLineAccountLabel);
+    });
+  });
 
-  group(
-    'brand_label_whitelist — YahooJp AccountLabel (Phase 16 D-11) B5',
-    () {
-      test(
-        'ko: Yahoo! JAPAN (with space + exclamation — Phase 15 D-YJP-07 mirror)',
-        () async {
-          await _verifyLocale('ko', _kYahoojpAccountLabel);
-        },
-      );
-      test(
-        'en: Yahoo! JAPAN (with space + exclamation — Phase 15 mirror)',
-        () async {
-          await _verifyLocale('en', _kYahoojpAccountLabel);
-        },
-      );
-      test(
-        'ja: Yahoo! JAPAN (with space + exclamation — Phase 15 mirror)',
-        () async {
-          await _verifyLocale('ja', _kYahoojpAccountLabel);
-        },
-      );
-    },
-  );
+  group('brand_label_whitelist — YahooJp AccountLabel (Phase 16 D-11) B5', () {
+    test(
+      'ko: Yahoo! JAPAN (with space + exclamation — Phase 15 D-YJP-07 mirror)',
+      () async {
+        await _verifyLocale('ko', _kYahoojpAccountLabel);
+      },
+    );
+    test(
+      'en: Yahoo! JAPAN (with space + exclamation — Phase 15 mirror)',
+      () async {
+        await _verifyLocale('en', _kYahoojpAccountLabel);
+      },
+    );
+    test(
+      'ja: Yahoo! JAPAN (with space + exclamation — Phase 15 mirror)',
+      () async {
+        await _verifyLocale('ja', _kYahoojpAccountLabel);
+      },
+    );
+  });
 }

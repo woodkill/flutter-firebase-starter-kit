@@ -627,65 +627,56 @@ void main() {
     // 검증. signOut() 본체 가 Google → Facebook → Kakao → Naver →
     // FirebaseAuth 순차 호출 + 각 SDK logout 실패 시에도 후속 SDK + Auth
     // 호출 보장 (try/catch 무시 패턴).
-    test(
-      'Phase 9.2 R6 — signOut: 5 SDK logout 순차 호출 (Google → Facebook → '
-      'Kakao → Naver → FirebaseAuth)',
-      () async {
-        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
-        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-        when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
-        when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
-        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+    test('Phase 9.2 R6 — signOut: 5 SDK logout 순차 호출 (Google → Facebook → '
+        'Kakao → Naver → FirebaseAuth)', () async {
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+      when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+      when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
 
-        await repository.signOut();
+      await repository.signOut();
 
-        // VALIDATION Mock 함정 6 — 명시 verifyInOrder 5 SDK 순차 invariant.
-        verifyInOrder([
-          () => mockGoogleSignIn.signOut(),
-          () => mockFacebookAuth.logOut(),
-          () => mockKakaoSdkClient.logout(),
-          () => mockNaverSdkClient.logout(),
-          () => mockAuth.signOut(),
-        ]);
-      },
-    );
+      // VALIDATION Mock 함정 6 — 명시 verifyInOrder 5 SDK 순차 invariant.
+      verifyInOrder([
+        () => mockGoogleSignIn.signOut(),
+        () => mockFacebookAuth.logOut(),
+        () => mockKakaoSdkClient.logout(),
+        () => mockNaverSdkClient.logout(),
+        () => mockAuth.signOut(),
+      ]);
+    });
 
-    test(
-      'Phase 9.2 R6 — signOut: Kakao SDK logout 실패 시에도 Naver + '
-      'FirebaseAuth 호출 보장',
-      () async {
-        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
-        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-        when(() => mockKakaoSdkClient.logout()).thenThrow(
-          Exception('Kakao logout failed'),
-        );
-        when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
-        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+    test('Phase 9.2 R6 — signOut: Kakao SDK logout 실패 시에도 Naver + '
+        'FirebaseAuth 호출 보장', () async {
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+      when(
+        () => mockKakaoSdkClient.logout(),
+      ).thenThrow(Exception('Kakao logout failed'));
+      when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
 
-        await repository.signOut();
+      await repository.signOut();
 
-        verify(() => mockNaverSdkClient.logout()).called(1);
-        verify(() => mockAuth.signOut()).called(1);
-      },
-    );
+      verify(() => mockNaverSdkClient.logout()).called(1);
+      verify(() => mockAuth.signOut()).called(1);
+    });
 
-    test(
-      'Phase 9.2 R6 — signOut: Naver SDK logout 실패 시에도 FirebaseAuth '
-      '호출 보장',
-      () async {
-        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
-        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-        when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
-        when(() => mockNaverSdkClient.logout()).thenThrow(
-          Exception('Naver logout failed'),
-        );
-        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+    test('Phase 9.2 R6 — signOut: Naver SDK logout 실패 시에도 FirebaseAuth '
+        '호출 보장', () async {
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+      when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+      when(
+        () => mockNaverSdkClient.logout(),
+      ).thenThrow(Exception('Naver logout failed'));
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
 
-        await repository.signOut();
+      await repository.signOut();
 
-        verify(() => mockAuth.signOut()).called(1);
-      },
-    );
+      verify(() => mockAuth.signOut()).called(1);
+    });
   });
 
   group('_mapFirebaseUser providerIds 매핑', () {
@@ -1479,9 +1470,7 @@ void main() {
         (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
       );
       // 기본: httpsCallable('kakaoCustomToken') → mockCallable.
-      when(
-        () => mockFunctions.httpsCallable(any()),
-      ).thenReturn(mockCallable);
+      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
       // 기본: callable.call(...) → customToken 응답.
       // HttpsCallableResult 는 private ctor 라 mocktail 로 .data 만 stub 한다.
       final defaultResult = _MockHttpsCallableResult();
@@ -1546,9 +1535,7 @@ void main() {
 
     test('Test K4: FirebaseFunctionsException(invalid-argument) → '
         'ServiceUnavailable Failure', () async {
-      when(
-        () => mockCallable.call<Map<String, dynamic>>(any()),
-      ).thenThrow(
+      when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
         FirebaseFunctionsException(
           code: 'invalid-argument',
           message: 'bad nonce',
@@ -1564,13 +1551,8 @@ void main() {
 
     test('Test K5: FirebaseFunctionsException(unavailable) → '
         'NoInternetConnection Failure', () async {
-      when(
-        () => mockCallable.call<Map<String, dynamic>>(any()),
-      ).thenThrow(
-        FirebaseFunctionsException(
-          code: 'unavailable',
-          message: 'CF down',
-        ),
+      when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
+        FirebaseFunctionsException(code: 'unavailable', message: 'CF down'),
       );
 
       final result = await repository.signInWithKakao();
@@ -1581,9 +1563,9 @@ void main() {
 
     test('Test K6: FirebaseAuthException(signInWithCustomToken) → '
         '_mapAuthException 매핑', () async {
-      when(() => mockAuth.signInWithCustomToken('CT')).thenThrow(
-        fb.FirebaseAuthException(code: 'invalid-credential'),
-      );
+      when(
+        () => mockAuth.signInWithCustomToken('CT'),
+      ).thenThrow(fb.FirebaseAuthException(code: 'invalid-credential'));
 
       final result = await repository.signInWithKakao();
 
@@ -1593,8 +1575,9 @@ void main() {
 
     test('Test K7: KakaoSdkClient throw 비-CANCELED PlatformException → '
         'ServiceUnavailable Failure', () async {
-      when(() => mockKakaoSdkClient.signIn())
-          .thenThrow(PlatformException(code: 'NETWORK_ERROR'));
+      when(
+        () => mockKakaoSdkClient.signIn(),
+      ).thenThrow(PlatformException(code: 'NETWORK_ERROR'));
 
       final result = await repository.signInWithKakao();
 
@@ -1604,8 +1587,7 @@ void main() {
 
     test('Test K8: race-fix invariant — exception 발생해도 finally 가 '
         'end() 호출', () async {
-      when(() => mockKakaoSdkClient.signIn())
-          .thenThrow(Exception('boom'));
+      when(() => mockKakaoSdkClient.signIn()).thenThrow(Exception('boom'));
 
       await repository.signInWithKakao();
 
@@ -1616,8 +1598,9 @@ void main() {
     test('Test K9: idToken null (OIDC 미활성화 — Pitfall 1) → '
         'ServiceUnavailable Failure', () async {
       // KakaoSdkClient 가 idToken null 시 ServiceUnavailable throw.
-      when(() => mockKakaoSdkClient.signIn())
-          .thenThrow(const ServiceUnavailable());
+      when(
+        () => mockKakaoSdkClient.signIn(),
+      ).thenThrow(const ServiceUnavailable());
 
       final result = await repository.signInWithKakao();
 
@@ -1626,51 +1609,44 @@ void main() {
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
 
-    test('Test K10: response.data.customToken 이 null → ServiceUnavailable',
-        () async {
-      final nullTokenResult = _MockHttpsCallableResult();
-      when(() => nullTokenResult.data).thenReturn(<String, dynamic>{
-        'customToken': null,
-        'uid': 'x',
-      });
-      when(
-        () => mockCallable.call<Map<String, dynamic>>(any()),
-      ).thenAnswer((_) async => nullTokenResult);
-
-      final result = await repository.signInWithKakao();
-
-      expect(result, isA<Failure<dynamic>>());
-      expect((result! as Failure).exception, isA<ServiceUnavailable>());
-    });
-
     test(
-      'Test K11: FirebaseFunctionsException(already-exists) → '
-      'AccountExistsWithDifferentCredential Failure (R3 — D-34)',
+      'Test K10: response.data.customToken 이 null → ServiceUnavailable',
       () async {
+        final nullTokenResult = _MockHttpsCallableResult();
+        when(
+          () => nullTokenResult.data,
+        ).thenReturn(<String, dynamic>{'customToken': null, 'uid': 'x'});
         when(
           () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
-          FirebaseFunctionsException(
-            code: 'already-exists',
-            message: 'errorAccountExistsWithDifferentCredential',
-          ),
-        );
+        ).thenAnswer((_) async => nullTokenResult);
 
         final result = await repository.signInWithKakao();
 
         expect(result, isA<Failure<dynamic>>());
-        final failure = result! as Failure;
-        expect(
-          failure.exception,
-          isA<AccountExistsWithDifferentCredential>(),
-        );
-        // Cloud Function PII 미응답 — email null 보존.
-        final ex = failure.exception as AccountExistsWithDifferentCredential;
-        expect(ex.email, isNull);
-        // Pitfall 8 — race-fix try-finally 보존 검증.
-        verify(() => mockSocialLinkInProgress.end()).called(1);
+        expect((result! as Failure).exception, isA<ServiceUnavailable>());
       },
     );
+
+    test('Test K11: FirebaseFunctionsException(already-exists) → '
+        'AccountExistsWithDifferentCredential Failure (R3 — D-34)', () async {
+      when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
+        FirebaseFunctionsException(
+          code: 'already-exists',
+          message: 'errorAccountExistsWithDifferentCredential',
+        ),
+      );
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Failure<dynamic>>());
+      final failure = result! as Failure;
+      expect(failure.exception, isA<AccountExistsWithDifferentCredential>());
+      // Cloud Function PII 미응답 — email null 보존.
+      final ex = failure.exception as AccountExistsWithDifferentCredential;
+      expect(ex.email, isNull);
+      // Pitfall 8 — race-fix try-finally 보존 검증.
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
 
     // ========================================================================
     // Phase 9.2 Gap B Kakao 충돌 path (HUMAN-UAT 2026-05-11 — kakaoCustomToken
@@ -1688,9 +1664,7 @@ void main() {
         // 익명승격 path 시뮬레이션 — Plan 07 의 callerUid 분기 활성 조건.
         when(() => mockAuth.currentUser).thenReturn(mockUser);
         when(() => mockUser.isAnonymous).thenReturn(true);
-        when(
-          () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
+        when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
           FirebaseFunctionsException(
             code: 'already-exists',
             message: 'errorAccountExistsWithDifferentCredential',
@@ -1701,10 +1675,7 @@ void main() {
 
         expect(result, isA<Failure<dynamic>>());
         final failure = result! as Failure;
-        expect(
-          failure.exception,
-          isA<AccountExistsWithDifferentCredential>(),
-        );
+        expect(failure.exception, isA<AccountExistsWithDifferentCredential>());
         // Phase 12.1 D-34 매핑 — email=null + cause=FirebaseFunctionsException.
         final ex = failure.exception as AccountExistsWithDifferentCredential;
         expect(ex.email, isNull);
@@ -1718,9 +1689,7 @@ void main() {
       () async {
         when(() => mockAuth.currentUser).thenReturn(mockUser);
         when(() => mockUser.isAnonymous).thenReturn(true);
-        when(
-          () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
+        when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
           FirebaseFunctionsException(
             code: 'already-exists',
             message: 'errorAccountExistsWithDifferentCredential',
@@ -1742,9 +1711,7 @@ void main() {
       () async {
         when(() => mockAuth.currentUser).thenReturn(mockUser);
         when(() => mockUser.isAnonymous).thenReturn(true);
-        when(
-          () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
+        when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
           FirebaseFunctionsException(
             code: 'already-exists',
             message: 'errorAccountExistsWithDifferentCredential',
@@ -1776,9 +1743,7 @@ void main() {
         (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
       );
       // 기본: httpsCallable('naverCustomToken') → mockCallable.
-      when(
-        () => mockFunctions.httpsCallable(any()),
-      ).thenReturn(mockCallable);
+      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
       // 기본: callable.call(...) → customToken 응답.
       final defaultResult = _MockHttpsCallableResult();
       when(() => defaultResult.data).thenReturn(<String, dynamic>{
@@ -1831,9 +1796,7 @@ void main() {
 
     test('T-13-NAVER-REPO-03: FirebaseFunctionsException(invalid-argument) '
         '→ ServiceUnavailable Failure', () async {
-      when(
-        () => mockCallable.call<Map<String, dynamic>>(any()),
-      ).thenThrow(
+      when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
         FirebaseFunctionsException(
           code: 'invalid-argument',
           message: 'bad accessToken',
@@ -1850,9 +1813,9 @@ void main() {
 
     test('T-13-NAVER-REPO-04: FirebaseAuthException(signInWithCustomToken) '
         '→ _mapAuthException 매핑', () async {
-      when(() => mockAuth.signInWithCustomToken('CT_NAVER')).thenThrow(
-        fb.FirebaseAuthException(code: 'invalid-credential'),
-      );
+      when(
+        () => mockAuth.signInWithCustomToken('CT_NAVER'),
+      ).thenThrow(fb.FirebaseAuthException(code: 'invalid-credential'));
 
       final result = await repository.signInWithNaver();
 
@@ -1860,31 +1823,33 @@ void main() {
       expect((result! as Failure).exception, isA<InvalidCredentials>());
     });
 
-    test('T-13-NAVER-REPO-05 (WR-01-iter2): 비-Auth 예외 (PlatformException 등) '
-        '→ ServiceUnavailable(cause) + signIn 단계 throw → logout 1회 호출',
-        () async {
-      when(() => mockNaverSdkClient.signIn())
-          .thenThrow(PlatformException(code: 'NETWORK_ERROR'));
+    test(
+      'T-13-NAVER-REPO-05 (WR-01-iter2): 비-Auth 예외 (PlatformException 등) '
+      '→ ServiceUnavailable(cause) + signIn 단계 throw → logout 1회 호출',
+      () async {
+        when(
+          () => mockNaverSdkClient.signIn(),
+        ).thenThrow(PlatformException(code: 'NETWORK_ERROR'));
 
-      final result = await repository.signInWithNaver();
+        final result = await repository.signInWithNaver();
 
-      expect(result, isA<Failure<dynamic>>());
-      expect((result! as Failure).exception, isA<ServiceUnavailable>());
-      // WR-01-iter2 (Phase 13 review iter2): D-57 invariant — signIn 단계 throw
-      // path 에서도 SDK 가 부분적으로 토큰을 발급한 후 throw 한 가능성을 배제할
-      // 수 없으므로 모든 path 에서 logout. graceful no-op 으로 흡수.
-      verify(() => mockNaverSdkClient.logout()).called(1);
-      // end 는 race-fix 보장 — exception 와 무관하게 1회.
-      verify(() => mockSocialLinkInProgress.end()).called(1);
-    });
+        expect(result, isA<Failure<dynamic>>());
+        expect((result! as Failure).exception, isA<ServiceUnavailable>());
+        // WR-01-iter2 (Phase 13 review iter2): D-57 invariant — signIn 단계 throw
+        // path 에서도 SDK 가 부분적으로 토큰을 발급한 후 throw 한 가능성을 배제할
+        // 수 없으므로 모든 path 에서 logout. graceful no-op 으로 흡수.
+        verify(() => mockNaverSdkClient.logout()).called(1);
+        // end 는 race-fix 보장 — exception 와 무관하게 1회.
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+      },
+    );
 
     test('T-13-NAVER-REPO-06: response.data.customToken 이 null → '
         'ServiceUnavailable Failure', () async {
       final nullTokenResult = _MockHttpsCallableResult();
-      when(() => nullTokenResult.data).thenReturn(<String, dynamic>{
-        'customToken': null,
-        'uid': 'x',
-      });
+      when(
+        () => nullTokenResult.data,
+      ).thenReturn(<String, dynamic>{'customToken': null, 'uid': 'x'});
       when(
         () => mockCallable.call<Map<String, dynamic>>(any()),
       ).thenAnswer((_) async => nullTokenResult);
@@ -1913,9 +1878,7 @@ void main() {
     test('T-13-NAVER-REPO-08: already-exists FirebaseFunctionsException → '
         'AccountExistsWithDifferentCredential 자동 흡수 '
         '(Phase 12.1 D-34 회귀 가드)', () async {
-      when(
-        () => mockCallable.call<Map<String, dynamic>>(any()),
-      ).thenThrow(
+      when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
         FirebaseFunctionsException(
           code: 'already-exists',
           message: 'errorAccountExistsWithDifferentCredential',
@@ -1966,9 +1929,7 @@ void main() {
       when(() => mockNaverSdkClient.signIn()).thenAnswer(
         (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
       );
-      when(
-        () => mockFunctions.httpsCallable(any()),
-      ).thenReturn(mockCallable);
+      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
     });
 
     test(
@@ -1978,9 +1939,7 @@ void main() {
         // 익명승격 path 시뮬레이션 — Plan 07 의 callerUid 분기 활성 조건.
         when(() => mockAuth.currentUser).thenReturn(mockUser);
         when(() => mockUser.isAnonymous).thenReturn(true);
-        when(
-          () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
+        when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
           FirebaseFunctionsException(
             code: 'already-exists',
             message: 'errorAccountExistsWithDifferentCredential',
@@ -1991,10 +1950,7 @@ void main() {
 
         expect(result, isA<Failure<dynamic>>());
         final failure = result! as Failure;
-        expect(
-          failure.exception,
-          isA<AccountExistsWithDifferentCredential>(),
-        );
+        expect(failure.exception, isA<AccountExistsWithDifferentCredential>());
         // Phase 12.1 D-34 매핑 — email=null + cause=FirebaseFunctionsException.
         final ex = failure.exception as AccountExistsWithDifferentCredential;
         expect(ex.email, isNull);
@@ -2008,9 +1964,7 @@ void main() {
       () async {
         when(() => mockAuth.currentUser).thenReturn(mockUser);
         when(() => mockUser.isAnonymous).thenReturn(true);
-        when(
-          () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
+        when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
           FirebaseFunctionsException(
             code: 'already-exists',
             message: 'errorAccountExistsWithDifferentCredential',
@@ -2032,9 +1986,7 @@ void main() {
       () async {
         when(() => mockAuth.currentUser).thenReturn(mockUser);
         when(() => mockUser.isAnonymous).thenReturn(true);
-        when(
-          () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
+        when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
           FirebaseFunctionsException(
             code: 'already-exists',
             message: 'errorAccountExistsWithDifferentCredential',
@@ -2065,14 +2017,11 @@ void main() {
       when(() => mockKakaoSdkClient.signIn()).thenAnswer(
         (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
       );
-      when(
-        () => mockFunctions.httpsCallable(any()),
-      ).thenReturn(mockCallable);
+      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
       final defaultResult = _MockHttpsCallableResult();
-      when(() => defaultResult.data).thenReturn(<String, dynamic>{
-        'customToken': 'CT',
-        'uid': 'kakao-uid',
-      });
+      when(
+        () => defaultResult.data,
+      ).thenReturn(<String, dynamic>{'customToken': 'CT', 'uid': 'kakao-uid'});
       when(
         () => mockCallable.call<Map<String, dynamic>>(any()),
       ).thenAnswer((_) async => defaultResult);
@@ -2173,8 +2122,7 @@ void main() {
         expect(
           resetCallOrder,
           lessThan(googleSignOutOrder),
-          reason:
-              'D-A3: onResetOnboarding 이 signOut 보다 먼저 호출되어야 한다',
+          reason: 'D-A3: onResetOnboarding 이 signOut 보다 먼저 호출되어야 한다',
         );
 
         // 7 SDK 호출 순서 invariant (Phase 14 — LINE 추가, Phase 15 — Yahoo!JP
@@ -2202,52 +2150,49 @@ void main() {
     // throw 가 surface 되는 회귀가 들어올 경우, 본 test 가 RED 로 surface 하여
     // (a) 계약 변경 의도 검토 + (b) `try/finally` 로 signOut 보장 변경
     // 양자택일을 강제한다.
-    test(
-      'WR-01 (iter3) 회귀 sentinel: _onResetOnboarding throws → '
-      '예외 전파 + signOut() 미호출 (현재 계약)',
-      () async {
-        Future<void> failingReset() async {
-          throw StateError('simulated reset failure');
-        }
+    test('WR-01 (iter3) 회귀 sentinel: _onResetOnboarding throws → '
+        '예외 전파 + signOut() 미호출 (현재 계약)', () async {
+      Future<void> failingReset() async {
+        throw StateError('simulated reset failure');
+      }
 
-        final repo = AuthRepository(
-          mockAuth,
-          mockGoogleSignIn,
-          mockFacebookAuth,
-          mockSocialLinkInProgress,
-          mockKakaoSdkClient,
-          mockFunctions,
-          mockNaverSdkClient,
-          mockLineSdkClient,
-          mockYahoojpSdkClient,
-          failingReset,
-        );
+      final repo = AuthRepository(
+        mockAuth,
+        mockGoogleSignIn,
+        mockFacebookAuth,
+        mockSocialLinkInProgress,
+        mockKakaoSdkClient,
+        mockFunctions,
+        mockNaverSdkClient,
+        mockLineSdkClient,
+        mockYahoojpSdkClient,
+        failingReset,
+      );
 
-        when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
-        when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
-        when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
-        when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
-        when(() => mockAuth.signOut()).thenAnswer((_) async {});
+      when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});
+      when(() => mockFacebookAuth.logOut()).thenAnswer((_) async {});
+      when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
+      when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
 
-        await expectLater(
-          repo.signOutAndResetOnboarding(),
-          throwsA(isA<StateError>()),
-          reason: 'reset 콜백의 예외는 호출자에게 전파되어야 한다 (현 계약)',
-        );
+      await expectLater(
+        repo.signOutAndResetOnboarding(),
+        throwsA(isA<StateError>()),
+        reason: 'reset 콜백의 예외는 호출자에게 전파되어야 한다 (현 계약)',
+      );
 
-        // 현 계약: reset 실패 시 signOut 은 실행되지 않는다 — D-A3 reset →
-        // signOut 순서 invariant 의 자연 귀결. 본 contract 를 "reset 실패
-        // 와 무관하게 signOut 은 항상 실행" 으로 변경하려면 try/finally
-        // 도입 + 본 verifyNever 들을 verify(...).called(1) 로 갱신해야
-        // 한다 (의도된 회귀 surface).
-        verifyNever(() => mockGoogleSignIn.signOut());
-        verifyNever(() => mockFacebookAuth.logOut());
-        verifyNever(() => mockKakaoSdkClient.logout());
-        verifyNever(() => mockNaverSdkClient.logout());
-        verifyNever(() => mockLineSdkClient.logout());
-        verifyNever(() => mockAuth.signOut());
-      },
-    );
+      // 현 계약: reset 실패 시 signOut 은 실행되지 않는다 — D-A3 reset →
+      // signOut 순서 invariant 의 자연 귀결. 본 contract 를 "reset 실패
+      // 와 무관하게 signOut 은 항상 실행" 으로 변경하려면 try/finally
+      // 도입 + 본 verifyNever 들을 verify(...).called(1) 로 갱신해야
+      // 한다 (의도된 회귀 surface).
+      verifyNever(() => mockGoogleSignIn.signOut());
+      verifyNever(() => mockFacebookAuth.logOut());
+      verifyNever(() => mockKakaoSdkClient.logout());
+      verifyNever(() => mockNaverSdkClient.logout());
+      verifyNever(() => mockLineSdkClient.logout());
+      verifyNever(() => mockAuth.signOut());
+    });
   });
 
   // ==========================================================================
@@ -2266,9 +2211,7 @@ void main() {
         (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
       );
       // 기본: httpsCallable('lineCustomToken') → mockCallable.
-      when(
-        () => mockFunctions.httpsCallable(any()),
-      ).thenReturn(mockCallable);
+      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
       // 기본: callable.call(...) → customToken 응답.
       final defaultResult = _MockHttpsCallableResult();
       when(() => defaultResult.data).thenReturn(<String, dynamic>{
@@ -2288,75 +2231,63 @@ void main() {
       ).thenAnswer((_) async => mockCredential);
     });
 
-    test(
-      'Test L1 (정상): LineSdkClient → CF lineCustomToken → '
-      'signInWithCustomToken → Result.success(User) + race-fix begin/end 1회 + '
-      'LineSdkClient.logout 정확 1회',
-      () async {
-        final result = await repository.signInWithLine();
+    test('Test L1 (정상): LineSdkClient → CF lineCustomToken → '
+        'signInWithCustomToken → Result.success(User) + race-fix begin/end 1회 + '
+        'LineSdkClient.logout 정확 1회', () async {
+      final result = await repository.signInWithLine();
 
-        expect(result, isA<Success<dynamic>>());
-        final user = (result! as Success).data as User;
-        expect(user.uid, 'line-uid');
-        expect(user.email, 'line@example.com');
+      expect(result, isA<Success<dynamic>>());
+      final user = (result! as Success).data as User;
+      expect(user.uid, 'line-uid');
+      expect(user.email, 'line@example.com');
 
-        // race-fix begin/end 1회씩.
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-        // D-LINE-57: 성공 path 에서 SDK logout 정확 1회.
-        verify(() => mockLineSdkClient.logout()).called(1);
-        // CF 이름 + payload (idToken + nonce) 검증.
-        verify(() => mockFunctions.httpsCallable('lineCustomToken')).called(1);
-        verify(
-          () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
-            'idToken': 'LIDT',
-            'nonce': 'LNONCE',
-          }),
-        ).called(1);
-      },
-    );
+      // race-fix begin/end 1회씩.
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      // D-LINE-57: 성공 path 에서 SDK logout 정확 1회.
+      verify(() => mockLineSdkClient.logout()).called(1);
+      // CF 이름 + payload (idToken + nonce) 검증.
+      verify(() => mockFunctions.httpsCallable('lineCustomToken')).called(1);
+      verify(
+        () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
+          'idToken': 'LIDT',
+          'nonce': 'LNONCE',
+        }),
+      ).called(1);
+    });
 
-    test(
-      'Test L2 (cancel): LineSdkClient → null → repository null 반환 + '
-      'race-fix begin/end 1회 + logout 1회 (D-LINE-21 silent)',
-      () async {
-        when(() => mockLineSdkClient.signIn()).thenAnswer((_) async => null);
+    test('Test L2 (cancel): LineSdkClient → null → repository null 반환 + '
+        'race-fix begin/end 1회 + logout 1회 (D-LINE-21 silent)', () async {
+      when(() => mockLineSdkClient.signIn()).thenAnswer((_) async => null);
 
-        final result = await repository.signInWithLine();
+      final result = await repository.signInWithLine();
 
-        expect(result, isNull);
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-        // D-LINE-57 invariant: 모든 path 에서 finally logout (Phase 13 WR-01-iter2 일관).
-        verify(() => mockLineSdkClient.logout()).called(1);
-        // CF / Firebase Auth 미진입 검증.
-        verifyNever(() => mockFunctions.httpsCallable(any()));
-        verifyNever(() => mockAuth.signInWithCustomToken(any()));
-      },
-    );
+      expect(result, isNull);
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      // D-LINE-57 invariant: 모든 path 에서 finally logout (Phase 13 WR-01-iter2 일관).
+      verify(() => mockLineSdkClient.logout()).called(1);
+      // CF / Firebase Auth 미진입 검증.
+      verifyNever(() => mockFunctions.httpsCallable(any()));
+      verifyNever(() => mockAuth.signInWithCustomToken(any()));
+    });
 
-    test(
-      'Test L3 (race-fix invariant): LineSdkClient throw 시에도 finally 가 '
-      'end() + logout() 호출 (Pitfall 8 단일 진실원)',
-      () async {
-        when(() => mockLineSdkClient.signIn())
-            .thenThrow(Exception('boom'));
+    test('Test L3 (race-fix invariant): LineSdkClient throw 시에도 finally 가 '
+        'end() + logout() 호출 (Pitfall 8 단일 진실원)', () async {
+      when(() => mockLineSdkClient.signIn()).thenThrow(Exception('boom'));
 
-        await repository.signInWithLine();
+      await repository.signInWithLine();
 
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-        verify(() => mockLineSdkClient.logout()).called(1);
-      },
-    );
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      verify(() => mockLineSdkClient.logout()).called(1);
+    });
 
     test(
       'Test L4 (Functions already-exists → AccountExistsWithDifferentCredential '
       '매핑 R3 — D-34 helper 재사용)',
       () async {
-        when(
-          () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
+        when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
           FirebaseFunctionsException(
             code: 'already-exists',
             message: 'errorAccountExistsWithDifferentCredential',
@@ -2367,10 +2298,7 @@ void main() {
 
         expect(result, isA<Failure<dynamic>>());
         final failure = result! as Failure;
-        expect(
-          failure.exception,
-          isA<AccountExistsWithDifferentCredential>(),
-        );
+        expect(failure.exception, isA<AccountExistsWithDifferentCredential>());
         // Cloud Function PII 미응답 — email null 보존.
         final ex = failure.exception as AccountExistsWithDifferentCredential;
         expect(ex.email, isNull);
@@ -2379,37 +2307,32 @@ void main() {
       },
     );
 
-    test(
-      'Test L5 (Firebase Auth exception): signInWithCustomToken throws '
-      'FirebaseAuthException → _mapAuthException 매핑',
-      () async {
-        when(() => mockAuth.signInWithCustomToken('LCT')).thenThrow(
-          fb.FirebaseAuthException(code: 'invalid-credential'),
-        );
+    test('Test L5 (Firebase Auth exception): signInWithCustomToken throws '
+        'FirebaseAuthException → _mapAuthException 매핑', () async {
+      when(
+        () => mockAuth.signInWithCustomToken('LCT'),
+      ).thenThrow(fb.FirebaseAuthException(code: 'invalid-credential'));
 
-        final result = await repository.signInWithLine();
+      final result = await repository.signInWithLine();
 
-        expect(result, isA<Failure<dynamic>>());
-        expect((result! as Failure).exception, isA<InvalidCredentials>());
-        verify(() => mockLineSdkClient.logout()).called(1);
-      },
-    );
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<InvalidCredentials>());
+      verify(() => mockLineSdkClient.logout()).called(1);
+    });
 
-    test(
-      'Test L6 (idToken null / OIDC scope 누락 — Pitfall 1): LineSdkClient 가 '
-      'ServiceUnavailable throw 시 그대로 Failure 재패키징',
-      () async {
-        when(() => mockLineSdkClient.signIn())
-            .thenThrow(const ServiceUnavailable());
+    test('Test L6 (idToken null / OIDC scope 누락 — Pitfall 1): LineSdkClient 가 '
+        'ServiceUnavailable throw 시 그대로 Failure 재패키징', () async {
+      when(
+        () => mockLineSdkClient.signIn(),
+      ).thenThrow(const ServiceUnavailable());
 
-        final result = await repository.signInWithLine();
+      final result = await repository.signInWithLine();
 
-        expect(result, isA<Failure<dynamic>>());
-        expect((result! as Failure).exception, isA<ServiceUnavailable>());
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-        verify(() => mockLineSdkClient.logout()).called(1);
-      },
-    );
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      verify(() => mockLineSdkClient.logout()).called(1);
+    });
   });
 
   // ==========================================================================
@@ -2425,15 +2348,11 @@ void main() {
       mockCallable = _MockHttpsCallable();
       // 기본: YahoojpSdkClient 가 ID Token + nonce 반환.
       when(() => mockYahoojpSdkClient.signIn()).thenAnswer(
-        (_) async => const YahoojpSignInResult(
-          idToken: 'YJIDT',
-          nonce: 'YJNONCE',
-        ),
+        (_) async =>
+            const YahoojpSignInResult(idToken: 'YJIDT', nonce: 'YJNONCE'),
       );
       // 기본: httpsCallable('yahoojpCustomToken') → mockCallable.
-      when(
-        () => mockFunctions.httpsCallable(any()),
-      ).thenReturn(mockCallable);
+      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
       // 기본: callable.call(...) → customToken 응답.
       final defaultResult = _MockHttpsCallableResult();
       when(() => defaultResult.data).thenReturn(<String, dynamic>{
@@ -2455,79 +2374,65 @@ void main() {
       ).thenAnswer((_) async => mockCredential);
     });
 
-    test(
-      'Test YJ1 (정상): YahoojpSdkClient → CF yahoojpCustomToken → '
-      'signInWithCustomToken → Result.success(User) + race-fix begin/end 1회 '
-      '+ YahoojpSdkClient.logout 정확 1회',
-      () async {
-        final result = await repository.signInWithYahoojp();
+    test('Test YJ1 (정상): YahoojpSdkClient → CF yahoojpCustomToken → '
+        'signInWithCustomToken → Result.success(User) + race-fix begin/end 1회 '
+        '+ YahoojpSdkClient.logout 정확 1회', () async {
+      final result = await repository.signInWithYahoojp();
 
-        expect(result, isA<Success<dynamic>>());
-        final user = (result! as Success).data as User;
-        expect(user.uid, 'yj-uid');
-        // D-YJP-09: email 빈 문자열 — _autoSendEmailVerification 자연 no-op.
-        expect(user.email, '');
+      expect(result, isA<Success<dynamic>>());
+      final user = (result! as Success).data as User;
+      expect(user.uid, 'yj-uid');
+      // D-YJP-09: email 빈 문자열 — _autoSendEmailVerification 자연 no-op.
+      expect(user.email, '');
 
-        // race-fix begin/end 1회씩.
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-        // D-YJP-08: 성공 path 에서 SDK logout 정확 1회.
-        verify(() => mockYahoojpSdkClient.logout()).called(1);
-        // CF 이름 + payload (idToken + nonce) 검증.
-        verify(
-          () => mockFunctions.httpsCallable('yahoojpCustomToken'),
-        ).called(1);
-        verify(
-          () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
-            'idToken': 'YJIDT',
-            'nonce': 'YJNONCE',
-          }),
-        ).called(1);
-      },
-    );
+      // race-fix begin/end 1회씩.
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      // D-YJP-08: 성공 path 에서 SDK logout 정확 1회.
+      verify(() => mockYahoojpSdkClient.logout()).called(1);
+      // CF 이름 + payload (idToken + nonce) 검증.
+      verify(() => mockFunctions.httpsCallable('yahoojpCustomToken')).called(1);
+      verify(
+        () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
+          'idToken': 'YJIDT',
+          'nonce': 'YJNONCE',
+        }),
+      ).called(1);
+    });
 
-    test(
-      'Test YJ2 (cancel): YahoojpSdkClient → null → repository null 반환 + '
-      'race-fix begin/end 1회 + logout 1회 (D-YJP-09 silent)',
-      () async {
-        when(() => mockYahoojpSdkClient.signIn()).thenAnswer((_) async => null);
+    test('Test YJ2 (cancel): YahoojpSdkClient → null → repository null 반환 + '
+        'race-fix begin/end 1회 + logout 1회 (D-YJP-09 silent)', () async {
+      when(() => mockYahoojpSdkClient.signIn()).thenAnswer((_) async => null);
 
-        final result = await repository.signInWithYahoojp();
+      final result = await repository.signInWithYahoojp();
 
-        expect(result, isNull);
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-        // D-YJP-08 invariant: 모든 path 에서 finally logout
-        // (Phase 14 D-LINE-57 mirror).
-        verify(() => mockYahoojpSdkClient.logout()).called(1);
-        // CF / Firebase Auth 미진입 검증.
-        verifyNever(() => mockFunctions.httpsCallable(any()));
-        verifyNever(() => mockAuth.signInWithCustomToken(any()));
-      },
-    );
+      expect(result, isNull);
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      // D-YJP-08 invariant: 모든 path 에서 finally logout
+      // (Phase 14 D-LINE-57 mirror).
+      verify(() => mockYahoojpSdkClient.logout()).called(1);
+      // CF / Firebase Auth 미진입 검증.
+      verifyNever(() => mockFunctions.httpsCallable(any()));
+      verifyNever(() => mockAuth.signInWithCustomToken(any()));
+    });
 
-    test(
-      'Test YJ3 (race-fix invariant): YahoojpSdkClient throw 시에도 finally '
-      '가 end() + logout() 호출 (Pitfall 8 단일 진실원)',
-      () async {
-        when(() => mockYahoojpSdkClient.signIn())
-            .thenThrow(Exception('boom'));
+    test('Test YJ3 (race-fix invariant): YahoojpSdkClient throw 시에도 finally '
+        '가 end() + logout() 호출 (Pitfall 8 단일 진실원)', () async {
+      when(() => mockYahoojpSdkClient.signIn()).thenThrow(Exception('boom'));
 
-        await repository.signInWithYahoojp();
+      await repository.signInWithYahoojp();
 
-        verify(() => mockSocialLinkInProgress.begin()).called(1);
-        verify(() => mockSocialLinkInProgress.end()).called(1);
-        verify(() => mockYahoojpSdkClient.logout()).called(1);
-      },
-    );
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      verify(() => mockYahoojpSdkClient.logout()).called(1);
+    });
 
     test(
       'Test YJ4 (Functions already-exists → AccountExistsWithDifferentCredential '
       '매핑 — D-34 helper 재사용)',
       () async {
-        when(
-          () => mockCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
+        when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
           FirebaseFunctionsException(
             code: 'already-exists',
             message: 'errorAccountExistsWithDifferentCredential',
@@ -2538,10 +2443,7 @@ void main() {
 
         expect(result, isA<Failure<dynamic>>());
         final failure = result! as Failure;
-        expect(
-          failure.exception,
-          isA<AccountExistsWithDifferentCredential>(),
-        );
+        expect(failure.exception, isA<AccountExistsWithDifferentCredential>());
         // Cloud Function PII 미응답 — email null 보존.
         final ex = failure.exception as AccountExistsWithDifferentCredential;
         expect(ex.email, isNull);
@@ -2550,28 +2452,26 @@ void main() {
       },
     );
 
-    test(
-      'Test YJ5 (Firebase Auth exception): signInWithCustomToken throws '
-      'FirebaseAuthException → _mapAuthException 매핑',
-      () async {
-        when(() => mockAuth.signInWithCustomToken('YJCT')).thenThrow(
-          fb.FirebaseAuthException(code: 'invalid-credential'),
-        );
+    test('Test YJ5 (Firebase Auth exception): signInWithCustomToken throws '
+        'FirebaseAuthException → _mapAuthException 매핑', () async {
+      when(
+        () => mockAuth.signInWithCustomToken('YJCT'),
+      ).thenThrow(fb.FirebaseAuthException(code: 'invalid-credential'));
 
-        final result = await repository.signInWithYahoojp();
+      final result = await repository.signInWithYahoojp();
 
-        expect(result, isA<Failure<dynamic>>());
-        expect((result! as Failure).exception, isA<InvalidCredentials>());
-        verify(() => mockYahoojpSdkClient.logout()).called(1);
-      },
-    );
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<InvalidCredentials>());
+      verify(() => mockYahoojpSdkClient.logout()).called(1);
+    });
 
     test(
       'Test YJ6 (idToken null / clientId empty — Pitfall 1 / T-15-15): '
       'YahoojpSdkClient 가 ServiceUnavailable throw 시 그대로 Failure 재패키징',
       () async {
-        when(() => mockYahoojpSdkClient.signIn())
-            .thenThrow(const ServiceUnavailable());
+        when(
+          () => mockYahoojpSdkClient.signIn(),
+        ).thenThrow(const ServiceUnavailable());
 
         final result = await repository.signInWithYahoojp();
 

@@ -164,12 +164,12 @@ void main() {
 
     // native 3값 (google/apple/facebook) 성공 path.
     final mockAccount = _MockGoogleSignInAccount();
-    when(() => mockAccount.authentication).thenReturn(
-      const GoogleSignInAuthentication(idToken: 'google-id-token'),
-    );
-    when(() => mockGoogleSignIn.authenticate()).thenAnswer(
-      (_) async => mockAccount,
-    );
+    when(
+      () => mockAccount.authentication,
+    ).thenReturn(const GoogleSignInAuthentication(idToken: 'google-id-token'));
+    when(
+      () => mockGoogleSignIn.authenticate(),
+    ).thenAnswer((_) async => mockAccount);
     when(
       () => mockFacebookAuth.login(
         permissions: any(named: 'permissions'),
@@ -194,9 +194,9 @@ void main() {
     when(() => mockKakaoSdkClient.signIn()).thenAnswer(
       (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
     );
-    when(() => mockNaverSdkClient.signIn()).thenAnswer(
-      (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
-    );
+    when(
+      () => mockNaverSdkClient.signIn(),
+    ).thenAnswer((_) async => const NaverSignInResult(accessToken: 'AT_NAVER'));
     when(() => mockLineSdkClient.signIn()).thenAnswer(
       (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
     );
@@ -205,10 +205,7 @@ void main() {
     );
     when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
     when(
-      () => mockFunctions.httpsCallable(
-        any(),
-        options: any(named: 'options'),
-      ),
+      () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),
     ).thenReturn(mockCallable);
     final callableResult = _MockHttpsCallableResult();
     when(() => callableResult.data).thenReturn(<String, dynamic>{
@@ -250,24 +247,25 @@ void main() {
       // 한다. 동기 throw 였다면 아래 expectLater 는 Future 를 만들기도 전에
       // 터지므로 이 형태 자체가 async 전파 계약의 sentinel 이다.
       await expectLater(
-        repository.signInWithExistingProvider(
-          provider: AccountProvider.email,
-        ),
+        repository.signInWithExistingProvider(provider: AccountProvider.email),
         throwsA(isA<ArgumentError>()),
       );
     });
   });
 
   group('SP3 — 사용자 취소 (null) 그대로 전파', () {
-    test('KakaoSdkClient.signIn() null → signInWithExistingProvider null', () async {
-      when(() => mockKakaoSdkClient.signIn()).thenAnswer((_) async => null);
+    test(
+      'KakaoSdkClient.signIn() null → signInWithExistingProvider null',
+      () async {
+        when(() => mockKakaoSdkClient.signIn()).thenAnswer((_) async => null);
 
-      final result = await repository.signInWithExistingProvider(
-        provider: AccountProvider.kakao,
-      );
+        final result = await repository.signInWithExistingProvider(
+          provider: AccountProvider.kakao,
+        );
 
-      expect(result, isNull);
-    });
+        expect(result, isNull);
+      },
+    );
   });
 
   group('SP4 — Failure 예외 타입 보존 (A-16-19-01 익명 caller 재충돌)', () {

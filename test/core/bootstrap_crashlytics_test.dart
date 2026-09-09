@@ -70,8 +70,7 @@ void main() {
         // WR-07 hotfix 후: hardcoded `flavor` 변수 대신 [AppConfig.flavor]
         // 단일 진실원 — silent fallback 차단.
         expect(
-          source.contains("'flavor',") &&
-              source.contains('AppConfig.flavor'),
+          source.contains("'flavor',") && source.contains('AppConfig.flavor'),
           isTrue,
           reason:
               'AUTH-11 + WR-07 — flavor custom key 태깅이 AppConfig.flavor '

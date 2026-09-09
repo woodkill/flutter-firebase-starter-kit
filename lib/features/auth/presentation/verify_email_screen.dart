@@ -60,8 +60,9 @@ class VerifyEmailScreen extends ConsumerWidget {
         // 있어 FormErrorBanner + AppException 매핑 패턴으로 일관화.
         error: (error, _) => Center(
           child: FormErrorBanner(
-            exception:
-                error is AppException ? error : ServiceUnavailable(cause: error),
+            exception: error is AppException
+                ? error
+                : ServiceUnavailable(cause: error),
           ),
         ),
         data: (state) => Column(

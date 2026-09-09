@@ -220,8 +220,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
         if (reloadedUid != currentUser.uid) {
           if (kDebugMode) {
             // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
-            final reloadedHash =
-                reloadedUid?.hashCode.toString() ?? 'null';
+            final reloadedHash = reloadedUid?.hashCode.toString() ?? 'null';
             final currentHash = currentUser.uid.hashCode.toString();
             debugPrint(
               'authRedirect: stale termsProvider (anon) '

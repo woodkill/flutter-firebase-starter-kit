@@ -206,16 +206,19 @@ void main() {
   });
 
   group('T2 — linkAppleCredential (linkWithProvider)', () {
-    test('currentUser.linkWithProvider(AppleAuthProvider) → Result.success', () async {
-      when(
-        () => mockCurrentUser.linkWithProvider(any()),
-      ).thenAnswer((_) async => mockLinkResult);
+    test(
+      'currentUser.linkWithProvider(AppleAuthProvider) → Result.success',
+      () async {
+        when(
+          () => mockCurrentUser.linkWithProvider(any()),
+        ).thenAnswer((_) async => mockLinkResult);
 
-      final result = await repository.linkAppleCredential();
+        final result = await repository.linkAppleCredential();
 
-      expect(result, isA<Success<dynamic>>());
-      verify(() => mockCurrentUser.linkWithProvider(any())).called(1);
-    });
+        expect(result, isA<Success<dynamic>>());
+        verify(() => mockCurrentUser.linkWithProvider(any())).called(1);
+      },
+    );
   });
 
   group('T3 — linkFacebookCredential', () {
@@ -233,66 +236,79 @@ void main() {
   });
 
   group('T4 — linkEmailCredential (reactive 전용 메서드 mechanics)', () {
-    test('EmailAuthProvider.credential → linkWithCredential → Result.success', () async {
-      when(
-        () => mockCurrentUser.linkWithCredential(any()),
-      ).thenAnswer((_) async => mockLinkResult);
+    test(
+      'EmailAuthProvider.credential → linkWithCredential → Result.success',
+      () async {
+        when(
+          () => mockCurrentUser.linkWithCredential(any()),
+        ).thenAnswer((_) async => mockLinkResult);
 
-      final result = await repository.linkEmailCredential(
-        email: 'add@example.com',
-        password: 'pw12345678',
-      );
+        final result = await repository.linkEmailCredential(
+          email: 'add@example.com',
+          password: 'pw12345678',
+        );
 
-      expect(result, isA<Success<dynamic>>());
-      verify(() => mockCurrentUser.linkWithCredential(any())).called(1);
-    });
+        expect(result, isA<Success<dynamic>>());
+        verify(() => mockCurrentUser.linkWithCredential(any())).called(1);
+      },
+    );
   });
 
   group('T5 — 사용자 SDK 취소 → null (no-op)', () {
-    test('Google authenticate canceled → null + linkWithCredential 미호출', () async {
-      when(() => mockGoogleSignIn.authenticate()).thenThrow(
-        const GoogleSignInException(code: GoogleSignInExceptionCode.canceled),
-      );
+    test(
+      'Google authenticate canceled → null + linkWithCredential 미호출',
+      () async {
+        when(() => mockGoogleSignIn.authenticate()).thenThrow(
+          const GoogleSignInException(code: GoogleSignInExceptionCode.canceled),
+        );
 
-      final result = await repository.linkGoogleCredential();
+        final result = await repository.linkGoogleCredential();
 
-      expect(result, isNull);
-      verifyNever(() => mockCurrentUser.linkWithCredential(any()));
-    });
+        expect(result, isNull);
+        verifyNever(() => mockCurrentUser.linkWithCredential(any()));
+      },
+    );
   });
 
   group('T6 — 이미 link 됨 → AccountAlreadyLinked', () {
     // WR-04: 두 코드는 의미가 정반대이므로 서로 다른 타입으로 갈린다.
     // provider-already-linked = 이미 **현재 계정에** 연결.
     test(
-        'linkWithCredential provider-already-linked → ProviderAlreadyLinkedToThisAccount (WR-04)',
-        () async {
-      stubGoogleFresh();
-      when(() => mockCurrentUser.linkWithCredential(any())).thenThrow(
-        fb.FirebaseAuthException(code: 'provider-already-linked'),
-      );
+      'linkWithCredential provider-already-linked → ProviderAlreadyLinkedToThisAccount (WR-04)',
+      () async {
+        stubGoogleFresh();
+        when(
+          () => mockCurrentUser.linkWithCredential(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: 'provider-already-linked'));
 
-      final result = await repository.linkGoogleCredential();
+        final result = await repository.linkGoogleCredential();
 
-      expect(result, isA<Failure<dynamic>>());
-      final exception = (result! as Failure<dynamic>).exception;
-      expect(exception, isA<ProviderAlreadyLinkedToThisAccount>());
-      // credential-already-in-use 와 같은 타입으로 뭉개지지 않는다.
-      expect(exception, isNot(isA<AccountAlreadyLinked>()));
-    });
+        expect(result, isA<Failure<dynamic>>());
+        final exception = (result! as Failure<dynamic>).exception;
+        expect(exception, isA<ProviderAlreadyLinkedToThisAccount>());
+        // credential-already-in-use 와 같은 타입으로 뭉개지지 않는다.
+        expect(exception, isNot(isA<AccountAlreadyLinked>()));
+      },
+    );
 
     // credential-already-in-use = 해당 자격증명이 **다른 계정에** 연결.
-    test('linkWithCredential credential-already-in-use → AccountAlreadyLinked', () async {
-      stubGoogleFresh();
-      when(() => mockCurrentUser.linkWithCredential(any())).thenThrow(
-        fb.FirebaseAuthException(code: 'credential-already-in-use'),
-      );
+    test(
+      'linkWithCredential credential-already-in-use → AccountAlreadyLinked',
+      () async {
+        stubGoogleFresh();
+        when(() => mockCurrentUser.linkWithCredential(any())).thenThrow(
+          fb.FirebaseAuthException(code: 'credential-already-in-use'),
+        );
 
-      final result = await repository.linkGoogleCredential();
+        final result = await repository.linkGoogleCredential();
 
-      expect(result, isA<Failure<dynamic>>());
-      expect((result! as Failure<dynamic>).exception, isA<AccountAlreadyLinked>());
-    });
+        expect(result, isA<Failure<dynamic>>());
+        expect(
+          (result! as Failure<dynamic>).exception,
+          isA<AccountAlreadyLinked>(),
+        );
+      },
+    );
   });
 
   group('T7 — reauth boundary (requires-recent-login)', () {
@@ -300,9 +316,9 @@ void main() {
       'linkWithCredential requires-recent-login → ReauthenticationRequiredException',
       () async {
         stubGoogleFresh();
-        when(() => mockCurrentUser.linkWithCredential(any())).thenThrow(
-          fb.FirebaseAuthException(code: 'requires-recent-login'),
-        );
+        when(
+          () => mockCurrentUser.linkWithCredential(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: 'requires-recent-login'));
 
         final result = await repository.linkGoogleCredential();
 
@@ -317,9 +333,9 @@ void main() {
     test(
       'linkWithProvider(Apple) requires-recent-login → ReauthenticationRequiredException',
       () async {
-        when(() => mockCurrentUser.linkWithProvider(any())).thenThrow(
-          fb.FirebaseAuthException(code: 'requires-recent-login'),
-        );
+        when(
+          () => mockCurrentUser.linkWithProvider(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: 'requires-recent-login'));
 
         final result = await repository.linkAppleCredential();
 
@@ -346,9 +362,9 @@ void main() {
     });
 
     test('linkAppleCredential 취소 (canceled) 시에도 begin()/end() 1:1', () async {
-      when(() => mockCurrentUser.linkWithProvider(any())).thenThrow(
-        fb.FirebaseAuthException(code: 'canceled'),
-      );
+      when(
+        () => mockCurrentUser.linkWithProvider(any()),
+      ).thenThrow(fb.FirebaseAuthException(code: 'canceled'));
 
       final result = await repository.linkAppleCredential();
 

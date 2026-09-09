@@ -88,9 +88,7 @@ class LineSdkClient {
   /// production 진입점 — 실제 LINE SDK 호출.
   ///
   /// 테스트는 [LineSdkClient.forTest] 로 함수 typedef 를 주입한다.
-  LineSdkClient()
-    : _login = _defaultLineLogin,
-      _logout = _defaultLineLogout;
+  LineSdkClient() : _login = _defaultLineLogin, _logout = _defaultLineLogout;
 
   /// 테스트 전용 ctor — SDK 호출을 함수 typedef 로 fake 한다.
   ///

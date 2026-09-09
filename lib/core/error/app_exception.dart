@@ -244,7 +244,6 @@ final class UnauthenticatedException extends AuthException {
     : super(userMessage: 'errorUnauthenticated');
 }
 
-
 // ---------------------------------------------------------------------------
 // 서버 관련 예외
 // ---------------------------------------------------------------------------
@@ -278,6 +277,5 @@ final class ServiceUnavailable extends ServerException {
 /// 안내 (UI-SPEC Surface C / withdrawalFailure SnackBar) 가 표시된다.
 final class UnknownException extends ServerException {
   /// [UnknownException]을 생성한다.
-  const UnknownException({super.cause})
-    : super(userMessage: 'errorUnknown');
+  const UnknownException({super.cause}) : super(userMessage: 'errorUnknown');
 }

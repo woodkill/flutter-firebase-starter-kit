@@ -73,9 +73,8 @@ Future<_DialogHandle> _pumpAndShowDialog(
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => const Scaffold(
-          body: Center(child: Text('login-stub')),
-        ),
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('login-stub'))),
       ),
     ],
   );
@@ -121,21 +120,17 @@ void main() {
       await _pumpAndShowDialog(tester);
 
       // ko locale verbatim — withdrawalDialogBodyLine1/2/3.
-      expect(
-        find.text('이 계정과 모든 데이터는 영구 삭제됩니다.'),
-        findsOneWidget,
-      );
+      expect(find.text('이 계정과 모든 데이터는 영구 삭제됩니다.'), findsOneWidget);
       expect(find.text('삭제 후에는 복구할 수 없습니다.'), findsOneWidget);
       expect(
-        find.text(
-          '다시 가입하려면 동일 이메일 또는 동일 로그인 방식으로 신규 등록해야 합니다.',
-        ),
+        find.text('다시 가입하려면 동일 이메일 또는 동일 로그인 방식으로 신규 등록해야 합니다.'),
         findsOneWidget,
       );
     });
 
-    testWidgets('WC2 — confirmTextField 빈 입력 시 confirm FilledButton disabled',
-        (tester) async {
+    testWidgets('WC2 — confirmTextField 빈 입력 시 confirm FilledButton disabled', (
+      tester,
+    ) async {
       await _pumpAndShowDialog(tester);
 
       // 라벨 "탈퇴" 가 visible 한 FilledButton 위젯 찾기 (Semantics 래퍼 통과).
@@ -169,8 +164,9 @@ void main() {
       expect(confirmBtn.onPressed, isNull);
     });
 
-    testWidgets('WC5 — cancel 탭 → Navigator.pop(false) + dialog dismiss',
-        (tester) async {
+    testWidgets('WC5 — cancel 탭 → Navigator.pop(false) + dialog dismiss', (
+      tester,
+    ) async {
       final handle = await _pumpAndShowDialog(tester);
 
       // commonCancel ko verbatim = "취소"
@@ -204,34 +200,35 @@ void main() {
     });
 
     testWidgets(
-        'WC7 — reauth fail → withdrawalReauthRequired SnackBar + dialog close',
-        (tester) async {
-      final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenThrow(const ReauthenticationRequiredException());
+      'WC7 — reauth fail → withdrawalReauthRequired SnackBar + dialog close',
+      (tester) async {
+        final settingsRepo = _MockSettingsRepository();
+        when(
+          () => settingsRepo.requestAccountDeletion(),
+        ).thenThrow(const ReauthenticationRequiredException());
 
-      await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
+        await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
 
-      await tester.enterText(find.byType(TextField), koHint);
-      await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
-      await tester.pump();
-      await tester.pump();
-      await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), koHint);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.pump();
+        await tester.pump();
+        await tester.pumpAndSettle();
 
-      // withdrawalReauthRequired ko verbatim.
-      expect(
-        find.text('보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.'),
-        findsOneWidget,
-      );
-      // dialog 닫힘.
-      expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
-    });
+        // withdrawalReauthRequired ko verbatim.
+        expect(
+          find.text('보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.'),
+          findsOneWidget,
+        );
+        // dialog 닫힘.
+        expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
+      },
+    );
 
-    testWidgets(
-        'WC8 — server fail → withdrawalFailure SnackBar + dialog 유지',
-        (tester) async {
+    testWidgets('WC8 — server fail → withdrawalFailure SnackBar + dialog 유지', (
+      tester,
+    ) async {
       final settingsRepo = _MockSettingsRepository();
       when(
         () => settingsRepo.requestAccountDeletion(),
@@ -247,10 +244,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // withdrawalFailure ko verbatim.
-      expect(
-        find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'),
-        findsOneWidget,
-      );
+      expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsOneWidget);
       // dialog 유지 (재시도 가능).
       expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
     });
@@ -261,60 +255,63 @@ void main() {
     // collapse 되어 taxonomy 분리가 화면에 아무 변화도 만들지 못했다
     // (S6~S8 은 repository 반환 타입만 단언해 이 사실을 드러내지 못한다).
     testWidgets(
-        'WC11 (WR-03) — resource-exhausted(TooManyRequests) → withdrawalFailureTransient SnackBar (generic 미노출)',
-        (tester) async {
-      final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenThrow(const TooManyRequests());
+      'WC11 (WR-03) — resource-exhausted(TooManyRequests) → withdrawalFailureTransient SnackBar (generic 미노출)',
+      (tester) async {
+        final settingsRepo = _MockSettingsRepository();
+        when(
+          () => settingsRepo.requestAccountDeletion(),
+        ).thenThrow(const TooManyRequests());
 
-      await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
+        await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
 
-      await tester.enterText(find.byType(TextField), koHint);
-      await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
-      await tester.pump();
-      await tester.pump();
-      await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), koHint);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.pump();
+        await tester.pump();
+        await tester.pumpAndSettle();
 
-      // withdrawalFailureTransient ko verbatim.
-      expect(
-        find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
-        findsOneWidget,
-      );
-      // generic 문구는 노출되지 않는다 (collapse 회귀 가드).
-      expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
-      // dialog 유지 (재시도 가능).
-      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
-    });
+        // withdrawalFailureTransient ko verbatim.
+        expect(
+          find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+          findsOneWidget,
+        );
+        // generic 문구는 노출되지 않는다 (collapse 회귀 가드).
+        expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+        // dialog 유지 (재시도 가능).
+        expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'WC12 (WR-03) — unavailable(NoInternetConnection) → withdrawalFailureTransient SnackBar',
-        (tester) async {
-      final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenThrow(const NoInternetConnection());
+      'WC12 (WR-03) — unavailable(NoInternetConnection) → withdrawalFailureTransient SnackBar',
+      (tester) async {
+        final settingsRepo = _MockSettingsRepository();
+        when(
+          () => settingsRepo.requestAccountDeletion(),
+        ).thenThrow(const NoInternetConnection());
 
-      await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
+        await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
 
-      await tester.enterText(find.byType(TextField), koHint);
-      await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
-      await tester.pump();
-      await tester.pump();
-      await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), koHint);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.pump();
+        await tester.pump();
+        await tester.pumpAndSettle();
 
-      expect(
-        find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
-        findsOneWidget,
-      );
-      expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
-      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
-    });
+        expect(
+          find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+          findsOneWidget,
+        );
+        expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+        expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      },
+    );
 
-    testWidgets('WC9 — barrierDismissible:false (backdrop tap → dialog 유지)',
-        (tester) async {
+    testWidgets('WC9 — barrierDismissible:false (backdrop tap → dialog 유지)', (
+      tester,
+    ) async {
       await _pumpAndShowDialog(tester);
 
       // dialog 가 노출됐는지 sanity.
@@ -333,16 +330,15 @@ void main() {
     });
 
     testWidgets(
-        'WC10 — Semantics destructive intent (withdrawalConfirmActionSemantic consume)',
-        (tester) async {
-      await _pumpAndShowDialog(tester);
+      'WC10 — Semantics destructive intent (withdrawalConfirmActionSemantic consume)',
+      (tester) async {
+        await _pumpAndShowDialog(tester);
 
-      // ko verbatim — "회원탈퇴 — 영구 삭제, 복구 불가" Semantics label.
-      // Semantics 가 button: true + label 지정으로 부착됐는지 검증.
-      final semanticsFinder = find.bySemanticsLabel(
-        '회원탈퇴 — 영구 삭제, 복구 불가',
-      );
-      expect(semanticsFinder, findsAtLeast(1));
-    });
+        // ko verbatim — "회원탈퇴 — 영구 삭제, 복구 불가" Semantics label.
+        // Semantics 가 button: true + label 지정으로 부착됐는지 검증.
+        final semanticsFinder = find.bySemanticsLabel('회원탈퇴 — 영구 삭제, 복구 불가');
+        expect(semanticsFinder, findsAtLeast(1));
+      },
+    );
   });
 }

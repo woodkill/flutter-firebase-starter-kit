@@ -158,9 +158,7 @@ Future<void> _loadGoldenFonts() async {
   }
   final interLoader = FontLoader('Inter');
   final interRegularBytes = await interRegularFile.readAsBytes();
-  interLoader.addFont(
-    Future.value(ByteData.view(interRegularBytes.buffer)),
-  );
+  interLoader.addFont(Future.value(ByteData.view(interRegularBytes.buffer)));
   final interMediumBytes = await interMediumFile.readAsBytes();
   interLoader.addFont(Future.value(ByteData.view(interMediumBytes.buffer)));
   await interLoader.load();
@@ -182,9 +180,7 @@ Future<void> _loadGoldenFonts() async {
   }
   final pretendardLoader = FontLoader('Pretendard');
   final pretendardBytes = await pretendardFile.readAsBytes();
-  pretendardLoader.addFont(
-    Future.value(ByteData.view(pretendardBytes.buffer)),
-  );
+  pretendardLoader.addFont(Future.value(ByteData.view(pretendardBytes.buffer)));
   await pretendardLoader.load();
 
   // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Step B Kakao/Naver iOS branch +
@@ -201,9 +197,7 @@ Future<void> _loadGoldenFonts() async {
     if (appleSDGothicNeoFile.existsSync()) {
       final appleSDGothicNeoLoader = FontLoader('AppleSDGothicNeo');
       final bytes = await appleSDGothicNeoFile.readAsBytes();
-      appleSDGothicNeoLoader.addFont(
-        Future.value(ByteData.view(bytes.buffer)),
-      );
+      appleSDGothicNeoLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
       await appleSDGothicNeoLoader.load();
     }
 
@@ -238,522 +232,481 @@ Future<void> _loadGoldenFonts() async {
 void main() {
   setUpAll(_loadGoldenFonts);
 
-  group(
-    'BrandedSocialButton golden — D-86 6 fixture / D-87 zero tolerance',
-    () {
-      testWidgets('Naver light', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(
-              label: 'Log in with NAVER',
-              onPressed: () {},
-            ),
-            brightness: Brightness.light,
+  group('BrandedSocialButton golden — D-86 6 fixture / D-87 zero tolerance', () {
+    testWidgets('Naver light', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.naver(
+            label: 'Log in with NAVER',
+            onPressed: () {},
           ),
-        );
-        // Phase 13.1 Gap-1 X2 — 자상 비동기 디코딩 wait (precacheImage +
-        // SvgPicture vector_graphics delay) — _settleAssets helper 참조.
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/naver_light.png'),
-        );
-      });
-
-      // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Naver platform 분기 fixture
-      // (macOS dev only, Kakao 패턴 mirror). ThemeData.platform =
-      // TargetPlatform.iOS override → _renderNaverButton 의 `isIOS` branch
-      // 트리거 (fontFamily 'AppleSDGothicNeo' Pretendard source font + w500).
-      // PNG fixture 는 `.gitignore` 로 commit 차단 (Apple Font License + Sandoll
-      // 라이센스 위반 위험 회피). CI/Linux 환경은 `skip: !Platform.isMacOS` 우회.
-      testWidgets(
-        'Naver light (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.naver(
-                label: 'Log in with NAVER',
-                onPressed: () {},
-              ),
-              brightness: Brightness.light,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/naver_light_ios.png'),
-          );
-        },
+          brightness: Brightness.light,
+        ),
       );
+      // Phase 13.1 Gap-1 X2 — 자상 비동기 디코딩 wait (precacheImage +
+      // SvgPicture vector_graphics delay) — _settleAssets helper 참조.
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/naver_light.png'),
+      );
+    });
 
-      // Phase 13.3 Wave 4 Q4 (option-a) — Naver light/dark 외관 동일
-      // (`#03A94D` + 흰 라벨 + 흰 N glyph, `_renderNaverButton` brightness
-      // 분기 0). dark fixture single 폐기 (RESEARCH §Wave 4.5 권장,
-      // 13.3-04-PLAN Q4 결정 2026-05-15).
-      //
-      // **Phase 13.3 X3 (2026-05-17, 260517-uv4) supersede:** Kakao/Naver
-      // dark golden 4 testcase 추가 — light/dark 외관 동일 invariant 의 회귀
-      // 가드 (theme.brightness override 무관 baked-in 자상 보존 검증).
-      // Android tracked (kakao_dark.png + naver_dark.png) + iOS gitignored
-      // (kakao_dark_ios.png + naver_dark_ios.png — Apple Font License 회피).
-
-      testWidgets('Naver dark', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.naver(
-              label: 'Log in with NAVER',
-              onPressed: () {},
-            ),
-            brightness: Brightness.dark,
+    // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Naver platform 분기 fixture
+    // (macOS dev only, Kakao 패턴 mirror). ThemeData.platform =
+    // TargetPlatform.iOS override → _renderNaverButton 의 `isIOS` branch
+    // 트리거 (fontFamily 'AppleSDGothicNeo' Pretendard source font + w500).
+    // PNG fixture 는 `.gitignore` 로 commit 차단 (Apple Font License + Sandoll
+    // 라이센스 위반 위험 회피). CI/Linux 환경은 `skip: !Platform.isMacOS` 우회.
+    testWidgets('Naver light (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.naver(
+            label: 'Log in with NAVER',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/naver_dark.png'),
-        );
-      });
-
-      testWidgets(
-        'Naver dark (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.naver(
-                label: 'Log in with NAVER',
-                onPressed: () {},
-              ),
-              brightness: Brightness.dark,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/naver_dark_ios.png'),
-          );
-        },
+          brightness: Brightness.light,
+          platform: TargetPlatform.iOS,
+        ),
       );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/naver_light_ios.png'),
+      );
+    });
 
-      testWidgets('Kakao light', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.kakao(
-              label: 'Login with Kakao',
-              onPressed: () {},
-            ),
-            brightness: Brightness.light,
+    // Phase 13.3 Wave 4 Q4 (option-a) — Naver light/dark 외관 동일
+    // (`#03A94D` + 흰 라벨 + 흰 N glyph, `_renderNaverButton` brightness
+    // 분기 0). dark fixture single 폐기 (RESEARCH §Wave 4.5 권장,
+    // 13.3-04-PLAN Q4 결정 2026-05-15).
+    //
+    // **Phase 13.3 X3 (2026-05-17, 260517-uv4) supersede:** Kakao/Naver
+    // dark golden 4 testcase 추가 — light/dark 외관 동일 invariant 의 회귀
+    // 가드 (theme.brightness override 무관 baked-in 자상 보존 검증).
+    // Android tracked (kakao_dark.png + naver_dark.png) + iOS gitignored
+    // (kakao_dark_ios.png + naver_dark_ios.png — Apple Font License 회피).
+
+    testWidgets('Naver dark', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.naver(
+            label: 'Log in with NAVER',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/kakao_light.png'),
-        );
-      });
-
-      // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Step B platform 분기 fixture
-      // (macOS dev only). ThemeData.platform = TargetPlatform.iOS override →
-      // _renderKakaoButton 의 `isIOS` branch 트리거 (fontFamily
-      // 'AppleSDGothicNeo' + w500, PSD verbatim native). `/System/Library/
-      // Fonts/AppleSDGothicNeo.ttc` 시스템 폰트를 FontLoader 로 macOS dev
-      // 환경에서 로컬 로드. PNG fixture 는 `.gitignore` 로 commit 차단 (Apple
-      // Font License + Sandoll 라이센스 위반 위험 회피, repo distribute 안 함).
-      // CI/Linux 환경은 `skip` 매개변수로 우회.
-      // skip: !Platform.isMacOS — AppleSDGothicNeo 시스템 폰트가 macOS 에만
-      // 존재하므로 다른 OS (Linux CI, Windows) 에서는 자동 skip. macOS dev
-      // 환경에서만 golden 생성/비교.
-      testWidgets(
-        'Kakao light (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.kakao(
-                label: 'Login with Kakao',
-                onPressed: () {},
-              ),
-              brightness: Brightness.light,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/kakao_light_ios.png'),
-          );
-        },
+          brightness: Brightness.dark,
+        ),
       );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/naver_dark.png'),
+      );
+    });
 
-      // Phase 13.3 X3 (2026-05-17, 260517-uv4) — Kakao dark golden testcase
-      // 추가 (light/dark 외관 동일 invariant 회귀 가드).
-      testWidgets('Kakao dark', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.kakao(
-              label: 'Login with Kakao',
-              onPressed: () {},
-            ),
-            brightness: Brightness.dark,
+    testWidgets('Naver dark (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.naver(
+            label: 'Log in with NAVER',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/kakao_dark.png'),
-        );
-      });
-
-      testWidgets(
-        'Kakao dark (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.kakao(
-                label: 'Login with Kakao',
-                onPressed: () {},
-              ),
-              brightness: Brightness.dark,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/kakao_dark_ios.png'),
-          );
-        },
+          brightness: Brightness.dark,
+          platform: TargetPlatform.iOS,
+        ),
       );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/naver_dark_ios.png'),
+      );
+    });
 
-      testWidgets('Google light', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.google(
-              label: 'Sign in with Google',
-              onPressed: () {},
-            ),
-            brightness: Brightness.light,
+    testWidgets('Kakao light', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.kakao(
+            label: 'Login with Kakao',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/google_light.png'),
-        );
-      });
+          brightness: Brightness.light,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/kakao_light.png'),
+      );
+    });
 
-      testWidgets('Google dark', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.google(
-              label: 'Sign in with Google',
-              onPressed: () {},
-            ),
-            brightness: Brightness.dark,
+    // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Step B platform 분기 fixture
+    // (macOS dev only). ThemeData.platform = TargetPlatform.iOS override →
+    // _renderKakaoButton 의 `isIOS` branch 트리거 (fontFamily
+    // 'AppleSDGothicNeo' + w500, PSD verbatim native). `/System/Library/
+    // Fonts/AppleSDGothicNeo.ttc` 시스템 폰트를 FontLoader 로 macOS dev
+    // 환경에서 로컬 로드. PNG fixture 는 `.gitignore` 로 commit 차단 (Apple
+    // Font License + Sandoll 라이센스 위반 위험 회피, repo distribute 안 함).
+    // CI/Linux 환경은 `skip` 매개변수로 우회.
+    // skip: !Platform.isMacOS — AppleSDGothicNeo 시스템 폰트가 macOS 에만
+    // 존재하므로 다른 OS (Linux CI, Windows) 에서는 자동 skip. macOS dev
+    // 환경에서만 golden 생성/비교.
+    testWidgets('Kakao light (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.kakao(
+            label: 'Login with Kakao',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/google_dark.png'),
-        );
-      });
-
-      // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Google iOS branch fixture
-      // (macOS dev only). ThemeData.platform = TargetPlatform.iOS override
-      // → _renderGoogleButton 의 isApplePlatform branch (fontFamily 'SF Pro
-      // Text' + padding.horizontal 16 + logoLabelGap 12). PNG fixture 는
-      // `.gitignore` 로 commit 차단 (Apple SF Pro Font License 위반 위험
-      // 회피).
-      testWidgets(
-        'Google light (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.google(
-                label: 'Sign in with Google',
-                onPressed: () {},
-              ),
-              brightness: Brightness.light,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/google_light_ios.png'),
-          );
-        },
+          brightness: Brightness.light,
+          platform: TargetPlatform.iOS,
+        ),
       );
-
-      testWidgets(
-        'Google dark (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.google(
-                label: 'Sign in with Google',
-                onPressed: () {},
-              ),
-              brightness: Brightness.dark,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/google_dark_ios.png'),
-          );
-        },
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/kakao_light_ios.png'),
       );
+    });
 
-      // Phase 13.3 R1 (Wave 3 D-117) — GoogleTheme.neutral enum 폐기 +
-      // `goldens/google_neutral.png` fixture rm (Wave 4 Task 4.5).
-      // Universal Layout Pattern 으로 통합 → light/dark 2 fixture 만 보존.
-
-      // Phase 13.2 Plan 13.2-06 — Facebook fixture 신규 (옵션 A pivot 후).
-      // Phase 13.3 Wave 4 Step 3 (2026-05-17) — Google CSS mirror 채택 후
-      // fixture 매트릭스 확장. Google 패턴 머레 — light + dark + light_ios +
-      // dark_ios 의 4 fixture.
-      //
-      // **starter kit drift 회피 (사용자 결정 2026-05-17 + outline hotfix
-      // 2026-05-18):** Facebook 정문 자유 영역 (bg/label color/fontFamily/size/
-      // weight 모두 정성 권고만) → 5 provider 시각 consistency 위해 Google CSS
-      // verbatim 패턴 머레:
-      //   bg     light #FFFFFF / dark #131314
-      //   label  light #1F1F1F / dark #E3E3E3
-      //   outline light #747775 / dark #8E918F (1dp inside)
-      //     — 2026-05-18 UAT hotfix: light outline `#DADCE0`
-      //       (`gsi-material-button` selector) → `#747775` (`gsi-sign-in-button`
-      //       Google Identity Branding Guidelines stroke) 정정.
-      //   font   Roboto (Android) / SF Pro Text (iOS), size 14 / w500 /
-      //          height 20/14 / letterSpacing 0.25 (Android) / -0.15 (iOS)
-      //   disabled Opacity 0.38 (`.gsi-material-button:disabled` verbatim)
-      //
-      // **fixture 차원:** 360×480 canvas + en locale + zero pixel tolerance.
-      // wide button render 결과는 360×48 (Material Design 표준 button height,
-      // Phase 13.1 spec.height 일관). Logo SVG (Meta Brand Asset Pack 의 AI
-      // PyMuPDF verbatim 추출, 2 paths blue circle #0866FF + white 'f') 를
-      // 18dp icon 슬롯 fit.
-      testWidgets('Facebook light', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.facebook(
-              label: 'Login with Facebook',
-              onPressed: () {},
-            ),
-            brightness: Brightness.light,
+    // Phase 13.3 X3 (2026-05-17, 260517-uv4) — Kakao dark golden testcase
+    // 추가 (light/dark 외관 동일 invariant 회귀 가드).
+    testWidgets('Kakao dark', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.kakao(
+            label: 'Login with Kakao',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/facebook_light.png'),
-        );
-      });
+          brightness: Brightness.dark,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/kakao_dark.png'),
+      );
+    });
 
-      testWidgets('Facebook dark', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.facebook(
-              label: 'Login with Facebook',
-              onPressed: () {},
-            ),
-            brightness: Brightness.dark,
+    testWidgets('Kakao dark (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.kakao(
+            label: 'Login with Kakao',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/facebook_dark.png'),
-        );
-      });
-
-      // Phase 13.3 Wave 4 Step 3 (2026-05-17) — Facebook iOS branch fixture
-      // (macOS dev only). ThemeData.platform = TargetPlatform.iOS override →
-      // _renderFacebookButton 의 isApplePlatform branch (fontFamily 'SF Pro
-      // Text' + letterSpacing -0.15). PNG fixture 는 `.gitignore` 로 commit
-      // 차단 (Apple SF Pro Font License 위반 위험 회피, Google iOS 패턴 머레).
-      testWidgets(
-        'Facebook light (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.facebook(
-                label: 'Login with Facebook',
-                onPressed: () {},
-              ),
-              brightness: Brightness.light,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/facebook_light_ios.png'),
-          );
-        },
+          brightness: Brightness.dark,
+          platform: TargetPlatform.iOS,
+        ),
       );
-
-      testWidgets(
-        'Facebook dark (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.facebook(
-                label: 'Login with Facebook',
-                onPressed: () {},
-              ),
-              brightness: Brightness.dark,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/facebook_dark_ios.png'),
-          );
-        },
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/kakao_dark_ios.png'),
       );
+    });
 
-      // Phase 13.3 Wave 4 Step 2 (2026-05-15): Apple SDK 위제 → 자체 render
-      // (`_renderAppleButton`) 전환. Apple 공식 Logo-only SVG (Black variant)
-      // + wrapper bg pure white (SVG rect 흰과 정확 일치 → 정사각 외곽
-      // invisible). HIG mandate "Match the height of the logo file to the
-      // height of the button" — SVG render size = button height (48dp).
-      testWidgets('Apple light', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.apple(
-              label: 'Sign in with Apple',
-              onPressed: () {},
-            ),
-            brightness: Brightness.light,
+    testWidgets('Google light', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.google(
+            label: 'Sign in with Google',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/apple_light.png'),
-        );
-      });
+          brightness: Brightness.light,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/google_light.png'),
+      );
+    });
 
-      // Apple dark variant — White SVG (rect 검정 + logo 흰) + wrapper bg
-      // pure black 일치. light + dark 두 fixture 모두 검증 (Apple 의 자체
-      // dark variant 자산 채택 의도 명시).
-      testWidgets('Apple dark', (tester) async {
-        await tester.binding.setSurfaceSize(const Size(360, 480));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          _wrap(
-            BrandedSocialButton.apple(
-              label: 'Sign in with Apple',
-              onPressed: () {},
-            ),
-            brightness: Brightness.dark,
+    testWidgets('Google dark', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.google(
+            label: 'Sign in with Google',
+            onPressed: () {},
           ),
-        );
-        await _settleAssets(tester);
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/apple_dark.png'),
-        );
-      });
-
-      // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple iOS branch fixture
-      // (macOS dev only). ThemeData.platform = TargetPlatform.iOS override
-      // → _renderAppleButton 의 isApplePlatform branch (fontFamily 'SF Pro
-      // Text' native macOS system font). PNG fixture 는 `.gitignore` 로
-      // commit 차단 (Apple SF Pro Font License 위반 위험 회피).
-      testWidgets(
-        'Apple light (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.apple(
-                label: 'Sign in with Apple',
-                onPressed: () {},
-              ),
-              brightness: Brightness.light,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/apple_light_ios.png'),
-          );
-        },
+          brightness: Brightness.dark,
+        ),
       );
-
-      testWidgets(
-        'Apple dark (iOS)',
-        skip: !Platform.isMacOS,
-        (tester) async {
-          await tester.binding.setSurfaceSize(const Size(360, 480));
-          addTearDown(() => tester.binding.setSurfaceSize(null));
-          await tester.pumpWidget(
-            _wrap(
-              BrandedSocialButton.apple(
-                label: 'Sign in with Apple',
-                onPressed: () {},
-              ),
-              brightness: Brightness.dark,
-              platform: TargetPlatform.iOS,
-            ),
-          );
-          await _settleAssets(tester);
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/apple_dark_ios.png'),
-          );
-        },
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/google_dark.png'),
       );
-    },
-  );
+    });
+
+    // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Google iOS branch fixture
+    // (macOS dev only). ThemeData.platform = TargetPlatform.iOS override
+    // → _renderGoogleButton 의 isApplePlatform branch (fontFamily 'SF Pro
+    // Text' + padding.horizontal 16 + logoLabelGap 12). PNG fixture 는
+    // `.gitignore` 로 commit 차단 (Apple SF Pro Font License 위반 위험
+    // 회피).
+    testWidgets('Google light (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.google(
+            label: 'Sign in with Google',
+            onPressed: () {},
+          ),
+          brightness: Brightness.light,
+          platform: TargetPlatform.iOS,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/google_light_ios.png'),
+      );
+    });
+
+    testWidgets('Google dark (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.google(
+            label: 'Sign in with Google',
+            onPressed: () {},
+          ),
+          brightness: Brightness.dark,
+          platform: TargetPlatform.iOS,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/google_dark_ios.png'),
+      );
+    });
+
+    // Phase 13.3 R1 (Wave 3 D-117) — GoogleTheme.neutral enum 폐기 +
+    // `goldens/google_neutral.png` fixture rm (Wave 4 Task 4.5).
+    // Universal Layout Pattern 으로 통합 → light/dark 2 fixture 만 보존.
+
+    // Phase 13.2 Plan 13.2-06 — Facebook fixture 신규 (옵션 A pivot 후).
+    // Phase 13.3 Wave 4 Step 3 (2026-05-17) — Google CSS mirror 채택 후
+    // fixture 매트릭스 확장. Google 패턴 머레 — light + dark + light_ios +
+    // dark_ios 의 4 fixture.
+    //
+    // **starter kit drift 회피 (사용자 결정 2026-05-17 + outline hotfix
+    // 2026-05-18):** Facebook 정문 자유 영역 (bg/label color/fontFamily/size/
+    // weight 모두 정성 권고만) → 5 provider 시각 consistency 위해 Google CSS
+    // verbatim 패턴 머레:
+    //   bg     light #FFFFFF / dark #131314
+    //   label  light #1F1F1F / dark #E3E3E3
+    //   outline light #747775 / dark #8E918F (1dp inside)
+    //     — 2026-05-18 UAT hotfix: light outline `#DADCE0`
+    //       (`gsi-material-button` selector) → `#747775` (`gsi-sign-in-button`
+    //       Google Identity Branding Guidelines stroke) 정정.
+    //   font   Roboto (Android) / SF Pro Text (iOS), size 14 / w500 /
+    //          height 20/14 / letterSpacing 0.25 (Android) / -0.15 (iOS)
+    //   disabled Opacity 0.38 (`.gsi-material-button:disabled` verbatim)
+    //
+    // **fixture 차원:** 360×480 canvas + en locale + zero pixel tolerance.
+    // wide button render 결과는 360×48 (Material Design 표준 button height,
+    // Phase 13.1 spec.height 일관). Logo SVG (Meta Brand Asset Pack 의 AI
+    // PyMuPDF verbatim 추출, 2 paths blue circle #0866FF + white 'f') 를
+    // 18dp icon 슬롯 fit.
+    testWidgets('Facebook light', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.facebook(
+            label: 'Login with Facebook',
+            onPressed: () {},
+          ),
+          brightness: Brightness.light,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/facebook_light.png'),
+      );
+    });
+
+    testWidgets('Facebook dark', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.facebook(
+            label: 'Login with Facebook',
+            onPressed: () {},
+          ),
+          brightness: Brightness.dark,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/facebook_dark.png'),
+      );
+    });
+
+    // Phase 13.3 Wave 4 Step 3 (2026-05-17) — Facebook iOS branch fixture
+    // (macOS dev only). ThemeData.platform = TargetPlatform.iOS override →
+    // _renderFacebookButton 의 isApplePlatform branch (fontFamily 'SF Pro
+    // Text' + letterSpacing -0.15). PNG fixture 는 `.gitignore` 로 commit
+    // 차단 (Apple SF Pro Font License 위반 위험 회피, Google iOS 패턴 머레).
+    testWidgets('Facebook light (iOS)', skip: !Platform.isMacOS, (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.facebook(
+            label: 'Login with Facebook',
+            onPressed: () {},
+          ),
+          brightness: Brightness.light,
+          platform: TargetPlatform.iOS,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/facebook_light_ios.png'),
+      );
+    });
+
+    testWidgets('Facebook dark (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.facebook(
+            label: 'Login with Facebook',
+            onPressed: () {},
+          ),
+          brightness: Brightness.dark,
+          platform: TargetPlatform.iOS,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/facebook_dark_ios.png'),
+      );
+    });
+
+    // Phase 13.3 Wave 4 Step 2 (2026-05-15): Apple SDK 위제 → 자체 render
+    // (`_renderAppleButton`) 전환. Apple 공식 Logo-only SVG (Black variant)
+    // + wrapper bg pure white (SVG rect 흰과 정확 일치 → 정사각 외곽
+    // invisible). HIG mandate "Match the height of the logo file to the
+    // height of the button" — SVG render size = button height (48dp).
+    testWidgets('Apple light', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.apple(
+            label: 'Sign in with Apple',
+            onPressed: () {},
+          ),
+          brightness: Brightness.light,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/apple_light.png'),
+      );
+    });
+
+    // Apple dark variant — White SVG (rect 검정 + logo 흰) + wrapper bg
+    // pure black 일치. light + dark 두 fixture 모두 검증 (Apple 의 자체
+    // dark variant 자산 채택 의도 명시).
+    testWidgets('Apple dark', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.apple(
+            label: 'Sign in with Apple',
+            onPressed: () {},
+          ),
+          brightness: Brightness.dark,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/apple_dark.png'),
+      );
+    });
+
+    // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple iOS branch fixture
+    // (macOS dev only). ThemeData.platform = TargetPlatform.iOS override
+    // → _renderAppleButton 의 isApplePlatform branch (fontFamily 'SF Pro
+    // Text' native macOS system font). PNG fixture 는 `.gitignore` 로
+    // commit 차단 (Apple SF Pro Font License 위반 위험 회피).
+    testWidgets('Apple light (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.apple(
+            label: 'Sign in with Apple',
+            onPressed: () {},
+          ),
+          brightness: Brightness.light,
+          platform: TargetPlatform.iOS,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/apple_light_ios.png'),
+      );
+    });
+
+    testWidgets('Apple dark (iOS)', skip: !Platform.isMacOS, (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.apple(
+            label: 'Sign in with Apple',
+            onPressed: () {},
+          ),
+          brightness: Brightness.dark,
+          platform: TargetPlatform.iOS,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/apple_dark_ios.png'),
+      );
+    });
+  });
 }

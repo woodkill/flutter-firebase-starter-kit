@@ -76,7 +76,9 @@ Future<_SheetHandle> _pumpAndShowSheet(
 
 void main() {
   group('AccountLinkingSheet — W1 show happy path (Kakao)', () {
-    testWidgets('Kakao label 노출 + Kakao BrandedSocialButton 단일', (tester) async {
+    testWidgets('Kakao label 노출 + Kakao BrandedSocialButton 단일', (
+      tester,
+    ) async {
       await _pumpAndShowSheet(tester, provider: AccountProvider.kakao);
 
       // 본문 메시지에 Kakao 라벨 포함 (errorAccountExistsWithProvider 채워짐)

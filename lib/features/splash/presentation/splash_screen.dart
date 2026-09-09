@@ -332,10 +332,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 _kLogoAsset,
                 width: _kLogoSize,
                 height: _kLogoSize,
-                errorBuilder: (_, _, _) => const SizedBox(
-                  width: _kLogoSize,
-                  height: _kLogoSize,
-                ),
+                errorBuilder: (_, _, _) =>
+                    const SizedBox(width: _kLogoSize, height: _kLogoSize),
               ),
               Gap(spacing.xxl),
               if (!_hasFailure)

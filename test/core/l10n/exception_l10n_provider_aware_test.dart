@@ -127,15 +127,14 @@ void main() {
   );
 
   group('resolveExceptionMessage — unknown fallback (L2)', () {
-    testWidgets(
-      'existingProvider == null → R2 unknown fallback 메시지 (회귀 가드)',
-      (tester) async {
-        final result = await _resolve(
-          tester,
-          const AccountExistsWithDifferentCredential(email: 'a@example.com'),
-        );
-        expect(result, contains('originally used'));
-      },
-    );
+    testWidgets('existingProvider == null → R2 unknown fallback 메시지 (회귀 가드)', (
+      tester,
+    ) async {
+      final result = await _resolve(
+        tester,
+        const AccountExistsWithDifferentCredential(email: 'a@example.com'),
+      );
+      expect(result, contains('originally used'));
+    });
   });
 }

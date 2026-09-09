@@ -80,25 +80,22 @@ void main() {
       expect(result.map((s) => s.providerId), isEmpty);
     });
 
-    test(
-      'case 3: 정적F + RC T → disabled (정적 false 절대 우위, D-26 핵심)',
-      () {
-        final c = makeContainer(
-          staticMap: {
-            kProviderIdGoogle: false,
-            kProviderIdApple: false,
-            kProviderIdFacebook: false,
-          },
-          rcMap: {'auth_provider_google_enabled': true},
-        );
-        final result = c.read(activeStrategiesProvider(locale));
-        expect(
-          result.map((s) => s.providerId),
-          isEmpty,
-          reason: '정적 false 는 RC true 로도 켤 수 없음 (D-26)',
-        );
-      },
-    );
+    test('case 3: 정적F + RC T → disabled (정적 false 절대 우위, D-26 핵심)', () {
+      final c = makeContainer(
+        staticMap: {
+          kProviderIdGoogle: false,
+          kProviderIdApple: false,
+          kProviderIdFacebook: false,
+        },
+        rcMap: {'auth_provider_google_enabled': true},
+      );
+      final result = c.read(activeStrategiesProvider(locale));
+      expect(
+        result.map((s) => s.providerId),
+        isEmpty,
+        reason: '정적 false 는 RC true 로도 켤 수 없음 (D-26)',
+      );
+    });
 
     test('case 4: 정적F + RC 키 없음 → disabled', () {
       final c = makeContainer(
@@ -163,11 +160,9 @@ void main() {
     });
   });
 
-  group(
-      'AuthStrategiesRegistry — Phase 13 add-only '
+  group('AuthStrategiesRegistry — Phase 13 add-only '
       '(T-13-REGISTRY-NAVER / Phase 13 — see ROADMAP.md)', () {
-    test(
-        'T-13-REGISTRY-NAVER-01: enabledAuthProviders=naver 활성 시 '
+    test('T-13-REGISTRY-NAVER-01: enabledAuthProviders=naver 활성 시 '
         'NaverAuthStrategy 자동 포함', () {
       final c = makeContainer(
         staticMap: {
@@ -189,8 +184,7 @@ void main() {
       );
     });
 
-    test(
-        'T-13-REGISTRY-NAVER-02: enabledAuthProviders=naver 비활성 시 '
+    test('T-13-REGISTRY-NAVER-02: enabledAuthProviders=naver 비활성 시 '
         'NaverAuthStrategy 미포함', () {
       final c = makeContainer(
         staticMap: {
@@ -213,8 +207,7 @@ void main() {
       );
     });
 
-    test(
-        'T-13-REGISTRY-NAVER-03: 기존 4 strategy 회귀 0 — '
+    test('T-13-REGISTRY-NAVER-03: 기존 4 strategy 회귀 0 — '
         'Google/Apple/Facebook/Kakao 모두 활성 시 5 strategy 정확 포함', () {
       final c = makeContainer(
         staticMap: {
@@ -243,11 +236,9 @@ void main() {
     });
   });
 
-  group(
-      'AuthStrategiesRegistry — Phase 14 add-only '
+  group('AuthStrategiesRegistry — Phase 14 add-only '
       '(T-14-REGISTRY-LINE / Phase 14 — see ROADMAP.md)', () {
-    test(
-        'T-14-REGISTRY-LINE-01: enabledAuthProviders=line 활성 시 '
+    test('T-14-REGISTRY-LINE-01: enabledAuthProviders=line 활성 시 '
         'LineAuthStrategy 자동 포함', () {
       final c = makeContainer(
         staticMap: {
@@ -270,8 +261,7 @@ void main() {
       );
     });
 
-    test(
-        'T-14-REGISTRY-LINE-02: enabledAuthProviders=line 비활성 시 '
+    test('T-14-REGISTRY-LINE-02: enabledAuthProviders=line 비활성 시 '
         'LineAuthStrategy 미포함 (정적 false 절대 우위)', () {
       final c = makeContainer(
         staticMap: {
@@ -295,8 +285,7 @@ void main() {
       );
     });
 
-    test(
-        'T-14-REGISTRY-LINE-03: 기존 5 strategy 회귀 0 — '
+    test('T-14-REGISTRY-LINE-03: 기존 5 strategy 회귀 0 — '
         'Google/Apple/Facebook/Kakao/Naver/LINE 모두 활성 시 6 strategy 정확 '
         '포함 (registry _allStrategies 순서 보존)', () {
       final c = makeContainer(
@@ -331,11 +320,9 @@ void main() {
     });
   });
 
-  group(
-      'AuthStrategiesRegistry — Phase 15 add-only '
+  group('AuthStrategiesRegistry — Phase 15 add-only '
       '(T-15-REGISTRY-YAHOOJP / Phase 15 — see ROADMAP.md)', () {
-    test(
-        'T-15-REGISTRY-YAHOOJP-01: enabledAuthProviders=yahoojp 활성 시 '
+    test('T-15-REGISTRY-YAHOOJP-01: enabledAuthProviders=yahoojp 활성 시 '
         'YahoojpAuthStrategy 자동 포함', () {
       final c = makeContainer(
         staticMap: {
@@ -359,8 +346,7 @@ void main() {
       );
     });
 
-    test(
-        'T-15-REGISTRY-YAHOOJP-02: enabledAuthProviders=yahoojp 비활성 시 '
+    test('T-15-REGISTRY-YAHOOJP-02: enabledAuthProviders=yahoojp 비활성 시 '
         'YahoojpAuthStrategy 미포함 (정적 false 절대 우위)', () {
       final c = makeContainer(
         staticMap: {
@@ -385,8 +371,7 @@ void main() {
       );
     });
 
-    test(
-        'T-15-REGISTRY-YAHOOJP-03: 기존 6 strategy 회귀 0 — '
+    test('T-15-REGISTRY-YAHOOJP-03: 기존 6 strategy 회귀 0 — '
         'Google/Apple/Facebook/Kakao/Naver/LINE/Yahoo!JP 모두 활성 시 '
         '7 strategy 정확 포함 (registry _allStrategies 순서 보존)', () {
       final c = makeContainer(

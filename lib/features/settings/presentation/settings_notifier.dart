@@ -89,10 +89,8 @@ class SettingsNotifier extends _$SettingsNotifier {
     // guard 와 dead `null` switch arm 의 수동 동기화 결합을 제거해, 미래에
     // email 을 wire 하더라도 "cancelled" 로 오보고되지 않게 한다.
     return switch (provider) {
-      AccountProvider.naver ||
-      AccountProvider.email => Future<AccountLinkOutcome>.value(
-        AccountLinkOutcome.unsupported,
-      ),
+      AccountProvider.naver || AccountProvider.email =>
+        Future<AccountLinkOutcome>.value(AccountLinkOutcome.unsupported),
       AccountProvider.google ||
       AccountProvider.apple ||
       AccountProvider.facebook ||
@@ -128,8 +126,7 @@ class SettingsNotifier extends _$SettingsNotifier {
           targetProvider: provider,
         ),
         // naver / email 은 linkProvider switch 에서 사전 분기 — 도달하지 않음.
-        AccountProvider.naver ||
-        AccountProvider.email => null,
+        AccountProvider.naver || AccountProvider.email => null,
       };
       // WR-04: await 이후 disposed 여부 확인 후 state write.
       if (!ref.mounted) return AccountLinkOutcome.cancelled;

@@ -172,10 +172,7 @@ class KakaoSdkClient {
 ///
 /// `KakaoSdkClient.forTest` 의 ctor 인자 타입 — 테스트가 fake 함수를 주입한다.
 typedef LoginWithKakaoFn =
-    Future<OAuthToken> Function({
-      List<String>? serviceTerms,
-      String? nonce,
-    });
+    Future<OAuthToken> Function({List<String>? serviceTerms, String? nonce});
 
 /// Default `loginWithKakaoTalk` 호출 — production 진입점.
 Future<OAuthToken> _defaultLoginWithKakaoTalk({

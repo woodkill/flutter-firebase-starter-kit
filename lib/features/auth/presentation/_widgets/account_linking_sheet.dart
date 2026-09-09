@@ -273,8 +273,9 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
             AccountAlreadyLinked() => l10n.settingsLinkFailedAlreadyLinked,
             EmailAlreadyInUse() || AccountExistsWithDifferentCredential() =>
               l10n.settingsLinkFailedEmailInUse,
-            NetworkException() || TooManyRequests() || ServiceUnavailable() =>
-              l10n.settingsLinkFailedTransient,
+            NetworkException() ||
+            TooManyRequests() ||
+            ServiceUnavailable() => l10n.settingsLinkFailedTransient,
             _ => l10n.settingsLinkFailedUnknown,
           };
           messenger.showSnackBar(SnackBar(content: Text(message)));
@@ -359,8 +360,9 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
         // 과 동일하지만, 문구는 step 1 전용 키다 (동작이 link 가 아니라
         // 로그인 — IN-06).
         final message = switch (exception) {
-          NetworkException() || TooManyRequests() || ServiceUnavailable() =>
-            l10n.authSignInFailedTransient,
+          NetworkException() ||
+          TooManyRequests() ||
+          ServiceUnavailable() => l10n.authSignInFailedTransient,
           // 4차 WR-01 — A-16-19-01 익명 caller 재충돌. 서버 resolveIdentity 의
           // R12(anonymous_existing_collision) 재거부가 이 타입으로 매핑되며,
           // 익명 세션이 유지되는 한 **재시도로 절대 해소되지 않는 결정적

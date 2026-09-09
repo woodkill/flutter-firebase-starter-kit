@@ -1086,53 +1086,50 @@ void main() {
       },
     );
 
-    testWidgets(
-      'T-15-YJP-DARK-01: dark/light Theme 양쪽 동일 외관 (D-YJP-07)',
-      (tester) async {
-        // D-YJP-07 sentinel — Yahoo!JP 공식 BI 가이드 dark variant 명시 0.
-        // caller Theme.brightness 분기 코드 0 의무. light + dark 모두 bg
-        // #FF0033 + label #FFFFFF 동일 외관 (LINE D-LINE-14 mirror).
-        for (final brightness in [Brightness.light, Brightness.dark]) {
-          await tester.pumpWidget(
-            MaterialApp(
-              theme: ThemeData(brightness: brightness),
-              locale: const Locale('en'),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: Scaffold(
-                body: BrandedSocialButton.yahoojp(
-                  label: 'Yahoo! JAPAN IDでログイン',
-                  onPressed: () {},
-                ),
+    testWidgets('T-15-YJP-DARK-01: dark/light Theme 양쪽 동일 외관 (D-YJP-07)', (
+      tester,
+    ) async {
+      // D-YJP-07 sentinel — Yahoo!JP 공식 BI 가이드 dark variant 명시 0.
+      // caller Theme.brightness 분기 코드 0 의무. light + dark 모두 bg
+      // #FF0033 + label #FFFFFF 동일 외관 (LINE D-LINE-14 mirror).
+      for (final brightness in [Brightness.light, Brightness.dark]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(brightness: brightness),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: BrandedSocialButton.yahoojp(
+                label: 'Yahoo! JAPAN IDでログイン',
+                onPressed: () {},
               ),
             ),
-          );
-          await tester.pumpAndSettle();
-          final materialFinder = find.descendant(
-            of: find.byType(BrandedSocialButton),
-            matching: find.byType(Material),
-          );
-          final materials = tester.widgetList<Material>(materialFinder);
-          expect(
-            materials.any((m) => m.color == const Color(0xFFFF0033)),
-            isTrue,
-            reason:
-                'Phase 15 D-YJP-07 — brightness=$brightness 에서도 bg #FF0033 '
-                '유지. Theme.brightness 분기 회귀 차단.',
-          );
-          final text = tester.widget<Text>(
-            find.text('Yahoo! JAPAN IDでログイン'),
-          );
-          expect(
-            text.style?.color,
-            const Color(0xFFFFFFFF),
-            reason:
-                'Phase 15 D-YJP-07 — brightness=$brightness 에서도 label '
-                'color #FFFFFF 유지.',
-          );
-        }
-      },
-    );
+          ),
+        );
+        await tester.pumpAndSettle();
+        final materialFinder = find.descendant(
+          of: find.byType(BrandedSocialButton),
+          matching: find.byType(Material),
+        );
+        final materials = tester.widgetList<Material>(materialFinder);
+        expect(
+          materials.any((m) => m.color == const Color(0xFFFF0033)),
+          isTrue,
+          reason:
+              'Phase 15 D-YJP-07 — brightness=$brightness 에서도 bg #FF0033 '
+              '유지. Theme.brightness 분기 회귀 차단.',
+        );
+        final text = tester.widget<Text>(find.text('Yahoo! JAPAN IDでログイン'));
+        expect(
+          text.style?.color,
+          const Color(0xFFFFFFFF),
+          reason:
+              'Phase 15 D-YJP-07 — brightness=$brightness 에서도 label '
+              'color #FFFFFF 유지.',
+        );
+      }
+    });
 
     // Phase 13.1 T-13.1-PLACEHOLDER-02 (WechatSpec build() → placeholder 회귀
     // 가드) 폐기 (2026-05-22, Phase 16 폐기) — _renderPlaceholder helper 자체가

@@ -157,8 +157,9 @@ void main() {
     });
 
     testWidgets('Apple 분기 (light) → BrandedSocialButton.apple + AppleSpec '
-        '(Phase 13.3 Wave 4 Step 2 — SDK 위제 폐기 + custom render SvgPicture)',
-        (tester) async {
+        '(Phase 13.3 Wave 4 Step 2 — SDK 위제 폐기 + custom render SvgPicture)', (
+      tester,
+    ) async {
       const strategy = _FakeStrategy(
         kProviderIdApple,
         'authAppleSignIn',
@@ -183,8 +184,9 @@ void main() {
     });
 
     testWidgets('Apple 분기 (dark) → BrandedSocialButton.apple '
-        '(Phase 13.3 Wave 4 Step 2 — SDK 위제 폐기 + Theme.brightness 자동 분기)',
-        (tester) async {
+        '(Phase 13.3 Wave 4 Step 2 — SDK 위제 폐기 + Theme.brightness 자동 분기)', (
+      tester,
+    ) async {
       const strategy = _FakeStrategy(
         kProviderIdApple,
         'authAppleSignIn',

@@ -31,11 +31,9 @@ class ThemeNotifier extends _$ThemeNotifier {
       return ThemeMode.values[index];
     } on Exception catch (e, st) {
       debugPrint('theme_load failed: $e\n$st');
-      await ref.read(crashlyticsServiceProvider).recordError(
-        e,
-        st,
-        reason: 'theme_load',
-      );
+      await ref
+          .read(crashlyticsServiceProvider)
+          .recordError(e, st, reason: 'theme_load');
       return ThemeMode.system;
     }
   }
@@ -66,11 +64,9 @@ class ThemeNotifier extends _$ThemeNotifier {
       await prefs.setInt(_key, mode.index);
     } on Exception catch (e, st) {
       debugPrint('theme_save failed: $e\n$st');
-      await ref.read(crashlyticsServiceProvider).recordError(
-        e,
-        st,
-        reason: 'theme_save',
-      );
+      await ref
+          .read(crashlyticsServiceProvider)
+          .recordError(e, st, reason: 'theme_save');
     }
   }
 }

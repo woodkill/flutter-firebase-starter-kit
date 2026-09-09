@@ -102,85 +102,65 @@ void main() {
     when(() => mockUser.isAnonymous).thenReturn(false);
   });
 
-  group(
-    'Phase 9.2 R2 — _mapAuthException + _mapFunctionsException 단일 unknown '
-    'fallback path',
-    () {
-      test(
-        'Test U1: signInWithEmail 가 FirebaseAuthException('
+  group('Phase 9.2 R2 — _mapAuthException + _mapFunctionsException 단일 unknown '
+      'fallback path', () {
+    test('Test U1: signInWithEmail 가 FirebaseAuthException('
         "'account-exists-with-different-credential') throw 시 → "
-        'AccountExistsWithDifferentCredential (userMessage 보존)',
-        () async {
-          when(
-            () => mockAuth.signInWithEmailAndPassword(
-              email: any(named: 'email'),
-              password: any(named: 'password'),
-            ),
-          ).thenThrow(
-            fb.FirebaseAuthException(
-              code: 'account-exists-with-different-credential',
-              email: 'collide@example.com',
-            ),
-          );
-
-          final result = await repository.signInWithEmail(
-            email: 'a@b.com',
-            password: 'pw12345678',
-          );
-
-          expect(result, isA<Failure<dynamic>>());
-          final ex = (result as Failure).exception;
-          expect(ex, isA<AccountExistsWithDifferentCredential>());
-          // email 필드 보존 — Phase 17 부활 anchor.
-          expect(
-            (ex as AccountExistsWithDifferentCredential).email,
-            'collide@example.com',
-          );
-          // userMessage = 'errorAccountExistsWithDifferentCredential' 보존 —
-          // exception_l10n.dart 의 special-case branch 가 instance type-check
-          // 으로 unknown 경로 진입.
-          expect(
-            ex.userMessage,
-            'errorAccountExistsWithDifferentCredential',
-          );
-        },
+        'AccountExistsWithDifferentCredential (userMessage 보존)', () async {
+      when(
+        () => mockAuth.signInWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenThrow(
+        fb.FirebaseAuthException(
+          code: 'account-exists-with-different-credential',
+          email: 'collide@example.com',
+        ),
       );
 
-      test(
-        'Test U2: signInWithKakao 가 FirebaseFunctionsException('
+      final result = await repository.signInWithEmail(
+        email: 'a@b.com',
+        password: 'pw12345678',
+      );
+
+      expect(result, isA<Failure<dynamic>>());
+      final ex = (result as Failure).exception;
+      expect(ex, isA<AccountExistsWithDifferentCredential>());
+      // email 필드 보존 — Phase 17 부활 anchor.
+      expect(
+        (ex as AccountExistsWithDifferentCredential).email,
+        'collide@example.com',
+      );
+      // userMessage = 'errorAccountExistsWithDifferentCredential' 보존 —
+      // exception_l10n.dart 의 special-case branch 가 instance type-check
+      // 으로 unknown 경로 진입.
+      expect(ex.userMessage, 'errorAccountExistsWithDifferentCredential');
+    });
+
+    test('Test U2: signInWithKakao 가 FirebaseFunctionsException('
         "'already-exists') throw 시 → AccountExistsWithDifferentCredential "
-        '(email null PII 미응답)',
-        () async {
-          // KakaoSdkClient 성공 → Cloud Function 가 already-exists throw.
-          when(() => mockKakaoSdkClient.signIn()).thenAnswer(
-            (_) async =>
-                const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
-          );
-          when(
-            () => mockFunctions.httpsCallable(any()),
-          ).thenReturn(mockCallable);
-          when(
-            () => mockCallable.call<Map<String, dynamic>>(any()),
-          ).thenThrow(
-            FirebaseFunctionsException(
-              code: 'already-exists',
-              message: 'errorAccountExistsWithDifferentCredential',
-            ),
-          );
-
-          final result = await repository.signInWithKakao();
-
-          expect(result, isA<Failure<dynamic>>());
-          final ex = (result! as Failure).exception;
-          expect(ex, isA<AccountExistsWithDifferentCredential>());
-          // Cloud Function PII 미응답 invariant — email null 보존
-          // (Phase 12.1 R3 정합).
-          expect(
-            (ex as AccountExistsWithDifferentCredential).email,
-            isNull,
-          );
-        },
+        '(email null PII 미응답)', () async {
+      // KakaoSdkClient 성공 → Cloud Function 가 already-exists throw.
+      when(() => mockKakaoSdkClient.signIn()).thenAnswer(
+        (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
       );
-    },
-  );
+      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+      when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
+        FirebaseFunctionsException(
+          code: 'already-exists',
+          message: 'errorAccountExistsWithDifferentCredential',
+        ),
+      );
+
+      final result = await repository.signInWithKakao();
+
+      expect(result, isA<Failure<dynamic>>());
+      final ex = (result! as Failure).exception;
+      expect(ex, isA<AccountExistsWithDifferentCredential>());
+      // Cloud Function PII 미응답 invariant — email null 보존
+      // (Phase 12.1 R3 정합).
+      expect((ex as AccountExistsWithDifferentCredential).email, isNull);
+    });
+  });
 }

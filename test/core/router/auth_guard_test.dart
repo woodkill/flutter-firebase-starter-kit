@@ -697,7 +697,8 @@ void main() {
       expect(
         result,
         isNull,
-        reason: 'Phase 10.2 I1: onboardingSeen + termsAccepted 모두 완료한 '
+        reason:
+            'Phase 10.2 I1: onboardingSeen + termsAccepted 모두 완료한 '
             '익명 user 는 Home 통과',
       );
     });
@@ -938,184 +939,155 @@ void main() {
   group('authRedirect socialLinkInProgress 가드 — Phase 9.1 D-02-B', () {
     // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
 
-    test(
-      'Test SLP-G1: socialLinkInProgress=true + 미인증 + onboardingSeen=true + '
-      'matchedLocation=/ -> null (보류) + social_link_v1 Crashlytics 기록 + '
-      'onboarding_race_v1 미기록 (분기 6.4 가 6.5 보다 먼저 매칭)',
-      () async {
-        final mockCrashlytics = _MockCrashlytics();
-        when(
-          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
-        ).thenAnswer((_) async {});
+    test('Test SLP-G1: socialLinkInProgress=true + 미인증 + onboardingSeen=true + '
+        'matchedLocation=/ -> null (보류) + social_link_v1 Crashlytics 기록 + '
+        'onboarding_race_v1 미기록 (분기 6.4 가 6.5 보다 먼저 매칭)', () async {
+      final mockCrashlytics = _MockCrashlytics();
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
 
-        final mockAuth = _MockFirebaseAuth();
-        when(() => mockAuth.currentUser).thenReturn(null);
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(null);
 
-        final container = ProviderContainer(
-          overrides: [
-            isFirebaseInitializedProvider.overrideWithValue(true),
-            firebaseAuthProvider.overrideWithValue(mockAuth),
-            onboardingProvider.overrideWith(
-              () => _StubOnboardingNotifier(true),
-            ),
-            termsProvider.overrideWith(() => _StubTermsNotifier(null)),
-            crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
-            // Phase 9.1 D-02-B: socialLinkInProgress=true.
-            socialLinkInProgressProvider.overrideWith(
-              () => _StubSocialLinkInProgress(true),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
-
-        final result = await _callAuthRedirect(container, mockState);
-
-        // Assert — null 반환 (보류).
-        expect(
-          result,
-          isNull,
-          reason: '6.4 D-02-B: 진행 중이면 GC-04 보류, null 반환',
-        );
-
-        // unawaited 호출이므로 microtask 1틱 대기.
-        await Future<void>.delayed(Duration.zero);
-
-        // social_link_v1 Crashlytics 기록 검증.
-        verify(
-          () => mockCrashlytics.setCustomKey(
-            'race_guard_triggered',
-            'social_link_v1',
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+          onboardingProvider.overrideWith(() => _StubOnboardingNotifier(true)),
+          termsProvider.overrideWith(() => _StubTermsNotifier(null)),
+          crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+          // Phase 9.1 D-02-B: socialLinkInProgress=true.
+          socialLinkInProgressProvider.overrideWith(
+            () => _StubSocialLinkInProgress(true),
           ),
-        ).called(1);
-        // 핵심 검증: onboarding_race_v1 신호는 기록되지 않아야 함 (6.4 가
-        // 먼저 매칭되어 6.5 GC-04 분기에 도달하지 않음).
-        verifyNever(
-          () => mockCrashlytics.setCustomKey(
-            'race_guard_triggered',
-            'onboarding_race_v1',
+        ],
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+      final result = await _callAuthRedirect(container, mockState);
+
+      // Assert — null 반환 (보류).
+      expect(result, isNull, reason: '6.4 D-02-B: 진행 중이면 GC-04 보류, null 반환');
+
+      // unawaited 호출이므로 microtask 1틱 대기.
+      await Future<void>.delayed(Duration.zero);
+
+      // social_link_v1 Crashlytics 기록 검증.
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'race_guard_triggered',
+          'social_link_v1',
+        ),
+      ).called(1);
+      // 핵심 검증: onboarding_race_v1 신호는 기록되지 않아야 함 (6.4 가
+      // 먼저 매칭되어 6.5 GC-04 분기에 도달하지 않음).
+      verifyNever(
+        () => mockCrashlytics.setCustomKey(
+          'race_guard_triggered',
+          'onboarding_race_v1',
+        ),
+      );
+    });
+
+    test('Test SLP-G2: socialLinkInProgress=false + 동일 GC-04 매칭 조건 -> '
+        '/splash + onboarding_race_v1 (기존 GC-04 회귀 가드)', () async {
+      final mockCrashlytics = _MockCrashlytics();
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
+
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(null);
+
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+          onboardingProvider.overrideWith(() => _StubOnboardingNotifier(true)),
+          termsProvider.overrideWith(() => _StubTermsNotifier(null)),
+          crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+          // socialLinkInProgress=false (기본값 — override 생략 가능하지만
+          // 명시적으로 negative path 의도를 표현).
+          socialLinkInProgressProvider.overrideWith(
+            () => _StubSocialLinkInProgress(false),
           ),
-        );
-      },
-    );
+        ],
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-    test(
-      'Test SLP-G2: socialLinkInProgress=false + 동일 GC-04 매칭 조건 -> '
-      '/splash + onboarding_race_v1 (기존 GC-04 회귀 가드)',
-      () async {
-        final mockCrashlytics = _MockCrashlytics();
-        when(
-          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
-        ).thenAnswer((_) async {});
+      final result = await _callAuthRedirect(container, mockState);
 
-        final mockAuth = _MockFirebaseAuth();
-        when(() => mockAuth.currentUser).thenReturn(null);
+      // Assert — /splash 반환 (기존 GC-04) + onboarding_race_v1 기록.
+      expect(result, AppRoutes.splash, reason: '6.4 미발동 시 6.5 GC-04 정상 동작');
 
-        final container = ProviderContainer(
-          overrides: [
-            isFirebaseInitializedProvider.overrideWithValue(true),
-            firebaseAuthProvider.overrideWithValue(mockAuth),
-            onboardingProvider.overrideWith(
-              () => _StubOnboardingNotifier(true),
-            ),
-            termsProvider.overrideWith(() => _StubTermsNotifier(null)),
-            crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
-            // socialLinkInProgress=false (기본값 — override 생략 가능하지만
-            // 명시적으로 negative path 의도를 표현).
-            socialLinkInProgressProvider.overrideWith(
-              () => _StubSocialLinkInProgress(false),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      await Future<void>.delayed(Duration.zero);
 
-        final result = await _callAuthRedirect(container, mockState);
+      verify(
+        () => mockCrashlytics.setCustomKey(
+          'race_guard_triggered',
+          'onboarding_race_v1',
+        ),
+      ).called(1);
+      verifyNever(
+        () => mockCrashlytics.setCustomKey(
+          'race_guard_triggered',
+          'social_link_v1',
+        ),
+      );
+    });
 
-        // Assert — /splash 반환 (기존 GC-04) + onboarding_race_v1 기록.
-        expect(
-          result,
-          AppRoutes.splash,
-          reason: '6.4 미발동 시 6.5 GC-04 정상 동작',
-        );
+    test('Test SLP-G3: 정식 인증 사용자 + termsAccepted + '
+        'socialLinkInProgress=true -> 6.4 가드 미발동 (정상 인증 흐름 보존)', () async {
+      final mockCrashlytics = _MockCrashlytics();
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
 
-        await Future<void>.delayed(Duration.zero);
+      final user = regularUser();
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(user);
 
-        verify(
-          () => mockCrashlytics.setCustomKey(
-            'race_guard_triggered',
-            'onboarding_race_v1',
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+          onboardingProvider.overrideWith(() => _StubOnboardingNotifier(true)),
+          // termsAccepted 가 있는 정상 사용자.
+          termsProvider.overrideWith(() => _StubTermsNotifier(acceptedTerms())),
+          crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+          socialLinkInProgressProvider.overrideWith(
+            () => _StubSocialLinkInProgress(true),
           ),
-        ).called(1);
-        verifyNever(
-          () => mockCrashlytics.setCustomKey(
-            'race_guard_triggered',
-            'social_link_v1',
-          ),
-        );
-      },
-    );
+        ],
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-    test(
-      'Test SLP-G3: 정식 인증 사용자 + termsAccepted + '
-      'socialLinkInProgress=true -> 6.4 가드 미발동 (정상 인증 흐름 보존)',
-      () async {
-        final mockCrashlytics = _MockCrashlytics();
-        when(
-          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
-        ).thenAnswer((_) async {});
+      final result = await _callAuthRedirect(container, mockState);
 
-        final user = regularUser();
-        final mockAuth = _MockFirebaseAuth();
-        when(() => mockAuth.currentUser).thenReturn(user);
+      // Assert — 정상 Home 랜딩 (분기 (7) null) + 어떤 race_guard 신호도
+      // 기록되지 않음. 6.4 가드는 `!isAuthenticated` 조건이므로 정식 사용자
+      // 에게는 발동하지 않는다.
+      expect(result, isNull, reason: '인증 + termsAccepted 사용자는 6.4/6.5 미진입');
 
-        final container = ProviderContainer(
-          overrides: [
-            isFirebaseInitializedProvider.overrideWithValue(true),
-            firebaseAuthProvider.overrideWithValue(mockAuth),
-            onboardingProvider.overrideWith(
-              () => _StubOnboardingNotifier(true),
-            ),
-            // termsAccepted 가 있는 정상 사용자.
-            termsProvider.overrideWith(
-              () => _StubTermsNotifier(acceptedTerms()),
-            ),
-            crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
-            socialLinkInProgressProvider.overrideWith(
-              () => _StubSocialLinkInProgress(true),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      await Future<void>.delayed(Duration.zero);
 
-        final result = await _callAuthRedirect(container, mockState);
-
-        // Assert — 정상 Home 랜딩 (분기 (7) null) + 어떤 race_guard 신호도
-        // 기록되지 않음. 6.4 가드는 `!isAuthenticated` 조건이므로 정식 사용자
-        // 에게는 발동하지 않는다.
-        expect(
-          result,
-          isNull,
-          reason: '인증 + termsAccepted 사용자는 6.4/6.5 미진입',
-        );
-
-        await Future<void>.delayed(Duration.zero);
-
-        verifyNever(
-          () => mockCrashlytics.setCustomKey(
-            'race_guard_triggered',
-            'social_link_v1',
-          ),
-        );
-        verifyNever(
-          () => mockCrashlytics.setCustomKey(
-            'race_guard_triggered',
-            'onboarding_race_v1',
-          ),
-        );
-      },
-    );
+      verifyNever(
+        () => mockCrashlytics.setCustomKey(
+          'race_guard_triggered',
+          'social_link_v1',
+        ),
+      );
+      verifyNever(
+        () => mockCrashlytics.setCustomKey(
+          'race_guard_triggered',
+          'onboarding_race_v1',
+        ),
+      );
+    });
   });
 
   // Phase 10.2 D-C1/C2 — Plan 02 land 시 production code 가 분기 (3) 정정 +
@@ -1153,123 +1125,111 @@ void main() {
       );
     }
 
-    test(
-      '(a) 익명 + !onboardingSeen + termsAccepted + home -> /onboarding '
-      '(D-C1: !onboardingSeen 단일 gate trip)',
-      () async {
-        final container = makeContainerWithReloadedUid(
-          isInitialized: true,
-          user: anonymousUser(),
-          // onboardingSeen: false (default)
-          termsAcceptance: acceptedTerms(),
-          reloadedUid: 'anon-uid', // 비-stale
-        );
-        addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+    test('(a) 익명 + !onboardingSeen + termsAccepted + home -> /onboarding '
+        '(D-C1: !onboardingSeen 단일 gate trip)', () async {
+      final container = makeContainerWithReloadedUid(
+        isInitialized: true,
+        user: anonymousUser(),
+        // onboardingSeen: false (default)
+        termsAcceptance: acceptedTerms(),
+        reloadedUid: 'anon-uid', // 비-stale
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await _callAuthRedirect(container, mockState);
-        expect(
-          result,
-          AppRoutes.onboarding,
-          reason: 'D-C1: !onboardingSeen 단일 gate trip',
-        );
-      },
-    );
+      final result = await _callAuthRedirect(container, mockState);
+      expect(
+        result,
+        AppRoutes.onboarding,
+        reason: 'D-C1: !onboardingSeen 단일 gate trip',
+      );
+    });
 
-    test(
-      '(b) 익명 + onboardingSeen + !termsAccepted (비-stale) + home '
-      '-> /onboarding (D-C1: !termsAccepted 단일 gate trip)',
-      () async {
-        final container = makeContainerWithReloadedUid(
-          isInitialized: true,
-          user: anonymousUser(),
-          onboardingSeen: true,
-          // termsAcceptance: null (!termsAccepted)
-          reloadedUid: 'anon-uid', // 비-stale
-        );
-        addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+    test('(b) 익명 + onboardingSeen + !termsAccepted (비-stale) + home '
+        '-> /onboarding (D-C1: !termsAccepted 단일 gate trip)', () async {
+      final container = makeContainerWithReloadedUid(
+        isInitialized: true,
+        user: anonymousUser(),
+        onboardingSeen: true,
+        // termsAcceptance: null (!termsAccepted)
+        reloadedUid: 'anon-uid', // 비-stale
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await _callAuthRedirect(container, mockState);
-        expect(
-          result,
-          AppRoutes.onboarding,
-          reason: 'D-C1: !termsAccepted 단일 gate trip',
-        );
-      },
-    );
+      final result = await _callAuthRedirect(container, mockState);
+      expect(
+        result,
+        AppRoutes.onboarding,
+        reason: 'D-C1: !termsAccepted 단일 gate trip',
+      );
+    });
 
-    test(
-      '(c) 익명 + onboardingSeen + termsAccepted (완전) + home -> null '
-      '(I1: 완전한 익명 user 는 /home 통과)',
-      () async {
-        final container = makeContainerWithReloadedUid(
-          isInitialized: true,
-          user: anonymousUser(),
-          onboardingSeen: true,
-          termsAcceptance: acceptedTerms(),
-          reloadedUid: 'anon-uid',
-        );
-        addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+    test('(c) 익명 + onboardingSeen + termsAccepted (완전) + home -> null '
+        '(I1: 완전한 익명 user 는 /home 통과)', () async {
+      final container = makeContainerWithReloadedUid(
+        isInitialized: true,
+        user: anonymousUser(),
+        onboardingSeen: true,
+        termsAcceptance: acceptedTerms(),
+        reloadedUid: 'anon-uid',
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await _callAuthRedirect(container, mockState);
-        expect(
-          result,
-          isNull,
-          reason: 'I1: onboardingSeen + termsAccepted 모두 완료한 익명 user '
-              '는 /home 통과',
-        );
-      },
-    );
+      final result = await _callAuthRedirect(container, mockState);
+      expect(
+        result,
+        isNull,
+        reason:
+            'I1: onboardingSeen + termsAccepted 모두 완료한 익명 user '
+            '는 /home 통과',
+      );
+    });
 
-    test(
-      '(d) 익명 + onboardingSeen + !termsAccepted + stale lastReloadedUid + '
-      'home -> null (D-C2: stale guard 발동 → reload 완료 대기)',
-      () async {
-        final container = makeContainerWithReloadedUid(
-          isInitialized: true,
-          user: anonymousUser(), // uid = 'anon-uid'
-          onboardingSeen: true,
-          // termsAcceptance: null
-          reloadedUid: 'OTHER-UID', // stale lastReloadedUid
-        );
-        addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+    test('(d) 익명 + onboardingSeen + !termsAccepted + stale lastReloadedUid + '
+        'home -> null (D-C2: stale guard 발동 → reload 완료 대기)', () async {
+      final container = makeContainerWithReloadedUid(
+        isInitialized: true,
+        user: anonymousUser(), // uid = 'anon-uid'
+        onboardingSeen: true,
+        // termsAcceptance: null
+        reloadedUid: 'OTHER-UID', // stale lastReloadedUid
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-        final result = await _callAuthRedirect(container, mockState);
-        expect(
-          result,
-          isNull,
-          reason: 'D-C2: termsProvider stale lastReloadedUid 면 reload 완료 '
-              '대기 (분기 (5) 패턴 익명 확장 — Plan 10-11 Issue #7 C-2)',
-        );
-      },
-    );
+      final result = await _callAuthRedirect(container, mockState);
+      expect(
+        result,
+        isNull,
+        reason:
+            'D-C2: termsProvider stale lastReloadedUid 면 reload 완료 '
+            '대기 (분기 (5) 패턴 익명 확장 — Plan 10-11 Issue #7 C-2)',
+      );
+    });
 
-    test(
-      '(e — Pitfall 4 회귀 가드) 익명 + !onboardingSeen + '
-      'matchedLocation=/login -> null (정식 승격 경로 보존)',
-      () async {
-        // Pitfall 4: `!isOnUnauthRoute` 가드 누락 시 /login + 익명 user 가
-        // 무한 redirect loop 회귀. 익명 user 의 정식 승격 경로 보존 보장.
-        final container = makeContainerWithReloadedUid(
-          isInitialized: true,
-          user: anonymousUser(),
-          onboardingSeen: false,
-          reloadedUid: 'anon-uid',
-        );
-        addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
+    test('(e — Pitfall 4 회귀 가드) 익명 + !onboardingSeen + '
+        'matchedLocation=/login -> null (정식 승격 경로 보존)', () async {
+      // Pitfall 4: `!isOnUnauthRoute` 가드 누락 시 /login + 익명 user 가
+      // 무한 redirect loop 회귀. 익명 user 의 정식 승격 경로 보존 보장.
+      final container = makeContainerWithReloadedUid(
+        isInitialized: true,
+        user: anonymousUser(),
+        onboardingSeen: false,
+        reloadedUid: 'anon-uid',
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
 
-        final result = await _callAuthRedirect(container, mockState);
-        expect(
-          result,
-          isNull,
-          reason: 'Pitfall 4: 익명 user 의 /login 진입은 정식 승격 경로 '
-              '이므로 onboarding 강제 redirect 금지',
-        );
-      },
-    );
+      final result = await _callAuthRedirect(container, mockState);
+      expect(
+        result,
+        isNull,
+        reason:
+            'Pitfall 4: 익명 user 의 /login 진입은 정식 승격 경로 '
+            '이므로 onboarding 강제 redirect 금지',
+      );
+    });
   });
 }

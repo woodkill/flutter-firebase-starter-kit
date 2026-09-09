@@ -107,11 +107,9 @@ void main() {
     });
   });
 
-  group(
-      'FacebookSignInNotifier.build '
+  group('FacebookSignInNotifier.build '
       '(R7 회귀 가드 — D-42 재정의 / Phase 13 — see ROADMAP.md)', () {
-    test(
-        'T-13-R7-FACEBOOK-01: 초기 state == AsyncData<void>(null) — '
+    test('T-13-R7-FACEBOOK-01: 초기 state == AsyncData<void>(null) — '
         'R7 회귀 가드 (await/Future.value 추가 시 RED)', () {
       // R7 contract: `FutureOr<void> build()` 가 async work 없이 즉시
       // AsyncData<void>(null) 을 반환해야 한다. 향후 contributor 가 build 본문에

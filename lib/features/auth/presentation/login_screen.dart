@@ -252,45 +252,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final locale = Localizations.localeOf(context);
     final strategies = ref.watch(activeStrategiesProvider(locale));
     for (final strategy in strategies) {
-      ref.listen<AsyncValue<void>>(
-        resolveSocialProvider(strategy.providerId),
-        (previous, next) {
-          // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
-          if (previous is AsyncLoading && next is AsyncData) {
-            if (!mounted) return;
-            final user = ref.read(firebaseAuthProvider).currentUser;
-            if (user != null && !user.isAnonymous) {
-              context.go(AppRoutes.home);
-            }
+      ref.listen<AsyncValue<void>>(resolveSocialProvider(strategy.providerId), (
+        previous,
+        next,
+      ) {
+        // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
+        if (previous is AsyncLoading && next is AsyncData) {
+          if (!mounted) return;
+          final user = ref.read(firebaseAuthProvider).currentUser;
+          if (user != null && !user.isAnonymous) {
+            context.go(AppRoutes.home);
+          }
+          return;
+        }
+        if (next is AsyncError) {
+          // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
+          if (!mounted) return;
+          final err = next.error;
+          // Phase 16 16-08 native arm + 16-19 2단계 reactive 플로우 —
+          // existingProvider 식별 시 (native + Custom Token 모두)
+          // AccountLinkingSheet 노출. native + pendingCredential 보존은
+          // sheet 가 linkPendingNativeCredential, 그 외는
+          // signInWithExistingProvider 로 **기존 provider 에 로그인** (step
+          // 1) 후 설정 > 계정 연결 안내 (step 2). naver 도 로그인 대상으로
+          // 정상 수행된다.
+          // existingProvider == null (unknown) 만 FormErrorBanner inline 으로
+          // fallback (R2 회귀 0).
+          if (err is AccountExistsWithDifferentCredential &&
+              err.existingProvider != null) {
+            _showAccountLinkingSheet(err);
             return;
           }
-          if (next is AsyncError) {
-            // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
-            if (!mounted) return;
-            final err = next.error;
-            // Phase 16 16-08 native arm + 16-19 2단계 reactive 플로우 —
-            // existingProvider 식별 시 (native + Custom Token 모두)
-            // AccountLinkingSheet 노출. native + pendingCredential 보존은
-            // sheet 가 linkPendingNativeCredential, 그 외는
-            // signInWithExistingProvider 로 **기존 provider 에 로그인** (step
-            // 1) 후 설정 > 계정 연결 안내 (step 2). naver 도 로그인 대상으로
-            // 정상 수행된다.
-            // existingProvider == null (unknown) 만 FormErrorBanner inline 으로
-            // fallback (R2 회귀 0).
-            if (err is AccountExistsWithDifferentCredential &&
-                err.existingProvider != null) {
-              _showAccountLinkingSheet(err);
-              return;
-            }
-            if (err is AppException) {
-              setState(() {
-                _socialError = err;
-                _emailError = null;
-              });
-            }
+          if (err is AppException) {
+            setState(() {
+              _socialError = err;
+              _emailError = null;
+            });
           }
-        },
-      );
+        }
+      });
     }
 
     return Stack(

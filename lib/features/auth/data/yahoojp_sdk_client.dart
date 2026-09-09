@@ -73,7 +73,9 @@ Future<AuthorizationTokenResponse> _defaultYahoojpAuthorize(
 }
 
 /// Default `FlutterAppAuth.endSession` 호출 — production 진입점.
-Future<EndSessionResponse> _defaultYahoojpEndSession(EndSessionRequest request) {
+Future<EndSessionResponse> _defaultYahoojpEndSession(
+  EndSessionRequest request,
+) {
   return const FlutterAppAuth().endSession(request);
 }
 

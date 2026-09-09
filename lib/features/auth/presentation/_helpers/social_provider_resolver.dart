@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart' show ProviderListenable;
+import 'package:riverpod_annotation/riverpod_annotation.dart'
+    show ProviderListenable;
 
 import '../../../../core/auth/provider_id.dart';
 import '../apple_sign_in_notifier.dart';

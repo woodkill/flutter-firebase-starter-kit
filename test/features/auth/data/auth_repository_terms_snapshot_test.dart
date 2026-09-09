@@ -192,9 +192,9 @@ void main() {
     when(() => mockKakaoSdkClient.signIn()).thenAnswer(
       (_) async => const KakaoSignInResult(idToken: 'KIDT', nonce: 'KNONCE'),
     );
-    when(() => mockNaverSdkClient.signIn()).thenAnswer(
-      (_) async => const NaverSignInResult(accessToken: 'NAT'),
-    );
+    when(
+      () => mockNaverSdkClient.signIn(),
+    ).thenAnswer((_) async => const NaverSignInResult(accessToken: 'NAT'));
     when(() => mockYahoojpSdkClient.signIn()).thenAnswer(
       (_) async => const YahoojpSignInResult(idToken: 'YIDT', nonce: 'YNONCE'),
     );
@@ -203,9 +203,9 @@ void main() {
   /// callable 에 실제 전달된 payload 들을 순서대로 캡처한다 (wiring 단언의
   /// 유일한 형태 — 양 끝단 단위 테스트로는 대체 불가).
   List<Map<String, dynamic>> captureAllPayloads() {
-    return verify(() => mockCallable.call<Map<String, dynamic>>(captureAny()))
-        .captured
-        .cast<Map<String, dynamic>>();
+    return verify(
+      () => mockCallable.call<Map<String, dynamic>>(captureAny()),
+    ).captured.cast<Map<String, dynamic>>();
   }
 
   /// 단일 호출 payload 캡처.
@@ -276,22 +276,25 @@ void main() {
   });
 
   group('TS3 — kakao + snapshot 존재', () {
-    test('payload {idToken, nonce, termsAcceptanceSnapshot} + 5 키 계약', () async {
-      injectedSnapshot = _snapshotFixture();
+    test(
+      'payload {idToken, nonce, termsAcceptanceSnapshot} + 5 키 계약',
+      () async {
+        injectedSnapshot = _snapshotFixture();
 
-      final result = await repository.signInWithKakao();
+        final result = await repository.signInWithKakao();
 
-      expect(result, isA<Success<dynamic>>());
-      final payload = capturePayload();
-      expect(payload.keys.toSet(), <String>{
-        'idToken',
-        'nonce',
-        'termsAcceptanceSnapshot',
-      });
-      expect(payload['idToken'], 'KIDT');
-      expect(payload['nonce'], 'KNONCE');
-      expectContractSnapshot(payload);
-    });
+        expect(result, isA<Success<dynamic>>());
+        final payload = capturePayload();
+        expect(payload.keys.toSet(), <String>{
+          'idToken',
+          'nonce',
+          'termsAcceptanceSnapshot',
+        });
+        expect(payload['idToken'], 'KIDT');
+        expect(payload['nonce'], 'KNONCE');
+        expectContractSnapshot(payload);
+      },
+    );
   });
 
   group('TS4 — kakao + snapshot 부재', () {
@@ -336,22 +339,25 @@ void main() {
   });
 
   group('TS7 — yahoojp + snapshot 존재', () {
-    test('payload {idToken, nonce, termsAcceptanceSnapshot} + 5 키 계약', () async {
-      injectedSnapshot = _snapshotFixture();
+    test(
+      'payload {idToken, nonce, termsAcceptanceSnapshot} + 5 키 계약',
+      () async {
+        injectedSnapshot = _snapshotFixture();
 
-      final result = await repository.signInWithYahoojp();
+        final result = await repository.signInWithYahoojp();
 
-      expect(result, isA<Success<dynamic>>());
-      final payload = capturePayload();
-      expect(payload.keys.toSet(), <String>{
-        'idToken',
-        'nonce',
-        'termsAcceptanceSnapshot',
-      });
-      expect(payload['idToken'], 'YIDT');
-      expect(payload['nonce'], 'YNONCE');
-      expectContractSnapshot(payload);
-    });
+        expect(result, isA<Success<dynamic>>());
+        final payload = capturePayload();
+        expect(payload.keys.toSet(), <String>{
+          'idToken',
+          'nonce',
+          'termsAcceptanceSnapshot',
+        });
+        expect(payload['idToken'], 'YIDT');
+        expect(payload['nonce'], 'YNONCE');
+        expectContractSnapshot(payload);
+      },
+    );
   });
 
   group('TS8 — yahoojp + snapshot 부재', () {
@@ -387,26 +393,23 @@ void main() {
       },
     );
 
-    test(
-      'local DateTime 으로 만든 동의도 acceptedAt 이 UTC(Z) 로 정규화된다 (CR-01)',
-      () {
-        final local = DateTime(2026, 9, 7, 23, 30, 38);
-        expect(local.isUtc, isFalse, reason: 'local 전제 고정');
+    test('local DateTime 으로 만든 동의도 acceptedAt 이 UTC(Z) 로 정규화된다 (CR-01)', () {
+      final local = DateTime(2026, 9, 7, 23, 30, 38);
+      expect(local.isUtc, isFalse, reason: 'local 전제 고정');
 
-        final produced = TermsAcceptance(
-          version: 1,
-          service: true,
-          privacy: true,
-          marketing: false,
-          acceptedAt: local,
-        ).toServerJson();
+      final produced = TermsAcceptance(
+        version: 1,
+        service: true,
+        privacy: true,
+        marketing: false,
+        acceptedAt: local,
+      ).toServerJson();
 
-        final acceptedAt = produced['acceptedAt'] as String;
-        expect(acceptedAt, endsWith('Z'));
-        // 표현만 정규화되고 instant 는 보존된다.
-        expect(DateTime.parse(acceptedAt).isAtSameMomentAs(local), isTrue);
-      },
-    );
+      final acceptedAt = produced['acceptedAt'] as String;
+      expect(acceptedAt, endsWith('Z'));
+      // 표현만 정규화되고 instant 는 보존된다.
+      expect(DateTime.parse(acceptedAt).isAtSameMomentAs(local), isTrue);
+    });
   });
 
   group('TS9 — 4 provider 대칭 sentinel', () {
@@ -423,9 +426,9 @@ void main() {
         final payloads = captureAllPayloads();
         expect(payloads, hasLength(4), reason: '4 provider 모두 callable 호출');
 
-        final keySets = payloads.map(expectContractSnapshot).map(
-          (snapshot) => snapshot.keys.toSet(),
-        );
+        final keySets = payloads
+            .map(expectContractSnapshot)
+            .map((snapshot) => snapshot.keys.toSet());
         for (final keySet in keySets) {
           expect(
             keySet,

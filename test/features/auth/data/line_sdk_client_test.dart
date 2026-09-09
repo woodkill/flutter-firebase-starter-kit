@@ -42,15 +42,13 @@ Future<LoginResult> _buildLoginResult({
     'IDTokenNonce': nonce,
     'scope': 'openid profile',
   };
-  TestDefaultBinaryMessengerBinding
-      .instance
-      .defaultBinaryMessenger
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(channel, (call) async {
-    if (call.method == 'login') {
-      return jsonEncode(payload);
-    }
-    return null;
-  });
+        if (call.method == 'login') {
+          return jsonEncode(payload);
+        }
+        return null;
+      });
   return LineSDK.instance.login();
 }
 
@@ -63,7 +61,10 @@ void main() {
       final client = LineSdkClient.forTest(
         login: ({required scopes, required option}) async {
           capturedNonce = option.idTokenNonce;
-          return _buildLoginResult(idTokenRaw: 'JWT', nonce: option.idTokenNonce);
+          return _buildLoginResult(
+            idTokenRaw: 'JWT',
+            nonce: option.idTokenNonce,
+          );
         },
         logout: () async {},
       );
@@ -82,41 +83,47 @@ void main() {
       expect(capturedNonce!.length, greaterThanOrEqualTo(22));
     });
 
-    test('Test 2: fake login 의 LoginResult.idToken + 호출 nonce 가 정확 매핑',
-        () async {
-      const idToken = 'JWT_HEADER.JWT_PAYLOAD.JWT_SIG';
-      String? generatedNonce;
-      final client = LineSdkClient.forTest(
-        login: ({required scopes, required option}) async {
-          generatedNonce = option.idTokenNonce;
-          return _buildLoginResult(idTokenRaw: idToken, nonce: option.idTokenNonce);
-        },
-        logout: () async {},
-      );
+    test(
+      'Test 2: fake login 의 LoginResult.idToken + 호출 nonce 가 정확 매핑',
+      () async {
+        const idToken = 'JWT_HEADER.JWT_PAYLOAD.JWT_SIG';
+        String? generatedNonce;
+        final client = LineSdkClient.forTest(
+          login: ({required scopes, required option}) async {
+            generatedNonce = option.idTokenNonce;
+            return _buildLoginResult(
+              idTokenRaw: idToken,
+              nonce: option.idTokenNonce,
+            );
+          },
+          logout: () async {},
+        );
 
-      final result = await client.signIn();
+        final result = await client.signIn();
 
-      expect(result, isNotNull);
-      expect(result!.idToken, idToken);
-      expect(result.nonce, generatedNonce);
-    });
-
-    test('Test 3: PlatformException("CANCEL") (iOS LINE app-to-app 취소) → null',
-        () async {
-      final client = LineSdkClient.forTest(
-        login: ({required scopes, required option}) async {
-          throw PlatformException(code: 'CANCEL');
-        },
-        logout: () async {},
-      );
-
-      final result = await client.signIn();
-
-      expect(result, isNull);
-    });
+        expect(result, isNotNull);
+        expect(result!.idToken, idToken);
+        expect(result.nonce, generatedNonce);
+      },
+    );
 
     test(
-        'Test 4: PlatformException("AUTHENTICATION_CANCELLED") (Android LINE '
+      'Test 3: PlatformException("CANCEL") (iOS LINE app-to-app 취소) → null',
+      () async {
+        final client = LineSdkClient.forTest(
+          login: ({required scopes, required option}) async {
+            throw PlatformException(code: 'CANCEL');
+          },
+          logout: () async {},
+        );
+
+        final result = await client.signIn();
+
+        expect(result, isNull);
+      },
+    );
+
+    test('Test 4: PlatformException("AUTHENTICATION_CANCELLED") (Android LINE '
         '취소) → null', () async {
       final client = LineSdkClient.forTest(
         login: ({required scopes, required option}) async {
@@ -138,10 +145,7 @@ void main() {
         logout: () async {},
       );
 
-      await expectLater(
-        client.signIn(),
-        throwsA(isA<PlatformException>()),
-      );
+      await expectLater(client.signIn(), throwsA(isA<PlatformException>()));
     });
 
     test('Test 6: idTokenRaw null (Pitfall 1 — OIDC scope 누락) → '
@@ -153,29 +157,25 @@ void main() {
         logout: () async {},
       );
 
-      await expectLater(
-        client.signIn(),
-        throwsA(isA<ServiceUnavailable>()),
-      );
+      await expectLater(client.signIn(), throwsA(isA<ServiceUnavailable>()));
     });
 
     // WR-03 (Phase 14 review): null 만이 아닌 빈 문자열도 client-side 가드.
     // flutter_line_sdk native 측이 사실상 null 만 반환하지만 방어적 회귀
     // 가드로 ServiceUnavailable 분기 일관성 보장.
-    test('Test 6.5: idTokenRaw 빈 문자열 → ServiceUnavailable throw (WR-03)',
-        () async {
-      final client = LineSdkClient.forTest(
-        login: ({required scopes, required option}) async {
-          return _buildLoginResult(idTokenRaw: '');
-        },
-        logout: () async {},
-      );
+    test(
+      'Test 6.5: idTokenRaw 빈 문자열 → ServiceUnavailable throw (WR-03)',
+      () async {
+        final client = LineSdkClient.forTest(
+          login: ({required scopes, required option}) async {
+            return _buildLoginResult(idTokenRaw: '');
+          },
+          logout: () async {},
+        );
 
-      await expectLater(
-        client.signIn(),
-        throwsA(isA<ServiceUnavailable>()),
-      );
-    });
+        await expectLater(client.signIn(), throwsA(isA<ServiceUnavailable>()));
+      },
+    );
   });
 
   group('LineSdkClient.logout — D-LINE-57 1회성 토큰 + graceful', () {
@@ -195,19 +195,21 @@ void main() {
       expect(logoutCallCount, 1);
     });
 
-    test('Test 8: _logout throw 해도 logout() 가 silent swallow (graceful)',
-        () async {
-      final client = LineSdkClient.forTest(
-        login: ({required scopes, required option}) async {
-          throw UnimplementedError('login 미호출');
-        },
-        logout: () async {
-          throw Exception('logout 실패 시뮬레이션');
-        },
-      );
+    test(
+      'Test 8: _logout throw 해도 logout() 가 silent swallow (graceful)',
+      () async {
+        final client = LineSdkClient.forTest(
+          login: ({required scopes, required option}) async {
+            throw UnimplementedError('login 미호출');
+          },
+          logout: () async {
+            throw Exception('logout 실패 시뮬레이션');
+          },
+        );
 
-      // 예외 0 — graceful.
-      await client.logout();
-    });
+        // 예외 0 — graceful.
+        await client.logout();
+      },
+    );
   });
 }
