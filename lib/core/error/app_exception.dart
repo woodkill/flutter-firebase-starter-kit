@@ -197,14 +197,21 @@ final class AccountAlreadyLinked extends AuthException {
 /// - `credential-already-in-use` → [AccountAlreadyLinked]. "다른 계정이
 ///   쓰고 있다" — 해제는 그 계정 소유주만 가능하다.
 ///
-/// [userMessage] 는 reactive 경로 (`resolveExceptionMessage`) 호환을 위해
-/// [AccountAlreadyLinked] 와 동일 키를 유지하며, proactive Surface D 만
-/// `SettingsNotifier` 가 [AccountLinkOutcome.alreadyLinkedHere] 로 분기해
-/// 전용 문구 `settingsLinkFailedAlreadyLinkedHere` 를 렌더한다.
+/// [userMessage] 는 전용 문구 `settingsLinkFailedAlreadyLinkedHere` 다 (WR-03).
+/// 이전에는 reactive 경로 호환을 이유로 [AccountAlreadyLinked] 와 동일한
+/// `errorAccountExistsWithUnknownProvider` ("다른 방식으로 가입되어 있습니다 —
+/// 처음 가입한 방식으로 다시 로그인해 주세요") 를 공유했는데, 그 문구는
+/// `provider-already-linked` 에 대해 사실과 정반대이며 `resolveExceptionMessage`
+/// 를 쓰는 모든 표면 (예: `FormErrorBanner`) 에 그대로 노출되었다. 즉 본 타입을
+/// 분리한 목적 자체를 reactive 경로에서 되돌리고 있었다.
+///
+/// proactive Surface D 는 `SettingsNotifier` 가
+/// [AccountLinkOutcome.alreadyLinkedHere] 로 분기해 같은 문구를 렌더하므로 두
+/// 경로의 문구가 일치한다.
 final class ProviderAlreadyLinkedToThisAccount extends AuthException {
   /// [ProviderAlreadyLinkedToThisAccount]을 생성한다.
   const ProviderAlreadyLinkedToThisAccount({super.cause})
-    : super(userMessage: 'errorAccountExistsWithUnknownProvider');
+    : super(userMessage: 'settingsLinkFailedAlreadyLinkedHere');
 }
 
 /// 재인증 필요 (Phase 16 D-06 / D-07).

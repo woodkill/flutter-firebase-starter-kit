@@ -962,7 +962,7 @@
 
   "settingsLinkFailedAlreadyLinkedHere": "This account is already linked to that sign-in method.",
   "@settingsLinkFailedAlreadyLinkedHere": {
-    "description": "Phase 16 WR-04 (2차 리뷰) — Surface D proactive link 실패 문구 (원인: provider-already-linked, 즉 해당 provider 가 이미 *현재* 계정에 연결됨). 소비: AccountLinkOutcome.alreadyLinkedHere (ProviderAlreadyLinkedToThisAccount). settingsLinkFailedAlreadyLinked 는 credential-already-in-use (해당 자격증명이 *다른* 계정에 연결) 전용이며 두 문구는 의미가 정반대다 — 하나로 뭉개면 사실과 반대인 안내 + 수행 불가능한 해결책 (다른 계정 소유주만 해제 가능) 이 나간다. email/uid/token 을 노출하지 않는다."
+    "description": "Phase 16 WR-04 (2차 리뷰) — Surface D proactive link 실패 문구 (원인: provider-already-linked, 즉 해당 provider 가 이미 *현재* 계정에 연결됨). 소비: (1) Surface D proactive — AccountLinkOutcome.alreadyLinkedHere (ProviderAlreadyLinkedToThisAccount), (2) reactive — ProviderAlreadyLinkedToThisAccount.userMessage 경유 resolveExceptionMessage (FormErrorBanner 등 AppException 렌더 표면 전체, WR-03). settingsLinkFailedAlreadyLinked 는 credential-already-in-use (해당 자격증명이 *다른* 계정에 연결) 전용이며 두 문구는 의미가 정반대다 — 하나로 뭉개면 사실과 반대인 안내 + 수행 불가능한 해결책 (다른 계정 소유주만 해제 가능) 이 나간다. email/uid/token 을 노출하지 않는다."
   },
 
   "settingsLinkFailedEmailInUse": "This email is already in use by another account.",

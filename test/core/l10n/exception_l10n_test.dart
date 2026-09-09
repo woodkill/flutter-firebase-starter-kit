@@ -60,6 +60,33 @@ void main() {
     });
   });
 
+  // WR-03 (2차 리뷰) — ProviderAlreadyLinkedToThisAccount 는
+  // `provider-already-linked` (이미 *현재* 계정에 연결) 다. 이전에는
+  // AccountAlreadyLinked 와 동일한 errorAccountExistsWithUnknownProvider
+  // ("다른 방식으로 가입되어 있습니다 — 처음 가입한 방식으로 다시 로그인") 를
+  // 공유해 reactive 표면에 사실과 정반대 안내가 나갔다.
+  group('resolveExceptionMessage WR-03 — provider-already-linked 전용 문구', () {
+    testWidgets('ProviderAlreadyLinkedToThisAccount → 전용 문구', (tester) async {
+      final result = await _resolve(
+        tester,
+        const ProviderAlreadyLinkedToThisAccount(),
+      );
+      expect(result, 'This account is already linked to that sign-in method.');
+    });
+
+    testWidgets('의미 정반대 collapse 문구로 되돌아가지 않는다', (tester) async {
+      final result = await _resolve(
+        tester,
+        const ProviderAlreadyLinkedToThisAccount(),
+      );
+      // AccountAlreadyLinked 계열 문구 / 이메일 collapse 문구 미노출.
+      expect(result, isNot(contains('another account')));
+      expect(result, isNot(contains('different')));
+      // ARB 키 문자열이 그대로 새어 나오지 않는다 (매핑 누락 회귀 가드).
+      expect(result, isNot(contains('settingsLinkFailed')));
+    });
+  });
+
   // (Phase 9.2 R2 — Path A-narrow) AccountExistsWithDifferentCredential 인스
   // 턴스는 email 유무와 무관하게 단일 unknown fallback 메시지로 매핑된다.
   // exception_l10n.dart 의 special-case branch (instance type-check + 조기

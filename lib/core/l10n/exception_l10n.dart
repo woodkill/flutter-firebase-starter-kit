@@ -48,6 +48,11 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     'errorAccountExistsWithDifferentCredential' =>
       l10n.errorAccountExistsWithDifferentCredential,
     'errorUnknown' => l10n.errorUnknown,
+    // WR-03: ProviderAlreadyLinkedToThisAccount (`provider-already-linked`).
+    // 매핑이 없으면 `final other => other` 로 떨어져 ARB **키 문자열 자체**가
+    // 사용자에게 노출된다.
+    'settingsLinkFailedAlreadyLinkedHere' =>
+      l10n.settingsLinkFailedAlreadyLinkedHere,
     final other => other,
   };
 }
