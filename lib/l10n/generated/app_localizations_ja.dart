@@ -588,6 +588,13 @@ class AppLocalizationsJa extends AppLocalizations {
       'ゲストとして利用中のため、既存のアカウントにログインできません。下の別の方法でログインしてください。';
 
   @override
+  String get authSignInFailedTransient =>
+      'ネットワークまたはサービスのエラーでログインできませんでした。しばらくしてからもう一度お試しください。';
+
+  @override
+  String get authSignInFailedUnknown => 'ログインに失敗しました。しばらくしてからもう一度お試しください。';
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       'このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。';
 

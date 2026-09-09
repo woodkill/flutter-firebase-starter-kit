@@ -1186,6 +1186,18 @@ abstract class AppLocalizations {
   /// **'You\'re browsing as a guest, so this existing account can\'t be signed in here. Please use another sign-in method below.'**
   String get authSignInBlockedByGuestSession;
 
+  /// Phase 16 IN-06 (4차 리뷰) — Surface A 경로 B step 1 (기존 provider 로 **로그인**) 의 일시적 네트워크·서비스 오류 문구. 소비: AccountLinkingSheet._signInWithExistingProvider 의 NetworkException / TooManyRequests / ServiceUnavailable arm. **키를 신설한 이유:** 이전에는 settingsLinkFailedTransient ('연결하지 못했습니다') 를 재사용했는데 그 순간 사용자가 수행한 동작은 link 가 아니라 로그인이다. 본 저장소는 ARB description 을 소비처 계약으로 운용하므로, '소비처 2곳의 동작 이름이 다른데 문구는 한쪽 어휘' 상태는 다음 문구 수정 때 다시 어긋난다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t sign in due to a network or service error. Please try again later.'**
+  String get authSignInFailedTransient;
+
+  /// Phase 16 IN-06 (4차 리뷰) — Surface A 경로 B step 1 (기존 provider 로 **로그인**) 의 미분류 catch-all 문구. 소비: AccountLinkingSheet._signInWithExistingProvider 의 마지막 arm. **키를 신설한 이유는 authSignInFailedTransient 와 동일** (link 어휘 vs 로그인 동작 불일치). 결정적 실패(A-16-19-01 익명 caller 재충돌)는 authSignInBlockedByGuestSession 전용 arm 이 먼저 가져가므로 이 키로 오지 않는다 — 여기에 '잠시 후 다시 시도' 어휘가 남아 있어도 무한 왕복을 유발하지 않는 이유다. 정확한 코드는 kDebugMode debugPrint 로 logcat 에 남는다 (T-16-15-01). email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t sign you in. Please try again later.'**
+  String get authSignInFailedUnknown;
+
   /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: already-linked). 2026-09-07 A6 실측에서 실제 원인이 credential-already-in-use 였는데 errorAccountExistsWithUnknownProvider(이메일 문구)가 표시된 collapse 를 해소한다. 소비: (1) Surface D proactive — AccountLinkOutcome.alreadyLinked (AccountAlreadyLinked — credential-already-in-use), (2) Surface A 경로 A — AccountLinkingSheet 의 linkPendingNativeCredential 실패 중 AccountAlreadyLinked arm (WR-02, 4차 리뷰). 경로 A 도 동일 collapse (errorAccountExistsWithUnknownProvider) 를 쓰고 있었다. email/uid/token 을 노출하지 않는다.
   ///
   /// In en, this message translates to:
@@ -1204,13 +1216,13 @@ abstract class AppLocalizations {
   /// **'This email is already in use by another account.'**
   String get settingsLinkFailedEmailInUse;
 
-  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 일시적 네트워크·서비스 오류). 소비: (1) Surface D proactive — AccountLinkOutcome.transientFailure, (2) Surface A 경로 B step 1 실패 — AccountLinkingSheet._signInWithExistingProvider 의 동일 예외 집합 arm (WR-01), (3) Surface A 경로 A — AccountLinkingSheet 의 linkPendingNativeCredential 실패 중 동일 예외 집합 arm (WR-02, 4차 리뷰). 세 표면 모두 예외 타입 집합은 NetworkException 계열 network-request-failed / TooManyRequests too-many-requests / ServiceUnavailable 이다. 재시도 유도 문구 — 시트가 지목한 provider 로 '다시 로그인' 하라는 순환 안내(errorAccountExistsWithUnknownProvider)를 대체한다.
+  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 일시적 네트워크·서비스 오류). 소비: (1) Surface D proactive — AccountLinkOutcome.transientFailure, (2) Surface A 경로 A — AccountLinkingSheet 의 linkPendingNativeCredential 실패 중 동일 예외 집합 arm (WR-02, 4차 리뷰). 두 표면 모두 동작이 link 다 — 경로 B step 1 은 로그인이므로 IN-06 에서 authSignInFailedTransient 로 분리되어 더 이상 이 키를 쓰지 않는다. 두 표면 모두 예외 타입 집합은 NetworkException 계열 network-request-failed / TooManyRequests too-many-requests / ServiceUnavailable 이다. 재시도 유도 문구 — 시트가 지목한 provider 로 '다시 로그인' 하라는 순환 안내(errorAccountExistsWithUnknownProvider)를 대체한다.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t link due to a network or service error. Please try again later.'**
   String get settingsLinkFailedTransient;
 
-  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 미분류 catch-all). 소비: (1) Surface D proactive — AccountLinkOutcome.failed, (2) Surface A 경로 B step 1 실패의 catch-all arm (WR-01), (3) Surface A 경로 A 의 catch-all arm (WR-02, 4차 리뷰). 경로 B 의 결정적 실패(A-16-19-01) 는 authSignInBlockedByGuestSession 전용 arm 이 먼저 가져가므로 이 키로 오지 않는다. 분류되지 않은 실패가 조용히 사라지지 않도록 두는 마지막 arm 이며, 정확한 코드는 kDebugMode debugPrint(code=...) 로 logcat 에 남는다 (T-16-15-01).
+  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 미분류 catch-all). 소비: (1) Surface D proactive — AccountLinkOutcome.failed, (2) Surface A 경로 A 의 catch-all arm (WR-02, 4차 리뷰). 경로 B step 1 은 로그인이므로 IN-06 에서 authSignInFailedUnknown 으로 분리되어 더 이상 이 키를 쓰지 않는다. 분류되지 않은 실패가 조용히 사라지지 않도록 두는 마지막 arm 이며, 정확한 코드는 kDebugMode debugPrint(code=...) 로 logcat 에 남는다 (T-16-15-01).
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t link your account. Please try again later.'**

@@ -602,6 +602,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'You\'re browsing as a guest, so this existing account can\'t be signed in here. Please use another sign-in method below.';
 
   @override
+  String get authSignInFailedTransient =>
+      'Couldn\'t sign in due to a network or service error. Please try again later.';
+
+  @override
+  String get authSignInFailedUnknown =>
+      'Couldn\'t sign you in. Please try again later.';
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       'This sign-in method is already linked to another account. Unlink it first, then try again.';
 

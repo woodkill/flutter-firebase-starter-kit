@@ -250,6 +250,8 @@
   "accountLinkingSignInThenLinkHint": "{provider}アカウントでログインしました。他のログイン方法は「設定」>「アカウント連携」から追加できます。",
   "authReauthRequired": "セキュリティのため、再ログインしてから再試行してください。",
   "authSignInBlockedByGuestSession": "ゲストとして利用中のため、既存のアカウントにログインできません。下の別の方法でログインしてください。",
+  "authSignInFailedTransient": "ネットワークまたはサービスのエラーでログインできませんでした。しばらくしてからもう一度お試しください。",
+  "authSignInFailedUnknown": "ログインに失敗しました。しばらくしてからもう一度お試しください。",
   "settingsLinkFailedAlreadyLinked": "このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。",
   "settingsLinkFailedAlreadyLinkedHere": "このログイン方法はすでにこのアカウントに連携されています。",
   "settingsLinkFailedEmailInUse": "このメールアドレスは既に別のアカウントで使用されています。",

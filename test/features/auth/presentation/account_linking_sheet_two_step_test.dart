@@ -326,7 +326,7 @@ void main() {
 
         expect(
           find.text(
-            "Couldn't link due to a network or service error. "
+            "Couldn't sign in due to a network or service error. "
             'Please try again later.',
           ),
           findsOneWidget,
@@ -355,7 +355,7 @@ void main() {
 
         expect(
           find.text(
-            "Couldn't link due to a network or service error. "
+            "Couldn't sign in due to a network or service error. "
             'Please try again later.',
           ),
           findsOneWidget,
@@ -418,7 +418,7 @@ void main() {
         await tester.pump(const Duration(seconds: 1));
 
         expect(
-          find.text("Couldn't link your account. Please try again later."),
+          find.text("Couldn't sign you in. Please try again later."),
           findsOneWidget,
         );
         expectNoCircularGuidance(tester);

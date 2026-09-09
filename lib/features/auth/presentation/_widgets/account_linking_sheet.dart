@@ -301,8 +301,12 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   ///   재충돌(A-16-19-01) 도 이 분기로 흡수되어 crash 0 · linkedProviders
   ///   변경 0 이다.
   ///
-  /// **분기 값은 3개다** (`settingsLinkFailedTransient` /
-  /// `authSignInBlockedByGuestSession` / `settingsLinkFailedUnknown`) —
+  /// **분기 값은 3개다** (`authSignInFailedTransient` /
+  /// `authSignInBlockedByGuestSession` / `authSignInFailedUnknown`) —
+  /// 세 키 모두 step 1 전용이다. IN-06 (4차 리뷰) 이전에는 앞뒤 두 값이
+  /// Surface D 의 `settingsLinkFailed*` ("연결하지 못했습니다") 를 재사용했는데,
+  /// 그 순간 사용자가 수행한 동작은 link 가 아니라 *로그인* 이라 소비처 계약
+  /// (ARB description) 과 어휘가 어긋났다. —
   /// proactive `AccountLinkingSection` 의 5값 outcome switch (transientFailure /
   /// emailInUse / alreadyLinked / alreadyLinkedHere / failed) 의 **부분집합**
   /// 이며 mirror 가 아니다. step 1 은 link 가 아니라 *로그인* 이므로
@@ -349,12 +353,13 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
           );
         }
         // 실패 — user-visible 안내 (stuck sheet 방지). 순환 안내 대신
-        // 원인별 문구를 쓴다 (3차 WR-01 + 4차 WR-01). transient 집합은
-        // Surface D `SettingsNotifier._mapLinkFailure` 의 transient arm 과
-        // 동일 타입 집합이다.
+        // 원인별 문구를 쓴다 (3차 WR-01 + 4차 WR-01 / IN-06). transient 타입
+        // 집합은 Surface D `SettingsNotifier._mapLinkFailure` 의 transient arm
+        // 과 동일하지만, 문구는 step 1 전용 키다 (동작이 link 가 아니라
+        // 로그인 — IN-06).
         final message = switch (exception) {
           NetworkException() || TooManyRequests() || ServiceUnavailable() =>
-            l10n.settingsLinkFailedTransient,
+            l10n.authSignInFailedTransient,
           // 4차 WR-01 — A-16-19-01 익명 caller 재충돌. 서버 resolveIdentity 의
           // R12(anonymous_existing_collision) 재거부가 이 타입으로 매핑되며,
           // 익명 세션이 유지되는 한 **재시도로 절대 해소되지 않는 결정적
@@ -364,7 +369,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
           // AR-16-07 이 수용한 유일한 탈출구(하단 dismiss)를 안내한다.
           AccountExistsWithDifferentCredential() =>
             l10n.authSignInBlockedByGuestSession,
-          _ => l10n.settingsLinkFailedUnknown,
+          _ => l10n.authSignInFailedUnknown,
         };
         messenger.showSnackBar(SnackBar(content: Text(message)));
         return _ExistingProviderSignInOutcome.cancelledOrFailed;

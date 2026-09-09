@@ -589,6 +589,13 @@ class AppLocalizationsKo extends AppLocalizations {
       '게스트로 이용 중이어서 기존 계정으로 로그인할 수 없습니다. 아래에서 다른 방식으로 로그인해 주세요.';
 
   @override
+  String get authSignInFailedTransient =>
+      '네트워크 또는 서비스 오류로 로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String get authSignInFailedUnknown => '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       '이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.';
 
