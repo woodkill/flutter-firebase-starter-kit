@@ -1180,31 +1180,31 @@ abstract class AppLocalizations {
   /// **'You\'re browsing as a guest, so this existing account can\'t be signed in here. Please use another sign-in method below.'**
   String get authSignInBlockedByGuestSession;
 
-  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: already-linked). 2026-09-07 A6 실측에서 실제 원인이 credential-already-in-use 였는데 errorAccountExistsWithUnknownProvider(이메일 문구)가 표시된 collapse 를 해소한다. 소비: AccountLinkOutcome.alreadyLinked (AccountAlreadyLinked — provider-already-linked / credential-already-in-use). email/uid/token 을 노출하지 않는다.
+  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: already-linked). 2026-09-07 A6 실측에서 실제 원인이 credential-already-in-use 였는데 errorAccountExistsWithUnknownProvider(이메일 문구)가 표시된 collapse 를 해소한다. 소비: (1) Surface D proactive — AccountLinkOutcome.alreadyLinked (AccountAlreadyLinked — credential-already-in-use), (2) Surface A 경로 A — AccountLinkingSheet 의 linkPendingNativeCredential 실패 중 AccountAlreadyLinked arm (WR-02, 4차 리뷰). 경로 A 도 동일 collapse (errorAccountExistsWithUnknownProvider) 를 쓰고 있었다. email/uid/token 을 노출하지 않는다.
   ///
   /// In en, this message translates to:
   /// **'This sign-in method is already linked to another account. Unlink it first, then try again.'**
   String get settingsLinkFailedAlreadyLinked;
 
-  /// Phase 16 WR-04 (2차 리뷰) — Surface D proactive link 실패 문구 (원인: provider-already-linked, 즉 해당 provider 가 이미 *현재* 계정에 연결됨). 소비: (1) Surface D proactive — AccountLinkOutcome.alreadyLinkedHere (ProviderAlreadyLinkedToThisAccount), (2) reactive — ProviderAlreadyLinkedToThisAccount.userMessage 경유 resolveExceptionMessage (FormErrorBanner 등 AppException 렌더 표면 전체, WR-03). settingsLinkFailedAlreadyLinked 는 credential-already-in-use (해당 자격증명이 *다른* 계정에 연결) 전용이며 두 문구는 의미가 정반대다 — 하나로 뭉개면 사실과 반대인 안내 + 수행 불가능한 해결책 (다른 계정 소유주만 해제 가능) 이 나간다. email/uid/token 을 노출하지 않는다.
+  /// Phase 16 WR-04 (2차 리뷰) — Surface D proactive link 실패 문구 (원인: provider-already-linked, 즉 해당 provider 가 이미 *현재* 계정에 연결됨). 소비: (1) Surface D proactive — AccountLinkOutcome.alreadyLinkedHere (ProviderAlreadyLinkedToThisAccount), (2) reactive — ProviderAlreadyLinkedToThisAccount.userMessage 경유 resolveExceptionMessage (FormErrorBanner 등 AppException 렌더 표면 전체, WR-03), (3) Surface A 경로 A — AccountLinkingSheet 의 linkPendingNativeCredential 실패 중 ProviderAlreadyLinkedToThisAccount arm (WR-02, 4차 리뷰). settingsLinkFailedAlreadyLinked 는 credential-already-in-use (해당 자격증명이 *다른* 계정에 연결) 전용이며 두 문구는 의미가 정반대다 — 하나로 뭉개면 사실과 반대인 안내 + 수행 불가능한 해결책 (다른 계정 소유주만 해제 가능) 이 나간다. email/uid/token 을 노출하지 않는다.
   ///
   /// In en, this message translates to:
   /// **'This account is already linked to that sign-in method.'**
   String get settingsLinkFailedAlreadyLinkedHere;
 
-  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: email 중복). 소비: AccountLinkOutcome.emailInUse (EmailAlreadyInUse — email-already-in-use, AccountExistsWithDifferentCredential). 문구에 email 값 자체를 echo 하지 않는다 (T-16-15-02 mitigate — 본인 link 시도 결과에만 노출되어 enumeration 표면 0).
+  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: email 중복). 소비: (1) Surface D proactive — AccountLinkOutcome.emailInUse (EmailAlreadyInUse — email-already-in-use, AccountExistsWithDifferentCredential), (2) Surface A 경로 A — AccountLinkingSheet 의 linkPendingNativeCredential 실패 중 동일 2 타입 arm (WR-02, 4차 리뷰). 문구에 email 값 자체를 echo 하지 않는다 (T-16-15-02 mitigate — 본인 link 시도 결과에만 노출되어 enumeration 표면 0).
   ///
   /// In en, this message translates to:
   /// **'This email is already in use by another account.'**
   String get settingsLinkFailedEmailInUse;
 
-  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 일시적 네트워크·서비스 오류). 소비: (1) Surface D proactive — AccountLinkOutcome.transientFailure, (2) Surface A 경로 B step 1 실패 — AccountLinkingSheet._signInWithExistingProvider 의 동일 예외 집합 arm (WR-01). 두 표면 모두 예외 타입 집합은 NetworkException 계열 network-request-failed / TooManyRequests too-many-requests / ServiceUnavailable 이다. 재시도 유도 문구 — 시트가 지목한 provider 로 '다시 로그인' 하라는 순환 안내(errorAccountExistsWithUnknownProvider)를 대체한다.
+  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 일시적 네트워크·서비스 오류). 소비: (1) Surface D proactive — AccountLinkOutcome.transientFailure, (2) Surface A 경로 B step 1 실패 — AccountLinkingSheet._signInWithExistingProvider 의 동일 예외 집합 arm (WR-01), (3) Surface A 경로 A — AccountLinkingSheet 의 linkPendingNativeCredential 실패 중 동일 예외 집합 arm (WR-02, 4차 리뷰). 세 표면 모두 예외 타입 집합은 NetworkException 계열 network-request-failed / TooManyRequests too-many-requests / ServiceUnavailable 이다. 재시도 유도 문구 — 시트가 지목한 provider 로 '다시 로그인' 하라는 순환 안내(errorAccountExistsWithUnknownProvider)를 대체한다.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t link due to a network or service error. Please try again later.'**
   String get settingsLinkFailedTransient;
 
-  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 미분류 catch-all). 소비: (1) Surface D proactive — AccountLinkOutcome.failed, (2) Surface A 경로 B step 1 실패의 catch-all arm (WR-01). 분류되지 않은 실패가 조용히 사라지지 않도록 두는 마지막 arm 이며, 정확한 코드는 kDebugMode debugPrint(code=...) 로 logcat 에 남는다 (T-16-15-01).
+  /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: 미분류 catch-all). 소비: (1) Surface D proactive — AccountLinkOutcome.failed, (2) Surface A 경로 B step 1 실패의 catch-all arm (WR-01), (3) Surface A 경로 A 의 catch-all arm (WR-02, 4차 리뷰). 경로 B 의 결정적 실패(A-16-19-01) 는 authSignInBlockedByGuestSession 전용 arm 이 먼저 가져가므로 이 키로 오지 않는다. 분류되지 않은 실패가 조용히 사라지지 않도록 두는 마지막 arm 이며, 정확한 코드는 kDebugMode debugPrint(code=...) 로 logcat 에 남는다 (T-16-15-01).
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t link your account. Please try again later.'**

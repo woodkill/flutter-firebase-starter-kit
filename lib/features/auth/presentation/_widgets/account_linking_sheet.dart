@@ -243,9 +243,10 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
         navigator.pop(true);
         router.go(AppRoutes.home);
       case Failure<dynamic>(:final exception):
-        // WR-01: proactive arm (AccountLinkingSection) 과 동일 피드백 —
-        // reauth-expired 는 재로그인 라우팅, 그 외는 user-visible SnackBar
-        // (PII 0: ARB only). 기존엔 mute pop(false) 로 무피드백 dead-end.
+        // WR-01 (1차 리뷰): proactive arm (AccountLinkingSection) 과 동일
+        // 피드백 — reauth-expired 는 재로그인 라우팅, 그 외는 user-visible
+        // SnackBar (PII 0: ARB only). 기존엔 mute pop(false) 로 무피드백
+        // dead-end 였다. non-reauth arm 의 원인별 분기는 WR-02 (4차 리뷰).
         navigator.pop(false);
         if (exception is ReauthenticationRequiredException) {
           // WR-04: 인증 도메인 공용 키. withdrawalReauthRequired 는 소비처
@@ -257,11 +258,26 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
           );
           router.go(AppRoutes.login);
         } else {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(l10n.errorAccountExistsWithUnknownProvider),
-            ),
-          );
+          // 4차 WR-02 — 경로 A 도 경로 B / Surface D 와 동일한 원인별 분기를
+          // 쓴다. 이전에는 errorAccountExistsWithUnknownProvider ("처음 가입한
+          // 방식으로 다시 로그인해 주세요") 로 collapse 했는데, 경로 A 는
+          // 정의상 그 "처음 가입한 방식" 으로 재인증까지 마친 뒤 실패한
+          // 지점이라 지시가 자기 자신을 가리키는 순환이었다. 게다가 이 arm 의
+          // 대표 예외인 AccountAlreadyLinked(credential-already-in-use) 의 실제
+          // 원인은 "그 자격증명을 **다른 계정**이 쓰고 있다" 이므로 이메일 문구
+          // 는 사실과도 다르다 — @settingsLinkFailedAlreadyLinked.description
+          // 이 Surface D 에서 이미 제거한 collapse 다.
+          final message = switch (exception) {
+            ProviderAlreadyLinkedToThisAccount() =>
+              l10n.settingsLinkFailedAlreadyLinkedHere,
+            AccountAlreadyLinked() => l10n.settingsLinkFailedAlreadyLinked,
+            EmailAlreadyInUse() || AccountExistsWithDifferentCredential() =>
+              l10n.settingsLinkFailedEmailInUse,
+            NetworkException() || TooManyRequests() || ServiceUnavailable() =>
+              l10n.settingsLinkFailedTransient,
+            _ => l10n.settingsLinkFailedUnknown,
+          };
+          messenger.showSnackBar(SnackBar(content: Text(message)));
         }
     }
   }

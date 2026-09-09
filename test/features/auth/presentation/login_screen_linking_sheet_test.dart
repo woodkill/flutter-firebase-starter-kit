@@ -360,10 +360,10 @@ void main() {
     );
   });
 
-  group('T7 — WR-01: native 기타 실패 → user-visible SnackBar + sheet dismiss', () {
+  group('T7 — WR-01/WR-02: native 기타 실패 → 원인별 SnackBar + sheet dismiss', () {
     testWidgets(
       'linkPendingNativeCredential → AccountAlreadyLinked → '
-      'errorAccountExistsWithUnknownProvider SnackBar + sheet pop(false)',
+      'settingsLinkFailedAlreadyLinked SnackBar + sheet pop(false)',
       (tester) async {
         await usePortraitSurface(tester);
         when(
@@ -404,12 +404,24 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
 
         // WR-01: 기타 실패도 silent 가 아니라 graceful 안내 SnackBar.
+        // WR-02 (4차 리뷰): 문구는 원인별 분기 결과다. AccountAlreadyLinked
+        // 의 실제 원인은 credential-already-in-use ("그 자격증명을 **다른
+        // 계정**이 쓰고 있다") 이므로 이메일 문구가 아니라 전용 문구가 뜬다.
+        expect(
+          find.text(
+            'This sign-in method is already linked to another account. '
+            'Unlink it first, then try again.',
+          ),
+          findsOneWidget,
+        );
+        // 순환 안내 문구 미노출 — 사용자는 방금 그 "처음 가입한 방식" 으로
+        // 재인증까지 마친 상태다 (경로 A 는 _reauthNativeCredential 선행).
         expect(
           find.text(
             'This email is already registered with another sign-in method. '
             'Please sign in with the method you originally used.',
           ),
-          findsOneWidget,
+          findsNothing,
         );
         expect(find.byType(AccountLinkingSheet), findsNothing);
       },
