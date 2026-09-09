@@ -61,7 +61,7 @@ GoRouter appRouter(Ref ref) {
     refreshListenable: authGuard,
     redirect: (context, state) => authRedirect(ref, state),
     observers: [observer],
-    // TODO: Phase 19 — dedicated NotFoundScreen (production home 분리, see ROADMAP.md)
+    // TODO: dedicated NotFoundScreen — see .planning/todos/pending/2026-09-09-not-found-screen.md
     // 현재는 EnvironmentInfoScreen 폴백 대신 임시 Scaffold 로 명시적
     // 404 안내를 표시하여, 잘못된 deep link 에서도 home 으로 silent
     // redirect 되지 않도록 한다 (IN-05).
