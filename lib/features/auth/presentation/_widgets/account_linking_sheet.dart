@@ -406,10 +406,12 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
                     ),
                   ),
                   Gap(spacing.sm),
+                  // 본문 (클래스 doc 레이아웃 5번) — UI-SPEC Layout Contract
+                  // Surface A 의 bodyLarge / onSurfaceVariant verbatim.
                   Text(
                     l10n.errorAccountExistsWithProvider(providerLabel),
                     style: typography.bodyLarge.copyWith(
-                      color: colorScheme.onSurface,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                   Gap(spacing.xl),
