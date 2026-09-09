@@ -29,6 +29,19 @@
  * identifier 아님, Firestore 에 이미 mirror 되는 동일 데이터). 단 logger
  * payload 에는 version 만 노출 가능, 본체 미노출.
  */
+/**
+ * 서버가 신뢰하는 약관 최신 버전 (client `TermsNotifier.currentVersion` mirror).
+ *
+ * **동시 갱신 의무 (schema invariant)**: 약관 개정 시
+ * `lib/features/terms/presentation/terms_notifier.dart` 의
+ * `TermsNotifier.currentVersion` 과 **반드시 같은 커밋에서** bump 한다. 서버가
+ * 이 상한을 모르면 `parseTermsAcceptanceJson` 이 미래 버전 위조를 통과시켜
+ * 재동의 강제 로직이 무력화된다 (WR-02).
+ *
+ * 현재 값 1 = `TermsNotifier.currentVersion` (terms_notifier.dart:45) 과 일치.
+ */
+export const SERVER_TERMS_CURRENT_VERSION = 1;
+
 export type TermsAcceptanceJson = {
   /** 약관 버전 (TermsNotifier.currentVersion 매칭). */
   version: number;
@@ -53,7 +66,9 @@ export type TermsAcceptanceJson = {
  *   `users/{uid}.termsAccepted` 에 착지 (Firestore schema 오염).
  * - `version` 위조로 client 가 `TermsNotifier._loadFromFirestore` 의
  *   `restored.version >= currentVersion` 재동의 강제 로직을 스스로 무력화
- *   (약관 개정 후 재동의 회피).
+ *   (약관 개정 후 재동의 회피) — `SERVER_TERMS_CURRENT_VERSION` 상한으로 차단.
+ * - 필수 동의 `service` / `privacy` 가 `false` 인 채로 `termsAccepted` 가
+ *   mirror 되어 동의 기록 무결성이 깨짐 — `!== true` 로 차단.
  * - `acceptedAt` 이 파싱 불가 문자열이면 `Timestamp.fromDate(Invalid Date)`
  *   가 throw → `HttpsError('internal')` 로 **로그인 전체가 실패** (payload
  *   형태 하나로 자기 계정 로그인 영구 차단).
@@ -75,9 +90,17 @@ export function parseTermsAcceptanceJson(
   const o = value as Record<string, unknown>;
   const {version, service, privacy, marketing, acceptedAt} = o;
   if (typeof version !== "number" || !Number.isInteger(version)) return null;
+  // 미래 버전 위조 차단 (WR-02) — 서버가 아는 최신 버전을 넘는 값은 신뢰하지
+  // 않는다. 통과시키면 client 의 `restored.version >= currentVersion` 재동의
+  // 강제 로직을 사용자가 스스로 영구 무력화할 수 있다.
+  if (version < 1 || version > SERVER_TERMS_CURRENT_VERSION) return null;
   if (typeof service !== "boolean") return null;
   if (typeof privacy !== "boolean") return null;
   if (typeof marketing !== "boolean") return null;
+  // 필수 동의 무결성 (WR-02) — service/privacy 는 약관 플로우상 true 로만
+  // 성립한다. false 인 채 `termsAccepted` 로 mirror 되면 "필수 동의 없이 동의
+  // 기록 존재" 라는 모순 상태가 남는다 (동의 기록 무결성).
+  if (service !== true || privacy !== true) return null;
   if (typeof acceptedAt !== "string") return null;
   // `new Date(...)` 가 Invalid Date 를 만들면 Timestamp.fromDate 가 throw.
   if (Number.isNaN(new Date(acceptedAt).getTime())) return null;

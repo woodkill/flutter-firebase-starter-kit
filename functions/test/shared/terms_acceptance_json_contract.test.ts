@@ -16,7 +16,10 @@
  */
 
 import type {TermsAcceptanceJson} from "../../src/shared/terms_acceptance_json";
-import {parseTermsAcceptanceJson} from "../../src/shared/terms_acceptance_json";
+import {
+  SERVER_TERMS_CURRENT_VERSION,
+  parseTermsAcceptanceJson,
+} from "../../src/shared/terms_acceptance_json";
 
 /** 서버 계약 키 배열 — client `_serverContractKeys` 와 동일 집합. */
 const CONTRACT_KEYS = [
@@ -113,7 +116,37 @@ describe("parseTermsAcceptanceJson (WR-02)", () => {
     ["acceptedAt 숫자", {...valid, acceptedAt: 1757236800000}],
     ["acceptedAt 파싱 불가", {...valid, acceptedAt: "not-a-date"}],
     ["필드 누락", {version: 1, service: true}],
+    // WR-02 (2차 리뷰) — docstring 이 약속한 방어가 코드에 없던 구멍.
+    ["version 미래 위조 (999)", {...valid, version: 999}],
+    [
+      "version 상한 +1",
+      {...valid, version: SERVER_TERMS_CURRENT_VERSION + 1},
+    ],
+    ["version 0", {...valid, version: 0}],
+    ["version 음수", {...valid, version: -1}],
+    ["service=false (필수 동의 미충족)", {...valid, service: false}],
+    ["privacy=false (필수 동의 미충족)", {...valid, privacy: false}],
   ])("%s → null (필드 무시, 로그인은 계속)", (_label, input) => {
     expect(parseTermsAcceptanceJson(input)).toBeNull();
+  });
+
+  it("marketing=false 는 선택 동의라 통과한다 (과잉 차단 방지)", () => {
+    expect(parseTermsAcceptanceJson({...valid, marketing: false})).toEqual({
+      ...valid,
+      marketing: false,
+    });
+  });
+
+  it("version 상한 = client TermsNotifier.currentVersion mirror", () => {
+    // client 짝: lib/features/terms/presentation/terms_notifier.dart 의
+    // `TermsNotifier.currentVersion` (현재 1). 약관 개정 시 양쪽을 같은
+    // 커밋에서 bump 해야 하며, 서버만 뒤처지면 정상 client 의 최신 버전
+    // snapshot 이 조용히 버려진다 (반대로 client 만 bump 하면 위조 차단이
+    // 무력화). 본 단언이 그 동시 갱신 의무의 sentinel 이다.
+    expect(SERVER_TERMS_CURRENT_VERSION).toBe(1);
+    expect(parseTermsAcceptanceJson({
+      ...valid,
+      version: SERVER_TERMS_CURRENT_VERSION,
+    })).not.toBeNull();
   });
 });

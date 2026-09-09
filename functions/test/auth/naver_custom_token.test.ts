@@ -1000,7 +1000,10 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       mockUserDocSet.mockClear();
 
       const snapshot = {
-        version: 2,
+        // WR-02: version 은 SERVER_TERMS_CURRENT_VERSION 상한으로 clamp 되므로
+        // 정상 client 가 보낼 수 있는 값은 1 뿐이다 (미래 버전 위조 차단).
+        // endpoint 별 fixture 구분은 acceptedAt / marketing 이 담당한다.
+        version: 1,
         service: true,
         privacy: true,
         marketing: true,
@@ -1022,7 +1025,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         {termsAccepted: Record<string, unknown>},
         {merge: boolean},
       ];
-      expect(payload.termsAccepted.version).toBe(2);
+      expect(payload.termsAccepted.version).toBe(1);
       expect(typeof payload.termsAccepted.version).toBe("number");
       expect(payload.termsAccepted.service).toBe(true);
       expect(payload.termsAccepted.privacy).toBe(true);
