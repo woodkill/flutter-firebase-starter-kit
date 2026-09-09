@@ -401,7 +401,13 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
                   _BrandedLinkButton(
                     provider: widget.existingProvider,
                     label: providerLabel,
-                    onPressed: _isLinking ? () {} : _onLinkPressed,
+                    // IN-04: 진행 중에는 null 로 **비활성** 상태를 표현한다.
+                    // no-op 클로저는 위젯이 활성으로 보이고 접근성 트리
+                    // 에서도 enabled 로 노출되어, 같은 조건에서 null 을
+                    // 넘기는 아래 취소 TextButton 과 비대칭이었다
+                    // (AuthInProgressOverlay 가 탭을 막더라도 시각/시맨틱
+                    // 상태는 일치해야 한다).
+                    onPressed: _isLinking ? null : _onLinkPressed,
                   ),
                   Gap(spacing.md),
                   TextButton(
@@ -471,7 +477,10 @@ class _BrandedLinkButton extends StatelessWidget {
 
   final AccountProvider provider;
   final String label;
-  final VoidCallback onPressed;
+
+  /// `null` = 비활성 (IN-04) — [BrandedSocialButton] / [FilledButton] 모두
+  /// `onPressed == null` 을 disabled 시각·시맨틱 상태로 해석한다.
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
