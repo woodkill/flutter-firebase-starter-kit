@@ -228,4 +228,32 @@ void main() {
       });
     }
   });
+
+  group('AccountLinkingSheet — W10 헤더/본문 색 위계 (UI-REVIEW #8)', () {
+    testWidgets('본문 onSurfaceVariant / 헤더 onSurface (Surface A verbatim)', (
+      tester,
+    ) async {
+      await _pumpAndShowSheet(tester, provider: AccountProvider.kakao);
+
+      final theme = Theme.of(tester.element(find.byType(AccountLinkingSheet)));
+
+      // 두 role 이 같은 값이면 아래 두 단언이 서로를 구분하지 못한다
+      // (공허한 가드 방지 — 테마 수준 전제).
+      expect(
+        theme.colorScheme.onSurface,
+        isNot(equals(theme.colorScheme.onSurfaceVariant)),
+      );
+
+      final header = tester.widget<Text>(find.text('Email already in use'));
+      final body = tester.widget<Text>(
+        find.textContaining('This email is registered with'),
+      );
+
+      // W10-a: 본문은 UI-SPEC Layout Contract Surface A 의 onSurfaceVariant.
+      expect(body.style?.color, equals(theme.colorScheme.onSurfaceVariant));
+
+      // W10-b: 헤더는 onSurface 유지 (헤더 회귀 방지).
+      expect(header.style?.color, equals(theme.colorScheme.onSurface));
+    });
+  });
 }
