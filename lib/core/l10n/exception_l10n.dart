@@ -53,6 +53,20 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     // 사용자에게 노출된다.
     'settingsLinkFailedAlreadyLinkedHere' =>
       l10n.settingsLinkFailedAlreadyLinkedHere,
+    // WR-04 (4차 리뷰) — 아래 3개는 `userMessage` 리터럴이 존재하는데 표에만
+    // 없어서 raw key 가 새어 나가던 칸이다. 현 시점 실도달성은 0 이지만
+    // FormErrorBanner 는 AppException 을 무제한으로 받는 범용 표면이고
+    // (Phase 16 만도 소비처가 2번 늘었다), 잠재 결함으로 두면 다음 표면
+    // 추가 시 사용자에게 영문 식별자가 표시된다.
+    // AccountAlreadyLinked (`credential-already-in-use`).
+    'errorAccountExistsWithUnknownProvider' =>
+      l10n.errorAccountExistsWithUnknownProvider,
+    // ReauthenticationRequiredException — 전용 ARB 키를 또 만들지 않고 도메인
+    // 중립 키인 authReauthRequired 로 매핑한다 (문구가 정확히 그 뜻이며,
+    // @authReauthRequired.description 에 본 소비처를 등록해 두었다).
+    'errorReauthenticationRequired' => l10n.authReauthRequired,
+    // UnauthenticatedException — ARB 키 자체가 없어 신설했다 (WR-04).
+    'errorUnauthenticated' => l10n.errorUnauthenticated,
     final other => other,
   };
 }

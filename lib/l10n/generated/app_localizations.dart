@@ -400,6 +400,12 @@ abstract class AppLocalizations {
   /// **'An unknown error occurred.'**
   String get errorUnknown;
 
+  /// Phase 16 WR-04 (4차 리뷰) — UnauthenticatedException 의 사용자 문구. 소비: (1) SettingsRepository.requestAccountDeletion 의 currentUser == null 가드가 throw 하는 UnauthenticatedException 을 Surface C 가 SnackBar 로 렌더, (2) resolveExceptionMessage 의 'errorUnauthenticated' arm (FormErrorBanner 등 AppException 을 무제한으로 받는 범용 표면 전체). **키 신설 근거:** UnauthenticatedException.userMessage 가 가리키는 ARB 키가 존재하지 않아 resolveExceptionMessage 의 `final other => other` 로 떨어지면 번역문이 아니라 식별자 문자열 'errorUnauthenticated' 가 그대로 렌더된다. errorSessionExpired(세션 만료) 와 달리 '애초에 로그인하지 않은 상태' 를 가리키므로 문구를 분리한다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'You need to be signed in to do that. Please sign in and try again.'**
+  String get errorUnauthenticated;
+
   /// Form validation error when the email field is empty
   ///
   /// In en, this message translates to:
@@ -1168,7 +1174,7 @@ abstract class AppLocalizations {
   /// **'Signed in with your {provider} account. You can add other sign-in methods in Settings > Link an account.'**
   String accountLinkingSignInThenLinkHint(String provider);
 
-  /// Phase 16 WR-04 (2차 리뷰) — 인증 도메인 공용 re-auth 요구 SnackBar. 소비: AccountLinkingSheet 경로 A (native + pendingCredential 보존 충돌의 linkPendingNativeCredential 실패가 ReauthenticationRequiredException 인 경우) → SnackBar 후 /login 라우팅. 문구는 withdrawalReauthRequired 와 현재 동일하지만 키를 분리한 이유는 그 키의 소비처 계약이 UI-SPEC Surface C (Withdrawal Dialog) verbatim 1곳으로 못 박혀 있어서다 — 향후 Surface C 문구를 탈퇴 맥락에 맞게 (예: '탈퇴하려면 다시 로그인해 주세요') 다듬으면 계정 연동 시트에 엉뚱한 문구가 새어 나간다. 본 키는 도메인 중립을 유지할 의무가 있다 (탈퇴/연동 어느 쪽 어휘도 넣지 않는다). email/uid/token 을 노출하지 않는다.
+  /// Phase 16 WR-04 (2차 리뷰) — 인증 도메인 공용 re-auth 요구 SnackBar. 소비: (1) AccountLinkingSheet 경로 A (native + pendingCredential 보존 충돌의 linkPendingNativeCredential 실패가 ReauthenticationRequiredException 인 경우) → SnackBar 후 /login 라우팅, (2) resolveExceptionMessage 의 'errorReauthenticationRequired' arm (WR-04, 4차 리뷰) — ReauthenticationRequiredException.userMessage 는 ARB 키가 아니라 taxonomy 토큰이며 매핑이 없으면 식별자 문자열이 그대로 렌더된다. 같은 뜻의 키를 또 만드는 대신 도메인 중립인 본 키로 매핑한다. 문구는 withdrawalReauthRequired 와 현재 동일하지만 키를 분리한 이유는 그 키의 소비처 계약이 UI-SPEC Surface C (Withdrawal Dialog) verbatim 1곳으로 못 박혀 있어서다 — 향후 Surface C 문구를 탈퇴 맥락에 맞게 (예: '탈퇴하려면 다시 로그인해 주세요') 다듬으면 계정 연동 시트에 엉뚱한 문구가 새어 나간다. 본 키는 도메인 중립을 유지할 의무가 있다 (탈퇴/연동 어느 쪽 어휘도 넣지 않는다). email/uid/token 을 노출하지 않는다.
   ///
   /// In en, this message translates to:
   /// **'For security, please sign in again and retry.'**

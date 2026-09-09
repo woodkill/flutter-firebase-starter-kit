@@ -160,6 +160,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get errorUnknown => '알 수 없는 오류가 발생했습니다.';
 
   @override
+  String get errorUnauthenticated => '로그인이 필요한 작업입니다. 로그인 후 다시 시도해 주세요.';
+
+  @override
   String get errorEmailRequired => '이메일을 입력해 주세요.';
 
   @override

@@ -170,15 +170,22 @@ final class AccountExistsWithDifferentCredential extends AuthException {
 /// 가 `provider-already-linked` 또는 `credential-already-in-use` 코드를
 /// 반환할 때 매핑된다. 이미 연결된 자격증명을 중복 link 시도한 경우다.
 ///
-/// **두 경로의 문구가 다르다 (Phase 16 G-16-A6-2).**
-/// - reactive (AccountLinkingSheet / `resolveExceptionMessage` 경유): [userMessage]
-///   필드값 `errorAccountExistsWithUnknownProvider` 를 그대로 사용한다 — 신규
-///   ARB 0건 결정 유지, WR-01/WR-02 산출 회귀 0.
+/// **표시 문구는 표면마다 다르다 (Phase 16 G-16-A6-2 / WR-02 / WR-04).**
 /// - proactive (Settings Surface D): `SettingsNotifier` 가 본 타입을
 ///   `AccountLinkOutcome.alreadyLinked` 로 분기하고 위젯이 전용 문구
 ///   `settingsLinkFailedAlreadyLinked` 를 렌더한다. 2026-09-07 A6 실측에서
 ///   실제 원인이 `credential-already-in-use` 인데 이메일 문구가 표시된 collapse
-///   를 해소하기 위한 것으로, [userMessage] 자체는 **변경하지 않는다**.
+///   를 해소하기 위한 것이다.
+/// - reactive (AccountLinkingSheet 경로 A): 4차 리뷰 WR-02 이후 시트도 원인별
+///   분기를 쓰므로 **같은 전용 문구** `settingsLinkFailedAlreadyLinked` 를
+///   렌더한다 — 두 표면의 문구가 일치한다.
+/// - 범용 `resolveExceptionMessage` 표면 (FormErrorBanner 등): [userMessage]
+///   필드값 `errorAccountExistsWithUnknownProvider` 가 매핑 표를 거쳐 해석
+///   된다. 4차 리뷰 WR-04 이전에는 그 arm 이 표에 없어 번역문이 아니라 ARB
+///   **키 문자열** 이 렌더됐다 — 지금은 매핑되어 있으므로 이 docstring 이
+///   보증하는 경로가 실제로 동작한다.
+///
+/// [userMessage] 자체는 Phase 9.2 R2 baseline 보존을 위해 변경하지 않는다.
 final class AccountAlreadyLinked extends AuthException {
   /// [AccountAlreadyLinked]을 생성한다.
   const AccountAlreadyLinked({super.cause})

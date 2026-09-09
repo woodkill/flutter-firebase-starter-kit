@@ -25,7 +25,67 @@ Future<String> _resolve(WidgetTester tester, AppException ex) async {
   return resolved;
 }
 
+/// `resolveExceptionMessage` 매핑 표가 커버해야 하는 [AppException] 전수 목록
+/// (WR-04, 4차 리뷰).
+///
+/// `resolveExceptionMessage` 는 매칭 실패 시 `final other => other` 로 **ARB 키
+/// 문자열을 그대로 반환**한다. 즉 매핑 누락은 컴파일 에러도 analyzer 경고도
+/// 내지 않고, 사용자 화면에 영문 식별자('errorUnauthenticated' 등) 를 그대로
+/// 렌더하는 방식으로만 드러난다. 아래 목록은 그 침묵하는 결함을 RED 로 바꾼다.
+///
+/// **새 [AppException] 서브타입을 추가하면 본 목록에도 추가한다.** sealed 계층
+/// 이라 컴파일러가 강제해 주지 않는 유일한 소비처가 이 표다.
+const List<AppException> _kAllMappedExceptions = <AppException>[
+  // NetworkException
+  ConnectionTimeout(),
+  NoInternetConnection(),
+  RequestTimeout(),
+  // AuthException
+  InvalidCredentials(),
+  UserNotFound(),
+  EmailAlreadyInUse(),
+  WeakPassword(),
+  SessionExpired(),
+  InvalidEmail(),
+  UserDisabled(),
+  TooManyRequests(),
+  AccountAlreadyLinked(),
+  ProviderAlreadyLinkedToThisAccount(),
+  ReauthenticationRequiredException(),
+  UnauthenticatedException(),
+  // ServerException
+  InternalServerError(),
+  ServiceUnavailable(),
+  UnknownException(),
+];
+
 void main() {
+  // WR-04 (4차 리뷰) — 매핑 표에 3칸(errorAccountExistsWithUnknownProvider /
+  // errorReauthenticationRequired / errorUnauthenticated)이 비어 있어 raw ARB
+  // 키가 렌더될 수 있었다. 그중 2개는 ARB 키 자체가 없었다.
+  group('WR-04: userMessage 가 raw key 로 새어 나가지 않는다 (전수)', () {
+    for (final ex in _kAllMappedExceptions) {
+      testWidgets('${ex.runtimeType} → 번역문 (식별자 아님)', (tester) async {
+        final result = await _resolve(tester, ex);
+        // 1. 해석 결과가 userMessage(=ARB 키/taxonomy 토큰) 와 같으면 매핑
+        //    누락이다 — 사용자에게 영문 식별자가 그대로 표시된다.
+        expect(
+          result,
+          isNot(ex.userMessage),
+          reason:
+              '${ex.runtimeType}.userMessage("${ex.userMessage}") 가 매핑 표에 '
+              '없어 raw key 가 그대로 반환됐다. exception_l10n.dart 에 arm 을 '
+              '추가하라.',
+        );
+        // 2. camelCase 식별자 접두 계열이 결과에 남아 있지 않다.
+        expect(result, isNot(startsWith('error')));
+        expect(result, isNot(startsWith('settings')));
+        expect(result, isNot(startsWith('auth')));
+        expect(result, isNotEmpty);
+      });
+    }
+  });
+
   group('resolveExceptionMessage 신규 AuthException 매핑', () {
     testWidgets('InvalidEmail → 영어 메시지', (tester) async {
       final result = await _resolve(tester, const InvalidEmail());

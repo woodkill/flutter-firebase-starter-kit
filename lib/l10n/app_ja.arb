@@ -55,6 +55,7 @@
   "errorUserDisabled": "このアカウントは無効化されています。サポートにお問い合わせください。",
   "errorTooManyRequests": "試行回数が多すぎます。しばらくしてからもう一度お試しください。",
   "errorUnknown": "不明なエラーが発生しました。",
+  "errorUnauthenticated": "この操作にはログインが必要です。ログインしてからもう一度お試しください。",
 
   "errorEmailRequired": "メールアドレスを入力してください。",
   "errorInvalidEmailFormat": "有効なメールアドレスの形式で入力してください。",

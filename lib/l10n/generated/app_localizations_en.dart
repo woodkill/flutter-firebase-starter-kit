@@ -163,6 +163,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorUnknown => 'An unknown error occurred.';
 
   @override
+  String get errorUnauthenticated =>
+      'You need to be signed in to do that. Please sign in and try again.';
+
+  @override
   String get errorEmailRequired => 'Enter your email address.';
 
   @override

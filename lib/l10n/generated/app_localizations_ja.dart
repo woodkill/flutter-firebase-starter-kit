@@ -160,6 +160,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get errorUnknown => '不明なエラーが発生しました。';
 
   @override
+  String get errorUnauthenticated => 'この操作にはログインが必要です。ログインしてからもう一度お試しください。';
+
+  @override
   String get errorEmailRequired => 'メールアドレスを入力してください。';
 
   @override
