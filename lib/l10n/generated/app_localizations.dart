@@ -1174,6 +1174,12 @@ abstract class AppLocalizations {
   /// **'For security, please sign in again and retry.'**
   String get authReauthRequired;
 
+  /// Phase 16 WR-01 (4차 리뷰) — Surface A 경로 B step 1 (기존 provider 로 로그인) 의 **결정적(비-transient) 실패** 안내. 소비: AccountLinkingSheet._signInWithExistingProvider 의 AccountExistsWithDifferentCredential arm (A-16-19-01 익명 caller 재충돌 — 서버 resolveIdentity 의 R12 anonymous_existing_collision 재거부가 client 에서 이 타입으로 매핑된다). **재시도 어휘 금지 의무:** 이 실패는 익명 세션이 유지되는 한 재시도로 절대 해소되지 않는다 — '잠시 후 다시 시도' 계열 문구(settingsLinkFailedTransient / settingsLinkFailedUnknown)를 쓰면 사용자가 매 탭마다 실 IdP OAuth 왕복을 반복하는 무한 루프에 든다 (auth_repository.dart 의 1차 리뷰 WR-06 원칙과 동일 결함). 따라서 문구는 16-SECURITY.md AR-16-07 이 수용한 유일한 실 탈출구 — 시트 하단의 accountLinkingDismiss('다른 방식으로 로그인') — 를 가리킨다. signOut 후 재시도는 /onboarding 리셋 경합 때문에 채택하지 않았고(AR-16-07), 익명 문서 승계 정책 자체는 Phase 17+ 범위다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re browsing as a guest, so this existing account can\'t be signed in here. Please use another sign-in method below.'**
+  String get authSignInBlockedByGuestSession;
+
   /// Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: already-linked). 2026-09-07 A6 실측에서 실제 원인이 credential-already-in-use 였는데 errorAccountExistsWithUnknownProvider(이메일 문구)가 표시된 collapse 를 해소한다. 소비: AccountLinkOutcome.alreadyLinked (AccountAlreadyLinked — provider-already-linked / credential-already-in-use). email/uid/token 을 노출하지 않는다.
   ///
   /// In en, this message translates to:

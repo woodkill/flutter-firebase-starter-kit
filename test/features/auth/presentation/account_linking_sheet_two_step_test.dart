@@ -20,9 +20,11 @@
 //   TS3: 취소(null) — 시트 유지 + 네비게이션 0
 //   TS4: 실패 graceful (A-16-19-01 익명 caller 재충돌) — 실패 SnackBar +
 //        시트 유지 + 네비게이션 0 + 예외 전파 0
-//   TS4b (WR-01, 2차 리뷰): 실패 문구가 순환 안내
+//   TS4b (WR-01, 2차·4차 리뷰): 실패 문구가 순환 안내
 //        (errorAccountExistsWithUnknownProvider = "처음 가입한 방식으로 다시
-//        로그인해 주세요") 로 collapse 되지 않고 transient / 그 외로 분리된다
+//        로그인해 주세요") 로 collapse 되지 않고 transient / 결정적 실패
+//        (A-16-19-01 익명 caller 재충돌) / 그 외로 분리된다 — 결정적 실패에
+//        "잠시 후 다시 시도" 어휘가 붙지 않음을 함께 잠근다
 //   TS5: native 회귀 (A1) — pendingCredential 존재 시 linkPendingNativeCredential
 //        호출 + signInWithExistingProvider verifyNever (경로 A 변경 0)
 //   TS6: naver 기존 — 과거 graceful 차단 분기 제거 확인 (경로 B 정상 수행)
@@ -273,11 +275,17 @@ void main() {
         await tapSheetCta(tester);
         await tester.pump(const Duration(seconds: 1));
 
-        // WR-01 (2차 리뷰): 순환 안내 대신 미분류 실패 문구.
+        // WR-01 (4차 리뷰): 순환 안내도, "잠시 후 다시 시도" 도 아닌
+        // 결정적 실패 전용 문구 (재시도 무한 왕복 차단).
         expect(
-          find.text("Couldn't link your account. Please try again later."),
+          find.text(
+            "You're browsing as a guest, so this existing account can't be "
+            'signed in here. Please use another sign-in method below.',
+          ),
           findsOneWidget,
         );
+        // 재시도 어휘 미노출 — 이 실패는 재시도로 해소되지 않는다.
+        expect(find.textContaining('try again later'), findsNothing);
         expect(find.byType(AccountLinkingSheet), findsOneWidget);
         expect(find.text('HOME'), findsNothing);
         expect(tester.takeException(), isNull);
@@ -353,6 +361,44 @@ void main() {
           findsOneWidget,
         );
         expectNoCircularGuidance(tester);
+      },
+    );
+
+    // 4차 WR-01 — 이 경로의 *지배적* 실패(A-16-19-01 익명 caller 재충돌)가
+    // transient / catch-all arm 으로 되돌아가면 "잠시 후 다시 시도" 안내가
+    // 붙어 무한 왕복이 된다. 전용 arm 을 잠근다.
+    testWidgets(
+      'Failure(AccountExistsWithDifferentCredential) → 결정적 실패 전용 문구 + '
+      '재시도 어휘 0 + 순환 안내 0',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer(
+          (_) async => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collide@example.com',
+              existingProvider: AccountProvider.kakao,
+            ),
+          ),
+        );
+
+        await openSheet(tester, existingProvider: AccountProvider.kakao);
+        await tapSheetCta(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(
+          find.text(
+            "You're browsing as a guest, so this existing account can't be "
+            'signed in here. Please use another sign-in method below.',
+          ),
+          findsOneWidget,
+        );
+        // "Please try again later." 계열 (transient / catch-all) 미노출.
+        expect(find.textContaining('try again later'), findsNothing);
+        expectNoCircularGuidance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
       },
     );
 

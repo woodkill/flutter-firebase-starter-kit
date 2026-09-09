@@ -594,6 +594,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'For security, please sign in again and retry.';
 
   @override
+  String get authSignInBlockedByGuestSession =>
+      'You\'re browsing as a guest, so this existing account can\'t be signed in here. Please use another sign-in method below.';
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       'This sign-in method is already linked to another account. Unlink it first, then try again.';
 

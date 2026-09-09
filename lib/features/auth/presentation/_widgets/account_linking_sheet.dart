@@ -285,12 +285,18 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   ///   재충돌(A-16-19-01) 도 이 분기로 흡수되어 crash 0 · linkedProviders
   ///   변경 0 이다.
   ///
-  /// **분기 값은 2개다** (`settingsLinkFailedTransient` /
-  /// `settingsLinkFailedUnknown`) — proactive `AccountLinkingSection` 의 5값
-  /// outcome switch (transientFailure / emailInUse / alreadyLinked /
-  /// alreadyLinkedHere / failed) 의 **부분집합**이며 mirror 가 아니다. step 1 은
-  /// link 가 아니라 *로그인* 이므로 already-linked / email-in-use 계열은 이
-  /// 경로의 실패 원인이 될 수 없다.
+  /// **분기 값은 3개다** (`settingsLinkFailedTransient` /
+  /// `authSignInBlockedByGuestSession` / `settingsLinkFailedUnknown`) —
+  /// proactive `AccountLinkingSection` 의 5값 outcome switch (transientFailure /
+  /// emailInUse / alreadyLinked / alreadyLinkedHere / failed) 의 **부분집합**
+  /// 이며 mirror 가 아니다. step 1 은 link 가 아니라 *로그인* 이므로
+  /// already-linked / email-in-use 계열은 이 경로의 실패 원인이 될 수 없다.
+  ///
+  /// **결정적 실패의 분리 (4차 WR-01):** 이 경로의 *지배적* 실패 원인인
+  /// A-16-19-01 (익명 caller 재충돌) 은 [AccountExistsWithDifferentCredential]
+  /// 로 도착하며 재시도로 해소되지 않는다. transient 와 catch-all 어느 쪽에
+  /// 넣어도 "잠시 후 다시 시도" 문구가 붙어 무한 왕복을 유도하므로 전용 arm
+  /// 으로 분리해 실 탈출구(하단 dismiss)를 안내한다.
   ///
   /// **PII invariant (T-16-19-02):** 실패 로그는 `kDebugMode` 가드 하에
   /// runtimeType 만 1줄 출력한다 — collisionEmail / ID Token / provider token
@@ -327,12 +333,21 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
           );
         }
         // 실패 — user-visible 안내 (stuck sheet 방지). 순환 안내 대신
-        // 재시도 유도 문구를 쓴다 (WR-01). 분류는 Surface D
-        // `SettingsNotifier._mapLinkFailure` 의 transient arm 과 동일 타입
-        // 집합이다.
+        // 원인별 문구를 쓴다 (3차 WR-01 + 4차 WR-01). transient 집합은
+        // Surface D `SettingsNotifier._mapLinkFailure` 의 transient arm 과
+        // 동일 타입 집합이다.
         final message = switch (exception) {
           NetworkException() || TooManyRequests() || ServiceUnavailable() =>
             l10n.settingsLinkFailedTransient,
+          // 4차 WR-01 — A-16-19-01 익명 caller 재충돌. 서버 resolveIdentity 의
+          // R12(anonymous_existing_collision) 재거부가 이 타입으로 매핑되며,
+          // 익명 세션이 유지되는 한 **재시도로 절대 해소되지 않는 결정적
+          // 실패**다. catch-all 의 "잠시 후 다시 시도" 문구로 흡수하면 매 탭
+          // 마다 실 IdP OAuth 왕복을 반복하는 무한 루프가 된다
+          // (auth_repository.dart 의 1차 리뷰 WR-06 과 동일한 오분류).
+          // AR-16-07 이 수용한 유일한 탈출구(하단 dismiss)를 안내한다.
+          AccountExistsWithDifferentCredential() =>
+            l10n.authSignInBlockedByGuestSession,
           _ => l10n.settingsLinkFailedUnknown,
         };
         messenger.showSnackBar(SnackBar(content: Text(message)));

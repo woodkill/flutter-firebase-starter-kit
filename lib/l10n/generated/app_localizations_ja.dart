@@ -581,6 +581,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authReauthRequired => 'セキュリティのため、再ログインしてから再試行してください。';
 
   @override
+  String get authSignInBlockedByGuestSession =>
+      'ゲストとして利用中のため、既存のアカウントにログインできません。下の別の方法でログインしてください。';
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       'このログイン方法は既に別のアカウントに連携されています。連携を解除してからもう一度お試しください。';
 
