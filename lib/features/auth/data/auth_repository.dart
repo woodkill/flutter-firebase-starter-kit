@@ -1567,9 +1567,15 @@ class AuthRepository {
   /// - `Result.failure(...)` — 로그인 실패. 예외 타입도 그대로 전파된다
   ///   (익명 caller 재충돌의 [AccountExistsWithDifferentCredential] 포함).
   /// - `null` — 사용자가 IdP SDK 단계에서 취소 (no-op).
+  ///
+  /// **`async` 선언 이유 (IN-02, 4차 리뷰):** [AccountProvider.email] arm 의
+  /// [ArgumentError] 는 `Future` 반환 API 의 계약대로 **Future 에러**로 전파
+  /// 되어야 한다. `async` 가 없으면 동기 throw 가 되어 `.catchError(...)` /
+  /// `unawaited(...)` 스타일 호출처에서 잡히지 않는다 (현재 유일 호출처인
+  /// 시트는 `await` 이라 무해하지만 계약이 어긋난 상태였다).
   Future<Result<User>?> signInWithExistingProvider({
     required AccountProvider provider,
-  }) {
+  }) async {
     return switch (provider) {
       AccountProvider.google => signInWithGoogle(),
       AccountProvider.apple => signInWithApple(),

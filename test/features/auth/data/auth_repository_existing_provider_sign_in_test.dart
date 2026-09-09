@@ -246,8 +246,11 @@ void main() {
 
   group('SP2 — email → ArgumentError', () {
     test('AccountProvider.email 은 시트에서 처리 불가 → ArgumentError throw', () async {
-      expect(
-        () => repository.signInWithExistingProvider(
+      // IN-02 (4차 리뷰): Future 반환 API 이므로 에러도 **Future 에러**여야
+      // 한다. 동기 throw 였다면 아래 expectLater 는 Future 를 만들기도 전에
+      // 터지므로 이 형태 자체가 async 전파 계약의 sentinel 이다.
+      await expectLater(
+        repository.signInWithExistingProvider(
           provider: AccountProvider.email,
         ),
         throwsA(isA<ArgumentError>()),
