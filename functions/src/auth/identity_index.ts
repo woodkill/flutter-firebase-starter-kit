@@ -314,7 +314,7 @@ export async function resolveCustomTokenExistingProvider(
     const candidates = new Set<ProviderId>();
     // 기존 계정이 caller 자신의 identity 를 이미 보유하는지 (CR-01).
     let selfMatched = false;
-    for (const doc of snap.docs ?? []) {
+    for (const doc of snap.docs) {
       const data = doc.data() as {provider?: unknown; providerUserId?: unknown};
       const raw = data?.provider;
       if (typeof raw !== "string") continue;
