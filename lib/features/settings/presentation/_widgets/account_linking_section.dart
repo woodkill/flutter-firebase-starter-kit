@@ -104,9 +104,10 @@ class AccountLinkingSection extends ConsumerWidget {
               ),
               child: Text(
                 l10n.settingsAccountLinkingSection,
-                style: context.textTheme.titleSmall?.copyWith(
-                  color: context.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+                // settings_screen.dart heading 과 동일 role·색 (accent 토큰
+                // 미사용 — UI-SPEC Layout Contract Surface D).
+                style: context.textTheme.labelMedium?.copyWith(
+                  color: context.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),

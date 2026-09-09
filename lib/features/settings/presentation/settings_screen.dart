@@ -62,9 +62,10 @@ class SettingsScreen extends ConsumerWidget {
               ),
               child: Text(
                 l10n.settingsAccountSection,
-                style: context.textTheme.titleSmall?.copyWith(
-                  color: context.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+                // UI-SPEC Layout Contract verbatim — accent 토큰은 chevron
+                // 전용 화이트리스트라 heading 에서 걷어냈다.
+                style: context.textTheme.labelMedium?.copyWith(
+                  color: context.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
