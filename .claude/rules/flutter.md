@@ -81,17 +81,6 @@ paths:
 # Project Structure
 
 ## Feature-First Architecture
-```
-lib/
-├── core/              # 공통 유틸, 상수, 테마, 라우터, DI
-├── features/
-│   ├── auth/
-│   │   ├── data/          # repository 구현, data source, DTO
-│   │   ├── domain/        # entity, repository interface, use case
-│   │   └── presentation/  # widget, provider
-│   └── home/
-└── shared/            # feature 간 공유 위젯, 모델
-```
 - 한 feature 안에서만 사용되는 provider/widget은 해당 feature 내에 배치
 - feature 간 공유 필요 시 shared/ 또는 core/로 이동
 - feature 간 직접 import 최소화 — core/ 또는 shared/를 통해 연결
@@ -140,13 +129,6 @@ lib/
 - Flutter 명령 실행: `fvm flutter <command>`
 - Dart 명령 실행: `fvm dart <command>`
 
-## 의존성 관리
-- `pubspec.yaml`로 의존성 선언
-- `pubspec.lock` 커밋 필수
-- 의존성 추가: `fvm flutter pub add <package>`
-- dev 의존성: `fvm flutter pub add --dev <package>`
-- 동기화: `fvm flutter pub get`
-
 ## 코드 생성 (build_runner)
 - Riverpod, Freezed, json_serializable 등 코드 생성 시:
   `fvm dart run build_runner build --delete-conflicting-outputs`
@@ -170,11 +152,6 @@ lib/
 - 프로젝트별 추가/제외 규칙은 `analysis_options.yaml`에서 오버라이드
 - lint 규칙 자체를 수정하려면 `woody_lints` 패키지를 업데이트
 - 검사: `fvm dart analyze`
-
-## Testing
-- 테스트 실행: `fvm flutter test`
-- 커버리지: `fvm flutter test --coverage`
-- 테스트 파일: `test/` 디렉토리, 원본과 동일 구조
 
 ## FlutterFire CLI
 - `flutterfire` 명령을 직접 실행하지 않는다 — PATH에 `~/.pub-cache/bin`을 추가하지 않음

@@ -48,23 +48,6 @@ paths:
 
 # Cloud Functions Architecture
 
-## 프로젝트 구조
-```
-functions/
-├── src/
-│   ├── index.ts              # Cloud Functions 진입점 (export만)
-│   ├── config/               # 환경 설정, firebase-admin 초기화
-│   ├── auth/                 # 인증 관련 함수
-│   │   ├── providers/        # 소셜 프로바이더별 토큰 검증
-│   │   └── custom-token.ts   # Custom Token 발급 공통 로직
-│   ├── triggers/             # Firestore/Auth 트리거 함수
-│   ├── types/                # 공유 타입 정의
-│   └── utils/                # 공통 유틸리티
-├── tsconfig.json
-├── package.json
-└── .eslintrc.js
-```
-
 ## Cloud Functions 패턴
 - Callable Functions (`onCall`): 클라이언트에서 직접 호출하는 함수
 - Trigger Functions (`onDocumentCreated` 등): Firestore/Auth 이벤트 반응
@@ -89,29 +72,6 @@ functions/
 - 타임아웃/메모리 설정: 함수별 적절한 값 지정
 
 # TypeScript Tooling & Configuration
-
-## tsconfig.json 핵심
-- `strict: true` 필수 — 개별 strict 옵션 끄기 금지
-- `noUncheckedIndexedAccess: true` 권장
-- `verbatimModuleSyntax: true` — import type 강제 분리
-- `target: "ES2022"` / `module: "ESNext"`
-
-## Linting & Formatting
-- ESLint + `@typescript-eslint` + Prettier (`eslint-config-prettier`로 충돌 방지)
-- 코드 수정 후 lint 및 format 실행
-
-## Type Checking
-- `tsc --noEmit`으로 타입 체크
-
-## Testing
-- Vitest 권장 — 테스트 파일: `*.test.ts`
-- Firebase Functions Test SDK 활용
-- 에뮬레이터 연동 테스트 권장
-
-## 배포
-- `firebase deploy --only functions` 로 배포
-- 개별 함수 배포: `firebase deploy --only functions:함수명`
-- 배포 전 `tsc --noEmit` + `eslint` 통과 필수
 
 ## 금지 사항
 - `any`, `Function`, `Object`/`String`/`Number`/`Boolean` 래퍼 타입 사용 금지
