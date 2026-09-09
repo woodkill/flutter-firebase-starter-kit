@@ -15,6 +15,9 @@
  * 재배포를 유발하지 않는다.
  */
 
+import {readFileSync} from "fs";
+import {resolve} from "path";
+
 import type {TermsAcceptanceJson} from "../../src/shared/terms_acceptance_json";
 import {
   SERVER_TERMS_CURRENT_VERSION,
@@ -50,6 +53,17 @@ const noExtraTypeKey: IsNever<
 const noExtraContractKey: IsNever<
   Exclude<ContractKey, keyof TermsAcceptanceJson>
 > = true;
+
+/**
+ * client 짝 상수의 소스 경로 (IN-08, 4차 리뷰).
+ *
+ * `functions/test/shared/` → repo root 는 3단계 위다. 경로가 바뀌면 아래
+ * readFileSync 가 즉시 throw 하므로 stale 참조가 조용히 남지 않는다.
+ */
+const CLIENT_TERMS_NOTIFIER_PATH = resolve(
+  __dirname,
+  "../../../lib/features/terms/presentation/terms_notifier.dart",
+);
 
 describe("TermsAcceptanceJson 5-key 계약", () => {
   it("컴파일타임 양방향 exhaustiveness — 타입 키 집합 == CONTRACT_KEYS", () => {
@@ -138,12 +152,22 @@ describe("parseTermsAcceptanceJson (WR-02)", () => {
   });
 
   it("version 상한 = client TermsNotifier.currentVersion mirror", () => {
-    // client 짝: lib/features/terms/presentation/terms_notifier.dart 의
-    // `TermsNotifier.currentVersion` (현재 1). 약관 개정 시 양쪽을 같은
-    // 커밋에서 bump 해야 하며, 서버만 뒤처지면 정상 client 의 최신 버전
-    // snapshot 이 조용히 버려진다 (반대로 client 만 bump 하면 위조 차단이
-    // 무력화). 본 단언이 그 동시 갱신 의무의 sentinel 이다.
-    expect(SERVER_TERMS_CURRENT_VERSION).toBe(1);
+    // IN-08 (4차 리뷰): 이전 sentinel 은 `toBe(1)` 로 **서버 상수를 서버
+    // 테스트가 다시 단언**할 뿐이라 self-referential 이었다. 서버 단독 bump 는
+    // 잡지만 **client 단독 bump 는 잡지 못했고**, 그 방향이 실제 위험 방향이다
+    // — 약관 개정 시 앱이 먼저 배포되면 모든 신규 가입의
+    // termsAcceptanceSnapshot 이 상한에 걸려 null 로 폐기되고
+    // (fail-open, 로그 0 이라 관측도 안 된다) users/{uid}.termsAccepted 미러가
+    // 통째로 유실된다.
+    //
+    // 따라서 client 소스에서 실제 값을 읽어 비교한다. 본 저장소에서
+    // cross-language 상수 mirror 를 강제하는 유일한 실효 수단이다.
+    const clientSource = readFileSync(CLIENT_TERMS_NOTIFIER_PATH, "utf8");
+    const match = /static const int currentVersion = (\d+);/.exec(clientSource);
+    expect(match).not.toBeNull();
+    const clientVersion = Number(match?.[1]);
+
+    expect(SERVER_TERMS_CURRENT_VERSION).toBe(clientVersion);
     expect(parseTermsAcceptanceJson({
       ...valid,
       version: SERVER_TERMS_CURRENT_VERSION,
