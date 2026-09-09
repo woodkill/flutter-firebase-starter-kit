@@ -248,8 +248,12 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
         // (PII 0: ARB only). 기존엔 mute pop(false) 로 무피드백 dead-end.
         navigator.pop(false);
         if (exception is ReauthenticationRequiredException) {
+          // WR-04: 인증 도메인 공용 키. withdrawalReauthRequired 는 소비처
+          // 계약이 UI-SPEC Surface C (탈퇴 다이얼로그) 1곳으로 못 박혀 있어,
+          // 그 문구가 탈퇴 맥락에 특화되면 본 시트에 엉뚱한 문구가 새어
+          // 나간다 (문구 자체는 현재 동일).
           messenger.showSnackBar(
-            SnackBar(content: Text(l10n.withdrawalReauthRequired)),
+            SnackBar(content: Text(l10n.authReauthRequired)),
           );
           router.go(AppRoutes.login);
         } else {

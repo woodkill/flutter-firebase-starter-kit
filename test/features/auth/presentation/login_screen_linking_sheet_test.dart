@@ -301,7 +301,7 @@ void main() {
   group('T6 — WR-01: native reauth-expired → SnackBar + sheet dismiss + /login', () {
     testWidgets(
       'linkPendingNativeCredential → ReauthenticationRequiredException → '
-      'withdrawalReauthRequired SnackBar + sheet pop(false)',
+      'authReauthRequired SnackBar + sheet pop(false)',
       (tester) async {
         await usePortraitSurface(tester);
         when(

@@ -955,6 +955,11 @@
     }
   },
 
+  "authReauthRequired": "For security, please sign in again and retry.",
+  "@authReauthRequired": {
+    "description": "Phase 16 WR-04 (2차 리뷰) — 인증 도메인 공용 re-auth 요구 SnackBar. 소비: AccountLinkingSheet 경로 A (native + pendingCredential 보존 충돌의 linkPendingNativeCredential 실패가 ReauthenticationRequiredException 인 경우) → SnackBar 후 /login 라우팅. 문구는 withdrawalReauthRequired 와 현재 동일하지만 키를 분리한 이유는 그 키의 소비처 계약이 UI-SPEC Surface C (Withdrawal Dialog) verbatim 1곳으로 못 박혀 있어서다 — 향후 Surface C 문구를 탈퇴 맥락에 맞게 (예: '탈퇴하려면 다시 로그인해 주세요') 다듬으면 계정 연동 시트에 엉뚱한 문구가 새어 나간다. 본 키는 도메인 중립을 유지할 의무가 있다 (탈퇴/연동 어느 쪽 어휘도 넣지 않는다). email/uid/token 을 노출하지 않는다."
+  },
+
   "settingsLinkFailedAlreadyLinked": "This sign-in method is already linked to another account. Unlink it first, then try again.",
   "@settingsLinkFailedAlreadyLinked": {
     "description": "Phase 16 G-16-A6-2 — Surface D proactive link 실패 문구 (원인: already-linked). 2026-09-07 A6 실측에서 실제 원인이 credential-already-in-use 였는데 errorAccountExistsWithUnknownProvider(이메일 문구)가 표시된 collapse 를 해소한다. 소비: AccountLinkOutcome.alreadyLinked (AccountAlreadyLinked — provider-already-linked / credential-already-in-use). email/uid/token 을 노출하지 않는다."

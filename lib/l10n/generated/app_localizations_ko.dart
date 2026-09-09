@@ -579,6 +579,9 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get authReauthRequired => '보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.';
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       '이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.';
 

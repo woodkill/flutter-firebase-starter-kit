@@ -590,6 +590,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authReauthRequired =>
+      'For security, please sign in again and retry.';
+
+  @override
   String get settingsLinkFailedAlreadyLinked =>
       'This sign-in method is already linked to another account. Unlink it first, then try again.';
 
