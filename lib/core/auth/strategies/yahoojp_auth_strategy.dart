@@ -13,7 +13,9 @@ import '../provider_id.dart';
 /// Strategy 단계에서 추가 호출 시 이중 begin race (T-11-RACE-01 등가) 가
 /// 발생하므로 절대 금지.
 ///
-/// Phase 16.1 (SOCL-10) 에서 [defaultPriorityFor] 본문을 채운다.
+/// 로케일별 우선순위 정책 (SOCL-10) 은 2026-05-22 Out of Scope 로 폐기됐다
+/// (진실원 .planning/REQUIREMENTS.md Out of Scope) — [defaultPriorityFor] 는
+/// 기본 구현을 그대로 쓴다.
 class YahoojpAuthStrategy extends AuthStrategy {
   /// `const` 생성자 — Registry 의 `_allStrategies` 가 const list 로 보유.
   const YahoojpAuthStrategy();

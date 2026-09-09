@@ -68,6 +68,8 @@ abstract class AuthStrategy {
 
   /// 로케일별 기본 우선순위 — Phase 11 placeholder (D-13).
   ///
-  /// Phase 16.1 (SOCL-10) 에서 본문을 채운다.
+  /// 로케일별 우선순위 정책 (SOCL-10) 은 2026-05-22 Out of Scope 로 폐기됐다
+  /// (진실원 .planning/REQUIREMENTS.md Out of Scope) — 기본 구현을 그대로 쓴다.
+  /// 재도입 시 이 메서드를 override 하는 것이 진입점이다.
   int defaultPriorityFor(Locale locale) => 0;
 }

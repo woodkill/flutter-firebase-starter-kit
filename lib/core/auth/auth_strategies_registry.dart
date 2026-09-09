@@ -37,7 +37,9 @@ const List<AuthStrategy> _allStrategies = <AuthStrategy>[
 /// 활성화된 [AuthStrategy] 만 반환한다 (정적 + RC overlay 합산, D-26).
 ///
 /// Phase 11 단계 정렬 미적용 — [_allStrategies] 등록 순서 그대로 (D-13).
-/// Phase 16.1 (SOCL-10) 에서 `..sortByPriority(locale)` 추가 진입점.
+/// 로케일별 우선순위 정책 (SOCL-10) 은 2026-05-22 Out of Scope 로 폐기됐다
+/// (진실원 .planning/REQUIREMENTS.md Out of Scope) — 정렬 없이
+/// [_allStrategies] 등록 순서를 유지하는 것이 현재 계약이다.
 ///
 /// **Pitfall 5 (D-26 truth table 핵심):**
 /// | static | rc (or default) | result |

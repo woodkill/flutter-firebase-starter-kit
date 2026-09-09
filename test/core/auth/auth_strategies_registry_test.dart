@@ -126,7 +126,7 @@ void main() {
     });
   });
 
-  group('등록 순서 보존 (D-13 — Phase 16.1 정렬 placeholder)', () {
+  group('등록 순서 보존 (D-13 — SOCL-10 폐기로 정렬 미적용)', () {
     test('staticMap 모두 true + RC 모두 true → Google → Apple → Facebook 순', () {
       final c = makeContainer(
         staticMap: {
