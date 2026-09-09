@@ -9,8 +9,8 @@
 //   accountLinkingSucceededSnackbar 노출.
 // - AL3 Custom Token link 성공: LINE "연결" tap →
 //   linkCustomTokenProviderArm(targetProvider: line) 호출 → 성공 snackbar.
-// - AL4 reauth gate: ReauthenticationRequiredException → 재로그인 라우팅
-//   (withdrawal reauth gate D-06 mirror).
+// - AL4 reauth gate: ReauthenticationRequiredException → authReauthRequired
+//   SnackBar + 재로그인 라우팅 (withdrawal reauth gate D-06 mirror).
 // - AL5 already-linked: AccountAlreadyLinked → graceful SnackBar (크래시 0).
 // - AL6 사용자 취소 (null) → no-op (snackbar 0, 버튼 유지).
 // - AL7 viewport: below-fold 버튼 tester.ensureVisible 후 tap.
@@ -203,7 +203,8 @@ void main() {
     });
 
     testWidgets(
-        'AL4 reauth gate — ReauthenticationRequired → /login 라우팅',
+        'AL4 reauth gate — ReauthenticationRequired → authReauthRequired '
+        'SnackBar + /login 라우팅',
         (tester) async {
       final user = _testUser(providerIds: const <String>['google.com']);
       when(() => repo.linkAppleCredential()).thenAnswer(
@@ -218,6 +219,14 @@ void main() {
       await tester.tap(btn);
       await tester.pumpAndSettle();
 
+      // WR-05 (4차 리뷰): 문구는 도메인 중립 키 authReauthRequired 가 낸다.
+      // withdrawalReauthRequired 와 verbatim 동일하므로 이 단언만으로는 키
+      // 교체가 잠기지 않는다 — 키 자체의 회귀 잠금은 IN-05 소스 sentinel
+      // (account_linking_reauth_key_sentinel_test.dart) 이 담당한다.
+      expect(
+        find.text('For security, please sign in again and retry.'),
+        findsOneWidget,
+      );
       // 재로그인 라우팅 — /login push (withdrawal D-06 reauth gate mirror).
       // push 후 /login 화면이 스택 top 으로 노출되는지 사용자 가시 truth 검증.
       expect(find.text('LOGIN ROUTE'), findsOneWidget);

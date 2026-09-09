@@ -1174,7 +1174,7 @@ abstract class AppLocalizations {
   /// **'Signed in with your {provider} account. You can add other sign-in methods in Settings > Link an account.'**
   String accountLinkingSignInThenLinkHint(String provider);
 
-  /// Phase 16 WR-04 (2차 리뷰) — 인증 도메인 공용 re-auth 요구 SnackBar. 소비: (1) AccountLinkingSheet 경로 A (native + pendingCredential 보존 충돌의 linkPendingNativeCredential 실패가 ReauthenticationRequiredException 인 경우) → SnackBar 후 /login 라우팅, (2) resolveExceptionMessage 의 'errorReauthenticationRequired' arm (WR-04, 4차 리뷰) — ReauthenticationRequiredException.userMessage 는 ARB 키가 아니라 taxonomy 토큰이며 매핑이 없으면 식별자 문자열이 그대로 렌더된다. 같은 뜻의 키를 또 만드는 대신 도메인 중립인 본 키로 매핑한다. 문구는 withdrawalReauthRequired 와 현재 동일하지만 키를 분리한 이유는 그 키의 소비처 계약이 UI-SPEC Surface C (Withdrawal Dialog) verbatim 1곳으로 못 박혀 있어서다 — 향후 Surface C 문구를 탈퇴 맥락에 맞게 (예: '탈퇴하려면 다시 로그인해 주세요') 다듬으면 계정 연동 시트에 엉뚱한 문구가 새어 나간다. 본 키는 도메인 중립을 유지할 의무가 있다 (탈퇴/연동 어느 쪽 어휘도 넣지 않는다). email/uid/token 을 노출하지 않는다.
+  /// Phase 16 WR-04 (2차 리뷰) — 인증 도메인 공용 re-auth 요구 SnackBar. 소비: (1) AccountLinkingSheet 경로 A (native + pendingCredential 보존 충돌의 linkPendingNativeCredential 실패가 ReauthenticationRequiredException 인 경우) → SnackBar 후 /login 라우팅, (2) Surface D — AccountLinkingSection 의 AccountLinkOutcome.reauthRequired SnackBar (WR-05, 4차 리뷰), (3) resolveExceptionMessage 의 'errorReauthenticationRequired' arm (WR-04, 4차 리뷰) — ReauthenticationRequiredException.userMessage 는 ARB 키가 아니라 taxonomy 토큰이며 매핑이 없으면 식별자 문자열이 그대로 렌더된다. 같은 뜻의 키를 또 만드는 대신 도메인 중립인 본 키로 매핑한다. 문구는 withdrawalReauthRequired 와 현재 동일하지만 키를 분리한 이유는 그 키의 소비처 계약이 UI-SPEC Surface C (Withdrawal Dialog) verbatim 1곳으로 못 박혀 있어서다 — 향후 Surface C 문구를 탈퇴 맥락에 맞게 (예: '탈퇴하려면 다시 로그인해 주세요') 다듬으면 계정 연동 시트에 엉뚱한 문구가 새어 나간다. 본 키는 도메인 중립을 유지할 의무가 있다 (탈퇴/연동 어느 쪽 어휘도 넣지 않는다). email/uid/token 을 노출하지 않는다.
   ///
   /// In en, this message translates to:
   /// **'For security, please sign in again and retry.'**
@@ -1282,7 +1282,7 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get withdrawalConfirmAction;
 
-  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog re-auth required SnackBar/message (recent-login 만료 시).
+  /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal Dialog re-auth required SnackBar/message (recent-login 만료 시). **소비처는 Surface C 1곳뿐이다** — 계정 연동(Surface A 경로 A / Surface D)은 도메인 중립 키 authReauthRequired 를 쓴다 (WR-04 2차 리뷰 + WR-05 4차 리뷰). 본 키는 탈퇴 맥락 전용이므로 문구를 탈퇴 어휘로 특화해도 안전하며, 그렇게 다듬는 것이 키를 분리한 원래 목적이다.
   ///
   /// In en, this message translates to:
   /// **'For security, please sign in again and retry.'**

@@ -165,8 +165,12 @@ class AccountLinkingSection extends ConsumerWidget {
         );
       case AccountLinkOutcome.reauthRequired:
         // 재인증 필요 — 재로그인 라우팅 (withdrawal D-06 reauth gate mirror).
+        // WR-05 (4차 리뷰): 도메인 중립 공용 키를 쓴다. withdrawalReauthRequired
+        // 는 소비처 계약이 UI-SPEC Surface C (탈퇴 다이얼로그) 1곳으로 못 박혀
+        // 있어, 그 문구를 탈퇴 어휘로 다듬으면 계정 연결 화면에 "탈퇴하려면…"
+        // 이 새어 나간다 (문구 자체는 현재 verbatim 동일).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.withdrawalReauthRequired)),
+          SnackBar(content: Text(l10n.authReauthRequired)),
         );
         unawaited(router.push(AppRoutes.login));
       case AccountLinkOutcome.alreadyLinked:
