@@ -187,6 +187,32 @@ void main() {
     );
   });
 
+  group('AccountLinkingSheet — W8 헤더 텍스트 렌더 (UI-REVIEW Top 3 #1)', () {
+    testWidgets('시트 노출 시 en 헤더 문구가 정확히 1 개 렌더', (tester) async {
+      await _pumpAndShowSheet(tester, provider: AccountProvider.kakao);
+
+      // 헤더 ARB 게터의 en 값 (클래스 doc 레이아웃 3번 항목)
+      expect(find.text('Email already in use'), findsOneWidget);
+    });
+  });
+
+  group('AccountLinkingSheet — W9 헤더가 본문 위 배치', () {
+    testWidgets('헤더 dy < 본문 dy (레이아웃 3 → 5 순서)', (tester) async {
+      await _pumpAndShowSheet(tester, provider: AccountProvider.kakao);
+
+      final header = find.text('Email already in use');
+      final body = find.textContaining('This email is registered with');
+      expect(header, findsOneWidget);
+      expect(body, findsOneWidget);
+
+      // 헤더가 본문보다 위(작은 dy)에 놓여야 한다.
+      expect(
+        tester.getTopLeft(header).dy,
+        lessThan(tester.getTopLeft(body).dy),
+      );
+    });
+  });
+
   group('AccountLinkingSheet — W7 provider 8 variant smoke', () {
     for (final provider in AccountProvider.values) {
       testWidgets('${provider.name} → sheet 렌더링 성공 (no exception)', (

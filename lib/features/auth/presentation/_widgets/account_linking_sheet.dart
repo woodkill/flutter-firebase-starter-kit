@@ -397,6 +397,15 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   Gap(spacing.lg),
+                  // 헤더 (클래스 doc 레이아웃 3번) — UI-SPEC Layout Contract
+                  // Surface A 의 titleMedium / onSurface / Gap sm verbatim.
+                  Text(
+                    l10n.accountLinkingSheetTitle,
+                    style: typography.titleMedium.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  Gap(spacing.sm),
                   Text(
                     l10n.errorAccountExistsWithProvider(providerLabel),
                     style: typography.bodyLarge.copyWith(
