@@ -91,6 +91,7 @@ AuthChangeNotifier authChangeNotifier(Ref ref) {
 /// 로그아웃 후에는 /onboarding 또는 /login 으로 redirect 되어야 한다.
 const Set<String> _unauthRoutes = <String>{
   AppRoutes.login,
+  AppRoutes.emailLogin, // Phase 16.1 — 이메일 form 전용 경로
   AppRoutes.signup,
   AppRoutes.forgotPassword,
   AppRoutes.onboarding, // Phase 10 D-18 — 게스트 진입 경로

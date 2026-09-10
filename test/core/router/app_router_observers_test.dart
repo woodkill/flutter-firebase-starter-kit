@@ -59,14 +59,16 @@ void main() {
       },
     );
 
-    test('Test 2: GoRoute 10개 등록 (home/splash/onboarding/login/signup/'
-        'forgotPassword/verifyEmail/termsService/termsPrivacy/settings)', () {
+    test('Test 2: GoRoute 11개 등록 (home/splash/onboarding/login/emailLogin/'
+        'signup/forgotPassword/verifyEmail/termsService/termsPrivacy/'
+        'settings)', () {
       final container = makeContainer();
       addTearDown(container.dispose);
 
       final router = container.read(appRouterProvider);
       // Phase 16 D-05 — /settings route 추가로 9 → 10.
-      expect(router.configuration.routes.length, 10);
+      // Phase 16.1 — /login/email route 추가로 10 → 11.
+      expect(router.configuration.routes.length, 11);
     });
 
     test('Test 3: 모든 GoRoute 에 name 이 설정됨 (Pitfall 1)', () {
@@ -79,7 +81,8 @@ void main() {
           .map((r) => r.name)
           .toList();
       // Phase 16 D-05 — /settings route 추가로 9 → 10.
-      expect(names.length, 10);
+      // Phase 16.1 — /login/email route 추가로 10 → 11.
+      expect(names.length, 11);
       expect(
         names.where((n) => n == null || n.isEmpty).length,
         0,

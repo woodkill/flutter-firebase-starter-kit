@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../features/auth/presentation/email_login_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
@@ -86,6 +87,12 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.login,
         name: AppRoutes.loginName,
         builder: (context, state) => const LoginScreen(),
+      ),
+      // Phase 16.1 D-01 — 이메일 form 전용 진입 path (최상위 형제 route).
+      GoRoute(
+        path: AppRoutes.emailLogin,
+        name: AppRoutes.emailLoginName,
+        builder: (context, state) => const EmailLoginScreen(),
       ),
       GoRoute(
         path: AppRoutes.signup,

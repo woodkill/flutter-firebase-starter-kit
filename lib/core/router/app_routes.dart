@@ -27,6 +27,12 @@ abstract final class AppRoutes {
   /// Signup 화면 name.
   static const String signupName = 'signup';
 
+  /// 이메일 로그인 전용 화면 path (Phase 16.1 D-01).
+  static const String emailLogin = '/login/email';
+
+  /// 이메일 로그인 전용 화면 name (Phase 16.1 D-01).
+  static const String emailLoginName = 'emailLogin';
+
   /// Forgot Password 화면 path.
   static const String forgotPassword = '/forgot-password';
 
