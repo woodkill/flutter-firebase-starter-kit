@@ -29,13 +29,50 @@ jest.mock("firebase-functions/params", () => ({
 // 모듈 lazy load 시 SyntaxError 차단용 (moduleNameMapper jose stub 와 동등).
 jest.mock("jose", () => {
   /** Mock JOSEError — instanceof 분기 동작용. */
-  class JOSEError extends Error {}
+  class JOSEError extends Error {
+    code?: string;
+    /** @param {string} [message] error message. */
+    constructor(message?: string) {
+      super(message);
+      this.name = "JOSEError";
+    }
+  }
   /** Mock JWTClaimValidationFailed — JOSEError 서브클래스. */
-  class JWTClaimValidationFailed extends JOSEError {}
+  class JWTClaimValidationFailed extends JOSEError {
+    /** @param {string} [message] error message. */
+    constructor(message?: string) {
+      super(message);
+      this.name = "JWTClaimValidationFailed";
+      this.code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
+    }
+  }
+  /** Mock JWTExpired — JOSEError 서브클래스. */
+  class JWTExpired extends JOSEError {
+    /** @param {string} [message] error message. */
+    constructor(message?: string) {
+      super(message);
+      this.name = "JWTExpired";
+      this.code = "ERR_JWT_EXPIRED";
+    }
+  }
+  /** Mock JWKSNoMatchingKey — JOSEError 서브클래스. */
+  class JWKSNoMatchingKey extends JOSEError {
+    /** @param {string} [message] error message. */
+    constructor(message?: string) {
+      super(message);
+      this.name = "JWKSNoMatchingKey";
+      this.code = "ERR_JWKS_NO_MATCHING_KEY";
+    }
+  }
   return {
     jwtVerify: jest.fn(),
     createRemoteJWKSet: jest.fn(() => "MOCK_JWKS"),
-    errors: {JOSEError, JWTClaimValidationFailed},
+    errors: {
+      JOSEError,
+      JWTClaimValidationFailed,
+      JWTExpired,
+      JWKSNoMatchingKey,
+    },
   };
 });
 
@@ -554,16 +591,14 @@ describe("kakaoCustomToken onCall", () => {
     // eslint-disable-next-line max-len
     "R5: JWTClaimValidationFailed → logger.warn 의 code 필드 = ERR_JWT_CLAIM_VALIDATION_FAILED",
     async () => {
-      // jose mock 의 JWTClaimValidationFailed 에 code property set —
-      // 실제 jose 6.x 의 stable code property 을 시뮬레이션. unknown 경유
-      // double cast — 실제 jose 타입은 (message, payload, claim?, reason?)
-      // 이지만 mock factory 는 단일 인자 (test line 27-37).
+      // ErrCtor cast — 실제 jose 의 생성자는 (message, payload, claim?,
+      // reason?) 다인자이지만 본 파일 상단 jose mock factory 는 단일 인자.
+      // code 필드는 mock constructor 가 자동 설정한다 (jose 6.x 의
+      // stable public property 의미론 그대로).
       const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
         m: string
       ) => Error;
       const err = new ErrCtor("bad nonce");
-      (err as unknown as {code: string}).code =
-        "ERR_JWT_CLAIM_VALIDATION_FAILED";
       mockVerifyKakaoIdToken.mockRejectedValue(err);
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
@@ -596,8 +631,6 @@ describe("kakaoCustomToken onCall", () => {
         m: string
       ) => Error;
       const err = new ErrCtor(sentinel);
-      (err as unknown as {code: string}).code =
-        "ERR_JWT_CLAIM_VALIDATION_FAILED";
       mockVerifyKakaoIdToken.mockRejectedValue(err);
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
@@ -672,8 +705,6 @@ describe("kakaoCustomToken onCall", () => {
         m: string
       ) => Error;
       const err = new ErrCtor(sentinel);
-      (err as unknown as {code: string}).code =
-        "ERR_JWT_CLAIM_VALIDATION_FAILED";
       mockVerifyKakaoIdToken.mockRejectedValue(err);
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
