@@ -314,6 +314,23 @@ void main() {
         expect(result, isNull);
       });
 
+      test('Test 5-1 (Phase 16.1 D-01): 익명 사용자 + /login/email -> null '
+          '(unauth 화이트리스트 1줄 추가로 통과)', () async {
+        final container = makeContainer(
+          isInitialized: true,
+          user: anonymousUser(),
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.emailLogin);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: '/login/email 은 완전 일치 화이트리스트 원소이므로 익명 사용자가 머문다',
+        );
+      });
+
       test(
         'Test 6: 인증 + emailVerified + termsAccepted + /login -> /home',
         () async {
@@ -861,6 +878,26 @@ void main() {
       final result = await _callAuthRedirect(container, mockState);
       expect(result, isNull, reason: 'unauth 화이트리스트 경로는 fail-safe 미발동');
     });
+
+    test(
+      'Test GC-04-C-1 (Phase 16.1 D-01): 미인증 + onboardingSeen=true + '
+      'matchedLocation=/login/email -> null (공개 경로, fail-safe 미발동)',
+      () async {
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingSeen: true,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.emailLogin);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: '/login/email 도 unauth 화이트리스트이므로 분기 (6.5) fail-safe 가 미발동',
+        );
+      },
+    );
 
     test('Test GC-04-D: 미인증 + onboardingSeen=true + matchedLocation=/splash '
         '-> null (무한루프 방지)', () async {
