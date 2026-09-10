@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +21,7 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_fi
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/login_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -210,6 +213,65 @@ void main() {
           ),
         );
         expect(banner.exception, isA<AccountExistsWithDifferentCredential>());
+      });
+    });
+
+    group('WR-01 — 이메일 제출 ↔ 소셜 교차 잠금', () {
+      testWidgets('loginProvider 가 AsyncLoading 이면 chooser 의 소셜 버튼이 모두 비활성', (
+        tester,
+      ) async {
+        final completer = Completer<Result<User>>();
+        when(
+          () => mockRepo.signInWithEmail(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenAnswer((_) => completer.future);
+
+        await _pumpLogin(tester, mockRepo);
+        await tester.pumpAndSettle();
+
+        // 제출 전: 소셜 섹션은 열려 있다.
+        expect(
+          tester
+              .widget<SocialSignInSection>(find.byType(SocialSignInSection))
+              .isFormLoading,
+          isFalse,
+        );
+
+        // `/login/email` 에서 제출이 시작된 상황을 재현한다 — chooser 는
+        // form 화면 아래에 mount 된 채 loginProvider 를 watch 한다.
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(LoginScreen)),
+        );
+        unawaited(
+          container
+              .read(loginProvider.notifier)
+              .submit(email: 'user@example.com', password: 'pw'),
+        );
+        await tester.pump();
+
+        expect(
+          tester
+              .widget<SocialSignInSection>(find.byType(SocialSignInSection))
+              .isFormLoading,
+          isTrue,
+          reason: 'WR-01: 이메일 제출 중 chooser 소셜 섹션이 잠겨야 한다',
+        );
+        for (final branded in tester.widgetList<BrandedSocialButton>(
+          find.byType(BrandedSocialButton),
+        )) {
+          expect(
+            branded.onPressed,
+            isNull,
+            reason:
+                'WR-01: 제출 중 소셜 arm 이 동시 in-flight 가 되면 auth '
+                'state 가 마지막 완료자에 좌우된다 (T-07-05 / T-08-60)',
+          );
+        }
+
+        completer.complete(const Result<User>.failure(InvalidCredentials()));
+        await tester.pumpAndSettle();
       });
     });
   });

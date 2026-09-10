@@ -22,6 +22,7 @@ import 'facebook_sign_in_notifier.dart';
 import 'google_sign_in_notifier.dart';
 import 'kakao_sign_in_notifier.dart';
 import 'line_sign_in_notifier.dart';
+import 'login_notifier.dart';
 import 'naver_sign_in_notifier.dart';
 import 'yahoojp_sign_in_notifier.dart';
 
@@ -105,6 +106,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         naverState.isLoading ||
         lineState.isLoading ||
         yahoojpState.isLoading;
+    // 이메일 제출 ↔ 소셜 로그인 교차 잠금 (WR-01 — T-07-05 / T-08-60
+    // invariant 복원). 이메일 form 은 `/login/email` 로 분리됐지만 그
+    // 화면은 chooser **위에** push 되므로 본 화면은 계속 mount 상태이고,
+    // 사용자는 제출 진행 중에도 back 으로 chooser 에 복귀할 수 있다.
+    // 그 순간 소셜 버튼을 누르면 signInWithEmail 과 signInWith{소셜} 이
+    // 동시 in-flight 가 되어 auth state 가 마지막 완료자에 좌우된다.
+    // chooser 가 loginProvider 를 watch 하면 (a) autoDispose 인 이 provider
+    // 가 push/pop 경계에서 살아남고 (b) 제출 중 소셜 버튼이 비활성화된다.
+    final isEmailSubmitting = ref.watch(loginProvider).isLoading;
 
     // 소셜 로그인 결과 (Google/Apple/Facebook): activeStrategiesProvider 가
     // 반환한 활성 Strategy 들을 순회하여 단일 ref.listen 패턴으로 통합한다
@@ -161,12 +171,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Gap(spacing.xxl),
-              // isFormLoading 은 항상 false — 본 화면에 이메일 form 이 없다
-              // (Phase 16.1 SC 1). "또는" divider 는 소셜 섹션의 기본값
-              // (표시) 을 그대로 쓰며 명시 지정하지 않는다 (Sketch 003
-              // winner A — divider 유지).
+              // 본 화면에 이메일 form 은 없지만 (Phase 16.1 SC 1) `/login/email`
+              // 제출이 진행 중이면 소셜 버튼을 잠근다 (WR-01). "또는" divider
+              // 는 소셜 섹션의 기본값 (표시) 을 그대로 쓰며 명시 지정하지
+              // 않는다 (Sketch 003 winner A — divider 유지).
               SocialSignInSection(
-                isFormLoading: false,
+                isFormLoading: isEmailSubmitting,
                 errorBanner: FormErrorBanner(exception: _socialError),
               ),
               EmailAuthCta(onPressed: () => context.push(AppRoutes.emailLogin)),

@@ -71,9 +71,13 @@ class _EmailLoginScreenState extends ConsumerState<EmailLoginScreen> {
   ///
   /// Phase 16.1 D-07: 원본 [LoginScreen] 이 갖고 있던 7개 소셜 provider
   /// `isLoading` guard (T-07-05 / T-08-60) 는 이식하지 않는다 — 이 화면에는
-  /// 소셜 진입점이 0 이라 조건이 성립할 수 없다. 이중 제출 방어는 chooser
-  /// 화면의 소셜 섹션 `isFormLoading` 과 이 화면의 [PrimaryCta.isLoading]
-  /// disabled 로 각각 유지된다.
+  /// 소셜 진입점이 0 이라 조건이 성립할 수 없다.
+  ///
+  /// 이중 제출 방어는 2겹이다 (WR-01 정정):
+  /// 1. 이 화면의 [PrimaryCta.isLoading] disabled — 같은 화면 재제출 차단.
+  /// 2. chooser ([LoginScreen]) 의 `SocialSignInSection.isFormLoading` —
+  ///    chooser 가 `loginProvider` 를 watch 하므로, 제출 중 back 으로
+  ///    복귀해도 소셜 버튼이 비활성이다 (교차 방향 잠금).
   Future<void> _handleSubmit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
