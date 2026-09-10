@@ -56,9 +56,11 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 ///
 /// `setSurfaceSize` 를 쓰지 않는다 — 그 API 는 render view 만 바꾸고
 /// `MediaQuery` 는 default 800×600 을 유지하므로, Surface D 의
-/// `showLoginPromptSheet` 가 `MediaQuery.sizeOf(context).height * 0.75` 로
-/// 계산하는 최대 높이가 600 이 아닌 450 (= 800 × 9/16 과 우연히 일치) 으로
-/// 잘려 production 과 다른 sheet 가 찍힌다 (2026-09-10 scratch 실측).
+/// `showLoginPromptSheet` 가 `MediaQuery.sizeOf(context).height` 에 곱하는
+/// 최대 높이 계수가 360×800 기준 720 dp 가 아니라 600×0.9 = 540 dp 로
+/// 잘려 production 과 다른 sheet 가 찍힌다 (2026-09-10 scratch 실측 —
+/// 당시 계수 0.75 에서는 600 이 아닌 450 이었다. 계수는 quick 260911-0t3
+/// 에서 0.9 로 상향됐지만 `MediaQuery` 미갱신이라는 논지는 동일하다).
 const Size _goldenLogicalSize = Size(360, 800);
 
 /// golden device pixel ratio — test view 기본값과 같은 3.0 을 명시해 fixture
@@ -69,8 +71,11 @@ const double _goldenDevicePixelRatio = 3.0;
 /// (Google · Apple · Facebook · Kakao · Naver · LINE · Yahoo!JP).
 ///
 /// 다른 16.1 harness 의 3 provider (Google/Apple/Facebook) 대신 production
-/// 기본값 7 을 쓴다 — UI-SPEC 의 "7 provider 는 360×800 에서 스크롤 없이
-/// fit (≈652 dp < 736 dp)" 시각 계약이 golden 의 검증 대상이기 때문이다.
+/// 기본값 7 을 쓴다 — "7 provider 는 360×800 에서 스크롤 없이 fit" 시각
+/// 계약이 golden 의 검증 대상이기 때문이다. quick 260911-0t3 (A1 구조 +
+/// cap 0.9) 실측: 본문 632 dp + drag handle 48 dp = sheet 680 dp ≤ cap
+/// 720 dp 이므로 `maxScroll` 0 이고, CTA 는 스크롤 영역 **밖** 고정 footer
+/// 라 7 provider 와 함께 첫 화면에 함께 보인다.
 const List<AuthStrategy> _sevenStrategies = <AuthStrategy>[
   GoogleAuthStrategy(),
   AppleAuthStrategy(),
