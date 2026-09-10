@@ -2813,7 +2813,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | B 이메일 로그인 form · 성공 navigation | `test/features/auth/presentation/email_login_screen_test.dart` · `email_login_screen_nav_test.dart` |
 | C 가입 form · 소셜 섹션 부재 | `test/features/auth/presentation/email_signup_screen_test.dart` |
 | S 공유 CTA (라벨 · 48 dp 탭 타겟) | `test/features/auth/presentation/_widgets/email_auth_cta_test.dart` |
-| D 시트 스크롤 · 7/8 provider overflow 0 | `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` · `login_prompt_sheet_test.dart` |
+| D 시트 스크롤 · 7/8 provider overflow 0 · 소셜 실패 피드백 | `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` · `login_prompt_sheet_test.dart` · `login_prompt_sheet_error_test.dart` |
 | route 등록 · 미인증 접근 화이트리스트 | `test/core/router/app_router_observers_test.dart` · `app_routes_test.dart` · `auth_guard_test.dart` |
 | 화면 문자열 3 locale verbatim | `test/l10n/email_relegation_arb_verbatim_test.dart` |
 | B 진입 시 back 스택 확보 (chooser 복귀 가능) | `test/features/auth/presentation/account_linking_sheet_two_step_test.dart` TS7 · `forgot_password_screen_test.dart` |
@@ -2828,9 +2828,12 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
   깬다.
 - **비밀번호 재설정 진입이 한 단계 깊어졌다** — chooser 에는 비밀번호 찾기
   링크가 없다. `/login/email` 을 거쳐야 하며, 이는 격하 결정의 의도된 귀결이다.
-- **시트 안 소셜 로그인 실패의 시각 피드백이 아직 없다** (Phase 10 이래의
-  기존 갭, 본 phase 와 인과관계 0). 착수 지점은
-  `.planning/todos/pending/2026-09-10-login-prompt-sheet-social-error-feedback.md`.
+- **시트 안 소셜 로그인 실패도 chooser 와 똑같이 안내된다** — 실패하면 시트가
+  닫히지 않고 소셜 버튼 바로 아래에 에러 배너가 뜬다. 같은 이메일이 다른
+  방식으로 이미 가입돼 있으면 계정 연결 시트가 그 **위에** 뜨고, 취소하면
+  원래 시트로 되돌아온다 (연결에 성공하면 두 시트 모두 닫히고 홈으로
+  이동한다). 배너 문구는 ARB + `resolveExceptionMessage` 가 소유하므로
+  provider 를 추가해도 별도 배선 없이 자동 반영된다.
 
 ---
 
@@ -2852,6 +2855,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-05-29 | 16-06 | `## Account Linking & Withdrawal` 단락 신규 (Phase 16 D-05~D-16 + R1 부활) — 5 sub-section: (1) 동일 이메일 Account Linking (D-01~D-04 흐름 + native↔native vs Custom Token 분기 + 사용자 cancel 시 state 손실 0 + PII invariant), (2) 회원탈퇴 Hard delete + GDPR right-to-be-forgotten (3-line 경고 verbatim + 진입 path /settings → Danger zone → confirmTextField verbatim → fresh ID Token + 5분 boundary → /onboarding 자동 reset + destructive UX 가드 5종), (3) Phase 17 deferred — Cloud Storage cascade (Firestore trigger vs Storage Security Rules + lifecycle), (4) App Check debug provider 등록 절차 (Firebase Console debug token 등록 4 단계 — Plan 16-06 reauth fail 분기와 동일 surface trial-and-error 회피), (5) 사용자 커스터마이징 포인트 5종 (ARB / AccountLinkingSheet n-provider / confirmTextField verbatim / deleteUserAccount cascade / 법무 자문 의무). |
 | 2026-09-10 | 16.1-04 | `## 로그인 화면 구조 — 이메일 격하 (Phase 16.1)` 단락 신규 (D-11) — 3화면 + 1시트 구조표 (`/login` chooser · `/login/email` EmailLoginScreen · `/signup` EmailSignupScreen · LoginPromptSheet) + Option C 의미 (이메일 코드 보존, UI 노출만 격하) + 커스터마이징 포인트 5종 (경로 은닉 / CTA 라벨 ARB / EmailAuthCta 단일 외관 진실원 / 시트 provider 증가 안전성 / `/login/email` path 상수) + GA4 breaking 안내 (`emailLogin` 신규 screen name · `login` 의미 변화) + 회귀 가드 7행 매트릭스 + Pitfall 3종. 목차 15 항목으로 확장. stale 서술 2곳 정정 — Custom Token Provider 추가 가이드의 소셜 wiring 화면 수(3 → 2, SignupScreen 삭제 반영) + Multi-Provider Account Linking 절의 `login_screen.dart` 이메일 배너 코드 anchor (이메일 배너는 `email_login_screen.dart` 로 이관). |
 | 2026-09-10 | 16.1-REVIEW | code review 정정 (CR-01 · WR-06) — 3화면 구조표의 `/login/email` 진입 방식 서술을 실제 위상 (최상위 형제 route · 항상 chooser 위 push) 에 맞춰 정정. 커스터마이징 포인트 1번에 `AppRoutes.emailLogin` 을 참조하는 비-UI 지점 2곳 (`account_linking_sheet.dart` 경로 C · `forgot_password_screen.dart` 딥링크 fallback) 경고 + `grep -rn "AppRoutes.emailLogin" lib` 자가 점검 명령 추가 — GoRoute 만 지우면 두 경로가 `buildNotFoundScreen` 으로 떨어진다. 회귀 가드 매트릭스 3행 추가 (back 스택 확보 / C 하단 링크 경로별 착지 / 이메일 제출 ↔ 소셜 교차 잠금). |
+| 2026-09-10 | quick 260910-uff | Surface D Pitfall 정정 — 시트 안 소셜 실패가 이제 배너 + 계정 연결 시트로 안내된다는 현행 동작 서술로 교체 (사라진 pending todo 경로 제거) + 「회귀 가드 위치」 표 D 행에 실패 피드백 회귀 가드 테스트 1건 추가. 근거: AR-16.1-01 회수 (16.1-SECURITY.md Accepted Risks Log). |
 
 ---
 
