@@ -35,6 +35,12 @@ class SocialSignInSection extends ConsumerWidget {
   });
 
   /// 이메일 폼이 로딩 중인지 여부. true면 소셜 버튼도 비활성화한다.
+  ///
+  /// Phase 16.1 이후 이메일 form 은 별도 화면 (`/login/email`) 에 있고
+  /// 그 화면은 chooser **위에** push 되므로, chooser 는 mount 상태를
+  /// 유지한 채 `loginProvider` 의 로딩 상태를 이 파라미터로 전달한다
+  /// (WR-01 — 교차 잠금 복원). 이메일 form 이 없는 [LoginPromptSheet] 는
+  /// `false` 를 넘긴다.
   final bool isFormLoading;
 
   /// 소셜 버튼과 [OrDivider] 사이에 표시할 에러 배너.
@@ -45,10 +51,11 @@ class SocialSignInSection extends ConsumerWidget {
 
   /// 소셜 버튼 아래 [OrDivider] 노출 여부 (Phase 10 D-10).
   ///
-  /// - `true` (기본값): LoginScreen/SignupScreen 처럼 소셜 → Divider →
-  ///   이메일 폼으로 이어지는 화면에서 사용.
+  /// - `true` (기본값): `LoginScreen` chooser 처럼 소셜 → Divider →
+  ///   이메일 진입 지점으로 이어지는 화면에서 사용. Phase 16.1 이후
+  ///   divider 아래는 이메일 폼이 아니라 [EmailAuthCta] 다.
   /// - `false`: [LoginPromptSheet] 처럼 Divider 없이 소셜 버튼만 노출하는
-  ///   Bottom Sheet에서 사용 (뒤에 "이메일로 계속" TextButton 이 이어짐).
+  ///   Bottom Sheet에서 사용 (뒤에 "이메일로 계속" CTA 가 이어짐).
   final bool showOrDivider;
 
   @override
