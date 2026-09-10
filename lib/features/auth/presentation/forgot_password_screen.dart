@@ -81,8 +81,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   ///
   /// production 환경에서는 GoRouter 의 [context.pop] 을 사용한다.
   /// 단, `/forgot-password` 가 딥링크로 직접 진입되어 pop 할 스택이
-  /// 없는 경우에는 `/login` 으로 명시 이동하여 사용자가 화면에 갇히는
-  /// dead-end 를 회피한다 (WR-03). GoRouter context 부재(예: 위젯 단위
+  /// 없는 경우에는 `/login` chooser 로 명시 이동한 뒤 `/login/email` 을
+  /// push 하여 (스택 `[/login, /login/email]`) 사용자가 화면에 갇히는
+  /// dead-end 를 회피한다 (Phase 6 WR-03 · Phase 16.1 CR-01 — chooser 를
+  /// 건너뛰고 `/login/email` 로 바로 go() 하면 back 스택이 비어 소셜
+  /// chooser 도달 경로가 사라진다). GoRouter context 부재(예: 위젯 단위
   /// 테스트) 시에는 [Navigator] API 로 graceful fallback 하며,
   /// Navigator 로도 pop 이 불가한 경우 [_sentSuccessfully] 를 false 로
   /// 되돌려 재제출을 허용한다. D-05 강제: `context.go` /
@@ -101,7 +104,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           // 딥링크로 진입한 최상위 forgot 화면 — 이메일 로그인 화면으로
           // 명시 이동 (Phase 16.1). 정상 흐름은 canPop() 으로 되돌아가므로
           // 이 분기를 타지 않는다.
-          context.go(AppRoutes.emailLogin);
+          //
+          // CR-01: /login/email 은 /login 의 sub-route 가 아니라 최상위
+          // 형제 route 이므로 go() 단독 호출은 back 스택이 빈 상태로
+          // 착지시켜 소셜 chooser 도달 경로를 없앤다. chooser 에 먼저
+          // 착지시킨 뒤 form 을 push 하여 스택을 [/login, /login/email]
+          // 로 만든다.
+          context.go(AppRoutes.login);
+          unawaited(context.push<void>(AppRoutes.emailLogin));
         }
       } else {
         final popped = Navigator.of(context).maybePop();

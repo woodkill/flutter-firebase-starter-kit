@@ -3,6 +3,8 @@
 // provider 단일 강조 (D-02 single button) + cancel 시 state 손실 0 (D-03).
 //
 // Plan 16-04 (Task 4.2) — Plan 16-01 placeholder 본체 채움 완료.
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -192,9 +194,17 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
     // 경로 C — email-existing 은 sheet 안에서 완결 불가 (/login/email
     // redirect). Phase 16.1 로 이메일 form 이 전용 화면으로 분리되면서
     // 안내 문구("원래 방식으로 로그인")와 도착지가 일치하게 됐다.
+    //
+    // CR-01: /login/email 은 /login 의 sub-route 가 아니라 최상위 형제
+    // route 다 (D-01). 따라서 go() 단독 호출은 스택 원소가 1 개뿐인
+    // 상태로 착지시키고, AuthScaffold 의 AppBar back 버튼이 렌더되지
+    // 않아 소셜 chooser 로 되돌아갈 경로가 사라진다. chooser 에 먼저
+    // 착지시킨 뒤 form 을 push 하여 스택을 [/login, /login/email] 로
+    // 만든다.
     if (provider == AccountProvider.email) {
       navigator.pop(false);
-      router.go(AppRoutes.emailLogin);
+      router.go(AppRoutes.login);
+      unawaited(router.push<void>(AppRoutes.emailLogin));
       return;
     }
 

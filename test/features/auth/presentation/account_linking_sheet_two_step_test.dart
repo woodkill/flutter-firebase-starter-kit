@@ -532,6 +532,14 @@ void main() {
         expect(find.byType(AccountLinkingSheet), findsNothing);
         expect(find.text('HOME'), findsNothing);
         expect(find.byType(EmailLoginScreen), findsOneWidget);
+        // CR-01 회귀 가드 — chooser 를 스택에 남긴 채 form 을 push 해야
+        // 한다. go() 단독 착지면 스택 원소가 1개라 back 버튼이 렌더되지
+        // 않아 소셜 chooser 도달 경로가 사라진다.
+        expect(
+          find.byType(BackButton),
+          findsOneWidget,
+          reason: 'CR-01: form 전용 화면은 항상 chooser 로 복귀 가능해야 한다',
+        );
       },
     );
   });

@@ -2727,7 +2727,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 경로 / 표면 | 화면 클래스 | 담는 것 |
 |---|---|---|
 | `/login` | `LoginScreen` (Surface A) | 7 social provider chooser + `OrDivider` + "이메일로 계속" CTA + 하단 가입 링크. **이메일 입력 필드 0** |
-| `/login/email` | `EmailLoginScreen` (Surface B) | Phase 6/6.1 이메일 로그인 form 전용. `push` 진입이므로 AppBar back 버튼으로 chooser 복귀. 비밀번호 찾기 링크 · 하단 가입 링크 보유 |
+| `/login/email` | `EmailLoginScreen` (Surface B) | Phase 6/6.1 이메일 로그인 form 전용. `/login` 의 sub-route 가 아닌 **최상위 형제 route** 이므로 진입은 항상 chooser 위 `push` 여야 한다 — CTA 2곳은 `push` 직접 호출, `AccountLinkingSheet` 경로 C 와 `ForgotPasswordScreen` 딥링크 fallback 은 `go('/login')` + `push('/login/email')` 2단. 그 결과 AppBar back 버튼으로 chooser 복귀 가능. 비밀번호 찾기 링크 · 하단 가입 링크 보유 |
 | `/signup` | `EmailSignupScreen` (Surface C) | 이메일 가입 form 만. 경로·route name 은 종전 그대로이며 **소셜 섹션이 없다** |
 | `LoginPromptSheet` (Surface D) | `_widgets/login_prompt_sheet.dart` | 익명 사용자가 보호된 동작을 탭했을 때 뜨는 시트. A 와 **동일한 `EmailAuthCta` 위젯**을 공유하고 본문 전체가 스크롤된다 |
 

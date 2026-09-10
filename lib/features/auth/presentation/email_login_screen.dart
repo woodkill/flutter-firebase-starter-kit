@@ -19,7 +19,16 @@ import 'login_notifier.dart';
 ///
 /// Phase 16.1 이메일 격하(relegation) 로 [LoginScreen] 의 chooser 에서
 /// 분리된 form 전용 surface 다. 소셜 로그인 진입점은 이 화면에 존재하지
-/// 않으며 (A 단독 책임), 이 화면은 push 로 진입하므로 back 버튼을 노출한다.
+/// 않으며 (A 단독 책임), 항상 chooser 위에 push 된 상태로 진입하므로
+/// AppBar back 버튼으로 chooser 에 복귀할 수 있다.
+///
+/// `/login/email` 은 `/login` 의 sub-route 가 아니라 최상위 형제 route 다
+/// (D-01). 따라서 back 버튼 노출은 **호출자의 책임**이며, 이 경로로
+/// 진입시키는 모든 지점은 chooser 착지 후 push 해야 한다 (CR-01):
+/// `context.push` 직접 호출 2곳 (`LoginScreen` CTA · `LoginPromptSheet`
+/// CTA) 과 `go` + `push` 2단 호출 2곳 (`AccountLinkingSheet` 경로 C ·
+/// `ForgotPasswordScreen` 딥링크 fallback). `go(AppRoutes.emailLogin)`
+/// 단독 호출은 back 스택이 빈 dead-end 를 만들므로 금지한다.
 ///
 /// 폼 제출 결과는 [LoginNotifier] 가 [AsyncValue] (void) 로 노출한다.
 /// 성공 + `emailVerified` 시 [context.go] 로 Home 이동을 명시적으로 호출한다
