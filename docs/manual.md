@@ -39,6 +39,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 12. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
 13. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
 14. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+15. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
 
 ---
 
@@ -1876,8 +1877,9 @@ LINE / Yahoo!JP 등 새 Custom Token provider 를 추가할 수 있습니다.
 
 6. **Helper resolver** —
    `lib/features/auth/presentation/_helpers/social_provider_resolver.dart`
-   switch 에 1줄 추가 (Pitfall 6 단일 진실원). 본 1줄로 LoginScreen /
-   SignupScreen / LoginPromptSheet 3 화면의 ref.listen for-loop 자동 반영.
+   switch 에 1줄 추가 (Pitfall 6 단일 진실원). 본 1줄로
+   LoginScreen / LoginPromptSheet 2 화면의 ref.listen for-loop 자동 반영
+   (Phase 16.1 — SignupScreen 삭제, 소셜 진입점 2곳으로 단일화).
 
 7. **ARB keys × 3 로케일** — `auth{Provider}SignIn` (소셜 버튼 라벨) +
    `authAccountProvider{Provider}` (Account 카드 라벨) × en/ko/ja 3 파일 +
@@ -2467,8 +2469,13 @@ LoginScreen 의 자동 채움 (auto-fill) + focus 호출 (R3 / D-31) 도 제거 
 충돌 시 사용자에게 잘못된 비밀번호 입력 cognitive trigger 가 작동하지 않는다.
 구체 코드 위치: `lib/features/auth/presentation/login_screen.dart` 의
 `ref.listen` listener body — D-10 자동 채움 + focus 호출 4줄을 정확히 삭제하고
-`setState({_socialError = err, _emailError = null})` 블록만 보존
-(P3 / 09.2-03-PLAN.md commit 616603c). `AccountExistsWithDifferentCredential.email`
+소셜 실패만 배너 state 에 담는 `setState` 블록만 보존
+(P3 / 09.2-03-PLAN.md commit 616603c).
+**Phase 16.1 정정:** 위 화면은 chooser 가 되어 이메일 입력 필드가 없다 —
+`login_screen.dart` 에는 소셜 실패용 state 하나만 남아 있고, 이메일 제출 실패
+배너는 `lib/features/auth/presentation/email_login_screen.dart` 로 이관됐다.
+따라서 자동 채움·focus 호출을 되살릴 수 있는 위젯 자체가 A 에 존재하지 않으며,
+R1 부활 시 검토 대상 코드 anchor 는 두 파일로 나뉜다. `AccountExistsWithDifferentCredential.email`
 필드 자체는 보존 — Phase 17 (Account Linking) — see ROADMAP.md 부활 시
 server-side provider 매핑 input 으로 활용.
 
@@ -2707,6 +2714,111 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 
 ---
 
+## 로그인 화면 구조 — 이메일 격하 (Phase 16.1)
+
+> Phase 16.1 도입 (2026-09-10). 소셜 provider 7개가 모두 통합된 뒤 이메일/
+> 비밀번호 UI 를 **격하(relegation)** 한 결과의 화면 구조 단일 진리원.
+> 이메일 로그인·가입 **기능은 하나도 제거되지 않았고** 진입 위치만 바뀌었다.
+> 진실원: `.planning/todos/completed/2026-05-18-email-password-ui-relegation.md`
+> 「재토론 결과」 + `.planning/sketches/MANIFEST.md` Sketch 003/004 sign-off.
+
+### 3화면 + 1시트 구조
+
+| 경로 / 표면 | 화면 클래스 | 담는 것 |
+|---|---|---|
+| `/login` | `LoginScreen` (Surface A) | 7 social provider chooser + `OrDivider` + "이메일로 계속" CTA + 하단 가입 링크. **이메일 입력 필드 0** |
+| `/login/email` | `EmailLoginScreen` (Surface B) | Phase 6/6.1 이메일 로그인 form 전용. `push` 진입이므로 AppBar back 버튼으로 chooser 복귀. 비밀번호 찾기 링크 · 하단 가입 링크 보유 |
+| `/signup` | `EmailSignupScreen` (Surface C) | 이메일 가입 form 만. 경로·route name 은 종전 그대로이며 **소셜 섹션이 없다** |
+| `LoginPromptSheet` (Surface D) | `_widgets/login_prompt_sheet.dart` | 익명 사용자가 보호된 동작을 탭했을 때 뜨는 시트. A 와 **동일한 `EmailAuthCta` 위젯**을 공유하고 본문 전체가 스크롤된다 |
+
+`EmailAuthCta` (`_widgets/email_auth_cta.dart`) 는 A 와 D 가 공유하는 얇은
+`TextButton` wrapper 다. 라벨(`authContinueWithEmail`)을 위젯 내부에 고정해
+두 화면의 문구·외관 drift 를 구조적으로 차단한다.
+
+### Option C 의 의미 — 코드는 전부 보존된다
+
+- Phase 6/6.1 의 이메일 form · validator · 비밀번호 찾기 · 이메일 인증 화면,
+  Phase 9.2 의 이메일 계정 linking 은 **변경 0** 이다.
+- 바뀐 것은 **UI 노출 위계**뿐이다 — 이메일이 첫 화면의 form 에서 CTA 뒤
+  한 단계로 내려갔다.
+- 삭제된 것은 소셜 버튼까지 함께 담던 구 `SignupScreen` 1개이며, 그 자리는
+  form 전용 `EmailSignupScreen` 이 이어받았다. 소셜 진입점이 3곳 → 2곳(A·D)
+  으로 줄어 도달 불가능한 인증 wiring 이 사라졌다.
+- `?focus=email` 쿼리 파라미터로 화면 안 이메일 섹션에 포커스를 주던 Phase 10
+  의 진입 계약은 **폐기**됐다. 대신 전용 경로 `/login/email` 로 이동한다.
+
+### 커스터마이징 포인트
+
+1. **이메일 경로를 완전히 숨기려면** — `EmailAuthCta` 호출 2곳
+   (`login_screen.dart` · `_widgets/login_prompt_sheet.dart`) + A 하단 가입
+   링크(`TextButton(l10n.authLoginNoAccount)`) + `app_router.dart` 의
+   `/login/email` `GoRoute` + `auth_guard.dart` `_unauthRoutes` 1줄을 함께
+   지운다. **딥링크까지 막으려면 `/signup` `GoRoute` 와 그 화이트리스트
+   항목도 제거**해야 한다 — 링크만 지우면 URL 직접 진입이 열려 있다.
+2. **CTA 라벨을 바꾸려면** — `EmailAuthCta` 는 label 파라미터를 노출하지
+   않는다. `lib/l10n/app_{ko,en,ja}.arb` 의 `authContinueWithEmail` 값을
+   **3 파일 모두** 고치고 `fvm flutter gen-l10n` 을 실행한다. 다른 ARB key 로
+   교체하려면 `email_auth_cta.dart` 의 getter 참조 1줄만 바꾸면 A/D 양쪽에
+   반영된다.
+3. **CTA 를 divider 위로 올리거나 외관을 바꾸려면** —
+   `_widgets/email_auth_cta.dart` **1 파일**이 외관의 진실원이다(A/D 공유).
+   위치를 바꾸려면 각 화면 `build()` 의 `Column` children 순서를 조정한다.
+   단 소셜보다 **위로** 올리면 격하 의도가 뒤집히고 A 의 좌표 비교 테스트
+   2건이 RED 가 된다 — 의도적 변경이라면 그 단언도 함께 갱신할 것.
+4. **provider 를 추가할 때 시트 높이** — `LoginPromptSheet` 본문은
+   `SingleChildScrollView` 이고 `maxHeight` 는 화면의 75% 로 cap 되어 있어
+   provider 개수와 무관하게 overflow 예외가 나지 않는다. 회귀 가드는
+   `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` 의
+   7/8 provider 케이스다(default 800×600 viewport 를 넓히지 말 것 — 좁음
+   자체가 회귀 조건이다).
+5. **`/login/email` 경로 문자열을 바꾸려면** — `app_routes.dart` 의
+   `AppRoutes.emailLogin` 상수 1곳만 고친다. `GoRoute` 와
+   `_unauthRoutes` 가 모두 이 상수를 참조하므로 하드코딩 지점이 없다. 단
+   `AppRoutes.emailLoginName` 은 GA4 screen name 으로 전송되므로 이름을
+   바꾸면 대시보드 필터도 함께 갱신해야 한다.
+
+### ⚠ adopter breaking 안내 — Analytics(GA4) screen name
+
+`analytics.logScreenView` 로직은 변경 0 이지만 **관측 데이터의 의미가 바뀐다.**
+
+1. `emailLogin` 이 **신규 screen name** 으로 등장한다. 이메일 로그인을 시도한
+   사용자는 이제 `login` → `emailLogin` 두 개의 `screen_view` 를 발생시킨다.
+2. 기존 `login` 의 의미가 "이메일 form 을 본 사용자" → "**chooser 를 본
+   사용자**" 로 바뀐다.
+3. `signup` 은 이름·경로 모두 그대로지만 화면에 소셜 버튼이 없으므로 그
+   화면에서 발생하던 소셜 가입 이벤트는 0 이 된다.
+
+**필요한 조치:** Firebase Console 등록 작업은 **불필요**하다. 다만 `login` 을
+기준으로 funnel/대시보드를 만든 경우 (a) `emailLogin` 을 step 으로 추가하거나
+(b) `login` 을 "인증 진입" 으로 재정의해야 한다. 배포 시점을 annotation 으로
+남겨 before/after 를 구분할 것을 권장한다.
+
+### 회귀 가드 위치
+
+| 대상 | 테스트 파일 |
+|---|---|
+| A chooser 구성 · CTA push · 이메일 필드 부재 | `test/features/auth/presentation/login_screen_layout_test.dart` · `login_screen_test.dart` |
+| B 이메일 로그인 form · 성공 navigation | `test/features/auth/presentation/email_login_screen_test.dart` · `email_login_screen_nav_test.dart` |
+| C 가입 form · 소셜 섹션 부재 | `test/features/auth/presentation/email_signup_screen_test.dart` |
+| S 공유 CTA (라벨 · 48 dp 탭 타겟) | `test/features/auth/presentation/_widgets/email_auth_cta_test.dart` |
+| D 시트 스크롤 · 7/8 provider overflow 0 | `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` · `login_prompt_sheet_test.dart` |
+| route 등록 · 미인증 접근 화이트리스트 | `test/core/router/app_router_observers_test.dart` · `app_routes_test.dart` · `auth_guard_test.dart` |
+| 화면 문자열 3 locale verbatim | `test/l10n/email_relegation_arb_verbatim_test.dart` |
+
+### Pitfall
+
+- **긴 라벨의 2줄 wrap 은 버그가 아니다** — `authLoginNoAccount` /
+  `authSignupHasAccount` 의 ja 값은 280 dp 폭에서 2줄로 감싼다. `TextButton`
+  의 softWrap 동작이며 `maxLines` 나 ellipsis 를 넣으면 3 locale sign-off 를
+  깬다.
+- **비밀번호 재설정 진입이 한 단계 깊어졌다** — chooser 에는 비밀번호 찾기
+  링크가 없다. `/login/email` 을 거쳐야 하며, 이는 격하 결정의 의도된 귀결이다.
+- **시트 안 소셜 로그인 실패의 시각 피드백이 아직 없다** (Phase 10 이래의
+  기존 갭, 본 phase 와 인과관계 0). 착수 지점은
+  `.planning/todos/pending/2026-09-10-login-prompt-sheet-social-error-feedback.md`.
+
+---
+
 ## 변경 이력
 
 | 일자 | Phase | 변경 |
@@ -2723,7 +2835,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-05-20 | 14-07 | `## Kakao 검수 / 비즈앱 / 추가 수집 / stg-prod (Phase 14 D-LINE-22b retroactive)` 단락 신규 — Phase 12 Kakao Login 단계에서 dev 단독 검증만 다룬 매뉴얼에 production 출시 4 항목 retroactive 보강: (1) Kakao 검수 신청 절차 (DAU 100+ 의무 + 검수 form + 신규 동의 항목 재검수 회피) / (2) 비즈앱 인증 절차 (사업자 / 개인 인증 분기 + phone_number / CI / DI / 배송지 / 카톡 메시지 / 생일 / 성별 / 연령대 / 출생연도 트리거) / (3) 추가 수집 정보 카탈로그 (기본 3 + 비즈앱-only 8 + scope 매트릭스 + 채택 시 code 변경 point — kakao_sdk_client.dart serviceTerms / kakao_custom_token.ts zod / UserApi 호출 helper) / (4) stg / prod Console 등록 + 검수 (별도 앱 / 키 해시 release / Redirect URI prod / Secret Manager prod / OIDC 활성화 + 검수 분리 / App Check Debug Token 분리). 모든 verbatim claim 에 `[ASSUMED — Phase 14 단계 cross-verify 보류, 사용자 책임]` tag + 4 URL cross-verify 의무 명시. |
 | 2026-05-20 | 14-07 | `## Naver 검수 / 추가 항목 / member detail / stg-prod (Phase 14 D-LINE-22c retroactive)` 단락 신규 — Phase 13 Naver Login 단계에서 dev 단독 검증만 다룬 매뉴얼에 production 출시 4 항목 retroactive 보강: (1) 네아로 검수 신청 절차 (외부 사용자 차단 회피 + 검수 form + 동의 항목 일괄 등록) / (2) 추가 항목 활성화 절차 (mobile / ci / birthday / gender / age / birthyear / name member detail info, 항목별 검수 의무) / (3) `/v1/nid/me` response 카탈로그 (기본 3 + 추가 7 + response field 매트릭스 + 채택 시 code 변경 point — naver_custom_token.ts mapNaverProfile / PII 정책 의무 / Firebase Auth customClaims 분리) / (4) stg / prod Console 등록 + 검수 (별도 Naver 앱 / iOS URL Scheme prod / Android Key Hash release / Bundle ID 분리 / Secret Manager prod / 네아로 검수 분리 / App Check Debug Token 분리). 모든 verbatim claim 에 `[ASSUMED — Phase 14 단계 cross-verify 보류, 사용자 책임]` tag + 4 URL cross-verify 의무 명시. |
 | 2026-05-29 | 16-06 | `## Account Linking & Withdrawal` 단락 신규 (Phase 16 D-05~D-16 + R1 부활) — 5 sub-section: (1) 동일 이메일 Account Linking (D-01~D-04 흐름 + native↔native vs Custom Token 분기 + 사용자 cancel 시 state 손실 0 + PII invariant), (2) 회원탈퇴 Hard delete + GDPR right-to-be-forgotten (3-line 경고 verbatim + 진입 path /settings → Danger zone → confirmTextField verbatim → fresh ID Token + 5분 boundary → /onboarding 자동 reset + destructive UX 가드 5종), (3) Phase 17 deferred — Cloud Storage cascade (Firestore trigger vs Storage Security Rules + lifecycle), (4) App Check debug provider 등록 절차 (Firebase Console debug token 등록 4 단계 — Plan 16-06 reauth fail 분기와 동일 surface trial-and-error 회피), (5) 사용자 커스터마이징 포인트 5종 (ARB / AccountLinkingSheet n-provider / confirmTextField verbatim / deleteUserAccount cascade / 법무 자문 의무). |
+| 2026-09-10 | 16.1-04 | `## 로그인 화면 구조 — 이메일 격하 (Phase 16.1)` 단락 신규 (D-11) — 3화면 + 1시트 구조표 (`/login` chooser · `/login/email` EmailLoginScreen · `/signup` EmailSignupScreen · LoginPromptSheet) + Option C 의미 (이메일 코드 보존, UI 노출만 격하) + 커스터마이징 포인트 5종 (경로 은닉 / CTA 라벨 ARB / EmailAuthCta 단일 외관 진실원 / 시트 provider 증가 안전성 / `/login/email` path 상수) + GA4 breaking 안내 (`emailLogin` 신규 screen name · `login` 의미 변화) + 회귀 가드 7행 매트릭스 + Pitfall 3종. 목차 15 항목으로 확장. stale 서술 2곳 정정 — Custom Token Provider 추가 가이드의 소셜 wiring 화면 수(3 → 2, SignupScreen 삭제 반영) + Multi-Provider Account Linking 절의 `login_screen.dart` 이메일 배너 코드 anchor (이메일 배너는 `email_login_screen.dart` 로 이관). |
 
 ---
 
-*Last updated: 2026-05-29 — Phase 16-06 docs (Account Linking & Withdrawal 단락 신규)*
+*Last updated: 2026-09-10 — Phase 16.1-04 docs (로그인 화면 구조 — 이메일 격하 단락 신규)*
