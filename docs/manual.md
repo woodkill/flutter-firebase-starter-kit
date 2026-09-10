@@ -2777,12 +2777,17 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
    위치를 바꾸려면 각 화면 `build()` 의 `Column` children 순서를 조정한다.
    단 소셜보다 **위로** 올리면 격하 의도가 뒤집히고 A 의 좌표 비교 테스트
    2건이 RED 가 된다 — 의도적 변경이라면 그 단언도 함께 갱신할 것.
-4. **provider 를 추가할 때 시트 높이** — `LoginPromptSheet` 본문은
-   `SingleChildScrollView` 이고 `maxHeight` 는 화면의 75% 로 cap 되어 있어
-   provider 개수와 무관하게 overflow 예외가 나지 않는다. 회귀 가드는
+4. **provider 를 추가할 때 시트 높이** — `LoginPromptSheet` 는 3블록
+   구조다(quick 260911-0t3): **고정 헤더** / `Flexible` + `SingleChildScrollView`
+   안의 **provider 목록** / **고정 footer 의 "이메일로 계속" CTA**. provider 를
+   몇 개 추가하든 (a) 늘어난 높이는 스크롤 영역이 흡수하므로 overflow 예외가
+   나지 않고, (b) CTA 는 스크롤 영역 **밖**이라 폰 높이와 무관하게 항상 첫
+   화면에 보인다. `maxHeight` 는 화면의 90% 로 cap 되어 있지만 이는 상한일
+   뿐이며, 콘텐츠가 작으면 시트가 콘텐츠 높이로 줄어든다(800 dp 폰 · 7
+   provider 실측 680 dp = 85%). 회귀 가드는
    `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` 의
-   7/8 provider 케이스다(default 800×600 viewport 를 넓히지 말 것 — 좁음
-   자체가 회귀 조건이다).
+   7/8 provider × 계약 2종(overflow 0 · CTA 첫 화면 노출)이다(default
+   800×600 viewport 를 넓히지 말 것 — 좁음 자체가 회귀 조건이다).
 5. **`/login/email` 경로 문자열을 바꾸려면** — `app_routes.dart` 의
    `AppRoutes.emailLogin` 상수 1곳만 고친다. `GoRoute` 와
    `_unauthRoutes` 가 모두 이 상수를 참조하므로 하드코딩 지점이 없다. 단
@@ -2813,7 +2818,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | B 이메일 로그인 form · 성공 navigation | `test/features/auth/presentation/email_login_screen_test.dart` · `email_login_screen_nav_test.dart` |
 | C 가입 form · 소셜 섹션 부재 | `test/features/auth/presentation/email_signup_screen_test.dart` |
 | S 공유 CTA (라벨 · 48 dp 탭 타겟) | `test/features/auth/presentation/_widgets/email_auth_cta_test.dart` |
-| D 시트 스크롤 · 7/8 provider overflow 0 · 소셜 실패 피드백 | `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` · `login_prompt_sheet_test.dart` · `login_prompt_sheet_error_test.dart` |
+| D 시트 스크롤 · 7/8 provider overflow 0 · CTA 첫 화면 노출 · 소셜 실패 피드백 | `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` · `login_prompt_sheet_test.dart` · `login_prompt_sheet_error_test.dart` |
 | route 등록 · 미인증 접근 화이트리스트 | `test/core/router/app_router_observers_test.dart` · `app_routes_test.dart` · `auth_guard_test.dart` |
 | 화면 문자열 3 locale verbatim | `test/l10n/email_relegation_arb_verbatim_test.dart` |
 | B 진입 시 back 스택 확보 (chooser 복귀 가능) | `test/features/auth/presentation/account_linking_sheet_two_step_test.dart` TS7 · `forgot_password_screen_test.dart` |
@@ -2856,7 +2861,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-09-10 | 16.1-04 | `## 로그인 화면 구조 — 이메일 격하 (Phase 16.1)` 단락 신규 (D-11) — 3화면 + 1시트 구조표 (`/login` chooser · `/login/email` EmailLoginScreen · `/signup` EmailSignupScreen · LoginPromptSheet) + Option C 의미 (이메일 코드 보존, UI 노출만 격하) + 커스터마이징 포인트 5종 (경로 은닉 / CTA 라벨 ARB / EmailAuthCta 단일 외관 진실원 / 시트 provider 증가 안전성 / `/login/email` path 상수) + GA4 breaking 안내 (`emailLogin` 신규 screen name · `login` 의미 변화) + 회귀 가드 7행 매트릭스 + Pitfall 3종. 목차 15 항목으로 확장. stale 서술 2곳 정정 — Custom Token Provider 추가 가이드의 소셜 wiring 화면 수(3 → 2, SignupScreen 삭제 반영) + Multi-Provider Account Linking 절의 `login_screen.dart` 이메일 배너 코드 anchor (이메일 배너는 `email_login_screen.dart` 로 이관). |
 | 2026-09-10 | 16.1-REVIEW | code review 정정 (CR-01 · WR-06) — 3화면 구조표의 `/login/email` 진입 방식 서술을 실제 위상 (최상위 형제 route · 항상 chooser 위 push) 에 맞춰 정정. 커스터마이징 포인트 1번에 `AppRoutes.emailLogin` 을 참조하는 비-UI 지점 2곳 (`account_linking_sheet.dart` 경로 C · `forgot_password_screen.dart` 딥링크 fallback) 경고 + `grep -rn "AppRoutes.emailLogin" lib` 자가 점검 명령 추가 — GoRoute 만 지우면 두 경로가 `buildNotFoundScreen` 으로 떨어진다. 회귀 가드 매트릭스 3행 추가 (back 스택 확보 / C 하단 링크 경로별 착지 / 이메일 제출 ↔ 소셜 교차 잠금). |
 | 2026-09-10 | quick 260910-uff | Surface D Pitfall 정정 — 시트 안 소셜 실패가 이제 배너 + 계정 연결 시트로 안내된다는 현행 동작 서술로 교체 (사라진 pending todo 경로 제거) + 「회귀 가드 위치」 표 D 행에 실패 피드백 회귀 가드 테스트 1건 추가. 근거: AR-16.1-01 회수 (16.1-SECURITY.md Accepted Risks Log). |
+| 2026-09-11 | quick 260911-0t3 | Surface D 구조를 A1 (고정 헤더 + provider 스크롤 + CTA footer 고정) 로 전환 + `maxHeight` cap 0.75 → 0.9 — 7 provider 에서 "이메일로 계속" CTA 가 모든 폰 높이에서 fold 아래이던 갭 해소 (800 dp 실측: 현행 B 는 CTA 하단이 fold 아래 64 dp). CTA 첫 화면 노출 회귀 가드 2건 add-only (7/8 provider · `getRect(cta).bottom <= 600` · `ensureVisible` 없는 tap → `/login/email` push, 기존 `ensureVisible` 4건은 방어 계층으로 유지) + Surface D golden 2장 재생성 (light 는 사용자 sign-off mockup 과 byte 동일) + 커스터마이징 항목 4 · 「회귀 가드 위치」 표 D 행 정정. 사용자 시각 sign-off 2026-09-11. |
 
 ---
 
-*Last updated: 2026-09-10 — Phase 16.1 code review 정정 (CR-01 route 위상 · WR-06 커스터마이징 절차)*
+*Last updated: 2026-09-11 — quick 260911-0t3 Surface D 구조 A1 + cap 0.9 정정*
