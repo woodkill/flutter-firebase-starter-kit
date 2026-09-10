@@ -28,7 +28,8 @@ import 'social_sign_in_section.dart';
 ///
 /// 익명 또는 미인증 사용자가 보호 기능을 탭할 때 [AuthRequired] 가 호출한다.
 /// Material 3 기본 drag handle + top rounded corner (28dp) 적용.
-/// 최대 높이는 화면의 75%.
+/// 최대 높이는 화면의 90% (quick 260911-0t3 — 0.75 에서 상향). 이는 상한일
+/// 뿐이며, 콘텐츠가 작으면 sheet 는 그보다 낮은 콘텐츠 높이로 줄어든다.
 Future<void> showLoginPromptSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
@@ -39,7 +40,7 @@ Future<void> showLoginPromptSheet(BuildContext context) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
     constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * 0.75,
+      maxHeight: MediaQuery.sizeOf(context).height * 0.9,
     ),
     builder: (_) => const LoginPromptSheet(),
   );
@@ -60,25 +61,26 @@ Future<void> showLoginPromptSheet(BuildContext context) {
 /// Surface A (`login_screen.dart`) 와 동일한 정책이다
 /// (quick 260910-uff -- AR-16.1-01 회수).
 ///
-/// 레이아웃 (top -> bottom):
+/// 레이아웃 (top -> bottom) -- 3블록 (quick 260911-0t3):
 /// 1. Drag handle (Material 3 기본, `showDragHandle: true`)
-/// 2. [Gap] lg=16
-/// 3. 헤더 텍스트 (`authPromptSheetTitle` -- headlineMedium, onSurface)
-/// 4. [Gap] sm=8
-/// 5. 본문 텍스트 (`authPromptSheetBody` -- bodyMedium, onSurfaceVariant)
-/// 6. [Gap] xl=24
-/// 7. [SocialSignInSection] -- 활성 provider (기본 7개), "또는" 구분선 없음.
-///    소셜 로그인 실패 시 provider 버튼 바로 아래에 에러 배너가 함께
-///    렌더된다 (quick 260910-uff).
-/// 8. [Gap] md=12
-/// 9. [EmailAuthCta] (`authContinueWithEmail`) -- 탭 시 Bottom Sheet 를 닫고
-///    `/login/email` (이메일 로그인 전용 화면) 로 push 한다 (Phase 16.1).
-/// 10. [Gap] lg=16 (safe-area 하단)
+/// 2. **고정 헤더** -- [Gap] lg=16 / 헤더 텍스트 (`authPromptSheetTitle` --
+///    headlineMedium, onSurface) / [Gap] sm=8 / 본문 텍스트
+///    (`authPromptSheetBody` -- bodyMedium, onSurfaceVariant) / [Gap] xl=24
+/// 3. **스크롤 영역** -- [Flexible] (기본 `FlexFit.loose`) 안의 스크롤 뷰
+///    1겹에 [SocialSignInSection] -- 활성 provider (기본 7개), "또는"
+///    구분선 없음. 소셜 로그인 실패 시 provider 버튼 바로 아래에 에러
+///    배너가 함께 렌더된다 (quick 260910-uff).
+/// 4. **고정 footer** -- [Gap] md=12 / [EmailAuthCta]
+///    (`authContinueWithEmail`) -- 탭 시 Bottom Sheet 를 닫고
+///    `/login/email` (이메일 로그인 전용 화면) 로 push 한다 (Phase 16.1) /
+///    [Gap] lg=16 (safe-area 하단)
 ///
-/// 본문(2~10)은 스크롤 뷰 1겹으로 감싼다 -- provider 수가 늘어도 최대 높이
-/// 75% 안에서 스크롤로 흡수되어 RenderFlex overflow 가 발생하지 않는다
-/// (Phase 16.1 / Sketch 004 winner B). Drag handle 은 Bottom Sheet 이
-/// builder 밖에 렌더하므로 스크롤과 무관하게 고정된다.
+/// provider 수가 늘어도 스크롤 영역(3)이 최대 높이 90% 안에서 흡수하므로
+/// RenderFlex overflow 가 발생하지 않으며, [EmailAuthCta] 는 스크롤 영역
+/// **밖** 고정 footer 라 폰 높이·provider 수와 무관하게 항상 첫 화면에
+/// 보인다 (quick 260911-0t3 -- Sketch 004 winner B 「전체 스크롤」 supersede).
+/// Drag handle 은 Bottom Sheet 이 builder 밖에 렌더하므로 스크롤과 무관하게
+/// 고정된다.
 class LoginPromptSheet extends ConsumerStatefulWidget {
   /// [LoginPromptSheet] 를 생성한다.
   const LoginPromptSheet({super.key});
@@ -192,43 +194,72 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     return SafeArea(
       child: Stack(
         children: <Widget>[
-          SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Gap(spacing.lg),
-                Text(
-                  l10n.authPromptSheetTitle,
-                  style: typography.headlineMedium.copyWith(
-                    color: colorScheme.onSurface,
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 고정 헤더 — 스크롤해도 "왜 로그인이 필요한가" 맥락이 남는다.
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Gap(spacing.lg),
+                    Text(
+                      l10n.authPromptSheetTitle,
+                      style: typography.headlineMedium.copyWith(
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    Gap(spacing.sm),
+                    Text(
+                      l10n.authPromptSheetBody,
+                      style: typography.bodyMedium.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Gap(spacing.xl),
+                  ],
+                ),
+              ),
+              // provider 목록만 스크롤 — Flexible 은 기본 FlexFit.loose 라
+              // 콘텐츠가 작으면 sheet 가 cap 아래로 줄어든다 (Expanded 금지).
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SocialSignInSection(
+                        isFormLoading: false,
+                        showOrDivider: false,
+                        errorBanner: FormErrorBanner(exception: _socialError),
+                      ),
+                    ],
                   ),
                 ),
-                Gap(spacing.sm),
-                Text(
-                  l10n.authPromptSheetBody,
-                  style: typography.bodyMedium.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+              ),
+              // 고정 footer — CTA 가 스크롤 영역 밖이라 폰 높이·provider 수와
+              // 무관하게 첫 화면에 보인다 (quick 260911-0t3).
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Gap(spacing.md),
+                    // WR-08 — 소셜 OAuth 진행 중에는 null 을 넘겨 disabled 시각·
+                    // 시맨틱을 AuthInProgressOverlay 의 탭 차단과 일치시킨다.
+                    EmailAuthCta(
+                      onPressed: isSocialLoading
+                          ? null
+                          : () => _handleContinueWithEmail(context),
+                    ),
+                    Gap(spacing.lg),
+                  ],
                 ),
-                Gap(spacing.xl),
-                SocialSignInSection(
-                  isFormLoading: false,
-                  showOrDivider: false,
-                  errorBanner: FormErrorBanner(exception: _socialError),
-                ),
-                Gap(spacing.md),
-                // WR-08 — 소셜 OAuth 진행 중에는 null 을 넘겨 disabled 시각·
-                // 시맨틱을 AuthInProgressOverlay 의 탭 차단과 일치시킨다.
-                EmailAuthCta(
-                  onPressed: isSocialLoading
-                      ? null
-                      : () => _handleContinueWithEmail(context),
-                ),
-                Gap(spacing.lg),
-              ],
-            ),
+              ),
+            ],
           ),
           if (isSocialLoading) const AuthInProgressOverlay(),
         ],

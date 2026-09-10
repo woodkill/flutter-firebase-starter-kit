@@ -1,10 +1,17 @@
 // LoginPromptSheet 레이아웃 회귀 가드 (Phase 16.1 SC 4).
 //
-// 이 파일이 지키는 계약은 하나다 — **sheet 본문이 스크롤 가능하다.**
-// 본문을 감싼 스크롤 뷰 1겹을 되돌리면 default 800x600 viewport 에서
-// 7 provider 는 `A RenderFlex overflowed by 218 pixels on the bottom.`,
-// 8 provider 는 `282 pixels` 로 재현된다 (RED 실측 2026-09-10). 같은 시점
-// 실측에서 CTA 중심 좌표는 `Offset(400.0, 778.0)` 로 viewport 밖 178px 였다.
+// 이 파일이 지키는 계약은 둘이다.
+//
+// ① **sheet 본문이 스크롤 가능하다.** 스크롤 뷰 1겹을 되돌리면 default
+// 800x600 viewport 에서 7 provider 는
+// `A RenderFlex overflowed by 218 pixels on the bottom.`, 8 provider 는
+// `282 pixels` 로 재현된다 (RED 실측 2026-09-10). 같은 시점 실측에서 CTA
+// 중심 좌표는 `Offset(400.0, 778.0)` 로 viewport 밖 178px 였다.
+//
+// ② **CTA 가 스크롤 없이 첫 화면에 있다** (quick 260911-0t3). CTA 는 스크롤
+// 영역 밖 고정 footer 이고 provider 목록만 스크롤된다. CTA 를 스크롤 영역
+// 안으로 되돌리면 7 provider 는 `bottom 814.0`, 8 provider 는 `878.0` 으로
+// fold(600) 아래로 밀린다 (RED 실측 2026-09-11, 구현 전 사전 캡처).
 //
 // 회귀 조건 자체가 좁은 viewport 이므로 테스트에서 화면 크기를 인위적으로
 // 넓히지 않는다 — 넓히면 코드를 되돌려도 통과하는 위조 가드가 된다.
@@ -27,6 +34,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_auth_cta.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/login_prompt_sheet.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -186,6 +194,64 @@ void main() {
 
       expect(find.byType(LoginPromptSheet), findsNothing);
       expect(recorder.lastPushedLocation, contains(AppRoutes.emailLogin));
+    });
+  });
+
+  group('LoginPromptSheet CTA 첫 화면 노출 가드 (quick 260911-0t3)', () {
+    /// [strategies] 개수와 무관하게 성립해야 하는 4종 단언.
+    ///
+    /// (a) CTA 하단이 fold 안 · (b) provider 섹션은 스크롤 영역 안 ·
+    /// (c) CTA 는 스크롤 영역 밖 · (d) `ensureVisible` 없이 바로 tap 해도
+    /// sheet 가 닫히고 `/login/email` 로 push 된다.
+    Future<void> expectCtaAboveFold(
+      WidgetTester tester,
+      List<AuthStrategy> strategies,
+    ) async {
+      final recorder = await pumpOverflowHarness(tester, strategies);
+
+      final ctaFinder = find.byType(EmailAuthCta);
+      expect(ctaFinder, findsOneWidget);
+      expect(
+        tester.getRect(ctaFinder).bottom,
+        lessThanOrEqualTo(600.0),
+        reason:
+            'default 800x600 viewport 에서 CTA 하단이 fold 안에 있어야 한다 — '
+            'CTA 를 스크롤 영역 안으로 되돌리면 fold 아래로 밀린다',
+      );
+      expect(
+        find.ancestor(
+          of: find.byType(SocialSignInSection),
+          matching: find.byType(SingleChildScrollView),
+        ),
+        findsOneWidget,
+        reason: 'provider 섹션만 스크롤 영역 안에 있다',
+      );
+      expect(
+        find.ancestor(
+          of: ctaFinder,
+          matching: find.byType(SingleChildScrollView),
+        ),
+        findsNothing,
+        reason: 'CTA 는 스크롤 영역 밖 고정 footer 다',
+      );
+
+      // ensureVisible 없이 바로 tap — "첫 화면에 있다" 계약의 실사용 증명.
+      await tester.tap(ctaFinder);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginPromptSheet), findsNothing);
+      expect(recorder.lastPushedLocation, isNotNull);
+      expect(recorder.lastPushedLocation, contains(AppRoutes.emailLogin));
+    }
+
+    testWidgets('7 provider — CTA 가 스크롤 없이 첫 화면에 있고 바로 tap 된다', (tester) async {
+      await expectCtaAboveFold(tester, _sevenStrategies);
+    });
+
+    testWidgets('8 provider — provider 가 늘어도 CTA 첫 화면 노출이 유지된다', (
+      tester,
+    ) async {
+      await expectCtaAboveFold(tester, _eightStrategies);
     });
   });
 }
