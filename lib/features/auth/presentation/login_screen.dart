@@ -179,7 +179,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 isFormLoading: isEmailSubmitting,
                 errorBanner: FormErrorBanner(exception: _socialError),
               ),
-              EmailAuthCta(onPressed: () => context.push(AppRoutes.emailLogin)),
+              // WR-08 — 소셜 OAuth 진행 중에는 null 을 넘겨 disabled 시각·
+              // 시맨틱을 AuthInProgressOverlay 의 탭 차단과 일치시킨다.
+              EmailAuthCta(
+                onPressed: isSocialLoading
+                    ? null
+                    : () => context.push(AppRoutes.emailLogin),
+              ),
               Gap(spacing.sm),
               TextButton(
                 onPressed: () => context.push(AppRoutes.signup),

@@ -150,8 +150,12 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
                   showOrDivider: false,
                 ),
                 Gap(spacing.md),
+                // WR-08 — 소셜 OAuth 진행 중에는 null 을 넘겨 disabled 시각·
+                // 시맨틱을 AuthInProgressOverlay 의 탭 차단과 일치시킨다.
                 EmailAuthCta(
-                  onPressed: () => _handleContinueWithEmail(context),
+                  onPressed: isSocialLoading
+                      ? null
+                      : () => _handleContinueWithEmail(context),
                 ),
                 Gap(spacing.lg),
               ],

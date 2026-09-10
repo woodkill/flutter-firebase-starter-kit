@@ -24,6 +24,26 @@ Future<void> pumpEmailAuthCta(
   await tester.pump();
 }
 
+/// [EmailAuthCta] 를 `onPressed: null` (비활성) 로 pump 하는 harness.
+///
+/// [pumpEmailAuthCta] 는 미주입 시 no-op 클로저로 대체하므로 비활성 상태를
+/// 표현할 수 없다 — WR-08 회귀 가드 전용 harness 다.
+Future<void> pumpDisabledEmailAuthCta(
+  WidgetTester tester, {
+  required Locale locale,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.light(),
+      locale: locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: const Scaffold(body: EmailAuthCta(onPressed: null)),
+    ),
+  );
+  await tester.pump();
+}
+
 /// 현재 pump 된 [EmailAuthCta] 의 [AppLocalizations] 를 얻는다.
 AppLocalizations l10nOf(WidgetTester tester) =>
     AppLocalizations.of(tester.element(find.byType(EmailAuthCta)));
@@ -81,5 +101,21 @@ void main() {
       expect(l10nOf(tester).authContinueWithEmail, 'メールアドレスで続行');
       expect(find.text('メールアドレスで続行'), findsOneWidget);
     });
+
+    testWidgets(
+      'Test 5 (WR-08): onPressed: null 이면 TextButton 이 disabled 로 전달된다',
+      (tester) async {
+        await pumpDisabledEmailAuthCta(tester, locale: const Locale('en'));
+
+        // no-op 클로저 대체가 아니라 null 을 그대로 넘겨야 M3 disabled
+        // 시각 + 접근성 트리 disabled 가 성립한다.
+        final button = tester.widget<TextButton>(find.byType(TextButton));
+        expect(button.onPressed, isNull);
+        expect(button.enabled, isFalse);
+
+        // 라벨 계약은 비활성 상태에서도 불변이다.
+        expect(find.text('Continue with email'), findsOneWidget);
+      },
+    );
   });
 }

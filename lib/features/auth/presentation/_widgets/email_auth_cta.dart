@@ -20,7 +20,13 @@ class EmailAuthCta extends StatelessWidget {
   const EmailAuthCta({required this.onPressed, super.key});
 
   /// 탭 콜백. 라우팅은 호출자 책임이다.
-  final VoidCallback onPressed;
+  ///
+  /// `null` = 비활성 (소셜 OAuth 진행 중 등) — [TextButton] 이 disabled
+  /// 시각·시맨틱으로 해석한다 (WR-08). [AuthInProgressOverlay] 의
+  /// `AbsorbPointer` 가 탭을 흡수하더라도 위젯 자체가 enabled 색상 +
+  /// 접근성 트리 enabled 로 남으면 시각/시맨틱 상태가 어긋나므로,
+  /// 소비처는 진행 중일 때 `null` 을 넘긴다.
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
