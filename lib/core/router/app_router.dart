@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../features/auth/presentation/email_login_screen.dart';
+import '../../features/auth/presentation/email_signup_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
-import '../../features/auth/presentation/signup_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/home/presentation/environment_info_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
@@ -97,7 +97,7 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.signup,
         name: AppRoutes.signupName,
-        builder: (context, state) => const SignupScreen(),
+        builder: (context, state) => const EmailSignupScreen(),
       ),
       GoRoute(
         path: AppRoutes.forgotPassword,
@@ -135,8 +135,8 @@ GoRouter appRouter(Ref ref) {
   // 있다. routerDelegate.addListener 로 matchedLocation 변경을 감지하여
   // analytics.logScreenView 를 수동 호출한다.
   //
-  // T-10-20 PII 보호: screenName 에 쿼리 파라미터(`?focus=email` 등) 를
-  // 포함하지 않고, route name 또는 matchedLocation (path) 만 사용한다.
+  // T-10-20 PII 보호: screenName 에 쿼리 파라미터를 포함하지 않고,
+  // route name 또는 matchedLocation (path) 만 사용한다.
   String? lastMatchedLocation;
   void onRouterChange() {
     final config = router.routerDelegate.currentConfiguration;
