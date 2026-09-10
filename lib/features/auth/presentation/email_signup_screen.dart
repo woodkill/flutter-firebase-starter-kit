@@ -165,9 +165,20 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
                 onPressed: _handleSubmit,
               ),
               Gap(spacing.md),
-              // D-02 — 현행 canPop() 분기 구조를 유지하고 target 만 이메일
-              // 로그인 전용 화면으로 교체한다. B → C → B 왕복은 pop 으로
-              // 되돌아가 스택이 자라지 않는다.
+              // D-02 (UI-SPEC §Open Items #2) — 현행 canPop() 분기 구조를
+              // 유지하고 target 만 이메일 로그인 전용 화면으로 교체한다.
+              // B → C → B 왕복은 pop 으로 되돌아가 스택이 자라지 않는다.
+              //
+              // WR-03 — 진입 경로가 2곳이므로 pop 의 도착지도 2가지다:
+              // - A(chooser) → C 진입 후 탭: **chooser 로 복귀한다.**
+              //   라벨이 가리키는 이메일 form 은 아니지만, 스택을 키우지
+              //   않고 사용자가 직전에 있던 화면으로 되돌리는 쪽을
+              //   의도적으로 택했다 (D-02). 이메일 form 은 chooser 의
+              //   "이메일로 계속" 1탭으로 도달한다.
+              // - B(/login/email) → C 진입 후 탭: 이메일 form 으로 복귀.
+              // - 딥링크로 C 에 직접 진입(canPop() == false): 이메일 form
+              //   을 push 한다.
+              // 세 경로 모두 email_signup_screen_test.dart 가 고정한다.
               TextButton(
                 onPressed: () {
                   if (context.canPop()) {

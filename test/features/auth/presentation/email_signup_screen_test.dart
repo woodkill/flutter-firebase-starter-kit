@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
@@ -12,11 +13,13 @@ import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.
 import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/or_divider.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_signup_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -54,6 +57,76 @@ Future<void> _pumpEmailSignup(
     ),
   );
   await tester.pump();
+}
+
+/// `/signup` 하단 "로그인" 링크의 진입 경로별 착지를 관측하기 위한 harness.
+///
+/// chooser 는 소셜 wiring 없이 착지 여부만 보면 되므로 stub 이다.
+GoRouter _buildSignupLinkRouter({required String initialLocation}) {
+  return GoRouter(
+    initialLocation: initialLocation,
+    routes: [
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const Scaffold(body: Text('CHOOSER')),
+      ),
+      GoRoute(
+        path: AppRoutes.emailLogin,
+        builder: (context, state) => const EmailLoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.signup,
+        builder: (context, state) => const EmailSignupScreen(),
+      ),
+    ],
+  );
+}
+
+/// [_buildSignupLinkRouter] 를 [_pumpEmailSignup] 과 동일한 override 로 pump
+/// 한다.
+Future<void> _pumpWithRouter(
+  WidgetTester tester,
+  _MockAuthRepository mockRepo,
+  GoRouter router,
+) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(mockRepo),
+        activeStrategiesProvider(const Locale('en')).overrideWithValue(
+          const <AuthStrategy>[
+            GoogleAuthStrategy(),
+            AppleAuthStrategy(),
+            FacebookAuthStrategy(),
+          ],
+        ),
+      ],
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// `/signup` 하단 "Already have an account? Sign in" 링크를 탭한다.
+///
+/// AuthScaffold 안 form-tail 이라 default 800x600 viewport 밖 좌표일 수
+/// 있으므로 ensureVisible 을 선행한다.
+Future<void> _tapHasAccountLink(WidgetTester tester) async {
+  final link = find.widgetWithText(
+    TextButton,
+    'Already have an account? Sign in',
+  );
+  expect(link, findsOneWidget);
+  await tester.ensureVisible(link);
+  await tester.pump();
+  await tester.tap(link);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -219,6 +292,63 @@ void main() {
       // 에러가 도달할 경로 자체가 없다.
       expect(find.byType(SocialSignInSection), findsNothing);
       expect(find.byType(OrDivider), findsNothing);
+    });
+  });
+
+  group('WR-03 — 하단 "로그인" 링크의 진입 경로별 착지 (D-02 의도 고정)', () {
+    testWidgets('A(chooser) → C 진입 후 탭 → chooser 로 pop 복귀 (의도)', (
+      tester,
+    ) async {
+      final router = _buildSignupLinkRouter(initialLocation: AppRoutes.login);
+      await _pumpWithRouter(tester, mockRepo, router);
+      expect(find.text('CHOOSER'), findsOneWidget);
+
+      // push 의 Future 는 pop 될 때 완료되므로 await 하면 교착한다.
+      unawaited(router.push<void>(AppRoutes.signup));
+      await tester.pumpAndSettle();
+      expect(find.byType(EmailSignupScreen), findsOneWidget);
+
+      await _tapHasAccountLink(tester);
+
+      // 라벨이 가리키는 이메일 form 이 아니라 chooser 로 돌아간다 — D-02
+      // 가 스택 성장 회피를 우선한 결과이며 의도된 동작이다.
+      expect(find.text('CHOOSER'), findsOneWidget);
+      expect(find.byType(EmailLoginScreen), findsNothing);
+      expect(find.byType(EmailSignupScreen), findsNothing);
+    });
+
+    testWidgets('B(/login/email) → C 진입 후 탭 → 이메일 form 으로 pop 복귀', (
+      tester,
+    ) async {
+      final router = _buildSignupLinkRouter(
+        initialLocation: AppRoutes.emailLogin,
+      );
+      await _pumpWithRouter(tester, mockRepo, router);
+      expect(find.byType(EmailLoginScreen), findsOneWidget);
+
+      // push 의 Future 는 pop 될 때 완료되므로 await 하면 교착한다.
+      unawaited(router.push<void>(AppRoutes.signup));
+      await tester.pumpAndSettle();
+      expect(find.byType(EmailSignupScreen), findsOneWidget);
+
+      await _tapHasAccountLink(tester);
+
+      expect(find.byType(EmailLoginScreen), findsOneWidget);
+      expect(find.byType(EmailSignupScreen), findsNothing);
+    });
+
+    testWidgets('딥링크로 C 직접 진입(canPop() == false) 후 탭 → 이메일 form push', (
+      tester,
+    ) async {
+      final router = _buildSignupLinkRouter(initialLocation: AppRoutes.signup);
+      await _pumpWithRouter(tester, mockRepo, router);
+      expect(find.byType(EmailSignupScreen), findsOneWidget);
+
+      await _tapHasAccountLink(tester);
+
+      expect(find.byType(EmailLoginScreen), findsOneWidget);
+      // push 이므로 C 로 되돌아갈 back 버튼이 있다.
+      expect(find.byType(BackButton), findsOneWidget);
     });
   });
 }
