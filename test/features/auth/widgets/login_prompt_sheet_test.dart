@@ -28,9 +28,10 @@ class LastLocationRecorder {
 
 /// [LoginPromptSheet] 을 pump 하는 harness.
 ///
-/// - [MaterialApp.router] + [GoRouter] 로 `/` (트리거 버튼) 와 `/login`
-///   두 route 를 구성한다. `/login` 진입 시 마지막 push 된 URL 을 기록하여
-///   "이메일로 계속" 클릭 시 `focus=email` 쿼리가 전달되었는지 확인한다.
+/// - [MaterialApp.router] + [GoRouter] 로 `/` (트리거 버튼) · `/login` ·
+///   `/login/email` 세 route 를 구성한다. 두 로그인 route 는 진입 시 마지막
+///   push 된 URL 을 기록하여 "이메일로 계속" 클릭 시의 도착지와 쿼리 유무를
+///   확인할 수 있게 한다 (Phase 16.1).
 /// - 트리거 버튼 탭 → [showLoginPromptSheet] 호출.
 Future<LastLocationRecorder> pumpLoginPromptSheetHarness(
   WidgetTester tester,
@@ -62,6 +63,13 @@ Future<LastLocationRecorder> pumpLoginPromptSheetHarness(
         builder: (_, state) {
           recorder.lastPushedLocation = state.uri.toString();
           return const Scaffold(body: Center(child: Text('LoginStub')));
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.emailLogin,
+        builder: (_, state) {
+          recorder.lastPushedLocation = state.uri.toString();
+          return const Scaffold(body: Center(child: Text('EmailLoginStub')));
         },
       ),
     ],
@@ -144,7 +152,7 @@ void main() {
       expect(emailButtonFinder, findsOneWidget);
     });
 
-    testWidgets('"이메일로 계속" 탭 → Sheet 닫힘 + /login 으로 push (focus=email 포함)', (
+    testWidgets('"이메일로 계속" 탭 → Sheet 닫힘 + /login/email 로 push (Phase 16.1)', (
       tester,
     ) async {
       final recorder = await pumpLoginPromptSheetHarness(tester);
@@ -158,16 +166,16 @@ void main() {
 
       // Sheet 은 닫혔어야 함.
       expect(find.byType(LoginPromptSheet), findsNothing);
-      // /login 으로 이동했고, 쿼리 파라미터 focus=email 이 포함되어야 함.
+      // 이메일 로그인 전용 화면으로 이동했어야 함.
       expect(recorder.lastPushedLocation, isNotNull);
       expect(
         recorder.lastPushedLocation,
-        contains(AppRoutes.login),
-        reason: 'LoginScreen 경로로 이동해야 함',
+        contains(AppRoutes.emailLogin),
+        reason: 'EmailLoginScreen 경로로 이동해야 함',
       );
     });
 
-    testWidgets('WARNING #12 / D-31: push URL 이 focus=email 쿼리 파라미터를 포함한다', (
+    testWidgets('쿼리 파라미터 재도입 회귀 가드 — push URL 에 쿼리가 없다 (Phase 16.1 D-06)', (
       tester,
     ) async {
       final recorder = await pumpLoginPromptSheetHarness(tester);
@@ -182,8 +190,8 @@ void main() {
       expect(recorder.lastPushedLocation, isNotNull);
       expect(
         recorder.lastPushedLocation,
-        contains('focus=email'),
-        reason: 'Bottom Sheet → LoginScreen 이메일 포커스 유도 쿼리 필수',
+        isNot(contains('focus=')),
+        reason: '전용 route 로 대체된 쿼리 진입 계약이 재도입되면 안 됨',
       );
     });
   });
