@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +14,7 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_auth_cta.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_field.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
@@ -63,129 +62,6 @@ void main() {
   });
 
   group('LoginScreen', () {
-    testWidgets('1. 빈 입력 제출 시 validator 에러 inline 표시', (tester) async {
-      await _pumpLogin(tester, mockRepo);
-      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-      await tester.pump();
-      expect(find.text('Enter your email address.'), findsOneWidget);
-      expect(
-        find.text('Password must be at least 8 characters.'),
-        findsOneWidget,
-      );
-      verifyNever(
-        () => mockRepo.signInWithEmail(
-          email: any(named: 'email'),
-          password: any(named: 'password'),
-        ),
-      );
-    });
-
-    testWidgets('2. 잘못된 이메일/짧은 비밀번호 inline 에러', (tester) async {
-      await _pumpLogin(tester, mockRepo);
-      await tester.enterText(find.byType(TextFormField).first, 'not-an-email');
-      await tester.enterText(find.byType(TextFormField).at(1), 'short');
-      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-      await tester.pump();
-      expect(find.text('Enter a valid email address.'), findsOneWidget);
-      expect(
-        find.text('Password must be at least 8 characters.'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('3. 정상 입력 제출 시 Repository 호출', (tester) async {
-      when(
-        () => mockRepo.signInWithEmail(
-          email: any(named: 'email'),
-          password: any(named: 'password'),
-        ),
-      ).thenAnswer(
-        (_) async => Result.success(
-          User(
-            uid: 'u1',
-            email: 'user@example.com',
-            emailVerified: true,
-            createdAt: DateTime.utc(2026),
-          ),
-        ),
-      );
-
-      await _pumpLogin(tester, mockRepo);
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'user@example.com',
-      );
-      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
-      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-      await tester.pump();
-      await tester.pumpAndSettle();
-
-      verify(
-        () => mockRepo.signInWithEmail(
-          email: 'user@example.com',
-          password: 'password123',
-        ),
-      ).called(1);
-    });
-
-    testWidgets('4. Repository 에러 시 폼 상단 배너 표시', (tester) async {
-      when(
-        () => mockRepo.signInWithEmail(
-          email: any(named: 'email'),
-          password: any(named: 'password'),
-        ),
-      ).thenAnswer((_) async => const Result.failure(InvalidCredentials()));
-
-      await _pumpLogin(tester, mockRepo);
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'user@example.com',
-      );
-      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
-      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-      await tester.pump();
-      await tester.pumpAndSettle();
-
-      expect(find.text('Invalid email or password.'), findsOneWidget);
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
-    });
-
-    testWidgets('5. 로딩 중 spinner + 버튼 disabled', (tester) async {
-      final completer = Completer<Result<User>>();
-      when(
-        () => mockRepo.signInWithEmail(
-          email: any(named: 'email'),
-          password: any(named: 'password'),
-        ),
-      ).thenAnswer((_) => completer.future);
-
-      await _pumpLogin(tester, mockRepo);
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'user@example.com',
-      );
-      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
-      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-      await tester.pump();
-
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Sign in'), findsNothing);
-      final button = tester.widget<FilledButton>(find.byType(FilledButton));
-      expect(button.onPressed, isNull);
-
-      completer.complete(
-        Result.success(
-          User(
-            uid: 'u',
-            email: 'a@b.com',
-            emailVerified: true,
-            createdAt: DateTime.utc(2026),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-    });
-
     testWidgets('6. 소셜 버튼 3개(Google + Apple + Facebook) 렌더링 — '
         'Phase 13.2 caller refactor 후 모든 provider 가 '
         'BrandedSocialButton 단일 위임', (tester) async {
@@ -205,19 +81,23 @@ void main() {
       expect(find.text('or'), findsOneWidget);
     });
 
-    testWidgets('8. 소셜 버튼 영역이 EmailField 위에 위치한다', (tester) async {
+    testWidgets('8. 소셜 버튼 영역이 EmailAuthCta 위에 위치한다 (Phase 16.1 SC 1)', (
+      tester,
+    ) async {
       await _pumpLogin(tester, mockRepo);
 
       // Plan 13.1-08 — 첫 SocialButton (Google) 의 위치를 검증 (분기와 무관하게
       // SocialButton wrapper 는 모든 분기에서 사용됨).
+      // Phase 16.1 — A 에서 이메일 form 이 제거되어 비교 대상이 EmailField 에서
+      // 격하 CTA ([EmailAuthCta]) 로 바뀌었다. 좌표 비교 구조는 동일하다.
       final firstSocialButton = tester.getTopLeft(
         find.byType(SocialButton).first,
       );
-      final emailField = tester.getTopLeft(find.byType(TextFormField).first);
+      final emailCta = tester.getTopLeft(find.byType(EmailAuthCta));
       expect(
         firstSocialButton.dy,
-        lessThan(emailField.dy),
-        reason: '소셜 버튼 영역이 이메일 필드 위에 배치되어야 한다',
+        lessThan(emailCta.dy),
+        reason: '소셜 버튼 영역이 이메일 CTA 위에 배치되어야 한다',
       );
     });
 
@@ -294,9 +174,9 @@ void main() {
         },
       );
 
-      testWidgets('AUTH-03-17 (Phase 9.2 D-31): Apple '
-          'AccountExistsWithDifferentCredential(email) 시 이메일 필드 자동 '
-          '채움 + 포커스 이동 제거 — 빈 상태 유지 (R3 acceptance)', (tester) async {
+      testWidgets('AUTH-03-17 (Phase 9.2 D-31 / Phase 16.1 SC 1): Apple '
+          'AccountExistsWithDifferentCredential(email) 시 이메일 자동 채움 0 — '
+          'A 에 이메일 필드 자체가 없고 소셜 배너만 표시된다', (tester) async {
         when(() => mockRepo.signInWithApple()).thenAnswer(
           (_) async => const Result<User>.failure(
             AccountExistsWithDifferentCredential(
@@ -313,17 +193,13 @@ void main() {
         await tester.tap(findAppleButton());
         await tester.pumpAndSettle();
 
-        // (Phase 9.2 D-31 / R3) D-10 자동 채움 + focus 호출 제거.
-        // listener body 의 4줄 삭제로 EmailField 가 비어있는 상태 유지 +
-        // _emailFocus.requestFocus() 미호출. exception.email 필드는 보존
+        // (Phase 9.2 D-31 / R3) D-10 자동 채움 + focus 호출 제거의 후속.
+        // Phase 16.1 SC 1 — A 는 chooser 로 감산되어 EmailField 가 아예
+        // 렌더되지 않으므로 "자동 채움 0" 이 구조적으로 보장된다. 원래 단언
+        // (controller.text.isEmpty / focusNode 미포커스) 의 의도를 보존하면서
+        // SC 1 회귀 가드로 강화한 형태다. exception.email 필드 자체는 보존
         // (Phase 17 부활 anchor — server-side provider 매핑 input).
-        final emailFormField = tester.widget<TextFormField>(
-          find.descendant(
-            of: find.byType(EmailField),
-            matching: find.byType(TextFormField),
-          ),
-        );
-        expect(emailFormField.controller?.text, isEmpty);
+        expect(find.byType(EmailField), findsNothing);
 
         // 소셜 영역 FormErrorBanner에는 여전히 에러가 표시되어야 한다 —
         // setState({_socialError = err, _emailError = null}) 블록 보존.

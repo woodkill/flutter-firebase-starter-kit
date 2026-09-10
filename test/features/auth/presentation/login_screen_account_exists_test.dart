@@ -31,17 +31,20 @@ void main() {
 
   // (Phase 9.2 R3 / D-31 / D-34) login_screen.dart 의 listener body 에서
   // D-10 자동 채움 + focus 호출 4줄 삭제로 인해 AsyncError(
-  // AccountExistsWithDifferentCredential) emit 시 EmailField 가 비어있는
-  // 상태 유지 + EmailField focusNode 미포커스 + unknown fallback 메시지 banner
-  // 표시 invariant 검증.
+  // AccountExistsWithDifferentCredential) emit 시 이메일 자동 채움 0 +
+  // unknown fallback 메시지 banner 표시 invariant 검증.
   //
-  // setState({_socialError = err, _emailError = null}) 블록은 보존 — banner
-  // 표시 + email 필드 자체는 보존 (Phase 17 부활 anchor).
+  // (Phase 16.1 SC 1) A 가 chooser 로 감산되어 EmailField 가 아예 렌더되지
+  // 않으므로 "자동 채움 0 / 포커스 이동 0" 이 구조적으로 보장된다 — 원래
+  // acceptance #1·#2 를 findsNothing 회귀 가드로 승격했다.
+  //
+  // setState({_socialError = err}) 블록은 보존 — banner 표시 + exception.email
+  // 필드 자체는 보존 (Phase 17 부활 anchor).
   group('Phase 9.2 R3 — LoginScreen AccountExistsWithDifferentCredential D-31 '
       '검증', () {
     testWidgets('AsyncError(AccountExistsWithDifferentCredential) emit → '
-        '_emailController.text 빈 + _emailFocus.hasFocus=false + unknown '
-        '메시지 banner 표시', (tester) async {
+        'chooser 에 EmailField 렌더 0 (자동 채움·포커스 이동 경로 소멸) + '
+        'unknown 메시지 banner 표시', (tester) async {
       // (D-34) Apple strategy → AsyncError(AccountExistsWithDifferentCredential).
       when(() => mockRepo.signInWithApple()).thenAnswer(
         (_) async => const Result<User>.failure(
@@ -72,22 +75,13 @@ void main() {
       await tester.tap(find.byType(SocialButton).first);
       await tester.pumpAndSettle();
 
-      // (R3 acceptance #1) 자동 채움 0 — _emailController.text.isEmpty.
-      // EmailField 안 TextFormField 의 controller 가 LoginScreen 의
-      // _emailController 와 바인드 → 빈 상태 유지 검증.
-      final emailFormField = tester.widget<TextFormField>(
-        find.descendant(
-          of: find.byType(EmailField),
-          matching: find.byType(TextFormField),
-        ),
-      );
-      expect(emailFormField.controller?.text, isEmpty);
-
-      // (R3 acceptance #2) _emailFocus.hasFocus == false 검증.
-      // EmailField 의 focusNode props 가 LoginScreen 의 _emailFocus 와
-      // 바인드 → tester.widget<EmailField>() 로 직접 추출 + hasFocus 검사.
-      final emailField = tester.widget<EmailField>(find.byType(EmailField));
-      expect(emailField.focusNode.hasFocus, isFalse);
+      // (R3 acceptance #1·#2 — Phase 16.1 SC 1 로 강화) 자동 채움 0 + 포커스
+      // 이동 0. 기존에는 EmailField 안 TextFormField 의 controller 가 빈
+      // 상태인지 / focusNode 가 포커스를 갖지 않는지 검사했지만, Phase 16.1
+      // 에서 A 가 chooser 로 감산되어 EmailField 자체가 렌더되지 않는다 —
+      // 채울 필드도 포커스를 옮길 필드도 존재하지 않으므로 원래 의도가
+      // 구조적으로 보장된다 (RESEARCH Pitfall 2).
+      expect(find.byType(EmailField), findsNothing);
 
       // (R3 acceptance #3) 메시지 banner 표시 — unknown fallback 메시지
       // verbatim. setState({_socialError = err}) 블록 보존으로 SocialSignInSection

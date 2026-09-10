@@ -11,8 +11,10 @@ import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_auth_cta.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_field.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/or_divider.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/password_field.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
@@ -25,12 +27,19 @@ class _FakeFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _FakeAuthRepository extends Mock implements AuthRepository {}
 
-/// [LoginScreen] 을 [GoRouter] + [MaterialApp.router] 로 pump 하여 실제
-/// [GoRouterState] 의 쿼리 파라미터를 읽을 수 있도록 한다.
+/// GoRouter 가 마지막으로 진입한 location 을 기록하는 recorder.
+class LastLocationRecorder {
+  /// 마지막으로 진입한 location (query 포함 URL).
+  String? lastPushedLocation;
+}
+
+/// [LoginScreen] 을 [GoRouter] + [MaterialApp.router] 로 pump 한다.
 ///
-/// [initialLocation] 을 `/login?focus=email` 로 주면 WARNING #12 / D-31
-/// focus 동작을 검증할 수 있다.
-Widget pumpWrapper({String initialLocation = '/login'}) {
+/// `/login` 에서 시작하며, [AppRoutes.emailLogin] stub route 를 함께 등록해
+/// chooser CTA 의 push 대상 (Phase 16.1 SC 2) 을 단언할 수 있게 한다.
+/// Phase 16.1 에서 `?focus=email` 쿼리 진입 계약이 폐기되어 이 harness 는 더
+/// 이상 쿼리 파라미터를 주입하지 않는다.
+Widget pumpWrapper({LastLocationRecorder? recorder}) {
   final mockAuth = _FakeFirebaseAuth();
   when(
     () => mockAuth.authStateChanges(),
@@ -43,9 +52,18 @@ Widget pumpWrapper({String initialLocation = '/login'}) {
   when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
 
   final router = GoRouter(
-    initialLocation: initialLocation,
+    initialLocation: AppRoutes.login,
     routes: [
       GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginScreen()),
+      GoRoute(
+        path: AppRoutes.emailLogin,
+        builder: (_, state) {
+          recorder?.lastPushedLocation = state.uri.toString();
+          return const Scaffold(
+            body: Center(child: Text('EMAIL_LOGIN_REACHED')),
+          );
+        },
+      ),
     ],
   );
 
@@ -73,24 +91,24 @@ Widget pumpWrapper({String initialLocation = '/login'}) {
 }
 
 void main() {
-  group('LoginScreen D-31 레이아웃 회귀 가드 + WARNING #12 focus=email', () {
-    testWidgets('D-31: SocialSignInSection 이 EmailField 보다 트리 상단에 위치', (
+  group('LoginScreen chooser 레이아웃 회귀 가드 (Phase 16.1 SC 1/2)', () {
+    testWidgets('D-31/SC 1: SocialSignInSection 이 EmailAuthCta 보다 트리 상단에 위치', (
       tester,
     ) async {
       await tester.pumpWidget(pumpWrapper());
       await tester.pumpAndSettle();
 
       final socialFinder = find.byType(SocialSignInSection);
-      final emailFinder = find.byType(EmailField);
+      final ctaFinder = find.byType(EmailAuthCta);
       expect(socialFinder, findsOneWidget);
-      expect(emailFinder, findsOneWidget);
+      expect(ctaFinder, findsOneWidget);
 
       final socialOffset = tester.getTopLeft(socialFinder);
-      final emailOffset = tester.getTopLeft(emailFinder);
+      final ctaOffset = tester.getTopLeft(ctaFinder);
       expect(
         socialOffset.dy,
-        lessThan(emailOffset.dy),
-        reason: 'D-31: 소셜 섹션이 이메일 필드보다 상단에 위치해야 함',
+        lessThan(ctaOffset.dy),
+        reason: 'D-31: 소셜 섹션이 이메일 CTA 보다 상단에 위치해야 함',
       );
     });
 
@@ -128,28 +146,41 @@ void main() {
       expect(find.text(l10n.authFacebookSignIn), findsOneWidget);
     });
 
-    testWidgets(
-      'WARNING #12 / D-31: /login?focus=email 로드 시 EmailField 에 자동 포커스',
-      (tester) async {
-        await tester.pumpWidget(
-          pumpWrapper(initialLocation: '/login?focus=email'),
-        );
-        await tester.pumpAndSettle();
+    testWidgets('SC 2: EmailAuthCta 탭 시 /login/email 로 push 된다', (
+      tester,
+    ) async {
+      final recorder = LastLocationRecorder();
+      await tester.pumpWidget(pumpWrapper(recorder: recorder));
+      await tester.pumpAndSettle();
 
-        // EmailField 가 감싸는 TextFormField 내부 TextField 의 focusNode
-        // hasFocus 를 검증.
-        final textField = tester.widget<TextField>(
-          find.descendant(
-            of: find.byType(EmailField),
-            matching: find.byType(TextField),
-          ),
-        );
-        expect(
-          textField.focusNode?.hasFocus,
-          isTrue,
-          reason: 'D-31: focus=email 쿼리 시 EmailField 에 포커스되어야 함',
-        );
-      },
-    );
+      // form-tail CTA 는 default 800x600 viewport 밖 좌표가 될 수 있고
+      // hit-test 가 조용히 실패한다 (RESEARCH Pitfall 6). enterText 우회가
+      // 없는 경로이므로 명시적 ensureVisible 이 필수다.
+      final ctaFinder = find.byType(EmailAuthCta);
+      await tester.ensureVisible(ctaFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(ctaFinder);
+      await tester.pumpAndSettle();
+
+      expect(recorder.lastPushedLocation, isNotNull);
+      expect(
+        recorder.lastPushedLocation,
+        contains(AppRoutes.emailLogin),
+        reason: 'SC 2: 이메일 CTA 는 /login/email 로 push 해야 함',
+      );
+      expect(find.text('EMAIL_LOGIN_REACHED'), findsOneWidget);
+    });
+
+    testWidgets('SC 1: chooser 에 EmailField 가 렌더되지 않는다', (tester) async {
+      await tester.pumpWidget(pumpWrapper());
+      await tester.pumpAndSettle();
+      expect(find.byType(EmailField), findsNothing);
+    });
+
+    testWidgets('SC 1: chooser 에 PasswordField 가 렌더되지 않는다', (tester) async {
+      await tester.pumpWidget(pumpWrapper());
+      await tester.pumpAndSettle();
+      expect(find.byType(PasswordField), findsNothing);
+    });
   });
 }
