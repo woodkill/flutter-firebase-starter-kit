@@ -30,9 +30,10 @@ class KakaoSignInNotifier extends _$KakaoSignInNotifier {
   /// Kakao 로그인을 수행한다.
   ///
   /// 취소(null) 시 state 를 [AsyncData] 로 유지하여 조용히 무시 (D-05).
-  /// 성공 시 [AsyncData]. 실패 시 [AsyncError] 로 전환되어 LoginScreen /
-  /// SignupScreen / LoginPromptSheet 의 ref.listen 에서 FormErrorBanner 로
-  /// 렌더링된다.
+  /// 성공 시 [AsyncData]. 실패 시 [AsyncError] 로 전환되어 LoginScreen 의
+  /// ref.listen 에서 FormErrorBanner 로 렌더링된다. Phase 16.1 에서 소셜
+  /// 섹션을 함께 담던 구 가입 화면이 삭제됐고, LoginPromptSheet 의
+  /// ref.listen 은 성공 분기만 처리한다.
   Future<void> signInWithKakao() async {
     state = const AsyncLoading<void>();
     final result = await ref.read(authRepositoryProvider).signInWithKakao();

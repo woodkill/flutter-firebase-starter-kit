@@ -114,8 +114,10 @@ enum AccountProvider {
   /// `true` — google / apple / facebook / email (native:
   /// `linkWithCredential` 기반 reactive link arm 대상). `false` — Custom
   /// Token 4값 (kakao / naver / line / yahoojp: `linkCustomTokenProvider`
-  /// callable 기반, 16-09 책임). LoginScreen / SignupScreen 의 sheet 분기 +
+  /// callable 기반, 16-09 책임). LoginScreen 의 sheet 분기 +
   /// 16-09 의 Custom Token sheet 분기가 본 getter 를 공유한다.
+  /// (Phase 16.1 — 소셜 섹션을 함께 담던 구 가입 화면이 삭제되어 sheet
+  /// 호출처는 1곳이다.)
   bool get isNative => switch (this) {
     AccountProvider.google ||
     AccountProvider.apple ||

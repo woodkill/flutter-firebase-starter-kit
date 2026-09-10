@@ -17,7 +17,8 @@ import 'social_button.dart';
 /// 활성화된 [AuthStrategy] 들을 [SocialButton] 으로 렌더링하는 공통 섹션
 /// (Phase 11 D-11, Pattern H).
 ///
-/// LoginScreen / SignupScreen / LoginPromptSheet 양쪽에서 동일하게 사용한다.
+/// LoginScreen / LoginPromptSheet 2곳에서 동일하게 사용한다 (Phase 16.1 —
+/// 소셜 섹션을 함께 담던 구 가입 화면 삭제로 3곳 → 2곳).
 /// 활성 Strategy 목록은 [activeStrategiesProvider] (정적 config + Remote
 /// Config kill switch overlay 합산, D-26) 가 제공한다. 인라인 Google/Apple/
 /// Facebook 빌더는 [SocialButton] 으로 통합되어 본 섹션에서 제거되었다.

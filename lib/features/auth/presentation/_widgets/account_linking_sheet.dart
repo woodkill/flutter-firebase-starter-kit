@@ -101,7 +101,8 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
   /// 충돌 시점에 보존된 native pending credential (Phase 16 16-08).
   ///
   /// `AccountExistsWithDifferentCredential.pendingCredential` 에서 추출해
-  /// LoginScreen / SignupScreen 이 전달한다. native 3값
+  /// LoginScreen 이 전달한다 (Phase 16.1 — 시트 트리거는 이 1곳뿐).
+  /// native 3값
   /// (google/apple/facebook) link 버튼 tap 시
   /// [AuthRepository.linkPendingNativeCredential] 의 입력으로 사용한다.
   /// `null` 인 경우 (email-existing / unknown) link action 은 재로그인
@@ -112,7 +113,7 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
   ///
   /// 주입되면 경로 B 가 [AuthRepository.signInWithExistingProvider] 대신 본
   /// 콜백의 bool 결과를 사용한다 (`true` = 성공, `false` = 취소·실패).
-  /// **프로덕션 호출처 (LoginScreen / SignupScreen) 는 주입하지 않는다** —
+  /// **유일한 프로덕션 호출처 (LoginScreen) 는 주입하지 않는다** —
   /// 테스트 / 호출처 커스텀 override 전용 seam 이며, 미주입이 실 repository
   /// 경로 (기본값) 다.
   final ExistingProviderSignInCallback? onExistingProviderSignIn;

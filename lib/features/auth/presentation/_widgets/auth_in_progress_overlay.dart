@@ -19,7 +19,9 @@ import '../../../../core/theme/theme_extensions.dart';
 /// - 중앙 [CircularProgressIndicator] + i18n 라벨: 진행 신호 강도 강.
 ///
 /// 부모 화면이 [Stack] 으로 감싸 본 위젯을 마지막 child 로 push 한다 —
-/// `LoginScreen` / `SignupScreen` / `LoginPromptSheet` 3곳에 적용.
+/// `LoginScreen` / `LoginPromptSheet` 2곳에 적용 (Phase 16.1 — 소셜
+/// 섹션을 함께 담던 구 가입 화면 삭제로 3곳 → 2곳. 후임
+/// `EmailSignupScreen` 에는 소셜 진입점이 없어 오버레이가 필요하지 않다).
 class AuthInProgressOverlay extends StatelessWidget {
   /// 오버레이를 생성한다.
   const AuthInProgressOverlay({super.key});
