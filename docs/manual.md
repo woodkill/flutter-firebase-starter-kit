@@ -2755,6 +2755,18 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
    `/login/email` `GoRoute` + `auth_guard.dart` `_unauthRoutes` 1줄을 함께
    지운다. **딥링크까지 막으려면 `/signup` `GoRoute` 와 그 화이트리스트
    항목도 제거**해야 한다 — 링크만 지우면 URL 직접 진입이 열려 있다.
+
+   ⚠ **UI 진입점 외에 `AppRoutes.emailLogin` 을 참조하는 곳이 2군데 더
+   있다** — `_widgets/account_linking_sheet.dart` 의 경로 C (동일 이메일
+   충돌 시트) 와 `forgot_password_screen.dart` 의 딥링크 fallback 이다.
+   둘 다 `go('/login')` + `push('/login/email')` 2단으로 이동하므로,
+   `GoRoute` 만 지우면 이 두 경로가 `errorBuilder`
+   (`buildNotFoundScreen`) 로 떨어진다. 두 지점의 도착지를 `/login` 단독
+   이동으로 되돌린 뒤 route 를 제거할 것. 지우기 전 전수 확인:
+
+   ```bash
+   grep -rn "AppRoutes.emailLogin" lib   # UI 진입점 2 + go/push 2단 2
+   ```
 2. **CTA 라벨을 바꾸려면** — `EmailAuthCta` 는 label 파라미터를 노출하지
    않는다. `lib/l10n/app_{ko,en,ja}.arb` 의 `authContinueWithEmail` 값을
    **3 파일 모두** 고치고 `fvm flutter gen-l10n` 을 실행한다. 다른 ARB key 로
@@ -2804,6 +2816,9 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | D 시트 스크롤 · 7/8 provider overflow 0 | `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` · `login_prompt_sheet_test.dart` |
 | route 등록 · 미인증 접근 화이트리스트 | `test/core/router/app_router_observers_test.dart` · `app_routes_test.dart` · `auth_guard_test.dart` |
 | 화면 문자열 3 locale verbatim | `test/l10n/email_relegation_arb_verbatim_test.dart` |
+| B 진입 시 back 스택 확보 (chooser 복귀 가능) | `test/features/auth/presentation/account_linking_sheet_two_step_test.dart` TS7 · `forgot_password_screen_test.dart` |
+| C 하단 "로그인" 링크의 진입 경로별 착지 | `test/features/auth/presentation/email_signup_screen_test.dart` |
+| 이메일 제출 ↔ 소셜 교차 잠금 | `test/features/auth/presentation/login_screen_test.dart` |
 
 ### Pitfall
 
@@ -2836,7 +2851,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-05-20 | 14-07 | `## Naver 검수 / 추가 항목 / member detail / stg-prod (Phase 14 D-LINE-22c retroactive)` 단락 신규 — Phase 13 Naver Login 단계에서 dev 단독 검증만 다룬 매뉴얼에 production 출시 4 항목 retroactive 보강: (1) 네아로 검수 신청 절차 (외부 사용자 차단 회피 + 검수 form + 동의 항목 일괄 등록) / (2) 추가 항목 활성화 절차 (mobile / ci / birthday / gender / age / birthyear / name member detail info, 항목별 검수 의무) / (3) `/v1/nid/me` response 카탈로그 (기본 3 + 추가 7 + response field 매트릭스 + 채택 시 code 변경 point — naver_custom_token.ts mapNaverProfile / PII 정책 의무 / Firebase Auth customClaims 분리) / (4) stg / prod Console 등록 + 검수 (별도 Naver 앱 / iOS URL Scheme prod / Android Key Hash release / Bundle ID 분리 / Secret Manager prod / 네아로 검수 분리 / App Check Debug Token 분리). 모든 verbatim claim 에 `[ASSUMED — Phase 14 단계 cross-verify 보류, 사용자 책임]` tag + 4 URL cross-verify 의무 명시. |
 | 2026-05-29 | 16-06 | `## Account Linking & Withdrawal` 단락 신규 (Phase 16 D-05~D-16 + R1 부활) — 5 sub-section: (1) 동일 이메일 Account Linking (D-01~D-04 흐름 + native↔native vs Custom Token 분기 + 사용자 cancel 시 state 손실 0 + PII invariant), (2) 회원탈퇴 Hard delete + GDPR right-to-be-forgotten (3-line 경고 verbatim + 진입 path /settings → Danger zone → confirmTextField verbatim → fresh ID Token + 5분 boundary → /onboarding 자동 reset + destructive UX 가드 5종), (3) Phase 17 deferred — Cloud Storage cascade (Firestore trigger vs Storage Security Rules + lifecycle), (4) App Check debug provider 등록 절차 (Firebase Console debug token 등록 4 단계 — Plan 16-06 reauth fail 분기와 동일 surface trial-and-error 회피), (5) 사용자 커스터마이징 포인트 5종 (ARB / AccountLinkingSheet n-provider / confirmTextField verbatim / deleteUserAccount cascade / 법무 자문 의무). |
 | 2026-09-10 | 16.1-04 | `## 로그인 화면 구조 — 이메일 격하 (Phase 16.1)` 단락 신규 (D-11) — 3화면 + 1시트 구조표 (`/login` chooser · `/login/email` EmailLoginScreen · `/signup` EmailSignupScreen · LoginPromptSheet) + Option C 의미 (이메일 코드 보존, UI 노출만 격하) + 커스터마이징 포인트 5종 (경로 은닉 / CTA 라벨 ARB / EmailAuthCta 단일 외관 진실원 / 시트 provider 증가 안전성 / `/login/email` path 상수) + GA4 breaking 안내 (`emailLogin` 신규 screen name · `login` 의미 변화) + 회귀 가드 7행 매트릭스 + Pitfall 3종. 목차 15 항목으로 확장. stale 서술 2곳 정정 — Custom Token Provider 추가 가이드의 소셜 wiring 화면 수(3 → 2, SignupScreen 삭제 반영) + Multi-Provider Account Linking 절의 `login_screen.dart` 이메일 배너 코드 anchor (이메일 배너는 `email_login_screen.dart` 로 이관). |
+| 2026-09-10 | 16.1-REVIEW | code review 정정 (CR-01 · WR-06) — 3화면 구조표의 `/login/email` 진입 방식 서술을 실제 위상 (최상위 형제 route · 항상 chooser 위 push) 에 맞춰 정정. 커스터마이징 포인트 1번에 `AppRoutes.emailLogin` 을 참조하는 비-UI 지점 2곳 (`account_linking_sheet.dart` 경로 C · `forgot_password_screen.dart` 딥링크 fallback) 경고 + `grep -rn "AppRoutes.emailLogin" lib` 자가 점검 명령 추가 — GoRoute 만 지우면 두 경로가 `buildNotFoundScreen` 으로 떨어진다. 회귀 가드 매트릭스 3행 추가 (back 스택 확보 / C 하단 링크 경로별 착지 / 이메일 제출 ↔ 소셜 교차 잠금). |
 
 ---
 
-*Last updated: 2026-09-10 — Phase 16.1-04 docs (로그인 화면 구조 — 이메일 격하 단락 신규)*
+*Last updated: 2026-09-10 — Phase 16.1 code review 정정 (CR-01 route 위상 · WR-06 커스터마이징 절차)*
