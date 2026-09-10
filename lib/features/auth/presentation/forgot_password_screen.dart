@@ -98,8 +98,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         if (context.canPop()) {
           context.pop();
         } else {
-          // 딥링크로 진입한 최상위 forgot 화면 — login 으로 명시 이동.
-          context.go(AppRoutes.login);
+          // 딥링크로 진입한 최상위 forgot 화면 — 이메일 로그인 화면으로
+          // 명시 이동 (Phase 16.1). 정상 흐름은 canPop() 으로 되돌아가므로
+          // 이 분기를 타지 않는다.
+          context.go(AppRoutes.emailLogin);
         }
       } else {
         final popped = Navigator.of(context).maybePop();

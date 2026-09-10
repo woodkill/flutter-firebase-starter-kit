@@ -28,7 +28,8 @@
 //   TS5: native 회귀 (A1) — pendingCredential 존재 시 linkPendingNativeCredential
 //        호출 + signInWithExistingProvider verifyNever (경로 A 변경 0)
 //   TS6: naver 기존 — 과거 graceful 차단 분기 제거 확인 (경로 B 정상 수행)
-//   TS7: email 기존 — repository 호출 0 + /login 라우팅 (경로 C 변경 0)
+//   TS7: email 기존 — repository 호출 0 + /login/email 라우팅 (경로 C 는
+//        자동 link 0 계약 유지, 도착지만 Phase 16.1 로 재정렬)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,6 +49,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/account_linking_sheet.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -107,6 +109,10 @@ void main() {
         GoRoute(
           path: AppRoutes.login,
           builder: (context, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.emailLogin,
+          builder: (context, state) => const EmailLoginScreen(),
         ),
         GoRoute(
           path: AppRoutes.home,
@@ -482,50 +488,51 @@ void main() {
     );
   });
 
-  group('TS7 — email 기존 provider (경로 C 변경 0)', () {
-    testWidgets('existingProvider=email CTA 탭 → repository 호출 0 + /login 유지', (
-      tester,
-    ) async {
-      when(
-        () => mockRepo.signInWithExistingProvider(
-          provider: any(named: 'provider'),
-        ),
-      ).thenAnswer((_) async => successResult());
+  group('TS7 — email 기존 provider (경로 C: 자동 link 0 유지 · 도착지 재정렬)', () {
+    testWidgets(
+      'existingProvider=email CTA 탭 → repository 호출 0 + /login/email 도착',
+      (tester) async {
+        when(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        ).thenAnswer((_) async => successResult());
 
-      await usePortraitSurface(tester);
-      await tester.pumpWidget(
-        buildHarness(existingProvider: AccountProvider.email),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(BrandedSocialButton).first);
-      await settleSheetEntrance(tester);
-      expect(find.byType(AccountLinkingSheet), findsOneWidget);
+        await usePortraitSurface(tester);
+        await tester.pumpWidget(
+          buildHarness(existingProvider: AccountProvider.email),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(BrandedSocialButton).first);
+        await settleSheetEntrance(tester);
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
 
-      // email 은 BrandedSocialButton 이 아닌 FilledButton fallback 이다.
-      final emailCta = find.descendant(
-        of: find.byType(AccountLinkingSheet),
-        matching: find.byType(FilledButton),
-      );
-      await tester.ensureVisible(emailCta);
-      await tester.pump();
-      await tester.tap(emailCta);
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
+        // email 은 BrandedSocialButton 이 아닌 FilledButton fallback 이다.
+        final emailCta = find.descendant(
+          of: find.byType(AccountLinkingSheet),
+          matching: find.byType(FilledButton),
+        );
+        await tester.ensureVisible(emailCta);
+        await tester.pump();
+        await tester.tap(emailCta);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
 
-      verifyNever(
-        () => mockRepo.signInWithExistingProvider(
-          provider: any(named: 'provider'),
-        ),
-      );
-      verifyNever(
-        () => mockRepo.linkPendingNativeCredential(
-          existingProvider: any(named: 'existingProvider'),
-          pendingCredential: any(named: 'pendingCredential'),
-        ),
-      );
-      expect(find.byType(AccountLinkingSheet), findsNothing);
-      expect(find.text('HOME'), findsNothing);
-      expect(find.byType(LoginScreen), findsOneWidget);
-    });
+        verifyNever(
+          () => mockRepo.signInWithExistingProvider(
+            provider: any(named: 'provider'),
+          ),
+        );
+        verifyNever(
+          () => mockRepo.linkPendingNativeCredential(
+            existingProvider: any(named: 'existingProvider'),
+            pendingCredential: any(named: 'pendingCredential'),
+          ),
+        );
+        expect(find.byType(AccountLinkingSheet), findsNothing);
+        expect(find.text('HOME'), findsNothing);
+        expect(find.byType(EmailLoginScreen), findsOneWidget);
+      },
+    );
   });
 }

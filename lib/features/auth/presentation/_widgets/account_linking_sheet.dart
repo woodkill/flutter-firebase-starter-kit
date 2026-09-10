@@ -189,10 +189,12 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
     final provider = widget.existingProvider;
     final providerLabel = _providerLabel(l10n, provider);
 
-    // 경로 C — email-existing 은 sheet 안에서 완결 불가 (/login redirect).
+    // 경로 C — email-existing 은 sheet 안에서 완결 불가 (/login/email
+    // redirect). Phase 16.1 로 이메일 form 이 전용 화면으로 분리되면서
+    // 안내 문구("원래 방식으로 로그인")와 도착지가 일치하게 됐다.
     if (provider == AccountProvider.email) {
       navigator.pop(false);
-      router.go(AppRoutes.login);
+      router.go(AppRoutes.emailLogin);
       return;
     }
 
