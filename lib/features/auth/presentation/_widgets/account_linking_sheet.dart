@@ -60,7 +60,9 @@ typedef ExistingProviderSignInCallback =
 /// 무조건 link 를 시도하지 않는다. 충돌 시점의 caller 는 정의상 미인증이거나
 /// 익명이라 link arm 이 구조적으로 성공할 수 없기 때문이다. 분기는 4 경로다
 /// (mockup `surface-a-two-step-reactive.md`):
-/// - **경로 C** — [existingProvider] 가 email: pop(false) + `/login` (변경 0).
+/// - **경로 C** — [existingProvider] 가 email: pop(false) 후 `/login`
+///   chooser 착지 + `/login/email` push (Phase 16.1 에서 도착지가
+///   이메일 form 전용 화면으로 바뀌었다 — CR-01).
 /// - **경로 A** — [pendingCredential] 이 존재하는 native 충돌 (client-side
 ///   `account-exists-with-different-credential`): 기존
 ///   [AuthRepository.linkPendingNativeCredential] 흐름 그대로 (A1 회귀 0).
@@ -167,8 +169,11 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   /// CTA tap 핸들러 (Phase 16 Plan 16-19 — 2단계 reactive 플로우).
   ///
   /// 분기 순서는 경로 C → 경로 A → 경로 B 다.
-  /// - **경로 C (email-existing):** 비밀번호 입력 화면이 필요하므로 pop(false)
-  ///   후 `/login` redirect (현행 정책 변경 0).
+  /// - **경로 C (email-existing):** 비밀번호 입력 화면이 필요하므로
+  ///   pop(false) 후 `/login` chooser 로 이동한 뒤 `/login/email` 을
+  ///   push 한다. 자동 link 를 시도하지 않는다는 정책은 그대로이고,
+  ///   Phase 16.1 에서 도착지만 이메일 form 전용 화면으로 바뀌었다.
+  ///   2단 이동인 이유는 CR-01 (back 스택 확보) 참조.
   /// - **경로 A (native + pendingCredential 존재):** client-side
   ///   `account-exists-with-different-credential` 로 credential 이 보존된
   ///   충돌 — [AuthRepository.linkPendingNativeCredential] 흐름 그대로
