@@ -15,6 +15,21 @@
 // 주석을 세면 "실제로 CLI 에 전달되는가" 라는 질문에 답하지 못하고, 주석만 남고
 // 실행 라인이 사라진 회귀를 놓친다.
 //
+// quick 260911-x9x 추가 근거: 2026-09-11 live run 실측 결과, 위 옵션을 주면
+// flutterfire 가 요청하지 않은 파일 2종을 함께 변형한다 —
+// `ios/Runner.xcodeproj/project.pbxproj` 에 중복 `bundle-service-file` 단계를
+// 추가하고, 기존 crashlytics 단계의 인자를 `--default-config=default` 에서
+// `--build-configuration=CONFIGURATION` 으로 바꿔 `firebase.json` 에 등록되지 않은
+// 8개 configuration 의 iOS 빌드를 깨뜨린다. `firebase.json` 자체도 한 줄로
+// 재작성된다. 또 생성된 dart options 는 포맷이 적용돼 있지 않아 프로젝트 포맷
+// 게이트를 rc=1 로 만든다.
+//
+// 그래서 스크립트는 flutterfire 호출 직전에 두 파일을 스냅샷하고 호출 후(실패
+// 포함) 되돌리며, 산출물에 `fvm dart format` 을 적용한다. 아래 두 번째 group 은
+// 그 세 계약(스냅샷 · 복원 · 포맷)과 **실행 순서**를 실행 라인 기준으로 고정한다.
+// 복원을 VCS 되돌림으로 바꾸는 회귀도 함께 막는다 — `git checkout` 방식은 개발자의
+// 미커밋 편집까지 날리기 때문이다.
+//
 // **T-QUICK-260911-W9W-FIREBASE-CONFIGURE-LINT-01**
 
 import 'dart:io';
@@ -83,6 +98,95 @@ void main() {
         invokeIndex,
         greaterThan(guardIndex),
         reason: '검사가 호출보다 뒤면 LoadError 가 그대로 노출된다',
+      );
+    });
+  });
+
+  group('firebase-configure.sh 부수효과 복원 계약', () {
+    test('변형 대상 2종을 스냅샷할 상수로 들고 있고 mktemp/cp 로 떠 둔다', () {
+      const String pbxproj =
+          r'CLI_TOUCHED_PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"';
+      const String firebaseJson = r'CLI_TOUCHED_FIREBASE_JSON="firebase.json"';
+      const String mktemp =
+          r'mktemp -d "${TMPDIR:-/tmp}/firebase-configure-XXXXXX"';
+      const String snapshotCopy =
+          r'cp "$SNAP_SRC" "${SNAP_DIR}/$(basename "$SNAP_SRC")"';
+
+      for (final String literal in <String>[
+        pbxproj,
+        firebaseJson,
+        mktemp,
+        snapshotCopy,
+      ]) {
+        expect(
+          lines.where((String line) => line.contains(literal)).length,
+          1,
+          reason: '스냅샷 계약: $literal 가 실행 라인에 정확히 1건 있어야 한다',
+        );
+      }
+    });
+
+    test('복원은 EXIT trap + cmp 비교로 이뤄지고 git 되돌림을 쓰지 않는다', () {
+      expect(
+        lines
+            .where(
+              (String line) =>
+                  line.contains('trap restore_cli_side_effects EXIT'),
+            )
+            .length,
+        1,
+        reason: 'flutterfire 가 실패하면 set -e 가 명시 호출에 도달하지 못한다',
+      );
+      expect(
+        lines.where((String line) => line.contains('cmp -s')).length,
+        1,
+        reason: '내용이 같으면 되돌리지 않는다 (조용한 성공)',
+      );
+      expect(
+        lines.where((String line) => line.contains('git checkout')),
+        isEmpty,
+        reason: '체크아웃 되돌림은 개발자의 미커밋 pbxproj 편집까지 날린다',
+      );
+    });
+
+    test('생성된 dart options 에 포맷을 적용한다', () {
+      const String format = r'fvm dart format "$OUT_DART"';
+      expect(
+        lines.where((String line) => line.contains(format)).length,
+        1,
+        reason: 'flutterfire 출력은 포맷되지 않아 프로젝트 포맷 게이트를 깨뜨린다',
+      );
+    });
+
+    test('스냅샷 → flutterfire → 포맷 → skip-worktree 순서가 유지된다', () {
+      final int snapshotIndex = lines.indexWhere(
+        (String line) => line.contains('firebase-configure-XXXXXX'),
+      );
+      final int invokeIndex = lines.indexWhere(
+        (String line) => line.contains('flutterfire_cli:flutterfire configure'),
+      );
+      final int formatIndex = lines.indexWhere(
+        (String line) => line.contains(r'fvm dart format "$OUT_DART"'),
+      );
+      final int skipWorktreeIndex = lines.indexWhere(
+        (String line) => line.contains(r'for OUT_PATH in'),
+      );
+
+      expect(snapshotIndex, greaterThanOrEqualTo(0));
+      expect(
+        invokeIndex,
+        greaterThan(snapshotIndex),
+        reason: '스냅샷이 호출보다 뒤면 이미 변형된 내용을 뜬다',
+      );
+      expect(
+        formatIndex,
+        greaterThan(invokeIndex),
+        reason: '포맷이 호출보다 앞서면 갱신 전 파일을 포맷한다',
+      );
+      expect(
+        skipWorktreeIndex,
+        greaterThan(formatIndex),
+        reason: 'skip-worktree 는 최종 내용에 걸려야 한다',
       );
     });
   });
