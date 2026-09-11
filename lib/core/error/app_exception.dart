@@ -23,7 +23,50 @@ sealed class AppException implements Exception {
 
   /// 원본 예외. 디버깅/로깅 전용이며 UI에 노출하지 않는다.
   final Object? cause;
+
+  /// 진단용 문자열 표현 (코드 리뷰 WR-07).
+  ///
+  /// 오버라이드하지 않으면 Dart 기본 구현이 `Instance of 'ServiceUnavailable'`
+  /// 를 반환하므로, 이 객체를 기록하는 **모든 채널이 원인 정보를 0비트
+  /// 전달**한다. [cause] 는 doc 상 "디버깅/로깅 전용" 인데 정작 어떤 로깅
+  /// 경로에서도 출력되지 않았다 — `splash_initializer` 의
+  /// `recordError(exception, ...)` 리포트가 대표 사례다.
+  ///
+  /// **PII 화이트리스트 (중요).** 포함하는 것은 [runtimeType] /
+  /// [userMessage] / [cause] 요약 **세 가지뿐**이다. 서브타입 고유 필드
+  /// ([AccountExistsWithDifferentCredential.email],
+  /// [AccountExistsWithDifferentCredential.pendingCredential] 등) 는 어떤
+  /// 경우에도 포함하지 않으며, 그 보장 수단은 **서브타입에서 [toString] 을
+  /// 오버라이드하지 않는 것** 이다. 새 서브타입을 추가할 때도 오버라이드하지
+  /// 말 것 — 필드를 일괄 출력하는 구현은 이메일을 Crashlytics 리포트와
+  /// release 로그로 흘린다 (반복-이슈 체크리스트 9/10항).
+  @override
+  String toString() {
+    final causeSummary = cause == null
+        ? ''
+        : ', cause: ${_summarizeCause(cause!)}';
+    return '$runtimeType($userMessage$causeSummary)';
+  }
 }
+
+/// 이메일 주소 패턴 — [_summarizeCause] 의 redaction 대상.
+final RegExp _kEmailPattern = RegExp(
+  r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}',
+);
+
+/// [cause] 를 PII 없이 요약한다 (WR-07).
+///
+/// 원본 `toString()` 을 담되 이메일 주소 패턴은 `<redacted-email>` 로
+/// 치환한다. [cause] 는 대개 `FirebaseAuthException` 같은 플랫폼 예외이고 그
+/// 메시지는 우리가 통제하지 않는 문자열이므로, 사용자 이메일이 섞여 들어가
+/// Crashlytics 리포트와 release 로그로 흘러가는 경로를 진단 정보 진입점에서
+/// 원천 차단한다.
+///
+/// core/error 계층은 firebase_auth 에 의존하지 않으므로 (본 파일의
+/// `pendingCredential` 경계 주석 참조) 예외 타입별 분기 대신 문자열 수준
+/// redaction 을 쓴다.
+String _summarizeCause(Object cause) =>
+    cause.toString().replaceAll(_kEmailPattern, '<redacted-email>');
 
 // ---------------------------------------------------------------------------
 // 네트워크 관련 예외

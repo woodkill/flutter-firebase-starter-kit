@@ -1,3 +1,4 @@
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -164,6 +165,98 @@ void main() {
       expect(invalidEmail.cause, equals(originalError));
       expect(userDisabled.cause, equals(originalError));
       expect(tooMany.cause, equals(originalError));
+    });
+  });
+
+  group('WR-07: toString() 진단 정보 + PII 화이트리스트', () {
+    test('cause 없는 예외는 runtimeType + userMessage 를 담는다', () {
+      const ex = ServiceUnavailable();
+      // 수정 전에는 Dart 기본 구현이 "Instance of 'ServiceUnavailable'" 만
+      // 반환해 Crashlytics 리포트가 원인 정보를 0비트 전달했다.
+      expect(ex.toString(), 'ServiceUnavailable(errorServiceUnavailable)');
+      expect(ex.toString(), isNot(contains('Instance of')));
+    });
+
+    test('cause 가 있으면 원본 예외 요약이 포함된다', () {
+      final ex = InternalServerError(cause: Exception('upstream 503'));
+      expect(ex.toString(), contains('InternalServerError'));
+      expect(ex.toString(), contains('errorInternalServer'));
+      expect(ex.toString(), contains('upstream 503'));
+    });
+
+    test('모든 서브타입이 Instance of 대신 진단 문자열을 반환한다', () {
+      const all = <AppException>[
+        ConnectionTimeout(),
+        NoInternetConnection(),
+        RequestTimeout(),
+        InvalidCredentials(),
+        UserNotFound(),
+        EmailAlreadyInUse(),
+        WeakPassword(),
+        SessionExpired(),
+        InvalidEmail(),
+        UserDisabled(),
+        TooManyRequests(),
+        AccountExistsWithDifferentCredential(),
+        AccountAlreadyLinked(),
+        ProviderAlreadyLinkedToThisAccount(),
+        ReauthenticationRequiredException(),
+        UnauthenticatedException(),
+        InternalServerError(),
+        ServiceUnavailable(),
+        UnknownException(),
+      ];
+      for (final ex in all) {
+        expect(
+          ex.toString(),
+          isNot(contains('Instance of')),
+          reason: '${ex.runtimeType} 가 진단 정보를 전달하지 않는다',
+        );
+        expect(ex.toString(), startsWith('${ex.runtimeType}('));
+        expect(ex.toString(), contains(ex.userMessage));
+      }
+    });
+
+    test(
+      'AccountExistsWithDifferentCredential.email 은 toString 에 나타나지 않는다',
+      () {
+        // 화이트리스트 보장: 서브타입 고유 필드는 toString 에서 제외된다.
+        // 필드를 일괄 출력하는 구현이 들어오면 여기서 RED 가 된다.
+        const ex = AccountExistsWithDifferentCredential(
+          email: 'victim@example.com',
+          existingProvider: AccountProvider.google,
+        );
+        expect(ex.toString(), isNot(contains('victim@example.com')));
+        expect(ex.toString(), isNot(contains('victim')));
+        expect(ex.toString(), contains('AccountExistsWithDifferentCredential'));
+      },
+    );
+
+    test('cause 문자열에 섞인 이메일은 redact 된다', () {
+      // cause 는 대개 플랫폼 예외이고 그 메시지는 우리가 통제하지 않는다.
+      final ex = InvalidEmail(
+        cause: Exception(
+          'The email address user@example.com is badly formatted',
+        ),
+      );
+      expect(ex.toString(), isNot(contains('user@example.com')));
+      expect(ex.toString(), contains('<redacted-email>'));
+      // 나머지 진단 정보는 보존된다.
+      expect(ex.toString(), contains('badly formatted'));
+    });
+
+    test('cause 에 이메일이 여러 개여도 전부 redact 된다', () {
+      final ex = UnknownException(
+        cause: Exception('a@b.co and c.d+tag@e-f.example.org'),
+      );
+      final rendered = ex.toString();
+      expect(rendered, isNot(contains('a@b.co')));
+      expect(rendered, isNot(contains('c.d+tag@e-f.example.org')));
+      expect(
+        '<redacted-email>'.allMatches(rendered).length,
+        2,
+        reason: '이메일 2건이 모두 치환되어야 한다',
+      );
     });
   });
 }
