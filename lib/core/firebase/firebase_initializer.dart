@@ -1,12 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_starter_kit/core/config/app_config.dart';
-import 'package:flutter_starter_kit/core/firebase/firebase_options_dev.dart'
-    as dev;
-import 'package:flutter_starter_kit/core/firebase/firebase_options_stg.dart'
-    as stg;
-import 'package:flutter_starter_kit/core/firebase/firebase_options_prod.dart'
-    as prod;
+
+import '../config/app_config.dart';
+import 'firebase_options_dev.dart' as dev;
+import 'firebase_options_prod.dart' as prod;
+import 'firebase_options_stg.dart' as stg;
 
 /// 현재 flavor에 맞는 Firebase 프로젝트를 초기화한다.
 ///
