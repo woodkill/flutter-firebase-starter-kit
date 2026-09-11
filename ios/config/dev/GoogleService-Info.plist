@@ -3,34 +3,32 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>775174386750-kfjvrvmu0ge7hhk2uemto9hq7u03b1qq.apps.googleusercontent.com</string>
+	<string>PLACEHOLDER</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.775174386750-kfjvrvmu0ge7hhk2uemto9hq7u03b1qq</string>
-	<key>ANDROID_CLIENT_ID</key>
-	<string>775174386750-sg1333snc7nftrga71vhh3pqtl97tfl5.apps.googleusercontent.com</string>
+	<string>PLACEHOLDER</string>
 	<key>API_KEY</key>
 	<string>PLACEHOLDER</string>
 	<key>GCM_SENDER_ID</key>
-	<string>775174386750</string>
+	<string>000000000000</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.slimpumpkin.flutterStarterKit.dev</string>
 	<key>PROJECT_ID</key>
-	<string>slimpumpkin-starter-kit-dev</string>
+	<string>placeholder-dev</string>
 	<key>STORAGE_BUCKET</key>
-	<string>slimpumpkin-starter-kit-dev.firebasestorage.app</string>
+	<string>placeholder-dev.appspot.com</string>
 	<key>IS_ADS_ENABLED</key>
-	<false></false>
+	<false/>
 	<key>IS_ANALYTICS_ENABLED</key>
-	<false></false>
+	<false/>
 	<key>IS_APPINVITE_ENABLED</key>
-	<true></true>
+	<true/>
 	<key>IS_GCM_ENABLED</key>
-	<true></true>
+	<true/>
 	<key>IS_SIGNIN_ENABLED</key>
-	<true></true>
+	<true/>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:775174386750:ios:6ca1fdaf30692358160d6f</string>
+	<string>1:000000000000:ios:0000000000000000</string>
 </dict>
 </plist>
