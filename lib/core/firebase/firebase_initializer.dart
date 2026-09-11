@@ -12,8 +12,19 @@ import 'package:flutter_starter_kit/core/firebase/firebase_options_prod.dart'
 ///
 /// [AppConfig.flavor] 값에 따라 dev/stg/prod Firebase 옵션을 선택하고,
 /// [Firebase.initializeApp]을 호출한다.
-/// Firebase 프로젝트가 아직 연결되지 않은 경우(placeholder 상태)
-/// `false`를 반환한다.
+///
+/// **반환 계약:** 초기화에 성공하면 `true`. 초기화에 실패하면 **원인과
+/// 무관하게** `false` 를 반환하며, 호출자는 Firebase 의존 기능을 모두
+/// 비활성화해야 한다. `false` 는 두 가지를 함께 의미한다.
+///
+/// - 설계된 경로 — Firebase 프로젝트 미연결(placeholder 의 [UnsupportedError]).
+/// - 장애 경로 — 설정 불일치([FirebaseException], 예: `duplicate-app`) 나
+///   플러그인 등록 실패 등. 디버그 빌드에서는 [FirebaseException] 을 assert
+///   로 즉시 터뜨려 placeholder 와 육안 구분이 가능하게 한다.
+///
+/// 두 경로를 호출자가 코드로 구분해야 한다면 반환 타입을 결과 객체로
+/// 승격해야 한다 (현재 [bool] 소비처가 6곳 이상이라 미적용 — REVIEW 의
+/// IN-03 참조).
 ///
 /// flavor 가 미주입(빈 문자열)이거나 3 값 도메인(`dev`/`stg`/`prod`) 밖이면
 /// [StateError] 를 던진다 — `false` 로 흡수하지 않는다. 잘못된 flavor 를
@@ -36,11 +47,30 @@ Future<bool> initializeFirebase() async {
     await Firebase.initializeApp(options: options);
     return true;
   } on StateError {
-    // 설정 오류는 placeholder 미연결과 구분해 전파한다 (아래 catch 로 흡수 금지).
+    // flavor 설정 오류는 placeholder 미연결과 구분해 전파한다.
     rethrow;
-  } catch (e) {
-    // Firebase 프로젝트 미연결 시(placeholder) 앱은 정상 실행
-    debugPrint('Firebase 초기화 실패 (placeholder 상태일 수 있음): $e');
+  } on UnsupportedError catch (e) {
+    // 설계된 경로: placeholder — 앱은 Firebase 없이 정상 실행한다.
+    if (kDebugMode) {
+      debugPrint('Firebase 미연결 (placeholder): $e');
+    }
+    return false;
+  } on FirebaseException catch (e, st) {
+    // 설정 불일치. 대표 사례는 `duplicate-app` — Gradle 의
+    // `com.google.gms.google-services` 플러그인이 만든 네이티브 default app 의
+    // apiKey / databaseURL / storageBucket 이 dart `options` 와 다르면
+    // firebase_core 가 던진다. placeholder 와 같은 `false` 로 뭉개면
+    // "dart 는 dev, 네이티브는 prod" 같은 오연결이 조용히 넘어가므로,
+    // 디버그 빌드에서는 assert 로 즉시 터뜨려 개발자에게 알린다.
+    assert(() {
+      throw StateError('Firebase 초기화 실패 [${e.code}]: ${e.message}\n$st');
+    }());
+    return false;
+  } on Object catch (e, st) {
+    // 그 외 장애 (플러그인 등록 실패, 손상된 options 등). stack trace 보존.
+    if (kDebugMode) {
+      debugPrint('Firebase 초기화 실패: $e\n$st');
+    }
     return false;
   }
 }

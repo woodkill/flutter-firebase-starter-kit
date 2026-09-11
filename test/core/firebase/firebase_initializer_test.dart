@@ -90,5 +90,45 @@ void main() {
         reason: '익명 기본 분기(`_ =>`)는 오타 flavor 를 조용히 흡수한다.',
       );
     });
+
+    test('광역 catch (e) 대신 구체 예외 타입으로 분기한다 (WR-01)', () {
+      expect(
+        RegExp(r'\}\s*catch\s*\(').hasMatch(source),
+        isFalse,
+        reason: 'flutter.md Error Handling — 광역 catch (e) 금지.',
+      );
+      for (final clause in const [
+        'on UnsupportedError catch',
+        'on FirebaseException catch',
+        'on Object catch',
+      ]) {
+        expect(
+          source.contains(clause),
+          isTrue,
+          reason: '`$clause` 분기가 있어야 placeholder / 설정 불일치 / 장애를 구분한다.',
+        );
+      }
+    });
+
+    test('debugPrint 는 모두 kDebugMode 가드 안에 있다 (WR-02)', () {
+      // release 빌드의 debugPrint 는 제거되지 않고 기기 로그에 남는다.
+      final guardedBlocks = RegExp(
+        r'if\s*\(kDebugMode\)\s*\{[^}]*debugPrint',
+      ).allMatches(source).length;
+      expect(
+        RegExp(r'debugPrint\(').allMatches(source).length,
+        guardedBlocks,
+        reason: '모든 debugPrint 호출은 kDebugMode 블록 안에 있어야 한다.',
+      );
+    });
+
+    test('doc 이 "모든 실패에 false" 반환 계약을 명시한다 (WR-03)', () {
+      expect(
+        source.contains('**반환 계약:**'),
+        isTrue,
+        reason: 'doc 의 계약이 구현(모든 실패 → false)보다 좁으면 호출자가 오해한다.',
+      );
+      expect(source.contains('원인과'), isTrue);
+    });
   });
 }

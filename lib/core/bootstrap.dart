@@ -117,9 +117,12 @@ Future<void> bootstrap() async {
             );
 
             // GoogleSignIn 초기화 (기존 로직 유지).
-            // Dart-only Firebase 방식이므로 google-services.json Gradle 플러그인을
-            // 사용하지 않아 serverClientId 를 --dart-define-from-file 에서 명시적
-            // 으로 전달.
+            //
+            // serverClientId 는 `--dart-define-from-file` 에서 명시적으로
+            // 전달한다. Android 는 `android/app/build.gradle.kts` 가
+            // `com.google.gms.google-services` 플러그인을 적용하지만, 그
+            // 플러그인이 노출하는 값에 의존하지 않고 flavor config 를 단일
+            // 진실원으로 쓰기 위함이다 (iOS 와 동일 경로 유지).
             const serverClientId = String.fromEnvironment(
               'googleServerClientId',
             );
