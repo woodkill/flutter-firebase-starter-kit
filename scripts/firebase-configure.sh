@@ -125,14 +125,19 @@ fi
 
 # 생성된 산출물 중 **tracked 인 것 전부**에 skip-worktree 를 적용한다.
 #
-# placeholder 파일군은 tracked 이므로 (.gitignore 예외 — Dart options 3종 +
-# iOS plist 3종 + Android json 2종), 재생성된 실제 키 파일이 그대로
-# `git status` 에 뜨고 실수로 커밋될 수 있다. skip-worktree 는 index 의
-# placeholder 내용을 유지한 채 로컬 수정본을 무시하게 만든다.
+# tracked placeholder 목록은 세 계열이다 — Dart options 3종 + Android json
+# 2종(.gitignore negation 예외) + **iOS plist 3종(dev 포함)**. iOS plist 는
+# .gitignore 무시 대상이 아니라 그냥 tracked 다. 재생성된 실제 키 파일이
+# 그대로 `git status` 에 뜨고 실수로 커밋될 수 있으므로, skip-worktree 로
+# index 의 placeholder 내용을 유지한 채 로컬 수정본을 무시하게 만든다.
 #
-# 부수효과: dev 의 iOS plist(ios/config/dev/GoogleService-Info.plist)는 실제 키인
-# 채로 tracked 이지만 같은 규칙이 적용되므로, 그 파일을 의도적으로 갱신해
-# 커밋하려면 먼저 skip-worktree 를 해제해야 한다.
+# dev 도 예외가 아니다(quick 260911-twn): dev 의 iOS plist
+# (ios/config/dev/GoogleService-Info.plist)는 **커밋된 내용이 placeholder**이고,
+# 개발자의 실제 dev plist 는 커밋되지 않는 **로컬 전용 skip-worktree 사본**으로만
+# 존재한다 — 그 사본을 만들어 주는 것이 바로 이 스크립트
+# (`./scripts/firebase-configure.sh dev`)다. 따라서 아래 루프는 dev 에서도 반드시
+# 걸려야 한다. placeholder 자체를 의도적으로 갱신해 커밋하려면 먼저
+# skip-worktree 를 해제해야 한다.
 #
 # 단점: placeholder 가 upstream 에서 변경되면 `git pull` 이 충돌하고
 # `git stash` 가 에러를 낸다. 그 경우 `git update-index --no-skip-worktree
