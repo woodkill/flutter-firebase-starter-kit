@@ -9,6 +9,9 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get appTitle => 'Flutter Starter Kit';
+
+  @override
   String get commonOk => 'OK';
 
   @override

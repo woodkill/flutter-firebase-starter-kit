@@ -100,6 +100,12 @@ abstract class AppLocalizations {
     Locale('ko'),
   ];
 
+  /// Application title shown in the OS task switcher and accessibility surfaces. Used only when the `appName` dart-define is not injected.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter Starter Kit'**
+  String get appTitle;
+
   /// Common confirmation button label
   ///
   /// In en, this message translates to:

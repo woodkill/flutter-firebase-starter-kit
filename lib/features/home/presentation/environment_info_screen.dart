@@ -40,10 +40,7 @@ class EnvironmentInfoScreen extends ConsumerWidget {
     // defaultValue 로 'dev' 를 보여주면 dart-define 누락을 화면에서 검출할
     // 수 없다. 미주입 시 빈 문자열이므로 경고 chip 으로 노출한다.
     final flavor = AppConfig.flavor;
-    const appName = String.fromEnvironment(
-      'appName',
-      defaultValue: 'StarterKit',
-    );
+    final appName = AppConfig.appName;
     const firebaseProjectId = String.fromEnvironment(
       'firebaseProjectId',
       defaultValue: '-',
@@ -112,7 +109,9 @@ class EnvironmentInfoScreen extends ConsumerWidget {
             _EnvironmentCard(
               icon: Icons.app_settings_alt,
               label: l10n.homeEnvAppName,
-              value: appName,
+              // 미주입 시 '-' + warn chip — flavor 카드와 동일 패턴.
+              value: appName.isEmpty ? '-' : appName,
+              status: appName.isEmpty ? _EnvStatus.warn : _EnvStatus.none,
             ),
             Gap(spacing.md),
             _EnvironmentCard(

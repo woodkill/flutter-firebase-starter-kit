@@ -49,6 +49,14 @@ abstract final class AppConfig {
   /// 결정한다.
   static bool get isDev => flavor == 'dev';
 
+  /// 앱 표시 이름 — `--dart-define-from-file` 의 `appName` 키.
+  ///
+  /// 미주입 시 빈 문자열 — silent fallback 회피 (WR-07 hotfix 패턴). 키 이름을
+  /// 오타 내도 defaultValue 로 그럴듯한 값이 나오지 않아 즉시 검출된다.
+  /// 빈 문자열일 때 표시 문자열을 무엇으로 대체할지는 소비처가 결정한다
+  /// (`App` 은 l10n 의 `appTitle`, 환경 정보 화면은 경고 chip).
+  static const String appName = String.fromEnvironment('appName');
+
   /// Kakao 네이티브 앱 키 (Phase 12 D-20).
   ///
   /// `--dart-define-from-file=config/{flavor}.json` 의 `kakaoNativeAppKey`

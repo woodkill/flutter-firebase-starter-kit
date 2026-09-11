@@ -1,6 +1,11 @@
 {
   "@@locale": "en",
 
+  "appTitle": "Flutter Starter Kit",
+  "@appTitle": {
+    "description": "Application title shown in the OS task switcher and accessibility surfaces. Used only when the `appName` dart-define is not injected."
+  },
+
   "commonOk": "OK",
   "@commonOk": {
     "description": "Common confirmation button label"

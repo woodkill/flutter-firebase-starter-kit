@@ -1,6 +1,8 @@
 {
   "@@locale": "ja",
 
+  "appTitle": "Flutter Starter Kit",
+
   "commonOk": "OK",
   "commonCancel": "キャンセル",
   "commonRetry": "再試行",
