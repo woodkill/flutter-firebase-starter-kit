@@ -183,6 +183,15 @@ pnpm install                   # pnpm-lock.yaml 기반 reproducible install
   `initializeFirebase()` 가 `false` 를 반환하는 미초기화 모드다. 실 연결은
   Firebase Console 에서 프로젝트를 만든 뒤
   `./scripts/firebase-configure.sh stg` 를 실행해야 이뤄진다.
+- **iOS `GoogleService-Info.plist` 도 같은 규칙 — dev 라고 예외가 아니다** —
+  `ios/config/dev/GoogleService-Info.plist` / `ios/config/stg/GoogleService-Info.plist` / `ios/config/prod/GoogleService-Info.plist`
+  3종은 **전부 placeholder 로 tracked** 되어 있다 (Xcode 의
+  `Copy GoogleService-Info.plist` 빌드 단계가 파일 부재 시 빌드를 중단시키므로
+  3 flavor 모두 파일 자체는 있어야 한다). 개발자의 실제 dev plist 는
+  `./scripts/firebase-configure.sh dev` 가 생성하고 skip-worktree 로 가린
+  **로컬 전용 사본**이며 커밋되지 않는다. 실 키가 든 재생성본을 강제로 staged
+  하면 pre-commit 가드 3 이 차단하므로 우회하지 말 것 — placeholder 자체를
+  고칠 때만 `--no-skip-worktree` 로 일시 해제한다.
 
 ### Cloud Functions region 변경 (`functionsRegion`)
 
@@ -2199,6 +2208,21 @@ starter-kit 의 `scripts/check_phase_refs.sh` 는 코드 주석의 `Phase NN`
 production 진입 시 deferred 항목 추적에 유용. starter-kit 단순성을 위해
 CI 별도 도입 없이 git pre-commit hook 으로만 강제 (필수 아님 — D-39).
 
+hook 이 실행하는 가드는 4 건이다. 1~3 은 **실제 Firebase 키가 repo 에 커밋되는
+것을 차단**하는 것이 목적이고 (placeholder 파일군이 tracked 이라 재생성본이
+그대로 커밋 대상이 된다), 4 는 문서 참조 lint 다.
+
+| 가드 | 대상 | 차단 조건 |
+|------|------|-----------|
+| 1 | `lib/core/firebase/firebase_options_{dev,stg,prod}.dart` | index 내용에 FlutterFire CLI 생성 마커가 있음 |
+| 2 | `android/app/src/{stg,prod}/google-services.json` | Google API 키 접두사가 있거나 placeholder `project_number` 가 사라짐 |
+| 3 | `ios/config/dev/GoogleService-Info.plist` · `ios/config/stg/GoogleService-Info.plist` · `ios/config/prod/GoogleService-Info.plist` | Google API 키 접두사가 있거나 placeholder `GCM_SENDER_ID` 가 사라짐 |
+| 4 | 코드 주석의 `Phase NN` 참조 + `TODO` 주석 | 진실원 (`ROADMAP.md` active phase 또는 `.planning/todos/pending/<file>.md`) 미인용 |
+
+가드 1~3 에 걸리면 해제 절차 (`git restore --staged` → `git update-index
+--skip-worktree`) 가 차단 메시지에 함께 출력된다. placeholder 자체를 의도적으로
+고치려면 placeholder 어휘를 유지한 채 실 키만 제거하고 커밋한다.
+
 활성화 (clone 직후 1회):
 
 ```bash
@@ -2903,6 +2927,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-09-11 | quick 260911-0t3 | Surface D 구조를 A1 (고정 헤더 + provider 스크롤 + CTA footer 고정) 로 전환 + `maxHeight` cap 0.75 → 0.9 — 7 provider 에서 "이메일로 계속" CTA 가 모든 폰 높이에서 fold 아래이던 갭 해소 (800 dp 실측: 현행 B 는 CTA 하단이 fold 아래 64 dp). CTA 첫 화면 노출 회귀 가드 2건 add-only (7/8 provider · `getRect(cta).bottom <= 600` · `ensureVisible` 없는 tap → `/login/email` push, 기존 `ensureVisible` 4건은 방어 계층으로 유지) + Surface D golden 2장 재생성 (light 는 사용자 sign-off mockup 과 byte 동일) + 커스터마이징 항목 4 · 「회귀 가드 위치」 표 D 행 정정. 사용자 시각 sign-off 2026-09-11. |
 | 2026-09-11 | quick 260911-spw | Initial Setup 「흔한 실수」 목록에 Android placeholder 항목 2건 add-only — (1) 실 키가 든 `google-services.json` 재생성본 강제 `git add` 금지 (pre-commit 가드 2 차단 + 해제 경로는 skip-worktree) (2) stg/prod 빌드 통과 ≠ Firebase 연결 (placeholder 는 빌드 게이트용, 런타임은 미초기화 모드). 근거: `android/app/src/{stg,prod}/google-services.json` placeholder 2종을 tracked 로 전환하고 `.gitignore` negation + 회귀 가드 test + skip-worktree 일반화 + pre-commit 값 가드 로 3중 방어. |
 
+| 2026-09-11 | quick 260911-twn | `ios/config/dev/GoogleService-Info.plist` 를 stg/prod 와 동일한 placeholder 로 전환 — 이로써 iOS plist 3 flavor 가 전부 placeholder tracked 가 되고, 개발자의 실제 dev plist 는 `./scripts/firebase-configure.sh dev` 가 만드는 로컬 전용 skip-worktree 사본으로만 남는다. 「Git Hooks 활성화」 절에 hook 가드 4 건 목록 표 신규 + 「흔한 실수」 에 iOS plist 항목 1 건 add-only. pre-commit 가드 3 (iOS plist placeholder 값 검사) 추가로 quick 260911-spw D-08 의 iOS 보류가 해소됐고, placeholder 회귀 가드 test 는 읽기 출처를 워킹트리 → 커밋된 내용 (`git show HEAD:<path>`) 으로 옮겨 로컬 파일이 실 값인 개발자 머신에서도 오탐 없이 통과한다. dev iOS API 키는 2026-09-11 에 회전되어 history 에 남은 구 키는 이미 폐기 상태다. |
+
 ---
 
-*Last updated: 2026-09-11 — quick 260911-spw Android stg/prod google-services placeholder tracked 화*
+*Last updated: 2026-09-11 — quick 260911-twn dev iOS GoogleService-Info.plist placeholder 전환*

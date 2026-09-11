@@ -60,6 +60,24 @@ Android 빌드는 실패한다.
 동일하게 `initializeFirebase()` 가 `false` 를 반환하는 미초기화 모드로 뜬다.
 **빌드가 된다 ≠ Firebase 가 연결됐다.**
 
+iOS 는 **3 flavor 가 전부 clone 직후 빌드 단계를 통과한다.** Xcode 의
+`Copy GoogleService-Info.plist` 빌드 단계는 파일이 없으면
+`error: GoogleService-Info.plist not found for flavor` 로 빌드를 중단시키는데,
+아래 3종이 모두 placeholder 로 tracked 되어 있어 파일 부재로 실패하지 않는다.
+
+- `ios/config/dev/GoogleService-Info.plist`
+- `ios/config/stg/GoogleService-Info.plist`
+- `ios/config/prod/GoogleService-Info.plist`
+
+**dev 의 실제 설정 파일 4종 — `lib/core/firebase/firebase_options_dev.dart` ·
+`android/app/src/dev/google-services.json` ·
+`ios/config/dev/GoogleService-Info.plist` · `ios/Flutter/dev.xcconfig` — 은 전부
+로컬 전용이며, repo 에는 placeholder (또는 `*.example.*`) 만 tracked 된다.**
+실 연결은 `./scripts/firebase-configure.sh dev` 가 생성하는 로컬 파일로만
+이뤄지고, 그 파일들은 skip-worktree 또는 `.gitignore` 로 커밋 대상에서 빠진다.
+placeholder 상태로 실행했을 때의 동작은 바로 위 문단과 같다 — 빌드는 되지만
+런타임은 미초기화 모드다.
+
 ### stg / prod
 
 `./scripts/firebase-configure.sh stg` / `... prod` 로 동일하게 생성한다. 단,
@@ -237,6 +255,11 @@ Starter Kit 는 stg/prod 의 `lib/core/firebase/firebase_options_stg.dart` /
    > 에 아예 나타나지 않는다. 또한 실 키가 든 재생성본을 강제로 staged 하면
    > `scripts/git-hooks/pre-commit` 가드가 커밋을 차단한다
    > (docs/manual.md "Git Hooks 활성화" 참조).
+   >
+   > 이 skip-worktree 규칙은 stg/prod 산출물만이 아니라 **dev 의 iOS plist
+   > (`ios/config/dev/GoogleService-Info.plist`) 에도 동일하게 적용**된다 —
+   > dev 역시 repo 에는 placeholder 만 tracked 되고, 개발자의 실 파일은
+   > skip-worktree 로 가려진 로컬 사본이다.
 
    > **prod 는 flavor 접미사가 없다.** `android/app/build.gradle.kts` 의
    > `productFlavors` 에서 dev/stg 만 `applicationIdSuffix` 를 가지므로 prod 의
