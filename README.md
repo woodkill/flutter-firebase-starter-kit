@@ -9,6 +9,12 @@ Firebase 설정 보일러플레이트를 제거하고, Feature-First 아키텍�
 **전제:** [FVM](https://fvm.app/) 이 설치되어 있어야 한다. 본 프로젝트는 시스템
 Flutter 를 직접 사용하지 않고 항상 `fvm flutter` / `fvm dart` 로 실행한다.
 
+**전제 2 (iOS 설정 생성 시):** `./scripts/firebase-configure.sh` 가 호출하는
+FlutterFire CLI 는 iOS build configuration 을 확인할 때 ruby 의 `xcodeproj`
+gem 을 사용한다. `ruby -e "require 'xcodeproj'"` 가 아무 출력 없이 끝나지
+않으면 `gem install xcodeproj` 로 설치할 것. 설치돼 있지 않으면 스크립트가
+파일을 만들기 전에 멈추고 같은 안내를 출력한다.
+
 clone 직후 dev flavor 를 띄우기까지 5단계다.
 
 ```bash
@@ -25,6 +31,7 @@ cp config/dev.example.json config/dev.json
 #    iOS GoogleService-Info.plist 를 한 번에 생성한다.
 #    (스크립트 상단의 PROJECT_ID_PREFIX 등 3개 상수를 본인 프로젝트 식별자로
 #     먼저 수정할 것)
+#    (ruby xcodeproj gem 필요 — 위 "전제 2" 참조)
 ./scripts/firebase-configure.sh dev
 
 # 4. 의존성 설치 + 코드 생성 (*.g.dart / *.freezed.dart 는 미커밋)
@@ -272,10 +279,17 @@ Starter Kit 는 stg/prod 의 `lib/core/firebase/firebase_options_stg.dart` /
    > --out=lib/core/firebase/firebase_options_stg.dart
    > --android-package-name=com.slimpumpkin.flutter_starter_kit.stg
    > --ios-bundle-id=<stg.bundle>
+   > --ios-out=ios/config/stg/GoogleService-Info.plist
+   > --ios-build-config=Debug-stg
    > --android-out=android/app/src/stg/google-services.json` (`fff` =
    > `fvm dart pub global run flutterfire_cli:flutterfire` alias).
    > `--android-out` 을 생략하면 Android source set 이 아닌 app 루트에 파일이
-   > 떨어져 flavor 분리가 깨진다. 또 이 경로로 생성하면 skip-worktree 가
+   > 떨어져 flavor 분리가 깨진다. 마찬가지로 `--ios-out` 을 생략하면 plist 가
+   > `ios/Runner/` 로 떨어져 flavor 분리가 깨지고, `--ios-out` 을 주면서
+   > `--ios-build-config` 을 생략하면 CLI 가 "build configuration / target"
+   > 선택 프롬프트를 띄워 **비대화형 셸에서 멈춘다** (`--yes` 로 막히지 않는다).
+   > 값은 `Debug-<flavor>` 처럼 `ios/Runner.xcodeproj` 에 실재하는 configuration
+   > 이름이어야 한다. 또 이 경로로 생성하면 skip-worktree 가
    > 적용되지 않으므로 tracked 산출물마다 직접
    > `git update-index --skip-worktree <path>` 를 실행해야 한다.
 3. 위와 동일한 Crashlytics 활성화 절차를 stg/prod 각 프로젝트에 적용.

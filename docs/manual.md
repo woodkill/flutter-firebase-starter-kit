@@ -192,6 +192,15 @@ pnpm install                   # pnpm-lock.yaml 기반 reproducible install
   **로컬 전용 사본**이며 커밋되지 않는다. 실 키가 든 재생성본을 강제로 staged
   하면 pre-commit 가드 3 이 차단하므로 우회하지 말 것 — placeholder 자체를
   고칠 때만 `--no-skip-worktree` 로 일시 해제한다.
+- **`./scripts/firebase-configure.sh` 가 멈추거나 ruby 에러로 죽는다** —
+  FlutterFire CLI 는 `--ios-out` 만 주고 `--ios-build-config` 을 빼면 "build
+  configuration vs target" 선택 프롬프트를 띄우며, `--yes` 로도 막히지 않아
+  비대화형 셸이 그대로 대기한다. 스크립트는 `--ios-build-config=Debug-<flavor>`
+  를 항상 전달하므로 이 증상은 **수동 `fff configure`** 에서만 재현된다.
+  또 CLI 는 그 값을 검증할 때 ruby 의 `xcodeproj` gem 으로
+  `ios/Runner.xcodeproj` 를 파싱하므로 gem 이 없으면 실패한다 —
+  `gem install xcodeproj` (또는 gem 이 있는 ruby 를 PATH 앞에) 로 해결한다.
+  CocoaPods 에 벤더링된 xcodeproj 는 gem 경로 밖이라 인식되지 않는다.
 
 ### Cloud Functions region 변경 (`functionsRegion`)
 
@@ -2929,6 +2938,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 
 | 2026-09-11 | quick 260911-twn | `ios/config/dev/GoogleService-Info.plist` 를 stg/prod 와 동일한 placeholder 로 전환 — 이로써 iOS plist 3 flavor 가 전부 placeholder tracked 가 되고, 개발자의 실제 dev plist 는 `./scripts/firebase-configure.sh dev` 가 만드는 로컬 전용 skip-worktree 사본으로만 남는다. 「Git Hooks 활성화」 절에 hook 가드 4 건 목록 표 신규 + 「흔한 실수」 에 iOS plist 항목 1 건 add-only. pre-commit 가드 3 (iOS plist placeholder 값 검사) 추가로 quick 260911-spw D-08 의 iOS 보류가 해소됐고, placeholder 회귀 가드 test 는 읽기 출처를 워킹트리 → 커밋된 내용 (`git show HEAD:<path>`) 으로 옮겨 로컬 파일이 실 값인 개발자 머신에서도 오탐 없이 통과한다. dev iOS API 키는 2026-09-11 에 회전되어 history 에 남은 구 키는 이미 폐기 상태다. |
 
+| 2026-09-11 | quick 260911-w9w | `scripts/firebase-configure.sh` 가 `--ios-build-config=Debug-<flavor>` 를 항상 전달하도록 해 비대화형(비-TTY) 셸에서 CLI 의 "build configuration vs target" 선택 프롬프트로 멈추던 hang 을 해소 — `--yes` 는 덮어쓰기 확인만 처리하므로 이 프롬프트를 막지 못한다. 값 3종(`Debug-dev` / `Debug-stg` / `Debug-prod`)은 `ios/Runner.xcodeproj` 에 실재한다. 이어서 CLI 가 그 값을 ruby `xcodeproj` gem 으로 검증하므로, gem 이 없으면 flutterfire 호출 **전에** 스크립트가 exit 1 하고 한국어 해결 안내를 출력하는 fail-fast 전제조건 검사를 추가 (산출물 3종 변경 0 · skip-worktree 플래그 변화 0, `DRY_RUN=1` 경로는 검사를 건너뛴다). README 에 「전제 2」 문단 + Quick Start 3단계 주석 + 수동 `fff configure` 스니펫 비대화형화(`--ios-out` · `--ios-build-config` 동반), 「흔한 실수」 에 항목 1 건 add-only. 회귀 가드 test 3 건은 header 주석이 아니라 **실행 라인**만 보고 두 계약(플래그 전달 · 전제조건 검사 위치)을 단언한다. |
+
 ---
 
-*Last updated: 2026-09-11 — quick 260911-twn dev iOS GoogleService-Info.plist placeholder 전환*
+*Last updated: 2026-09-11 — quick 260911-w9w firebase-configure 비대화형 hang 해소*
