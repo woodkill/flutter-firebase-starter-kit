@@ -414,9 +414,10 @@ void main() {
 
       await _pumpScreen(tester, user: null);
 
-      // Flavor 카드: String.fromEnvironment('flavor', defaultValue: 'dev')
-      // → toUpperCase() = 'DEV', fallback label = 'Flavor: DEV'.
-      expect(find.bySemanticsLabel('Flavor: DEV'), findsOneWidget);
+      // Flavor 카드: AppConfig.flavor 단일 진실원 (CR-01). 테스트 환경은
+      // --dart-define 미주입이므로 빈 문자열 → '-' + warn chip,
+      // fallback label = 'Flavor: -'.
+      expect(find.bySemanticsLabel('Flavor: -'), findsOneWidget);
 
       handle.dispose();
     });

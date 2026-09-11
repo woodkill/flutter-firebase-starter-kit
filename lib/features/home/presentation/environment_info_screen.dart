@@ -7,6 +7,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/analytics/analytics_service.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/l10n/intl_extensions.dart';
 import '../../../core/l10n/l10n_extensions.dart';
@@ -35,7 +36,10 @@ class EnvironmentInfoScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const flavor = String.fromEnvironment('flavor', defaultValue: 'dev');
+    // 표시값도 [AppConfig] 를 단일 진실원으로 읽는다 — 화면이 자체
+    // defaultValue 로 'dev' 를 보여주면 dart-define 누락을 화면에서 검출할
+    // 수 없다. 미주입 시 빈 문자열이므로 경고 chip 으로 노출한다.
+    final flavor = AppConfig.flavor;
     const appName = String.fromEnvironment(
       'appName',
       defaultValue: 'StarterKit',
@@ -100,7 +104,9 @@ class EnvironmentInfoScreen extends ConsumerWidget {
             _EnvironmentCard(
               icon: Icons.layers,
               label: l10n.homeEnvFlavor,
-              value: flavor.toUpperCase(),
+              // 미주입 시 '-' + warn chip — dart-define 누락을 육안 검출.
+              value: flavor.isEmpty ? '-' : flavor.toUpperCase(),
+              status: flavor.isEmpty ? _EnvStatus.warn : _EnvStatus.none,
             ),
             Gap(spacing.md),
             _EnvironmentCard(
