@@ -120,6 +120,14 @@ key.properties
 # Firebase Android 설정 (flavor별 flutterfire configure로 재생성)
 **/android/app/google-services.json
 **/android/app/src/*/google-services.json
+# 단, stg/prod placeholder 는 tracked — 이 파일들이 없으면 fresh clone 직후
+# `--flavor stg` / `--flavor prod` Android 빌드가 Gradle
+# :app:process<Flavor>DebugGoogleServices 에서 "No matching client found for
+# package name" 으로 실패한다. 실제 키가 든 재생성본이 커밋되지 않도록
+# firebase-configure.sh 의 skip-worktree + pre-commit hook 이 이중 방어한다.
+# dev 는 실제 Firebase 프로젝트 연결이므로 제외 (memory project_firebase_dev_only).
+!android/app/src/stg/google-services.json
+!android/app/src/prod/google-services.json
 
 # ==========================
 # iOS
