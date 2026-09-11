@@ -169,6 +169,20 @@ pnpm install                   # pnpm-lock.yaml 기반 reproducible install
 - **placeholder 그대로 빌드 후 "왜 로그인 안 되지" 디버깅** — Kakao Login
   1단계 #6 OIDC 활성화 누락 (Pitfall 1) 보다 흔한 trivial 실수. 빌드 전
   `cat config/dev.json` 으로 placeholder 가 모두 교체됐는지 1차 확인.
+- **실제 키가 든 `google-services.json` 재생성본을 강제 `git add`** —
+  `android/app/src/{stg,prod}/google-services.json` 2종은 빌드 게이트 통과용
+  placeholder 로 **tracked** 되어 있어 (`.gitignore` negation), 실 키 재생성본이
+  그대로 커밋 대상이 된다. `scripts/git-hooks/pre-commit` 가드가 Google API 키
+  접두사 또는 placeholder `project_number` 소실을 감지해 차단하므로 우회하지 말
+  것. 정상 해제 경로는 `./scripts/firebase-configure.sh <flavor>` 가 자동으로
+  거는 `git update-index --skip-worktree <path>` 이고, placeholder 자체를
+  의도적으로 고칠 때만 `--no-skip-worktree` 로 일시 해제한다.
+- **stg/prod 가 빌드된다고 Firebase 가 연결됐다고 오인** — 위 placeholder 덕분에
+  fresh clone 직후에도 `--flavor stg` / `--flavor prod` Android 빌드는 통과하지만,
+  값은 전부 더미(`placeholder-stg` / `000000000000` 등)라 런타임은
+  `initializeFirebase()` 가 `false` 를 반환하는 미초기화 모드다. 실 연결은
+  Firebase Console 에서 프로젝트를 만든 뒤
+  `./scripts/firebase-configure.sh stg` 를 실행해야 이뤄진다.
 
 ### Cloud Functions region 변경 (`functionsRegion`)
 
@@ -2887,7 +2901,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | 2026-09-10 | 16.1-REVIEW | code review 정정 (CR-01 · WR-06) — 3화면 구조표의 `/login/email` 진입 방식 서술을 실제 위상 (최상위 형제 route · 항상 chooser 위 push) 에 맞춰 정정. 커스터마이징 포인트 1번에 `AppRoutes.emailLogin` 을 참조하는 비-UI 지점 2곳 (`account_linking_sheet.dart` 경로 C · `forgot_password_screen.dart` 딥링크 fallback) 경고 + `grep -rn "AppRoutes.emailLogin" lib` 자가 점검 명령 추가 — GoRoute 만 지우면 두 경로가 `buildNotFoundScreen` 으로 떨어진다. 회귀 가드 매트릭스 3행 추가 (back 스택 확보 / C 하단 링크 경로별 착지 / 이메일 제출 ↔ 소셜 교차 잠금). |
 | 2026-09-10 | quick 260910-uff | Surface D Pitfall 정정 — 시트 안 소셜 실패가 이제 배너 + 계정 연결 시트로 안내된다는 현행 동작 서술로 교체 (사라진 pending todo 경로 제거) + 「회귀 가드 위치」 표 D 행에 실패 피드백 회귀 가드 테스트 1건 추가. 근거: AR-16.1-01 회수 (16.1-SECURITY.md Accepted Risks Log). |
 | 2026-09-11 | quick 260911-0t3 | Surface D 구조를 A1 (고정 헤더 + provider 스크롤 + CTA footer 고정) 로 전환 + `maxHeight` cap 0.75 → 0.9 — 7 provider 에서 "이메일로 계속" CTA 가 모든 폰 높이에서 fold 아래이던 갭 해소 (800 dp 실측: 현행 B 는 CTA 하단이 fold 아래 64 dp). CTA 첫 화면 노출 회귀 가드 2건 add-only (7/8 provider · `getRect(cta).bottom <= 600` · `ensureVisible` 없는 tap → `/login/email` push, 기존 `ensureVisible` 4건은 방어 계층으로 유지) + Surface D golden 2장 재생성 (light 는 사용자 sign-off mockup 과 byte 동일) + 커스터마이징 항목 4 · 「회귀 가드 위치」 표 D 행 정정. 사용자 시각 sign-off 2026-09-11. |
+| 2026-09-11 | quick 260911-spw | Initial Setup 「흔한 실수」 목록에 Android placeholder 항목 2건 add-only — (1) 실 키가 든 `google-services.json` 재생성본 강제 `git add` 금지 (pre-commit 가드 2 차단 + 해제 경로는 skip-worktree) (2) stg/prod 빌드 통과 ≠ Firebase 연결 (placeholder 는 빌드 게이트용, 런타임은 미초기화 모드). 근거: `android/app/src/{stg,prod}/google-services.json` placeholder 2종을 tracked 로 전환하고 `.gitignore` negation + 회귀 가드 test + skip-worktree 일반화 + pre-commit 값 가드 로 3중 방어. |
 
 ---
 
-*Last updated: 2026-09-11 — quick 260911-0t3 Surface D 구조 A1 + cap 0.9 정정*
+*Last updated: 2026-09-11 — quick 260911-spw Android stg/prod google-services placeholder tracked 화*

@@ -46,7 +46,19 @@ Crashlytics, Remote Config 등)이 전부 비활성화된 채 앱이 실행된�
 실 키가 커밋되지 않도록 막는다.
 
 Android 빌드는 `android/app/src/dev/google-services.json` 도 필요하며, 이 파일
-역시 같은 스크립트가 생성한다.
+역시 같은 스크립트가 생성한다. dev 는 실 프로젝트 연결용이라 gitignored 이므로
+**fresh clone 직후에는 존재하지 않는다** — 3단계를 건너뛰면 `--flavor dev`
+Android 빌드는 실패한다.
+
+반면 stg/prod 는 아래 두 placeholder 가 tracked 되어 있어 **`--flavor stg` /
+`--flavor prod` Android 빌드는 clone 직후 그대로 통과**한다.
+
+- `android/app/src/stg/google-services.json`
+- `android/app/src/prod/google-services.json`
+
+다만 이 값들은 빌드 게이트 통과용 더미이므로, 그 상태로 실행한 앱은 위와
+동일하게 `initializeFirebase()` 가 `false` 를 반환하는 미초기화 모드로 뜬다.
+**빌드가 된다 ≠ Firebase 가 연결됐다.**
 
 ### stg / prod
 
@@ -204,24 +216,45 @@ adb shell setprop debug.firebase.analytics.app com.slimpumpkin.flutter_starter_k
 #### stg/prod flavor 로 fork 하는 경우 (실 프로젝트 적용 시)
 
 Starter Kit 는 stg/prod 의 `lib/core/firebase/firebase_options_stg.dart` /
-`firebase_options_prod.dart` 를 placeholder 로 두고 있다 (dev 만 실제 프로젝트
-연결, stg/prod 는 build 통과용 더미 값). 실 프로젝트에서는 다음 절차를 거친다.
+`firebase_options_prod.dart` 와 `android/app/src/{stg,prod}/google-services.json`
+을 placeholder 로 두고 있다 (dev 만 실제 프로젝트 연결, stg/prod 는 build 통과용
+더미 값). 실 프로젝트에서는 다음 절차를 거친다.
 
 1. Firebase Console 에서 stg/prod 프로젝트를 별도 생성 (dev/stg/prod 분리 원칙).
 2. `./scripts/firebase-configure.sh stg` 실행 (prod 는 `... prod`). 스크립트가
    dart options + Android `google-services.json` + iOS `GoogleService-Info.plist`
-   를 flavor 경로에 맞춰 한 번에 생성하고, 생성된 dart 파일에
+   를 flavor 경로에 맞춰 한 번에 생성한다. Android 산출물은
+   `android/app/src/<flavor>/google-services.json` (Gradle flavor source set 경로)
+   에 **placeholder 를 덮어쓰는 방식**으로 생성되며, 스크립트는 생성된 산출물 중
+   tracked 인 것 전부(dart options · iOS plist · Android json)에
    `git update-index --skip-worktree` 를 적용해 실 키 커밋을 막는다. 스크립트
    상단의 `PROJECT_ID_PREFIX` / `IOS_BUNDLE_ID_PREFIX` /
    `ANDROID_PACKAGE_PREFIX` 3개 상수를 본인 프로젝트 식별자로 먼저 수정할 것.
 
+   > **placeholder 를 의도적으로 수정하려면** 먼저
+   > `git update-index --no-skip-worktree <path>` 로 해제한 뒤 커밋하고, 끝나면
+   > 다시 `--skip-worktree` 를 걸어 둔다. 해제하지 않으면 수정본이 `git status`
+   > 에 아예 나타나지 않는다. 또한 실 키가 든 재생성본을 강제로 staged 하면
+   > `scripts/git-hooks/pre-commit` 가드가 커밋을 차단한다
+   > (docs/manual.md "Git Hooks 활성화" 참조).
+
+   > **prod 는 flavor 접미사가 없다.** `android/app/build.gradle.kts` 의
+   > `productFlavors` 에서 dev/stg 만 `applicationIdSuffix` 를 가지므로 prod 의
+   > Android package 는 `com.slimpumpkin.flutter_starter_kit` (접미사 없음),
+   > iOS bundle 도 `com.slimpumpkin.flutterStarterKit` 이다. 여기에 `.prod` 를
+   > 붙이면 Gradle 이 "No matching client found for package name" 으로 실패한다.
+   > (Firebase **프로젝트 ID** 는 3개 분리 정책이라 prod 에도 접미사가 붙는다.)
+
    > 참고 (수동 실행이 필요한 경우): `fff configure --project=<stg-project-id>
    > --out=lib/core/firebase/firebase_options_stg.dart
    > --android-package-name=com.slimpumpkin.flutter_starter_kit.stg
-   > --ios-bundle-id=<stg.bundle>` (`fff` = `fvm dart pub global run
-   > flutterfire_cli:flutterfire` alias). 이 경로로 생성하면 skip-worktree 가
-   > 적용되지 않으므로 직접 `git update-index --skip-worktree <path>` 를
-   > 실행해야 한다.
+   > --ios-bundle-id=<stg.bundle>
+   > --android-out=android/app/src/stg/google-services.json` (`fff` =
+   > `fvm dart pub global run flutterfire_cli:flutterfire` alias).
+   > `--android-out` 을 생략하면 Android source set 이 아닌 app 루트에 파일이
+   > 떨어져 flavor 분리가 깨진다. 또 이 경로로 생성하면 skip-worktree 가
+   > 적용되지 않으므로 tracked 산출물마다 직접
+   > `git update-index --skip-worktree <path>` 를 실행해야 한다.
 3. 위와 동일한 Crashlytics 활성화 절차를 stg/prod 각 프로젝트에 적용.
 4. **prod 추가 필수:** Crashlytics > Settings > **dSYM upload (iOS)** 자동화 +
    Android 의 NDK symbol upload (네이티브 크래시가 가독성 있게 deobfuscate
