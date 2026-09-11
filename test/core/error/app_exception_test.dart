@@ -65,16 +65,32 @@ void main() {
 
     // Test 5: AppException에 대한 switch 문이 exhaustive
     test('AppException switch 문이 exhaustive하게 동작', () {
-      const AppException exception = ConnectionTimeout();
-
-      // sealed class이므로 3개 분기로 exhaustive switch 가능
-      final result = switch (exception) {
+      // IN-05: UnknownException 이 ServerException 하위에서 AppException
+      // 직속 leaf 로 올라가면서 직속 하위가 3 → 4 종이 됐다. 캐치올을
+      // 명시적으로 다루지 않으면 여기서 컴파일 에러가 난다 — 오분류가
+      // 침묵하지 않는다는 것이 이 변경의 핵심이다.
+      String classify(AppException exception) => switch (exception) {
         NetworkException() => 'network',
         AuthException() => 'auth',
         ServerException() => 'server',
+        UnknownException() => 'unknown',
       };
 
-      expect(result, equals('network'));
+      expect(classify(const ConnectionTimeout()), equals('network'));
+      expect(classify(const InvalidCredentials()), equals('auth'));
+      expect(classify(const InternalServerError()), equals('server'));
+      // 수정 전에는 이 줄이 'server' 를 반환했다 — 클라이언트 측 원인까지
+      // 흡수하는 캐치올이 서버 장애로 취급되어 재시도 정책과 문구가 틀어졌다.
+      expect(classify(const UnknownException()), equals('unknown'));
+    });
+
+    // IN-05: 캐치올은 서버 도메인이 아니다.
+    test('UnknownException 은 ServerException 이 아니다 (IN-05)', () {
+      const ex = UnknownException();
+      expect(ex, isA<AppException>());
+      expect(ex, isNot(isA<ServerException>()));
+      expect(ex, isNot(isA<NetworkException>()));
+      expect(ex, isNot(isA<AuthException>()));
     });
 
     // Test 6: cause 파라미터가 optional이며 원본 예외를 보존

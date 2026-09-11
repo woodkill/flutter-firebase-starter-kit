@@ -5,6 +5,10 @@ import '../auth/provider_id.dart';
 /// 모든 도메인별 예외는 이 클래스를 상속한다.
 /// sealed class이므로 switch 문에서 exhaustive 패턴 매칭이 가능하다.
 ///
+/// 직속 하위는 4종이다 — [NetworkException] / [AuthException] /
+/// [ServerException] / [UnknownException] (캐치올, IN-05). exhaustive switch
+/// 는 네 갈래를 모두 다뤄야 한다.
+///
 /// [userMessage]는 ARB 키 문자열을 저장하고,
 /// UI 레이어에서 [resolveExceptionMessage]를 통해 l10n 룩업으로 번역한다.
 /// 기술 상세(스택 트레이스, 내부 에러 코드 등)를 포함하지 않는다.
@@ -294,6 +298,10 @@ final class UnauthenticatedException extends AuthException {
 /// 서버 관련 예외의 sealed class.
 ///
 /// 서버 내부 오류, 서비스 불가 등 서버 계층에서 발생하는 예외를 분류한다.
+///
+/// **분류 불가 오류는 여기 두지 않는다 (IN-05).** 캐치올은 [AppException]
+/// 직속 leaf 인 [UnknownException] 이다 — "미분류" 를 "서버 장애" 로 오분류하면
+/// 재시도 정책과 사용자 문구가 틀어진다.
 sealed class ServerException extends AppException {
   /// [ServerException]을 생성한다.
   const ServerException({required super.userMessage, super.cause});
@@ -313,12 +321,28 @@ final class ServiceUnavailable extends ServerException {
     : super(userMessage: 'errorServiceUnavailable');
 }
 
-/// 분류되지 않은 일반 서버 오류 (Phase 16 D-06).
+// ---------------------------------------------------------------------------
+// 미분류 예외
+// ---------------------------------------------------------------------------
+
+/// 어느 도메인으로도 분류되지 않은 오류 (Phase 16 D-06).
 ///
-/// `deleteUserAccount` Cloud Function 이 `internal` 등 server-side
-/// 일반 오류 코드를 반환할 때 매핑된다. 사용자에게는 "탈퇴 실패, 재시도"
-/// 안내 (UI-SPEC Surface C / withdrawalFailure SnackBar) 가 표시된다.
-final class UnknownException extends ServerException {
+/// **[AppException] 직속 leaf 다 ([ServerException] 하위가 아니다) — 코드 리뷰
+/// IN-05.** 과거에는 "분류되지 않은 일반 **서버** 오류" 라는 doc 과 함께
+/// [ServerException] 을 상속했는데, 실제 사용은 분류 불가 전반의 캐치올이었다.
+/// `settings_repository.dart` 의 `_ => UnknownException(cause: e)` 는
+/// `invalid-argument` / `cancelled` 같은 **클라이언트 측 원인**까지 흡수하고,
+/// `auth_repository.dart` 는 caller 부재 등 구조적 실패에 이 타입을 쓴다.
+///
+/// 그 상태로 두면 `case ServerException` 으로 분기하는 코드가 서버 장애가
+/// 아닌 오류를 서버 장애로 취급해 재시도 정책과 문구 선택이 틀어진다
+/// (`splash_initializer._isTransient` 같은 분류기가 확장될 때 특히 위험하다).
+/// 직속 leaf 로 올리면 [AppException] 에 대한 exhaustive switch 가 본 타입을
+/// **명시적으로 다루도록 컴파일러가 강제**한다 — 오분류가 침묵하지 않는다.
+///
+/// 사용자에게는 각 표면의 generic 실패 문구 (예: UI-SPEC Surface C /
+/// withdrawalFailure SnackBar) 가 표시된다.
+final class UnknownException extends AppException {
   /// [UnknownException]을 생성한다.
   const UnknownException({super.cause}) : super(userMessage: 'errorUnknown');
 }
