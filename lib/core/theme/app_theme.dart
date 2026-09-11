@@ -9,6 +9,14 @@ import 'app_typography.dart';
 /// [seedColor]를 기반으로 [ColorScheme.fromSeed]를 사용하여 M3 팔레트를 생성하고,
 /// [AppColors], [AppTypography], [AppSpacing] ThemeExtension을 등록한다.
 /// [seedColor]를 변경하면 전체 팔레트가 교체된다.
+///
+/// **타이포그래피 계약:** 등록되는 [AppTypography] 는 기하를 포함하지 않는
+/// **override 레이어**([AppTypography.empty])다. 로케일별 기하(ko/ja 는
+/// `ScriptCategory.dense` — `textBaseline: ideographic`)는 Flutter 가
+/// `Theme.build` 에서 `ThemeData.localize` 로 적용하므로, 완전한 스타일은
+/// 반드시 `context.appTypography` (또는 `Theme.of(context).textTheme`) 로 얻어야
+/// 한다. 사용자는 `copyWith(extensions: [AppTypography(...)])` 로 이 레이어를
+/// 채워 타이포그래피를 부분 override 할 수 있다.
 abstract final class AppTheme {
   /// 앱 전체 테마의 시드 컬러.
   ///
@@ -25,7 +33,7 @@ abstract final class AppTheme {
     return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[
         AppColors.fromBrightness(Brightness.light),
-        AppTypography.fromTextTheme(_resolvedTextTheme(base)),
+        AppTypography.empty,
         const AppSpacing(),
       ],
     );
@@ -48,19 +56,9 @@ abstract final class AppTheme {
     return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[
         AppColors.fromBrightness(Brightness.dark),
-        AppTypography.fromTextTheme(_resolvedTextTheme(base)),
+        AppTypography.empty,
         const AppSpacing(),
       ],
     );
-  }
-
-  /// [ThemeData.textTheme]에서 fontSize가 resolve되지 않는 문제를 우회한다.
-  ///
-  /// Flutter의 M3 TextTheme은 fontSize를 [Typography] 레이어에서 merge하므로,
-  /// [ThemeData.textTheme]의 개별 TextStyle에는 fontSize가 null일 수 있다.
-  /// geometry TextTheme과 merge하여 완전한 TextStyle을 반환한다.
-  static TextTheme _resolvedTextTheme(ThemeData base) {
-    final geometry = Typography.material2021().englishLike;
-    return geometry.merge(base.textTheme);
   }
 }

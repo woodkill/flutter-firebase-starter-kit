@@ -54,6 +54,30 @@ class AppTypography extends ThemeExtension<AppTypography> with Diagnosticable {
     );
   }
 
+  /// override 가 없는 빈 [AppTypography].
+  ///
+  /// 모든 필드가 빈 [TextStyle] 이라 [merge] 시 아무 속성도 덮어쓰지
+  /// 않는다. `AppTheme` 이 등록하는 기본 override 레이어로, 스타터킷
+  /// 사용자가 직접 등록하기 전까지는 테마 기본 타이포그래피를 그대로
+  /// 따른다 (로케일별 기하 desync 방지).
+  static const AppTypography empty = AppTypography(
+    displayLarge: TextStyle(),
+    displayMedium: TextStyle(),
+    displaySmall: TextStyle(),
+    headlineLarge: TextStyle(),
+    headlineMedium: TextStyle(),
+    headlineSmall: TextStyle(),
+    titleLarge: TextStyle(),
+    titleMedium: TextStyle(),
+    titleSmall: TextStyle(),
+    bodyLarge: TextStyle(),
+    bodyMedium: TextStyle(),
+    bodySmall: TextStyle(),
+    labelLarge: TextStyle(),
+    labelMedium: TextStyle(),
+    labelSmall: TextStyle(),
+  );
+
   /// Display large 텍스트 스타일.
   final TextStyle displayLarge;
 
@@ -98,6 +122,33 @@ class AppTypography extends ThemeExtension<AppTypography> with Diagnosticable {
 
   /// Label small 텍스트 스타일.
   final TextStyle labelSmall;
+
+  /// [other] 의 non-null 스타일 속성을 이 인스턴스 위에 덮어쓴 결과를 반환한다.
+  ///
+  /// 각 필드는 [TextStyle.merge] 로 합성되므로, [other] 가 지정하지 않은
+  /// 속성은 이 인스턴스의 값이 유지된다. [other] 가 null 이면 자기 자신을
+  /// 그대로 반환한다 (override 미등록 테마 방어).
+  AppTypography merge(AppTypography? other) {
+    if (other == null) return this;
+
+    return AppTypography(
+      displayLarge: displayLarge.merge(other.displayLarge),
+      displayMedium: displayMedium.merge(other.displayMedium),
+      displaySmall: displaySmall.merge(other.displaySmall),
+      headlineLarge: headlineLarge.merge(other.headlineLarge),
+      headlineMedium: headlineMedium.merge(other.headlineMedium),
+      headlineSmall: headlineSmall.merge(other.headlineSmall),
+      titleLarge: titleLarge.merge(other.titleLarge),
+      titleMedium: titleMedium.merge(other.titleMedium),
+      titleSmall: titleSmall.merge(other.titleSmall),
+      bodyLarge: bodyLarge.merge(other.bodyLarge),
+      bodyMedium: bodyMedium.merge(other.bodyMedium),
+      bodySmall: bodySmall.merge(other.bodySmall),
+      labelLarge: labelLarge.merge(other.labelLarge),
+      labelMedium: labelMedium.merge(other.labelMedium),
+      labelSmall: labelSmall.merge(other.labelSmall),
+    );
+  }
 
   @override
   AppTypography copyWith({
