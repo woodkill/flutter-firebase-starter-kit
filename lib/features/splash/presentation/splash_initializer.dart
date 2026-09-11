@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/config/auth_retry_config.dart';
 import '../../../core/config/splash_config.dart';
 import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/error/app_exception.dart';
@@ -25,7 +26,7 @@ part 'splash_initializer.g.dart';
 ///    (Onboarding CTA 가 약관 동의 + signInAnonymously 책임, D-14)
 /// 5. `currentUser == null` + `onboardingFuture` resolve 후 true ->
 ///    [signInAnonymously] 호출. 실패 시 transient 분류 (Phase 10.1 D-01/D-02)
-///    에 따라 graceful retry loop 진입 — [SplashConfig.effectiveBackoffSteps]
+///    에 따라 graceful retry loop 진입 — [AuthRetryConfig.effectiveBackoffSteps]
 ///    1s/2s/4s exponential backoff 직렬 (D-03/D-04). retry 소진 또는 permanent
 ///    fail (UserDisabled / TooManyRequests / `operation-not-allowed` cause)
 ///    시점에 [Result.failure] 반환 — 호출자 (SplashScreen) UI 가 재시도/
@@ -136,7 +137,7 @@ class SplashInitializer {
     }
     // Phase 10.1 D-03 — exponential backoff 직렬 retry loop.
     var lastException = firstResult.exception;
-    for (final delay in SplashConfig.effectiveBackoffSteps) {
+    for (final delay in AuthRetryConfig.effectiveBackoffSteps) {
       await Future<void>.delayed(delay);
       final retryResult = await authRepository.signInAnonymously();
       if (retryResult is! Failure<User>) {

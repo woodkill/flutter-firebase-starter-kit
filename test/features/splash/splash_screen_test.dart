@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_starter_kit/core/config/auth_retry_config.dart';
 import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
@@ -150,7 +151,7 @@ void main() {
   setUp(() {
     SplashConfig.overrideMinDuration = const Duration(milliseconds: 1);
     // Phase 10.1 D-16: retry backoff 실대기 9s → 3ms 단축 (1ms × 3).
-    SplashConfig.overrideBackoffSteps = const [
+    AuthRetryConfig.overrideBackoffSteps = const [
       Duration(milliseconds: 1),
       Duration(milliseconds: 1),
       Duration(milliseconds: 1),
@@ -159,7 +160,7 @@ void main() {
 
   tearDown(() {
     SplashConfig.overrideMinDuration = null;
-    SplashConfig.overrideBackoffSteps = null;
+    AuthRetryConfig.overrideBackoffSteps = null;
   });
 
   group('SplashScreen (Phase 10 AUTH-08, D-22, D-25, D-27, WARNING #13)', () {

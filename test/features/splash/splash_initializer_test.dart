@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:flutter_starter_kit/core/config/auth_retry_config.dart';
 import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
@@ -53,7 +54,7 @@ void main() {
     // WARNING #13: 실대기 1ms 로 단축 (피드백 레이턴시 < 100ms).
     SplashConfig.overrideMinDuration = const Duration(milliseconds: 1);
     // Phase 10.1 D-16: backoff 실대기 9s → 3ms 단축 (1ms × 3).
-    SplashConfig.overrideBackoffSteps = const [
+    AuthRetryConfig.overrideBackoffSteps = const [
       Duration(milliseconds: 1),
       Duration(milliseconds: 1),
       Duration(milliseconds: 1),
@@ -62,7 +63,7 @@ void main() {
 
   tearDown(() {
     SplashConfig.overrideMinDuration = null;
-    SplashConfig.overrideBackoffSteps = null;
+    AuthRetryConfig.overrideBackoffSteps = null;
   });
 
   group('SplashInitializer (Phase 10 D-24 / Issue #10 Plan 10-14 GC-03)', () {
