@@ -168,4 +168,72 @@ void main() {
       expect(AppBreakpoint.fromWidth(800), equals(AppBreakpoint.expanded));
     });
   });
+
+  // ─── T-03-IN-05: isPortrait 파생 · 지역 제약 기준 ────────────
+  group('T-03-IN-05: isPortrait 은 isLandscape 에서 파생된다', () {
+    testWidgets('두 getter 는 항상 서로의 부정이다', (tester) async {
+      for (final size in const <Size>[Size(400, 800), Size(800, 400)]) {
+        late bool isPortrait;
+        late bool isLandscape;
+
+        await tester.pumpWidget(
+          MediaQuery(
+            data: MediaQueryData(size: size),
+            child: Builder(
+              builder: (context) {
+                isPortrait = context.isPortrait;
+                isLandscape = context.isLandscape;
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        );
+
+        expect(
+          isPortrait,
+          equals(!isLandscape),
+          reason: '$size — 진실원이 둘로 갈라졌다 (IN-05 회귀).',
+        );
+      }
+    });
+
+    testWidgets('지역 제약 기준은 fromWidth(constraints.maxWidth) 로 얻는다', (
+      tester,
+    ) async {
+      late AppBreakpoint screenBreakpoint;
+      late AppBreakpoint localBreakpoint;
+
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(size: Size(640, 800)),
+          child: Center(
+            child: SizedBox(
+              width: 300,
+              child: Builder(
+                builder: (context) {
+                  screenBreakpoint = context.breakpoint;
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      localBreakpoint = AppBreakpoint.fromWidth(
+                        constraints.maxWidth,
+                      );
+                      return const SizedBox.shrink();
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // 화면 전체 폭 640dp → expanded, 지역 가용 폭 300dp → compact.
+      expect(screenBreakpoint, equals(AppBreakpoint.expanded));
+      expect(
+        localBreakpoint,
+        equals(AppBreakpoint.compact),
+        reason: 'context.breakpoint 는 화면 전체 폭 기준이라 지역 제약과 다르다.',
+      );
+    });
+  });
 }

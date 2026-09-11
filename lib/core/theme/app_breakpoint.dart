@@ -61,12 +61,26 @@ enum AppBreakpoint {
 /// [MediaQuery.sizeOf]와 [MediaQuery.orientationOf]를 사용하여
 /// 불필요한 리빌드를 최소화한다.
 ///
+/// **주의 — 화면 전체 폭 기준:** [breakpoint] 는 [MediaQuery.sizeOf] (화면
+/// 전체 폭) 를 쓴다. 폭이 제한된 컨테이너(sheet, 분할 레이아웃, 패딩된
+/// 칼럼) 안에서는 실제 가용 폭과 어긋난다. 지역 제약 기준이 필요하면
+/// [LayoutBuilder] 와 [AppBreakpoint.fromWidth] 를 직접 쓴다.
+///
 /// 사용 예:
 /// ```dart
+/// // 화면 전체 폭 기준
 /// final bp = context.breakpoint;
 /// if (bp == AppBreakpoint.expanded) {
 ///   // 대형 모바일/폴더블 레이아웃
 /// }
+///
+/// // 지역 제약 기준
+/// LayoutBuilder(
+///   builder: (context, constraints) {
+///     final bp = AppBreakpoint.fromWidth(constraints.maxWidth);
+///     return bp == AppBreakpoint.compact ? const _Narrow() : const _Wide();
+///   },
+/// );
 /// ```
 extension ResponsiveX on BuildContext {
   /// 현재 화면 너비에 해당하는 [AppBreakpoint]를 반환한다.
@@ -78,5 +92,8 @@ extension ResponsiveX on BuildContext {
       MediaQuery.orientationOf(this) == Orientation.landscape;
 
   /// 현재 기기가 portrait orientation인지 반환한다.
-  bool get isPortrait => MediaQuery.orientationOf(this) == Orientation.portrait;
+  ///
+  /// [isLandscape]에서 파생된다 — 두 getter 가 각자 [MediaQuery] 를 읽으면
+  /// 진실원이 둘로 갈라진다.
+  bool get isPortrait => !isLandscape;
 }
