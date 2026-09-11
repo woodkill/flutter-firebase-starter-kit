@@ -10,7 +10,7 @@ part 'app_config.g.dart';
 /// `enabledAuthProviders` (CSV — 활성화할 도메인 ProviderId 슬러그를 쉼표로
 /// 나열) 를 컴파일 타임 상수로 읽어 [Map] 으로 노출한다.
 ///
-/// **Phase 11-04 hotfix — 단일 CSV 결정:** 11-02 가 처음에는 8개 평탄 키
+/// **Phase 11-04 hotfix — 단일 CSV 결정:** 11-02 가 처음에는 provider 별 평탄 키
 /// (`authProvider_{providerId}_enabled`) 를 dart-define 으로 직접 lookup 하는
 /// 방식을 채택했으나, Dart 의 `bool.fromEnvironment` 는 첫 번째 인자가 컴파일
 /// 타임 상수 String 일 때만 환경 변수 lookup 을 수행한다 (T-11-CONST-01).
@@ -18,7 +18,7 @@ part 'app_config.g.dart';
 /// 인자로 넘기면 Dart 가 lookup 을 수행하지 못하고 `defaultValue: false` 로
 /// 떨어진다.
 ///
-/// 이를 회피하기 위해 8 entry 를 명시 const 리터럴로 풀었었지만 (회귀 commit
+/// 이를 회피하기 위해 전 entry 를 명시 const 리터럴로 풀었었지만 (회귀 commit
 /// 287714e), starter kit 의 "새 provider 추가 시 보일러플레이트 최소" 가치와
 /// 충돌해 단일 CSV 키 + 런타임 split 방식으로 정착한다. 단일 컴파일 타임
 /// 상수 키 1개만 사용하므로 컴파일 타임 안전성을 유지하면서, AppConfig 코드는
@@ -53,6 +53,14 @@ abstract final class AppConfig {
   ///
   /// 미주입 시 빈 문자열 — silent fallback 회피 (WR-07 hotfix 패턴). 키 이름을
   /// 오타 내도 defaultValue 로 그럴듯한 값이 나오지 않아 즉시 검출된다.
+  ///
+  /// **표기 규칙 (IN-02 리뷰 — 파일 전체 공통):** 본 클래스의 모든
+  /// `String.fromEnvironment` 는 `defaultValue` 인자를 **생략**한다.
+  /// `String.fromEnvironment` 의 기본 defaultValue 가 이미 `''` 이므로
+  /// `defaultValue: ''` 는 동작상 무의미한데, 일부만 명시하면 독자가 두 표기의
+  /// 의미 차이를 찾느라 시간을 쓴다. 빈 문자열 자체가 "미주입" sentinel 이며,
+  /// 그 값을 무엇으로 대체할지는 소비처가 결정한다 (`App` 은 l10n 의
+  /// `appTitle`, 환경 정보 화면은 경고 chip).
   /// 빈 문자열일 때 표시 문자열을 무엇으로 대체할지는 소비처가 결정한다
   /// (`App` 은 l10n 의 `appTitle`, 환경 정보 화면은 경고 chip).
   static const String appName = String.fromEnvironment('appName');
@@ -68,7 +76,6 @@ abstract final class AppConfig {
   /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Kakao 단락 참조.
   static const String kakaoNativeAppKey = String.fromEnvironment(
     'kakaoNativeAppKey',
-    defaultValue: '',
   );
 
   /// Naver 로그인 SDK 빌드타임 시크릿 3종 (Phase 13 — see ROADMAP.md).
@@ -82,27 +89,31 @@ abstract final class AppConfig {
   ///
   /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
   /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Naver 단락 참조 (Plan 13-07).
-  static const String _naverClientId = String.fromEnvironment(
-    'naverClientId',
-    defaultValue: '',
-  );
-  static const String _naverClientSecret = String.fromEnvironment(
-    'naverClientSecret',
-    defaultValue: '',
-  );
-  static const String _naverUrlScheme = String.fromEnvironment(
-    'naverUrlScheme',
-    defaultValue: '',
-  );
+  ///
+  /// **IN-03:** 과거 Naver 3종만 `private const` + `public getter` 2단 구조라
+  /// 다른 키들(전부 public `static const`)과 일관성이 깨졌고, getter 는 const
+  /// 문맥에서 쓸 수 없어 소비처의 선택지도 좁았다. 지금은 평탄화되어 다른
+  /// 키와 동일한 방식으로 쓸 수 있다.
 
   /// Naver 로그인 클라이언트 ID. Naver Developers Console 의 Client ID 값.
-  static String get naverClientId => _naverClientId;
+  static const String naverClientId = String.fromEnvironment('naverClientId');
 
-  /// Naver 로그인 클라이언트 Secret. SDK init 의무 인자 (D-60 — 사용처 0건).
-  static String get naverClientSecret => _naverClientSecret;
+  /// Naver 로그인 클라이언트 Secret.
+  ///
+  /// `NaverLoginSDK.initialize` 의 의무 인자로 `bootstrap.dart` 에서 1회
+  /// 사용한다. 그 외 참조는 없다 (IN-03 — 과거 doc 의 "사용처 0건" 은 실제와
+  /// 어긋났다).
+  ///
+  /// **fork 사용자 주의:** 클라이언트 시크릿은 앱 바이너리에서 추출 가능하다
+  /// (Naver SDK 가 client 측 초기화 인자로 요구하는 설계상 불가피하다).
+  /// 이 값은 서버 시크릿이 아니며, 반드시 **자신의 키를 발급받아** 사용할 것 —
+  /// 스타터킷의 dev 키를 그대로 배포하지 말 것.
+  static const String naverClientSecret = String.fromEnvironment(
+    'naverClientSecret',
+  );
 
   /// Naver 로그인 URL Scheme. iOS only (Android 는 SDK 자동 머지).
-  static String get naverUrlScheme => _naverUrlScheme;
+  static const String naverUrlScheme = String.fromEnvironment('naverUrlScheme');
 
   /// LINE Channel ID — public client identifier (Phase 14 D-LINE-16).
   ///
@@ -118,10 +129,7 @@ abstract final class AppConfig {
   /// LINE Channel Secret 은 client 측에 미저장 (D-LINE-18 — Cloud Function
   /// 의 Secret Manager 단독 보관). client 는 Channel ID 만 보유하면 OIDC
   /// 흐름 수행 가능.
-  static const String lineChannelId = String.fromEnvironment(
-    'lineChannelId',
-    defaultValue: '',
-  );
+  static const String lineChannelId = String.fromEnvironment('lineChannelId');
 
   /// Yahoo!JP OAuth/OIDC Client ID — public client identifier (Phase 15 D-YJP-03).
   ///
@@ -140,7 +148,6 @@ abstract final class AppConfig {
   /// 는 Client ID 만 보유하면 OIDC 흐름 수행 가능.
   static const String yahoojpClientId = String.fromEnvironment(
     'yahoojpClientId',
-    defaultValue: '',
   );
 
   /// Yahoo!JP OAuth redirect scheme — custom URL scheme (Phase 15 D-YJP-03).
@@ -159,7 +166,6 @@ abstract final class AppConfig {
   /// 1:1 일치 의무 (T-15-02 mitigation).
   static const String yahoojpRedirectScheme = String.fromEnvironment(
     'yahoojpRedirectScheme',
-    defaultValue: '',
   );
 
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
@@ -168,14 +174,19 @@ abstract final class AppConfig {
   /// 미주입 시 빈 문자열 → 모두 disabled (D-21 안전 default).
   static const String _enabledRaw = String.fromEnvironment(
     'enabledAuthProviders',
-    defaultValue: '',
   );
 
   /// 정적 활성화 맵을 반환한다.
   ///
-  /// CSV 토큰을 set 으로 파싱한 뒤 [kAllProviderIds] 의 8 슬러그 모두에 대해
+  /// CSV 토큰을 set 으로 파싱한 뒤 [kAllProviderIds] 의 **모든 슬러그**에 대해
   /// membership 을 [bool] 로 노출한다. 미주입 / 미등록 슬러그는 [false]
   /// 안전 default (D-21).
+  ///
+  /// IN-04: 과거 doc 은 슬러그 개수를 숫자로 못박았는데 그 숫자가 실제
+  /// [kAllProviderIds] 길이와 달랐다 (`email` 은 목록에 없다 —
+  /// `exception_l10n.dart` 의 provider 개수 서술과 혼동된 값이다). 개수는
+  /// provider 추가/폐기마다 바뀌므로 (Phase 16 WeChat 폐기 등) doc 에서
+  /// 숫자를 제거하고 목록 자체를 가리킨다.
   ///
   /// 반환 맵은 [Map.unmodifiable] 으로 감싸 정적 진실의 런타임 변조를
   /// 방어한다 (WR-02 hotfix) — D-26 의 "정적 false 절대 우위" invariant 가

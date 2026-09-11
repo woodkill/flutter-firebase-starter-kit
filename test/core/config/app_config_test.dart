@@ -207,4 +207,81 @@ void main() {
       });
     }
   });
+
+  group('IN-02 / IN-03 / IN-04 — app_config.dart 표기 일관성 (소스 계약)', () {
+    late String source;
+
+    setUpAll(() async {
+      source = await File('lib/core/config/app_config.dart').readAsString();
+    });
+
+    /// 주석·문서 라인을 제거한 [raw] 를 반환한다.
+    String stripComments(String raw) => raw
+        .split('\n')
+        .where((line) {
+          final trimmed = line.trimLeft();
+          return !trimmed.startsWith('//') && !trimmed.startsWith('///');
+        })
+        .join('\n');
+
+    test("IN-02: defaultValue: '' 표기가 파일 전체에서 제거되어 있다", () {
+      // flavor / appName 은 "defaultValue 없음 = silent fallback 회피" 를
+      // 근거로 인자를 의도적으로 생략했는데, 나머지는 defaultValue: '' 를
+      // 명시하면서 doc 에는 똑같은 근거를 적었다. 한 파일 안에 두 규칙이
+      // 공존하지 않게 한다.
+      expect(
+        stripComments(source),
+        isNot(contains("defaultValue: ''")),
+        reason: "IN-02: String.fromEnvironment 의 기본 defaultValue 가 이미 '' 다",
+      );
+    });
+
+    test('IN-03: Naver 3종이 다른 키와 동일하게 public static const 로 평탄화됐다', () {
+      final code = stripComments(source);
+      for (final key in const <String>[
+        'naverClientId',
+        'naverClientSecret',
+        'naverUrlScheme',
+      ]) {
+        expect(
+          RegExp('static const String $key =').hasMatch(code),
+          isTrue,
+          reason: 'IN-03: $key 는 public static const 여야 한다',
+        );
+        expect(
+          code.contains('_$key'),
+          isFalse,
+          reason: 'IN-03: private const + getter 2단 구조가 되살아났다',
+        );
+      }
+      // const 문맥에서 사용 가능해야 한다 (getter 였다면 컴파일되지 않는다).
+      const probe = <String>[
+        AppConfig.naverClientId,
+        AppConfig.naverClientSecret,
+        AppConfig.naverUrlScheme,
+      ];
+      expect(probe, hasLength(3));
+    });
+
+    test('IN-03: naverClientSecret doc 의 stale "사용처 0건" 이 제거됐다', () {
+      // bootstrap.dart 가 실제로 clientSecret 인자로 사용 중이다.
+      expect(source, isNot(contains('사용처 0건)')));
+      expect(
+        source.contains('bootstrap.dart'),
+        isTrue,
+        reason: 'IN-03: 실제 사용처를 doc 이 가리켜야 한다',
+      );
+    });
+
+    test('IN-04: doc 이 kAllProviderIds 개수를 하드코딩하지 않는다', () {
+      // 실제 kAllProviderIds 는 7개인데 doc 은 "8 슬러그" 라고 적고 있었다
+      // (exception_l10n 의 "8 provider (… + email)" 와 혼동된 숫자).
+      // 개수는 provider 추가/폐기마다 바뀌므로 doc 에서 숫자를 제거한다.
+      expect(source, isNot(contains('8 슬러그')));
+      expect(source, isNot(contains('8개 평탄 키')));
+      expect(source, isNot(contains('8 entry')));
+      // 근거: email 은 kAllProviderIds 에 없다.
+      expect(kAllProviderIds.contains('email'), isFalse);
+    });
+  });
 }
