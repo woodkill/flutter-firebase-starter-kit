@@ -273,4 +273,105 @@ void main() {
       );
     });
   });
+
+  // ─── T-03-WR-01: outline 은 키보드 focus 에서만 표시된다 ────────
+  //
+  // Phase 03 code review WR-01 — 구 구현은 `onFocusChange` 만 보고
+  // `FocusManager.highlightMode` 를 무시했다. 따라서 터치 단말에서
+  // 다이얼로그/바텀시트 닫힘 후 focus 복원·`requestFocus()`·directional
+  // navigation 으로 focus 가 들어오면 터치 사용자에게 2dp 검정 outline 이
+  // 노출됐다. docstring 은 "`Tab` 키 focus 도착 시" 를 표방했으므로
+  // 구현과 계약이 어긋난 상태였다.
+  group('T-03-WR-01: outline 은 highlightMode=traditional 에서만 표시된다', () {
+    tearDown(() {
+      // 전역 상태 — 다른 테스트 오염 방지를 위해 반드시 복원한다.
+      FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.automatic;
+    });
+
+    /// [BrandFocusWrapper] 의 outline 테두리 색을 읽는다.
+    Color outlineColorOf(WidgetTester tester) {
+      final Container container = tester.widget<Container>(
+        find.descendant(
+          of: find.byType(BrandFocusWrapper),
+          matching: find.byType(Container),
+        ),
+      );
+      final BoxDecoration decoration = container.decoration! as BoxDecoration;
+      return (decoration.border! as Border).top.color;
+    }
+
+    testWidgets('alwaysTouch 에서는 focus 가 들어와도 outline 이 transparent 이다', (
+      tester,
+    ) async {
+      FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.alwaysTouch;
+
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.google(
+            label: 'Sign in with Google',
+            onPressed: () {},
+          ),
+          brightness: Brightness.light,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      // focus 는 실제로 진입했지만(primaryFocus 존재), highlightMode 가
+      // touch 이므로 outline 은 그리지 않는다.
+      expect(
+        FocusManager.instance.highlightMode,
+        FocusHighlightMode.touch,
+        reason: 'alwaysTouch 전략에서는 키 이벤트가 와도 mode 가 touch 로 고정된다.',
+      );
+      expect(
+        outlineColorOf(tester),
+        Colors.transparent,
+        reason:
+            '터치·프로그램적 focus 에서 outline 이 노출됐다 — WR-01 회귀. '
+            'docstring 은 키보드 focus 만 표시하기로 계약했다.',
+      );
+    });
+
+    testWidgets('highlightMode 전환 시 outline 이 stale 로 남지 않는다', (tester) async {
+      FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.alwaysTraditional;
+
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.google(
+            label: 'Sign in with Google',
+            onPressed: () {},
+          ),
+          brightness: Brightness.light,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(
+        outlineColorOf(tester),
+        isNot(Colors.transparent),
+        reason: 'traditional 모드 + focus 보유 → outline 이 보여야 한다.',
+      );
+
+      // focus 는 그대로인 채 입력 수단만 터치로 전환.
+      FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.alwaysTouch;
+      await tester.pumpAndSettle();
+
+      expect(
+        outlineColorOf(tester),
+        Colors.transparent,
+        reason:
+            'highlightMode 전환을 구독하지 않아 outline 이 stale 로 남았다 — '
+            'addHighlightModeListener 미구동 회귀.',
+      );
+    });
+  });
 }

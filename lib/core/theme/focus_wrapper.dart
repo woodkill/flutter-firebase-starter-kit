@@ -21,6 +21,9 @@ import 'package:flutter/material.dart';
 ///   에서는 흰 (`Color(0xFFFFFFFF)`) — 양 theme contrast 보장
 /// - corner radius: 매개변수 [borderRadius] 따름 (5 provider 각각의
 ///   `BrandSpec.borderRadius` 매핑)
+/// - 표시 조건: 자손 focus 보유 **그리고**
+///   `FocusManager.highlightMode == FocusHighlightMode.traditional`
+///   (키보드 조작). 터치·프로그램적 focus 에서는 표시하지 않는다.
 ///
 /// **회귀 가드:** `test/features/auth/presentation/_widgets/
 /// focus_visible_test.dart` 의 `T-13.3-FOCUS-VISIBLE-THEME-01`.
@@ -60,12 +63,48 @@ class _BrandFocusWrapperState extends State<BrandFocusWrapper> {
     skipTraversal: true,
   );
 
+  /// 자손이 focus 를 보유 중인지 여부 (outline 표시 조건 1).
   bool _hasFocus = false;
+
+  /// outline 을 실제로 그릴지 여부.
+  ///
+  /// `_hasFocus` 와 `FocusManager.highlightMode == traditional` 의 AND 다.
+  bool _showOutline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // highlightMode 는 입력 수단(키보드/터치)에 따라 런타임에 바뀐다. 전환 시
+    // outline 이 stale 로 남지 않도록 구독한다.
+    FocusManager.instance.addHighlightModeListener(_handleHighlightModeChanged);
+  }
 
   @override
   void dispose() {
+    FocusManager.instance.removeHighlightModeListener(
+      _handleHighlightModeChanged,
+    );
     _node.dispose();
     super.dispose();
+  }
+
+  void _handleHighlightModeChanged(FocusHighlightMode mode) {
+    _syncOutline(hasFocus: _hasFocus, mode: mode);
+  }
+
+  /// outline 표시 여부를 재계산하고, 값이 바뀐 경우에만 리빌드한다.
+  void _syncOutline({
+    required bool hasFocus,
+    required FocusHighlightMode mode,
+  }) {
+    // 키보드 조작(traditional)에서만 outline 을 노출한다. 터치 단말에서
+    // 다이얼로그 닫힘 후 focus 복원 / `requestFocus()` / directional
+    // navigation 으로 focus 가 들어와도 터치 사용자에게는 표시하지 않는다.
+    final show = hasFocus && mode == FocusHighlightMode.traditional;
+    if (!mounted || _showOutline == show) return;
+    setState(() {
+      _showOutline = show;
+    });
   }
 
   /// a11y 서비스(TalkBack/VoiceOver/Switch Access)의 focus 요청을 첫 번째
@@ -101,11 +140,11 @@ class _BrandFocusWrapperState extends State<BrandFocusWrapper> {
       includeSemantics: false,
       // 자손(InkWell)이 focus 를 받으면 hasFocus=true 로 전달된다.
       onFocusChange: (hasFocus) {
-        if (mounted && _hasFocus != hasFocus) {
-          setState(() {
-            _hasFocus = hasFocus;
-          });
-        }
+        _hasFocus = hasFocus;
+        _syncOutline(
+          hasFocus: hasFocus,
+          mode: FocusManager.instance.highlightMode,
+        );
       },
       child: Semantics(
         // brand button 은 `Semantics(excludeSemantics: true)` 로 자손 `InkWell`
@@ -119,7 +158,7 @@ class _BrandFocusWrapperState extends State<BrandFocusWrapper> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.borderRadius + 4),
             border: Border.all(
-              color: _hasFocus ? outlineColor : Colors.transparent,
+              color: _showOutline ? outlineColor : Colors.transparent,
               width: 2,
             ),
           ),
