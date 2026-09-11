@@ -29,7 +29,8 @@ class ThemeNotifier extends _$ThemeNotifier {
         return ThemeMode.system;
       }
       return ThemeMode.values[index];
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
+      // Error 계열(플랫폼 채널 디코딩 TypeError 등) 도 Crashlytics 로 보낸다.
       debugPrint('theme_load failed: $e\n$st');
       await ref
           .read(crashlyticsServiceProvider)
@@ -49,20 +50,22 @@ class ThemeNotifier extends _$ThemeNotifier {
   /// 프레임에서 사용자가 테마를 토글했을 때 뒤늦게 resolve 되는 [build]
   /// 결과가 사용자 선택을 덮어쓰는 race 를 방지한다 (코드 리뷰 MD-01).
   /// [build] 가 실패하여 state 가 [AsyncError] 인 경우에도 사용자 선택을
-  /// 적용해 복구 경로를 유지하기 위해 [Exception] 을 삼킨다.
+  /// 적용해 복구 경로를 유지하기 위해 실패를 삼킨다 ([Error] 계열 포함 —
+  /// 플랫폼 채널 디코딩 [TypeError] 등이 `on Exception` 을 통과해 UI 단에서
+  /// 조용히 사라지던 경로를 막는다).
   Future<void> setThemeMode(ThemeMode mode) async {
     // build() 완료 대기 — 첫 프레임 race 회피 (코드 리뷰 MD-01).
     // build() 가 AsyncError 상태여도 아래 optimistic update 로 복구한다.
     try {
       await future;
-    } on Exception {
+    } on Object {
       // build() 실패 경로 — 아래 optimistic update 만으로 복구
     }
     state = AsyncData(mode);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_key, mode.index);
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
       debugPrint('theme_save failed: $e\n$st');
       await ref
           .read(crashlyticsServiceProvider)

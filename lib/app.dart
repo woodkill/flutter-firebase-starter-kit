@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,9 +22,22 @@ class App extends ConsumerWidget {
     // ThemeNotifier 가 AsyncNotifier 로 전환됨에 따라 AsyncValue<ThemeMode>
     // 를 반환한다. SharedPreferences 복원 전(loading) 또는 실패(error)
     // 시에는 ThemeMode.system 으로 fallback 한다.
+    //
+    // loading 과 error 를 `orElse` 한 팔로 합치면 error 가 텔레메트리 없이
+    // 삼켜진다 (사용자 저장 테마가 영구히 무시되는데 로그도 남지 않는다).
+    // error arm 을 분리해 최소한 관측 가능하게 둔다.
     final themeMode = ref
         .watch(themeProvider)
-        .maybeWhen(data: (mode) => mode, orElse: () => ThemeMode.system);
+        .when(
+          data: (mode) => mode,
+          loading: () => ThemeMode.system,
+          error: (e, st) {
+            if (kDebugMode) {
+              debugPrint('theme resolve failed: $e\n$st');
+            }
+            return ThemeMode.system;
+          },
+        );
     final locale = ref.watch(localeProvider);
     final router = ref.watch(appRouterProvider);
 

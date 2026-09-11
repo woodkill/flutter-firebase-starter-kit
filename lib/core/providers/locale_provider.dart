@@ -58,7 +58,8 @@ class LocaleNotifier extends _$LocaleNotifier {
           state = Locale(code);
         }
       }
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
+      // Error 계열도 포함 — theme_provider 와 동일 패턴.
       debugPrint('locale_load failed: $e\n$st');
       await ref
           .read(crashlyticsServiceProvider)
@@ -76,7 +77,7 @@ class LocaleNotifier extends _$LocaleNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_key, locale.languageCode);
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
       debugPrint('locale_save failed: $e\n$st');
       await ref
           .read(crashlyticsServiceProvider)
