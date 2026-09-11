@@ -112,4 +112,44 @@ void main() {
       expect(theme.colorScheme.brightness, equals(Brightness.dark));
     });
   });
+
+  // ─── T-03-IN-02: seedColor 주입 경로 ─────────────────────
+  //
+  // 스타터킷 커스터마이징 포인트인데도 상수였다 — 소스 수정 외에
+  // 교체 경로가 없었다.
+  group('T-03-IN-02: seedColor 를 인자로 주입할 수 있다', () {
+    test('seedColor 는 MaterialColor 로 명시 타입이다', () {
+      // ignore: unnecessary_type_check — public API 명시 타입 계약 고정.
+      expect(AppTheme.seedColor is MaterialColor, isTrue);
+    });
+
+    test('다른 seed 로 light() 를 만들면 colorScheme.primary 가 달라진다', () {
+      final defaultTheme = AppTheme.light();
+      final tealTheme = AppTheme.light(seedColor: Colors.teal);
+
+      expect(
+        tealTheme.colorScheme.primary,
+        isNot(equals(defaultTheme.colorScheme.primary)),
+      );
+      expect(tealTheme.colorScheme.brightness, equals(Brightness.light));
+    });
+
+    test('다른 seed 로 dark() 를 만들면 colorScheme.primary 가 달라진다', () {
+      final defaultTheme = AppTheme.dark();
+      final tealTheme = AppTheme.dark(seedColor: Colors.teal);
+
+      expect(
+        tealTheme.colorScheme.primary,
+        isNot(equals(defaultTheme.colorScheme.primary)),
+      );
+      expect(tealTheme.colorScheme.brightness, equals(Brightness.dark));
+    });
+
+    test('인자를 생략하면 기본 seedColor 와 동일한 테마다', () {
+      expect(
+        AppTheme.light() == AppTheme.light(seedColor: AppTheme.seedColor),
+        isTrue,
+      );
+    });
+  });
 }

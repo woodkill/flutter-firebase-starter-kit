@@ -18,15 +18,21 @@ import 'app_typography.dart';
 /// 한다. 사용자는 `copyWith(extensions: [AppTypography(...)])` 로 이 레이어를
 /// 채워 타이포그래피를 부분 override 할 수 있다.
 abstract final class AppTheme {
-  /// 앱 전체 테마의 시드 컬러.
+  /// 앱 전체 테마의 기본 시드 컬러.
   ///
   /// 이 값을 변경하면 [ColorScheme.fromSeed]를 통해 전체 팔레트가 교체된다.
-  static const seedColor = Colors.deepPurple;
+  ///
+  /// **커스터마이징 포인트:** 소스를 고치지 않고도 [light]/[dark] 의
+  /// `seedColor` 인자로 주입할 수 있다 — 예:
+  /// `AppTheme.light(seedColor: Colors.teal)`.
+  static const MaterialColor seedColor = Colors.deepPurple;
 
   /// 라이트 모드 [ThemeData]를 생성한다.
   ///
   /// [AppColors], [AppTypography], [AppSpacing] 3개 ThemeExtension을 포함한다.
-  static ThemeData light() {
+  /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
+  /// [AppTheme.seedColor]).
+  static ThemeData light({Color seedColor = AppTheme.seedColor}) {
     final colorScheme = ColorScheme.fromSeed(seedColor: seedColor);
     // useMaterial3 미지정 — Flutter 3.41 기준 기본값이 true 다.
     final base = ThemeData(colorScheme: colorScheme);
@@ -43,7 +49,10 @@ abstract final class AppTheme {
   /// 다크 모드 [ThemeData]를 생성한다.
   ///
   /// [AppColors], [AppTypography], [AppSpacing] 3개 ThemeExtension을 포함한다.
-  static ThemeData dark() {
+  /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
+  /// [AppTheme.seedColor]). [light] 와 동일한 시드를 넘겨야 두 모드의
+  /// 팔레트가 일관된다.
+  static ThemeData dark({Color seedColor = AppTheme.seedColor}) {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.dark,
