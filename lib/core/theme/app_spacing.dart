@@ -80,4 +80,19 @@ class AppSpacing extends ThemeExtension<AppSpacing> {
       xxxl: lerpDouble(xxxl, other.xxxl, t) ?? xxxl,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppSpacing &&
+          other.xs == xs &&
+          other.sm == sm &&
+          other.md == md &&
+          other.lg == lg &&
+          other.xl == xl &&
+          other.xxl == xxl &&
+          other.xxxl == xxxl;
+
+  @override
+  int get hashCode => Object.hash(xs, sm, md, lg, xl, xxl, xxxl);
 }

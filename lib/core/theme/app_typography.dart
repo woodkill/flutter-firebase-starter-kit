@@ -169,4 +169,43 @@ class AppTypography extends ThemeExtension<AppTypography> {
       labelSmall: TextStyle.lerp(labelSmall, other.labelSmall, t) ?? labelSmall,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppTypography &&
+          other.displayLarge == displayLarge &&
+          other.displayMedium == displayMedium &&
+          other.displaySmall == displaySmall &&
+          other.headlineLarge == headlineLarge &&
+          other.headlineMedium == headlineMedium &&
+          other.headlineSmall == headlineSmall &&
+          other.titleLarge == titleLarge &&
+          other.titleMedium == titleMedium &&
+          other.titleSmall == titleSmall &&
+          other.bodyLarge == bodyLarge &&
+          other.bodyMedium == bodyMedium &&
+          other.bodySmall == bodySmall &&
+          other.labelLarge == labelLarge &&
+          other.labelMedium == labelMedium &&
+          other.labelSmall == labelSmall;
+
+  @override
+  int get hashCode => Object.hash(
+    displayLarge,
+    displayMedium,
+    displaySmall,
+    headlineLarge,
+    headlineMedium,
+    headlineSmall,
+    titleLarge,
+    titleMedium,
+    titleSmall,
+    bodyLarge,
+    bodyMedium,
+    bodySmall,
+    labelLarge,
+    labelMedium,
+    labelSmall,
+  );
 }

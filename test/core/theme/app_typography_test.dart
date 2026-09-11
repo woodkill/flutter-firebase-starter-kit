@@ -70,4 +70,32 @@ void main() {
       });
     });
   });
+
+  // ─── T-03-WR-02: 값 동등성 ─────────────────────────────
+  group('T-03-WR-02: AppTypography 값 동등성', () {
+    test('동일 TextTheme 에서 만든 두 인스턴스는 == 이고 hashCode 도 같다', () {
+      final a = AppTypography.fromTextTheme(ThemeData.light().textTheme);
+      final b = AppTypography.fromTextTheme(ThemeData.light().textTheme);
+
+      expect(a == b, isTrue);
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('copyWith 로 변경하면 원본과 != 이다', () {
+      final original = AppTypography.fromTextTheme(ThemeData.light().textTheme);
+      final modified = original.copyWith(
+        displayLarge: const TextStyle(fontSize: 100),
+      );
+
+      expect(original == modified, isFalse);
+    });
+
+    test('light 와 dark 는 != 이다', () {
+      expect(
+        AppTypography.fromTextTheme(ThemeData.light().textTheme) ==
+            AppTypography.fromTextTheme(ThemeData.dark().textTheme),
+        isFalse,
+      );
+    });
+  });
 }

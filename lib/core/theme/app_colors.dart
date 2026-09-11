@@ -94,4 +94,19 @@ class AppColors extends ThemeExtension<AppColors> {
       onInfo: Color.lerp(onInfo, other.onInfo, t) ?? onInfo,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppColors &&
+          other.success == success &&
+          other.warning == warning &&
+          other.info == info &&
+          other.onSuccess == onSuccess &&
+          other.onWarning == onWarning &&
+          other.onInfo == onInfo;
+
+  @override
+  int get hashCode =>
+      Object.hash(success, warning, info, onSuccess, onWarning, onInfo);
 }

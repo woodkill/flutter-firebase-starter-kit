@@ -74,4 +74,28 @@ void main() {
       });
     });
   });
+
+  // ─── T-03-WR-02: 값 동등성 ─────────────────────────────
+  //
+  // `const AppSpacing()` 끼리는 const 정규화 덕분에 identity 비교로도
+  // true 였지만, 사용자가 `copyWith` 로 커스터마이즈하는 순간(스타터킷
+  // 주 사용 시나리오) 동일 값이어도 false 가 됐다.
+  group('T-03-WR-02: AppSpacing 값 동등성', () {
+    test('동일 값 두 인스턴스는 == 이고 hashCode 도 같다', () {
+      const a = AppSpacing(xs: 4);
+      const b = AppSpacing(xs: 4);
+
+      expect(a == b, isTrue);
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('copyWith 결과가 동일 값이면 const 기본값과 == 이다', () {
+      // 구 구현에서는 identity 비교라 false 였다 (WR-02 실측).
+      expect(const AppSpacing() == const AppSpacing().copyWith(xs: 4), isTrue);
+    });
+
+    test('copyWith 로 값을 바꾸면 원본과 != 이다', () {
+      expect(const AppSpacing() == const AppSpacing().copyWith(xs: 5), isFalse);
+    });
+  });
 }

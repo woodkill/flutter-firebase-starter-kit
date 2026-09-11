@@ -66,4 +66,26 @@ void main() {
       });
     });
   });
+
+  // ─── T-03-WR-02: ThemeData 동등성 ────────────────────────
+  //
+  // `lib/app.dart` 는 build 안에서 `AppTheme.light()`/`dark()` 를 매번 새로
+  // 만든다. extension 이 값 동등성을 구현하지 않으면 App 리빌드마다
+  // ThemeData 가 불일치로 판정되어 `AnimatedTheme` 이 200ms 보간을
+  // 재시작하고 `Theme.of` 의존 서브트리 전체가 리빌드된다.
+  group('T-03-WR-02: ThemeData 동등성', () {
+    test('AppTheme.light() 두 호출 결과가 == 이다', () {
+      expect(AppTheme.light() == AppTheme.light(), isTrue);
+      expect(AppTheme.light().hashCode, equals(AppTheme.light().hashCode));
+    });
+
+    test('AppTheme.dark() 두 호출 결과가 == 이다', () {
+      expect(AppTheme.dark() == AppTheme.dark(), isTrue);
+      expect(AppTheme.dark().hashCode, equals(AppTheme.dark().hashCode));
+    });
+
+    test('light 와 dark 는 != 이다', () {
+      expect(AppTheme.light() == AppTheme.dark(), isFalse);
+    });
+  });
 }

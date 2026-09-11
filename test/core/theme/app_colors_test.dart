@@ -144,6 +144,44 @@ void main() {
       });
     });
   });
+
+  // ─── T-03-WR-02: 값 동등성 ─────────────────────────────
+  //
+  // `ThemeData.operator==` 는 `mapEquals(other.extensions, extensions)` 로
+  // extension 을 비교하므로, extension 이 identity 비교로 떨어지면
+  // App 리빌드마다 ThemeData 가 "달라졌다" 고 판정된다.
+  group('T-03-WR-02: AppColors 값 동등성', () {
+    test('동일 값 두 인스턴스는 == 이고 hashCode 도 같다', () {
+      final a = AppColors.fromBrightness(Brightness.light);
+      final b = AppColors.fromBrightness(Brightness.light);
+
+      expect(a == b, isTrue);
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('copyWith 로 변경하면 원본과 != 이다', () {
+      final original = AppColors.fromBrightness(Brightness.light);
+      final modified = original.copyWith(success: const Color(0xFF00FF00));
+
+      expect(original == modified, isFalse);
+    });
+
+    test('동일 값으로 copyWith 한 결과는 원본과 == 이다', () {
+      final original = AppColors.fromBrightness(Brightness.dark);
+      final copied = original.copyWith(success: original.success);
+
+      expect(original == copied, isTrue);
+      expect(original.hashCode, equals(copied.hashCode));
+    });
+
+    test('light 와 dark 는 != 이다', () {
+      expect(
+        AppColors.fromBrightness(Brightness.light) ==
+            AppColors.fromBrightness(Brightness.dark),
+        isFalse,
+      );
+    });
+  });
 }
 
 /// sRGB 채널 컴포넌트 [v]([0.0, 1.0])를 WCAG 2.1 정의에 따라 선형화한다.
