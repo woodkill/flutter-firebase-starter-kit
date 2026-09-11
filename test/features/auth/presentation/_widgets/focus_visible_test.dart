@@ -374,4 +374,57 @@ void main() {
       );
     });
   });
+
+  // ─── T-03-IN-04: child 제약 잠식과 borderRadius 방어 ──────────
+  //
+  // Phase 03 code review IN-04 — wrapper 는 border 2dp + padding 2dp 로
+  // child 제약을 가로·세로 각각 8dp 잠식한다. 문서화도 방어도 없어
+  // 고정 높이 슬롯에 넣는 순간 브랜드 규정 높이(48dp)와 최소 터치
+  // 타겟이 조용히 깨진다.
+  group('T-03-IN-04: wrapper 의 제약 잠식과 borderRadius 방어', () {
+    testWidgets('부모가 300x48 로 bound 하면 child 는 292x40 이 된다', (tester) async {
+      const childKey = Key('in04-child');
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                height: 48,
+                child: BrandFocusWrapper(
+                  borderRadius: 8,
+                  child: SizedBox.expand(key: childKey),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSize(find.byKey(childKey)),
+        const Size(292, 40),
+        reason:
+            'border 2dp + padding 2dp × 양쪽 = 사방 4dp → 가로·세로 각각 8dp '
+            '잠식. docstring 의 수치 계약이 바뀌면 여기서 RED 가 된다.',
+      );
+    });
+
+    test('borderRadius 가 음수면 assert 로 거부한다', () {
+      expect(
+        () =>
+            BrandFocusWrapper(borderRadius: -1, child: const SizedBox.shrink()),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('borderRadius 0 은 허용된다 (직각 모서리 button)', () {
+      expect(
+        () =>
+            const BrandFocusWrapper(borderRadius: 0, child: SizedBox.shrink()),
+        returnsNormally,
+      );
+    });
+  });
 }
