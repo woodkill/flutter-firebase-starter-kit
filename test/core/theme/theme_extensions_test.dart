@@ -281,4 +281,60 @@ void main() {
       );
     });
   });
+
+  // ─── T-03-WR-04: extension 미등록 테마 방어 ─────────────────
+  //
+  // 구 구현은 세 getter 모두 `Theme.of(this).extension<T>()!` 로 강제
+  // 언랩해서, 스타터킷 사용자가 (a) 자체 ThemeData 로 교체하거나
+  // (b) 하위 트리에 `Theme(data: ThemeData(...))` 를 끼우거나 (c) 위젯
+  // 테스트에서 맨몸 `MaterialApp()` 만 감싸면 즉시
+  // `Null check operator used on a null value` 로 크래시했다.
+  group('T-03-WR-04: extension 미등록 테마에서도 기본 토큰을 돌려준다', () {
+    testWidgets('맨몸 MaterialApp 에서 세 getter 가 크래시하지 않는다', (tester) async {
+      late AppColors colors;
+      late AppSpacing spacing;
+      late AppTypography typography;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              colors = context.appColors;
+              spacing = context.appSpacing;
+              typography = context.appTypography;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(colors, equals(AppColors.fromBrightness(Brightness.light)));
+      expect(spacing, equals(const AppSpacing()));
+      expect(typography.bodyMedium.fontSize, isNotNull);
+    });
+
+    testWidgets('하위 트리의 dark Theme 에서는 dark 기본 토큰으로 폴백한다', (tester) async {
+      late AppColors colors;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: Theme(
+            // 사용자가 하위 트리에 자체 ThemeData 를 끼우는 시나리오.
+            data: ThemeData(brightness: Brightness.dark),
+            child: Builder(
+              builder: (context) {
+                colors = context.appColors;
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(colors, equals(AppColors.fromBrightness(Brightness.dark)));
+    });
+  });
 }

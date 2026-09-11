@@ -31,7 +31,14 @@ import 'app_typography.dart';
 /// ```
 extension ThemeX on BuildContext {
   /// 현재 테마의 [AppColors] ThemeExtension을 반환한다.
-  AppColors get appColors => Theme.of(this).extension<AppColors>()!;
+  ///
+  /// extension 이 등록되지 않은 테마에서는 현재 [Brightness] 에 맞는
+  /// 기본 토큰([AppColors.fromBrightness])으로 폴백한다.
+  AppColors get appColors {
+    final theme = Theme.of(this);
+    return theme.extension<AppColors>() ??
+        AppColors.fromBrightness(theme.brightness);
+  }
 
   /// 현재 테마의 타이포그래피 토큰을 반환한다.
   ///
@@ -51,7 +58,11 @@ extension ThemeX on BuildContext {
   }
 
   /// 현재 테마의 [AppSpacing] ThemeExtension을 반환한다.
-  AppSpacing get appSpacing => Theme.of(this).extension<AppSpacing>()!;
+  ///
+  /// extension 이 등록되지 않은 테마에서는 기본 4px 스케일([AppSpacing])로
+  /// 폴백한다.
+  AppSpacing get appSpacing =>
+      Theme.of(this).extension<AppSpacing>() ?? const AppSpacing();
 
   /// 현재 테마의 [ColorScheme]을 반환한다.
   ColorScheme get colorScheme => Theme.of(this).colorScheme;
