@@ -9,7 +9,13 @@ import '../error/app_exception.dart';
 ///
 /// [AppException.userMessage]에 저장된 ARB 키 문자열을
 /// [AppLocalizations]에서 룩업하여 번역된 메시지를 반환한다.
-/// 매칭되지 않는 키는 원본 문자열을 그대로 반환한다.
+///
+/// **매핑 누락 시 동작 (코드 리뷰 WR-06).** 과거에는 마지막 arm 이
+/// `final other => other` 여서 **ARB 키 문자열 자체가 사용자 화면에**
+/// 렌더됐다. 컴파일도 analyze 도 통과하므로 검출 수단이 실사용뿐이었고,
+/// 이 코드베이스에서 최소 4회 재발한 사고다 (아래 WR-03 / WR-04 주석이 그
+/// 흔적이다). 지금은 [_resolveUnmappedFallback] 이 debug 에서 즉시 실패시키고
+/// release 에서는 `errorUnknown` 으로 강등하여 **식별자 노출 경로를 닫는다.**
 String resolveExceptionMessage(BuildContext context, AppException exception) {
   final l10n = AppLocalizations.of(context);
   // (Phase 16 D-12 / Task 4.1) AccountExistsWithDifferentCredential 인스턴스의
@@ -67,8 +73,28 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     'errorReauthenticationRequired' => l10n.authReauthRequired,
     // UnauthenticatedException — ARB 키 자체가 없어 신설했다 (WR-04).
     'errorUnauthenticated' => l10n.errorUnauthenticated,
-    final other => other,
+    final other => _resolveUnmappedFallback(l10n, other),
   };
+}
+
+/// 매핑 표에 없는 [AppException.userMessage] 키를 처리한다 (WR-06).
+///
+/// debug/profile 빌드에서는 [assert] 로 즉시 실패시켜 매핑 누락을 개발 중에
+/// 드러내고, release 빌드에서는 `errorUnknown` 으로 강등한다. 어느 쪽이든
+/// **ARB 키 문자열이 사용자에게 노출되지 않는다.**
+///
+/// 이 fallback 이 발동했다는 것은 새 [AppException] 서브타입을 추가하면서
+/// [resolveExceptionMessage] 의 switch arm 등록을 잊었다는 뜻이다. 근본
+/// 해소는 [AppException.userMessage] 를 `String` 대신 enum 으로 승격해 switch
+/// 를 exhaustive 하게 만드는 것이며, 그 작업은 소비처 폭이 넓어 별도 작업으로
+/// 분리했다 (REVIEW-FIX.md WR-06 참조).
+String _resolveUnmappedFallback(AppLocalizations l10n, String key) {
+  assert(
+    false,
+    'resolveExceptionMessage 매핑 누락: "$key" — exception_l10n.dart 의 switch 에 '
+    'arm 을 추가할 것. 방치하면 사용자 화면에 영문 식별자가 그대로 렌더된다.',
+  );
+  return l10n.errorUnknown;
 }
 
 /// [AccountExistsWithDifferentCredential] 인스턴스의 provider-aware variant

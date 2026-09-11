@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -209,4 +211,78 @@ void main() {
       );
     },
   );
+
+  // WR-06 (Phase 02 리뷰) — 위 _kAllMappedExceptions 는 **손으로 유지되는**
+  // 목록이라, 새 AppException 서브타입을 추가하면서 목록 등록까지 잊으면
+  // 침묵한다. 아래 두 테스트는 소스에서 직접 키를 추출해 그 마지막 구멍을
+  // 닫는다 — app_exception.dart 의 userMessage 리터럴이 유일한 진실원이다.
+  group('WR-06: userMessage 리터럴 / 매핑 표 / 전수 목록 3자 정합', () {
+    /// 주석·문서 라인을 제거한 [source] 를 반환한다.
+    ///
+    /// 근거 주석에 등장하는 키 문자열이 실제 arm 으로 오탐되는 것을 막는다.
+    String stripComments(String source) => source
+        .split('\n')
+        .where((line) {
+          final trimmed = line.trimLeft();
+          return !trimmed.startsWith('//') && !trimmed.startsWith('///');
+        })
+        .join('\n');
+
+    /// `app_exception.dart` 의 `userMessage: '...'` 리터럴 전수를 읽는다.
+    Future<Set<String>> readDeclaredKeys() async {
+      final source = stripComments(
+        await File('lib/core/error/app_exception.dart').readAsString(),
+      );
+      return RegExp(
+        r"userMessage:\s*'([A-Za-z][A-Za-z0-9]*)'",
+      ).allMatches(source).map((m) => m.group(1)!).toSet();
+    }
+
+    test(
+      'app_exception.dart 의 모든 userMessage 리터럴이 매핑 표에 arm 으로 존재한다',
+      () async {
+        final declared = await readDeclaredKeys();
+        expect(declared, isNotEmpty, reason: '추출 정규식이 깨졌다면 테스트를 갱신할 것');
+
+        final mapping = stripComments(
+          await File('lib/core/l10n/exception_l10n.dart').readAsString(),
+        );
+        final arms = RegExp(
+          r"'([A-Za-z][A-Za-z0-9]*)'\s*=>",
+        ).allMatches(mapping).map((m) => m.group(1)!).toSet();
+
+        expect(
+          declared.difference(arms),
+          isEmpty,
+          reason:
+              'exception_l10n.dart 에 arm 이 없는 userMessage 키가 있다. 매핑이 '
+              '없으면 _resolveUnmappedFallback 으로 떨어져 debug 에서 즉시 실패하고 '
+              'release 에서는 errorUnknown 으로 강등된다 — 어느 쪽도 의도한 사용자 '
+              '문구가 아니다.',
+        );
+      },
+    );
+
+    test('_kAllMappedExceptions 가 소스의 userMessage 키를 빠짐없이 덮는다', () async {
+      // 손으로 유지되는 전수 목록이 소스와 드리프트하면 위 WR-04 그룹이
+      // 통째로 침묵한다. 그 드리프트 자체를 RED 로 만든다.
+      final declared = await readDeclaredKeys();
+      final covered = _kAllMappedExceptions.map((e) => e.userMessage).toSet();
+
+      // AccountExistsWithDifferentCredential 은 instance type-check 로 먼저
+      // 흡수되어 _kAllMappedExceptions 가 아닌 provider-aware 전용 테스트
+      // (exception_l10n_provider_aware_test.dart) 가 커버한다.
+      const handledElsewhere = <String>{
+        'errorAccountExistsWithDifferentCredential',
+      };
+
+      expect(
+        declared.difference(covered).difference(handledElsewhere),
+        isEmpty,
+        reason:
+            '_kAllMappedExceptions 에 빠진 userMessage 키가 있다. 새 '
+            'AppException 서브타입을 추가했다면 위 목록에도 추가할 것.',
+      );
+    });
+  });
 }
