@@ -14,12 +14,21 @@
 #         이 프롬프트는 막지 못해, 비대화형(비-TTY) 실행이 그대로 멈춘다.
 #         값은 ios/Runner.xcodeproj 에 실재하는 configuration 이어야 한다
 #         (Debug-dev / Debug-stg / Debug-prod).
-#       → ⚠ 부수효과: 이 옵션을 주면 flutterfire 가 Runner.xcodeproj 에
-#         service file 번들링용 실행 스크립트 단계를 추가할 수 있다. 본 프로젝트는
-#         이미 `Copy GoogleService-Info.plist` 단계가 $CONFIGURATION 접미사로
-#         ios/config/<flavor>/ 를 복사하므로 중복이다. 실행 후
-#         `git diff -- ios/Runner.xcodeproj/project.pbxproj` 로 확인하고 불필요하면
-#         되돌릴 것 (plist 자체는 --ios-out 경로에 그대로 생성된다).
+#       → ⚠ 부수효과 (2026-09-11 실측): 이 옵션을 주면 flutterfire 가 요청하지 않은
+#         파일 2종을 함께 변형한다.
+#           1) ios/Runner.xcodeproj/project.pbxproj
+#              · bundle-service-file 실행 스크립트 단계를 새로 추가한다 — 본 프로젝트는
+#                이미 Copy GoogleService-Info.plist 단계가 $CONFIGURATION 접미사로
+#                ios/config/<flavor>/ 를 복사하므로 중복이다.
+#              · 기존 upload-crashlytics-symbols 단계의 마지막 인자를
+#                --default-config=default 에서 --build-configuration=$CONFIGURATION
+#                으로 바꾼다. firebase.json 에는 Debug-<flavor> 한 개만 등록되므로
+#                나머지 8개 configuration 의 iOS 빌드가 그 단계에서 실패한다.
+#           2) firebase.json — 한 줄로 재작성되고 buildConfigurations 기록이 추가된다.
+#                이 프로젝트 빌드는 읽지 않는 CLI 내부 기록이다.
+#         → 이 스크립트는 두 파일을 flutterfire 호출 직전에 스냅샷해 두고, 호출 후
+#           (실패한 경우도 포함) 자동으로 되돌린다. 수동 fff configure 로 실행하면
+#           직접 되돌려야 한다. plist/dart options 는 --ios-out/--out 경로에 정상 생성된다.
 #   --android-out=android/app/src/<flavor>/google-services.json
 #       → Android source set 경로 직접 출력
 #   --platforms=android,ios
@@ -41,6 +50,7 @@
 #   DRY_RUN=1 ./scripts/firebase-configure.sh prod
 #       → flutterfire 호출만 건너뛰고 식별자 계산 + skip-worktree 후처리만 실행
 #         (네트워크·Firebase 인증 불필요, 검증용)
+#         (스냅샷·복원·dart 포맷 후처리도 함께 건너뛴다 — 변형 원인이 없다)
 #
 # starter-kit 정책:
 #   기본 상태에서는 dev flavor 만 실제 Firebase 프로젝트가 연결된다.
@@ -94,6 +104,49 @@ OUT_DART="lib/core/firebase/firebase_options_${FLAVOR}.dart"
 OUT_IOS="ios/config/${FLAVOR}/GoogleService-Info.plist"
 OUT_ANDROID="android/app/src/${FLAVOR}/google-services.json"
 
+# FlutterFire CLI 가 --ios-build-config 과 함께 **요청하지 않아도** 변형하는 파일 2종.
+# 산출물(plist · google-services.json · dart options)은 여기에 넣지 않는다 —
+# 그건 이 스크립트가 만들어야 하는 결과물이다.
+CLI_TOUCHED_PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
+CLI_TOUCHED_FIREBASE_JSON="firebase.json"
+
+# 스냅샷 디렉터리. set -u 아래이므로 빈 값으로 초기화해 둔다 (DRY_RUN 경로에서는
+# 끝까지 빈 값 → 복원 함수가 즉시 return).
+SNAP_DIR=""
+
+# 스냅샷 1건 되돌리기. 내용이 같으면 아무 것도 하지 않는다(조용한 성공).
+restore_one_file() {
+  local target="$1"
+  local snap="${SNAP_DIR}/$2"
+  local reason="$3"
+  [ -f "$snap" ] || return 0
+  [ -f "$target" ] || return 0
+  if cmp -s "$snap" "$target"; then
+    return 0
+  fi
+  cp "$snap" "$target"
+  echo "  ↩ 복원: ${target}"
+  echo "     이유: ${reason}"
+}
+
+# flutterfire 호출 후 부수효과를 되돌린다.
+#   · EXIT trap 으로도 불린다 — flutterfire 가 실패하면 set -e 가 그 자리에서
+#     스크립트를 끝내므로 명시 호출에 도달하지 못한다.
+#   · 멱등하다 — 한 번 돌면 SNAP_DIR 을 비워 두 번째 호출은 즉시 return.
+#   · 스크립트의 원래 종료 코드를 보존한다 (local rc=$? / return "$rc").
+#     보존하지 않으면 flutterfire 실패가 rc=0 으로 둔갑한다.
+restore_cli_side_effects() {
+  local rc=$?
+  [ -n "${SNAP_DIR:-}" ] || return "$rc"
+  restore_one_file "$CLI_TOUCHED_PBXPROJ" "project.pbxproj" \
+    'bundle-service-file 단계가 중복 추가되고, crashlytics 단계 인자가 --build-configuration=${CONFIGURATION} 로 바뀌어 firebase.json 에 없는 8개 configuration 의 iOS 빌드가 깨진다'
+  restore_one_file "$CLI_TOUCHED_FIREBASE_JSON" "firebase.json" \
+    'CLI 내부 기록용 파일이며 이 프로젝트 빌드는 읽지 않는다 (위 단계와 flutterfire reconfigure 만 사용)'
+  rm -rf "$SNAP_DIR"
+  SNAP_DIR=""
+  return "$rc"
+}
+
 cat <<EOF
 ▶ Firebase configure for flavor: ${FLAVOR}
   project:       ${PROJECT_ID}
@@ -128,6 +181,7 @@ fi
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
   echo "⏭ DRY_RUN=1 — flutterfire configure 호출을 건너뛴다 (후처리는 실행)."
   echo "⏭ DRY_RUN=1 — ruby xcodeproj 전제조건 검사도 건너뛴다 (flutterfire 미호출)."
+  echo "⏭ DRY_RUN=1 — pbxproj/firebase.json 스냅샷·복원과 dart 포맷 후처리도 건너뛴다."
   echo ""
 else
   # 전제조건 — FlutterFire CLI 는 --ios-build-config 값이 실재하는지 확인하려고
@@ -151,6 +205,18 @@ EOF
     exit 1
   fi
 
+  # FlutterFire CLI 는 아래 호출에서 pbxproj 와 firebase.json 을 함께 변형한다
+  # (2026-09-11 실측). 요청한 산출물이 아니므로 실행 직전 스냅샷을 떠 둔다.
+  # trap 을 **여기서** 건다 — 전제조건 실패(exit 1)는 스냅샷 이전이라 복원할 것이 없고,
+  # 여기부터는 flutterfire 가 죽어도 EXIT 경로로 복원된다.
+  SNAP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/firebase-configure-XXXXXX")"
+  trap restore_cli_side_effects EXIT
+  for SNAP_SRC in "$CLI_TOUCHED_PBXPROJ" "$CLI_TOUCHED_FIREBASE_JSON"; do
+    if [ -f "$SNAP_SRC" ]; then
+      cp "$SNAP_SRC" "${SNAP_DIR}/$(basename "$SNAP_SRC")"
+    fi
+  done
+
   # FVM Dart 경유로 flutterfire CLI 실행 (시스템 PATH 미오염, FVM 정책 준수)
   fvm dart pub global run flutterfire_cli:flutterfire configure \
     --project="${PROJECT_ID}" \
@@ -162,6 +228,14 @@ EOF
     --ios-build-config="Debug-${FLAVOR}" \
     --android-out="${OUT_ANDROID}" \
     --yes
+
+  # 부수효과 되돌림 — 성공 경로에서는 여기서 끝난다(안내가 ✓ 완료 줄보다 먼저 찍히도록).
+  # 실패 경로는 위 EXIT trap 이 같은 함수를 부른다.
+  restore_cli_side_effects
+
+  # flutterfire 출력은 dart format 이 적용돼 있지 않다 (긴 client id 한 줄 + 파일 끝
+  # newline 없음). 이대로 두면 프로젝트 포맷 게이트가 rc=1 로 깨진다.
+  fvm dart format "$OUT_DART"
 fi
 
 # 생성된 산출물 중 **tracked 인 것 전부**에 skip-worktree 를 적용한다.
