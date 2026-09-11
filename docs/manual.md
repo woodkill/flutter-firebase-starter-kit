@@ -201,6 +201,13 @@ pnpm install                   # pnpm-lock.yaml 기반 reproducible install
   `ios/Runner.xcodeproj` 를 파싱하므로 gem 이 없으면 실패한다 —
   `gem install xcodeproj` (또는 gem 이 있는 ruby 를 PATH 앞에) 로 해결한다.
   CocoaPods 에 벤더링된 xcodeproj 는 gem 경로 밖이라 인식되지 않는다.
+  2026-09-11 실측: 수동 `fff configure` 는 `ios/Runner.xcodeproj/project.pbxproj`
+  (중복 `bundle-service-file` 단계 추가 + crashlytics 단계 인자가
+  `--build-configuration=${CONFIGURATION}` 으로 교체 → `firebase.json` 에
+  등록되지 않은 8개 configuration 의 iOS 빌드 실패) 와 `firebase.json` 을
+  함께 변형한다. 스크립트 경로는 두 파일을 실행 전 스냅샷했다가 실행
+  후(실패 포함) 자동 복원하고, 생성된 dart options 에 `fvm dart format` 을
+  적용해 포맷 게이트와 어긋나지 않게 한다.
 
 ### Cloud Functions region 변경 (`functionsRegion`)
 
@@ -2940,6 +2947,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 
 | 2026-09-11 | quick 260911-w9w | `scripts/firebase-configure.sh` 가 `--ios-build-config=Debug-<flavor>` 를 항상 전달하도록 해 비대화형(비-TTY) 셸에서 CLI 의 "build configuration vs target" 선택 프롬프트로 멈추던 hang 을 해소 — `--yes` 는 덮어쓰기 확인만 처리하므로 이 프롬프트를 막지 못한다. 값 3종(`Debug-dev` / `Debug-stg` / `Debug-prod`)은 `ios/Runner.xcodeproj` 에 실재한다. 이어서 CLI 가 그 값을 ruby `xcodeproj` gem 으로 검증하므로, gem 이 없으면 flutterfire 호출 **전에** 스크립트가 exit 1 하고 한국어 해결 안내를 출력하는 fail-fast 전제조건 검사를 추가 (산출물 3종 변경 0 · skip-worktree 플래그 변화 0, `DRY_RUN=1` 경로는 검사를 건너뛴다). README 에 「전제 2」 문단 + Quick Start 3단계 주석 + 수동 `fff configure` 스니펫 비대화형화(`--ios-out` · `--ios-build-config` 동반), 「흔한 실수」 에 항목 1 건 add-only. 회귀 가드 test 3 건은 header 주석이 아니라 **실행 라인**만 보고 두 계약(플래그 전달 · 전제조건 검사 위치)을 단언한다. |
 
+| 2026-09-11 | quick 260911-x9x | `./scripts/firebase-configure.sh <flavor>` 의 FlutterFire CLI 부수효과를 스크립트가 자동 복원하도록 변경 — live run 실측 결과 `--ios-build-config` 을 주면 CLI 가 `ios/Runner.xcodeproj/project.pbxproj` 에 중복 `bundle-service-file` 실행 스크립트 단계를 추가하고, 기존 `upload-crashlytics-symbols` 단계의 인자를 `--default-config=default` 에서 `--build-configuration=${CONFIGURATION}` 으로 바꾼다. `firebase.json` 에는 `Debug-<flavor>` 한 개만 등록되므로 후자는 나머지 **8/9 configuration 의 iOS 빌드**를 `FirebaseJsonException` 으로 깨뜨린다 (진짜 손상). `firebase.json` 자체도 1줄로 재작성된다. 스크립트는 두 파일을 flutterfire 호출 직전 `mktemp` 디렉터리에 스냅샷해 두고 호출 후(실패 경로는 EXIT trap) 스냅샷 **파일 복사**로 되돌린다 — `git checkout` 을 쓰지 않는 이유는 개발자의 미커밋 pbxproj 편집까지 날리기 때문이다. 복원 함수는 `local rc=$?` / `return "$rc"` 로 원래 종료 코드를 보존하고 임시 디렉터리를 성공·실패 양쪽에서 정리한다. 또 flutterfire 가 생성한 dart options 는 포맷이 적용돼 있지 않아 `fvm dart format --set-exit-if-changed lib test` 를 rc=1 로 만들므로 스크립트가 산출물에 `fvm dart format` 을 적용한다. `DRY_RUN=1` 경로는 스냅샷·복원·포맷을 전부 건너뛴다 (flutterfire 미호출 = 변형 원인 없음). header ⚠ 경고 문구를 추측에서 실측으로 교체하고 회귀 가드 test 를 4건 추가(3 → 7건), 직전 260911-w9w 가 남긴 미검증 deferred 2건(pbxproj 부수효과 실측 · 비대화형 hang 해소 end-to-end 실증)을 함께 종결. |
+
 ---
 
-*Last updated: 2026-09-11 — quick 260911-w9w firebase-configure 비대화형 hang 해소*
+*Last updated: 2026-09-11 — quick 260911-x9x firebase-configure 부수효과 자동 복원*

@@ -292,6 +292,14 @@ Starter Kit 는 stg/prod 의 `lib/core/firebase/firebase_options_stg.dart` /
    > 이름이어야 한다. 또 이 경로로 생성하면 skip-worktree 가
    > 적용되지 않으므로 tracked 산출물마다 직접
    > `git update-index --skip-worktree <path>` 를 실행해야 한다.
+   > 또 수동 실행은 `ios/Runner.xcodeproj/project.pbxproj` 와 `firebase.json` 을
+   > 함께 변형한다 — 중복된 `bundle-service-file` 단계가 추가되고, crashlytics
+   > 단계의 인자가 `--build-configuration=${CONFIGURATION}` 으로 바뀌어
+   > `firebase.json` 에 등록되지 않은 8개 configuration 의 iOS 빌드가 깨진다.
+   > 수동 경로에서는 실행 후 두 파일을 **직접 되돌려야 한다**.
+   > `./scripts/firebase-configure.sh` 는 두 파일을 실행 직전 스냅샷했다가 실행
+   > 후(실패 포함) 자동 복원하고, 생성된 dart options 에 `fvm dart format` 까지
+   > 적용한다.
 3. 위와 동일한 Crashlytics 활성화 절차를 stg/prod 각 프로젝트에 적용.
 4. **prod 추가 필수:** Crashlytics > Settings > **dSYM upload (iOS)** 자동화 +
    Android 의 NDK symbol upload (네이티브 크래시가 가독성 있게 deobfuscate
