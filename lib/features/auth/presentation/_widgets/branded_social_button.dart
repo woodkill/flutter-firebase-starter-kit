@@ -10,7 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../../../core/theme/focus_wrapper.dart';
+import '../../../../core/theme/brand_focus_wrapper.dart';
 import '_brand_assets.dart';
 
 // Phase 13.1 REVIEW WR-02 / WR-09 정정 (2026-05-10):
@@ -524,6 +524,11 @@ class BrandedSocialButton extends StatelessWidget {
     // indicator. 5 provider 자동 상속 (BrandedSocialButton.build 단일 boundary
     // 에서 wrap). WCAG 2.1 SC 2.4.7 Level AA 부합. token 의존 0 (starter kit
     // brand drift 회피). BrandFocusWrapper docstring 참조.
+    //
+    // 회귀 가드: `test/features/auth/presentation/_widgets/
+    // focus_visible_test.dart` (T-13.3-FOCUS-VISIBLE-THEME-01 / T-03-CR-01 /
+    // T-03-WR-01 / T-03-IN-04). borderRadius 는 각 provider 의
+    // `BrandSpec.borderRadius` 를 그대로 넘긴다.
     return BrandFocusWrapper(
       borderRadius: spec.borderRadius,
       isEnabled: onPressed != null,

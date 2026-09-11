@@ -15,7 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
-import 'package:flutter_starter_kit/core/theme/focus_wrapper.dart';
+import 'package:flutter_starter_kit/core/theme/brand_focus_wrapper.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
