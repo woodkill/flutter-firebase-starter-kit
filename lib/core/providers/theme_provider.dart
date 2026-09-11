@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,7 +32,14 @@ class ThemeNotifier extends _$ThemeNotifier {
       return ThemeMode.values[index];
     } on Object catch (e, st) {
       // Error 계열(플랫폼 채널 디코딩 TypeError 등) 도 Crashlytics 로 보낸다.
-      debugPrint('theme_load failed: $e\n$st');
+      // WR-05: debugPrint 는 release 에서 제거되지 않으므로 kDebugMode 로 가둔다.
+      if (kDebugMode) {
+        debugPrint('theme_load failed: $e\n$st');
+      }
+      // WR-04: async gap 이후의 ref.read 는 dispose 된 컨테이너에서
+      // StateError 를 던져 원래 진단하려던 e 를 대체한다. recordError 자체의
+      // 실패는 CrashlyticsService 래퍼가 흡수한다 (WR-01).
+      if (!ref.mounted) return ThemeMode.system;
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'theme_load');
@@ -66,7 +74,12 @@ class ThemeNotifier extends _$ThemeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_key, mode.index);
     } on Object catch (e, st) {
-      debugPrint('theme_save failed: $e\n$st');
+      // WR-05: release logcat 출력 방지.
+      if (kDebugMode) {
+        debugPrint('theme_save failed: $e\n$st');
+      }
+      // WR-04: async gap 이후 ref.read 가드.
+      if (!ref.mounted) return;
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'theme_save');
