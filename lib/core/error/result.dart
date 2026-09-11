@@ -1,4 +1,4 @@
-import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'app_exception.dart';
 
 /// 성공 또는 실패를 나타내는 sealed 결과 타입.
 ///
@@ -13,7 +13,10 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 ///     final user = await dataSource.getUser(uid);
 ///     return Result.success(user);
 ///   } on FirebaseException catch (e) {
-///     return Result.failure(ServerException(...));
+///     // sealed 상위 타입([ServerException])이 아니라 구체 하위 타입을
+///     // 넘긴다 — Dart 3 의 sealed class 는 암묵적 abstract 라
+///     // 인스턴스화할 수 없다 (코드 리뷰 WR-08).
+///     return Result.failure(InternalServerError(cause: e));
 ///   }
 /// }
 ///
