@@ -1,18 +1,27 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_starter_kit/app.dart';
 import 'package:flutter_starter_kit/core/analytics/analytics_observer.dart'
     show analyticsObserverProvider;
+import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
+import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_router.dart';
+import 'package:flutter_starter_kit/core/router/app_routes.dart';
 
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
+
+class _MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
 class _FakeNavigatorObserver extends NavigatorObserver {}
 
@@ -117,32 +126,144 @@ void main() {
       },
     );
 
-    test(
-      'Test 5 (WARNING #14): routerDelegate.addListener 가 소스에 등록됨',
-      () async {
-        // WARNING #14 — go() same-level 전환 시 screen_view 수동 보완.
-        // 실제 listener 동작은 widget test 에서 매우 어려우므로 소스 검증으로
-        // 충분한 대체 증거 확보.
-        final source = await File(
-          'lib/core/router/app_router.dart',
-        ).readAsString();
-        expect(
-          source.contains('routerDelegate.addListener'),
-          isTrue,
-          reason: 'WARNING #14: routerDelegate.addListener 필요',
-        );
-        expect(
-          source.contains('analytics.logScreenView('),
-          isTrue,
-          reason: 'WARNING #14: listener 에서 logScreenView 수동 호출 필요',
-        );
-        // lastMatchedLocation 캐시 변수로 중복 호출 방지.
-        expect(
-          source.contains('lastMatchedLocation'),
-          isTrue,
-          reason: 'matchedLocation 변화 감지 변수 필요',
-        );
-      },
-    );
+    test('Test 5 (CR-01): screen_view 수동 발신 경로가 소스에서 제거되어 있다', () async {
+      // 구 WARNING #14 는 "observer 가 didPush 만 커버한다" 를 전제로
+      // routerDelegate.addListener 수동 발신을 덧붙였으나, 패키지 소스
+      // (firebase_analytics/lib/observer.dart) 는 didPush/didReplace/didPop
+      // 3콜백 모두에서 screen_view 를 보낸다. 두 경로가 공존하면 교차 dedup
+      // 이 없어 모든 전환이 2회 적재된다 (Test 6 가 런타임으로 계측).
+      //
+      // 본 테스트는 "발신 주체가 정확히 하나" 를 소스 수준에서 잠근다.
+      // 수동 경로가 다시 들어오면 여기서 먼저 깨진다.
+      final source = await File(
+        'lib/core/router/app_router.dart',
+      ).readAsString();
+      // 주석/문서는 검사 대상이 아니다 — 실제 코드 라인만 본다
+      // (.claude/rules/acceptance 계열의 주석 오탐 방지).
+      final codeOnly = source
+          .split('\n')
+          .where((line) {
+            final trimmed = line.trimLeft();
+            return !trimmed.startsWith('//') && !trimmed.startsWith('///');
+          })
+          .join('\n');
+      expect(
+        RegExp(r'routerDelegate\s*\.\s*addListener').hasMatch(codeOnly),
+        isFalse,
+        reason: 'CR-01: 수동 screen_view 발신 리스너가 되살아났다',
+      );
+      expect(
+        RegExp(r'logScreenView\s*\(').hasMatch(codeOnly),
+        isFalse,
+        reason:
+            'CR-01: appRouter 는 logScreenView 를 직접 호출하지 않는다 '
+            '(observer 가 유일한 발신 주체)',
+      );
+      // observer 등록은 유지되어야 한다 (유일한 발신 경로).
+      expect(
+        RegExp(r'observers:\s*\[observer\]').hasMatch(codeOnly),
+        isTrue,
+        reason: 'CR-01: observer 단일 경로가 유지되어야 한다',
+      );
+    });
+
+    testWidgets('Test 6 (CR-01): 화면 전환 1회당 screen_view 가 정확히 1건만 발신된다', (
+      tester,
+    ) async {
+      // 실제 appRouterProvider 배선을 그대로 pump 하여 push / pop / go
+      // 세 전환을 각각 계측한다. 수정 전 구현에서는 observer 1건 +
+      // 수동 리스너 1건으로 매 전환마다 2건이 적재됐다 (실측 확인:
+      // push=[termsService, termsService], pop=[home, home],
+      // go=[termsPrivacy, termsPrivacy]).
+      //
+      // isFirebaseInitialized=false 를 유지하여 authRedirect 를 통과시키되
+      // (실 Firebase 미접촉), production 과 동일한 모양의 observer /
+      // AnalyticsService 를 mock FirebaseAnalytics 에 연결해 두 경로가
+      // 같은 계측 지점을 공유하게 한다 — 어느 쪽이 발신하든 잡힌다.
+      SharedPreferences.setMockInitialValues({});
+      SplashConfig.overrideMinDuration = const Duration(milliseconds: 1);
+      addTearDown(() => SplashConfig.overrideMinDuration = null);
+
+      final mockAnalytics = _MockFirebaseAnalytics();
+      when(
+        () => mockAnalytics.logScreenView(
+          screenName: any(named: 'screenName'),
+          screenClass: any(named: 'screenClass'),
+          parameters: any(named: 'parameters'),
+          callOptions: any(named: 'callOptions'),
+        ),
+      ).thenAnswer((_) async {});
+
+      final mockAuth = _MockFirebaseAuth();
+      when(
+        () => mockAuth.authStateChanges(),
+      ).thenAnswer((_) => const Stream<User?>.empty());
+      when(
+        () => mockAuth.userChanges(),
+      ).thenAnswer((_) => const Stream<User?>.empty());
+      when(() => mockAuth.currentUser).thenReturn(null);
+
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(false),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+          analyticsObserverProvider.overrideWith(
+            (ref) => FirebaseAnalyticsObserver(
+              analytics: mockAnalytics,
+              nameExtractor: (settings) => settings.name,
+            ),
+          ),
+          analyticsServiceProvider.overrideWith(
+            (ref) => AnalyticsService(mockAnalytics, isEnabled: true),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: const App()),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      /// 마지막 drain 이후 발신된 screenName 목록을 반환한다.
+      List<Object?> drainScreenNames() => verify(
+        () => mockAnalytics.logScreenView(
+          screenName: captureAny(named: 'screenName'),
+          screenClass: any(named: 'screenClass'),
+          parameters: any(named: 'parameters'),
+          callOptions: any(named: 'callOptions'),
+        ),
+      ).captured;
+
+      // splash -> home 착지까지의 발신을 비운 뒤 단일 전환만 계측한다.
+      drainScreenNames();
+
+      final router = container.read(appRouterProvider);
+
+      unawaited(router.push(AppRoutes.termsService));
+      await tester.pumpAndSettle();
+      expect(drainScreenNames(), <Object?>[
+        AppRoutes.termsServiceName,
+      ], reason: 'push 1회 = screen_view 1건');
+
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(
+        drainScreenNames(),
+        <Object?>[AppRoutes.homeName],
+        reason: 'pop 1회 = screen_view 1건 (observer 의 didPop 커버)',
+      );
+
+      router.go(AppRoutes.termsPrivacy);
+      await tester.pumpAndSettle();
+      expect(
+        drainScreenNames(),
+        <Object?>[AppRoutes.termsPrivacyName],
+        reason:
+            'go() same-level 전환 1회 = screen_view 1건 '
+            '(observer 의 didPush/didReplace 커버 — 수동 보완 불필요)',
+      );
+    });
   });
 }

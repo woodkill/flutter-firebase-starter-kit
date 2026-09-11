@@ -27,13 +27,19 @@ class _NoOpNavigatorObserver extends NavigatorObserver {
 /// 사용하며, 이는 [GoRoute.name] 에 매핑된다. 모든 `GoRoute` 에 `name`
 /// 설정 필수 (Pitfall 1).
 ///
-/// **주의 (Pitfall 1, WARNING #14):** [FirebaseAnalyticsObserver] 는
-/// `didPush` 시점에 동작하지만, `go_router` 의 `context.go()` same-level
-/// 전환은 push 대신 replace 동작을 일으켜 observer 가 이벤트를 놓칠 수
-/// 있다. 이를 보완하기 위해 Plan 05 `appRouter` 는
-/// `GoRouter.routerDelegate.addListener` 로 matchedLocation 변경을 감지하여
-/// `AnalyticsService.logScreenView` 를 수동 호출한다 (또는 주요 화면의
-/// `didChangeDependencies` 에서 수동 호출).
+/// **screen_view 단일 발신 계약 (코드 리뷰 CR-01).**
+/// [FirebaseAnalyticsObserver] 는 `didPush` 시점에만 동작하지 않는다 —
+/// 패키지 소스 (`firebase_analytics/lib/observer.dart`) 기준
+/// `didPush` / `didReplace` / `didPop` **3콜백 모두**가 `_sendScreenView`
+/// 를 호출하므로 `go_router` 의 push / `context.go()` same-level replace /
+/// pop 이 전부 커버된다.
+///
+/// 과거 WARNING #14 (Pitfall 1) 는 그 반대를 전제로 `appRouter` 에
+/// `routerDelegate.addListener` 수동 `logScreenView` 를 덧붙였는데, 두 경로
+/// 사이에 교차 dedup 이 없어 **모든 전환이 GA4 에 2회 적재**됐다. 수동
+/// 경로는 제거했다 — 본 Provider 가 공급하는 observer 가 유일한 발신
+/// 주체다. 소비처 화면에서 `didChangeDependencies` 등으로 추가 발신을
+/// 넣으면 같은 이중 계측이 재발하므로 금지한다.
 @Riverpod(keepAlive: true)
 NavigatorObserver analyticsObserver(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);

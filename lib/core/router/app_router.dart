@@ -15,7 +15,6 @@ import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/terms/presentation/terms_detail_screen.dart';
 import '../analytics/analytics_observer.dart';
-import '../analytics/analytics_service.dart';
 import '../l10n/l10n_extensions.dart';
 import '../theme/theme_extensions.dart';
 import 'app_routes.dart';
@@ -35,13 +34,18 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 /// 인스턴스를 유지한다.
 ///
 /// **observers (D-29):** [analyticsObserverProvider] 를 등록하여
-/// [FirebaseAnalyticsObserver] 가 화면 전환을 자동 추적하도록 한다.
+/// `FirebaseAnalyticsObserver` 가 화면 전환을 자동 추적하도록 한다.
 ///
-/// **WARNING #14 (Pitfall 1):** [FirebaseAnalyticsObserver] 는
-/// `didPush` 시점에만 동작하지만, `context.go()` same-level 전환은 push 대신
-/// replace 동작이라 observer 가 이벤트를 놓칠 수 있다. 이를 보완하기 위해
-/// `routerDelegate.addListener` 로 matchedLocation 변경을 감지하여
-/// [AnalyticsService.logScreenView] 를 수동 호출한다.
+/// **screen_view 발신 주체는 observer 단 하나다 (코드 리뷰 CR-01).** 과거
+/// WARNING #14 (Pitfall 1) 는 *"observer 는 `didPush` 시점에만 동작하므로
+/// `context.go()` same-level 전환을 놓친다"* 를 전제로
+/// `routerDelegate.addListener` 수동 발신을 덧붙였으나, 그 전제가 패키지
+/// 소스와 달랐다 — `firebase_analytics` 의 `FirebaseAnalyticsObserver` 는
+/// `didPush` / `didReplace` / `didPop` 3콜백 모두에서 `_sendScreenView` 를
+/// 호출한다 (`firebase_analytics/lib/observer.dart`). 두 경로가 동시에
+/// 살아 있어 모든 전환이 GA4 에 2회 적재됐고, 교차 dedup 은 없었다.
+/// 수동 경로를 제거해 "한 번의 전환 = `screen_view` 1건" 을 복구한다.
+/// 회귀는 `app_router_observers_test.dart` 의 런타임 계측 테스트가 잠근다.
 ///
 /// **authUserObserver warm-up (BLOCKER #4 + INFO #21):** Plan 05 Task 1 에서
 /// 추가한 `authUserObserverProvider` 는 watch 되지 않으면 동작하지 않으므로,
@@ -50,7 +54,6 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 GoRouter appRouter(Ref ref) {
   final authGuard = ref.watch(authChangeProvider);
   final observer = ref.watch(analyticsObserverProvider);
-  final analytics = ref.watch(analyticsServiceProvider);
 
   // INFO #21 + BLOCKER #4: authUserObserver 활성화 (1회 watch 로 충분).
   ref.watch(authUserObserverProvider);
@@ -130,32 +133,14 @@ GoRouter appRouter(Ref ref) {
     ],
   );
 
-  // WARNING #14 (Pitfall 1): go_router go() same-level 전환은 push 대신
-  // replace 동작이므로 FirebaseAnalyticsObserver 가 screen_view 를 놓칠 수
-  // 있다. routerDelegate.addListener 로 matchedLocation 변경을 감지하여
-  // analytics.logScreenView 를 수동 호출한다.
+  // CR-01: 여기에 있던 `routerDelegate.addListener` 수동 screen_view 발신을
+  // 제거했다. observer 가 push/replace/pop 을 모두 커버하므로 수동 경로는
+  // 보완이 아니라 중복 발신이었다.
   //
-  // T-10-20 PII 보호: screenName 에 쿼리 파라미터를 포함하지 않고,
-  // route name 또는 matchedLocation (path) 만 사용한다.
-  String? lastMatchedLocation;
-  void onRouterChange() {
-    final config = router.routerDelegate.currentConfiguration;
-    if (config.matches.isEmpty) return;
-    final lastMatch = config.matches.last;
-    final currentLocation = lastMatch.matchedLocation;
-    final route = lastMatch.route;
-    final currentName = route is GoRoute ? route.name : null;
-    if (currentLocation != lastMatchedLocation) {
-      lastMatchedLocation = currentLocation;
-      analytics.logScreenView(screenName: currentName ?? currentLocation);
-    }
-  }
-
-  router.routerDelegate.addListener(onRouterChange);
-  ref.onDispose(() {
-    router.routerDelegate.removeListener(onRouterChange);
-  });
-
+  // T-10-20 PII 보호는 observer 의 `nameExtractor` 가 계속 담당한다 —
+  // `settings.name` (= go_router 가 page 에 심는 `GoRoute.name`) 만 읽으므로
+  // 쿼리 파라미터가 screenName 에 섞이지 않는다. 따라서 모든 `GoRoute` 에
+  // `name` 설정은 여전히 필수다 (Pitfall 1, Test 3 이 잠근다).
   return router;
 }
 

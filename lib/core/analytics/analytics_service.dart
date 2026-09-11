@@ -52,10 +52,17 @@ class AnalyticsService {
     await client.logEvent(name: name, parameters: parameters);
   }
 
-  /// 화면 전환 이벤트를 기록한다 (D-29 Pitfall 1 대응 보조).
+  /// 화면 전환 이벤트를 기록한다.
   ///
-  /// `FirebaseAnalyticsObserver` 가 누락하는 go_router same-level 전환을
-  /// 수동 보완하기 위해 presentation 계층에서 직접 호출한다.
+  /// **라우팅 전환에는 호출하지 않는다 (코드 리뷰 CR-01).** `GoRouter` 의
+  /// 화면 전환 계측은 `analyticsObserverProvider` 의
+  /// `FirebaseAnalyticsObserver` 가 단독으로 담당한다 (push/replace/pop
+  /// 3콜백 모두 커버). 여기에 수동 호출을 겹치면 같은 전환이 GA4 에 2회
+  /// 적재된다.
+  ///
+  /// 본 메서드는 `GoRouter` 바깥의 화면 표면 — 예컨대 라우트를 만들지 않는
+  /// 전체화면 모달 / `PageView` 탭 / 커스텀 오버레이 — 을 하나의 "화면"
+  /// 으로 계측하고 싶은 fork 사용자를 위한 진입점으로 남겨 둔다.
   Future<void> logScreenView({
     required String screenName,
     String? screenClass,
