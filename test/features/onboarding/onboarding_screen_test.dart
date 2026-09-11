@@ -104,6 +104,13 @@ GoRouter _buildRouter() {
   );
 }
 
+/// [OnboardingScreen] 을 pump 한다.
+///
+/// [isFirebaseInitialized] 는 Phase 1 D-13 분기를 제어한다 (코드 리뷰 CR-02).
+/// 기본값 `true` 는 "정상 설정된 앱" 을 뜻하며, 기존 Test 4/6/7 이 전제하던
+/// 상태다. `false` 는 stg/prod placeholder / `firebase-configure.sh` 실행 전
+/// dev 의 **기본 상태** 로, `_handleCta` 가 `firebaseAuthProvider` 를 읽지
+/// 않고 익명 사인인도 건너뛰어야 한다.
 Future<void> _pumpOnboarding(
   WidgetTester tester, {
   required _MockAuthRepository mockRepo,
@@ -111,12 +118,14 @@ Future<void> _pumpOnboarding(
   required _MockCrashlytics mockCrashlytics,
   fb.FirebaseAuth? auth,
   _RecordingTermsNotifier? termsOverride,
+  bool isFirebaseInitialized = true,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final router = _buildRouter();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        isFirebaseInitializedProvider.overrideWithValue(isFirebaseInitialized),
         authRepositoryProvider.overrideWithValue(mockRepo),
         analyticsServiceProvider.overrideWithValue(mockAnalytics),
         crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
@@ -456,6 +465,52 @@ void main() {
 
       // 기존 경로: signInAnonymously 호출됨.
       verify(() => mockRepo.signInAnonymously()).called(1);
+      expect(find.text('HOME'), findsOneWidget);
+    });
+
+    testWidgets('Test 8 (CR-02 — D-13): Firebase 미초기화 빌드에서 "Get started" 탭 → '
+        'CTA 가 영구 비활성되지 않고 HOME 으로 진행한다 '
+        '(firebaseAuthProvider 무접근 + signInAnonymously 미호출)', (tester) async {
+      // `firebaseAuthProvider` 를 **의도적으로 override 하지 않는다** —
+      // 수정 전 구현은 여기서 실제 FirebaseAuth.instance 에 도달해
+      // `[core/no-app]` 을 던졌고, try/finally 가 없어 `_isSubmitting` 이
+      // true 로 고정되며 CTA 가 영구 비활성됐다. 수정 후에는
+      // isFirebaseInitializedProvider=false 가드로 접근 자체가 일어나지
+      // 않아야 한다 (접근이 되살아나면 이 테스트가 예외로 실패한다).
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        isFirebaseInitialized: false,
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+      await tester.pumpAndSettle();
+
+      final tiles = find.byType(CheckboxListTile);
+      await tester.tap(tiles.at(1)); // service
+      await tester.pump();
+      await tester.tap(tiles.at(2)); // privacy
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
+      await tester.pumpAndSettle();
+
+      // 익명 사인인은 Firebase 없이는 불가능하므로 호출되지 않는다.
+      verifyNever(() => mockRepo.signInAnonymously());
+
+      // 약관 동의 + markSeen 은 SharedPreferences 전용이므로 그대로 기록된다.
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getInt('onboarding.seen_version'),
+        OnboardingNotifier.currentVersion,
+        reason: 'D-13: Firebase 없이도 온보딩 완료가 로컬에 기록되어야 한다',
+      );
+
+      // 첫 화면이 막히지 않는다 — 홈 도달이 CR-02 의 핵심 회귀 기준이다.
       expect(find.text('HOME'), findsOneWidget);
     });
   });

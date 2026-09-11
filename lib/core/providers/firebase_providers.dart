@@ -12,6 +12,37 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'firebase_providers.g.dart';
 
+/// 네이티브 Firebase 인스턴스 provider 의 D-13 전제를 debug 에서 강제한다
+/// (Phase 1 D-13 — 코드 리뷰 CR-02).
+///
+/// [providerName] 은 실패 메시지에 표시할 provider 이름이다.
+///
+/// 아래 6개 provider (`firebaseAuth` / `firebaseCrashlytics` /
+/// `firebaseAnalytics` / `firebaseFirestore` / `firebaseRemoteConfig` /
+/// `firebaseFunctions`) 는 모두 `Xxx.instance` 를 반환하며, 그 접근은
+/// 내부적으로 `Firebase.app()` 을 거치므로 앱 미초기화 상태에서
+/// `FirebaseException([core/no-app])` 을 던진다. 즉 **"Firebase 없이도 앱이
+/// 정상 실행된다" 는 D-13 은 provider 계층이 아니라 소비처 계층이 지켜야 하는
+/// 계약**이다.
+///
+/// 본 헬퍼는 그 계약 위반을 **원인이 적힌 실패**로 앞당긴다. debug/profile
+/// 빌드에서만 평가되며 release 에서는 no-op 이다 — release 동작은 기존과
+/// 동일하게 `[core/no-app]` throw 이므로 계약 자체는 바뀌지 않는다.
+///
+/// 소비처가 취해야 할 조치는 둘 중 하나다.
+/// 1. [isFirebaseInitializedProvider] 로 가드한 뒤에만 읽는다
+///    (`splash_initializer.dart` / `authState` 패턴).
+/// 2. Firebase 미초기화 시 no-op 대체 구현을 주입한다
+///    (`AnalyticsService` / `CrashlyticsService` 래퍼 패턴).
+void _assertFirebaseReady(Ref ref, String providerName) {
+  assert(
+    ref.read(isFirebaseInitializedProvider),
+    '$providerName 를 Firebase 미초기화 상태에서 읽었다 (Phase 1 D-13). '
+    'isFirebaseInitializedProvider 로 가드하거나 no-op 대체 구현을 주입할 것 — '
+    'splash_initializer.dart / AnalyticsService 패턴 참조.',
+  );
+}
+
 /// FirebaseAuth 인스턴스를 제공한다.
 ///
 /// 앱 생명주기 동안 유지되는 keepAlive Provider.
@@ -31,8 +62,15 @@ part 'firebase_providers.g.dart';
 /// - 폼 입력 상태
 /// - 검색 결과
 /// - UI 종속 상태 -- 화면 이탈 시 해제해도 되는 것
+///
+/// **주의 (Phase 1 D-13 / 코드 리뷰 CR-02):** Firebase 미초기화 시
+/// [FirebaseAuth.instance] 접근은 `[core/no-app]` 으로 throw 한다. 소비자는
+/// 반드시 [isFirebaseInitializedProvider] 가드 후 접근하거나 no-op 대체
+/// 구현을 주입한다 (`splash_initializer.dart` 패턴 참조).
+/// [_assertFirebaseReady] 가 debug 빌드에서 위반을 즉시 드러낸다.
 @Riverpod(keepAlive: true)
 FirebaseAuth firebaseAuth(Ref ref) {
+  _assertFirebaseReady(ref, 'firebaseAuthProvider');
   return FirebaseAuth.instance;
 }
 
@@ -86,8 +124,10 @@ FacebookAuth facebookAuth(Ref ref) {
 /// throw 할 수 있다 (Phase 1 D-13). 소비자는 반드시
 /// [isFirebaseInitializedProvider] 가드 후 접근하거나,
 /// `CrashlyticsService` 래퍼를 사용하여 미초기화 시 no-op 으로 처리한다.
+/// [_assertFirebaseReady] 가 debug 빌드에서 위반을 즉시 드러낸다 (CR-02).
 @Riverpod(keepAlive: true)
 FirebaseCrashlytics firebaseCrashlytics(Ref ref) {
+  _assertFirebaseReady(ref, 'firebaseCrashlyticsProvider');
   return FirebaseCrashlytics.instance;
 }
 
@@ -96,10 +136,13 @@ FirebaseCrashlytics firebaseCrashlytics(Ref ref) {
 /// 앱 생명주기 동안 유지되는 keepAlive Provider.
 /// [FirebaseAnalytics.instance] 직접 접근 대신 이 Provider를 통해서만 접근한다.
 ///
-/// **주의:** Firebase 미초기화 시 접근은 throw 할 수 있다.
-/// 소비자는 `AnalyticsService` 래퍼로 가드된 접근을 해야 한다.
+/// **주의 (Phase 1 D-13):** Firebase 미초기화 시 [FirebaseAnalytics.instance]
+/// 접근은 `[core/no-app]` 으로 throw 한다. 소비자는 `AnalyticsService` 래퍼로
+/// 가드된 접근을 해야 한다.
+/// [_assertFirebaseReady] 가 debug 빌드에서 위반을 즉시 드러낸다 (CR-02).
 @Riverpod(keepAlive: true)
 FirebaseAnalytics firebaseAnalytics(Ref ref) {
+  _assertFirebaseReady(ref, 'firebaseAnalyticsProvider');
   return FirebaseAnalytics.instance;
 }
 
@@ -107,8 +150,15 @@ FirebaseAnalytics firebaseAnalytics(Ref ref) {
 ///
 /// 앱 생명주기 동안 유지되는 keepAlive Provider.
 /// 약관 동의 상태 미러링, 사용자 프로필 Firestore 저장 등에 사용한다.
+///
+/// **주의 (Phase 1 D-13 / 코드 리뷰 CR-02):** Firebase 미초기화 시
+/// [FirebaseFirestore.instance] 접근은 `[core/no-app]` 으로 throw 한다.
+/// 소비자는 반드시 [isFirebaseInitializedProvider] 가드 후 접근하거나 no-op
+/// 대체 구현을 주입한다. [_assertFirebaseReady] 가 debug 빌드에서 위반을
+/// 즉시 드러낸다.
 @Riverpod(keepAlive: true)
 FirebaseFirestore firebaseFirestore(Ref ref) {
+  _assertFirebaseReady(ref, 'firebaseFirestoreProvider');
   return FirebaseFirestore.instance;
 }
 
@@ -120,8 +170,10 @@ FirebaseFirestore firebaseFirestore(Ref ref) {
 /// **주의:** Firebase 미초기화 시 [FirebaseRemoteConfig.instance] 접근은
 /// throw 할 수 있다 (Phase 1 D-13). [bootstrap] 의
 /// `if (isFirebaseInitialized)` 블록 안에서만 초기화/접근하도록 한다.
+/// [_assertFirebaseReady] 가 debug 빌드에서 위반을 즉시 드러낸다 (CR-02).
 @Riverpod(keepAlive: true)
 FirebaseRemoteConfig firebaseRemoteConfig(Ref ref) {
+  _assertFirebaseReady(ref, 'firebaseRemoteConfigProvider');
   return FirebaseRemoteConfig.instance;
 }
 
@@ -129,7 +181,14 @@ FirebaseRemoteConfig firebaseRemoteConfig(Ref ref) {
 ///
 /// `asia-northeast3` (서울) region 으로 고정 — `functions/src/shared/region.ts`
 /// 와 정합. Phase 12+ Custom Token 함수 호출 시 사용한다.
+///
+/// **주의 (Phase 1 D-13 / 코드 리뷰 CR-02):** Firebase 미초기화 시
+/// [FirebaseFunctions.instanceFor] 접근은 `[core/no-app]` 으로 throw 한다.
+/// 소비자는 반드시 [isFirebaseInitializedProvider] 가드 후 접근하거나 no-op
+/// 대체 구현을 주입한다. [_assertFirebaseReady] 가 debug 빌드에서 위반을
+/// 즉시 드러낸다.
 @Riverpod(keepAlive: true)
 FirebaseFunctions firebaseFunctions(Ref ref) {
+  _assertFirebaseReady(ref, 'firebaseFunctionsProvider');
   return FirebaseFunctions.instanceFor(region: 'asia-northeast3');
 }

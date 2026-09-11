@@ -140,4 +140,75 @@ void main() {
       expect(firestore, same(fake));
     });
   });
+
+  group('Phase 1 D-13 가드 (코드 리뷰 CR-02)', () {
+    // 네이티브 인스턴스 provider 6종은 모두 `Xxx.instance` 를 반환하며 그
+    // 접근은 Firebase 미초기화 시 `[core/no-app]` 으로 throw 한다.
+    // _assertFirebaseReady 가 debug 빌드에서 그 계약 위반을 "원인이 적힌
+    // 실패" 로 앞당긴다 — 조용한 [core/no-app] 대신 어느 provider 를 어떻게
+    // 가드해야 하는지가 메시지에 담긴다.
+    //
+    // 본 테스트는 override 없이 provider 를 읽는다. 수정 전에는 여기서
+    // FirebaseException([core/no-app]) 이 났고, 수정 후에는 AssertionError 다.
+    // 어느 쪽이든 throw 이므로 "release 계약이 바뀌지 않는다" 는 성질도 함께
+    // 확인되며, 검증 대상은 **메시지에 가드 방법이 담겨 있는지** 다.
+    // 생성된 provider 는 각각 고유 타입이라 공통 상위 타입으로 묶을 수 없다.
+    // 이름 + 읽기 클로저 쌍으로 테이블을 만든다.
+    final guardedProviders = <String, Object Function(ProviderContainer)>{
+      'firebaseAuthProvider': (c) => c.read(firebaseAuthProvider),
+      'firebaseCrashlyticsProvider': (c) => c.read(firebaseCrashlyticsProvider),
+      'firebaseAnalyticsProvider': (c) => c.read(firebaseAnalyticsProvider),
+      'firebaseFirestoreProvider': (c) => c.read(firebaseFirestoreProvider),
+      'firebaseRemoteConfigProvider': (c) =>
+          c.read(firebaseRemoteConfigProvider),
+      'firebaseFunctionsProvider': (c) => c.read(firebaseFunctionsProvider),
+    };
+
+    guardedProviders.forEach((name, readProvider) {
+      test('$name 은 Firebase 미초기화 상태에서 읽으면 D-13 위반으로 실패한다', () {
+        final container = ProviderContainer(
+          overrides: [isFirebaseInitializedProvider.overrideWithValue(false)],
+        );
+        addTearDown(container.dispose);
+
+        // Riverpod 3.x 는 provider build 예외를 ProviderException 으로 감싸고
+        // 원본 메시지를 toString() 에 그대로 실어 보낸다 (ProviderException
+        // 은 public export 가 아니므로 타입 대신 메시지로 검증한다).
+        // 'Failed assertion' 은 실패 주체가 _assertFirebaseReady 임을 못박는다
+        // — 가드가 사라지면 [core/no-app] FirebaseException 이 되어 깨진다.
+        expect(
+          () => readProvider(container),
+          throwsA(
+            isA<Object>().having(
+              (e) => e.toString(),
+              'toString()',
+              allOf(
+                contains('Failed assertion'),
+                contains(name),
+                contains('D-13'),
+                contains('isFirebaseInitializedProvider'),
+              ),
+            ),
+          ),
+          reason: 'CR-02: $name 무가드 접근이 원인 없는 실패로 새어 나가면 안 된다',
+        );
+      });
+    });
+
+    test('override 주입 시에는 가드가 평가되지 않는다 (테스트/대체 구현 경로 보존)', () {
+      // provider body 가 실행되지 않으므로 미초기화 상태에서도 mock 을
+      // 그대로 읽을 수 있어야 한다 — 기존 테스트 harness 전부가 이 성질에
+      // 의존한다.
+      final mockAuth = _MockFirebaseAuth();
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(false),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(container.read(firebaseAuthProvider), same(mockAuth));
+    });
+  });
 }
