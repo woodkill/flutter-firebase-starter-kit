@@ -1,20 +1,64 @@
 # flutter_starter_kit
 
-A new Flutter project.
+Flutter + Firebase 기반 앱을 위한 Starter Kit. 인증 / 다국어 / 디자인 시스템 /
+Firebase 설정 보일러플레이트를 제거하고, Feature-First 아키텍처와 코딩 규칙을
+프로젝트 시작 시점부터 강제한다.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+**전제:** [FVM](https://fvm.app/) 이 설치되어 있어야 한다. 본 프로젝트는 시스템
+Flutter 를 직접 사용하지 않고 항상 `fvm flutter` / `fvm dart` 로 실행한다.
 
-A few resources to get you started if this is your first Flutter project:
+clone 직후 dev flavor 를 띄우기까지 5단계다.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+# 1. clone
+git clone <this-repo> && cd flutter_starter_kit
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# 2. flavor config 생성 — 실제 키는 gitignored 인 config/dev.json 에만 넣는다.
+#    (example 파일에는 절대 실 키를 쓰지 않는다)
+cp config/dev.example.json config/dev.json
+#    → 에디터로 열어 placeholder 를 본인 값으로 교체.
+#      각 키의 출처는 docs/manual.md 의 "Initial Setup" 단락 참조.
+
+# 3. Firebase 설정 파일 생성 — dart options + Android google-services.json +
+#    iOS GoogleService-Info.plist 를 한 번에 생성한다.
+#    (스크립트 상단의 PROJECT_ID_PREFIX 등 3개 상수를 본인 프로젝트 식별자로
+#     먼저 수정할 것)
+./scripts/firebase-configure.sh dev
+
+# 4. 의존성 설치 + 코드 생성 (*.g.dart / *.freezed.dart 는 미커밋)
+fvm flutter pub get
+fvm dart run build_runner build --delete-conflicting-outputs
+
+# 5. 실행
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+```
+
+### 3단계를 건너뛰면
+
+`lib/core/firebase/firebase_options_{dev,stg,prod}.dart` 는 placeholder 상태로
+tracked 되어 있어 **build 와 analyze 는 통과**한다. 다만 런타임에
+`initializeFirebase()` 가 `false` 를 반환하여 Firebase 의존 기능(인증, Firestore,
+Crashlytics, Remote Config 등)이 전부 비활성화된 채 앱이 실행된다.
+`./scripts/firebase-configure.sh dev` 를 실행하면 placeholder 가 실제 옵션으로
+교체되고, 스크립트가 해당 파일에 `git update-index --skip-worktree` 를 적용해
+실 키가 커밋되지 않도록 막는다.
+
+Android 빌드는 `android/app/src/dev/google-services.json` 도 필요하며, 이 파일
+역시 같은 스크립트가 생성한다.
+
+### stg / prod
+
+`./scripts/firebase-configure.sh stg` / `... prod` 로 동일하게 생성한다. 단,
+Starter Kit 기본 상태에서는 **dev flavor 만 실제 Firebase 프로젝트에 연결**되어
+있으므로, 실행 전 Firebase Console 에서 해당 프로젝트를 먼저 생성해야 한다
+(자세한 절차는 아래 "stg/prod flavor 로 fork 하는 경우" 참조).
+
+### 더 읽을 거리
+
+- `docs/manual.md` — 소셜 로그인 provider 별 콘솔 등록 절차, 시크릿 주입, 배포
+- [Flutter 공식 문서](https://docs.flutter.dev/)
 
 ## Brand Assets
 
@@ -164,11 +208,20 @@ Starter Kit 는 stg/prod 의 `lib/core/firebase/firebase_options_stg.dart` /
 연결, stg/prod 는 build 통과용 더미 값). 실 프로젝트에서는 다음 절차를 거친다.
 
 1. Firebase Console 에서 stg/prod 프로젝트를 별도 생성 (dev/stg/prod 분리 원칙).
-2. `fff configure --project=<stg-project-id>
-   --out=lib/core/firebase/firebase_options_stg.dart
-   --android-package-name=com.slimpumpkin.flutter_starter_kit.stg
-   --ios-bundle-id=<stg.bundle>` 실행 (`fff` = `fvm dart pub global run
-   flutterfire_cli:flutterfire` alias). prod 는 동일 패턴으로 `.prod` suffix.
+2. `./scripts/firebase-configure.sh stg` 실행 (prod 는 `... prod`). 스크립트가
+   dart options + Android `google-services.json` + iOS `GoogleService-Info.plist`
+   를 flavor 경로에 맞춰 한 번에 생성하고, 생성된 dart 파일에
+   `git update-index --skip-worktree` 를 적용해 실 키 커밋을 막는다. 스크립트
+   상단의 `PROJECT_ID_PREFIX` / `IOS_BUNDLE_ID_PREFIX` /
+   `ANDROID_PACKAGE_PREFIX` 3개 상수를 본인 프로젝트 식별자로 먼저 수정할 것.
+
+   > 참고 (수동 실행이 필요한 경우): `fff configure --project=<stg-project-id>
+   > --out=lib/core/firebase/firebase_options_stg.dart
+   > --android-package-name=com.slimpumpkin.flutter_starter_kit.stg
+   > --ios-bundle-id=<stg.bundle>` (`fff` = `fvm dart pub global run
+   > flutterfire_cli:flutterfire` alias). 이 경로로 생성하면 skip-worktree 가
+   > 적용되지 않으므로 직접 `git update-index --skip-worktree <path>` 를
+   > 실행해야 한다.
 3. 위와 동일한 Crashlytics 활성화 절차를 stg/prod 각 프로젝트에 적용.
 4. **prod 추가 필수:** Crashlytics > Settings > **dSYM upload (iOS)** 자동화 +
    Android 의 NDK symbol upload (네이티브 크래시가 가독성 있게 deobfuscate

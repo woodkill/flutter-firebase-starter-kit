@@ -85,5 +85,19 @@ fvm dart pub global run flutterfire_cli:flutterfire configure \
   --android-out="${OUT_ANDROID}" \
   --yes
 
+# 생성된 dart 옵션 파일에 skip-worktree 를 적용한다.
+#
+# placeholder 3종은 tracked 이므로 (.gitignore 예외), 재생성된 실제 키 파일이
+# 그대로 `git status` 에 뜨고 실수로 커밋될 수 있다. skip-worktree 는 index 의
+# placeholder 내용을 유지한 채 로컬 수정본을 무시하게 만든다.
+#
+# 단점: placeholder 가 upstream 에서 변경되면 `git pull` 이 충돌하고
+# `git stash` 가 에러를 낸다. 그 경우 `git update-index --no-skip-worktree
+# <path>` 로 일시 해제 후 다시 적용할 것.
+if git ls-files --error-unmatch "$OUT_DART" >/dev/null 2>&1; then
+  git update-index --skip-worktree "$OUT_DART" || true
+  echo "  · git update-index --skip-worktree ${OUT_DART}"
+fi
+
 echo ""
 echo "✓ Firebase configure complete for ${FLAVOR}"
