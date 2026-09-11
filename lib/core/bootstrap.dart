@@ -51,191 +51,212 @@ Future<void> bootstrap() async {
     runZonedGuarded<Future<void>>(
       () async {
         WidgetsFlutterBinding.ensureInitialized();
-        await initializeDateFormatting();
 
-        final isFirebaseInitialized = await initializeFirebase();
+        // 초기화 전 구간을 try 로 감싸 어떤 실패에도 [runApp] 이 반드시
+        // 호출되도록 보장한다. 이전에는 [initializeDateFormatting] 이나
+        // [initializeFirebase] 가 throw 하면 zone onError 로 빠져 runApp 이
+        // 끝내 호출되지 않았고, flutter_native_splash 의 네이티브 스플래시가
+        // 영구히 남아 사용자에게는 "앱이 멈춤" 으로 보였다 (release 빌드에서는
+        // 로그조차 남지 않는다).
+        //
+        // Firebase 초기화 실패 시에도 앱은 정상 실행되어야 한다는 D-13 철학의
+        // 연장선이다. flavor 미주입으로 [initializeFirebase] 가 StateError 를
+        // 던지는 경우에도 (잘못된 프로젝트에 연결하는 대신) Firebase 의존
+        // 기능 전체가 비활성화된 채로 화면은 뜬다.
+        var isFirebaseInitialized = false;
+        try {
+          await initializeDateFormatting();
 
-        if (isFirebaseInitialized) {
-          // App Check 활성화 (Phase 12 D-11, Pitfall 6 — Cloud Function abuse
-          // 방어). dev/debug 빌드는 debug provider, release 빌드는 Play
-          // Integrity (Android) / DeviceCheck (iOS). 활성화 실패는 무시 +
-          // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
-          //
-          // dev flavor 의 debug provider 첫 실행 시 logcat / Xcode console 에
-          // debug 토큰 출력 -- Firebase Console > App Check > 디버그 토큰 관리
-          // 에 등록 의무 (manual.md 5단계).
-          try {
-            await FirebaseAppCheck.instance.activate(
-              providerAndroid: kDebugMode
-                  ? const AndroidDebugProvider()
-                  : const AndroidPlayIntegrityProvider(),
-              providerApple: kDebugMode
-                  ? const AppleDebugProvider()
-                  : const AppleDeviceCheckProvider(),
-            );
-          } on Object catch (e, st) {
-            if (kDebugMode) {
-              debugPrint('FirebaseAppCheck.activate() 실패 (무시): $e\n$st');
-            }
-          }
+          isFirebaseInitialized = await initializeFirebase();
 
-          // 경로 2: Flutter framework 에러 -> Crashlytics
-          FlutterError.onError =
-              FirebaseCrashlytics.instance.recordFlutterFatalError;
-
-          // 경로 3: Platform/async 에러 -> Crashlytics. fire-and-forget.
-          PlatformDispatcher.instance.onError = (error, stack) {
-            unawaited(
-              FirebaseCrashlytics.instance.recordError(
-                error,
-                stack,
-                fatal: true,
-              ),
-            );
-            return true;
-          };
-
-          // Flavor custom key 태깅 (AUTH-11). [AppConfig.flavor] 가 단일
-          // 진실원 — silent fallback 회피 (WR-07 hotfix). 미주입 시 빈 문자열.
-          await FirebaseCrashlytics.instance.setCustomKey(
-            'flavor',
-            AppConfig.flavor,
-          );
-
-          // GoogleSignIn 초기화 (기존 로직 유지).
-          // Dart-only Firebase 방식이므로 google-services.json Gradle 플러그인을
-          // 사용하지 않아 serverClientId 를 --dart-define-from-file 에서 명시적
-          // 으로 전달.
-          const serverClientId = String.fromEnvironment('googleServerClientId');
-          try {
-            await GoogleSignIn.instance.initialize(
-              serverClientId: serverClientId.isEmpty ? null : serverClientId,
-            );
-          } on Object catch (e, st) {
-            if (kDebugMode) {
-              debugPrint('GoogleSignIn.initialize() 실패 (무시): $e\n$st');
-            }
-          }
-
-          // Kakao SDK 초기화 (Phase 12 D-04 / Pattern A).
-          //
-          // Firebase 초기화 직후 + RC fetch 전 위치 — 첫 SDK API 호출
-          // (loginWithKakaoTalk 등) 시점에 실제 PlatformChannel가 초기화된다.
-          // [KakaoSdk.init]은 [Future<void>] 반환 (kakao_flutter_sdk_common
-          // 2.0.0+1) — `await` 필수.
-          //
-          // dev flavor만 실 키 주입 (D-22), stg/prod는 placeholder —
-          // manual.md 안내. 빈 문자열 시 throw하지 않으나 (`_nativeKey = '' OK`),
-          // 첫 SDK API 호출에서 실패하므로 silent failure 회피 (D-20 의도).
-          //
-          // KakaoSdk.init이 throw할 가능성(`null` 인자 시 KakaoClientException)에
-          // 대비해 try/catch + debugPrint fallback (GoogleSignIn 패턴 일관).
-          try {
-            await KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
-          } on Object catch (e, st) {
-            if (kDebugMode) {
-              debugPrint('KakaoSdk.init() 실패 (무시): $e\n$st');
-            }
-          }
-
-          // Naver SDK 초기화 (Phase 13 — see ROADMAP.md, RESEARCH Decision #1).
-          //
-          // Kakao SDK init 직후 + RC fetch 전 위치 — bootstrap 위치 lock 으로
-          // LoginScreen 진입 직전 사용 가능 + cold start 의 첫 클릭 지연 회피.
-          // SDK 자체 멱등성 보장 (NaverLoginSDK._isInitialize static bool —
-          // controller line 30) — Provider rebuild 시 silent.
-          //
-          // [NaverLoginSDK.initialize] 는 [Future<bool>] 반환 (3.2.1 controller
-          // line 49) — `await` 의무. clientSecret 은 D-60 — 사용처 0건이지만
-          // SDK init 의무 인자.
-          //
-          // dev flavor 만 실 키 주입, stg/prod 는 placeholder — manual.md
-          // 안내 (Plan 13-07). 빈 문자열 시 SDK assertion / 첫 API 호출에서
-          // 즉시 실패하므로 silent failure 회피 (KakaoSdk 패턴 일관).
-          //
-          // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
-          // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
-          try {
-            await NaverLoginSDK.initialize(
-              urlScheme: AppConfig.naverUrlScheme,
-              clientId: AppConfig.naverClientId,
-              clientSecret: AppConfig.naverClientSecret,
-              clientName: 'Flutter Starter Kit',
-            );
-          } on Object catch (e, st) {
-            if (kDebugMode) {
-              debugPrint('NaverLoginSDK.initialize() 실패 (무시): $e\n$st');
-            }
-          }
-
-          // LINE SDK 초기화 (Phase 14 D-LINE-17).
-          //
-          // flutter_line_sdk 의 [LineSDK.instance.setup] 호출 의무. NaverSDK
-          // init 직후 + RC fetch 전 위치 — LoginScreen 진입 직전 사용 가능 +
-          // cold start 의 첫 클릭 지연 회피. SDK 자체 멱등성 보장 (LineSDK
-          // _channel 의 'setup' invokeMethod 가 native side 에서 idempotent
-          // 처리).
-          //
-          // [LineSDK.instance.setup] 는 [Future<void>] 반환 — `await` 의무.
-          // dev flavor 만 실 키 주입 (D-LINE-19 / memory `project_firebase_dev_only`),
-          // stg/prod 는 placeholder — manual.md D-LINE-22a (1) 절차 따름.
-          // 빈 문자열 시 SDK 첫 login() 호출에서 실패하므로 silent failure 회피
-          // (KakaoSdk / NaverLoginSDK 패턴 일관).
-          //
-          // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
-          // debugPrint fallback (GoogleSignIn / KakaoSdk / NaverLoginSDK 패턴
-          // 일관).
-          try {
-            await LineSDK.instance.setup(AppConfig.lineChannelId);
-          } on Object catch (e, st) {
-            if (kDebugMode) {
-              debugPrint('LineSDK.setup() 실패 (무시): $e\n$st');
-            }
-          }
-
-          // Remote Config 초기화 (Phase 11 D-24, D-25 폴백, Pitfall 4 silent
-          // stale 가드). fetch 실패는 무시 + 정적 config 로 진행.
-          try {
-            final rc = FirebaseRemoteConfig.instance;
-            await rc.setConfigSettings(
-              RemoteConfigSettings(
-                fetchTimeout: const Duration(minutes: 1),
-                // D-23: dev=0, 그 외=12h. [AppConfig.isDev] 단일 진실원으로
-                // prod 빌드의 flavor dart-define 누락 silent fallback 차단
-                // (WR-07 hotfix).
-                minimumFetchInterval: AppConfig.isDev
-                    ? Duration.zero
-                    : const Duration(hours: 12),
-              ),
-            );
-            // 정적 config 의 enabled 값을 RC default 로 동시 로드 — RC
-            // 미초기화/오프라인 상태에서도 정적 enabled provider 가 그대로
-            // 보이도록 보장 (D-25, T-11-RC-03).
+          if (isFirebaseInitialized) {
+            // App Check 활성화 (Phase 12 D-11, Pitfall 6 — Cloud Function abuse
+            // 방어). dev/debug 빌드는 debug provider, release 빌드는 Play
+            // Integrity (Android) / DeviceCheck (iOS). 활성화 실패는 무시 +
+            // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
             //
-            // setDefaults 는 [AppConfig.authProviders] 8 슬러그 모두에 대해
-            // `auth_provider_{providerId}_enabled: <CSV 포함 여부>` 를 자동
-            // 생성한다. enabledAuthProviders CSV 토큰 기준:
-            // - 'auth_provider_google_enabled': true (Phase 6+)
-            // - 'auth_provider_apple_enabled': true (Phase 7+)
-            // - 'auth_provider_facebook_enabled': true (Phase 9+)
-            // - 'auth_provider_kakao_enabled': true (Phase 12+)
-            // - 'auth_provider_naver_enabled': true (Phase 13 — see ROADMAP.md)
-            // - 'auth_provider_line_enabled': true (Phase 14 — see ROADMAP.md)
-            // - 'auth_provider_yahoojp_enabled': true (Phase 15 — see
-            //   ROADMAP.md, D-YJP-03 — CSV `yahoojp` 토큰 활성 시 자동 true)
-            await rc.setDefaults(<String, Object>{
-              for (final entry in AppConfig.authProviders.entries)
-                rcKeyForProvider(entry.key): entry.value,
-            });
-            await rc.fetchAndActivate();
-          } on Object catch (e, st) {
-            // D-25: fetch 실패는 무시. Crashlytics 로그만 + 정적 config 로 진행.
-            if (kDebugMode) {
-              debugPrint('RemoteConfig 초기화 실패 (무시): $e\n$st');
+            // dev flavor 의 debug provider 첫 실행 시 logcat / Xcode console 에
+            // debug 토큰 출력 -- Firebase Console > App Check > 디버그 토큰 관리
+            // 에 등록 의무 (manual.md 5단계).
+            try {
+              await FirebaseAppCheck.instance.activate(
+                providerAndroid: kDebugMode
+                    ? const AndroidDebugProvider()
+                    : const AndroidPlayIntegrityProvider(),
+                providerApple: kDebugMode
+                    ? const AppleDebugProvider()
+                    : const AppleDeviceCheckProvider(),
+              );
+            } on Object catch (e, st) {
+              if (kDebugMode) {
+                debugPrint('FirebaseAppCheck.activate() 실패 (무시): $e\n$st');
+              }
             }
-            unawaited(
-              FirebaseCrashlytics.instance.recordError(e, st, fatal: false),
+
+            // 경로 2: Flutter framework 에러 -> Crashlytics
+            FlutterError.onError =
+                FirebaseCrashlytics.instance.recordFlutterFatalError;
+
+            // 경로 3: Platform/async 에러 -> Crashlytics. fire-and-forget.
+            PlatformDispatcher.instance.onError = (error, stack) {
+              unawaited(
+                FirebaseCrashlytics.instance.recordError(
+                  error,
+                  stack,
+                  fatal: true,
+                ),
+              );
+              return true;
+            };
+
+            // Flavor custom key 태깅 (AUTH-11). [AppConfig.flavor] 가 단일
+            // 진실원 — silent fallback 회피 (WR-07 hotfix). 미주입 시 빈 문자열.
+            await FirebaseCrashlytics.instance.setCustomKey(
+              'flavor',
+              AppConfig.flavor,
             );
+
+            // GoogleSignIn 초기화 (기존 로직 유지).
+            // Dart-only Firebase 방식이므로 google-services.json Gradle 플러그인을
+            // 사용하지 않아 serverClientId 를 --dart-define-from-file 에서 명시적
+            // 으로 전달.
+            const serverClientId = String.fromEnvironment(
+              'googleServerClientId',
+            );
+            try {
+              await GoogleSignIn.instance.initialize(
+                serverClientId: serverClientId.isEmpty ? null : serverClientId,
+              );
+            } on Object catch (e, st) {
+              if (kDebugMode) {
+                debugPrint('GoogleSignIn.initialize() 실패 (무시): $e\n$st');
+              }
+            }
+
+            // Kakao SDK 초기화 (Phase 12 D-04 / Pattern A).
+            //
+            // Firebase 초기화 직후 + RC fetch 전 위치 — 첫 SDK API 호출
+            // (loginWithKakaoTalk 등) 시점에 실제 PlatformChannel가 초기화된다.
+            // [KakaoSdk.init]은 [Future<void>] 반환 (kakao_flutter_sdk_common
+            // 2.0.0+1) — `await` 필수.
+            //
+            // dev flavor만 실 키 주입 (D-22), stg/prod는 placeholder —
+            // manual.md 안내. 빈 문자열 시 throw하지 않으나 (`_nativeKey = '' OK`),
+            // 첫 SDK API 호출에서 실패하므로 silent failure 회피 (D-20 의도).
+            //
+            // KakaoSdk.init이 throw할 가능성(`null` 인자 시 KakaoClientException)에
+            // 대비해 try/catch + debugPrint fallback (GoogleSignIn 패턴 일관).
+            try {
+              await KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
+            } on Object catch (e, st) {
+              if (kDebugMode) {
+                debugPrint('KakaoSdk.init() 실패 (무시): $e\n$st');
+              }
+            }
+
+            // Naver SDK 초기화 (Phase 13 — see ROADMAP.md, RESEARCH Decision #1).
+            //
+            // Kakao SDK init 직후 + RC fetch 전 위치 — bootstrap 위치 lock 으로
+            // LoginScreen 진입 직전 사용 가능 + cold start 의 첫 클릭 지연 회피.
+            // SDK 자체 멱등성 보장 (NaverLoginSDK._isInitialize static bool —
+            // controller line 30) — Provider rebuild 시 silent.
+            //
+            // [NaverLoginSDK.initialize] 는 [Future<bool>] 반환 (3.2.1 controller
+            // line 49) — `await` 의무. clientSecret 은 D-60 — 사용처 0건이지만
+            // SDK init 의무 인자.
+            //
+            // dev flavor 만 실 키 주입, stg/prod 는 placeholder — manual.md
+            // 안내 (Plan 13-07). 빈 문자열 시 SDK assertion / 첫 API 호출에서
+            // 즉시 실패하므로 silent failure 회피 (KakaoSdk 패턴 일관).
+            //
+            // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
+            // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
+            try {
+              await NaverLoginSDK.initialize(
+                urlScheme: AppConfig.naverUrlScheme,
+                clientId: AppConfig.naverClientId,
+                clientSecret: AppConfig.naverClientSecret,
+                clientName: 'Flutter Starter Kit',
+              );
+            } on Object catch (e, st) {
+              if (kDebugMode) {
+                debugPrint('NaverLoginSDK.initialize() 실패 (무시): $e\n$st');
+              }
+            }
+
+            // LINE SDK 초기화 (Phase 14 D-LINE-17).
+            //
+            // flutter_line_sdk 의 [LineSDK.instance.setup] 호출 의무. NaverSDK
+            // init 직후 + RC fetch 전 위치 — LoginScreen 진입 직전 사용 가능 +
+            // cold start 의 첫 클릭 지연 회피. SDK 자체 멱등성 보장 (LineSDK
+            // _channel 의 'setup' invokeMethod 가 native side 에서 idempotent
+            // 처리).
+            //
+            // [LineSDK.instance.setup] 는 [Future<void>] 반환 — `await` 의무.
+            // dev flavor 만 실 키 주입 (D-LINE-19 / memory `project_firebase_dev_only`),
+            // stg/prod 는 placeholder — manual.md D-LINE-22a (1) 절차 따름.
+            // 빈 문자열 시 SDK 첫 login() 호출에서 실패하므로 silent failure 회피
+            // (KakaoSdk / NaverLoginSDK 패턴 일관).
+            //
+            // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
+            // debugPrint fallback (GoogleSignIn / KakaoSdk / NaverLoginSDK 패턴
+            // 일관).
+            try {
+              await LineSDK.instance.setup(AppConfig.lineChannelId);
+            } on Object catch (e, st) {
+              if (kDebugMode) {
+                debugPrint('LineSDK.setup() 실패 (무시): $e\n$st');
+              }
+            }
+
+            // Remote Config 초기화 (Phase 11 D-24, D-25 폴백, Pitfall 4 silent
+            // stale 가드). fetch 실패는 무시 + 정적 config 로 진행.
+            try {
+              final rc = FirebaseRemoteConfig.instance;
+              await rc.setConfigSettings(
+                RemoteConfigSettings(
+                  fetchTimeout: const Duration(minutes: 1),
+                  // D-23: dev=0, 그 외=12h. [AppConfig.isDev] 단일 진실원으로
+                  // prod 빌드의 flavor dart-define 누락 silent fallback 차단
+                  // (WR-07 hotfix).
+                  minimumFetchInterval: AppConfig.isDev
+                      ? Duration.zero
+                      : const Duration(hours: 12),
+                ),
+              );
+              // 정적 config 의 enabled 값을 RC default 로 동시 로드 — RC
+              // 미초기화/오프라인 상태에서도 정적 enabled provider 가 그대로
+              // 보이도록 보장 (D-25, T-11-RC-03).
+              //
+              // setDefaults 는 [AppConfig.authProviders] 8 슬러그 모두에 대해
+              // `auth_provider_{providerId}_enabled: <CSV 포함 여부>` 를 자동
+              // 생성한다. enabledAuthProviders CSV 토큰 기준:
+              // - 'auth_provider_google_enabled': true (Phase 6+)
+              // - 'auth_provider_apple_enabled': true (Phase 7+)
+              // - 'auth_provider_facebook_enabled': true (Phase 9+)
+              // - 'auth_provider_kakao_enabled': true (Phase 12+)
+              // - 'auth_provider_naver_enabled': true (Phase 13 — see ROADMAP.md)
+              // - 'auth_provider_line_enabled': true (Phase 14 — see ROADMAP.md)
+              // - 'auth_provider_yahoojp_enabled': true (Phase 15 — see
+              //   ROADMAP.md, D-YJP-03 — CSV `yahoojp` 토큰 활성 시 자동 true)
+              await rc.setDefaults(<String, Object>{
+                for (final entry in AppConfig.authProviders.entries)
+                  rcKeyForProvider(entry.key): entry.value,
+              });
+              await rc.fetchAndActivate();
+            } on Object catch (e, st) {
+              // D-25: fetch 실패는 무시. Crashlytics 로그만 + 정적 config 로 진행.
+              if (kDebugMode) {
+                debugPrint('RemoteConfig 초기화 실패 (무시): $e\n$st');
+              }
+              unawaited(
+                FirebaseCrashlytics.instance.recordError(e, st, fatal: false),
+              );
+            }
+          }
+        } on Object catch (e, st) {
+          if (kDebugMode) {
+            debugPrint('bootstrap 초기화 실패 (Firebase 비활성): $e\n$st');
           }
         }
 

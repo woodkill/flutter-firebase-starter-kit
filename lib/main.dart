@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_starter_kit/core/bootstrap.dart';
 
 /// 앱 엔트리포인트.
 ///
-/// [bootstrap]을 호출하여 초기화 시퀀스를 시작한다.
-/// flavor는 `--dart-define-from-file`로 주입된
-/// `String.fromEnvironment('flavor')`에서 읽는다.
+/// 초기화 시퀀스는 [bootstrap] 을 참조한다. [bootstrap] 은 내부에서
+/// `runZonedGuarded` 로 자체 에러 처리를 수행하고, 초기화가 실패해도
+/// `runApp` 을 반드시 호출하므로 여기서는 의도적으로 fire-and-forget 한다.
 void main() {
-  bootstrap();
+  unawaited(bootstrap());
 }
