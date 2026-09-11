@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Material 3 [TextTheme]을 래핑하는 [ThemeExtension].
@@ -10,7 +11,7 @@ import 'package:flutter/material.dart';
 /// final typography = context.appTypography;
 /// Text('제목', style: typography.headlineLarge);
 /// ```
-class AppTypography extends ThemeExtension<AppTypography> {
+class AppTypography extends ThemeExtension<AppTypography> with Diagnosticable {
   /// [AppTypography] 인스턴스를 생성한다.
   const AppTypography({
     required this.displayLarge,
@@ -208,4 +209,25 @@ class AppTypography extends ThemeExtension<AppTypography> {
     labelMedium,
     labelSmall,
   );
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties
+      ..add(DiagnosticsProperty<TextStyle>('displayLarge', displayLarge))
+      ..add(DiagnosticsProperty<TextStyle>('displayMedium', displayMedium))
+      ..add(DiagnosticsProperty<TextStyle>('displaySmall', displaySmall))
+      ..add(DiagnosticsProperty<TextStyle>('headlineLarge', headlineLarge))
+      ..add(DiagnosticsProperty<TextStyle>('headlineMedium', headlineMedium))
+      ..add(DiagnosticsProperty<TextStyle>('headlineSmall', headlineSmall))
+      ..add(DiagnosticsProperty<TextStyle>('titleLarge', titleLarge))
+      ..add(DiagnosticsProperty<TextStyle>('titleMedium', titleMedium))
+      ..add(DiagnosticsProperty<TextStyle>('titleSmall', titleSmall))
+      ..add(DiagnosticsProperty<TextStyle>('bodyLarge', bodyLarge))
+      ..add(DiagnosticsProperty<TextStyle>('bodyMedium', bodyMedium))
+      ..add(DiagnosticsProperty<TextStyle>('bodySmall', bodySmall))
+      ..add(DiagnosticsProperty<TextStyle>('labelLarge', labelLarge))
+      ..add(DiagnosticsProperty<TextStyle>('labelMedium', labelMedium))
+      ..add(DiagnosticsProperty<TextStyle>('labelSmall', labelSmall));
+  }
 }

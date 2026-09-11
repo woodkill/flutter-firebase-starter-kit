@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -96,6 +97,28 @@ void main() {
             AppTypography.fromTextTheme(ThemeData.dark().textTheme),
         isFalse,
       );
+    });
+  });
+
+  // ─── T-03-IN-06: 진단 정보 ─────────────────────────
+  group('T-03-IN-06: AppTypography 진단 정보', () {
+    test('toString 에 클래스명과 스타일 이름이 드러난다', () {
+      final text = AppTypography.fromTextTheme(
+        ThemeData.light().textTheme,
+      ).toString();
+
+      expect(text, contains('AppTypography'));
+      expect(text, contains('bodyMedium'));
+      expect(text, isNot(contains("Instance of 'AppTypography'")));
+    });
+
+    test('debugFillProperties 가 15개 스타일을 모두 등록한다', () {
+      final builder = DiagnosticPropertiesBuilder();
+      AppTypography.fromTextTheme(
+        ThemeData.light().textTheme,
+      ).debugFillProperties(builder);
+
+      expect(builder.properties.map((p) => p.name).toSet().length, 15);
     });
   });
 }

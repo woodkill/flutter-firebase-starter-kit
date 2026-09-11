@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// 4px 기반 간격 스케일을 제공하는 [ThemeExtension].
@@ -12,7 +13,7 @@ import 'package:flutter/material.dart';
 /// final spacing = context.appSpacing;
 /// SizedBox(height: spacing.md); // 12.0
 /// ```
-class AppSpacing extends ThemeExtension<AppSpacing> {
+class AppSpacing extends ThemeExtension<AppSpacing> with Diagnosticable {
   /// [AppSpacing] 인스턴스를 기본 4px 스케일로 생성한다.
   const AppSpacing({
     this.xs = 4.0,
@@ -95,4 +96,17 @@ class AppSpacing extends ThemeExtension<AppSpacing> {
 
   @override
   int get hashCode => Object.hash(xs, sm, md, lg, xl, xxl, xxxl);
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties
+      ..add(DoubleProperty('xs', xs))
+      ..add(DoubleProperty('sm', sm))
+      ..add(DoubleProperty('md', md))
+      ..add(DoubleProperty('lg', lg))
+      ..add(DoubleProperty('xl', xl))
+      ..add(DoubleProperty('xxl', xxl))
+      ..add(DoubleProperty('xxxl', xxxl));
+  }
 }

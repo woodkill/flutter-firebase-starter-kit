@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// 앱 전용 시맨틱 컬러 토큰을 제공하는 [ThemeExtension].
@@ -11,7 +12,7 @@ import 'package:flutter/material.dart';
 /// // 또는 ThemeX extension 사용:
 /// final colors = context.appColors;
 /// ```
-class AppColors extends ThemeExtension<AppColors> {
+class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
   /// [AppColors] 인스턴스를 생성한다.
   const AppColors({
     required this.success,
@@ -109,4 +110,16 @@ class AppColors extends ThemeExtension<AppColors> {
   @override
   int get hashCode =>
       Object.hash(success, warning, info, onSuccess, onWarning, onInfo);
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties
+      ..add(ColorProperty('success', success))
+      ..add(ColorProperty('warning', warning))
+      ..add(ColorProperty('info', info))
+      ..add(ColorProperty('onSuccess', onSuccess))
+      ..add(ColorProperty('onWarning', onWarning))
+      ..add(ColorProperty('onInfo', onInfo));
+  }
 }

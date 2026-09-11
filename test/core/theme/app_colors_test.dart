@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -179,6 +180,38 @@ void main() {
         AppColors.fromBrightness(Brightness.light) ==
             AppColors.fromBrightness(Brightness.dark),
         isFalse,
+      );
+    });
+  });
+
+  // ─── T-03-IN-06: 진단 정보 노출 ─────────────────────────
+  //
+  // Diagnosticable 미적용 시 DevTools Theme inspector 와 위젯 트리
+  // 덤프에 `Instance of 'AppColors'` 로만 보여 토큰 디버깅이 어렵다.
+  group('T-03-IN-06: AppColors 진단 정보', () {
+    test('toString 에 클래스명과 토큰 이름이 드러난다', () {
+      final text = AppColors.fromBrightness(Brightness.light).toString();
+
+      expect(text, contains('AppColors'));
+      expect(text, contains('success'));
+      expect(text, contains('onInfo'));
+      expect(text, isNot(contains("Instance of 'AppColors'")));
+    });
+
+    test('debugFillProperties 가 6개 토큰을 모두 등록한다', () {
+      final builder = DiagnosticPropertiesBuilder();
+      AppColors.fromBrightness(Brightness.dark).debugFillProperties(builder);
+
+      expect(
+        builder.properties.map((p) => p.name).toSet(),
+        containsAll(<String>[
+          'success',
+          'warning',
+          'info',
+          'onSuccess',
+          'onWarning',
+          'onInfo',
+        ]),
       );
     });
   });

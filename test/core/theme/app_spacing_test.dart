@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
@@ -96,6 +97,27 @@ void main() {
 
     test('copyWith 로 값을 바꾸면 원본과 != 이다', () {
       expect(const AppSpacing() == const AppSpacing().copyWith(xs: 5), isFalse);
+    });
+  });
+
+  // ─── T-03-IN-06: 진단 정보 ─────────────────────────
+  group('T-03-IN-06: AppSpacing 진단 정보', () {
+    test('toString 에 클래스명과 간격 값이 드러난다', () {
+      const text = AppSpacing();
+
+      expect(text.toString(), contains('AppSpacing'));
+      expect(text.toString(), contains('xs'));
+      expect(text.toString(), isNot(contains("Instance of 'AppSpacing'")));
+    });
+
+    test('debugFillProperties 가 7단계 간격을 모두 등록한다', () {
+      final builder = DiagnosticPropertiesBuilder();
+      const AppSpacing().debugFillProperties(builder);
+
+      expect(
+        builder.properties.map((p) => p.name).toSet(),
+        containsAll(<String>['xs', 'sm', 'md', 'lg', 'xl', 'xxl', 'xxxl']),
+      );
     });
   });
 }
