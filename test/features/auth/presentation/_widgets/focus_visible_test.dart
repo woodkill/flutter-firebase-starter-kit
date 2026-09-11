@@ -112,8 +112,8 @@ void main() {
       );
 
       // 키보드 focus 진입 시뮬레이션 — Tab 키 이벤트 전송. BrandFocusWrapper
-      // 의 FocusableActionDetector 가 자동으로 첫 focusable descendant 로
-      // focus 이동, onFocusChange 콜백 트리거.
+      // 는 자신이 focus 를 받지 않고(CR-01), 자손 InkWell 이 focus 를 받을 때
+      // Focus.onFocusChange(hasFocus: true) 로 전달받아 outline 을 그린다.
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pumpAndSettle();
 
@@ -162,6 +162,114 @@ void main() {
         wrapper.isEnabled,
         isFalse,
         reason: 'onPressed: null 일 때 BrandFocusWrapper.isEnabled false 의무.',
+      );
+    });
+  });
+
+  // ─── T-03-CR-01: wrapper 가 죽은 Tab stop 을 만들지 않는다 ─────────
+  //
+  // Phase 03 code review CR-01 — 구 구현(`FocusableActionDetector`)은 wrapper
+  // 자신이 traversal 정지점(`canRequestFocus: enabled`,
+  // `skipTraversal: false`)이 되어 Tab 1회차가 wrapper 노드에 걸렸다.
+  // wrapper 에는 `actions` 도 `Actions` 조상도 없어 Enter/Space 가 무시됐고
+  // (실측 taps=0), Tab 2회차에서야 InkWell 이 활성화됐다. 아래 가드는
+  // "provider 1개당 Tab stop 1개" 와 "Tab 1회 후 Enter 로 onPressed 호출" 을
+  // 단언한다.
+  group('T-03-CR-01: BrandFocusWrapper 는 traversal 정지점을 추가하지 않는다', () {
+    testWidgets(
+      'wrapper Focus 노드는 canRequestFocus=false + skipTraversal=true',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.google(
+              label: 'Sign in with Google',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+          ),
+        );
+        await tester.pump();
+
+        final Focus wrapperFocus = tester.widget<Focus>(
+          find
+              .descendant(
+                of: find.byType(BrandFocusWrapper),
+                matching: find.byType(Focus),
+              )
+              .first,
+        );
+
+        expect(
+          wrapperFocus.canRequestFocus,
+          isFalse,
+          reason:
+              'wrapper 가 focus 를 직접 받으면 Enter 가 먹지 않는 죽은 Tab stop '
+              '이 된다 (CR-01 회귀).',
+        );
+        expect(
+          wrapperFocus.skipTraversal,
+          isTrue,
+          reason: 'wrapper 는 traversal 순회 대상에서 제외되어야 한다 (CR-01 회귀).',
+        );
+        expect(
+          wrapperFocus.descendantsAreFocusable,
+          isTrue,
+          reason: 'isEnabled=true 면 자손(InkWell) focus 진입은 허용되어야 한다.',
+        );
+      },
+    );
+
+    testWidgets('provider 3개 — Tab 1회당 버튼 1개, Tab 직후 Enter 로 onPressed 호출', (
+      tester,
+    ) async {
+      final taps = <String, int>{'google': 0, 'kakao': 0, 'naver': 0};
+
+      await tester.pumpWidget(
+        _wrap(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              BrandedSocialButton.google(
+                label: 'Sign in with Google',
+                onPressed: () => taps['google'] = taps['google']! + 1,
+              ),
+              BrandedSocialButton.kakao(
+                label: 'Login with Kakao',
+                onPressed: () => taps['kakao'] = taps['kakao']! + 1,
+              ),
+              BrandedSocialButton.naver(
+                label: 'Log in with NAVER',
+                onPressed: () => taps['naver'] = taps['naver']! + 1,
+              ),
+            ],
+          ),
+          brightness: Brightness.light,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tab n회차 → n 번째 버튼의 InkWell 이 primary focus.
+      // 죽은 Tab stop 이 있으면 홈수가 2배로 늘어 짝수 회차에서만
+      // Enter 가 먹는다.
+      for (final provider in <String>['google', 'kakao', 'naver']) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(
+          taps[provider],
+          1,
+          reason:
+              '$provider — Tab 후 Enter 가 onPressed 를 정확히 1회 호출해야 한다. '
+              '0 이면 wrapper 의 죽은 Tab stop 에 focus 가 머무른 것 (CR-01 회귀).',
+        );
+      }
+
+      expect(
+        taps.values.toList(),
+        <int>[1, 1, 1],
+        reason: 'Tab 3회로 provider 3개 모두 도달 — provider 당 Tab stop 은 1개.',
       );
     });
   });

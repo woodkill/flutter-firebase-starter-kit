@@ -52,7 +52,32 @@ class BrandFocusWrapper extends StatefulWidget {
 }
 
 class _BrandFocusWrapperState extends State<BrandFocusWrapper> {
+  /// wrapper 의 focus 노드. 자신은 focus 를 받지 않고(자손 관찰자 역할),
+  /// a11y focus 요청을 자손으로 위임하기 위해 참조를 보관한다.
+  final FocusNode _node = FocusNode(
+    debugLabel: 'BrandFocusWrapper',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+
   bool _hasFocus = false;
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  /// a11y 서비스(TalkBack/VoiceOver/Switch Access)의 focus 요청을 첫 번째
+  /// traversal 가능한 자손(brand button 의 `InkWell`)으로 위임한다.
+  ///
+  /// 자손이 없으면(레이아웃 미완료 등) 아무 것도 하지 않는다 — 엣지 케이스 방어.
+  void _requestDescendantFocus() {
+    for (final descendant in _node.traversalDescendants) {
+      descendant.requestFocus();
+      return;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,8 +86,20 @@ class _BrandFocusWrapperState extends State<BrandFocusWrapper> {
     final outlineColor = isDark
         ? const Color(0xFFFFFFFF)
         : const Color(0xFF000000);
-    return FocusableActionDetector(
-      enabled: widget.isEnabled,
+    return Focus(
+      focusNode: _node,
+      // wrapper 자신은 focus 를 받지 않는다 — traversal 정지점을 추가하면
+      // child(InkWell) 앞에 "Enter 가 먹지 않는" 죽은 Tab stop 이 생긴다.
+      // (`FocusableActionDetector` 는 내부적으로 `canRequestFocus: enabled`
+      // + `skipTraversal: false` 인 Focus 를 만들기 때문에 이 결함이 있었다.)
+      canRequestFocus: false,
+      skipTraversal: true,
+      // isEnabled=false 면 자손 focus 진입 자체를 차단 (disabled button).
+      descendantsAreFocusable: widget.isEnabled,
+      // wrapper 의 focus 의미론(`focusable: false`)은 노출하지 않는다 —
+      // 병합된 button SemanticsNode 를 "focus 불가" 로 오도한다.
+      includeSemantics: false,
+      // 자손(InkWell)이 focus 를 받으면 hasFocus=true 로 전달된다.
       onFocusChange: (hasFocus) {
         if (mounted && _hasFocus != hasFocus) {
           setState(() {
@@ -70,17 +107,24 @@ class _BrandFocusWrapperState extends State<BrandFocusWrapper> {
           });
         }
       },
-      child: Container(
-        // 2dp offset — outline 이 button 경계를 침범하지 않도록 별도 layer.
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(widget.borderRadius + 4),
-          border: Border.all(
-            color: _hasFocus ? outlineColor : Colors.transparent,
-            width: 2,
+      child: Semantics(
+        // brand button 은 `Semantics(excludeSemantics: true)` 로 자손 `InkWell`
+        // 의 focus 의미론을 차단하므로, wrapper 가 대신 노출한다. focus 요청은
+        // 실제 focus 노드(자손 InkWell)로 위임한다.
+        focusable: widget.isEnabled,
+        onFocus: widget.isEnabled ? _requestDescendantFocus : null,
+        child: Container(
+          // 2dp offset — outline 이 button 경계를 침범하지 않도록 별도 layer.
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.borderRadius + 4),
+            border: Border.all(
+              color: _hasFocus ? outlineColor : Colors.transparent,
+              width: 2,
+            ),
           ),
+          child: widget.child,
         ),
-        child: widget.child,
       ),
     );
   }

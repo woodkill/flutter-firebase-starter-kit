@@ -396,10 +396,10 @@ void main() {
           // 패턴이 회귀하면 hasTapAction=false 로 RED.
           //
           // **Phase 13.3 X2 옵션 B finder 갱신 (2026-05-17):** outer
-          // BrandFocusWrapper(FocusableActionDetector) 가 root SemanticsNode
-          // (`scopesRoute` flag) 를 트리에 주입 → find.byType(BrandedSocial
-          // Button) 이 outer node 도달. find.bySemanticsLabel 로 inner
-          // button SemanticsNode (label = '카카오 로그인') 직접 도달.
+          // BrandFocusWrapper 가 SemanticsNode 를 트리에 주입 →
+          // find.byType(BrandedSocialButton) 이 outer node 도달.
+          // find.bySemanticsLabel 로 inner button SemanticsNode
+          // (label = '카카오 로그인') 직접 도달.
           expect(
             tester.getSemantics(find.bySemanticsLabel('카카오 로그인')),
             matchesSemantics(
@@ -416,8 +416,9 @@ void main() {
                 'TalkBack/VoiceOver 사용자가 활성화 불가. '
                 'button/label/onTap 셋 모두 시멘틱 트리에 노출 의무. '
                 'hasTapAction=false RED 시 iter1 회귀 패턴 재발. '
-                'X2 옵션 B (2026-05-17) 후 FocusableActionDetector 가 '
-                'hasFocusAction + isFocusable 자동 추가 (WCAG 2.4.7).',
+                'Phase 03 CR-01 후 BrandFocusWrapper 가 Semantics(focusable, '
+                'onFocus) 로 hasFocusAction + isFocusable 제공 (WCAG 2.4.7) — '
+                'focus 요청은 자손 InkWell 로 위임.',
           );
         } finally {
           semHandle.dispose();
