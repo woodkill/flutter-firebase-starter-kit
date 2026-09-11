@@ -88,4 +88,28 @@ void main() {
       expect(AppTheme.light() == AppTheme.dark(), isFalse);
     });
   });
+
+  // ─── T-03-IN-01: 중복 인자 제거 후 파생값 보존 ──────────────
+  //
+  // `useMaterial3` 는 Flutter 3.41 기준 기본값 true (`theme_data.dart` 의
+  // `useMaterial3 ??= true`), `dark()` 의 `brightness` 는 colorScheme 에서
+  // 파생된다. 인자를 지우고도 결과가 동일한지 고정한다.
+  group('T-03-IN-01: 중복 인자를 제거해도 파생값은 동일하다', () {
+    test('light() 의 brightness 는 light 다', () {
+      expect(AppTheme.light().brightness, equals(Brightness.light));
+    });
+
+    test('dark() 의 brightness 는 colorScheme 에서 파생된다', () {
+      final theme = AppTheme.dark();
+
+      expect(
+        theme.brightness,
+        equals(Brightness.dark),
+        reason:
+            'ThemeData(brightness:) 인자를 제거했으므로 colorScheme.brightness '
+            '파생이 깨지면 여기서 RED 가 된다.',
+      );
+      expect(theme.colorScheme.brightness, equals(Brightness.dark));
+    });
+  });
 }

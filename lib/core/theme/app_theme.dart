@@ -28,7 +28,8 @@ abstract final class AppTheme {
   /// [AppColors], [AppTypography], [AppSpacing] 3개 ThemeExtension을 포함한다.
   static ThemeData light() {
     final colorScheme = ColorScheme.fromSeed(seedColor: seedColor);
-    final base = ThemeData(colorScheme: colorScheme, useMaterial3: true);
+    // useMaterial3 미지정 — Flutter 3.41 기준 기본값이 true 다.
+    final base = ThemeData(colorScheme: colorScheme);
 
     return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[
@@ -47,11 +48,8 @@ abstract final class AppTheme {
       seedColor: seedColor,
       brightness: Brightness.dark,
     );
-    final base = ThemeData(
-      colorScheme: colorScheme,
-      useMaterial3: true,
-      brightness: Brightness.dark,
-    );
+    // brightness 미지정 — colorScheme 이 있으면 거기서 파생된다.
+    final base = ThemeData(colorScheme: colorScheme);
 
     return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[
