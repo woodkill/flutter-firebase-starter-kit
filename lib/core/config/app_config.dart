@@ -55,13 +55,18 @@ abstract final class AppConfig {
   /// 미주입 시 빈 문자열 — silent fallback 회피 (WR-07 hotfix 패턴). 키 이름을
   /// 오타 내도 defaultValue 로 그럴듯한 값이 나오지 않아 즉시 검출된다.
   ///
-  /// **표기 규칙 (IN-02 리뷰 — 파일 전체 공통):** 본 클래스의 모든
-  /// `String.fromEnvironment` 는 `defaultValue` 인자를 **생략**한다.
-  /// `String.fromEnvironment` 의 기본 defaultValue 가 이미 `''` 이므로
-  /// `defaultValue: ''` 는 동작상 무의미한데, 일부만 명시하면 독자가 두 표기의
-  /// 의미 차이를 찾느라 시간을 쓴다. 빈 문자열 자체가 "미주입" sentinel 이며,
-  /// 그 값을 무엇으로 대체할지는 소비처가 결정한다 (`App` 은 l10n 의
-  /// `appTitle`, 환경 정보 화면은 경고 chip).
+  /// **표기 규칙 (IN-02 리뷰 — 파일 전체 공통):** 시크릿·식별자 키는
+  /// `defaultValue` 인자를 **생략**한다. `String.fromEnvironment` 의 기본
+  /// defaultValue 가 이미 `''` 이므로 `defaultValue: ''` 는 동작상 무의미한데,
+  /// 일부만 명시하면 독자가 두 표기의 의미 차이를 찾느라 시간을 쓴다. 빈
+  /// 문자열 자체가 "미주입" sentinel 이며, 그 값을 무엇으로 대체할지는
+  /// 소비처가 결정한다 (`App` 은 l10n 의 `appTitle`, 환경 정보 화면은 경고
+  /// chip).
+  ///
+  /// **예외 — 유의미한 non-empty default.** 빈 값이 애초에 유효하지 않고
+  /// 기본값이 곧 프로젝트 표준인 운영 상수는 default 를 명시한다
+  /// ([functionsRegion] 이 유일한 사례다). 금지되는 것은 `defaultValue: ''`
+  /// 라는 **no-op 표기**이지 default 개념 자체가 아니다.
   /// 빈 문자열일 때 표시 문자열을 무엇으로 대체할지는 소비처가 결정한다
   /// (`App` 은 l10n 의 `appTitle`, 환경 정보 화면은 경고 chip).
   static const String appName = String.fromEnvironment('appName');
@@ -168,6 +173,31 @@ abstract final class AppConfig {
   static const String yahoojpRedirectScheme = String.fromEnvironment(
     'yahoojpRedirectScheme',
   );
+
+  /// Cloud Functions region — `--dart-define-from-file` 의 `functionsRegion` 키.
+  ///
+  /// **IN-03/IN-06 리뷰:** 과거 이 값은 `firebase_providers.dart` 의
+  /// `FirebaseFunctions.instanceFor(region: 'asia-northeast3')` 에 코드
+  /// 리터럴로 박혀 있었다. 서울 외 region 을 쓰는 fork 사용자는 dart 소스를
+  /// 직접 고쳐야 했고, 이는 "config 로 환경을 바꾼다" 는 이 프로젝트의 다른
+  /// 모든 설정 패턴과 어긋났다.
+  ///
+  /// **TS 와 1:1 일치 의무.** 서버 측 진실원은
+  /// `functions/src/shared/region.ts` 의 `REGION` 상수다. 두 값이 어긋나면
+  /// 런타임에 callable `not-found` 로만 드러난다 — 배포 전에 반드시 함께
+  /// 바꿀 것. `app_config_test.dart` 가 두 파일의 값 일치를 테스트로 잠근다.
+  ///
+  /// 다른 키들과 달리 `defaultValue` 를 명시한다 — region 은 시크릿이 아니고
+  /// 빈 문자열이 유효한 값이 아니며, 기본값이 곧 프로젝트 표준이기 때문이다
+  /// (IN-02 표기 규칙의 명시된 예외).
+  static const String functionsRegion = String.fromEnvironment(
+    'functionsRegion',
+    defaultValue: defaultFunctionsRegion,
+  );
+
+  /// [functionsRegion] 의 기본값 — `functions/src/shared/region.ts` 의
+  /// `REGION` 과 동일해야 한다 (Phase 11 D-04).
+  static const String defaultFunctionsRegion = 'asia-northeast3';
 
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///

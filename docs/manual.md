@@ -170,6 +170,31 @@ pnpm install                   # pnpm-lock.yaml 기반 reproducible install
   1단계 #6 OIDC 활성화 누락 (Pitfall 1) 보다 흔한 trivial 실수. 빌드 전
   `cat config/dev.json` 으로 placeholder 가 모두 교체됐는지 1차 확인.
 
+### Cloud Functions region 변경 (`functionsRegion`)
+
+`config/{flavor}.json` 의 `functionsRegion` 키가 Flutter 앱이 호출할 Cloud
+Functions region 을 결정합니다. 기본값은 `asia-northeast3` (서울) 이며, 키를
+생략하면 그 기본값이 쓰입니다.
+
+**서울 외 region 을 쓰려면 반드시 두 곳을 함께 바꿔야 합니다.**
+
+| # | 위치 | 값 |
+|---|------|----|
+| 1 | `config/{flavor}.json` 의 `functionsRegion` | 클라이언트가 호출할 region |
+| 2 | `functions/src/shared/region.ts` 의 `REGION` | 함수가 배포될 region |
+
+두 값이 어긋나면 **빌드도 analyze 도 통과하고, 런타임에 callable 호출이
+`not-found` 로 실패**합니다 (Custom Token 로그인 4종 · 회원탈퇴가 모두 막힙니다).
+증상만으로는 원인을 찾기 어려우므로 변경 시 반드시 쌍으로 처리하세요.
+
+변경 후에는 함수를 새 region 에 다시 배포해야 하며, 구 region 의 함수는 별도로
+삭제해야 합니다 (`firebase functions:delete <name> --region <old-region>`).
+
+> `test/core/config/app_config_test.dart` 의 "Dart 기본값이
+> `functions/src/shared/region.ts` 의 REGION 과 일치한다" 테스트가 **기본값**의
+> 드리프트를 잡아 줍니다. 다만 `config/{flavor}.json` 은 gitignore 대상이라
+> 테스트가 검사하지 않으므로, 실제 주입값과 TS 의 일치는 사용자 책임입니다.
+
 ---
 
 ## Kakao Login (Phase 12)

@@ -365,4 +365,67 @@ void main() {
       expect(AppConfig.authProviders, AppConfig.parseEnabledProviders(''));
     });
   });
+
+  group('IN-06: functionsRegion — Dart / TS 단일 진실원 정합', () {
+    test('dart-define 미주입 시 defaultFunctionsRegion 을 쓴다', () {
+      expect(AppConfig.functionsRegion, AppConfig.defaultFunctionsRegion);
+      expect(AppConfig.functionsRegion, isNotEmpty);
+    });
+
+    test('Dart 기본값이 functions/src/shared/region.ts 의 REGION 과 일치한다', () {
+      // 수정 전에는 같은 값이 두 언어에 각각 박혀 있어 한쪽만 바뀌면 런타임
+      // callable `not-found` 로만 드러났다. 그 드리프트를 테스트로 잠근다.
+      final ts = File('functions/src/shared/region.ts').readAsStringSync();
+      final match = RegExp(r'''REGION\s*=\s*["']([^"']+)["']''').firstMatch(ts);
+      expect(match, isNotNull, reason: 'region.ts 의 REGION 상수를 찾지 못했다');
+      expect(
+        AppConfig.defaultFunctionsRegion,
+        match!.group(1),
+        reason:
+            'IN-06: Dart 의 defaultFunctionsRegion 과 TS 의 REGION 이 어긋나면 '
+            'Cloud Functions 호출이 not-found 로 실패한다 — 함께 바꿀 것.',
+      );
+    });
+
+    test('config/*.example.json 이 functionsRegion 키를 노출한다', () {
+      for (final flavor in const <String>['dev', 'stg', 'prod']) {
+        final file = File('config/$flavor.example.json');
+        final json =
+            jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        expect(
+          json.containsKey('functionsRegion'),
+          isTrue,
+          reason: '$flavor.example.json 에 functionsRegion 키 누락',
+        );
+        expect(
+          json['functionsRegion'],
+          AppConfig.defaultFunctionsRegion,
+          reason: 'example 은 프로젝트 표준 region 을 그대로 보여야 한다',
+        );
+      }
+    });
+
+    test('firebase_providers.dart 가 region 을 하드코딩하지 않는다 (소스 계약)', () {
+      final source = File(
+        'lib/core/providers/firebase_providers.dart',
+      ).readAsStringSync();
+      final codeOnly = source
+          .split('\n')
+          .where((line) {
+            final trimmed = line.trimLeft();
+            return !trimmed.startsWith('//') && !trimmed.startsWith('///');
+          })
+          .join('\n');
+      expect(
+        codeOnly.contains("region: 'asia-northeast3'"),
+        isFalse,
+        reason: 'IN-06: region 리터럴이 되살아났다',
+      );
+      expect(
+        codeOnly.contains('region: AppConfig.functionsRegion'),
+        isTrue,
+        reason: 'IN-06: region 은 AppConfig 를 경유해야 한다',
+      );
+    });
+  });
 }

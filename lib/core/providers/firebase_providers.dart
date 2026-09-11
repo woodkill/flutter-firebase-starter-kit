@@ -10,6 +10,8 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../config/app_config.dart';
+
 part 'firebase_providers.g.dart';
 
 /// 네이티브 Firebase 인스턴스 provider 의 D-13 전제를 debug 에서 강제한다
@@ -179,8 +181,11 @@ FirebaseRemoteConfig firebaseRemoteConfig(Ref ref) {
 
 /// [FirebaseFunctions] 인스턴스를 제공한다 (Phase 11 D-04 region scoped).
 ///
-/// `asia-northeast3` (서울) region 으로 고정 — `functions/src/shared/region.ts`
-/// 와 정합. Phase 12+ Custom Token 함수 호출 시 사용한다.
+/// region 은 [AppConfig.functionsRegion] 이 결정한다 (기본 `asia-northeast3`
+/// 서울) — `functions/src/shared/region.ts` 의 `REGION` 과 **1:1 일치 의무**가
+/// 있으며, 어긋나면 런타임 callable `not-found` 로만 드러난다. 리터럴
+/// 하드코딩을 config 로 옮긴 이유는 IN-06 참조. Phase 12+ Custom Token 함수
+/// 호출 시 사용한다.
 ///
 /// **주의 (Phase 1 D-13 / 코드 리뷰 CR-02):** Firebase 미초기화 시
 /// [FirebaseFunctions.instanceFor] 접근은 `[core/no-app]` 으로 throw 한다.
@@ -190,5 +195,5 @@ FirebaseRemoteConfig firebaseRemoteConfig(Ref ref) {
 @Riverpod(keepAlive: true)
 FirebaseFunctions firebaseFunctions(Ref ref) {
   _assertFirebaseReady(ref, 'firebaseFunctionsProvider');
-  return FirebaseFunctions.instanceFor(region: 'asia-northeast3');
+  return FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion);
 }
