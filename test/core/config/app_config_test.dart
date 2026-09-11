@@ -284,4 +284,85 @@ void main() {
       expect(kAllProviderIds.contains('email'), isFalse);
     });
   });
+
+  group('WR-09: enabledAuthProviders CSV 의 미지 슬러그 검출', () {
+    // 수정 전에는 결과 맵이 kAllProviderIds 로만 구성되어, CSV 에 들어 있지만
+    // 알려진 슬러그가 아닌 토큰이 아무 흔적 없이 버려졌다. 증상은 "로그인
+    // 화면에 Google 버튼이 없다" 로만 나타났고 analyze 도 런타임도 조용했다.
+    test('정상 CSV 는 해당 슬러그만 true 로 노출한다', () {
+      final map = AppConfig.parseEnabledProviders('google,apple');
+      expect(map[kProviderIdGoogle], isTrue);
+      expect(map[kProviderIdApple], isTrue);
+      expect(map[kProviderIdFacebook], isFalse);
+      expect(map.keys.toSet(), kAllProviderIds.toSet());
+    });
+
+    test('빈 CSV 는 모두 false (D-21 안전 default 유지)', () {
+      final map = AppConfig.parseEnabledProviders('');
+      for (final id in kAllProviderIds) {
+        expect(map[id], isFalse, reason: id);
+      }
+    });
+
+    test('공백/빈 토큰은 무시된다 (기존 동작 회귀 가드)', () {
+      final map = AppConfig.parseEnabledProviders(' google , , apple ,');
+      expect(map[kProviderIdGoogle], isTrue);
+      expect(map[kProviderIdApple], isTrue);
+    });
+
+    test('오타 슬러그는 debug 에서 StateError 로 즉시 드러난다', () {
+      expect(
+        () => AppConfig.parseEnabledProviders('gogle,apple'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('gogle'), contains('enabledAuthProviders')),
+          ),
+        ),
+      );
+    });
+
+    test('대소문자가 다른 슬러그도 미지 슬러그로 검출된다', () {
+      expect(
+        () => AppConfig.parseEnabledProviders('Google,apple'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('Google'),
+          ),
+        ),
+      );
+    });
+
+    test('구분자 오타(세미콜론)도 미지 슬러그로 검출된다', () {
+      expect(
+        () => AppConfig.parseEnabledProviders('google;apple'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('google;apple'),
+          ),
+        ),
+      );
+    });
+
+    test('실패 메시지는 알려진 슬러그 목록을 함께 제시한다 (조치 가능성)', () {
+      try {
+        AppConfig.parseEnabledProviders('gogle');
+        fail('미지 슬러그인데 통과했다');
+      } on StateError catch (e) {
+        for (final id in kAllProviderIds) {
+          expect(e.message, contains(id), reason: '알려진 슬러그 $id 가 안내에 없다');
+        }
+      }
+    });
+
+    test('authProviders 는 parseEnabledProviders 와 동일한 결과를 반환한다', () {
+      // 테스트 환경은 dart-define 미주입이므로 CSV 가 빈 문자열이다.
+      expect(AppConfig.authProviders, AppConfig.parseEnabledProviders(''));
+    });
+  });
 }

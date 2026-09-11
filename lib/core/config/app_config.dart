@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../auth/provider_id.dart';
@@ -191,12 +192,45 @@ abstract final class AppConfig {
   /// 반환 맵은 [Map.unmodifiable] 으로 감싸 정적 진실의 런타임 변조를
   /// 방어한다 (WR-02 hotfix) — D-26 의 "정적 false 절대 우위" invariant 가
   /// future contributor / 테스트 코드의 잘못된 변경에 무방비하지 않도록.
-  static Map<String, bool> get authProviders {
-    final enabled = _enabledRaw
+  static Map<String, bool> get authProviders =>
+      parseEnabledProviders(_enabledRaw);
+
+  /// [raw] CSV 를 정적 활성화 맵으로 파싱한다 (WR-09).
+  ///
+  /// [authProviders] 의 본체이며, `_enabledRaw` 가 컴파일 타임 상수라 테스트가
+  /// 다른 CSV 를 주입할 수 없으므로 순수 함수로 분리해 [visibleForTesting]
+  /// 으로 노출한다.
+  ///
+  /// **미지 슬러그는 debug 에서 즉시 실패시킨다.** 결과 맵은
+  /// [kAllProviderIds] 로만 구성되므로 CSV 에 들어 있지만 알려진 슬러그가
+  /// 아닌 토큰은 아무 흔적 없이 버려졌다. `"gogle,apple"` (오타),
+  /// `"Google,apple"` (대소문자), `"google;apple"` (구분자 오타) 는 모두
+  /// analyze 통과 · 런타임 무증상이며, 증상은 "로그인 화면에 Google 버튼이
+  /// 없다" 로만 나타난다. config JSON 은 IDE 자동완성도 스키마 검증도 없는
+  /// 평문이라 오타 확률이 낮지 않다.
+  ///
+  /// 안전 default 자체(D-21 — 모르는 것은 false)는 유지한다. 이 검사는
+  /// **"의도적으로 끈 것" 과 "오타로 꺼진 것" 을 구분할 수단**을 더하는 것이며,
+  /// 같은 파일이 5곳에서 반복 선언한 "silent fallback 회피" 원칙과 정합한다.
+  /// release 빌드에서는 평가되지 않으므로 프로덕션 동작은 그대로다.
+  @visibleForTesting
+  static Map<String, bool> parseEnabledProviders(String raw) {
+    final enabled = raw
         .split(',')
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toSet();
+    assert(() {
+      final unknown = enabled.difference(kAllProviderIds.toSet());
+      if (unknown.isNotEmpty) {
+        throw StateError(
+          'enabledAuthProviders 에 미지의 슬러그: ${unknown.join(", ")}. '
+          'config/{flavor}.json 오타이거나 kAllProviderIds 등록 누락이다 '
+          '(알려진 슬러그: ${kAllProviderIds.join(", ")}).',
+        );
+      }
+      return true;
+    }());
     return Map<String, bool>.unmodifiable(<String, bool>{
       for (final id in kAllProviderIds) id: enabled.contains(id),
     });
