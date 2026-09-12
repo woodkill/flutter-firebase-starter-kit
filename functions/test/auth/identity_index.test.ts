@@ -1035,6 +1035,98 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
     warnMock.mockReset();
   });
 
+  // ---------------------------------------------------------------------------
+  // WR-05 (Phase 15 리뷰) 회귀 가드 — 1단(native) 분기의 self-check 부재.
+  //
+  // 2단(Custom Token) 분기는 `existingByEmail.uid !== callerUid` 로 자기
+  // 자신을 명시 제외하는데 1단에는 같은 가드가 없었다. 이미 Google 로
+  // 로그인한 정식 사용자가 같은 이메일로 Kakao Custom Token 로그인을
+  // 호출하면 getUserByEmail 이 자기 자신을 돌려주고 providerData 에
+  // google.com 이 있으므로 already-exists 가 던져졌다 — 사용자는 **자기
+  // 계정에 대해** "이미 다른 방법으로 가입된 이메일" 안내를 받았다.
+  // ---------------------------------------------------------------------------
+  it(
+    // eslint-disable-next-line max-len
+    "WR-05: 자기 계정 재로그인 (existingByEmail.uid === callerUid) 은 충돌이 아니다",
+    async () => {
+      mockGetUserByEmail.mockResolvedValueOnce({
+        // 핵심 — caller 자신이다.
+        uid: "self-uid-wr05",
+        providerData: [{providerId: "google.com", uid: "g-platform-id"}],
+      });
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-wr05",
+        callerUid: "self-uid-wr05",
+        userInfo: {email: "me@example.com", emailVerified: true},
+      });
+
+      // 충돌이 아니라 정상 등록으로 진행된다.
+      expect(res).toMatchObject({
+        uid: "self-uid-wr05",
+        isNewUser: true,
+        conflictKind: null,
+      });
+      expect(warnMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_email_collision_caller_path",
+        }),
+        expect.any(String),
+      );
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "WR-05: 다른 uid 이면 기존 native 충돌 detect 는 그대로 보존된다 (회귀 0)",
+    async () => {
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "other-uid-wr05",
+        providerData: [{providerId: "google.com", uid: "g-platform-id"}],
+      });
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-wr05b",
+        callerUid: "anon-uid-wr05b",
+        userInfo: {email: "someone@example.com", emailVerified: true},
+      });
+
+      expect(res).toMatchObject({
+        conflictKind: "email_in_use",
+        existingProvider: "google",
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "WR-05: native provider 를 caller 로 호출하면 self-identity 가 실제로 제외된다",
+    async () => {
+      // 기존 `id !== provider` 비교는 좌변이 Firebase 표기, 우변이 Custom
+      // Token 슬러그라 **항상 참** 이었다. 역매핑 비교로 고친 뒤에는
+      // provider="google" + providerData=[google.com] 이 self 로 걸러진다
+      // (Phase 16 의 native 회고 등록이 들어오면 실제로 필요한 동작).
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "other-uid-wr05c",
+        providerData: [{providerId: "google.com", uid: "g-platform-id"}],
+      });
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "google",
+        providerUserId: "google-wr05c",
+        callerUid: "anon-uid-wr05c",
+        userInfo: {email: "same-provider@example.com", emailVerified: true},
+      });
+
+      expect(res.conflictKind).not.toBe("email_in_use");
+    },
+  );
+
   it(
     // eslint-disable-next-line max-len
     "T-IDX-COLLISION-01: callerUid + email + 다른 provider 가입자 → conflictKind email_in_use + transaction 미진입",

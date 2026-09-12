@@ -534,9 +534,29 @@ export async function resolveIdentity(
   if (callerUid && userInfo?.email) {
     try {
       const existingByEmail = await getAuth().getUserByEmail(userInfo.email);
-      const conflictingProviders = (existingByEmail.providerData ?? [])
-        .map((p) => p.providerId)
-        .filter((id) => id !== "firebase" && id !== provider);
+      // WR-05 (Phase 15 리뷰): **자기 자신은 충돌이 아니다.** 2단(Custom
+      // Token) 분기는 `existingByEmail.uid !== callerUid` 로 자기 자신을
+      // 명시 제외하는데 1단(native) 분기에는 같은 가드가 없었다. 그래서
+      // 이미 Google 로 로그인한 정식 사용자가 같은 이메일로 Kakao Custom
+      // Token 로그인을 호출하면 `getUserByEmail` 이 **자기 자신** 을
+      // 돌려주고 providerData 에 `google.com` 이 있으므로
+      // `already-exists` 가 던져졌다 — 사용자는 자기 계정에 대해 "이미 다른
+      // 방법으로 가입된 이메일" 이라는 안내를 받았다.
+      const isSelf = existingByEmail.uid === callerUid;
+      const conflictingProviders = isSelf ?
+        [] :
+        (existingByEmail.providerData ?? [])
+          .map((p) => p.providerId)
+          // WR-05: 기존 `id !== provider` 비교는 **항상 참** 이었다 — 좌변은
+          // Firebase 표기(`google.com` / `password`) 이고 우변은 Custom Token
+          // 슬러그(`kakao` / `naver` / ...) 라 교집합이 없다. self-identity 를
+          // 걸러내려는 원래 의도대로 역매핑으로 비교한다 (Phase 16 이 native
+          // provider 를 identity_index 에 회고 등록하면 실제로 필요해진다).
+          .filter(
+            (id) =>
+              id !== "firebase" &&
+              NATIVE_PROVIDER_DATA_MAP[id] !== provider,
+          );
       if (conflictingProviders.length > 0) {
         // Phase 16 D-09 (Plan 16-03) — existingProvider 매핑. providerData[]
         // 의 첫 known native provider → ProviderId. 매핑 실패 시 'unknown'.
