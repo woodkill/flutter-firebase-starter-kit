@@ -15,6 +15,11 @@
  *  - K4: rate limit exceeded — resource-exhausted + email_enumeration_suspected
  *  - K5: enforceAppCheck:true config sentinel
  *  - K6: PII redaction — logger payload 에 email 본문 미노출
+ *
+ * Phase 15 리뷰 WR-08 회귀 가드 (K7-K9):
+ *  - K7: windowStart 누락 문서 → TypeError 로 영구 실패하지 않고 자기치유
+ *  - K8: IP 층 counter 도 같은 transaction 에서 증가 (익명 UID 회전 우회 차단)
+ *  - K9: IP 층 초과 → resource-exhausted + axis:"ip" 알람
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -45,13 +50,16 @@ const mockIdxWhereGet = jest.fn();
 
 jest.mock("firebase-admin/firestore", () => {
   const rateRef = {label: "rateRef"};
+  // WR-08: IP 층 counter 는 별도 문서다 (lookupSignInMethodsIp:<hash>).
+  const ipRateRef = {label: "ipRateRef"};
   return {
     Firestore: class MockFirestore {},
     getFirestore: jest.fn(() => ({
       collection: (name: string) => {
         if (name === "rate_limits") {
           return {
-            doc: () => rateRef,
+            doc: (id: string) =>
+              id.startsWith("lookupSignInMethodsIp:") ? ipRateRef : rateRef,
           };
         }
         if (name === "identity_index") {
@@ -254,6 +262,112 @@ describe("lookupSignInMethods onCall — Task 2.2 (K1-K6)", () => {
     ];
     for (const args of allLogCalls) {
       expect(JSON.stringify(args)).not.toContain(piiSentinel);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // WR-08 (Phase 15 리뷰) 회귀 가드.
+  //
+  // (1) UID 별 counter 는 `request.auth` 만 요구하는데 익명 사용자도 이를
+  //     만족하고 익명 UID 는 무제한 생성 가능하다 — 10회마다 새 UID 로 카운터를
+  //     리셋할 수 있어 사실상 방어가 없었다. IP 층이 그 우회로를 닫는다.
+  // (2) `data.windowStart.seconds` 직접 접근은 문서에 windowStart 가 없으면
+  //     TypeError 로 터졌고, 바깥 catch 가 internal 로 바꿔 **해당 UID 의
+  //     lookup 이 영구 실패** 했다 (문서가 자기치유되지 않음).
+  // ---------------------------------------------------------------------------
+  it("K7: windowStart 누락 문서 → 영구 실패 대신 새 창으로 자기치유", async () => {
+    // 부분 write / 수동 편집으로 windowStart 가 없는 counter 문서.
+    mockRateTxGet.mockResolvedValue({
+      exists: true,
+      data: () => ({count: 3}),
+    });
+    mockGetUserByEmail.mockResolvedValue({
+      uid: "u-K7",
+      providerData: [{providerId: "google.com"}],
+    });
+
+    const wrapped = testEnv.wrap(myFunctions.lookupSignInMethods);
+    const result = (await wrapped({
+      auth: {uid: "caller-K7"},
+      app: {appId: "test"},
+      data: {email: "k7@example.com"},
+    } as never)) as {existingProvider: string | null};
+
+    // internal 로 터지지 않고 정상 응답 + counter 는 새 창으로 리셋된다.
+    expect(result.existingProvider).toBe("google");
+    expect(mockRateTxSet).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({count: 1}),
+    );
+  });
+
+  it("K8: IP 층 counter 도 같은 transaction 에서 함께 증가한다", async () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    mockRateTxGet.mockResolvedValue({
+      exists: true,
+      data: () => ({count: 1, windowStart: {seconds: nowSec - 5}}),
+    });
+    mockGetUserByEmail.mockResolvedValue({
+      uid: "u-K8",
+      providerData: [{providerId: "google.com"}],
+    });
+
+    const wrapped = testEnv.wrap(myFunctions.lookupSignInMethods);
+    await wrapped({
+      auth: {uid: "caller-K8"},
+      app: {appId: "test"},
+      // WR-08: IP 층은 rawRequest.ip 로 평가된다. 실 런타임에서는 Cloud
+      // Functions 가 채우고, 못 얻으면 IP 층을 건너뛴다 (fail-open).
+      rawRequest: {ip: "203.0.113.9"},
+      data: {email: "k8@example.com"},
+    } as never);
+
+    // uid counter + ip counter = 2회 증가. 익명 UID 를 갈아끼워도 ip counter
+    // 는 리셋되지 않는다.
+    expect(mockRateTxUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("K9: IP 층 초과 → resource-exhausted + axis:'ip' 알람", async () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    // uid counter 는 여유가 있지만 (새 익명 UID) ip counter 가 이미 한도.
+    mockRateTxGet.mockImplementation((ref: {label?: string}) =>
+      Promise.resolve(
+        ref?.label === "ipRateRef" ?
+          {
+            exists: true,
+            data: () => ({count: 60, windowStart: {seconds: nowSec - 5}}),
+          } :
+          {
+            exists: true,
+            data: () => ({count: 1, windowStart: {seconds: nowSec - 5}}),
+          },
+      ),
+    );
+
+    const wrapped = testEnv.wrap(myFunctions.lookupSignInMethods);
+    const promise = wrapped({
+      auth: {uid: "fresh-anon-uid-K9"},
+      app: {appId: "test"},
+      // WR-08: IP 층은 rawRequest.ip 로 평가된다. 실 런타임에서는 Cloud
+      // Functions 가 채우고, 못 얻으면 IP 층을 건너뛴다 (fail-open).
+      rawRequest: {ip: "203.0.113.9"},
+      data: {email: "k9@example.com"},
+    } as never);
+
+    await expect(promise).rejects.toMatchObject({
+      code: "resource-exhausted",
+      message: "errorTooManyRequests",
+    });
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "email_enumeration_suspected",
+        axis: "ip",
+      }),
+      expect.any(String),
+    );
+    // PII 금지 — IP 원문 / email 본문 미노출.
+    for (const args of warnMock.mock.calls) {
+      expect(JSON.stringify(args)).not.toContain("k9@example.com");
     }
   });
 });
