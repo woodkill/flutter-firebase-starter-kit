@@ -26,12 +26,24 @@ void main() {
       expect(date.formatYMMMMd('en'), 'April 6, 2026');
     });
 
+    // IN-01 (2차 리뷰) — docstring 이 약속하는 예시 중 잠기지 않은 것들.
+    // 값은 실측과 일치하지만, 봉인이 없으면 intl 마이너 업그레이드 때 조용히
+    // 드리프트한다 (직전 WR-02 가 정확히 그렇게 발생한 결함이다).
+    test('formatYMMMMd("ko")은 yyyy년 M월 d일 패턴을 반환한다', () {
+      expect(date.formatYMMMMd('ko'), '2026년 4월 6일');
+    });
+
     test('formatJm("en")은 h:mm a 패턴을 반환한다', () {
       final dateWithTime = DateTime(2026, 4, 6, 17, 8);
       final result = dateWithTime.formatJm('en');
       // intl 패키지는 시:분과 AM/PM 사이에 NBSP(\u202F)를 사용할 수 있다.
       final normalized = result.replaceAll('\u202F', ' ');
       expect(normalized, '5:08 PM');
+    });
+
+    test('formatJm("ko")은 오전/오후 h:mm 패턴을 반환한다', () {
+      // ko 는 en 과 달리 일반 공백(U+0020)이라 정규화 없이 단언한다.
+      expect(DateTime(2026, 4, 6, 17, 8).formatJm('ko'), '오후 5:08');
     });
 
     // CR-01 (Phase 04 리뷰) — UTC DateTime 이 변환 없이 렌더되면 계정 생성일이
@@ -156,6 +168,8 @@ void main() {
       expect(1234.formatCompact('ja'), '1234');
       expect(1234567.formatCompact('en'), '1.23M');
       expect(1234567.formatCompact('ko'), '123만');
+      // IN-01 (2차 리뷰) — docstring 63행이 약속하는 ja 축약. 미봉인 상태였다.
+      expect(1234567.formatCompact('ja'), '123万');
     });
 
     test('formatDecimal("ko")은 천 단위 구분을 반환한다', () {
