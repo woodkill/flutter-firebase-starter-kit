@@ -303,7 +303,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
   );
 
   it(
-    "T-13-NAVER-CT-06: response.id 부재 → invalid-argument",
+    "T-13-NAVER-CT-06: response.id 부재 → unauthenticated",
     async () => {
       mockFetchOk({
         resultcode: "00",
@@ -314,7 +314,9 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       await expect(
         wrapped({app: {appId: "test"}, data: {accessToken: "T"}} as never),
       ).rejects.toMatchObject({
-        code: "invalid-argument",
+        // WR-01 (Phase 15 리뷰): IdP 가 사용 불가능한 자격증명을 준 상황은
+        // 4 endpoint 공용 매핑 표에서 `unauthenticated` 로 통일됐다.
+        code: "unauthenticated",
         message: "errorInvalidCredentials",
       });
       expect(errorMock).toHaveBeenCalledWith(

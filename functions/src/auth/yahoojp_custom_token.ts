@@ -42,9 +42,14 @@
  * 분기 = 재설치 후 첫 진입. App Check 토큰은 디바이스 attestation 으로
  * abuse 방어.
  *
- * **HttpsError 매핑 (Phase 11 D-07 carry-forward):**
- * - jose.JOSEError / payload.sub 누락 / data 누락 → invalid-argument.
- * - 그 외 catch → internal.
+ * **HttpsError 매핑 (WR-01 / WR-02 — 4 endpoint 공용 표,
+ * shared/custom_token_errors.ts):**
+ * - IdP 가 토큰 거부 (서명/클레임/만료/sub 부재) → `unauthenticated` /
+ *   `errorInvalidCredentials`.
+ * - IdP 도달 실패 (JWKS timeout / non-200 / DNS / ECONNREFUSED) →
+ *   `unavailable` / `errorServiceUnavailable` (transient — 재시도 안내).
+ * - 입력 계약 위반 → `invalid-argument` / `errorInvalidArgument`.
+ * - 서버 자체 결함 (Firestore / admin SDK) → `internal` / `errorUnknown`.
  *
  * **email 미발급 (D-YJP-09 정정 lock):** Yahoo!JP 본 단계 scope = openid +
  * profile 만. UserInfo API 審査 의무 회피. payload 에서 email 추출 X,
@@ -59,10 +64,15 @@
 // Phase 15 — see ROADMAP.md
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
-import {onCall, HttpsError} from "firebase-functions/https";
+import {onCall} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
-import {errors as joseErrors} from "jose";
 
+import {
+  fingerprintJoseError,
+  idpCredentialRejected,
+  mapOidcVerifyError,
+  serverFailure,
+} from "../shared/custom_token_errors";
 import {
   OIDC_VERIFIERS,
   YAHOOJP_CLIENT_ID,
@@ -153,23 +163,20 @@ export const yahoojpCustomToken = onCall<YahoojpCustomTokenRequest>(
       // code 비-PII 로깅. err.message / err.payload / err.claim / err.reason
       // 본문 절대 금지. err.code (jose 6.x stable public API) / err.name 만
       // short fingerprint 로 노출.
-      let errCode = "unknown";
-      if (err instanceof joseErrors.JOSEError) {
-        errCode = err.code ?? err.name;
-      } else if (err instanceof Error) {
-        errCode = err.name;
-      }
+      const errCode = fingerprintJoseError(err);
       logger.warn(
         {event: "yahoojp_jwt_verify_failed", code: errCode},
         "Yahoo!JP ID Token verification failed",
       );
-      if (err instanceof joseErrors.JOSEError) {
-        throw new HttpsError("invalid-argument", "errorInvalidCredentials");
-      }
-      throw new HttpsError("internal", "errorUnknown");
+      // WR-01 / WR-02: 4 endpoint 공용 매핑. JWKS 도달 실패 (timeout / non-200)
+      // 는 자격증명 무효가 아니라 transient (`unavailable`) 로 분류한다 —
+      // 이전에는 정상 토큰이 IdP 인프라 장애만으로 영구 실패처럼 보였다.
+      throw mapOidcVerifyError(err);
     }
     if (!yahoojpSub) {
-      throw new HttpsError("invalid-argument", "errorInvalidCredentials");
+      // WR-01: IdP 가 sub 없는 토큰을 준 경우도 "자격증명 사용 불가" 축으로
+      // 통일한다 (4 endpoint 공용 매핑 표).
+      throw idpCredentialRejected();
     }
 
     // Step 2: Identity Index resolve — Phase 12.1 helper 자동 상속.
@@ -197,7 +204,7 @@ export const yahoojpCustomToken = onCall<YahoojpCustomTokenRequest>(
         {event: "identity_index_failed"},
         "resolveIdentity threw unexpected error",
       );
-      throw new HttpsError("internal", "errorUnknown");
+      throw serverFailure();
     }
 
     // R3 exhaustive switch on conflictKind — TypeScript exhaustiveness check
@@ -245,7 +252,7 @@ export const yahoojpCustomToken = onCall<YahoojpCustomTokenRequest>(
         {event: "yahoojp_custom_token_create_failed", code: errCode},
         "createCustomToken threw",
       );
-      throw new HttpsError("internal", "errorUnknown");
+      throw serverFailure();
     }
 
     // Step 3.5 (Phase 16 D-13/D-14 — Plan 16-03 Task 3.2):
@@ -275,7 +282,7 @@ export const yahoojpCustomToken = onCall<YahoojpCustomTokenRequest>(
         });
       } catch {
         // helper 가 이미 PII-safe fingerprint 로 logger.error 를 남겼다.
-        throw new HttpsError("internal", "errorUnknown");
+        throw serverFailure();
       }
     }
 

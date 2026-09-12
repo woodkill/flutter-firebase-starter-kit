@@ -236,7 +236,7 @@ describe("kakaoCustomToken onCall", () => {
     expect(infoCalls.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("ID Token 검증 실패 → invalid-argument HttpsError", async () => {
+  it("ID Token 검증 실패 → 공용 매핑 표로 분류", async () => {
     mockVerifyKakaoIdToken.mockRejectedValue(
       new (jose.errors.JOSEError as new (m: string) => Error)("bad signature"),
     );
@@ -608,7 +608,8 @@ describe("kakaoCustomToken onCall", () => {
           data: {idToken: "FAKE", nonce: "n"},
         } as never),
       ).rejects.toMatchObject({
-        code: "invalid-argument",
+        // WR-01 (Phase 15 리뷰): IdP 자격증명 거부 = `unauthenticated`.
+        code: "unauthenticated",
         message: "errorInvalidCredentials",
       });
 
@@ -663,7 +664,12 @@ describe("kakaoCustomToken onCall", () => {
     "R5: 비-jose Error 도 err.name fallback (errCode = Error.name)",
     async () => {
       // TypeError 같은 일반 Error throw → err instanceof Error 분기 →
-      // errCode = err.name = 'TypeError'. JOSEError 가 아니므로 internal 매핑.
+      // errCode = err.name = 'TypeError'.
+      //
+      // WR-02 (Phase 15 리뷰): 비-JOSEError 는 fetch 계열 실패 (DNS /
+      // ECONNREFUSED) 가 대부분이므로 `unavailable` (transient) 로 매핑한다.
+      // 이전에는 이 경로만 `internal` 로 빠져 한 가지 장애 계열이 세 갈래로
+      // 흩어졌다 (Naver 는 같은 계열을 `unavailable` 하나로 모은다).
       const err = new TypeError("unrelated type error");
       mockVerifyKakaoIdToken.mockRejectedValue(err);
 
@@ -674,8 +680,8 @@ describe("kakaoCustomToken onCall", () => {
           data: {idToken: "FAKE", nonce: "n"},
         } as never),
       ).rejects.toMatchObject({
-        code: "internal",
-        message: "errorUnknown",
+        code: "unavailable",
+        message: "errorServiceUnavailable",
       });
 
       expect(warnMock).toHaveBeenCalledWith(

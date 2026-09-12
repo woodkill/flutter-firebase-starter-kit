@@ -1,10 +1,16 @@
 // Phase 13 — see ROADMAP.md
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
-import {onCall, HttpsError} from "firebase-functions/https";
+import {onCall} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import {defineSecret} from "firebase-functions/params";
 
+import {
+  idpCredentialRejected,
+  idpUnavailable,
+  invalidArgument,
+  serverFailure,
+} from "../shared/custom_token_errors";
 import {requireStringArg} from "../shared/require_string_arg";
 import {
   TermsAcceptanceJson,
@@ -68,13 +74,15 @@ type NaverProfileResponse = {
  * 1. App Check enforcement (D-49, Pitfall 6) — request.auth=null 허용과 양립.
  * 2. 입력 검증 (D-50) — accessToken 빈/누락 → invalid-argument.
  * 3. Node 20 fetch + AbortController(5s) → Authorization: Bearer (D-46/D-48).
+ *    WR-01: 아래 매핑은 4 endpoint 공용 표
+ *    (shared/custom_token_errors.ts) 를 따른다.
  *    - HTTP 401/403 → unauthenticated (errorInvalidCredentials)
  *    - HTTP 5xx → unavailable (errorServiceUnavailable)
  *    - HTTP 기타 4xx (예: 429) → unavailable (errorServiceUnavailable)
  *    - AbortError / network → unavailable (errorServiceUnavailable)
  * 4. JSON parse → resultcode='00' + response.id 검증 (D-47).
  *    - resultcode != '00' → unauthenticated (errorInvalidCredentials)
- *    - response.id 부재 → invalid-argument (errorInvalidCredentials)
+ *    - response.id 부재 → unauthenticated (errorInvalidCredentials)
  * 5. resolveIdentity helper (Phase 12.1 D-31~D-34 자동 상속).
  *    - resolveIdentity throw → internal (errorUnknown)
  * 6. caller switch on conflictKind (D-32 carry-forward).
@@ -121,7 +129,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
       // eslint-disable-next-line no-control-regex -- WR-01 의도된 CRLF/NUL 필터
       /[\r\n\x00]/.test(accessToken)
     ) {
-      throw new HttpsError("invalid-argument", "errorInvalidArgument");
+      throw invalidArgument();
     }
 
     // Step 2: Naver REST 검증 (D-46/D-47/D-48).
@@ -150,7 +158,8 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         "Naver REST fetch failed",
       );
       // AbortError / TypeError(network) / DNS 실패 모두 unavailable.
-      throw new HttpsError("unavailable", "errorServiceUnavailable");
+      // WR-01: 4 endpoint 공용 매핑 표 (IdP 도달 실패 = transient).
+      throw idpUnavailable();
     }
 
     if (resp.status === 401 || resp.status === 403) {
@@ -158,14 +167,14 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         {event: "naver_verify_unauthenticated", status: resp.status},
         "Naver access token rejected",
       );
-      throw new HttpsError("unauthenticated", "errorInvalidCredentials");
+      throw idpCredentialRejected();
     }
     if (resp.status >= 500) {
       logger.warn(
         {event: "naver_verify_unavailable", status: resp.status},
         "Naver REST 5xx",
       );
-      throw new HttpsError("unavailable", "errorServiceUnavailable");
+      throw idpUnavailable();
     }
     if (!resp.ok) {
       // 4xx 외 (예: 429 rate limit) — unavailable 로 일반화 + status fingerprint.
@@ -173,7 +182,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         {event: "naver_verify_failed", status: resp.status},
         "Naver REST non-OK",
       );
-      throw new HttpsError("unavailable", "errorServiceUnavailable");
+      throw idpUnavailable();
     }
 
     let responseBody: NaverProfileResponse;
@@ -185,7 +194,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         {event: "naver_parse_failed", code: errCode},
         "Naver REST JSON parse failed",
       );
-      throw new HttpsError("internal", "errorUnknown");
+      throw serverFailure();
     }
 
     if (responseBody.resultcode !== "00") {
@@ -197,7 +206,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         },
         "Naver resultcode not 00",
       );
-      throw new HttpsError("unauthenticated", "errorInvalidCredentials");
+      throw idpCredentialRejected();
     }
 
     const naverUserId = responseBody.response?.id;
@@ -218,7 +227,9 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         },
         "Naver response.id missing",
       );
-      throw new HttpsError("invalid-argument", "errorInvalidCredentials");
+      // WR-01: IdP 가 id 없는 응답을 준 경우도 "자격증명 사용 불가" 축으로
+      // 통일한다 (4 endpoint 공용 매핑 표).
+      throw idpCredentialRejected();
     }
     const naverEmail = responseBody.response?.email;
     // R10: response.nickname + response.profile_image 추출 → Firebase Auth
@@ -252,7 +263,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         {event: "identity_index_failed"},
         "resolveIdentity threw unexpected error",
       );
-      throw new HttpsError("internal", "errorUnknown");
+      throw serverFailure();
     }
 
     // Step 4: caller switch on conflictKind (Phase 12.1 D-32 carry-forward).
@@ -324,7 +335,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         {event: "naver_custom_token_create_failed", code: errCode},
         "createCustomToken threw",
       );
-      throw new HttpsError("internal", "errorUnknown");
+      throw serverFailure();
     }
 
     // Step 5.5 (Phase 16 D-13/D-14 — Plan 16-03 Task 3.2):
@@ -355,7 +366,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         });
       } catch {
         // helper 가 이미 PII-safe fingerprint 로 logger.error 를 남겼다.
-        throw new HttpsError("internal", "errorUnknown");
+        throw serverFailure();
       }
     }
 

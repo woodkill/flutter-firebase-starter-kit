@@ -28,11 +28,11 @@
  *
  * Task 1 시나리오 (1-9):
  *  - Test 1: 정상 검증 + Identity Index 신규 등록 + Custom Token 발급
- *  - Test 2: iss mismatch (trailing slash trap 의도 노출) → invalid-argument
- *  - Test 3: aud mismatch → invalid-argument HttpsError
- *  - Test 4: exp 만료 → invalid-argument HttpsError
- *  - Test 5: nonce raw mismatch → invalid-argument HttpsError
- *  - Test 6: JWKS fetch 실패 (JWKSNoMatchingKey) → invalid-argument
+ *  - Test 2: iss mismatch (trailing slash trap 의도 노출) → unauthenticated
+ *  - Test 3: aud mismatch → unauthenticated HttpsError
+ *  - Test 4: exp 만료 → unauthenticated HttpsError
+ *  - Test 5: nonce raw mismatch → unauthenticated HttpsError
+ *  - Test 6: JWKS fetch 실패 (JWKSNoMatchingKey) → unauthenticated
  *  - Test 7: 익명 호출자 + identity_index 미등록 → seed UID = request.auth.uid
  *  - Test 8: 미인증 호출자 + identity_index 미등록 → 새 UID 자동 생성
  *  - Test 9: identity_index 기존 매핑 → 그 firebaseUid 재사용
@@ -302,10 +302,10 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
 
   // Test 2: iss mismatch — trailing slash trap 의도 노출 (D-YJP-05). 실 단말
   // 에서 issuer 가 trailing slash 없는 형태로 옴직이면 jose strict equality
-  // 검증이 fail → JWTClaimValidationFailed throw → caller 가 invalid-argument
+  // 검증이 fail → JWTClaimValidationFailed throw → caller 가 unauthenticated
   // 매핑. Plan 15-06 UAT A1 의 실 단말 token decode 결과로 final LOCK 검증.
   // eslint-disable-next-line max-len
-  it("Test 2: iss mismatch (trailing slash trap) → invalid-argument HttpsError", async () => {
+  it("Test 2: iss mismatch (trailing slash trap) → unauthenticated HttpsError", async () => {
     const ErrCtor = jose.errors.JOSEError as unknown as new (
       m: string
     ) => Error;
@@ -320,8 +320,10 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
       data: {idToken: "BAD_ISS_JWT", nonce: "n"},
     } as never);
     await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    // WR-01 (Phase 15 리뷰): IdP 가 토큰을 거부한 상황은 4 endpoint 공용
+    // 매핑 표에서 `unauthenticated` 로 통일됐다 (gRPC 표준 의미론).
     await expect(promise).rejects.toMatchObject({
-      code: "invalid-argument",
+      code: "unauthenticated",
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
@@ -330,7 +332,7 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
     );
   });
 
-  it("Test 3: aud mismatch → invalid-argument HttpsError", async () => {
+  it("Test 3: aud mismatch → unauthenticated HttpsError", async () => {
     const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
       m: string
     ) => Error;
@@ -343,8 +345,10 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
       data: {idToken: "BAD_AUD_JWT", nonce: "n"},
     } as never);
     await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    // WR-01 (Phase 15 리뷰): IdP 가 토큰을 거부한 상황은 4 endpoint 공용
+    // 매핑 표에서 `unauthenticated` 로 통일됐다 (gRPC 표준 의미론).
     await expect(promise).rejects.toMatchObject({
-      code: "invalid-argument",
+      code: "unauthenticated",
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
@@ -356,7 +360,7 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
     );
   });
 
-  it("Test 4: exp 만료 → invalid-argument HttpsError", async () => {
+  it("Test 4: exp 만료 → unauthenticated HttpsError", async () => {
     const ErrCtor = jose.errors.JWTExpired as unknown as new (
       m: string
     ) => Error;
@@ -369,8 +373,10 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
       data: {idToken: "EXPIRED_JWT", nonce: "n"},
     } as never);
     await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    // WR-01 (Phase 15 리뷰): IdP 가 토큰을 거부한 상황은 4 endpoint 공용
+    // 매핑 표에서 `unauthenticated` 로 통일됐다 (gRPC 표준 의미론).
     await expect(promise).rejects.toMatchObject({
-      code: "invalid-argument",
+      code: "unauthenticated",
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
@@ -388,7 +394,7 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
   // 매핑. mockServerEmbedNonce fixture (=raw nonce 그대로 embed) 가 LOCK 한
   // 정적 사실의 mirror.
   // eslint-disable-next-line max-len
-  it("Test 5: nonce raw mismatch → invalid-argument HttpsError", async () => {
+  it("Test 5: nonce raw mismatch → unauthenticated HttpsError", async () => {
     const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
       m: string
     ) => Error;
@@ -403,8 +409,10 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
       data: {idToken: "FAKE_JWT", nonce: "raw-nonce-mismatch-yj"},
     } as never);
     await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    // WR-01 (Phase 15 리뷰): IdP 가 토큰을 거부한 상황은 4 endpoint 공용
+    // 매핑 표에서 `unauthenticated` 로 통일됐다 (gRPC 표준 의미론).
     await expect(promise).rejects.toMatchObject({
-      code: "invalid-argument",
+      code: "unauthenticated",
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
@@ -416,9 +424,12 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
     );
   });
 
-  // Test 6: JWKSNoMatchingKey 는 JOSEError 서브클래스 → invalid-argument 매핑.
+  // Test 6: JWKSNoMatchingKey (kid 부재) 는 JWKS 도달 자체는 성공한
+  // 상황이므로 transient 가 아니라 자격증명 축이다 → unauthenticated.
+  // (JWKS *도달* 실패 = JWKSTimeout / non-200 은 WR-02 케이스에서
+  //  별도로 unavailable 로 분류된다.)
   // eslint-disable-next-line max-len
-  it("Test 6: JWKS fetch 실패 (JWKSNoMatchingKey) → invalid-argument", async () => {
+  it("Test 6: JWKS fetch 실패 (JWKSNoMatchingKey) → unauthenticated", async () => {
     const ErrCtor = jose.errors.JWKSNoMatchingKey as unknown as new (
       m: string
     ) => Error;
@@ -431,8 +442,10 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
       data: {idToken: "FAKE_JWT", nonce: "n"},
     } as never);
     await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    // WR-01 (Phase 15 리뷰): IdP 가 토큰을 거부한 상황은 4 endpoint 공용
+    // 매핑 표에서 `unauthenticated` 로 통일됐다 (gRPC 표준 의미론).
     await expect(promise).rejects.toMatchObject({
-      code: "invalid-argument",
+      code: "unauthenticated",
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(

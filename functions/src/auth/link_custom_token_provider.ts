@@ -18,8 +18,14 @@ import {getAuth} from "firebase-admin/auth";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
-import {errors as joseErrors} from "jose";
 
+import {
+  fingerprintJoseError,
+  idpCredentialRejected,
+  invalidArgument,
+  mapOidcVerifyError,
+  serverFailure,
+} from "../shared/custom_token_errors";
 import {
   KAKAO_NATIVE_APP_KEY,
   LINE_CHANNEL_ID,
@@ -123,7 +129,7 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
       rawTargetProvider !== "line" &&
       rawTargetProvider !== "yahoojp"
     ) {
-      throw new HttpsError("invalid-argument", "errorInvalidArgument");
+      throw invalidArgument();
     }
     const targetProvider: TargetProvider = rawTargetProvider;
 
@@ -181,20 +187,21 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
       targetSub = typedPayload.sub;
     } catch (err: unknown) {
       // PII 금지 — jose error code/name 만 fingerprint (Pitfall 3 회피).
-      let errCode = "unknown";
-      if (err instanceof joseErrors.JOSEError) {
-        errCode = err.code ?? err.name;
-      } else if (err instanceof Error) {
-        errCode = err.name;
-      }
       logger.warn(
-        {event: "link_target_token_verify_failed", code: errCode},
+        {
+          event: "link_target_token_verify_failed",
+          code: fingerprintJoseError(err),
+        },
         "target ID Token verification failed",
       );
-      throw new HttpsError("invalid-argument", "errorInvalidArgument");
+      // WR-01 / WR-02: 4 Custom Token endpoint 와 동일한 공용 매핑 표를
+      // 쓴다. 이전에는 JWKS 도달 실패까지 `invalid-argument` 로 뭉개져
+      // 연동 실패의 원인이 "잘못된 입력" 으로 오분류됐다.
+      throw mapOidcVerifyError(err);
     }
     if (!targetSub) {
-      throw new HttpsError("invalid-argument", "errorInvalidArgument");
+      // IdP 가 sub 없는 토큰을 준 경우 — 자격증명 사용 불가 축.
+      throw idpCredentialRejected();
     }
 
     // Step 4: Firestore runTransaction — identity_index atomic create +
@@ -247,7 +254,7 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
         {event: "link_transaction_failed", uid: callerUid, code: errCode},
         "runTransaction threw",
       );
-      throw new HttpsError("internal", "errorUnknown");
+      throw serverFailure();
     }
 
     // Step 5: structured log + return.

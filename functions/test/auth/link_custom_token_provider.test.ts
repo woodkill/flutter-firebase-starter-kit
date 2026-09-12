@@ -16,7 +16,7 @@
  *  - L3: stale idToken (auth_time > 5분) — unauthenticated
  *  - L4: revoked idToken — verifyIdToken throws → unauthenticated
  *  - L5: uid mismatch — permission-denied
- *  - L6: target ID Token invalid — invalid-argument + fingerprint
+ *  - L6: target ID Token invalid — unauthenticated + fingerprint
  *  - L7: anonymous caller — failed-precondition (Open Question #2)
  */
 
@@ -317,7 +317,7 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
   });
 
   // eslint-disable-next-line max-len
-  it("L6: target ID Token invalid → invalid-argument + fingerprint log", async () => {
+  it("L6: target ID Token invalid → unauthenticated + fingerprint log", async () => {
     mockVerifyIdToken.mockResolvedValue({
       uid: "caller-uid-L6",
       auth_time: freshAuthTime(),
@@ -341,9 +341,13 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
         nonce: "n",
       },
     } as never);
+    // WR-01 / WR-02 (Phase 15 리뷰): link callable 도 4 Custom Token
+    // endpoint 와 동일한 공용 매핑 표를 쓴다 — IdP 자격증명 거부는
+    // `unauthenticated`, JWKS 도달 실패는 `unavailable`. 이전에는 둘 다
+    // `invalid-argument` 로 뭉개져 "잘못된 입력" 으로 오분류됐다.
     await expect(promise).rejects.toMatchObject({
-      code: "invalid-argument",
-      message: "errorInvalidArgument",
+      code: "unauthenticated",
+      message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({

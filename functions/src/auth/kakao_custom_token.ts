@@ -1,9 +1,14 @@
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
-import {onCall, HttpsError} from "firebase-functions/https";
+import {onCall} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
-import {errors as joseErrors} from "jose";
 
+import {
+  fingerprintJoseError,
+  idpCredentialRejected,
+  mapOidcVerifyError,
+  serverFailure,
+} from "../shared/custom_token_errors";
 import {
   KAKAO_NATIVE_APP_KEY,
   OIDC_VERIFIERS,
@@ -63,9 +68,14 @@ type KakaoCustomTokenResponse = {
  * **App Check + 미인증 양립 (D-11):** request.auth = null 분기 = 재설치 후
  * 첫 진입. App Check 토큰은 디바이스 attestation 으로 abuse 방어.
  *
- * **HttpsError 매핑 (Phase 11 D-07):**
- * - jose.JOSEError / payload.sub 누락 / data 누락 → invalid-argument.
- * - 그 외 catch → internal.
+ * **HttpsError 매핑 (WR-01 / WR-02 — 4 endpoint 공용 표,
+ * shared/custom_token_errors.ts):**
+ * - IdP 가 토큰 거부 (서명/클레임/만료/sub 부재) → `unauthenticated` /
+ *   `errorInvalidCredentials`.
+ * - IdP 도달 실패 (JWKS timeout / non-200 / DNS / ECONNREFUSED) →
+ *   `unavailable` / `errorServiceUnavailable` (transient — 재시도 안내).
+ * - 입력 계약 위반 → `invalid-argument` / `errorInvalidArgument`.
+ * - 서버 자체 결함 (Firestore / admin SDK) → `internal` / `errorUnknown`.
  *
  * Phase 14 — see ROADMAP.md
  * D-LINE-02 + D-LINE-04 retroactive 이행: jose verify 로직을
@@ -131,23 +141,20 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
       // 본문 절대 금지. err.code (jose 6.x stable public API) / err.name 만
       // short fingerprint 로 노출 — 운영 시 JWKS 네트워크 / kid not found /
       // clock skew / signature mismatch 등 분류 가능 (PII 안전 + 진단 가능).
-      let errCode = "unknown";
-      if (err instanceof joseErrors.JOSEError) {
-        errCode = err.code ?? err.name;
-      } else if (err instanceof Error) {
-        errCode = err.name;
-      }
+      const errCode = fingerprintJoseError(err);
       logger.warn(
         {event: "kakao_jwt_verify_failed", code: errCode},
         "Kakao ID Token verification failed",
       );
-      if (err instanceof joseErrors.JOSEError) {
-        throw new HttpsError("invalid-argument", "errorInvalidCredentials");
-      }
-      throw new HttpsError("internal", "errorUnknown");
+      // WR-01 / WR-02: 4 endpoint 공용 매핑. JWKS 도달 실패 (timeout / non-200)
+      // 는 자격증명 무효가 아니라 transient (`unavailable`) 로 분류한다 —
+      // 이전에는 정상 토큰이 IdP 인프라 장애만으로 영구 실패처럼 보였다.
+      throw mapOidcVerifyError(err);
     }
     if (!kakaoUserId) {
-      throw new HttpsError("invalid-argument", "errorInvalidCredentials");
+      // WR-01: IdP 가 sub 없는 토큰을 준 경우도 "자격증명 사용 불가" 축으로
+      // 통일한다 (4 endpoint 공용 매핑 표).
+      throw idpCredentialRejected();
     }
 
     // Step 2: Identity Index resolve (Task 2 helper).
@@ -181,7 +188,7 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         {event: "identity_index_failed"},
         "resolveIdentity threw unexpected error",
       );
-      throw new HttpsError("internal", "errorUnknown");
+      throw serverFailure();
     }
 
     // R3 (D-32) — exhaustive switch — TypeScript 가 conflictKind union type 의
@@ -255,7 +262,7 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         {event: "kakao_custom_token_create_failed", code: errCode},
         "createCustomToken threw",
       );
-      throw new HttpsError("internal", "errorUnknown");
+      throw serverFailure();
     }
 
     // Step 3.5 (Phase 16 D-13/D-14 — Plan 16-03 Task 3.2):
@@ -299,7 +306,7 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
       } catch {
         // helper 가 이미 PII-safe fingerprint 로 logger.error 를 남겼다.
         // 여기서는 HTTP 응답 layer 매핑만 담당 (D-33 layering 경계).
-        throw new HttpsError("internal", "errorUnknown");
+        throw serverFailure();
       }
     }
 
