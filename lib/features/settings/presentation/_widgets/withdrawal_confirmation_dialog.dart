@@ -73,8 +73,15 @@ class _WithdrawalConfirmationDialogState
     super.dispose();
   }
 
+  /// 입력값 [value] 가 확인 문구 [hint] 와 일치하는지 갱신한다 (WR-06).
+  ///
+  /// 비교는 `trim()` + `toLowerCase()` 로 정규화한다. 정확 일치만 허용하면
+  /// en 로케일 소문자 hint(`delete`) 에 키보드 자동완성/붙여넣기가 넣은
+  /// trailing space 나 `Delete` 가 들어왔을 때 확인 버튼이 **영구 disabled**
+  /// 이면서 사유 안내가 전혀 없다. 정규화해도 "문구를 그대로 입력한다" 는
+  /// D-08 의도(의도적 마찰)는 유지된다 — 부분 입력은 여전히 불일치다.
   void _onTextChanged(String value, String hint) {
-    final next = value == hint;
+    final next = value.trim().toLowerCase() == hint.trim().toLowerCase();
     if (next != _verbatimMatch) {
       setState(() => _verbatimMatch = next);
     }

@@ -408,5 +408,34 @@ void main() {
 
       expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
     });
+
+    testWidgets('WC15 (WR-06) — en 로케일에서 공백·대소문자 차이는 confirm 을 막지 않는다', (
+      tester,
+    ) async {
+      // en hint 는 소문자 "delete" 다. 자동완성/붙여넣기가 넣은 trailing
+      // space 나 "Delete" 로 확인 버튼이 영구 disabled 되면 사용자는 사유
+      // 안내도 없이 막힌다 (en 버튼 라벨은 "Delete").
+      await _pumpAndShowDialog(tester, locale: const Locale('en'));
+
+      await tester.enterText(find.byType(TextField), ' Delete ');
+      await tester.pump();
+
+      final confirmBtn = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Delete'),
+      );
+      expect(confirmBtn.onPressed, isNotNull);
+    });
+
+    testWidgets('WC16 (WR-06) — 부분 입력은 여전히 불일치 (D-08 마찰 유지)', (tester) async {
+      await _pumpAndShowDialog(tester, locale: const Locale('en'));
+
+      await tester.enterText(find.byType(TextField), 'del');
+      await tester.pump();
+
+      final confirmBtn = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Delete'),
+      );
+      expect(confirmBtn.onPressed, isNull);
+    });
   });
 }
