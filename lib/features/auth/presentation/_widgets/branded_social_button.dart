@@ -1465,8 +1465,18 @@ Widget _renderGoogleButton(
 /// - 자산 변형 0 ("Never crop" + "Don't add padding" 부합 — SVG 자체 padding 보존)
 /// - logo file height = button height ("Match the height of the logo file
 ///   to the height of the button" HIG mandate)
-/// - light = Black variant SVG (rect 흰 + logo 검정) / dark = White variant SVG
-///   (rect 검정 + logo 흰) — Theme.brightness 자동 매핑
+/// - light theme = bg #000000 + `white_logo` variant (rect 검정 + logo 흰)
+/// - dark  theme = bg #FFFFFF + `black_logo` variant (rect 흰 + logo 검정)
+///   — Theme.brightness 자동 매핑. 두 경우 모두 wrapper bg 와 SVG 내부 rect
+///   색이 일치해 정사각 외곽이 invisible 하다.
+///
+///   **WR-08 정정 (Phase 09 review):** 이 요약 2줄은 과거 light/dark 매핑을
+///   **정반대**로 적고 있었다. 아래 상세 블록·구현(`bgColor` / `iconPath`)
+///   과 golden 잠금(T-13.3-APPLE-BG-LIGHT-01 = #000000,
+///   T-13.3-APPLE-BG-DARK-01 = #FFFFFF)이 진실원이다. 요약을 근거로
+///   `isDark ? 'white_logo' : 'black_logo'` 로 "고치면" light 에서 검은 배경
+///   위 검은 로고, dark 에서 흰 배경 위 흰 로고가 되어 **로고가 사라진다**
+///   (HIG 위반 + golden 회귀).
 ///
 /// Universal Layout Pattern:
 /// - SVG 정사각 외곽 색 (rect 의 #FFFFFF or #000000) = wrapper bg 색 일치 →
