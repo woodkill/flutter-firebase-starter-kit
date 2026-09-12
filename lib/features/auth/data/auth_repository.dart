@@ -503,13 +503,10 @@ class AuthRepository {
         loginTracking: LoginTracking.enabled,
       );
 
-      if (loginResult.status != LoginStatus.success) {
-        return null;
-      }
-
-      final accessToken = loginResult.accessToken;
+      // WR-02: 취소만 silent null, 실패는 ServiceUnavailable 로 승격한다.
+      final accessToken = _facebookAccessTokenOf(loginResult);
       if (accessToken == null) {
-        return null;
+        return null; // D-09 silent cancel
       }
 
       final credential = fb.FacebookAuthProvider.credential(
@@ -567,6 +564,11 @@ class AuthRepository {
       return Result.failure(
         await _enrichAccountExistsAsync(_mapAuthException(e)),
       );
+    } on ServiceUnavailable catch (e) {
+      // WR-02: [_facebookAccessTokenOf] 의 실패 승격 (status=failed /
+      // operationInProgress / success 인데 accessToken 부재) — Custom Token
+      // sign-in 4종과 동일하게 원본을 cause chain 없이 그대로 보존.
+      return Result.failure(e);
     } on Object catch (e, st) {
       if (kDebugMode) {
         debugPrint('signInWithFacebook 비-Auth 예외: $e\n$st');
@@ -703,8 +705,9 @@ class AuthRepository {
           permissions: ['email', 'public_profile'],
           loginTracking: LoginTracking.enabled,
         );
-        if (loginResult.status != LoginStatus.success) return null;
-        final accessToken = loginResult.accessToken;
+        // WR-02: 취소만 null (no-op), 실패는 ServiceUnavailable throw
+        // (호출부 on Object 가 Failure 로 흡수) — silent no-op 회피.
+        final accessToken = _facebookAccessTokenOf(loginResult);
         if (accessToken == null) return null;
         return fb.FacebookAuthProvider.credential(accessToken.tokenString);
       case AccountProvider.email:
@@ -793,8 +796,9 @@ class AuthRepository {
         permissions: ['email', 'public_profile'],
         loginTracking: LoginTracking.enabled,
       );
-      if (loginResult.status != LoginStatus.success) return null;
-      final accessToken = loginResult.accessToken;
+      // WR-02: 취소만 null (no-op), 실패는 ServiceUnavailable throw
+      // (래퍼 on Object 가 Failure 로 흡수) — silent no-op 회피.
+      final accessToken = _facebookAccessTokenOf(loginResult);
       if (accessToken == null) return null;
       final credential = fb.FacebookAuthProvider.credential(
         accessToken.tokenString,
@@ -2106,6 +2110,46 @@ class AuthRepository {
     if (details is! Map) return null;
     final raw = details['existingProvider'];
     return raw is String ? AccountProvider.tryParse(raw) : null;
+  }
+
+  /// Facebook [LoginResult] → [AccessToken] 정규화 단일 진실원
+  /// (WR-02 — Phase 7 review).
+  ///
+  /// [LoginStatus] 는 4값 (`success` / `cancelled` / `failed` /
+  /// `operationInProgress`) 이다. 이전 구현은 `status != success` 를 전부
+  /// "사용자 취소" 로 흡수해 `failed` (토큰 오류 / 네트워크 / 앱 설정 오류)
+  /// 와 `operationInProgress` 에서도 **화면에 아무 일도 일어나지 않았다**.
+  /// Kakao / LINE / Yahoo!JP 가 비-취소 오류를 [ServiceUnavailable] 로
+  /// 승격하는 규칙과 대칭을 맞춘다.
+  ///
+  /// `status == success` 인데 [LoginResult.accessToken] 이 null 인 경우도
+  /// 취소가 아니므로 동일하게 실패로 승격한다.
+  ///
+  /// 반환:
+  /// - [AccessToken] — 로그인 성공.
+  /// - `null` — 사용자 취소 (D-09 silent no-op).
+  ///
+  /// Throws [ServiceUnavailable] — 취소가 아닌 실패.
+  AccessToken? _facebookAccessTokenOf(LoginResult loginResult) {
+    if (loginResult.status == LoginStatus.cancelled) {
+      return null; // D-09 silent cancel
+    }
+    if (loginResult.status != LoginStatus.success) {
+      if (kDebugMode) {
+        // PII invariant (T-16-09-02 mirror): status 만 — loginResult.message
+        // 본문은 사용자 식별 정보를 실을 수 있으므로 비포함.
+        debugPrint('facebook login 실패: status=${loginResult.status}');
+      }
+      throw const ServiceUnavailable();
+    }
+    final accessToken = loginResult.accessToken;
+    if (accessToken == null) {
+      if (kDebugMode) {
+        debugPrint('facebook login: status=success 인데 accessToken 부재');
+      }
+      throw const ServiceUnavailable();
+    }
+    return accessToken;
   }
 
   /// Google [GoogleSignInAccount] → Firebase [fb.AuthCredential] 변환 단일

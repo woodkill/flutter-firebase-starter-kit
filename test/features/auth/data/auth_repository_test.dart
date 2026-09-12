@@ -980,7 +980,9 @@ void main() {
       expect(result, isNull);
     });
 
-    test('accessToken이 null이면 null을 반환한다', () async {
+    // WR-02 (Phase 7 review): status=success 인데 accessToken 이 없는 상태는
+    // 취소가 아니므로 silent no-op 이 아니라 실패로 승격한다.
+    test('WR-02: accessToken 이 null 이면 ServiceUnavailable 을 반환한다', () async {
       when(
         () => mockFacebookAuth.login(
           permissions: any(named: 'permissions'),
@@ -997,8 +999,33 @@ void main() {
 
       final result = await repository.signInWithFacebook();
 
-      expect(result, isNull);
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
     });
+
+    // WR-02: failed / operationInProgress 는 "사용자 취소" 가 아니다 —
+    // 이전 구현은 화면에 아무 일도 일어나지 않게 흡수했다.
+    for (final status in <LoginStatus>[
+      LoginStatus.failed,
+      LoginStatus.operationInProgress,
+    ]) {
+      test('WR-02: LoginStatus.${status.name} → ServiceUnavailable (silent '
+          'no-op 아님)', () async {
+        when(
+          () => mockFacebookAuth.login(
+            permissions: any(named: 'permissions'),
+            loginTracking: any(named: 'loginTracking'),
+            loginBehavior: any(named: 'loginBehavior'),
+            nonce: any(named: 'nonce'),
+          ),
+        ).thenAnswer((_) async => LoginResult(status: status, message: 'boom'));
+
+        final result = await repository.signInWithFacebook();
+
+        expect(result, isA<Failure<dynamic>>());
+        expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      });
+    }
 
     test(
       'FirebaseAuthException 시 Result.failure(AppException)를 반환한다',
