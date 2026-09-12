@@ -1,13 +1,14 @@
 // Phase 16 Plan 16-06 / D-05~D-08 — SettingsNotifier 본체.
 //
 // 탈퇴 진행 상태 (AsyncValue<void>) 를 관리하는 Riverpod controller.
-// requestAccountDeletion 호출 흐름 (10-REVIEW CR-01 이후):
+// requestAccountDeletion 호출 흐름 (10-REVIEW CR-01 / CR-04 이후):
 // 1. state = AsyncValue.loading()
 // 2. SettingsRepository.requestAccountDeletion() 호출 (서버 hard delete)
 // 3. 2 가 던지면: state = AsyncValue.error(e, st) 후 종료 — 사후 정리 미수행
 //    (서버 삭제가 확정되지 않았다)
-// 4. 2 가 성공하면: AuthRepository.signOutAndResetOnboarding() 을 best-effort 로
-//    호출 (실패는 Crashlytics 기록만 하고 흡수) → 마지막에 state = AsyncValue.data(null)
+// 4. 2 가 성공하면: 즉시 state = AsyncValue.data(null) (CR-04 — 성공 emit 이
+//    사후 정리보다 앞선다) → 그 뒤 AuthRepository.signOutAndResetOnboarding()
+//    을 best-effort 로 호출 (실패는 Crashlytics 기록만 하고 흡수)
 //
 // signOutAndResetOnboarding 후 router 의 resolveAuthRedirect 가 자동으로 `/onboarding` 으로 reset.
 import 'package:flutter/foundation.dart';
@@ -47,13 +48,20 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///    ref.listen 으로 `ReauthenticationRequiredException` /
   ///    `UnknownException` 분기 처리.
   /// 4. 2 가 성공하면 서버 hard delete 가 확정된 것이므로 탈퇴는 이미 성공이다.
-  ///    이후의 [AuthRepository.signOutAndResetOnboarding] (onboardingSeen=false
-  ///    reset + router 의 resolveAuthRedirect 가 `/onboarding` 으로 자동 reset)
-  ///    은 best-effort 사후 정리로만 수행하며, 실패해도 탈퇴 실패로 분류하지
-  ///    않고 Crashlytics 에만 기록한다. 마지막에 state =
-  ///    [AsyncValue.data]`(null)`.
+  ///    **10-REVIEW CR-04:** 이 시점에 즉시 state = [AsyncValue.data]`(null)`
+  ///    을 emit 한다 — 성공 emit 이 사후 정리 뒤에 있으면 timeout 없는 6개
+  ///    소셜 SDK logout 이 지연될 때 다이얼로그가 무한 loading 에 갇힌다.
+  /// 5. emit 이후 [AuthRepository.signOutAndResetOnboarding]
+  ///    (onboardingSeen=false reset + router 의 resolveAuthRedirect 가
+  ///    `/onboarding` 으로 자동 reset) 을 best-effort 사후 정리로 수행하며,
+  ///    실패해도 탈퇴 실패로 분류하지 않고 Crashlytics 에만 기록한다.
   Future<void> requestAccountDeletion() async {
     state = const AsyncValue<void>.loading();
+    // CR-04: 성공 emit 은 다이얼로그를 pop 시키고 그 결과로 본 Notifier 가
+    // dispose 될 수 있다. 사후 정리에 필요한 핸들은 emit 이전에 캡처해 둔다 —
+    // dispose 된 ref 로 ref.read 를 하면 StateError 가 던져진다.
+    final authRepository = ref.read(authRepositoryProvider);
+    final crashlytics = ref.read(crashlyticsServiceProvider);
     try {
       await ref.read(settingsRepositoryProvider).requestAccountDeletion();
     } on Object catch (e, st) {
@@ -62,20 +70,21 @@ class SettingsNotifier extends _$SettingsNotifier {
       state = AsyncValue<void>.error(e, st);
       return;
     }
-    // 여기부터는 서버 hard delete 가 확정된 이후다. 로컬 정리 실패를 "탈퇴
-    // 실패" 로 분류하면 사용자는 이미 삭제된 계정으로 재시도를 반복하게 된다.
-    try {
-      await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
-    } on Object catch (e, st) {
-      // dispose 된 Notifier 에서 ref.read 는 StateError 를 던지므로, 성공
-      // 판정을 지키려는 이 catch 자체가 새 누출 경로가 되지 않도록 가드한다.
-      if (!ref.mounted) return;
-      await ref
-          .read(crashlyticsServiceProvider)
-          .recordError(e, st, reason: 'withdrawal_post_signout');
+    // CR-04: 여기서 서버 hard delete 가 확정됐다. 성공 emit 을 사후 정리
+    // **이전에** 수행한다. signOutAndResetOnboarding 은 6개 소셜 SDK logout 을
+    // timeout 없이 직렬 await 하므로, emit 을 그 뒤에 두면 되돌릴 수 없는
+    // 삭제가 끝난 뒤에도 다이얼로그가 loading 에 고정된다 (취소 버튼 disabled
+    // + barrierDismissible:false → iOS 에는 탈출 경로가 0).
+    if (ref.mounted) {
+      state = const AsyncValue<void>.data(null);
     }
-    if (!ref.mounted) return;
-    state = const AsyncValue<void>.data(null);
+    // 로컬 정리 실패를 "탈퇴 실패" 로 분류하면 사용자는 이미 삭제된 계정으로
+    // 재시도를 반복하게 된다 — best-effort 로만 수행하고 telemetry 만 남긴다.
+    try {
+      await authRepository.signOutAndResetOnboarding();
+    } on Object catch (e, st) {
+      await crashlytics.recordError(e, st, reason: 'withdrawal_post_signout');
+    }
   }
 
   /// 로그인된 사용자에게 [provider] 계정을 proactive 하게 연결한다

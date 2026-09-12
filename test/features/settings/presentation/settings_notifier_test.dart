@@ -15,6 +15,11 @@
 // - N4: repository 성공 + signOutAndResetOnboarding 이 Exception throw →
 //   최종 state 는 AsyncValue.data(null) + crashlytics reason=withdrawal_post_signout
 // - N5: 같은 시나리오에서 Error 계열 (StateError) throw 에도 data(null)
+//
+// 10-REVIEW CR-04 회귀 가드 (성공 emit 이 사후 정리에 갇히지 않는지):
+// - N6: signOutAndResetOnboarding 이 미완료 상태여도 state 는 이미 data(null)
+
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -195,6 +200,44 @@ void main() {
         );
       },
     );
+
+    test('N6 CR-04 — 사후 정리(signOut) 가 지연돼도 성공 emit 은 먼저 도달한다', () async {
+      // signOutAndResetOnboarding 은 6개 소셜 SDK logout 을 timeout 없이
+      // 직렬 await 한다. 성공 emit 이 그 뒤에 있으면 되돌릴 수 없는 삭제가
+      // 끝난 뒤에도 다이얼로그가 loading 에 고정된다 (10-REVIEW CR-04).
+      final signOutGate = Completer<void>();
+      when(
+        () => mockSettingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAuthRepo.signOutAndResetOnboarding(),
+      ).thenAnswer((_) => signOutGate.future);
+
+      final notifier = container.read(settingsProvider.notifier);
+      final future = notifier.requestAccountDeletion();
+      // repository await 만 해소시킨다 — signOut 은 gate 로 계속 대기 중.
+      await pumpEventQueue();
+
+      expect(
+        signOutGate.isCompleted,
+        isFalse,
+        reason: '사후 정리가 아직 끝나지 않은 상태를 검증 대상으로 삼는다',
+      );
+      expect(
+        container.read(settingsProvider).isLoading,
+        isFalse,
+        reason: '서버 삭제 확정 시점에 loading 이 해제되어야 한다',
+      );
+      expect(
+        container.read(settingsProvider),
+        const AsyncValue<void>.data(null),
+      );
+
+      signOutGate.complete();
+      await future;
+
+      verify(() => mockAuthRepo.signOutAndResetOnboarding()).called(1);
+    });
   });
 
   group('Phase 16 WR-03/WR-04 — SettingsNotifier.linkProvider 결과 매핑', () {
