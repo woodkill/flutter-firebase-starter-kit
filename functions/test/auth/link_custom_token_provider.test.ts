@@ -18,6 +18,10 @@
  *  - L5: uid mismatch — permission-denied
  *  - L6: target ID Token invalid — unauthenticated + fingerprint
  *  - L7: anonymous caller — failed-precondition (Open Question #2)
+ *
+ * Phase 15 리뷰 WR-10 회귀 가드:
+ *  - L8: 같은 uid 재연동 — 멱등 성공 (이전에는 already-exists 오분류)
+ *  - L9: transaction read 1건 — 결과를 버리는 죽은 read 제거
  */
 
 // firebase-functions/logger mock — read-only export 라 jest.spyOn 미동작.
@@ -211,9 +215,13 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
       firebase: {sign_in_provider: "google.com"},
     });
     mockVerifyTargetIdToken.mockResolvedValue({sub: "kakao-sub-L2"});
-    // idxRef 이미 존재 → already-exists.
-    mockTxGet.mockResolvedValueOnce({exists: true});
-    mockTxGet.mockResolvedValueOnce({exists: true});
+    // idxRef 가 **다른 계정** 소유로 이미 존재 → already-exists.
+    // WR-10 (Phase 15 리뷰): 소유자 판정이 생겼으므로 firebaseUid 를 함께
+    // 준다. 같은 uid 면 멱등 성공이어야 한다 (아래 L8).
+    mockTxGet.mockResolvedValueOnce({
+      exists: true,
+      data: () => ({firebaseUid: "other-owner-uid"}),
+    });
 
     const wrapped = testEnv.wrap(myFunctions.linkCustomTokenProvider);
     const promise = wrapped({
@@ -232,6 +240,69 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
       message: "errorAccountAlreadyLinked",
     });
     expect(mockTxSet).not.toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // WR-10 (Phase 15 리뷰) 회귀 가드 — 같은 uid 재연동 멱등성.
+  //
+  // 이전 구현은 idxSnap.exists 만 보고 무조건 already-exists 를 던져서,
+  // 이미 연동된 provider 를 다시 누르거나 (client 10초 타임아웃 뒤) 재시도
+  // 하면 자기 계정에 대해 "이미 다른 계정에 연동됨" 안내를 받았다.
+  // ---------------------------------------------------------------------------
+  it("L8: 같은 uid 재연동 → 멱등 성공 + idx 재작성 안 함", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "caller-uid-L8",
+      auth_time: freshAuthTime(),
+      firebase: {sign_in_provider: "google.com"},
+    });
+    mockVerifyTargetIdToken.mockResolvedValue({sub: "kakao-sub-L8"});
+    // 이미 **내 계정** 에 연동된 상태.
+    mockTxGet.mockResolvedValueOnce({
+      exists: true,
+      data: () => ({firebaseUid: "caller-uid-L8"}),
+    });
+
+    const wrapped = testEnv.wrap(myFunctions.linkCustomTokenProvider);
+    const result = (await wrapped({
+      auth: {uid: "caller-uid-L8"},
+      app: {appId: "test"},
+      data: {
+        idToken: "FAKE_FRESH",
+        targetProvider: "kakao",
+        targetProviderToken: "FAKE_TARGET",
+        nonce: "n",
+      },
+    } as never)) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    // idx 문서는 다시 쓰지 않는다 (최초 linkedAt 보존) — users/{uid} 의
+    // linkedProviders self-heal 만 1회.
+    expect(mockTxSet).toHaveBeenCalledTimes(1);
+  });
+
+  it("L9: transaction read 는 idxRef 1건만 수행한다 (죽은 read 제거)", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "caller-uid-L9",
+      auth_time: freshAuthTime(),
+      firebase: {sign_in_provider: "google.com"},
+    });
+    mockVerifyTargetIdToken.mockResolvedValue({sub: "kakao-sub-L9"});
+    mockTxGet.mockResolvedValueOnce({exists: false});
+
+    const wrapped = testEnv.wrap(myFunctions.linkCustomTokenProvider);
+    await wrapped({
+      auth: {uid: "caller-uid-L9"},
+      app: {appId: "test"},
+      data: {
+        idToken: "FAKE_FRESH",
+        targetProvider: "kakao",
+        targetProviderToken: "FAKE_TARGET",
+        nonce: "n",
+      },
+    } as never);
+
+    // 이전에는 결과를 버리는 tx.get(userRef) 가 함께 돌아 2회였다.
+    expect(mockTxGet).toHaveBeenCalledTimes(1);
   });
 
   it("L3: stale idToken (auth_time > 5분) → unauthenticated", async () => {

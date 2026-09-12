@@ -212,21 +212,40 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
     try {
       await db.runTransaction(async (tx) => {
         // (all reads first — invariant 의무, Pitfall 2 회피)
-        const [idxSnap] = await Promise.all([
-          tx.get(idxRef),
-          tx.get(userRef),
-        ]);
-        // (writes second — read 종료 후만)
-        if (idxSnap.exists) {
+        //
+        // WR-10 (Phase 15 리뷰): 이전에는
+        // `const [idxSnap] = await Promise.all([tx.get(idxRef),
+        // tx.get(userRef)])` 로 **결과를 버리는 read** 가 있었다.
+        // `tx.set(userRef, ..., {merge:true})` 는 선행 read 를 요구하지
+        // 않으므로 그 read 는 불필요한 왕복이자 오독 유발 요인이었다.
+        const idxSnap = await tx.get(idxRef);
+
+        // WR-10: 같은 uid 로의 재연동은 **멱등** 이어야 한다. 이전 구현은
+        // `idxSnap.exists` 만 보고 무조건 already-exists 를 던져서, 이미
+        // 연동된 provider 를 사용자가 다시 누르거나 (client 10초 타임아웃
+        // 이후) 재시도하면 자기 계정에 대해 "이미 다른 계정에 연동됨"
+        // 계열 오류를 받았다 (client 의 AccountAlreadyLinked 매핑).
+        const owner = idxSnap.exists ?
+          (idxSnap.data() as {firebaseUid?: string} | undefined)?.firebaseUid :
+          undefined;
+        if (idxSnap.exists && owner !== callerUid) {
           throw new HttpsError("already-exists", "errorAccountAlreadyLinked");
         }
-        tx.set(idxRef, {
-          firebaseUid: callerUid,
-          provider: targetProvider,
-          providerUserId: targetSub,
-          linkedAt: FieldValue.serverTimestamp(),
-          lastSeenAt: FieldValue.serverTimestamp(),
-        });
+
+        // (writes second — read 종료 후만)
+        // 재연동이면 idx 문서를 다시 쓰지 않는다 — 최초 linkedAt 보존.
+        if (!idxSnap.exists) {
+          tx.set(idxRef, {
+            firebaseUid: callerUid,
+            provider: targetProvider,
+            providerUserId: targetSub,
+            linkedAt: FieldValue.serverTimestamp(),
+            lastSeenAt: FieldValue.serverTimestamp(),
+          });
+        }
+        // linkedProviders 는 arrayUnion 이라 멱등하다. 재연동 경로에서도
+        // 실행해 "idx 문서는 있는데 users/{uid} 에는 반영이 빠진" 부분
+        // 상태를 self-heal 한다.
         tx.set(
           userRef,
           {
