@@ -35,6 +35,13 @@ class LoginNotifier extends _$LoginNotifier {
   /// notifier 가 즉시 dispose 되는데, 그 시점에 state setter 가 호출되면
   /// `UnmountedRefException` 이 발생하기 때문이다 (T-06.07-02).
   Future<void> submit({required String email, required String password}) async {
+    // IN-09 (Phase 09 review): 재진입 가드. 이중 제출 방어가 화면의
+    // `PrimaryCta(isLoading:)` **단독**이라, 필드의
+    // `onSubmitted: (_) => _handleSubmit()` (키보드 done) 경로에는 그 방어가
+    // 없었다. 진행 중 재호출은 `state = AsyncLoading` 으로 이전 시도를
+    // 덮어써 결과가 마지막 완료자에 좌우된다. notifier 에서 막으면 호출
+    // 경로(CTA / 키보드 done / 향후 신규 caller)와 무관하게 1곳에서 해결된다.
+    if (state is AsyncLoading) return;
     state = const AsyncLoading<void>();
     final result = await ref
         .read(authRepositoryProvider)

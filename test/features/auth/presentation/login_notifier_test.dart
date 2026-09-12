@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -119,6 +121,46 @@ void main() {
       expect(state, const AsyncData<void>(null));
       expect(state.hasError, isFalse);
       expect(state.isLoading, isFalse);
+    });
+  });
+
+  group('IN-09 — submit 재진입 가드', () {
+    test('진행 중 재호출은 무시되어 signInWithEmail 이 1회만 호출된다 '
+        '(키보드 done 경로가 PrimaryCta.isLoading 가드를 우회한다)', () async {
+      final gate = Completer<Result<User>>();
+      addTearDown(() {
+        if (!gate.isCompleted) {
+          gate.complete(const Result<User>.failure(InvalidCredentials()));
+        }
+      });
+      when(
+        () => mockRepo.signInWithEmail(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) => gate.future);
+
+      final container = makeContainer();
+      container.listen(loginProvider, (_, _) {}, fireImmediately: true);
+      final notifier = container.read(loginProvider.notifier);
+
+      final first = notifier.submit(email: 'a@b.com', password: 'pw');
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(loginProvider).isLoading, isTrue);
+
+      // 진행 중 재호출 (키보드 done 연타).
+      await notifier.submit(email: 'a@b.com', password: 'pw');
+      await notifier.submit(email: 'a@b.com', password: 'pw');
+
+      gate.complete(const Result<User>.failure(InvalidCredentials()));
+      await first;
+
+      verify(
+        () => mockRepo.signInWithEmail(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).called(1);
     });
   });
 }

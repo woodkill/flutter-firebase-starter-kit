@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -89,6 +91,39 @@ void main() {
       expect(state, const AsyncData<void>(null));
       expect(state.hasError, isFalse);
       expect(state.isLoading, isFalse);
+    });
+  });
+
+  group('IN-09 — submit 재진입 가드', () {
+    test('진행 중 재호출은 무시되어 sendPasswordReset 이 1회만 호출된다', () async {
+      final gate = Completer<Result<void>>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete(const Result<void>.success(null));
+      });
+      when(
+        () => mockRepo.sendPasswordReset(email: any(named: 'email')),
+      ).thenAnswer((_) => gate.future);
+
+      final container = makeContainer();
+      container.listen(
+        forgotPasswordProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      final notifier = container.read(forgotPasswordProvider.notifier);
+
+      final first = notifier.submit(email: 'a@b.com');
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(forgotPasswordProvider).isLoading, isTrue);
+
+      await notifier.submit(email: 'a@b.com');
+
+      gate.complete(const Result<void>.success(null));
+      await first;
+
+      verify(
+        () => mockRepo.sendPasswordReset(email: any(named: 'email')),
+      ).called(1);
     });
   });
 }
