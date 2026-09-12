@@ -21,6 +21,14 @@ const pollingTimeoutSeconds = 300;
 /// 재전송 쿨다운 (초).
 const cooldownSeconds = 60;
 
+/// 폴링 중지를 유발하는 **연속** 실패 횟수 (WR-02 — Phase 09 review).
+///
+/// 폴링은 사용자 조작이 아니므로 1회 실패로 배너를 띄우면 소음이 된다.
+/// 반대로 실패를 통째로 삼키면 오프라인에서 5분 내내 신호가 0이다.
+/// 3회 연속 (= 약 [pollingIntervalSeconds] × 3 초) 실패를 "일시적 끊김이
+/// 아니다" 의 판정선으로 삼는다.
+const pollFailureThreshold = 3;
+
 /// 이메일 인증 대기 화면의 비즈니스 로직을 담당하는 AsyncNotifier.
 ///
 /// 3초 간격 폴링으로 [AuthRepository.reloadUser]를 호출하여
@@ -32,6 +40,9 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   Timer? _pollingTimer;
   Timer? _cooldownTimer;
   int _elapsedSeconds = 0;
+
+  /// [pollOnce]의 **연속** 실패 횟수 (WR-02). 성공 1회로 0 으로 되돌린다.
+  int _consecutivePollFailures = 0;
 
   @override
   FutureOr<VerifyEmailState> build() {
@@ -48,6 +59,7 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   /// [VerifyEmailState.isPolling]을 false로 전환한다.
   void _startPolling() {
     _elapsedSeconds = 0;
+    _consecutivePollFailures = 0;
     _pollingTimer = Timer.periodic(
       const Duration(seconds: pollingIntervalSeconds),
       (timer) {
@@ -69,10 +81,30 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   ///
   /// [AuthRepository.reloadUser]를 호출한 뒤 emailVerified를 확인한다.
   /// emailVerified가 true이면 폴링을 중지하고 redirect를 트리거한다.
+  ///
+  /// **실패 처리 (WR-02 — Phase 09 review).** 폴링은 사용자 조작이 아니므로
+  /// 1회 실패로 배너를 띄우지 않는다 (일시적 네트워크 끊김을 매 3초마다
+  /// 에러로 보고하면 소음이 된다). 대신 **연속** 실패가
+  /// [pollFailureThreshold]회 누적되면 폴링을 중지하고
+  /// [VerifyEmailState.error]를 세팅한다 — 이전에는 `Result`를 통째로 버려
+  /// 오프라인 상태에서 5분 내내 아무 신호 없이 헛도는 구간이 있었다.
+  /// 성공 1회로 카운터는 초기화된다.
   @visibleForTesting
   Future<void> pollOnce() async {
-    await ref.read(authRepositoryProvider).reloadUser();
+    final result = await ref.read(authRepositoryProvider).reloadUser();
     if (!ref.mounted) return;
+
+    if (result case Failure<void>(exception: final ex)) {
+      _consecutivePollFailures++;
+      if (_consecutivePollFailures >= pollFailureThreshold) {
+        _pollingTimer?.cancel();
+        state = AsyncData(
+          state.requireValue.copyWith(isPolling: false, error: ex),
+        );
+      }
+      return;
+    }
+    _consecutivePollFailures = 0;
 
     // reload() 후 currentUser를 다시 읽어 stale 방지 (T-06.1-03-03).
     final user = ref.read(firebaseAuthProvider).currentUser;
@@ -112,11 +144,31 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   /// [VerifyEmailState.isChecking]을 true로 설정한 뒤
   /// [AuthRepository.reloadUser]를 호출하고, emailVerified가 true이면
   /// redirect를 트리거한다. false이면 isChecking을 false로 복귀한다.
+  ///
+  /// **실패 처리 (WR-02 — Phase 09 review).** [AuthRepository.reloadUser]의
+  /// `Failure`(네트워크 실패 / `user-token-expired` / `user-disabled`)를
+  /// [VerifyEmailState.error]로 매핑한다. 이전에는 반환값을 버리고
+  /// `emailVerified`만 다시 읽었기 때문에, 오프라인에서 "인증 확인"을 탭하면
+  /// 스피너만 잠깐 돌고 **에러 표시가 0**이었다 —
+  /// 같은 파일의 [resendVerification]은 이미 `Failure`를 상태로 매핑하고
+  /// `verify_email_screen.dart`의 [FormErrorBanner]가 그것을 렌더하므로,
+  /// 표시 표면은 이미 존재하는데 이 경로만 쓰지 않던 비대칭이었다.
+  ///
+  /// 재시도 시 직전 에러가 잔류하지 않도록 진입 시 `error`를 비운다.
   Future<void> checkManually() async {
-    state = AsyncData(state.requireValue.copyWith(isChecking: true));
+    state = AsyncData(
+      state.requireValue.copyWith(isChecking: true, error: null),
+    );
 
-    await ref.read(authRepositoryProvider).reloadUser();
+    final result = await ref.read(authRepositoryProvider).reloadUser();
     if (!ref.mounted) return;
+
+    if (result case Failure<void>(exception: final ex)) {
+      state = AsyncData(
+        state.requireValue.copyWith(isChecking: false, error: ex),
+      );
+      return;
+    }
 
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user != null && user.emailVerified) {

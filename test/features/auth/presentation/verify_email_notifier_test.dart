@@ -306,5 +306,100 @@ void main() {
       // signOut 후 redirect 트리거 확인
       verify(() => mockChangeNotifier.triggerRedirect()).called(greaterThan(0));
     });
+
+    // --- WR-02 (Phase 09 review) — reloadUser Failure 를 상태로 매핑 ---
+
+    test('WR-02 Test 9: checkManually 가 reloadUser Failure 를 error 로 매핑하고 '
+        'isChecking 을 false 로 되돌린다 (이전에는 Result 를 통째로 버려 '
+        '오프라인에서 에러 표시가 0이었다)', () async {
+      final container = makeContainer();
+      container.read(verifyEmailProvider);
+
+      const failure = NoInternetConnection();
+      when(
+        () => mockRepo.reloadUser(),
+      ).thenAnswer((_) async => const Result.failure(failure));
+
+      await container.read(verifyEmailProvider.notifier).checkManually();
+
+      final value = container.read(verifyEmailProvider).requireValue;
+      expect(value.error, same(failure));
+      expect(value.isChecking, isFalse);
+      // 실패했으므로 redirect 는 트리거되지 않는다.
+      verifyNever(() => mockChangeNotifier.triggerRedirect());
+    });
+
+    test('WR-02 Test 9b: checkManually 재시도 성공 시 직전 error 가 잔류하지 않는다', () async {
+      final container = makeContainer();
+      container.read(verifyEmailProvider);
+
+      when(
+        () => mockRepo.reloadUser(),
+      ).thenAnswer((_) async => const Result.failure(NoInternetConnection()));
+      await container.read(verifyEmailProvider.notifier).checkManually();
+      expect(container.read(verifyEmailProvider).requireValue.error, isNotNull);
+
+      // 재시도 — 성공하면 배너가 사라져야 한다.
+      when(
+        () => mockRepo.reloadUser(),
+      ).thenAnswer((_) async => const Result.success(null));
+      await container.read(verifyEmailProvider.notifier).checkManually();
+
+      final value = container.read(verifyEmailProvider).requireValue;
+      expect(value.error, isNull);
+      expect(value.isChecking, isFalse);
+    });
+
+    test('WR-02 Test 10: pollOnce 는 1~2회 실패를 조용히 흡수하고 '
+        '연속 pollFailureThreshold 회에 도달해야 폴링을 멈추고 error 를 세팅한다', () async {
+      final container = makeContainer();
+      container.read(verifyEmailProvider);
+
+      const failure = NoInternetConnection();
+      when(
+        () => mockRepo.reloadUser(),
+      ).thenAnswer((_) async => const Result.failure(failure));
+
+      final notifier = container.read(verifyEmailProvider.notifier);
+
+      // 임계값 직전까지는 소음 없이 폴링을 계속한다.
+      for (var i = 0; i < pollFailureThreshold - 1; i++) {
+        await notifier.pollOnce();
+        final value = container.read(verifyEmailProvider).requireValue;
+        expect(value.error, isNull, reason: '${i + 1}회차는 아직 흡수 구간');
+        expect(value.isPolling, isTrue);
+      }
+
+      // 임계값 도달 — 중지 + 에러 노출.
+      await notifier.pollOnce();
+      final value = container.read(verifyEmailProvider).requireValue;
+      expect(value.error, same(failure));
+      expect(value.isPolling, isFalse);
+    });
+
+    test('WR-02 Test 10b: pollOnce 성공 1회로 연속 실패 카운터가 초기화되어 '
+        '간헐적 실패만으로는 폴링이 멈추지 않는다', () async {
+      final container = makeContainer();
+      container.read(verifyEmailProvider);
+      final notifier = container.read(verifyEmailProvider.notifier);
+
+      // 실패 → 성공 → 실패 … 를 임계값의 2배만큼 반복해도 "연속" 이 아니므로
+      // 폴링은 계속되어야 한다.
+      for (var i = 0; i < pollFailureThreshold * 2; i++) {
+        when(
+          () => mockRepo.reloadUser(),
+        ).thenAnswer((_) async => const Result.failure(NoInternetConnection()));
+        await notifier.pollOnce();
+
+        when(
+          () => mockRepo.reloadUser(),
+        ).thenAnswer((_) async => const Result.success(null));
+        await notifier.pollOnce();
+      }
+
+      final value = container.read(verifyEmailProvider).requireValue;
+      expect(value.error, isNull);
+      expect(value.isPolling, isTrue);
+    });
   });
 }
