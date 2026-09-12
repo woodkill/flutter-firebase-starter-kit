@@ -2,10 +2,12 @@ import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
-import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
-import {createOidcVerifier} from "../shared/oidc_verifier";
+import {
+  KAKAO_NATIVE_APP_KEY,
+  OIDC_VERIFIERS,
+} from "../shared/oidc_providers";
 import {
   MAX_NONCE_ARG_LENGTH,
   requireStringArg,
@@ -18,23 +20,12 @@ import {buildAccountExistsError} from "./account_exists_error";
 import {resolveIdentity} from "./identity_index";
 import {mirrorTermsAccepted} from "./mirror_terms";
 
-// Phase 11 D-05 — Secret Manager 주입.
-// 배포 전 의무: `firebase functions:secrets:set KAKAO_NATIVE_APP_KEY`.
-const KAKAO_NATIVE_APP_KEY = defineSecret("KAKAO_NATIVE_APP_KEY");
-
-// Phase 14 — see ROADMAP.md
 // Phase 14 D-LINE-02/04 — OIDC verifier helper 추출 + retroactive 마이그.
-// 기존 inline KAKAO_JWKS + jwtVerify + nonce 비교 로직을 createOidcVerifier
-// factory 로 흡수. JWKS singleton 은 helper internal — jose JWKS remote set
-// 생성 호출처가 functions/src/ 전체에 정확히 1곳 (oidc_verifier.ts) 만
-// 보존된다 (Pitfall 3 sentinel).
-const verifyKakaoIdToken = createOidcVerifier({
-  issuer: "https://kauth.kakao.com",
-  jwksUrl: "https://kauth.kakao.com/.well-known/jwks.json",
-  audience: () => KAKAO_NATIVE_APP_KEY.value(),
-  algorithms: ["RS256"],
-  nonceHashing: "none", // Kakao = raw nonce 비교 (Phase 12 검증된 동작)
-});
+// WR-06 (Phase 15 리뷰): issuer / jwksUrl / algorithms / nonceHashing 리터럴과
+// secret 선언은 shared/oidc_providers.ts 단일 진실원으로 이동했다. 이전에는
+// 같은 4-튜플이 본 파일과 link_custom_token_provider.ts 에 각각 존재해
+// drift 위험 + provider 당 JWKS 캐시 2개 문제가 있었다.
+const verifyKakaoIdToken = OIDC_VERIFIERS.kakao;
 
 type KakaoCustomTokenRequest = {
   idToken: string;

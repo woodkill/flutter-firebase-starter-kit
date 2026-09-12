@@ -61,10 +61,12 @@ import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
-import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
-import {createOidcVerifier} from "../shared/oidc_verifier";
+import {
+  OIDC_VERIFIERS,
+  YAHOOJP_CLIENT_ID,
+} from "../shared/oidc_providers";
 import {
   MAX_NONCE_ARG_LENGTH,
   requireStringArg,
@@ -77,42 +79,14 @@ import {buildAccountExistsError} from "./account_exists_error";
 import {resolveIdentity} from "./identity_index";
 import {mirrorTermsAccepted} from "./mirror_terms";
 
-// Phase 15 D-YJP-03 — Secret Manager 주입.
-// 배포 전 의무:
-//   firebase functions:secrets:set YAHOOJP_CLIENT_ID
-//
-// YAHOOJP_CLIENT_ID 는 OIDC ID Token audience 검증 (aud claim) 의 정답값으로
-// runtime 시점에 사용된다. Yahoo Developers Console 의 "クライアントサイド・
-// アプリケーション" 등록 유형 — client_secret 0 (D-YJP-03), config/dev.json
-// 공개 + Firebase Secret Manager 이중 등록 (manual.md Plan 15-05 6 절차).
-const YAHOOJP_CLIENT_ID = defineSecret("YAHOOJP_CLIENT_ID");
-
-// Phase 15 D-YJP-04 / D-YJP-05 — OIDC verifier factory 호출.
-// helper 가 issuer / aud / alg / nonce 검증 모두 흡수한다. Yahoo!JP 특화 분기:
-//  - issuer  = "https://auth.login.yahoo.co.jp/yconnect/v2/" — trailing slash
-//    포함 (configuration.html OpenID Provider Metadata `"issuer"` 필드
-//    verbatim, D-YJP-05). id_token.html 본문 prose 의 trailing slash 없는
-//    표기는 trap.
-//  - jwksUrl = "https://auth.login.yahoo.co.jp/yconnect/v2/jwks" (JWKS endpoint)
-//  - audience = YAHOOJP_CLIENT_ID.value() — lazy invoke (secret 은 onCall
-//    진입 시점에만 evaluate 가능, 모듈 로드 시점은 미주입)
-//  - algorithms = ["RS256"] — Yahoo!JP id_token.html "RSA-SHA256のみのサポート"
-//    verbatim (D-YJP-04). LINE 의 ES256 와 alg 분리.
-//  - nonceHashing = "none" — flutter_appauth → AppAuth-iOS/Android 가 raw
-//    nonce 를 변환 없이 Yahoo!JP authorization endpoint 에 transmit + ID Token
-//    nonce claim = raw 동일값 (5-source cross-verified, RESEARCH §D-YJP-04).
-//    LINE / Kakao 와 동일 비교 모드.
-//
-// Pitfall 3 sentinel — jose 의 JWKS remote set 생성 호출처가 functions/src/ 의
-// helper 단일 파일 (oidc_verifier.ts) 만 남아야 한다. 본 caller 는 jose import
-// 시 errors 만 사용 (instanceof 분기용) — 직접 JWKS factory 호출 0건.
-const verifyYahoojpIdToken = createOidcVerifier({
-  issuer: "https://auth.login.yahoo.co.jp/yconnect/v2/",
-  jwksUrl: "https://auth.login.yahoo.co.jp/yconnect/v2/jwks",
-  audience: () => YAHOOJP_CLIENT_ID.value(),
-  algorithms: ["RS256"],
-  nonceHashing: "none",
-});
+// Phase 15 D-YJP-04 / D-YJP-05 — OIDC verifier.
+// WR-06 (Phase 15 리뷰): issuer (trailing slash 포함 — configuration.html
+// verbatim) / jwksUrl / algorithms / nonceHashing 리터럴과 YAHOOJP_CLIENT_ID
+// secret 선언은 shared/oidc_providers.ts 단일 진실원으로 이동했다 (해당
+// 파일에 5-source cross-verify 근거 verbatim 보존). 이전에는 같은 4-튜플이
+// 본 파일과 link_custom_token_provider.ts 에 각각 존재해, 한 글자 차이가
+// 치명적인 trailing-slash issuer 가 두 곳에서 따로 관리되고 있었다.
+const verifyYahoojpIdToken = OIDC_VERIFIERS.yahoojp;
 
 type YahoojpCustomTokenRequest = {
   idToken: string;

@@ -18,10 +18,15 @@ import {getAuth} from "firebase-admin/auth";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
-import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
-import {createOidcVerifier} from "../shared/oidc_verifier";
+import {
+  KAKAO_NATIVE_APP_KEY,
+  LINE_CHANNEL_ID,
+  OIDC_VERIFIERS,
+  OidcProviderId,
+  YAHOOJP_CLIENT_ID,
+} from "../shared/oidc_providers";
 import {
   MAX_NONCE_ARG_LENGTH,
   requireStringArg,
@@ -35,38 +40,14 @@ import {fingerprintError, identityIndexDocId} from "./identity_index";
 // linkCustomTokenProvider 의 target verifier 분기 는 OIDC provider 3종
 // (kakao/line/yahoojp) 만 지원. naver target link 는 Plan 16-04 의 client-side
 // access_token path 와 별도 phase 분리 (Phase 17+ carry-forward).
-const KAKAO_NATIVE_APP_KEY = defineSecret("KAKAO_NATIVE_APP_KEY");
-const LINE_CHANNEL_ID = defineSecret("LINE_CHANNEL_ID");
-const YAHOOJP_CLIENT_ID = defineSecret("YAHOOJP_CLIENT_ID");
-
-// 3 provider OIDC verifier — 모듈 로드 시점 singleton (JWKS cache 보존).
-// Phase 12/14/15 의 inline verifier 정의 verbatim mirror.
-const verifyKakaoIdToken = createOidcVerifier({
-  issuer: "https://kauth.kakao.com",
-  jwksUrl: "https://kauth.kakao.com/.well-known/jwks.json",
-  audience: () => KAKAO_NATIVE_APP_KEY.value(),
-  algorithms: ["RS256"],
-  nonceHashing: "none",
-});
-
-const verifyLineIdToken = createOidcVerifier({
-  issuer: "https://access.line.me",
-  jwksUrl: "https://api.line.me/oauth2/v2.1/certs",
-  audience: () => LINE_CHANNEL_ID.value(),
-  algorithms: ["ES256"],
-  nonceHashing: "none",
-});
-
-const verifyYahoojpIdToken = createOidcVerifier({
-  issuer: "https://auth.login.yahoo.co.jp/yconnect/v2/",
-  jwksUrl: "https://auth.login.yahoo.co.jp/yconnect/v2/jwks",
-  audience: () => YAHOOJP_CLIENT_ID.value(),
-  algorithms: ["RS256"],
-  nonceHashing: "none",
-});
+// WR-06 (Phase 15 리뷰): 3 provider 의 issuer / jwksUrl / algorithms /
+// nonceHashing 리터럴과 secret 선언이 본 파일과 4 Custom Token endpoint 에
+// 각각 존재해 (3쌍 완전 중복) drift 위험 + provider 당 JWKS 캐시 2개 문제가
+// 있었다. 이제 shared/oidc_providers.ts 의 singleton 맵만 참조한다 —
+// endpoint 와 link callable 이 **같은 verifier 인스턴스** 를 쓴다.
 
 /** target provider OIDC verifier dispatch — RESEARCH Pattern 2 verbatim. */
-type TargetProvider = "kakao" | "line" | "yahoojp";
+type TargetProvider = OidcProviderId;
 
 type LinkCustomTokenProviderRequest = {
   /** current Firebase user 의 fresh ID Token (reauth verify). */
@@ -189,14 +170,13 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
     // singleton. provider 별 dispatch).
     let targetSub: string | undefined;
     try {
-      let payload;
-      if (targetProvider === "kakao") {
-        payload = await verifyKakaoIdToken(targetProviderToken, nonce);
-      } else if (targetProvider === "line") {
-        payload = await verifyLineIdToken(targetProviderToken, nonce);
-      } else {
-        payload = await verifyYahoojpIdToken(targetProviderToken, nonce);
-      }
+      // WR-06: provider 별 if/else dispatch 를 단일 진실원 맵 조회로 대체.
+      // targetProvider 는 Step 0 에서 closed union 으로 좁혀졌으므로 맵
+      // 조회는 총체적(total)이다.
+      const payload = await OIDC_VERIFIERS[targetProvider](
+        targetProviderToken,
+        nonce,
+      );
       const typedPayload = payload as {sub?: string};
       targetSub = typedPayload.sub;
     } catch (err: unknown) {

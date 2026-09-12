@@ -3,10 +3,12 @@ import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
-import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
-import {createOidcVerifier} from "../shared/oidc_verifier";
+import {
+  LINE_CHANNEL_ID,
+  OIDC_VERIFIERS,
+} from "../shared/oidc_providers";
 import {
   MAX_NONCE_ARG_LENGTH,
   requireStringArg,
@@ -19,43 +21,13 @@ import {buildAccountExistsError} from "./account_exists_error";
 import {resolveIdentity} from "./identity_index";
 import {mirrorTermsAccepted} from "./mirror_terms";
 
-// Phase 14 D-LINE-16 — Secret Manager 주입.
-// 배포 전 의무:
-//   firebase functions:secrets:set LINE_CHANNEL_ID
-//
-// LINE_CHANNEL_ID 는 OIDC ID Token audience 검증 (aud claim) 의 정답값으로
-// runtime 시점에 사용된다.
-//
-// WR-04 (Phase 14 review): LINE_CHANNEL_SECRET 은 Phase 17+ refresh /
-// verify-token / revoke API 진입 시점에 도입한다. 현 시점 사용처 0 인
-// secret 을 declared 하면 운영자가 deploy 전 1회성 더미 주입을 강제받아
-// starter-kit "최소 설정으로 시작" 가치와 충돌 → declaration 제거.
-// Phase 17 진입 시 본 위치에 재선언 + onCall secrets 배열에 재포함 의무.
-const LINE_CHANNEL_ID = defineSecret("LINE_CHANNEL_ID");
-
-// Phase 14 D-LINE-01 / D-LINE-03 / D-LINE-05 — OIDC verifier factory 호출.
-// helper 가 issuer / aud / alg / nonce 검증 모두 흡수한다. LINE 특화 분기:
-//  - issuer  = "https://access.line.me" (LINE OIDC 공식 issuer)
-//  - jwksUrl = "https://api.line.me/oauth2/v2.1/certs" (JWKS endpoint)
-//  - audience = LINE_CHANNEL_ID.value() — lazy invoke (secret 은 onCall 진입
-//    시점에만 evaluate 가능, 모듈 로드 시점은 미주입)
-//  - algorithms = ["ES256"] — LINE native SDK 가 ES256 으로 서명 (RESEARCH
-//    D-LINE-RES; Kakao 의 RS256 와 alg 분리)
-//  - nonceHashing = "none" — LINE SDK 가 raw nonce 를 그대로 LINE 서버에
-//    transmit + ID Token nonce claim = raw 동일값 (line-sdk-android
-//    LineIdToken.java verbatim "the same value as in the authentication
-//    request", Phase 14.1 D-14.1-02 cross-verified). Kakao 와 동일 비교 모드.
-//
-// Pitfall 3 sentinel — jose 의 JWKS remote set 생성 호출처가 functions/src/ 의
-// helper 단일 파일 (oidc_verifier.ts) 만 남아야 한다. 본 caller 는 jose import
-// 시 errors 만 사용 (instanceof 분기용) — 직접 JWKS factory 호출 0건.
-const verifyLineIdToken = createOidcVerifier({
-  issuer: "https://access.line.me",
-  jwksUrl: "https://api.line.me/oauth2/v2.1/certs",
-  audience: () => LINE_CHANNEL_ID.value(),
-  algorithms: ["ES256"],
-  nonceHashing: "none",
-});
+// Phase 14 D-LINE-01 / D-LINE-03 / D-LINE-05 — OIDC verifier.
+// WR-06 (Phase 15 리뷰): issuer / jwksUrl / algorithms / nonceHashing 리터럴과
+// LINE_CHANNEL_ID secret 선언은 shared/oidc_providers.ts 단일 진실원으로
+// 이동했다 (해당 파일에 provider 별 근거 verbatim 보존). 이전에는 같은
+// 4-튜플이 본 파일과 link_custom_token_provider.ts 에 각각 존재해 drift
+// 위험 + provider 당 JWKS 캐시 2개 문제가 있었다.
+const verifyLineIdToken = OIDC_VERIFIERS.line;
 
 type LineCustomTokenRequest = {
   idToken: string;
