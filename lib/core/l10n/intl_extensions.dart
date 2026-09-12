@@ -2,8 +2,12 @@ import 'package:intl/intl.dart';
 
 /// [DateTime]에 로케일별 포맷 메서드를 제공하는 확장.
 ///
-/// 각 메서드는 선택적 [locale] 파라미터를 받으며,
-/// 생략 시 [Intl.defaultLocale]이 적용된다.
+/// 각 메서드는 선택적 [locale] 파라미터를 받으며, 생략 시
+/// [Intl.defaultLocale] 이 적용된다. **이 스타터 킷은 [Intl.defaultLocale] 을
+/// 설정하지 않으므로, 생략하면 앱 로케일이 아니라 intl 기본값(`en_US`)으로
+/// 포맷된다.** 앱 로케일을 따르려면 `ref.watch(localeProvider).languageCode`
+/// 같은 값을 반드시 명시 전달할 것 (앱 전역으로 동기화하고 싶다면 소비자가
+/// 로케일 변경 지점에서 `Intl.defaultLocale` 을 직접 설정하면 된다).
 extension DateTimeFormatX on DateTime {
   /// 연-월-일 포맷.
   ///
@@ -37,8 +41,10 @@ extension DateTimeFormatX on DateTime {
 
 /// [num]에 로케일별 포맷 메서드를 제공하는 확장.
 ///
-/// 각 메서드는 선택적 [locale] 파라미터를 받으며,
-/// 생략 시 [Intl.defaultLocale]이 적용된다.
+/// 각 메서드는 선택적 [locale] 파라미터를 받으며, 생략 시
+/// [Intl.defaultLocale] 이 적용된다. [DateTimeFormatX] 와 동일하게 이 스타터
+/// 킷은 [Intl.defaultLocale] 을 설정하지 않으므로, **생략하면 intl
+/// 기본값(`en_US`)으로 포맷된다** — 앱 로케일을 따르려면 명시 전달할 것.
 extension NumberFormatX on num {
   /// 간결한 숫자 포맷.
   ///
