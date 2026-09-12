@@ -19,6 +19,11 @@
  *  - D6: revoked idToken → unauthenticated
  *  - D7: Pitfall 2 회귀 가드 — identity_index where 가 runTransaction 전 호출
  *  - D8: deleteUser other error → internal + logger.error
+ *
+ * Phase 15 리뷰 WR-09 회귀 가드 (D9-D11):
+ *  - D9: Auth 삭제 실패 시 Firestore 는 손대지 않는다 (data loss 차단)
+ *  - D10: Firestore cleanup 실패 → 고아 문서 로그 + ok:true (계정은 삭제됨)
+ *  - D11: 호출 순서 sentinel — deleteUser 가 identity_index where 보다 먼저
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -39,14 +44,18 @@ const mockDeleteUser = jest.fn();
 jest.mock("firebase-admin/auth", () => ({
   getAuth: jest.fn(() => ({
     verifyIdToken: mockVerifyIdToken,
-    deleteUser: mockDeleteUser,
+    // WR-09: Auth 삭제 시점을 Firestore 호출과 같은 축에 기록한다 (D11).
+    deleteUser: (uid: string) => {
+      callOrder.push("auth.deleteUser");
+      return mockDeleteUser(uid);
+    },
   })),
 }));
 
 // firebase-admin/firestore — where + runTransaction.
 const mockWhereGet = jest.fn();
 const mockTxDelete = jest.fn();
-// call order sentinel — D7 invariant 검증용.
+// call order sentinel — D7 / D11 invariant 검증용.
 const callOrder: string[] = [];
 jest.mock("firebase-admin/firestore", () => {
   return {
@@ -351,5 +360,95 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
     for (const args of allLogCalls) {
       expect(JSON.stringify(args)).not.toContain("PII_DELETE_BODY_SENTINEL");
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // WR-09 (Phase 15 리뷰) 회귀 가드 — 삭제 순서 역전.
+  //
+  // 이전에는 Firestore 삭제를 먼저 커밋하고 Auth 삭제를 뒤에 했다. Auth 삭제가
+  // 실패하면 internal 을 반환하는데 Firestore 삭제는 되돌릴 수 없어, 사용자는
+  // "탈퇴 실패" 를 보면서 데이터만 잃고 (로그인은 계속 가능) identity_index
+  // 소실로 계정 분열까지 이어질 수 있었다.
+  // ---------------------------------------------------------------------------
+  it("D9: Auth 삭제 실패 → Firestore 를 손대지 않는다 (data loss 차단)", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "uid-D9",
+      auth_time: freshAuthTime(),
+    });
+    mockWhereGet.mockResolvedValue({docs: [{id: "kakao:999"}]});
+    mockDeleteUser.mockRejectedValue(
+      Object.assign(new Error("boom"), {code: "auth/internal-error"}),
+    );
+
+    const wrapped = testEnv.wrap(myFunctions.deleteUserAccount);
+    await expect(
+      wrapped({
+        auth: {uid: "uid-D9"},
+        app: {appId: "test"},
+        data: {idToken: "FAKE_FRESH"},
+      } as never),
+    ).rejects.toMatchObject({code: "internal"});
+
+    // 핵심 — Firestore 는 읽지도 지우지도 않았다. 사용자는 재시도 가능.
+    expect(mockTxDelete).not.toHaveBeenCalled();
+    expect(callOrder).not.toContain("where:identity_index:get");
+  });
+
+  // eslint-disable-next-line max-len
+  it("D10: Firestore cleanup 실패 → 고아 문서 로그 + ok:true (계정은 이미 삭제)", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "uid-D10",
+      auth_time: freshAuthTime(),
+    });
+    mockDeleteUser.mockResolvedValue(undefined);
+    mockWhereGet.mockRejectedValue(
+      Object.assign(new Error("PII_FIRESTORE_SENTINEL"), {
+        code: "unavailable",
+      }),
+    );
+
+    const wrapped = testEnv.wrap(myFunctions.deleteUserAccount);
+    const result = (await wrapped({
+      auth: {uid: "uid-D10"},
+      app: {appId: "test"},
+      data: {idToken: "FAKE_FRESH"},
+    } as never)) as {ok: true};
+
+    // 계정은 삭제됐고 caller 는 인증 수단을 잃어 재시도할 수 없다 —
+    // 실패를 알리는 대신 ops 수거용 전용 event 로 남긴다.
+    expect(result.ok).toBe(true);
+    expect(errorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "delete_user_firestore_orphan",
+        uid: "uid-D10",
+        code: "unavailable",
+      }),
+      expect.any(String),
+    );
+    // PII 금지 — err.message 본문 미노출.
+    for (const args of errorMock.mock.calls) {
+      expect(JSON.stringify(args)).not.toContain("PII_FIRESTORE_SENTINEL");
+    }
+  });
+
+  it("D11: 호출 순서 — Auth 삭제가 Firestore cleanup 보다 먼저", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "uid-D11",
+      auth_time: freshAuthTime(),
+    });
+    mockWhereGet.mockResolvedValue({docs: [{id: "kakao:111"}]});
+    mockDeleteUser.mockResolvedValue(undefined);
+
+    const wrapped = testEnv.wrap(myFunctions.deleteUserAccount);
+    await wrapped({
+      auth: {uid: "uid-D11"},
+      app: {appId: "test"},
+      data: {idToken: "FAKE_FRESH"},
+    } as never);
+
+    const authIdx = callOrder.indexOf("auth.deleteUser");
+    const whereIdx = callOrder.indexOf("where:identity_index:get");
+    expect(authIdx).toBeGreaterThanOrEqual(0);
+    expect(whereIdx).toBeGreaterThan(authIdx);
   });
 });
