@@ -225,7 +225,9 @@ void main() {
     when(() => mockKakaoSdkClient.signIn()).thenAnswer(
       (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
     );
-    when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+    when(
+      () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+    ).thenReturn(mockCallable);
     final defaultResult = _MockHttpsCallableResult();
     when(() => defaultResult.data).thenReturn(<String, dynamic>{
       'customToken': 'CT',
@@ -245,7 +247,9 @@ void main() {
     when(
       () => mockNaverSdkClient.signIn(),
     ).thenAnswer((_) async => const NaverSignInResult(accessToken: 'AT_NAVER'));
-    when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+    when(
+      () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+    ).thenReturn(mockCallable);
     final defaultResult = _MockHttpsCallableResult();
     when(() => defaultResult.data).thenReturn(<String, dynamic>{
       'customToken': 'CT_NAVER',

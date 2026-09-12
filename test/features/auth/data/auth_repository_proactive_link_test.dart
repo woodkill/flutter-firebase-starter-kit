@@ -194,7 +194,12 @@ void main() {
         expect(result, isA<Success<dynamic>>());
         verify(() => mockCurrentUser.linkWithCredential(any())).called(1);
         // native invariant — Cloud Functions callable 미호출 (A6).
-        verifyNever(() => mockFunctions.httpsCallable(any()));
+        verifyNever(
+          () => mockFunctions.httpsCallable(
+            any(),
+            options: any(named: 'options'),
+          ),
+        );
         verifyNever(
           () => mockFunctions.httpsCallable(
             any(),

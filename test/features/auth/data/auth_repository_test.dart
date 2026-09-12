@@ -1580,7 +1580,10 @@ void main() {
         (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
       );
       // 기본: httpsCallable('kakaoCustomToken') → mockCallable.
-      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+      when(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      ).thenReturn(mockCallable);
       // 기본: callable.call(...) → customToken 응답.
       // HttpsCallableResult 는 private ctor 라 mocktail 로 .data 만 stub 한다.
       final defaultResult = _MockHttpsCallableResult();
@@ -1611,7 +1614,10 @@ void main() {
       verify(() => mockSocialLinkInProgress.begin()).called(1);
       verify(() => mockSocialLinkInProgress.end()).called(1);
       // CF / Firebase Auth 미호출 검증.
-      verifyNever(() => mockFunctions.httpsCallable(any()));
+      verifyNever(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      );
       verifyNever(() => mockAuth.signInWithCustomToken(any()));
     });
 
@@ -1627,13 +1633,36 @@ void main() {
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
 
+    // WR-10 (Phase 7 review): Custom Token sign-in callable 4개만 timeout 이
+    // 없어 race-fix try-finally 안에서 hang 시 `_socialLinkInProgress.end()`
+    // 도 hang → splash 자동 익명 sign-in / auth_guard GC-04 fail-safe redirect
+    // 무한 차단. link arm (10s) 과 동일 값을 적용했는지 검증한다.
+    test('WR-10: kakaoCustomToken callable 에 10초 timeout 옵션이 전달된다', () async {
+      await repository.signInWithKakao();
+
+      final captured =
+          verify(
+                () => mockFunctions.httpsCallable(
+                  'kakaoCustomToken',
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as HttpsCallableOptions;
+      expect(captured.timeout, const Duration(seconds: 10));
+    });
+
     test('Test K3: 성공 path — httpsCallable(kakaoCustomToken).call({idToken, '
         'nonce}) 정확히 1회 호출', () async {
       await repository.signInWithKakao();
 
       // CF 이름 + payload 검증 (Pitfall 2 single nonce — KakaoSignInResult 의
       // nonce 가 그대로 callable payload 에 전달됐는지).
-      verify(() => mockFunctions.httpsCallable('kakaoCustomToken')).called(1);
+      verify(
+        () => mockFunctions.httpsCallable(
+          'kakaoCustomToken',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
       verify(
         () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
           'idToken': 'IDT',
@@ -1853,7 +1882,10 @@ void main() {
         (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
       );
       // 기본: httpsCallable('naverCustomToken') → mockCallable.
-      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+      when(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      ).thenReturn(mockCallable);
       // 기본: callable.call(...) → customToken 응답.
       final defaultResult = _MockHttpsCallableResult();
       when(() => defaultResult.data).thenReturn(<String, dynamic>{
@@ -1900,7 +1932,10 @@ void main() {
       verify(() => mockNaverSdkClient.logout()).called(1);
       verify(() => mockSocialLinkInProgress.end()).called(1);
       // CF / Firebase Auth 미호출 검증.
-      verifyNever(() => mockFunctions.httpsCallable(any()));
+      verifyNever(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      );
       verifyNever(() => mockAuth.signInWithCustomToken(any()));
     });
 
@@ -1979,7 +2014,10 @@ void main() {
       verifyInOrder([
         () => mockSocialLinkInProgress.begin(),
         () => mockNaverSdkClient.signIn(),
-        () => mockFunctions.httpsCallable('naverCustomToken'),
+        () => mockFunctions.httpsCallable(
+          'naverCustomToken',
+          options: any(named: 'options'),
+        ),
         () => mockNaverSdkClient.logout(),
         () => mockSocialLinkInProgress.end(),
       ]);
@@ -2012,7 +2050,12 @@ void main() {
       await repository.signInWithNaver();
 
       // D-46 — Naver 는 OAuth 2.0 access_token 흐름이라 nonce 부재.
-      verify(() => mockFunctions.httpsCallable('naverCustomToken')).called(1);
+      verify(
+        () => mockFunctions.httpsCallable(
+          'naverCustomToken',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
       verify(
         () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
           'accessToken': 'AT_NAVER',
@@ -2039,7 +2082,10 @@ void main() {
       when(() => mockNaverSdkClient.signIn()).thenAnswer(
         (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
       );
-      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+      when(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      ).thenReturn(mockCallable);
     });
 
     test(
@@ -2127,7 +2173,10 @@ void main() {
       when(() => mockKakaoSdkClient.signIn()).thenAnswer(
         (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
       );
-      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+      when(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      ).thenReturn(mockCallable);
       final defaultResult = _MockHttpsCallableResult();
       when(
         () => defaultResult.data,
@@ -2321,7 +2370,10 @@ void main() {
         (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
       );
       // 기본: httpsCallable('lineCustomToken') → mockCallable.
-      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+      when(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      ).thenReturn(mockCallable);
       // 기본: callable.call(...) → customToken 응답.
       final defaultResult = _MockHttpsCallableResult();
       when(() => defaultResult.data).thenReturn(<String, dynamic>{
@@ -2357,7 +2409,12 @@ void main() {
       // D-LINE-57: 성공 path 에서 SDK logout 정확 1회.
       verify(() => mockLineSdkClient.logout()).called(1);
       // CF 이름 + payload (idToken + nonce) 검증.
-      verify(() => mockFunctions.httpsCallable('lineCustomToken')).called(1);
+      verify(
+        () => mockFunctions.httpsCallable(
+          'lineCustomToken',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
       verify(
         () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
           'idToken': 'LIDT',
@@ -2378,7 +2435,10 @@ void main() {
       // D-LINE-57 invariant: 모든 path 에서 finally logout (Phase 13 WR-01-iter2 일관).
       verify(() => mockLineSdkClient.logout()).called(1);
       // CF / Firebase Auth 미진입 검증.
-      verifyNever(() => mockFunctions.httpsCallable(any()));
+      verifyNever(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      );
       verifyNever(() => mockAuth.signInWithCustomToken(any()));
     });
 
@@ -2462,7 +2522,10 @@ void main() {
             const YahoojpSignInResult(idToken: 'YJIDT', nonce: 'YJNONCE'),
       );
       // 기본: httpsCallable('yahoojpCustomToken') → mockCallable.
-      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+      when(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      ).thenReturn(mockCallable);
       // 기본: callable.call(...) → customToken 응답.
       final defaultResult = _MockHttpsCallableResult();
       when(() => defaultResult.data).thenReturn(<String, dynamic>{
@@ -2501,7 +2564,12 @@ void main() {
       // D-YJP-08: 성공 path 에서 SDK logout 정확 1회.
       verify(() => mockYahoojpSdkClient.logout()).called(1);
       // CF 이름 + payload (idToken + nonce) 검증.
-      verify(() => mockFunctions.httpsCallable('yahoojpCustomToken')).called(1);
+      verify(
+        () => mockFunctions.httpsCallable(
+          'yahoojpCustomToken',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
       verify(
         () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
           'idToken': 'YJIDT',
@@ -2523,7 +2591,10 @@ void main() {
       // (Phase 14 D-LINE-57 mirror).
       verify(() => mockYahoojpSdkClient.logout()).called(1);
       // CF / Firebase Auth 미진입 검증.
-      verifyNever(() => mockFunctions.httpsCallable(any()));
+      verifyNever(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      );
       verifyNever(() => mockAuth.signInWithCustomToken(any()));
     });
 

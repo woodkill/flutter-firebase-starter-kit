@@ -145,7 +145,10 @@ void main() {
       when(() => mockKakaoSdkClient.signIn()).thenAnswer(
         (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
       );
-      when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+      when(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      ).thenReturn(mockCallable);
       when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
         FirebaseFunctionsException(
           code: 'already-exists',

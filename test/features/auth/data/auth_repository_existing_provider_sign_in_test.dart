@@ -203,7 +203,9 @@ void main() {
     when(() => mockYahoojpSdkClient.signIn()).thenAnswer(
       (_) async => const YahoojpSignInResult(idToken: 'YIDT', nonce: 'YNONCE'),
     );
-    when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+    when(
+      () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+    ).thenReturn(mockCallable);
     when(
       () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),
     ).thenReturn(mockCallable);

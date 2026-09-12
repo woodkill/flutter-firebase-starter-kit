@@ -159,6 +159,17 @@ class AuthRepository {
   /// `lookupSignInMethods` callable 호출 타임아웃 — 5 초.
   static const Duration _kLookupTimeout = Duration(seconds: 5);
 
+  /// Custom Token sign-in callable (kakao/naver/line/yahoojp) 타임아웃
+  /// — 10 초 (WR-10, `linkCustomTokenProvider` link arm 과 동일 값).
+  ///
+  /// 4 callable 은 모두 race-fix try-finally 블록 안에서 await 된다. hang 시
+  /// `_socialLinkInProgress.end()` 도 hang 하여 splash 의 자동 익명 sign-in
+  /// 과 auth_guard GC-04 fail-safe redirect 가 무한 차단된다 (Phase 9.1 D-03
+  /// race-fix 와 직접 충돌). 같은 논리로 이미 timeout 이 적용된 지점:
+  /// `linkCustomTokenProvider` (10s) / `lookupSignInMethods` (5s) /
+  /// `sendEmailVerification` (5s) / Facebook Graph + updatePhotoURL (각 5s).
+  static const Duration _kCustomTokenTimeout = Duration(seconds: 10);
+
   /// 단위 테스트 결정성 보장을 위한 시간 주입 hook.
   final DateTime Function() _now;
 
@@ -1249,7 +1260,10 @@ class AuthRepository {
         return null;
       }
 
-      final callable = _functions.httpsCallable('kakaoCustomToken');
+      final callable = _functions.httpsCallable(
+        'kakaoCustomToken',
+        options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+      );
       // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉해 서버가
       // identity 생성과 같은 write 안에서 termsAccepted 를 mirror 하게 한다.
       final response = await callable.call<Map<String, dynamic>>(
@@ -1341,7 +1355,10 @@ class AuthRepository {
         return null; // D-45 silent
       }
 
-      final callable = _functions.httpsCallable('naverCustomToken');
+      final callable = _functions.httpsCallable(
+        'naverCustomToken',
+        options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+      );
       // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉한다.
       // base 키가 accessToken 단일인 것은 provider 계약 차이이며 snapshot
       // 부착 방식은 4 provider 동일하다.
@@ -1442,7 +1459,10 @@ class AuthRepository {
         return null; // D-LINE-21 silent cancel
       }
 
-      final callable = _functions.httpsCallable('lineCustomToken');
+      final callable = _functions.httpsCallable(
+        'lineCustomToken',
+        options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+      );
       // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉해 서버가
       // identity 생성과 같은 write 안에서 termsAccepted 를 mirror 하게 한다.
       final response = await callable.call<Map<String, dynamic>>(
@@ -1552,7 +1572,10 @@ class AuthRepository {
         return null; // D-YJP-09 silent cancel
       }
 
-      final callable = _functions.httpsCallable('yahoojpCustomToken');
+      final callable = _functions.httpsCallable(
+        'yahoojpCustomToken',
+        options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+      );
       // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉해 서버가
       // identity 생성과 같은 write 안에서 termsAccepted 를 mirror 하게 한다.
       final response = await callable.call<Map<String, dynamic>>(

@@ -160,7 +160,9 @@ void main() {
     when(() => mockYahoojpSdkClient.logout()).thenAnswer((_) async {});
 
     // callable 기본 wiring — customToken 응답.
-    when(() => mockFunctions.httpsCallable(any())).thenReturn(mockCallable);
+    when(
+      () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+    ).thenReturn(mockCallable);
     final callableResult = _MockHttpsCallableResult();
     when(
       () => callableResult.data,

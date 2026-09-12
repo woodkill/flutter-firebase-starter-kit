@@ -361,7 +361,10 @@ void main() {
       );
       when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
       when(
-        () => mockFunctions.httpsCallable('kakaoCustomToken'),
+        () => mockFunctions.httpsCallable(
+          'kakaoCustomToken',
+          options: any(named: 'options'),
+        ),
       ).thenReturn(mockCtCallable);
     });
 
