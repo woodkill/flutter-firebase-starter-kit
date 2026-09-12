@@ -679,6 +679,15 @@
     "description": "Onboarding carousel skip button label (top-right)"
   },
 
+  "onboardingPageIndicator": "Page {current} of {total}",
+  "@onboardingPageIndicator": {
+    "description": "10-REVIEW WR-09 — Screen-reader label for the onboarding carousel dot indicator (OnboardingIndicator). The wrapper sets liveRegion:true, so this string is announced on every page change — a hardcoded English literal was being read to ko/ja users. Placeholders are 1-based page numbers, matching what the user hears, not the 0-based activeIndex.",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
   "onboardingNext": "Next",
   "@onboardingNext": {
     "description": "Onboarding carousel next button label (slides 1 and 2)"

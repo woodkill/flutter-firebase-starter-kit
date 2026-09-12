@@ -185,6 +185,7 @@
   "errorUnknownProvider": "不明なログイン方法",
 
   "onboardingSkip": "スキップ",
+  "onboardingPageIndicator": "{total} ページ中 {current} ページ",
   "onboardingNext": "次へ",
   "onboardingGetStarted": "はじめる",
   "onboardingSlide1Title": "すぐに始められます",

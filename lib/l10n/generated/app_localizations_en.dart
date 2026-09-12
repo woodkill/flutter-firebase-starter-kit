@@ -428,6 +428,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingSkip => 'Skip';
 
   @override
+  String onboardingPageIndicator(int current, int total) {
+    return 'Page $current of $total';
+  }
+
+  @override
   String get onboardingNext => 'Next';
 
   @override

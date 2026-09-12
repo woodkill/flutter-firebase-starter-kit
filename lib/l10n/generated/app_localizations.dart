@@ -880,6 +880,12 @@ abstract class AppLocalizations {
   /// **'Skip'**
   String get onboardingSkip;
 
+  /// 10-REVIEW WR-09 — Screen-reader label for the onboarding carousel dot indicator (OnboardingIndicator). The wrapper sets liveRegion:true, so this string is announced on every page change — a hardcoded English literal was being read to ko/ja users. Placeholders are 1-based page numbers, matching what the user hears, not the 0-based activeIndex.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {current} of {total}'**
+  String onboardingPageIndicator(int current, int total);
+
   /// Onboarding carousel next button label (slides 1 and 2)
   ///
   /// In en, this message translates to:

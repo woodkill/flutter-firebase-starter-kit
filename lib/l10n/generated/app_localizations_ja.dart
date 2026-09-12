@@ -421,6 +421,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get onboardingSkip => 'スキップ';
 
   @override
+  String onboardingPageIndicator(int current, int total) {
+    return '$total ページ中 $current ページ';
+  }
+
+  @override
   String get onboardingNext => '次へ';
 
   @override

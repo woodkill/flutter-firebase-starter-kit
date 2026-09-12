@@ -3,10 +3,22 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/onboarding_indicator.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
-Widget _wrap({required int count, required int activeIndex}) {
+/// 인디케이터를 테스트 트리에 올린다.
+///
+/// WR-09 이후 Semantics 라벨이 ARB 키를 거치므로 delegate 등록이 필수다
+/// ([locale] 미지정 시 en).
+Widget _wrap({
+  required int count,
+  required int activeIndex,
+  Locale locale = const Locale('en'),
+}) {
   return MaterialApp(
     theme: AppTheme.light(),
+    locale: locale,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: Center(
         child: OnboardingIndicator(count: count, activeIndex: activeIndex),
@@ -71,6 +83,18 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.bySemanticsLabel('Page 2 of 3'), findsOneWidget);
+    });
+
+    testWidgets('Test 4 (WR-09): ko 로케일에서 라벨이 한국어로 읽힌다', (tester) async {
+      // liveRegion 라벨이 하드코딩 영어면 ko/ja 사용자는 페이지 전환마다
+      // 영어를 듣는다 — ARB 경유 여부를 로케일 전환으로 고정한다.
+      await tester.pumpWidget(
+        _wrap(count: 3, activeIndex: 1, locale: const Locale('ko')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('3 페이지 중 2 페이지'), findsOneWidget);
+      expect(find.bySemanticsLabel('Page 2 of 3'), findsNothing);
     });
   });
 }

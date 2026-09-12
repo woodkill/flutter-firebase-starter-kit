@@ -421,6 +421,11 @@ class AppLocalizationsKo extends AppLocalizations {
   String get onboardingSkip => '건너뛰기';
 
   @override
+  String onboardingPageIndicator(int current, int total) {
+    return '$total 페이지 중 $current 페이지';
+  }
+
+  @override
   String get onboardingNext => '다음';
 
   @override
