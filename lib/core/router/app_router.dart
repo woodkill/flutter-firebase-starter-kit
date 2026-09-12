@@ -47,16 +47,32 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 /// 수동 경로를 제거해 "한 번의 전환 = `screen_view` 1건" 을 복구한다.
 /// 회귀는 `app_router_observers_test.dart` 의 런타임 계측 테스트가 잠근다.
 ///
-/// **authUserObserver warm-up (BLOCKER #4 + INFO #21):** Plan 05 Task 1 에서
-/// 추가한 `authUserObserverProvider` 는 watch 되지 않으면 동작하지 않으므로,
-/// 본 Provider 에서 1회 watch 하여 활성화한다.
+/// **authUserObserver warm-up (BLOCKER #4 + INFO #21, 코드 리뷰 CR-01 정정):**
+/// Plan 05 Task 1 에서 추가한 `authUserObserverProvider` 는 구독되지 않으면
+/// 동작하지 않으므로 본 Provider 에서 1회 구독하여 활성화한다. 단 구독 수단은
+/// [Ref.listen] 이어야 하며 `ref.watch` 를 쓰면 안 된다 — 상세는 아래
+/// [appRouter] 본문 주석 참조.
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
   final authGuard = ref.watch(authChangeProvider);
   final observer = ref.watch(analyticsObserverProvider);
 
-  // INFO #21 + BLOCKER #4: authUserObserver 활성화 (1회 watch 로 충분).
-  ref.watch(authUserObserverProvider);
+  // INFO #21 + BLOCKER #4: authUserObserver 활성화.
+  //
+  // **CR-01 (코드 리뷰 05):** 여기에 있던 `ref.watch(authUserObserverProvider)`
+  // 는 "활성화" 외에 **구독**까지 수행하여, `AsyncLoading -> AsyncData`
+  // (모든 콜드 스타트에서 1회 확정) / `AsyncData -> AsyncError` 전이마다 본
+  // Provider 를 rebuild 시켰다. rebuild 는 GoRouter 를 통째로 재생성하므로
+  // (a) `MaterialApp.router` 가 새 routerDelegate 로 교체되며 그때까지의
+  // 내비게이션 위치가 initialLocation 으로 폐기되고, (b) 이전 GoRouter 가
+  // dispose 되지 않아 `AuthChangeNotifier` listener 가 영구 누수된다.
+  // `ref.listen` 은 Provider 를 초기화(=활성화)하되 rebuild 를 유발하지
+  // 않으므로 warm-up 의 원래 의도에 정확히 부합한다.
+  //
+  // `onError` 는 필수다 — 생략하면 observer 스트림 에러가 listener 미처리로
+  // 간주되어 zone uncaught error 로 승격된다. 에러 기록 책임은 observer 본체
+  // (`authUserObserver` 의 Crashlytics 기록) 에 있으므로 여기서는 흡수만 한다.
+  ref.listen(authUserObserverProvider, (_, _) {}, onError: (_, _) {});
 
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -141,6 +157,13 @@ GoRouter appRouter(Ref ref) {
   // `settings.name` (= go_router 가 page 에 심는 `GoRoute.name`) 만 읽으므로
   // 쿼리 파라미터가 screenName 에 섞이지 않는다. 따라서 모든 `GoRoute` 에
   // `name` 설정은 여전히 필수다 (Pitfall 1, Test 3 이 잠근다).
+
+  // CR-01: Provider 파기(컨테이너 dispose / 예기치 못한 rebuild) 시 GoRouter 를
+  // 반드시 dispose 한다. `GoRouteInformationProvider` 는 생성자에서
+  // `refreshListenable.addListener` 를 등록하고 오직 `dispose()` 에서만
+  // 해제하므로, 이 호출이 없으면 죽은 라우터가 `AuthChangeNotifier` 의
+  // listener 목록에 영구히 남는다.
+  ref.onDispose(router.dispose);
   return router;
 }
 
