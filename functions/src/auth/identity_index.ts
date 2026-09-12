@@ -432,7 +432,20 @@ export async function resolveIdentity(
      * 검증 누락 → Phase 12 + 13 양쪽 재발현). 모든 OAuth Custom Token
      * provider (Phase 13~16) 에 동일 매개변수 사용.
      */
-    userInfo?: {email?: string; displayName?: string; photoURL?: string};
+    userInfo?: {
+      email?: string;
+      /**
+       * IdP 가 보고한 이메일 인증 상태 (WR-04).
+       *
+       * `email` 이 함께 제공될 때만 의미가 있다. 생략하면 보수적으로
+       * `false` 로 간주한다 — "이메일은 받았는데 인증 여부는 모른다" 를
+       * verified 로 승격하지 않기 위해서다. `email` 자체가 없는 provider
+       * (LINE / Yahoo!JP) 는 본 필드와 무관하게 `true` 를 유지한다.
+       */
+      emailVerified?: boolean;
+      displayName?: string;
+      photoURL?: string;
+    };
   },
 ): Promise<IdentityResolution> {
   const {provider, providerUserId, callerUid, userInfo} = args;
@@ -444,11 +457,17 @@ export async function resolveIdentity(
   // Step 1: 비-tx read — Pitfall 4 (transaction retry 시 createUser 다중호출)
   // 회피. 미존재 + 미인증 → createUser 1회 사전 호출.
   //
-  // emailVerified: true — OAuth Custom Token 사용자는 외부 IdP (Kakao 등) 가
-  // 인증을 책임지므로 verified 상태로 간주. 이게 없으면 Firebase Auth 의
-  // default emailVerified=false 가 client-side router 의 verify-email
-  // 분기를 트리거 (Phase 12-04 retroactive gap closure). 본 starter kit 의
-  // 모든 OAuth Custom Token provider (Phase 13~16) 에 동일 패턴 적용.
+  // emailVerified — **email 을 받지 않는 provider 는 `true`**. OAuth Custom
+  // Token 사용자는 외부 IdP 가 인증을 책임지고, 이게 없으면 Firebase Auth 의
+  // default emailVerified=false 가 client-side router 의 verify-email 분기를
+  // 오트리거한다 (Phase 12-04 retroactive gap closure).
+  //
+  // WR-04 (Phase 15 리뷰): 이전에는 **무조건** `true` 라서, Kakao endpoint 가
+  // IN-04 대응으로 `developerClaims.email_verified` 를 IdP claim 그대로 보수
+  // 전파하도록 고친 것이 무력화됐다 — custom claim 만 false 이고 Firebase Auth
+  // **user record 는 true** 였으므로, 이메일 기반 계정 병합 / 비밀번호 재설정 /
+  // auth_guard 의 verify-email 분기 등 record 를 신뢰하는 모든 경로에서 방어가
+  // 사라졌다. 이제 email 을 받은 경우에만 IdP 의 검증 상태를 반영한다.
   //
   // email 매개변수 — userInfo.email 이 제공되면 Firebase Auth user.email
   // 에 저장. starter kit 의 dev 단계 (일반 앱) 는 카카오 동의항목에 이메일
@@ -468,6 +487,13 @@ export async function resolveIdentity(
   if (userInfo?.email) profileFields.email = userInfo.email;
   if (userInfo?.displayName) profileFields.displayName = userInfo.displayName;
   if (userInfo?.photoURL) profileFields.photoURL = userInfo.photoURL;
+
+  // WR-04: email 이 없으면 verify-email gate 오트리거 방지를 위해 true 를
+  // 유지하고 (LINE / Yahoo!JP), email 이 있으면 IdP 가 보고한 상태를 따른다.
+  // 미보고 시 보수적으로 false.
+  const resolvedEmailVerified = userInfo?.email ?
+    (userInfo.emailVerified ?? false) :
+    true;
 
   // Step 0.5 (Phase 9.2 Gap B close — HUMAN-UAT 2026-05-11):
   //
@@ -585,7 +611,7 @@ export async function resolveIdentity(
   if (!idxSnapPre.exists && !callerUid) {
     try {
       const created = await getAuth().createUser({
-        emailVerified: true,
+        emailVerified: resolvedEmailVerified,
         ...profileFields,
       });
       preCreatedUid = created.uid;
@@ -828,12 +854,18 @@ export async function resolveIdentity(
       // (`resolveCustomTokenExistingProvider` docstring 의 라이브 확인
       // 근거 참조) — 그 population 만 보상 대상이다.
       const hasNativeProvider = (current.providerData ?? []).length > 0;
-      shouldSetEmailVerified = !current.emailVerified && !hasNativeProvider;
+      // WR-04: 목표값이 false 인 경우 (IdP 가 unverified email 을 보고) 는
+      // 보상할 것이 없다 — verify-email gate 가 **정상적으로** 트리거되는
+      // 상태이기 때문이다. 보상은 "true 로 올려야 하는데 못 올린" 경우만.
+      shouldSetEmailVerified =
+        resolvedEmailVerified && !current.emailVerified && !hasNativeProvider;
     }
     if (shouldSetEmailVerified) {
       // strict — 실패 시 throw. 보안 게이트이므로 caller 가
       // createCustomToken 을 차단해야 한다.
-      await getAuth().updateUser(callerUid, {emailVerified: true});
+      await getAuth().updateUser(callerUid, {
+        emailVerified: resolvedEmailVerified,
+      });
     }
 
     // CR-02 두 번째 갈래 — 프로필 필드를 보안 게이트와 **분리**한다.

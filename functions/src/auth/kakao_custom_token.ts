@@ -166,9 +166,19 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // R10: email + nickname + picture 모두 userInfo 에 묶어서 helper 에 전달.
     // helper 가 createUser/updateUser 시점에 Firebase Auth user record 의
     // email/displayName/photoURL 에 propagate. 부재 항목은 silent (undefined).
-    const userInfo: {email?: string; displayName?: string; photoURL?: string} =
-      {};
+    const userInfo: {
+      email?: string;
+      emailVerified?: boolean;
+      displayName?: string;
+      photoURL?: string;
+    } = {};
     if (kakaoEmail) userInfo.email = kakaoEmail;
+    // WR-04: IdP 의 email_verified claim 을 Firebase Auth **user record** 까지
+    // 전파한다. 이전에는 developerClaims (custom claim) 에만 반영되고 record
+    // 는 resolveIdentity 가 무조건 true 로 만들어서, record 를 신뢰하는 모든
+    // 경로 (이메일 기반 병합 / 비밀번호 재설정 / auth_guard verify-email 분기)
+    // 에서 IN-04 의 방어가 사라졌다.
+    if (kakaoEmail) userInfo.emailVerified = kakaoEmailVerified ?? false;
     if (kakaoNickname) userInfo.displayName = kakaoNickname;
     if (kakaoPicture) userInfo.photoURL = kakaoPicture;
     let resolution;

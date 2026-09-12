@@ -637,6 +637,9 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         callerUid: "anon-r10",
         userInfo: {
           email: "user@example.com",
+          // WR-04: email 이 있으면 IdP 의 검증 상태를 명시해야 한다.
+          // 생략 시 보수적으로 false 로 간주된다 (아래 WR-04 케이스 참조).
+          emailVerified: true,
           displayName: "홍길동",
           photoURL: "https://example.com/pic.jpg",
         },
@@ -669,6 +672,8 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         callerUid: undefined,
         userInfo: {
           email: "user@example.com",
+          // WR-04: IdP 가 verified 를 보고한 경우.
+          emailVerified: true,
           displayName: "홍길동",
           photoURL: "https://example.com/pic.jpg",
         },
@@ -733,6 +738,104 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         uid: "existing-A",
         isNewUser: false,
         conflictKind: "anonymous_existing_collision", // 차단 보존
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // WR-04 (Phase 15 리뷰) 회귀 가드 — emailVerified 하드코딩 제거.
+  //
+  // Kakao endpoint 는 IN-04 대응으로 developerClaims.email_verified 를 IdP
+  // claim 그대로 보수 전파하도록 고쳤지만, 같은 요청의 Firebase Auth **user
+  // record** 는 resolveIdentity 가 무조건 true 로 만들고 있었다. custom claim
+  // 만 false 이고 record 는 true 이므로, record 를 신뢰하는 모든 경로 (이메일
+  // 기반 병합 / 비밀번호 재설정 / auth_guard verify-email 분기) 에서 방어가
+  // 사라졌다.
+  // ---------------------------------------------------------------------------
+  it(
+    // eslint-disable-next-line max-len
+    "WR-04: email + emailVerified=false → createUser 가 unverified 로 기록",
+    async () => {
+      mockCreateUser.mockResolvedValueOnce({uid: "new-wr04"});
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-wr04",
+        callerUid: undefined,
+        userInfo: {email: "unverified@example.com", emailVerified: false},
+      });
+
+      expect(mockCreateUser).toHaveBeenCalledWith({
+        emailVerified: false,
+        email: "unverified@example.com",
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "WR-04: email 은 있고 emailVerified 미보고 → 보수적으로 unverified",
+    async () => {
+      mockCreateUser.mockResolvedValueOnce({uid: "new-wr04b"});
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-wr04b",
+        callerUid: undefined,
+        userInfo: {email: "unknown-state@example.com"},
+      });
+
+      expect(mockCreateUser).toHaveBeenCalledWith({
+        emailVerified: false,
+        email: "unknown-state@example.com",
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "WR-04: email 미제공 provider (LINE / Yahoo!JP) 는 true 유지 (gate 오트리거 방지)",
+    async () => {
+      mockCreateUser.mockResolvedValueOnce({uid: "new-wr04c"});
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await resolveIdentity(db, {
+        provider: "line",
+        providerUserId: "line-wr04c",
+        callerUid: undefined,
+        userInfo: {displayName: "Hanako"},
+      });
+
+      expect(mockCreateUser).toHaveBeenCalledWith({
+        emailVerified: true,
+        displayName: "Hanako",
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "WR-04: unverified email 은 재시도 보상 대상이 아니다 (gate 정상 동작 보존)",
+    async () => {
+      // 목표값이 false 인데 current 도 false → 올릴 것이 없다.
+      mockGetUser.mockResolvedValue({emailVerified: false, providerData: []});
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "anon-wr04d"},
+      });
+
+      await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-wr04d",
+        callerUid: "anon-wr04d",
+        userInfo: {email: "unverified@example.com", emailVerified: false},
+      });
+
+      expect(mockUpdateUser).not.toHaveBeenCalledWith("anon-wr04d", {
+        emailVerified: true,
       });
     },
   );

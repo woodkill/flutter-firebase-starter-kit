@@ -243,9 +243,18 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
     // already-exists HttpsError 변환 (email enumeration 차단). helper 의
     // unexpected throw 는 internal 매핑 (D-32 fallback).
     const callerUid = request.auth?.uid; // unauthenticated 허용 (D-49).
-    const userInfo: {email?: string; displayName?: string; photoURL?: string} =
-      {};
+    const userInfo: {
+      email?: string;
+      emailVerified?: boolean;
+      displayName?: string;
+      photoURL?: string;
+    } = {};
     if (naverEmail) userInfo.email = naverEmail;
+    // WR-04: Naver `/v1/nid/me` 는 REST API 라 email_verified 표준 claim 이
+    // 없다. 아래 developerClaims 주석과 **같은 가정** ("응답에 email 이 있으면
+    // verified") 을 user record 에도 명시적으로 적용한다 — 두 곳이 서로 다른
+    // 값을 쓰던 모순을 제거한다. 가정을 뒤집으려면 두 곳을 함께 바꿀 것.
+    if (naverEmail) userInfo.emailVerified = true;
     if (naverNickname) userInfo.displayName = naverNickname;
     if (naverProfileImage) userInfo.photoURL = naverProfileImage;
     let resolution;
