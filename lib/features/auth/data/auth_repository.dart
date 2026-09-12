@@ -32,6 +32,24 @@ part 'auth_repository.g.dart';
 /// FirebaseAuth와 GoogleSignIn 의존성을 data 계층에 격리하고,
 /// 상위 레이어(Notifier)에는 [Result] 타입으로만 노출한다.
 /// FirebaseAuthException은 [AppException]으로 매핑되어 던져진다.
+///
+/// **PII 로깅 invariant (WR-05 — Phase 7 review, 클래스 전역 단일 정책):**
+/// 본 클래스의 모든 [debugPrint] 는 예외 **본문을 출력하지 않는다**. 허용
+/// 되는 식별 정보는 다음 3종뿐이다.
+///
+/// - `e.code` (FirebaseAuthException / FirebaseFunctionsException /
+///   FirebaseException 등 열거형 코드)
+/// - `e.runtimeType`
+/// - [StackTrace] (file path + symbol + line 만 포함 — PII safe)
+///
+/// `$e` (= `toString()`) / `e.message` / `e.description` /
+/// `LoginResult.message` / email / 토큰 값은 금지한다. SDK 예외 message 는
+/// 사용자 이메일·프로필·CDN URL 등을 실을 수 있고, `kDebugMode` 한정이라도
+/// 개발자 단말 logcat 에 남는다. 이전에는 4곳만 이 정책을 따르고 sign-in
+/// 7 경로 등 나머지는 `$e` 를 그대로 찍어 정책이 두 갈래였다.
+/// 같은 정책이 4 SDK wrapper (`kakao_sdk_client.dart` /
+/// `naver_sdk_client.dart` / `line_sdk_client.dart` /
+/// `yahoojp_sdk_client.dart`) 에도 동일 적용된다.
 class AuthRepository {
   /// [AuthRepository]를 생성한다.
   ///
@@ -222,7 +240,9 @@ class AuthRepository {
       } on Object catch (e, st) {
         // 비-Auth Firebase/Platform 예외도 graceful 처리 (D-10 의도 보존).
         if (kDebugMode) {
-          debugPrint('updateDisplayName/reload 비-Auth 예외: $e\n$st');
+          debugPrint(
+            'updateDisplayName/reload 비-Auth 예외: ${e.runtimeType}\n$st',
+          );
         }
       }
       final refreshed = _auth.currentUser ?? fbUser;
@@ -237,7 +257,7 @@ class AuthRepository {
         }
       } on Object catch (e, st) {
         if (kDebugMode) {
-          debugPrint('sendEmailVerification 비-Auth 예외: $e\n$st');
+          debugPrint('sendEmailVerification 비-Auth 예외: ${e.runtimeType}\n$st');
         }
       }
 
@@ -341,7 +361,7 @@ class AuthRepository {
       // 가 AsyncLoading 에 고정되는 것을 방지한다 (Apple/Facebook 패턴 미러링).
       // begin/end invariant 자체는 finally 블록이 보장하므로 race-fix 와 직교.
       if (kDebugMode) {
-        debugPrint('signInWithGoogle 비-Auth 예외: $e\n$st');
+        debugPrint('signInWithGoogle 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -464,7 +484,7 @@ class AuthRepository {
       // 비-Auth 예외 (PlatformException 등)를 Result로 감싸
       // Notifier state가 AsyncLoading에 고정되는 것을 방지한다.
       if (kDebugMode) {
-        debugPrint('signInWithApple 비-Auth 예외: $e\n$st');
+        debugPrint('signInWithApple 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -571,7 +591,7 @@ class AuthRepository {
       return Result.failure(e);
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('signInWithFacebook 비-Auth 예외: $e\n$st');
+        debugPrint('signInWithFacebook 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -658,7 +678,9 @@ class AuthRepository {
       return Result.failure(_mapAuthException(e));
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('linkPendingNativeCredential 비-Auth 예외: $e\n$st');
+        debugPrint(
+          'linkPendingNativeCredential 비-Auth 예외: ${e.runtimeType}\n$st',
+        );
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -888,7 +910,7 @@ class AuthRepository {
       return Result.failure(_mapProactiveLinkException(e));
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('proactive native link 비-Auth 예외: $e\n$st');
+        debugPrint('proactive native link 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -1230,7 +1252,7 @@ class AuthRepository {
       return Result.failure(e);
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('signInWithKakao 비-Auth 예외: $e\n$st');
+        debugPrint('signInWithKakao 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -1327,7 +1349,7 @@ class AuthRepository {
       return Result.failure(e);
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('signInWithNaver 비-Auth 예외: $e\n$st');
+        debugPrint('signInWithNaver 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -1429,7 +1451,7 @@ class AuthRepository {
       return Result.failure(e);
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('signInWithLine 비-Auth 예외: $e\n$st');
+        debugPrint('signInWithLine 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -1539,7 +1561,7 @@ class AuthRepository {
       return Result.failure(e);
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('signInWithYahoojp 비-Auth 예외: $e\n$st');
+        debugPrint('signInWithYahoojp 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
@@ -1639,7 +1661,7 @@ class AuthRepository {
       return Result.failure(_mapAuthException(e));
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('signInAnonymously 비-Auth 예외: $e\n$st');
+        debugPrint('signInAnonymously 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     }
@@ -1696,7 +1718,7 @@ class AuthRepository {
       await user.delete();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('AuthRepository._safeDelete 실패 (무시): $e\n$st');
+        debugPrint('AuthRepository._safeDelete 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
   }
@@ -1774,7 +1796,9 @@ class AuthRepository {
       }
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('_autoSendEmailVerification 비-Auth 예외: $e\n$st');
+        debugPrint(
+          '_autoSendEmailVerification 비-Auth 예외: ${e.runtimeType}\n$st',
+        );
       }
     }
   }
@@ -1869,7 +1893,7 @@ class AuthRepository {
       await _googleSignIn.signOut();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('GoogleSignIn.signOut() 실패 (무시): $e\n$st');
+        debugPrint('GoogleSignIn.signOut() 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
     // Facebook 세션 해제 (D-08).
@@ -1877,7 +1901,7 @@ class AuthRepository {
       await _facebookAuth.logOut();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('FacebookAuth.logOut() 실패 (무시): $e\n$st');
+        debugPrint('FacebookAuth.logOut() 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
     // Kakao SDK 세션 해제 (Phase 9.2 D-26 — Phase 12 D-57 정합).
@@ -1885,7 +1909,7 @@ class AuthRepository {
       await _kakaoSdkClient.logout();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('KakaoSdkClient.logout() 실패 (무시): $e\n$st');
+        debugPrint('KakaoSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
     // Naver SDK 세션 해제 (Phase 9.2 D-26 — Phase 13 D-57 정합).
@@ -1893,7 +1917,7 @@ class AuthRepository {
       await _naverSdkClient.logout();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('NaverSdkClient.logout() 실패 (무시): $e\n$st');
+        debugPrint('NaverSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
     // LINE SDK 세션 해제 (Phase 14 D-LINE-57 — Kakao/Naver 패턴 일관).
@@ -1901,7 +1925,7 @@ class AuthRepository {
       await _lineSdkClient.logout();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('LineSdkClient.logout() 실패 (무시): $e\n$st');
+        debugPrint('LineSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
     // Yahoo!JP — 호출 형태만 Kakao/Naver/LINE 과 일관 (Phase 15 D-YJP-08).
@@ -1910,7 +1934,7 @@ class AuthRepository {
       await _yahoojpSdkClient.logout();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('YahoojpSdkClient.logout() 실패 (무시): $e\n$st');
+        debugPrint('YahoojpSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
     await _auth.signOut();
@@ -1967,7 +1991,7 @@ class AuthRepository {
       // Timer.periodic 콜백(pollOnce)에서 미처리 예외는 isolate 크래시를,
       // checkManually에서는 isChecking 플래그 영구 고정을 유발할 수 있다.
       if (kDebugMode) {
-        debugPrint('reloadUser 비-Auth 예외: $e\n$st');
+        debugPrint('reloadUser 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
     }
@@ -2188,10 +2212,10 @@ class AuthRepository {
   /// 여기에 도달하지 않는다. 기타 에러는 [ServiceUnavailable]로 매핑한다.
   AppException _mapGoogleException(GoogleSignInException e) {
     if (kDebugMode) {
-      debugPrint(
-        'AuthRepository: GoogleSignIn 에러 -- '
-        'code=${e.code}, description=${e.description}',
-      );
+      // WR-05 PII invariant: code 만 — `description` 은 SDK 원문 message
+      // 로 사용자 식별 정보를 실을 수 있어 비포함 (_runProactiveNativeLink /
+      // linkCustomTokenProviderArm 의 code-only 형식 mirror).
+      debugPrint('AuthRepository: GoogleSignIn 에러 -- code=${e.code}');
     }
     return ServiceUnavailable(cause: e);
   }
@@ -2212,9 +2236,10 @@ class AuthRepository {
       final reason = e.code == 'operation-not-allowed'
           ? 'Firebase Console 인증 방식 비활성 (설정 오류)'
           : '매핑되지 않은 코드 (default fallback)';
+      // WR-05 PII invariant: code 만 — `e.message` 는 Firebase 원문으로
+      // email 등 식별 정보를 실을 수 있어 비포함.
       debugPrint(
-        'AuthRepository: ServiceUnavailable 폴백 — $reason: '
-        'code=${e.code}, message=${e.message}',
+        'AuthRepository: ServiceUnavailable 폴백 — $reason: code=${e.code}',
       );
     }
     return ServiceUnavailable(cause: e);
@@ -2558,7 +2583,7 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
           debugPrint(
             'linkedProvidersStream permission-denied: '
             'retrying attempt $permissionDeniedRetries of $maxRetries '
-            '(after ${retryDelay.inMilliseconds}ms delay): $e',
+            '(after ${retryDelay.inMilliseconds}ms delay): ${e.code}',
           );
         }
         await Future<void>.delayed(retryDelay);

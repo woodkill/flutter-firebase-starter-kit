@@ -170,7 +170,7 @@ class KakaoSdkClient {
       await _logout();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('KakaoSdkClient.logout 실패 (무시): $e\n$st');
+        debugPrint('KakaoSdkClient.logout 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
   }

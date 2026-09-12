@@ -160,7 +160,7 @@ class LineSdkClient {
       await _logout();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('LineSdkClient.logout 실패 (무시): $e\n$st');
+        debugPrint('LineSdkClient.logout 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
   }

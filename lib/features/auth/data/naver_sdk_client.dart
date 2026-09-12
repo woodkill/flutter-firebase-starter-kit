@@ -171,14 +171,18 @@ class NaverSdkClient {
               completeSuccess(NaverSignInResult(accessToken: token));
             }
           } on Object catch (e, st) {
-            if (kDebugMode) debugPrint('Naver getAccessToken 실패: $e\n$st');
+            if (kDebugMode) {
+              debugPrint('Naver getAccessToken 실패: ${e.runtimeType}\n$st');
+            }
             completeError(ServiceUnavailable(cause: e));
           }
         },
         onFailure: (String httpStatus, String message) {
           // Android cancel 도 onFailure 로 도착 가능 — silent 흡수 (D-45 conservative).
+          // WR-05 PII invariant: SDK 원문 `message` 는 사용자 식별 정보를
+          // 실을 수 있어 비포함 — 분류 가능한 httpStatus 만 출력한다.
           if (kDebugMode) {
-            debugPrint('Naver onFailure: $httpStatus $message');
+            debugPrint('Naver onFailure: httpStatus=$httpStatus');
           }
           completeSilent();
         },
@@ -235,7 +239,7 @@ class NaverSdkClient {
       await _logout();
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('NaverSdkClient.logout 실패 (무시): $e\n$st');
+        debugPrint('NaverSdkClient.logout 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
   }

@@ -266,7 +266,7 @@ class YahoojpSdkClient {
       );
     } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('YahoojpSdkClient.logout 실패 (무시): $e\n$st');
+        debugPrint('YahoojpSdkClient.logout 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
   }
