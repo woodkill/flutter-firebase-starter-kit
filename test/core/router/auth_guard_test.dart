@@ -475,6 +475,109 @@ void main() {
     },
   );
 
+  group('분기 (6.4)/(6.5) 조건 동치성 — 코드 리뷰 05 WR-07 회귀 가드', () {
+    // 두 분기는 동일한 조건 묶음(`isUnprotectedLanding`)을 공유하며
+    // socialLinkInProgress 여부로만 갈린다. DRY 추출 전에는 5개 항의 논리곱이
+    // 두 곳에 그대로 중복되어 한쪽만 수정되는 drift 위험이 있었다.
+
+    /// [socialLinkInProgress] 값으로 [location] 을 평가한다.
+    Future<String?> evaluate({
+      required String location,
+      required bool socialLinkInProgress,
+      required bool onboardingSeen,
+      fb.User? user,
+    }) async {
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(user);
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+          onboardingProvider.overrideWith(
+            () => _StubOnboardingNotifier(onboardingSeen),
+          ),
+          termsProvider.overrideWith(() => _StubTermsNotifier(null)),
+          crashlyticsServiceProvider.overrideWithValue(defaultCrashlytics()),
+          socialLinkInProgressProvider.overrideWith(
+            () => _StubSocialLinkInProgress(socialLinkInProgress),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(location);
+      return _callAuthRedirect(container, mockState);
+    }
+
+    test('WR-07: 두 분기는 정확히 같은 전제에서만 발동한다 (전제 매트릭스)', () async {
+      // (조건, 발동 기대) — 발동 시 6.4 는 null, 6.5 는 /splash 를 반환한다.
+      final cases = <({String location, bool onboardingSeen, bool trips})>[
+        // 보호되지 않은 랜딩: 두 분기 모두 발동.
+        (location: AppRoutes.home, onboardingSeen: true, trips: true),
+        (location: AppRoutes.settings, onboardingSeen: true, trips: true),
+        // splash 는 자기 복귀 무한루프 방지로 제외.
+        (location: AppRoutes.splash, onboardingSeen: true, trips: false),
+        // 공개 경로(진입 화면 + 상시 문서)는 제외.
+        (location: AppRoutes.login, onboardingSeen: true, trips: false),
+        (location: AppRoutes.termsService, onboardingSeen: true, trips: false),
+        // onboardingSeen=false 는 분기 (2) 가 먼저 가로챈다.
+        (location: AppRoutes.home, onboardingSeen: false, trips: false),
+      ];
+
+      for (final c in cases) {
+        final withLink = await evaluate(
+          location: c.location,
+          socialLinkInProgress: true,
+          onboardingSeen: c.onboardingSeen,
+        );
+        final withoutLink = await evaluate(
+          location: c.location,
+          socialLinkInProgress: false,
+          onboardingSeen: c.onboardingSeen,
+        );
+
+        if (c.trips) {
+          expect(
+            withLink,
+            isNull,
+            reason: '${c.location}: 분기 (6.4) 는 보류(null) 해야 한다',
+          );
+          expect(
+            withoutLink,
+            AppRoutes.splash,
+            reason: '${c.location}: 분기 (6.5) 는 /splash 로 복귀해야 한다',
+          );
+        } else {
+          expect(
+            withLink,
+            withoutLink,
+            reason:
+                '${c.location} (onboardingSeen=${c.onboardingSeen}): 두 분기가 '
+                '모두 미발동이면 socialLinkInProgress 는 결과에 영향을 주지 않아야 한다',
+          );
+          expect(
+            withoutLink,
+            isNot(AppRoutes.splash),
+            reason: '${c.location}: fail-safe 가 발동해서는 안 되는 전제다',
+          );
+        }
+      }
+    });
+
+    test('WR-07: 인증된 사용자는 두 분기 모두 발동하지 않는다 (!isAuthenticated 항 보존)', () async {
+      final result = await evaluate(
+        location: AppRoutes.home,
+        socialLinkInProgress: true,
+        onboardingSeen: true,
+        user: regularUser(),
+      );
+      expect(
+        result,
+        AppRoutes.onboarding,
+        reason: '정식 사용자는 약관 미동의로 분기 (5) 에서 처리되어야 한다',
+      );
+    });
+  });
+
   group('authChangeProvider 생명주기 — 코드 리뷰 05 WR-04 회귀 가드', () {
     test('WR-04: Firebase 미초기화 경로에서도 컨테이너 파기 시 notifier 가 dispose 된다', () {
       final container = makeContainer(isInitialized: false);

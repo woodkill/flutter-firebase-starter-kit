@@ -379,6 +379,16 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
     return AppRoutes.home;
   }
 
+  // WR-07 (DRY): 분기 (6.4) 와 (6.5) 가 평가하는 동일 조건 묶음을 1회만
+  // 계산한다. "미인증인데 온보딩은 이미 끝났고, 공개 경로도 splash 도 아닌
+  // 보호 대상 위치에 있다" = race 로 인해 보호되지 않은 랜딩이 발생한 상태.
+  // 두 분기는 이 상태를 공유하며 socialLinkInProgress 여부로만 갈린다.
+  final isUnprotectedLanding =
+      !isAuthenticated &&
+      onboardingSeen &&
+      !isOnUnauthRoute &&
+      matchedLocation != AppRoutes.splash;
+
   // (6.4) Phase 9.1 D-02-B: socialLinkInProgress 가드 (Issue #10 GC-04 보류).
   // 미인증 + onboardingSeen=true + !공개경로 + matchedLocation != /splash 는
   // GC-04 fail-safe 가 발동하는 조건과 동일하지만, AuthRepository 의 social
@@ -404,11 +414,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   // 회귀 방지를 위해 해당 테스트를 절대 약화시키지 말 것. Firebase SDK 가
   // `_safeDelete` 에서 currentUser=null 을 동기적으로 emit 하도록 변경되거나
   // `begin()` 호출이 `authenticate()` await 이후로 이동하면 race 가 재발한다.
-  if (!isAuthenticated &&
-      onboardingSeen &&
-      !isOnUnauthRoute &&
-      matchedLocation != AppRoutes.splash &&
-      ref.read(socialLinkInProgressProvider)) {
+  if (isUnprotectedLanding && ref.read(socialLinkInProgressProvider)) {
     if (kDebugMode) {
       debugPrint(
         'authRedirect: social link in progress '
@@ -436,10 +442,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   // forgotPassword/onboarding/terms/*) 는 이미 isOnUnauthRoute=true 로
   // 이 분기에서 제외된다. /splash 도
   // 자기 자신 복귀 무한루프를 방지하기 위해 명시적으로 제외한다.
-  if (!isAuthenticated &&
-      onboardingSeen &&
-      !isOnUnauthRoute &&
-      matchedLocation != AppRoutes.splash) {
+  if (isUnprotectedLanding) {
     if (kDebugMode) {
       debugPrint(
         'authRedirect: fail-safe race guard '
