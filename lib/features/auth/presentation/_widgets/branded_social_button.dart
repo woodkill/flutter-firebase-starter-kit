@@ -60,20 +60,34 @@ import '_brand_assets.dart';
 //   fill="currentColor" — caller 측 colorFilter 으로 green-bg = `Colors.white` /
 //   white-bg = `Color(0xFF03A94D)` 매핑.
 
-/// 자상 렌더링 dispatch 태그 (D-68).
+/// 자상 렌더 형식 **기술(descriptive) 태그** (D-68).
 ///
-/// `BrandedSocialButton.build()` 의 sealed switch 가 본 enum 으로 분기하여
-/// PNG/SVG/위제 위임 셋 중 하나를 선택. 자상 형식 자동 추론 (확장자 string)
-/// 비채택 — fragile + 장래 WebP 추가 시 회귀 가드 명료.
+/// **IN-02 정정 (Phase 09 review).** 이전 문서는
+/// "`BrandedSocialButton.build()` 의 sealed switch 가 본 enum 으로 분기" 라고
+/// 적었으나 **사실이 아니다.** `build()` 는 `spec` 의 **타입**(sealed
+/// [BrandSpec] hierarchy) 으로 분기하며 [BrandSpec.assetType] 을 읽지 않는다.
+/// 저장소 전체에서 이 값을 읽는 코드는 테스트뿐이다.
+///
+/// 따라서 본 enum 은 **production dispatch 에 관여하지 않는다** — 각 spec 이
+/// 어떤 렌더 경로를 쓰는지 문서화하고 테스트가 그 계약을 잠그는 용도다.
+/// 현재 7 spec 모두 [svg] 를 반환하므로 [png] / [none] 은 생산자도 소비자도
+/// 0 이다 (아래 두 값의 설명은 Apple 이 SDK 위제를 쓰고 Facebook 이 PNG 를
+/// 쓰던 시절의 서술이라 이미 stale — 이력으로만 읽을 것).
+///
+/// 실제 dispatch 를 이 태그로 옮기려면 `build()` 의 타입 switch 를 본 enum
+/// switch 로 바꿔야 하는데, 그러면 신규 provider 누락의 컴파일 시점 방어
+/// (sealed exhaustiveness) 를 잃는다 — 현 구조가 의도된 선택이다.
 enum AssetType {
   /// PNG 자상 — Image.asset 으로 렌더, ColorFilter 적용 절대 금지 (R3/R4).
+  /// **현재 생산자 0** (Facebook 이 Phase 13.3 Wave 4 에서 SVG 로 전환).
   png,
 
-  /// SVG 자상 — SvgPicture.asset 으로 렌더 (Google 자상 6종).
+  /// SVG 자상 — SvgPicture.asset 으로 렌더. **현재 7 spec 전부 이 값.**
   svg,
 
-  /// 자상 미사용 — Apple (SDK 위제 위임, sign_in_with_apple). Facebook 은
-  /// Phase 13.2 부로 [png] 전환. 현재 모든 active provider 자상 commit 완료.
+  /// 자상 미사용 — Apple 이 SDK 위제(`sign_in_with_apple`) 에 위임하던 시절의
+  /// 값. Phase 13.3 Wave 4 Step 2 에서 Apple 도 자체 SVG render 로 전환해
+  /// **현재 생산자 0.**
   none,
 }
 
@@ -114,7 +128,12 @@ sealed class BrandSpec {
   /// 아이콘 width / height (dp). default 18.
   final double iconSize;
 
-  /// 자상 렌더 경로 dispatch tag (D-68).
+  /// 자상 렌더 형식 기술 태그 (D-68).
+  ///
+  /// **production dispatch 에 쓰이지 않는다** — [BrandedSocialButton.build]
+  /// 는 본 sealed hierarchy 의 **타입**으로 분기한다. 본 getter 는 각 spec 의
+  /// 렌더 형식을 문서화하고 테스트가 그 계약을 잠그는 용도다 (IN-02 정정 —
+  /// Phase 09 review). 자세한 내용은 [AssetType] 참조.
   AssetType get assetType;
 }
 
