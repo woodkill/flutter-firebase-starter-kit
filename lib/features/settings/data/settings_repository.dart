@@ -1,8 +1,9 @@
 // Phase 16 Plan 16-06 / D-05~D-08 — SettingsRepository 본체.
 //
 // `deleteUserAccount` Cloud Function callable wrapper:
-// - fresh ID Token 발급 (`getIdToken(true)`) — auth_time 갱신, 5분 boundary
-//   baseline (D-06).
+// - fresh ID Token 발급 (`getIdToken(true)`) — revoked 토큰 차단 + 클레임
+//   최신화 목적 (D-06). **forceRefresh 는 `auth_time` 을 갱신하지 않는다**
+//   (WR-04) — 서버의 5분 boundary 통과는 실제 재인증으로만 가능하다.
 // - callable invoke + FirebaseFunctionsException 코드별 매핑
 //   (unauthenticated/permission-denied → ReauthenticationRequiredException,
 //   internal/그 외 → UnknownException).
@@ -41,7 +42,19 @@ class SettingsRepository {
   /// 흐름:
   /// 1. `_auth.currentUser` null 검증 → null 이면 [UnauthenticatedException].
   /// 2. `getIdToken(true /* forceRefresh */)` — fresh ID Token 발급 (D-06).
-  ///    auth_time 갱신으로 server-side 5분 boundary 통과.
+  ///
+  ///    **WR-04 정정:** `forceRefresh` 는 revoked 토큰 차단과 커스텀 클레임
+  ///    최신화를 위한 것이며 `auth_time` 은 **갱신하지 않는다**. `auth_time`
+  ///    은 실제 인증(sign-in / reauthenticate) 시각이므로, 서버
+  ///    (`functions/src/auth/delete_user_account.ts` → `assertFreshAuth`) 의
+  ///    300초 boundary 통과는 실제 재인증으로만 가능하다. 이 사실을 뒤집어
+  ///    "이미 fresh 하니 reauth gate 는 불필요" 로 판단하면 D-07 재인증
+  ///    의무가 무력화된다.
+  ///
+  ///    발급 실패 (네트워크 단절 / `user-token-expired`) 는 raw
+  ///    [fb.FirebaseAuthException] 으로 새지 않고 [NoInternetConnection] /
+  ///    [ReauthenticationRequiredException] 으로 매핑된다 (WR-03). 반환값이
+  ///    null/빈 문자열이면 [ReauthenticationRequiredException] (WR-20).
   /// 3. `deleteUserAccount` callable 호출 ({'idToken': idToken} payload).
   /// 4. FirebaseFunctionsException 코드 매핑:
   ///    - `unauthenticated` / `permission-denied` →
@@ -56,7 +69,25 @@ class SettingsRepository {
     if (user == null) {
       throw const UnauthenticatedException();
     }
-    final idToken = await user.getIdToken(true /* forceRefresh */);
+    // WR-03: getIdToken 을 try 밖에 두면 네트워크 단절 / `user-token-expired`
+    // 시 raw FirebaseAuthException 이 그대로 상류로 새어 _mapDeleteError 를
+    // 타지 않는다 → 다이얼로그의 원인별 문구 분기가 generic 으로 collapse 된다.
+    final String? idToken;
+    try {
+      idToken = await user.getIdToken(true /* forceRefresh */);
+    } on fb.FirebaseAuthException catch (e) {
+      throw e.code == 'network-request-failed'
+          ? NoInternetConnection(cause: e)
+          : ReauthenticationRequiredException(cause: e);
+    }
+    // WR-20: firebase_auth 6.x 의 시그니처는 `Future<String?> getIdToken(...)`
+    // 다. null 을 그대로 실어 보내면 서버가 `invalid-argument` 로 거절하고
+    // 그 코드는 _mapDeleteError 의 default arm (UnknownException) 을 타서
+    // "회원탈퇴에 실패했습니다" 로 뭉개진다 — 실제 원인(세션/토큰 부재)과
+    // 반대 방향의 안내다. 원인대로 재인증 경로로 보낸다.
+    if (idToken == null || idToken.isEmpty) {
+      throw const ReauthenticationRequiredException();
+    }
     try {
       await _functions
           .httpsCallable(

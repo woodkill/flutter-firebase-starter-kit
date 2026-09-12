@@ -229,4 +229,70 @@ void main() {
       },
     );
   });
+
+  group('10-REVIEW WR-03/WR-20 — ID Token 발급 실패 매핑', () {
+    void stubCurrentUser() {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(() => mockUser.uid).thenReturn('uid-s5');
+      when(() => mockUser.email).thenReturn(collisionEmail);
+    }
+
+    test(
+      'S9 WR-03 — getIdToken 네트워크 실패 → NoInternetConnection (raw 누출 없음)',
+      () async {
+        stubCurrentUser();
+        when(
+          () => mockUser.getIdToken(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
+
+        await expectLater(
+          repository.requestAccountDeletion(),
+          throwsA(isA<NoInternetConnection>()),
+        );
+        verifyNever(() => mockDeleteCallable.call<Object?>(any()));
+      },
+    );
+
+    test(
+      'S10 WR-03 — getIdToken 토큰 만료 → ReauthenticationRequiredException',
+      () async {
+        stubCurrentUser();
+        when(
+          () => mockUser.getIdToken(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: 'user-token-expired'));
+
+        await expectLater(
+          repository.requestAccountDeletion(),
+          throwsA(isA<ReauthenticationRequiredException>()),
+        );
+        verifyNever(() => mockDeleteCallable.call<Object?>(any()));
+      },
+    );
+
+    test('S11 WR-20 — getIdToken 이 null → 재인증 필요 (callable 미호출)', () async {
+      // null 을 payload 에 실어 보내면 서버가 invalid-argument 로 거절하고
+      // UnknownException 으로 뭉개져 원인과 반대 안내가 나간다.
+      stubCurrentUser();
+      when(() => mockUser.getIdToken(any())).thenAnswer((_) async => null);
+      stubCallableSuccess();
+
+      await expectLater(
+        repository.requestAccountDeletion(),
+        throwsA(isA<ReauthenticationRequiredException>()),
+      );
+      verifyNever(() => mockDeleteCallable.call<Object?>(any()));
+    });
+
+    test('S12 WR-20 — getIdToken 이 빈 문자열 → 재인증 필요 (callable 미호출)', () async {
+      stubCurrentUser();
+      when(() => mockUser.getIdToken(any())).thenAnswer((_) async => '');
+      stubCallableSuccess();
+
+      await expectLater(
+        repository.requestAccountDeletion(),
+        throwsA(isA<ReauthenticationRequiredException>()),
+      );
+      verifyNever(() => mockDeleteCallable.call<Object?>(any()));
+    });
+  });
 }
