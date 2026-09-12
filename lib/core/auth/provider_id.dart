@@ -8,8 +8,10 @@
 ///
 /// **정적 활성화는 단일 CSV 진실:** `--dart-define-from-file` 의 단일 키
 /// `enabledAuthProviders` (CSV) 가 정적 enabled 의 단일 진실이다 — 자세한
-/// 내용은 [AppConfig.authProviders] 참조. 그 외 별도의 8 평탄 키
+/// 내용은 [AppConfig.authProviders] 참조. 그 외 provider 별 평탄 키
 /// `authProvider_*_enabled` 는 사용하지 않는다 (11-02 → 11-04 hotfix 결정).
+/// IN-06 정정 (Phase 7 review): 개수를 문장에 박지 않는다 — 등록 목록의
+/// 진실원은 [kAllProviderIds] 다.
 ///
 /// **Firebase Auth providerId (`'google.com'` 등) 와는 분리.** `User.providerData`
 /// 가 노출하는 OAuth URI 형식은 우리 도메인 식별자가 아니라 Firebase 가
@@ -65,7 +67,13 @@ const List<String> kAllProviderIds = <String>[
 String rcKeyForProvider(String providerId) =>
     'auth_provider_${providerId}_enabled';
 
-/// 8 provider 인증 식별자 + ARB key 매핑 enum (Phase 9.2 deferred R1 부활).
+/// 인증 식별자 + ARB key 매핑 enum — **소셜 ([kAllProviderIds]) + email**
+/// (Phase 9.2 deferred R1 부활).
+///
+/// **IN-06 정정 (Phase 7 review):** 이전 문서는 "8 provider" 라고 적어
+/// [kAllProviderIds] (소셜 7) 와 어긋났고, 본 enum 만 email 을 포함해 8값
+/// 이라는 점이 혼동을 불렀다. 개수를 문장에 박는 대신 구성으로 표현하고
+/// 목록 자체를 가리킨다 (`app_config.dart` 의 IN-04 정정 선례).
 ///
 /// **Phase 16 Task 4.1** — Phase 9.2 P-A-narrow 시점 deferred 되었던 R1 의
 /// client-side enum 인프라를 본 enum 으로 부활. `AccountLinkingSheet` (D-01/

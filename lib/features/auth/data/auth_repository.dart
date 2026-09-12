@@ -2222,8 +2222,10 @@ class AuthRepository {
   /// 서버 collision throw 의 `details` 는 `{existingProvider: 'kakao'}` 형태의
   /// Map 이다. [details] 가 [Map] 이 아니거나 `existingProvider` 키가 없거나
   /// 값이 [String] 이 아니거나 unknown slug 면 `null` 을 반환한다 (R2 일반
-  /// 배너 fallback 보존). [AccountProvider.tryParse] 가 등록 8 slug 만 enum
-  /// 변환하고 그 외 (`null` / unknown) 는 `null` 로 흡수한다.
+  /// 배너 fallback 보존). [AccountProvider.tryParse] 가 등록 slug
+  /// ([AccountProvider.values] — 소셜 [kAllProviderIds] + email/password)
+  /// 만 enum 변환하고 그 외 (`null` / unknown) 는 `null` 로 흡수한다
+  /// (IN-06 — 숫자 대신 목록 참조).
   ///
   /// [details] 는 `dynamic` 이므로 [Object?] 로 받아 `is` 가드로 좁힌다
   /// (flutter.md `dynamic` 금지 + `as` 최소화).
