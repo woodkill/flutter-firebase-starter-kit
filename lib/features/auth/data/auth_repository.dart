@@ -275,10 +275,8 @@ class AuthRepository {
     try {
       _socialLinkInProgress.begin();
       final account = await _googleSignIn.authenticate();
-      final authentication = account.authentication;
-      final credential = fb.GoogleAuthProvider.credential(
-        idToken: authentication.idToken,
-      );
+      // WR-01: idToken null/empty 가드 — Kakao/LINE/YJP Pitfall 1 mirror.
+      final credential = _googleCredentialOf(account);
 
       final anonymous = _auth.currentUser;
       // Gap A close (HUMAN-UAT 2026-05-11): success path 합류 후 익명 분기 정보
@@ -333,6 +331,11 @@ class AuthRepository {
       return Result.failure(
         await _enrichAccountExistsAsync(_mapAuthException(e)),
       );
+    } on ServiceUnavailable catch (e) {
+      // WR-01: [_googleCredentialOf] 의 idToken 가드 (serverClientId 미설정 등
+      // 설정 오류) — signInWithKakao/Naver/Line/Yahoojp 와 대칭으로 원본을
+      // cause chain 으로 wrapping 하지 않고 그대로 보존.
+      return Result.failure(e);
     } on Object catch (e, st) {
       // 비-Auth 예외 (PlatformException 등) 를 Result 로 감싸 Notifier state
       // 가 AsyncLoading 에 고정되는 것을 방지한다 (Apple/Facebook 패턴 미러링).
@@ -676,10 +679,9 @@ class AuthRepository {
       case AccountProvider.google:
         try {
           final account = await _googleSignIn.authenticate();
-          final authentication = account.authentication;
-          return fb.GoogleAuthProvider.credential(
-            idToken: authentication.idToken,
-          );
+          // WR-01: idToken null/empty 가드 — 설정 오류를 빈 credential 대신
+          // [ServiceUnavailable] 로 노출 (호출부 on Object 가 Failure 로 흡수).
+          return _googleCredentialOf(account);
         } on GoogleSignInException catch (e) {
           if (e.code == GoogleSignInExceptionCode.canceled) return null;
           rethrow;
@@ -744,10 +746,9 @@ class AuthRepository {
       final fb.AuthCredential credential;
       try {
         final account = await _googleSignIn.authenticate();
-        final authentication = account.authentication;
-        credential = fb.GoogleAuthProvider.credential(
-          idToken: authentication.idToken,
-        );
+        // WR-01: idToken null/empty 가드 — 설정 오류를 빈 credential 대신
+        // [ServiceUnavailable] 로 노출 (래퍼 on Object 가 Failure 로 흡수).
+        credential = _googleCredentialOf(account);
       } on GoogleSignInException catch (e) {
         if (e.code == GoogleSignInExceptionCode.canceled) return null;
         rethrow;
@@ -2105,6 +2106,32 @@ class AuthRepository {
     if (details is! Map) return null;
     final raw = details['existingProvider'];
     return raw is String ? AccountProvider.tryParse(raw) : null;
+  }
+
+  /// Google [GoogleSignInAccount] → Firebase [fb.AuthCredential] 변환 단일
+  /// 진실원 (WR-01 — Phase 7 review).
+  ///
+  /// `google_sign_in` 7.x 의 `GoogleSignInAuthentication.idToken` 은 nullable
+  /// 이다. Android `serverClientId` 미설정 같은 **설정 오류** 시 null 로
+  /// 도착하는데, [fb.GoogleAuthProvider.credential] 은
+  /// `assert(accessToken != null || idToken != null)` 만 두고 있어 release
+  /// 빌드에서는 assert 가 제거되고 빈 credential 로 Firebase 를 호출한다.
+  /// 그 결과 상위 `on Object catch` 가 설정 오류를 "일시적 서비스 불가" 로
+  /// 오안내한다.
+  ///
+  /// Kakao (`kakao_sdk_client.dart` Pitfall 1) / LINE / Yahoo!JP 가 이미
+  /// 갖고 있는 `idToken == null || isEmpty` → [ServiceUnavailable] 가드를
+  /// mirror 하여 OIDC 4 provider 의 규칙을 통일한다. Google 3 호출 지점
+  /// ([signInWithGoogle] / [_reauthNativeCredential] / [linkGoogleCredential])
+  /// 이 본 helper 를 공유한다.
+  ///
+  /// Throws [ServiceUnavailable] — idToken 이 null 또는 빈 문자열인 경우.
+  fb.AuthCredential _googleCredentialOf(GoogleSignInAccount account) {
+    final idToken = account.authentication.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw const ServiceUnavailable();
+    }
+    return fb.GoogleAuthProvider.credential(idToken: idToken);
   }
 
   /// [GoogleSignInException]을 [AppException]으로 매핑한다.

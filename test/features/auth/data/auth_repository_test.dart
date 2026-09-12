@@ -535,6 +535,43 @@ void main() {
       expect(result, isNull);
     });
 
+    // WR-01 (Phase 7 review): idToken 은 nullable 이며 Android serverClientId
+    // 미설정 등 설정 오류 시 null 로 도착한다. 가드 없이 넘기면 release 에서
+    // assert 가 제거되어 빈 credential 로 Firebase 를 호출한다.
+    test('WR-01: idToken null → ServiceUnavailable + Firebase 호출 0건', () async {
+      when(
+        () => mockAccount.authentication,
+      ).thenReturn(const GoogleSignInAuthentication(idToken: null));
+      when(
+        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+      ).thenAnswer((_) async => mockAccount);
+
+      final result = await repository.signInWithGoogle();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result! as Failure).exception, isA<ServiceUnavailable>());
+      verifyNever(() => mockAuth.signInWithCredential(any()));
+    });
+
+    test(
+      'WR-01: idToken 빈 문자열 → ServiceUnavailable + Firebase 호출 0건',
+      () async {
+        when(
+          () => mockAccount.authentication,
+        ).thenReturn(const GoogleSignInAuthentication(idToken: ''));
+        when(
+          () =>
+              mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+        ).thenAnswer((_) async => mockAccount);
+
+        final result = await repository.signInWithGoogle();
+
+        expect(result, isA<Failure<dynamic>>());
+        expect((result! as Failure).exception, isA<ServiceUnavailable>());
+        verifyNever(() => mockAuth.signInWithCredential(any()));
+      },
+    );
+
     test('account-exists-with-different-credential 시 '
         'AccountExistsWithDifferentCredential 반환', () async {
       when(
