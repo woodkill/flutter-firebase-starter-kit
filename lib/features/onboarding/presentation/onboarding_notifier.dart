@@ -53,6 +53,11 @@ class OnboardingNotifier extends _$OnboardingNotifier {
   /// 저장값이 [currentVersion] 이상이면 `true`, 미만이면 `false`.
   /// I/O 예외 발생 시 [CrashlyticsService.recordError] 로 기록하고
   /// lossy fallback `false` 를 반환한다 (Phase 1 D-13 철학 승계).
+  ///
+  /// **IN-08:** 실패 시 손상된 키를 best-effort 로 제거한다 —
+  /// `TermsNotifier._loadFromPrefs` 와 대칭. 제거하지 않으면 cast 실패가 매
+  /// cold start 마다 재발해 같은 리포트가 반복 적재된다 (앱은 lossy
+  /// fallback 으로 정상 동작하므로 기능 영향은 없다).
   @override
   FutureOr<bool> build() async {
     try {
@@ -66,6 +71,16 @@ class OnboardingNotifier extends _$OnboardingNotifier {
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'onboarding_load');
+      // 10-REVIEW IN-08: 손상된 값은 지워 다음 cold start 가 같은 실패를
+      // 반복하지 않게 한다 (terms_notifier._loadFromPrefs mirror). 정리를
+      // 하지 않으면 `onboarding.seen_version` 이 다른 타입으로 저장돼 있을 때
+      // 매 cold start 마다 같은 Crashlytics 리포트가 적재된다.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_key);
+      } on Object catch (_) {
+        // best-effort — 정리 자체의 실패는 흡수한다 (이미 실패 경로다).
+      }
       return false;
     }
   }

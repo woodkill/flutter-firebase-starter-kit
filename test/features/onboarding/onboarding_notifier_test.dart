@@ -136,6 +136,24 @@ void main() {
       ).called(1);
     });
 
+    test('O2 (10-REVIEW IN-08): 손상된 seen_version 을 제거해 재발을 끊는다', () async {
+      // 정리하지 않으면 cast 실패가 매 cold start 마다 재발해 같은
+      // Crashlytics 리포트가 반복 적재된다 (terms_notifier 와 대칭).
+      SharedPreferences.setMockInitialValues({
+        'onboarding.seen_version': 'corrupt',
+      });
+      final container = createContainer();
+
+      await container.read(onboardingProvider.future);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.get('onboarding.seen_version'),
+        isNull,
+        reason: '손상값이 남아 있으면 다음 cold start 가 같은 실패를 반복한다',
+      );
+    });
+
     test('Test 7: happy path (markSeen / reset) 에서 crashlytics 미호출', () async {
       SharedPreferences.setMockInitialValues({});
       final container = createContainer();
