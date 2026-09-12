@@ -474,6 +474,53 @@ void main() {
     },
   );
 
+  group('_unauthRoutes 적용 범위 계약 — 코드 리뷰 05 WR-01 문서 정합성 가드', () {
+    // `_unauthRoutes` docstring 이 단언하는 "적용 범위" 를 실제 동작으로
+    // 고정한다. 분기 (2) 는 `isOnUnauthRoute` 를 참조하지 않고 좁은 예외
+    // 목록 (onboarding / terms/* / splash) 만 허용하므로, Set 의 원소여도
+    // 온보딩 미시청 상태에서는 /onboarding 으로 이동한다.
+
+    /// 미인증 + `onboardingSeen=false` 조합에서 [location] 평가 결과.
+    Future<String?> redirectForFreshInstall(String location) async {
+      final container = makeContainer(isInitialized: true);
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(location);
+      return _callAuthRedirect(container, mockState);
+    }
+
+    test('WR-01-A: _unauthRoutes 원소여도 분기 (2) 는 /onboarding 으로 보낸다', () async {
+      // /forgot-password 와 /login/email 은 _unauthRoutes 원소지만
+      // 분기 (2) 의 예외 목록에는 없다.
+      expect(
+        await redirectForFreshInstall(AppRoutes.forgotPassword),
+        AppRoutes.onboarding,
+      );
+      expect(
+        await redirectForFreshInstall(AppRoutes.emailLogin),
+        AppRoutes.onboarding,
+      );
+      expect(
+        await redirectForFreshInstall(AppRoutes.login),
+        AppRoutes.onboarding,
+      );
+    });
+
+    test('WR-01-B: 분기 (2) 의 좁은 예외 목록만 온보딩 미시청 상태에서 머문다', () async {
+      for (final location in <String>[
+        AppRoutes.onboarding,
+        AppRoutes.termsService,
+        AppRoutes.termsPrivacy,
+        AppRoutes.splash,
+      ]) {
+        expect(
+          await redirectForFreshInstall(location),
+          isNull,
+          reason: '$location 은 분기 (2) 의 명시적 예외여야 한다',
+        );
+      }
+    });
+  });
+
   group('authRedirect 이메일 게이트 — 코드 리뷰 05 CR-02 회귀 가드', () {
     // 배경: Facebook 등은 email 권한 거부 / 전화번호 가입 계정에서 email 이
     // 없는 정식 사용자를 만든다. 분기 (4) 가 "정식 사용자는 언제나 이메일

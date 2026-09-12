@@ -82,10 +82,22 @@ AuthChangeNotifier authChangeNotifier(Ref ref) {
 
 /// 미인증 사용자가 접근 가능한 화이트리스트 경로 집합 (Phase 10 D-18 확장).
 ///
-/// 본 집합에 포함된 경로는 [authRedirect]가 미인증 상태에서도
-/// /onboarding 으로 강제 이동시키지 않는다. 신규 unauth 경로 추가 시
-/// 명시적으로 본 Set 에 포함해야 하며, 그 외 모든 경로는 default-deny
-/// 정책에 따라 차단된다 (T-06.03-01 대응).
+/// 신규 unauth 경로 추가 시 명시적으로 본 Set 에 포함해야 하며, 그 외 모든
+/// 경로는 default-deny 정책에 따라 차단된다 (T-06.03-01 대응).
+///
+/// **적용 범위 (코드 리뷰 05 WR-01 정정):** 본 집합은 [authRedirect] 의
+/// 분기 (3) 익명 gate / 분기 (6) 완료 사용자 바운스 / 분기 (6.4)(6.5) race
+/// guard 에만 적용된다. **분기 (2)** (미인증 + `onboardingSeen=false`) 는
+/// 온보딩 선행 정책상 별도의 좁은 예외 목록 (`onboarding` / `terms/*` /
+/// `splash`) 만 허용하므로, 본 Set 에 경로를 추가해도 "온보딩 미시청 상태에서
+/// 진입 가능" 해지지 않는다 — 예컨대 신규 설치 단말의 `/forgot-password`
+/// 딥링크는 본 Set 의 원소임에도 `/onboarding` 으로 이동한다. 그 동작이
+/// 필요하면 분기 (2) 의 예외 조건도 **함께** 수정해야 한다.
+///
+/// (정정 전 문서는 *"본 집합에 포함된 경로는 미인증 상태에서도 /onboarding 으로
+/// 강제 이동시키지 않는다"* 라고 단언했으나, 분기 (2) 는 `isOnUnauthRoute` 를
+/// 참조하지 않으므로 사실이 아니었다. 이 문장을 믿고 새 공개 route 를 Set 에만
+/// 추가하면 동작하지 않는 화이트리스트가 만들어진다.)
 ///
 /// [AppRoutes.verifyEmail]은 미포함: 인증된 사용자만 접근 가능하며,
 /// 로그아웃 후에는 /onboarding 또는 /login 으로 redirect 되어야 한다.
