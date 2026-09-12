@@ -15,6 +15,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/app_exception.dart';
 import '../../../core/providers/firebase_providers.dart';
+import '../domain/delete_user_request.dart';
 
 part 'settings_repository.g.dart';
 
@@ -94,7 +95,10 @@ class SettingsRepository {
             'deleteUserAccount',
             options: HttpsCallableOptions(timeout: _kDeleteTimeout),
           )
-          .call<Object?>(<String, dynamic>{'idToken': idToken});
+          // WR-17: payload 를 손으로 만들지 않고 도메인 모델을 반드시 경유
+          // 한다. 정의만 있고 호출자 0 이던 상태에서는 서버가 필드를 추가해도
+          // 모델이 조용히 낡고 컴파일러 경고도 없었다.
+          .call<Object?>(DeleteUserRequest(idToken: idToken).toJson());
     } on FirebaseFunctionsException catch (e) {
       // PII invariant: code 만 노출, message / details 본문 비전파.
       if (kDebugMode) {
