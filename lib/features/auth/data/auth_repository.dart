@@ -1761,10 +1761,14 @@ class AuthRepository {
   /// 으로 재현되었다. Phase 10.2 (2026-05-12) 에서 메서드 자체를 완전 폐기
   /// (D-A5) 하고 본 [signOutAndResetOnboarding] 으로 교체했다.
   ///
-  /// **Phase 17 (Account Linking & Withdrawal) note:** 회원탈퇴 (reauthentication
-  /// + `fb.User.delete`) 경로는 본 메서드를 사용하지 **않는다**. deleteUser
-  /// 후의 onboardingSeen 정책은 Phase 17 에서 별도 결정한다
-  /// (see ROADMAP Phase 17).
+  /// **회원탈퇴 경로에서의 사용 (10-REVIEW CR-01 정정):** Phase 16 구현
+  /// `SettingsNotifier.requestAccountDeletion` 이 실제로 본 메서드를 사용한다
+  /// (이전 doc 은 사용하지 않는다고 적혀 있었으나 사실과 달랐다). 단,
+  /// 서버측 hard delete (`deleteUserAccount` callable) 가 확정된 **이후의
+  /// best-effort 로컬 정리**로만 호출되며, 본 메서드의 실패는 탈퇴 성공/실패
+  /// 판정에 영향을 주지 않고 Crashlytics `withdrawal_post_signout` telemetry
+  /// 로만 기록된다. deleteUser 후의 onboardingSeen 정책은 본 메서드가 수행하는
+  /// reset (onboardingSeen=false) 을 그대로 따른다.
   Future<void> signOutAndResetOnboarding() async {
     await _onResetOnboarding();
     await signOut();

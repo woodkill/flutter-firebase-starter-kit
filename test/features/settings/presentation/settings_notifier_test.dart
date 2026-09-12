@@ -9,12 +9,19 @@
 //   AsyncValue.error(ReauthenticationRequiredException), signOutAndResetOnboarding 미호출
 // - N3 server fail: repository throws UnknownException →
 //   AsyncValue.error(UnknownException), signOutAndResetOnboarding 미호출
+//
+// 10-REVIEW CR-01 회귀 가드 (서버 hard delete 확정 이후의 사후 정리 실패가
+// 탈퇴 실패로 오보고되지 않는지):
+// - N4: repository 성공 + signOutAndResetOnboarding 이 Exception throw →
+//   최종 state 는 AsyncValue.data(null) + crashlytics reason=withdrawal_post_signout
+// - N5: 같은 시나리오에서 Error 계열 (StateError) throw 에도 data(null)
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -26,18 +33,33 @@ class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
+class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
+
+class _FakeStackTrace extends Fake implements StackTrace {}
+
 void main() {
   late _MockSettingsRepository mockSettingsRepo;
   late _MockAuthRepository mockAuthRepo;
+  late _MockCrashlyticsService mockCrashlytics;
   late ProviderContainer container;
 
   setUpAll(() {
     registerFallbackValue(AccountProvider.kakao);
+    registerFallbackValue(_FakeStackTrace());
   });
 
   setUp(() {
     mockSettingsRepo = _MockSettingsRepository();
     mockAuthRepo = _MockAuthRepository();
+    mockCrashlytics = _MockCrashlyticsService();
+    when(
+      () => mockCrashlytics.recordError(
+        any<Object>(),
+        any<StackTrace?>(),
+        reason: any(named: 'reason'),
+        fatal: any(named: 'fatal'),
+      ),
+    ).thenAnswer((_) async {});
 
     // 16-07(ec7e13d) 이후 탈퇴 성공 path 는 signOut() 단독이 아닌
     // signOutAndResetOnboarding() 를 호출한다 (onboardingSeen=false reset).
@@ -49,6 +71,7 @@ void main() {
       overrides: [
         settingsRepositoryProvider.overrideWithValue(mockSettingsRepo),
         authRepositoryProvider.overrideWithValue(mockAuthRepo),
+        crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
       ],
     );
     addTearDown(container.dispose);
@@ -113,6 +136,63 @@ void main() {
         expect(state.hasError, isTrue);
         expect(state.error, isA<UnknownException>());
         verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
+      },
+    );
+
+    test(
+      'N4 CR-01 — 서버 삭제 성공 후 signOut 이 Exception throw 해도 data(null)',
+      () async {
+        // 서버 hard delete 는 이미 확정되어 되돌릴 수 없다. 이후의 로컬 정리
+        // 실패를 "탈퇴 실패" 로 분류하면 사용자는 삭제된 계정으로 재시도를
+        // 반복하게 된다 (10-REVIEW CR-01).
+        when(
+          () => mockSettingsRepo.requestAccountDeletion(),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockAuthRepo.signOutAndResetOnboarding(),
+        ).thenThrow(Exception('signOut failed'));
+
+        final notifier = container.read(settingsProvider.notifier);
+        await notifier.requestAccountDeletion();
+
+        final state = container.read(settingsProvider);
+        expect(
+          state.hasError,
+          isFalse,
+          reason: '서버 삭제가 확정된 뒤의 사후 정리 실패는 탈퇴 실패가 아니다',
+        );
+        expect(state, const AsyncValue<void>.data(null));
+        verify(() => mockAuthRepo.signOutAndResetOnboarding()).called(1);
+        // 흡수한 실패는 telemetry 로만 남는다.
+        verify(
+          () => mockCrashlytics.recordError(
+            any<Object>(),
+            any<StackTrace?>(),
+            reason: 'withdrawal_post_signout',
+            fatal: any(named: 'fatal'),
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'N5 CR-01 — signOut 이 Error 계열 (StateError) throw 해도 data(null)',
+      () async {
+        // 사후 정리 catch 의 폭이 Exception 이 아니라 Object 라는 증거.
+        when(
+          () => mockSettingsRepo.requestAccountDeletion(),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockAuthRepo.signOutAndResetOnboarding(),
+        ).thenThrow(StateError('sdk logout in bad state'));
+
+        final notifier = container.read(settingsProvider.notifier);
+        await notifier.requestAccountDeletion();
+
+        expect(
+          container.read(settingsProvider),
+          const AsyncValue<void>.data(null),
+        );
       },
     );
   });
