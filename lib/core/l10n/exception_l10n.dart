@@ -80,9 +80,10 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
 
 /// 매핑 표에 없는 [AppException.userMessage] 키를 처리한다 (WR-06).
 ///
-/// debug/profile 빌드에서는 [assert] 로 즉시 실패시켜 매핑 누락을 개발 중에
-/// 드러내고, release 빌드에서는 `errorUnknown` 으로 강등한다. 어느 쪽이든
-/// **ARB 키 문자열이 사용자에게 노출되지 않는다.**
+/// debug 빌드에서는 [assert] 로 즉시 실패시켜 매핑 누락을 개발 중에 드러낸다.
+/// profile/release 는 AOT 컴파일로 [assert] 가 제거되므로 둘 다 `errorUnknown`
+/// 강등 경로를 탄다 — 어느 쪽이든 **ARB 키 문자열이 사용자에게 노출되지
+/// 않는다.**
 ///
 /// 이 fallback 이 발동했다는 것은 새 [AppException] 서브타입을 추가하면서
 /// [resolveExceptionMessage] 의 switch arm 등록을 잊었다는 뜻이다. 근본
