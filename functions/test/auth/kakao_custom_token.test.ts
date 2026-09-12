@@ -98,6 +98,14 @@ const mockUpdateUser = jest.fn().mockResolvedValue(undefined);
 const mockGetUserByEmail = jest.fn().mockRejectedValue(
   Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
 );
+// CR-02 (Phase 15 리뷰) — post-commit 보상 경로가 재시도 판정을 위해
+// getAuth().getUser(uid) 로 현재 emailVerified / providerData 를 읽는다.
+// 기본값은 "Custom Token 계정 + 이미 verified" (= 보상 불필요) 로 두어
+// 기존 케이스 회귀 0.
+const mockGetUser = jest.fn().mockResolvedValue({
+  emailVerified: true,
+  providerData: [],
+});
 jest.mock("firebase-admin/auth", () => ({
   getAuth: jest.fn(() => ({
     createCustomToken: mockCreateCustomToken,
@@ -105,6 +113,7 @@ jest.mock("firebase-admin/auth", () => ({
     deleteUser: mockDeleteUser,
     updateUser: mockUpdateUser,
     getUserByEmail: mockGetUserByEmail,
+    getUser: mockGetUser, // CR-02 post-commit 보상 판정.
   })),
 }));
 

@@ -798,11 +798,66 @@ export async function resolveIdentity(
   // record 가 비어있어 displayName/email/photoURL 이 없는 채로 남아
   // EnvironmentInfoScreen 의 닉네임/이메일/프로필 사진 카드가 비어 보임.
   // 12-UAT 의 검증 누락 → Phase 13 첫 anonymous→소셜 로그인 시 처음 노출.
-  if (result.isNewUser && callerUid) {
-    await getAuth().updateUser(callerUid, {
-      emailVerified: true,
-      ...profileFields,
-    });
+  // CR-02 (Phase 15 리뷰) — post-commit 실패의 보상.
+  //
+  // **문제:** 위 `db.runTransaction(...)` 은 이미 커밋됐다. 따라서 이전
+  // 구현 (`if (result.isNewUser && callerUid)`) 에서 `updateUser` 가 throw
+  // 하면 (`auth/internal-error` / 네트워크 / `auth/invalid-photo-url` —
+  // IdP 가 준 picture 가 Firebase URL 검증을 통과 못 하는 경우 등),
+  // `identity_index/{provider}:{sub}.firebaseUid = callerUid` 는 **영구
+  // 커밋된 채** 로 남고 caller 는 `internal` 을 받았다. 사용자가 재시도하면
+  // 이제 `idxSnap.exists === true` + `existing.firebaseUid === callerUid`
+  // 이므로 `isNewUser: false` 가 되어 **본 블록이 통째로 skip** 되고
+  // `createCustomToken` 이 발급된다. 즉 "첫 시도 실패 → 재시도 성공" 이라는
+  // 가장 흔한 사용자 행동이 `emailVerified=false` 인 social user 를 그대로
+  // 통과시켜, 이 코드가 막으려던 회귀가 retry path 로 재현됐다.
+  //
+  // **수정:** 판단 기준을 "신규 등록" 이 아니라 "미확정" 으로 바꾼다.
+  // caller 가 그 uid 의 소유자이고 `emailVerified` 가 아직 false 면 재시도
+  // 에서 반드시 다시 시도된다 (멱등).
+  if (callerUid && result.uid === callerUid) {
+    let shouldSetEmailVerified = result.isNewUser;
+    if (!shouldSetEmailVerified) {
+      // 재시도 path — 직전 시도가 post-commit 에서 실패했을 수 있다.
+      const current = await getAuth().getUser(callerUid);
+      // **native provider 계정은 건드리지 않는다.** google / apple /
+      // facebook / password 가 연결된 계정에서 `emailVerified` 는 그쪽
+      // 인증 게이트 (이메일 인증 / 비밀번호 재설정) 의 근거다. 여기서
+      // 강제로 true 를 쓰면 그 게이트를 우회시키는 보안 강등이 된다.
+      // Custom Token 및 익명 계정은 `providerData` 가 항상 비어 있다
+      // (`resolveCustomTokenExistingProvider` docstring 의 라이브 확인
+      // 근거 참조) — 그 population 만 보상 대상이다.
+      const hasNativeProvider = (current.providerData ?? []).length > 0;
+      shouldSetEmailVerified = !current.emailVerified && !hasNativeProvider;
+    }
+    if (shouldSetEmailVerified) {
+      // strict — 실패 시 throw. 보안 게이트이므로 caller 가
+      // createCustomToken 을 차단해야 한다.
+      await getAuth().updateUser(callerUid, {emailVerified: true});
+    }
+
+    // CR-02 두 번째 갈래 — 프로필 필드를 보안 게이트와 **분리**한다.
+    // 이전에는 `{emailVerified: true, ...profileFields}` 한 번의 호출이라
+    // `auth/invalid-photo-url` 같은 프로필 필드 문제 하나가 보안 게이트까지
+    // 도미노로 실패시켰다 (그리고 그 실패가 위의 미보상 상태를 만들었다).
+    // 프로필은 UI freshness 수준이므로 best-effort 로 격하한다
+    // (R10-FOLLOWUP 재로그인 refresh 와 동일 정책).
+    if (result.isNewUser && Object.keys(profileFields).length > 0) {
+      try {
+        await getAuth().updateUser(callerUid, profileFields);
+      } catch (profileErr: unknown) {
+        // Pitfall 7 — err.message 본문 미로깅 (PII 가능성).
+        logger.warn(
+          {
+            event: "identity_index_profile_set_failed",
+            uid: callerUid,
+            code: fingerprintError(profileErr),
+          },
+          "profile field update failed on new identity",
+        );
+        // 의도적으로 재던지지 않음 — 로그인은 계속 (best-effort).
+      }
+    }
   }
 
   // R10-FOLLOWUP (2026-05-08 — T-13-UAT-NAVER-A1 발견):

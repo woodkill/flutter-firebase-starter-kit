@@ -19,12 +19,21 @@ const mockUpdateUser = jest.fn(); // R9 추가 — emailVerified retroactive 검
 // Phase 9.2 Gap B (HUMAN-UAT 2026-05-11) — callerUid 분기 email collision detect.
 const mockGetUserByEmail = jest.fn();
 
+// CR-02 (Phase 15 리뷰) — post-commit 보상 경로가 재시도 판정을 위해
+// getAuth().getUser(uid) 로 현재 emailVerified / providerData 를 읽는다.
+// 기본값은 "Custom Token 계정 + 이미 verified" (= 보상 불필요) 로 두어
+// 기존 케이스 회귀 0.
+const mockGetUser = jest.fn().mockResolvedValue({
+  emailVerified: true,
+  providerData: [],
+});
 jest.mock("firebase-admin/auth", () => ({
   getAuth: jest.fn(() => ({
     createUser: mockCreateUser,
     deleteUser: mockDeleteUser, // R2 추가.
     updateUser: mockUpdateUser, // R9 추가.
     getUserByEmail: mockGetUserByEmail, // Phase 9.2 Gap B.
+    getUser: mockGetUser, // CR-02 post-commit 보상 판정.
   })),
 }));
 
@@ -237,6 +246,9 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
     mockGetUserByEmail.mockRejectedValue(
       Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
     );
+    // CR-02 default — 보상 불필요 상태 (Custom Token 계정 + 이미 verified).
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({emailVerified: true, providerData: []});
     warnMock.mockReset();
   });
 
@@ -630,8 +642,14 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         },
       });
 
+      // CR-02 (Phase 15 리뷰): 보안 게이트 (emailVerified) 와 프로필 필드를
+      // **분리된 두 호출** 로 나눴다. 한 호출로 묶여 있던 이전 구현은
+      // `auth/invalid-photo-url` 같은 프로필 문제 하나가 보안 게이트까지
+      // 도미노로 실패시켰다.
       expect(mockUpdateUser).toHaveBeenCalledWith("anon-r10", {
         emailVerified: true,
+      });
+      expect(mockUpdateUser).toHaveBeenCalledWith("anon-r10", {
         email: "user@example.com",
         displayName: "홍길동",
         photoURL: "https://example.com/pic.jpg",
@@ -716,6 +734,158 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         isNewUser: false,
         conflictKind: "anonymous_existing_collision", // 차단 보존
       });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // CR-02 (Phase 15 리뷰) 회귀 가드 — post-commit 실패 보상.
+  //
+  // transaction 이 커밋된 뒤 updateUser 가 throw 하면 identity_index 문서는
+  // 영구 커밋된 채 남는다. 재시도 시 idxSnap.exists === true 이고
+  // existing.firebaseUid === callerUid 이므로 isNewUser=false 로 돌아오는데,
+  // 이전 구현은 `result.isNewUser && callerUid` 조건이라 R9 블록을 통째로
+  // skip 했다 → emailVerified=false 인 social user 가 그대로 통과했다.
+  // ---------------------------------------------------------------------------
+  it(
+    // eslint-disable-next-line max-len
+    "CR-02: 재시도 (isNewUser=false, 소유자 일치) + emailVerified=false → 보상 updateUser",
+    async () => {
+      // 첫 시도가 post-commit 에서 실패해 idx 문서만 남은 상태의 재현.
+      mockGetUser.mockResolvedValue({
+        emailVerified: false,
+        providerData: [], // Custom Token / 익명 계정 — providerData 비어 있음.
+      });
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "anon-cr02"},
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-cr02",
+        callerUid: "anon-cr02",
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({uid: "anon-cr02", isNewUser: false});
+      // 핵심 — 재시도에서도 보안 게이트가 반드시 다시 적용된다.
+      expect(mockGetUser).toHaveBeenCalledWith("anon-cr02");
+      expect(mockUpdateUser).toHaveBeenCalledWith("anon-cr02", {
+        emailVerified: true,
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "CR-02: 재시도 + 이미 emailVerified=true → updateUser 미호출 (멱등)",
+    async () => {
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "anon-cr02b"},
+      });
+
+      await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-cr02b",
+        callerUid: "anon-cr02b",
+        userInfo: undefined,
+      });
+
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "CR-02: native provider 연결 계정은 emailVerified 를 강제하지 않는다 (보안 강등 차단)",
+    async () => {
+      // password / google 등이 연결된 계정에서 emailVerified 는 그쪽 인증
+      // 게이트의 근거다. 여기서 true 를 쓰면 이메일 인증을 우회시킨다.
+      mockGetUser.mockResolvedValue({
+        emailVerified: false,
+        providerData: [{providerId: "password"}],
+      });
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "native-cr02"},
+      });
+
+      await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-cr02c",
+        callerUid: "native-cr02",
+        userInfo: undefined,
+      });
+
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "CR-02: 소유자가 다르면 (uid !== callerUid) 보상 판정 자체를 하지 않는다",
+    async () => {
+      const {db} = makeDb({
+        preExists: true,
+        txExists: true,
+        txData: {firebaseUid: "other-owner"},
+        callerUserExists: false, // R12 우회 — collision 차단 없이 통과.
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-cr02d",
+        callerUid: "anon-cr02d",
+        userInfo: undefined,
+      });
+
+      expect(res).toMatchObject({uid: "other-owner", isNewUser: false});
+      expect(mockGetUser).not.toHaveBeenCalled();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "CR-02: 프로필 필드 실패 (invalid-photo-url) 가 보안 게이트를 도미노로 실패시키지 않는다",
+    async () => {
+      // 1번째 호출 = emailVerified (성공), 2번째 = profileFields (실패).
+      mockUpdateUser.mockReset();
+      mockUpdateUser.mockResolvedValueOnce(undefined);
+      mockUpdateUser.mockRejectedValueOnce(
+        Object.assign(new Error("bad photo"), {
+          code: "auth/invalid-photo-url",
+        }),
+      );
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-cr02e",
+        callerUid: "anon-cr02e",
+        userInfo: {photoURL: "not-a-valid-url"},
+      });
+
+      // 로그인은 계속된다 (프로필은 best-effort).
+      expect(res).toMatchObject({uid: "anon-cr02e", isNewUser: true});
+      expect(mockUpdateUser).toHaveBeenNthCalledWith(1, "anon-cr02e", {
+        emailVerified: true,
+      });
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_profile_set_failed",
+          code: "auth/invalid-photo-url",
+        }),
+        expect.any(String),
+      );
+      // PII 금지 — err.message 본문 미노출.
+      for (const args of warnMock.mock.calls) {
+        expect(JSON.stringify(args)).not.toContain("bad photo");
+      }
     },
   );
 
