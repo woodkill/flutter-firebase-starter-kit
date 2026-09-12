@@ -80,19 +80,36 @@ AuthChangeNotifier authChangeNotifier(Ref ref) {
   return notifier;
 }
 
-/// 미인증 사용자가 접근 가능한 화이트리스트 경로 집합 (Phase 10 D-18 확장).
+/// 상시 공개 문서 경로 — 인증 상태와 무관하게 항상 열람 가능해야 한다
+/// (코드 리뷰 05 WR-02).
 ///
-/// 신규 unauth 경로 추가 시 명시적으로 본 Set 에 포함해야 하며, 그 외 모든
-/// 경로는 default-deny 정책에 따라 차단된다 (T-06.03-01 대응).
+/// [_unauthEntryRoutes] 와 분리한 이유: 약관/개인정보처리방침은 "미인증자가
+/// 들어와도 되는 경로" 이면서 **"완료 사용자가 있으면 안 되는 진입 화면" 은
+/// 아니다.** 두 의미를 한 Set 에 과적재하면 분기 (6) 이 정식·검증·약관 동의를
+/// 마친 사용자를 `/terms/service` 에서 `/home` 으로 튕겨내, 설정 화면의 약관
+/// 링크 같은 상시 열람 진입점이 조용히 죽는다 (앱스토어 심사 요구사항).
+const Set<String> _publicDocRoutes = <String>{
+  AppRoutes.termsService,
+  AppRoutes.termsPrivacy,
+};
+
+/// 미인증 사용자의 **진입 화면** 경로 집합 (Phase 10 D-18 확장).
 ///
-/// **적용 범위 (코드 리뷰 05 WR-01 정정):** 본 집합은 [authRedirect] 의
-/// 분기 (3) 익명 gate / 분기 (6) 완료 사용자 바운스 / 분기 (6.4)(6.5) race
-/// guard 에만 적용된다. **분기 (2)** (미인증 + `onboardingSeen=false`) 는
-/// 온보딩 선행 정책상 별도의 좁은 예외 목록 (`onboarding` / `terms/*` /
-/// `splash`) 만 허용하므로, 본 Set 에 경로를 추가해도 "온보딩 미시청 상태에서
-/// 진입 가능" 해지지 않는다 — 예컨대 신규 설치 단말의 `/forgot-password`
-/// 딥링크는 본 Set 의 원소임에도 `/onboarding` 으로 이동한다. 그 동작이
-/// 필요하면 분기 (2) 의 예외 조건도 **함께** 수정해야 한다.
+/// 분기 (6) 은 완료 사용자가 본 집합의 경로에 진입하면 [AppRoutes.home] 으로
+/// 되돌린다. 상시 열람용 문서는 [_publicDocRoutes] 에 둔다.
+///
+/// 신규 unauth 경로 추가 시 명시적으로 두 Set 중 하나에 포함해야 하며, 그 외
+/// 모든 경로는 default-deny 정책에 따라 차단된다 (T-06.03-01 대응).
+///
+/// **적용 범위 (코드 리뷰 05 WR-01 정정):** 본 집합(및 [_publicDocRoutes] 와의
+/// 합집합인 `isOnUnauthRoute`)은 [authRedirect] 의 분기 (3) 익명 gate /
+/// 분기 (6) 완료 사용자 바운스 / 분기 (6.4)(6.5) race guard 에만 적용된다.
+/// **분기 (2)** (미인증 + `onboardingSeen=false`) 는 온보딩 선행 정책상 별도의
+/// 좁은 예외 목록 (`onboarding` / `terms/*` / `splash`) 만 허용하므로, 본 Set 에
+/// 경로를 추가해도 "온보딩 미시청 상태에서 진입 가능" 해지지 않는다 — 예컨대
+/// 신규 설치 단말의 `/forgot-password` 딥링크는 본 Set 의 원소임에도
+/// `/onboarding` 으로 이동한다. 그 동작이 필요하면 분기 (2) 의 예외 조건도
+/// **함께** 수정해야 한다.
 ///
 /// (정정 전 문서는 *"본 집합에 포함된 경로는 미인증 상태에서도 /onboarding 으로
 /// 강제 이동시키지 않는다"* 라고 단언했으나, 분기 (2) 는 `isOnUnauthRoute` 를
@@ -101,14 +118,12 @@ AuthChangeNotifier authChangeNotifier(Ref ref) {
 ///
 /// [AppRoutes.verifyEmail]은 미포함: 인증된 사용자만 접근 가능하며,
 /// 로그아웃 후에는 /onboarding 또는 /login 으로 redirect 되어야 한다.
-const Set<String> _unauthRoutes = <String>{
+const Set<String> _unauthEntryRoutes = <String>{
   AppRoutes.login,
   AppRoutes.emailLogin, // Phase 16.1 — 이메일 form 전용 경로
   AppRoutes.signup,
   AppRoutes.forgotPassword,
   AppRoutes.onboarding, // Phase 10 D-18 — 게스트 진입 경로
-  AppRoutes.termsService, // Phase 10 — 공개 약관 경로
-  AppRoutes.termsPrivacy,
 };
 
 /// 인증 상태에 따른 redirect 로직 (Phase 10 D-14 / D-18 / D-19 / BLOCKER #3
@@ -153,7 +168,11 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   final isAuthenticated = currentUser != null;
   final isAnonymous = currentUser?.isAnonymous ?? false;
   final matchedLocation = state.matchedLocation;
-  final isOnUnauthRoute = _unauthRoutes.contains(matchedLocation);
+  // WR-02: 미인증 진입 화면 + 상시 공개 문서의 합집합. 분기 (3)(6.4)(6.5) 는
+  // "미인증/익명이 머물러도 되는가" 를 묻는 것이라 두 종류를 모두 포함한다.
+  final isOnUnauthRoute =
+      _unauthEntryRoutes.contains(matchedLocation) ||
+      _publicDocRoutes.contains(matchedLocation);
   // 코드 리뷰 05 CR-02: 이메일 검증 게이트(분기 4)의 전제 조건.
   //
   // Facebook 등은 email 권한 거부 / 전화번호 가입 계정에서 **email 없는 정식
@@ -216,9 +235,10 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   // Issue #4 (Plan 10-10): Dev Tools '온보딩 다시 보기' → cold restart 시
   // 익명 세션 복원으로 분기 (2) 가 미발동하므로, 익명 사용자도 동일하게
   // !onboardingSeen + 공개 경로 외 조합에서 /onboarding 으로 리다이렉트한다.
-  // 공개 경로 화이트리스트 = _unauthRoutes (login/signup/forgotPassword/
-  // onboarding/terms/*) + splash. 익명 사용자는 정식 승격을 위해 /login
-  // /signup 등 인증 경로 접근이 필요하므로 _unauthRoutes 전체를 허용한다
+  // 공개 경로 화이트리스트 = _unauthEntryRoutes + _publicDocRoutes
+  // (login/login-email/signup/forgotPassword/onboarding/terms/*) + splash.
+  // 익명 사용자는 정식 승격을 위해 /login /signup 등 인증 경로 접근이
+  // 필요하므로 두 Set 전체를 허용한다
   // (D-33 Dev Tools 완결성 + AUTH-11 상태 머신 분기 완전성).
   //
   // Phase 10.2 D-C1 단일 gate 통합: 익명 user 의 `(!onboardingSeen ||
@@ -326,11 +346,16 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   //
   // CR-02: email 없는 정식 사용자도 약관까지 마쳤다면 완료 사용자이므로
   // 진입 화면에서 홈으로 되돌려야 한다 (/verify-email 잔류 차단 포함).
+  //
+  // WR-02: 바운스 대상은 `isOnUnauthRoute` (합집합) 가 아니라
+  // [_unauthEntryRoutes] 다. `/terms/*` 는 상시 열람용 문서이므로 완료
+  // 사용자가 열어도 홈으로 튕기지 않아야 한다.
   if (isAuthenticated &&
       !isAnonymous &&
       passedEmailGate &&
       termsAccepted &&
-      (isOnUnauthRoute || matchedLocation == AppRoutes.verifyEmail)) {
+      (_unauthEntryRoutes.contains(matchedLocation) ||
+          matchedLocation == AppRoutes.verifyEmail)) {
     return AppRoutes.home;
   }
 
@@ -387,8 +412,9 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   // 재시도 단일 진입점이므로 여기서 fail-safe 로 복귀시킨다. AsyncLoading
   // 은 이미 위에서 null 로 처리되어 여기 도달하지 않는다 (판단 유보 철학).
   //
-  // 공개 경로 (_unauthRoutes: login/signup/forgotPassword/onboarding/terms/*)
-  // 는 이미 isOnUnauthRoute=true 로 이 분기에서 제외된다. /splash 도
+  // 공개 경로 (_unauthEntryRoutes + _publicDocRoutes: login/signup/
+  // forgotPassword/onboarding/terms/*) 는 이미 isOnUnauthRoute=true 로
+  // 이 분기에서 제외된다. /splash 도
   // 자기 자신 복귀 무한루프를 방지하기 위해 명시적으로 제외한다.
   if (!isAuthenticated &&
       onboardingSeen &&

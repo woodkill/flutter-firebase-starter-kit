@@ -474,6 +474,71 @@ void main() {
     },
   );
 
+  group('상시 공개 문서 경로 — 코드 리뷰 05 WR-02 회귀 가드', () {
+    // 하나의 Set 이 "미인증자가 들어와도 되는 경로" 와 "완료 사용자가 있으면
+    // 안 되는 진입 화면" 두 의미로 과적재되어, 분기 (6) 이 완료 사용자를
+    // /terms/* 에서 홈으로 튕겨냈다. 설정 화면에 약관 링크를 추가하는 순간
+    // 조용히 죽는 잠복 회귀다.
+
+    /// 정식 + emailVerified + 약관 동의 완료 사용자의 [location] 평가 결과.
+    Future<String?> redirectForCompletedUser(String location) async {
+      final container = makeContainer(
+        isInitialized: true,
+        user: regularUser(),
+        onboardingSeen: true,
+        termsAcceptance: acceptedTerms(),
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(location);
+      return _callAuthRedirect(container, mockState);
+    }
+
+    test('WR-02-A: 완료 사용자가 /terms/* 를 열람할 수 있다 (홈으로 튕기지 않음)', () async {
+      expect(
+        await redirectForCompletedUser(AppRoutes.termsService),
+        isNull,
+        reason: '이용약관은 인증 상태와 무관하게 상시 열람 가능해야 한다',
+      );
+      expect(
+        await redirectForCompletedUser(AppRoutes.termsPrivacy),
+        isNull,
+        reason: '개인정보처리방침은 인증 상태와 무관하게 상시 열람 가능해야 한다',
+      );
+    });
+
+    test('WR-02-B: 완료 사용자가 진입 화면에 오면 기존대로 /home 으로 되돌린다', () async {
+      for (final location in <String>[
+        AppRoutes.login,
+        AppRoutes.emailLogin,
+        AppRoutes.signup,
+        AppRoutes.forgotPassword,
+        AppRoutes.onboarding,
+        AppRoutes.verifyEmail,
+      ]) {
+        expect(
+          await redirectForCompletedUser(location),
+          AppRoutes.home,
+          reason: '$location 은 진입 화면이므로 완료 사용자 바운스 대상이다',
+        );
+      }
+    });
+
+    test('WR-02-C: 미인증 race guard 는 /terms/* 를 여전히 공개 경로로 취급한다 '
+        '(isOnUnauthRoute 합집합 유지)', () async {
+      // 분기 (6.5) fail-safe 는 미인증 + onboardingSeen=true + 비공개 경로에서
+      // /splash 로 복귀시킨다. /terms/* 가 합집합에서 빠지면 약관 열람 중
+      // 미인증 사용자가 splash 로 튕긴다.
+      final container = makeContainer(
+        isInitialized: true,
+        onboardingSeen: true,
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.termsService);
+
+      expect(await _callAuthRedirect(container, mockState), isNull);
+    });
+  });
+
   group('_unauthRoutes 적용 범위 계약 — 코드 리뷰 05 WR-01 문서 정합성 가드', () {
     // `_unauthRoutes` docstring 이 단언하는 "적용 범위" 를 실제 동작으로
     // 고정한다. 분기 (2) 는 `isOnUnauthRoute` 를 참조하지 않고 좁은 예외
