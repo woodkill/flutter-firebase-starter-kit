@@ -139,11 +139,17 @@ class VerifyEmailScreen extends ConsumerWidget {
             ),
             Gap(spacing.md),
             // "재전송" 버튼 (쿨다운 상태 분기)
+            //
+            // WR-03: 비활성 조건에 `isResending` 을 포함한다. 쿨다운은
+            // 네트워크 왕복이 **끝난 뒤에야** 세팅되므로 `cooldownRemaining`
+            // 단독으로는 왕복 구간(2~3초)의 연타를 막지 못했다 — 중복 메일 +
+            // `too-many-requests` 유발. 위 "인증 확인" CTA 가 `isChecking` 으로
+            // 이중 탭을 막는 것과 대칭.
             SizedBox(
               width: double.infinity,
               height: 48,
               child: OutlinedButton(
-                onPressed: state.cooldownRemaining > 0
+                onPressed: state.cooldownRemaining > 0 || state.isResending
                     ? null
                     : () => ref
                           .read(verifyEmailProvider.notifier)

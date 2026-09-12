@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -400,6 +402,105 @@ void main() {
       final value = container.read(verifyEmailProvider).requireValue;
       expect(value.error, isNull);
       expect(value.isPolling, isTrue);
+    });
+
+    // --- WR-03 (Phase 09 review) — resendVerification 재진입 가드 ---
+
+    test('WR-03 Test 11: resendVerification 이 네트워크 왕복 **전에** '
+        'isResending 을 세운다 (그 전까지 상태 변화가 0이라 버튼이 계속 활성이었다)', () async {
+      final container = makeContainer();
+      // verifyEmailProvider 는 autoDispose 다. 아래에서 event loop 에 양보하는
+      // 사이 구독이 0이면 provider 가 폐기되고 다음 read 가 **새 상태**를
+      // 만들어 in-flight 관찰이 불가능해진다 — 구독을 살려 둔다.
+      container.listen(verifyEmailProvider, (_, _) {}, fireImmediately: true);
+
+      // 왕복이 끝나기 전 상태를 관찰하기 위해 완료를 보류시킨다.
+      final gate = Completer<Result<void>>();
+      when(
+        () => mockRepo.sendEmailVerification(),
+      ).thenAnswer((_) => gate.future);
+
+      final pending = container
+          .read(verifyEmailProvider.notifier)
+          .resendVerification();
+      await Future<void>.delayed(Duration.zero);
+
+      // in-flight 구간: 쿨다운은 아직 0인데 isResending 이 버튼을 잠근다.
+      final inFlight = container.read(verifyEmailProvider).requireValue;
+      expect(inFlight.isResending, isTrue);
+      expect(inFlight.cooldownRemaining, 0);
+
+      gate.complete(const Result.success(null));
+      await pending;
+
+      final settled = container.read(verifyEmailProvider).requireValue;
+      expect(settled.isResending, isFalse);
+      expect(settled.cooldownRemaining, cooldownSeconds);
+    });
+
+    test('WR-03 Test 12: in-flight 중 연타해도 sendEmailVerification 은 1회만 '
+        '호출된다 (중복 인증 메일 + too-many-requests 유발 차단)', () async {
+      final container = makeContainer();
+      // autoDispose 폐기 방지 (Test 11 주석 참조).
+      container.listen(verifyEmailProvider, (_, _) {}, fireImmediately: true);
+
+      final gate = Completer<Result<void>>();
+      when(
+        () => mockRepo.sendEmailVerification(),
+      ).thenAnswer((_) => gate.future);
+
+      final notifier = container.read(verifyEmailProvider.notifier);
+      final first = notifier.resendVerification();
+      await Future<void>.delayed(Duration.zero);
+
+      // 응답이 느린 네트워크에서 사용자가 2~3회 연타하는 상황.
+      await notifier.resendVerification();
+      await notifier.resendVerification();
+
+      gate.complete(const Result.success(null));
+      await first;
+
+      verify(() => mockRepo.sendEmailVerification()).called(1);
+    });
+
+    test('WR-03 Test 12b: 쿨다운 중 호출은 notifier 가 자체 차단한다 '
+        '(방어선이 UI 단독 → notifier + UI 이중)', () async {
+      when(
+        () => mockRepo.sendEmailVerification(),
+      ).thenAnswer((_) async => const Result.success(null));
+
+      final container = makeContainer();
+      container.read(verifyEmailProvider);
+      final notifier = container.read(verifyEmailProvider.notifier);
+
+      await notifier.resendVerification();
+      expect(
+        container.read(verifyEmailProvider).requireValue.cooldownRemaining,
+        cooldownSeconds,
+      );
+
+      // 쿨다운이 남은 동안의 재호출 — UI 비활성화를 우회해 직접 불러도 무시.
+      await notifier.resendVerification();
+
+      verify(() => mockRepo.sendEmailVerification()).called(1);
+    });
+
+    test('WR-03 Test 13: 실패 시에도 isResending 이 false 로 풀려 '
+        '버튼이 영구 잠기지 않는다', () async {
+      when(
+        () => mockRepo.sendEmailVerification(),
+      ).thenAnswer((_) async => const Result.failure(TooManyRequests()));
+
+      final container = makeContainer();
+      container.read(verifyEmailProvider);
+
+      await container.read(verifyEmailProvider.notifier).resendVerification();
+
+      final value = container.read(verifyEmailProvider).requireValue;
+      expect(value.isResending, isFalse);
+      expect(value.error, isA<TooManyRequests>());
+      // 실패 시 쿨다운을 시작하지 않으므로 즉시 재시도 가능하다.
+      expect(value.cooldownRemaining, 0);
     });
   });
 }

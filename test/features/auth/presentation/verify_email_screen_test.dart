@@ -97,6 +97,27 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
+    testWidgets('WR-03 4b. 재전송 in-flight (isResending) 구간에도 재전송 버튼이 '
+        'disabled 된다 — 쿨다운은 왕복이 끝나야 세팅되므로 '
+        'cooldownRemaining 단독으로는 연타를 막지 못했다', (tester) async {
+      await _pumpVerifyEmail(
+        tester,
+        // 왕복 중: 쿨다운은 아직 0 인데 버튼은 잠겨 있어야 한다.
+        initialState: const VerifyEmailState(isResending: true),
+      );
+
+      final button = tester.widget<OutlinedButton>(find.byType(OutlinedButton));
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('WR-03 4c. isResending=false + 쿨다운 0 이면 재전송 버튼이 활성이다 '
+        '(4b 가 상시 disabled 로 굳지 않았음을 보증하는 대조군)', (tester) async {
+      await _pumpVerifyEmail(tester, initialState: const VerifyEmailState());
+
+      final button = tester.widget<OutlinedButton>(find.byType(OutlinedButton));
+      expect(button.onPressed, isNotNull);
+    });
+
     testWidgets('5. 에러 발생 시 FormErrorBanner에 에러 메시지가 표시된다', (tester) async {
       await _pumpVerifyEmail(
         tester,

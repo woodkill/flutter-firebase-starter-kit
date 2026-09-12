@@ -118,8 +118,23 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   ///
   /// 성공 시 [cooldownSeconds]초 쿨다운을 시작하고 error를 초기화한다.
   /// 실패 시 [VerifyEmailState.error]에 [AppException]을 설정한다.
-  /// 쿨다운 중에는 호출하지 않아야 한다 (UI에서 버튼 비활성화).
+  ///
+  /// **재진입 가드 (WR-03 — Phase 09 review).** 이전에는 네트워크 왕복이
+  /// 끝난 **뒤에야** [cooldownSeconds] 를 세팅했고, 화면의 비활성화 조건이
+  /// `cooldownRemaining > 0` 단 하나였기 때문에 왕복 구간(2~3초)에는
+  /// 버튼이 계속 활성이었다. 연타하면 `sendEmailVerification` 이 그 횟수만큼
+  /// 호출되어 중복 메일이 가고, Firebase 가 `too-many-requests` 를 반환하면
+  /// **성공했는데도** 마지막 호출 결과로 에러 배너가 떴다.
+  ///
+  /// 이제 왕복 **전에** [VerifyEmailState.isResending] 을 세워
+  /// ([checkManually] 의 `isChecking` 패턴과 대칭) 화면이 그 즉시 버튼을
+  /// 비활성화하고, 본 메서드도 in-flight / 쿨다운 중 재진입을 자체 차단한다.
+  /// 즉 방어선이 UI 단독에서 notifier + UI 이중으로 바뀐다.
   Future<void> resendVerification() async {
+    final current = state.requireValue;
+    if (current.isResending || current.cooldownRemaining > 0) return;
+    state = AsyncData(current.copyWith(isResending: true, error: null));
+
     final result = await ref
         .read(authRepositoryProvider)
         .sendEmailVerification();
@@ -129,13 +144,16 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
       case Success<void>():
         state = AsyncData(
           state.requireValue.copyWith(
+            isResending: false,
             cooldownRemaining: cooldownSeconds,
             error: null,
           ),
         );
         _startCooldown();
       case Failure<void>(exception: final ex):
-        state = AsyncData(state.requireValue.copyWith(error: ex));
+        state = AsyncData(
+          state.requireValue.copyWith(isResending: false, error: ex),
+        );
     }
   }
 
