@@ -72,9 +72,8 @@ const List<AuthStrategy> _eightStrategies = <AuthStrategy>[
 
 /// [showLoginPromptSheet] 을 [strategies] 개수로 pump 하는 harness.
 ///
-/// `activeStrategiesProvider` 의 family key 와 [MaterialApp.router] 의
-/// locale 은 반드시 일치해야 한다 — 위젯이 `Localizations.localeOf` 로
-/// 읽은 locale 로 provider 를 조회하기 때문이다.
+/// WR-09 (Phase 7 review) 이후 `activeStrategiesProvider` 는 family 가
+/// 아니므로 locale 일치 제약이 없다 — override 는 provider 자체에 건다.
 Future<LastLocationRecorder> pumpOverflowHarness(
   WidgetTester tester,
   List<AuthStrategy> strategies,
@@ -112,9 +111,7 @@ Future<LastLocationRecorder> pumpOverflowHarness(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(
-          const Locale('en'),
-        ).overrideWithValue(strategies),
+        activeStrategiesProvider.overrideWithValue(strategies),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),

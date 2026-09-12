@@ -64,7 +64,6 @@ class AccountLinkingSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
-    final locale = Localizations.localeOf(context);
 
     // (1) 이미 link 된 소셜 provider set (본인 linkedProviders 기반).
     final user = ref.watch(currentUserProvider);
@@ -72,7 +71,7 @@ class AccountLinkingSection extends ConsumerWidget {
 
     // (2) 활성 Strategy set (정적 + RC overlay — login/signup mirror).
     final activeSlugs = ref
-        .watch(activeStrategiesProvider(locale))
+        .watch(activeStrategiesProvider)
         .map((s) => s.providerId)
         .toSet();
 

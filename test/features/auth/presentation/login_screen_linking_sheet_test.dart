@@ -93,9 +93,9 @@ void main() {
     return ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(
-          const Locale('en'),
-        ).overrideWithValue(const <AuthStrategy>[GoogleAuthStrategy()]),
+        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+          GoogleAuthStrategy(),
+        ]),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),

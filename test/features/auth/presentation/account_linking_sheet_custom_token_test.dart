@@ -99,9 +99,9 @@ void main() {
     return ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(
-          const Locale('en'),
-        ).overrideWithValue(const <AuthStrategy>[KakaoAuthStrategy()]),
+        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+          KakaoAuthStrategy(),
+        ]),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),

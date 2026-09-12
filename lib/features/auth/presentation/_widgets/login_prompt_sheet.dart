@@ -135,8 +135,7 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     // Issue #3 safety net: 소셜 로그인 성공 시 Sheet pop + Home 이동.
     // activeStrategiesProvider 결과를 순회하여 단일 ref.listen 패턴으로 통합
     // (Phase 11-04 Pattern I, corrections 3번 / Pitfall 6 — 4곳 중 1곳).
-    final locale = Localizations.localeOf(context);
-    final strategies = ref.watch(activeStrategiesProvider(locale));
+    final strategies = ref.watch(activeStrategiesProvider);
     for (final strategy in strategies) {
       ref.listen<AsyncValue<void>>(resolveSocialProvider(strategy.providerId), (
         previous,

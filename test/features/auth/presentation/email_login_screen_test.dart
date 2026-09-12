@@ -34,13 +34,11 @@ Future<void> _pumpEmailLogin(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(const Locale('en')).overrideWithValue(
-          const <AuthStrategy>[
-            GoogleAuthStrategy(),
-            AppleAuthStrategy(),
-            FacebookAuthStrategy(),
-          ],
-        ),
+        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+          GoogleAuthStrategy(),
+          AppleAuthStrategy(),
+          FacebookAuthStrategy(),
+        ]),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),

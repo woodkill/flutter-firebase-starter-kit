@@ -56,9 +56,9 @@ void main() {
         ProviderScope(
           overrides: [
             authRepositoryProvider.overrideWithValue(mockRepo),
-            activeStrategiesProvider(
-              const Locale('en'),
-            ).overrideWithValue(const <AuthStrategy>[AppleAuthStrategy()]),
+            activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+              AppleAuthStrategy(),
+            ]),
           ],
           child: MaterialApp(
             theme: AppTheme.light(),

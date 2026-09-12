@@ -120,8 +120,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // 반환한 활성 Strategy 들을 순회하여 단일 ref.listen 패턴으로 통합한다
     // (Phase 11-04 Pattern I, corrections 3번 / Pitfall 6 — 4곳 중 1곳).
     // 성공 -> Home safety net (Issue #3), 에러 -> 배너 + D-10.
-    final locale = Localizations.localeOf(context);
-    final strategies = ref.watch(activeStrategiesProvider(locale));
+    final strategies = ref.watch(activeStrategiesProvider);
     for (final strategy in strategies) {
       ref.listen<AsyncValue<void>>(resolveSocialProvider(strategy.providerId), (
         previous,

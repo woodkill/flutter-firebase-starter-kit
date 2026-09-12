@@ -73,13 +73,11 @@ Future<void> pumpAuthRequired(
         isFirebaseInitializedProvider.overrideWithValue(isFirebaseInitialized),
         firebaseAuthProvider.overrideWithValue(mockAuth),
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider(const Locale('en')).overrideWithValue(
-          const <AuthStrategy>[
-            GoogleAuthStrategy(),
-            AppleAuthStrategy(),
-            FacebookAuthStrategy(),
-          ],
-        ),
+        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+          GoogleAuthStrategy(),
+          AppleAuthStrategy(),
+          FacebookAuthStrategy(),
+        ]),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),

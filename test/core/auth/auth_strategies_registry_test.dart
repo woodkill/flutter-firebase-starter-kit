@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,7 +14,6 @@ class _MockRCValue extends Mock implements RemoteConfigValue {}
 
 void main() {
   late _MockRC rc;
-  const locale = Locale('en');
 
   setUp(() {
     rc = _MockRC();
@@ -63,7 +60,7 @@ void main() {
         },
         rcMap: {'auth_provider_google_enabled': true},
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(result.map((s) => s.providerId), [kProviderIdGoogle]);
     });
 
@@ -76,7 +73,7 @@ void main() {
         },
         rcMap: {'auth_provider_google_enabled': false},
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(result.map((s) => s.providerId), isEmpty);
     });
 
@@ -89,7 +86,7 @@ void main() {
         },
         rcMap: {'auth_provider_google_enabled': true},
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(
         result.map((s) => s.providerId),
         isEmpty,
@@ -106,7 +103,7 @@ void main() {
         },
         rcMap: {'auth_provider_google_enabled': null},
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(result.map((s) => s.providerId), isEmpty);
     });
   });
@@ -121,7 +118,7 @@ void main() {
         },
         rcMap: {'auth_provider_google_enabled': null}, // 키 없음 시뮬레이션
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(result.map((s) => s.providerId), [kProviderIdGoogle]);
     });
   });
@@ -140,7 +137,7 @@ void main() {
           'auth_provider_facebook_enabled': true,
         },
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(result.map((s) => s.providerId), [
         kProviderIdGoogle,
         kProviderIdApple,
@@ -155,7 +152,7 @@ void main() {
         staticMap: <String, bool>{}, // 모든 키 미주입
         rcMap: {},
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(result, isEmpty);
     });
   });
@@ -174,13 +171,13 @@ void main() {
         },
         rcMap: {'auth_provider_naver_enabled': true},
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(
         result.any((s) => s.providerId == kProviderIdNaver),
         isTrue,
         reason:
             'Registry _allStrategies 에 NaverAuthStrategy add-only 1줄 추가 후 '
-            'activeStrategiesProvider(locale) 가 자동 포함해야 한다',
+            'activeStrategiesProvider 가 자동 포함해야 한다',
       );
     });
 
@@ -199,7 +196,7 @@ void main() {
           'auth_provider_naver_enabled': true, // RC true 도 정적 false 우위
         },
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(
         result.every((s) => s.providerId != kProviderIdNaver),
         isTrue,
@@ -225,7 +222,7 @@ void main() {
           'auth_provider_naver_enabled': true,
         },
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(result.map((s) => s.providerId), [
         kProviderIdGoogle,
         kProviderIdApple,
@@ -251,13 +248,13 @@ void main() {
         },
         rcMap: {'auth_provider_line_enabled': true},
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(
         result.any((s) => s.providerId == kProviderIdLine),
         isTrue,
         reason:
             'Registry _allStrategies 에 LineAuthStrategy add-only 1줄 추가 후 '
-            'activeStrategiesProvider(locale) 가 자동 포함해야 한다',
+            'activeStrategiesProvider 가 자동 포함해야 한다',
       );
     });
 
@@ -277,7 +274,7 @@ void main() {
           'auth_provider_line_enabled': true, // RC true 도 정적 false 우위
         },
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(
         result.every((s) => s.providerId != kProviderIdLine),
         isTrue,
@@ -306,7 +303,7 @@ void main() {
           'auth_provider_line_enabled': true,
         },
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       // _allStrategies 등록 순서 그대로 — google → apple → facebook → kakao
       // → naver → line (D-13 + Phase 14 add-only 끝).
       expect(result.map((s) => s.providerId), [
@@ -336,13 +333,13 @@ void main() {
         },
         rcMap: {'auth_provider_yahoojp_enabled': true},
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(
         result.any((s) => s.providerId == kProviderIdYahooJp),
         isTrue,
         reason:
             'Registry _allStrategies 에 YahoojpAuthStrategy add-only 1줄 추가 '
-            '후 activeStrategiesProvider(locale) 가 자동 포함해야 한다',
+            '후 activeStrategiesProvider 가 자동 포함해야 한다',
       );
     });
 
@@ -363,7 +360,7 @@ void main() {
           'auth_provider_yahoojp_enabled': true, // RC true 도 정적 false 우위
         },
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       expect(
         result.every((s) => s.providerId != kProviderIdYahooJp),
         isTrue,
@@ -394,7 +391,7 @@ void main() {
           'auth_provider_yahoojp_enabled': true,
         },
       );
-      final result = c.read(activeStrategiesProvider(locale));
+      final result = c.read(activeStrategiesProvider);
       // _allStrategies 등록 순서 그대로 — google → apple → facebook → kakao
       // → naver → line → yahoojp (D-13 + Phase 15 add-only 끝).
       expect(result.map((s) => s.providerId), [

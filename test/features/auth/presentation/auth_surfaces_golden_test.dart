@@ -181,14 +181,12 @@ Future<void> _settleAssets(WidgetTester tester) async {
 ///
 /// `debugShowCheckedModeBanner: false` — DEBUG 배너가 capture 에 섞이지
 /// 않도록. override 목록은 다른 16.1 screen harness 와 동형이다
-/// (`authRepositoryProvider` + `activeStrategiesProvider(en)`).
+/// (`authRepositoryProvider` + `activeStrategiesProvider`).
 Widget _wrapApp({required Brightness brightness, required Widget home}) {
   return ProviderScope(
     overrides: [
       authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
-      activeStrategiesProvider(
-        const Locale('en'),
-      ).overrideWithValue(_sevenStrategies),
+      activeStrategiesProvider.overrideWithValue(_sevenStrategies),
     ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,

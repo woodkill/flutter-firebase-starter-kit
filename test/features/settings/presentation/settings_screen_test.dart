@@ -128,7 +128,7 @@ Future<void> _pumpSettingsScreen(
       overrides: [
         currentUserProvider.overrideWith((ref) => user),
         // 활성 Strategy 직접 주입 — AccountLinkingSection available 계산 결정성.
-        activeStrategiesProvider.overrideWith((ref, locale) => strategies),
+        activeStrategiesProvider.overrideWith((ref) => strategies),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),

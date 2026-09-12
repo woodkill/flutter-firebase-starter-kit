@@ -112,7 +112,7 @@ Future<GoRouter> _pumpSection(
       overrides: [
         currentUserProvider.overrideWith((ref) => user),
         authRepositoryProvider.overrideWithValue(repo),
-        activeStrategiesProvider.overrideWith((ref, locale) => allStrategies),
+        activeStrategiesProvider.overrideWith((ref) => allStrategies),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),

@@ -62,7 +62,6 @@ class SocialSignInSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final spacing = context.appSpacing;
-    final locale = Localizations.localeOf(context);
 
     // 이메일/Google/Apple/Facebook/Kakao/Naver/LINE/Yahoo!JP 중 어느 하나라도
     // 진행 중이면 이중 제출 방지. Phase 11 단계는 3개 Provider 직접 watch
@@ -82,7 +81,7 @@ class SocialSignInSection extends ConsumerWidget {
         ref.watch(yahoojpSignInProvider).isLoading;
 
     // 활성화된 Strategy 만 — 정적 config + RC overlay 합산 (D-26).
-    final strategies = ref.watch(activeStrategiesProvider(locale));
+    final strategies = ref.watch(activeStrategiesProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

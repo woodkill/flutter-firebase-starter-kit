@@ -1,5 +1,3 @@
-import 'dart:ui' show Locale;
-
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -41,6 +39,14 @@ const List<AuthStrategy> _allStrategies = <AuthStrategy>[
 /// (진실원 .planning/REQUIREMENTS.md Out of Scope) — 정렬 없이
 /// [_allStrategies] 등록 순서를 유지하는 것이 현재 계약이다.
 ///
+/// **`Locale` family 인자 제거 (WR-09 — Phase 7 review):** SOCL-10 폐기 후
+/// 본 함수 본문은 `locale` 을 읽지 않았는데 `keepAlive` family 의 캐시 key
+/// 로만 남아 (1) Locale 마다 동일 결과의 인스턴스가 영구 중복 보존되고
+/// (2) 호출자 전원이 의미 없는 `Localizations.localeOf(context)` 를 이
+/// 목적만으로 조회했으며 (3) 독자에게 "이 목록은 로케일에 따라 달라진다"
+/// 는 잘못된 신호를 줬다. **재도입 진입점:** 정책 부활 시 본 provider 를
+/// 다시 family 로 되돌리고 [AuthStrategy.defaultPriorityFor] 로 정렬한다.
+///
 /// **Pitfall 5 (D-26 truth table 핵심):**
 /// | static | rc (or default) | result |
 /// | ------ | --------------- | ------ |
@@ -51,7 +57,7 @@ const List<AuthStrategy> _allStrategies = <AuthStrategy>[
 /// `kDebugMode` invariant: [_allStrategies] 의 `providerId` 가 모두
 /// [kAllProviderIds] 에 포함되어야 한다 (T-11-STR-02). 위반 시 즉시 throw.
 @Riverpod(keepAlive: true)
-List<AuthStrategy> activeStrategies(Ref ref, Locale locale) {
+List<AuthStrategy> activeStrategies(Ref ref) {
   // 디버그 invariant (T-11-STR-02): Strategy.providerId ⊆ kAllProviderIds.
   assert(() {
     final unknown = _allStrategies

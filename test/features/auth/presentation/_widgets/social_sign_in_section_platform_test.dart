@@ -60,9 +60,7 @@ Widget buildHarness({
   return ProviderScope(
     overrides: [
       authRepositoryProvider.overrideWithValue(repository),
-      activeStrategiesProvider(
-        const Locale('en'),
-      ).overrideWithValue(strategies),
+      activeStrategiesProvider.overrideWithValue(strategies),
     ],
     child: MaterialApp(
       // AppTheme.light/dark는 AppSpacing/AppTypography/AppColors
