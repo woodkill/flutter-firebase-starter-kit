@@ -29,17 +29,32 @@ class AuthChangeNotifier extends ChangeNotifier {
   /// [stream]의 이벤트를 수신하여 [notifyListeners]를 호출하는
   /// [ChangeNotifier]를 생성한다.
   AuthChangeNotifier(Stream<fb.User?> stream) {
-    _subscription = stream.listen((user) {
-      if (kDebugMode) {
-        // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
-        final uidHash = user?.uid.hashCode.toString() ?? 'null';
-        debugPrint(
-          'AuthChangeNotifier: userChanges emit '
-          '(uidHash=$uidHash) -> notifyListeners',
-        );
-      }
-      notifyListeners();
-    });
+    _subscription = stream.listen(
+      (user) {
+        if (kDebugMode) {
+          // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
+          final uidHash = user?.uid.hashCode.toString() ?? 'null';
+          debugPrint(
+            'AuthChangeNotifier: userChanges emit '
+            '(uidHash=$uidHash) -> notifyListeners',
+          );
+        }
+        notifyListeners();
+      },
+      // WR-03: onError 가 없으면 userChanges 의 error 이벤트가 zone uncaught
+      // error 로 승격되어 앱 전체 에러 핸들러를 때린다 (cancelOnError 기본값이
+      // false 라 구독 자체는 살아남으므로, 기록만 하고 흡수한다). 에러의
+      // Crashlytics 보고 책임은 [authUserObserver] 가 진다 — 본 클래스는
+      // Crashlytics 의존성을 갖지 않는다.
+      onError: (Object e) {
+        if (kDebugMode) {
+          // PII 차단: 에러 본문 대신 타입만 기록한다.
+          debugPrint(
+            'AuthChangeNotifier: userChanges error (${e.runtimeType})',
+          );
+        }
+      },
+    );
   }
 
   /// userChanges 구독. nullable 로 선언하여 향후 [stream] 이
@@ -493,59 +508,92 @@ Stream<void> authUserObserver(Ref ref) async* {
   String? prevUid;
   bool isFirstEmit = true;
 
-  await for (final user in authStream) {
+  // WR-03: 스트림 에러를 흡수한다. `await for` 는 에러가 올라오면 그대로
+  // throw 하여 generator 를 종료시키고, 재구독 경로가 없으므로 observer 가
+  // 영구 정지한다. 그 결과 lastReloadedUid 가 갱신되지 않아 분기 (3)(5) 의
+  // stale 가드가 영구히 null 을 반환하고 사용자가 현재 위치에 무기한 고정된다.
+  final guardedStream = authStream.handleError((Object e, StackTrace st) {
+    unawaited(
+      crashlytics.recordError(e, st, reason: 'auth_user_observer_stream'),
+    );
+  });
+
+  await for (final user in guardedStream) {
     final uid = user?.uid;
     final curIsAnonymous = user?.isAnonymous ?? false;
+    // WR-03: 이벤트 단위 격리. 이 tick 이 실패하면 prev* 스냅샷을 갱신하지
+    // 않아 다음 emit 에서 동일 전이를 재시도한다 (실패한 reload 재시도 정책).
+    var isTickFailed = false;
 
-    // Analytics + Crashlytics 사용자 속성 업데이트.
-    await analytics.setGuestMode(curIsAnonymous);
-    await analytics.setUserId(uid);
-    await crashlytics.setUserId(uid);
+    try {
+      // Analytics + Crashlytics 사용자 속성 업데이트.
+      await analytics.setGuestMode(curIsAnonymous);
+      await analytics.setUserId(uid);
+      await crashlytics.setUserId(uid);
 
-    // BLOCKER #4: 익명 -> 정식 전이 감지 시 Firestore 미러 호출.
-    // (호출 순서: mirror 가 reloadForUser 보다 먼저 — Issue #6 직렬화 보장)
-    if (user != null && !curIsAnonymous && prevIsAnonymous == true) {
-      final mirrorResult = await ref
-          .read(termsProvider.notifier)
-          .mirrorToFirestore(uid: user.uid);
-      // 미러 실패 시 termsNotifier 내부에서 crashlytics.recordError 가
-      // 처리되며, 여기서는 결과를 무시하고 계속 진행 (UX 단절 방지).
-      if (kDebugMode && mirrorResult is Failure) {
-        debugPrint(
-          'authUserObserver: mirrorToFirestore failed '
-          '(이전 익명 -> 정식 전이)',
-        );
+      // BLOCKER #4: 익명 -> 정식 전이 감지 시 Firestore 미러 호출.
+      // (호출 순서: mirror 가 reloadForUser 보다 먼저 — Issue #6 직렬화 보장)
+      if (user != null && !curIsAnonymous && prevIsAnonymous == true) {
+        final mirrorResult = await ref
+            .read(termsProvider.notifier)
+            .mirrorToFirestore(uid: user.uid);
+        // 미러 실패 시 termsNotifier 내부에서 crashlytics.recordError 가
+        // 처리되며, 여기서는 결과를 무시하고 계속 진행 (UX 단절 방지).
+        if (kDebugMode && mirrorResult is Failure) {
+          debugPrint(
+            'authUserObserver: mirrorToFirestore failed '
+            '(이전 익명 -> 정식 전이)',
+          );
+        }
       }
-    }
 
-    // Issue #6 (Plan 10-09): UID 변경 감지 시 termsProvider reload.
-    // - 첫 emit (isFirstEmit=true) 또는 prevUid != uid 인 경우 reload.
-    // - 동일 UID 재emit 은 무시 (prevUid 비교 — 불필요 Firestore read 차단).
-    if (isFirstEmit || uid != prevUid) {
-      await ref
-          .read(termsProvider.notifier)
-          .reloadForUser(uid: uid, isAnonymous: curIsAnonymous);
+      // Issue #6 (Plan 10-09): UID 변경 감지 시 termsProvider reload.
+      // - 첫 emit (isFirstEmit=true) 또는 prevUid != uid 인 경우 reload.
+      // - 동일 UID 재emit 은 무시 (prevUid 비교 — 불필요 Firestore read 차단).
+      if (isFirstEmit || uid != prevUid) {
+        await ref
+            .read(termsProvider.notifier)
+            .reloadForUser(uid: uid, isAnonymous: curIsAnonymous);
+        if (kDebugMode) {
+          // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
+          final prevHash = prevUid?.hashCode.toString() ?? 'null';
+          final curHash = uid?.hashCode.toString() ?? 'null';
+          debugPrint(
+            'authUserObserver: UID changed (prevHash=$prevHash, '
+            'curHash=$curHash, isAnonymous=$curIsAnonymous) '
+            '-> termsProvider.reloadForUser',
+          );
+        }
+        // Issue #7 C-3 (Plan 10-11): reloadForUser 가 lastReloadedUid 를
+        // 갱신한 뒤, GoRouter 가 authRedirect 분기 (5) 의 stale 가드를 벗어날
+        // 수 있도록 명시적으로 redirect 재평가를 트리거한다. authChangeProvider
+        // 는 Provider<AuthChangeNotifier> 이므로 `.notifier` 접미어 없이 직접
+        // read — auth_guard.g.dart 의 `AuthChangeNotifierProvider` 정의 참조.
+        ref.read(authChangeProvider).triggerRedirect();
+      }
+    } on Object catch (e, st) {
+      // WR-03: throw 가능 지점 — terms reload 의 Error 계열 (플랫폼 채널),
+      // 이미 dispose 된 AuthChangeNotifier 에 대한 triggerRedirect()
+      // (`ChangeNotifier.notifyListeners` 가 FlutterError throw) 등.
+      // Analytics/Crashlytics 는 `_runBestEffort` 로 이미 격리되어 있다.
+      isTickFailed = true;
+      unawaited(
+        crashlytics.recordError(e, st, reason: 'auth_user_observer_tick'),
+      );
       if (kDebugMode) {
-        // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
-        final prevHash = prevUid?.hashCode.toString() ?? 'null';
-        final curHash = uid?.hashCode.toString() ?? 'null';
         debugPrint(
-          'authUserObserver: UID changed (prevHash=$prevHash, '
-          'curHash=$curHash, isAnonymous=$curIsAnonymous) '
-          '-> termsProvider.reloadForUser',
+          'authUserObserver: tick 실패 -> 다음 emit 에서 재시도 (${e.runtimeType})',
         );
       }
-      // Issue #7 C-3 (Plan 10-11): reloadForUser 가 lastReloadedUid 를
-      // 갱신한 뒤, GoRouter 가 authRedirect 분기 (5) 의 stale 가드를 벗어날
-      // 수 있도록 명시적으로 redirect 재평가를 트리거한다. authChangeProvider
-      // 는 Provider<AuthChangeNotifier> 이므로 `.notifier` 접미어 없이 직접
-      // read — auth_guard.g.dart 의 `AuthChangeNotifierProvider` 정의 참조.
-      ref.read(authChangeProvider).triggerRedirect();
     }
 
-    prevIsAnonymous = curIsAnonymous;
-    prevUid = uid;
-    isFirstEmit = false;
+    // WR-03: 실패한 tick 은 스냅샷을 갱신하지 않아 다음 emit 이 동일 전이를
+    // 재시도한다. 성공한 tick 만 진행 상태를 확정한다.
+    if (!isTickFailed) {
+      prevIsAnonymous = curIsAnonymous;
+      prevUid = uid;
+      isFirstEmit = false;
+    }
     yield null;
   }
 }

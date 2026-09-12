@@ -76,9 +76,21 @@ class _RecordingTermsNotifier extends TermsNotifier {
     return const Result.success(null);
   }
 
+  /// [reloadForUser] 호출 uid 기록 (코드 리뷰 05 WR-03 재시도 검증용).
+  final List<String?> reloadCalls = <String?>[];
+
+  /// true 면 [reloadForUser] 가 throw 하여 tick 실패를 재현한다 (WR-03).
+  bool shouldThrowOnReload = false;
+
   @override
   Future<void> reloadForUser({String? uid, bool isAnonymous = false}) async {
     // no-op — 본 테스트의 검증 범위 외 (Plan 10-09 신규 호출 stub).
+    reloadCalls.add(uid);
+    if (shouldThrowOnReload) {
+      // `on Exception` 으로 잡히지 않는 Error 계열 — WR-03 이 지목한
+      // 플랫폼 채널 Error 를 대표한다.
+      throw StateError('reloadForUser failed');
+    }
   }
 }
 
@@ -136,6 +148,14 @@ void main() {
 
   void stubCrashlytics(_MockFirebaseCrashlytics crashlytics) {
     when(() => crashlytics.setUserIdentifier(any())).thenAnswer((_) async {});
+    when(
+      () => crashlytics.recordError(
+        any<Object>(),
+        any<StackTrace?>(),
+        reason: any(named: 'reason'),
+        fatal: any(named: 'fatal'),
+      ),
+    ).thenAnswer((_) async {});
   }
 
   group('authUserObserver (Phase 10 D-30, BLOCKER #4, INFO #21)', () {
@@ -383,5 +403,101 @@ void main() {
         );
       },
     );
+  });
+
+  group('authUserObserver 에러 격리 — 코드 리뷰 05 WR-03 회귀 가드', () {
+    // observer 는 termsProvider.reloadForUser 와
+    // authChangeProvider.triggerRedirect() 의 유일한 호출자다. 한 번 죽으면
+    // lastReloadedUid 가 갱신되지 않아 authRedirect 분기 (3)(5) 의 stale
+    // 가드가 영구히 null 을 반환하고 사용자가 현재 위치에 무기한 고정된다.
+
+    /// WR-03 시나리오용 컨테이너 + 활성 구독을 만든다.
+    ({ProviderContainer container, _RecordingTermsNotifier terms}) makeObserver(
+      StreamController<fb.User?> controller,
+      _MockFirebaseCrashlytics crashlytics,
+    ) {
+      final analytics = _MockFirebaseAnalytics();
+      stubAnalytics(analytics);
+      stubCrashlytics(crashlytics);
+      final terms = _RecordingTermsNotifier();
+      final container = makeContainer(
+        controller: controller,
+        analytics: analytics,
+        crashlytics: crashlytics,
+        terms: terms,
+      );
+      addTearDown(container.dispose);
+      final sub = container.listen(authUserObserverProvider, (_, _) {});
+      addTearDown(sub.close);
+      return (container: container, terms: terms);
+    }
+
+    test('WR-03-A: 스트림 에러가 observer 를 죽이지 않고 이후 emit 을 계속 처리한다', () async {
+      final controller = StreamController<fb.User?>();
+      addTearDown(controller.close);
+      final crashlytics = _MockFirebaseCrashlytics();
+      final observer = makeObserver(controller, crashlytics);
+
+      controller.add(makeUser(uid: 'u-1', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
+      expect(observer.terms.reloadCalls, <String?>['u-1']);
+
+      controller.addError(StateError('userChanges stream failure'));
+      await Future<void>.delayed(Duration.zero);
+
+      controller.add(makeUser(uid: 'u-2', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(observer.terms.reloadCalls, <String?>[
+        'u-1',
+        'u-2',
+      ], reason: '스트림 에러 이후에도 UID 변경 감지가 계속 동작해야 한다');
+      verify(
+        () => crashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'auth_user_observer_stream',
+        ),
+      ).called(1);
+    });
+
+    test('WR-03-B: tick 내부 throw 를 격리하고 다음 emit 에서 동일 전이를 재시도한다', () async {
+      final controller = StreamController<fb.User?>();
+      addTearDown(controller.close);
+      final crashlytics = _MockFirebaseCrashlytics();
+      final observer = makeObserver(controller, crashlytics);
+      observer.terms.shouldThrowOnReload = true;
+
+      controller.add(makeUser(uid: 'u-1', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
+
+      verify(
+        () => crashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'auth_user_observer_tick',
+        ),
+      ).called(1);
+
+      // 실패한 tick 은 prevUid 를 갱신하지 않으므로, 동일 uid 재emit 에도
+      // reload 를 재시도한다 (정상 동작이라면 동일 UID 는 무시된다).
+      observer.terms.shouldThrowOnReload = false;
+      controller.add(makeUser(uid: 'u-1', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(observer.terms.reloadCalls, <String?>[
+        'u-1',
+        'u-1',
+      ], reason: '실패한 reload 는 다음 emit 에서 재시도되어야 한다');
+
+      // 재시도 성공 후에는 스냅샷이 확정되어 동일 UID 재emit 을 무시한다.
+      controller.add(makeUser(uid: 'u-1', isAnonymous: false));
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        observer.terms.reloadCalls,
+        <String?>['u-1', 'u-1'],
+        reason: '성공한 tick 이후에는 동일 UID 재emit 이 불필요 Firestore read 를 만들지 않는다',
+      );
+    });
   });
 }
