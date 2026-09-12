@@ -52,7 +52,13 @@ extension DateTimeFormatX on DateTime {
   /// UTC [DateTime] 은 [DateTime.toLocal] 로 정규화한 뒤 포맷한다 ([formatYMD]
   /// 와 동일 계약).
   ///
-  /// en: 5:08 PM, ko: 오후 5:08
+  /// en: `5:08 PM`, ko: `오후 5:08`
+  ///
+  /// **en 의 구분자는 일반 공백이 아니다** — 시:분과 AM/PM 사이는 NBSP
+  /// (U+202F NARROW NO-BREAK SPACE) 다(실측 rune: `35 3a 30 38 202f 50 4d`).
+  /// 육안으로 U+0020 과 구별되지 않으므로, 문자열을 그대로 단언하거나 골든
+  /// 텍스트로 비교할 때는 `replaceAll(' ', ' ')` 로 먼저 정규화할 것.
+  /// ko 는 일반 공백이라 해당 없다.
   String formatJm([String? locale]) => DateFormat.jm(locale).format(toLocal());
 }
 
