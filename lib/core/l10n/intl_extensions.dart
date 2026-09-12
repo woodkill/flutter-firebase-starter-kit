@@ -6,8 +6,14 @@ import 'package:intl/intl.dart';
 /// [Intl.defaultLocale] 이 적용된다. **이 스타터 킷은 [Intl.defaultLocale] 을
 /// 설정하지 않으므로, 생략하면 앱 로케일이 아니라 intl 기본값(`en_US`)으로
 /// 포맷된다.** 앱 로케일을 따르려면 `ref.watch(localeProvider).languageCode`
-/// 같은 값을 반드시 명시 전달할 것 (앱 전역으로 동기화하고 싶다면 소비자가
-/// 로케일 변경 지점에서 `Intl.defaultLocale` 을 직접 설정하면 된다).
+/// 같은 값을 반드시 명시 전달할 것.
+///
+/// 앱 전역으로 동기화하려면 로케일 변경 지점에서 `Intl.defaultLocale` 을 직접
+/// 설정하면 된다. **단 이 킷은 그 경로를 채택하지 않았다** — Riverpod `build()`
+/// 안에서 전역 가변 상태를 쓰면 provider 순수성이 깨지고, 로케일을 명시하지
+/// 않는 테스트의 기대값이 실행 순서에 따라 흔들린다(전역 상태 누수). 그래도
+/// 도입한다면 동기화 지점을 `build()` 밖(로케일 변경 액션)으로 빼고, 테스트는
+/// `setUp`/`tearDown` 에서 이전 값으로 되돌릴 것.
 ///
 /// **[locale] 계약.** intl 이 아는 로케일 코드여야 한다 ('ko', 'en_GB' 등).
 /// 알 수 없는 코드는 intl 이 [ArgumentError] 를 던지며(실측: `Invalid locale
