@@ -72,7 +72,12 @@ class AuthChangeNotifier extends ChangeNotifier {
 AuthChangeNotifier authChangeNotifier(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);
   if (!isInitialized) {
-    return AuthChangeNotifier(const Stream<fb.User?>.empty());
+    // WR-04: 초기화 성공 경로와 동일하게 dispose 를 등록한다. 누락 시
+    // `isFirebaseInitialized=false` 로 override 하는 다수의 테스트에서
+    // ChangeNotifier 가 누수되어 Flutter leak tracking 대상이 된다.
+    final notifier = AuthChangeNotifier(const Stream<fb.User?>.empty());
+    ref.onDispose(notifier.dispose);
+    return notifier;
   }
   final auth = ref.watch(firebaseAuthProvider);
   final notifier = AuthChangeNotifier(auth.userChanges());

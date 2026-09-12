@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -473,6 +474,39 @@ void main() {
       );
     },
   );
+
+  group('authChangeProvider 생명주기 — 코드 리뷰 05 WR-04 회귀 가드', () {
+    test('WR-04: Firebase 미초기화 경로에서도 컨테이너 파기 시 notifier 가 dispose 된다', () {
+      final container = makeContainer(isInitialized: false);
+      final notifier = container.read(authChangeProvider);
+
+      container.dispose();
+
+      expect(
+        () => notifier.addListener(() {}),
+        throwsA(isA<FlutterError>()),
+        reason: 'dispose 된 ChangeNotifier 는 addListener 에서 FlutterError 를 던진다',
+      );
+    });
+
+    test('WR-04: 초기화 성공 경로의 dispose 대칭성은 유지된다', () {
+      final mockAuth = _MockFirebaseAuth();
+      when(
+        () => mockAuth.userChanges(),
+      ).thenAnswer((_) => const Stream<fb.User?>.empty());
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+        ],
+      );
+      final notifier = container.read(authChangeProvider);
+
+      container.dispose();
+
+      expect(() => notifier.addListener(() {}), throwsA(isA<FlutterError>()));
+    });
+  });
 
   group('상시 공개 문서 경로 — 코드 리뷰 05 WR-02 회귀 가드', () {
     // 하나의 Set 이 "미인증자가 들어와도 되는 경로" 와 "완료 사용자가 있으면
