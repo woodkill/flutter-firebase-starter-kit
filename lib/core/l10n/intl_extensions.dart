@@ -8,6 +8,13 @@ import 'package:intl/intl.dart';
 /// 포맷된다.** 앱 로케일을 따르려면 `ref.watch(localeProvider).languageCode`
 /// 같은 값을 반드시 명시 전달할 것 (앱 전역으로 동기화하고 싶다면 소비자가
 /// 로케일 변경 지점에서 `Intl.defaultLocale` 을 직접 설정하면 된다).
+///
+/// **[locale] 계약.** intl 이 아는 로케일 코드여야 한다 ('ko', 'en_GB' 등).
+/// 알 수 없는 코드는 intl 이 [ArgumentError] 를 던지며, 이 확장들은 `build()`
+/// 안에서 호출되므로 그대로 화면 파손이 된다. 따라서 사용자 입력이나 서버
+/// 응답을 그대로 넘기지 말고 `AppLocalizations.supportedLocales` 파생값만
+/// 전달할 것. 지역 코드(`en_GB`)도 유효하므로, 지역까지 반영하려면 호출부에서
+/// `languageCode` 대신 `Intl.canonicalizedLocale(locale.toString())` 을 쓴다.
 extension DateTimeFormatX on DateTime {
   /// 연-월-일 포맷.
   ///
@@ -45,6 +52,10 @@ extension DateTimeFormatX on DateTime {
 /// [Intl.defaultLocale] 이 적용된다. [DateTimeFormatX] 와 동일하게 이 스타터
 /// 킷은 [Intl.defaultLocale] 을 설정하지 않으므로, **생략하면 intl
 /// 기본값(`en_US`)으로 포맷된다** — 앱 로케일을 따르려면 명시 전달할 것.
+///
+/// **[locale] 계약.** [DateTimeFormatX] 와 동일하다 — 알 수 없는 코드는
+/// [ArgumentError] 로 죽으므로 `AppLocalizations.supportedLocales` 파생값만
+/// 전달할 것.
 extension NumberFormatX on num {
   /// 간결한 숫자 포맷.
   ///
