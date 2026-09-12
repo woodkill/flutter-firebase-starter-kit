@@ -375,22 +375,19 @@ void main() {
       expect(find.text(_transientText), findsNothing);
     });
 
-    testWidgets('AL12 unsupported — naver 탭 → 미지원 전용 문구 (provider 라벨 주입)', (
+    testWidgets('AL12 (WR-15) — naver 는 후보에서 제외되어 버튼 자체가 렌더되지 않는다', (
       tester,
     ) async {
-      // naver 는 repository 미호출 (WR-03) — 실패가 아니라 미지원 경로.
+      // naver 는 deployed callable OIDC 부재로 탭하면 100% 미지원 SnackBar 로
+      // 끝나는 성공 확률 0 의 affordance 였다 — 후보 집합에서 제거했다.
+      // linkProvider 의 naver arm(unsupported) 은 방어적 분기로 남아 있으며
+      // settings_notifier_test L1 이 잠근다.
       final user = _testUser(providerIds: const <String>['google.com']);
       await _pumpSection(tester, user: user, repo: repo);
 
-      final btn = find.text('Link Naver');
-      await tester.ensureVisible(btn);
-      await tester.tap(btn);
-      await tester.pumpAndSettle();
-
-      expect(find.text(_unsupportedNaverText), findsOneWidget);
-      // 미지원은 실패 4 문구 어느 것과도 겹치지 않는다.
-      expect(find.text(_unknownFailureText), findsNothing);
-      expect(find.text(_alreadyLinkedText), findsNothing);
+      expect(find.text('Link Naver'), findsNothing);
+      // 섹션 자체는 다른 활성 provider 로 계속 렌더된다 (미노출 회귀 방지).
+      expect(find.text('Link Apple'), findsOneWidget);
     });
 
     // WR-04: `provider-already-linked` (이미 현재 계정에 연결) 와
