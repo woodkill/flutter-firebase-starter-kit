@@ -110,10 +110,12 @@ class SocialButton extends ConsumerWidget {
         return BrandedSocialButton.facebook(label: label, onPressed: onPressed);
       case kProviderIdLine:
         // Phase 14 — see ROADMAP.md (SOCL-03 registry add-only 통합).
-        // 현 단계는 placeholder render (LineSpec / `_renderPlaceholder` —
-        // 회색 disabled box + ARB 라벨). Plan 14-06 에서 LINE 공식 brand asset
-        // + Universal Layout 으로 active 렌더 전환 의무 (LINE Corporation
-        // Login Button Design Guidelines verbatim).
+        // IN-03 정정 (Phase 09 review): 이전 주석은 "현 단계는 placeholder
+        // render + Plan 14-06 에서 active 전환 의무" 로 남아 있었으나 그
+        // 전환은 이미 완료됐다. LineSpec / `_renderLineButton` 자상 active
+        // 렌더이며 (LINE Corporation Login Button Design Guidelines verbatim),
+        // `_renderPlaceholder` 는 Phase 14 D-LINE-08 + Phase 16 폐기로
+        // caller 0 이 되어 제거됐다.
         return BrandedSocialButton.line(label: label, onPressed: onPressed);
       case kProviderIdYahooJp:
         // Phase 15 — see ROADMAP.md (SOCL-04 registry add-only 통합,
@@ -145,9 +147,11 @@ class SocialButton extends ConsumerWidget {
   ///   Apple 공식 Logo-only SVG + 자체 라벨 layer)
   /// - `authFacebookSignIn` → `_renderFacebookButton` 내부 [Text]
   ///
-  /// placeholder 분기는 자상 부재 provider 가 있을 경우 `_renderPlaceholder`
-  /// 가 ARB `authBrandAssetMissing` 보간 (label 매개변수) 으로 회색 fallback
-  /// 렌더 (현재 모든 active provider 자상 commit 완료).
+  /// **placeholder 분기는 현재 존재하지 않는다 (IN-03 정정 — Phase 09
+  /// review).** `_renderPlaceholder` 는 Phase 14 D-LINE-08 (LINE active 전환)
+  /// + Phase 16 폐기 (WeChat) 로 caller 0 이 되어 제거됐고, 등록된 provider 는
+  /// 전부 자상 commit 이 완료된 active 렌더다. 재도입 조건은
+  /// `_brand_assets.dart` 의 `kPlaceholderProviders` docstring 참조.
   ///
   /// **Changelog 노트:**
   /// - Phase 12 — `authKakaoSignIn` 추가 (D-29).

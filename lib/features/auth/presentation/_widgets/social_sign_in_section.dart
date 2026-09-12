@@ -17,9 +17,15 @@ import 'social_button.dart';
 /// Config kill switch overlay 합산, D-26) 가 제공한다. 인라인 Google/Apple/
 /// Facebook 빌더는 [SocialButton] 으로 통합되어 본 섹션에서 제거되었다.
 ///
-/// 진행 중 상태 ([isAnyLoading]) 는 Phase 11 단계에서 3개 Provider
-/// (`google` / `apple` / `facebook`) 를 직접 watch 한다. Phase 12+ 에서 신규
-/// provider 추가 시 helper Provider 로 추출 검토 (corrections 4번).
+/// 진행 중 상태는 `build()` 안에서 [watchAnySocialSignInLoading] 이
+/// **등록된 활성 Strategy 전체**를 watch 해 합산한다 — registry 등록만으로
+/// 자동 반영되므로 provider 추가 시 본 위젯을 고칠 일이 없다.
+///
+/// IN-03 정정 (Phase 09 review): 이전 서술은 "`[isAnyLoading]` 은 Phase 11
+/// 단계에서 3개 Provider (google/apple/facebook) 를 직접 watch" 였는데
+/// (1) 구현은 이미 helper 로 대체됐고 (2) `isAnyLoading` 은 클래스 멤버가
+/// 아니라 `build()` 의 지역 변수라 `[isAnyLoading]` 참조가 아무 것도 가리키지
+/// 못했다.
 class SocialSignInSection extends ConsumerWidget {
   /// [SocialSignInSection]을 생성한다.
   const SocialSignInSection({

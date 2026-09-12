@@ -94,8 +94,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // 가 push/pop 경계에서 살아남고 (b) 제출 중 소셜 버튼이 비활성화된다.
     final isEmailSubmitting = ref.watch(loginProvider).isLoading;
 
-    // 소셜 로그인 결과 (Google/Apple/Facebook): activeStrategiesProvider 가
-    // 반환한 활성 Strategy 들을 순회하여 단일 ref.listen 패턴으로 통합한다
+    // 소셜 로그인 결과 (**등록된 활성 Strategy 전체**): activeStrategiesProvider
+    // 가 반환한 활성 Strategy 들을 순회하여 단일 ref.listen 패턴으로 통합한다.
+    // IN-03 정정 (Phase 09 review): 이전 주석은 "Google/Apple/Facebook" 3개만
+    // 열거했으나 실제로는 registry 전체(기본 7개)를 순회한다 — provider 수를
+    // 문장에 박지 않는다 (07 IN-06 에서 채택한 방식 동일).
     // (Phase 11-04 Pattern I, corrections 3번 / Pitfall 6 — 4곳 중 1곳).
     // 성공 -> Home safety net (Issue #3), 에러 -> 배너 + D-10.
     final strategies = ref.watch(activeStrategiesProvider);
