@@ -108,15 +108,21 @@ const Set<String> _unauthRoutes = <String>{
 ///    redirect (D-14 상태 머신)
 /// 3. 익명 사용자: 대부분 route 허용. 단 [AppRoutes.verifyEmail] 은 정식
 ///    사용자 전용이므로 [AppRoutes.home] 으로 redirect.
-/// 4. 정식 인증 + emailVerified=false + /verify-email 외: [AppRoutes.verifyEmail]
+/// 4. 정식 인증 + **검증 가능한 email 보유** + emailVerified=false +
+///    /verify-email 외: [AppRoutes.verifyEmail]
 /// 5. **BLOCKER #3 / BLOCKER #7 / D-14 / D-15 (1회 동의 invariant):**
-///    정식 인증 + emailVerified + termsAccepted=null + 공개 경로 외:
+///    정식 인증 + 이메일 게이트 통과 + termsAccepted=null + 공개 경로 외:
 ///    [AppRoutes.onboarding] 으로 강제 리다이렉트. 이 분기가 이메일 직접
 ///    가입 경로(`/signup` -> 가입 -> Home) 사용자도 약관 미동의면
 ///    Home 바이패스를 차단한다.
-/// 6. 정식 인증 + emailVerified + termsAccepted + (unauth 또는 verifyEmail
+/// 6. 정식 인증 + 이메일 게이트 통과 + termsAccepted + (unauth 또는 verifyEmail
 ///    또는 onboarding): [AppRoutes.home]
 /// 7. 그 외: null (Home 랜딩 허용 — AUTH-13 / Test 9, WARNING #19)
+///
+/// **이메일 게이트 통과 (코드 리뷰 05 CR-02):** 분기 (5)(6) 이 말하는 "이메일
+/// 게이트 통과" 는 `emailVerified == true` **또는 검증 가능한 email 자체가
+/// 없음** 을 뜻한다. 후자를 포함하지 않으면, email 없는 정식 사용자가 분기 (4)
+/// 를 통과한 뒤 (5)(6) 어디에도 걸리지 않아 **약관 게이트까지 함께 우회**한다.
 ///
 /// **인증 판정 소스:** [fb.FirebaseAuth.currentUser]를 직접 읽는다.
 /// `authStateProvider`를 사용하지 않는 이유는, [AuthChangeNotifier]가
@@ -136,6 +142,19 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   final isAnonymous = currentUser?.isAnonymous ?? false;
   final matchedLocation = state.matchedLocation;
   final isOnUnauthRoute = _unauthRoutes.contains(matchedLocation);
+  // 코드 리뷰 05 CR-02: 이메일 검증 게이트(분기 4)의 전제 조건.
+  //
+  // Facebook 등은 email 권한 거부 / 전화번호 가입 계정에서 **email 없는 정식
+  // 사용자** 를 만든다. 이때 `sendEmailVerification` 은 `auth/missing-email`
+  // 로 실패하므로 (`auth_repository.dart` `_autoSendEmailVerification` 의
+  // `if ((user.email ?? '').isEmpty) return;` no-op 가드와 대칭), 검증 게이트를
+  // 그대로 적용하면 /verify-email 이 탈출 불가능한 dead-end 가 된다.
+  final hasVerifiableEmail = (currentUser?.email ?? '').isNotEmpty;
+  // 분기 (5)(6) 이 요구하는 "이메일 게이트 통과" 판정. 검증 완료했거나,
+  // 애초에 검증할 email 이 없어 분기 (4) 를 정당하게 통과한 경우 모두 참.
+  // 이 완화가 없으면 email 없는 사용자가 약관 게이트까지 우회한다.
+  final passedEmailGate =
+      (currentUser?.emailVerified ?? false) || !hasVerifiableEmail;
   // Issue #10 Plan 10-14 GC-02: onboardingProvider 가 AsyncNotifier<bool>
   // 로 전환되어 AsyncValue 로 소비한다. AsyncLoading 상태면 판단을 유보
   // (null 반환) 하여 prefs 로드 완료 전 stale snapshot 으로 분기를
@@ -237,9 +256,16 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
     return null;
   }
 
-  // (4) 정식 인증 + emailVerified==false + /verify-email 외 -> /verify-email
+  // (4) 정식 인증 + 검증 가능한 email 보유 + emailVerified==false +
+  //     /verify-email 외 -> /verify-email
+  //
+  // **전제 (CR-02):** 검증 가능한 email 이 실제로 존재해야 한다. email 없는
+  // 정식 사용자에게 이 게이트를 적용하면 /verify-email 의 3개 액션
+  // ("인증 확인" 항상 실패 / "재전송" auth/missing-email 실패 / "다른 계정으로
+  // 로그인") 중 어느 것으로도 홈에 진입할 수 없어 영구 lockout 이 된다.
   if (isAuthenticated &&
       !isAnonymous &&
+      hasVerifiableEmail &&
       !currentUser.emailVerified &&
       matchedLocation != AppRoutes.verifyEmail) {
     return AppRoutes.verifyEmail;
@@ -257,10 +283,11 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   // null (현재 location 유지) 을 반환하여, authUserObserver 가 reloadForUser
   // 완료 후 authChangeProvider.triggerRedirect() 를 호출할 때까지 대기한다.
   // 상세 명세: .planning/debug/relogin-terms-race.md Resolution C-2.
-  if (isAuthenticated &&
-      !isAnonymous &&
-      currentUser.emailVerified &&
-      !termsAccepted) {
+  //
+  // CR-02: `currentUser.emailVerified` 대신 [passedEmailGate] 를 쓴다 — email
+  // 없는 정식 사용자(분기 (4) 를 정당하게 통과)가 약관 게이트까지 우회하는
+  // 것을 막는다.
+  if (isAuthenticated && !isAnonymous && passedEmailGate && !termsAccepted) {
     final termsReloadedUid = ref.read(termsProvider.notifier).lastReloadedUid;
     if (termsReloadedUid != currentUser.uid) {
       if (kDebugMode) {
@@ -282,11 +309,14 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
     }
   }
 
-  // (6) 정식 인증 + emailVerified + termsAccepted + (unauth/verifyEmail/
+  // (6) 정식 인증 + 이메일 게이트 통과 + termsAccepted + (unauth/verifyEmail/
   // onboarding) -> /home (완료된 사용자가 진입 화면 재방문 차단).
+  //
+  // CR-02: email 없는 정식 사용자도 약관까지 마쳤다면 완료 사용자이므로
+  // 진입 화면에서 홈으로 되돌려야 한다 (/verify-email 잔류 차단 포함).
   if (isAuthenticated &&
       !isAnonymous &&
-      currentUser.emailVerified &&
+      passedEmailGate &&
       termsAccepted &&
       (isOnUnauthRoute || matchedLocation == AppRoutes.verifyEmail)) {
     return AppRoutes.home;

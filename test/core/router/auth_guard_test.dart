@@ -229,11 +229,22 @@ void main() {
     acceptedAt: DateTime.utc(2026, 4, 14),
   );
 
-  fb.User regularUser({String uid = 'reg-uid', bool emailVerified = true}) {
+  /// 정식(비익명) 사용자 mock.
+  ///
+  /// [email] 기본값이 non-empty 인 이유 (코드 리뷰 05 CR-02): authRedirect 의
+  /// 이메일 검증 게이트(분기 4)는 "검증 가능한 email 보유" 를 전제로 하므로,
+  /// 일반 정식 사용자 시나리오는 email 을 반드시 갖고 있어야 한다. email 이
+  /// 없는 정식 사용자(Facebook 권한 거부 등)는 `email: ''` 로 명시 지정한다.
+  fb.User regularUser({
+    String uid = 'reg-uid',
+    bool emailVerified = true,
+    String email = 'reg@example.com',
+  }) {
     final mockUser = _MockUser();
     when(() => mockUser.uid).thenReturn(uid);
     when(() => mockUser.isAnonymous).thenReturn(false);
     when(() => mockUser.emailVerified).thenReturn(emailVerified);
+    when(() => mockUser.email).thenReturn(email);
     return mockUser;
   }
 
@@ -242,6 +253,7 @@ void main() {
     when(() => mockUser.uid).thenReturn(uid);
     when(() => mockUser.isAnonymous).thenReturn(true);
     when(() => mockUser.emailVerified).thenReturn(false);
+    when(() => mockUser.email).thenReturn(null);
     return mockUser;
   }
 
@@ -461,6 +473,82 @@ void main() {
       );
     },
   );
+
+  group('authRedirect 이메일 게이트 — 코드 리뷰 05 CR-02 회귀 가드', () {
+    // 배경: Facebook 등은 email 권한 거부 / 전화번호 가입 계정에서 email 이
+    // 없는 정식 사용자를 만든다. 분기 (4) 가 "정식 사용자는 언제나 이메일
+    // 검증으로 탈출 가능" 을 전제하면 이 사용자는 /verify-email 에서 영구
+    // lockout 된다. 동시에 분기 (5)(6) 의 완화를 빠뜨리면 약관 게이트가
+    // 함께 우회되므로, 두 성질을 한 group 에서 같이 잠근다.
+
+    test(
+      'CR-02-A: email 미보유 정식 사용자는 /verify-email 로 보내지 않는다 (lockout 차단)',
+      () async {
+        final container = makeContainer(
+          isInitialized: true,
+          user: regularUser(emailVerified: false, email: ''),
+          termsAcceptance: acceptedTerms(),
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason: '검증 가능한 email 이 없으면 검증 게이트는 탈출구 없는 dead-end 이므로 적용하지 않는다',
+        );
+      },
+    );
+
+    test('CR-02-B: email 미보유 + 약관 미동의 정식 사용자는 홈이 아니라 /onboarding 으로 간다 '
+        '(분기 (5) 완화 누락 시 약관 게이트 동반 우회)', () async {
+      // 이 테스트가 CR-02 수정의 결합 지점이다. 분기 (4) 에만
+      // hasVerifiableEmail 을 적용하고 분기 (5) 를 그대로 두면,
+      // email 없는 사용자는 (4)(5)(6) 어디에도 걸리지 않아 홈에 진입한다.
+      final container = makeContainer(
+        isInitialized: true,
+        user: regularUser(emailVerified: false, email: ''),
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+      final result = await _callAuthRedirect(container, mockState);
+      expect(
+        result,
+        AppRoutes.onboarding,
+        reason: '약관 동의는 법적 invariant 이므로 email 유무와 무관하게 강제되어야 한다',
+      );
+    });
+
+    test('CR-02-C: email 미보유 + 약관 동의 완료 사용자가 /verify-email 에 있으면 /home 으로 '
+        '되돌린다 (분기 (6) 완화)', () async {
+      final container = makeContainer(
+        isInitialized: true,
+        user: regularUser(emailVerified: false, email: ''),
+        termsAcceptance: acceptedTerms(),
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.verifyEmail);
+
+      final result = await _callAuthRedirect(container, mockState);
+      expect(result, AppRoutes.home);
+    });
+
+    test('CR-02-D: email 보유 + emailVerified=false 는 기존대로 /verify-email 로 간다 '
+        '(게이트 무력화 방지)', () async {
+      final container = makeContainer(
+        isInitialized: true,
+        user: regularUser(emailVerified: false, email: 'user@example.com'),
+        termsAcceptance: acceptedTerms(),
+      );
+      addTearDown(container.dispose);
+      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+      final result = await _callAuthRedirect(container, mockState);
+      expect(result, AppRoutes.verifyEmail);
+    });
+  });
 
   group('authRedirect 분기 (5) — Issue #6 회귀 가드 (Plan 10-09)', () {
     // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
