@@ -153,9 +153,17 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         // 는 모두 이 가드를 갖고 있다.
         if (!mounted) return;
         final err = next.error;
-        if (err is AppException) {
-          setState(() => _bannerError = err);
-        }
+        // IN-07 (Phase 09 review): `is AppException` 는 현재 항상 참인
+        // dead guard 다 (Result.failure 시그니처가 AppException 으로
+        // 제한되므로). 문제는 방어의 **방향**이다 — 조건이 거짓이 되는 날
+        // (예: 향후 notifier 가 raw 예외를 싣는 변경) 배너도 로그도 없이
+        // 조용히 사라진다. verify_email_screen.dart 가 이미 쓰는 fallback
+        // 패턴으로 통일해 에러가 무음 폐기되지 않게 한다.
+        setState(() {
+          _bannerError = err is AppException
+              ? err
+              : ServiceUnavailable(cause: err);
+        });
       } else if (previous is AsyncLoading && next is AsyncData) {
         _onSuccess();
       }
