@@ -123,76 +123,91 @@ class _WithdrawalConfirmationDialogState
       }
     });
 
-    return AlertDialog(
-      title: Text(
-        l10n.withdrawalDialogTitle,
-        style: context.textTheme.titleLarge?.copyWith(color: errorColor),
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n.withdrawalDialogBodyLine1,
-              style: context.textTheme.bodyLarge,
-            ),
-            Gap(spacing.sm),
-            Text(
-              l10n.withdrawalDialogBodyLine2,
-              style: context.textTheme.bodyLarge?.copyWith(
-                color: errorColor,
-                fontWeight: FontWeight.w500,
+    // WR-05: barrierDismissible:false 는 backdrop tap 만 막는다. Android 의
+    // 하드웨어 back / predictive back 은 여전히 다이얼로그를 pop 하므로,
+    // 되돌릴 수 없는 삭제가 진행되는 동안 화면이 사라져 사용자가 성공/실패
+    // 피드백을 전혀 받지 못한다 (D-08 "loading 중 이탈 차단" 미완성).
+    //
+    // **적용 전제 (CR-04):** 성공 emit 이 사후 정리(6개 소셜 SDK logout) 뒤에
+    // 갇혀 있던 동안에는 이 back 제스처가 유일한 탈출구였다. CR-04 로 emit 이
+    // 서버 삭제 확정 직후로 옮겨진 뒤에야 canPop 차단이 안전하다.
+    return PopScope(
+      canPop: !isLoading,
+      child: AlertDialog(
+        title: Text(
+          l10n.withdrawalDialogTitle,
+          style: context.textTheme.titleLarge?.copyWith(color: errorColor),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n.withdrawalDialogBodyLine1,
+                style: context.textTheme.bodyLarge,
               ),
-            ),
-            Gap(spacing.sm),
-            Text(
-              l10n.withdrawalDialogBodyLine3,
-              style: context.textTheme.bodyMedium?.copyWith(
-                color: context.colorScheme.onSurfaceVariant,
+              Gap(spacing.sm),
+              Text(
+                l10n.withdrawalDialogBodyLine2,
+                style: context.textTheme.bodyLarge?.copyWith(
+                  color: errorColor,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            Gap(spacing.xl),
-            Text(
-              l10n.withdrawalConfirmFieldLabel(l10n.withdrawalConfirmFieldHint),
-              style: context.textTheme.bodyMedium,
-            ),
-            Gap(spacing.sm),
-            TextField(
-              controller: _controller,
-              enabled: !isLoading,
-              decoration: InputDecoration(
-                hintText: l10n.withdrawalConfirmFieldHint,
-                border: const OutlineInputBorder(),
+              Gap(spacing.sm),
+              Text(
+                l10n.withdrawalDialogBodyLine3,
+                style: context.textTheme.bodyMedium?.copyWith(
+                  color: context.colorScheme.onSurfaceVariant,
+                ),
               ),
-              onChanged: (v) =>
-                  _onTextChanged(v, l10n.withdrawalConfirmFieldHint),
-            ),
-            if (isLoading) ...[
-              Gap(spacing.md),
-              const Center(child: CircularProgressIndicator()),
+              Gap(spacing.xl),
+              Text(
+                l10n.withdrawalConfirmFieldLabel(
+                  l10n.withdrawalConfirmFieldHint,
+                ),
+                style: context.textTheme.bodyMedium,
+              ),
+              Gap(spacing.sm),
+              TextField(
+                controller: _controller,
+                enabled: !isLoading,
+                decoration: InputDecoration(
+                  hintText: l10n.withdrawalConfirmFieldHint,
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (v) =>
+                    _onTextChanged(v, l10n.withdrawalConfirmFieldHint),
+              ),
+              if (isLoading) ...[
+                Gap(spacing.md),
+                const Center(child: CircularProgressIndicator()),
+              ],
             ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: isLoading ? null : () => Navigator.of(context).pop(false),
-          child: Text(l10n.commonCancel),
-        ),
-        Semantics(
-          button: true,
-          label: l10n.withdrawalConfirmActionSemantic,
-          child: FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: errorColor,
-              foregroundColor: context.colorScheme.onError,
-            ),
-            onPressed: (_verbatimMatch && !isLoading) ? _onConfirm : null,
-            child: Text(l10n.withdrawalConfirmAction),
           ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: isLoading
+                ? null
+                : () => Navigator.of(context).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          Semantics(
+            button: true,
+            label: l10n.withdrawalConfirmActionSemantic,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: errorColor,
+                foregroundColor: context.colorScheme.onError,
+              ),
+              onPressed: (_verbatimMatch && !isLoading) ? _onConfirm : null,
+              child: Text(l10n.withdrawalConfirmAction),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

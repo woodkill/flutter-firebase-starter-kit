@@ -17,6 +17,8 @@
 // - WC11/WC12 (WR-03) 원인별 실패 문구 — TooManyRequests /
 //   NoInternetConnection → withdrawalFailureTransient (generic 미노출)
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,6 +107,19 @@ Future<_DialogHandle> _pumpAndShowDialog(
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
   return _DialogHandle(dialogResult);
+}
+
+/// 다이얼로그가 부착한 [PopScope] 위젯을 찾는다 (WR-05).
+///
+/// `find.byType(PopScope)` 는 제네릭 타입 인자 때문에 매칭되지 않으므로
+/// 다이얼로그 하위에서 predicate 로 좁힌다.
+PopScope<Object?> _dialogPopScope(WidgetTester tester) {
+  return tester.widget<PopScope<Object?>>(
+    find.descendant(
+      of: find.byType(WithdrawalConfirmationDialog),
+      matching: find.byWidgetPredicate((w) => w is PopScope<Object?>),
+    ),
+  );
 }
 
 void main() {
@@ -340,5 +355,58 @@ void main() {
         expect(semanticsFinder, findsAtLeast(1));
       },
     );
+
+    testWidgets('WC13 (WR-05) — loading 중 시스템 back 으로 다이얼로그가 닫히지 않는다', (
+      tester,
+    ) async {
+      // barrierDismissible:false 는 backdrop tap 만 막는다 (WC9). Android
+      // 하드웨어 back / predictive back 은 PopScope 없이는 그대로 pop 되어,
+      // 되돌릴 수 없는 삭제 진행 중에 성공/실패 피드백이 유실된다.
+      final settingsRepo = _MockSettingsRepository();
+      final deleteGate = Completer<void>();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) => deleteGate.future);
+
+      await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
+
+      await tester.enterText(find.byType(TextField), koHint);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.pump();
+
+      // loading 진입 확인 — canPop 이 false 로 잠긴 구간.
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(_dialogPopScope(tester).canPop, isFalse);
+
+      // 시스템 back 제스처 — PopScope 가 흡수해야 한다.
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+
+      expect(
+        find.byType(WithdrawalConfirmationDialog),
+        findsOneWidget,
+        reason: '탈퇴 진행 중에는 back 으로 이탈할 수 없어야 한다 (D-08)',
+      );
+
+      // 정리 — gate 를 풀어 pending timer 없이 종료.
+      deleteGate.complete();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('WC14 (WR-05) — loading 이 아닐 때는 back 으로 취소할 수 있다', (
+      tester,
+    ) async {
+      // canPop 상시 false 면 사용자가 확인 전 단계에서도 갇힌다 — 잠금은
+      // loading 구간에 한정된다.
+      await _pumpAndShowDialog(tester);
+
+      expect(_dialogPopScope(tester).canPop, isTrue);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
+    });
   });
 }
