@@ -22,6 +22,10 @@ import {defineSecret} from "firebase-functions/params";
 import {errors as joseErrors} from "jose";
 
 import {createOidcVerifier} from "../shared/oidc_verifier";
+import {
+  MAX_NONCE_ARG_LENGTH,
+  requireStringArg,
+} from "../shared/require_string_arg";
 import {fingerprintError, identityIndexDocId} from "./identity_index";
 
 // Phase 16 D-04 — 4 provider secret 재사용 (Phase 12/13/14/15 Custom Token
@@ -118,18 +122,29 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
       throw new HttpsError("unauthenticated", "errorUnauthenticated");
     }
     const callerUid = request.auth.uid;
-    const data = request.data ?? ({} as LinkCustomTokenProviderRequest);
-    const {idToken, targetProvider, targetProviderToken, nonce} = data;
-    if (!idToken || !targetProvider || !targetProviderToken || !nonce) {
-      throw new HttpsError("invalid-argument", "errorInvalidArgument");
-    }
+    // WR-03 / IN-03: `as` 단언 + falsy-only 가드를 공용 타입 가드로 대체.
+    // 특히 `nonce` 가 객체였을 때 verifier 의 `claimNonce !== expectedNonce`
+    // 가 참조 비교라 **항상 참** 이 되어 정상 토큰까지 nonce 불일치로
+    // 거부되던 구멍을 닫는다.
+    const idToken = requireStringArg(request.data?.idToken);
+    const targetProviderToken = requireStringArg(
+      request.data?.targetProviderToken,
+    );
+    const nonce = requireStringArg(request.data?.nonce, MAX_NONCE_ARG_LENGTH);
+    // targetProvider 는 문자열 여부 검증 후 closed union 으로 좁힌다 —
+    // 아래 `if` 가 narrowing 을 수행하므로 `as` 단언이 필요 없다.
+    const rawTargetProvider = requireStringArg(
+      request.data?.targetProvider,
+      MAX_NONCE_ARG_LENGTH,
+    );
     if (
-      targetProvider !== "kakao" &&
-      targetProvider !== "line" &&
-      targetProvider !== "yahoojp"
+      rawTargetProvider !== "kakao" &&
+      rawTargetProvider !== "line" &&
+      rawTargetProvider !== "yahoojp"
     ) {
       throw new HttpsError("invalid-argument", "errorInvalidArgument");
     }
+    const targetProvider: TargetProvider = rawTargetProvider;
 
     // Step 1: reauth ID Token freshness verify
     // (Firebase Admin SDK 공식 함수 — memory feedback_oidc_mock_self_referential

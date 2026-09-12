@@ -510,6 +510,37 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
     // D-YJP-09: developerClaims 미발급 → 두 번째 인자 없음.
     expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-yj-uid-9");
   });
+
+  // --------------------------------------------------------------------------
+  // WR-03 (Phase 15 리뷰) 회귀 가드 — 비-string 인자.
+  //
+  // 이전 구현의 `!idToken || !nonce` falsy 가드는 `{idToken: 12345,
+  // nonce: {}}` 를 통과시켜 verifier 까지 내려보냈다. 그 결과 (1) 오류가
+  // "입력 타입 오류" 가 아니라 "자격증명 무효" 로 로깅되고, (2) nonce 가
+  // 객체일 때 `claimNonce !== expectedNonce` 참조 비교가 항상 참이 되어
+  // 정상 토큰까지 거부됐다. **verifier 미호출** 이 회귀 판정의 핵심 단언이다.
+  // --------------------------------------------------------------------------
+  const nonStringArgCases: Array<[string, unknown, unknown]> = [
+    ["idToken=number", 12345, "n"],
+    ["nonce=object", "FAKE", {}],
+    ["idToken=null", null, "n"],
+    ["nonce 누락", "FAKE", undefined],
+  ];
+  it.each(nonStringArgCases)(
+    "WR-03: %s → invalid-argument + verifier 미호출",
+    async (_label, idToken, nonce) => {
+      const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
+      const promise = wrapped({
+        app: {appId: "test"},
+        data: {idToken, nonce},
+      } as never);
+      await expect(promise).rejects.toMatchObject({
+        code: "invalid-argument",
+        message: "errorInvalidArgument",
+      });
+      expect(mockVerifyYahoojpIdToken).not.toHaveBeenCalled();
+    },
+  );
 });
 
 // Task 2 — Test 10 (PII regression sentinel). Phase 14 WR-01 fix 패턴

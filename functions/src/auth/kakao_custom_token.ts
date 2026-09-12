@@ -7,6 +7,10 @@ import {errors as joseErrors} from "jose";
 
 import {createOidcVerifier} from "../shared/oidc_verifier";
 import {
+  MAX_NONCE_ARG_LENGTH,
+  requireStringArg,
+} from "../shared/require_string_arg";
+import {
   TermsAcceptanceJson,
   parseTermsAcceptanceJson,
 } from "../shared/terms_acceptance_json";
@@ -88,12 +92,11 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     secrets: [KAKAO_NATIVE_APP_KEY],
   },
   async (request): Promise<KakaoCustomTokenResponse> => {
-    const data = request.data ?? ({} as KakaoCustomTokenRequest);
-    const idToken = data.idToken;
-    const nonce = data.nonce;
-    if (!idToken || !nonce) {
-      throw new HttpsError("invalid-argument", "errorInvalidArgument");
-    }
+    // WR-03 / IN-03: `as` 단언 + falsy-only 가드를 공용 타입 가드로 대체.
+    // `{idToken: 12345, nonce: {}}` 같은 페이로드가 jose 단계까지 내려가
+    // "자격증명 무효" 로 오분류되던 경로를 입력 오류로 정확히 분류한다.
+    const idToken = requireStringArg(request.data?.idToken);
+    const nonce = requireStringArg(request.data?.nonce, MAX_NONCE_ARG_LENGTH);
 
     // Step 1: ID Token JWT 자체 검증.
     let kakaoUserId: string | undefined;
@@ -283,7 +286,7 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // WR-02: callable arg 는 신뢰할 수 없는 임의 JSON 이다 — 5 필드 타입을
     // 런타임 검증해 좁힌다. 실패 시 null (필드 무시, 로그인은 계속).
     const termsSnapshot = parseTermsAcceptanceJson(
-      data.termsAcceptanceSnapshot,
+      request.data?.termsAcceptanceSnapshot,
     );
     // WR-01: isNewUser 게이트 — mirror 는 users/{uid} 문서가 새로
     // 만들어지는 시점에만 수행한다. 게이트 없이 매 Custom Token 로그인마다
