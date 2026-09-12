@@ -78,11 +78,25 @@ typedef ExistingProviderSignInCallback =
 /// **Naver:** step 1 **로그인 대상**으로 완전히 지원된다. deployed callable
 /// OIDC 미지원은 link *target* 에 한정된 제약이며 Phase 17+ carry-forward —
 /// 따라서 과거의 naver 전용 graceful 차단 분기는 제거되었다.
+///
+/// **충돌 이메일 미수신 (Phase 09 WR-06).** 본 위젯은 충돌한 이메일 주소를
+/// 매개변수로 받지 않는다. 과거에는 `collisionEmail` 을 `required` 로 받으면서
+/// "UI 본문 메시지의 컨텍스트" 라고 문서화했지만 **읽는 코드가 한 곳도
+/// 없었다** — 본문은 `errorAccountExistsWithProvider(providerLabel)` 로
+/// provider 라벨만 쓴다. 게다가 native 3 provider 경로에서는 실제 평문
+/// 이메일이 들어오고 Custom Token 4 경로에서는 서버 PII 정책상 항상 `''` 이라,
+/// **provider 에 따라 위젯이 받는 PII 유무가 달랐는데 화면 출력은 완전히
+/// 동일**했다. 렌더되지 않는 값에 "렌더된다" 는 계약을 붙여 두면 다음 개발자가
+/// `Text(collisionEmail)` 을 추가해 provider-의존 UI 를 만들게 된다. 매개변수를
+/// 제거해 계약을 확정하고 PII 전달 표면도 함께 없앴다.
+///
+/// 향후 이메일을 **표시**하기로 결정한다면 provider 별 null 차이를 화면에서
+/// 흡수해야 한다 — 전용 ARB 키(예: `errorAccountExistsWithProviderAndEmail`)를
+/// 두고 빈 문자열일 때 provider-only 문구로 분기한다.
 class AccountLinkingSheet extends ConsumerStatefulWidget {
   /// [AccountLinkingSheet] 를 생성한다.
   const AccountLinkingSheet({
     required this.existingProvider,
-    required this.collisionEmail,
     this.pendingCredential,
     this.onExistingProviderSignIn,
     super.key,
@@ -95,10 +109,6 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
   /// fallback 메시지 (`errorAccountExistsWithUnknownProvider`) 가 직접
   /// inline 노출되어야 한다 (LoginScreen 책임).
   final AccountProvider existingProvider;
-
-  /// 충돌이 발생한 이메일 주소 — UI 본문 메시지의 컨텍스트 (단, 사용자
-  /// 본인 데이터이므로 PII redaction 의무는 적용되지 않는다).
-  final String collisionEmail;
 
   /// 충돌 시점에 보존된 native pending credential (Phase 16 16-08).
   ///
@@ -131,7 +141,6 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
   static Future<bool?> show(
     BuildContext context, {
     required AccountProvider existingProvider,
-    required String collisionEmail,
     Object? pendingCredential,
     ExistingProviderSignInCallback? onExistingProviderSignIn,
   }) {
@@ -148,7 +157,6 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
       constraints: BoxConstraints(maxHeight: size.height * 0.75),
       builder: (_) => AccountLinkingSheet(
         existingProvider: existingProvider,
-        collisionEmail: collisionEmail,
         pendingCredential: pendingCredential,
         onExistingProviderSignIn: onExistingProviderSignIn,
       ),
@@ -339,8 +347,10 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   /// 으로 분리해 실 탈출구(하단 dismiss)를 안내한다.
   ///
   /// **PII invariant (T-16-19-02):** 실패 로그는 `kDebugMode` 가드 하에
-  /// runtimeType 만 1줄 출력한다 — collisionEmail / ID Token / provider token
+  /// runtimeType 만 1줄 출력한다 — 충돌 이메일 / ID Token / provider token
   /// 본문 0 (`linkCustomTokenProviderArm` 로그 형식 mirror).
+  /// Phase 09 WR-06 이후 본 위젯은 충돌 이메일을 **전달받지도 않는다** —
+  /// 클래스 doc 의 "충돌 이메일 미수신" 항목 참조.
   Future<_ExistingProviderSignInOutcome> _signInWithExistingProvider(
     AccountProvider provider,
   ) async {

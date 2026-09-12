@@ -38,7 +38,6 @@ class _SheetHandle {
 Future<_SheetHandle> _pumpAndShowSheet(
   WidgetTester tester, {
   required AccountProvider provider,
-  String collisionEmail = 'user@example.com',
   Locale locale = const Locale('en'),
 }) async {
   Future<bool?>? sheetResult;
@@ -56,7 +55,6 @@ Future<_SheetHandle> _pumpAndShowSheet(
                 sheetResult = AccountLinkingSheet.show(
                   context,
                   existingProvider: provider,
-                  collisionEmail: collisionEmail,
                 );
               },
               child: const Text('open-sheet'),
@@ -161,7 +159,6 @@ void main() {
                       sheetResult = AccountLinkingSheet.show(
                         context,
                         existingProvider: AccountProvider.kakao,
-                        collisionEmail: 'user@example.com',
                       );
                     },
                     child: const Text('open-sheet'),

@@ -68,7 +68,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AccountLinkingSheet.show(
         context,
         existingProvider: err.existingProvider!,
-        collisionEmail: err.email ?? '',
         pendingCredential: err.pendingCredential,
       );
     });

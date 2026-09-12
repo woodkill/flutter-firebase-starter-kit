@@ -106,7 +106,6 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
       final linkResult = AccountLinkingSheet.show(
         context,
         existingProvider: err.existingProvider!,
-        collisionEmail: err.email ?? '',
         pendingCredential: err.pendingCredential,
       );
       // ignore: discarded_futures

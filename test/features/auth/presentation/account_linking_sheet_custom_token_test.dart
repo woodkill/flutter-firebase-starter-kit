@@ -136,7 +136,6 @@ void main() {
                   sheetResult = AccountLinkingSheet.show(
                     innerContext,
                     existingProvider: existingProvider,
-                    collisionEmail: 'collide@example.com',
                     onExistingProviderSignIn: onExistingProviderSignIn,
                   );
                 },
