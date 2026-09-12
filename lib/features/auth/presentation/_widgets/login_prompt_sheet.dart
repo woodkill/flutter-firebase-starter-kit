@@ -11,13 +11,6 @@ import '../../../../core/providers/firebase_providers.dart'
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../_helpers/social_provider_resolver.dart';
-import '../apple_sign_in_notifier.dart';
-import '../facebook_sign_in_notifier.dart';
-import '../google_sign_in_notifier.dart';
-import '../kakao_sign_in_notifier.dart';
-import '../line_sign_in_notifier.dart';
-import '../naver_sign_in_notifier.dart';
-import '../yahoojp_sign_in_notifier.dart';
 import 'account_linking_sheet.dart';
 import 'auth_in_progress_overlay.dart';
 import 'email_auth_cta.dart';
@@ -177,18 +170,9 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): sheet 안에서만 overlay
     // 표시 — sheet 가 OAuth 성공 직후 pop 되므로 표시 시간은 짧지만
     // signInWithCredential / Firestore mirror 구간을 시각적으로 메운다.
-    // Phase 12 — kakaoSignInProvider 합산 (D-25),
-    // Phase 13 — naverSignInProvider 합산 (Plan 13-06),
-    // Phase 14 — lineSignInProvider 합산 (Plan 14-05 / SOCL-03),
-    // Phase 15 — yahoojpSignInProvider 합산 (Plan 15-03 / SOCL-04).
-    final isSocialLoading =
-        ref.watch(googleSignInProvider).isLoading ||
-        ref.watch(appleSignInProvider).isLoading ||
-        ref.watch(facebookSignInProvider).isLoading ||
-        ref.watch(kakaoSignInProvider).isLoading ||
-        ref.watch(naverSignInProvider).isLoading ||
-        ref.watch(lineSignInProvider).isLoading ||
-        ref.watch(yahoojpSignInProvider).isLoading;
+    // WR-08 (Phase 7 review): 7 provider 하드코딩 합산 → registry 기반
+    // helper (복제 3곳 제거 — 단일 진실원).
+    final isSocialLoading = watchAnySocialSignInLoading(ref);
 
     return SafeArea(
       child: Stack(

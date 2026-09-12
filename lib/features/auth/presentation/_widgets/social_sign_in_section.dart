@@ -4,13 +4,7 @@ import 'package:gap/gap.dart';
 
 import '../../../../core/auth/auth_strategies_registry.dart';
 import '../../../../core/theme/theme_extensions.dart';
-import '../apple_sign_in_notifier.dart';
-import '../facebook_sign_in_notifier.dart';
-import '../google_sign_in_notifier.dart';
-import '../kakao_sign_in_notifier.dart';
-import '../line_sign_in_notifier.dart';
-import '../naver_sign_in_notifier.dart';
-import '../yahoojp_sign_in_notifier.dart';
+import '../_helpers/social_provider_resolver.dart';
 import 'or_divider.dart';
 import 'social_button.dart';
 
@@ -63,22 +57,16 @@ class SocialSignInSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final spacing = context.appSpacing;
 
-    // 이메일/Google/Apple/Facebook/Kakao/Naver/LINE/Yahoo!JP 중 어느 하나라도
-    // 진행 중이면 이중 제출 방지. Phase 11 단계는 3개 Provider 직접 watch
-    // (corrections 4번), Phase 12 에서 kakaoSignInProvider 추가 (D-25 /
-    // 12-UI-SPEC line 472-477), Phase 13 에서 naverSignInProvider 추가
-    // (Plan 13-06 / 13-UI-SPEC), Phase 14 에서 lineSignInProvider 추가
-    // (Plan 14-05 / SOCL-03), Phase 15 에서 yahoojpSignInProvider 추가
-    // (Plan 15-03 / SOCL-04).
-    final isAnyLoading =
-        isFormLoading ||
-        ref.watch(googleSignInProvider).isLoading ||
-        ref.watch(appleSignInProvider).isLoading ||
-        ref.watch(facebookSignInProvider).isLoading ||
-        ref.watch(kakaoSignInProvider).isLoading ||
-        ref.watch(naverSignInProvider).isLoading ||
-        ref.watch(lineSignInProvider).isLoading ||
-        ref.watch(yahoojpSignInProvider).isLoading;
+    // 이메일 또는 활성 소셜 provider 중 어느 하나라도 진행 중이면 이중 제출
+    // 방지. WR-08 (Phase 7 review): 7 provider 하드코딩 합산 → registry 기반
+    // helper. 이 합산 목록이 SocialLinkInProgress 의 bool 플래그를 지키는
+    // 유일한 방어선인데 3곳에 복제되어 있어, 한 곳만 갱신되면 잠금이 silent
+    // 로 무너졌다.
+    //
+    // 단락 평가 주의: helper 를 `||` 우변에 두면 isFormLoading=true 일 때
+    // 소셜 provider 구독이 등록되지 않는다 — helper 를 먼저 평가한다.
+    final isAnySocialLoading = watchAnySocialSignInLoading(ref);
+    final isAnyLoading = isFormLoading || isAnySocialLoading;
 
     // 활성화된 Strategy 만 — 정적 config + RC overlay 합산 (D-26).
     final strategies = ref.watch(activeStrategiesProvider);

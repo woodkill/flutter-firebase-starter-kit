@@ -17,14 +17,7 @@ import '_widgets/auth_scaffold.dart';
 import '_widgets/email_auth_cta.dart';
 import '_widgets/form_error_banner.dart';
 import '_widgets/social_sign_in_section.dart';
-import 'apple_sign_in_notifier.dart';
-import 'facebook_sign_in_notifier.dart';
-import 'google_sign_in_notifier.dart';
-import 'kakao_sign_in_notifier.dart';
-import 'line_sign_in_notifier.dart';
 import 'login_notifier.dart';
-import 'naver_sign_in_notifier.dart';
-import 'yahoojp_sign_in_notifier.dart';
 
 /// 소셜 provider chooser 화면 (Phase 16.1 Surface A).
 ///
@@ -85,27 +78,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
-    final googleState = ref.watch(googleSignInProvider);
-    final appleState = ref.watch(appleSignInProvider);
-    final facebookState = ref.watch(facebookSignInProvider);
-    final kakaoState = ref.watch(kakaoSignInProvider);
-    final naverState = ref.watch(naverSignInProvider);
-    final lineState = ref.watch(lineSignInProvider);
-    final yahoojpState = ref.watch(yahoojpSignInProvider);
     // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): 외부 인증 복귀 후
     // signInWithCredential / Firestore mirror 동안 화면을 막아 명시적 진행
-    // 신호를 제공한다. Phase 12 — kakaoState 합산 (D-25 / 12-UI-SPEC),
-    // Phase 13 — naverState 합산 (Plan 13-06 / 13-UI-SPEC),
-    // Phase 14 — lineState 합산 (Plan 14-05 / SOCL-03),
-    // Phase 15 — yahoojpState 합산 (Plan 15-03 / SOCL-04).
-    final isSocialLoading =
-        googleState.isLoading ||
-        appleState.isLoading ||
-        facebookState.isLoading ||
-        kakaoState.isLoading ||
-        naverState.isLoading ||
-        lineState.isLoading ||
-        yahoojpState.isLoading;
+    // 신호를 제공한다.
+    // WR-08 (Phase 7 review): 7 provider 하드코딩 합산을 registry 기반
+    // helper 로 대체 — 같은 목록이 3곳에 복제되어 provider 추가 시 한 곳만
+    // 갱신되면 이중 제출 잠금이 silent 로 깨졌다.
+    final isSocialLoading = watchAnySocialSignInLoading(ref);
     // 이메일 제출 ↔ 소셜 로그인 교차 잠금 (WR-01 — T-07-05 / T-08-60
     // invariant 복원). 이메일 form 은 `/login/email` 로 분리됐지만 그
     // 화면은 chooser **위에** push 되므로 본 화면은 계속 mount 상태이고,

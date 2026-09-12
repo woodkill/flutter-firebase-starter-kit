@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart'
     show ProviderListenable;
 
+import '../../../../core/auth/auth_strategies_registry.dart';
 import '../../../../core/auth/provider_id.dart';
 import '../apple_sign_in_notifier.dart';
 import '../facebook_sign_in_notifier.dart';
@@ -39,3 +40,29 @@ ProviderListenable<AsyncValue<void>> resolveSocialProvider(String providerId) =>
       kProviderIdYahooJp => yahoojpSignInProvider,
       _ => throw UnsupportedError('Unknown providerId: $providerId'),
     };
+
+/// 활성 소셜 Strategy 중 **하나라도** sign-in 진행 중이면 `true`
+/// (WR-08 — Phase 7 review).
+///
+/// **도입 이유 (복제 제거):** 같은 7 provider `isLoading` 합산 목록이
+/// `social_sign_in_section` / `login_prompt_sheet` / `login_screen` **3곳에
+/// 복제**되어 있었다. 이 목록은 `SocialLinkInProgress` 의 bool 플래그
+/// (counter 아님) 가 동시 실행으로 깨지지 않게 막는 유일한 방어선이므로,
+/// provider 추가 시 3곳 중 한 곳만 갱신되면 이중 제출 잠금이 **silent 로**
+/// 무너진다. [activeStrategiesProvider] + [resolveSocialProvider] 조합으로
+/// 계산해 복제를 제거하고, registry 등록만으로 3 surface 가 자동 반영되게
+/// 한다.
+///
+/// **조기 return 금지 (구독 누락 회귀 가드):** 첫 번째 loading 발견 시
+/// 곧바로 반환하면 나머지 provider 에 대한 `ref.watch` 구독이 등록되지
+/// 않아, 이후 다른 provider 가 로딩을 시작해도 rebuild 가 일어나지 않는다.
+/// 반드시 전부 watch 한 뒤 판정한다.
+bool watchAnySocialSignInLoading(WidgetRef ref) {
+  var anyLoading = false;
+  for (final strategy in ref.watch(activeStrategiesProvider)) {
+    if (ref.watch(resolveSocialProvider(strategy.providerId)).isLoading) {
+      anyLoading = true;
+    }
+  }
+  return anyLoading;
+}

@@ -18,10 +18,44 @@ part 'auth_strategies_registry.g.dart';
 /// 등록된 모든 [AuthStrategy].
 ///
 /// Phase 12~15 에서 4개 추가 (Kakao / Naver / LINE / Yahoo!JP — 각 Custom
-/// Token Strategy). 추가 절차는 add-only:
-/// 1. [kAllProviderIds] 갱신 (이미 7개 등록됨)
-/// 2. `lib/core/auth/strategies/{provider}_auth_strategy.dart` 신규
-/// 3. 본 리스트 끝에 `const {Provider}AuthStrategy()` 추가
+/// Token Strategy).
+///
+/// **신규 provider 추가 체크리스트 (WR-08 — Phase 7 review 정정).**
+/// 이전 문서는 "add-only 3단계" 라고 적었으나 사실이 아니었다. 실제 수정
+/// 지점은 아래 7항목이며, 각 누락의 증상이 서로 다르다 — Starter Kit 독자
+/// (제3의 개발자) 에게 이 문서 오류는 곧 제품 결함이므로 항목마다 누락 시
+/// 증상을 함께 적는다.
+///
+/// 1. [kAllProviderIds] 슬러그 + [AccountProvider] enum 값
+///    (+ `isNative` / `slug` / `arbKey` / `tryParse` 4 switch)
+///    — 누락 시 **analyze 단계 BLOCKER** (exhaustive switch, 검출 양호).
+/// 2. `lib/core/auth/strategies/{provider}_auth_strategy.dart` 신규 +
+///    본 [_allStrategies] 리스트 끝에 `const {Provider}AuthStrategy()` 등록
+///    — 누락 시 버튼 미표시 (silent).
+/// 3. `presentation/_helpers/social_provider_resolver.dart` 의
+///    `resolveSocialProvider` switch
+///    — 누락 시 **로그인 화면 build 중 런타임 crash**
+///    (`_ => throw UnsupportedError`).
+/// 4. `presentation/_widgets/social_button.dart` 의 switch **2개** —
+///    `providerId` → [BrandedSocialButton] 분기, `labelKey` →
+///    `_resolveLabel`. 둘 다 `_ => throw UnsupportedError` 이므로
+///    — 누락 시 **버튼 렌더 시 런타임 crash**.
+/// 5. `AuthRepository`: SDK client 필드·생성자·`signOut`, 그리고 Custom
+///    Token provider 라면 `_acquireTargetProviderToken` /
+///    `_logoutTargetProvider` / `signInWithExistingProvider`
+///    — 누락 시 SDK 세션 잔류 · 계정 연결 불가.
+/// 6. `*SignInNotifier` (provider 별 presentation notifier) 신규
+///    — 3항의 resolver 가 가리킬 대상.
+/// 7. ARB 3 locale (ko/en/ja) 의 `auth{Provider}SignIn` +
+///    `authAccountProvider{X}`
+///    — 누락 시 라벨 조회 실패.
+///
+/// **이중 제출 잠금은 자동 반영된다 (WR-08 이후):** 과거에는 7 provider
+/// `isLoading` 합산 목록이 `social_sign_in_section` / `login_prompt_sheet`
+/// / `login_screen` 3곳에 복제되어 한 곳만 갱신하면 잠금이 silent 로
+/// 무너졌다. 현재는 3 surface 모두
+/// `watchAnySocialSignInLoading` ([activeStrategies] + `resolveSocialProvider`
+/// 조합) 을 쓰므로 위 1~3 항만 지키면 자동 반영된다.
 const List<AuthStrategy> _allStrategies = <AuthStrategy>[
   GoogleAuthStrategy(),
   AppleAuthStrategy(),
