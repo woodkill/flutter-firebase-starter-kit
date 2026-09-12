@@ -178,6 +178,17 @@ class AuthRepository {
       return Result.failure(
         await _enrichAccountExistsAsync(_mapAuthException(e)),
       );
+    } on Object catch (e, st) {
+      // WR-06 (Phase 7 review): 비-Auth 예외 (PlatformException 등) 를 Result
+      // 로 감싸 Notifier state 가 AsyncLoading 에 고정되는 것을 방지한다.
+      // 소셜 7 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
+      // — 예외가 그대로 전파되면 LoginNotifier.submit 의
+      // `state = switch (result)` 에 도달하지 못해 PrimaryCta 가 영구
+      // 스피너/비활성으로 고정된다.
+      if (kDebugMode) {
+        debugPrint('signInWithEmail 비-Auth 예외: ${e.runtimeType}\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
     }
   }
 
@@ -267,6 +278,17 @@ class AuthRepository {
       return Result.failure(
         await _enrichAccountExistsAsync(_mapAuthException(e)),
       );
+    } on Object catch (e, st) {
+      // WR-06 (Phase 7 review): 비-Auth 예외 (PlatformException 등) 를 Result
+      // 로 감싸 Notifier state 가 AsyncLoading 에 고정되는 것을 방지한다.
+      // 소셜 7 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
+      // — 예외가 그대로 전파되면 LoginNotifier.submit 의
+      // `state = switch (result)` 에 도달하지 못해 PrimaryCta 가 영구
+      // 스피너/비활성으로 고정된다.
+      if (kDebugMode) {
+        debugPrint('signUpWithEmail 비-Auth 예외: ${e.runtimeType}\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
     }
   }
 
@@ -1951,6 +1973,17 @@ class AuthRepository {
       return const Result.success(null);
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      // WR-06 (Phase 7 review): 비-Auth 예외 (PlatformException 등) 를 Result
+      // 로 감싸 Notifier state 가 AsyncLoading 에 고정되는 것을 방지한다.
+      // 소셜 7 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
+      // — 예외가 그대로 전파되면 LoginNotifier.submit 의
+      // `state = switch (result)` 에 도달하지 못해 PrimaryCta 가 영구
+      // 스피너/비활성으로 고정된다.
+      if (kDebugMode) {
+        debugPrint('sendPasswordReset 비-Auth 예외: ${e.runtimeType}\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
     }
   }
 
@@ -1969,6 +2002,17 @@ class AuthRepository {
       return const Result.success(null);
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      // WR-06 (Phase 7 review): 비-Auth 예외 (PlatformException 등) 를 Result
+      // 로 감싸 Notifier state 가 AsyncLoading 에 고정되는 것을 방지한다.
+      // 소셜 7 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
+      // — 예외가 그대로 전파되면 LoginNotifier.submit 의
+      // `state = switch (result)` 에 도달하지 못해 PrimaryCta 가 영구
+      // 스피너/비활성으로 고정된다.
+      if (kDebugMode) {
+        debugPrint('sendEmailVerification 비-Auth 예외: ${e.runtimeType}\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
     }
   }
 

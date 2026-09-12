@@ -303,6 +303,27 @@ void main() {
       expect(result, isA<Failure<dynamic>>());
       expect((result as Failure).exception, isA<InvalidCredentials>());
     });
+
+    // WR-06 (Phase 7 review): 비-Auth 예외가 그대로 전파되면
+    // LoginNotifier.submit 이 `state = switch (result)` 에 도달하지 못해
+    // CTA 가 영구 스피너로 고정된다 (소셜 경로가 이미 막고 있던 증상).
+    test('WR-06: 비-Auth 예외 (PlatformException) → ServiceUnavailable Failure '
+        '(throw 전파 안 함)', () async {
+      when(
+        () => mockAuth.signInWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenThrow(PlatformException(code: 'channel-error'));
+
+      final result = await repository.signInWithEmail(
+        email: 'a@b.com',
+        password: 'pw',
+      );
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result as Failure).exception, isA<ServiceUnavailable>());
+    });
   });
 
   group('signUpWithEmail', () {
@@ -394,6 +415,18 @@ void main() {
         expect((result as Failure).exception, isA<InvalidEmail>());
       },
     );
+
+    // WR-06: 비-Auth 예외 방어 (소셜 경로 / reloadUser mirror).
+    test('WR-06: 비-Auth 예외 → ServiceUnavailable Failure', () async {
+      when(
+        () => mockAuth.sendPasswordResetEmail(email: any(named: 'email')),
+      ).thenThrow(PlatformException(code: 'channel-error'));
+
+      final result = await repository.sendPasswordReset(email: 'a@b.com');
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result as Failure).exception, isA<ServiceUnavailable>());
+    });
   });
 
   group('sendEmailVerification', () {
@@ -416,6 +449,19 @@ void main() {
 
       expect(result, isA<Failure<dynamic>>());
       expect((result as Failure).exception, isA<TooManyRequests>());
+    });
+
+    // WR-06: 비-Auth 예외 방어 (소셜 경로 / reloadUser mirror).
+    test('WR-06: 비-Auth 예외 → ServiceUnavailable Failure', () async {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(
+        () => mockUser.sendEmailVerification(),
+      ).thenThrow(PlatformException(code: 'channel-error'));
+
+      final result = await repository.sendEmailVerification();
+
+      expect(result, isA<Failure<dynamic>>());
+      expect((result as Failure).exception, isA<ServiceUnavailable>());
     });
   });
 
