@@ -406,68 +406,105 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
 
     final providerLabel = _providerLabel(l10n, widget.existingProvider);
 
-    return Stack(
-      children: <Widget>[
-        SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Gap(spacing.lg),
-                  // 헤더 (클래스 doc 레이아웃 3번) — UI-SPEC Layout Contract
-                  // Surface A 의 titleMedium / onSurface / Gap sm verbatim.
-                  Text(
-                    l10n.accountLinkingSheetTitle,
-                    style: typography.titleMedium.copyWith(
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  Gap(spacing.sm),
-                  // 본문 (클래스 doc 레이아웃 5번) — UI-SPEC Layout Contract
-                  // Surface A 의 bodyLarge / onSurfaceVariant verbatim.
-                  Text(
-                    l10n.errorAccountExistsWithProvider(providerLabel),
-                    style: typography.bodyLarge.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  Gap(spacing.xl),
-                  _BrandedLinkButton(
-                    provider: widget.existingProvider,
-                    label: providerLabel,
-                    // IN-04: 진행 중에는 null 로 **비활성** 상태를 표현한다.
-                    // no-op 클로저는 위젯이 활성으로 보이고 접근성 트리
-                    // 에서도 enabled 로 노출되어, 같은 조건에서 null 을
-                    // 넘기는 아래 취소 TextButton 과 비대칭이었다
-                    // (AuthInProgressOverlay 가 탭을 막더라도 시각/시맨틱
-                    // 상태는 일치해야 한다).
-                    onPressed: _isLinking ? null : _onLinkPressed,
-                  ),
-                  Gap(spacing.md),
-                  TextButton(
-                    onPressed: _isLinking
-                        ? null
-                        : () => Navigator.of(context).pop(false),
-                    child: Text(
-                      l10n.accountLinkingDismiss,
-                      style: typography.labelLarge.copyWith(
-                        color: colorScheme.primary,
+    // WR-05 — 진행 중에는 **시트 자체**를 잠근다.
+    //
+    // `_isLinking` 은 시트 *내부 위젯* 만 비활성화할 뿐이고
+    // `AuthInProgressOverlay` 도 시트 body 안의 Stack 에 들어 있어 barrier 를
+    // 덮지 못한다. step 1(`signInWithExistingProvider`) 은 실제 IdP OAuth
+    // 왕복이라 수 초가 걸리는데, 그 사이 시트가 닫히면 `!mounted` 조기 return
+    // 때문에 `navigator.pop(true)` · step 2 안내 SnackBar · `router.go(home)`
+    // 가 **한 줄도 실행되지 않는다** — 그런데 Firebase 세션은 이미 성립해
+    // 있다. 사용자는 로그인이 끝난 상태로 "로그인이 필요합니다" 시트를 계속
+    // 보게 된다.
+    //
+    // **두 경로를 각각 다른 장치로 막아야 한다 (Flutter 3.41.4 실측).**
+    // - barrier 탭 → `ModalBarrier` 가 `Navigator.maybePop` 을 호출하므로
+    //   [PopScope] 가 막는다. Android 시스템 back 도 동일.
+    // - drag 내림 → `_ModalBottomSheet.onClosing` 이 `Navigator.pop` 을
+    //   **직접** 호출한다 (`maybePop` 이 아니다). 즉 [PopScope] 로는 막히지
+    //   않는다. `enableDrag` 는 `show()` 시점에 고정되는 final 필드라 상태에
+    //   연동할 수도 없다. 따라서 시트 최상단에 vertical drag 를 선점하는
+    //   제스처 차단기를 깔아 route 의 drag 인식기가 제스처 아레나에서 이기지
+    //   못하게 한다 (더 안쪽 인식기가 먼저 등록되어 우선한다).
+    return PopScope(
+      canPop: !_isLinking,
+      child: Stack(
+        children: <Widget>[
+          SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Gap(spacing.lg),
+                    // 헤더 (클래스 doc 레이아웃 3번) — UI-SPEC Layout Contract
+                    // Surface A 의 titleMedium / onSurface / Gap sm verbatim.
+                    Text(
+                      l10n.accountLinkingSheetTitle,
+                      style: typography.titleMedium.copyWith(
+                        color: colorScheme.onSurface,
                       ),
                     ),
-                  ),
-                  Gap(spacing.lg),
-                ],
+                    Gap(spacing.sm),
+                    // 본문 (클래스 doc 레이아웃 5번) — UI-SPEC Layout Contract
+                    // Surface A 의 bodyLarge / onSurfaceVariant verbatim.
+                    Text(
+                      l10n.errorAccountExistsWithProvider(providerLabel),
+                      style: typography.bodyLarge.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Gap(spacing.xl),
+                    _BrandedLinkButton(
+                      provider: widget.existingProvider,
+                      label: providerLabel,
+                      // IN-04: 진행 중에는 null 로 **비활성** 상태를 표현한다.
+                      // no-op 클로저는 위젯이 활성으로 보이고 접근성 트리
+                      // 에서도 enabled 로 노출되어, 같은 조건에서 null 을
+                      // 넘기는 아래 취소 TextButton 과 비대칭이었다
+                      // (AuthInProgressOverlay 가 탭을 막더라도 시각/시맨틱
+                      // 상태는 일치해야 한다).
+                      onPressed: _isLinking ? null : _onLinkPressed,
+                    ),
+                    Gap(spacing.md),
+                    TextButton(
+                      onPressed: _isLinking
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      child: Text(
+                        l10n.accountLinkingDismiss,
+                        style: typography.labelLarge.copyWith(
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    Gap(spacing.lg),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        // UI-SPEC Surface A State — native linkWithCredential / Custom Token
-        // linkCustomTokenProvider 진행 (section-level modal overlay).
-        if (_isLinking) const AuthInProgressOverlay(),
-      ],
+          // UI-SPEC Surface A State — native linkWithCredential / Custom Token
+          // linkCustomTokenProvider 진행 (section-level modal overlay).
+          if (_isLinking) const AuthInProgressOverlay(),
+          // WR-05 drag 차단기 — `PopScope` 가 막지 못하는 유일한 dismiss
+          // 경로. `AuthInProgressOverlay` 의 `AbsorbPointer` 는 **자손** 의
+          // 입력만 흡수할 뿐 조상인 route 의 drag 인식기는 막지 못하므로,
+          // 별도의 vertical drag 인식기를 최상단에 둬야 한다. 빈 콜백이지만
+          // 제스처 아레나에서 drag 를 선점하는 것이 목적이다.
+          if (_isLinking)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragStart: (_) {},
+                onVerticalDragUpdate: (_) {},
+                onVerticalDragEnd: (_) {},
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

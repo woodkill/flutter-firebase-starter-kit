@@ -31,6 +31,8 @@
 //   TS7: email 기존 — repository 호출 0 + /login/email 라우팅 (경로 C 는
 //        자동 link 0 계약 유지, 도착지만 Phase 16.1 로 재정렬)
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,6 +50,7 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/account_linking_sheet.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/auth_in_progress_overlay.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
@@ -542,5 +545,98 @@ void main() {
         );
       },
     );
+  });
+
+  // --- WR-05 (Phase 09 review) — step 1 진행 중 sheet dismiss 차단 ---
+
+  group('WR-05 — step 1 진행 중에는 시트 자체가 잠긴다', () {
+    /// step 1 을 보류시킨 채 "진행 중" 상태에 고정한다.
+    ///
+    /// `signInWithExistingProvider` 가 완료되지 않는 Future 를 돌려주면
+    /// `_isLinking == true` 구간에 머무른다 — 실제 IdP OAuth 왕복이 수 초
+    /// 걸리는 상황의 재현이다. 이 구간에 시트가 닫히면 `!mounted` 조기
+    /// return 때문에 pop(true) · 안내 SnackBar · /home 이 모두 유실되는데
+    /// Firebase 세션은 이미 성립해 있다.
+    Future<Completer<Result<User>>> enterLinkingState(
+      WidgetTester tester,
+    ) async {
+      final gate = Completer<Result<User>>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete(successResult());
+      });
+      when(
+        () => mockRepo.signInWithExistingProvider(
+          provider: any(named: 'provider'),
+        ),
+      ).thenAnswer((_) => gate.future);
+
+      await openSheet(tester, existingProvider: AccountProvider.kakao);
+      await tapSheetCta(tester);
+
+      // 전제 확인 — 진행 중 오버레이가 떠 있어야 이후 단언이 의미를 갖는다.
+      expect(find.byType(AuthInProgressOverlay), findsOneWidget);
+      return gate;
+    }
+
+    testWidgets('barrier 탭으로 닫히지 않는다 (PopScope 가 maybePop 을 차단)', (
+      tester,
+    ) async {
+      await enterLinkingState(tester);
+
+      // 시트 바깥 상단 = barrier 영역.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(
+        find.byType(AccountLinkingSheet),
+        findsOneWidget,
+        reason: '진행 중 barrier 탭으로 시트가 닫히면 로그인 결과가 유실된다',
+      );
+    });
+
+    testWidgets('drag 내림으로 닫히지 않는다 — PopScope 로는 막히지 않는 경로다 '
+        '(ModalBottomSheet 의 onClosing 이 maybePop 이 아니라 Navigator.pop 을 '
+        '직접 호출하므로 별도 drag 차단기가 필요하다)', (tester) async {
+      await enterLinkingState(tester);
+
+      await tester.drag(
+        find.byType(AccountLinkingSheet),
+        const Offset(0, 600),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(
+        find.byType(AccountLinkingSheet),
+        findsOneWidget,
+        reason: '진행 중 drag 로 시트가 닫히면 로그인 결과가 유실된다',
+      );
+    });
+
+    testWidgets('대조군 — 진행 중이 아니면 barrier 탭으로 정상 dismiss 된다 '
+        '(WR-05 수정이 시트를 영구 잠금으로 굳히지 않았음을 보증)', (tester) async {
+      await openSheet(tester, existingProvider: AccountProvider.kakao);
+
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(AccountLinkingSheet), findsNothing);
+    });
+
+    testWidgets('잠금이 풀린 뒤(step 1 성공) 시트가 닫히고 /home 으로 이동한다 '
+        '— 잠금이 결과 전달을 방해하지 않음을 보증', (tester) async {
+      final gate = await enterLinkingState(tester);
+
+      gate.complete(successResult());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AccountLinkingSheet), findsNothing);
+      expect(find.text('HOME'), findsOneWidget);
+    });
   });
 }
