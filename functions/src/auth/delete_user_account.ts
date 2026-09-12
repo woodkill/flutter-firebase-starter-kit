@@ -16,6 +16,7 @@ import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
+import {assertFreshAuth} from "../shared/reauth";
 import {fingerprintError} from "./identity_index";
 
 type DeleteUserAccountRequest = {
@@ -80,14 +81,10 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
     if (decoded.uid !== callerUid) {
       throw new HttpsError("permission-denied", "errorUnauthenticated");
     }
-    const authTime = decoded.auth_time;
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (nowSec - authTime > 300 /* 5분 */) {
-      throw new HttpsError(
-        "unauthenticated",
-        "errorReauthenticationRequired",
-      );
-    }
+    // WR-11: 누락 / 미래값 / 상한을 공용 helper 로 한 번에 검사한다.
+    // 이전 인라인 구현은 auth_time 이 없으면 NaN > 300 === false 로
+    // **통과** 했고, 미래값(시계 오차)도 무조건 통과했다.
+    assertFreshAuth(decoded.auth_time);
 
     // Step 2: D-07 — Firestore batched delete.
     //
