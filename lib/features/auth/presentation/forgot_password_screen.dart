@@ -136,6 +136,15 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
     ref.listen<AsyncValue<void>>(forgotPasswordProvider, (previous, next) {
       if (next is AsyncError) {
+        // WR-04 hotfix: dispose 후 ref.listen 콜백 race 방어.
+        // 성공 arm 은 `_onSuccess` 선두에서 이미 mounted 를 확인하는데
+        // (:95) 에러 arm 만 빠져 있어 같은 콜백 안에서 두 arm 의 규약이
+        // 달랐다. 발송 버튼을 누른 뒤 응답 전에 back 으로 이탈하면
+        // autoDispose notifier 의 dispose 프레임과 AsyncError emit 이 겹쳐
+        // `setState() called after dispose` 가 던져진다. 형제 4 surface
+        // (email_login / email_signup / login_screen / login_prompt_sheet)
+        // 는 모두 이 가드를 갖고 있다.
+        if (!mounted) return;
         final err = next.error;
         if (err is AppException) {
           setState(() => _bannerError = err);
