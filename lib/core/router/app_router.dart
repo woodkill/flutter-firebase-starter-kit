@@ -167,6 +167,12 @@ GoRouter appRouter(Ref ref) {
   return router;
 }
 
+/// 404 화면의 안내 아이콘 크기 (IN-01 — 매직 넘버 명명).
+///
+/// [AppSpacing] 스케일(4px 기반)의 배수가 아닌 독립 illustration 치수이므로
+/// spacing 토큰을 재사용하지 않고 전용 상수로 둔다.
+const double _notFoundIconSize = 64;
+
 /// 404 errorBuilder 본문 — 잘못된 deep link 진입 시 표시되는 recovery UI.
 ///
 /// [GoRouter.errorBuilder] 에서 호출된다.
@@ -177,7 +183,10 @@ Widget buildNotFoundScreen(BuildContext context) {
   final l10n = context.l10n;
   final spacing = context.appSpacing;
   final colorScheme = context.colorScheme;
-  final textTheme = context.textTheme;
+  // IN-01: 저장소 dominant 규약인 토큰 접근자를 사용한다. `context.textTheme`
+  // 은 AppTypography extension override 를 반영하지 않아, 사용자가 ThemeData
+  // 를 교체하면 이 화면만 나머지와 다르게 drift 한다.
+  final typography = context.appTypography;
   return Scaffold(
     appBar: AppBar(title: Text(l10n.errorNotFoundTitle)),
     body: Center(
@@ -188,19 +197,19 @@ Widget buildNotFoundScreen(BuildContext context) {
           children: [
             Icon(
               Icons.error_outline,
-              size: 64,
+              size: _notFoundIconSize,
               color: colorScheme.onSurfaceVariant,
             ),
             Gap(spacing.lg),
             Text(
               l10n.errorNotFoundTitle,
-              style: textTheme.titleLarge,
+              style: typography.titleLarge,
               textAlign: TextAlign.center,
             ),
             Gap(spacing.sm),
             Text(
               l10n.errorNotFoundBody,
-              style: textTheme.bodyMedium?.copyWith(
+              style: typography.bodyMedium.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,

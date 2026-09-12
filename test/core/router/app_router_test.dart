@@ -11,6 +11,7 @@ import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_router.dart';
 import 'package:flutter_starter_kit/core/router/auth_guard.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_starter_kit/core/theme/app_typography.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
@@ -235,5 +236,68 @@ void main() {
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.byType(FilledButton), findsOneWidget);
     });
+
+    testWidgets(
+      '3 (IN-01): AppTypography extension override 를 따라간다 (drift 차단)',
+      (tester) async {
+        // 회귀 대상: `context.textTheme` 은 AppTypography extension override 를
+        // 반영하지 않으므로, 사용자가 ThemeData 를 교체하면 404 화면만 나머지
+        // 화면과 다르게 drift 한다 (저장소 dominant 규약은 context.appTypography).
+        const overrideTitle = TextStyle(fontSize: 29, letterSpacing: 7);
+        const overrideBody = TextStyle(fontSize: 17, wordSpacing: 5);
+        final base = AppTheme.light();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            // AppTypography extension 만 교체한다 (나머지 토큰은 ThemeX
+            // 접근자의 폴백이 커버하므로 본 검증에 영향이 없다).
+            theme: base.copyWith(
+              extensions: [
+                AppTypography.empty.copyWith(
+                  titleLarge: overrideTitle,
+                  bodyMedium: overrideBody,
+                ),
+              ],
+            ),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Builder(builder: buildNotFoundScreen),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final title = tester.widget<Text>(
+          find.descendant(
+            of: find.byType(Column),
+            matching: find.text('Page not found'),
+          ),
+        );
+        expect(
+          title.style?.fontSize,
+          29,
+          reason: '제목은 AppTypography override 의 titleLarge 를 따라야 한다',
+        );
+        expect(title.style?.letterSpacing, 7);
+
+        final body = tester.widget<Text>(
+          find.text('The page you requested does not exist.'),
+        );
+        expect(
+          body.style?.fontSize,
+          17,
+          reason: '본문은 AppTypography override 의 bodyMedium 을 따라야 한다',
+        );
+        expect(body.style?.wordSpacing, 5);
+        expect(
+          body.style?.color,
+          base.colorScheme.onSurfaceVariant,
+          reason: 'copyWith 로 얹는 색 토큰은 유지되어야 한다',
+        );
+
+        final icon = tester.widget<Icon>(find.byIcon(Icons.error_outline));
+        expect(icon.size, 64, reason: '명명 상수 _notFoundIconSize 값 고정');
+      },
+    );
   });
 }
