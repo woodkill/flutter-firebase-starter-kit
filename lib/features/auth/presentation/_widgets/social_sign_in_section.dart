@@ -82,7 +82,18 @@ class SocialSignInSection extends ConsumerWidget {
       children: <Widget>[
         for (var i = 0; i < strategies.length; i++) ...[
           if (i > 0) Gap(spacing.sm),
-          SocialButton(strategy: strategies[i], isDisabled: isAnyLoading),
+          // IN-05 (Phase 09 review): providerId 기반 ValueKey 필수.
+          // [activeStrategiesProvider] 는 Remote Config kill switch 에 따라
+          // **런타임에 원소가 빠질 수 있는** 목록이다. Key 가 없으면 Flutter
+          // 가 타입+인덱스로 element 를 재사용하므로, 중간 원소가 제거될 때
+          // 이전 provider 버튼의 내부 상태(BrandFocusWrapper 의 focus 등)를
+          // 다른 provider 버튼이 물려받는다.
+          // `.claude/rules/flutter.md` 의 "동적 위젯 교체 시 Key 명시" 규약.
+          SocialButton(
+            key: ValueKey<String>(strategies[i].providerId),
+            strategy: strategies[i],
+            isDisabled: isAnyLoading,
+          ),
         ],
         if (errorBanner != null) ...[Gap(spacing.md), errorBanner!],
         if (showOrDivider) ...[
