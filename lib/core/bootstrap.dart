@@ -165,8 +165,13 @@ Future<void> bootstrap() async {
             // controller line 30) — Provider rebuild 시 silent.
             //
             // [NaverLoginSDK.initialize] 는 [Future<bool>] 반환 (3.2.1 controller
-            // line 49) — `await` 의무. clientSecret 은 D-60 — 사용처 0건이지만
-            // SDK init 의무 인자.
+            // line 49) — `await` 의무.
+            //
+            // clientSecret (D-60): CF-2 잔여 관찰 정정 (Phase 7 review). 이전
+            // 주석의 "사용처 0건" 은 사실과 어긋났고 app_config.dart 의 IN-03
+            // 정정과도 모순됐다 — 본 호출이 **유일한 사용처**다 (SDK init
+            // 의무 인자). 바이너리 추출 가능성과 fork 사용자 주의는
+            // [AppConfig.naverClientSecret] 문서가 단일 진실원이다.
             //
             // dev flavor 만 실 키 주입, stg/prod 는 placeholder — manual.md
             // 안내 (Plan 13-07). 빈 문자열 시 SDK assertion / 첫 API 호출에서

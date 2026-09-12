@@ -1493,8 +1493,9 @@ class AuthRepository {
       }
       // (Phase 9.2 R4) 자동 sendEmailVerification — IN-01 (Phase 14 review)
       // 정정: LINE 은 D-LINE-21 (email scope 미채택) 으로 Firebase Auth user
-      // record 의 email 필드가 비어 있어 `_autoSendEmailVerification` 내부
-      // `email.isEmpty` 가드 (line 914) 가 자연 no-op 처리. Kakao/Naver 의
+      // record 의 email 필드가 비어 있어 [_autoSendEmailVerification] 내부의
+      // `email.isEmpty` 가드가 자연 no-op 처리 (IN-02 — 라인 번호 인용
+      // 폐기, 심볼 참조로 대체). Kakao/Naver 의
       // `emailVerified=true 자동 set` no-op 와는 다른 mechanism — LINE 전용
       // path 명시.
       await _autoSendEmailVerification(userCredential);
@@ -1568,9 +1569,9 @@ class AuthRepository {
   ///
   /// **D-YJP-09 정정 lock — email scope 미채택:** Yahoo!JP UserInfo API 審査
   /// 절차 회피를 위해 scope openid+profile 만 채택. Firebase Auth user record
-  /// 의 email 필드가 비어 있어 `_autoSendEmailVerification` 내부
-  /// email.isEmpty 가드 (line 918) 가 자연 no-op 처리 (LINE D-LINE-21 동일
-  /// mechanism).
+  /// 의 email 필드가 비어 있어 [_autoSendEmailVerification] 내부의
+  /// `email.isEmpty` 가드가 자연 no-op 처리 (IN-02 — 라인 번호 인용 폐기,
+  /// 심볼 참조로 대체; LINE D-LINE-21 동일 mechanism).
   ///
   /// Returns null = 사용자 취소 silent.
   Future<Result<User>?> signInWithYahoojp() async {
@@ -1606,9 +1607,9 @@ class AuthRepository {
       }
       // (Phase 9.2 R4) 자동 sendEmailVerification — Yahoo!JP 는 D-YJP-09 정정
       // lock (scope openid+profile 만) 으로 Firebase Auth user record 의
-      // email 필드가 비어 있어 `_autoSendEmailVerification` 내부
-      // `email.isEmpty` 가드 (line 918) 가 자연 no-op 처리 (Phase 14 LINE
-      // 와 동일 mechanism — D-LINE-21 직접 mirror).
+      // email 필드가 비어 있어 [_autoSendEmailVerification] 내부의
+      // `email.isEmpty` 가드가 자연 no-op 처리 (IN-02 — 라인 번호 인용
+      // 폐기; Phase 14 LINE 과 동일 mechanism — D-LINE-21 직접 mirror).
       await _autoSendEmailVerification(userCredential);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
@@ -1737,8 +1738,11 @@ class AuthRepository {
   /// 1. [_onResetOnboarding] — `OnboardingNotifier.reset` 콜백.
   ///    state 동기 false set + SharedPreferences 키 제거. lossy persistence
   ///    정책 (disk 실패 시 Crashlytics 기록 후 graceful 진행).
-  /// 2. [signOut] — Firebase Auth + Google + Facebook + Kakao + Naver + LINE
-  ///    5 SDK 순차 logout (Phase 9.2 R6 invariant).
+  /// 2. [signOut] — Firebase Auth + 등록된 소셜 SDK 순차 logout (Phase 9.2
+  ///    R6 invariant). IN-02 정정 (Phase 7 review): 이전 문서는 "5 SDK
+  ///    (Google/Facebook/Kakao/Naver/LINE)" 로 적어 Yahoo!JP 증분 추가를
+  ///    반영하지 못했다. 개수를 문장에 박지 말고 [signOut] 구현을 진실원
+  ///    으로 본다 (Yahoo!JP 는 endpoint 미공개로 실효 폐기 없음 — WR-03).
   ///
   /// 호출 후 navigation 명시 호출은 불필요하다. authStateChanges →
   /// AuthChangeNotifier → resolveAuthRedirect 분기 (2) 가 `!isAuthenticated &&
@@ -1787,10 +1791,14 @@ class AuthRepository {
   }
 
   /// (Phase 9.2 D-18 — R4) Firebase Auth 의 [fb.User.sendEmailVerification] 을
-  /// 5 social sign-in 메서드 success path 에서 자동 호출하는 단일 진실원.
+  /// 소셜 sign-in success path 에서 자동 호출하는 단일 진실원.
+  ///
+  /// **IN-02 정정 (Phase 7 review):** 이전 문서는 "5 social sign-in 메서드"
+  /// / "5 call site" 로 적었으나 provider 증분 추가로 현재 호출자는 소셜
+  /// 7 sign-in 메서드 전부다. 개수를 문장에 박지 않고 호출 관계로 서술한다.
   ///
   /// **WR-01 (Phase 9.2 review fix):** 시그니처를 [fb.UserCredential] 채택으로
-  /// 변경 — `isNewUser` 추출을 helper 안으로 흡수하여 5 call site 의 verbatim
+  /// 변경 — `isNewUser` 추출을 helper 안으로 흡수하여 각 call site 의 verbatim
   /// 복제 (`final isNewUser = userCredential.additionalUserInfo?.isNewUser
   /// ?? false;`) 를 제거. SRP/DRY 강화.
   ///
@@ -1814,9 +1822,14 @@ class AuthRepository {
   /// - `additionalUserInfo.isNewUser == false` **AND** [isLinkedFromAnonymous]
   ///   == false (D-20 — 재로그인 spam 방지 + Gap A close 보강)
   ///
-  /// Apple/Google 의 idToken `email_verified=true` claim + Kakao/Naver 의
-  /// Cloud Function `identity_index.ts:225` `emailVerified: true` 자동 set
-  /// 으로 인해 4 provider 는 자연 no-op 이며, Facebook 만 실효적 호출 한다.
+  /// 자연 no-op 이 되는 경로 (IN-02 정정 — Facebook 을 제외한 소셜 전부):
+  /// - Apple / Google — idToken 의 `email_verified=true` claim
+  /// - Kakao / Naver — Cloud Function `identity_index.ts` 가
+  ///   `emailVerified: true` 자동 set
+  /// - LINE / Yahoo!JP — email scope 미채택 (D-LINE-21 / D-YJP-09) 으로
+  ///   user record 의 email 이 비어 있어 아래 `email.isEmpty` 가드가 차단
+  ///
+  /// 따라서 **실효적 발송은 Facebook 경로 하나**다.
   ///
   /// 발송 실패는 graceful (D-21 — Phase 6.1 D-10/D-11 패턴 계승). 로그인
   /// 자체는 성공 유지. [fb.FirebaseAuthException] + [Object] 양쪽 catch +
