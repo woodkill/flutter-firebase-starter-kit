@@ -738,4 +738,64 @@ void main() {
       }, timeout: const Timeout(Duration(seconds: 10)));
     },
   );
+
+  // ==========================================================================
+  // WR-04 (Phase 7 review): 비-permission-denied FirebaseException 후에도
+  // generator 를 닫지 않고 backoff 재구독으로 자력 복구한다. 이전 구현은
+  // `break` 로 async* generator 를 종료시켜, keepAlive provider 가 앱 재시작
+  // 전까지 재구독되지 않아 linkedProviders 가 세션 내내 빈 배열에 고정됐다.
+  // ==========================================================================
+  group('WR-04: linkedProvidersStream 에러 후 backoff 재구독 (I5)', () {
+    test(
+      'unavailable 1회 → 빈 배열 fallback 후 backoff 재구독으로 복구',
+      () async {
+        const uid = 'uid-wr04-recover';
+        final snap = _buildSnapshot(
+          exists: true,
+          data: <String, dynamic>{
+            'linkedProviders': <Map<String, dynamic>>[
+              {'providerId': 'kakao', 'providerUserId': 'kk1'},
+            ],
+          },
+        );
+        final firestore = _buildRetryFirestore(
+          uid: uid,
+          streamFactories: [
+            () => Stream<_MockDocumentSnapshot>.error(
+              FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+            ),
+            _valueFactory(snap),
+          ],
+        );
+
+        final container = ProviderContainer(
+          overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
+        );
+        addTearDown(container.dispose);
+        container.listen(
+          linkedProvidersStreamProvider(uid),
+          (_, _) {},
+          fireImmediately: true,
+        );
+
+        // 1차 — 즉시 빈 배열 fallback (D-41 / I1 보존).
+        await _settle();
+        expect(
+          container.read(linkedProvidersStreamProvider(uid)).value,
+          isEmpty,
+          reason: '비-permission-denied 는 즉시 빈 배열 fallback (I1)',
+        );
+
+        // 2차 — 5s backoff 후 재구독하여 정상 emit 도달 (I5).
+        await Future<void>.delayed(const Duration(milliseconds: 5500));
+        await _settle();
+        expect(
+          container.read(linkedProvidersStreamProvider(uid)).value,
+          ['kakao'],
+          reason: 'generator 가 살아 있어 세션 내 자력 복구 (WR-04)',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 20)),
+    );
+  });
 }

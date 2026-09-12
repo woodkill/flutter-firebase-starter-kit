@@ -2489,6 +2489,12 @@ User? currentUser(Ref ref) {
 ///   AsyncLoading 분기 유지 → cached value 노출.
 /// - I3 (카운터 리셋): 정상 emit 도달 시 retry 카운터 0 — 장기 세션에서
 ///   token 재만료 시 다시 retry 가능.
+/// - I5 (WR-04 — generator 비종료): 빈 배열 fallback 을 emit 한 뒤에도
+///   generator 를 종료하지 않고 backoff (5s→60s 상한) 후 재구독한다. 본
+///   provider 는 `keepAlive` 라 종료 시 앱 재시작 전까지 재구독이 없어,
+///   일시적 `unavailable` 한 번으로 세션 내내 linkedProviders 가 빈 배열에
+///   고정되고 [currentUser] 합집합이 Custom Token 4 provider 를 영구
+///   누락했다.
 /// - I4 (Type-safe parsing): 기존 [Iterable.whereType] 필터로 invalid entry
 ///   를 자동 제거 (T-12-06-05).
 ///
@@ -2503,14 +2509,21 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
   var permissionDeniedRetries = 0;
   const maxRetries = 5;
   const retryDelay = Duration(seconds: 1);
+  // WR-04 (Phase 7 review): fallback emit 후 재구독 backoff. 5s 에서 시작해
+  // 2배씩 증가하고 60s 를 상한으로 한다 — 영구 장애에서 hot loop 을 만들지
+  // 않으면서도 일시 장애에서는 세션 내 자력 복구가 가능하다.
+  const initialErrorBackoff = Duration(seconds: 5);
+  const maxErrorBackoff = Duration(seconds: 60);
+  var errorBackoff = initialErrorBackoff;
 
   while (true) {
     try {
       await for (final snap
           in firestore.collection('users').doc(uid).snapshots()) {
         // I3: 정상 emit 도달 시 카운터 리셋 — 장기 세션 token 재만료 시
-        // 다시 retry 가능.
+        // 다시 retry 가능. WR-04: 에러 backoff 도 함께 리셋한다.
         permissionDeniedRetries = 0;
+        errorBackoff = initialErrorBackoff;
         if (!snap.exists) {
           yield const <String>[];
           continue;
@@ -2555,11 +2568,28 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
       // (1) 다른 FirebaseException (network / unavailable 등) — 즉시 빈 배열.
       // (2) permission-denied — maxRetries 회 재구독 후에도 거부 → 영구
       //     spinner 회피 escape hatch (총 maxRetries+1 회 거부 후 escape).
+      // I5 (WR-04): 두 경우 모두 emit 후 generator 를 닫지 않고 backoff
+      // 재구독으로 이어진다.
       if (kDebugMode) {
-        debugPrint('linkedProvidersStream 에러 (fallback empty): $e\n$st');
+        debugPrint(
+          'linkedProvidersStream 에러 (fallback empty, '
+          '${errorBackoff.inSeconds}s 후 재구독): ${e.code}\n$st',
+        );
       }
       yield const <String>[];
-      break;
+      // WR-04: 이전 구현은 여기서 `break` 로 generator 를 종료시켰다. 본
+      // provider 는 `@Riverpod(keepAlive: true)` 라 재구독이 일어나지 않아
+      // 일시적 `unavailable` 한 번이면 세션 내내 linkedProviders 가 빈
+      // 배열로 고정되고, currentUser 의 합집합이 Custom Token provider 4종을
+      // 영구 누락했다 (Settings "계정 연결" 섹션 / provider 라벨 오표시).
+      // permission-denied 에 이미 존재하는 "일시 장애에서 복구한다" 의도를
+      // 나머지 에러에도 대칭 적용한다.
+      await Future<void>.delayed(errorBackoff);
+      // 재구독 라운드에서는 permission-denied 예산도 새로 부여한다.
+      permissionDeniedRetries = 0;
+      final doubled = errorBackoff * 2;
+      errorBackoff = doubled > maxErrorBackoff ? maxErrorBackoff : doubled;
+      continue;
     }
   }
 }
