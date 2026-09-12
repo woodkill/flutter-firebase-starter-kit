@@ -1,3 +1,5 @@
+import {timingSafeEqual} from "node:crypto";
+
 import {createRemoteJWKSet, jwtVerify, errors as joseErrors} from "jose";
 import type {JWTPayload} from "jose";
 
@@ -73,6 +75,30 @@ export type OidcVerifierConfig = {
 };
 
 /**
+ * nonce 클레임과 기대값을 **상수 시간** 으로 비교한다 (IN-01).
+ *
+ * `crypto.timingSafeEqual` 은 길이가 다르면 throw 하므로 길이를 먼저 비교해
+ * 조기 반환한다. 길이 정보는 애초에 공개값 (client 가 만든 nonce 길이) 이라
+ * 누설 가치가 없다.
+ *
+ * **한계 명시:** nonce 검증 자체는 서버 replay 방어로는 불완전하다 — 공격자가
+ * 토큰과 nonce 를 **함께** 재전송할 수 있기 때문이다. 실효 방어는 `iat`
+ * 신선도 창 또는 서버측 nonce 저장소이며, 그것은 별도 hardening 작업이다.
+ * 본 함수는 "같은 값인지" 만 안전하게 판정한다.
+ *
+ * @param {unknown} claimNonce ID Token 의 `nonce` 클레임 (임의 JSON 값).
+ * @param {string} expectedNonce caller 가 전달한 raw nonce.
+ * @return {boolean} 두 값이 같은 문자열이면 true.
+ */
+function isNonceMatch(claimNonce: unknown, expectedNonce: string): boolean {
+  if (typeof claimNonce !== "string") return false;
+  const a = Buffer.from(claimNonce, "utf8");
+  const b = Buffer.from(expectedNonce, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/**
  * OIDC verifier factory. JWKS singleton 은 factory 호출 시점 1회 evaluate.
  *
  * @param {OidcVerifierConfig} config provider OIDC 메타데이터.
@@ -96,9 +122,15 @@ export function createOidcVerifier(config: OidcVerifierConfig): OidcVerifier {
     // nonce 옵션 부재 (Phase 12 D-06 검증). 현재 raw 비교 mode 만 지원
     // (config.nonceHashing === "none"). hashing mode 진입은 Phase 15+
     // baseline (위 OidcVerifierConfig docstring 참조).
+    //
+    // IN-01 (Phase 14.1 IN-02 carry-forward, Phase 15 리뷰에서 범위 확대
+    // 확인): JS `!==` 는 첫 불일치 바이트에서 조기 반환하므로 비교 시간이
+    // 입력에 의존한다. nonce 는 client-issued one-time 값이라 실효 위협은
+    // 낮지만, 본 helper 는 이제 3 provider 가 공유하는 단일 진실원이므로
+    // (blast radius 확대) 상수 시간 비교로 바꾼다.
     const claimNonce = verified.payload.nonce;
     const expectedNonce = rawNonce;
-    if (claimNonce !== expectedNonce) {
+    if (!isNonceMatch(claimNonce, expectedNonce)) {
       throw new joseErrors.JWTClaimValidationFailed(
         "unexpected nonce",
         verified.payload,

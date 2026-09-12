@@ -267,4 +267,68 @@ describe("createOidcVerifier", () => {
       expect(jwtVerifyMock).toHaveBeenCalledTimes(2);
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // IN-01 (Phase 15 리뷰) — nonce 비교 상수 시간화.
+  //
+  // 타이밍 자체를 단위 테스트로 측정하는 것은 불안정하므로, 여기서는 **동치
+  // 판정이 바뀌지 않았는지** 와 비-string claim 이 안전하게 거부되는지를
+  // 잠근다 (timingSafeEqual 은 길이가 다르면 throw 하므로 길이 선검사 누락은
+  // 즉시 RED 가 된다).
+  // ---------------------------------------------------------------------------
+  it("IN-01: claim.nonce 가 비-string 이면 안전하게 거부한다", async () => {
+    const verify = createOidcVerifier({
+      issuer: "https://kauth.kakao.com",
+      jwksUrl: "https://kauth.kakao.com/.well-known/jwks.json",
+      audience: () => "aud",
+      algorithms: ["RS256"],
+      nonceHashing: "none",
+    });
+    (jose.jwtVerify as unknown as jest.Mock).mockResolvedValueOnce({
+      payload: {sub: "s", nonce: {evil: true}},
+    });
+
+    await expect(verify("JWT", "raw-nonce")).rejects.toBeInstanceOf(
+      jose.errors.JWTClaimValidationFailed as unknown as new () => Error,
+    );
+  });
+
+  it("IN-01: 길이가 다른 nonce 는 throw 없이 거부된다", async () => {
+    // timingSafeEqual 은 길이 불일치 시 RangeError 를 던진다 — 길이 선검사가
+    // 빠지면 본 케이스가 JWTClaimValidationFailed 가 아니라 RangeError 로
+    // 실패한다.
+    const verify = createOidcVerifier({
+      issuer: "https://kauth.kakao.com",
+      jwksUrl: "https://kauth.kakao.com/.well-known/jwks.json",
+      audience: () => "aud",
+      algorithms: ["RS256"],
+      nonceHashing: "none",
+    });
+    (jose.jwtVerify as unknown as jest.Mock).mockResolvedValueOnce({
+      payload: {sub: "s", nonce: "short"},
+    });
+
+    await expect(
+      verify("JWT", "a-much-longer-raw-nonce-value"),
+    ).rejects.toBeInstanceOf(
+      jose.errors.JWTClaimValidationFailed as unknown as new () => Error,
+    );
+  });
+
+  it("IN-01: 같은 nonce 는 여전히 통과한다 (동치 판정 회귀 0)", async () => {
+    const verify = createOidcVerifier({
+      issuer: "https://kauth.kakao.com",
+      jwksUrl: "https://kauth.kakao.com/.well-known/jwks.json",
+      audience: () => "aud",
+      algorithms: ["RS256"],
+      nonceHashing: "none",
+    });
+    (jose.jwtVerify as unknown as jest.Mock).mockResolvedValueOnce({
+      payload: {sub: "s", nonce: "same-nonce-값-멀티바이트"},
+    });
+
+    await expect(verify("JWT", "same-nonce-값-멀티바이트")).resolves.toMatchObject(
+      {sub: "s"},
+    );
+  });
 });
