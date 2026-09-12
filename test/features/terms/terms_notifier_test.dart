@@ -43,6 +43,37 @@ class _WriteFailingPrefsStore extends SharedPreferencesStorePlatform {
   }
 }
 
+/// 삭제만 실패하는 SharedPreferences 스토어 (10-REVIEW CR-03 회귀 재현용).
+///
+/// 바로 위 `_WriteFailingPrefsStore` 와의 차이: 그쪽은 `setValue` 만 던지므로
+/// `prefs.remove` 를 쓰는 catch 분기(로그아웃 clear / reset)에서는 catch 가
+/// 아예 발동하지 않는다. 이 스토어는 반대로 **삭제만** 실패시켜 그 분기를
+/// 정확히 겨냥한다. 던지는 값은 Error 계열이어야 한다 — `Exception` 을 던지면
+/// CR-03 확장 이전의 `on Exception` 지정자에도 잡혀 회귀가 드러나지 않는다.
+class _RemoveFailingPrefsStore extends SharedPreferencesStorePlatform {
+  final Map<String, Object> _values = <String, Object>{};
+
+  @override
+  Future<bool> clear() async {
+    _values.clear();
+    return true;
+  }
+
+  @override
+  Future<Map<String, Object>> getAll() async => Map<String, Object>.of(_values);
+
+  @override
+  Future<bool> remove(String key) async {
+    throw StateError('prefs remove failed (CR-03 회귀 재현)');
+  }
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    _values[key] = value;
+    return true;
+  }
+}
+
 class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 class _MockFirestore extends Mock implements FirebaseFirestore {}
@@ -405,6 +436,47 @@ void main() {
       },
     );
 
+    test('T4 (10-REVIEW CR-03 쓰기 경로): reset() 의 prefs 삭제가 Error 계열로 '
+        '실패해도 throw 없이 종료하고 telemetry 만 남긴다', () async {
+      // 확장 이전 지정자(`on Exception`)에서는 StateError 가 흡수되지 않고
+      // 밖으로 새어 Dev Tools 초기화가 unhandled 로 터졌다.
+      SharedPreferences.setMockInitialValues({});
+      final originalStore = SharedPreferencesStorePlatform.instance;
+      SharedPreferencesStorePlatform.instance = _RemoveFailingPrefsStore();
+      SharedPreferences.resetStatic();
+      addTearDown(() {
+        SharedPreferencesStorePlatform.instance = originalStore;
+        SharedPreferences.resetStatic();
+      });
+
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      // 이 스토어는 setValue 가 성공하므로 seed 는 정상 저장된다.
+      final seed = await notifier.accept(
+        service: true,
+        privacy: true,
+        marketing: true,
+      );
+      expect(seed, isA<Success<void>>());
+      expect(container.read(termsProvider), isNotNull);
+
+      await notifier.reset();
+
+      // 삭제 실패 여부를 prefs.get* 로 단언하지 않는다 — SharedPreferences
+      // 는 `_store.remove` 호출 전에 캐시를 먼저 비우므로 성공/실패 양쪽에서
+      // null 이 나오는 self-satisfying 단언이 된다.
+      expect(container.read(termsProvider), isNull);
+      expect(notifier.acceptanceSnapshot, isNull);
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'terms_reset',
+        ),
+      ).called(1);
+    });
+
     test('Test 9c (Issue #7 D-1 Plan 10-11): mirrorToFirestore(state=null) → '
         'Result.success(null) no-op + Firestore.collection 미호출 '
         '(mirror→reload 직렬화 체인 noise 제거)', () async {
@@ -674,6 +746,56 @@ void main() {
         );
       },
     );
+
+    test('T3 (10-REVIEW CR-03 쓰기 경로): 로그아웃 분기의 prefs 삭제가 Error 계열로 '
+        '실패해도 throw 없이 상태 초기화를 끝까지 완료한다', () async {
+      // 확장 이전 지정자(`on Exception`)에서는 StateError 가 흡수되지 않고
+      // 밖으로 새어 authUserObserver 의 로그아웃 처리가 중단됐다.
+      SharedPreferences.setMockInitialValues({});
+      final originalStore = SharedPreferencesStorePlatform.instance;
+      SharedPreferencesStorePlatform.instance = _RemoveFailingPrefsStore();
+      SharedPreferences.resetStatic();
+      addTearDown(() {
+        SharedPreferencesStorePlatform.instance = originalStore;
+        SharedPreferences.resetStatic();
+      });
+
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      // 정식 사용자 진입 — 기본 stub 이 exists=false 라 prefs I/O 없이
+      // lastReloadedUid 만 갱신된다.
+      await notifier.reloadForUser(uid: 'FULL-B', isAnonymous: false);
+      expect(notifier.lastReloadedUid, 'FULL-B');
+
+      // 이 스토어는 setValue 가 성공하므로 seed 는 정상 저장된다.
+      final seed = await notifier.accept(
+        service: true,
+        privacy: true,
+        marketing: true,
+      );
+      expect(seed, isA<Success<void>>());
+
+      await notifier.reloadForUser(uid: null);
+
+      // 삭제 실패 여부를 prefs.get* 로 단언하지 않는다 — SharedPreferences
+      // 는 `_store.remove` 호출 전에 캐시를 먼저 비우므로 성공/실패 양쪽에서
+      // null 이 나오는 self-satisfying 단언이 된다.
+      expect(container.read(termsProvider), isNull);
+      expect(notifier.acceptanceSnapshot, isNull);
+      expect(
+        notifier.lastReloadedUid,
+        isNull,
+        reason: 'catch 이후 코드가 계속 실행됐다는 증거',
+      );
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'terms_logout_prefs_clear',
+        ),
+      ).called(1);
+    });
   });
 
   group('TermsNotifier.acceptanceSnapshotJson (CR-01)', () {
