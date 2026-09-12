@@ -175,13 +175,26 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
     // 자동 강제 (default arm 미사용 → union type 누락 시 컴파일 에러).
     switch (resolution.conflictKind) {
     case "email_in_use":
-      // !callerUid path 의 createUser auth/email-already-in-use rejection 으로
-      // helper 가 detect. LINE D-LINE-21 (email scope 미채택) 라 자체 trigger
-      // 가능성은 0 이지만 Phase 9.2 Gap B (callerUid + userInfo.email) path 와
-      // 정책 일관성 확보 — caller switch 분기 항상 보존.
+      // **IN-06 (Phase 15 리뷰) — 구조적으로 도달 불가 (unreachable).**
+      // LINE 는 scope 가 openid + profile 이라 `userInfo.email` 을 절대
+      // 설정하지 않는다 (D-LINE-21). `resolveIdentity` 가 `email_in_use` 를
+      // 반환하는 두 경로는 모두 email 을 전제한다 — (1) `callerUid &&
+      // userInfo?.email` 가드, (2) `createUser` 의 `auth/email-already-in-use`
+      // (email 인자 없으면 발생 불가).
+      //
+      // **arm 은 계약 보존용으로 유지한다.** exhaustive switch 가
+      // conflictKind union 변경을 컴파일 단계에서 강제하고, Phase 9.2 Gap B
+      // (callerUid + userInfo.email) path 와의 정책 일관성도 여기서 잠긴다.
+      // Phase 16 회귀 테스트가 이 arm 의 already-exists + details 계약을
+      // 명시적으로 검증하므로 동작을 바꾸지 않는다.
+      //
+      // **ops 주의:** 아래 `line_email_collision` 은 현재 scope 에서
+      // **절대 발화하지 않는다.** 대시보드/알람 지표로 채택하면 "충돌 0건"
+      // 이라는 잘못된 안심 신호가 된다. email scope 를 추가하는 시점에
+      // 비로소 유효한 지표가 된다.
       logger.warn(
         {event: "line_email_collision"},
-        "LINE email collides with existing account",
+        "LINE email collides with existing account (unreachable scope)",
       );
       // 16-13: existingProvider slug 를 details 로 전달 (client sheet 분기 wiring).
       throw buildAccountExistsError(resolution.existingProvider);

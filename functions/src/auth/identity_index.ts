@@ -415,7 +415,15 @@ export type IdentityResolution = {
 export async function resolveIdentity(
   db: Firestore,
   args: {
-    provider: string;
+    /**
+     * provider 슬러그. IN-07 (Phase 15 리뷰): 이전에는 `string` 이라서 본문
+     * 5곳에서 `ProviderId` 로 단언해야 했고, 오타 슬러그가 `existingProvider`
+     * → `HttpsError.details` → client 까지 흘러가 타입 시스템이 아니라
+     * client 의 `AccountProvider.tryParse` 가 처음으로 걸러냈다 (→ null →
+     * 일반 배너). 호출자 4곳 모두 리터럴을 넘기므로 시그니처를 좁히면 단언이
+     * 전부 사라진다.
+     */
+    provider: ProviderId;
     providerUserId: string;
     callerUid: string | undefined;
     /**
@@ -564,7 +572,7 @@ export async function resolveIdentity(
         // platform uid / email 본문 미노출.
         const existingProvider = mapProviderDataToProviderId(
           existingByEmail.providerData,
-          provider as ProviderId,
+          provider,
         );
         logger.warn(
           {
@@ -590,7 +598,7 @@ export async function resolveIdentity(
         const ctExistingProvider = await resolveCustomTokenExistingProvider(
           db,
           existingByEmail.uid,
-          provider as ProviderId,
+          provider,
           providerUserId,
         );
         if (ctExistingProvider) {
@@ -662,7 +670,7 @@ export async function resolveIdentity(
             );
             existingProvider = mapProviderDataToProviderId(
               existingByEmail.providerData,
-              provider as ProviderId,
+              provider,
             );
             // Plan 16-17 — native 매핑 실패('unknown') 시에만 Custom Token
             // 해석으로 fallback. 기존 계정이 Custom Token 이면 providerData 가
@@ -674,7 +682,7 @@ export async function resolveIdentity(
                 await resolveCustomTokenExistingProvider(
                   db,
                   existingByEmail.uid,
-                  provider as ProviderId,
+                  provider,
                   providerUserId,
                 );
               if (ctExistingProvider) existingProvider = ctExistingProvider;
@@ -750,7 +758,7 @@ export async function resolveIdentity(
           uid: existing.firebaseUid,
           isNewUser: false,
           conflictKind: "anonymous_existing_collision" as const,
-          existingProvider: provider as ProviderId,
+          existingProvider: provider,
         };
       }
       // 정상 path — existing 재사용 (callerUid 없음, callerUid===existing,

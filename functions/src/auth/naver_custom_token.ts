@@ -24,6 +24,20 @@ import {mirrorTermsAccepted} from "./mirror_terms";
 // 배포 전 의무: `firebase functions:secrets:set NAVER_CLIENT_SECRET`.
 // 본 Phase 13 단계에서 사용처 부재 (refresh / deauth 미사용 — Phase 17+ deferred)
 // 이지만 secret 정책 일관성 / 시스템 보안 권장으로 미리 등록 (D-60).
+//
+// **IN-02 (Phase 15 리뷰) — LINE 과 정반대 정책인 이유 (의도된 비대칭):**
+// 같은 "사용처 0건 secret" 상황에서 LINE 은 `LINE_CHANNEL_SECRET` 선언을
+// **제거** 했다 (shared/oidc_providers.ts 의 해당 선언부 주석 참조). 두
+// provider 의 결정이 갈린 이유는 운영자 부담의 비대칭이다.
+// - Naver: `docs/manual.md` 단계 8 이 이미 등록 절차를 안내하고 있고, Naver
+//   Developers 콘솔은 client secret 을 앱 생성과 동시에 발급하므로 운영자가
+//   추가로 얻어야 할 값이 없다 → forward-prep 유지 (D-60).
+// - LINE: 별도 채널 설정 화면에서 값을 찾아 1회성 더미 주입을 강제받는
+//   부담이 있어 "최소 설정으로 시작" 가치와 충돌 → 선언 제거.
+//
+// Phase 17+ 에서 deauth / refresh flow 를 도입할 때 **두 provider 를 함께**
+// 정렬한다 (그 시점에 LINE 은 재선언, Naver 는 실사용처 확보). 그 전까지 본
+// 선언을 단순 "미사용" 으로 보고 제거하지 말 것 — D-60 결정을 되돌리는 것이다.
 const NAVER_CLIENT_SECRET = defineSecret("NAVER_CLIENT_SECRET");
 
 // Phase 13 D-46 / D-47 — Naver REST 검증 endpoint.

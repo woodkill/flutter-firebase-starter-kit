@@ -2037,15 +2037,19 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
   // LINE / Yahoo!JP endpoint 는 scope 상 email claim 을 받지 않아
   // (D-LINE-21 / D-YJP-09) endpoint 테스트로는 이 truth 를 잠글 수 없다 —
   // helper 는 caller 종류와 무관하게 동일 규칙으로 동작함을 여기서 잠근다.
-  it.each([
+  // IN-07 (Phase 15 리뷰): resolveIdentity 의 provider 가 ProviderId 로
+  // 좁혀졌으므로 매트릭스 fixture 도 같은 union 으로 선언한다 — 오타 슬러그가
+  // 컴파일 단계에서 걸린다.
+  const matrix: Array<[ProviderId, ProviderId]> = [
     ["kakao", "naver"],
     ["naver", "kakao"],
     ["line", "kakao"],
     ["yahoojp", "naver"],
-  ])(
+  ];
+  it.each(matrix)(
     // eslint-disable-next-line max-len
     "T-16-17-09 (매트릭스): caller=%s + 기존 %s Custom Token 계정 → 그 slug 산출",
-    async (caller: string, existing: string) => {
+    async (caller: ProviderId, existing: ProviderId) => {
       mockGetUserByEmail.mockResolvedValueOnce({
         uid: `matrix-uid-${caller}`,
         providerData: [],

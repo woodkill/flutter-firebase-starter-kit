@@ -80,6 +80,22 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  * idToken / decoded.email / err.message 본문 절대 노출 금지
  * (Phase 12.1 D-40 PII regression sentinel mirror).
  *
+ * **삭제 범위 (IN-08, Phase 15 리뷰) — 확장 시 추가 의무:**
+ * 본 함수는 "hard delete" 를 표방하지만 실제 삭제 대상은 딱 둘이다.
+ * - `identity_index` 중 `firebaseUid == uid` 인 문서 전부
+ * - `users/{uid}` **문서 1건**
+ *
+ * 아래는 **삭제되지 않는다.**
+ * - `users/{uid}` 의 **서브컬렉션** — Firestore 특성상 부모 문서 삭제로
+ *   지워지지 않는다. 현재 스타터킷은 서브컬렉션을 쓰지 않아 실제 잔존
+ *   데이터가 없지만, 기능을 확장하면 조용히 고아 데이터가 남는다.
+ *   재귀 삭제가 필요하면 `firebase-tools` 의 recursiveDelete 패턴 또는
+ *   Firestore `bulkWriter` 기반 구현을 여기에 추가할 것.
+ * - **Cloud Storage 객체** (프로필 이미지 등) — 별도 삭제 경로가 필요하다.
+ *
+ * 스타터킷 사용자가 데이터 모델을 확장할 때 이 두 항목을 함께 갱신하지 않으면
+ * 탈퇴 후에도 개인정보가 남는다.
+ *
  * @param {{data: DeleteUserAccountRequest, auth?: {uid: string}}} request
  *     onCall request — data 의무, auth optional (Step 0 에서 검증).
  * @return {Promise<DeleteUserAccountResponse>} `{ok: true}` on success.
