@@ -1,7 +1,7 @@
 // Phase 13.2 REVIEW IN-04 정정 (2026-05-13): `dart:ui` 직접 import 폐기
 // → `package:flutter/widgets.dart` 의 Locale re-export 사용. Flutter
 // codebase 의 일관 패턴 (대다수 Flutter 코드가 widgets/material 경유
-// Locale 접근) 정합. 본 파일은 이미 `WidgetRef` 의존으로 Flutter 위제
+// Locale 접근) 정합. 본 파일은 이미 `WidgetRef` 의존으로 Flutter 위젯
 // layer 분리가 완전치 못하므로 widgets.dart 경유에 추가 비용 0.
 import 'package:flutter/widgets.dart' show Locale;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
