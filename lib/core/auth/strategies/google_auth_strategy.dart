@@ -21,8 +21,6 @@ class GoogleAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authGoogleSignIn';
 
-  @override
-  String get iconAsset => 'google';
 
   @override
   Future<void> signIn(WidgetRef ref) =>

@@ -1,9 +1,6 @@
-// Phase 13.2 REVIEW IN-04 정정 (2026-05-13): `dart:ui` 직접 import 폐기
-// → `package:flutter/widgets.dart` 의 Locale re-export 사용. Flutter
-// codebase 의 일관 패턴 (대다수 Flutter 코드가 widgets/material 경유
-// Locale 접근) 정합. 본 파일은 이미 `WidgetRef` 의존으로 Flutter 위젯
-// layer 분리가 완전치 못하므로 widgets.dart 경유에 추가 비용 0.
-import 'package:flutter/widgets.dart' show Locale;
+// IN-01 정정 (Phase 7 review): `Locale` import 폐기 — 유일한 소비처였던
+// `defaultPriorityFor(Locale)` 가 dead API 로 제거됐다 (SOCL-10 폐기).
+// 로케일별 우선순위를 재도입한다면 이 import 와 메서드를 함께 되살린다.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 소셜 로그인 Strategy — Provider 식별 + signIn delegation 책임만 보유
@@ -26,6 +23,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// `AsyncValue<void>` 만 노출하므로 Result 이중 진실을 회피한다. UI 는
 /// `ref.listen(googleSignInProvider, ...)` 등 Notifier 의 [AsyncValue] 로
 /// success/error 분기 (Phase 11-04 마이그레이션).
+///
+/// **IN-01 정정 (Phase 7 review) — dead API 2종 제거:** `iconAsset` 은
+/// production 참조 0건이었다 (실제 렌더는 `branded_social_button.dart` 의
+/// [BrandSpec] 분기가 단일 진실원). `defaultPriorityFor` 는 override 0건 +
+/// 호출 0건이었다 (SOCL-10 폐기). 두 멤버가 7 strategy + 7 테스트 파일에
+/// 반복 선언/검증되어 provider 추가 시마다 의미 없는 14파일 수정을
+/// 유발했으므로 제거했다. 로케일 우선순위 재도입 진입점은
+/// [activeStrategies] 문서에 있다.
 abstract class AuthStrategy {
   /// `const` 생성자 — 구현체는 모두 stateless / immutable.
   const AuthStrategy();
@@ -46,14 +51,6 @@ abstract class AuthStrategy {
   /// ARB 키 (예: `'authGoogleSignIn'`).
   String get labelKey;
 
-  /// 버튼 렌더링 식별자 (Phase 11-04 placeholder, Phase 13.2 이후 보존).
-  ///
-  /// 도메인 Strategy 의 식별 metadata 단독 — 실제 렌더링은
-  /// [BrandedSocialButton] 의 sealed [BrandSpec] 분기 + ProviderId 매핑이
-  /// 단일 진실원. 본 식별자는 미래 외부 SDK / dispatch hook 가능성을 위한
-  /// metadata 슬롯이며 현행 코드 path 에서 사용되지 않는다.
-  String get iconAsset;
-
   /// 로그인 실행 진입점.
   ///
   /// 위임 대상 Notifier 가 `AsyncValue<void>` 로 상태를 노출한다. UI 는
@@ -65,11 +62,4 @@ abstract class AuthStrategy {
   /// [WidgetRef] 를 받는다. Strategy 구현체는 `ref.read(...).signInWith...()`
   /// 위임만 수행하며, [WidgetRef] 의 `read` 가 충분하다.
   Future<void> signIn(WidgetRef ref);
-
-  /// 로케일별 기본 우선순위 — Phase 11 placeholder (D-13).
-  ///
-  /// 로케일별 우선순위 정책 (SOCL-10) 은 2026-05-22 Out of Scope 로 폐기됐다
-  /// (진실원 .planning/REQUIREMENTS.md Out of Scope) — 기본 구현을 그대로 쓴다.
-  /// 재도입 시 이 메서드를 override 하는 것이 진입점이다.
-  int defaultPriorityFor(Locale locale) => 0;
 }

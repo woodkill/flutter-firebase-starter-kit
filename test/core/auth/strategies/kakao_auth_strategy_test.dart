@@ -88,15 +88,6 @@ void main() {
     test('labelKey 는 authKakaoSignIn 이다', () {
       expect(strategy.labelKey, 'authKakaoSignIn');
     });
-
-    test('iconAsset 는 kakao 이다 (D-25)', () {
-      expect(strategy.iconAsset, 'kakao');
-    });
-
-    test('defaultPriorityFor 는 Phase 11 placeholder 0 을 반환한다', () {
-      expect(strategy.defaultPriorityFor(const Locale('en')), 0);
-      expect(strategy.defaultPriorityFor(const Locale('ko')), 0);
-    });
   });
 
   group('KakaoAuthStrategy — race-fix Pitfall 8 회귀 가드', () {

@@ -21,8 +21,6 @@ class FacebookAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authFacebookSignIn';
 
-  @override
-  String get iconAsset => 'facebook';
 
   @override
   Future<void> signIn(WidgetRef ref) =>

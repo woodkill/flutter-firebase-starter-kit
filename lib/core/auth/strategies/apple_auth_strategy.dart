@@ -21,8 +21,6 @@ class AppleAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authAppleSignIn';
 
-  @override
-  String get iconAsset => 'apple';
 
   @override
   Future<void> signIn(WidgetRef ref) =>

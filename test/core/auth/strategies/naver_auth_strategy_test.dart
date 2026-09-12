@@ -91,16 +91,6 @@ void main() {
     test('T-13-NAVER-STRATEGY-LABEL: labelKey = authNaverSignIn', () {
       expect(strategy.labelKey, 'authNaverSignIn');
     });
-
-    test('T-13-NAVER-STRATEGY-ICON: iconAsset = naver', () {
-      expect(strategy.iconAsset, 'naver');
-    });
-
-    test('T-13-NAVER-STRATEGY-PRIORITY: defaultPriorityFor 는 Phase 11 '
-        'placeholder 0 을 반환한다', () {
-      expect(strategy.defaultPriorityFor(const Locale('en')), 0);
-      expect(strategy.defaultPriorityFor(const Locale('ko')), 0);
-    });
   });
 
   group('NaverAuthStrategy — race-fix Pitfall 8 회귀 가드 '

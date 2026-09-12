@@ -45,7 +45,8 @@ const List<AuthStrategy> _allStrategies = <AuthStrategy>[
 /// (2) 호출자 전원이 의미 없는 `Localizations.localeOf(context)` 를 이
 /// 목적만으로 조회했으며 (3) 독자에게 "이 목록은 로케일에 따라 달라진다"
 /// 는 잘못된 신호를 줬다. **재도입 진입점:** 정책 부활 시 본 provider 를
-/// 다시 family 로 되돌리고 [AuthStrategy.defaultPriorityFor] 로 정렬한다.
+/// 다시 `Locale` family 로 되돌리고, [AuthStrategy] 에 로케일 우선순위
+/// 멤버를 다시 추가해 (IN-01 에서 제거된 `defaultPriorityFor`) 정렬한다.
 ///
 /// **Pitfall 5 (D-26 truth table 핵심):**
 /// | static | rc (or default) | result |

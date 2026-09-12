@@ -90,10 +90,6 @@ void main() {
     test('labelKey 는 authLineSignIn 이다', () {
       expect(strategy.labelKey, 'authLineSignIn');
     });
-
-    test('iconAsset 는 line 이다', () {
-      expect(strategy.iconAsset, 'line');
-    });
   });
 
   group('LineAuthStrategy — race-fix Pitfall 8 회귀 가드', () {

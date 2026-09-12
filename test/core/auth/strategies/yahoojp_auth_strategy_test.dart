@@ -91,10 +91,6 @@ void main() {
     test('labelKey 는 authYahoojpSignIn 이다', () {
       expect(strategy.labelKey, 'authYahoojpSignIn');
     });
-
-    test('iconAsset 는 yahoojp 이다', () {
-      expect(strategy.iconAsset, 'yahoojp');
-    });
   });
 
   group('YahoojpAuthStrategy — race-fix Pitfall 8 회귀 가드', () {

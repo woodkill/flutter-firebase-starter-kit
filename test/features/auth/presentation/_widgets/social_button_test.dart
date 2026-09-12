@@ -43,24 +43,17 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 // hierarchy 일관성 위해 `final class` 로 명시. AuthStrategy 의 sub-class 가
 // 본 fake 외 production strategy 들이라 final 명시가 의도 부합.
 final class _FakeStrategy extends AuthStrategy {
-  const _FakeStrategy(
-    this._providerId,
-    this._labelKey,
-    this._iconAsset, {
-    this.onSignIn,
-  }) : super();
+  const _FakeStrategy(this._providerId, this._labelKey, {this.onSignIn})
+    : super();
 
   final String _providerId;
   final String _labelKey;
-  final String _iconAsset;
   final Future<void> Function(WidgetRef ref)? onSignIn;
 
   @override
   String get providerId => _providerId;
   @override
   String get labelKey => _labelKey;
-  @override
-  String get iconAsset => _iconAsset;
 
   @override
   Future<void> signIn(WidgetRef ref) async {
@@ -107,11 +100,7 @@ void main() {
   group('SocialButton — provider 별 BrandedSocialButton 위임 (Plan 13.1-08)', () {
     testWidgets('Google 분기 → BrandedSocialButton.google '
         '(theme 분기 0 — Theme.brightness 자동 매핑, Phase 13.3 R1)', (tester) async {
-      const strategy = _FakeStrategy(
-        kProviderIdGoogle,
-        'authGoogleSignIn',
-        'google',
-      );
+      const strategy = _FakeStrategy(kProviderIdGoogle, 'authGoogleSignIn');
       await _pumpWithMobileViewport(
         tester,
         _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
@@ -134,11 +123,7 @@ void main() {
 
     testWidgets('Google 분기 (dark Theme) → BrandedSocialButton.google '
         '(Theme.brightness 자동 분기는 위제 내부 책임)', (tester) async {
-      const strategy = _FakeStrategy(
-        kProviderIdGoogle,
-        'authGoogleSignIn',
-        'google',
-      );
+      const strategy = _FakeStrategy(kProviderIdGoogle, 'authGoogleSignIn');
       await _pumpWithMobileViewport(
         tester,
         _wrap(
@@ -160,11 +145,7 @@ void main() {
         '(Phase 13.3 Wave 4 Step 2 — SDK 위제 폐기 + custom render SvgPicture)', (
       tester,
     ) async {
-      const strategy = _FakeStrategy(
-        kProviderIdApple,
-        'authAppleSignIn',
-        'apple',
-      );
+      const strategy = _FakeStrategy(kProviderIdApple, 'authAppleSignIn');
       await _pumpWithMobileViewport(
         tester,
         _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
@@ -187,11 +168,7 @@ void main() {
         '(Phase 13.3 Wave 4 Step 2 — SDK 위제 폐기 + Theme.brightness 자동 분기)', (
       tester,
     ) async {
-      const strategy = _FakeStrategy(
-        kProviderIdApple,
-        'authAppleSignIn',
-        'apple',
-      );
+      const strategy = _FakeStrategy(kProviderIdApple, 'authAppleSignIn');
       await _pumpWithMobileViewport(
         tester,
         _wrap(
@@ -236,7 +213,6 @@ void main() {
         const strategy = _FakeStrategy(
           kProviderIdFacebook,
           'authFacebookSignIn',
-          'facebook',
         );
         await _pumpWithMobileViewport(
           tester,
@@ -304,7 +280,6 @@ void main() {
         // 이후 unknown labelKey 시 inner throw 가 outer providerId throw
         // 를 mask 하는 silent drift 차단).
         'authGoogleSignIn',
-        'unknown',
       );
       // build 안에서 throw → flutter test framework 의 default error handler
       // 가 capture 후 [tester.takeException] 으로 surface 한다.
@@ -333,7 +308,6 @@ void main() {
         // 를 전달해 fail-loud 분기 (iter1 WR-06 fix) 가 trigger 됨.
         kProviderIdGoogle,
         'authUnknown',
-        'unknown',
       );
       await _pumpWithMobileViewport(
         tester,
@@ -357,7 +331,6 @@ void main() {
       final strategy = _FakeStrategy(
         kProviderIdGoogle,
         'authGoogleSignIn',
-        'google',
         onSignIn: (ref) async {
           signInCallCount += 1;
         },
@@ -383,7 +356,6 @@ void main() {
       final strategy = _FakeStrategy(
         kProviderIdGoogle,
         'authGoogleSignIn',
-        'google',
         onSignIn: (ref) async {
           signInCallCount += 1;
         },
@@ -414,11 +386,7 @@ void main() {
       'Kakao providerId → SignInButton 미사용 + KakaoSpec 위임 + InkWell 자식 '
       '[Phase 13.1 Gap-1 X2: Material 노란 배경 검증 폐기 — 자상 baked-in]',
       (tester) async {
-        const strategy = _FakeStrategy(
-          kProviderIdKakao,
-          'authKakaoSignIn',
-          'kakao',
-        );
+        const strategy = _FakeStrategy(kProviderIdKakao, 'authKakaoSignIn');
         await _pumpWithMobileViewport(
           tester,
           _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
@@ -448,11 +416,7 @@ void main() {
       'Kakao 라벨 — en 로케일에서 "Continue with Kakao" 표시 (D-29 ARB) '
       '[SKIPPED: Phase 13.1 Gap-1 X2 자상화로 라벨 layer 부재]',
       (tester) async {
-        const strategy = _FakeStrategy(
-          kProviderIdKakao,
-          'authKakaoSignIn',
-          'kakao',
-        );
+        const strategy = _FakeStrategy(kProviderIdKakao, 'authKakaoSignIn');
         await _pumpWithMobileViewport(
           tester,
           _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
@@ -469,11 +433,7 @@ void main() {
       'Kakao 라벨 — ko 로케일에서 "카카오 로그인" 표시 (D-29 ARB) '
       '[SKIPPED: Phase 13.1 Gap-1 X2 자상화로 라벨 layer 부재]',
       (tester) async {
-        const strategy = _FakeStrategy(
-          kProviderIdKakao,
-          'authKakaoSignIn',
-          'kakao',
-        );
+        const strategy = _FakeStrategy(kProviderIdKakao, 'authKakaoSignIn');
         await _pumpWithMobileViewport(
           tester,
           _wrap(
@@ -493,11 +453,7 @@ void main() {
         '(Phase 13.3 R2 — Universal Layout Pattern 자상 dispatch SVG)', (
       tester,
     ) async {
-      const strategy = _FakeStrategy(
-        kProviderIdKakao,
-        'authKakaoSignIn',
-        'kakao',
-      );
+      const strategy = _FakeStrategy(kProviderIdKakao, 'authKakaoSignIn');
       await _pumpWithMobileViewport(
         tester,
         _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
@@ -516,11 +472,7 @@ void main() {
     testWidgets('Kakao 분기 + isDisabled=true → InkWell.onTap == null (탭 무효)', (
       tester,
     ) async {
-      const strategy = _FakeStrategy(
-        kProviderIdKakao,
-        'authKakaoSignIn',
-        'kakao',
-      );
+      const strategy = _FakeStrategy(kProviderIdKakao, 'authKakaoSignIn');
       await _pumpWithMobileViewport(
         tester,
         _wrap(const SocialButton(strategy: strategy, isDisabled: true)),
@@ -547,7 +499,6 @@ void main() {
       final strategy = _FakeStrategy(
         kProviderIdKakao,
         'authKakaoSignIn',
-        'kakao',
         onSignIn: (ref) async {
           signInCallCount += 1;
         },
@@ -577,11 +528,7 @@ void main() {
   group('SocialButton Naver 분기 (Plan 13.1-08)', () {
     testWidgets('Naver 분기 → BrandedSocialButton.naver '
         '(Phase 13.3 R3 — BI 단일 그린 #03A94D 강제, theme 분기 0)', (tester) async {
-      const strategy = _FakeStrategy(
-        kProviderIdNaver,
-        'authNaverSignIn',
-        'naver',
-      );
+      const strategy = _FakeStrategy(kProviderIdNaver, 'authNaverSignIn');
       await _pumpWithMobileViewport(
         tester,
         _wrap(const SocialButton(strategy: strategy, isDisabled: false)),
@@ -604,11 +551,7 @@ void main() {
 
     testWidgets('Naver 분기 (dark Theme) → BrandedSocialButton.naver '
         '(Phase 13.3 R3 — BI 단일 그린 강제, dark Theme 영향 0)', (tester) async {
-      const strategy = _FakeStrategy(
-        kProviderIdNaver,
-        'authNaverSignIn',
-        'naver',
-      );
+      const strategy = _FakeStrategy(kProviderIdNaver, 'authNaverSignIn');
       await _pumpWithMobileViewport(
         tester,
         _wrap(
