@@ -58,7 +58,7 @@
  */
 // Phase 15 — see ROADMAP.md
 import {getAuth} from "firebase-admin/auth";
-import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import {defineSecret} from "firebase-functions/params";
@@ -71,6 +71,7 @@ import {
 } from "../shared/terms_acceptance_json";
 import {buildAccountExistsError} from "./account_exists_error";
 import {resolveIdentity} from "./identity_index";
+import {mirrorTermsAccepted} from "./mirror_terms";
 
 // Phase 15 D-YJP-03 — Secret Manager 주입.
 // 배포 전 의무:
@@ -287,38 +288,16 @@ export const yahoojpCustomToken = onCall<YahoojpCustomTokenRequest>(
     // multi-user invariant) 과 대칭인 서버측 가드다.
     if (termsSnapshot && isNewUser) {
       try {
-        await getFirestore()
-          .collection("users")
-          .doc(uid)
-          .set(
-            {
-              termsAccepted: {
-                version: termsSnapshot.version,
-                service: termsSnapshot.service,
-                privacy: termsSnapshot.privacy,
-                marketing: termsSnapshot.marketing,
-                acceptedAt: Timestamp.fromDate(
-                  new Date(termsSnapshot.acceptedAt),
-                ),
-              },
-            },
-            {merge: true},
-          );
-        logger.info(
-          {
-            event: "yahoojp_terms_acceptance_mirrored",
-            uid,
-            terms_mirrored: true,
-            version: termsSnapshot.version,
-          },
-          "terms acceptance mirrored",
-        );
-      } catch (err: unknown) {
-        const errCode = err instanceof Error ? err.name : "unknown";
-        logger.error(
-          {event: "yahoojp_terms_acceptance_mirror_failed", uid, code: errCode},
-          "terms acceptance mirror set merge threw",
-        );
+        // WR-07: write + 로깅은 공용 helper 단일 진실원 (5회 verbatim 복제
+        // 제거). 검증은 위의 parseTermsAcceptanceJson 이 이미 수행했다.
+        await mirrorTermsAccepted({
+          uid,
+          snapshot: termsSnapshot,
+          successEvent: "yahoojp_terms_acceptance_mirrored",
+          failureEvent: "yahoojp_terms_acceptance_mirror_failed",
+        });
+      } catch {
+        // helper 가 이미 PII-safe fingerprint 로 logger.error 를 남겼다.
         throw new HttpsError("internal", "errorUnknown");
       }
     }

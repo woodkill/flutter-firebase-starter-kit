@@ -15,12 +15,13 @@
 // acceptedAt: ISO 8601 string) 는 client 의 TermsAcceptance Freezed model
 // (lib/features/terms/domain/terms_acceptance.dart) 5 필드 verbatim mirror.
 // 변경 시 client toJson 출력과 server set payload 양쪽 동시 갱신 의무.
-import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
-import * as logger from "firebase-functions/logger";
 
-import {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
-import {fingerprintError} from "./identity_index";
+import {
+  TermsAcceptanceJson,
+  parseTermsAcceptanceJson,
+} from "../shared/terms_acceptance_json";
+import {mirrorTermsAccepted} from "./mirror_terms";
 
 type MirrorTermsAcceptanceSnapshotRequest = {
   /** TermsAcceptance 5 필드 snapshot. */
@@ -42,6 +43,19 @@ type MirrorTermsAcceptanceSnapshotResponse = {
  * **PII 금지 (T-16-NEW-07 mitigation)**: logger payload 는 `{event, uid}` 만.
  * snapshot 본문 / err.message 절대 노출 금지.
  *
+ * **입력 검증 정책 — fail-closed (CR-01, Phase 15 리뷰):** `TermsAcceptanceJson`
+ * 은 **컴파일타임 타입일 뿐**이고 callable arg 는 임의 JSON 이다. 이전 구현은
+ * `!snapshot` falsy 가드만 두어 `{snapshot: {}}` / `{acceptedAt: "not-a-date"}`
+ * 로 `HttpsError('internal')` 을 유발하거나, `{version: 999, service: false}`
+ * 로 필수 동의 없는 `termsAccepted` 를 기록해 client 의
+ * `restored.version >= currentVersion` 재동의 강제 로직을 무력화할 수 있었다.
+ * 이제 `parseTermsAcceptanceJson` 으로 5 키를 런타임 검증한다.
+ *
+ * 4 Custom Token endpoint 는 같은 검증 실패를 **fail-open** (필드 무시 +
+ * 로그인 계속) 으로 처리하지만, 본 callable 은 mirror 자체가 유일한 책임이라
+ * 조용히 성공을 반환하면 호출자가 기록되지 않은 동의를 기록됐다고 오인한다.
+ * 따라서 여기서는 `invalid-argument` 로 거부한다 (정책 분기는 의도적이다).
+ *
  * @param {{
  *   data: MirrorTermsAcceptanceSnapshotRequest,
  *   auth?: {uid: string},
@@ -58,47 +72,29 @@ export const mirrorTermsAcceptanceSnapshot = onCall<
       throw new HttpsError("unauthenticated", "errorUnauthenticated");
     }
     const callerUid = request.auth.uid;
-    const snapshot = request.data?.snapshot;
+    // CR-01: 런타임 검증 (fail-closed). 4 Custom Token endpoint 와 동일한
+    // `parseTermsAcceptanceJson` 계약을 적용해 5 키만 통과시킨다 — 계약 외
+    // 여분 키가 users/{uid}.termsAccepted 에 착지하지 않는다.
+    const snapshot = parseTermsAcceptanceJson(request.data?.snapshot);
     if (!snapshot) {
       throw new HttpsError("invalid-argument", "errorInvalidArgument");
     }
 
     // Step 1: Firestore atomic set merge — 5 필드 verbatim
-    // (Pitfall 4 schema drift 회피).
+    // (Pitfall 4 schema drift 회피). WR-07: write + 로깅은 공용 helper 단일
+    // 진실원 (이전에는 4 endpoint 의 다섯 번째 verbatim 사본이었다).
     try {
-      await getFirestore()
-        .collection("users")
-        .doc(callerUid)
-        .set(
-          {
-            termsAccepted: {
-              version: snapshot.version,
-              service: snapshot.service,
-              privacy: snapshot.privacy,
-              marketing: snapshot.marketing,
-              acceptedAt: Timestamp.fromDate(new Date(snapshot.acceptedAt)),
-            },
-          },
-          {merge: true},
-        );
-    } catch (err: unknown) {
-      // PII 금지 — snapshot 본문 미노출, code fingerprint 만.
-      const errCode = fingerprintError(err);
-      logger.error(
-        {
-          event: "mirror_terms_acceptance_snapshot_failed",
-          uid: callerUid,
-          code: errCode,
-        },
-        "set merge threw",
-      );
+      await mirrorTermsAccepted({
+        uid: callerUid,
+        snapshot,
+        successEvent: "mirror_terms_acceptance_snapshot_done",
+        failureEvent: "mirror_terms_acceptance_snapshot_failed",
+      });
+    } catch {
+      // helper 가 이미 PII-safe fingerprint 로 logger.error 를 남겼다.
       throw new HttpsError("internal", "errorUnknown");
     }
 
-    logger.info(
-      {event: "mirror_terms_acceptance_snapshot_done", uid: callerUid},
-      "terms mirrored",
-    );
     return {ok: true};
   },
 );
