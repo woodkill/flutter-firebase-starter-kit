@@ -10,11 +10,21 @@ import 'package:intl/intl.dart';
 /// 로케일 변경 지점에서 `Intl.defaultLocale` 을 직접 설정하면 된다).
 ///
 /// **[locale] 계약.** intl 이 아는 로케일 코드여야 한다 ('ko', 'en_GB' 등).
-/// 알 수 없는 코드는 intl 이 [ArgumentError] 를 던지며, 이 확장들은 `build()`
-/// 안에서 호출되므로 그대로 화면 파손이 된다. 따라서 사용자 입력이나 서버
-/// 응답을 그대로 넘기지 말고 `AppLocalizations.supportedLocales` 파생값만
-/// 전달할 것. 지역 코드(`en_GB`)도 유효하므로, 지역까지 반영하려면 호출부에서
-/// `languageCode` 대신 `Intl.canonicalizedLocale(locale.toString())` 을 쓴다.
+/// 알 수 없는 코드는 intl 이 [ArgumentError] 를 던지며(실측: `Invalid locale
+/// "xx"`), 이 확장들은 `build()` 안에서 호출되므로 그대로 화면 파손이 된다.
+/// 따라서 사용자 입력이나 서버 응답을 그대로 넘기지 말고
+/// `AppLocalizations.supportedLocales` 파생값만 전달할 것. 지역 코드(`en_GB`)도
+/// 유효하므로, 지역까지 반영하려면 호출부에서 `languageCode` 대신
+/// `Intl.canonicalizedLocale(locale.toString())` 을 쓴다.
+///
+/// **선행조건 — date symbol 로드.** 실패는 입력값만의 함수가 아니다. date
+/// symbol 이 로드돼 있지 않으면 `'ko'` 처럼 완전히 유효한 코드도
+/// `LocaleDataException`(=[ArgumentError] 가 아니다) 으로 죽는다. 앱 실행
+/// 경로에서는 `AppLocalizations.localizationsDelegates` 의
+/// `GlobalMaterialLocalizations.delegate` 가 자동으로 로드하지만, 위젯 트리
+/// 밖(순수 유닛 테스트·isolate·백그라운드 작업)에는 그 구제가 없다. 호출자가
+/// `initializeDateFormatting()` 을 먼저 await 할 것 — `bootstrap()` 의 초기화는
+/// 실패를 의도적으로 삼키므로 보장이 아니다.
 extension DateTimeFormatX on DateTime {
   /// 연-월-일 포맷.
   ///
@@ -53,9 +63,11 @@ extension DateTimeFormatX on DateTime {
 /// 킷은 [Intl.defaultLocale] 을 설정하지 않으므로, **생략하면 intl
 /// 기본값(`en_US`)으로 포맷된다** — 앱 로케일을 따르려면 명시 전달할 것.
 ///
-/// **[locale] 계약.** [DateTimeFormatX] 와 동일하다 — 알 수 없는 코드는
+/// **[locale] 계약.** 알 수 없는 코드는 [DateTimeFormatX] 와 동일하게
 /// [ArgumentError] 로 죽으므로 `AppLocalizations.supportedLocales` 파생값만
-/// 전달할 것.
+/// 전달할 것. 단 **date symbol 선행조건은 없다** — `NumberFormat` 계열은
+/// `initializeDateFormatting()` 없이도 동작한다(실측: 미초기화 상태에서
+/// `1234.formatCompact('ko')` → `1.23천`). 두 확장의 선행조건은 다르다.
 extension NumberFormatX on num {
   /// 간결한 숫자 포맷.
   ///
