@@ -26,6 +26,8 @@ class DangerZoneSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
+    // WR-07: appTypography 가 AppTypography override 를 반영하는 유일한 경로.
+    final typography = context.appTypography;
     final errorColor = context.colorScheme.error;
 
     return Column(
@@ -42,14 +44,14 @@ class DangerZoneSection extends StatelessWidget {
             l10n.settingsDangerZoneSection,
             // Layout Contract Surface B verbatim — role 자체가 이미
             // Medium weight 라 별도 override 를 두지 않는다.
-            style: context.textTheme.labelMedium?.copyWith(color: errorColor),
+            style: typography.labelMedium.copyWith(color: errorColor),
           ),
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(spacing.lg, 0, spacing.lg, spacing.sm),
           child: Text(
             l10n.settingsDangerZoneExplainer,
-            style: context.textTheme.bodyMedium?.copyWith(
+            style: typography.bodyMedium.copyWith(
               color: context.colorScheme.onSurfaceVariant,
             ),
           ),
@@ -70,7 +72,7 @@ class DangerZoneSection extends StatelessWidget {
             leading: Icon(Icons.delete_forever, color: errorColor),
             title: Text(
               l10n.settingsWithdrawalLabel,
-              style: context.textTheme.titleMedium?.copyWith(color: errorColor),
+              style: typography.titleMedium.copyWith(color: errorColor),
             ),
             // chevron 은 Settings list item 공통 accent 대상 (UI-SPEC 의
             // accent 화이트리스트 첫 항목) — destructive 강조는 leading

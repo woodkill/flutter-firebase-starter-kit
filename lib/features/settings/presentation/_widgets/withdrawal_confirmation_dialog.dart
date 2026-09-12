@@ -95,6 +95,8 @@ class _WithdrawalConfirmationDialogState
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
+    // WR-07: appTypography 가 AppTypography override 를 반영하는 유일한 경로.
+    final typography = context.appTypography;
     final errorColor = context.colorScheme.error;
     final state = ref.watch(settingsProvider);
     final isLoading = state.isLoading;
@@ -143,21 +145,18 @@ class _WithdrawalConfirmationDialogState
       child: AlertDialog(
         title: Text(
           l10n.withdrawalDialogTitle,
-          style: context.textTheme.titleLarge?.copyWith(color: errorColor),
+          style: typography.titleLarge.copyWith(color: errorColor),
         ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                l10n.withdrawalDialogBodyLine1,
-                style: context.textTheme.bodyLarge,
-              ),
+              Text(l10n.withdrawalDialogBodyLine1, style: typography.bodyLarge),
               Gap(spacing.sm),
               Text(
                 l10n.withdrawalDialogBodyLine2,
-                style: context.textTheme.bodyLarge?.copyWith(
+                style: typography.bodyLarge.copyWith(
                   color: errorColor,
                   fontWeight: FontWeight.w500,
                 ),
@@ -165,7 +164,7 @@ class _WithdrawalConfirmationDialogState
               Gap(spacing.sm),
               Text(
                 l10n.withdrawalDialogBodyLine3,
-                style: context.textTheme.bodyMedium?.copyWith(
+                style: typography.bodyMedium.copyWith(
                   color: context.colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -174,7 +173,7 @@ class _WithdrawalConfirmationDialogState
                 l10n.withdrawalConfirmFieldLabel(
                   l10n.withdrawalConfirmFieldHint,
                 ),
-                style: context.textTheme.bodyMedium,
+                style: typography.bodyMedium,
               ),
               Gap(spacing.sm),
               TextField(

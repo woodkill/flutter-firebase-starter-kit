@@ -34,6 +34,9 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
+    // WR-07: textTheme 은 AppTypography extension override 를 반영하지 않는다
+    // — 스타터킷 사용자가 타이포를 교체하면 Settings 계열만 drift 한다.
+    final typography = context.appTypography;
     final user = ref.watch(currentUserProvider);
 
     final email = user?.email ?? '-';
@@ -64,7 +67,7 @@ class SettingsScreen extends ConsumerWidget {
                 l10n.settingsAccountSection,
                 // UI-SPEC Layout Contract verbatim — accent 토큰은 chevron
                 // 전용 화이트리스트라 heading 에서 걷어냈다.
-                style: context.textTheme.labelMedium?.copyWith(
+                style: typography.labelMedium.copyWith(
                   color: context.colorScheme.onSurfaceVariant,
                 ),
               ),

@@ -64,6 +64,8 @@ class AccountLinkingSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
+    // WR-07: appTypography 가 AppTypography override 를 반영하는 유일한 경로.
+    final typography = context.appTypography;
 
     // (1) 이미 link 된 소셜 provider set (본인 linkedProviders 기반).
     final user = ref.watch(currentUserProvider);
@@ -105,7 +107,7 @@ class AccountLinkingSection extends ConsumerWidget {
                 l10n.settingsAccountLinkingSection,
                 // settings_screen.dart heading 과 동일 role·색 (accent 토큰
                 // 미사용 — UI-SPEC Layout Contract Surface D).
-                style: context.textTheme.labelMedium?.copyWith(
+                style: typography.labelMedium.copyWith(
                   color: context.colorScheme.onSurfaceVariant,
                 ),
               ),
