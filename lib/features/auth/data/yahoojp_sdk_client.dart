@@ -9,8 +9,9 @@
 // 2. 사용자 취소 예외 타입: PlatformException 'CANCEL'/'AUTHENTICATION_CANCELLED'
 //    → FlutterAppAuthUserCancelledException (flutter_appauth 단일 예외 타입)
 // 3. endSession 시그니쳐: LineSDK.logout() → flutter_appauth.endSession(
-//    EndSessionRequest) — D-YJP-08 (endSession endpoint 미명시 시 graceful
-//    no-op, idTokenHint/postLogoutRedirectUrl 모두 null 로 호출)
+//    EndSessionRequest) — D-YJP-08. **단 Yahoo!JP 는 endSession endpoint 를
+//    공개하지 않아 [YahoojpSdkClient.logout] 은 구조적 no-op 이며 LINE 의
+//    실효 토큰 폐기와 동등하지 않다 (WR-03 정정).**
 // 4. clientId ctor 주입: LINE 은 LineSDK.instance.setup native config 사용 →
 //    Yahoo!JP 는 [AppConfig.yahoojpClientId] 를 SdkClient 생성자에 주입
 //    (LineSDK 의 global singleton 와 달리 [FlutterAppAuth] 는 stateless
@@ -122,6 +123,12 @@ const AuthorizationServiceConfiguration _yahoojpServiceConfig =
 ///
 /// **clientId.isEmpty 시 [ServiceUnavailable] throw (T-15-15 mitigation):**
 /// `--dart-define-from-file` 미주입 시 silent failure 회피.
+///
+/// **토큰 폐기 미지원 (WR-03 — Phase 7 review 정정):** Yahoo!JP 는
+/// RP-Initiated Logout endpoint 를 공개하지 않으므로 [logout] 은 구조적
+/// no-op 이다. Kakao / LINE / Naver 가 만족하는 "1회성 토큰 즉시 폐기"
+/// (D-57 계열) invariant 를 본 provider 는 **만족하지 못한다** — 상세는
+/// [logout] 문서 참조.
 class YahoojpSdkClient {
   /// production 진입점 — 실제 flutter_appauth 호출.
   ///
@@ -209,23 +216,44 @@ class YahoojpSdkClient {
     }
   }
 
-  /// SDK endSession — D-YJP-08 1회성 토큰 정책 (Phase 14 D-LINE-57 mirror).
+  /// SDK endSession — **현재는 구조적 no-op** (WR-03, Phase 7 review 정정).
   ///
   /// `AuthRepository.signInWithYahoojp` 의 finally 블록 (race-fix end 직전 —
   /// Pitfall 2) 에서 호출한다.
   ///
-  /// **D-YJP-08 (Yahoo!JP endSession endpoint 미명시):** [_yahoojpServiceConfig]
-  /// 의 `endSessionEndpoint = null` 이므로 flutter_appauth 가
-  /// `PlatformException` / `MissingArgumentError` throw 가능 → graceful
-  /// try-catch 가 흡수. outer 흐름 차단 안 함 (T-15-14 mitigation —
-  /// DoS / 무한 retry 방지).
+  /// **미지원 명시 (WR-03 — D-YJP-08 의 실효 범위 정정):** Yahoo!JP 는
+  /// RP-Initiated Logout endpoint 를 공개하지 않는다 ([_yahoojpServiceConfig]
+  /// 의 `endSessionEndpoint = null` — D-YJP-03/05 verbatim). 따라서
+  /// **client-side 토큰 폐기는 수행되지 않으며**, 본 메서드는 Kakao
+  /// (`UserApi.instance.logout`) / LINE (`LineSDK.logout`) / Naver
+  /// (`NaverLoginSDK.logout`) 의 D-57 invariant 와 **동등하지 않다**.
+  /// Yahoo!JP 세션·토큰은 디바이스에 남으며, 호출 대칭성 유지와 미래
+  /// endpoint 공개 대비를 위해 메서드 자체는 보존한다.
+  ///
+  /// 이전 구현은 `endSessionEndpoint = null` 인 config 로 그대로 `endSession`
+  /// 을 호출해 **매번 예외를 발생시키고 graceful catch 가 삼키는** 구조였다.
+  /// 성공할 수 없는 platform-channel 왕복이므로 endpoint 부재를 선행 분기로
+  /// 명시해 no-op 임을 코드에 드러낸다.
+  ///
+  /// **재도입 진입점:** Yahoo!JP 가 endSession endpoint 를 공개하면
+  /// [_yahoojpServiceConfig] 의 `endSessionEndpoint` 만 채우면 아래 분기가
+  /// 자동으로 실효 폐기로 전환된다 — 호출부 변경 0.
   ///
   /// **idTokenHint + postLogoutRedirectUrl 모두 null (D-YJP-08):**
   /// [EndSessionRequest] 의 assertion `(idTokenHint==null &&
   /// postLogoutRedirectUrl==null) || (둘 다 non-null)` 를 충족하기 위해 둘 다
-  /// null 로 호출. Yahoo!JP 가 endSession 을 실제 호출해도 idToken hint 가
-  /// 필요 없음 (best-effort logout).
+  /// null 로 호출 (best-effort logout).
   Future<void> logout() async {
+    // WR-03: endpoint 부재 = 폐기 불가. 도달 불가능한 호출을 생략한다.
+    if (_yahoojpServiceConfig.endSessionEndpoint == null) {
+      if (kDebugMode) {
+        debugPrint(
+          'YahoojpSdkClient.logout: endSessionEndpoint 미공개 — no-op '
+          '(WR-03: D-57 토큰 폐기 invariant 미지원 provider)',
+        );
+      }
+      return;
+    }
     try {
       await _endSession(
         EndSessionRequest(

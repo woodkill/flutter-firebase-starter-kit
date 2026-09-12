@@ -1476,10 +1476,13 @@ class AuthRepository {
   /// 로 감싸 진입 직후 [SocialLinkInProgress.begin] / 종료 시
   /// [SocialLinkInProgress.end] 호출. Strategy 단계 추가 호출 절대 금지.
   ///
-  /// **D-YJP-08 1회성 토큰 정책 (Phase 14 D-LINE-57 mirror):** 모든 path 에서
-  /// finally logout — 성공 / cancel / error / timeout 모두 일관. SDK 가
-  /// endSession endpoint 미명시이므로 [YahoojpSdkClient.logout] 내부
-  /// try/catch 가 PlatformException 을 silent 흡수 (T-15-14 mitigation).
+  /// **D-YJP-08 호출 대칭성 — 단 토큰 폐기는 미지원 (WR-03 정정):** 모든
+  /// path 에서 finally logout 을 호출하는 **호출 형태** 만 Kakao / Naver /
+  /// LINE 과 같다. Yahoo!JP 는 RP-Initiated Logout endpoint 를 공개하지
+  /// 않아 [YahoojpSdkClient.logout] 이 구조적 no-op 이므로 **실제 토큰
+  /// 폐기는 일어나지 않는다** — 본 provider 는 D-57 계열 invariant 를
+  /// 만족하지 못한다. 상세와 재도입 진입점은 [YahoojpSdkClient.logout] 문서
+  /// 참조.
   ///
   /// **D-YJP-09 정정 lock — email scope 미채택:** Yahoo!JP UserInfo API 審査
   /// 절차 회피를 위해 scope openid+profile 만 채택. Firebase Auth user record
@@ -1540,9 +1543,9 @@ class AuthRepository {
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
-      // D-YJP-08: SDK endSession 1회성 정책 (Phase 14 D-LINE-57 mirror).
-      // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (YahoojpSdkClient.
-      // logout 내부 try/catch) — outer 흐름 차단 안 함 (T-15-14 mitigation).
+      // D-YJP-08: 호출 대칭성만 유지 — WR-03 정정. Yahoo!JP 는 endSession
+      // endpoint 미공개로 logout() 이 구조적 no-op 이며 Kakao/Naver/LINE 의
+      // 실효 토큰 폐기와 동등하지 않다. Pitfall 2 — race-fix end 직전 위치.
       await _yahoojpSdkClient.logout();
       _socialLinkInProgress.end();
     }
@@ -1901,7 +1904,8 @@ class AuthRepository {
         debugPrint('LineSdkClient.logout() 실패 (무시): $e\n$st');
       }
     }
-    // Yahoo!JP SDK 세션 해제 (Phase 15 D-YJP-08 — Kakao/Naver/LINE 패턴 일관).
+    // Yahoo!JP — 호출 형태만 Kakao/Naver/LINE 과 일관 (Phase 15 D-YJP-08).
+    // WR-03: endSession endpoint 미공개로 실제 세션 해제는 일어나지 않는다.
     try {
       await _yahoojpSdkClient.logout();
     } on Object catch (e, st) {

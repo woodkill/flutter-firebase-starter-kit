@@ -220,10 +220,15 @@ void main() {
   });
 
   // ==========================================================================
-  // Test 7-8: logout — D-YJP-08 1회성 토큰 + graceful (Phase 14 D-LINE-57 mirror)
+  // Test 7-8: logout — WR-03 정정. Yahoo!JP 는 RP-Initiated Logout endpoint 를
+  // 공개하지 않으므로 logout() 은 구조적 no-op 이며 Kakao/LINE/Naver 의 D-57
+  // 실효 토큰 폐기와 동등하지 않다. 이전 계약 ("endSession 정확히 1회 호출")
+  // 은 `endSessionEndpoint = null` config 때문에 매번 예외로 끝나는, 성공할 수
+  // 없는 호출이었다.
   // ==========================================================================
-  group('YahoojpSdkClient.logout — D-YJP-08 1회성 토큰 + graceful', () {
-    test('Test 7: logout() 호출 시 _endSession fake 정확히 1회 호출', () async {
+  group('YahoojpSdkClient.logout — WR-03 구조적 no-op + graceful', () {
+    test('Test 7 (WR-03): endSessionEndpoint 미공개 → _endSession 호출 0건 '
+        '(도달 불가능한 platform 왕복 제거)', () async {
       var endSessionCallCount = 0;
       final client = YahoojpSdkClient.forTest(
         clientId: 'test-client-id',
@@ -239,12 +244,11 @@ void main() {
 
       await client.logout();
 
-      expect(endSessionCallCount, 1);
+      expect(endSessionCallCount, 0);
     });
 
-    test('Test 8: _endSession throw 해도 logout() 가 silent swallow (graceful) — '
-        'D-YJP-08 endSession endpoint 미명시 시 PlatformException 흡수 '
-        '(T-15-14 mitigation)', () async {
+    test('Test 8: logout() 은 어떤 경우에도 throw 하지 않는다 (graceful) — '
+        'finally 블록의 outer 흐름 차단 0 (T-15-14 mitigation)', () async {
       final client = YahoojpSdkClient.forTest(
         clientId: 'test-client-id',
         redirectUrl: 'com.example.app:/oauth2redirect',
