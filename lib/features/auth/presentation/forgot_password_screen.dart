@@ -72,9 +72,16 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     await ref
         .read(forgotPasswordProvider.notifier)
         .submit(email: _emailController.text.trim());
-    // defense-in-depth: await 후 setState/context 호출이 추가될 경우를
-    // 대비해 mounted 가드를 미리 배치한다 (WR-02).
-    if (!mounted) return;
+    // 본 메서드의 state 전이 (성공 시 `_onSuccess`, 실패 시 `_bannerError`
+    // 갱신) 는 build() 안 ref.listen<AsyncValue<void>>(forgotPasswordProvider)
+    // 가 담당하므로 await 후 setState / context 호출 미필요.
+    //
+    // 만약 향후 post-await 액션 (setState / context.go / context.push 등) 을
+    // 추가한다면 그 줄 바로 위에 `if (!mounted) return;` 가드를 새로 배치할
+    // 것 — 본 위치에 mounted 가드를 미리 두는 dead-defense 패턴은
+    // use_build_context_synchronously 린트 가 새 가드 누락을 감지할 수 있도록
+    // 의도적으로 제거 (16.1-REVIEW IN-02 — email_login_screen.dart 가 이미
+    // 문서화한 규약을 본 파일에도 일치시킨다).
   }
 
   /// 성공 응답 수신 시 inline 메시지를 표시하고 2 초 후 자동 pop 한다.
