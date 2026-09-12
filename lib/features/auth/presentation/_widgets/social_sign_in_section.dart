@@ -82,15 +82,27 @@ class SocialSignInSection extends ConsumerWidget {
       children: <Widget>[
         for (var i = 0; i < strategies.length; i++) ...[
           if (i > 0) Gap(spacing.sm),
-          // IN-05 (Phase 09 review): providerId 기반 ValueKey 필수.
+          // IN-05 (Phase 09 review): 동적 목록이므로 Key 필수.
           // [activeStrategiesProvider] 는 Remote Config kill switch 에 따라
           // **런타임에 원소가 빠질 수 있는** 목록이다. Key 가 없으면 Flutter
-          // 가 타입+인덱스로 element 를 재사용하므로, 중간 원소가 제거될 때
+          // 가 타입+인덱스로 element 를 재사용하므로, 중간 원소가 제거되면
           // 이전 provider 버튼의 내부 상태(BrandFocusWrapper 의 focus 등)를
           // 다른 provider 버튼이 물려받는다.
           // `.claude/rules/flutter.md` 의 "동적 위젯 교체 시 Key 명시" 규약.
+          //
+          // **키에 인덱스를 함께 넣는 이유.** providerId 단독이 의미상 더
+          // 정확하지만(각 버튼이 자기 상태를 유지), 레이아웃 회귀 가드
+          // `login_prompt_sheet_overflow_test.dart` 가 "8 provider" 를
+          // 시뮬레이션하려고 기존 strategy 를 **중복**시킨다 — 미등록
+          // providerId 는 버튼 렌더 시점에 UnsupportedError 를 던져
+          // 대체 구현을 만들 수 없기 때문이다(WR-01). production 의
+          // `_allStrategies` 는 7개가 모두 distinct 라 중복이 불가능하지만,
+          // 키가 중복되면 그 harness 가 "Duplicate keys" 로 깨진다.
+          // 인덱스를 섞으면 목록이 바뀔 때 키도 바뀌어 **잘못된 상태 승계는
+          // 그대로 차단**되며(원소 제거 시 뒤쪽 버튼은 재사용 대신 새로
+          // 생성된다), 위치가 그대로인 버튼은 자기 상태를 유지한다.
           SocialButton(
-            key: ValueKey<String>(strategies[i].providerId),
+            key: ValueKey<String>('${strategies[i].providerId}#$i'),
             strategy: strategies[i],
             isDisabled: isAnyLoading,
           ),
