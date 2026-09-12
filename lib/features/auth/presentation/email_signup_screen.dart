@@ -18,7 +18,7 @@ import 'signup_notifier.dart';
 ///
 /// 폼 필드 3종(displayName / email / password) + Form validation +
 /// [SignupNotifier] 위임 구조로 동작한다 (Phase 6 D-01, D-22 동작 delta 0).
-/// 이메일 가입 성공 시 navigation 은 authRedirect 에 위임하고 (D-05),
+/// 이메일 가입 성공 시 navigation 은 resolveAuthRedirect 에 위임하고 (D-05),
 /// 실패 시 [FormErrorBanner] 에 inline 으로 표시한다.
 ///
 /// **소셜 진입점은 본 화면에 없다 (Phase 16.1).** 소셜 로그인은 `/login`
@@ -72,7 +72,7 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
   ///
   /// validator 통과 시 키보드를 내리고 [SignupNotifier.submit] 을 호출한다.
   /// 성공/실패 전이는 [ref.listen] 으로 감시되며 이메일 가입 성공 시
-  /// navigation 은 authRedirect 에 위임한다 (D-05).
+  /// navigation 은 resolveAuthRedirect 에 위임한다 (D-05).
   ///
   /// Phase 16.1 — 본 화면에는 소셜 진입점이 없으므로 소셜 `isLoading` guard
   /// (T-07-05 / T-08-60) 를 두지 않는다. 이중 제출 방어는 [PrimaryCta] 의
@@ -104,7 +104,7 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
     // 이메일/비밀번호 가입 에러 → _emailError (이메일 필드 영역 배너).
     //
     // Issue #5 safety net 미적용 (의도적 — Plan 10-09): 신규 가입 직후
-    // emailVerified=false 가 일반적이며, authRedirect 분기 (4) 가
+    // emailVerified=false 가 일반적이며, resolveAuthRedirect 분기 (4) 가
     // /verify-email 로 강제 리다이렉트한다. safety net 을 추가하면 분기 (4)
     // 와 충돌하여 깜빡임이 발생한다.
     ref.listen<AsyncValue<void>>(signupProvider, (previous, next) {

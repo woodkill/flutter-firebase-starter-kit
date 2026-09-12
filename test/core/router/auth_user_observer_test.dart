@@ -408,7 +408,7 @@ void main() {
   group('authUserObserver 에러 격리 — 코드 리뷰 05 WR-03 회귀 가드', () {
     // observer 는 termsProvider.reloadForUser 와
     // authChangeProvider.triggerRedirect() 의 유일한 호출자다. 한 번 죽으면
-    // lastReloadedUid 가 갱신되지 않아 authRedirect 분기 (3)(5) 의 stale
+    // lastReloadedUid 가 갱신되지 않아 resolveAuthRedirect 분기 (3)(5) 의 stale
     // 가드가 영구히 null 을 반환하고 사용자가 현재 위치에 무기한 고정된다.
 
     /// WR-03 시나리오용 컨테이너 + 활성 구독을 만든다.

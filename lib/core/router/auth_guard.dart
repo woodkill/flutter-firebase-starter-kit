@@ -122,7 +122,7 @@ const Set<String> _publicDocRoutes = <String>{
 /// 모든 경로는 default-deny 정책에 따라 차단된다 (T-06.03-01 대응).
 ///
 /// **적용 범위 (코드 리뷰 05 WR-01 정정):** 본 집합(및 [_publicDocRoutes] 와의
-/// 합집합인 `isOnUnauthRoute`)은 [authRedirect] 의 분기 (3) 익명 gate /
+/// 합집합인 `isOnUnauthRoute`)은 [resolveAuthRedirect] 의 분기 (3) 익명 gate /
 /// 분기 (6) 완료 사용자 바운스 / 분기 (6.4)(6.5) race guard 에만 적용된다.
 /// **분기 (2)** (미인증 + `onboardingSeen=false`) 는 온보딩 선행 정책상 별도의
 /// 좁은 예외 목록 (`onboarding` / `terms/*` / `splash`) 만 허용하므로, 본 Set 에
@@ -148,6 +148,12 @@ const Set<String> _unauthEntryRoutes = <String>{
 
 /// 인증 상태에 따른 redirect 로직 (Phase 10 D-14 / D-18 / D-19 / BLOCKER #3
 /// / BLOCKER #7 / WARNING #18).
+///
+/// **이름 변경 이력 (코드 리뷰 05 IN-02):** 본 함수는 이전에 `authRedirect`
+/// 였다. 글로벌 규칙 "함수명은 동사로 시작" 을 따르도록 rename 했으며, 같은
+/// 파일의 `triggerRedirect` / `reloadForUser` 와 일관된다. `.planning/` 아래의
+/// plan·리뷰 문서는 역사적 기록이므로 옛 이름을 그대로 유지한다 — 그 문서들을
+/// 코드와 대조할 때는 `authRedirect` = 본 함수로 읽을 것.
 ///
 /// 판단 우선순위:
 /// 1. Firebase 미초기화: redirect 우회 (null 반환, Phase 1 D-13)
@@ -180,7 +186,7 @@ const Set<String> _unauthEntryRoutes = <String>{
 /// `currentUser`는 Firebase SDK가 auth state 변경 시 동기적으로
 /// 업데이트하므로, 어떤 listener가 먼저 호출되더라도 일관되게 최신
 /// 값을 반환한다. (T-06.07-01)
-FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
+FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
   final isInitialized = ref.read(isFirebaseInitializedProvider);
   if (!isInitialized) return null; // (1)
 
@@ -214,7 +220,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   if (onboardingAsync.isLoading) {
     if (kDebugMode) {
       debugPrint(
-        'authRedirect: onboardingProvider loading '
+        'resolveAuthRedirect: onboardingProvider loading '
         '-> null (await settle) [Issue #10 GC-02]',
       );
     }
@@ -228,7 +234,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
     // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
     final uidHash = currentUser?.uid.hashCode.toString() ?? 'null';
     debugPrint(
-      'authRedirect: matchedLocation=$matchedLocation, '
+      'resolveAuthRedirect: matchedLocation=$matchedLocation, '
       'isAuthenticated=$isAuthenticated (uidHash=$uidHash, '
       'isAnonymous=$isAnonymous, '
       'emailVerified=${currentUser?.emailVerified}), '
@@ -295,7 +301,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
             final reloadedHash = reloadedUid?.hashCode.toString() ?? 'null';
             final currentHash = currentUser.uid.hashCode.toString();
             debugPrint(
-              'authRedirect: stale termsProvider (anon) '
+              'resolveAuthRedirect: stale termsProvider (anon) '
               '(reloadedHash=$reloadedHash, currentHash=$currentHash) '
               '-> null (await reload) [Phase 10.2 D-C2]',
             );
@@ -330,7 +336,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   //
   // Issue #7 (Plan 10-11) stale 가드: AuthChangeNotifier subscription #1 이
   // authUserObserver subscription #2 의 reloadForUser 완료보다 먼저 발동하여
-  // authRedirect 가 stale termsProvider 를 참조하는 race 를 차단한다.
+  // resolveAuthRedirect 가 stale termsProvider 를 참조하는 race 를 차단한다.
   // termsProvider 가 현재 uid 에 대해 아직 reload 되지 않은 시점의 평가는
   // null (현재 location 유지) 을 반환하여, authUserObserver 가 reloadForUser
   // 완료 후 authChangeProvider.triggerRedirect() 를 호출할 때까지 대기한다.
@@ -347,7 +353,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
         final reloadedHash = termsReloadedUid?.hashCode.toString() ?? 'null';
         final currentHash = currentUser.uid.hashCode.toString();
         debugPrint(
-          'authRedirect: stale termsProvider '
+          'resolveAuthRedirect: stale termsProvider '
           '(reloadedHash=$reloadedHash, currentHash=$currentHash) '
           '-> null (await reload) [Issue #7 C-2]',
         );
@@ -406,7 +412,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   //      state=true 로 전환한다 (try-block 첫 줄, line 168/249/332).
   //   2. `_safeDelete(anonymous)` 가 트리거하는 userChanges emit 은 begin()
   //      이후의 비동기 microtask 로 발행된다 (Firebase SDK 동작).
-  //   3. emit 이 `AuthChangeNotifier.notifyListeners()` -> authRedirect 재평가
+  //   3. emit 이 `AuthChangeNotifier.notifyListeners()` -> resolveAuthRedirect 재평가
   //      을 트리거한 시점에 `ref.read(socialLinkInProgressProvider)` 는 이미
   //      true 를 반환한다.
   // 이 시퀀스는 `auth_repository_test.dart` SLP-7/8/9 의
@@ -417,7 +423,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   if (isUnprotectedLanding && ref.read(socialLinkInProgressProvider)) {
     if (kDebugMode) {
       debugPrint(
-        'authRedirect: social link in progress '
+        'resolveAuthRedirect: social link in progress '
         '(currentUser=null, onboardingSeen=true, matchedLocation='
         '$matchedLocation) -> null (await SDK return) [Phase 9.1 D-02-B]',
       );
@@ -445,7 +451,7 @@ FutureOr<String?> authRedirect(Ref ref, GoRouterState state) {
   if (isUnprotectedLanding) {
     if (kDebugMode) {
       debugPrint(
-        'authRedirect: fail-safe race guard '
+        'resolveAuthRedirect: fail-safe race guard '
         '(currentUser=null, onboardingSeen=true, matchedLocation='
         '$matchedLocation) -> /splash [Issue #10 GC-04]',
       );
@@ -568,7 +574,7 @@ Stream<void> authUserObserver(Ref ref) async* {
           );
         }
         // Issue #7 C-3 (Plan 10-11): reloadForUser 가 lastReloadedUid 를
-        // 갱신한 뒤, GoRouter 가 authRedirect 분기 (5) 의 stale 가드를 벗어날
+        // 갱신한 뒤, GoRouter 가 resolveAuthRedirect 분기 (5) 의 stale 가드를 벗어날
         // 수 있도록 명시적으로 redirect 재평가를 트리거한다. authChangeProvider
         // 는 Provider<AuthChangeNotifier> 이므로 `.notifier` 접미어 없이 직접
         // read — auth_guard.g.dart 의 `AuthChangeNotifierProvider` 정의 참조.

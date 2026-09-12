@@ -37,7 +37,7 @@ import 'yahoojp_sign_in_notifier.dart';
 /// 소셜 로그인은 provider 별 Notifier 가 관리하고 (Phase 8/9/11~15),
 /// 결과는 [activeStrategiesProvider] 를 순회하는 단일 `ref.listen` 패턴으로
 /// 수신한다. 성공 시 [context.go] 로 Home 이동을 명시적으로 호출한다
-/// (Issue #3 safety net) — authRedirect 가 정상 동작하면 중복 호출이며,
+/// (Issue #3 safety net) — resolveAuthRedirect 가 정상 동작하면 중복 호출이며,
 /// GoRouter redirect 타이밍 경합 시 fallback 으로 동작한다.
 /// 실패 시 [FormErrorBanner] 에 inline 으로 표시하고, 이메일 충돌
 /// ([AccountExistsWithDifferentCredential]) 은 [AccountLinkingSheet] 로

@@ -31,7 +31,7 @@ const double _kLogoSize = 128.0;
 /// 흐름:
 /// 1. [SplashInitializer.initialize] 호출 -> 최소 표시 시간 대기 + 필요 시
 ///    `signInAnonymously`.
-/// 2. 성공 -> [context.go]([AppRoutes.home]) -> [authRedirect] 가 최종 경로
+/// 2. 성공 -> [context.go]([AppRoutes.home]) -> [resolveAuthRedirect] 가 최종 경로
 ///    결정 (게스트면 Home, 미인증+미시청이면 /onboarding 등).
 /// 3. 실패 -> [_showFailureDialog] 표시 -> 사용자가 재시도 또는
 ///    오프라인으로 계속 (D-27).

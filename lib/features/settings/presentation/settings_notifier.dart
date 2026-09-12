@@ -7,7 +7,7 @@
 // 3. 성공: state = AsyncValue.data(null) → AuthRepository.signOutAndResetOnboarding() 트리거
 // 4. 실패: state = AsyncValue.error(e, st)
 //
-// signOutAndResetOnboarding 후 router 의 authRedirect 가 자동으로 `/onboarding` 으로 reset.
+// signOutAndResetOnboarding 후 router 의 resolveAuthRedirect 가 자동으로 `/onboarding` 으로 reset.
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -41,7 +41,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///    (fresh ID Token 발급 + deleteUserAccount callable).
   /// 3. 성공: state = [AsyncValue.data]`(null)` +
   ///    [AuthRepository.signOutAndResetOnboarding] 호출 (onboardingSeen=false
-  ///    reset + router 의 authRedirect 가 `/onboarding` 으로 자동 reset).
+  ///    reset + router 의 resolveAuthRedirect 가 `/onboarding` 으로 자동 reset).
   /// 4. 실패: state = [AsyncValue.error]`(e, st)` — UI 가 ref.listen 으로
   ///    `ReauthenticationRequiredException` / `UnknownException` 분기 처리.
   Future<void> requestAccountDeletion() async {
@@ -49,7 +49,7 @@ class SettingsNotifier extends _$SettingsNotifier {
     try {
       await ref.read(settingsRepositoryProvider).requestAccountDeletion();
       // 성공 — signOutAndResetOnboarding 트리거 (onboardingSeen=false reset +
-      // router 의 authRedirect 가 /onboarding 으로 자동 redirect). 단독 signOut()
+      // router 의 resolveAuthRedirect 가 /onboarding 으로 자동 redirect). 단독 signOut()
       // 은 onboardingSeen=true snapshot 유지로 /home 안착 (auth_repository 1160~).
       await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
       state = const AsyncValue<void>.data(null);

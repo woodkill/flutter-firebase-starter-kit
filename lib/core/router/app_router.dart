@@ -30,7 +30,7 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 /// 앱의 [GoRouter] 인스턴스를 제공한다 (Phase 10 D-14, D-22, D-29, WARNING #14).
 ///
 /// [refreshListenable] 에 [AuthChangeNotifier] 를 연결하여 인증 상태 변경 시
-/// [authRedirect] 를 자동 재평가한다. [keepAlive] 로 앱 생명주기 동안 단일
+/// [resolveAuthRedirect] 를 자동 재평가한다. [keepAlive] 로 앱 생명주기 동안 단일
 /// 인스턴스를 유지한다.
 ///
 /// **observers (D-29):** [analyticsObserverProvider] 를 등록하여
@@ -79,7 +79,7 @@ GoRouter appRouter(Ref ref) {
     initialLocation: AppRoutes.splash, // D-14 상태머신 시작점
     debugLogDiagnostics: kDebugMode,
     refreshListenable: authGuard,
-    redirect: (context, state) => authRedirect(ref, state),
+    redirect: (context, state) => resolveAuthRedirect(ref, state),
     observers: [observer],
     // TODO: dedicated NotFoundScreen — see .planning/todos/pending/2026-09-09-not-found-screen.md
     // 현재는 EnvironmentInfoScreen 폴백 대신 임시 Scaffold 로 명시적

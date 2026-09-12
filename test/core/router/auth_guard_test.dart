@@ -42,7 +42,7 @@ class _LoadingOnboardingNotifier extends OnboardingNotifier {
 /// Issue #10 Plan 10-14: [OnboardingNotifier.build] 가 `FutureOr<bool> async`
 /// 로 전환되어 stub 도 동일 시그니처를 준수한다. [_callAuthRedirect] 가
 /// `await container.read(onboardingProvider.future)` 로 settle 대기 후
-/// authRedirect 를 호출하도록 수정됨.
+/// resolveAuthRedirect 를 호출하도록 수정됨.
 class _StubOnboardingNotifier extends OnboardingNotifier {
   _StubOnboardingNotifier(this._initial);
   final bool _initial;
@@ -59,11 +59,11 @@ class _StubTermsNotifier extends TermsNotifier {
   TermsAcceptance? build() => _initial;
 
   /// Issue #7 (Plan 10-11): 기존 테스트(Test 1~13 / Issue #6 Test A~D /
-  /// Issue #4 Test A~E) 가 authRedirect stale 가드를 통과하도록 기본값을
+  /// Issue #4 Test A~E) 가 resolveAuthRedirect stale 가드를 통과하도록 기본값을
   /// `regularUser` / `anonymousUser` 의 기본 uid 두 후보를 모두 수용하는
   /// 방식으로 제공한다. 본 stub 은 분기 (5) 의 stale 가드를 **우회**하는
   /// 방향으로만 동작해야 하므로, 'reg-uid' / 'anon-uid' 둘 중 현재 평가
-  /// 경로와 일치하는 값을 반환하면 되지만 실제로는 authRedirect 가 uid 와
+  /// 경로와 일치하는 값을 반환하면 되지만 실제로는 resolveAuthRedirect 가 uid 와
   /// lastReloadedUid 를 equality 비교하는 단일 분기뿐이므로, 본 테스트들은
   /// regularUser 기본 uid 인 'reg-uid' 를 반환해 stale 가드가 항상
   /// false(비-stale) 로 평가되도록 한다.
@@ -85,7 +85,7 @@ class _StubTermsNotifier extends TermsNotifier {
 }
 
 /// Phase 9.1 D-02-B (Plan 09.1-04) — `socialLinkInProgressProvider` override 용
-/// stub. `_initial` 값을 `build()` 에서 직접 반환하여 authRedirect 가
+/// stub. `_initial` 값을 `build()` 에서 직접 반환하여 resolveAuthRedirect 가
 /// `ref.read(socialLinkInProgressProvider)` 시 진행 중 여부를 결정한다.
 /// 기존 `_StubOnboardingNotifier` / `_StubTermsNotifier` stub 패턴 mirror.
 class _StubSocialLinkInProgress extends SocialLinkInProgress {
@@ -101,7 +101,7 @@ class _StubSocialLinkInProgress extends SocialLinkInProgress {
 /// 기존 [_StubTermsNotifier] 는 build() 만 override 하므로 실제
 /// [TermsNotifier.lastReloadedUid] (기본값 null) 를 그대로 노출한다.
 /// 본 서브클래스는 `reloadedUid` 를 주입 가능한 값으로 대체하여
-/// authRedirect 분기 (5) 가 stale 여부를 판단하는 시나리오를 재현한다.
+/// resolveAuthRedirect 분기 (5) 가 stale 여부를 판단하는 시나리오를 재현한다.
 ///
 /// 기존 테스트 17~22건은 이 확장 stub 을 사용하지 않으므로 무수정 회귀.
 class _StubTermsNotifierWithUid extends TermsNotifier {
@@ -116,15 +116,15 @@ class _StubTermsNotifierWithUid extends TermsNotifier {
   String? get lastReloadedUid => reloadedUid;
 }
 
-/// authRedirect 호출 헬퍼 (Phase 9.1 IN-03 — DRY 추출).
+/// resolveAuthRedirect 호출 헬퍼 (Phase 9.1 IN-03 — DRY 추출).
 ///
-/// 모든 `authRedirect 분기` group 에서 공통으로 사용한다. authRedirect 는
+/// 모든 `resolveAuthRedirect 분기` group 에서 공통으로 사용한다. resolveAuthRedirect 는
 /// `Ref` 를 첫 번째 파라미터로 받으므로, ProviderContainer 에서 Ref 를 얻기
 /// 위해 임시 Provider 안에서 호출한다.
 ///
 /// [awaitSettle]=true (기본) 면 `onboardingProvider.future` 를 [timeout]
 /// 내에 await — 정상 settle 경로 (Issue #10 Plan 10-14: AsyncNotifier 전환에
-/// 맞춰 settle 대기 후 authRedirect 호출). [awaitSettle]=false 면 GC-04-E
+/// 맞춰 settle 대기 후 resolveAuthRedirect 호출). [awaitSettle]=false 면 GC-04-E
 /// (AsyncLoading 영구 유지) 처럼 timeout 우회 + loading 상태로 진입을 강제한다.
 ///
 /// [timeout] 기본 50ms 는 GC-04 fail-safe 분기 테스트에서 검증된 값이며,
@@ -141,12 +141,12 @@ Future<String?> _callAuthRedirect(
       await container.read(onboardingProvider.future).timeout(timeout);
     } on TimeoutException {
       // 의도적으로 loading 유지 (예: GC-04-E) — 또는 stub 이 즉시 settle 하지
-      // 않는 비정상 상태. 어느 쪽이든 authRedirect 진입은 진행한다.
+      // 않는 비정상 상태. 어느 쪽이든 resolveAuthRedirect 진입은 진행한다.
     }
   }
   late FutureOr<String?> result;
   final testProvider = Provider<Object?>((ref) {
-    result = authRedirect(ref, state);
+    result = resolveAuthRedirect(ref, state);
     return null;
   });
   container.read(testProvider);
@@ -232,7 +232,7 @@ void main() {
 
   /// 정식(비익명) 사용자 mock.
   ///
-  /// [email] 기본값이 non-empty 인 이유 (코드 리뷰 05 CR-02): authRedirect 의
+  /// [email] 기본값이 non-empty 인 이유 (코드 리뷰 05 CR-02): resolveAuthRedirect 의
   /// 이메일 검증 게이트(분기 4)는 "검증 가능한 email 보유" 를 전제로 하므로,
   /// 일반 정식 사용자 시나리오는 email 을 반드시 갖고 있어야 한다. email 이
   /// 없는 정식 사용자(Facebook 권한 거부 등)는 `email: ''` 로 명시 지정한다.
@@ -259,7 +259,7 @@ void main() {
   }
 
   group(
-    'authRedirect (Phase 10 D-14 / BLOCKER #3 / BLOCKER #7 / WARNING #19)',
+    'resolveAuthRedirect (Phase 10 D-14 / BLOCKER #3 / BLOCKER #7 / WARNING #19)',
     () {
       // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
       test('Test 1: Firebase 미초기화 시 null', () async {
@@ -286,7 +286,7 @@ void main() {
       test('Test 3: 미인증 + onboardingSeen=true + home -> /splash '
           '(Issue #10 Plan 10-14 GC-04 fail-safe — 기존 null 기대 갱신)', () async {
         // Plan 10-14 GC-04 fail-safe 도입 전에는 Splash 가 signInAnonymously
-        // 를 책임지고 authRedirect 는 null 을 반환했다. Plan 10-14 는
+        // 를 책임지고 resolveAuthRedirect 는 null 을 반환했다. Plan 10-14 는
         // race 가 재발해도 silent 미인증 Home 랜딩을 차단하기 위해 이
         // 조합에서 /splash 로 복귀시킨다 (2차 방어벽).
         final container = makeContainer(
@@ -723,7 +723,7 @@ void main() {
     });
   });
 
-  group('authRedirect 이메일 게이트 — 코드 리뷰 05 CR-02 회귀 가드', () {
+  group('resolveAuthRedirect 이메일 게이트 — 코드 리뷰 05 CR-02 회귀 가드', () {
     // 배경: Facebook 등은 email 권한 거부 / 전화번호 가입 계정에서 email 이
     // 없는 정식 사용자를 만든다. 분기 (4) 가 "정식 사용자는 언제나 이메일
     // 검증으로 탈출 가능" 을 전제하면 이 사용자는 /verify-email 에서 영구
@@ -799,7 +799,7 @@ void main() {
     });
   });
 
-  group('authRedirect 분기 (5) — Issue #6 회귀 가드 (Plan 10-09)', () {
+  group('resolveAuthRedirect 분기 (5) — Issue #6 회귀 가드 (Plan 10-09)', () {
     // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
     test('Issue #6 Test A: 정식 사용자 + emailVerified=true + termsProvider=null '
         '(reload 후 stale 평가) -> /onboarding (분기 (5) 발동)', () async {
@@ -871,7 +871,7 @@ void main() {
     });
   });
 
-  group('authRedirect 분기 (5) Issue #7 stale 가드 (Plan 10-11)', () {
+  group('resolveAuthRedirect 분기 (5) Issue #7 stale 가드 (Plan 10-11)', () {
     /// Issue #7 (Plan 10-11) 전용 컨테이너 빌더 — [reloadedUid] 를 주입하여
     /// termsProvider.lastReloadedUid 가 현재 UID 와 불일치하는 stale 상태를
     /// 재현한다. 기존 [makeContainer] 는 `_StubTermsNotifier` 만 사용하므로
@@ -907,7 +907,7 @@ void main() {
         'lastReloadedUid != currentUser.uid (stale) + home -> null '
         '(stale 가드 발동 — reload 완료 대기)', () async {
       // 핵심 시나리오: AuthChangeNotifier subscription #1 이 먼저 발동하여
-      // authRedirect 가 실행되는 시점에 authUserObserver 의 reloadForUser 가
+      // resolveAuthRedirect 가 실행되는 시점에 authUserObserver 의 reloadForUser 가
       // 아직 완료되지 않아 lastReloadedUid 가 직전 익명 uid 에 머물러 있음.
       final container = makeContainerWithReloadedUid(
         isInitialized: true,
@@ -971,13 +971,13 @@ void main() {
     });
   });
 
-  group('authRedirect 분기 (3) — Issue #4 회귀 가드 (Plan 10-10)', () {
+  group('resolveAuthRedirect 분기 (3) — Issue #4 회귀 가드 (Plan 10-10)', () {
     // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
     test('Issue #4 Test A: 익명 사용자 + onboardingSeen=false + home '
         '-> /onboarding (Dev Tools 온보딩 리셋 후 cold restart 재진입)', () async {
       // Scenario 6-(1): Dev Tools "온보딩 다시 보기" 탭 → SharedPreferences
       // onboarding.seen_version 제거 → 앱 cold restart → 익명 세션 복원
-      // (isAuthenticated=true, isAnonymous=true) → authRedirect 가
+      // (isAuthenticated=true, isAnonymous=true) → resolveAuthRedirect 가
       // /onboarding 으로 강제 리다이렉트해야 한다.
       final container = makeContainer(
         isInitialized: true,
@@ -1075,234 +1075,243 @@ void main() {
     );
   });
 
-  group('authRedirect 분기 (5) Issue #8 multi-user invariant (Plan 10-12)', () {
-    // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
+  group(
+    'resolveAuthRedirect 분기 (5) Issue #8 multi-user invariant (Plan 10-12)',
+    () {
+      // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
 
-    /// Issue #8 Test 21 전용 container — Issue #7 의
-    /// [_StubTermsNotifierWithUid] 를 재사용하여 lastReloadedUid 를 주입한다.
-    ProviderContainer makeIssue8Container({
-      required fb.User user,
-      required TermsAcceptance? termsAcceptance,
-      required String? reloadedUid,
-      bool onboardingSeen = true,
-    }) {
-      final mockAuth = _MockFirebaseAuth();
-      when(() => mockAuth.currentUser).thenReturn(user);
-      return ProviderContainer(
-        overrides: [
-          isFirebaseInitializedProvider.overrideWithValue(true),
-          firebaseAuthProvider.overrideWithValue(mockAuth),
-          onboardingProvider.overrideWith(
-            () => _StubOnboardingNotifier(onboardingSeen),
-          ),
-          termsProvider.overrideWith(
-            () => _StubTermsNotifierWithUid(
-              initial: termsAcceptance,
-              reloadedUid: reloadedUid,
+      /// Issue #8 Test 21 전용 container — Issue #7 의
+      /// [_StubTermsNotifierWithUid] 를 재사용하여 lastReloadedUid 를 주입한다.
+      ProviderContainer makeIssue8Container({
+        required fb.User user,
+        required TermsAcceptance? termsAcceptance,
+        required String? reloadedUid,
+        bool onboardingSeen = true,
+      }) {
+        final mockAuth = _MockFirebaseAuth();
+        when(() => mockAuth.currentUser).thenReturn(user);
+        return ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(true),
+            firebaseAuthProvider.overrideWithValue(mockAuth),
+            onboardingProvider.overrideWith(
+              () => _StubOnboardingNotifier(onboardingSeen),
             ),
-          ),
-        ],
-      );
-    }
+            termsProvider.overrideWith(
+              () => _StubTermsNotifierWithUid(
+                initial: termsAcceptance,
+                reloadedUid: reloadedUid,
+              ),
+            ),
+          ],
+        );
+      }
 
-    test('Issue #8 Test 21: 정식 사용자 A + emailVerified + '
-        'termsAcceptance=null (Firestore A 에 termsAccepted 필드 부재 — '
-        'mirror skip 후 reload 가 null 로드) + lastReloadedUid=A.uid '
-        '(reload 완료) + matchedLocation=/ -> /onboarding '
-        '(multi-user invariant — device-local 동의값 승계 차단)', () async {
-      // UAT Scenario 21 재현: Firestore 에 A 의 기존 문서가 존재하나
-      // termsAccepted 필드가 삭제된 상태 → mirrorToFirestore(A) 가 Plan
-      // 10-12 Option B 에 의해 skip → reloadForUser(A) 가 null 을 로드.
-      // authRedirect 분기 (5) 는 lastReloadedUid=A.uid 이므로 stale 가드
-      // 통과 + !termsAccepted 조건으로 /onboarding 리다이렉트.
-      final userA = regularUser(uid: 'A-UID');
-      final container = makeIssue8Container(
-        user: userA,
-        termsAcceptance: null,
-        reloadedUid: 'A-UID',
-        onboardingSeen: true,
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      test('Issue #8 Test 21: 정식 사용자 A + emailVerified + '
+          'termsAcceptance=null (Firestore A 에 termsAccepted 필드 부재 — '
+          'mirror skip 후 reload 가 null 로드) + lastReloadedUid=A.uid '
+          '(reload 완료) + matchedLocation=/ -> /onboarding '
+          '(multi-user invariant — device-local 동의값 승계 차단)', () async {
+        // UAT Scenario 21 재현: Firestore 에 A 의 기존 문서가 존재하나
+        // termsAccepted 필드가 삭제된 상태 → mirrorToFirestore(A) 가 Plan
+        // 10-12 Option B 에 의해 skip → reloadForUser(A) 가 null 을 로드.
+        // resolveAuthRedirect 분기 (5) 는 lastReloadedUid=A.uid 이므로 stale 가드
+        // 통과 + !termsAccepted 조건으로 /onboarding 리다이렉트.
+        final userA = regularUser(uid: 'A-UID');
+        final container = makeIssue8Container(
+          user: userA,
+          termsAcceptance: null,
+          reloadedUid: 'A-UID',
+          onboardingSeen: true,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await _callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
 
-      expect(
-        result,
-        AppRoutes.onboarding,
-        reason:
-            'Issue #8 multi-user invariant — 기존 사용자 A 의 Firestore '
-            'termsAccepted 필드 부재 시 device-local 동의값이 승계되지 '
-            '않고 /onboarding 으로 재동의 요구해야 한다 (Test 21 기대)',
-      );
-    });
+        expect(
+          result,
+          AppRoutes.onboarding,
+          reason:
+              'Issue #8 multi-user invariant — 기존 사용자 A 의 Firestore '
+              'termsAccepted 필드 부재 시 device-local 동의값이 승계되지 '
+              '않고 /onboarding 으로 재동의 요구해야 한다 (Test 21 기대)',
+        );
+      });
 
-    test('Issue #8 Test 21b: 동일 조건 + matchedLocation=/onboarding -> null '
-        '(이미 onboarding 화면 — 리다이렉트 루프 차단 회귀 방어)', () async {
-      final userA = regularUser(uid: 'A-UID');
-      final container = makeIssue8Container(
-        user: userA,
-        termsAcceptance: null,
-        reloadedUid: 'A-UID',
-        onboardingSeen: true,
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.onboarding);
+      test('Issue #8 Test 21b: 동일 조건 + matchedLocation=/onboarding -> null '
+          '(이미 onboarding 화면 — 리다이렉트 루프 차단 회귀 방어)', () async {
+        final userA = regularUser(uid: 'A-UID');
+        final container = makeIssue8Container(
+          user: userA,
+          termsAcceptance: null,
+          reloadedUid: 'A-UID',
+          onboardingSeen: true,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.onboarding);
 
-      final result = await _callAuthRedirect(container, mockState);
+        final result = await _callAuthRedirect(container, mockState);
 
-      expect(
-        result,
-        isNull,
-        reason:
-            '이미 /onboarding 화면이면 재리다이렉트 금지 (분기 (5) 공개 '
-            '경로 화이트리스트 회귀 방어)',
-      );
-    });
-  });
+        expect(
+          result,
+          isNull,
+          reason:
+              '이미 /onboarding 화면이면 재리다이렉트 금지 (분기 (5) 공개 '
+              '경로 화이트리스트 회귀 방어)',
+        );
+      });
+    },
+  );
 
-  group('authRedirect fail-safe race guard — Issue #10 Plan 10-14 GC-04', () {
-    // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
-    // 본 group 의 GC-04-E 테스트는 `awaitSettle: false` 로 호출하여
-    // AsyncLoading 영구 유지 분기를 검증한다.
+  group(
+    'resolveAuthRedirect fail-safe race guard — Issue #10 Plan 10-14 GC-04',
+    () {
+      // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
+      // 본 group 의 GC-04-E 테스트는 `awaitSettle: false` 로 호출하여
+      // AsyncLoading 영구 유지 분기를 검증한다.
 
-    test('Test GC-04-A: 미인증 + onboardingSeen=true + matchedLocation=/ '
-        '-> /splash (fail-safe 발동)', () async {
-      final mockCrashlytics = _MockCrashlytics();
-      when(
-        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
-      ).thenAnswer((_) async {});
+      test('Test GC-04-A: 미인증 + onboardingSeen=true + matchedLocation=/ '
+          '-> /splash (fail-safe 발동)', () async {
+        final mockCrashlytics = _MockCrashlytics();
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
 
-      final container = makeContainer(
-        isInitialized: true,
-        onboardingSeen: true,
-        crashlytics: mockCrashlytics,
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingSeen: true,
+          crashlytics: mockCrashlytics,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await _callAuthRedirect(container, mockState);
-      expect(
-        result,
-        AppRoutes.splash,
-        reason: 'GC-04: 미인증 + onboardingSeen=true + Home → /splash 복귀',
-      );
-    });
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.splash,
+          reason: 'GC-04: 미인증 + onboardingSeen=true + Home → /splash 복귀',
+        );
+      });
 
-    test('Test GC-04-B: 미인증 + onboardingSeen=false + matchedLocation=/ '
-        '-> /onboarding (기존 분기 2 우선, fail-safe 미발동)', () async {
-      final container = makeContainer(isInitialized: true);
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      test('Test GC-04-B: 미인증 + onboardingSeen=false + matchedLocation=/ '
+          '-> /onboarding (기존 분기 2 우선, fail-safe 미발동)', () async {
+        final container = makeContainer(isInitialized: true);
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await _callAuthRedirect(container, mockState);
-      expect(
-        result,
-        AppRoutes.onboarding,
-        reason: '분기 (2) 가 먼저 처리되어 fail-safe 가 발동하지 않아야 함',
-      );
-    });
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.onboarding,
+          reason: '분기 (2) 가 먼저 처리되어 fail-safe 가 발동하지 않아야 함',
+        );
+      });
 
-    test('Test GC-04-C: 미인증 + onboardingSeen=true + matchedLocation=/login '
-        '-> null (공개 경로, fail-safe 미발동)', () async {
-      final container = makeContainer(
-        isInitialized: true,
-        onboardingSeen: true,
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
-
-      final result = await _callAuthRedirect(container, mockState);
-      expect(result, isNull, reason: 'unauth 화이트리스트 경로는 fail-safe 미발동');
-    });
-
-    test(
-      'Test GC-04-C-1 (Phase 16.1 D-01): 미인증 + onboardingSeen=true + '
-      'matchedLocation=/login/email -> null (공개 경로, fail-safe 미발동)',
-      () async {
+      test('Test GC-04-C: 미인증 + onboardingSeen=true + matchedLocation=/login '
+          '-> null (공개 경로, fail-safe 미발동)', () async {
         final container = makeContainer(
           isInitialized: true,
           onboardingSeen: true,
         );
         addTearDown(container.dispose);
-        when(() => mockState.matchedLocation).thenReturn(AppRoutes.emailLogin);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
 
         final result = await _callAuthRedirect(container, mockState);
+        expect(result, isNull, reason: 'unauth 화이트리스트 경로는 fail-safe 미발동');
+      });
+
+      test(
+        'Test GC-04-C-1 (Phase 16.1 D-01): 미인증 + onboardingSeen=true + '
+        'matchedLocation=/login/email -> null (공개 경로, fail-safe 미발동)',
+        () async {
+          final container = makeContainer(
+            isInitialized: true,
+            onboardingSeen: true,
+          );
+          addTearDown(container.dispose);
+          when(
+            () => mockState.matchedLocation,
+          ).thenReturn(AppRoutes.emailLogin);
+
+          final result = await _callAuthRedirect(container, mockState);
+          expect(
+            result,
+            isNull,
+            reason: '/login/email 도 unauth 화이트리스트이므로 분기 (6.5) fail-safe 가 미발동',
+          );
+        },
+      );
+
+      test('Test GC-04-D: 미인증 + onboardingSeen=true + matchedLocation=/splash '
+          '-> null (무한루프 방지)', () async {
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingSeen: true,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.splash);
+
+        final result = await _callAuthRedirect(container, mockState);
+        expect(result, isNull, reason: '/splash → /splash 자기 자신 복귀 방지');
+      });
+
+      test('Test GC-04-E: AsyncLoading 유지 상태 + matchedLocation=/ '
+          '-> null (판단 유보)', () async {
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingNotifierFactory: _LoadingOnboardingNotifier.new,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+
+        // 주의: awaitSettle=false — Future 가 영원히 resolve 안 되므로
+        // timeout 우회.
+        final result = await _callAuthRedirect(
+          container,
+          mockState,
+          awaitSettle: false,
+        );
         expect(
           result,
           isNull,
-          reason: '/login/email 도 unauth 화이트리스트이므로 분기 (6.5) fail-safe 가 미발동',
+          reason:
+              'onboardingProvider AsyncLoading 시 resolveAuthRedirect 는 판단 유보',
         );
-      },
-    );
+      });
 
-    test('Test GC-04-D: 미인증 + onboardingSeen=true + matchedLocation=/splash '
-        '-> null (무한루프 방지)', () async {
-      final container = makeContainer(
-        isInitialized: true,
-        onboardingSeen: true,
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.splash);
+      test('Test GC-04-F (observability): fail-safe 발동 시 Crashlytics '
+          'setCustomKey(race_guard_triggered) 가 1회 호출', () async {
+        final mockCrashlytics = _MockCrashlytics();
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
 
-      final result = await _callAuthRedirect(container, mockState);
-      expect(result, isNull, reason: '/splash → /splash 자기 자신 복귀 방지');
-    });
+        final container = makeContainer(
+          isInitialized: true,
+          onboardingSeen: true,
+          crashlytics: mockCrashlytics,
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-    test('Test GC-04-E: AsyncLoading 유지 상태 + matchedLocation=/ '
-        '-> null (판단 유보)', () async {
-      final container = makeContainer(
-        isInitialized: true,
-        onboardingNotifierFactory: _LoadingOnboardingNotifier.new,
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+        final result = await _callAuthRedirect(container, mockState);
+        expect(result, AppRoutes.splash);
 
-      // 주의: awaitSettle=false — Future 가 영원히 resolve 안 되므로
-      // timeout 우회.
-      final result = await _callAuthRedirect(
-        container,
-        mockState,
-        awaitSettle: false,
-      );
-      expect(
-        result,
-        isNull,
-        reason: 'onboardingProvider AsyncLoading 시 authRedirect 는 판단 유보',
-      );
-    });
+        // unawaited 로 호출되므로 microtask 1틱 대기.
+        await Future<void>.delayed(Duration.zero);
 
-    test('Test GC-04-F (observability): fail-safe 발동 시 Crashlytics '
-        'setCustomKey(race_guard_triggered) 가 1회 호출', () async {
-      final mockCrashlytics = _MockCrashlytics();
-      when(
-        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
-      ).thenAnswer((_) async {});
+        verify(
+          () => mockCrashlytics.setCustomKey(
+            'race_guard_triggered',
+            'onboarding_race_v1',
+          ),
+        ).called(1);
+      });
+    },
+  );
 
-      final container = makeContainer(
-        isInitialized: true,
-        onboardingSeen: true,
-        crashlytics: mockCrashlytics,
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
-
-      final result = await _callAuthRedirect(container, mockState);
-      expect(result, AppRoutes.splash);
-
-      // unawaited 로 호출되므로 microtask 1틱 대기.
-      await Future<void>.delayed(Duration.zero);
-
-      verify(
-        () => mockCrashlytics.setCustomKey(
-          'race_guard_triggered',
-          'onboarding_race_v1',
-        ),
-      ).called(1);
-    });
-  });
-
-  /// Phase 9.1 D-02-B (Plan 09.1-04) — authRedirect 분기 (6.4)
+  /// Phase 9.1 D-02-B (Plan 09.1-04) — resolveAuthRedirect 분기 (6.4)
   /// `socialLinkInProgress` 가드 회귀 테스트.
   ///
   /// AuthRepository 의 social sign-in 메서드(`signInWith{Google,Apple,Facebook}`)
@@ -1310,7 +1319,7 @@ void main() {
   /// 보류 (`null` 반환) 해야 한다. Crashlytics 신호는 `social_link_v1` 로 기록되어
   /// 기존 `onboarding_race_v1` (Plan 10-14) 과 forensic 구분된다
   /// (`09-UAT.md` Gap test 6 root_cause).
-  group('authRedirect socialLinkInProgress 가드 — Phase 9.1 D-02-B', () {
+  group('resolveAuthRedirect socialLinkInProgress 가드 — Phase 9.1 D-02-B', () {
     // Phase 9.1 IN-03: 공통 `_callAuthRedirect` 로 추출 (file top-level).
 
     test('Test SLP-G1: socialLinkInProgress=true + 미인증 + onboardingSeen=true + '
@@ -1470,140 +1479,143 @@ void main() {
   // (!onboardingSeen || !termsAccepted) 단일 gate 로 통합되어야 (a)(b) 케이스
   // 가 /onboarding 으로, (c) 가 null 로, (d) stale guard 발동 시 null 로,
   // (e) /login 화이트리스트가 null 로 평가된다 (Pitfall 4 회귀 가드).
-  group('authRedirect 분기 (3) — 익명 user 단일 gate (Phase 10.2 D-C1/C2)', () {
-    /// Phase 10.2 D-C1/C2 — Issue #7 분기 (5) 의 `makeContainerWithReloadedUid`
-    /// 패턴을 익명 분기 (3) stale 가드 검증용으로 그대로 차용한다.
-    ProviderContainer makeContainerWithReloadedUid({
-      required bool isInitialized,
-      fb.User? user,
-      bool onboardingSeen = false,
-      TermsAcceptance? termsAcceptance,
-      String? reloadedUid,
-    }) {
-      final mockAuth = _MockFirebaseAuth();
-      when(() => mockAuth.currentUser).thenReturn(user);
-      return ProviderContainer(
-        overrides: [
-          isFirebaseInitializedProvider.overrideWithValue(isInitialized),
-          firebaseAuthProvider.overrideWithValue(mockAuth),
-          onboardingProvider.overrideWith(
-            () => _StubOnboardingNotifier(onboardingSeen),
-          ),
-          termsProvider.overrideWith(
-            () => _StubTermsNotifierWithUid(
-              initial: termsAcceptance,
-              reloadedUid: reloadedUid,
+  group(
+    'resolveAuthRedirect 분기 (3) — 익명 user 단일 gate (Phase 10.2 D-C1/C2)',
+    () {
+      /// Phase 10.2 D-C1/C2 — Issue #7 분기 (5) 의 `makeContainerWithReloadedUid`
+      /// 패턴을 익명 분기 (3) stale 가드 검증용으로 그대로 차용한다.
+      ProviderContainer makeContainerWithReloadedUid({
+        required bool isInitialized,
+        fb.User? user,
+        bool onboardingSeen = false,
+        TermsAcceptance? termsAcceptance,
+        String? reloadedUid,
+      }) {
+        final mockAuth = _MockFirebaseAuth();
+        when(() => mockAuth.currentUser).thenReturn(user);
+        return ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(isInitialized),
+            firebaseAuthProvider.overrideWithValue(mockAuth),
+            onboardingProvider.overrideWith(
+              () => _StubOnboardingNotifier(onboardingSeen),
             ),
-          ),
-        ],
-      );
-    }
+            termsProvider.overrideWith(
+              () => _StubTermsNotifierWithUid(
+                initial: termsAcceptance,
+                reloadedUid: reloadedUid,
+              ),
+            ),
+          ],
+        );
+      }
 
-    test('(a) 익명 + !onboardingSeen + termsAccepted + home -> /onboarding '
-        '(D-C1: !onboardingSeen 단일 gate trip)', () async {
-      final container = makeContainerWithReloadedUid(
-        isInitialized: true,
-        user: anonymousUser(),
-        // onboardingSeen: false (default)
-        termsAcceptance: acceptedTerms(),
-        reloadedUid: 'anon-uid', // 비-stale
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      test('(a) 익명 + !onboardingSeen + termsAccepted + home -> /onboarding '
+          '(D-C1: !onboardingSeen 단일 gate trip)', () async {
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(),
+          // onboardingSeen: false (default)
+          termsAcceptance: acceptedTerms(),
+          reloadedUid: 'anon-uid', // 비-stale
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await _callAuthRedirect(container, mockState);
-      expect(
-        result,
-        AppRoutes.onboarding,
-        reason: 'D-C1: !onboardingSeen 단일 gate trip',
-      );
-    });
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.onboarding,
+          reason: 'D-C1: !onboardingSeen 단일 gate trip',
+        );
+      });
 
-    test('(b) 익명 + onboardingSeen + !termsAccepted (비-stale) + home '
-        '-> /onboarding (D-C1: !termsAccepted 단일 gate trip)', () async {
-      final container = makeContainerWithReloadedUid(
-        isInitialized: true,
-        user: anonymousUser(),
-        onboardingSeen: true,
-        // termsAcceptance: null (!termsAccepted)
-        reloadedUid: 'anon-uid', // 비-stale
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      test('(b) 익명 + onboardingSeen + !termsAccepted (비-stale) + home '
+          '-> /onboarding (D-C1: !termsAccepted 단일 gate trip)', () async {
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(),
+          onboardingSeen: true,
+          // termsAcceptance: null (!termsAccepted)
+          reloadedUid: 'anon-uid', // 비-stale
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await _callAuthRedirect(container, mockState);
-      expect(
-        result,
-        AppRoutes.onboarding,
-        reason: 'D-C1: !termsAccepted 단일 gate trip',
-      );
-    });
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          AppRoutes.onboarding,
+          reason: 'D-C1: !termsAccepted 단일 gate trip',
+        );
+      });
 
-    test('(c) 익명 + onboardingSeen + termsAccepted (완전) + home -> null '
-        '(I1: 완전한 익명 user 는 /home 통과)', () async {
-      final container = makeContainerWithReloadedUid(
-        isInitialized: true,
-        user: anonymousUser(),
-        onboardingSeen: true,
-        termsAcceptance: acceptedTerms(),
-        reloadedUid: 'anon-uid',
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      test('(c) 익명 + onboardingSeen + termsAccepted (완전) + home -> null '
+          '(I1: 완전한 익명 user 는 /home 통과)', () async {
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(),
+          onboardingSeen: true,
+          termsAcceptance: acceptedTerms(),
+          reloadedUid: 'anon-uid',
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await _callAuthRedirect(container, mockState);
-      expect(
-        result,
-        isNull,
-        reason:
-            'I1: onboardingSeen + termsAccepted 모두 완료한 익명 user '
-            '는 /home 통과',
-      );
-    });
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason:
+              'I1: onboardingSeen + termsAccepted 모두 완료한 익명 user '
+              '는 /home 통과',
+        );
+      });
 
-    test('(d) 익명 + onboardingSeen + !termsAccepted + stale lastReloadedUid + '
-        'home -> null (D-C2: stale guard 발동 → reload 완료 대기)', () async {
-      final container = makeContainerWithReloadedUid(
-        isInitialized: true,
-        user: anonymousUser(), // uid = 'anon-uid'
-        onboardingSeen: true,
-        // termsAcceptance: null
-        reloadedUid: 'OTHER-UID', // stale lastReloadedUid
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      test('(d) 익명 + onboardingSeen + !termsAccepted + stale lastReloadedUid + '
+          'home -> null (D-C2: stale guard 발동 → reload 완료 대기)', () async {
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(), // uid = 'anon-uid'
+          onboardingSeen: true,
+          // termsAcceptance: null
+          reloadedUid: 'OTHER-UID', // stale lastReloadedUid
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
 
-      final result = await _callAuthRedirect(container, mockState);
-      expect(
-        result,
-        isNull,
-        reason:
-            'D-C2: termsProvider stale lastReloadedUid 면 reload 완료 '
-            '대기 (분기 (5) 패턴 익명 확장 — Plan 10-11 Issue #7 C-2)',
-      );
-    });
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason:
+              'D-C2: termsProvider stale lastReloadedUid 면 reload 완료 '
+              '대기 (분기 (5) 패턴 익명 확장 — Plan 10-11 Issue #7 C-2)',
+        );
+      });
 
-    test('(e — Pitfall 4 회귀 가드) 익명 + !onboardingSeen + '
-        'matchedLocation=/login -> null (정식 승격 경로 보존)', () async {
-      // Pitfall 4: `!isOnUnauthRoute` 가드 누락 시 /login + 익명 user 가
-      // 무한 redirect loop 회귀. 익명 user 의 정식 승격 경로 보존 보장.
-      final container = makeContainerWithReloadedUid(
-        isInitialized: true,
-        user: anonymousUser(),
-        onboardingSeen: false,
-        reloadedUid: 'anon-uid',
-      );
-      addTearDown(container.dispose);
-      when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
+      test('(e — Pitfall 4 회귀 가드) 익명 + !onboardingSeen + '
+          'matchedLocation=/login -> null (정식 승격 경로 보존)', () async {
+        // Pitfall 4: `!isOnUnauthRoute` 가드 누락 시 /login + 익명 user 가
+        // 무한 redirect loop 회귀. 익명 user 의 정식 승격 경로 보존 보장.
+        final container = makeContainerWithReloadedUid(
+          isInitialized: true,
+          user: anonymousUser(),
+          onboardingSeen: false,
+          reloadedUid: 'anon-uid',
+        );
+        addTearDown(container.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
 
-      final result = await _callAuthRedirect(container, mockState);
-      expect(
-        result,
-        isNull,
-        reason:
-            'Pitfall 4: 익명 user 의 /login 진입은 정식 승격 경로 '
-            '이므로 onboarding 강제 redirect 금지',
-      );
-    });
-  });
+        final result = await _callAuthRedirect(container, mockState);
+        expect(
+          result,
+          isNull,
+          reason:
+              'Pitfall 4: 익명 user 의 /login 진입은 정식 승격 경로 '
+              '이므로 onboarding 강제 redirect 금지',
+        );
+      });
+    },
+  );
 }

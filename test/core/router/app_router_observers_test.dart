@@ -176,7 +176,7 @@ void main() {
       // push=[termsService, termsService], pop=[home, home],
       // go=[termsPrivacy, termsPrivacy]).
       //
-      // isFirebaseInitialized=false 를 유지하여 authRedirect 를 통과시키되
+      // isFirebaseInitialized=false 를 유지하여 resolveAuthRedirect 를 통과시키되
       // (실 Firebase 미접촉), production 과 동일한 모양의 observer /
       // AnalyticsService 를 mock FirebaseAnalytics 에 연결해 두 경로가
       // 같은 계측 지점을 공유하게 한다 — 어느 쪽이 발신하든 잡힌다.

@@ -33,7 +33,7 @@ import 'login_notifier.dart';
 /// 폼 제출 결과는 [LoginNotifier] 가 [AsyncValue] (void) 로 노출한다.
 /// 성공 + `emailVerified` 시 [context.go] 로 Home 이동을 명시적으로 호출한다
 /// (Issue #5 safety net). `emailVerified=false` 인 신규 가입 직후 race 는
-/// `authRedirect` 분기 (4) `/verify-email` redirect 에 위임한다.
+/// `resolveAuthRedirect` 분기 (4) `/verify-email` redirect 에 위임한다.
 /// 실패 시 [FormErrorBanner] 에 inline 으로 표시한다 (Dialog/SnackBar 0).
 class EmailLoginScreen extends ConsumerStatefulWidget {
   /// [EmailLoginScreen] 을 생성한다.

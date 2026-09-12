@@ -13,7 +13,7 @@ part 'line_sign_in_notifier.g.dart';
 /// Phase 7 [GoogleSignInNotifier] / Phase 8 [AppleSignInNotifier] / Phase 9
 /// [FacebookSignInNotifier] / Phase 12 [KakaoSignInNotifier] / Phase 13
 /// [NaverSignInNotifier] 구조를 그대로 미러링한다. autoDispose 이므로 화면
-/// 이탈 시 상태가 초기화된다. 성공 후 화면 이동은 authRedirect 가 담당한다.
+/// 이탈 시 상태가 초기화된다. 성공 후 화면 이동은 resolveAuthRedirect 가 담당한다.
 ///
 /// **race-fix invariant (Pitfall 8):** 본 Notifier 는 race-guard begin/end 를
 /// 직접 호출하지 않는다. 단일 진실원은 [AuthRepository.signInWithLine] 의
@@ -27,7 +27,7 @@ part 'line_sign_in_notifier.g.dart';
 /// invariant enforce.
 ///
 /// **Custom Token 이므로 emailVerified=true 가 자동 부여**: Apple / Kakao /
-/// Naver 동일 경로. authRedirect 는 home 으로 자동 이동하며 `/verify-email`
+/// Naver 동일 경로. resolveAuthRedirect 는 home 으로 자동 이동하며 `/verify-email`
 /// 우회.
 @riverpod
 class LineSignInNotifier extends _$LineSignInNotifier {

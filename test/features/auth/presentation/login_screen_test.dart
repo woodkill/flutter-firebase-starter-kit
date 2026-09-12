@@ -115,7 +115,7 @@ void main() {
       Finder findAppleButton() => find.byType(SocialButton).at(1);
 
       testWidgets('AUTH-03-15: Apple 로그인 성공 시 FormErrorBanner에 에러 없음 '
-          '(navigation은 authRedirect 위임)', (tester) async {
+          '(navigation은 resolveAuthRedirect 위임)', (tester) async {
         when(() => mockRepo.signInWithApple()).thenAnswer(
           (_) async => Result<User>.success(
             User(

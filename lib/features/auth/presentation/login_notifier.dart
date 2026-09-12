@@ -15,7 +15,7 @@ part 'login_notifier.g.dart';
 /// - [AuthRepository.signInWithEmail] 성공 시 [AsyncData] (null).
 /// - 실패 시 [AsyncError] ([AppException], stackTrace).
 ///
-/// 성공 후 화면 이동은 Phase 5 `authRedirect` 가 담당하므로
+/// 성공 후 화면 이동은 Phase 5 `resolveAuthRedirect` 가 담당하므로
 /// 본 Notifier 는 navigation 을 호출하지 않는다 (D-05).
 /// autoDispose 이므로 화면 이탈 시 상태가 초기화된다 (D-14).
 @riverpod
@@ -31,7 +31,7 @@ class LoginNotifier extends _$LoginNotifier {
   /// 한다. 결과는 [state] 의 [AsyncValue] 로 반영된다.
   ///
   /// `await` 이후에는 [ref.mounted] 를 확인한 뒤에만 state 를 갱신한다.
-  /// 로그인 성공 시 `authRedirect` 가 화면을 이동시켜 본 autoDispose
+  /// 로그인 성공 시 `resolveAuthRedirect` 가 화면을 이동시켜 본 autoDispose
   /// notifier 가 즉시 dispose 되는데, 그 시점에 state setter 가 호출되면
   /// `UnmountedRefException` 이 발생하기 때문이다 (T-06.07-02).
   Future<void> submit({required String email, required String password}) async {

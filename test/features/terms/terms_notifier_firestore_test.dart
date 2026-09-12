@@ -355,7 +355,7 @@ void main() {
       await notifier.reloadForUser(uid: 'A-UID', isAnonymous: false);
 
       // Then (step 2): Firestore A 에 termsAccepted 필드가 없으므로 state=null.
-      // authRedirect 분기 (5) 가 /onboarding 으로 강제 리다이렉트하는 조건
+      // resolveAuthRedirect 분기 (5) 가 /onboarding 으로 강제 리다이렉트하는 조건
       // 성립.
       expect(
         container.read(termsProvider),

@@ -14,7 +14,7 @@ part 'yahoojp_sign_in_notifier.g.dart';
 /// [FacebookSignInNotifier] / Phase 12 [KakaoSignInNotifier] / Phase 13
 /// [NaverSignInNotifier] / Phase 14 [LineSignInNotifier] 구조를 그대로
 /// 미러링한다. autoDispose 이므로 화면 이탈 시 상태가 초기화된다. 성공 후
-/// 화면 이동은 authRedirect 가 담당한다.
+/// 화면 이동은 resolveAuthRedirect 가 담당한다.
 ///
 /// **race-fix invariant (Pitfall 8):** 본 Notifier 는 race-guard begin/end 를
 /// 직접 호출하지 않는다. 단일 진실원은 [AuthRepository.signInWithYahoojp] 의
@@ -29,7 +29,7 @@ part 'yahoojp_sign_in_notifier.g.dart';
 /// (sentinel: `T-15-YJP-NOTIFIER-R7-01`).
 ///
 /// **Custom Token 이므로 emailVerified=true 가 자동 부여**: Apple / Kakao /
-/// Naver / LINE 동일 경로. authRedirect 는 home 으로 자동 이동하며
+/// Naver / LINE 동일 경로. resolveAuthRedirect 는 home 으로 자동 이동하며
 /// `/verify-email` 우회. **Yahoo!JP D-YJP-09 차이점:** scope openid+profile
 /// 만 → Firebase Auth user record 의 email 필드가 비어 있으므로
 /// `_autoSendEmailVerification` 내부 email.isEmpty 가드 (line 918) 가 자연

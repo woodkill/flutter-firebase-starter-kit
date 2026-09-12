@@ -148,7 +148,7 @@ Future<_SignOutTestEnv> _pumpSignOutHarness(WidgetTester tester) async {
         builder: (_, _) =>
             const Scaffold(body: Center(child: Text('LoginStub'))),
       ),
-      // Phase 10.2 I2 — logout 후 authRedirect 분기 (2) 가 /onboarding 으로
+      // Phase 10.2 I2 — logout 후 resolveAuthRedirect 분기 (2) 가 /onboarding 으로
       // 자연 redirect 한다 (D-B1). 라우터 stub 으로 도달 가능성 유지.
       GoRoute(
         path: '/onboarding',

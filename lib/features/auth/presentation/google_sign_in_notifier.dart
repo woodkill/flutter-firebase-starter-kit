@@ -10,7 +10,7 @@ part 'google_sign_in_notifier.g.dart';
 /// Google 로그인 상태를 관리하는 [AsyncNotifier] (D-13).
 ///
 /// autoDispose이므로 화면 이탈 시 상태가 초기화된다.
-/// 성공 후 화면 이동은 authRedirect가 담당한다 (D-05).
+/// 성공 후 화면 이동은 resolveAuthRedirect가 담당한다 (D-05).
 @riverpod
 class GoogleSignInNotifier extends _$GoogleSignInNotifier {
   @override

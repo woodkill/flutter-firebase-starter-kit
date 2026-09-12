@@ -13,7 +13,7 @@ part 'social_link_in_progress.g.dart';
 ///
 /// 본 Notifier 는 AuthRepository 의 social sign-in 메서드 진입 직후
 /// [begin] 으로 `true` 전환되고, finally 블록에서 [end] 로 `false` 복귀한다.
-/// SplashInitializer 와 auth_guard.authRedirect 는 본 state 를 read/watch 하여
+/// SplashInitializer 와 auth_guard.resolveAuthRedirect 는 본 state 를 read/watch 하여
 /// 진행 중이면 자동 익명 sign-in / fail-safe redirect 를 보류한다
 /// (defense-in-depth, D-02).
 ///
@@ -32,7 +32,7 @@ part 'social_link_in_progress.g.dart';
 /// **소유권 invariant:** 본 Notifier 는 `AuthRepository` 단독 소유다.
 /// [begin] / [end] 는 오직 `signInWith{Google,Apple,Facebook}` 의 try /
 /// finally 블록에서만 호출되어야 하며, 외부 모듈이 직접 호출하면 race-fix
-/// invariant 가 깨진다. consumer (SplashInitializer / auth_guard.authRedirect)
+/// invariant 가 깨진다. consumer (SplashInitializer / auth_guard.resolveAuthRedirect)
 /// 는 read/watch 만 수행하고 mutate 하지 않는다 (defense-in-depth, D-02).
 @Riverpod(keepAlive: true)
 class SocialLinkInProgress extends _$SocialLinkInProgress {

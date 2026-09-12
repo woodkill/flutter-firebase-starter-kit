@@ -82,7 +82,7 @@ class TermsNotifier extends _$TermsNotifier {
   /// 가장 최근 [reloadForUser] 가 로드한 uid 를 보관한다 (Issue #7 C-1 —
   /// Plan 10-11 stale 가드).
   ///
-  /// `authRedirect` 분기 (5) 는 본 값이 `currentUser.uid` 와 일치하는 경우에만
+  /// `resolveAuthRedirect` 분기 (5) 는 본 값이 `currentUser.uid` 와 일치하는 경우에만
   /// [state] 를 신뢰한다. UID 는 일치하지만 reload 가 아직 완료되지 않은
   /// 시점의 stale 평가를 차단하여 오진 리다이렉트(/onboarding flash) 를
   /// 방지한다. null 은 "한 번도 reload 된 적 없음" (cold-start) 또는
@@ -90,7 +90,7 @@ class TermsNotifier extends _$TermsNotifier {
   String? _lastReloadedUid;
 
   /// [_lastReloadedUid] 의 읽기 전용 접근자 (Issue #7 C-1 — Plan 10-11
-  /// authRedirect stale 가드 용).
+  /// resolveAuthRedirect stale 가드 용).
   String? get lastReloadedUid => _lastReloadedUid;
 
   @override
@@ -195,7 +195,7 @@ class TermsNotifier extends _$TermsNotifier {
   ///
   /// **에러 처리:**
   /// - Firestore 에서 문서/필드가 없거나 currentVersion 미달이면 state=null 로
-  ///   초기화한다 (재동의 강제, authRedirect 분기 (5) 발동).
+  ///   초기화한다 (재동의 강제, resolveAuthRedirect 분기 (5) 발동).
   /// - [FirebaseException] (네트워크/권한) 발생 시 SharedPreferences 로
   ///   fallback 한 후 Crashlytics 에 reason='terms_load_firestore' 로
   ///   기록한다.
@@ -278,7 +278,7 @@ class TermsNotifier extends _$TermsNotifier {
       }
       if (!ref.mounted) return;
       // Issue #7 C-1 (Plan 10-11): uid=null 분기도 lastReloadedUid 를 명시
-      // null 로 기록 — authRedirect 는 분기 (5) 를 !isAnonymous 가드 하에
+      // null 로 기록 — resolveAuthRedirect 는 분기 (5) 를 !isAnonymous 가드 하에
       // 실행하므로 본 분기 갱신은 향후 정식 사용자 전이의 stale 가드 기준선을
       // 제공한다.
       _lastReloadedUid = null;
@@ -290,7 +290,7 @@ class TermsNotifier extends _$TermsNotifier {
       await _loadFromPrefs();
       if (!ref.mounted) return;
       // Issue #7 C-1 (Plan 10-11): 익명 uid 도 lastReloadedUid 에 기록하여
-      // authRedirect 분기 (5) stale 가드가 정식 전이 시점에 올바른 비교를
+      // resolveAuthRedirect 분기 (5) stale 가드가 정식 전이 시점에 올바른 비교를
       // 수행하도록 한다.
       _lastReloadedUid = uid;
       return;

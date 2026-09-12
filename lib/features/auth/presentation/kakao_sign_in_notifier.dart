@@ -11,14 +11,14 @@ part 'kakao_sign_in_notifier.g.dart';
 ///
 /// Phase 7 [GoogleSignInNotifier] / Phase 8 [AppleSignInNotifier] / Phase 9
 /// [FacebookSignInNotifier] 구조를 그대로 미러링한다. autoDispose이므로 화면
-/// 이탈 시 상태가 초기화된다. 성공 후 화면 이동은 authRedirect 가 담당한다.
+/// 이탈 시 상태가 초기화된다. 성공 후 화면 이동은 resolveAuthRedirect 가 담당한다.
 ///
 /// **race-fix invariant (D-15, Pitfall 8):** 본 Notifier 는 race-guard
 /// begin/end 를 직접 호출하지 않는다. 단일 진실원은
 /// [AuthRepository.signInWithKakao] 의 try-finally (Plan 12-03).
 ///
 /// **Custom Token 이므로 emailVerified=true 가 자동 부여**: Apple 동일 경로
-/// (UI-SPEC Kakao success state). authRedirect 는 home 으로 자동 이동하며
+/// (UI-SPEC Kakao success state). resolveAuthRedirect 는 home 으로 자동 이동하며
 /// `/verify-email` 우회.
 @riverpod
 class KakaoSignInNotifier extends _$KakaoSignInNotifier {

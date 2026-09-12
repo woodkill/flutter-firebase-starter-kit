@@ -1,11 +1,11 @@
 /// Issue #7 (Plan 10-11) race integration — subscription 순서 재현.
 ///
 /// AuthChangeNotifier (subscription #1) 가 notifyListeners 를 먼저 발동해도
-/// authRedirect 의 stale 가드가 termsProvider 의 lastReloadedUid 로 분기
+/// resolveAuthRedirect 의 stale 가드가 termsProvider 의 lastReloadedUid 로 분기
 /// (5) 를 보류하고, authUserObserver (subscription #2) 의 reloadForUser +
 /// triggerRedirect 완료 후 재평가가 정상 경로를 반환함을 검증한다.
 ///
-/// 실제 GoRouter 없이 [authRedirect] 를 직접 호출하여 1차/2차 평가 결과를
+/// 실제 GoRouter 없이 [resolveAuthRedirect] 를 직접 호출하여 1차/2차 평가 결과를
 /// 비교하는 전략 — go_router 의 internal refreshListenable 경로 대신
 /// [AuthChangeNotifier] listener 카운트로 재평가 트리거 여부를 간접 검증.
 library;
@@ -126,7 +126,7 @@ void main() {
   ) {
     late FutureOr<String?> result;
     final testProvider = Provider<Object?>((ref) {
-      result = authRedirect(ref, state);
+      result = resolveAuthRedirect(ref, state);
       return null;
     });
     container.read(testProvider);
@@ -134,7 +134,7 @@ void main() {
   }
 
   group('Issue #7 race integration — subscription 순서 재현 (Plan 10-11)', () {
-    test('authRedirect 가 subscription 순서 race 에서 1차 stale 반환 (null) '
+    test('resolveAuthRedirect 가 subscription 순서 race 에서 1차 stale 반환 (null) '
         '→ authUserObserver reload + triggerRedirect 완료 후 2차 평가가 '
         '정상 경로 (/onboarding) 반환', () async {
       SharedPreferences.setMockInitialValues({});
@@ -196,7 +196,7 @@ void main() {
       );
       expect(container.read(termsProvider), isNull);
 
-      // 2) 1차 authRedirect 평가: stale 가드 발동 → null (현재 location
+      // 2) 1차 resolveAuthRedirect 평가: stale 가드 발동 → null (현재 location
       //    유지, reload 완료 대기).
       final result1 = await callAuthRedirect(container, mockState);
       expect(
@@ -225,7 +225,7 @@ void main() {
         reason: 'C-1 — reloadForUser 완료 후 lastReloadedUid 갱신',
       );
 
-      // 4) 2차 authRedirect 평가: lastReloadedUid == currentUser.uid →
+      // 4) 2차 resolveAuthRedirect 평가: lastReloadedUid == currentUser.uid →
       //    stale 가드 통과 → termsAccepted=null → /onboarding 반환.
       final result2 = await callAuthRedirect(container, mockState);
       expect(

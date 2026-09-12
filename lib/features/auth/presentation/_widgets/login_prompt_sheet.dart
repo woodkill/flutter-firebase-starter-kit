@@ -49,7 +49,7 @@ Future<void> showLoginPromptSheet(BuildContext context) {
 /// 로그인 유도 Bottom Sheet 본체 (Phase 10 D-10).
 ///
 /// 소셜 로그인 **성공** 시 sheet 를 닫고 [context.go] 로 Home 이동을
-/// 명시적으로 호출한다 (Issue #3 safety net). authRedirect 가 정상
+/// 명시적으로 호출한다 (Issue #3 safety net). resolveAuthRedirect 가 정상
 /// 동작하면 중복 호출이며, GoRouter redirect 타이밍 경합 시 fallback
 /// 으로 동작한다.
 ///

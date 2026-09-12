@@ -1648,7 +1648,7 @@ class AuthRepository {
   ///    5 SDK 순차 logout (Phase 9.2 R6 invariant).
   ///
   /// 호출 후 navigation 명시 호출은 불필요하다. authStateChanges →
-  /// AuthChangeNotifier → authRedirect 분기 (2) 가 `!isAuthenticated &&
+  /// AuthChangeNotifier → resolveAuthRedirect 분기 (2) 가 `!isAuthenticated &&
   /// !onboardingSeen` 조합을 감지하여 `/onboarding` 으로 자연 redirect 한다
   /// (Phase 10.2 D-B1). reset 이 signOut 보다 먼저 수행되어야 재평가 시점에
   /// `onboardingSeen=false` 가 확정되어 분기 (2) 가 trip 한다 — 순서 뒤집기
@@ -1852,7 +1852,7 @@ class AuthRepository {
   /// [_safeDelete] 를 internal caller 예시로 인용했으나 [_safeDelete] 는
   /// `user.delete()` 만 호출하고 [signOut] 은 호출하지 않으므로 self-
   /// inconsistent 했음). UI 호출자 (로그아웃 버튼) 가 본 메서드를 직접
-  /// 호출하면 `onboardingSeen=true` snapshot 이 유지된 채 authRedirect
+  /// 호출하면 `onboardingSeen=true` snapshot 이 유지된 채 resolveAuthRedirect
   /// 가 재평가되어 익명홈 통과 race 가 가능하다 (I2 위배 — D-20 cycle 회귀
   /// vector). Phase 17 (회원탈퇴 reauthentication + deleteUser) 는 별도
   /// 논의 — see ROADMAP Phase 17.

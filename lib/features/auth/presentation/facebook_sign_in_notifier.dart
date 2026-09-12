@@ -11,7 +11,7 @@ part 'facebook_sign_in_notifier.g.dart';
 ///
 /// Phase 7 [GoogleSignInNotifier] / Phase 8 [AppleSignInNotifier] 구조를
 /// 그대로 미러링한다. autoDispose이므로 화면 이탈 시 상태가 초기화된다.
-/// 성공 후 화면 이동은 authRedirect가 담당한다.
+/// 성공 후 화면 이동은 resolveAuthRedirect가 담당한다.
 @riverpod
 class FacebookSignInNotifier extends _$FacebookSignInNotifier {
   @override

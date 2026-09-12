@@ -131,7 +131,7 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   /// [AuthRepository.signOutAndResetOnboarding] 을 호출하여 onboarding
   /// 완료 플래그 reset → 5 SDK 순차 logout 순서를 강제한다 (D-A1/A3).
   /// 본 메서드를 [AuthRepository.signOut] 단독으로 직접 호출하면
-  /// `onboardingSeen=true` snapshot 이 유지된 채 authRedirect 가
+  /// `onboardingSeen=true` snapshot 이 유지된 채 resolveAuthRedirect 가
   /// 재평가되어 익명홈 통과 race (D-20 cycle 회귀) 가 가능하다 — Phase
   /// 10.2 D-A7 호출자 책임 (auth_repository.dart line 919-925 doc-comment).
   ///

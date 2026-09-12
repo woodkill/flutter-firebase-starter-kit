@@ -2080,7 +2080,7 @@ void main() {
       '(D-A3 reset → signOut 순서 + Phase 9.2 R6 5 SDK 순서 invariant)',
       () async {
         // D-A3 의 핵심: reset 이 signOut (Google SDK 첫 호출) 보다 먼저
-        // 수행되어야 authRedirect 재평가 시점에 onboardingSeen=false 가
+        // 수행되어야 resolveAuthRedirect 재평가 시점에 onboardingSeen=false 가
         // 확정되어 분기 (2) 자연 redirect /onboarding 이 성립한다.
         // 순서 뒤집기 회귀 시 GC-04 fail-safe /splash churn 가능 (Pitfall 3).
         var callIndex = 0;

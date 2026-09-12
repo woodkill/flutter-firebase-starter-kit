@@ -581,7 +581,7 @@ void main() {
           isNull,
           reason:
               '익명 X 진입 시 사용자 A 의 동의가 prefs 에서 복원되지 않아야 한다 '
-              '(authRedirect 분기 (5)/(2) → /onboarding 으로 보내야 한다)',
+              '(resolveAuthRedirect 분기 (5)/(2) → /onboarding 으로 보내야 한다)',
         );
       },
     );
