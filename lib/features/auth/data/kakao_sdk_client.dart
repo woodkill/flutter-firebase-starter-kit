@@ -81,9 +81,12 @@ class KakaoSdkClient {
   /// 흐름:
   /// 1. `Random.secure()` + base64Url(32 bytes) 로 nonce 1회 생성 (Pitfall 2).
   /// 2. `isKakaoTalkInstalled` → true 면 `loginWithKakaoTalk` 우선, 실패 시
-  ///    `loginWithKakaoAccount` fallback (D-01).
+  ///    `loginWithKakaoAccount` fallback (D-01). 단 **사용자 취소는 fallback
+  ///    대상이 아니다** — CR-01 (Phase 7 review) 정정.
   /// 3. 사용자 취소 (`PlatformException` 'CANCELED' / `KakaoClientException`
-  ///    `ClientErrorCause.cancelled`) → null 반환 (D-05 silent).
+  ///    `ClientErrorCause.cancelled`) → null 반환 (D-05 silent). KakaoTalk
+  ///    경로 / 카카오계정 웹뷰 경로 양쪽 동일 (LINE / Yahoo!JP / Naver 의
+  ///    "취소 최우선 분기" 규칙과 대칭).
   /// 4. `token.idToken == null` (Pitfall 1 — OIDC 미활성화) → [ServiceUnavailable]
   ///    throw. AuthRepository 가 Failure 로 매핑한다.
   ///
@@ -101,8 +104,27 @@ class KakaoSdkClient {
             serviceTerms: const <String>['openid'],
             nonce: nonce,
           );
+        } on PlatformException catch (e) {
+          // CR-01 (Phase 7 review): KakaoTalk app-to-app 취소는 fallback
+          // 대상이 아니다 (D-05). 이전 구현은 `on Object` 가 취소까지 삼켜
+          // 카카오계정 웹뷰를 즉시 다시 띄웠고, 그 결과 아래 바깥 catch 의
+          // 취소 분기 (`code == 'CANCELED'` → null) 에 영원히 도달하지
+          // 못했다. rethrow 하여 바깥 catch 가 null 로 흡수하게 한다.
+          if (e.code == 'CANCELED') rethrow;
+          token = await _loginWithAccount(
+            serviceTerms: const <String>['openid'],
+            nonce: nonce,
+          );
+        } on KakaoClientException catch (e) {
+          // CR-01: KakaoTalk 경로에서 올라오는 SDK 측 취소도 동일 (D-05 보조).
+          if (e.reason == ClientErrorCause.cancelled) rethrow;
+          token = await _loginWithAccount(
+            serviceTerms: const <String>['openid'],
+            nonce: nonce,
+          );
         } on Object {
-          // KakaoTalk 호출 실패 (앱 미존재 / 호출 거부 등) → 카카오계정 fallback (D-01).
+          // 그 외 KakaoTalk 호출 실패 (앱 미존재 / 호출 거부 등) →
+          // 카카오계정 fallback (D-01).
           token = await _loginWithAccount(
             serviceTerms: const <String>['openid'],
             nonce: nonce,

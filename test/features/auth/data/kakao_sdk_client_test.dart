@@ -105,6 +105,83 @@ void main() {
       expect(calls, ['talk', 'account']);
     });
 
+    test('CR-01: KakaoTalk 설치 + talk 취소 (PlatformException CANCELED) → '
+        'null 반환 + 계정 웹뷰 fallback 미호출 (D-05)', () async {
+      final calls = <String>[];
+
+      final client = KakaoSdkClient.forTest(
+        isInstalled: () async => true,
+        loginWithTalk: ({serviceTerms, nonce}) async {
+          calls.add('talk');
+          throw PlatformException(code: 'CANCELED');
+        },
+        loginWithAccount: ({serviceTerms, nonce}) async {
+          calls.add('account');
+          return _FakeOAuthToken(idToken: 'IDT-account');
+        },
+        logout: () async {},
+      );
+
+      final result = await client.signIn();
+
+      expect(result, isNull);
+      // 취소 후 카카오계정 웹뷰를 다시 띄우지 않는다 (CR-01 회귀 가드).
+      expect(calls, ['talk']);
+    });
+
+    test('CR-01: KakaoTalk 설치 + talk 취소 (KakaoClientException cancelled) → '
+        'null 반환 + 계정 웹뷰 fallback 미호출 (D-05 보조)', () async {
+      final calls = <String>[];
+
+      final client = KakaoSdkClient.forTest(
+        isInstalled: () async => true,
+        loginWithTalk: ({serviceTerms, nonce}) async {
+          calls.add('talk');
+          throw KakaoClientException(
+            ClientErrorCause.cancelled,
+            'User cancelled',
+          );
+        },
+        loginWithAccount: ({serviceTerms, nonce}) async {
+          calls.add('account');
+          return _FakeOAuthToken(idToken: 'IDT-account');
+        },
+        logout: () async {},
+      );
+
+      final result = await client.signIn();
+
+      expect(result, isNull);
+      expect(calls, ['talk']);
+    });
+
+    test('CR-01: KakaoTalk 설치 + talk 비-취소 KakaoClientException → '
+        '계정 웹뷰 fallback 유지 (D-01 회귀 가드)', () async {
+      final calls = <String>[];
+
+      final client = KakaoSdkClient.forTest(
+        isInstalled: () async => true,
+        loginWithTalk: ({serviceTerms, nonce}) async {
+          calls.add('talk');
+          throw KakaoClientException(
+            ClientErrorCause.notSupported,
+            'KakaoTalk not supported',
+          );
+        },
+        loginWithAccount: ({serviceTerms, nonce}) async {
+          calls.add('account');
+          return _FakeOAuthToken(idToken: 'IDT-fallback');
+        },
+        logout: () async {},
+      );
+
+      final result = await client.signIn();
+
+      expect(result, isNotNull);
+      expect(result!.idToken, 'IDT-fallback');
+      expect(calls, ['talk', 'account']);
+    });
+
     test('사용자 취소 (PlatformException CANCELED) → null 반환 (D-05)', () async {
       final client = KakaoSdkClient.forTest(
         isInstalled: () async => false,
