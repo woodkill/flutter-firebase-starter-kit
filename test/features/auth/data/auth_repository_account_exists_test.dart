@@ -315,6 +315,33 @@ void main() {
         () => mockLookupCallable.call<Map<String, dynamic>>(any()),
       ).called(1);
     });
+
+    // WR-07 (Phase 7 review): AuthRepository 는 keepAlive 라 앱 생명주기 내내
+    // 동일 인스턴스이고 cache key 는 평문 이메일이다. 로그아웃/계정 전환에서
+    // 무효화하지 않으면 (1) 이전 사용자 이메일이 최대 TTL 5분 잔류하고
+    // (2) 같은 window 안에서 stale existingProvider 응답이 재사용된다.
+    test('WR-07: signOut() 이 _accountExistsCache 를 비운다 — 계정 경계에서 '
+        'PII 잔류 + stale provider 응답 차단', () async {
+      stubLookupResponse(existingProvider: 'kakao');
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+      // 사용자 A 세션 — cache 적재 (callable 1회).
+      await triggerAccountExists(collisionEmail: 'a@example.com');
+      verify(
+        () => mockLookupCallable.call<Map<String, dynamic>>(any()),
+      ).called(1);
+
+      // 로그아웃 — 계정 경계.
+      await repository.signOut();
+
+      // 사용자 B 세션에서 동일 이메일 충돌 — TTL 은 남아 있으나 cache 가
+      // 비워졌으므로 callable 이 다시 호출되어야 한다.
+      clearInteractions(mockLookupCallable);
+      await triggerAccountExists(collisionEmail: 'a@example.com');
+      verify(
+        () => mockLookupCallable.call<Map<String, dynamic>>(any()),
+      ).called(1);
+    });
   });
 
   // 16-13 (A4 gap closure) — Custom Token already-exists path 의

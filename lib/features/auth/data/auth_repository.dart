@@ -135,6 +135,14 @@ class AuthRepository {
   /// Map value 는 `AccountProvider?` (null 허용) — callable 가 unknown 응답
   /// (또는 fail) 시 unknown fallback 도 cache 하여 같은 이메일 재시도 시
   /// 다시 호출되는 비용 회피.
+  ///
+  /// **무효화 지점 3종 (WR-07 — Phase 7 review):**
+  /// 1. read 시점 TTL 만료 evict ([_kAccountExistsCacheTtl])
+  /// 2. 삽입 시점 size cap evict ([_kAccountExistsCacheMaxEntries])
+  /// 3. **계정 경계 — [signOut] 의 `clear()`** (WR-07 에서 추가). 1·2 만으로는
+  ///    로그아웃 후 다른 사용자 세션에 이전 사용자의 평문 이메일이 최대 TTL
+  ///    동안 남고, 같은 window 안의 동일 이메일 충돌에서 이전 세션 응답이
+  ///    재사용된다.
   final Map<String, _CachedProvider> _accountExistsCache = {};
 
   /// TTL 5 분 — D-10 enumeration alarm window 와 일관.
@@ -1959,6 +1967,14 @@ class AuthRepository {
         debugPrint('YahoojpSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
+    // WR-07 (Phase 7 review): 계정 경계에서 PII (평문 email key) 잔류 차단 +
+    // stale existingProvider 응답 차단. [_accountExistsCache] 는 평문 이메일을
+    // key 로 보유하는 in-memory map 이고 [AuthRepository] 는
+    // `@Riverpod(keepAlive: true)` 라 앱 생명주기 내내 동일 인스턴스다. TTL
+    // 5분 / 64 entry cap 만으로는 로그아웃·계정 전환 시 (1) 사용자 A 의
+    // 이메일이 B 세션에 최대 5분 남고 (2) 같은 5분 안에 B 가 동일 이메일
+    // 충돌을 겪으면 A 세션의 캐시 응답이 재사용된다.
+    _accountExistsCache.clear();
     await _auth.signOut();
   }
 
