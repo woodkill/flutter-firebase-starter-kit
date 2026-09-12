@@ -48,7 +48,11 @@ extension DateTimeFormatX on DateTime {
 extension NumberFormatX on num {
   /// 간결한 숫자 포맷.
   ///
-  /// 예: 1234 -> '1.2K' (en), '1234' (ko)
+  /// 예: 1234 -> '1.23K' (en), '1.23천' (ko), '1234' (ja)
+  ///     1234567 -> '1.23M' (en), '123만' (ko), '123万' (ja)
+  ///
+  /// CJK 로케일은 '천'/'만'/'万' 단위로 축약되므로, 레이아웃은 라틴 축약
+  /// 표기('K'/'M')보다 넓은 폭을 감안해야 한다.
   String formatCompact([String? locale]) =>
       NumberFormat.compact(locale: locale).format(this);
 

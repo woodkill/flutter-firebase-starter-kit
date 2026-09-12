@@ -61,10 +61,14 @@ void main() {
   });
 
   group('NumberFormatX', () {
-    test('formatCompact("en")은 간결한 숫자를 반환한다', () {
-      // intl 버전에 따라 '1.2K' 또는 '1.23K'를 반환할 수 있다.
-      expect(1234.formatCompact('en'), contains('K'));
-      expect(1234.formatCompact('en'), startsWith('1.'));
+    // WR-02 (Phase 04 리뷰) — 느슨한 matcher 는 docstring 예시와 실제 출력의
+    // 불일치를 잡지 못했다. lock 버전(intl 0.20.2) 의 로케일별 실측값을 잠근다.
+    test('formatCompact 는 로케일별 축약 표기를 반환한다', () {
+      expect(1234.formatCompact('en'), '1.23K');
+      expect(1234.formatCompact('ko'), '1.23천');
+      expect(1234.formatCompact('ja'), '1234');
+      expect(1234567.formatCompact('en'), '1.23M');
+      expect(1234567.formatCompact('ko'), '123만');
     });
 
     test('formatDecimal("ko")은 천 단위 구분을 반환한다', () {
