@@ -93,6 +93,12 @@ dev_dependencies:
   freezed: ^3.2.5
   json_serializable: ^6.13.0
   mocktail: ^1.0.4
+
+  # 10-REVIEW WR-21 회귀 테스트 전용 — SharedPreferencesStorePlatform 를
+  # 실패하는 fake 로 교체해 영속화 실패 경로(롤백)를 재현한다. 런타임
+  # 의존이 아니라 `shared_preferences` 의 transitive 를 명시화한 것이며,
+  # 직접 import 하므로 depend_on_referenced_packages 규칙을 만족시킨다.
+  shared_preferences_platform_interface: ^2.4.2
   test: ^1.30.0
   # WR-01 (Phase 13 review): NaverSdkClient timeout race 회귀 가드 (60s
   # 가상 경과). flutter_test 가 transitive 로 노출하지만 명시 의존 정책 일관.

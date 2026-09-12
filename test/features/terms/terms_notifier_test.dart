@@ -5,12 +5,43 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
+
+/// 쓰기만 실패하는 SharedPreferences 스토어 (10-REVIEW WR-21 회귀 재현용).
+///
+/// `setMockInitialValues` 가 설치하는 in-memory 스토어는 쓰기가 항상 성공해서
+/// 영속화 실패 경로를 재현할 수 없다. 읽기/삭제는 정상 동작시키고 `setValue`
+/// 만 던지게 하여 `accept()` 의 롤백 분기를 정확히 겨냥한다.
+class _WriteFailingPrefsStore extends SharedPreferencesStorePlatform {
+  final Map<String, Object> _values = <String, Object>{};
+
+  @override
+  Future<bool> clear() async {
+    _values.clear();
+    return true;
+  }
+
+  @override
+  Future<Map<String, Object>> getAll() async => Map<String, Object>.of(_values);
+
+  @override
+  Future<bool> remove(String key) async {
+    _values.remove(key);
+    return true;
+  }
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    throw StateError('prefs write failed (WR-21 회귀 재현)');
+  }
+}
 
 class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
@@ -146,6 +177,64 @@ void main() {
       );
       expect(result2, isA<Failure<dynamic>>());
       expect(container.read(termsProvider), isNull);
+    });
+
+    test('Test 3b (WR-13): 필수 동의 누락은 InvalidInput — 서비스 장애가 아니다', () async {
+      // ServiceUnavailable 로 반환하면 호출자가 "잠시 후 다시 시도" 문구를
+      // 붙이게 되는데, 계약 위반은 재시도로 절대 해소되지 않는다. 영속화
+      // 실패(ServiceUnavailable)와 타입으로 구분되어야 한다.
+      SharedPreferences.setMockInitialValues({});
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      final result = await notifier.accept(
+        service: false,
+        privacy: false,
+        marketing: false,
+      );
+
+      expect(result, isA<Failure<void>>());
+      final exception = (result as Failure<void>).exception;
+      expect(exception, isA<InvalidInput>());
+      expect(exception, isNot(isA<ServiceUnavailable>()));
+    });
+
+    test('Test 3c (WR-21): 영속화 실패 시 in-memory 동의 상태를 롤백한다', () async {
+      // 실패를 반환하면서 상태를 "동의 완료" 로 남기면 mirrorToFirestore 가
+      // 디스크에도 서버에도 없는 값을 권위 있는 것처럼 쓰고, _loadFromPrefs
+      // 는 저장값 부재 시 state 를 clear 하지 않아 유령 상태가 영속된다.
+      SharedPreferences.setMockInitialValues({});
+      final originalStore = SharedPreferencesStorePlatform.instance;
+      SharedPreferencesStorePlatform.instance = _WriteFailingPrefsStore();
+      SharedPreferences.resetStatic();
+      addTearDown(() {
+        SharedPreferencesStorePlatform.instance = originalStore;
+        SharedPreferences.resetStatic();
+      });
+
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      final result = await notifier.accept(
+        service: true,
+        privacy: true,
+        marketing: false,
+      );
+
+      expect(result, isA<Failure<void>>());
+      expect((result as Failure<void>).exception, isA<ServiceUnavailable>());
+      // 롤백 — state / 내부 캐시 / mirror payload 모두 직전 값(null)으로 복귀.
+      expect(container.read(termsProvider), isNull);
+      expect(notifier.acceptanceSnapshot, isNull);
+      expect(notifier.acceptanceSnapshotJson, isNull);
+      // 실패는 telemetry 로 남는다.
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'terms_save',
+        ),
+      ).called(1);
     });
 
     test('Test 4: accept 성공 시 SharedPreferences `terms.accepted_value` 키에 '

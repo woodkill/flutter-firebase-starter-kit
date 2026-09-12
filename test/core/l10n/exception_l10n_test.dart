@@ -58,6 +58,8 @@ const List<AppException> _kAllMappedExceptions = <AppException>[
   // ServerException
   InternalServerError(),
   ServiceUnavailable(),
+  // 입력/계약 위반 (WR-13) — userMessage 는 errorUnknown 재사용.
+  InvalidInput(),
   UnknownException(),
 ];
 

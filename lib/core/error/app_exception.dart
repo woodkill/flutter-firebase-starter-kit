@@ -5,9 +5,10 @@ import '../auth/provider_id.dart';
 /// 모든 도메인별 예외는 이 클래스를 상속한다.
 /// sealed class이므로 switch 문에서 exhaustive 패턴 매칭이 가능하다.
 ///
-/// 직속 하위는 4종이다 — [NetworkException] / [AuthException] /
-/// [ServerException] / [UnknownException] (캐치올, IN-05). exhaustive switch
-/// 는 네 갈래를 모두 다뤄야 한다.
+/// 직속 하위는 5종이다 — [NetworkException] / [AuthException] /
+/// [ServerException] / [InvalidInput] (입력·계약 위반, WR-13) /
+/// [UnknownException] (캐치올, IN-05). exhaustive switch 는 다섯 갈래를 모두
+/// 다뤄야 한다.
 ///
 /// [userMessage]는 ARB 키 문자열을 저장하고,
 /// UI 레이어에서 [resolveExceptionMessage]를 통해 l10n 룩업으로 번역한다.
@@ -319,6 +320,31 @@ final class ServiceUnavailable extends ServerException {
   /// [ServiceUnavailable]을 생성한다.
   const ServiceUnavailable({super.cause})
     : super(userMessage: 'errorServiceUnavailable');
+}
+
+// ---------------------------------------------------------------------------
+// 입력 / 계약 위반
+// ---------------------------------------------------------------------------
+
+/// 입력값 또는 호출 계약 위반 (10-REVIEW WR-13).
+///
+/// **[AppException] 직속 leaf 다** — 서비스 장애가 아니기 때문이다.
+/// [ServiceUnavailable] 로 표현하면 호출자가 "네트워크 일시 오류이니 잠시 후
+/// 재시도" 문구를 붙이게 되는데, 프로그래머 계약 위반은 재시도로 절대 해소
+/// 되지 않는다. 실제로 `TermsNotifier.accept` 는 필수 동의 누락(계약 위반)과
+/// SharedPreferences 쓰기 실패(서비스 오류)를 같은 타입으로 반환하고 있었고,
+/// 호출자는 두 경우를 구분할 방법이 없었다.
+///
+/// **도달 자체가 결함 신호다.** 정상 UI 경로는 제출 전에 입력을 검증하므로
+/// 본 타입이 만들어졌다는 것은 상류 가드가 빠졌다는 뜻이다.
+///
+/// [userMessage] 는 전용 ARB 키를 신설하지 않고 `errorUnknown` 을 재사용한다
+/// (deviation) — 사용자에게 노출될 일이 없는 경로이며, 3 locale ARB 파리티를
+/// 늘리지 않기 위해서다. 사용자 노출이 필요한 새 소비처가 생기면 그때 전용
+/// 키로 분리한다.
+final class InvalidInput extends AppException {
+  /// [InvalidInput] 을 생성한다.
+  const InvalidInput({super.cause}) : super(userMessage: 'errorUnknown');
 }
 
 // ---------------------------------------------------------------------------

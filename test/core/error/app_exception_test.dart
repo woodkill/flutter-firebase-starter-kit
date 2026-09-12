@@ -69,10 +69,12 @@ void main() {
       // 직속 leaf 로 올라가면서 직속 하위가 3 → 4 종이 됐다. 캐치올을
       // 명시적으로 다루지 않으면 여기서 컴파일 에러가 난다 — 오분류가
       // 침묵하지 않는다는 것이 이 변경의 핵심이다.
+      // WR-13: InvalidInput 이 추가되어 직속 하위가 4 → 5 종이 됐다.
       String classify(AppException exception) => switch (exception) {
         NetworkException() => 'network',
         AuthException() => 'auth',
         ServerException() => 'server',
+        InvalidInput() => 'invalid-input',
         UnknownException() => 'unknown',
       };
 
@@ -82,6 +84,18 @@ void main() {
       // 수정 전에는 이 줄이 'server' 를 반환했다 — 클라이언트 측 원인까지
       // 흡수하는 캐치올이 서버 장애로 취급되어 재시도 정책과 문구가 틀어졌다.
       expect(classify(const UnknownException()), equals('unknown'));
+      // WR-13: 입력/계약 위반은 서버 장애도 미분류도 아니다.
+      expect(classify(const InvalidInput()), equals('invalid-input'));
+    });
+
+    // WR-13: 계약 위반을 ServiceUnavailable 로 표현하면 재시도 문구가 붙는다.
+    test('InvalidInput 은 ServerException 이 아니다 (WR-13)', () {
+      const ex = InvalidInput();
+      expect(ex, isA<AppException>());
+      expect(ex, isNot(isA<ServerException>()));
+      expect(ex, isNot(isA<NetworkException>()));
+      expect(ex, isNot(isA<AuthException>()));
+      expect(ex, isNot(isA<UnknownException>()));
     });
 
     // IN-05: 캐치올은 서버 도메인이 아니다.
@@ -220,6 +234,7 @@ void main() {
         UnauthenticatedException(),
         InternalServerError(),
         ServiceUnavailable(),
+        InvalidInput(),
         UnknownException(),
       ];
       for (final ex in all) {

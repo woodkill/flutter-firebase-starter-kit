@@ -82,6 +82,9 @@ void main() {
           NetworkException() => 'network error',
           AuthException() => 'auth error',
           ServerException() => 'server error',
+          // WR-13: InvalidInput 은 입력/계약 위반 전용 직속 leaf 다
+          // (서비스 장애가 아니므로 재시도 어휘를 붙이면 안 된다).
+          InvalidInput() => 'invalid input',
           // IN-05: UnknownException 은 AppException 직속 leaf 이므로
           // 별도 arm 이 필요하다 (캐치올을 서버 장애로 뭉개지 않는다).
           UnknownException() => 'unknown error',

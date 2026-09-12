@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,6 +56,11 @@ class TermsNotifier extends _$TermsNotifier {
   /// [state] 가 아니라 [_acceptance] 를 노출하는 이유는 [mirrorToFirestore]
   /// 가 참조하는 것과 동일한 내부 캐시여야 payload 값과 Firestore mirror 값이
   /// 항상 일치하기 때문이다.
+  ///
+  /// **IN-04:** production 소비처는 [acceptanceSnapshotJson] 뿐이고 본 getter
+  /// 를 직접 읽는 곳은 테스트 1곳이다. 의도를 [visibleForTesting] 으로
+  /// 명시해 둔다 — 아래 doc 이 참조하는 계약 자체는 그대로 유효하다.
+  @visibleForTesting
   TermsAcceptance? get acceptanceSnapshot => _acceptance;
 
   /// Custom Token callable payload 로 전송할 `termsAcceptanceSnapshot` JSON
@@ -162,16 +168,32 @@ class TermsNotifier extends _$TermsNotifier {
   /// 약관 동의를 수락한다 (D-15, D-17).
   ///
   /// 필수 2개([service], [privacy]) 중 하나라도 false 이면
-  /// [Result.failure]([ServiceUnavailable]) 반환 — state 변경 없음.
+  /// [Result.failure]([InvalidInput]) 반환 — state 변경 없음.
   /// 필수 2개가 true 이면 [TermsAcceptance] 를 생성해 state 갱신 +
   /// SharedPreferences 에 전체 JSON 을 저장한다.
+  ///
+  /// **실패 타입 구분 (10-REVIEW WR-13):** 필수 동의 누락은 [InvalidInput]
+  /// (호출 계약 위반 — 재시도로 해소되지 않는다), SharedPreferences 쓰기
+  /// 실패는 [ServiceUnavailable] (일시적 서비스 오류 — 재시도 안내가 맞다)
+  /// 이다. 이전에는 둘 다 [ServiceUnavailable] 이라 호출자가 구분할 수 없어
+  /// 계약 위반에 "잠시 후 다시 시도" 문구를 붙이게 됐다. 현 UI 경로는
+  /// `_requiredChecked` 로 이미 차단하므로 [InvalidInput] 도달 자체가 상류
+  /// 가드 누락 신호다.
+  ///
+  /// **영속화 실패 시 롤백 (10-REVIEW WR-21):** 쓰기에 실패하면 in-memory
+  /// 동의 상태를 직전 값으로 되돌린다. 실패를 반환하면서 상태는 "동의 완료"
+  /// 로 남기면 [mirrorToFirestore] 가 디스크에도 서버에도 없는 값을 권위
+  /// 있는 것으로 취급하고, [_loadFromPrefs] 는 저장값이 없을 때 state 를
+  /// clear 하지 않으므로 그 유령 상태가 다음 reload 로도 정정되지 않는다.
+  /// 법적 동의 기록이므로 낙관적 유지보다 롤백이 옳다.
   Future<Result<void>> accept({
     required bool service,
     required bool privacy,
     required bool marketing,
   }) async {
     if (!service || !privacy) {
-      return const Result.failure(ServiceUnavailable());
+      // WR-13: 서비스 장애가 아니라 입력/계약 위반이다.
+      return const Result.failure(InvalidInput());
     }
     final acceptance = TermsAcceptance(
       version: currentVersion,
@@ -180,6 +202,8 @@ class TermsNotifier extends _$TermsNotifier {
       marketing: marketing,
       acceptedAt: DateTime.now(),
     );
+    // WR-21: 영속화 실패 시 되돌릴 직전 값을 보관한다.
+    final previous = _acceptance;
     _acceptance = acceptance;
     state = acceptance;
     try {
@@ -194,6 +218,15 @@ class TermsNotifier extends _$TermsNotifier {
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'terms_save');
+      // WR-21: 영속화에 실패한 동의를 in-memory 로 계속 주장하면
+      // mirrorToFirestore 가 디스크에도 서버에도 없는 값을 권위 있는 것처럼
+      // 쓴다. markSeen() 의 lossy persistence 계약은 Future<void> 라 실패를
+      // 숨기는 것이 일관되지만, accept() 는 실패를 **반환**하므로 상태도
+      // 함께 되돌려야 두 계약이 충돌하지 않는다.
+      if (ref.mounted) {
+        _acceptance = previous;
+        state = previous;
+      }
       return Result.failure(ServiceUnavailable(cause: e));
     }
   }
