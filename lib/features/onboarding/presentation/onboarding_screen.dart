@@ -10,6 +10,7 @@ import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../auth/presentation/_widgets/primary_cta.dart';
 import '../../terms/presentation/terms_notifier.dart';
 import '_widgets/onboarding_indicator.dart';
 import '_widgets/onboarding_slide.dart';
@@ -46,18 +47,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _showRequiredError = false;
   bool _isSubmitting = false;
 
-  static const int _lastPage = 2;
+  /// 온보딩 슬라이드 개수 (IN-07 — 단일 진실원).
+  ///
+  /// PageView children 개수 · [_lastPage] · [OnboardingIndicator.count] 세 곳이
+  /// 각각 하드코딩되어 있었다. 누락 시 (a) 인디케이터 도트 수가 실제 페이지와
+  /// 어긋나거나 (b) [_isLastPage] 가 마지막이 아닌 페이지에서 true 가 되어
+  /// 약관 체크박스가 없는 페이지에 "시작하기" 가 노출되며, 어느 쪽도 정적
+  /// 분석에 걸리지 않는다. 슬라이드를 추가/삭제하면 본 상수와 PageView
+  /// children 만 함께 고치면 된다.
+  static const int _slideCount = 3;
+
+  static const int _lastPage = _slideCount - 1;
+
+  /// 슬라이드 전환 지속시간 (IN-06 — `_handleCta` / `_handleSkip` 공유).
+  ///
+  /// 두 곳에 리터럴로 중복되어 있어 한쪽만 바꾸면 전환 체감이 어긋났다.
+  static const Duration _kPageTransition = Duration(milliseconds: 300);
 
   bool get _isLastPage => _currentPage == _lastPage;
   bool get _requiredChecked => _service && _privacy;
 
-  /// CTA 활성화 여부.
-  ///
-  /// 마지막 슬라이드에서는 [_isSubmitting] 만 false 면 enabled — 필수 동의
-  /// 미충족 시에도 탭 가능하게 두어 [_handleCta] 의 `_showRequiredError`
-  /// 분기가 사용자에게 헬퍼 텍스트로 안내된다 (Plan 10-03 Test 5 의도).
-  /// 1~2번 슬라이드는 항상 enabled (다음 페이지로 이동).
-  bool get _isCtaEnabled => !_isSubmitting;
+  /// "전체 동의" 체크박스 표시 값 (WR-16 — 부모가 단일 진실원).
+  bool get _allTermsChecked => _service && _privacy && _marketing;
 
   @override
   void dispose() {
@@ -68,7 +79,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _handleCta() async {
     if (!_isLastPage) {
       await _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
+        duration: _kPageTransition,
         curve: Curves.easeOut,
       );
       return;
@@ -78,6 +89,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       return;
     }
     setState(() => _isSubmitting = true);
+    // 제출 구간의 SnackBar 안내에 쓸 l10n 핸들을 await 이전에 캡처한다.
+    final l10n = context.l10n;
 
     // CR-02: 제출 구간 전체를 try/finally 로 감싼다. 과거에는 성공 경로와
     // 알려진 실패 경로에서만 `_isSubmitting = false` 를 되돌렸기 때문에,
@@ -91,7 +104,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           .read(termsProvider.notifier)
           .accept(service: _service, privacy: _privacy, marketing: _marketing);
       if (!mounted) return;
-      if (termsResult is Failure<void>) return;
+      if (termsResult is Failure<void>) {
+        // WR-10: 종전에는 CTA 만 원상 복귀하고 안내가 없어 "시작하기를
+        // 눌렀는데 아무 일도 일어나지 않는" dead-end 였다. 실제 실패 원인은
+        // SharedPreferences 쓰기 실패이므로 재시도 여지를 알려야 한다.
+        // 기존 키를 재사용한다 (신규 ARB 키 0).
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.errorUnknown)));
+        return;
+      }
 
       // CR-02 / Phase 1 D-13 가드: Firebase 미초기화 빌드 (stg/prod
       // placeholder 기본 상태, `firebase-configure.sh` 실행 전 dev) 에서
@@ -121,10 +143,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             .mirrorToFirestore(uid: currentFbUser.uid, force: true);
         if (!mounted) return;
         if (mirrorResult is Failure) {
-          // Firestore 쓰기 실패는 UX 단절을 일으키지 않는다 — termsNotifier 가
-          // Crashlytics 에 이미 기록했으므로 조용히 계속. 재동의 의도가
-          // 반영되지 않을 수 있으므로 향후 재시도 여지를 남긴다 (현 Plan
-          // 에서는 silent).
+          // WR-11: 빈 조건문(주석만 있는 블록) 을 없애고 사용자에게 transient
+          // 안내를 노출한다. 법적 동의 기록이 조용히 유실되는 비용이 SnackBar
+          // 1회보다 크다. 홈 진행은 그대로 유지한다 — termsNotifier 가
+          // Crashlytics 에 이미 기록했고 재동의 자체는 로컬에 반영됐다.
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.settingsLinkFailedTransient)),
+          );
         }
       } else if (isFirebaseReady) {
         // 기본 경로 (최초 사용자 / 익명 사용자) — 기존 signInAnonymously 호출.
@@ -161,20 +186,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   void _handleSkip() {
     _pageController.animateToPage(
       _lastPage,
-      duration: const Duration(milliseconds: 300),
+      duration: _kPageTransition,
       curve: Curves.easeOut,
     );
   }
 
-  void _handleTermsChanged(bool service, bool privacy, bool marketing) {
+  /// 약관 3 플래그를 갱신한다 (WR-16 — 부모가 단일 진실원).
+  ///
+  /// 지정하지 않은 인자는 현재 값을 유지한다. 필수 2개가 충족되면
+  /// `_showRequiredError` 헬퍼 텍스트를 내린다.
+  void _setTerms({bool? service, bool? privacy, bool? marketing}) {
     setState(() {
-      _service = service;
-      _privacy = privacy;
-      _marketing = marketing;
+      _service = service ?? _service;
+      _privacy = privacy ?? _privacy;
+      _marketing = marketing ?? _marketing;
       if (_requiredChecked) {
         _showRequiredError = false;
       }
     });
+  }
+
+  /// "전체 동의" 토글 — 3 플래그를 한 번에 설정한다 (WR-16).
+  void _handleAllTermsChanged(bool? value) {
+    final next = value ?? false;
+    _setTerms(service: next, privacy: next, marketing: next);
   }
 
   void _handlePageChanged(int index) {
@@ -240,7 +275,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           body: l10n.onboardingSlide3Body,
                         ),
                         Gap(spacing.xl),
-                        TermsCheckboxGroup(onStateChanged: _handleTermsChanged),
+                        TermsCheckboxGroup(
+                          service: _service,
+                          privacy: _privacy,
+                          marketing: _marketing,
+                          allChecked: _allTermsChecked,
+                          onServiceChanged: (v) =>
+                              _setTerms(service: v ?? false),
+                          onPrivacyChanged: (v) =>
+                              _setTerms(privacy: v ?? false),
+                          onMarketingChanged: (v) =>
+                              _setTerms(marketing: v ?? false),
+                          onAllChanged: _handleAllTermsChanged,
+                        ),
                         if (_showRequiredError) ...[
                           Gap(spacing.sm),
                           Text(
@@ -257,33 +304,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               ),
             ),
             Gap(spacing.xl),
-            OnboardingIndicator(count: 3, activeIndex: _currentPage),
+            OnboardingIndicator(count: _slideCount, activeIndex: _currentPage),
             Gap(spacing.xl),
             Padding(
               padding: EdgeInsets.symmetric(
                 horizontal: spacing.lg,
                 vertical: spacing.lg,
               ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: FilledButton(
-                  onPressed: _isCtaEnabled ? _handleCta : null,
-                  child: _isSubmitting
-                      ? SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colorScheme.onPrimary,
-                          ),
-                        )
-                      : Text(
-                          _isLastPage
-                              ? l10n.onboardingGetStarted
-                              : l10n.onboardingNext,
-                        ),
-                ),
+              // WR-08: 공용 PrimaryCta 를 재사용한다. 직접 만든 복제본에는
+              // PrimaryCta 가 가진 Semantics(label: commonLoading) 래퍼가 없어
+              // 제출 중 스크린 리더가 상태를 읽지 못했고, 48/24/2 하드코딩으로
+              // 매직 넘버도 재도입됐다. PrimaryCta 는 isLoading 일 때 버튼을
+              // disabled 로 만들므로 기존 `_isCtaEnabled = !_isSubmitting`
+              // 의미가 그대로 보존된다 — 필수 미동의 시에도 탭 가능해
+              // `_showRequiredError` 분기가 유지된다 (Plan 10-03 Test 5 의도).
+              child: PrimaryCta(
+                label: _isLastPage
+                    ? l10n.onboardingGetStarted
+                    : l10n.onboardingNext,
+                onPressed: _handleCta,
+                isLoading: _isSubmitting,
               ),
             ),
           ],

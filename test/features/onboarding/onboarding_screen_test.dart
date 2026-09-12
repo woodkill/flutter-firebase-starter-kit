@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,12 +11,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/primary_cta.dart';
+import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/onboarding_indicator.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/terms_checkbox_group.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_screen.dart';
@@ -76,6 +81,61 @@ class _RecordingTermsNotifier extends TermsNotifier {
   }
 }
 
+/// `accept()` 가 항상 실패하는 TermsNotifier (10-REVIEW WR-10 회귀용).
+///
+/// 실제 실패 원인은 SharedPreferences 쓰기 실패다. UI 관점에서는 "시작하기를
+/// 눌렀는데 아무 일도 일어나지 않는" dead-end 였다.
+class _FailingAcceptTermsNotifier extends TermsNotifier {
+  @override
+  TermsAcceptance? build() => null;
+
+  @override
+  Future<Result<void>> accept({
+    required bool service,
+    required bool privacy,
+    required bool marketing,
+  }) async => const Result.failure(ServiceUnavailable());
+
+  @override
+  Future<void> reloadForUser({String? uid, bool isAnonymous = false}) async {}
+}
+
+/// `accept()` 완료 시점을 테스트가 제어하는 TermsNotifier (WR-08 회귀용).
+///
+/// 제출 in-flight 구간을 결정적으로 관찰하기 위해 [gate] 가 완료될 때까지
+/// `accept()` 가 반환하지 않는다.
+class _GatedAcceptTermsNotifier extends TermsNotifier {
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  TermsAcceptance? build() => null;
+
+  @override
+  Future<Result<void>> accept({
+    required bool service,
+    required bool privacy,
+    required bool marketing,
+  }) async {
+    await gate.future;
+    return const Result.success(null);
+  }
+
+  @override
+  Future<void> reloadForUser({String? uid, bool isAnonymous = false}) async {}
+}
+
+/// `mirrorToFirestore` 가 항상 실패하는 TermsNotifier (10-REVIEW WR-11 회귀용).
+class _FailingMirrorTermsNotifier extends _RecordingTermsNotifier {
+  @override
+  Future<Result<void>> mirrorToFirestore({
+    required String uid,
+    bool force = false,
+  }) async {
+    await super.mirrorToFirestore(uid: uid, force: force);
+    return const Result.failure(ServiceUnavailable());
+  }
+}
+
 GoRouter _buildRouter() {
   return GoRouter(
     initialLocation: AppRoutes.onboarding,
@@ -117,7 +177,7 @@ Future<void> _pumpOnboarding(
   required _MockAnalyticsService mockAnalytics,
   required _MockCrashlytics mockCrashlytics,
   fb.FirebaseAuth? auth,
-  _RecordingTermsNotifier? termsOverride,
+  TermsNotifier? termsOverride,
   bool isFirebaseInitialized = true,
 }) async {
   SharedPreferences.setMockInitialValues({});
@@ -513,5 +573,150 @@ void main() {
       // 첫 화면이 막히지 않는다 — 홈 도달이 CR-02 의 핵심 회귀 기준이다.
       expect(find.text('HOME'), findsOneWidget);
     });
+
+    testWidgets('Test 9 (WR-08): CTA 가 공용 PrimaryCta 를 재사용하고 제출 중 '
+        'spinner a11y 라벨을 노출한다', (tester) async {
+      // 손복제 CTA 에는 PrimaryCta 의 Semantics(label: commonLoading) 래퍼가
+      // 없어 제출 중 스크린 리더가 상태를 읽지 못했다.
+      when(
+        () => mockRepo.signInAnonymously(),
+      ).thenAnswer((_) async => Result<User>.success(_stubUser()));
+      final terms = _GatedAcceptTermsNotifier();
+      final auth = _MockFirebaseAuth();
+      when(() => auth.currentUser).thenReturn(null);
+
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        auth: auth,
+        termsOverride: terms,
+      );
+
+      expect(find.byType(PrimaryCta), findsOneWidget);
+
+      await _goToLastSlideAndCheckRequired(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
+      // 제출 in-flight 프레임 — spinner + a11y 라벨 노출 구간.
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.bySemanticsLabel('Loading'), findsOneWidget);
+      // isLoading 이면 PrimaryCta 가 버튼을 disabled 로 만든다 —
+      // 기존 `_isCtaEnabled = !_isSubmitting` 의미 보존.
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton).last).onPressed,
+        isNull,
+      );
+
+      terms.gate.complete();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('Test 10 (WR-10): 약관 저장 실패 시 SnackBar 로 안내하고 홈으로 '
+        '진행하지 않는다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsOverride: _FailingAcceptTermsNotifier(),
+      );
+
+      await _goToLastSlideAndCheckRequired(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
+      await tester.pumpAndSettle();
+
+      // errorUnknown (en) — dead-end 대신 사유 안내.
+      expect(find.text('An unknown error occurred.'), findsOneWidget);
+      expect(find.text('HOME'), findsNothing);
+      // CTA 는 원상 복귀되어 재시도 가능하다.
+      expect(
+        tester.widget<PrimaryCta>(find.byType(PrimaryCta)).isLoading,
+        isFalse,
+      );
+    });
+
+    testWidgets('Test 11 (WR-11): 재동의 mirror 실패를 사용자에게 알리고 홈 진행은 '
+        '유지한다', (tester) async {
+      final auth = _MockFirebaseAuth();
+      final fbUser = _MockFbUser();
+      when(() => fbUser.uid).thenReturn('A-UID');
+      when(() => fbUser.isAnonymous).thenReturn(false);
+      when(() => auth.currentUser).thenReturn(fbUser);
+      final terms = _FailingMirrorTermsNotifier();
+
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        auth: auth,
+        termsOverride: terms,
+      );
+
+      await _goToLastSlideAndCheckRequired(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
+      await tester.pumpAndSettle();
+
+      // settingsLinkFailedTransient (en) — 동의 기록이 조용히 유실되지 않는다.
+      expect(
+        find.text(
+          "Couldn't link due to a network or service error. "
+          'Please try again later.',
+        ),
+        findsOneWidget,
+      );
+      // 홈 진행은 유지 — 재동의 자체는 로컬에 반영됐다.
+      expect(find.text('HOME'), findsOneWidget);
+      expect(terms.mirrorCalls, <String>['A-UID']);
+    });
+
+    testWidgets('Test 12 (IN-07): 인디케이터 도트 수가 실제 슬라이드 수와 일치한다', (tester) async {
+      // 슬라이드 개수가 3곳에 하드코딩되어 있어 한 곳만 바뀌면 도트 수와
+      // 실제 페이지가 어긋났다 (정적 분석 미검출).
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+      );
+
+      final indicator = tester.widget<OnboardingIndicator>(
+        find.byType(OnboardingIndicator),
+      );
+      final pageView = tester.widget<PageView>(find.byType(PageView));
+      expect(
+        indicator.count,
+        (pageView.childrenDelegate as SliverChildListDelegate).children.length,
+      );
+    });
   });
 }
+
+/// 마지막 슬라이드로 이동해 필수 2개를 체크한다 (테스트 공용 단계).
+Future<void> _goToLastSlideAndCheckRequired(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+  await tester.pumpAndSettle();
+
+  final tiles = find.byType(CheckboxListTile);
+  await tester.tap(tiles.at(1)); // service
+  await tester.pump();
+  await tester.tap(tiles.at(2)); // privacy
+  await tester.pump();
+}
+
+/// 테스트용 정식 사용자 스텁.
+User _stubUser() => User(
+  uid: 'anon-uid',
+  email: '',
+  emailVerified: false,
+  createdAt: DateTime.utc(2026, 1, 1),
+  providerIds: const <String>[],
+);

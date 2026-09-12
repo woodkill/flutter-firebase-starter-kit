@@ -9,6 +9,52 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/terms_checkbox_group.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
+/// 부모가 3 플래그를 보유하는 테스트 하네스 (WR-16 이후 계약).
+///
+/// [TermsCheckboxGroup] 은 StatelessWidget 이므로 상태를 갖지 않는다. 실제
+/// 소비처(OnboardingScreen) 와 동일하게 부모가 값을 보유하고 콜백으로
+/// 갱신하는 구조를 재현해, 체크 반영 + 부모 통지를 함께 검증한다.
+class _TermsHarness extends StatefulWidget {
+  const _TermsHarness({required this.recorder});
+
+  final _ChangeRecorder recorder;
+
+  @override
+  State<_TermsHarness> createState() => _TermsHarnessState();
+}
+
+class _TermsHarnessState extends State<_TermsHarness> {
+  bool _service = false;
+  bool _privacy = false;
+  bool _marketing = false;
+
+  void _set({bool? service, bool? privacy, bool? marketing}) {
+    setState(() {
+      _service = service ?? _service;
+      _privacy = privacy ?? _privacy;
+      _marketing = marketing ?? _marketing;
+    });
+    widget.recorder.call(_service, _privacy, _marketing);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TermsCheckboxGroup(
+      service: _service,
+      privacy: _privacy,
+      marketing: _marketing,
+      allChecked: _service && _privacy && _marketing,
+      onServiceChanged: (v) => _set(service: v ?? false),
+      onPrivacyChanged: (v) => _set(privacy: v ?? false),
+      onMarketingChanged: (v) => _set(marketing: v ?? false),
+      onAllChanged: (v) {
+        final next = v ?? false;
+        _set(service: next, privacy: next, marketing: next);
+      },
+    );
+  }
+}
+
 class _ChangeRecorder {
   bool? service;
   bool? privacy;
@@ -44,8 +90,7 @@ GoRouter _buildRouter(Widget child) {
 }
 
 Widget _wrap(_ChangeRecorder recorder) {
-  final group = TermsCheckboxGroup(onStateChanged: recorder.call);
-  final router = _buildRouter(group);
+  final router = _buildRouter(_TermsHarness(recorder: recorder));
   return ProviderScope(
     child: MaterialApp.router(
       theme: AppTheme.light(),
@@ -133,6 +178,16 @@ void main() {
       expect(recorder.service, isTrue);
       expect(recorder.privacy, isTrue);
       expect(recorder.marketing, isTrue);
+
+      // WR-16: 자식이 상태를 갖지 않으므로 표시 값은 부모 값의 함수여야 한다
+      // — 렌더된 4 체크박스가 모두 부모 상태를 그대로 반영한다.
+      for (var i = 0; i < 4; i++) {
+        expect(
+          tester.widget<CheckboxListTile>(tiles.at(i)).value,
+          isTrue,
+          reason: 'index $i 체크박스가 부모 상태와 desync 되면 안 된다',
+        );
+      }
     });
 
     testWidgets('Test 6: "상세 보기" TextButton 탭 시 콜백(go_router push)이 '
