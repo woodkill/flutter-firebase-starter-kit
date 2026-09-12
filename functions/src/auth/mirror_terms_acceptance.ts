@@ -15,6 +15,10 @@
 // acceptedAt: ISO 8601 string) 는 client 의 TermsAcceptance Freezed model
 // (lib/features/terms/domain/terms_acceptance.dart) 5 필드 verbatim mirror.
 // 변경 시 client toJson 출력과 server set payload 양쪽 동시 갱신 의무.
+//
+// **IN-04**: 아래 `HttpsError` 들의 message 는 ARB 키가 아니라 taxonomy
+// 토큰이다. client 는 `code` 로만 분기하며 서버 message 를 렌더하지 않는다.
+// 계약 전문은 `shared/custom_token_errors.ts` 헤더 참조.
 import {onCall, HttpsError} from "firebase-functions/https";
 
 import {

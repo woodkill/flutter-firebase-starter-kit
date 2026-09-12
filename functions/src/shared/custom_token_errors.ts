@@ -19,6 +19,36 @@
 // 타임아웃이 나면 완전히 정상인 사용자 토큰이 "자격증명 무효" 로 처리됐다.
 // 재시도 안내가 필요한 transient 장애가 영구 실패처럼 보이고, ops triage 에서
 // `*_jwt_verify_failed` 한 버킷에 정상 실패와 인프라 장애가 섞였다.
+//
+// ---------------------------------------------------------------------------
+// **IN-04 (Phase 15 리뷰) — `HttpsError` 의 message 는 ARB 키가 아니다.**
+//
+// 본 파일과 다른 callable 이 `HttpsError` 의 두 번째 인자로 넘기는
+// `errorInvalidCredentials` / `errorInvalidArgument` / `errorUnknown` 등은
+// **taxonomy 토큰** 이지 `lib/l10n/app_en.arb` 의 키가 아니다. 실제로
+// `errorInvalidArgument` / `errorAnonymousLinkNotAllowed` /
+// `errorAccountAlreadyLinked` / `errorReauthenticationRequired` 는 ARB 에
+// 존재하지 않는다 (나머지는 client 가 같은 어휘를 쓰는 우연의 일치다).
+//
+// **client 는 서버 message 를 렌더하지 않는다.** `AuthRepository.
+// _mapFunctionsException` 은 `FirebaseFunctionsException.code` 로만 분기해
+// client 측 `AppException` 을 새로 만들고, 화면 문구는 그 `AppException.
+// userMessage` 를 `resolveExceptionMessage` 가 번역한다. 서버 message 는
+// 그 경로에 진입하지 않는다 (repo 전역 확인 — 서버 message 소비처 0건).
+//
+// 같은 모델의 선례가 이미 client 에 문서화되어 있다 —
+// `errorReauthenticationRequired` 는 "ARB 키가 아니라 taxonomy 토큰" 이라고
+// `app_en.arb` 의 `authReauthRequired` description 이 명시한다.
+//
+// 따라서 **ARB 키를 신설하지 않는다.** 소비처가 없는 키 3개를 3 locale 에
+// 추가하는 것은 사용자 가치 0이고, "매핑되어 있다" 는 오인을 오히려 굳힌다.
+// 다만 토큰이 ARB 키 형태를 흉내 내고 있어 후속 작업자가 오인하기 쉬우므로
+// 그 계약을 여기 한 곳에 못박는다.
+//
+// **새 토큰을 추가할 때:** 사용자에게 보일 문구가 필요하면 서버 토큰이 아니라
+// client 의 `AppException` 서브타입 + `resolveExceptionMessage` arm + ARB 키
+// 를 추가하라. 서버 토큰만 늘리면 화면에는 아무 변화가 없다.
+// ---------------------------------------------------------------------------
 import {HttpsError} from "firebase-functions/https";
 import {errors as joseErrors} from "jose";
 

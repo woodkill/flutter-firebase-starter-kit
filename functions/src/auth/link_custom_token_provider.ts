@@ -14,6 +14,10 @@
 // - §7-B: T-16-NEW-01 (ID Token replay) / T-16-NEW-02 / T-16-NEW-05 mitigation.
 // - §7-C: jest mock 한계 — 실 단말 backend tier UAT (Plan 16-07 A6/A7)
 //   가 ground truth (memory feedback_mock_transaction_constraint mirror).
+//
+// **IN-04**: 아래 `HttpsError` 들의 message 는 ARB 키가 아니라 taxonomy
+// 토큰이다. client 는 `code` 로만 분기하며 서버 message 를 렌더하지 않는다.
+// 계약 전문은 `shared/custom_token_errors.ts` 헤더 참조.
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
