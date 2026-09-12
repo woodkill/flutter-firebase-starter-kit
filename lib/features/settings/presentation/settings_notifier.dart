@@ -20,6 +20,7 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/user.dart';
+import '../application/account_link_in_progress.dart';
 import '../data/settings_repository.dart';
 
 part 'settings_notifier.g.dart';
@@ -28,6 +29,12 @@ part 'settings_notifier.g.dart';
 ///
 /// 탈퇴 진행 상태 (`AsyncValue<void>`) 를 노출하며, UI 는 본 Notifier 의
 /// AsyncValue 를 ref.listen 으로 구독하여 success/error 분기를 처리한다.
+///
+/// **10-REVIEW WR-02:** 본 state 는 **회원탈퇴 전용**이다. proactive 계정
+/// 연결의 진행 표시는 [accountLinkInProgressProvider] 가 따로 보유한다 —
+/// 서로 무관한 두 유스케이스가 하나의 AsyncValue 를 공유하면 탈퇴 진행 중
+/// 연결 버튼이 전부 잠기고, 탈퇴 실패 error state 가 Settings 화면에
+/// 살아남으며, 향후 link 실패가 "탈퇴 실패" 로 오표시된다.
 ///
 /// **Plan 16-06 Task 6.1 (D-06):** `requestAccountDeletion()` 본체 채움.
 @riverpod
@@ -104,9 +111,14 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///   [AccountLinkOutcome.unsupported] (방어적 차단, UI 후보 집합에 email
   ///   미포함).
   ///
-  /// 진행 중 [state] 를 [AsyncValue.loading] 으로 설정해 위젯이 link in-progress
-  /// 오버레이를 표시할 수 있게 하고, 종료 시 [AsyncValue.data]`(null)` 로
-  /// 복귀한다 (성공/실패/취소 모두 — state 자체는 결과 분기에 사용하지 않음).
+  /// 진행 중 [accountLinkInProgressProvider] 를 `true` 로 설정해 위젯이 link
+  /// in-progress 오버레이를 표시할 수 있게 하고, 종료 시 `false` 로 복귀한다
+  /// (성공/실패/취소 모두 — 플래그 자체는 결과 분기에 사용하지 않음).
+  ///
+  /// **WR-02:** 진행 상태는 탈퇴용 [state] 와 분리된 전용 provider 가
+  /// 보유한다. 한 `AsyncValue` 를 공유하던 시절에는 탈퇴 진행 중에 계정 연결
+  /// 버튼이 전부 disabled 되고, 탈퇴 실패로 남은 error state 가 Settings
+  /// 화면에 살아남았다.
   ///
   /// 반환: 위젯이 결과별 UI (성공 snackbar / reauth 라우팅 / already-linked
   /// 안내 / 취소 no-op) 를 분기하기 위한 [AccountLinkOutcome]. link 성공 시
@@ -136,15 +148,17 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// (naver/email) 는 [linkProvider] switch 에서 사전 분기되므로 본 메서드에
   /// 도달하지 않는다.
   ///
-  /// **WR-04 (ref-disposed guard):** 본 Notifier 는 auto-dispose
-  /// `@riverpod` 이며, OAuth/callable round-trip 진행 중 사용자가 SettingsScreen
-  /// 을 pop 하면 disposed 될 수 있다. `await` 이후 [state] 를 쓰기 전에
-  /// `ref.mounted` 를 확인해 disposed Notifier 에 대한 write (`StateError`)
-  /// 를 회피한다.
+  /// **WR-04 / 10-REVIEW WR-02 (ref-disposed guard):** 본 Notifier 는
+  /// auto-dispose `@riverpod` 이며, OAuth/callable round-trip 진행 중 사용자가
+  /// SettingsScreen 을 pop 하면 disposed 될 수 있다. 진행 플래그 핸들
+  /// ([accountLinkInProgressProvider] notifier) 과 repository 핸들을 진입
+  /// 시점에 캡처해 두면, dispose 이후에도 `finally` 의 `end()` 가 도달해
+  /// 오버레이가 `true` 로 고착되지 않는다 (플래그 provider 는 keepAlive).
   Future<AccountLinkOutcome> _dispatchLink(AccountProvider provider) async {
-    state = const AsyncValue<void>.loading();
+    final linkProgress = ref.read(accountLinkInProgressProvider.notifier);
+    final repo = ref.read(authRepositoryProvider);
+    linkProgress.begin();
     try {
-      final repo = ref.read(authRepositoryProvider);
       final Result<User>? result = switch (provider) {
         AccountProvider.google => await repo.linkGoogleCredential(),
         AccountProvider.apple => await repo.linkAppleCredential(),
@@ -157,10 +171,6 @@ class SettingsNotifier extends _$SettingsNotifier {
         // naver / email 은 linkProvider switch 에서 사전 분기 — 도달하지 않음.
         AccountProvider.naver || AccountProvider.email => null,
       };
-      // WR-04: await 이후 disposed 여부 확인 후 state write.
-      if (!ref.mounted) return AccountLinkOutcome.cancelled;
-      state = const AsyncValue<void>.data(null);
-
       // 사용자 SDK 취소 (null) — no-op.
       if (result == null) return AccountLinkOutcome.cancelled;
       return switch (result) {
@@ -176,10 +186,10 @@ class SettingsNotifier extends _$SettingsNotifier {
           'runtimeType=${e.runtimeType}',
         );
       }
-      // WR-04: catch path 에서도 disposed 여부 확인 후 state write.
-      if (!ref.mounted) return AccountLinkOutcome.failed;
-      state = const AsyncValue<void>.data(null);
       return AccountLinkOutcome.failed;
+    } finally {
+      // 성공/실패/취소/예외 어느 경로로 빠져나가도 진행 표시를 해제한다.
+      linkProgress.end();
     }
   }
 

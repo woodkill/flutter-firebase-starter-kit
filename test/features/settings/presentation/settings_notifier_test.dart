@@ -31,6 +31,7 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/settings/application/account_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_notifier.dart';
 
@@ -398,6 +399,46 @@ void main() {
       final outcome = await notifier.linkProvider(AccountProvider.google);
 
       expect(outcome, AccountLinkOutcome.emailInUse);
+    });
+
+    test('L11 (WR-02) — link 진행 상태는 탈퇴용 state 를 건드리지 않는다', () async {
+      // 두 유스케이스가 하나의 AsyncValue 를 공유하면 (a) 탈퇴 진행 중 연결
+      // 버튼이 전부 잠기고 (b) 탈퇴 실패 error state 가 Settings 에 살아남고
+      // (c) link 실패가 "탈퇴 실패" 로 오표시된다.
+      final linkGate = Completer<Result<User>>();
+      when(
+        () => mockAuthRepo.linkGoogleCredential(),
+      ).thenAnswer((_) => linkGate.future);
+
+      final notifier = container.read(settingsProvider.notifier);
+      final future = notifier.linkProvider(AccountProvider.google);
+      await pumpEventQueue();
+
+      // 진행 표시는 전용 플래그가 보유한다.
+      expect(container.read(accountLinkInProgressProvider), isTrue);
+      // 탈퇴용 state 는 loading 으로 흔들리지 않는다.
+      expect(container.read(settingsProvider).isLoading, isFalse);
+      expect(
+        container.read(settingsProvider),
+        const AsyncValue<void>.data(null),
+      );
+
+      linkGate.complete(Result<User>.success(stubUser()));
+      expect(await future, AccountLinkOutcome.success);
+      // finally 로 항상 해제된다.
+      expect(container.read(accountLinkInProgressProvider), isFalse);
+    });
+
+    test('L12 (WR-02) — 미분류 예외 경로에서도 진행 플래그가 해제된다', () async {
+      when(
+        () => mockAuthRepo.linkGoogleCredential(),
+      ).thenThrow(StateError('sdk in bad state'));
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.google);
+
+      expect(outcome, AccountLinkOutcome.failed);
+      expect(container.read(accountLinkInProgressProvider), isFalse);
     });
 
     test('L10 일시적 오류 3종 → transientFailure (G-16-A6-2)', () async {

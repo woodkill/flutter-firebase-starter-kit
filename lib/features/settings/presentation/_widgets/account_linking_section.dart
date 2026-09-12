@@ -26,6 +26,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/presentation/_widgets/auth_in_progress_overlay.dart';
 import '../../../auth/presentation/_widgets/branded_social_button.dart';
+import '../../application/account_link_in_progress.dart';
 import '../settings_notifier.dart';
 
 /// Surface D 의 소셜 proactive 후보 (email / naver EXCLUDE).
@@ -93,7 +94,9 @@ class AccountLinkingSection extends ConsumerWidget {
     ];
 
     // 진행 중 overlay (UI-SPEC Surface D State variant — link in-progress).
-    final isLinking = ref.watch(settingsProvider).isLoading;
+    // WR-02: 탈퇴용 settingsProvider 가 아니라 link 전용 플래그를 본다 —
+    // 종전에는 탈퇴 진행 중에도 본 섹션 전체가 잠기고 오버레이가 떴다.
+    final isLinking = ref.watch(accountLinkInProgressProvider);
 
     // available 빈 set → 섹션 미노출 (mockup §2 graceful).
     if (available.isEmpty) return const SizedBox.shrink();
