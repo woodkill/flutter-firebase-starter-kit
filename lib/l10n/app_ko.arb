@@ -98,6 +98,7 @@
   "authAccountCopied": "클립보드에 복사되었습니다.",
   "authAccountSignOut": "로그아웃",
   "debugAuthTokenUnavailable": "ID 토큰을 사용할 수 없음 (debug)",
+  "debugAuthTokenCopiedWarning": "ID 토큰을 복사했습니다 — 디버그 전용. 공유 금지, 만료(1시간) 전까지 다른 앱이 읽을 수 있습니다.",
 
   "authLogoutConfirmTitle": "로그아웃",
   "authLogoutConfirmMessage": "로그아웃 하시겠습니까?",

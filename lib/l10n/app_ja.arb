@@ -98,6 +98,7 @@
   "authAccountCopied": "クリップボードにコピーしました。",
   "authAccountSignOut": "ログアウト",
   "debugAuthTokenUnavailable": "IDトークンを取得できません (debug)",
+  "debugAuthTokenCopiedWarning": "IDトークンをコピーしました — デバッグ専用。共有しないでください。有効期限（1時間）まで他のアプリから読み取れます。",
 
   "authLogoutConfirmTitle": "ログアウト",
   "authLogoutConfirmMessage": "ログアウトしますか？",

@@ -268,6 +268,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get debugAuthTokenUnavailable => 'ID 토큰을 사용할 수 없음 (debug)';
 
   @override
+  String get debugAuthTokenCopiedWarning =>
+      'ID 토큰을 복사했습니다 — 디버그 전용. 공유 금지, 만료(1시간) 전까지 다른 앱이 읽을 수 있습니다.';
+
+  @override
   String get authLogoutConfirmTitle => '로그아웃';
 
   @override

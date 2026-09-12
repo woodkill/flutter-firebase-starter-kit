@@ -274,6 +274,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get debugAuthTokenUnavailable => 'ID token unavailable (debug)';
 
   @override
+  String get debugAuthTokenCopiedWarning =>
+      'ID token copied — debug only. Do not share; it stays readable by other apps until it expires (1 hour).';
+
+  @override
   String get authLogoutConfirmTitle => 'Sign out';
 
   @override

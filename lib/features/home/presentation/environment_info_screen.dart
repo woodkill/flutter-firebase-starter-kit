@@ -23,6 +23,32 @@ import '../../auth/presentation/_widgets/auth_required.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 import 'provider_label_formatter.dart';
 
+// IN-03 — 매직 넘버를 저장소의 지배적 규약 2가지(설계 토큰 유도 / 파일 상단
+// 명명 상수)로 정리한다. 아래 값들은 `spacing.*` 스케일(4/8/12/16/24/32/48)
+// 에서 유도되지 않는 컴포넌트 고유 치수이므로 명명 상수로 승격한다. 이
+// 프로젝트에는 `AppIconSizes` / `AppComponentSizes` extension 이 없으므로
+// 토큰 신설 대신 상수 규약(splash_screen.dart 의 `_kLogoSize` 선례) 을 따른다.
+
+/// 컬러 스와치 한 변의 길이 (logical pixel, IN-03).
+const double _kSwatchSize = 40.0;
+
+/// 스페이싱 쇼케이스 막대의 높이 (logical pixel, IN-03).
+const double _kSpacingBarHeight = 24.0;
+
+/// 계정 섹션 프로필 아바타의 반지름 (logical pixel, IN-03).
+///
+/// 지름은 이 값의 2배(48dp) 로, 최소 터치 타깃 권장치와 일치한다.
+const double _kAvatarRadius = 24.0;
+
+/// 아바타 placeholder 아이콘의 크기 (logical pixel, IN-03).
+const double _kAvatarIconSize = 24.0;
+
+/// photoUrl 썸네일 한 변의 길이 (logical pixel, IN-03).
+const double _kThumbnailSize = 48.0;
+
+/// 환경 카드 leading 아이콘의 크기 (logical pixel, IN-03).
+const double _kEnvCardIconSize = 32.0;
+
 /// 현재 빌드 환경 정보와 디자인 토큰 쇼케이스를 표시하는 화면.
 ///
 /// Flavor, App Name, Firebase 연결 상태, Firebase Project ID를
@@ -573,8 +599,8 @@ class _ColorSwatch extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: _kSwatchSize,
+            height: _kSwatchSize,
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(spacing.sm),
@@ -752,7 +778,7 @@ class _SpacingBar extends StatelessWidget {
       children: [
         Container(
           width: width,
-          height: 24,
+          height: _kSpacingBarHeight,
           decoration: BoxDecoration(
             color: context.colorScheme.primary,
             borderRadius: BorderRadius.circular(spacing.xs),
@@ -798,7 +824,7 @@ class _AccountSection extends ConsumerWidget {
             Semantics(
               label: user.displayName ?? l10n.authAccountDisplayName,
               child: CircleAvatar(
-                radius: 24,
+                radius: _kAvatarRadius,
                 backgroundImage: user.photoUrl != null
                     ? CachedNetworkImageProvider(user.photoUrl!)
                     : null,
@@ -808,7 +834,7 @@ class _AccountSection extends ConsumerWidget {
                 child: user.photoUrl == null
                     ? Icon(
                         Icons.person,
-                        size: 24,
+                        size: _kAvatarIconSize,
                         color: context.colorScheme.onSurfaceVariant,
                       )
                     : null,
@@ -864,11 +890,12 @@ class _AccountSection extends ConsumerWidget {
             icon: Icons.image,
             label: l10n.authAccountPhotoUrl,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              // IN-03: 반경은 spacing 스케일에서 유도한다 (sm = 8).
+              borderRadius: BorderRadius.circular(spacing.sm),
               child: CachedNetworkImage(
                 imageUrl: user.photoUrl!,
-                width: 48,
-                height: 48,
+                width: _kThumbnailSize,
+                height: _kThumbnailSize,
                 fit: BoxFit.cover,
                 errorWidget: (_, _, _) => const Icon(Icons.broken_image),
               ),
@@ -927,6 +954,11 @@ class _AccountSection extends ConsumerWidget {
   ///
   /// `getIdToken()` 이 null 을 반환하면 (currentUser 가 null 이거나
   /// 토큰 조회 실패) 디버그 SnackBar + debugPrint 로 사유를 안내한다.
+  ///
+  /// **IN-05:** 복사 성공 SnackBar 는 `debugAuthTokenCopiedWarning` (디버그
+  /// 전용 + 공유 금지 + 1시간 만료 경고) 를 쓴다. 호출부가 `kDebugMode` 로
+  /// 가드되어 릴리스 표면은 아니지만, 클립보드는 타 앱이 읽을 수 있고 ID
+  /// 토큰은 bearer 자격증명이다.
   Future<void> _copyIdToken(
     BuildContext context,
     WidgetRef ref,
@@ -949,9 +981,14 @@ class _AccountSection extends ConsumerWidget {
     }
     await Clipboard.setData(ClipboardData(text: token));
     if (!context.mounted) return;
+    // IN-05: 클립보드는 다른 앱이 읽을 수 있고 Firebase ID 토큰은 1시간
+    // 유효한 bearer 자격증명이다. generic "복사되었습니다" 대신 공유 금지 +
+    // 만료 창을 명시한 전용 문구를 쓴다 (authAccountCopied 는 비밀이 아닌
+    // uid 를 복사하는 _copyUid 전용으로 남긴다). 문구 자체에는 토큰/이메일/
+    // uid 를 넣지 않는다.
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(l10n.authAccountCopied),
+        content: Text(l10n.debugAuthTokenCopiedWarning),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -963,6 +1000,9 @@ class _AccountSection extends ConsumerWidget {
   /// 이후 화면 이동은 authStateChanges → AuthChangeNotifier → resolveAuthRedirect
   /// 분기 (2) 가 /onboarding 으로 처리한다 (Phase 10.2 D-B1, I2 invariant
   /// 단일 진리원). navigation 명시 호출 없음 (자연 redirect).
+  ///
+  /// **WR-18:** 다이얼로그 `await` 이후 `ref` 를 쓰기 전에 `context.mounted`
+  /// 를 확인한다 — 같은 파일의 다른 5 핸들러와 동일한 가드다.
   Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
@@ -986,6 +1026,11 @@ class _AccountSection extends ConsumerWidget {
       ),
     );
     if (confirmed ?? false) {
+      // WR-18: showDialog await 이후 라우팅이 일어났다면 WidgetRef 가 이미
+      // disposed 일 수 있다. 같은 파일의 _copyUid / _copyIdToken /
+      // _handleResetOnboarding / _handleTriggerError / _handleTriggerAnalytics
+      // 는 모두 이 가드를 갖고 있어 본 경로만 비일관적이었다.
+      if (!context.mounted) return;
       await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
     }
   }
@@ -1320,7 +1365,11 @@ class _EnvironmentCard extends StatelessWidget {
           padding: EdgeInsets.all(spacing.lg),
           child: Row(
             children: [
-              Icon(icon, size: 32, color: context.colorScheme.primary),
+              Icon(
+                icon,
+                size: _kEnvCardIconSize,
+                color: context.colorScheme.primary,
+              ),
               Gap(spacing.lg),
               Expanded(
                 child: Column(

@@ -268,6 +268,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get debugAuthTokenUnavailable => 'IDトークンを取得できません (debug)';
 
   @override
+  String get debugAuthTokenCopiedWarning =>
+      'IDトークンをコピーしました — デバッグ専用。共有しないでください。有効期限（1時間）まで他のアプリから読み取れます。';
+
+  @override
   String get authLogoutConfirmTitle => 'ログアウト';
 
   @override
