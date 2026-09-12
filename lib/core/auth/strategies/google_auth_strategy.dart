@@ -21,7 +21,6 @@ class GoogleAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authGoogleSignIn';
 
-
   @override
   Future<void> signIn(WidgetRef ref) =>
       ref.read(googleSignInProvider.notifier).signInWithGoogle();

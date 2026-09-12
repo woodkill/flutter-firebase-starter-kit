@@ -21,7 +21,6 @@ class AppleAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authAppleSignIn';
 
-
   @override
   Future<void> signIn(WidgetRef ref) =>
       ref.read(appleSignInProvider.notifier).signInWithApple();

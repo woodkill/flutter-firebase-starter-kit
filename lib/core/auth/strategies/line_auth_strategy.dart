@@ -27,7 +27,6 @@ class LineAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authLineSignIn';
 
-
   @override
   Future<void> signIn(WidgetRef ref) =>
       ref.read(lineSignInProvider.notifier).signInWithLine();

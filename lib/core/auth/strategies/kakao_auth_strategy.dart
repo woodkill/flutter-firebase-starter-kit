@@ -25,7 +25,6 @@ class KakaoAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authKakaoSignIn';
 
-
   @override
   Future<void> signIn(WidgetRef ref) =>
       ref.read(kakaoSignInProvider.notifier).signInWithKakao();

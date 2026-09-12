@@ -2,14 +2,12 @@
 //
 // LINE 로그인 진입점 + Phase 12 KakaoSdkClient 의 typedef 주입 패턴 미러.
 // D-LINE-16 ~ D-LINE-22a + Pitfall 4/8 race-fix 단일 진실원 정책 일관.
-import 'dart:convert';
-import 'dart:math';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_line_sdk/flutter_line_sdk.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/auth/nonce.dart';
 import '../../../core/error/app_exception.dart';
 
 part 'line_sdk_client.g.dart';
@@ -106,8 +104,9 @@ class LineSdkClient {
   /// LINE OIDC 로그인 — LINE 앱 우선 + 웹뷰 fallback (SDK 자체 제어).
   ///
   /// 흐름:
-  /// 1. `Random.secure()` + base64Url(16 bytes) 로 raw nonce 1회 생성
-  ///    (D-LINE-21 single nonce). 16 bytes = 22 chars (base64url, padding 제거).
+  /// 1. [generateNonce] (`byteLength: 16`, IN-05 공통 helper) 로 raw nonce
+  ///    1회 생성 (D-LINE-21 single nonce). 16 bytes = 22 chars
+  ///    (base64url, padding 제거).
   /// 2. `_login(scopes: const ['openid', 'profile'], option: LoginOption(
   ///    false, 'normal')..idTokenNonce = nonce)` 호출.
   /// 3. `result.accessToken.idTokenRaw == null` (Pitfall 1 — OIDC scope 누락) →
@@ -119,7 +118,7 @@ class LineSdkClient {
   /// - [LineSignInResult] (idToken + 같은 nonce) — 성공.
   /// - null — 사용자 취소.
   Future<LineSignInResult?> signIn() async {
-    final nonce = _generateNonce();
+    final nonce = generateNonce(byteLength: 16);
     try {
       final option = LoginOption(false, 'normal')..idTokenNonce = nonce;
       final result = await _login(
@@ -163,16 +162,6 @@ class LineSdkClient {
         debugPrint('LineSdkClient.logout 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
-  }
-
-  /// raw nonce 생성 — `Random.secure()` (OS CSPRNG) + 16 bytes + base64Url.
-  ///
-  /// `Random()` (MT19937 — 예측 가능) 사용 금지. 16 bytes 는 base64url 후
-  /// 22 chars — RFC 7636 권장 길이 (PKCE code_verifier 와 동등).
-  String _generateNonce() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-    return base64UrlEncode(bytes).replaceAll('=', '');
   }
 }
 

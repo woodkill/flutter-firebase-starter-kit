@@ -21,7 +21,6 @@ class FacebookAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authFacebookSignIn';
 
-
   @override
   Future<void> signIn(WidgetRef ref) =>
       ref.read(facebookSignInProvider.notifier).signInWithFacebook();

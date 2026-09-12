@@ -26,7 +26,6 @@ class NaverAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authNaverSignIn';
 
-
   @override
   Future<void> signIn(WidgetRef ref) =>
       ref.read(naverSignInProvider.notifier).signInWithNaver();

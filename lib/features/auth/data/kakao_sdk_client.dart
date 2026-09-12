@@ -1,11 +1,9 @@
-import 'dart:convert';
-import 'dart:math';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/auth/nonce.dart';
 import '../../../core/error/app_exception.dart';
 
 part 'kakao_sdk_client.g.dart';
@@ -79,7 +77,8 @@ class KakaoSdkClient {
   /// Kakao OIDC 로그인 — KakaoTalk 우선 + 카카오계정 웹뷰 fallback.
   ///
   /// 흐름:
-  /// 1. `Random.secure()` + base64Url(32 bytes) 로 nonce 1회 생성 (Pitfall 2).
+  /// 1. [generateNonce] (`byteLength: 32`) 로 nonce 1회 생성 (Pitfall 2).
+  ///    IN-05 — 3 SDK wrapper 공통 helper (`core/auth/nonce.dart`).
   /// 2. `isKakaoTalkInstalled` → true 면 `loginWithKakaoTalk` 우선, 실패 시
   ///    `loginWithKakaoAccount` fallback (D-01). 단 **사용자 취소는 fallback
   ///    대상이 아니다** — CR-01 (Phase 7 review) 정정.
@@ -94,7 +93,7 @@ class KakaoSdkClient {
   /// - [KakaoSignInResult] (idToken + 같은 nonce) — 성공.
   /// - null — 사용자 취소.
   Future<KakaoSignInResult?> signIn() async {
-    final nonce = _generateNonce();
+    final nonce = generateNonce(byteLength: 32);
     try {
       final installed = await _isInstalled();
       OAuthToken token;
@@ -173,15 +172,6 @@ class KakaoSdkClient {
         debugPrint('KakaoSdkClient.logout 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
-  }
-
-  /// nonce 생성 — `Random.secure()` (OS CSPRNG) + 32 bytes + base64Url.
-  ///
-  /// `Random()` (MT19937 — 예측 가능) 사용 금지. RFC 7636 권장 길이.
-  String _generateNonce() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
-    return base64UrlEncode(bytes).replaceAll('=', '');
   }
 }
 

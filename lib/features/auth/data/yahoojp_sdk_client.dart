@@ -16,14 +16,12 @@
 //    Yahoo!JP 는 [AppConfig.yahoojpClientId] 를 SdkClient 생성자에 주입
 //    (LineSDK 의 global singleton 와 달리 [FlutterAppAuth] 는 stateless
 //    wrapper 이므로 ctor 시점에 config 주입).
-import 'dart:convert';
-import 'dart:math';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/auth/nonce.dart';
 import '../../../core/error/app_exception.dart';
 
 part 'yahoojp_sdk_client.g.dart';
@@ -164,8 +162,9 @@ class YahoojpSdkClient {
   /// (Android) (flutter_appauth 가 OS 분기 자동 처리).
   ///
   /// 흐름:
-  /// 1. `Random.secure()` + base64Url(16 bytes) 로 raw nonce 1회 생성
-  ///    (D-YJP-04 single nonce). 16 bytes = 22 chars (base64url, padding 제거).
+  /// 1. [generateNonce] (`byteLength: 16`, IN-05 공통 helper) 로 raw nonce
+  ///    1회 생성 (D-YJP-04 single nonce). 16 bytes = 22 chars
+  ///    (base64url, padding 제거).
   /// 2. `clientId.isEmpty` 시 [ServiceUnavailable] throw (T-15-15 mitigation).
   /// 3. `_authorize(AuthorizationTokenRequest(clientId, redirectUrl,
   ///    serviceConfiguration: _yahoojpServiceConfig, scopes: ['openid',
@@ -184,7 +183,7 @@ class YahoojpSdkClient {
       // T-15-15: --dart-define-from-file 미주입 silent failure 회피.
       throw const ServiceUnavailable();
     }
-    final nonce = _generateNonce();
+    final nonce = generateNonce(byteLength: 16);
     try {
       final request = AuthorizationTokenRequest(
         clientId,
@@ -269,21 +268,6 @@ class YahoojpSdkClient {
         debugPrint('YahoojpSdkClient.logout 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
-  }
-
-  /// raw nonce 생성 — `Random.secure()` (OS CSPRNG) + 16 bytes + base64Url.
-  ///
-  /// Phase 14 D-LINE-06 verbatim mirror. `Random()` (MT19937 — 예측 가능)
-  /// 사용 금지. 16 bytes 는 base64url 후 22 chars — RFC 7636 권장 길이
-  /// (PKCE code_verifier 와 동등).
-  ///
-  /// **D-YJP-04 nonceHashing="none":** Yahoo!JP 는 raw nonce 를 그대로
-  /// id_token `nonce` claim 에 박는다 (LINE 의 SHA256 hash 와 다름 —
-  /// deviation 아닌 server-side 정책). client 측 nonce 생성은 LINE 과 동일.
-  String _generateNonce() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-    return base64UrlEncode(bytes).replaceAll('=', '');
   }
 }
 

@@ -27,7 +27,6 @@ class YahoojpAuthStrategy extends AuthStrategy {
   @override
   String get labelKey => 'authYahoojpSignIn';
 
-
   @override
   Future<void> signIn(WidgetRef ref) =>
       ref.read(yahoojpSignInProvider.notifier).signInWithYahoojp();
