@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/error/result.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
@@ -165,7 +168,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   Future<void> _runInit() async {
     if (_initInFlight) return;
     _initInFlight = true;
+    // 10-REVIEW CR-02: catch 안에서 provider 를 읽으면 위젯이 이미 해체된
+    // 경우 그 ref.read 자체가 StateError 를 던져 새 누출 경로가 된다.
+    // try 진입 전에 핸들을 담을 지역 변수를 두고 try 본체 첫 줄에서 캡처한다
+    // (캡처가 실패하면 null 로 남아 emit 을 생략 — best-effort).
+    CrashlyticsService? crashlytics;
     try {
+      crashlytics = ref.read(crashlyticsServiceProvider);
       final initializer = ref.read(splashInitializerProvider);
       final result = await initializer.initialize();
       if (!mounted) return;
@@ -181,6 +190,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       // 후 재진입) 에서 다시 1회 fail-safe 가 허용된다.
       _offlineFallbackReentryCount = 0;
       context.go(AppRoutes.home);
+    } on Object catch (e, st) {
+      // 10-REVIEW CR-02: Result.failure 가 아닌 예상 외 throw 도 사용자에게
+      // 탈출구를 제공한다 (무한 스피너 금지 — 재설치 외 탈출 경로가 없었다).
+      // 코드는 타입명만 노출한다 — extractSplashErrorCode 는 AppException 만
+      // 받으므로 임의 throw 에 쓸 수 없고, runtimeType 문자열은 PII 를
+      // 포함하지 않는다 (T-x0r-04).
+      final emitFuture = crashlytics?.recordError(
+        e,
+        st,
+        reason: 'splash_init_threw',
+      );
+      if (emitFuture != null) {
+        unawaited(emitFuture);
+      }
+      if (!mounted) return;
+      setState(() => _hasFailure = true);
+      await _showFailureDialog(e.runtimeType.toString());
     } finally {
       _initInFlight = false;
     }

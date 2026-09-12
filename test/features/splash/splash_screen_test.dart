@@ -258,6 +258,51 @@ void main() {
     );
 
     testWidgets(
+      'Test 3b (10-REVIEW CR-02): initialize() 가 Result.failure 반환이 아니라 '
+      'throw 해도 실패 다이얼로그가 뜨고 스피너가 사라진다',
+      (tester) async {
+        // 재현 수단은 실제 누출원과 동일한 경로다 — initialize() 의 첫 문장
+        // `await onboardingFuture` 가 try 밖이므로 이 future 의 error 가
+        // 그대로 initialize() 의 throw 가 된다. Error 계열을 쓰는 이유는
+        // CR-03 이 기술한 실제 누출원(prefs cast TypeError)이 Error 이기 때문.
+        //
+        // 생성 즉시 완료되는 `Future.error` 는 _runInit 이 (post-frame
+        // callback 이라) listener 를 붙이기 전에 이미 error 상태가 되어
+        // flutter_test zone 이 이를 unhandled 로 보고해 버린다 — 프로덕션
+        // 동작과 무관한 harness 잡음이다. delayed 로 지연시켜 listener 가
+        // 붙은 뒤 error 가 도착하게 한다 (await 지점은 동일).
+        final mockRepo = _MockAuthRepository();
+        final initializer = SplashInitializer(
+          authRepository: mockRepo,
+          isFirebaseInitialized: true,
+          currentUserIsNull: true,
+          onboardingFuture: Future<bool>.delayed(
+            const Duration(milliseconds: 5),
+            () => throw StateError('onboarding prefs corrupted'),
+          ),
+          isSocialLinkInProgress: false,
+        );
+        final router = _testRouter();
+        addTearDown(router.dispose);
+
+        await _pumpSplash(tester, initializer: initializer, router: router);
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pumpAndSettle();
+
+        // Test 3 의 단언 집합을 mirror — 동일한 D-27 실패 다이얼로그로 수렴.
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.text('Retry'), findsOneWidget);
+        expect(find.text('Sign in later'), findsOneWidget);
+        // _hasFailure == true 로 전이되어 무한 스피너가 사라졌다는 관측 증거.
+        expect(
+          find.byType(CircularProgressIndicator),
+          findsNothing,
+          reason: '예상 외 throw 도 탈출구가 있어야 한다 (무한 스피너 금지)',
+        );
+      },
+    );
+
+    testWidgets(
       'Test 4: WARNING #13 seam — setUp/tearDown 패턴이 overrideMinDuration 을 1ms 로 설정/리셋',
       (tester) async {
         // setUp 후 시작 시점의 minDuration 이 1ms.
