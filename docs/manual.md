@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-05-05
-phases: [09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login)]
+last_updated: 2026-09-12
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -40,6 +40,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 13. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
 14. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
 15. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+16. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
 
 ---
 
@@ -2921,6 +2922,319 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 
 ---
 
+## Design System — 디자인 토큰 커스터마이징 (Phase 3)
+
+> **이 절의 계약은 2026-09-12 Phase 3 code review fix 12건**
+> (`.planning/phases/03-design-system/03-REVIEW-FIX.md`) **으로 확정된 것입니다.**
+> 그 이전 코드를 기준으로 쓰인 커스터마이징 방법은 더 이상 유효하지 않습니다 —
+> 특히 타이포그래피는 등록되는 extension 자체가 바뀌었습니다 (아래 2번).
+
+Starter kit 의 디자인 시스템은 **`ThemeExtension` 3종** 으로 구성됩니다.
+
+| Extension | 파일 | 담는 것 |
+|---|---|---|
+| `AppColors` | `lib/core/theme/app_colors.dart` | `ColorScheme` 에 없는 앱 고유 시맨틱 컬러 6종 |
+| `AppTypography` | `lib/core/theme/app_typography.dart` | M3 `TextTheme` 15 스타일의 **override 레이어** |
+| `AppSpacing` | `lib/core/theme/app_spacing.dart` | 4 의 배수 간격 스케일 7단계 |
+
+세 extension 을 `ThemeData` 로 조립하는 곳은 `AppTheme.light()` / `AppTheme.dark()`
+(`lib/core/theme/app_theme.dart`) 이고, 호출부는 `lib/app.dart:53-54` 의
+`theme: AppTheme.light(),` / `darkTheme: AppTheme.dark(),` 단 두 줄입니다.
+`ColorScheme` 은 `seedColor` 하나에서 `ColorScheme.fromSeed` 로 파생되고,
+extension 3종은 `base.copyWith(extensions: [...])` 로 등록됩니다 —
+`AppColors.fromBrightness(...)` · `AppTypography.empty` · `const AppSpacing()`
+순서입니다.
+
+이 밖에 반응형은 `AppBreakpoint` + `ResponsiveX`
+(`lib/core/theme/app_breakpoint.dart`) 가, 키보드 focus outline 은
+`BrandFocusWrapper` (`lib/core/theme/brand_focus_wrapper.dart`) 가 담당합니다.
+
+앱 코드가 토큰에 접근하는 경로는 `ThemeX` extension
+(`lib/core/theme/theme_extensions.dart`) 의 **다섯 getter** 입니다.
+
+| getter | 반환 | extension 미등록 테마에서의 동작 |
+|---|---|---|
+| `context.appColors` | `AppColors` | `AppColors.fromBrightness(theme.brightness)` 로 폴백 |
+| `context.appTypography` | `AppTypography` (합성 결과) | 테마 `textTheme` 기하를 그대로 반영 |
+| `context.appSpacing` | `AppSpacing` | `const AppSpacing()` 으로 폴백 |
+| `context.colorScheme` | `ColorScheme` | `Theme.of` 직통 |
+| `context.textTheme` | `TextTheme` | `Theme.of` 직통 — **extension override 미반영** |
+
+세 토큰 getter 는 extension 이 등록되지 않은 테마에서도 크래시하지 않고 기본
+토큰으로 폴백하므로, 사용자가 자체 `ThemeData` 를 쓰거나 위젯 테스트에서 맨몸
+`MaterialApp()` 을 써도 안전합니다.
+
+### 1. 시드 컬러 교체 — M3 팔레트 전체 전환
+
+기본 시드는 `app_theme.dart` 에 상수로 선언돼 있습니다.
+
+```dart
+static const MaterialColor seedColor = Colors.deepPurple;
+```
+
+**소스를 고치지 않는 교체 경로는 `light()` / `dark()` 의 `seedColor` 인자입니다**
+— 두 메서드는 `light({Color seedColor = AppTheme.seedColor})` /
+`dark({Color seedColor = AppTheme.seedColor})` 로 동일한 시그니처를 갖습니다.
+`lib/app.dart` 의 두 줄만 바꾸면 됩니다.
+
+```dart
+// lib/app.dart — MaterialApp.router
+theme: AppTheme.light(seedColor: Colors.teal),
+darkTheme: AppTheme.dark(seedColor: Colors.teal),
+```
+
+- **라이트와 다크에 같은 시드를 넘기세요.** `app_theme.dart:53-54` docstring 이
+  못박은 계약입니다 — 서로 다른 시드를 넘기면 두 모드의 팔레트가 어긋납니다.
+- 시드 하나에서 `ColorScheme.fromSeed` 가 M3 팔레트 **전체**(primary /
+  secondary / tertiary / surface / error 및 각 `on-` 쌍)를 파생하므로,
+  개별 색을 일일이 지정할 필요가 없습니다. 브랜드 색을 하나 정해 넣는 것이
+  가장 빠른 커스터마이징입니다.
+- 상수 자체를 바꾸고 싶다면 `AppTheme.seedColor` 를 수정해도 되지만, starter kit
+  업스트림 갱신을 병합할 때 충돌하므로 **인자 주입을 권장**합니다.
+
+### 2. 타이포그래피 계약 — `context.appTypography` 가 유일한 경로
+
+**이번 fix 에서 가장 크게 바뀐 부분입니다.** 순서대로 읽어 주세요.
+
+1. **`AppTheme` 이 등록하는 extension 은 `AppTypography.empty` 입니다.** 전 15
+   필드가 빈 `TextStyle()` 인 **순수 override 레이어**이며, 기하(fontSize /
+   fontWeight / baseline / fontFamily)를 하나도 담고 있지 않습니다.
+2. **완성된 스타일은 반드시 `context.appTypography` 로 얻습니다.**
+   `ThemeX.appTypography` 는 호출 시점에
+   `AppTypography.fromTextTheme(Theme.of(context).textTheme).merge(등록된 override)`
+   를 계산합니다. 즉 로케일 기하가 적용된 테마 `textTheme` 을 밑바탕으로
+   사용자 override 를 얹은 **합성 결과**입니다.
+3. **⚠ `Theme.of(context).extension<AppTypography>()` 직접 읽기는 금지입니다.**
+   등록된 값이 `AppTypography.empty` 이므로 **빈 스타일**이 돌아옵니다.
+   크래시도 경고도 없이 글자가 기본값으로 렌더되는 조용한 어긋남이라
+   발견이 늦습니다.
+4. **override 를 등록하지 않은 기본 상태에서는 `context.appTypography.X` 와
+   `context.textTheme.X` 가 같은 값입니다.** 이 설계의 목적은 ko/ja 로케일의
+   dense 기하(`textBaseline: ideographic`)가 Flutter 의 `ThemeData.localize`
+   를 거쳐 자동 반영되게 하는 것입니다. 기하를 extension 에 미리 구워 두면
+   로케일 전환 시 desync 가 납니다. 이 계약은
+   `T-03-WR-03: appTypography 가 로케일별 기하를 따른다` group 이 잠급니다.
+5. **폰트 교체는 `ThemeData(fontFamily:)` 또는 `textTheme` 으로 합니다** —
+   extension 을 건드릴 필요가 없습니다. 등록 레이어를 `empty` 로 둔 이유가
+   정확히 이것입니다: `03-REVIEW-FIX.md` WR-03 의 실측에 따르면 등록 레이어에
+   `fontFamily: 'Roboto'` 가 살아 있으면 `merge` 단계에서 사용자가 바꾼 폰트를
+   **다시 Roboto 로 덮어씁니다**.
+
+일부 스타일만 바꾸고 싶다면 `AppTypography.empty.copyWith(...)` 로 override 를
+채워 등록합니다.
+
+```dart
+// 타이포그래피 부분 override — extensions 리스트에 3종을 모두 넣는다.
+final lightTheme = AppTheme.light().copyWith(
+  extensions: <ThemeExtension<dynamic>>[
+    AppColors.fromBrightness(Brightness.light),
+    const AppSpacing(),
+    AppTypography.empty.copyWith(
+      bodyMedium: const TextStyle(fontSize: 15, height: 1.5),
+      titleLarge: const TextStyle(fontWeight: FontWeight.w700),
+    ),
+  ],
+);
+```
+
+> ⚠ **`ThemeData.copyWith(extensions:)` 는 기존 extension map 을 통째로
+> 교체합니다** (교체이지 병합이 아닙니다). 위 리스트에서 `AppTypography` 만
+> 넘기면 `AppColors` 와 `AppSpacing` 이 **등록에서 사라집니다**.
+> `ThemeX` 의 폴백 덕에 크래시는 나지 않지만, 사용자가 `copyWith` 로 조정해 둔
+> 색·간격 값은 조용히 유실되고 기본 토큰으로 되돌아갑니다. **항상 세 원소를
+> 모두 나열하세요.**
+
+`copyWith` 에 넘길 수 있는 인자는 M3 15 스타일과 같은 이름입니다 —
+`displayLarge` / `displayMedium` / `displaySmall` / `headlineLarge` /
+`headlineMedium` / `headlineSmall` / `titleLarge` / `titleMedium` /
+`titleSmall` / `bodyLarge` / `bodyMedium` / `bodySmall` / `labelLarge` /
+`labelMedium` / `labelSmall`. 지정하지 않은 속성은 `TextStyle.merge` 로
+테마 값이 유지되므로, `fontSize` 만 바꾸고 `fontWeight` 는 테마를 따르는 식의
+부분 override 가 가능합니다.
+
+### 3. 시맨틱 컬러 · 간격 커스터마이징
+
+**`AppColors`** 는 `ColorScheme` 에 없는 앱 고유 시맨틱 컬러 6종
+(`success` / `warning` / `info` + 각각의 `onSuccess` / `onWarning` / `onInfo`)
+을 담습니다. `AppColors.fromBrightness(Brightness)` 로 라이트/다크 기본 토큰을
+만들고 `copyWith` 로 개별 색만 교체합니다.
+
+```dart
+AppColors.fromBrightness(Brightness.light)
+    .copyWith(success: const Color(0xFF00897B));
+```
+
+**`AppSpacing`** 은 **4 의 배수 7단계**입니다 (등차 4dp 가 아닙니다 — `xl` 은
+`lg` 의 +8 입니다).
+
+| 토큰 | 값 (dp) | 토큰 | 값 (dp) |
+|---|---|---|---|
+| `xs` | 4 | `xl` | 24 |
+| `sm` | 8 | `xxl` | 32 |
+| `md` | 12 | `xxxl` | 48 |
+| `lg` | 16 | | |
+
+`const AppSpacing()` 이 기본값이고, `const AppSpacing().copyWith(md: 16)` 처럼
+개별 단계만 조정합니다. 두 extension 모두 위 2번의 `extensions:` 리스트에
+함께 넣어 등록합니다.
+
+이 절의 커스터마이징과 직결된 계약이 둘 더 있습니다.
+
+- **세 extension 모두 전 필드 기반 `==` / `hashCode` 가 구현돼 있습니다.**
+  덕분에 `lib/app.dart` 처럼 `build` 안에서 `AppTheme.light()` 를 매번 새로
+  만들어도 `ThemeData` 가 동일로 판정됩니다. 테스트가 잠그는 것은
+  `AppTheme.light() == AppTheme.light()` 이며 (`T-03-WR-02: ThemeData 동등성`),
+  그 귀결로 App 리빌드마다 `AnimatedTheme` 의 200ms 보간
+  (`kThemeAnimationDuration`)이 재시작되고 `Theme.of` 의존 서브트리가 통째로
+  리빌드되던 동작이 사라집니다. 이 fix 이전에도 `const` 정규화 덕에 기본값끼리는
+  `==` 였고, **사용자가 `copyWith` 로 커스터마이즈하는 순간** 깨졌습니다 —
+  즉 starter kit 의 주 사용 시나리오가 정확히 피해자였습니다.
+- **extension 이 등록되지 않은 테마에서도 세 getter 는 크래시하지 않습니다.**
+  사용자가 `AppTheme` 을 쓰지 않고 자체 `ThemeData` 를 만들거나, 위젯 테스트가
+  맨몸 `MaterialApp()` 을 써도 기본 토큰으로 폴백합니다
+  (`T-03-WR-04: extension 미등록 테마에서도 기본 토큰을 돌려준다`).
+
+### 4. 반응형 breakpoint 계약
+
+모바일 전용 3단계입니다 (`lib/core/theme/app_breakpoint.dart`).
+
+| breakpoint | 범위 (dp) | 대상 |
+|---|---|---|
+| `compact` | 280 이상 ~ 360 미만 | 소형 디바이스 |
+| `medium` | 360 이상 ~ 600 미만 | 일반 모바일 |
+| `expanded` | 600 이상 ~ 674 미만 | 대형 모바일 / 폴더블 |
+
+- **하한 포함, 상한 배타**입니다. 판정의 단일 진실원은
+  `contains(width) => width >= minWidth && width < maxWidth` 이고
+  `fromWidth` 가 거기서 파생되므로, **인접한 두 breakpoint 가 동시에 참인
+  경계값은 없습니다** (360dp 는 `medium` 단독, 600dp 는 `expanded` 단독).
+- 지원 범위(280~674dp) 밖은 **양끝으로 포화**합니다 — 279dp 는 `compact`,
+  가로 모드의 800dp 는 `expanded` 로 떨어집니다.
+
+> ⚠ **`maxWidth` 를 실제 가용 폭으로 쓰지 마세요.** `maxWidth` 는 "선언된 지원
+> 상한"입니다. 포화 정책 때문에 800dp 화면에서도 `expanded.maxWidth` 는 674 를
+> 돌려주므로, 이 값을 `clamp` 등 레이아웃 계산에 그대로 넣으면 화면이 674dp 로
+> 잘립니다.
+
+컨테이너의 **지역 제약**을 기준으로 분기하려면 `LayoutBuilder` 안에서
+`fromWidth` 를 직접 호출합니다.
+
+```dart
+LayoutBuilder(
+  builder: (context, constraints) {
+    final bp = AppBreakpoint.fromWidth(constraints.maxWidth);
+    return bp == AppBreakpoint.compact ? const _Narrow() : const _Wide();
+  },
+);
+```
+
+`context.breakpoint` 는 `MediaQuery.sizeOf(context).width`, 즉 **화면 전체 폭**
+기준입니다. 그래서 bottom sheet, 분할 레이아웃, 패딩된 칼럼 안에서는 실제
+가용 폭과 어긋납니다 — 640dp 화면 안의 300dp 컨테이너에서 `context.breakpoint`
+는 `expanded` 지만 지역 breakpoint 는 `compact` 입니다. 이 사용 예는
+`T-03-IN-05: isPortrait 은 isLandscape 에서 파생된다` group 이 실행 가능한
+근거로 잠급니다. 화면 방향은 `context.isLandscape` / `context.isPortrait`
+(후자는 전자의 부정으로 파생) 로 읽습니다.
+
+### 5. 키보드 focus outline (접근성)
+
+`BrandFocusWrapper` (`lib/core/theme/brand_focus_wrapper.dart`) 는 브랜드 규격이
+고정된 버튼을 감싸 **키보드 focus 도착 시에만** outline 을 그립니다
+(WCAG 2.1 SC 2.4.7 Focus Visible, Level AA).
+
+- **파일 경로가 바뀌었습니다.** 2026-09-12 에 `lib/core/theme/focus_wrapper.dart`
+  → `lib/core/theme/brand_focus_wrapper.dart` 로 `git mv` 했습니다.
+  **클래스명 `BrandFocusWrapper` 는 그대로**이므로, 옛 경로로 import 하던
+  사용자 코드는 import 경로만 갱신하면 됩니다.
+- 생성자는 다음과 같고, `borderRadius` 는 음수를 `assert` 로 거부합니다.
+
+  ```dart
+  BrandFocusWrapper({
+    required Widget child,
+    required double borderRadius,
+    bool isEnabled = true,
+  })
+  ```
+
+- **Tab 1회당 버튼 1개입니다.** wrapper 는 traversal 정지점을 만들지 않습니다 —
+  내부 `Focus` 가 `canRequestFocus: false` + `skipTraversal: true` 이므로
+  버튼 앞에 "Enter 가 먹지 않는 죽은 Tab stop" 이 생기지 않습니다.
+  `isEnabled: false` 면 `descendantsAreFocusable` 로 자손 focus 진입 자체를
+  차단합니다 (disabled button).
+- **outline 은 키보드 조작에서만 표시됩니다.** 조건은 자손 focus 보유
+  **그리고** `FocusManager.highlightMode == FocusHighlightMode.traditional`
+  의 AND 입니다. 손가락 터치로 들어온 focus, 다이얼로그 닫힘 후 focus 복원,
+  코드에서 호출한 `requestFocus()` 에서는 표시하지 않습니다. 입력 수단이
+  런타임에 바뀌면 구독한 리스너가 outline 을 다시 계산하므로 stale 로 남지도
+  않습니다.
+- **외관은 hardcode 입니다** — 2dp solid border, 2dp offset(padding),
+  라이트 테마는 검정 `Color(0xFF000000)` / 다크 테마는 흰
+  `Color(0xFFFFFFFF)`, outline 모서리는 `borderRadius + 4` (버튼보다 4dp 큽니다 —
+  2dp offset + 2dp border 만큼 바깥에 그려지기 때문입니다).
+  M3 `colorScheme` / `textTheme` 토큰 의존이 **0** 이므로 사용자가 `ThemeData`
+  를 어떻게 바꾸든 focus indicator 가 drift 하지 않습니다. 이것이 의도된
+  설계이며, `ThemeData.focusColor` 나 `colorScheme.primary` 를 쓰는 대안은
+  **금지**합니다 (테마 tint 로 물들면 outline 과 버튼 배경의 대비가 깨집니다).
+
+> ⚠ **wrapper 는 child 제약을 가로·세로 각 8dp 잠식합니다.** border 2dp +
+> padding 2dp 로 사방 4dp 씩 줄어듭니다. 부모가 크기를 bound 하면
+> **300x48 → child 292x40** 이 되어 브랜드 규정 높이(48dp)와 최소 터치 타겟이
+> 함께 깨집니다. **브랜드 규격 높이는 wrapper 바깥에서 지정하세요** (현재
+> 호출부는 `SizedBox(height: spec.height)` 를 child 내부에 두어 이를 피합니다).
+> 수치 계약은 `T-03-IN-04: wrapper 의 제약 잠식과 borderRadius 방어` group 이
+> 잠급니다.
+
+**a11y 위임:** 감싸는 버튼이 `Semantics(excludeSemantics: true)` 로 자손의
+focus 의미론을 차단하는 경우가 있습니다. 그래서 wrapper 는
+`includeSemantics: false` 로 자기 의미론을 숨기는 대신
+`Semantics(focusable:, onFocus:)` 를 직접 노출하고, focus 요청을 첫 traversal
+자손(실제 버튼의 `InkWell`)에게 위임합니다. 덕분에 스크린리더의 focus 요청이
+실제 버튼에 도달합니다.
+
+**실 단말 UAT 체크 3항목** — 위젯 테스트로는 실 입력기(외부 키보드,
+스크린리더) 동작을 완전히 대체할 수 없으므로, 소셜 로그인 버튼을 손대거나
+새 provider 를 추가한 뒤에는 실 단말에서 다음을 확인하세요.
+
+1. 외부 키보드 Tab 1회당 버튼 1개씩 이동하고, Tab 직후 Enter 로 즉시 동작한다
+   (중간에 아무 반응 없는 정지점이 끼지 않는다).
+2. TalkBack / VoiceOver 스와이프로 각 버튼에 도달하고 더블탭으로 활성화된다.
+3. 손가락으로 터치한 뒤에는 outline 이 표시되지 않는다.
+
+### 회귀 가드 위치
+
+| 대상 | 테스트 파일 |
+|---|---|
+| 시드 컬러 주입 (`light`/`dark` 의 `seedColor` 인자) | `test/core/theme/app_theme_test.dart` — `T-03-IN-02: seedColor 를 인자로 주입할 수 있다` |
+| `ThemeData` 동등성 (`AppTheme.light() == AppTheme.light()`) | `test/core/theme/app_theme_test.dart` — `T-03-WR-02: ThemeData 동등성` |
+| extension 값 동등성 3종 (`==` / `hashCode`) | `test/core/theme/app_colors_test.dart` — `T-03-WR-02: AppColors 값 동등성` · `app_spacing_test.dart` — `T-03-WR-02: AppSpacing 값 동등성` · `app_typography_test.dart` — `T-03-WR-02: AppTypography 값 동등성` |
+| 시맨틱 컬러 대비 (라이트/다크 pair) | `test/core/theme/app_colors_test.dart` — `WCAG AA contrast` |
+| 타이포그래피 로케일 기하 + override 우선순위 | `test/core/theme/theme_extensions_test.dart` — `T-03-WR-03: appTypography 가 로케일별 기하를 따른다` |
+| extension 미등록 테마 폴백 | `test/core/theme/theme_extensions_test.dart` — `T-03-WR-04: extension 미등록 테마에서도 기본 토큰을 돌려준다` |
+| breakpoint 범위 파생 (상한 배타 + 양끝 포화) | `test/core/theme/app_breakpoint_test.dart` — `T-03-WR-05: contains 와 fromWidth 가 범위에서 파생된다` |
+| 지역 제약 기준 breakpoint + orientation 파생 | `test/core/theme/app_breakpoint_test.dart` — `T-03-IN-05: isPortrait 은 isLandscape 에서 파생된다` |
+| Tab 1회당 버튼 1개 (죽은 Tab stop 0) | `test/features/auth/presentation/_widgets/focus_visible_test.dart` — `T-03-CR-01: BrandFocusWrapper 는 traversal 정지점을 추가하지 않는다` |
+| outline 표시 조건 (키보드 조작 한정) | `test/features/auth/presentation/_widgets/focus_visible_test.dart` — `T-03-WR-01: outline 은 highlightMode=traditional 에서만 표시된다` |
+| wrapper 의 8dp 잠식 수치 + `borderRadius` 방어 | `test/features/auth/presentation/_widgets/focus_visible_test.dart` — `T-03-IN-04: wrapper 의 제약 잠식과 borderRadius 방어` |
+
+### Pitfall
+
+- **`Theme.of(context).extension<AppTypography>()` 직접 읽기 → 빈 스타일** —
+  등록된 값은 `AppTypography.empty` 다. 완성된 스타일은 `context.appTypography`
+  로만 얻는다.
+- **`copyWith(extensions:)` 로 일부만 넘기면 나머지 extension 등록이 사라진다** —
+  map 통째 교체이므로 `AppColors` · `AppTypography` · `AppSpacing` 셋을 항상
+  함께 나열한다. 폴백 덕에 크래시는 없지만 커스터마이즈 값이 조용히 유실된다.
+- **`AppBreakpoint.maxWidth` 를 가용 폭으로 오용** — 포화 정책상 800dp 화면도
+  674 를 돌려준다. 레이아웃 계산에는 `LayoutBuilder` 의 `constraints.maxWidth`
+  를 쓴다.
+- **브랜드 규격 높이를 `BrandFocusWrapper` 안쪽에서 지정 → 8dp 잠식** —
+  border 2dp + padding 2dp 가 사방 4dp 를 먹으므로 규격 크기는 wrapper 바깥에서
+  지정한다.
+- **라이트와 다크에 다른 시드 주입** — `AppTheme.light()` 와 `AppTheme.dark()`
+  에 서로 다른 `seedColor` 를 넘기면 두 모드의 팔레트가 어긋난다.
+
+---
+
 ## 변경 이력
 
 | 일자 | Phase | 변경 |
@@ -2949,6 +3263,8 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 
 | 2026-09-11 | quick 260911-x9x | `./scripts/firebase-configure.sh <flavor>` 의 FlutterFire CLI 부수효과를 스크립트가 자동 복원하도록 변경 — live run 실측 결과 `--ios-build-config` 을 주면 CLI 가 `ios/Runner.xcodeproj/project.pbxproj` 에 중복 `bundle-service-file` 실행 스크립트 단계를 추가하고, 기존 `upload-crashlytics-symbols` 단계의 인자를 `--default-config=default` 에서 `--build-configuration=${CONFIGURATION}` 으로 바꾼다. `firebase.json` 에는 `Debug-<flavor>` 한 개만 등록되므로 후자는 나머지 **8/9 configuration 의 iOS 빌드**를 `FirebaseJsonException` 으로 깨뜨린다 (진짜 손상). `firebase.json` 자체도 1줄로 재작성된다. 스크립트는 두 파일을 flutterfire 호출 직전 `mktemp` 디렉터리에 스냅샷해 두고 호출 후(실패 경로는 EXIT trap) 스냅샷 **파일 복사**로 되돌린다 — `git checkout` 을 쓰지 않는 이유는 개발자의 미커밋 pbxproj 편집까지 날리기 때문이다. 복원 함수는 `local rc=$?` / `return "$rc"` 로 원래 종료 코드를 보존하고 임시 디렉터리를 성공·실패 양쪽에서 정리한다. 또 flutterfire 가 생성한 dart options 는 포맷이 적용돼 있지 않아 `fvm dart format --set-exit-if-changed lib test` 를 rc=1 로 만들므로 스크립트가 산출물에 `fvm dart format` 을 적용한다. `DRY_RUN=1` 경로는 스냅샷·복원·포맷을 전부 건너뛴다 (flutterfire 미호출 = 변형 원인 없음). header ⚠ 경고 문구를 추측에서 실측으로 교체하고 회귀 가드 test 를 4건 추가(3 → 7건), 직전 260911-w9w 가 남긴 미검증 deferred 2건(pbxproj 부수효과 실측 · 비대화형 hang 해소 end-to-end 실증)을 함께 종결. |
 
+| 2026-09-12 | quick 260912-gam | `## Design System — 디자인 토큰 커스터마이징 (Phase 3)` 단락 신규 — 2026-09-12 Phase 3 code review fix 12건 (`03-REVIEW-FIX.md`) 으로 확정된 공개 계약을 사용자 관점으로 문서화. 6개 내용: (1) 개요 (ThemeExtension 3종 · `AppTheme.light()`/`dark()` 조립 · `lib/app.dart:53-54` 호출부 · `ThemeX` 다섯 getter 와 폴백 표) / (2) 시드 컬러 교체 (`AppTheme.seedColor` = `Colors.deepPurple`, 소스 수정 없는 주입 경로 `light({Color seedColor})`/`dark({Color seedColor})`, 라이트·다크 동일 시드 의무) / (3) 타이포그래피 계약 — 등록 extension 이 `AppTypography.empty` (전 15 필드 빈 `TextStyle`) 로 바뀌어 `Theme.of(context).extension<AppTypography>()` 직접 읽기가 빈 스타일을 돌려주므로 `context.appTypography` 가 유일한 경로 + ko/ja dense 기하 자동 반영 목적 + 폰트 교체는 `ThemeData(fontFamily:)` 경로 + 부분 override 코드 블록과 `copyWith(extensions:)` map 통째 교체 경고 / (4) 시맨틱 컬러 6종 · 간격 4 의 배수 7단계 (4/8/12/16/24/32/48) + 전 필드 `==`/`hashCode` 구현으로 `AppTheme.light() == AppTheme.light()` 성립 (리빌드마다 `AnimatedTheme` 200ms 보간 재시작이 사라짐) + 미등록 테마 폴백 / (5) breakpoint 3단계 (compact 280~360 · medium 360~600 · expanded 600~674, 하한 포함 상한 배타 + 양끝 포화) 와 `maxWidth` 오용 경고 · `LayoutBuilder` + `AppBreakpoint.fromWidth(constraints.maxWidth)` 지역 제약 경로 / (6) `BrandFocusWrapper` (2026-09-12 `focus_wrapper.dart` 에서 개명) — Tab 1회당 버튼 1개 · outline 표시 조건 AND (`FocusHighlightMode.traditional`) · 외관 hardcode (2dp border / 2dp offset / `borderRadius + 4`) · 사방 4dp 총 8dp 잠식 경고 · a11y focus 위임 · 실 단말 UAT 체크 3항목. 회귀 가드 11행 매트릭스 (인용 group 은 전부 실재 확인) + Pitfall 5종. 목차 16 항목으로 확장. |
+
 ---
 
-*Last updated: 2026-09-11 — quick 260911-x9x firebase-configure 부수효과 자동 복원*
+*Last updated: 2026-09-12 — quick 260912-gam 디자인 시스템 토큰 커스터마이징 단락 신설*
