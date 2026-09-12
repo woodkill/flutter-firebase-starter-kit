@@ -38,14 +38,36 @@ void main() {
       );
     });
 
+    // IN-02 (2차 리뷰) — 위 두 검사는 둘 다 languageCode 로 집계하므로 언어 축
+    // 밖의 드리프트를 못 본다. supportedLocales 가 Locale('zh','Hans') +
+    // Locale('zh','Hant') 로 확장되면 kLocaleEndonyms['zh'] 항목 하나로 두
+    // 엔트리가 모두 만족되고, 언어 선택 드롭다운에는 동일 라벨 2개가 뜬 채
+    // build / analyze / test 가 전부 통과한다. 라벨 유일성을 별도로 잠근다.
+    test('표시 이름이 로케일마다 유일하다', () {
+      final labels = AppLocalizations.supportedLocales
+          .map(localeDisplayName)
+          .toList();
+
+      expect(
+        labels.toSet().length,
+        labels.length,
+        reason:
+            '드롭다운에 동일 라벨이 중복되면 사용자가 두 항목을 구분할 수 없다. '
+            'languageCode 가 겹치는 변형(zh_Hans/zh_Hant)을 추가했다면 '
+            'kLocaleEndonyms 의 키를 toLanguageTag() 축으로 올릴 것.',
+      );
+    });
+
     test('등록된 코드는 endonym 을 반환한다', () {
       expect(localeDisplayName(const Locale('ko')), '한국어');
       expect(localeDisplayName(const Locale('en')), 'English');
       expect(localeDisplayName(const Locale('ja')), '日本語');
     });
 
-    test('미지원 코드는 코드 자체로 폴백한다', () {
+    test('미지원 코드는 languageCode 자체로 폴백한다', () {
       expect(localeDisplayName(const Locale('fr')), 'fr');
+      // 폴백은 Locale 표기 전체가 아니라 languageCode 다 — 'fr_CA' 가 아니다.
+      expect(localeDisplayName(const Locale('fr', 'CA')), 'fr');
     });
   });
 }
