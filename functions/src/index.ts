@@ -23,11 +23,17 @@ setGlobalOptions({
  * Phase 11 ping stub (D-01).
  *
  * Phase 12~16 Custom Token 함수가 복제할 패턴:
+ * - App Check enforcement (D-11, Pitfall 6)
  * - request.auth null check (T-11-FN-02, V4 Access Control)
  * - HttpsError 표준 코드 매핑 (D-07, V7 Error Handling)
  * - structured logger + uid 만 (D-08, T-11-FN-01 PII 금지)
+ *
+ * IN-05 (Phase 15 리뷰): 배포되는 9개 callable 중 본 함수만
+ * `enforceAppCheck: true` 없이 export 되고 있었다. ping 자체의 위험은 낮지만
+ * (인증만 요구하고 region/서버시각만 반환), 위 주석이 스스로를 "복제할 패턴"
+ * 이라고 선언하는 레퍼런스이므로 빠진 옵션이 그대로 잘못된 템플릿이 된다.
  */
-export const ping = onCall((request) => {
+export const ping = onCall({enforceAppCheck: true}, (request) => {
   if (!request.auth) {
     logger.warn({event: "ping_unauthenticated"}, "ping called without auth");
     throw new HttpsError("unauthenticated", "errorUnauthenticated");
