@@ -683,6 +683,18 @@ class AuthRepository {
         return const Result.failure(ServiceUnavailable());
       }
 
+      // IN-04 (Phase 7 review): 무검사 `as` 캐스트 제거. 이전엔 null 검사만
+      // 있고 타입 검사가 없어, 캐스트 실패 시 TypeError 가 `on Object` 로
+      // 흡수돼 ServiceUnavailable ("잠시 후 다시 시도") 로 뭉개졌다 —
+      // 재시도로 해소되지 않는 결정적 실패이므로 WR-06 선례대로
+      // UnknownException 이다. 또한 캐스트 지점(Step 2)이 아니라 **재인증
+      // 이전**에 판정해 무의미한 SDK OAuth 왕복을 회피한다. 프로젝트 규칙
+      // (.claude/rules/flutter.md — `as` 캐스팅 최소화, pattern matching
+      // 또는 `is` 체크) 정합.
+      if (pendingCredential is! fb.AuthCredential) {
+        return const Result.failure(UnknownException());
+      }
+
       // Step 1 — 기존 provider 로 재인증해 credential 을 획득한다. 사용자
       // 취소 시 null 신호 그대로 전파 (no-op).
       final reauthCredential = await _reauthNativeCredential(existingProvider);
@@ -697,9 +709,7 @@ class AuthRepository {
 
       final fb.UserCredential linked;
       try {
-        linked = await currentUser.linkWithCredential(
-          pendingCredential as fb.AuthCredential,
-        );
+        linked = await currentUser.linkWithCredential(pendingCredential);
       } on fb.FirebaseAuthException catch (e) {
         // WR-01: proactive arm 과 동일 매핑으로 통일 —
         // `requires-recent-login` → [ReauthenticationRequiredException]

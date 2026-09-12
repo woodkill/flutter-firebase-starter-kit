@@ -229,6 +229,29 @@ void main() {
         expect(failure.exception, isA<ServiceUnavailable>());
       },
     );
+
+    // IN-04 (Phase 7 review): pendingCredential 은 `Object?` 이므로 null 이
+    // 아니면서 AuthCredential 도 아닌 값이 도달할 수 있다. 이전 구현의
+    // 무검사 `as` 캐스트는 TypeError 를 `on Object` 로 흘려보내
+    // ServiceUnavailable ("잠시 후 다시 시도") 로 뭉갰다 — 재시도로 해소
+    // 되지 않는 결정적 실패이므로 UnknownException 이어야 한다.
+    test('IN-04: AuthCredential 이 아닌 pendingCredential → UnknownException '
+        '(무검사 캐스트 제거) + 재인증 미수행', () async {
+      when(() => mockAuth.currentUser).thenReturn(mockCurrentUser);
+
+      final result = await repository.linkPendingNativeCredential(
+        existingProvider: AccountProvider.google,
+        pendingCredential: Object(),
+      );
+
+      expect(result, isA<Failure<dynamic>>());
+      final failure = result! as Failure<dynamic>;
+      expect(failure.exception, isA<UnknownException>());
+      expect(failure.exception, isNot(isA<ServiceUnavailable>()));
+      // 재인증 이전에 판정 — 무의미한 SDK OAuth 왕복 0.
+      verifyNever(() => mockGoogleSignIn.authenticate());
+      verifyNever(() => mockCurrentUser.linkWithCredential(any()));
+    });
   });
 
   group('T4 — reauth 사용자 취소 → null (no-op)', () {
