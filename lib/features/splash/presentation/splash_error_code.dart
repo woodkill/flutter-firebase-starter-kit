@@ -17,6 +17,15 @@ import '../../../core/error/app_exception.dart';
 ///
 /// 두 호출처가 동일 값을 공유하므로 retry 소진 시 사용자가 본 코드와 ops
 /// dashboard 의 분류가 일치한다.
+///
+/// **IN-02 — `--obfuscate` 빌드 제약 (커스터마이징 포인트):** cause 가
+/// [fb.FirebaseAuthException] 이 아닌 경로는 런타임 타입명을 반환하는데,
+/// AOT obfuscation 을 켜면 타입명이 난독화되어 사용자 fingerprint 와
+/// Crashlytics 분류가 **둘 다 의미를 잃는다**. obfuscation 을 켜는
+/// 프로젝트는 [AppException] 에 난독화되지 않는 안정적인 `code` getter 를
+/// 추가하고 본 함수의 fallback 을 그 값으로 교체할 것. 같은 제약이
+/// `splash_screen._runInit` 의 `e.runtimeType.toString()` fallback 에도
+/// 동일하게 적용된다.
 String extractSplashErrorCode(AppException e) {
   final cause = e.cause;
   if (cause is fb.FirebaseAuthException) {

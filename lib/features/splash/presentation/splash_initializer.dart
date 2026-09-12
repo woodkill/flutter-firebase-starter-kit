@@ -9,6 +9,7 @@ import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../auth/application/social_link_in_progress.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../auth/domain/anonymous_sign_in.dart';
 import '../../auth/domain/user.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 import 'splash_error_code.dart';
@@ -56,8 +57,13 @@ class SplashInitializer {
     this.crashlyticsService,
   });
 
-  /// 익명 로그인 호출 위임 대상.
-  final AuthRepository authRepository;
+  /// 익명 로그인 호출 위임 대상 (10-REVIEW WR-12).
+  ///
+  /// 타입이 [AnonymousSignIn] 인 이유는 splash 가 실제로 쓰는 표면이
+  /// `signInAnonymously` 1개뿐이기 때문이다. `AuthRepository` 전체를 받으면
+  /// Firebase 미초기화 경로의 no-op 구현이 `noSuchMethod` 로 전 메서드를
+  /// 가로채야 했고, 그 순간 컴파일러가 인터페이스 누락을 검출하지 못했다.
+  final AnonymousSignIn authRepository;
 
   /// Firebase 초기화 성공 여부.
   final bool isFirebaseInitialized;
@@ -181,6 +187,9 @@ class SplashInitializer {
   /// [Result.failure] 반환. attempt 별 emit 안 함 — issue grouping 활성 + 관측
   /// 노이즈 회피. crashlyticsService null 또는 isEnabled=false 시 no-op.
   ///
+  /// **IN-01:** `cause.stackTrace` 가 null 인 경우 (throw 되지 않은 [Error])
+  /// `StackTrace.current` 로 폴백한다 — 스택 없는 리포트를 만들지 않는다.
+  ///
   /// **WR-01:** `StackTrace.current` 는 `_finalize` 의 호출 지점 스택일 뿐
   /// 실제 `signInAnonymously` 실패 위치를 가리키지 않는다. cause 가 [Error]
   /// 의 인스턴스이면 그 자체의 `stackTrace` 를 사용해 Crashlytics dashboard
@@ -195,7 +204,13 @@ class SplashInitializer {
     if (crashlytics != null) {
       final code = extractSplashErrorCode(exception);
       final cause = exception.cause;
-      final stack = cause is Error ? cause.stackTrace : StackTrace.current;
+      // IN-01: `Error.stackTrace` 는 **아직 throw 되지 않은** Error 에 대해
+      // null 이다. 그대로 넘기면 recordError(stack: null) 로 스택 없는
+      // 리포트가 되어 WR-01 의 원래 의도(root-cause 드릴-다운 보존)와
+      // 정반대가 된다.
+      final stack = cause is Error
+          ? (cause.stackTrace ?? StackTrace.current)
+          : StackTrace.current;
       await crashlytics.setCustomKey(
         'splash_auto_signin_retry_exhausted',
         code,
@@ -215,16 +230,19 @@ class SplashInitializer {
 /// 호출되지 않는 no-op 인스턴스. `isFirebaseInitialized=false` 분기에서
 /// [SplashInitializer.initialize] 는 `signInAnonymously` 호출을 스킵하므로
 /// 본 인스턴스의 메서드는 실제로 실행되지 않는다.
-class _NoopAuthRepository implements AuthRepository {
-  const _NoopAuthRepository();
+///
+/// **10-REVIEW WR-12:** 이전에는 `implements AuthRepository` +
+/// `dynamic noSuchMethod` 로 전 메서드를 가로챘다. 그 구현은 `dynamic` 금지
+/// 규칙 위반이면서, 후속 phase 가 미초기화 경로에서 새 메서드를 호출해도
+/// 컴파일 타임에 잡히지 않게 만들었다. 계약을 [AnonymousSignIn] 1 메서드로
+/// 좁히면 누락이 곧 컴파일 에러다.
+class _NoopAnonymousSignIn implements AnonymousSignIn {
+  const _NoopAnonymousSignIn();
 
   @override
-  dynamic noSuchMethod(Invocation invocation) {
-    throw UnimplementedError(
-      '_NoopAuthRepository.${invocation.memberName} called — Firebase '
-      '미초기화 상태에서 호출되어서는 안 된다.',
-    );
-  }
+  Future<Result<User>> signInAnonymously() => throw UnimplementedError(
+    'Firebase 미초기화 상태에서 signInAnonymously 가 호출되어서는 안 된다.',
+  );
 }
 
 /// [SplashInitializer] Provider.
@@ -253,7 +271,7 @@ SplashInitializer splashInitializer(Ref ref) {
   final onboardingFuture = ref.watch(onboardingProvider.future);
   final authRepository = isInitialized
       ? ref.watch(authRepositoryProvider)
-      : const _NoopAuthRepository();
+      : const _NoopAnonymousSignIn();
   // Phase 9.1 D-02-A: socialLinkInProgress 가 true 면 자동 익명 sign-in 스킵.
   // Firebase 미초기화 시에는 의미 없으므로 false 로 처리 (signInAnonymously 자체가
   // isInitialized=false 분기에서 이미 스킵됨).

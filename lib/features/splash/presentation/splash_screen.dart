@@ -196,6 +196,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       // 코드는 타입명만 노출한다 — extractSplashErrorCode 는 AppException 만
       // 받으므로 임의 throw 에 쓸 수 없고, runtimeType 문자열은 PII 를
       // 포함하지 않는다 (T-x0r-04).
+      //
+      // IN-02: `--obfuscate` 빌드에서는 이 타입명이 난독화되어 fingerprint
+      // 가치를 잃는다 — extractSplashErrorCode 의 doc 에 적힌 교체 지침을
+      // 따를 것.
       final emitFuture = crashlytics?.recordError(
         e,
         st,
@@ -210,6 +214,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     } finally {
       _initInFlight = false;
     }
+  }
+
+  /// 오류 코드 fingerprint 를 클립보드에 복사하고 SnackBar 로 안내한다
+  /// (D-10 / D-12 / WR-19).
+  ///
+  /// [messenger] 는 **outer SplashScreen** 의 ScaffoldMessenger 여야 한다 —
+  /// dialogContext 의 messenger 는 dialog overlay 하위라 SnackBar 가 가려진다
+  /// (Phase 10.1 Pattern D / Risk R5).
+  ///
+  /// 클립보드 payload 는 `splash_auto_signin: <code>` 형식이며 code 외의
+  /// 정보(단말 주소 / SDK message)는 포함하지 않는다 (D-10 PII invariant).
+  Future<void> _copyErrorCode(
+    String code,
+    ScaffoldMessengerState messenger,
+  ) async {
+    await Clipboard.setData(ClipboardData(text: 'splash_auto_signin: $code'));
+    // mounted 가드 — async gap 동안 위젯이 해체됐을 수 있음.
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(content: Text(context.l10n.commonCopied)));
   }
 
   Future<void> _showFailureDialog(String code) async {
@@ -236,23 +259,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             children: [
               Text(l10n.splashFailureMessage),
               Gap(spacing.sm),
-              InkWell(
-                onTap: () async {
-                  await Clipboard.setData(
-                    ClipboardData(text: 'splash_auto_signin: $code'),
-                  );
-                  // mounted 가드 — async gap 동안 위젯이 해체됐을 수 있음.
-                  // 캡처한 outerMessenger 를 사용하여 outer Scaffold 영역에
-                  // SnackBar 표시 (dialog overlay 위로 노출).
-                  if (!mounted) return;
-                  outerMessenger.showSnackBar(
-                    SnackBar(content: Text(l10n.commonCopied)),
-                  );
-                },
-                child: Text(
-                  l10n.splashErrorCodeFingerprint(code),
-                  style: typography.bodySmall.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+              // WR-19: InkWell 이 일반 Text 만 감싸면 스크린 리더 사용자는 이
+              // 문구가 탭 가능한 복사 액션임을 알 수 없다. 오류 리포팅 경로라
+              // 접근성 영향이 실질적이다. 기존 ARB 키만으로 button role 과
+              // 액션 의미를 부여한다 (신규 ARB 키 0).
+              //
+              // container/excludeSemantics 를 함께 지정해야 라벨이 자체 노드로
+              // 선다 — 미지정 시 자식 Text 노드와 라벨이 중복 병합된다
+              // (danger_zone_section.dart 의 동일 패턴 mirror). 탭 액션은
+              // Semantics.onTap 과 InkWell.onTap 양쪽이 같은 핸들러를 공유한다.
+              Semantics(
+                container: true,
+                excludeSemantics: true,
+                button: true,
+                label: l10n.splashErrorCodeFingerprint(code),
+                onTap: () => unawaited(_copyErrorCode(code, outerMessenger)),
+                child: InkWell(
+                  onTap: () => _copyErrorCode(code, outerMessenger),
+                  child: Text(
+                    l10n.splashErrorCodeFingerprint(code),
+                    style: typography.bodySmall.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),

@@ -19,6 +19,7 @@ import '../../onboarding/presentation/onboarding_notifier.dart';
 // AuthRepository 클래스 본체는 본 타입을 참조하지 않는다 (D-A2 관례).
 import '../../terms/presentation/terms_notifier.dart';
 import '../application/social_link_in_progress.dart';
+import '../domain/anonymous_sign_in.dart';
 import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
 import 'line_sdk_client.dart';
@@ -50,7 +51,7 @@ part 'auth_repository.g.dart';
 /// 같은 정책이 4 SDK wrapper (`kakao_sdk_client.dart` /
 /// `naver_sdk_client.dart` / `line_sdk_client.dart` /
 /// `yahoojp_sdk_client.dart`) 에도 동일 적용된다.
-class AuthRepository {
+class AuthRepository implements AnonymousSignIn {
   /// [AuthRepository]를 생성한다.
   ///
   /// [_socialLinkInProgress] 는 social IdP linking 진행 중을 표시하는 race
@@ -1713,6 +1714,7 @@ class AuthRepository {
   /// - `network-request-failed` → [NoInternetConnection] (Pitfall 3)
   /// - 그 외 FirebaseAuthException → [ServiceUnavailable]
   /// - 비-Auth 예외 → [ServiceUnavailable]
+  @override
   Future<Result<User>> signInAnonymously() async {
     try {
       final userCredential = await _auth.signInAnonymously();

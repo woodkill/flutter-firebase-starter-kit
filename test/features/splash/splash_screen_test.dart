@@ -568,6 +568,19 @@ void main() {
       // (1) Fingerprint Text 표시 (D-10 — code only, message PII 제외).
       expect(find.text('Error code: unknown'), findsOneWidget);
 
+      // (1-b) WR-19: tap-to-copy 가 스크린 리더에 button 으로 노출된다.
+      // 라벨만 있고 button role 이 없으면 복사 가능한 액션임을 알 수 없다.
+      final semanticsHandle = tester.ensureSemantics();
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Error code: unknown')),
+        isSemantics(
+          label: 'Error code: unknown',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      semanticsHandle.dispose();
+
       // (2) Tap-to-copy + SnackBar (D-12, Pattern D outer context).
       await tester.tap(find.text('Error code: unknown'));
       await tester.pumpAndSettle();
