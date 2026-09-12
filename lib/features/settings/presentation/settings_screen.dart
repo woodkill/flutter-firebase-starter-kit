@@ -72,13 +72,27 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            // WR-14: 280dp 최소 뷰포트 오버플로 방어. 긴 이메일이나 다중
+            // 연결 계정(최대 7 provider 를 `, ` 로 join)에서 레이아웃이
+            // 깨진다. 같은 scope 의 _EnvironmentCard 가 이미 쓰는
+            // maxLines + softWrap + ellipsis 조합을 그대로 따른다.
             ListTile(
               leading: const Icon(Icons.alternate_email),
-              title: Text(l10n.settingsAccountEmail(email)),
+              title: Text(
+                l10n.settingsAccountEmail(email),
+                maxLines: 2,
+                softWrap: true,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.link),
-              title: Text(l10n.settingsLinkedProviders(providersLabel)),
+              title: Text(
+                l10n.settingsLinkedProviders(providersLabel),
+                maxLines: 2,
+                softWrap: true,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             Gap(spacing.xxl),
             // 계정 연결 section (Surface D — 16-11). 계정 section 다음 /
