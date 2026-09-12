@@ -272,5 +272,81 @@ void main() {
         await tester.pumpAndSettle();
       });
     });
+
+    // --- IN-04 (Phase 09 review) — 소셜 실패 배너 잔류 ---
+
+    group('IN-04 — 새 시도 시작 시 직전 provider 의 실패 배너를 비운다', () {
+      Finder socialBanner() => find.descendant(
+        of: find.byType(SocialSignInSection),
+        matching: find.byType(FormErrorBanner),
+      );
+
+      AppException? bannerException(WidgetTester tester) =>
+          tester.widget<FormErrorBanner>(socialBanner()).exception;
+
+      testWidgets('Google 실패 배너가 뜬 뒤 Apple 을 탭해 **취소**하면 '
+          'Google 배너가 사라진다 (취소는 조용히 AsyncData 로 복귀하므로, '
+          '배너가 남으면 사용자는 Apple 이 실패했다고 오해한다)', (tester) async {
+        when(() => mockRepo.signInWithGoogle()).thenAnswer(
+          (_) async => const Result<User>.failure(ServiceUnavailable()),
+        );
+        when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+        // Apple 은 사용자 취소 — repository 계약상 null.
+        when(() => mockRepo.signInWithApple()).thenAnswer((_) async => null);
+
+        await _pumpLogin(tester, mockRepo);
+        await tester.pumpAndSettle();
+
+        // 1) Google 실패 → 배너 표시 (전제).
+        await tester.tap(find.byType(SocialButton).first);
+        await tester.pumpAndSettle();
+        expect(
+          bannerException(tester),
+          isA<ServiceUnavailable>(),
+          reason: '전제: Google 실패 배너가 떠 있어야 한다',
+        );
+
+        // 2) Apple 탭 → 취소 → 배너가 남아 있으면 안 된다.
+        await tester.tap(find.byType(SocialButton).at(1));
+        await tester.pumpAndSettle();
+
+        expect(
+          bannerException(tester),
+          isNull,
+          reason: 'IN-04: 다른 provider 시도 시작 시 직전 배너는 비워져야 한다',
+        );
+      });
+
+      testWidgets('같은 provider 재시도 성공 시에도 직전 실패 배너가 남지 않는다', (tester) async {
+        when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+        when(() => mockRepo.signInWithGoogle()).thenAnswer(
+          (_) async => const Result<User>.failure(ServiceUnavailable()),
+        );
+
+        await _pumpLogin(tester, mockRepo);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(SocialButton).first);
+        await tester.pumpAndSettle();
+        expect(bannerException(tester), isA<ServiceUnavailable>());
+
+        // 재시도는 성공.
+        when(() => mockRepo.signInWithGoogle()).thenAnswer(
+          (_) async => Result<User>.success(
+            User(
+              uid: 'g-uid',
+              email: 'g@example.com',
+              emailVerified: true,
+              createdAt: DateTime.utc(2026, 4, 11),
+              providerIds: const <String>['google.com'],
+            ),
+          ),
+        );
+        await tester.tap(find.byType(SocialButton).first);
+        await tester.pumpAndSettle();
+
+        expect(bannerException(tester), isNull);
+      });
+    });
   });
 }

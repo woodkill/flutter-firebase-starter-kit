@@ -133,6 +133,15 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
         previous,
         next,
       ) {
+        // IN-04 (Phase 09 review): 새 시도가 시작되면 직전 provider 의 실패
+        // 배너를 비운다 (Surface A `login_screen` 과 동일 규약 — 두 surface
+        // 의 소셜 에러 표시 계약은 대칭을 유지해야 한다).
+        if (next is AsyncLoading) {
+          if (mounted && _socialError != null) {
+            setState(() => _socialError = null);
+          }
+          return;
+        }
         if (previous is AsyncLoading && next is AsyncData) {
           if (!mounted) return;
           final user = ref.read(firebaseAuthProvider).currentUser;

@@ -107,6 +107,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         previous,
         next,
       ) {
+        // IN-04 (Phase 09 review): 새 시도가 시작되면 직전 provider 의 실패
+        // 배너를 비운다. `_socialError` 는 set 만 있고 clear 가 없어서,
+        // Google 실패 배너가 뜬 뒤 Kakao 를 눌러 취소하면 (notifier 는 조용히
+        // AsyncData 로 복귀) 화면에는 Google 실패 배너가 그대로 남아 사용자가
+        // Kakao 가 실패했다고 오해했다. 이메일 폼 화면들은 제출 시작 시
+        // `_emailError = null` 로 반드시 비우므로 그 규약에 일치시킨다.
+        if (next is AsyncLoading) {
+          if (mounted && _socialError != null) {
+            setState(() => _socialError = null);
+          }
+          return;
+        }
         // Issue #3 safety net: AsyncLoading -> AsyncData 전이 + 정식 인증 확인.
         if (previous is AsyncLoading && next is AsyncData) {
           if (!mounted) return;
