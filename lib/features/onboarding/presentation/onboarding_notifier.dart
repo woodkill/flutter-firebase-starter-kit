@@ -59,7 +59,10 @@ class OnboardingNotifier extends _$OnboardingNotifier {
       final prefs = await SharedPreferences.getInstance();
       final savedVersion = prefs.getInt(_key) ?? 0;
       return savedVersion >= currentVersion;
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
+      // 10-REVIEW CR-03: 예외 타입 지정자를 넓혔다. 손상된 prefs 값의 cast
+      // 실패 (Error 계열) 가 build() 밖으로 새면 splash 가 영구 스피너로
+      // 고정된다 (CR-02 연계).
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'onboarding_load');
@@ -75,7 +78,8 @@ class OnboardingNotifier extends _$OnboardingNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_key, currentVersion);
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
+      // 10-REVIEW CR-03: 예외 타입 지정자를 넓혔다 (영속 계층 일관성).
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'onboarding_save');
@@ -91,7 +95,8 @@ class OnboardingNotifier extends _$OnboardingNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_key);
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
+      // 10-REVIEW CR-03: 예외 타입 지정자를 넓혔다 (영속 계층 일관성).
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'onboarding_reset');

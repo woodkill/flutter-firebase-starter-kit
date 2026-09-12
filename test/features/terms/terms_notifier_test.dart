@@ -668,6 +668,58 @@ void main() {
       expect(restored.acceptedAt, original.acceptedAt);
     });
 
+    test('T1 (10-REVIEW CR-03): 손상된 terms.accepted_value JSON 은 '
+        'TypeError 를 누출하지 않고 흡수 + 손상값 제거', () async {
+      // jsonDecode 는 List 를 반환하고 Map<String, dynamic> 캐스트에서
+      // 진짜 TypeError 가 난다 (인위적 mock throw 아님).
+      SharedPreferences.setMockInitialValues({
+        'terms.accepted_value': '[1,2,3]',
+      });
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      await notifier.reloadForUser(uid: 'anon-1', isAnonymous: true);
+
+      expect(container.read(termsProvider), isNull);
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'terms_load',
+          fatal: any(named: 'fatal'),
+        ),
+      ).called(1);
+      // 다음 cold start 가 같은 실패를 반복하지 않도록 손상값이 제거된다.
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('terms.accepted_value'), isNull);
+    });
+
+    test('T2 (10-REVIEW CR-03): 손상된 legacy terms.accepted_version 도 '
+        'TypeError 를 누출하지 않고 흡수 + 두 키 모두 제거', () async {
+      // 신규 키 부재 → legacy int 키 경로의 prefs.getInt 에서 cast TypeError.
+      SharedPreferences.setMockInitialValues({
+        'terms.accepted_version': 'corrupt',
+      });
+      final container = createContainer();
+      final notifier = container.read(termsProvider.notifier);
+
+      await notifier.reloadForUser(uid: 'anon-1', isAnonymous: true);
+
+      expect(container.read(termsProvider), isNull);
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'terms_load',
+          fatal: any(named: 'fatal'),
+        ),
+      ).called(1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('terms.accepted_value'), isNull);
+      // getInt 는 값이 남아 있으면 다시 TypeError 이므로 키 존재 여부로 단언.
+      expect(prefs.containsKey('terms.accepted_version'), isFalse);
+    });
+
     test('Test 10b: copyWith 동작', () {
       final original = TermsAcceptance(
         version: 1,

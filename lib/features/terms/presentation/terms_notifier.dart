@@ -141,10 +141,21 @@ class TermsNotifier extends _$TermsNotifier {
         _acceptance = legacyRestored;
         state = legacyRestored;
       }
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
+      // 10-REVIEW CR-03: 예외 타입 지정자를 넓혔다. 이 경로의 가장 현실적인
+      // 실패는 손상된 device-local 값의 cast 실패 (Error 계열) 이며, 좁은
+      // 지정자로는 이를 잡지 못해 auth_guard tick 이 영구 실패했다.
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'terms_load');
+      // 손상된 값은 지워 다음 cold start 가 같은 실패를 반복하지 않게 한다.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_key);
+        await prefs.remove(_legacyVersionKey);
+      } on Object catch (_) {
+        // best-effort — 정리 자체의 실패는 흡수한다 (이미 실패 경로다).
+      }
     }
   }
 
@@ -178,7 +189,8 @@ class TermsNotifier extends _$TermsNotifier {
       // 구 키는 호환성을 위해 유지 (legacy 코드가 있는 경우 대비).
       await prefs.setInt(_legacyVersionKey, currentVersion);
       return const Result.success(null);
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
+      // 10-REVIEW CR-03: 예외 타입 지정자를 넓혔다 (영속 계층 일관성).
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'terms_save');
@@ -271,7 +283,8 @@ class TermsNotifier extends _$TermsNotifier {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_key);
         await prefs.remove(_legacyVersionKey);
-      } on Exception catch (e, st) {
+      } on Object catch (e, st) {
+        // 10-REVIEW CR-03: 예외 타입 지정자를 넓혔다 (영속 계층 일관성).
         await ref
             .read(crashlyticsServiceProvider)
             .recordError(e, st, reason: 'terms_logout_prefs_clear');
@@ -430,7 +443,8 @@ class TermsNotifier extends _$TermsNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_key);
       await prefs.remove(_legacyVersionKey);
-    } on Exception catch (e, st) {
+    } on Object catch (e, st) {
+      // 10-REVIEW CR-03: 예외 타입 지정자를 넓혔다 (영속 계층 일관성).
       await ref
           .read(crashlyticsServiceProvider)
           .recordError(e, st, reason: 'terms_reset');

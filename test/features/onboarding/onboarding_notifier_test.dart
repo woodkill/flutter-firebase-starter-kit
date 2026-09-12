@@ -113,6 +113,29 @@ void main() {
       expect(prefs.getInt('onboarding.seen_version'), isNull);
     });
 
+    test('O1 (10-REVIEW CR-03): seen_version 이 String 이면 getInt 가 cast '
+        'TypeError 를 던지지만 AsyncData(false) 로 graceful 종료', () async {
+      // 인위적 mock throw 가 아니라 진짜 cast 실패다 — shared_preferences 의
+      // getInt 는 캐시값을 int? 로 캐스팅하므로 다운그레이드/키 재사용으로
+      // 타입이 바뀐 저장값에서 Error 계열이 난다.
+      SharedPreferences.setMockInitialValues({
+        'onboarding.seen_version': 'corrupt',
+      });
+      final container = createContainer();
+
+      final resolved = await container.read(onboardingProvider.future);
+      expect(resolved, isFalse, reason: '손상값은 lossy fallback false 로 흡수되어야 한다');
+      expect(container.read(onboardingProvider), const AsyncData<bool>(false));
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'onboarding_load',
+          fatal: any(named: 'fatal'),
+        ),
+      ).called(1);
+    });
+
     test('Test 7: happy path (markSeen / reset) 에서 crashlytics 미호출', () async {
       SharedPreferences.setMockInitialValues({});
       final container = createContainer();
