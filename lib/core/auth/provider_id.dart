@@ -170,15 +170,22 @@ enum AccountProvider {
   /// Cloud Function `lookupSignInMethods` 응답 (`{existingProvider: "kakao"}`
   /// 또는 `{existingProvider: null}`) 의 매핑에 사용된다. 알 수 없는 slug 또는
   /// `null` 입력은 `null` 반환 (R2 unknown fallback).
+  ///
+  /// **IN-03 정정 (Phase 7 review):** 정변환 [slug] 는 [kProviderIdGoogle]
+  /// 등 const 를 쓰는데 역변환인 본 메서드만 문자열 리터럴을 써서, 상수 값이
+  /// 바뀌면 정·역변환이 조용히 어긋났다. Dart 3 는 const 변수를 switch 패턴
+  /// 으로 허용하므로 동일 상수를 공유한다. `'email'` / `'password'` 만
+  /// 리터럴로 남긴다 — 전자는 [slug] 와 짝을 이루는 도메인 리터럴,
+  /// 후자는 Firebase Auth `providerData` 의 외부 계약 문자열이다.
   static AccountProvider? tryParse(String? slug) => switch (slug) {
-    'google' => AccountProvider.google,
-    'apple' => AccountProvider.apple,
-    'facebook' => AccountProvider.facebook,
+    kProviderIdGoogle => AccountProvider.google,
+    kProviderIdApple => AccountProvider.apple,
+    kProviderIdFacebook => AccountProvider.facebook,
     'email' || 'password' => AccountProvider.email,
-    'kakao' => AccountProvider.kakao,
-    'naver' => AccountProvider.naver,
-    'line' => AccountProvider.line,
-    'yahoojp' => AccountProvider.yahoojp,
+    kProviderIdKakao => AccountProvider.kakao,
+    kProviderIdNaver => AccountProvider.naver,
+    kProviderIdLine => AccountProvider.line,
+    kProviderIdYahooJp => AccountProvider.yahoojp,
     _ => null,
   };
 }
