@@ -66,9 +66,10 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
         _elapsedSeconds += pollingIntervalSeconds;
 
         if (_elapsedSeconds >= pollingTimeoutSeconds) {
-          timer.cancel();
-          if (!ref.mounted) return;
-          state = AsyncData(state.requireValue.copyWith(isPolling: false));
+          // IN-08 (Phase 09 review): 타임아웃 중지 로직은 [stopPolling] 과
+          // 완전히 동일했다. 복제를 두면 한쪽만 고쳤을 때 테스트가 검증하는
+          // 경로([stopPolling])와 실제 타임아웃 경로가 갈라진다.
+          stopPolling();
           return;
         }
 
