@@ -156,6 +156,26 @@ void main() {
               '회귀를 원리적으로 볼 수 없으므로 이 소스 단언이 유일한 가드다.',
         );
       });
+
+      test('docstring 이 NBSP 를 raw 문자로 품지 않는다', () {
+        // WR-03 회귀 가드. formatJm 문서는 U+202F 를 "이스케이프 표기" 로
+        // 적어야 한다 — 편집 도구가 이스케이프를 실제 문자로 치환하면 예시가
+        // 다시 일반 공백과 육안 구별 불가능해지고, 정규화 안내문
+        // (replaceAll 스니펫)까지 보이지 않는 문자로 오염된다. 이 수정 작업
+        // 중에 실제로 1회 발생했다.
+        final nbsp = String.fromCharCode(0x202F);
+        final source = File(
+          'lib/core/l10n/intl_extensions.dart',
+        ).readAsStringSync();
+
+        expect(
+          source.contains(nbsp),
+          isFalse,
+          reason:
+              '소스에 raw U+202F 가 섞였다. docstring 예시와 정규화 안내는 '
+              '이스케이프 표기로 적어야 소비자가 구분자를 알아볼 수 있다.',
+        );
+      });
     });
   });
 
