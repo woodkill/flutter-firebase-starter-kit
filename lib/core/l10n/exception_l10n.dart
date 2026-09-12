@@ -9,9 +9,9 @@ import 'l10n_extensions.dart';
 /// 현재 로케일의 번역 문자열로 변환한다.
 ///
 /// - 입력: [AppException]. [AccountExistsWithDifferentCredential] 인스턴스는
-///   provider-aware 분기([_resolveAccountExists])가 먼저 흡수한다.
+///   provider-aware 분기(`_resolveAccountExists`)가 먼저 흡수한다.
 /// - 출력: [AppException.userMessage] ARB 키에 대응하는 현재 로케일 문자열.
-/// - 미매핑 키: [_resolveUnmappedFallback] 이 처리하며, ARB 키 문자열이
+/// - 미매핑 키: `_resolveUnmappedFallback` 이 처리하며, ARB 키 문자열이
 ///   사용자 화면에 노출되는 경로는 없다.
 ///
 /// 새 [AppException] 서브타입을 추가하면 아래 switch 에 arm 도 함께 등록할 것
