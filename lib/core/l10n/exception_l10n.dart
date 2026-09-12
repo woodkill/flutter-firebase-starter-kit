@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../auth/provider_id.dart';
 import '../error/app_exception.dart';
+import 'l10n_extensions.dart';
 
 /// [AppException]의 [AppException.userMessage] ARB 키를
 /// 현재 로케일의 번역 문자열로 변환한다.
@@ -17,7 +18,7 @@ import '../error/app_exception.dart';
 /// 흔적이다). 지금은 [_resolveUnmappedFallback] 이 debug 에서 즉시 실패시키고
 /// release 에서는 `errorUnknown` 으로 강등하여 **식별자 노출 경로를 닫는다.**
 String resolveExceptionMessage(BuildContext context, AppException exception) {
-  final l10n = AppLocalizations.of(context);
+  final l10n = context.l10n;
   // (Phase 16 D-12 / Task 4.1) AccountExistsWithDifferentCredential 인스턴스의
   // provider-aware variant 부활. Phase 9.2 P-A-narrow 시점 단일 unknown
   // fallback (R2) 만 노출했으나, Phase 16 의 `lookupSignInMethods` callable
