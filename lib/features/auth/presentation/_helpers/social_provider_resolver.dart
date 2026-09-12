@@ -23,6 +23,15 @@ import '../yahoojp_sign_in_notifier.dart';
 ///
 /// 반환 타입은 `ProviderListenable<AsyncValue<void>>` — `ref.listen` 의
 /// 첫 인자에 직접 전달 가능하다.
+///
+/// **누락 방어선 (Phase 09 WR-01).** 본 switch 의 default arm 은
+/// `UnsupportedError` 를 던지고, 이 함수는 `LoginScreen.build()` /
+/// `LoginPromptSheet.build()` **안에서** 호출되므로 case 누락은 `/login`
+/// 진입 즉시 red screen 이 된다. `analyze` 는 이를 잡지 못하므로
+/// `test/features/auth/presentation/_helpers/`
+/// `provider_registration_coverage_test.dart` 가 [kAllProviderIds] 순회로
+/// 커버리지를 단언한다 — case 를 빠뜨리면 게이트가 먼저 FAIL 한다.
+/// 컴파일 시점 방어 (providerId enum 전환) 는 파급이 커 별도 phase 대상.
 ProviderListenable<AsyncValue<void>> resolveSocialProvider(String providerId) =>
     switch (providerId) {
       kProviderIdGoogle => googleSignInProvider,

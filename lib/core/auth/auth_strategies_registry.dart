@@ -40,6 +40,16 @@ part 'auth_strategies_registry.g.dart';
 ///    `providerId` → [BrandedSocialButton] 분기, `labelKey` →
 ///    `_resolveLabel`. 둘 다 `_ => throw UnsupportedError` 이므로
 ///    — 누락 시 **버튼 렌더 시 런타임 crash**.
+///
+///    **3·4 항은 게이트로도 방어된다 (WR-08 → Phase 09 WR-01 보강).**
+///    `test/features/auth/presentation/_helpers/`
+///    `provider_registration_coverage_test.dart` 가 [kAllProviderIds] 를
+///    순회하며 3개 switch 전부의 커버리지를 단언한다. 1항이 컴파일로
+///    강제되므로 새 슬러그는 반드시 그 목록에 들어가고, 3·4 항을 빠뜨리면
+///    **사용자 단말이 아니라 `fvm flutter test` 가 먼저 FAIL** 한다.
+///    다만 이는 게이트 방어이지 컴파일 방어가 아니다 — 근본 해법
+///    (`providerId` 를 String → enum 으로 좁혀 3 switch 를 exhaustive 화)
+///    은 파급이 커 별도 phase 대상이다 (09-REVIEW WR-01).
 /// 5. `AuthRepository`: SDK client 필드·생성자·`signOut`, 그리고 Custom
 ///    Token provider 라면 `_acquireTargetProviderToken` /
 ///    `_logoutTargetProvider` / `signInWithExistingProvider`
