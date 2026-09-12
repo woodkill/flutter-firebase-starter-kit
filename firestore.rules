@@ -44,6 +44,16 @@ service cloud.firestore {
     //
     // Cloud Function (Admin SDK) 진입점:
     // - 12-02 kakaoCustomToken: linkedProviders + providerLinkedAt set-merge
+    //
+    // **WR-12 (Phase 15 리뷰) — 알려진 갭, Phase 18 작업 항목:**
+    // 본 규칙은 본인 문서 전체 write 를 허용하므로 client 가 callable 을
+    // 거치지 않고 `termsAccepted` / `linkedProviders` / `providerLinkedAt` 을
+    // 직접 조작할 수 있다. 서버의 `SERVER_TERMS_CURRENT_VERSION` 상한은 서버
+    // 경유 경로의 형식 정규화일 뿐 위조 방어가 아니다 (그 상수 docstring 에
+    // 명시). 지금 필드 단위 write 금지를 도입하면 client 의
+    // `TermsNotifier.mirrorToFirestore` (termsAccepted 직접 set) 가 깨지므로,
+    // 규칙 강화는 **client write 경로를 서버 callable 로 이전하는 작업과 함께**
+    // 수행해야 한다.
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;

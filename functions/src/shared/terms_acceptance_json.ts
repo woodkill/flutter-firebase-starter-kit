@@ -34,11 +34,27 @@
  *
  * **동시 갱신 의무 (schema invariant)**: 약관 개정 시
  * `lib/features/terms/presentation/terms_notifier.dart` 의
- * `TermsNotifier.currentVersion` 과 **반드시 같은 커밋에서** bump 한다. 서버가
- * 이 상한을 모르면 `parseTermsAcceptanceJson` 이 미래 버전 위조를 통과시켜
- * 재동의 강제 로직이 무력화된다 (WR-02).
+ * `TermsNotifier.currentVersion` 과 **반드시 같은 커밋에서** bump 한다.
  *
  * 현재 값 1 = `TermsNotifier.currentVersion` (terms_notifier.dart:45) 과 일치.
+ *
+ * **성격: 형식 정규화이지 보안 통제가 아니다 (WR-12, Phase 15 리뷰).**
+ * 이전 문서는 이 상한을 "서버가 모르면 미래 버전 위조를 통과시켜 재동의 강제
+ * 로직이 무력화된다" 며 보안 통제로 규정했다. 그 주장은 성립하지 않는다 —
+ * `firestore.rules` 가 `users/{userId}` 에 대해 본인 전체 write 를 허용하므로
+ * (`allow write: if request.auth.uid == userId`), client 는 본 callable 을
+ * 거치지 않고 Firestore SDK 로 `users/{uid}.termsAccepted = {version: 999}` 를
+ * 그대로 쓸 수 있다. 즉 본 상한은 **정직한 client 의 실수와 서버 경유 경로의
+ * 스키마 오염만** 막고 위조는 막지 못한다. 같은 논리가 `linkedProviders` /
+ * `providerLinkedAt` 에도 적용된다 (`identity_index.ts` 는 이 필드들을 서버
+ * 권위 데이터처럼 쓴다).
+ *
+ * **실제 통제가 있어야 할 곳은 `firestore.rules` 다.** 다만 현재 client 의
+ * `TermsNotifier.mirrorToFirestore` (terms_notifier.dart) 가 `termsAccepted`
+ * 를 직접 set 하므로, 필드 단위 write 금지를 지금 도입하면 그 경로가 깨진다.
+ * 규칙 강화는 client write 경로 이전과 함께 가야 하며
+ * `firestore.rules` 의 "Phase 18 일반화 TODO" 가 그 작업 항목이다.
+ * **후속 phase 가 이 상수를 위조 방어라고 믿고 설계하지 말 것.**
  */
 export const SERVER_TERMS_CURRENT_VERSION = 1;
 
@@ -64,9 +80,10 @@ export type TermsAcceptanceJson = {
  *
  * - `service: "yes"` / `version: 999` 같은 임의 값이 그대로
  *   `users/{uid}.termsAccepted` 에 착지 (Firestore schema 오염).
- * - `version` 위조로 client 가 `TermsNotifier._loadFromFirestore` 의
- *   `restored.version >= currentVersion` 재동의 강제 로직을 스스로 무력화
- *   (약관 개정 후 재동의 회피) — `SERVER_TERMS_CURRENT_VERSION` 상한으로 차단.
+ * - `version` 이 서버가 아는 최신 버전을 넘는 값으로 들어오는 것을
+ *   `SERVER_TERMS_CURRENT_VERSION` 상한으로 차단 (형식 정규화). **단, 이것은
+ *   위조 방어가 아니다** — client 는 Firestore SDK 로 같은 필드를 직접 쓸 수
+ *   있다 (WR-12, 해당 상수 docstring 참조).
  * - 필수 동의 `service` / `privacy` 가 `false` 인 채로 `termsAccepted` 가
  *   mirror 되어 동의 기록 무결성이 깨짐 — `!== true` 로 차단.
  * - `acceptedAt` 이 파싱 불가 문자열이면 `Timestamp.fromDate(Invalid Date)`
@@ -90,9 +107,10 @@ export function parseTermsAcceptanceJson(
   const o = value as Record<string, unknown>;
   const {version, service, privacy, marketing, acceptedAt} = o;
   if (typeof version !== "number" || !Number.isInteger(version)) return null;
-  // 미래 버전 위조 차단 (WR-02) — 서버가 아는 최신 버전을 넘는 값은 신뢰하지
-  // 않는다. 통과시키면 client 의 `restored.version >= currentVersion` 재동의
-  // 강제 로직을 사용자가 스스로 영구 무력화할 수 있다.
+  // 서버가 아는 최신 버전을 넘는 값은 신뢰하지 않는다 (WR-02 형식 정규화).
+  // WR-12: 이 검사는 서버 경유 경로의 스키마 오염만 막는다. client 가
+  // Firestore SDK 로 같은 필드를 직접 쓰는 경로는 firestore.rules 책임이다
+  // (SERVER_TERMS_CURRENT_VERSION docstring 참조).
   if (version < 1 || version > SERVER_TERMS_CURRENT_VERSION) return null;
   if (typeof service !== "boolean") return null;
   if (typeof privacy !== "boolean") return null;
