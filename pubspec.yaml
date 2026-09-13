@@ -66,7 +66,6 @@ dependencies:
   firebase_remote_config: ^6.4.0
   cloud_functions: ^6.2.0
   firebase_app_check: ^0.4.3
-  sign_in_with_apple: ^8.0.0
   # Phase 15 D-YJP-01 — OpenID Foundation 공식 AppAuth-iOS/Android 래핑
   # (verified publisher: dexterx.dev). Yahoo!JP Flutter wrapper 부재 →
   # OIDC 표준 라이브러리로 OAuth flow + PKCE + ID Token nonce 자동 처리.
