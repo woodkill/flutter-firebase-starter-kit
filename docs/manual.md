@@ -2338,7 +2338,12 @@ assets/brand/
 │   # light → 흰 배경 위 그린 BI, dark → 검정 배경 위 흰 BI (Naver BI 사용 패턴)
 ├── google/{light,dark,neutral}/btn_signin_{full,icon}.svg + LICENSE.txt + README.md
 │   # Plan 13.1-07 retro: Android × rd × ctn 채택, 6 SVG. cross-platform 사용 라이선스 무관
-├── apple/README.md          # SDK 위제 (sign_in_with_apple ^8.0.0), 자상 commit 없음
+├── apple/{black_logo,white_logo}/btn_signin_icon.svg + README.md
+│   # Phase 13.3 Wave 4 Step 3 (2026-05-16): Apple Sign-in JS API 의 inline SVG
+│   # verbatim 추출 (R['small'].path + viewBox "6 0 12 44"), 2 SVG.
+│   # 디렉토리 명명은 logo 색 기준 — `isDark ? black_logo : white_logo`
+│   # (dark theme → 검정 logo on 흰 bg). LICENSE.txt 없음 — Apple HIG
+│   # compliance 범위 내 사용이라 배포 라이선스 본문이 존재하지 않는다
 ├── facebook/facebook_login.png + LICENSE.txt + README.md
 │   # Phase 13.2 — Meta 공식 자상 (Primary Logo, 2084×2084 PNG, D-95 lock)
 │   # D-94 theme 부재 (단일 #1877F2 변형) / D-96 Google 패턴 locale 독립 ('f' 마크 단독)
@@ -2355,7 +2360,7 @@ assets/brand/
 | Kakao    | https://developers.kakao.com/docs/ko/kakaologin/design-guide | PNG + PSD | Kakao Resources Terms | N/A (가이드 준수만) |
 | Naver    | https://developers.naver.com/docs/login/bi/bi.md | PNG + Figma + AI | NAVER Brand License | **사용자 책임** (가이드 준수 — starter-kit 은 검수 자동화 미제공) |
 | Google   | https://developers.google.com/identity/branding-guidelines | SVG | Google Terms of Service | N/A |
-| Apple    | https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple | (SDK 위제) | Apple HIG (`sign_in_with_apple` 패키지 BSD-3-Clause) | N/A |
+| Apple    | https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple | SVG (Sign-in JS API inline path verbatim) | Apple HIG compliance 범위 내 사용 (`assets/brand/apple/README.md` 「라이선스」 절 — 동봉 LICENSE.txt 없음) | N/A |
 | Facebook | https://www.meta.com/brand/resources/facebook/logo/ + https://developers.facebook.com/docs/facebook-login/userexperience/ | PNG (Primary Logo, 2084×2084) | Meta Brand License (`Meta's trademarks are owned by Meta and may only be used as provided in these guidelines or with Meta's permission.` verbatim) | **사용자 책임** (Wave 0 응답 verbatim — Meta Brand Resource Center 다운, Phase 13.2 완료) |
 | LINE     | https://developers.line.biz/en/docs/line-login/login-button/ | PNG + PSD (19 언어) | LINE Branding License | **사용자 책임** (Phase 14 진입 시) |
 | Yahoo!JP | https://developer.yahoo.co.jp/yconnect/v2/ | SVG (64×36 viewBox) | Yahoo! JAPAN Brand Guideline | **사용자 책임** (Phase 15 진입 시) |
@@ -2446,12 +2451,14 @@ provider 진입 시 본 패턴 재도입:
   금지. 특히 PNG 자산은 `Image.asset(... fit: BoxFit.contain)` 직접 렌더 —
   `ColorFilter.mode(BlendMode.srcIn)` 적용 시 BI 색이 단색으로 변환되어
   guideline 위반 (Phase 13.1 RESEARCH §Pitfall 7).
-- **Apple:** `sign_in_with_apple` 패키지의 `SignInWithAppleButton` 위제 위임
-  — Apple HIG 의 3 변형 (Sign in / Sign up / Continue) 중 starter-kit 은
-  **Sign in 만** 사용. Sign up / Continue 추가는 별 phase. `borderRadius`
-  인수는 `BorderRadius.circular(12)` 형태 의무 (int 12 직접 주입 시 컴파일
-  에러). height 는 SDK 기본값 44 존종 (외부 SizedBox 래핑 안 함) — Naver/
-  Kakao height 48 과 4dp 차이는 HIG/BI 양쪽 공식 권장값 충돌의 정상 산물.
+- **Apple:** `_renderAppleButton` 자체 render (Phase 13.3 Wave 4 Step 2/3) —
+  공식 Logo-only SVG + 외부 텍스트 라벨 layer. Apple HIG 의 3 변형 (Sign in /
+  Sign up / Continue) 중 starter-kit 은 **Sign in 만** 사용. Sign up /
+  Continue 추가는 별도 phase. 기하는 `AppleSpec` 이 `BrandSpec` 기본값을
+  그대로 쓴다 — **height 48 / borderRadius 12** 로 Naver / Kakao / Facebook
+  과 동일하며 provider 간 높이 차이는 없다 (`AppleSpec` 은 `assetType` 만
+  override). SVG 자상 변형 금지 — path 좌표 + viewBox `"6 0 12 44"` verbatim
+  유지 의무 (`assets/brand/apple/README.md` 의 HIG mandate 표 참조).
 - **Facebook:** Phase 13.2 완료 — Meta Brand Resource Center (`meta.com/brand/
   resources/facebook/logo/`) 공식 Primary Logo PNG (2084×2084, #1877F2 파란
   원형 + 흰 'f' 마크) 마이그. `_renderFacebookButton` 함수가 Apple
