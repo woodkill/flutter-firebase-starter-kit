@@ -79,30 +79,28 @@
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
-        <!-- Facebook 앱 감지 (Android 11+ 패키지 가시성 제한, Phase 9 / quick
-             260913-r8a — 09-UAT.md Gap 4).
+        <!-- Facebook 앱 패키지 가시성 (Android 11+, Phase 9 / quick 260913-tgj).
+             출처 = Facebook Android troubleshooting FAQ 의 공식 스니펫 —
+             https://developers.facebook.com/docs/android/troubleshooting/
+             Facebook 본체와 Messenger 두 앱의 PlatformProvider authority 2건이
+             전부다. SDK 가 자기 라이브러리 manifest 에서 스스로 병합하는 선언은
+             여기서 중복하지 않는다.
 
-             왜 3건이 아니라 2건만 추가하는가 (facebook-login:18.1.3 AAR 실측):
-             1) katana 는 facebook-common:18.1.3 라이브러리 manifest 가
-                queries > package (name = com.facebook.katana) 를 자체 선언하므로
-                manifest merge 로 자동 포함된다 (실측: merged manifest 의 해당
-                선언이 facebook-common-18.1.3/AndroidManifest.xml:16 에 blame 됨).
-                앱에서 중복 선언하지 않는다 — 아래 provider 권한 선언은 Phase 9
-                부터 있던 것으로 그대로 보존한다.
-                주석에 XML 속성 리터럴 형태를 쓰지 않는 이유: merged manifest 는
-                주석까지 그대로 옮기므로, 감사용 grep 카운트가 오염된다.
-             2) NativeProtocol.buildFacebookAppList() 는 KatanaAppInfo 와
-                WakizashiAppInfo 를 모두 후보에 넣고 각각의 PlatformProvider 를
-                조회한다. 추가로 AttributionIdentifiers 와
-                appevents.ondeviceprocessing.RemoteServiceWrapper 도 Wakizashi
-                빌드의 provider · service 에 접근한다. 어디에서도 선언되지
-                않으므로 여기가 실제 가시성 구멍이다 → 아래 2줄로 메운다.
-             3) Facebook Lite 는 SDK 18.1.3 의 core/common/login 세 AAR 클래스
-                상수 풀에 참조가 0건이라 선언해도 사용하는 코드 경로가 없다.
-                의도적으로 제외한다. -->
+             주의 — 이 선언으로 네이티브 로그인이 살아나지는 않는다. 2026-09-13
+             실측(Galaxy SM-S942N, Facebook 앱 v576.0.0.42.73)에서 Facebook 앱이
+             자기 ProxyAuth 액티비티를 비활성 상태로 배포해, SDK 의 resolveActivity
+             가 null 을 받고 Custom Tab 으로 폴백한다. 앱 측 결정이라 우리 manifest
+             로는 바꿀 수 없다. 다만 단말 1대 · 앱 1버전 실측이고, Meta 의 폐지 공지를
+             확인한 바 없으며, 비활성 플래그는 런타임에 되살아날 수 있다. 공식 문서가
+             요구하는 선언이고 비용이 0 이므로 유지한다 — 네이티브 로그인 복구가
+             목적이 아니다.
+             근거 원본: .planning/phases/09-facebook-login/uat-evidence/
+                        2026-09-13-facebook-native-handoff.md
+
+             이 주석에 XML 속성 리터럴을 쓰지 않는 이유: manifest merger 가 주석을
+             병합 산출물로 그대로 복사하므로, 감사용 grep 카운트가 오염된다. -->
         <provider android:authorities="com.facebook.katana.provider.PlatformProvider" />
-        <provider android:authorities="com.facebook.wakizashi.provider.PlatformProvider" />
-        <package android:name="com.facebook.wakizashi" />
+        <provider android:authorities="com.facebook.orca.provider.PlatformProvider" />
         <!-- KakaoTalk 패키지 가시성 (Phase 12, Android 11+). 설치 감지 후
              loginWithKakaoTalk vs loginWithKakaoAccount 분기 (D-01).
              kakao_flutter_sdk_common 의 AndroidManifest.xml에도 동일 선언이
