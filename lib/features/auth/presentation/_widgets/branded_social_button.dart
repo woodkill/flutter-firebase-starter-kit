@@ -116,7 +116,10 @@ enum AssetType {
 /// `Map<String, Object>` dynamic config 패턴 비채택 (D-61).
 ///
 /// **공통 시각 사양 (D-71):** height 48 / borderRadius 12 / iconSize 18.
-/// Apple SDK 위제만 SDK 기본 height 44 별도 (D-72-CLARIFY-1).
+/// Apple 도 동일 — [AppleSpec] 은 `height` override 가 없어 default 48 을
+/// 그대로 쓴다. D-72-CLARIFY-1 의 `SDK 기본 44` 예외는 SDK 위제 위임
+/// 시절의 값이며 Phase 13.3 Wave 4 Step 2 자체 render 전환으로 소멸했다
+/// (quick 260913-oqm).
 sealed class BrandSpec {
   /// brand spec const 생성자.
   const BrandSpec({
@@ -125,7 +128,8 @@ sealed class BrandSpec {
     this.iconSize = 18,
   });
 
-  /// 버튼 높이 (dp). default 48. Apple SDK 위제는 본 필드 미사용 — SDK 기본 44.
+  /// 버튼 높이 (dp). default 48 — 7 spec 전부 이 값 (Apple 포함, quick
+  /// 260913-oqm 정정).
   final double height;
 
   /// Material + InkWell border radius (dp). default 12 — Kakao BI 강제 (R2)
@@ -374,8 +378,8 @@ class YahoojpSpec extends BrandSpec {
 /// 7 sub-class 모두 case 처리 — 신규 provider 추가 시 컴파일 fail 강제.
 ///
 /// **시각 사양 (R2 Kakao BI 강제 12dp radius):**
-/// - 너비 = `double.infinity` / 높이 48 dp (Apple SDK 위제만 SDK 기본 44,
-///   D-72-CLARIFY-1)
+/// - 너비 = `double.infinity` / 높이 48 dp (Apple 포함 7 provider 동일 —
+///   D-72-CLARIFY-1 의 44 예외는 SDK 위제 폐기로 소멸, quick 260913-oqm)
 /// - border radius 12 dp — Apple 은 `BorderRadius.circular(12)` (D-72-CLARIFY-2)
 /// - 아이콘 18 dp / 아이콘 ↔ 라벨 간격 = `appSpacing.sm` (8 dp)
 /// - TextStyle 14 dp / w500 / letterSpacing 0.1 / line height 20/14
