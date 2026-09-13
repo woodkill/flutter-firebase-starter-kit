@@ -106,104 +106,118 @@ class EnvironmentInfoScreen extends ConsumerWidget {
           Gap(spacing.sm),
         ],
       ),
-      body: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
-        child: ListView(
-          physics: const ClampingScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(
-            spacing.lg,
-            spacing.lg,
-            spacing.lg,
-            spacing.lg + MediaQuery.paddingOf(context).bottom,
+      body: Column(
+        children: [
+          // Phase 10 D-13 / UI-REVIEW Top Fix #2: 게스트 배너는 스크롤 뷰 밖의
+          // 고정 요소다 — 익명 사용자가 본문을 끝까지 내려도 AppBar 아래에
+          // 계속 남아 상태를 알린다.
+          if (isAnonymous) const _GuestBanner(),
+          Expanded(
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(
+                context,
+              ).copyWith(overscroll: false),
+              child: ListView(
+                physics: const ClampingScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  spacing.lg,
+                  spacing.lg,
+                  spacing.lg,
+                  spacing.lg + MediaQuery.paddingOf(context).bottom,
+                ),
+                children: [
+                  Text(
+                    l10n.homeBuildEnvironment,
+                    style: context.appTypography.titleLarge,
+                  ),
+                  Gap(spacing.md),
+                  _EnvironmentCard(
+                    icon: Icons.layers,
+                    label: l10n.homeEnvFlavor,
+                    // 미주입 시 '-' + warn chip — dart-define 누락을 육안 검출.
+                    value: flavor.isEmpty ? '-' : flavor.toUpperCase(),
+                    status: flavor.isEmpty ? _EnvStatus.warn : _EnvStatus.none,
+                  ),
+                  Gap(spacing.md),
+                  _EnvironmentCard(
+                    icon: Icons.app_settings_alt,
+                    label: l10n.homeEnvAppName,
+                    // 미주입 시 '-' + warn chip — flavor 카드와 동일 패턴.
+                    value: appName.isEmpty ? '-' : appName,
+                    status: appName.isEmpty ? _EnvStatus.warn : _EnvStatus.none,
+                  ),
+                  Gap(spacing.md),
+                  _EnvironmentCard(
+                    icon: isFirebaseInitialized
+                        ? Icons.cloud_done
+                        : Icons.cloud_off,
+                    label: l10n.homeEnvFirebase,
+                    value: isFirebaseInitialized
+                        ? l10n.homeFirebaseConnected
+                        : l10n.homeFirebaseNotConnected,
+                    status: isFirebaseInitialized
+                        ? _EnvStatus.ok
+                        : _EnvStatus.warn,
+                    semanticLabel: isFirebaseInitialized
+                        ? l10n.homeFirebaseStatusConnected
+                        : l10n.homeFirebaseStatusNotConnected,
+                  ),
+                  Gap(spacing.md),
+                  _EnvironmentCard(
+                    icon: Icons.folder,
+                    label: l10n.homeEnvFirebaseProjectId,
+                    value: firebaseProjectId,
+                    // WR-01: placeholder (`your-...`) 프로젝트 ID 가 남아있으면
+                    // warn chip 으로 표시해 사용자가 실제 값으로 오인하지 않도록 경고.
+                    status: firebaseProjectId.startsWith('your-')
+                        ? _EnvStatus.warn
+                        : _EnvStatus.none,
+                    semanticLabel: firebaseProjectId.startsWith('your-')
+                        ? l10n.homeFirebaseProjectIdPlaceholderWarning
+                        : null,
+                  ),
+                  Gap(spacing.md),
+                  const Divider(),
+                  Gap(spacing.md),
+                  const _ThemeToggleSection(),
+                  Gap(spacing.md),
+                  const Divider(),
+                  Gap(spacing.md),
+                  const _LanguageSection(),
+                  Gap(spacing.md),
+                  const Divider(),
+                  Gap(spacing.md),
+                  const _ColorPaletteSection(),
+                  Gap(spacing.md),
+                  const Divider(),
+                  Gap(spacing.md),
+                  const _TypographySection(),
+                  Gap(spacing.md),
+                  const Divider(),
+                  Gap(spacing.md),
+                  const _SpacingSection(),
+                  Gap(spacing.md),
+                  const Divider(),
+                  Gap(spacing.md),
+                  const _AccountSection(),
+                  Gap(spacing.md),
+                  const Divider(),
+                  Gap(spacing.md),
+                  // Phase 10 D-11: 보호 예시 섹션 (항상 렌더, 버튼은 AuthRequired 래핑).
+                  const _ProtectedExampleSection(),
+                  if (kDebugMode) ...[
+                    Gap(spacing.md),
+                    const Divider(),
+                    Gap(spacing.md),
+                    // Phase 10 D-32/D-33: Dev Tools (디버그 빌드 전용).
+                    const _DevToolsSection(),
+                  ],
+                  Gap(spacing.xl),
+                ],
+              ),
+            ),
           ),
-          children: [
-            // Phase 10 D-13: 게스트 배너 (익명 사용자만 상단 우선 노출).
-            if (isAnonymous) ...[const _GuestBanner(), Gap(spacing.sm)],
-            Text(
-              l10n.homeBuildEnvironment,
-              style: context.appTypography.titleLarge,
-            ),
-            Gap(spacing.md),
-            _EnvironmentCard(
-              icon: Icons.layers,
-              label: l10n.homeEnvFlavor,
-              // 미주입 시 '-' + warn chip — dart-define 누락을 육안 검출.
-              value: flavor.isEmpty ? '-' : flavor.toUpperCase(),
-              status: flavor.isEmpty ? _EnvStatus.warn : _EnvStatus.none,
-            ),
-            Gap(spacing.md),
-            _EnvironmentCard(
-              icon: Icons.app_settings_alt,
-              label: l10n.homeEnvAppName,
-              // 미주입 시 '-' + warn chip — flavor 카드와 동일 패턴.
-              value: appName.isEmpty ? '-' : appName,
-              status: appName.isEmpty ? _EnvStatus.warn : _EnvStatus.none,
-            ),
-            Gap(spacing.md),
-            _EnvironmentCard(
-              icon: isFirebaseInitialized ? Icons.cloud_done : Icons.cloud_off,
-              label: l10n.homeEnvFirebase,
-              value: isFirebaseInitialized
-                  ? l10n.homeFirebaseConnected
-                  : l10n.homeFirebaseNotConnected,
-              status: isFirebaseInitialized ? _EnvStatus.ok : _EnvStatus.warn,
-              semanticLabel: isFirebaseInitialized
-                  ? l10n.homeFirebaseStatusConnected
-                  : l10n.homeFirebaseStatusNotConnected,
-            ),
-            Gap(spacing.md),
-            _EnvironmentCard(
-              icon: Icons.folder,
-              label: l10n.homeEnvFirebaseProjectId,
-              value: firebaseProjectId,
-              // WR-01: placeholder (`your-...`) 프로젝트 ID 가 남아있으면
-              // warn chip 으로 표시해 사용자가 실제 값으로 오인하지 않도록 경고.
-              status: firebaseProjectId.startsWith('your-')
-                  ? _EnvStatus.warn
-                  : _EnvStatus.none,
-              semanticLabel: firebaseProjectId.startsWith('your-')
-                  ? l10n.homeFirebaseProjectIdPlaceholderWarning
-                  : null,
-            ),
-            Gap(spacing.md),
-            const Divider(),
-            Gap(spacing.md),
-            const _ThemeToggleSection(),
-            Gap(spacing.md),
-            const Divider(),
-            Gap(spacing.md),
-            const _LanguageSection(),
-            Gap(spacing.md),
-            const Divider(),
-            Gap(spacing.md),
-            const _ColorPaletteSection(),
-            Gap(spacing.md),
-            const Divider(),
-            Gap(spacing.md),
-            const _TypographySection(),
-            Gap(spacing.md),
-            const Divider(),
-            Gap(spacing.md),
-            const _SpacingSection(),
-            Gap(spacing.md),
-            const Divider(),
-            Gap(spacing.md),
-            const _AccountSection(),
-            Gap(spacing.md),
-            const Divider(),
-            Gap(spacing.md),
-            // Phase 10 D-11: 보호 예시 섹션 (항상 렌더, 버튼은 AuthRequired 래핑).
-            const _ProtectedExampleSection(),
-            if (kDebugMode) ...[
-              Gap(spacing.md),
-              const Divider(),
-              Gap(spacing.md),
-              // Phase 10 D-32/D-33: Dev Tools (디버그 빌드 전용).
-              const _DevToolsSection(),
-            ],
-            Gap(spacing.xl),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -1055,11 +1069,14 @@ enum _EnvStatus {
   warn,
 }
 
-/// 게스트 사용자에게 상단에 노출되는 안내 배너 (Phase 10 D-13).
+/// 게스트 사용자에게 화면 상단에 고정 노출되는 안내 배너 (Phase 10 D-13).
 ///
-/// 익명 로그인 상태일 때만 [EnvironmentInfoScreen] 본문 상단에 렌더되며,
-/// Material 3 [ColorScheme.surfaceContainerHigh] 배경 + rounded corner
-/// 패턴을 사용하여 주의를 끌지 않으면서도 상태를 전달한다.
+/// 익명 로그인 상태일 때만 [EnvironmentInfoScreen] 의 스크롤 뷰 바깥에
+/// 렌더되어, 본문을 끝까지 내려도 AppBar 아래에 계속 남는다. Material 3
+/// [ColorScheme.surfaceContainerHigh] 배경을 좌우 끝까지 채우고 하단의
+/// hairline [Divider] 로 스크롤 콘텐츠와 분리해, 주의를 끌지 않으면서도
+/// 상태를 전달한다. Phase 10 UI-REVIEW Top Fix #2 (홈 화면 focal point
+/// 부재) 를 코드 차원에서 닫는 변경이다.
 class _GuestBanner extends ConsumerWidget {
   const _GuestBanner();
 
@@ -1069,31 +1086,36 @@ class _GuestBanner extends ConsumerWidget {
     final spacing = context.appSpacing;
     final colorScheme = context.colorScheme;
     final typography = context.appTypography;
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: spacing.md,
-        vertical: spacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(spacing.sm),
-      ),
-      child: Row(
+    return Material(
+      color: colorScheme.surfaceContainerHigh,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.info_outline,
-            size: spacing.lg,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          Gap(spacing.sm),
-          Expanded(
-            child: Text(
-              l10n.homeGuestBanner,
-              style: typography.bodyMedium.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: spacing.lg,
+              vertical: spacing.sm,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: spacing.lg,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                Gap(spacing.sm),
+                Expanded(
+                  child: Text(
+                    l10n.homeGuestBanner,
+                    style: typography.bodyMedium.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+          Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
         ],
       ),
     );
