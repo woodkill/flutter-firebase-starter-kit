@@ -56,9 +56,16 @@ void main() {
     // 라이선스를 별도 동의 없이 받는 vector 를 차단하기 위해 자상 디렉토리에
     // LICENSE.txt + README.md 둘 모두 존재 의무. 결락 시 RED.
     //
-    // **Apple 제외 이유:** AppleSpec 는 SDK 위제 (SignInWithAppleButton)
-    // 위임으로 PNG/SVG 자상 미동봉. assets/brand/apple/ 디렉토리는 README.md
-    // 만 보유 (Phase 13.1 D-62 lock).
+    // **Apple 제외 이유:** Apple 자상의 라이선스 모델이 위 4 provider 와
+    // 다르다 — Apple HIG compliance 범위 내 사용이라 배포 라이선스 본문
+    // (BSD-3-Clause 등) 이 없고 동봉 LICENSE.txt 도 없다
+    // (`assets/brand/apple/README.md` 「라이선스」 절 참조).
+    // 자상 자체는 동봉돼 있다 — Phase 13.3 Wave 4 Step 2 이후 Apple 도 자체
+    // render (SDK 위제 SignInWithAppleButton 위임 폐기) 이며
+    // `assets/brand/apple/` 는 `black_logo/btn_signin_icon.svg` +
+    // `white_logo/btn_signin_icon.svg` 2건을 보유한다.
+    // 가드 편입 여부는 Apple 자상 라이선스 정책 결정 선행 — quick 260913-oqm
+    // 이 Phase 13.1 deferred-items.md 에 관찰로 기록.
     test('Phase 13.2 WR-03: 4 provider 자상 디렉토리 LICENSE.txt + README.md '
         '동시 존재 검증', () {
       const providers = <String>['facebook', 'google', 'kakao', 'naver'];

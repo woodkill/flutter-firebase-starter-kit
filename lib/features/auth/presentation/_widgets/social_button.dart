@@ -17,9 +17,11 @@ import 'branded_social_button.dart';
 /// **Phase 13.3 현재 (Wave 4 Step 2 supersede):**
 /// - Apple 분기 → [BrandedSocialButton.apple] 위임 (`_renderAppleButton` 내부
 ///   [Text] 위제로 라벨 주입 — Apple 공식 Logo-only SVG + 자체 라벨 layer +
-///   Universal Layout). OAuth credential 요청은 `SignInWithApple.
-///   getAppleIDCredential()` 호출 (별도 strategy 파일) — widget 위제는
-///   `sign_in_with_apple` package 미사용 (Wave 4 Step 2 import 제거).
+///   Universal Layout). 인증 자체는 `firebase_auth` 의 `AppleAuthProvider`
+///   경로 — `AuthRepository.signInWithApple()` 이 익명 사용자면
+///   `linkWithProvider`, 그 외에는 `signInWithProvider` 를 호출한다. widget
+///   은 외관 전담이며 별도 OAuth SDK 의존 0 (quick 260913-oqm 에서 pubspec
+///   선언까지 제거).
 /// - Google 분기 → [BrandedSocialButton.google] 위임 (공식 SVG 6종)
 /// - Naver 분기 → [BrandedSocialButton.naver] 위임 (BI 단일 색 #03A94D)
 /// - Kakao 분기 → [BrandedSocialButton.kakao] 위임 (Phase 13 D-55)

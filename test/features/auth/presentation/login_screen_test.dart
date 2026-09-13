@@ -106,7 +106,9 @@ void main() {
     // Phase 8 Apple 로그인 시나리오 (AUTH-03-15, 16, 17)
     // Phase 9: 플랫폼 분기 제거(D-04). 통일 순서 Google→Apple→Facebook.
     // Phase 13.1-08: Apple 버튼은 두 번째(index 1) SocialButton — 내부적으로
-    // BrandedSocialButton.apple() (SignInWithAppleButton 위제 위임) 사용.
+    // BrandedSocialButton.apple() 의 자체 render (Apple 공식 Logo-only SVG +
+    // 외부 텍스트 라벨 layer) 를 사용한다. Phase 13.3 Wave 4 Step 2 이전의
+    // SDK 위제(SignInWithAppleButton) 위임은 그 시점에 폐기됐다.
     // -----------------------------------------------------------------
     group('LoginScreen Apple sign-in integration', () {
       /// Apple 버튼 finder — 통일 순서에서 두 번째(index 1) SocialButton.

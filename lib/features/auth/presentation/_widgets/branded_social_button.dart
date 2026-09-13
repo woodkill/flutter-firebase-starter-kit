@@ -4,9 +4,16 @@
 
 // Phase 13.3 Wave 4 Step 2 (2026-05-15): `sign_in_with_apple` package import
 // 제거. SDK Button widget (`SignInWithAppleButton`) → 자체 render
-// (`_renderAppleButton`) 전환. OAuth flow (credential 요청) 는 별도 파일
-// (`apple_auth_strategy.dart` 등) 에서 `SignInWithApple.getAppleIDCredential()`
-// 호출.
+// (`_renderAppleButton`) 전환. 본 위제는 외관 전담이고, 실제 Apple 인증은
+// `firebase_auth` 단독 경로다 — `auth_repository.dart` 의 `signInWithApple()`
+// 이 `fb.AppleAuthProvider()` 에 email/name scope 를 붙여 익명 사용자면
+// `linkWithProvider`, 그 외에는 `signInWithProvider` 를 호출한다
+// (`credential-already-in-use` 계열은 1차 예외가 보존한 credential 로
+// `signInWithCredential` 종결). `apple_auth_strategy.dart` 는
+// `appleSignInProvider.notifier.signInWithApple()` 위임 wrapper 일 뿐
+// credential 을 직접 다루지 않는다.
+// quick 260913-oqm (2026-09-13): 호출 경로가 0 이므로 위 SDK 의 `pubspec.yaml`
+// 선언까지 제거 (transitive 2건 동반 소멸).
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
