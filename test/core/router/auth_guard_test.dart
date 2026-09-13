@@ -611,6 +611,203 @@ void main() {
     });
   });
 
+  group('AuthChangeNotifier distinct 가드 — Phase 9 UAT Gap 2', () {
+    // Phase 9 UAT Gap 2: userChanges() 는 ID 토큰 갱신(약 1시간 주기 + 각종
+    // reload)마다 인증 스냅샷이 전혀 바뀌지 않은 emit 을 흘린다. 가드가 없으면
+    // GoRouter refreshListenable 이 매번 깨어나 동일한 입력으로
+    // resolveAuthRedirect 를 재평가한다 (실 단말 로그 flood).
+    //
+    // 아래 8건은 "억제해야 할 것" 과 "절대 삼키면 안 되는 것" 을 동시에 고정한다.
+
+    /// 네 필드(uid / email / emailVerified / isAnonymous)를 모두 명시 stub 한
+    /// 사용자 mock 을 만든다.
+    ///
+    /// 기존 `regularUser` / `anonymousUser` 헬퍼는 두 필드 이상이 동시에
+    /// 달라지므로 "단일 필드만 다른 두 스냅샷" 델타를 만들 수 없다.
+    fb.User snapshotUser({
+      String uid = 'snap-uid',
+      String? email = 'snap@example.com',
+      bool emailVerified = false,
+      bool isAnonymous = false,
+    }) {
+      final mockUser = _MockUser();
+      when(() => mockUser.uid).thenReturn(uid);
+      when(() => mockUser.email).thenReturn(email);
+      when(() => mockUser.emailVerified).thenReturn(emailVerified);
+      when(() => mockUser.isAnonymous).thenReturn(isAnonymous);
+      return mockUser;
+    }
+
+    /// 스트림 컨트롤러 + notifier + 통지 카운터를 묶어 생성하고 tearDown 까지
+    /// 등록한다. tearDown 은 LIFO 이므로 notifier.dispose → controller.close
+    /// 순서로 실행된다.
+    ({
+      StreamController<fb.User?> controller,
+      AuthChangeNotifier notifier,
+      int Function() count,
+    })
+    makeNotifier() {
+      final controller = StreamController<fb.User?>();
+      addTearDown(controller.close);
+      final notifier = AuthChangeNotifier(controller.stream);
+      addTearDown(notifier.dispose);
+      var notifyCount = 0;
+      notifier.addListener(() => notifyCount++);
+      return (
+        controller: controller,
+        notifier: notifier,
+        count: () => notifyCount,
+      );
+    }
+
+    /// 스트림 이벤트가 listener 까지 전달되도록 microtask 큐를 2회 펌프한다.
+    Future<void> pump() async {
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    test('G2-A: 동일 스냅샷의 서로 다른 인스턴스를 3회 emit 하면 1회만 통지한다', () async {
+      final h = makeNotifier();
+
+      // 인스턴스 identity 가 아니라 "값" 으로 비교됨을 증명하기 위해 매번
+      // 새 mock 인스턴스를 만든다 (토큰 갱신 emit 재현).
+      for (var i = 0; i < 3; i++) {
+        h.controller.add(snapshotUser());
+        await pump();
+      }
+
+      expect(
+        h.count(),
+        1,
+        reason:
+            '토큰 갱신처럼 (uid, email, emailVerified, isAnonymous) 가 모두 동일한 '
+            'emit 은 GoRouter redirect 재평가를 유발하면 안 된다 (Gap 2 flood)',
+      );
+    });
+
+    test('G2-B: 최초 emit 이 null 하나뿐이어도 통지한다', () async {
+      final h = makeNotifier();
+
+      h.controller.add(null);
+      await pump();
+
+      expect(
+        h.count(),
+        1,
+        reason:
+            'sentinel 회귀 가드 — "아직 한 번도 통지 안 함" 과 "직전 값이 null" 을 '
+            '구분하지 못하면 앱 기동 직후 첫 redirect 평가가 통째로 죽는다',
+      );
+    });
+
+    test('G2-C: uid 만 다른 두 사용자를 순차 emit 하면 2회 통지한다', () async {
+      final h = makeNotifier();
+
+      h.controller.add(snapshotUser(uid: 'uid-a'));
+      await pump();
+      h.controller.add(snapshotUser(uid: 'uid-b'));
+      await pump();
+
+      expect(
+        h.count(),
+        2,
+        reason: '계정 전환(uid 변경)은 resolveAuthRedirect 재평가를 반드시 유발해야 한다',
+      );
+    });
+
+    test('G2-D: emailVerified 만 다른 두 사용자를 순차 emit 하면 2회 통지한다', () async {
+      final h = makeNotifier();
+
+      h.controller.add(snapshotUser(emailVerified: false));
+      await pump();
+      h.controller.add(snapshotUser(emailVerified: true));
+      await pump();
+
+      expect(
+        h.count(),
+        2,
+        reason:
+            '이메일 검증 완료는 resolveAuthRedirect 분기 (4) 의 /verify-email '
+            '게이트를 해제하는 전이다',
+      );
+    });
+
+    test('G2-E: isAnonymous 만 다른 두 사용자를 순차 emit 하면 2회 통지한다', () async {
+      final h = makeNotifier();
+
+      h.controller.add(snapshotUser(isAnonymous: true));
+      await pump();
+      h.controller.add(snapshotUser(isAnonymous: false));
+      await pump();
+
+      expect(
+        h.count(),
+        2,
+        reason: '익명 → 정식 승격(credential linking)은 redirect 재평가를 유발해야 한다',
+      );
+    });
+
+    test('G2-F: email 만 다른 두 사용자를 순차 emit 하면 2회 통지한다', () async {
+      final h = makeNotifier();
+
+      // email 없는 정식 사용자(Facebook email 권한 거부 등) → 이후 이메일 연결.
+      h.controller.add(snapshotUser(email: null));
+      await pump();
+      h.controller.add(snapshotUser(email: 'linked@example.com'));
+      await pump();
+
+      expect(
+        h.count(),
+        2,
+        reason:
+            'resolveAuthRedirect 는 hasVerifiableEmail(currentUser.email) 로 '
+            '분기 (4) 검증 게이트의 적용 여부를 판정한다. email 을 스냅샷에서 빼면 '
+            'uid/emailVerified/isAnonymous 가 그대로인 이 전이가 통째로 삼켜져 '
+            '/verify-email 게이트가 발동하지 않는다',
+      );
+    });
+
+    test('G2-G: 가드가 트립된 뒤에도 triggerRedirect() 는 통지한다', () async {
+      final h = makeNotifier();
+
+      for (var i = 0; i < 3; i++) {
+        h.controller.add(snapshotUser());
+        await pump();
+      }
+      h.notifier.triggerRedirect();
+
+      expect(
+        h.count(),
+        2,
+        reason:
+            'emit 1회 + 강제 1회 — triggerRedirect() 는 reload() 후 emailVerified '
+            '변경을 emit 하지 않는 FlutterFire Issue #8777 우회 경로이므로 distinct '
+            '가드를 항상 우회해야 한다',
+      );
+    });
+
+    test('G2-H: null → 사용자 → null → null 4회 emit 시 3회만 통지한다', () async {
+      final h = makeNotifier();
+
+      h.controller.add(null);
+      await pump();
+      h.controller.add(snapshotUser());
+      await pump();
+      h.controller.add(null);
+      await pump();
+      h.controller.add(null);
+      await pump();
+
+      expect(
+        h.count(),
+        3,
+        reason:
+            '로그아웃 후 반복되는 null 재emit 만 흡수되고, 최초 null · 로그인 · '
+            '로그아웃 전이는 모두 통지되어야 한다',
+      );
+    });
+  });
+
   group('상시 공개 문서 경로 — 코드 리뷰 05 WR-02 회귀 가드', () {
     // 하나의 Set 이 "미인증자가 들어와도 되는 경로" 와 "완료 사용자가 있으면
     // 안 되는 진입 화면" 두 의미로 과적재되어, 분기 (6) 이 완료 사용자를

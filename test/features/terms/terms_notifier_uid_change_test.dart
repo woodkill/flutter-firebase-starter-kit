@@ -78,10 +78,20 @@ void main() {
     registerFallbackValue(StackTrace.empty);
   });
 
-  fb.User makeUser({required String uid, required bool isAnonymous}) {
+  /// [email] 과 [emailVerified] 도 반드시 stub 한다 — AuthChangeNotifier 의
+  /// distinct 가드(Phase 9 UAT Gap 2)가 emit 마다 네 필드 스냅샷을 읽으므로,
+  /// 미stub mock 은 `type 'Null' is not a subtype of type 'bool'` 로 죽는다.
+  fb.User makeUser({
+    required String uid,
+    required bool isAnonymous,
+    String? email,
+    bool emailVerified = false,
+  }) {
     final user = _MockUser();
     when(() => user.uid).thenReturn(uid);
     when(() => user.isAnonymous).thenReturn(isAnonymous);
+    when(() => user.email).thenReturn(email);
+    when(() => user.emailVerified).thenReturn(emailVerified);
     return user;
   }
 

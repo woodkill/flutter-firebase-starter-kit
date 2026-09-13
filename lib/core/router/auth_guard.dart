@@ -16,6 +16,23 @@ import 'app_routes.dart';
 
 part 'auth_guard.g.dart';
 
+/// [resolveAuthRedirect] 가 읽는 인증 상태 4종을 담는 값 스냅샷.
+///
+/// Dart 3 record 는 구조적 `==` 를 제공하므로, `userChanges()` 가 흘리는
+/// 서로 다른 [fb.User] 인스턴스라도 네 필드가 같으면 동일 스냅샷으로 판정된다.
+///
+/// `email` 을 포함하는 이유: [resolveAuthRedirect] 의 `hasVerifiableEmail` 이
+/// 이 값으로 분기 (4) 이메일 검증 게이트의 적용 여부를 결정한다. email 을 빼면
+/// "email 없는 정식 사용자(Facebook email 권한 거부 등) → 이후 이메일 연결"
+/// 전이에서 uid/emailVerified/isAnonymous 가 모두 그대로라 통지가 삼켜지고,
+/// `/verify-email` 게이트가 영영 발동하지 않는다.
+typedef _AuthSnapshot = ({
+  String uid,
+  String? email,
+  bool emailVerified,
+  bool isAnonymous,
+});
+
 /// 사용자 변경 스트림을 GoRouter [refreshListenable]용
 /// [ChangeNotifier]로 래핑한다.
 ///
@@ -25,12 +42,43 @@ part 'auth_guard.g.dart';
 /// credential linking(익명→정식 승격)에도 redirect가 재평가된다.
 /// [GoRouterRefreshStream]이 go_router v5.0.0에서 제거되었으므로
 /// 이 클래스가 동일한 역할을 수행한다.
+///
+/// **distinct 가드 (Phase 9 UAT Gap 2):** `userChanges()` 는 ID 토큰 갱신마다
+/// 인증 상태가 전혀 바뀌지 않은 이벤트를 흘린다. 이를 그대로 통지하면 GoRouter
+/// 가 동일한 입력으로 [resolveAuthRedirect] 를 수십 회 재평가한다. 따라서
+/// [_AuthSnapshot] 네 필드가 직전 통지 시점과 동일한 재emit 은 통지하지 않는다.
+/// 단 두 가지는 **항상** 통지한다 — (1) 최초 emit (값이 `null` 이어도 앱 기동
+/// 직후 첫 redirect 평가를 살려야 한다), (2) [triggerRedirect] 강제 호출.
 class AuthChangeNotifier extends ChangeNotifier {
   /// [stream]의 이벤트를 수신하여 [notifyListeners]를 호출하는
   /// [ChangeNotifier]를 생성한다.
   AuthChangeNotifier(Stream<fb.User?> stream) {
     _subscription = stream.listen(
       (user) {
+        final _AuthSnapshot? next = user == null
+            ? null
+            : (
+                uid: user.uid,
+                email: user.email,
+                emailVerified: user.emailVerified,
+                isAnonymous: user.isAnonymous,
+              );
+        // Phase 9 UAT Gap 2: 토큰 갱신 emit 은 네 필드가 모두 불변이므로
+        // 여기서 흡수된다. [_hasNotified] 가 false 인 최초 emit 은 값이 무엇이든
+        // 통과시킨다.
+        if (_hasNotified && next == _lastSnapshot) {
+          if (kDebugMode) {
+            // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
+            final uidHash = user?.uid.hashCode.toString() ?? 'null';
+            debugPrint(
+              'AuthChangeNotifier: userChanges emit '
+              '(uidHash=$uidHash) -> 중복 스냅샷, 통지 생략',
+            );
+          }
+          return;
+        }
+        _hasNotified = true;
+        _lastSnapshot = next;
         if (kDebugMode) {
           // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
           final uidHash = user?.uid.hashCode.toString() ?? 'null';
@@ -63,11 +111,26 @@ class AuthChangeNotifier extends ChangeNotifier {
   /// (flutter.md "late 사용 최소화" 규칙)
   StreamSubscription<fb.User?>? _subscription;
 
+  /// 스트림 emit 으로 한 번이라도 통지했는지 여부 (sentinel).
+  ///
+  /// "아직 한 번도 통지하지 않음" 과 "직전 emit 이 미인증(`null`)" 을 구분하는
+  /// 유일한 수단이다. 이 필드 없이 `_lastSnapshot == null` 만으로 판정하면
+  /// 최초 `null` emit 이 중복으로 오인되어 삼켜지고, 앱 기동 직후 GoRouter 의
+  /// 첫 redirect 평가가 통째로 사라진다.
+  bool _hasNotified = false;
+
+  /// 직전 통지 시점의 인증 스냅샷. `null` 은 "직전 emit 이 미인증" 을 뜻한다.
+  _AuthSnapshot? _lastSnapshot;
+
   /// GoRouter redirect 재평가를 강제 트리거한다.
   ///
   /// Firebase SDK의 authStateChanges() 스트림이 reload() 후
   /// emailVerified 변경을 emit하지 않는 제한(FlutterFire Issue #8777)을
   /// 우회하기 위해, 외부에서 명시적으로 redirect 재평가를 요청할 때 사용한다.
+  ///
+  /// distinct 가드(Phase 9 UAT Gap 2)를 우회하는 명시적 강제 경로이며
+  /// `_lastSnapshot` 을 갱신하지 않는다. 여기에 가드를 끼워 넣으면 reload()
+  /// 직후 검증 완료 상태가 라우터에 전달되지 않는 원래 버그가 되살아난다.
   void triggerRedirect() {
     notifyListeners();
   }
