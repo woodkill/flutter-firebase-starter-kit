@@ -2170,6 +2170,40 @@ Phase 11 D-11 에서 도입된 App Check enforcement (`enforceAppCheck:true` onC
 3. **debug token 등록** — UUID 입력 + 별칭 (예: "Galaxy SM F966N dev") + Save. debug token 은 동일 단말에서 영구 유효 (앱 재설치 시 새 token 발급 → 재등록 필요).
 4. **enforceAppCheck 검증** — 재실행 시 `deleteUserAccount` callable 가 정상 응답 (또는 비즈니스 로직 분기) 확인.
 
+#### ⚠ 재발급 함정 — `adb shell pm clear` 는 디버그 시크릿을 새로 발급시킨다
+
+`adb shell pm clear <applicationId>` 는 앱 데이터를 지우면서
+`shared_prefs/com.google.firebase.appcheck.debug.store.*.xml` 도 함께 지운다. 그 결과 디버그 시크릿이
+**새로 발급**되고, 새 시크릿은 허용 목록에 없으므로 App Check 를 요구하는 호출이 **전부** 실패한다.
+시크릿은 앱을 재기동해도 불변이며 `pm clear`(및 재설치) 시에만 바뀐다 — 실측으로 확인된 동작이다.
+
+위 4단계가 적은 「앱 재설치 시 새 token 발급 → 재등록 필요」의 **되풀이 변종**이며, 이 저장소에서만
+같은 단말에 최소 2회 발생했다. 증상이 `unauthenticated` 이므로 **reauth 실패로 오진하기 쉽다** —
+회원탈퇴가 실패할 때 reauth 코드를 뒤지기 전에 logcat 에서
+`Error getting App Check token; using placeholder token instead` 가 있는지 먼저 볼 것.
+
+#### Firebase Console 없이 디버그 토큰 등록하기 (API 절차)
+
+Console UI 를 열지 않고 REST API 로도 등록할 수 있다 (CI·원격 단말·터미널 전용 환경에서 유용).
+
+```bash
+curl -X POST \
+  "https://firebaseappcheck.googleapis.com/v1/projects/<project>/apps/<appId>/debugTokens" \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "x-goog-user-project: <project>" \
+  -H "Content-Type: application/json" \
+  -d '{"displayName":"<단말 별칭> (<날짜> regen)","token":"<debug secret>"}'
+```
+
+- `<debug secret>` — 현재 값은 logcat 의 `D/DebugAppCheckProvider ... Enter this debug secret` 행에서 읽는다.
+  **이 값은 App Check attestation 을 우회시키는 자격증명이므로 저장소·이슈·문서에 기록하지 않는다.**
+- `<appId>` — Firebase 앱 ID. debug store **파일명의 base64 부분을 디코드**하면 얻을 수 있다
+  (`shared_prefs/com.google.firebase.appcheck.debug.store.<base64>.xml`).
+- `<project>` — Firebase 프로젝트 ID. `x-goog-user-project` 헤더를 빠뜨리면 권한 오류가 난다.
+
+**부작용:** 등록된 디버그 토큰이 계속 누적된다. 대부분 과거 단말·에뮬레이터 것이라 시간이 지나면
+목록이 지저분해진다. 정리(삭제)는 별건이며 같은 API 의 `debugTokens` 리소스로 처리한다.
+
 본 절차는 Phase 11 의 App Check 도입 시점에 manual.md 의 다른 단락에 정의돼 있을 수 있으나, Plan 16-06 시점의 cross-reference 안전 차원에서 본 단락에도 명시.
 
 ### 사용자 커스터마이징 포인트
@@ -3271,7 +3305,8 @@ focus 의미론을 차단하는 경우가 있습니다. 그래서 wrapper 는
 | 2026-09-11 | quick 260911-x9x | `./scripts/firebase-configure.sh <flavor>` 의 FlutterFire CLI 부수효과를 스크립트가 자동 복원하도록 변경 — live run 실측 결과 `--ios-build-config` 을 주면 CLI 가 `ios/Runner.xcodeproj/project.pbxproj` 에 중복 `bundle-service-file` 실행 스크립트 단계를 추가하고, 기존 `upload-crashlytics-symbols` 단계의 인자를 `--default-config=default` 에서 `--build-configuration=${CONFIGURATION}` 으로 바꾼다. `firebase.json` 에는 `Debug-<flavor>` 한 개만 등록되므로 후자는 나머지 **8/9 configuration 의 iOS 빌드**를 `FirebaseJsonException` 으로 깨뜨린다 (진짜 손상). `firebase.json` 자체도 1줄로 재작성된다. 스크립트는 두 파일을 flutterfire 호출 직전 `mktemp` 디렉터리에 스냅샷해 두고 호출 후(실패 경로는 EXIT trap) 스냅샷 **파일 복사**로 되돌린다 — `git checkout` 을 쓰지 않는 이유는 개발자의 미커밋 pbxproj 편집까지 날리기 때문이다. 복원 함수는 `local rc=$?` / `return "$rc"` 로 원래 종료 코드를 보존하고 임시 디렉터리를 성공·실패 양쪽에서 정리한다. 또 flutterfire 가 생성한 dart options 는 포맷이 적용돼 있지 않아 `fvm dart format --set-exit-if-changed lib test` 를 rc=1 로 만들므로 스크립트가 산출물에 `fvm dart format` 을 적용한다. `DRY_RUN=1` 경로는 스냅샷·복원·포맷을 전부 건너뛴다 (flutterfire 미호출 = 변형 원인 없음). header ⚠ 경고 문구를 추측에서 실측으로 교체하고 회귀 가드 test 를 4건 추가(3 → 7건), 직전 260911-w9w 가 남긴 미검증 deferred 2건(pbxproj 부수효과 실측 · 비대화형 hang 해소 end-to-end 실증)을 함께 종결. |
 
 | 2026-09-12 | quick 260912-gam | `## Design System — 디자인 토큰 커스터마이징 (Phase 3)` 단락 신규 — 2026-09-12 Phase 3 code review fix 12건 (`03-REVIEW-FIX.md`) 으로 확정된 공개 계약을 사용자 관점으로 문서화. 6개 내용: (1) 개요 (ThemeExtension 3종 · `AppTheme.light()`/`dark()` 조립 · `lib/app.dart:53-54` 호출부 · `ThemeX` 다섯 getter 와 폴백 표) / (2) 시드 컬러 교체 (`AppTheme.seedColor` = `Colors.deepPurple`, 소스 수정 없는 주입 경로 `light({Color seedColor})`/`dark({Color seedColor})`, 라이트·다크 동일 시드 의무) / (3) 타이포그래피 계약 — 등록 extension 이 `AppTypography.empty` (전 15 필드 빈 `TextStyle`) 로 바뀌어 `Theme.of(context).extension<AppTypography>()` 직접 읽기가 빈 스타일을 돌려주므로 `context.appTypography` 가 유일한 경로 + ko/ja dense 기하 자동 반영 목적 + 폰트 교체는 `ThemeData(fontFamily:)` 경로 + 부분 override 코드 블록과 `copyWith(extensions:)` map 통째 교체 경고 / (4) 시맨틱 컬러 6종 · 간격 4 의 배수 7단계 (4/8/12/16/24/32/48) + 전 필드 `==`/`hashCode` 구현으로 `AppTheme.light() == AppTheme.light()` 성립 (리빌드마다 `AnimatedTheme` 200ms 보간 재시작이 사라짐) + 미등록 테마 폴백 / (5) breakpoint 3단계 (compact 280~360 · medium 360~600 · expanded 600~674, 하한 포함 상한 배타 + 양끝 포화) 와 `maxWidth` 오용 경고 · `LayoutBuilder` + `AppBreakpoint.fromWidth(constraints.maxWidth)` 지역 제약 경로 / (6) `BrandFocusWrapper` (2026-09-12 `focus_wrapper.dart` 에서 개명) — Tab 1회당 버튼 1개 · outline 표시 조건 AND (`FocusHighlightMode.traditional`) · 외관 hardcode (2dp border / 2dp offset / `borderRadius + 4`) · 사방 4dp 총 8dp 잠식 경고 · a11y focus 위임 · 실 단말 UAT 체크 3항목. 회귀 가드 11행 매트릭스 (인용 group 은 전부 실재 확인) + Pitfall 5종. 목차 16 항목으로 확장. |
+| 2026-09-14 | quick-260914-0ag | `### App Check debug provider 등록 절차` 절에 2덩어리 보강 — (1) **재발급 함정**: `adb shell pm clear <applicationId>` 가 `shared_prefs/com.google.firebase.appcheck.debug.store.*.xml` 을 함께 지워 디버그 시크릿이 새로 발급되고 허용 목록 미등재로 App Check 호출이 전부 실패한다 (시크릿은 앱 재기동에는 불변, `pm clear`/재설치 시에만 변경 — 실측). 기존 4단계의 「재설치 시 재등록 필요」 되풀이 변종이며 증상이 `unauthenticated` 라 reauth 실패로 오진하기 쉬움을 경고. (2) **Console 없는 API 등록 절차**: `gcloud auth print-access-token` Bearer + `POST https://firebaseappcheck.googleapis.com/v1/projects/<project>/apps/<appId>/debugTokens` + `x-goog-user-project` 헤더 + `{"displayName":..,"token":"<debug secret>"}` 본문, `<appId>` 는 debug store 파일명 base64 디코드로 획득, 토큰 누적 부작용과 정리가 별건임 명시. 전부 일반형 placeholder 만 사용 (T-16-16-01 PII 정책 준수). |
 
 ---
 
-*Last updated: 2026-09-12 — quick 260912-gam 디자인 시스템 토큰 커스터마이징 단락 신설*
+*Last updated: 2026-09-14 — quick 260914-0ag App Check debug provider 절 pm clear 재발급 함정 + Console 없는 API 등록 절차 보강*
