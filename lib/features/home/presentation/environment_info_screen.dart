@@ -1329,7 +1329,7 @@ class _EnvironmentCard extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         softWrap: true,
-        style: typography.titleMedium.copyWith(fontWeight: FontWeight.w600),
+        style: typography.titleMedium,
       );
     } else {
       final bg = status == _EnvStatus.ok ? colors.success : colors.warning;
@@ -1348,10 +1348,7 @@ class _EnvironmentCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           softWrap: true,
-          style: typography.labelLarge.copyWith(
-            color: fg,
-            fontWeight: FontWeight.w600,
-          ),
+          style: typography.labelLarge.copyWith(color: fg),
         ),
       );
     }
