@@ -1,5 +1,9 @@
-# iOS 최소 배포 타겟 (Firebase SDK 요구사항)
-platform :ios, '15.6'
+# iOS 최소 배포 타겟 — 단일 출처(single source of truth)
+# - Firebase SDK 요구사항에 따라 15.6 을 하한으로 둔다.
+# - ios/Runner.xcodeproj/project.pbxproj 의 IPHONEOS_DEPLOYMENT_TARGET 12개 값과 반드시 같아야 한다.
+# - 일치 여부는 test/ios/ios_deployment_target_consistency_test.dart 가 강제한다.
+ios_deployment_target = '15.6'
+platform :ios, ios_deployment_target
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -45,8 +49,23 @@ target 'Runner' do
   end
 end
 
+# pod target 의 deployment target 하한 상향 규칙
+# - podspec 하한(예: flutter_line_sdk 13.0)이 의존 모듈 하한(LineSDKSwift 5.17.0 = 15.0)보다 낮으면
+#   Swift module import 시 "Compiling for iOS X, but module 'Y' has a minimum deployment target" 컴파일 에러가 난다.
+# - flutter_additional_ios_build_settings 는 13 미만일 때만 키를 지우므로 13.0 target 이 그대로 남는다.
+# - 따라서 helper 호출 뒤, 숫자 버전이면서 ios_deployment_target 미만인 값만 올린다.
+# - 하향은 하지 않는다(pod 이 스스로 요구하는 더 높은 하한을 가리지 않기 위해).
+#   키가 없거나 비숫자 값($(inherited) 등)이면 건드리지 않는다.
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    target.build_configurations.each do |build_configuration|
+      current_target = build_configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+      next unless current_target.is_a?(String) && current_target.match?(/\A\d+(\.\d+)*\z/)
+      next unless Gem::Version.new(current_target) < Gem::Version.new(ios_deployment_target)
+
+      build_configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = ios_deployment_target
+    end
   end
 end
