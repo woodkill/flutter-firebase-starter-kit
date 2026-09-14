@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -196,9 +197,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   /// 이전 동작(in-flight 신호 폐기)이 2026-09-14 실 단말 splash 고착의
   /// 원인이라는 판단은 로그 타임스탬프와 코드에서의 **연역**이며 계측하지
   /// 않았다. 이 변경은 실 단말 경로가 닫혔음을 증명하지 않는다.
+  ///
+  /// 위의 「계측하지 않았다」 는 quick 260914-k81 시점의 서술로 그대로 둔다.
+  /// 이후 quick 260914-r5s 가 보류 표시 지점과 `_runInit` finally 의 소비
+  /// 판정 지점에 `kDebugMode` 한정 디버그 로그(`SplashScreen:` 접두, bool ·
+  /// int 만)를 추가했다. 그 로그로 관측한 실 단말 결과의 진실원은 Phase 16
+  /// deferred-items 항목 1 이다.
   void _triggerReinit() {
     if (_initInFlight) {
       _reinitPending = true;
+      // 디버그 전용 계측 — bool · int 만 기록하고 식별정보는 넣지 않는다.
+      if (kDebugMode) {
+        debugPrint(
+          'SplashScreen: _triggerReinit during initInFlight -> '
+          'reinitPending=true (deferredReinitCount=$_deferredReinitCount)',
+        );
+      }
       return;
     }
     ref.invalidate(splashInitializerProvider);
@@ -263,6 +277,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       // 플래그를 먼저 내린다 — 아래에서 호출하는 `_triggerReinit` 이 보류
       // 분기가 아니라 곧바로 invalidate + postFrame `_runInit` 경로를 타도록.
       _initInFlight = false;
+      // 보류 표시를 지우기 전 값을 디버그 로그용으로 보존한다.
+      final wasReinitPending = _reinitPending;
       // 성공 종료로 한정한다 — 실패 다이얼로그 경로(Retry / Sign in later)의
       // 재실행은 `_showFailureDialog` 가 담당한다 (`_triggerReinit` doc 참조).
       // `mounted` 는 필수다 — `if (!mounted) return;` 조기 종료에서도 이
@@ -274,6 +290,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           mounted &&
           _deferredReinitCount < _kMaxDeferredReinitCount;
       _reinitPending = false;
+      // 디버그 전용 계측 — 실행 1회당 1줄, 소비 판정과 증가 전 카운터를 찍는다.
+      if (kDebugMode) {
+        debugPrint(
+          'SplashScreen: _runInit finally -> '
+          'wasReinitPending=$wasReinitPending, isSuccessExit=$isSuccessExit, '
+          'mounted=$mounted, consume=$shouldConsumePending, '
+          'deferredReinitCountPreIncrement=$_deferredReinitCount',
+        );
+      }
       if (shouldConsumePending) {
         _deferredReinitCount += 1;
         _triggerReinit();
