@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,6 +28,12 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockCrashlytics extends Mock implements CrashlyticsService {}
+
+/// Test 10 전용 — `currentUser` 가 non-null 인 상태를 만들기 위한 목.
+///
+/// `SplashInitializer` 는 `currentUser == null` 여부만 읽으므로 별도 stub 이
+/// 필요 없다.
+class _MockFirebaseUser extends Mock implements fb.User {}
 
 User _stubUser({String uid = 'anon-uid'}) => User(
   uid: uid,
@@ -110,6 +118,45 @@ GoRouter _testRouterWithRedirect({required void Function() onRedirect}) {
         path: AppRoutes.login,
         name: AppRoutes.loginName,
         builder: (_, _) => const Scaffold(body: Text('LOGIN')),
+      ),
+    ],
+  );
+}
+
+/// Test 10 helper — GC-04 fail-safe redirect **시뮬레이션** 라우터.
+///
+/// [shouldRedirectHome] 이 `true` 를 반환하는 동안 [AppRoutes.home] 진입을
+/// [AppRoutes.splash] 로 되돌려, SplashScreen 이 `/splash` 에 머무른 채
+/// mounted 인 상태를 만든다. 2026-09-13 실 단말 로그의
+/// `fail-safe race guard (...) -> /splash [Issue #10 GC-04]` 상황에 대응한다.
+///
+/// **이것은 시뮬레이션이며 실제 `resolveAuthRedirect` 가 아니다** — 그 함수의
+/// 동작은 본 헬퍼로 검증되지 않는다.
+///
+/// 조건을 `bool Function()` 클로저로 받는 이유: 테스트 도중 redirect 를 꺼야
+/// 재초기화 성공 후의 HOME 랜딩을 관측할 수 있다
+/// ([_testRouterWithRedirect] 의 콜백 규약 mirror).
+GoRouter _testRouterPinnedToSplash({
+  required bool Function() shouldRedirectHome,
+}) {
+  return GoRouter(
+    initialLocation: AppRoutes.splash,
+    redirect: (context, state) {
+      if (state.matchedLocation == AppRoutes.home && shouldRedirectHome()) {
+        return AppRoutes.splash;
+      }
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: AppRoutes.splash,
+        name: AppRoutes.splashName,
+        builder: (_, _) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.home,
+        name: AppRoutes.homeName,
+        builder: (_, _) => const Scaffold(body: Text('HOME')),
       ),
     ],
   );
@@ -723,6 +770,131 @@ void main() {
         expect(find.text('HOME'), findsOneWidget);
         expect(
           router.routerDelegate.currentConfiguration.uri.toString(),
+          AppRoutes.home,
+        );
+      },
+    );
+
+    /// Phase 16 deferred-items 항목 1 회귀 가드 (2026-09-13 실 단말 재현,
+    /// quick 260914-f1p) — 재초기화 훅 3 의 **발동**을 고정한다.
+    ///
+    /// **생성 시점 `currentUser != null` 이어야 성립한다.** 생성 시점 null 인
+    /// 테스트는 첫 init 이 곧바로 `signInAnonymously` 를 타 버려 본 경로를
+    /// 재현하지 못한다 — `SplashInitializer.currentUserIsNull` 이 생성 시점
+    /// bool 캡처이기 때문이며, deferred-items 항목 1 의 「지름길 금지」가
+    /// 가리키는 것과 같은 이유다.
+    ///
+    /// **이 테스트가 증명하지 않는 것:** 서버측 세션 폐기 → splash 무한 대기
+    /// 라는 실 단말 경로가 닫혔다는 것. 그 판정에는 deferred-items 항목 1 의
+    /// 5단계 재현 절차(특히 4단계 — 약 1시간 ID 토큰 만료 대기)가 필요하며
+    /// 본 위젯 테스트는 그것을 대체하지 않는다. 여기서 고정하는 범위는
+    /// 「생성 이후 `User -> null` 전이에서 훅이 실제로 발동한다」까지다.
+    testWidgets(
+      'Test 10 (Phase 16 deferred 항목 1 회귀 가드): 생성 시점 currentUser != null '
+      '인 SplashScreen 이 /splash 에 머무른 채 auth 스트림이 User -> null 로 '
+      '전이하면 재초기화가 발동해 signInAnonymously 가 1회 호출되고 Home 랜딩',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({'onboarding.seen_version': 1});
+
+        final mockRepo = _MockAuthRepository();
+        when(
+          mockRepo.signInAnonymously,
+        ).thenAnswer((_) async => Result.success(_stubUser()));
+
+        // 생성 시점 currentUser = non-null — 본 결함의 필수 전제.
+        final mockAuth = _MockFirebaseAuth();
+        final signedInUser = _MockFirebaseUser();
+        when(() => mockAuth.currentUser).thenReturn(signedInUser);
+        // broadcast — authStateProvider 가 재구독해도 "already listened" 없음.
+        final authController = StreamController<fb.User?>.broadcast();
+        addTearDown(authController.close);
+        when(mockAuth.userChanges).thenAnswer((_) => authController.stream);
+
+        final mockCrashlytics = _MockCrashlytics();
+        when(
+          () => mockCrashlytics.recordError(
+            any<Object>(),
+            any<StackTrace?>(),
+            reason: any(named: 'reason'),
+            fatal: any(named: 'fatal'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
+        when(() => mockCrashlytics.setUserId(any())).thenAnswer((_) async {});
+
+        // 전이 전에는 HOME 진입을 /splash 로 되돌려 SplashScreen 을 붙잡아 둔다.
+        var pinToSplash = true;
+        final router = _testRouterPinnedToSplash(
+          shouldRedirectHome: () => pinToSplash,
+        );
+        addTearDown(router.dispose);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              // splashInitializerProvider / authStateProvider 어느 쪽도
+              // override 하지 않는다 — 실 provider chain (userChanges →
+              // authStateProvider → ref.listen → ref.invalidate) 을 그대로
+              // 통과시키는 것이 본 테스트의 요지다.
+              isFirebaseInitializedProvider.overrideWithValue(true),
+              firebaseAuthProvider.overrideWithValue(mockAuth),
+              authRepositoryProvider.overrideWithValue(mockRepo),
+              crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+            ],
+            child: MaterialApp.router(
+              theme: AppTheme.light(),
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+          ),
+        );
+
+        // `/splash` 에 머무는 동안 CircularProgressIndicator 가 프레임을 계속
+        // 스케줄하므로 pumpAndSettle 은 타임아웃한다 — 명시적 pump 반복만 쓴다.
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+
+        // B-1: 첫 init 은 currentUser 가 있어 익명 사인인을 타지 않는다.
+        // 이후 관측되는 재초기화가 auth 전이에 귀속됨을 고정한다 — 훅 1·2 는
+        // location 이 불변이라 조건 자체가 성립하지 않는다.
+        verifyNever(mockRepo.signInAnonymously);
+        expect(
+          router.routerDelegate.currentConfiguration.uri.path,
+          AppRoutes.splash,
+          reason: 'GC-04 시뮬레이션 redirect 로 SplashScreen 이 계속 mounted',
+        );
+
+        // 실 단말 로그의 `userChanges emit (uidHash=334766815)` 에 대응 —
+        // 이 emit 이 있어야 listener 의 prev 가 값 이력을 갖는다.
+        authController.add(signedInUser);
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+
+        // 토큰 만료로 user 가 사라진 상태 재현 + redirect 해제.
+        when(() => mockAuth.currentUser).thenReturn(null);
+        pinToSplash = false;
+
+        // 실 단말 로그의 `uidHash=null` 2연속 emit (중복 스냅샷) 재현.
+        authController
+          ..add(null)
+          ..add(null);
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+
+        // B-2 + B-3: 재초기화가 정확히 1회 발동한다 — 중복 null 스냅샷이
+        // 재초기화 루프를 만들지 않음까지 함께 고정.
+        verify(mockRepo.signInAnonymously).called(1);
+        // B-4: 재초기화 성공 후 HOME 랜딩.
+        expect(find.text('HOME'), findsOneWidget);
+        expect(
+          router.routerDelegate.currentConfiguration.uri.path,
           AppRoutes.home,
         );
       },

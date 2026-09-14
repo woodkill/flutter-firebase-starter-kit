@@ -149,8 +149,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   ///    처럼 GoRouter 가 currentConfiguration 을 갱신한 경우 (1차 신호).
   /// 2. `didChangeDependencies` (`_maybeTriggerReinitFromLocation`) — InheritedWidget
   ///    변경으로 위젯이 dependency 재평가하는 경우 (백업 신호).
-  /// 3. `build` 안 `ref.listen(firebaseAuthProvider, ...)` 에서 currentUser 가
-  ///    null 로 전이된 경우 (보조 신호).
+  /// 3. `build` 안 `ref.listen(authStateProvider, ...)` 에서 auth 스트림이
+  ///    `User -> null` 로 전이한 경우 (보조 신호 — quick 260914-f1p 로 listen
+  ///    대상 교체, 근거는 Phase 16 deferred-items 항목 1).
   ///
   /// `_initInFlight` 가드로 세 경로가 동시에 trigger 해도 race 없음.
   void _triggerReinit() {
@@ -350,25 +351,42 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Gap A (quick-260425-01g) 보조 신호: currentUser 가 변하면 (예: 외부
-    // logout 또는 익명 세션 만료) splash 재초기화 의미가 있다. RouterDelegate
-    // listener 만으로 잡히지 않는 entry 경로 (동일 location 유지 + auth 상태만
-    // 변화) 도 커버한다. ref.listen 은 반드시 build 안에서 호출 (Riverpod 규칙).
+    // Gap A (quick-260425-01g) 보조 신호 — 대상 교체: quick 260914-f1p.
+    // `authStateProvider` (`FirebaseAuth.userChanges` 래핑 스트림) 에서
+    // **사용자 소멸 전이**(User -> null) 를 관측해 splash 재초기화를 발동한다.
+    // RouterDelegate listener 만으로 잡히지 않는 entry 경로 (동일 location
+    // 유지 + auth 상태만 변화) 를 커버하려는 의도는 그대로다. ref.listen 은
+    // 반드시 build 안에서 호출 (Riverpod 규칙).
     //
-    // **Phase 1 D-13 가드:** Firebase 미초기화 시 firebaseAuthProvider 는
-    // FirebaseAuth.instance 호출에서 throw 한다. isFirebaseInitialized 가
-    // true 일 때만 listen 등록.
-    final isFirebaseInitialized = ref.watch(isFirebaseInitializedProvider);
-    if (isFirebaseInitialized) {
-      ref.listen<fb.FirebaseAuth>(firebaseAuthProvider, (prev, next) {
-        if (prev != null &&
-            prev.currentUser != null &&
-            next.currentUser == null &&
-            mounted) {
-          _triggerReinit();
-        }
-      });
-    }
+    // 옛 대상 `firebaseAuthProvider` 는 싱글톤 인스턴스를 반환해 값이 한 번도
+    // 바뀌지 않았고(콜백 미호출), 설령 호출됐더라도 prev 와 next 가 같은
+    // 객체라 전이 조건이 동시에 참이 될 수 없어 두 겹으로 죽어 있었다. 근거 =
+    // `.planning/phases/16-account-linking-withdrawal/deferred-items.md`
+    // 항목 1 (2026-09-13 실 단말 재현).
+    //
+    // 판정 규칙 — prev/next 양쪽에서 `hasValue` 를 함께 본다. [AsyncValue.value]
+    // 는 loading/error 상태에서 **직전 값을 반환**하므로, hasValue 를 같이
+    // 보면 (a) 최초 로딩 프레임(값 이력 없음)과 (b) 사용자 보유 중의 일시적
+    // loading/error(직전 user 유지) 가 둘 다 로그아웃으로 오인되지 않는다.
+    // (Riverpod 3.2.1 에 `valueOrNull` 게터는 없다 — `hasValue` + `value`.)
+    //
+    // **Phase 1 D-13 가드가 여기에 없는 이유 (의도적 제거):**
+    // (i) `authStateProvider` 가 스스로 `isFirebaseInitializedProvider` 를
+    // watch 해 미초기화 시 빈 스트림을 반환하므로(`firebase_providers.dart`
+    // 97-98행) `FirebaseAuth.instance` 접근이 던지는 `[core/no-app]` 는 이
+    // 경로로 도달 불가다 — 가드가 중복이다. (ii) 조건부 ref.listen 은 조건이
+    // 거짓인 동안 구독이 조용히 사라지는 형태이며, 그것이 바로 본 수정이
+    // 제거하려는 「죽은 훅」 부류다.
+    ref.listen<AsyncValue<fb.User?>>(authStateProvider, (prev, next) {
+      if (prev != null &&
+          prev.hasValue &&
+          prev.value != null &&
+          next.hasValue &&
+          next.value == null &&
+          mounted) {
+        _triggerReinit();
+      }
+    });
 
     final l10n = context.l10n;
     final spacing = context.appSpacing;
