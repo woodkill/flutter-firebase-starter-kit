@@ -136,6 +136,8 @@ GoRouter _testRouterWithRedirect({required void Function() onRedirect}) {
 /// 조건을 `bool Function()` 클로저로 받는 이유: 테스트 도중 redirect 를 꺼야
 /// 재초기화 성공 후의 HOME 랜딩을 관측할 수 있다
 /// ([_testRouterWithRedirect] 의 콜백 규약 mirror).
+///
+/// Test 11·12 도 `currentUser` 기반 클로저로 재사용한다.
 GoRouter _testRouterPinnedToSplash({
   required bool Function() shouldRedirectHome,
 }) {
@@ -899,5 +901,320 @@ void main() {
         );
       },
     );
+
+    /// Phase 16 deferred-items 항목 1 — init 진행 중 전이 경로 (2026-09-14 실
+    /// 단말 UAT FAIL, quick 260914-k81).
+    ///
+    /// **근거와 연역 경계:** quick 260914-f1p 적용 APK 에서 splash 스피너 고착이
+    /// 다시 관측됐다. 로그에서 `userChanges emit (uidHash=null)` 이 첫 init 의
+    /// `context.go` 로 해석한 `matchedLocation=/` 로그보다 52ms 먼저 찍혔고,
+    /// 이로부터 「전이가 minDuration 창 안(`_initInFlight` 참)에 도착해 재초기화
+    /// 신호가 버려졌다」고 **연역**했다. 훅 발화와 신호 소실 자체는 계측하지
+    /// 않았다(계측 미수행).
+    ///
+    /// **Test 10 이 이 경로를 못 잡는 이유:** Test 10 은 setUp 의 1ms
+    /// minDuration 을 그대로 쓰고 init 완료 후에 전이시키므로 전이 시점에
+    /// in-flight 가 이미 거짓이다 — 구조적으로 post-init 전이만 본다.
+    ///
+    /// **값의 출처:** 2000ms = UAT APK 가 쓴 `config/dev.json` 의
+    /// `splashMinDurationMs`. 52ms = 위 두 로그(`14:17:41.901` ↔
+    /// `14:17:41.953`) 사이 측정 간격을 창 종료 전 여유로 그대로 옮긴 값.
+    ///
+    /// **이 테스트가 증명하지 않는 것:** 실 단말 고착 경로가 닫혔다는 것. 그
+    /// 판정에는 deferred-items 항목 1 의 5단계 재현(비익명 계정 + 발급 후 약
+    /// 1시간 토큰 만료 대기)이 다시 필요하다. 여기서 고정하는 범위는 「창 안
+    /// 전이 신호가 보류됐다가 init 종료 후 1회 재초기화로 이어진다」까지다.
+    ///
+    /// **라우터 고정을 `currentUser` 에 연동하는 이유:** Test 10 처럼 emit
+    /// 시점에 bool 을 끄면 첫 init 의 `context.go` 가 HOME 에 착지해
+    /// SplashScreen 이 해체되므로 실 고착 상태(`/splash` 에 mounted)를 재현하지
+    /// 못하고, 보류 재실행도 `mounted` 검사에 걸려 올바른 이유로 GREEN 이 될
+    /// 수 없다.
+    testWidgets(
+      'Test 11 (Phase 16 deferred 항목 1 — init 진행 중 전이): minDuration 창 '
+      '안에서 auth 스트림이 User -> null 로 전이해도 재초기화 신호가 보류됐다가 '
+      'init 종료 후 1회 발동해 signInAnonymously 1회 + Home 랜딩',
+      (tester) async {
+        // UAT APK 실값 — 복원은 tearDown 이 한다.
+        SplashConfig.overrideMinDuration = const Duration(milliseconds: 2000);
+        SharedPreferences.setMockInitialValues({'onboarding.seen_version': 1});
+
+        final mockAuth = _MockFirebaseAuth();
+        final signedInUser = _MockFirebaseUser();
+        final anonymousUser = _MockFirebaseUser();
+        // 테스트 도중 재할당된다 — stub 은 응답 시점에 이 변수를 읽는다.
+        fb.User? currentUser = signedInUser;
+        when(() => mockAuth.currentUser).thenAnswer((_) => currentUser);
+        // broadcast — authStateProvider 가 재구독해도 "already listened" 없음.
+        final authController = StreamController<fb.User?>.broadcast();
+        addTearDown(authController.close);
+        when(mockAuth.userChanges).thenAnswer((_) => authController.stream);
+
+        final mockRepo = _MockAuthRepository();
+        when(mockRepo.signInAnonymously).thenAnswer((_) async {
+          // 새 익명 사용자가 생긴 상태 재현.
+          currentUser = anonymousUser;
+          return Result.success(_stubUser());
+        });
+
+        final mockCrashlytics = _MockCrashlytics();
+        when(
+          () => mockCrashlytics.recordError(
+            any<Object>(),
+            any<StackTrace?>(),
+            reason: any(named: 'reason'),
+            fatal: any(named: 'fatal'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+        ).thenAnswer((_) async {});
+        when(() => mockCrashlytics.setUserId(any())).thenAnswer((_) async {});
+
+        var homeRedirectCount = 0;
+        final router = _testRouterPinnedToSplash(
+          shouldRedirectHome: () {
+            // 헬퍼가 `/` 매칭일 때만 이 클로저를 평가하므로 호출 수 = `/`
+            // redirect 평가 수다 — `_runInit` 의 `context.go` 도달을 관측하는
+            // 외부 신호. currentUser 가 null 인 동안 `/` 를 `/splash` 로
+            // 되돌린다 (GC-04 시뮬레이션).
+            homeRedirectCount++;
+            return currentUser == null;
+          },
+        );
+        addTearDown(router.dispose);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              isFirebaseInitializedProvider.overrideWithValue(true),
+              firebaseAuthProvider.overrideWithValue(mockAuth),
+              authRepositoryProvider.overrideWithValue(mockRepo),
+              crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+            ],
+            child: MaterialApp.router(
+              theme: AppTheme.light(),
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+          ),
+        );
+
+        // `/splash` 에 머무는 동안 스피너가 프레임을 계속 요청하므로
+        // pumpAndSettle 대신 명시적 pump 만 쓴다.
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        // listener 의 prev 가 값 이력을 갖게 하는 emit.
+        authController.add(signedInUser);
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        // t=1948 — 창 종료 52ms 전.
+        await tester.pump(const Duration(milliseconds: 1848));
+
+        // C-1: 전제 — 첫 init 은 아직 익명 사인인도 context.go 도 하지 않았다.
+        verifyNever(mockRepo.signInAnonymously);
+        expect(homeRedirectCount, 0);
+        expect(
+          router.routerDelegate.currentConfiguration.uri.path,
+          AppRoutes.splash,
+        );
+
+        // 토큰 만료로 user 가 사라진 상태 + 실 로그의 null 2연속 emit 재현.
+        currentUser = null;
+        authController
+          ..add(null)
+          ..add(null);
+        await tester.pump();
+        for (var i = 0; i < 2; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+
+        // C-2: 창 안 도착의 외부 증거.
+        expect(
+          homeRedirectCount,
+          0,
+          reason: '전이 처리 시점에 첫 init 이 아직 context.go 전 — in-flight 창 안',
+        );
+
+        // t≈2068 — 첫 init 완료.
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+
+        // C-3: 첫 init 의 context.go 가 GC-04 시뮬레이션으로 /splash 에 고정.
+        expect(homeRedirectCount, greaterThanOrEqualTo(1));
+        expect(
+          router.routerDelegate.currentConfiguration.uri.path,
+          AppRoutes.splash,
+        );
+
+        // C-4: 보류된 신호가 init 종료 후 재초기화로 소비됐다.
+        verify(mockRepo.signInAnonymously).called(1);
+
+        // t≈4568 — 재실행의 2000ms 대기 + HOME 전환 소화.
+        for (var i = 0; i < 25; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+
+        // C-5: 재초기화의 익명 사인인 성공 후 HOME 랜딩.
+        expect(find.text('HOME'), findsOneWidget);
+        expect(
+          router.routerDelegate.currentConfiguration.uri.path,
+          AppRoutes.home,
+        );
+      },
+    );
+
+    /// 보류 재초기화 상한 고정 (quick 260914-k81).
+    ///
+    /// init 진행 중 신호를 보류 후 소비하는 변경에 무한 루프 방지 상한
+    /// (`_kMaxDeferredReinitCount`, SplashScreen State 수명당 1회)이 걸려 있음을
+    /// 고정한다. 도입부는 Test 11 과 같고, 보류 재실행이 진행 중인 창 안에서
+    /// 다시 `User -> null` 전이를 넣어 추가 재실행이 없는지 본다. 사인인 누계를
+    /// 여러 시점에서 단언하므로 mocktail `verify(...).called(n)` (매칭 호출을
+    /// verified 로 표시해 이후 새 호출만 센다) 대신 수동 카운터를 쓴다.
+    ///
+    /// 마지막의 `/splash` 잔류 단언은 **의도적으로** 상한의 대가를 기록한다 —
+    /// 상한을 넘긴 뒤 창 안에 온 전이는 버려지므로 같은 부류의 고착이 다시 생길
+    /// 수 있다. 이 테스트는 실 단말 경로가 닫혔음을 증명하지 않는다.
+    testWidgets('Test 12 (보류 재초기화 상한): 보류 재실행 진행 중 창 안에서 다시 '
+        'User -> null 전이가 와도 보류 재실행은 State 수명당 1회로 제한되어 '
+        'signInAnonymously 누계 1회 + /splash 잔류 (알려진 한계)', (tester) async {
+      // UAT APK 실값 — 복원은 tearDown 이 한다.
+      SplashConfig.overrideMinDuration = const Duration(milliseconds: 2000);
+      SharedPreferences.setMockInitialValues({'onboarding.seen_version': 1});
+
+      final mockAuth = _MockFirebaseAuth();
+      final signedInUser = _MockFirebaseUser();
+      final anonymousUser = _MockFirebaseUser();
+      // 테스트 도중 재할당된다 — stub 은 응답 시점에 이 변수를 읽는다.
+      fb.User? currentUser = signedInUser;
+      when(() => mockAuth.currentUser).thenAnswer((_) => currentUser);
+      final authController = StreamController<fb.User?>.broadcast();
+      addTearDown(authController.close);
+      when(mockAuth.userChanges).thenAnswer((_) => authController.stream);
+
+      var signInCallCount = 0;
+      final mockRepo = _MockAuthRepository();
+      when(mockRepo.signInAnonymously).thenAnswer((_) async {
+        signInCallCount++;
+        currentUser = anonymousUser;
+        return Result.success(_stubUser());
+      });
+
+      final mockCrashlytics = _MockCrashlytics();
+      when(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockCrashlytics.setCustomKey(any(), any<Object>()),
+      ).thenAnswer((_) async {});
+      when(() => mockCrashlytics.setUserId(any())).thenAnswer((_) async {});
+
+      var homeRedirectCount = 0;
+      final router = _testRouterPinnedToSplash(
+        shouldRedirectHome: () {
+          // 호출 수 = `/` redirect 평가 수 (Test 11 과 같은 외부 신호).
+          homeRedirectCount++;
+          return currentUser == null;
+        },
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(true),
+            firebaseAuthProvider.overrideWithValue(mockAuth),
+            authRepositoryProvider.overrideWithValue(mockRepo),
+            crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      authController.add(signedInUser);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      // t=1948 — 첫 init 창 종료 52ms 전.
+      await tester.pump(const Duration(milliseconds: 1848));
+
+      // D-1: 첫 init 창 안 전이 → 보류.
+      currentUser = null;
+      authController
+        ..add(null)
+        ..add(null);
+      await tester.pump();
+      for (var i = 0; i < 2; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      // t≈2098 — 첫 init 완료, 보류 재실행 시작.
+      for (var i = 0; i < 13; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      expect(signInCallCount, 1);
+      final redirectsAfterFirstGo = homeRedirectCount;
+      expect(redirectsAfterFirstGo, greaterThanOrEqualTo(1));
+
+      // listener 의 prev 를 새 익명 사용자로 갱신.
+      authController.add(anonymousUser);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      // t≈3000 — 보류 재실행의 minDuration 창 한가운데.
+      await tester.pump(const Duration(milliseconds: 850));
+
+      // D-2: 보류 재실행 진행 중 창 안에서 다시 User -> null.
+      currentUser = null;
+      authController.add(null);
+      await tester.pump();
+      for (var i = 0; i < 2; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      expect(
+        homeRedirectCount,
+        redirectsAfterFirstGo,
+        reason: '두 번째 전이 처리 시점에 보류 재실행이 아직 context.go 전 — 창 안',
+      );
+
+      // t≈8420 — 재실행 완료 + 두 창 이상 추가 경과.
+      for (var i = 0; i < 54; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      // 순서 고정 — 상한을 올리면 이 단언에서 먼저 실패해야 한다.
+      expect(
+        signInCallCount,
+        1,
+        reason: '보류 재초기화는 State 수명당 _kMaxDeferredReinitCount(1)회',
+      );
+      expect(homeRedirectCount, greaterThan(redirectsAfterFirstGo));
+      // D-3: 알려진 한계 — 상한 초과 후 전이는 버려져 /splash 에 남는다.
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        AppRoutes.splash,
+      );
+    });
   });
 }

@@ -29,6 +29,24 @@ const String _kLogoAsset = 'assets/images/splash/logo.png';
 /// 양쪽이 동기된다.
 const double _kLogoSize = 128.0;
 
+/// SplashScreen State 수명당 보류 재초기화 최대 횟수 (quick 260914-k81).
+///
+/// init 진행 중에 들어온 재초기화 신호(`_reinitPending`)를 진행 중 `_runInit`
+/// 성공 종료 후 소비할 수 있는 누계 상한이다. 성공 경로에서 0 으로 리셋하는
+/// WR-04 카운터와 달리 **어디서도 리셋하지 않는다** — 매 반복이 성공하는 루프
+/// (보류 재실행 → 익명 사인인 성공 → 창 안에서 또 `User -> null` → 보류 → …)
+/// 를 막으려면 State 수명이 경계여야 하기 때문이다. 정상 이탈(HOME 등)은
+/// SplashScreen 을 dispose 하므로 다음 splash 방문은 새 State(카운터 0)로
+/// 시작한다.
+///
+/// **알려진 한계:** 상한을 넘긴 뒤 init 진행 중에 들어온 추가 전이는 버려지므로
+/// 같은 부류의 splash 고착이 다시 생길 수 있다 (splash_screen_test Test 12 가
+/// 이 한계를 그대로 고정한다).
+///
+/// 프로젝트별 조정 포인트 — 값을 올리면 같은 State 에서 보류 재실행(곧 익명
+/// 사인인 시도)이 그만큼 더 허용되고, Test 12 의 단언도 함께 갱신해야 한다.
+const int _kMaxDeferredReinitCount = 1;
+
 /// 앱 스플래시 화면 (Phase 10 AUTH-08, D-22, D-25, WARNING #13).
 ///
 /// 흐름:
@@ -54,10 +72,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   /// init 시퀀스 동시 실행 가드 (Gap A — quick-260425-01g).
   ///
-  /// `didChangeDependencies` / RouterDelegate listener / `ref.listen` 이
-  /// 동시에 `_triggerReinit` 을 호출해도 `_runInit` 본체가 1회만 실행되도록
-  /// 한다.
+  /// `_runInit` 본체가 동시에 두 번 실행되지 않도록 한다. 이 값이 참인 동안
+  /// `_triggerReinit` 으로 들어온 신호는 버려지지 않고 [_reinitPending] 으로
+  /// 보류된다 (quick 260914-k81 — 근거는 Phase 16 deferred-items 항목 1 의
+  /// 2026-09-14 실 단말 UAT 기록).
   bool _initInFlight = false;
+
+  /// init 진행 중에 들어온 재초기화 신호의 보류 표시 (quick 260914-k81).
+  ///
+  /// 수명은 한 번의 `_runInit` 실행이다 — 그 실행의 `finally` 에서 항상
+  /// 지워지며 다음 실행으로 이월되지 않는다. bool 이므로 창 안의 여러 신호는
+  /// 1회로 합쳐진다.
+  bool _reinitPending = false;
+
+  /// 보류 재초기화 소비 누계 (quick 260914-k81).
+  ///
+  /// [_kMaxDeferredReinitCount] 와 비교한다. State 수명 동안 리셋하지 않는다.
+  int _deferredReinitCount = 0;
 
   /// 오프라인 분기 fail-safe 재entry 카운터 (WR-04).
   ///
@@ -153,9 +184,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   ///    `User -> null` 로 전이한 경우 (보조 신호 — quick 260914-f1p 로 listen
   ///    대상 교체, 근거는 Phase 16 deferred-items 항목 1).
   ///
-  /// `_initInFlight` 가드로 세 경로가 동시에 trigger 해도 race 없음.
+  /// **init 진행 중 신호 (quick 260914-k81):** `_initInFlight` 가 참이면 신호를
+  /// [_reinitPending] 으로 보류하고 반환한다. 보류는 진행 중 `_runInit` 이
+  /// `context.go(AppRoutes.home)` 까지 도달한 경우(성공 종료)에만 그
+  /// `finally` 에서 1회 소비된다. 실패 다이얼로그 종료 경로에서는 소비하지
+  /// 않는다 — Retry 는 스스로 `_runInit` 을 다시 예약하고, 「Sign in later」 는
+  /// 사용자의 명시적 선택이며 그 뒤의 `/splash` 재진입은 `_showFailureDialog`
+  /// 의 location 검사 + WR-04 1회 상한이 담당한다. 소비는 State 수명당
+  /// [_kMaxDeferredReinitCount] 회로 제한된다.
+  ///
+  /// 이전 동작(in-flight 신호 폐기)이 2026-09-14 실 단말 splash 고착의
+  /// 원인이라는 판단은 로그 타임스탬프와 코드에서의 **연역**이며 계측하지
+  /// 않았다. 이 변경은 실 단말 경로가 닫혔음을 증명하지 않는다.
   void _triggerReinit() {
-    if (_initInFlight) return;
+    if (_initInFlight) {
+      _reinitPending = true;
+      return;
+    }
     ref.invalidate(splashInitializerProvider);
     if (mounted) {
       setState(() => _hasFailure = false);
@@ -174,6 +219,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     // try 진입 전에 핸들을 담을 지역 변수를 두고 try 본체 첫 줄에서 캡처한다
     // (캡처가 실패하면 null 로 남아 emit 을 생략 — best-effort).
     CrashlyticsService? crashlytics;
+    var isSuccessExit = false;
     try {
       crashlytics = ref.read(crashlyticsServiceProvider);
       final initializer = ref.read(splashInitializerProvider);
@@ -191,6 +237,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       // 후 재진입) 에서 다시 1회 fail-safe 가 허용된다.
       _offlineFallbackReentryCount = 0;
       context.go(AppRoutes.home);
+      isSuccessExit = true;
     } on Object catch (e, st) {
       // 10-REVIEW CR-02: Result.failure 가 아닌 예상 외 throw 도 사용자에게
       // 탈출구를 제공한다 (무한 스피너 금지 — 재설치 외 탈출 경로가 없었다).
@@ -213,7 +260,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       setState(() => _hasFailure = true);
       await _showFailureDialog(e.runtimeType.toString());
     } finally {
+      // 플래그를 먼저 내린다 — 아래에서 호출하는 `_triggerReinit` 이 보류
+      // 분기가 아니라 곧바로 invalidate + postFrame `_runInit` 경로를 타도록.
       _initInFlight = false;
+      // 성공 종료로 한정한다 — 실패 다이얼로그 경로(Retry / Sign in later)의
+      // 재실행은 `_showFailureDialog` 가 담당한다 (`_triggerReinit` doc 참조).
+      // `mounted` 는 필수다 — `if (!mounted) return;` 조기 종료에서도 이
+      // `finally` 가 실행되고, `_triggerReinit` 은 자신의 `mounted` 검사
+      // 전에 `ref` 를 쓰므로 해체된 State 에서 throw 한다.
+      final shouldConsumePending =
+          _reinitPending &&
+          isSuccessExit &&
+          mounted &&
+          _deferredReinitCount < _kMaxDeferredReinitCount;
+      _reinitPending = false;
+      if (shouldConsumePending) {
+        _deferredReinitCount += 1;
+        _triggerReinit();
+      }
     }
   }
 
