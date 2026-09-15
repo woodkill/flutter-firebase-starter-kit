@@ -5,7 +5,7 @@ paths:
 
 # Dart Format 규율
 
-`.fvmrc` 가 고정한 Dart 3.11.1 tall style 포매터가 진실원이다. 아래 3개 규칙은
+`.fvmrc` 가 고정한 Dart 3.11.5 tall style 포매터가 진실원이다. 아래 3개 규칙은
 포맷 drift 가 대량 누적되는 것을 막기 위한 것이며, 각 규칙 뒤의 *왜* 는 그 규칙이
 없어서 실제로 벌어진 일을 가리킨다.
 
