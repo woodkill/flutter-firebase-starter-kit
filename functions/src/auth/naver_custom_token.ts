@@ -5,7 +5,9 @@ import {onCall} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import {defineSecret} from "firebase-functions/params";
 
+import {isAnonymousCaller} from "../shared/caller_auth";
 import {
+  callerIdentityMismatch,
   idpCredentialRejected,
   idpUnavailable,
   invalidArgument,
@@ -257,6 +259,9 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
     // already-exists HttpsError 변환 (email enumeration 차단). helper 의
     // unexpected throw 는 internal 매핑 (D-32 fallback).
     const callerUid = request.auth?.uid; // unauthenticated 허용 (D-49).
+    // debug reauth-login-auto-merge — 정식 로그인 caller 는 자기 계정에 매핑된
+    // identity 로만 통과한다 (resolveIdentity 비익명 caller 가드, fail-closed).
+    const callerIsAnonymous = isAnonymousCaller(request.auth);
     const userInfo: {
       email?: string;
       emailVerified?: boolean;
@@ -277,6 +282,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
         provider: "naver",
         providerUserId: naverUserId,
         callerUid,
+        callerIsAnonymous,
         userInfo: Object.keys(userInfo).length > 0 ? userInfo : undefined,
       });
     } catch {
@@ -307,6 +313,17 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
       // 16-13: anonymous collision 도 resolution.existingProvider (= 호출
       // provider slug) 를 details 로 전달.
       throw buildAccountExistsError(resolution.existingProvider);
+    case "caller_identity_mismatch":
+      // debug reauth-login-auto-merge — 정식 로그인 caller 가 자기 계정에
+      // 매핑되지 않은 Naver identity 로 호출 (재인증 화면에서 다른 계정 ·
+      // 미연결 계정 선택). identity 등록 · 프로필 변경 없이 거부한다.
+      // already-exists 로 보내면 client 가 계정 연결 시트를 열어 다시 같은
+      // callable 로 돌아오므로 전용 reason 으로 구분한다.
+      logger.warn(
+        {event: "naver_caller_identity_mismatch"},
+        "Signed-in caller used a Naver identity not mapped to it",
+      );
+      throw callerIdentityMismatch();
     case null:
       break; // 정상 flow.
     }

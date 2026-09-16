@@ -178,6 +178,11 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {
+  anonymousCallerAuth,
+  signedInCallerAuth,
+} from "../mocks/caller_auth";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -220,7 +225,7 @@ describe("kakaoCustomToken onCall", () => {
 
     const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
     const result = (await wrapped({
-      auth: {uid: "anon-uid-1"},
+      auth: anonymousCallerAuth("anon-uid-1"),
       app: {appId: "test"},
       data: {idToken: "FAKE_JWT", nonce: "client-nonce"},
     } as never)) as {
@@ -289,7 +294,7 @@ describe("kakaoCustomToken onCall", () => {
 
     const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
     const result = (await wrapped({
-      auth: {uid: "anon-seed-uid"},
+      auth: anonymousCallerAuth("anon-seed-uid"),
       app: {appId: "test"},
       data: {idToken: "FAKE", nonce: "n"},
     } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -299,6 +304,84 @@ describe("kakaoCustomToken onCall", () => {
     // callerUid 가 있으면 createUser 미호출.
     expect(mockCreateUser).not.toHaveBeenCalled();
   });
+
+  it(
+    // eslint-disable-next-line max-len
+    "reauth-login-auto-merge: 비익명 호출자 + 미등록 identity → permission-denied (caller_identity_mismatch) + 발급 · 등록 · 프로필 변경 0",
+    async () => {
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-unlinked",
+        nonce: "n",
+        email: "PII_IDP_EMAIL@example.com",
+        email_verified: true,
+        nickname: "PII IdP Nick",
+        picture: "https://idp.example.com/PII_photo.jpg",
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const call = wrapped({
+        auth: signedInCallerAuth("signed-in-U", "google.com"),
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+
+      // debug reauth-login-auto-merge — 정식 사용자(재인증 화면)가 자기 계정에
+      // 매핑되지 않은 identity 로 호출하면 부작용 전에 거부한다.
+      await expect(call).rejects.toMatchObject({
+        code: "permission-denied",
+        details: {reason: "caller_identity_mismatch"},
+      });
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+      expect(mockTxSet).not.toHaveBeenCalled();
+      expect(mockTxUpdate).not.toHaveBeenCalled();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+      expect(mockUserDocSet).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "reauth-login-auto-merge: 비익명 호출자 + 다른 계정에 매핑된 identity → permission-denied (시트용 already-exists 아님)",
+    async () => {
+      mockVerifyKakaoIdToken.mockResolvedValue({
+        sub: "kakao-unlinked",
+        nonce: "n",
+        email: "PII_IDP_EMAIL@example.com",
+        email_verified: true,
+        nickname: "PII IdP Nick",
+        picture: "https://idp.example.com/PII_photo.jpg",
+      });
+      mockIdxGet.mockResolvedValue({
+        exists: true,
+        data: () => ({firebaseUid: "other-V"}),
+      });
+      mockTxGet.mockResolvedValue({
+        exists: true,
+        data: () => ({firebaseUid: "other-V"}),
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      const call = wrapped({
+        auth: signedInCallerAuth("signed-in-U", "google.com"),
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+
+      // debug reauth-login-auto-merge — 정식 사용자(재인증 화면)가 자기 계정에
+      // 매핑되지 않은 identity 로 호출하면 부작용 전에 거부한다.
+      await expect(call).rejects.toMatchObject({
+        code: "permission-denied",
+        details: {reason: "caller_identity_mismatch"},
+      });
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+      expect(mockTxSet).not.toHaveBeenCalled();
+      expect(mockTxUpdate).not.toHaveBeenCalled();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+      expect(mockUserDocSet).not.toHaveBeenCalled();
+    },
+  );
 
   it(
     "기존 매핑 + 미인증 호출자 → 그 firebaseUid 재사용 (정상 path, R3 conflictKind null)",
@@ -344,7 +427,12 @@ describe("kakaoCustomToken onCall", () => {
         sub: "kakao-rerun",
         nonce: "n",
       });
-      mockIdxGet.mockResolvedValue({exists: true});
+      // reauth-login-auto-merge: 비익명 caller 가드가 비-tx 스냅샷의
+      // firebaseUid 를 읽으므로 실제 문서 shape (data 포함) 로 둔다.
+      mockIdxGet.mockResolvedValue({
+        exists: true,
+        data: () => ({firebaseUid: "existing-uid-9"}),
+      });
       mockTxGet.mockResolvedValue({
         exists: true,
         data: () => ({firebaseUid: "existing-uid-9"}),
@@ -352,7 +440,8 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const result = (await wrapped({
-        auth: {uid: "existing-uid-9"}, // 동일 UID (재로그인).
+        // 동일 UID 재로그인 — 정식 로그인 세션 (자기 매핑이라 가드 통과).
+        auth: signedInCallerAuth("existing-uid-9"),
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "n"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -378,7 +467,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       await wrapped({
-        auth: {uid: "anon-pii"},
+        auth: anonymousCallerAuth("anon-pii"),
         app: {appId: "test"},
         data: {idToken: "JWT_BODY", nonce: "n"},
       } as never);
@@ -488,7 +577,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const promise = wrapped({
-        auth: {uid: "anon-A"},
+        auth: anonymousCallerAuth("anon-A"),
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "n"},
       } as never);
@@ -829,7 +918,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const promise = wrapped({
-        auth: {uid: "anon-uid-test"}, // 익명승격 시나리오.
+        auth: anonymousCallerAuth("anon-uid-test"), // 익명승격 시나리오.
         app: {appId: "test"},
         data: {idToken: "kakao-token-test", nonce: "kakao-nonce-test"},
       } as never);
@@ -904,7 +993,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const promise = wrapped({
-        auth: {uid: "anon-uid-ct-matrix"},
+        auth: anonymousCallerAuth("anon-uid-ct-matrix"),
         app: {appId: "test"},
         data: {idToken: "kakao-token-ct", nonce: "kakao-nonce-test"},
       } as never);
@@ -955,7 +1044,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-uid-test"},
+        auth: anonymousCallerAuth("anon-uid-test"),
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "kakao-nonce-test"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -1010,7 +1099,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-uid-optc"},
+        auth: anonymousCallerAuth("anon-uid-optc"),
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "kakao-nonce-test"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -1057,7 +1146,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       await wrapped({
-        auth: {uid: "anon-uid-optc-k2"},
+        auth: anonymousCallerAuth("anon-uid-optc-k2"),
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "kakao-nonce-test"},
       } as never);
@@ -1088,7 +1177,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-C1"},
+        auth: anonymousCallerAuth("anon-C1"),
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "n"},
         // termsAcceptanceSnapshot 미전달 — 기존 11 case 회귀 보존.
@@ -1123,7 +1212,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-C2"},
+        auth: anonymousCallerAuth("anon-C2"),
         app: {appId: "test"},
         data: {
           idToken: "FAKE",
@@ -1229,7 +1318,7 @@ describe("kakaoCustomToken onCall", () => {
 
       const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-C4"},
+        auth: anonymousCallerAuth("anon-C4"),
         app: {appId: "test"},
         data: {
           idToken: "FAKE",

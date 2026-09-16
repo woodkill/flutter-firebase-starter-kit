@@ -207,6 +207,11 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {
+  anonymousCallerAuth,
+  signedInCallerAuth,
+} from "../mocks/caller_auth";
 // Plan 16-17 — resolveIdentity spy 용 namespace import. 본 endpoint 는
 // scope 상 email claim 을 받지 않아(D-LINE-21 / D-YJP-09) CT-existing
 // 충돌을 자체 trigger 할 수 없다 — endpoint 의 slug 전달 배선만 검증한다.
@@ -286,7 +291,7 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
 
     const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
     const result = (await wrapped({
-      auth: {uid: "anon-uid-yj-1"},
+      auth: anonymousCallerAuth("anon-uid-yj-1"),
       app: {appId: "test"},
       data: {idToken: "FAKE_YJ_JWT", nonce: "client-raw-nonce-yj"},
     } as never)) as {
@@ -477,7 +482,7 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
 
     const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
     const result = (await wrapped({
-      auth: {uid: "anon-seed-uid-yj"},
+      auth: anonymousCallerAuth("anon-seed-uid-yj"),
       app: {appId: "test"},
       data: {idToken: "FAKE", nonce: "n"},
     } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -487,6 +492,39 @@ describe("yahoojpCustomToken onCall — Task 1 (Test 1-9)", () => {
     // callerUid 가 있으면 createUser 미호출 (resolveIdentity 내부 비-tx read 분기).
     expect(mockCreateUser).not.toHaveBeenCalled();
   });
+
+  it(
+    // eslint-disable-next-line max-len
+    "reauth-login-auto-merge: 비익명 호출자 + 미등록 identity → permission-denied (caller_identity_mismatch) + 발급 · 등록 · 프로필 변경 0",
+    async () => {
+      mockVerifyYahoojpIdToken.mockResolvedValue({
+        sub: "yj-sub-unlinked",
+        name: "PII IdP Name",
+        picture: "https://idp.example.com/PII_photo.jpg",
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
+      const call = wrapped({
+        auth: signedInCallerAuth("signed-in-U", "google.com"),
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+
+      // debug reauth-login-auto-merge — 정식 사용자(재인증 화면)가 자기 계정에
+      // 매핑되지 않은 identity 로 호출하면 부작용 전에 거부한다.
+      await expect(call).rejects.toMatchObject({
+        code: "permission-denied",
+        details: {reason: "caller_identity_mismatch"},
+      });
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+      expect(mockTxSet).not.toHaveBeenCalled();
+      expect(mockTxUpdate).not.toHaveBeenCalled();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+      expect(mockUserDocSet).not.toHaveBeenCalled();
+    },
+  );
 
   // eslint-disable-next-line max-len
   it("Test 8: 미인증 호출자 + 미등록 → preCreatedUid 경로로 새 UID 자동 생성", async () => {
@@ -602,7 +640,7 @@ describe("yahoojpCustomToken onCall — Task 2 (Test 10 PII regression)", () => 
 
     const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
     await wrapped({
-      auth: {uid: "caller-uid-yj"},
+      auth: anonymousCallerAuth("caller-uid-yj"),
       app: {appId: "test"},
       data: {idToken: sensitiveIdToken, nonce: sensitiveNonce},
     } as never);
@@ -657,7 +695,7 @@ describe("yahoojpCustomToken onCall — Task 2 (Test 10 PII regression)", () => 
 
       const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-yj-C1"},
+        auth: anonymousCallerAuth("anon-yj-C1"),
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "n"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -692,7 +730,7 @@ describe("yahoojpCustomToken onCall — Task 2 (Test 10 PII regression)", () => 
 
       const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
       await wrapped({
-        auth: {uid: "anon-yj-C2"},
+        auth: anonymousCallerAuth("anon-yj-C2"),
         app: {appId: "test"},
         data: {
           idToken: "FAKE",
@@ -806,7 +844,7 @@ describe("yahoojpCustomToken onCall — 16-13 collision details", () => {
       try {
         const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
         const promise = wrapped({
-          auth: {uid: "anon-uid-yj-ct"},
+          auth: anonymousCallerAuth("anon-uid-yj-ct"),
           app: {appId: "test"},
           data: {idToken: "FAKE", nonce: "n"},
         } as never);
@@ -846,7 +884,7 @@ describe("yahoojpCustomToken onCall — 16-13 collision details", () => {
 
       const wrapped = testEnv.wrap(myFunctions.yahoojpCustomToken);
       const promise = wrapped({
-        auth: {uid: "anon-A-yj"},
+        auth: anonymousCallerAuth("anon-A-yj"),
         app: {appId: "test"},
         data: {idToken: "FAKE", nonce: "n"},
       } as never);

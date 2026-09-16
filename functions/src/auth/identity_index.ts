@@ -375,10 +375,45 @@ function readIndexedFirebaseUid(snap: DocumentSnapshot): string | undefined {
   return typeof uid === "string" && uid.length > 0 ? uid : undefined;
 }
 
+/**
+ * 비익명 caller 가드 거부 결과를 만든다 (debug reauth-login-auto-merge).
+ *
+ * 거부 사실은 provider slug 와 identity 문서 존재 여부만 기록한다 — caller
+ * uid · IdP sub · email 은 로그에 싣지 않는다 (Pitfall 7).
+ *
+ * @param {ProviderId} provider 호출 provider slug.
+ * @param {boolean} indexed identity_index 문서가 있었는지 (다른 계정 매핑).
+ * @return {IdentityResolution} `caller_identity_mismatch` 결과 (uid 빈 문자열).
+ */
+function callerIdentityMismatchResult(
+  provider: ProviderId,
+  indexed: boolean,
+): IdentityResolution {
+  logger.warn(
+    {event: "identity_index_caller_identity_mismatch", provider, indexed},
+    "signed-in caller used an identity not mapped to its account",
+  );
+  return {
+    uid: "",
+    isNewUser: false,
+    conflictKind: "caller_identity_mismatch",
+  };
+}
+
 export type IdentityResolution = {
   uid: string;
   isNewUser: boolean;
-  conflictKind: "email_in_use" | "anonymous_existing_collision" | null;
+  /**
+   * - `email_in_use` / `anonymous_existing_collision` — 기존 충돌 (Phase 12.1).
+   * - `caller_identity_mismatch` — 비익명 caller 가 자기 계정에 매핑되지 않은
+   *   identity 로 호출 (debug reauth-login-auto-merge). `uid` 는 `""` 이며
+   *   identity 등록 · 사용자 기록 변경은 일어나지 않는다.
+   */
+  conflictKind:
+    | "email_in_use"
+    | "anonymous_existing_collision"
+    | "caller_identity_mismatch"
+    | null;
   /**
    * Phase 16 D-09 (Plan 16-03 Task 3.1) — add-only.
    *
@@ -446,6 +481,14 @@ export async function resolveIdentity(
     providerUserId: string;
     callerUid: string | undefined;
     /**
+     * caller 세션이 익명 로그인인지 (debug reauth-login-auto-merge).
+     *
+     * callable 이 `request.auth.token.firebase.sign_in_provider ===
+     * "anonymous"` 로 판정해 넘긴다. `callerUid` 가 있고 본 값이 `true` 가
+     * 아니면 (미지정 포함 — fail-closed) 비익명 caller 가드를 적용한다.
+     */
+    callerIsAnonymous?: boolean;
+    /**
      * IdP 가 제공한 사용자 프로필 정보 (옵션).
      *
      * - email: Kakao 일반 앱: undefined (동의항목 disable). 비즈 앱 + 동의:
@@ -475,7 +518,8 @@ export async function resolveIdentity(
     };
   },
 ): Promise<IdentityResolution> {
-  const {provider, providerUserId, callerUid, userInfo} = args;
+  const {provider, providerUserId, callerUid, callerIsAnonymous, userInfo} =
+    args;
   const idxRef = db
     .collection("identity_index")
     .doc(identityIndexDocId(provider, providerUserId));
@@ -565,6 +609,33 @@ export async function resolveIdentity(
   // before all writes" 제약과 무관하고, 정상 경로의 read 횟수도 그대로다
   // (충돌 조기 return 경로에서만 1회 늘어난다).
   const idxSnapPre = await idxRef.get();
+
+  // debug reauth-login-auto-merge (2026-09-17) — 비익명 caller 가드.
+  //
+  // 정식 로그인 caller 는 **자기 계정에 이미 매핑된 identity** 로만 통과한다.
+  // 이 가드가 없을 때 재인증 로그인 화면에서 정식 사용자 U 가 연결 안 된
+  // provider 를 누르면 아래 경로가 (a) 새 identity 를 U 에 등록하고
+  // (b) R9/R10 블록이 U 의 email · displayName · photoURL 을 IdP 값으로
+  // 덮어썼다 — 사용자 동의 없는 연결이며, `linkCustomTokenProvider` 의
+  // auth_time · 익명 거부 게이트(T-16-10-01)도 우회한다. 다른 계정에 매핑된
+  // identity 는 "다른 계정으로 전환" 을 뜻하므로 역시 거부한다.
+  //
+  // 익명 caller (익명 → 소셜 승격) 와 미인증 caller 는 기존 경로 그대로다.
+  // `callerIsAnonymous` 미지정은 비익명으로 다룬다 (fail-closed).
+  //
+  // 비-tx 스냅샷으로 명백한 불일치를 부작용(Step 0.5 email lookup 포함)
+  // **이전**에 거른다. 스냅샷이 자기 매핑이어도 transaction 이 다시 확인한다
+  // (경합 — 그 사이 문서 삭제 · 재매핑).
+  const guardsCaller = callerUid !== undefined && callerIsAnonymous !== true;
+  if (guardsCaller) {
+    const indexedUidPre = readIndexedFirebaseUid(idxSnapPre);
+    const isOtherOrUnregistered =
+      !idxSnapPre.exists ||
+      (indexedUidPre !== undefined && indexedUidPre !== callerUid);
+    if (isOtherOrUnregistered) {
+      return callerIdentityMismatchResult(provider, idxSnapPre.exists);
+    }
+  }
 
   if (callerUid && userInfo?.email) {
     try {
@@ -763,6 +834,10 @@ export async function resolveIdentity(
     const now = FieldValue.serverTimestamp();
     if (idxSnap.exists) {
       const existing = idxSnap.data() as {firebaseUid: string};
+      // reauth-login-auto-merge 가드의 transaction 재확인 — 쓰기 전에 반환한다.
+      if (guardsCaller && existing.firebaseUid !== callerUid) {
+        return callerIdentityMismatchResult(provider, true);
+      }
       // R3 (Phase 12.1-06 / WR-06, D-32) — anonymous + existing kakao
       // identity 충돌 detect. callerUid (익명 사용자 uid) 가 있고 existing
       // identity 가 *다른* Firebase user 와 매핑 → first-write-wins 로
@@ -808,6 +883,12 @@ export async function resolveIdentity(
         isNewUser: false,
         conflictKind: null,
       };
+    }
+
+    // reauth-login-auto-merge 가드 — 비익명 caller 는 신규 등록 대상이 아니다
+    // (비-tx 스냅샷 이후 문서가 사라진 경합 포함). 쓰기 0 으로 반환한다.
+    if (guardsCaller) {
+      return callerIdentityMismatchResult(provider, false);
     }
 
     // 신규 등록 — uid 결정 우선순위: callerUid → preCreatedUid.

@@ -117,6 +117,11 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {
+  anonymousCallerAuth,
+  signedInCallerAuth,
+} from "../mocks/caller_auth";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -189,7 +194,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-uid-1"},
+        auth: anonymousCallerAuth("anon-uid-1"),
         app: {appId: "test"},
         data: {accessToken: "FAKE_NAVER_TOKEN"},
       } as never)) as {
@@ -353,7 +358,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-seed-uid"},
+        auth: anonymousCallerAuth("anon-seed-uid"),
         app: {appId: "test"},
         data: {accessToken: "T"},
       } as never)) as {
@@ -366,6 +371,43 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       expect(result.isNewUser).toBe(true);
       // callerUid 가 있으면 createUser 미호출 (Pitfall 4 회피).
       expect(mockCreateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "reauth-login-auto-merge: 비익명 호출자 + 미등록 identity → permission-denied (caller_identity_mismatch) + 발급 · 등록 · 프로필 변경 0",
+    async () => {
+      mockFetchOk({
+        resultcode: "00",
+        response: {
+          id: "naver-unlinked",
+          email: "PII_IDP_EMAIL@example.com",
+          nickname: "PII IdP Nick",
+          profile_image: "https://idp.example.com/PII_photo.jpg",
+        },
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      const call = wrapped({
+        auth: signedInCallerAuth("signed-in-U", "google.com"),
+        app: {appId: "test"},
+        data: {accessToken: "T"},
+      } as never);
+
+      // debug reauth-login-auto-merge — 정식 사용자(재인증 화면)가 자기 계정에
+      // 매핑되지 않은 identity 로 호출하면 부작용 전에 거부한다.
+      await expect(call).rejects.toMatchObject({
+        code: "permission-denied",
+        details: {reason: "caller_identity_mismatch"},
+      });
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+      expect(mockTxSet).not.toHaveBeenCalled();
+      expect(mockTxUpdate).not.toHaveBeenCalled();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+      expect(mockUserDocSet).not.toHaveBeenCalled();
     },
   );
 
@@ -506,7 +548,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const promise = wrapped({
-        auth: {uid: "anon-A"},
+        auth: anonymousCallerAuth("anon-A"),
         app: {appId: "test"},
         data: {accessToken: "T"},
       } as never);
@@ -721,7 +763,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const promise = wrapped({
-        auth: {uid: "anon-uid-test"}, // 익명승격 시나리오.
+        auth: anonymousCallerAuth("anon-uid-test"), // 익명승격 시나리오.
         app: {appId: "test"},
         data: {accessToken: "naver-token-test"},
       } as never);
@@ -792,7 +834,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const promise = wrapped({
-        auth: {uid: "anon-uid-ct"},
+        auth: anonymousCallerAuth("anon-uid-ct"),
         app: {appId: "test"},
         data: {accessToken: "naver-token-ct"},
       } as never);
@@ -857,7 +899,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const promise = wrapped({
-        auth: {uid: "anon-uid-ct-yj"},
+        auth: anonymousCallerAuth("anon-uid-ct-yj"),
         app: {appId: "test"},
         data: {accessToken: "naver-token-ct-yj"},
       } as never);
@@ -895,7 +937,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-uid-test"},
+        auth: anonymousCallerAuth("anon-uid-test"),
         app: {appId: "test"},
         data: {accessToken: "T"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -946,7 +988,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-uid-optc"},
+        auth: anonymousCallerAuth("anon-uid-optc"),
         app: {appId: "test"},
         data: {accessToken: "T"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -987,7 +1029,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const result = (await wrapped({
-        auth: {uid: "anon-naver-C1"},
+        auth: anonymousCallerAuth("anon-naver-C1"),
         app: {appId: "test"},
         data: {accessToken: "FAKE_NAVER_TOKEN_C1"},
       } as never)) as {customToken: string; uid: string; isNewUser: boolean};
@@ -1023,7 +1065,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       await wrapped({
-        auth: {uid: "anon-naver-C2"},
+        auth: anonymousCallerAuth("anon-naver-C2"),
         app: {appId: "test"},
         data: {
           accessToken: "FAKE_NAVER_TOKEN_C2",

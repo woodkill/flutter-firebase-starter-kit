@@ -263,6 +263,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
       provider: "kakao",
       providerUserId: "kakao-456",
       callerUid: "different-uid",
+      callerIsAnonymous: true,
     });
 
     expect(res).toMatchObject({uid: "existing-uid-9", isNewUser: false});
@@ -286,6 +287,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
       provider: "kakao",
       providerUserId: "kakao-789",
       callerUid: "anon-uid-1",
+      callerIsAnonymous: true,
     });
 
     expect(res).toMatchObject({uid: "anon-uid-1", isNewUser: true});
@@ -331,6 +333,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
       provider: "kakao",
       providerUserId: "kakao-555",
       callerUid: "anon-1",
+      callerIsAnonymous: true,
     });
 
     const userSetCall = tx.set.mock.calls.find((c) => c[0] === userRef);
@@ -441,6 +444,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "kakao",
         providerUserId: "kakao-456",
         callerUid: "anon-A",
+        callerIsAnonymous: true,
         userInfo: undefined,
       });
 
@@ -564,6 +568,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "naver",
         providerUserId: "naver-anon-r9",
         callerUid: "anon-uid-r9",
+        callerIsAnonymous: true,
         userInfo: undefined,
       });
 
@@ -635,6 +640,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "naver",
         providerUserId: "naver-r10",
         callerUid: "anon-r10",
+        callerIsAnonymous: true,
         userInfo: {
           email: "user@example.com",
           // WR-04: email 이 있으면 IdP 의 검증 상태를 명시해야 한다.
@@ -706,6 +712,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "naver",
         providerUserId: "naver-r12-empty",
         callerUid: "anon-B",
+        callerIsAnonymous: true,
         userInfo: undefined,
       });
 
@@ -731,6 +738,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "naver",
         providerUserId: "naver-r12-block",
         callerUid: "anon-B",
+        callerIsAnonymous: true,
         userInfo: undefined,
       });
 
@@ -831,6 +839,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "kakao",
         providerUserId: "kakao-wr04d",
         callerUid: "anon-wr04d",
+        callerIsAnonymous: true,
         userInfo: {email: "unverified@example.com", emailVerified: false},
       });
 
@@ -868,6 +877,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "kakao",
         providerUserId: "kakao-cr02",
         callerUid: "anon-cr02",
+        callerIsAnonymous: true,
         userInfo: undefined,
       });
 
@@ -894,6 +904,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "kakao",
         providerUserId: "kakao-cr02b",
         callerUid: "anon-cr02b",
+        callerIsAnonymous: true,
         userInfo: undefined,
       });
 
@@ -911,8 +922,11 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         emailVerified: false,
         providerData: [{providerId: "password"}],
       });
+      // reauth-login-auto-merge: 비익명 caller 가드가 비-tx 스냅샷의
+      // firebaseUid 를 읽으므로 실제 문서 shape (data 포함) 로 둔다.
       const {db} = makeDb({
         preExists: true,
+        preData: {firebaseUid: "native-cr02"},
         txExists: true,
         txData: {firebaseUid: "native-cr02"},
       });
@@ -921,6 +935,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "kakao",
         providerUserId: "kakao-cr02c",
         callerUid: "native-cr02",
+        callerIsAnonymous: false,
         userInfo: undefined,
       });
 
@@ -943,6 +958,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "kakao",
         providerUserId: "kakao-cr02d",
         callerUid: "anon-cr02d",
+        callerIsAnonymous: true,
         userInfo: undefined,
       });
 
@@ -970,6 +986,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         provider: "kakao",
         providerUserId: "kakao-cr02e",
         callerUid: "anon-cr02e",
+        callerIsAnonymous: true,
         userInfo: {photoURL: "not-a-valid-url"},
       });
 
@@ -1011,6 +1028,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
           provider: "naver",
           providerUserId: "naver-fail",
           callerUid: "anon-fail",
+          callerIsAnonymous: true,
           userInfo: undefined,
         }),
       ).rejects.toMatchObject({code: "auth/internal-error"});
@@ -1054,19 +1072,32 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
         uid: "self-uid-wr05",
         providerData: [{providerId: "google.com", uid: "g-platform-id"}],
       });
-      const {db} = makeDb({preExists: false, txExists: false});
+      // debug reauth-login-auto-merge (2026-09-17): 비익명 caller 는 **자기
+      // 계정에 이미 매핑된 identity** 로만 통과한다 (caller 가드). 이전 fixture
+      // 는 미등록 identity 였고 그 결과 `{uid: self, isNewUser: true}` = 무동의
+      // 연결 + 프로필 덮어쓰기를 계약으로 고정하고 있었다. WR-05 가 지키려던
+      // "자기 email 은 충돌이 아니다" 는 도달 가능한 상태(매핑 = self)로 옮겨
+      // 계속 잠근다. 미등록 identity 거부는 아래 caller 가드 describe 가 잠근다.
+      const selfDoc = {firebaseUid: "self-uid-wr05"};
+      const {db} = makeDb({
+        preExists: true,
+        preData: selfDoc,
+        txExists: true,
+        txData: selfDoc,
+      });
 
       const res = await resolveIdentity(db, {
         provider: "kakao",
         providerUserId: "kakao-wr05",
         callerUid: "self-uid-wr05",
+        callerIsAnonymous: false,
         userInfo: {email: "me@example.com", emailVerified: true},
       });
 
-      // 충돌이 아니라 정상 등록으로 진행된다.
+      // 충돌이 아니라 자기 계정 재로그인으로 진행된다.
       expect(res).toMatchObject({
         uid: "self-uid-wr05",
-        isNewUser: true,
+        isNewUser: false,
         conflictKind: null,
       });
       expect(warnMock).not.toHaveBeenCalledWith(
@@ -1092,6 +1123,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
         provider: "kakao",
         providerUserId: "kakao-wr05b",
         callerUid: "anon-uid-wr05b",
+        callerIsAnonymous: true,
         userInfo: {email: "someone@example.com", emailVerified: true},
       });
 
@@ -1120,6 +1152,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
         provider: "google",
         providerUserId: "google-wr05c",
         callerUid: "anon-uid-wr05c",
+        callerIsAnonymous: true,
         userInfo: {email: "same-provider@example.com", emailVerified: true},
       });
 
@@ -1147,6 +1180,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
         provider: "naver",
         providerUserId: "naver-user-1",
         callerUid: "anon-uid-1",
+        callerIsAnonymous: true,
         userInfo: {email: "foo@naver.com"},
       });
 
@@ -1200,6 +1234,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
         provider: "naver",
         providerUserId: "naver-user-2",
         callerUid: "anon-uid-2",
+        callerIsAnonymous: true,
         userInfo: {email: "self@naver.com"},
       });
 
@@ -1237,6 +1272,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
         provider: "naver",
         providerUserId: "naver-user-3",
         callerUid: "anon-uid-3",
+        callerIsAnonymous: true,
         userInfo: {email: "same@naver.com"},
       });
 
@@ -1280,6 +1316,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
         provider: "naver",
         providerUserId: "naver-user-4",
         callerUid: "anon-uid-4",
+        callerIsAnonymous: true,
         userInfo: {email: "transient@naver.com"},
       });
 
@@ -1609,6 +1646,7 @@ describe("resolveIdentity Phase 16 D-09 — existingProvider add-only", () => {
         provider: "kakao",
         providerUserId: "kakao-I2",
         callerUid: "anon-I2",
+        callerIsAnonymous: true,
         userInfo: {email: "i2@example.com"},
       });
 
@@ -1646,6 +1684,7 @@ describe("resolveIdentity Phase 16 D-09 — existingProvider add-only", () => {
         provider: "kakao",
         providerUserId: "kakao-I3",
         callerUid: "anon-I3",
+        callerIsAnonymous: true,
         userInfo: undefined,
       });
 
@@ -1674,6 +1713,7 @@ describe("resolveIdentity Phase 16 D-09 — existingProvider add-only", () => {
         provider: "kakao",
         providerUserId: "kakao-I4",
         callerUid: "anon-I4",
+        callerIsAnonymous: true,
         userInfo: {email: "i4@example.com"},
       });
 
@@ -1742,6 +1782,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "naver",
         providerUserId: "naver-16-17-tracer",
         callerUid: "anon-16-17-tracer",
+        callerIsAnonymous: true,
         userInfo: {email: "PII_TRACER_EMAIL@example.com"},
       });
 
@@ -1798,6 +1839,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "naver",
         providerUserId: "naver-16-17-empty",
         callerUid: "anon-16-17-empty",
+        callerIsAnonymous: true,
         userInfo: {email: "empty@example.com"},
       });
 
@@ -1831,6 +1873,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "naver",
         providerUserId: "naver-16-17-self",
         callerUid: "anon-16-17-self",
+        callerIsAnonymous: true,
         userInfo: {email: "self@example.com"},
       });
 
@@ -1862,6 +1905,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
           provider: "naver",
           providerUserId: `naver-16-17-multi-${suffix}`,
           callerUid: `anon-16-17-multi-${suffix}`,
+          callerIsAnonymous: true,
           userInfo: {email: `multi-${suffix}@example.com`},
         });
       };
@@ -1902,6 +1946,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "naver",
         providerUserId: "naver-16-17-reject",
         callerUid: "anon-16-17-reject",
+        callerIsAnonymous: true,
         userInfo: {email: "PII_REJECT_EMAIL@example.com"},
       });
 
@@ -1942,6 +1987,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "naver",
         providerUserId: "naver-16-17-native",
         callerUid: "anon-16-17-native",
+        callerIsAnonymous: true,
         userInfo: {email: "native@example.com"},
       });
 
@@ -2022,6 +2068,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "naver",
         providerUserId: "naver-16-17-order",
         callerUid: "anon-16-17-order",
+        callerIsAnonymous: true,
         userInfo: {email: "order@example.com"},
       });
 
@@ -2064,6 +2111,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: caller,
         providerUserId: `${caller}-16-17-matrix`,
         callerUid: `anon-16-17-matrix-${caller}`,
+        callerIsAnonymous: true,
         userInfo: {email: `matrix-${caller}@example.com`},
       });
 
@@ -2119,6 +2167,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "kakao",
         providerUserId: "kakao-16-17-multi-identity",
         callerUid: "anon-16-17-multi-identity",
+        callerIsAnonymous: true,
         userInfo: {email: "multi-identity@example.com"},
       });
 
@@ -2163,6 +2212,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "kakao",
         providerUserId: "kakao-16-17-multi-conflict",
         callerUid: "anon-16-17-multi-conflict",
+        callerIsAnonymous: true,
         userInfo: {email: "multi-conflict@example.com"},
       });
 
@@ -2205,6 +2255,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         provider: "kakao",
         providerUserId: "subC",
         callerUid: "anon-16-17-other-sub",
+        callerIsAnonymous: true,
         userInfo: {email: "other-sub@example.com"},
       });
 
@@ -2333,6 +2384,7 @@ describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 emai
         provider,
         providerUserId: sub,
         callerUid: "anon-after-signout",
+        callerIsAnonymous: true,
         userInfo: {
           email: "PII_SELF_EMAIL@example.com",
           emailVerified: true,
@@ -2394,6 +2446,7 @@ describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 emai
         provider: "naver",
         providerUserId: "naver-other-owner",
         callerUid: "anon-other-owner",
+        callerIsAnonymous: true,
         userInfo: {email: "PII_SELF_EMAIL@example.com", emailVerified: true},
       });
 
@@ -2430,6 +2483,7 @@ describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 emai
         provider: "naver",
         providerUserId: "naver-anon-data",
         callerUid: "anon-with-data",
+        callerIsAnonymous: true,
         userInfo: {email: "PII_SELF_EMAIL@example.com", emailVerified: true},
       });
 
@@ -2462,6 +2516,7 @@ describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 emai
         provider: "naver",
         providerUserId: "naver-new-sub",
         callerUid: "anon-new-sub",
+        callerIsAnonymous: true,
         userInfo: {email: "PII_SELF_EMAIL@example.com", emailVerified: true},
       });
 
@@ -2472,6 +2527,253 @@ describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 emai
         existingProvider: "apple",
       });
       expect(tx.set).not.toHaveBeenCalled();
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// debug reauth-login-auto-merge (2026-09-17) — 비익명 caller 가드.
+//
+// 재인증 로그인 화면이 정식 사용자로 Custom Token callable 을 부르면, 가드
+// 이전에는 caller 에 매핑 안 된 identity 가 (a) caller uid 에 조용히 등록되고
+// (b) email · displayName · photoURL 이 IdP 값으로 덮어써졌다 (WR-05 · R10
+// 계약이 그 결과를 고정). linkCustomTokenProvider 의 auth_time · 익명 거부
+// 게이트도 우회된다. 가드는 "비익명 caller 는 자기 계정에 이미 매핑된
+// identity 로만 통과" 이며 부작용(등록 · updateUser · email lookup) 전에
+// 거부한다. 익명 · 미인증 caller 는 불변이다.
+// ---------------------------------------------------------------------------
+describe("resolveIdentity — 비익명 caller 가드 (reauth-login-auto-merge)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({emailVerified: true, providerData: []});
+    warnMock.mockReset();
+  });
+
+  const fullUserInfo = {
+    email: "PII_IDP_EMAIL@example.com",
+    emailVerified: true,
+    displayName: "PII IdP Name",
+    photoURL: "https://idp.example.com/PII_photo.jpg",
+  };
+
+  /**
+   * 부작용 0 단언 — identity 등록 · 사용자 기록 변경 · email lookup 없음.
+   *
+   * @param {MockTx} tx mock transaction.
+   */
+  function expectNoSideEffects(tx: MockTx): void {
+    expect(tx.set).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(mockCreateUser).not.toHaveBeenCalled();
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    expect(mockGetUserByEmail).not.toHaveBeenCalled();
+  }
+
+  it(
+    // eslint-disable-next-line max-len
+    "GUARD-01: 비익명 caller + 미등록 identity → caller_identity_mismatch, 등록 · updateUser 0 (WR-05 · R10 계약 반전)",
+    async () => {
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-unlinked",
+        callerUid: "signed-in-U",
+        callerIsAnonymous: false,
+        userInfo: fullUserInfo,
+      });
+
+      expect(res).toEqual({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "caller_identity_mismatch",
+      });
+      expectNoSideEffects(tx);
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "GUARD-02: 비익명 caller + 다른 계정에 매핑된 identity → caller_identity_mismatch, lastSeenAt 갱신 0",
+    async () => {
+      const otherDoc = {firebaseUid: "other-V"};
+      const {db, tx} = makeDb({
+        preExists: true,
+        preData: otherDoc,
+        txExists: true,
+        txData: otherDoc,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "line",
+        providerUserId: "line-of-V",
+        callerUid: "signed-in-U",
+        callerIsAnonymous: false,
+        userInfo: fullUserInfo,
+      });
+
+      expect(res.conflictKind).toBe("caller_identity_mismatch");
+      expect(res.uid).toBe("");
+      expectNoSideEffects(tx);
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "GUARD-03: 비익명 caller + 자기 계정에 매핑된 identity → 기존 재로그인 경로 그대로 (truth-of-source refresh 포함)",
+    async () => {
+      const selfDoc = {firebaseUid: "signed-in-U"};
+      const {db, tx} = makeDb({
+        preExists: true,
+        preData: selfDoc,
+        txExists: true,
+        txData: selfDoc,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-of-U",
+        callerUid: "signed-in-U",
+        callerIsAnonymous: false,
+        userInfo: {displayName: "IdP Name"},
+      });
+
+      expect(res).toEqual({
+        uid: "signed-in-U",
+        isNewUser: false,
+        conflictKind: null,
+      });
+      expect(tx.update).toHaveBeenCalledTimes(1);
+      expect(tx.set).not.toHaveBeenCalled();
+      // 일반 재로그인과 같은 R10-FOLLOWUP refresh (가드가 바꾸지 않는다).
+      expect(mockUpdateUser).toHaveBeenCalledWith("signed-in-U", {
+        displayName: "IdP Name",
+        photoURL: null,
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "GUARD-04: callerIsAnonymous 미지정 + callerUid → fail-closed (비익명으로 간주해 거부)",
+    async () => {
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "yahoojp",
+        providerUserId: "yj-unlinked",
+        callerUid: "unknown-kind-U",
+        userInfo: fullUserInfo,
+      });
+
+      expect(res.conflictKind).toBe("caller_identity_mismatch");
+      expectNoSideEffects(tx);
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "GUARD-05 (경합): 비-tx read 는 자기 매핑이었지만 tx 시점에 다른 계정 매핑 → 거부 + 쓰기 0",
+    async () => {
+      const {db, tx} = makeDb({
+        preExists: true,
+        preData: {firebaseUid: "signed-in-U"},
+        txExists: true,
+        txData: {firebaseUid: "other-V"},
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-race",
+        callerUid: "signed-in-U",
+        callerIsAnonymous: false,
+      });
+
+      expect(res.conflictKind).toBe("caller_identity_mismatch");
+      expect(tx.set).not.toHaveBeenCalled();
+      expect(tx.update).not.toHaveBeenCalled();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "GUARD-06 (경합): 비-tx read 는 자기 매핑이었지만 tx 시점에 문서 부재 → 신규 등록 대신 거부",
+    async () => {
+      const {db, tx} = makeDb({
+        preExists: true,
+        preData: {firebaseUid: "signed-in-U"},
+        txExists: false,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-race-deleted",
+        callerUid: "signed-in-U",
+        callerIsAnonymous: false,
+        userInfo: fullUserInfo,
+      });
+
+      expect(res.conflictKind).toBe("caller_identity_mismatch");
+      expect(tx.set).not.toHaveBeenCalled();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "GUARD-07 (대조군): 익명 caller + 미등록 identity 는 기존대로 caller uid 로 등록된다",
+    async () => {
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-anon-new",
+        callerUid: "anon-guard-07",
+        callerIsAnonymous: true,
+      });
+
+      expect(res).toEqual({
+        uid: "anon-guard-07",
+        isNewUser: true,
+        conflictKind: null,
+      });
+      expect(tx.set).toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "GUARD-08 (PII): 거부 로그는 provider · 문서 존재 여부만 싣는다 (uid · sub · email 미포함)",
+    async () => {
+      const {db} = makeDb({preExists: false, txExists: false});
+
+      await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "PII_SUB_123",
+        callerUid: "PII_CALLER_UID",
+        callerIsAnonymous: false,
+        userInfo: fullUserInfo,
+      });
+
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "identity_index_caller_identity_mismatch",
+          provider: "kakao",
+        }),
+        expect.any(String),
+      );
+      const logged = JSON.stringify(warnMock.mock.calls);
+      expect(logged).not.toContain("PII_");
     },
   );
 });
