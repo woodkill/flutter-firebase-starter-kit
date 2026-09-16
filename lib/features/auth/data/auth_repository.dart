@@ -1872,6 +1872,336 @@ class AuthRepository implements AnonymousSignIn {
     };
   }
 
+  /// 현재 로그인한 계정을 [provider] 로 재인증한다 — auth_time 만 갱신하고
+  /// 계정은 바꾸지 않는다 (debug reauth-login-auto-merge).
+  ///
+  /// 재인증 로그인 화면(`/login?reauth=1`)의 소셜 버튼 전용이다. 일반 로그인
+  /// ([signInWithApple] 등) 은 비익명 사용자에게 새 로그인이라, 다른 계정으로
+  /// 세션이 바뀌거나 같은 email 계정에 trusted provider 가 자동 연결되며
+  /// 프로필이 덮어써질 수 있다. 본 메서드는 provider 별로 다음 경로만 쓴다.
+  ///
+  /// - Google: 계정 선택기가 돌려준 계정 ID 를 현재 계정의 `google.com`
+  ///   연결 uid 와 **Firebase 호출 전** 대조한 뒤
+  ///   [fb.User.reauthenticateWithCredential]. ID 는 둘 다 Google user ID(sub)
+  ///   다 — google_sign_in_android 는 idToken `sub`, iOS 는
+  ///   `GIDGoogleUser.userID`, Firebase `UserInfo.getUid()` 는 "Google user ID".
+  ///   연결 안 된 계정을 서버에 보내지 않으므로 trusted email 합류 경로가 없다.
+  /// - Apple: [fb.User.reauthenticateWithProvider] (호출마다 새 nonce — 실패한
+  ///   credential 을 재제출하지 않는다).
+  /// - Facebook: 새로 받은 credential 로 [fb.User.reauthenticateWithCredential].
+  /// - Custom Token 4종: SDK 토큰 → callable → 응답 uid 가 현재 uid 와 같을 때만
+  ///   [fb.FirebaseAuth.signInWithCustomToken]. 서버는 정식 로그인 caller 의
+  ///   미매핑 identity 를 `permission-denied` + `caller_identity_mismatch` 로
+  ///   거부한다 (functions `resolveIdentity` 가드).
+  ///
+  /// 반환:
+  /// - `Result.success(User)` — 같은 계정으로 재인증 완료.
+  /// - `Result.failure(ReauthUserMismatch)` — 다른 계정 · 연결 안 된 identity.
+  /// - `Result.failure(...)` — 그 밖의 실패 (네트워크 등).
+  /// - `null` — 사용자가 IdP 단계에서 취소 (no-op).
+  ///
+  /// Throws [ArgumentError] — [AccountProvider.email] (비밀번호 입력이 필요해
+  /// [reauthenticateWithPassword] 를 쓴다). `async` 라 Future 에러로 전파된다.
+  Future<Result<User>?> reauthenticate(AccountProvider provider) async {
+    if (provider == AccountProvider.email) {
+      throw ArgumentError.value(
+        provider,
+        'provider',
+        'email 재인증은 reauthenticateWithPassword 를 쓴다.',
+      );
+    }
+    try {
+      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
+      final current = _auth.currentUser;
+      if (current == null || current.isAnonymous) {
+        // 재인증 화면은 정식 사용자 전용이다 — 도달은 상위 로직 오류이며
+        // 재시도로 풀리지 않는다 (WR-06 원칙).
+        return const Result.failure(UnknownException());
+      }
+      final fb.UserCredential? reauthed = switch (provider) {
+        AccountProvider.google => await _reauthWithGoogle(current),
+        AccountProvider.apple => await current.reauthenticateWithProvider(
+          fb.AppleAuthProvider()
+            ..addScope('email')
+            ..addScope('name'),
+        ),
+        AccountProvider.facebook => await _reauthWithFacebook(current),
+        AccountProvider.kakao ||
+        AccountProvider.naver ||
+        AccountProvider.line ||
+        AccountProvider.yahoojp => await _reauthWithCustomToken(
+          provider,
+          current,
+        ),
+        // 위에서 ArgumentError 로 차단 — 도달하지 않는다.
+        AccountProvider.email => null,
+      };
+      if (reauthed == null) return null; // 사용자 취소 — no-op.
+      final reauthedUser = reauthed.user;
+      if (reauthedUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      if (reauthedUser.uid != current.uid) {
+        // 방어 계층 — SDK user-mismatch · 서버 가드 · 응답 uid 대조가 모두
+        // 앞에서 막으므로 정상 경로에서는 도달하지 않는다.
+        _logReauthMismatch(provider, 'post-reauth uid');
+        return const Result.failure(ReauthUserMismatch());
+      }
+      return Result.success(_mapFirebaseUser(reauthedUser));
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
+      return Result.failure(_mapGoogleException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      if (_isOAuthCancelCode(e.code)) return null;
+      return Result.failure(_mapReauthAuthException(provider, e));
+    } on FirebaseFunctionsException catch (e) {
+      return Result.failure(_mapFunctionsException(e));
+    } on AppException catch (e) {
+      // ReauthUserMismatch (사전 대조) · ServiceUnavailable (토큰 부재) 등
+      // helper 가 던진 도메인 예외를 그대로 보존한다.
+      return Result.failure(e);
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('reauthenticate 비-Auth 예외: ${e.runtimeType}\n$st');
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      // 1회성 토큰 정책 (signInWith{Kakao,Naver,Line,Yahoojp} finally mirror).
+      await _logoutCustomTokenSdk(provider);
+      _socialLinkInProgress.end();
+    }
+  }
+
+  /// 현재 로그인한 계정을 비밀번호로 재인증한다
+  /// (debug reauth-login-auto-merge).
+  ///
+  /// email 은 입력받지 않고 현재 계정의 email 을 쓴다 — 재인증 화면의 이메일
+  /// 칸은 읽기 전용이며, 다른 계정 자격증명으로의 로그인을 원천 차단한다.
+  /// [fb.FirebaseAuth.signInWithEmailAndPassword] 를 호출하지 않는다.
+  ///
+  /// 에러 매핑: `user-mismatch` → [ReauthUserMismatch], 그 밖은 이메일 로그인과
+  /// 같은 [_mapAuthException] (틀린 비밀번호 → [InvalidCredentials]).
+  Future<Result<User>> reauthenticateWithPassword({
+    required String password,
+  }) async {
+    try {
+      final current = _auth.currentUser;
+      final email = current?.email;
+      if (current == null ||
+          current.isAnonymous ||
+          email == null ||
+          email.isEmpty) {
+        // 비밀번호 재인증 대상이 아닌 세션 — 재시도로 풀리지 않는다.
+        return const Result.failure(UnknownException());
+      }
+      final reauthed = await current.reauthenticateWithCredential(
+        fb.EmailAuthProvider.credential(email: email, password: password),
+      );
+      final reauthedUser = reauthed.user;
+      if (reauthedUser == null) {
+        return const Result.failure(ServiceUnavailable());
+      }
+      if (reauthedUser.uid != current.uid) {
+        _logReauthMismatch(AccountProvider.email, 'post-reauth uid');
+        return const Result.failure(ReauthUserMismatch());
+      }
+      return Result.success(_mapFirebaseUser(reauthedUser));
+    } on fb.FirebaseAuthException catch (e) {
+      if (e.code == 'user-mismatch') {
+        _logReauthMismatch(AccountProvider.email, e.code);
+        return Result.failure(ReauthUserMismatch(cause: e));
+      }
+      return Result.failure(_mapAuthException(e));
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint(
+          'reauthenticateWithPassword 비-Auth 예외: ${e.runtimeType}\n$st',
+        );
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    }
+  }
+
+  /// Google 계정 선택 → 현재 계정 연결 대조 → 재인증한다
+  /// ([reauthenticate] Google arm).
+  ///
+  /// Throws [ReauthUserMismatch] — 선택한 계정이 현재 계정의 `google.com`
+  /// 연결이 아니다 (Firebase 호출 0). Throws [GoogleSignInException] — 취소 ·
+  /// SDK 실패 (호출부가 매핑).
+  Future<fb.UserCredential> _reauthWithGoogle(fb.User current) async {
+    final account = await _googleSignIn.authenticate();
+    final isLinkedAccount = current.providerData.any(
+      (info) => info.providerId == 'google.com' && info.uid == account.id,
+    );
+    if (!isLinkedAccount) {
+      _logReauthMismatch(AccountProvider.google, 'account not linked');
+      throw const ReauthUserMismatch();
+    }
+    return current.reauthenticateWithCredential(_googleCredentialOf(account));
+  }
+
+  /// Facebook 로그인으로 새 credential 을 받아 재인증한다
+  /// ([reauthenticate] Facebook arm). 취소 시 `null`.
+  ///
+  /// iOS Limited Login credential 도 호출마다 새 nonce 로 만들어진다
+  /// ([_facebookCredentialOf]) — 실패한 credential 을 재제출하지 않는다.
+  Future<fb.UserCredential?> _reauthWithFacebook(fb.User current) async {
+    final facebook = await _facebookCredentialOf();
+    if (facebook == null) return null;
+    return current.reauthenticateWithCredential(facebook.credential);
+  }
+
+  /// Custom Token provider 로 같은 계정의 새 세션을 받는다
+  /// ([reauthenticate] Custom Token arm). SDK 취소 시 `null`.
+  ///
+  /// Firebase 에 Custom Token 재인증 API 가 없으므로 로그인 callable 을
+  /// 부르되, 응답 uid 가 현재 uid 와 같을 때만 [fb.FirebaseAuth.signInWithCustomToken]
+  /// 을 호출한다 — 다른 계정 토큰으로 세션이 바뀌지 않는다. 신규 identity
+  /// 등록 · 프로필 덮어쓰기 차단은 서버 가드 책임이다 (응답 전에 일어나므로
+  /// client 대조만으로는 막을 수 없다).
+  ///
+  /// Throws [ReauthUserMismatch] — 응답 uid 불일치. Throws [UnknownException] —
+  /// 응답 계약 위반 (customToken · uid 부재). Throws
+  /// [FirebaseFunctionsException] — callable 거부 (호출부가 매핑).
+  Future<fb.UserCredential?> _reauthWithCustomToken(
+    AccountProvider provider,
+    fb.User current,
+  ) async {
+    final request = await _customTokenReauthRequest(provider);
+    if (request == null) return null;
+    final callable = _functions.httpsCallable(
+      request.callableName,
+      options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+    );
+    final response = await callable.call<Map<String, dynamic>>(request.payload);
+    final customToken = response.data['customToken'];
+    final uid = response.data['uid'];
+    if (customToken is! String || customToken.isEmpty || uid is! String) {
+      throw const UnknownException();
+    }
+    if (uid != current.uid) {
+      _logReauthMismatch(provider, 'callable uid');
+      throw const ReauthUserMismatch();
+    }
+    return _auth.signInWithCustomToken(customToken);
+  }
+
+  /// Custom Token provider 별 SDK 로그인 → callable 이름 · payload 를 만든다.
+  /// SDK 취소 시 `null`.
+  ///
+  /// payload 키는 각 로그인 메서드와 같다 (Naver = `accessToken`, 나머지 =
+  /// `idToken` + `nonce`). 재인증은 기존 identity 재로그인이라 약관 snapshot
+  /// (신규 계정 생성 시에만 서버가 mirror) 은 싣지 않는다.
+  Future<({String callableName, Map<String, dynamic> payload})?>
+  _customTokenReauthRequest(AccountProvider provider) async {
+    switch (provider) {
+      case AccountProvider.kakao:
+        final result = await _kakaoSdkClient.signIn();
+        if (result == null) return null;
+        return (
+          callableName: 'kakaoCustomToken',
+          payload: <String, dynamic>{
+            'idToken': result.idToken,
+            'nonce': result.nonce,
+          },
+        );
+      case AccountProvider.naver:
+        final result = await _naverSdkClient.signIn();
+        if (result == null) return null;
+        return (
+          callableName: 'naverCustomToken',
+          payload: <String, dynamic>{'accessToken': result.accessToken},
+        );
+      case AccountProvider.line:
+        final result = await _lineSdkClient.signIn();
+        if (result == null) return null;
+        return (
+          callableName: 'lineCustomToken',
+          payload: <String, dynamic>{
+            'idToken': result.idToken,
+            'nonce': result.nonce,
+          },
+        );
+      case AccountProvider.yahoojp:
+        final result = await _yahoojpSdkClient.signIn();
+        if (result == null) return null;
+        return (
+          callableName: 'yahoojpCustomToken',
+          payload: <String, dynamic>{
+            'idToken': result.idToken,
+            'nonce': result.nonce,
+          },
+        );
+      case AccountProvider.google:
+      case AccountProvider.apple:
+      case AccountProvider.facebook:
+      case AccountProvider.email:
+        // 호출부가 Custom Token 4종만 넘긴다 — 도달하지 않는다.
+        return null;
+    }
+  }
+
+  /// Custom Token provider SDK 를 logout 한다 (재인증 finally — 1회성 토큰).
+  /// native provider 는 no-op.
+  Future<void> _logoutCustomTokenSdk(AccountProvider provider) async {
+    switch (provider) {
+      case AccountProvider.kakao:
+        await _kakaoSdkClient.logout();
+      case AccountProvider.naver:
+        await _naverSdkClient.logout();
+      case AccountProvider.line:
+        await _lineSdkClient.logout();
+      case AccountProvider.yahoojp:
+        await _yahoojpSdkClient.logout();
+      case AccountProvider.google:
+      case AccountProvider.apple:
+      case AccountProvider.facebook:
+      case AccountProvider.email:
+        break;
+    }
+  }
+
+  /// native 재인증의 [fb.FirebaseAuthException] 을 [AppException] 으로
+  /// 매핑한다 (debug reauth-login-auto-merge).
+  ///
+  /// - `user-mismatch` — 자격증명이 현재 계정 것이 아니다.
+  /// - `user-not-found` — 어느 계정에도 연결 안 된 identity (재인증은 신규
+  ///   계정을 만들지 않는다 — iOS SDK 는 이를 userMismatch 로 바꾼다).
+  /// - `account-exists-with-different-credential` — 다른 계정 email 과 충돌.
+  ///
+  /// 세 코드 모두 [ReauthUserMismatch] 이고, 나머지는 소셜 로그인과 같은
+  /// [_mapSocialAuthException] 이다.
+  AppException _mapReauthAuthException(
+    AccountProvider provider,
+    fb.FirebaseAuthException e,
+  ) {
+    switch (e.code) {
+      case 'user-mismatch':
+      case 'user-not-found':
+      case 'account-exists-with-different-credential':
+        _logReauthMismatch(provider, e.code);
+        return ReauthUserMismatch(cause: e);
+    }
+    return _mapSocialAuthException(e);
+  }
+
+  /// OAuth 창 사용자 취소 code 인지 판정한다 (Apple · 웹 인증 공통).
+  static bool _isOAuthCancelCode(String code) =>
+      code == 'canceled' ||
+      code == 'web-context-canceled' ||
+      code == 'web-context-cancelled' ||
+      code == 'popup-closed-by-user';
+
+  /// 재인증 계정 불일치를 기록한다 — provider slug 와 판정 근거만 (PII 0).
+  void _logReauthMismatch(AccountProvider provider, String reason) {
+    if (kDebugMode) {
+      debugPrint(
+        'AuthRepository.reauthenticate: 계정 불일치 → ReauthUserMismatch '
+        '(provider=${provider.slug}, reason=$reason)',
+      );
+    }
+  }
+
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
   ///
   /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
@@ -2422,6 +2752,11 @@ class AuthRepository implements AnonymousSignIn {
   ///    `email != null` 분기에서만 트리거)
   /// - 그 외 → [ServiceUnavailable(cause: e)]
   AppException _mapFunctionsException(FirebaseFunctionsException e) {
+    // debug reauth-login-auto-merge — 서버 비익명 caller 가드 거부. App Check
+    // 차단과 같은 `permission-denied` 라 details.reason 으로만 구분한다.
+    if (e.code == 'permission-denied' && _isCallerIdentityMismatch(e.details)) {
+      return ReauthUserMismatch(cause: e);
+    }
     return switch (e.code) {
       // IN-02: permission-denied 명시 분기 — App Check enforcement 차단
       // (enforceAppCheck:true onCall) 또는 Firebase Auth token age 위반.
@@ -2452,6 +2787,14 @@ class AuthRepository implements AnonymousSignIn {
       _ => ServiceUnavailable(cause: e),
     };
   }
+
+  /// callable 거부 [details] 가 서버 비익명 caller 가드의 `caller_identity_mismatch`
+  /// 인지 판정한다 (debug reauth-login-auto-merge).
+  ///
+  /// functions `callerIdentityMismatch()` 가 `{reason: 'caller_identity_mismatch'}`
+  /// 를 싣는다. [details] 가 [Map] 이 아니거나 reason 이 다르면 `false`.
+  bool _isCallerIdentityMismatch(Object? details) =>
+      details is Map && details['reason'] == 'caller_identity_mismatch';
 
   /// [FirebaseFunctionsException.details] 에서 `existingProvider` slug 를 안전
   /// 추출해 [AccountProvider] 로 변환한다 (16-13 A4 gap closure).
