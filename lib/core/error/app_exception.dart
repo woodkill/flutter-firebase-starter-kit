@@ -292,6 +292,38 @@ final class UnauthenticatedException extends AuthException {
     : super(userMessage: 'errorUnauthenticated');
 }
 
+/// 재인증에 쓴 자격증명이 지금 로그인한 계정의 것이 아님
+/// (debug reauth-login-auto-merge).
+///
+/// 재인증 모드 로그인 화면(`/login?reauth=1`)에서만 발생한다. 매핑 원천:
+/// - native `reauthenticateWith…` 의 `user-mismatch` · `user-not-found` ·
+///   `account-exists-with-different-credential`.
+/// - Google 계정 선택기에서 고른 계정 ID 가 현재 계정의 `google.com` 연결과
+///   다를 때 (Firebase 호출 전 사전 대조).
+/// - Custom Token callable 의 서버 거부 `permission-denied` +
+///   `details.reason == 'caller_identity_mismatch'` (비익명 caller 에 매핑 안 된
+///   identity).
+///
+/// 세션은 바뀌지 않은 상태이므로 사용자는 같은 계정으로 다시 시도하면 된다.
+final class ReauthUserMismatch extends AuthException {
+  /// [ReauthUserMismatch]을 생성한다.
+  const ReauthUserMismatch({super.cause})
+    : super(userMessage: 'errorReauthUserMismatch');
+}
+
+/// 재인증 모드에서 쓸 수 있는 로그인 수단이 하나도 없음
+/// (debug reauth-login-auto-merge).
+///
+/// 현재 계정에 연결된 provider 가 모두 비활성(정적 config 또는 Remote Config
+/// kill switch)이고 비밀번호도 연결돼 있지 않을 때 재인증 화면이 배너로
+/// 표시한다. 다른 계정으로 로그인하는 우회 경로를 열지 않기 위해 연결되지
+/// 않은 provider 는 대안으로 노출하지 않는다.
+final class ReauthMethodUnavailable extends AuthException {
+  /// [ReauthMethodUnavailable]을 생성한다.
+  const ReauthMethodUnavailable({super.cause})
+    : super(userMessage: 'errorReauthMethodUnavailable');
+}
+
 // ---------------------------------------------------------------------------
 // 서버 관련 예외
 // ---------------------------------------------------------------------------

@@ -54,6 +54,10 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     'errorReauthenticationRequired' => l10n.authReauthRequired,
     // UnauthenticatedException.
     'errorUnauthenticated' => l10n.errorUnauthenticated,
+    // ReauthUserMismatch — 재인증 계정이 현재 계정과 다름 (Q2 배너).
+    'errorReauthUserMismatch' => l10n.errorReauthUserMismatch,
+    // ReauthMethodUnavailable — 재인증 수단 0 (Q7 배너).
+    'errorReauthMethodUnavailable' => l10n.errorReauthMethodUnavailable,
     final other => _resolveUnmappedFallback(l10n, other),
   };
 }

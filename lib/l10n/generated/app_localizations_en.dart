@@ -610,6 +610,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'For security, please sign in again and retry.';
 
   @override
+  String get authReauthTitle => 'Confirm it\'s you';
+
+  @override
+  String get authReauthGuide =>
+      'For your security, sign in again with the account you\'re currently signed in with.';
+
+  @override
+  String get authReauthEmailGuide =>
+      'For your security, enter the password for this account.';
+
+  @override
+  String get authReauthConfirmCta => 'Confirm';
+
+  @override
+  String get authReauthSucceeded => 'You\'re verified. Try that again.';
+
+  @override
+  String get errorReauthUserMismatch =>
+      'That\'s a different account from the one you\'re signed in with. Try again with the same account.';
+
+  @override
+  String get errorReauthMethodUnavailable =>
+      'You can\'t confirm it\'s you with this account\'s sign-in methods right now. Try again later.';
+
+  @override
   String get authSignInBlockedByGuestSession =>
       'You\'re browsing as a guest, so this existing account can\'t be signed in here. Please use another sign-in method below.';
 

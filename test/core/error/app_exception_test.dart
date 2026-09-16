@@ -232,6 +232,8 @@ void main() {
         ProviderAlreadyLinkedToThisAccount(),
         ReauthenticationRequiredException(),
         UnauthenticatedException(),
+        ReauthUserMismatch(),
+        ReauthMethodUnavailable(),
         InternalServerError(),
         ServiceUnavailable(),
         InvalidInput(),

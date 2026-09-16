@@ -597,6 +597,29 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authReauthRequired => '보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.';
 
   @override
+  String get authReauthTitle => '본인 확인';
+
+  @override
+  String get authReauthGuide => '보안을 위해 지금 로그인한 계정으로 한 번 더 로그인해 주세요.';
+
+  @override
+  String get authReauthEmailGuide => '보안을 위해 이 계정의 비밀번호를 입력해 주세요.';
+
+  @override
+  String get authReauthConfirmCta => '확인';
+
+  @override
+  String get authReauthSucceeded => '본인 확인이 끝났습니다. 하던 작업을 다시 시도해 주세요.';
+
+  @override
+  String get errorReauthUserMismatch =>
+      '지금 로그인한 계정과 다른 계정입니다. 같은 계정으로 다시 시도해 주세요.';
+
+  @override
+  String get errorReauthMethodUnavailable =>
+      '지금은 이 계정의 로그인 수단으로 본인 확인을 할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
   String get authSignInBlockedByGuestSession =>
       '게스트로 이용 중이어서 기존 계정으로 로그인할 수 없습니다. 아래에서 다른 방식으로 로그인해 주세요.';
 

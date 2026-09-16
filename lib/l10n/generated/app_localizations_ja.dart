@@ -596,6 +596,29 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authReauthRequired => 'セキュリティのため、再ログインしてから再試行してください。';
 
   @override
+  String get authReauthTitle => '本人確認';
+
+  @override
+  String get authReauthGuide => 'セキュリティのため、現在ログインしているアカウントでもう一度ログインしてください。';
+
+  @override
+  String get authReauthEmailGuide => 'セキュリティのため、このアカウントのパスワードを入力してください。';
+
+  @override
+  String get authReauthConfirmCta => '確認';
+
+  @override
+  String get authReauthSucceeded => '本人確認が完了しました。操作をもう一度お試しください。';
+
+  @override
+  String get errorReauthUserMismatch =>
+      '現在ログインしているアカウントとは別のアカウントです。同じアカウントでもう一度お試しください。';
+
+  @override
+  String get errorReauthMethodUnavailable =>
+      '現在、このアカウントのログイン方法では本人確認ができません。しばらくしてからもう一度お試しください。';
+
+  @override
   String get authSignInBlockedByGuestSession =>
       'ゲストとして利用中のため、既存のアカウントにログインできません。下の別の方法でログインしてください。';
 

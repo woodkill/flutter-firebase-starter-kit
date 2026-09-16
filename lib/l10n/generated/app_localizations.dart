@@ -1198,6 +1198,48 @@ abstract class AppLocalizations {
   /// **'For security, please sign in again and retry.'**
   String get authReauthRequired;
 
+  /// 재인증 모드 AppBar 제목 (Q1). 소비: LoginScreen · EmailLoginScreen 의 isReauth 분기. debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm it\'s you'**
+  String get authReauthTitle;
+
+  /// 재인증 모드 chooser 안내 문구 (Q1) — 소셜 버튼 위. 소비: LoginScreen 의 isReauth 분기. debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'For your security, sign in again with the account you\'re currently signed in with.'**
+  String get authReauthGuide;
+
+  /// 재인증 모드 이메일 화면 안내 문구 (Q3 렌더) — 읽기 전용 이메일 칸 위. 소비: EmailLoginScreen 의 isReauth 분기. debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'For your security, enter the password for this account.'**
+  String get authReauthEmailGuide;
+
+  /// 재인증 모드 이메일 화면 제출 버튼 라벨 (Q3). 소비: EmailLoginScreen 의 isReauth 분기. debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get authReauthConfirmCta;
+
+  /// 재인증 성공 후 설정 화면으로 돌아가며 띄우는 SnackBar (Q6). 탈퇴 · 계정 연결 어느 쪽 어휘도 넣지 않는다 (두 진입점 공용). 소비: LoginScreen 의 재인증 완료 처리. debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re verified. Try that again.'**
+  String get authReauthSucceeded;
+
+  /// 재인증에 쓴 계정이 지금 로그인한 계정과 다를 때의 인라인 오류 배너 (Q2). 소비: resolveExceptionMessage 의 ReauthUserMismatch arm (user-mismatch · user-not-found · 서버 caller_identity_mismatch). debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'That\'s a different account from the one you\'re signed in with. Try again with the same account.'**
+  String get errorReauthUserMismatch;
+
+  /// 재인증 모드에서 쓸 수 있는 로그인 수단이 0 일 때의 오류 배너 (Q7 — 연결 provider 가 모두 kill switch 로 꺼진 경우 등). 소비: resolveExceptionMessage 의 ReauthMethodUnavailable arm. debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
+  ///
+  /// In en, this message translates to:
+  /// **'You can\'t confirm it\'s you with this account\'s sign-in methods right now. Try again later.'**
+  String get errorReauthMethodUnavailable;
+
   /// Phase 16 WR-01 (4차 리뷰) — Surface A 경로 B step 1 (기존 provider 로 로그인) 의 **결정적(비-transient) 실패** 안내. 소비: AccountLinkingSheet._signInWithExistingProvider 의 AccountExistsWithDifferentCredential arm (A-16-19-01 익명 caller 재충돌 — 서버 resolveIdentity 의 R12 anonymous_existing_collision 재거부가 client 에서 이 타입으로 매핑된다). **재시도 어휘 금지 의무:** 이 실패는 익명 세션이 유지되는 한 재시도로 절대 해소되지 않는다 — '잠시 후 다시 시도' 계열 문구(settingsLinkFailedTransient / settingsLinkFailedUnknown)를 쓰면 사용자가 매 탭마다 실 IdP OAuth 왕복을 반복하는 무한 루프에 든다 (auth_repository.dart 의 1차 리뷰 WR-06 원칙과 동일 결함). 따라서 문구는 16-SECURITY.md AR-16-07 이 수용한 유일한 실 탈출구 — 시트 하단의 accountLinkingDismiss('다른 방식으로 로그인') — 를 가리킨다. signOut 후 재시도는 /onboarding 리셋 경합 때문에 채택하지 않았고(AR-16-07), 익명 문서 승계 정책 자체는 Phase 17+ 범위다. email/uid/token 을 노출하지 않는다.
   ///
   /// In en, this message translates to:

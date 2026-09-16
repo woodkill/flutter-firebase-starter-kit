@@ -55,6 +55,8 @@ const List<AppException> _kAllMappedExceptions = <AppException>[
   ProviderAlreadyLinkedToThisAccount(),
   ReauthenticationRequiredException(),
   UnauthenticatedException(),
+  ReauthUserMismatch(),
+  ReauthMethodUnavailable(),
   // ServerException
   InternalServerError(),
   ServiceUnavailable(),
