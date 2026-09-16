@@ -70,6 +70,10 @@ dependencies:
   # (verified publisher: dexterx.dev). Yahoo!JP Flutter wrapper 부재 →
   # OIDC 표준 라이브러리로 OAuth flow + PKCE + ID Token nonce 자동 처리.
   flutter_appauth: ^12.0.0
+  # Facebook iOS Limited Login nonce SHA-256 해시 (debug
+  # ios-facebook-limited-login, dart.dev 공식 — Firebase Flutter 문서 권장).
+  # 이미 transitive 3.0.7 로 잠겨 있어 버전 해석 변화 0.
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

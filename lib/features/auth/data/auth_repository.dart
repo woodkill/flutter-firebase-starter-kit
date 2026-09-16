@@ -10,6 +10,7 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/auth/nonce.dart';
 import '../../../core/auth/provider_id.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
@@ -390,8 +391,9 @@ class AuthRepository implements AnonymousSignIn {
       return Result.failure(_mapGoogleException(e));
     } on fb.FirebaseAuthException catch (e) {
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
+      // D2 B1: 소셜 invalid-credential 은 email 문구로 새지 않게 분리한다.
       return Result.failure(
-        await _enrichAccountExistsAsync(_mapAuthException(e)),
+        await _enrichAccountExistsAsync(_mapSocialAuthException(e)),
       );
     } on ServiceUnavailable catch (e) {
       // WR-01: [_googleCredentialOf] 의 idToken 가드 (serverClientId 미설정 등
@@ -519,8 +521,9 @@ class AuthRepository implements AnonymousSignIn {
         return null;
       }
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
+      // D2 B1: 소셜 invalid-credential 은 email 문구로 새지 않게 분리한다.
       return Result.failure(
-        await _enrichAccountExistsAsync(_mapAuthException(e)),
+        await _enrichAccountExistsAsync(_mapSocialAuthException(e)),
       );
     } on Object catch (e, st) {
       // 비-Auth 예외 (PlatformException 등)를 Result로 감싸
@@ -536,10 +539,14 @@ class AuthRepository implements AnonymousSignIn {
 
   /// Facebook 계정으로 Firebase Auth에 로그인한다 (D-01).
   ///
-  /// [FacebookAuth.login]으로 Classic Login을 수행하고 (D-03),
-  /// 획득한 [AccessToken]의 tokenString으로
-  /// [fb.FacebookAuthProvider.credential]을 생성하여
-  /// [fb.FirebaseAuth.signInWithCredential]에 전달한다.
+  /// [FacebookAuth.login]으로 로그인하고 (D-03), [_facebookCredentialOf] 가
+  /// 토큰 타입별로 만든 credential 을 [fb.FirebaseAuth.signInWithCredential]
+  /// 에 전달한다. Android 는 [ClassicToken] →
+  /// [fb.FacebookAuthProvider.credential] 이고, iOS 는 ATT 미허용 시 SDK 가
+  /// Limited Login 으로 강제해 [LimitedToken] (OIDC JWT) →
+  /// `OAuthProvider('facebook.com')` idToken + rawNonce credential 이다
+  /// (debug ios-facebook-limited-login). Limited 에서는 Graph API 사진
+  /// 갱신을 생략한다 (문서화된 한계).
   ///
   /// 요청 권한은 email + public_profile만 사용한다 (D-02).
   /// 사용자 취소 시 null을 반환하여 Notifier에서 no-op 처리한다 (D-09).
@@ -550,6 +557,10 @@ class AuthRepository implements AnonymousSignIn {
   /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
   /// [_safeDelete] 로 폐기하고 기존 Facebook 계정으로 [fb.FirebaseAuth.signInWithCredential]
   /// fallback. 익명 UID 로 작성된 Firestore 데이터는 손실 (D-09 — 1회성 승격).
+  /// 위 순서는 [ClassicToken] credential 기준이다. iOS Limited Login
+  /// credential 은 nonce 가 요청 1회용이라 [_signInAfterLimitedLinkConflict]
+  /// 가 재시도 credential 을 새로 확보하고, `email-already-in-use` 는 익명을
+  /// 유지한 채 signIn 한다 (debug ios-facebook-limited-login stage 2).
   ///
   /// **Phase 9.1 D-03 / D-04:** 메서드 body 전체를 try-finally 로 감싸
   /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
@@ -560,20 +571,14 @@ class AuthRepository implements AnonymousSignIn {
   Future<Result<User>?> signInWithFacebook() async {
     try {
       _socialLinkInProgress.begin();
-      final loginResult = await _facebookAuth.login(
-        permissions: ['email', 'public_profile'],
-        loginTracking: LoginTracking.enabled,
-      );
-
-      // WR-02: 취소만 silent null, 실패는 ServiceUnavailable 로 승격한다.
-      final accessToken = _facebookAccessTokenOf(loginResult);
-      if (accessToken == null) {
+      // D1 A1: 로그인 + 토큰 타입별 credential 변환은 [_facebookCredentialOf]
+      // 단일 진실원. WR-02: 취소만 silent null, 실패는 ServiceUnavailable 로
+      // 승격한다 (아래 on ServiceUnavailable 이 흡수).
+      final facebook = await _facebookCredentialOf();
+      if (facebook == null) {
         return null; // D-09 silent cancel
       }
-
-      final credential = fb.FacebookAuthProvider.credential(
-        accessToken.tokenString,
-      );
+      final credential = facebook.credential;
 
       final anonymous = _auth.currentUser;
       // Gap A close (HUMAN-UAT 2026-05-11): success path 합류 후 익명 분기 정보
@@ -586,18 +591,42 @@ class AuthRepository implements AnonymousSignIn {
         try {
           userCredential = await anonymous.linkWithCredential(credential);
         } on fb.FirebaseAuthException catch (e) {
-          if (e.code == 'credential-already-in-use' ||
-              e.code == 'email-already-in-use') {
+          if (kDebugMode) {
+            // D9 (debug ios-facebook-limited-login stage 2): 실기기 재검증에서
+            // 실제 link 실패 code 를 인용하는 영구 근거. PII invariant — code
+            // 와 credential 유무 bool 만 (e.email · e.message · credential
+            // 본문 비포함).
+            debugPrint(
+              'AuthRepository.signInWithFacebook: link 실패 '
+              'code=${e.code}, hasCredential=${e.credential != null}',
+            );
+          }
+          if (e.code != 'credential-already-in-use' &&
+              e.code != 'email-already-in-use') {
+            rethrow;
+          }
+          if (facebook.isLimited) {
+            // D8 a: nonce 가 묶인 Limited credential 만 재시도 규칙이 다르다
+            // (link 에 제출한 credential 재사용 금지).
+            final retried = await _signInAfterLimitedLinkConflict(e, anonymous);
+            if (retried == null) {
+              return null; // D6: 두 번째 Facebook 창 취소 — 익명 보존
+            }
+            userCredential = retried;
+          } else {
+            // Classic (Android · iOS ATT 허용) — nonce 없는 access token
+            // credential 은 재제출이 허용되므로 기존 순서 (익명 삭제 → 같은
+            // credential 로 signIn) 를 유지한다 (D8 a · Phase 9 UAT · SLP-9).
+            // 로그는 실제 code 를 출력한다 (이전엔 두 code 모두
+            // credential-already-in-use 로 오표기).
             if (kDebugMode) {
               debugPrint(
-                'AuthRepository.signInWithFacebook: credential-already-in-use '
+                'AuthRepository.signInWithFacebook: ${e.code} '
                 '— 익명 계정 폐기 + 기존 Facebook 계정 로그인',
               );
             }
             await _safeDelete(anonymous);
             userCredential = await _auth.signInWithCredential(credential);
-          } else {
-            rethrow;
           }
         }
       } else {
@@ -619,12 +648,19 @@ class AuthRepository implements AnonymousSignIn {
         userCredential,
         isLinkedFromAnonymous: isLinkedFromAnonymous,
       );
-      await _setFacebookPhotoUrl(fbUser);
+      // D4 Da: Limited Login 토큰은 Graph API 를 쓸 수 없다 (Facebook 공식
+      // "The ID token cannot be used to request additional data using the
+      // Graph API"). 실패가 확정된 getUserData 왕복을 race-fix 창에서
+      // 생략한다 — Limited 에서 photoURL 미갱신은 문서화된 한계.
+      if (!facebook.isLimited) {
+        await _setFacebookPhotoUrl(fbUser);
+      }
       return Result.success(_mapFirebaseUser(fbUser));
     } on fb.FirebaseAuthException catch (e) {
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
+      // D2 B1: 소셜 invalid-credential 은 email 문구로 새지 않게 분리한다.
       return Result.failure(
-        await _enrichAccountExistsAsync(_mapAuthException(e)),
+        await _enrichAccountExistsAsync(_mapSocialAuthException(e)),
       );
     } on ServiceUnavailable catch (e) {
       // WR-02: [_facebookAccessTokenOf] 의 실패 승격 (status=failed /
@@ -639,6 +675,86 @@ class AuthRepository implements AnonymousSignIn {
     } finally {
       _socialLinkInProgress.end();
     }
+  }
+
+  /// iOS Limited Login 익명 승격 link 가 계정 충돌로 거부된 뒤 재시도
+  /// sign-in 을 수행한다 (debug ios-facebook-limited-login stage 2 — D6 A+B ·
+  /// D7 b).
+  ///
+  /// **왜 link 에 쓴 credential 을 다시 쓰지 않나:** Limited credential 은
+  /// idToken + rawNonce 가 묶인 OIDC credential 이고, Firebase 서버는 link 와
+  /// sign-in 을 별개 요청으로 보아 이미 쓴 nonce 를 거부한다
+  /// (`missing-or-invalid-nonce` — iOS 실기기 run-02 관측, firebase-ios-sdk
+  /// #4434 기여자 발언). 재시도 credential 은:
+  /// 1. [fb.FirebaseAuthException.credential] — 서버가 충돌 응답에 실어 준
+  ///    updatedCredential (pendingToken 기반, rawNonce 없음) 을 우선한다
+  ///    (D6 B).
+  /// 2. 없으면 [_facebookCredentialOf] 로 새 raw nonce 재로그인한다 (D6 A).
+  ///    iOS `email-already-in-use` 는 SDK 가 credential 을 붙이지 않으므로
+  ///    (`AuthBackend.swift:341-342`) 항상 이 경로라 Facebook 창이 한 번 더
+  ///    열린다.
+  ///
+  /// 두 경우 모두 **익명 삭제보다 먼저** 확보해, 두 번째 창 취소 · 로그인
+  /// 실패가 익명 계정을 지우지 않게 한다.
+  ///
+  /// **code 별 순서:**
+  /// - `email-already-in-use` (D7 b) — 익명을 지우지 않은 채 signIn 한다.
+  ///   Facebook 은 untrusted provider 라 같은 이메일 계정이 있으면 서버가
+  ///   account-exists 로 거부하고, 이 throw 는 currentUser 전환 전이라 익명
+  ///   caller 가 유지된다 → 상위 catch 의 `lookupSignInMethods` (request.auth
+  ///   필수) 가 인증을 통과해 AccountLinkingSheet 입력을 채운다. 삭제를 먼저
+  ///   하면 callable 이 unauthenticated 로 실패해 시트 대신 unknown-provider
+  ///   배너 + 로그아웃 + 익명 손실로 끝난다.
+  ///   **trade-off:** 재시도 signIn 이 성공하면 익명 계정을 삭제하지 않는다.
+  ///   plugin 의 delete 는 `currentUser` (= 방금 로그인한 Facebook 계정) 를
+  ///   지우므로 전환 뒤에는 익명 User 를 지울 수단이 없다 — 익명 사용자는
+  ///   Auth 원장에 고아로 남는다 (앱 입장의 데이터 손실 범위는 D-09 와 같음).
+  /// - `credential-already-in-use` — facebook.com 사용자가 이미 있어 그
+  ///   credential 로 로그인이 성공하는 경로라 기존 D-09 순서 (익명 삭제 →
+  ///   signIn) 를 유지한다 ([signInWithApple] updatedCredential 재사용 선례).
+  ///
+  /// 반환:
+  /// - [fb.UserCredential] — 재시도 sign-in 성공.
+  /// - `null` — 두 번째 Facebook 창에서 사용자 취소 (익명 보존, delete 0).
+  ///
+  /// Throws [fb.FirebaseAuthException] — 재시도 sign-in 거부 (상위 catch 가
+  /// 매핑). Throws [ServiceUnavailable] — 재로그인 실패
+  /// ([_facebookCredentialOf]).
+  Future<fb.UserCredential?> _signInAfterLimitedLinkConflict(
+    fb.FirebaseAuthException linkError,
+    fb.User anonymous,
+  ) async {
+    final updatedCredential = linkError.credential;
+    final isEmailConflict = linkError.code == 'email-already-in-use';
+    if (kDebugMode) {
+      // PII invariant: code 와 재사용 여부 bool 만 — email · credential 본문
+      // 비포함.
+      final action = isEmailConflict
+          ? '익명 유지 + 재시도 credential 로 로그인'
+          : '익명 계정 폐기 + 기존 Facebook 계정 로그인';
+      debugPrint(
+        'AuthRepository.signInWithFacebook: Limited ${linkError.code} '
+        '— $action (credential reuse: ${updatedCredential != null})',
+      );
+    }
+
+    // D6 A+B: 재시도 credential 을 삭제보다 먼저 확보한다.
+    final fb.AuthCredential retryCredential;
+    if (updatedCredential != null) {
+      retryCredential = updatedCredential;
+    } else {
+      final fresh = await _facebookCredentialOf();
+      if (fresh == null) return null; // 두 번째 창 취소 — 익명 보존
+      retryCredential = fresh.credential;
+    }
+
+    if (!isEmailConflict) {
+      // credential-already-in-use — D-09 순서 유지.
+      await _safeDelete(anonymous);
+    }
+    // email-already-in-use (D7 b) 는 익명을 유지한 채 signIn 한다. 성공해도
+    // 익명 삭제 금지 — 위 docstring trade-off 참조.
+    return _auth.signInWithCredential(retryCredential);
   }
 
   /// 충돌 시점에 보존된 native pending credential 을 실제 계정에 연결한다
@@ -775,15 +891,12 @@ class AuthRepository implements AnonymousSignIn {
         );
         return reauthResult.credential;
       case AccountProvider.facebook:
-        final loginResult = await _facebookAuth.login(
-          permissions: ['email', 'public_profile'],
-          loginTracking: LoginTracking.enabled,
-        );
-        // WR-02: 취소만 null (no-op), 실패는 ServiceUnavailable throw
-        // (호출부 on Object 가 Failure 로 흡수) — silent no-op 회피.
-        final accessToken = _facebookAccessTokenOf(loginResult);
-        if (accessToken == null) return null;
-        return fb.FacebookAuthProvider.credential(accessToken.tokenString);
+        // D1 A1: signIn · proactive link 와 같은 helper — iOS Limited Login
+        // 토큰도 OIDC credential 로 변환된다. WR-02: 취소만 null (no-op),
+        // 실패는 ServiceUnavailable throw (호출부 on Object 가 Failure 로
+        // 흡수) — silent no-op 회피.
+        final facebook = await _facebookCredentialOf();
+        return facebook?.credential;
       case AccountProvider.email:
       case AccountProvider.kakao:
       case AccountProvider.naver:
@@ -859,27 +972,22 @@ class AuthRepository implements AnonymousSignIn {
   /// 로그인된 사용자에게 Facebook 계정을 proactive 하게 연결한다
   /// (Phase 16 16-10 — proactive native link arm / SOCL-12 / UAT A6).
   ///
-  /// [FacebookAuth.login] (email + public_profile) 로 fresh credential 획득 후
+  /// [_facebookCredentialOf] (email + public_profile, 토큰 타입별 credential —
+  /// iOS Limited Login 은 OIDC) 로 fresh credential 획득 후
   /// `_auth.currentUser.linkWithCredential(facebookCredential)`. 사용자 취소
   /// (status != success) 또는 accessToken null 시 `null` 반환 (no-op).
   ///
   /// 흐름 / 반환 시맨틱은 [linkGoogleCredential] 참조 (native — callable 미호출).
   Future<Result<User>?> linkFacebookCredential() {
     return _runProactiveNativeLink(() async {
-      final loginResult = await _facebookAuth.login(
-        permissions: ['email', 'public_profile'],
-        loginTracking: LoginTracking.enabled,
-      );
-      // WR-02: 취소만 null (no-op), 실패는 ServiceUnavailable throw
-      // (래퍼 on Object 가 Failure 로 흡수) — silent no-op 회피.
-      final accessToken = _facebookAccessTokenOf(loginResult);
-      if (accessToken == null) return null;
-      final credential = fb.FacebookAuthProvider.credential(
-        accessToken.tokenString,
-      );
+      // D1 A1: 토큰 타입별 credential 변환 단일 진실원. WR-02: 취소만 null
+      // (no-op), 실패는 ServiceUnavailable throw (래퍼 on Object 가 Failure
+      // 로 흡수) — silent no-op 회피.
+      final facebook = await _facebookCredentialOf();
+      if (facebook == null) return null;
       final currentUser = _auth.currentUser;
       if (currentUser == null) return null;
-      return currentUser.linkWithCredential(credential);
+      return currentUser.linkWithCredential(facebook.credential);
     });
   }
 
@@ -2129,6 +2237,9 @@ class AuthRepository implements AnonymousSignIn {
   ///    사용자에게는 일시적 서비스 불가로 표시하되, 디버그 모드에서는
   ///    debugPrint로 코드를 출력하여 개발자가 즉시 인지하도록 한다.)
   /// - 그 외 → [ServiceUnavailable] (debugPrint로 코드 노출)
+  ///
+  /// native 소셜 3 경로 (Google · Apple · Facebook sign-in) 는
+  /// [_mapSocialAuthException] 을 거쳐 `invalid-credential` 만 분리한다.
   AppException _mapAuthException(fb.FirebaseAuthException e) {
     return switch (e.code) {
       'invalid-credential' ||
@@ -2152,6 +2263,50 @@ class AuthRepository implements AnonymousSignIn {
       'operation-not-allowed' => _logAndFallback(e),
       _ => _logAndFallback(e),
     };
+  }
+
+  /// native 소셜 로그인 (Google · Apple · Facebook) 의
+  /// [fb.FirebaseAuthException] 을 [AppException] 으로 매핑한다
+  /// (debug ios-facebook-limited-login — D2 B1).
+  ///
+  /// `invalid-credential` · `missing-or-invalid-nonce` 만 [UnknownException]
+  /// 으로 분리하고, 나머지 code 는 [_mapAuthException] 에 그대로 위임한다
+  /// (account-exists pendingCredential 보존 · network · too-many-requests 등
+  /// 동일).
+  ///
+  /// **왜 분리하나:** [_mapAuthException] 의 `invalid-credential` →
+  /// [InvalidCredentials] 는 email/password 경로의 Email Enumeration 방지
+  /// 통합 매핑 (D-18) 이다. 소셜 경로가 같은 arm 을 타면 사용자가 입력한 적
+  /// 없는 「이메일 또는 비밀번호가 올바르지 않습니다.」 가 표시된다 (iOS
+  /// Facebook Limited Login 실측). 소셜 `invalid-credential` 은 SDK 토큰을
+  /// Firebase 가 거부한 결정적 실패라 재입력 · 재시도로 풀리지 않으므로
+  /// IN-04 / WR-06 선례대로 [UnknownException] 이다.
+  ///
+  /// **`missing-or-invalid-nonce` 도 같은 arm (D10 a):** 서버가 요청의
+  /// nonce 를 거부한 것이다 (firebase-js-sdk errors.ts "The request does not
+  /// contain a valid nonce"). 앱이 요청마다 새 nonce 를 만들고 이미 제출한
+  /// credential 을 재사용하지 않는 한 도달하지 않으므로, 남는 원인은 해시 짝
+  /// 불일치 · credential 재사용 회귀 같은 결정적 클라이언트 결함이다.
+  /// 기본 폴백 [ServiceUnavailable] 의 「일시적」 문구는 매번 같은 실패로
+  /// 끝나는 재시도를 유도하므로 쓰지 않는다 (iOS 실기기 run-02 관측).
+  ///
+  /// 적용 범위는 signInWithGoogle · signInWithApple · signInWithFacebook 의
+  /// catch 3곳뿐이다. email 계열 · 익명 · Custom Token 4종 · reactive /
+  /// proactive link 매핑은 바꾸지 않는다.
+  AppException _mapSocialAuthException(fb.FirebaseAuthException e) {
+    if (e.code != 'invalid-credential' &&
+        e.code != 'missing-or-invalid-nonce') {
+      return _mapAuthException(e);
+    }
+    if (kDebugMode) {
+      // PII invariant: code 만 — e.message · e.email · e.credential 비포함.
+      // UnknownException 이 code 를 감추므로 판정 근거 1줄을 남긴다
+      // (_logAndFallback 의 code-only 형식 mirror).
+      debugPrint(
+        'AuthRepository: 소셜 로그인 거부 → UnknownException: code=${e.code}',
+      );
+    }
+    return UnknownException(cause: e);
   }
 
   /// Custom Token callable payload 에 `termsAcceptanceSnapshot` 을 add-only 로
@@ -2292,6 +2447,72 @@ class AuthRepository implements AnonymousSignIn {
       throw const ServiceUnavailable();
     }
     return accessToken;
+  }
+
+  /// Facebook 로그인 → Firebase [fb.AuthCredential] 변환 단일 진실원
+  /// (debug ios-facebook-limited-login — D1 A1).
+  ///
+  /// [signInWithFacebook] / [_reauthNativeCredential] / [linkFacebookCredential]
+  /// 3 호출 지점이 공유한다 (Google [_googleCredentialOf] WR-01 선례 — 곳마다
+  /// 복제하면 한 곳만 고쳐지는 구조가 된다, IN-05).
+  ///
+  /// **iOS Limited Login:** 앱이 [LoginTracking.enabled] 를 요청해도
+  /// flutter_facebook_auth 7.1.6 iOS 는 ATT 미허용이면 Limited Login 으로
+  /// 강제하고 (`FacebookAuth.swift:106-110`) [LimitedToken] (OIDC JWT) 을
+  /// 돌려준다. 이 JWT 를 access token 으로 넘기면 Firebase 가
+  /// `invalid-credential` 로 거부하므로 토큰 런타임 타입으로 분기한다:
+  /// - [LimitedToken] → `OAuthProvider('facebook.com').credential(idToken:
+  ///   JWT, rawNonce: 원문)` — Firebase iOS 문서 "use the ID token from
+  ///   Facebook's response with the unhashed nonce".
+  /// - [ClassicToken] → [fb.FacebookAuthProvider.credential] (Android 는 항상
+  ///   이 경로 — 플러그인 Android 소스에 Limited 분기 없음).
+  ///
+  /// **nonce:** 요청마다 [generateNonce] 로 raw nonce 를 새로 만들고, 로그인
+  /// 요청에는 [hashNonceSha256Hex] 값을 넘긴다 (문서 "send the SHA-256 hash
+  /// of the nonce with your sign-in request"). 플러그인은 nonce 를 해시하지
+  /// 않고 그대로 SDK 에 넘기며, 생략하면 해시가 아닌 UUID 를 자동 생성하므로
+  /// (`FacebookAuth.swift:111`) 반드시 앱이 넘긴다.
+  ///
+  /// 반환:
+  /// - `(credential, isLimited)` — 로그인 성공. `isLimited` 는 Graph API
+  ///   사용 가능 여부 판단 ([_setFacebookPhotoUrl] 생략, D4 Da) 에 쓴다.
+  /// - `null` — 사용자 취소 (D-09 silent no-op).
+  ///
+  /// Throws [ServiceUnavailable] — 취소가 아닌 로그인 실패
+  /// ([_facebookAccessTokenOf]) 또는 Classic / Limited 어느 쪽도 아닌 토큰
+  /// 타입 ([AccessToken] 은 sealed 가 아니다).
+  Future<({fb.AuthCredential credential, bool isLimited})?>
+  _facebookCredentialOf() async {
+    final rawNonce = generateNonce(byteLength: 32);
+    final loginResult = await _facebookAuth.login(
+      permissions: ['email', 'public_profile'],
+      loginTracking: LoginTracking.enabled,
+      nonce: hashNonceSha256Hex(rawNonce),
+    );
+    // WR-02: 취소만 null, 실패는 ServiceUnavailable throw.
+    final accessToken = _facebookAccessTokenOf(loginResult);
+    if (accessToken == null) return null;
+    if (kDebugMode) {
+      // D5 E1 — 실기기 재검증에서 수정 경로 (limited → oauth) 를 탔다는 인용
+      // 근거. 토큰 종류만 출력한다. tokenString · userId · email · nonce 는
+      // 보간 인자로도 넘기지 않는다 (PII invariant — 민감값을 애초에 로그
+      // 경로에 싣지 않음).
+      debugPrint('facebook login 토큰 진단: type=${accessToken.type.name}');
+    }
+    return switch (accessToken) {
+      LimitedToken(:final tokenString) => (
+        credential: fb.OAuthProvider(
+          fb.FacebookAuthProvider.PROVIDER_ID,
+        ).credential(idToken: tokenString, rawNonce: rawNonce),
+        isLimited: true,
+      ),
+      ClassicToken(:final tokenString) => (
+        credential: fb.FacebookAuthProvider.credential(tokenString),
+        isLimited: false,
+      ),
+      // 형태를 모르는 토큰으로 Firebase 를 호출하지 않고 실패로 승격한다.
+      _ => throw const ServiceUnavailable(),
+    };
   }
 
   /// Google [GoogleSignInAccount] → Firebase [fb.AuthCredential] 변환 단일

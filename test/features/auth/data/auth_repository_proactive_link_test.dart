@@ -41,6 +41,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:flutter_starter_kit/core/auth/nonce.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
@@ -49,6 +50,8 @@ import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
+
+import 'auth_test_fakes.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -68,8 +71,6 @@ class _MockGoogleSignInAuthentication extends Mock
 class _MockFacebookAuth extends Mock implements FacebookAuth {}
 
 class _MockLoginResult extends Mock implements LoginResult {}
-
-class _MockAccessToken extends Mock implements AccessToken {}
 
 class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
 
@@ -168,16 +169,21 @@ void main() {
   /// Facebook SDK fresh credential 획득 stub.
   void stubFacebookFresh() {
     final mockLoginResult = _MockLoginResult();
-    final mockAccessToken = _MockAccessToken();
     when(
       () => mockFacebookAuth.login(
         permissions: any(named: 'permissions'),
         loginTracking: any(named: 'loginTracking'),
+        // mocktail 은 생략된 named 인자를 기본값 (null) 으로 매칭한다 — 실제
+        // 호출은 SHA-256 nonce 를 넘기므로 matcher 가 필요하다.
+        nonce: any(named: 'nonce'),
       ),
     ).thenAnswer((_) async => mockLoginResult);
     when(() => mockLoginResult.status).thenReturn(LoginStatus.success);
-    when(() => mockLoginResult.accessToken).thenReturn(mockAccessToken);
-    when(() => mockAccessToken.tokenString).thenReturn('fb-access-token');
+    // 실 플러그인 타입 (ClassicToken) — `implements AccessToken` mock 은
+    // Classic / Limited 어느 분기에도 속하지 않는 가짜 타입이라 제거했다.
+    when(
+      () => mockLoginResult.accessToken,
+    ).thenReturn(FakeClassicToken(tokenString: 'fb-access-token'));
   }
 
   group('T1 — linkGoogleCredential (native, callable 미호출)', () {
@@ -423,4 +429,66 @@ void main() {
       },
     );
   });
+
+  group(
+    'T11 — Limited Login (iOS) linkFacebookCredential (debug ios-facebook-limited-login)',
+    () {
+      // 기대값 앵커: firebase_auth_platform_interface 8.1.8
+      // `lib/src/providers/oauth.dart:52-67` (signInMethod 'oauth' · idToken ·
+      // rawNonce 그대로) + Firebase iOS 문서 "send the SHA-256 hash of the
+      // nonce" / "with the unhashed nonce". 토큰은 플러그인 실 타입
+      // (buildLimitedToken). Firebase 서버의 OIDC 수락은 단위 테스트 범위 밖
+      // — iOS 실기기 R_09_T4 가 계약 테스트다.
+      test(
+        'LimitedToken → linkWithCredential(OIDC credential) + login nonce = SHA-256 hex(rawNonce)',
+        () async {
+          when(
+            () => mockFacebookAuth.login(
+              permissions: any(named: 'permissions'),
+              loginTracking: any(named: 'loginTracking'),
+              loginBehavior: any(named: 'loginBehavior'),
+              nonce: any(named: 'nonce'),
+            ),
+          ).thenAnswer(
+            (_) async => LoginResult(
+              status: LoginStatus.success,
+              accessToken: buildLimitedToken(tokenString: 'limited-oidc-jwt'),
+            ),
+          );
+          when(
+            () => mockCurrentUser.linkWithCredential(any()),
+          ).thenAnswer((_) async => mockLinkResult);
+
+          final result = await repository.linkFacebookCredential();
+
+          expect(result, isA<Success<dynamic>>());
+          final Object? linked = verify(
+            () => mockCurrentUser.linkWithCredential(captureAny()),
+          ).captured.single;
+          if (linked is! fb.OAuthCredential) {
+            fail('linkWithCredential 인자가 OAuthCredential 이 아님: $linked');
+          }
+          expect(linked.providerId, 'facebook.com');
+          expect(linked.signInMethod, 'oauth');
+          expect(linked.idToken, 'limited-oidc-jwt');
+          expect(linked.accessToken, isNull);
+
+          final Object? requestNonce = verify(
+            () => mockFacebookAuth.login(
+              permissions: any(named: 'permissions'),
+              loginTracking: any(named: 'loginTracking'),
+              loginBehavior: any(named: 'loginBehavior'),
+              nonce: captureAny(named: 'nonce'),
+            ),
+          ).captured.single;
+          final rawNonce = linked.rawNonce;
+          if (requestNonce is! String || rawNonce == null) {
+            fail('nonce 캡처 실패 — login nonce 또는 rawNonce 가 비어 있음');
+          }
+          expect(requestNonce, hashNonceSha256Hex(rawNonce));
+          expect(requestNonce, isNot(rawNonce));
+        },
+      );
+    },
+  );
 }

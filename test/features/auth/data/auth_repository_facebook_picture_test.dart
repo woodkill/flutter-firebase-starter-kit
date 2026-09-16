@@ -373,5 +373,41 @@ void main() {
         ),
       ).called(1);
     });
+
+    // -----------------------------------------------------------------
+    // F10 (debug ios-facebook-limited-login — D4 Da): iOS Limited Login 은
+    // Graph API 를 쓸 수 없다 (Facebook 공식 verbatim: "The ID token cannot
+    // be used to request additional data using the Graph API"). LimitedToken
+    // 이면 실패가 확정된 getUserData 왕복을 race-fix 창에서 생략한다.
+    // 토큰은 플러그인 실 타입 (buildLimitedToken).
+    // -----------------------------------------------------------------
+
+    test('F10 (Limited Login): LimitedToken 이면 getUserData · updatePhotoURL '
+        '미호출 + 로그인 success', () async {
+      when(
+        () => mockFacebookAuth.login(
+          permissions: any(named: 'permissions'),
+          loginTracking: any(named: 'loginTracking'),
+          loginBehavior: any(named: 'loginBehavior'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenAnswer(
+        (_) async => LoginResult(
+          status: LoginStatus.success,
+          accessToken: buildLimitedToken(tokenString: 'limited-oidc-jwt'),
+        ),
+      );
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Success<dynamic>>());
+      verifyNever(
+        () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+      );
+      verifyNever(() => mockUser.updatePhotoURL(any()));
+    });
   });
 }

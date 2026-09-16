@@ -23,3 +23,30 @@ class FakeClassicToken extends Fake implements ClassicToken {
   @override
   AccessTokenType get type => AccessTokenType.classic;
 }
+
+/// iOS Limited Login 이 돌려주는 실 [LimitedToken] 픽스처를 만든다.
+///
+/// 가짜 타입 (`implements AccessToken` — Classic / Limited 어느 쪽도 아님)
+/// 대신 플러그인의 실 타입과 실 `fromJson` 경로를 쓴다. 맵 키는 플러그인
+/// 소스와 글자 그대로 같다:
+/// - flutter_facebook_auth 7.1.6 `ios/Classes/FacebookAuth.swift:212-219` —
+///   `isLimitedLogin` 이면 `type: "limited"` · `userId` · `userEmail` ·
+///   `userName` · `token` (AuthenticationToken 의 OIDC JWT) · `nonce` 를
+///   채운다.
+/// - flutter_facebook_auth_platform_interface 6.1.2
+///   `lib/src/facebook_auth_implementation.dart:43` — `type == 'limited'`
+///   이면 `LimitedToken.fromJson` (`lib/src/access_token.dart:33-41`).
+///
+/// [tokenString] 은 `token` 키 (OIDC JWT 자리) 에 들어간다. `nonce` 는
+/// 플러그인이 되돌려주는 값을 흉내낼 뿐이며, 테스트는 이 값을 단언에 쓰지
+/// 않는다 (mock 이 돌려준 값을 다시 검증하는 자기참조 차단).
+LimitedToken buildLimitedToken({required String tokenString}) {
+  return LimitedToken.fromJson({
+    'type': 'limited',
+    'userId': 'limited-user-id-fixture',
+    'userEmail': 'limited-fixture@example.com',
+    'userName': 'Limited Fixture',
+    'token': tokenString,
+    'nonce': 'plugin-echoed-nonce-fixture',
+  });
+}

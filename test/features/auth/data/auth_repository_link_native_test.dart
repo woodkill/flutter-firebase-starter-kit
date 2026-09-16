@@ -32,6 +32,8 @@ import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
+import 'auth_test_fakes.dart';
+
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockUserCredential extends Mock implements fb.UserCredential {}
@@ -271,6 +273,62 @@ void main() {
       expect(result, isNull);
       verifyNever(() => mockCurrentUser.linkWithCredential(any()));
     });
+  });
+
+  group('T4b — Facebook reauth arm (debug ios-facebook-limited-login)', () {
+    // `_reauthNativeCredential` Facebook arm 도 signIn · proactive link 와
+    // 같은 credential helper 를 쓴다. 재인증 credential 은 호출부에서 null
+    // 여부만 쓰이므로, 관찰 가능한 계약은 (1) login 요청에 SHA-256 소문자
+    // hex 64자 nonce 가 실린다 (Firebase iOS 문서 "send the SHA-256 hash of
+    // the nonce with your sign-in request") (2) Limited 토큰이어도 pending
+    // link 가 진행된다. 토큰은 플러그인 실 타입 (buildLimitedToken).
+    test(
+      'Limited Login 재인증 → login nonce = SHA-256 hex + pending link 진행',
+      () async {
+        when(
+          () => mockFacebookAuth.login(
+            permissions: any(named: 'permissions'),
+            loginTracking: any(named: 'loginTracking'),
+            loginBehavior: any(named: 'loginBehavior'),
+            nonce: any(named: 'nonce'),
+          ),
+        ).thenAnswer(
+          (_) async => LoginResult(
+            status: LoginStatus.success,
+            accessToken: buildLimitedToken(tokenString: 'limited-oidc-jwt'),
+          ),
+        );
+        when(() => mockAuth.currentUser).thenReturn(mockCurrentUser);
+        final pending = _FakePendingCredential();
+        when(
+          () => mockCurrentUser.linkWithCredential(any()),
+        ).thenAnswer((_) async => mockLinkResult);
+
+        final result = await repository.linkPendingNativeCredential(
+          existingProvider: AccountProvider.facebook,
+          pendingCredential: pending,
+        );
+
+        expect(result, isA<Success<dynamic>>());
+        final Object? requestNonce = verify(
+          () => mockFacebookAuth.login(
+            permissions: any(named: 'permissions'),
+            loginTracking: any(named: 'loginTracking'),
+            loginBehavior: any(named: 'loginBehavior'),
+            nonce: captureAny(named: 'nonce'),
+          ),
+        ).captured.single;
+        expect(
+          requestNonce,
+          isA<String>().having(
+            (n) => RegExp(r'^[0-9a-f]{64}$').hasMatch(n),
+            'SHA-256 소문자 hex 64자',
+            isTrue,
+          ),
+        );
+        verify(() => mockCurrentUser.linkWithCredential(pending)).called(1);
+      },
+    );
   });
 
   group('T5 — link 충돌 → AccountAlreadyLinked 매핑 (회귀 안전)', () {
