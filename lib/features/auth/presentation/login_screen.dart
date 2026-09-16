@@ -180,13 +180,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               // WR-08 — 소셜 OAuth 진행 중에는 null 을 넘겨 disabled 시각·
               // 시맨틱을 AuthInProgressOverlay 의 탭 차단과 일치시킨다.
               EmailAuthCta(
+                // 재인증 표시 전달 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE). GoRouterState
+                // 는 탭 시점에만 읽는다 — build 에서 읽으면 GoRouter 없이 pump
+                // 하는 화면 테스트가 GoError 로 깨진다.
                 onPressed: isSocialLoading
                     ? null
-                    : () => context.push(AppRoutes.emailLogin),
+                    : () => context.push(
+                        AppRoutes.forwardReauthMarker(
+                          AppRoutes.emailLogin,
+                          from: GoRouterState.of(context).uri,
+                        ),
+                      ),
               ),
               Gap(spacing.sm),
               TextButton(
-                onPressed: () => context.push(AppRoutes.signup),
+                onPressed: () => context.push(
+                  AppRoutes.forwardReauthMarker(
+                    AppRoutes.signup,
+                    from: GoRouterState.of(context).uri,
+                  ),
+                ),
                 child: Text(l10n.authLoginNoAccount),
               ),
             ],

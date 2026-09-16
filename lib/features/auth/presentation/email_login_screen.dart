@@ -172,12 +172,25 @@ class _EmailLoginScreenState extends ConsumerState<EmailLoginScreen> {
               ),
               Gap(spacing.md),
               TextButton(
-                onPressed: () => context.push(AppRoutes.forgotPassword),
+                // 재인증 표시 전달 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE). GoRouterState
+                // 는 탭 시점에만 읽는다 — build 에서 읽으면 GoRouter 없이 pump
+                // 하는 화면 테스트가 GoError 로 깨진다.
+                onPressed: () => context.push(
+                  AppRoutes.forwardReauthMarker(
+                    AppRoutes.forgotPassword,
+                    from: GoRouterState.of(context).uri,
+                  ),
+                ),
                 child: Text(l10n.authLoginForgotPassword),
               ),
               Gap(spacing.sm),
               TextButton(
-                onPressed: () => context.push(AppRoutes.signup),
+                onPressed: () => context.push(
+                  AppRoutes.forwardReauthMarker(
+                    AppRoutes.signup,
+                    from: GoRouterState.of(context).uri,
+                  ),
+                ),
                 child: Text(l10n.authLoginNoAccount),
               ),
             ],
