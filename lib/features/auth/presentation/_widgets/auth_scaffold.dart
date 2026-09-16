@@ -22,7 +22,14 @@ class AuthScaffold extends StatelessWidget {
   /// 화면 본문. 일반적으로 [Form] + [Column] 트리.
   final Widget child;
 
-  /// AppBar back 버튼 표시 여부. 기본값 false.
+  /// AppBar back 버튼을 허용할지 여부이며 기본값은 false 다.
+  ///
+  /// false 면 항상 표시하지 않는다. true 여도 현재 route 를 닫을 수 있을 때
+  /// (아래에 route 가 있는 push 진입)만 [AppBar] 가 [BackButton] 을 그린다.
+  /// go 루트 교체 · 딥링크 · 최초 진입에서는 자동으로 표시하지 않으므로, push 와
+  /// go 로 모두 열릴 수 있는 화면은 true 를 넘기면 된다. 예: 로그인 화면은 push
+  /// 진입에서만 표시한다 (R_EXTRA_G2_IOS_BACK_NAV). guard 가 관리해 뒤로가기를
+  /// 허용하지 않는 화면(이메일 검증)은 false 를 유지한다.
   final bool showBackButton;
 
   @override
