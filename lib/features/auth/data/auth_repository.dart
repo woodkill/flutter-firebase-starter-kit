@@ -442,13 +442,21 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// **Phase 10 D-14 / BLOCKER #4:** `_auth.currentUser` 가 익명 사용자라면
   /// [fb.User.linkWithProvider] 로 익명 UID 를 Apple 자격증명에 연결한다.
-  /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
-  /// [_safeDelete] 로 폐기하고, 1차 [fb.User.linkWithProvider] 가 던진
-  /// [fb.FirebaseAuthException.credential] 을 우선 재사용하여
-  /// [fb.FirebaseAuth.signInWithCredential] 한 번으로 종결한다 — Apple OAuth
-  /// 플로우(Android Custom Tab / iOS ASAuthorizationController 시트) 재진입을
-  /// 회피한다 (260503-ang quick). `e.credential == null` 인 보조 경로에서만
-  /// [fb.FirebaseAuth.signInWithProvider] fallback 으로 회귀를 방지한다.
+  /// link 오류 code 2종은 반대로 처리한다.
+  ///
+  /// - `credential-already-in-use`: 익명 계정을 [_safeDelete] 로 폐기하고,
+  ///   1차 [fb.User.linkWithProvider] 가 던진
+  ///   [fb.FirebaseAuthException.credential] 을 우선 재사용하여
+  ///   [fb.FirebaseAuth.signInWithCredential] 한 번으로 종결한다 — Apple OAuth
+  ///   플로우(Android Custom Tab / iOS ASAuthorizationController 시트) 재진입을
+  ///   회피한다 (260503-ang quick). `e.credential == null` 인 보조 경로에서만
+  ///   [fb.FirebaseAuth.signInWithProvider] fallback 으로 회귀를 방지한다.
+  /// - `email-already-in-use`: 새 로그인을 하지 않고 익명을 유지한 채
+  ///   [AccountExistsWithDifferentCredential] 을 반환한다. Apple 은 Firebase
+  ///   trusted provider 라 새 로그인이 같은 email 기존 계정으로의 자동 연결 +
+  ///   displayName · photoUrl 덮어쓰기가 되기 때문이다 (debug
+  ///   apple-email-merge-profile-loss). iOS 는 이 오류에 email 을 싣지 않아
+  ///   기존 provider 를 알 수 없으므로 unknown-provider 안내로 끝난다.
   ///
   /// **Blocker #2 — `_auth.currentUser` 재조회 제거:** linking / signIn 결과
   /// [fb.UserCredential.user] 를 직접 [_mapFirebaseUser] 에 전달하며,
@@ -479,40 +487,58 @@ class AuthRepository implements AnonymousSignIn {
         try {
           userCredential = await anonymous.linkWithProvider(provider);
         } on fb.FirebaseAuthException catch (e) {
-          if (e.code == 'credential-already-in-use' ||
-              e.code == 'email-already-in-use') {
-            // Quick 260503-ang: 1차 linkWithProvider 의 credential 을 보존해
-            // signInWithCredential 로 재사용한다. Apple OAuth Custom Tab(Android) /
-            // ASAuthorizationController 시트(iOS) 가 두 번 열리는 UX 결함 차단.
-            // e.credential 이 null 인 이론적 fallback 만 signInWithProvider 재호출.
-            final pendingCredential = e.credential;
-            // debug android-classic-anon-conflict — 삭제 시점을 link 오류 code 로
-            // 가른다 (Facebook Classic · Limited arm 과 같은 구분).
-            final isEmailConflict = e.code == 'email-already-in-use';
+          if (e.code == 'email-already-in-use') {
+            // debug apple-email-merge-profile-loss — 새 로그인 금지.
+            // Apple 은 Firebase trusted provider 라 여기서 signIn 하면 서버가
+            // 같은 email 의 기존 계정에 apple.com 을 자동 연결하면서
+            // displayName · photoUrl 을 IdP 응답값으로 덮어쓴다 (두 번째 인가라
+            // 이름 없음 · Apple 사진 없음 → 기존 프로필 소실). iOS SDK 는 이
+            // 오류에 credential · email 을 싣지 않아 signIn 은 Apple 창 재표시
+            // 까지 부른다. Phase 16 계정 연결 정책대로 account-exists 로 돌려
+            // 사용자가 기존 방식으로 로그인한 뒤 설정에서 연결하게 한다.
+            // 익명은 유지한다 — lookupSignInMethods 가 request.auth 를 요구한다.
             if (kDebugMode) {
+              // PII invariant: code 와 bool 만 (e.email · credential 본문 비포함).
               debugPrint(
-                'AuthRepository.signInWithApple: ${e.code} '
-                '${isEmailConflict ? '— 익명 유지 + 기존 계정 로그인' : '— 익명 계정 폐기 + 기존 Apple 계정 로그인'} '
-                '(credential reuse: ${pendingCredential != null})',
+                'AuthRepository.signInWithApple: email-already-in-use — '
+                '익명 유지 + 자동 합류 차단 '
+                '(hasEmail: ${e.email?.isNotEmpty ?? false}, '
+                'hasCredential: ${e.credential != null})',
               );
             }
-            if (!isEmailConflict) {
-              // credential-already-in-use — apple.com 사용자가 이미 있어 그
-              // credential signIn 이 성공한다. D-09 순서 유지 (SLP-8a).
-              await _safeDelete(anonymous);
-            }
-            // email-already-in-use 는 익명을 유지한 채 signIn 한다 — 삭제를
-            //먼저 하면 lookupSignInMethods 가 unauthenticated 로 실패해
-            // AccountLinkingSheet 대신 unknown-provider 배너 + 익명 손실이 된다.
-            if (pendingCredential != null) {
-              userCredential = await _auth.signInWithCredential(
-                pendingCredential,
-              );
-            } else {
-              userCredential = await _auth.signInWithProvider(provider);
-            }
-          } else {
+            // pendingCredential 은 넘기지 않는다 — Apple credential 은 요청
+            // 1회용 nonce 에 묶여 있어 나중에 재제출할 수 없다.
+            return Result.failure(
+              await _enrichAccountExistsAsync(
+                AccountExistsWithDifferentCredential(email: e.email, cause: e),
+              ),
+            );
+          }
+          if (e.code != 'credential-already-in-use') {
             rethrow;
+          }
+          // Quick 260503-ang: 1차 linkWithProvider 의 credential 을 보존해
+          // signInWithCredential 로 재사용한다. Apple OAuth Custom Tab(Android) /
+          // ASAuthorizationController 시트(iOS) 가 두 번 열리는 UX 결함 차단.
+          // e.credential 이 null 인 이론적 fallback 만 signInWithProvider 재호출.
+          // credential-already-in-use 는 이 Apple 계정이 이미 연결된 사용자가
+          // 있어 로그인이 provider 일치 분기로 끝난다 (email 합류 분기 아님).
+          final pendingCredential = e.credential;
+          if (kDebugMode) {
+            debugPrint(
+              'AuthRepository.signInWithApple: ${e.code} '
+              '— 익명 계정 폐기 + 기존 Apple 계정 로그인 '
+              '(credential reuse: ${pendingCredential != null})',
+            );
+          }
+          // D-09 순서 유지 (SLP-8a).
+          await _safeDelete(anonymous);
+          if (pendingCredential != null) {
+            userCredential = await _auth.signInWithCredential(
+              pendingCredential,
+            );
+          } else {
+            userCredential = await _auth.signInWithProvider(provider);
           }
         }
       } else {

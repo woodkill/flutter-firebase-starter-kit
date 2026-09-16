@@ -1864,39 +1864,40 @@ void main() {
       verifyNever(() => mockSocialLinkInProgress.end());
     });
 
+    /// debug apple-email-merge-profile-loss — Apple 은 SLP-10(Google) 과 계약이
+    /// 다르다. Apple 은 항상 trusted provider 라 email arm 의 새 로그인이 서버
+    /// 거부(account-exists)가 아니라 기존 계정 자동 연결 + 프로필 덮어쓰기로
+    /// 끝난다. fixture 는 iOS SDK 실측(EMAIL_EXISTS → credential · email 없음)
+    /// 이다. 상세 fixture · enrichment · 로그 계약은
+    /// auth_repository_apple_email_conflict_test.dart 가 고정한다.
     test(
-      'Test SLP-11: signInWithApple email-already-in-use — 익명 유지 signIn. '
-      'delete 0 · signInWithProvider 0 · begin → signInWithCredential → end',
+      'Test SLP-11: signInWithApple email-already-in-use — 새 로그인 0 · delete 0 '
+      '· account-exists Failure. begin → end',
       () async {
         final mockAnonymous = _MockFbUser();
         when(() => mockAnonymous.isAnonymous).thenReturn(true);
         when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
 
-        final reusedCredential = _FakeAuthCredential();
-        when(() => mockAnonymous.linkWithProvider(any())).thenThrow(
-          fb.FirebaseAuthException(
-            code: 'email-already-in-use',
-            credential: reusedCredential,
-          ),
-        );
-        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
         when(
-          () => mockAuth.signInWithCredential(any()),
-        ).thenAnswer((_) async => mockCredential);
+          () => mockAnonymous.linkWithProvider(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: 'email-already-in-use'));
+        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
 
         final result = await repository.signInWithApple();
 
-        expect(result, isA<Success<User>>());
+        expect(result, isA<Failure<User>>());
+        expect(
+          (result! as Failure<User>).exception,
+          isA<AccountExistsWithDifferentCredential>(),
+        );
         verifyInOrder([
           () => mockSocialLinkInProgress.begin(),
-          () => mockAuth.signInWithCredential(any()),
           () => mockSocialLinkInProgress.end(),
         ]);
-        // 핵심 회귀 가드 — 익명 삭제 0회 + OAuth 재진입 0회.
-        verifyNever(() => mockAnonymous.delete());
+        // 핵심 회귀 가드 — 자동 합류 방아쇠(새 로그인) 0회 + 익명 삭제 0회.
         verifyNever(() => mockAuth.signInWithProvider(any()));
-        verifyNever(() => mockSocialLinkInProgress.begin());
-        verifyNever(() => mockSocialLinkInProgress.end());
+        verifyNever(() => mockAuth.signInWithCredential(any()));
+        verifyNever(() => mockAnonymous.delete());
       },
     );
   });
