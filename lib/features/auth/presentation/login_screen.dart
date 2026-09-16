@@ -4,12 +4,15 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_strategies_registry.dart';
+import '../../../core/auth/auth_strategy.dart';
+import '../../../core/auth/provider_id.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart'
     hide googleSignInProvider;
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../data/auth_repository.dart' show currentUserProvider;
 import '_helpers/social_provider_resolver.dart';
 import '_widgets/account_linking_sheet.dart';
 import '_widgets/auth_in_progress_overlay.dart';
@@ -18,6 +21,7 @@ import '_widgets/email_auth_cta.dart';
 import '_widgets/form_error_banner.dart';
 import '_widgets/social_sign_in_section.dart';
 import 'login_notifier.dart';
+import 'reauth_notifier.dart';
 
 /// 소셜 provider chooser 화면 (Phase 16.1 Surface A).
 ///
@@ -35,9 +39,18 @@ import 'login_notifier.dart';
 /// 실패 시 [FormErrorBanner] 에 inline 으로 표시하고, 이메일 충돌
 /// ([AccountExistsWithDifferentCredential]) 은 [AccountLinkingSheet] 로
 /// 안내한다 (Phase 16 16-19 2단계 reactive 플로우).
+///
+/// **재인증 모드 ([isReauth]):** 설정(탈퇴 · 계정 연결)이 `/login?reauth=1` 로
+/// push 하면 라우터가 `isReauth: true` 로 만든다. 이때는 일반 로그인 대신
+/// 현재 계정 재인증 전용 화면을 그린다 (debug reauth-login-auto-merge, 사용자
+/// sign-off Q1~Q7) — 연결된 provider 만 노출하고 `AuthRepository.reauthenticate`
+/// 를 호출하며, 가입 링크는 없고, 성공 시 설정으로 돌아가 SnackBar 를 띄운다.
 class LoginScreen extends ConsumerStatefulWidget {
   /// [LoginScreen] 을 생성한다.
-  const LoginScreen({super.key});
+  const LoginScreen({this.isReauth = false, super.key});
+
+  /// 재인증 모드 여부 — 라우터가 `/login?reauth=1` 표시로 결정한다.
+  final bool isReauth;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -75,6 +88,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 재인증 모드는 일반 로그인 listener 를 등록하지 않는다 — 같은 route
+    // 인스턴스 안에서 isReauth 는 바뀌지 않으므로 조건부 등록이 안전하다.
+    if (widget.isReauth) return const _ReauthChooser();
     final l10n = context.l10n;
     final spacing = context.appSpacing;
     // 소셜 OAuth 진행 (Phase 11-04 hotfix UX gap): 외부 인증 복귀 후
@@ -206,6 +222,144 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 child: Text(l10n.authLoginNoAccount),
               ),
+            ],
+          ),
+        ),
+        if (isSocialLoading) const AuthInProgressOverlay(),
+      ],
+    );
+  }
+}
+
+/// 재인증 모드 선택 화면 (debug reauth-login-auto-merge).
+///
+/// 사용자 sign-off 된 렌더(Q1~Q7)의 구조를 그대로 따른다 — 제목 · 안내 문구 ·
+/// 현재 계정에 연결된 소셜 버튼 · (비밀번호 연결 시) divider + 「이메일로
+/// 계속」. 가입 링크는 없다 (새 계정 생성 = 다른 계정 전환).
+///
+/// - 버튼 탭 → [SocialReauthNotifier] → `AuthRepository.reauthenticate`.
+/// - 성공 → SnackBar(`authReauthSucceeded`) + 이전 화면(설정)으로 pop (Q6).
+///   SnackBar 는 root [ScaffoldMessenger] 에 띄우므로 pop 뒤 설정 화면에 남는다.
+/// - 취소 → 이동 없음. 실패 → 인라인 [FormErrorBanner] (다른 계정 = Q2 문구).
+/// - 쓸 수 있는 수단 0 → [ReauthMethodUnavailable] 배너 (Q7). 연결 안 된
+///   provider 를 대안으로 노출하지 않는다.
+///
+/// 오류가 없을 때 배너 자리를 `null` 로 넘겨 (빈 [FormErrorBanner] 대신)
+/// 승인 렌더와 같은 간격을 유지한다.
+class _ReauthChooser extends ConsumerStatefulWidget {
+  const _ReauthChooser();
+
+  @override
+  ConsumerState<_ReauthChooser> createState() => _ReauthChooserState();
+}
+
+class _ReauthChooserState extends ConsumerState<_ReauthChooser> {
+  /// 마지막 소셜 재인증 실패. 새 시도가 시작되면 비운다.
+  AppException? _error;
+
+  void _onStrategyPressed(AuthStrategy strategy) {
+    final provider = AccountProvider.tryParse(strategy.providerId);
+    if (provider == null) return;
+    ref.read(socialReauthProvider.notifier).reauthenticate(provider);
+  }
+
+  /// 비밀번호 재인증 화면을 열고, 성공(`true`) 으로 돌아오면 완료 처리한다.
+  ///
+  /// 이메일 화면이 직접 설정까지 pop 하지 않는 이유: 선택 화면이 완료 처리
+  /// (SnackBar + pop) 단일 지점이어야 두 화면이 같은 성공 신호로 이중 이동하지
+  /// 않는다.
+  Future<void> _openPasswordReauth() async {
+    final isReauthenticated = await context.push<bool>(
+      AppRoutes.buildReauthLocation(AppRoutes.emailLogin),
+    );
+    if (!mounted || isReauthenticated != true) return;
+    _completeReauth();
+  }
+
+  /// 재인증 완료 — SnackBar 후 재인증을 요청한 화면으로 돌아간다 (Q6).
+  void _completeReauth() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.l10n.authReauthSucceeded)));
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop(true);
+    } else {
+      // 딥링크 등으로 루트에서 열린 예외 경로 — 돌아갈 화면이 없다.
+      context.go(AppRoutes.home);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final spacing = context.appSpacing;
+    final methods = resolveReauthMethods(
+      ref.watch(currentUserProvider),
+      ref.watch(activeStrategiesProvider),
+    );
+    final isSocialLoading = ref.watch(socialReauthProvider).isLoading;
+    // 이메일 화면은 본 화면 위에 push 되므로, 제출 중 뒤로 와도 소셜 버튼이
+    // 잠겨 있어야 한다 (일반 로그인 WR-01 교차 잠금과 같은 이유).
+    final isPasswordSubmitting = ref.watch(passwordReauthProvider).isLoading;
+
+    ref.listen<AsyncValue<bool>>(socialReauthProvider, (previous, next) {
+      if (next is AsyncLoading) {
+        if (mounted && _error != null) setState(() => _error = null);
+        return;
+      }
+      if (previous is AsyncLoading && next is AsyncData<bool>) {
+        if (!mounted) return;
+        if (next.value) _completeReauth();
+        return;
+      }
+      if (next is AsyncError) {
+        if (!mounted) return;
+        final err = next.error;
+        setState(() {
+          _error = err is AppException ? err : ServiceUnavailable(cause: err);
+        });
+      }
+    });
+
+    final hasAnyMethod = methods.strategies.isNotEmpty || methods.hasPassword;
+    final bannerException = hasAnyMethod
+        ? _error
+        : const ReauthMethodUnavailable();
+    final banner = bannerException == null
+        ? null
+        : FormErrorBanner(exception: bannerException);
+
+    return Stack(
+      children: <Widget>[
+        AuthScaffold(
+          title: l10n.authReauthTitle,
+          showBackButton: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Gap(spacing.xxl),
+              Text(
+                l10n.authReauthGuide,
+                style: context.appTypography.bodyMedium.copyWith(
+                  color: context.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Gap(spacing.lg),
+              if (methods.strategies.isNotEmpty)
+                SocialSignInSection(
+                  isFormLoading: isSocialLoading || isPasswordSubmitting,
+                  errorBanner: banner,
+                  showOrDivider: methods.hasPassword,
+                  strategies: methods.strategies,
+                  onStrategyPressed: _onStrategyPressed,
+                )
+              else
+                ?banner,
+              if (methods.hasPassword)
+                EmailAuthCta(
+                  onPressed: isSocialLoading ? null : _openPasswordReauth,
+                ),
             ],
           ),
         ),

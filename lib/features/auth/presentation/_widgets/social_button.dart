@@ -51,6 +51,7 @@ class SocialButton extends ConsumerWidget {
   const SocialButton({
     required this.strategy,
     required this.isDisabled,
+    this.onPressed,
     super.key,
   });
 
@@ -64,15 +65,26 @@ class SocialButton extends ConsumerWidget {
   /// 분기도 [BrandedSocialButton.facebook] 위임 일관).
   final bool isDisabled;
 
+  /// 탭 동작 대체. null 이면 [AuthStrategy.signIn] (일반 로그인) 에 위임한다.
+  ///
+  /// 재인증 모드 로그인 화면이 새 로그인 대신 현재 계정 재인증을 호출하려고
+  /// 넘긴다 (debug reauth-login-auto-merge). 외관은 바뀌지 않는다.
+  final ValueChanged<AuthStrategy>? onPressed;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final label = _resolveLabel(l10n, strategy.labelKey);
+    final pressedOverride = this.onPressed;
     final onPressed = isDisabled
         ? null
         : () {
             FocusManager.instance.primaryFocus?.unfocus();
-            strategy.signIn(ref);
+            if (pressedOverride != null) {
+              pressedOverride(strategy);
+            } else {
+              strategy.signIn(ref);
+            }
           };
 
     // Phase 13.3 — see ROADMAP.md (R6 caller-side breaking change —

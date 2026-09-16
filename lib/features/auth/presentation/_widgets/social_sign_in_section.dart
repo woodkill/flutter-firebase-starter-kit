@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
 import '../../../../core/auth/auth_strategies_registry.dart';
+import '../../../../core/auth/auth_strategy.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../_helpers/social_provider_resolver.dart';
 import 'or_divider.dart';
@@ -32,6 +33,8 @@ class SocialSignInSection extends ConsumerWidget {
     required this.isFormLoading,
     this.errorBanner,
     this.showOrDivider = true,
+    this.strategies,
+    this.onStrategyPressed,
     super.key,
   });
 
@@ -59,6 +62,17 @@ class SocialSignInSection extends ConsumerWidget {
   ///   Bottom Sheet에서 사용 (뒤에 "이메일로 계속" CTA 가 이어짐).
   final bool showOrDivider;
 
+  /// 렌더할 Strategy 목록 대체. null 이면 [activeStrategiesProvider] 전체.
+  ///
+  /// 재인증 모드 로그인 화면이 현재 계정에 연결된 provider 만 넘긴다
+  /// (debug reauth-login-auto-merge) — 연결 안 된 provider 버튼은 다른 계정
+  /// 전환 · 무동의 연결의 입구가 된다.
+  final List<AuthStrategy>? strategies;
+
+  /// 버튼 탭 동작 대체 — [SocialButton.onPressed] 로 전달한다. null 이면 일반
+  /// 로그인 ([AuthStrategy.signIn]).
+  final ValueChanged<AuthStrategy>? onStrategyPressed;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final spacing = context.appSpacing;
@@ -74,13 +88,16 @@ class SocialSignInSection extends ConsumerWidget {
     final isAnySocialLoading = watchAnySocialSignInLoading(ref);
     final isAnyLoading = isFormLoading || isAnySocialLoading;
 
-    // 활성화된 Strategy 만 — 정적 config + RC overlay 합산 (D-26).
-    final strategies = ref.watch(activeStrategiesProvider);
+    // 활성화된 Strategy 만 — 정적 config + RC overlay 합산 (D-26). 재인증
+    // 모드는 호출부가 그 부분집합을 넘긴다.
+    // 명시 타입 — `??` 우변 ref.watch 가 좌변 nullable 문맥으로 추론되지 않게.
+    final List<AuthStrategy> visibleStrategies =
+        strategies ?? ref.watch(activeStrategiesProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        for (var i = 0; i < strategies.length; i++) ...[
+        for (var i = 0; i < visibleStrategies.length; i++) ...[
           if (i > 0) Gap(spacing.sm),
           // IN-05 (Phase 09 review): 동적 목록이므로 Key 필수.
           // [activeStrategiesProvider] 는 Remote Config kill switch 에 따라
@@ -102,9 +119,10 @@ class SocialSignInSection extends ConsumerWidget {
           // 그대로 차단**되며(원소 제거 시 뒤쪽 버튼은 재사용 대신 새로
           // 생성된다), 위치가 그대로인 버튼은 자기 상태를 유지한다.
           SocialButton(
-            key: ValueKey<String>('${strategies[i].providerId}#$i'),
-            strategy: strategies[i],
+            key: ValueKey<String>('${visibleStrategies[i].providerId}#$i'),
+            strategy: visibleStrategies[i],
             isDisabled: isAnyLoading,
+            onPressed: onStrategyPressed,
           ),
         ],
         if (errorBanner != null) ...[Gap(spacing.md), errorBanner!],

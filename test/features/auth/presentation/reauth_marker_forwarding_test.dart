@@ -4,6 +4,11 @@
 // 비밀번호 찾기로 이어 push 할 때 표시를 전달하는지 검증한다. 표시가 끊기면
 // 실제 앱에서 다음 화면이 guard 분기 (6) 에서 홈으로 튕긴다.
 //
+// debug reauth-login-auto-merge (2026-09-17): 라우터가 표시로 화면을 재인증
+// 모드로 만들므로 harness builder 도 production 과 같이 표시를 넘긴다. 재인증
+// 모드에는 가입 링크가 없다 (새 계정 생성 = 다른 계정 전환 — 사용자 sign-off
+// 렌더) — F-2 · F-4 는 전달 대신 "링크 없음" 을 잠근다.
+//
 // guard 는 일부러 연결하지 않는다 — 순수 전달 동작만 본다. guard 쪽 push 평가는
 // test/core/router/auth_guard_test.dart 의 GoRouter push end-to-end group 이
 // 담당한다. 단언은 guard 와 같은 판정 함수(AppRoutes.hasReauthMarker)로 해서
@@ -23,6 +28,7 @@ import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_auth_cta.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
@@ -59,13 +65,16 @@ Future<GoRouter> _pumpRouter(WidgetTester tester) async {
         path: AppRoutes.home,
         builder: (context, state) => const Scaffold(body: Text(_homeText)),
       ),
+      // production app_router 와 같은 builder — 표시가 화면 모드를 정한다.
       GoRoute(
         path: AppRoutes.login,
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) =>
+            LoginScreen(isReauth: AppRoutes.hasReauthMarker(state.uri)),
       ),
       GoRoute(
         path: AppRoutes.emailLogin,
-        builder: (context, state) => const EmailLoginScreen(),
+        builder: (context, state) =>
+            EmailLoginScreen(isReauth: AppRoutes.hasReauthMarker(state.uri)),
       ),
       GoRoute(
         path: AppRoutes.signup,
@@ -91,6 +100,17 @@ Future<GoRouter> _pumpRouter(WidgetTester tester) async {
           AppleAuthStrategy(),
           FacebookAuthStrategy(),
         ]),
+        // 재인증 모드 선택 화면이 「이메일로 계속」 을 그리려면 비밀번호가
+        // 연결된 정식 사용자여야 한다.
+        currentUserProvider.overrideWith(
+          (ref) => User(
+            uid: 'reauth-forwarding-uid',
+            email: 'forwarding@example.com',
+            emailVerified: true,
+            createdAt: DateTime.utc(2026, 1, 1),
+            providerIds: const <String>['google.com', 'password'],
+          ),
+        ),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -154,7 +174,7 @@ void main() {
       );
     });
 
-    testWidgets('F-2: 재인증 로그인 화면의 가입 링크는 표시를 전달한다', (tester) async {
+    testWidgets('F-2: 재인증 로그인 화면에는 가입 링크가 없다', (tester) async {
       final router = await _pumpRouter(tester);
       await _pushLocation(
         tester,
@@ -163,20 +183,10 @@ void main() {
       );
       final l10n = _readL10n(tester, LoginScreen);
 
-      await _tapVisible(
-        tester,
+      expect(
         find.widgetWithText(TextButton, l10n.authLoginNoAccount),
-      );
-
-      expect(
-        router.state.matchedLocation,
-        AppRoutes.signup,
-        reason: '가입 링크는 가입 화면으로 push 한다',
-      );
-      expect(
-        AppRoutes.hasReauthMarker(router.state.uri),
-        isTrue,
-        reason: '재인증 흐름의 다음 화면도 guard 분기 (6) 예외를 받아야 한다',
+        findsNothing,
+        reason: '재인증 중 새 계정 생성은 다른 계정으로의 세션 전환이다',
       );
     });
 
@@ -206,7 +216,7 @@ void main() {
       );
     });
 
-    testWidgets('F-4: 재인증 이메일 로그인 화면의 가입 링크는 표시를 전달한다', (tester) async {
+    testWidgets('F-4: 재인증 이메일 로그인 화면에는 가입 링크가 없다', (tester) async {
       final router = await _pumpRouter(tester);
       await _pushLocation(
         tester,
@@ -215,20 +225,10 @@ void main() {
       );
       final l10n = _readL10n(tester, EmailLoginScreen);
 
-      await _tapVisible(
-        tester,
+      expect(
         find.widgetWithText(TextButton, l10n.authLoginNoAccount),
-      );
-
-      expect(
-        router.state.matchedLocation,
-        AppRoutes.signup,
-        reason: '가입 링크는 가입 화면으로 push 한다',
-      );
-      expect(
-        AppRoutes.hasReauthMarker(router.state.uri),
-        isTrue,
-        reason: '재인증 흐름의 다음 화면도 guard 분기 (6) 예외를 받아야 한다',
+        findsNothing,
+        reason: '재인증 중 새 계정 생성은 다른 계정으로의 세션 전환이다',
       );
     });
 

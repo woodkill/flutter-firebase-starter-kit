@@ -105,13 +105,17 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.login,
         name: AppRoutes.loginName,
-        builder: (context, state) => const LoginScreen(),
+        // 재인증 표시는 guard 뿐 아니라 화면 모드도 결정한다
+        // (debug reauth-login-auto-merge — 표시가 있으면 현재 계정 재인증 화면).
+        builder: (context, state) =>
+            LoginScreen(isReauth: AppRoutes.hasReauthMarker(state.uri)),
       ),
       // Phase 16.1 D-01 — 이메일 form 전용 진입 path (최상위 형제 route).
       GoRoute(
         path: AppRoutes.emailLogin,
         name: AppRoutes.emailLoginName,
-        builder: (context, state) => const EmailLoginScreen(),
+        builder: (context, state) =>
+            EmailLoginScreen(isReauth: AppRoutes.hasReauthMarker(state.uri)),
       ),
       GoRoute(
         path: AppRoutes.signup,

@@ -8,12 +8,14 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../data/auth_repository.dart' show currentUserProvider;
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
 import '_widgets/form_error_banner.dart';
 import '_widgets/password_field.dart';
 import '_widgets/primary_cta.dart';
 import 'login_notifier.dart';
+import 'reauth_notifier.dart';
 
 /// 이메일/비밀번호 로그인 전용 화면 (Phase 16.1 D-01, `/login/email`).
 ///
@@ -35,9 +37,16 @@ import 'login_notifier.dart';
 /// (Issue #5 safety net). `emailVerified=false` 인 신규 가입 직후 race 는
 /// `resolveAuthRedirect` 분기 (4) `/verify-email` redirect 에 위임한다.
 /// 실패 시 [FormErrorBanner] 에 inline 으로 표시한다 (Dialog/SnackBar 0).
+///
+/// **재인증 모드 ([isReauth]):** `/login/email?reauth=1` 이면 현재 계정 비밀번호
+/// 재인증 화면을 그린다 (debug reauth-login-auto-merge, 사용자 sign-off Q3) —
+/// 이메일 칸은 현재 계정 email 읽기 전용, 제출은 `확인`, 가입 링크 없음.
 class EmailLoginScreen extends ConsumerStatefulWidget {
   /// [EmailLoginScreen] 을 생성한다.
-  const EmailLoginScreen({super.key});
+  const EmailLoginScreen({this.isReauth = false, super.key});
+
+  /// 재인증 모드 여부 — 라우터가 `/login/email?reauth=1` 표시로 결정한다.
+  final bool isReauth;
 
   @override
   ConsumerState<EmailLoginScreen> createState() => _EmailLoginScreenState();
@@ -103,6 +112,8 @@ class _EmailLoginScreenState extends ConsumerState<EmailLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 재인증 모드는 일반 로그인 listener 를 등록하지 않는다 (isReauth 불변).
+    if (widget.isReauth) return const _ReauthPasswordForm();
     final l10n = context.l10n;
     final spacing = context.appSpacing;
     final state = ref.watch(loginProvider);
@@ -195,6 +206,120 @@ class _EmailLoginScreenState extends ConsumerState<EmailLoginScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 재인증 모드 비밀번호 화면 (debug reauth-login-auto-merge, Q3).
+///
+/// 사용자 sign-off 된 렌더의 구조를 따른다 — 제목 · 안내 · 읽기 전용 이메일 ·
+/// 비밀번호 · 오류 배너 자리 · `확인` · 비밀번호 찾기. 이메일은 입력받지 않고
+/// 현재 계정 email 을 보여 주기만 한다 (재인증 자격증명도 repository 가 현재
+/// 계정 email 로 만든다). 성공하면 `pop(true)` 로 선택 화면에 완료를 넘기고,
+/// 선택 화면이 SnackBar + 설정 복귀를 처리한다.
+class _ReauthPasswordForm extends ConsumerStatefulWidget {
+  const _ReauthPasswordForm();
+
+  @override
+  ConsumerState<_ReauthPasswordForm> createState() =>
+      _ReauthPasswordFormState();
+}
+
+class _ReauthPasswordFormState extends ConsumerState<_ReauthPasswordForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _passwordController = TextEditingController();
+  final _passwordFocus = FocusNode();
+
+  /// 마지막 비밀번호 재인증 실패. 제출 시작 시 비운다.
+  AppException? _error;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSubmit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _error = null);
+    await ref
+        .read(passwordReauthProvider.notifier)
+        .reauthenticate(password: _passwordController.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final spacing = context.appSpacing;
+    final email = ref.watch(currentUserProvider)?.email ?? '';
+    final state = ref.watch(passwordReauthProvider);
+
+    ref.listen<AsyncValue<bool>>(passwordReauthProvider, (previous, next) {
+      if (previous is AsyncLoading && next is AsyncData<bool>) {
+        if (!mounted) return;
+        if (next.value) Navigator.of(context).pop(true);
+        return;
+      }
+      if (next is AsyncError) {
+        if (!mounted) return;
+        final err = next.error;
+        setState(() {
+          _error = err is AppException ? err : ServiceUnavailable(cause: err);
+        });
+      }
+    });
+
+    return AuthScaffold(
+      title: l10n.authReauthTitle,
+      showBackButton: true,
+      child: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Gap(spacing.xxl),
+            Text(
+              l10n.authReauthEmailGuide,
+              style: context.appTypography.bodyMedium.copyWith(
+                color: context.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Gap(spacing.lg),
+            // 읽기 전용 · 일반 색 (Q3 ①) — disabled 회색이 아니다.
+            TextFormField(
+              key: ValueKey<String>(email),
+              initialValue: email,
+              readOnly: true,
+              decoration: InputDecoration(labelText: l10n.authLoginEmailLabel),
+            ),
+            Gap(spacing.md),
+            PasswordField(
+              controller: _passwordController,
+              focusNode: _passwordFocus,
+              isNewPassword: false,
+              onSubmitted: (_) => _handleSubmit(),
+            ),
+            Gap(spacing.md),
+            FormErrorBanner(exception: _error),
+            Gap(spacing.xl),
+            PrimaryCta(
+              label: l10n.authReauthConfirmCta,
+              isLoading: state.isLoading,
+              onPressed: _handleSubmit,
+            ),
+            Gap(spacing.md),
+            TextButton(
+              onPressed: () => context.push(
+                AppRoutes.buildReauthLocation(AppRoutes.forgotPassword),
+              ),
+              child: Text(l10n.authLoginForgotPassword),
+            ),
+          ],
         ),
       ),
     );
