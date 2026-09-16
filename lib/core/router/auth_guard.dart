@@ -179,7 +179,8 @@ const Set<String> _publicDocRoutes = <String>{
 /// 미인증 사용자의 **진입 화면** 경로 집합 (Phase 10 D-18 확장).
 ///
 /// 분기 (6) 은 완료 사용자가 본 집합의 경로에 진입하면 [AppRoutes.home] 으로
-/// 되돌린다. 상시 열람용 문서는 [_publicDocRoutes] 에 둔다.
+/// 되돌린다. 단 재인증 표시가 붙은 로그인 흐름 경로는 예외다
+/// ([_reauthLoginFlowRoutes]). 상시 열람용 문서는 [_publicDocRoutes] 에 둔다.
 ///
 /// 신규 unauth 경로 추가 시 명시적으로 두 Set 중 하나에 포함해야 하며, 그 외
 /// 모든 경로는 default-deny 정책에 따라 차단된다 (T-06.03-01 대응).
@@ -209,6 +210,29 @@ const Set<String> _unauthEntryRoutes = <String>{
   AppRoutes.onboarding, // Phase 10 D-18 — 게스트 진입 경로
 };
 
+/// 분기 (6) 재인증 표시 예외의 대상인 로그인 흐름 경로 집합
+/// (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE, quick 260916-p8d).
+///
+/// [_unauthEntryRoutes] 의 부분집합이다. go_router 17.2.0 은 push 시점에 push 한
+/// 경로로 최상위 redirect 를 평가하므로, 완료 사용자가 재인증을 위해 로그인
+/// 화면을 push 하면 분기 (6) 결과인 `/home` 이 스택 위에 쌓였다 (실기기 스택
+/// [홈 → 설정 → 홈]). `GoRouterState` 에는 push/go 구분 값이 없어 호출부가
+/// [AppRoutes.buildReauthLocation] 으로 표시를 붙이고, 본 집합의 경로에서만
+/// 그 표시가 홈 되돌림을 건너뛴다.
+///
+/// [AppRoutes.onboarding] 과 [AppRoutes.verifyEmail] 은 일부러 뺐다 —
+/// `_unauthEntryRoutes.contains` 를 그대로 쓰면 온보딩까지 예외가 되어 완료
+/// 사용자가 표시만으로 온보딩에 머물 수 있다.
+///
+/// 새 로그인 흐름 경로를 추가하면 본 집합과 해당 화면의 push 전달부
+/// ([AppRoutes.forwardReauthMarker]) 를 함께 갱신해야 한다.
+const Set<String> _reauthLoginFlowRoutes = <String>{
+  AppRoutes.login,
+  AppRoutes.emailLogin,
+  AppRoutes.signup,
+  AppRoutes.forgotPassword,
+};
+
 /// 인증 상태에 따른 redirect 로직 (Phase 10 D-14 / D-18 / D-19 / BLOCKER #3
 /// / BLOCKER #7 / WARNING #18).
 ///
@@ -232,7 +256,9 @@ const Set<String> _unauthEntryRoutes = <String>{
 ///    가입 경로(`/signup` -> 가입 -> Home) 사용자도 약관 미동의면
 ///    Home 바이패스를 차단한다.
 /// 6. 정식 인증 + 이메일 게이트 통과 + termsAccepted + (unauth 또는 verifyEmail
-///    또는 onboarding): [AppRoutes.home]
+///    또는 onboarding): [AppRoutes.home]. 단 로그인 흐름 4개 경로
+///    ([_reauthLoginFlowRoutes]) 에 재인증 표시가 있으면 예외로 (7) 에 떨어져
+///    null 을 반환한다 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE).
 /// 7. 그 외: null (Home 랜딩 허용 — AUTH-13 / Test 9, WARNING #19)
 ///
 /// **이메일 게이트 통과 (코드 리뷰 05 CR-02):** 분기 (5)(6) 이 말하는 "이메일
@@ -439,13 +465,27 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
   // WR-02: 바운스 대상은 `isOnUnauthRoute` (합집합) 가 아니라
   // [_unauthEntryRoutes] 다. `/terms/*` 는 상시 열람용 문서이므로 완료
   // 사용자가 열어도 홈으로 튕기지 않아야 한다.
+  //
+  // R_EXTRA_G3_REAUTH_LOGIN_BOUNCE (260916-p8d): 재인증을 위해 push 한 로그인
+  // 흐름 화면(표시 있음, 4개 경로)은 튕기지 않고 (7) 로 떨어진다. 이 판정은
+  // 분기 (3)(4)(5) 뒤에만 계산하므로 표시로 게이트를 우회할 수 없다.
+  final isReauthLoginFlow =
+      _reauthLoginFlowRoutes.contains(matchedLocation) &&
+      AppRoutes.hasReauthMarker(state.uri);
   if (isAuthenticated &&
       !isAnonymous &&
       passedEmailGate &&
       termsAccepted &&
-      (_unauthEntryRoutes.contains(matchedLocation) ||
+      ((_unauthEntryRoutes.contains(matchedLocation) && !isReauthLoginFlow) ||
           matchedLocation == AppRoutes.verifyEmail)) {
     return AppRoutes.home;
+  }
+  if (kDebugMode && isReauthLoginFlow) {
+    debugPrint(
+      'resolveAuthRedirect: reauth marker on login flow '
+      '(matchedLocation=$matchedLocation) -> skip home bounce '
+      '[R_EXTRA_G3_REAUTH_LOGIN_BOUNCE]',
+    );
   }
 
   // WR-07 (DRY): 분기 (6.4) 와 (6.5) 가 평가하는 동일 조건 묶음을 1회만

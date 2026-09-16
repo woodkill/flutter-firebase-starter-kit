@@ -55,5 +55,71 @@ void main() {
         expect(AppRoutes.emailLoginName, 'emailLogin');
       });
     });
+
+    group('재인증 표시 API — R_EXTRA_G3_REAUTH_LOGIN_BOUNCE (260916-p8d)', () {
+      const loginFlowPaths = <String>[
+        AppRoutes.login,
+        AppRoutes.emailLogin,
+        AppRoutes.signup,
+        AppRoutes.forgotPassword,
+      ];
+
+      test('buildReauthLocation 은 기준 형태 /login?reauth=1 을 만든다', () {
+        expect(
+          AppRoutes.buildReauthLocation(AppRoutes.login),
+          '/login?reauth=1',
+          reason: 'CONTEXT 가 고정한 재인증 표시 기준 형태',
+        );
+      });
+
+      test('hasReauthMarker 는 로그인 흐름 4개 경로의 표시 location 에서 true', () {
+        for (final path in loginFlowPaths) {
+          expect(
+            AppRoutes.hasReauthMarker(
+              Uri.parse(AppRoutes.buildReauthLocation(path)),
+            ),
+            isTrue,
+            reason: '$path 에 붙인 표시는 판정 함수가 인식해야 한다',
+          );
+        }
+      });
+
+      test('hasReauthMarker 는 표시가 없거나 값이 다르면 false', () {
+        expect(
+          AppRoutes.hasReauthMarker(Uri(path: AppRoutes.login)),
+          isFalse,
+          reason: '표시 없는 진입은 재인증이 아니다',
+        );
+        expect(
+          AppRoutes.hasReauthMarker(
+            Uri(
+              path: AppRoutes.login,
+              queryParameters: <String, String>{AppRoutes.reauthQueryKey: '0'},
+            ),
+          ),
+          isFalse,
+          reason: 'key 가 같아도 값이 다르면 표시로 인정하지 않는다 (strict equality)',
+        );
+      });
+
+      test('forwardReauthMarker 는 표시가 있을 때만 다음 경로에 표시를 붙인다', () {
+        final marked = Uri.parse(
+          AppRoutes.buildReauthLocation(AppRoutes.login),
+        );
+        expect(
+          AppRoutes.forwardReauthMarker(AppRoutes.emailLogin, from: marked),
+          AppRoutes.buildReauthLocation(AppRoutes.emailLogin),
+          reason: '재인증 흐름은 다음 push 에도 표시를 이어 붙여야 한다',
+        );
+        expect(
+          AppRoutes.forwardReauthMarker(
+            AppRoutes.emailLogin,
+            from: Uri(path: AppRoutes.login),
+          ),
+          AppRoutes.emailLogin,
+          reason: '표시 없는 진입은 경로를 바꾸지 않는다',
+        );
+      });
+    });
   });
 }

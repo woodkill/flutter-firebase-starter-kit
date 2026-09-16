@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -163,6 +163,12 @@ void main() {
 
   setUp(() {
     mockState = _MockGoRouterState();
+    // 260916-p8d: guard 가 재인증 표시 판정을 위해 `state.uri` 를 읽는다.
+    // mocktail Mock 은 stub 하지 않은 non-nullable `uri` 에서 TypeError 를
+    // 내므로, 각 test 가 나중에 stub 한 matchedLocation 을 따라가는 기본값을 둔다.
+    when(
+      () => mockState.uri,
+    ).thenAnswer((_) => Uri(path: mockState.matchedLocation));
   });
 
   /// 기본 crashlytics mock — setCustomKey / recordError / setUserId 등
@@ -917,6 +923,227 @@ void main() {
           reason: '$location 은 분기 (2) 의 명시적 예외여야 한다',
         );
       }
+    });
+  });
+
+  group(
+    'resolveAuthRedirect 재인증 표시 예외 — R_EXTRA_G3_REAUTH_LOGIN_BOUNCE 회귀 가드 (260916-p8d)',
+    () {
+      // 실기기 스택 [홈 → 설정 → 홈]: 완료 사용자가 재인증을 위해 push 한
+      // 로그인 화면이 분기 (6) 에서 홈으로 튕겼다. 재인증 표시가 있는 로그인
+      // 흐름 4개 경로만 예외이며, 다른 경로와 게이트 (3)(4)(5) 는 그대로다.
+
+      /// 실제 GoRouterState 처럼 matchedLocation 은 path 만, uri 는 query 포함.
+      void stubLocation(String location) {
+        final uri = Uri.parse(location);
+        when(() => mockState.matchedLocation).thenReturn(uri.path);
+        when(() => mockState.uri).thenReturn(uri);
+      }
+
+      /// 정식 + emailVerified + 약관 동의 완료 사용자의 [location] 평가 결과.
+      Future<String?> redirectForCompletedUser(String location) async {
+        final container = makeContainer(
+          isInitialized: true,
+          user: regularUser(),
+          onboardingSeen: true,
+          termsAcceptance: acceptedTerms(),
+        );
+        addTearDown(container.dispose);
+        stubLocation(location);
+        return _callAuthRedirect(container, mockState);
+      }
+
+      test('RB-1: 완료 사용자의 재인증 표시 /login 은 튕기지 않는다', () async {
+        expect(
+          await redirectForCompletedUser(
+            AppRoutes.buildReauthLocation(AppRoutes.login),
+          ),
+          isNull,
+          reason: '재인증 목적 push 로 연 로그인 화면은 스택 맨 위에 남아야 한다',
+        );
+      });
+
+      test('RB-2: 이메일 로그인 · 가입 · 비밀번호 찾기의 재인증 표시도 튕기지 않는다', () async {
+        for (final path in <String>[
+          AppRoutes.emailLogin,
+          AppRoutes.signup,
+          AppRoutes.forgotPassword,
+        ]) {
+          expect(
+            await redirectForCompletedUser(AppRoutes.buildReauthLocation(path)),
+            isNull,
+            reason: '$path 는 재인증 흐름에서 이어 push 되는 로그인 흐름 경로다',
+          );
+        }
+      });
+
+      test('RB-3: 표시 없는 /login 은 기존대로 홈으로 되돌린다', () async {
+        expect(
+          await redirectForCompletedUser(AppRoutes.login),
+          AppRoutes.home,
+          reason: 'go 진입 튕김 (Phase 10 D-18 invariant) 은 유지되어야 한다',
+        );
+      });
+
+      test('RB-4: /onboarding 에 표시가 붙어도 홈으로 되돌린다', () async {
+        expect(
+          await redirectForCompletedUser(
+            AppRoutes.buildReauthLocation(AppRoutes.onboarding),
+          ),
+          AppRoutes.home,
+          reason: '재인증 예외는 로그인 흐름 4개 경로에만 적용된다',
+        );
+      });
+
+      test('RB-5: /verify-email 에 표시가 붙어도 홈으로 되돌린다', () async {
+        expect(
+          await redirectForCompletedUser(
+            AppRoutes.buildReauthLocation(AppRoutes.verifyEmail),
+          ),
+          AppRoutes.home,
+          reason: '재인증 예외는 로그인 흐름 4개 경로에만 적용된다',
+        );
+      });
+
+      test('RB-6: 이메일 미검증 정식 사용자는 표시가 있어도 /verify-email 로 간다', () async {
+        final container = makeContainer(
+          isInitialized: true,
+          user: regularUser(emailVerified: false),
+          onboardingSeen: true,
+          termsAcceptance: acceptedTerms(),
+        );
+        addTearDown(container.dispose);
+        stubLocation(AppRoutes.buildReauthLocation(AppRoutes.login));
+
+        expect(
+          await _callAuthRedirect(container, mockState),
+          AppRoutes.verifyEmail,
+          reason: '표시는 분기 (4) 이메일 검증 게이트를 우회하지 못한다',
+        );
+      });
+
+      test('RB-7: 약관 미동의 정식 사용자는 표시가 있어도 /onboarding 으로 간다', () async {
+        // _StubTermsNotifier.lastReloadedUid = 'reg-uid' 라 reload 완료 상태다.
+        final container = makeContainer(
+          isInitialized: true,
+          user: regularUser(),
+          onboardingSeen: true,
+        );
+        addTearDown(container.dispose);
+        stubLocation(AppRoutes.buildReauthLocation(AppRoutes.login));
+
+        expect(
+          await _callAuthRedirect(container, mockState),
+          AppRoutes.onboarding,
+          reason: '표시는 분기 (5) 약관 동의 게이트를 우회하지 못한다',
+        );
+      });
+
+      test('RB-8: 익명 사용자의 표시 없는 /login 은 그대로 허용한다', () async {
+        final container = makeContainer(
+          isInitialized: true,
+          user: anonymousUser(),
+          onboardingSeen: true,
+          termsAcceptance: acceptedTerms(),
+        );
+        addTearDown(container.dispose);
+        stubLocation(AppRoutes.login);
+
+        expect(
+          await _callAuthRedirect(container, mockState),
+          isNull,
+          reason: 'environment_info_screen 의 익명 전용 로그인 push 경로는 불변이어야 한다',
+        );
+      });
+    },
+  );
+
+  group('GoRouter push end-to-end — 재인증 표시 (260916-p8d)', () {
+    // 실제 resolveAuthRedirect 를 GoRouter redirect 로 연결해 push 시점 평가를
+    // 재현한다. E2E-2 는 대조군이다 — 표시 없는 push 가 홈으로 튕기지 않으면
+    // harness 가 분기 (6) 에 도달하지 못한 것이므로 E2E-1 의 통과도 믿을 수 없다.
+    const homeText = 'home-stub';
+    const loginText = 'login-stub';
+
+    /// 완료 사용자 + guard 연결 GoRouter 를 pump 하고 router 를 반환한다.
+    Future<GoRouter> pumpGuardedRouter(WidgetTester tester) async {
+      final container = makeContainer(
+        isInitialized: true,
+        user: regularUser(),
+        onboardingSeen: true,
+        termsAcceptance: acceptedTerms(),
+      );
+      addTearDown(container.dispose);
+      final routerProvider = Provider<GoRouter>(
+        (ref) => GoRouter(
+          initialLocation: AppRoutes.home,
+          routes: <RouteBase>[
+            GoRoute(
+              path: AppRoutes.home,
+              builder: (context, state) => const Scaffold(body: Text(homeText)),
+            ),
+            GoRoute(
+              path: AppRoutes.login,
+              builder: (context, state) =>
+                  const Scaffold(body: Text(loginText)),
+            ),
+          ],
+          redirect: (context, state) => resolveAuthRedirect(ref, state),
+        ),
+      );
+      final router = container.read(routerProvider);
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      if (!container.read(onboardingProvider).hasValue) {
+        await tester.runAsync(() => container.read(onboardingProvider.future));
+      }
+      expect(
+        container.read(onboardingProvider).hasValue,
+        isTrue,
+        reason: 'loading 이면 guard 가 판단을 유보(null)해 E2E 가 거짓 통과한다',
+      );
+      return router;
+    }
+
+    testWidgets('E2E-1: 재인증 표시 push 는 로그인 화면을 스택 맨 위에 남긴다', (tester) async {
+      final router = await pumpGuardedRouter(tester);
+
+      unawaited(router.push(AppRoutes.buildReauthLocation(AppRoutes.login)));
+      await tester.pumpAndSettle();
+
+      expect(
+        router.state.matchedLocation,
+        AppRoutes.login,
+        reason: '재인증 push 는 분기 (6) 에서 홈으로 튕기지 않아야 한다',
+      );
+      expect(
+        AppRoutes.hasReauthMarker(router.state.uri),
+        isTrue,
+        reason: 'push 한 location 의 표시가 router state 에 남아야 한다',
+      );
+      expect(find.text(loginText), findsOneWidget, reason: '로그인 화면이 보여야 한다');
+    });
+
+    testWidgets('E2E-2 (대조군): 표시 없는 push 는 홈으로 튕긴다', (tester) async {
+      final router = await pumpGuardedRouter(tester);
+
+      unawaited(router.push(AppRoutes.login));
+      await tester.pumpAndSettle();
+
+      expect(
+        router.state.matchedLocation,
+        AppRoutes.home,
+        reason: '실기기 [홈 → 설정 → 홈] 적층 메커니즘이 재현되어야 한다',
+      );
+      expect(find.text(loginText), findsNothing, reason: '로그인 화면이 쌓이면 안 된다');
     });
   });
 

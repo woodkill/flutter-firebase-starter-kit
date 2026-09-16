@@ -166,6 +166,7 @@ void main() {
 
       final mockState = _MockGoRouterState();
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
+      when(() => mockState.uri).thenReturn(Uri(path: AppRoutes.home));
 
       final container = ProviderContainer(
         overrides: [
@@ -275,6 +276,7 @@ void main() {
 
       final mockState = _MockGoRouterState();
       when(() => mockState.matchedLocation).thenReturn(AppRoutes.login);
+      when(() => mockState.uri).thenReturn(Uri(path: AppRoutes.login));
 
       final container = ProviderContainer(
         overrides: [
