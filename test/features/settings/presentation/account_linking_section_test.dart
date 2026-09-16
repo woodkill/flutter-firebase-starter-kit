@@ -239,6 +239,14 @@ void main() {
           router.routerDelegate.currentConfiguration.last.matchedLocation,
           AppRoutes.login,
         );
+        // 260916-p8d: 재인증 push 는 재인증 표시가 붙은 로그인 location 이어야 한다.
+        expect(
+          AppRoutes.hasReauthMarker(router.state.uri),
+          isTrue,
+          reason:
+              'R_EXTRA_G3_REAUTH_LOGIN_BOUNCE: 표시가 없으면 실제 앱 guard 분기 (6) 이 '
+              'push 한 로그인 화면을 홈으로 튕긴다',
+        );
       },
     );
 

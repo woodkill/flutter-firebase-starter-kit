@@ -26,6 +26,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
@@ -238,6 +239,27 @@ void main() {
         );
         // dialog 닫힘.
         expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
+        // 260916-p8d: 재인증 push 는 재인증 표시가 붙은 로그인 location 이어야 한다.
+        expect(
+          find.text('login-stub'),
+          findsOneWidget,
+          reason: '재인증 필요 예외 뒤 로그인 화면이 push 되어야 한다',
+        );
+        final loginState = GoRouterState.of(
+          tester.element(find.text('login-stub')),
+        );
+        expect(
+          loginState.matchedLocation,
+          AppRoutes.login,
+          reason: '재인증 push 대상은 로그인 화면이다',
+        );
+        expect(
+          AppRoutes.hasReauthMarker(loginState.uri),
+          isTrue,
+          reason:
+              'R_EXTRA_G3_REAUTH_LOGIN_BOUNCE: 표시가 없으면 실제 앱 guard 분기 (6) 이 '
+              'push 한 로그인 화면을 홈으로 튕긴다',
+        );
       },
     );
 

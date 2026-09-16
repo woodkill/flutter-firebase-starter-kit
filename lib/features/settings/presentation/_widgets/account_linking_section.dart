@@ -182,10 +182,12 @@ class AccountLinkingSection extends ConsumerWidget {
         // 는 소비처 계약이 UI-SPEC Surface C (탈퇴 다이얼로그) 1곳으로 못 박혀
         // 있어, 그 문구를 탈퇴 어휘로 다듬으면 계정 연결 화면에 "탈퇴하려면…"
         // 이 새어 나간다 (문구 자체는 현재 verbatim 동일).
+        // 재인증 표시를 붙여야 guard 분기 (6) 이 push 한 로그인 화면을 홈으로
+        // 튕기지 않는다 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE).
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.authReauthRequired)),
         );
-        unawaited(router.push(AppRoutes.login));
+        unawaited(router.push(AppRoutes.buildReauthLocation(AppRoutes.login)));
       case AccountLinkOutcome.alreadyLinked:
         // `credential-already-in-use` / Custom Token callable
         // `already-exists` — 해당 신원이 **다른 계정** 소유 (A6 실측).

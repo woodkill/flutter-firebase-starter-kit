@@ -114,7 +114,9 @@ class _WithdrawalConfirmationDialogState
         if (error is ReauthenticationRequiredException) {
           _showSnackBar(context, l10n.withdrawalReauthRequired);
           Navigator.of(context).pop(false);
-          context.push(AppRoutes.login);
+          // 재인증 목적 push 라 표시를 붙여야 guard 분기 (6) 이 로그인 화면을
+          // 홈으로 튕기지 않는다 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE).
+          context.push(AppRoutes.buildReauthLocation(AppRoutes.login));
         } else {
           // 기타 — SnackBar 만, dialog 유지 (재시도).
           //
