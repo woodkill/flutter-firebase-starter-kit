@@ -9,9 +9,12 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_router.dart';
+import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/router/auth_guard.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
@@ -67,6 +70,69 @@ void main() {
       // keepAlive이므로 subscription 해제 후에도 읽을 수 있다
       final router = container.read(appRouterProvider);
       expect(router, isA<GoRouter>());
+    });
+  });
+
+  // debug reauth-login-auto-merge (2026-09-17) — 재인증 표시가 guard 뿐 아니라
+  // 화면 모드까지 결정한다. 표시를 화면에 넘기지 않으면 재인증 push 가 일반
+  // 로그인 화면(연결 안 된 provider · 가입 링크 · 새 로그인)을 그린다.
+  group('재인증 표시 → 로그인 흐름 화면 모드 배선 (reauth-login-auto-merge)', () {
+    testWidgets('/login · /login/email builder 는 표시가 있을 때만 isReauth=true', (
+      tester,
+    ) async {
+      final mockAuth = _MockFirebaseAuth();
+      when(
+        () => mockAuth.authStateChanges(),
+      ).thenAnswer((_) => const Stream<User?>.empty());
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(false),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = container.read(appRouterProvider);
+      await tester.pumpWidget(const SizedBox());
+      final context = tester.element(find.byType(SizedBox));
+
+      /// production [GoRoute.builder] 를 [location] 상태로 호출한다.
+      Widget buildAt(String path, String location) {
+        final route = router.configuration.routes
+            .whereType<GoRoute>()
+            .singleWhere((r) => r.path == path);
+        final state = GoRouterState(
+          router.configuration,
+          uri: Uri.parse(location),
+          matchedLocation: path,
+          fullPath: path,
+          pathParameters: const <String, String>{},
+          pageKey: ValueKey<String>(location),
+        );
+        return route.builder!(context, state);
+      }
+
+      expect(
+        buildAt(
+          AppRoutes.login,
+          AppRoutes.buildReauthLocation(AppRoutes.login),
+        ),
+        isA<LoginScreen>().having((w) => w.isReauth, 'isReauth', isTrue),
+      );
+      expect(
+        buildAt(AppRoutes.login, AppRoutes.login),
+        isA<LoginScreen>().having((w) => w.isReauth, 'isReauth', isFalse),
+      );
+      expect(
+        buildAt(
+          AppRoutes.emailLogin,
+          AppRoutes.buildReauthLocation(AppRoutes.emailLogin),
+        ),
+        isA<EmailLoginScreen>().having((w) => w.isReauth, 'isReauth', isTrue),
+      );
+      expect(
+        buildAt(AppRoutes.emailLogin, AppRoutes.emailLogin),
+        isA<EmailLoginScreen>().having((w) => w.isReauth, 'isReauth', isFalse),
+      );
     });
   });
 
