@@ -1818,6 +1818,87 @@ void main() {
       verifyNever(() => mockSocialLinkInProgress.begin());
       verifyNever(() => mockSocialLinkInProgress.end());
     });
+
+    /// ────────────────────────────────────────────────────────────
+    /// debug android-classic-anon-conflict — email arm 은 삭제하지 않는다.
+    /// SLP-7~9 는 전부 `credential-already-in-use` fixture 라 삭제 선행을
+    /// 단언한다. `email-already-in-use` 는 반대 계약이므로 별도 고정한다:
+    /// 삭제를 먼저 하면 currentUser 가 null 이 되어 lookupSignInMethods 가
+    /// unauthenticated 로 실패하고, 계정 연결 시트 대신 unknown-provider
+    /// 배너 + 익명 손실로 끝난다.
+    /// ────────────────────────────────────────────────────────────
+
+    test('Test SLP-10: signInWithGoogle email-already-in-use — 익명 유지 signIn. '
+        'delete 0 · begin → signInWithCredential → end 순서 검증', () async {
+      final mockAnonymous = _MockFbUser();
+      when(() => mockAnonymous.isAnonymous).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
+
+      final mockAccount = _MockGoogleSignInAccount();
+      when(
+        () => mockAccount.authentication,
+      ).thenReturn(const GoogleSignInAuthentication(idToken: 'id-token-test'));
+      when(
+        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+      ).thenAnswer((_) async => mockAccount);
+
+      when(
+        () => mockAnonymous.linkWithCredential(any()),
+      ).thenThrow(fb.FirebaseAuthException(code: 'email-already-in-use'));
+      when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+
+      final result = await repository.signInWithGoogle();
+
+      expect(result, isA<Success<User>>());
+      verifyInOrder([
+        () => mockSocialLinkInProgress.begin(),
+        () => mockAuth.signInWithCredential(any()),
+        () => mockSocialLinkInProgress.end(),
+      ]);
+      // 핵심 회귀 가드 — 익명 삭제 0회 (callable caller 인증 보존).
+      verifyNever(() => mockAnonymous.delete());
+      verifyNever(() => mockSocialLinkInProgress.begin());
+      verifyNever(() => mockSocialLinkInProgress.end());
+    });
+
+    test(
+      'Test SLP-11: signInWithApple email-already-in-use — 익명 유지 signIn. '
+      'delete 0 · signInWithProvider 0 · begin → signInWithCredential → end',
+      () async {
+        final mockAnonymous = _MockFbUser();
+        when(() => mockAnonymous.isAnonymous).thenReturn(true);
+        when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
+
+        final reusedCredential = _FakeAuthCredential();
+        when(() => mockAnonymous.linkWithProvider(any())).thenThrow(
+          fb.FirebaseAuthException(
+            code: 'email-already-in-use',
+            credential: reusedCredential,
+          ),
+        );
+        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+        when(
+          () => mockAuth.signInWithCredential(any()),
+        ).thenAnswer((_) async => mockCredential);
+
+        final result = await repository.signInWithApple();
+
+        expect(result, isA<Success<User>>());
+        verifyInOrder([
+          () => mockSocialLinkInProgress.begin(),
+          () => mockAuth.signInWithCredential(any()),
+          () => mockSocialLinkInProgress.end(),
+        ]);
+        // 핵심 회귀 가드 — 익명 삭제 0회 + OAuth 재진입 0회.
+        verifyNever(() => mockAnonymous.delete());
+        verifyNever(() => mockAuth.signInWithProvider(any()));
+        verifyNever(() => mockSocialLinkInProgress.begin());
+        verifyNever(() => mockSocialLinkInProgress.end());
+      },
+    );
   });
 
   group('Phase 12: signInWithKakao (Custom Token 흐름)', () {

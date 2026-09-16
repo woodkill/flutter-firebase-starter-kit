@@ -354,14 +354,27 @@ class AuthRepository implements AnonymousSignIn {
         } on fb.FirebaseAuthException catch (e) {
           if (e.code == 'credential-already-in-use' ||
               e.code == 'email-already-in-use') {
-            // 이미 Google 로 가입된 계정이 있음 — 익명 데이터 폐기 + 기존 계정 로그인.
+            // 이미 Google 로 가입된 계정이 있음.
+            // debug android-classic-anon-conflict — 삭제 시점을 link 오류 code 로
+            // 가른다 (Facebook Classic · Limited arm 과 같은 구분).
+            final isEmailConflict = e.code == 'email-already-in-use';
             if (kDebugMode) {
               debugPrint(
-                'AuthRepository.signInWithGoogle: credential-already-in-use '
-                '— 익명 계정 폐기 + 기존 Google 계정 로그인',
+                'AuthRepository.signInWithGoogle: ${e.code} '
+                '${isEmailConflict ? '— 익명 유지 + 기존 계정 로그인' : '— 익명 계정 폐기 + 기존 Google 계정 로그인'}',
               );
             }
-            await _safeDelete(anonymous);
+            if (!isEmailConflict) {
+              // credential-already-in-use — google.com 사용자가 이미 있어 같은
+              // credential signIn 이 성공한다. D-09 순서 유지 (SLP-7).
+              await _safeDelete(anonymous);
+            }
+            // email-already-in-use 는 익명을 유지한 채 signIn 한다. 서버가
+            // account-exists 로 거부해도 currentUser 가 익명으로 남아 상위
+            // catch 의 lookupSignInMethods(request.auth 필수) 가 인증을 통과해
+            // AccountLinkingSheet 입력을 채운다. 삭제를 먼저 하면 callable 이
+            // unauthenticated 로 실패해 시트 대신 unknown-provider 배너 +
+            // 로그아웃 + 익명 손실로 끝난다.
             userCredential = await _auth.signInWithCredential(credential);
           } else {
             rethrow;
@@ -473,14 +486,24 @@ class AuthRepository implements AnonymousSignIn {
             // ASAuthorizationController 시트(iOS) 가 두 번 열리는 UX 결함 차단.
             // e.credential 이 null 인 이론적 fallback 만 signInWithProvider 재호출.
             final pendingCredential = e.credential;
+            // debug android-classic-anon-conflict — 삭제 시점을 link 오류 code 로
+            // 가른다 (Facebook Classic · Limited arm 과 같은 구분).
+            final isEmailConflict = e.code == 'email-already-in-use';
             if (kDebugMode) {
               debugPrint(
-                'AuthRepository.signInWithApple: credential-already-in-use '
-                '— 익명 계정 폐기 + 기존 Apple 계정 로그인 '
+                'AuthRepository.signInWithApple: ${e.code} '
+                '${isEmailConflict ? '— 익명 유지 + 기존 계정 로그인' : '— 익명 계정 폐기 + 기존 Apple 계정 로그인'} '
                 '(credential reuse: ${pendingCredential != null})',
               );
             }
-            await _safeDelete(anonymous);
+            if (!isEmailConflict) {
+              // credential-already-in-use — apple.com 사용자가 이미 있어 그
+              // credential signIn 이 성공한다. D-09 순서 유지 (SLP-8a).
+              await _safeDelete(anonymous);
+            }
+            // email-already-in-use 는 익명을 유지한 채 signIn 한다 — 삭제를
+            //먼저 하면 lookupSignInMethods 가 unauthenticated 로 실패해
+            // AccountLinkingSheet 대신 unknown-provider 배너 + 익명 손실이 된다.
             if (pendingCredential != null) {
               userCredential = await _auth.signInWithCredential(
                 pendingCredential,
@@ -615,17 +638,31 @@ class AuthRepository implements AnonymousSignIn {
             userCredential = retried;
           } else {
             // Classic (Android · iOS ATT 허용) — nonce 없는 access token
-            // credential 은 재제출이 허용되므로 기존 순서 (익명 삭제 → 같은
-            // credential 로 signIn) 를 유지한다 (D8 a · Phase 9 UAT · SLP-9).
+            // credential 은 재제출이 허용되므로 같은 credential 을 재사용한다.
+            // 단 **삭제 시점**은 link 오류 code 로 갈린다: Limited arm 의
+            // [_signInAfterLimitedLinkConflict] 가 이미 쓰는 구분을 이식했다
+            // (debug android-classic-anon-conflict — 종전 D8 a 는 두 code 를
+            // 뭉쳐 항상 삭제 선행이었다).
+            final isEmailConflict = e.code == 'email-already-in-use';
             // 로그는 실제 code 를 출력한다 (이전엔 두 code 모두
             // credential-already-in-use 로 오표기).
             if (kDebugMode) {
               debugPrint(
                 'AuthRepository.signInWithFacebook: ${e.code} '
-                '— 익명 계정 폐기 + 기존 Facebook 계정 로그인',
+                '${isEmailConflict ? '— 익명 유지 + 기존 계정 로그인' : '— 익명 계정 폐기 + 기존 Facebook 계정 로그인'}',
               );
             }
-            await _safeDelete(anonymous);
+            if (!isEmailConflict) {
+              // credential-already-in-use — facebook.com 사용자가 이미 있어
+              // 같은 credential signIn 이 성공한다. D-09 순서 유지 (SLP-9).
+              await _safeDelete(anonymous);
+            }
+            // email-already-in-use 는 익명을 유지한 채 signIn 한다. 서버가
+            // account-exists 로 거부해도 currentUser 가 익명으로 남아 상위
+            // catch 의 lookupSignInMethods(request.auth 필수) 가 인증을 통과해
+            // AccountLinkingSheet 입력을 채운다. 삭제를 먼저 하면 callable 이
+            // unauthenticated 로 실패해 시트 대신 unknown-provider 배너 +
+            // 로그아웃 + 익명 손실로 끝난다.
             userCredential = await _auth.signInWithCredential(credential);
           }
         }

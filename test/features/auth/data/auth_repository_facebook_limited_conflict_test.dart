@@ -561,10 +561,40 @@ void main() {
       expect(signedInUser, same(anonymousUser));
     });
 
-    test('Classic (Android) email-already-in-use (D8 a): 기존 순서 불변 — '
-        '재로그인 0 · delete → 같은 credential 로 signIn', () async {
+    /// debug android-classic-anon-conflict — 종전 D8 a 는 Classic 의 두 link
+    /// code 를 뭉쳐 항상 삭제 선행이었다. email arm 만 「익명 유지 signIn」 으로
+    /// 분리한다 (Limited arm `_signInAfterLimitedLinkConflict` 와 같은 구분).
+    test('Classic (Android) email-already-in-use: 익명 유지 signIn — '
+        '재로그인 0 · delete 0 · 같은 credential 재제출', () async {
       stubFacebookLogin(limited: false);
       stubLinkConflict(_emailAlreadyInUseFromLink());
+      stubSignIn();
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Success<User>>());
+      expect(loginCount, 1);
+      // Classic 은 nonce 가 없어 같은 credential 재제출이 허용된다 (불변).
+      expect(ledger.submissions, hasLength(2));
+      expect(ledger.submissions[1], same(ledger.submissions[0]));
+      verifyInOrder([
+        () => anonymousUser.linkWithCredential(any()),
+        () => mockAuth.signInWithCredential(any()),
+      ]);
+      // 핵심 회귀 가드 — 삭제가 signIn 보다 먼저 일어나면 currentUser 가 null 이
+      // 되어 lookupSignInMethods 가 unauthenticated 로 실패하고, 계정 연결 시트
+      // 대신 unknown-provider 배너 + 익명 손실로 끝난다.
+      verifyNever(() => anonymousUser.delete());
+      expect(deletedUsers, isEmpty);
+      // signedInUser 는 단언하지 않는다 — stubSignIn() 이 signIn 성공을 흉내내
+      // facebookUser 로 전환되기 때문이다. 실제 충돌에서는 서버가 account-exists
+      // 로 거부해 익명이 유지되며, 그 경로는 위 Limited D7 b 테스트가 고정한다.
+    });
+
+    test('Classic (Android) credential-already-in-use: D-09 순서 유지 — '
+        'delete → 같은 credential 로 signIn', () async {
+      stubFacebookLogin(limited: false);
+      stubLinkConflict(_credentialAlreadyInUseFromLink(null));
       stubSignIn();
 
       final result = await repository.signInWithFacebook();
@@ -578,6 +608,7 @@ void main() {
         () => anonymousUser.delete(),
         () => mockAuth.signInWithCredential(any()),
       ]);
+      expect(deletedUsers, [same(anonymousUser)]);
     });
 
     test('D9: link 실패 로그 1줄 — code · hasCredential 만, 충돌 로그는 실제 code, '
