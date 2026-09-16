@@ -35,19 +35,27 @@ import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dar
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/yahoojp_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/login_prompt_sheet.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_signup_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 /// [AuthRepository] 를 mocktail 로 대체하기 위한 Mock.
 ///
-/// golden 은 탭을 발생시키지 않으므로 stub 은 두지 않는다.
+/// 16.1 surface golden 은 탭을 발생시키지 않으므로 stub 을 두지 않는다. 재인증
+/// 모드 golden 중 탭 결과를 찍는 2장 (다른 계정 배너 · 성공 SnackBar) 만
+/// `reauthenticate` 를 stub 한다.
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// golden viewport — UI-SPEC §Surface A "360×800 폰 본문 영역" 계약 (logical
@@ -183,11 +191,23 @@ Future<void> _settleAssets(WidgetTester tester) async {
 /// `debugShowCheckedModeBanner: false` — DEBUG 배너가 capture 에 섞이지
 /// 않도록. override 목록은 다른 16.1 screen harness 와 동형이다
 /// (`authRepositoryProvider` + `activeStrategiesProvider`).
-Widget _wrapApp({required Brightness brightness, required Widget home}) {
+///
+/// [user] 가 있으면 `currentUserProvider` 를 그 사용자로 고정한다 (재인증 모드
+/// golden — 연결 provider 필터 · 이메일 칸 입력). [repository] 가 없으면 stub
+/// 없는 Mock 을 쓴다.
+Widget _wrapApp({
+  required Brightness brightness,
+  required Widget home,
+  User? user,
+  AuthRepository? repository,
+}) {
   return ProviderScope(
     overrides: [
-      authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
+      authRepositoryProvider.overrideWithValue(
+        repository ?? _MockAuthRepository(),
+      ),
       activeStrategiesProvider.overrideWithValue(_sevenStrategies),
+      if (user != null) currentUserProvider.overrideWith((ref) => user),
     ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -231,6 +251,8 @@ Future<void> _pumpSurface(
   required Brightness brightness,
   required _Entry entry,
   Widget? surface,
+  User? user,
+  AuthRepository? repository,
 }) async {
   tester.view.devicePixelRatio = _goldenDevicePixelRatio;
   tester.view.physicalSize = _goldenLogicalSize * _goldenDevicePixelRatio;
@@ -241,7 +263,14 @@ Future<void> _pumpSurface(
     _Entry.home => surface!,
     _Entry.pushed || _Entry.sheet => const Scaffold(),
   };
-  await tester.pumpWidget(_wrapApp(brightness: brightness, home: home));
+  await tester.pumpWidget(
+    _wrapApp(
+      brightness: brightness,
+      home: home,
+      user: user,
+      repository: repository,
+    ),
+  );
   await tester.pump();
 
   switch (entry) {
@@ -332,4 +361,122 @@ void main() {
       });
     }
   });
+
+  // debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 5 surface.
+  //
+  // 사용자 시각 sign-off (Q1~Q7) 를 받은 실 렌더
+  // (`.planning/debug/reauth-login-auto-merge-mockups/en_light_*.png`, 같은
+  // 360×800 · DPR 3 · 폰트 조건) 와 light fixture 가 byte 단위로 같아야 한다 —
+  // 구현이 승인 렌더에서 벗어나지 않았다는 증거. dark 는 승인 렌더가 ko 만 있어
+  // 본 fixture 가 첫 기준이다.
+  //
+  // - 다른 계정 배너 · 성공 SnackBar 는 production 흐름(버튼 탭 → repository
+  //   결과 → 화면 반응) 을 그대로 거쳐 찍는다 (상태 주입 아님).
+  group('reauth-login-auto-merge 재인증 모드 golden — 360×800 · en', () {
+    final naverUser = _reauthUser(const <String>['naver']);
+    final multiUser = _reauthUser(const <String>[
+      'apple.com',
+      'google.com',
+      'password',
+    ]);
+
+    for (final brightness in <Brightness>[Brightness.light, Brightness.dark]) {
+      final mode = brightness.name;
+
+      testWidgets('재인증 선택 화면 — Naver 만 연결 — $mode', (tester) async {
+        await _pumpSurface(
+          tester,
+          brightness: brightness,
+          entry: _Entry.pushed,
+          surface: const LoginScreen(isReauth: true),
+          user: naverUser,
+        );
+        await _expectSurfaceGolden(tester, 'reauth_login_naver_only_$mode.png');
+      });
+
+      testWidgets('재인증 선택 화면 — Google · Apple · 비밀번호 — $mode', (tester) async {
+        await _pumpSurface(
+          tester,
+          brightness: brightness,
+          entry: _Entry.pushed,
+          surface: const LoginScreen(isReauth: true),
+          user: multiUser,
+        );
+        await _expectSurfaceGolden(tester, 'reauth_login_multi_$mode.png');
+      });
+
+      testWidgets('재인증 선택 화면 — 다른 계정 배너 — $mode', (tester) async {
+        final repository = _MockAuthRepository();
+        when(
+          () => repository.reauthenticate(AccountProvider.google),
+        ).thenAnswer((_) async => const Result.failure(ReauthUserMismatch()));
+        await _pumpSurface(
+          tester,
+          brightness: brightness,
+          entry: _Entry.pushed,
+          surface: const LoginScreen(isReauth: true),
+          user: multiUser,
+          repository: repository,
+        );
+
+        await tester.tap(find.byType(SocialButton).first);
+        await tester.pumpAndSettle();
+
+        verify(
+          () => repository.reauthenticate(AccountProvider.google),
+        ).called(1);
+        await _expectSurfaceGolden(tester, 'reauth_login_mismatch_$mode.png');
+      });
+
+      testWidgets('재인증 이메일 화면 — $mode', (tester) async {
+        await _pumpSurface(
+          tester,
+          brightness: brightness,
+          entry: _Entry.pushed,
+          surface: const EmailLoginScreen(isReauth: true),
+          user: multiUser,
+        );
+        await _expectSurfaceGolden(tester, 'reauth_email_$mode.png');
+      });
+
+      testWidgets('재인증 성공 → 설정 복귀 + SnackBar — $mode', (tester) async {
+        final repository = _MockAuthRepository();
+        when(
+          () => repository.reauthenticate(AccountProvider.naver),
+        ).thenAnswer((_) async => Result.success(naverUser));
+        await _pumpSurface(
+          tester,
+          brightness: brightness,
+          entry: _Entry.pushed,
+          surface: const SettingsScreen(),
+          user: naverUser,
+          repository: repository,
+        );
+        // 설정 → 재인증 화면 push (production 진입점과 같은 스택).
+        unawaited(
+          Navigator.of(tester.element(find.byType(SettingsScreen))).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const LoginScreen(isReauth: true),
+            ),
+          ),
+        );
+        await _settleAssets(tester);
+
+        await tester.tap(find.byType(SocialButton));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(LoginScreen), findsNothing);
+        await _expectSurfaceGolden(tester, 'reauth_settings_success_$mode.png');
+      });
+    }
+  });
 }
+
+/// 재인증 golden 용 정식 사용자 — [providerIds] 만 시나리오마다 다르다.
+User _reauthUser(List<String> providerIds) => User(
+  uid: 'uid-mock',
+  email: 'me@example.com',
+  emailVerified: true,
+  createdAt: DateTime.utc(2026, 1, 1),
+  providerIds: providerIds,
+);
