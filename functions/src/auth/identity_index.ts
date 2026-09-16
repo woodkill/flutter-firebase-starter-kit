@@ -1,5 +1,6 @@
 import {getAuth} from "firebase-admin/auth";
 import {Firestore, FieldValue} from "firebase-admin/firestore";
+import type {DocumentSnapshot} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
 /**
@@ -356,6 +357,24 @@ export async function resolveCustomTokenExistingProvider(
   }
 }
 
+/**
+ * identity_index 비-transaction 스냅샷에서 매핑된 Firebase UID 를 읽는다
+ * (naver-self-email-collision, 2026-09-17).
+ *
+ * 문서 ID 가 `{provider}:{providerUserId}` 이므로 이 값은 "이 IdP 사용자가
+ * 이미 소유한 계정" 의 진실원이다 (D-12 first-write-wins).
+ *
+ * @param {DocumentSnapshot} snap `identity_index/{provider}:{sub}` 비-tx
+ *     스냅샷.
+ * @return {string|undefined} 문서가 있고 `firebaseUid` 가 비어 있지 않은
+ *     문자열이면 그 값, 아니면 `undefined`.
+ */
+function readIndexedFirebaseUid(snap: DocumentSnapshot): string | undefined {
+  if (!snap.exists) return undefined;
+  const uid = snap.data()?.firebaseUid;
+  return typeof uid === "string" && uid.length > 0 ? uid : undefined;
+}
+
 export type IdentityResolution = {
   uid: string;
   isNewUser: boolean;
@@ -539,6 +558,14 @@ export async function resolveIdentity(
   // Custom Token ↔ Custom Token 충돌 감지는 Plan 16-17 이 닫았다
   // (그 이전에는 Phase 17 이월 표기 — A4 finding 2026-06-11 참고).
   // Account Linking actuation 자체는 Plan 16-18/16-19 책임.
+  //
+  // Step 1 의 비-tx read 를 Step 0.5 앞으로 올린다 (naver-self-email-collision,
+  // 2026-09-17). Step 0.5 의 self 판정이 "이 identity 가 이미 가리키는 계정"
+  // 을 알아야 하기 때문이다. transaction 밖 read 라 Firestore "all reads
+  // before all writes" 제약과 무관하고, 정상 경로의 read 횟수도 그대로다
+  // (충돌 조기 return 경로에서만 1회 늘어난다).
+  const idxSnapPre = await idxRef.get();
+
   if (callerUid && userInfo?.email) {
     try {
       const existingByEmail = await getAuth().getUserByEmail(userInfo.email);
@@ -550,7 +577,19 @@ export async function resolveIdentity(
       // 돌려주고 providerData 에 `google.com` 이 있으므로
       // `already-exists` 가 던져졌다 — 사용자는 자기 계정에 대해 "이미 다른
       // 방법으로 가입된 이메일" 이라는 안내를 받았다.
-      const isSelf = existingByEmail.uid === callerUid;
+      //
+      // naver-self-email-collision (2026-09-17 — iOS batch UAT G6): self 는
+      // caller uid 만이 아니다. **이 identity 가 이미 매핑된 계정** 도 자기
+      // 계정이다. 로그아웃 뒤 caller 는 새 익명 uid 라 위 비교만으로는
+      // 재로그인이 self 로 인정되지 않았고, 그 계정에 native provider
+      // (apple.com 등) 가 붙어 있으면 자기 계정을 가리키는 email_in_use
+      // (409) 가 던져졌다. 매핑 uid 와 email 소유 uid 가 **같을 때만** self 다
+      // — 다르면 (다른 계정이 그 email 을 소유) 기존 충돌 판정을 유지한다.
+      // self 판정 뒤에는 transaction 이 R12 정책 (빈 익명 → 재사용 / 데이터
+      // 있는 익명 → anonymous_existing_collision) 을 그대로 적용한다.
+      const isSelf =
+        existingByEmail.uid === callerUid ||
+        existingByEmail.uid === readIndexedFirebaseUid(idxSnapPre);
       const conflictingProviders = isSelf ?
         [] :
         (existingByEmail.providerData ?? [])
@@ -594,7 +633,9 @@ export async function resolveIdentity(
       // 실패한 경우에만 진입한다. 본 read 는 db.runTransaction 진입 **이전**의
       // 비-transaction 구간이므로 Firestore "all reads before all writes"
       // 제약과 무관하다 (T-16-17-03).
-      if (existingByEmail.uid !== callerUid) {
+      // self (caller 자신 또는 이 identity 의 매핑 계정) 이면 역조회도
+      // selfMatched 로 null 을 돌리므로 read 를 생략한다.
+      if (!isSelf) {
         const ctExistingProvider = await resolveCustomTokenExistingProvider(
           db,
           existingByEmail.uid,
@@ -635,7 +676,6 @@ export async function resolveIdentity(
   }
 
   let preCreatedUid: string | null = null;
-  const idxSnapPre = await idxRef.get();
   if (!idxSnapPre.exists && !callerUid) {
     try {
       const created = await getAuth().createUser({

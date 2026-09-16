@@ -2090,10 +2090,24 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         uid: "U-multi-identity",
         providerData: [],
       });
+      // naver-self-email-collision (2026-09-17): 비-tx 스냅샷도 실측 문서
+      // shape 를 담는다. 이전 fixture 는 `data` 없는 `{exists: true}` 라 Step
+      // 0.5 가 매핑 uid 를 읽을 때 TypeError → lookup_failed 로 삼켜진 채
+      // 통과했다. 이제 매핑 uid === email 소유 uid 라 self 로 판정되어 역조회
+      // 전에 transaction 으로 위임된다 (역조회 selfMatched 단위는 T-16-17-03
+      // 이 계속 잠근다).
+      const multiIdentityDoc = {
+        firebaseUid: "U-multi-identity",
+        provider: "kakao",
+        providerUserId: "kakao-16-17-multi-identity",
+        linkedAt: "MOCK_TIMESTAMP",
+        lastSeenAt: "MOCK_TIMESTAMP",
+      };
       const {db} = makeDb({
         preExists: true,
+        preData: multiIdentityDoc,
         txExists: true,
-        txData: {firebaseUid: "U-multi-identity"},
+        txData: multiIdentityDoc,
         // WR-03: caller 자신의 문서는 provider + sub 가 **둘 다** 일치한다.
         reverseDocs: [
           {provider: "kakao", providerUserId: "kakao-16-17-multi-identity"},
@@ -2204,6 +2218,260 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
       });
       // 신규 identity_index 문서가 커밋되면 안 된다 (영구 잔존 오염 차단).
       expect(res.isNewUser).toBe(false);
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// naver-self-email-collision (2026-09-17 debug) — 기존 identity 재로그인의
+// 자기 계정 email 충돌 오판 회귀 가드.
+//
+// iOS batch UAT (quick 260914-wbr G6) 실측: identity_index naver 문서가 계정 U
+// 를 가리키고, U 는 Custom Token 계정(customAuth) 에 apple.com 이 붙은 상태였다.
+// 로그아웃 뒤 새 익명 caller 로 Naver 로그인하면 getUserByEmail 이 **U 자신**
+// 을 돌려주지만, 1단 isSelf 가 callerUid(익명) 와만 비교해 apple.com 을 충돌로
+// 잡았다 → HTTP 409 `identity_index_email_collision_caller_path`
+// {conflictingProviderCount 1, existingProvider apple}.
+//
+// fixture 는 dev 원장 실측 shape 를 따른다 (email · platform uid 본문은 가짜 값).
+// - identity_index 문서: {firebaseUid, provider, providerUserId, linkedAt,
+//   lastSeenAt} (g5-firestore-identity-index.json 필드 5개)
+// - 기존 계정: customAuth + email + providerData 1건 (ledger-g6-before-auth
+//   .json 의 uBZ6 — providerUserInfo [apple.com])
+// - 익명 caller 의 users 문서 404 (g5-firestore-users-cOn5-M44t.json)
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line max-len
+describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 email 충돌이 아니다 (naver-self-email-collision)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({emailVerified: true, providerData: []});
+    warnMock.mockReset();
+  });
+
+  /**
+   * identity_index 문서 실측 shape (필드 5개) 를 만든다.
+   *
+   * @param {ProviderId} provider provider slug.
+   * @param {string} providerUserId IdP sub (문서 ID 뒤쪽과 동일).
+   * @param {string} firebaseUid 매핑된 Firebase UID.
+   * @return {Record<string, unknown>} identity_index 문서 data.
+   */
+  function indexDoc(
+    provider: ProviderId,
+    providerUserId: string,
+    firebaseUid: string,
+  ): Record<string, unknown> {
+    return {
+      firebaseUid,
+      provider,
+      providerUserId,
+      linkedAt: "MOCK_TIMESTAMP",
+      lastSeenAt: "MOCK_TIMESTAMP",
+    };
+  }
+
+  /**
+   * getUserByEmail 이 돌려주는 기존 계정 UserRecord shape — Custom Token
+   * 계정에 native provider 1건이 붙은 상태.
+   *
+   * @param {string} uid 기존 계정 UID.
+   * @param {string} nativeProviderId Firebase 표기 native providerId.
+   * @return {object} admin SDK UserRecord 부분 shape.
+   */
+  function customTokenUserWithNative(uid: string, nativeProviderId: string) {
+    return {
+      uid,
+      email: "PII_SELF_EMAIL@example.com",
+      emailVerified: true,
+      customClaims: undefined,
+      providerData: [
+        {
+          providerId: nativeProviderId,
+          uid: "PII_NATIVE_PLATFORM_UID",
+          email: "PII_SELF_EMAIL@example.com",
+        },
+      ],
+    };
+  }
+
+  const selfMatrix: Array<[ProviderId, string, string]> = [
+    // [caller provider, 기존 계정에 붙은 native providerId, 기대하지 않는 라벨]
+    ["naver", "apple.com", "apple"], // G6 실측 조합.
+    ["naver", "google.com", "google"],
+    ["naver", "facebook.com", "facebook"],
+    ["naver", "password", "email"],
+    ["kakao", "apple.com", "apple"], // 비즈 앱 email 전달 시 같은 경로.
+  ];
+  it.each(selfMatrix)(
+    // eslint-disable-next-line max-len
+    "SELF-IDX-01: caller=%s · 기존 계정(=identity 매핑 uid) 에 %s 부착 · 익명 caller → 매핑 uid 로 로그인 (충돌 아님)",
+    async (provider, nativeProviderId, notLabel) => {
+      const sub = `${provider}-self-sub`;
+      const doc = indexDoc(provider, sub, "U-self-indexed");
+      mockGetUserByEmail.mockResolvedValueOnce(
+        customTokenUserWithNative("U-self-indexed", nativeProviderId),
+      );
+      const {db, tx, whereGet} = makeDb({
+        preExists: true,
+        preData: doc,
+        txExists: true,
+        txData: doc,
+        // 로그아웃 뒤 새 익명 caller — users 문서 404 (G5 실측).
+        callerUserExists: false,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider,
+        providerUserId: sub,
+        callerUid: "anon-after-signout",
+        userInfo: {
+          email: "PII_SELF_EMAIL@example.com",
+          emailVerified: true,
+          displayName: "nick",
+        },
+      });
+
+      expect(res).toMatchObject({
+        uid: "U-self-indexed",
+        isNewUser: false,
+        conflictKind: null,
+      });
+      expect(res.existingProvider).toBeUndefined();
+      expect(res.existingProvider).not.toBe(notLabel);
+      // 1단 · 2단 충돌 이벤트 모두 미발동.
+      for (const event of [
+        "identity_index_email_collision_caller_path",
+        "identity_index_email_collision_custom_token_path",
+      ]) {
+        expect(warnMock).not.toHaveBeenCalledWith(
+          expect.objectContaining({event}),
+          expect.any(String),
+        );
+      }
+      // identity 가 이미 자기 계정 매핑임을 알았으므로 역조회 read 추가 0.
+      expect(whereGet).not.toHaveBeenCalled();
+      // transaction 안 read 는 idx + caller users 2건뿐 (새 tx read 없음).
+      expect(tx.get).toHaveBeenCalledTimes(2);
+      // 신규 identity 문서 커밋 0.
+      expect(tx.set).not.toHaveBeenCalled();
+      // PII sentinel — email · platform uid 본문 미노출.
+      for (const args of warnMock.mock.calls) {
+        const s = JSON.stringify(args);
+        expect(s).not.toContain("PII_SELF_EMAIL@example.com");
+        expect(s).not.toContain("PII_NATIVE_PLATFORM_UID");
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "SELF-IDX-02 (경계 — 다른 계정): identity 매핑 uid ≠ email 소유 uid → native 충돌 그대로 보고",
+    async () => {
+      // self 판정은 "email 소유 계정 == 이 identity 가 가리키는 계정" 일 때만
+      // 성립한다. 매핑이 존재한다는 사실만으로 충돌 검사를 건너뛰면 안 된다.
+      const doc = indexDoc("naver", "naver-other-owner", "X-indexed");
+      mockGetUserByEmail.mockResolvedValueOnce(
+        customTokenUserWithNative("Y-email-owner", "apple.com"),
+      );
+      const {db} = makeDb({
+        preExists: true,
+        preData: doc,
+        txExists: true,
+        txData: doc,
+        callerUserExists: false,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-other-owner",
+        callerUid: "anon-other-owner",
+        userInfo: {email: "PII_SELF_EMAIL@example.com", emailVerified: true},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "apple",
+      });
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "SELF-IDX-03 (경계 — 데이터 있는 익명): 자기 계정 매핑이어도 R12 anonymous_existing_collision 차단은 유지 (라벨 = caller provider)",
+    async () => {
+      // 수정 전에는 1단이 먼저 email_in_use(apple) 로 조기 return 해 R12 의
+      // 익명 데이터 보호 분기에 도달하지 못했다. 수정 후에는 transaction 이
+      // caller users 문서 존재를 보고 차단한다 — 라벨은 사용자가 실제로 쓴
+      // provider(naver) 여야 한다.
+      const doc = indexDoc("naver", "naver-anon-data", "U-anon-data");
+      mockGetUserByEmail.mockResolvedValueOnce(
+        customTokenUserWithNative("U-anon-data", "apple.com"),
+      );
+      const {db, tx} = makeDb({
+        preExists: true,
+        preData: doc,
+        txExists: true,
+        txData: doc,
+        callerUserExists: true,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-anon-data",
+        callerUid: "anon-with-data",
+        userInfo: {email: "PII_SELF_EMAIL@example.com", emailVerified: true},
+      });
+
+      expect(res).toMatchObject({
+        uid: "U-anon-data",
+        isNewUser: false,
+        conflictKind: "anonymous_existing_collision",
+        existingProvider: "naver",
+      });
+      expect(tx.set).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "SELF-IDX-04 (경계 — 미등록 sub): identity 문서 부재 + email 소유 계정 native 부착 → 충돌 그대로 보고 (신규 문서 커밋 0)",
+    async () => {
+      // 같은 provider 라도 sub 가 다르면 문서 ID 가 달라 매핑이 없다 —
+      // Gap B 가 막으려던 "새 identity 를 익명 uid 로 등록" 경로다.
+      mockGetUserByEmail.mockResolvedValueOnce(
+        customTokenUserWithNative("U-existing", "apple.com"),
+      );
+      const {db, tx} = makeDb({
+        preExists: false,
+        txExists: false,
+        callerUserExists: false,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "naver",
+        providerUserId: "naver-new-sub",
+        callerUid: "anon-new-sub",
+        userInfo: {email: "PII_SELF_EMAIL@example.com", emailVerified: true},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "apple",
+      });
+      expect(tx.set).not.toHaveBeenCalled();
     },
   );
 });
