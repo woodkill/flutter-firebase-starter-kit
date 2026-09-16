@@ -6,7 +6,8 @@
 // 고정하지 않았다 (Plan 01~04 SUMMARY D6/D8 `human_judgment: true`).
 // 본 file 은 UI-SPEC §Layout Contract 의 시각 계약을 fixture PNG 로 고정한다.
 //
-// **매트릭스:** 4 surface × light/dark = 8 fixture · viewport 360×800
+// **매트릭스:** A 는 go(루트 교체) 진입과 push 진입 두 변형 → 5 변형 ×
+// light/dark = 10 fixture · viewport 360×800
 // (UI-SPEC "360×800 폰 fit" 계약) · locale en · provider 7 (`_allStrategies`
 // 순서 verbatim — D8 "chooser 시각 위계·360×800 fit" 갭 직격) · Android
 // platform (test env default).
@@ -208,11 +209,13 @@ Widget _wrapApp({required Brightness brightness, required Widget home}) {
 /// 외관의 일부이고, D 는 `showModalBottomSheet` 의 scrim·radius·drag handle
 /// 이 외관의 일부다.
 enum _Entry {
-  /// [MaterialApp.home] 으로 직접 렌더 — Surface A (`/login`, back 없음).
+  /// [MaterialApp.home] 으로 직접 렌더 — Surface A go 루트 교체 · 딥링크
+  /// 진입 (AppBar 가 back 을 숨김).
   home,
 
   /// 빈 [Scaffold] 위에 [MaterialPageRoute] 로 push — Surface B/C
-  /// (`showBackButton: true`, back 화살표 렌더).
+  /// (`showBackButton: true`, back 화살표 렌더) 와 Surface A push 진입 변형
+  /// (quick 260916-woe, R_EXTRA_G2_IOS_BACK_NAV).
   pushed,
 
   /// 빈 [Scaffold] context 로 [showLoginPromptSheet] 직접 호출 — Surface D
@@ -289,6 +292,18 @@ void main() {
           surface: const LoginScreen(),
         );
         await _expectSurfaceGolden(tester, 'login_screen_$mode.png');
+      });
+
+      testWidgets('Surface A LoginScreen chooser pushed — $mode', (
+        tester,
+      ) async {
+        await _pumpSurface(
+          tester,
+          brightness: brightness,
+          entry: _Entry.pushed,
+          surface: const LoginScreen(),
+        );
+        await _expectSurfaceGolden(tester, 'login_screen_pushed_$mode.png');
       });
 
       testWidgets('Surface B EmailLoginScreen — $mode', (tester) async {
