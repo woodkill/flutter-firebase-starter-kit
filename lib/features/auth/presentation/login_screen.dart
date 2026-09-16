@@ -165,6 +165,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       children: <Widget>[
         AuthScaffold(
           title: l10n.authLoginTitle,
+          // push 로 연 경우(홈 데모 · 탈퇴/계정 연결 재인증)만 AppBar 가 표준
+          // 뒤로가기를 그린다. go 루트 교체 · 딥링크 · 최초 진입에서는 AppBar 가
+          // 스스로 숨긴다 (R_EXTRA_G2_IOS_BACK_NAV).
+          showBackButton: true,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
