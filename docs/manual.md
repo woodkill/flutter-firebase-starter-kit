@@ -41,6 +41,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 14. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
 15. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
 16. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+17. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
 
 ---
 
@@ -2686,6 +2687,11 @@ root cause). 09.2-04 Plan 의 `auth_repository_auto_verify_test.dart` 의
 message 안에 verbatim 주입 후 `verifyNever(updatePhotoURL)` 로 graceful skip
 보장.
 
+⚠ 위 `_setFacebookPhotoUrl` 서술은 **Classic 경로(Android · iOS ATT 허용)
+전제**다. ATT 를 요청하지 않는 킷 기본 설정의 iOS 는 Limited Login 이라 이
+호출을 건너뛴다 — `## ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역`
+절 참조.
+
 silhouette (실루엣) 정책: 본 phase 는 **허용 default** —
 `picture.data.is_silhouette == 1` 시에도 valid CDN (Content Delivery Network,
 콘텐츠 전송망) URL 로 채택. Phase 17 / 18 의 truth-of-source (출처 진실원)
@@ -3273,6 +3279,174 @@ focus 의미론을 차단하는 경우가 있습니다. 그래서 wrapper 는
   지정한다.
 - **라이트와 다크에 다른 시드 주입** — `AppTheme.light()` 와 `AppTheme.dark()`
   에 서로 다른 `seedColor` 를 넘기면 두 모드의 팔레트가 어긋난다.
+
+---
+
+## ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역
+
+> **2026-09-16 도입.** 근거 = `/gsd-debug ios-facebook-limited-login` 세션의
+> FU-f 결정(사용자 승인 2026-09-16). 진실원 2건 —
+> `.planning/debug/resolved/ios-facebook-limited-login.md` ·
+> `.planning/todos/completed/2026-09-16-att-manual-customization-point.md`.
+>
+> **ATT 프롬프트 · `NSUserTrackingUsageDescription` 목적 문구 ·
+> `app_tracking_transparency` 같은 패키지는 스타터 킷 범위 밖이며, 킷 위에
+> 만드는 각 앱의 책임입니다.** 다만 ATT 허용 여부가 iOS Facebook 로그인의
+> 동작(Limited Login vs Classic)을 바꾸므로, 그 경계와 귀결을 이 절에
+> 정리합니다.
+
+### 킷이 보장하는 것 / 보장하지 않는 것
+
+| 구분 | 내용 |
+|---|---|
+| **보장** | ATT 가 전혀 없는 **기본 설정 그대로** iOS Facebook 로그인이 동작한다 — Limited Login 경로가 이미 처리되어 있다 |
+| **보장** | `ClassicToken` 분기를 코드에 유지한다. 따라서 ATT 를 추가한 앱도 **인증 코드를 고칠 필요가 없다** — ⚠ 이 문장은 **구조상 추론**이며 **ATT 허용 상태 실기기 검증은 0건**이다 |
+| **비보장** | ATT 프롬프트 노출 · 목적 문구 · 추적 동의 UX |
+| **비보장** | App Store 개인정보 라벨(privacy label) · privacy manifest · 심사 대응 |
+| **비보장** | IDFA 를 실제로 쓰는 광고 / 어트리뷰션 기능 — 킷의 의존성에 광고 패키지는 0건이다(실측) |
+
+### ATT 유무가 Facebook 로그인을 어떻게 바꾸는가
+
+| 상태 | 토큰 종류 | Firebase 로 보내는 credential | 프로필 사진(photoURL) | 앱 전환 | 근거 |
+|---|---|---|---|---|---|
+| iOS · ATT 미요청 (**킷 기본값**) | `LimitedToken` (OIDC JWT) | `OAuthProvider('facebook.com').credential(idToken:, rawNonce:)` | **미갱신** | **전환되지 않음** — 웹 인증 세션 | (B) 실측 |
+| iOS · ATT 거부 | `LimitedToken` (OIDC JWT) | 미요청 상태와 동일 | **미갱신** | **전환되지 않음** — 웹 인증 세션 | (B) 실측 |
+| iOS · ATT 허용 | `ClassicToken` | `fb.FacebookAuthProvider.credential` | Graph API 프로필 사진 사용 가능 | **[미검증 — 실기기 0건]** | **[미검증 — 실기기 0건]** |
+| Android (ATT 무관) | `ClassicToken` | `fb.FacebookAuthProvider.credential` | Graph API 프로필 사진 사용 가능 | 플러그인 기본 동작 | (B) 실측 — 플러그인 Android 소스에 Limited 분기 없음 |
+
+**앱이 `LoginTracking.enabled` 를 요청해도 결과는 같다.** 킷은 로그인 호출에
+이미 추적 허용을 요청하고 있지만, iOS 는 ATT 가 허용 상태가 아니면 그 요청을
+무시하고 Limited Login 으로 강제한다. 호출부는 아래 한 곳이다
+(`lib/features/auth/data/auth_repository.dart:2486-2491`).
+
+```dart
+_facebookAuth.login(
+  permissions: ['email', 'public_profile'],
+  loginTracking: LoginTracking.enabled,
+  nonce: hashNonceSha256Hex(rawNonce),
+)
+```
+
+### 근거 — 출처 구분
+
+이 절의 주장은 **(A) 공식 문서 인용 / (B) 우리 코드 · SDK 소스 실측 /
+(C) 미검증** 셋으로 구분한다. 실측을 공식 문서 주장으로 승격하지 않는다.
+
+#### (A) 공식 문서 인용 — 영문 verbatim
+
+- Meta, Limited Login overview — https://developers.facebook.com/docs/facebook-login/limited-login/
+  - "Limited Login returns an `AuthenticationToken` that wraps an OpenID Connect token"
+  - "The ID token cannot be used to request additional data using the Graph API, such as friends, photos, or pages"
+  - classic Facebook Login "does not support Limited Login safeguards."
+- Meta, Advertising Tracking Enabled — https://developers.facebook.com/docs/app-events/guides/advertising-tracking-enabled/
+  - "If permission is provided, call the `setAdvertiserTrackingEnabled` method of the `FBSDKSettings` class and set it to `YES`"
+  - iOS 17.0+ : "We now rely on Apple's App Tracking Transparency (ATT) system API to determine ATT permission status."
+- Firebase, Supporting iOS 14 — https://firebase.google.com/docs/ios/supporting-ios-14
+  - "With iOS 14.5, Apple requires developers to receive the user's permission through the App Tracking Transparency framework to track them or access their device's advertising identifier (IDFA)."
+  - "Analytics event logging, event reporting, and conversion measurement are unaffected, but attribution is impacted if IDFA is not accessible."
+- Firebase, Configure data collection — https://firebase.google.com/docs/analytics/configure-data-collection
+  - "If you installed the `FirebaseAnalytics` module to your app through SPM or CocoaPods and want to disable collection of the IDFA (a device's advertising identifier) in your Apple app, ensure that the AdSupport framework is not included in your app."
+
+#### (B) 우리 코드 · SDK 소스 실측
+
+⚠ **「ATT 미허용 → Limited Login 강제」 인과의 유일한 근거는 이쪽이다.**
+이 인과를 직접 진술하는 **Meta 공식 문서 문장은 확보하지 못했다** — 해당
+문서 페이지 2건이 각각 HTTP 500 · 404 로 접근 불가였다. 아래 실측을 공식
+문서 인용인 것처럼 옮기지 말 것.
+
+| 위치 | 실측 내용 |
+|---|---|
+| `lib/features/auth/data/auth_repository.dart:2459-2468` (docstring) | flutter_facebook_auth 7.1.6 iOS 는 ATT 미허용이면 Limited Login 으로 강제하고(`FacebookAuth.swift:106-110`) `LimitedToken` 을 돌려준다 |
+| `auth_repository.dart:2486-2491` | 로그인 호출부 — `LoginTracking.enabled` 와 해시된 nonce 를 넘긴다 |
+| `auth_repository.dart:651-655` | `if (!facebook.isLimited)` 일 때만 Graph API 프로필 사진(`_setFacebookPhotoUrl`)을 채운다 |
+| `auth_repository.dart:617` (주석) | Classic(Android · iOS ATT 허용)은 nonce 없는 access token credential 이다 |
+| `auth_repository.dart:608-611` | Limited 충돌은 `_signInAfterLimitedLinkConflict` 로 분기한다 — nonce 는 1회용이라 재제출할 수 없다 |
+| `.planning/debug/resolved/ios-facebook-limited-login.md` | 실 단말 관측 이력 |
+
+#### (C) 미검증 — 실측 0건
+
+- **ATT 허용 상태의 실기기 Facebook 로그인(= Classic 경로) 검증 0건.**
+- ATT 를 추가해도 인증 코드 변경이 불필요하다는 것은 **구조상 추론**이다.
+
+### 추적하는 앱이 해야 할 일
+
+1. **ATT 요청을 붙인다** — `app_tracking_transparency` 같은 패키지는 **킷에
+   없다**(실측). 앱이 직접 추가한다.
+2. **목적 문구를 넣는다** — `ios/Runner/Info.plist` 에
+   `NSUserTrackingUsageDescription` 키를 추가한다. **현재 킷에는 없다**(실측).
+3. **Meta SDK 설정** — (A) 의 "If permission is provided, call the
+   `setAdvertiserTrackingEnabled` method of the `FBSDKSettings` class and set
+   it to `YES`" 인용이 근거다. 다만 같은 문서가 iOS 17.0+ 에 대해 "We now rely
+   on Apple's App Tracking Transparency (ATT) system API to determine ATT
+   permission status." 라고 밝히므로, 최신 iOS 에서는 SDK 가 ATT 상태를 직접
+   본다.
+4. **순서 주의** — ATT 를 로그인 **뒤에** 요청하면 그 로그인은 이미 Limited 로
+   끝난 상태다. **[추론 — 실측 0건]**
+5. **App Store 개인정보 라벨 · privacy manifest 갱신은 앱 책임이다.**
+
+목적 문구 키(`NSUserTrackingUsageDescription`)가 없을 때 iOS 가 ATT 프롬프트를
+어떻게 처리하는지는 **[미확인 — Apple 공식 문서 확인 필요]** 다. 이 매뉴얼은
+그 동작에 대한 Apple 문서를 인용하지 않았다.
+
+### IDFA — 현재 킷 설정에서 실제로 수집되는가
+
+- **의존성 구성은 수집 가능 상태다** — `ios/Podfile.lock` 실측:
+  `FirebaseAnalytics (12.12.0)` → `FirebaseAnalytics/Default` →
+  `GoogleAppMeasurement/Default (12.12.0)` →
+  `GoogleAppMeasurement/IdentitySupport (12.12.0)`. `ios/Podfile` 에
+  `WithoutAdIdSupport` 플래그나 서브스펙은 없다(실측).
+- **그럼에도 실제 수집되는 IDFA 는 없다** — 킷은 ATT 를 **한 번도 요청하지
+  않으므로** iOS 14.5+ 가 IDFA 를 내주지 않는다. 근거는 (A) Firebase
+  Supporting iOS 14 의 "With iOS 14.5, Apple requires developers to receive
+  the user's permission through the App Tracking Transparency framework to
+  track them or access their device's advertising identifier (IDFA)." 이다.
+  같은 문서가 "Analytics event logging, event reporting, and conversion
+  measurement are unaffected, but attribution is impacted if IDFA is not
+  accessible." 라고 밝히듯 Analytics 이벤트 수집 자체는 영향받지 않는다.
+- **ATT 를 추가하고 사용자가 허용하면** 그 경로가 열린다. 그 시점부터 App Store
+  개인정보 라벨과 정책 귀결은 **앱 책임**이다.
+- **수집 구성 자체를 끄고 싶다면** (A) 의 Firebase Configure data collection
+  인용("… ensure that the AdSupport framework is not included in your app.")이
+  출발점이다. CocoaPods 서브스펙 교체로 이를 달성하는 경로는
+  **[미검증 — 킷에서 시도 0건]** 이다.
+- ⚠ **ATT 허용 상태에서 실제로 무엇이 수집되는지에 대한 실측은 0건**이다.
+
+### 흔한 실수
+
+- **photoURL 이 안 채워지는 것은 버그가 아니다** — ATT 가 없는 기본 설정의
+  정상 동작이다(`auth_repository.dart:651-655`).
+- **Limited 토큰으로 Graph API 추가 데이터를 기대하지 말 것** — (A) 의 "The ID
+  token cannot be used to request additional data using the Graph API, such as
+  friends, photos, or pages" 그대로다.
+- **Facebook 앱으로 전환되지 않는 것도 정상이다** — Limited 경로는 웹 인증
+  세션을 쓴다.
+- **`LoginTracking.enabled` 를 켰으니 Classic 이겠거니 하는 가정** — iOS 는 ATT
+  미허용이면 그 요청을 무시하고 Limited 로 간다.
+- **ATT 를 붙였다고 인증 코드를 갈아엎지 말 것** — Classic 분기는 이미 있다.
+  단 실기기 검증 0건이므로 적용하는 앱이 직접 검증해야 한다.
+
+### 코드 anchor · 회귀 가드
+
+| anchor | 무엇을 정하는가 |
+|---|---|
+| `auth_repository.dart:2459-2468` | Limited 강제 조건과 토큰 타입 분기의 근거 docstring |
+| `auth_repository.dart:2486-2491` | 로그인 요청 옵션(`LoginTracking.enabled` · 해시 nonce) |
+| `auth_repository.dart:651-655` | Graph API 프로필 사진 호출의 Classic 전용 가드 |
+| `auth_repository.dart:617` | Classic credential 의 재제출 허용 근거 주석 |
+| `auth_repository.dart:608-611` | Limited 충돌 분기(nonce 1회용) |
+
+**자동 회귀 가드는 없다.** ATT 상태나 Limited / Classic 분기를 단언하는 테스트는
+0건이며, 이 절의 근거는 위 docstring 과 `/gsd-debug` 세션 기록뿐이다. 이 동작을
+바꾸는 앱은 스스로 실기기에서 확인해야 한다.
+
+### 관련 절
+
+- `## IdP 프로필 동기화 정책 (R10-FOLLOWUP)` — 재로그인 시 `photoURL` 동기화
+  정책.
+- `## Multi-Provider Account Linking (Phase 9.2)` 의
+  `### 3. Facebook 자동 sendEmailVerification + photoURL Graph API (R4 + R5)`
+  — `_setFacebookPhotoUrl` 본체 설명. 그 절의 서술은 **Classic 경로 전제**이며,
+  Limited 에서는 이 호출을 건너뛴다.
 
 ---
 
