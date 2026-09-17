@@ -12,6 +12,32 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 
 void main() {
+  group('describeNaverErrorForLog (WR-05 PII)', () {
+    test('iOS 취소 실측 인자 → 실기기 로그와 같은 문자열', () {
+      expect(
+        describeNaverErrorForLog(2, 'CANCELBYUSER'),
+        equals(
+          'errorCode=2 message=CANCELBYUSER length=12 '
+          'canceledByUserPrefix=false',
+        ),
+      );
+    });
+
+    test('자유 문자열 message → 원문 대신 other · 길이만 출력', () {
+      const freeText = 'user@example.com 인증 실패';
+      final described = describeNaverErrorForLog(-1, freeText);
+
+      expect(
+        described,
+        equals(
+          'errorCode=-1 message=other length=${freeText.length} '
+          'canceledByUserPrefix=false',
+        ),
+      );
+      expect(described, isNot(contains('user@example.com')));
+    });
+  });
+
   group('NaverSdkClient (T-13-NAVER-SDK)', () {
     test('T-13-NAVER-SDK-01: onSuccess + getAccessToken → '
         'NaverSignInResult', () async {
@@ -72,6 +98,59 @@ void main() {
         expect(result, isNull);
       },
     );
+
+    // iOS 실기기 실측 fixture (debug ios-naver-line-cancel-silent Evidence 8):
+    // iPhone Air · iOS 26.0.1 동의 확인창 「취소」 → run log
+    // `Naver onError: errorCode=2 message=CANCELBYUSER length=12`.
+    test(
+      'T-13-NAVER-SDK-03b: iOS onError(2, "CANCELBYUSER") → null silent',
+      () async {
+        OAuthLoginCallback? capturedCallback;
+        final client = NaverSdkClient.forTest(
+          login: ({required OAuthLoginCallback callback}) {
+            capturedCallback = callback;
+          },
+          getAccessToken: () async => '',
+          logout: () async {},
+        );
+
+        final future = client.signIn();
+        await Future<void>.delayed(Duration.zero);
+        capturedCallback!.onError?.call(2, 'CANCELBYUSER');
+        final result = await future;
+
+        expect(result, isNull);
+      },
+    );
+
+    // silent 과확장 방어 — iOS 취소 쌍 (2, 'CANCELBYUSER') 과 한 곳만 다른
+    // 값은 취소가 아니므로 ServiceUnavailable 로 남아야 한다.
+    const nonCancelCases = <(int, String, String)>[
+      (7, 'CLIENTNETWORKPROBLEM', 'iOS receiveType 7 네트워크 오류'),
+      (10, 'NETWORKERROR', 'iOS receiveType 10 네트워크 오류'),
+      (1, 'CANCELBYUSER', 'errorCode 1 (취소 코드 2 의 이웃)'),
+      (3, 'CANCELBYUSER', 'errorCode 3 (취소 코드 2 의 이웃)'),
+      (2, 'The operation couldn’t be completed.', 'didFailWithError code 2'),
+      (2, 'cancelbyuser', 'message 대소문자 불일치'),
+    ];
+    for (final (errorCode, message, label) in nonCancelCases) {
+      test('T-13-NAVER-SDK-03c: onError $label → ServiceUnavailable', () async {
+        OAuthLoginCallback? capturedCallback;
+        final client = NaverSdkClient.forTest(
+          login: ({required OAuthLoginCallback callback}) {
+            capturedCallback = callback;
+          },
+          getAccessToken: () async => '',
+          logout: () async {},
+        );
+
+        final future = client.signIn();
+        await Future<void>.delayed(Duration.zero);
+        capturedCallback!.onError?.call(errorCode, message);
+
+        await expectLater(future, throwsA(isA<ServiceUnavailable>()));
+      });
+    }
 
     test('T-13-NAVER-SDK-04: onError "naverapp_not_installed" → callback '
         '재호출 대기 (silent timeout)', () async {

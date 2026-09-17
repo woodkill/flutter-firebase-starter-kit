@@ -108,7 +108,7 @@ void main() {
     );
 
     test(
-      'Test 3: PlatformException("CANCEL") (iOS LINE app-to-app 취소) → null',
+      'Test 3: PlatformException("CANCEL") (Android LineApiResponseCode) → null',
       () async {
         final client = LineSdkClient.forTest(
           login: ({required scopes, required option}) async {
@@ -123,8 +123,8 @@ void main() {
       },
     );
 
-    test('Test 4: PlatformException("AUTHENTICATION_CANCELLED") (Android LINE '
-        '취소) → null', () async {
+    test('Test 4: PlatformException("AUTHENTICATION_CANCELLED") (출처 미확인 '
+        '기존 값) → null', () async {
       final client = LineSdkClient.forTest(
         login: ({required scopes, required option}) async {
           throw PlatformException(code: 'AUTHENTICATION_CANCELLED');
@@ -136,6 +136,48 @@ void main() {
 
       expect(result, isNull);
     });
+
+    // iOS 실기기 실측 fixture (debug ios-naver-line-cancel-silent Evidence 9):
+    // iPhone Air · iOS 26.0.1 LINE 웹 로그인 화면 X → run log
+    // `LINE login PlatformException: code=3003`.
+    test(
+      'Test 4b: PlatformException("3003") (iOS userCancelled 실측) → null',
+      () async {
+        final client = LineSdkClient.forTest(
+          login: ({required scopes, required option}) async {
+            throw PlatformException(code: '3003');
+          },
+          logout: () async {},
+        );
+
+        final result = await client.signIn();
+
+        expect(result, isNull);
+      },
+    );
+
+    // silent 과확장 방어 — LineSDK iOS 의 취소 외 코드와 '3003' 의 문자열
+    // 이웃은 rethrow 되어야 한다.
+    const nonCancelCodes = <String>[
+      '3002', // malformedHierarchy
+      '3004', // forceStopped
+      '3011', // webLoginError
+      '2001', // URLSessionError (네트워크)
+      '30030',
+      ' 3003',
+    ];
+    for (final code in nonCancelCodes) {
+      test('Test 5b: PlatformException("$code") → rethrow', () async {
+        final client = LineSdkClient.forTest(
+          login: ({required scopes, required option}) async {
+            throw PlatformException(code: code);
+          },
+          logout: () async {},
+        );
+
+        await expectLater(client.signIn(), throwsA(isA<PlatformException>()));
+      });
+    }
 
     test('Test 5: 비-cancel PlatformException → rethrow', () async {
       final client = LineSdkClient.forTest(
@@ -176,6 +218,21 @@ void main() {
         await expectLater(client.signIn(), throwsA(isA<ServiceUnavailable>()));
       },
     );
+  });
+
+  group('describeLineCodeForLog — 코드형 문자열만 원문 출력', () {
+    test('iOS 숫자 코드 · Android enum 이름 → 원문 그대로', () {
+      expect(describeLineCodeForLog('3003'), equals('3003'));
+      expect(describeLineCodeForLog('CANCEL'), equals('CANCEL'));
+    });
+
+    test('코드형이 아닌 문자열 → 원문 대신 길이만', () {
+      expect(
+        describeLineCodeForLog('user@example.com'),
+        equals('<non-code length=16>'),
+      );
+      expect(describeLineCodeForLog(''), equals('<non-code length=0>'));
+    });
   });
 
   group('LineSdkClient.logout — D-LINE-57 1회성 토큰 + graceful', () {

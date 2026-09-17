@@ -60,6 +60,73 @@ class NaverSdkError implements Exception {
   String toString() => 'NaverSdkError(code: $code, message: $message)';
 }
 
+/// Naver SDK 가 onError message 로 보내는 알려진 고정 문자열 집합.
+///
+/// - iOS: naver_login_sdk `NaverLoginSdkConverter.swift` 의 receiveType 이름
+///   (SUCCESS ~ UNKNOWNERROR, 닫힌 집합).
+/// - Android: `user_cancel` · `naverapp_not_installed` · `naverapp_need_update`.
+///
+/// 이 집합에 든 문자열은 SDK 상수라 로그에 그대로 써도 사용자 정보가 아니다.
+const Set<String> _kNaverKnownErrorMessages = <String>{
+  'SUCCESS',
+  'PARAMETERNOTSET',
+  'CANCELBYUSER',
+  'NAVERAPPNOTINSTALLED',
+  'NAVERAPPVERSIONINVALID',
+  'OAUTHMETHODNOTSET',
+  'INVALIDREQUEST',
+  'CLIENTNETWORKPROBLEM',
+  'UNAUTHORIZEDCLIENT',
+  'UNSUPPORTEDRESPONSETYPE',
+  'NETWORKERROR',
+  'UNKNOWNERROR',
+  'user_cancel',
+  'naverapp_not_installed',
+  'naverapp_need_update',
+};
+
+/// Naver SDK onError 인자를 PII 없는 진단 문자열로 바꾼다 (kDebugMode 로그 전용).
+///
+/// [message] 원문은 `localizedDescription` 같은 자유 문자열일 수 있어 출력하지
+/// 않는다 (WR-05). 알려진 SDK 상수와 일치할 때만 그 상수 이름을, 그 외에는
+/// `other` 와 길이 · `Canceled By User` 접두어 여부만 남긴다.
+@visibleForTesting
+String describeNaverErrorForLog(int errorCode, String message) {
+  final known = _kNaverKnownErrorMessages.contains(message) ? message : 'other';
+  final canceledByUserPrefix = message.startsWith('Canceled By User');
+  return 'errorCode=$errorCode message=$known '
+      'length=${message.length} canceledByUserPrefix=$canceledByUserPrefix';
+}
+
+/// iOS 사용자 취소 시 naver_login_sdk 가 onError 로 보내는 errorCode.
+///
+/// iOS 플러그인은 `didFailAuthorizationWithReceive` 의 receiveType rawValue 를
+/// errorCode 로, 그 이름을 message 로 보낸다. 2 = CANCELBYUSER.
+const int _kNaverIosCancelErrorCode = 2;
+
+/// iOS 사용자 취소 시 naver_login_sdk 가 onError 로 보내는 message.
+const String _kNaverIosCancelMessage = 'CANCELBYUSER';
+
+/// Naver onError 인자가 사용자 취소인지 판정한다 (D-45 silent 대상).
+///
+/// 취소 값만 정확히 매칭한다 — 네트워크 · 설정 오류는 여기서 걸러지면 안 된다.
+///
+/// - iOS `(2, 'CANCELBYUSER')`: iOS 동의 확인창 「취소」 가 보내는 값
+///   (iPhone Air · iOS 26.0.1 실기기 실측, 2026-09-18). SDK 가 인증 세션 취소를
+///   receiveType 2 로 바꿔 보낸다. errorCode 와 message 를 함께 확인한다 —
+///   `didFailWithError` 경로는 NSError code 와 localizedDescription 을 보내므로
+///   code 가 2 여도 취소가 아니다.
+/// - Android `user_cancel` (NidOAuthErrorCode.CLIENT_USER_CANCEL) ·
+///   `Canceled By User…` (플러그인 콜백 문서, errorCode -1): 기존 Android 값.
+///   iOS 플러그인 소스에는 두 문자열이 없다.
+bool _isNaverUserCancel(int errorCode, String message) {
+  if (errorCode == _kNaverIosCancelErrorCode &&
+      message == _kNaverIosCancelMessage) {
+    return true;
+  }
+  return message == 'user_cancel' || message.startsWith('Canceled By User');
+}
+
 /// Default `NaverLoginSDK.login` 호출 — production 진입점.
 ///
 /// [Future<bool>] 반환은 무시한다 — 진실원은 callback (Pitfall 9). SDK 가
@@ -91,8 +158,9 @@ Future<void> _defaultLogout() async {
 ///   `AuthRepository.signInWithNaver` 의 finally 블록이 [logout] 을 호출한다.
 ///
 /// **사용자 취소 silent (D-45):**
-/// - `onError(message: 'user_cancel')` (iOS — 사용자 인증 시작 안 함) → null
-/// - `onError(message: 'Canceled By User…')` (iOS — 로그인 화면 취소) → null
+/// - `onError(2, 'CANCELBYUSER')` (iOS — 동의 확인창 취소, 실기기 실측) → null
+/// - `onError(message: 'user_cancel')` (Android — 사용자 인증 취소) → null
+/// - `onError(message: 'Canceled By User…')` (Android — 로그인 화면 취소) → null
 /// - `onFailure` (Android cancel 도착) → null silent (D-45 conservative)
 ///
 /// **timeout 60s** — 콜백 미도착 시 silent (Decision #2 — D-45 일관).
@@ -131,7 +199,8 @@ class NaverSdkClient {
   /// 1. [Completer] 1회 생성 + 3 분기 isCompleted 가드 (Pitfall 1).
   /// 2. `_login(callback:)` 호출 — onSuccess / onFailure / onError 분기 합성.
   /// 3. onSuccess → `_getAccessToken()` → [NaverSignInResult] 반환.
-  /// 4. onError 'user_cancel' / 'Canceled By User…' → null 반환 (D-45).
+  /// 4. onError 사용자 취소 (iOS `(2, 'CANCELBYUSER')` · Android
+  ///    'user_cancel' / 'Canceled By User…') → null 반환 (D-45).
   /// 5. onError 'naverapp_*' → 분기 무시 (SDK 자동 webview fallback).
   /// 6. onError 그 외 → [ServiceUnavailable] throw.
   /// 7. onFailure → null 반환 (D-45 conservative — Android cancel 흡수).
@@ -187,8 +256,13 @@ class NaverSdkClient {
           completeSilent();
         },
         onError: (int errorCode, String message) {
-          if (message == 'user_cancel' ||
-              message.startsWith('Canceled By User')) {
+          // WR-05 PII invariant: message 원문 대신 닫힌 집합 매칭 결과 · 길이만 출력.
+          if (kDebugMode) {
+            debugPrint(
+              'Naver onError: ${describeNaverErrorForLog(errorCode, message)}',
+            );
+          }
+          if (_isNaverUserCancel(errorCode, message)) {
             completeSilent(); // D-45 silent
             return;
           }

@@ -47,6 +47,42 @@ typedef LineLoginFn =
 /// LINE SDK `logout()` 함수 시그니처 typedef (D-LINE-57 1회성 토큰 정책).
 typedef LineLogoutFn = Future<void> Function();
 
+/// `PlatformException.code` 가 코드형 문자열인지 판정하는 패턴.
+final RegExp _kLineCodeLikePattern = RegExp(r'^[A-Za-z0-9_.]{1,64}$');
+
+/// LINE `PlatformException.code` 를 로그에 써도 되는 형태로 거른다
+/// (kDebugMode 로그 전용).
+///
+/// flutter_line_sdk 는 iOS 에서 `String(errorCode)` 숫자 문자열, Android 에서
+/// `LineApiResponseCode.name` 을 code 로 쓴다. 코드형 문자열만 그대로 돌려주고,
+/// 그 밖의 값은 원문 대신 길이만 남긴다.
+@visibleForTesting
+String describeLineCodeForLog(String code) {
+  return _kLineCodeLikePattern.hasMatch(code)
+      ? code
+      : '<non-code length=${code.length}>';
+}
+
+/// 사용자 취소로 보고 조용히 끝낼 LINE `PlatformException.code` 집합
+/// (D-LINE-21 silent).
+///
+/// 취소 코드만 정확히 매칭한다 — 네트워크 · 설정 오류는 rethrow 해야 한다.
+///
+/// - `'3003'` (iOS): LineSDK `authorizeFailed(.userCancelled)`. flutter_line_sdk
+///   iOS 는 `String(errorCode)` 를 code 로 쓴다. 웹 로그인 화면 X · 오프라인
+///   Safari 창 닫기로 실측 (iPhone Air · iOS 26.0.1, 2026-09-18). SDK 소스상
+///   LINE 앱에서 토큰 없이 복귀 · 웹 동의 거부도 같은 코드다.
+///   `'3004'` (forceStopped) · `'2001'` (URLSessionError) 등은 취소가 아니다.
+/// - `'CANCEL'` (Android): flutter_line_sdk Android 가 쓰는
+///   `LineApiResponseCode.CANCEL.name`.
+/// - `'AUTHENTICATION_CANCELLED'`: 플러그인 소스에서 출처를 찾지 못한 기존
+///   값. Android 회귀 방지를 위해 유지한다.
+const Set<String> _kLineUserCancelCodes = <String>{
+  '3003',
+  'CANCEL',
+  'AUTHENTICATION_CANCELLED',
+};
+
 /// Default `LineSDK.instance.login` 호출 — production 진입점.
 Future<LoginResult> _defaultLineLogin({
   required List<String> scopes,
@@ -74,9 +110,11 @@ Future<void> _defaultLineLogout() async {
 ///   단일 진실원이다.
 ///
 /// **사용자 취소 silent (D-LINE-21 / Phase 9 D-09 패턴):**
-/// - `PlatformException(code: 'CANCEL')` (iOS LINE app-to-app 취소) → null
-/// - `PlatformException(code: 'AUTHENTICATION_CANCELLED')` (Android LINE 앱
-///   취소) → null
+/// - `PlatformException(code: '3003')` (iOS 웹 로그인 X · 창 닫기, 실기기
+///   실측) → null
+/// - `PlatformException(code: 'CANCEL')` (Android LINE 취소) → null
+/// - `PlatformException(code: 'AUTHENTICATION_CANCELLED')` (출처 미확인 기존
+///   값) → null
 ///
 /// **idToken null 시 [ServiceUnavailable] throw (Pitfall 1 — OIDC scope 누락):**
 /// - LINE Developer Console 의 Channel scope 에 `openid` 미선택 시
@@ -111,8 +149,8 @@ class LineSdkClient {
   ///    false, 'normal')..idTokenNonce = nonce)` 호출.
   /// 3. `result.accessToken.idTokenRaw == null` (Pitfall 1 — OIDC scope 누락) →
   ///    [ServiceUnavailable] throw.
-  /// 4. 사용자 취소 (`PlatformException` 'CANCEL' / 'AUTHENTICATION_CANCELLED')
-  ///    → null 반환 (D-LINE-21 silent).
+  /// 4. 사용자 취소 (`PlatformException` code 가 iOS '3003' / Android 'CANCEL'
+  ///    / 'AUTHENTICATION_CANCELLED') → null 반환 (D-LINE-21 silent).
   ///
   /// 반환:
   /// - [LineSignInResult] (idToken + 같은 nonce) — 성공.
@@ -138,8 +176,15 @@ class LineSdkClient {
       }
       return LineSignInResult(idToken: idTokenRaw, nonce: nonce);
     } on PlatformException catch (e) {
-      // D-LINE-21 silent cancel — iOS = 'CANCEL', Android = 'AUTHENTICATION_CANCELLED'.
-      if (e.code == 'CANCEL' || e.code == 'AUTHENTICATION_CANCELLED') {
+      // message · details 는 SDK userInfo 원문(URL 등)을 실을 수 있어 미출력 —
+      // 코드형 문자열인 code 만 거른 뒤 출력한다.
+      if (kDebugMode) {
+        debugPrint(
+          'LINE login PlatformException: code=${describeLineCodeForLog(e.code)}',
+        );
+      }
+      // D-LINE-21 silent cancel — 코드별 출처는 _kLineUserCancelCodes 참조.
+      if (_kLineUserCancelCodes.contains(e.code)) {
         return null;
       }
       rethrow;
