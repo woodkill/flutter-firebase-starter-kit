@@ -55,8 +55,21 @@ import 'package:mocktail/mocktail.dart';
 ///
 /// 16.1 surface golden 은 탭을 발생시키지 않으므로 stub 을 두지 않는다. 재인증
 /// 모드 golden 중 탭 결과를 찍는 2장 (다른 계정 배너 · 성공 SnackBar) 만
-/// `reauthenticate` 를 stub 한다.
+/// `reauthenticate` 를 stub 한다. 모든 Mock 은 [_mockRepository] 로 만든다.
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// 재인증 선택 화면이 열릴 때 부르는 `reloadUser` 만 성공으로 stub 한 Mock.
+///
+/// reload 는 목록을 서버 기준으로 새로고침할 뿐 새 UI 상태를 만들지 않는다 —
+/// golden 은 `currentUserProvider` 를 고정하므로 렌더는 reload 전과 같아야
+/// 한다 (승인 렌더 byte 동일 계약 유지).
+_MockAuthRepository _mockRepository() {
+  final repository = _MockAuthRepository();
+  when(
+    repository.reloadUser,
+  ).thenAnswer((_) async => const Result.success(null));
+  return repository;
+}
 
 /// golden viewport — UI-SPEC §Surface A "360×800 폰 본문 영역" 계약 (logical
 /// px). [_goldenDevicePixelRatio] 3.0 과 함께 [TestFlutterView.physicalSize]
@@ -193,8 +206,8 @@ Future<void> _settleAssets(WidgetTester tester) async {
 /// (`authRepositoryProvider` + `activeStrategiesProvider`).
 ///
 /// [user] 가 있으면 `currentUserProvider` 를 그 사용자로 고정한다 (재인증 모드
-/// golden — 연결 provider 필터 · 이메일 칸 입력). [repository] 가 없으면 stub
-/// 없는 Mock 을 쓴다.
+/// golden — 연결 provider 필터 · 이메일 칸 입력). [repository] 가 없으면
+/// [_mockRepository] 를 쓴다.
 Widget _wrapApp({
   required Brightness brightness,
   required Widget home,
@@ -203,9 +216,7 @@ Widget _wrapApp({
 }) {
   return ProviderScope(
     overrides: [
-      authRepositoryProvider.overrideWithValue(
-        repository ?? _MockAuthRepository(),
-      ),
+      authRepositoryProvider.overrideWithValue(repository ?? _mockRepository()),
       activeStrategiesProvider.overrideWithValue(_sevenStrategies),
       if (user != null) currentUserProvider.overrideWith((ref) => user),
     ],
@@ -406,7 +417,7 @@ void main() {
       });
 
       testWidgets('재인증 선택 화면 — 다른 계정 배너 — $mode', (tester) async {
-        final repository = _MockAuthRepository();
+        final repository = _mockRepository();
         when(
           () => repository.reauthenticate(AccountProvider.google),
         ).thenAnswer((_) async => const Result.failure(ReauthUserMismatch()));
@@ -440,7 +451,7 @@ void main() {
       });
 
       testWidgets('재인증 성공 → 설정 복귀 + SnackBar — $mode', (tester) async {
-        final repository = _MockAuthRepository();
+        final repository = _mockRepository();
         when(
           () => repository.reauthenticate(AccountProvider.naver),
         ).thenAnswer((_) async => Result.success(naverUser));

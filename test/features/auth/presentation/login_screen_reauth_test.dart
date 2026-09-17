@@ -14,6 +14,9 @@
 //   RL-7: 이메일 재인증 화면 — 읽기 전용 이메일 · 확인 CTA · 가입 링크 없음 (Q3)
 //   RL-8: 대조군 — 표시 없는 /login 은 일반 로그인 화면 그대로
 //   RL-9: ko 채택 문구 verbatim (en/ja 는 검토 대기 초안이라 잠그지 않는다)
+//   RL-10~12: 선택 화면 열림 reload — SDK 캐시 providerData 가 서버보다 오래된
+//          경우(앱 밖 해제) stale 버튼 제거 · 실패 시 새 UI 상태 없음 · 실행 시점
+//          Q7 배너 (실기기 D1 Evidence 21 · 22)
 
 import 'dart:async';
 
@@ -53,9 +56,14 @@ class _MockFirebaseUser extends Mock implements fb.User {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
+class _MockUserInfo extends Mock implements fb.UserInfo {}
+
+class _MockUserMetadata extends Mock implements fb.UserMetadata {}
+
 const _settingsText = 'SETTINGS_STUB';
 const _homeText = 'HOME_STUB';
 const _currentEmail = 'current-user@example.com';
+const _currentUid = 'current-uid-U';
 
 /// 현행 활성 provider 7종 (`_allStrategies` 선언 순서).
 const List<AuthStrategy> _sevenStrategies = <AuthStrategy>[
@@ -70,19 +78,52 @@ const List<AuthStrategy> _sevenStrategies = <AuthStrategy>[
 
 /// [providerIds] 를 연결한 정식 사용자 도메인 모델.
 User _userWith(List<String> providerIds) => User(
-  uid: 'current-uid-U',
+  uid: _currentUid,
   email: _currentEmail,
   emailVerified: true,
   createdAt: DateTime.utc(2026, 1, 1),
   providerIds: providerIds,
 );
 
+/// providerData 가 [providerIds] 인 SDK 사용자 객체.
+///
+/// SDK `reload()` 는 기존 객체를 고치지 않고 새 객체로 교체한 뒤 `userChanges`
+/// 를 재방출한다 (firebase_auth_platform_interface 8.1.8
+/// `MethodChannelUser.reload`) — reload 전후 사용자를 각각 만든다.
+fb.User _sdkUserWith(List<String> providerIds) {
+  final infos = List<fb.UserInfo>.generate(
+    providerIds.length,
+    (_) => _MockUserInfo(),
+  );
+  for (final (index, providerId) in providerIds.indexed) {
+    when(() => infos[index].providerId).thenReturn(providerId);
+  }
+  final metadata = _MockUserMetadata();
+  when(() => metadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+  final user = _MockFirebaseUser();
+  when(() => user.uid).thenReturn(_currentUid);
+  when(() => user.email).thenReturn(_currentEmail);
+  when(() => user.emailVerified).thenReturn(true);
+  when(() => user.displayName).thenReturn(null);
+  when(() => user.photoURL).thenReturn(null);
+  when(() => user.isAnonymous).thenReturn(false);
+  when(() => user.metadata).thenReturn(metadata);
+  when(() => user.providerData).thenReturn(infos);
+  return user;
+}
+
 /// production 라우터와 같은 builder (표시 → isReauth) 로 설정 위에 재인증
 /// 로그인 화면을 push 한 상태를 만든다.
+///
+/// [sdkUserChanges] 가 있으면 `currentUserProvider` 를 고정하지 않고 production
+/// 계산(SDK userChanges providerData ∪ Firestore [linkedProviders]) 을 그대로
+/// 쓴다 — 화면 열림 reload 가 목록을 바꾸는지 보기 위한 경로다.
 Future<GoRouter> _pumpReauthFlow(
   WidgetTester tester, {
   required _MockAuthRepository repo,
-  required User user,
+  User? user,
+  Stream<fb.User?>? sdkUserChanges,
+  List<String> linkedProviders = const <String>[],
   List<AuthStrategy> strategies = _sevenStrategies,
   Locale locale = const Locale('en'),
   bool withMarker = true,
@@ -136,7 +177,14 @@ Future<GoRouter> _pumpReauthFlow(
         firebaseAuthProvider.overrideWithValue(mockAuth),
         authRepositoryProvider.overrideWithValue(repo),
         activeStrategiesProvider.overrideWithValue(strategies),
-        currentUserProvider.overrideWith((ref) => user),
+        if (sdkUserChanges == null)
+          currentUserProvider.overrideWith((ref) => user)
+        else ...[
+          authStateProvider.overrideWith((ref) => sdkUserChanges),
+          linkedProvidersStreamProvider(
+            _currentUid,
+          ).overrideWith((ref) => Stream<List<String>>.value(linkedProviders)),
+        ],
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -194,6 +242,10 @@ void main() {
         password: any(named: 'password'),
       ),
     ).thenAnswer((_) async => const Result.failure(InvalidCredentials()));
+    // 선택 화면 열림 reload — 기본은 성공 · 사용자 불변.
+    when(
+      () => repo.reloadUser(),
+    ).thenAnswer((_) async => const Result.success(null));
   });
 
   group('재인증 모드 로그인 화면 (reauth-login-auto-merge)', () {
@@ -406,6 +458,85 @@ void main() {
       expect(find.byType(SocialButton), findsNWidgets(7));
       expect(find.text(l10n.authLoginNoAccount), findsOneWidget);
     });
+  });
+
+  group('선택 화면 열림 reload — stale providerData (reauth-login-auto-merge)', () {
+    testWidgets(
+      'RL-10: 캐시 [apple.com] · 서버 [] + Firestore [naver] → 열림 reload 1회 뒤 Apple 버튼 제거 · 네이버만',
+      (tester) async {
+        final userChanges = StreamController<fb.User?>();
+        addTearDown(userChanges.close);
+        final cachedUser = _sdkUserWith(const <String>['apple.com']);
+        final reloadedUser = _sdkUserWith(const <String>[]);
+        userChanges.add(cachedUser);
+        // SDK reload 계약 — 새 사용자 객체로 교체 + userChanges 재방출.
+        when(() => repo.reloadUser()).thenAnswer((_) async {
+          userChanges.add(reloadedUser);
+          return const Result.success(null);
+        });
+
+        await _pumpReauthFlow(
+          tester,
+          repo: repo,
+          sdkUserChanges: userChanges.stream,
+          linkedProviders: const <String>['naver'],
+        );
+        final l10n = _l10n(tester);
+
+        expect(find.text(l10n.authAppleSignIn), findsNothing);
+        expect(find.text(l10n.authNaverSignIn), findsOneWidget);
+        expect(find.byType(SocialButton), findsOneWidget);
+        expect(find.text(l10n.errorReauthMethodUnavailable), findsNothing);
+        verify(() => repo.reloadUser()).called(1);
+      },
+    );
+
+    testWidgets(
+      'RL-11: 열림 reload 실패 → 기존 목록 유지 · 배너 0 (새 UI 상태 없음, 실행 직전 재확인이 방어)',
+      (tester) async {
+        final userChanges = StreamController<fb.User?>();
+        addTearDown(userChanges.close);
+        userChanges.add(_sdkUserWith(const <String>['apple.com']));
+        when(
+          () => repo.reloadUser(),
+        ).thenAnswer((_) async => const Result.failure(NoInternetConnection()));
+
+        await _pumpReauthFlow(
+          tester,
+          repo: repo,
+          sdkUserChanges: userChanges.stream,
+          linkedProviders: const <String>['naver'],
+        );
+        final l10n = _l10n(tester);
+
+        expect(find.byType(SocialButton), findsNWidgets(2));
+        expect(find.text(l10n.errorReauthMethodUnavailable), findsNothing);
+        expect(find.text(l10n.errorNoInternet), findsNothing);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'RL-12: 탭 → ReauthMethodUnavailable (서버에서 해제 · reload 실패) → Q7 배너 · 화면 유지 · SnackBar 0',
+      (tester) async {
+        when(() => repo.reauthenticate(AccountProvider.apple)).thenAnswer(
+          (_) async => const Result.failure(ReauthMethodUnavailable()),
+        );
+        final router = await _pumpReauthFlow(
+          tester,
+          repo: repo,
+          user: _userWith(const <String>['apple.com', 'naver']),
+        );
+        final l10n = _l10n(tester);
+
+        await _tapVisible(tester, find.text(l10n.authAppleSignIn));
+
+        verify(() => repo.reauthenticate(AccountProvider.apple)).called(1);
+        expect(find.text(l10n.errorReauthMethodUnavailable), findsOneWidget);
+        expect(router.state.matchedLocation, AppRoutes.login);
+        expect(find.text(l10n.authReauthSucceeded), findsNothing);
+      },
+    );
   });
 
   group('RL-9: ko 채택 문구 verbatim (사용자 sign-off Q1~Q7)', () {

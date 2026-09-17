@@ -1894,9 +1894,15 @@ class AuthRepository implements AnonymousSignIn {
   ///   미매핑 identity 를 `permission-denied` + `caller_identity_mismatch` 로
   ///   거부한다 (functions `resolveIdentity` 가드).
   ///
+  /// native 3종(Google · Apple · Facebook)은 IdP 를 부르기 **전에** 서버 기준으로
+  /// 연결을 재확인한다 ([_reloadLinkedNativeUser]) — SDK 캐시 `providerData` 는
+  /// 앱 밖에서 해제된 provider 를 계속 담을 수 있다 (실기기 D1).
+  ///
   /// 반환:
   /// - `Result.success(User)` — 같은 계정으로 재인증 완료.
   /// - `Result.failure(ReauthUserMismatch)` — 다른 계정 · 연결 안 된 identity.
+  /// - `Result.failure(ReauthMethodUnavailable)` — native 재확인 실패 (reload
+  ///   실패 · 서버 기준 미연결). IdP 호출 0.
   /// - `Result.failure(...)` — 그 밖의 실패 (네트워크 등).
   /// - `null` — 사용자가 IdP 단계에서 취소 (no-op).
   ///
@@ -1919,13 +1925,15 @@ class AuthRepository implements AnonymousSignIn {
         return const Result.failure(UnknownException());
       }
       final fb.UserCredential? reauthed = switch (provider) {
-        AccountProvider.google => await _reauthWithGoogle(current),
-        AccountProvider.apple => await current.reauthenticateWithProvider(
-          fb.AppleAuthProvider()
-            ..addScope('email')
-            ..addScope('name'),
+        AccountProvider.google => await _reauthWithGoogle(
+          await _reloadLinkedNativeUser(current, 'google.com'),
         ),
-        AccountProvider.facebook => await _reauthWithFacebook(current),
+        AccountProvider.apple => await _reauthWithApple(
+          await _reloadLinkedNativeUser(current, 'apple.com'),
+        ),
+        AccountProvider.facebook => await _reauthWithFacebook(
+          await _reloadLinkedNativeUser(current, 'facebook.com'),
+        ),
         AccountProvider.kakao ||
         AccountProvider.naver ||
         AccountProvider.line ||
@@ -2022,8 +2030,63 @@ class AuthRepository implements AnonymousSignIn {
     }
   }
 
+  /// native 재인증 직전에 서버 기준으로 [providerId] 연결을 재확인하고, reload
+  /// 된 같은 계정 사용자를 돌려준다 (debug reauth-login-auto-merge — 실기기 D1
+  /// stale providerData).
+  ///
+  /// SDK 캐시 `providerData` 는 기동 시 keychain 복원 · 토큰 갱신으로는 바뀌지
+  /// 않아 앱 밖(Admin SDK · 다른 기기)에서 해제된 provider 가 남을 수 있다.
+  /// [fb.User.reload] 는 기존 객체를 고치지 않고 [fb.FirebaseAuth.currentUser]
+  /// 를 새 객체로 교체하므로 (firebase_auth_platform_interface
+  /// `MethodChannelUser.reload`), 판정은 reload 뒤 다시 읽은 사용자로 한다.
+  /// Firestore `linkedProviders` 와 합치지 않는다 — native 연결의 진실원은
+  /// Firebase Auth 다.
+  ///
+  /// Throws [ReauthMethodUnavailable] — reload 실패 · reload 뒤 같은 uid 세션
+  /// 없음 · [providerId] 미연결. 모두 IdP 호출 전이다 (fail-closed).
+  Future<fb.User> _reloadLinkedNativeUser(
+    fb.User cached,
+    String providerId,
+  ) async {
+    try {
+      await cached.reload();
+    } on Object catch (e) {
+      final reason = e is fb.FirebaseAuthException ? e.code : e.runtimeType;
+      _logReauthMethodUnavailable(providerId, 'reload failed: $reason');
+      throw ReauthMethodUnavailable(cause: e);
+    }
+    final reloaded = _auth.currentUser;
+    if (reloaded == null || reloaded.uid != cached.uid) {
+      _logReauthMethodUnavailable(providerId, 'no same-uid session');
+      throw const ReauthMethodUnavailable();
+    }
+    final isLinked = reloaded.providerData.any(
+      (info) => info.providerId == providerId,
+    );
+    if (!isLinked) {
+      _logReauthMethodUnavailable(providerId, 'not linked on server');
+      throw const ReauthMethodUnavailable();
+    }
+    return reloaded;
+  }
+
+  /// Apple 로 재인증한다 ([reauthenticate] Apple arm).
+  ///
+  /// [fb.User.reauthenticateWithProvider] 는 호출마다 새 nonce 를 만든다 —
+  /// 실패한 credential 을 재제출하지 않는다.
+  Future<fb.UserCredential> _reauthWithApple(fb.User current) {
+    return current.reauthenticateWithProvider(
+      fb.AppleAuthProvider()
+        ..addScope('email')
+        ..addScope('name'),
+    );
+  }
+
   /// Google 계정 선택 → 현재 계정 연결 대조 → 재인증한다
   /// ([reauthenticate] Google arm).
+  ///
+  /// [current] 는 [_reloadLinkedNativeUser] 가 돌려준 서버 기준 사용자다 —
+  /// 연결 uid 대조가 stale 캐시가 아니라 reload 된 `providerData` 를 본다.
   ///
   /// Throws [ReauthUserMismatch] — 선택한 계정이 현재 계정의 `google.com`
   /// 연결이 아니다 (Firebase 호출 0). Throws [GoogleSignInException] — 취소 ·
@@ -2191,6 +2254,17 @@ class AuthRepository implements AnonymousSignIn {
       code == 'web-context-canceled' ||
       code == 'web-context-cancelled' ||
       code == 'popup-closed-by-user';
+
+  /// native 재인증 재확인 실패를 기록한다 — providerId URI 와 판정 근거(오류
+  /// code 또는 타입)만 (PII 0 — uid · email · 오류 message 미기록).
+  void _logReauthMethodUnavailable(String providerId, String reason) {
+    if (kDebugMode) {
+      debugPrint(
+        'AuthRepository.reauthenticate: 서버 기준 재확인 실패 → '
+        'ReauthMethodUnavailable (providerId=$providerId, reason=$reason)',
+      );
+    }
+  }
 
   /// 재인증 계정 불일치를 기록한다 — provider slug 와 판정 근거만 (PII 0).
   void _logReauthMismatch(AccountProvider provider, String reason) {
@@ -2588,7 +2662,9 @@ class AuthRepository implements AnonymousSignIn {
   /// 현재 사용자 정보를 Firebase에서 리로드한다.
   ///
   /// [fb.User.reload]를 호출하여 서버에서 최신 사용자 정보를
-  /// 가져온다. 이메일 인증 완료 여부 확인 시 사용한다.
+  /// 가져온다. 이메일 인증 완료 여부 확인 시 사용한다. 재인증 선택 화면도
+  /// 열릴 때 1회 호출해 연결 provider 목록을 서버 기준으로 새로고침한다
+  /// (reload 가 `userChanges` 를 재방출 → `currentUserProvider` 재계산).
   Future<Result<void>> reloadUser() async {
     final user = _auth.currentUser;
     if (user == null) {

@@ -24,6 +24,7 @@ import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -57,6 +58,10 @@ Future<GoRouter> _pumpRouter(WidgetTester tester) async {
   when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
   when(() => mockRepo.signInWithApple()).thenAnswer((_) async => null);
   when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+  // 재인증 선택 화면 열림 reload (reauth-login-auto-merge stale providerData).
+  when(
+    () => mockRepo.reloadUser(),
+  ).thenAnswer((_) async => const Result.success(null));
 
   final router = GoRouter(
     initialLocation: AppRoutes.home,

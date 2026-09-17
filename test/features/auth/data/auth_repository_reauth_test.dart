@@ -15,6 +15,10 @@
 //          서버 caller_identity_mismatch → ReauthUserMismatch
 //   RA-P*: 비밀번호 — 현재 계정 email 로 reauthenticateWithCredential
 //   RA-X*: 공통 가드 (익명 · 미로그인 · email provider 인자 · race-fix 1:1)
+//   RA-R*: native 3종 실행 직전 서버 기준 재확인 — SDK 캐시 providerData 가 서버보다
+//          오래돼도(앱 밖 해제) IdP 를 부르지 않는다 (실기기 D1 Evidence 21 · 22).
+//          fixture 는 SDK reload 계약을 따른다: 기존 fb.User 객체는 갱신되지 않고
+//          `FirebaseAuth.currentUser` 가 새 객체로 교체된다.
 
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -95,6 +99,10 @@ void main() {
   late _MockUserCredential currentCredential;
   late AuthRepository repository;
 
+  /// `FirebaseAuth.currentUser` 가 돌려줄 객체 — SDK `reload()` 는 기존 객체를
+  /// 고치지 않고 이 값을 새 객체로 바꾼다 (RA-R stub 이 교체).
+  fb.User? authCurrentUser;
+
   setUpAll(() {
     registerFallbackValue(_FakeAuthCredential());
     registerFallbackValue(fb.AppleAuthProvider());
@@ -161,7 +169,10 @@ void main() {
       providerInfo('password', _currentEmail),
     ];
     when(() => mockCurrentUser.providerData).thenReturn(linkedProviders);
-    when(() => mockAuth.currentUser).thenReturn(mockCurrentUser);
+    authCurrentUser = mockCurrentUser;
+    when(() => mockAuth.currentUser).thenAnswer((_) => authCurrentUser);
+    // 기본: 서버 상태 == 캐시 (reload 가 목록을 바꾸지 않는다).
+    when(() => mockCurrentUser.reload()).thenAnswer((_) async {});
     // stub 응답 안에서 when 을 부르지 않도록 현재 계정 UserCredential 을 미리 만든다.
     currentCredential = credentialOf(mockCurrentUser);
 
@@ -185,6 +196,46 @@ void main() {
     when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockYahoojpSdkClient.logout()).thenAnswer((_) async {});
   });
+
+  /// reload 뒤 서버 기준 사용자 — 현재 계정과 같은 uid, providerData 만 [infos].
+  _MockFbUser reloadedUserWith(List<fb.UserInfo> infos) {
+    final user = _MockFbUser();
+    when(() => user.uid).thenReturn(_currentUid);
+    when(() => user.email).thenReturn(_currentEmail);
+    when(() => user.emailVerified).thenReturn(true);
+    when(() => user.displayName).thenReturn('Current User');
+    when(() => user.photoURL).thenReturn(null);
+    when(() => user.isAnonymous).thenReturn(false);
+    when(() => user.metadata).thenReturn(mockMetadata);
+    when(() => user.providerData).thenReturn(infos);
+    return user;
+  }
+
+  /// `current.reload()` 가 성공하며 `FirebaseAuth.currentUser` 를 [reloaded] 로
+  /// 교체하도록 stub 한다 (firebase_auth_platform_interface 8.1.8
+  /// `MethodChannelUser.reload` — 새 객체 대입 + userChanges 재방출).
+  void stubReloadTo(fb.User? reloaded) {
+    when(() => mockCurrentUser.reload()).thenAnswer((_) async {
+      authCurrentUser = reloaded;
+    });
+  }
+
+  /// Facebook Classic 로그인이 성공하도록 stub 한다.
+  void stubFacebookClassicLogin() {
+    final loginResult = _MockLoginResult();
+    when(() => loginResult.status).thenReturn(LoginStatus.success);
+    when(
+      () => loginResult.accessToken,
+    ).thenReturn(FakeClassicToken(tokenString: 'fb-access-token'));
+    when(
+      () => mockFacebookAuth.login(
+        permissions: any(named: 'permissions'),
+        loginTracking: any(named: 'loginTracking'),
+        loginBehavior: any(named: 'loginBehavior'),
+        nonce: any(named: 'nonce'),
+      ),
+    ).thenAnswer((_) async => loginResult);
+  }
 
   /// Google 계정 선택기가 [accountId] 계정을 돌려주도록 stub 한다.
   void stubGoogleAccount(String accountId) {
@@ -323,19 +374,12 @@ void main() {
     test(
       'RA-F1: Classic token → reauthenticateWithCredential 1회, signInWithCredential 0',
       () async {
-        final loginResult = _MockLoginResult();
-        when(() => loginResult.status).thenReturn(LoginStatus.success);
-        when(
-          () => loginResult.accessToken,
-        ).thenReturn(FakeClassicToken(tokenString: 'fb-access-token'));
-        when(
-          () => mockFacebookAuth.login(
-            permissions: any(named: 'permissions'),
-            loginTracking: any(named: 'loginTracking'),
-            loginBehavior: any(named: 'loginBehavior'),
-            nonce: any(named: 'nonce'),
-          ),
-        ).thenAnswer((_) async => loginResult);
+        // 재인증 화면은 연결된 provider 만 노출한다 — facebook.com 연결 계정.
+        final facebookLinked = <fb.UserInfo>[
+          providerInfo('facebook.com', 'facebook-id-of-U'),
+        ];
+        when(() => mockCurrentUser.providerData).thenReturn(facebookLinked);
+        stubFacebookClassicLogin();
         when(
           () => mockCurrentUser.reauthenticateWithCredential(any()),
         ).thenAnswer((_) async => currentCredential);
@@ -484,6 +528,194 @@ void main() {
 
       expect((result as Failure<dynamic>).exception, isA<InvalidCredentials>());
     });
+  });
+
+  group('RA-R — native 실행 직전 서버 기준 재확인 (stale providerData)', () {
+    test(
+      'RA-R1: Apple — 캐시 [apple.com] · reload 뒤 서버 [] → ReauthMethodUnavailable, IdP · Firebase 재인증 호출 0',
+      () async {
+        final reloaded = reloadedUserWith(<fb.UserInfo>[]);
+        stubReloadTo(reloaded);
+        when(
+          () => mockCurrentUser.reauthenticateWithProvider(any()),
+        ).thenAnswer((_) async => currentCredential);
+        when(
+          () => reloaded.reauthenticateWithProvider(any()),
+        ).thenAnswer((_) async => currentCredential);
+
+        final result = await repository.reauthenticate(AccountProvider.apple);
+
+        expect(
+          (result! as Failure<dynamic>).exception,
+          isA<ReauthMethodUnavailable>(),
+        );
+        verify(() => mockCurrentUser.reload()).called(1);
+        verifyNever(() => mockCurrentUser.reauthenticateWithProvider(any()));
+        verifyNever(() => reloaded.reauthenticateWithProvider(any()));
+        verifyNever(() => mockAuth.signInWithProvider(any()));
+      },
+    );
+
+    test(
+      'RA-R2: Google — 캐시 google.com · reload 뒤 서버 [] → ReauthMethodUnavailable, 계정 선택기 호출 0',
+      () async {
+        stubGoogleAccount(_linkedGoogleSub);
+        final reloaded = reloadedUserWith(<fb.UserInfo>[]);
+        stubReloadTo(reloaded);
+        when(
+          () => mockCurrentUser.reauthenticateWithCredential(any()),
+        ).thenAnswer((_) async => currentCredential);
+
+        final result = await repository.reauthenticate(AccountProvider.google);
+
+        expect(
+          (result! as Failure<dynamic>).exception,
+          isA<ReauthMethodUnavailable>(),
+        );
+        verifyNever(() => mockGoogleSignIn.authenticate());
+        verifyNever(() => mockCurrentUser.reauthenticateWithCredential(any()));
+        verifyNever(() => mockAuth.signInWithCredential(any()));
+      },
+    );
+
+    test(
+      'RA-R3: Facebook — 캐시 facebook.com · reload 뒤 서버 [] → ReauthMethodUnavailable, Facebook 로그인 호출 0',
+      () async {
+        final facebookLinked = <fb.UserInfo>[
+          providerInfo('facebook.com', 'facebook-id-of-U'),
+        ];
+        when(() => mockCurrentUser.providerData).thenReturn(facebookLinked);
+        stubFacebookClassicLogin();
+        final reloaded = reloadedUserWith(<fb.UserInfo>[]);
+        stubReloadTo(reloaded);
+        when(
+          () => mockCurrentUser.reauthenticateWithCredential(any()),
+        ).thenAnswer((_) async => currentCredential);
+
+        final result = await repository.reauthenticate(
+          AccountProvider.facebook,
+        );
+
+        expect(
+          (result! as Failure<dynamic>).exception,
+          isA<ReauthMethodUnavailable>(),
+        );
+        verifyNever(
+          () => mockFacebookAuth.login(
+            permissions: any(named: 'permissions'),
+            loginTracking: any(named: 'loginTracking'),
+            loginBehavior: any(named: 'loginBehavior'),
+            nonce: any(named: 'nonce'),
+          ),
+        );
+        verifyNever(() => mockCurrentUser.reauthenticateWithCredential(any()));
+      },
+    );
+
+    // reload 실패 = 서버 기준 확인 불가 → fail-closed. 네트워크 오류도 기존
+    // NoInternetConnection 이 아니라 승인된 Q7 문구로 간다 (사용자 결정 A).
+    for (final reloadError in <Object>[
+      fb.FirebaseAuthException(code: 'network-request-failed'),
+      fb.FirebaseAuthException(code: 'user-token-expired'),
+      fb.FirebaseAuthException(code: 'user-not-found'),
+      fb.FirebaseAuthException(code: 'user-disabled'),
+      StateError('platform channel failure'),
+    ]) {
+      final label = reloadError is fb.FirebaseAuthException
+          ? reloadError.code
+          : reloadError.runtimeType.toString();
+      test(
+        'RA-R4 ($label): reload 예외 → ReauthMethodUnavailable, Apple 재인증 호출 0',
+        () async {
+          // SDK 는 pigeon 비동기 응답의 오류로 전달한다 (Future error).
+          when(
+            () => mockCurrentUser.reload(),
+          ).thenAnswer((_) => Future<void>.error(reloadError));
+          when(
+            () => mockCurrentUser.reauthenticateWithProvider(any()),
+          ).thenAnswer((_) async => currentCredential);
+
+          final result = await repository.reauthenticate(AccountProvider.apple);
+
+          expect(
+            (result! as Failure<dynamic>).exception,
+            isA<ReauthMethodUnavailable>(),
+          );
+          verifyNever(() => mockCurrentUser.reauthenticateWithProvider(any()));
+          verify(() => mockSocialLinkInProgress.begin()).called(1);
+          verify(() => mockSocialLinkInProgress.end()).called(1);
+        },
+      );
+    }
+
+    test(
+      'RA-R5: reload 뒤 currentUser 가 없음 (세션 종료) → ReauthMethodUnavailable, IdP 0',
+      () async {
+        stubReloadTo(null);
+        when(
+          () => mockCurrentUser.reauthenticateWithProvider(any()),
+        ).thenAnswer((_) async => currentCredential);
+
+        final result = await repository.reauthenticate(AccountProvider.apple);
+
+        expect(
+          (result! as Failure<dynamic>).exception,
+          isA<ReauthMethodUnavailable>(),
+        );
+        verifyNever(() => mockCurrentUser.reauthenticateWithProvider(any()));
+      },
+    );
+
+    test(
+      'RA-R6: Google — 캐시에는 없고 서버에는 연결 → reload 된 providerData 로 대조해 재인증 성공',
+      () async {
+        final cacheWithoutGoogle = <fb.UserInfo>[
+          providerInfo('apple.com', 'apple-sub-of-U'),
+        ];
+        when(() => mockCurrentUser.providerData).thenReturn(cacheWithoutGoogle);
+        final serverLinked = <fb.UserInfo>[
+          providerInfo('google.com', _linkedGoogleSub),
+        ];
+        final reloaded = reloadedUserWith(serverLinked);
+        final reloadedCredential = credentialOf(reloaded);
+        stubReloadTo(reloaded);
+        stubGoogleAccount(_linkedGoogleSub);
+        when(
+          () => mockCurrentUser.reauthenticateWithCredential(any()),
+        ).thenAnswer((_) async => reloadedCredential);
+        when(
+          () => reloaded.reauthenticateWithCredential(any()),
+        ).thenAnswer((_) async => reloadedCredential);
+
+        final result = await repository.reauthenticate(AccountProvider.google);
+
+        expect(result, isA<Success<dynamic>>());
+        verify(() => mockGoogleSignIn.authenticate()).called(1);
+        verifyNever(() => mockAuth.signInWithCredential(any()));
+      },
+    );
+
+    test(
+      'RA-R7 (대조군): Custom Token 은 reload 하지 않는다 — 원천은 Firestore linkedProviders + 서버 가드',
+      () async {
+        when(() => mockKakaoSdkClient.signIn()).thenAnswer(
+          (_) async => const KakaoSignInResult(idToken: 'kakao-id', nonce: 'n'),
+        );
+        stubCallableResponse('kakaoCustomToken', <String, dynamic>{
+          'customToken': 'ct-for-U',
+          'uid': _currentUid,
+          'isNewUser': false,
+        });
+        when(
+          () => mockAuth.signInWithCustomToken('ct-for-U'),
+        ).thenAnswer((_) async => currentCredential);
+
+        final result = await repository.reauthenticate(AccountProvider.kakao);
+
+        expect(result, isA<Success<dynamic>>());
+        verifyNever(() => mockCurrentUser.reload());
+      },
+    );
   });
 
   group('RA-X — 공통 가드', () {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -12,7 +14,8 @@ import '../../../core/providers/firebase_providers.dart'
     hide googleSignInProvider;
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
-import '../data/auth_repository.dart' show currentUserProvider;
+import '../data/auth_repository.dart'
+    show authRepositoryProvider, currentUserProvider;
 import '_helpers/social_provider_resolver.dart';
 import '_widgets/account_linking_sheet.dart';
 import '_widgets/auth_in_progress_overlay.dart';
@@ -246,6 +249,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 ///
 /// 오류가 없을 때 배너 자리를 `null` 로 넘겨 (빈 [FormErrorBanner] 대신)
 /// 승인 렌더와 같은 간격을 유지한다.
+///
+/// 열릴 때 사용자 정보를 1회 reload 해 SDK 캐시에만 남은(앱 밖에서 해제된)
+/// provider 버튼을 없앤다. 새 UI 상태(스피너 등)는 만들지 않는다.
 class _ReauthChooser extends ConsumerStatefulWidget {
   const _ReauthChooser();
 
@@ -256,6 +262,16 @@ class _ReauthChooser extends ConsumerStatefulWidget {
 class _ReauthChooserState extends ConsumerState<_ReauthChooser> {
   /// 마지막 소셜 재인증 실패. 새 시도가 시작되면 비운다.
   AppException? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    // SDK 캐시 providerData 는 앱 밖 해제를 반영하지 않는다 (실기기 D1). 열릴
+    // 때 1회 서버 기준으로 reload 하면 userChanges 재방출로 목록이 다시 계산돼
+    // 해제된 provider 버튼이 사라진다. 결과는 쓰지 않는다 — 실패해도 새 UI
+    // 상태를 만들지 않고, native 재인증 실행 직전 재확인이 방어한다.
+    unawaited(ref.read(authRepositoryProvider).reloadUser());
+  }
 
   void _onStrategyPressed(AuthStrategy strategy) {
     final provider = AccountProvider.tryParse(strategy.providerId);
