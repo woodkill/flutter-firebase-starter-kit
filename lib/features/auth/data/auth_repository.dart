@@ -322,11 +322,23 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// **Phase 10 D-14 / BLOCKER #4:** `_auth.currentUser` 가 익명 사용자라면
   /// [fb.User.linkWithCredential] 로 익명 UID 를 Google 자격증명에 연결한다.
-  /// `credential-already-in-use` / `email-already-in-use` 예외 시 익명 계정을
-  /// [_safeDelete] 로 폐기하고 기존 Google 계정으로 [fb.FirebaseAuth.signInWithCredential]
-  /// fallback. 익명 UID 로 작성된 Firestore 데이터는 손실 (Starter Kit D-09 —
-  /// 1회성 승격 패턴). 다중 provider linking 은 Phase 17 (Account Linking) —
-  /// see ROADMAP.md.
+  /// link 오류 code 2종은 반대로 처리한다.
+  ///
+  /// - `credential-already-in-use`: 익명 계정을 [_safeDelete] 로 폐기하고
+  ///   기존 Google 계정으로 [fb.FirebaseAuth.signInWithCredential] fallback.
+  ///   익명 UID 로 작성된 Firestore 데이터는 손실 (Starter Kit D-09 — 1회성
+  ///   승격 패턴).
+  /// - `email-already-in-use`: 새 로그인을 하지 않고 익명을 유지한 채
+  ///   [AccountExistsWithDifferentCredential] 을 반환한다. Google 은 @gmail.com
+  ///   주소에 한해 Firebase trusted provider 라 새 로그인이 같은 email 기존
+  ///   계정으로의 자동 연결 + displayName · photoUrl 교체 + 세션 전환이 되기
+  ///   때문이다 (debug google-gmail-email-arm-merge). 예외의 email 이 비어
+  ///   있으면(iOS SDK 는 이 오류에 email 을 싣지 않음) 로컬
+  ///   [GoogleSignInAccount.email] 로 채우고, pendingCredential 에는 로컬 Google
+  ///   credential 을 넣어 기존 provider 조회 · 계정 연결 시트가 두 플랫폼에서
+  ///   같게 동작한다.
+  ///
+  /// 다중 provider linking 은 Phase 17 (Account Linking) — see ROADMAP.md.
   ///
   /// **Phase 9.1 D-03 / D-04:** 메서드 body 전체를 try-finally 로 감싸
   /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
@@ -352,33 +364,57 @@ class AuthRepository implements AnonymousSignIn {
         try {
           userCredential = await anonymous.linkWithCredential(credential);
         } on fb.FirebaseAuthException catch (e) {
-          if (e.code == 'credential-already-in-use' ||
-              e.code == 'email-already-in-use') {
-            // 이미 Google 로 가입된 계정이 있음.
-            // debug android-classic-anon-conflict — 삭제 시점을 link 오류 code 로
-            // 가른다 (Facebook Classic · Limited arm 과 같은 구분).
-            final isEmailConflict = e.code == 'email-already-in-use';
+          if (e.code == 'email-already-in-use') {
+            // debug google-gmail-email-arm-merge — 새 로그인 금지.
+            // @gmail.com Google 은 Firebase trusted provider 라 여기서 signIn
+            // 하면 서버가 account-exists 로 거부하지 않고 같은 email 의 기존
+            // 계정에 google.com 을 자동 연결하면서 displayName · photoUrl 을
+            // Google 값으로 교체하고 세션을 그 계정으로 바꾼다 (iOS 실기기
+            // 원장 실측). Phase 16 계정 연결 정책대로 account-exists 로 돌려
+            // 사용자가 기존 방식으로 로그인한 뒤 연결하게 한다.
+            // 익명은 유지한다 — lookupSignInMethods 가 request.auth 를 요구한다
+            // (debug android-classic-anon-conflict).
             if (kDebugMode) {
+              // PII invariant: code 와 bool 만 (e.email · credential 본문 비포함).
               debugPrint(
-                'AuthRepository.signInWithGoogle: ${e.code} '
-                '${isEmailConflict ? '— 익명 유지 + 기존 계정 로그인' : '— 익명 계정 폐기 + 기존 Google 계정 로그인'}',
+                'AuthRepository.signInWithGoogle: email-already-in-use — '
+                '익명 유지 + 자동 합류 차단 '
+                '(hasEmail: ${e.email?.isNotEmpty ?? false}, '
+                'hasCredential: ${e.credential != null})',
               );
             }
-            if (!isEmailConflict) {
-              // credential-already-in-use — google.com 사용자가 이미 있어 같은
-              // credential signIn 이 성공한다. D-09 순서 유지 (SLP-7).
-              await _safeDelete(anonymous);
-            }
-            // email-already-in-use 는 익명을 유지한 채 signIn 한다. 서버가
-            // account-exists 로 거부해도 currentUser 가 익명으로 남아 상위
-            // catch 의 lookupSignInMethods(request.auth 필수) 가 인증을 통과해
-            // AccountLinkingSheet 입력을 채운다. 삭제를 먼저 하면 callable 이
-            // unauthenticated 로 실패해 시트 대신 unknown-provider 배너 +
-            // 로그아웃 + 익명 손실로 끝난다.
-            userCredential = await _auth.signInWithCredential(credential);
-          } else {
+            // email — 서버가 충돌 판정한 값을 우선하고, iOS 처럼 payload 에
+            // 없으면 같은 Google 계정의 로컬 email 로 채운다.
+            // pendingCredential — 방금 받은 로컬 credential 을 넘긴다. nonce 가
+            // 없는 idToken credential 이라 link 실패 뒤에도 서버가 재사용을
+            // 받는다 (실기기 실측). e.credential 은 iOS 에서 null 이다.
+            final payloadEmail = e.email;
+            return Result.failure(
+              await _enrichAccountExistsAsync(
+                AccountExistsWithDifferentCredential(
+                  email: (payloadEmail != null && payloadEmail.isNotEmpty)
+                      ? payloadEmail
+                      : account.email,
+                  pendingCredential: credential,
+                  cause: e,
+                ),
+              ),
+            );
+          }
+          if (e.code != 'credential-already-in-use') {
             rethrow;
           }
+          // 이미 Google 로 가입된 계정이 있음 — google.com 사용자가 이미 있어
+          // 같은 credential signIn 이 provider 일치 분기로 성공한다 (email
+          // 합류 분기 아님). D-09 순서 유지 (SLP-7).
+          if (kDebugMode) {
+            debugPrint(
+              'AuthRepository.signInWithGoogle: ${e.code} '
+              '— 익명 계정 폐기 + 기존 Google 계정 로그인',
+            );
+          }
+          await _safeDelete(anonymous);
+          userCredential = await _auth.signInWithCredential(credential);
         }
       } else {
         userCredential = await _auth.signInWithCredential(credential);

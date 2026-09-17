@@ -1826,49 +1826,81 @@ void main() {
     /// 삭제를 먼저 하면 currentUser 가 null 이 되어 lookupSignInMethods 가
     /// unauthenticated 로 실패하고, 계정 연결 시트 대신 unknown-provider
     /// 배너 + 익명 손실로 끝난다.
+    ///
+    /// debug google-gmail-email-arm-merge — email arm 은 새 로그인도 하지
+    /// 않는다. 옛 SLP-10 은 「익명 유지 signIn 성공」 을 계약으로 고정했지만,
+    /// @gmail.com Google 은 trusted provider 라 production 에서 그 성공은 같은
+    /// email 기존 계정으로의 자동 합류(google.com 연결 · 프로필 교체 · 세션
+    /// 전환)였다 (iOS 실기기 원장 실측). fixture 는 iOS SDK 실측
+    /// (EMAIL_EXISTS → credential · email 없음)이다. 로컬 email · credential
+    /// 보강 · Android fixture · 로그 계약은
+    /// auth_repository_google_email_conflict_test.dart 가 고정한다.
     /// ────────────────────────────────────────────────────────────
 
-    test('Test SLP-10: signInWithGoogle email-already-in-use — 익명 유지 signIn. '
-        'delete 0 · begin → signInWithCredential → end 순서 검증', () async {
-      final mockAnonymous = _MockFbUser();
-      when(() => mockAnonymous.isAnonymous).thenReturn(true);
-      when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
+    test(
+      'Test SLP-10: signInWithGoogle email-already-in-use — 새 로그인 0 · delete 0 '
+      '· account-exists Failure. begin → end',
+      () async {
+        final mockAnonymous = _MockFbUser();
+        when(() => mockAnonymous.isAnonymous).thenReturn(true);
+        when(() => mockAuth.currentUser).thenReturn(mockAnonymous);
 
-      final mockAccount = _MockGoogleSignInAccount();
-      when(
-        () => mockAccount.authentication,
-      ).thenReturn(const GoogleSignInAuthentication(idToken: 'id-token-test'));
-      when(
-        () => mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
-      ).thenAnswer((_) async => mockAccount);
+        final mockAccount = _MockGoogleSignInAccount();
+        when(() => mockAccount.authentication).thenReturn(
+          const GoogleSignInAuthentication(idToken: 'id-token-test'),
+        );
+        when(() => mockAccount.email).thenReturn('slp10-fixture@gmail.com');
+        when(
+          () =>
+              mockGoogleSignIn.authenticate(scopeHint: any(named: 'scopeHint')),
+        ).thenAnswer((_) async => mockAccount);
 
-      when(
-        () => mockAnonymous.linkWithCredential(any()),
-      ).thenThrow(fb.FirebaseAuthException(code: 'email-already-in-use'));
-      when(() => mockAnonymous.delete()).thenAnswer((_) async {});
-      when(
-        () => mockAuth.signInWithCredential(any()),
-      ).thenAnswer((_) async => mockCredential);
+        when(
+          () => mockAnonymous.linkWithCredential(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: 'email-already-in-use'));
+        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+        when(
+          () => mockAuth.signInWithCredential(any()),
+        ).thenAnswer((_) async => mockCredential);
+        // 기존 provider 조회 — 식별 불가(null) 응답으로 unknown 안내 경로.
+        final mockLookupCallable = _MockHttpsCallable();
+        final mockLookupResult = _MockHttpsCallableResult();
+        when(
+          () => mockLookupResult.data,
+        ).thenReturn(<String, dynamic>{'existingProvider': null});
+        when(
+          () => mockLookupCallable.call<Map<String, dynamic>>(any()),
+        ).thenAnswer((_) async => mockLookupResult);
+        when(
+          () => mockFunctions.httpsCallable(
+            'lookupSignInMethods',
+            options: any(named: 'options'),
+          ),
+        ).thenReturn(mockLookupCallable);
 
-      final result = await repository.signInWithGoogle();
+        final result = await repository.signInWithGoogle();
 
-      expect(result, isA<Success<User>>());
-      verifyInOrder([
-        () => mockSocialLinkInProgress.begin(),
-        () => mockAuth.signInWithCredential(any()),
-        () => mockSocialLinkInProgress.end(),
-      ]);
-      // 핵심 회귀 가드 — 익명 삭제 0회 (callable caller 인증 보존).
-      verifyNever(() => mockAnonymous.delete());
-      verifyNever(() => mockSocialLinkInProgress.begin());
-      verifyNever(() => mockSocialLinkInProgress.end());
-    });
+        expect(result, isA<Failure<User>>());
+        expect(
+          (result! as Failure<User>).exception,
+          isA<AccountExistsWithDifferentCredential>(),
+        );
+        verifyInOrder([
+          () => mockSocialLinkInProgress.begin(),
+          () => mockSocialLinkInProgress.end(),
+        ]);
+        // 핵심 회귀 가드 — 자동 합류 방아쇠(새 로그인) 0회 + 익명 삭제 0회.
+        verifyNever(() => mockAuth.signInWithCredential(any()));
+        verifyNever(() => mockAnonymous.delete());
+      },
+    );
 
-    /// debug apple-email-merge-profile-loss — Apple 은 SLP-10(Google) 과 계약이
-    /// 다르다. Apple 은 항상 trusted provider 라 email arm 의 새 로그인이 서버
-    /// 거부(account-exists)가 아니라 기존 계정 자동 연결 + 프로필 덮어쓰기로
-    /// 끝난다. fixture 는 iOS SDK 실측(EMAIL_EXISTS → credential · email 없음)
-    /// 이다. 상세 fixture · enrichment · 로그 계약은
+    /// debug apple-email-merge-profile-loss — Apple 은 항상 trusted provider 라
+    /// email arm 의 새 로그인이 서버 거부(account-exists)가 아니라 기존 계정
+    /// 자동 연결 + 프로필 덮어쓰기로 끝난다 (SLP-10 Google 과 같은 계약, 차이는
+    /// Apple 이 로컬 email · 재사용 가능한 credential 을 갖지 않는다는 점).
+    /// fixture 는 iOS SDK 실측(EMAIL_EXISTS → credential · email 없음)이다.
+    /// 상세 fixture · enrichment · 로그 계약은
     /// auth_repository_apple_email_conflict_test.dart 가 고정한다.
     test(
       'Test SLP-11: signInWithApple email-already-in-use — 새 로그인 0 · delete 0 '
