@@ -41,8 +41,8 @@ dependencies:
   riverpod_annotation: ^4.0.2
   freezed_annotation: ^3.1.0
   json_annotation: ^4.11.0
-  firebase_core: ^4.7.0
-  firebase_auth: ^6.3.0
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
   args: ^2.7.0
   shared_preferences: ^2.5.5
   gap: ^3.0.1
@@ -60,12 +60,12 @@ dependencies:
   # (Meta 공식 PNG + 자체 위제) 위임 일관.
   flutter_svg: ^2.2.4
   flutter_native_splash: ^2.4.7
-  firebase_crashlytics: ^5.2.0
-  firebase_analytics: ^12.3.0
-  cloud_firestore: ^6.3.0
-  firebase_remote_config: ^6.4.0
-  cloud_functions: ^6.2.0
-  firebase_app_check: ^0.4.3
+  firebase_crashlytics: ^5.4.0
+  firebase_analytics: ^12.6.0
+  cloud_firestore: ^6.10.0
+  firebase_remote_config: ^6.7.0
+  cloud_functions: ^6.5.0
+  firebase_app_check: ^0.4.8
   # Phase 15 D-YJP-01 — OpenID Foundation 공식 AppAuth-iOS/Android 래핑
   # (verified publisher: dexterx.dev). Yahoo!JP Flutter wrapper 부재 →
   # OIDC 표준 라이브러리로 OAuth flow + PKCE + ID Token nonce 자동 처리.
