@@ -2073,7 +2073,7 @@ class AuthRepository implements AnonymousSignIn {
   /// SDK 캐시 `providerData` 는 기동 시 keychain 복원 · 토큰 갱신으로는 바뀌지
   /// 않아 앱 밖(Admin SDK · 다른 기기)에서 해제된 provider 가 남을 수 있다.
   /// [fb.User.reload] 는 기존 객체를 고치지 않고 [fb.FirebaseAuth.currentUser]
-  /// 를 새 객체로 교체하므로 (firebase_auth_platform_interface
+  /// 를 새 객체로 교체하므로 (firebase_auth_platform_interface 9.1.0
   /// `MethodChannelUser.reload`), 판정은 reload 뒤 다시 읽은 사용자로 한다.
   /// Firestore `linkedProviders` 와 합치지 않는다 — native 연결의 진실원은
   /// Firebase Auth 다.

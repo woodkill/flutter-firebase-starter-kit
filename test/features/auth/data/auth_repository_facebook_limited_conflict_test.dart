@@ -135,13 +135,14 @@ fb.FirebaseAuthException _emailAlreadyInUseFromLink() {
 
 /// 서버가 충돌 오류에 실어 보내는 updatedCredential 의 Dart 모양.
 ///
-/// firebase_auth 6.3.0 iOS `FLTFirebaseAuthPlugin.m:672-679` 가 native
-/// credential 을 hash 로 보관하고, `PigeonParser.m:94-115` 가
-/// `signInMethod: authCredential.provider` · `nativeId` 로 직렬화하며,
-/// firebase_auth_platform_interface 8.1.8 `method_channel/utils/exception.dart
-/// :64-69` 가 `AuthCredential(providerId, signInMethod, token: nativeId,
-/// accessToken)` 로 만든다 — idToken · rawNonce 필드 없음. native 원본도
-/// `OAuthCredential.swift:73-85` `rawNonce: nil` + pendingToken 이다.
+/// firebase_auth 6.7.0 iOS `FLTFirebaseAuthPlugin.swift:90-98`
+/// (`storeAuthCredentialIfPresent`) 가 native credential 을 hash 로 보관하고,
+/// `PigeonParser.swift:84-103` 가 `signInMethod: authCredential.provider` ·
+/// `nativeId` 로 직렬화하며, firebase_auth_platform_interface 9.1.0
+/// `method_channel/utils/exception.dart:66-77` 가 `AuthCredential(providerId,
+/// signInMethod, token: nativeId, accessToken)` 로 만든다 — idToken · rawNonce
+/// 필드 없음. native 원본도 firebase-ios-sdk 12.19.0
+/// `OAuthCredential.swift:72-84` `rawNonce: nil` + pendingToken 이다.
 /// [nativeId] 는 native 보관 hash 자리. accessToken 은 native 에서
 /// `accessToken ?? IDToken` 으로 채워질 수 있으나 단언 대상이 아니다.
 fb.AuthCredential _updatedCredentialFromServer(int nativeId) {

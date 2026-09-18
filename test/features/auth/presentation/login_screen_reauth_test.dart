@@ -88,7 +88,7 @@ User _userWith(List<String> providerIds) => User(
 /// providerData 가 [providerIds] 인 SDK 사용자 객체.
 ///
 /// SDK `reload()` 는 기존 객체를 고치지 않고 새 객체로 교체한 뒤 `userChanges`
-/// 를 재방출한다 (firebase_auth_platform_interface 8.1.8
+/// 를 재방출한다 (firebase_auth_platform_interface 9.1.0
 /// `MethodChannelUser.reload`) — reload 전후 사용자를 각각 만든다.
 fb.User _sdkUserWith(List<String> providerIds) {
   final infos = List<fb.UserInfo>.generate(

@@ -433,7 +433,7 @@ void main() {
   group(
     'T11 — Limited Login (iOS) linkFacebookCredential (debug ios-facebook-limited-login)',
     () {
-      // 기대값 앵커: firebase_auth_platform_interface 8.1.8
+      // 기대값 앵커: firebase_auth_platform_interface 9.1.0
       // `lib/src/providers/oauth.dart:52-67` (signInMethod 'oauth' · idToken ·
       // rawNonce 그대로) + Firebase iOS 문서 "send the SHA-256 hash of the
       // nonce" / "with the unhashed nonce". 토큰은 플러그인 실 타입

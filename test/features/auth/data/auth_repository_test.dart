@@ -1194,7 +1194,7 @@ void main() {
     // debug ios-facebook-limited-login — Limited Login credential 계약.
     //
     // 기대값 앵커 (mock 이 가정한 값을 되검증하지 않는다):
-    // - firebase_auth_platform_interface 8.1.8
+    // - firebase_auth_platform_interface 9.1.0
     //   `lib/src/providers/oauth.dart:52-67` — OAuthProvider.credential 은
     //   signInMethod 기본값 'oauth' 에 idToken / rawNonce 를 그대로 싣는다.
     //   `lib/src/providers/facebook_auth.dart:43-47` · `:90-96` —

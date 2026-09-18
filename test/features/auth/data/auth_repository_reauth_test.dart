@@ -212,7 +212,7 @@ void main() {
   }
 
   /// `current.reload()` 가 성공하며 `FirebaseAuth.currentUser` 를 [reloaded] 로
-  /// 교체하도록 stub 한다 (firebase_auth_platform_interface 8.1.8
+  /// 교체하도록 stub 한다 (firebase_auth_platform_interface 9.1.0
   /// `MethodChannelUser.reload` — 새 객체 대입 + userChanges 재방출).
   void stubReloadTo(fb.User? reloaded) {
     when(() => mockCurrentUser.reload()).thenAnswer((_) async {
