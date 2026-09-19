@@ -699,8 +699,10 @@ class AuthRepository implements AnonymousSignIn {
             }
             userCredential = retried;
           } else {
-            // Classic (Android · iOS ATT 허용) — nonce 없는 access token
-            // credential 은 재제출이 허용되므로 같은 credential 을 재사용한다.
+            // Classic (Android · iOS ATT 허용) — access token credential 에는
+            // nonce 가 묶이지 않아 재제출이 허용되므로 같은 credential 을
+            // 재사용한다 (로그인 *요청* 에는 Android 도 nonce 가 실린다 —
+            // [_facebookCredentialOf] 「Android」 절).
             // 단 **삭제 시점**은 link 오류 code 로 갈린다: Limited arm 의
             // [_signInAfterLimitedLinkConflict] 가 이미 쓰는 구분을 이식했다
             // (debug android-classic-anon-conflict — 종전 D8 a 는 두 code 를
@@ -2984,6 +2986,18 @@ class AuthRepository implements AnonymousSignIn {
   ///   Facebook's response with the unhashed nonce".
   /// - [ClassicToken] → [fb.FacebookAuthProvider.credential] (Android 는 항상
   ///   이 경로 — 플러그인 Android 소스에 Limited 분기 없음).
+  ///
+  /// **Android (flutter_facebook_auth 7.2.0~):** 7.1.6 까지 Android 는 앱이
+  /// 넘긴 nonce 를 버렸지만, 7.2.0 부터 nonce 가 있으면
+  /// `LoginConfiguration(permissions, nonce)` 로 로그인한다
+  /// (`FacebookAuth.java` login). Facebook Android SDK 18.1.3 의
+  /// `LoginConfiguration` 은 요청 권한에 `openid` 를 더하고 PKCE code
+  /// verifier 를 만들며, 결과 [ClassicToken.authenticationToken] 에 OIDC JWT 가
+  /// 실린다. 그래도 Android 는 access token credential 을 유지한다 —
+  /// access token 이 있어 Graph API (프로필 사진 · email) 를 쓸 수 있고
+  /// (`isLimited: false`), OIDC credential 은 access token 이 없는 Limited
+  /// Login 용 대안이기 때문이다. `authenticationToken` 은 JWT 이므로
+  /// tokenString 과 같이 로그 경로에 싣지 않는다.
   ///
   /// **nonce:** 요청마다 [generateNonce] 로 raw nonce 를 새로 만들고, 로그인
   /// 요청에는 [hashNonceSha256Hex] 값을 넘긴다 (문서 "send the SHA-256 hash

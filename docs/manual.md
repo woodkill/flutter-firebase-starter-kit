@@ -3314,6 +3314,16 @@ focus 의미론을 차단하는 경우가 있습니다. 그래서 wrapper 는
 | iOS · ATT 허용 | `ClassicToken` | `fb.FacebookAuthProvider.credential` | Graph API 프로필 사진 사용 가능 | **[미검증 — 실기기 0건]** | **[미검증 — 실기기 0건]** |
 | Android (ATT 무관) | `ClassicToken` | `fb.FacebookAuthProvider.credential` | Graph API 프로필 사진 사용 가능 | 플러그인 기본 동작 | (B) 실측 — 플러그인 Android 소스에 Limited 분기 없음 |
 
+**Android 는 7.2.0 부터 nonce 를 실제로 보낸다.** flutter_facebook_auth 7.1.6
+까지 Android 는 앱이 넘긴 nonce 를 버렸다. 7.2.0 부터는
+`LoginConfiguration(permissions, nonce)` 로 로그인하므로 Facebook Android SDK
+가 요청 권한에 **`openid` 를 자동으로 더하고**(앱이 요청한 `email` ·
+`public_profile` + `openid`) PKCE 를 쓰며, 결과 `ClassicToken` 의
+`authenticationToken` 에 OIDC JWT 가 함께 실린다 ((B) 실측 — 플러그인 Android
+소스 + SDK 18.1.3 `LoginConfiguration`). 킷은 그래도 Android 에서 access token
+credential 을 유지한다 — access token 이 있어야 Graph API 프로필 사진을 쓸 수
+있기 때문이다. `authenticationToken` 을 쓰도록 코드를 고칠 필요는 없다.
+
 **앱이 `LoginTracking.enabled` 를 요청해도 결과는 같다.** 킷은 로그인 호출에
 이미 추적 허용을 요청하고 있지만, iOS 는 ATT 가 허용 상태가 아니면 그 요청을
 무시하고 Limited Login 으로 강제한다. 호출부는 아래 한 곳이다
@@ -3359,7 +3369,7 @@ _facebookAuth.login(
 | `lib/features/auth/data/auth_repository.dart:2459-2468` (docstring) | flutter_facebook_auth 7.2.0 iOS 는 ATT 미허용이면 Limited Login 으로 강제하고(`FacebookAuth.swift:106-110`) `LimitedToken` 을 돌려준다 |
 | `auth_repository.dart:2486-2491` | 로그인 호출부 — `LoginTracking.enabled` 와 해시된 nonce 를 넘긴다 |
 | `auth_repository.dart:651-655` | `if (!facebook.isLimited)` 일 때만 Graph API 프로필 사진(`_setFacebookPhotoUrl`)을 채운다 |
-| `auth_repository.dart:617` (주석) | Classic(Android · iOS ATT 허용)은 nonce 없는 access token credential 이다 |
+| `auth_repository.dart:617` (주석) | Classic(Android · iOS ATT 허용)의 access token credential 에는 nonce 가 묶이지 않는다 (로그인 요청에는 Android 도 7.2.0 부터 nonce 가 실린다) |
 | `auth_repository.dart:608-611` | Limited 충돌은 `_signInAfterLimitedLinkConflict` 로 분기한다 — nonce 는 1회용이라 재제출할 수 없다 |
 | `.planning/debug/resolved/ios-facebook-limited-login.md` | 실 단말 관측 이력 |
 
