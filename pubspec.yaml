@@ -49,7 +49,7 @@ dependencies:
   go_router: ^17.2.0
   google_sign_in: ^7.2.0
   cached_network_image: ^3.4.1
-  flutter_facebook_auth: ^7.1.6
+  flutter_facebook_auth: ^7.2.0
   kakao_flutter_sdk_user: ^2.0.0+1
   # Phase 13 — see ROADMAP.md (Naver Login SDK, Custom Token 방식)
   naver_login_sdk: ^3.2.1
