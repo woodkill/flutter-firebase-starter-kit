@@ -3356,7 +3356,7 @@ _facebookAuth.login(
 
 | 위치 | 실측 내용 |
 |---|---|
-| `lib/features/auth/data/auth_repository.dart:2459-2468` (docstring) | flutter_facebook_auth 7.1.6 iOS 는 ATT 미허용이면 Limited Login 으로 강제하고(`FacebookAuth.swift:106-110`) `LimitedToken` 을 돌려준다 |
+| `lib/features/auth/data/auth_repository.dart:2459-2468` (docstring) | flutter_facebook_auth 7.2.0 iOS 는 ATT 미허용이면 Limited Login 으로 강제하고(`FacebookAuth.swift:106-110`) `LimitedToken` 을 돌려준다 |
 | `auth_repository.dart:2486-2491` | 로그인 호출부 — `LoginTracking.enabled` 와 해시된 nonce 를 넘긴다 |
 | `auth_repository.dart:651-655` | `if (!facebook.isLimited)` 일 때만 Graph API 프로필 사진(`_setFacebookPhotoUrl`)을 채운다 |
 | `auth_repository.dart:617` (주석) | Classic(Android · iOS ATT 허용)은 nonce 없는 access token credential 이다 |

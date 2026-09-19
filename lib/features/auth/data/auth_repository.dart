@@ -2975,7 +2975,7 @@ class AuthRepository implements AnonymousSignIn {
   /// 복제하면 한 곳만 고쳐지는 구조가 된다, IN-05).
   ///
   /// **iOS Limited Login:** 앱이 [LoginTracking.enabled] 를 요청해도
-  /// flutter_facebook_auth 7.1.6 iOS 는 ATT 미허용이면 Limited Login 으로
+  /// flutter_facebook_auth 7.2.0 iOS 는 ATT 미허용이면 Limited Login 으로
   /// 강제하고 (`FacebookAuth.swift:106-110`) [LimitedToken] (OIDC JWT) 을
   /// 돌려준다. 이 JWT 를 access token 으로 넘기면 Firebase 가
   /// `invalid-credential` 로 거부하므로 토큰 런타임 타입으로 분기한다:

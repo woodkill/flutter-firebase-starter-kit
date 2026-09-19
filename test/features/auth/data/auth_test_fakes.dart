@@ -29,7 +29,8 @@ class FakeClassicToken extends Fake implements ClassicToken {
 /// 가짜 타입 (`implements AccessToken` — Classic / Limited 어느 쪽도 아님)
 /// 대신 플러그인의 실 타입과 실 `fromJson` 경로를 쓴다. 맵 키는 플러그인
 /// 소스와 글자 그대로 같다:
-/// - flutter_facebook_auth 7.1.6 `ios/Classes/FacebookAuth.swift:212-219` —
+/// - flutter_facebook_auth 7.2.0 (7.1.7+ 에서 iOS 소스가 SPM 배치로 이동)
+///   `ios/flutter_facebook_auth/Sources/flutter_facebook_auth/FacebookAuth.swift:212-219` —
 ///   `isLimitedLogin` 이면 `type: "limited"` · `userId` · `userEmail` ·
 ///   `userName` · `token` (AuthenticationToken 의 OIDC JWT) · `nonce` 를
 ///   채운다.
