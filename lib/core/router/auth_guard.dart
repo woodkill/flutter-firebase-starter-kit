@@ -147,6 +147,11 @@ class AuthChangeNotifier extends ChangeNotifier {
 /// Firebase 미초기화 시 빈 스트림으로 생성하여 이벤트 없는
 /// ChangeNotifier를 반환한다.
 @Riverpod(keepAlive: true)
+// riverpod 3 는 ChangeNotifier 반환을 지원 값으로 보지 않지만, 이 provider 는
+// GoRouter refreshListenable 인 AuthChangeNotifier 의 수명(keepAlive ·
+// onDispose)을 관리하는 기존 구조다. 구조 개편은 후속 todo
+// 2026-09-20-riverpod-lint-lib-refactor 에서 한다.
+// ignore: riverpod_lint/unsupported_provider_value
 AuthChangeNotifier authChangeNotifier(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);
   if (!isInitialized) {

@@ -63,6 +63,10 @@ class TermsNotifier extends _$TermsNotifier {
   @visibleForTesting
   TermsAcceptance? get acceptanceSnapshot => _acceptance;
 
+  // AuthRepository 가 Custom Token payload 로 읽는 공개 API 라 notifier getter 로
+  // 남겨 둔다. 동의 스냅샷을 state 로 옮기는 구조 개편은 후속 todo
+  // 2026-09-20-riverpod-lint-lib-refactor 에서 한다.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   /// Custom Token callable payload 로 전송할 `termsAcceptanceSnapshot` JSON
   /// (Phase 16 CR-01 — timezone 정합성 고정).
   ///
@@ -95,6 +99,10 @@ class TermsNotifier extends _$TermsNotifier {
   /// "직전에 uid=null 로 reload 되어 logout 상태" 를 의미한다.
   String? _lastReloadedUid;
 
+  // auth_guard 의 redirect stale 가드가 읽는 값이라 notifier getter 로 남겨
+  // 둔다. reload 대상 uid 를 state 로 옮기는 구조 개편은 후속 todo
+  // 2026-09-20-riverpod-lint-lib-refactor 에서 한다.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   /// [_lastReloadedUid] 의 읽기 전용 접근자 (Issue #7 C-1 — Plan 10-11
   /// resolveAuthRedirect stale 가드 용).
   String? get lastReloadedUid => _lastReloadedUid;
