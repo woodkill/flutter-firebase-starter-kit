@@ -1734,7 +1734,7 @@ SPEC CHECKSUMS:
   FirebaseSharedSwift: c91f36aeaa566e12b682caacc40d34c8303c3124
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_appauth: 53aecd8e5a88b27c0457bf06aa755d3b43625e85
-  flutter_facebook_auth: fa3b69b1df0831d2178fe87a05ee2d7d0156db70
+  flutter_facebook_auth: fe770ba7c3b26637a955662b84b33c4ab33d3a14
   flutter_line_sdk: b79e73a268c35420f28e05d4f059a797964eb707
   flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
