@@ -129,6 +129,13 @@ paths:
 - Flutter 명령 실행: `fvm flutter <command>`
 - Dart 명령 실행: `fvm dart <command>`
 
+## dart MCP 사용 범위
+- 심볼 · 타입 · 문서 조회는 dart MCP 우선 — `resolve_workspace_symbol` · `hover` · `signature_help`. 첫 호출 전 `add_roots` 로 프로젝트 root 를 등록한다.
+- 식별자 이름이 불확실할 때 `grep` 보다 정확하다: 심볼 검색은 부분 일치 · 대소문자 무시로 찾고, `hover` 는 `.pub-cache` 의 패키지 선언까지 해석한다.
+- 빌드 · analyze · test · format · build_runner 는 기존대로 `fvm` Bash 명령을 쓴다 — 게이트 판정이 종료 코드 기준이므로 MCP 결과로 대체하지 않는다.
+- dart MCP 서버는 `.mcp.json` 에서 `.fvm/flutter_sdk/bin/dart mcp-server` 로 실행된다 — FVM 이 관리하는 SDK 그대로이므로 아래 「금지 사항」 과 충돌하지 않는다.
+- GSD subagent 는 `tools:` 허용 목록에 dart MCP 가 없어 호출할 수 없다 — subagent 는 Bash 경로를 그대로 쓴다.
+
 ## 코드 생성 (build_runner)
 - Riverpod, Freezed, json_serializable 등 코드 생성 시:
   `fvm dart run build_runner build --delete-conflicting-outputs`
