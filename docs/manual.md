@@ -42,6 +42,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 15. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
 16. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
 17. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+18. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
 
 ---
 
@@ -2309,6 +2310,68 @@ bash scripts/check_phase_refs.sh
 
 ---
 
+## 정적 분석 — woody_lints · riverpod_lint
+
+### 무엇이 바뀌었나
+
+woody_lints 1.3.0 부터 riverpod_lint 가 최상위 `plugins:` 선언으로 **실제로
+실행**된다. 이전 버전의 `analyzer: plugins: - riverpod_lint` 선언은
+riverpod_lint 3.x 를 아무것도 로드하지 않았다 — 킷이 강제한다고 믿던 Riverpod
+규칙이 한 번도 돌지 않았던 셈이다. 킷의 `analysis_options.yaml` 이
+`package:woody_lints/analysis_options.yaml` 을 include 하므로 추가 설정은
+필요 없다.
+
+### 확인 방법
+
+- IDE (Dart Analysis Server) 의 Problems 패널 또는 `fvm dart analyze`.
+- Flutter 3.41.9 에서는 `fvm flutter analyze` 도 plugin 진단을 표시하지만,
+  Flutter 3.47.5 에서는 `flutter analyze` 가 plugin 진단을 표시하지 않았다
+  (2026-09-20 실측). **기준 명령은 `fvm dart analyze`** 로 잡는다.
+
+### plugin 해석 · Analysis Server 재시작
+
+- plugin 은 프로젝트 `pubspec.lock` 이 아니라 Analysis Server 의 plugin 캐시
+  (`~/.dartServer/.plugin_manager`) 에서 woody_lints 의 제약
+  (`riverpod_lint: ^3.1.3`) 대로 해석된다.
+- plugin 설정이나 woody_lints 버전을 바꾼 뒤에는 IDE 에서 **Analysis Server 를
+  재시작**해야 새 규칙이 반영된다 (VS Code: `Dart: Restart Analysis Server`).
+
+### 억제 문법
+
+- plugin 진단은 네임스페이스 형식만 동작한다:
+  `// ignore: riverpod_lint/<rule>` · `// ignore_for_file: riverpod_lint/<rule>`.
+  plain `// ignore: <rule>` 은 **무효**다.
+- ignore 는 진단 **시작 줄 바로 윗줄**에 둔다. doc 주석이 있는 멤버는 진단이
+  `///` 첫 줄에서 시작하므로 `///` 블록 **위**에 둔다.
+- 억제할 때는 바로 위에 이유 주석을 남기고, 구조 개편이 필요하면 후속 todo
+  파일명을 함께 적는다.
+
+### 테스트 작성 규칙
+
+- generator provider 를 override 하는 `ProviderScope` 는
+  `await tester.pumpWidget(ProviderScope(...))` 처럼 **pumpWidget 의 직접
+  인자**로 넘긴다. helper 가 `ProviderScope` 위젯을 반환하거나 다른 위젯으로
+  감싸면 규칙이 root scope 로 보지 않아 `scoped_providers_should_specify_dependencies`
+  가 난다 → helper 는 `WidgetTester` 를 받아 직접 pump 한다
+  (예: `Future<void> _pumpApp(WidgetTester tester, {...})`).
+- fake Notifier 에 public 카운터 · 기록 필드 · getter 를 두지 않는다
+  (`avoid_public_notifier_properties`). 호출 기록은 생성자로 받은 **외부
+  recorder** 객체에 남기고, 테스트는 recorder 를 단언한다.
+
+### 현재 억제 3건
+
+| 파일 | 멤버 | rule | 이유 |
+|------|------|------|------|
+| `lib/core/router/auth_guard.dart` | `authChangeNotifier` provider | `unsupported_provider_value` | GoRouter `refreshListenable` 로 쓰는 `AuthChangeNotifier`(ChangeNotifier) 의 수명(keepAlive · onDispose)을 provider 가 관리하는 기존 구조 |
+| `lib/features/terms/presentation/terms_notifier.dart` | `acceptanceSnapshotJson` getter | `avoid_public_notifier_properties` | `AuthRepository` 가 Custom Token payload 로 읽는 공개 API |
+| `lib/features/terms/presentation/terms_notifier.dart` | `lastReloadedUid` getter | `avoid_public_notifier_properties` | `resolveAuthRedirect` 의 stale 가드가 읽는 값 |
+
+세 건 모두 구조 개편(AuthRefresh notifier + router 소유 ValueNotifier · 값을
+state 로 이동)은 후속 todo `2026-09-20-riverpod-lint-lib-refactor` 에서
+해소한다.
+
+---
+
 ## Brand Asset Management (Phase 13.1 + 13.2)
 
 <!-- Updated by Phase 13.2 retroactive: R13 — Facebook entry 갱신 (Meta 공식 자상 + 라이선스 verbatim + Phase 18 단어 폐기) -->
@@ -3491,7 +3554,8 @@ _facebookAuth.login(
 | 2026-09-12 | quick 260912-gam | `## Design System — 디자인 토큰 커스터마이징 (Phase 3)` 단락 신규 — 2026-09-12 Phase 3 code review fix 12건 (`03-REVIEW-FIX.md`) 으로 확정된 공개 계약을 사용자 관점으로 문서화. 6개 내용: (1) 개요 (ThemeExtension 3종 · `AppTheme.light()`/`dark()` 조립 · `lib/app.dart:53-54` 호출부 · `ThemeX` 다섯 getter 와 폴백 표) / (2) 시드 컬러 교체 (`AppTheme.seedColor` = `Colors.deepPurple`, 소스 수정 없는 주입 경로 `light({Color seedColor})`/`dark({Color seedColor})`, 라이트·다크 동일 시드 의무) / (3) 타이포그래피 계약 — 등록 extension 이 `AppTypography.empty` (전 15 필드 빈 `TextStyle`) 로 바뀌어 `Theme.of(context).extension<AppTypography>()` 직접 읽기가 빈 스타일을 돌려주므로 `context.appTypography` 가 유일한 경로 + ko/ja dense 기하 자동 반영 목적 + 폰트 교체는 `ThemeData(fontFamily:)` 경로 + 부분 override 코드 블록과 `copyWith(extensions:)` map 통째 교체 경고 / (4) 시맨틱 컬러 6종 · 간격 4 의 배수 7단계 (4/8/12/16/24/32/48) + 전 필드 `==`/`hashCode` 구현으로 `AppTheme.light() == AppTheme.light()` 성립 (리빌드마다 `AnimatedTheme` 200ms 보간 재시작이 사라짐) + 미등록 테마 폴백 / (5) breakpoint 3단계 (compact 280~360 · medium 360~600 · expanded 600~674, 하한 포함 상한 배타 + 양끝 포화) 와 `maxWidth` 오용 경고 · `LayoutBuilder` + `AppBreakpoint.fromWidth(constraints.maxWidth)` 지역 제약 경로 / (6) `BrandFocusWrapper` (2026-09-12 `focus_wrapper.dart` 에서 개명) — Tab 1회당 버튼 1개 · outline 표시 조건 AND (`FocusHighlightMode.traditional`) · 외관 hardcode (2dp border / 2dp offset / `borderRadius + 4`) · 사방 4dp 총 8dp 잠식 경고 · a11y focus 위임 · 실 단말 UAT 체크 3항목. 회귀 가드 11행 매트릭스 (인용 group 은 전부 실재 확인) + Pitfall 5종. 목차 16 항목으로 확장. |
 | 2026-09-14 | quick-260914-0ag | `### App Check debug provider 등록 절차` 절에 2덩어리 보강 — (1) **재발급 함정**: `adb shell pm clear <applicationId>` 가 `shared_prefs/com.google.firebase.appcheck.debug.store.*.xml` 을 함께 지워 디버그 시크릿이 새로 발급되고 허용 목록 미등재로 App Check 호출이 전부 실패한다 (시크릿은 앱 재기동에는 불변, `pm clear`/재설치 시에만 변경 — 실측). 기존 4단계의 「재설치 시 재등록 필요」 되풀이 변종이며 증상이 `unauthenticated` 라 reauth 실패로 오진하기 쉬움을 경고. (2) **Console 없는 API 등록 절차**: `gcloud auth print-access-token` Bearer + `POST https://firebaseappcheck.googleapis.com/v1/projects/<project>/apps/<appId>/debugTokens` + `x-goog-user-project` 헤더 + `{"displayName":..,"token":"<debug secret>"}` 본문, `<appId>` 는 debug store 파일명 base64 디코드로 획득, 토큰 누적 부작용과 정리가 별건임 명시. 전부 일반형 placeholder 만 사용 (T-16-16-01 PII 정책 준수). |
 | 2026-09-16 | quick 260916-hd6 | `## ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역` 단락 신규 — ATT 는 스타터 킷 범위 밖 = 앱 책임(FU-f, 사용자 승인 2026-09-16)이지만 ATT 유무가 iOS Facebook 로그인 동작을 바꾸므로 경계와 귀결을 문서화. 내용: 킷 보장/비보장 경계 + ATT 미요청(기본값)/허용/거부 × iOS/Android 동작 표(Limited = OIDC credential · photoURL 미갱신 · 앱 전환 없음 / Classic = Graph API 프로필 사진) + 출처 3분할(Meta·Firebase 공식 verbatim 인용 / `auth_repository.dart` 실측 anchor / 미검증 항목) + 추적하는 앱의 의무 5항(ATT 요청 · `NSUserTrackingUsageDescription` · SDK 설정 · 요청 순서 · App Store 개인정보 라벨) + IDFA 실태(`GoogleAppMeasurement/Default` 12.12.0 은 `IdentitySupport` 포함이나 ATT 미요청이라 실제 수집 0) + Pitfall 5종. 「ATT 미허용 → Limited 강제」 인과는 공식 문장 미확보 상태이며 SDK 소스 실측이 유일 근거임을 절 안에 명시. ATT 허용 상태 실기기 검증 0건. 목차 17 항목으로 확장. |
+| 2026-09-20 | quick 260920-4h7 | 「정적 분석 — woody_lints · riverpod_lint」 단락 신규 — woody_lints 1.3.0 채택으로 riverpod_lint 가 최상위 `plugins:` 로 처음 실제 실행됨(옛 `analyzer: plugins:` 선언은 riverpod_lint 3.x 를 로드하지 않았다). 확인 명령(`fvm dart analyze` 기준 — Flutter 3.47.5 의 `flutter analyze` 는 plugin 진단 미표시) · plugin 해석 위치(`~/.dartServer/.plugin_manager`)와 Analysis Server 재시작 · 네임스페이스 ignore 문법(`// ignore: riverpod_lint/<rule>`, plain 형식 무효, `///` 블록 위 배치) · 테스트 작성 규칙 2종(ProviderScope 는 `pumpWidget` 직접 인자 · fake Notifier 카운터는 외부 recorder) · 현재 lib 억제 3건 표(후속 todo `2026-09-20-riverpod-lint-lib-refactor`). 목차 18 항목으로 확장. |
 
 ---
 
-*Last updated: 2026-09-16 — quick 260916-hd6 ATT(App Tracking Transparency) 커스터마이징 포인트 절 신규*
+*Last updated: 2026-09-20 — quick 260920-4h7 정적 분석 — woody_lints · riverpod_lint 절 신규*
