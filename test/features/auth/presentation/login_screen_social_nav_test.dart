@@ -30,15 +30,17 @@ class _MockFirebaseUser extends Mock implements fb.User {}
 /// [AuthRepository] mock.
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
-/// 테스트용 GoRouter 기반 앱을 pump 한다.
+/// 테스트용 GoRouter 기반 앱을 [tester] 로 pump 한다.
 ///
 /// Home route 에 도달 시 'HOME_REACHED' 텍스트를 표시하여
-/// navigation 결과를 검증할 수 있다.
-Widget _buildApp({
+/// navigation 결과를 검증할 수 있다. [ProviderScope] 를 `pumpWidget` 의 직접
+/// 인자로 넘겨 riverpod_lint 가 root scope 로 판정하게 한다.
+Future<void> _pumpApp(
+  WidgetTester tester, {
   required _MockFirebaseAuth mockAuth,
   required _MockAuthRepository mockRepo,
   String initialLocation = AppRoutes.login,
-}) {
+}) async {
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
@@ -50,23 +52,25 @@ Widget _buildApp({
     ],
   );
 
-  return ProviderScope(
-    overrides: [
-      isFirebaseInitializedProvider.overrideWithValue(false),
-      firebaseAuthProvider.overrideWithValue(mockAuth),
-      authRepositoryProvider.overrideWithValue(mockRepo),
-      activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
-        GoogleAuthStrategy(),
-        AppleAuthStrategy(),
-        FacebookAuthStrategy(),
-      ]),
-    ],
-    child: MaterialApp.router(
-      theme: AppTheme.light(),
-      locale: const Locale('en'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: router,
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        isFirebaseInitializedProvider.overrideWithValue(false),
+        firebaseAuthProvider.overrideWithValue(mockAuth),
+        authRepositoryProvider.overrideWithValue(mockRepo),
+        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+          GoogleAuthStrategy(),
+          AppleAuthStrategy(),
+          FacebookAuthStrategy(),
+        ]),
+      ],
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
     ),
   );
 }
@@ -113,9 +117,7 @@ void main() {
       // 초기: currentUser = null (미인증).
       when(() => mockAuth.currentUser).thenReturn(null);
 
-      await tester.pumpWidget(
-        _buildApp(mockAuth: mockAuth, mockRepo: mockRepo),
-      );
+      await _pumpApp(tester, mockAuth: mockAuth, mockRepo: mockRepo);
       await tester.pumpAndSettle();
 
       // LoginScreen 이 표시되는지 확인.
@@ -156,9 +158,7 @@ void main() {
 
       when(() => mockAuth.currentUser).thenReturn(null);
 
-      await tester.pumpWidget(
-        _buildApp(mockAuth: mockAuth, mockRepo: mockRepo),
-      );
+      await _pumpApp(tester, mockAuth: mockAuth, mockRepo: mockRepo);
       await tester.pumpAndSettle();
 
       // Apple 버튼 탭 (통일 순서 두 번째).
@@ -187,9 +187,7 @@ void main() {
 
       when(() => mockAuth.currentUser).thenReturn(null);
 
-      await tester.pumpWidget(
-        _buildApp(mockAuth: mockAuth, mockRepo: mockRepo),
-      );
+      await _pumpApp(tester, mockAuth: mockAuth, mockRepo: mockRepo);
       await tester.pumpAndSettle();
 
       // Facebook 버튼 탭 (통일 순서 세 번째).
@@ -213,9 +211,7 @@ void main() {
       // currentUser 는 익명 사용자 유지.
       when(() => mockAuth.currentUser).thenReturn(anonUser);
 
-      await tester.pumpWidget(
-        _buildApp(mockAuth: mockAuth, mockRepo: mockRepo),
-      );
+      await _pumpApp(tester, mockAuth: mockAuth, mockRepo: mockRepo);
       await tester.pumpAndSettle();
 
       expect(find.byType(LoginScreen), findsOneWidget);

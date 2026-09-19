@@ -35,11 +35,6 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 /// [AuthRepository]를 mocktail로 대체하기 위한 Mock.
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
-/// 테스트 harness -- [ProviderScope] + [MaterialApp] + [SocialSignInSection].
-///
-/// [brightness]로 라이트/다크 테마를 전환하고, [repository]를 주입해
-/// `authRepositoryProvider`를 override한다. [isFormLoading]은 이메일 폼
-/// 로딩 상태를 시뮬레이션한다. [errorBanner]는 소셜 에러 배너를 주입한다.
 /// 기본 활성 Strategy 리스트 — Plan 11-04 마이그레이션 후 회귀 가드.
 ///
 /// 정적 config + RC overlay 미초기화 환경 (테스트) 에서는
@@ -50,43 +45,52 @@ const List<AuthStrategy> _defaultStrategies = <AuthStrategy>[
   FacebookAuthStrategy(),
 ];
 
-Widget buildHarness({
+/// 좁은 시뮬레이터 surface 에 테스트 harness 를 pump 한다 — [ProviderScope] +
+/// [MaterialApp] + [SocialSignInSection].
+///
+/// 자상 placeholder 의 native size 가 큰 기본 800x600 viewport 에서 발생하는
+/// Row overflow 를 피하려고 `binding.setSurfaceSize` 로 412x800 을 먼저
+/// 설정한다 (deprecated `tester.view.physicalSize` 회피).
+///
+/// [brightness]로 라이트/다크 테마를 전환하고, [repository]를 주입해
+/// `authRepositoryProvider`를 override한다. [isFormLoading]은 이메일 폼
+/// 로딩 상태를 시뮬레이션한다. [errorBanner]는 소셜 에러 배너를 주입한다.
+/// [ProviderScope] 는 `pumpWidget` 의 직접 인자라 riverpod_lint 가 root scope
+/// 로 판정한다.
+Future<void> _pumpWithMobileViewport(
+  WidgetTester tester, {
   required Brightness brightness,
   required AuthRepository repository,
   bool isFormLoading = false,
   Widget? errorBanner,
   List<AuthStrategy> strategies = _defaultStrategies,
-}) {
-  return ProviderScope(
-    overrides: [
-      authRepositoryProvider.overrideWithValue(repository),
-      activeStrategiesProvider.overrideWithValue(strategies),
-    ],
-    child: MaterialApp(
-      // AppTheme.light/dark는 AppSpacing/AppTypography/AppColors
-      // ThemeExtension을 등록한다. context.appSpacing null 가드 필수.
-      theme: brightness == Brightness.dark ? AppTheme.dark() : AppTheme.light(),
-      locale: const Locale('en'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Scaffold(
-        body: SocialSignInSection(
-          isFormLoading: isFormLoading,
-          errorBanner: errorBanner,
+}) async {
+  await tester.binding.setSurfaceSize(const Size(412, 800));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(repository),
+        activeStrategiesProvider.overrideWithValue(strategies),
+      ],
+      child: MaterialApp(
+        // AppTheme.light/dark는 AppSpacing/AppTypography/AppColors
+        // ThemeExtension을 등록한다. context.appSpacing null 가드 필수.
+        theme: brightness == Brightness.dark
+            ? AppTheme.dark()
+            : AppTheme.light(),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: SocialSignInSection(
+            isFormLoading: isFormLoading,
+            errorBanner: errorBanner,
+          ),
         ),
       ),
     ),
   );
-}
-
-/// 좁은 시뮬레이터 surface 로 pump — 자상 placeholder 의 native size 가 큰
-/// 기본 800x600 viewport 에서 발생하는 Row overflow 회피.
-///
-/// `binding.setSurfaceSize` 사용 (deprecated `tester.view.physicalSize` 회피).
-Future<void> _pumpWithMobileViewport(WidgetTester tester, Widget widget) async {
-  await tester.binding.setSurfaceSize(const Size(412, 800));
-  addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(widget);
 }
 
 void main() {
@@ -104,7 +108,8 @@ void main() {
     testWidgets('3개 버튼이 Google -> Apple -> Facebook 순서로 렌더된다', (tester) async {
       await _pumpWithMobileViewport(
         tester,
-        buildHarness(brightness: Brightness.light, repository: mockRepo),
+        brightness: Brightness.light,
+        repository: mockRepo,
       );
       await tester.pumpAndSettle();
 
@@ -135,7 +140,8 @@ void main() {
     testWidgets('Facebook 버튼 탭 시 signInWithFacebook이 호출된다', (tester) async {
       await _pumpWithMobileViewport(
         tester,
-        buildHarness(brightness: Brightness.light, repository: mockRepo),
+        brightness: Brightness.light,
+        repository: mockRepo,
       );
       await tester.pumpAndSettle();
 
@@ -162,11 +168,9 @@ void main() {
         'signInWithFacebook이 호출되지 않는다', (tester) async {
       await _pumpWithMobileViewport(
         tester,
-        buildHarness(
-          brightness: Brightness.light,
-          repository: mockRepo,
-          isFormLoading: true,
-        ),
+        brightness: Brightness.light,
+        repository: mockRepo,
+        isFormLoading: true,
       );
       await tester.pumpAndSettle();
 
@@ -192,11 +196,9 @@ void main() {
     testWidgets('errorBanner가 소셜 버튼과 OrDivider 사이에 표시된다', (tester) async {
       await _pumpWithMobileViewport(
         tester,
-        buildHarness(
-          brightness: Brightness.light,
-          repository: mockRepo,
-          errorBanner: const Text('test error'),
-        ),
+        brightness: Brightness.light,
+        repository: mockRepo,
+        errorBanner: const Text('test error'),
       );
       await tester.pumpAndSettle();
 
@@ -211,7 +213,8 @@ void main() {
     ) async {
       await _pumpWithMobileViewport(
         tester,
-        buildHarness(brightness: Brightness.light, repository: mockRepo),
+        brightness: Brightness.light,
+        repository: mockRepo,
       );
       await tester.pumpAndSettle();
 
@@ -232,7 +235,8 @@ void main() {
         '(Phase 13.3 R6 — Theme.brightness 자동 분기는 위제 내부 책임)', (tester) async {
       await _pumpWithMobileViewport(
         tester,
-        buildHarness(brightness: Brightness.dark, repository: mockRepo),
+        brightness: Brightness.dark,
+        repository: mockRepo,
       );
       await tester.pumpAndSettle();
 
@@ -252,11 +256,9 @@ void main() {
       (tester) async {
         await _pumpWithMobileViewport(
           tester,
-          buildHarness(
-            brightness: Brightness.light,
-            repository: mockRepo,
-            isFormLoading: true,
-          ),
+          brightness: Brightness.light,
+          repository: mockRepo,
+          isFormLoading: true,
         );
         await tester.pumpAndSettle();
 
@@ -285,14 +287,12 @@ void main() {
     ) async {
       await _pumpWithMobileViewport(
         tester,
-        buildHarness(
-          brightness: Brightness.light,
-          repository: mockRepo,
-          strategies: const <AuthStrategy>[
-            GoogleAuthStrategy(),
-            AppleAuthStrategy(),
-          ],
-        ),
+        brightness: Brightness.light,
+        repository: mockRepo,
+        strategies: const <AuthStrategy>[
+          GoogleAuthStrategy(),
+          AppleAuthStrategy(),
+        ],
       );
       await tester.pumpAndSettle();
 
@@ -305,11 +305,9 @@ void main() {
     ) async {
       await _pumpWithMobileViewport(
         tester,
-        buildHarness(
-          brightness: Brightness.light,
-          repository: mockRepo,
-          strategies: const <AuthStrategy>[],
-        ),
+        brightness: Brightness.light,
+        repository: mockRepo,
+        strategies: const <AuthStrategy>[],
       );
       await tester.pumpAndSettle();
 

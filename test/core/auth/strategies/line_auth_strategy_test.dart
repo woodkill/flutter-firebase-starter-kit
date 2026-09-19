@@ -12,41 +12,64 @@ import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/line_sign_in_notifier.dart';
 
-/// SocialLinkInProgress race-guard stub — `begin` / `end` 호출 카운터를 보유
-/// 하여 [LineAuthStrategy.signIn] 이 race-guard 를 직접 건드렸는지 회귀 가드
-/// (Pitfall 8) 한다. mocktail Mock 은 Riverpod generator 의 `_element` 등
-/// internal getter 가 누락되어 ProviderException 을 일으키므로 사용 불가
+/// stub notifier 들의 호출 횟수를 notifier 밖에서 기록하는 recorder.
+///
+/// riverpod_lint `avoid_public_notifier_properties` — fake notifier 가 public
+/// 카운터를 노출하지 않도록 기록 상태를 이 객체로 분리하고, 각 stub 은
+/// 생성자로 받은 recorder 에만 기록한다.
+class _SignInCallRecorder {
+  /// [SocialLinkInProgress.begin] 호출 횟수.
+  int beginCount = 0;
+
+  /// [SocialLinkInProgress.end] 호출 횟수.
+  int endCount = 0;
+
+  /// [LineSignInNotifier.signInWithLine] 호출 횟수.
+  int signInCount = 0;
+}
+
+/// SocialLinkInProgress race-guard stub — `begin` / `end` 호출 횟수를
+/// [_SignInCallRecorder] 에 기록하여 [LineAuthStrategy.signIn] 이
+/// race-guard 를 직접 건드렸는지 회귀 가드 (Pitfall 8) 한다. mocktail Mock 은
+/// Riverpod generator 의 `_element` 등 internal getter 가 누락되어
+/// ProviderException 을 일으키므로 사용 불가
 /// (Phase 12 kakao_auth_strategy_test.dart 와 동일 패턴).
 class _StubSocialLinkInProgress extends SocialLinkInProgress {
-  int beginCount = 0;
-  int endCount = 0;
+  /// 호출 횟수를 주입된 recorder 에 기록하는 stub 을 만든다.
+  _StubSocialLinkInProgress(this._recorder);
+
+  final _SignInCallRecorder _recorder;
 
   @override
   bool build() => false;
 
   @override
   void begin() {
-    beginCount += 1;
+    _recorder.beginCount += 1;
     super.begin();
   }
 
   @override
   void end() {
-    endCount += 1;
+    _recorder.endCount += 1;
     super.end();
   }
 }
 
-/// LineSignInNotifier 위임 검증용 stub — `signInWithLine` 호출 카운터.
+/// LineSignInNotifier 위임 검증용 stub — `signInWithLine` 호출 횟수를
+/// [_SignInCallRecorder] 에 기록한다.
 class _StubLineSignInNotifier extends LineSignInNotifier {
-  int signInCount = 0;
+  /// 호출 횟수를 주입된 recorder 에 기록하는 stub 을 만든다.
+  _StubLineSignInNotifier(this._recorder);
+
+  final _SignInCallRecorder _recorder;
 
   @override
   void build() {}
 
   @override
   Future<void> signInWithLine() async {
-    signInCount += 1;
+    _recorder.signInCount += 1;
   }
 }
 
@@ -95,8 +118,9 @@ void main() {
   group('LineAuthStrategy — race-fix Pitfall 8 회귀 가드', () {
     testWidgets('Strategy 단계에서 socialLinkInProgress 직접 호출 절대 금지 '
         '(T-11-RACE-01 등가)', (tester) async {
-      final stubSocialLink = _StubSocialLinkInProgress();
-      final stubLineNotifier = _StubLineSignInNotifier();
+      final recorder = _SignInCallRecorder();
+      final stubSocialLink = _StubSocialLinkInProgress(recorder);
+      final stubLineNotifier = _StubLineSignInNotifier(recorder);
 
       const strategy = LineAuthStrategy();
       await _runStrategySignIn(
@@ -108,20 +132,20 @@ void main() {
 
       // T-11-RACE-01 등가 — Strategy 가 begin/end 호출하면 즉시 실패.
       expect(
-        stubSocialLink.beginCount,
+        recorder.beginCount,
         0,
         reason:
             'Strategy 가 race-guard begin 을 호출하면 이중 begin race '
             '(T-11-RACE-01) 회귀',
       );
       expect(
-        stubSocialLink.endCount,
+        recorder.endCount,
         0,
         reason: 'Strategy 가 race-guard end 를 호출하면 단일 진실원 위배',
       );
       // 위임 검증 — Notifier 만 호출.
       expect(
-        stubLineNotifier.signInCount,
+        recorder.signInCount,
         1,
         reason:
             'LineAuthStrategy.signIn 은 LineSignInNotifier.signInWithLine '

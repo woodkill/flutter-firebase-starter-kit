@@ -41,21 +41,42 @@ class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
   Stream<fb.User?> userChanges() => _stream;
 }
 
-/// `mirrorToFirestore` 호출 카운트를 검증하기 위한 stub TermsNotifier.
+/// [_RecordingTermsNotifier] 의 호출 기록과 제어 입력을 notifier 밖에 두는
+/// recorder.
 ///
-/// Plan 10-09: [reloadForUser] 도 stub override 추가 (실제 메서드는
-/// firebaseFirestoreProvider mock 이 필요한데, 본 테스트는 Firestore 검증
-/// 범위 외이므로 no-op 으로 처리. 실제 reload 동작은
-/// terms_notifier_firestore_test 와 terms_notifier_uid_change_test 에서 검증).
-class _RecordingTermsNotifier extends TermsNotifier {
-  _RecordingTermsNotifier();
-
+/// riverpod_lint `avoid_public_notifier_properties` — fake notifier 가 public
+/// 필드를 노출하지 않도록 기록 상태를 이 객체로 분리하고, notifier 는
+/// 생성자로 받은 recorder 에만 기록한다.
+class _TermsCallRecorder {
+  /// [TermsNotifier.mirrorToFirestore] 호출 uid 기록.
   final List<String> mirrorCalls = <String>[];
 
   /// Issue #9 (Plan 10-13) 회귀 가드: authUserObserver 의 자동 mirror 호출은
   /// force 파라미터의 기본값(false) 을 유지해야 한다 (Plan 10-12 multi-user
   /// invariant 보존). 각 호출의 force 값을 기록하여 검증 가능하게 한다.
   final List<bool> mirrorForceCalls = <bool>[];
+
+  /// [TermsNotifier.reloadForUser] 호출 uid 기록 (코드 리뷰 05 WR-03 재시도
+  /// 검증용).
+  final List<String?> reloadCalls = <String?>[];
+
+  /// true 면 [TermsNotifier.reloadForUser] 가 throw 하여 tick 실패를 재현한다
+  /// (WR-03). notifier 가 호출 시점에 읽는다.
+  bool shouldThrowOnReload = false;
+}
+
+/// `mirrorToFirestore` 호출 카운트를 검증하기 위한 stub TermsNotifier.
+///
+/// Plan 10-09: [reloadForUser] 도 stub override 추가 (실제 메서드는
+/// firebaseFirestoreProvider mock 이 필요한데, 본 테스트는 Firestore 검증
+/// 범위 외이므로 no-op 으로 처리. 실제 reload 동작은
+/// terms_notifier_firestore_test 와 terms_notifier_uid_change_test 에서 검증).
+/// 호출 기록은 [_TermsCallRecorder] 에 남긴다.
+class _RecordingTermsNotifier extends TermsNotifier {
+  /// 호출을 주입된 recorder 에 기록하는 stub 을 만든다.
+  _RecordingTermsNotifier(this._recorder);
+
+  final _TermsCallRecorder _recorder;
 
   @override
   TermsAcceptance? build() => TermsAcceptance(
@@ -71,22 +92,16 @@ class _RecordingTermsNotifier extends TermsNotifier {
     required String uid,
     bool force = false,
   }) async {
-    mirrorCalls.add(uid);
-    mirrorForceCalls.add(force);
+    _recorder.mirrorCalls.add(uid);
+    _recorder.mirrorForceCalls.add(force);
     return const Result.success(null);
   }
-
-  /// [reloadForUser] 호출 uid 기록 (코드 리뷰 05 WR-03 재시도 검증용).
-  final List<String?> reloadCalls = <String?>[];
-
-  /// true 면 [reloadForUser] 가 throw 하여 tick 실패를 재현한다 (WR-03).
-  bool shouldThrowOnReload = false;
 
   @override
   Future<void> reloadForUser({String? uid, bool isAnonymous = false}) async {
     // no-op — 본 테스트의 검증 범위 외 (Plan 10-09 신규 호출 stub).
-    reloadCalls.add(uid);
-    if (shouldThrowOnReload) {
+    _recorder.reloadCalls.add(uid);
+    if (_recorder.shouldThrowOnReload) {
       // `on Exception` 으로 잡히지 않는 Error 계열 — WR-03 이 지목한
       // 플랫폼 채널 Error 를 대표한다.
       throw StateError('reloadForUser failed');
@@ -178,7 +193,8 @@ void main() {
         final crashlytics = _MockFirebaseCrashlytics();
         stubAnalytics(analytics);
         stubCrashlytics(crashlytics);
-        final terms = _RecordingTermsNotifier();
+        final recorder = _TermsCallRecorder();
+        final terms = _RecordingTermsNotifier(recorder);
 
         final container = makeContainer(
           controller: controller,
@@ -202,7 +218,7 @@ void main() {
         verify(() => analytics.setUserId(id: 'anon-1')).called(1);
         verify(() => crashlytics.setUserIdentifier('anon-1')).called(1);
         expect(
-          terms.mirrorCalls,
+          recorder.mirrorCalls,
           isEmpty,
           reason: '익명 첫 emit 은 전이가 아니므로 mirror 호출 안 함',
         );
@@ -218,7 +234,8 @@ void main() {
         final crashlytics = _MockFirebaseCrashlytics();
         stubAnalytics(analytics);
         stubCrashlytics(crashlytics);
-        final terms = _RecordingTermsNotifier();
+        final recorder = _TermsCallRecorder();
+        final terms = _RecordingTermsNotifier(recorder);
 
         final container = makeContainer(
           controller: controller,
@@ -239,7 +256,7 @@ void main() {
         verify(() => analytics.setUserId(id: 'reg-1')).called(1);
         verify(() => crashlytics.setUserIdentifier('reg-1')).called(1);
         expect(
-          terms.mirrorCalls,
+          recorder.mirrorCalls,
           isEmpty,
           reason: 'prev=null 이므로 전이로 간주하지 않는다',
         );
@@ -255,7 +272,8 @@ void main() {
         final crashlytics = _MockFirebaseCrashlytics();
         stubAnalytics(analytics);
         stubCrashlytics(crashlytics);
-        final terms = _RecordingTermsNotifier();
+        final recorder = _TermsCallRecorder();
+        final terms = _RecordingTermsNotifier(recorder);
 
         final container = makeContainer(
           controller: controller,
@@ -270,20 +288,20 @@ void main() {
         // 1) 익명 emit
         controller.add(makeUser(uid: 'anon-1', isAnonymous: true));
         await Future<void>.delayed(Duration.zero);
-        expect(terms.mirrorCalls, isEmpty);
+        expect(recorder.mirrorCalls, isEmpty);
 
         // 2) 정식 emit (전이)
         controller.add(makeUser(uid: 'reg-1', isAnonymous: false));
         await Future<void>.delayed(Duration.zero);
 
-        expect(terms.mirrorCalls, [
+        expect(recorder.mirrorCalls, [
           'reg-1',
         ], reason: 'BLOCKER #4 — 익명->정식 전이 1회 mirror 호출');
         // Issue #9 (Plan 10-13) 회귀 가드: 자동 mirror 경로는 force 파라미터의
         // 기본값(false) 을 유지해야 한다. Plan 10-12 multi-user invariant
         // (pre-read + snapshot.exists skip) 이 보존되도록 보장.
         expect(
-          terms.mirrorForceCalls,
+          recorder.mirrorForceCalls,
           [false],
           reason:
               'Plan 10-13 — authUserObserver 자동 경로는 force=false 유지 '
@@ -301,7 +319,8 @@ void main() {
         final crashlytics = _MockFirebaseCrashlytics();
         stubAnalytics(analytics);
         stubCrashlytics(crashlytics);
-        final terms = _RecordingTermsNotifier();
+        final recorder = _TermsCallRecorder();
+        final terms = _RecordingTermsNotifier(recorder);
 
         final container = makeContainer(
           controller: controller,
@@ -321,7 +340,7 @@ void main() {
         ).called(1);
         verify(() => analytics.setUserId(id: null)).called(1);
         verify(() => crashlytics.setUserIdentifier('')).called(1);
-        expect(terms.mirrorCalls, isEmpty);
+        expect(recorder.mirrorCalls, isEmpty);
       },
     );
 
@@ -338,7 +357,8 @@ void main() {
       final crashlytics = _MockFirebaseCrashlytics();
       stubAnalytics(analytics);
       stubCrashlytics(crashlytics);
-      final terms = _RecordingTermsNotifier();
+      final recorder = _TermsCallRecorder();
+      final terms = _RecordingTermsNotifier(recorder);
 
       // Spy AuthChangeNotifier — 별도 empty stream 을 구독하므로 외부
       // userChanges 이벤트로는 notifyListeners 가 호출되지 않는다. 즉,
@@ -422,14 +442,15 @@ void main() {
     // 가드가 영구히 null 을 반환하고 사용자가 현재 위치에 무기한 고정된다.
 
     /// WR-03 시나리오용 컨테이너 + 활성 구독을 만든다.
-    ({ProviderContainer container, _RecordingTermsNotifier terms}) makeObserver(
+    ({ProviderContainer container, _TermsCallRecorder recorder}) makeObserver(
       StreamController<fb.User?> controller,
       _MockFirebaseCrashlytics crashlytics,
     ) {
       final analytics = _MockFirebaseAnalytics();
       stubAnalytics(analytics);
       stubCrashlytics(crashlytics);
-      final terms = _RecordingTermsNotifier();
+      final recorder = _TermsCallRecorder();
+      final terms = _RecordingTermsNotifier(recorder);
       final container = makeContainer(
         controller: controller,
         analytics: analytics,
@@ -439,7 +460,7 @@ void main() {
       addTearDown(container.dispose);
       final sub = container.listen(authUserObserverProvider, (_, _) {});
       addTearDown(sub.close);
-      return (container: container, terms: terms);
+      return (container: container, recorder: recorder);
     }
 
     test('WR-03-A: 스트림 에러가 observer 를 죽이지 않고 이후 emit 을 계속 처리한다', () async {
@@ -450,7 +471,7 @@ void main() {
 
       controller.add(makeUser(uid: 'u-1', isAnonymous: false));
       await Future<void>.delayed(Duration.zero);
-      expect(observer.terms.reloadCalls, <String?>['u-1']);
+      expect(observer.recorder.reloadCalls, <String?>['u-1']);
 
       controller.addError(StateError('userChanges stream failure'));
       await Future<void>.delayed(Duration.zero);
@@ -458,7 +479,7 @@ void main() {
       controller.add(makeUser(uid: 'u-2', isAnonymous: false));
       await Future<void>.delayed(Duration.zero);
 
-      expect(observer.terms.reloadCalls, <String?>[
+      expect(observer.recorder.reloadCalls, <String?>[
         'u-1',
         'u-2',
       ], reason: '스트림 에러 이후에도 UID 변경 감지가 계속 동작해야 한다');
@@ -476,7 +497,7 @@ void main() {
       addTearDown(controller.close);
       final crashlytics = _MockFirebaseCrashlytics();
       final observer = makeObserver(controller, crashlytics);
-      observer.terms.shouldThrowOnReload = true;
+      observer.recorder.shouldThrowOnReload = true;
 
       controller.add(makeUser(uid: 'u-1', isAnonymous: false));
       await Future<void>.delayed(Duration.zero);
@@ -491,11 +512,11 @@ void main() {
 
       // 실패한 tick 은 prevUid 를 갱신하지 않으므로, 동일 uid 재emit 에도
       // reload 를 재시도한다 (정상 동작이라면 동일 UID 는 무시된다).
-      observer.terms.shouldThrowOnReload = false;
+      observer.recorder.shouldThrowOnReload = false;
       controller.add(makeUser(uid: 'u-1', isAnonymous: false));
       await Future<void>.delayed(Duration.zero);
 
-      expect(observer.terms.reloadCalls, <String?>[
+      expect(observer.recorder.reloadCalls, <String?>[
         'u-1',
         'u-1',
       ], reason: '실패한 reload 는 다음 emit 에서 재시도되어야 한다');
@@ -504,7 +525,7 @@ void main() {
       controller.add(makeUser(uid: 'u-1', isAnonymous: false));
       await Future<void>.delayed(Duration.zero);
       expect(
-        observer.terms.reloadCalls,
+        observer.recorder.reloadCalls,
         <String?>['u-1', 'u-1'],
         reason: '성공한 tick 이후에는 동일 UID 재emit 이 불필요 Firestore read 를 만들지 않는다',
       );

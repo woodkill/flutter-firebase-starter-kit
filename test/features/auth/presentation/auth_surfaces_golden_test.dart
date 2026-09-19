@@ -199,37 +199,19 @@ Future<void> _settleAssets(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// [home] 을 [brightness] 테마 + en locale + 7 provider override 로 감싼다.
+/// [home] 을 [brightness] 테마 + en locale 의 [MaterialApp] 으로 감싼다.
 ///
 /// `debugShowCheckedModeBanner: false` — DEBUG 배너가 capture 에 섞이지
-/// 않도록. override 목록은 다른 16.1 screen harness 와 동형이다
-/// (`authRepositoryProvider` + `activeStrategiesProvider`).
-///
-/// [user] 가 있으면 `currentUserProvider` 를 그 사용자로 고정한다 (재인증 모드
-/// golden — 연결 provider 필터 · 이메일 칸 입력). [repository] 가 없으면
-/// [_mockRepository] 를 쓴다.
-Widget _wrapApp({
-  required Brightness brightness,
-  required Widget home,
-  User? user,
-  AuthRepository? repository,
-}) {
-  return ProviderScope(
-    overrides: [
-      authRepositoryProvider.overrideWithValue(repository ?? _mockRepository()),
-      activeStrategiesProvider.overrideWithValue(_sevenStrategies),
-      if (user != null) currentUserProvider.overrideWith((ref) => user),
-    ],
-    child: MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: brightness == Brightness.light
-          ? AppTheme.light()
-          : AppTheme.dark(),
-      locale: const Locale('en'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: home,
-    ),
+/// 않도록. provider override 는 [_pumpSurface] 가 `pumpWidget` 의 직접 인자인
+/// [ProviderScope] 에서 건다 (riverpod_lint root 판정).
+Widget _wrapApp({required Brightness brightness, required Widget home}) {
+  return MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: brightness == Brightness.light ? AppTheme.light() : AppTheme.dark(),
+    locale: const Locale('en'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: home,
   );
 }
 
@@ -257,6 +239,12 @@ enum _Entry {
 
 /// [surface] 를 [entry] 방식으로 golden viewport 에 올리고 자산을 settle
 /// 한다. [_Entry.sheet] 는 [surface] 를 쓰지 않는다.
+///
+/// override 목록은 다른 16.1 screen harness 와 동형이다
+/// (`authRepositoryProvider` + `activeStrategiesProvider`). [user] 가 있으면
+/// `currentUserProvider` 를 그 사용자로 고정한다 (재인증 모드 golden — 연결
+/// provider 필터 · 이메일 칸 입력). [repository] 가 없으면 [_mockRepository]
+/// 를 쓴다.
 Future<void> _pumpSurface(
   WidgetTester tester, {
   required Brightness brightness,
@@ -275,11 +263,15 @@ Future<void> _pumpSurface(
     _Entry.pushed || _Entry.sheet => const Scaffold(),
   };
   await tester.pumpWidget(
-    _wrapApp(
-      brightness: brightness,
-      home: home,
-      user: user,
-      repository: repository,
+    ProviderScope(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(
+          repository ?? _mockRepository(),
+        ),
+        activeStrategiesProvider.overrideWithValue(_sevenStrategies),
+        if (user != null) currentUserProvider.overrideWith((ref) => user),
+      ],
+      child: _wrapApp(brightness: brightness, home: home),
     ),
   );
   await tester.pump();

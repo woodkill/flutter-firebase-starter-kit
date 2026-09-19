@@ -77,9 +77,13 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  /// LoginScreen 을 GoRouter 가 감싸는 harness — Kakao Custom Token 충돌 시나리오
-  /// (T1 의 sheet 노출 경로 — Plan 16-08/16-09 이후 변경 0).
-  Widget buildHarness({required Result<User>? Function() onKakaoSignIn}) {
+  /// LoginScreen 을 GoRouter 가 감싸는 harness 를 [tester] 로 pump 한다 — Kakao
+  /// Custom Token 충돌 시나리오 (T1 의 sheet 노출 경로 — Plan 16-08/16-09 이후
+  /// 변경 0). [ProviderScope] 는 `pumpWidget` 의 직접 인자다.
+  Future<void> pumpHarness(
+    WidgetTester tester, {
+    required Result<User>? Function() onKakaoSignIn,
+  }) async {
     when(
       () => mockRepo.signInWithKakao(),
     ).thenAnswer((_) async => onKakaoSignIn());
@@ -96,19 +100,21 @@ void main() {
         ),
       ],
     );
-    return ProviderScope(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
-          KakaoAuthStrategy(),
-        ]),
-      ],
-      child: MaterialApp.router(
-        theme: AppTheme.light(),
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        routerConfig: router,
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(mockRepo),
+          activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+            KakaoAuthStrategy(),
+          ]),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
       ),
     );
   }
@@ -186,13 +192,12 @@ void main() {
       tester,
     ) async {
       await usePortraitSurface(tester);
-      await tester.pumpWidget(
-        buildHarness(
-          onKakaoSignIn: () => const Result<User>.failure(
-            AccountExistsWithDifferentCredential(
-              email: 'collide@example.com',
-              existingProvider: AccountProvider.kakao,
-            ),
+      await pumpHarness(
+        tester,
+        onKakaoSignIn: () => const Result<User>.failure(
+          AccountExistsWithDifferentCredential(
+            email: 'collide@example.com',
+            existingProvider: AccountProvider.kakao,
           ),
         ),
       );

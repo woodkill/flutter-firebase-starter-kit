@@ -28,7 +28,19 @@ class MockCrashlyticsService extends Mock implements CrashlyticsService {}
 /// [AnalyticsService] mock.
 class MockAnalyticsService extends Mock implements AnalyticsService {}
 
-/// [OnboardingNotifier] override 구현 (reset 호출 추적용).
+/// [RecordingOnboardingNotifier] 의 [OnboardingNotifier.reset] 호출 횟수를
+/// notifier 밖에서 기록하는 recorder.
+///
+/// riverpod_lint `avoid_public_notifier_properties` — fake notifier 가 public
+/// 카운터를 노출하지 않도록 기록 상태를 이 객체로 분리하고, notifier 는
+/// 생성자로 받은 recorder 에만 기록한다.
+class OnboardingResetRecorder {
+  /// 지금까지의 [OnboardingNotifier.reset] 호출 횟수.
+  int resetCallCount = 0;
+}
+
+/// [OnboardingNotifier] override 구현 (reset 호출을 [OnboardingResetRecorder]
+/// 에 기록).
 ///
 /// Plan 03 수정판: `reset()` 은 public 메서드 (no `@visibleForTesting`).
 ///
@@ -41,15 +53,17 @@ class MockAnalyticsService extends Mock implements AnalyticsService {}
 /// `_StubOnboardingNotifier` (line 45-51) 의 async 패턴과 정합 — test
 /// suite 전반의 stub 시그니처를 단일화.
 class RecordingOnboardingNotifier extends OnboardingNotifier {
-  /// 지금까지의 [reset] 호출 횟수.
-  int resetCallCount = 0;
+  /// reset 호출을 주입된 recorder 에 기록하는 stub 을 만든다.
+  RecordingOnboardingNotifier(this._recorder);
+
+  final OnboardingResetRecorder _recorder;
 
   @override
   FutureOr<bool> build() async => false;
 
   @override
   Future<void> reset() async {
-    resetCallCount += 1;
+    _recorder.resetCallCount += 1;
   }
 }
 
@@ -60,7 +74,7 @@ class DevToolsTestEnv {
     required this.crashlytics,
     required this.analytics,
     required this.authRepo,
-    required this.onboarding,
+    required this.onboardingRecorder,
   });
 
   /// Crashlytics mock.
@@ -72,8 +86,8 @@ class DevToolsTestEnv {
   /// AuthRepository mock.
   final MockAuthRepository authRepo;
 
-  /// OnboardingNotifier 의 reset 호출 추적 가능 구현.
-  final RecordingOnboardingNotifier onboarding;
+  /// OnboardingNotifier 의 reset 호출 기록.
+  final OnboardingResetRecorder onboardingRecorder;
 }
 
 Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
@@ -100,7 +114,8 @@ Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
   // production 와 Dev Tools 의 단일 진리원.
   when(() => mockRepo.signOutAndResetOnboarding()).thenAnswer((_) async {});
 
-  final recordingOnboarding = RecordingOnboardingNotifier();
+  final onboardingRecorder = OnboardingResetRecorder();
+  final recordingOnboarding = RecordingOnboardingNotifier(onboardingRecorder);
 
   final mockAuth = MockFirebaseAuth();
   when(() => mockAuth.currentUser).thenReturn(null);
@@ -144,7 +159,7 @@ Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
     crashlytics: mockCrash,
     analytics: mockAnalytics,
     authRepo: mockRepo,
-    onboarding: recordingOnboarding,
+    onboardingRecorder: onboardingRecorder,
   );
 }
 
@@ -209,7 +224,7 @@ void main() {
         await tester.tap(find.text(l10n.devToolsResetOnboarding));
         await tester.pumpAndSettle();
         expect(
-          env.onboarding.resetCallCount,
+          env.onboardingRecorder.resetCallCount,
           1,
           reason: 'Dev Tools Reset Onboarding 은 public reset() 을 직접 호출',
         );

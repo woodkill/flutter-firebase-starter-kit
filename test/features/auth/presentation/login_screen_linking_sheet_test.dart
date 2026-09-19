@@ -71,9 +71,14 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  /// LoginScreen 을 GoRouter 가 감싸는 harness — sheet → context.go(/home)
-  /// 검증 가능. /home 진입 시 sentinel 'HOME' 텍스트 노출.
-  Widget buildHarness({required Result<User>? Function() onGoogleSignIn}) {
+  /// LoginScreen 을 GoRouter 가 감싸는 harness 를 [tester] 로 pump 한다 —
+  /// sheet → context.go(/home) 검증 가능. /home 진입 시 sentinel 'HOME' 텍스트
+  /// 노출. [ProviderScope] 는 `pumpWidget` 의 직접 인자다 (riverpod_lint root
+  /// 판정).
+  Future<void> pumpHarness(
+    WidgetTester tester, {
+    required Result<User>? Function() onGoogleSignIn,
+  }) async {
     when(
       () => mockRepo.signInWithGoogle(),
     ).thenAnswer((_) async => onGoogleSignIn());
@@ -90,19 +95,21 @@ void main() {
         ),
       ],
     );
-    return ProviderScope(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
-          GoogleAuthStrategy(),
-        ]),
-      ],
-      child: MaterialApp.router(
-        theme: AppTheme.light(),
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        routerConfig: router,
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(mockRepo),
+          activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+            GoogleAuthStrategy(),
+          ]),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
       ),
     );
   }
@@ -112,16 +119,15 @@ void main() {
       'AsyncError(existingProvider=google, isNative) → sheet 노출 + inline banner 미노출',
       (tester) async {
         await usePortraitSurface(tester);
-        await tester.pumpWidget(
-          buildHarness(
-            onGoogleSignIn: () => const Result<User>.failure(
-              AccountExistsWithDifferentCredential(
-                email: 'collide@example.com',
-                existingProvider: AccountProvider.google,
-                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
-                // account-exists 충돌은 pendingCredential 을 보존한다.
-                pendingCredential: _kPendingCredential,
-              ),
+        await pumpHarness(
+          tester,
+          onGoogleSignIn: () => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collide@example.com',
+              existingProvider: AccountProvider.google,
+              // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+              // account-exists 충돌은 pendingCredential 을 보존한다.
+              pendingCredential: _kPendingCredential,
             ),
           ),
         );
@@ -151,11 +157,10 @@ void main() {
     testWidgets(
       'existingProvider == null → sheet 미노출 + FormErrorBanner inline 노출',
       (tester) async {
-        await tester.pumpWidget(
-          buildHarness(
-            onGoogleSignIn: () => const Result<User>.failure(
-              AccountExistsWithDifferentCredential(email: 'old@example.com'),
-            ),
+        await pumpHarness(
+          tester,
+          onGoogleSignIn: () => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(email: 'old@example.com'),
           ),
         );
         await tester.pumpAndSettle();
@@ -211,16 +216,15 @@ void main() {
           ),
         );
 
-        await tester.pumpWidget(
-          buildHarness(
-            onGoogleSignIn: () => const Result<User>.failure(
-              AccountExistsWithDifferentCredential(
-                email: 'collide@example.com',
-                existingProvider: AccountProvider.google,
-                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
-                // account-exists 충돌은 pendingCredential 을 보존한다.
-                pendingCredential: _kPendingCredential,
-              ),
+        await pumpHarness(
+          tester,
+          onGoogleSignIn: () => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collide@example.com',
+              existingProvider: AccountProvider.google,
+              // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+              // account-exists 충돌은 pendingCredential 을 보존한다.
+              pendingCredential: _kPendingCredential,
             ),
           ),
         );
@@ -259,16 +263,15 @@ void main() {
       'TextButton "Sign in with another method" tap → sheet dismiss + link 미호출',
       (tester) async {
         await usePortraitSurface(tester);
-        await tester.pumpWidget(
-          buildHarness(
-            onGoogleSignIn: () => const Result<User>.failure(
-              AccountExistsWithDifferentCredential(
-                email: 'collide@example.com',
-                existingProvider: AccountProvider.google,
-                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
-                // account-exists 충돌은 pendingCredential 을 보존한다.
-                pendingCredential: _kPendingCredential,
-              ),
+        await pumpHarness(
+          tester,
+          onGoogleSignIn: () => const Result<User>.failure(
+            AccountExistsWithDifferentCredential(
+              email: 'collide@example.com',
+              existingProvider: AccountProvider.google,
+              // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+              // account-exists 충돌은 pendingCredential 을 보존한다.
+              pendingCredential: _kPendingCredential,
             ),
           ),
         );
@@ -314,16 +317,15 @@ void main() {
                 const Result<User>.failure(ReauthenticationRequiredException()),
           );
 
-          await tester.pumpWidget(
-            buildHarness(
-              onGoogleSignIn: () => const Result<User>.failure(
-                AccountExistsWithDifferentCredential(
-                  email: 'collide@example.com',
-                  existingProvider: AccountProvider.google,
-                  // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
-                  // account-exists 충돌은 pendingCredential 을 보존한다.
-                  pendingCredential: _kPendingCredential,
-                ),
+          await pumpHarness(
+            tester,
+            onGoogleSignIn: () => const Result<User>.failure(
+              AccountExistsWithDifferentCredential(
+                email: 'collide@example.com',
+                existingProvider: AccountProvider.google,
+                // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+                // account-exists 충돌은 pendingCredential 을 보존한다.
+                pendingCredential: _kPendingCredential,
               ),
             ),
           );
@@ -375,16 +377,15 @@ void main() {
         (_) async => const Result<User>.failure(AccountAlreadyLinked()),
       );
 
-      await tester.pumpWidget(
-        buildHarness(
-          onGoogleSignIn: () => const Result<User>.failure(
-            AccountExistsWithDifferentCredential(
-              email: 'collide@example.com',
-              existingProvider: AccountProvider.google,
-              // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
-              // account-exists 충돌은 pendingCredential 을 보존한다.
-              pendingCredential: _kPendingCredential,
-            ),
+      await pumpHarness(
+        tester,
+        onGoogleSignIn: () => const Result<User>.failure(
+          AccountExistsWithDifferentCredential(
+            email: 'collide@example.com',
+            existingProvider: AccountProvider.google,
+            // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+            // account-exists 충돌은 pendingCredential 을 보존한다.
+            pendingCredential: _kPendingCredential,
           ),
         ),
       );
@@ -451,16 +452,15 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(
-        buildHarness(
-          onGoogleSignIn: () => const Result<User>.failure(
-            AccountExistsWithDifferentCredential(
-              email: 'collide@example.com',
-              existingProvider: AccountProvider.google,
-              // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
-              // account-exists 충돌은 pendingCredential 을 보존한다.
-              pendingCredential: _kPendingCredential,
-            ),
+      await pumpHarness(
+        tester,
+        onGoogleSignIn: () => const Result<User>.failure(
+          AccountExistsWithDifferentCredential(
+            email: 'collide@example.com',
+            existingProvider: AccountProvider.google,
+            // Plan 16-19: native arm(경로 A) 진입 조건 — client-side
+            // account-exists 충돌은 pendingCredential 을 보존한다.
+            pendingCredential: _kPendingCredential,
           ),
         ),
       );

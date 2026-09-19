@@ -38,8 +38,12 @@ class LastLocationRecorder {
 /// `/login` 에서 시작하며, [AppRoutes.emailLogin] stub route 를 함께 등록해
 /// chooser CTA 의 push 대상 (Phase 16.1 SC 2) 을 단언할 수 있게 한다.
 /// Phase 16.1 에서 `?focus=email` 쿼리 진입 계약이 폐기되어 이 harness 는 더
-/// 이상 쿼리 파라미터를 주입하지 않는다.
-Widget pumpWrapper({LastLocationRecorder? recorder}) {
+/// 이상 쿼리 파라미터를 주입하지 않는다. [ProviderScope] 는 `pumpWidget` 의
+/// 직접 인자다 (riverpod_lint root 판정).
+Future<void> pumpWrapper(
+  WidgetTester tester, {
+  LastLocationRecorder? recorder,
+}) async {
   final mockAuth = _FakeFirebaseAuth();
   when(
     () => mockAuth.authStateChanges(),
@@ -67,23 +71,25 @@ Widget pumpWrapper({LastLocationRecorder? recorder}) {
     ],
   );
 
-  return ProviderScope(
-    overrides: [
-      isFirebaseInitializedProvider.overrideWithValue(false),
-      firebaseAuthProvider.overrideWithValue(mockAuth),
-      authRepositoryProvider.overrideWithValue(mockRepo),
-      activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
-        GoogleAuthStrategy(),
-        AppleAuthStrategy(),
-        FacebookAuthStrategy(),
-      ]),
-    ],
-    child: MaterialApp.router(
-      theme: AppTheme.light(),
-      locale: const Locale('en'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: router,
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        isFirebaseInitializedProvider.overrideWithValue(false),
+        firebaseAuthProvider.overrideWithValue(mockAuth),
+        authRepositoryProvider.overrideWithValue(mockRepo),
+        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+          GoogleAuthStrategy(),
+          AppleAuthStrategy(),
+          FacebookAuthStrategy(),
+        ]),
+      ],
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
     ),
   );
 }
@@ -93,7 +99,7 @@ void main() {
     testWidgets('D-31/SC 1: SocialSignInSection 이 EmailAuthCta 보다 트리 상단에 위치', (
       tester,
     ) async {
-      await tester.pumpWidget(pumpWrapper());
+      await pumpWrapper(tester);
       await tester.pumpAndSettle();
 
       final socialFinder = find.byType(SocialSignInSection);
@@ -113,7 +119,7 @@ void main() {
     testWidgets(
       'D-31: OrDivider 1개가 SocialSignInSection 내부에 렌더 (기본 showOrDivider=true)',
       (tester) async {
-        await tester.pumpWidget(pumpWrapper());
+        await pumpWrapper(tester);
         await tester.pumpAndSettle();
         expect(find.byType(OrDivider), findsOneWidget);
       },
@@ -122,7 +128,7 @@ void main() {
     testWidgets('D-04/D-31: Google/Apple/Facebook 3 소셜 버튼 라벨이 모두 렌더', (
       tester,
     ) async {
-      await tester.pumpWidget(pumpWrapper());
+      await pumpWrapper(tester);
       await tester.pumpAndSettle();
 
       final l10n = AppLocalizations.of(
@@ -150,7 +156,7 @@ void main() {
       tester,
     ) async {
       final recorder = LastLocationRecorder();
-      await tester.pumpWidget(pumpWrapper(recorder: recorder));
+      await pumpWrapper(tester, recorder: recorder);
       await tester.pumpAndSettle();
 
       // form-tail CTA 는 default 800x600 viewport 밖 좌표가 될 수 있고
@@ -172,13 +178,13 @@ void main() {
     });
 
     testWidgets('SC 1: chooser 에 EmailField 가 렌더되지 않는다', (tester) async {
-      await tester.pumpWidget(pumpWrapper());
+      await pumpWrapper(tester);
       await tester.pumpAndSettle();
       expect(find.byType(EmailField), findsNothing);
     });
 
     testWidgets('SC 1: chooser 에 PasswordField 가 렌더되지 않는다', (tester) async {
-      await tester.pumpWidget(pumpWrapper());
+      await pumpWrapper(tester);
       await tester.pumpAndSettle();
       expect(find.byType(PasswordField), findsNothing);
     });

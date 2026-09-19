@@ -89,14 +89,17 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  /// LoginScreen 을 GoRouter 가 감싸는 harness.
+  /// LoginScreen 을 GoRouter 가 감싸는 harness 를 [tester] 로 pump 한다.
+  ///
+  /// [ProviderScope] 는 `pumpWidget` 의 직접 인자다 (riverpod_lint root 판정).
   ///
   /// **hook 주입 0** — LoginScreen 은 pendingCredential 만 전달하므로 시트는
   /// `authRepositoryProvider` 를 직접 read 한다 (CR-02 요구사항).
-  Widget buildHarness({
+  Future<void> pumpHarness(
+    WidgetTester tester, {
     required AccountProvider existingProvider,
     Object? pendingCredential,
-  }) {
+  }) async {
     when(() => mockRepo.signInWithKakao()).thenAnswer(
       (_) async => Result<User>.failure(
         AccountExistsWithDifferentCredential(
@@ -123,19 +126,21 @@ void main() {
         ),
       ],
     );
-    return ProviderScope(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
-          KakaoAuthStrategy(),
-        ]),
-      ],
-      child: MaterialApp.router(
-        theme: AppTheme.light(),
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        routerConfig: router,
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(mockRepo),
+          activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+            KakaoAuthStrategy(),
+          ]),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
       ),
     );
   }
@@ -147,11 +152,10 @@ void main() {
     Object? pendingCredential,
   }) async {
     await usePortraitSurface(tester);
-    await tester.pumpWidget(
-      buildHarness(
-        existingProvider: existingProvider,
-        pendingCredential: pendingCredential,
-      ),
+    await pumpHarness(
+      tester,
+      existingProvider: existingProvider,
+      pendingCredential: pendingCredential,
     );
     await tester.pumpAndSettle();
 
@@ -502,9 +506,7 @@ void main() {
         ).thenAnswer((_) async => successResult());
 
         await usePortraitSurface(tester);
-        await tester.pumpWidget(
-          buildHarness(existingProvider: AccountProvider.email),
-        );
+        await pumpHarness(tester, existingProvider: AccountProvider.email);
         await tester.pumpAndSettle();
         await tester.tap(find.byType(BrandedSocialButton).first);
         await settleSheetEntrance(tester);

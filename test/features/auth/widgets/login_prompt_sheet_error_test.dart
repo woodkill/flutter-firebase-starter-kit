@@ -67,7 +67,10 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  /// 트리거 버튼 route + [AppRoutes.home] sentinel 2 route harness.
+  /// 트리거 버튼 route + [AppRoutes.home] sentinel 2 route harness 를 [tester]
+  /// 로 pump 한다.
+  ///
+  /// [ProviderScope] 는 `pumpWidget` 의 직접 인자다 (riverpod_lint root 판정).
   ///
   /// [onGoogleSignIn] 이 `signInWithGoogle` 결과를 주입한다 — Google 단일
   /// strategy 로 override 해 탭 대상 모호성을 제거한다.
@@ -75,7 +78,10 @@ void main() {
   /// 트리거는 `/gated` 에 둔다 — [AppRoutes.home] 이 `/` 라서 트리거를 `/` 에
   /// 두면 home sentinel 과 경로가 충돌해 연결 성공 후 착지 화면을 구분할 수
   /// 없다.
-  Widget buildHarness({required Result<User>? Function() onGoogleSignIn}) {
+  Future<void> pumpHarness(
+    WidgetTester tester, {
+    required Result<User>? Function() onGoogleSignIn,
+  }) async {
     when(
       () => mockRepo.signInWithGoogle(),
     ).thenAnswer((_) async => onGoogleSignIn());
@@ -101,19 +107,21 @@ void main() {
         ),
       ],
     );
-    return ProviderScope(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
-          GoogleAuthStrategy(),
-        ]),
-      ],
-      child: MaterialApp.router(
-        theme: AppTheme.light(),
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        routerConfig: router,
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(mockRepo),
+          activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+            GoogleAuthStrategy(),
+          ]),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
       ),
     );
   }
@@ -145,11 +153,10 @@ void main() {
       tester,
     ) async {
       await usePortraitSurface(tester);
-      await tester.pumpWidget(
-        buildHarness(
-          onGoogleSignIn: () =>
-              const Result<User>.failure(NoInternetConnection()),
-        ),
+      await pumpHarness(
+        tester,
+        onGoogleSignIn: () =>
+            const Result<User>.failure(NoInternetConnection()),
       );
       await openPromptSheet(tester);
       await tapSocialButton(tester);
@@ -171,14 +178,13 @@ void main() {
       tester,
     ) async {
       await usePortraitSurface(tester);
-      await tester.pumpWidget(
-        buildHarness(
-          onGoogleSignIn: () => const Result<User>.failure(
-            AccountExistsWithDifferentCredential(
-              email: 'collide@example.com',
-              existingProvider: AccountProvider.google,
-              pendingCredential: _kPendingCredential,
-            ),
+      await pumpHarness(
+        tester,
+        onGoogleSignIn: () => const Result<User>.failure(
+          AccountExistsWithDifferentCredential(
+            email: 'collide@example.com',
+            existingProvider: AccountProvider.google,
+            pendingCredential: _kPendingCredential,
           ),
         ),
       );
@@ -201,11 +207,10 @@ void main() {
       tester,
     ) async {
       await usePortraitSurface(tester);
-      await tester.pumpWidget(
-        buildHarness(
-          onGoogleSignIn: () => const Result<User>.failure(
-            AccountExistsWithDifferentCredential(email: 'old@example.com'),
-          ),
+      await pumpHarness(
+        tester,
+        onGoogleSignIn: () => const Result<User>.failure(
+          AccountExistsWithDifferentCredential(email: 'old@example.com'),
         ),
       );
       await openPromptSheet(tester);
@@ -240,14 +245,13 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(
-        buildHarness(
-          onGoogleSignIn: () => const Result<User>.failure(
-            AccountExistsWithDifferentCredential(
-              email: 'collide@example.com',
-              existingProvider: AccountProvider.google,
-              pendingCredential: _kPendingCredential,
-            ),
+      await pumpHarness(
+        tester,
+        onGoogleSignIn: () => const Result<User>.failure(
+          AccountExistsWithDifferentCredential(
+            email: 'collide@example.com',
+            existingProvider: AccountProvider.google,
+            pendingCredential: _kPendingCredential,
           ),
         ),
       );

@@ -9,42 +9,65 @@ import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dar
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/naver_sign_in_notifier.dart';
 
-/// SocialLinkInProgress race-guard stub — `begin` / `end` 호출 카운터를 보유
-/// 하여 [NaverAuthStrategy.signIn] 이 race-guard 를 직접 건드렸는지 회귀 가드
-/// (Pitfall 8) 한다. mocktail Mock 은 Riverpod generator 의 `_element` 등
-/// internal getter 가 누락되어 ProviderException 을 일으키므로 사용 불가
+/// stub notifier 들의 호출 횟수를 notifier 밖에서 기록하는 recorder.
+///
+/// riverpod_lint `avoid_public_notifier_properties` — fake notifier 가 public
+/// 카운터를 노출하지 않도록 기록 상태를 이 객체로 분리하고, 각 stub 은
+/// 생성자로 받은 recorder 에만 기록한다.
+class _SignInCallRecorder {
+  /// [SocialLinkInProgress.begin] 호출 횟수.
+  int beginCount = 0;
+
+  /// [SocialLinkInProgress.end] 호출 횟수.
+  int endCount = 0;
+
+  /// [NaverSignInNotifier.signInWithNaver] 호출 횟수.
+  int signInCount = 0;
+}
+
+/// SocialLinkInProgress race-guard stub — `begin` / `end` 호출 횟수를
+/// [_SignInCallRecorder] 에 기록하여 [NaverAuthStrategy.signIn] 이
+/// race-guard 를 직접 건드렸는지 회귀 가드 (Pitfall 8) 한다. mocktail Mock 은
+/// Riverpod generator 의 `_element` 등 internal getter 가 누락되어
+/// ProviderException 을 일으키므로 사용 불가
 /// (Phase 12 Plan 12-04 Rule 1 fix during execution) — 대신 [SocialLinkInProgress]
 /// 를 직접 확장.
 class _StubSocialLinkInProgress extends SocialLinkInProgress {
-  int beginCount = 0;
-  int endCount = 0;
+  /// 호출 횟수를 주입된 recorder 에 기록하는 stub 을 만든다.
+  _StubSocialLinkInProgress(this._recorder);
+
+  final _SignInCallRecorder _recorder;
 
   @override
   bool build() => false;
 
   @override
   void begin() {
-    beginCount += 1;
+    _recorder.beginCount += 1;
     super.begin();
   }
 
   @override
   void end() {
-    endCount += 1;
+    _recorder.endCount += 1;
     super.end();
   }
 }
 
-/// NaverSignInNotifier 위임 검증용 stub — `signInWithNaver` 호출 카운터.
+/// NaverSignInNotifier 위임 검증용 stub — `signInWithNaver` 호출 횟수를
+/// [_SignInCallRecorder] 에 기록한다.
 class _StubNaverSignInNotifier extends NaverSignInNotifier {
-  int signInCount = 0;
+  /// 호출 횟수를 주입된 recorder 에 기록하는 stub 을 만든다.
+  _StubNaverSignInNotifier(this._recorder);
+
+  final _SignInCallRecorder _recorder;
 
   @override
   void build() {}
 
   @override
   Future<void> signInWithNaver() async {
-    signInCount += 1;
+    _recorder.signInCount += 1;
   }
 }
 
@@ -99,8 +122,9 @@ void main() {
         '.signInWithNaver delegate (1회) + '
         'T-13-NAVER-STRATEGY-RACE-01: socialLinkInProgress.begin/end 미호출 '
         '(T-11-RACE-01 등가)', (tester) async {
-      final stubSocialLink = _StubSocialLinkInProgress();
-      final stubNaverNotifier = _StubNaverSignInNotifier();
+      final recorder = _SignInCallRecorder();
+      final stubSocialLink = _StubSocialLinkInProgress(recorder);
+      final stubNaverNotifier = _StubNaverSignInNotifier(recorder);
 
       const strategy = NaverAuthStrategy();
       await _runStrategySignIn(
@@ -114,20 +138,20 @@ void main() {
       // verifyNever 등가 — 단일 진실원 = AuthRepository.signInWithNaver
       // try-finally (Plan 13-03).
       expect(
-        stubSocialLink.beginCount,
+        recorder.beginCount,
         0,
         reason:
             'Strategy 가 race-guard begin 을 호출하면 이중 begin race '
             '(T-11-RACE-01) 회귀',
       );
       expect(
-        stubSocialLink.endCount,
+        recorder.endCount,
         0,
         reason: 'Strategy 가 race-guard end 를 호출하면 단일 진실원 위배',
       );
       // 위임 검증 — Notifier 만 호출.
       expect(
-        stubNaverNotifier.signInCount,
+        recorder.signInCount,
         1,
         reason:
             'NaverAuthStrategy.signIn 은 NaverSignInNotifier.signInWithNaver '
