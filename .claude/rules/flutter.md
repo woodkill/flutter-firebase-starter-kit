@@ -73,7 +73,6 @@ paths:
 - 이미지: `cached_network_image` 사용
 
 ## Common UI Patterns
-- 로딩: Shimmer 또는 CircularProgressIndicator (프로젝트 표준 따름)
 - 에러: 재시도 버튼이 포함된 에러 위젯 사용
 - 빈 상태: 빈 상태 전용 위젯 제공
 - AsyncValue: `.when()` 사용, `.value!` 직접 접근 금지
@@ -88,7 +87,6 @@ paths:
 ## Routing
 - go_router 사용 (Navigator 2.0 직접 사용 금지)
 - 라우트 정의: `lib/core/router/`에 집중
-- deep link 지원 고려
 
 ## Data Modeling
 - 불변 모델: freezed 사용 (`@freezed` class)
@@ -114,7 +112,7 @@ paths:
 - ref.read는 build 내에서 사용 금지
 
 ## 네이밍
-- Provider 함수명: 역할 기반 (`fetchUser`, `userList`, `authState`)
+- Provider 함수명: 역할 기반 (`fetchUser`, `userList`, `authState`) — 전역 규칙 「함수명은 동사로 시작」 의 **예외** (생성되는 `xxxProvider` 이름이 상태를 가리키는 Riverpod 관례). provider 가 아닌 일반 함수 · 메서드는 동사 규칙을 따른다.
 - generated provider 변수: 함수명 + `Provider` (자동 생성)
 
 ## 테스트
@@ -143,19 +141,10 @@ paths:
 - 생성 파일(`*.g.dart`, `*.freezed.dart`, `*.gr.dart`, `*.gen.dart`)은 절대 직접 읽거나 수정 금지
 - 생성 파일에 문제가 있으면 원본 소스를 수정 후 build_runner 재실행
 - 생성 파일은 코드 리뷰/분석 대상에서 제외
-- 생성 파일 커밋 여부: 프로젝트 정책 따름
+- 생성 파일은 커밋하지 않는다 (.gitignore 대상)
 
 ## Linting
 - 커스텀 lint 패키지: `woody_lints` (GitHub 비공개 패키지)
-- dev 의존성 추가 (pubspec.yaml):
-```yaml
-  dev_dependencies:
-    woody_lints:
-      git:
-        url: https://github.com/woodkill/woody_lints.git
-        ref: main
-```
-- 프로젝트 `analysis_options.yaml`에서 `include: package:woody_lints/analysis_options.yaml`
 - 프로젝트별 추가/제외 규칙은 `analysis_options.yaml`에서 오버라이드
 - lint 규칙 자체를 수정하려면 `woody_lints` 패키지를 업데이트
 - 검사: `fvm dart analyze`
