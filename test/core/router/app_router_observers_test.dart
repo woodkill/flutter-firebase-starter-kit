@@ -249,11 +249,9 @@ void main() {
 
       router.pop();
       await tester.pumpAndSettle();
-      expect(
-        drainScreenNames(),
-        <Object?>[AppRoutes.homeName],
-        reason: 'pop 1회 = screen_view 1건 (observer 의 didPop 커버)',
-      );
+      expect(drainScreenNames(), <Object?>[
+        AppRoutes.homeName,
+      ], reason: 'pop 1회 = screen_view 1건 (observer 의 didPop 커버)');
 
       router.go(AppRoutes.termsPrivacy);
       await tester.pumpAndSettle();

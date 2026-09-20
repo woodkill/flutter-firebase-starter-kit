@@ -181,11 +181,10 @@ void main() {
         // 누적됨을 확인하여 lastReloadedUid 의 "마지막 uid 추적" 계약을
         // 메서드 수준으로 회귀 방어한다 (실제 lastReloadedUid 검증은
         // terms_notifier_test.dart Test 9d).
-        expect(
-          terms.reloadCalls.map((e) => e.uid).toList(),
-          ['anon-uid', 'full-uid'],
-          reason: 'reload 호출 순서가 lastReloadedUid 누적 순서와 일치',
-        );
+        expect(terms.reloadCalls.map((e) => e.uid).toList(), [
+          'anon-uid',
+          'full-uid',
+        ], reason: 'reload 호출 순서가 lastReloadedUid 누적 순서와 일치');
       },
     );
 

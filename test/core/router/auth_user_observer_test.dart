@@ -550,11 +550,10 @@ void main() {
       // 재시도 성공 후에는 스냅샷이 확정되어 동일 UID 재emit 을 무시한다.
       controller.add(makeUser(uid: 'u-1', isAnonymous: false));
       await Future<void>.delayed(Duration.zero);
-      expect(
-        observer.recorder.reloadCalls,
-        <String?>['u-1', 'u-1'],
-        reason: '성공한 tick 이후에는 동일 UID 재emit 이 불필요 Firestore read 를 만들지 않는다',
-      );
+      expect(observer.recorder.reloadCalls, <String?>[
+        'u-1',
+        'u-1',
+      ], reason: '성공한 tick 이후에는 동일 UID 재emit 이 불필요 Firestore read 를 만들지 않는다');
     });
   });
 }

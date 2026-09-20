@@ -471,17 +471,13 @@ void main() {
 
       // WR-02 positive assertion — Plan 10-13 must-have artifact:
       // 1) mirrorToFirestore 가 A 의 uid 로 1회 호출되었는지.
-      expect(
-        termsRec.mirrorCalls,
-        <String>['A-UID'],
-        reason: 'Plan 10-13 must-have — A 의 Firestore 에 재동의 재기록',
-      );
+      expect(termsRec.mirrorCalls, <String>[
+        'A-UID',
+      ], reason: 'Plan 10-13 must-have — A 의 Firestore 에 재동의 재기록');
       // 2) 해당 호출이 force=true 로 실행되어 Plan 10-12 skip 정책을 우회했는지.
-      expect(
-        termsRec.mirrorForceCalls,
-        <bool>[true],
-        reason: 'Plan 10-13 must-have — 사용자 명시적 재동의는 force=true',
-      );
+      expect(termsRec.mirrorForceCalls, <bool>[
+        true,
+      ], reason: 'Plan 10-13 must-have — 사용자 명시적 재동의는 force=true');
     });
 
     testWidgets('Test 7 (Issue #9 Plan 10-13 — 기본 경로 회귀): '

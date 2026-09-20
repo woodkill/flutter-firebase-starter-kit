@@ -266,11 +266,11 @@ void main() {
         );
       }
 
-      expect(
-        taps.values.toList(),
-        <int>[1, 1, 1],
-        reason: 'Tab 3회로 provider 3개 모두 도달 — provider 당 Tab stop 은 1개.',
-      );
+      expect(taps.values.toList(), <int>[
+        1,
+        1,
+        1,
+      ], reason: 'Tab 3회로 provider 3개 모두 도달 — provider 당 Tab stop 은 1개.');
     });
   });
 

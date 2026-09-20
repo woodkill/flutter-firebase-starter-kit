@@ -746,56 +746,50 @@ void main() {
   // 전까지 재구독되지 않아 linkedProviders 가 세션 내내 빈 배열에 고정됐다.
   // ==========================================================================
   group('WR-04: linkedProvidersStream 에러 후 backoff 재구독 (I5)', () {
-    test(
-      'unavailable 1회 → 빈 배열 fallback 후 backoff 재구독으로 복구',
-      () async {
-        const uid = 'uid-wr04-recover';
-        final snap = _buildSnapshot(
-          exists: true,
-          data: <String, dynamic>{
-            'linkedProviders': <Map<String, dynamic>>[
-              {'providerId': 'kakao', 'providerUserId': 'kk1'},
-            ],
-          },
-        );
-        final firestore = _buildRetryFirestore(
-          uid: uid,
-          streamFactories: [
-            () => Stream<_MockDocumentSnapshot>.error(
-              FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
-            ),
-            _valueFactory(snap),
+    test('unavailable 1회 → 빈 배열 fallback 후 backoff 재구독으로 복구', () async {
+      const uid = 'uid-wr04-recover';
+      final snap = _buildSnapshot(
+        exists: true,
+        data: <String, dynamic>{
+          'linkedProviders': <Map<String, dynamic>>[
+            {'providerId': 'kakao', 'providerUserId': 'kk1'},
           ],
-        );
+        },
+      );
+      final firestore = _buildRetryFirestore(
+        uid: uid,
+        streamFactories: [
+          () => Stream<_MockDocumentSnapshot>.error(
+            FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+          ),
+          _valueFactory(snap),
+        ],
+      );
 
-        final container = ProviderContainer(
-          overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
-        );
-        addTearDown(container.dispose);
-        container.listen(
-          linkedProvidersStreamProvider(uid),
-          (_, _) {},
-          fireImmediately: true,
-        );
+      final container = ProviderContainer(
+        overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],
+      );
+      addTearDown(container.dispose);
+      container.listen(
+        linkedProvidersStreamProvider(uid),
+        (_, _) {},
+        fireImmediately: true,
+      );
 
-        // 1차 — 즉시 빈 배열 fallback (D-41 / I1 보존).
-        await _settle();
-        expect(
-          container.read(linkedProvidersStreamProvider(uid)).value,
-          isEmpty,
-          reason: '비-permission-denied 는 즉시 빈 배열 fallback (I1)',
-        );
+      // 1차 — 즉시 빈 배열 fallback (D-41 / I1 보존).
+      await _settle();
+      expect(
+        container.read(linkedProvidersStreamProvider(uid)).value,
+        isEmpty,
+        reason: '비-permission-denied 는 즉시 빈 배열 fallback (I1)',
+      );
 
-        // 2차 — 5s backoff 후 재구독하여 정상 emit 도달 (I5).
-        await Future<void>.delayed(const Duration(milliseconds: 5500));
-        await _settle();
-        expect(
-          container.read(linkedProvidersStreamProvider(uid)).value,
-          ['kakao'],
-          reason: 'generator 가 살아 있어 세션 내 자력 복구 (WR-04)',
-        );
-      },
-      timeout: const Timeout(Duration(seconds: 20)),
-    );
+      // 2차 — 5s backoff 후 재구독하여 정상 emit 도달 (I5).
+      await Future<void>.delayed(const Duration(milliseconds: 5500));
+      await _settle();
+      expect(container.read(linkedProvidersStreamProvider(uid)).value, [
+        'kakao',
+      ], reason: 'generator 가 살아 있어 세션 내 자력 복구 (WR-04)');
+    }, timeout: const Timeout(Duration(seconds: 20)));
   });
 }
