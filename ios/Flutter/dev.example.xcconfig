@@ -9,6 +9,12 @@ FACEBOOK_CLIENT_TOKEN = YOUR_FACEBOOK_CLIENT_TOKEN_HERE
 KAKAO_NATIVE_APP_KEY = REPLACE_WITH_DEV_NATIVE_APP_KEY
 // Naver Login URL scheme (Phase 13 — see ROADMAP.md). Naver Developers Console > API 설정 > iOS > URL Scheme.
 NAVER_URL_SCHEME = your-naver-url-scheme-here
+// Naver Login Client ID · Secret (Phase 16.2 D-02 — see ROADMAP.md).
+// naver_login_flutter 는 runtime initialize 가 없고 Info.plist 의 Nid* 키를
+// plugin registration 시점에 읽는다. config/dev.json 의 naver 키와 같은 값을
+// 넣는다(값 중복은 의도된 것). manual.md "## Naver Login (Phase 13)" 7단계 참조.
+NAVER_CLIENT_ID = your-naver-client-id-here
+NAVER_CLIENT_SECRET = your-naver-client-secret-here
 // LINE Channel ID (Phase 14 — see ROADMAP.md, D-LINE-16). manual.md "## LINE Login (Phase 14)" 절차 참조.
 // dev flavor 만 실 키 주입 (D-LINE-19 / memory `project_firebase_dev_only`).
 LINE_CHANNEL_ID = REPLACE_WITH_DEV_LINE_CHANNEL_ID

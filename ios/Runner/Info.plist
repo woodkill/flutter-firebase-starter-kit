@@ -95,6 +95,18 @@
 		<string>$(FACEBOOK_CLIENT_TOKEN)</string>
 		<key>FacebookDisplayName</key>
 		<string>$(DISPLAY_NAME)</string>
+		<!-- Naver Login native 설정 (Phase 16.2 D-02 · D-06 — see ROADMAP.md).
+		     xcconfig 변수 substitution. NidUrlScheme 은 위 CFBundleURLSchemes 의
+		     naver 항목과 같은 값이어야 한다 — 플러그인이 이 값으로 복귀 URL 을
+		     필터링한다. 동의 화면 앱 이름은 기존 DISPLAY_NAME 을 재사용한다(신규 변수 0). -->
+		<key>NidClientID</key>
+		<string>$(NAVER_CLIENT_ID)</string>
+		<key>NidClientSecret</key>
+		<string>$(NAVER_CLIENT_SECRET)</string>
+		<key>NidAppName</key>
+		<string>$(DISPLAY_NAME)</string>
+		<key>NidUrlScheme</key>
+		<string>$(NAVER_URL_SCHEME)</string>
 		<key>CFBundleVersion</key>
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
