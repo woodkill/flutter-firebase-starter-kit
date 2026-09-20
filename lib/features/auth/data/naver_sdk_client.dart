@@ -50,6 +50,15 @@ class NaverSdkError implements Exception {
   String toString() => 'NaverSdkError(length=${message.length})';
 }
 
+/// RED 단계 자리표시자 — 닫힌 집합 매칭은 GREEN 에서 구현한다 (D-14).
+///
+/// 정적 타입 언어라 테스트가 컴파일되려면 선언이 먼저 있어야 한다. 이 본문은
+/// 구현이 아니라 상수 반환이며, `T-16.2-NAVER-SDK-11` ~ `14` 를 단언 수준에서
+/// 실패시키기 위한 것이다.
+@visibleForTesting
+String describeNaverErrorForLog(String? errorMessage) =>
+    'message=other length=0';
+
 /// Naver 로그인 진입점 — 플러그인 Future 직결 wrapper (Phase 16.2 — see
 /// ROADMAP.md, D-16 · D-43 ~ D-45 + D-57).
 ///

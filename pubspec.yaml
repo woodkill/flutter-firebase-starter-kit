@@ -105,8 +105,9 @@ dev_dependencies:
   # 직접 import 하므로 depend_on_referenced_packages 규칙을 만족시킨다.
   shared_preferences_platform_interface: ^2.4.2
   test: ^1.30.0
-  # WR-01 (Phase 13 review): NaverSdkClient timeout race 회귀 가드 (60s
-  # 가상 경과). flutter_test 가 transitive 로 노출하지만 명시 의존 정책 일관.
+  # Phase 16.2 D-16: NaverSdkClient 타이머 부재 회귀 가드 — 가상 시간 10분
+  # 경과 뒤에 완료되는 로그인 결과가 보존되는지 본다 (T-16.2-NAVER-SDK-20).
+  # flutter_test 가 transitive 로 노출하지만 명시 의존 정책 일관.
   fake_async: ^1.3.3
 
 # For information on the generic Dart part of this file, see the
