@@ -406,11 +406,32 @@ class NaverSdkClient {
   /// **어떤 경우에도 예외를 던지지 않는 것**이 계약이다 (D-57 graceful).
   /// [signIn] 의 finally 에서도 불리므로, 던지면 [signIn] 의 반환값이나
   /// 전파 중인 예외를 덮어쓰게 된다.
+  ///
+  /// **결과 `status` 를 반드시 판정한다 (WR-11).** 플러그인은 logout 실패를
+  /// 예외가 아니라 **결과 객체**([NaverLoginStatus.error] + `errorMessage`)
+  /// 로 돌려주므로, `try/catch` 만으로는 실패를 하나도 잡지 못한다. iOS 는
+  /// `pendingResult != nil` 이면 `logOut` 을 포함한 모든 메서드를
+  /// `Another request is in progress. Please wait` 로 거부하므로
+  /// (`FlutterNaverLoginPlugin.swift:122-126`) 실제 도달 가능한 경로다.
+  /// `16.2-HUMAN-UAT.md` 가 `NaverSdkClient.logout 완료` 한 줄을 D-57
+  /// (기기 토큰 삭제) 성공 판정 근거로 쓰기 때문에, status 를 보지 않으면
+  /// 거부된 logout 이 **PASS 로 위양성 집계**된다.
+  ///
+  /// 실패 로그는 원문을 쓰지 않고 [describeNaverErrorForLog] 를 거친다
+  /// (D-14 / WR-05 — `errorMessage` 는 자유 문자열이라 PII 를 실을 수 있다).
   Future<void> _invokeLogout() async {
     try {
-      await _logout();
+      final result = await _logout();
       if (kDebugMode) {
-        debugPrint('NaverSdkClient.logout 완료');
+        if (result.status == NaverLoginStatus.loggedOut) {
+          debugPrint('NaverSdkClient.logout 완료');
+        } else {
+          debugPrint(
+            'NaverSdkClient.logout 실패 (무시): '
+            'status=${result.status.name} '
+            '${describeNaverErrorForLog(result.errorMessage)}',
+          );
+        }
       }
     } on Object catch (e) {
       if (kDebugMode) {

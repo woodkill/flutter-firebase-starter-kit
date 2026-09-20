@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naver_login_flutter/naver_login_flutter.dart';
@@ -564,6 +565,72 @@ void main() {
 
       expect(error, isA<ServiceUnavailable>());
       expect(logoutCalls, equals(1), reason: '지연 소비는 실행된다');
+    });
+
+    // WR-11 — 플러그인은 logout 실패를 예외가 아니라 **결과 객체**
+    // (status: error + errorMessage) 로 돌려준다. status 를 읽지 않으면 거부된
+    // logout 도 「완료」 로 기록돼 `16.2-HUMAN-UAT.md` 5번 줄을 근거로 쓰는
+    // D-57 판정이 위양성이 된다 (iOS busy 경로가 실재한다).
+    test('T-16.2-NAVER-SDK-25 WR-11 logout 결과 status 판정: loggedOut 만 '
+        '「완료」 로 기록한다', () async {
+      final logs = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+
+      const successLine = 'NaverSdkClient.logout 완료';
+
+      // 생존 대조군 — 성공 경로에서는 그 문자열이 실제로 나온다. 아래 부재
+      // 단언이 「아무 로그도 안 나와서」 PASS 하는 위음성을 막는다.
+      final okClient = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
+        logout: () async => buildLoggedOutResult(),
+      );
+      await okClient.logout();
+      expect(logs, contains(successLine), reason: '대조군 — 성공은 「완료」 로 남는다');
+
+      // iOS 가 busy 일 때 plugin 이 돌려주는 실제 거부 결과
+      // (`FlutterNaverLoginPlugin.swift:122-126`).
+      logs.clear();
+      final busyClient = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
+        logout: () async => buildResult(
+          status: NaverLoginStatus.error,
+          errorMessage: 'Another request is in progress. Please wait',
+        ),
+      );
+      await busyClient.logout();
+
+      expect(
+        logs,
+        isNot(contains(successLine)),
+        reason: 'WR-11: 거부된 logout 을 성공으로 기록하면 UAT 증거가 위양성이 된다',
+      );
+      expect(
+        logs.single,
+        allOf(
+          contains('NaverSdkClient.logout 실패 (무시)'),
+          contains('status=error'),
+          contains('message=ios_plugin_request_in_progress'),
+        ),
+      );
+
+      // 자유 문자열 errorMessage 도 리댁션을 거친다 — 원문은 한 글자도
+      // 출력하지 않는다 (D-14 / WR-05).
+      logs.clear();
+      final piiClient = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
+        logout: () async => buildResult(
+          status: NaverLoginStatus.error,
+          errorMessage: 'user@example.com 토큰 삭제 실패',
+        ),
+      );
+      await piiClient.logout();
+
+      expect(logs.single, isNot(contains('user@example.com')));
+      expect(logs.single, contains('message=other'));
     });
   });
 }
