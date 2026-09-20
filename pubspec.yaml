@@ -114,6 +114,13 @@ dev_dependencies:
 flutter:
   generate: true
 
+  # iOS Swift Package Manager 를 명시적으로 끈다 (Flutter 3.44+ 는 기본 on).
+  # 선행 4단계 중 2단계 quick 260920-23d — SDK 상향과 의존성 관리자 전환의
+  # 원인을 분리하기 위해 CocoaPods 경로를 유지한다. 4단계
+  # (todo `2026-09-19-cocoapods-to-spm-migration`) 에서 이 설정을 제거하고 SPM 으로 전환한다.
+  config:
+    enable-swift-package-manager: false
+
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
