@@ -10,6 +10,7 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../domain/terms_acceptance.dart';
+import '../domain/terms_state.dart';
 
 part 'terms_notifier.g.dart';
 
@@ -48,72 +49,45 @@ class TermsNotifier extends _$TermsNotifier {
   /// 내부 캐시. [mirrorToFirestore] 호출 시 [state] 대신 이 필드를 참조한다.
   TermsAcceptance? _acceptance;
 
-  /// [_acceptance] 의 읽기 전용 접근자 (Phase 16 G-16-A9-1 — Custom Token
-  /// callable payload 직렬화 source).
+  /// [_acceptance] 의 테스트 전용 읽기 접근자.
   ///
-  /// 4 Custom Token endpoint (kakao/naver/line/yahoojp) 로 전송하는
-  /// `termsAcceptanceSnapshot` payload 를 `AuthRepository` 가 콜백으로 읽는다.
-  /// [state] 가 아니라 [_acceptance] 를 노출하는 이유는 [mirrorToFirestore]
-  /// 가 참조하는 것과 동일한 내부 캐시여야 payload 값과 Firestore mirror 값이
-  /// 항상 일치하기 때문이다.
-  ///
-  /// **IN-04:** production 소비처는 [acceptanceSnapshotJson] 뿐이고 본 getter
-  /// 를 직접 읽는 곳은 테스트 1곳이다. 의도를 [visibleForTesting] 으로
-  /// 명시해 둔다 — 아래 doc 이 참조하는 계약 자체는 그대로 유효하다.
+  /// **production 소비처는 없다** (quick 260920-b28). Custom Token payload 는
+  /// [TermsState.acceptance] 에서 `buildAcceptanceSnapshotJson()` 으로 파생되고,
+  /// 내부 캐시와 state 는 [_publishState] 단일 경로로만 갱신되므로 payload 값과
+  /// Firestore mirror 값이 갈라질 수 없다. 본 getter 는 "캐시와 state 가 실제로
+  /// 같은 값인가" 를 직접 관찰하는 테스트를 위해 [visibleForTesting] 으로 남긴다
+  /// (riverpod_lint 는 `@visibleForTesting` getter 를 규칙 대상에서 제외한다).
   @visibleForTesting
   TermsAcceptance? get acceptanceSnapshot => _acceptance;
 
-  // AuthRepository 가 Custom Token payload 로 읽는 공개 API 라 notifier getter 로
-  // 남겨 둔다. 동의 스냅샷을 state 로 옮기는 구조 개편은 후속 todo
-  // 2026-09-20-riverpod-lint-lib-refactor 에서 한다.
-  // ignore: riverpod_lint/avoid_public_notifier_properties
-  /// Custom Token callable payload 로 전송할 `termsAcceptanceSnapshot` JSON
-  /// (Phase 16 CR-01 — timezone 정합성 고정).
+  /// 가장 최근 [reloadForUser] 가 로드한 uid 를 보관하는 내부 캐시
+  /// (Issue #7 C-1 — Plan 10-11 stale 가드).
   ///
-  /// [acceptanceSnapshot] 을 그대로 `toJson()` 하면 안 된다. [accept] 는
-  /// `DateTime.now()` (**local**) 로 [TermsAcceptance.acceptedAt] 을 만들고,
-  /// Dart 의 `toIso8601String()` 은 UTC 가 아닌 `DateTime` 에 타임존 지시자를
-  /// 붙이지 않는다 (`2026-09-07T23:30:38.738305`). 서버(Cloud Functions, TZ=UTC)
-  /// 는 `new Date(...)` 로 offset 없는 문자열을 **런타임 local = UTC** 로
-  /// 해석하므로, KST 사용자의 동의 시각이 9시간 미래로 기록된다.
-  ///
-  /// 따라서 직렬화 시점에 [DateTime.toUtc] 로 정규화해 항상 `Z` 접미
-  /// (절대 instant) 문자열을 전송한다. 이 정규화로 Custom Token 경로와
-  /// [mirrorToFirestore] (`Timestamp.fromDate` — local `DateTime` 도 정확한
-  /// instant 로 변환) 의 기준이 일치한다.
-  ///
-  /// 동의 기록이 없으면 `null` (payload 미부착).
-  Map<String, dynamic>? get acceptanceSnapshotJson {
-    // 정규화 책임은 TermsAcceptanceServerJson 확장 1곳에 모은다 (WR-05) —
-    // 계약 sentinel 테스트가 같은 메서드를 통과해야 fixture drift 가 없다.
-    return _acceptance?.toServerJson();
-  }
-
-  /// 가장 최근 [reloadForUser] 가 로드한 uid 를 보관한다 (Issue #7 C-1 —
-  /// Plan 10-11 stale 가드).
-  ///
-  /// `resolveAuthRedirect` 분기 (5) 는 본 값이 `currentUser.uid` 와 일치하는 경우에만
-  /// [state] 를 신뢰한다. UID 는 일치하지만 reload 가 아직 완료되지 않은
-  /// 시점의 stale 평가를 차단하여 오진 리다이렉트(/onboarding flash) 를
-  /// 방지한다. null 은 "한 번도 reload 된 적 없음" (cold-start) 또는
-  /// "직전에 uid=null 로 reload 되어 logout 상태" 를 의미한다.
+  /// 소비처는 [TermsState.lastReloadedUid] 로 읽는다 — 계약 상세는 그 필드의
+  /// doc 참조. 갱신 직후 반드시 [_publishState] 를 호출한다.
   String? _lastReloadedUid;
 
-  // auth_guard 의 redirect stale 가드가 읽는 값이라 notifier getter 로 남겨
-  // 둔다. reload 대상 uid 를 state 로 옮기는 구조 개편은 후속 todo
-  // 2026-09-20-riverpod-lint-lib-refactor 에서 한다.
-  // ignore: riverpod_lint/avoid_public_notifier_properties
-  /// [_lastReloadedUid] 의 읽기 전용 접근자 (Issue #7 C-1 — Plan 10-11
-  /// resolveAuthRedirect stale 가드 용).
-  String? get lastReloadedUid => _lastReloadedUid;
-
   @override
-  TermsAcceptance? build() {
+  TermsState build() {
     // CR-01 (Plan 10-09 review fix): build() 에서 prefs 를 미리 로드하지 않는다.
     // authUserObserver 의 reloadForUser 가 모든 초기 로드를 책임지므로
     // _loadFromPrefs (fire-and-forget) 와 reloadForUser 의 비동기 race 로 인해
     // stale device-local JSON 이 Firestore 결과를 덮어쓰는 시나리오를 원천 차단.
-    return null;
+    return const TermsState();
+  }
+
+  /// 내부 캐시 2개를 [state] 로 한 번에 발행한다 (quick 260920-b28).
+  ///
+  /// [_acceptance] · [_lastReloadedUid] 를 바꾼 **직후에 반드시** 호출하는
+  /// 단일 publish 경로다. `copyWith` 로 필드를 따로 갱신하지 않는 이유는 두
+  /// 가지다 — (a) null 로 되돌리는 갱신의 의미가 모호해지고, (b) Custom Token
+  /// payload 값과 [mirrorToFirestore] 가 쓰는 값이 같은 원본에서 나온다는
+  /// 계약(Phase 16 G-16-A9-1)이 경로 단일화로 구조적으로 보장되기 때문이다.
+  void _publishState() {
+    state = TermsState(
+      acceptance: _acceptance,
+      lastReloadedUid: _lastReloadedUid,
+    );
   }
 
   /// SharedPreferences 에서 전체 JSON 을 복원한다 (WARNING #16).
@@ -136,7 +110,7 @@ class TermsNotifier extends _$TermsNotifier {
         if (!ref.mounted) return;
         if (restored.version >= currentVersion) {
           _acceptance = restored;
-          state = restored;
+          _publishState();
         }
         return;
       }
@@ -153,7 +127,7 @@ class TermsNotifier extends _$TermsNotifier {
         );
         if (!ref.mounted) return;
         _acceptance = legacyRestored;
-        state = legacyRestored;
+        _publishState();
       }
     } on Object catch (e, st) {
       // 10-REVIEW CR-03: 예외 타입 지정자를 넓혔다. 이 경로의 가장 현실적인
@@ -213,7 +187,7 @@ class TermsNotifier extends _$TermsNotifier {
     // WR-21: 영속화 실패 시 되돌릴 직전 값을 보관한다.
     final previous = _acceptance;
     _acceptance = acceptance;
-    state = acceptance;
+    _publishState();
     try {
       final prefs = await SharedPreferences.getInstance();
       // WARNING #16: 전체 JSON 문자열 저장.
@@ -233,7 +207,7 @@ class TermsNotifier extends _$TermsNotifier {
       // 함께 되돌려야 두 계약이 충돌하지 않는다.
       if (ref.mounted) {
         _acceptance = previous;
-        state = previous;
+        _publishState();
       }
       return Result.failure(ServiceUnavailable(cause: e));
     }
@@ -259,7 +233,7 @@ class TermsNotifier extends _$TermsNotifier {
       if (!snapshot.exists) {
         if (!ref.mounted) return;
         _acceptance = null;
-        state = null;
+        _publishState();
         return;
       }
       final data = snapshot.data();
@@ -267,7 +241,7 @@ class TermsNotifier extends _$TermsNotifier {
       if (terms == null) {
         if (!ref.mounted) return;
         _acceptance = null;
-        state = null;
+        _publishState();
         return;
       }
       final restored = TermsAcceptance(
@@ -284,11 +258,11 @@ class TermsNotifier extends _$TermsNotifier {
       if (!ref.mounted) return;
       if (restored.version >= currentVersion) {
         _acceptance = restored;
-        state = restored;
+        _publishState();
       } else {
         // currentVersion 미달 — 재동의 강제 (분기 (5) 발동).
         _acceptance = null;
-        state = null;
+        _publishState();
       }
     } on FirebaseException catch (e, st) {
       await ref
@@ -319,7 +293,7 @@ class TermsNotifier extends _$TermsNotifier {
       // 사용자 진입 시 직전 정식 사용자 동의가 승계되지 않도록 차단 (CR-02).
       if (!ref.mounted) return;
       _acceptance = null;
-      state = null;
+      _publishState();
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_key);
@@ -336,6 +310,7 @@ class TermsNotifier extends _$TermsNotifier {
       // 실행하므로 본 분기 갱신은 향후 정식 사용자 전이의 stale 가드 기준선을
       // 제공한다.
       _lastReloadedUid = null;
+      _publishState();
       return;
     }
     if (isAnonymous) {
@@ -347,6 +322,7 @@ class TermsNotifier extends _$TermsNotifier {
       // resolveAuthRedirect 분기 (5) stale 가드가 정식 전이 시점에 올바른 비교를
       // 수행하도록 한다.
       _lastReloadedUid = uid;
+      _publishState();
       return;
     }
     await _loadFromFirestore(uid: uid);
@@ -355,6 +331,7 @@ class TermsNotifier extends _$TermsNotifier {
     // 여부와 무관하게 uid 를 기록한다 — stale 가드의 기준은 "reload 가 이
     // uid 에 대해 완료되었는가" 이지 "state 가 정상 값인가" 가 아니다.
     _lastReloadedUid = uid;
+    _publishState();
   }
 
   /// 약관 동의 내역을 Firestore 에 미러링한다 (D-16).
@@ -479,7 +456,7 @@ class TermsNotifier extends _$TermsNotifier {
   /// `@visibleForTesting` 어노테이션은 부여하지 않는다.
   Future<void> reset() async {
     _acceptance = null;
-    state = null;
+    _publishState();
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_key);

@@ -15,6 +15,7 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/auth_guard.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
+import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
 
 class _MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
@@ -54,7 +55,7 @@ class _RecordingTermsNotifier extends TermsNotifier {
   final List<bool> mirrorForceCalls = [];
 
   @override
-  TermsAcceptance? build() => initial;
+  TermsState build() => TermsState(acceptance: initial);
 
   @override
   Future<Result<void>> mirrorToFirestore({

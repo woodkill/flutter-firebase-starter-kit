@@ -18,6 +18,7 @@ import '../../../core/providers/firebase_providers.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 // Phase 16 G-16-A9-1: authRepository factory provider 의 콜백 주입 전용 import.
 // AuthRepository 클래스 본체는 본 타입을 참조하지 않는다 (D-A2 관례).
+import '../../terms/domain/terms_state.dart';
 import '../../terms/presentation/terms_notifier.dart';
 import '../application/social_link_in_progress.dart';
 import '../domain/anonymous_sign_in.dart';
@@ -3277,13 +3278,13 @@ AuthRepository authRepository(Ref ref) {
     // OnboardingNotifier 타입은 본 factory 영역에서만 알며,
     // AuthRepository 클래스 본체는 콜백 signature 만 의존한다.
     () => ref.read(onboardingProvider.notifier).reset(),
-    // Phase 16 G-16-A9-1: 동일한 D-A2 콜백 주입 관례. TermsNotifier 타입은
+    // Phase 16 G-16-A9-1: 동일한 D-A2 콜백 주입 관례. TermsState 타입은
     // 본 factory 영역에서만 알며, AuthRepository 클래스 본체는
     // `Map<String, dynamic>? Function()` signature 만 의존한다.
-    // acceptanceSnapshotJson 이 서버 TermsAcceptanceJson 5 키를 산출한다
+    // buildAcceptanceSnapshotJson() 이 서버 TermsAcceptanceJson 5 키를 산출한다
     // (acceptedAt = UTC 정규화된 ISO 8601 — CR-01).
     readTermsAcceptanceSnapshot: () =>
-        ref.read(termsProvider.notifier).acceptanceSnapshotJson,
+        ref.read(termsProvider).buildAcceptanceSnapshotJson(),
   );
 }
 

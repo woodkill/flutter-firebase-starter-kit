@@ -15,6 +15,7 @@ import 'package:flutter_starter_kit/core/router/auth_guard.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
+import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
 
 class _MockGoRouterState extends Mock implements GoRouterState {}
@@ -51,37 +52,40 @@ class _StubOnboardingNotifier extends OnboardingNotifier {
   FutureOr<bool> build() async => _initial;
 }
 
+/// 정식 user 분기 (5) 시나리오 전용 terms stub.
+///
+/// Issue #7 (Plan 10-11): 기존 테스트(Test 1~13 / Issue #6 Test A~D /
+/// Issue #4 Test A~E) 가 resolveAuthRedirect stale 가드를 통과하도록 기본값을
+/// `regularUser` / `anonymousUser` 의 기본 uid 두 후보를 모두 수용하는
+/// 방식으로 제공한다. 본 stub 은 분기 (5) 의 stale 가드를 **우회**하는
+/// 방향으로만 동작해야 하므로, 'reg-uid' / 'anon-uid' 둘 중 현재 평가
+/// 경로와 일치하는 값을 반환하면 되지만 실제로는 resolveAuthRedirect 가 uid 와
+/// lastReloadedUid 를 equality 비교하는 단일 분기뿐이므로, 본 테스트들은
+/// regularUser 기본 uid 인 'reg-uid' 를 반환해 stale 가드가 항상
+/// false(비-stale) 로 평가되도록 한다.
+///
+/// **Phase 10.2 D-C2 갱신 (iter 2 WR-03):** 위 정당화 마지막 줄
+/// ("익명 사용자 경로는 분기 (3) 에서 처리되어 stale 가드를 타지 않으므로
+/// uid 불일치가 무해하다") 은 **더 이상 사실이 아니다.** Phase 10.2 D-C2
+/// 가 분기 (3) (익명 user 경로) 에도 stale guard 를 도입했기 때문에,
+/// 익명 user 시나리오에 본 stub 을 그대로 사용하면 'reg-uid' vs 익명 uid
+/// (예: 'anon-uid') mismatch 로 stale guard 가 우연히 발동/우회될 수 있어
+/// CR-01 (iter 1) 회귀의 root cause 가 된다. **익명 user 시나리오는 항상
+/// [_StubTermsNotifierWithUid] (line 94-104) 의 named `reloadedUid: 'anon-uid'`
+/// 를 사용하거나, 명시적 `termsAcceptance: acceptedTerms()` 를 함께 지정하여
+/// stale guard 진입 자체를 우회시켜야 한다.** 본 stub (`_StubTermsNotifier`)
+/// 의 하드코딩 'reg-uid' 는 정식 user 분기 (5) 시나리오 전용으로만 신규
+/// 테스트에 채택할 것.
+///
+/// **quick 260920-b28:** getter override 대신 불변 state 를 그대로 만든다 —
+/// `TermsNotifier` 는 public getter 를 노출하지 않는다.
 class _StubTermsNotifier extends TermsNotifier {
   _StubTermsNotifier(this._initial);
   final TermsAcceptance? _initial;
 
   @override
-  TermsAcceptance? build() => _initial;
-
-  /// Issue #7 (Plan 10-11): 기존 테스트(Test 1~13 / Issue #6 Test A~D /
-  /// Issue #4 Test A~E) 가 resolveAuthRedirect stale 가드를 통과하도록 기본값을
-  /// `regularUser` / `anonymousUser` 의 기본 uid 두 후보를 모두 수용하는
-  /// 방식으로 제공한다. 본 stub 은 분기 (5) 의 stale 가드를 **우회**하는
-  /// 방향으로만 동작해야 하므로, 'reg-uid' / 'anon-uid' 둘 중 현재 평가
-  /// 경로와 일치하는 값을 반환하면 되지만 실제로는 resolveAuthRedirect 가 uid 와
-  /// lastReloadedUid 를 equality 비교하는 단일 분기뿐이므로, 본 테스트들은
-  /// regularUser 기본 uid 인 'reg-uid' 를 반환해 stale 가드가 항상
-  /// false(비-stale) 로 평가되도록 한다.
-  ///
-  /// **Phase 10.2 D-C2 갱신 (iter 2 WR-03):** 위 정당화 마지막 줄
-  /// ("익명 사용자 경로는 분기 (3) 에서 처리되어 stale 가드를 타지 않으므로
-  /// uid 불일치가 무해하다") 은 **더 이상 사실이 아니다.** Phase 10.2 D-C2
-  /// 가 분기 (3) (익명 user 경로) 에도 stale guard 를 도입했기 때문에,
-  /// 익명 user 시나리오에 본 stub 을 그대로 사용하면 'reg-uid' vs 익명 uid
-  /// (예: 'anon-uid') mismatch 로 stale guard 가 우연히 발동/우회될 수 있어
-  /// CR-01 (iter 1) 회귀의 root cause 가 된다. **익명 user 시나리오는 항상
-  /// [_StubTermsNotifierWithUid] (line 94-104) 의 named `reloadedUid: 'anon-uid'`
-  /// 를 사용하거나, 명시적 `termsAcceptance: acceptedTerms()` 를 함께 지정하여
-  /// stale guard 진입 자체를 우회시켜야 한다.** 본 stub (`_StubTermsNotifier`)
-  /// 의 하드코딩 'reg-uid' 는 정식 user 분기 (5) 시나리오 전용으로만 신규
-  /// 테스트에 채택할 것.
-  @override
-  String? get lastReloadedUid => 'reg-uid';
+  TermsState build() =>
+      TermsState(acceptance: _initial, lastReloadedUid: 'reg-uid');
 }
 
 /// Phase 9.1 D-02-B (Plan 09.1-04) — `socialLinkInProgressProvider` override 용
@@ -98,8 +102,7 @@ class _StubSocialLinkInProgress extends SocialLinkInProgress {
 
 /// Issue #7 (Plan 10-11) stale 가드 테스트용 확장 stub.
 ///
-/// 기존 [_StubTermsNotifier] 는 build() 만 override 하므로 실제
-/// [TermsNotifier.lastReloadedUid] (기본값 null) 를 그대로 노출한다.
+/// 기존 [_StubTermsNotifier] 는 `lastReloadedUid` 를 'reg-uid' 로 고정한다.
 /// 본 서브클래스는 `reloadedUid` 를 주입 가능한 값으로 대체하여
 /// resolveAuthRedirect 분기 (5) 가 stale 여부를 판단하는 시나리오를 재현한다.
 ///
@@ -110,10 +113,8 @@ class _StubTermsNotifierWithUid extends TermsNotifier {
   final String? reloadedUid;
 
   @override
-  TermsAcceptance? build() => initial;
-
-  @override
-  String? get lastReloadedUid => reloadedUid;
+  TermsState build() =>
+      TermsState(acceptance: initial, lastReloadedUid: reloadedUid);
 }
 
 /// resolveAuthRedirect 호출 헬퍼 (Phase 9.1 IN-03 — DRY 추출).

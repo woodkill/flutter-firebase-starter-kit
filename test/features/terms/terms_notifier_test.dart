@@ -12,6 +12,7 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
+import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
 
 /// 쓰기만 실패하는 SharedPreferences 스토어 (10-REVIEW WR-21 회귀 재현용).
@@ -158,9 +159,9 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final container = createContainer();
 
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
     });
 
     test(
@@ -178,7 +179,7 @@ void main() {
         );
 
         expect(result, isA<Success<dynamic>>());
-        final state = container.read(termsProvider);
+        final state = container.read(termsProvider).acceptance;
         expect(state, isNotNull);
         expect(state!.service, isTrue);
         expect(state.privacy, isTrue);
@@ -199,7 +200,7 @@ void main() {
         marketing: false,
       );
       expect(result1, isA<Failure<dynamic>>());
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
 
       final result2 = await notifier.accept(
         service: true,
@@ -207,7 +208,7 @@ void main() {
         marketing: false,
       );
       expect(result2, isA<Failure<dynamic>>());
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
     });
 
     test('Test 3b (WR-13): 필수 동의 누락은 InvalidInput — 서비스 장애가 아니다', () async {
@@ -255,9 +256,12 @@ void main() {
       expect(result, isA<Failure<void>>());
       expect((result as Failure<void>).exception, isA<ServiceUnavailable>());
       // 롤백 — state / 내부 캐시 / mirror payload 모두 직전 값(null)으로 복귀.
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
       expect(notifier.acceptanceSnapshot, isNull);
-      expect(notifier.acceptanceSnapshotJson, isNull);
+      expect(
+        container.read(termsProvider).buildAcceptanceSnapshotJson(),
+        isNull,
+      );
       // 실패는 telemetry 로 남는다.
       verify(
         () => mockCrashlytics.recordError(
@@ -296,7 +300,7 @@ void main() {
       await firstContainer
           .read(termsProvider.notifier)
           .accept(service: true, privacy: true, marketing: true);
-      final original = firstContainer.read(termsProvider);
+      final original = firstContainer.read(termsProvider).acceptance;
       expect(original, isNotNull);
       firstContainer.dispose();
 
@@ -309,7 +313,7 @@ void main() {
           .read(termsProvider.notifier)
           .reloadForUser(uid: 'anon-cold-start', isAnonymous: true);
 
-      final restored = secondContainer.read(termsProvider);
+      final restored = secondContainer.read(termsProvider).acceptance;
       expect(restored, isNotNull);
       expect(restored!.service, isTrue);
       expect(restored.privacy, isTrue);
@@ -397,7 +401,7 @@ void main() {
         await container
             .read(termsProvider.notifier)
             .accept(service: true, privacy: true, marketing: false);
-        final stateBefore = container.read(termsProvider);
+        final stateBefore = container.read(termsProvider).acceptance;
         expect(stateBefore, isNotNull);
 
         when(
@@ -412,7 +416,7 @@ void main() {
 
         expect(result, isA<Failure<dynamic>>());
         // state 는 유지되어 사용자가 다시 시도할 수 있다.
-        expect(container.read(termsProvider), stateBefore);
+        expect(container.read(termsProvider).acceptance, stateBefore);
       },
     );
 
@@ -424,12 +428,12 @@ void main() {
         await container
             .read(termsProvider.notifier)
             .accept(service: true, privacy: true, marketing: true);
-        expect(container.read(termsProvider), isNotNull);
+        expect(container.read(termsProvider).acceptance, isNotNull);
 
         // public reset() 호출 (WARNING #8: production 표면)
         await container.read(termsProvider.notifier).reset();
 
-        expect(container.read(termsProvider), isNull);
+        expect(container.read(termsProvider).acceptance, isNull);
         final prefs = await SharedPreferences.getInstance();
         expect(prefs.getString('terms.accepted_value'), isNull);
         expect(prefs.getInt('terms.accepted_version'), isNull);
@@ -459,14 +463,14 @@ void main() {
         marketing: true,
       );
       expect(seed, isA<Success<void>>());
-      expect(container.read(termsProvider), isNotNull);
+      expect(container.read(termsProvider).acceptance, isNotNull);
 
       await notifier.reset();
 
       // 삭제 실패 여부를 prefs.get* 로 단언하지 않는다 — SharedPreferences
       // 는 `_store.remove` 호출 전에 캐시를 먼저 비우므로 성공/실패 양쪽에서
       // null 이 나오는 self-satisfying 단언이 된다.
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
       expect(notifier.acceptanceSnapshot, isNull);
       verify(
         () => mockCrashlytics.recordError(
@@ -512,7 +516,7 @@ void main() {
 
         // 초기 상태 — lastReloadedUid 가 null.
         expect(
-          notifier.lastReloadedUid,
+          container.read(termsProvider).lastReloadedUid,
           isNull,
           reason: 'cold-start 직후 reload 이력 없음',
         );
@@ -520,7 +524,7 @@ void main() {
         // 1분기 (uid=null, logout): lastReloadedUid = null.
         await notifier.reloadForUser();
         expect(
-          notifier.lastReloadedUid,
+          container.read(termsProvider).lastReloadedUid,
           isNull,
           reason: 'uid=null 분기는 null 을 저장한다',
         );
@@ -528,7 +532,7 @@ void main() {
         // 2분기 (isAnonymous=true): lastReloadedUid = 'ANON-A'.
         await notifier.reloadForUser(uid: 'ANON-A', isAnonymous: true);
         expect(
-          notifier.lastReloadedUid,
+          container.read(termsProvider).lastReloadedUid,
           'ANON-A',
           reason: 'isAnonymous=true 분기는 uid 를 저장한다',
         );
@@ -537,7 +541,7 @@ void main() {
         // Firestore mock 을 '문서 없음' 으로 두어 state 는 null 로 유지.
         await notifier.reloadForUser(uid: 'FULL-B', isAnonymous: false);
         expect(
-          notifier.lastReloadedUid,
+          container.read(termsProvider).lastReloadedUid,
           'FULL-B',
           reason: 'full uid 분기는 uid 를 저장한다 (Firestore read 성공/실패 무관)',
         );
@@ -545,7 +549,7 @@ void main() {
         // 과거 값에 대한 덮어쓰기 검증: 다시 null → null 로 덮어씀.
         await notifier.reloadForUser();
         expect(
-          notifier.lastReloadedUid,
+          container.read(termsProvider).lastReloadedUid,
           isNull,
           reason: '직전 값이 FULL-B 여도 null 로 재할당된다',
         );
@@ -708,7 +712,7 @@ void main() {
         await container
             .read(termsProvider.notifier)
             .accept(service: true, privacy: true, marketing: true);
-        expect(container.read(termsProvider), isNotNull);
+        expect(container.read(termsProvider).acceptance, isNotNull);
         final prefs = await SharedPreferences.getInstance();
         expect(prefs.getString('terms.accepted_value'), isNotNull);
 
@@ -716,7 +720,7 @@ void main() {
         await container.read(termsProvider.notifier).reloadForUser(uid: null);
 
         expect(
-          container.read(termsProvider),
+          container.read(termsProvider).acceptance,
           isNull,
           reason: 'state 가 즉시 비워져야 한다',
         );
@@ -738,7 +742,7 @@ void main() {
             .reloadForUser(uid: 'anon-X', isAnonymous: true);
 
         expect(
-          container.read(termsProvider),
+          container.read(termsProvider).acceptance,
           isNull,
           reason:
               '익명 X 진입 시 사용자 A 의 동의가 prefs 에서 복원되지 않아야 한다 '
@@ -766,7 +770,7 @@ void main() {
       // 정식 사용자 진입 — 기본 stub 이 exists=false 라 prefs I/O 없이
       // lastReloadedUid 만 갱신된다.
       await notifier.reloadForUser(uid: 'FULL-B', isAnonymous: false);
-      expect(notifier.lastReloadedUid, 'FULL-B');
+      expect(container.read(termsProvider).lastReloadedUid, 'FULL-B');
 
       // 이 스토어는 setValue 가 성공하므로 seed 는 정상 저장된다.
       final seed = await notifier.accept(
@@ -781,10 +785,10 @@ void main() {
       // 삭제 실패 여부를 prefs.get* 로 단언하지 않는다 — SharedPreferences
       // 는 `_store.remove` 호출 전에 캐시를 먼저 비우므로 성공/실패 양쪽에서
       // null 이 나오는 self-satisfying 단언이 된다.
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
       expect(notifier.acceptanceSnapshot, isNull);
       expect(
-        notifier.lastReloadedUid,
+        container.read(termsProvider).lastReloadedUid,
         isNull,
         reason: 'catch 이후 코드가 계속 실행됐다는 증거',
       );
@@ -816,7 +820,7 @@ void main() {
         reason: 'accept() 는 local DateTime 을 만든다 — 전제 고정',
       );
 
-      final json = notifier.acceptanceSnapshotJson;
+      final json = container.read(termsProvider).buildAcceptanceSnapshotJson();
       expect(json, isNotNull);
       final acceptedAt = json!['acceptedAt'] as String;
       expect(
@@ -839,9 +843,11 @@ void main() {
       () async {
         SharedPreferences.setMockInitialValues({});
         final container = createContainer();
-        final notifier = container.read(termsProvider.notifier);
 
-        expect(notifier.acceptanceSnapshotJson, isNull);
+        expect(
+          container.read(termsProvider).buildAcceptanceSnapshotJson(),
+          isNull,
+        );
       },
     );
 
@@ -852,13 +858,14 @@ void main() {
 
       await notifier.accept(service: true, privacy: true, marketing: true);
 
-      expect(notifier.acceptanceSnapshotJson!.keys.toSet(), <String>{
-        'version',
-        'service',
-        'privacy',
-        'marketing',
-        'acceptedAt',
-      });
+      expect(
+        container
+            .read(termsProvider)
+            .buildAcceptanceSnapshotJson()!
+            .keys
+            .toSet(),
+        <String>{'version', 'service', 'privacy', 'marketing', 'acceptedAt'},
+      );
     });
   });
 
@@ -891,7 +898,7 @@ void main() {
 
       await notifier.reloadForUser(uid: 'anon-1', isAnonymous: true);
 
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
       verify(
         () => mockCrashlytics.recordError(
           any<Object>(),
@@ -916,7 +923,7 @@ void main() {
 
       await notifier.reloadForUser(uid: 'anon-1', isAnonymous: true);
 
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
       verify(
         () => mockCrashlytics.recordError(
           any<Object>(),

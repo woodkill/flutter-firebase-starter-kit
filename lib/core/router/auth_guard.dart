@@ -321,8 +321,7 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
     return null;
   }
   final onboardingSeen = onboardingAsync.value ?? false;
-  final termsAcceptance = ref.read(termsProvider);
-  final termsAccepted = termsAcceptance != null;
+  final termsAccepted = ref.read(termsProvider).acceptance != null;
 
   if (kDebugMode) {
     // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
@@ -388,7 +387,7 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
       // `onboardingSeen && !termsAccepted` 단독 trip 인 경우에만 발동.
       // Plan 10-11 분기 (5) lastReloadedUid 패턴 익명 확장.
       if (onboardingSeen && !termsAccepted) {
-        final reloadedUid = ref.read(termsProvider.notifier).lastReloadedUid;
+        final reloadedUid = ref.read(termsProvider).lastReloadedUid;
         if (reloadedUid != currentUser.uid) {
           if (kDebugMode) {
             // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
@@ -440,7 +439,7 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
   // 없는 정식 사용자(분기 (4) 를 정당하게 통과)가 약관 게이트까지 우회하는
   // 것을 막는다.
   if (isAuthenticated && !isAnonymous && passedEmailGate && !termsAccepted) {
-    final termsReloadedUid = ref.read(termsProvider.notifier).lastReloadedUid;
+    final termsReloadedUid = ref.read(termsProvider).lastReloadedUid;
     if (termsReloadedUid != currentUser.uid) {
       if (kDebugMode) {
         // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.

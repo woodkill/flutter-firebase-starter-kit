@@ -104,7 +104,7 @@ void main() {
           .read(termsProvider.notifier)
           .reloadForUser(uid: 'test-uid', isAnonymous: false);
 
-      final state = container.read(termsProvider);
+      final state = container.read(termsProvider).acceptance;
       expect(state, isNotNull);
       expect(state!.version, 1);
       expect(state.service, isTrue);
@@ -130,7 +130,7 @@ void main() {
           .read(termsProvider.notifier)
           .reloadForUser(uid: 'no-data-uid', isAnonymous: false);
 
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
     });
 
     test(
@@ -147,7 +147,7 @@ void main() {
             .read(termsProvider.notifier)
             .reloadForUser(uid: 'no-terms-uid', isAnonymous: false);
 
-        expect(container.read(termsProvider), isNull);
+        expect(container.read(termsProvider).acceptance, isNull);
       },
     );
 
@@ -176,7 +176,7 @@ void main() {
           .reloadForUser(uid: 'offline-uid', isAnonymous: false);
 
       // Fallback 으로 복원된 state 검증.
-      final state = container.read(termsProvider);
+      final state = container.read(termsProvider).acceptance;
       expect(state, isNotNull);
       expect(state!.service, isTrue);
       expect(state.privacy, isTrue);
@@ -200,7 +200,7 @@ void main() {
 
       // 1) accept 호출 → state 캡처.
       await notifier.accept(service: true, privacy: true, marketing: false);
-      final original = container.read(termsProvider);
+      final original = container.read(termsProvider).acceptance;
       expect(original, isNotNull);
 
       // Plan 10-12 Issue #8: mirrorToFirestore 가 pre-read 를 수행. mirror
@@ -225,7 +225,7 @@ void main() {
 
       // 3) reloadForUser → 복원된 state.acceptedAt 비교.
       await notifier.reloadForUser(uid: 'rt-uid', isAnonymous: false);
-      final restored = container.read(termsProvider);
+      final restored = container.read(termsProvider).acceptance;
       expect(restored, isNotNull);
       // Firestore Timestamp 정밀도 한계 (microsecond) 내에서 일치.
       expect(
@@ -261,7 +261,7 @@ void main() {
             .reloadForUser(uid: 'old-version-uid', isAnonymous: false);
 
         expect(
-          container.read(termsProvider),
+          container.read(termsProvider).acceptance,
           isNull,
           reason: 'currentVersion 미달 → 재동의 강제',
         );
@@ -277,14 +277,14 @@ void main() {
         await container
             .read(termsProvider.notifier)
             .accept(service: true, privacy: true, marketing: true);
-        expect(container.read(termsProvider), isNotNull);
+        expect(container.read(termsProvider).acceptance, isNotNull);
 
         // null uid → state=null.
         await container
             .read(termsProvider.notifier)
             .reloadForUser(uid: null, isAnonymous: false);
 
-        expect(container.read(termsProvider), isNull);
+        expect(container.read(termsProvider).acceptance, isNull);
         // Firestore read 호출 안 됨.
         verifyNever(() => mockDoc.get());
       },
@@ -310,7 +310,7 @@ void main() {
           .read(termsProvider.notifier)
           .reloadForUser(uid: 'anon-uid', isAnonymous: true);
 
-      final state = container.read(termsProvider);
+      final state = container.read(termsProvider).acceptance;
       expect(state, isNotNull);
       expect(state!.service, isTrue);
       expect(state.privacy, isTrue);
@@ -358,14 +358,14 @@ void main() {
       // resolveAuthRedirect 분기 (5) 가 /onboarding 으로 강제 리다이렉트하는 조건
       // 성립.
       expect(
-        container.read(termsProvider),
+        container.read(termsProvider).acceptance,
         isNull,
         reason:
             'multi-user invariant — 기존 사용자 A 의 termsAccepted 필드 부재 시 '
             'device-local 동의값이 승계되지 않아야 한다 (Test 21 기대)',
       );
       expect(
-        notifier.lastReloadedUid,
+        container.read(termsProvider).lastReloadedUid,
         'A-UID',
         reason: 'Issue #7 C-1 — reloadForUser 완료 후 lastReloadedUid 갱신',
       );

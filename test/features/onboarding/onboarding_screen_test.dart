@@ -23,7 +23,7 @@ import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/on
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/terms_checkbox_group.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_screen.dart';
-import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
+import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -56,7 +56,7 @@ class _RecordingTermsNotifier extends TermsNotifier {
   final List<bool> mirrorForceCalls = <bool>[];
 
   @override
-  TermsAcceptance? build() => null;
+  TermsState build() => const TermsState();
 
   @override
   Future<Result<void>> accept({
@@ -87,7 +87,7 @@ class _RecordingTermsNotifier extends TermsNotifier {
 /// 눌렀는데 아무 일도 일어나지 않는" dead-end 였다.
 class _FailingAcceptTermsNotifier extends TermsNotifier {
   @override
-  TermsAcceptance? build() => null;
+  TermsState build() => const TermsState();
 
   @override
   Future<Result<void>> accept({
@@ -108,7 +108,7 @@ class _GatedAcceptTermsNotifier extends TermsNotifier {
   final Completer<void> gate = Completer<void>();
 
   @override
-  TermsAcceptance? build() => null;
+  TermsState build() => const TermsState();
 
   @override
   Future<Result<void>> accept({

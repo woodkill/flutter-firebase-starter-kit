@@ -191,11 +191,11 @@ void main() {
       //    stale 상태를 모사한다 (실제로는 fresh ProviderContainer 가
       //    cold-start 이지만 의미는 동일 — reload 가 아직 실행되지 않음).
       expect(
-        container.read(termsProvider.notifier).lastReloadedUid,
+        container.read(termsProvider).lastReloadedUid,
         isNull,
         reason: 'cold-start — lastReloadedUid=null',
       );
-      expect(container.read(termsProvider), isNull);
+      expect(container.read(termsProvider).acceptance, isNull);
 
       // 2) 1차 resolveAuthRedirect 평가: stale 가드 발동 → null (현재 location
       //    유지, reload 완료 대기).
@@ -221,7 +221,7 @@ void main() {
 
       // lastReloadedUid 가 FULL-A 로 갱신되었는지 확인 (C-1 통합 검증).
       expect(
-        container.read(termsProvider.notifier).lastReloadedUid,
+        container.read(termsProvider).lastReloadedUid,
         'FULL-A',
         reason: 'C-1 — reloadForUser 완료 후 lastReloadedUid 갱신',
       );
@@ -305,8 +305,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      expect(container.read(termsProvider.notifier).lastReloadedUid, 'FULL-B');
-      expect(container.read(termsProvider), isNotNull);
+      expect(container.read(termsProvider).lastReloadedUid, 'FULL-B');
+      expect(container.read(termsProvider).acceptance, isNotNull);
 
       // 2) 평가: /login 에서 분기 (6) 으로 /home.
       final result = await callAuthRedirect(container, mockState);
