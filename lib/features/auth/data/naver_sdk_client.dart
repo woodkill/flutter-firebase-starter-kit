@@ -146,6 +146,17 @@ const Set<String> _kNaverAndroidErrorCodes = <String>{
 /// 넓히면 `-999 cancelled` 같은 네트워크 오류까지 silent 로 흡수돼 사용자가
 /// 실패를 알 수 없게 된다.
 ///
+/// **이 규칙은 iOS 표면에만 적용된다 (WR-08).** Android 는 플러그인이 킷에
+/// 결과를 주기 **전에** `errorCode == "user_cancel" ||
+/// errorDesc.contains("cancel", ignoreCase = true)` 를 취소
+/// ([NaverLoginStatus.loggedOut]) 로 접어 보낸다
+/// (`FlutterNaverLoginPlugin.kt:293-296`). 즉 **플러그인 상류가 이미 넓혀
+/// 놓았으므로**, desc 에 `cancel` 이 섞인 Android 네트워크 오류는 킷에
+/// 도착하는 시점에 이미 취소이고 배너 없이 silent 로 흡수된다. 킷 코드로는
+/// 고칠 수 없다 — 아래 [isNaverUserCancel] 을 좁혀도 `loggedOut` 밖의
+/// 정보가 남아 있지 않다. Android 의 「무반응」 제보는 취소 로그부터 확인할
+/// 것 (`docs/manual.md` Naver Pitfall 11).
+///
 /// **비대상:** iOS 에서 NAVER 앱(1-tap) 경로의 취소는 이 매핑을 타지 않을 수
 /// 있다 — 복귀 URL 의 code 가 취소 값을 갖지 않아 서버 오류로 표면화된다.
 /// 테스트 SIM 부재로 실측이 불가능하다 (C-06). `docs/manual.md` 의 Naver

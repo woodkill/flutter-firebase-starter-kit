@@ -838,6 +838,16 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   킷은 취소 판정을 오류 분기보다 **먼저** 보고, 리터럴을 `contains` 가 아니라
   **완전 일치**로 비교합니다 (넓히면 `-999 cancelled` 같은 네트워크 오류까지
   silent 로 흡수됩니다).
+  - **이 완전 일치 규칙은 iOS 표면에만 적용됩니다.** Android 는 플러그인이
+    킷에 결과를 주기 **전에** `errorDesc.contains("cancel", ignoreCase=true)`
+    인 실패까지 취소(`loggedOut`)로 접어 보냅니다. 즉 Android 는 플러그인
+    상류가 이미 넓혀 보내므로, desc 에 `cancel` 이 섞인 네트워크 오류가 배너
+    없이 silent 로 흡수될 수 있습니다 — **플러그인 상류 동작이라 킷 코드로는
+    고칠 수 없습니다.**
+  - 그래서 Android 에서 「눌렀는데 아무 반응이 없다」 는 제보를 받으면, 먼저
+    debug 로그에 취소 로그(`Naver logIn cancel: status=loggedOut …`)가 찍혔는지
+    확인하십시오. 사용자가 취소한 적이 없는데 이 줄이 있다면 취소가 아니라
+    흡수된 오류입니다 (Pitfall 12 의 무반응과 원인이 다릅니다).
 - **Pitfall 12 (iOS 1-tap 미복귀 wedge) — 미해결 · 미검증:** iOS 에서 NAVER 앱으로
   넘어간 뒤 사용자가 돌아오지 않으면, 플러그인의 대기 슬롯이 점유된 채 남아 이후
   호출이 플러그인 내부에서 `Another request is in progress` 로 거부되는 상태가
