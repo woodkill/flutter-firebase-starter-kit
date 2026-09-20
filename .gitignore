@@ -210,6 +210,9 @@ test/features/auth/presentation/_widgets/goldens/naver_dark_ios.png
 # ==========================
 *.class
 *.log
+# 예외: UAT 증거 발췌본(allowlist + 마스킹본)은 추적한다. 원본 logcat 은 gitignored
+# build/ 아래에만 두고 커밋하지 않는다 (Phase 16.2 Plan 06 · T-16.2-15).
+!.planning/phases/*/uat-evidence/*.log
 *.pyc
 .atom/
 .build/
