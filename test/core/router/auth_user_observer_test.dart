@@ -13,6 +13,7 @@ import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/auth_guard.dart';
+import 'package:flutter_starter_kit/core/router/auth_refresh.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
@@ -29,7 +30,7 @@ class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
 
   /// asBroadcastStream 으로 래핑하여 multi-subscription 을 허용한다.
   /// Plan 10-11 Issue #7 C-3 도입 이후 authUserObserver 뿐 아니라
-  /// authChangeProvider 의 [AuthChangeNotifier] 도 동일 auth.userChanges()
+  /// authRefreshProvider 의 [AuthRefresh] 도 동일 auth.userChanges()
   /// 를 listen 하므로, single-subscription stream 이면 두 번째 listen 에서
   /// `Bad state: Stream has already been listened to.` 가 발생한다.
   /// 실제 Firebase SDK 의 userChanges() 도 broadcast 성격을 갖는다.
@@ -40,6 +41,32 @@ class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
 
   @override
   Stream<fb.User?> userChanges() => _stream;
+}
+
+/// [_SpyAuthRefresh] 의 강제 재평가 호출 횟수를 notifier 밖에 두는 recorder.
+///
+/// fake notifier 에 public 필드 · getter 를 만들지 않기 위해(quick 260920-4h7
+/// 패턴, riverpod_lint `avoid_public_notifier_properties`) 기록은 생성자로
+/// 주입한 외부 객체가 담는다.
+class _TriggerRecorder {
+  int count = 0;
+}
+
+/// `triggerRedirect()` 호출만 가로채는 spy [AuthRefresh].
+///
+/// 실제 구현과 달리 `userChanges()` 를 구독하지 않고 초기 state 만 반환한다 —
+/// 따라서 [_TriggerRecorder.count] 증가의 **유일한** 원인은 강제 재평가 호출
+/// 이다 (옛 구조에서 별도 empty stream spy 로 얻던 격리와 동일한 의도).
+class _SpyAuthRefresh extends AuthRefresh {
+  _SpyAuthRefresh(this._recorder);
+
+  final _TriggerRecorder _recorder;
+
+  @override
+  AuthRefreshState build() => initialAuthRefreshState;
+
+  @override
+  void triggerRedirect() => _recorder.count++;
 }
 
 /// [_RecordingTermsNotifier] 의 호출 기록과 제어 입력을 notifier 밖에 두는
@@ -117,7 +144,7 @@ void main() {
     registerFallbackValue(StackTrace.empty);
   });
 
-  /// [email] 과 [emailVerified] 도 반드시 stub 한다 — [AuthChangeNotifier] 의
+  /// [email] 과 [emailVerified] 도 반드시 stub 한다 — [AuthRefresh] 의
   /// distinct 가드(Phase 9 UAT Gap 2)가 emit 마다 네 필드 스냅샷을 읽으므로,
   /// 미stub mock 은 `type 'Null' is not a subtype of type 'bool'` 로 죽는다.
   fb.User makeUser({
@@ -348,12 +375,11 @@ void main() {
     );
 
     test('Test 6 (Issue #7 C-3 Plan 10-11): reloadForUser 완료 후 '
-        'authChangeProvider.triggerRedirect() 1회 이상 호출됨', () async {
+        'authRefreshProvider.triggerRedirect() 1회 이상 호출됨', () async {
       // Issue #7 핵심 회귀 가드: authUserObserver 가 reloadForUser 를
-      // await 한 직후 AuthChangeNotifier.triggerRedirect() 를 호출하여
+      // await 한 직후 AuthRefresh.triggerRedirect() 를 호출하여
       // GoRouter refreshListenable 의 재평가를 명시적으로 유도하는지
-      // 확인한다. spy AuthChangeNotifier 의 addListener 로 notifyListeners
-      // 호출 카운트를 검증한다.
+      // 확인한다. spy AuthRefresh 가 호출 카운트를 recorder 에 기록한다.
       final controller = StreamController<fb.User?>();
       addTearDown(controller.close);
       final analytics = _MockFirebaseAnalytics();
@@ -363,15 +389,10 @@ void main() {
       final recorder = _TermsCallRecorder();
       final terms = _RecordingTermsNotifier(recorder);
 
-      // Spy AuthChangeNotifier — 별도 empty stream 을 구독하므로 외부
-      // userChanges 이벤트로는 notifyListeners 가 호출되지 않는다. 즉,
-      // listener 카운트 증가의 유일한 원인은 triggerRedirect() 호출이다.
-      final spyAuthChangeNotifier = AuthChangeNotifier(
-        const Stream<fb.User?>.empty(),
-      );
-      addTearDown(spyAuthChangeNotifier.dispose);
-      var notifyCount = 0;
-      spyAuthChangeNotifier.addListener(() => notifyCount++);
+      // Spy AuthRefresh — userChanges 를 구독하지 않으므로 외부 emit 으로는
+      // 카운트가 증가하지 않는다. 즉, 카운트 증가의 유일한 원인은
+      // triggerRedirect() 호출이다.
+      final triggerRecorder = _TriggerRecorder();
 
       final fakeAuth = _FakeFirebaseAuth(controller.stream);
       final container = ProviderContainer(
@@ -387,7 +408,9 @@ void main() {
             (ref) => CrashlyticsService(crashlytics, isEnabled: true),
           ),
           termsProvider.overrideWith(() => terms),
-          authChangeProvider.overrideWithValue(spyAuthChangeNotifier),
+          authRefreshProvider.overrideWith(
+            () => _SpyAuthRefresh(triggerRecorder),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -401,10 +424,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(
-        notifyCount,
+        triggerRecorder.count,
         greaterThanOrEqualTo(1),
         reason:
-            'Issue #7 C-3 — reloadForUser 완료 후 authChangeProvider.'
+            'Issue #7 C-3 — reloadForUser 완료 후 authRefreshProvider.'
             'triggerRedirect() 가 최소 1회 호출되어야 GoRouter 가 stale '
             '가드를 벗어날 수 있다',
       );
@@ -440,7 +463,7 @@ void main() {
 
   group('authUserObserver 에러 격리 — 코드 리뷰 05 WR-03 회귀 가드', () {
     // observer 는 termsProvider.reloadForUser 와
-    // authChangeProvider.triggerRedirect() 의 유일한 호출자다. 한 번 죽으면
+    // authRefreshProvider.triggerRedirect() 의 유일한 호출자다. 한 번 죽으면
     // lastReloadedUid 가 갱신되지 않아 resolveAuthRedirect 분기 (3)(5) 의 stale
     // 가드가 영구히 null 을 반환하고 사용자가 현재 위치에 무기한 고정된다.
 

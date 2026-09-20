@@ -6,7 +6,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
-import '../../../core/router/auth_guard.dart';
+import '../../../core/router/auth_refresh.dart';
 import '../data/auth_repository.dart';
 import 'verify_email_state.dart';
 
@@ -245,14 +245,14 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
 
   /// GoRouter redirect 재평가를 트리거한다.
   ///
-  /// authStateProvider invalidate + [AuthChangeNotifier.triggerRedirect]
+  /// authStateProvider invalidate + [AuthRefresh.triggerRedirect]
   /// 이중 호출로 확실한 redirect 재평가를 보장한다.
   /// Firebase SDK의 authStateChanges() 스트림이 reload()에 반응하지
   /// 않을 수 있으므로 (FlutterFire Issue #8777), triggerRedirect()를
   /// 호출하여 GoRouter가 redirect를 재평가하도록 강제한다.
   void _triggerRedirect() {
     ref.invalidate(authStateProvider);
-    ref.read(authChangeProvider).triggerRedirect();
+    ref.read(authRefreshProvider.notifier).triggerRedirect();
   }
 
   /// 재전송 쿨다운 타이머를 시작한다.

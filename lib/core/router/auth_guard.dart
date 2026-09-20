@@ -13,160 +13,9 @@ import '../crashlytics/crashlytics_service.dart';
 import '../error/result.dart';
 import '../providers/firebase_providers.dart';
 import 'app_routes.dart';
+import 'auth_refresh.dart';
 
 part 'auth_guard.g.dart';
-
-/// [resolveAuthRedirect] 가 읽는 인증 상태 4종을 담는 값 스냅샷.
-///
-/// Dart 3 record 는 구조적 `==` 를 제공하므로, `userChanges()` 가 흘리는
-/// 서로 다른 [fb.User] 인스턴스라도 네 필드가 같으면 동일 스냅샷으로 판정된다.
-///
-/// `email` 을 포함하는 이유: [resolveAuthRedirect] 의 `hasVerifiableEmail` 이
-/// 이 값으로 분기 (4) 이메일 검증 게이트의 적용 여부를 결정한다. email 을 빼면
-/// "email 없는 정식 사용자(Facebook email 권한 거부 등) → 이후 이메일 연결"
-/// 전이에서 uid/emailVerified/isAnonymous 가 모두 그대로라 통지가 삼켜지고,
-/// `/verify-email` 게이트가 영영 발동하지 않는다.
-typedef _AuthSnapshot = ({
-  String uid,
-  String? email,
-  bool emailVerified,
-  bool isAnonymous,
-});
-
-/// 사용자 변경 스트림을 GoRouter [refreshListenable]용
-/// [ChangeNotifier]로 래핑한다.
-///
-/// [FirebaseAuth.userChanges] 스트림이 이벤트를 emit할 때마다
-/// [notifyListeners]를 호출하여 GoRouter가 redirect를 재평가하도록
-/// 트리거한다. `authStateChanges()` 대신 `userChanges()`를 사용하여
-/// credential linking(익명→정식 승격)에도 redirect가 재평가된다.
-/// [GoRouterRefreshStream]이 go_router v5.0.0에서 제거되었으므로
-/// 이 클래스가 동일한 역할을 수행한다.
-///
-/// **distinct 가드 (Phase 9 UAT Gap 2):** `userChanges()` 는 ID 토큰 갱신마다
-/// 인증 상태가 전혀 바뀌지 않은 이벤트를 흘린다. 이를 그대로 통지하면 GoRouter
-/// 가 동일한 입력으로 [resolveAuthRedirect] 를 수십 회 재평가한다. 따라서
-/// [_AuthSnapshot] 네 필드가 직전 통지 시점과 동일한 재emit 은 통지하지 않는다.
-/// 단 두 가지는 **항상** 통지한다 — (1) 최초 emit (값이 `null` 이어도 앱 기동
-/// 직후 첫 redirect 평가를 살려야 한다), (2) [triggerRedirect] 강제 호출.
-class AuthChangeNotifier extends ChangeNotifier {
-  /// [stream]의 이벤트를 수신하여 [notifyListeners]를 호출하는
-  /// [ChangeNotifier]를 생성한다.
-  AuthChangeNotifier(Stream<fb.User?> stream) {
-    _subscription = stream.listen(
-      (user) {
-        final _AuthSnapshot? next = user == null
-            ? null
-            : (
-                uid: user.uid,
-                email: user.email,
-                emailVerified: user.emailVerified,
-                isAnonymous: user.isAnonymous,
-              );
-        // Phase 9 UAT Gap 2: 토큰 갱신 emit 은 네 필드가 모두 불변이므로
-        // 여기서 흡수된다. [_hasNotified] 가 false 인 최초 emit 은 값이 무엇이든
-        // 통과시킨다.
-        if (_hasNotified && next == _lastSnapshot) {
-          if (kDebugMode) {
-            // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
-            final uidHash = user?.uid.hashCode.toString() ?? 'null';
-            debugPrint(
-              'AuthChangeNotifier: userChanges emit '
-              '(uidHash=$uidHash) -> 중복 스냅샷, 통지 생략',
-            );
-          }
-          return;
-        }
-        _hasNotified = true;
-        _lastSnapshot = next;
-        if (kDebugMode) {
-          // WARNING #18: uid 원문 대신 hashCode 로 PII 완화.
-          final uidHash = user?.uid.hashCode.toString() ?? 'null';
-          debugPrint(
-            'AuthChangeNotifier: userChanges emit '
-            '(uidHash=$uidHash) -> notifyListeners',
-          );
-        }
-        notifyListeners();
-      },
-      // WR-03: onError 가 없으면 userChanges 의 error 이벤트가 zone uncaught
-      // error 로 승격되어 앱 전체 에러 핸들러를 때린다 (cancelOnError 기본값이
-      // false 라 구독 자체는 살아남으므로, 기록만 하고 흡수한다). 에러의
-      // Crashlytics 보고 책임은 [authUserObserver] 가 진다 — 본 클래스는
-      // Crashlytics 의존성을 갖지 않는다.
-      onError: (Object e) {
-        if (kDebugMode) {
-          // PII 차단: 에러 본문 대신 타입만 기록한다.
-          debugPrint(
-            'AuthChangeNotifier: userChanges error (${e.runtimeType})',
-          );
-        }
-      },
-    );
-  }
-
-  /// userChanges 구독. nullable 로 선언하여 향후 [stream] 이
-  /// lazy-initialized 되어 [Stream.listen] 자체가 throw 하더라도
-  /// [dispose] 가 LateInitializationError 없이 안전하게 동작하도록 한다.
-  /// (flutter.md "late 사용 최소화" 규칙)
-  StreamSubscription<fb.User?>? _subscription;
-
-  /// 스트림 emit 으로 한 번이라도 통지했는지 여부 (sentinel).
-  ///
-  /// "아직 한 번도 통지하지 않음" 과 "직전 emit 이 미인증(`null`)" 을 구분하는
-  /// 유일한 수단이다. 이 필드 없이 `_lastSnapshot == null` 만으로 판정하면
-  /// 최초 `null` emit 이 중복으로 오인되어 삼켜지고, 앱 기동 직후 GoRouter 의
-  /// 첫 redirect 평가가 통째로 사라진다.
-  bool _hasNotified = false;
-
-  /// 직전 통지 시점의 인증 스냅샷. `null` 은 "직전 emit 이 미인증" 을 뜻한다.
-  _AuthSnapshot? _lastSnapshot;
-
-  /// GoRouter redirect 재평가를 강제 트리거한다.
-  ///
-  /// Firebase SDK의 authStateChanges() 스트림이 reload() 후
-  /// emailVerified 변경을 emit하지 않는 제한(FlutterFire Issue #8777)을
-  /// 우회하기 위해, 외부에서 명시적으로 redirect 재평가를 요청할 때 사용한다.
-  ///
-  /// distinct 가드(Phase 9 UAT Gap 2)를 우회하는 명시적 강제 경로이며
-  /// `_lastSnapshot` 을 갱신하지 않는다. 여기에 가드를 끼워 넣으면 reload()
-  /// 직후 검증 완료 상태가 라우터에 전달되지 않는 원래 버그가 되살아난다.
-  void triggerRedirect() {
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    super.dispose();
-  }
-}
-
-/// [AuthChangeNotifier] 인스턴스를 제공한다.
-///
-/// Firebase 미초기화 시 빈 스트림으로 생성하여 이벤트 없는
-/// ChangeNotifier를 반환한다.
-@Riverpod(keepAlive: true)
-// riverpod 3 는 ChangeNotifier 반환을 지원 값으로 보지 않지만, 이 provider 는
-// GoRouter refreshListenable 인 AuthChangeNotifier 의 수명(keepAlive ·
-// onDispose)을 관리하는 기존 구조다. 구조 개편은 후속 todo
-// 2026-09-20-riverpod-lint-lib-refactor 에서 한다.
-// ignore: riverpod_lint/unsupported_provider_value
-AuthChangeNotifier authChangeNotifier(Ref ref) {
-  final isInitialized = ref.watch(isFirebaseInitializedProvider);
-  if (!isInitialized) {
-    // WR-04: 초기화 성공 경로와 동일하게 dispose 를 등록한다. 누락 시
-    // `isFirebaseInitialized=false` 로 override 하는 다수의 테스트에서
-    // ChangeNotifier 가 누수되어 Flutter leak tracking 대상이 된다.
-    final notifier = AuthChangeNotifier(const Stream<fb.User?>.empty());
-    ref.onDispose(notifier.dispose);
-    return notifier;
-  }
-  final auth = ref.watch(firebaseAuthProvider);
-  final notifier = AuthChangeNotifier(auth.userChanges());
-  ref.onDispose(notifier.dispose);
-  return notifier;
-}
 
 /// 상시 공개 문서 경로 — 인증 상태와 무관하게 항상 열람 가능해야 한다
 /// (코드 리뷰 05 WR-02).
@@ -272,10 +121,10 @@ const Set<String> _reauthLoginFlowRoutes = <String>{
 /// 를 통과한 뒤 (5)(6) 어디에도 걸리지 않아 **약관 게이트까지 함께 우회**한다.
 ///
 /// **인증 판정 소스:** [fb.FirebaseAuth.currentUser]를 직접 읽는다.
-/// `authStateProvider`를 사용하지 않는 이유는, [AuthChangeNotifier]가
+/// `authStateProvider`를 사용하지 않는 이유는, [AuthRefresh]가
 /// `userChanges()`에 먼저 구독하기 때문에 (subscription #1),
 /// Riverpod StreamProvider의 구독 (#2)이 같은 이벤트를 처리하기 전에
-/// `notifyListeners`가 GoRouter의 redirect 재평가를 트리거한다. 그
+/// router 의 refresh 어댑터가 GoRouter의 redirect 재평가를 트리거한다. 그
 /// 시점에 `ref.read(authStateProvider).value`는 stale 값이다.
 /// `currentUser`는 Firebase SDK가 auth state 변경 시 동기적으로
 /// 업데이트하므로, 어떤 listener가 먼저 호출되더라도 일관되게 최신
@@ -427,12 +276,12 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
   // 이메일 직접 가입 경로(`/signup` -> 가입 -> Home)에서 termsAccepted=null
   // 상태의 Home 바이패스를 차단한다. /onboarding, /terms/* 공개 경로는 허용.
   //
-  // Issue #7 (Plan 10-11) stale 가드: AuthChangeNotifier subscription #1 이
+  // Issue #7 (Plan 10-11) stale 가드: AuthRefresh subscription #1 이
   // authUserObserver subscription #2 의 reloadForUser 완료보다 먼저 발동하여
   // resolveAuthRedirect 가 stale termsProvider 를 참조하는 race 를 차단한다.
   // termsProvider 가 현재 uid 에 대해 아직 reload 되지 않은 시점의 평가는
   // null (현재 location 유지) 을 반환하여, authUserObserver 가 reloadForUser
-  // 완료 후 authChangeProvider.triggerRedirect() 를 호출할 때까지 대기한다.
+  // 완료 후 AuthRefresh.triggerRedirect() 를 호출할 때까지 대기한다.
   // 상세 명세: .planning/debug/relogin-terms-race.md Resolution C-2.
   //
   // CR-02: `currentUser.emailVerified` 대신 [passedEmailGate] 를 쓴다 — email
@@ -519,7 +368,7 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
   //      state=true 로 전환한다 (try-block 첫 줄, line 168/249/332).
   //   2. `_safeDelete(anonymous)` 가 트리거하는 userChanges emit 은 begin()
   //      이후의 비동기 microtask 로 발행된다 (Firebase SDK 동작).
-  //   3. emit 이 `AuthChangeNotifier.notifyListeners()` -> resolveAuthRedirect 재평가
+  //   3. emit 이 `AuthRefresh` state 변경 -> resolveAuthRedirect 재평가
   //      을 트리거한 시점에 `ref.read(socialLinkInProgressProvider)` 는 이미
   //      true 를 반환한다.
   // 이 시퀀스는 `auth_repository_test.dart` SLP-7/8/9 의
@@ -682,15 +531,13 @@ Stream<void> authUserObserver(Ref ref) async* {
         }
         // Issue #7 C-3 (Plan 10-11): reloadForUser 가 lastReloadedUid 를
         // 갱신한 뒤, GoRouter 가 resolveAuthRedirect 분기 (5) 의 stale 가드를 벗어날
-        // 수 있도록 명시적으로 redirect 재평가를 트리거한다. authChangeProvider
-        // 는 Provider<AuthChangeNotifier> 이므로 `.notifier` 접미어 없이 직접
-        // read — auth_guard.g.dart 의 `AuthChangeNotifierProvider` 정의 참조.
-        ref.read(authChangeProvider).triggerRedirect();
+        // 수 있도록 명시적으로 redirect 재평가를 트리거한다. AuthRefresh 는 class
+        // notifier 이므로 `.notifier` 를 붙여 read 한다 (revision bump).
+        ref.read(authRefreshProvider.notifier).triggerRedirect();
       }
     } on Object catch (e, st) {
       // WR-03: throw 가능 지점 — terms reload 의 Error 계열 (플랫폼 채널),
-      // 이미 dispose 된 AuthChangeNotifier 에 대한 triggerRedirect()
-      // (`ChangeNotifier.notifyListeners` 가 FlutterError throw) 등.
+      // 이미 파기된 컨테이너의 AuthRefresh 에 대한 triggerRedirect() 등.
       // Analytics/Crashlytics 는 `_runBestEffort` 로 이미 격리되어 있다.
       isTickFailed = true;
       unawaited(

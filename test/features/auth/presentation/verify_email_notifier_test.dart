@@ -8,7 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
-import 'package:flutter_starter_kit/core/router/auth_guard.dart';
+import 'package:flutter_starter_kit/core/router/auth_refresh.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_state.dart';
@@ -21,19 +21,41 @@ class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockUser extends Mock implements fb.User {}
 
-class _MockAuthChangeNotifier extends Mock implements AuthChangeNotifier {}
+/// [_SpyAuthRefresh] 의 강제 재평가 호출 횟수를 notifier 밖에 두는 recorder.
+///
+/// fake notifier 에 public 필드 · getter 를 만들지 않기 위해(quick 260920-4h7
+/// 패턴) 기록은 생성자로 주입한 외부 객체가 담는다.
+class _TriggerRecorder {
+  int count = 0;
+}
+
+/// `triggerRedirect()` 호출만 가로채는 spy [AuthRefresh].
+///
+/// `userChanges()` 를 구독하지 않으므로 카운트 증가의 유일한 원인은
+/// [VerifyEmailNotifier] 가 호출하는 강제 재평가다.
+class _SpyAuthRefresh extends AuthRefresh {
+  _SpyAuthRefresh(this._recorder);
+
+  final _TriggerRecorder _recorder;
+
+  @override
+  AuthRefreshState build() => initialAuthRefreshState;
+
+  @override
+  void triggerRedirect() => _recorder.count++;
+}
 
 void main() {
   late _MockAuthRepository mockRepo;
   late _MockFirebaseAuth mockAuth;
   late _MockUser mockUser;
-  late _MockAuthChangeNotifier mockChangeNotifier;
+  late _TriggerRecorder triggerRecorder;
 
   setUp(() {
     mockRepo = _MockAuthRepository();
     mockAuth = _MockFirebaseAuth();
     mockUser = _MockUser();
-    mockChangeNotifier = _MockAuthChangeNotifier();
+    triggerRecorder = _TriggerRecorder();
 
     // 기본 stub: reloadUser 성공, emailVerified false
     when(
@@ -49,7 +71,9 @@ void main() {
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
         firebaseAuthProvider.overrideWithValue(mockAuth),
-        authChangeProvider.overrideWithValue(mockChangeNotifier),
+        authRefreshProvider.overrideWith(
+          () => _SpyAuthRefresh(triggerRecorder),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -89,7 +113,7 @@ void main() {
       await container.read(verifyEmailProvider.notifier).pollOnce();
 
       // authChangeNotifier.notifyListeners() 호출로 redirect 재평가
-      verify(() => mockChangeNotifier.triggerRedirect()).called(greaterThan(0));
+      expect(triggerRecorder.count, greaterThan(0));
     });
 
     test('Test 3b: pollOnce에서 emailVerified==false면 '
@@ -100,7 +124,7 @@ void main() {
       // emailVerified는 기본 false
       await container.read(verifyEmailProvider.notifier).pollOnce();
 
-      verifyNever(() => mockChangeNotifier.triggerRedirect());
+      expect(triggerRecorder.count, 0);
     });
 
     test('Test 4: stopPolling 호출 시 isPolling이 false로 전환된다', () {
@@ -225,7 +249,7 @@ void main() {
       await container.read(verifyEmailProvider.notifier).checkManually();
 
       // redirect 트리거 확인
-      verify(() => mockChangeNotifier.triggerRedirect()).called(greaterThan(0));
+      expect(triggerRecorder.count, greaterThan(0));
     });
 
     test('Test 7b: checkManually 호출 시 emailVerified==false면 '
@@ -306,7 +330,7 @@ void main() {
       // signOut 단독 호출 금지 회귀 가드 (CR-01 sentinel).
       verifyNever(() => mockRepo.signOut());
       // signOut 후 redirect 트리거 확인
-      verify(() => mockChangeNotifier.triggerRedirect()).called(greaterThan(0));
+      expect(triggerRecorder.count, greaterThan(0));
     });
 
     // --- WR-02 (Phase 09 review) — reloadUser Failure 를 상태로 매핑 ---
@@ -328,7 +352,7 @@ void main() {
       expect(value.error, same(failure));
       expect(value.isChecking, isFalse);
       // 실패했으므로 redirect 는 트리거되지 않는다.
-      verifyNever(() => mockChangeNotifier.triggerRedirect());
+      expect(triggerRecorder.count, 0);
     });
 
     test('WR-02 Test 9b: checkManually 재시도 성공 시 직전 error 가 잔류하지 않는다', () async {

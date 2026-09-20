@@ -19,6 +19,7 @@ import '../l10n/l10n_extensions.dart';
 import '../theme/theme_extensions.dart';
 import 'app_routes.dart';
 import 'auth_guard.dart';
+import 'auth_refresh.dart';
 
 part 'app_router.g.dart';
 
@@ -27,9 +28,24 @@ part 'app_router.g.dart';
 /// 향후 ShellRoute 추가나 모달 표시 시 사용한다. (D-16)
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
+/// GoRouter 의 `refreshListenable` 요구를 만족시키는 router 소유 어댑터
+/// (quick 260920-b28).
+///
+/// GoRouter 가 요구하는 것은 [Listenable] 뿐이고, Riverpod provider 는
+/// [Listenable] 같은 가변 객체를 값으로 반환해서는 안 된다
+/// (riverpod_lint `unsupported_provider_value`). 그래서 이 객체는 **소비하는
+/// 쪽**인 [appRouter] 가 만들어 소유 · dispose 하는 구현 세부이며,
+/// [authRefreshProvider] 의 state 변화를 `ref.listen` 이 여기로 중계한다.
+@visibleForTesting
+class RouterRefreshListenable extends ChangeNotifier {
+  /// GoRouter 에 redirect 재평가를 1회 요청한다.
+  void notifyRefresh() => notifyListeners();
+}
+
 /// 앱의 [GoRouter] 인스턴스를 제공한다 (Phase 10 D-14, D-22, D-29, WARNING #14).
 ///
-/// [refreshListenable] 에 [AuthChangeNotifier] 를 연결하여 인증 상태 변경 시
+/// [GoRouter.refreshListenable] 에 [RouterRefreshListenable] 을 연결하고
+/// [authRefreshProvider] 의 state 변화를 그리로 중계하여 인증 상태 변경 시
 /// [resolveAuthRedirect] 를 자동 재평가한다. [keepAlive] 로 앱 생명주기 동안 단일
 /// 인스턴스를 유지한다.
 ///
@@ -54,8 +70,16 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 /// [appRouter] 본문 주석 참조.
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
-  final authGuard = ref.watch(authChangeProvider);
   final observer = ref.watch(analyticsObserverProvider);
+
+  // CR-01 (quick 260920-b28): 인증 변화는 `watch` 가 아니라 `listen` 으로 받는다.
+  // 옛 `ref.watch` 배선은 provider 가 재생성될 때마다 본 Provider
+  // 를 rebuild 시켜 GoRouter 를 통째로 교체했다 (내비게이션 위치 소실 +
+  // 이전 라우터의 listener 누수). `ref.listen` 은 Provider 를 초기화(=구독
+  // 활성화)하되 rebuild 를 유발하지 않으므로, authRefresh 의 state 가 몇 번
+  // 바뀌어도 GoRouter 인스턴스는 동일하게 유지된다.
+  final refreshListenable = RouterRefreshListenable();
+  ref.listen(authRefreshProvider, (_, _) => refreshListenable.notifyRefresh());
 
   // INFO #21 + BLOCKER #4: authUserObserver 활성화.
   //
@@ -65,7 +89,7 @@ GoRouter appRouter(Ref ref) {
   // Provider 를 rebuild 시켰다. rebuild 는 GoRouter 를 통째로 재생성하므로
   // (a) `MaterialApp.router` 가 새 routerDelegate 로 교체되며 그때까지의
   // 내비게이션 위치가 initialLocation 으로 폐기되고, (b) 이전 GoRouter 가
-  // dispose 되지 않아 `AuthChangeNotifier` listener 가 영구 누수된다.
+  // dispose 되지 않아 refresh 어댑터의 listener 가 영구 누수된다.
   // `ref.listen` 은 Provider 를 초기화(=활성화)하되 rebuild 를 유발하지
   // 않으므로 warm-up 의 원래 의도에 정확히 부합한다.
   //
@@ -78,7 +102,7 @@ GoRouter appRouter(Ref ref) {
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash, // D-14 상태머신 시작점
     debugLogDiagnostics: kDebugMode,
-    refreshListenable: authGuard,
+    refreshListenable: refreshListenable,
     redirect: (context, state) => resolveAuthRedirect(ref, state),
     observers: [observer],
     // TODO: dedicated NotFoundScreen — see .planning/todos/pending/2026-09-09-not-found-screen.md
@@ -165,9 +189,14 @@ GoRouter appRouter(Ref ref) {
   // CR-01: Provider 파기(컨테이너 dispose / 예기치 못한 rebuild) 시 GoRouter 를
   // 반드시 dispose 한다. `GoRouteInformationProvider` 는 생성자에서
   // `refreshListenable.addListener` 를 등록하고 오직 `dispose()` 에서만
-  // 해제하므로, 이 호출이 없으면 죽은 라우터가 `AuthChangeNotifier` 의
-  // listener 목록에 영구히 남는다.
+  // 해제하므로, 이 호출이 없으면 죽은 라우터가 어댑터의 listener 목록에
+  // 영구히 남는다.
+  //
+  // WR-04: 등록 순서가 곧 실행 순서다 — 라우터를 먼저 정리해 listener 를 뗀
+  // 뒤에 어댑터를 dispose 한다. 뒤집으면 이미 dispose 된 ChangeNotifier 에
+  // 라우터가 `removeListener` 를 호출한다.
   ref.onDispose(router.dispose);
+  ref.onDispose(refreshListenable.dispose);
   return router;
 }
 

@@ -1,13 +1,13 @@
 /// Issue #7 (Plan 10-11) race integration — subscription 순서 재현.
 ///
-/// AuthChangeNotifier (subscription #1) 가 notifyListeners 를 먼저 발동해도
+/// AuthRefresh (subscription #1) 가 router 재평가를 먼저 유발해도
 /// resolveAuthRedirect 의 stale 가드가 termsProvider 의 lastReloadedUid 로 분기
 /// (5) 를 보류하고, authUserObserver (subscription #2) 의 reloadForUser +
 /// triggerRedirect 완료 후 재평가가 정상 경로를 반환함을 검증한다.
 ///
 /// 실제 GoRouter 없이 [resolveAuthRedirect] 를 직접 호출하여 1차/2차 평가 결과를
 /// 비교하는 전략 — go_router 의 internal refreshListenable 경로 대신
-/// [AuthChangeNotifier] listener 카운트로 재평가 트리거 여부를 간접 검증.
+/// AuthRefresh state 변화로 재평가 트리거 여부를 간접 검증.
 library;
 
 import 'dart:async';
@@ -56,7 +56,7 @@ class _MockDoc extends Mock
 class _MockSnapshot extends Mock
     implements DocumentSnapshot<Map<String, dynamic>> {}
 
-/// asBroadcastStream 으로 래핑하여 authUserObserver 와 authChangeProvider
+/// asBroadcastStream 으로 래핑하여 authUserObserver 와 authRefreshProvider
 /// 가 모두 `userChanges()` 를 listen 할 수 있도록 한다 (Plan 10-11 C-3).
 class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
   _FakeFirebaseAuth(Stream<fb.User?> stream, {fb.User? currentUser})
@@ -187,7 +187,7 @@ void main() {
       addTearDown(container.dispose);
 
       // 1) 사전 상태 — lastReloadedUid=null, termsProvider state=null.
-      //    이는 AuthChangeNotifier subscription #1 이 먼저 발동한 직후의
+      //    이는 AuthRefresh subscription #1 이 먼저 발동한 직후의
       //    stale 상태를 모사한다 (실제로는 fresh ProviderContainer 가
       //    cold-start 이지만 의미는 동일 — reload 가 아직 실행되지 않음).
       expect(
@@ -211,7 +211,7 @@ void main() {
 
       // 3) authUserObserver warm-up + user emit. authUserObserver 가
       //    reloadForUser 호출 → lastReloadedUid='FULL-A' 갱신 →
-      //    triggerRedirect() 호출 (AuthChangeNotifier.notifyListeners).
+      //    triggerRedirect() 호출 (AuthRefresh revision bump).
       final observerSub = container.listen(authUserObserverProvider, (_, _) {});
       addTearDown(observerSub.close);
       controller.add(fullUser);

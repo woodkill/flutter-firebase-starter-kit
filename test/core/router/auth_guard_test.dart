@@ -12,6 +12,7 @@ import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/router/auth_guard.dart';
+import 'package:flutter_starter_kit/core/router/auth_refresh.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
@@ -585,40 +586,84 @@ void main() {
     });
   });
 
-  group('authChangeProvider 생명주기 — 코드 리뷰 05 WR-04 회귀 가드', () {
-    test('WR-04: Firebase 미초기화 경로에서도 컨테이너 파기 시 notifier 가 dispose 된다', () {
-      final container = makeContainer(isInitialized: false);
-      final notifier = container.read(authChangeProvider);
-
-      container.dispose();
-
-      expect(
-        () => notifier.addListener(() {}),
-        throwsA(isA<FlutterError>()),
-        reason: 'dispose 된 ChangeNotifier 는 addListener 에서 FlutterError 를 던진다',
+  group('authRefreshProvider 생명주기 — 코드 리뷰 05 WR-04 회귀 가드', () {
+    /// 초기화 성공 경로의 컨테이너를 만들고 provider 를 초기화한다.
+    ///
+    /// 옛 구조는 초기화 실패 분기에서만 `ref.onDispose` 를 빠뜨려
+    /// ChangeNotifier 가 누수됐다. 새 구조는 "어느 스트림을 구독할지" 만
+    /// 분기하고 구독 · 정리는 한 경로로 합쳤으므로, 두 경로 모두 같은 파기
+    /// 계약을 만족해야 한다.
+    ProviderContainer makeRefreshContainer({
+      required bool isInitialized,
+      required StreamController<fb.User?> controller,
+    }) {
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.userChanges()).thenAnswer((_) => controller.stream);
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(isInitialized),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+        ],
       );
-    });
+      // 구독이 실제로 열리도록 provider 를 초기화한다.
+      expect(container.read(authRefreshProvider), initialAuthRefreshState);
+      return container;
+    }
 
-    test('WR-04: 초기화 성공 경로의 dispose 대칭성은 유지된다', () {
+    test('WR-04: Firebase 미초기화 경로에서도 컨테이너 파기가 예외 없이 끝난다', () {
+      // 미초기화 경로는 빈 스트림을 구독하므로 userChanges 를 아예 만지지
+      // 않는다 — StreamController 를 쥐어 줘도 붙잡을 것이 없다.
       final mockAuth = _MockFirebaseAuth();
       when(
         () => mockAuth.userChanges(),
       ).thenAnswer((_) => const Stream<fb.User?>.empty());
       final container = ProviderContainer(
         overrides: [
-          isFirebaseInitializedProvider.overrideWithValue(true),
+          isFirebaseInitializedProvider.overrideWithValue(false),
           firebaseAuthProvider.overrideWithValue(mockAuth),
         ],
       );
-      final notifier = container.read(authChangeProvider);
+      expect(container.read(authRefreshProvider), initialAuthRefreshState);
+      verifyNever(() => mockAuth.userChanges());
 
-      container.dispose();
+      expect(container.dispose, returnsNormally);
 
-      expect(() => notifier.addListener(() {}), throwsA(isA<FlutterError>()));
+      expect(
+        () => container.read(authRefreshProvider),
+        throwsStateError,
+        reason: '파기된 컨테이너는 provider 를 다시 읽을 수 없다 — notifier 가 살아 있지 않다',
+      );
+    });
+
+    test('WR-04: 초기화 성공 경로에서 컨테이너 파기 시 userChanges 구독이 취소된다', () async {
+      final controller = StreamController<fb.User?>();
+      addTearDown(controller.close);
+      final container = makeRefreshContainer(
+        isInitialized: true,
+        controller: controller,
+      );
+      expect(
+        controller.hasListener,
+        isTrue,
+        reason: '구독이 실제로 열려 있어야 취소 단언이 유효하다',
+      );
+
+      expect(container.dispose, returnsNormally);
+
+      expect(
+        controller.hasListener,
+        isFalse,
+        reason:
+            'ref.onDispose 가 구독을 취소하지 않으면 파기된 notifier 가 계속 emit 을 '
+            '받아 state 대입에서 throw 한다 (zone uncaught error)',
+      );
+      controller.add(null);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
     });
   });
 
-  group('AuthChangeNotifier distinct 가드 — Phase 9 UAT Gap 2', () {
+  group('AuthRefresh distinct 가드 — Phase 9 UAT Gap 2', () {
     // Phase 9 UAT Gap 2: userChanges() 는 ID 토큰 갱신(약 1시간 주기 + 각종
     // reload)마다 인증 스냅샷이 전혀 바뀌지 않은 emit 을 흘린다. 가드가 없으면
     // GoRouter refreshListenable 이 매번 깨어나 동일한 입력으로
@@ -645,24 +690,39 @@ void main() {
       return mockUser;
     }
 
-    /// 스트림 컨트롤러 + notifier + 통지 카운터를 묶어 생성하고 tearDown 까지
-    /// 등록한다. tearDown 은 LIFO 이므로 notifier.dispose → controller.close
-    /// 순서로 실행된다.
+    /// 스트림 컨트롤러 + authRefresh 구독 + 통지 카운터를 묶어 생성하고
+    /// tearDown 까지 등록한다.
+    ///
+    /// 통지 횟수는 `container.listen(authRefreshProvider, …)` 가 센다 — 중복
+    /// 흡수 책임이 손으로 짠 sentinel 이 아니라 Riverpod 의 기본
+    /// `updateShouldNotify`(state `!=`) 로 옮겨졌기 때문에, 구독자가 실제로
+    /// 몇 번 깨어나는지가 곧 계약이다.
     ({
       StreamController<fb.User?> controller,
-      AuthChangeNotifier notifier,
+      ProviderContainer container,
       int Function() count,
     })
     makeNotifier() {
       final controller = StreamController<fb.User?>();
       addTearDown(controller.close);
-      final notifier = AuthChangeNotifier(controller.stream);
-      addTearDown(notifier.dispose);
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.userChanges()).thenAnswer((_) => controller.stream);
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(true),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+        ],
+      );
+      addTearDown(container.dispose);
       var notifyCount = 0;
-      notifier.addListener(() => notifyCount++);
+      final sub = container.listen(
+        authRefreshProvider,
+        (_, _) => notifyCount++,
+      );
+      addTearDown(sub.close);
       return (
         controller: controller,
-        notifier: notifier,
+        container: container,
         count: () => notifyCount,
       );
     }
@@ -706,6 +766,37 @@ void main() {
             '구분하지 못하면 앱 기동 직후 첫 redirect 평가가 통째로 죽는다',
       );
     });
+
+    test(
+      'G2-B2 (GAP2-FIRST-NULL): 초기 state 와 최초 null emit 결과가 값으로 다르다',
+      () async {
+        // 신규 구조 전용 가드 (quick 260920-b28). 통지 여부는 Riverpod 의
+        // `updateShouldNotify`(state `!=`) 가 결정하므로, "아직 한 번도 emit
+        // 안 함" 과 "최초 emit 이 null" 이 **같은 값**이면 G2-B 가 조용히
+        // 죽는다. 옛 구조의 `_hasNotified` sentinel 을 대체하는 것이
+        // AuthRefreshState.hasEmitted 임을 값 수준에서 못박는다.
+        final h = makeNotifier();
+
+        expect(
+          h.container.read(authRefreshProvider),
+          initialAuthRefreshState,
+          reason: '구독 직후에는 아직 emit 이 없다',
+        );
+
+        h.controller.add(null);
+        await pump();
+
+        expect(
+          h.container.read(authRefreshProvider),
+          isNot(initialAuthRefreshState),
+          reason:
+              'hasEmitted 가 없으면 최초 null emit 이 초기값과 동일해져 통지가 삼켜지고 '
+              '앱 기동 직후 첫 redirect 평가가 통째로 사라진다',
+        );
+        expect(h.container.read(authRefreshProvider).snapshot, isNull);
+        expect(h.container.read(authRefreshProvider).hasEmitted, isTrue);
+      },
+    );
 
     test('G2-C: uid 만 다른 두 사용자를 순차 emit 하면 2회 통지한다', () async {
       final h = makeNotifier();
@@ -781,7 +872,7 @@ void main() {
         h.controller.add(snapshotUser());
         await pump();
       }
-      h.notifier.triggerRedirect();
+      h.container.read(authRefreshProvider.notifier).triggerRedirect();
 
       expect(
         h.count(),
@@ -1331,7 +1422,7 @@ void main() {
     test('Issue #7 Test A: 정식 + emailVerified + termsAcceptance=null + '
         'lastReloadedUid != currentUser.uid (stale) + home -> null '
         '(stale 가드 발동 — reload 완료 대기)', () async {
-      // 핵심 시나리오: AuthChangeNotifier subscription #1 이 먼저 발동하여
+      // 핵심 시나리오: AuthRefresh subscription #1 이 먼저 발동하여
       // resolveAuthRedirect 가 실행되는 시점에 authUserObserver 의 reloadForUser 가
       // 아직 완료되지 않아 lastReloadedUid 가 직전 익명 uid 에 머물러 있음.
       final container = makeContainerWithReloadedUid(
