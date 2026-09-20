@@ -1011,7 +1011,7 @@ class _AccountSection extends ConsumerWidget {
   /// 로그아웃 확인 다이얼로그를 표시하고 확인 시
   /// [AuthRepository.signOutAndResetOnboarding] 을 호출한다.
   ///
-  /// 이후 화면 이동은 authStateChanges → AuthChangeNotifier → resolveAuthRedirect
+  /// 이후 화면 이동은 authStateChanges → AuthRefresh → resolveAuthRedirect
   /// 분기 (2) 가 /onboarding 으로 처리한다 (Phase 10.2 D-B1, I2 invariant
   /// 단일 진리원). navigation 명시 호출 없음 (자연 redirect).
   ///

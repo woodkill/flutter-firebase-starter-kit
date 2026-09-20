@@ -2361,7 +2361,7 @@ class AuthRepository implements AnonymousSignIn {
   ///    으로 본다 (Yahoo!JP 는 endpoint 미공개로 실효 폐기 없음 — WR-03).
   ///
   /// 호출 후 navigation 명시 호출은 불필요하다. authStateChanges →
-  /// AuthChangeNotifier → resolveAuthRedirect 분기 (2) 가 `!isAuthenticated &&
+  /// AuthRefresh → resolveAuthRedirect 분기 (2) 가 `!isAuthenticated &&
   /// !onboardingSeen` 조합을 감지하여 `/onboarding` 으로 자연 redirect 한다
   /// (Phase 10.2 D-B1). reset 이 signOut 보다 먼저 수행되어야 재평가 시점에
   /// `onboardingSeen=false` 가 확정되어 분기 (2) 가 trip 한다 — 순서 뒤집기

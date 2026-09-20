@@ -29,7 +29,7 @@ class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
     : _stream = stream.asBroadcastStream();
 
   /// asBroadcastStream 으로 래핑하여 multi-subscription 을 허용한다
-  /// (Plan 10-11 Issue #7 C-3 이후 authChangeProvider 가 내부적으로
+  /// (Plan 10-11 Issue #7 C-3 이후 authRefreshProvider 가 내부적으로
   /// userChanges 를 listen 하므로 필요).
   final Stream<fb.User?> _stream;
 
@@ -79,7 +79,7 @@ void main() {
     registerFallbackValue(StackTrace.empty);
   });
 
-  /// [email] 과 [emailVerified] 도 반드시 stub 한다 — AuthChangeNotifier 의
+  /// [email] 과 [emailVerified] 도 반드시 stub 한다 — AuthRefresh 의
   /// distinct 가드(Phase 9 UAT Gap 2)가 emit 마다 네 필드 스냅샷을 읽으므로,
   /// 미stub mock 은 `type 'Null' is not a subtype of type 'bool'` 로 죽는다.
   fb.User makeUser({

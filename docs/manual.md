@@ -2358,17 +2358,26 @@ riverpod_lint 3.x 를 아무것도 로드하지 않았다 — 킷이 강제한�
   (`avoid_public_notifier_properties`). 호출 기록은 생성자로 받은 **외부
   recorder** 객체에 남기고, 테스트는 recorder 를 단언한다.
 
-### 현재 억제 3건
+### 현재 lib 억제 0건
 
-| 파일 | 멤버 | rule | 이유 |
-|------|------|------|------|
-| `lib/core/router/auth_guard.dart` | `authChangeNotifier` provider | `unsupported_provider_value` | GoRouter `refreshListenable` 로 쓰는 `AuthChangeNotifier`(ChangeNotifier) 의 수명(keepAlive · onDispose)을 provider 가 관리하는 기존 구조 |
-| `lib/features/terms/presentation/terms_notifier.dart` | `acceptanceSnapshotJson` getter | `avoid_public_notifier_properties` | `AuthRepository` 가 Custom Token payload 로 읽는 공개 API |
-| `lib/features/terms/presentation/terms_notifier.dart` | `lastReloadedUid` getter | `avoid_public_notifier_properties` | `resolveAuthRedirect` 의 stale 가드가 읽는 값 |
+quick `260920-b28` 이 남아 있던 lib 억제 3건을 **구조로** 해소했다. `lib` ·
+`test` 어디에도 `riverpod_lint/` 지시문이 없다.
 
-세 건 모두 구조 개편(AuthRefresh notifier + router 소유 ValueNotifier · 값을
-state 로 이동)은 후속 todo `2026-09-20-riverpod-lint-lib-refactor` 에서
-해소한다.
+| 해소한 진단 | 옛 구조 | 새 구조 |
+|-------------|---------|---------|
+| `unsupported_provider_value` (`authChangeNotifier` provider) | provider 가 GoRouter `refreshListenable` 용 `ChangeNotifier` 를 값으로 반환 | `AuthRefresh` notifier 가 불변 state(인증 스냅샷 + 최초 emit 여부 + revision)만 노출하고, GoRouter 가 요구하는 `Listenable` 은 `appRouter` 가 만들어 소유 · dispose 한다 (`ref.listen` 으로 중계) |
+| `avoid_public_notifier_properties` (`acceptanceSnapshotJson` getter) | notifier getter 가 Custom Token payload JSON 을 직접 계산 | `TermsState` 의 순수 파생(`buildAcceptanceSnapshotJson()`) |
+| `avoid_public_notifier_properties` (`lastReloadedUid` getter) | notifier getter 가 stale 가드 기준값을 노출 | `TermsState.lastReloadedUid` (소비처는 `ref.read(termsProvider).lastReloadedUid`) |
+
+**새 코드를 쓸 때의 규칙 2줄:**
+
+1. **Notifier 는 불변 state 만 노출한다.** public 필드 · getter 를 두지 말고
+   값을 `state` 에 담는다. 값이 여러 개면 record 나 freezed 값 객체로 묶고,
+   파생값은 notifier 밖 순수 함수 · extension 으로 뺀다.
+2. **provider 는 `Listenable` 같은 가변 객체를 값으로 반환하지 않는다.**
+   필요하면 **소비하는 쪽**이 만들어 소유하고 `ref.listen` 으로 값을 받아
+   올린다 — 그 객체는 소비자의 구현 세부이고, 정리(`ref.onDispose`)도
+   소비자 책임이다. `appRouter` 의 `RouterRefreshListenable` 이 그 예다.
 
 ---
 
@@ -3557,5 +3566,6 @@ _facebookAuth.login(
 | 2026-09-20 | quick 260920-4h7 | 「정적 분석 — woody_lints · riverpod_lint」 단락 신규 — woody_lints 1.3.0 채택으로 riverpod_lint 가 최상위 `plugins:` 로 처음 실제 실행됨(옛 `analyzer: plugins:` 선언은 riverpod_lint 3.x 를 로드하지 않았다). 확인 명령(`fvm dart analyze` 기준 — Flutter 3.47.5 의 `flutter analyze` 는 plugin 진단 미표시) · plugin 해석 위치(`~/.dartServer/.plugin_manager`)와 Analysis Server 재시작 · 네임스페이스 ignore 문법(`// ignore: riverpod_lint/<rule>`, plain 형식 무효, `///` 블록 위 배치) · 테스트 작성 규칙 2종(ProviderScope 는 `pumpWidget` 직접 인자 · fake Notifier 카운터는 외부 recorder) · 현재 lib 억제 3건 표(후속 todo `2026-09-20-riverpod-lint-lib-refactor`). 목차 18 항목으로 확장. |
 
 ---
+| 2026-09-20 | quick 260920-b28 | 「정적 분석 — woody_lints · riverpod_lint」의 '현재 억제 3건' 표를 '현재 lib 억제 0건' 으로 교체 — 3건 모두 구조로 해소(약관 두 값은 `TermsState` 불변 state + 파생 순수 함수, 인증 변화는 `AuthRefresh` 불변 state + `appRouter` 가 소유하는 `RouterRefreshListenable`). adopter 가 새 Notifier · provider 를 만들 때 따라야 할 규칙 2줄 추가. 후속 todo 참조 제거. |
 
-*Last updated: 2026-09-20 — quick 260920-4h7 정적 분석 — woody_lints · riverpod_lint 절 신규*
+*Last updated: 2026-09-20 — quick 260920-b28 riverpod_lint lib 억제 3건 구조 해소(억제 0건)*
