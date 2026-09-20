@@ -221,9 +221,12 @@ String _readAndroidErrorCode(String errorMessage) {
 /// **in-flight 가드 (D-18) — 보장과 비보장:**
 /// - (보장) 킷이 만들어내는 동시 plugin 호출이 0 이다. [signIn] 이 진행 중인
 ///   동안의 재진입은 plugin 을 호출하지 않고 null 을 돌려주며, 같은 동안의
-///   [logout] 도 plugin 을 호출하지 않는다. Android 로그인 콜백이 static 단일
-///   슬롯이라 덮어쓰기 위험이 있고, iOS 는 재진입 시 스스로
+///   [logout] 도 plugin 을 즉시 호출하지 않는다. Android 로그인 콜백이 static
+///   단일 슬롯이라 덮어쓰기 위험이 있고, iOS 는 재진입 시 스스로
 ///   「Another request is in progress」 를 자초하기 때문이다.
+/// - (보장) 가드에 걸린 [logout] 은 **버려지지 않는다** (WR-01). 요청을
+///   기억해 두고 [signIn] 의 finally 가 가드를 푼 직후 소비하므로, D-57
+///   (「모든 path 에서 finally logout」) 이 동시성 구간에서도 유지된다.
 /// - (비보장) plugin 이 **이미 잠긴 상태**는 풀지 못한다. iOS 1-tap 에서
 ///   사용자가 NAVER 앱에서 돌아오지 않으면 plugin 의 대기 슬롯이 점유된 채
 ///   남고, 그 상태는 앱을 다시 켜기 전까지 지속된다 — 그동안 Naver 로그인은
@@ -257,6 +260,13 @@ class NaverSdkClient {
   /// [signIn] 이 진행 중인지 — 클래스 doc 의 in-flight 가드 (D-18).
   bool _inFlight = false;
 
+  /// [signIn] 진행 중에 들어온 [logout] 요청 — 가드가 풀리는 즉시 소비한다
+  /// (WR-01 — 「생략」 이 아니라 「지연」 이라 D-57 이 유지된다).
+  ///
+  /// 진행 중에 [logout] 이 여러 번 불려도 **1회**로 접는다 — 기기 토큰 제거는
+  /// 멱등이므로 횟수를 보존할 이유가 없다.
+  bool _logoutPending = false;
+
   /// Naver 로그인 — 앱우선 + 웹 fallback (플러그인 · SDK 자체 제어).
   ///
   /// 흐름:
@@ -275,6 +285,11 @@ class NaverSdkClient {
   /// `accessToken?.accessToken` **셋뿐**이다 — 프로필은 참조하지 않고 결과 ·
   /// 토큰 객체를 문자열 보간에 넣지 않는다 (D-21 — 토큰 클래스의 `toString`
   /// 이 access · refresh token 전문을 출력한다).
+  ///
+  /// finally 는 가드를 내린 뒤 진행 중에 지연된 [logout] 요청이 있으면
+  /// 소비한다 (WR-01). 그 소비는 [_invokeLogout] 의 내부 try/catch 로
+  /// **절대 throw 하지 않으므로**, 본 메서드의 반환값과 전파 중인 예외를
+  /// 바꾸지 않는다 (logout 은 graceful 계약).
   ///
   /// 반환:
   /// - [NaverSignInResult] (accessToken) — 성공.
@@ -328,28 +343,59 @@ class NaverSdkClient {
       throw ServiceUnavailable(cause: e);
     } finally {
       _inFlight = false;
+      if (_logoutPending) {
+        // 지연됐던 logout 소비 — D-57 (WR-01). throw 하지 않으므로 위 분기의
+        // 반환값 · 전파 중인 예외에 영향이 없다.
+        _logoutPending = false;
+        await _invokeLogout();
+      }
     }
   }
 
   /// 플러그인 logout — D-57 1회성 토큰 정책. 기기 내 토큰만 제거한다.
   ///
-  /// `AuthRepository.signInWithNaver` 의 finally 블록 (race-fix end 직전 —
-  /// Pitfall 2) 에서 호출한다. 서버 연동 해제(revoke) 계열 API 는 쓰지 않는다
-  /// (D-15 — 매 로그인 동의 재요구로 1-tap UX 가 깨진다).
+  /// 호출처는 **셋**이며 모두 `AuthRepository` 다 (WR-01 — 이전 doc 은 첫
+  /// 항목 하나만 논증했다):
+  /// 1. `signInWithNaver` 의 finally — race-fix end 직전 (Pitfall 2).
+  /// 2. `_logoutCustomTokenSdk(AccountProvider.naver)` — 재인증 finally.
+  /// 3. `signOut` — 전 provider 세션 해제.
   ///
-  /// [signIn] 이 진행 중이면 plugin 을 호출하지 않고 반환한다 (D-18). 진행
-  /// 중인 로그인의 native 상태를 건드리지 않기 위해서다. D-57 은 깨지지
-  /// 않는다 — 그 로그인 자신의 finally 는 [signIn] 완료 **뒤에** 실행되므로
-  /// 그때는 가드가 풀려 있다.
+  /// 서버 연동 해제(revoke) 계열 API 는 쓰지 않는다 (D-15 — 매 로그인 동의
+  /// 재요구로 1-tap UX 가 깨진다).
+  ///
+  /// **[signIn] 진행 중이면 「생략」 이 아니라 「지연」 한다 (D-18 / WR-01).**
+  /// 진행 중인 로그인의 native 상태를 건드리지 않되, 요청을 [_logoutPending]
+  /// 에 기억해 두고 [signIn] 의 finally 가 가드를 푼 직후 소비한다. 그래서
+  /// D-57(「매 로그인 finally 로 기기 토큰 제거」)이 **세 호출처 모두에서**
+  /// 유지된다:
+  /// - (1) 그 로그인 자신의 finally 는 [signIn] 완료 **뒤에** 실행되므로
+  ///   애초에 가드가 풀려 있다 — 지연 없이 즉시 plugin 을 호출한다.
+  /// - (2)(3) 다른 Naver 로그인이 진행 중인 동시성 구간에서는 지연되지만,
+  ///   그 로그인이 끝나는 즉시 plugin logout 이 **반드시 1회** 실행된다.
+  ///   진행 중이던 로그인이 방금 받은 토큰까지 함께 지워지는데, 재인증
+  ///   finally · 전면 로그아웃의 의도가 바로 세션 해제이므로 부합한다.
+  ///   이전 구현처럼 버려지면 이 두 경로에서 기기 토큰이 24h TTL 동안
+  ///   소리 없이 잔존했다.
   ///
   /// 실패 시 graceful ([kDebugMode] [debugPrint]) — outer 흐름 차단 안 함.
   Future<void> logout() async {
     if (_inFlight) {
+      // 생략이 아니라 지연 — D-57 은 유지된다 (WR-01).
+      _logoutPending = true;
       if (kDebugMode) {
-        debugPrint('NaverSdkClient.logout 생략 (in-flight)');
+        debugPrint('NaverSdkClient.logout 지연 (in-flight)');
       }
       return;
     }
+    await _invokeLogout();
+  }
+
+  /// plugin `logOut()` 실제 호출 — [logout] 과 [signIn] 의 지연 소비가 쓴다.
+  ///
+  /// **어떤 경우에도 예외를 던지지 않는 것**이 계약이다 (D-57 graceful).
+  /// [signIn] 의 finally 에서도 불리므로, 던지면 [signIn] 의 반환값이나
+  /// 전파 중인 예외를 덮어쓰게 된다.
+  Future<void> _invokeLogout() async {
     try {
       await _logout();
       if (kDebugMode) {

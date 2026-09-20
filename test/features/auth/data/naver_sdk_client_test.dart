@@ -436,8 +436,12 @@ void main() {
       gate.complete(buildSuccessResult('token'));
       await first;
 
-      await client.logout();
+      // WR-01: 진행 중 요청은 「생략」 이 아니라 「지연」 이므로 가드 해제
+      // 직후 1회 소비된다 (T-16.2-NAVER-SDK-22 가 이 계약을 단독으로 잠근다).
       expect(logoutCalls, equals(1));
+
+      await client.logout();
+      expect(logoutCalls, equals(2));
     });
 
     // D-16 — 앱 쪽 타이머가 되살아나면 늦게 끝난 성공이 버려진다.
@@ -496,6 +500,70 @@ void main() {
           reason: 'production 소스에 $forbidden 가 있으면 안 된다',
         );
       }
+    });
+
+    // WR-01 — 진행 중 logout 을 버리면 `signOut` · 재인증 finally 경로에서
+    // D-57 (매 로그인 finally 로 기기 토큰 제거) 이 소리 없이 깨진다.
+    test('T-16.2-NAVER-SDK-22 WR-01 in-flight logout 지연: 진행 중 요청이 '
+        '버려지지 않고 signIn 완료 뒤 1회 소비된다', () async {
+      final gate = Completer<NaverLoginResult>();
+      final calls = <String>[];
+      final client = NaverSdkClient.forTest(
+        login: () {
+          calls.add('login');
+          return gate.future;
+        },
+        logout: () async {
+          calls.add('logout');
+          return buildLoggedOutResult();
+        },
+      );
+
+      final first = client.signIn();
+      // `signOut` · 재인증 finally 가 진행 중에 들어온 상황 — 2회 요청도
+      // 1회로 접힌다 (기기 토큰 제거는 멱등).
+      await client.logout();
+      await client.logout();
+      expect(
+        calls,
+        equals(<String>['login']),
+        reason: '진행 중에는 plugin logOut 을 호출하지 않는다',
+      );
+
+      gate.complete(buildSuccessResult('token'));
+      final result = await first;
+
+      expect(
+        calls,
+        equals(<String>['login', 'logout']),
+        reason: 'D-57: 생략이 아니라 지연 — 완료 직후 실제로 1회 호출된다',
+      );
+      expect(result, isNotNull);
+      expect(result!.accessToken, equals('token'));
+    });
+
+    test('T-16.2-NAVER-SDK-23 WR-01 지연 소비 실패는 signIn 의 결과를 바꾸지 '
+        '않는다 (logout graceful 계약)', () async {
+      final gate = Completer<NaverLoginResult>();
+      var logoutCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () => gate.future,
+        logout: () async {
+          logoutCalls++;
+          throw Exception('logout boom');
+        },
+      );
+
+      final captured = captureSignInError(client);
+      await client.logout();
+      gate.complete(
+        buildResult(status: NaverLoginStatus.error, errorMessage: 'boom'),
+      );
+
+      final error = await captured;
+
+      expect(error, isA<ServiceUnavailable>());
+      expect(logoutCalls, equals(1), reason: '지연 소비는 실행된다');
     });
   });
 }
