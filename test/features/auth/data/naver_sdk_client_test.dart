@@ -567,6 +567,54 @@ void main() {
       expect(logoutCalls, equals(1), reason: '지연 소비는 실행된다');
     });
 
+    // WR-09 — 지연 logout 을 소비하는 **동안에도** in-flight 가드가 유지돼야
+    // 클래스 doc 의 「킷이 만들어내는 동시 plugin 호출이 0」 보장이 성립한다.
+    // 가드를 먼저 내리고 소비하면 그 await 구간에서 재진입 signIn 이 가드를
+    // 통과해 plugin logIn 을 때린다 (= 킷이 스스로 동시 호출을 만든다).
+    test('T-16.2-NAVER-SDK-24 WR-09 지연 소비 중에도 in-flight 가드가 '
+        '유지된다', () async {
+      final loginGate = Completer<NaverLoginResult>();
+      final logoutGate = Completer<NaverLoginResult>();
+      var loginCalls = 0;
+      var logoutCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () {
+          loginCalls++;
+          return loginGate.future;
+        },
+        logout: () {
+          logoutCalls++;
+          return logoutGate.future;
+        },
+      );
+
+      final first = client.signIn();
+      await client.logout();
+      expect(logoutCalls, equals(0), reason: '진행 중에는 지연된다');
+
+      loginGate.complete(buildSuccessResult('token'));
+      await pumpEventQueue();
+
+      // 여기서 지연 소비가 **시작됐고** plugin logOut 은 아직 미완료다.
+      expect(logoutCalls, equals(1), reason: '대조군 — 소비가 실제로 시작됐다');
+      expect(
+        await client.signIn(),
+        isNull,
+        reason: 'WR-09: 소비 중 재진입은 plugin 을 호출하지 않는다',
+      );
+      expect(loginCalls, equals(1), reason: 'WR-09: 킷이 만드는 동시 plugin 호출 0');
+
+      logoutGate.complete(buildLoggedOutResult());
+      final result = await first;
+
+      expect(result, isNotNull);
+      expect(result!.accessToken, equals('token'));
+
+      // 대조군 — 배수가 끝나면 가드는 실제로 풀린다 (영구 잠김이 아니다).
+      await client.signIn();
+      expect(loginCalls, equals(2), reason: '배수 완료 뒤에는 가드가 풀린다');
+    });
+
     // WR-11 — 플러그인은 logout 실패를 예외가 아니라 **결과 객체**
     // (status: error + errorMessage) 로 돌려준다. status 를 읽지 않으면 거부된
     // logout 도 「완료」 로 기록돼 `16.2-HUMAN-UAT.md` 5번 줄을 근거로 쓰는

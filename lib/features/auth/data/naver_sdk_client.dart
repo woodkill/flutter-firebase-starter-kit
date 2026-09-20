@@ -234,9 +234,11 @@ String _readAndroidErrorCode(String errorMessage) {
 ///   동안의 재진입은 plugin 을 호출하지 않고 null 을 돌려주며, 같은 동안의
 ///   [logout] 도 plugin 을 즉시 호출하지 않는다. Android 로그인 콜백이 static
 ///   단일 슬롯이라 덮어쓰기 위험이 있고, iOS 는 재진입 시 스스로
-///   「Another request is in progress」 를 자초하기 때문이다.
+///   「Another request is in progress」 를 자초하기 때문이다. **지연된
+///   [logout] 을 소비하는 동안에도 가드는 내려가지 않는다 (WR-09)** — 그래서
+///   이 보장이 plugin `logOut()` 라운드트립 구간까지 끊기지 않고 이어진다.
 /// - (보장) 가드에 걸린 [logout] 은 **버려지지 않는다** (WR-01). 요청을
-///   기억해 두고 [signIn] 의 finally 가 가드를 푼 직후 소비하므로, D-57
+///   기억해 두고 [signIn] 의 finally 가 **가드를 든 채** 소비하므로, D-57
 ///   (「모든 path 에서 finally logout」) 이 동시성 구간에서도 유지된다.
 /// - (비보장) plugin 이 **이미 잠긴 상태**는 풀지 못한다. iOS 1-tap 에서
 ///   사용자가 NAVER 앱에서 돌아오지 않으면 plugin 의 대기 슬롯이 점유된 채
@@ -297,10 +299,13 @@ class NaverSdkClient {
   /// 토큰 객체를 문자열 보간에 넣지 않는다 (D-21 — 토큰 클래스의 `toString`
   /// 이 access · refresh token 전문을 출력한다).
   ///
-  /// finally 는 가드를 내린 뒤 진행 중에 지연된 [logout] 요청이 있으면
-  /// 소비한다 (WR-01). 그 소비는 [_invokeLogout] 의 내부 try/catch 로
-  /// **절대 throw 하지 않으므로**, 본 메서드의 반환값과 전파 중인 예외를
-  /// 바꾸지 않는다 (logout 은 graceful 계약).
+  /// finally 는 **가드를 든 채** 지연된 [logout] 요청을 배수(`while`)하고,
+  /// 다 비운 뒤에 가드를 내린다 (WR-01 / WR-09). 가드를 먼저 내리면 plugin
+  /// `logOut()` 이 아직 in-flight 인 구간에서 재진입 [signIn] 이 가드를
+  /// 통과해 **킷이 스스로 동시 plugin 호출을 만든다**. 그 소비는
+  /// [_invokeLogout] 의 내부 try/catch 로 **절대 throw 하지 않으므로**, 본
+  /// 메서드의 반환값과 전파 중인 예외를 바꾸지 않는다 (logout 은 graceful
+  /// 계약).
   ///
   /// 반환:
   /// - [NaverSignInResult] (accessToken) — 성공.
@@ -353,13 +358,16 @@ class NaverSdkClient {
       }
       throw ServiceUnavailable(cause: e);
     } finally {
-      _inFlight = false;
-      if (_logoutPending) {
-        // 지연됐던 logout 소비 — D-57 (WR-01). throw 하지 않으므로 위 분기의
-        // 반환값 · 전파 중인 예외에 영향이 없다.
+      // 지연됐던 logout 소비 — D-57 (WR-01). 가드를 **든 채** 배수한다
+      // (WR-09): 소비 중 재진입 [signIn] 은 계속 null 이고, 같은 구간에
+      // 들어온 [logout] 은 다시 지연돼 이 루프가 그것까지 소비한다
+      // (유실 0 · 킷이 만드는 동시 plugin 호출 0). [_invokeLogout] 은
+      // throw 하지 않으므로 위 분기의 반환값 · 전파 중인 예외에 영향이 없다.
+      while (_logoutPending) {
         _logoutPending = false;
         await _invokeLogout();
       }
+      _inFlight = false;
     }
   }
 
@@ -376,7 +384,7 @@ class NaverSdkClient {
   ///
   /// **[signIn] 진행 중이면 「생략」 이 아니라 「지연」 한다 (D-18 / WR-01).**
   /// 진행 중인 로그인의 native 상태를 건드리지 않되, 요청을 [_logoutPending]
-  /// 에 기억해 두고 [signIn] 의 finally 가 가드를 푼 직후 소비한다. 그래서
+  /// 에 기억해 두고 [signIn] 의 finally 가 **가드를 든 채** 배수한다. 그래서
   /// D-57(「매 로그인 finally 로 기기 토큰 제거」)이 **세 호출처 모두에서**
   /// 유지된다:
   /// - (1) 그 로그인 자신의 finally 는 [signIn] 완료 **뒤에** 실행되므로
