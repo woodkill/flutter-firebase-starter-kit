@@ -595,14 +595,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_logcat:
-    dependency: transitive
-    description:
-      name: flutter_logcat
-      sha256: "90b4a4064c5b13e0ea3f7b1859656d258562ea8b1b81620db94977fdfdd1c9a8"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.3.2"
   flutter_native_splash:
     dependency: "direct main"
     description:
@@ -1013,14 +1005,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.17.6"
-  naver_login_sdk:
+  naver_login_flutter:
     dependency: "direct main"
     description:
-      name: naver_login_sdk
-      sha256: e95908dbf2c03b3a28ed69410fa3ac5cebb69aae5ddf443dc17d3b1aa5b20ba1
+      name: naver_login_flutter
+      sha256: "1e9e6ab74ccf0680a9c6340dc053b5cb30db1f21ff716d2a067be6450bf863c9"
       url: "https://pub.dev"
     source: hosted
-    version: "3.2.1"
+    version: "4.0.0"
   node_preamble:
     dependency: transitive
     description:
@@ -1125,14 +1117,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.2"
-  picture_button:
-    dependency: transitive
-    description:
-      name: picture_button
-      sha256: "5b5bf1ecf58be0b569551f366fdf67e867ddd0a193062e7c3eae5600cda9ee20"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.1"
   platform:
     dependency: transitive
     description:
@@ -1645,4 +1629,4 @@ packages:
     version: "2.2.4"
 sdks:
   dart: ">=3.11.1 <4.0.0"
-  flutter: ">=3.38.4"
+  flutter: ">=3.44.0"

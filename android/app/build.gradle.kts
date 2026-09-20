@@ -51,6 +51,24 @@ android {
         resValue("string", "facebook_app_id", dartDefines["facebookAppId"] ?: "")
         resValue("string", "facebook_client_token", dartDefines["facebookClientToken"] ?: "")
 
+        // Naver Login SDK 네이티브 설정 (Phase 16.2 D-01).
+        //
+        // 교체된 플러그인은 runtime initialize()가 없고, AndroidManifest.xml의
+        // meta-data를 plugin registration 시점에 읽어 SDK를 초기화한다.
+        //
+        // meta-data가 @string 참조인 이유: android:value는 typed value라
+        // 숫자로만 이뤄진 리터럴이 정수로 컴파일되어 네이티브의 getString이
+        // null을 돌려줄 수 있고, 그러면 플러그인이 조용히 초기화를 건너뛴다.
+        // @string 참조는 이 위험을 구조적으로 제거한다 (Facebook 선례 동일).
+        //
+        // dart-define 미주입 시 빈 문자열 → 앱 기동은 성공하고 Naver 버튼 탭
+        // 시에만 실패한다 (D-05, silent failure 아님).
+        resValue("string", "naver_client_id", dartDefines["naverClientId"] ?: "")
+        resValue("string", "naver_client_secret", dartDefines["naverClientSecret"] ?: "")
+        // 동의 화면 앱 이름 = config json의 기존 appName(flavor 표시명) 재사용,
+        // 전용 키 신설 없음 (D-06).
+        resValue("string", "naver_client_name", dartDefines["appName"] ?: "")
+
         // Kakao SDK 네이티브 앱 키 (Phase 12 D-20, D-21).
         //
         // AndroidManifest.xml의 com.kakao.sdk.AppKey meta-data와

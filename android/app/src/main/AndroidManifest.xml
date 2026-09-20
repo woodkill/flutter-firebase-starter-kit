@@ -54,6 +54,27 @@
             </intent-filter>
         </activity>
 
+        <!-- Naver Login SDK 설정 (Phase 16.2 D-01 · D-07).
+             값은 build.gradle.kts 의 resValue 로 주입되고, 네이티브 디버그
+             로깅은 전 flavor 상시 off 다. Activity 와 패키지 가시성 선언은
+             SDK AAR 이 스스로 병합하므로 앱 측에서 중복하지 않는다.
+
+             이 주석에 XML 속성 리터럴을 쓰지 않는 이유: manifest merger 가
+             주석을 병합 산출물로 그대로 복사하므로, 감사용 grep 카운트가
+             오염된다. -->
+        <meta-data
+            android:name="com.naver.sdk.clientId"
+            android:value="@string/naver_client_id" />
+        <meta-data
+            android:name="com.naver.sdk.clientSecret"
+            android:value="@string/naver_client_secret" />
+        <meta-data
+            android:name="com.naver.sdk.clientName"
+            android:value="@string/naver_client_name" />
+        <meta-data
+            android:name="com.naver.sdk.logEnabled"
+            android:value="false" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

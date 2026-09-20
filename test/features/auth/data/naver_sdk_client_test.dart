@@ -1,369 +1,157 @@
-// Phase 13 — see ROADMAP.md
+// Phase 16.2 — see ROADMAP.md
 //
-// NaverSdkClient 회귀 테스트 — Completer race / cancel / leak 가드 + logout 회귀.
-// Validation Architecture line 1618 — T-13-NAVER-SDK-{n}.
-import 'dart:async';
-
-import 'package:fake_async/fake_async.dart';
+// NaverSdkClient 회귀 테스트 — 플러그인 Future 직결 구조의 성공 · 취소 · 오류
+// · 예외 · logout 분기 가드. `16.2-VALIDATION.md` Per-Task 표 — T-16.2-NAVER-SDK-{n}.
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:naver_login_sdk/naver_login_sdk.dart';
+import 'package:naver_login_flutter/naver_login_flutter.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 
+/// 테스트용 [NaverToken] — [accessToken] 만 통제하고 나머지는 빈 문자열.
+NaverToken buildToken(String accessToken) => NaverToken(
+  accessToken: accessToken,
+  refreshToken: '',
+  expiresAt: '',
+  tokenType: '',
+);
+
+/// 테스트용 [NaverLoginResult] 조립 helper.
+NaverLoginResult buildResult({
+  required NaverLoginStatus status,
+  NaverToken? accessToken,
+  String? errorMessage,
+}) => NaverLoginResult(
+  status: status,
+  accessToken: accessToken,
+  errorMessage: errorMessage,
+);
+
+/// logout fake 가 돌려주는 기본 결과.
+NaverLoginResult buildLoggedOutResult() =>
+    buildResult(status: NaverLoginStatus.loggedOut);
+
 void main() {
-  group('describeNaverErrorForLog (WR-05 PII)', () {
-    test('iOS 취소 실측 인자 → 실기기 로그와 같은 문자열', () {
-      expect(
-        describeNaverErrorForLog(2, 'CANCELBYUSER'),
-        equals(
-          'errorCode=2 message=CANCELBYUSER length=12 '
-          'canceledByUserPrefix=false',
-        ),
-      );
-    });
-
-    test('자유 문자열 message → 원문 대신 other · 길이만 출력', () {
-      const freeText = 'user@example.com 인증 실패';
-      final described = describeNaverErrorForLog(-1, freeText);
-
-      expect(
-        described,
-        equals(
-          'errorCode=-1 message=other length=${freeText.length} '
-          'canceledByUserPrefix=false',
-        ),
-      );
-      expect(described, isNot(contains('user@example.com')));
-    });
-  });
-
-  group('NaverSdkClient (T-13-NAVER-SDK)', () {
-    test('T-13-NAVER-SDK-01: onSuccess + getAccessToken → '
-        'NaverSignInResult', () async {
-      OAuthLoginCallback? capturedCallback;
-      final client = NaverSdkClient.forTest(
-        login: ({required OAuthLoginCallback callback}) {
-          capturedCallback = callback;
-        },
-        getAccessToken: () async => 'valid_token',
-        logout: () async {},
-      );
-
-      final future = client.signIn();
-      // SDK callback 시뮬레이션 — onSuccess 1회 호출.
-      await Future<void>.delayed(Duration.zero);
-      capturedCallback!.onSuccess?.call();
-      final result = await future;
-
-      expect(result, isNotNull);
-      expect(result!.accessToken, equals('valid_token'));
-    });
-
-    test('T-13-NAVER-SDK-02: onError "user_cancel" → null silent', () async {
-      OAuthLoginCallback? capturedCallback;
-      final client = NaverSdkClient.forTest(
-        login: ({required OAuthLoginCallback callback}) {
-          capturedCallback = callback;
-        },
-        getAccessToken: () async => '',
-        logout: () async {},
-      );
-
-      final future = client.signIn();
-      await Future<void>.delayed(Duration.zero);
-      capturedCallback!.onError?.call(-1, 'user_cancel');
-      final result = await future;
-
-      expect(result, isNull);
-    });
-
+  group('NaverSdkClient (T-16.2-NAVER-SDK)', () {
     test(
-      'T-13-NAVER-SDK-03: onError "Canceled By User…" → null silent',
+      'T-16.2-NAVER-SDK-01 success: loggedIn + 토큰 → accessToken 전달',
       () async {
-        OAuthLoginCallback? capturedCallback;
+        var loginCalls = 0;
         final client = NaverSdkClient.forTest(
-          login: ({required OAuthLoginCallback callback}) {
-            capturedCallback = callback;
+          login: () async {
+            loginCalls++;
+            return buildResult(
+              status: NaverLoginStatus.loggedIn,
+              accessToken: buildToken('valid_token'),
+            );
           },
-          getAccessToken: () async => '',
-          logout: () async {},
+          logout: () async => buildLoggedOutResult(),
         );
 
-        final future = client.signIn();
-        await Future<void>.delayed(Duration.zero);
-        capturedCallback!.onError?.call(-1, 'Canceled By User Click Cancel');
-        final result = await future;
+        final result = await client.signIn();
 
-        expect(result, isNull);
-      },
-    );
-
-    // iOS 실기기 실측 fixture (debug ios-naver-line-cancel-silent Evidence 8):
-    // iPhone Air · iOS 26.0.1 동의 확인창 「취소」 → run log
-    // `Naver onError: errorCode=2 message=CANCELBYUSER length=12`.
-    test(
-      'T-13-NAVER-SDK-03b: iOS onError(2, "CANCELBYUSER") → null silent',
-      () async {
-        OAuthLoginCallback? capturedCallback;
-        final client = NaverSdkClient.forTest(
-          login: ({required OAuthLoginCallback callback}) {
-            capturedCallback = callback;
-          },
-          getAccessToken: () async => '',
-          logout: () async {},
-        );
-
-        final future = client.signIn();
-        await Future<void>.delayed(Duration.zero);
-        capturedCallback!.onError?.call(2, 'CANCELBYUSER');
-        final result = await future;
-
-        expect(result, isNull);
-      },
-    );
-
-    // silent 과확장 방어 — iOS 취소 쌍 (2, 'CANCELBYUSER') 과 한 곳만 다른
-    // 값은 취소가 아니므로 ServiceUnavailable 로 남아야 한다.
-    const nonCancelCases = <(int, String, String)>[
-      (7, 'CLIENTNETWORKPROBLEM', 'iOS receiveType 7 네트워크 오류'),
-      (10, 'NETWORKERROR', 'iOS receiveType 10 네트워크 오류'),
-      (1, 'CANCELBYUSER', 'errorCode 1 (취소 코드 2 의 이웃)'),
-      (3, 'CANCELBYUSER', 'errorCode 3 (취소 코드 2 의 이웃)'),
-      (2, 'The operation couldn’t be completed.', 'didFailWithError code 2'),
-      (2, 'cancelbyuser', 'message 대소문자 불일치'),
-    ];
-    for (final (errorCode, message, label) in nonCancelCases) {
-      test('T-13-NAVER-SDK-03c: onError $label → ServiceUnavailable', () async {
-        OAuthLoginCallback? capturedCallback;
-        final client = NaverSdkClient.forTest(
-          login: ({required OAuthLoginCallback callback}) {
-            capturedCallback = callback;
-          },
-          getAccessToken: () async => '',
-          logout: () async {},
-        );
-
-        final future = client.signIn();
-        await Future<void>.delayed(Duration.zero);
-        capturedCallback!.onError?.call(errorCode, message);
-
-        await expectLater(future, throwsA(isA<ServiceUnavailable>()));
-      });
-    }
-
-    test('T-13-NAVER-SDK-04: onError "naverapp_not_installed" → callback '
-        '재호출 대기 (silent timeout)', () async {
-      OAuthLoginCallback? capturedCallback;
-      final client = NaverSdkClient.forTest(
-        login: ({required OAuthLoginCallback callback}) {
-          capturedCallback = callback;
-        },
-        getAccessToken: () async => '',
-        logout: () async {},
-      );
-
-      final future = client.signIn();
-      await Future<void>.delayed(Duration.zero);
-      // naverapp_not_installed → SDK 가 자동 webview fallback 진행 중. 분기 무시.
-      capturedCallback!.onError?.call(-1, 'naverapp_not_installed');
-      // 그 직후 onSuccess 가 도착하면 정상 결과 반환 (webview fallback 이 성공한 시뮬레이션).
-      capturedCallback!.onSuccess?.call();
-      final result = await future;
-
-      // getAccessToken 이 빈 문자열을 반환하므로 null 반환 (안전 fallback).
-      expect(result, isNull);
-    });
-
-    test('T-13-NAVER-SDK-05: onFailure → null silent (D-45)', () async {
-      OAuthLoginCallback? capturedCallback;
-      final client = NaverSdkClient.forTest(
-        login: ({required OAuthLoginCallback callback}) {
-          capturedCallback = callback;
-        },
-        getAccessToken: () async => '',
-        logout: () async {},
-      );
-
-      final future = client.signIn();
-      await Future<void>.delayed(Duration.zero);
-      capturedCallback!.onFailure?.call('500', 'Server Error');
-      final result = await future;
-
-      expect(result, isNull);
-    });
-
-    test('T-13-NAVER-SDK-06: onError 그 외 (network 등) → '
-        'ServiceUnavailable throw', () async {
-      OAuthLoginCallback? capturedCallback;
-      final client = NaverSdkClient.forTest(
-        login: ({required OAuthLoginCallback callback}) {
-          capturedCallback = callback;
-        },
-        getAccessToken: () async => '',
-        logout: () async {},
-      );
-
-      final future = client.signIn();
-      await Future<void>.delayed(Duration.zero);
-      capturedCallback!.onError?.call(500, 'network_error');
-
-      await expectLater(future, throwsA(isA<ServiceUnavailable>()));
-    });
-
-    // WR-02 (Phase 13 review): ServiceUnavailable.cause 가 NaverSdkError
-    // 구조 보존 — errorCode 정수 + message 분리. String concat 회귀 방어.
-    test(
-      'T-13-NAVER-SDK-06b (WR-02): onError → cause 가 NaverSdkError 구조 보존',
-      () async {
-        OAuthLoginCallback? capturedCallback;
-        final client = NaverSdkClient.forTest(
-          login: ({required OAuthLoginCallback callback}) {
-            capturedCallback = callback;
-          },
-          getAccessToken: () async => '',
-          logout: () async {},
-        );
-
-        final future = client.signIn();
-        await Future<void>.delayed(Duration.zero);
-        capturedCallback!.onError?.call(500, 'server_side_failure');
-
-        Object? captured;
-        try {
-          await future;
-        } on Object catch (e) {
-          captured = e;
-        }
-        expect(captured, isA<ServiceUnavailable>());
-        final cause = (captured! as ServiceUnavailable).cause;
-        expect(cause, isA<NaverSdkError>());
-        final sdkErr = cause! as NaverSdkError;
-        expect(sdkErr.code, equals(500));
-        expect(sdkErr.message, equals('server_side_failure'));
-      },
-    );
-
-    test(
-      'T-13-NAVER-SDK-LEAK-01: Completer 다중 complete 가드 (Pitfall 1)',
-      () async {
-        OAuthLoginCallback? capturedCallback;
-        final client = NaverSdkClient.forTest(
-          login: ({required OAuthLoginCallback callback}) {
-            capturedCallback = callback;
-          },
-          getAccessToken: () async => 'first_token',
-          logout: () async {},
-        );
-
-        final future = client.signIn();
-        await Future<void>.delayed(Duration.zero);
-        // onSuccess 후 onError 도 도착 — StateError 미발생, 첫 complete 만 effective.
-        capturedCallback!.onSuccess?.call();
-        // onSuccess 콜백 내부 await getAccessToken() 완료 대기.
-        await Future<void>.delayed(Duration.zero);
-        // 이중 complete 가드 검증 — onError 에서 throw 시도해도 무시.
-        capturedCallback!.onError?.call(-1, 'after_success_user_cancel');
-        capturedCallback!.onFailure?.call('400', 'after_success');
-        final result = await future;
-
-        // 첫 complete (onSuccess) 만 effective.
         expect(result, isNotNull);
-        expect(result!.accessToken, equals('first_token'));
+        expect(result!.accessToken, equals('valid_token'));
+        expect(loginCalls, equals(1));
       },
     );
 
-    test('T-13-NAVER-SDK-07: logout 호출 시 NaverLoginSDK.logout 실행', () async {
-      var logoutCalled = false;
+    test('T-16.2-NAVER-SDK-02 empty-token: 토큰 null · 빈 문자열 둘 다 null', () async {
+      final nullTokenClient = NaverSdkClient.forTest(
+        login: () async => buildResult(status: NaverLoginStatus.loggedIn),
+        logout: () async => buildLoggedOutResult(),
+      );
+      expect(await nullTokenClient.signIn(), isNull);
+
+      final emptyTokenClient = NaverSdkClient.forTest(
+        login: () async => buildResult(
+          status: NaverLoginStatus.loggedIn,
+          accessToken: buildToken(''),
+        ),
+        logout: () async => buildLoggedOutResult(),
+      );
+      expect(await emptyTokenClient.signIn(), isNull);
+    });
+
+    test(
+      'T-16.2-NAVER-SDK-03 cancel-android: loggedOut → null silent',
+      () async {
+        final client = NaverSdkClient.forTest(
+          login: () async => buildResult(status: NaverLoginStatus.loggedOut),
+          logout: () async => buildLoggedOutResult(),
+        );
+
+        // D-45 — throw 없이 null.
+        expect(await client.signIn(), isNull);
+      },
+    );
+
+    test('T-16.2-NAVER-SDK-04 service-unavailable: error → cause 가 '
+        'NaverSdkError', () async {
       final client = NaverSdkClient.forTest(
-        login: ({required OAuthLoginCallback callback}) {},
-        getAccessToken: () async => '',
+        login: () async => buildResult(
+          status: NaverLoginStatus.error,
+          errorMessage: 'some backend failure',
+        ),
+        logout: () async => buildLoggedOutResult(),
+      );
+
+      Object? captured;
+      try {
+        await client.signIn();
+      } on Object catch (e) {
+        captured = e;
+      }
+
+      expect(captured, isA<ServiceUnavailable>());
+      expect((captured! as ServiceUnavailable).cause, isA<NaverSdkError>());
+    });
+
+    test('T-16.2-NAVER-SDK-05 missing-plugin: MissingPluginException → '
+        'ServiceUnavailable', () async {
+      final missingPlugin = MissingPluginException(
+        'No implementation found for method logIn',
+      );
+      final client = NaverSdkClient.forTest(
+        login: () async => throw missingPlugin,
+        logout: () async => buildLoggedOutResult(),
+      );
+
+      Object? captured;
+      try {
+        await client.signIn();
+      } on Object catch (e) {
+        captured = e;
+      }
+
+      expect(captured, isA<ServiceUnavailable>());
+      expect((captured! as ServiceUnavailable).cause, same(missingPlugin));
+    });
+
+    test('T-16.2-NAVER-SDK-06 logout: 플러그인 logOut 을 정확히 1회 호출', () async {
+      var logoutCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
         logout: () async {
-          logoutCalled = true;
+          logoutCalls++;
+          return buildLoggedOutResult();
         },
       );
 
       await client.logout();
-      expect(logoutCalled, isTrue);
+
+      expect(logoutCalls, equals(1));
     });
 
-    test('T-13-NAVER-SDK-08: logout 실패 시 graceful (throw 안 함)', () async {
+    test('T-16.2-NAVER-SDK-07 logout graceful: 실패해도 throw 하지 않는다', () async {
       final client = NaverSdkClient.forTest(
-        login: ({required OAuthLoginCallback callback}) {},
-        getAccessToken: () async => '',
-        logout: () async {
-          throw Exception('SDK error');
-        },
+        login: () async => buildLoggedOutResult(),
+        logout: () async => throw Exception('SDK error'),
       );
 
       // throw 안 함 검증 — graceful (debugPrint).
       await client.logout();
-    });
-
-    test('T-13-NAVER-SDK-09: getAccessToken 실패 → '
-        'ServiceUnavailable throw', () async {
-      OAuthLoginCallback? capturedCallback;
-      final client = NaverSdkClient.forTest(
-        login: ({required OAuthLoginCallback callback}) {
-          capturedCallback = callback;
-        },
-        getAccessToken: () async {
-          throw Exception('token fetch failed');
-        },
-        logout: () async {},
-      );
-
-      final future = client.signIn();
-      await Future<void>.delayed(Duration.zero);
-      capturedCallback!.onSuccess?.call();
-
-      await expectLater(future, throwsA(isA<ServiceUnavailable>()));
-    });
-
-    // WR-01 (Phase 13 review): Future.timeout onTimeout 안에서 명시
-    // completer.complete(null) 로 후속 콜백 isCompleted 가드 강제.
-    // signIn 이 timeout 으로 null 반환 후 SDK 가 지연된 onSuccess 콜백을
-    // fire 해도 getAccessToken 이 호출되지 않아야 한다 (token leak 회귀 방어).
-    //
-    // FakeAsync 로 60s timeout 을 즉시 trigger — 실 60s 대기 회피.
-    test('T-13-NAVER-SDK-LEAK-02 (WR-01): timeout 후 지연 onSuccess → '
-        'getAccessToken 미호출 (token leak 가드)', () async {
-      await fakeAsync((async) {
-        OAuthLoginCallback? capturedCallback;
-        var getAccessTokenCalled = false;
-        final client = NaverSdkClient.forTest(
-          login: ({required OAuthLoginCallback callback}) {
-            capturedCallback = callback;
-          },
-          getAccessToken: () async {
-            getAccessTokenCalled = true;
-            return 'leaked_token';
-          },
-          logout: () async {},
-        );
-
-        NaverSignInResult? result;
-        var futureCompleted = false;
-        unawaited(
-          client.signIn().then((value) {
-            result = value;
-            futureCompleted = true;
-          }),
-        );
-        // login callback 등록 시점까지 microtask drain.
-        async.flushMicrotasks();
-        // 60s 경과 시뮬레이션 — Future.timeout onTimeout 발화.
-        async.elapse(const Duration(seconds: 61));
-        async.flushMicrotasks();
-        expect(futureCompleted, isTrue);
-        expect(result, isNull); // D-45 silent
-
-        // timeout 후 SDK 가 지연된 onSuccess 콜백 fire — completer guard 가
-        // 막아 getAccessToken 이 호출되지 않아야 한다.
-        capturedCallback!.onSuccess?.call();
-        async.flushMicrotasks();
-        expect(getAccessTokenCalled, isFalse);
-      });
     });
   });
 }

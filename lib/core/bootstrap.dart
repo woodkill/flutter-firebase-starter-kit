@@ -19,8 +19,6 @@ import 'package:flutter_line_sdk/flutter_line_sdk.dart';
 // kakao_flutter_sdk_common 을 re-export 하므로 직접 의존성 import 1개로 충분.
 // pubspec.yaml 의 직접 의존성 (`kakao_flutter_sdk_user`)과 일관 — depend_on_referenced_packages 통과.
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
-// Phase 13 — see ROADMAP.md (Naver Login SDK init).
-import 'package:naver_login_sdk/naver_login_sdk.dart';
 
 /// 앱 초기화 시퀀스를 실행한다 (Phase 10 D-28).
 ///
@@ -157,44 +155,16 @@ Future<void> bootstrap() async {
               }
             }
 
-            // Naver SDK 초기화 (Phase 13 — see ROADMAP.md, RESEARCH Decision #1).
+            // Naver 는 runtime 초기화 블록이 없다 (Phase 16.2 D-04).
             //
-            // Kakao SDK init 직후 + RC fetch 전 위치 — bootstrap 위치 lock 으로
-            // LoginScreen 진입 직전 사용 가능 + cold start 의 첫 클릭 지연 회피.
-            // SDK 자체 멱등성 보장 (NaverLoginSDK._isInitialize static bool —
-            // controller line 30) — Provider rebuild 시 silent.
-            //
-            // [NaverLoginSDK.initialize] 는 [Future<bool>] 반환 (3.2.1 controller
-            // line 49) — `await` 의무.
-            //
-            // clientSecret (D-60): CF-2 잔여 관찰 정정 (Phase 7 review). 이전
-            // 주석의 "사용처 0건" 은 사실과 어긋났고 app_config.dart 의 IN-03
-            // 정정과도 모순됐다 — 본 호출이 **유일한 사용처**다 (SDK init
-            // 의무 인자). 바이너리 추출 가능성과 fork 사용자 주의는
-            // [AppConfig.naverClientSecret] 문서가 단일 진실원이다.
-            //
-            // dev flavor 만 실 키 주입, stg/prod 는 placeholder — manual.md
-            // 안내 (Plan 13-07). 빈 문자열 시 SDK assertion / 첫 API 호출에서
-            // 즉시 실패하므로 silent failure 회피 (KakaoSdk 패턴 일관).
-            //
-            // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
-            // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
-            try {
-              await NaverLoginSDK.initialize(
-                urlScheme: AppConfig.naverUrlScheme,
-                clientId: AppConfig.naverClientId,
-                clientSecret: AppConfig.naverClientSecret,
-                clientName: 'Flutter Starter Kit',
-              );
-            } on Object catch (e, st) {
-              if (kDebugMode) {
-                debugPrint('NaverLoginSDK.initialize() 실패 (무시): $e\n$st');
-              }
-            }
+            // 교체된 플러그인은 client ID · secret · 앱 이름을 plugin
+            // registration 시점에 네이티브 설정에서 읽는다 — Android 는
+            // AndroidManifest meta-data, iOS 는 Info.plist 키다. 따라서
+            // bootstrap 이 호출할 초기화 API 자체가 존재하지 않는다.
 
             // LINE SDK 초기화 (Phase 14 D-LINE-17).
             //
-            // flutter_line_sdk 의 [LineSDK.instance.setup] 호출 의무. NaverSDK
+            // flutter_line_sdk 의 [LineSDK.instance.setup] 호출 의무. KakaoSdk
             // init 직후 + RC fetch 전 위치 — LoginScreen 진입 직전 사용 가능 +
             // cold start 의 첫 클릭 지연 회피. SDK 자체 멱등성 보장 (LineSDK
             // _channel 의 'setup' invokeMethod 가 native side 에서 idempotent
@@ -204,11 +174,10 @@ Future<void> bootstrap() async {
             // dev flavor 만 실 키 주입 (D-LINE-19 / memory `project_firebase_dev_only`),
             // stg/prod 는 placeholder — manual.md D-LINE-22a (1) 절차 따름.
             // 빈 문자열 시 SDK 첫 login() 호출에서 실패하므로 silent failure 회피
-            // (KakaoSdk / NaverLoginSDK 패턴 일관).
+            // (KakaoSdk 패턴 일관).
             //
             // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
-            // debugPrint fallback (GoogleSignIn / KakaoSdk / NaverLoginSDK 패턴
-            // 일관).
+            // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
             try {
               await LineSDK.instance.setup(AppConfig.lineChannelId);
             } on Object catch (e, st) {

@@ -1,11 +1,9 @@
-// Phase 13 — see ROADMAP.md
+// Phase 16.2 — see ROADMAP.md
 //
-// Naver 로그인 진입점 (callback → Future wrapper) + Phase 12 KakaoSdkClient
-// 의 typedef 주입 패턴 미러. D-43 ~ D-45 + D-57 정책 일관.
-import 'dart:async';
-
+// Naver 로그인 진입점 — 플러그인 Future 직결 + typedef 주입 (Phase 12
+// KakaoSdkClient 미러). D-43 ~ D-45 + D-57 정책 일관.
 import 'package:flutter/foundation.dart';
-import 'package:naver_login_sdk/naver_login_sdk.dart';
+import 'package:naver_login_flutter/naver_login_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/app_exception.dart';
@@ -26,298 +24,144 @@ class NaverSignInResult {
   final String accessToken;
 }
 
-/// Naver SDK `login(callback:)` 함수 시그니처 typedef.
+/// 플러그인 `FlutterNaverLogin.logIn()` 시그니처 typedef.
 ///
 /// [NaverSdkClient.forTest] 의 ctor 인자 타입 — 테스트가 fake 함수를 주입한다.
-typedef NaverLoginFn = void Function({required OAuthLoginCallback callback});
+typedef NaverLoginFn = Future<NaverLoginResult> Function();
 
-/// Naver SDK `getAccessToken()` 함수 시그니처 typedef.
-typedef NaverGetAccessTokenFn = Future<String> Function();
+/// 플러그인 `FlutterNaverLogin.logOut()` 시그니처 typedef (D-57).
+typedef NaverLogoutFn = Future<NaverLoginResult> Function();
 
-/// Naver SDK `logout()` 함수 시그니처 typedef (D-57).
-typedef NaverLogoutFn = Future<void> Function();
-
-/// Naver SDK `onError(errorCode, message)` 분기를 보존하는 구조화 에러
-/// (Phase 13 review WR-02).
+/// 플러그인 `errorMessage` 를 보관하는 구조화 에러 (Phase 16.2 D-13).
 ///
-/// `ServiceUnavailable.cause` 가 `Object?` 이므로 `'$errorCode $message'`
-/// String concat 으로 전달하면 errorCode 정수가 message 와 융합되어 운영
-/// 진단 시 errorCode 500 ('server side') 와 errorCode -1 ('client config')
-/// 같은 분류가 사라진다. 본 wrapper 가 두 필드를 분리 보존 + `toString()`
-/// 만으로도 사람-가독.
+/// 새 API 에는 정수 errorCode 가 없어 구 `NaverSdkError(int, String)` 을
+/// `String` 단일 필드로 축소했다. [message] 원문은 자유 문자열(요청 URL ·
+/// 사용자 입력 등)을 실을 수 있으므로 [toString] 이 원문을 내보내지 않는다
+/// (WR-05 — `cause` 가 어디선가 문자열화돼도 구조적으로 안전).
 @immutable
 class NaverSdkError implements Exception {
-  /// SDK 가 onError 콜백에 전달한 errorCode 정수 + message 를 묶는다.
-  const NaverSdkError(this.code, this.message);
+  /// 플러그인이 `NaverLoginResult.errorMessage` 로 전달한 원문을 보관한다.
+  const NaverSdkError(this.message);
 
-  /// SDK 의 onError(errorCode) — Naver SDK 분류 (예: -1 client, 500 server).
-  final int code;
-
-  /// SDK 의 onError(message) — naver SDK 가 제공한 사람-가독 메시지.
+  /// 플러그인 원문 메시지 — 로그 · 사용자 문구로 내보내지 않는다.
   final String message;
 
   @override
-  String toString() => 'NaverSdkError(code: $code, message: $message)';
+  String toString() => 'NaverSdkError(length=${message.length})';
 }
 
-/// Naver SDK 가 onError message 로 보내는 알려진 고정 문자열 집합.
-///
-/// - iOS: naver_login_sdk `NaverLoginSdkConverter.swift` 의 receiveType 이름
-///   (SUCCESS ~ UNKNOWNERROR, 닫힌 집합).
-/// - Android: `user_cancel` · `naverapp_not_installed` · `naverapp_need_update`.
-///
-/// 이 집합에 든 문자열은 SDK 상수라 로그에 그대로 써도 사용자 정보가 아니다.
-const Set<String> _kNaverKnownErrorMessages = <String>{
-  'SUCCESS',
-  'PARAMETERNOTSET',
-  'CANCELBYUSER',
-  'NAVERAPPNOTINSTALLED',
-  'NAVERAPPVERSIONINVALID',
-  'OAUTHMETHODNOTSET',
-  'INVALIDREQUEST',
-  'CLIENTNETWORKPROBLEM',
-  'UNAUTHORIZEDCLIENT',
-  'UNSUPPORTEDRESPONSETYPE',
-  'NETWORKERROR',
-  'UNKNOWNERROR',
-  'user_cancel',
-  'naverapp_not_installed',
-  'naverapp_need_update',
-};
-
-/// Naver SDK onError 인자를 PII 없는 진단 문자열로 바꾼다 (kDebugMode 로그 전용).
-///
-/// [message] 원문은 `localizedDescription` 같은 자유 문자열일 수 있어 출력하지
-/// 않는다 (WR-05). 알려진 SDK 상수와 일치할 때만 그 상수 이름을, 그 외에는
-/// `other` 와 길이 · `Canceled By User` 접두어 여부만 남긴다.
-@visibleForTesting
-String describeNaverErrorForLog(int errorCode, String message) {
-  final known = _kNaverKnownErrorMessages.contains(message) ? message : 'other';
-  final canceledByUserPrefix = message.startsWith('Canceled By User');
-  return 'errorCode=$errorCode message=$known '
-      'length=${message.length} canceledByUserPrefix=$canceledByUserPrefix';
-}
-
-/// iOS 사용자 취소 시 naver_login_sdk 가 onError 로 보내는 errorCode.
-///
-/// iOS 플러그인은 `didFailAuthorizationWithReceive` 의 receiveType rawValue 를
-/// errorCode 로, 그 이름을 message 로 보낸다. 2 = CANCELBYUSER.
-const int _kNaverIosCancelErrorCode = 2;
-
-/// iOS 사용자 취소 시 naver_login_sdk 가 onError 로 보내는 message.
-const String _kNaverIosCancelMessage = 'CANCELBYUSER';
-
-/// Naver onError 인자가 사용자 취소인지 판정한다 (D-45 silent 대상).
-///
-/// 취소 값만 정확히 매칭한다 — 네트워크 · 설정 오류는 여기서 걸러지면 안 된다.
-///
-/// - iOS `(2, 'CANCELBYUSER')`: iOS 동의 확인창 「취소」 가 보내는 값
-///   (iPhone Air · iOS 26.0.1 실기기 실측, 2026-09-18). SDK 가 인증 세션 취소를
-///   receiveType 2 로 바꿔 보낸다. errorCode 와 message 를 함께 확인한다 —
-///   `didFailWithError` 경로는 NSError code 와 localizedDescription 을 보내므로
-///   code 가 2 여도 취소가 아니다.
-/// - Android `user_cancel` (NidOAuthErrorCode.CLIENT_USER_CANCEL) ·
-///   `Canceled By User…` (플러그인 콜백 문서, errorCode -1): 기존 Android 값.
-///   iOS 플러그인 소스에는 두 문자열이 없다.
-bool _isNaverUserCancel(int errorCode, String message) {
-  if (errorCode == _kNaverIosCancelErrorCode &&
-      message == _kNaverIosCancelMessage) {
-    return true;
-  }
-  return message == 'user_cancel' || message.startsWith('Canceled By User');
-}
-
-/// Default `NaverLoginSDK.login` 호출 — production 진입점.
-///
-/// [Future<bool>] 반환은 무시한다 — 진실원은 callback (Pitfall 9). SDK 가
-/// callback 으로 전달하는 onSuccess / onFailure / onError 분기가 결과를 결정한다.
-void _defaultLogin({required OAuthLoginCallback callback}) {
-  // ignore: discarded_futures — Future<bool> 반환은 무시 (callback 이 진실원).
-  NaverLoginSDK.login(callback: callback);
-}
-
-/// Default `NaverLoginSDK.getAccessToken` 호출 — production 진입점.
-Future<String> _defaultGetAccessToken() async {
-  return NaverLoginSDK.getAccessToken();
-}
-
-/// Default `NaverLoginSDK.logout` 호출 — production 진입점 (D-57).
-Future<void> _defaultLogout() async {
-  await NaverLoginSDK.logout();
-}
-
-/// Naver 로그인 진입점 — `NaverLoginSDK.login(callback:)` callback → Future
-/// wrapper (Phase 13 — see ROADMAP.md, D-43 ~ D-45 + D-57).
+/// Naver 로그인 진입점 — 플러그인 Future 직결 wrapper (Phase 16.2 — see
+/// ROADMAP.md, D-16 · D-43 ~ D-45 + D-57).
 ///
 /// **분리 이유 (Phase 12 `KakaoSdkClient` 패턴 미러):**
-/// - mocktail 격리 — `NaverLoginSDK.login` 이 static 이라 ctor 함수 typedef
-///   주입으로 fake 가능하게 한다.
-/// - Pitfall 1 single complete — Completer 의 모든 분기에 `isCompleted`
-///   가드를 두어 다중 complete `StateError` 회피.
+/// - mocktail 격리 — `FlutterNaverLogin.logIn` 이 static 이라 ctor 함수
+///   typedef 주입으로 fake 가능하게 한다.
 /// - D-57 1회성 토큰 — [signIn] 성공/실패/취소 모든 분기에서
 ///   `AuthRepository.signInWithNaver` 의 finally 블록이 [logout] 을 호출한다.
 ///
-/// **사용자 취소 silent (D-45):**
-/// - `onError(2, 'CANCELBYUSER')` (iOS — 동의 확인창 취소, 실기기 실측) → null
-/// - `onError(message: 'user_cancel')` (Android — 사용자 인증 취소) → null
-/// - `onError(message: 'Canceled By User…')` (Android — 로그인 화면 취소) → null
-/// - `onFailure` (Android cancel 도착) → null silent (D-45 conservative)
+/// **타이머 없음 (D-16):** 플러그인 Future 를 그대로 await 한다. 앱 쪽
+/// `Completer` · `Future.timeout` 이 없으므로 「늦게 끝난 성공을 버리는」
+/// 주체가 구조적으로 존재하지 않는다.
 ///
-/// **timeout 60s** — 콜백 미도착 시 silent (Decision #2 — D-45 일관).
-///
-/// **Naver 앱 미설치 / 업데이트 필요 (`naverapp_*`):** SDK 가 자동 webview
-/// fallback 을 진행하므로 onError 분기를 무시한다 — 후속 onSuccess /
-/// onFailure / onError 가 도착할 때까지 대기.
+/// **네이티브 설정 (D-01 · D-04):** 새 플러그인은 runtime `initialize()` 가
+/// 없다. client ID · secret · 앱 이름은 Android `AndroidManifest.xml` 의
+/// `com.naver.sdk.*` meta-data 와 iOS `Info.plist` 키를 plugin registration
+/// 시점에 읽는다.
 class NaverSdkClient {
-  /// production 진입점 — 실제 Naver SDK 호출.
+  /// production 진입점 — 실제 Naver 플러그인 호출.
   ///
   /// 테스트는 [NaverSdkClient.forTest] 로 함수 typedef 를 주입한다.
-  NaverSdkClient()
-    : _login = _defaultLogin,
-      _getAccessToken = _defaultGetAccessToken,
-      _logout = _defaultLogout;
+  NaverSdkClient() : _login = _defaultLogin, _logout = _defaultLogout;
 
-  /// 테스트 전용 ctor — SDK 호출을 함수 typedef 로 fake 한다.
+  /// 테스트 전용 ctor — 플러그인 호출을 함수 typedef 로 fake 한다.
   ///
   /// production 코드는 [NaverSdkClient.new] 만 사용해야 한다.
   @visibleForTesting
   NaverSdkClient.forTest({
     required NaverLoginFn login,
-    required NaverGetAccessTokenFn getAccessToken,
     required NaverLogoutFn logout,
   }) : _login = login,
-       _getAccessToken = getAccessToken,
        _logout = logout;
 
   final NaverLoginFn _login;
-  final NaverGetAccessTokenFn _getAccessToken;
   final NaverLogoutFn _logout;
 
-  /// Naver 로그인 — 앱우선 + 웹뷰 fallback (SDK 자체 제어).
+  /// Naver 로그인 — 앱우선 + 웹 fallback (플러그인 · SDK 자체 제어).
   ///
   /// 흐름:
-  /// 1. [Completer] 1회 생성 + 3 분기 isCompleted 가드 (Pitfall 1).
-  /// 2. `_login(callback:)` 호출 — onSuccess / onFailure / onError 분기 합성.
-  /// 3. onSuccess → `_getAccessToken()` → [NaverSignInResult] 반환.
-  /// 4. onError 사용자 취소 (iOS `(2, 'CANCELBYUSER')` · Android
-  ///    'user_cancel' / 'Canceled By User…') → null 반환 (D-45).
-  /// 5. onError 'naverapp_*' → 분기 무시 (SDK 자동 webview fallback).
-  /// 6. onError 그 외 → [ServiceUnavailable] throw.
-  /// 7. onFailure → null 반환 (D-45 conservative — Android cancel 흡수).
-  /// 8. timeout 60s → null 반환 (silent — D-45 일관).
+  /// 1. `_login()` 의 Future 를 **그대로 await** 한다 (D-16 — 타이머 없음).
+  /// 2. status `loggedIn` + `accessToken` 비어있지 않음 → [NaverSignInResult].
+  /// 3. status `loggedIn` + 빈 토큰 → null (silent).
+  /// 4. status `loggedOut` → null (Android 사용자 취소, D-45 silent).
+  /// 5. status `error` → [ServiceUnavailable] (`cause` = [NaverSdkError]).
+  /// 6. 그 외 예외 → [ServiceUnavailable] 로 흡수. iOS `Info.plist` 4키가
+  ///    없으면 채널이 미등록돼 `PlatformException` 이 아닌
+  ///    `MissingPluginException` 이 전파되기 때문이다 (D-05).
+  ///
+  /// 결과 객체에서 읽는 값은 `status` · `errorMessage` ·
+  /// `accessToken?.accessToken` **셋뿐**이다 — 프로필(`account`) 은 참조하지
+  /// 않고 결과 · 토큰 객체를 문자열 보간에 넣지 않는다 (D-21).
   ///
   /// 반환:
   /// - [NaverSignInResult] (accessToken) — 성공.
-  /// - null — 사용자 취소 / 빈 토큰 / 콜백 timeout (silent).
+  /// - null — 사용자 취소 / 빈 토큰 (silent).
   /// - throw [ServiceUnavailable] — network / SDK 오류.
   Future<NaverSignInResult?> signIn() async {
-    final completer = Completer<NaverSignInResult?>();
+    try {
+      final result = await _login();
 
-    void completeSilent() {
-      if (!completer.isCompleted) completer.complete(null);
+      if (result.status == NaverLoginStatus.loggedOut) {
+        // Android 사용자 취소 — D-45 silent.
+        return null;
+      }
+
+      if (result.status == NaverLoginStatus.error) {
+        throw ServiceUnavailable(
+          cause: NaverSdkError(result.errorMessage ?? ''),
+        );
+      }
+
+      // D-21: account(프로필) 는 참조하지 않는다 — accessToken 만 꺼낸다.
+      final token = result.accessToken?.accessToken ?? '';
+      if (token.isEmpty) return null;
+      return NaverSignInResult(accessToken: token);
+    } on ServiceUnavailable {
+      rethrow;
+    } on Object catch (e) {
+      // MissingPluginException(iOS Info.plist 키 부재) 포함 — D-05 가드.
+      if (kDebugMode) {
+        debugPrint('Naver logIn 예외: ${e.runtimeType}');
+      }
+      throw ServiceUnavailable(cause: e);
     }
-
-    void completeError(Object err) {
-      if (!completer.isCompleted) completer.completeError(err);
-    }
-
-    void completeSuccess(NaverSignInResult result) {
-      if (!completer.isCompleted) completer.complete(result);
-    }
-
-    _login(
-      callback: OAuthLoginCallback(
-        onSuccess: () async {
-          // WR-01 (Phase 13 review): timeout 후 지연 onSuccess 의 token fetch
-          // 자체를 차단. completer.isCompleted=true 이면 후속 처리가 모두
-          // silent 가드 되므로 getAccessToken() 호출 자체가 무의미 (leak 회피).
-          if (completer.isCompleted) return;
-          try {
-            final token = await _getAccessToken();
-            if (token.isEmpty) {
-              completeSilent();
-            } else {
-              completeSuccess(NaverSignInResult(accessToken: token));
-            }
-          } on Object catch (e, st) {
-            if (kDebugMode) {
-              debugPrint('Naver getAccessToken 실패: ${e.runtimeType}\n$st');
-            }
-            completeError(ServiceUnavailable(cause: e));
-          }
-        },
-        onFailure: (String httpStatus, String message) {
-          // Android cancel 도 onFailure 로 도착 가능 — silent 흡수 (D-45 conservative).
-          // WR-05 PII invariant: SDK 원문 `message` 는 사용자 식별 정보를
-          // 실을 수 있어 비포함 — 분류 가능한 httpStatus 만 출력한다.
-          if (kDebugMode) {
-            debugPrint('Naver onFailure: httpStatus=$httpStatus');
-          }
-          completeSilent();
-        },
-        onError: (int errorCode, String message) {
-          // WR-05 PII invariant: message 원문 대신 닫힌 집합 매칭 결과 · 길이만 출력.
-          if (kDebugMode) {
-            debugPrint(
-              'Naver onError: ${describeNaverErrorForLog(errorCode, message)}',
-            );
-          }
-          if (_isNaverUserCancel(errorCode, message)) {
-            completeSilent(); // D-45 silent
-            return;
-          }
-          if (message == 'naverapp_not_installed' ||
-              message == 'naverapp_need_update') {
-            // SDK 자동 webview fallback 진행 중 — 분기 무시 (후속 콜백 대기).
-            if (kDebugMode) {
-              debugPrint('Naver onError $message — webview fallback');
-            }
-            return;
-          }
-          // 그 외 (network / SDK 오류) → ServiceUnavailable.
-          // WR-02 (Phase 13 review): errorCode 정수 + message 분리 보존 —
-          // String concat 시 errorCode 분류 정보가 사라져 운영 진단 어려움.
-          completeError(
-            ServiceUnavailable(cause: NaverSdkError(errorCode, message)),
-          );
-        },
-      ),
-    );
-
-    // timeout 60s — 콜백 미도착 시 silent (Decision #2, D-45 일관).
-    //
-    // WR-01 (Phase 13 review): Future.timeout 은 onTimeout 의 반환값으로
-    // 외부 Future 만 resolve 한다 — 내부 [completer] 는 isCompleted=false
-    // 상태로 남는다. SDK 가 60s 이후 onSuccess 콜백을 fire 하면 `completer.
-    // isCompleted` 가 false 라 [completeSuccess] 의 분기로 진입해 token 이
-    // 쓸데없이 fetch 되고 silent 로 GC 된다 (token leak — Pitfall 1 변종).
-    // 명시적 [completer.complete(null)] 로 isCompleted=true 정착 → 후속
-    // onSuccess / onError / onFailure 가 모두 isCompleted 가드에 막힌다.
-    return completer.future.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () {
-        if (kDebugMode) debugPrint('Naver login timeout 60s');
-        completeSilent(); // 후속 콜백 isCompleted 가드 강제 (WR-01).
-        return null; // D-45 일관
-      },
-    );
   }
 
-  /// SDK logout — D-57 1회성 토큰 정책. Naver client-side 토큰 제거.
+  /// 플러그인 logout — D-57 1회성 토큰 정책. 기기 내 토큰만 제거한다.
   ///
   /// `AuthRepository.signInWithNaver` 의 finally 블록 (race-fix end 직전 —
-  /// Pitfall 2) 에서 호출한다. 실패 시 graceful ([kDebugMode] [debugPrint]) —
-  /// outer 흐름 차단 안 함.
+  /// Pitfall 2) 에서 호출한다. 서버 연동 해제(revoke) 계열 API 는 쓰지 않는다
+  /// (D-15 — 매 로그인 동의 재요구로 1-tap UX 가 깨진다).
+  ///
+  /// 실패 시 graceful ([kDebugMode] [debugPrint]) — outer 흐름 차단 안 함.
   Future<void> logout() async {
     try {
       await _logout();
-    } on Object catch (e, st) {
       if (kDebugMode) {
-        debugPrint('NaverSdkClient.logout 실패 (무시): ${e.runtimeType}\n$st');
+        debugPrint('NaverSdkClient.logout 완료');
+      }
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('NaverSdkClient.logout 실패 (무시): ${e.runtimeType}');
       }
     }
   }
 }
+
+/// Default `FlutterNaverLogin.logIn` 호출 — production 진입점.
+Future<NaverLoginResult> _defaultLogin() => FlutterNaverLogin.logIn();
+
+/// Default `FlutterNaverLogin.logOut` 호출 — production 진입점 (D-57).
+Future<NaverLoginResult> _defaultLogout() => FlutterNaverLogin.logOut();
 
 /// [NaverSdkClient] Provider — keepAlive (Phase 12 [kakaoSdkClientProvider]
 /// 패턴).

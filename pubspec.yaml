@@ -51,8 +51,10 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_facebook_auth: ^7.2.0
   kakao_flutter_sdk_user: ^2.0.0+1
-  # Phase 13 — see ROADMAP.md (Naver Login SDK, Custom Token 방식)
-  naver_login_sdk: ^3.2.1
+  # Phase 16.2 — Naver 로그인 플러그인 (Custom Token 방식). unverified publisher
+  # 라 정확 버전 고정 — caret 금지 (C-02). 상향 시 `16.2-PLUGIN-AUDIT.md` 의
+  # sha256 기준선과 상향 절차로 diff 를 먼저 검토한다.
+  naver_login_flutter: 4.0.0
   # Phase 14 D-LINE-17 — LINE Corporation 공식 (verified publisher: line.me)
   flutter_line_sdk: ^2.7.2
   # Phase 13.2 — see ROADMAP.md (Wave 0 lock D-100, R8 — 옛 community
