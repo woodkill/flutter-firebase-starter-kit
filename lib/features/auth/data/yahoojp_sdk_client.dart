@@ -225,7 +225,7 @@ class YahoojpSdkClient {
   /// 의 `endSessionEndpoint = null` — D-YJP-03/05 verbatim). 따라서
   /// **client-side 토큰 폐기는 수행되지 않으며**, 본 메서드는 Kakao
   /// (`UserApi.instance.logout`) / LINE (`LineSDK.logout`) / Naver
-  /// (`NaverLoginSDK.logout`) 의 D-57 invariant 와 **동등하지 않다**.
+  /// (`FlutterNaverLogin.logOut`) 의 D-57 invariant 와 **동등하지 않다**.
   /// Yahoo!JP 세션·토큰은 디바이스에 남으며, 호출 대칭성 유지와 미래
   /// endpoint 공개 대비를 위해 메서드 자체는 보존한다.
   ///

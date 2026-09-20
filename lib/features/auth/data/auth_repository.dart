@@ -65,8 +65,9 @@ class AuthRepository implements AnonymousSignIn {
   /// `kakaoCustomToken` Cloud Function 호출 채널.
   ///
   /// [_naverSdkClient] 는 Phase 13 Naver 로그인 (Custom Token 방식) 을 위해
-  /// 추가됐다 — naver_login_sdk callback → Future wrapper. Cloud Function
-  /// 채널 (`naverCustomToken`) 은 [_functions] 를 재사용한다.
+  /// 추가됐다 — naver_login_flutter 의 Future 반환 API wrapper (Phase 16.2
+  /// D-16). Cloud Function 채널 (`naverCustomToken`) 은 [_functions] 를
+  /// 재사용한다.
   ///
   /// [_lineSdkClient] 는 Phase 14 LINE 로그인 (Custom Token 방식) 을 위해
   /// 추가됐다 — flutter_line_sdk wrapper. Cloud Function 채널
@@ -1536,7 +1537,7 @@ class AuthRepository implements AnonymousSignIn {
   /// SOCL-02).
   ///
   /// **Custom Token 방식** — Phase 12 Kakao 와 동일 흐름. 차이:
-  /// (1) SDK = naver_login_sdk (callback-based — [NaverSdkClient] wrapper)
+  /// (1) SDK = naver_login_flutter (Future 직결 — [NaverSdkClient] wrapper)
   /// (2) Cloud Function 페이로드 = `accessToken` 단일 (nonce 부재 — D-46)
   /// (3) Naver 검증 = REST `/v1/nid/me` Bearer (CF 측 — Plan 13-02)
   /// (4) finally 에서 SDK logout (D-57 — 1회성 access_token)
@@ -1563,11 +1564,11 @@ class AuthRepository implements AnonymousSignIn {
   /// Returns null = 사용자 취소 silent (D-45).
   Future<Result<User>?> signInWithNaver() async {
     // WR-01-iter2 (Phase 13 review iter2): D-57 1회성 토큰 정책의 invariant 강화
-    // — 모든 path 에서 finally logout. iter1 의 `issuedToken` 가드는 timeout path
-    // (60s onTimeout 직전 SDK 가 onSuccess fire 직전 디바이스 토큰 발급) 에서 SDK
-    // 측 access_token 이 24h TTL 까지 잔존할 가능성을 남겼다. NaverSdkClient.logout
-    // 은 내부 try/catch graceful — SDK "no session" 상태에서도 silent no-op.
-    // Kakao path 와 대칭 (D-57 일관) + 보안 우선 정책 채택.
+    // — 모든 path 에서 finally logout (D-57). Phase 16.2 D-16 으로 앱 쪽
+    // 타이머가 사라져 finally 는 항상 로그인 Future 완료 **뒤에** 실행된다 —
+    // 늦은 성공이 logout 이후에 토큰을 저장하는 경로가 구조적으로 없다.
+    // NaverSdkClient.logout 은 내부 try/catch graceful — SDK "no session"
+    // 상태에서도 silent no-op. Kakao path 와 대칭 (D-57 일관) + 보안 우선 정책.
     try {
       _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
 
@@ -1624,7 +1625,7 @@ class AuthRepository implements AnonymousSignIn {
       // D-57 (Phase 13 — see ROADMAP.md): SDK access_token 1회성 정책.
       // Pitfall 2 — race-fix end 직전 위치. 실패 graceful (NaverSdkClient.logout
       // 내부 try/catch) — outer 흐름 차단 안 함.
-      // WR-01-iter2: timeout / 취소 path 에서도 SDK 측 디바이스 토큰이 잔존할
+      // WR-01-iter2: 취소 · 오류 path 에서도 SDK 측 디바이스 토큰이 잔존할
       // 가능성이 있어 모든 path 에서 logout (24h TTL 잔존 회피). SDK "no session"
       // 상태는 logout 내부 try/catch 가 silent 흡수.
       await _naverSdkClient.logout();

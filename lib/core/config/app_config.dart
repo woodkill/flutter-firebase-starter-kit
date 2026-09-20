@@ -84,50 +84,18 @@ abstract final class AppConfig {
     'kakaoNativeAppKey',
   );
 
-  /// Naver 로그인 SDK 빌드타임 시크릿 3종 (Phase 13 — see ROADMAP.md).
-  ///
-  /// `--dart-define-from-file=config/{flavor}.json` 의 `naverClientId` /
-  /// `naverClientSecret` / `naverUrlScheme` 키를 컴파일 타임 상수로 읽는다.
-  /// Phase 12 의 [kakaoNativeAppKey] 패턴과 일관 — 미주입 시 빈 문자열,
-  /// silent fallback 회피 (WR-07 hotfix). [NaverLoginSDK.initialize] 호출
-  /// 시점에 빈 문자열이면 SDK assertion / 첫 API 호출에서 즉시 실패하므로
-  /// silent failure 아님 (D-60).
-  ///
-  /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
-  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Naver 단락 참조 (Plan 13-07).
-  ///
-  /// **IN-03:** 과거 Naver 3종만 `private const` + `public getter` 2단 구조라
-  /// 다른 키들(전부 public `static const`)과 일관성이 깨졌고, getter 는 const
-  /// 문맥에서 쓸 수 없어 소비처의 선택지도 좁았다. 지금은 평탄화되어 다른
-  /// 키와 동일한 방식으로 쓸 수 있다.
-
-  /// Naver 로그인 클라이언트 ID. Naver Developers Console 의 Client ID 값.
-  static const String naverClientId = String.fromEnvironment('naverClientId');
-
-  /// Naver 로그인 클라이언트 Secret.
-  ///
-  /// `NaverLoginSDK.initialize` 의 의무 인자로 `bootstrap.dart` 에서 1회
-  /// 사용한다. 그 외 참조는 없다 (IN-03 — 과거 doc 의 "사용처 0건" 은 실제와
-  /// 어긋났다).
-  ///
-  /// **fork 사용자 주의:** 클라이언트 시크릿은 앱 바이너리에서 추출 가능하다
-  /// (Naver SDK 가 client 측 초기화 인자로 요구하는 설계상 불가피하다).
-  /// 이 값은 서버 시크릿이 아니며, 반드시 **자신의 키를 발급받아** 사용할 것 —
-  /// 스타터킷의 dev 키를 그대로 배포하지 말 것.
-  static const String naverClientSecret = String.fromEnvironment(
-    'naverClientSecret',
-  );
-
-  /// Naver 로그인 URL Scheme. iOS only (Android 는 SDK 자동 머지).
-  static const String naverUrlScheme = String.fromEnvironment('naverUrlScheme');
+  // Naver 는 Dart 상수가 없다 — 키는 빌드 타임 native 설정으로만 주입된다
+  // (Phase 16.2 D-04 — see ROADMAP.md). Android: config/{flavor}.json → gradle
+  // resValue → manifest @string meta-data / iOS: ios/Flutter/{flavor}.xcconfig →
+  // Info.plist 의 Nid* 키. config/*.example.json 의 naver 키는 Android gradle 입력이다.
 
   /// LINE Channel ID — public client identifier (Phase 14 D-LINE-16).
   ///
   /// `--dart-define-from-file=config/{flavor}.json` 의 `lineChannelId` 키를
-  /// 컴파일 타임 상수로 읽는다. Phase 12 의 [kakaoNativeAppKey] / Phase 13 의
-  /// [naverClientId] 패턴과 일관 — 미주입 시 빈 문자열, silent fallback 회피
-  /// (WR-07 hotfix). [LineSDK.instance.setup] 호출 시점에 빈 문자열이면 SDK
-  /// assertion / 첫 API 호출에서 즉시 실패하므로 silent failure 아님.
+  /// 컴파일 타임 상수로 읽는다. Phase 12 의 [kakaoNativeAppKey] 패턴과 일관 —
+  /// 미주입 시 빈 문자열, silent fallback 회피 (WR-07 hotfix).
+  /// [LineSDK.instance.setup] 호출 시점에 빈 문자열이면 SDK assertion /
+  /// 첫 API 호출에서 즉시 실패하므로 silent failure 아님.
   ///
   /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
   /// stg/prod 는 사용자가 자체 등록 — manual.md 의 LINE 단락 참조.
@@ -140,10 +108,10 @@ abstract final class AppConfig {
   /// Yahoo!JP OAuth/OIDC Client ID — public client identifier (Phase 15 D-YJP-03).
   ///
   /// `--dart-define-from-file=config/{flavor}.json` 의 `yahoojpClientId` 키를
-  /// 컴파일 타임 상수로 읽는다. Phase 12 의 [kakaoNativeAppKey] / Phase 13 의
-  /// [naverClientId] / Phase 14 의 [lineChannelId] 패턴과 일관 — 미주입 시
-  /// 빈 문자열, silent fallback 회피 (WR-07 hotfix). [YahoojpSdkClient.signIn]
-  /// 호출 시점에 빈 문자열이면 [ServiceUnavailable] throw — silent failure
+  /// 컴파일 타임 상수로 읽는다. Phase 12 의 [kakaoNativeAppKey] / Phase 14 의
+  /// [lineChannelId] 패턴과 일관 — 미주입 시 빈 문자열, silent fallback
+  /// 회피 (WR-07 hotfix). [YahoojpSdkClient.signIn] 호출 시점에 빈
+  /// 문자열이면 [ServiceUnavailable] throw — silent failure
   /// 회피 (T-15-15 mitigation, D-YJP-03 carry-forward).
   ///
   /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),

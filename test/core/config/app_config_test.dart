@@ -208,7 +208,11 @@ void main() {
     }
   });
 
-  group('IN-02 / IN-03 / IN-04 — app_config.dart 표기 일관성 (소스 계약)', () {
+  // IN-03 테스트 2건(Naver 3종 평탄화 · client secret doc)은 Phase 16.2 D-04 로
+  // 단언 대상인 AppConfig 의 Naver 상수 3종 자체가 삭제되어 함께 제거됐다.
+  // Naver 키는 이제 빌드 타임 native 설정으로만 주입되며, 그 배선은
+  // naver_native_config_contract_test.dart 가 잠근다.
+  group('IN-02 / IN-04 — app_config.dart 표기 일관성 (소스 계약)', () {
     late String source;
 
     setUpAll(() async {
@@ -233,43 +237,6 @@ void main() {
         stripComments(source),
         isNot(contains("defaultValue: ''")),
         reason: "IN-02: String.fromEnvironment 의 기본 defaultValue 가 이미 '' 다",
-      );
-    });
-
-    test('IN-03: Naver 3종이 다른 키와 동일하게 public static const 로 평탄화됐다', () {
-      final code = stripComments(source);
-      for (final key in const <String>[
-        'naverClientId',
-        'naverClientSecret',
-        'naverUrlScheme',
-      ]) {
-        expect(
-          RegExp('static const String $key =').hasMatch(code),
-          isTrue,
-          reason: 'IN-03: $key 는 public static const 여야 한다',
-        );
-        expect(
-          code.contains('_$key'),
-          isFalse,
-          reason: 'IN-03: private const + getter 2단 구조가 되살아났다',
-        );
-      }
-      // const 문맥에서 사용 가능해야 한다 (getter 였다면 컴파일되지 않는다).
-      const probe = <String>[
-        AppConfig.naverClientId,
-        AppConfig.naverClientSecret,
-        AppConfig.naverUrlScheme,
-      ];
-      expect(probe, hasLength(3));
-    });
-
-    test('IN-03: naverClientSecret doc 의 stale "사용처 0건" 이 제거됐다', () {
-      // bootstrap.dart 가 실제로 clientSecret 인자로 사용 중이다.
-      expect(source, isNot(contains('사용처 0건)')));
-      expect(
-        source.contains('bootstrap.dart'),
-        isTrue,
-        reason: 'IN-03: 실제 사용처를 doc 이 가리켜야 한다',
       );
     });
 
