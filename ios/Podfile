@@ -50,10 +50,15 @@ target 'Runner' do
 end
 
 # pod target 의 deployment target 하한 상향 규칙
-# - podspec 하한(예: flutter_line_sdk 13.0)이 의존 모듈 하한(LineSDKSwift 5.17.0 = 15.0)보다 낮으면
-#   Swift module import 시 "Compiling for iOS X, but module 'Y' has a minimum deployment target" 컴파일 에러가 난다.
-# - flutter_additional_ios_build_settings 는 13 미만일 때만 키를 지우므로 13.0 target 이 그대로 남는다.
-# - 따라서 helper 호출 뒤, 숫자 버전이면서 ios_deployment_target 미만인 값만 올린다.
+# - pod target 의 하한(예: podspec 15.0)이 의존 모듈 하한(LineSDKSwift 5.17.0 = 15.0)이나
+#   Runner 하한보다 낮으면 Swift module import 시 "Compiling for iOS X, but module 'Y' has a
+#   minimum deployment target" 컴파일 에러가 난다.
+# - flutter_additional_ios_build_settings 는 **15 미만**일 때만 키를 지워 Runner 값을
+#   상속시킨다(Flutter 3.47.5 podhelper.rb:49 `inherit_deployment_target = … < 15`,
+#   삭제는 85-91행). Flutter 3.41 까지는 이 기준이 13 이었다.
+# - 즉 15 미만 target 은 helper 가 알아서 Runner 값(ios_deployment_target)을 상속하고,
+#   15 이상이면서 ios_deployment_target 미만인 값(예: 15.0 < 15.6)만 키가 남는다.
+#   아래 루프는 그렇게 남은 값만 올린다.
 # - 하향은 하지 않는다(pod 이 스스로 요구하는 더 높은 하한을 가리지 않기 위해).
 #   키가 없거나 비숫자 값($(inherited) 등)이면 건드리지 않는다.
 post_install do |installer|

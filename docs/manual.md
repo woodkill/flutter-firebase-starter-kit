@@ -43,6 +43,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 16. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
 17. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
 18. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+19. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
 
 ---
 
@@ -3532,6 +3533,173 @@ _facebookAuth.login(
 
 ---
 
+## Flutter SDK 상향 (FVM)
+
+> **2026-09-20 도입.** 근거 = quick `260920-23d`
+> (`.planning/quick/260920-23d-upgrade-flutter-to-3-47-5-with-spm-off/`) 의 실측 —
+> Flutter 3.41.9(Dart 3.11.5) → **3.47.5(Dart 3.13.4)** 상향. 원 todo =
+> `.planning/todos/pending/2026-09-20-flutter-3-47-5-upgrade.md`.
+>
+> 이 절은 **킷 사용자가 자기 프로젝트의 Flutter 를 올릴 때**의 절차 · 도구가
+> 자동으로 고치는 파일 · 함정을 정리합니다.
+
+### ① 버전 pin 의 진실원
+
+| 대상 | 값 | 비고 |
+|---|---|---|
+| `.fvmrc` | `{"flutter": "3.47.5"}` | **유일한 추적 pin.** 여기만 바꾸면 된다 |
+| `.fvm/flutter_sdk` | `~/fvm/versions/<버전>` 심볼릭 링크 | 추적하지 않는다 |
+| `.vscode/settings.json` | `"dart.flutterSdkPath": ".fvm/flutter_sdk"` | **심볼릭 링크 경로로 고정** |
+| `.mcp.json` dart 서버 | `.fvm/flutter_sdk/bin/dart` | 링크를 따라가므로 수정 불필요 |
+
+- `fvm use <버전>` 은 `.vscode/settings.json` 을 `.fvm/versions/<버전>` 같은
+  **버전 박힌 경로**로 바꿔 버린다. 그대로 커밋하면 다음 상향마다 이 파일이
+  또 바뀐다 → **`git checkout -- .vscode/settings.json` 으로 되돌린다.**
+- `fvm use` 뒤 dart MCP 서버 · IDE 의 Analysis Server 는 옛 SDK 프로세스를 물고
+  있을 수 있다 → 세션/IDE 재시작을 권한다.
+
+### ② 상향 절차
+
+1. **같은 HEAD 에서 현재 SDK 기준선을 먼저 잰다** — `pub get` → `build_runner` →
+   `flutter analyze` → `dart analyze` → `dart format --output=none
+   --set-exit-if-changed lib test bin` → **전체 test**. 이 수치가 유일한 비교 기준이다.
+   여기서 이미 실패가 있으면 상향하지 말고 그것부터 해결한다.
+2. (iOS SPM 설정을 바꿀 거면) **SDK 전환 전에** `pubspec.yaml` 을 먼저 고친다(④).
+3. `fvm install <버전> --skip-pub-get` → `fvm use <버전> --skip-pub-get`
+4. `.vscode/settings.json` 복원 · `fvm flutter --version --machine` 으로
+   framework/dart 버전 확인
+5. `fvm flutter pub get` — **`pub upgrade` 는 쓰지 않는다.** 원인 분리가 깨진다
+   (SDK 변화와 패키지 변화가 섞여 실패 원인을 좁힐 수 없게 된다)
+6. `fvm dart run build_runner build --delete-conflicting-outputs`
+7. `fvm flutter analyze` **그리고** `fvm dart analyze` — 둘 다 필요하다.
+   Flutter 3.47.5 의 `flutter analyze` 는 analyzer plugin(riverpod_lint) 진단을
+   **표시하지 않는다**(「정적 분석」 절 참고)
+8. `fvm dart format --output=none --set-exit-if-changed lib test bin`
+9. 전체 `fvm flutter test` — 기준선과 pass/skip/fail 수를 비교
+10. iOS `fvm flutter build ios --no-codesign --flavor dev
+    --dart-define-from-file=config/dev.json` · Android `fvm flutter build apk
+    --debug --flavor dev --dart-define-from-file=config/dev.json`
+11. 실기기 smoke — 기동 · 대표 provider 로그인 · 콜드 재기동 세션 복원
+
+### ③ 도구가 자동으로 고치는 tracked 파일 (되돌리지 말고 함께 커밋)
+
+3.41.9 → 3.47.5 에서 실제로 바뀐 것은 다음 4개다. **손으로 되돌려도 다음
+`pub get` · 빌드에서 다시 생긴다.**
+
+| 파일 | 원인 | 실제 diff |
+|---|---|---|
+| `analysis_options.yaml` | 3.47 `AnalysisOptionsMigration`(`flutter pub get` 이 호출) | `analyzer.exclude` 에 `build/**` · `android/**` · `ios/**` · `web/**` · `windows/**` · `macos/**` · `linux/**` **7줄 append**(+7/-0, 기존 주석 보존). stdout 에 `Upgrading analysis_options.yaml …` |
+| `android/gradle.properties` | 3.47 `DisableBuiltInKotlin` · `DisableNewDsl` migrator(**모든 Android 빌드 직전** 실행) | `android.builtInKotlin=false` · `android.newDsl=false` + 각 설명 주석 **4줄 append** |
+| `ios/Podfile.lock` | `podhelper.rb` 가 만드는 `Flutter.podspec` 의 `ios.deployment_target` 이 13.0 → 15.0 | `SPEC CHECKSUMS` 의 **`Flutter:` 1줄만** 교체. 다른 pod · `COCOAPODS:` 는 불변이어야 한다 |
+| `pubspec.lock` | SDK 가 고정하는 pub 핀 변화 | 직접 의존성은 `test` · `intl` 둘뿐, transitive 5건(`matcher` · `meta` · `test_api` · `test_core` · `vector_math`). codegen 스택은 불변 |
+
+- `lib/l10n/generated/*.dart`(tracked) · `macos/Flutter/GeneratedPluginRegistrant.swift`
+  도 SDK 템플릿이 바뀌면 재생성된다 — 이번에는 **변화 0** 이었다.
+- **`ios/Runner.xcodeproj/project.pbxproj` 가 바뀌면 멈추고 원인을 확인한다.**
+  SPM 이 켜졌다는 신호다(④).
+
+### ④ iOS Swift Package Manager — 이 킷은 명시적으로 끈다
+
+```yaml
+flutter:
+  generate: true
+
+  config:
+    enable-swift-package-manager: false
+```
+
+- Flutter **3.44 부터 SPM 이 기본 on** 이다. 이 한 줄이 없으면 첫 iOS 빌드가
+  `project.pbxproj` 에 SPM 통합을 적용하고 `ios/Flutter/ephemeral/Packages/` 를 만든다.
+- 해석 우선순위는 **pubspec `flutter: config:` → 전역 `flutter config` → 환경변수**
+  다. 즉 pubspec 값이 이긴다. `flutter config --list` 는 전역 설정이라 판정 근거가
+  못 된다 — **실효 증거는 pbxproj 무변경 · `FlutterGeneratedPluginSwiftPackage`
+  참조 0건 · `ios/Flutter/ephemeral/Packages` 부재**다.
+- 옛 키 `disable-swift-package-manager: true` 는 3.47 에서 **manifest 오류**다.
+- **SDK 전환 전에** 이 설정을 넣어야 한다. 전환 후에 넣으면 그 사이의 첫
+  `pub get` · 첫 빌드가 이미 SPM 산출물을 만든 뒤라 되돌리는 일이 섞인다.
+- Flutter 는 「향후 버전에서는 SPM 비활성화를 허용하지 않는다」고 예고했다
+  (시점 미정 `[ASSUMED]` — 2026-09-20 기준 master · beta 에서도 아직 끌 수 있다).
+  킷의 SPM 전환(todo `2026-09-19-cocoapods-to-spm-migration`)이 끝날 때까지 유지한다.
+- SPM off 상태에서 iOS 빌드 로그에 나오는
+  `The following plugins do not support Swift Package Manager for ios: naver_login_sdk`
+  경고는 **정상**이다(비치명).
+
+### ⑤ Android 빌드 도구 하한 — 지금 경계선에 걸쳐 있다
+
+| 항목 | 킷 현재 값 | 3.47.5 오류 하한 | 3.47.5 경고 하한 |
+|---|---|---|---|
+| Gradle | 8.14 | **8.14.0** | 9.1.0 |
+| AGP | 8.11.1 | **8.11.1** | 9.0.1 |
+| KGP | 2.2.20 | **2.2.20** | 2.3.20 |
+
+- 세 값 모두 **오류 하한과 정확히 같다** → 빌드는 통과하되 `Warning: Flutter
+  support for your project's … will soon be dropped` 3건이 찍힌다. **정상이다.**
+- 다음 Flutter 상향에서는 AGP/KGP/Gradle 상향이 강제될 가능성이 높다. SDK 상향과
+  **별도 작업**으로 잡아라(원인 분리).
+
+### ⑥ iOS 환경 요구치
+
+- 최소 deployment target: 3.47 은 **iOS 15.0**(3.41 은 13.0). 킷은 15.6 이라 여유가 있다.
+- Xcode: 필수 ≥ 15, 권장 ≥ 16. 3.47.4 · 3.47.5 에 **Xcode 27 대응 핫픽스**가
+  들어 있다(흰 화면 hang · iOS 27 실기기 디버깅 간헐 크래시) — 3.47.x 를 쓸 거면
+  **3.47.5 이상**을 권한다.
+- 번들 `iproxy` 는 3.47.5 에서도 여전히 **x86_64** 다 → Apple Silicon 에서 실기기
+  실행에 **Rosetta 2 가 필요**하다. macOS major 업그레이드가 Rosetta 를 지울 수
+  있으니 `arch -x86_64 /usr/bin/true` 로 확인한다.
+- 실기기 debug 실행은 **USB 연결이 필수**다(무선은 디버거 미부착 → JIT 불가).
+
+### ⑦ Podfile 은 주석만 고쳐도 Podfile.lock 이 바뀐다
+
+`PODFILE CHECKSUM` 은 **Podfile 파일 내용의 SHA1** 이다(CocoaPods 1.17.0
+`Podfile#checksum`). 주석 한 줄만 고쳐도 값이 달라져 Podfile 과 Podfile.lock 이
+어긋난다 → Podfile 을 고쳤으면 **다음 빌드의 자동 `pod install` 결과
+Podfile.lock 을 같은 커밋에 함께 담는다.**
+
+```bash
+shasum -a 1 ios/Podfile                      # 이 값과
+grep '^PODFILE CHECKSUM' ios/Podfile.lock    # 이 값이 같아야 한다
+```
+
+- **`pod install` / 인자 없는 `pod update` 를 직접 부르지 않는다**(소셜 SDK pod 까지
+  함께 올라간다). Flutter 도구의 자동 `pod install` 에만 맡긴다.
+- `ios/Podfile.lock` 삭제 금지.
+
+### ⑧ golden test — SDK 상향은 렌더를 바꾼다
+
+- 이번 상향에서 **golden 20장(추적 16 + gitignore `_ios` 4)이 실패**했다. 차이는
+  버튼 둥근 모서리 안티에일리어싱뿐(최대 0.03% · 401px)이었고, 같은 HEAD 3.41.9
+  기준선이 green 이었으므로 원인은 엔진 래스터 변화로 특정됐다.
+- 절차: **같은 HEAD 기준선이 green 인지 먼저 확인** → 실패 golden 의
+  `failures/*_isolatedDiff.png` · `*_maskedDiff.png` 를 **눈으로 확인** → 그 뒤에만
+  실패한 test 파일만 대상으로 `--update-goldens` → 전체 test 재실행 → 별도 `test:` 커밋.
+- 일괄 `--update-goldens` 는 하지 않는다(진짜 회귀를 덮어쓴다).
+- iOS 변형 `*_ios.png` 는 Apple Font License 때문에 **gitignore** 라 로컬에서만
+  재생성된다 — git 으로 복원할 수 없으니 재생성 전 디렉터리 백업을 권한다.
+
+### ⑨ `environment: sdk` 하한은 별개 작업이다
+
+`pubspec.yaml` 의 `environment: sdk: ^3.11.1` 은 이번에 **올리지 않았다.**
+Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · 호출 체인 split ·
+파라미터 block formatting)는 **language version 3.13 이상에서만** 켜지기 때문에,
+하한을 올리면 대량 재포맷과 언어 규칙 변화가 한꺼번에 들어온다. SDK 상향과
+**분리해서** 별도 작업으로 다뤄라.
+
+> 단, **language version 과 무관한** 포매터 수정은 하한을 안 올려도 적용된다.
+> 이번에도 3.13 의 eager-split 수정 때문에 test 6파일 144줄이 재포맷됐다
+> (`style:` 별도 커밋으로 분리). `dart format --set-exit-if-changed` 를
+> analyze · test 와 동급 게이트로 두면(`.claude/rules/dart-format.md`) 이런 drift 가
+> 누적되지 않는다.
+
+### ⑩ 이번 3.47.5 상향의 실제 결과 (한 줄 요약)
+
+`pub get` · `build_runner` · `flutter analyze` · `dart analyze` · iOS(`--no-codesign`,
+210s) · Android(dev debug APK, 88s) 전부 통과했고, 전체 test 는 golden 20장을
+사용자 승인 후 재생성한 뒤 기준선과 동일한 **`+1632 ~2` fail 0** 이었다.
+추가 조치가 필요했던 것은 **golden 20장 재생성**과 **test 6파일 포맷 drift** 둘뿐이며,
+AGP/KGP/Gradle 경고 3건과 `naver_login_sdk` SPM 미지원 경고 1건은 예상된 정상 출력이다.
+
+---
+
 ## 변경 이력
 
 | 일자 | Phase | 변경 |
@@ -3568,4 +3736,8 @@ _facebookAuth.login(
 ---
 | 2026-09-20 | quick 260920-b28 | 「정적 분석 — woody_lints · riverpod_lint」의 '현재 억제 3건' 표를 '현재 lib 억제 0건' 으로 교체 — 3건 모두 구조로 해소(약관 두 값은 `TermsState` 불변 state + 파생 순수 함수, 인증 변화는 `AuthRefresh` 불변 state + `appRouter` 가 소유하는 `RouterRefreshListenable`). adopter 가 새 Notifier · provider 를 만들 때 따라야 할 규칙 2줄 추가. 후속 todo 참조 제거. |
 
-*Last updated: 2026-09-20 — quick 260920-b28 riverpod_lint lib 억제 3건 구조 해소(억제 0건)*
+| 2026-09-20 | quick 260920-23d | 「Flutter SDK 상향 (FVM)」 단락 신규 — Flutter 3.41.9(Dart 3.11.5) → 3.47.5(Dart 3.13.4) 상향 실측을 킷 사용자 관점 절차로 문서화. 10항목: ① 버전 pin 진실원 표(`.fvmrc` 하나 · `fvm use` 가 바꾼 `.vscode/settings.json` 복원 · MCP/Analysis Server 재시작) ② 상향 절차 11단계(같은 HEAD 기준선 선측정 · `pub upgrade` 금지 · **analyze 2종** — 3.47.5 의 `flutter analyze` 는 plugin 진단 미표시) ③ 도구가 자동으로 고치는 tracked 파일 4종 표(`analysis_options.yaml` exclude 7줄 · `android/gradle.properties` migrator flag 4줄 · `ios/Podfile.lock` `Flutter:` checksum 1줄 · `pubspec.lock`) ④ SPM 명시적 off(`flutter: config: enable-swift-package-manager: false`, 3.44+ 기본 on · pubspec 이 전역보다 우선 · 옛 키는 manifest 오류 · **SDK 전환 전 선편집** · 실효 증거 3종 · 향후 금지 예고) ⑤ Android AGP 8.11.1 · KGP 2.2.20 · Gradle 8.14 가 오류 하한과 동일(경고 3건 정상) ⑥ iOS 요구치(deployment 15.0 · Xcode 27 핫픽스가 3.47.4/3.47.5 · `iproxy` x86_64 → Rosetta · 실기기 USB 필수) ⑦ `PODFILE CHECKSUM` = Podfile 내용 SHA1 이라 주석만 고쳐도 lock 동반 커밋 필요(`pod` 직접 호출 금지) ⑧ golden 은 기준선 green 확인 → 시각 확인 → 실패 파일만 `--update-goldens`(`_ios` 는 gitignore) ⑨ `environment: sdk` 하한 상향은 별개 작업(language-versioned 포맷 변경 대량 유입) ⑩ 이번 상향 결과 한 줄. 목차 19 항목으로 확장. |
+
+---
+
+*Last updated: 2026-09-20 — quick 260920-23d Flutter 3.47.5 상향 + iOS SPM 명시적 off, 「Flutter SDK 상향 (FVM)」 절 신규*

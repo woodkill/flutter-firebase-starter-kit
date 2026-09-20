@@ -5,7 +5,11 @@ paths:
 
 # Dart Format 규율
 
-`.fvmrc` 가 고정한 Dart 3.11.5 tall style 포매터가 진실원이다. 아래 3개 규칙은
+`.fvmrc` 가 고정한 Dart 3.13.4 tall style 포매터가 진실원이다. 포매터의 스타일
+규칙 중 일부는 `pubspec.yaml` 의 `environment: sdk` 하한(현재 `^3.11.1`)이 정하는
+language version 에 따라 켜지므로, SDK 를 올려도 그 하한을 올리기 전까지는
+language-versioned 변경이 적용되지 않는다(하한과 무관한 수정은 즉시 적용된다).
+아래 3개 규칙은
 포맷 drift 가 대량 누적되는 것을 막기 위한 것이며, 각 규칙 뒤의 *왜* 는 그 규칙이
 없어서 실제로 벌어진 일을 가리킨다.
 
