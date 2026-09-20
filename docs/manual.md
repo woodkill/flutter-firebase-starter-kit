@@ -94,10 +94,10 @@ cp config/prod.example.json  config/prod.json
 | `facebookAppId` | Facebook Developers Console > 내 앱 > 설정 > 기본 | 숫자 문자열 |
 | `facebookClientToken` | Facebook Developers Console > 내 앱 > 설정 > 고급 > Client Token | |
 | `kakaoNativeAppKey` | Kakao Developers Console > 내 애플리케이션 > 앱 설정 > 앱 키 > **네이티브 앱 키** | REST API 키 아님 (1번 단락 — Kakao Login 1단계 #6 OIDC 활성화 함께 참조) |
-| `naverClientId` | Naver Developers Console > 본인 앱 > 개요 > **Client ID** | Phase 13 신규 (`## 2. Naver Login` 단락 참조) |
-| `naverClientSecret` | Naver Developers Console > 본인 앱 > 개요 > **Client Secret** | Phase 13 D-60 — 현재 사용처 0건이지만 SDK init 의무 + Phase 17+ 확장 대비 |
-| `naverUrlScheme` | Naver Developers Console > API 설정 > iOS 환경 > **URL Scheme** | iOS 빌드는 추가로 `ios/Flutter/dev.xcconfig` 의 `NAVER_URL_SCHEME` 도 동일 값 주입 필요 |
-| `appName` | (선택) 앱 표시 이름 — `StarterKit Dev` 기본값 | flavor 별 구분 |
+| `naverClientId` | Naver Developers Console > 본인 앱 > 개요 > **Client ID** | Android 는 gradle 이 dart-defines 에서 읽어 string resource 로 주입 (Phase 16.2). iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_ID` 에 같은 값을 따로 넣는다. Dart 코드는 이 키를 읽지 않는다 |
+| `naverClientSecret` | Naver Developers Console > 본인 앱 > 개요 > **Client Secret** | Android 는 gradle 이 dart-defines 에서 읽어 string resource 로 주입 (Phase 16.2). iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_SECRET` 에 같은 값을 따로 넣는다. Dart 코드는 이 키를 읽지 않는다 |
+| `naverUrlScheme` | Naver Developers Console > API 설정 > iOS 환경 > **URL Scheme** | iOS 전용 값의 기록처 — 실제 출처는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_URL_SCHEME` 이고, Android 는 이 값을 쓰지 않는다 |
+| `appName` | (선택) 앱 표시 이름 — `StarterKit Dev` 기본값 | flavor 별 구분. Android 에서 Naver 동의 화면 앱 이름으로도 쓰인다 (Phase 16.2). 따옴표 등 특수문자가 든 값의 Android 빌드 영향은 `[ASSUMED]` 미검증이라 영숫자 · 공백만 쓰기를 권장한다 |
 | `appSuffix` | (선택) ApplicationId / BundleId suffix — `.dev` 기본값 | `flutter_native_splash` / Firebase 프로젝트 분리 |
 | `splashMinDurationMs` | (선택) 스플래시 최소 노출 시간 — `2000` 기본값 | UX 조정용 |
 | `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao,naver` 기본값 | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 (Phase 13 에서 `,naver` 추가) |
@@ -106,7 +106,7 @@ cp config/prod.example.json  config/prod.json
 > Phase 별 단락 (Phase 12 = Kakao, Phase 13 = Naver, Phase 14 = LINE,
 > Phase 15 = Yahoo!JP) 을 참조.
 
-#### 3단계 — iOS xcconfig 별도 주입 (Kakao 만)
+#### 3단계 — iOS xcconfig 별도 주입 (Kakao · Naver · Facebook 등)
 
 iOS 빌드는 `ios/Flutter/{flavor}.xcconfig` 파일을 통해 빌드 타임 변수
 (Bundle Identifier, Display Name, REVERSED_CLIENT_ID, Facebook 키, Kakao
@@ -128,6 +128,11 @@ cp ios/Flutter/prod.example.xcconfig  ios/Flutter/prod.xcconfig
 - `NAVER_URL_SCHEME` — Naver Developers Console > API 설정 > iOS 환경의 **URL Scheme**
   (Phase 13 신규, `## 2. Naver Login` 단계 참조). `config/dev.json` 의 `naverUrlScheme`
   과 동일 값.
+- `NAVER_CLIENT_ID` — Naver Developers Console > 내 애플리케이션 > 본인 앱 > 개요 의
+  **Client ID** (Phase 16.2 신규). `config/dev.json` 의 `naverClientId` 와 동일 값.
+- `NAVER_CLIENT_SECRET` — Naver Developers Console > 내 애플리케이션 > 본인 앱 > 개요 의
+  **Client Secret** (Phase 16.2 신규). `config/dev.json` 의 `naverClientSecret` 와
+  동일 값.
 - `REVERSED_CLIENT_ID` — `ios/Runner/GoogleService-Info.plist` 의 `REVERSED_CLIENT_ID`
   값 (Phase 7 — Google Login. `flutterfire configure` 가 생성)
 - `FACEBOOK_APP_ID` — Facebook Developers Console > 내 앱 > 설정 > 기본 (숫자 문자열)
@@ -543,9 +548,21 @@ Phase 12 의 Kakao (OIDC ID Token JWT 검증) 와 같은 인프라 위에 검증
 추출 → Identity Index 등록 → `admin.auth().createCustomToken(uid)` 발급, 클라이언트가
 `signInWithCustomToken` 으로 세션을 시작합니다.
 
-`naver_login_sdk` (publisher: lagerstroemia.net, v3.2.1) 가 Naver 앱 설치
-단말에서는 1-tap (앱 → 동의 → callback), 미설치 단말에서는 자체 웹뷰 fallback 으로
-자동 분기합니다.
+클라이언트 SDK 는 `naver_login_flutter` **4.0.0** 입니다 (Phase 16.2 교체).
+unverified publisher 패키지이므로 `pubspec.yaml` 에 **정확 버전으로 고정**되어 있고
+(caret 금지), 상향할 때는
+`.planning/phases/16.2-naver-login-plugin-migration/16.2-PLUGIN-AUDIT.md` 의 기준선과
+diff 검토를 먼저 돌립니다. 이 패키지가 감싸는 네이티브 SDK 는 iOS
+`NidThirdPartyLogin` 5.2.x · Android `com.navercorp.nid:oauth` 5.11.2 두 종입니다.
+
+이 플러그인은 **runtime `initialize()` 가 없습니다.** Client ID · Client Secret ·
+동의 화면 앱 이름을 앱 기동 시점의 Dart 코드가 아니라 **빌드 타임 native 설정**
+(Android `AndroidManifest.xml` 의 `com.naver.sdk.*` meta-data / iOS `Info.plist` 의
+`Nid*` 키) 에서 읽습니다. 그래서 키를 채우는 곳이 아래 6단계(Android) 와
+7단계(iOS) **두 곳**으로 나뉩니다.
+
+Naver 앱이 설치된 단말에서는 1-tap (앱 → 동의 → callback), 미설치 단말에서는
+네이티브 SDK 가 커스텀탭 · 웹 인증 세션으로 자동 fallback 합니다.
 
 ### 1단계 — Naver Developers Center 가입 + 앱 등록
 
@@ -561,7 +578,14 @@ Phase 12 의 Kakao (OIDC ID Token JWT 검증) 와 같은 인프라 위에 검증
    - `Client ID`
    - `Client Secret`
 2. 양 키 메모 (다음 단계에서 사용 — `config/dev.json` 의 `naverClientId` /
-   `naverClientSecret` 에 주입).
+   `naverClientSecret` + `ios/Flutter/dev.xcconfig` 의 `NAVER_CLIENT_ID` /
+   `NAVER_CLIENT_SECRET` 에 주입).
+
+> **fork 사용자 주의 (Phase 16.2 이관):** 클라이언트 시크릿은 앱 바이너리에서
+> 추출 가능합니다 (Naver SDK 가 client 측 설정 값으로 요구하는 설계상 불가피).
+> Android 는 네이티브 SDK 가 이 값을 기기 저장소에도 암호화 사본으로 보관합니다.
+> 이 값은 **서버 시크릿이 아니며**, 반드시 **자신의 키를 발급받아** 사용할 것 —
+> 스타터킷의 dev 키를 그대로 배포하지 말 것.
 
 ### 3단계 — Naver Login Open API Service Environment 추가
 
@@ -634,20 +658,43 @@ Name + Key Hash 도 정확히 일치 필요.
 }
 ```
 
+이 키들은 **Dart 가 읽지 않습니다** — `android/app/build.gradle.kts` 가
+dart-defines 에서 `naverClientId` · `naverClientSecret` · `appName` 을 읽어
+`resValue("string", …)` 로 주입하고, `AndroidManifest.xml` 의 `com.naver.sdk.*`
+meta-data 가 그 string resource 를 참조합니다. 즉 위 JSON 은 **Android 빌드의
+입력**입니다. iOS 는 이 경로를 전혀 타지 않으며 **7단계의 xcconfig 가 실제
+출처**입니다 (`naverUrlScheme` 도 마찬가지로 콘솔 발급 값의 기록처일 뿐입니다).
+
 > **stg / prod 는?** dev 와 동일한 절차로 사용자 자체 Naver 앱을 별도 등록 +
 > 키 주입. starter kit 의 stg/prod config 는 placeholder 만 포함합니다 (D-22).
 
-### 7단계 — iOS xcconfig 갱신
+### 7단계 — iOS xcconfig 갱신 (Naver 3변수)
 
-iOS 빌드는 `ios/Flutter/dev.xcconfig` 의 `NAVER_URL_SCHEME` 을 빌드 타임 변수로
-주입합니다 (`ios/Flutter/dev.example.xcconfig` 의 placeholder 를 본인 값으로 교체):
+iOS 는 플러그인이 `register(with:)` 시점 (= Dart 가 뜨기 전) 에 `Info.plist` 를
+직접 읽기 때문에 값이 **빌드 설정(xcconfig)** 에서 와야 합니다.
+`ios/Flutter/dev.xcconfig` 에 다음 **3변수**를 넣습니다
+(`ios/Flutter/dev.example.xcconfig` 의 placeholder 를 본인 값으로 교체):
 
 ```
+NAVER_CLIENT_ID = <Naver Console 개요 탭의 Client ID>
+NAVER_CLIENT_SECRET = <Naver Console 개요 탭의 Client Secret>
 NAVER_URL_SCHEME = <Naver Console 에서 입력한 iOS URL Scheme>
 ```
 
-(따옴표 없이 = 뒤에 값만. `config/dev.json` 의 `naverUrlScheme` 와 정확히 동일
-값 사용.)
+(따옴표 없이 `=` 뒤에 값만. `ios/Runner/Info.plist` 의 `NidClientID` ·
+`NidClientSecret` · `NidUrlScheme` 이 이 변수들을 `$(…)` 로 치환합니다.)
+
+- **config json 과 값이 중복되는 것은 의도된 것입니다** — Kakao · Facebook 과 같은
+  방식입니다. 6단계의 `config/{flavor}.json` 은 Android 입력, 7단계의 xcconfig 는
+  iOS 출처이며, 두 값이 어긋나면 Android 와 iOS 가 서로 다른 앱으로 로그인합니다.
+- **동의 화면에 뜨는 앱 이름은 `DISPLAY_NAME` 을 따릅니다** — `Info.plist` 의
+  `NidAppName` 이 `$(DISPLAY_NAME)` 이므로 같은 xcconfig 의 `DISPLAY_NAME` 한 곳만
+  바꾸면 앱 표시명과 동의 화면 이름이 함께 바뀝니다. Naver 전용 앱 이름 변수는
+  만들지 않았습니다 (Android 은 `config/{flavor}.json` 의 `appName` 이 그 역할).
+- **플러그인의 `dart run naver_login_flutter:configure` CLI 는 쓰지 않습니다** —
+  flavor 개념이 없어 `Debug` / `Release` 2개 xcconfig 만 인식하고, 무엇보다 tracked
+  `ios/Runner/Info.plist` 에 Client ID 를 평문으로 기록하고 `android/local.properties`
+  에 secret 을 씁니다. 실행하면 시크릿이 git 에 들어가고 계약 테스트가 즉시 실패합니다.
 
 ### 8단계 — Firebase Secret Manager 등록 (Phase 13 D-60)
 
@@ -719,13 +766,61 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android
 - iOS UAT 는 보류 — `.planning/todos/pending/2026-05-XX-ios-naver-uat-deferred.md`
   추적 (Phase 13 Decision #8 — iOS 단말 부재)
 
-자세한 8 시나리오 검증 양식: `.planning/phases/13-naver-login/13-HUMAN-UAT.md`.
+자세한 8 시나리오 검증 양식 (Phase 13 이력): `.planning/phases/13-naver-login/13-HUMAN-UAT.md`.
+플러그인 교체 후의 시나리오와 기대값은
+`.planning/phases/16.2-naver-login-plugin-migration/16.2-HUMAN-UAT.md` 입니다.
 
-### Pitfall 정리 (Phase 13 RESEARCH §Pitfalls)
+### 키를 채우기 전에도 빌드 · 기동은 된다
 
-- **Pitfall 1 (Completer 다중 complete):** `naver_login_sdk` 가 callback 기반 →
-  코드 측 `if (!completer.isCompleted)` 가드 필수. Plan 13-03 에서 정착, 사용자
-  변경 의무 0건.
+fresh clone 직후처럼 실제 키가 하나도 없고 tracked placeholder 만 있는 상태에서도
+**dev / stg / prod 3 flavor 의 Android · iOS 빌드와 앱 기동은 성공**합니다. 새
+플러그인은 native 설정을 읽지만 값이 비어 있다고 기동 시점에 죽지 않습니다 —
+실패는 **Naver 버튼을 탭했을 때 오류 배너 1회**로만 나타나고, 다른 provider 버튼과
+화면은 정상입니다.
+
+이 계약을 직접 확인하려면:
+
+```bash
+bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
+```
+
+성공 시 마지막 줄이 `PLACEHOLDER-BUILD-OK <platform> <flavor>` 입니다. 이 스크립트는
+**본인의 실 키 파일(`config/{flavor}.json` · `ios/Flutter/{flavor}.xcconfig`) 을 읽지도
+바꾸지도 않습니다** — tracked placeholder 만 입력으로 씁니다.
+
+### 클라이언트에서의 프로필 조회와 개인정보 (Phase 16.2)
+
+플러그인은 로그인이 성공하면 **클라이언트에서 곧바로**
+`https://openapi.naver.com/v1/nid/me` 를 호출해 그 결과를 `account` 로 실어 보냅니다
+(iOS · Android 양쪽 동일). `logIn()` 에는 인자가 없어 **이 호출을 끌 수 있는 옵션이
+없습니다.**
+
+- 킷은 결과에서 `accessToken` 만 꺼내고 **나머지(`account`) 는 곧바로 버립니다** —
+  필드를 참조하는 코드가 0건이고, 결과 · 토큰 객체를 문자열 보간에 넣지 않습니다
+  (토큰 클래스의 `toString` 이 access · refresh token 전문을 출력합니다).
+- 실제로 내려오는 필드는 5단계의 **동의 항목 설정**에 갇힙니다. 킷이 안내하는 기본
+  설정 (필수 `email` · `nickname`, 선택 `profile_image`, 그 외 비활성) 에서는
+  **mobile · birthday · gender 가 애초에 내려오지 않습니다.**
+- 사용자 프로필의 진실원은 여전히 서버입니다 — Cloud Function `naverCustomToken` 이
+  access_token 으로 직접 검증한 값만 씁니다.
+
+### 구 SDK 가 남긴 토큰 (Phase 16.2)
+
+- **Android:** 새 SDK 가 구 SDK 와 같은 저장소를 그대로 쓰고, 레거시
+  SharedPreferences 는 SDK 가 자동 이관한 뒤 삭제합니다 — 잔존분이 승계 · 정리됩니다.
+- **iOS:** 새 Swift SDK 는 Keychain service name 이 달라서 구 ObjC SDK 가 남긴 항목을
+  읽지도 지우지도 않습니다. 따라서 구 항목이 남아 있을 수 있습니다 (구 SDK 의 정확한
+  저장 위치는 `[ASSUMED]` — 확인은 본 phase 범위 밖). 앱을 삭제하면 함께 사라지는
+  종류의 항목입니다.
+- **킷은 일회성 정리 코드를 넣지 않았습니다.** 킷은 이미 배포된 사용자 기기가 없는
+  템플릿이고, 정상 경로에서는 매 로그인 finally 에서 기기 토큰을 지우기 때문입니다.
+
+### Pitfall 정리 (Phase 13 · Phase 16.2)
+
+- **Pitfall 1 (구조 소멸):** 구 플러그인이 callback 기반이라 필요했던
+  `Completer` 다중 complete 가드는 **Phase 16.2 에서 구조 자체가 사라졌습니다** —
+  이제 플러그인이 돌려주는 Future 를 그대로 await 합니다. 앱 쪽 타이머가 없으므로
+  「늦게 끝난 성공을 버리는」 주체도 없습니다.
 - **Pitfall 2 (race-fix logout 위치):** D-57 — `signInWithNaver` finally 블록의
   `_naverSdkClient.logout()` 호출은 `_socialLinkInProgress.end()` 직전 위치.
   Plan 13-03 정착, verifyInOrder 정적 가드 보유.
@@ -737,6 +832,40 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android
 - **Pitfall 10 (Android FlutterFragmentActivity):** Naver SDK 5.4.0+ Fragment
   기반 BottomSheet 호환 — `MainActivity.kt` 가 `FlutterFragmentActivity` 상속
   필수. Plan 13-01 정착.
+- **Pitfall 11 (iOS 취소는 `error` 로 온다):** Android 취소는 status `loggedOut`
+  으로 오지만 **iOS 취소는 status `error` + 플러그인이 붙인 고정 영문 리터럴**로
+  옵니다. `error` 를 곧장 오류 배너로 보내면 사용자의 취소가 배너로 보입니다.
+  킷은 취소 판정을 오류 분기보다 **먼저** 보고, 리터럴을 `contains` 가 아니라
+  **완전 일치**로 비교합니다 (넓히면 `-999 cancelled` 같은 네트워크 오류까지
+  silent 로 흡수됩니다).
+- **Pitfall 12 (iOS 1-tap 미복귀 wedge) — 미해결 · 미검증:** iOS 에서 NAVER 앱으로
+  넘어간 뒤 사용자가 돌아오지 않으면, 플러그인의 대기 슬롯이 점유된 채 남아 이후
+  모든 호출이 `Another request is in progress` 로 거부됩니다.
+  - 증상: 로딩 오버레이가 사라지지 않고, 그 뒤로 Naver 로그인이 되지 않습니다.
+  - 복구: **앱 재시작.** 플러그인에 이 상태를 되돌릴 API 가 없습니다.
+  - 킷의 in-flight 가드는 **요청 폭주만 막는 부분 완화**입니다 — 이미 잠긴 상태를
+    풀지 못합니다.
+  - 테스트 SIM 이 없는 단말이라 **미검증**으로 남습니다 (재현 자체가 불가).
+- **Pitfall 13 (토큰 객체 문자열 보간):** 플러그인의 토큰 클래스는 `toString` 이
+  access token 과 refresh token **전문**을 출력합니다. 토큰 객체를 로그 ·
+  Crashlytics 에 넣지 말고 필요한 필드 하나만 꺼내 쓰십시오.
+- **Pitfall 14 (프로필 API 실패 = 로그인 실패):** 토큰을 이미 받았어도 클라이언트
+  프로필 조회가 실패하면 로그인 전체가 실패합니다 — 구 플러그인보다 실패 지점이
+  하나 늘었습니다. 보안 위험은 없습니다 (finally 의 logout 이 토큰을 지웁니다).
+- **Pitfall 15 (iOS `Info.plist` 키 부재):** `Nid*` 4키 중 하나라도 **키 자체가
+  없으면** 플러그인 채널이 등록되지 않아 `MissingPluginException` 이 납니다. 킷은
+  변수 치환 방식이라 값이 비어도 키는 항상 존재합니다.
+- **Pitfall 16 (Android meta-data 는 `@string` 참조):** meta-data 값을 리터럴로
+  직접 쓰면 숫자로만 이뤄진 값이 정수로 컴파일돼 SDK 가 조용히 초기화를 건너뛸
+  위험이 있습니다 (`[ASSUMED]`). 킷은 `resValue` + `@string/…` 참조로 이 위험을
+  구조적으로 제거했습니다 — 이 구조를 바꾸지 마십시오.
+- **Pitfall 17 (NAVER 앱 미설치 · 업데이트 필요):** 새 구조에서는 이 두 경우가
+  **종단 오류**로 올라옵니다 (구 wrapper 처럼 후속 콜백을 기다리는 대기 분기가
+  없습니다). 구 무시 분기를 그대로 옮기면 Future 가 영원히 완료되지 않습니다.
+- **Pitfall 18 (네이티브 디버그 로깅):** 플러그인의 네이티브 로깅은 manifest 설정
+  으로 **전 flavor off** 입니다. 켜면 logcat 에 client ID 평문과 마스킹된 secret 이
+  찍힙니다 — 디버깅 목적으로 잠시 켰다면 반드시 되돌리고, 그 로그를 공유하지
+  마십시오.
 
 ---
 
@@ -1755,6 +1884,10 @@ Cloud Function `naverCustomToken` 이 Naver access_token 으로 호출하는
 2. **iOS URL Scheme prod 분리** — production 빌드용 iOS URL Scheme 등록
    (예: `flutterStarterKitProd`). `config/prod.json` 의 `naverUrlScheme` +
    `ios/Flutter/prod.xcconfig` 의 `NAVER_URL_SCHEME` 양쪽 prod 값 일치.
+   Phase 16.2 부터는 같은 `ios/Flutter/prod.xcconfig` 의 `NAVER_CLIENT_ID` ·
+   `NAVER_CLIENT_SECRET` 도 prod 앱의 값으로 함께 맞춰야 합니다 (iOS 는 이
+   xcconfig 가 실제 출처이므로 `config/prod.json` 만 고치면 iOS 빌드는 여전히
+   옛 값으로 로그인합니다).
 3. **Android Key Hash release 변경** — production 빌드용 keystore
    (`<your-keystore.jks>`) 의 release SHA-1 + base64 키 해시를 stg / prod
    각 앱의 Android 플랫폼에 등록. dev debug 키 해시와 다름.
@@ -3620,9 +3753,13 @@ flutter:
 - Flutter 는 「향후 버전에서는 SPM 비활성화를 허용하지 않는다」고 예고했다
   (시점 미정 `[ASSUMED]` — 2026-09-20 기준 master · beta 에서도 아직 끌 수 있다).
   킷의 SPM 전환(todo `2026-09-19-cocoapods-to-spm-migration`)이 끝날 때까지 유지한다.
-- SPM off 상태에서 iOS 빌드 로그에 나오는
-  `The following plugins do not support Swift Package Manager for ios: naver_login_sdk`
-  경고는 **정상**이다(비치명).
+- SPM off 상태에서 iOS 빌드 로그에 나오던
+  `The following plugins do not support Swift Package Manager for ios: <플러그인 이름>`
+  경고는 **Phase 16.2 에서 Naver 플러그인을 교체한 뒤 더 이상 나오지 않는다** —
+  native 코드를 가진 iOS 플러그인 19개 전부가 Swift Package manifest 를 가진다
+  (전수 실측 `SPM-MISSING` 0건 + iOS 3 flavor 빌드 로그 경고 0건. 근거는
+  `.planning/phases/16.2-naver-login-plugin-migration/16.2-PLUGIN-AUDIT.md` 의
+  A8 절). 경고가 다시 보이면 SPM 미지원 플러그인이 새로 들어온 것이다.
 
 ### ⑤ Android 빌드 도구 하한 — 지금 경계선에 걸쳐 있다
 
@@ -3696,7 +3833,8 @@ Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · �
 210s) · Android(dev debug APK, 88s) 전부 통과했고, 전체 test 는 golden 20장을
 사용자 승인 후 재생성한 뒤 기준선과 동일한 **`+1632 ~2` fail 0** 이었다.
 추가 조치가 필요했던 것은 **golden 20장 재생성**과 **test 6파일 포맷 drift** 둘뿐이며,
-AGP/KGP/Gradle 경고 3건과 `naver_login_sdk` SPM 미지원 경고 1건은 예상된 정상 출력이다.
+AGP/KGP/Gradle 경고 3건과 `naver_login_sdk` SPM 미지원 경고 1건은 예상된 정상 출력이다
+(이 경고는 Phase 16.2 이후 사라졌다).
 
 ---
 
@@ -3738,6 +3876,8 @@ AGP/KGP/Gradle 경고 3건과 `naver_login_sdk` SPM 미지원 경고 1건은 예
 
 | 2026-09-20 | quick 260920-23d | 「Flutter SDK 상향 (FVM)」 단락 신규 — Flutter 3.41.9(Dart 3.11.5) → 3.47.5(Dart 3.13.4) 상향 실측을 킷 사용자 관점 절차로 문서화. 10항목: ① 버전 pin 진실원 표(`.fvmrc` 하나 · `fvm use` 가 바꾼 `.vscode/settings.json` 복원 · MCP/Analysis Server 재시작) ② 상향 절차 11단계(같은 HEAD 기준선 선측정 · `pub upgrade` 금지 · **analyze 2종** — 3.47.5 의 `flutter analyze` 는 plugin 진단 미표시) ③ 도구가 자동으로 고치는 tracked 파일 4종 표(`analysis_options.yaml` exclude 7줄 · `android/gradle.properties` migrator flag 4줄 · `ios/Podfile.lock` `Flutter:` checksum 1줄 · `pubspec.lock`) ④ SPM 명시적 off(`flutter: config: enable-swift-package-manager: false`, 3.44+ 기본 on · pubspec 이 전역보다 우선 · 옛 키는 manifest 오류 · **SDK 전환 전 선편집** · 실효 증거 3종 · 향후 금지 예고) ⑤ Android AGP 8.11.1 · KGP 2.2.20 · Gradle 8.14 가 오류 하한과 동일(경고 3건 정상) ⑥ iOS 요구치(deployment 15.0 · Xcode 27 핫픽스가 3.47.4/3.47.5 · `iproxy` x86_64 → Rosetta · 실기기 USB 필수) ⑦ `PODFILE CHECKSUM` = Podfile 내용 SHA1 이라 주석만 고쳐도 lock 동반 커밋 필요(`pod` 직접 호출 금지) ⑧ golden 은 기준선 green 확인 → 시각 확인 → 실패 파일만 `--update-goldens`(`_ios` 는 gitignore) ⑨ `environment: sdk` 하한 상향은 별개 작업(language-versioned 포맷 변경 대량 유입) ⑩ 이번 상향 결과 한 줄. 목차 19 항목으로 확장. |
 
+| 2026-09-20 | 16.2-05 | Naver Login 절을 플러그인 교체(naver_login_flutter 4.0.0 · 정확 버전 고정) 기준으로 갱신 — 키를 채우는 곳이 runtime 초기화에서 native 두 곳(Android 는 config json → gradle string resource, iOS 는 xcconfig 3변수 → Info.plist 변수 치환)으로 바뀐 절차, Client Secret 추출 가능 경고를 2단계로 이관, placeholder 상태에서도 3 flavor 빌드 · 기동이 된다는 계약과 확인 스크립트, 클라이언트 프로필 조회와 개인정보 범위, 구 SDK 잔존 토큰 사실 기록, Pitfall 을 Phase 13 · 16.2 통합 18항으로 개정(iOS 취소 표면 · 1-tap 미복귀 wedge 미검증 · 토큰 보간 · 프로필 실패 · plist 키 부재 · meta-data 참조 · 미설치 종단 오류 · 네이티브 로깅). Initial Setup 키 표의 naver 3행 + appName 행 비고 갱신, iOS xcconfig 변수 목록에 NAVER_CLIENT_ID · NAVER_CLIENT_SECRET 추가, stg/prod 등록 절차에 prod xcconfig 2변수 추가, SPM 미지원 경고 서술을 교체 후 실측(경고 0건)으로 정정. |
+
 ---
 
-*Last updated: 2026-09-20 — quick 260920-23d Flutter 3.47.5 상향 + iOS SPM 명시적 off, 「Flutter SDK 상향 (FVM)」 절 신규*
+*Last updated: 2026-09-20 — 16.2-05 Naver 플러그인 교체 반영 (native 2곳 키 주입 절차 + Pitfall 개정 + 개인정보 · 구 토큰 사실 기록)*
