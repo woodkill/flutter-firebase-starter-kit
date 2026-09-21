@@ -52,7 +52,7 @@ String readTracked(String path) {
 
 void main() {
   group('Naver 시크릿 주입 배선 계약 (Phase 16.2)', () {
-    test('T-16.2-NATIVE-01 pubspec pin — 정확 고정 + SPM 비활성', () {
+    test('T-16.2-NATIVE-01 pubspec pin — 정확 고정 + SPM 키 부재 (16.3 D-01)', () {
       final pubspec = stripHashComments(readTracked('pubspec.yaml'));
 
       expect(
@@ -77,12 +77,12 @@ void main() {
             'pubspec.yaml 에 잔존하면 두 SDK 가 동시에 링크된다.',
       );
       expect(
-        countOccurrences(pubspec, 'enable-swift-package-manager: false'),
-        1,
+        countOccurrences(pubspec, 'enable-swift-package-manager'),
+        0,
         reason:
-            'C-05: 본 phase 는 CocoaPods 모드 교체다. SPM 활성화는 별건 todo '
-            '(2026-09-19-cocoapods-to-spm-migration) 이므로 pubspec.yaml 의 '
-            'enable-swift-package-manager 를 건드리지 말 것.',
+            'Phase 16.3 D-01: SPM 은 Flutter 3.44+ 의 기본값(on)에 맡긴다. '
+            'pubspec.yaml 에 이 키가 있으면(true 든 false 든) flutter create 표준 모양과 어긋나고, '
+            'false 면 CocoaPods fallback 으로 되돌아가 ios/Podfile 이 재생성된다.',
       );
     });
 

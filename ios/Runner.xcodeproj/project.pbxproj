@@ -13,6 +13,7 @@
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
+		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
@@ -68,6 +69,7 @@
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 		7A2A8BAB4F6C18AB2D5363AC /* Profile-prod.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = "Profile-prod.xcconfig"; path = "Flutter/Profile-prod.xcconfig"; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		8F1C26AE49CD03E61E70F104 /* Pods-RunnerTests.debug-prod.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug-prod.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug-prod.xcconfig"; sourceTree = "<group>"; };
@@ -104,6 +106,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
 				EE262F238BFBBD08037671E4 /* Pods_Runner.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -130,6 +133,7 @@
 		9740EEB11CF90186004384FC /* Flutter */ = {
 			isa = PBXGroup;
 			children = (
+				78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */,
 				3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */,
 				9740EEB21CF90195004384FC /* Debug.xcconfig */,
 				7AFA3C8E1D35360C0083082E /* Release.xcconfig */,
@@ -261,8 +265,6 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				FFD3B74087316267830C1B47 /* Copy GoogleService-Info.plist */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
-				03B0EFBC26EEC05775A5BDAF /* [CP] Embed Pods Frameworks */,
-				E8F49C4C976EE21F474FDD69 /* [CP] Copy Pods Resources */,
 				2A0E5F2910CB269AE86E2E91 /* FlutterFire: "flutterfire upload-crashlytics-symbols" */,
 			);
 			buildRules = (
@@ -270,6 +272,9 @@
 			dependencies = (
 			);
 			name = Runner;
+			packageProductDependencies = (
+				78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */,
+			);
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
 			productType = "com.apple.product-type.application";
@@ -303,6 +308,9 @@
 				Base,
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
+			packageReferences = (
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
+			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -335,23 +343,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		03B0EFBC26EEC05775A5BDAF /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 		2A0E5F2910CB269AE86E2E91 /* FlutterFire: "flutterfire upload-crashlytics-symbols" */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -368,7 +359,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\n#!/bin/bash\nPATH=\"${PATH}:$FLUTTER_ROOT/bin:${PUB_CACHE}/bin:$HOME/.pub-cache/bin\"\n\nif [ -z \"$PODS_ROOT\" ] || [ ! -d \"$PODS_ROOT/FirebaseCrashlytics\" ]; then\n  # Cannot use \"BUILD_DIR%/Build/*\" as per Firebase documentation, it points to \"flutter-project/build/ios/*\" path which doesn't have run script\n  DERIVED_DATA_PATH=$(echo \"$BUILD_ROOT\" | sed -E 's|(.*DerivedData/[^/]+).*|\\1|')\n  PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT=\"${DERIVED_DATA_PATH}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nelse\n  PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT=\"$PODS_ROOT/FirebaseCrashlytics/run\"\nfi\n\n# Command to upload symbols script used to upload symbols to Firebase server\nflutterfire upload-crashlytics-symbols --upload-symbols-script-path=\"$PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT\" --platform=ios --apple-project-path=\"${SRCROOT}\" --env-platform-name=\"${PLATFORM_NAME}\" --env-configuration=\"${CONFIGURATION}\" --env-project-dir=\"${PROJECT_DIR}\" --env-built-products-dir=\"${BUILT_PRODUCTS_DIR}\" --env-dwarf-dsym-folder-path=\"${DWARF_DSYM_FOLDER_PATH}\" --env-dwarf-dsym-file-name=\"${DWARF_DSYM_FILE_NAME}\" --env-infoplist-path=\"${INFOPLIST_PATH}\" --default-config=default\n";
+			shellScript = "\n#!/bin/bash\nPATH=\"${PATH}:$FLUTTER_ROOT/bin:${PUB_CACHE}/bin:$HOME/.pub-cache/bin\"\n\nif [ -z \"$PODS_ROOT\" ] || [ ! -d \"$PODS_ROOT/FirebaseCrashlytics\" ]; then\n  # Cannot use \"BUILD_DIR%/Build/*\" as per Firebase documentation, it points to \"flutter-project/build/ios/*\" path which doesn't have run script\n  DERIVED_DATA_PATH=$(echo \"$BUILD_ROOT\" | sed -E 's|(.*DerivedData/[^/]+).*|\\1|')\n  # Phase 16.3 R-05: Flutter passes -clonedSourcePackagesDirPath <project>/build/ios/SourcePackages to every iOS xcodebuild invocation, so the SPM checkout is NOT under DerivedData. Probe the Flutter path first and keep the DerivedData path as fallback.\n  for CANDIDATE in \"${SRCROOT}/../build/ios/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\" \"${DERIVED_DATA_PATH}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"; do\n    if [ -f \"$CANDIDATE\" ]; then\n      PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT=\"$CANDIDATE\"\n      break\n    fi\n  done\nelse\n  PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT=\"$PODS_ROOT/FirebaseCrashlytics/run\"\nfi\n\n# Command to upload symbols script used to upload symbols to Firebase server\nflutterfire upload-crashlytics-symbols --upload-symbols-script-path=\"$PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT\" --platform=ios --apple-project-path=\"${SRCROOT}\" --env-platform-name=\"${PLATFORM_NAME}\" --env-configuration=\"${CONFIGURATION}\" --env-project-dir=\"${PROJECT_DIR}\" --env-built-products-dir=\"${BUILT_PRODUCTS_DIR}\" --env-dwarf-dsym-folder-path=\"${DWARF_DSYM_FOLDER_PATH}\" --env-dwarf-dsym-file-name=\"${DWARF_DSYM_FILE_NAME}\" --env-infoplist-path=\"${INFOPLIST_PATH}\" --default-config=default\n";
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -443,23 +434,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		E8F49C4C976EE21F474FDD69 /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		FFD3B74087316267830C1B47 /* Copy GoogleService-Info.plist */ = {
@@ -1708,6 +1682,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FlutterGeneratedPluginSwiftPackage;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 97C146E61CF9000F007C117D /* Project object */;
 }
