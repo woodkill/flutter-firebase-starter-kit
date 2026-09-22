@@ -3629,10 +3629,20 @@ _facebookAuth.login(
 ### IDFA — 현재 킷 설정에서 실제로 수집되는가
 
 - **의존성 구성은 수집 가능 상태다** — iOS 는 SPM 을 쓰므로 근거도 SPM 쪽이다.
-  `firebase_analytics` 12.6.0 의 `ios/firebase_analytics/Package.swift` 는 환경변수가
-  없을 때 기본 product 로 **`FirebaseAnalytics`** 를 고르며(`:15-16` 실측), 이는
-  CocoaPods 기본 구성(`FirebaseAnalytics/Default`)과 **동등**하다 — 전환으로 IDFA
-  구성이 달라진 것은 없다(delta 0).
+  `firebase_analytics` **12.6.0**(현재 해석값 — `pubspec.yaml` 은 `^12.6.0` 이므로
+  실제 값은 `pubspec.lock` 에서 확인한다)의 `ios/firebase_analytics/Package.swift` 는
+  환경변수가 없을 때 기본 product 로 **`FirebaseAnalytics`** 를 고르며(`:15-16`
+  실측), 이는 CocoaPods 기본 구성(`FirebaseAnalytics/Default`)과 **동등**하다 —
+  전환으로 IDFA 구성이 달라진 것은 없다(delta 0).
+  - caret 범위이므로 `pub upgrade` 로 12.7+ 가 들어오면 기본 product 선택 로직이
+    바뀌어도 이 서술은 12.6.0 을 계속 가리킨다. 올린 뒤에는 아래 한 줄로 **해석된
+    버전의** 근거를 다시 확인할 것(`fvm flutter pub get` 이 돌아 있어야 한다).
+    ```bash
+    sed -n '13,16p' "$(jq -r '.plugins.ios[] | select(.name=="firebase_analytics") | .path' .flutter-plugins-dependencies)ios/firebase_analytics/Package.swift"
+    ```
+    실행하면 위 인용 블록 2줄에 이어 `let useWithoutAdId = …!= nil` ·
+    `let analyticsProduct = useWithoutAdId ? "FirebaseAnalyticsCore" :
+    "FirebaseAnalytics"` 가 나온다. 이 2줄이 달라졌다면 서술을 갱신해야 한다.
 - **그럼에도 실제 수집되는 IDFA 는 없다** — 킷은 ATT 를 **한 번도 요청하지
   않으므로** iOS 14.5+ 가 IDFA 를 내주지 않는다. 근거는 (A) Firebase
   Supporting iOS 14 의 "With iOS 14.5, Apple requires developers to receive
