@@ -37,6 +37,14 @@ String stripSlashComments(String raw) => raw
     .where((String line) => !line.trimLeft().startsWith('//'))
     .join('\n');
 
+/// `/* ... */` 블록 주석을 제거한다 (Dart `/** */` KDoc · Kotlin · Java 공용).
+///
+/// [stripSlashComments] 는 행 주석만 걷어내므로 KDoc 블록이 그대로 남는다. 「이
+/// 토큰이 코드에 **있어야 한다**」 를 단언하는 소스 계약에서는 그 블록이 토큰을
+/// 언급하는 것만으로 단언이 공허하게 참이 되므로 둘을 함께 쓴다.
+String stripBlockComments(String raw) =>
+    raw.replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '');
+
 /// `#` 로 시작하는 행 주석을 제거한다 (YAML).
 String stripHashComments(String raw) => raw
     .split('\n')
