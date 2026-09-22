@@ -206,26 +206,62 @@ void main() {
       await pushLifecycle(AppLifecycleState.paused);
       await pushLifecycle(AppLifecycleState.resumed);
 
-      // `ServicesBinding._generateStateTransitions` 가 인접하지 않은 전이
-      // 사이를 채운다 — 실기기에서도 같은 프레임워크 코드가 돌므로 레버 5 가
-      // 보는 신호는 이 전량이다 (주입 3회 ≠ 전이 3회).
-      final expectedStates = <AppLifecycleState>[
-        AppLifecycleState.inactive,
-        AppLifecycleState.hidden,
-        AppLifecycleState.paused,
-        AppLifecycleState.hidden,
-        AppLifecycleState.inactive,
-        AppLifecycleState.resumed,
-      ];
+      // IN-07: `ServicesBinding._generateStateTransitions` 는 인접하지 않은
+      // 전이 사이를 보간하는데, 그 규칙은 **private 구현 세부**다. 전량에
+      // 정확 일치로 묶으면 프로덕션 결함이 없어도 Flutter SDK 상향만으로
+      // RED 가 된다. 레버 5 의 판정 입력은 `resumed` 횟수뿐이므로 검출력을
+      // 잃지 않는 불변식만 잠근다.
+      final List<String> lines = transitionLines(logs);
 
+      // ① 대조군 — 리스너가 실제로 붙어 전이를 받았다. 0줄이면 아래 단언이
+      //    전부 공허하게 참이 된다.
       expect(
-        transitionLines(logs),
-        equals(<String>[
-          for (var i = 0; i < expectedStates.length; i++)
-            'Naver lifecycle 전이: state=${expectedStates[i].name} '
-                'seq=${i + 1}',
-        ]),
-        reason: '진행 중 전이는 순서와 seq 를 그대로 남겨야 왕복을 셀 수 있다',
+        lines,
+        isNotEmpty,
+        reason: '진행 구간의 전이가 하나도 안 잡히면 레버 5 판정 자체가 불가능하다',
+      );
+
+      // ② seq 는 1부터 1씩 증가한다 — 순서 보존 · 누락 없음.
+      final List<int> seqs = lines
+          .map(
+            (String line) =>
+                int.parse(RegExp(r'seq=(\d+)$').firstMatch(line)!.group(1)!),
+          )
+          .toList();
+      expect(
+        seqs,
+        equals(<int>[for (int i = 1; i <= lines.length; i++) i]),
+        reason: 'seq 가 건너뛰면 logcat 에서 왕복을 셀 수 없다',
+      );
+
+      // ③ 주입한 3개 상태는 이 상대 순서로 관측된다 — 사이를 채우는 보간
+      //    상태(hidden 등)는 프레임워크 구현 세부라 단언하지 않는다.
+      final List<String> observed = lines
+          .map(
+            (String line) =>
+                RegExp(r'state=(\w+) ').firstMatch(line)!.group(1)!,
+          )
+          .toList();
+      var cursor = -1;
+      for (final AppLifecycleState injected in <AppLifecycleState>[
+        AppLifecycleState.inactive,
+        AppLifecycleState.paused,
+        AppLifecycleState.resumed,
+      ]) {
+        final int index = observed.indexOf(injected.name, cursor + 1);
+        expect(
+          index,
+          isNonNegative,
+          reason: '주입한 ${injected.name} 전이가 순서대로 관측되지 않았다',
+        );
+        cursor = index;
+      }
+
+      // ④ 레버 5 의 판정 입력 — `resumed` 는 정확히 1회.
+      expect(
+        observed.where((String name) => name == 'resumed').length,
+        equals(1),
+        reason: 'resumed 왕복 수가 레버 5 의 판정 입력이다',
       );
 
       expect(
@@ -250,10 +286,9 @@ void main() {
       expect(
         summaryLines(logs),
         equals(<String>[
-          'Naver lifecycle 요약: resumed=1 '
-              'transitions=${expectedStates.length}',
+          'Naver lifecycle 요약: resumed=1 transitions=${lines.length}',
         ]),
-        reason: 'resumed 왕복 수가 레버 5 의 판정 입력이다 — 요약은 정확히 1줄',
+        reason: '요약은 정확히 1줄이고 전이 전량과 resumed 수가 일치해야 한다',
       );
     });
 
