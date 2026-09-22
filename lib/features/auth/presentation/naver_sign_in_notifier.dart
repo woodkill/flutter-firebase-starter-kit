@@ -1,6 +1,11 @@
 // Phase 13 — see ROADMAP.md
+// Phase 16.4 — see ROADMAP.md (레버 5 판정용 lifecycle 임시 로그 · plan 06 이
+// 존치/제거 확정)
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:flutter/widgets.dart'
+    show AppLifecycleListener, AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/result.dart';
@@ -45,22 +50,55 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
   /// ref.listen 에서 FormErrorBanner 로 렌더링된다. Phase 16.1 에서 소셜
   /// 섹션을 함께 담던 구 가입 화면이 삭제됐고, LoginPromptSheet 의
   /// ref.listen 은 성공 분기만 처리한다.
+  ///
+  /// **lifecycle 임시 로그 (Phase 16.4 — see ROADMAP.md):** 본 메서드 진행
+  /// 구간에만 [AppLifecycleListener] 를 붙이고 `finally` 에서 뗀다. 커스텀탭
+  /// 왕복이 앱 lifecycle 전이로 관측되는지(RESEARCH 레버 5)를 다음 실기기
+  /// 실행에서 판정하기 위한 것이며, 출력은 `AppLifecycleState` 이름과 정수
+  /// 카운트뿐이라 PII 표면이 없다 (`kDebugMode` 전용). 레버 5 판정 후 존치
+  /// 여부는 plan 06 이 정한다.
   Future<void> signInWithNaver() async {
     state = const AsyncLoading<void>();
-    final result = await ref.read(authRepositoryProvider).signInWithNaver();
-    if (!ref.mounted) return;
 
-    if (result == null) {
-      state = const AsyncData<void>(null); // D-45 silent cancel
-      return;
+    var transitions = 0;
+    var resumed = 0;
+    final lifecycle = AppLifecycleListener(
+      onStateChange: (AppLifecycleState appState) {
+        transitions++;
+        if (appState == AppLifecycleState.resumed) {
+          resumed++;
+        }
+        if (kDebugMode) {
+          debugPrint(
+            'Naver lifecycle 전이: state=${appState.name} seq=$transitions',
+          );
+        }
+      },
+    );
+
+    try {
+      final result = await ref.read(authRepositoryProvider).signInWithNaver();
+      if (!ref.mounted) return;
+
+      if (result == null) {
+        state = const AsyncData<void>(null); // D-45 silent cancel
+        return;
+      }
+
+      state = switch (result) {
+        Success<dynamic>() => const AsyncData<void>(null),
+        Failure<dynamic>(exception: final ex) => AsyncError<void>(
+          ex,
+          StackTrace.current,
+        ),
+      };
+    } finally {
+      if (kDebugMode) {
+        debugPrint(
+          'Naver lifecycle 요약: resumed=$resumed transitions=$transitions',
+        );
+      }
+      lifecycle.dispose();
     }
-
-    state = switch (result) {
-      Success<dynamic>() => const AsyncData<void>(null),
-      Failure<dynamic>(exception: final ex) => AsyncError<void>(
-        ex,
-        StackTrace.current,
-      ),
-    };
   }
 }
