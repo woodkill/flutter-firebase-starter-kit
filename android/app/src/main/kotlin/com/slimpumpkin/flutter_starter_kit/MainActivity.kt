@@ -34,8 +34,21 @@ class MainActivity : FlutterFragmentActivity() {
     private var customTabCreateCount = 0
 
     /**
-     * 자기 프로세스의 Activity 생성만 받는다 — 타 앱 개입은 구조적으로 불가
-     * (T-16.4-12).
+     * 자기 프로세스의 Activity 생성만 **관측**한다. 채널로 나가는 것은 정수
+     * 하나뿐이고 콜백 intent 의 extras · code · state · URI 는 읽지 않는다
+     * (T-16.4-11) — 데이터 유출 · 권한 상승 경로는 없다.
+     *
+     * 다만 「자기 프로세스의 생성만 관측한다」 가 「외부가 그 생성을 유발할 수
+     * 없다」 를 함의하지는 않는다. 계수 대상 Activity 는 병합 manifest 상
+     * `exported="true"` + `BROWSABLE` + `naver3rdpartylogin://authorize/`
+     * intent-filter 로 선언돼 있어(AAR 선언, 실측: devDebug merged manifest),
+     * 임의의 설치 앱 · 웹페이지가 그 scheme 을 던지면 킷 프로세스 안에
+     * 인스턴스가 생성되고 계수가 올라간다. 그 경우 「재개방」 오탐이 나지만
+     * 영향은 **정상 취소가 오류 배너로 보이는 것까지**로 한정된다.
+     *
+     * 아래 `savedInstanceState == null` 가드는 이 경로를 막지 못한다 — 외부
+     * 기동도 fresh launch 다. 근본 차단은 계수 창(window)을 `_login()` 구간으로
+     * 좁히는 호스트 측 변경이 필요하며 별건이다 (16.4 code review WR-04).
      */
     private val lifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
