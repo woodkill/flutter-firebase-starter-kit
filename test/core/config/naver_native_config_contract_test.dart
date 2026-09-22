@@ -52,7 +52,11 @@ String readTracked(String path) {
 
 void main() {
   group('Naver 시크릿 주입 배선 계약 (Phase 16.2)', () {
-    test('T-16.2-NATIVE-01 pubspec pin — 정확 고정 + SPM 키 부재 (16.3 D-01)', () {
+    // Phase 16.3 D-01 의 `enable-swift-package-manager` 키 부재 단언은 이 test 에
+    // 얹혀 있었다(코드 리뷰 IN-03). SPM 회귀로 red 가 났을 때 Naver 파일을
+    // 뒤지게 되는 오도를 없애려고 `test/ios/spm_policy_test.dart` 의
+    // `T-16.3-SPM-04` 로 옮겼다 — 단언 자체는 그대로 살아 있다.
+    test('T-16.2-NATIVE-01 pubspec pin — naver_login_flutter 정확 고정', () {
       final pubspec = stripHashComments(readTracked('pubspec.yaml'));
 
       expect(
@@ -75,14 +79,6 @@ void main() {
         reason:
             'Phase 16.2: 구 플러그인 naver_login_sdk 는 완전히 제거됐다. '
             'pubspec.yaml 에 잔존하면 두 SDK 가 동시에 링크된다.',
-      );
-      expect(
-        countOccurrences(pubspec, 'enable-swift-package-manager'),
-        0,
-        reason:
-            'Phase 16.3 D-01: SPM 은 Flutter 3.44+ 의 기본값(on)에 맡긴다. '
-            'pubspec.yaml 에 이 키가 있으면(true 든 false 든) flutter create 표준 모양과 어긋나고, '
-            'false 면 CocoaPods fallback 으로 되돌아가 ios/Podfile 이 재생성된다.',
       );
     });
 
