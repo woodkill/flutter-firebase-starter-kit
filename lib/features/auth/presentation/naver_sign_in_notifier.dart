@@ -55,26 +55,32 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
   /// 구간에만 [AppLifecycleListener] 를 붙이고 `finally` 에서 뗀다. 커스텀탭
   /// 왕복이 앱 lifecycle 전이로 관측되는지(RESEARCH 레버 5)를 다음 실기기
   /// 실행에서 판정하기 위한 것이며, 출력은 `AppLifecycleState` 이름과 정수
-  /// 카운트뿐이라 PII 표면이 없다 (`kDebugMode` 전용). 레버 5 판정 후 존치
-  /// 여부는 plan 06 이 정한다.
+  /// 카운트뿐이라 PII 표면이 없다. 레버 5 판정 후 존치 여부는 plan 06 이
+  /// 정한다.
+  ///
+  /// **release 표면 0 (16.4 code review IN-03):** 수집한 값이 `kDebugMode`
+  /// 에서만 소비되므로 **리스너 등록 자체**를 `kDebugMode` 안으로 가둔다.
+  /// 종전에는 출력만 debug 였고 `WidgetsBinding` 옵서버 등록·해제는 매
+  /// 호출마다 release 에서도 일어났다 — 이 킷은 템플릿으로 복사되는 코드다.
   Future<void> signInWithNaver() async {
     state = const AsyncLoading<void>();
 
     var transitions = 0;
     var resumed = 0;
-    final lifecycle = AppLifecycleListener(
-      onStateChange: (AppLifecycleState appState) {
-        transitions++;
-        if (appState == AppLifecycleState.resumed) {
-          resumed++;
-        }
-        if (kDebugMode) {
-          debugPrint(
-            'Naver lifecycle 전이: state=${appState.name} seq=$transitions',
-          );
-        }
-      },
-    );
+    // debug 전용 — release 에서는 null 이라 옵서버가 등록되지 않는다.
+    final AppLifecycleListener? lifecycle = kDebugMode
+        ? AppLifecycleListener(
+            onStateChange: (AppLifecycleState appState) {
+              transitions++;
+              if (appState == AppLifecycleState.resumed) {
+                resumed++;
+              }
+              debugPrint(
+                'Naver lifecycle 전이: state=${appState.name} seq=$transitions',
+              );
+            },
+          )
+        : null;
 
     try {
       final result = await ref.read(authRepositoryProvider).signInWithNaver();
@@ -98,7 +104,7 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
           'Naver lifecycle 요약: resumed=$resumed transitions=$transitions',
         );
       }
-      lifecycle.dispose();
+      lifecycle?.dispose();
     }
   }
 }

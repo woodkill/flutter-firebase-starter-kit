@@ -387,7 +387,9 @@ class NaverSdkClient {
       return null;
     }
     _inFlight = true;
-    final watch = Stopwatch()..start();
+    // IN-03: 경과 ms 는 `kDebugMode` 블록에서만 소비된다 — release 에서는
+    // Stopwatch 를 만들지도 않는다 (킷은 템플릿으로 복사되는 코드다).
+    final Stopwatch? watch = kDebugMode ? (Stopwatch()..start()) : null;
     if (kDebugMode) {
       debugPrint('Naver logIn 시작');
     }
@@ -403,7 +405,7 @@ class NaverSdkClient {
       if (kDebugMode) {
         debugPrint(
           'Naver logIn 도착: status=${result.status.name} '
-          'elapsedMs=${watch.elapsedMilliseconds}',
+          'elapsedMs=${watch?.elapsedMilliseconds ?? 0}',
         );
       }
 
