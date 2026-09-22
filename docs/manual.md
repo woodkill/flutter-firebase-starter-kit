@@ -3651,6 +3651,14 @@ _facebookAuth.login(
   // Set FIREBASE_ANALYTICS_WITHOUT_ADID=true to use FirebaseAnalyticsCore.
   // e.g. FIREBASE_ANALYTICS_WITHOUT_ADID=true flutter build ios
   ```
+  - ⚠ 위 블록은 **upstream `Package.swift` 의 verbatim 인용**이라 bare
+    `flutter build ios` 가 그대로 들어 있다. 그대로 복붙하지 말 것 — 이 킷은
+    **FVM 필수**이고 flavor · dart-define 도 함께 넘겨야 한다. 킷에서의 모양은
+    아래와 같다(「Flutter SDK 상향 (FVM)」 ② 10번의 빌드 명령에 환경변수만 앞에
+    붙인 것이다).
+    ```bash
+    FIREBASE_ANALYTICS_WITHOUT_ADID=true fvm flutter build ios --no-codesign --flavor dev --dart-define-from-file=config/dev.json
+    ```
   - 판정은 `!= nil` 이라 **값이 무엇이든 환경변수가 정의돼 있기만 하면**
     `FirebaseAnalyticsCore` 로 바뀐다(`:15` 실측) — `=false` 도 끈 것이 된다.
   - 이 경로로 실제 수집을 끄는 것은 **[미검증 — 킷에서 시도 0건]** 이다.
