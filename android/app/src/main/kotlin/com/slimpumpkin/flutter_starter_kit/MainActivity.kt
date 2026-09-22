@@ -88,18 +88,35 @@ class MainActivity : FlutterFragmentActivity() {
         super.onDestroy()
     }
 
+    /**
+     * 계수 채널 — 핸들러 람다가 `customTabCreateCount` 를 통해 이 Activity 를
+     * 캡처하므로 [cleanUpFlutterEngine] 에서 반드시 떼어 준다 (16.4 code
+     * review IN-04). 현재는 엔진이 Activity 와 수명을 같이 해 실해가 없지만,
+     * 스타터 킷이 흔히 도입하는 `FlutterEngineCache` 가 들어오면 파괴된
+     * Activity 의 낡은 계수를 계속 읽는 **조용한** 실패가 된다.
+     */
+    private var customTabChannel: MethodChannel? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "resetCount" -> {
-                        customTabCreateCount = 0
-                        result.success(null)
+        customTabChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).also { channel ->
+                channel.setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "resetCount" -> {
+                            customTabCreateCount = 0
+                            result.success(null)
+                        }
+                        "getCount" -> result.success(customTabCreateCount)
+                        else -> result.notImplemented()
                     }
-                    "getCount" -> result.success(customTabCreateCount)
-                    else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        customTabChannel?.setMethodCallHandler(null)
+        customTabChannel = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 }
