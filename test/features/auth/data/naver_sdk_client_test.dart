@@ -695,10 +695,16 @@ void main() {
       };
       addTearDown(() => debugPrint = originalDebugPrint);
 
+      // WR-05: happy path 도 로그를 찍는다 (도착 줄은 loggedIn 에서도 나간다).
+      // 성공 결과에 sentinel 토큰을 심어 **성공 분기에서도** access token 이 한
+      // 글자도 새지 않음을 단언한다 — TokenTrap 은 토큰 **객체**의 문자열화만
+      // 막고, `result.accessToken?.accessToken` 평문 String 보간은 잡지 못한다.
+      const tokenSentinel = 'TOKEN-SENTINEL-0ff1ce';
+
       // enum name 은 하드코딩하지 않는다 — 플러그인이 이름을 바꾸면 이 테스트가
       // 스스로 알려줘야 한다.
       final cases = <NaverLoginStatus, NaverLoginResult>{
-        NaverLoginStatus.loggedIn: buildSuccessResult('valid_token'),
+        NaverLoginStatus.loggedIn: buildSuccessResult(tokenSentinel),
         NaverLoginStatus.loggedOut: buildLoggedOutResult(),
         NaverLoginStatus.error: buildResult(
           status: NaverLoginStatus.error,
@@ -736,6 +742,24 @@ void main() {
           contains('status=${entry.key.name}'),
           reason: '${entry.key.name}: 도착 줄이 status 를 실어야 분기를 가를 수 있다',
         );
+
+        // WR-05 ① 생존 대조군 — 0줄이면 아래 부재 단언이 자동 참이 되어
+        // 「redaction 매칭 0줄 = 평문 승격」 을 놓친다.
+        expect(
+          logs,
+          isNotEmpty,
+          reason: '${entry.key.name}: 대조군 — 로그 계층이 살아 있다',
+        );
+        // WR-05 ② happy path 를 포함해 어느 줄에도 access token 이 없다.
+        for (final line in logs) {
+          expect(
+            line,
+            isNot(contains(tokenSentinel)),
+            reason:
+                '${entry.key.name}: 성공 분기에서도 access token 은 '
+                '한 글자도 새면 안 된다',
+          );
+        }
       }
     });
 
@@ -935,19 +959,29 @@ void main() {
 
       // ② 재개방 카운트가 있어도 성공은 절대 실패로 바뀌지 않는다.
       logs.clear();
+      const tokenSentinel = 'TOKEN-SENTINEL-0ff1ce';
       final successClient = NaverSdkClient.forTest(
-        login: () async => buildSuccessResult('token'),
+        login: () async => buildSuccessResult(tokenSentinel),
         logout: () async => buildLoggedOutResult(),
         customTabCount: () async => kNaverCustomTabReopenThreshold,
       );
       final result = await successClient.signIn();
       expect(result, isNotNull);
-      expect(result!.accessToken, equals('token'));
+      expect(result!.accessToken, equals(tokenSentinel));
       expect(
         linesStartingWith(logs, 'Naver logIn 재개방 감지: '),
         isEmpty,
         reason: 'D-45: 성공 분기는 카운트를 보지 않는다',
       );
+      // WR-05 — 성공 분기의 로그에도 access token 이 없다 (대조군 선행).
+      expect(logs, isNotEmpty, reason: '대조군 — 성공 분기도 로그를 찍는다');
+      for (final line in logs) {
+        expect(
+          line,
+          isNot(contains(tokenSentinel)),
+          reason: 'happy path 에서도 access token 은 한 글자도 새면 안 된다',
+        );
+      }
 
       // ③ 기존 21+ 호출처 모양 (login · logout 만) 도 그대로 컴파일 · 동작한다.
       logs.clear();
