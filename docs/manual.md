@@ -3919,6 +3919,11 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `
 - 두 파일 모두 tracked 다. 한쪽만 추적하면 fresh clone 의 첫 빌드에서 다른 쪽이
   최신값으로 생기고 `git status` 가 더러워진다.
 - 같은지 확인: `cmp -s ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved && echo SAME`
+- **이 불변식에는 자동 가드가 있다** — `test/ios/spm_policy_test.dart` 의
+  `T-16.3-SPM-03`. Xcode 는 **해석한 컨테이너 한쪽만** 갱신하므로(`.xcodeproj` 를
+  직접 열면 project 쪽, `Runner.xcworkspace` 를 열면 workspace 쪽) 한쪽만 바뀌는
+  것이 **정상 동작**이다. 이 test 가 red 면 위 ⚠ 박스가 말하는 핀 drift 가 이미
+  시작된 것이다 — 의도한 쪽을 다른 쪽으로 복사해 같은 커밋에 담는다.
 
 **직접 선언한 SDK 의 현재 고정값** (전이 의존성은 해석 결과를 그대로 수용한다)
 
