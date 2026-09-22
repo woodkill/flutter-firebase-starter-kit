@@ -33,25 +33,75 @@ const String _workspaceResolvedPath =
 const String _projectResolvedPath =
     'ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved';
 
+/// probe 루프의 1순위 후보 — Flutter 가 `-clonedSourcePackagesDirPath` 로 지정하는 곳.
+const String _flutterCheckoutRun =
+    r'"${SRCROOT}/../build/ios/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"';
+
+/// pbxproj 의 `shellScript = "…";` 값 하나를 통째로 집는다.
+///
+/// **`"(.*?)";` 같은 non-greedy 패턴을 쓰면 안 된다**(코드 리뷰 IN-04(R2) 수정 중
+/// 실측) — 스크립트 본문에 `…/Crashlytics/run\"; do` 가 들어 있어 probe 루프 도중에
+/// 끊긴다. 역슬래시 이스케이프를 인식하는 이 패턴만 값 전체를 집는다.
+final RegExp _shellScriptValue = RegExp(r'shellScript = "((?:\\.|[^"\\])*)";');
+
+/// pbxproj 문자열 리터럴 [raw] 의 이스케이프를 풀어 실제 셸 스크립트로 되돌린다.
+String _decodePbxprojString(String raw) {
+  final StringBuffer out = StringBuffer();
+  for (int i = 0; i < raw.length; i++) {
+    final String ch = raw[i];
+    if (ch != r'\' || i + 1 >= raw.length) {
+      out.write(ch);
+      continue;
+    }
+    final String next = raw[i + 1];
+    i++;
+    switch (next) {
+      case 'n':
+        out.write('\n');
+      case 't':
+        out.write('\t');
+      default:
+        // `\"` → `"`, `\\` → `\` 등 나머지는 다음 문자를 그대로 쓴다.
+        out.write(next);
+    }
+  }
+  return out.toString();
+}
+
+/// Crashlytics 업로드 build phase 의 `shellScript` 본문만 잘라 돌려준다.
+///
+/// 이 test 들이 pbxproj **전체 텍스트**가 아니라 이 반환값만 보는 이유
+/// (코드 리뷰 IN-04(R2)): 문자열 `flutterfire upload-crashlytics-symbols` 는
+/// buildPhases 참조 · 객체 주석 · `name =` 에도 있어서 **`shellScript` 가 통째로
+/// 비어도** 전체 텍스트 검사는 통과한다. 여기서 실패시키면 그 구멍이 닫힌다.
+String _readCrashlyticsShellScript(String pbx) {
+  return _shellScriptValue
+      .allMatches(pbx)
+      .map((RegExpMatch match) => _decodePbxprojString(match.group(1)!))
+      .firstWhere(
+        (String script) =>
+            script.contains('flutterfire upload-crashlytics-symbols'),
+        orElse: () => fail(
+          'Crashlytics 업로드 build phase 의 shellScript 본문을 찾지 못했다 '
+          '($_pbxprojPath). build phase 가 사라졌거나 shellScript 가 비었다 — '
+          '의도한 제거라면 이 가드도 함께 지우세요.',
+        ),
+      );
+}
+
 void main() {
   group('Crashlytics 업로드 단계의 SPM 손패치 (16.3 R-05 · 리뷰 WR-02)', () {
     test('T-16.3-SPM-01 build phase 가 SPM checkout 경로를 probe 한다', () {
-      final String pbx = readTrackedFile(_pbxprojPath);
-
-      // 양성 대조 — build phase 자체가 사라지면 아래 단언들이 의미를 잃는다.
-      expect(
-        countOccurrences(pbx, 'flutterfire upload-crashlytics-symbols'),
-        greaterThan(0),
-        reason:
-            'Crashlytics 심볼 업로드 build phase 자체가 $_pbxprojPath 에서 '
-            '사라졌다. 의도한 제거라면 이 가드도 함께 지우세요.',
+      // 양성 대조 겸 범위 한정 — shellScript 가 비어 있으면 여기서 fail 한다.
+      final String script = _readCrashlyticsShellScript(
+        readTrackedFile(_pbxprojPath),
       );
 
+      // 「파일 어딘가의 문자열」 이 아니라 **실제로 동작하는 probe 루프**를 본다.
+      // 경로 문자열만 세면 루프를 지우고 진단 메시지만 남겨도 green 이 된다.
       expect(
-        pbx.contains(
-          'build/ios/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run',
-        ),
-        isTrue,
+        countOccurrences(script, 'for CANDIDATE in $_flutterCheckoutRun'),
+        1,
         reason:
             'Phase 16.3 R-05 패치가 사라졌다. upstream flutterfire_cli 템플릿은 '
             'DerivedData 경로 한 줄만 대입하지만, Flutter 는 모든 iOS xcodebuild '
@@ -60,14 +110,28 @@ void main() {
             'fff configure 가 이 build phase 를 재생성했다면 diff 를 읽고 '
             '복원하세요 — docs/manual.md 「iOS 의존성 관리 (SPM)」 ⑥ 참고.',
       );
+
+      // 루프가 그 후보를 실제로 소비하는지 — 선언만 남고 본문이 비면 무의미하다.
+      expect(
+        countOccurrences(script, r'if [ -f "$CANDIDATE" ]; then'),
+        1,
+        reason:
+            'probe 루프의 본문(후보 존재 검사)이 사라졌다. 후보 목록만 남으면 '
+            'PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT 가 영영 대입되지 않는다.',
+      );
     });
 
     test('T-16.3-SPM-02 probe 실패 시 빈 경로를 흘려보내지 않는다', () {
-      final String pbx = readTrackedFile(_pbxprojPath);
+      final String script = _readCrashlyticsShellScript(
+        readTrackedFile(_pbxprojPath),
+      );
 
       expect(
-        pbx.contains(r'if [ -z \"$PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT\" ]'),
-        isTrue,
+        countOccurrences(
+          script,
+          r'if [ -z "$PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT" ]',
+        ),
+        1,
         reason:
             '코드 리뷰 WR-01 패치가 사라졌다. 두 후보 경로가 모두 없으면 '
             'PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT 가 미설정인 채 '
@@ -75,6 +139,15 @@ void main() {
             '그 값을 그대로 Process.run 에 넘겨 원인을 알 수 없는 '
             'ProcessException 으로 빌드가 멈춘다. probe 한 경로를 찍으며 '
             'exit 1 하는 분기를 복원하세요.',
+      );
+
+      // 분기가 실제로 빌드를 멈추는지 — echo 만 남기면 빈 경로가 그대로 흘러간다.
+      expect(
+        countOccurrences(script, 'exit 1'),
+        greaterThan(0),
+        reason:
+            '빈 경로 분기가 exit 1 하지 않으면 경고만 남기고 빌드가 계속된다 — '
+            '이 가드가 막으려던 ProcessException 이 그대로 발생한다.',
       );
     });
   });
