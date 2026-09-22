@@ -48,65 +48,73 @@ void main() {
         });
   }
 
-  group('NaverCustomTabProbe (T-16.4-NAVER-PROBE)', () {
-    test('T-16.4-NAVER-PROBE-01: 호스트가 2 를 돌려주면 readCount() == 2 이고 '
-        'resetCount() 는 resetCount 메서드를 1회 호출한다', () async {
-      mockHost(getCount: 2);
-      const probe = NaverCustomTabProbe();
+  // `T-16.4-NAVER-DISCRIM-03` 의 probe 측 절반 — 구분 로직의 나머지 절반
+  // (호출 순서 reset → login → count) 은 `naver_sdk_client_test.dart` 에 있다.
+  group(
+    'NaverCustomTabProbe (T-16.4-NAVER-DISCRIM-03 / T-16.4-NAVER-PROBE)',
+    () {
+      test('T-16.4-NAVER-PROBE-01: 호스트가 2 를 돌려주면 readCount() == 2 이고 '
+          'resetCount() 는 resetCount 메서드를 1회 호출한다', () async {
+        mockHost(getCount: 2);
+        const probe = NaverCustomTabProbe();
 
-      await probe.resetCount();
-      expect(
-        calls,
-        equals(<String>['resetCount']),
-        reason: '시도 시작 시 계수를 되돌리지 않으면 직전 시도의 값이 누적된다',
+        await probe.resetCount();
+        expect(
+          calls,
+          equals(<String>['resetCount']),
+          reason: '시도 시작 시 계수를 되돌리지 않으면 직전 시도의 값이 누적된다',
+        );
+
+        expect(await probe.readCount(), equals(2));
+        expect(calls, equals(<String>['resetCount', 'getCount']));
+      });
+
+      test(
+        'T-16.4-NAVER-PROBE-02: handler 가 없으면 '
+        '(MissingPluginException) readCount() == 0 이고 throw 하지 않는다',
+        () async {
+          // 양성 대조군 — handler 를 걸면 실제로 채널이 응답한다. 아래 0 단언이
+          // 「채널이 애초에 안 불렸다」 로 공허하게 참이 되는 것을 막는다.
+          mockHost(getCount: 7);
+          const probe = NaverCustomTabProbe();
+          expect(await probe.readCount(), equals(7), reason: '대조군 — 채널은 살아 있다');
+
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(kProbeChannel, null);
+
+          expect(await probe.readCount(), equals(0));
+          await probe.resetCount(); // throw 하지 않는다 (T-16.4-13 DoS 완화)
+        },
       );
 
-      expect(await probe.readCount(), equals(2));
-      expect(calls, equals(<String>['resetCount', 'getCount']));
-    });
+      test('T-16.4-NAVER-PROBE-03: PlatformException 도 삼켜 0 / no-op 으로 '
+          '흡수한다', () async {
+        mockHost(throwPlatformException: true);
+        const probe = NaverCustomTabProbe();
 
-    test('T-16.4-NAVER-PROBE-02: handler 가 없으면 '
-        '(MissingPluginException) readCount() == 0 이고 throw 하지 않는다', () async {
-      // 양성 대조군 — handler 를 걸면 실제로 채널이 응답한다. 아래 0 단언이
-      // 「채널이 애초에 안 불렸다」 로 공허하게 참이 되는 것을 막는다.
-      mockHost(getCount: 7);
-      const probe = NaverCustomTabProbe();
-      expect(await probe.readCount(), equals(7), reason: '대조군 — 채널은 살아 있다');
+        expect(await probe.readCount(), equals(0));
+        await probe.resetCount();
+        expect(
+          calls.length,
+          greaterThanOrEqualTo(2),
+          reason: '대조군 — 두 호출 모두 채널에 실제로 도달했다',
+        );
+      });
 
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(kProbeChannel, null);
+      test('T-16.4-NAVER-PROBE-04: iOS 에서는 채널을 호출조차 하지 않고 0 이다 '
+          '(D-06 — 결함은 Android 한정)', () async {
+        mockHost(getCount: 5);
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        const probe = NaverCustomTabProbe();
 
-      expect(await probe.readCount(), equals(0));
-      await probe.resetCount(); // throw 하지 않는다 (T-16.4-13 DoS 완화)
-    });
-
-    test('T-16.4-NAVER-PROBE-03: PlatformException 도 삼켜 0 / no-op 으로 '
-        '흡수한다', () async {
-      mockHost(throwPlatformException: true);
-      const probe = NaverCustomTabProbe();
-
-      expect(await probe.readCount(), equals(0));
-      await probe.resetCount();
-      expect(
-        calls.length,
-        greaterThanOrEqualTo(2),
-        reason: '대조군 — 두 호출 모두 채널에 실제로 도달했다',
-      );
-    });
-
-    test('T-16.4-NAVER-PROBE-04: iOS 에서는 채널을 호출조차 하지 않고 0 이다 '
-        '(D-06 — 결함은 Android 한정)', () async {
-      mockHost(getCount: 5);
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      const probe = NaverCustomTabProbe();
-
-      expect(await probe.readCount(), equals(0));
-      await probe.resetCount();
-      expect(
-        calls,
-        isEmpty,
-        reason: 'iOS 는 ASWebAuthenticationSession 경로라 대상이 아니다',
-      );
-    });
-  });
+        expect(await probe.readCount(), equals(0));
+        await probe.resetCount();
+        expect(
+          calls,
+          isEmpty,
+          reason: 'iOS 는 ASWebAuthenticationSession 경로라 대상이 아니다',
+        );
+      });
+    },
+  );
 }
