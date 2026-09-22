@@ -39,7 +39,15 @@ class MainActivity : FlutterFragmentActivity() {
      */
     private val lifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
-            if (activity.javaClass.name == NID_CUSTOM_TAB) {
+            // savedInstanceState != null 은 구성 변경 · 프로세스 복원으로 인한
+            // **재생성**이다. 재개방(새 인스턴스 기동)이 아니므로 세지 않는다.
+            // NidOAuthCustomTabActivity 의 configChanges 에는 uiMode · locale ·
+            // fontScale · density 가 없어 다크 모드 전환 · 폰트 크기 변경만으로도
+            // 파괴·재생성되며(AAR 선언), 그것을 세면 정상 취소가 재개방 오탐으로
+            // 뒤집혀 D-45(취소 silent) 가 깨진다. RESEARCH §1 ② 의 실제 재개방
+            // 경로는 intent 기동이라 savedInstanceState == null 이므로 검출력
+            // 손실은 없다 (16.4 code review WR-02).
+            if (savedInstanceState == null && activity.javaClass.name == NID_CUSTOM_TAB) {
                 customTabCreateCount++
             }
         }
