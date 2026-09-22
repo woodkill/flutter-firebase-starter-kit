@@ -4077,7 +4077,19 @@ echo "기대 FlutterFire 플러그인 수: $EXPECTED"
   **해석 단계에서 즉시 실패**한다.
   - **버전 조건:** 이 `exact` 서술은 현재 세대 기준이다. 옛 FlutterFire
     (`firebase_core` **4.7.0 이하** 실측)는 식별자부터 다르고(`firebase_sdk_version`)
-    `from:` 으로 건다 — 이 명령이 잡지 못하고, 충돌하지도 않는다.
+    `from:` 으로 건다 — 위 명령의 `^let firebaseSdkVersion` 패턴이 잡지 못한다.
+    - **「충돌하지도 않는다」 는 조건부로만 참이다.** `from: X` 와 `exact: Y` 는
+      **`Y >= X` 일 때만** 함께 해석된다. 옛 세대가 새 세대보다 **높은 하한**을
+      걸고 있으면(예: `from: 13.0.0` vs `exact: 12.19.0`) 해석이 실패한다 —
+      즉 **이 명령이 잡지 못하는 충돌이 존재한다.** 두 세대를 섞게 되면 옛 쪽
+      선언을 직접 읽어 값을 비교할 것.
+      ```bash
+      grep -n -e '^let firebase_sdk_version' -e '^let firebaseSdkVersion' \
+        "$(jq -r '.plugins.ios[] | select(.name=="firebase_core") | .path' .flutter-plugins-dependencies)ios/firebase_core/Package.swift"
+      ```
+      실측(`.pub-cache` 원문) — `firebase_core` **4.7.0** 은
+      `let firebase_sdk_version: Version = "12.12.0"` + `from:`,
+      **4.15.0** 은 `let firebaseSdkVersion: Version = "12.19.0"` + `exact:` 다.
 - ⚠ `grep -h 'firebaseSdkVersion' ~/.pub-cache/…/Package.swift | sort -u` 형태로
   pub-cache 를 직접 훑지 말 것. 패턴이 **선언 줄과 사용 줄 양쪽**에 매칭돼 정상
   트리에서도 2줄이 나오고(정상 상태를 충돌로 오판한다), 해석되지 않은 옛 버전까지
