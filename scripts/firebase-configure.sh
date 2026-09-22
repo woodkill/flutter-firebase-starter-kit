@@ -41,6 +41,9 @@
 #   --ios-build-config 을 검증할 때 ruby 로 Runner.xcodeproj 를 읽는다.
 #   확인: ruby -e "require 'xcodeproj'"   설치: gem install xcodeproj
 #   (CocoaPods 가 벤더링한 xcodeproj 는 gem 경로에 없어 인식되지 않는다)
+#   이 전제조건의 주체는 flutterfire CLI 의 ruby gem 의존이지 프로젝트의 의존성
+#   관리자가 아니다 — 이 킷의 iOS 는 SPM 이라 CocoaPods 설치가 필요 없고, 위
+#   벤더링 함정은 CocoaPods 를 따로 설치해 둔 머신에만 해당한다 (Phase 16.3).
 #
 # 사용법:
 #   ./scripts/firebase-configure.sh dev

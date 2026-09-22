@@ -210,6 +210,9 @@ pnpm install                   # pnpm-lock.yaml 기반 reproducible install
   또 CLI 는 그 값을 검증할 때 ruby 의 `xcodeproj` gem 으로
   `ios/Runner.xcodeproj` 를 파싱하므로 gem 이 없으면 실패한다 —
   `gem install xcodeproj` (또는 gem 이 있는 ruby 를 PATH 앞에) 로 해결한다.
+  이 함정의 주체는 **flutterfire CLI 의 ruby gem 의존**이지 프로젝트의 의존성
+  관리자가 아니다 — 이 킷의 iOS 는 SPM 이라 CocoaPods 를 설치할 필요가 없지만
+  (「iOS 의존성 관리 (SPM)」 참고), CocoaPods 를 따로 설치해 둔 머신이라면
   CocoaPods 에 벤더링된 xcodeproj 는 gem 경로 밖이라 인식되지 않는다.
   2026-09-11 실측: 수동 `fff configure` 는 `ios/Runner.xcodeproj/project.pbxproj`
   (중복 `bundle-service-file` 단계 추가 + crashlytics 단계 인자가
@@ -3625,11 +3628,11 @@ _facebookAuth.login(
 
 ### IDFA — 현재 킷 설정에서 실제로 수집되는가
 
-- **의존성 구성은 수집 가능 상태다** — `ios/Podfile.lock` 실측:
-  `FirebaseAnalytics (12.12.0)` → `FirebaseAnalytics/Default` →
-  `GoogleAppMeasurement/Default (12.12.0)` →
-  `GoogleAppMeasurement/IdentitySupport (12.12.0)`. `ios/Podfile` 에
-  `WithoutAdIdSupport` 플래그나 서브스펙은 없다(실측).
+- **의존성 구성은 수집 가능 상태다** — iOS 는 SPM 을 쓰므로 근거도 SPM 쪽이다.
+  `firebase_analytics` 12.6.0 의 `ios/firebase_analytics/Package.swift` 는 환경변수가
+  없을 때 기본 product 로 **`FirebaseAnalytics`** 를 고르며(`:15-16` 실측), 이는
+  CocoaPods 기본 구성(`FirebaseAnalytics/Default`)과 **동등**하다 — 전환으로 IDFA
+  구성이 달라진 것은 없다(delta 0).
 - **그럼에도 실제 수집되는 IDFA 는 없다** — 킷은 ATT 를 **한 번도 요청하지
   않으므로** iOS 14.5+ 가 IDFA 를 내주지 않는다. 근거는 (A) Firebase
   Supporting iOS 14 의 "With iOS 14.5, Apple requires developers to receive
@@ -3642,8 +3645,15 @@ _facebookAuth.login(
   개인정보 라벨과 정책 귀결은 **앱 책임**이다.
 - **수집 구성 자체를 끄고 싶다면** (A) 의 Firebase Configure data collection
   인용("… ensure that the AdSupport framework is not included in your app.")이
-  출발점이다. CocoaPods 서브스펙 교체로 이를 달성하는 경로는
-  **[미검증 — 킷에서 시도 0건]** 이다.
+  출발점이고, SPM 경로의 스위치는 위 `Package.swift` 의 주석이 그대로 알려준다
+  (`:13-14` verbatim).
+  ```swift
+  // Set FIREBASE_ANALYTICS_WITHOUT_ADID=true to use FirebaseAnalyticsCore.
+  // e.g. FIREBASE_ANALYTICS_WITHOUT_ADID=true flutter build ios
+  ```
+  - 판정은 `!= nil` 이라 **값이 무엇이든 환경변수가 정의돼 있기만 하면**
+    `FirebaseAnalyticsCore` 로 바뀐다(`:15` 실측) — `=false` 도 끈 것이 된다.
+  - 이 경로로 실제 수집을 끄는 것은 **[미검증 — 킷에서 시도 0건]** 이다.
 - ⚠ **ATT 허용 상태에서 실제로 무엇이 수집되는지에 대한 실측은 0건**이다.
 
 ### 흔한 실수
@@ -3716,7 +3726,9 @@ _facebookAuth.login(
    `flutter analyze` → `dart analyze` → `dart format --output=none
    --set-exit-if-changed lib test bin` → **전체 test**. 이 수치가 유일한 비교 기준이다.
    여기서 이미 실패가 있으면 상향하지 말고 그것부터 해결한다.
-2. (iOS SPM 설정을 바꿀 거면) **SDK 전환 전에** `pubspec.yaml` 을 먼저 고친다(④).
+2. **iOS 네이티브 SDK 의 고정 상태를 먼저 확인한다** — 두 `Package.resolved` 가
+   같은 내용인지(`cmp -s`) 보고, 상향 뒤 그대로인지 대조할 기준으로 삼는다
+   (「iOS 의존성 관리 (SPM)」 ②).
 3. `fvm install <버전> --skip-pub-get` → `fvm use <버전> --skip-pub-get`
 4. `.vscode/settings.json` 복원 · `fvm flutter --version --machine` 으로
    framework/dart 버전 확인
@@ -3735,50 +3747,35 @@ _facebookAuth.login(
 
 ### ③ 도구가 자동으로 고치는 tracked 파일 (되돌리지 말고 함께 커밋)
 
-3.41.9 → 3.47.5 에서 실제로 바뀐 것은 다음 4개다. **손으로 되돌려도 다음
+3.41.9 → 3.47.5 에서 실제로 바뀐 것은 다음 3개다. **손으로 되돌려도 다음
 `pub get` · 빌드에서 다시 생긴다.**
 
 | 파일 | 원인 | 실제 diff |
 |---|---|---|
 | `analysis_options.yaml` | 3.47 `AnalysisOptionsMigration`(`flutter pub get` 이 호출) | `analyzer.exclude` 에 `build/**` · `android/**` · `ios/**` · `web/**` · `windows/**` · `macos/**` · `linux/**` **7줄 append**(+7/-0, 기존 주석 보존). stdout 에 `Upgrading analysis_options.yaml …` |
 | `android/gradle.properties` | 3.47 `DisableBuiltInKotlin` · `DisableNewDsl` migrator(**모든 Android 빌드 직전** 실행) | `android.builtInKotlin=false` · `android.newDsl=false` + 각 설명 주석 **4줄 append** |
-| `ios/Podfile.lock` | `podhelper.rb` 가 만드는 `Flutter.podspec` 의 `ios.deployment_target` 이 13.0 → 15.0 | `SPEC CHECKSUMS` 의 **`Flutter:` 1줄만** 교체. 다른 pod · `COCOAPODS:` 는 불변이어야 한다 |
 | `pubspec.lock` | SDK 가 고정하는 pub 핀 변화 | 직접 의존성은 `test` · `intl` 둘뿐, transitive 5건(`matcher` · `meta` · `test_api` · `test_core` · `vector_math`). codegen 스택은 불변 |
 
 - `lib/l10n/generated/*.dart`(tracked) · `macos/Flutter/GeneratedPluginRegistrant.swift`
   도 SDK 템플릿이 바뀌면 재생성된다 — 이번에는 **변화 0** 이었다.
-- **`ios/Runner.xcodeproj/project.pbxproj` 가 바뀌면 멈추고 원인을 확인한다.**
-  SPM 이 켜졌다는 신호다(④).
+- SPM 통합은 **이미 적용돼 있다.** `ios/Runner.xcodeproj/project.pbxproj` ·
+  `ios/Runner.xcodeproj/xcshareddata/xcschemes/*.xcscheme` · `Package.resolved` 가
+  바뀌면 **diff 를 읽고 원인을 확인한다** — 도구의 새 migration, 아직 빌드한 적 없는
+  scheme 의 첫 빌드, 또는 **SPM 미지원 플러그인의 유입**(「iOS 의존성 관리 (SPM)」 ④)
+  셋 중 하나다.
 
-### ④ iOS Swift Package Manager — 이 킷은 명시적으로 끈다
+### ④ iOS Swift Package Manager — 기본값(on)을 그대로 쓴다
 
-```yaml
-flutter:
-  generate: true
-
-  config:
-    enable-swift-package-manager: false
-```
-
-- Flutter **3.44 부터 SPM 이 기본 on** 이다. 이 한 줄이 없으면 첫 iOS 빌드가
-  `project.pbxproj` 에 SPM 통합을 적용하고 `ios/Flutter/ephemeral/Packages/` 를 만든다.
+- `pubspec.yaml` 에 SPM 스위치 키를 **두지 않는다.** Flutter 3.44+ 는 SPM 이 기본 on
+  이고 `flutter create` 산출물에도 그 키가 없다 — 킷은 표준 모양을 따른다.
+- **실효 증거 3종**(설정값이 아니라 결과로 판정한다): `project.pbxproj` 의
+  `FlutterGeneratedPluginSwiftPackage` 참조 ≥ 1 · `ios/Flutter/ephemeral/Packages`
+  존재 · `ios/Podfile` 부재.
 - 해석 우선순위는 **pubspec `flutter: config:` → 전역 `flutter config` → 환경변수**
-  다. 즉 pubspec 값이 이긴다. `flutter config --list` 는 전역 설정이라 판정 근거가
-  못 된다 — **실효 증거는 pbxproj 무변경 · `FlutterGeneratedPluginSwiftPackage`
-  참조 0건 · `ios/Flutter/ephemeral/Packages` 부재**다.
+  다. `flutter config --list` 는 전역 설정이라 이 프로젝트의 판정 근거가 못 된다.
 - 옛 키 `disable-swift-package-manager: true` 는 3.47 에서 **manifest 오류**다.
-- **SDK 전환 전에** 이 설정을 넣어야 한다. 전환 후에 넣으면 그 사이의 첫
-  `pub get` · 첫 빌드가 이미 SPM 산출물을 만든 뒤라 되돌리는 일이 섞인다.
-- Flutter 는 「향후 버전에서는 SPM 비활성화를 허용하지 않는다」고 예고했다
-  (시점 미정 `[ASSUMED]` — 2026-09-20 기준 master · beta 에서도 아직 끌 수 있다).
-  킷의 SPM 전환(todo `2026-09-19-cocoapods-to-spm-migration`)이 끝날 때까지 유지한다.
-- SPM off 상태에서 iOS 빌드 로그에 나오던
-  `The following plugins do not support Swift Package Manager for ios: <플러그인 이름>`
-  경고는 **Phase 16.2 에서 Naver 플러그인을 교체한 뒤 더 이상 나오지 않는다** —
-  native 코드를 가진 iOS 플러그인 19개 전부가 Swift Package manifest 를 가진다
-  (전수 실측 `SPM-MISSING` 0건 + iOS 3 flavor 빌드 로그 경고 0건. 근거는
-  `.planning/phases/16.2-naver-login-plugin-migration/16.2-PLUGIN-AUDIT.md` 의
-  A8 절). 경고가 다시 보이면 SPM 미지원 플러그인이 새로 들어온 것이다.
+- iOS 네이티브 의존성의 운영(버전 고정 · 새 플러그인 확인 · 배포 타겟 · 미지원
+  플러그인 증상)은 **「iOS 의존성 관리 (SPM)」**(`#ios-의존성-관리-spm`) 절에 있다.
 
 ### ⑤ Android 빌드 도구 하한 — 지금 경계선에 걸쳐 있다
 
@@ -3803,24 +3800,12 @@ flutter:
   실행에 **Rosetta 2 가 필요**하다. macOS major 업그레이드가 Rosetta 를 지울 수
   있으니 `arch -x86_64 /usr/bin/true` 로 확인한다.
 - 실기기 debug 실행은 **USB 연결이 필수**다(무선은 디버거 미부착 → JIT 불가).
+- **CocoaPods 는 iOS 빌드에 더 이상 필요하지 않다**(Phase 16.3 에서 SPM 으로
+  전환했다). 단 `macos/` 는 아직 CocoaPods 를 쓰고(이 킷은 macOS 를 빌드하지
+  않는다), `flutter doctor` 의 CocoaPods 항목은 **설치 여부와 무관하게 계속
+  표시된다** — Xcode 워크플로에 조건 없이 등록된 검사라 그렇다.
 
-### ⑦ Podfile 은 주석만 고쳐도 Podfile.lock 이 바뀐다
-
-`PODFILE CHECKSUM` 은 **Podfile 파일 내용의 SHA1** 이다(CocoaPods 1.17.0
-`Podfile#checksum`). 주석 한 줄만 고쳐도 값이 달라져 Podfile 과 Podfile.lock 이
-어긋난다 → Podfile 을 고쳤으면 **다음 빌드의 자동 `pod install` 결과
-Podfile.lock 을 같은 커밋에 함께 담는다.**
-
-```bash
-shasum -a 1 ios/Podfile                      # 이 값과
-grep '^PODFILE CHECKSUM' ios/Podfile.lock    # 이 값이 같아야 한다
-```
-
-- **`pod install` / 인자 없는 `pod update` 를 직접 부르지 않는다**(소셜 SDK pod 까지
-  함께 올라간다). Flutter 도구의 자동 `pod install` 에만 맡긴다.
-- `ios/Podfile.lock` 삭제 금지.
-
-### ⑧ golden test — SDK 상향은 렌더를 바꾼다
+### ⑦ golden test — SDK 상향은 렌더를 바꾼다
 
 - 이번 상향에서 **golden 20장(추적 16 + gitignore `_ios` 4)이 실패**했다. 차이는
   버튼 둥근 모서리 안티에일리어싱뿐(최대 0.03% · 401px)이었고, 같은 HEAD 3.41.9
@@ -3832,7 +3817,7 @@ grep '^PODFILE CHECKSUM' ios/Podfile.lock    # 이 값이 같아야 한다
 - iOS 변형 `*_ios.png` 는 Apple Font License 때문에 **gitignore** 라 로컬에서만
   재생성된다 — git 으로 복원할 수 없으니 재생성 전 디렉터리 백업을 권한다.
 
-### ⑨ `environment: sdk` 하한은 별개 작업이다
+### ⑧ `environment: sdk` 하한은 별개 작업이다
 
 `pubspec.yaml` 의 `environment: sdk: ^3.11.1` 은 이번에 **올리지 않았다.**
 Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · 호출 체인 split ·
@@ -3846,7 +3831,7 @@ Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · �
 > analyze · test 와 동급 게이트로 두면(`.claude/rules/dart-format.md`) 이런 drift 가
 > 누적되지 않는다.
 
-### ⑩ 이번 3.47.5 상향의 실제 결과 (한 줄 요약)
+### ⑨ 이번 3.47.5 상향의 실제 결과 (한 줄 요약)
 
 `pub get` · `build_runner` · `flutter analyze` · `dart analyze` · iOS(`--no-codesign`,
 210s) · Android(dev debug APK, 88s) 전부 통과했고, 전체 test 는 golden 20장을
@@ -4103,6 +4088,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 
 | 2026-09-20 | 16.2-05 | Naver Login 절을 플러그인 교체(naver_login_flutter 4.0.0 · 정확 버전 고정) 기준으로 갱신 — 키를 채우는 곳이 runtime 초기화에서 native 두 곳(Android 는 config json → gradle string resource, iOS 는 xcconfig 3변수 → Info.plist 변수 치환)으로 바뀐 절차, Client Secret 추출 가능 경고를 2단계로 이관, placeholder 상태에서도 3 flavor 빌드 · 기동이 된다는 계약과 확인 스크립트, 클라이언트 프로필 조회와 개인정보 범위, 구 SDK 잔존 토큰 사실 기록, Pitfall 을 Phase 13 · 16.2 통합 18항으로 개정(iOS 취소 표면 · 1-tap 미복귀 wedge 미검증 · 토큰 보간 · 프로필 실패 · plist 키 부재 · meta-data 참조 · 미설치 종단 오류 · 네이티브 로깅). Initial Setup 키 표의 naver 3행 + appName 행 비고 갱신, iOS xcconfig 변수 목록에 NAVER_CLIENT_ID · NAVER_CLIENT_SECRET 추가, stg/prod 등록 절차에 prod xcconfig 2변수 추가, SPM 미지원 경고 서술을 교체 후 실측(경고 0건)으로 정정. |
 
+| 2026-09-22 | 16.3 | `## iOS 의존성 관리 (SPM)` 절 신규(①~⑥ — SPM 입문 + CocoaPods ↔ SPM 대응표 · 두 tracked `Package.resolved` 고정과 peeled sha 상향 절차 + LINE 5.17.0 경고 · 새 플러그인 사전 확인 3단계 · SPM 미지원 플러그인의 조용한 CocoaPods fallback 증상 · 배포 타겟 진실원 = pbxproj `IPHONEOS_DEPLOYMENT_TARGET` 12개 · 전환 중 실제로 겪은 증상 2건) + CocoaPods 전제 서술 6곳을 현재형으로 재작성 — firebase-configure 함정 bullet 에 「주체는 flutterfire CLI 의 ruby gem」 조건절, IDFA 근거를 `Podfile.lock` 에서 `firebase_analytics` 의 `Package.swift`(기본 product `FirebaseAnalytics` · 끄는 법 `FIREBASE_ANALYTICS_WITHOUT_ADID`, 킷에서 시도 0건 유지)로 교체, 「Flutter SDK 상향 (FVM)」 의 ② 2번 · ③ 표(`ios/Podfile.lock` 행 삭제 + 경고 문장 교체) · ④(「명시적으로 끈다」 → 「기본값(on)을 그대로 쓴다」) · ⑥(CocoaPods 불요 + `flutter doctor` 표시 유지) 수정, ⑦ `PODFILE CHECKSUM` 절 삭제와 ⑧⑨⑩ → ⑦⑧⑨ 재번호. 목차 20 항목으로 확장. 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/`. |
+
 ---
 
-*Last updated: 2026-09-20 — 16.2-05 Naver 플러그인 교체 반영 (native 2곳 키 주입 절차 + Pitfall 개정 + 개인정보 · 구 토큰 사실 기록)*
+*Last updated: 2026-09-22 — 16.3 iOS CocoaPods → SPM 전환 반영 (「iOS 의존성 관리 (SPM)」 절 신설 + CocoaPods 전제 서술 현재형 재작성)*
