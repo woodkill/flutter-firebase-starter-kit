@@ -681,4 +681,174 @@ void main() {
       expect(logs.single, contains('message=other'));
     });
   });
+
+  // Phase 16.4 D-18 — 「대기 구간에 앱 로그가 전무」(16.2 UAT A2 / WR-02(b)) 를
+  // 없애는 시작 · 도착 2줄. 접두어는 plan 02~06 의 logcat 단언이 쓰는 grep
+  // 앵커이므로 문구를 바꾸면 그쪽 단언도 함께 바꿔야 한다.
+  group('Phase 16.4 D-18 진단 로그 (T-16.4-NAVER-LOG)', () {
+    test('T-16.4-NAVER-LOG-01 순서 · 3 status: 시작 줄 뒤에 도착 줄이 오고 '
+        'loggedIn · loggedOut · error 가 각각 기록된다', () async {
+      final logs = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+
+      // enum name 은 하드코딩하지 않는다 — 플러그인이 이름을 바꾸면 이 테스트가
+      // 스스로 알려줘야 한다.
+      final cases = <NaverLoginStatus, NaverLoginResult>{
+        NaverLoginStatus.loggedIn: buildSuccessResult('valid_token'),
+        NaverLoginStatus.loggedOut: buildLoggedOutResult(),
+        NaverLoginStatus.error: buildResult(
+          status: NaverLoginStatus.error,
+          errorMessage: 'errorCode:no_app_for_authentication, errorDesc:x',
+        ),
+      };
+
+      for (final entry in cases.entries) {
+        logs.clear();
+        final client = NaverSdkClient.forTest(
+          login: () async => entry.value,
+          logout: () async => buildLoggedOutResult(),
+        );
+        await captureSignInError(client);
+
+        final startIndex = logs.indexWhere(
+          (line) => line.startsWith('Naver logIn 시작'),
+        );
+        final arrivalIndex = logs.indexWhere(
+          (line) => line.startsWith('Naver logIn 도착:'),
+        );
+
+        expect(
+          startIndex,
+          isNonNegative,
+          reason: '${entry.key.name}: 시작 줄이 있어야 대기 구간이 보인다',
+        );
+        expect(
+          arrivalIndex,
+          greaterThan(startIndex),
+          reason: '${entry.key.name}: 도착 줄은 시작 줄 뒤에 와야 한다',
+        );
+        expect(
+          logs[arrivalIndex],
+          contains('status=${entry.key.name}'),
+          reason: '${entry.key.name}: 도착 줄이 status 를 실어야 분기를 가를 수 있다',
+        );
+      }
+    });
+
+    test('T-16.4-NAVER-LOG-02 WR-05: 도착 줄에 SDK errorMessage 원문이 '
+        '한 글자도 없다 (양성 대조군 선행)', () async {
+      final logs = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+
+      // 자유 문자열 errorMessage — 실제 SDK 는 요청 URL 을 그대로 싣는다.
+      const sentinel = 'RAW-SENTINEL-0ff1ce';
+      const rawMessage = 'https://nid.naver.com/?q=$sentinel';
+
+      final client = NaverSdkClient.forTest(
+        login: () async => buildResult(
+          status: NaverLoginStatus.error,
+          errorMessage: rawMessage,
+        ),
+        logout: () async => buildLoggedOutResult(),
+      );
+
+      final error = await captureSignInError(client);
+      expect(
+        error,
+        isA<ServiceUnavailable>(),
+        reason: '기존 계약 — error status 는 ServiceUnavailable 로 매핑된다',
+      );
+
+      final arrivalLines = logs
+          .where((line) => line.startsWith('Naver logIn 도착:'))
+          .toList();
+
+      // ① 생존 대조군 먼저 — 0줄이면 아래 부재 단언이 자동 참이 되어 「로그가
+      // 통째로 사라진 회귀」 를 놓친다.
+      expect(
+        arrivalLines.length,
+        greaterThanOrEqualTo(1),
+        reason: '대조군 — 도착 줄이 실제로 찍혔다',
+      );
+
+      // ② 도착 줄에 원문 없음
+      for (final line in arrivalLines) {
+        expect(
+          line,
+          isNot(contains(sentinel)),
+          reason: 'WR-05: 도착 줄은 status · elapsedMs 만 싣는다',
+        );
+      }
+
+      // ③ 캡처된 모든 줄에 원문 없음 — 기존 error 줄도 describeNaverErrorForLog
+      // 로 `message=other length=<n>` 만 찍는다는 계약의 재확인.
+      for (final line in logs) {
+        expect(
+          line,
+          isNot(contains(sentinel)),
+          reason: 'WR-05: 어느 줄에도 SDK 원문이 새면 안 된다',
+        );
+      }
+    });
+
+    test('T-16.4-NAVER-LOG-03 elapsedMs 정규식 매칭 + 재진입은 시작 줄을 '
+        '추가로 찍지 않는다', () async {
+      final logs = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+
+      final gate = Completer<NaverLoginResult>();
+      final client = NaverSdkClient.forTest(
+        login: () => gate.future,
+        logout: () async => buildLoggedOutResult(),
+      );
+
+      final first = client.signIn();
+      await pumpEventQueue();
+
+      int startLineCount() =>
+          logs.where((line) => line.startsWith('Naver logIn 시작')).length;
+
+      expect(startLineCount(), equals(1), reason: '대조군 — 첫 호출이 시작 줄을 찍었다');
+
+      expect(
+        await client.signIn(),
+        isNull,
+        reason: '기존 계약 — in-flight 재진입은 plugin 을 호출하지 않는다',
+      );
+      expect(
+        logs,
+        contains('Naver logIn 재진입 무시 (in-flight)'),
+        reason: '재진입은 기존 가드 줄로만 보인다',
+      );
+      expect(
+        startLineCount(),
+        equals(1),
+        reason: '재진입이 시작 줄을 추가로 찍으면 logcat 의 왕복 계수가 틀어진다',
+      );
+
+      gate.complete(buildSuccessResult('token'));
+      await first;
+
+      final arrival = logs.firstWhere(
+        (line) => line.startsWith('Naver logIn 도착:'),
+      );
+      expect(
+        RegExp(r'elapsedMs=\d+$').hasMatch(arrival),
+        isTrue,
+        reason: '경과 ms 는 값이 흔들리므로 정규식으로 본다 (하드코딩 금지)',
+      );
+    });
+  });
 }

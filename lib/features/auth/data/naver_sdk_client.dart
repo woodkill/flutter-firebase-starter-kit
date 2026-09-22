@@ -2,6 +2,7 @@
 //
 // Naver 로그인 진입점 — 플러그인 Future 직결 + typedef 주입 (Phase 12
 // KakaoSdkClient 미러). D-43 ~ D-45 + D-57 정책 일관.
+// Phase 16.4 D-18 로그 2줄 — signIn() 시작 · 도착 (kDebugMode 전용).
 import 'package:flutter/foundation.dart';
 import 'package:naver_login_flutter/naver_login_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -284,13 +285,16 @@ class NaverSdkClient {
   ///
   /// 흐름:
   /// 1. in-flight 가드 — 진행 중이면 plugin 을 호출하지 않고 null (D-18).
-  /// 2. `_login()` 의 Future 를 **그대로 await** 한다 (D-16 — 타이머 없음).
-  /// 3. [isNaverUserCancel] 을 **error 분기보다 먼저** 본다 — iOS 취소가
+  /// 2. 진단 로그 — 시작/도착 2줄, `kDebugMode` 전용, errorMessage 비출력
+  ///    (Phase 16.4 D-18). 대기 구간이 logcat 에 보이게 하는 것이 목적이라
+  ///    도착 줄은 `status` 와 경과 ms 만 싣는다.
+  /// 3. `_login()` 의 Future 를 **그대로 await** 한다 (D-16 — 타이머 없음).
+  /// 4. [isNaverUserCancel] 을 **error 분기보다 먼저** 본다 — iOS 취소가
   ///    `status: error` 로 오므로 error 를 곧장 배너로 보내면 취소가 오류로
   ///    보인다 (`1c884c73` 회귀 경로).
-  /// 4. status `error` → [ServiceUnavailable] (`cause` = [NaverSdkError]).
-  /// 5. 빈 토큰 → null (silent).
-  /// 6. 그 외 예외 → [ServiceUnavailable] 로 흡수. iOS `Info.plist` 4키가
+  /// 5. status `error` → [ServiceUnavailable] (`cause` = [NaverSdkError]).
+  /// 6. 빈 토큰 → null (silent).
+  /// 7. 그 외 예외 → [ServiceUnavailable] 로 흡수. iOS `Info.plist` 4키가
   ///    없으면 채널이 미등록돼 `PlatformException` 이 아닌
   ///    `MissingPluginException` 이 전파되기 때문이다 (D-05).
   ///
@@ -319,8 +323,21 @@ class NaverSdkClient {
       return null;
     }
     _inFlight = true;
+    final watch = Stopwatch()..start();
+    if (kDebugMode) {
+      debugPrint('Naver logIn 시작');
+    }
     try {
       final result = await _login();
+
+      // D-18 도착 줄 — status 이름과 경과 ms 만. `errorMessage` 원문은 한 글자도
+      // 싣지 않는다 (WR-05). 취소 · 오류 요약은 바로 아래 기존 분기가 찍는다.
+      if (kDebugMode) {
+        debugPrint(
+          'Naver logIn 도착: status=${result.status.name} '
+          'elapsedMs=${watch.elapsedMilliseconds}',
+        );
+      }
 
       if (isNaverUserCancel(result.status, result.errorMessage)) {
         // D-45 silent — Android loggedOut · iOS error + 고정 리터럴.
