@@ -26,9 +26,14 @@ typedef NaverCustomTabCountFn = Future<int> Function();
 /// extras · `code` · `state` · URI 를 읽지도 넘기지도 않는다 — OAuth 완결은
 /// 전적으로 SDK 에 둔다.
 ///
-/// **절대 로그인 흐름을 깨지 않는다 (T-16.4-13).** 채널이 미등록이거나
-/// (`MissingPluginException`) 호스트가 예외로 응답해도
-/// (`PlatformException`) [readCount] 는 0, [resetCount] 는 no-op 으로 접는다.
+/// **절대 로그인 흐름을 깨지 않는다 (T-16.4-13).** 계약이 「절대」 이므로 잡는
+/// 타입도 「절대」 다 — `on Object` 로 **모든** 예외를 흡수해 [readCount] 는 0,
+/// [resetCount] 는 no-op 으로 접는다. 채널 미등록(`MissingPluginException`) ·
+/// 호스트 오류(`PlatformException`) 뿐 아니라, 호스트가 `Int` 가 아닌 값을
+/// 돌려줄 때 `invokeMethod<int>` 가 던지는 cast `TypeError` 도 포함된다.
+/// 두 호출 모두 `NaverSdkClient.signIn()` 의 try 블록 안에서 `result.status`
+/// 판정 **전에** await 되므로, 여기서 새는 예외 하나가 성공한 로그인까지
+/// [ServiceUnavailable] 로 뒤집는다 (16.4 code review WR-03).
 /// iOS 는 웹 경로가 `ASWebAuthenticationSession` 으로 완료가 보장돼 대상이
 /// 아니므로 채널을 **호출조차 하지 않는다** (D-06).
 @immutable
@@ -52,9 +57,9 @@ class NaverCustomTabProbe {
     if (!_isAndroid) return;
     try {
       await _channel.invokeMethod<void>('resetCount');
-    } on MissingPluginException catch (e) {
-      _logUnavailable(e);
-    } on PlatformException catch (e) {
+    } on Object catch (e) {
+      // WR-03: 타입을 열거하면 계약이 「절대」 가 아니게 된다 — 열거 밖의
+      // 예외 하나가 signIn() 의 try 를 타고 올라가 성공까지 뒤집는다.
       _logUnavailable(e);
     }
   }
@@ -62,15 +67,14 @@ class NaverCustomTabProbe {
   /// 계수를 읽는다 — Android 가 아니거나 채널이 없으면 0.
   ///
   /// 0 은 「재개방 없음」 과 같은 값이므로, 채널이 죽어도 동작은 이 plan 이전과
-  /// 동일한 silent 취소로 되돌아갈 뿐 로그인이 깨지지 않는다.
+  /// 동일한 silent 취소로 되돌아갈 뿐 로그인이 깨지지 않는다. 호스트가 `Int`
+  /// 가 아닌 값을 돌려줘 cast 가 실패해도 마찬가지로 0 이다 (WR-03).
   Future<int> readCount() async {
     if (!_isAndroid) return 0;
     try {
       return await _channel.invokeMethod<int>('getCount') ?? 0;
-    } on MissingPluginException catch (e) {
-      _logUnavailable(e);
-      return 0;
-    } on PlatformException catch (e) {
+    } on Object catch (e) {
+      // WR-03: `TypeError`(호스트 반환 타입 불일치) 를 포함해 전부 흡수한다.
       _logUnavailable(e);
       return 0;
     }
