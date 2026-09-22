@@ -3979,12 +3979,33 @@ jq -r '.plugins.ios[] | select(.native_build) | "\(.name)\t\(.path)"' .flutter-p
 
 **(다) FlutterFire 계열은 `firebaseSdkVersion` 이 기존 플러그인들과 같은지 본다.**
 
+`fvm flutter pub get` 을 먼저 돌린 뒤 실행한다 — `.flutter-plugins-dependencies` 는
+gitignored 생성물이라 fresh clone 에는 없다.
+
 ```bash
-grep -h 'firebaseSdkVersion' ~/.pub-cache/hosted/pub.dev/{firebase_*,cloud_*}-*/ios/*/Package.swift | sort -u
+jq -r '.plugins.ios[] | select(.native_build) | "\(.name)\t\(.path)"' .flutter-plugins-dependencies \
+  | while IFS=$'\t' read -r n p; do
+      f="${p}ios/$n/Package.swift"; [ -f "$f" ] || f="${p}darwin/$n/Package.swift"
+      [ -f "$f" ] && grep -h '^let firebaseSdkVersion' "$f"
+    done | sort | uniq -c
 ```
 
-- 결과가 **1줄**이어야 한다. FlutterFire 플러그인은 firebase-ios-sdk 를 `exact:` 로
-  고정하므로, 값이 갈리면 `exact` ↔ `exact` 충돌로 **해석 단계에서 즉시 실패**한다.
+- **합격 기준: 출력이 정확히 1줄이고, 맨 앞 개수가 0 이 아니다.** 현재 킷의 실제
+  출력은 `   8 let firebaseSdkVersion: Version = "12.19.0"` — FlutterFire 플러그인
+  8개가 같은 값을 선언하고 있다는 뜻이다.
+- **0줄이면 합격이 아니라 공허한 통과다** — 플러그인을 하나도 읽지 못한 것이다
+  (`pub get` 미실행, 또는 `.flutter-plugins-dependencies` 의 구조가 바뀌었다).
+  그래서 `sort -u` 가 아니라 `sort | uniq -c` 로 **개수까지 함께** 본다.
+- **2줄 이상이면 충돌이다.** 킷이 쓰는 `firebase_core` 4.15.0 은 firebase-ios-sdk 를
+  `exact: firebaseSdkVersion` 으로 고정하므로, 값이 갈리면 `exact` ↔ `exact` 충돌로
+  **해석 단계에서 즉시 실패**한다.
+  - **버전 조건:** 이 `exact` 서술은 현재 세대 기준이다. 옛 FlutterFire
+    (`firebase_core` **4.7.0 이하** 실측)는 식별자부터 다르고(`firebase_sdk_version`)
+    `from:` 으로 건다 — 이 명령이 잡지 못하고, 충돌하지도 않는다.
+- ⚠ `grep -h 'firebaseSdkVersion' ~/.pub-cache/…/Package.swift | sort -u` 형태로
+  pub-cache 를 직접 훑지 말 것. 패턴이 **선언 줄과 사용 줄 양쪽**에 매칭돼 정상
+  트리에서도 2줄이 나오고(정상 상태를 충돌로 오판한다), 해석되지 않은 옛 버전까지
+  함께 읽는다.
 
 **최종 판정은 iOS 빌드다.** 위 세 검사는 사전 선별일 뿐이고, 전이 의존성의 하한 문제는
 실제 빌드에서만 드러난다.
