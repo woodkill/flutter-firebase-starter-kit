@@ -3650,9 +3650,12 @@ _facebookAuth.login(
       `grep` 이 ugrep 이라 괄호를 쓴 `-E` 패턴에 위음성 위험이 있기 때문이다.
     - 출력의 **맨 앞 줄 번호가 곧 최신 근거**다 — 본문이 인용한 `:13-14` · `:15-16` 은
       `firebase_analytics` 12.6.0 기준이므로, 상향 뒤에는 이 출력의 번호로 읽는다.
-    실행하면 위 인용 블록 2줄에 이어 `let useWithoutAdId = …!= nil` ·
+    실행하면 **아래** 「수집 구성 자체를 끄고 싶다면」 bullet 의 swift 인용
+    블록(`// Set FIREBASE_ANALYTICS_WITHOUT_ADID=true …`) 2줄에 이어
+    `let useWithoutAdId = …!= nil` ·
     `let analyticsProduct = useWithoutAdId ? "FirebaseAnalyticsCore" :
-    "FirebaseAnalytics"` 가 나온다. 이 2줄이 달라졌다면 서술을 갱신해야 한다.
+    "FirebaseAnalytics"` 가 나온다 — 주석 2줄 + 선언 2줄로 **합계 4줄**이다.
+    뒤 2줄이 달라졌다면 서술을 갱신해야 한다.
 - **그럼에도 실제 수집되는 IDFA 는 없다** — 킷은 ATT 를 **한 번도 요청하지
   않으므로** iOS 14.5+ 가 IDFA 를 내주지 않는다. 근거는 (A) Firebase
   Supporting iOS 14 의 "With iOS 14.5, Apple requires developers to receive
