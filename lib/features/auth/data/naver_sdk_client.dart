@@ -8,6 +8,7 @@ import 'package:naver_login_flutter/naver_login_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/app_exception.dart';
+import 'naver_custom_tab_probe.dart';
 
 part 'naver_sdk_client.g.dart';
 
@@ -50,6 +51,29 @@ class NaverSdkError implements Exception {
 
   @override
   String toString() => 'NaverSdkError(${describeNaverErrorForLog(message)})';
+}
+
+/// 재개방 서명 — 취소 모양(`loggedOut`)이지만 사용자 취소가 아니다
+/// (Phase 16.4 D-19 · RESEARCH §1).
+///
+/// 한 번의 [NaverSdkClient.signIn] 동안 Android 호스트가 센
+/// `NidOAuthCustomTabActivity` 생성 횟수가 2 이상이면, 플러그인이 돌려준
+/// `loggedOut` 은 사용자가 닫은 결과가 아니라 콜백이 새 인스턴스로 배달돼
+/// 커스텀탭이 다시 열린 **실패**다. [ServiceUnavailable] 의 `cause` 로 실려
+/// 기존 `errorServiceUnavailable` 배너 경로를 탄다.
+///
+/// [toString] 은 정수 [count] 만 내보낸다 — `cause` 가 어디선가 문자열화돼도
+/// PII 표면이 없다 (WR-05 와 같은 규율).
+@immutable
+class NaverCustomTabReopened implements Exception {
+  /// 관측된 커스텀탭 Activity 생성 횟수 [count] 를 보관한다.
+  const NaverCustomTabReopened(this.count);
+
+  /// 한 번의 로그인 시도 동안 생성된 커스텀탭 Activity 수 (2 이상 = 재개방).
+  final int count;
+
+  @override
+  String toString() => 'NaverCustomTabReopened(count=$count)';
 }
 
 /// iOS 플러그인이 사용자 취소에 붙이는 **고정 리터럴**.
@@ -256,20 +280,34 @@ class NaverSdkClient {
   /// production 진입점 — 실제 Naver 플러그인 호출.
   ///
   /// 테스트는 [NaverSdkClient.forTest] 로 함수 typedef 를 주입한다.
-  NaverSdkClient() : _login = _defaultLogin, _logout = _defaultLogout;
+  NaverSdkClient()
+    : _login = _defaultLogin,
+      _logout = _defaultLogout,
+      _resetCustomTabCount = _kCustomTabProbe.resetCount,
+      _readCustomTabCount = _kCustomTabProbe.readCount;
 
   /// 테스트 전용 ctor — 플러그인 호출을 함수 typedef 로 fake 한다.
   ///
   /// production 코드는 [NaverSdkClient.new] 만 사용해야 한다.
+  ///
+  /// [customTabReset] · [customTabCount] 는 **optional** 이다 (Phase 16.4
+  /// D-19) — 주지 않으면 no-op / 상수 0 이라 재개방 분기가 발동하지 않고,
+  /// 재개방과 무관한 기존 테스트는 인자를 추가하지 않아도 그대로 컴파일된다.
   @visibleForTesting
   NaverSdkClient.forTest({
     required NaverLoginFn login,
     required NaverLogoutFn logout,
+    NaverCustomTabResetFn? customTabReset,
+    NaverCustomTabCountFn? customTabCount,
   }) : _login = login,
-       _logout = logout;
+       _logout = logout,
+       _resetCustomTabCount = customTabReset ?? _noopCustomTabReset,
+       _readCustomTabCount = customTabCount ?? _zeroCustomTabCount;
 
   final NaverLoginFn _login;
   final NaverLogoutFn _logout;
+  final NaverCustomTabResetFn _resetCustomTabCount;
+  final NaverCustomTabCountFn _readCustomTabCount;
 
   /// [signIn] 이 진행 중인지 — 클래스 doc 의 in-flight 가드 (D-18).
   bool _inFlight = false;
@@ -465,6 +503,15 @@ class NaverSdkClient {
     }
   }
 }
+
+/// production 기본 배선용 probe 인스턴스 — 상태가 없어 const 로 공유한다.
+const NaverCustomTabProbe _kCustomTabProbe = NaverCustomTabProbe();
+
+/// [NaverSdkClient.forTest] 의 `customTabReset` 기본값 — 아무것도 하지 않는다.
+Future<void> _noopCustomTabReset() async {}
+
+/// [NaverSdkClient.forTest] 의 `customTabCount` 기본값 — 항상 0 (재개방 없음).
+Future<int> _zeroCustomTabCount() async => 0;
 
 /// Default `FlutterNaverLogin.logIn` 호출 — production 진입점.
 Future<NaverLoginResult> _defaultLogin() => FlutterNaverLogin.logIn();

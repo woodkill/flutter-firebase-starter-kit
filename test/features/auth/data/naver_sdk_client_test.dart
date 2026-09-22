@@ -851,4 +851,130 @@ void main() {
       );
     });
   });
+
+  // Phase 16.4 D-19 — 재개방이 일어난 `loggedOut` 은 사용자 취소가 아니라
+  // 실패다. 구분 신호는 Dart 밖(Android 호스트 Activity 생성 계수)에서 오며,
+  // 레버 선택 근거는 `16.4-AB-RESULT.md` 의 `LEVER5_SIGNAL: ABSENT` 다.
+  group('Phase 16.4 D-19 재개방 구분 (T-16.4-NAVER-DISCRIM)', () {
+    /// [debugPrint] 를 가로채 [logs] 에 쌓는다 (16.2 선례와 동형).
+    void captureLogs(List<String> logs) {
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+    }
+
+    /// [prefix] 로 시작하는 줄만 고른다.
+    List<String> linesStartingWith(List<String> logs, String prefix) =>
+        logs.where((line) => line.startsWith(prefix)).toList();
+
+    test('T-16.4-NAVER-DISCRIM-01 재개방(createCount=2) 은 취소가 아니라 '
+        'ServiceUnavailable(cause: NaverCustomTabReopened) 로 승격된다', () async {
+      final logs = <String>[];
+      captureLogs(logs);
+
+      final client = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
+        logout: () async => buildLoggedOutResult(),
+        customTabCount: () async => 2,
+      );
+
+      final error = await captureSignInError(client);
+
+      expect(
+        error,
+        isA<ServiceUnavailable>(),
+        reason: 'D-19: 재개방은 기존 errorServiceUnavailable 배너 경로를 타야 한다',
+      );
+      final cause = (error! as ServiceUnavailable).cause;
+      expect(cause, isA<NaverCustomTabReopened>());
+      expect((cause! as NaverCustomTabReopened).count, equals(2));
+      expect(
+        cause.toString(),
+        equals('NaverCustomTabReopened(count=2)'),
+        reason: 'WR-05: cause 가 문자열화돼도 정수만 나간다',
+      );
+
+      // 도착 줄은 그대로 1줄 (대조군 — 로그 계층이 살아 있다).
+      expect(linesStartingWith(logs, 'Naver logIn 도착:').length, equals(1));
+      expect(
+        linesStartingWith(logs, 'Naver logIn 재개방 감지: '),
+        equals(<String>['Naver logIn 재개방 감지: createCount=2']),
+        reason: 'C-01: 구분 신호 로그는 정수만 담고 정확히 1줄이다',
+      );
+      expect(
+        linesStartingWith(logs, 'Naver logIn cancel:'),
+        isEmpty,
+        reason: '재개방은 취소가 아니므로 cancel 줄을 찍으면 안 된다',
+      );
+    });
+
+    test('T-16.4-NAVER-DISCRIM-02 정상 취소(1회)는 종전대로 silent null 이고 '
+        '성공 결과는 카운트와 무관하게 성공이다 (D-45 · 회귀 0)', () async {
+      final logs = <String>[];
+      captureLogs(logs);
+
+      // ① 1회 생성 = 진짜 취소 → silent null.
+      final cancelClient = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
+        logout: () async => buildLoggedOutResult(),
+        customTabCount: () async => 1,
+      );
+      expect(await cancelClient.signIn(), isNull);
+      expect(linesStartingWith(logs, 'Naver logIn cancel:').length, equals(1));
+      expect(linesStartingWith(logs, 'Naver logIn 재개방 감지: '), isEmpty);
+
+      // ② 재개방 카운트가 있어도 성공은 절대 실패로 바뀌지 않는다.
+      logs.clear();
+      final successClient = NaverSdkClient.forTest(
+        login: () async => buildSuccessResult('token'),
+        logout: () async => buildLoggedOutResult(),
+        customTabCount: () async => 2,
+      );
+      final result = await successClient.signIn();
+      expect(result, isNotNull);
+      expect(result!.accessToken, equals('token'));
+      expect(
+        linesStartingWith(logs, 'Naver logIn 재개방 감지: '),
+        isEmpty,
+        reason: 'D-45: 성공 분기는 카운트를 보지 않는다',
+      );
+
+      // ③ 기존 21+ 호출처 모양 (login · logout 만) 도 그대로 컴파일 · 동작한다.
+      logs.clear();
+      final legacyClient = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
+        logout: () async => buildLoggedOutResult(),
+      );
+      expect(
+        await legacyClient.signIn(),
+        isNull,
+        reason: '새 인자는 optional — 기본값 0 이라 재개방 분기가 발동하지 않는다',
+      );
+      expect(linesStartingWith(logs, 'Naver logIn 재개방 감지: '), isEmpty);
+    });
+
+    test('T-16.4-NAVER-DISCRIM-03 호출 순서는 reset → login → count 다 '
+        '(직전 시도의 계수가 남으면 오판이 난다)', () async {
+      final order = <String>[];
+
+      final client = NaverSdkClient.forTest(
+        login: () async {
+          order.add('login');
+          return buildLoggedOutResult();
+        },
+        logout: () async => buildLoggedOutResult(),
+        customTabReset: () async => order.add('reset'),
+        customTabCount: () async {
+          order.add('count');
+          return 1;
+        },
+      );
+
+      await client.signIn();
+
+      expect(order, equals(<String>['reset', 'login', 'count']));
+    });
+  });
 }
