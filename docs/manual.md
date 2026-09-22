@@ -4121,6 +4121,26 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
   SPM checkout 은 **DerivedData 밑에 없다.** 그래서 킷은 이 단계에 Flutter 경로를
   먼저 보는 **probe 루프**와, 두 후보가 모두 없을 때 probe 한 경로를 찍으며
   `exit 1` 하는 분기를 손으로 넣어 두었다.
+  - ⚠ **알려진 제약 — Xcode 를 직접 열어 빌드하면 stale `build/ios/SourcePackages`
+    가 우선한다.** probe 순서(Flutter 경로 먼저)는 `fvm flutter build` ·
+    `fvm flutter run` 경로에서만 옳다. **Xcode IDE 빌드에는
+    `-clonedSourcePackagesDirPath` 가 붙지 않아** 권위 있는 checkout 은 DerivedData
+    쪽인데, 직전 `flutter build` 가 남긴 **오래된** `build/ios/SourcePackages` 가
+    있으면 후보 1이 먼저 히트해 **실제로 링크된 SDK 와 다른 버전의 업로드
+    스크립트**가 쓰인다. 두 경로 모두 gitignored 빌드 산출물이라 버전이 갈라지는 것은
+    흔한 상태다. `exit 1` 분기는 「둘 다 없음」만 막고 이 경우는 막지 못한다.
+    - **순서를 자동으로 뒤집지 않는 이유:** 두 호출을 구분하는 build setting 이
+      없다. `BUILD_DIR` 은 archive 가 아닐 때만 Flutter 가 덮어쓰고
+      (`flutter_tools/lib/src/ios/mac.dart:426-427`), `-clonedSourcePackagesDirPath`
+      는 archive 를 포함한 **모든** 호출에 붙는다(`:333-338` →
+      `xcodeproj.dart:214-228`). 「DerivedData 쪽 checkout 이 존재하면 그쪽 우선」
+      같은 조건은 Xcode 를 한 번이라도 연 머신에서 **`flutter build` 를 거꾸로
+      망가뜨린다** — 같은 결함을 방향만 바꿔 옮기는 셈이다.
+    - **대신 어느 후보를 골랐는지 빌드 로그에 남긴다.** 이 단계는
+      `note: Crashlytics upload script = <경로>` 를 출력한다. Xcode 에서 직접 빌드한
+      뒤 심볼이 엉뚱해 보이면 이 줄의 경로를 확인하고, `build/ios/SourcePackages` 를
+      가리키고 있다면 그 디렉터리를 지운 뒤 다시 빌드한다(다음 `flutter build` 가
+      다시 받는다).
   - **수동으로 `fff configure` 를 돌리면 이 build phase 가 upstream 모양으로
     재생성되어 패치가 조용히 사라진다.** 돌린 뒤에는 이 build phase 의 diff 를
     반드시 확인하고 복원할 것. `scripts/firebase-configure.sh` 경로는 이 파일을
