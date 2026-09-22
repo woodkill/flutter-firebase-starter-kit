@@ -4027,19 +4027,38 @@ jq -r '.plugins.ios[] | select(.native_build) | "\(.name)\t\(.path)"' .flutter-p
 gitignored 생성물이라 fresh clone 에는 없다.
 
 ```bash
+EXPECTED=$(jq -r '[.plugins.ios[] | select(.native_build)
+                   | select(.name | startswith("firebase_") or startswith("cloud_"))]
+                  | length' .flutter-plugins-dependencies)
 jq -r '.plugins.ios[] | select(.native_build) | "\(.name)\t\(.path)"' .flutter-plugins-dependencies \
   | while IFS=$'\t' read -r n p; do
       f="${p}ios/$n/Package.swift"; [ -f "$f" ] || f="${p}darwin/$n/Package.swift"
       [ -f "$f" ] && grep -h '^let firebaseSdkVersion' "$f"
     done | sort | uniq -c
+echo "기대 FlutterFire 플러그인 수: $EXPECTED"
 ```
 
-- **합격 기준: 출력이 정확히 1줄이고, 맨 앞 개수가 0 이 아니다.** 현재 킷의 실제
-  출력은 `   8 let firebaseSdkVersion: Version = "12.19.0"` — FlutterFire 플러그인
-  8개가 같은 값을 선언하고 있다는 뜻이다.
+- **합격 기준: 선언 줄이 정확히 1줄이고, 그 줄의 맨 앞 개수가 `$EXPECTED` 와 같다.**
+  현재 킷의 실제 출력은 아래 2줄이다.
+  ```
+     8 let firebaseSdkVersion: Version = "12.19.0"
+  기대 FlutterFire 플러그인 수: 8
+  ```
+- **개수가 `$EXPECTED` 보다 작으면 합격이 아니다.** 이 명령은 플러그인마다
+  `<path>ios/<name>/Package.swift` 와 `<path>darwin/<name>/Package.swift` **두 경로만**
+  본다. 어느 쪽에도 없는 플러그인은 **조용히 건너뛴다** — 8개 중 3개만 읽혀도 출력은
+  여전히 1줄이라, 「1줄」 조건만으로는 **읽히지 않은 플러그인이 다른 값을 선언하고
+  있어도 통과한다.** 이 명령의 존재 이유가 바로 그 값 불일치 검출이므로, 표본이
+  빠지면 검출력이 그만큼 조용히 줄어든다. 그래서 「1줄」 과 「개수 = `$EXPECTED`」 를
+  **함께** 본다.
 - **0줄이면 합격이 아니라 공허한 통과다** — 플러그인을 하나도 읽지 못한 것이다
   (`pub get` 미실행, 또는 `.flutter-plugins-dependencies` 의 구조가 바뀌었다).
-  그래서 `sort -u` 가 아니라 `sort | uniq -c` 로 **개수까지 함께** 본다.
+  그래서 `sort -u` 가 아니라 `sort | uniq -c` 로 **개수까지 함께** 본다. 0줄은 위
+  개수 대조에도 걸리지만 원인이 다르므로 따로 적는다.
+- `$EXPECTED` 는 `firebase_` · `cloud_` **접두사**로 센다. 이 접두사를 쓰지 않는
+  FlutterFire 플러그인을 넣거나, `firebaseSdkVersion` 을 선언하지 않는 `firebase_*`
+  플러그인이 생기면 개수가 어긋난다 — 둘 다 **시끄럽게 실패하는 방향**이므로
+  그때 필터를 함께 고친다.
 - **2줄 이상이면 충돌이다.** 킷이 쓰는 `firebase_core` 4.15.0 은 firebase-ios-sdk 를
   `exact: firebaseSdkVersion` 으로 고정하므로, 값이 갈리면 `exact` ↔ `exact` 충돌로
   **해석 단계에서 즉시 실패**한다.
