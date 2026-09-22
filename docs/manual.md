@@ -3638,8 +3638,18 @@ _facebookAuth.login(
     바뀌어도 이 서술은 12.6.0 을 계속 가리킨다. 올린 뒤에는 아래 한 줄로 **해석된
     버전의** 근거를 다시 확인할 것(`fvm flutter pub get` 이 돌아 있어야 한다).
     ```bash
-    sed -n '13,16p' "$(jq -r '.plugins.ios[] | select(.name=="firebase_analytics") | .path' .flutter-plugins-dependencies)ios/firebase_analytics/Package.swift"
+    P="$(jq -r '.plugins.ios[] | select(.name=="firebase_analytics") | .path' .flutter-plugins-dependencies)ios/firebase_analytics/Package.swift"
+    grep -n -e '^// .*FIREBASE_ANALYTICS_WITHOUT_ADID' -e '^let useWithoutAdId' -e '^let analyticsProduct' "$P"
     ```
+    - **라인 번호가 아니라 내용으로 찾는다.** 이 명령의 목적이 「상향 **뒤**」 근거
+      재확인인데, 상향으로 `Package.swift` 에 줄이 추가되면 `sed -n '13,16p'` 같은
+      고정 구간은 엉뚱한 곳을 가리킨다 — 목적과 수단이 서로를 무효화한다.
+    - 패턴은 **선언 줄에만** 걸리도록 `^` 로 고정했다. 앵커가 없으면 같은 파일
+      `:35` 의 사용 줄(`.product(name: analyticsProduct, …)`)까지 섞여 아래 서술의
+      「4줄」 과 어긋난다. 교대(`|`) 대신 `-e` 를 여러 번 쓰는 이유는 이 환경의
+      `grep` 이 ugrep 이라 괄호를 쓴 `-E` 패턴에 위음성 위험이 있기 때문이다.
+    - 출력의 **맨 앞 줄 번호가 곧 최신 근거**다 — 본문이 인용한 `:13-14` · `:15-16` 은
+      `firebase_analytics` 12.6.0 기준이므로, 상향 뒤에는 이 출력의 번호로 읽는다.
     실행하면 위 인용 블록 2줄에 이어 `let useWithoutAdId = …!= nil` ·
     `let analyticsProduct = useWithoutAdId ? "FirebaseAnalyticsCore" :
     "FirebaseAnalytics"` 가 나온다. 이 2줄이 달라졌다면 서술을 갱신해야 한다.
