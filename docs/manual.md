@@ -3952,7 +3952,17 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `
    ```
    - **디렉터리 이름은 identity 가 아니라 repo 이름이다.** 위 표의 열 제목이
      「Swift package identity」(소문자)라 헷갈리기 쉬운데, SPM 은 checkout 디렉터리를
-     저장소 URL 의 **마지막 경로 요소**로 만든다. 실측으로 20개 중 6개가 어긋난다 —
+     저장소 URL 의 **마지막 경로 요소에서 `.git` 접미사를 뗀 이름**으로 만든다
+     (`https://github.com/google/GoogleUtilities.git` → `GoogleUtilities`).
+     현재 핀 20개 중 **16개의 `location` 이 `.git` 으로 끝나므로 URL 의 마지막 경로
+     요소를 그대로 쓰면 안 된다** — `.git` 이 붙은 이름으로 `git -C` 를 걸면
+     `No such file or directory` 가 난다. 재현:
+     ```bash
+     R=ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved
+     jq '.pins | length' "$R"                             # 20
+     jq -r '.pins[].location' "$R" | grep -c '\.git$'      # 16
+     ```
+     identity(소문자)와도 20개 중 6개가 어긋난다 —
      `appauth-ios` → `AppAuth-iOS`, `googlesignin-ios` → `GoogleSignIn-iOS`,
      `googleappmeasurement` → `GoogleAppMeasurement`, `googledatatransport` →
      `GoogleDataTransport`, `googleutilities` → `GoogleUtilities`, `gtmappauth` →
