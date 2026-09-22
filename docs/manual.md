@@ -3924,8 +3924,19 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `
    - `--refs` 를 붙이면 `^{}` 줄이 **버려져** annotated 태그에서 태그 객체 sha(틀린 값)를 집는다.
 4. 재빌드한 뒤 실제 checkout 으로 확인한다.
    ```bash
-   git -C build/ios/SourcePackages/checkouts/<identity> describe --tags
+   ls build/ios/SourcePackages/checkouts          # 디렉터리 이름을 먼저 확인
+   git -C build/ios/SourcePackages/checkouts/<디렉터리> describe --tags
    ```
+   - **디렉터리 이름은 identity 가 아니라 repo 이름이다.** 위 표의 열 제목이
+     「Swift package identity」(소문자)라 헷갈리기 쉬운데, SPM 은 checkout 디렉터리를
+     저장소 URL 의 **마지막 경로 요소**로 만든다. 실측으로 20개 중 6개가 어긋난다 —
+     `appauth-ios` → `AppAuth-iOS`, `googlesignin-ios` → `GoogleSignIn-iOS`,
+     `googleappmeasurement` → `GoogleAppMeasurement`, `googledatatransport` →
+     `GoogleDataTransport`, `googleutilities` → `GoogleUtilities`, `gtmappauth` →
+     `GTMAppAuth`.
+   - macOS 기본 APFS 는 대소문자를 무시하므로 소문자 identity 로도 **지금은
+     통한다**(실측). 대소문자 구분 볼륨이나 Linux CI 에서는
+     `No such file or directory` 가 난다 — 그래서 `ls` 를 먼저 둔다.
 5. 두 파일을 **같은 커밋**에 함께 담는다.
 
 - FlutterFire 계열(`firebase_*` · `cloud_*`)은 플러그인이 `exact` 로 고정하므로 **pub
