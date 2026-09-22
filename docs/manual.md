@@ -4048,8 +4048,27 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 
 ### ⑥ 흔한 실수
 
-전환(Phase 16.3) 실행 중 **실제로 겪은** 증상만 적는다.
+전환(Phase 16.3) 실행 중 **실제로 겪은** 증상과, 그 과정에서 **손으로 넣은 패치**의
+취급을 적는다.
 
+- **`project.pbxproj` 의 Crashlytics 업로드 단계는 upstream 템플릿에 없는 손패치다.**
+  `flutterfire_cli` 1.3.2 가 생성하는 원본은 DerivedData 경로 한 줄을 무조건
+  대입하는데, Flutter 는 모든 iOS `xcodebuild` 호출에
+  `-clonedSourcePackagesDirPath <project>/build/ios/SourcePackages` 를 붙이므로
+  SPM checkout 은 **DerivedData 밑에 없다.** 그래서 킷은 이 단계에 Flutter 경로를
+  먼저 보는 **probe 루프**와, 두 후보가 모두 없을 때 probe 한 경로를 찍으며
+  `exit 1` 하는 분기를 손으로 넣어 두었다.
+  - **수동으로 `fff configure` 를 돌리면 이 build phase 가 upstream 모양으로
+    재생성되어 패치가 조용히 사라진다.** 돌린 뒤에는 이 build phase 의 diff 를
+    반드시 확인하고 복원할 것. `scripts/firebase-configure.sh` 경로는 이 파일을
+    스냅샷·복원하므로 안전하다.
+  - 회귀 가드: `test/ios/spm_policy_test.dart` 의 `T-16.3-SPM-01` · `T-16.3-SPM-02`
+    가 red 면 패치가 사라진 것이다.
+  - 빌드 로그에 `error: firebase-ios-sdk Crashlytics/run not found. Probed: …` 이
+    찍히면 두 후보 경로가 모두 없다는 뜻이다. Xcode 의 build location 을
+    custom/relative 로 바꿔 `BUILD_ROOT` 에 `DerivedData` 문자열이 없는 머신에서
+    일어난다 — 한 번 `fvm flutter build ios` 를 돌려 `build/ios/SourcePackages` 를
+    채우거나, build location 을 기본값으로 되돌린다.
 - **SDK 버전을 고친 뒤 첫 빌드가 헤더 불일치로 실패한다** — 에러는
   `A precompiled file has been changed since last built. Please run "flutter clean"` 이고
   직전 줄이 `File '…/FBSDKCoreKit.framework/Headers/….h' has been modified since the module
