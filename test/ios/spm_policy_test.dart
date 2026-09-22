@@ -21,6 +21,7 @@
 // CI 에서도 결과가 같다. 각 단언 앞에 양성 대조(파일 비어 있지 않음 · 대상 문자열
 // 실재)를 세우는 이유는, 경로가 깨지면 「위반 0건」 이 공허하게 참이 되기 때문이다.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -32,6 +33,88 @@ const String _workspaceResolvedPath =
     'ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved';
 const String _projectResolvedPath =
     'ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved';
+const String _podfileLockPath = 'ios/Podfile.lock';
+const String _workspaceDataPath =
+    'ios/Runner.xcworkspace/contents.xcworkspacedata';
+const String _linePinDecisionPath =
+    '.planning/phases/16.3-ios-cocoapods-to-spm-migration/'
+    'artifacts/LINE-PIN-DECISION.md';
+
+/// [directory] 아래 **tracked** `.xcconfig` 파일 경로 목록을 등장 순서대로
+/// 돌려준다.
+///
+/// `Directory.listSync()` 대신 `git ls-files` 로 거른다 — 워킹트리에는
+/// `ios/Flutter/Generated.xcconfig` · `dev.xcconfig` 등 gitignored 실 값
+/// 파일도 함께 있어(로컬 secrets), 디스크 나열만 하면 fresh clone·CI 에는
+/// 없는 파일까지 대상에 넣게 된다. 이 test 는 tracked 파일만 본다는
+/// 프로젝트 규칙(`readTrackedFile` 주석)을 xcconfig 목록에도 그대로 적용한다.
+List<String> listTrackedXcconfigFiles(String directory) {
+  final ProcessResult result = Process.runSync(
+    'git',
+    <String>['ls-files', '$directory/*.xcconfig'],
+    stdoutEncoding: utf8,
+    stderrEncoding: utf8,
+  );
+  expect(
+    result.exitCode,
+    0,
+    reason:
+        'git ls-files $directory/*.xcconfig 실패 — git 이 PATH 에 없거나 '
+        '저장소 밖에서 실행됐다.',
+  );
+  return (result.stdout as String)
+      .split('\n')
+      .where((String line) => line.isNotEmpty)
+      .toList();
+}
+
+/// [path] 의 `LINE_PIN_VERSION:` / `LINE_PIN_REVISION:` 값을 읽는다.
+///
+/// **하드코딩하지 않는 이유:** LINE 핀의 진실원은 이 결정 파일이다
+/// (`.planning/.../LINE-PIN-DECISION.md`). 값을 테스트에 다시 적으면
+/// 진실원이 둘로 갈라진다.
+({String version, String revision}) readLinePinDecision(String path) {
+  final String text = readTrackedFile(path);
+  final String? version = RegExp(
+    r'LINE_PIN_VERSION:\s*(\S+)',
+  ).firstMatch(text)?.group(1);
+  final String? revision = RegExp(
+    r'LINE_PIN_REVISION:\s*(\S+)',
+  ).firstMatch(text)?.group(1);
+
+  // 빈 값을 그대로 흘려보내지 않는다 — 두 빈 문자열을 비교하면 아래 핀
+  // 검사가 공허하게 통과한다 (plan 02 의 "빈 값 가드" 를 그대로 재현).
+  expect(
+    version,
+    isNotNull,
+    reason: '$path 에서 LINE_PIN_VERSION 을 읽지 못했다 — 키 형식이 바뀌었다',
+  );
+  expect(
+    revision,
+    isNotNull,
+    reason: '$path 에서 LINE_PIN_REVISION 을 읽지 못했다 — 키 형식이 바뀌었다',
+  );
+  expect(version, isNotEmpty, reason: '$path 의 LINE_PIN_VERSION 값이 비었다');
+  expect(revision, isNotEmpty, reason: '$path 의 LINE_PIN_REVISION 값이 비었다');
+  return (version: version!, revision: revision!);
+}
+
+/// [resolvedJson] 의 `pins` 목록에서 identity [identity] 의 핀을 돌려준다.
+///
+/// 못 찾으면 `fail()` 한다 — 오타 난 identity 가 조용히 skip 되지 않고
+/// 시끄럽게 죽어야 한다.
+Map<String, Object?> findPin(List<Object?> pins, String identity) {
+  for (final Object? pin in pins) {
+    final Map<String, Object?> map = pin! as Map<String, Object?>;
+    if (map['identity'] == identity) {
+      return map;
+    }
+  }
+  fail(
+    'identity "$identity" 를 Package.resolved 의 pins 에서 찾지 못했다 — '
+    '핀이 삭제됐거나 identity 문자열이 바뀌었다.',
+  );
+}
 
 /// probe 루프의 1순위 후보 — Flutter 가 `-clonedSourcePackagesDirPath` 로 지정하는 곳.
 const String _flutterCheckoutRun =
@@ -218,6 +301,258 @@ void main() {
             'pubspec.yaml 에 이 키가 있으면(true 든 false 든) flutter create 표준 '
             '모양과 어긋나고, false 면 CocoaPods fallback 으로 되돌아가 '
             'ios/Podfile 이 재생성된다.',
+      );
+    });
+  });
+
+  group('CocoaPods 흔적 부재 (16.3 D-02)', () {
+    test('T-16.3-SPM-05 ios/Podfile.lock 이 존재하지 않는다', () {
+      expect(
+        File(_podfileLockPath).existsSync(),
+        isFalse,
+        reason:
+            'Phase 16.3 D-02: $_podfileLockPath 이 되살아났다면 CocoaPods 가 '
+            '다시 실행된 것이다 — docs/manual.md 「iOS 의존성 관리 (SPM)」 ③ 을 '
+            '보라.',
+      );
+      // 양성 대조 — 같은 File API 가 실제로 매칭한다는 사실을 고정한다.
+      // 이것이 없으면 ios/ 디렉터리째 사라져도 위 단언이 공허하게 통과한다.
+      expect(
+        File(_pbxprojPath).existsSync(),
+        isTrue,
+        reason: 'tracked 파일 부재: $_pbxprojPath',
+      );
+    });
+
+    test('T-16.3-SPM-06 pbxproj 에 CocoaPods 통합 흔적([CP] · Pods)이 없다', () {
+      final String pbx = readTrackedFile(_pbxprojPath);
+
+      // 양성 대조 — 파일이 비어 있거나 SPM 통합 자체가 사라지면
+      // 아래 0건 단언들이 공허하게 참이 된다.
+      expect(pbx, isNotEmpty, reason: '$_pbxprojPath 를 읽지 못했다');
+      expect(
+        countOccurrences(pbx, 'FlutterGeneratedPluginSwiftPackage'),
+        greaterThan(0),
+        reason:
+            'SPM 생성 패키지 참조가 pbxproj 에서 사라졌다 — G3 SPM 실사용 '
+            '증거가 깨졌다.',
+      );
+
+      expect(
+        countOccurrences(pbx, '[CP]'),
+        0,
+        reason:
+            'Phase 16.3 D-02: pbxproj 에 CocoaPods build phase 접두 '
+            '"[CP]" 가 남아 있다 — CocoaPods 가 다시 통합됐다. '
+            'docs/manual.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
+      );
+      expect(
+        countOccurrences(pbx, 'Pods'),
+        0,
+        reason:
+            'Phase 16.3 D-02: pbxproj 에 "Pods" 문자열이 남아 있다 — '
+            'CocoaPods target/참조가 재유입됐다. '
+            'docs/manual.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
+      );
+    });
+
+    test(
+      'T-16.3-SPM-07 xcworkspace 의 contents.xcworkspacedata 에 Pods 참조가 없다',
+      () {
+        final String workspaceData = readTrackedFile(_workspaceDataPath);
+
+        // 양성 대조 — 파일이 텅 비면 아래 0건 단언이 공허하게 참이 된다.
+        expect(
+          countOccurrences(
+            workspaceData,
+            'location = "group:Runner.xcodeproj"',
+          ),
+          1,
+          reason:
+              '$_workspaceDataPath 의 FileRef 가 사라졌다 — 파일이 깨졌거나 '
+              'workspace 구조가 바뀌었다 (읽어서 실제 리터럴을 먼저 확인할 것).',
+        );
+
+        expect(
+          countOccurrences(workspaceData, 'Pods'),
+          0,
+          reason:
+              'Phase 16.3 D-02: $_workspaceDataPath 에 "Pods" 참조가 '
+              '남아 있다 — CocoaPods 프로젝트 참조가 재유입됐다.',
+        );
+      },
+    );
+
+    test(
+      'T-16.3-SPM-08 tracked ios/Flutter/*.xcconfig 에 CocoaPods 링크 흔적이 없다',
+      () {
+        final List<String> xcconfigFiles = listTrackedXcconfigFiles(
+          'ios/Flutter',
+        );
+
+        // 빈 목록 가드 — 0개에서는 아래 "0건" 이 공허하게 참이 된다
+        // (ios_deployment_target_consistency_test.dart 와 같은 패턴).
+        expect(
+          xcconfigFiles,
+          isNotEmpty,
+          reason: 'tracked ios/Flutter/*.xcconfig 목록이 비었다 — git ls-files 실패',
+        );
+
+        // 양성 대조 — 열거된 파일 중 적어도 하나는 Generated.xcconfig 를
+        // #include 한다는 사실을 고정한다. 이것이 없으면 목록이 전부
+        // 엉뚱한 파일이어도 아래 0건이 공허하게 참이 된다.
+        final bool anyIncludesGenerated = xcconfigFiles.any(
+          (String path) =>
+              countOccurrences(readTrackedFile(path), 'Generated.xcconfig') > 0,
+        );
+        expect(
+          anyIncludesGenerated,
+          isTrue,
+          reason:
+              'tracked xcconfig 중 어느 것도 Generated.xcconfig 를 #include '
+              '하지 않는다 — 목록 또는 파일 내용이 깨졌다.',
+        );
+
+        for (final String path in xcconfigFiles) {
+          expect(
+            countOccurrences(readTrackedFile(path), 'Target Support Files'),
+            0,
+            reason:
+                'Phase 16.3 D-02: $path 에 CocoaPods 가 심는 '
+                '"Target Support Files" #include 가 남아 있다 — '
+                'CocoaPods 가 다시 통합됐다. '
+                'docs/manual.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
+          );
+        }
+      },
+    );
+  });
+
+  group('SPM 실사용 증거 (16.3 D-03 discretion)', () {
+    test(
+      'T-16.3-SPM-09 pbxproj 가 FlutterGeneratedPluginSwiftPackage 를 최소 1회 참조한다',
+      () {
+        final String pbx = readTrackedFile(_pbxprojPath);
+
+        // 양성 대조 — 파일이 비면 아래 ≥1 단언이 무의미해진다.
+        expect(pbx, isNotEmpty, reason: '$_pbxprojPath 를 읽지 못했다');
+
+        // ios/Flutter/ephemeral/Packages 는 gitignored 생성물이라 test
+        // 대상으로 삼지 않는다 — fresh clone·CI 에는 존재하지 않는다.
+        expect(
+          countOccurrences(pbx, 'FlutterGeneratedPluginSwiftPackage'),
+          greaterThan(0),
+          reason:
+              'Phase 16.3: pbxproj 에 SPM 생성 패키지 참조가 없다 — SPM 이 '
+              '더 이상 실제로 쓰이지 않는 것일 수 있다 (CocoaPods 로 '
+              '회귀했는지 확인하세요).',
+        );
+      },
+    );
+  });
+
+  group('Package.resolved 핀 값 (16.3 D-05 · D-07)', () {
+    /// 손으로 값을 바꾸거나 명시 고정한 5개 identity — 16.3-02-SUMMARY.md
+    /// 「② 고정한 identity」 표가 진실원이다. LINE 은 하드코딩하지 않고
+    /// 결정 파일에서 읽으므로 이 표에 없다.
+    const Map<String, ({String version, String revision})> expectedPins =
+        <String, ({String version, String revision})>{
+          'facebook-ios-sdk': (
+            version: '18.0.2',
+            revision: '32da5bdef917ccd845fcf319c5fb67c654459d27',
+          ),
+          'googlesignin-ios': (
+            version: '9.1.0',
+            revision: '913b4005ea26aebe1c97d54e35ad82a515924c71',
+          ),
+          'firebase-ios-sdk': (
+            version: '12.19.0',
+            revision: '27eaab3918e0bf78711cf1abf240577176326432',
+          ),
+          'appauth-ios': (
+            version: '2.0.0',
+            revision: '145104f5ea9d58ae21b60add007c33c1cc0c948e',
+          ),
+          'naveridlogin-sdk-ios-swift': (
+            version: '5.2.1',
+            revision: '70f0cecb996768b3f6df88ec72567e3c5dee1035',
+          ),
+        };
+
+    test('T-16.3-SPM-10 6개 SDK 의 identity 별 핀이 기준선 값을 유지한다', () {
+      final Map<String, Object?> resolved =
+          jsonDecode(readTrackedFile(_workspaceResolvedPath))
+              as Map<String, Object?>;
+      final List<Object?> pins = resolved['pins']! as List<Object?>;
+
+      // 양성 대조 — pins 목록이 비면 아래 5개 identity 검사 전부가
+      // findPin() 의 fail() 로 죽지만, threat T-16.3-13(Package.resolved
+      // 삭제)을 「pins 자체가 없다」 로도 명시적으로 잡아 둔다.
+      expect(
+        pins,
+        isNotEmpty,
+        reason:
+            '$_workspaceResolvedPath 의 pins 가 비었다 — Xcode "Update to '
+            'Latest Package Versions" 또는 파일 재생성으로 고정이 통째로 '
+            '풀렸을 수 있다. docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
+      );
+
+      for (final MapEntry<String, ({String version, String revision})> entry
+          in expectedPins.entries) {
+        final Map<String, Object?> pin = findPin(pins, entry.key);
+        final Map<String, Object?> state =
+            pin['state']! as Map<String, Object?>;
+
+        expect(
+          state['version'],
+          entry.value.version,
+          reason:
+              'Phase 16.3 D-05: identity "${entry.key}" 의 version 핀이 '
+              '기준선(${entry.value.version})에서 벗어났다 — Xcode '
+              '"Update to Latest Package Versions" 를 실행했거나 누군가 '
+              '수동으로 값을 바꿨다. docs/manual.md 「iOS 의존성 관리 '
+              '(SPM)」 ② 를 보라.',
+        );
+        expect(
+          state['revision'],
+          entry.value.revision,
+          reason:
+              'Phase 16.3 D-05: identity "${entry.key}" 의 revision 핀이 '
+              '기준선(${entry.value.revision})에서 벗어났다 — version '
+              '문자열은 같아도 실제로 받아오는 코드가 달라졌을 수 있다. '
+              'docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
+        );
+      }
+    });
+
+    test('T-16.3-SPM-11 line-sdk-ios-swift 핀이 LINE-PIN-DECISION.md 값과 일치한다', () {
+      final ({String version, String revision}) decision = readLinePinDecision(
+        _linePinDecisionPath,
+      );
+
+      final Map<String, Object?> resolved =
+          jsonDecode(readTrackedFile(_workspaceResolvedPath))
+              as Map<String, Object?>;
+      final List<Object?> pins = resolved['pins']! as List<Object?>;
+      final Map<String, Object?> pin = findPin(pins, 'line-sdk-ios-swift');
+      final Map<String, Object?> state = pin['state']! as Map<String, Object?>;
+
+      expect(
+        state['version'],
+        decision.version,
+        reason:
+            'Phase 16.3 D-07: line-sdk-ios-swift 의 version 핀이 '
+            '$_linePinDecisionPath 의 LINE_PIN_VERSION(${decision.version})과 '
+            '어긋났다. docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
+      );
+      expect(
+        state['revision'],
+        decision.revision,
+        reason:
+            'Phase 16.3 D-07: line-sdk-ios-swift 의 revision 핀이 '
+            '$_linePinDecisionPath 의 LINE_PIN_REVISION(${decision.revision})과 '
+            '어긋났다 — version 문자열은 같아도 실제 checkout 이 달라졌을 '
+            '수 있다. docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
       );
     });
   });
