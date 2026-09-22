@@ -4130,6 +4130,15 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
   12개가 함께 바뀐다. 손으로 고칠 때는 12개를 **전부 같은 값**으로 맞춘다 —
   `test/ios/ios_deployment_target_consistency_test.dart` 가 「12개가 전부 같은 값」 을
   강제한다.
+- ⚠ **하한은 15.0 이다 — 그 아래로는 내릴 수 없다.** 같은 test 가 「12개 일치」와
+  함께 **15.0 미만을 금지**한다(`_minSupportedIosTarget`). 14.0 으로 내리려 하면
+  빌드가 아니라 `fvm flutter test` 가 먼저 red 가 된다.
+  - 근거는 진실원의 복제가 아니라 **외부 의존이 부과하는 독립 제약**이다 —
+    Flutter 3.47 이 지원하는 iOS 최소 버전이자 킷이 고정한 LineSDK 5.17.0 의
+    `platforms` 하한이 둘 다 15.0 이다. 그래서 15.6 → 15.7 같은 정상 상향은
+    그대로 통과한다.
+  - 하한 자체를 올리거나 내리려면 test 의 `_minSupportedIosTarget` 과 이 bullet 을
+    **함께** 고친다.
 - Flutter 는 **빌드 때마다 이 값을 읽어** 자기가 생성하는 패키지의 `platforms` 를
   끌어올린다. CocoaPods 시절의 `post_install` 하한 보정 루프 같은 장치는 필요 없다.
 - 의존 SDK 의 하한보다 **낮게** 내리면 SPM 이 빌드를 막는다(③ (나)).
@@ -4236,8 +4245,10 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 
 | 2026-09-20 | 16.2-05 | Naver Login 절을 플러그인 교체(naver_login_flutter 4.0.0 · 정확 버전 고정) 기준으로 갱신 — 키를 채우는 곳이 runtime 초기화에서 native 두 곳(Android 는 config json → gradle string resource, iOS 는 xcconfig 3변수 → Info.plist 변수 치환)으로 바뀐 절차, Client Secret 추출 가능 경고를 2단계로 이관, placeholder 상태에서도 3 flavor 빌드 · 기동이 된다는 계약과 확인 스크립트, 클라이언트 프로필 조회와 개인정보 범위, 구 SDK 잔존 토큰 사실 기록, Pitfall 을 Phase 13 · 16.2 통합 18항으로 개정(iOS 취소 표면 · 1-tap 미복귀 wedge 미검증 · 토큰 보간 · 프로필 실패 · plist 키 부재 · meta-data 참조 · 미설치 종단 오류 · 네이티브 로깅). Initial Setup 키 표의 naver 3행 + appName 행 비고 갱신, iOS xcconfig 변수 목록에 NAVER_CLIENT_ID · NAVER_CLIENT_SECRET 추가, stg/prod 등록 절차에 prod xcconfig 2변수 추가, SPM 미지원 경고 서술을 교체 후 실측(경고 0건)으로 정정. |
 
-| 2026-09-22 | 16.3 | `## iOS 의존성 관리 (SPM)` 절 신규(①~⑥ — SPM 입문 + CocoaPods ↔ SPM 대응표 · 두 tracked `Package.resolved` 고정과 peeled sha 상향 절차 + LINE 5.17.0 경고 · 새 플러그인 사전 확인 3단계 · SPM 미지원 플러그인의 조용한 CocoaPods fallback 증상 · 배포 타겟 진실원 = pbxproj `IPHONEOS_DEPLOYMENT_TARGET` 12개 · 전환 중 실제로 겪은 증상 2건) + CocoaPods 전제 서술 6곳을 현재형으로 재작성 — firebase-configure 함정 bullet 에 「주체는 flutterfire CLI 의 ruby gem」 조건절, IDFA 근거를 `Podfile.lock` 에서 `firebase_analytics` 의 `Package.swift`(기본 product `FirebaseAnalytics` · 끄는 법 `FIREBASE_ANALYTICS_WITHOUT_ADID`, 킷에서 시도 0건 유지)로 교체, 「Flutter SDK 상향 (FVM)」 의 ② 2번 · ③ 표(`ios/Podfile.lock` 행 삭제 + 경고 문장 교체) · ④(「명시적으로 끈다」 → 「기본값(on)을 그대로 쓴다」) · ⑥(CocoaPods 불요 + `flutter doctor` 표시 유지) 수정, ⑦ `PODFILE CHECKSUM` 절 삭제와 ⑧⑨⑩ → ⑦⑧⑨ 재번호. 목차 20 항목으로 확장. 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/`. |
+| 2026-09-22 | 16.3 | `## iOS 의존성 관리 (SPM)` 절 신규(①~⑥ — SPM 입문 + CocoaPods ↔ SPM 대응표 · 두 tracked `Package.resolved` 고정과 peeled sha 상향 절차 + LINE 5.17.0 경고 · 새 플러그인 사전 확인 3단계 · SPM 미지원 플러그인의 조용한 CocoaPods fallback 증상 · 배포 타겟 진실원 = pbxproj `IPHONEOS_DEPLOYMENT_TARGET` 12개 · ⑥ = 손패치 취급 1건 + 전환 중 실제로 겪은 증상 2건) + CocoaPods 전제 서술 6곳을 현재형으로 재작성 — firebase-configure 함정 bullet 에 「주체는 flutterfire CLI 의 ruby gem」 조건절, IDFA 근거를 `Podfile.lock` 에서 `firebase_analytics` 의 `Package.swift`(기본 product `FirebaseAnalytics` · 끄는 법 `FIREBASE_ANALYTICS_WITHOUT_ADID`, 킷에서 시도 0건 유지)로 교체, 「Flutter SDK 상향 (FVM)」 의 ② 2번 · ③ 표(`ios/Podfile.lock` 행 삭제 + 경고 문장 교체) · ④(「명시적으로 끈다」 → 「기본값(on)을 그대로 쓴다」) · ⑥(CocoaPods 불요 + `flutter doctor` 표시 유지) 수정, ⑦ `PODFILE CHECKSUM` 절 삭제와 ⑧⑨⑩ → ⑦⑧⑨ 재번호. 목차 20 항목으로 확장. 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/`. |
+
+| 2026-09-22 | 16.3-REVIEW-FIX | 증분 코드 리뷰 2회차 지적 11건(Warning 4 · Info 7) 반영 — 「iOS 의존성 관리 (SPM)」 절의 **검증력** 보강이 주제다. ② 상향 절차 4번: checkout 디렉터리 규칙을 「URL 마지막 경로 요소」 → 「마지막 경로 요소에서 **`.git` 접미사를 뗀 이름**」 으로 정정(핀 20개 중 16개의 `location` 이 `.git` 으로 끝나 규칙대로 하면 `No such file or directory` — 재현 명령 병기, 규칙 성립을 실제 checkout 20개와 `diff` 로 전수 확인) + identity 불일치 6건을 별개 사실로 분리. ③(다): 합격 기준을 「출력 1줄」 단독에서 「1줄 **AND** 맨 앞 개수 = `$EXPECTED`」 로 교체 — 두 경로만 탐색해 조용히 건너뛰는 구조 때문에 **표본 부분 누락에 공허하게 참**이었다(8개 중 3개만 읽혀도 1줄). 기대 개수는 `grep -cE` 가 아니라 **jq 필터**로 센다(ugrep 괄호 `-E` 위음성 + 주석 오염 배제). 성립 불가능 조항 「맨 앞 개수가 0 이 아니다」(`uniq -c` 는 개수 0 을 출력할 수 없다) 제거. 「옛 세대는 충돌하지도 않는다」 단정을 조건부로 한정(`from: X` 와 `exact: Y` 는 `Y >= X` 일 때만 해석 — 반례 존재, 확인 명령 추가). ⑤: **하한 15.0 금지선**을 명시(test 가 12개 일치와 함께 강제하므로 14.0 으로 내리면 빌드 전에 `flutter test` 가 red) — `_minSupportedIosTarget` doc comment 와의 양방향 링크 복구. ⑥: **Xcode IDE 빌드에서 stale `build/ios/SourcePackages` 가 우선한다**는 알려진 제약 신규(probe 순서를 자동으로 뒤집지 않는 근거를 flutter_tools 라인 인용으로 명시 — `BUILD_DIR` 은 archive 가 아닐 때만 덮어써지고 `-clonedSourcePackagesDirPath` 는 모든 호출에 붙는다) + build phase 가 고른 후보를 `note:` 로 로깅. IDFA 절: 근거 재확인 명령을 하드코딩 `sed -n '13,16p'` 에서 **내용 앵커 `grep`** 으로 교체(상향으로 줄이 밀리면 목적과 수단이 서로를 무효화했다) + 「위 인용 블록」 방향 오기를 「아래 … 블록」 + 식별 문자열로 정정. 회귀 가드 쪽은 `test/helpers/source_text.dart` 신규 추출(헬퍼 3종의 3중 복제 해소 · public 최상위 심볼 0), SPM 손패치 단언을 **`shellScript` 본문으로 범위 한정**(전체 텍스트 검사라 shellScript 가 비어도 통과하던 구멍 폐쇄), 배포 타겟 비교를 `double.parse` 에서 **성분 단위 비교**로 교체(`15.6.1` 예외사 · `15.10` → `15.1` 오독 제거). 모든 문서 명령은 블록에서 그대로 추출해 실행한 출력과 대조했고, 가드 변경은 fixture 로 red 재현을 확인했다. 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/16.3-REVIEW.md`(round 2) · `16.3-REVIEW-FIX.md`. |
 
 ---
 
-*Last updated: 2026-09-22 — 16.3 iOS CocoaPods → SPM 전환 반영 (「iOS 의존성 관리 (SPM)」 절 신설 + CocoaPods 전제 서술 현재형 재작성)*
+*Last updated: 2026-09-22 — 16.3 증분 코드 리뷰 2회차 반영 (「iOS 의존성 관리 (SPM)」 절의 규칙·합격 기준·회귀 가드 검증력 보강 11건)*
