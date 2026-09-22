@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-09-12
-phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login)]
+last_updated: 2026-09-22
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -44,6 +44,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 17. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
 18. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
 19. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+20. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
 
 ---
 
@@ -3853,6 +3854,212 @@ Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · �
 추가 조치가 필요했던 것은 **golden 20장 재생성**과 **test 6파일 포맷 drift** 둘뿐이며,
 AGP/KGP/Gradle 경고 3건과 `naver_login_sdk` SPM 미지원 경고 1건은 예상된 정상 출력이다
 (이 경고는 Phase 16.2 이후 사라졌다).
+
+---
+
+## iOS 의존성 관리 (SPM)
+
+> **2026-09-22 도입.** 근거 = Phase 16.3 산출물
+> (`.planning/phases/16.3-ios-cocoapods-to-spm-migration/` 의 `16.3-CONTEXT.md` ·
+> `16.3-RESEARCH.md` · `artifacts/`) 의 실측 — iOS 네이티브 의존성 관리자를
+> CocoaPods → **Swift Package Manager(SPM)** 로 전환. 원 todo =
+> `.planning/todos/pending/2026-09-19-cocoapods-to-spm-migration.md`.
+>
+> 이 절은 **킷 사용자가 iOS 네이티브 의존성을 다룰 때**의 개념 · 버전 고정 ·
+> 새 플러그인 사전 확인 · 배포 타겟 변경 절차를 정리합니다.
+
+### ① SPM 이 무엇이고 이 킷이 왜 SPM 인가
+
+**Swift Package Manager(SPM)** 는 Apple 이 Swift 도구체인과 Xcode 에 내장한 의존성
+관리자다. CocoaPods 가 하던 일(네이티브 SDK 선언 · 버전 해석 · 내려받기 · Xcode
+프로젝트 연결)을 **별도 도구 설치 없이** Xcode 와 Flutter 도구가 직접 수행한다.
+Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `ios/Podfile` 을
+만들지 않는다 — 이 킷도 그 표준 모양(별도 스위치 없이 기본값)을 따른다.
+
+| 항목 | CocoaPods (이전) | SPM (현재) |
+|---|---|---|
+| 의존성 선언 | `ios/Podfile` + 각 플러그인의 `<name>.podspec` | 각 플러그인의 `Package.swift` + Flutter 가 매 빌드마다 생성하는 `FlutterGeneratedPluginSwiftPackage` |
+| 잠금 파일 | `ios/Podfile.lock` (1개) | `Package.resolved` (**2곳** — ② 참고) |
+| 내려받은 산출물 | `ios/Pods/` · `ios/.symlinks/` (프로젝트 안, gitignored) | `build/ios/SourcePackages/checkouts/` (빌드 디렉터리 안, gitignored) |
+| 설치 요구 | ruby gem `cocoapods` 를 개발자가 따로 설치 | **없다** — Xcode · Flutter 도구에 내장 |
+
+**왜 지금 옮겼나 (날짜가 걸린 확정 사실 2건):**
+
+- Firebase 는 **2026-10** 이후 CocoaPods 로 **신규 버전을 배포하지 않는다** —
+  "Firebase will stop publishing new versions to CocoaPods in October 2026."
+  (https://firebase.google.com/docs/ios/cocoapods-deprecation)
+- CocoaPods 레지스트리는 **2026-12-02** 에 영구 **read-only** 가 된다 —
+  "Flutter continues to support CocoaPods in maintenance mode, however, the CocoaPods
+  registry permanently becomes read-only on December 2, 2026."
+  (https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-app-developers)
+
+**Flutter 가 「SPM 비활성화」 와 CocoaPods fallback 을 막는 시점은 미공개다.** 도구는
+예고만 한다 — 아래 두 문장이 Flutter 3.47.5 소스의 원문이다.
+
+- `Disabling Swift Package Manager will not be allowed in a future version of Flutter.`
+- `This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.`
+
+- 특정 Flutter 버전 · 날짜를 추정해 계획을 세우지 않는다. 위 두 예고에는 버전도
+  날짜도 없다. 확정된 날짜는 **2026-10** 과 **2026-12-02** 둘뿐이다.
+- **범위:** 이 전환은 `ios/` 에만 해당한다. `macos/` 는 지금도 CocoaPods 를 쓴다
+  (이 킷은 macOS 를 지원하지 않으므로 빌드하지 않는다).
+
+### ② 네이티브 SDK 버전은 어디에 고정돼 있나
+
+**진실원 표**
+
+| 대상 | 값 | 비고 |
+|---|---|---|
+| `ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved` | 20개 핀의 `version` · `revision` | **빌드가 존중하는 쪽.** 실제 빌드가 `-workspace Runner.xcworkspace` 로 돌기 때문 |
+| `ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` | 위와 **바이트 동일**해야 한다 | Flutter 의 사전 해석(prefetch)이 이 컨테이너를 쓴다. 지우면 **핀을 무시한 최신값으로 자동 재생성**된다 |
+
+- 두 파일 모두 tracked 다. 한쪽만 추적하면 fresh clone 의 첫 빌드에서 다른 쪽이
+  최신값으로 생기고 `git status` 가 더러워진다.
+- 같은지 확인: `cmp -s ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved && echo SAME`
+
+**직접 선언한 SDK 의 현재 고정값** (전이 의존성은 해석 결과를 그대로 수용한다)
+
+| Swift package identity | 고정 버전 | 비고 |
+|---|---|---|
+| `firebase-ios-sdk` | 12.19.0 | 플러그인이 `exact` 로 고정 — 값을 손댈 필요가 없다 |
+| `appauth-ios` | 2.0.0 | 〃 |
+| `googlesignin-ios` | 9.1.0 | **명시 고정.** 그래프가 우연히 준 값이다 — `flutter_appauth` 를 12.1.0 으로 올리면 AppAuth 2.1.0 과 함께 9.2.0 으로 조용히 튄다 |
+| `facebook-ios-sdk` | 18.0.2 | 선언이 `"18.0.2" ..< "19.0.0"` 이라 고정하지 않으면 18.1.1 로 올라간다 |
+| `line-sdk-ios-swift` | **5.17.0** | 아래 경고 박스 참고 |
+| `naveridlogin-sdk-ios-swift` | 5.2.1 | 선언이 `.upToNextMinor(from: "5.2.0")` |
+
+**상향 절차** — 값 문자열만 고치는 편집이다.
+
+1. 두 `Package.resolved` 에서 대상 핀의 `version` · `revision` **문자열만** 고친다.
+2. 두 파일을 **같은 내용**으로 맞춘다(`cmp -s`).
+3. `revision` 은 추측하지 말고 태그에서 얻는다 — annotated 태그는 **peeled sha** 를 쓴다.
+   ```bash
+   git ls-remote --tags <repo-url> | grep -E 'refs/tags/<tag>(\^\{\})?$'
+   ```
+   - `--refs` 를 붙이면 `^{}` 줄이 **버려져** annotated 태그에서 태그 객체 sha(틀린 값)를 집는다.
+4. 재빌드한 뒤 실제 checkout 으로 확인한다.
+   ```bash
+   git -C build/ios/SourcePackages/checkouts/<identity> describe --tags
+   ```
+5. 두 파일을 **같은 커밋**에 함께 담는다.
+
+- FlutterFire 계열(`firebase_*` · `cloud_*`)은 플러그인이 `exact` 로 고정하므로 **pub
+  패키지를 올리면 네이티브 SDK 가 따라 올라간다** — `Package.resolved` 를 손으로
+  고치는 대상이 아니다.
+
+> ⚠ **`Package.resolved` 를 지우지 말고, Xcode 의 *Update to Latest Package Versions* 를
+> 누르지 말 것.**
+>
+> 핀이 풀리면 LINE 이 **5.17.0** 을 벗어나 5.18+ 로 drift 하고, `flutter_line_sdk` 2.7.2 의
+> manifest 하한(iOS 13.0)과 LineSDK 의 하한 불일치는 **도구가 그 검사를 되살리는 순간
+> 빌드 에러**가 된다(upstream issue https://github.com/line/flutter_line_sdk/issues/151).
+> 다른 5개 핀도 같은 조작 한 번에 전부 풀린다.
+>
+> **복귀 조건:** `flutter_line_sdk` **3.0.0 의 pub.dev 릴리스** AND 킷 Android 의
+> **AGP 9 세대 전환** 이 둘 다 성립할 때 다시 검토한다
+> (`.planning/todos/pending/2026-09-21-flutter-line-sdk-3-0-0-return.md`).
+
+- **SPM 경로에서는 `firebase_app_check` 가 `RecaptchaEnterprise`(바이너리 XCFramework,
+  `recaptcha-enterprise-mobile-sdk` 18.9.1)를 함께 링크한다** — CocoaPods 경로에는 없던
+  SDK 다. 앱 크기 · privacy manifest · 심사 신고 대상 판단에 넣을 것.
+- **`flutter clean` 은 SPM checkout(`build/ios/SourcePackages`)까지 지운다** — 다음 빌드가
+  수백 MB 를 다시 받아 수 분이 걸린다. 캐시 문제를 풀려는 목적이라면 ⑥ 을 먼저 볼 것.
+
+### ③ 새 플러그인을 넣기 전에 확인할 것
+
+**(가) `Package.swift` 가 있는가** — native 코드를 가진 iOS 플러그인 전수 검사.
+
+```bash
+jq -r '.plugins.ios[] | select(.native_build) | "\(.name)\t\(.path)"' .flutter-plugins-dependencies \
+  | while IFS=$'\t' read -r n p; do
+      if [ -f "${p}ios/$n/Package.swift" ] || [ -f "${p}darwin/$n/Package.swift" ]; then
+        echo "SPM-OK $n"; else echo "SPM-MISSING $n"; fi
+    done | sort
+```
+
+- `select(.native_build)` 필터를 빼면 `path_provider_foundation` 같은 **Dart 전용
+  플러그인**(`dartPluginClass` 만 있고 네이티브 패키지가 아예 없다)이 `SPM-MISSING` 으로
+  오탐된다.
+- `SPM-MISSING` 이 0줄인 것만으로 끝내지 말고 **대상 개수가 0 이 아닌지** 함께 본다 —
+  0개를 검사하고 통과한 것과 구분되지 않는다.
+
+**(나) 플러그인과 그 의존 SDK 의 `platforms` 하한을 대조한다.**
+
+- 플러그인 `Package.swift` 의 `platforms: [.iOS(...)]` 와, 그 플러그인이
+  `.package(url:)` 로 끌어오는 SDK 의 같은 값을 비교한다. **의존 SDK 의 하한이 더 높으면
+  SPM 이 타깃 그래프 구성 단계에서 빌드를 막는다.**
+- LINE 의 교훈: `flutter_line_sdk` 2.7.2 는 13.0 인데 LineSDK 5.17.0 은 15.0 이다. 이
+  불일치는 **앱의 배포 타겟을 올려도 해소되지 않는다** — Flutter 는 자기가 생성하는
+  패키지의 하한만 끌어올리고 플러그인 자신의 `Package.swift` 는 건드리지 않기 때문이다.
+
+**(다) FlutterFire 계열은 `firebaseSdkVersion` 이 기존 플러그인들과 같은지 본다.**
+
+```bash
+grep -h 'firebaseSdkVersion' ~/.pub-cache/hosted/pub.dev/{firebase_*,cloud_*}-*/ios/*/Package.swift | sort -u
+```
+
+- 결과가 **1줄**이어야 한다. FlutterFire 플러그인은 firebase-ios-sdk 를 `exact:` 로
+  고정하므로, 값이 갈리면 `exact` ↔ `exact` 충돌로 **해석 단계에서 즉시 실패**한다.
+
+**최종 판정은 iOS 빌드다.** 위 세 검사는 사전 선별일 뿐이고, 전이 의존성의 하한 문제는
+실제 빌드에서만 드러난다.
+
+### ④ SPM 을 지원하지 않는 플러그인을 넣으면 생기는 일
+
+Flutter 는 **에러가 아니라 경고**를 내고 CocoaPods 로 되돌아간다. 빌드 로그의 문구는
+다음과 같다.
+
+```
+The following plugins do not support Swift Package Manager for ios: <플러그인 이름>
+```
+
+이어서 일어나는 일:
+
+1. **`ios/Podfile` 이 조용히 재생성된다** — 그리고 **빌드는 성공할 수도 있다.** 이것이
+   이 절이 존재하는 이유다(조용한 실패).
+2. 도구가 되돌리는 xcconfig 는 **`ios/Flutter/Debug.xcconfig` · `ios/Flutter/Release.xcconfig`
+   두 개뿐**이다. 나머지 flavor xcconfig 9개는 복구되지 않아 **flavor 빌드만 링크 에러**가
+   날 수 있다.
+3. `test/ios/ios_deployment_target_consistency_test.dart` 의 **`ios/Podfile` 부재 단언이
+   red 가 된다** — 이 테스트가 red 면 위 1·2 가 이미 벌어진 것이다.
+
+**대응:** 그 플러그인의 SPM 지원 버전을 찾거나, 넣지 않는다. 재생성된 `ios/Podfile` 을
+지우는 것만으로는 원인이 사라지지 않는다 — 다음 해석에서 다시 생긴다.
+
+### ⑤ iOS 최소 배포 타겟을 바꾸려면
+
+| 대상 | 값 | 비고 |
+|---|---|---|
+| `ios/Runner.xcodeproj/project.pbxproj` 의 `IPHONEOS_DEPLOYMENT_TARGET` | **12개** (현재 전부 15.6) | **유일한 진실원.** 12 build configuration 각각에 하나씩 있다 |
+
+- Xcode 의 **PROJECT > Runner > Build Settings > iOS Deployment Target** 을 한 번 바꾸면
+  12개가 함께 바뀐다. 손으로 고칠 때는 12개를 **전부 같은 값**으로 맞춘다 —
+  `test/ios/ios_deployment_target_consistency_test.dart` 가 「12개가 전부 같은 값」 을
+  강제한다.
+- Flutter 는 **빌드 때마다 이 값을 읽어** 자기가 생성하는 패키지의 `platforms` 를
+  끌어올린다. CocoaPods 시절의 `post_install` 하한 보정 루프 같은 장치는 필요 없다.
+- 의존 SDK 의 하한보다 **낮게** 내리면 SPM 이 빌드를 막는다(③ (나)).
+
+### ⑥ 흔한 실수
+
+전환(Phase 16.3) 실행 중 **실제로 겪은** 증상만 적는다.
+
+- **SDK 버전을 고친 뒤 첫 빌드가 헤더 불일치로 실패한다** — 에러는
+  `A precompiled file has been changed since last built. Please run "flutter clean"` 이고
+  직전 줄이 `File '…/FBSDKCoreKit.framework/Headers/….h' has been modified since the module
+  file '…/SwiftExplicitPrecompiledModules/….pcm' was built` 다. Xcode 의 explicit module
+  캐시(`.pcm`)가 **옛 버전 헤더로** 만들어져 있어서 그렇다.
+  - 도구가 권하는 `flutter clean` 을 그대로 따르지 말고 **에러가 지목한 그 프로젝트의
+    DerivedData 디렉터리 하나만** 지운다. `flutter clean` 은 `build/ios/SourcePackages`
+    (수백 MB)까지 함께 날린다. checkout 은 DerivedData 밑에 없다 — Flutter 가
+    `-clonedSourcePackagesDirPath build/ios/SourcePackages` 를 붙이기 때문이다.
+  - 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/16.3-02-SUMMARY.md`
+    (Deviations 1) · `artifacts/BUILD-GATE-EVIDENCE.md` `## Stage A`.
+- **`Xcode build done` 은 성공 마커가 아니다** — `** BUILD FAILED **` 로 끝난 로그에도
+  `Xcode build done. 84.1s` 가 찍힌다(Flutter 가 경과 시간 status 를 성패와 무관하게
+  닫는다). 빌드 성패는 **`✓ Built` 와 종료 코드**로 판정한다.
+  - 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/16.3-01-SUMMARY.md`
+    (후속 plan 이월 2).
 
 ---
 
