@@ -874,10 +874,12 @@ void main() {
       final logs = <String>[];
       captureLogs(logs);
 
+      // IN-01: 임계는 리터럴이 아니라 명명 상수를 참조한다 — plan 04 실측으로
+      // 임계가 바뀌면 이 테스트가 따라 움직여야 한다.
       final client = NaverSdkClient.forTest(
         login: () async => buildLoggedOutResult(),
         logout: () async => buildLoggedOutResult(),
-        customTabCount: () async => 2,
+        customTabCount: () async => kNaverCustomTabReopenThreshold,
       );
 
       final error = await captureSignInError(client);
@@ -889,10 +891,13 @@ void main() {
       );
       final cause = (error! as ServiceUnavailable).cause;
       expect(cause, isA<NaverCustomTabReopened>());
-      expect((cause! as NaverCustomTabReopened).count, equals(2));
+      expect(
+        (cause! as NaverCustomTabReopened).count,
+        equals(kNaverCustomTabReopenThreshold),
+      );
       expect(
         cause.toString(),
-        equals('NaverCustomTabReopened(count=2)'),
+        equals('NaverCustomTabReopened(count=$kNaverCustomTabReopenThreshold)'),
         reason: 'WR-05: cause 가 문자열화돼도 정수만 나간다',
       );
 
@@ -900,7 +905,10 @@ void main() {
       expect(linesStartingWith(logs, 'Naver logIn 도착:').length, equals(1));
       expect(
         linesStartingWith(logs, 'Naver logIn 재개방 감지: '),
-        equals(<String>['Naver logIn 재개방 감지: createCount=2']),
+        equals(<String>[
+          'Naver logIn 재개방 감지: '
+              'createCount=$kNaverCustomTabReopenThreshold',
+        ]),
         reason: 'C-01: 구분 신호 로그는 정수만 담고 정확히 1줄이다',
       );
       expect(
@@ -915,11 +923,11 @@ void main() {
       final logs = <String>[];
       captureLogs(logs);
 
-      // ① 1회 생성 = 진짜 취소 → silent null.
+      // ① 임계 미만(= 1회 생성) 은 진짜 취소 → silent null.
       final cancelClient = NaverSdkClient.forTest(
         login: () async => buildLoggedOutResult(),
         logout: () async => buildLoggedOutResult(),
-        customTabCount: () async => 1,
+        customTabCount: () async => kNaverCustomTabReopenThreshold - 1,
       );
       expect(await cancelClient.signIn(), isNull);
       expect(linesStartingWith(logs, 'Naver logIn cancel:').length, equals(1));
@@ -930,7 +938,7 @@ void main() {
       final successClient = NaverSdkClient.forTest(
         login: () async => buildSuccessResult('token'),
         logout: () async => buildLoggedOutResult(),
-        customTabCount: () async => 2,
+        customTabCount: () async => kNaverCustomTabReopenThreshold,
       );
       final result = await successClient.signIn();
       expect(result, isNotNull);

@@ -57,7 +57,8 @@ class NaverSdkError implements Exception {
 /// (Phase 16.4 D-19 · RESEARCH §1).
 ///
 /// 한 번의 [NaverSdkClient.signIn] 동안 Android 호스트가 센
-/// `NidOAuthCustomTabActivity` 생성 횟수가 2 이상이면, 플러그인이 돌려준
+/// `NidOAuthCustomTabActivity` 생성 횟수가 [kNaverCustomTabReopenThreshold]
+/// 이상이면, 플러그인이 돌려준
 /// `loggedOut` 은 사용자가 닫은 결과가 아니라 콜백이 새 인스턴스로 배달돼
 /// 커스텀탭이 다시 열린 **실패**다. [ServiceUnavailable] 의 `cause` 로 실려
 /// 기존 `errorServiceUnavailable` 배너 경로를 탄다.
@@ -75,6 +76,16 @@ class NaverCustomTabReopened implements Exception {
   @override
   String toString() => 'NaverCustomTabReopened(count=$count)';
 }
+
+/// 재개방으로 판정하는 커스텀탭 Activity 생성 횟수 하한 (Phase 16.4 D-19).
+///
+/// 근거는 RESEARCH §1 ② — 콜백이 `result code=0` 으로 돌아온 뒤 인스턴스 #2 가
+/// **신규 생성**되는 것이 재개방의 서명이다. 즉 한 번의
+/// [NaverSdkClient.signIn] 안에서 정상 흐름은 1, 재개방은 2 이상이다.
+///
+/// plan 04 의 실기기 실측으로 임계를 조정할 때 grep 대상이 되도록 명명한다
+/// (16.4 code review IN-01 — 종전에는 `>= 2` 리터럴뿐이었다).
+const int kNaverCustomTabReopenThreshold = 2;
 
 /// iOS 플러그인이 사용자 취소에 붙이는 **고정 리터럴**.
 ///
@@ -338,7 +349,8 @@ class NaverSdkClient {
   ///    보인다 (`1c884c73` 회귀 경로).
   /// 4-a. 그 취소 분기 안에서 **재개방 여부**를 가른다 (Phase 16.4 D-19).
   ///    `_login()` 앞뒤로 호스트 계수를 reset → read 해서, 한 시도 안에
-  ///    커스텀탭 Activity 가 2회 이상 생성됐으면 사용자 취소가 아니라 실패로
+  ///    커스텀탭 Activity 가 [kNaverCustomTabReopenThreshold] 회 이상
+  ///    생성됐으면 사용자 취소가 아니라 실패로
   ///    보고 [ServiceUnavailable] (`cause` = [NaverCustomTabReopened]) 을
   ///    던진다. **D-45 silent 는 재개방이 없을 때만** 적용된다. 계수는
   ///    Android 호스트에서만 올라가고 (`NaverCustomTabProbe` 가 iOS 에서
@@ -399,7 +411,7 @@ class NaverSdkClient {
       final createCount = await _readCustomTabCount();
 
       if (isNaverUserCancel(result.status, result.errorMessage)) {
-        if (createCount >= 2) {
+        if (createCount >= kNaverCustomTabReopenThreshold) {
           // D-19 재개방 — 취소 모양이지만 사용자가 닫은 것이 아니다.
           if (kDebugMode) {
             debugPrint('Naver logIn 재개방 감지: createCount=$createCount');
