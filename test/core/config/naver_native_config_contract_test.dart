@@ -14,41 +14,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// `//` 로 시작하는 행 주석을 제거한다 (Dart · Kotlin · xcconfig 공용).
-String stripSlashComments(String raw) => raw
-    .split('\n')
-    .where((line) => !line.trimLeft().startsWith('//'))
-    .join('\n');
-
-/// `#` 로 시작하는 행 주석을 제거한다 (YAML).
-String stripHashComments(String raw) => raw
-    .split('\n')
-    .where((line) => !line.trimLeft().startsWith('#'))
-    .join('\n');
-
-/// `<!-- ... -->` 블록 주석을 제거한다 (XML · plist).
-String stripXmlComments(String raw) =>
-    raw.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
-
-/// [needle] 이 [haystack] 에 나타나는 횟수를 센다.
-int countOccurrences(String haystack, String needle) {
-  if (needle.isEmpty) {
-    return 0;
-  }
-  var count = 0;
-  var index = haystack.indexOf(needle);
-  while (index != -1) {
-    count++;
-    index = haystack.indexOf(needle, index + needle.length);
-  }
-  return count;
-}
-
-String readTracked(String path) {
-  final file = File(path);
-  expect(file.existsSync(), isTrue, reason: 'tracked 파일 부재: $path');
-  return file.readAsStringSync();
-}
+import '../../helpers/source_text.dart';
 
 void main() {
   group('Naver 시크릿 주입 배선 계약 (Phase 16.2)', () {
@@ -57,7 +23,7 @@ void main() {
     // 뒤지게 되는 오도를 없애려고 `test/ios/spm_policy_test.dart` 의
     // `T-16.3-SPM-04` 로 옮겼다 — 단언 자체는 그대로 살아 있다.
     test('T-16.2-NATIVE-01 pubspec pin — naver_login_flutter 정확 고정', () {
-      final pubspec = stripHashComments(readTracked('pubspec.yaml'));
+      final pubspec = stripHashComments(readTrackedFile('pubspec.yaml'));
 
       expect(
         countOccurrences(pubspec, 'naver_login_flutter: 4.0.0'),
@@ -86,7 +52,7 @@ void main() {
       'T-16.2-NATIVE-02 gradle resValue — dart-define → string resource',
       () {
         final gradle = stripSlashComments(
-          readTracked('android/app/build.gradle.kts'),
+          readTrackedFile('android/app/build.gradle.kts'),
         );
         final lines = gradle.split('\n');
 
@@ -132,7 +98,7 @@ void main() {
 
     test('T-16.2-NATIVE-03 manifest meta-data — @string 참조 + 로그 비활성', () {
       final manifest = stripXmlComments(
-        readTracked('android/app/src/main/AndroidManifest.xml'),
+        readTrackedFile('android/app/src/main/AndroidManifest.xml'),
       );
 
       for (final name in const <String>[
@@ -203,7 +169,7 @@ void main() {
     });
 
     test('T-16.2-NATIVE-04 Info.plist substitution — 변수 치환만, 평문 금지', () {
-      final plist = stripXmlComments(readTracked('ios/Runner/Info.plist'));
+      final plist = stripXmlComments(readTrackedFile('ios/Runner/Info.plist'));
 
       const expected = <String, String>{
         'NidClientID': r'$(NAVER_CLIENT_ID)',
@@ -257,7 +223,7 @@ void main() {
 
       for (final flavor in const <String>['dev', 'stg', 'prod']) {
         final path = 'ios/Flutter/$flavor.example.xcconfig';
-        final source = stripSlashComments(readTracked(path));
+        final source = stripSlashComments(readTrackedFile(path));
         for (final placeholder in placeholders) {
           expect(
             countOccurrences(source, placeholder),
@@ -280,7 +246,7 @@ void main() {
 
       for (final flavor in const <String>['dev', 'stg', 'prod']) {
         final path = 'config/$flavor.example.json';
-        final json = jsonDecode(readTracked(path)) as Map<String, dynamic>;
+        final json = jsonDecode(readTrackedFile(path)) as Map<String, dynamic>;
         for (final entry in expected.entries) {
           expect(
             json[entry.key],
@@ -302,7 +268,7 @@ void main() {
     });
 
     test('T-16.2-NATIVE-07 gitignore — 실 키 파일은 추적되지 않는다', () {
-      final gitignore = readTracked(
+      final gitignore = readTrackedFile(
         '.gitignore',
       ).split('\n').map((line) => line.trim()).toSet();
 

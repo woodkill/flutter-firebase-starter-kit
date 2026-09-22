@@ -25,45 +25,13 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../helpers/source_text.dart';
+
 const String _pbxprojPath = 'ios/Runner.xcodeproj/project.pbxproj';
 const String _workspaceResolvedPath =
     'ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved';
 const String _projectResolvedPath =
     'ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved';
-
-/// 저장소 루트 기준 상대 경로 [path] 의 파일 내용을 돌려준다.
-///
-/// 파일이 없으면 경로를 알리며 테스트를 실패시킨다
-/// (`flutter test` 의 CWD = 프로젝트 루트).
-String readTrackedFile(String path) {
-  final File file = File(path);
-  if (!file.existsSync()) {
-    fail('tracked 파일 부재: $path');
-  }
-  return file.readAsStringSync();
-}
-
-/// `#` 로 시작하는 행 주석을 제거한다 (YAML).
-///
-/// 설명 주석이 감사용 카운트를 오염시키는 것을 막는다.
-String stripHashComments(String raw) => raw
-    .split('\n')
-    .where((String line) => !line.trimLeft().startsWith('#'))
-    .join('\n');
-
-/// [needle] 이 [haystack] 에 나타나는 횟수를 센다.
-int countOccurrences(String haystack, String needle) {
-  if (needle.isEmpty) {
-    return 0;
-  }
-  int count = 0;
-  int index = haystack.indexOf(needle);
-  while (index != -1) {
-    count++;
-    index = haystack.indexOf(needle, index + needle.length);
-  }
-  return count;
-}
 
 void main() {
   group('Crashlytics 업로드 단계의 SPM 손패치 (16.3 R-05 · 리뷰 WR-02)', () {

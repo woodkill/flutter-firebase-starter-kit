@@ -18,7 +18,7 @@
 // **설계 메모:** 현재 트리 단언에는 배포 타겟의 **현재 값 리터럴을 적지 않는다**
 // (진실원 이중화 방지 — D-06). 대신 값 목록이 비어 있지 않음과 개수 12 를 먼저
 // 단언한 뒤 「전부 같은 값」 을 본다. 빈 목록에서는 「불일치 0」 이 공허하게
-// 참이므로 순서가 중요하다. 부재 단언(D-15)은 `readProjectFile` 을 쓰지 않는다 —
+// 참이므로 순서가 중요하다. 부재 단언(D-15)은 `readTrackedFile` 을 쓰지 않는다 —
 // 그 헬퍼는 파일이 없을 때 `fail()` 하므로 부재를 검사할 수 없다.
 //
 // **하한 단언을 더한 이유(코드 리뷰 WR-01 — 16.3-REVIEW.md WR-03):** 「전부 같은
@@ -31,6 +31,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+
+import '../helpers/source_text.dart';
 
 const String _podfilePathForAbsence = 'ios/Podfile';
 const String _pbxprojPath = 'ios/Runner.xcodeproj/project.pbxproj';
@@ -47,18 +49,6 @@ const double _minSupportedIosTarget = 15.0;
 /// 파싱할 수 없는 값은 `FormatException` 으로 드러낸다 — 조용히 통과시키지 않는다.
 bool isDeploymentTargetBelowMinimum(String target) =>
     double.parse(target) < _minSupportedIosTarget;
-
-/// 저장소 루트 기준 상대 경로 [path] 의 파일 내용을 돌려준다.
-///
-/// 파일이 없으면 경로를 알리며 테스트를 실패시킨다
-/// (`flutter test` 의 CWD = 프로젝트 루트).
-String readProjectFile(String path) {
-  final File file = File(path);
-  if (!file.existsSync()) {
-    fail('$path 가 존재하지 않는다');
-  }
-  return file.readAsStringSync();
-}
 
 /// pbxproj [content] 의 `IPHONEOS_DEPLOYMENT_TARGET = <v>;` 값 목록을 등장 순서대로 돌려준다.
 List<String> collectPbxprojDeploymentTargets(String content) {
@@ -79,7 +69,7 @@ void main() {
   group('현재 트리 — Runner pbxproj 단일 진실원', () {
     test('Runner pbxproj 의 IPHONEOS_DEPLOYMENT_TARGET 이 전부 같은 값이다', () {
       final List<String> targets = collectPbxprojDeploymentTargets(
-        readProjectFile(_pbxprojPath),
+        readTrackedFile(_pbxprojPath),
       );
       expect(targets, isNotEmpty, reason: '대입이 0건이면 정규식이 깨진 것이다');
       expect(targets.length, 12, reason: 'build configuration 12개 = 진실원의 개수');
