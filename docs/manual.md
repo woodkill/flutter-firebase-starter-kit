@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-09-22
-phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM)]
+last_updated: 2026-09-24
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -95,9 +95,9 @@ cp config/prod.example.json  config/prod.json
 | `facebookAppId` | Facebook Developers Console > 내 앱 > 설정 > 기본 | 숫자 문자열 |
 | `facebookClientToken` | Facebook Developers Console > 내 앱 > 설정 > 고급 > Client Token | |
 | `kakaoNativeAppKey` | Kakao Developers Console > 내 애플리케이션 > 앱 설정 > 앱 키 > **네이티브 앱 키** | REST API 키 아님 (1번 단락 — Kakao Login 1단계 #6 OIDC 활성화 함께 참조) |
-| `naverClientId` | Naver Developers Console > 본인 앱 > 개요 > **Client ID** | Android 는 gradle 이 dart-defines 에서 읽어 string resource 로 주입 (Phase 16.2). iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_ID` 에 같은 값을 따로 넣는다. Dart 코드는 이 키를 읽지 않는다 |
-| `naverClientSecret` | Naver Developers Console > 본인 앱 > 개요 > **Client Secret** | Android 는 gradle 이 dart-defines 에서 읽어 string resource 로 주입 (Phase 16.2). iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_SECRET` 에 같은 값을 따로 넣는다. Dart 코드는 이 키를 읽지 않는다 |
-| `naverUrlScheme` | Naver Developers Console > API 설정 > iOS 환경 > **URL Scheme** | iOS 전용 값의 기록처 — 실제 출처는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_URL_SCHEME` 이고, Android 는 이 값을 쓰지 않는다 |
+| `naverClientId` | Naver Developers Console > 본인 앱 > 개요 > **Client ID** | Android 는 gradle 이 dart-defines 에서 읽어 string resource 로 주입 (Phase 16.2). iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_ID` 에 같은 값을 따로 넣는다. **Phase 16.5 부터 Dart 도 읽는다** — `AppConfig.naverClientId`(NAVER 앱 미설치 단말의 킷 웹 경로 authorize URL 의 `client_id`, 공개 식별자). xcconfig 값과 다르면 1-tap 과 웹 경로가 서로 다른 앱으로 로그인한다 |
+| `naverClientSecret` | Naver Developers Console > 본인 앱 > 개요 > **Client Secret** | Android 는 gradle 이 dart-defines 에서 읽어 string resource 로 주입 (Phase 16.2). iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_SECRET` 에 같은 값을 따로 넣는다. Dart 코드는 이 키를 읽지 않는다. Firebase Secret Manager `NAVER_CLIENT_SECRET` 과 **같은 값 2본**이다 (Naver 8단계) |
+| `naverUrlScheme` | Naver Developers Console > API 설정 > iOS 환경 > **URL Scheme** | iOS SDK 의 실제 출처는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_URL_SCHEME`. **Phase 16.5 부터 킷 웹 경로의 콜백 scheme 으로도 쓰인다** — Dart `AppConfig.naverWebCallbackScheme` + Android gradle manifest placeholder `naverWebCallbackScheme`. 소문자 영숫자(RFC 3986)여야 한다 (Naver 9단계) |
 | `appName` | (선택) 앱 표시 이름 — `StarterKit Dev` 기본값 | flavor 별 구분. Android 에서 Naver 동의 화면 앱 이름으로도 쓰인다 (Phase 16.2). 따옴표 등 특수문자가 든 값의 Android 빌드 영향은 `[ASSUMED]` 미검증이라 영숫자 · 공백만 쓰기를 권장한다 |
 | `appSuffix` | (선택) ApplicationId / BundleId suffix — `.dev` 기본값 | `flutter_native_splash` / Firebase 프로젝트 분리 |
 | `splashMinDurationMs` | (선택) 스플래시 최소 노출 시간 — `2000` 기본값 | UX 조정용 |
@@ -565,8 +565,13 @@ diff 검토를 먼저 돌립니다. 이 패키지가 감싸는 네이티브 SDK 
 `Nid*` 키) 에서 읽습니다. 그래서 키를 채우는 곳이 아래 6단계(Android) 와
 7단계(iOS) **두 곳**으로 나뉩니다.
 
-Naver 앱이 설치된 단말에서는 1-tap (앱 → 동의 → callback), 미설치 단말에서는
-네이티브 SDK 가 커스텀탭 · 웹 인증 세션으로 자동 fallback 합니다.
+NAVER 앱 설치 단말은 1-tap(wrapper `logIn()` — 앱 → 동의 → callback), 미설치
+단말은 **킷이** `flutter_web_auth_2` 로 authorize URL 을 직접 열어 `code` + `state`
+를 받고 Cloud Function `naverWebCustomToken` 이 `client_secret` 으로 교환합니다
+(Phase 16.5 D-01 · D-04). 판정은 호스트 네이티브(Android
+`NidApplicationUtil.isExistNaverApp` · iOS `canOpenURL`)이고 판정 실패는 웹
+경로입니다. 미설치 단말에서 SDK 의 커스텀탭 fallback 은 **타지 않습니다**
+(Pitfall 19). 웹 경로의 설정 · 확인 절차는 아래 9단계입니다.
 
 ### 1단계 — Naver Developers Center 가입 + 앱 등록
 
@@ -599,10 +604,13 @@ Naver 앱이 설치된 단말에서는 1-tap (앱 → 동의 → callback), 미�
    - Bundle ID 입력: `com.slimpumpkin.flutter_starter_kit.dev` (dev flavor —
      본 starter kit 의 iOS Bundle Identifier. Xcode 의 Build Settings >
      Product Bundle Identifier 또는 `ios/Flutter/dev.xcconfig` 기준)
-   - **iOS URL Scheme** 입력 (snake/camelCase 권장 — 예:
-     `flutterStarterKitDev`). 이 값은 `config/dev.json` 의 `naverUrlScheme`
+   - **iOS URL Scheme** 입력 — **소문자 영문 · 숫자만** (예: `myappnaverdev`).
+     이 값은 `config/dev.json` 의 `naverUrlScheme`
      + `ios/Flutter/dev.xcconfig` 의 `NAVER_URL_SCHEME` 양쪽에 동일하게
-     주입해야 합니다.
+     주입해야 합니다. Phase 16.5 부터 이 값이 킷 웹 경로의 콜백 scheme 도
+     겸하므로(9단계) 대문자 · underscore 를 쓰면 웹 경로가 세션을 열기 전에
+     `code=config` 로 실패합니다 (RFC 3986 scheme 규칙 + Android intent-filter 는
+     대소문자를 구분).
 
 2. **Android 환경 등록**:
    - Package Name: `com.slimpumpkin.flutter_starter_kit.dev` (dev flavor —
@@ -662,12 +670,19 @@ Name + Key Hash 도 정확히 일치 필요.
 }
 ```
 
-이 키들은 **Dart 가 읽지 않습니다** — `android/app/build.gradle.kts` 가
-dart-defines 에서 `naverClientId` · `naverClientSecret` · `appName` 을 읽어
-`resValue("string", …)` 로 주입하고, `AndroidManifest.xml` 의 `com.naver.sdk.*`
-meta-data 가 그 string resource 를 참조합니다. 즉 위 JSON 은 **Android 빌드의
-입력**입니다. iOS 는 이 경로를 전혀 타지 않으며 **7단계의 xcconfig 가 실제
-출처**입니다 (`naverUrlScheme` 도 마찬가지로 콘솔 발급 값의 기록처일 뿐입니다).
+이 키들의 소비처는 둘입니다.
+
+- **SDK 1-tap 경로 (Android 빌드 입력):** `android/app/build.gradle.kts` 가
+  dart-defines 에서 `naverClientId` · `naverClientSecret` · `appName` 을 읽어
+  `resValue("string", …)` 로 주입하고, `AndroidManifest.xml` 의 `com.naver.sdk.*`
+  meta-data 가 그 string resource 를 참조합니다. iOS SDK 는 이 경로를 타지 않으며
+  **7단계의 xcconfig 가 실제 출처**입니다.
+- **킷 웹 경로 (Phase 16.5 — Dart + Android manifest):** Dart 가
+  `naverClientId`(→ `AppConfig.naverClientId`) 와 `naverUrlScheme`(→
+  `AppConfig.naverWebCallbackScheme`) **두 키만** 읽고, gradle 이 `naverUrlScheme`
+  을 manifest placeholder `naverWebCallbackScheme` 으로도 넘깁니다(9단계).
+  `naverClientSecret` 은 Dart 가 **읽지 않습니다** — 웹 경로의 secret 은 서버
+  Secret Manager 에만 있습니다(8단계).
 
 > **stg / prod 는?** dev 와 동일한 절차로 사용자 자체 Naver 앱을 별도 등록 +
 > 키 주입. starter kit 의 stg/prod config 는 placeholder 만 포함합니다 (D-22).
@@ -699,13 +714,21 @@ NAVER_URL_SCHEME = <Naver Console 에서 입력한 iOS URL Scheme>
   flavor 개념이 없어 `Debug` / `Release` 2개 xcconfig 만 인식하고, 무엇보다 tracked
   `ios/Runner/Info.plist` 에 Client ID 를 평문으로 기록하고 `android/local.properties`
   에 secret 을 씁니다. 실행하면 시크릿이 git 에 들어가고 계약 테스트가 즉시 실패합니다.
+- **iOS 웹 경로(NAVER 앱 미설치)는 추가 plist 설정이 없습니다 (Phase 16.5)** —
+  iOS 도 Android 와 같은 `flutter_web_auth_2` 5.1.0 이 `ASWebAuthenticationSession`
+  을 열고(콜백 scheme 은 인자로 넘겨 `CFBundleURLTypes` 등록 불요), 호스트 쪽
+  Swift 는 설치 판정 1파일(`ios/Runner/NaverHostChannel.swift`)뿐입니다. 이 파일은
+  `Info.plist` `LSApplicationQueriesSchemes` 의 `naversearchthirdlogin` 선언(Phase 13
+  에서 이미 존재)에 기대므로, 그 줄을 지우면 NAVER 앱이 있어도 항상 웹 경로로 갑니다.
 
-### 8단계 — Firebase Secret Manager 등록 (Phase 13 D-60)
+### 8단계 — Firebase Secret Manager 등록 (Phase 13 D-60 · Phase 16.5)
 
-Cloud Function `naverCustomToken` 이 D-60 정책으로 `defineSecret('NAVER_CLIENT_SECRET')`
-를 의무 선언합니다. Phase 13 단계에서는 client_secret 사용처 0건 (Cloud Function
-이 access_token 만 사용 — refresh / deauth API 미사용) 이지만, **secret 정책
-일관성 + Phase 17+ 확장 대비** 로 미리 등록 필요:
+Naver 서버 함수 2개가 Secret Manager 의 secret 2종을 씁니다.
+
+| secret | 값 | 사용처 |
+|--------|----|--------|
+| `NAVER_CLIENT_SECRET` | 개요 탭의 Client Secret (`config/{flavor}.json` 의 `naverClientSecret` 와 같은 값) | Phase 16.5 부터 사용처 1 — `naverWebCustomToken` 의 `code` 교환 · 토큰 폐기(revoke). `naverCustomToken`(1-tap) 은 D-60 정책으로 선언만 하고 쓰지 않습니다 |
+| `NAVER_CLIENT_ID` | 개요 탭의 Client ID (`config/{flavor}.json` 의 `naverClientId` 와 같은 값) | Phase 16.5 신규 — `naverWebCustomToken` 의 교환 · revoke 요청 파라미터. 앱 쪽 값과 다르면 NAVER 가 교환을 거부합니다 |
 
 ```bash
 firebase use <dev-project-id>
@@ -713,49 +736,176 @@ firebase functions:secrets:set NAVER_CLIENT_SECRET
 # prompt:
 #   ? Enter a value for NAVER_CLIENT_SECRET: <Client Secret 붙여넣기 + Enter>
 #   (config/dev.json 의 naverClientSecret 와 동일 값)
+firebase functions:secrets:set NAVER_CLIENT_ID
+# prompt:
+#   ? Enter a value for NAVER_CLIENT_ID: <Client ID 붙여넣기 + Enter>
+#   (config/dev.json 의 naverClientId 와 동일 값)
 ```
 
-기대 응답:
+기대 응답 (secret 마다 1줄):
 ```
 ✔ Created a new secret version projects/.../secrets/NAVER_CLIENT_SECRET/versions/1
+✔ Created a new secret version projects/.../secrets/NAVER_CLIENT_ID/versions/1
 ```
 
-확인:
+확인 (값이 터미널에 출력되므로 화면 공유 · 로그 수집 중에는 하지 말 것):
 ```bash
 firebase functions:secrets:access NAVER_CLIENT_SECRET
+firebase functions:secrets:access NAVER_CLIENT_ID
 ```
 
-> Cloud Function 의 `defineSecret('NAVER_CLIENT_SECRET')` 가 배포 시점에 자동으로
-> 함수 환경변수로 주입합니다 (Phase 11 D-05 패턴). Phase 17+ 에서 Naver
-> `/oauth2.0/token` (refresh) 또는 deauth API 진입 시 즉시 활용 가능.
+> **`config/{flavor}.json` 의 `naverClientSecret` 과 Secret Manager 의
+> `NAVER_CLIENT_SECRET` 은 같은 값 2본입니다.** 서버 교환을 도입했다고 앱 번들에서
+> secret 이 사라지지 않습니다 — NAVER SDK 1-tap 경로가 native 설정(Android
+> meta-data · iOS `Info.plist`)의 `clientSecret` 을 필수로 요구하기 때문입니다
+> (Phase 16.5 D-19, 2단계의 「fork 사용자 주의」 그대로). 서버 교환의 가치는
+> **secret 은닉이 아니라** 웹 경로가 RFC 8252 공개 클라이언트 모양이 되고
+> (`client_secret` · access token · refresh token 이 킷 Dart 코드 · 로그 · callable
+> 응답 어디에도 없음) NAVER 앱 미설치 단말에서 로그인이 착지한다는 데 있습니다.
+> secret 을 교체할 때는 두 곳(+ iOS xcconfig)을 함께 바꿉니다.
 
-### 9단계 — Cloud Function 배포
+> Cloud Function 의 `defineSecret(...)` 이 배포 시점에 자동으로 함수 환경변수로
+> 주입합니다 (Phase 11 D-05 패턴). 배포가 compute 서비스 계정에 `secretAccessor`
+> 를 자동 부여합니다. refresh token 은 저장하지 않습니다 (refresh / deauth flow 는
+> Phase 17+).
 
-Phase 13-02 산출 `naverCustomToken` 함수를 dev Firebase 프로젝트
-(asia-northeast3) 에 배포합니다.
+### 9단계 — 웹 경로(앱 미설치) Callback URL · redirect_uri 확인 (Phase 16.5)
+
+NAVER 앱이 없는 단말에서 킷은 authorize URL 을 직접 엽니다. 이때 NAVER 가 로그인
+뒤 돌려보낼 주소(`redirect_uri`)를 받아들여야 합니다. 이 단계는 **콘솔 작업 없이**
+끝나는 것이 정상이지만, 왜 그런지와 막혔을 때의 확인 방법을 적어 둡니다.
+
+**(1) 왜 확인이 필요한가.** 네이버 개발자센터의 Android / iOS 서비스 환경에는
+Callback URL 입력 칸이 있는지 확인되지 않았습니다 — 킷 검증 때는 콘솔을 열지 않고도
+(아래 후보 A) 통과해 칸 유무를 보지 않았습니다(`CONSOLE_CALLBACK_FIELD: UNKNOWN`).
+임의로 정한 scheme 을 넣으면 authorize 가 로그인 폼 대신 오류 페이지를 낼 수
+있으므로, 이미 콘솔에 등록된 값을 재사용합니다.
+
+**(2) 브라우저 probe 절차 (1분).** PC 브라우저 주소창에 아래 URL 을 **본인 값으로
+조립해** 엽니다. 파라미터는 4개뿐이고, `client_secret` 은 **절대 넣지 않습니다**.
+
+```
+https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=<clientId>&redirect_uri=<naverUrlScheme>%3A%2F%2Fauthorize&state=probe1
+```
+
+- 합격: NAVER **로그인 폼**이 뜨고, 로그인 뒤 브라우저가
+  `<naverUrlScheme>://authorize?code=…&state=probe1` 로 이동하려 합니다(PC 에는 그
+  scheme 을 받을 앱이 없어 이동 실패 · 주소창 표시만 되는 것이 정상). `code=` 와
+  `state=probe1` 이 있으면 통과입니다. `code` 값은 1회용이므로 기록 · 공유하지 말고
+  교환하지도 않습니다.
+- 불합격: 로그인 폼 대신 NAVER 오류 페이지 → 아래 (6) 대안으로 갑니다.
+- 후보(킷이 검토한 3안): **A** `<naverUrlScheme>://authorize`(기존 iOS URL Scheme
+  재사용) · **B** 새 역도메인 scheme(`<소문자 bundleId 형태>://naver/callback`) ·
+  **C** https Hosting bounce(`https://<project>.web.app/naver/callback`).
+
+**(3) 이 킷의 채택 결과 — 후보 A.** dev 앱에서 A 가 콘솔 작업 0 으로 로그인 폼 표시 ·
+콜백 도착 · `state` echo 까지 통과했고(2026-09-23), B · C 는 열지 않았습니다.
+authorize 부가 파라미터(`locale` · `oauth_os` · `version` · `network`)는 없어도
+통과했습니다. A 의 scheme 은 3단계에서 콘솔 「iOS URL Scheme」 에 이미 등록한 값이라
+NAVER 가 그 앱의 주소로 인식하는 것으로 봅니다(완전히 임의의 문자열 B 의 수락 여부는
+미실측). 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-PROBE-RESULT.md`
+`## 3.`
+
+**(4) scheme 파생 규칙 — 채택자 커스터마이징 포인트.** URI scheme 은 RFC 3986 상
+`소문자 알파벳 *(영숫자 / + / - / .)` 이어야 하고 underscore 를 쓸 수 없습니다.
+그래서 applicationId / bundleId(`com.slimpumpkin.flutter_starter_kit.dev` — underscore
+포함)를 그대로 scheme 으로 쓸 수 없고, 킷은 **새 config 키 없이** 기존
+`naverUrlScheme` 을 재사용합니다.
+
+| 위치 | 공급식 | 바꿀 때 |
+|------|--------|---------|
+| Dart | `AppConfig.naverWebCallbackScheme = String.fromEnvironment('naverUrlScheme')` · `naverWebRedirectUri = '<scheme>://authorize'` (`lib/core/config/app_config.dart`) | 키 이름을 바꾸지 않는 한 수정 불요 |
+| Android | `android/app/build.gradle.kts` `manifestPlaceholders["naverWebCallbackScheme"] = dartDefines["naverUrlScheme"] ?: ""` | 같음 |
+| iOS | 추가 설정 없음 (세션이 scheme 을 인자로 받음) | — |
+| 값 | `config/{flavor}.json` `naverUrlScheme` = `ios/Flutter/{flavor}.xcconfig` `NAVER_URL_SCHEME` = 콘솔 「iOS URL Scheme」 | 세 곳을 함께 · 소문자 영숫자 |
+
+형태 위반(대문자 · underscore · 빈 값)은 세션을 열기 전에 debug 로그
+`Naver web 도착: outcome=error elapsedMs=0 code=config` + 오류 배너로 드러납니다.
+
+**(5) Android `CallbackActivity`.** `android/app/src/main/AndroidManifest.xml` 에
+`com.linusu.flutter_web_auth_2.CallbackActivity`(`exported="true"` ·
+`taskAffinity=""` · intent-filter `<data android:scheme="${naverWebCallbackScheme}" />`)
+가 선언돼 있고, scheme 은 위 placeholder 가 채웁니다. 이 Activity 는 Chrome Auth Tab
+을 쓸 수 없을 때의 **Custom Tab 경로 전용**입니다 — Auth Tab(Chrome 141+)을 쓰는
+단말에서는 결과가 Activity result 로 돌아와 기동되지 않는 것이 정상입니다(킷 UAT
+단말 실측, Custom Tab 경로의 실기기 기동은 미관측). 병합본 확인:
+`build/app/intermediates/merged_manifests/devDebug/processDevDebugManifest/AndroidManifest.xml`
+의 해당 블록에 `${` 가 남아 있지 않아야 합니다. 이전 빌드가 깔린 단말은 새 scheme 을
+받으려면 APK 를 재설치해야 합니다.
+
+**(6) https 만 받는 경우의 대안 — Hosting bounce (킷 미구현 · 미실측).** (2) 가
+불합격이고 콘솔이 https Callback URL 만 받는다면, Firebase Hosting 정적 페이지
+`https://<project>.web.app/naver/callback` 이 `code` · `state` 를 보존한 채
+`<naverUrlScheme>://authorize?…` 로 재이동하게 만들고(세션이 그 이동을 가로챔),
+콘솔에 그 https 주소를 Callback URL 로 등록한 뒤 `AppConfig.naverWebRedirectUri`
+만 https 주소로 바꿉니다(콜백 scheme 은 그대로). 배포는 `firebase.json` 에 hosting
+항목을 추가하고 `firebase deploy --only hosting` 이며, flavor 마다 페이지의 scheme
+문자열을 그 flavor 의 값으로 바꿔야 합니다. 킷은 A 가 통과해 이 경로를 만들지
+않았습니다.
+
+**(7) `naverClientId` 는 두 경로가 같은 값을 써야 합니다.** 웹 경로는 Dart
+dart-define(`config/{flavor}.json`), iOS 1-tap 은 xcconfig(`NAVER_CLIENT_ID`) 에서
+읽으므로 두 값이 어긋나면 1-tap 과 웹이 **다른 앱으로** 로그인합니다(조용한 실패).
+계약 테스트 `T-16.5-NATIVE-01`(`test/core/config/naver_native_config_contract_test.dart`)
+이 dev flavor 의 로컬 실 키 파일(`config/dev.json` · `ios/Flutter/dev.xcconfig`)로
+`naverClientId` · `naverUrlScheme` 일치와 scheme 형태를 단언합니다(파일이 없으면
+skip · stg/prod 는 직접 대조).
+
+**웹 경로에서 사용자가 보는 것:**
+
+- iOS 는 「"앱"이(가) 로그인하기 위해 "naver.com"을(를) 사용하려고 합니다」 시스템
+  확인창이 1회 뜹니다 — `preferEphemeral: false`(SSO 쿠키 공유)의 표준 동작이며
+  제거 대상이 아닙니다.
+- **웹 로그인마다 NAVER 동의 화면이 다시 뜹니다.** 서버가 교환 직후 NAVER 토큰을
+  폐기(`grant_type=delete`, D-15)하면 NAVER 가 앱 연동도 해제하기 때문입니다. 정책
+  검토는 todo `.planning/todos/pending/2026-09-24-naver-web-consent-reprompt-revoke.md`.
+- 같은 이메일이 다른 provider(예: Apple)로 이미 가입돼 있으면 웹 로그인이 성공해도
+  계정 연결 시트(「이미 가입된 이메일입니다」)가 뜨고, 시트 안에서 기존 provider 로
+  로그인해야 홈에 착지합니다.
+
+**Naver 를 빼는 채택자:** Android `NaverHostChannel.kt` + `MainActivity.kt` 의
+등록/해제 3줄 + manifest `CallbackActivity` 블록 + gradle placeholder 1줄 ·
+`compileOnly("com.navercorp.nid:oauth:…")` 1줄, iOS `NaverHostChannel.swift` +
+`AppDelegate.swift` 등록 1줄 + `project.pbxproj` 4항목(PBXBuildFile ·
+PBXFileReference · Runner group · Sources), Dart `naver_host_channel.dart` ·
+`naver_web_auth_client.dart` 와 계약 테스트 `T-16.5-NATIVE-*` 를 함께 지웁니다.
+`naver_login_flutter` 를 상향할 때는 gradle `compileOnly` 의 SDK 버전도 같이
+올립니다(`T-16.5-NATIVE-07` 이 불일치를 잡습니다).
+
+### 10단계 — Cloud Function 배포
+
+Naver 서버 함수 2개 — `naverCustomToken`(Phase 13-02, 1-tap 의 access token 검증)과
+`naverWebCustomToken`(Phase 16.5, 웹 경로의 `code` 교환 + revoke) — 를 dev Firebase
+프로젝트 (asia-northeast3) 에 배포합니다. 두 함수는 `/v1/nid/me` 검증 → identity →
+Custom Token 체인을 공용 helper 로 공유합니다.
 
 ```bash
 cd functions
 pnpm install           # 최초 1회 (corepack 활성화는 0단락의 4단계 참조)
 pnpm run lint          # 0 errors 확인
 pnpm run build         # tsc OK 확인
-pnpm test              # jest 44 PASS 확인 (kakao 14 + naver 15 + 베이스라인 + retroactive)
+pnpm test              # 전체 jest PASS 확인 (naver 는 naver_custom_token + naver_web_custom_token 두 파일)
 
-# 배포
+# 배포 (8단계의 secret 2종이 먼저 등록돼 있어야 한다)
 firebase use <dev-project-id>
-firebase deploy --only functions:naverCustomToken
+firebase deploy --only functions:naverCustomToken,functions:naverWebCustomToken
 ```
 
-기대 응답:
+기대 응답 (최초 배포 시 `naverWebCustomToken` 은 create):
 ```
 ✔ functions[naverCustomToken(asia-northeast3)] Successful update operation.
+✔ functions[naverWebCustomToken(asia-northeast3)] Successful create operation.
 ```
 
 확인 — Firebase Console:
-- "빌드 > Functions" → `naverCustomToken` 함수 row → region = `asia-northeast3`
-  + "활성" 상태
+- "빌드 > Functions" → `naverCustomToken` · `naverWebCustomToken` 함수 row →
+  region = `asia-northeast3` + "활성" 상태
+- 웹 경로 서버 로그는 `naver_web_*` 이벤트 4종(`naver_web_custom_token_issued` ·
+  `naver_web_token_exchange_failed` · `naver_web_token_error_response` ·
+  `naver_web_revoke_failed`)으로 1-tap 로그와 이름 공간이 나뉩니다. 로그인이 성공했는데
+  `naver_web_revoke_failed` 가 없으면 revoke 도 성공한 것입니다.
 
-### 10단계 — dev flavor 실 단말 검증
+### 11단계 — dev flavor 실 단말 검증
 
 ```bash
 fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android-device-id>
@@ -764,15 +914,24 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android
 - LoginScreen 의 **"네이버로 시작하기"** 버튼 (그린 #03A94D 배경 + 흰 'N' 로고
   — Phase 13.1 R1 정정 후 NAVER ID 로그인 BI; `## Brand Asset Management
   (Phase 13.1)` 단락 D-Note 참조)
-  탭 → Naver 앱 설치 시 1-tap, 미설치 시 웹뷰 fallback → 사용자 동의 → 앱 복귀
+  탭 → Naver 앱 설치 시 1-tap, 미설치 시 킷 웹 경로(9단계 — Android Auth Tab /
+  Custom Tab, iOS 웹 인증 세션) → 사용자 동의 → 앱 복귀
 - Home 진입 + EnvironmentInfoScreen 의 Account 섹션 — `linkedProviders` 에
   "네이버" 표시 확인
-- iOS UAT 는 보류 — `.planning/todos/pending/2026-05-XX-ios-naver-uat-deferred.md`
-  추적 (Phase 13 Decision #8 — iOS 단말 부재)
+- 두 경로를 모두 보려면 같은 단말에서 NAVER 앱을 비활성화(`adb shell pm
+  disable-user --user 0 com.nhn.android.search`)한 채 한 번, 되돌린 뒤(`adb shell pm
+  enable com.nhn.android.search`) 한 번 로그인합니다. debug 로그의
+  `Naver 경로 선택: mode=web installed=false` / `mode=app installed=true` 가 경로를
+  알려 줍니다 (Pitfall 19 의 여섯 접두어).
+- iOS 는 Phase 16.5 에서 NAVER 앱 미설치 웹 경로(로그인 · 취소)만 실기기로 확인했고,
+  1-tap 은 테스트 SIM 부재로 미검증입니다 —
+  `.planning/todos/pending/2026-05-05-ios-naver-uat-deferred.md` 추적.
 
 자세한 8 시나리오 검증 양식 (Phase 13 이력): `.planning/phases/13-naver-login/13-HUMAN-UAT.md`.
 플러그인 교체 후의 시나리오와 기대값은
-`.planning/phases/16.2-naver-login-plugin-migration/16.2-HUMAN-UAT.md` 입니다.
+`.planning/phases/16.2-naver-login-plugin-migration/16.2-HUMAN-UAT.md`, 웹 경로의
+실기기 결과(3조건 · 재인증 · 취소 · 회귀)는
+`.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-UAT-RESULT.md` 입니다.
 
 ### 키를 채우기 전에도 빌드 · 기동은 된다
 
@@ -848,7 +1007,9 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
     사용자 취소와 **같은 상수**(`CLIENT_USER_CANCEL`, code 와 description 이 둘
     다 문자열 `user_cancel`)로 접어 돌려줍니다. 그래서 플러그인이 `contains` 를
     쓰든 완전 일치를 쓰든 킷 경계에 도착한 두 경우는 문자 단위로 같아집니다.
-    Phase 16.4 가 이 둘을 **Android 호스트 쪽 계수**로 가릅니다 (Pitfall 19).
+    Phase 16.5 가 미설치 단말의 웹 경로를 킷 소유 흐름으로 바꿔, 이 둘을 가르던
+    16.4 의 Android 호스트 쪽 계수(레버 2)는 제거됐습니다 (Pitfall 19). 이 SDK
+    표면은 이제 NAVER 앱 설치 단말의 1-tap 경로에만 남습니다.
   - 그래서 Android 에서 「눌렀는데 아무 반응이 없다」 는 제보를 받으면, 먼저
     debug 로그에 취소 로그(`Naver logIn cancel: status=loggedOut …`)가 찍혔는지
     확인하십시오. 사용자가 취소한 적이 없는데 이 줄이 있다면 취소가 아니라
@@ -882,49 +1043,56 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   직접 쓰면 숫자로만 이뤄진 값이 정수로 컴파일돼 SDK 가 조용히 초기화를 건너뛸
   위험이 있습니다 (`[ASSUMED]`). 킷은 `resValue` + `@string/…` 참조로 이 위험을
   구조적으로 제거했습니다 — 이 구조를 바꾸지 마십시오.
-- **Pitfall 17 (NAVER 앱 미설치 · 업데이트 필요):** 새 구조에서는 이 두 경우가
-  **종단 오류**로 올라옵니다 (구 wrapper 처럼 후속 콜백을 기다리는 대기 분기가
-  없습니다). 구 무시 분기를 그대로 옮기면 Future 가 영원히 완료되지 않습니다.
+- **Pitfall 17 (NAVER 앱 미설치 · 업데이트 필요):** 플러그인 표면에서는 이 두
+  경우가 **종단 오류**로 올라옵니다 (구 wrapper 처럼 후속 콜백을 기다리는 대기
+  분기가 없습니다). 구 무시 분기를 그대로 옮기면 Future 가 영원히 완료되지
+  않습니다. Phase 16.5 부터 **미설치** 단말은 호스트 판정이 먼저 킷 웹 경로로
+  보내므로 SDK 를 부르지 않고, SDK 까지 가는 것은 「앱은 있으나 업데이트 필요」
+  뿐입니다 (Pitfall 19 잔여 케이스).
 - **Pitfall 18 (네이티브 디버그 로깅):** 플러그인의 네이티브 로깅은 manifest 설정
   으로 **전 flavor off** 입니다. 켜면 logcat 에 client ID 평문과 마스킹된 secret 이
   찍힙니다 — 디버깅 목적으로 잠시 켰다면 반드시 되돌리고, 그 로그를 공유하지
   마십시오.
-- **Pitfall 19 (Android 웹 fallback 커스텀탭 재개방) — 상류 미해결 · 킷 우회
-  없음:** 단말에 NAVER 앱이 없어 웹(커스텀탭) 경로로 갈 때, NAVER 가 돌려준
-  콜백이 이미 떠 있는 커스텀탭 Activity 로 전달되지 않고 **새 인스턴스**를
-  만듭니다. 새 인스턴스는 콜백을 파싱하지 않은 채 커스텀탭을 한 번 더 열고,
-  원래 호출은 결과를 받지 못한 채 끝납니다. Phase 16.4 가 이 분기를 NAVER
-  Android SDK 의 `NidOAuthCustomTabActivity` 로 귀속시켰고, 킷 안에서 재개방
-  자체를 막을 수 있는 지점은 **없다**고 판정했습니다.
-  - 증상: 로그인 창이 한 번 더 떴다가 로그인 화면으로 돌아옵니다. Phase 16.4
-    이후로는 이때 **오류 배너가 뜹니다** — 조용히 아무 일도 없던 종전 동작과
-    다릅니다.
-  - 진단: debug 빌드 로그의 네 접두어로 판독합니다. `Naver logIn 시작` 과
-    `Naver logIn 도착: status=… elapsedMs=…` 가 한 쌍이고, 그 사이에
-    `Naver logIn 재개방 감지: createCount=<n>` 이 있으면 이 Pitfall 입니다.
-    재개방 줄 없이 `Naver logIn cancel:` 만 있으면 진짜 사용자 취소입니다.
-    - `<n>` 은 임계 상수 `kNaverCustomTabReopenThreshold` **이상의 정수**입니다
-      (현재 임계는 2이지만 3 이상도 찍힙니다). 임계를 조정하면 값이 함께
-      바뀌므로 **리터럴 `createCount=2` 로 grep 하지 마십시오** — 접두어
-      `재개방 감지:` 까지만 앵커로 쓰는 편이 안전합니다.
-    - **다만 이 판정은 결정론이 아닙니다.** 계수 대상인 NAVER SDK 의 커스텀탭
-      Activity 는 병합 manifest 상 `exported="true"` + `BROWSABLE` +
-      `naver3rdpartylogin://authorize/` 로 선언돼 있어, 로그인이 진행 중인
-      동안 **다른 앱이나 웹페이지가 그 scheme 을 한 번 던지기만 해도** 계수가
-      올라갑니다. 그 경우 정상 취소가 오류 배너로 보입니다 (근거:
-      `MainActivity.kt` 의 `lifecycleCallbacks` 주석). 영향은 거기까지이며
-      로그인 자체가 깨지지는 않습니다.
-  - 상태: **상류 미해결.** 킷이 하는 일은 재개방으로 인한 실패를 사용자 취소와
-    구분해 기존 오류 배너로 알리는 데까지입니다 (Android 호스트가 커스텀탭
-    Activity 생성 횟수를 세어 Dart 로 넘깁니다). 상류 추적은
-    `naver/naveridlogin-sdk-android` 의 **#152** 이며, 플러그인 fork 나
-    vendoring 은 하지 않습니다.
-    - 실증된 것은 **양성 방향**(재개방 실패 시 배너가 뜬다) 하나뿐입니다.
-      **「사용자 취소 시 배너가 뜨지 않는다」(오탐 0)는 실기기로 측정되지
-      않았습니다** — 위 「결정론이 아닙니다」 와 합쳐 읽으십시오
-      (`16.4-UAT-RESULT.md` §4).
-  - 근거: `.planning/phases/16.4-naver-web-fallback-and-auth-feedback/` 의
-    `16.4-AB-RESULT.md` · `16.4-PROBE-RESULT.md` · `16.4-UAT-RESULT.md`.
+- **Pitfall 19 (Android 웹 fallback 커스텀탭 재개방) — 상류 미해결 ·
+  킷 소유 웹 흐름으로 우회 (Phase 16.5):** NAVER Android SDK 의 웹(커스텀탭) fallback 은
+  NAVER 가 돌려준 콜백을 이미 떠 있는 `NidOAuthCustomTabActivity` 로 전달하지 않고
+  새 인스턴스를 만들어 커스텀탭을 한 번 더 열고, 원래 호출은 결과 없이 끝납니다
+  (Phase 16.4 귀속, 상류 `naver/naveridlogin-sdk-android` **#152**, 결함 자체는
+  그대로). 킷은 **NAVER 앱 미설치 단말에서 이 경로를 타지 않습니다** — 호스트가
+  설치 여부를 판정해 미설치(또는 판정 실패)면 킷이 `flutter_web_auth_2` 로
+  authorize 를 직접 열고, `code` 교환은 `naverWebCustomToken` 이 합니다(9단계).
+  Android · iOS 가 같은 웹 흐름을 씁니다. 플러그인 fork · vendoring 은 하지 않습니다.
+  - 실증: `naver-off` SM-S942N 에서 쿠키 활성 · 만료 · 재활성 3조건이 각 1회 홈에
+    착지했고 SDK 커스텀탭 기동은 0 이었습니다. 재인증 1회 · 취소 1회(배너 없음) ·
+    iPhone Air 웹 로그인 1회 · 취소 1회도 같은 결과입니다(`16.5-UAT-RESULT.md`).
+  - 잔여 케이스: NAVER 앱은 **설치돼 있으나 업데이트가 필요한** 단말은 1-tap 경로로
+    가고, SDK 가 이를 `need_app_update` **종단 오류**로 올려 오류 배너가 뜹니다
+    (Pitfall 17 · SDK 내부 순서는 `[ASSUMED]`). 재개방 결함 경로에는 들어가지
+    않습니다.
+  - 진단 — debug 빌드 로그의 **여섯 접두어** (앱 경로 2 + 웹 경로 4, 전부
+    `kDebugMode` 전용):
+    - 공통 분기: `Naver 경로 선택: mode=app|web installed=<bool>` — 어느 경로로
+      갔는지. 판정 예외가 나면 그 앞에 `Naver 설치 판정 예외(web 으로 접음):` 가
+      찍히고 `mode=web` 으로 갑니다.
+    - 앱 경로: `Naver logIn 시작` → `Naver logIn 도착: status=… elapsedMs=…` 한 쌍.
+      취소면 뒤에 `Naver logIn cancel:`, 오류면 `Naver logIn error:` 가 붙습니다.
+    - 웹 경로: `Naver web 시작` →
+      `Naver web 도착: outcome=code|cancel|error elapsedMs=<n>[ code=<…>]` 한 쌍.
+      콜백 `state` 가 다르면 도착 줄 앞에 `Naver web state 불일치` 가 찍힙니다.
+  - grep 앵커 규칙: `outcome=` 값은 `code` · `cancel` · `error` 셋뿐입니다.
+    ` code=` 접미는 `outcome=error` 일 때만 붙고 값은 닫힌 집합 `config`(설정 ·
+    scheme 형태) · `callback`(콜백 파싱 · NAVER `error` 파라미터) · `state` ·
+    `missing`(`code` 부재) 또는 플러그인 `PlatformException.code`(`FAILED` 등)
+    입니다. 콜백 URL · `code` · `state` 원문은 **어느 줄에도 없습니다**(길이조차
+    싣지 않음). 경과 ms 는 사람의 로그인 · 동의 시간을 포함하므로 임계로 쓰지
+    마십시오 — 접두어까지만 앵커로 씁니다.
+  - `outcome=cancel` 인데 사용자가 취소한 기억이 없다면: Android 는 웹 세션 중 앱을
+    **전면으로 되돌리기만 해도** 플러그인이 대기 중인 세션을 `CANCELED` 로 접습니다
+    (앱 전환 · 홈 → 아이콘 재진입). 킷은 이를 silent 취소로 처리하므로 배너는 뜨지
+    않습니다 — 세션 중에는 앱을 전환하지 않습니다.
+  - 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/` 의
+    `16.5-PROBE-RESULT.md` · `16.5-UAT-RESULT.md` (결함 귀속은
+    `.planning/phases/16.4-naver-web-fallback-and-auth-feedback/16.4-AB-RESULT.md`).
 
 ---
 
@@ -1941,8 +2109,10 @@ Cloud Function `naverCustomToken` 이 Naver access_token 으로 호출하는
    "Application > 애플리케이션 등록" → stg / prod 각각 신규 앱. dev / stg /
    prod 의 Client ID / Client Secret 모두 다름 (보안 격리 + 검수 분리).
 2. **iOS URL Scheme prod 분리** — production 빌드용 iOS URL Scheme 등록
-   (예: `flutterStarterKitProd`). `config/prod.json` 의 `naverUrlScheme` +
-   `ios/Flutter/prod.xcconfig` 의 `NAVER_URL_SCHEME` 양쪽 prod 값 일치.
+   (소문자 영숫자 — 예: `myappnaverprod`). `config/prod.json` 의 `naverUrlScheme` +
+   `ios/Flutter/prod.xcconfig` 의 `NAVER_URL_SCHEME` 양쪽 prod 값 일치. 이 값이
+   Phase 16.5 부터 웹 경로 콜백 scheme 도 겸하므로 prod 에서도 Naver 9단계 (2)
+   브라우저 probe 로 authorize 통과를 한 번 확인합니다.
    Phase 16.2 부터는 같은 `ios/Flutter/prod.xcconfig` 의 `NAVER_CLIENT_ID` ·
    `NAVER_CLIENT_SECRET` 도 prod 앱의 값으로 함께 맞춰야 합니다 (iOS 는 이
    xcconfig 가 실제 출처이므로 `config/prod.json` 만 고치면 iOS 빌드는 여전히
@@ -1961,8 +2131,10 @@ Cloud Function `naverCustomToken` 이 Naver access_token 으로 호출하는
    `.dev`) 본인 production 값으로 등록.
 5. **Secret Manager prod 환경 등록** — `firebase use <prod-project-id>` →
    `firebase functions:secrets:set NAVER_CLIENT_SECRET` 로 prod Client
-   Secret 등록 (dev / stg / prod 각 Firebase 프로젝트 별 격리). Cloud
-   Function 의 `defineSecret('NAVER_CLIENT_SECRET')` 자동 환경별 분리.
+   Secret 등록 (dev / stg / prod 각 Firebase 프로젝트 별 격리). Phase 16.5 부터
+   `firebase functions:secrets:set NAVER_CLIENT_ID` 도 prod Client ID 로 함께
+   등록합니다(`naverWebCustomToken` 이 사용 — Naver 8단계). Cloud Function 의
+   `defineSecret(...)` 이 환경별로 자동 분리됩니다.
 6. **네아로 검수 분리** — (1) 검수 신청을 stg / prod 양쪽 앱 별개 신청.
    dev 검수 통과 = prod 검수 통과 의무 아님.
 7. **App Check Debug Provider Token** — stg / prod 의 Firebase Console >
@@ -2018,7 +2190,7 @@ export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
 
    ```bash
    firebase deploy \
-     --only functions:naverCustomToken,functions:kakaoCustomToken \
+     --only functions:naverCustomToken,functions:naverWebCustomToken,functions:kakaoCustomToken \
      --project <dev-project-id>
    ```
 
@@ -2028,6 +2200,7 @@ export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
 
 - Phase 12 — `kakaoCustomToken`
 - Phase 13 — `naverCustomToken`
+- Phase 16.5 — `naverWebCustomToken` (`naverCustomToken` 과 같은 Naver 검증 helper 공유)
 - Phase 14~15 — LINE / Yahoo!JP (추가 시 동일 helper 재사용 → 자동 상속)
 
 ### best-effort 정책 (R9 strict 와 차이)
@@ -4285,7 +4458,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-22 | 16.3 | `## iOS 의존성 관리 (SPM)` 절 신규(①~⑥ — SPM 입문 + CocoaPods ↔ SPM 대응표 · 두 tracked `Package.resolved` 고정과 peeled sha 상향 절차 + LINE 5.17.0 경고 · 새 플러그인 사전 확인 3단계 · SPM 미지원 플러그인의 조용한 CocoaPods fallback 증상 · 배포 타겟 진실원 = pbxproj `IPHONEOS_DEPLOYMENT_TARGET` 12개 · ⑥ = 손패치 취급 1건 + 전환 중 실제로 겪은 증상 2건) + CocoaPods 전제 서술 6곳을 현재형으로 재작성 — firebase-configure 함정 bullet 에 「주체는 flutterfire CLI 의 ruby gem」 조건절, IDFA 근거를 `Podfile.lock` 에서 `firebase_analytics` 의 `Package.swift`(기본 product `FirebaseAnalytics` · 끄는 법 `FIREBASE_ANALYTICS_WITHOUT_ADID`, 킷에서 시도 0건 유지)로 교체, 「Flutter SDK 상향 (FVM)」 의 ② 2번 · ③ 표(`ios/Podfile.lock` 행 삭제 + 경고 문장 교체) · ④(「명시적으로 끈다」 → 「기본값(on)을 그대로 쓴다」) · ⑥(CocoaPods 불요 + `flutter doctor` 표시 유지) 수정, ⑦ `PODFILE CHECKSUM` 절 삭제와 ⑧⑨⑩ → ⑦⑧⑨ 재번호. 목차 20 항목으로 확장. 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/`. |
 
 | 2026-09-22 | 16.3-REVIEW-FIX | 증분 코드 리뷰 2회차 지적 11건(Warning 4 · Info 7) 반영 — 「iOS 의존성 관리 (SPM)」 절의 **검증력** 보강이 주제다. ② 상향 절차 4번: checkout 디렉터리 규칙을 「URL 마지막 경로 요소」 → 「마지막 경로 요소에서 **`.git` 접미사를 뗀 이름**」 으로 정정(핀 20개 중 16개의 `location` 이 `.git` 으로 끝나 규칙대로 하면 `No such file or directory` — 재현 명령 병기, 규칙 성립을 실제 checkout 20개와 `diff` 로 전수 확인) + identity 불일치 6건을 별개 사실로 분리. ③(다): 합격 기준을 「출력 1줄」 단독에서 「1줄 **AND** 맨 앞 개수 = `$EXPECTED`」 로 교체 — 두 경로만 탐색해 조용히 건너뛰는 구조 때문에 **표본 부분 누락에 공허하게 참**이었다(8개 중 3개만 읽혀도 1줄). 기대 개수는 `grep -cE` 가 아니라 **jq 필터**로 센다(ugrep 괄호 `-E` 위음성 + 주석 오염 배제). 성립 불가능 조항 「맨 앞 개수가 0 이 아니다」(`uniq -c` 는 개수 0 을 출력할 수 없다) 제거. 「옛 세대는 충돌하지도 않는다」 단정을 조건부로 한정(`from: X` 와 `exact: Y` 는 `Y >= X` 일 때만 해석 — 반례 존재, 확인 명령 추가). ⑤: **하한 15.0 금지선**을 명시(test 가 12개 일치와 함께 강제하므로 14.0 으로 내리면 빌드 전에 `flutter test` 가 red) — `_minSupportedIosTarget` doc comment 와의 양방향 링크 복구. ⑥: **Xcode IDE 빌드에서 stale `build/ios/SourcePackages` 가 우선한다**는 알려진 제약 신규(probe 순서를 자동으로 뒤집지 않는 근거를 flutter_tools 라인 인용으로 명시 — `BUILD_DIR` 은 archive 가 아닐 때만 덮어써지고 `-clonedSourcePackagesDirPath` 는 모든 호출에 붙는다) + build phase 가 고른 후보를 `note:` 로 로깅. IDFA 절: 근거 재확인 명령을 하드코딩 `sed -n '13,16p'` 에서 **내용 앵커 `grep`** 으로 교체(상향으로 줄이 밀리면 목적과 수단이 서로를 무효화했다) + 「위 인용 블록」 방향 오기를 「아래 … 블록」 + 식별 문자열로 정정. 회귀 가드 쪽은 `test/helpers/source_text.dart` 신규 추출(헬퍼 3종의 3중 복제 해소 · public 최상위 심볼 0), SPM 손패치 단언을 **`shellScript` 본문으로 범위 한정**(전체 텍스트 검사라 shellScript 가 비어도 통과하던 구멍 폐쇄), 배포 타겟 비교를 `double.parse` 에서 **성분 단위 비교**로 교체(`15.6.1` 예외사 · `15.10` → `15.1` 오독 제거). 모든 문서 명령은 블록에서 그대로 추출해 실행한 출력과 대조했고, 가드 변경은 fixture 로 red 재현을 확인했다. 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/16.3-REVIEW.md`(round 2) · `16.3-REVIEW-FIX.md`. |
+| 2026-09-24 | 16.5-07 | Naver Login 절을 킷 소유 웹 흐름(Phase 16.5) 기준으로 갱신 — 도입 문단(설치 단말 1-tap / 미설치 단말 킷 웹 + `naverWebCustomToken` 서버 교환 · 호스트 네이티브 판정 · 판정 실패 = 웹), 3단계 iOS URL Scheme 예시를 소문자 영숫자로 정정(웹 콜백 scheme 겸용), 6단계 「Dart 가 읽지 않는다」 를 두 소비처(SDK 1-tap · 킷 웹) 서술로 교체, 7단계에 iOS 웹 경로 추가 설정 0 · 설치 판정 Swift 1파일 메모, 8단계를 secret 2종(`NAVER_CLIENT_SECRET` 사용처 1 · `NAVER_CLIENT_ID` 신규) + 「같은 값 2본」(D-19 — secret 은닉이 아니라 RFC 8252 정합 + 착지) 으로 재작성, **9단계 신설**(웹 경로 Callback URL · redirect_uri 확인 — 브라우저 probe 절차 · 채택 결과 후보 A · scheme 파생 규칙과 커스터마이징 표 · Android `CallbackActivity` · Hosting bounce 대안(미구현) · `naverClientId` 2경로 일치 · 사용자가 보는 것 · Naver 제거 절차) 와 기존 9·10단계 → 10·11단계 재번호(배포 대상에 `naverWebCustomToken` 추가 · 웹 경로 확인법). Pitfall 11 의 16.4 계수 문장 · Pitfall 17 을 정정하고 **Pitfall 19 를 「킷 소유 웹 흐름으로 우회」 로 교체** — 레버 2(재개방 계수) 서술 삭제, 여섯 로그 접두어(앱 2 + 웹 4) + grep 앵커 규칙 + Android 앱 전면 복귀 취소 주의. Initial Setup 키 표 naver 3행 · stg/prod 등록 절차(scheme 예시 · `NAVER_CLIENT_ID` secret) · IdP 프로필 동기화 배포 목록 동반 갱신. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/`. |
 
 ---
 
-*Last updated: 2026-09-22 — 16.3 증분 코드 리뷰 2회차 반영 (「iOS 의존성 관리 (SPM)」 절의 규칙·합격 기준·회귀 가드 검증력 보강 11건)*
+*Last updated: 2026-09-24 — 16.5-07 Naver 킷 소유 웹 흐름 반영 (Pitfall 19 교체 · 9단계 웹 경로 신설 · secret 2종)*
