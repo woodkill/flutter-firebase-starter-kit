@@ -189,18 +189,37 @@ void main() {
       expect(kotlin, contains('NidOAuthCustomTabActivity'));
       expect(dart, contains('MethodChannel('));
 
-      const List<String> tokens = <String>[
-        'com.slimpumpkin.flutter_starter_kit/naver_custom_tab',
-        'resetCount',
-        'getCount',
-      ];
-      for (final String token in tokens) {
-        expect(kotlin, contains(token), reason: 'Kotlin 측 $token 누락');
-        expect(dart, contains(token), reason: 'Dart 측 $token 누락');
+      const String channelName =
+          'com.slimpumpkin.flutter_starter_kit/naver_custom_tab';
+      expect(kotlin, contains(channelName), reason: 'Kotlin 측 채널명 누락');
+      expect(dart, contains(channelName), reason: 'Dart 측 채널명 누락');
+
+      // 16.4 code review WR-01 — 메서드명은 「존재」 로 단언하면 공허하다.
+      // Dart 의 `resetCount` 는 메서드 **선언**(`Future<void> resetCount()`)
+      // 에도 나타나므로 `contains('resetCount')` 는 wire 리터럴이
+      // `invokeMethod<void>('reset')` 로 바뀌어도 참이다. 두 메서드 중
+      // `getCount` 만 잠기고 `resetCount` 는 잠기지 않는 비대칭이었다.
+      // 따라서 「따옴표로 감싼 invokeMethod 인자」 문맥으로 단언해 선언과
+      // 분리한다. 공백 변동은 `\s*` 로 흡수한다 (dart-format 규칙 3).
+      for (final String wire in const <String>['resetCount', 'getCount']) {
+        expect(
+          RegExp("invokeMethod<[^>]+>\\(\\s*'$wire'").hasMatch(dart),
+          isTrue,
+          reason: 'Dart 측 invokeMethod 인자 $wire 누락 — 메서드 선언만으로 통과하면 안 된다',
+        );
+        expect(kotlin, contains('"$wire"'), reason: 'Kotlin 측 "$wire" 리터럴 누락');
       }
 
+      // 양성 대조군 — 위 정규식 모양 자체가 살아 있다. 0건 매칭이 공허하게
+      // 참이 되는 것을 막는다 (매칭 대상이 사라지면 여기서 먼저 깨진다).
+      expect(
+        RegExp(r"invokeMethod<[^>]+>\(\s*'").allMatches(dart).length,
+        equals(2),
+        reason: 'Dart 측 invokeMethod 호출은 정확히 2건(resetCount · getCount)이어야 한다',
+      );
+
       // 테스트 자신의 사본도 같은 채널을 가리켜야 위 단언이 의미를 갖는다.
-      expect(kProbeChannel.name, equals(tokens.first));
+      expect(kProbeChannel.name, equals(channelName));
     });
   });
 
