@@ -33,10 +33,14 @@ class FacebookSignInNotifier extends _$FacebookSignInNotifier {
   /// 취소(null) 시 state를 [AsyncData]로 유지하여 조용히 무시 (D-09). 이 동작은 7 provider 가 문자 단위로 동일하며,
   /// 최초 결정 **D-06** 의 provider 별 인스턴스다 (IN-01 정정 — Phase 09
   /// review: 동일 동작이 6개의 서로 다른 ID 로 불리고 있었다).
-  /// 성공 시 [AsyncData]. 실패 시 [AsyncError]로 전환되어 LoginScreen의
-  /// ref.listen에서 FormErrorBanner로 렌더링된다. Phase 16.1에서 소셜
-  /// 섹션을 함께 담던 구 가입 화면이 삭제됐고, LoginPromptSheet의
-  /// ref.listen은 성공 분기만 처리한다.
+  /// 성공 시 [AsyncData]. 실패 시 [AsyncError] 로 전환되어 **LoginScreen 과
+  /// LoginPromptSheet 두 surface 모두**의 `ref.listen` 이 처리한다 —
+  /// `AccountExistsWithDifferentCredential`(+ `existingProvider != null`) 은
+  /// 계정 연결 시트로, 그 외는 `FormErrorBanner` 로 렌더링된다
+  /// (`login_screen.dart:150` · `login_prompt_sheet.dart:156`).
+  /// Phase 16.1 에서 소셜 섹션을 함께 담던 구 가입 화면은 삭제됐다
+  /// (16.4 code review WR-02 — 종전 「LoginPromptSheet 의 ref.listen 은 성공
+  /// 분기만 처리한다」 는 실측과 배치되는 문장이었다).
   ///
   /// **AsyncLoading 누수 가드 (16.4 code review IN-06, quick 260923-cs5):**
   /// `ref.read(authRepositoryProvider)` 가 동기 throw 하거나(provider 생성
