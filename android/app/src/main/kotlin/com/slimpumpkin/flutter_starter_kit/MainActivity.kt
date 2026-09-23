@@ -47,8 +47,17 @@ class MainActivity : FlutterFragmentActivity() {
      * 영향은 **정상 취소가 오류 배너로 보이는 것까지**로 한정된다.
      *
      * 아래 `savedInstanceState == null` 가드는 이 경로를 막지 못한다 — 외부
-     * 기동도 fresh launch 다. 근본 차단은 계수 창(window)을 `_login()` 구간으로
-     * 좁히는 호스트 측 변경이 필요하며 별건이다 (16.4 code review WR-04).
+     * 기동도 fresh launch 다.
+     *
+     * 계수 창(window)은 **이미** Dart 가 `resetCount()` → `_login()` →
+     * `readCount()` 로 좁혀 놓았다 (`naver_sdk_client.dart:399` · `:401` ·
+     * `:413`, 그 순서는 `T-16.4-NAVER-DISCRIM-03` 이 잠근다). 따라서 창을 더
+     * 좁히는 호스트 측 변경으로는 얻는 것이 없다 — 남는 노출은 **그 창 안에서의
+     * 외부 기동**이라 창의 폭과 무관하다. 없애려면 기동 **주체**(호출 intent 의
+     * 출처)를 가려야 하는데, 그것은 SDK Activity 의 intent 를 읽는 일이라
+     * T-16.4-11 prohibition 과 정면 충돌한다. 그래서 오탐 가능성을 감수하는
+     * 것이 이 phase 의 선택이다 (16.4 code review IN-06 — 종전 주석은 존재하지
+     * 않는 처방을 「별건」 으로 예약해 두고 있었다).
      */
     private val lifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
