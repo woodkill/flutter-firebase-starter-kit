@@ -58,6 +58,12 @@ class FacebookSignInNotifier extends _$FacebookSignInNotifier {
   /// 그 회귀 가드가 덮는 범위는 **두 축 모두**다 — provider 생성 시의 동기
   /// `Error` throw 와, repository 메서드 호출의 비동기 `Exception` throw
   /// (16.4 code review IN-02 — 종전에는 앞 축 하나뿐이었다).
+  ///
+  /// **payload 계약 확장 (16.4 code review IN-05):** 이 경로의 [AsyncError]
+  /// payload 는 `Result.failure` 경로와 달리 `AppException` 이 아닐 수 있다
+  /// (예: riverpod 의 `ProviderException`, repository 가 흘린 raw 예외).
+  /// 두 UI surface 의 `err is AppException ? … : ServiceUnavailable(cause: err)`
+  /// fallback 이 이를 흡수한다 — 그 분기는 더 이상 dead 가 아니다.
   Future<void> signInWithFacebook() async {
     state = const AsyncLoading<void>();
     try {
