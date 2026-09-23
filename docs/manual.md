@@ -901,13 +901,28 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
     다릅니다.
   - 진단: debug 빌드 로그의 네 접두어로 판독합니다. `Naver logIn 시작` 과
     `Naver logIn 도착: status=… elapsedMs=…` 가 한 쌍이고, 그 사이에
-    `Naver logIn 재개방 감지: createCount=2` 가 있으면 이 Pitfall 입니다.
+    `Naver logIn 재개방 감지: createCount=<n>` 이 있으면 이 Pitfall 입니다.
     재개방 줄 없이 `Naver logIn cancel:` 만 있으면 진짜 사용자 취소입니다.
+    - `<n>` 은 임계 상수 `kNaverCustomTabReopenThreshold` **이상의 정수**입니다
+      (현재 임계는 2이지만 3 이상도 찍힙니다). 임계를 조정하면 값이 함께
+      바뀌므로 **리터럴 `createCount=2` 로 grep 하지 마십시오** — 접두어
+      `재개방 감지:` 까지만 앵커로 쓰는 편이 안전합니다.
+    - **다만 이 판정은 결정론이 아닙니다.** 계수 대상인 NAVER SDK 의 커스텀탭
+      Activity 는 병합 manifest 상 `exported="true"` + `BROWSABLE` +
+      `naver3rdpartylogin://authorize/` 로 선언돼 있어, 로그인이 진행 중인
+      동안 **다른 앱이나 웹페이지가 그 scheme 을 한 번 던지기만 해도** 계수가
+      올라갑니다. 그 경우 정상 취소가 오류 배너로 보입니다 (근거:
+      `MainActivity.kt` 의 `lifecycleCallbacks` 주석). 영향은 거기까지이며
+      로그인 자체가 깨지지는 않습니다.
   - 상태: **상류 미해결.** 킷이 하는 일은 재개방으로 인한 실패를 사용자 취소와
     구분해 기존 오류 배너로 알리는 데까지입니다 (Android 호스트가 커스텀탭
     Activity 생성 횟수를 세어 Dart 로 넘깁니다). 상류 추적은
     `naver/naveridlogin-sdk-android` 의 **#152** 이며, 플러그인 fork 나
     vendoring 은 하지 않습니다.
+    - 실증된 것은 **양성 방향**(재개방 실패 시 배너가 뜬다) 하나뿐입니다.
+      **「사용자 취소 시 배너가 뜨지 않는다」(오탐 0)는 실기기로 측정되지
+      않았습니다** — 위 「결정론이 아닙니다」 와 합쳐 읽으십시오
+      (`16.4-UAT-RESULT.md` §4).
   - 근거: `.planning/phases/16.4-naver-web-fallback-and-auth-feedback/` 의
     `16.4-AB-RESULT.md` · `16.4-PROBE-RESULT.md` · `16.4-UAT-RESULT.md`.
 
