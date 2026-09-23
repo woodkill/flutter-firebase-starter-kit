@@ -1,11 +1,9 @@
 // Phase 13 — see ROADMAP.md
-// Phase 16.4 — see ROADMAP.md (레버 5 판정용 lifecycle 임시 로그 · plan 06 이
-// 존치/제거 확정)
+// Phase 16.4 — see ROADMAP.md (레버 5 판정용 lifecycle 임시 로그 제거됨 —
+// 레버 2 채택. 취소/실패 구분은 Android 호스트 계수 + MethodChannel 이
+// 담당하므로 이 파일은 7 provider 공통 모양으로 되돌아왔다)
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
-import 'package:flutter/widgets.dart'
-    show AppLifecycleListener, AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/result.dart';
@@ -51,18 +49,6 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
   /// 섹션을 함께 담던 구 가입 화면이 삭제됐고, LoginPromptSheet 의
   /// ref.listen 은 성공 분기만 처리한다.
   ///
-  /// **lifecycle 임시 로그 (Phase 16.4 — see ROADMAP.md):** 본 메서드 진행
-  /// 구간에만 [AppLifecycleListener] 를 붙이고 `finally` 에서 뗀다. 커스텀탭
-  /// 왕복이 앱 lifecycle 전이로 관측되는지(RESEARCH 레버 5)를 다음 실기기
-  /// 실행에서 판정하기 위한 것이며, 출력은 `AppLifecycleState` 이름과 정수
-  /// 카운트뿐이라 PII 표면이 없다. 레버 5 판정 후 존치 여부는 plan 06 이
-  /// 정한다.
-  ///
-  /// **release 표면 0 (16.4 code review IN-03):** 수집한 값이 `kDebugMode`
-  /// 에서만 소비되므로 **리스너 등록 자체**를 `kDebugMode` 안으로 가둔다.
-  /// 종전에는 출력만 debug 였고 `WidgetsBinding` 옵서버 등록·해제는 매
-  /// 호출마다 release 에서도 일어났다 — 이 킷은 템플릿으로 복사되는 코드다.
-  ///
   /// **AsyncLoading 누수 가드 (16.4 code review IN-06, quick 260923-cs5):**
   /// `ref.read(authRepositoryProvider)` 가 동기 throw 하거나(provider 생성
   /// 실패) repository 호출이 예외를 흘리면 `on Object catch` 가 state 를
@@ -73,24 +59,6 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
   /// `social_sign_in_notifier_loading_guard_test.dart`.
   Future<void> signInWithNaver() async {
     state = const AsyncLoading<void>();
-
-    var transitions = 0;
-    var resumed = 0;
-    // debug 전용 — release 에서는 null 이라 옵서버가 등록되지 않는다.
-    final AppLifecycleListener? lifecycle = kDebugMode
-        ? AppLifecycleListener(
-            onStateChange: (AppLifecycleState appState) {
-              transitions++;
-              if (appState == AppLifecycleState.resumed) {
-                resumed++;
-              }
-              debugPrint(
-                'Naver lifecycle 전이: state=${appState.name} seq=$transitions',
-              );
-            },
-          )
-        : null;
-
     try {
       final result = await ref.read(authRepositoryProvider).signInWithNaver();
       if (!ref.mounted) return;
@@ -110,13 +78,6 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
     } on Object catch (e, st) {
       if (ref.mounted) state = AsyncError<void>(e, st);
       rethrow;
-    } finally {
-      if (kDebugMode) {
-        debugPrint(
-          'Naver lifecycle 요약: resumed=$resumed transitions=$transitions',
-        );
-      }
-      lifecycle?.dispose();
     }
   }
 }
