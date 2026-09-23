@@ -51,6 +51,8 @@ export const ping = onCall({enforceAppCheck: true}, (request) => {
 export {kakaoCustomToken} from "./auth/kakao_custom_token";
 // Phase 13 — see ROADMAP.md — Naver access_token → Firebase Custom Token.
 export {naverCustomToken} from "./auth/naver_custom_token";
+// Phase 16.5 SOCL-14 — Naver authorization code → Custom Token (킷 소유 웹 경로).
+export {naverWebCustomToken} from "./auth/naver_web_custom_token";
 // Phase 14 D-LINE-06 — LINE OIDC ID Token → Firebase Custom Token.
 export {lineCustomToken} from "./auth/line_custom_token";
 // Phase 15 D-YJP-03/04/05/09 — Yahoo!JP OIDC ID Token → Firebase Custom Token.

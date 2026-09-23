@@ -35,7 +35,7 @@ export const KAKAO_NATIVE_APP_KEY = defineSecret("KAKAO_NATIVE_APP_KEY");
 // "최소 설정으로 시작" 가치와 충돌 → declaration 제거. Phase 17 진입 시 본
 // 위치에 재선언 + onCall secrets 배열에 재포함 의무.
 //
-// (Naver 는 정반대 정책을 택했다 — `naver_custom_token.ts` 의
+// (Naver 는 정반대 정책을 택했다 — `shared/naver_secrets.ts` 의
 // `NAVER_CLIENT_SECRET` 주석 참조. 두 provider 의 정책 차이는 의도적이며
 // 그 사유가 양쪽 선언부에 명시되어 있다.)
 export const LINE_CHANNEL_ID = defineSecret("LINE_CHANNEL_ID");
