@@ -325,6 +325,42 @@ void main() {
       },
     );
 
+    // 16.5 review IN-04 — AppConfig.naverWebRedirectUri 는 dart-define 이
+    // 없어도 "://authorize" 라 isEmpty 가드가 도달 불가였다. 형태를 본다.
+    test('T-16.5-NAVER-WEB-18 redirectUri 형태 불일치 → 세션 열기 전 '
+        'ServiceUnavailable(code=config) · https bounce 는 통과', () async {
+      final logs = captureLogs();
+      final recorder = AuthenticateRecorder(echoCallback);
+      final badRedirects = <String>[
+        '://authorize', // dart-define 미주입 시 AppConfig 가 만드는 값
+        'other-scheme://authorize', // callbackUrlScheme 과 다른 custom scheme
+        'http://example.com/naver/callback', // https 아닌 웹 주소
+        'https:///naver/callback', // host 없는 https
+      ];
+
+      for (final redirectUri in badRedirects) {
+        final error = await captureError(
+          buildClient(recorder, redirectUri: redirectUri),
+        );
+        expect(error, isA<ServiceUnavailable>(), reason: redirectUri);
+      }
+      expect(recorder.urls, isEmpty, reason: '설정 오류는 세션을 열지 않는다');
+      expect(
+        logs.where(
+          (l) => l == 'Naver web 도착: outcome=error elapsedMs=0 code=config',
+        ),
+        hasLength(badRedirects.length),
+      );
+
+      // 양성 대조군 — 매뉴얼 9단계 (6) Hosting bounce 형태는 세션을 연다.
+      final result = await buildClient(
+        recorder,
+        redirectUri: 'https://example.web.app/naver/callback',
+      ).signIn();
+      expect(result, isA<NaverWebSignIn>());
+      expect(recorder.urls, hasLength(1));
+    });
+
     test('T-16.5-NAVER-WEB-13 매 호출 state 가 새로 생성된다', () async {
       final recorder = AuthenticateRecorder(echoCallback);
       final client = buildClient(recorder);

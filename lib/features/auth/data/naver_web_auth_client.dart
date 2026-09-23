@@ -109,8 +109,9 @@ class NaverWebAuthClient {
   /// 킷 웹 흐름으로 Naver 로그인 — authorize → 콜백 `code` + `state`.
   ///
   /// 흐름 (D-12a 분기):
-  /// 1. 설정 가드 — [clientId] · [redirectUri] 빈 문자열 또는 [callbackUrlScheme]
-  ///    형태 위반이면 세션을 열지 않고 [ServiceUnavailable] (`code=config`).
+  /// 1. 설정 가드 — [clientId] 빈 문자열 · [callbackUrlScheme] 형태 위반 ·
+  ///    [redirectUri] 형태 불일치([_isRedirectUriConsistent])면 세션을 열지 않고
+  ///    [ServiceUnavailable] (`code=config`).
   /// 2. `state` = `Random.secure()` 16 bytes (22 chars) — 매 호출 새 값 (D-14).
   /// 3. authorize URL = `response_type` · `client_id` · `redirect_uri` ·
   ///    `state` 4 파라미터 (probe ② A5 — 부가 파라미터 불필요).
@@ -134,7 +135,7 @@ class NaverWebAuthClient {
   Future<NaverWebSignIn?> signIn() async {
     if (clientId.isEmpty ||
         !kNaverWebCallbackSchemePattern.hasMatch(callbackUrlScheme) ||
-        redirectUri.isEmpty) {
+        !_isRedirectUriConsistent()) {
       // T-15-15 패턴 — --dart-define-from-file 미주입 · scheme 오타를 세션
       // 열기 전에 시끄럽게 드러낸다 (ArgumentError 로 새지 않게).
       _logArrival('error', null, code: 'config');
@@ -212,6 +213,24 @@ class NaverWebAuthClient {
 
     _logArrival('code', watch);
     return NaverWebSignIn(code: code, state: state);
+  }
+
+  /// [redirectUri] 가 세션이 가로챌 수 있는 형태인지 확인한다 (16.5 review IN-04).
+  ///
+  /// [AppConfig.naverWebRedirectUri] 는 `'<scheme>://authorize'` 라 dart-define
+  /// 이 없어도 빈 문자열이 되지 않는다 — `isEmpty` 가드는 도달 불가였다. 대신
+  /// 형태를 본다.
+  /// - 파싱 실패 · scheme 부재 → false.
+  /// - `https` → host 가 있어야 한다. 매뉴얼 9단계 (6) Hosting bounce 대안은
+  ///   https 페이지가 [callbackUrlScheme] 으로 재이동하므로 scheme 이 달라도
+  ///   정상이다.
+  /// - 그 밖의 custom scheme → [callbackUrlScheme] 과 같아야 한다. 다르면
+  ///   NAVER 가 세션이 가로채지 못하는 주소로 콜백해 로그인이 끝나지 않는다.
+  bool _isRedirectUriConsistent() {
+    final uri = Uri.tryParse(redirectUri);
+    if (uri == null || !uri.hasScheme) return false;
+    if (uri.scheme == 'https') return uri.host.isNotEmpty;
+    return uri.scheme == callbackUrlScheme;
   }
 
   /// 콜백 URL 의 쿼리 파라미터 — URL · percent-encoding 이 깨졌으면 null.
