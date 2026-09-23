@@ -207,7 +207,8 @@ async function exchangeNaverAuthCode(args: {
  *
  * 성공 판정 (WR-02 — 교환과 같은 Pitfall 4 대칭: 같은 endpoint 가 실패를
  * HTTP 200 + 본문 error 로 돌려준다):
- * - fetch reject (AbortError / network) → `{code: err.name}`
+ * - fetch reject (`AbortSignal.timeout` 초과 = TimeoutError / network) →
+ *   `{code: err.name}`
  * - HTTP non-OK → `{status}`
  * - JSON parse 실패 → `{code: err.name}` · 비객체 본문 → `{code:
  *   "non_object_body"}`
