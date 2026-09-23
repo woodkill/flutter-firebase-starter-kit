@@ -37,22 +37,38 @@ class FacebookSignInNotifier extends _$FacebookSignInNotifier {
   /// ref.listen에서 FormErrorBanner로 렌더링된다. Phase 16.1에서 소셜
   /// 섹션을 함께 담던 구 가입 화면이 삭제됐고, LoginPromptSheet의
   /// ref.listen은 성공 분기만 처리한다.
+  ///
+  /// **AsyncLoading 누수 가드 (16.4 code review IN-06, quick 260923-cs5):**
+  /// `ref.read(authRepositoryProvider)` 가 동기 throw 하거나(provider 생성
+  /// 실패) repository 호출이 예외를 흘리면 `on Object catch` 가 state 를
+  /// [AsyncError] 로 되돌린 뒤 `rethrow` 한다. 예외는 여전히 호출자에게
+  /// 전파되지만, state 가 [AsyncLoading] 에 머물러 AuthInProgressOverlay 의
+  /// AbsorbPointer 가 화면을 영구히 덮는 일은 없다. 이 가드 역시 7 provider 가
+  /// 문자 단위로 동일하다 — 회귀 가드는
+  /// `social_sign_in_notifier_loading_guard_test.dart`.
   Future<void> signInWithFacebook() async {
     state = const AsyncLoading<void>();
-    final result = await ref.read(authRepositoryProvider).signInWithFacebook();
-    if (!ref.mounted) return;
+    try {
+      final result = await ref
+          .read(authRepositoryProvider)
+          .signInWithFacebook();
+      if (!ref.mounted) return;
 
-    if (result == null) {
-      state = const AsyncData<void>(null);
-      return;
+      if (result == null) {
+        state = const AsyncData<void>(null);
+        return;
+      }
+
+      state = switch (result) {
+        Success<dynamic>() => const AsyncData<void>(null),
+        Failure<dynamic>(exception: final ex) => AsyncError<void>(
+          ex,
+          StackTrace.current,
+        ),
+      };
+    } on Object catch (e, st) {
+      if (ref.mounted) state = AsyncError<void>(e, st);
+      rethrow;
     }
-
-    state = switch (result) {
-      Success<dynamic>() => const AsyncData<void>(null),
-      Failure<dynamic>(exception: final ex) => AsyncError<void>(
-        ex,
-        StackTrace.current,
-      ),
-    };
   }
 }

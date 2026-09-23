@@ -62,6 +62,15 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
   /// 에서만 소비되므로 **리스너 등록 자체**를 `kDebugMode` 안으로 가둔다.
   /// 종전에는 출력만 debug 였고 `WidgetsBinding` 옵서버 등록·해제는 매
   /// 호출마다 release 에서도 일어났다 — 이 킷은 템플릿으로 복사되는 코드다.
+  ///
+  /// **AsyncLoading 누수 가드 (16.4 code review IN-06, quick 260923-cs5):**
+  /// `ref.read(authRepositoryProvider)` 가 동기 throw 하거나(provider 생성
+  /// 실패) repository 호출이 예외를 흘리면 `on Object catch` 가 state 를
+  /// [AsyncError] 로 되돌린 뒤 `rethrow` 한다. 예외는 여전히 호출자에게
+  /// 전파되지만, state 가 [AsyncLoading] 에 머물러 AuthInProgressOverlay 의
+  /// AbsorbPointer 가 화면을 영구히 덮는 일은 없다. 이 가드 역시 7 provider 가
+  /// 문자 단위로 동일하다 — 회귀 가드는
+  /// `social_sign_in_notifier_loading_guard_test.dart`.
   Future<void> signInWithNaver() async {
     state = const AsyncLoading<void>();
 
@@ -98,6 +107,9 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
           StackTrace.current,
         ),
       };
+    } on Object catch (e, st) {
+      if (ref.mounted) state = AsyncError<void>(e, st);
+      rethrow;
     } finally {
       if (kDebugMode) {
         debugPrint(
