@@ -10,6 +10,7 @@ import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -214,6 +215,126 @@ void main() {
         );
         expect(banner.exception, isA<AccountExistsWithDifferentCredential>());
       });
+    });
+
+    // -----------------------------------------------------------------
+    // Phase 16.4 Naver FormErrorBanner surface joint (T-16.4-NAVER-BANNER-01,
+    // 02). AUTH-03-15/16 (Apple) 은 이 surface joint 를 이미 provider-agnostic
+    // 하게 mirror 하지만 Naver 전용 경로는 어떤 FormErrorBanner 테스트도 덮지
+    // 않았다 (16.4-VALIDATION.md G-1/G-2). 이 group 은 `activeStrategiesProvider`
+    // 를 Naver 단독으로 override 하는 로컬 pump helper 를 사용하며, 공유
+    // `_pumpLogin` (Google/Apple/Facebook 3-strategy) 은 수정하지 않는다.
+    // -----------------------------------------------------------------
+    group('LoginScreen Naver sign-in banner surface joint (16.4)', () {
+      /// [LoginScreen] 을 Naver 단독 활성 strategy 로 pump 한다 — 공유
+      /// `_pumpLogin` 과 달리 Naver 버튼 index 를 모호하지 않게 고정한다.
+      Future<void> pumpLoginNaverOnly(
+        WidgetTester tester,
+        _MockAuthRepository mockRepo,
+      ) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authRepositoryProvider.overrideWithValue(mockRepo),
+              activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
+                NaverAuthStrategy(),
+              ]),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.light(),
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const LoginScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+      }
+
+      /// Naver 버튼 finder — 단독 override 라 유일한 SocialButton 이다.
+      ///
+      /// index 신뢰는 이 finder 가 아니라 각 테스트가 탭 직전에 세우는
+      /// `findsOneWidget` 단언이 보장한다 (strategy 목록이 늘면 그 단언이
+      /// 먼저 깨져 「어느 버튼을 눌렀는지 모른 채 통과」 를 막는다).
+      Finder findNaverButton() => find.byType(SocialButton).first;
+
+      testWidgets('T-16.4-NAVER-BANNER-01: Naver 로그인 실패(ServiceUnavailable, '
+          '레버 2 재개방 승격) 시 FormErrorBanner 에 ServiceUnavailable 표시', (
+        tester,
+      ) async {
+        when(() => mockRepo.signInWithNaver()).thenAnswer(
+          (_) async => const Result<User>.failure(ServiceUnavailable()),
+        );
+
+        await pumpLoginNaverOnly(tester, mockRepo);
+        await tester.pumpAndSettle();
+
+        // 단독 override 이므로 유일한 SocialButton 이 Naver 버튼이다.
+        expect(
+          find.byType(SocialButton),
+          findsOneWidget,
+          reason:
+              'Naver 단독 override 에서 SocialButton 은 정확히 1개여야 '
+              '(Naver 버튼) index 신뢰가 성립한다',
+        );
+        await tester.ensureVisible(findNaverButton());
+        await tester.tap(findNaverButton());
+        await tester.pumpAndSettle();
+
+        verify(() => mockRepo.signInWithNaver()).called(1);
+
+        final banner = tester.widget<FormErrorBanner>(
+          find.descendant(
+            of: find.byType(SocialSignInSection),
+            matching: find.byType(FormErrorBanner),
+          ),
+        );
+        expect(
+          banner.exception,
+          isA<ServiceUnavailable>(),
+          reason:
+              '레버 2 (custom-tab 재개방 승격) 의 사용자 가시 결과 — '
+              'ServiceUnavailable 이 FormErrorBanner 에 표시돼야 한다',
+        );
+      });
+
+      testWidgets(
+        'T-16.4-NAVER-BANNER-02: Naver 로그인 취소(null, D-45 silent cancel) '
+        '시 FormErrorBanner.exception 은 null — 이 테스트는 실기기 취소 측정'
+        '(WINDOWS.md row 6)을 대체하지 않는 방어 계층이다',
+        (tester) async {
+          when(() => mockRepo.signInWithNaver()).thenAnswer((_) async => null);
+
+          await pumpLoginNaverOnly(tester, mockRepo);
+          await tester.pumpAndSettle();
+
+          expect(
+            find.byType(SocialButton),
+            findsOneWidget,
+            reason:
+                'Naver 단독 override 에서 SocialButton 은 정확히 1개여야 '
+                '(Naver 버튼) index 신뢰가 성립한다',
+          );
+          await tester.ensureVisible(findNaverButton());
+          await tester.tap(findNaverButton());
+          await tester.pumpAndSettle();
+
+          verify(() => mockRepo.signInWithNaver()).called(1);
+
+          final banner = tester.widget<FormErrorBanner>(
+            find.descendant(
+              of: find.byType(SocialSignInSection),
+              matching: find.byType(FormErrorBanner),
+            ),
+          );
+          expect(
+            banner.exception,
+            isNull,
+            reason: 'D-45 silent cancel — null 결과는 배너를 채우면 안 된다',
+          );
+        },
+      );
     });
 
     group('WR-01 — 이메일 제출 ↔ 소셜 교차 잠금', () {
