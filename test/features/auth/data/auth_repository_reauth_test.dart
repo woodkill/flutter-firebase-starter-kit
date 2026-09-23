@@ -478,6 +478,33 @@ void main() {
       verify(() => mockNaverSdkClient.logout()).called(1);
     });
 
+    test('T-16.5-NAVER-REPO-WR01c: Naver 웹 경로 재인증도 naverWebCustomToken '
+        'callable timeout 20초 (로그인과 같은 예산)', () async {
+      when(() => mockNaverSdkClient.signIn()).thenAnswer(
+        (_) async => const NaverWebSignIn(code: 'web-code', state: 'web-st'),
+      );
+      stubCallableResponse('naverWebCustomToken', <String, dynamic>{
+        'customToken': 'ct-web-U',
+        'uid': _currentUid,
+        'isNewUser': false,
+      });
+      when(
+        () => mockAuth.signInWithCustomToken('ct-web-U'),
+      ).thenAnswer((_) async => currentCredential);
+
+      await repository.reauthenticate(AccountProvider.naver);
+
+      final captured =
+          verify(
+                () => mockFunctions.httpsCallable(
+                  'naverWebCustomToken',
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as HttpsCallableOptions;
+      expect(captured.timeout, const Duration(seconds: 20));
+    });
+
     test(
       'RA-C3: LINE — 서버 permission-denied + caller_identity_mismatch → ReauthUserMismatch',
       () async {

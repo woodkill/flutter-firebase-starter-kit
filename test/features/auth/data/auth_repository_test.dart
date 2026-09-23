@@ -2462,6 +2462,43 @@ void main() {
       verify(() => mockNaverSdkClient.logout()).called(1); // D-57 불변
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
+
+    // Phase 16.5 review WR-01: 웹 경로 서버는 NAVER 직렬 3회(교환 · /v1/nid/me
+    // · revoke) 라 1-tap 의 10s 예산으로는 서버 성공 · 클라 deadline-exceeded
+    // 부분 성공이 생긴다. 경로별 timeout 을 잠근다.
+    test('T-16.5-NAVER-REPO-WR01a: NaverWebSignIn → naverWebCustomToken '
+        'callable timeout 20초', () async {
+      when(() => mockNaverSdkClient.signIn()).thenAnswer(
+        (_) async => const NaverWebSignIn(code: 'CODE_N', state: 'STATE_N'),
+      );
+
+      await repository.signInWithNaver();
+
+      final captured =
+          verify(
+                () => mockFunctions.httpsCallable(
+                  'naverWebCustomToken',
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as HttpsCallableOptions;
+      expect(captured.timeout, const Duration(seconds: 20));
+    });
+
+    test('T-16.5-NAVER-REPO-WR01b: NaverAppSignIn → naverCustomToken '
+        'callable timeout 10초 유지', () async {
+      await repository.signInWithNaver();
+
+      final captured =
+          verify(
+                () => mockFunctions.httpsCallable(
+                  'naverCustomToken',
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as HttpsCallableOptions;
+      expect(captured.timeout, const Duration(seconds: 10));
+    });
   });
 
   // ==========================================================================

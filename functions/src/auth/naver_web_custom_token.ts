@@ -42,6 +42,13 @@ const NAVER_TOKEN_URL = "https://nid.naver.com/oauth2.0/token" as const;
 // Phase 13 Pitfall 3 미러 — NAVER 5xx hang 방어. 함수 30s timeout 이전 abort.
 const FETCH_TIMEOUT_MS = 5000;
 
+// WR-01 (16.5 review) — revoke 는 best-effort 이고 응답 반환 전에 await 되므로
+// 짧은 예산만 준다. 웹 경로는 NAVER 를 직렬 3회(교환 5s · /v1/nid/me 5s ·
+// revoke 2s) 호출하며, 합계 12s + Firestore · cold start 가 클라이언트 웹 경로
+// callable timeout(auth_repository.dart `_kNaverWebCustomTokenTimeout` 20s)
+// 안에 들어와야 「서버 성공 · 클라 deadline-exceeded」 부분 성공이 생기지 않는다.
+const REVOKE_TIMEOUT_MS = 2000;
+
 // 제어 문자 (CR / LF / NUL). code · state 는 form body 로만 나가므로 HTTP 헤더
 // injection 표면은 없다 — 1-tap 경로와 같은 입력 위생 가드로 유지한다.
 // access_token 은 helper 가 Authorization 헤더에 실으므로 같은 필터를 적용한다.
@@ -214,7 +221,7 @@ async function revokeNaverToken(accessToken: string): Promise<void> {
         access_token: accessToken,
         service_provider: "NAVER",
       }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(REVOKE_TIMEOUT_MS),
     });
     if (!resp.ok) failure = {status: resp.status};
   } catch (err: unknown) {

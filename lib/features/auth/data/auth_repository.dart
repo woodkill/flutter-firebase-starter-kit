@@ -175,6 +175,17 @@ class AuthRepository implements AnonymousSignIn {
   /// `sendEmailVerification` (5s) / Facebook Graph + updatePhotoURL (각 5s).
   static const Duration _kCustomTokenTimeout = Duration(seconds: 10);
 
+  /// Naver 킷 웹 경로 callable(`naverWebCustomToken`) 타임아웃 — 20 초
+  /// (Phase 16.5 review WR-01).
+  ///
+  /// 웹 경로 서버는 NAVER 를 직렬로 3회 호출한다 (code 교환 5s · `/v1/nid/me`
+  /// 5s · revoke 2s) — 여기에 Firestore transaction · `createCustomToken` ·
+  /// terms mirror · cold start 가 더해진다. 1-tap 과 같은 10s 를 쓰면 서버가
+  /// 계정을 만든 뒤에도 클라이언트가 `deadline-exceeded` →
+  /// [NoInternetConnection] 을 내는 조용한 부분 성공이 생긴다. 로그인 ·
+  /// 재인증 두 호출처가 같은 값을 쓴다.
+  static const Duration _kNaverWebCustomTokenTimeout = Duration(seconds: 20);
+
   /// 단위 테스트 결정성 보장을 위한 시간 주입 hook.
   final DateTime Function() _now;
 
@@ -1583,19 +1594,22 @@ class AuthRepository implements AnonymousSignIn {
 
       // Phase 16.5 D-13: 경로별 자격증명 → callable 을 exhaustive switch 로
       // 고른다. 새 variant 가 생기면 여기서 컴파일이 깨진다.
-      final (callableName, basePayload) = switch (result) {
+      // WR-01: 웹 경로는 NAVER 직렬 3회라 별도 timeout 예산을 쓴다.
+      final (callableName, basePayload, timeout) = switch (result) {
         NaverAppSignIn(:final accessToken) => (
           'naverCustomToken',
           <String, dynamic>{'accessToken': accessToken},
+          _kCustomTokenTimeout,
         ),
         NaverWebSignIn(:final code, :final state) => (
           'naverWebCustomToken',
           <String, dynamic>{'code': code, 'state': state},
+          _kNaverWebCustomTokenTimeout,
         ),
       };
       final callable = _functions.httpsCallable(
         callableName,
-        options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+        options: HttpsCallableOptions(timeout: timeout),
       );
       // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉한다.
       // base 키(1-tap `accessToken` · 웹 `code`+`state`) 가 다른 것은 provider
@@ -2188,7 +2202,7 @@ class AuthRepository implements AnonymousSignIn {
     if (request == null) return null;
     final callable = _functions.httpsCallable(
       request.callableName,
-      options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+      options: HttpsCallableOptions(timeout: request.timeout),
     );
     final response = await callable.call<Map<String, dynamic>>(request.payload);
     final customToken = response.data['customToken'];
@@ -2203,13 +2217,17 @@ class AuthRepository implements AnonymousSignIn {
     return _auth.signInWithCustomToken(customToken);
   }
 
-  /// Custom Token provider 별 SDK 로그인 → callable 이름 · payload 를 만든다.
-  /// SDK 취소 시 `null`.
+  /// Custom Token provider 별 SDK 로그인 → callable 이름 · payload · timeout 을
+  /// 만든다. SDK 취소 시 `null`.
   ///
   /// payload 키는 각 로그인 메서드와 같다 (Naver 1-tap = `accessToken` · Naver
   /// 웹 = `code` + `state`, 나머지 = `idToken` + `nonce`). 재인증은 기존 identity 재로그인이라 약관 snapshot
-  /// (신규 계정 생성 시에만 서버가 mirror) 은 싣지 않는다.
-  Future<({String callableName, Map<String, dynamic> payload})?>
+  /// (신규 계정 생성 시에만 서버가 mirror) 은 싣지 않는다. timeout 도 로그인
+  /// 메서드와 같다 (Naver 웹 = [_kNaverWebCustomTokenTimeout], 나머지 =
+  /// [_kCustomTokenTimeout] — Phase 16.5 review WR-01).
+  Future<
+    ({String callableName, Map<String, dynamic> payload, Duration timeout})?
+  >
   _customTokenReauthRequest(AccountProvider provider) async {
     switch (provider) {
       case AccountProvider.kakao:
@@ -2221,22 +2239,25 @@ class AuthRepository implements AnonymousSignIn {
             'idToken': result.idToken,
             'nonce': result.nonce,
           },
+          timeout: _kCustomTokenTimeout,
         );
       case AccountProvider.naver:
         final result = await _naverSdkClient.signIn();
         if (result == null) return null;
         // Phase 16.5 D-13 — 경로에 따라 1-tap 또는 웹 callable.
-        final (callableName, payload) = switch (result) {
+        final (callableName, payload, timeout) = switch (result) {
           NaverAppSignIn(:final accessToken) => (
             'naverCustomToken',
             <String, dynamic>{'accessToken': accessToken},
+            _kCustomTokenTimeout,
           ),
           NaverWebSignIn(:final code, :final state) => (
             'naverWebCustomToken',
             <String, dynamic>{'code': code, 'state': state},
+            _kNaverWebCustomTokenTimeout,
           ),
         };
-        return (callableName: callableName, payload: payload);
+        return (callableName: callableName, payload: payload, timeout: timeout);
       case AccountProvider.line:
         final result = await _lineSdkClient.signIn();
         if (result == null) return null;
@@ -2246,6 +2267,7 @@ class AuthRepository implements AnonymousSignIn {
             'idToken': result.idToken,
             'nonce': result.nonce,
           },
+          timeout: _kCustomTokenTimeout,
         );
       case AccountProvider.yahoojp:
         final result = await _yahoojpSdkClient.signIn();
@@ -2256,6 +2278,7 @@ class AuthRepository implements AnonymousSignIn {
             'idToken': result.idToken,
             'nonce': result.nonce,
           },
+          timeout: _kCustomTokenTimeout,
         );
       case AccountProvider.google:
       case AccountProvider.apple:
