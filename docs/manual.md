@@ -842,12 +842,13 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   킷은 취소 판정을 오류 분기보다 **먼저** 보고, 리터럴을 `contains` 가 아니라
   **완전 일치**로 비교합니다 (넓히면 `-999 cancelled` 같은 네트워크 오류까지
   silent 로 흡수됩니다).
-  - **이 완전 일치 규칙은 iOS 표면에만 적용됩니다.** Android 는 플러그인이
-    킷에 결과를 주기 **전에** `errorDesc.contains("cancel", ignoreCase=true)`
-    인 실패까지 취소(`loggedOut`)로 접어 보냅니다. 즉 Android 는 플러그인
-    상류가 이미 넓혀 보내므로, desc 에 `cancel` 이 섞인 네트워크 오류가 배너
-    없이 silent 로 흡수될 수 있습니다 — **플러그인 상류 동작이라 킷 코드로는
-    고칠 수 없습니다.**
+  - **이 완전 일치 규칙은 iOS 표면에만 적용됩니다.** Android 가 취소와 실패를
+    구분하지 못하는 원인은 플러그인의 `contains` 가 아니라 **한 단계 상류인
+    NAVER Android SDK** 입니다 — SDK 는 커스텀탭 결과가 `data == null` 인 실패를
+    사용자 취소와 **같은 상수**(`CLIENT_USER_CANCEL`, code 와 description 이 둘
+    다 문자열 `user_cancel`)로 접어 돌려줍니다. 그래서 플러그인이 `contains` 를
+    쓰든 완전 일치를 쓰든 킷 경계에 도착한 두 경우는 문자 단위로 같아집니다.
+    Phase 16.4 가 이 둘을 **Android 호스트 쪽 계수**로 가릅니다 (Pitfall 19).
   - 그래서 Android 에서 「눌렀는데 아무 반응이 없다」 는 제보를 받으면, 먼저
     debug 로그에 취소 로그(`Naver logIn cancel: status=loggedOut …`)가 찍혔는지
     확인하십시오. 사용자가 취소한 적이 없는데 이 줄이 있다면 취소가 아니라
@@ -888,6 +889,27 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   으로 **전 flavor off** 입니다. 켜면 logcat 에 client ID 평문과 마스킹된 secret 이
   찍힙니다 — 디버깅 목적으로 잠시 켰다면 반드시 되돌리고, 그 로그를 공유하지
   마십시오.
+- **Pitfall 19 (Android 웹 fallback 커스텀탭 재개방) — 상류 미해결 · 킷 우회
+  없음:** 단말에 NAVER 앱이 없어 웹(커스텀탭) 경로로 갈 때, NAVER 가 돌려준
+  콜백이 이미 떠 있는 커스텀탭 Activity 로 전달되지 않고 **새 인스턴스**를
+  만듭니다. 새 인스턴스는 콜백을 파싱하지 않은 채 커스텀탭을 한 번 더 열고,
+  원래 호출은 결과를 받지 못한 채 끝납니다. Phase 16.4 가 이 분기를 NAVER
+  Android SDK 의 `NidOAuthCustomTabActivity` 로 귀속시켰고, 킷 안에서 재개방
+  자체를 막을 수 있는 지점은 **없다**고 판정했습니다.
+  - 증상: 로그인 창이 한 번 더 떴다가 로그인 화면으로 돌아옵니다. Phase 16.4
+    이후로는 이때 **오류 배너가 뜹니다** — 조용히 아무 일도 없던 종전 동작과
+    다릅니다.
+  - 진단: debug 빌드 로그의 네 접두어로 판독합니다. `Naver logIn 시작` 과
+    `Naver logIn 도착: status=… elapsedMs=…` 가 한 쌍이고, 그 사이에
+    `Naver logIn 재개방 감지: createCount=2` 가 있으면 이 Pitfall 입니다.
+    재개방 줄 없이 `Naver logIn cancel:` 만 있으면 진짜 사용자 취소입니다.
+  - 상태: **상류 미해결.** 킷이 하는 일은 재개방으로 인한 실패를 사용자 취소와
+    구분해 기존 오류 배너로 알리는 데까지입니다 (Android 호스트가 커스텀탭
+    Activity 생성 횟수를 세어 Dart 로 넘깁니다). 상류 추적은
+    `naver/naveridlogin-sdk-android` 의 **#152** 이며, 플러그인 fork 나
+    vendoring 은 하지 않습니다.
+  - 근거: `.planning/phases/16.4-naver-web-fallback-and-auth-feedback/` 의
+    `16.4-AB-RESULT.md` · `16.4-PROBE-RESULT.md` · `16.4-UAT-RESULT.md`.
 
 ---
 
