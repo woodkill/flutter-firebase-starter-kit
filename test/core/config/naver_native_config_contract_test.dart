@@ -355,8 +355,10 @@ void main() {
   });
 
   group('Phase 16.5 웹 경로 계약 (T-16.5-NATIVE)', () {
-    const String kotlinDir =
-        'android/app/src/main/kotlin/com/slimpumpkin/flutter_starter_kit';
+    // 16.5 review IN-05 — 패키지 경로를 리터럴로 두면 `bin/rename.dart` 가
+    // Kotlin 디렉터리를 옮긴 뒤 readTrackedFile 이 파일을 못 찾아 깨진다.
+    // MainActivity.kt 위치에서 파생한다 (lazy — 실패는 test 안에서 보고).
+    late final String kotlinDir = _findKotlinPackageDir();
 
     test('T-16.5-NATIVE-01 client_id · scheme — config json ↔ xcconfig 일치', () {
       // tracked example 은 항상 검사한다 — placeholder 가 비어 있지 않은지만.
@@ -775,6 +777,32 @@ void main() {
       }
     });
   });
+}
+
+/// `android/app/src/main/kotlin` 아래 `MainActivity.kt` 가 있는 패키지
+/// 디렉터리를 돌려준다 (16.5 review IN-05).
+///
+/// `bin/rename.dart` 는 패키지 디렉터리의 모든 `.kt` 를 함께 옮기므로
+/// `NaverHostChannel.kt` 도 이 디렉터리에 있다. `MainActivity.kt` 가 0개 또는
+/// 2개 이상이면 어느 패키지를 볼지 모호하므로 테스트를 실패시킨다.
+String _findKotlinPackageDir() {
+  const String kotlinBase = 'android/app/src/main/kotlin';
+  final Directory base = Directory(kotlinBase);
+  if (!base.existsSync()) {
+    fail('Kotlin 소스 루트 부재: $kotlinBase');
+  }
+  final List<File> mainActivities = base
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((File file) => file.uri.pathSegments.last == 'MainActivity.kt')
+      .toList();
+  if (mainActivities.length != 1) {
+    fail(
+      '$kotlinBase 아래 MainActivity.kt 가 정확히 1개여야 한다 '
+      '(발견 ${mainActivities.length}개).',
+    );
+  }
+  return mainActivities.single.parent.path;
 }
 
 /// xcconfig 본문에서 `KEY = value` 줄의 값을 돌려준다 (없으면 빈 문자열).
