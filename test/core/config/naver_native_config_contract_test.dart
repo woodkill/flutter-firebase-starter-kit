@@ -464,6 +464,14 @@ void main() {
             'D-03: 판정은 SDK 자신의 기준(NidApplicationUtil) 에 위임한다 — '
             '킷 자체 패키지 조회로 바꾸지 말 것.',
       );
+      expect(
+        countOccurrences(kotlin, 'catch (t: Throwable)'),
+        1,
+        reason:
+            'IN-03: compileOnly SDK 의 런타임 버전 불일치(NoClassDefFoundError · '
+            'NoSuchMethodError) 는 Error 라 MethodChannel 이 잡지 않는다 — '
+            '판정 호출을 Throwable catch 로 감싸 false(웹 경로) 로 접을 것.',
+      );
 
       final dart = stripSlashComments(
         readTrackedFile('lib/features/auth/data/naver_host_channel.dart'),
