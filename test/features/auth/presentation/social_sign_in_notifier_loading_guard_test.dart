@@ -25,9 +25,6 @@
 // 각 notifier 가 `kDebugMode` 아래에서 예외 **타입만** 찍는다 (PII 표면 0).
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// ProviderException 은 메인 라이브러리의 show 목록에 없고 misc.dart 가 export
-// 한다 (flutter_riverpod 3.3.1 misc.dart:17).
-import 'package:flutter_riverpod/misc.dart' show ProviderException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -41,16 +38,23 @@ import 'package:flutter_starter_kit/features/auth/presentation/line_sign_in_noti
 import 'package:flutter_starter_kit/features/auth/presentation/naver_sign_in_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/yahoojp_sign_in_notifier.dart';
 
+/// provider **생성** 실패 축의 sentinel 문구 (첫 번째 축).
+///
+/// 단언이 이 상수를 그대로 참조하므로 문구를 바꿔도 테스트가 조용히 공허해지지
+/// 않는다 (16.4 code review IN-04).
+const String _kProviderCreateSentinel =
+    'IN-06 sentinel: authRepositoryProvider 생성 실패';
+
 /// `AuthRepository` mock — 두 번째 축(repository 호출이 예외를 흘린다) 전용.
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// repository 호출이 **비동기로** 던지는 예외의 sentinel (16.4 IN-02).
 ///
-/// `Exception` 계열을 고른 이유: 첫 번째 축(provider 생성 실패) 은 riverpod
-/// 재시도 Timer 회피 때문에 `Error` 로 고정돼 있어 `Exception` 계열이 통째로
-/// 미검증으로 남아 있었다. 이 축은 provider **생성**이 아니라 이미 만들어진
-/// repository 의 메서드 호출이라 재시도 정책과 무관하므로, 여기서 `Exception`
-/// 을 쓰면 pending Timer 없이 그 공백을 덮을 수 있다.
+/// `Exception` 계열을 고른 이유: 첫 번째 축(provider 생성 실패) 은 오랫동안
+/// riverpod 재시도 Timer 회피 때문에 `Error` 로 고정돼 있었고, 그래서
+/// `Exception` 계열이 통째로 미검증으로 남아 있었다(IN-04 가 `retry` 를
+/// 명시적으로 넘겨 그 제약을 없앴다). 이 축은 provider **생성**이 아니라 이미
+/// 만들어진 repository 의 메서드 호출이라 애초에 재시도 정책과 무관하다.
 final class _RepoThrowSentinel implements Exception {
   const _RepoThrowSentinel();
 
@@ -169,17 +173,19 @@ void main() {
 
   /// `authRepositoryProvider` 생성 자체가 실패하는 container 를 만든다.
   ///
-  /// sentinel 을 [StateError] 로 던지는 이유: riverpod 3.2.1 의
-  /// `ProviderContainer.defaultRetry` 가 `error is ProviderException ||
-  /// error is Error` 면 `null` 을 반환하므로 재시도 Timer 가 생기지 않는다
-  /// (provider_container.dart:831-845). `Exception` 을 던지면 200ms 재시도
-  /// Timer 가 걸려 flutter_test 가 pending Timer 로 실패한다.
+  /// **riverpod 내부 구현에 결합하지 않는다 (16.4 code review IN-04).** 종전에는
+  /// sentinel 을 [StateError] 로 고른 것만으로 재시도 Timer 를 피했는데, 그
+  /// 회피는 `ProviderContainer.defaultRetry` 의 「`error is Error` 면 재시도하지
+  /// 않는다」 구현(riverpod 3.2.1 `provider_container.dart`)에 의존한 것이라
+  /// 그 조건이 바뀌면 production 결함 없이 pending Timer 로 RED 가 됐다. 이제
+  /// `retry` 를 명시적으로 넘겨 그 의존을 끊는다 — sentinel 의 타입 선택은 더
+  /// 이상 load-bearing 이 아니다.
   ProviderContainer makeContainer() {
     final container = ProviderContainer(
+      retry: (_, _) => null,
       overrides: [
         authRepositoryProvider.overrideWith(
-          (_) =>
-              throw StateError('IN-06 sentinel: authRepositoryProvider 생성 실패'),
+          (_) => throw StateError(_kProviderCreateSentinel),
         ),
       ],
     );
@@ -232,13 +238,19 @@ void main() {
         );
         expect(state, isA<AsyncError<void>>());
         expect(state.hasError, isTrue);
+        // **원인 체인 단언 (16.4 code review IN-04).** 종전에는
+        // `isA<ProviderException>().having((e) => e.exception, …)` 로 단언해
+        // 메인 배럴이 export 하지 않는 보조 entrypoint(`misc.dart`) 의 심볼에
+        // 결합돼 있었다. 우리가 잠그려는 것은 래퍼 타입이 아니라 「guard 가
+        // 삼킨 것이 바로 그 sentinel 이다」 이므로, 원인 체인에 sentinel 이
+        // 남아 있는지만 본다 — import 1개가 사라지고 상향 내성이 올라간다.
+        // sentinel 문구 하나가 곧 정체성이다 — `StateError.toString()` 은
+        // 타입 이름이 아니라 `Bad state: …` 로 렌더링되므로 타입 이름을
+        // 찾는 단언은 두지 않는다 (실측으로 확인).
         expect(
-          state.error,
-          isA<ProviderException>().having(
-            (e) => e.exception,
-            'exception',
-            isA<StateError>(),
-          ),
+          state.error.toString(),
+          contains(_kProviderCreateSentinel),
+          reason: '원인 체인에서 sentinel 이 사라지면 guard 가 다른 예외를 실은 것이다',
         );
       });
     }
