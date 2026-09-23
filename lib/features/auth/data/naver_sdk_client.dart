@@ -8,7 +8,6 @@ import 'package:naver_login_flutter/naver_login_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/app_exception.dart';
-import 'naver_custom_tab_probe.dart';
 
 part 'naver_sdk_client.g.dart';
 
@@ -52,40 +51,6 @@ class NaverSdkError implements Exception {
   @override
   String toString() => 'NaverSdkError(${describeNaverErrorForLog(message)})';
 }
-
-/// 재개방 서명 — 취소 모양(`loggedOut`)이지만 사용자 취소가 아니다
-/// (Phase 16.4 D-19 · RESEARCH §1).
-///
-/// 한 번의 [NaverSdkClient.signIn] 동안 Android 호스트가 센
-/// `NidOAuthCustomTabActivity` 생성 횟수가 [kNaverCustomTabReopenThreshold]
-/// 이상이면, 플러그인이 돌려준
-/// `loggedOut` 은 사용자가 닫은 결과가 아니라 콜백이 새 인스턴스로 배달돼
-/// 커스텀탭이 다시 열린 **실패**다. [ServiceUnavailable] 의 `cause` 로 실려
-/// 기존 `errorServiceUnavailable` 배너 경로를 탄다.
-///
-/// [toString] 은 정수 [count] 만 내보낸다 — `cause` 가 어디선가 문자열화돼도
-/// PII 표면이 없다 (WR-05 와 같은 규율).
-@immutable
-class NaverCustomTabReopened implements Exception {
-  /// 관측된 커스텀탭 Activity 생성 횟수 [count] 를 보관한다.
-  const NaverCustomTabReopened(this.count);
-
-  /// 한 번의 로그인 시도 동안 생성된 커스텀탭 Activity 수 (2 이상 = 재개방).
-  final int count;
-
-  @override
-  String toString() => 'NaverCustomTabReopened(count=$count)';
-}
-
-/// 재개방으로 판정하는 커스텀탭 Activity 생성 횟수 하한 (Phase 16.4 D-19).
-///
-/// 근거는 RESEARCH §1 ② — 콜백이 `result code=0` 으로 돌아온 뒤 인스턴스 #2 가
-/// **신규 생성**되는 것이 재개방의 서명이다. 즉 한 번의
-/// [NaverSdkClient.signIn] 안에서 정상 흐름은 1, 재개방은 2 이상이다.
-///
-/// plan 04 의 실기기 실측으로 임계를 조정할 때 grep 대상이 되도록 명명한다
-/// (16.4 code review IN-01 — 종전에는 `>= 2` 리터럴뿐이었다).
-const int kNaverCustomTabReopenThreshold = 2;
 
 /// iOS 플러그인이 사용자 취소에 붙이는 **고정 리터럴**.
 ///
@@ -193,11 +158,7 @@ const Set<String> _kNaverAndroidErrorCodes = <String>{
 /// 정보가 남아 있지 않다. Android 의 「무반응」 제보는 취소 로그부터 확인할
 /// 것 (`docs/manual.md` Naver Pitfall 11).
 ///
-/// **Phase 16.4 (D-19 · plan 03) — 위 「킷 코드로는 고칠 수 없다」 는 Dart
-/// 계층 한정 서술이다.** 구분 신호는 Dart 밖(Android 호스트가 센
-/// `NidOAuthCustomTabActivity` 생성 계수)에서 가져온다. 본 판정 함수는
-/// 그대로 두고, [NaverSdkClient.signIn] 이 취소 분기 **안에서** 그 계수로
-/// 「재개방된 loggedOut」 만 [NaverCustomTabReopened] 실패로 승격한다.
+/// 16.4 레버 2 는 Phase 16.5 가 제거했다 — 웹 경로는 킷 소유 흐름(D-16).
 ///
 /// **비대상:** iOS 에서 NAVER 앱(1-tap) 경로의 취소는 이 매핑을 타지 않을 수
 /// 있다 — 복귀 URL 의 code 가 취소 값을 갖지 않아 서버 오류로 표면화된다.
@@ -297,34 +258,20 @@ class NaverSdkClient {
   /// production 진입점 — 실제 Naver 플러그인 호출.
   ///
   /// 테스트는 [NaverSdkClient.forTest] 로 함수 typedef 를 주입한다.
-  NaverSdkClient()
-    : _login = _defaultLogin,
-      _logout = _defaultLogout,
-      _resetCustomTabCount = _kCustomTabProbe.resetCount,
-      _readCustomTabCount = _kCustomTabProbe.readCount;
+  NaverSdkClient() : _login = _defaultLogin, _logout = _defaultLogout;
 
   /// 테스트 전용 ctor — 플러그인 호출을 함수 typedef 로 fake 한다.
   ///
   /// production 코드는 [NaverSdkClient.new] 만 사용해야 한다.
-  ///
-  /// [customTabReset] · [customTabCount] 는 **optional** 이다 (Phase 16.4
-  /// D-19) — 주지 않으면 no-op / 상수 0 이라 재개방 분기가 발동하지 않고,
-  /// 재개방과 무관한 기존 테스트는 인자를 추가하지 않아도 그대로 컴파일된다.
   @visibleForTesting
   NaverSdkClient.forTest({
     required NaverLoginFn login,
     required NaverLogoutFn logout,
-    NaverCustomTabResetFn? customTabReset,
-    NaverCustomTabCountFn? customTabCount,
   }) : _login = login,
-       _logout = logout,
-       _resetCustomTabCount = customTabReset ?? _noopCustomTabReset,
-       _readCustomTabCount = customTabCount ?? _zeroCustomTabCount;
+       _logout = logout;
 
   final NaverLoginFn _login;
   final NaverLogoutFn _logout;
-  final NaverCustomTabResetFn _resetCustomTabCount;
-  final NaverCustomTabCountFn _readCustomTabCount;
 
   /// [signIn] 이 진행 중인지 — 클래스 doc 의 in-flight 가드 (D-18).
   bool _inFlight = false;
@@ -347,15 +294,6 @@ class NaverSdkClient {
   /// 4. [isNaverUserCancel] 을 **error 분기보다 먼저** 본다 — iOS 취소가
   ///    `status: error` 로 오므로 error 를 곧장 배너로 보내면 취소가 오류로
   ///    보인다 (`1c884c73` 회귀 경로).
-  /// 4-a. 그 취소 분기 안에서 **재개방 여부**를 가른다 (Phase 16.4 D-19).
-  ///    `_login()` 앞뒤로 호스트 계수를 reset → read 해서, 한 시도 안에
-  ///    커스텀탭 Activity 가 [kNaverCustomTabReopenThreshold] 회 이상
-  ///    생성됐으면 사용자 취소가 아니라 실패로
-  ///    보고 [ServiceUnavailable] (`cause` = [NaverCustomTabReopened]) 을
-  ///    던진다. **D-45 silent 는 재개방이 없을 때만** 적용된다. 계수는
-  ///    Android 호스트에서만 올라가고 (`NaverCustomTabProbe` 가 iOS 에서
-  ///    채널을 호출조차 하지 않는다) 성공 분기는 계수를 보지 않으므로,
-  ///    성공 결과가 실패로 뒤집히는 일은 없다.
   /// 5. status `error` → [ServiceUnavailable] (`cause` = [NaverSdkError]).
   /// 6. 빈 토큰 → null (silent).
   /// 7. 그 외 예외 → [ServiceUnavailable] 로 흡수. iOS `Info.plist` 4키가
@@ -394,10 +332,6 @@ class NaverSdkClient {
       debugPrint('Naver logIn 시작');
     }
     try {
-      // 직전 시도가 남긴 계수를 0 으로 되돌린다 — 누적되면 정상 취소를
-      // 재개방으로 오판한다 (D-19).
-      await _resetCustomTabCount();
-
       final result = await _login();
 
       // D-18 도착 줄 — status 이름과 경과 ms 만. `errorMessage` 원문은 한 글자도
@@ -409,17 +343,7 @@ class NaverSdkClient {
         );
       }
 
-      // 호스트가 센 커스텀탭 Activity 생성 횟수 — Android 밖에서는 항상 0.
-      final createCount = await _readCustomTabCount();
-
       if (isNaverUserCancel(result.status, result.errorMessage)) {
-        if (createCount >= kNaverCustomTabReopenThreshold) {
-          // D-19 재개방 — 취소 모양이지만 사용자가 닫은 것이 아니다.
-          if (kDebugMode) {
-            debugPrint('Naver logIn 재개방 감지: createCount=$createCount');
-          }
-          throw ServiceUnavailable(cause: NaverCustomTabReopened(createCount));
-        }
         // D-45 silent — Android loggedOut · iOS error + 고정 리터럴.
         if (kDebugMode) {
           debugPrint(
@@ -545,15 +469,6 @@ class NaverSdkClient {
     }
   }
 }
-
-/// production 기본 배선용 probe 인스턴스 — 상태가 없어 const 로 공유한다.
-const NaverCustomTabProbe _kCustomTabProbe = NaverCustomTabProbe();
-
-/// [NaverSdkClient.forTest] 의 `customTabReset` 기본값 — 아무것도 하지 않는다.
-Future<void> _noopCustomTabReset() async {}
-
-/// [NaverSdkClient.forTest] 의 `customTabCount` 기본값 — 항상 0 (재개방 없음).
-Future<int> _zeroCustomTabCount() async => 0;
 
 /// Default `FlutterNaverLogin.logIn` 호출 — production 진입점.
 Future<NaverLoginResult> _defaultLogin() => FlutterNaverLogin.logIn();
