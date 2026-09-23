@@ -322,6 +322,7 @@ export const naverWebCustomToken = onCall<NaverWebCustomTokenRequest>(
         termsSnapshot: parseTermsAcceptanceJson(
           request.data?.termsAcceptanceSnapshot,
         ),
+        path: "web", // IN-02 — helper 로그 경로 구분 축.
       });
     } finally {
       await revokeNaverToken(accessToken);

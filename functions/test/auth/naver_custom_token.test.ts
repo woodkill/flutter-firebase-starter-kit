@@ -221,8 +221,12 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         "anon-uid-1",
         undefined,
       );
+      // 16.5 review IN-02 — helper 이벤트는 웹 경로와 공용이라 path 로 구분.
       expect(infoMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "naver_custom_token_issued"}),
+        expect.objectContaining({
+          event: "naver_custom_token_issued",
+          path: "app",
+        }),
         expect.any(String),
       );
     },
@@ -242,6 +246,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       expect(warnMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: "naver_verify_unauthenticated",
+          path: "app",
           status: 401,
         }),
         expect.any(String),

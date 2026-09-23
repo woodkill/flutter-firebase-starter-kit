@@ -86,6 +86,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
       termsSnapshot: parseTermsAcceptanceJson(
         request.data?.termsAcceptanceSnapshot,
       ),
+      path: "app", // IN-02 — helper 로그 경로 구분 축.
     });
   },
 );

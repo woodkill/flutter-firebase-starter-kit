@@ -900,9 +900,17 @@ firebase deploy --only functions:naverCustomToken,functions:naverWebCustomToken
 확인 — Firebase Console:
 - "빌드 > Functions" → `naverCustomToken` · `naverWebCustomToken` 함수 row →
   region = `asia-northeast3` + "활성" 상태
-- 웹 경로 서버 로그는 `naver_web_*` 이벤트 4종(`naver_web_custom_token_issued` ·
-  `naver_web_token_exchange_failed` · `naver_web_token_error_response` ·
-  `naver_web_revoke_failed`)으로 1-tap 로그와 이름 공간이 나뉩니다.
+- 웹 경로에만 있는 구간(code 교환 · revoke · 최종 발급)은 `naver_web_*` 이벤트
+  4종(`naver_web_custom_token_issued` · `naver_web_token_exchange_failed` ·
+  `naver_web_token_error_response` · `naver_web_revoke_failed`)을 남깁니다.
+  `/v1/nid/me` 검증 · identity · Custom Token 발급 구간은 두 경로가 공용 helper 를
+  쓰므로 이벤트 이름(`naver_custom_token_issued` · `naver_verify_*` ·
+  `naver_email_collision` 등)도 공용이고, payload 의 `path` 필드(`"app"` = 1-tap ·
+  `"web"` = 킷 웹)로 경로를 가립니다. 그래서 웹 로그인 1건은
+  `naver_custom_token_issued`(`path: "web"`)와 `naver_web_custom_token_issued` 를 둘 다
+  남깁니다 — 1-tap 로그인 수는 `naver_custom_token_issued` 를 `path = "app"` 으로
+  걸러 세십시오. terms mirror 이벤트(`naver_terms_acceptance_*`)와 `resolveIdentity`
+  내부(`identity_index.ts`) 이벤트에는 `path` 가 없습니다.
 - revoke 판정은 HTTP status 와 응답 본문 `result` 를 함께 봅니다. NAVER 는 같은
   endpoint 에서 실패를 HTTP 200 + 본문 `error` 로도 돌려주기 때문입니다. 그래서
   로그인이 성공했는데 `naver_web_revoke_failed` 가 없으면 NAVER 가

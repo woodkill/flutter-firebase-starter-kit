@@ -11,7 +11,9 @@
 // 본 helper 는 onCall `request` 를 모른다 (PC-11) — caller 정보 · terms
 // snapshot 은 호출자가 파싱해서 넘긴다. logger event 이름은 Cloud Logging
 // 대시보드 축이므로 한 글자도 바꾸지 말 것
-// (`functions/test/auth/naver_custom_token.test.ts` 가 잠근다).
+// (`functions/test/auth/naver_custom_token.test.ts` 가 잠근다). 두 경로의
+// 구분은 이벤트 이름이 아니라 payload 의 `path` 필드("app" | "web")로 한다
+// (16.5 review IN-02).
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
@@ -52,6 +54,15 @@ type NaverProfileResponse = {
 };
 
 /**
+ * Naver 로그인 진입 경로 — helper 로그 payload 의 `path` 필드 (16.5 review
+ * IN-02). event 이름은 두 경로 공용으로 불변 (대시보드 축 유지) 이고, 경로
+ * 구분은 이 필드로 한다.
+ * - `"app"` — `naverCustomToken` (1-tap SDK 경로)
+ * - `"web"` — `naverWebCustomToken` (킷 소유 웹 경로)
+ */
+export type NaverSignInPath = "app" | "web";
+
+/**
  * [verifyNaverProfileAndIssueCustomToken] 입력.
  *
  * 호출자가 onCall `request` 에서 미리 계산해 넘긴다 — helper 는 `request`
@@ -69,6 +80,8 @@ export type NaverProfileToCustomTokenInput = {
    * 부재 · 검증 실패면 null (mirror skip, 로그인은 계속).
    */
   termsSnapshot: TermsAcceptanceJson | null;
+  /** 진입 경로 — 모든 helper 로그 payload 에 `path` 로 싣는다 (IN-02). */
+  path: NaverSignInPath;
 };
 
 /** Naver Custom Token callable 공용 응답 — 토큰 · uid · 신규 여부만. */
@@ -105,9 +118,11 @@ export type NaverCustomTokenResult = {
  *    (Phase 16 D-13/D-14 · WR-01 게이트). 실패 → internal (errorUnknown).
  * 7. issued structured log 후 결과 반환.
  *
- * **PII 금지 (D-51, Phase 11 D-08):** logger payload 는 {event, uid,
- * isNewUser, status?, resultcode?, code?} 만. Naver `/v1/nid/me` response
- * 본문 (id / email / name / nickname / profile_image / age / gender /
+ * **PII 금지 (D-51, Phase 11 D-08):** logger payload 는 {event, path, uid?,
+ * isNewUser?, status?, resultcode?, code?} 만. `path` 는 진입 경로 (IN-02 —
+ * 같은 event 이름을 1-tap · 웹이 공유하므로 경로 구분 축). Naver
+ * `/v1/nid/me` response 본문 (id / email / name / nickname / profile_image /
+ * age / gender /
  * birthday) 은 절대 logger 인자에 포함 금지. err.message 미노출 — err.name
  * 만 fingerprint 로 노출 (Pitfall 1/7).
  *
@@ -120,7 +135,8 @@ export type NaverCustomTokenResult = {
 export async function verifyNaverProfileAndIssueCustomToken(
   input: NaverProfileToCustomTokenInput,
 ): Promise<NaverCustomTokenResult> {
-  const {accessToken, callerUid, callerIsAnonymous, termsSnapshot} = input;
+  const {accessToken, callerUid, callerIsAnonymous, termsSnapshot, path} =
+    input;
 
   // Step 2: Naver REST 검증 (D-46/D-47/D-48).
   let resp: Response;
@@ -144,7 +160,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
     // (AbortError / TypeError / DNS 실패 등 분류 가능).
     const errCode = err instanceof Error ? err.name : "unknown";
     logger.warn(
-      {event: "naver_fetch_failed", code: errCode},
+      {event: "naver_fetch_failed", path, code: errCode},
       "Naver REST fetch failed",
     );
     // AbortError / TypeError(network) / DNS 실패 모두 unavailable.
@@ -154,14 +170,14 @@ export async function verifyNaverProfileAndIssueCustomToken(
 
   if (resp.status === 401 || resp.status === 403) {
     logger.warn(
-      {event: "naver_verify_unauthenticated", status: resp.status},
+      {event: "naver_verify_unauthenticated", path, status: resp.status},
       "Naver access token rejected",
     );
     throw idpCredentialRejected();
   }
   if (resp.status >= 500) {
     logger.warn(
-      {event: "naver_verify_unavailable", status: resp.status},
+      {event: "naver_verify_unavailable", path, status: resp.status},
       "Naver REST 5xx",
     );
     throw idpUnavailable();
@@ -169,7 +185,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
   if (!resp.ok) {
     // 4xx 외 (예: 429 rate limit) — unavailable 로 일반화 + status fingerprint.
     logger.warn(
-      {event: "naver_verify_failed", status: resp.status},
+      {event: "naver_verify_failed", path, status: resp.status},
       "Naver REST non-OK",
     );
     throw idpUnavailable();
@@ -181,7 +197,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
   } catch (err: unknown) {
     const errCode = err instanceof Error ? err.name : "unknown";
     logger.warn(
-      {event: "naver_parse_failed", code: errCode},
+      {event: "naver_parse_failed", path, code: errCode},
       "Naver REST JSON parse failed",
     );
     throw serverFailure();
@@ -192,6 +208,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
     logger.warn(
       {
         event: "naver_resultcode_non_success",
+        path,
         resultcode: responseBody.resultcode,
       },
       "Naver resultcode not 00",
@@ -213,6 +230,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
     logger.error(
       {
         event: "naver_response_id_missing",
+        path,
         resultcode: responseBody.resultcode,
       },
       "Naver response.id missing",
@@ -263,7 +281,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
     // PII 보존 — catch parameter 생략 (D-40 / D-51, Phase 12 동일 패턴).
     // err 객체 접근 안 함 → 누구도 실수로 PII 로깅 못 함 (compile-time 보장).
     logger.error(
-      {event: "identity_index_failed"},
+      {event: "identity_index_failed", path},
       "resolveIdentity threw unexpected error",
     );
     throw serverFailure();
@@ -274,14 +292,14 @@ export async function verifyNaverProfileAndIssueCustomToken(
   switch (resolution.conflictKind) {
   case "email_in_use":
     logger.warn(
-      {event: "naver_email_collision"},
+      {event: "naver_email_collision", path},
       "Naver email collides with existing account",
     );
     // 16-13: existingProvider slug 를 details 로 전달 (client sheet 분기 wiring).
     throw buildAccountExistsError(resolution.existingProvider);
   case "anonymous_existing_collision":
     logger.warn(
-      {event: "naver_anonymous_conflict"},
+      {event: "naver_anonymous_conflict", path},
       "Anonymous user attempted to login with existing Naver identity",
     );
     // 16-13: anonymous collision 도 resolution.existingProvider (= 호출
@@ -294,7 +312,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
     // already-exists 로 보내면 client 가 계정 연결 시트를 열어 다시 같은
     // callable 로 돌아오므로 전용 reason 으로 구분한다.
     logger.warn(
-      {event: "naver_caller_identity_mismatch"},
+      {event: "naver_caller_identity_mismatch", path},
       "Signed-in caller used a Naver identity not mapped to it",
     );
     throw callerIdentityMismatch();
@@ -346,7 +364,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
     // PII 금지 (D-51) — err.message 본문 미로깅. err.name 만 fingerprint.
     const errCode = err instanceof Error ? err.name : "unknown";
     logger.error(
-      {event: "naver_custom_token_create_failed", code: errCode},
+      {event: "naver_custom_token_create_failed", path, code: errCode},
       "createCustomToken threw",
     );
     throw serverFailure();
@@ -385,7 +403,7 @@ export async function verifyNaverProfileAndIssueCustomToken(
 
   // Step 6: structured log — uid + isNewUser 만 (PII 금지 D-51).
   logger.info(
-    {event: "naver_custom_token_issued", uid, isNewUser},
+    {event: "naver_custom_token_issued", path, uid, isNewUser},
     "Naver custom token issued",
   );
 

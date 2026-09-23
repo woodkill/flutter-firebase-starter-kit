@@ -323,6 +323,14 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         }),
         expect.any(String),
       );
+      // IN-02 — 공용 helper 이벤트는 이름 불변 · path="web" 으로 1-tap 과 구분.
+      expect(infoMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "naver_custom_token_issued",
+          path: "web",
+        }),
+        expect.any(String),
+      );
       expect(warnMock).not.toHaveBeenCalledWith(
         expect.objectContaining({event: "naver_web_revoke_failed"}),
         expect.any(String),
@@ -589,6 +597,13 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         code: "unauthenticated",
         message: "errorInvalidCredentials",
       });
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "naver_verify_unauthenticated",
+          path: "web",
+        }),
+        expect.any(String),
+      );
       expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(fetchMock.mock.calls[2][0]).toBe(NAVER_TOKEN_URL);
       expect(formBodyOf(2).get("grant_type")).toBe("delete");
