@@ -34,6 +34,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 import 'auth_test_fakes.dart';
@@ -196,7 +197,7 @@ void main() {
     );
     when(
       () => mockNaverSdkClient.signIn(),
-    ).thenAnswer((_) async => const NaverSignInResult(accessToken: 'AT_NAVER'));
+    ).thenAnswer((_) async => const NaverAppSignIn(accessToken: 'AT_NAVER'));
     when(() => mockLineSdkClient.signIn()).thenAnswer(
       (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
     );

@@ -8,12 +8,16 @@ import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:flutter/services.dart' show MissingPluginException;
+import 'package:flutter/services.dart'
+    show MethodCall, MethodChannel, MissingPluginException, PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naver_login_flutter/naver_login_flutter.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_host_channel.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_web_auth_client.dart';
 
 /// 테스트용 [NaverToken] — [accessToken] 만 통제하고 나머지는 빈 문자열.
 NaverToken buildToken(String accessToken) => NaverToken(
@@ -102,6 +106,17 @@ String stripComments(String raw) => raw
     })
     .join('\n');
 
+/// `debugPrint` 를 가로채 줄 목록을 돌려준다 (tearDown 에서 원복).
+List<String> captureLogs() {
+  final logs = <String>[];
+  final originalDebugPrint = debugPrint;
+  debugPrint = (String? message, {int? wrapWidth}) {
+    if (message != null) logs.add(message);
+  };
+  addTearDown(() => debugPrint = originalDebugPrint);
+  return logs;
+}
+
 void main() {
   group('NaverSdkClient (T-16.2-NAVER-SDK)', () {
     test(
@@ -119,7 +134,14 @@ void main() {
         final result = await client.signIn();
 
         expect(result, isNotNull);
-        expect(result!.accessToken, equals('valid_token'));
+        expect(
+          result,
+          isA<NaverAppSignIn>().having(
+            (r) => r.accessToken,
+            'accessToken',
+            'valid_token',
+          ),
+        );
         expect(loginCalls, equals(1));
       },
     );
@@ -362,7 +384,14 @@ void main() {
       final result = await client.signIn();
 
       expect(result, isNotNull);
-      expect(result!.accessToken, equals('trap_access_token'));
+      expect(
+        result,
+        isA<NaverAppSignIn>().having(
+          (r) => r.accessToken,
+          'accessToken',
+          'trap_access_token',
+        ),
+      );
     });
 
     test('T-16.2-NAVER-SDK-17 in-flight: 재진입은 plugin 을 호출하지 않고 '
@@ -386,7 +415,14 @@ void main() {
       final firstResult = await first;
 
       expect(firstResult, isNotNull);
-      expect(firstResult!.accessToken, equals('late_token'));
+      expect(
+        firstResult,
+        isA<NaverAppSignIn>().having(
+          (r) => r.accessToken,
+          'accessToken',
+          'late_token',
+        ),
+      );
       expect(loginCalls, equals(1));
     });
 
@@ -473,7 +509,14 @@ void main() {
 
         expect(completed, isTrue);
         expect(captured, isNotNull);
-        expect(captured!.accessToken, equals('slow_token'));
+        expect(
+          captured,
+          isA<NaverAppSignIn>().having(
+            (r) => r.accessToken,
+            'accessToken',
+            'slow_token',
+          ),
+        );
       });
     });
 
@@ -540,7 +583,14 @@ void main() {
         reason: 'D-57: 생략이 아니라 지연 — 완료 직후 실제로 1회 호출된다',
       );
       expect(result, isNotNull);
-      expect(result!.accessToken, equals('token'));
+      expect(
+        result,
+        isA<NaverAppSignIn>().having(
+          (r) => r.accessToken,
+          'accessToken',
+          'token',
+        ),
+      );
     });
 
     test('T-16.2-NAVER-SDK-23 WR-01 지연 소비 실패는 signIn 의 결과를 바꾸지 '
@@ -608,7 +658,14 @@ void main() {
       final result = await first;
 
       expect(result, isNotNull);
-      expect(result!.accessToken, equals('token'));
+      expect(
+        result,
+        isA<NaverAppSignIn>().having(
+          (r) => r.accessToken,
+          'accessToken',
+          'token',
+        ),
+      );
 
       // 대조군 — 배수가 끝나면 가드는 실제로 풀린다 (영구 잠김이 아니다).
       await client.signIn();
@@ -873,6 +930,220 @@ void main() {
         isTrue,
         reason: '경과 ms 는 값이 흔들리므로 정규식으로 본다 (하드코딩 금지)',
       );
+    });
+  });
+
+  // Phase 16.5 D-01 ~ D-04 — 설치 판정 bool 하나로 1-tap(SDK) 과 킷 웹 흐름을
+  // 가른다. 1-tap 경로에서는 웹 흐름이 호출되지 않고, 판정 실패는 웹으로 접힌다.
+  group('Phase 16.5 경로 라우팅 (T-16.5-NAVER-ROUTE)', () {
+    const webResult = NaverWebSignIn(code: 'FAKE_CODE', state: 'FAKE_STATE');
+
+    test('T-16.5-NAVER-ROUTE-01 설치 → login 1 · web 0 · NaverAppSignIn + '
+        '경로 선택 줄 mode=app', () async {
+      final logs = captureLogs();
+      var loginCalls = 0;
+      var webCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async {
+          loginCalls++;
+          return buildSuccessResult('app_token');
+        },
+        logout: () async => buildLoggedOutResult(),
+        isNaverAppInstalled: () async => true,
+        webSignIn: () async {
+          webCalls++;
+          return webResult;
+        },
+      );
+
+      final result = await client.signIn();
+
+      expect(
+        result,
+        isA<NaverAppSignIn>().having(
+          (r) => r.accessToken,
+          'accessToken',
+          'app_token',
+        ),
+      );
+      expect(loginCalls, 1);
+      expect(webCalls, 0, reason: '1-tap 경로는 웹 흐름에 닿지 않는다 (SC2)');
+      expect(logs, contains('Naver 경로 선택: mode=app installed=true'));
+      expect(logs, contains('Naver logIn 시작'), reason: '앱 앵커 보존');
+    });
+
+    test('T-16.5-NAVER-ROUTE-02 미설치 → login 0 · web 1 · NaverWebSignIn + '
+        '경로 선택 줄 mode=web · 앱 앵커 0', () async {
+      final logs = captureLogs();
+      var loginCalls = 0;
+      var webCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async {
+          loginCalls++;
+          return buildSuccessResult('app_token');
+        },
+        logout: () async => buildLoggedOutResult(),
+        isNaverAppInstalled: () async => false,
+        webSignIn: () async {
+          webCalls++;
+          return webResult;
+        },
+      );
+
+      final result = await client.signIn();
+
+      expect(result, same(webResult));
+      expect(loginCalls, 0, reason: '미설치 단말에서 SDK 커스텀탭을 열지 않는다');
+      expect(webCalls, 1);
+      expect(logs, contains('Naver 경로 선택: mode=web installed=false'));
+      expect(
+        logs.where((line) => line.startsWith('Naver logIn 시작')),
+        isEmpty,
+        reason: '웹 경로는 SDK 앵커를 찍지 않는다 (logcat 계수 분리)',
+      );
+    });
+
+    test('T-16.5-NAVER-ROUTE-03 판정 예외 → 웹으로 접는다 (D-02)', () async {
+      final logs = captureLogs();
+      var webCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async => throw StateError('login 호출 금지'),
+        logout: () async => buildLoggedOutResult(),
+        isNaverAppInstalled: () async =>
+            throw PlatformException(code: 'boom', message: 'HOST-SENTINEL'),
+        webSignIn: () async {
+          webCalls++;
+          return webResult;
+        },
+      );
+
+      expect(await client.signIn(), same(webResult));
+      expect(webCalls, 1);
+      expect(logs, contains('Naver 설치 판정 예외(web 으로 접음): PlatformException'));
+      expect(logs, contains('Naver 경로 선택: mode=web installed=false'));
+      for (final line in logs) {
+        expect(line, isNot(contains('HOST-SENTINEL')));
+      }
+    });
+
+    test('T-16.5-NAVER-ROUTE-04 웹 실패 매핑: ServiceUnavailable 그대로 · '
+        'PlatformException → ServiceUnavailable(cause) · 취소 null', () async {
+      const direct = ServiceUnavailable();
+      final directClient = NaverSdkClient.forTest(
+        login: () async => buildSuccessResult('unused'),
+        logout: () async => buildLoggedOutResult(),
+        isNaverAppInstalled: () async => false,
+        webSignIn: () async => throw direct,
+      );
+      expect(await captureSignInError(directClient), same(direct));
+
+      final platformError = PlatformException(code: 'FAILED');
+      final platformClient = NaverSdkClient.forTest(
+        login: () async => buildSuccessResult('unused'),
+        logout: () async => buildLoggedOutResult(),
+        isNaverAppInstalled: () async => false,
+        webSignIn: () async => throw platformError,
+      );
+      expect(
+        await captureSignInError(platformClient),
+        isA<ServiceUnavailable>().having(
+          (e) => e.cause,
+          'cause',
+          same(platformError),
+        ),
+      );
+
+      final cancelClient = NaverSdkClient.forTest(
+        login: () async => buildSuccessResult('unused'),
+        logout: () async => buildLoggedOutResult(),
+        isNaverAppInstalled: () async => false,
+        webSignIn: () async => null,
+      );
+      expect(await cancelClient.signIn(), isNull);
+    });
+
+    test('T-16.5-NAVER-ROUTE-05 웹 경로도 in-flight 가드 · 지연 logout 배수를 '
+        '공유한다', () async {
+      final gate = Completer<NaverWebSignIn?>();
+      var webCalls = 0;
+      var logoutCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async => buildSuccessResult('unused'),
+        logout: () async {
+          logoutCalls++;
+          return buildLoggedOutResult();
+        },
+        isNaverAppInstalled: () async => false,
+        webSignIn: () {
+          webCalls++;
+          return gate.future;
+        },
+      );
+
+      final first = client.signIn();
+      await pumpEventQueue();
+      expect(await client.signIn(), isNull, reason: '재진입은 세션을 새로 열지 않는다');
+      await client.logout();
+      expect(logoutCalls, 0, reason: '진행 중 logout 은 지연된다');
+
+      gate.complete(webResult);
+      expect(await first, same(webResult));
+      expect(webCalls, 1);
+      expect(logoutCalls, 1, reason: '지연 logout 은 가드 해제 전 1회 소비');
+    });
+
+    test('T-16.5-NAVER-ROUTE-06 prod 배선: 호스트 채널 false → '
+        'NaverWebAuthClient 세션 호출 · mode=web 줄', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      const channel = MethodChannel(kNaverHostChannelName);
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final hostCalls = <String>[];
+      messenger.setMockMethodCallHandler(channel, (MethodCall call) async {
+        hostCalls.add(call.method);
+        return false;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      final logs = captureLogs();
+
+      final sessionUrls = <String>[];
+      final webClient = NaverWebAuthClient.forTest(
+        clientId: 'fake-client-id',
+        callbackUrlScheme: 'probe-scheme',
+        redirectUri: 'probe-scheme://authorize',
+        authenticate:
+            ({
+              required String url,
+              required String callbackUrlScheme,
+              required bool preferEphemeral,
+            }) async {
+              sessionUrls.add(url);
+              final state = Uri.parse(url).queryParameters['state'];
+              return 'probe-scheme://authorize?code=FAKE_CODE&state=$state';
+            },
+      );
+      final client = NaverSdkClient(webAuthClient: webClient);
+
+      final result = await client.signIn();
+
+      expect(hostCalls, <String>[kNaverHostMethodIsInstalled]);
+      expect(sessionUrls, hasLength(1));
+      expect(
+        result,
+        isA<NaverWebSignIn>().having((r) => r.code, 'code', 'FAKE_CODE'),
+      );
+      expect(logs, contains('Naver 경로 선택: mode=web installed=false'));
+      expect(logs, contains('Naver web 시작'));
+    });
+
+    test('T-16.5-NAVER-ROUTE-07 source-contract: sdk client 는 웹 세션 패키지를 '
+        'import 하지 않는다 (1-tap 경로 격리)', () {
+      final code = stripComments(
+        File('lib/features/auth/data/naver_sdk_client.dart').readAsStringSync(),
+      );
+      // 양성 대조군 — 웹 클라는 타입으로는 들어와 있다.
+      expect(code, contains('naver_web_auth_client.dart'));
+      expect(code, isNot(contains('flutter_web_auth_2')));
     });
   });
 }

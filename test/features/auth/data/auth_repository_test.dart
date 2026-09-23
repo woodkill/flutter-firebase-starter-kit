@@ -15,6 +15,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 
@@ -2245,9 +2246,9 @@ void main() {
     setUp(() {
       mockCallable = _MockHttpsCallable();
       // 기본: NaverSdkClient 가 access_token 반환.
-      when(() => mockNaverSdkClient.signIn()).thenAnswer(
-        (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
-      );
+      when(
+        () => mockNaverSdkClient.signIn(),
+      ).thenAnswer((_) async => const NaverAppSignIn(accessToken: 'AT_NAVER'));
       // 기본: httpsCallable('naverCustomToken') → mockCallable.
       when(
         () =>
@@ -2430,6 +2431,37 @@ void main() {
       ).called(1);
       verify(() => mockAuth.signInWithCustomToken('CT_NAVER')).called(1);
     });
+
+    test('T-16.5-NAVER-REPO-03: NaverWebSignIn → naverWebCustomToken payload '
+        '{code, state} 정확 (snapshot 부재) · naverCustomToken 0회', () async {
+      when(() => mockNaverSdkClient.signIn()).thenAnswer(
+        (_) async => const NaverWebSignIn(code: 'CODE_N', state: 'STATE_N'),
+      );
+
+      final result = await repository.signInWithNaver();
+
+      expect(result, isA<Success<dynamic>>());
+      verify(
+        () => mockFunctions.httpsCallable(
+          'naverWebCustomToken',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+      verifyNever(
+        () => mockFunctions.httpsCallable(
+          'naverCustomToken',
+          options: any(named: 'options'),
+        ),
+      );
+      verify(
+        () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
+          'code': 'CODE_N',
+          'state': 'STATE_N',
+        }),
+      ).called(1);
+      verify(() => mockNaverSdkClient.logout()).called(1); // D-57 불변
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
   });
 
   // ==========================================================================
@@ -2446,9 +2478,9 @@ void main() {
 
     setUp(() {
       mockCallable = _MockHttpsCallable();
-      when(() => mockNaverSdkClient.signIn()).thenAnswer(
-        (_) async => const NaverSignInResult(accessToken: 'AT_NAVER'),
-      );
+      when(
+        () => mockNaverSdkClient.signIn(),
+      ).thenAnswer((_) async => const NaverAppSignIn(accessToken: 'AT_NAVER'));
       when(
         () =>
             mockFunctions.httpsCallable(any(), options: any(named: 'options')),

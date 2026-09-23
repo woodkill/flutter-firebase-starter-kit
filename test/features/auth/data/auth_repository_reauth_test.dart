@@ -35,6 +35,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 import 'auth_test_fakes.dart';
@@ -425,7 +426,7 @@ void main() {
       'RA-C2: Naver — 응답 uid 가 다른 계정 → ReauthUserMismatch, signInWithCustomToken 0 (세션 전환 차단)',
       () async {
         when(() => mockNaverSdkClient.signIn()).thenAnswer(
-          (_) async => const NaverSignInResult(accessToken: 'naver-at'),
+          (_) async => const NaverAppSignIn(accessToken: 'naver-at'),
         );
         stubCallableResponse('naverCustomToken', <String, dynamic>{
           'customToken': 'ct-for-V',
@@ -443,6 +444,39 @@ void main() {
         verify(() => mockNaverSdkClient.logout()).called(1);
       },
     );
+
+    test('T-16.5-NAVER-REPO-02: Naver 웹 경로 재인증 → naverWebCustomToken '
+        '{code, state} · 응답 uid 일치 시 signInWithCustomToken 1회', () async {
+      when(() => mockNaverSdkClient.signIn()).thenAnswer(
+        (_) async => const NaverWebSignIn(code: 'web-code', state: 'web-st'),
+      );
+      stubCallableResponse('naverWebCustomToken', <String, dynamic>{
+        'customToken': 'ct-web-U',
+        'uid': _currentUid,
+        'isNewUser': false,
+      });
+      when(
+        () => mockAuth.signInWithCustomToken('ct-web-U'),
+      ).thenAnswer((_) async => currentCredential);
+
+      final result = await repository.reauthenticate(AccountProvider.naver);
+
+      expect(result, isA<Success<dynamic>>());
+      verifyNever(
+        () => mockFunctions.httpsCallable(
+          'naverCustomToken',
+          options: any(named: 'options'),
+        ),
+      );
+      verify(
+        () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
+          'code': 'web-code',
+          'state': 'web-st',
+        }),
+      ).called(1);
+      verify(() => mockAuth.signInWithCustomToken('ct-web-U')).called(1);
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
 
     test(
       'RA-C3: LINE — 서버 permission-denied + caller_identity_mismatch → ReauthUserMismatch',

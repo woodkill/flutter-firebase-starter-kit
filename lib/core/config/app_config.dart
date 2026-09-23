@@ -84,10 +84,52 @@ abstract final class AppConfig {
     'kakaoNativeAppKey',
   );
 
-  // Naver 는 Dart 상수가 없다 — 키는 빌드 타임 native 설정으로만 주입된다
-  // (Phase 16.2 D-04 — see ROADMAP.md). Android: config/{flavor}.json → gradle
-  // resValue → manifest @string meta-data / iOS: ios/Flutter/{flavor}.xcconfig →
-  // Info.plist 의 Nid* 키. config/*.example.json 의 naver 키는 Android gradle 입력이다.
+  // Naver SDK(1-tap) 설정은 여전히 빌드 타임 native 로만 주입된다 (Phase 16.2
+  // D-04 — see ROADMAP.md). Android: config/{flavor}.json → gradle resValue →
+  // manifest @string meta-data / iOS: ios/Flutter/{flavor}.xcconfig → Info.plist
+  // 의 Nid* 키. Phase 16.5 가 킷 웹 경로용으로 아래 3상수를 추가했다 — D-04 의
+  // 본질은 **secret** 을 Dart 번들에 올리지 않는 것이다. client_id 는 RFC 6749
+  // §2.2 의 공개 식별자이고 authorize URL · native meta-data 에 이미 평문으로
+  // 있다. naverClientSecret 은 Dart 에 절대 두지 않는다(서버 Secret Manager 단독).
+
+  /// Naver Client ID — public client identifier (Phase 16.5 D-04 정합).
+  ///
+  /// `--dart-define-from-file=config/{flavor}.json` 의 `naverClientId` 키를
+  /// 컴파일 타임 상수로 읽는다(Android gradle `resValue` 와 같은 키 재사용).
+  /// [kakaoNativeAppKey] · [lineChannelId] · [yahoojpClientId] 패턴과 일관 —
+  /// 미주입 시 빈 문자열, silent fallback 회피 (WR-07 hotfix). 빈 문자열이면
+  /// `NaverWebAuthClient.signIn()` 이 세션을 열기 전에 [ServiceUnavailable] 로
+  /// 시끄럽게 실패한다 (`Naver web 도착: outcome=error ... code=config`).
+  ///
+  /// iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_ID` 와 **같은 값**
+  /// 이어야 한다 — 갈리면 1-tap(SDK) 과 웹이 다른 앱으로 로그인하는 조용한
+  /// 실패가 된다 (계약 테스트 `T-16.5-NATIVE-01` 이 dev 값을 잠근다).
+  ///
+  /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
+  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Naver 단락 참조.
+  static const String naverClientId = String.fromEnvironment('naverClientId');
+
+  /// 킷 웹 경로 콜백 scheme — 기존 iOS URL Scheme 재사용 (Phase 16.5 D-09).
+  ///
+  /// `--dart-define-from-file=config/{flavor}.json` 의 `naverUrlScheme` 키
+  /// (이미 NAVER 콘솔 「iOS URL Scheme」 에 등록된 값) 를 읽는다. probe ② 결과가
+  /// A(콘솔 작업 0 으로 authorize 통과) 라 이 식을 채택했다 — 역도메인 파생
+  /// 문자열(probe B)이나 Hosting bounce(probe C) 는 쓰지 않는다.
+  ///
+  /// Android 는 gradle `manifestPlaceholders["naverWebCallbackScheme"]` 가 같은
+  /// config 키로 `CallbackActivity` intent-filter scheme 을 채운다. 값은 RFC
+  /// 3986 소문자 scheme 이어야 한다 (`flutter_web_auth_2` 가 Dart 단에서 강제).
+  /// 미주입 시 빈 문자열 → [naverClientId] 와 같은 지점에서 `code=config`.
+  static const String naverWebCallbackScheme = String.fromEnvironment(
+    'naverUrlScheme',
+  );
+
+  /// 킷 웹 경로 authorize `redirect_uri` — `<scheme>://authorize` (D-09).
+  ///
+  /// iOS SDK 가 쓰는 `urlScheme + "://authorize"` 와 같은 형태다 (probe ② A 가
+  /// 콘솔 Callback URL 등록 없이 통과를 실측). 서버 token 교환에는 싣지 않는다.
+  static const String naverWebRedirectUri =
+      '$naverWebCallbackScheme://authorize';
 
   /// LINE Channel ID — public client identifier (Phase 14 D-LINE-16).
   ///

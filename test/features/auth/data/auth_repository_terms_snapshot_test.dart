@@ -38,6 +38,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
 
@@ -196,7 +197,7 @@ void main() {
     );
     when(
       () => mockNaverSdkClient.signIn(),
-    ).thenAnswer((_) async => const NaverSignInResult(accessToken: 'NAT'));
+    ).thenAnswer((_) async => const NaverAppSignIn(accessToken: 'NAT'));
     when(() => mockYahoojpSdkClient.signIn()).thenAnswer(
       (_) async => const YahoojpSignInResult(idToken: 'YIDT', nonce: 'YNONCE'),
     );
@@ -337,6 +338,44 @@ void main() {
 
       expect(result, isA<Success<dynamic>>());
       expect(capturePayload().keys.toSet(), <String>{'accessToken'});
+    });
+  });
+
+  // Phase 16.5 D-13 — 킷 웹 경로는 다른 callable 로 가고 base 키가 {code, state}
+  // 다. snapshot 부착 방식은 1-tap 과 동일해야 한다 (wiring 단언).
+  group('T-16.5-NAVER-REPO — naver 웹 경로 + snapshot', () {
+    test('T-16.5-NAVER-REPO-01 NaverWebSignIn → naverWebCustomToken, payload '
+        '{code, state, termsAcceptanceSnapshot} + 5 키 계약', () async {
+      injectedSnapshot = _snapshotFixture();
+      when(() => mockNaverSdkClient.signIn()).thenAnswer(
+        (_) async => const NaverWebSignIn(code: 'NCODE', state: 'NSTATE'),
+      );
+
+      final result = await repository.signInWithNaver();
+
+      expect(result, isA<Success<dynamic>>());
+      verify(
+        () => mockFunctions.httpsCallable(
+          'naverWebCustomToken',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+      verifyNever(
+        () => mockFunctions.httpsCallable(
+          'naverCustomToken',
+          options: any(named: 'options'),
+        ),
+      );
+      final payload = capturePayload();
+      expect(payload.keys.toSet(), <String>{
+        'code',
+        'state',
+        'termsAcceptanceSnapshot',
+      });
+      expect(payload['code'], 'NCODE');
+      expect(payload['state'], 'NSTATE');
+      expectContractSnapshot(payload);
+      verify(() => mockNaverSdkClient.logout()).called(1);
     });
   });
 

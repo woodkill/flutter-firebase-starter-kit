@@ -3,27 +3,18 @@
 // Naver 로그인 진입점 — 플러그인 Future 직결 + typedef 주입 (Phase 12
 // KakaoSdkClient 미러). D-43 ~ D-45 + D-57 정책 일관.
 // Phase 16.4 D-18 로그 2줄 — signIn() 시작 · 도착 (kDebugMode 전용).
+// Phase 16.5 D-01 ~ D-04 — signIn() 이 NAVER 앱 설치 판정 bool 하나로 1-tap
+// (SDK) 과 킷 웹 흐름을 라우팅한다. 웹 클라이언트는 함수 typedef 로만 안다.
 import 'package:flutter/foundation.dart';
 import 'package:naver_login_flutter/naver_login_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/app_exception.dart';
+import 'naver_host_channel.dart';
+import 'naver_sign_in_result.dart';
+import 'naver_web_auth_client.dart';
 
 part 'naver_sdk_client.g.dart';
-
-/// Naver 로그인 결과 — `access_token` 1회성 사용 (Phase 13 — see ROADMAP.md).
-///
-/// `AuthRepository.signInWithNaver` 가 본 [accessToken] 을 Cloud Function
-/// `naverCustomToken` 호출 인자에 그대로 전달하고, finally 블록에서
-/// `_naverSdkClient.logout()` 으로 디바이스 토큰을 즉시 제거한다 (D-57).
-@immutable
-class NaverSignInResult {
-  /// [accessToken] (Naver OAuth 2.0 Access Token) 묶음.
-  const NaverSignInResult({required this.accessToken});
-
-  /// Naver Access Token (Cloud Function `/v1/nid/me` Bearer 검증 대상).
-  final String accessToken;
-}
 
 /// 플러그인 `FlutterNaverLogin.logIn()` 시그니처 typedef.
 ///
@@ -254,24 +245,51 @@ String _readAndroidErrorCode(String errorMessage) {
 /// 없다. client ID · secret · 앱 이름은 Android `AndroidManifest.xml` 의
 /// `com.naver.sdk.*` meta-data 와 iOS `Info.plist` 키를 plugin registration
 /// 시점에 읽는다.
+///
+/// **경로 라우팅 (Phase 16.5 D-01 ~ D-04):** [signIn] 이 호스트 설치 판정
+/// ([NaverHostChannel]) 결과 하나로 갈린다 — 설치면 위 플러그인 1-tap
+/// ([NaverAppSignIn]), 미설치 · 판정 실패면 킷 웹 흐름([NaverWebSignIn]).
+/// 웹 클라이언트는 [NaverWebSignInFn] 함수 타입으로만 주입받는다 — 1-tap 경로는
+/// 웹 세션 패키지에 닿지 않는다.
 class NaverSdkClient {
-  /// production 진입점 — 실제 Naver 플러그인 호출.
+  /// production 진입점 — 실제 Naver 플러그인 · 호스트 채널 · 웹 클라 호출.
   ///
+  /// [webAuthClient] 는 provider 가 [naverWebAuthClientProvider] 에서 주입한다.
   /// 테스트는 [NaverSdkClient.forTest] 로 함수 typedef 를 주입한다.
-  NaverSdkClient() : _login = _defaultLogin, _logout = _defaultLogout;
+  NaverSdkClient({required NaverWebAuthClient webAuthClient})
+    : _login = _defaultLogin,
+      _logout = _defaultLogout,
+      _isNaverAppInstalled = const NaverHostChannel().isNaverAppInstalled,
+      _webSignIn = webAuthClient.signIn;
 
-  /// 테스트 전용 ctor — 플러그인 호출을 함수 typedef 로 fake 한다.
+  /// 테스트 전용 ctor — 플러그인 · 설치 판정 · 웹 흐름을 함수 typedef 로
+  /// fake 한다.
+  ///
+  /// [isNaverAppInstalled] 기본값은 「항상 설치」 — 1-tap 경로만 보는 기존
+  /// 테스트가 인자 추가 없이 그대로 통과한다. [webSignIn] 기본값은 호출되면
+  /// [StateError] 를 던진다(웹 경로를 기대하지 않은 테스트가 조용히 통과하지
+  /// 않게).
   ///
   /// production 코드는 [NaverSdkClient.new] 만 사용해야 한다.
   @visibleForTesting
   NaverSdkClient.forTest({
     required NaverLoginFn login,
     required NaverLogoutFn logout,
+    NaverInstalledFn? isNaverAppInstalled,
+    NaverWebSignInFn? webSignIn,
   }) : _login = login,
-       _logout = logout;
+       _logout = logout,
+       _isNaverAppInstalled = isNaverAppInstalled ?? _alwaysInstalled,
+       _webSignIn = webSignIn ?? _webSignInUnexpected;
 
   final NaverLoginFn _login;
   final NaverLogoutFn _logout;
+
+  /// NAVER 앱 설치 판정 — true 면 1-tap, false · 예외면 킷 웹 (D-02).
+  final NaverInstalledFn _isNaverAppInstalled;
+
+  /// 킷 웹 흐름 — [NaverWebAuthClient.signIn] (D-07).
+  final NaverWebSignInFn _webSignIn;
 
   /// [signIn] 이 진행 중인지 — 클래스 doc 의 in-flight 가드 (D-18).
   bool _inFlight = false;
@@ -283,22 +301,28 @@ class NaverSdkClient {
   /// 멱등이므로 횟수를 보존할 이유가 없다.
   bool _logoutPending = false;
 
-  /// Naver 로그인 — 앱우선 + 웹 fallback (플러그인 · SDK 자체 제어).
+  /// Naver 로그인 — 설치 판정으로 1-tap(SDK) 또는 킷 웹 흐름을 고른다.
   ///
   /// 흐름:
   /// 1. in-flight 가드 — 진행 중이면 plugin 을 호출하지 않고 null (D-18).
-  /// 2. 진단 로그 — 시작/도착 2줄, `kDebugMode` 전용, errorMessage 비출력
+  ///    웹 경로도 같은 가드를 공유한다 (세션 중복 열기 0).
+  /// 2. 경로 선택 (Phase 16.5 D-01 ~ D-04) — 호스트 설치 판정이 `false` 이거나
+  ///    예외면 [NaverWebAuthClient.signIn] 의 결과([NaverWebSignIn] · null ·
+  ///    예외)를 그대로 돌려준다. 진단 줄 `Naver 경로 선택: mode=… installed=…`.
+  ///    아래 3~8 은 설치(1-tap) 경로 한정이다.
+  /// 3. 진단 로그 — 시작/도착 2줄, `kDebugMode` 전용, errorMessage 비출력
   ///    (Phase 16.4 D-18). 대기 구간이 logcat 에 보이게 하는 것이 목적이라
   ///    도착 줄은 `status` 와 경과 ms 만 싣는다.
-  /// 3. `_login()` 의 Future 를 **그대로 await** 한다 (D-16 — 타이머 없음).
-  /// 4. [isNaverUserCancel] 을 **error 분기보다 먼저** 본다 — iOS 취소가
+  /// 4. `_login()` 의 Future 를 **그대로 await** 한다 (D-16 — 타이머 없음).
+  /// 5. [isNaverUserCancel] 을 **error 분기보다 먼저** 본다 — iOS 취소가
   ///    `status: error` 로 오므로 error 를 곧장 배너로 보내면 취소가 오류로
   ///    보인다 (`1c884c73` 회귀 경로).
-  /// 5. status `error` → [ServiceUnavailable] (`cause` = [NaverSdkError]).
-  /// 6. 빈 토큰 → null (silent).
-  /// 7. 그 외 예외 → [ServiceUnavailable] 로 흡수. iOS `Info.plist` 4키가
+  /// 6. status `error` → [ServiceUnavailable] (`cause` = [NaverSdkError]).
+  /// 7. 빈 토큰 → null (silent).
+  /// 8. 그 외 예외 → [ServiceUnavailable] 로 흡수. iOS `Info.plist` 4키가
   ///    없으면 채널이 미등록돼 `PlatformException` 이 아닌
-  ///    `MissingPluginException` 이 전파되기 때문이다 (D-05).
+  ///    `MissingPluginException` 이 전파되기 때문이다 (D-05). 웹 경로의
+  ///    `PlatformException`(세션 FAILED 등) 도 여기서 `cause` 로 보존된다.
   ///
   /// 결과 객체에서 읽는 값은 `status` · `errorMessage` ·
   /// `accessToken?.accessToken` **셋뿐**이다 — 프로필은 참조하지 않고 결과 ·
@@ -314,9 +338,10 @@ class NaverSdkClient {
   /// 계약).
   ///
   /// 반환:
-  /// - [NaverSignInResult] (accessToken) — 성공.
+  /// - [NaverAppSignIn] (accessToken) — 1-tap 성공.
+  /// - [NaverWebSignIn] (code · state) — 킷 웹 성공 (서버가 code 를 교환).
   /// - null — 사용자 취소 / 빈 토큰 / 재진입 (silent).
-  /// - throw [ServiceUnavailable] — network / SDK 오류.
+  /// - throw [ServiceUnavailable] — network / SDK / 웹 세션 · 콜백 오류.
   Future<NaverSignInResult?> signIn() async {
     if (_inFlight) {
       if (kDebugMode) {
@@ -328,10 +353,29 @@ class NaverSdkClient {
     // IN-03: 경과 ms 는 `kDebugMode` 블록에서만 소비된다 — release 에서는
     // Stopwatch 를 만들지도 않는다 (킷은 템플릿으로 복사되는 코드다).
     final Stopwatch? watch = kDebugMode ? (Stopwatch()..start()) : null;
-    if (kDebugMode) {
-      debugPrint('Naver logIn 시작');
-    }
     try {
+      // Phase 16.5 D-01 ~ D-04 — 설치 판정 bool 하나로 경로를 고른다. 판정
+      // 예외는 웹으로 접는다(D-02) — SDK 커스텀탭 경로를 피하는 것이 목적이다.
+      bool installed;
+      try {
+        installed = await _isNaverAppInstalled();
+      } on Object catch (e) {
+        if (kDebugMode) {
+          debugPrint('Naver 설치 판정 예외(web 으로 접음): ${e.runtimeType}');
+        }
+        installed = false;
+      }
+      if (kDebugMode) {
+        debugPrint(
+          'Naver 경로 선택: mode=${installed ? 'app' : 'web'} '
+          'installed=$installed',
+        );
+      }
+      if (!installed) return await _webSignIn();
+
+      if (kDebugMode) {
+        debugPrint('Naver logIn 시작');
+      }
       final result = await _login();
 
       // D-18 도착 줄 — status 이름과 경과 ms 만. `errorMessage` 원문은 한 글자도
@@ -369,7 +413,7 @@ class NaverSdkClient {
       // D-21: 프로필은 참조하지 않는다 — accessToken 만 꺼낸다.
       final token = result.accessToken?.accessToken ?? '';
       if (token.isEmpty) return null;
-      return NaverSignInResult(accessToken: token);
+      return NaverAppSignIn(accessToken: token);
     } on ServiceUnavailable {
       rethrow;
     } on Object catch (e) {
@@ -476,9 +520,17 @@ Future<NaverLoginResult> _defaultLogin() => FlutterNaverLogin.logIn();
 /// Default `FlutterNaverLogin.logOut` 호출 — production 진입점 (D-57).
 Future<NaverLoginResult> _defaultLogout() => FlutterNaverLogin.logOut();
 
+/// [NaverSdkClient.forTest] 의 설치 판정 기본값 — 항상 설치(1-tap 경로).
+Future<bool> _alwaysInstalled() async => true;
+
+/// [NaverSdkClient.forTest] 의 웹 흐름 기본값 — 주입 없이 웹 경로에 닿으면
+/// 테스트가 시끄럽게 실패하도록 던진다.
+Future<NaverWebSignIn?> _webSignInUnexpected() async =>
+    throw StateError('webSignIn fake 미주입');
+
 /// [NaverSdkClient] Provider — keepAlive (Phase 12 [kakaoSdkClientProvider]
-/// 패턴).
+/// 패턴). 웹 클라이언트는 [naverWebAuthClientProvider] 에서 주입한다.
 @Riverpod(keepAlive: true)
 NaverSdkClient naverSdkClient(Ref ref) {
-  return NaverSdkClient();
+  return NaverSdkClient(webAuthClient: ref.watch(naverWebAuthClientProvider));
 }

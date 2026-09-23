@@ -26,6 +26,7 @@ import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
 import 'line_sdk_client.dart';
 import 'naver_sdk_client.dart';
+import 'naver_sign_in_result.dart';
 import 'yahoojp_sdk_client.dart';
 
 part 'auth_repository.g.dart';
@@ -1538,16 +1539,19 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// **Custom Token 방식** — Phase 12 Kakao 와 동일 흐름. 차이:
   /// (1) SDK = naver_login_flutter (Future 직결 — [NaverSdkClient] wrapper)
-  /// (2) Cloud Function 페이로드 = `accessToken` 단일 (nonce 부재 — D-46)
+  /// (2) Cloud Function 페이로드 = 1-tap `accessToken` 단일 (nonce 부재 —
+  ///     D-46) · 킷 웹 `code` + `state` (Phase 16.5 D-13)
   /// (3) Naver 검증 = REST `/v1/nid/me` Bearer (CF 측 — Plan 13-02)
   /// (4) finally 에서 SDK logout (D-57 — 1회성 access_token)
   ///
   /// 흐름:
   /// 1. [SocialLinkInProgress.begin] (race-fix Pitfall 8 — 단일 진실원)
   /// 2. [_naverSdkClient.signIn] — null 반환 (사용자 취소) → null silent (D-45)
-  /// 3. `_functions.httpsCallable('naverCustomToken')(accessToken)` →
-  ///    Cloud Function 이 REST 검증 + Identity Index lookup-first +
-  ///    `createCustomToken` (Plan 13-02)
+  /// 3. 결과 variant 로 callable 을 고른다 (Phase 16.5 D-13 — exhaustive
+  ///    switch): [NaverAppSignIn] → `naverCustomToken({accessToken})`,
+  ///    [NaverWebSignIn] → `naverWebCustomToken({code, state})` (서버가 code 를
+  ///    token 으로 교환). 두 callable 모두 REST 검증 + Identity Index
+  ///    lookup-first + `createCustomToken` 을 공용 helper 로 수행한다
   /// 4. [fb.FirebaseAuth.signInWithCustomToken] → Firebase Auth 세션 시작
   /// 5. [_mapFirebaseUser] → 도메인 [User]
   /// 6. finally: [_naverSdkClient.logout] (D-57 — Pitfall 2 race-fix end 직전) +
@@ -1577,17 +1581,27 @@ class AuthRepository implements AnonymousSignIn {
         return null; // D-45 silent
       }
 
+      // Phase 16.5 D-13: 경로별 자격증명 → callable 을 exhaustive switch 로
+      // 고른다. 새 variant 가 생기면 여기서 컴파일이 깨진다.
+      final (callableName, basePayload) = switch (result) {
+        NaverAppSignIn(:final accessToken) => (
+          'naverCustomToken',
+          <String, dynamic>{'accessToken': accessToken},
+        ),
+        NaverWebSignIn(:final code, :final state) => (
+          'naverWebCustomToken',
+          <String, dynamic>{'code': code, 'state': state},
+        ),
+      };
       final callable = _functions.httpsCallable(
-        'naverCustomToken',
+        callableName,
         options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
       );
       // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉한다.
-      // base 키가 accessToken 단일인 것은 provider 계약 차이이며 snapshot
-      // 부착 방식은 4 provider 동일하다.
+      // base 키(1-tap `accessToken` · 웹 `code`+`state`) 가 다른 것은 provider
+      // 계약 차이이며 snapshot 부착 방식은 4 provider 동일하다.
       final response = await callable.call<Map<String, dynamic>>(
-        _buildCustomTokenPayload(<String, dynamic>{
-          'accessToken': result.accessToken,
-        }),
+        _buildCustomTokenPayload(basePayload),
       );
       final customToken = response.data['customToken'] as String?;
       if (customToken == null) {
@@ -2192,8 +2206,8 @@ class AuthRepository implements AnonymousSignIn {
   /// Custom Token provider 별 SDK 로그인 → callable 이름 · payload 를 만든다.
   /// SDK 취소 시 `null`.
   ///
-  /// payload 키는 각 로그인 메서드와 같다 (Naver = `accessToken`, 나머지 =
-  /// `idToken` + `nonce`). 재인증은 기존 identity 재로그인이라 약관 snapshot
+  /// payload 키는 각 로그인 메서드와 같다 (Naver 1-tap = `accessToken` · Naver
+  /// 웹 = `code` + `state`, 나머지 = `idToken` + `nonce`). 재인증은 기존 identity 재로그인이라 약관 snapshot
   /// (신규 계정 생성 시에만 서버가 mirror) 은 싣지 않는다.
   Future<({String callableName, Map<String, dynamic> payload})?>
   _customTokenReauthRequest(AccountProvider provider) async {
@@ -2211,10 +2225,18 @@ class AuthRepository implements AnonymousSignIn {
       case AccountProvider.naver:
         final result = await _naverSdkClient.signIn();
         if (result == null) return null;
-        return (
-          callableName: 'naverCustomToken',
-          payload: <String, dynamic>{'accessToken': result.accessToken},
-        );
+        // Phase 16.5 D-13 — 경로에 따라 1-tap 또는 웹 callable.
+        final (callableName, payload) = switch (result) {
+          NaverAppSignIn(:final accessToken) => (
+            'naverCustomToken',
+            <String, dynamic>{'accessToken': accessToken},
+          ),
+          NaverWebSignIn(:final code, :final state) => (
+            'naverWebCustomToken',
+            <String, dynamic>{'code': code, 'state': state},
+          ),
+        };
+        return (callableName: callableName, payload: payload);
       case AccountProvider.line:
         final result = await _lineSdkClient.signIn();
         if (result == null) return null;

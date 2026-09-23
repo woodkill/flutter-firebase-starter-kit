@@ -29,6 +29,8 @@ import 'package:crypto/crypto.dart';
 ///   `code_verifier` 권장 하한과 동등 (D-LINE-06 / D-YJP-04).
 /// - Facebook (iOS Limited Login) — 32 bytes (43 chars). Kakao 와 같은 값을
 ///   채택했다 (debug ios-facebook-limited-login).
+/// - Naver 웹 경로 state — 16 bytes (22 chars). LINE / Yahoo!JP 와 동일
+///   (Phase 16.5 D-14).
 ///
 /// 길이 모두 보안상 충분하며 값 차이는 도입 시점의 선택일 뿐 provider
 /// 계약이 요구하는 제약이 아니다 — 통일이 필요해지면 본 문서와 호출부만
