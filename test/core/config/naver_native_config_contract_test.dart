@@ -658,6 +658,92 @@ void main() {
       );
     });
 
+    test('T-16.5-NATIVE-08 iOS 호스트 채널 — Swift channelName == Dart 상수', () {
+      // plan 05 가 계획한 마커는 `T-16.5-NATIVE-05` 였으나 plan 04 가 05~07 을
+      // Android 계약에 이미 썼으므로 08 로 잇는다.
+      final swift = stripBlockComments(
+        stripSlashComments(
+          readTrackedFile('ios/Runner/NaverHostChannel.swift'),
+        ),
+      );
+
+      final match = RegExp(
+        r'static let channelName = "([^"]+)"',
+      ).firstMatch(swift);
+      expect(
+        match,
+        isNotNull,
+        reason: 'D-22: NaverHostChannel.swift 에서 channelName 상수를 찾을 수 없다.',
+      );
+      expect(
+        match!.group(1),
+        kNaverHostChannelName,
+        reason:
+            'D-01 · D-22: Swift channelName 과 Dart kNaverHostChannelName 이 '
+            '다르면 iOS 설치 판정이 MissingPluginException → 항상 false(웹) 로 '
+            '조용히 접힌다.',
+      );
+      expect(
+        countOccurrences(swift, '"$kNaverHostMethodIsInstalled"'),
+        1,
+        reason:
+            'D-03: Swift switch 분기의 메서드 이름이 Dart '
+            'kNaverHostMethodIsInstalled 와 같은 문자열 1건이어야 한다.',
+      );
+      expect(
+        countOccurrences(swift, 'naversearchthirdlogin://'),
+        1,
+        reason:
+            'D-03: 판정은 NAVER iOS SDK 와 같은 scheme(naversearchthirdlogin) '
+            '의 canOpenURL 1건이어야 한다.',
+      );
+      expect(
+        countOccurrences(swift, 'import NidCore'),
+        0,
+        reason: 'D-22: 호스트 채널은 NAVER SDK 모듈을 import 하지 않는다.',
+      );
+
+      final appDelegate = stripSlashComments(
+        readTrackedFile('ios/Runner/AppDelegate.swift'),
+      );
+      // 양성 대조군 — 같은 계수 방식이 기존 registrant 줄을 잡는다.
+      expect(
+        countOccurrences(
+          appDelegate,
+          'GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)',
+        ),
+        1,
+        reason: '양성 대조군: AppDelegate 의 GeneratedPluginRegistrant 등록 줄.',
+      );
+      expect(
+        countOccurrences(
+          appDelegate,
+          'NaverHostChannel.register(with: engineBridge.pluginRegistry)',
+        ),
+        1,
+        reason: 'D-22: AppDelegate 에 iOS 호스트 채널 등록 1줄.',
+      );
+
+      // 등장 횟수가 아니라 **줄 수**를 센다 — PBXBuildFile · PBXFileReference
+      // 줄은 한 줄에 파일명이 두 번 나온다.
+      final pbxprojLines = readTrackedFile(
+        'ios/Runner.xcodeproj/project.pbxproj',
+      ).split('\n');
+      expect(
+        pbxprojLines.where((l) => l.contains('AppDelegate.swift')).length,
+        4,
+        reason: '양성 대조군: AppDelegate.swift 의 pbxproj 등록 4줄.',
+      );
+      expect(
+        pbxprojLines.where((l) => l.contains('NaverHostChannel.swift')).length,
+        4,
+        reason:
+            'P-03: NaverHostChannel.swift 는 pbxproj 에 4항목(PBXBuildFile · '
+            'PBXFileReference · Runner group · Sources phase) 으로 등록돼야 '
+            '컴파일된다.',
+      );
+    });
+
     test('T-16.5-NATIVE-06 scheme 패턴 — RFC 3986 소문자', () {
       // 양성 대조군 먼저.
       for (final valid in const <String>[
