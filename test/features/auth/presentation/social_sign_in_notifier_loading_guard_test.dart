@@ -110,10 +110,17 @@ final List<_NotifierCase> _cases = <_NotifierCase>[
 ];
 
 void main() {
-  // naver 행은 kDebugMode(테스트 기본값) 에서 `AppLifecycleListener` 를 만들고
-  // 그 생성자가 `WidgetsBinding.instance` 를 요구한다 — 이 줄이 없으면 naver
-  // 행이 guard 도달 전에 생성자에서 깨진다
-  // (naver_sign_in_notifier_test.dart:41-44 와 같은 이유).
+  // `ProviderContainer` 단위 테스트지만 flutter_test 바인딩을 초기화해 둔다.
+  //
+  // **근거가 소멸한 주석을 대체한다 (16.4 code review IN-01).** 이 파일이
+  // 만들어진 `f8908659` 시점에는 naver 행이 `kDebugMode` 에서
+  // `AppLifecycleListener` 를 만들었고 그 생성자가 `WidgetsBinding.instance`
+  // 를 요구해 이 줄이 **필수**였다. 그런데 `54f7b9d2`(레버 5 제거)가 그
+  // `AppLifecycleListener` 를 삭제해 현재 `naver_sign_in_notifier.dart` 에
+  // 해당 식별자는 0건이고, 옛 주석이 인용하던
+  // `naver_sign_in_notifier_test.dart:41-44` 도 실제로는 `User` fixture 필드라
+  // 두 전제가 모두 거짓이 됐다. 지금 이 줄은 riverpod 스케줄러가 바인딩 위에서
+  // 결정론적으로 도는 것을 보장하는 위생 목적으로만 남긴다.
   TestWidgetsFlutterBinding.ensureInitialized();
 
   /// `authRepositoryProvider` 생성 자체가 실패하는 container 를 만든다.
