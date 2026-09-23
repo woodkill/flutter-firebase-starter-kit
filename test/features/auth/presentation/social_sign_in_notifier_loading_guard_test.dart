@@ -29,6 +29,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // 한다 (flutter_riverpod 3.3.1 misc.dart:17).
 import 'package:flutter_riverpod/misc.dart' show ProviderException;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -39,6 +40,23 @@ import 'package:flutter_starter_kit/features/auth/presentation/kakao_sign_in_not
 import 'package:flutter_starter_kit/features/auth/presentation/line_sign_in_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/naver_sign_in_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/yahoojp_sign_in_notifier.dart';
+
+/// `AuthRepository` mock — 두 번째 축(repository 호출이 예외를 흘린다) 전용.
+class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// repository 호출이 **비동기로** 던지는 예외의 sentinel (16.4 IN-02).
+///
+/// `Exception` 계열을 고른 이유: 첫 번째 축(provider 생성 실패) 은 riverpod
+/// 재시도 Timer 회피 때문에 `Error` 로 고정돼 있어 `Exception` 계열이 통째로
+/// 미검증으로 남아 있었다. 이 축은 provider **생성**이 아니라 이미 만들어진
+/// repository 의 메서드 호출이라 재시도 정책과 무관하므로, 여기서 `Exception`
+/// 을 쓰면 pending Timer 없이 그 공백을 덮을 수 있다.
+final class _RepoThrowSentinel implements Exception {
+  const _RepoThrowSentinel();
+
+  @override
+  String toString() => 'IN-02 sentinel: repository 호출이 비동기로 throw';
+}
 
 /// 소셜 notifier 1개를 provider-agnostic 하게 호출하기 위한 표 1행.
 ///
@@ -51,6 +69,7 @@ final class _NotifierCase {
     required this.providerId,
     required this.signIn,
     required this.readState,
+    required this.stubAsyncThrow,
   });
 
   /// 도메인 provider 슬러그 ([kAllProviderIds] 의 원소).
@@ -61,6 +80,10 @@ final class _NotifierCase {
 
   /// 해당 notifier 의 현재 state 를 읽는다.
   final AsyncValue<void> Function(ProviderContainer container) readState;
+
+  /// 이 notifier 가 호출하는 repository 메서드를 「비동기 throw」 로 stub 한다
+  /// (16.4 IN-02 — 두 번째 축).
+  final void Function(AuthRepository repo) stubAsyncThrow;
 }
 
 /// 7 소셜 notifier 표 — 순서는 진실원 [kAllProviderIds] 와 같다.
@@ -70,42 +93,63 @@ final List<_NotifierCase> _cases = <_NotifierCase>[
     signIn: (container) =>
         container.read(googleSignInProvider.notifier).signInWithGoogle(),
     readState: (container) => container.read(googleSignInProvider),
+    stubAsyncThrow: (repo) => when(
+      () => repo.signInWithGoogle(),
+    ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
   ),
   _NotifierCase(
     providerId: kProviderIdApple,
     signIn: (container) =>
         container.read(appleSignInProvider.notifier).signInWithApple(),
     readState: (container) => container.read(appleSignInProvider),
+    stubAsyncThrow: (repo) => when(
+      () => repo.signInWithApple(),
+    ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
   ),
   _NotifierCase(
     providerId: kProviderIdFacebook,
     signIn: (container) =>
         container.read(facebookSignInProvider.notifier).signInWithFacebook(),
     readState: (container) => container.read(facebookSignInProvider),
+    stubAsyncThrow: (repo) => when(
+      () => repo.signInWithFacebook(),
+    ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
   ),
   _NotifierCase(
     providerId: kProviderIdKakao,
     signIn: (container) =>
         container.read(kakaoSignInProvider.notifier).signInWithKakao(),
     readState: (container) => container.read(kakaoSignInProvider),
+    stubAsyncThrow: (repo) => when(
+      () => repo.signInWithKakao(),
+    ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
   ),
   _NotifierCase(
     providerId: kProviderIdNaver,
     signIn: (container) =>
         container.read(naverSignInProvider.notifier).signInWithNaver(),
     readState: (container) => container.read(naverSignInProvider),
+    stubAsyncThrow: (repo) => when(
+      () => repo.signInWithNaver(),
+    ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
   ),
   _NotifierCase(
     providerId: kProviderIdLine,
     signIn: (container) =>
         container.read(lineSignInProvider.notifier).signInWithLine(),
     readState: (container) => container.read(lineSignInProvider),
+    stubAsyncThrow: (repo) => when(
+      () => repo.signInWithLine(),
+    ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
   ),
   _NotifierCase(
     providerId: kProviderIdYahooJp,
     signIn: (container) =>
         container.read(yahoojpSignInProvider.notifier).signInWithYahoojp(),
     readState: (container) => container.read(yahoojpSignInProvider),
+    stubAsyncThrow: (repo) => when(
+      () => repo.signInWithYahoojp(),
+    ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
   ),
 ];
 
@@ -138,6 +182,18 @@ void main() {
               throw StateError('IN-06 sentinel: authRepositoryProvider 생성 실패'),
         ),
       ],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
+
+  /// repository 는 정상 생성되지만 **메서드 호출이 비동기로 throw** 하는
+  /// container 를 만든다 (16.4 code review IN-02 — 두 번째 축).
+  ProviderContainer makeThrowingRepoContainer(_NotifierCase testCase) {
+    final repo = _MockAuthRepository();
+    testCase.stubAsyncThrow(repo);
+    final container = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWithValue(repo)],
     );
     addTearDown(container.dispose);
     return container;
@@ -184,6 +240,36 @@ void main() {
             isA<StateError>(),
           ),
         );
+      });
+    }
+
+    // 16.4 code review IN-02 — docstring 이 주장하는 범위는 두 축
+    // (「ref.read 가 동기 throw」 **또는** 「repository 호출이 예외를 흘린다」)
+    // 인데 위 축 하나만 덮여 있었다. 게다가 그 축은 재시도 Timer 회피 때문에
+    // `Error` 서브타입에 한정돼 `Exception` 계열도 함께 비어 있었다. 이 축이
+    // 두 공백을 동시에 메운다 — 비동기 throw + `Exception` 계열.
+    for (final testCase in _cases) {
+      test('[${testCase.providerId}] repository 호출이 비동기 throw → 예외를 '
+          '밖으로 던지지 않고 AsyncError 로 전환된다 (IN-02 · WR-03)', () async {
+        final container = makeThrowingRepoContainer(testCase);
+
+        await expectLater(
+          testCase.signIn(container),
+          completes,
+          reason: 'await 이후 경로에서도 전파 금지 계약은 같다 (WR-03)',
+        );
+
+        final state = testCase.readState(container);
+        expect(
+          state.isLoading,
+          isFalse,
+          reason:
+              'AsyncLoading 누수 = AuthInProgressOverlay AbsorbPointer 영구 차단 (IN-06)',
+        );
+        expect(state, isA<AsyncError<void>>());
+        // payload 는 래퍼 없이 우리가 던진 그 객체다 — `Result.failure` 경로와
+        // 달리 `AppException` 이 아니다 (IN-05 가 docstring 에 기록한 확장).
+        expect(state.error, isA<_RepoThrowSentinel>());
       });
     }
   });

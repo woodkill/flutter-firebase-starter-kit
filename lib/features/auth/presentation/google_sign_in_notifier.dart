@@ -47,6 +47,9 @@ class GoogleSignInNotifier extends _$GoogleSignInNotifier {
   /// AbsorbPointer 가 화면을 영구히 덮는 일도 없다. 이 가드 역시 7 provider 가
   /// 문자 단위로 동일하다 — 회귀 가드는
   /// `social_sign_in_notifier_loading_guard_test.dart`.
+  /// 그 회귀 가드가 덮는 범위는 **두 축 모두**다 — provider 생성 시의 동기
+  /// `Error` throw 와, repository 메서드 호출의 비동기 `Exception` throw
+  /// (16.4 code review IN-02 — 종전에는 앞 축 하나뿐이었다).
   Future<void> signInWithGoogle() async {
     state = const AsyncLoading<void>();
     try {
