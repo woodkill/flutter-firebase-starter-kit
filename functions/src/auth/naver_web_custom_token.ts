@@ -203,13 +203,27 @@ async function exchangeNaverAuthCode(args: {
  *
  * token 교환과 같은 endpoint 에 grant_type=delete + service_provider=NAVER 를
  * 포함한 5 파라미터를 보낸다 (Pitfall 5 — 누락 시 무응답). 실패는 경고 로그만
- * 남기고 로그인 결과를 바꾸지 않는다 — 응답 본문은 읽지 않는다.
+ * 남기고 로그인 결과를 바꾸지 않는다.
+ *
+ * 성공 판정 (WR-02 — 교환과 같은 Pitfall 4 대칭: 같은 endpoint 가 실패를
+ * HTTP 200 + 본문 error 로 돌려준다):
+ * - fetch reject (AbortError / network) → `{code: err.name}`
+ * - HTTP non-OK → `{status}`
+ * - JSON parse 실패 → `{code: err.name}` · 비객체 본문 → `{code:
+ *   "non_object_body"}`
+ * - 본문 `result !== "success"` → `{code: "error_body", error}` — error 는
+ *   {@link NAVER_ERROR_CODE_PATTERN} 화이트리스트 통과 시 원문, 아니면
+ *   "other". 성공 본문도 access_token 을 되돌려 주므로 본문 원문은 절대
+ *   로깅하지 않는다 (D-51).
+ *
+ * 위 어느 것에도 걸리지 않을 때만 성공이다 — `naver_web_revoke_failed` 부재 =
+ * NAVER 가 `result: "success"` 를 돌려줬다는 뜻이다.
  *
  * @param {string} accessToken 폐기할 NAVER access_token.
  * @return {Promise<void>} 성공 · 실패와 무관하게 resolve (never throws).
  */
 async function revokeNaverToken(accessToken: string): Promise<void> {
-  let failure: {status?: number; code?: string} | null = null;
+  let failure: {status?: number; code?: string; error?: string} | null = null;
   try {
     const resp = await fetch(NAVER_TOKEN_URL, {
       method: "POST",
@@ -223,7 +237,27 @@ async function revokeNaverToken(accessToken: string): Promise<void> {
       }),
       signal: AbortSignal.timeout(REVOKE_TIMEOUT_MS),
     });
-    if (!resp.ok) failure = {status: resp.status};
+    if (!resp.ok) {
+      failure = {status: resp.status};
+    } else {
+      // resp.json() reject 는 아래 catch 가 err.name fingerprint 로 받는다.
+      const parsed: unknown = await resp.json();
+      if (typeof parsed !== "object" || parsed === null) {
+        failure = {code: "non_object_body"};
+      } else {
+        const revokeBody = parsed as {result?: unknown; error?: unknown};
+        if (revokeBody.result !== "success") {
+          failure = {
+            code: "error_body",
+            error:
+              typeof revokeBody.error === "string" &&
+              NAVER_ERROR_CODE_PATTERN.test(revokeBody.error) ?
+                revokeBody.error :
+                "other",
+          };
+        }
+      }
+    }
   } catch (err: unknown) {
     // PII 금지 (D-51) — err.name 만.
     failure = {code: err instanceof Error ? err.name : "unknown"};
@@ -254,9 +288,9 @@ async function revokeNaverToken(accessToken: string): Promise<void> {
  *    (D-15). refresh_token 은 읽지도 저장하지도 로깅하지도 않는다.
  *
  * **PII 금지 (D-51):** logger payload 는 {event, uid, isNewUser, status?,
- * code?, error?(화이트리스트 NAVER error 코드)} 뿐. 토큰 응답 본문 ·
- * access/refresh token · client_secret · code · state 는 logger · HttpsError ·
- * 응답 어디에도 싣지 않는다. 응답은 {customToken, uid, isNewUser} 뿐이다.
+ * code?, error?(화이트리스트 NAVER error 코드 — 교환 · revoke 공통)} 뿐.
+ * 토큰 응답 본문 · access/refresh token · client_secret · code · state 는
+ * logger · HttpsError · 응답 어디에도 싣지 않는다. 응답은 {customToken, uid, isNewUser} 뿐이다.
  *
  * @param {{data: NaverWebCustomTokenRequest, auth?: {uid: string}}} request
  *     onCall request — data.code · data.state 의무, auth optional.

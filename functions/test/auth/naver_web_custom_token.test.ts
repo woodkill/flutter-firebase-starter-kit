@@ -4,7 +4,7 @@
  * 킷 소유 웹 경로의 서버 조각: authorization code → NAVER token 교환 →
  * 공용 helper(`verifyNaverProfileAndIssueCustomToken`) 위임 → finally revoke.
  * 셋업은 `naver_custom_token.test.ts` 의 mock 패턴(fetch · logger · params ·
- * admin) 을 미러한다. 케이스 마커 T-16.5-NAVER-WEB-CT-01~11.
+ * admin) 을 미러한다. 케이스 마커 T-16.5-NAVER-WEB-CT-01~13.
  *
  * 모든 jest.mock 호출은 hoist 되므로 src import 보다 먼저 정의되어야 한다
  * (firebase-functions-test 공식 권장 패턴).
@@ -498,6 +498,78 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
           event: "naver_web_revoke_failed",
           code: "TypeError",
         }),
+        expect.any(String),
+      );
+    },
+  );
+
+  // WR-02 (16.5 review) — revoke 도 교환과 같은 endpoint 라 실패가 HTTP 200 +
+  // 본문 error 로 온다 (Pitfall 4 대칭). 본문 판정이 없으면 경보 신호
+  // 「naver_web_revoke_failed」 가 구조적으로 뜨지 않는다.
+  describe("T-16.5-NAVER-WEB-CT-12: revoke 실패 판정 (본문 · status)", () => {
+    it.each([
+      [
+        "HTTP 200 + error=invalid_request",
+        200,
+        {error: "invalid_request", error_description: "bad request"},
+        {code: "error_body", error: "invalid_request"},
+      ],
+      [
+        "HTTP 200 + result 부재 · error 가 토큰 반사 (화이트리스트 밖)",
+        200,
+        {error: FAKE_ACCESS_TOKEN, access_token: FAKE_ACCESS_TOKEN},
+        {code: "error_body", error: "other"},
+      ],
+      ["HTTP 500", 500, {}, {status: 500}],
+    ])(
+      "T-16.5-NAVER-WEB-CT-12: %s → Custom Token 정상 반환 + revoke_failed warn",
+      async (_label, status, body, fingerprint) => {
+        mockTokenOk();
+        mockProfileOk("naver-web-12");
+        mockFetchJson(status, body);
+        mockIdxGet.mockResolvedValue({exists: false});
+        mockTxGet.mockResolvedValue({exists: false});
+
+        const result = (await callWeb({
+          auth: anonymousCallerAuth("anon-web-12"),
+          data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS},
+        })) as WebResult;
+
+        expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(warnMock).toHaveBeenCalledWith(
+          {event: "naver_web_revoke_failed", ...fingerprint},
+          expect.any(String),
+        );
+        // 본문이 access_token 을 되돌려 줘도 로그에는 실리지 않는다 (D-51).
+        expect(allLoggerArgsJson()).not.toContain(FAKE_ACCESS_TOKEN);
+      },
+    );
+  });
+
+  it(
+    "T-16.5-NAVER-WEB-CT-13: revoke 응답 JSON parse 실패 → err.name fingerprint",
+    async () => {
+      mockTokenOk();
+      mockProfileOk("naver-web-13");
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError("Unexpected token <");
+        },
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const result = (await callWeb({
+        auth: anonymousCallerAuth("anon-web-13"),
+        data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS},
+      })) as WebResult;
+
+      expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
+      expect(warnMock).toHaveBeenCalledWith(
+        {event: "naver_web_revoke_failed", code: "SyntaxError"},
         expect.any(String),
       );
     },

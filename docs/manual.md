@@ -902,8 +902,13 @@ firebase deploy --only functions:naverCustomToken,functions:naverWebCustomToken
   region = `asia-northeast3` + "활성" 상태
 - 웹 경로 서버 로그는 `naver_web_*` 이벤트 4종(`naver_web_custom_token_issued` ·
   `naver_web_token_exchange_failed` · `naver_web_token_error_response` ·
-  `naver_web_revoke_failed`)으로 1-tap 로그와 이름 공간이 나뉩니다. 로그인이 성공했는데
-  `naver_web_revoke_failed` 가 없으면 revoke 도 성공한 것입니다.
+  `naver_web_revoke_failed`)으로 1-tap 로그와 이름 공간이 나뉩니다.
+- revoke 판정은 HTTP status 와 응답 본문 `result` 를 함께 봅니다. NAVER 는 같은
+  endpoint 에서 실패를 HTTP 200 + 본문 `error` 로도 돌려주기 때문입니다. 그래서
+  로그인이 성공했는데 `naver_web_revoke_failed` 가 없으면 NAVER 가
+  `result: "success"` 를 돌려준 것입니다. 경고가 있으면 필드로 원인을 가립니다 —
+  `status`(HTTP non-OK) · `code`(`error_body` = 200 + 본문 오류, `TimeoutError` =
+  2s 초과, 그 외 `err.name`) · `error`(NAVER 오류 코드, 형식 밖이면 `other`).
 
 ### 11단계 — dev flavor 실 단말 검증
 
