@@ -11,7 +11,18 @@
 // 잠그는 invariant: `state = AsyncLoading` 직후의 `ref.read(authRepositoryProvider)`
 // 가 동기 throw 하면(provider 생성 실패) state 가 영구 AsyncLoading 에 남아
 // AuthInProgressOverlay 의 AbsorbPointer 가 화면을 덮은 채 앱 재시작 외
-// 탈출구가 없다. guard 는 state 를 AsyncError 로 되돌리고 예외는 rethrow 한다.
+// 탈출구가 없다. guard 는 state 를 AsyncError 로 되돌린 뒤 **예외를 밖으로
+// 전파하지 않고 종료한다**.
+//
+// **계약이 뒤집힌 이력 (16.4 code review WR-03):** 이 파일의 최초 판
+// (`f8908659`) 은 「state 복구 + rethrow」 를 계약으로 잠갔다. 그런데 호출부
+// `social_button.dart` 가 반환 Future 를 버리므로(fire-and-forget) rethrow 된
+// 예외는 아무도 받지 않는 unhandled error 가 되어 zone 으로 올라갔고,
+// `bootstrap.dart` 가 그것을 Crashlytics 에 `fatal: true` 로 기록했다 — 같은
+// 한 번의 실패가 「배너로 복구 안내」 와 「치명적으로 죽었다」 두 형태로
+// 동시에 보고되는 모순이다. 그래서 계약을 「예외를 밖으로 던지지 않고 정상
+// 완료하며, state 만 AsyncError 가 된다」 로 재정의했다. 로그는 잃지 않는다 —
+// 각 notifier 가 `kDebugMode` 아래에서 예외 **타입만** 찍는다 (PII 표면 0).
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ProviderException 은 메인 라이브러리의 show 목록에 없고 misc.dart 가 export
@@ -131,25 +142,21 @@ void main() {
     });
 
     for (final testCase in _cases) {
-      test('[${testCase.providerId}] ref.read 동기 throw → AsyncError 로 '
-          '전환되고 예외는 rethrow 된다 (IN-06)', () async {
+      test('[${testCase.providerId}] ref.read 동기 throw → 예외를 밖으로 던지지 '
+          '않고 AsyncError 로 전환된다 (IN-06 · WR-03)', () async {
         final container = makeContainer();
 
-        // 1) rethrow 계약 — notifier 가 받는 것은 `Ref.read` 가 감싼
-        //    ProviderException 이고 `.exception` 이 위 StateError 다
-        //    (ref.dart:537 → provider_container.dart:916-920 →
-        //    stack_trace.dart:9). 이 단언을 먼저 두어, guard 가 없는 상태에서도
-        //    「rethrow 는 원래 되고 있었고 새는 것은 state 뿐」 이 로그에
-        //    드러나게 한다.
+        // 1) **전파 금지 계약 (16.4 code review WR-03 — 계약 반전).**
+        //    종전에는 이 자리에 `throwsA(isA<ProviderException>()…)` 가 있어
+        //    「예외는 밖으로 나간다」 를 의도된 계약으로 잠갔다. 호출부가
+        //    Future 를 버리는 이 킷에서 그 전파는 곧 Crashlytics fatal 오보이므로
+        //    (파일 머리말 참조), 계약을 「정상 완료」 로 뒤집었다.
         await expectLater(
           testCase.signIn(container),
-          throwsA(
-            isA<ProviderException>().having(
-              (e) => e.exception,
-              'exception',
-              isA<StateError>(),
-            ),
-          ),
+          completes,
+          reason:
+              '예외가 밖으로 나가면 fire-and-forget Future 의 unhandled error 가 되어 '
+              'bootstrap 이 Crashlytics 에 fatal: true 로 오보한다 (WR-03)',
         );
 
         // 2) state 가 AsyncLoading 에 남지 않는다 — guard 가 잠그는 본체.

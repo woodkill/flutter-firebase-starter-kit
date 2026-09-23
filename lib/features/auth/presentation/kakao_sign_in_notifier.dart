@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/error/result.dart';
@@ -53,9 +54,13 @@ class KakaoSignInNotifier extends _$KakaoSignInNotifier {
   /// **AsyncLoading 누수 가드 (16.4 code review IN-06, quick 260923-cs5):**
   /// `ref.read(authRepositoryProvider)` 가 동기 throw 하거나(provider 생성
   /// 실패) repository 호출이 예외를 흘리면 `on Object catch` 가 state 를
-  /// [AsyncError] 로 되돌린 뒤 `rethrow` 한다. 예외는 여전히 호출자에게
-  /// 전파되지만, state 가 [AsyncLoading] 에 머물러 AuthInProgressOverlay 의
-  /// AbsorbPointer 가 화면을 영구히 덮는 일은 없다. 이 가드 역시 7 provider 가
+  /// [AsyncError] 로 되돌린 뒤 **예외를 밖으로 전파하지 않고 종료한다**
+  /// (16.4 code review WR-03). 호출부 `social_button.dart` 가 반환 Future 를
+  /// 버리므로, `rethrow` 하면 복구된 실패가 unhandled error 로 zone 에 올라가
+  /// bootstrap 이 Crashlytics 에 `fatal: true` 로 기록한다 — 「배너로
+  /// 복구했다」 와 「치명적으로 죽었다」 가 동시에 보고되는 모순이다.
+  /// state 가 [AsyncLoading] 에 머물러 AuthInProgressOverlay 의
+  /// AbsorbPointer 가 화면을 영구히 덮는 일도 없다. 이 가드 역시 7 provider 가
   /// 문자 단위로 동일하다 — 회귀 가드는
   /// `social_sign_in_notifier_loading_guard_test.dart`.
   Future<void> signInWithKakao() async {
@@ -78,7 +83,16 @@ class KakaoSignInNotifier extends _$KakaoSignInNotifier {
       };
     } on Object catch (e, st) {
       if (ref.mounted) state = AsyncError<void>(e, st);
-      rethrow;
+      // 배너로 복구했으므로 fatal 이 아니다 — rethrow 하면 fire-and-forget
+      // Future(`social_button.dart` 가 반환값을 버린다) 의 unhandled error 가
+      // 되어 bootstrap 이 Crashlytics 에 `fatal: true` 로 올린다
+      // (16.4 code review WR-03).
+      // PII 표면 0 — 예외 메시지에는 이메일 · 토큰이 실릴 수 있으므로
+      // `e.toString()` 이 아니라 **타입만** 찍는다.
+      if (kDebugMode) {
+        debugPrint('$runtimeType: ${e.runtimeType}');
+      }
+      return;
     }
   }
 }
