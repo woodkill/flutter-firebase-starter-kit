@@ -80,10 +80,21 @@ class NaverCustomTabProbe {
     }
   }
 
-  /// 채널 부재 · 호스트 오류를 진단 로그로만 남긴다 (`kDebugMode` · 타입만).
+  /// 계수 조회 실패를 진단 로그로만 남긴다 (`kDebugMode` · 타입만).
+  ///
+  /// **접두어는 사유를 단정하지 않는다 (16.4 code review IN-03).** `on Object`
+  /// 가 흡수하는 사유는 셋인데 — 채널 부재(`MissingPluginException`, 미등록이
+  /// 맞다) · 호스트가 오류로 응답(`PlatformException`, 등록돼 있고 실패한
+  /// 것) · 호스트 반환 타입 불일치(cast `TypeError`, 등록돼 있고 계약이 깨진
+  /// 것) — 뒤 둘은 「미등록」 이 아니다. 구분자는 이미 `runtimeType` 이 싣고
+  /// 있으므로 접두어는 사유 중립으로 둔다. 이 킷은 로그 접두어를 logcat grep
+  /// 앵커로 문서화해 쓰므로(`docs/manual.md` Pitfall 19 의 「네 접두어」
+  /// 규약), 접두어가 사유를 잘못 말하면 진단 비용이 그대로 늘어난다.
   void _logUnavailable(Object error) {
     if (kDebugMode) {
-      debugPrint('Naver customTab probe 미등록: ${error.runtimeType}');
+      debugPrint(
+        'Naver customTab probe 계수 조회 실패(0 으로 접음): ${error.runtimeType}',
+      );
     }
   }
 }
