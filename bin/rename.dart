@@ -269,15 +269,25 @@ void _collectKotlinChanges(
     ),
   );
 
-  // MainActivity.kt package 선언 변경
-  final mainActivity = File('$currentDir/MainActivity.kt');
-  if (mainActivity.existsSync()) {
-    final newAndroidPackage = '$newOrg.$newName';
+  // 패키지 디렉토리 안의 모든 .kt 파일 package 선언 변경.
+  // MainActivity.kt 만 바꾸면 같은 패키지의 다른 Kotlin 파일(Phase 16.5
+  // NaverHostChannel.kt 등)이 옛 package 에 남아 MainActivity 의 참조가
+  // unresolved 로 컴파일이 깨진다.
+  final newAndroidPackage = '$newOrg.$newName';
+  final kotlinFiles =
+      Directory(currentDir)
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.kt'))
+          .map((file) => file.uri.pathSegments.last)
+          .toList()
+        ..sort();
+  for (final fileName in kotlinFiles) {
     changes.add(
       FileChange(
-        filePath: '$newDir/MainActivity.kt',
+        filePath: '$newDir/$fileName',
         type: ChangeType.replace,
-        description: 'Kotlin package declaration',
+        description: 'Kotlin package declaration ($fileName)',
         oldValue: 'package $currentAndroidPackage',
         newValue: 'package $newAndroidPackage',
       ),

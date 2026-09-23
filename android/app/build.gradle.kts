@@ -87,6 +87,18 @@ android {
         // intent hijack 위험 (T-15-02). dart-define 미주입 시 빈 문자열 →
         // 첫 signInWithYahoojp 호출 시점에 즉시 발견 가능.
         manifestPlaceholders["appAuthRedirectScheme"] = dartDefines["yahoojpRedirectScheme"] ?: ""
+
+        // Naver 킷 소유 웹 OAuth 콜백 scheme (Phase 16.5 D-09 · probe ② A).
+        //
+        // Dart `AppConfig.naverWebCallbackScheme` 과 같은 식 — 둘 다 config json 의
+        // 기존 naverUrlScheme 키를 읽는다(새 키 0). AndroidManifest.xml 의
+        // flutter_web_auth_2 CallbackActivity intent-filter 가 이 값을 scheme 으로 쓴다.
+        // Android intent-filter 는 scheme 대소문자를 구분하므로 RFC 3986 소문자
+        // 값이어야 한다(Dart 가 같은 규칙으로 검사한다). 이 값은 secret 이 아니다 —
+        // client_id · client_secret 은 위 resValue 경로를 유지한다.
+        // dart-define 미주입 시 빈 문자열 → 첫 Naver 웹 로그인 시도에서 Dart 가
+        // ServiceUnavailable 로 즉시 알린다 (silent failure 아님).
+        manifestPlaceholders["naverWebCallbackScheme"] = dartDefines["naverUrlScheme"] ?: ""
     }
 
     flavorDimensions += "environment"
@@ -110,6 +122,14 @@ dependencies {
     // 명시적으로 추가한다. 이 의존성이 없으면 GenericIdpActivity가
     // 전체 Chrome 브라우저로 fallback하여 인증 후 자동 닫힘이 안 된다.
     implementation("androidx.browser:browser:1.8.0")
+
+    // Phase 16.5 D-03 · D-23 — NaverHostChannel.kt 가 SDK 의 설치 판정
+    // (NidApplicationUtil.isExistNaverApp) 을 호출하려면 컴파일 classpath 에
+    // SDK 가 있어야 한다. naver_login_flutter 플러그인이 같은 좌표를
+    // implementation 으로 선언해 앱 모듈에는 노출되지 않으므로 compileOnly 로
+    // 같은 좌표 · 같은 버전을 선언한다(런타임 AAR 은 플러그인이 공급 — 새 의존성 0).
+    // 플러그인을 올려 SDK 버전이 바뀌면 T-16.5-NATIVE-07 이 이 줄의 갱신을 요구한다.
+    compileOnly("com.navercorp.nid:oauth:5.11.2")
 }
 
 flutter {

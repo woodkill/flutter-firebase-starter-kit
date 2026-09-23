@@ -75,6 +75,27 @@
             android:name="com.naver.sdk.logEnabled"
             android:value="false" />
 
+        <!-- Phase 16.5 D-07 · D-09 — 킷 소유 웹 OAuth 콜백 (NAVER 앱 미설치 경로).
+             flutter_web_auth_2 README 의 Android 설정 그대로다. 콜백 scheme 은
+             build.gradle.kts 의 manifest placeholder 가 flavor 별 config json 에서
+             공급한다 (Dart 쪽 콜백 scheme 상수와 같은 값). 웹 인증 세션 Activity
+             자체는 패키지 manifest 가 스스로 병합하므로 앱 측에는 콜백 수신
+             Activity 하나만 둔다. NAVER 앱 패키지 가시성은 위 Naver 블록 설명대로
+             SDK AAR 이 병합하므로 queries 에 중복하지 않는다.
+
+             이 주석에 XML 속성 리터럴을 쓰지 않는 이유는 위 Naver 블록과 같다. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${naverWebCallbackScheme}" />
+            </intent-filter>
+        </activity>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

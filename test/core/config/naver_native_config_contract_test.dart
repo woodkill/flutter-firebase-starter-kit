@@ -8,11 +8,19 @@
 // `ios/Flutter/{flavor}.xcconfig`)은 열지 않으므로 fresh clone · CI 에서도
 // 결과가 같다. 주석을 걷어낸 뒤 세는 이유는 설명 주석이 감사용 grep 카운트를
 // 오염시키기 때문이다 (AndroidManifest.xml 이 같은 규칙을 명문화하고 있다).
+//
+// **유일한 예외 — `T-16.5-NATIVE-01`:** Phase 16.5 부터 `naverClientId` 가 Dart
+// (dart-define) 와 iOS(xcconfig) 두 곳에서 읽히므로 두 gitignored 실 키 파일의
+// 값 일치를 비교한다. 두 파일이 모두 있을 때만 비교하고(없으면 skip), 값은 실패
+// 메시지에도 싣지 않는다 — bool 비교 결과만 단언한다.
 
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:flutter_starter_kit/features/auth/data/naver_host_channel.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_web_auth_client.dart';
 
 import '../../helpers/source_text.dart';
 
@@ -86,12 +94,22 @@ void main() {
               'D-06: Android 동의 화면 앱 이름은 기존 appName 키를 재사용한다 — '
               '전용 키를 새로 만들지 말 것.',
         );
+        // Phase 16.5 D-09: 콜백 scheme(`naverWebCallbackScheme`) 은 secret 이
+        // 아니고 intent-filter 가 리터럴로 요구하므로 placeholder 가 정답이다.
+        // 금지 대상은 client 자격 값(`naverClient*`) 으로 좁힌다.
         expect(
-          countOccurrences(gradle, 'manifestPlaceholders["naver'),
+          countOccurrences(gradle, 'manifestPlaceholders["naverClient'),
           0,
           reason:
               'D-01: Naver 키는 resValue + @string 참조로만 주입한다 — '
               'manifestPlaceholders 경로는 금지다 (평문이 manifest 에 박힌다).',
+        );
+        expect(
+          countOccurrences(gradle, 'manifestPlaceholders["naver'),
+          1,
+          reason:
+              'Phase 16.5 D-09: Naver placeholder 는 웹 콜백 scheme 1건뿐이어야 '
+              '한다 — 그 밖의 Naver 값을 placeholder 로 옮기지 말 것.',
         );
       },
     );
@@ -335,4 +353,341 @@ void main() {
       );
     });
   });
+
+  group('Phase 16.5 웹 경로 계약 (T-16.5-NATIVE)', () {
+    const String kotlinDir =
+        'android/app/src/main/kotlin/com/slimpumpkin/flutter_starter_kit';
+
+    test('T-16.5-NATIVE-01 client_id · scheme — config json ↔ xcconfig 일치', () {
+      // tracked example 은 항상 검사한다 — placeholder 가 비어 있지 않은지만.
+      final exampleJson =
+          jsonDecode(readTrackedFile('config/dev.example.json'))
+              as Map<String, dynamic>;
+      expect(
+        (exampleJson['naverClientId'] as String?) ?? '',
+        isNotEmpty,
+        reason:
+            'G-4: config/dev.example.json 의 naverClientId placeholder 가 '
+            '비어 있다 — 채택자가 채울 자리를 지우지 말 것.',
+      );
+      final exampleXcconfig = stripSlashComments(
+        readTrackedFile('ios/Flutter/dev.example.xcconfig'),
+      );
+      expect(
+        _readXcconfigValue(exampleXcconfig, 'NAVER_CLIENT_ID'),
+        isNotEmpty,
+        reason:
+            'G-4: ios/Flutter/dev.example.xcconfig 의 NAVER_CLIENT_ID '
+            'placeholder 가 비어 있다.',
+      );
+
+      // 실 키 파일(gitignored) 은 둘 다 있을 때만 값을 비교한다.
+      final jsonFile = File('config/dev.json');
+      final xcconfigFile = File('ios/Flutter/dev.xcconfig');
+      if (!jsonFile.existsSync() || !xcconfigFile.existsSync()) {
+        markTestSkipped(
+          'gitignored 실 키 파일 부재 — config/dev.json · '
+          'ios/Flutter/dev.xcconfig 가 모두 있어야 값을 비교한다. '
+          'fresh clone / CI 에서는 정상.',
+        );
+        return;
+      }
+      final json =
+          jsonDecode(jsonFile.readAsStringSync()) as Map<String, dynamic>;
+      final xcconfig = stripSlashComments(xcconfigFile.readAsStringSync());
+
+      // 값은 실패 메시지에 싣지 않는다 — 비교 결과 bool 만 단언한다.
+      final jsonClientId = (json['naverClientId'] as String?) ?? '';
+      final xcClientId = _readXcconfigValue(xcconfig, 'NAVER_CLIENT_ID');
+      expect(
+        jsonClientId.isNotEmpty,
+        isTrue,
+        reason: 'G-4: config/dev.json 의 naverClientId 가 비어 있다.',
+      );
+      expect(
+        jsonClientId == xcClientId,
+        isTrue,
+        reason:
+            'G-4: config/dev.json naverClientId 와 ios/Flutter/dev.xcconfig '
+            'NAVER_CLIENT_ID 가 다르다 — Dart 웹 경로(dart-define) 와 iOS SDK '
+            '1-tap 경로(xcconfig) 가 서로 다른 앱으로 인증하게 된다.',
+      );
+
+      final jsonScheme = (json['naverUrlScheme'] as String?) ?? '';
+      final xcScheme = _readXcconfigValue(xcconfig, 'NAVER_URL_SCHEME');
+      expect(
+        jsonScheme == xcScheme,
+        isTrue,
+        reason:
+            'probe ③: config/dev.json naverUrlScheme 과 ios/Flutter/dev.xcconfig '
+            'NAVER_URL_SCHEME 이 다르다 — 웹 콜백 scheme 과 iOS URL Scheme 이 '
+            '어긋난다.',
+      );
+      expect(
+        kNaverWebCallbackSchemePattern.hasMatch(jsonScheme),
+        isTrue,
+        reason:
+            'D-09: config/dev.json naverUrlScheme 이 RFC 3986 소문자 scheme '
+            '형태가 아니다 — Android intent-filter 가 콜백을 받지 못한다.',
+      );
+    });
+
+    test('T-16.5-NATIVE-02 호스트 채널 — Kotlin CHANNEL == Dart 상수', () {
+      final kotlin = stripBlockComments(
+        stripSlashComments(readTrackedFile('$kotlinDir/NaverHostChannel.kt')),
+      );
+
+      final match = RegExp(r'const val CHANNEL = "([^"]+)"').firstMatch(kotlin);
+      expect(
+        match,
+        isNotNull,
+        reason: 'D-23: NaverHostChannel.kt 에서 CHANNEL 상수를 찾을 수 없다.',
+      );
+      expect(
+        match!.group(1),
+        kNaverHostChannelName,
+        reason:
+            'D-23: Kotlin CHANNEL 과 Dart kNaverHostChannelName 이 다르면 '
+            '설치 판정이 MissingPluginException → 항상 false(웹) 로 조용히 접힌다.',
+      );
+      expect(
+        countOccurrences(kotlin, '"$kNaverHostMethodIsInstalled"'),
+        1,
+        reason:
+            'D-23: Kotlin when 분기의 메서드 이름이 Dart '
+            'kNaverHostMethodIsInstalled 와 같은 문자열 1건이어야 한다.',
+      );
+      expect(
+        countOccurrences(kotlin, 'NidApplicationUtil.isExistNaverApp('),
+        1,
+        reason:
+            'D-03: 판정은 SDK 자신의 기준(NidApplicationUtil) 에 위임한다 — '
+            '킷 자체 패키지 조회로 바꾸지 말 것.',
+      );
+
+      final dart = stripSlashComments(
+        readTrackedFile('lib/features/auth/data/naver_host_channel.dart'),
+      );
+      expect(
+        countOccurrences(dart, "'$kNaverHostChannelName'"),
+        1,
+        reason: 'D-23: Dart 쪽 채널 이름 리터럴이 정확히 1건이어야 한다.',
+      );
+      expect(
+        countOccurrences(dart, "'$kNaverHostMethodIsInstalled'"),
+        1,
+        reason: 'D-23: Dart 쪽 메서드 이름 리터럴이 정확히 1건이어야 한다.',
+      );
+    });
+
+    test('T-16.5-NATIVE-03 MainActivity — 채널 등록 1 · 해제 1', () {
+      final kotlin = stripBlockComments(
+        stripSlashComments(readTrackedFile('$kotlinDir/MainActivity.kt')),
+      );
+
+      expect(
+        countOccurrences(
+          kotlin,
+          'class MainActivity : FlutterFragmentActivity()',
+        ),
+        1,
+        reason:
+            'Phase 13 Pitfall 10: MainActivity 는 FlutterFragmentActivity 를 '
+            '유지해야 한다 (Naver SDK Fragment BottomSheet).',
+      );
+      expect(
+        countOccurrences(
+          kotlin,
+          '.attach(flutterEngine.dartExecutor.binaryMessenger)',
+        ),
+        1,
+        reason: 'D-23: configureFlutterEngine 에서 호스트 채널 등록 1건.',
+      );
+      expect(
+        countOccurrences(kotlin, '.detach()'),
+        1,
+        reason:
+            'D-23 · 16.4 IN-04: cleanUpFlutterEngine 에서 호스트 채널 해제 1건 — '
+            '엔진 해제 뒤 핸들러가 남지 않게 한다.',
+      );
+    });
+
+    test('T-16.5-NATIVE-04 manifest — CallbackActivity intent-filter', () {
+      final manifest = stripXmlComments(
+        readTrackedFile('android/app/src/main/AndroidManifest.xml'),
+      );
+
+      // 양성 대조군 — 같은 정규식 방식이 Kakao 블록을 잡는다.
+      expect(
+        RegExp(
+          r'<activity\s+android:name="com\.kakao\.sdk\.flutter\.auth\.'
+          r'AuthCodeHandlerActivity"',
+        ).hasMatch(manifest),
+        isTrue,
+        reason: '양성 대조군: Kakao 콜백 Activity 선언을 정규식이 잡지 못한다.',
+      );
+
+      final block = RegExp(
+        r'<activity\s+'
+        r'android:name="com\.linusu\.flutter_web_auth_2\.CallbackActivity"\s+'
+        r'android:exported="true"\s+'
+        r'android:taskAffinity=""\s*>\s*'
+        r'<intent-filter\s+android:label="flutter_web_auth_2"\s*>\s*'
+        r'<action\s+android:name="android\.intent\.action\.VIEW"\s*/>\s*'
+        r'<category\s+android:name="android\.intent\.category\.DEFAULT"\s*/>\s*'
+        r'<category\s+android:name="android\.intent\.category\.BROWSABLE"\s*/>\s*'
+        r'<data\s+android:scheme="\$\{naverWebCallbackScheme\}"\s*/>\s*'
+        r'</intent-filter>\s*</activity>',
+      );
+      expect(
+        block.allMatches(manifest).length,
+        1,
+        reason:
+            'D-09: flutter_web_auth_2 README 그대로의 CallbackActivity 블록이 '
+            '정확히 1건이어야 한다 (exported · taskAffinity · placeholder scheme).',
+      );
+      expect(
+        countOccurrences(manifest, 'com.nhn.android.search'),
+        0,
+        reason:
+            'Phase 16.2 D-07: NAVER 앱 패키지 가시성은 SDK AAR 이 병합한다 — '
+            'queries 에 중복 선언하지 말 것.',
+      );
+    });
+
+    test('T-16.5-NATIVE-05 gradle placeholder — Dart 와 같은 config 키', () {
+      final gradle = stripSlashComments(
+        readTrackedFile('android/app/build.gradle.kts'),
+      );
+      expect(
+        countOccurrences(
+          gradle,
+          'manifestPlaceholders["naverWebCallbackScheme"] = '
+          'dartDefines["naverUrlScheme"] ?: ""',
+        ),
+        1,
+        reason:
+            'probe ③ A: gradle placeholder 는 config json 의 naverUrlScheme 을 '
+            '그대로 공급하는 1줄이어야 한다.',
+      );
+
+      final appConfig = stripSlashComments(
+        readTrackedFile('lib/core/config/app_config.dart'),
+      );
+      // dart format 이 인자를 줄바꿈할 수 있어 공백 무관 정규식으로 센다.
+      expect(
+        RegExp(
+          r'naverWebCallbackScheme\s*=\s*String\.fromEnvironment\(\s*'
+          r"'naverUrlScheme',?\s*\)",
+        ).allMatches(appConfig).length,
+        1,
+        reason:
+            'probe ③ A: Dart AppConfig.naverWebCallbackScheme 도 같은 '
+            'naverUrlScheme 키를 읽어야 한다 — 둘이 어긋나면 콜백 map 키가 '
+            '달라 세션이 끝나지 않는다.',
+      );
+    });
+
+    test('T-16.5-NATIVE-07 SDK compileOnly — 플러그인과 같은 좌표 · 버전', () {
+      final gradle = stripSlashComments(
+        readTrackedFile('android/app/build.gradle.kts'),
+      );
+      final sdkPattern = RegExp(r'"com\.navercorp\.nid:oauth:([^"]+)"');
+
+      final appMatches = RegExp(
+        r'compileOnly\("com\.navercorp\.nid:oauth:([^"]+)"\)',
+      ).allMatches(gradle).toList();
+      expect(
+        appMatches.length,
+        1,
+        reason:
+            'D-23: 앱 gradle 에 NAVER SDK compileOnly 선언이 정확히 1건이어야 '
+            '한다 — 없으면 NaverHostChannel.kt 가 컴파일되지 않는다.',
+      );
+      expect(
+        RegExp(r'implementation\("com\.navercorp\.nid:oauth:').hasMatch(gradle),
+        isFalse,
+        reason:
+            'D-23: 앱은 SDK 를 implementation 으로 선언하지 않는다 — 런타임 '
+            'AAR 은 플러그인이 공급한다 (버전 이중 관리 금지).',
+      );
+
+      // 플러그인이 선언한 SDK 버전 — pub 이 해석한 패키지 루트에서 읽는다.
+      final packageConfig =
+          jsonDecode(File('.dart_tool/package_config.json').readAsStringSync())
+              as Map<String, dynamic>;
+      final packages = (packageConfig['packages'] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+      final plugin = packages.firstWhere(
+        (p) => p['name'] == 'naver_login_flutter',
+        orElse: () => <String, dynamic>{},
+      );
+      expect(
+        plugin,
+        isNotEmpty,
+        reason: 'package_config.json 에서 naver_login_flutter 를 찾을 수 없다.',
+      );
+      // rootUri 는 끝 `/` 가 없다 — 붙이지 않으면 resolve 가 마지막 segment
+      // (패키지 디렉토리)를 대체한다.
+      final rawRoot = plugin['rootUri'] as String;
+      final rootUri = Uri.parse(rawRoot.endsWith('/') ? rawRoot : '$rawRoot/');
+      final root = rootUri.isAbsolute
+          ? rootUri
+          : Directory('.dart_tool').absolute.uri.resolveUri(rootUri);
+      final pluginGradle = File.fromUri(root.resolve('android/build.gradle'));
+      expect(
+        pluginGradle.existsSync(),
+        isTrue,
+        reason: '플러그인 android/build.gradle 을 찾을 수 없다: ${root.path}',
+      );
+      final pluginMatch = sdkPattern.firstMatch(
+        pluginGradle.readAsStringSync(),
+      );
+      expect(
+        pluginMatch,
+        isNotNull,
+        reason: '플러그인 gradle 에서 NAVER SDK 좌표를 찾을 수 없다.',
+      );
+      expect(
+        appMatches.single.group(1),
+        pluginMatch!.group(1),
+        reason:
+            'D-23: 앱의 compileOnly SDK 버전이 naver_login_flutter 가 링크하는 '
+            '버전과 다르다 — 앱 gradle 의 compileOnly 줄을 플러그인 버전으로 '
+            '갱신할 것.',
+      );
+    });
+
+    test('T-16.5-NATIVE-06 scheme 패턴 — RFC 3986 소문자', () {
+      // 양성 대조군 먼저.
+      for (final valid in const <String>[
+        'com.slimpumpkin.flutterstarterkit',
+        'probe-scheme',
+      ]) {
+        expect(
+          kNaverWebCallbackSchemePattern.hasMatch(valid),
+          isTrue,
+          reason: 'D-09: "$valid" 는 유효한 콜백 scheme 이다.',
+        );
+      }
+      for (final invalid in const <String>['Foo_bar', '1abc', '']) {
+        expect(
+          kNaverWebCallbackSchemePattern.hasMatch(invalid),
+          isFalse,
+          reason:
+              'D-09 · Pitfall 2: "$invalid" 는 RFC 3986 소문자 scheme 이 아니다 '
+              '— authenticate 가 ArgumentError 를 던지기 전에 막아야 한다.',
+        );
+      }
+    });
+  });
+}
+
+/// xcconfig 본문에서 `KEY = value` 줄의 값을 돌려준다 (없으면 빈 문자열).
+String _readXcconfigValue(String xcconfig, String key) {
+  final match = RegExp(
+    '^${RegExp.escape(key)}\\s*=\\s*(.*)\$',
+    multiLine: true,
+  ).firstMatch(xcconfig);
+  return match?.group(1)?.trim() ?? '';
 }

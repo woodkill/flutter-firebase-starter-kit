@@ -296,6 +296,36 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       );
       expect(kotlinReplace.newValue, contains('com.example.my_app'));
     });
+
+    test('같은 패키지의 모든 Kotlin 파일 package 선언을 변경한다', () {
+      // Phase 16.5 — MainActivity 가 참조하는 NaverHostChannel.kt 같은 동료
+      // 파일이 옛 package 에 남으면 rename 뒤 컴파일이 깨진다.
+      File(
+        '${tempDir.path}/android/app/src/main/kotlin/com/slimpumpkin/flutter_starter_kit/NaverHostChannel.kt',
+      ).writeAsStringSync(
+        'package com.slimpumpkin.flutter_starter_kit\n\n'
+        'class NaverHostChannel\n',
+      );
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final kotlinTargets =
+          changes
+              .where(
+                (c) =>
+                    c.filePath.endsWith('.kt') && c.type == ChangeType.replace,
+              )
+              .map((c) => c.filePath.split('/').last)
+              .toList()
+            ..sort();
+
+      expect(kotlinTargets, <String>['MainActivity.kt', 'NaverHostChannel.kt']);
+      for (final change in changes.where(
+        (c) => c.filePath.endsWith('.kt') && c.type == ChangeType.replace,
+      )) {
+        expect(change.filePath, contains('com/example/my_app'));
+        expect(change.newValue, 'package com.example.my_app');
+      }
+    });
   });
 
   group('dry-run 모드', () {
