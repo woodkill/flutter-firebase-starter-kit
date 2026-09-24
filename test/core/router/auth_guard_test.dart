@@ -173,6 +173,13 @@ void main() {
     ).thenAnswer((_) => Uri(path: mockState.matchedLocation));
   });
 
+  /// 실제 GoRouterState 처럼 matchedLocation 은 path 만, uri 는 query 포함.
+  void stubLocation(String location) {
+    final uri = Uri.parse(location);
+    when(() => mockState.matchedLocation).thenReturn(uri.path);
+    when(() => mockState.uri).thenReturn(uri);
+  }
+
   /// 기본 crashlytics mock — setCustomKey / recordError / setUserId 등
   /// 모든 메서드를 noop 으로 stub 하여 fail-safe 분기의 observability
   /// 호출 경로에서 throw 하지 않도록 한다 (Plan 10-14).
@@ -1025,13 +1032,6 @@ void main() {
       // 로그인 화면이 분기 (6) 에서 홈으로 튕겼다. 재인증 표시가 있는 로그인
       // 흐름 4개 경로만 예외이며, 다른 경로와 게이트 (3)(4)(5) 는 그대로다.
 
-      /// 실제 GoRouterState 처럼 matchedLocation 은 path 만, uri 는 query 포함.
-      void stubLocation(String location) {
-        final uri = Uri.parse(location);
-        when(() => mockState.matchedLocation).thenReturn(uri.path);
-        when(() => mockState.uri).thenReturn(uri);
-      }
-
       /// 정식 + emailVerified + 약관 동의 완료 사용자의 [location] 평가 결과.
       Future<String?> redirectForCompletedUser(String location) async {
         final container = makeContainer(
@@ -1150,18 +1150,74 @@ void main() {
     },
   );
 
+  group('resolveAuthRedirect 익명 · 미인증 재인증 표시 정규화 (260924-phz)', () {
+    // 조작된 딥링크(/login?reauth=1 등)로 익명 · 미인증 사용자가 재인증 선택
+    // 화면에 들어오면 「연결 수단 0」 배너만 있고 루트 진입이라 뒤로가기도 없는
+    // 막힌 화면이 된다. 분기 (2.5) 는 정식 사용자가 아닌 사람에게 온 재인증
+    // 표시를 같은 경로의 표시 없는 location 으로 redirect 해 제거한다.
+
+    /// [user] · 온보딩 · 약관 상태에서 [location] 을 평가한 guard 결과.
+    ///
+    /// [user] 가 null 이면 미인증이다. 같은 상태로 정규화 결과를 재평가해
+    /// redirect loop 가 없는지 확인하는 데도 쓴다.
+    Future<String?> redirectFor(
+      String location, {
+      required fb.User? user,
+      bool onboardingSeen = true,
+      TermsAcceptance? termsAcceptance,
+    }) async {
+      final container = makeContainer(
+        isInitialized: true,
+        user: user,
+        onboardingSeen: onboardingSeen,
+        termsAcceptance: termsAcceptance,
+      );
+      addTearDown(container.dispose);
+      stubLocation(location);
+      return _callAuthRedirect(container, mockState);
+    }
+
+    test('RN-1: 익명 사용자의 재인증 표시 /login 은 표시 없는 /login 으로 간다', () async {
+      expect(
+        await redirectFor(
+          AppRoutes.buildReauthLocation(AppRoutes.login),
+          user: anonymousUser(),
+          termsAcceptance: acceptedTerms(),
+        ),
+        AppRoutes.login,
+        reason: '익명 사용자에게 재인증 선택 화면(수단 0 배너)을 열면 안 된다',
+      );
+      expect(
+        await redirectFor(
+          AppRoutes.login,
+          user: anonymousUser(),
+          termsAcceptance: acceptedTerms(),
+        ),
+        isNull,
+        reason: '정규화 결과를 재평가하면 그대로 허용되어야 한다 — redirect loop 없음',
+      );
+    });
+  });
+
   group('GoRouter push end-to-end — 재인증 표시 (260916-p8d)', () {
     // 실제 resolveAuthRedirect 를 GoRouter redirect 로 연결해 push 시점 평가를
     // 재현한다. E2E-2 는 대조군이다 — 표시 없는 push 가 홈으로 튕기지 않으면
     // harness 가 분기 (6) 에 도달하지 못한 것이므로 E2E-1 의 통과도 믿을 수 없다.
     const homeText = 'home-stub';
     const loginText = 'login-stub';
+    const reauthModeText = 'reauth-mode-stub';
 
-    /// 완료 사용자 + guard 연결 GoRouter 를 pump 하고 router 를 반환한다.
-    Future<GoRouter> pumpGuardedRouter(WidgetTester tester) async {
+    /// guard 연결 GoRouter 를 pump 하고 router 를 반환한다.
+    ///
+    /// [user] 기본값은 완료 정식 사용자다. 온보딩 · 약관은 항상 완료 상태라
+    /// 익명 사용자를 넘겨도 분기 (3) D-C1 gate 를 통과한다 (260924-phz).
+    Future<GoRouter> pumpGuardedRouter(
+      WidgetTester tester, {
+      fb.User? user,
+    }) async {
       final container = makeContainer(
         isInitialized: true,
-        user: regularUser(),
+        user: user ?? regularUser(),
         onboardingSeen: true,
         termsAcceptance: acceptedTerms(),
       );
@@ -1176,8 +1232,17 @@ void main() {
             ),
             GoRoute(
               path: AppRoutes.login,
-              builder: (context, state) =>
-                  const Scaffold(body: Text(loginText)),
+              // production app_router.dart builder 가 화면 모드를 정하는 식과
+              // 같은 식(hasReauthMarker(state.uri))으로 재인증 모드 표지를 그린다.
+              builder: (context, state) => Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    const Text(loginText),
+                    if (AppRoutes.hasReauthMarker(state.uri))
+                      const Text(reauthModeText),
+                  ],
+                ),
+              ),
             ),
           ],
           redirect: (context, state) => resolveAuthRedirect(ref, state),
@@ -1222,6 +1287,37 @@ void main() {
         reason: 'push 한 location 의 표시가 router state 에 남아야 한다',
       );
       expect(find.text(loginText), findsOneWidget, reason: '로그인 화면이 보여야 한다');
+      expect(
+        find.text(reauthModeText),
+        findsOneWidget,
+        reason: '양성 대조: 재인증 모드 표지가 표시에 반응해야 E2E-3 의 부재가 의미를 갖는다',
+      );
+    });
+
+    testWidgets('E2E-3: 익명 사용자의 재인증 표시 go 는 표시 없는 /login 에 안착한다 (260924-phz)', (
+      tester,
+    ) async {
+      final router = await pumpGuardedRouter(tester, user: anonymousUser());
+
+      router.go(AppRoutes.buildReauthLocation(AppRoutes.login));
+      await tester.pumpAndSettle();
+
+      expect(
+        router.state.uri.toString(),
+        AppRoutes.login,
+        reason: '분기 (2.5) 가 표시를 제거한 /login(물음표 꼬리 없음)에 안착해야 한다',
+      );
+      expect(
+        AppRoutes.hasReauthMarker(router.state.uri),
+        isFalse,
+        reason: '익명 사용자의 router state 에 재인증 표시가 남으면 안 된다',
+      );
+      expect(find.text(loginText), findsOneWidget, reason: '로그인 화면이 보여야 한다');
+      expect(
+        find.text(reauthModeText),
+        findsNothing,
+        reason: '익명 사용자에게 재인증 모드 화면이 열리면 막힌 화면이 된다',
+      );
     });
 
     testWidgets('E2E-2 (대조군): 표시 없는 push 는 홈으로 튕긴다', (tester) async {

@@ -113,4 +113,31 @@ abstract final class AppRoutes {
   /// 그대로 반환한다.
   static String forwardReauthMarker(String path, {required Uri from}) =>
       hasReauthMarker(from) ? buildReauthLocation(path) : path;
+
+  /// [uri] 에서 재인증 표시 key 를 모두 지운 location 을 반환한다.
+  ///
+  /// auth guard 분기 (2.5) 가 익명 · 미인증 사용자의 로그인 흐름 진입에서
+  /// 쓴다 — 정식 사용자가 아닌 사람에게 온 재인증 표시를 제거해 일반 로그인
+  /// 화면이 열리게 한다 (quick 260924-phz).
+  ///
+  /// [reauthQueryKey] 는 값 개수와 무관하게 통째로 지운다. `queryParameters`
+  /// 는 중복 key 의 마지막 값을 쓰므로(`reauth=0&reauth=1` → `'1'`) 일부만
+  /// 지우면 [hasReauthMarker] 가 여전히 참이 되어 redirect loop 가 난다.
+  ///
+  /// 남는 query 가 없으면 `queryParameters` 에 null 을 넘긴다 — 빈 map 을
+  /// 넘기면 `Uri` 가 `/login?` 처럼 물음표 꼬리를 남긴다.
+  ///
+  /// 다른 query 는 key 와 다중 값을 그대로 보존한다. 현재 로그인 흐름 경로의
+  /// query 는 `reauth` 하나뿐이지만, 템플릿 사용자가 붙일 query 를 정규화가
+  /// 조용히 삭제하지 않도록 표시만 뺀다. fragment 는 있을 때만 보존한다.
+  /// 표시가 없는 [uri] 는 같은 path · query 그대로 돌려준다.
+  static String removeReauthMarker(Uri uri) {
+    final remaining = Map<String, List<String>>.of(uri.queryParametersAll)
+      ..remove(reauthQueryKey);
+    return Uri(
+      path: uri.path,
+      queryParameters: remaining.isEmpty ? null : remaining,
+      fragment: uri.hasFragment ? uri.fragment : null,
+    ).toString();
+  }
 }

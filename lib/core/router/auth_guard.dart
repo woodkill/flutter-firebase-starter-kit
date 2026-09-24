@@ -64,8 +64,8 @@ const Set<String> _unauthEntryRoutes = <String>{
   AppRoutes.onboarding, // Phase 10 D-18 — 게스트 진입 경로
 };
 
-/// 분기 (6) 재인증 표시 예외의 대상인 로그인 흐름 경로 집합
-/// (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE, quick 260916-p8d).
+/// 분기 (6) 재인증 표시 예외와 분기 (2.5) 표시 정규화의 대상인 로그인 흐름
+/// 경로 집합 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE, quick 260916-p8d · 260924-phz).
 ///
 /// [_unauthEntryRoutes] 의 부분집합이다. go_router 17.2.0 은 push 시점에 push 한
 /// 경로로 최상위 redirect 를 평가하므로, 완료 사용자가 재인증을 위해 로그인
@@ -100,6 +100,8 @@ const Set<String> _reauthLoginFlowRoutes = <String>{
 /// 1. Firebase 미초기화: redirect 우회 (null 반환, Phase 1 D-13)
 /// 2. 미인증 + onboarding 미시청 + 공개 경로 외: [AppRoutes.onboarding] 으로
 ///    redirect (D-14 상태 머신)
+/// 2.5. 익명 또는 미인증 + 로그인 흐름 4개 경로([_reauthLoginFlowRoutes]) +
+///    재인증 표시: 표시를 제거한 같은 경로로 redirect (quick 260924-phz)
 /// 3. 익명 사용자: 대부분 route 허용. 단 [AppRoutes.verifyEmail] 은 정식
 ///    사용자 전용이므로 [AppRoutes.home] 으로 redirect.
 /// 4. 정식 인증 + **검증 가능한 email 보유** + emailVerified=false +
@@ -196,6 +198,40 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
       matchedLocation != AppRoutes.termsPrivacy &&
       matchedLocation != AppRoutes.splash) {
     return AppRoutes.onboarding;
+  }
+
+  // 로그인 흐름 4개 경로 + 재인증 표시. 분기 (2.5) 는 이 판정으로 표시를
+  // 제거하고, 분기 (6) 은 같은 판정을 홈 튕김 예외로 쓴다.
+  final isReauthLoginFlow =
+      _reauthLoginFlowRoutes.contains(matchedLocation) &&
+      AppRoutes.hasReauthMarker(state.uri);
+
+  // (2.5) 익명 · 미인증 + 로그인 흐름 4개 경로 + 재인증 표시 -> 표시를 제거한
+  // 같은 경로 (quick 260924-phz).
+  //
+  // 재인증 선택 화면은 정식 사용자의 연결 수단을 전제로 한다. 익명 · 미인증
+  // 사용자가 조작된 딥링크(`/login?reauth=1` 등)로 들어오면 「연결 수단 0」
+  // 배너만 보이고, 루트 진입이라 뒤로가기도 없어 막힌 화면이 된다.
+  //
+  // 위치: 미인증 + 온보딩 미시청은 분기 (2) 가 먼저 `/onboarding` 으로 보내므로
+  // 중복 분기가 없다. 로그인 흐름 경로는 `isOnUnauthRoute` 라 분기 (3) D-C1
+  // gate 와 (6.4)(6.5) 에 원래 걸리지 않으므로, 이 앞에 두어도 다른 결과는
+  // 바뀌지 않는다.
+  //
+  // loop 없음: 정규화 결과에는 표시 key 가 없어 재평가 시 이 분기에 다시 걸리지
+  // 않는다. 정식 사용자는 대상이 아니다 — 정상 재인증(`reauthenticateWith*` ·
+  // 같은 uid 의 custom token 로그인) 도중 currentUser 가 null 이 되지 않는다.
+  if ((!isAuthenticated || isAnonymous) && isReauthLoginFlow) {
+    if (kDebugMode) {
+      // WARNING #18: uid · 전체 URI · query 값은 찍지 않는다.
+      debugPrint(
+        'resolveAuthRedirect: reauth marker for non-regular user '
+        '(matchedLocation=$matchedLocation, '
+        'isAuthenticated=$isAuthenticated, isAnonymous=$isAnonymous) '
+        '-> strip reauth marker [260924-phz]',
+      );
+    }
+    return AppRoutes.removeReauthMarker(state.uri);
   }
 
   // (3) 익명 사용자: 대부분 route 허용 (게스트 모드, AuthRequired 가 보호).
@@ -320,11 +356,9 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
   // 사용자가 열어도 홈으로 튕기지 않아야 한다.
   //
   // R_EXTRA_G3_REAUTH_LOGIN_BOUNCE (260916-p8d): 재인증을 위해 push 한 로그인
-  // 흐름 화면(표시 있음, 4개 경로)은 튕기지 않고 (7) 로 떨어진다. 이 판정은
-  // 분기 (3)(4)(5) 뒤에만 계산하므로 표시로 게이트를 우회할 수 없다.
-  final isReauthLoginFlow =
-      _reauthLoginFlowRoutes.contains(matchedLocation) &&
-      AppRoutes.hasReauthMarker(state.uri);
+  // 흐름 화면(표시 있음, 4개 경로)은 튕기지 않고 (7) 로 떨어진다. 이 판정을
+  // 홈 튕김 예외로 쓰는 지점은 분기 (3)(4)(5) 뒤이므로 표시로 게이트를 우회할
+  // 수 없다. 분기 (2.5) 는 같은 판정으로 표시를 제거만 한다 (260924-phz).
   if (isAuthenticated &&
       !isAnonymous &&
       passedEmailGate &&
