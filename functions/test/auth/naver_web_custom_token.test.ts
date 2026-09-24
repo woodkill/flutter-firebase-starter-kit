@@ -183,7 +183,8 @@ function mockRevokeOk() {
 /**
  * fetch mock — 이름 있는 Error 로 reject.
  *
- * @param {string} name `err.name` 값 (예: AbortError).
+ * @param {string} name `err.name` 값 (예: TimeoutError — `AbortSignal.timeout`
+ *     초과 시 fetch 가 reject 하는 이름).
  */
 function mockFetchReject(name: string) {
   const err = new Error("fetch failed");
@@ -268,7 +269,9 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       expect(tokenInit.headers["Content-Type"]).toBe(
         "application/x-www-form-urlencoded",
       );
-      expect(tokenInit.signal).toBeDefined();
+      // IN-04 — 수동 AbortController 가 아니라 본문 읽기까지 덮는
+      // AbortSignal.timeout 신호를 넘긴다.
+      expect(tokenInit.signal).toBeInstanceOf(AbortSignal);
       const tokenForm = formBodyOf(0);
       expect([...tokenForm.keys()].sort()).toEqual(
         ["client_id", "client_secret", "code", "grant_type", "state"],
@@ -419,9 +422,9 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
 
   it(
     // eslint-disable-next-line max-len
-    "T-16.5-NAVER-WEB-CT-05: token fetch reject (AbortError) → unavailable + exchange_failed fingerprint",
+    "T-16.5-NAVER-WEB-CT-05: token fetch reject (TimeoutError) → unavailable + exchange_failed fingerprint",
     async () => {
-      mockFetchReject("AbortError");
+      mockFetchReject("TimeoutError");
 
       await expect(
         callWeb({data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS}}),
@@ -433,7 +436,38 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       expect(warnMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: "naver_web_token_exchange_failed",
-          code: "AbortError",
+          code: "TimeoutError",
+        }),
+        expect.any(String),
+      );
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-16.5-NAVER-WEB-CT-05b: token 본문 읽기 중 timeout (TimeoutError) → unavailable (internal 아님) · IN-04",
+    async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          const err = new Error("The operation was aborted due to timeout");
+          err.name = "TimeoutError";
+          throw err;
+        },
+      });
+
+      await expect(
+        callWeb({data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS}}),
+      ).rejects.toMatchObject({
+        code: "unavailable",
+        message: "errorServiceUnavailable",
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "naver_web_token_exchange_failed",
+          code: "TimeoutError",
         }),
         expect.any(String),
       );
@@ -622,7 +656,7 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       // 시나리오 A: 성공 + revoke 실패 (info · warn 경로 모두 통과).
       mockTokenOk();
       mockProfileOk("naver-web-10");
-      mockFetchReject("AbortError");
+      mockFetchReject("TimeoutError");
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
       await callWeb({

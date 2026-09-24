@@ -40,6 +40,8 @@ import {
 const NAVER_TOKEN_URL = "https://nid.naver.com/oauth2.0/token" as const;
 
 // Phase 13 Pitfall 3 미러 — NAVER 5xx hang 방어. 함수 30s timeout 이전 abort.
+// IN-04 (16.5 review 2회차) — `AbortSignal.timeout` 이라 헤더 수신뿐 아니라
+// `resp.json()` 본문 읽기까지 이 5s 안에 끝나야 한다 (revoke 와 같은 방식).
 const FETCH_TIMEOUT_MS = 5000;
 
 // WR-01 (16.5 review) — revoke 는 best-effort 이고 응답 반환 전에 await 되므로
@@ -47,6 +49,8 @@ const FETCH_TIMEOUT_MS = 5000;
 // revoke 2s) 호출하며, 합계 12s + Firestore · cold start 가 클라이언트 웹 경로
 // callable timeout(auth_repository.dart `_kNaverWebCustomTokenTimeout` 20s)
 // 안에 들어와야 「서버 성공 · 클라 deadline-exceeded」 부분 성공이 생기지 않는다.
+// 세 fetch 모두 `AbortSignal.timeout` 이라 각 예산은 본문 읽기까지 포함한
+// 상한이다 (IN-04 — 이전에는 교환 · 프로필이 헤더 수신까지만 bounded).
 const REVOKE_TIMEOUT_MS = 2000;
 
 // 제어 문자 (CR / LF / NUL). code · state 는 form body 로만 나가므로 HTTP 헤더
@@ -104,9 +108,11 @@ function logTokenExchangeFailure(fingerprint: {
  * authorization code 를 NAVER access_token 으로 교환한다 (D-13).
  *
  * 3단 검사 (RESEARCH Pitfall 4 — 실패가 HTTP 200 + 본문 error 로 올 수 있다):
- * 1. fetch reject (AbortError / network) → unavailable. HTTP 401/403 →
- *    unauthenticated. 5xx · 기타 non-OK → unavailable.
- * 2. JSON parse 실패 · 비객체 본문 → internal.
+ * 1. fetch reject (`AbortSignal.timeout` 초과 = TimeoutError / network) →
+ *    unavailable. HTTP 401/403 → unauthenticated. 5xx · 기타 non-OK →
+ *    unavailable.
+ * 2. 본문 읽기 중 5s 초과(TimeoutError) → unavailable (1 의 timeout 과 같은
+ *    결과 — IN-04). 그 외 JSON parse 실패 · 비객체 본문 → internal.
  * 3. 본문 error 존재 또는 access_token 부재 · 비문자열 · 제어문자 →
  *    unauthenticated.
  *
@@ -130,18 +136,13 @@ async function exchangeNaverAuthCode(args: {
 
   let resp: Response;
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
-      resp = await fetch(NAVER_TOKEN_URL, {
-        method: "POST",
-        headers: {"Content-Type": "application/x-www-form-urlencoded"},
-        body,
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    resp = await fetch(NAVER_TOKEN_URL, {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body,
+      // IN-04 — 헤더 + 본문(resp.json) 전체 5s. 초과 시 TimeoutError.
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
   } catch (err: unknown) {
     // PII 금지 (D-51) — err.message 미로깅, err.name 만 fingerprint.
     logTokenExchangeFailure({
@@ -164,9 +165,13 @@ async function exchangeNaverAuthCode(args: {
   try {
     parsed = await resp.json();
   } catch (err: unknown) {
-    logTokenExchangeFailure({
-      code: err instanceof Error ? err.name : "unknown",
-    });
+    const errName = err instanceof Error ? err.name : "unknown";
+    logTokenExchangeFailure({code: errName});
+    // IN-04 — 본문 읽기 도중 5s 초과는 헤더 전 timeout 과 같은 IdP 도달 실패
+    // (transient) 다. 파싱 실패(internal)와 구분한다.
+    if (errName === "TimeoutError") {
+      throw idpUnavailable();
+    }
     throw serverFailure();
   }
   if (typeof parsed !== "object" || parsed === null) {

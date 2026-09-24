@@ -34,6 +34,8 @@ const NAVER_PROFILE_URL = "https://openapi.naver.com/v1/nid/me" as const;
 
 // Phase 13 Pitfall 3 — Naver REST 5xx 무한 hang 방어.
 // Cloud Function 30s timeout 까지 도달하기 전 5s 에서 abort.
+// IN-04 (16.5 review 2회차) — `AbortSignal.timeout` 이라 헤더 수신뿐 아니라
+// `resp.json()` 본문 읽기까지 이 5s 안에 끝나야 한다.
 const FETCH_TIMEOUT_MS = 5000;
 
 // Naver `/v1/nid/me` 응답 본문 shape (D-47).
@@ -95,15 +97,18 @@ export type NaverCustomTokenResult = {
  * Naver access_token 을 `/v1/nid/me` 로 검증하고 Firebase Custom Token 을 발급한다.
  *
  * 흐름 (Phase 13 D-46~D-51 · Phase 16 D-13/D-14):
- * 1. Node fetch + AbortController(5s) → Authorization: Bearer (D-46/D-48).
+ * 1. Node fetch + `AbortSignal.timeout`(5s · 헤더 + 본문 읽기 전체, IN-04) →
+ *    Authorization: Bearer (D-46/D-48).
  *    WR-01: 아래 매핑은 4 endpoint 공용 표
  *    (shared/custom_token_errors.ts) 를 따른다.
  *    - HTTP 401/403 → unauthenticated (errorInvalidCredentials)
  *    - HTTP 5xx → unavailable (errorServiceUnavailable)
  *    - HTTP 기타 4xx (예: 429) → unavailable (errorServiceUnavailable)
- *    - AbortError / network → unavailable (errorServiceUnavailable)
+ *    - TimeoutError(5s 초과) / network → unavailable (errorServiceUnavailable)
  * 2. JSON parse → resultcode='00' + response.id 검증 (D-47).
- *    - JSON parse 실패 → internal (errorUnknown)
+ *    - 본문 읽기 중 5s 초과(TimeoutError) → unavailable + `naver_fetch_failed`
+ *      (1 의 timeout 과 같은 결과 · 같은 event — IN-04)
+ *    - 그 외 JSON parse 실패 → internal (errorUnknown)
  *    - resultcode != '00' → unauthenticated (errorInvalidCredentials)
  *    - response.id 부재 → unauthenticated (errorInvalidCredentials)
  * 3. resolveIdentity helper (Phase 12.1 D-31~D-34 자동 상속).
@@ -141,29 +146,21 @@ export async function verifyNaverProfileAndIssueCustomToken(
   // Step 2: Naver REST 검증 (D-46/D-47/D-48).
   let resp: Response;
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      FETCH_TIMEOUT_MS,
-    );
-    try {
-      resp = await fetch(NAVER_PROFILE_URL, {
-        method: "GET",
-        headers: {Authorization: `Bearer ${accessToken}`},
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    resp = await fetch(NAVER_PROFILE_URL, {
+      method: "GET",
+      headers: {Authorization: `Bearer ${accessToken}`},
+      // IN-04 — 헤더 + 본문(resp.json) 전체 5s. 초과 시 TimeoutError.
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
   } catch (err: unknown) {
     // PII 금지 (D-51) — err.message 본문 미로깅. err.name 만 fingerprint
-    // (AbortError / TypeError / DNS 실패 등 분류 가능).
+    // (TimeoutError / TypeError / DNS 실패 등 분류 가능).
     const errCode = err instanceof Error ? err.name : "unknown";
     logger.warn(
       {event: "naver_fetch_failed", path, code: errCode},
       "Naver REST fetch failed",
     );
-    // AbortError / TypeError(network) / DNS 실패 모두 unavailable.
+    // TimeoutError / TypeError(network) / DNS 실패 모두 unavailable.
     // WR-01: 4 endpoint 공용 매핑 표 (IdP 도달 실패 = transient).
     throw idpUnavailable();
   }
@@ -196,6 +193,16 @@ export async function verifyNaverProfileAndIssueCustomToken(
     responseBody = (await resp.json()) as NaverProfileResponse;
   } catch (err: unknown) {
     const errCode = err instanceof Error ? err.name : "unknown";
+    if (errCode === "TimeoutError") {
+      // IN-04 — 본문 읽기 도중 5s 초과는 헤더 전 timeout 과 같은 IdP 도달
+      // 실패다. event · 매핑 모두 fetch reject 분기와 같게 둔다 (event 이름
+      // 신설 없음 — 대시보드 축 불변).
+      logger.warn(
+        {event: "naver_fetch_failed", path, code: errCode},
+        "Naver REST fetch failed",
+      );
+      throw idpUnavailable();
+    }
     logger.warn(
       {event: "naver_parse_failed", path, code: errCode},
       "Naver REST JSON parse failed",

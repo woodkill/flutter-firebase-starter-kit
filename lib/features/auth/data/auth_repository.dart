@@ -179,8 +179,9 @@ class AuthRepository implements AnonymousSignIn {
   /// (Phase 16.5 review WR-01).
   ///
   /// 웹 경로 서버는 NAVER 를 직렬로 3회 호출한다 (code 교환 5s · `/v1/nid/me`
-  /// 5s · revoke 2s) — 여기에 Firestore transaction · `createCustomToken` ·
-  /// terms mirror · cold start 가 더해진다. 1-tap 과 같은 10s 를 쓰면 서버가
+  /// 5s · revoke 2s — 셋 다 `AbortSignal.timeout` 이라 본문 읽기까지 포함한
+  /// 상한, review 2회차 IN-04). 여기에 Firestore transaction ·
+  /// `createCustomToken` · terms mirror · cold start 가 더해진다. 1-tap 과 같은 10s 를 쓰면 서버가
   /// 계정을 만든 뒤에도 클라이언트가 `deadline-exceeded` →
   /// [NoInternetConnection] 을 내는 조용한 부분 성공이 생긴다. 로그인 ·
   /// 재인증 두 호출처가 같은 값을 쓴다.

@@ -156,10 +156,13 @@ function mockFetchStatus(status: number, body: object = {}) {
   });
 }
 
-/** fetch mock — AbortError (5s timeout). */
-function mockFetchAbort() {
-  const err = new Error("aborted");
-  (err as Error & {name: string}).name = "AbortError";
+/**
+ * fetch mock — TimeoutError (5s `AbortSignal.timeout` 초과 · IN-04 이전에는
+ * 수동 AbortController 라 AbortError 였다).
+ */
+function mockFetchTimeout() {
+  const err = new Error("The operation was aborted due to timeout");
+  (err as Error & {name: string}).name = "TimeoutError";
   fetchMock.mockRejectedValueOnce(err);
 }
 
@@ -276,9 +279,9 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
   );
 
   it(
-    "T-13-NAVER-CT-04: AbortError (timeout) → unavailable + warn fingerprint",
+    "T-13-NAVER-CT-04: TimeoutError (timeout) → unavailable + warn fingerprint",
     async () => {
-      mockFetchAbort();
+      mockFetchTimeout();
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       await expect(
         wrapped({app: {appId: "test"}, data: {accessToken: "T"}} as never),
@@ -289,8 +292,43 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       expect(warnMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: "naver_fetch_failed",
-          code: "AbortError",
+          code: "TimeoutError",
         }),
+        expect.any(String),
+      );
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-13-NAVER-CT-04b: 본문 읽기 중 TimeoutError → unavailable + naver_fetch_failed (parse_failed 아님) · IN-04",
+    async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          const err = new Error("The operation was aborted due to timeout");
+          err.name = "TimeoutError";
+          throw err;
+        },
+      });
+      const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
+      await expect(
+        wrapped({app: {appId: "test"}, data: {accessToken: "T"}} as never),
+      ).rejects.toMatchObject({
+        code: "unavailable",
+        message: "errorServiceUnavailable",
+      });
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "naver_fetch_failed",
+          path: "app",
+          code: "TimeoutError",
+        }),
+        expect.any(String),
+      );
+      expect(warnMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({event: "naver_parse_failed"}),
         expect.any(String),
       );
     },
