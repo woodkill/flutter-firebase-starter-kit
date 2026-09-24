@@ -358,6 +358,8 @@ void main() {
     // 16.5 review IN-05 — 패키지 경로를 리터럴로 두면 `bin/rename.dart` 가
     // Kotlin 디렉터리를 옮긴 뒤 readTrackedFile 이 파일을 못 찾아 깨진다.
     // MainActivity.kt 위치에서 파생한다 (lazy — 실패는 test 안에서 보고).
+    // G-16.5-2 — Custom Tab fallback 콜백은 킷 소유 relay(WebAuthCallbackActivity)
+    // 가 받아 MainActivity 기존 task 로 복귀시킨다. manifest · Kotlin 두 계약이 잠근다.
     late final String kotlinDir = _findKotlinPackageDir();
 
     test('T-16.5-NATIVE-01 client_id · scheme — config json ↔ xcconfig 일치', () {
@@ -522,7 +524,7 @@ void main() {
       );
     });
 
-    test('T-16.5-NATIVE-04 manifest — CallbackActivity intent-filter', () {
+    test('T-16.5-NATIVE-04 manifest — 킷 콜백 relay intent-filter (G-16.5-2)', () {
       final manifest = stripXmlComments(
         readTrackedFile('android/app/src/main/AndroidManifest.xml'),
       );
@@ -537,9 +539,9 @@ void main() {
         reason: '양성 대조군: Kakao 콜백 Activity 선언을 정규식이 잡지 못한다.',
       );
 
-      final block = RegExp(
+      final relayBlock = RegExp(
         r'<activity\s+'
-        r'android:name="com\.linusu\.flutter_web_auth_2\.CallbackActivity"\s+'
+        r'android:name="\.WebAuthCallbackActivity"\s+'
         r'android:exported="true"\s+'
         r'android:taskAffinity=""\s*>\s*'
         r'<intent-filter\s+android:label="flutter_web_auth_2"\s*>\s*'
@@ -550,11 +552,58 @@ void main() {
         r'</intent-filter>\s*</activity>',
       );
       expect(
-        block.allMatches(manifest).length,
+        relayBlock.allMatches(manifest).length,
         1,
         reason:
-            'D-09: flutter_web_auth_2 README 그대로의 CallbackActivity 블록이 '
-            '정확히 1건이어야 한다 (exported · taskAffinity · placeholder scheme).',
+            'G-16.5-2 · D-09: 킷 relay 블록(상대 이름 · exported · 빈 '
+            'taskAffinity · placeholder scheme intent-filter)이 정확히 1건이어야 '
+            '한다. 상대 이름이어야 bin/rename.dart 의 패키지 이동을 따라간다.',
+      );
+
+      // 부재 단언의 양성 대조 — 같은 문자열 계수 방식이 실제로 매칭한다.
+      expect(
+        countOccurrences(manifest, 'com.naver.sdk.clientId'),
+        1,
+        reason: '양성 대조군: countOccurrences 가 Naver meta-data 를 세지 못한다.',
+      );
+      expect(
+        countOccurrences(
+          manifest,
+          'com.linusu.flutter_web_auth_2.CallbackActivity',
+        ),
+        0,
+        reason:
+            'G-16.5-2: 라이브러리 콜백 Activity 를 함께 선언하면 같은 scheme '
+            '수신자가 2개가 되어 chooser 가 뜨거나 콜백을 엉뚱한 쪽이 받는다 — '
+            '콜백 수신자는 킷 relay 하나뿐이어야 한다.',
+      );
+      expect(
+        countOccurrences(
+          manifest,
+          'com.linusu.flutter_web_auth_2.AuthenticationManagementActivity',
+        ),
+        0,
+        reason:
+            'G-16.5-2 · D-07: 라이브러리 인증 관리 Activity 를 app manifest 에서 '
+            '재선언 · launchMode override 하면 Chrome Auth Tab 경로의 task '
+            '배치까지 바뀐다.',
+      );
+
+      final mainBlock = RegExp(
+        r'<activity\s+'
+        r'android:name="\.MainActivity"\s+'
+        r'android:exported="true"\s+'
+        r'android:launchMode="singleTop"\s+'
+        r'android:taskAffinity=""',
+      );
+      expect(
+        mainBlock.allMatches(manifest).length,
+        1,
+        reason:
+            'G-16.5-2: MainActivity 는 launchMode singleTop 이어야 한다 — 없으면 '
+            'relay 의 CLEAR_TOP 이 MainActivity 를 재생성해 Flutter 엔진과 대기 '
+            '중인 로그인이 사라진다. 빈 taskAffinity 는 StrandHogg(task '
+            'hijacking) 방어라 유지한다 (minSdk 24).',
       );
       expect(
         countOccurrences(manifest, 'com.nhn.android.search'),
@@ -564,6 +613,73 @@ void main() {
             'queries 에 중복 선언하지 말 것.',
       );
     });
+
+    test(
+      'T-16.5-NATIVE-09 relay Kotlin — success 전달 → MainActivity task 복귀 (G-16.5-2)',
+      () {
+        final kotlin = stripBlockComments(
+          stripSlashComments(
+            readTrackedFile('$kotlinDir/WebAuthCallbackActivity.kt'),
+          ),
+        );
+
+        const Map<String, String> exactlyOnce = <String, String>{
+          'class WebAuthCallbackActivity : Activity()':
+              'relay 는 플랫폼 Activity 하나로 선언한다.',
+          'FlutterWebAuth2Plugin.callbacks.remove(':
+              'upstream 콜백 Activity 와 같은 전달 경로 — 대기 호출을 map 에서 꺼낸다.',
+          '.success(': '콜백 URL 을 대기 호출에 success 로 1회만 넘긴다.',
+          'Intent.FLAG_ACTIVITY_NEW_TASK':
+              'NEW_TASK 가 없으면 task 검색이 꺼져 main task 로 돌아가지 못한다.',
+          'Intent.FLAG_ACTIVITY_CLEAR_TOP':
+              'CLEAR_TOP 이 없으면 MainActivity 위의 인증 관리 Activity · 브라우저 '
+              'tab 이 남는다.',
+          'Intent.FLAG_ACTIVITY_SINGLE_TOP':
+              'SINGLE_TOP 이 없으면 MainActivity 가 재생성돼 Flutter 엔진이 사라진다.',
+          'MainActivity::class.java': '복귀 대상은 킷 MainActivity 하나다.',
+          'startActivity(': 'MainActivity 전면 복귀 기동은 1회다.',
+          'finish()': 'relay 자신은 task 에 남지 않는다.',
+        };
+        exactlyOnce.forEach((String token, String why) {
+          expect(
+            countOccurrences(kotlin, token),
+            1,
+            reason: 'G-16.5-2: 주석 제외 relay 소스에 "$token" 이 정확히 1건 — $why',
+          );
+        });
+
+        expect(
+          countOccurrences(kotlin, 'AuthenticationManagementActivity'),
+          0,
+          reason:
+              'G-16.5-2: relay 는 라이브러리 인증 관리 Activity 를 직접 띄우지 '
+              '않는다 — 그 같은 task 전용 재기동이 이 gap 의 원인이다.',
+        );
+        for (final String logCall in <String>['Log.', 'println']) {
+          expect(
+            countOccurrences(kotlin, logCall),
+            0,
+            reason:
+                'C-01 · WR-05: relay 에 로그 호출("$logCall")을 두지 않는다 — '
+                '콜백 URL 에 code · state 가 실린다.',
+          );
+        }
+
+        final int removeAt = kotlin.indexOf(
+          'FlutterWebAuth2Plugin.callbacks.remove(',
+        );
+        final int startAt = kotlin.indexOf('startActivity(');
+        expect(
+          removeAt >= 0 && startAt >= 0 && removeAt < startAt,
+          isTrue,
+          reason:
+              'G-16.5-2 순서 계약: success 전달이 MainActivity 전면 복귀보다 '
+              '먼저여야 한다 — flutter_web_auth_2 Dart 의 resume observer 가 앱 '
+              'resume 시 map 에 남은 대기 호출을 전부 CANCELED 로 접는다 '
+              '(remove=$removeAt · startActivity=$startAt).',
+        );
+      },
+    );
 
     test('T-16.5-NATIVE-05 gradle placeholder — Dart 와 같은 config 키', () {
       final gradle = stripSlashComments(
