@@ -2,15 +2,18 @@
  * Phase 16.5 SOCL-14 — naverWebCustomToken onCall 회귀 테스트 (Plan 16.5-02).
  *
  * 킷 소유 웹 경로의 서버 조각: authorization code → NAVER token 교환 →
- * 공용 helper(`verifyNaverProfileAndIssueCustomToken`) 위임 → finally revoke.
+ * 공용 helper(`verifyNaverProfileAndIssueCustomToken`) 위임으로 끝
+ * (폐기 없음 — quick 260924-lw2, 16.5 D-15 번복).
  * 셋업은 `naver_custom_token.test.ts` 의 mock 패턴(fetch · logger · params ·
- * admin) 을 미러한다. 케이스 마커 T-16.5-NAVER-WEB-CT-01~13.
+ * admin) 을 미러한다. 케이스 마커 T-16.5-NAVER-WEB-CT-01~07 · 09~11
+ * (08 · 12 · 13 은 폐기 전용이라 quick 260924-lw2 에서 삭제) +
+ * T-QUICK-260924-LW2-*.
  *
  * 모든 jest.mock 호출은 hoist 되므로 src import 보다 먼저 정의되어야 한다
  * (firebase-functions-test 공식 권장 패턴).
  */
 
-// fetch mock — token 교환 · /v1/nid/me · revoke 3 호출을 순서대로 stub.
+// fetch mock — token 교환 · /v1/nid/me 2 호출을 순서대로 stub.
 const fetchMock = jest.fn();
 global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -175,11 +178,6 @@ function mockProfileOk(id: string) {
   mockFetchJson(200, {resultcode: "00", message: "success", response: {id}});
 }
 
-/** fetch mock — revoke 성공. */
-function mockRevokeOk() {
-  mockFetchJson(200, {access_token: FAKE_ACCESS_TOKEN, result: "success"});
-}
-
 /**
  * fetch mock — 이름 있는 Error 로 reject.
  *
@@ -201,6 +199,30 @@ function mockFetchReject(name: string) {
 function formBodyOf(index: number): URLSearchParams {
   const init = fetchMock.mock.calls[index][1] as {body?: unknown};
   return new URLSearchParams(String(init.body));
+}
+
+/**
+ * 지금까지의 fetch 호출 URL 목록 (호출 순서).
+ *
+ * @return {string[]} `fetchMock.mock.calls` 의 첫 인자 목록.
+ */
+function fetchUrls(): string[] {
+  return fetchMock.mock.calls.map((call) => String(call[0]));
+}
+
+/**
+ * 호출마다 form body 의 grant_type 을 뽑는다 (body 없는 GET 은 null).
+ *
+ * @return {(string|null)[]} 호출 순서대로의 grant_type 목록.
+ */
+function grantTypesSent(): (string | null)[] {
+  return fetchMock.mock.calls.map((call) => {
+    const init = call[1] as {body?: unknown} | undefined;
+    if (init?.body === undefined) {
+      return null;
+    }
+    return new URLSearchParams(String(init.body)).get("grant_type");
+  });
 }
 
 /**
@@ -234,11 +256,10 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
 
   it(
     // eslint-disable-next-line max-len
-    "T-16.5-NAVER-WEB-CT-01: 교환 성공 · 신규 사용자 → token → /v1/nid/me → revoke 순서 · isNewUser=true · terms mirror",
+    "T-16.5-NAVER-WEB-CT-01: 교환 성공 · 신규 사용자 → token → /v1/nid/me (NAVER 2회 · 폐기 없음) · isNewUser=true · terms mirror · expiresInSec",
     async () => {
       mockTokenOk();
       mockProfileOk("naver-web-01");
-      mockRevokeOk();
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
 
@@ -257,7 +278,7 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         uid: "anon-web-01",
         isNewUser: true,
       });
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
 
       // 1) token 교환 — POST · form-urlencoded · 5 키 (redirect_uri 없음).
       const [tokenUrl, tokenInit] = fetchMock.mock.calls[0] as [
@@ -294,28 +315,6 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         }),
       );
 
-      // 3) revoke — POST grant_type=delete · 5 키 · service_provider=NAVER.
-      const [revokeUrl, revokeInit] = fetchMock.mock.calls[2] as [
-        string,
-        {method: string; headers: Record<string, string>},
-      ];
-      expect(revokeUrl).toBe(NAVER_TOKEN_URL);
-      expect(revokeInit.method).toBe("POST");
-      expect(revokeInit.headers["Content-Type"]).toBe(
-        "application/x-www-form-urlencoded",
-      );
-      const revokeForm = formBodyOf(2);
-      expect([...revokeForm.keys()].sort()).toEqual([
-        "access_token",
-        "client_id",
-        "client_secret",
-        "grant_type",
-        "service_provider",
-      ]);
-      expect(revokeForm.get("grant_type")).toBe("delete");
-      expect(revokeForm.get("access_token")).toBe(FAKE_ACCESS_TOKEN);
-      expect(revokeForm.get("service_provider")).toBe("NAVER");
-
       // OAuth 첫-로그인 — terms mirror 1회.
       expect(mockUserDocSet).toHaveBeenCalledTimes(1);
       expect(infoMock).toHaveBeenCalledWith(
@@ -323,6 +322,7 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
           event: "naver_web_custom_token_issued",
           uid: "anon-web-01",
           isNewUser: true,
+          expiresInSec: 3600,
         }),
         expect.any(String),
       );
@@ -334,12 +334,114 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         }),
         expect.any(String),
       );
-      expect(warnMock).not.toHaveBeenCalledWith(
-        expect.objectContaining({event: "naver_web_revoke_failed"}),
-        expect.any(String),
-      );
     },
   );
+
+  it(
+    // eslint-disable-next-line max-len
+    "T-QUICK-260924-LW2-NOREVOKE-01: 성공 경로 NAVER 호출 = [token 교환, /v1/nid/me] · delete grant 없음",
+    async () => {
+      mockTokenOk();
+      mockProfileOk("naver-web-lw2-01");
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const result = (await callWeb({
+        auth: anonymousCallerAuth("anon-web-lw2-01"),
+        data: {
+          code: FAKE_CODE,
+          state: FAKE_STATE_22CHARS,
+          termsAcceptanceSnapshot: TERMS_SNAPSHOT,
+        },
+      })) as WebResult;
+
+      expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
+      expect(fetchUrls()).toEqual([NAVER_TOKEN_URL, NAVER_PROFILE_URL]);
+      expect(grantTypesSent()).toEqual(["authorization_code", null]);
+    },
+  );
+
+  // eslint-disable-next-line max-len
+  describe("T-QUICK-260924-LW2-NOREVOKE-02: helper 실패 경로도 NAVER 2회에서 끝", () => {
+    it.each([
+      [
+        "/v1/nid/me fetch TimeoutError",
+        "profile_timeout",
+        {code: "unavailable", message: "errorServiceUnavailable"},
+      ],
+      [
+        "createCustomToken reject",
+        "custom_token_reject",
+        {code: "internal", message: "errorUnknown"},
+      ],
+    ])(
+      "T-QUICK-260924-LW2-NOREVOKE-02: %s → 예외 전파 · NAVER 2회",
+      async (_label, failure, expected) => {
+        mockTokenOk();
+        if (failure === "profile_timeout") {
+          mockFetchReject("TimeoutError");
+        } else {
+          mockProfileOk("naver-web-lw2-02");
+          mockIdxGet.mockResolvedValue({exists: false});
+          mockTxGet.mockResolvedValue({exists: false});
+          mockCreateCustomToken.mockRejectedValueOnce(new Error("boom"));
+        }
+
+        await expect(
+          callWeb({
+            auth: anonymousCallerAuth("anon-web-lw2-02"),
+            data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS},
+          }),
+        ).rejects.toMatchObject(expected);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(grantTypesSent()).not.toContain("delete");
+        expect(infoMock).not.toHaveBeenCalledWith(
+          expect.objectContaining({event: "naver_web_custom_token_issued"}),
+          expect.any(String),
+        );
+      },
+    );
+  });
+
+  describe("T-QUICK-260924-LW2-TTL-01: expires_in → expiresInSec", () => {
+    it.each([
+      ["문자열 \"3600\"", {expires_in: "3600"}, 3600],
+      ["정수 7200", {expires_in: 7200}, 7200],
+      ["키 부재", {}, null],
+      ["숫자 아닌 문자열", {expires_in: "abc"}, null],
+      ["8자리 문자열", {expires_in: "12345678"}, null],
+      ["음수", {expires_in: -1}, null],
+      ["소수", {expires_in: 1.5}, null],
+      ["토큰 반사", {expires_in: FAKE_ACCESS_TOKEN}, null],
+    ])(
+      "T-QUICK-260924-LW2-TTL-01: %s",
+      async (_label, expiresField, expected) => {
+        mockFetchJson(200, {
+          access_token: FAKE_ACCESS_TOKEN,
+          token_type: "bearer",
+          ...expiresField,
+        });
+        mockProfileOk("naver-web-lw2-ttl");
+        mockIdxGet.mockResolvedValue({exists: false});
+        mockTxGet.mockResolvedValue({exists: false});
+
+        const result = (await callWeb({
+          auth: anonymousCallerAuth("anon-web-lw2-ttl"),
+          data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS},
+        })) as WebResult;
+
+        expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
+        expect(infoMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "naver_web_custom_token_issued",
+            expiresInSec: expected,
+          }),
+          expect.any(String),
+        );
+        expect(allLoggerArgsJson()).not.toContain(FAKE_ACCESS_TOKEN);
+      },
+    );
+  });
 
   it(
     // eslint-disable-next-line max-len
@@ -347,7 +449,6 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
     async () => {
       mockTokenOk();
       mockProfileOk("naver-web-02");
-      mockRevokeOk();
       mockIdxGet.mockResolvedValue({exists: true});
       mockTxGet.mockResolvedValue({
         exists: true,
@@ -365,15 +466,15 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       expect(result.isNewUser).toBe(false);
       expect(result.uid).toBe("existing-uid-web-02");
       expect(mockUserDocSet).not.toHaveBeenCalled();
-      // revoke 는 재로그인에서도 수행된다.
-      expect(fetchMock).toHaveBeenCalledTimes(3);
-      expect(formBodyOf(2).get("grant_type")).toBe("delete");
+      // 재로그인에서도 NAVER 는 2회뿐 — 폐기 요청 없음 (quick 260924-lw2).
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(grantTypesSent()).not.toContain("delete");
     },
   );
 
   it(
     // eslint-disable-next-line max-len
-    "T-16.5-NAVER-WEB-CT-03: token 200 + 본문 error=invalid_grant → unauthenticated · /v1/nid/me · revoke 미호출",
+    "T-16.5-NAVER-WEB-CT-03: token 200 + 본문 error=invalid_grant → unauthenticated · /v1/nid/me 미호출",
     async () => {
       mockFetchJson(200, {
         error: "invalid_grant",
@@ -519,111 +620,10 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
 
   it(
     // eslint-disable-next-line max-len
-    "T-16.5-NAVER-WEB-CT-08: revoke fetch reject → Custom Token 정상 반환 + revoke_failed warn",
-    async () => {
-      mockTokenOk();
-      mockProfileOk("naver-web-08");
-      mockFetchReject("TypeError");
-      mockIdxGet.mockResolvedValue({exists: false});
-      mockTxGet.mockResolvedValue({exists: false});
-
-      const result = (await callWeb({
-        auth: anonymousCallerAuth("anon-web-08"),
-        data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS},
-      })) as WebResult;
-
-      expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
-      expect(result.uid).toBe("anon-web-08");
-      expect(fetchMock).toHaveBeenCalledTimes(3);
-      expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          event: "naver_web_revoke_failed",
-          code: "TypeError",
-        }),
-        expect.any(String),
-      );
-    },
-  );
-
-  // WR-02 (16.5 review) — revoke 도 교환과 같은 endpoint 라 실패가 HTTP 200 +
-  // 본문 error 로 온다 (Pitfall 4 대칭). 본문 판정이 없으면 경보 신호
-  // 「naver_web_revoke_failed」 가 구조적으로 뜨지 않는다.
-  describe("T-16.5-NAVER-WEB-CT-12: revoke 실패 판정 (본문 · status)", () => {
-    it.each([
-      [
-        "HTTP 200 + error=invalid_request",
-        200,
-        {error: "invalid_request", error_description: "bad request"},
-        {code: "error_body", error: "invalid_request"},
-      ],
-      [
-        "HTTP 200 + result 부재 · error 가 토큰 반사 (화이트리스트 밖)",
-        200,
-        {error: FAKE_ACCESS_TOKEN, access_token: FAKE_ACCESS_TOKEN},
-        {code: "error_body", error: "other"},
-      ],
-      ["HTTP 500", 500, {}, {status: 500}],
-    ])(
-      "T-16.5-NAVER-WEB-CT-12: %s → Custom Token 정상 반환 + revoke_failed warn",
-      async (_label, status, body, fingerprint) => {
-        mockTokenOk();
-        mockProfileOk("naver-web-12");
-        mockFetchJson(status, body);
-        mockIdxGet.mockResolvedValue({exists: false});
-        mockTxGet.mockResolvedValue({exists: false});
-
-        const result = (await callWeb({
-          auth: anonymousCallerAuth("anon-web-12"),
-          data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS},
-        })) as WebResult;
-
-        expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
-        expect(fetchMock).toHaveBeenCalledTimes(3);
-        expect(warnMock).toHaveBeenCalledWith(
-          {event: "naver_web_revoke_failed", ...fingerprint},
-          expect.any(String),
-        );
-        // 본문이 access_token 을 되돌려 줘도 로그에는 실리지 않는다 (D-51).
-        expect(allLoggerArgsJson()).not.toContain(FAKE_ACCESS_TOKEN);
-      },
-    );
-  });
-
-  it(
-    "T-16.5-NAVER-WEB-CT-13: revoke 응답 JSON parse 실패 → err.name fingerprint",
-    async () => {
-      mockTokenOk();
-      mockProfileOk("naver-web-13");
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => {
-          throw new SyntaxError("Unexpected token <");
-        },
-      });
-      mockIdxGet.mockResolvedValue({exists: false});
-      mockTxGet.mockResolvedValue({exists: false});
-
-      const result = (await callWeb({
-        auth: anonymousCallerAuth("anon-web-13"),
-        data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS},
-      })) as WebResult;
-
-      expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
-      expect(warnMock).toHaveBeenCalledWith(
-        {event: "naver_web_revoke_failed", code: "SyntaxError"},
-        expect.any(String),
-      );
-    },
-  );
-
-  it(
-    // eslint-disable-next-line max-len
-    "T-16.5-NAVER-WEB-CT-09: /v1/nid/me 401 (helper 실패) → 예외 전파 + finally revoke 1회",
+    "T-16.5-NAVER-WEB-CT-09: /v1/nid/me 401 (helper 실패) → 예외 전파 · NAVER 2회 (폐기 없음)",
     async () => {
       mockTokenOk();
       mockFetchJson(401, {});
-      mockRevokeOk();
 
       await expect(
         callWeb({data: {code: FAKE_CODE, state: FAKE_STATE_22CHARS}}),
@@ -638,10 +638,9 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         }),
         expect.any(String),
       );
-      expect(fetchMock).toHaveBeenCalledTimes(3);
-      expect(fetchMock.mock.calls[2][0]).toBe(NAVER_TOKEN_URL);
-      expect(formBodyOf(2).get("grant_type")).toBe("delete");
-      expect(formBodyOf(2).get("access_token")).toBe(FAKE_ACCESS_TOKEN);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchUrls()).toEqual([NAVER_TOKEN_URL, NAVER_PROFILE_URL]);
+      expect(grantTypesSent()).not.toContain("delete");
       expect(infoMock).not.toHaveBeenCalledWith(
         expect.objectContaining({event: "naver_web_custom_token_issued"}),
         expect.any(String),
@@ -653,10 +652,9 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
     // eslint-disable-next-line max-len
     "T-16.5-NAVER-WEB-CT-10: PII 0 — 토큰 · secret · code · state 가 logger 인자에 없다",
     async () => {
-      // 시나리오 A: 성공 + revoke 실패 (info · warn 경로 모두 통과).
+      // 시나리오 A: 성공 경로 (info).
       mockTokenOk();
       mockProfileOk("naver-web-10");
-      mockFetchReject("TimeoutError");
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
       await callWeb({
@@ -675,10 +673,13 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       expect(exchangeBody).toContain(FAKE_CODE);
       expect(exchangeBody).toContain(FAKE_STATE_22CHARS);
       expect(exchangeBody).toContain("fake-naver-secret");
-      const revokeBody = String(
-        (fetchMock.mock.calls[2][1] as {body?: unknown}).body,
+      // access_token 은 /v1/nid/me Authorization 헤더로만 나간다.
+      const profileInit = fetchMock.mock.calls[1][1] as {
+        headers: Record<string, string>;
+      };
+      expect(profileInit.headers.Authorization).toBe(
+        `Bearer ${FAKE_ACCESS_TOKEN}`,
       );
-      expect(revokeBody).toContain(FAKE_ACCESS_TOKEN);
 
       // 시나리오 B: 본문 error 응답 (error_description 에 code 반사).
       mockFetchJson(200, {

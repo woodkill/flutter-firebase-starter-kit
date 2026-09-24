@@ -6,8 +6,11 @@
 // - 교환: naveridlogin-sdk-ios-swift 5.2.1 IssueAccessTokenRequest.swift
 //   (POST · form-urlencoded) + com.navercorp.nid:oauth 5.11.2
 //   NidOAuthLoginService.requestAccessToken (state 포함).
-// - 폐기: DeleteAccessTokenRequest.swift — service_provider 포함 5 파라미터.
 // redirect_uri 는 양 SDK 모두 보내지 않는다 → 본 서버도 보내지 않는다.
+//
+// 서버는 토큰 폐기 grant 를 호출하지 않는다 — iOS SDK 5.2.1 에서 그 grant 는
+// `NidOAuth.disconnect()`(연동 해제) 전용이라 부르면 매 로그인 동의 화면이
+// 다시 뜬다 (quick 260924-lw2 · 16.5 D-15 번복).
 //
 // 서버 교환의 가치는 secret 은닉이 아니라 RFC 8252 정합 + 미설치 단말 착지다
 // (D-19 정직한 프레이밍).
@@ -36,22 +39,20 @@ import {
   verifyNaverProfileAndIssueCustomToken,
 } from "./naver_profile_to_custom_token";
 
-// token 교환 · 폐기 공용 endpoint (별도 revoke URL 없음 — RESEARCH §3).
+// token 교환 endpoint (RESEARCH §3).
 const NAVER_TOKEN_URL = "https://nid.naver.com/oauth2.0/token" as const;
 
 // Phase 13 Pitfall 3 미러 — NAVER 5xx hang 방어. 함수 30s timeout 이전 abort.
 // IN-04 (16.5 review 2회차) — `AbortSignal.timeout` 이라 헤더 수신뿐 아니라
-// `resp.json()` 본문 읽기까지 이 5s 안에 끝나야 한다 (revoke 와 같은 방식).
+// `resp.json()` 본문 읽기까지 이 5s 안에 끝나야 한다.
 const FETCH_TIMEOUT_MS = 5000;
 
-// WR-01 (16.5 review) — revoke 는 best-effort 이고 응답 반환 전에 await 되므로
-// 짧은 예산만 준다. 웹 경로는 NAVER 를 직렬 3회(교환 5s · /v1/nid/me 5s ·
-// revoke 2s) 호출하며, 합계 12s + Firestore · cold start 가 클라이언트 웹 경로
-// callable timeout(auth_repository.dart `_kNaverWebCustomTokenTimeout` 20s)
-// 안에 들어와야 「서버 성공 · 클라 deadline-exceeded」 부분 성공이 생기지 않는다.
-// 세 fetch 모두 `AbortSignal.timeout` 이라 각 예산은 본문 읽기까지 포함한
-// 상한이다 (IN-04 — 이전에는 교환 · 프로필이 헤더 수신까지만 bounded).
-const REVOKE_TIMEOUT_MS = 2000;
+// NAVER 응답 expires_in 을 관측 필드로 좁히는 형식 — 1~7자리 숫자 문자열.
+// 형식 밖(토큰 반사 · 임의 문자열)은 null 로 버려 로그에 원문이 실리지 않는다.
+const EXPIRES_IN_PATTERN = /^[0-9]{1,7}$/;
+
+// expires_in 정수 상한 (7자리 = 9999999초). 문자열 형식 상한과 같다.
+const MAX_EXPIRES_IN_SEC = 9999999;
 
 // 제어 문자 (CR / LF / NUL). code · state 는 form body 로만 나가므로 HTTP 헤더
 // injection 표면은 없다 — 1-tap 경로와 같은 입력 위생 가드로 유지한다.
@@ -74,8 +75,9 @@ type NaverWebCustomTokenRequest = {
 
 // NAVER token 응답 본문 shape (RESEARCH §2 — Android NidOAuthResponse DTO ·
 // iOS CodingKeys 실측). 비신뢰 JSON 이므로 전 필드 unknown 으로 받아 런타임에
-// 좁힌다. refresh_token · token_type · expires_in 은 형상 문서화용 선언이며
-// 읽지 않는다 (D-15 — refresh_token 미저장 · 미로깅).
+// 좁힌다. expires_in 은 parseExpiresInSec 로만 좁혀 로그에 싣고
+// refresh_token · token_type 은 읽지 않는다 (refresh_token 미저장 · 미로깅 —
+// D-15 중 유지되는 부분).
 type NaverTokenResponse = {
   access_token?: unknown;
   refresh_token?: unknown;
@@ -84,6 +86,38 @@ type NaverTokenResponse = {
   error?: unknown;
   error_description?: unknown;
 };
+
+// token 교환 결과 — accessToken 은 helper 인자로만, expiresInSec 는 로그로만.
+type NaverTokenExchange = {
+  accessToken: string;
+  expiresInSec: number | null;
+};
+
+/**
+ * NAVER token 응답의 expires_in 을 정수 초로 좁힌다 (quick 260924-lw2).
+ *
+ * 폐기 없이 남는 access_token 의 잔존 노출 상한을 서버 로그로 관측하기 위한
+ * 값이다. 1~7자리 숫자 문자열 또는 0~{@link MAX_EXPIRES_IN_SEC} 안전 정수만
+ * 통과시키고 그 외(부재 · 음수 · 소수 · 8자리 이상 · 임의 문자열)는 null —
+ * 원문 값은 어떤 경우에도 로그에 싣지 않는다. 절대 throw 하지 않는다.
+ *
+ * @param {unknown} value 비신뢰 응답의 expires_in 필드.
+ * @return {(number|null)} 정수 초 또는 null.
+ */
+function parseExpiresInSec(value: unknown): number | null {
+  if (typeof value === "string") {
+    return EXPIRES_IN_PATTERN.test(value) ? Number(value) : null;
+  }
+  if (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= MAX_EXPIRES_IN_SEC
+  ) {
+    return value;
+  }
+  return null;
+}
 
 /**
  * token 교환 실패의 PII-safe fingerprint 를 남긴다.
@@ -117,13 +151,14 @@ function logTokenExchangeFailure(fingerprint: {
  *    unauthenticated.
  *
  * @param {{code: string, state: string}} args 검증된 code · state.
- * @return {Promise<string>} 교환된 access_token (로그 · 응답 미노출).
+ * @return {Promise<NaverTokenExchange>} 교환된 access_token (로그 · 응답
+ *     미노출) + 관측용 expiresInSec.
  * @throws {HttpsError} 위 매핑 표에 따른 표준 에러.
  */
 async function exchangeNaverAuthCode(args: {
   code: string;
   state: string;
-}): Promise<string> {
+}): Promise<NaverTokenExchange> {
   // 5 파라미터 — state 는 Android SDK 처럼 보낸다 (iOS SDK 는 생략, 선택적).
   // 서버는 authorize 단계의 콜백 주소 파라미터를 싣지 않는다 (양 SDK 미전송).
   const body = new URLSearchParams({
@@ -200,80 +235,10 @@ async function exchangeNaverAuthCode(args: {
     );
     throw idpCredentialRejected();
   }
-  return accessToken;
-}
-
-/**
- * 교환된 access_token 을 best-effort 로 폐기한다 (D-15).
- *
- * token 교환과 같은 endpoint 에 grant_type=delete + service_provider=NAVER 를
- * 포함한 5 파라미터를 보낸다 (Pitfall 5 — 누락 시 무응답). 실패는 경고 로그만
- * 남기고 로그인 결과를 바꾸지 않는다.
- *
- * 성공 판정 (WR-02 — 교환과 같은 Pitfall 4 대칭: 같은 endpoint 가 실패를
- * HTTP 200 + 본문 error 로 돌려준다):
- * - fetch reject (`AbortSignal.timeout` 초과 = TimeoutError / network) →
- *   `{code: err.name}`
- * - HTTP non-OK → `{status}`
- * - JSON parse 실패 → `{code: err.name}` · 비객체 본문 → `{code:
- *   "non_object_body"}`
- * - 본문 `result !== "success"` → `{code: "error_body", error}` — error 는
- *   {@link NAVER_ERROR_CODE_PATTERN} 화이트리스트 통과 시 원문, 아니면
- *   "other". 성공 본문도 access_token 을 되돌려 주므로 본문 원문은 절대
- *   로깅하지 않는다 (D-51).
- *
- * 위 어느 것에도 걸리지 않을 때만 성공이다 — `naver_web_revoke_failed` 부재 =
- * NAVER 가 `result: "success"` 를 돌려줬다는 뜻이다.
- *
- * @param {string} accessToken 폐기할 NAVER access_token.
- * @return {Promise<void>} 성공 · 실패와 무관하게 resolve (never throws).
- */
-async function revokeNaverToken(accessToken: string): Promise<void> {
-  let failure: {status?: number; code?: string; error?: string} | null = null;
-  try {
-    const resp = await fetch(NAVER_TOKEN_URL, {
-      method: "POST",
-      headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: new URLSearchParams({
-        grant_type: "delete",
-        client_id: NAVER_CLIENT_ID.value(),
-        client_secret: NAVER_CLIENT_SECRET.value(),
-        access_token: accessToken,
-        service_provider: "NAVER",
-      }),
-      signal: AbortSignal.timeout(REVOKE_TIMEOUT_MS),
-    });
-    if (!resp.ok) {
-      failure = {status: resp.status};
-    } else {
-      // resp.json() reject 는 아래 catch 가 err.name fingerprint 로 받는다.
-      const parsed: unknown = await resp.json();
-      if (typeof parsed !== "object" || parsed === null) {
-        failure = {code: "non_object_body"};
-      } else {
-        const revokeBody = parsed as {result?: unknown; error?: unknown};
-        if (revokeBody.result !== "success") {
-          failure = {
-            code: "error_body",
-            error:
-              typeof revokeBody.error === "string" &&
-              NAVER_ERROR_CODE_PATTERN.test(revokeBody.error) ?
-                revokeBody.error :
-                "other",
-          };
-        }
-      }
-    }
-  } catch (err: unknown) {
-    // PII 금지 (D-51) — err.name 만.
-    failure = {code: err instanceof Error ? err.name : "unknown"};
-  }
-  if (failure) {
-    logger.warn(
-      {event: "naver_web_revoke_failed", ...failure},
-      "Naver token revoke failed",
-    );
-  }
+  return {
+    accessToken,
+    expiresInSec: parseExpiresInSec(tokenBody.expires_in),
+  };
 }
 
 /**
@@ -290,11 +255,14 @@ async function revokeNaverToken(accessToken: string): Promise<void> {
  * 2. NAVER token 교환 (`exchangeNaverAuthCode`) — 3단 검사.
  * 3. 공용 helper `verifyNaverProfileAndIssueCustomToken` 위임 — 1-tap 경로와
  *    같은 /v1/nid/me 검증 · identity · Custom Token · terms mirror.
- * 4. finally — helper 성공 · 실패와 무관하게 access_token best-effort 폐기
- *    (D-15). refresh_token 은 읽지도 저장하지도 로깅하지도 않는다.
+ * 4. access_token 은 이 호출 안에만 존재 — 저장 · 로깅 · 응답 · 폐기 호출 0.
+ *    NAVER 폐기 요청은 연동 해제라 매 로그인 동의 화면이 다시 뜬다
+ *    (quick 260924-lw2 · 16.5 D-15 번복). refresh_token 은 읽지도
+ *    저장하지도 로깅하지도 않는다.
  *
- * **PII 금지 (D-51):** logger payload 는 {event, uid, isNewUser, status?,
- * code?, error?(화이트리스트 NAVER error 코드 — 교환 · revoke 공통)} 뿐.
+ * **PII 금지 (D-51):** logger payload 는 {event, uid, isNewUser,
+ * expiresInSec, status?, code?, error?(화이트리스트 NAVER error 코드 —
+ * 교환)} 뿐.
  * 토큰 응답 본문 · access/refresh token · client_secret · code · state 는
  * logger · HttpsError · 응답 어디에도 싣지 않는다. 응답은 {customToken, uid, isNewUser} 뿐이다.
  *
@@ -315,31 +283,31 @@ export const naverWebCustomToken = onCall<NaverWebCustomTokenRequest>(
       throw invalidArgument();
     }
 
-    // Step 2: authorization code → access_token.
-    const accessToken = await exchangeNaverAuthCode({code, state});
+    // Step 2: authorization code → access_token (+ 관측용 expiresInSec).
+    const {accessToken, expiresInSec} = await exchangeNaverAuthCode({
+      code,
+      state,
+    });
 
-    // Step 3~4: helper 위임 + finally revoke (D-15 — 결과 무관 best-effort).
-    let result: NaverCustomTokenResult;
-    try {
-      result = await verifyNaverProfileAndIssueCustomToken({
-        accessToken,
-        callerUid: request.auth?.uid, // unauthenticated 허용 (D-49).
-        callerIsAnonymous: isAnonymousCaller(request.auth),
-        termsSnapshot: parseTermsAcceptanceJson(
-          request.data?.termsAcceptanceSnapshot,
-        ),
-        path: "web", // IN-02 — helper 로그 경로 구분 축.
-      });
-    } finally {
-      await revokeNaverToken(accessToken);
-    }
+    // Step 3: helper 위임 — 폐기 없음(quick 260924-lw2 · 16.5 D-15 번복).
+    // access_token 은 이 호출 안 지역 변수로만 존재한다.
+    const result = await verifyNaverProfileAndIssueCustomToken({
+      accessToken,
+      callerUid: request.auth?.uid, // unauthenticated 허용 (D-49).
+      callerIsAnonymous: isAnonymousCaller(request.auth),
+      termsSnapshot: parseTermsAcceptanceJson(
+        request.data?.termsAcceptanceSnapshot,
+      ),
+      path: "web", // IN-02 — helper 로그 경로 구분 축.
+    });
 
-    // Step 5: structured log — uid + isNewUser 만 (PII 금지 D-51).
+    // Step 4: structured log — uid · isNewUser · expiresInSec 만 (D-51).
     logger.info(
       {
         event: "naver_web_custom_token_issued",
         uid: result.uid,
         isNewUser: result.isNewUser,
+        expiresInSec,
       },
       "Naver web custom token issued",
     );

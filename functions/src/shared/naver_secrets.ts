@@ -10,12 +10,13 @@
 import {defineSecret} from "firebase-functions/params";
 
 /**
- * Naver Client Secret (Phase 13 D-60 · Phase 16.5 D-13/D-15).
+ * Naver Client Secret (Phase 13 D-60 · Phase 16.5 D-13).
  *
  * **사용처 1 (Phase 16.5 부터):** `naverWebCustomToken` 이 authorization code
- * 교환(`grant_type=authorization_code`)과 best-effort 토큰 폐기
- * (`grant_type=delete`)에서 form body 로 보낸다. Phase 13 단계에서는 사용처가
- * 없었지만 secret 정책 일관성 / 시스템 보안 권장으로 미리 등록했다 (D-60).
+ * 교환(`grant_type=authorization_code`)에서 form body 로 보낸다. 토큰 폐기
+ * 요청은 보내지 않는다 — NAVER 에서 연동 해제라서다 (quick 260924-lw2).
+ * Phase 13 단계에서는 사용처가 없었지만 secret 정책 일관성 / 시스템 보안
+ * 권장으로 미리 등록했다 (D-60).
  *
  * `naverCustomToken` (1-tap SDK 경로) 은 여전히 값을 읽지 않지만
  * `secrets:` 바인딩을 유지한다 — D-60 정책 일관용. 바인딩을 "미사용" 으로 보고
@@ -28,7 +29,7 @@ import {defineSecret} from "firebase-functions/params";
  * - Naver: `docs/manual.md` 단계 8 이 이미 등록 절차를 안내하고 있고, Naver
  *   Developers 콘솔은 client secret 을 앱 생성과 동시에 발급하므로 운영자가
  *   추가로 얻어야 할 값이 없다 → forward-prep 유지 (D-60). Phase 16.5 에서
- *   실사용처(웹 경로 token 교환 · revoke)를 확보했다.
+ *   실사용처(웹 경로 token 교환)를 확보했다.
  * - LINE: 별도 채널 설정 화면에서 값을 찾아 1회성 더미 주입을 강제받는
  *   부담이 있어 "최소 설정으로 시작" 가치와 충돌 → 선언 제거.
  *
@@ -45,7 +46,7 @@ export const NAVER_CLIENT_SECRET = defineSecret("NAVER_CLIENT_SECRET");
  * 에 둔다.
  * - 별도 `.env` 파일 도입 0 — 서버 설정 공급 경로를 Secret Manager 하나로 유지.
  * - client payload 신뢰 0 — caller 가 보낸 client_id 가 서버 secret 과 짝이
- *   되게 두지 않는다 (서버가 교환 · 폐기에 쓰는 값은 서버가 정한다).
+ *   되게 두지 않는다 (서버가 교환에 쓰는 값은 서버가 정한다).
  *
  * 값은 client 의 `config/<flavor>.json` `naverClientId` 와 같아야 한다 —
  * 다르면 NAVER token 엔드포인트가 authorization code 교환을 거부한다.
