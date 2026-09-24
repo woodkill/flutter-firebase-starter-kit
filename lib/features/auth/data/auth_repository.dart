@@ -178,13 +178,14 @@ class AuthRepository implements AnonymousSignIn {
   /// Naver 킷 웹 경로 callable(`naverWebCustomToken`) 타임아웃 — 20 초
   /// (Phase 16.5 review WR-01).
   ///
-  /// 웹 경로 서버는 NAVER 를 직렬로 3회 호출한다 (code 교환 5s · `/v1/nid/me`
-  /// 5s · revoke 2s — 셋 다 `AbortSignal.timeout` 이라 본문 읽기까지 포함한
-  /// 상한, review 2회차 IN-04). 여기에 Firestore transaction ·
-  /// `createCustomToken` · terms mirror · cold start 가 더해진다. 1-tap 과 같은 10s 를 쓰면 서버가
-  /// 계정을 만든 뒤에도 클라이언트가 `deadline-exceeded` →
-  /// [NoInternetConnection] 을 내는 조용한 부분 성공이 생긴다. 로그인 ·
-  /// 재인증 두 호출처가 같은 값을 쓴다.
+  /// 웹 경로 서버는 NAVER 를 직렬로 2회 호출한다 (code 교환 5s · `/v1/nid/me`
+  /// 5s — 둘 다 `AbortSignal.timeout` 이라 본문 읽기까지 포함한 상한,
+  /// review 2회차 IN-04). 서버 토큰 폐기 호출은 quick 260924-lw2 에서
+  /// 제거됐다(16.5 D-15 번복). 여기에 Firestore transaction ·
+  /// `createCustomToken` · terms mirror · cold start 가 더해진다. 1-tap 과
+  /// 같은 10s 를 쓰면 서버가 계정을 만든 뒤에도 클라이언트가
+  /// `deadline-exceeded` → [NoInternetConnection] 을 내는 조용한 부분 성공이
+  /// 생긴다. 로그인 · 재인증 두 호출처가 같은 값을 쓴다.
   static const Duration _kNaverWebCustomTokenTimeout = Duration(seconds: 20);
 
   /// 단위 테스트 결정성 보장을 위한 시간 주입 hook.
@@ -2274,7 +2275,7 @@ class AuthRepository implements AnonymousSignIn {
   /// 곳만 고치면 된다. exhaustive switch 라 새 variant 는 컴파일 에러로 잡힌다.
   /// - [NaverAppSignIn] → `naverCustomToken({accessToken})` · 10s
   /// - [NaverWebSignIn] → `naverWebCustomToken({code, state})` · 20s
-  ///   (NAVER 직렬 3회 — WR-01)
+  ///   (NAVER 직렬 2회 — WR-01)
   ///
   /// 약관 snapshot 은 싣지 않는다 — 로그인 경로만 호출부가
   /// [_buildCustomTokenPayload] 로 덧붙인다.

@@ -2463,9 +2463,9 @@ void main() {
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
 
-    // Phase 16.5 review WR-01: 웹 경로 서버는 NAVER 직렬 3회(교환 · /v1/nid/me
-    // · revoke) 라 1-tap 의 10s 예산으로는 서버 성공 · 클라 deadline-exceeded
-    // 부분 성공이 생긴다. 경로별 timeout 을 잠근다.
+    // Phase 16.5 review WR-01: 웹 경로 서버는 NAVER 직렬 2회(교환 · /v1/nid/me)
+    // + Firestore · cold start 라 1-tap 의 10s 예산으로는 서버 성공 · 클라
+    // deadline-exceeded 부분 성공이 생긴다. 경로별 timeout 을 잠근다.
     test('T-16.5-NAVER-REPO-WR01a: NaverWebSignIn → naverWebCustomToken '
         'callable timeout 20초', () async {
       when(() => mockNaverSdkClient.signIn()).thenAnswer(

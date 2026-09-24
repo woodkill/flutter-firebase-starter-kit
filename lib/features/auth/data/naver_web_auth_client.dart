@@ -73,7 +73,8 @@ Future<String> _defaultNaverWebAuthenticate({
 /// 보장한다(Android dangling 정리 포함) — 앱 쪽 대기 한도를 두지 않는다.
 ///
 /// **PKCE 없음 (T-16.5-02, 잔존 위험 명시):** NAVER SDK 도 쓰지 않는다. 완화는
-/// `state` 대조 + `code` 1회성 + `client_secret` 서버 단독 + 교환 직후 revoke.
+/// `state` 대조 + `code` 1회성 + `client_secret` 서버 단독 + access_token 서버
+/// 메모리 한정(저장 · 응답 0).
 class NaverWebAuthClient {
   /// production 진입점 — 실제 `flutter_web_auth_2` 호출.
   ///
