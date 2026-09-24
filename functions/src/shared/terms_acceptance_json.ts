@@ -53,7 +53,7 @@
  * `TermsNotifier.mirrorToFirestore` (terms_notifier.dart) 가 `termsAccepted`
  * 를 직접 set 하므로, 필드 단위 write 금지를 지금 도입하면 그 경로가 깨진다.
  * 규칙 강화는 client write 경로 이전과 함께 가야 하며
- * `firestore.rules` 의 "Phase 18 일반화 TODO" 가 그 작업 항목이다.
+ * `firestore.rules` 의 "Phase 18 일반화 TODO" (ROADMAP.md Phase 18) 가 그 작업 항목이다.
  * **후속 phase 가 이 상수를 위조 방어라고 믿고 설계하지 말 것.**
  */
 export const SERVER_TERMS_CURRENT_VERSION = 1;
