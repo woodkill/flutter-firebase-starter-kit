@@ -75,17 +75,27 @@
             android:name="com.naver.sdk.logEnabled"
             android:value="false" />
 
-        <!-- Phase 16.5 D-07 · D-09 — 킷 소유 웹 OAuth 콜백 (NAVER 앱 미설치 경로).
-             flutter_web_auth_2 README 의 Android 설정 그대로다. 콜백 scheme 은
-             build.gradle.kts 의 manifest placeholder 가 flavor 별 config json 에서
-             공급한다 (Dart 쪽 콜백 scheme 상수와 같은 값). 웹 인증 세션 Activity
-             자체는 패키지 manifest 가 스스로 병합하므로 앱 측에는 콜백 수신
-             Activity 하나만 둔다. NAVER 앱 패키지 가시성은 위 Naver 블록 설명대로
-             SDK AAR 이 병합하므로 queries 에 중복하지 않는다.
+        <!-- Phase 16.5 D-07 · D-09 · G-16.5-2 — 킷 소유 웹 OAuth 콜백 relay
+             (NAVER 앱 미설치 경로 · Auth Tab 미지원 브라우저의 Custom Tab fallback).
+             flutter_web_auth_2 README 는 라이브러리 콜백 Activity 선언을 요구하지만,
+             킷은 그 대신 킷 소유 relay Activity 를 콜백 수신자로 둔다. 라이브러리
+             콜백 Activity 의 Custom Tab 닫기는 같은 task 전용이라 빈 affinity 조합에서
+             tab 이 남기 때문이다 (upstream issue 158). relay 는 결과를 플러그인에
+             넘긴 뒤 MainActivity 의 기존 task 를 앞으로 되돌려 tab 을 걷는다.
+             Chrome Auth Tab 경로는 결과가 ActivityResult 로 돌아와 relay 를 기동하지
+             않는다. MainActivity 와 relay 의 빈 affinity 는 StrandHogg(task hijacking)
+             방어라 유지한다. 라이브러리 인증 관리 Activity 는 여기서 재선언하지
+             않는다 (Chrome Auth Tab 경로의 task 배치가 바뀐다).
+
+             콜백 scheme 은 build.gradle.kts 의 manifest placeholder 가 flavor 별
+             config json 에서 공급한다 (Dart 쪽 콜백 scheme 상수와 같은 값). 웹 인증
+             세션 Activity 자체는 패키지 manifest 가 스스로 병합한다. NAVER 앱
+             패키지 가시성은 위 Naver 블록 설명대로 SDK AAR 이 병합하므로 queries
+             에 중복하지 않는다.
 
              이 주석에 XML 속성 리터럴을 쓰지 않는 이유는 위 Naver 블록과 같다. -->
         <activity
-            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:name=".WebAuthCallbackActivity"
             android:exported="true"
             android:taskAffinity="">
             <intent-filter android:label="flutter_web_auth_2">
