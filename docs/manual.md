@@ -2760,6 +2760,7 @@ bash scripts/check_phase_refs.sh
 |-------------------|-------------|
 | `// TODO: Phase 8 후속 — Crashlytics.recordError (.planning/todos/pending/...md)` | PASS (todo 파일 인용) |
 | `// Phase 17 — see ROADMAP.md` | PASS (ROADMAP 인용) |
+| `// Phase 09 — see ROADMAP.md` | PASS (0 채움 표기 — 번호 성분별 선행 0 을 떼고 비교하므로 Phase 9 와 같다) |
 | `// TODO(phase-08): ...` | FAIL (raw — 진실원 미명시) |
 | `// TODO: dedicated NotFoundScreen` | FAIL (raw — 진실원 미명시) |
 | `// Phase 99 — see ROADMAP.md` | FAIL (Phase 99 가 ROADMAP 미존재) |
@@ -4553,7 +4554,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-24 | 16.5-07 | Naver Login 절을 킷 소유 웹 흐름(Phase 16.5) 기준으로 갱신 — 도입 문단(설치 단말 1-tap / 미설치 단말 킷 웹 + `naverWebCustomToken` 서버 교환 · 호스트 네이티브 판정 · 판정 실패 = 웹), 3단계 iOS URL Scheme 예시를 소문자 영숫자로 정정(웹 콜백 scheme 겸용), 6단계 「Dart 가 읽지 않는다」 를 두 소비처(SDK 1-tap · 킷 웹) 서술로 교체, 7단계에 iOS 웹 경로 추가 설정 0 · 설치 판정 Swift 1파일 메모, 8단계를 secret 2종(`NAVER_CLIENT_SECRET` 사용처 1 · `NAVER_CLIENT_ID` 신규) + 「같은 값 2본」(D-19 — secret 은닉이 아니라 RFC 8252 정합 + 착지) 으로 재작성, **9단계 신설**(웹 경로 Callback URL · redirect_uri 확인 — 브라우저 probe 절차 · 채택 결과 후보 A · scheme 파생 규칙과 커스터마이징 표 · Android `CallbackActivity` · Hosting bounce 대안(미구현) · `naverClientId` 2경로 일치 · 사용자가 보는 것 · Naver 제거 절차) 와 기존 9·10단계 → 10·11단계 재번호(배포 대상에 `naverWebCustomToken` 추가 · 웹 경로 확인법). Pitfall 11 의 16.4 계수 문장 · Pitfall 17 을 정정하고 **Pitfall 19 를 「킷 소유 웹 흐름으로 우회」 로 교체** — 레버 2(재개방 계수) 서술 삭제, 여섯 로그 접두어(앱 2 + 웹 4) + grep 앵커 규칙 + Android 앱 전면 복귀 취소 주의. Initial Setup 키 표 naver 3행 · stg/prod 등록 절차(scheme 예시 · `NAVER_CLIENT_ID` secret) · IdP 프로필 동기화 배포 목록 동반 갱신. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/`. |
 | 2026-09-24 | 16.5-09 | G-16.5-2: 9단계 (5) Android 콜백 수신을 킷 relay `WebAuthCallbackActivity` 로 교체 — 라이브러리 콜백 Activity 미선언 이유(Auth Tab 미지원 브라우저 Custom Tab fallback 에서 탭 미닫힘 · 빈 affinity 로 새 task · 상류 #158 OPEN · 버전 상향 무효) · relay 동작 · 기각안 2개(빈 affinity 제거 = StrandHogg · 인증 관리 Activity singleTask override) · Chrome Auth Tab 은 relay 미경유 · `flutter_web_auth_2` 상향 시 확인 · 실측 상태(SM-S942N Samsung Internet 30 탭 닫힘 · Chrome Auth Tab · 1-tap 회귀 통과) · Auth Tab 미지원 브라우저 재현 레시피. 옛 「Custom Tab 경로 실기기 기동 미관측」 괄호 서술 삭제, Naver 제거 절차에 relay Kotlin 파일 · manifest relay 블록 반영, Pitfall 19 에 검은 화면 진단 bullet(relay · `flg=0x34000000`) 추가. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-UAT-RESULT.md` `## 8.` |
 | 2026-09-24 | 16.5-REVIEW-FIX (2회차) | 증분 리뷰 2회차 Info 반영 — IN-01: 9단계 (5) 「relay 가 하는 일」 을 대기 호출 **전달함**(`NEW_TASK | CLEAR_TOP | SINGLE_TOP` · `flg=0x34000000`) / **대기 호출 없음**(`NEW_TASK | SINGLE_TOP` · `flg=0x30000000` — 외부 기동이 MainActivity 위 Kakao · Firebase IdP · NAVER 1-tap bridge 등을 걷지 않게) 두 갈래로 나누고 대가(프로세스 종료 뒤 콜백은 tab 을 닫지 못함)를 명시, Pitfall 19 검은 화면 진단에 `flg=0x30000000` 판정 추가. IN-04: 10단계 배포 확인에 NAVER 호출 3개의 시간 예산이 본문 읽기까지 포함한 상한이라는 점과 timeout fingerprint `TimeoutError`(이전 배포본 `AbortError`) 해석 bullet 추가. IN-05: Pitfall 19 검은 화면 진단을 세 갈래로 정리하고 BAL/ASM 차단 갈래(START 줄 뒤 `W ActivityTaskManager: ` 경고 — START 가 차단 판정보다 먼저 찍힘)를 추가, grep 앵커를 `I ActivityTaskManager: START` 형태로 정정. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-REVIEW.md`(2회차) · `16.5-REVIEW-FIX.md`. |
+| 2026-09-24 | quick 260924-k61 | 검증 규칙 요약 표에 0 채움 phase 참조 PASS 행 추가 — check_phase_refs.sh 가 ROADMAP 헤딩 · 코드 참조 양쪽 번호의 성분별 선행 0 을 떼고 고정 문자열 정확 일치로 비교 |
 
 ---
 
-*Last updated: 2026-09-24 — 16.5 리뷰 2회차 fix 반영 (relay 조건부 CLEAR_TOP)*
+*Last updated: 2026-09-24 — quick 260924-k61 check_phase_refs 0 채움 phase 번호 정규화*
