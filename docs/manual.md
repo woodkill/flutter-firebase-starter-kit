@@ -917,7 +917,8 @@ skip · stg/prod 는 직접 대조).
   access_token 은 서버 메모리 밖으로 나가지 않고(저장 · 로깅 · 응답 0), NAVER 가
   교환 응답 `expires_in` 으로 정한 시간이 지나면 만료됩니다 — 값은 서버 로그
   `naver_web_custom_token_issued` 의 `expiresInSec` 로 확인하며, NAVER Android SDK
-  5.11.2 는 이 값이 응답에 없을 때 3600초를 기본값으로 씁니다. 근거:
+  5.11.2 는 이 값이 응답에 없을 때 3600초를 기본값으로 씁니다(dev 실측
+  2026-09-24: 3600초, 웹 로그인 3회 모두 동일). 근거:
   `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-CONTEXT.md` 「D-15 번복」.
 - 같은 이메일이 다른 provider(예: Apple)로 이미 가입돼 있으면 웹 로그인이 성공해도
   계정 연결 시트(「이미 가입된 이메일입니다」)가 뜨고, 시트 안에서 기존 provider 로
