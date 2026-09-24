@@ -120,6 +120,49 @@ void main() {
           reason: '표시 없는 진입은 경로를 바꾸지 않는다',
         );
       });
+
+      test(
+        'removeReauthMarker 는 로그인 흐름 4개 경로의 표시를 지워 path 만 남긴다 (260924-phz)',
+        () {
+          for (final path in loginFlowPaths) {
+            expect(
+              AppRoutes.removeReauthMarker(
+                Uri.parse(AppRoutes.buildReauthLocation(path)),
+              ),
+              path,
+              reason: '남는 query 가 없으면 물음표 꼬리 없는 $path 여야 한다',
+            );
+          }
+        },
+      );
+
+      test('removeReauthMarker 는 다른 query 를 보존한다 (260924-phz)', () {
+        expect(
+          AppRoutes.removeReauthMarker(Uri.parse('/login?reauth=1&from=x')),
+          '/login?from=x',
+          reason: '정규화는 재인증 표시만 빼고 템플릿 사용자의 query 를 지우지 않는다',
+        );
+      });
+
+      test('removeReauthMarker 는 중복 key 를 값 개수와 무관하게 모두 지운다 (260924-phz)', () {
+        final removed = AppRoutes.removeReauthMarker(
+          Uri.parse('/login?reauth=0&reauth=1'),
+        );
+        expect(removed, AppRoutes.login, reason: '중복 key 를 일부만 지우면 표시가 남는다');
+        expect(
+          AppRoutes.hasReauthMarker(Uri.parse(removed)),
+          isFalse,
+          reason: '표시가 남으면 guard 분기 (2.5) 재평가가 redirect loop 가 된다',
+        );
+      });
+
+      test('removeReauthMarker 는 표시 없는 location 을 그대로 돌려준다 (260924-phz)', () {
+        expect(
+          AppRoutes.removeReauthMarker(Uri(path: AppRoutes.login)),
+          AppRoutes.login,
+          reason: '표시가 없으면 경로를 바꾸지 않는다',
+        );
+      });
     });
   });
 }

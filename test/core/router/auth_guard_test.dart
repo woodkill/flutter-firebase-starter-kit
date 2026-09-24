@@ -1197,6 +1197,101 @@ void main() {
         reason: '정규화 결과를 재평가하면 그대로 허용되어야 한다 — redirect loop 없음',
       );
     });
+
+    test('RN-2: 익명 사용자의 이메일 로그인 · 가입 · 비밀번호 찾기 표시도 제거한다', () async {
+      for (final path in <String>[
+        AppRoutes.emailLogin,
+        AppRoutes.signup,
+        AppRoutes.forgotPassword,
+      ]) {
+        expect(
+          await redirectFor(
+            AppRoutes.buildReauthLocation(path),
+            user: anonymousUser(),
+            termsAcceptance: acceptedTerms(),
+          ),
+          path,
+          reason: '$path 도 로그인 흐름 경로라 표시 없는 같은 경로로 가야 한다',
+        );
+        expect(
+          await redirectFor(
+            path,
+            user: anonymousUser(),
+            termsAcceptance: acceptedTerms(),
+          ),
+          isNull,
+          reason: '$path 정규화 결과 재평가는 null 이어야 한다 — redirect loop 없음',
+        );
+      }
+    });
+
+    test('RN-3: 약관 미동의 익명 사용자도 표시를 제거한다', () async {
+      expect(
+        await redirectFor(
+          AppRoutes.buildReauthLocation(AppRoutes.login),
+          user: anonymousUser(),
+        ),
+        AppRoutes.login,
+        reason: '정규화는 분기 (3) D-C1 gate 상태와 무관해야 한다',
+      );
+      expect(
+        await redirectFor(AppRoutes.login, user: anonymousUser()),
+        isNull,
+        reason: '약관 미동의 익명도 로그인 흐름 경로는 머물 수 있다 — redirect loop 없음',
+      );
+    });
+
+    test('RN-4: 미인증 + 온보딩 미시청 + 표시는 기존대로 /onboarding 으로 간다', () async {
+      expect(
+        await redirectFor(
+          AppRoutes.buildReauthLocation(AppRoutes.login),
+          user: null,
+          onboardingSeen: false,
+        ),
+        AppRoutes.onboarding,
+        reason: '미인증 + 온보딩 미시청은 분기 (2) 가 먼저 처리한다 — 중복 분기 없음',
+      );
+    });
+
+    test('RN-5: 미인증 + 온보딩 시청 + 표시는 표시 없는 /login 으로 간다', () async {
+      expect(
+        await redirectFor(
+          AppRoutes.buildReauthLocation(AppRoutes.login),
+          user: null,
+        ),
+        AppRoutes.login,
+        reason: '미인증 사용자에게도 재인증 선택 화면을 열면 안 된다',
+      );
+      expect(
+        await redirectFor(AppRoutes.login, user: null),
+        isNull,
+        reason: '정규화 결과 재평가는 null 이어야 한다 — redirect loop 없음',
+      );
+    });
+
+    test('RN-6: 표시가 아닌 값이나 로그인 흐름 밖 경로는 정규화하지 않는다', () async {
+      expect(
+        await redirectFor(
+          Uri(
+            path: AppRoutes.login,
+            queryParameters: <String, String>{AppRoutes.reauthQueryKey: '0'},
+          ).toString(),
+          user: anonymousUser(),
+          termsAcceptance: acceptedTerms(),
+        ),
+        isNull,
+        reason: 'reauth=0 은 표시가 아니다 (strict equality)',
+      );
+      expect(
+        await redirectFor(
+          AppRoutes.buildReauthLocation(AppRoutes.onboarding),
+          user: anonymousUser(),
+          termsAcceptance: acceptedTerms(),
+        ),
+        isNull,
+        reason: '온보딩 화면은 표시를 읽지 않으므로 정규화 대상이 아니다',
+      );
+    });
   });
 
   group('GoRouter push end-to-end — 재인증 표시 (260916-p8d)', () {
