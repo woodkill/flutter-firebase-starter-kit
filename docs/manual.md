@@ -727,8 +727,8 @@ Naver 서버 함수 2개가 Secret Manager 의 secret 2종을 씁니다.
 
 | secret | 값 | 사용처 |
 |--------|----|--------|
-| `NAVER_CLIENT_SECRET` | 개요 탭의 Client Secret (`config/{flavor}.json` 의 `naverClientSecret` 와 같은 값) | Phase 16.5 부터 사용처 1 — `naverWebCustomToken` 의 `code` 교환 · 토큰 폐기(revoke). `naverCustomToken`(1-tap) 은 D-60 정책으로 선언만 하고 쓰지 않습니다 |
-| `NAVER_CLIENT_ID` | 개요 탭의 Client ID (`config/{flavor}.json` 의 `naverClientId` 와 같은 값) | Phase 16.5 신규 — `naverWebCustomToken` 의 교환 · revoke 요청 파라미터. 앱 쪽 값과 다르면 NAVER 가 교환을 거부합니다 |
+| `NAVER_CLIENT_SECRET` | 개요 탭의 Client Secret (`config/{flavor}.json` 의 `naverClientSecret` 와 같은 값) | Phase 16.5 부터 사용처 1 — `naverWebCustomToken` 의 `code` 교환. `naverCustomToken`(1-tap) 은 D-60 정책으로 선언만 하고 쓰지 않습니다 |
+| `NAVER_CLIENT_ID` | 개요 탭의 Client ID (`config/{flavor}.json` 의 `naverClientId` 와 같은 값) | Phase 16.5 신규 — `naverWebCustomToken` 의 교환 요청 파라미터. 앱 쪽 값과 다르면 NAVER 가 교환을 거부합니다 |
 
 ```bash
 firebase use <dev-project-id>
@@ -908,9 +908,17 @@ skip · stg/prod 는 직접 대조).
 - iOS 는 「"앱"이(가) 로그인하기 위해 "naver.com"을(를) 사용하려고 합니다」 시스템
   확인창이 1회 뜹니다 — `preferEphemeral: false`(SSO 쿠키 공유)의 표준 동작이며
   제거 대상이 아닙니다.
-- **웹 로그인마다 NAVER 동의 화면이 다시 뜹니다.** 서버가 교환 직후 NAVER 토큰을
-  폐기(`grant_type=delete`, D-15)하면 NAVER 가 앱 연동도 해제하기 때문입니다. 정책
-  검토는 todo `.planning/todos/pending/2026-09-24-naver-web-consent-reprompt-revoke.md`.
+- **NAVER 동의 화면은 이 앱과 NAVER 계정의 연결이 없을 때만 뜹니다** — 첫 로그인,
+  사용자가 NAVER 쪽에서 연결을 끊은 뒤, 그리고 서버가 토큰을 폐기하던 이전
+  배포본으로 로그인했던 계정의 새 배포 후 첫 로그인. 서버가 교환한 NAVER 토큰을
+  폐기하지 않는 이유: NAVER 토큰 삭제 요청(`grant_type=delete`)은 NAVER SDK 에서
+  연동 해제(`disconnect`) 전용이라, 부르면 웹 로그인마다 동의 화면이 다시 뜹니다.
+  1-tap 경로의 로그아웃도 기기에 저장된 토큰만 지웁니다. 잔존 노출: 교환한
+  access_token 은 서버 메모리 밖으로 나가지 않고(저장 · 로깅 · 응답 0), NAVER 가
+  교환 응답 `expires_in` 으로 정한 시간이 지나면 만료됩니다 — 값은 서버 로그
+  `naver_web_custom_token_issued` 의 `expiresInSec` 로 확인하며, NAVER Android SDK
+  5.11.2 는 이 값이 응답에 없을 때 3600초를 기본값으로 씁니다. 근거:
+  `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-CONTEXT.md` 「D-15 번복」.
 - 같은 이메일이 다른 provider(예: Apple)로 이미 가입돼 있으면 웹 로그인이 성공해도
   계정 연결 시트(「이미 가입된 이메일입니다」)가 뜨고, 시트 안에서 기존 provider 로
   로그인해야 홈에 착지합니다.
@@ -928,7 +936,7 @@ PBXFileReference · Runner group · Sources), Dart `naver_host_channel.dart` ·
 ### 10단계 — Cloud Function 배포
 
 Naver 서버 함수 2개 — `naverCustomToken`(Phase 13-02, 1-tap 의 access token 검증)과
-`naverWebCustomToken`(Phase 16.5, 웹 경로의 `code` 교환 + revoke) — 를 dev Firebase
+`naverWebCustomToken`(Phase 16.5, 웹 경로의 `code` 교환) — 를 dev Firebase
 프로젝트 (asia-northeast3) 에 배포합니다. 두 함수는 `/v1/nid/me` 검증 → identity →
 Custom Token 체인을 공용 helper 로 공유합니다.
 
@@ -953,9 +961,11 @@ firebase deploy --only functions:naverCustomToken,functions:naverWebCustomToken
 확인 — Firebase Console:
 - "빌드 > Functions" → `naverCustomToken` · `naverWebCustomToken` 함수 row →
   region = `asia-northeast3` + "활성" 상태
-- 웹 경로에만 있는 구간(code 교환 · revoke · 최종 발급)은 `naver_web_*` 이벤트
-  4종(`naver_web_custom_token_issued` · `naver_web_token_exchange_failed` ·
-  `naver_web_token_error_response` · `naver_web_revoke_failed`)을 남깁니다.
+- 웹 경로에만 있는 구간(code 교환 · 최종 발급)은 `naver_web_*` 이벤트
+  3종(`naver_web_custom_token_issued` · `naver_web_token_exchange_failed` ·
+  `naver_web_token_error_response`)을 남깁니다. `naver_web_custom_token_issued` 의
+  `expiresInSec` 는 NAVER 가 알려준 access_token 유효 시간(초)이며, 응답 값이 숫자
+  형식이 아니면 `null` 입니다 — 토큰 값은 싣지 않습니다.
   `/v1/nid/me` 검증 · identity · Custom Token 발급 구간은 두 경로가 공용 helper 를
   쓰므로 이벤트 이름(`naver_custom_token_issued` · `naver_verify_*` ·
   `naver_email_collision` 등)도 공용이고, payload 의 `path` 필드(`"app"` = 1-tap ·
@@ -964,14 +974,8 @@ firebase deploy --only functions:naverCustomToken,functions:naverWebCustomToken
   남깁니다 — 1-tap 로그인 수는 `naver_custom_token_issued` 를 `path = "app"` 으로
   걸러 세십시오. terms mirror 이벤트(`naver_terms_acceptance_*`)와 `resolveIdentity`
   내부(`identity_index.ts`) 이벤트에는 `path` 가 없습니다.
-- revoke 판정은 HTTP status 와 응답 본문 `result` 를 함께 봅니다. NAVER 는 같은
-  endpoint 에서 실패를 HTTP 200 + 본문 `error` 로도 돌려주기 때문입니다. 그래서
-  로그인이 성공했는데 `naver_web_revoke_failed` 가 없으면 NAVER 가
-  `result: "success"` 를 돌려준 것입니다. 경고가 있으면 필드로 원인을 가립니다 —
-  `status`(HTTP non-OK) · `code`(`error_body` = 200 + 본문 오류, `TimeoutError` =
-  2s 초과, 그 외 `err.name`) · `error`(NAVER 오류 코드, 형식 밖이면 `other`).
-- NAVER 호출 세 개(code 교환 5s · `/v1/nid/me` 5s · revoke 2s)의 시간 예산은 모두
-  **응답 본문 읽기까지 포함한 상한**입니다. 그래서 세 예산의 합(12s)이 클라이언트 웹
+- NAVER 호출 두 개(code 교환 5s · `/v1/nid/me` 5s)의 시간 예산은 모두
+  **응답 본문 읽기까지 포함한 상한**입니다. 그래서 두 예산의 합(10s)이 클라이언트 웹
   경로 callable timeout(20s) 안에 들어온다는 계산이 성립합니다. 교환 ·
   `/v1/nid/me` 가 시간을 넘기면 `naver_web_token_exchange_failed` ·
   `naver_fetch_failed` 경고의 `code` 가 `TimeoutError` 이고, 클라이언트에는
@@ -4555,7 +4559,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-24 | 16.5-09 | G-16.5-2: 9단계 (5) Android 콜백 수신을 킷 relay `WebAuthCallbackActivity` 로 교체 — 라이브러리 콜백 Activity 미선언 이유(Auth Tab 미지원 브라우저 Custom Tab fallback 에서 탭 미닫힘 · 빈 affinity 로 새 task · 상류 #158 OPEN · 버전 상향 무효) · relay 동작 · 기각안 2개(빈 affinity 제거 = StrandHogg · 인증 관리 Activity singleTask override) · Chrome Auth Tab 은 relay 미경유 · `flutter_web_auth_2` 상향 시 확인 · 실측 상태(SM-S942N Samsung Internet 30 탭 닫힘 · Chrome Auth Tab · 1-tap 회귀 통과) · Auth Tab 미지원 브라우저 재현 레시피. 옛 「Custom Tab 경로 실기기 기동 미관측」 괄호 서술 삭제, Naver 제거 절차에 relay Kotlin 파일 · manifest relay 블록 반영, Pitfall 19 에 검은 화면 진단 bullet(relay · `flg=0x34000000`) 추가. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-UAT-RESULT.md` `## 8.` |
 | 2026-09-24 | 16.5-REVIEW-FIX (2회차) | 증분 리뷰 2회차 Info 반영 — IN-01: 9단계 (5) 「relay 가 하는 일」 을 대기 호출 **전달함**(`NEW_TASK | CLEAR_TOP | SINGLE_TOP` · `flg=0x34000000`) / **대기 호출 없음**(`NEW_TASK | SINGLE_TOP` · `flg=0x30000000` — 외부 기동이 MainActivity 위 Kakao · Firebase IdP · NAVER 1-tap bridge 등을 걷지 않게) 두 갈래로 나누고 대가(프로세스 종료 뒤 콜백은 tab 을 닫지 못함)를 명시, Pitfall 19 검은 화면 진단에 `flg=0x30000000` 판정 추가. IN-04: 10단계 배포 확인에 NAVER 호출 3개의 시간 예산이 본문 읽기까지 포함한 상한이라는 점과 timeout fingerprint `TimeoutError`(이전 배포본 `AbortError`) 해석 bullet 추가. IN-05: Pitfall 19 검은 화면 진단을 세 갈래로 정리하고 BAL/ASM 차단 갈래(START 줄 뒤 `W ActivityTaskManager: ` 경고 — START 가 차단 판정보다 먼저 찍힘)를 추가, grep 앵커를 `I ActivityTaskManager: START` 형태로 정정. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-REVIEW.md`(2회차) · `16.5-REVIEW-FIX.md`. |
 | 2026-09-24 | quick 260924-k61 | 검증 규칙 요약 표에 0 채움 phase 참조 PASS 행 추가 — check_phase_refs.sh 가 ROADMAP 헤딩 · 코드 참조 양쪽 번호의 성분별 선행 0 을 떼고 고정 문자열 정확 일치로 비교 |
+| 2026-09-24 | quick 260924-lw2 | 웹 경로 서버 토큰 폐기 제거(16.5 D-15 번복) — 8단계 secret 표의 사용처에서 폐기 삭제, 9단계 「사용자가 보는 것」 을 동의 화면은 연결이 없을 때만 뜬다 · 폐기하지 않는 이유(NAVER 토큰 삭제 요청 = SDK 연동 해제) · 잔존 노출(access_token 은 서버 메모리 한정 · `expires_in` 까지 유효) · `expiresInSec` 확인법으로 교체, 10단계 배포 대상 설명에서 폐기 삭제 · `naver_web_*` 이벤트 3종 + `expiresInSec` 설명 · 폐기 판정 bullet 과 폐기 실패 이벤트 삭제 · NAVER 호출 예산 2개(합 10s). 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-CONTEXT.md` 「D-15 번복」. |
 
 ---
 
-*Last updated: 2026-09-24 — quick 260924-k61 check_phase_refs 0 채움 phase 번호 정규화*
+*Last updated: 2026-09-24 — quick 260924-lw2 Naver 웹 경로 서버 토큰 폐기 제거*
