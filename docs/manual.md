@@ -1165,13 +1165,23 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
     않습니다 — 세션 중에는 앱을 전환하지 않습니다.
   - Android 에서 웹 로그인 뒤 브라우저가 **검은 화면으로 남으면**: 먼저 병합본
     manifest 에 킷 relay `WebAuthCallbackActivity` 가 있고 라이브러리 콜백 Activity
-    가 없는지 확인합니다(9단계 (5)). 다음으로 logcat `ActivityTaskManager: START` 에서
-    relay 직후 MainActivity 재기동(`flg=0x34000000`)이 찍히는지 봅니다. 재기동 줄이
-    없으면 콜백이 relay 가 아닌 곳에 도착한 것입니다(G-16.5-2 · 상류 #158).
-    재기동 줄이 `flg=0x30000000`(CLEAR_TOP 없음)이면 relay 는 동작했지만 넘길 대기
-    호출이 없었던 것입니다 — 로그인 도중 앱 프로세스가 죽었거나, 콜백이 두 번
-    도착했거나, 로그인과 무관한 외부 기동입니다. 이때 tab 이 남는 것은 의도된
-    동작입니다(9단계 (5) 「대가」).
+    가 없는지 확인합니다(9단계 (5)). 다음으로 logcat 의 `I ActivityTaskManager: START`
+    줄에서 relay 직후 MainActivity 재기동(`flg=0x34000000`)이 찍히는지 봅니다. 판정은
+    세 갈래입니다.
+    1. **재기동 줄이 없음:** 콜백이 relay 가 아닌 곳에 도착한 것입니다(G-16.5-2 ·
+       상류 #158).
+    2. **재기동 줄이 `flg=0x30000000`(CLEAR_TOP 없음):** relay 는 동작했지만 넘길 대기
+       호출이 없었던 것입니다 — 로그인 도중 앱 프로세스가 죽었거나, 콜백이 두 번
+       도착했거나, 로그인과 무관한 외부 기동입니다. 이때 tab 이 남는 것은 의도된
+       동작입니다(9단계 (5) 「대가」).
+    3. **START 줄은 있는데 바로 뒤에 `W ActivityTaskManager: ` 경고가 있음:** OS 가
+       전면 복귀를 막은 것입니다(Android 14+ 백그라운드 Activity 기동 제한 · 15+
+       ASM). START 줄은 이 판정보다 **먼저** 찍히므로, START 줄만 보고 relay 가
+       정상이라고 결론내면 안 됩니다. 경고 문구는 OS 버전마다 다릅니다
+       (`Background activity launch blocked` · `Abort background activity starts` ·
+       `[ASM]`). 그러니 태그 앵커로 먼저 좁힌 뒤 문구를 확인합니다. relay 가
+       코드로 막을 수 없는 잔존 위험입니다(relay KDoc). 발생하면 OS 버전 ·
+       브라우저 · 단말을 기록해 G-16.5-2 재평가 자료로 남깁니다.
   - 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/` 의
     `16.5-PROBE-RESULT.md` · `16.5-UAT-RESULT.md` (결함 귀속은
     `.planning/phases/16.4-naver-web-fallback-and-auth-feedback/16.4-AB-RESULT.md`).
@@ -4542,7 +4552,7 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-22 | 16.3-REVIEW-FIX | 증분 코드 리뷰 2회차 지적 11건(Warning 4 · Info 7) 반영 — 「iOS 의존성 관리 (SPM)」 절의 **검증력** 보강이 주제다. ② 상향 절차 4번: checkout 디렉터리 규칙을 「URL 마지막 경로 요소」 → 「마지막 경로 요소에서 **`.git` 접미사를 뗀 이름**」 으로 정정(핀 20개 중 16개의 `location` 이 `.git` 으로 끝나 규칙대로 하면 `No such file or directory` — 재현 명령 병기, 규칙 성립을 실제 checkout 20개와 `diff` 로 전수 확인) + identity 불일치 6건을 별개 사실로 분리. ③(다): 합격 기준을 「출력 1줄」 단독에서 「1줄 **AND** 맨 앞 개수 = `$EXPECTED`」 로 교체 — 두 경로만 탐색해 조용히 건너뛰는 구조 때문에 **표본 부분 누락에 공허하게 참**이었다(8개 중 3개만 읽혀도 1줄). 기대 개수는 `grep -cE` 가 아니라 **jq 필터**로 센다(ugrep 괄호 `-E` 위음성 + 주석 오염 배제). 성립 불가능 조항 「맨 앞 개수가 0 이 아니다」(`uniq -c` 는 개수 0 을 출력할 수 없다) 제거. 「옛 세대는 충돌하지도 않는다」 단정을 조건부로 한정(`from: X` 와 `exact: Y` 는 `Y >= X` 일 때만 해석 — 반례 존재, 확인 명령 추가). ⑤: **하한 15.0 금지선**을 명시(test 가 12개 일치와 함께 강제하므로 14.0 으로 내리면 빌드 전에 `flutter test` 가 red) — `_minSupportedIosTarget` doc comment 와의 양방향 링크 복구. ⑥: **Xcode IDE 빌드에서 stale `build/ios/SourcePackages` 가 우선한다**는 알려진 제약 신규(probe 순서를 자동으로 뒤집지 않는 근거를 flutter_tools 라인 인용으로 명시 — `BUILD_DIR` 은 archive 가 아닐 때만 덮어써지고 `-clonedSourcePackagesDirPath` 는 모든 호출에 붙는다) + build phase 가 고른 후보를 `note:` 로 로깅. IDFA 절: 근거 재확인 명령을 하드코딩 `sed -n '13,16p'` 에서 **내용 앵커 `grep`** 으로 교체(상향으로 줄이 밀리면 목적과 수단이 서로를 무효화했다) + 「위 인용 블록」 방향 오기를 「아래 … 블록」 + 식별 문자열로 정정. 회귀 가드 쪽은 `test/helpers/source_text.dart` 신규 추출(헬퍼 3종의 3중 복제 해소 · public 최상위 심볼 0), SPM 손패치 단언을 **`shellScript` 본문으로 범위 한정**(전체 텍스트 검사라 shellScript 가 비어도 통과하던 구멍 폐쇄), 배포 타겟 비교를 `double.parse` 에서 **성분 단위 비교**로 교체(`15.6.1` 예외사 · `15.10` → `15.1` 오독 제거). 모든 문서 명령은 블록에서 그대로 추출해 실행한 출력과 대조했고, 가드 변경은 fixture 로 red 재현을 확인했다. 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/16.3-REVIEW.md`(round 2) · `16.3-REVIEW-FIX.md`. |
 | 2026-09-24 | 16.5-07 | Naver Login 절을 킷 소유 웹 흐름(Phase 16.5) 기준으로 갱신 — 도입 문단(설치 단말 1-tap / 미설치 단말 킷 웹 + `naverWebCustomToken` 서버 교환 · 호스트 네이티브 판정 · 판정 실패 = 웹), 3단계 iOS URL Scheme 예시를 소문자 영숫자로 정정(웹 콜백 scheme 겸용), 6단계 「Dart 가 읽지 않는다」 를 두 소비처(SDK 1-tap · 킷 웹) 서술로 교체, 7단계에 iOS 웹 경로 추가 설정 0 · 설치 판정 Swift 1파일 메모, 8단계를 secret 2종(`NAVER_CLIENT_SECRET` 사용처 1 · `NAVER_CLIENT_ID` 신규) + 「같은 값 2본」(D-19 — secret 은닉이 아니라 RFC 8252 정합 + 착지) 으로 재작성, **9단계 신설**(웹 경로 Callback URL · redirect_uri 확인 — 브라우저 probe 절차 · 채택 결과 후보 A · scheme 파생 규칙과 커스터마이징 표 · Android `CallbackActivity` · Hosting bounce 대안(미구현) · `naverClientId` 2경로 일치 · 사용자가 보는 것 · Naver 제거 절차) 와 기존 9·10단계 → 10·11단계 재번호(배포 대상에 `naverWebCustomToken` 추가 · 웹 경로 확인법). Pitfall 11 의 16.4 계수 문장 · Pitfall 17 을 정정하고 **Pitfall 19 를 「킷 소유 웹 흐름으로 우회」 로 교체** — 레버 2(재개방 계수) 서술 삭제, 여섯 로그 접두어(앱 2 + 웹 4) + grep 앵커 규칙 + Android 앱 전면 복귀 취소 주의. Initial Setup 키 표 naver 3행 · stg/prod 등록 절차(scheme 예시 · `NAVER_CLIENT_ID` secret) · IdP 프로필 동기화 배포 목록 동반 갱신. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/`. |
 | 2026-09-24 | 16.5-09 | G-16.5-2: 9단계 (5) Android 콜백 수신을 킷 relay `WebAuthCallbackActivity` 로 교체 — 라이브러리 콜백 Activity 미선언 이유(Auth Tab 미지원 브라우저 Custom Tab fallback 에서 탭 미닫힘 · 빈 affinity 로 새 task · 상류 #158 OPEN · 버전 상향 무효) · relay 동작 · 기각안 2개(빈 affinity 제거 = StrandHogg · 인증 관리 Activity singleTask override) · Chrome Auth Tab 은 relay 미경유 · `flutter_web_auth_2` 상향 시 확인 · 실측 상태(SM-S942N Samsung Internet 30 탭 닫힘 · Chrome Auth Tab · 1-tap 회귀 통과) · Auth Tab 미지원 브라우저 재현 레시피. 옛 「Custom Tab 경로 실기기 기동 미관측」 괄호 서술 삭제, Naver 제거 절차에 relay Kotlin 파일 · manifest relay 블록 반영, Pitfall 19 에 검은 화면 진단 bullet(relay · `flg=0x34000000`) 추가. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-UAT-RESULT.md` `## 8.` |
-| 2026-09-24 | 16.5-REVIEW-FIX (2회차) | 증분 리뷰 2회차 Info 반영 — IN-01: 9단계 (5) 「relay 가 하는 일」 을 대기 호출 **전달함**(`NEW_TASK | CLEAR_TOP | SINGLE_TOP` · `flg=0x34000000`) / **대기 호출 없음**(`NEW_TASK | SINGLE_TOP` · `flg=0x30000000` — 외부 기동이 MainActivity 위 Kakao · Firebase IdP · NAVER 1-tap bridge 등을 걷지 않게) 두 갈래로 나누고 대가(프로세스 종료 뒤 콜백은 tab 을 닫지 못함)를 명시, Pitfall 19 검은 화면 진단에 `flg=0x30000000` 판정 추가. IN-04: 10단계 배포 확인에 NAVER 호출 3개의 시간 예산이 본문 읽기까지 포함한 상한이라는 점과 timeout fingerprint `TimeoutError`(이전 배포본 `AbortError`) 해석 bullet 추가. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-REVIEW.md`(2회차) · `16.5-REVIEW-FIX.md`. |
+| 2026-09-24 | 16.5-REVIEW-FIX (2회차) | 증분 리뷰 2회차 Info 반영 — IN-01: 9단계 (5) 「relay 가 하는 일」 을 대기 호출 **전달함**(`NEW_TASK | CLEAR_TOP | SINGLE_TOP` · `flg=0x34000000`) / **대기 호출 없음**(`NEW_TASK | SINGLE_TOP` · `flg=0x30000000` — 외부 기동이 MainActivity 위 Kakao · Firebase IdP · NAVER 1-tap bridge 등을 걷지 않게) 두 갈래로 나누고 대가(프로세스 종료 뒤 콜백은 tab 을 닫지 못함)를 명시, Pitfall 19 검은 화면 진단에 `flg=0x30000000` 판정 추가. IN-04: 10단계 배포 확인에 NAVER 호출 3개의 시간 예산이 본문 읽기까지 포함한 상한이라는 점과 timeout fingerprint `TimeoutError`(이전 배포본 `AbortError`) 해석 bullet 추가. IN-05: Pitfall 19 검은 화면 진단을 세 갈래로 정리하고 BAL/ASM 차단 갈래(START 줄 뒤 `W ActivityTaskManager: ` 경고 — START 가 차단 판정보다 먼저 찍힘)를 추가, grep 앵커를 `I ActivityTaskManager: START` 형태로 정정. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-REVIEW.md`(2회차) · `16.5-REVIEW-FIX.md`. |
 
 ---
 
