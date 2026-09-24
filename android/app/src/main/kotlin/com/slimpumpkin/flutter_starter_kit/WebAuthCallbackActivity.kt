@@ -39,9 +39,14 @@ import com.linusu.flutter_web_auth_2.FlutterWebAuth2Plugin
  * top)은 더 이상 tab 을 걷지 못한다. 그 로그인은 어차피 Dart 쪽에 기다리는 호출이 없어
  * 사라지므로(D-45 취소와 같은 결과), 사용자가 tab 을 직접 닫는 한 단계가 늘 뿐이다.
  *
- * **순서가 계약이다** — success 전달이 MainActivity 전면 복귀보다 먼저여야 한다.
- * flutter_web_auth_2 Dart 의 resume observer 는 앱 resume 시 map 에 남은 대기 호출을
- * 전부 CANCELED 로 접는다 (T-16.5-NATIVE-09 가 소스 순서로 잠근다).
+ * **계약 (16.5 review 2회차 IN-03)** — 대기 호출은 main thread 에서 **동기로 map 에서
+ * 꺼낸 뒤** success 한다(`callbacks.remove(…)?.let { success }` 한 식). 그래서 이후
+ * MainActivity resume 이 부르는 Dart resume observer 의 cleanUpDanglingCalls(map 에 남은
+ * 대기 호출을 CANCELED 로 접는다) · 늦게 온 Auth Tab handleAuthResult 가 빈 map 을 보고,
+ * CANCELED 경합 · double reply 가 구조적으로 없다. startActivity 는 비동기 IPC 이고
+ * MainActivity onNewIntent/onResume 은 같은 main looper 에서 이 onCreate 가 반환한 뒤에야
+ * 돈다 — 따라서 success 를 startActivity 보다 **소스상 먼저** 두는 것은 보호 장치가
+ * 아니라 가독성 규칙이다 (T-16.5-NATIVE-09 가 한 식 구조를 잠근다).
  *
  * **Chrome Auth Tab 경로는 이 Activity 를 기동하지 않는다** — 결과가 ActivityResult 로
  * 돌아오므로 이 변경의 영향이 없다 (plan 06 UAT 실측 콜백 Activity START 0).
@@ -67,7 +72,8 @@ class WebAuthCallbackActivity : Activity() {
         val url = intent?.data
         val scheme = url?.scheme
 
-        // ① 대기 호출에 결과 전달 — 반드시 ② 보다 먼저 (Dart resume observer 경합).
+        // ① 대기 호출을 main thread 에서 동기로 map 에서 꺼내 success 로 전달 — 이후
+        //    cleanUpDanglingCalls · 늦은 handleAuthResult 는 빈 map 을 본다 (KDoc 계약).
         //    delivered = 대기 호출을 실제로 꺼내 전달했는지 (remove 결과에서 파생)
         val delivered = scheme != null &&
             FlutterWebAuth2Plugin.callbacks.remove(scheme)?.let { pending ->

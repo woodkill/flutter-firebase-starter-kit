@@ -697,6 +697,22 @@ void main() {
               '위 Activity 를 걷는 표면이다.',
         );
 
+        // 16.5 review 2회차 IN-03 — 실제 불변식: 대기 호출을 map 에서 동기로
+        // 꺼내는 것과 success 가 한 식(main thread 같은 구간)에 있다.
+        expect(
+          RegExp(
+            r'FlutterWebAuth2Plugin\.callbacks\.remove\(scheme\)\?\.let\s*'
+            r'\{\s*pending\s*->\s*pending\.success\(url\.toString\(\)\)',
+          ).allMatches(kotlin).length,
+          1,
+          reason:
+              'G-16.5-2 · IN-03 계약: 대기 호출은 main thread 에서 동기로 map 에서 '
+              '꺼낸 뒤(callbacks.remove) 같은 식에서 success 한다 — 이후 '
+              'MainActivity resume 이 부르는 cleanUpDanglingCalls(남은 호출을 '
+              'CANCELED 로 접음) · 늦은 handleAuthResult 가 빈 map 을 보게 하는 '
+              '것이 보호 장치다.',
+        );
+
         final int removeAt = kotlin.indexOf(
           'FlutterWebAuth2Plugin.callbacks.remove(',
         );
@@ -705,10 +721,11 @@ void main() {
           removeAt >= 0 && startAt >= 0 && removeAt < startAt,
           isTrue,
           reason:
-              'G-16.5-2 순서 계약: success 전달이 MainActivity 전면 복귀보다 '
-              '먼저여야 한다 — flutter_web_auth_2 Dart 의 resume observer 가 앱 '
-              'resume 시 map 에 남은 대기 호출을 전부 CANCELED 로 접는다 '
-              '(remove=$removeAt · startActivity=$startAt).',
+              'G-16.5-2 가독성 규칙: 전달(remove · success)을 MainActivity 전면 '
+              '복귀 기동보다 소스상 먼저 둔다. startActivity 는 비동기 IPC 라 '
+              'MainActivity resume 은 relay onCreate 반환 뒤에야 돌므로 보호 '
+              '장치는 위 한 식 remove 이고, 이 순서는 읽는 순서를 실행 의미와 '
+              '맞추려는 규칙이다 (remove=$removeAt · startActivity=$startAt).',
         );
       },
     );
