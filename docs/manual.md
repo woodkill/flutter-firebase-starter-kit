@@ -822,15 +822,57 @@ NAVER 가 그 앱의 주소로 인식하는 것으로 봅니다(완전히 임의
 형태 위반(대문자 · underscore · 빈 값)은 세션을 열기 전에 debug 로그
 `Naver web 도착: outcome=error elapsedMs=0 code=config` + 오류 배너로 드러납니다.
 
-**(5) Android `CallbackActivity`.** `android/app/src/main/AndroidManifest.xml` 에
-`com.linusu.flutter_web_auth_2.CallbackActivity`(`exported="true"` ·
-`taskAffinity=""` · intent-filter `<data android:scheme="${naverWebCallbackScheme}" />`)
-가 선언돼 있고, scheme 은 위 placeholder 가 채웁니다. 이 Activity 는 Chrome Auth Tab
-을 쓸 수 없을 때의 **Custom Tab 경로 전용**입니다 — Auth Tab(Chrome 141+)을 쓰는
-단말에서는 결과가 Activity result 로 돌아와 기동되지 않는 것이 정상입니다(킷 UAT
-단말 실측, Custom Tab 경로의 실기기 기동은 미관측). 병합본 확인:
-`build/app/intermediates/merged_manifests/devDebug/processDevDebugManifest/AndroidManifest.xml`
-의 해당 블록에 `${` 가 남아 있지 않아야 합니다. 이전 빌드가 깔린 단말은 새 scheme 을
+**(5) Android 콜백 수신 — 킷 relay `WebAuthCallbackActivity` (G-16.5-2).**
+`android/app/src/main/AndroidManifest.xml` 에 킷 소유 `.WebAuthCallbackActivity`
+(`exported="true"` · `taskAffinity=""` · intent-filter
+`<data android:scheme="${naverWebCallbackScheme}" />`)가 선언돼 있고, scheme 은 위
+placeholder 가 채웁니다. 구현은
+`android/app/src/main/kotlin/com/slimpumpkin/flutter_starter_kit/WebAuthCallbackActivity.kt`
+입니다. **`flutter_web_auth_2` README 가 안내하는 라이브러리 콜백 Activity
+(`CallbackActivity`) 는 선언하지 않습니다.**
+
+- **왜 라이브러리 것을 쓰지 않나:** Chrome Auth Tab 을 지원하지 않는 브라우저(킷
+  실측: Samsung Internet 30)는 Custom Tab 으로 fallback 합니다. 그 경로에서 라이브러리
+  콜백 Activity 는 결과를 전달하지만 **탭을 닫지 못해 검은 화면이 남습니다.**
+  라이브러리의 닫기 동작은 같은 task 안에서만 통합니다. 그런데 MainActivity(Flutter
+  템플릿)와 콜백 Activity 가 둘 다 빈 `taskAffinity` 라서 콜백이 새 task 에
+  떨어집니다. 상류 `ThexXTURBOXx/flutter_web_auth_2` **#158** 이 이 문제이고 OPEN
+  입니다. 5.1.0 · 6.0.0-alpha.8 · master 의 해당 파일이 같으므로 버전을 올려도 풀리지
+  않습니다.
+- **relay 가 하는 일:** 콜백 URL 을 대기 중인 호출에 넘깁니다(라이브러리와 같은
+  경로 — `FlutterWebAuth2Plugin.callbacks`). 그다음 MainActivity 를
+  `NEW_TASK | CLEAR_TOP | SINGLE_TOP` 으로 띄워 기존 task 를 앞으로 되돌립니다.
+  이때 원래 인증 관리 Activity 와 Custom Tab 이 걷히고, Flutter 엔진은 그대로
+  유지됩니다(MainActivity `launchMode="singleTop"` 전제).
+- **기각한 대안 두 개:**
+  - 빈 `taskAffinity` 제거(#158 커뮤니티 우회): minSdk 24(< 30)에서 StrandHogg 에
+    노출됩니다. MainActivity 를 바꾸므로 다른 provider 흐름에도 영향이 갑니다.
+  - 인증 관리 Activity 를 manifest 에서 `singleTask` 로 override: Chrome Auth Tab
+    경로의 task 배치 · 최근 앱 목록까지 바뀝니다.
+- **Chrome Auth Tab(141+) 은 relay 를 거치지 않습니다.** 결과가 Activity result 로
+  돌아오므로 relay 가 기동되지 않는 것이 정상입니다(plan 06 · 09 실측).
+- **채택자 주의:**
+  - `flutter_web_auth_2` 를 올릴 때는 상류 콜백 Activity 의 전달 방식과 플러그인
+    `callbacks` companion 이 그대로인지 확인합니다. `callbacks` 가 없어지면 Android
+    빌드가 실패합니다(조용한 실패가 아닙니다).
+  - 상류가 #158 을 고치면 relay 를 걷고 README 의 선언 방식으로 돌아갈 수 있습니다.
+  - README 의 콜백 Activity 선언을 relay 와 **함께** 넣으면 같은 scheme 을 받는
+    Activity 가 2개가 됩니다. 계약 테스트 `T-16.5-NATIVE-04` 가 이를 잡습니다.
+- **실측 상태:** 2026-09-24 SM-S942N Samsung Internet 30 에서 탭이 닫혔고,
+  Chrome Auth Tab · NAVER 앱 1-tap 회귀도 통과했습니다(G-16.5-2 재UAT
+  `G2_RESULT: PASS`). 합성 콜백 · 실제 로그인 모두 relay 뒤 세션 시작과 같은
+  MainActivity 인스턴스로 돌아왔습니다. 근거:
+  `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-UAT-RESULT.md` `## 8.`
+- **Auth Tab 미지원 브라우저를 직접 재현하려면:** `adb shell cmd role
+  add-role-holder --user 0 android.app.role.BROWSER com.sec.android.app.sbrowser` 로
+  기본 브라우저를 바꿉니다. 이어서 NAVER 앱을 비활성화하고,
+  `https://nid.naver.com/nidlogin.logout` 을 열어 로그인 폼이 뜨게 만듭니다. 판정은
+  화면이 아니라 `dumpsys activity activities` 의 `topResumedActivity` 가 로그인
+  전과 같은 MainActivity record 인지로 합니다. 끝나면 기본 브라우저와 NAVER 앱을
+  원래대로 돌려 놓습니다.
+
+병합본 확인: `build/app/intermediates/merged_manifests/devDebug/processDevDebugManifest/AndroidManifest.xml`
+의 relay 블록에 `${` 가 남아 있지 않아야 합니다. 이전 빌드가 깔린 단말은 새 scheme 을
 받으려면 APK 를 재설치해야 합니다.
 
 **(6) https 만 받는 경우의 대안 — Hosting bounce (킷 미구현 · 미실측).** (2) 가
@@ -863,8 +905,9 @@ skip · stg/prod 는 직접 대조).
   계정 연결 시트(「이미 가입된 이메일입니다」)가 뜨고, 시트 안에서 기존 provider 로
   로그인해야 홈에 착지합니다.
 
-**Naver 를 빼는 채택자:** Android `NaverHostChannel.kt` + `MainActivity.kt` 의
-등록/해제 3줄 + manifest `CallbackActivity` 블록 + gradle placeholder 1줄 ·
+**Naver 를 빼는 채택자:** Android `NaverHostChannel.kt` · `WebAuthCallbackActivity.kt` +
+`MainActivity.kt` 의 등록/해제 3줄 + manifest relay 블록(`.WebAuthCallbackActivity`) +
+gradle placeholder 1줄 ·
 `compileOnly("com.navercorp.nid:oauth:…")` 1줄, iOS `NaverHostChannel.swift` +
 `AppDelegate.swift` 등록 1줄 + `project.pbxproj` 4항목(PBXBuildFile ·
 PBXFileReference · Runner group · Sources), Dart `naver_host_channel.dart` ·
@@ -1103,6 +1146,11 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
     **전면으로 되돌리기만 해도** 플러그인이 대기 중인 세션을 `CANCELED` 로 접습니다
     (앱 전환 · 홈 → 아이콘 재진입). 킷은 이를 silent 취소로 처리하므로 배너는 뜨지
     않습니다 — 세션 중에는 앱을 전환하지 않습니다.
+  - Android 에서 웹 로그인 뒤 브라우저가 **검은 화면으로 남으면**: 먼저 병합본
+    manifest 에 킷 relay `WebAuthCallbackActivity` 가 있고 라이브러리 콜백 Activity
+    가 없는지 확인합니다(9단계 (5)). 다음으로 logcat `ActivityTaskManager: START` 에서
+    relay 직후 MainActivity 재기동(`flg=0x34000000`)이 찍히는지 봅니다. 재기동 줄이
+    없으면 콜백이 relay 가 아닌 곳에 도착한 것입니다(G-16.5-2 · 상류 #158).
   - 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/` 의
     `16.5-PROBE-RESULT.md` · `16.5-UAT-RESULT.md` (결함 귀속은
     `.planning/phases/16.4-naver-web-fallback-and-auth-feedback/16.4-AB-RESULT.md`).
@@ -4472,7 +4520,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 
 | 2026-09-22 | 16.3-REVIEW-FIX | 증분 코드 리뷰 2회차 지적 11건(Warning 4 · Info 7) 반영 — 「iOS 의존성 관리 (SPM)」 절의 **검증력** 보강이 주제다. ② 상향 절차 4번: checkout 디렉터리 규칙을 「URL 마지막 경로 요소」 → 「마지막 경로 요소에서 **`.git` 접미사를 뗀 이름**」 으로 정정(핀 20개 중 16개의 `location` 이 `.git` 으로 끝나 규칙대로 하면 `No such file or directory` — 재현 명령 병기, 규칙 성립을 실제 checkout 20개와 `diff` 로 전수 확인) + identity 불일치 6건을 별개 사실로 분리. ③(다): 합격 기준을 「출력 1줄」 단독에서 「1줄 **AND** 맨 앞 개수 = `$EXPECTED`」 로 교체 — 두 경로만 탐색해 조용히 건너뛰는 구조 때문에 **표본 부분 누락에 공허하게 참**이었다(8개 중 3개만 읽혀도 1줄). 기대 개수는 `grep -cE` 가 아니라 **jq 필터**로 센다(ugrep 괄호 `-E` 위음성 + 주석 오염 배제). 성립 불가능 조항 「맨 앞 개수가 0 이 아니다」(`uniq -c` 는 개수 0 을 출력할 수 없다) 제거. 「옛 세대는 충돌하지도 않는다」 단정을 조건부로 한정(`from: X` 와 `exact: Y` 는 `Y >= X` 일 때만 해석 — 반례 존재, 확인 명령 추가). ⑤: **하한 15.0 금지선**을 명시(test 가 12개 일치와 함께 강제하므로 14.0 으로 내리면 빌드 전에 `flutter test` 가 red) — `_minSupportedIosTarget` doc comment 와의 양방향 링크 복구. ⑥: **Xcode IDE 빌드에서 stale `build/ios/SourcePackages` 가 우선한다**는 알려진 제약 신규(probe 순서를 자동으로 뒤집지 않는 근거를 flutter_tools 라인 인용으로 명시 — `BUILD_DIR` 은 archive 가 아닐 때만 덮어써지고 `-clonedSourcePackagesDirPath` 는 모든 호출에 붙는다) + build phase 가 고른 후보를 `note:` 로 로깅. IDFA 절: 근거 재확인 명령을 하드코딩 `sed -n '13,16p'` 에서 **내용 앵커 `grep`** 으로 교체(상향으로 줄이 밀리면 목적과 수단이 서로를 무효화했다) + 「위 인용 블록」 방향 오기를 「아래 … 블록」 + 식별 문자열로 정정. 회귀 가드 쪽은 `test/helpers/source_text.dart` 신규 추출(헬퍼 3종의 3중 복제 해소 · public 최상위 심볼 0), SPM 손패치 단언을 **`shellScript` 본문으로 범위 한정**(전체 텍스트 검사라 shellScript 가 비어도 통과하던 구멍 폐쇄), 배포 타겟 비교를 `double.parse` 에서 **성분 단위 비교**로 교체(`15.6.1` 예외사 · `15.10` → `15.1` 오독 제거). 모든 문서 명령은 블록에서 그대로 추출해 실행한 출력과 대조했고, 가드 변경은 fixture 로 red 재현을 확인했다. 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/16.3-REVIEW.md`(round 2) · `16.3-REVIEW-FIX.md`. |
 | 2026-09-24 | 16.5-07 | Naver Login 절을 킷 소유 웹 흐름(Phase 16.5) 기준으로 갱신 — 도입 문단(설치 단말 1-tap / 미설치 단말 킷 웹 + `naverWebCustomToken` 서버 교환 · 호스트 네이티브 판정 · 판정 실패 = 웹), 3단계 iOS URL Scheme 예시를 소문자 영숫자로 정정(웹 콜백 scheme 겸용), 6단계 「Dart 가 읽지 않는다」 를 두 소비처(SDK 1-tap · 킷 웹) 서술로 교체, 7단계에 iOS 웹 경로 추가 설정 0 · 설치 판정 Swift 1파일 메모, 8단계를 secret 2종(`NAVER_CLIENT_SECRET` 사용처 1 · `NAVER_CLIENT_ID` 신규) + 「같은 값 2본」(D-19 — secret 은닉이 아니라 RFC 8252 정합 + 착지) 으로 재작성, **9단계 신설**(웹 경로 Callback URL · redirect_uri 확인 — 브라우저 probe 절차 · 채택 결과 후보 A · scheme 파생 규칙과 커스터마이징 표 · Android `CallbackActivity` · Hosting bounce 대안(미구현) · `naverClientId` 2경로 일치 · 사용자가 보는 것 · Naver 제거 절차) 와 기존 9·10단계 → 10·11단계 재번호(배포 대상에 `naverWebCustomToken` 추가 · 웹 경로 확인법). Pitfall 11 의 16.4 계수 문장 · Pitfall 17 을 정정하고 **Pitfall 19 를 「킷 소유 웹 흐름으로 우회」 로 교체** — 레버 2(재개방 계수) 서술 삭제, 여섯 로그 접두어(앱 2 + 웹 4) + grep 앵커 규칙 + Android 앱 전면 복귀 취소 주의. Initial Setup 키 표 naver 3행 · stg/prod 등록 절차(scheme 예시 · `NAVER_CLIENT_ID` secret) · IdP 프로필 동기화 배포 목록 동반 갱신. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/`. |
+| 2026-09-24 | 16.5-09 | G-16.5-2: 9단계 (5) Android 콜백 수신을 킷 relay `WebAuthCallbackActivity` 로 교체 — 라이브러리 콜백 Activity 미선언 이유(Auth Tab 미지원 브라우저 Custom Tab fallback 에서 탭 미닫힘 · 빈 affinity 로 새 task · 상류 #158 OPEN · 버전 상향 무효) · relay 동작 · 기각안 2개(빈 affinity 제거 = StrandHogg · 인증 관리 Activity singleTask override) · Chrome Auth Tab 은 relay 미경유 · `flutter_web_auth_2` 상향 시 확인 · 실측 상태(SM-S942N Samsung Internet 30 탭 닫힘 · Chrome Auth Tab · 1-tap 회귀 통과) · Auth Tab 미지원 브라우저 재현 레시피. 옛 「Custom Tab 경로 실기기 기동 미관측」 괄호 서술 삭제, Naver 제거 절차에 relay Kotlin 파일 · manifest relay 블록 반영, Pitfall 19 에 검은 화면 진단 bullet(relay · `flg=0x34000000`) 추가. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-UAT-RESULT.md` `## 8.` |
 
 ---
 
-*Last updated: 2026-09-24 — 16.5-07 Naver 킷 소유 웹 흐름 반영 (Pitfall 19 교체 · 9단계 웹 경로 신설 · secret 2종)*
+*Last updated: 2026-09-24 — 16.5-09 Android 콜백 수신 킷 relay 반영 (9단계 (5) 교체 · Pitfall 19 검은 화면 진단 · G-16.5-2 재UAT PASS)*

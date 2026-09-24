@@ -53,7 +53,7 @@ starter-kit 을 clone 한 운영자가 stg / prod 출시 시:
 | `naverClientId` | `android/app/build.gradle.kts` 가 dart-defines 에서 읽어 string resource 로 주입 → manifest meta-data 가 참조 | `AppConfig.naverClientId`(웹 경로 authorize URL 의 `client_id`, Phase 16.5) | iOS SDK 는 xcconfig `NAVER_CLIENT_ID` 를 쓴다 — 값이 같아야 한다 |
 | `naverClientSecret` | 위와 동일 (Android string resource) | **없음** — Dart 는 읽지 않는다. 웹 경로의 교환은 서버 Secret Manager `NAVER_CLIENT_SECRET` 이 한다 | Secret Manager 와 **같은 값 2본** (SDK 1-tap 이 native 설정을 요구하므로 앱 번들에서 없앨 수 없다) |
 | `appName` | 위와 동일 — Android 동의 화면의 앱 이름으로도 쓰인다 | 없음 | iOS 는 `DISPLAY_NAME` 을 따른다 |
-| `naverUrlScheme` | iOS 는 xcconfig `NAVER_URL_SCHEME` 가 실제 출처 (json 은 기록처) | `AppConfig.naverWebCallbackScheme` + Android manifest placeholder `naverWebCallbackScheme`(gradle 이 dart-defines 에서 공급 → `flutter_web_auth_2` `CallbackActivity` intent-filter) | 웹 경로 콜백 scheme 겸용 — **소문자 영숫자**(RFC 3986)여야 한다 |
+| `naverUrlScheme` | iOS 는 xcconfig `NAVER_URL_SCHEME` 가 실제 출처 (json 은 기록처) | `AppConfig.naverWebCallbackScheme` + Android manifest placeholder `naverWebCallbackScheme`(gradle 이 dart-defines 에서 공급 → 킷 `WebAuthCallbackActivity`(flutter_web_auth_2 콜백 relay) intent-filter) | 웹 경로 콜백 scheme 겸용 — **소문자 영숫자**(RFC 3986)여야 한다 |
 
 **Firebase Secret Manager (서버 쪽, 2종):** `NAVER_CLIENT_SECRET`(교환 · revoke —
 Phase 16.5 부터 사용처 1) · `NAVER_CLIENT_ID`(Phase 16.5 신규 — json 의
