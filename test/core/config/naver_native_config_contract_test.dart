@@ -544,7 +544,7 @@ void main() {
         r'android:name="\.WebAuthCallbackActivity"\s+'
         r'android:exported="true"\s+'
         r'android:taskAffinity=""\s*>\s*'
-        r'<intent-filter\s+android:label="flutter_web_auth_2"\s*>\s*'
+        r'<intent-filter\s*>\s*'
         r'<action\s+android:name="android\.intent\.action\.VIEW"\s*/>\s*'
         r'<category\s+android:name="android\.intent\.category\.DEFAULT"\s*/>\s*'
         r'<category\s+android:name="android\.intent\.category\.BROWSABLE"\s*/>\s*'
@@ -557,7 +557,10 @@ void main() {
         reason:
             'G-16.5-2 · D-09: 킷 relay 블록(상대 이름 · exported · 빈 '
             'taskAffinity · placeholder scheme intent-filter)이 정확히 1건이어야 '
-            '한다. 상대 이름이어야 bin/rename.dart 의 패키지 이동을 따라간다.',
+            '한다. 상대 이름이어야 bin/rename.dart 의 패키지 이동을 따라간다. '
+            'intent-filter 에 label 을 두지 않는다(review 2회차 IN-02) — filter '
+            '라벨이 앱 라벨보다 우선해 scheme 충돌 chooser 에 앱 이름 대신 '
+            '라이브러리 이름이 보인다.',
       );
 
       // 부재 단언의 양성 대조 — 같은 문자열 계수 방식이 실제로 매칭한다.

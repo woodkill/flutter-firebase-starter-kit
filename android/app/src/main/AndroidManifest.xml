@@ -98,7 +98,7 @@
             android:name=".WebAuthCallbackActivity"
             android:exported="true"
             android:taskAffinity="">
-            <intent-filter android:label="flutter_web_auth_2">
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
