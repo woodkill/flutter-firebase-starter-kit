@@ -601,7 +601,8 @@ void main() {
         1,
         reason:
             'G-16.5-2: MainActivity 는 launchMode singleTop 이어야 한다 — 없으면 '
-            'relay 의 CLEAR_TOP 이 MainActivity 를 재생성해 Flutter 엔진과 대기 '
+            'relay 의 (대기 호출 전달 시) CLEAR_TOP 이 MainActivity 를 재생성해 '
+            'Flutter 엔진과 대기 '
             '중인 로그인이 사라진다. 빈 taskAffinity 는 StrandHogg(task '
             'hijacking) 방어라 유지한다 (minSdk 24).',
       );
@@ -632,8 +633,8 @@ void main() {
           'Intent.FLAG_ACTIVITY_NEW_TASK':
               'NEW_TASK 가 없으면 task 검색이 꺼져 main task 로 돌아가지 못한다.',
           'Intent.FLAG_ACTIVITY_CLEAR_TOP':
-              'CLEAR_TOP 이 없으면 MainActivity 위의 인증 관리 Activity · 브라우저 '
-              'tab 이 남는다.',
+              'CLEAR_TOP 이 없으면 대기 호출 전달 뒤 MainActivity 위의 인증 관리 '
+              'Activity · 브라우저 tab 이 남는다 (전달 시에만 조건부로 1건).',
           'Intent.FLAG_ACTIVITY_SINGLE_TOP':
               'SINGLE_TOP 이 없으면 MainActivity 가 재생성돼 Flutter 엔진이 사라진다.',
           'MainActivity::class.java': '복귀 대상은 킷 MainActivity 하나다.',
@@ -664,6 +665,34 @@ void main() {
                 '콜백 URL 에 code · state 가 실린다.',
           );
         }
+
+        // 16.5 review 2회차 IN-01 — CLEAR_TOP 은 대기 호출을 실제로 전달했을 때만.
+        // 외부 기동(대기 호출 없음)은 MainActivity 위 Activity 를 걷지 않는다.
+        expect(
+          RegExp(
+            r'val delivered\s*=\s*scheme != null &&\s*'
+            r'FlutterWebAuth2Plugin\.callbacks\.remove\(scheme\)\?\.let\s*\{'
+            r'[^{}]*\}\s*==\s*true',
+          ).allMatches(kotlin).length,
+          1,
+          reason:
+              'IN-01: delivered 는 callbacks.remove 결과(대기 호출 존재)에서 '
+              '파생해야 한다 — scheme 존재만으로 참이 되면 외부 intent 가 다시 '
+              'CLEAR_TOP 을 건다.',
+        );
+        expect(
+          RegExp(
+            r'Intent\.FLAG_ACTIVITY_NEW_TASK\s+or\s+'
+            r'Intent\.FLAG_ACTIVITY_SINGLE_TOP\s+or\s+'
+            r'\(if \(delivered\) Intent\.FLAG_ACTIVITY_CLEAR_TOP else 0\)',
+          ).allMatches(kotlin).length,
+          1,
+          reason:
+              'IN-01: NEW_TASK|SINGLE_TOP(0x30000000)은 항상, CLEAR_TOP 은 '
+              'delivered 일 때만(0x34000000) — 무조건 CLEAR_TOP 은 외부 intent '
+              '하나로 Kakao · Firebase IdP · NAVER 1-tap bridge 등 MainActivity '
+              '위 Activity 를 걷는 표면이다.',
+        );
 
         final int removeAt = kotlin.indexOf(
           'FlutterWebAuth2Plugin.callbacks.remove(',
