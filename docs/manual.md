@@ -102,7 +102,7 @@ cp config/prod.example.json  config/prod.json
 | `appName` | (선택) 앱 표시 이름 — `StarterKit Dev` 기본값 | flavor 별 구분. Android 에서 Naver 동의 화면 앱 이름으로도 쓰인다 (Phase 16.2). 따옴표 등 특수문자가 든 값의 Android 빌드 영향은 `[ASSUMED]` 미검증이라 영숫자 · 공백만 쓰기를 권장한다 |
 | `appSuffix` | (선택) ApplicationId / BundleId suffix — `.dev` 기본값 | `flutter_native_splash` / Firebase 프로젝트 분리 |
 | `splashMinDurationMs` | (선택) 스플래시 최소 노출 시간 — `2000` 기본값 | UX 조정용 |
-| `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao,naver` 기본값 | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 (Phase 13 에서 `,naver` 추가) |
+| `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao,naver,line` 기본값 (dev 예시 기준) | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 (Phase 13 에서 `,naver` · Phase 14 에서 `,line` 추가) |
 
 > 각 키의 콘솔 등록 절차 (앱 생성, redirect URI, 키 해시 등) 는 본 매뉴얼의
 > Phase 별 단락 (Phase 12 = Kakao, Phase 13 = Naver, Phase 14 = LINE) 을
@@ -237,7 +237,7 @@ Functions region 을 결정합니다. 기본값은 `asia-northeast3` (서울) �
 | 2 | `functions/src/shared/region.ts` 의 `REGION` | 함수가 배포될 region |
 
 두 값이 어긋나면 **빌드도 analyze 도 통과하고, 런타임에 callable 호출이
-`not-found` 로 실패**합니다 (Custom Token 로그인 4종 · 회원탈퇴가 모두 막힙니다).
+`not-found` 로 실패**합니다 (Custom Token 로그인(Kakao · Naver · LINE) · 회원탈퇴가 모두 막힙니다).
 증상만으로는 원인을 찾기 어려우므로 변경 시 반드시 쌍으로 처리하세요.
 
 변경 후에는 함수를 새 region 에 다시 배포해야 하며, 구 region 의 함수는 별도로
@@ -2309,7 +2309,7 @@ Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측�
 > Phase 12+ 의 신규 Cloud Function (Naver/LINE) 도 동일
 > 패턴 적용.
 
-### Functions 추가 절차 (Phase 12 ~ 15 의 ping 패턴 복제)
+### Functions 추가 절차 (ping 패턴 복제)
 
 1. `functions/src/auth/{provider}_custom_token.ts` 또는 신규
    `functions/src/index.ts` 에 새 `onCall` export 추가:
@@ -2550,7 +2550,7 @@ curl -X POST \
    - `withdrawalConfirmFieldHint` — 사용자 입력 verbatim phrase 변경 (ko="탈퇴" → 예: "확인", en="delete" → 예: "permanently delete"). 변경 시 widget test WC3/WC4 의 expected 값 동기화 의무.
    - `errorAccountExistsWithProvider` — provider-aware 메시지 본문.
 2. **AccountLinkingSheet 의 mirror 패턴 (LoginPromptSheet 위 1-provider 강조 vs n-provider 전체):**
-   - 본 starter-kit 은 D-02 의 single button 정책 (정확한 1 provider 만 표시). n-provider 전체 (예: AccountLinkingSheet 안에서 모든 8 provider 를 노출하여 사용자가 "어떤 provider 로 가입했는지 모를 때 모두 시도" UX) 를 채택하려면 `lib/features/auth/presentation/_widgets/account_linking_sheet.dart` 의 `_BrandedLinkButton` exhaustive switch 를 `AccountProvider.values` iterate 로 교체.
+   - 본 starter-kit 은 D-02 의 single button 정책 (정확한 1 provider 만 표시). n-provider 전체 (예: AccountLinkingSheet 안에서 모든 provider (`AccountProvider.values`) 를 노출하여 사용자가 "어떤 provider 로 가입했는지 모를 때 모두 시도" UX) 를 채택하려면 `lib/features/auth/presentation/_widgets/account_linking_sheet.dart` 의 `_BrandedLinkButton` exhaustive switch 를 `AccountProvider.values` iterate 로 교체.
 3. **WithdrawalConfirmationDialog 의 confirmTextField verbatim 변경:**
    - 사용자 confusion 차단 의도가 약한 환경 (예: B2B 어드민 도구) 에서는 verbatim match 가드 자체를 폐기 가능. `_verbatimMatch` flag 를 `true` 상수로 교체.
 4. **deleteUserAccount Cloud Function 본문 (Plan 16-02 산출):**
@@ -3316,7 +3316,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
    뿐이며, 콘텐츠가 작으면 시트가 콘텐츠 높이로 줄어든다(800 dp 폰 · 7
    provider 실측 680 dp = 85%). 회귀 가드는
    `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` 의
-   7/8 provider × 계약 2종(overflow 0 · CTA 첫 화면 노출)이다(default
+   6/7 provider × 계약 2종(overflow 0 · CTA 첫 화면 노출)이다(default
    800×600 viewport 를 넓히지 말 것 — 좁음 자체가 회귀 조건이다).
 5. **`/login/email` 경로 문자열을 바꾸려면** — `app_routes.dart` 의
    `AppRoutes.emailLogin` 상수 1곳만 고친다. `GoRoute` 와
@@ -3348,7 +3348,7 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 | B 이메일 로그인 form · 성공 navigation | `test/features/auth/presentation/email_login_screen_test.dart` · `email_login_screen_nav_test.dart` |
 | C 가입 form · 소셜 섹션 부재 | `test/features/auth/presentation/email_signup_screen_test.dart` |
 | S 공유 CTA (라벨 · 48 dp 탭 타겟) | `test/features/auth/presentation/_widgets/email_auth_cta_test.dart` |
-| D 시트 스크롤 · 7/8 provider overflow 0 · CTA 첫 화면 노출 · 소셜 실패 피드백 | `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` · `login_prompt_sheet_test.dart` · `login_prompt_sheet_error_test.dart` |
+| D 시트 스크롤 · 6/7 provider overflow 0 · CTA 첫 화면 노출 · 소셜 실패 피드백 | `test/features/auth/widgets/login_prompt_sheet_overflow_test.dart` · `login_prompt_sheet_test.dart` · `login_prompt_sheet_error_test.dart` |
 | route 등록 · 미인증 접근 화이트리스트 | `test/core/router/app_router_observers_test.dart` · `app_routes_test.dart` · `auth_guard_test.dart` |
 | 화면 문자열 3 locale verbatim | `test/l10n/email_relegation_arb_verbatim_test.dart` |
 | B 진입 시 back 스택 확보 (chooser 복귀 가능) | `test/features/auth/presentation/account_linking_sheet_two_step_test.dart` TS7 · `forgot_password_screen_test.dart` |
