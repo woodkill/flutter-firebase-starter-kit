@@ -50,7 +50,7 @@ import {fingerprintError, identityIndexDocId} from "./identity_index";
 // linkCustomTokenProvider 의 target verifier 분기 는 OIDC provider 2종
 // (kakao/line) 만 지원. naver target link 는 Plan 16-04 의 client-side
 // access_token path 와 별도 phase 분리 (Phase 17+ carry-forward).
-// WR-06 (Phase 15 리뷰): 3 provider 의 issuer / jwksUrl / algorithms /
+// WR-06 (Phase 15 리뷰 당시): 3 provider 의 issuer / jwksUrl / algorithms /
 // nonceHashing 리터럴과 secret 선언이 본 파일과 4 Custom Token endpoint 에
 // 각각 존재해 (3쌍 완전 중복) drift 위험 + provider 당 JWKS 캐시 2개 문제가
 // 있었다. 이제 shared/oidc_providers.ts 의 singleton 맵만 참조한다 —
@@ -168,8 +168,8 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
     }
 
     // Step 3: target provider OIDC ID Token verify
-    // (createOidcVerifier helper 재사용 — 4 Custom Token endpoint 와 동일
-    // singleton. provider 별 dispatch).
+    // (createOidcVerifier helper 재사용 — OIDC Custom Token endpoint (kakao /
+    // line) 와 동일 singleton. provider 별 dispatch).
     let targetSub: string | undefined;
     try {
       // WR-06: provider 별 if/else dispatch 를 단일 진실원 맵 조회로 대체.

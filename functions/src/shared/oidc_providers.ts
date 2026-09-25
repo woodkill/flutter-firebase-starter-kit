@@ -1,7 +1,7 @@
 // Phase 15 code review WR-06 — OIDC provider 설정 단일 진실원.
 //
 // 이전에는 issuer / jwksUrl / algorithms / nonceHashing 4-튜플이 provider
-// 2종 × 2 파일 = 4개 리터럴로 존재했다 (각 Custom Token endpoint 1 +
+// 당시 3종 × 2 파일 = 6개 리터럴로 존재했다 (각 Custom Token endpoint 1 +
 // `link_custom_token_provider.ts` 1). 결과로 두 가지 결함이 있었다.
 //
 // 1. **drift 위험** — IdP 가 issuer 나 JWKS URL 을 바꾸면 두 곳을 동시에

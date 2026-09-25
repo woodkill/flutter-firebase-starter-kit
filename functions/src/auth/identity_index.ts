@@ -257,7 +257,8 @@ export const CUSTOM_TOKEN_PROVIDER_PRIORITY: readonly ProviderId[] = [
  * 한다. transaction 내부에서 호출하면 Firestore 의 "all reads before all
  * writes" 제약을 위반할 수 있다 (WR-05 / R12 회귀 계열).
  *
- * **PII 정책 (D-51 / Pitfall 7)**: 반환 타입은 4 slug 화이트리스트 값 또는
+ * **PII 정책 (D-51 / Pitfall 7)**: 반환 타입은
+ * `CUSTOM_TOKEN_PROVIDER_PRIORITY` 화이트리스트 값 (kakao / naver / line) 또는
  * `null` 뿐이며, logger payload 에는 `event` 와 `code` 만 담는다 — email /
  * firebaseUid / providerUserId 는 절대 로깅하지 않는다.
  *
@@ -866,7 +867,7 @@ export async function resolveIdentity(
         // Phase 16 D-09 (Plan 16-03) — existingProvider = caller 가 호출한
         // provider slug 자체. identity_index doc ID 가 `provider:providerUserId`
         // 이므로 existing 매핑은 동일 provider 의 기존 user (정의상 다른
-        // provider 일 수 없음). provider 는 본 helper 의 arg → 8값 ProviderId.
+        // provider 일 수 없음). provider 는 본 helper 의 arg → 7값 ProviderId.
         return {
           uid: existing.firebaseUid,
           isNewUser: false,

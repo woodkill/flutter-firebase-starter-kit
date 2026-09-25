@@ -264,7 +264,7 @@ export const lookupSignInMethods = onCall<LookupSignInMethodsRequest>(
 
       // (Step 3) providerData 가 비어있거나 native 매칭 0 → Custom Token user
       // 추정. identity_index where firebaseUid == user.uid + provider in
-      // [4 Custom Token provider] limit 1.
+      // [3 Custom Token provider] limit 1.
       const idxSnap = await db
         .collection("identity_index")
         .where("firebaseUid", "==", user.uid)

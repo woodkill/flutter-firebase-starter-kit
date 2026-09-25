@@ -1,9 +1,10 @@
 // Phase 15 code review WR-03 / IN-03 — callable 문자열 인자 공용 타입 가드.
 //
-// 이전에는 4 사이트 (kakao / line / naver / linkCustomTokenProvider)
-// 가 각각 `request.data ?? ({} as XRequest)` 로 타입을 **단언** 한 뒤
-// `!idToken || !nonce` 의 falsy 검사만 수행했다. `{idToken: 12345, nonce: {}}`
-// 같은 페이로드가 그 가드를 통과해 jose 검증 단계까지 내려갔고,
+// 이전에는 (Phase 15 리뷰 당시) 5 사이트 (Custom Token endpoint 4 곳 +
+// linkCustomTokenProvider) 가 각각 `request.data ?? ({} as XRequest)` 로
+// 타입을 **단언** 한 뒤 `!idToken || !nonce` 의 falsy 검사만 수행했다.
+// `{idToken: 12345, nonce: {}}` 같은 페이로드가 그 가드를 통과해 jose 검증
+// 단계까지 내려갔고,
 //
 // - 오류가 "입력 타입 오류" 가 아니라 "자격증명 무효" 로 로깅되어 triage 를
 //   오도했으며,
@@ -12,7 +13,8 @@
 //
 // 본 helper 로 5 사이트를 동시에 좁히면 `as` 단언 자체가 불필요해진다
 // (.claude/rules/cloud-functions-typescript.md "as 타입 단언 최소화 — 타입
-// 가드 우선").
+// 가드 우선"). 현재 호출처도 5 사이트다 (kakao / line / naver / naverWeb /
+// linkCustomTokenProvider).
 import {HttpsError} from "firebase-functions/https";
 
 /** ID Token / access token 계열 인자의 기본 상한 (bytes 가 아닌 UTF-16 길이). */

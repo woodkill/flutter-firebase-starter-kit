@@ -56,7 +56,7 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
   },
   async (request): Promise<NaverCustomTokenResponse> => {
     // Step 1: 입력 검증 (D-50).
-    // WR-03 / IN-03: typeof + 길이 검사는 4 provider 공용 helper 로 일원화.
+    // WR-03 / IN-03: typeof + 길이 검사는 Custom Token 공용 helper 로 일원화.
     // `as` 단언 제거 — request.data 를 좁히지 않고 값만 검증한다.
     const accessToken = requireStringArg(request.data?.accessToken);
     if (
@@ -65,9 +65,10 @@ export const naverCustomToken = onCall<NaverCustomTokenRequest>(
       // invalid-argument 분류 (WR-01). 매칭 정규식은 의도적으로 control
       // char 만 좁게 (token 본문은 base64url 등 가변).
       //
-      // 본 필터는 Naver 전용으로 남는다 — 4 provider 중 Naver 만 값을 HTTP
-      // 헤더(`Authorization: Bearer ...`)에 싣기 때문이다. 나머지 3종은 값을
-      // jose 에만 넘기므로 헤더 injection 표면이 없다.
+      // 본 필터는 Naver 전용으로 남는다 — Custom Token provider (kakao /
+      // naver / line) 중 Naver 만 값을 HTTP 헤더(`Authorization: Bearer ...`)
+      // 에 싣기 때문이다. 나머지 (kakao / line) 는 값을 jose 에만 넘기므로
+      // 헤더 injection 표면이 없다.
       // eslint-disable-next-line no-control-regex -- WR-01 의도된 CRLF/NUL 필터
       /[\r\n\x00]/.test(accessToken)
     ) {
