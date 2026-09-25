@@ -77,17 +77,6 @@ android {
         // KakaoSdk 첫 SDK API 호출 시점에 throw로 즉시 발견 가능 (silent failure 아님).
         manifestPlaceholders["kakaoNativeAppKey"] = dartDefines["kakaoNativeAppKey"] ?: ""
 
-        // Yahoo!JP OAuth redirect scheme (Phase 15 D-YJP-03 — see ROADMAP.md).
-        //
-        // flutter_appauth README verbatim: defaultConfig 에 `appAuthRedirectScheme`
-        // manifestPlaceholder 등록 시 RedirectActivity 가 manifest merging 으로
-        // 자동 inject (AndroidManifest.xml 본문 명시적 Activity 등록 불필요).
-        // Yahoo Developers Console "クライアントサイド・アプリケーション" 등록
-        // 시 Redirect URI 의 custom scheme 부분과 1:1 일치 의무 — 충돌 시
-        // intent hijack 위험 (T-15-02). dart-define 미주입 시 빈 문자열 →
-        // 첫 signInWithYahoojp 호출 시점에 즉시 발견 가능.
-        manifestPlaceholders["appAuthRedirectScheme"] = dartDefines["yahoojpRedirectScheme"] ?: ""
-
         // Naver 킷 소유 웹 OAuth 콜백 scheme (Phase 16.5 D-09 · probe ② A).
         //
         // Dart `AppConfig.naverWebCallbackScheme` 과 같은 식 — 둘 다 config json 의

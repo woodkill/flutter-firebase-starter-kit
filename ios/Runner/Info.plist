@@ -72,22 +72,6 @@
 					<string>line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 				</array>
 			</dict>
-			<!-- Yahoo!JP Login (Phase 15 — see ROADMAP.md, D-YJP-03).
-			     flutter_appauth README verbatim: ASWebAuthenticationSession 가
-			     authorization endpoint redirect 후 본 scheme 으로 콜백한다.
-			     xcconfig YAHOOJP_REDIRECT_SCHEME 변수 substitution. Yahoo
-			     Developers Console "クライアントサイド・アプリケーション"
-			     등록 Redirect URI 의 custom scheme 부분과 1:1 일치 의무. -->
-			<dict>
-				<key>CFBundleTypeRole</key>
-				<string>Editor</string>
-				<key>CFBundleURLName</key>
-				<string>jp.yahoojp.oauth</string>
-				<key>CFBundleURLSchemes</key>
-				<array>
-					<string>$(YAHOOJP_REDIRECT_SCHEME)</string>
-				</array>
-			</dict>
 		</array>
 		<key>FacebookAppID</key>
 		<string>$(FACEBOOK_APP_ID)</string>

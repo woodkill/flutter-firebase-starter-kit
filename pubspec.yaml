@@ -68,10 +68,6 @@ dependencies:
   firebase_remote_config: ^6.7.0
   cloud_functions: ^6.5.0
   firebase_app_check: ^0.4.8
-  # Phase 15 D-YJP-01 — OpenID Foundation 공식 AppAuth-iOS/Android 래핑
-  # (verified publisher: dexterx.dev). Yahoo!JP Flutter wrapper 부재 →
-  # OIDC 표준 라이브러리로 OAuth flow + PKCE + ID Token nonce 자동 처리.
-  flutter_appauth: ^12.0.0
   # Phase 16.5 D-07 · D-08 — Naver 웹 OAuth 세션 (verified publisher femtopedia.de, caret)
   flutter_web_auth_2: ^5.1.0
   # Facebook iOS Limited Login nonce SHA-256 해시 (debug
