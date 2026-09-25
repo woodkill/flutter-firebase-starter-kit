@@ -82,7 +82,7 @@ R13 fix (commit `f4030f9`, `auth_repository.dart:912-967`) 는 `currentUserProvi
 - **변경 위치**: `lib/features/auth/data/auth_repository.dart::linkedProvidersStream` (1곳)
 - **변경 형태**: 기존 stream factory style → `async*` generator 로 재작성
 - **무수정**: `currentUserProvider` (R13 fix 보존)
-- **helper-1곳-fix 모델 (D-08) 보존**: Phase 14~16 후속 OAuth Custom Token provider (LINE/Yahoo!JP/WeChat) 자동 상속
+- **helper-1곳-fix 모델 (D-08) 보존**: Phase 14 후속 OAuth Custom Token provider (LINE) 자동 상속
 
 ### 4.2 책임 경계
 
@@ -215,7 +215,7 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
 - 일시적 race — 사용자 production 진입 시 manual.md 언급으로 인지 가능
 - cold start 시 회복 — production blocker 아님
 - starter-kit 완성도 ↑ — fork 사용자가 즉시 production-ready 상태 기대
-- 후속 phase (Phase 14~16 LINE/Yahoo!JP/WeChat) 추가 시 동일 race 영향 → helper 1곳 fix → 모든 provider 자동 상속 (D-08)
+- 후속 phase (Phase 14 LINE) 추가 시 동일 race 영향 → helper 1곳 fix → 모든 provider 자동 상속 (D-08)
 
 ---
 

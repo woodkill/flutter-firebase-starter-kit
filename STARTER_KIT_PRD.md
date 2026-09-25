@@ -33,7 +33,7 @@ Flutter + Firebase를 기반으로 하는 앱 프로젝트를 위한 Starter Kit
 ## 인증
 
 - Firebase Auth 네이티브: 이메일/비밀번호, Google, Apple, Facebook
-- Custom Token 방식: Kakao, Naver, LINE, Yahoo! JAPAN, WeChat
+- Custom Token 방식: Kakao, Naver, LINE
     - Custom Token 발급을 위한 Cloud Functions 백엔드 포함
 - 프로바이더 추가/제거가 용이한 구조
 - 프로바이더 활성화/비활성화를 설정으로 제어

@@ -117,8 +117,8 @@ Logo PNG 1개** 만 동봉. 채택 차원 (Wave 0 lock `13.2-WAVE0-LOCK.md` 일�
    확인 (1년 freshness 정책 일관)
 2. 신규 자상이 `D-94 Kakao 패턴` 또는 `D-96 Google 패턴` 범위를 벗어나는 경우
    (예: locale-aware 자상 제공 시작, Secondary Logo 도 동봉 필요 시) → 별
-   phase 의 retroactive cycle 로 처리 (Phase 13.1 D-A~D-L 패턴, Phase 14~15
-   LINE/Yahoo!JP 도입 mirror)
+   phase 의 retroactive cycle 로 처리 (Phase 13.1 D-A~D-L 패턴, Phase 14
+   LINE 도입 mirror)
 3. Meta 가 자상 변형 (색상 / 비율 / 회전) 금지 명시 — 신규 도입 자상은 ZIP
    콘텐츠 그대로 (rename 만 허용) commit 의무
 
