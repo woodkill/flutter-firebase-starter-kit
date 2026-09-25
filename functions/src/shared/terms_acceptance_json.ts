@@ -9,7 +9,7 @@
 // 출력과 server set payload 양쪽 동시 갱신 의무 (Plan 16-02 mirror_terms_
 // acceptance.ts + Plan 16-03 의 4 Custom Token endpoint 추가 import).
 //
-// 4 Custom Token endpoint (kakao/naver/line/yahoojp) 의 callable arg
+// 3 Custom Token provider (kakao/naver/line) 의 callable arg
 // `termsAcceptanceSnapshot?: TermsAcceptanceJson` add-only 확장의 shared type.
 
 /**

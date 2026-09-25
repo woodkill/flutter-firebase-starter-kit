@@ -1,7 +1,7 @@
 /**
  * `requireStringArg` 회귀 테스트 (Phase 15 리뷰 WR-03 / IN-03).
  *
- * 5 사이트 (kakao / naver / line / yahoojp / linkCustomTokenProvider) 가
+ * 4 사이트 (kakao / naver / line / linkCustomTokenProvider) 가
  * 공유하는 문자열 인자 가드다. 이전에는 각 endpoint 가
  * `request.data ?? ({} as XRequest)` 로 타입을 **단언** 한 뒤 falsy 검사만
  * 했기 때문에 `{idToken: 12345, nonce: {}}` 같은 페이로드가 통과했다.

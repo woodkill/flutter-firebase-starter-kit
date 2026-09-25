@@ -804,7 +804,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
 
   it(
     // eslint-disable-next-line max-len
-    "WR-04: email 미제공 provider (LINE / Yahoo!JP) 는 true 유지 (gate 오트리거 방지)",
+    "WR-04: email 미제공 provider (LINE) 는 true 유지 (gate 오트리거 방지)",
     async () => {
       mockCreateUser.mockResolvedValueOnce({uid: "new-wr04c"});
       const {db} = makeDb({preExists: false, txExists: false});
@@ -1728,16 +1728,16 @@ describe("resolveIdentity Phase 16 D-09 — existingProvider add-only", () => {
 
   it(
     // eslint-disable-next-line max-len
-    "I5: ProviderId type export — 8값 enum 보존 (Plan 16-04 Flutter mirror baseline)",
+    "I5: ProviderId type export — 7값 enum 보존 (Plan 16-04 Flutter mirror baseline)",
     async () => {
       // 컴파일 타임 sentinel — 본 case 는 type-level 검증. import 시점에
-      // ProviderId 가 8값 literal union 인지 확인 (TS 가 강제). 본 runtime
+      // ProviderId 가 7값 literal union 인지 확인 (TS 가 강제). 본 runtime
       // 검증은 const literal 로 캐스팅 가능 여부만 sanity check.
       const providers: Array<ProviderId> = [
         "google", "apple", "facebook", "email",
-        "kakao", "naver", "line", "yahoojp",
+        "kakao", "naver", "line",
       ];
-      expect(providers.length).toBe(8);
+      expect(providers.length).toBe(7);
     },
   );
 });
@@ -1886,7 +1886,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
     // eslint-disable-next-line max-len
     "T-16-17-04 (경계 2건 이상/결정성): 문서 입력 순서를 뒤집어도 우선순위 첫 후보가 선택된다",
     async () => {
-      // CUSTOM_TOKEN_PROVIDER_PRIORITY = kakao > naver > line > yahoojp.
+      // CUSTOM_TOKEN_PROVIDER_PRIORITY = kakao > naver > line.
       // caller=naver, 기존 계정이 line + kakao 보유 → 항상 'kakao'.
       const runOnce = async (
         docs: Array<{provider: unknown}>,
@@ -2080,9 +2080,9 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
     },
   );
 
-  // Plan 16-17 — 4 caller × CT-existing 양방향 매트릭스 (helper 레벨).
-  // LINE / Yahoo!JP endpoint 는 scope 상 email claim 을 받지 않아
-  // (D-LINE-21 / D-YJP-09) endpoint 테스트로는 이 truth 를 잠글 수 없다 —
+  // Plan 16-17 — 3 caller × CT-existing 양방향 매트릭스 (helper 레벨).
+  // LINE endpoint 는 scope 상 email claim 을 받지 않아
+  // (D-LINE-21) endpoint 테스트로는 이 truth 를 잠글 수 없다 —
   // helper 는 caller 종류와 무관하게 동일 규칙으로 동작함을 여기서 잠근다.
   // IN-07 (Phase 15 리뷰): resolveIdentity 의 provider 가 ProviderId 로
   // 좁혀졌으므로 매트릭스 fixture 도 같은 union 으로 선언한다 — 오타 슬러그가
@@ -2091,7 +2091,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
     ["kakao", "naver"],
     ["naver", "kakao"],
     ["line", "kakao"],
-    ["yahoojp", "naver"],
+    ["line", "naver"],
   ];
   it.each(matrix)(
     // eslint-disable-next-line max-len
@@ -2216,7 +2216,7 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         userInfo: {email: "multi-conflict@example.com"},
       });
 
-      // CUSTOM_TOKEN_PROVIDER_PRIORITY = kakao > naver > line > yahoojp.
+      // CUSTOM_TOKEN_PROVIDER_PRIORITY = kakao > naver > line.
       expect(res).toMatchObject({
         uid: "",
         isNewUser: false,
@@ -2669,8 +2669,8 @@ describe("resolveIdentity — 비익명 caller 가드 (reauth-login-auto-merge)"
       const {db, tx} = makeDb({preExists: false, txExists: false});
 
       const res = await resolveIdentity(db, {
-        provider: "yahoojp",
-        providerUserId: "yj-unlinked",
+        provider: "line",
+        providerUserId: "line-unlinked",
         callerUid: "unknown-kind-U",
         userInfo: fullUserInfo,
       });

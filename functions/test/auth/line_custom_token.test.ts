@@ -207,7 +207,7 @@ import {
   signedInCallerAuth,
 } from "../mocks/caller_auth";
 // Plan 16-17 — resolveIdentity spy 용 namespace import. 본 endpoint 는
-// scope 상 email claim 을 받지 않아(D-LINE-21 / D-YJP-09) CT-existing
+// scope 상 email claim 을 받지 않아(D-LINE-21) CT-existing
 // 충돌을 자체 trigger 할 수 없다 — endpoint 의 slug 전달 배선만 검증한다.
 // eslint-disable-next-line import/first
 import * as identityIndex from "../../src/auth/identity_index";

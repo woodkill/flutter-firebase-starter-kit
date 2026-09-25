@@ -1,6 +1,6 @@
 // debug reauth-login-auto-merge (2026-09-17) — Custom Token callable caller 판정.
 //
-// 4 Custom Token callable (kakao / naver / line / yahoojp) 은 미인증 · 익명 ·
+// 3 Custom Token provider (kakao / naver / line) 의 callable 은 미인증 · 익명 ·
 // 정식 로그인 caller 를 모두 받는다. 익명 caller 는 "익명 → 소셜 승격" 이라
 // 새 identity 를 caller uid 에 등록하는 것이 설계지만, 정식 로그인 caller 가
 // 같은 경로를 타면 사용자 동의 없는 provider 연결 + 프로필 덮어쓰기가 된다

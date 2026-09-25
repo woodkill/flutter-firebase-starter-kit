@@ -32,7 +32,7 @@ type LookupSignInMethodsRequest = {
 type LookupSignInMethodsResponse = {
   /**
    * 매핑된 provider 슬러그 (`google` / `apple` / `facebook` / `email` /
-   * `kakao` / `naver` / `line` / `yahoojp`) 또는 미존재 시 `null`.
+   * `kakao` / `naver` / `line`) 또는 미존재 시 `null`.
    */
   existingProvider: string | null;
 };
@@ -45,8 +45,8 @@ const NATIVE_PROVIDER_MAP: Record<string, string> = {
   "password": "email",
 };
 
-/** Custom Token provider 4종 — identity_index 의 `provider` 필드 값. */
-const CUSTOM_TOKEN_PROVIDERS = ["kakao", "naver", "line", "yahoojp"] as const;
+/** Custom Token provider 3종 — identity_index 의 `provider` 필드 값. */
+const CUSTOM_TOKEN_PROVIDERS = ["kakao", "naver", "line"] as const;
 
 /** D-10 rate limit — UID 별 10 / 60s. */
 const RATE_LIMIT = 10;
@@ -140,7 +140,7 @@ function hashClientIp(ip: string): string {
  *   Step 2: D-09 — admin.auth().getUserByEmail + providerData 매핑.
  *           native (google/apple/facebook/password) 우선.
  *   Step 3: providerData 비어있다 → identity_index where firebaseUid +
- *           provider in [kakao,naver,line,yahoojp] limit 1 → Custom Token user.
+ *           provider in [kakao,naver,line] limit 1 → Custom Token user.
  *   Step 4: auth/user-not-found catch → return {existingProvider: null}
  *           (silent — caller falls back to unknown).
  *

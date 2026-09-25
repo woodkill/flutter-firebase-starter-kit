@@ -6,7 +6,7 @@ import {ProviderId} from "./identity_index";
  * Custom Token collision (`email_in_use` / `anonymous_existing_collision`) 시
  * client 로 던질 표준 `already-exists` HttpsError 를 생성한다 (DRY 공유 helper).
  *
- * 4 Custom Token endpoint (kakao / naver / line / yahoojp) 의 두 collision
+ * 3 Custom Token provider (kakao / naver / line) 의 두 collision
  * case throw 를 본 helper 한 곳으로 통일 — message / code 표기 drift 방지 +
  * `existingProvider` slug 를 `details` 에 일관 전달.
  *

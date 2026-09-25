@@ -1,6 +1,6 @@
 // Phase 15 code review WR-03 / IN-03 — callable 문자열 인자 공용 타입 가드.
 //
-// 이전에는 5 사이트 (kakao / line / yahoojp / naver / linkCustomTokenProvider)
+// 이전에는 4 사이트 (kakao / line / naver / linkCustomTokenProvider)
 // 가 각각 `request.data ?? ({} as XRequest)` 로 타입을 **단언** 한 뒤
 // `!idToken || !nonce` 의 falsy 검사만 수행했다. `{idToken: 12345, nonce: {}}`
 // 같은 페이로드가 그 가드를 통과해 jose 검증 단계까지 내려갔고,

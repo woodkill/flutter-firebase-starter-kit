@@ -2,8 +2,8 @@
  * TermsAcceptanceJson 5-key 계약 sentinel (Phase 16 Plan 16-14 — G-16-A9-1).
  *
  * 서버 수신 타입 `functions/src/shared/terms_acceptance_json.ts` 의 키 집합을
- * 컴파일타임 + 런타임 양쪽에서 고정한다. 4 Custom Token endpoint
- * (kakao/naver/line/yahoojp) 가 `termsAcceptanceSnapshot` 으로 수신하는 값의
+ * 컴파일타임 + 런타임 양쪽에서 고정한다. 3 Custom Token provider
+ * (kakao/naver/line) 가 `termsAcceptanceSnapshot` 으로 수신하는 값의
  * 형태가 곧 이 타입이다.
  *
  * **client 짝 (한쪽만 바꾸면 안 된다):**

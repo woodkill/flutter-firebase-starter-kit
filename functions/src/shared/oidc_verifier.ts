@@ -9,7 +9,7 @@ import type {JWTPayload} from "jose";
  *
  * Phase 12 의 inline `KAKAO_JWKS + jwtVerify + nonce 비교` 코드를 일반화한
  * helper. Phase 14 LINE 이 원신 사용처 + Phase 12 Kakao 가 retroactive
- * 마이그 + Phase 15 Yahoo!JP 가 후속 사용처.
+ * 마이그된 후속 사용처.
  *
  * **Provider 별 인자 분기:**
  * - Kakao: issuer=https://kauth.kakao.com / algorithms=["RS256"] /

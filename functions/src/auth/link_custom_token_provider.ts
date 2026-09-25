@@ -35,7 +35,6 @@ import {
   LINE_CHANNEL_ID,
   OIDC_VERIFIERS,
   OidcProviderId,
-  YAHOOJP_CLIENT_ID,
 } from "../shared/oidc_providers";
 import {assertFreshAuth} from "../shared/reauth";
 import {
@@ -44,12 +43,12 @@ import {
 } from "../shared/require_string_arg";
 import {fingerprintError, identityIndexDocId} from "./identity_index";
 
-// Phase 16 D-04 — 4 provider secret 재사용 (Phase 12/13/14/15 Custom Token
+// Phase 16 D-04 — OIDC provider secret 재사용 (Phase 12/14 Custom Token
 // endpoint 와 동일 secret 공유). target provider 별 OIDC verifier 분기 의무.
 //
 // Note: Naver 는 OIDC 미지원 (access_token / userinfo API 기반) 이므로 본
-// linkCustomTokenProvider 의 target verifier 분기 는 OIDC provider 3종
-// (kakao/line/yahoojp) 만 지원. naver target link 는 Plan 16-04 의 client-side
+// linkCustomTokenProvider 의 target verifier 분기 는 OIDC provider 2종
+// (kakao/line) 만 지원. naver target link 는 Plan 16-04 의 client-side
 // access_token path 와 별도 phase 분리 (Phase 17+ carry-forward).
 // WR-06 (Phase 15 리뷰): 3 provider 의 issuer / jwksUrl / algorithms /
 // nonceHashing 리터럴과 secret 선언이 본 파일과 4 Custom Token endpoint 에
@@ -67,7 +66,7 @@ type LinkCustomTokenProviderRequest = {
   targetProvider: TargetProvider;
   /** target provider 의 OIDC ID Token (Custom Token endpoint 와 동일 format). */
   targetProviderToken: string;
-  /** OIDC nonce — 3 provider 모두 의무. */
+  /** OIDC nonce — 2 provider 모두 의무. */
   nonce: string;
 };
 
@@ -106,7 +105,7 @@ type LinkCustomTokenProviderResponse = {
 export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
   {
     enforceAppCheck: true,
-    secrets: [KAKAO_NATIVE_APP_KEY, LINE_CHANNEL_ID, YAHOOJP_CLIENT_ID],
+    secrets: [KAKAO_NATIVE_APP_KEY, LINE_CHANNEL_ID],
   },
   async (request): Promise<LinkCustomTokenProviderResponse> => {
     // Step 0: auth + input validation.
@@ -129,11 +128,7 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
       request.data?.targetProvider,
       MAX_NONCE_ARG_LENGTH,
     );
-    if (
-      rawTargetProvider !== "kakao" &&
-      rawTargetProvider !== "line" &&
-      rawTargetProvider !== "yahoojp"
-    ) {
+    if (rawTargetProvider !== "kakao" && rawTargetProvider !== "line") {
       throw invalidArgument();
     }
     const targetProvider: TargetProvider = rawTargetProvider;

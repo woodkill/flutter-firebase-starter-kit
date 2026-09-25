@@ -82,7 +82,7 @@ export function profileFieldsForRefresh(
  * Identity Index 컬렉션 키 형식 (Phase 12 D-09 — Phase 13~17 영구 고정).
  *
  * `identity_index/{provider}:{providerUserId}` 단일 문서 ID. Phase 12 가 첫
- * 등록자 (Kakao). Phase 13~15 (Naver/LINE/Yahoo!JP) + Phase 16
+ * 등록자 (Kakao). Phase 13~14 (Naver/LINE) + Phase 16
  * (Account Linking — Native 4 provider 회고적 등록) — see ROADMAP.md, 모두
  * 동일 컬렉션 공유. 키 형식 변경은 데이터 마이그레이션 의무 발생.
  *
@@ -155,10 +155,10 @@ export function fingerprintError(err: unknown): string {
  * 13~16 의 다른 provider 가 동일 helper 재사용 시 동일 conflictKind 자동 상속.
  */
 /**
- * Phase 16 D-09 (Plan 16-03 Task 3.1) — ProviderId union (8값).
+ * Phase 16 D-09 (Plan 16-03 Task 3.1) — ProviderId union (7값).
  *
  * native 4 provider (`google` / `apple` / `facebook` / `email`) + Custom Token
- * 4 provider (`kakao` / `naver` / `line` / `yahoojp`) 의 closed enum. identity_
+ * 3 provider (`kakao` / `naver` / `line`) 의 closed enum. identity_
  * index 의 `existingProvider` 필드 type + Plan 16-04 의 Flutter ProviderId
  * Freezed enum 의 server-side 진실원 (server 가 issue, Flutter 가 mirror).
  *
@@ -174,8 +174,7 @@ export type ProviderId =
   | "email"
   | "kakao"
   | "naver"
-  | "line"
-  | "yahoojp";
+  | "line";
 
 /**
  * Firebase Auth providerData[].providerId → ProviderId enum 매핑 (D-09).
@@ -238,7 +237,6 @@ export const CUSTOM_TOKEN_PROVIDER_PRIORITY: readonly ProviderId[] = [
   "kakao",
   "naver",
   "line",
-  "yahoojp",
 ] as const;
 
 /**
@@ -510,7 +508,7 @@ export async function resolveIdentity(
        * `email` 이 함께 제공될 때만 의미가 있다. 생략하면 보수적으로
        * `false` 로 간주한다 — "이메일은 받았는데 인증 여부는 모른다" 를
        * verified 로 승격하지 않기 위해서다. `email` 자체가 없는 provider
-       * (LINE / Yahoo!JP) 는 본 필드와 무관하게 `true` 를 유지한다.
+       * (LINE) 는 본 필드와 무관하게 `true` 를 유지한다.
        */
       emailVerified?: boolean;
       displayName?: string;
@@ -560,7 +558,7 @@ export async function resolveIdentity(
   if (userInfo?.photoURL) profileFields.photoURL = userInfo.photoURL;
 
   // WR-04: email 이 없으면 verify-email gate 오트리거 방지를 위해 true 를
-  // 유지하고 (LINE / Yahoo!JP), email 이 있으면 IdP 가 보고한 상태를 따른다.
+  // 유지하고 (LINE), email 이 있으면 IdP 가 보고한 상태를 따른다.
   // 미보고 시 보수적으로 false.
   const resolvedEmailVerified = userInfo?.email ?
     (userInfo.emailVerified ?? false) :

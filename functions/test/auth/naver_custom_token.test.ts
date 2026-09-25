@@ -918,38 +918,38 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
     },
   );
 
-  // Plan 16-17 — 매트릭스 보강. Naver caller ↔ Yahoo!JP 기존 계정.
+  // Plan 16-17 — 매트릭스 보강. Naver caller ↔ LINE 기존 계정.
   it(
     // eslint-disable-next-line max-len
-    "T-16-17-NAVER-CT-EXISTING-02: Yahoo!JP Custom Token 기존 계정 → details.existingProvider='yahoojp'",
+    "T-16-17-NAVER-CT-EXISTING-02: LINE Custom Token 기존 계정 → details.existingProvider='line'",
     async () => {
       mockFetchOk({
         resultcode: "00",
         response: {
-          id: "naver-user-ct-yj",
-          email: "PII_CT_YJ_email@naver.com",
+          id: "naver-user-ct-line",
+          email: "PII_CT_LINE_email@naver.com",
         },
       });
       mockIdxGet.mockResolvedValue({exists: false});
       mockGetUserByEmail.mockReset();
       mockGetUserByEmail.mockResolvedValueOnce({
-        uid: "PII_YJ_UID_EXISTING",
+        uid: "PII_LINE_UID_EXISTING",
         providerData: [],
       });
       mockIdxWhereGet.mockResolvedValueOnce({
-        docs: [{data: () => ({provider: "yahoojp"})}],
+        docs: [{data: () => ({provider: "line"})}],
       });
 
       const wrapped = testEnv.wrap(myFunctions.naverCustomToken);
       const promise = wrapped({
-        auth: anonymousCallerAuth("anon-uid-ct-yj"),
+        auth: anonymousCallerAuth("anon-uid-ct-line"),
         app: {appId: "test"},
-        data: {accessToken: "naver-token-ct-yj"},
+        data: {accessToken: "naver-token-ct-line"},
       } as never);
       await expect(promise).rejects.toMatchObject({
         code: "already-exists",
         message: "errorAccountExistsWithDifferentCredential",
-        details: {existingProvider: "yahoojp"},
+        details: {existingProvider: "line"},
       });
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
 
@@ -960,8 +960,8 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       ];
       for (const args of allLogCalls) {
         const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("PII_CT_YJ_email@naver.com");
-        expect(stringified).not.toContain("PII_YJ_UID_EXISTING");
+        expect(stringified).not.toContain("PII_CT_LINE_email@naver.com");
+        expect(stringified).not.toContain("PII_LINE_UID_EXISTING");
       }
     },
   );

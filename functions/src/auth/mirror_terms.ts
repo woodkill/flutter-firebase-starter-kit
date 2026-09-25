@@ -1,8 +1,8 @@
 // Phase 15 code review WR-07 / CR-01 — terms mirror 블록 단일 진실원.
 //
 // 이전에는 `parseTermsAcceptanceJson` → `set(..., {merge:true})` →
-// `logger.info` / `logger.error` 의 ~45줄 블록이 4 Custom Token endpoint
-// (kakao / naver / line / yahoojp) 에 글자 단위로 복제되어 있었고, 다섯 번째
+// `logger.info` / `logger.error` 의 ~45줄 블록이 3 Custom Token provider
+// (kakao / naver / line) 에 글자 단위로 복제되어 있었고, 네 번째
 // 사본인 `mirror_terms_acceptance.ts` 는 **검증 단계만 빠진 채** 복제되어
 // 있었다 (CR-01 의 직접 원인). 본 helper 가 write + 로깅을 흡수하고,
 // 입력 검증(`parseTermsAcceptanceJson`) 은 호출부가 정책에 맞게 수행한다.
