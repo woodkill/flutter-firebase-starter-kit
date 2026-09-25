@@ -8,7 +8,7 @@
 //
 // **매트릭스:** A 는 go(루트 교체) 진입과 push 진입 두 변형 → 5 변형 ×
 // light/dark = 10 fixture · viewport 360×800
-// (UI-SPEC "360×800 폰 fit" 계약) · locale en · provider 7 (`_allStrategies`
+// (UI-SPEC "360×800 폰 fit" 계약) · locale en · provider 6 (`_allStrategies`
 // 순서 verbatim — D8 "chooser 시각 위계·360×800 fit" 갭 직격) · Android
 // platform (test env default).
 // - iOS variant 미생성 — 본 phase 신규 delta 에 platform 분기가 0 이고,
@@ -34,7 +34,6 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/yahoojp_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
@@ -89,23 +88,23 @@ const Size _goldenLogicalSize = Size(360, 800);
 /// 해상도를 환경 기본값 변화로부터 고정한다.
 const double _goldenDevicePixelRatio = 3.0;
 
-/// 현행 활성 provider 7종 — `_allStrategies` 선언 순서 verbatim
-/// (Google · Apple · Facebook · Kakao · Naver · LINE · Yahoo!JP).
+/// 현행 활성 provider 6종 — `_allStrategies` 선언 순서 verbatim
+/// (Google · Apple · Facebook · Kakao · Naver · LINE).
 ///
 /// 다른 16.1 harness 의 3 provider (Google/Apple/Facebook) 대신 production
-/// 기본값 7 을 쓴다 — "7 provider 는 360×800 에서 스크롤 없이 fit" 시각
-/// 계약이 golden 의 검증 대상이기 때문이다. quick 260911-0t3 (A1 구조 +
-/// cap 0.9) 실측: 본문 632 dp + drag handle 48 dp = sheet 680 dp ≤ cap
-/// 720 dp 이므로 `maxScroll` 0 이고, CTA 는 스크롤 영역 **밖** 고정 footer
-/// 라 7 provider 와 함께 첫 화면에 함께 보인다.
-const List<AuthStrategy> _sevenStrategies = <AuthStrategy>[
+/// 기본값 6 을 쓴다 — "production provider 전부가 360×800 에서 스크롤 없이
+/// fit" 시각 계약이 golden 의 검증 대상이기 때문이다. quick 260911-0t3
+/// (A1 구조 + cap 0.9) 실측(당시 7 provider 기준): 본문 632 dp + drag
+/// handle 48 dp = sheet 680 dp ≤ cap 720 dp 이므로 `maxScroll` 0 이었다.
+/// 6 provider 는 버튼 1개(pitch 56 dp) 만큼 더 짧아 여유가 늘어나고, CTA 는
+/// 스크롤 영역 **밖** 고정 footer 라 6 provider 와 함께 첫 화면에 보인다.
+const List<AuthStrategy> _sixStrategies = <AuthStrategy>[
   GoogleAuthStrategy(),
   AppleAuthStrategy(),
   FacebookAuthStrategy(),
   KakaoAuthStrategy(),
   NaverAuthStrategy(),
   LineAuthStrategy(),
-  YahoojpAuthStrategy(),
 ];
 
 /// [family] 이름으로 [paths] 의 폰트 파일들을 [FontLoader] 에 등록한다.
@@ -135,7 +134,7 @@ Future<void> _loadFamily(String family, List<String> paths) async {
 /// 렌더하는 family 는 다음 3종이다.
 ///
 /// - `Roboto` — M3 textTheme 전체 (AppBar title · 본문 · CTA · 링크) +
-///   Google/Facebook 라벨 + LINE/Yahoo!JP 라벨 (`DefaultTextStyle` 상속).
+///   Google/Facebook 라벨 + LINE 라벨 (`DefaultTextStyle` 상속).
 ///   production bundle 의 variable font 를 그대로 로드한다 — pubspec 이
 ///   'Roboto' family 로 선언하므로 실 단말도 이 자산으로 렌더한다
 ///   (golden = production 렌더). 기존 button golden 이 쓰는 static
@@ -268,7 +267,7 @@ Future<void> _pumpSurface(
         authRepositoryProvider.overrideWithValue(
           repository ?? _mockRepository(),
         ),
-        activeStrategiesProvider.overrideWithValue(_sevenStrategies),
+        activeStrategiesProvider.overrideWithValue(_sixStrategies),
         if (user != null) currentUserProvider.overrideWith((ref) => user),
       ],
       child: _wrapApp(brightness: brightness, home: home),
@@ -312,7 +311,7 @@ Future<void> _expectSurfaceGolden(WidgetTester tester, String fileName) async {
 void main() {
   setUpAll(_loadGoldenFonts);
 
-  group('Phase 16.1 A/B/C/D surface golden — 360×800 · en · 7 provider', () {
+  group('Phase 16.1 A/B/C/D surface golden — 360×800 · en · 6 provider', () {
     for (final brightness in <Brightness>[Brightness.light, Brightness.dark]) {
       final mode = brightness.name;
 

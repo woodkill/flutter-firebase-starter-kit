@@ -36,7 +36,6 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/yahoojp_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
@@ -95,7 +94,7 @@ Future<GoRouter> _pumpSection(
     ],
   );
 
-  // 활성 소셜 Strategy 7종 전부 (정적 + RC overlay 대신 직접 주입) — login/
+  // 활성 소셜 Strategy 6종 전부 (정적 + RC overlay 대신 직접 주입) — login/
   // signup 의 activeStrategiesProvider 결과를 결정적으로 고정한다.
   const allStrategies = <AuthStrategy>[
     GoogleAuthStrategy(),
@@ -104,7 +103,6 @@ Future<GoRouter> _pumpSection(
     KakaoAuthStrategy(),
     NaverAuthStrategy(),
     LineAuthStrategy(),
-    YahoojpAuthStrategy(),
   ];
 
   await tester.pumpWidget(
@@ -305,21 +303,21 @@ void main() {
 
       await _pumpSection(tester, user: user, repo: repo);
 
-      // Yahoo! JAPAN 은 리스트 말단 (below-fold 가능) — ensureVisible 후 tap.
-      final btn = find.text('Link Yahoo! JAPAN');
+      // LINE 은 리스트 말단 (below-fold 가능) — ensureVisible 후 tap.
+      final btn = find.text('Link LINE');
       await tester.ensureVisible(btn);
       await tester.tap(btn);
       await tester.pumpAndSettle();
 
       verify(
         () => repo.linkCustomTokenProviderArm(
-          targetProvider: AccountProvider.yahoojp,
+          targetProvider: AccountProvider.line,
         ),
       ).called(1);
     });
 
     testWidgets('AL8 빈 available — 모든 활성 소셜 linked → 섹션 미노출', (tester) async {
-      // 활성 소셜 7종 모두 linked (URI 3 + slug 4).
+      // 활성 소셜 6종 모두 linked (URI 3 + slug 3).
       final user = _testUser(
         providerIds: const <String>[
           'google.com',
@@ -328,7 +326,6 @@ void main() {
           'kakao',
           'naver',
           'line',
-          'yahoojp',
         ],
       );
 

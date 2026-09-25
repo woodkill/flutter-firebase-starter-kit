@@ -32,7 +32,6 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/yahoojp_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
@@ -65,15 +64,14 @@ const _homeText = 'HOME_STUB';
 const _currentEmail = 'current-user@example.com';
 const _currentUid = 'current-uid-U';
 
-/// 현행 활성 provider 7종 (`_allStrategies` 선언 순서).
-const List<AuthStrategy> _sevenStrategies = <AuthStrategy>[
+/// 현행 활성 provider 6종 (`_allStrategies` 선언 순서).
+const List<AuthStrategy> _sixStrategies = <AuthStrategy>[
   GoogleAuthStrategy(),
   AppleAuthStrategy(),
   FacebookAuthStrategy(),
   KakaoAuthStrategy(),
   NaverAuthStrategy(),
   LineAuthStrategy(),
-  YahoojpAuthStrategy(),
 ];
 
 /// [providerIds] 를 연결한 정식 사용자 도메인 모델.
@@ -124,7 +122,7 @@ Future<GoRouter> _pumpReauthFlow(
   User? user,
   Stream<fb.User?>? sdkUserChanges,
   List<String> linkedProviders = const <String>[],
-  List<AuthStrategy> strategies = _sevenStrategies,
+  List<AuthStrategy> strategies = _sixStrategies,
   Locale locale = const Locale('en'),
   bool withMarker = true,
 }) async {
@@ -235,7 +233,6 @@ void main() {
     when(() => repo.signInWithKakao()).thenAnswer((_) async => null);
     when(() => repo.signInWithNaver()).thenAnswer((_) async => null);
     when(() => repo.signInWithLine()).thenAnswer((_) async => null);
-    when(() => repo.signInWithYahoojp()).thenAnswer((_) async => null);
     when(
       () => repo.signInWithEmail(
         email: any(named: 'email'),
@@ -455,7 +452,7 @@ void main() {
 
       expect(find.text(l10n.authLoginTitle), findsOneWidget);
       expect(find.text(l10n.authReauthTitle), findsNothing);
-      expect(find.byType(SocialButton), findsNWidgets(7));
+      expect(find.byType(SocialButton), findsNWidgets(6));
       expect(find.text(l10n.authLoginNoAccount), findsOneWidget);
     });
   });

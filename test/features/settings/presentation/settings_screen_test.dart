@@ -68,7 +68,6 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/yahoojp_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
@@ -78,7 +77,7 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/with
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
-/// 활성 소셜 Strategy 7종 전부.
+/// 활성 소셜 Strategy 6종 전부.
 const List<AuthStrategy> _allStrategies = <AuthStrategy>[
   GoogleAuthStrategy(),
   AppleAuthStrategy(),
@@ -86,7 +85,6 @@ const List<AuthStrategy> _allStrategies = <AuthStrategy>[
   KakaoAuthStrategy(),
   NaverAuthStrategy(),
   LineAuthStrategy(),
-  YahoojpAuthStrategy(),
 ];
 
 /// 모든 활성 소셜 provider 가 이미 linked 인 User (계정 연결 section 미노출
@@ -99,7 +97,6 @@ List<String> get _allSocialLinked => const <String>[
   'kakao',
   'naver',
   'line',
-  'yahoojp',
 ];
 
 /// 테스트용 User factory.
@@ -323,7 +320,7 @@ void main() {
       addTearDown(tester.view.resetViewPadding);
       addTearDown(tester.view.resetPadding);
 
-      // 활성 소셜 7종 전부 미연결 → ListView 가 viewport 를 확실히 초과하여
+      // 활성 소셜 6종 전부 미연결 → ListView 가 viewport 를 확실히 초과하여
       // "끝까지 스크롤한 상태" 가 성립한다 (geometry 단언의 전제).
       await _pumpSettingsScreen(tester, user: _testUser());
 
@@ -376,7 +373,6 @@ void main() {
               'kakao',
               'naver',
               'line',
-              'yahoojp',
             ],
           ),
         );

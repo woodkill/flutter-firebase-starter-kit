@@ -5,18 +5,20 @@
 // ① **sheet 본문이 스크롤 가능하다.** 스크롤 뷰 1겹을 되돌리면 default
 // 800x600 viewport 에서 7 provider 는
 // `A RenderFlex overflowed by 218 pixels on the bottom.`, 8 provider 는
-// `282 pixels` 로 재현된다 (RED 실측 2026-09-10). 같은 시점 실측에서 CTA
+// `282 pixels` 로 재현된다 (RED 실측 2026-09-10 — 당시 7/8 provider 실측).
+// 같은 시점 실측에서 CTA
 // 중심 좌표는 `Offset(400.0, 778.0)` 로 viewport 밖 178px 였다.
 //
 // ② **CTA 가 스크롤 없이 첫 화면에 있다** (quick 260911-0t3). CTA 는 스크롤
 // 영역 밖 고정 footer 이고 provider 목록만 스크롤된다. CTA 를 스크롤 영역
 // 안으로 되돌리면 7 provider 는 `bottom 814.0`, 8 provider 는 `878.0` 으로
-// fold(600) 아래로 밀린다 (RED 실측 2026-09-11, 구현 전 사전 캡처).
+// fold(600) 아래로 밀린다 (RED 실측 2026-09-11 — 당시 7/8 provider 실측,
+// 구현 전 사전 캡처).
 //
 // 회귀 조건 자체가 좁은 viewport 이므로 테스트에서 화면 크기를 인위적으로
 // 넓히지 않는다 — 넓히면 코드를 되돌려도 통과하는 위조 가드가 된다.
 // 같은 이유로 기존 `login_prompt_sheet_test.dart` 의 3 provider harness 를
-// 재사용하지 않고 7/8 provider 를 명시 override 하는 별도 harness 를 둔다.
+// 재사용하지 않고 6/7 provider 를 명시 override 하는 별도 harness 를 둔다.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
@@ -27,7 +29,6 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/yahoojp_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -49,24 +50,23 @@ class LastLocationRecorder {
   String? lastPushedLocation;
 }
 
-/// 현행 활성 provider 7종 — `_allStrategies` 선언 순서 verbatim.
-const List<AuthStrategy> _sevenStrategies = <AuthStrategy>[
+/// 현행 활성 provider 6종 — `_allStrategies` 선언 순서 verbatim.
+const List<AuthStrategy> _sixStrategies = <AuthStrategy>[
   GoogleAuthStrategy(),
   AppleAuthStrategy(),
   FacebookAuthStrategy(),
   KakaoAuthStrategy(),
   NaverAuthStrategy(),
   LineAuthStrategy(),
-  YahoojpAuthStrategy(),
 ];
 
-/// 미래 provider 추가 시뮬 8종.
+/// 미래 provider 추가 시뮬 7종.
 ///
 /// 새 `providerId` 를 가진 대체 구현을 만들지 않고 기존 const 를 1개
 /// 중복시킨다 — 미지 provider 는 버튼 렌더 시점에 `UnsupportedError` 를
 /// throw 해서 `takeException()` 이 overflow 가 아닌 이유로 non-null 이 된다.
-const List<AuthStrategy> _eightStrategies = <AuthStrategy>[
-  ..._sevenStrategies,
+const List<AuthStrategy> _sevenStrategies = <AuthStrategy>[
+  ..._sixStrategies,
   GoogleAuthStrategy(),
 ];
 
@@ -130,25 +130,27 @@ Future<LastLocationRecorder> pumpOverflowHarness(
 
 void main() {
   group('LoginPromptSheet overflow 회귀 가드 (Phase 16.1 SC 4)', () {
-    testWidgets('7 provider — default viewport 에서 overflow 예외가 없다', (
+    testWidgets('6 provider — default viewport 에서 overflow 예외가 없다', (
       tester,
     ) async {
-      await pumpOverflowHarness(tester, _sevenStrategies);
+      await pumpOverflowHarness(tester, _sixStrategies);
 
       // settle 이 끝난 뒤에 확인한다 — entrance 애니메이션 중에는 레이아웃이
       // 확정되지 않아 위음성이 난다.
       expect(
         tester.takeException(),
         isNull,
-        reason: '스크롤 wrap 이 없으면 218px RenderFlex overflow 가 재현된다',
+        reason:
+            '스크롤 wrap 이 없으면 218px RenderFlex overflow 가 재현된다 '
+            '(당시 7 provider 실측)',
       );
-      expect(find.byType(SocialButton), findsNWidgets(7));
+      expect(find.byType(SocialButton), findsNWidgets(6));
     });
 
-    testWidgets('7 provider — CTA 가 스크롤로 도달 가능하고 /login/email 로 push 된다', (
+    testWidgets('6 provider — CTA 가 스크롤로 도달 가능하고 /login/email 로 push 된다', (
       tester,
     ) async {
-      final recorder = await pumpOverflowHarness(tester, _sevenStrategies);
+      final recorder = await pumpOverflowHarness(tester, _sixStrategies);
 
       final ctaFinder = find.byType(EmailAuthCta);
       expect(ctaFinder, findsOneWidget);
@@ -167,21 +169,23 @@ void main() {
       );
     });
 
-    testWidgets('8 provider — default viewport 에서 overflow 예외가 없다', (
+    testWidgets('7 provider — default viewport 에서 overflow 예외가 없다', (
       tester,
     ) async {
-      await pumpOverflowHarness(tester, _eightStrategies);
+      await pumpOverflowHarness(tester, _sevenStrategies);
 
       expect(
         tester.takeException(),
         isNull,
-        reason: '스크롤 wrap 이 없으면 282px RenderFlex overflow 가 재현된다',
+        reason:
+            '스크롤 wrap 이 없으면 282px RenderFlex overflow 가 재현된다 '
+            '(당시 8 provider 실측)',
       );
-      expect(find.byType(SocialButton), findsNWidgets(8));
+      expect(find.byType(SocialButton), findsNWidgets(7));
     });
 
-    testWidgets('8 provider — CTA 가 스크롤로 도달 가능하고 tap 이 성공한다', (tester) async {
-      final recorder = await pumpOverflowHarness(tester, _eightStrategies);
+    testWidgets('7 provider — CTA 가 스크롤로 도달 가능하고 tap 이 성공한다', (tester) async {
+      final recorder = await pumpOverflowHarness(tester, _sevenStrategies);
 
       final ctaFinder = find.byType(EmailAuthCta);
       expect(ctaFinder, findsOneWidget);
@@ -241,14 +245,14 @@ void main() {
       expect(recorder.lastPushedLocation, contains(AppRoutes.emailLogin));
     }
 
-    testWidgets('7 provider — CTA 가 스크롤 없이 첫 화면에 있고 바로 tap 된다', (tester) async {
-      await expectCtaAboveFold(tester, _sevenStrategies);
+    testWidgets('6 provider — CTA 가 스크롤 없이 첫 화면에 있고 바로 tap 된다', (tester) async {
+      await expectCtaAboveFold(tester, _sixStrategies);
     });
 
-    testWidgets('8 provider — provider 가 늘어도 CTA 첫 화면 노출이 유지된다', (
+    testWidgets('7 provider — provider 가 늘어도 CTA 첫 화면 노출이 유지된다', (
       tester,
     ) async {
-      await expectCtaAboveFold(tester, _eightStrategies);
+      await expectCtaAboveFold(tester, _sevenStrategies);
     });
   });
 }
