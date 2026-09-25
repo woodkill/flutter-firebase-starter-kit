@@ -584,7 +584,7 @@
 
   "errorAccountExistsWithProvider": "This email is registered with {provider}. Sign in with {provider} to link your account.",
   "@errorAccountExistsWithProvider": {
-    "description": "Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point). {provider} placeholder 는 8 brand verbatim 라벨 (audit trail: authAccountProvider{X} 8 ARB key — Google/Apple/Facebook/EmailPassword/Kakao/Naver/Line/YahooJp). exception_l10n.dart#_resolveAccountExists L1 branch 가 injection. SDK strings.xml > 공식 가이드 > 자산 embed 우선순위 (memory feedback_label_verbatim_audit).",
+    "description": "Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point). {provider} placeholder 는 7 brand verbatim 라벨 (audit trail: authAccountProvider{X} 7 ARB key — Google/Apple/Facebook/EmailPassword/Kakao/Naver/Line). exception_l10n.dart#_resolveAccountExists L1 branch 가 injection. SDK strings.xml > 공식 가이드 > 자산 embed 우선순위 (memory feedback_label_verbatim_audit).",
     "placeholders": {
       "provider": {
         "type": "String",
@@ -638,11 +638,6 @@
     "description": "LINE Login button label. EN verbatim from LINE official 'Login button design guidelines' long form (https://developers.line.biz/en/docs/line-login/login-button/). starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조. brand_label_whitelist_test 가 [ASSUMED] tag audit trail + 1년 주기 갱신 정책 enforce. SDK strings audit 확정 2026-05-20 (quick task 260520-blt) — flutter_line_sdk 2.7.2 pub cache 의 strings.xml / Localizable.strings 0 hit, SDK 측 i18n 라벨 미제공 확인. 공식 가이드 long form (developers.line.biz/en/docs/line-login/login-button/) verbatim 채택, [ASSUMED] tag 부착 의무 해소. SDK version bump 시 재audit 의무 (14-LINE-LOCALE-REFERENCE.md § 4)."
   },
 
-  "authYahoojpSignIn": "Sign in with Yahoo! JAPAN",
-  "@authYahoojpSignIn": {
-    "description": "[ASSUMED — Yahoo!JP BI 가이드는 ja-only, en 권장 라벨 가이드 부재. starter-kit 차원 번역. Phase 14 LINE D-LINE-10 'Log in with LINE' 패턴 + Phase 13 Naver 'Sign in with Naver' 패턴 mirror. 1년 주기 re-audit, memory feedback_label_verbatim_audit]. ja 본 verbatim = 'Yahoo! JAPAN IDでログイン' (yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' verbatim, D-YJP-08 lock). starter-kit active locale = en/ko/ja 3 종; ja 외 locale 추가 시 사용자 fork 후 추가 의무. Plan 15-05 verbatim audit 완료."
-  },
-
   "authBrandAssetMissing": "Asset missing: {label}",
   "@authBrandAssetMissing": {
     "description": "Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14 자상 commit 완료 + Phase 16 폐기 후 본 path 도달 0 — caller 0 (sentinel 의무 해소, kPlaceholderProviders empty).",
@@ -662,11 +657,6 @@
   "authAccountProviderLine": "LINE",
   "@authAccountProviderLine": {
     "description": "Phase 13 — LINE provider label (Phase 14 pre-registered, D-53 5 provider 일반화)."
-  },
-
-  "authAccountProviderYahooJp": "Yahoo! JAPAN",
-  "@authAccountProviderYahooJp": {
-    "description": "Phase 13 — Yahoo! JAPAN provider label (Phase 15 pre-registered, D-53 5 provider 일반화)."
   },
 
   "errorUnknownProvider": "Unknown sign-in method",
@@ -932,7 +922,7 @@
 
   "settingsLinkedProviders": "Linked sign-in: {providers}",
   "@settingsLinkedProviders": {
-    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings linked-providers row. {providers} 는 authAccountProvider{X} 8 brand verbatim 라벨의 comma-joined list.",
+    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings linked-providers row. {providers} 는 authAccountProvider{X} 7 brand verbatim 라벨의 comma-joined list.",
     "placeholders": {
       "providers": {
         "type": "String",

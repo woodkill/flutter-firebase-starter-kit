@@ -163,10 +163,6 @@
   "@authLineSignIn": {
     "description": "LINE Login button label. KO verbatim from LINE official 'Login button design guidelines' 19 언어 표 ko 항목 (https://developers.line.biz/en/docs/line-login/login-button/). 외래어+조사 패턴 = 'LINE'(브랜드 명사) + '으로'(조사) — 공식 verbatim 부합 (feedback_label_verbatim_audit). starter-kit active locale = en/ko/ja 3 종; 외 16 언어는 LINE 공식 가이드 동일 페이지 참조. SDK strings audit 확정 2026-05-20 (quick task 260520-blt): flutter_line_sdk 2.7.2 SDK i18n 라벨 미제공 확인 → 공식 가이드 verbatim 우선순위 1순위 승격, [ASSUMED] tag 부착 의무 해소."
   },
-  "authYahoojpSignIn": "Yahoo! JAPAN으로 로그인",
-  "@authYahoojpSignIn": {
-    "description": "[ASSUMED — Yahoo!JP BI 가이드 ko 권장값 부재. starter-kit 차원 번역. Phase 13 Naver 'Naver로 로그인' + Phase 14 LINE 'LINE으로 로그인' 패턴 mirror — 외래어+조사 붙임. 1년 주기 re-audit]. ja 본 verbatim = 'Yahoo! JAPAN IDでログイン' (yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' verbatim, D-YJP-08 lock). Plan 15-05 verbatim audit 완료."
-  },
   "authBrandAssetMissing": "자산 없음: {label}",
   "@authBrandAssetMissing": {
     "description": "Phase 13.1 REVIEW iter2 WR-05 (2026-05-10) — placeholder 메타데이터 일관성. en.arb 의 metadata 블록 미러 — 미래 갱신자가 placeholder 명을 typo (예: {labelText}) 변경 시 gen-l10n parse 시점 surface 강제.",
@@ -178,7 +174,6 @@
   },
   "authAccountProviderNaver": "네이버",
   "authAccountProviderLine": "라인",
-  "authAccountProviderYahooJp": "Yahoo! JAPAN",
   "errorUnknownProvider": "알 수 없는 로그인 수단",
 
   "onboardingSkip": "건너뛰기",

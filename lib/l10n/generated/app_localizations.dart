@@ -778,7 +778,7 @@ abstract class AppLocalizations {
   /// **'This email is already registered with another sign-in method. Please sign in with the method you originally used.'**
   String get errorAccountExistsWithUnknownProvider;
 
-  /// Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point). {provider} placeholder 는 8 brand verbatim 라벨 (audit trail: authAccountProvider{X} 8 ARB key — Google/Apple/Facebook/EmailPassword/Kakao/Naver/Line/YahooJp). exception_l10n.dart#_resolveAccountExists L1 branch 가 injection. SDK strings.xml > 공식 가이드 > 자산 embed 우선순위 (memory feedback_label_verbatim_audit).
+  /// Phase 16 R1 부활 (Phase 9.2 deferred D-05~D-12/D-15/D-29 starting point). {provider} placeholder 는 7 brand verbatim 라벨 (audit trail: authAccountProvider{X} 7 ARB key — Google/Apple/Facebook/EmailPassword/Kakao/Naver/Line). exception_l10n.dart#_resolveAccountExists L1 branch 가 injection. SDK strings.xml > 공식 가이드 > 자산 embed 우선순위 (memory feedback_label_verbatim_audit).
   ///
   /// In en, this message translates to:
   /// **'This email is registered with {provider}. Sign in with {provider} to link your account.'**
@@ -838,12 +838,6 @@ abstract class AppLocalizations {
   /// **'Log in with LINE'**
   String get authLineSignIn;
 
-  /// [ASSUMED — Yahoo!JP BI 가이드는 ja-only, en 권장 라벨 가이드 부재. starter-kit 차원 번역. Phase 14 LINE D-LINE-10 'Log in with LINE' 패턴 + Phase 13 Naver 'Sign in with Naver' 패턴 mirror. 1년 주기 re-audit, memory feedback_label_verbatim_audit]. ja 본 verbatim = 'Yahoo! JAPAN IDでログイン' (yahoo_japan_login_button.zip 안 'Yahoo! JAPAN ID ログインボタン.pdf' verbatim, D-YJP-08 lock). starter-kit active locale = en/ko/ja 3 종; ja 외 locale 추가 시 사용자 fork 후 추가 의무. Plan 15-05 verbatim audit 완료.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with Yahoo! JAPAN'**
-  String get authYahoojpSignIn;
-
   /// Phase 13.1 REVIEW CR-03 — BrandedSocialButton placeholder fallback (LINE 자상 미commit 시점 회색 disabled 외관에 표시). Phase 14 자상 commit 완료 + Phase 16 폐기 후 본 path 도달 0 — caller 0 (sentinel 의무 해소, kPlaceholderProviders empty).
   ///
   /// In en, this message translates to:
@@ -861,12 +855,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'LINE'**
   String get authAccountProviderLine;
-
-  /// Phase 13 — Yahoo! JAPAN provider label (Phase 15 pre-registered, D-53 5 provider 일반화).
-  ///
-  /// In en, this message translates to:
-  /// **'Yahoo! JAPAN'**
-  String get authAccountProviderYahooJp;
 
   /// Phase 13 D-53 — Localizable Unknown fallback for provider_label_formatter (raw slug 노출 차단).
   ///
@@ -1162,7 +1150,7 @@ abstract class AppLocalizations {
   /// **'{email}'**
   String settingsAccountEmail(String email);
 
-  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings linked-providers row. {providers} 는 authAccountProvider{X} 8 brand verbatim 라벨의 comma-joined list.
+  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings linked-providers row. {providers} 는 authAccountProvider{X} 7 brand verbatim 라벨의 comma-joined list.
   ///
   /// In en, this message translates to:
   /// **'Linked sign-in: {providers}'**

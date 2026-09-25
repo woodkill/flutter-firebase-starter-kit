@@ -398,9 +398,6 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authLineSignIn => 'LINE으로 로그인';
 
   @override
-  String get authYahoojpSignIn => 'Yahoo! JAPAN으로 로그인';
-
-  @override
   String authBrandAssetMissing(String label) {
     return '자산 없음: $label';
   }
@@ -410,9 +407,6 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get authAccountProviderLine => '라인';
-
-  @override
-  String get authAccountProviderYahooJp => 'Yahoo! JAPAN';
 
   @override
   String get errorUnknownProvider => '알 수 없는 로그인 수단';
