@@ -60,7 +60,7 @@ Future<void> showLoginPromptSheet(BuildContext context) {
 ///    headlineMedium, onSurface) / [Gap] sm=8 / 본문 텍스트
 ///    (`authPromptSheetBody` -- bodyMedium, onSurfaceVariant) / [Gap] xl=24
 /// 3. **스크롤 영역** -- [Flexible] (기본 `FlexFit.loose`) 안의 스크롤 뷰
-///    1겹에 [SocialSignInSection] -- 활성 provider (기본 7개), "또는"
+///    1겹에 [SocialSignInSection] -- 활성 provider (기본 6개), "또는"
 ///    구분선 없음. 소셜 로그인 실패 시 provider 버튼 바로 아래에 에러
 ///    배너가 함께 렌더된다 (quick 260910-uff).
 /// 4. **고정 footer** -- [Gap] md=12 / [EmailAuthCta]

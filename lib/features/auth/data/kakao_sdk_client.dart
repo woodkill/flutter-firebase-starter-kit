@@ -84,7 +84,7 @@ class KakaoSdkClient {
   ///    대상이 아니다** — CR-01 (Phase 7 review) 정정.
   /// 3. 사용자 취소 (`PlatformException` 'CANCELED' / `KakaoClientException`
   ///    `ClientErrorCause.cancelled`) → null 반환 (D-05 silent). KakaoTalk
-  ///    경로 / 카카오계정 웹뷰 경로 양쪽 동일 (LINE / Yahoo!JP / Naver 의
+  ///    경로 / 카카오계정 웹뷰 경로 양쪽 동일 (LINE / Naver 의
   ///    "취소 최우선 분기" 규칙과 대칭).
   /// 4. `token.idToken == null` (Pitfall 1 — OIDC 미활성화) → [ServiceUnavailable]
   ///    throw. AuthRepository 가 Failure 로 매핑한다.

@@ -1,6 +1,6 @@
 // Phase 16.5 — see ROADMAP.md (NaverWebAuthClient unit tests)
 //
-// Pattern: Phase 15 yahoojp_sdk_client_test.dart 의 typedef 주입 패턴 mirror.
+// Pattern: Phase 14 line_sdk_client_test.dart 의 typedef 주입 패턴 mirror.
 // `FlutterWebAuth2.authenticate` 를 함수 typedef 로 fake 해 authorize URL 조립 ·
 // state 대조 · 취소/오류 분기(D-12a) · 로그 리댁션(WR-05) 을 잠근다.
 //

@@ -1,8 +1,8 @@
 /// OIDC nonce 생성 · 해시 단일 진실원 (IN-05 — Phase 7 review).
 ///
-/// Kakao / LINE / Yahoo!JP 3개 SDK wrapper 가 `Random.secure()` +
+/// Kakao / LINE 2개 SDK wrapper 가 `Random.secure()` +
 /// `base64UrlEncode` + padding 제거로 **동일한** 구현을 각자 복제하고
-/// 있었다. 알고리즘이 3곳에 흩어져 있으면 한 곳만 수정될 구조이므로
+/// 있었다. 알고리즘이 여러 곳에 흩어져 있으면 한 곳만 수정될 구조이므로
 /// (예: padding 정책 변경) 본 helper 로 모은다.
 ///
 /// Facebook iOS Limited Login (debug ios-facebook-limited-login) 은 raw
@@ -25,11 +25,11 @@ import 'package:crypto/crypto.dart';
 ///
 /// **provider 별 [byteLength] 차이 (근거 단일 기록):**
 /// - Kakao — 32 bytes (43 chars). Phase 12 Pitfall 2 도입 시 채택한 값.
-/// - LINE / Yahoo!JP — 16 bytes (22 chars). RFC 7636 의 PKCE
-///   `code_verifier` 권장 하한과 동등 (D-LINE-06 / D-YJP-04).
+/// - LINE — 16 bytes (22 chars). RFC 7636 의 PKCE
+///   `code_verifier` 권장 하한과 동등 (D-LINE-06).
 /// - Facebook (iOS Limited Login) — 32 bytes (43 chars). Kakao 와 같은 값을
 ///   채택했다 (debug ios-facebook-limited-login).
-/// - Naver 웹 경로 state — 16 bytes (22 chars). LINE / Yahoo!JP 와 동일
+/// - Naver 웹 경로 state — 16 bytes (22 chars). LINE 과 동일
 ///   (Phase 16.5 D-14).
 ///
 /// 길이 모두 보안상 충분하며 값 차이는 도입 시점의 선택일 뿐 provider

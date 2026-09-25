@@ -109,11 +109,11 @@ class SocialSignInSection extends ConsumerWidget {
           //
           // **키에 인덱스를 함께 넣는 이유.** providerId 단독이 의미상 더
           // 정확하지만(각 버튼이 자기 상태를 유지), 레이아웃 회귀 가드
-          // `login_prompt_sheet_overflow_test.dart` 가 "8 provider" 를
+          // `login_prompt_sheet_overflow_test.dart` 가 "7 provider" 를
           // 시뮬레이션하려고 기존 strategy 를 **중복**시킨다 — 미등록
           // providerId 는 버튼 렌더 시점에 UnsupportedError 를 던져
           // 대체 구현을 만들 수 없기 때문이다(WR-01). production 의
-          // `_allStrategies` 는 7개가 모두 distinct 라 중복이 불가능하지만,
+          // `_allStrategies` 는 6개가 모두 distinct 라 중복이 불가능하지만,
           // 키가 중복되면 그 harness 가 "Duplicate keys" 로 깨진다.
           // 인덱스를 섞으면 목록이 바뀔 때 키도 바뀌어 **잘못된 상태 승계는
           // 그대로 차단**되며(원소 제거 시 뒤쪽 버튼은 재사용 대신 새로

@@ -22,13 +22,13 @@ part 'kakao_sign_in_notifier.g.dart';
 /// (UI-SPEC Kakao success state). resolveAuthRedirect 는 home 으로 자동 이동하며
 /// `/verify-email` 우회.
 ///
-/// **build() 시그니처 (R7 / Phase 13 D-42 invariant — 7 소셜 notifier 공통):**
+/// **build() 시그니처 (R7 / Phase 13 D-42 invariant — 6 소셜 notifier 공통):**
 /// `FutureOr<void> build()` 를 유지한다. Riverpod 3.x build inference 규칙상
 /// `void build()` 로 바꾸면 generator 가 sync `$Notifier<void>` 가족으로
 /// 강등되어 AsyncNotifier API 자체가 깨진다 (Phase 13 Plan 13-04
 /// T-13-NAVER-NOTIFIER-R7-01 lesson). 회귀 가드 테스트 + 본 docstring 으로
 /// invariant 를 강제한다 — IN-04 정정(Phase 09 review): 이 경고는 naver /
-/// line / yahoojp 3개 파일에만 있었으나 회귀 조건은 7개 모두 동일하므로
+/// line 2개 파일에만 있었으나 회귀 조건은 6개 모두 동일하므로
 /// 전 파일에 일치시킨다.
 @riverpod
 class KakaoSignInNotifier extends _$KakaoSignInNotifier {
@@ -39,7 +39,7 @@ class KakaoSignInNotifier extends _$KakaoSignInNotifier {
 
   /// Kakao 로그인을 수행한다.
   ///
-  /// 취소(null) 시 state 를 [AsyncData] 로 유지하여 조용히 무시 (D-05). 이 동작은 7 provider 가 문자 단위로 동일하며,
+  /// 취소(null) 시 state 를 [AsyncData] 로 유지하여 조용히 무시 (D-05). 이 동작은 6 provider 가 문자 단위로 동일하며,
   /// 최초 결정 **D-06** 의 provider 별 인스턴스다 (IN-01 정정 — Phase 09
   /// review: 동일 동작이 6개의 서로 다른 ID 로 불리고 있었다).
   /// 성공 시 [AsyncData]. 실패 시 [AsyncError] 로 전환되어 **LoginScreen 과
@@ -60,7 +60,7 @@ class KakaoSignInNotifier extends _$KakaoSignInNotifier {
   /// bootstrap 이 Crashlytics 에 `fatal: true` 로 기록한다 — 「배너로
   /// 복구했다」 와 「치명적으로 죽었다」 가 동시에 보고되는 모순이다.
   /// state 가 [AsyncLoading] 에 머물러 AuthInProgressOverlay 의
-  /// AbsorbPointer 가 화면을 영구히 덮는 일도 없다. 이 가드 역시 7 provider 가
+  /// AbsorbPointer 가 화면을 영구히 덮는 일도 없다. 이 가드 역시 6 provider 가
   /// 문자 단위로 동일하다 — 회귀 가드는
   /// `social_sign_in_notifier_loading_guard_test.dart`.
   /// 그 회귀 가드가 덮는 범위는 **두 축 모두**다 — provider 생성 시의 동기

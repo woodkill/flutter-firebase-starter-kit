@@ -45,7 +45,7 @@ extension TermsStatePayload on TermsState {
   /// Custom Token callable payload 로 전송할 `termsAcceptanceSnapshot` JSON 을
   /// 만든다 (Phase 16 CR-01 — timezone 정합성 고정).
   ///
-  /// 4 Custom Token endpoint (kakao/naver/line/yahoojp) 로 보내는 payload 를
+  /// 3 Custom Token provider (kakao/naver/line) 로 보내는 payload 를
   /// `AuthRepository` 가 콜백으로 읽는다. notifier 의 getter 가 아니라 state
   /// 의 순수 파생이므로, payload 값과 `TermsNotifier.mirrorToFirestore` 가
   /// 쓰는 값은 언제나 같은 원본([TermsState.acceptance])에서 나온다.

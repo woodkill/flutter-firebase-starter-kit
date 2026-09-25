@@ -1,7 +1,7 @@
 // Phase 13 — see ROADMAP.md
 // Phase 16.4 — see ROADMAP.md (레버 5 판정용 lifecycle 임시 로그 제거됨 —
 // 레버 2 채택. 취소/실패 구분은 Android 호스트 계수 + MethodChannel 이
-// 담당하므로 이 파일은 7 provider 공통 모양으로 되돌아왔다)
+// 담당하므로 이 파일은 6 provider 공통 모양으로 되돌아왔다)
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -42,7 +42,7 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
 
   /// Naver 로그인을 수행한다.
   ///
-  /// 취소(null) 시 state 를 [AsyncData] 로 유지하여 조용히 무시 (D-45). 이 동작은 7 provider 가 문자 단위로 동일하며,
+  /// 취소(null) 시 state 를 [AsyncData] 로 유지하여 조용히 무시 (D-45). 이 동작은 6 provider 가 문자 단위로 동일하며,
   /// 최초 결정 **D-06** 의 provider 별 인스턴스다 (IN-01 정정 — Phase 09
   /// review: 동일 동작이 6개의 서로 다른 ID 로 불리고 있었다).
   /// 성공 시 [AsyncData]. 실패 시 [AsyncError] 로 전환되어 **LoginScreen 과
@@ -63,7 +63,7 @@ class NaverSignInNotifier extends _$NaverSignInNotifier {
   /// bootstrap 이 Crashlytics 에 `fatal: true` 로 기록한다 — 「배너로
   /// 복구했다」 와 「치명적으로 죽었다」 가 동시에 보고되는 모순이다.
   /// state 가 [AsyncLoading] 에 머물러 AuthInProgressOverlay 의
-  /// AbsorbPointer 가 화면을 영구히 덮는 일도 없다. 이 가드 역시 7 provider 가
+  /// AbsorbPointer 가 화면을 영구히 덮는 일도 없다. 이 가드 역시 6 provider 가
   /// 문자 단위로 동일하다 — 회귀 가드는
   /// `social_sign_in_notifier_loading_guard_test.dart`.
   /// 그 회귀 가드가 덮는 범위는 **두 축 모두**다 — provider 생성 시의 동기

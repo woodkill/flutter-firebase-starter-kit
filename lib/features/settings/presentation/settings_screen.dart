@@ -73,8 +73,8 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             // WR-14: 280dp 최소 뷰포트 오버플로 방어. 긴 이메일이나 다중
-            // 연결 계정(최대 7 provider 를 `, ` 로 join)에서 레이아웃이
-            // 깨진다. 같은 scope 의 _EnvironmentCard 가 이미 쓰는
+            // 연결 계정(최대 7개 로그인 수단 — 소셜 6 + 이메일 — 을 `, ` 로
+            // join)에서 레이아웃이 깨진다. 같은 scope 의 _EnvironmentCard 가 이미 쓰는
             // maxLines + softWrap + ellipsis 조합을 그대로 따른다.
             ListTile(
               leading: const Icon(Icons.alternate_email),

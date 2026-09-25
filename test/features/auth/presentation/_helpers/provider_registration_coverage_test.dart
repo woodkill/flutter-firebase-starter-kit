@@ -65,8 +65,8 @@ final class _ProbeStrategy extends AuthStrategy {
 /// 슬러그 → ARB 라벨 키 규약 (`auth{Provider}SignIn`).
 ///
 /// `auth_strategies_registry.dart` 신규 provider 체크리스트 7항이 못 박은
-/// 명명 규약이며, 7 production strategy 전부가 이 규약을 따른다
-/// (`authGoogleSignIn` / `authYahoojpSignIn` ...).
+/// 명명 규약이며, 6 production strategy 전부가 이 규약을 따른다
+/// (`authGoogleSignIn` / `authLineSignIn` ...).
 String _labelKeyFor(String providerId) =>
     'auth${providerId[0].toUpperCase()}${providerId.substring(1)}SignIn';
 

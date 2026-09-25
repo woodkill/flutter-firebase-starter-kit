@@ -10,7 +10,7 @@ part 'social_link_in_progress.g.dart';
 /// 발생하면, splash 의 자동 익명 sign-in 또는 auth_guard 의 GC-04 fail-safe
 /// redirect 가 끼어들어 정식 사용자 상태가 새 익명 UID 로 덮어써지는 race 가
 /// 발생한다 (`09-UAT.md` Gap test 6). Custom Token 경로 (Kakao / Naver /
-/// LINE / Yahoo!JP) 와 link arm 은 `currentUser=null` 윈도우를 만들지는
+/// LINE) 와 link arm 은 `currentUser=null` 윈도우를 만들지는
 /// 않지만, 동일 플래그로 외부 OAuth 왕복 구간 전체를 보호한다.
 ///
 /// 본 Notifier 는 AuthRepository 의 social sign-in 메서드 진입 직후
@@ -40,7 +40,7 @@ part 'social_link_in_progress.g.dart';
 /// provider · link arm 증분 추가로 현재 호출 지점은 다음과 같다.
 ///
 /// - 소셜 sign-in 메서드 전부 (`signInWith{Google,Apple,Facebook,Kakao,
-///   Naver,Line,Yahoojp}`)
+///   Naver,Line}`)
 /// - reactive native link arm (`linkPendingNativeCredential`)
 /// - proactive native link 공통 래퍼 (`_runProactiveNativeLink`)
 /// - Custom Token link arm (`linkCustomTokenProviderArm`)

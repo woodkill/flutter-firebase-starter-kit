@@ -67,7 +67,7 @@ Future<String> _defaultNaverWebAuthenticate({
 /// **분리 이유 (RESEARCH Pattern 1):** `NaverSdkClient.signIn()` 은 설치
 /// 판정 → 분기만 하고 웹 흐름 전체는 이 클래스가 소유한다. 테스트가 「라우팅」
 /// 과 「웹 흐름 세부」 를 독립적으로 fake 할 수 있다. 구조는 킷에서 OAuth
-/// 흐름을 직접 소유한 선례 `YahoojpSdkClient` 의 typedef 주입을 따른다.
+/// 흐름을 직접 소유하는 SDK client 의 typedef 주입 패턴을 따른다.
 ///
 /// **타이머 없음 (16.2 D-16):** 세션 API 가 「창 닫힘 = Future 완료」 를
 /// 보장한다(Android dangling 정리 포함) — 앱 쪽 대기 한도를 두지 않는다.
@@ -259,7 +259,7 @@ class NaverWebAuthClient {
   }
 }
 
-/// [NaverWebAuthClient] Provider — keepAlive (`yahoojpSdkClientProvider` 패턴).
+/// [NaverWebAuthClient] Provider — keepAlive (`lineSdkClientProvider` 패턴).
 ///
 /// [AppConfig] 3상수(`naverClientId` · `naverWebCallbackScheme` ·
 /// `naverWebRedirectUri`) 를 ctor 에 주입한다.
