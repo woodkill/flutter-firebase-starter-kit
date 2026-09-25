@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-09-24
-phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth)]
+last_updated: 2026-09-25
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -31,20 +31,21 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 4. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
 5. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
 6. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
-7. [Phase 14~16 — Custom Token Provider 추가 가이드 (stub)](#phase-1416--custom-token-provider-추가-가이드-stub)
-8. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-9. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-10. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-11. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
-12. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
-13. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-14. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
-15. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
-16. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
-17. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
-18. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-19. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-20. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+7. [Custom Token Provider 추가 가이드 (stub)](#custom-token-provider-추가-가이드-stub)
+8. [Custom Token Provider 제거 가이드 (Phase 16.6)](#custom-token-provider-제거-가이드-phase-166)
+9. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+10. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+11. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+12. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
+13. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+14. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+15. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+16. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+17. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+18. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+19. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+20. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+21. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
 
 ---
 
@@ -104,8 +105,8 @@ cp config/prod.example.json  config/prod.json
 | `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao,naver` 기본값 | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 (Phase 13 에서 `,naver` 추가) |
 
 > 각 키의 콘솔 등록 절차 (앱 생성, redirect URI, 키 해시 등) 는 본 매뉴얼의
-> Phase 별 단락 (Phase 12 = Kakao, Phase 13 = Naver, Phase 14 = LINE,
-> Phase 15 = Yahoo!JP) 을 참조.
+> Phase 별 단락 (Phase 12 = Kakao, Phase 13 = Naver, Phase 14 = LINE) 을
+> 참조.
 
 #### 3단계 — iOS xcconfig 별도 주입 (Kakao · Naver · Facebook 등)
 
@@ -847,7 +848,7 @@ placeholder 가 채웁니다. 구현은
     엔진은 그대로 유지됩니다(MainActivity `launchMode="singleTop"` 전제).
   - **대기 호출 없음(외부 앱 · 브라우저 링크가 띄운 경우 · 중복 콜백 · 앱 재기동
     뒤 콜백):** `NEW_TASK | SINGLE_TOP` 만(`flg=0x30000000`). 앱을 앞으로 가져오기만
-    하고 MainActivity 위의 화면(Kakao · Apple · Yahoo!JP 인증 화면, NAVER 1-tap 대기
+    하고 MainActivity 위의 화면(Kakao · Apple 인증 화면, NAVER 1-tap 대기
     화면, 이미지 picker 등)은 걷지 않습니다. relay 는 누구나 띄울 수 있는
     Activity 라서, 외부 intent 하나로 진행 중인 다른 흐름이 끊기지 않게 하려는
     것입니다.
@@ -1557,298 +1558,6 @@ ARB 키). 19 locale 확장 시 다음 절차:
 
 ---
 
-## Yahoo! JAPAN Login (Phase 15)
-
-Yahoo! JAPAN 로그인은 Custom Token 방식 + OIDC ID Token JWT 검증 (Kakao / LINE
-과 같은 path) 으로 구현되어 있습니다. Cloud Function `yahoojpCustomToken`
-(asia-northeast3) 이 `jose + JWKS` 로 Yahoo!JP ID Token 을 자체 검증 →
-Identity Index 등록 → `admin.auth().createCustomToken(uid)` 발급, 클라이언트가
-`signInWithCustomToken` 으로 세션을 시작합니다 (Phase 12 D-08 OIDC verifier
-helper 의 세 번째 사용처 — Kakao + LINE 다음 자연 carry-forward).
-
-Yahoo! JAPAN 은 Flutter 공식 SDK 부재 (native `github.com/yahoojapan/yjlogin-{ios,android}-sdk`
-는 존재) → **`flutter_appauth` (OpenID Foundation 공식 AppAuth-iOS/Android
-래핑)** 채택 (D-YJP-01). PKCE + ID Token 추출 + nonce 자동 처리 + native
-redirect (iOS `ASWebAuthenticationSession` + Android `Custom Tabs`) 표준
-OIDC 라이브러리.
-
-### 1단계 — Yahoo Developers Console 응용프로그램 등록
-
-콘솔: <https://e.developer.yahoo.co.jp/dashboard/>
-
-1. **Yahoo! JAPAN ID 가입** (이미 가입된 경우 로그인) — 개발자 약관 동의.
-2. **응용프로그램 신규 등록** — "アプリケーションの管理" → "新しいアプリケーション
-   を開発" → 등록 유형 **「クライアントサイド・アプリケーション」** 선택
-   (D-YJP-03 verbatim — `client_secret` 0, PKCE 만으로 토큰 endpoint 호출).
-
-   > **출처:** Yahoo!JP docs verbatim "Client IDがクライアントサイド・アプリケー
-   > ションとして発行された場合は指定する必要はありません"
-   > (<https://developer.yahoo.co.jp/yconnect/v2/authorization_code/>).
-
-3. **iOS Bundle ID / Android Package Name 등록** — 본인 앱의 Bundle ID
-   (예: `com.slimpumpkin.flutterStarterKit.dev`) + Package Name
-   (예: `com.slimpumpkin.flutter_starter_kit.dev`).
-4. **redirect URI scheme 등록** — Yahoo!JP Console 이 자동 발급한 scheme
-   (`yj{client_id}://` 형식 [ASSUMED] — researcher Plan researcher Wave 단계
-   에서 verbatim cross-verify) 또는 사용자 정의 reverse-domain scheme
-   (권장 — Android intent hijack 위험 회피, 예:
-   `com.slimpumpkin.flutterStarterKit.dev.yahoojp`).
-5. **Client ID 확인 + 메모** — 등록 직후 "アプリケーション詳細" 페이지의
-   "Client ID" 표시 (영숫자 64자 [ASSUMED]). 본 값은 (a) `config/dev.json`
-   `yahoojpClientId` + (b) Firebase Secret Manager `YAHOOJP_CLIENT_ID`
-   이중 등록 의무.
-
-### 2단계 — Yahoo!JP 공식 BI 자상 사용 절차
-
-본 starter-kit 의 Phase 15 Plan 15-04 는 Yahoo!JP 공식 BI 자상 (Symbol SVG +
-Case B 패턴 — 자상은 변형 0 + 라벨은 ARB 외부 layer 자체 render) 을 이미
-동봉합니다. fork 사용자는 LICENSE 동의 + 1년 freshness 재확인 의무만 수행.
-
-1. **공식 자상 zip 다운로드 (1년 freshness 재확인):**
-   <https://s.yimg.jp/dl/developer_network/sample/download/yconnect/yahoo_japan_login_button.zip>
-   - 본 starter-kit 의 `assets/brand/yahoojp/btn_signin_icon.svg` 는 zip 안
-     `SVG/yahoo_japan_icon_white_64.svg` verbatim 추출 (2026-05-22 다운로드).
-     `fill="white"` → `fill="currentColor"` 일괄 치환만 적용 (geometry /
-     viewBox / path 수치 변경 0).
-2. **LICENSE 검토 + 동의:**
-   - `assets/brand/yahoojp/LICENSE.txt` (zip 안 번들된 공식 PDF
-     `Yahoo! JAPAN ID ログインボタン.pdf` verbatim 발췌) cross-reference.
-   - 변형 금지 verbatim 인용: **"ボタン画像をゆがめたり、ボタン内に配置されて
-     いる画像、文字を書き換えたりしないでください。"** — 자상 path / viewBox /
-     색상 절대 변경 금지.
-3. **자상 README cross-reference:**
-   - `assets/brand/yahoojp/README.md` (Phase 13.1 7필드 schema — provider
-     name / source URL / variant / license / download date / verbatim text /
-     사용자 sign-off).
-4. **공식 색상 verbatim** — `yahoo_japan_icon.ai` layer 명
-   "**アイコン（赤）#FF0033**" + "**文字色：#FFFFFF（白）**" → starter-kit
-   의 `_renderYahoojpButton` hardcode (`0xFFFF0033` bg + `0xFFFFFFFF` label/
-   icon) 부합.
-
-> **흔한 실수:** 자상 파일에 `ColorFilter` 적용 또는 SVG path 수정. Yahoo!JP
-> BI 가이드의 "サイズ、見た目が変わるような変更を加えないでください"
-> verbatim 위반 — Phase 13.1 R3/R4 의 ColorFilter 절대 금지 정책 일관.
-
-### 3단계 — iOS Info.plist + Android manifestPlaceholder + xcconfig 키 갱신
-
-본 starter-kit 의 `ios/Runner/Info.plist` 와 `android/app/build.gradle.kts`
-는 Phase 15 Plan 15-01 가 이미 Yahoo!JP 필수 entry 를 등록한 상태입니다 —
-fork 사용자는 placeholder 값을 본인 발급값으로 교체만 수행:
-
-**iOS — `ios/Flutter/dev.xcconfig` (또는 `dev.example.xcconfig` 복사 후 갱신):**
-```
-YAHOOJP_CLIENT_ID=<1단계에서 발급받은 Client ID>
-YAHOOJP_REDIRECT_SCHEME=<1단계에서 등록한 redirect URI scheme>
-```
-
-**iOS — `ios/Runner/Info.plist` (Phase 15 Plan 15-01 산출, 변경 0 — build-time 치환):**
-```xml
-<key>CFBundleURLTypes</key>
-<array>
-  <dict>
-    <key>CFBundleURLSchemes</key>
-    <array>
-      <string>$(YAHOOJP_REDIRECT_SCHEME)</string>
-    </array>
-  </dict>
-</array>
-```
-
-**Android — `android/app/build.gradle.kts` (Phase 15 Plan 15-01 산출, 변경 0):**
-```kotlin
-manifestPlaceholders["appAuthRedirectScheme"] = "<1단계 redirect URI scheme>"
-```
-
-> **흔한 실수:** scheme 값 mismatch. `config/dev.json` 의 `yahoojpRedirectScheme`
-> + `ios/Flutter/dev.xcconfig` 의 `YAHOOJP_REDIRECT_SCHEME` + Android
-> `manifestPlaceholders["appAuthRedirectScheme"]` + Yahoo!JP Console 등록
-> 4곳 모두 동일 scheme 의무. 1곳이라도 다르면 callback redirect 미도달 →
-> Cloud Function 호출 0.
-
-### 4단계 — UserInfo API 審査申請 + email scope 활성 절차 (D-YJP-09 정정 lock — production 전환 시 의무)
-
-본 starter-kit 의 Phase 15 단계는 Yahoo!JP scope = `openid + profile` 만
-사용 (D-YJP-09 정정 lock 2026-05-21). `userInfo.email` 항상 undefined →
-`users/{uid}.email` 미설정 → Phase 17 Account Linking email collision detect
-부적용 (sub-only identity_index).
-
-**현재 starter-kit 시점 (dev only):**
-- scope = `openid + profile` 만 active
-- `payload.sub` 만 사용 → `identity_index/yahoojp:${sub}` resolve
-- Cloud Function `yahoojp_custom_token.ts` 의 `userInfo.email` undefined 가
-  안전 fallback
-
-**production 전환 시 (사용자 의무):**
-
-> **VERBATIM 인용** (`https://developer.yahoo.co.jp/yconnect/v2/userinfo.html`):
-> - "**属性取得API（UserInfoAPI）を利用するには審査が必要となります。**"
-> - "アプリケーションの詳細画面内の**利用するスコープ**に「**メールアドレス**」
->   の設定がある"
-> - "**プライバシーポリシーURL、利用規約URL**の登録が必要です。"
-
-1. **Yahoo Developers Console > application detail** > "**利用するスコープ**"
-   항목에 "**メールアドレス**" 설정 추가
-2. **プライバシーポリシー URL + 利用規約 URL 등록 의무** — production 도메인
-   호스팅 필요
-3. **UserInfo API 審査申請** — Yahoo!JP 측 review 진행 + 승인 timeline
-   [ASSUMED] (수일~수 주, 정확한 timeline 은 Yahoo!JP 공식 미공개 —
-   researcher Wave 2 단계 확인 의무, 또는 사용자가 starter-kit fork 후
-   직접 확인)
-4. **승인 후 code 변경 point** (Phase 17+ 책임 — starter-kit Phase 15
-   단계 적용 X):
-   - `lib/features/auth/data/yahoojp_sdk_client.dart` 의 scopes 에 `'email'`
-     추가 (`['openid', 'profile']` → `['openid', 'profile', 'email']`)
-   - `functions/src/auth/yahoojp_custom_token.ts` 의 `typedPayload` type 에
-     `email?: string` + `email_verified?: boolean` 추가
-   - `userInfo.email` propagate + `createCustomToken(uid, developerClaims:
-     {email, email_verified: true})` 분기
-
-> **흔한 실수:** UserInfo API 審査 미이행 후 scope=email 추가. 審査 미이행
-> 상태에서 email scope 요청 시 Yahoo!JP 측에서 silent fail 또는 invalid_scope
-> 에러 → D-YJP-09 정정 lock §(4) 절차 의무.
-
-### 5단계 — Firebase Secret Manager 등록 + Cloud Function 배포
-
-Cloud Function `yahoojpCustomToken` 이 1개 secret 선언
-(`defineSecret('YAHOOJP_CLIENT_ID')`). Client ID 는 OIDC ID Token audience
-검증 (`aud` claim) 의 정답값으로 runtime 시점에 의무 주입:
-
-```bash
-firebase use <dev-project-id>
-
-# YAHOOJP_CLIENT_ID 등록 (1단계에서 메모한 Client ID)
-firebase functions:secrets:set YAHOOJP_CLIENT_ID
-# prompt:
-#   ? Enter a value for YAHOOJP_CLIENT_ID: <Client ID 붙여넣기 + Enter>
-```
-
-기대 응답:
-```
-✔ Created a new secret version projects/.../secrets/YAHOOJP_CLIENT_ID/versions/1
-```
-
-확인:
-```bash
-firebase functions:secrets:get YAHOOJP_CLIENT_ID
-```
-
-배포 — `yahoojpCustomToken` 함수를 dev Firebase 프로젝트 (asia-northeast3) 에:
-
-```bash
-cd functions
-pnpm install           # 최초 1회 (corepack 활성화는 Initial Setup 4단계 참조)
-pnpm run lint          # 0 errors 확인
-pnpm run build         # tsc OK 확인
-pnpm test              # jest 22+ PASS 확인 (yahoojp 14 + oidc_verifier 8)
-
-# 배포
-firebase use <dev-project-id>
-firebase deploy --only functions:yahoojpCustomToken
-```
-
-기대 응답:
-```
-✔ functions[yahoojpCustomToken(asia-northeast3)] Successful update operation.
-```
-
-확인 — Firebase Console > "빌드 > Functions" → `yahoojpCustomToken` row →
-region = `asia-northeast3` + "활성" 상태.
-
-### 6단계 — `config/dev.json` 키 주입 + dev flavor 실 단말 검증 + 비즈니스 인증 (production 전환 시)
-
-콘솔에서 발급받은 Client ID 를 `config/dev.json` 에 주입합니다
-(`config/dev.example.json` 이 placeholder 를 이미 가지고 있으므로 `cp` 후
-본인 값으로 교체):
-
-```json
-{
-  "enabledAuthProviders": "google,apple,facebook,kakao,naver,line,yahoojp",
-  "yahoojpClientId": "<1단계에서 발급받은 Client ID>",
-  "yahoojpRedirectScheme": "<1단계에서 등록한 redirect URI scheme>"
-}
-```
-
-- `client_secret` 은 `config/dev.json` 에 **넣지 마세요** — Yahoo!JP 「クライアン
-  トサイド・アプリケーション」 등록 유형 = client_secret 0 (D-YJP-03 verbatim).
-- `YAHOOJP_CLIENT_ID` 는 (a) `config/dev.json` (공개 — flutter_appauth init
-  의무) + (b) Firebase Secret Manager (Cloud Function aud 검증) 이중 등록.
-
-**dev flavor 실 단말 검증:**
-```bash
-fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <device-id>
-```
-
-- LoginScreen 의 **"Yahoo! JAPAN IDでログイン"** 버튼 (Red `#FF0033` 배경 +
-  흰 Yahoo!JP 자상 — `BrandedSocialButton.yahoojp()`) 탭 → Android Custom
-  Tabs (iOS `ASWebAuthenticationSession`) webview → Yahoo!JP 동의 화면 →
-  사용자 동의 → 앱 복귀.
-- Home 진입 + EnvironmentInfoScreen 의 Account 섹션 — `linkedProviders` 에
-  "Yahoo! JAPAN" 표시 확인.
-- Android UAT 8 시나리오: `.planning/phases/15-yahoo-japan-login/15-HUMAN-UAT.md`
-  (Plan 15-06 산출 — sentinel-active UAT sequencing 의무, Phase 13.1 D-73 mirror).
-- iOS UAT 는 보류 — `.planning/todos/pending/2026-05-XX-ios-yahoojp-uat-deferred.md`
-  추적 (memory `project_ios_uat_batch_policy` 일관, Phase 17 batch UAT 단일 진입).
-
-**stg / prod 는?** dev 와 동일한 절차로 사용자 자체 Yahoo Developers Console
-application 을 별도 등록 + 키 주입 (Phase 12 D-22 mirror — dev/stg/prod 3
-application 분리 등록). starter-kit 의 stg/prod config 는 placeholder 만
-포함합니다 (D-YJP-22 — `project_firebase_dev_only` 정책 일관).
-
-**비즈니스 인증 절차 (production 전환 시 추가 항목):**
-
-dev 단계는 Yahoo Developers Console 의 본인 계정만 사용 가능. production
-출시 시 다음 항목 추가 의무:
-
-1. **stg/prod application 분리 등록** — Phase 12 D-22 패턴 mirror (dev/stg/prod
-   3 application 등록).
-2. **사업자 등록증 / 회사 정보** — Yahoo!JP Console 요구 시 사용자 의무
-   [ASSUMED — researcher Wave 2 단계 확인].
-3. **D-YJP-09 §(4) UserInfo API 審査申請** — 위 4단계 절차 의무 (production
-   에서 email scope 필요 시).
-4. **1년 주기 BI 가이드 재방문** — Yahoo!JP 정책 변경 대비 (`assets/brand/yahoojp/`
-   freshness, memory `feedback_label_verbatim_audit` mirror).
-
-### Pitfall 정리 (Phase 15 RESEARCH §Pitfalls + D-YJP-NN)
-
-- **Pitfall 1 (nonce raw transit):** Cloud Function `oidc_verifier.ts` 의
-  `nonceHashing: "none"` 단독 union 부합 — sha256 hashing 추가 시 회귀
-  (D-YJP-04 5-source cross-verified raw nonce only).
-- **Pitfall 2 (YAHOOJP_CLIENT_ID 미주입):** Firebase Secret 등록 + xcconfig +
-  config/dev.json 3곳 동기 의무. 1곳이라도 placeholder 잔존 시 silent failure
-  (flutter_appauth init 실패 또는 Cloud Function aud 검증 fail).
-- **Pitfall 3 (redirect URI scheme 충돌):** 다른 앱이 동일 scheme 등록 시
-  Android intent hijack 위험 → 고유 reverse-domain scheme 권장 (예:
-  `com.slimpumpkin.flutterStarterKit.dev.yahoojp`).
-- **Pitfall 4 (appAuthRedirectScheme placeholder mismatch):** manifestPlaceholders
-  + config/dev.json + xcconfig + Yahoo!JP Console 4곳 모두 동일 scheme 의무.
-- **Pitfall 5 (UserInfo API 審査 미이행):** D-YJP-09 §(4) 절차 의무 — 審査
-  미이행 후 scope=email 추가 시 동작 안 함. dev 단계는 `openid + profile` 만
-  fallback 유지.
-- **Pitfall 6 (issuer trailing slash 누락):** Cloud Function helper config
-  `issuer: "https://auth.login.yahoo.co.jp/yconnect/v2/"` verbatim — trailing
-  slash 포함 (`configuration.html` OpenID Provider Metadata truth source,
-  RFC 8414 §2 권고). 누락 시 jose `JWTClaimValidationFailed: unexpected "iss"
-  claim value`.
-- **Pitfall 7 (자상 변형 금지):** `assets/brand/yahoojp/btn_signin_icon.svg`
-  path / viewBox / 색상 직접 수정 금지 — Yahoo!JP BI 가이드 "ボタン画像をゆが
-  めたり、ボタン内に配置されている画像、文字を書き換えたりしないでください"
-  verbatim 위반. ColorFilter 적용 금지 (Phase 13.1 R3/R4 일관).
-
-### Cross-reference
-
-- **자상 + LICENSE:** `assets/brand/yahoojp/` (`btn_signin_icon.svg` + `LICENSE.txt`
-  + `README.md` — Plan 15-04 산출)
-- **STEP2 권위 매트릭스:** `.planning/phases/15-yahoo-japan-login/15-STEP2-yahoojp-VERBATIM.md`
-  (canonical key 매트릭스 + verbatim 출처)
-- **Phase 14 LINE 19 locale 가이드 비교:** `14-LINE-LOCALE-REFERENCE.md`
-  — Yahoo!JP 는 미적용 (3 locale only, D-YJP-08 — Yahoo!JP BI 가이드 ja-only,
-  en/ko 차원 번역 [ASSUMED] tag)
-- **UAT 8 시나리오:** `.planning/phases/15-yahoo-japan-login/15-HUMAN-UAT.md`
-  (Plan 15-06 산출 — A1~A8 + iOS UAT 보류, sentinel-active UAT sequencing
-  Phase 13.1 D-73 두 번째 적용)
-
----
-
 ## Brand Asset (Phase 13 D-52 — Kakao + Naver 통합) — DEPRECATED
 
 > **⚠ 본 단락은 Phase 13.1 마이그레이션 후 stale 입니다.**
@@ -1869,7 +1578,7 @@ dev 단계는 Yahoo Developers Console 의 본인 계정만 사용 가능. produ
 >   BoxFit.contain)` 직접 렌더, 색 변환 시 BI 위반.
 > - **PLACEHOLDER sentinel:** `<!-- PLACEHOLDER -->` SVG 메타데이터 (구) →
 >   `assets/brand/{provider}/.placeholder` 빈 파일 (신, sentinel 단일 책임).
->   Phase 14 (LINE) active 전환 + Phase 16 (WeChat) 폐기로 현재
+>   Phase 14 (LINE) active 전환으로 마지막 placeholder 가 해제되어 현재
 >   `kPlaceholderProviders = <String>[]` empty — sentinel 의무 해소.
 >
 > **모든 절차는 아래 [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
@@ -2246,7 +1955,7 @@ Cloud Function `naverCustomToken` 이 Naver access_token 으로 호출하는
 
 ## IdP 프로필 동기화 정책 (R10-FOLLOWUP)
 
-OAuth Custom Token provider (Kakao + Naver + Phase 14~15 LINE/Yahoo!JP)
+OAuth Custom Token provider (Kakao + Naver + Phase 14 LINE)
 의 **재로그인** 시 IdP 응답의 `displayName` / `photoURL` 을 Firebase Auth
 user record 에 어떻게 반영할지 결정하는 정책. 신규 등록 path 는 정책과 무관
 (Phase 13 R10 retroactive fix 가 createUser/updateUser 시점에 이미 propagate).
@@ -2291,14 +2000,14 @@ export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
      --project <dev-project-id>
    ```
 
-   Phase 14~15 추가 시 해당 함수 (`lineCustomToken` 등) 도 동시 배포.
+   Phase 14 LINE 이후 추가된 함수 (`lineCustomToken` 등) 도 동시 배포.
 
 ### 적용 범위 (D-08 — helper 1곳 fix → 모든 caller 자동 상속)
 
 - Phase 12 — `kakaoCustomToken`
 - Phase 13 — `naverCustomToken`
 - Phase 16.5 — `naverWebCustomToken` (`naverCustomToken` 과 같은 Naver 검증 helper 공유)
-- Phase 14~15 — LINE / Yahoo!JP (추가 시 동일 helper 재사용 → 자동 상속)
+- Phase 14 — `lineCustomToken` (동일 helper 재사용 → 자동 상속)
 
 ### best-effort 정책 (R9 strict 와 차이)
 
@@ -2360,17 +2069,18 @@ race 회복 시간은 동일).
 bug (firebase-android-sdk #5101, flutterfire #11146). 본 fix 는 client-side
 workaround. spec 평가는 옵션 A (retry) / B (handleError 분기) / C
 (subscribe 지연) 비교 후 옵션 A 채택 — D-08 helper-1곳-fix 모델 보존
-(Phase 14~15 LINE/Yahoo!JP 자동 상속).
+(Phase 14 LINE 자동 상속).
 
 **후속 fix 추적:** `.planning/todos/completed/2026-05-08-r10-followup-permission-denied-race.md`
 (pending → completed). spec: `docs/superpowers/specs/2026-05-08-r10-followup-2-design.md`.
 
 ---
 
-## Phase 14~15 — Custom Token Provider 추가 가이드 (stub)
+## Custom Token Provider 추가 가이드 (stub)
 
 Phase 12 (Kakao OIDC) + Phase 13 (Naver REST) 의 통합 패턴을 그대로 미러링하여
-LINE / Yahoo!JP 등 새 Custom Token provider 를 추가할 수 있습니다.
+새 Custom Token provider 를 추가할 수 있습니다 (Phase 14 LINE 이 이 절차로 추가됐다).
+제거는 역순이다 — 바로 아래 「Custom Token Provider 제거 가이드 (Phase 16.6)」 절을 따른다.
 9 단계 절차:
 
 1. **Provider ID 등록** — `lib/core/auth/provider_id.dart` 의
@@ -2391,7 +2101,6 @@ LINE / Yahoo!JP 등 새 Custom Token provider 를 추가할 수 있습니다.
    | 12 | Kakao | OIDC ID Token JWT | Kakao 공식 권장 |
    | 13 | Naver | REST `/v1/nid/me` | Naver OIDC 미지원 |
    | 14 | LINE | OIDC ID Token JWT | LINE 공식 OIDC |
-   | 15 | Yahoo!JP | OIDC ID Token JWT | Yahoo! ID 連携 v2 표준 |
 
    각 phase 의 discuss-phase 진입 시 본 매트릭스 + 실 provider 공식 문서
    재확인 의무.
@@ -2419,7 +2128,7 @@ LINE / Yahoo!JP 등 새 Custom Token provider 를 추가할 수 있습니다.
    `lib/features/auth/presentation/_widgets/social_button.dart` 의 `build()`
    첫 줄 if 분기 + `_build{Provider}Button` 메서드 + 색 상수 (각 Brand
    Guideline). Kakao 가 sign_in_button 패키지 미지원 provider 의 표본 패턴
-   (Material+InkWell+SVG 직접 그리기) — Naver / LINE / Yahoo!JP 모두 동일
+   (Material+InkWell+SVG 직접 그리기) — Naver / LINE 모두 동일
    패턴.
 
 9. **Cloud Function** —
@@ -2437,10 +2146,167 @@ provider 공식 문서 재확인 의무.
 
 ---
 
+## Custom Token Provider 제거 가이드 (Phase 16.6)
+
+위 추가 가이드의 역순이다. 킷에서 provider 하나를 완전히 빼야 할 때 따른다.
+Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측한 절차와
+함정을 provider 이름 없이 옮겼다. `<provider>` · `<slug>` · `<PROVIDER>_CLIENT_ID`
+는 제거 대상에 맞게 바꿔 읽는다. 4 단계 절차:
+
+1. **먼저 — 비활성으로 충분한가.** 코드를 지우지 않고 provider 를 끄는 레버가
+   두 개 있고, 둘 다 코드 변경 0 이다.
+
+   | 레버 | 시점 | 방법 |
+   |------|------|------|
+   | 정적 CSV | 빌드 | `config/{flavor}.json` 의 `enabledAuthProviders` 에서 `<slug>` 토큰을 뺀다 |
+   | Remote Config | 운영 | `auth_provider_<slug>_enabled = false` 게시 — [RC Kill Switch 운영 절차](#rc-kill-switch-운영-절차-emergency-disable) |
+
+   두 레버의 관계는 Kill Switch 절의 제약 그대로다 — 정적 CSV 에서 빠진
+   provider 는 RC 로 켤 수 없다 (정적 false 절대 우위). 그래서 「이 앱은 이
+   provider 를 쓰지 않는다」 는 CSV 토큰 제거만으로 확정되고, 운영 중 임시
+   차단은 RC 로 충분하다. 코드까지 지우는 경우는 다음 중 하나다: 검증 · 유지가
+   불가능하다 (개발자 · 테스트 계정을 만들 수 없어 로그인 경로를 검증하지 못함),
+   의존성 부담이 크다 (전용 플러그인 · native SDK · secret · 배포 함수의 유지비),
+   킷 가치가 비대칭이다 (대상 사용자층 대비 설정 비용).
+
+2. **제거 체크리스트 — 의존 역순, 매 커밋 green.** 추가 9 단계의 역순이다.
+   항목 하나가 커밋 하나이고, 게이트를 통과해야 다음 항목으로 간다.
+   - ① **등록 해제 (UI 소멸)** — `lib/core/auth/auth_strategies_registry.dart`
+     의 `_allStrategies` 1줄 + `social_provider_resolver.dart` 1줄 삭제, strategy
+     · notifier 파일 삭제 (고아 `.g.dart` 는 `rm`). 이 1줄로 `/login` chooser ·
+     LoginPromptSheet · 설정 화면 「Link an account」 에서 버튼이 모두 사라진다.
+     버튼 수를 단언하는 테스트 (`findsNWidgets`) 와 골든 harness 의 override
+     목록을 함께 고치고 골든을 재생성한다 — before/after 를 사용자에게 보여
+     승인받은 뒤 커밋하고 촬영 locale 을 기록한다 (함정 (d)).
+   - ② **enum · 상수 · switch 일괄 (한 커밋)** — `AccountProvider` enum 값 ·
+     `kProviderId<Provider>` · `kAllProviderIds` · exhaustive switch 사이트 전부 ·
+     `AuthRepository` 생성자 인자와 signIn / signOut / link 분기 · `AppConfig`
+     getter. enum 값 하나가 여러 파일의 switch 를 끌고 다니므로 (이번 실측 8 파일
+     21 사이트) 컴파일 결합 단위로 한 커밋에 묶고, 테스트의 생성자 mock ·
+     provider 행도 같은 커밋에 넣는다. 그 provider 가 우연히 유일하게 증명하던
+     성질 (매트릭스 행 · 두 번째 slug 증명) 은 지우지 말고 남은 provider 로
+     이관한다. 이 커밋 **전에** 로컬 `config/*.json` 의 CSV 토큰을 먼저 뺀다
+     (함정 (b)).
+   - ③ **brand 버튼 · 자산** — sealed `BrandSpec` 서브클래스 ·
+     `BrandedSocialButton.<provider>` factory · `build()` switch case · render
+     메서드 4 블록 + `assets/brand/<slug>/` + `pubspec.yaml` assets 행 + brand
+     테스트의 provider 목록 (`brand_assets_lint_test` · `brand_label_whitelist_test`).
+   - ④ **ARB** — 키 × 3 locale 삭제, 수가 박힌 description 정정,
+     `fvm flutter gen-l10n` 산출 4 파일을 같은 커밋에 넣는다 (description 만
+     바꿔도 generated dart 의 `///` 가 바뀐다). 한 번 더 돌려 diff 0 을 확인한다.
+   - ⑤ **남은 주석 · docstring** — 이름 0. 「N provider」 처럼 수가 박힌 문장은
+     수도 함께 고치고, 교훈은 이름만 빼고 남긴다.
+   - ⑥ **플러그인 + native 등록 (같은 커밋)** — `fvm flutter pub remove <plugin>`
+     + 그 플러그인이 요구하던 Android manifest placeholder · iOS `Info.plist` URL
+     type · xcconfig 변수 · `config/*.example.json` 키 (함정 (e)). gitignored
+     로컬 파일 (`ios/Flutter/<flavor>.xcconfig` · `config/<flavor>.json`) 은 도구가
+     알려주지 않으므로 값 출력 없이 줄 단위로 지우고 계수로 확인한다. iOS 는
+     3 flavor debug 빌드 후 `Package.resolved` 를 판독한다 (함정 (c)).
+   - ⑦ **Cloud Functions** — closed union (`ProviderId` · `OidcProviderId`) 과
+     짝 맵 (`OIDC_VERIFIERS` · priority 배열) · `defineSecret` 선언 ·
+     `linkCustomTokenProvider` 의 `secrets:` 와 narrowing · `index.ts` export ·
+     전용 endpoint 파일 · Jest (유일 증명 이관 포함). OIDC secret 선언은 provider
+     파일이 아니라 공유 `functions/src/shared/oidc_providers.ts` 에 있고 link
+     callable 이 전부 bind 하므로, 전용 파일만 지우면 binding 이 남는다.
+     `functions/lib` 는 지우고 다시 빌드한다 (tsc 는 고아 `.js` 를 지우지 않는다).
+   - ⑧ **문서 · 스킬 · 계획 문서** — 이 매뉴얼의 provider 절 · 목차 · 표, 스킬
+     `references/`, `.planning` 활성 문서.
+
+   각 항목의 게이트 (C-04):
+
+   ```bash
+   fvm dart run build_runner build --delete-conflicting-outputs
+   fvm flutter analyze && fvm dart analyze     # riverpod_lint 진단은 dart analyze 만
+   fvm flutter test --no-pub <범위>             # ② 이후는 full suite
+   fvm dart format --output=none --set-exit-if-changed lib test
+   cd functions && pnpm run lint && pnpm build && pnpm test   # ⑦
+   ```
+
+   테스트 수는 산식 「착수 − 삭제 + 이관 = 종료」 로 기록한다.
+   `AccountProvider.values` · `kAllProviderIds` 를 순회해 생성되는 테스트는 코드
+   편집 없이 줄어들므로 그 몫을 따로 센다.
+
+3. **dev 배포 리소스 정리 순서.** 체크리스트 ⑦ 을 커밋한 뒤 배포본을 소스에
+   맞춘다. 단계마다 삭제 전 read-only 스냅샷을 남기고 개별 승인 후 실행한다.
+   - ① **남는 함수만 명시 필터로 재배포** —
+     `firebase deploy --project <project> --non-interactive --only functions:<fn1>,functions:<fn2>,…`.
+     필터 없는 `--only functions` 는 로컬 소스에 없는 함수 (제거 대상) 때문에
+     non-interactive 에서 배포 전체를 abort 한다. 이 재배포가 link callable
+     revision 의 secret binding 을 해제한다 — `gcloud functions describe
+     linkCustomTokenProvider --gen2 --region <region> --format='value(serviceConfig.secretEnvironmentVariables)'`
+     에 대상 secret 이 없고 revision 번호가 올랐는지 확인한다.
+   - ② **warm-up probe** — `curl -X POST <함수 URL> -H 'Content-Type: application/json' -d '{"data":{}}'`.
+     401 = 함수 살아 있음 (App Check / auth 게이트 거부). 403 = Cloud Run IAM
+     거부, 429 = 할당량 · 인스턴스 부족, 5xx = 기동 실패 의심 — 401 외에는 정지한다.
+   - ③ **함수 삭제** — `firebase functions:delete <fn> --region <region> --project <project> --force`.
+     대상은 인자 1개, `--region` 명시. 여기서 `--force` 는 non-interactive 의 확인
+     prompt 를 넘기기 위한 것이다. 성공 로그는 `Successful delete operation`.
+   - ④ **secret 파괴** — in-use 판정은 **read-only 로만** 한다. 남는 함수 전부에
+     `gcloud functions describe <fn> --gen2 --region <region> --format='value(serviceConfig.secretEnvironmentVariables)'`
+     를 돌려 `<PROVIDER>_CLIENT_ID` 가 0 인지 (대조군 secret 은 ≥1) 세고,
+     `firebase functions:secrets:get <PROVIDER>_CLIENT_ID` 로 버전 상태를 기록한다.
+     승인 뒤 `firebase functions:secrets:destroy <PROVIDER>_CLIENT_ID --project <project> --force`
+     를 1회 실행한다 — `--force` 1회 외의 실행은 없다 (함정 (a)). functions-managed
+     secret 은 마지막 활성 버전이 파괴되면 secret 자체가 삭제된다
+     (`No active secret versions left. Destroying secret …`).
+     `functions:secrets:prune` (다른 미참조 secret 까지 후보) · `functions:secrets:access`
+     (값 출력) 는 쓰지 않는다.
+   - ⑤ **probe 재실행** — 401 + `gcloud run services describe <svc> --region <region> --format='value(status.latestReadyRevisionName)'`
+     가 ① 의 새 revision 과 같은지.
+   - ⑥ **잔존 데이터 계수** — Firestore `identity_index` (`provider == <slug>`) ·
+     `users.linkedProviders` (요소가 map `{providerId, providerUserId}` 라 문자열
+     `ARRAY_CONTAINS` 는 항상 0 — map 필드를 집계한다) · `users.providerLinkedAt.<slug>`
+     · RC `auth_provider_<slug>_enabled`. 남은 provider 로 대조군 (≥1) 을 먼저 세고
+     계수만 출력한다 (값 출력 0). 0 이 아니면 삭제는 별도 승인.
+   - ⑦ **외부 콘솔 앱 등록 삭제** — provider 개발자 콘솔의 앱 (Client ID) 은 수동
+     삭제하고 스크린샷을 남긴다. 되돌릴 수 없는 콘솔이 많으므로 ④ 뒤 (참조 0
+     확인 뒤) 에 한다.
+
+   파괴적 명령 (③ · ④) 은 에이전트 대신 사용자가 직접 실행하고
+   (`; echo "EXIT=$?"` 로 종료 코드를 남긴다) 에이전트는 read-only 로 사후 확인한다.
+
+4. **함정 — Phase 16.6 실측.**
+   - **(a) secret binding 순서.** Cloud Run 은 secret 환경변수를 인스턴스 기동
+     **전에** 해석한다. binding 이 남은 revision 에서 secret 을 파괴하면 떠 있는
+     인스턴스는 멀쩡하지만 새 인스턴스 (cold start · scale-out) 가 조용히 기동에
+     실패한다 — 그래서 순서가 재배포 → 삭제 → 파괴다. Firebase CLI 의 in-use 거부
+     (`Refusing to destroy secret in use`) 는 소스가 아니라 **배포본** 기준이고
+     binding 이 **남아 있을 때만** 작동한다. binding 이 0 이면 곧바로 confirm 으로
+     가는데 `--non-interactive` 에서 confirm 기본값이 승인이다 — binding 0 상태의
+     `--force` 를 뺀 `--non-interactive` 관측 실행 = 파괴다 (firebase-tools 15.29.0 소스). 판정은
+     `gcloud functions describe` 로, 파괴는 `--force` 1회로 한다.
+   - **(b) `enabledAuthProviders` debug assert.** `parseEnabledProviders` 는 CSV 의
+     미지 슬러그를 debug assert (`StateError`) 로 거부한다. `app_config_test` 가
+     gitignored 로컬 `config/*.json` 을 실제로 읽으므로, 로컬 CSV 정리가
+     `kAllProviderIds` 축소 커밋의 게이트보다 먼저여야 한다.
+   - **(c) SPM transitive pin.** 제거한 플러그인이 끌어오던 iOS native 패키지를
+     다른 플러그인이 전이 의존으로 요구하면 `Package.resolved` 의 핀은 남고 diff 0
+     이 정상이다 — 핀 소실을 기대하지 않는다. 핀을 지우려고 `Package.resolved` 를
+     삭제하거나 「Update to Latest Package Versions」 · `flutter clean` 을 돌리면 킷의
+     모든 핀이 풀린다. 판독은 `cmp -s` 두 파일 → `git diff --stat -- '**/Package.resolved'`
+     → `jq -r '.pins[].identity'` 전후 비교 → `test/ios/spm_policy_test.dart` 순서로
+     하고, 핀이 남은 이유를 「iOS 의존성 관리 (SPM)」 절 고정값 표 비고에 적는다.
+   - **(d) 골든 재생성.** `fvm flutter test --no-pub --update-goldens <파일>` 은 그
+     파일의 골든 전부를 다시 찍는다. 대상 외 fixture 가 제거 직전 tag 와 바이트
+     동일한지 `cmp` 로 확인한다 — 다르면 폰트 · SDK 환경 drift 이므로 원인부터
+     추적한다. 대상 수는 harness override 목록에 달려 있다 (설정 화면 연결 섹션
+     골든 포함). 사용자 승인 전 커밋 금지.
+   - **(e) manifest placeholder.** 플러그인 AAR 이 intent-filter 에 `${placeholder}`
+     를 요구하므로 placeholder 를 플러그인보다 먼저 지우면 manifest merger 가 치환
+     실패로 빌드를 깬다. 반대 순서는 무해하지만 같은 커밋이 원칙이다. 병합 결과는
+     `build/app/intermediates/merged_manifests/<flavor>Debug/` 아래
+     `AndroidManifest.xml` 을 grep 해 확인한다.
+
+제거는 `git grep -i <provider>` (`.planning/` · sketch `sources/` sign-off 증거 제외)
+0 건으로 종결한다 — 0 을 판정하기 전에 남은 provider 이름으로 대조군 (≥1) 을
+먼저 센다.
+
+---
+
 ## Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)
 
 > 본 단락은 Phase 11-04 SUMMARY 의 사용자 매뉴얼 카드를 통합한 것입니다.
-> Phase 12+ 의 신규 Cloud Function (Naver/LINE/Yahoo!JP) 도 동일
+> Phase 12+ 의 신규 Cloud Function (Naver/LINE) 도 동일
 > 패턴 적용.
 
 ### Functions 추가 절차 (Phase 12 ~ 15 의 ping 패턴 복제)
@@ -2531,7 +2397,7 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 2. **client-side `AccountLinkingSheet`** (Plan 16-04) — Material 3 Modal Bottom Sheet 본체. 본문 메시지는 provider-aware (예: "이 이메일은 Google 로 가입되어 있습니다. Google 로 로그인하여 계정을 연결하세요.") + 단일 BrandedSocialButton (D-02 single button 정책 — 정확한 기존 provider 만 노출하여 사용자 confusion 차단) + dismiss TextButton (D-03 cancel — Navigator.pop(false)).
 3. **native↔native vs Custom Token 분기 (D-04):**
    - **Native 4 provider (Google/Apple/Facebook/Email):** Firebase Auth 의 `User.linkWithCredential` 로 직접 연결.
-   - **Custom Token 4 provider (Kakao/Naver/LINE/Yahoo!JP):** `linkCustomTokenProvider` callable (server-side hybrid) — 외부 IdP 토큰을 server 에서 검증 후 Firebase Custom Token 으로 변환하여 link.
+   - **Custom Token 3 provider (Kakao/Naver/LINE):** `linkCustomTokenProvider` callable (server-side hybrid) — 외부 IdP 토큰을 server 에서 검증 후 Firebase Custom Token 으로 변환하여 link.
 4. **사용자 cancel 시 state 손실 0 (D-03):** sheet 의 dismiss 또는 backdrop tap 시 기존 세션 / onboarding 상태는 모두 보존. `Navigator.pop(false)` 만 호출 → caller 의 catch path 가 fresh 진입점으로 fallback.
 
 **PII invariant (T-16-NEW-07):** `lookupSignInMethods` 호출의 collisionEmail 본문은 client logger / Crashlytics payload 에 절대 전파되지 않는다 (memory `feedback_test_lint_quality` 의 `__` 금지 + Plan 16-04 R7 sentinel test).
@@ -2545,7 +2411,7 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 **사용자가 보게 되는 흐름:**
 
 1. 이미 가입된 이메일로 다른 소셜 로그인 시도 → 안내 시트가 뜬다.
-2. 시트 본문에 **기존 가입 수단의 정확한 이름**이 표시된다 (예: 카카오로 가입한 계정이면 "카카오"). 여기에는 Google / Apple / Facebook 같은 네이티브 수단뿐 아니라 **Kakao / Naver / LINE / Yahoo! JAPAN 같은 Custom Token 수단도 포함**된다 — 이전에는 Custom Token 으로 가입한 계정의 이름을 서버가 알아내지 못해 충돌 자체가 감지되지 않았다.
+2. 시트 본문에 **기존 가입 수단의 정확한 이름**이 표시된다 (예: 카카오로 가입한 계정이면 "카카오"). 여기에는 Google / Apple / Facebook 같은 네이티브 수단뿐 아니라 **Kakao / Naver / LINE 같은 Custom Token 수단도 포함**된다 — 이전에는 Custom Token 으로 가입한 계정의 이름을 서버가 알아내지 못해 충돌 자체가 감지되지 않았다.
 3. 시트의 브랜드 버튼(예: "카카오로 로그인하기") 탭 → **그 수단으로 로그인**이 진행된다.
 4. 로그인 성공 → 시트가 닫히고 홈으로 이동하면서 `{수단} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 계정 연결에서 추가할 수 있습니다.` 안내가 잠깐 표시된다 (ko / en / ja 3 locale).
 5. 사용자가 원하면 **설정 > 계정 연결**에서 다른 수단을 추가한다 (이 화면이 본 매뉴얼 위쪽의 proactive linking 경로다).
@@ -2597,13 +2463,13 @@ Home AppBar → Icons.settings tap → /settings route
 
 ### 약관 동의 서버 기록 (Custom Token provider — Phase 16 G-16-A9-1)
 
-**동작:** Custom Token provider (Kakao / Naver / LINE / Yahoo!JP) 로 가입할 때 클라이언트가 약관 동의 스냅샷 5 필드 (동의 버전 / 이용약관 동의 / 개인정보 처리방침 동의 / 마케팅 수신 동의 / 동의 시각) 를 callable payload 의 `termsAcceptanceSnapshot` 으로 함께 보내고, Cloud Function 이 `users/{uid}` 문서를 **생성하는 같은 시점에** `termsAccepted` 로 기록한다. native provider (Google / Apple / Facebook) 는 Cloud Function 이 사용자 문서를 만들지 않으므로 클라이언트 mirror 경로 (`TermsNotifier.mirrorToFirestore`) 가 그대로 유효하다.
+**동작:** Custom Token provider (Kakao / Naver / LINE) 로 가입할 때 클라이언트가 약관 동의 스냅샷 5 필드 (동의 버전 / 이용약관 동의 / 개인정보 처리방침 동의 / 마케팅 수신 동의 / 동의 시각) 를 callable payload 의 `termsAcceptanceSnapshot` 으로 함께 보내고, Cloud Function 이 `users/{uid}` 문서를 **생성하는 같은 시점에** `termsAccepted` 로 기록한다. native provider (Google / Apple / Facebook) 는 Cloud Function 이 사용자 문서를 만들지 않으므로 클라이언트 mirror 경로 (`TermsNotifier.mirrorToFirestore`) 가 그대로 유효하다.
 
 이 구조를 쓰는 이유는 경합 때문이다. Custom Token 경로에서는 Cloud Function 이 먼저 `users/{uid}` 를 만들고, 그 뒤에 실행되는 클라이언트 mirror 가 "이미 문서가 있다 = 기존 사용자" 로 판단해 skip 한다. 따라서 **문서 생성 시점에 서버가 직접 기록하는 것** 이 유일하게 경합이 없는 지점이다.
 
 **백필 정책 (adopter 결정 사항):** 이 수정 **이전에** Custom Token 으로 가입한 사용자는 서버측 동의 기록이 없다 (클라이언트 로컬 `SharedPreferences` 에만 남아 있어 재설치·기기 변경 시 소실된다). 본 starter-kit 은 **자동 백필을 제공하지 않는다** — 재동의를 받을지, 운영자 스크립트로 채울지, 그대로 둘지는 서비스의 법무·운영 정책에 달렸고 starter-kit 이 임의로 정할 수 없기 때문이다. 백필이 필요하면 `users` 컬렉션에서 `termsAccepted` 필드가 부재한 문서를 골라 처리하는 **1회성 관리자 작업** 으로 수행하고, 위 「사용자 커스터마이징 포인트」 5번의 **법무 자문 의무** 를 함께 적용한다 (어떤 값을 소급 기록해도 "실제 동의 시각" 은 아니므로, 소급 기록 자체가 법적으로 유효한지에 대한 판단이 선행되어야 한다).
 
-**잔여 위험 — 재동의 시각 갱신:** 서버 mirror 는 신규 가입 여부로 게이트되지 않는다. 따라서 기기에 동의 값이 남아 있는 상태에서 **기존 계정으로 재로그인** 하면 `termsAccepted.acceptedAt` 이 현재 세션 시각으로 갱신된다. 최초 동의 시각을 불변 audit 으로 남겨야 하는 서비스는 4개 Custom Token endpoint 의 mirror 블록을 **신규 사용자일 때만** 실행하도록 한 줄 게이트를 추가하면 된다 (파일: `functions/src/auth/{kakao,naver,line,yahoojp}_custom_token.ts` 의 mirror 단계 — 각 endpoint 가 이미 계산해 둔 신규/기존 사용자 판별값을 조건으로 쓴다). 기본값을 게이트 없이 둔 이유는 **최신 동의 상태 반영** 을 우선했기 때문이다 — 약관 버전이 올라간 뒤 재동의를 받은 경우 그 시각이 반영되는 편이 일반적인 서비스에서 더 안전하다.
+**잔여 위험 — 재동의 시각 갱신:** 서버 mirror 는 신규 가입 여부로 게이트되지 않는다. 따라서 기기에 동의 값이 남아 있는 상태에서 **기존 계정으로 재로그인** 하면 `termsAccepted.acceptedAt` 이 현재 세션 시각으로 갱신된다. 최초 동의 시각을 불변 audit 으로 남겨야 하는 서비스는 Custom Token provider 3종(Kakao / Naver / LINE) 의 mirror 단계를 **신규 사용자일 때만** 실행하도록 한 줄 게이트를 추가하면 된다 (파일: `functions/src/auth/{kakao,line}_custom_token.ts` 와 Naver 공용 helper `naver_profile_to_custom_token.ts`(`naverCustomToken` · `naverWebCustomToken` 공유) 의 mirror 단계 — 각 경로가 이미 계산해 둔 신규/기존 사용자 판별값을 조건으로 쓴다). 기본값을 게이트 없이 둔 이유는 **최신 동의 상태 반영** 을 우선했기 때문이다 — 약관 버전이 올라간 뒤 재동의를 받은 경우 그 시각이 반영되는 편이 일반적인 서비스에서 더 안전하다.
 
 **확인 방법:** Firestore `users/{uid}` 문서에 `termsAccepted` 5 필드가 존재하는지 확인한다. 없다면 (a) 이 수정 이전에 가입한 사용자이거나, (b) 로그인 시점에 기기 로컬 동의 값이 없어 클라이언트가 스냅샷을 아예 부착하지 않은 경우다. 두 경우는 Cloud Logging 의 `{provider}_terms_acceptance_mirrored` 이벤트 유무로 구분한다.
 
@@ -2696,7 +2562,7 @@ curl -X POST \
 (Phase 16 의 Account Linking 일반화 단계에서 일괄 도입 예정):
 
 - **`identity_index/{provider}:{providerUserId}` 문서 cleanup** — 회원탈퇴
-  시 사용자가 등록한 Kakao / Naver / LINE / Yahoo!JP 의 매핑 문서가
+  시 사용자가 등록한 Kakao / Naver / LINE 의 매핑 문서가
   잔존. 같은 외부 계정으로 재가입 시 first-write-wins 정책 (D-12) 으로
   기존 매핑이 우선되어 새 UID 가 아닌 기존 (탈퇴된) UID 로 매핑되는
   결함 가능성.
@@ -2850,8 +2716,8 @@ quick `260920-b28` 이 남아 있던 lib 억제 3건을 **구조로** 해소했�
 <!-- Updated by Phase 13.2 retroactive: R13 — Facebook entry 갱신 (Meta 공식 자상 + 라이선스 verbatim + Phase 18 단어 폐기) -->
 
 본 단락은 starter-kit 의 social provider brand asset 출처·라이선스·다운로드·
-freshness 갱신 정책을 정리한다. 7 provider (Kakao / Naver / Google / Apple /
-Facebook / LINE / Yahoo!JP) 자산 모두 단일 표준 디렉토리 (`assets/brand/{provider}/`)
+freshness 갱신 정책을 정리한다. 6 provider (Kakao / Naver / Google / Apple /
+Facebook / LINE) 자산 모두 단일 표준 디렉토리 (`assets/brand/{provider}/`)
 + 7필드 README schema 를 따른다. Phase 13.2 진입으로 Facebook 도 Meta 공식
 Brand Resource Center 자상 마이그 완료 (D-95 PNG / D-94 theme 부재 / D-96
 Google 패턴 locale 독립).
@@ -2918,10 +2784,8 @@ assets/brand/
 ├── facebook/facebook_login.png + LICENSE.txt + README.md
 │   # Phase 13.2 — Meta 공식 자상 (Primary Logo, 2084×2084 PNG, D-95 lock)
 │   # D-94 theme 부재 (단일 #1877F2 변형) / D-96 Google 패턴 locale 독립 ('f' 마크 단독)
-├── line/{en,ko,...}/btn_signin_icon.svg + LICENSE.txt + README.md
-│   # Phase 14 D-LINE-08 (2026-05-19): sentinel → active 전환 (Symbol SVG)
-└── yahoojp/SVG/yahoo_japan_icon_white_64.svg + LICENSE.txt + README.md
-    # Phase 15 D-YJP-07 (2026-05-22): sentinel 미경유 신규 active 진입
+└── line/{en,ko,...}/btn_signin_icon.svg + LICENSE.txt + README.md
+    # Phase 14 D-LINE-08 (2026-05-19): sentinel → active 전환 (Symbol SVG)
 ```
 
 ### Provider 별 출처 + 라이선스
@@ -2934,7 +2798,6 @@ assets/brand/
 | Apple    | https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple | SVG (Sign-in JS API inline path verbatim) | Apple HIG compliance 범위 내 사용 (`assets/brand/apple/README.md` 「라이선스」 절 — 동봉 LICENSE.txt 없음) | N/A |
 | Facebook | https://www.meta.com/brand/resources/facebook/logo/ + https://developers.facebook.com/docs/facebook-login/userexperience/ | PNG (Primary Logo, 2084×2084) | Meta Brand License (`Meta's trademarks are owned by Meta and may only be used as provided in these guidelines or with Meta's permission.` verbatim) | **사용자 책임** (Wave 0 응답 verbatim — Meta Brand Resource Center 다운, Phase 13.2 완료) |
 | LINE     | https://developers.line.biz/en/docs/line-login/login-button/ | PNG + PSD (19 언어) | LINE Branding License | **사용자 책임** (Phase 14 진입 시) |
-| Yahoo!JP | https://developer.yahoo.co.jp/yconnect/v2/ | SVG (64×36 viewBox) | Yahoo! JAPAN Brand Guideline | **사용자 책임** (Phase 15 진입 시) |
 
 **D-Note (Phase 13.1 R1 — Naver 색상 컨텍스트 분리):** Naver 의 회사 브랜드
 (`#03C75A`, NAVER Corp + NCloud SSO) ↔ 로그인 버튼 (`#03A94D`, NAVER ID
@@ -2980,9 +2843,9 @@ LICENSE.txt + README.md 가 commit 되어 있다 (Phase 13.1 commit). starter-ki
 
 ### 2단계 — sentinel-active 전환 패턴 (historical, Phase 14 LINE 완료)
 
-Phase 13.1 시점에 LINE/WeChat 자상 미commit `kPlaceholderProviders` sentinel
-패턴 도입 → Phase 14 D-LINE-08 (2026-05-19) 으로 LINE 자상 commit 완료 +
-Phase 16 (WeChat) 폐기 (2026-05-22) 으로 sentinel 의무 해소
+Phase 13.1 시점에 자상 미commit provider 용 `kPlaceholderProviders` sentinel
+패턴 도입 → Phase 14 D-LINE-08 (2026-05-19) 으로 마지막 placeholder 였던 LINE
+자상 commit 완료 → sentinel 의무 해소
 (`kPlaceholderProviders = <String>[]`). 향후 placeholder 가 필요한 신규
 provider 진입 시 본 패턴 재도입:
 
@@ -3149,7 +3012,7 @@ R1 (provider-aware 라벨 메시지) 부활 절차:
    ```dart
    enum AccountProvider {
      google, apple, facebook, email,
-     // Phase 16 부활 시 add-only — kakao, naver, line, yahooJp 도
+     // Phase 16 부활 시 add-only — kakao, naver, line 도
      // 마지막 unknown 직전에 add-only 위치.
      unknown,
    }
@@ -4251,8 +4114,8 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `
 | Swift package identity | 고정 버전 | 비고 |
 |---|---|---|
 | `firebase-ios-sdk` | 12.19.0 | 플러그인이 `exact` 로 고정 — 값을 손댈 필요가 없다 |
-| `appauth-ios` | 2.0.0 | 〃 |
-| `googlesignin-ios` | 9.1.0 | **명시 고정.** 그래프가 우연히 준 값이다 — `flutter_appauth` 를 12.1.0 으로 올리면 AppAuth 2.1.0 과 함께 9.2.0 으로 조용히 튄다 |
+| `appauth-ios` | 2.0.0 | `GoogleSignIn-iOS` · `GTMAppAuth` 의 전이 의존 — 두 패키지가 `2.0.0 ..< 3.0.0` 을 요구해 핀이 유지된다 |
+| `googlesignin-ios` | 9.1.0 | **명시 고정.** 그래프가 우연히 준 값이다 — 상향 시 `GoogleSignIn-iOS` 가 요구하는 AppAuth 범위와 함께 확인한다 |
 | `facebook-ios-sdk` | 18.0.2 | 선언이 `"18.0.2" ..< "19.0.0"` 이라 고정하지 않으면 18.1.1 로 올라간다 |
 | `line-sdk-ios-swift` | **5.17.0** | 아래 경고 박스 참고 |
 | `naveridlogin-sdk-ios-swift` | 5.2.1 | 선언이 `.upToNextMinor(from: "5.2.0")` |
@@ -4561,7 +4424,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-24 | 16.5-REVIEW-FIX (2회차) | 증분 리뷰 2회차 Info 반영 — IN-01: 9단계 (5) 「relay 가 하는 일」 을 대기 호출 **전달함**(`NEW_TASK | CLEAR_TOP | SINGLE_TOP` · `flg=0x34000000`) / **대기 호출 없음**(`NEW_TASK | SINGLE_TOP` · `flg=0x30000000` — 외부 기동이 MainActivity 위 Kakao · Firebase IdP · NAVER 1-tap bridge 등을 걷지 않게) 두 갈래로 나누고 대가(프로세스 종료 뒤 콜백은 tab 을 닫지 못함)를 명시, Pitfall 19 검은 화면 진단에 `flg=0x30000000` 판정 추가. IN-04: 10단계 배포 확인에 NAVER 호출 3개의 시간 예산이 본문 읽기까지 포함한 상한이라는 점과 timeout fingerprint `TimeoutError`(이전 배포본 `AbortError`) 해석 bullet 추가. IN-05: Pitfall 19 검은 화면 진단을 세 갈래로 정리하고 BAL/ASM 차단 갈래(START 줄 뒤 `W ActivityTaskManager: ` 경고 — START 가 차단 판정보다 먼저 찍힘)를 추가, grep 앵커를 `I ActivityTaskManager: START` 형태로 정정. 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-REVIEW.md`(2회차) · `16.5-REVIEW-FIX.md`. |
 | 2026-09-24 | quick 260924-k61 | 검증 규칙 요약 표에 0 채움 phase 참조 PASS 행 추가 — check_phase_refs.sh 가 ROADMAP 헤딩 · 코드 참조 양쪽 번호의 성분별 선행 0 을 떼고 고정 문자열 정확 일치로 비교 |
 | 2026-09-24 | quick 260924-lw2 | 웹 경로 서버 토큰 폐기 제거(16.5 D-15 번복) — 8단계 secret 표의 사용처에서 폐기 삭제, 9단계 「사용자가 보는 것」 을 동의 화면은 연결이 없을 때만 뜬다 · 폐기하지 않는 이유(NAVER 토큰 삭제 요청 = SDK 연동 해제) · 잔존 노출(access_token 은 서버 메모리 한정 · `expires_in` 까지 유효) · `expiresInSec` 확인법으로 교체, 10단계 배포 대상 설명에서 폐기 삭제 · `naver_web_*` 이벤트 3종 + `expiresInSec` 설명 · 폐기 판정 bullet 과 폐기 실패 이벤트 삭제 · NAVER 호출 예산 2개(합 10s). 근거: `.planning/phases/16.5-naver-web-oauth-kit-owned-flow/16.5-CONTEXT.md` 「D-15 번복」. |
+| 2026-09-25 | 16.6-10 | Custom Token provider 1종 제거(Phase 16.6)에 따른 정리 — 해당 provider 절 삭제 · 절 밖 서술을 남은 provider(Kakao / Naver / LINE) 기준으로 재작성(Initial Setup 참조 · relay 서술 · IdP 동기화 적용 범위 · Kill Switch 인용 · 계정 연결 분기 「Custom Token 3 provider」 · 약관 서버 기록 mirror 위치를 provider 3종 + Naver 공용 helper `naver_profile_to_custom_token.ts` 로 · 회원탈퇴 TODO · Brand Asset 6 provider · 디렉터리 트리 · 출처 표 · sentinel 이력 · enum 예시 주석) · 「Custom Token Provider 추가 가이드 (stub)」 제목 · 본문 중립화(검증 방식 표 행 삭제) · **「Custom Token Provider 제거 가이드 (Phase 16.6)」 절 신설**(비활성 레버 2 · 의존 역순 체크리스트 ①~⑧ + 게이트 · dev 배포 정리 순서 ①~⑦ — secret 은 read-only 판정 뒤 `--force` 1회 · 실측 함정 5) · 목차 항목 7 stale 앵커 정정 + 제거 절 항목 8 삽입(21 항목) · SPM 고정값 표 `appauth-ios` 비고를 전이 의존 사유로, `googlesignin-ios` 비고의 상향 서술 정정 |
 
 ---
 
-*Last updated: 2026-09-24 — quick 260924-lw2 Naver 웹 경로 서버 토큰 폐기 제거*
+*Last updated: 2026-09-25 — 16.6-10 Custom Token provider 제거 가이드 신설*
