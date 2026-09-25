@@ -2,7 +2,7 @@
 //
 // Phase 16 Plan 16-11 Task 1 — AccountLinkingSection widget test (AL1~AL8).
 //
-// 검증 surface (Surface D mockup — email EXCLUDE / 소셜 7 - linked 규칙):
+// 검증 surface (Surface D mockup — email EXCLUDE / 활성 소셜 - linked 규칙):
 // - AL1 available 규칙: linkedProviders=[google] → google 버튼 미노출 +
 //   나머지 활성 소셜 provider "연결" 버튼 노출. email 버튼은 절대 없음.
 // - AL2 native link 성공: Apple "연결" tap → linkAppleCredential 호출 →

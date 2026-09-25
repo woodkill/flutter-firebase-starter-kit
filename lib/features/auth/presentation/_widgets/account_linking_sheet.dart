@@ -84,7 +84,7 @@ typedef ExistingProviderSignInCallback =
 /// "UI 본문 메시지의 컨텍스트" 라고 문서화했지만 **읽는 코드가 한 곳도
 /// 없었다** — 본문은 `errorAccountExistsWithProvider(providerLabel)` 로
 /// provider 라벨만 쓴다. 게다가 native 3 provider 경로에서는 실제 평문
-/// 이메일이 들어오고 Custom Token 4 경로에서는 서버 PII 정책상 항상 `''` 이라,
+/// 이메일이 들어오고 Custom Token 경로에서는 서버 PII 정책상 항상 `''` 이라,
 /// **provider 에 따라 위젯이 받는 PII 유무가 달랐는데 화면 출력은 완전히
 /// 동일**했다. 렌더되지 않는 값에 "렌더된다" 는 계약을 붙여 두면 다음 개발자가
 /// `Text(collisionEmail)` 을 추가해 provider-의존 UI 를 만들게 된다. 매개변수를
@@ -102,7 +102,7 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
     super.key,
   });
 
-  /// 기존에 가입된 provider — D-09 양방향 식별 결과 (8 값 enum).
+  /// 기존에 가입된 provider — D-09 양방향 식별 결과 ([AccountProvider] enum).
   ///
   /// `lookupSignInMethods` callable 또는 identity_index conflictKind 응답
   /// 으로 채워진다. unknown 인 경우 본 sheet 는 노출되지 않고 unknown
@@ -533,7 +533,8 @@ enum _ExistingProviderSignInOutcome {
   cancelledOrFailed,
 }
 
-/// [existingProvider] 에 매핑된 provider 라벨 (8 ARB key) 을 반환한다.
+/// [existingProvider] 에 매핑된 provider 라벨 ([AccountProvider] 값마다 1 ARB
+/// key) 을 반환한다.
 String _providerLabel(AppLocalizations l10n, AccountProvider provider) {
   return switch (provider) {
     AccountProvider.google => l10n.authAccountProviderGoogle,

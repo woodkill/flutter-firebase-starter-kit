@@ -221,7 +221,7 @@ void main() {
     testWidgets('SS5 AccountLinkingSection 노출 — heading + 위젯 (계정 section 다음)', (
       tester,
     ) async {
-      // linked=[password] (email native) → 소셜 0 linked → 활성 소셜 7 노출.
+      // linked=[password] (email native) → 소셜 0 linked → 활성 소셜 6 노출.
       await _pumpSettingsScreen(tester, user: _testUser());
 
       // 계정 연결 section heading (en) + 위젯.

@@ -2,7 +2,7 @@
 //
 // **왜 provider 별 테스트 파일이 아니라 cross-provider 1파일인가:** IN-06 이
 // 16.4 fix pass 에서 skip 된 사유가 「naver 단독 수정은 7 provider 대칭
-// invariant 를 깨뜨린다」 였다. 각 notifier docstring 에 「이 동작은 7 provider
+// invariant 를 깨뜨린다」 였다. 각 notifier docstring 에 「이 동작은 6 provider
 // 가 문자 단위로 동일하며」 가 명문화되어 있으므로, 그 대칭을 지키는 guard 도
 // provider 별로 흩어진 테스트가 아니라 한 표에서 잠근다 — 표가
 // [kAllProviderIds] 와 1:1 임을 먼저 단언하므로 7번째 provider 가 추가되고

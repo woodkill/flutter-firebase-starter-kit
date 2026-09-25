@@ -205,7 +205,8 @@ Future<void> bootstrap() async {
               // 미초기화/오프라인 상태에서도 정적 enabled provider 가 그대로
               // 보이도록 보장 (D-25, T-11-RC-03).
               //
-              // setDefaults 는 [AppConfig.authProviders] 8 슬러그 모두에 대해
+              // setDefaults 는 [AppConfig.authProviders] 의 모든 슬러그
+              // ([kAllProviderIds]) 에 대해
               // `auth_provider_{providerId}_enabled: <CSV 포함 여부>` 를 자동
               // 생성한다. enabledAuthProviders CSV 토큰 기준:
               // - 'auth_provider_google_enabled': true (Phase 6+)

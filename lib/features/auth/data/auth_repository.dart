@@ -774,7 +774,8 @@ class AuthRepository implements AnonymousSignIn {
     } on ServiceUnavailable catch (e) {
       // WR-02: [_facebookAccessTokenOf] 의 실패 승격 (status=failed /
       // operationInProgress / success 인데 accessToken 부재) — Custom Token
-      // sign-in 4종과 동일하게 원본을 cause chain 없이 그대로 보존.
+      // sign-in (kakao / naver / line) 과 동일하게 원본을 cause chain 없이
+      // 그대로 보존.
       return Result.failure(e);
     } on Object catch (e, st) {
       if (kDebugMode) {
@@ -1818,10 +1819,10 @@ class AuthRepository implements AnonymousSignIn {
   /// - Apple: [fb.User.reauthenticateWithProvider] (호출마다 새 nonce — 실패한
   ///   credential 을 재제출하지 않는다).
   /// - Facebook: 새로 받은 credential 로 [fb.User.reauthenticateWithCredential].
-  /// - Custom Token 4종: SDK 토큰 → callable → 응답 uid 가 현재 uid 와 같을 때만
-  ///   [fb.FirebaseAuth.signInWithCustomToken]. 서버는 정식 로그인 caller 의
-  ///   미매핑 identity 를 `permission-denied` + `caller_identity_mismatch` 로
-  ///   거부한다 (functions `resolveIdentity` 가드).
+  /// - Custom Token (kakao / naver / line): SDK 토큰 → callable → 응답 uid 가
+  ///   현재 uid 와 같을 때만 [fb.FirebaseAuth.signInWithCustomToken]. 서버는
+  ///   정식 로그인 caller 의 미매핑 identity 를 `permission-denied` +
+  ///   `caller_identity_mismatch` 로 거부한다 (functions `resolveIdentity` 가드).
   ///
   /// native 3종(Google · Apple · Facebook)은 IdP 를 부르기 **전에** 서버 기준으로
   /// 연결을 재확인한다 ([_reloadLinkedNativeUser]) — SDK 캐시 `providerData` 는
@@ -2117,7 +2118,8 @@ class AuthRepository implements AnonymousSignIn {
       case AccountProvider.apple:
       case AccountProvider.facebook:
       case AccountProvider.email:
-        // 호출부가 Custom Token 4종만 넘긴다 — 도달하지 않는다.
+        // 호출부가 Custom Token provider (kakao / naver / line) 만 넘긴다 —
+        // 도달하지 않는다.
         return null;
     }
   }
@@ -2694,8 +2696,8 @@ class AuthRepository implements AnonymousSignIn {
   /// 끝나는 재시도를 유도하므로 쓰지 않는다 (iOS 실기기 run-02 관측).
   ///
   /// 적용 범위는 signInWithGoogle · signInWithApple · signInWithFacebook 의
-  /// catch 3곳뿐이다. email 계열 · 익명 · Custom Token 4종 · reactive /
-  /// proactive link 매핑은 바꾸지 않는다.
+  /// catch 3곳뿐이다. email 계열 · 익명 · Custom Token (kakao / naver / line) ·
+  /// reactive / proactive link 매핑은 바꾸지 않는다.
   AppException _mapSocialAuthException(fb.FirebaseAuthException e) {
     if (e.code != 'invalid-credential' &&
         e.code != 'missing-or-invalid-nonce') {
@@ -3374,7 +3376,7 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
       // WR-04: 이전 구현은 여기서 `break` 로 generator 를 종료시켰다. 본
       // provider 는 `@Riverpod(keepAlive: true)` 라 재구독이 일어나지 않아
       // 일시적 `unavailable` 한 번이면 세션 내내 linkedProviders 가 빈
-      // 배열로 고정되고, currentUser 의 합집합이 Custom Token provider 4종을
+      // 배열로 고정되고, currentUser 의 합집합이 Custom Token provider 들을
       // 영구 누락했다 (Settings "계정 연결" 섹션 / provider 라벨 오표시).
       // permission-denied 에 이미 존재하는 "일시 장애에서 복구한다" 의도를
       // 나머지 에러에도 대칭 적용한다.
