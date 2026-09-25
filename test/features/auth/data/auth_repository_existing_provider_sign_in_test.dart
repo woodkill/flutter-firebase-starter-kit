@@ -8,7 +8,7 @@
 // 그 단일 진입점의 위임 계약을 잠근다.
 //
 // 5 behavior:
-//   SP1: 7 소셜 provider (google/apple/facebook/kakao/naver/line/yahoojp) 각각이
+//   SP1: 6 소셜 provider (google/apple/facebook/kakao/naver/line) 각각이
 //        대응 signInWith{Provider} 로 1:1 위임되고 Success 가 그대로 전달된다.
 //        naver 도 포함 — link target 미지원과 무관하다.
 //   SP2: AccountProvider.email → ArgumentError (비밀번호 입력이 필요해 시트에서
@@ -35,7 +35,6 @@ import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
-import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 import 'auth_test_fakes.dart';
 
@@ -61,8 +60,6 @@ class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
 
-class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
-
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
@@ -84,7 +81,6 @@ const List<_DelegationCase> _kDelegationCases = <_DelegationCase>[
   (provider: AccountProvider.kakao, label: 'kakao'),
   (provider: AccountProvider.naver, label: 'naver'),
   (provider: AccountProvider.line, label: 'line'),
-  (provider: AccountProvider.yahoojp, label: 'yahoojp'),
 ];
 
 void main() {
@@ -98,7 +94,6 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
-  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late AuthRepository repository;
@@ -124,7 +119,6 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
-    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
 
@@ -137,7 +131,6 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
-      mockYahoojpSdkClient,
       () async {},
     );
 
@@ -145,7 +138,6 @@ void main() {
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
-    when(() => mockYahoojpSdkClient.logout()).thenAnswer((_) async {});
 
     // _mapFirebaseUser 가 참조하는 fb.User getter default stub.
     when(() => mockUser.uid).thenReturn('uid-test');
@@ -191,7 +183,7 @@ void main() {
       () => mockAuth.signInWithProvider(any()),
     ).thenAnswer((_) async => mockCredential);
 
-    // Custom Token 4값 (kakao/naver/line/yahoojp) 성공 path.
+    // Custom Token 3값 (kakao/naver/line) 성공 path.
     when(() => mockKakaoSdkClient.signIn()).thenAnswer(
       (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
     );
@@ -200,9 +192,6 @@ void main() {
     ).thenAnswer((_) async => const NaverAppSignIn(accessToken: 'AT_NAVER'));
     when(() => mockLineSdkClient.signIn()).thenAnswer(
       (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
-    );
-    when(() => mockYahoojpSdkClient.signIn()).thenAnswer(
-      (_) async => const YahoojpSignInResult(idToken: 'YIDT', nonce: 'YNONCE'),
     );
     when(
       () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),
@@ -224,7 +213,7 @@ void main() {
     ).thenAnswer((_) async => mockCredential);
   });
 
-  group('SP1 — 7 소셜 provider 1:1 위임 (Success 그대로 전달)', () {
+  group('SP1 — 6 소셜 provider 1:1 위임 (Success 그대로 전달)', () {
     for (final testCase in _kDelegationCases) {
       test('${testCase.label} → 대응 signInWith 메서드 위임 → Success', () async {
         final result = await repository.signInWithExistingProvider(

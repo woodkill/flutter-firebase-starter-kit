@@ -48,7 +48,6 @@ const List<AccountProvider> _kProactiveLinkCandidates = <AccountProvider>[
   AccountProvider.facebook,
   AccountProvider.kakao,
   AccountProvider.line,
-  AccountProvider.yahoojp,
 ];
 
 /// 계정 연결 섹션 위젯 (Phase 16 16-11 / Surface D / SOCL-12).
@@ -240,7 +239,7 @@ class AccountLinkingSection extends ConsumerWidget {
 ///
 /// **두 형식 공존 (Phase 12 D-16):** native 3 provider 는 Firebase Auth URI
 /// 형식 (`google.com` / `apple.com` / `facebook.com`), Custom Token provider
-/// 는 도메인 slug (`kakao` / `naver` / `line` / `yahoojp`). [AccountProvider.tryParse]
+/// 는 도메인 slug (`kakao` / `naver` / `line`). [AccountProvider.tryParse]
 /// 는 slug + `password` 만 인식하므로 URI 형식은 본 함수가 별도 매핑한다.
 /// `password`(email) 는 소셜이 아니므로 제외한다 (mockup §0 email EXCLUDE).
 Set<AccountProvider> _linkedSocialProviders(List<String>? providerIds) {
@@ -264,7 +263,7 @@ Set<AccountProvider> _linkedSocialProviders(List<String>? providerIds) {
 /// [provider] 의 brand verbatim ARB 라벨 (authAccountProvider{X}) 을 반환한다.
 ///
 /// `settingsLinkProviderCta({provider})` placeholder 에 주입할 provider 라벨.
-/// account_linking_sheet.dart 의 `_providerLabel` 패턴 mirror (소셜 7값만 —
+/// account_linking_sheet.dart 의 `_providerLabel` 패턴 mirror (소셜 6값만 —
 /// email 은 후보 미포함이나 exhaustive switch 보강).
 String _providerLabel(AppLocalizations l10n, AccountProvider provider) {
   return switch (provider) {
@@ -275,13 +274,12 @@ String _providerLabel(AppLocalizations l10n, AccountProvider provider) {
     AccountProvider.kakao => l10n.authAccountProviderKakao,
     AccountProvider.naver => l10n.authAccountProviderNaver,
     AccountProvider.line => l10n.authAccountProviderLine,
-    AccountProvider.yahoojp => l10n.authAccountProviderYahooJp,
   };
 }
 
 /// 단일 소셜 provider 의 "연결" 버튼 (Phase 16 16-11 / Surface D §2).
 ///
-/// 7 [AccountProvider] 소셜 값을 Phase 13.3 / Phase 15 의 [BrandedSocialButton]
+/// 6 [AccountProvider] 소셜 값을 Phase 13.3 의 [BrandedSocialButton]
 /// factory 로 dispatch 한다 (brand verbatim, M3 토큰 의존 0 — starter kit brand
 /// drift 회피). account_linking_sheet.dart 의 `_BrandedLinkButton` 패턴 mirror
 /// (단, email 분기 제외 — Surface D email EXCLUDE).
@@ -320,10 +318,6 @@ class _LinkProviderButton extends StatelessWidget {
         onPressed: onPressed,
       ),
       AccountProvider.line => BrandedSocialButton.line(
-        label: label,
-        onPressed: onPressed,
-      ),
-      AccountProvider.yahoojp => BrandedSocialButton.yahoojp(
         label: label,
         onPressed: onPressed,
       ),

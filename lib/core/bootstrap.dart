@@ -214,8 +214,6 @@ Future<void> bootstrap() async {
               // - 'auth_provider_kakao_enabled': true (Phase 12+)
               // - 'auth_provider_naver_enabled': true (Phase 13 — see ROADMAP.md)
               // - 'auth_provider_line_enabled': true (Phase 14 — see ROADMAP.md)
-              // - 'auth_provider_yahoojp_enabled': true (Phase 15 — see
-              //   ROADMAP.md, D-YJP-03 — CSV `yahoojp` 토큰 활성 시 자동 true)
               await rc.setDefaults(<String, Object>{
                 for (final entry in AppConfig.authProviders.entries)
                   rcKeyForProvider(entry.key): entry.value,

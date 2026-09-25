@@ -45,7 +45,6 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
@@ -65,8 +64,6 @@ class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
 class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
@@ -122,7 +119,6 @@ void main() {
       mockFunctions,
       _MockNaverSdkClient(),
       _MockLineSdkClient(),
-      _MockYahoojpSdkClient(),
       () async {},
     );
 

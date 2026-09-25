@@ -3,7 +3,7 @@
 // Phase 16 Plan 16-09 Task 1 — reactive Custom Token account linking.
 //
 // `linkCustomTokenProviderArm({required AccountProvider targetProvider})` 검증.
-// Custom Token 충돌(Kakao/LINE/YJP) 시 sheet 버튼 탭 → target provider 토큰
+// Custom Token 충돌(Kakao/LINE) 시 sheet 버튼 탭 → target provider 토큰
 // fresh 재획득 + caller fresh ID Token(getIdToken(true)) + deployed
 // `linkCustomTokenProvider` callable 호출({idToken, targetProvider,
 // targetProviderToken, nonce} → {ok:true}) 로 실제 link.
@@ -38,7 +38,6 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -58,8 +57,6 @@ class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
 
-class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
-
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
@@ -75,7 +72,6 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
-  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockLinkCallable;
   late _MockFbUser mockCurrentUser;
@@ -94,7 +90,6 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
-    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockLinkCallable = _MockHttpsCallable();
     mockCurrentUser = _MockFbUser();
@@ -109,7 +104,6 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
-      mockYahoojpSdkClient,
       () async {},
     );
 
@@ -133,7 +127,6 @@ void main() {
     // 1회성 토큰 finally logout default stub.
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
-    when(() => mockYahoojpSdkClient.logout()).thenAnswer((_) async {});
 
     // linkCustomTokenProvider callable default wiring — {ok:true}.
     when(

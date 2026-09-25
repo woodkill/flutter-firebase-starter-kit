@@ -4,8 +4,8 @@
 // 16.4 fix pass 에서 skip 된 사유가 「naver 단독 수정은 7 provider 대칭
 // invariant 를 깨뜨린다」 였다. 각 notifier docstring 에 「이 동작은 7 provider
 // 가 문자 단위로 동일하며」 가 명문화되어 있으므로, 그 대칭을 지키는 guard 도
-// provider 별로 흩어진 7개 테스트가 아니라 한 표에서 잠근다 — 표가
-// [kAllProviderIds] 와 1:1 임을 먼저 단언하므로 8번째 provider 가 추가되고
+// provider 별로 흩어진 테스트가 아니라 한 표에서 잠근다 — 표가
+// [kAllProviderIds] 와 1:1 임을 먼저 단언하므로 7번째 provider 가 추가되고
 // 행이 누락되면 이 파일이 FAIL 한다.
 //
 // 잠그는 invariant: `state = AsyncLoading` 직후의 `ref.read(authRepositoryProvider)`
@@ -36,7 +36,6 @@ import 'package:flutter_starter_kit/features/auth/presentation/google_sign_in_no
 import 'package:flutter_starter_kit/features/auth/presentation/kakao_sign_in_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/line_sign_in_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/naver_sign_in_notifier.dart';
-import 'package:flutter_starter_kit/features/auth/presentation/yahoojp_sign_in_notifier.dart';
 
 /// provider **생성** 실패 축의 sentinel 문구 (첫 번째 축).
 ///
@@ -64,8 +63,8 @@ final class _RepoThrowSentinel implements Exception {
 
 /// 소셜 notifier 1개를 provider-agnostic 하게 호출하기 위한 표 1행.
 ///
-/// 7 provider 의 notifier 는 클래스·메서드 이름만 다르고 본문 구조가 동일하다.
-/// 이 표가 그 구조적 동일성을 테스트 코드에서 복사-붙여넣기 7번 대신 순회 1번
+/// 6 provider 의 notifier 는 클래스·메서드 이름만 다르고 본문 구조가 동일하다.
+/// 이 표가 그 구조적 동일성을 테스트 코드에서 복사-붙여넣기 6번 대신 순회 1번
 /// 으로 검증하게 한다.
 final class _NotifierCase {
   /// 표 1행을 만든다.
@@ -90,7 +89,7 @@ final class _NotifierCase {
   final void Function(AuthRepository repo) stubAsyncThrow;
 }
 
-/// 7 소셜 notifier 표 — 순서는 진실원 [kAllProviderIds] 와 같다.
+/// 6 소셜 notifier 표 — 순서는 진실원 [kAllProviderIds] 와 같다.
 final List<_NotifierCase> _cases = <_NotifierCase>[
   _NotifierCase(
     providerId: kProviderIdGoogle,
@@ -144,15 +143,6 @@ final List<_NotifierCase> _cases = <_NotifierCase>[
     readState: (container) => container.read(lineSignInProvider),
     stubAsyncThrow: (repo) => when(
       () => repo.signInWithLine(),
-    ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
-  ),
-  _NotifierCase(
-    providerId: kProviderIdYahooJp,
-    signIn: (container) =>
-        container.read(yahoojpSignInProvider.notifier).signInWithYahoojp(),
-    readState: (container) => container.read(yahoojpSignInProvider),
-    stubAsyncThrow: (repo) => when(
-      () => repo.signInWithYahoojp(),
     ).thenAnswer((_) async => throw const _RepoThrowSentinel()),
   ),
 ];

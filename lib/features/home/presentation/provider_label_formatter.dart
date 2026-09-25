@@ -6,7 +6,7 @@ import '../../../l10n/generated/app_localizations.dart';
 /// [formatProviderIds] 가 라벨로 변환하는 매핑 키 set.
 ///
 /// Phase 7~9 의 4개 native URI + Phase 12 `kakao` slug + Phase 13 `naver` slug +
-/// Phase 14~15 미리 등재 (`line` / `yahoojp`) 까지 모두 컨트랙트로
+/// Phase 14 등재 (`line`) 까지 모두 컨트랙트로
 /// 노출한다. 컨트랙트 테스트가 우선 실패하여 동시 갱신 의무를 강제한다.
 ///
 /// **두 형식이 공존한다 (Phase 12 D-16 / D-17, Phase 13 D-53):**
@@ -14,7 +14,7 @@ import '../../../l10n/generated/app_localizations.dart';
 /// - **Native 4 provider** (Email/Google/Apple/Facebook): Firebase Auth 가
 ///   `User.providerData[i].providerId` 로 자체 반환하는 OAuth URI 형식
 ///   (`'password'` / `'google.com'` / `'apple.com'` / `'facebook.com'`).
-/// - **Custom Token provider** (Kakao/Naver/LINE/Yahoo!JP): Firebase 가
+/// - **Custom Token provider** (Kakao/Naver/LINE): Firebase 가
 ///   URI 를 반환하지 않으므로 Firestore `users/{uid}.linkedProviders[].providerId`
 ///   의 도메인 slug ([kProviderIdKakao] 등) 를 직접 사용한다.
 ///
@@ -31,7 +31,6 @@ const Set<String> kSupportedAuthProviderIds = <String>{
   kProviderIdKakao,
   kProviderIdNaver,
   kProviderIdLine,
-  kProviderIdYahooJp,
 };
 
 /// `User.providerIds` 를 사용자 가독형 라벨 문자열로 변환한다 (D-11, D-17, D-53).
@@ -43,7 +42,6 @@ const Set<String> kSupportedAuthProviderIds = <String>{
 /// - [kProviderIdKakao] -> [AppLocalizations.authAccountProviderKakao] (Phase 12 D-17)
 /// - [kProviderIdNaver] -> [AppLocalizations.authAccountProviderNaver] (Phase 13)
 /// - [kProviderIdLine] -> [AppLocalizations.authAccountProviderLine] (Phase 14 pre-registered)
-/// - [kProviderIdYahooJp] -> [AppLocalizations.authAccountProviderYahooJp] (Phase 15 pre-registered)
 /// - 미지원 slug -> [AppLocalizations.errorUnknownProvider] (D-53 Localizable Unknown,
 ///   raw slug 노출 차단)
 ///
@@ -65,7 +63,6 @@ String formatProviderIds(List<String> providerIds, AppLocalizations l10n) {
       kProviderIdKakao,
       kProviderIdNaver,
       kProviderIdLine,
-      kProviderIdYahooJp,
     };
     final missing = kAllProviderIds
         .where((id) => !knownIds.contains(id))
@@ -92,7 +89,6 @@ String formatProviderIds(List<String> providerIds, AppLocalizations l10n) {
           kProviderIdKakao => l10n.authAccountProviderKakao,
           kProviderIdNaver => l10n.authAccountProviderNaver,
           kProviderIdLine => l10n.authAccountProviderLine,
-          kProviderIdYahooJp => l10n.authAccountProviderYahooJp,
           // D-53 release fallback — Localizable Unknown (raw slug 노출 절대 금지).
           _ => l10n.errorUnknownProvider,
         },

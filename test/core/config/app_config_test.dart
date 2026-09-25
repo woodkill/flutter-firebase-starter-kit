@@ -10,7 +10,7 @@ void main() {
   group('AppConfig.authProviders 단일 CSV 진실 (Pitfall 2, T-11-CONST-01)', () {
     test('미주입 키는 false 안전 default 를 반환한다 (D-21)', () {
       // dart-define-from-file 미적용 상태 (test 환경) → CSV 빈 문자열 →
-      // 모든 8 슬러그 disabled.
+      // 모든 6 슬러그 disabled.
       final map = AppConfig.authProviders;
       expect(map.length, kAllProviderIds.length);
       for (final id in kAllProviderIds) {
@@ -131,7 +131,7 @@ void main() {
         expect(enabled.contains(kProviderIdKakao), isTrue);
 
         // dev 는 Phase 진행에 따라 Custom Token 점진 활성화 (Phase 13:
-        // naver, Phase 14: line, Phase 15: yahoojp).
+        // naver, Phase 14: line).
         // stg/prod 는 Starter Kit 정책상 placeholder — Phase 13~16 모두 비활성.
         if (flavor == 'dev') {
           expect(
@@ -144,17 +144,8 @@ void main() {
             isTrue,
             reason: 'dev.json: line should be enabled (Phase 14)',
           );
-          expect(
-            enabled.contains(kProviderIdYahooJp),
-            isTrue,
-            reason: 'dev.json: yahoojp should be enabled (Phase 15)',
-          );
         } else {
-          for (final id in const <String>[
-            kProviderIdNaver,
-            kProviderIdLine,
-            kProviderIdYahooJp,
-          ]) {
+          for (final id in const <String>[kProviderIdNaver, kProviderIdLine]) {
             expect(
               enabled.contains(id),
               isFalse,
@@ -241,8 +232,8 @@ void main() {
     });
 
     test('IN-04: doc 이 kAllProviderIds 개수를 하드코딩하지 않는다', () {
-      // 실제 kAllProviderIds 는 7개인데 doc 은 "8 슬러그" 라고 적고 있었다
-      // (exception_l10n 의 "8 provider (… + email)" 와 혼동된 숫자).
+      // (IN-04 수정 당시) 실제 kAllProviderIds 는 7개였는데 doc 은 "8 슬러그" 라고
+      // 적고 있었다 (당시 exception_l10n 의 "8 provider (… + email)" 와 혼동된 숫자).
       // 개수는 provider 추가/폐기마다 바뀌므로 doc 에서 숫자를 제거한다.
       expect(source, isNot(contains('8 슬러그')));
       expect(source, isNot(contains('8개 평탄 키')));

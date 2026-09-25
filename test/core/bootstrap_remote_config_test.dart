@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('bootstrap Remote Config 통합 (D-24, D-25)', () {
-    test('AppConfig.authProviders 가 8 providerId 모두 포함한다 (setDefaults 입력)', () {
+    test('AppConfig.authProviders 가 6 providerId 모두 포함한다 (setDefaults 입력)', () {
       final map = AppConfig.authProviders;
       expect(map.keys.toSet(), kAllProviderIds.toSet());
     });

@@ -56,7 +56,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///    `UnknownException` 분기 처리.
   /// 4. 2 가 성공하면 서버 hard delete 가 확정된 것이므로 탈퇴는 이미 성공이다.
   ///    **10-REVIEW CR-04:** 이 시점에 즉시 state = [AsyncValue.data]`(null)`
-  ///    을 emit 한다 — 성공 emit 이 사후 정리 뒤에 있으면 timeout 없는 6개
+  ///    을 emit 한다 — 성공 emit 이 사후 정리 뒤에 있으면 timeout 없는 5개
   ///    소셜 SDK logout 이 지연될 때 다이얼로그가 무한 loading 에 갇힌다.
   /// 5. emit 이후 [AuthRepository.signOutAndResetOnboarding]
   ///    (onboardingSeen=false reset + router 의 resolveAuthRedirect 가
@@ -78,7 +78,7 @@ class SettingsNotifier extends _$SettingsNotifier {
       return;
     }
     // CR-04: 여기서 서버 hard delete 가 확정됐다. 성공 emit 을 사후 정리
-    // **이전에** 수행한다. signOutAndResetOnboarding 은 6개 소셜 SDK logout 을
+    // **이전에** 수행한다. signOutAndResetOnboarding 은 5개 소셜 SDK logout 을
     // timeout 없이 직렬 await 하므로, emit 을 그 뒤에 두면 되돌릴 수 없는
     // 삭제가 끝난 뒤에도 다이얼로그가 loading 에 고정된다 (취소 버튼 disabled
     // + barrierDismissible:false → iOS 에는 탈출 경로가 0).
@@ -102,7 +102,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// - native (google/apple/facebook) →
   ///   [AuthRepository.linkGoogleCredential] / [AuthRepository.linkAppleCredential]
   ///   / [AuthRepository.linkFacebookCredential].
-  /// - Custom Token (kakao/line/yahoojp) →
+  /// - Custom Token (kakao/line) →
   ///   [AuthRepository.linkCustomTokenProviderArm].
   /// - naver → deployed callable OIDC 미지원 ([AccountLinkOutcome.unsupported]
   ///   — sheet `_linkCustomToken` 의 naver graceful 분기 mirror, Phase 17+
@@ -136,8 +136,7 @@ class SettingsNotifier extends _$SettingsNotifier {
       AccountProvider.apple ||
       AccountProvider.facebook ||
       AccountProvider.kakao ||
-      AccountProvider.line ||
-      AccountProvider.yahoojp => _dispatchLink(provider),
+      AccountProvider.line => _dispatchLink(provider),
     };
   }
 
@@ -163,11 +162,8 @@ class SettingsNotifier extends _$SettingsNotifier {
         AccountProvider.google => await repo.linkGoogleCredential(),
         AccountProvider.apple => await repo.linkAppleCredential(),
         AccountProvider.facebook => await repo.linkFacebookCredential(),
-        AccountProvider.kakao ||
-        AccountProvider.line ||
-        AccountProvider.yahoojp => await repo.linkCustomTokenProviderArm(
-          targetProvider: provider,
-        ),
+        AccountProvider.kakao || AccountProvider.line =>
+          await repo.linkCustomTokenProviderArm(targetProvider: provider),
         // naver / email 은 linkProvider switch 에서 사전 분기 — 도달하지 않음.
         AccountProvider.naver || AccountProvider.email => null,
       };

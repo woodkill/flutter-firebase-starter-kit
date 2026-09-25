@@ -103,7 +103,7 @@ String _resolveAccountExists(
 
 /// [AccountProvider] 를 현재 로케일의 정확 provider 라벨로 변환한다.
 ///
-/// 8 provider 전부 `authAccountProvider{X}` ARB key 와 매핑되는 단순 dispatch
+/// 7 provider 전부 `authAccountProvider{X}` ARB key 와 매핑되는 단순 dispatch
 /// 이며, 라벨 문자열의 verbatim 정확성은 brand_label_whitelist_test 가 잠근다.
 String _resolveProviderLabel(AppLocalizations l10n, AccountProvider provider) {
   return switch (provider) {
@@ -114,6 +114,5 @@ String _resolveProviderLabel(AppLocalizations l10n, AccountProvider provider) {
     AccountProvider.kakao => l10n.authAccountProviderKakao,
     AccountProvider.naver => l10n.authAccountProviderNaver,
     AccountProvider.line => l10n.authAccountProviderLine,
-    AccountProvider.yahoojp => l10n.authAccountProviderYahooJp,
   };
 }

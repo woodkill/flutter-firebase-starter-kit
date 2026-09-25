@@ -30,7 +30,6 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 import 'auth_test_fakes.dart';
 
@@ -59,8 +58,6 @@ class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
 
-class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
-
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _FakeAuthCredential extends Fake implements fb.AuthCredential {}
@@ -79,7 +76,6 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
-  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockFbUser mockCurrentUser;
   late _MockUserCredential mockLinkResult;
@@ -103,7 +99,6 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
-    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockCurrentUser = _MockFbUser();
     mockLinkResult = _MockUserCredential();
@@ -118,7 +113,6 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
-      mockYahoojpSdkClient,
       () async {},
     );
 

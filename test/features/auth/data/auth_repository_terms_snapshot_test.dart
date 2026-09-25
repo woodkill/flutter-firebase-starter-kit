@@ -20,8 +20,7 @@
 // TS2: line + snapshot 부재 → payload {idToken, nonce} (add-only 회귀 가드)
 // TS3/TS4: kakao + snapshot 유/무 (base {idToken, nonce})
 // TS5/TS6: naver + snapshot 유/무 (base {accessToken} — provider 계약 차이)
-// TS7/TS8: yahoojp + snapshot 유/무 (base {idToken, nonce})
-// TS9: 4 provider 대칭 sentinel — snapshot 키 집합이 서로 동일 (drift 차단)
+// TS9: 3 provider 대칭 sentinel — snapshot 키 집합이 서로 동일 (drift 차단)
 // TS10 (WR-05): 실제 producer(TermsAcceptance.toServerJson) 계약 —
 //      모델에 6번째 필드가 추가되면 FAIL + local DateTime 의 UTC 정규화
 
@@ -39,7 +38,6 @@ import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
-import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
@@ -61,8 +59,6 @@ class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
 class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
@@ -108,7 +104,6 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
-  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late _MockUserCredential mockCredential;
@@ -133,7 +128,6 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
-    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
     mockCredential = _MockUserCredential();
@@ -149,16 +143,14 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
-      mockYahoojpSdkClient,
       () async {},
       readTermsAcceptanceSnapshot: () => injectedSnapshot,
     );
 
-    // Custom Token 4 흐름 공통 — SDK 1회성 토큰 finally logout.
+    // Custom Token 3 흐름 공통 — SDK 1회성 토큰 finally logout.
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
-    when(() => mockYahoojpSdkClient.logout()).thenAnswer((_) async {});
 
     // callable 기본 wiring — customToken 응답.
     when(
@@ -188,7 +180,7 @@ void main() {
       () => mockAuth.signInWithCustomToken('CT'),
     ).thenAnswer((_) async => mockCredential);
 
-    // 4 provider SDK 성공 fixture.
+    // 3 provider SDK 성공 fixture.
     when(() => mockLineSdkClient.signIn()).thenAnswer(
       (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
     );
@@ -198,9 +190,6 @@ void main() {
     when(
       () => mockNaverSdkClient.signIn(),
     ).thenAnswer((_) async => const NaverAppSignIn(accessToken: 'NAT'));
-    when(() => mockYahoojpSdkClient.signIn()).thenAnswer(
-      (_) async => const YahoojpSignInResult(idToken: 'YIDT', nonce: 'YNONCE'),
-    );
   });
 
   /// callable 에 실제 전달된 payload 들을 순서대로 캡처한다 (wiring 단언의
@@ -320,7 +309,7 @@ void main() {
       expect(result, isA<Success<dynamic>>());
       final payload = capturePayload();
       // naver 는 base 키가 accessToken 단일 — provider 계약 차이이며
-      // snapshot 부착 방식은 4 provider 동일.
+      // snapshot 부착 방식은 3 provider 동일.
       expect(payload.keys.toSet(), <String>{
         'accessToken',
         'termsAcceptanceSnapshot',
@@ -379,39 +368,6 @@ void main() {
     });
   });
 
-  group('TS7 — yahoojp + snapshot 존재', () {
-    test(
-      'payload {idToken, nonce, termsAcceptanceSnapshot} + 5 키 계약',
-      () async {
-        injectedSnapshot = _snapshotFixture();
-
-        final result = await repository.signInWithYahoojp();
-
-        expect(result, isA<Success<dynamic>>());
-        final payload = capturePayload();
-        expect(payload.keys.toSet(), <String>{
-          'idToken',
-          'nonce',
-          'termsAcceptanceSnapshot',
-        });
-        expect(payload['idToken'], 'YIDT');
-        expect(payload['nonce'], 'YNONCE');
-        expectContractSnapshot(payload);
-      },
-    );
-  });
-
-  group('TS8 — yahoojp + snapshot 부재', () {
-    test('payload 키 집합이 {idToken, nonce} 그대로', () async {
-      injectedSnapshot = null;
-
-      final result = await repository.signInWithYahoojp();
-
-      expect(result, isA<Success<dynamic>>());
-      expect(capturePayload().keys.toSet(), <String>{'idToken', 'nonce'});
-    });
-  });
-
   group('TS10 (WR-05) — 실제 producer 계약 sentinel', () {
     test(
       'TermsAcceptance.toServerJson() 키 집합이 서버 5 키와 정확히 일치 (6번째 필드 추가 시 FAIL)',
@@ -453,19 +409,18 @@ void main() {
     });
   });
 
-  group('TS9 — 4 provider 대칭 sentinel', () {
+  group('TS9 — 3 provider 대칭 sentinel', () {
     test(
-      'kakao/naver/line/yahoojp 의 termsAcceptanceSnapshot 키 집합이 서로 동일하고 모두 서버 5 키와 동등',
+      'kakao/naver/line 의 termsAcceptanceSnapshot 키 집합이 서로 동일하고 모두 서버 5 키와 동등',
       () async {
         injectedSnapshot = _snapshotFixture();
 
         await repository.signInWithKakao();
         await repository.signInWithNaver();
         await repository.signInWithLine();
-        await repository.signInWithYahoojp();
 
         final payloads = captureAllPayloads();
-        expect(payloads, hasLength(4), reason: '4 provider 모두 callable 호출');
+        expect(payloads, hasLength(3), reason: '3 provider 모두 callable 호출');
 
         final keySets = payloads
             .map(expectContractSnapshot)
@@ -474,7 +429,7 @@ void main() {
           expect(
             keySet,
             _serverContractKeys,
-            reason: 'provider 별 payload drift 차단 — 4 provider 동일 키 집합',
+            reason: 'provider 별 payload drift 차단 — 3 provider 동일 키 집합',
           );
         }
       },

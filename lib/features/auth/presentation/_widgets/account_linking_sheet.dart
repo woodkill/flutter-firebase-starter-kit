@@ -53,8 +53,8 @@ typedef ExistingProviderSignInCallback =
 /// 9. TextButton "다른 방식으로 로그인" — 탭 시 Navigator.pop(false) (D-03)
 /// 10. [Gap] lg (safe-area 하단)
 ///
-/// **D-02 single button assertion:** 7 BrandedSocialButton factory (Phase 13.3 +
-/// Phase 15 yahoojp) 중 정확히 1 개만 노출 — widget test W4 가 sentinel.
+/// **D-02 single button assertion:** 소셜 6 BrandedSocialButton factory
+/// (Phase 13.3) 중 정확히 1 개만 노출 — widget test W4 가 sentinel.
 ///
 /// **2단계 reactive 플로우 (Phase 16 Plan 16-19, CR-02 close):** CTA 는 더 이상
 /// 무조건 link 를 시도하지 않는다. 충돌 시점의 caller 는 정의상 미인증이거나
@@ -543,13 +543,12 @@ String _providerLabel(AppLocalizations l10n, AccountProvider provider) {
     AccountProvider.kakao => l10n.authAccountProviderKakao,
     AccountProvider.naver => l10n.authAccountProviderNaver,
     AccountProvider.line => l10n.authAccountProviderLine,
-    AccountProvider.yahoojp => l10n.authAccountProviderYahooJp,
   };
 }
 
 /// 단일 provider 강조 link 버튼 (D-02 single button).
 ///
-/// 8 [AccountProvider] 중 7 은 Phase 13.3 / Phase 15 의 [BrandedSocialButton]
+/// 7 [AccountProvider] 중 6 은 Phase 13.3 의 [BrandedSocialButton]
 /// factory 로 위임 (변경 0). `email` 만 native social 이 아니므로
 /// FilledButton fallback (이메일/비밀번호 진입 trigger) 으로 처리한다.
 class _BrandedLinkButton extends StatelessWidget {
@@ -594,10 +593,6 @@ class _BrandedLinkButton extends StatelessWidget {
         onPressed: onPressed,
       ),
       AccountProvider.line => BrandedSocialButton.line(
-        label: label,
-        onPressed: onPressed,
-      ),
-      AccountProvider.yahoojp => BrandedSocialButton.yahoojp(
         label: label,
         onPressed: onPressed,
       ),

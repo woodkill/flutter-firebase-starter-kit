@@ -212,13 +212,13 @@ void main() {
     });
   });
 
-  group('AccountLinkingSheet — W7 provider 8 variant smoke', () {
+  group('AccountLinkingSheet — W7 provider 7 variant smoke', () {
     for (final provider in AccountProvider.values) {
       testWidgets('${provider.name} → sheet 렌더링 성공 (no exception)', (
         tester,
       ) async {
         await _pumpAndShowSheet(tester, provider: provider);
-        // email 은 FilledButton fallback, 나머지 7 은 BrandedSocialButton
+        // email 은 FilledButton fallback, 나머지 6 은 BrandedSocialButton
         if (provider == AccountProvider.email) {
           expect(find.byType(FilledButton), findsAtLeast(1));
         } else {

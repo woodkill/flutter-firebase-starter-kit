@@ -22,7 +22,6 @@ import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -37,8 +36,6 @@ class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
 class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
@@ -57,7 +54,6 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
-  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockLookupCallable;
   late AuthRepository repository;
@@ -77,7 +73,6 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
-    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockLookupCallable = _MockHttpsCallable();
     fakeNow = DateTime.utc(2026, 5, 29, 10, 0, 0);
@@ -91,7 +86,6 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
-      mockYahoojpSdkClient,
       () async {},
       now: () => fakeNow,
     );
@@ -395,7 +389,6 @@ void main() {
           'kakao': AccountProvider.kakao,
           'naver': AccountProvider.naver,
           'line': AccountProvider.line,
-          'yahoojp': AccountProvider.yahoojp,
           'facebook': AccountProvider.facebook,
           'google': AccountProvider.google,
           'apple': AccountProvider.apple,
@@ -434,9 +427,9 @@ void main() {
       },
     );
 
-    test('CT-R2c: unknown slug(wechat) → existingProvider == null', () async {
+    test('CT-R2c: unknown slug → existingProvider == null', () async {
       final ex = await triggerCustomTokenExists(
-        details: <String, dynamic>{'existingProvider': 'wechat'},
+        details: <String, dynamic>{'existingProvider': 'unknown_slug_xyz'},
       );
       expect(ex.existingProvider, isNull);
     });

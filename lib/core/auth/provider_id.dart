@@ -1,7 +1,7 @@
 /// 인증 Provider 식별자 const String 상수 + 등록된 ID 리스트 (Phase 11 D-20).
 ///
 /// **도메인 ProviderId 는 단순 슬러그**: `google` / `apple` / `facebook` /
-/// `kakao` / `naver` / `line` / `yahoojp`. 모든 7 provider 가
+/// `kakao` / `naver` / `line`. [kAllProviderIds] 의 모든 provider 가
 /// 동일한 키 패턴을 공유하며, Strategy.providerId / Remote Config 키 prefix
 /// 모두 이 슬러그를 직접 사용한다 — [rcKeyForProvider] 가 단순 prefix 결합만
 /// 수행.
@@ -37,9 +37,6 @@ const String kProviderIdNaver = 'naver';
 /// LINE 로그인 식별자 (Custom Token).
 const String kProviderIdLine = 'line';
 
-/// Yahoo! JAPAN 로그인 식별자 (Custom Token).
-const String kProviderIdYahooJp = 'yahoojp';
-
 /// 등록된 모든 providerId 리스트.
 ///
 /// 정적 config 평탄화 / Strategy ↔ config 일치 assert (Phase 11-03) 의 기준점.
@@ -53,7 +50,6 @@ const List<String> kAllProviderIds = <String>[
   kProviderIdKakao,
   kProviderIdNaver,
   kProviderIdLine,
-  kProviderIdYahooJp,
 ];
 
 /// 주어진 providerId 의 Remote Config 매개변수 키.
@@ -70,9 +66,9 @@ String rcKeyForProvider(String providerId) =>
 /// 인증 식별자 + ARB key 매핑 enum — **소셜 ([kAllProviderIds]) + email**
 /// (Phase 9.2 deferred R1 부활).
 ///
-/// **IN-06 정정 (Phase 7 review):** 이전 문서는 "8 provider" 라고 적어
-/// [kAllProviderIds] (소셜 7) 와 어긋났고, 본 enum 만 email 을 포함해 8값
-/// 이라는 점이 혼동을 불렀다. 개수를 문장에 박는 대신 구성으로 표현하고
+/// **IN-06 정정 (Phase 7 review):** 이전 문서는 (당시) "8 provider" 라고 적어
+/// [kAllProviderIds] (당시 소셜 7) 와 어긋났고, 본 enum 만 email 을 포함해
+/// (당시) 8값이라는 점이 혼동을 불렀다. 개수를 문장에 박는 대신 구성으로 표현하고
 /// 목록 자체를 가리킨다 (`app_config.dart` 의 IN-04 정정 선례).
 ///
 /// **Phase 16 Task 4.1** — Phase 9.2 P-A-narrow 시점 deferred 되었던 R1 의
@@ -112,16 +108,13 @@ enum AccountProvider {
   naver,
 
   /// LINE 로그인 (Custom Token).
-  line,
-
-  /// Yahoo! JAPAN 로그인 (Custom Token).
-  yahoojp;
+  line;
 
   /// native provider (Firebase Auth 직접 연동) 여부 (Phase 16 16-08).
   ///
   /// `true` — google / apple / facebook / email (native:
   /// `linkWithCredential` 기반 reactive link arm 대상). `false` — Custom
-  /// Token 4값 (kakao / naver / line / yahoojp: `linkCustomTokenProvider`
+  /// Token 3값 (kakao / naver / line: `linkCustomTokenProvider`
   /// callable 기반, 16-09 책임). LoginScreen 의 sheet 분기 +
   /// 16-09 의 Custom Token sheet 분기가 본 getter 를 공유한다.
   /// (Phase 16.1 — 소셜 섹션을 함께 담던 구 가입 화면이 삭제되어 sheet
@@ -133,15 +126,14 @@ enum AccountProvider {
     AccountProvider.email => true,
     AccountProvider.kakao ||
     AccountProvider.naver ||
-    AccountProvider.line ||
-    AccountProvider.yahoojp => false,
+    AccountProvider.line => false,
   };
 
-  /// 도메인 slug 문자열 (`google` / `kakao` / `line` / `yahoojp` 등).
+  /// 도메인 slug 문자열 (`google` / `kakao` / `line` 등).
   ///
   /// [tryParse] 의 역변환 — [kProviderIdGoogle] 등 const String 슬러그와 1:1
   /// 일치한다. Phase 16 16-09 의 `linkCustomTokenProvider` callable 호출 시
-  /// `targetProvider` payload (kakao/line/yahoojp) 에 사용된다. [email] 은
+  /// `targetProvider` payload (kakao/line) 에 사용된다. [email] 은
   /// Firebase Auth `password` providerData 도메인이지만 본 getter 는 slug
   /// 형태 `email` 을 반환한다 ([tryParse] 의 `'email' || 'password'` 양방향과
   /// 대칭 — link callable 의 target 대상은 아님).
@@ -153,7 +145,6 @@ enum AccountProvider {
     AccountProvider.kakao => kProviderIdKakao,
     AccountProvider.naver => kProviderIdNaver,
     AccountProvider.line => kProviderIdLine,
-    AccountProvider.yahoojp => kProviderIdYahooJp,
   };
 
   /// AppLocalizations getter 이름 — `authAccountProvider{X}` ARB key.
@@ -170,7 +161,6 @@ enum AccountProvider {
     AccountProvider.kakao => 'authAccountProviderKakao',
     AccountProvider.naver => 'authAccountProviderNaver',
     AccountProvider.line => 'authAccountProviderLine',
-    AccountProvider.yahoojp => 'authAccountProviderYahooJp',
   };
 
   /// slug 문자열을 [AccountProvider] 로 안전 변환한다.
@@ -193,7 +183,6 @@ enum AccountProvider {
     kProviderIdKakao => AccountProvider.kakao,
     kProviderIdNaver => AccountProvider.naver,
     kProviderIdLine => AccountProvider.line,
-    kProviderIdYahooJp => AccountProvider.yahoojp,
     _ => null,
   };
 }

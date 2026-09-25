@@ -10,7 +10,6 @@ import '../google_sign_in_notifier.dart';
 import '../kakao_sign_in_notifier.dart';
 import '../line_sign_in_notifier.dart';
 import '../naver_sign_in_notifier.dart';
-import '../yahoojp_sign_in_notifier.dart';
 
 /// `Strategy.providerId` → 기존 `*SignInProvider` 매핑 helper
 /// (Phase 11 D-12, Pitfall 6 / corrections 3번).
@@ -45,15 +44,13 @@ ProviderListenable<AsyncValue<void>> resolveSocialProvider(String providerId) =>
       kProviderIdNaver => naverSignInProvider,
       // Phase 14 — see ROADMAP.md (SOCL-09 registry add-only 자동 통합).
       kProviderIdLine => lineSignInProvider,
-      // Phase 15 — see ROADMAP.md (SOCL-09 registry add-only 자동 통합).
-      kProviderIdYahooJp => yahoojpSignInProvider,
       _ => throw UnsupportedError('Unknown providerId: $providerId'),
     };
 
 /// 활성 소셜 Strategy 중 **하나라도** sign-in 진행 중이면 `true`
 /// (WR-08 — Phase 7 review).
 ///
-/// **도입 이유 (복제 제거):** 같은 7 provider `isLoading` 합산 목록이
+/// **도입 이유 (복제 제거):** 같은 6 provider `isLoading` 합산 목록이
 /// `social_sign_in_section` / `login_prompt_sheet` / `login_screen` **3곳에
 /// 복제**되어 있었다. 이 목록은 `SocialLinkInProgress` 의 bool 플래그
 /// (counter 아님) 가 동시 실행으로 깨지지 않게 막는 유일한 방어선이므로,

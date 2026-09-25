@@ -128,16 +128,9 @@ class SocialButton extends ConsumerWidget {
         // render + Plan 14-06 에서 active 전환 의무" 로 남아 있었으나 그
         // 전환은 이미 완료됐다. LineSpec / `_renderLineButton` 자상 active
         // 렌더이며 (LINE Corporation Login Button Design Guidelines verbatim),
-        // `_renderPlaceholder` 는 Phase 14 D-LINE-08 + Phase 16 폐기로
-        // caller 0 이 되어 제거됐다.
+        // `_renderPlaceholder` 는 Phase 14 D-LINE-08 로 caller 0 이 되어
+        // 제거됐다.
         return BrandedSocialButton.line(label: label, onPressed: onPressed);
-      case kProviderIdYahooJp:
-        // Phase 15 — see ROADMAP.md (SOCL-04 registry add-only 통합,
-        // D-YJP-07 신규 active 진입). YahoojpSpec / `_renderYahoojpButton` —
-        // 자상 (assets/brand/yahoojp/btn_signin_icon.svg, viewBox 0 0 64 36)
-        // + ARB authYahoojpSignIn 라벨 외부 layer + Universal Layout
-        // (height 48 / radius 12 / padding 12 / gap 8) + bg #FF0033.
-        return BrandedSocialButton.yahoojp(label: label, onPressed: onPressed);
       default:
         throw UnsupportedError('Unknown providerId: ${strategy.providerId}');
     }
@@ -163,7 +156,7 @@ class SocialButton extends ConsumerWidget {
   ///
   /// **placeholder 분기는 현재 존재하지 않는다 (IN-03 정정 — Phase 09
   /// review).** `_renderPlaceholder` 는 Phase 14 D-LINE-08 (LINE active 전환)
-  /// + Phase 16 폐기 (WeChat) 로 caller 0 이 되어 제거됐고, 등록된 provider 는
+  /// 로 caller 0 이 되어 제거됐고, 등록된 provider 는
   /// 전부 자상 commit 이 완료된 active 렌더다. 재도입 조건은
   /// `_brand_assets.dart` 의 `kPlaceholderProviders` docstring 참조.
   ///
@@ -182,11 +175,9 @@ class SocialButton extends ConsumerWidget {
     'authNaverSignIn' => l10n.authNaverSignIn,
     // Phase 14 — see ROADMAP.md (SOCL-03 LineAuthStrategy 통합).
     'authLineSignIn' => l10n.authLineSignIn,
-    // Phase 15 — see ROADMAP.md (SOCL-04 YahoojpAuthStrategy 통합, D-YJP-07).
-    'authYahoojpSignIn' => l10n.authYahoojpSignIn,
     // Phase 13.1 REVIEW WR-06 정정 (2026-05-10): default branch fail-soft
-    // (raw key 반환) → fail-loud (UnsupportedError). Phase 14 (LINE) /
-    // Phase 15 (Yahoo!JP) 진입 시 strategy 가 labelKey: 'authLineSignIn' 등을
+    // (raw key 반환) → fail-loud (UnsupportedError). Phase 14 (LINE)
+    // 진입 시 strategy 가 labelKey: 'authLineSignIn' 등을
     // 호출했을 때 본 switch 갱신 누락 시 raw ARB 키 ('authLineSignIn') 그대로
     // 사용자 노출 회귀 방지. 미래 provider 추가 시 본 switch 의 case 추가
     // 의무가 컴파일 / runtime 경계에서 명시되도록 강제.

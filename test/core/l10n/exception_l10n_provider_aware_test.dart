@@ -38,7 +38,7 @@ void main() {
   // L2: existingProvider == null → errorAccountExistsWithUnknownProvider (R2
   //     baseline 보존).
   group(
-    'resolveExceptionMessage — provider-aware variant (L1) — 8 provider',
+    'resolveExceptionMessage — provider-aware variant (L1) — 7 provider',
     () {
       testWidgets('Google → provider 라벨 포함', (tester) async {
         final result = await _resolve(
@@ -111,17 +111,6 @@ void main() {
         );
         // EN 라벨: "LINE"
         expect(result.toUpperCase(), contains('LINE'));
-      });
-
-      testWidgets('Yahoo!JP → provider 라벨 포함', (tester) async {
-        final result = await _resolve(
-          tester,
-          const AccountExistsWithDifferentCredential(
-            existingProvider: AccountProvider.yahoojp,
-          ),
-        );
-        // EN 라벨: "Yahoo! JAPAN"
-        expect(result, contains('Yahoo!'));
       });
     },
   );

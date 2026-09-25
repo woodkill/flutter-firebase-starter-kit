@@ -11,7 +11,7 @@
 //          reauthenticateWithCredential (signInWithCredential 0)
 //   RA-A*: Apple — reauthenticateWithProvider (signInWithProvider 0)
 //   RA-F*: Facebook — reauthenticateWithCredential
-//   RA-C*: Custom Token 4종 — callable 응답 uid 대조 후 signInWithCustomToken,
+//   RA-C*: Custom Token 3종 — callable 응답 uid 대조 후 signInWithCustomToken,
 //          서버 caller_identity_mismatch → ReauthUserMismatch
 //   RA-P*: 비밀번호 — 현재 계정 email 로 reauthenticateWithCredential
 //   RA-X*: 공통 가드 (익명 · 미로그인 · email provider 인자 · race-fix 1:1)
@@ -36,7 +36,6 @@ import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
-import 'package:flutter_starter_kit/features/auth/data/yahoojp_sdk_client.dart';
 
 import 'auth_test_fakes.dart';
 
@@ -69,8 +68,6 @@ class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
 
-class _MockYahoojpSdkClient extends Mock implements YahoojpSdkClient {}
-
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
@@ -92,7 +89,6 @@ void main() {
   late _MockKakaoSdkClient mockKakaoSdkClient;
   late _MockNaverSdkClient mockNaverSdkClient;
   late _MockLineSdkClient mockLineSdkClient;
-  late _MockYahoojpSdkClient mockYahoojpSdkClient;
   late _MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late _MockFbUser mockCurrentUser;
@@ -136,7 +132,6 @@ void main() {
     mockKakaoSdkClient = _MockKakaoSdkClient();
     mockNaverSdkClient = _MockNaverSdkClient();
     mockLineSdkClient = _MockLineSdkClient();
-    mockYahoojpSdkClient = _MockYahoojpSdkClient();
     mockFunctions = _MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
     mockCurrentUser = _MockFbUser();
@@ -151,7 +146,6 @@ void main() {
       mockFunctions,
       mockNaverSdkClient,
       mockLineSdkClient,
-      mockYahoojpSdkClient,
       () async {},
     );
 
@@ -195,7 +189,6 @@ void main() {
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
-    when(() => mockYahoojpSdkClient.logout()).thenAnswer((_) async {});
   });
 
   /// reload 뒤 서버 기준 사용자 — 현재 계정과 같은 uid, providerData 만 [infos].
@@ -536,19 +529,6 @@ void main() {
         verifyNever(() => mockAuth.signInWithCustomToken(any()));
       },
     );
-
-    test('RA-C4: Yahoo!JP — SDK 취소 → null, callable 0', () async {
-      when(() => mockYahoojpSdkClient.signIn()).thenAnswer((_) async => null);
-
-      final result = await repository.reauthenticate(AccountProvider.yahoojp);
-
-      expect(result, isNull);
-      verifyNever(
-        () =>
-            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
-      );
-      verify(() => mockYahoojpSdkClient.logout()).called(1);
-    });
   });
 
   group('RA-P — 비밀번호', () {

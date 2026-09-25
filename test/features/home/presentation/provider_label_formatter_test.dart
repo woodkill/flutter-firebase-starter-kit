@@ -143,11 +143,10 @@ void main() {
       expect(formatProviderIds(const ['kakao'], ko), '카카오');
     });
 
-    test('T-13-FORMATTER-NEW-01: 신규 3 매핑 (naver / line / yahoojp)', () {
+    test('T-13-FORMATTER-NEW-01: 신규 2 매핑 (naver / line)', () {
       // ko
       expect(formatProviderIds(const [kProviderIdNaver], ko), '네이버');
       expect(formatProviderIds(const [kProviderIdLine], ko), '라인');
-      expect(formatProviderIds(const [kProviderIdYahooJp], ko), 'Yahoo! JAPAN');
       // en
       expect(formatProviderIds(const [kProviderIdNaver], en), 'Naver');
       expect(formatProviderIds(const [kProviderIdLine], en), 'LINE');
@@ -177,19 +176,18 @@ void main() {
         'switch 에 매핑 (assert 자체는 throw 없이 통과)', () {
       // D-53 의 assert 는 kAllProviderIds 의 모든 slug 가 switch 의 knownIds
       // set 에 포함되는지 검증한다 (knownIds = google/apple/facebook/kakao/
-      // naver/line/yahoojp 7개 — kAllProviderIds 와 정확히 같은 set).
+      // naver/line 6개 — kAllProviderIds 와 정확히 같은 set).
       // assert 자체가 throw 없이 통과하면 contract drift 없음.
       expect(
         () => formatProviderIds(const [kProviderIdNaver], en),
         returnsNormally,
       );
-      // Custom Token slug 4개는 모두 switch 에 매핑되어 Localizable Unknown
-      // 으로 떨어지지 않는다 (kakao/naver/line/yahoojp).
+      // Custom Token slug 3개는 모두 switch 에 매핑되어 Localizable Unknown
+      // 으로 떨어지지 않는다 (kakao/naver/line).
       const customTokenSlugs = <String>[
         kProviderIdKakao,
         kProviderIdNaver,
         kProviderIdLine,
-        kProviderIdYahooJp,
       ];
       for (final id in customTokenSlugs) {
         final formatted = formatProviderIds(<String>[id], en);
@@ -228,7 +226,7 @@ void main() {
 
   group('kSupportedAuthProviderIds 컨트랙트 (Phase 13 D-53 갱신)', () {
     test('Phase 7~9 (4 native URI) + Phase 12 (kakao) + Phase 13 (naver) + '
-        'Phase 14~15 사전 등재 (line/yahoojp) — 총 8 IDs', () {
+        'Phase 14 사전 등재 (line) — 총 7 IDs', () {
       expect(
         kSupportedAuthProviderIds,
         equals(<String>{
@@ -241,16 +239,14 @@ void main() {
           kProviderIdKakao,
           kProviderIdNaver,
           kProviderIdLine,
-          kProviderIdYahooJp,
         }),
       );
     });
 
-    test('naver slug 가 set 에 등재 (Phase 13) + 총 8 원소 (Phase 14~15 사전 등재)', () {
+    test('naver slug 가 set 에 등재 (Phase 13) + 총 7 원소 (Phase 14 사전 등재)', () {
       expect(kSupportedAuthProviderIds.contains(kProviderIdNaver), isTrue);
       expect(kSupportedAuthProviderIds.contains(kProviderIdLine), isTrue);
-      expect(kSupportedAuthProviderIds.contains(kProviderIdYahooJp), isTrue);
-      expect(kSupportedAuthProviderIds.length, 8);
+      expect(kSupportedAuthProviderIds.length, 7);
     });
   });
 }

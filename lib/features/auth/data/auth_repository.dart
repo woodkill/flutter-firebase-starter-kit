@@ -27,7 +27,6 @@ import 'kakao_sdk_client.dart';
 import 'line_sdk_client.dart';
 import 'naver_sdk_client.dart';
 import 'naver_sign_in_result.dart';
-import 'yahoojp_sdk_client.dart';
 
 part 'auth_repository.g.dart';
 
@@ -51,9 +50,8 @@ part 'auth_repository.g.dart';
 /// 사용자 이메일·프로필·CDN URL 등을 실을 수 있고, `kDebugMode` 한정이라도
 /// 개발자 단말 logcat 에 남는다. 이전에는 4곳만 이 정책을 따르고 sign-in
 /// 7 경로 등 나머지는 `$e` 를 그대로 찍어 정책이 두 갈래였다.
-/// 같은 정책이 4 SDK wrapper (`kakao_sdk_client.dart` /
-/// `naver_sdk_client.dart` / `line_sdk_client.dart` /
-/// `yahoojp_sdk_client.dart`) 에도 동일 적용된다.
+/// 같은 정책이 3 SDK wrapper (`kakao_sdk_client.dart` /
+/// `naver_sdk_client.dart` / `line_sdk_client.dart`) 에도 동일 적용된다.
 class AuthRepository implements AnonymousSignIn {
   /// [AuthRepository]를 생성한다.
   ///
@@ -73,10 +71,6 @@ class AuthRepository implements AnonymousSignIn {
   /// [_lineSdkClient] 는 Phase 14 LINE 로그인 (Custom Token 방식) 을 위해
   /// 추가됐다 — flutter_line_sdk wrapper. Cloud Function 채널
   /// (`lineCustomToken`) 은 [_functions] 를 재사용한다.
-  ///
-  /// [_yahoojpSdkClient] 는 Phase 15 Yahoo!JP 로그인 (Custom Token 방식) 을
-  /// 위해 추가됐다 — flutter_appauth wrapper. Cloud Function 채널
-  /// (`yahoojpCustomToken`) 은 [_functions] 를 재사용한다.
   ///
   /// [_onResetOnboarding] 은 로그아웃 시 onboarding 완료 플래그를 false 로
   /// 되돌리는 콜백이다 (Phase 10.2 D-A2). OnboardingNotifier 타입을 직접
@@ -105,7 +99,6 @@ class AuthRepository implements AnonymousSignIn {
     this._functions,
     this._naverSdkClient,
     this._lineSdkClient,
-    this._yahoojpSdkClient,
     this._onResetOnboarding, {
     DateTime Function()? now,
     Map<String, dynamic>? Function()? readTermsAcceptanceSnapshot,
@@ -121,7 +114,6 @@ class AuthRepository implements AnonymousSignIn {
   final FirebaseFunctions _functions;
   final NaverSdkClient _naverSdkClient;
   final LineSdkClient _lineSdkClient;
-  final YahoojpSdkClient _yahoojpSdkClient;
   final Future<void> Function() _onResetOnboarding;
 
   /// device-local 약관 동의 snapshot 을 서버 계약 JSON 으로 읽는 콜백
@@ -164,10 +156,10 @@ class AuthRepository implements AnonymousSignIn {
   /// `lookupSignInMethods` callable 호출 타임아웃 — 5 초.
   static const Duration _kLookupTimeout = Duration(seconds: 5);
 
-  /// Custom Token sign-in callable (kakao/naver/line/yahoojp) 타임아웃
+  /// Custom Token sign-in callable (kakao/naver/line) 타임아웃
   /// — 10 초 (WR-10, `linkCustomTokenProvider` link arm 과 동일 값).
   ///
-  /// 4 callable 은 모두 race-fix try-finally 블록 안에서 await 된다. hang 시
+  /// 이 callable 들은 모두 race-fix try-finally 블록 안에서 await 된다. hang 시
   /// `_socialLinkInProgress.end()` 도 hang 하여 splash 의 자동 익명 sign-in
   /// 과 auth_guard GC-04 fail-safe redirect 가 무한 차단된다 (Phase 9.1 D-03
   /// race-fix 와 직접 충돌). 같은 논리로 이미 timeout 이 적용된 지점:
@@ -218,7 +210,7 @@ class AuthRepository implements AnonymousSignIn {
     } on Object catch (e, st) {
       // WR-06 (Phase 7 review): 비-Auth 예외 (PlatformException 등) 를 Result
       // 로 감싸 Notifier state 가 AsyncLoading 에 고정되는 것을 방지한다.
-      // 소셜 7 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
+      // 소셜 6 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
       // — 예외가 그대로 전파되면 LoginNotifier.submit 의
       // `state = switch (result)` 에 도달하지 못해 PrimaryCta 가 영구
       // 스피너/비활성으로 고정된다.
@@ -318,7 +310,7 @@ class AuthRepository implements AnonymousSignIn {
     } on Object catch (e, st) {
       // WR-06 (Phase 7 review): 비-Auth 예외 (PlatformException 등) 를 Result
       // 로 감싸 Notifier state 가 AsyncLoading 에 고정되는 것을 방지한다.
-      // 소셜 7 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
+      // 소셜 6 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
       // — 예외가 그대로 전파되면 LoginNotifier.submit 의
       // `state = switch (result)` 에 도달하지 못해 PrimaryCta 가 영구
       // 스피너/비활성으로 고정된다.
@@ -366,7 +358,7 @@ class AuthRepository implements AnonymousSignIn {
     try {
       _socialLinkInProgress.begin();
       final account = await _googleSignIn.authenticate();
-      // WR-01: idToken null/empty 가드 — Kakao/LINE/YJP Pitfall 1 mirror.
+      // WR-01: idToken null/empty 가드 — Kakao/LINE Pitfall 1 mirror.
       final credential = _googleCredentialOf(account);
 
       final anonymous = _auth.currentUser;
@@ -462,7 +454,7 @@ class AuthRepository implements AnonymousSignIn {
       );
     } on ServiceUnavailable catch (e) {
       // WR-01: [_googleCredentialOf] 의 idToken 가드 (serverClientId 미설정 등
-      // 설정 오류) — signInWithKakao/Naver/Line/Yahoojp 와 대칭으로 원본을
+      // 설정 오류) — signInWithKakao/Naver/Line 와 대칭으로 원본을
       // cause chain 으로 wrapping 하지 않고 그대로 보존.
       return Result.failure(e);
     } on Object catch (e, st) {
@@ -896,8 +888,8 @@ class AuthRepository implements AnonymousSignIn {
   /// 로그인" 이므로 reactive link arm 을 적용하지 않는다 — sheet 에서
   /// /login redirect (D-03 cancel 과 동일 복귀) 가 담당하고, 본 메서드는
   /// [ServiceUnavailable] Failure 로 재로그인 유도 신호를 반환한다. native
-  /// 실제 link 는 google/apple/facebook 3값 한정. Custom Token 4값
-  /// (kakao/naver/line/yahoojp) 은 16-09 책임.
+  /// 실제 link 는 google/apple/facebook 3값 한정. Custom Token 3값
+  /// (kakao/naver/line) 은 16-09 책임.
   ///
   /// 반환:
   /// - `Result.success(User)` — link 성공.
@@ -979,7 +971,7 @@ class AuthRepository implements AnonymousSignIn {
   /// 기존 [signInWithGoogle] / [signInWithApple] / [signInWithFacebook] 의
   /// SDK 호출부를 재사용하되 익명 승격 분기는 타지 않는다 (재인증 컨텍스트는
   /// 정식 사용자 currentUser 가 이미 존재함을 전제). [AccountProvider.email]
-  /// 및 Custom Token 4값은 호출처에서 사전 분기되므로 본 helper 에 도달하지
+  /// 및 Custom Token 3값은 호출처에서 사전 분기되므로 본 helper 에 도달하지
   /// 않는다 — exhaustive switch 의 잔여 case 는 `null` 로 graceful fallback.
   Future<fb.AuthCredential?> _reauthNativeCredential(
     AccountProvider existingProvider,
@@ -1018,7 +1010,6 @@ class AuthRepository implements AnonymousSignIn {
       case AccountProvider.kakao:
       case AccountProvider.naver:
       case AccountProvider.line:
-      case AccountProvider.yahoojp:
         // 호출처에서 사전 분기 — 도달하지 않음 (graceful null).
         return null;
     }
@@ -1229,7 +1220,7 @@ class AuthRepository implements AnonymousSignIn {
     };
   }
 
-  /// Custom Token provider (Kakao/LINE/YJP) reactive link arm (Phase 16 16-09).
+  /// Custom Token provider (Kakao/LINE) reactive link arm (Phase 16 16-09).
   ///
   /// Custom Token 계정 충돌 (account-exists) 직후 [AccountLinkingSheet] 에서
   /// 사용자가 기존-provider 버튼을 탭하면 본 메서드가 호출된다. 흐름
@@ -1237,8 +1228,8 @@ class AuthRepository implements AnonymousSignIn {
   /// 1. [SocialLinkInProgress.begin] (Phase 9.1 D-22 race-fix invariant) —
   ///    try-finally 로 [SocialLinkInProgress.end] 1:1 보장.
   /// 2. [targetProvider] 별 SDK signIn 으로 **target OIDC 토큰 fresh 재획득**
-  ///    (kakao→[KakaoSdkClient.signIn], line→[LineSdkClient.signIn],
-  ///    yahoojp→[YahoojpSdkClient.signIn]). 사용자 취소 (null) 시 `null` 반환
+  ///    (kakao→[KakaoSdkClient.signIn], line→[LineSdkClient.signIn]).
+  ///    사용자 취소 (null) 시 `null` 반환
   ///    (silent — linkedProviders 변경 0).
   /// 3. `_auth.currentUser.getIdToken(true /* forceRefresh */)` 로 caller
   ///    fresh ID Token 발급 (server-side auth_time 5분 boundary 통과 의무).
@@ -1257,7 +1248,7 @@ class AuthRepository implements AnonymousSignIn {
   /// button → Kakao SDK" 가 fresh 재획득을 전제). proactive arm 과 동일
   /// mechanism.
   ///
-  /// **targetProvider 제약:** kakao/line/yahoojp 만 허용한다 (naver/native 는
+  /// **targetProvider 제약:** kakao/line 만 허용한다 (naver/native 는
   /// deployed callable OIDC 미지원 — link_custom_token_provider.ts line 27~33
   /// verbatim, Naver-as-target reactive link 는 Phase 17+ carry-forward).
   /// 그 외 입력은 [ArgumentError] throw.
@@ -1288,14 +1279,13 @@ class AuthRepository implements AnonymousSignIn {
   Future<Result<User>?> linkCustomTokenProviderArm({
     required AccountProvider targetProvider,
   }) async {
-    // deployed callable 미지원 target 사전 차단 (kakao/line/yahoojp 만 허용).
+    // deployed callable 미지원 target 사전 차단 (kakao/line 만 허용).
     if (targetProvider != AccountProvider.kakao &&
-        targetProvider != AccountProvider.line &&
-        targetProvider != AccountProvider.yahoojp) {
+        targetProvider != AccountProvider.line) {
       throw ArgumentError.value(
         targetProvider,
         'targetProvider',
-        'linkCustomTokenProvider 는 kakao/line/yahoojp 만 지원 '
+        'linkCustomTokenProvider 는 kakao/line 만 지원 '
             '(naver/native deployed callable OIDC 미지원 — Phase 17+).',
       );
     }
@@ -1372,7 +1362,7 @@ class AuthRepository implements AnonymousSignIn {
       return Result.failure(_mapAuthException(e));
     } on ServiceUnavailable catch (e) {
       // target SDK 가 OIDC scope 누락 등으로 ServiceUnavailable throw — Kakao/
-      // LINE/YJP signIn 과 동일 시맨틱 (Pitfall 1).
+      // LINE signIn 과 동일 시맨틱 (Pitfall 1).
       return Result.failure(e);
     } on Object catch (e) {
       // PII invariant (T-16-09-02): code/runtimeType 만 — 토큰/email 본문 비포함.
@@ -1384,7 +1374,7 @@ class AuthRepository implements AnonymousSignIn {
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
-      // 1회성 토큰 정책 (signInWithKakao/Line/Yahoojp finally logout mirror) —
+      // 1회성 토큰 정책 (signInWithKakao/Line finally logout mirror) —
       // Pitfall 2 race-fix end 직전 위치.
       await _logoutTargetProvider(targetProvider);
       _socialLinkInProgress.end();
@@ -1394,8 +1384,8 @@ class AuthRepository implements AnonymousSignIn {
   /// [targetProvider] 별 SDK signIn 으로 target OIDC 토큰을 fresh 재획득한다
   /// (Phase 16 16-09). 사용자 취소 시 `null` 반환.
   ///
-  /// 반환 [_TargetProviderToken] 은 `{idToken, nonce}` 묶음 — 4 Custom Token
-  /// SDK 의 result 타입을 단일 인터페이스로 normalize 한다.
+  /// 반환 [_TargetProviderToken] 은 `{idToken, nonce}` 묶음 — target Custom
+  /// Token SDK 별 result 타입을 단일 인터페이스로 normalize 한다.
   Future<_TargetProviderToken?> _acquireTargetProviderToken(
     AccountProvider targetProvider,
   ) async {
@@ -1406,10 +1396,6 @@ class AuthRepository implements AnonymousSignIn {
         return _TargetProviderToken(result.idToken, result.nonce);
       case AccountProvider.line:
         final result = await _lineSdkClient.signIn();
-        if (result == null) return null;
-        return _TargetProviderToken(result.idToken, result.nonce);
-      case AccountProvider.yahoojp:
-        final result = await _yahoojpSdkClient.signIn();
         if (result == null) return null;
         return _TargetProviderToken(result.idToken, result.nonce);
       case AccountProvider.google:
@@ -1432,8 +1418,6 @@ class AuthRepository implements AnonymousSignIn {
         await _kakaoSdkClient.logout();
       case AccountProvider.line:
         await _lineSdkClient.logout();
-      case AccountProvider.yahoojp:
-        await _yahoojpSdkClient.logout();
       case AccountProvider.google:
       case AccountProvider.apple:
       case AccountProvider.facebook:
@@ -1604,7 +1588,7 @@ class AuthRepository implements AnonymousSignIn {
       );
       // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉한다.
       // base 키(1-tap `accessToken` · 웹 `code`+`state`) 가 다른 것은 provider
-      // 계약 차이이며 snapshot 부착 방식은 4 provider 동일하다.
+      // 계약 차이이며 snapshot 부착 방식은 3 provider 동일하다.
       final response = await callable.call<Map<String, dynamic>>(
         _buildCustomTokenPayload(request.payload),
       );
@@ -1755,119 +1739,6 @@ class AuthRepository implements AnonymousSignIn {
     }
   }
 
-  /// Yahoo!JP OIDC + Firebase Custom Token 로그인 흐름 (Phase 15 D-YJP-01~22).
-  ///
-  /// Phase 14 [signInWithLine] 직접 mirror + 6 deviation (D-YJP-04/09 + race-fix +
-  /// endSession 1회성 + clientId ctor 주입 + scope openid+profile + Cloud
-  /// Function name `yahoojpCustomToken`).
-  ///
-  /// 흐름:
-  /// 1. race-fix begin (Pitfall 8 — try-finally 단일 진실원)
-  /// 2. [YahoojpSdkClient.signIn] (flutter_appauth
-  ///    `authorizeAndExchangeCode` — ASWebAuthenticationSession iOS / Custom
-  ///    Tabs Android, OIDC PKCE 자동, idToken + raw nonce 반환)
-  /// 3. [FirebaseFunctions.httpsCallable] `yahoojpCustomToken` 호출 — 본 plan
-  ///    의 Cloud Function 이 jose 검증 + nonce raw 비교 (nonceHashing=none) +
-  ///    Identity Index lookup + `createCustomToken` (Plan 15-02)
-  /// 4. [fb.FirebaseAuth.signInWithCustomToken] → Firebase Auth 세션 시작
-  /// 5. [_mapFirebaseUser] → 도메인 [User]
-  /// 6. finally: [_yahoojpSdkClient.logout] (D-YJP-08 — Pitfall 2 race-fix end
-  ///    직전 위치, endSession endpoint 미명시 시 graceful no-op) +
-  ///    [SocialLinkInProgress.end]
-  ///
-  /// 에러 매핑 (Phase 14 LINE path 와 100% 대칭):
-  /// - [YahoojpSdkClient.signIn] 가 null 반환 (사용자 취소 silent —
-  ///   FlutterAppAuthUserCancelledException → null, D-YJP-09) → null.
-  /// - [FirebaseFunctionsException] → [_mapFunctionsException]
-  ///   (`already-exists` 분기는 Phase 12.1 D-34 에서
-  ///   [AccountExistsWithDifferentCredential] 자동 흡수)
-  /// - [fb.FirebaseAuthException] → [_mapAuthException]
-  /// - [ServiceUnavailable] (YahoojpSdkClient 가 OIDC scope 누락 — Pitfall 1 /
-  ///   clientId 빈 문자열 — T-15-15) → 그대로 Failure 재패키징
-  /// - 그 외 → [ServiceUnavailable(cause: e)] + [kDebugMode] [debugPrint]
-  ///
-  /// **race-fix invariant (Phase 9.1 D-03 / Pitfall 8):** body 전체 try-finally
-  /// 로 감싸 진입 직후 [SocialLinkInProgress.begin] / 종료 시
-  /// [SocialLinkInProgress.end] 호출. Strategy 단계 추가 호출 절대 금지.
-  ///
-  /// **D-YJP-08 호출 대칭성 — 단 토큰 폐기는 미지원 (WR-03 정정):** 모든
-  /// path 에서 finally logout 을 호출하는 **호출 형태** 만 Kakao / Naver /
-  /// LINE 과 같다. Yahoo!JP 는 RP-Initiated Logout endpoint 를 공개하지
-  /// 않아 [YahoojpSdkClient.logout] 이 구조적 no-op 이므로 **실제 토큰
-  /// 폐기는 일어나지 않는다** — 본 provider 는 D-57 계열 invariant 를
-  /// 만족하지 못한다. 상세와 재도입 진입점은 [YahoojpSdkClient.logout] 문서
-  /// 참조.
-  ///
-  /// **D-YJP-09 정정 lock — email scope 미채택:** Yahoo!JP UserInfo API 審査
-  /// 절차 회피를 위해 scope openid+profile 만 채택. Firebase Auth user record
-  /// 의 email 필드가 비어 있어 [_autoSendEmailVerification] 내부의
-  /// `email.isEmpty` 가드가 자연 no-op 처리 (IN-02 — 라인 번호 인용 폐기,
-  /// 심볼 참조로 대체; LINE D-LINE-21 동일 mechanism).
-  ///
-  /// Returns null = 사용자 취소 silent.
-  Future<Result<User>?> signInWithYahoojp() async {
-    try {
-      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
-
-      final result = await _yahoojpSdkClient.signIn();
-      if (result == null) {
-        return null; // D-YJP-09 silent cancel
-      }
-
-      final callable = _functions.httpsCallable(
-        'yahoojpCustomToken',
-        options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
-      );
-      // G-16-A9-1 / D-13: device-local 약관 동의를 add-only 로 동봉해 서버가
-      // identity 생성과 같은 write 안에서 termsAccepted 를 mirror 하게 한다.
-      final response = await callable.call<Map<String, dynamic>>(
-        _buildCustomTokenPayload(<String, dynamic>{
-          'idToken': result.idToken,
-          'nonce': result.nonce,
-        }),
-      );
-      final customToken = response.data['customToken'] as String?;
-      if (customToken == null) {
-        return const Result.failure(ServiceUnavailable());
-      }
-
-      final userCredential = await _auth.signInWithCustomToken(customToken);
-      final fbUser = userCredential.user;
-      if (fbUser == null) {
-        return const Result.failure(ServiceUnavailable());
-      }
-      // (Phase 9.2 R4) 자동 sendEmailVerification — Yahoo!JP 는 D-YJP-09 정정
-      // lock (scope openid+profile 만) 으로 Firebase Auth user record 의
-      // email 필드가 비어 있어 [_autoSendEmailVerification] 내부의
-      // `email.isEmpty` 가드가 자연 no-op 처리 (IN-02 — 라인 번호 인용
-      // 폐기; Phase 14 LINE 과 동일 mechanism — D-LINE-21 직접 mirror).
-      await _autoSendEmailVerification(userCredential);
-      return Result.success(_mapFirebaseUser(fbUser));
-    } on FirebaseFunctionsException catch (e) {
-      // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
-      return Result.failure(_mapFunctionsException(e));
-    } on fb.FirebaseAuthException catch (e) {
-      return Result.failure(_mapAuthException(e));
-    } on ServiceUnavailable catch (e) {
-      // signInWithKakao/Naver/Line 와 대칭 — YahoojpSdkClient 가 OIDC scope
-      // 누락 (Pitfall 1) / clientId 빈 문자열 (T-15-15) / SDK 내부
-      // ServiceUnavailable throw 시 원본을 cause chain 으로 wrapping 하지
-      // 않고 그대로 보존.
-      return Result.failure(e);
-    } on Object catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('signInWithYahoojp 비-Auth 예외: ${e.runtimeType}\n$st');
-      }
-      return Result.failure(ServiceUnavailable(cause: e));
-    } finally {
-      // D-YJP-08: 호출 대칭성만 유지 — WR-03 정정. Yahoo!JP 는 endSession
-      // endpoint 미공개로 logout() 이 구조적 no-op 이며 Kakao/Naver/LINE 의
-      // 실효 토큰 폐기와 동등하지 않다. Pitfall 2 — race-fix end 직전 위치.
-      await _yahoojpSdkClient.logout();
-      _socialLinkInProgress.end();
-    }
-  }
-
   /// 기존 provider 로 로그인한다 — reactive 시트 step 1 디스패처
   /// (Phase 16 Plan 16-19).
   ///
@@ -1920,11 +1791,10 @@ class AuthRepository implements AnonymousSignIn {
       // step 1 로그인과는 무관하다.
       AccountProvider.naver => signInWithNaver(),
       AccountProvider.line => signInWithLine(),
-      AccountProvider.yahoojp => signInWithYahoojp(),
       AccountProvider.email => throw ArgumentError.value(
         provider,
         'provider',
-        'signInWithExistingProvider 는 소셜 7 provider 만 지원 '
+        'signInWithExistingProvider 는 소셜 6 provider 만 지원 '
             '(email 은 비밀번호 입력 화면이 필요해 sheet 에서 처리 불가 — '
             '호출처가 /login 으로 분기).',
       ),
@@ -1995,11 +1865,7 @@ class AuthRepository implements AnonymousSignIn {
         ),
         AccountProvider.kakao ||
         AccountProvider.naver ||
-        AccountProvider.line ||
-        AccountProvider.yahoojp => await _reauthWithCustomToken(
-          provider,
-          current,
-        ),
+        AccountProvider.line => await _reauthWithCustomToken(provider, current),
         // 위에서 ArgumentError 로 차단 — 도달하지 않는다.
         AccountProvider.email => null,
       };
@@ -2033,7 +1899,7 @@ class AuthRepository implements AnonymousSignIn {
       }
       return Result.failure(ServiceUnavailable(cause: e));
     } finally {
-      // 1회성 토큰 정책 (signInWith{Kakao,Naver,Line,Yahoojp} finally mirror).
+      // 1회성 토큰 정책 (signInWith{Kakao,Naver,Line} finally mirror).
       await _logoutCustomTokenSdk(provider);
       _socialLinkInProgress.end();
     }
@@ -2247,17 +2113,6 @@ class AuthRepository implements AnonymousSignIn {
           },
           timeout: _kCustomTokenTimeout,
         );
-      case AccountProvider.yahoojp:
-        final result = await _yahoojpSdkClient.signIn();
-        if (result == null) return null;
-        return (
-          callableName: 'yahoojpCustomToken',
-          payload: <String, dynamic>{
-            'idToken': result.idToken,
-            'nonce': result.nonce,
-          },
-          timeout: _kCustomTokenTimeout,
-        );
       case AccountProvider.google:
       case AccountProvider.apple:
       case AccountProvider.facebook:
@@ -2304,8 +2159,6 @@ class AuthRepository implements AnonymousSignIn {
         await _naverSdkClient.logout();
       case AccountProvider.line:
         await _lineSdkClient.logout();
-      case AccountProvider.yahoojp:
-        await _yahoojpSdkClient.logout();
       case AccountProvider.google:
       case AccountProvider.apple:
       case AccountProvider.facebook:
@@ -2407,9 +2260,9 @@ class AuthRepository implements AnonymousSignIn {
   ///    정책 (disk 실패 시 Crashlytics 기록 후 graceful 진행).
   /// 2. [signOut] — Firebase Auth + 등록된 소셜 SDK 순차 logout (Phase 9.2
   ///    R6 invariant). IN-02 정정 (Phase 7 review): 이전 문서는 "5 SDK
-  ///    (Google/Facebook/Kakao/Naver/LINE)" 로 적어 Yahoo!JP 증분 추가를
+  ///    (Google/Facebook/Kakao/Naver/LINE)" 로 적어 이후 provider 증분 추가를
   ///    반영하지 못했다. 개수를 문장에 박지 말고 [signOut] 구현을 진실원
-  ///    으로 본다 (Yahoo!JP 는 endpoint 미공개로 실효 폐기 없음 — WR-03).
+  ///    으로 본다.
   ///
   /// 호출 후 navigation 명시 호출은 불필요하다. authStateChanges →
   /// AuthRefresh → resolveAuthRedirect 분기 (2) 가 `!isAuthenticated &&
@@ -2497,7 +2350,7 @@ class AuthRepository implements AnonymousSignIn {
   /// - Apple / Google — idToken 의 `email_verified=true` claim
   /// - Kakao / Naver — Cloud Function `identity_index.ts` 가
   ///   `emailVerified: true` 자동 set
-  /// - LINE / Yahoo!JP — email scope 미채택 (D-LINE-21 / D-YJP-09) 으로
+  /// - LINE — email scope 미채택 (D-LINE-21) 으로
   ///   user record 의 email 이 비어 있어 아래 `email.isEmpty` 가드가 차단
   ///
   /// 따라서 **실효적 발송은 Facebook 경로 하나**다.
@@ -2675,15 +2528,6 @@ class AuthRepository implements AnonymousSignIn {
         debugPrint('LineSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
       }
     }
-    // Yahoo!JP — 호출 형태만 Kakao/Naver/LINE 과 일관 (Phase 15 D-YJP-08).
-    // WR-03: endSession endpoint 미공개로 실제 세션 해제는 일어나지 않는다.
-    try {
-      await _yahoojpSdkClient.logout();
-    } on Object catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('YahoojpSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
-      }
-    }
     // WR-07 (Phase 7 review): 계정 경계에서 PII (평문 email key) 잔류 차단 +
     // stale existingProvider 응답 차단. [_accountExistsCache] 는 평문 이메일을
     // key 로 보유하는 in-memory map 이고 [AuthRepository] 는
@@ -2709,7 +2553,7 @@ class AuthRepository implements AnonymousSignIn {
     } on Object catch (e, st) {
       // WR-06 (Phase 7 review): 비-Auth 예외 (PlatformException 등) 를 Result
       // 로 감싸 Notifier state 가 AsyncLoading 에 고정되는 것을 방지한다.
-      // 소셜 7 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
+      // 소셜 6 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
       // — 예외가 그대로 전파되면 LoginNotifier.submit 의
       // `state = switch (result)` 에 도달하지 못해 PrimaryCta 가 영구
       // 스피너/비활성으로 고정된다.
@@ -2738,7 +2582,7 @@ class AuthRepository implements AnonymousSignIn {
     } on Object catch (e, st) {
       // WR-06 (Phase 7 review): 비-Auth 예외 (PlatformException 등) 를 Result
       // 로 감싸 Notifier state 가 AsyncLoading 에 고정되는 것을 방지한다.
-      // 소셜 7 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
+      // 소셜 6 경로 / [reloadUser] 가 이미 갖고 있는 방어의 email 계열 mirror
       // — 예외가 그대로 전파되면 LoginNotifier.submit 의
       // `state = switch (result)` 에 도달하지 못해 PrimaryCta 가 영구
       // 스피너/비활성으로 고정된다.
@@ -2872,14 +2716,14 @@ class AuthRepository implements AnonymousSignIn {
   /// 부착한다 (Phase 16 G-16-A9-1 / D-13).
   ///
   /// **회귀 invariant (add-only):** device-local 동의가 없어 reader 가 null 을
-  /// 반환하면 [base] 를 그대로 반환한다 — 4 provider 의 기존 payload 키 집합이
+  /// 반환하면 [base] 를 그대로 반환한다 — 3 provider 의 기존 payload 키 집합이
   /// 한 글자도 바뀌지 않는다. 서버 arg 도 optional 이므로 본 helper 호출만
   /// 되돌리면 완전 복귀한다.
   ///
   /// **서버 계약:** 부착 값의 키 집합은
   /// `functions/src/shared/terms_acceptance_json.ts` 의 `TermsAcceptanceJson`
   /// 5 키 (version / service / privacy / marketing / acceptedAt) 와 정확히
-  /// 일치해야 한다. 4 endpoint (kakao/naver/line/yahoojp) 가 이를 optional 로
+  /// 일치해야 한다. 3 provider endpoint (kakao/naver/line) 가 이를 optional 로
   /// 수신해 `users/{uid}` 문서 생성과 같은 write 안에서 mirror 한다.
   ///
   /// **`acceptedAt` 은 UTC ISO 8601 String (`Z` 접미) 이어야 한다.** 서버가
@@ -2988,7 +2832,7 @@ class AuthRepository implements AnonymousSignIn {
   /// `operationInProgress`) 이다. 이전 구현은 `status != success` 를 전부
   /// "사용자 취소" 로 흡수해 `failed` (토큰 오류 / 네트워크 / 앱 설정 오류)
   /// 와 `operationInProgress` 에서도 **화면에 아무 일도 일어나지 않았다**.
-  /// Kakao / LINE / Yahoo!JP 가 비-취소 오류를 [ServiceUnavailable] 로
+  /// Kakao / LINE 이 비-취소 오류를 [ServiceUnavailable] 로
   /// 승격하는 규칙과 대칭을 맞춘다.
   ///
   /// `status == success` 인데 [LoginResult.accessToken] 이 null 인 경우도
@@ -3110,9 +2954,9 @@ class AuthRepository implements AnonymousSignIn {
   /// 그 결과 상위 `on Object catch` 가 설정 오류를 "일시적 서비스 불가" 로
   /// 오안내한다.
   ///
-  /// Kakao (`kakao_sdk_client.dart` Pitfall 1) / LINE / Yahoo!JP 가 이미
+  /// Kakao (`kakao_sdk_client.dart` Pitfall 1) / LINE 이 이미
   /// 갖고 있는 `idToken == null || isEmpty` → [ServiceUnavailable] 가드를
-  /// mirror 하여 OIDC 4 provider 의 규칙을 통일한다. Google 3 호출 지점
+  /// mirror 하여 OIDC 3 provider 의 규칙을 통일한다. Google 3 호출 지점
   /// ([signInWithGoogle] / [_reauthNativeCredential] / [linkGoogleCredential])
   /// 이 본 helper 를 공유한다.
   ///
@@ -3264,7 +3108,7 @@ typedef _CustomTokenCallableRequest = ({
 
 /// Custom Token target provider 의 OIDC 토큰 + nonce 묶음 (Phase 16 16-09).
 ///
-/// [KakaoSignInResult] / [LineSignInResult] / [YahoojpSignInResult] 의 `idToken`
+/// [KakaoSignInResult] / [LineSignInResult] 의 `idToken`
 /// + `nonce` 를 단일 인터페이스로 normalize 하여
 /// [AuthRepository.linkCustomTokenProviderArm] 가 provider-agnostic 하게
 /// callable payload 를 구성하도록 한다.
@@ -3274,7 +3118,7 @@ class _TargetProviderToken {
   /// target provider OIDC ID Token — deployed callable `targetProviderToken`.
   final String idToken;
 
-  /// 단일 사용 raw nonce — deployed callable `nonce` (3 provider 모두 의무).
+  /// 단일 사용 raw nonce — deployed callable `nonce` (2 provider 모두 의무).
   final String nonce;
 }
 
@@ -3331,8 +3175,6 @@ AuthRepository authRepository(Ref ref) {
     ref.watch(naverSdkClientProvider),
     // Phase 14 — see ROADMAP.md (LINE Custom Token wrapper).
     ref.watch(lineSdkClientProvider),
-    // Phase 15 — see ROADMAP.md (Yahoo!JP Custom Token wrapper).
-    ref.watch(yahoojpSdkClientProvider),
     // Phase 10.2 D-A2: cross-feature 결합도 최소화를 위한 callback 주입.
     // OnboardingNotifier 타입은 본 factory 영역에서만 알며,
     // AuthRepository 클래스 본체는 콜백 signature 만 의존한다.
@@ -3445,7 +3287,7 @@ User? currentUser(Ref ref) {
 ///   generator 를 종료하지 않고 backoff (5s→60s 상한) 후 재구독한다. 본
 ///   provider 는 `keepAlive` 라 종료 시 앱 재시작 전까지 재구독이 없어,
 ///   일시적 `unavailable` 한 번으로 세션 내내 linkedProviders 가 빈 배열에
-///   고정되고 [currentUser] 합집합이 Custom Token 4 provider 를 영구
+///   고정되고 [currentUser] 합집합이 Custom Token provider 전부를 영구
 ///   누락했다.
 /// - I4 (Type-safe parsing): 기존 [Iterable.whereType] 필터로 invalid entry
 ///   를 자동 제거 (T-12-06-05).
