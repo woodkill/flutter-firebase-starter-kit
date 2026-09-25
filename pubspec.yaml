@@ -162,10 +162,6 @@ flutter:
     # assets/brand/facebook/LICENSE.txt 참조 (Phase 13.2 REVIEW WR-03 정정).
     - assets/brand/facebook/
     - assets/brand/line/
-    # Phase 15 D-YJP-07 — Yahoo!JP brand asset 디렉토리. Plan 15-01 (Wave 0)
-    # 의 `.placeholder` sentinel 등록 후 Plan 15-04 (Wave 1) 사용자 verbatim
-    # sign-off 시 공식 자상으로 대체 의무.
-    - assets/brand/yahoojp/
 
   # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Inter Medium (SIL Open Font License
   # 1.1, github.com/rsms/inter v4.1) Android/Linux test env fallback font for

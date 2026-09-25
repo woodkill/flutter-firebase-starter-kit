@@ -8,8 +8,8 @@
 /// 적었으나 **사실이 아니다.** `branded_social_button.dart` 에서 본 상수가
 /// 등장하는 곳은 주석 2줄뿐이고, `build()` 는 sealed [BrandSpec] **타입**
 /// 으로만 분기한다. 실제 fallback 렌더러 `_renderPlaceholder` 는 Phase 14
-/// (LINE active 전환) + Phase 16 (WeChat 폐기) 을 거치며 caller 0 이 되어
-/// 폐기됐다.
+/// (LINE active 전환) 과 이후 마지막 placeholder 해제를 거치며 caller 0 이
+/// 되어 폐기됐다.
 ///
 /// 더 위험했던 것은 확장 절차 서술이다. 이전 문서는 "신규 provider 진입 시
 /// 본 list 에 슬러그 추가 의무" 라고 지시했는데, **유일한 소비자인
@@ -29,8 +29,8 @@
 /// **slugs:** `lib/core/auth/provider_id.dart` 의 provider slug 와 일관.
 /// 본 list 는 const 으로 string 직접 — 빌드 시점 import cycle 회피
 /// (lint test 가 lib/ 내 다른 const 의존하지 않음).
-// Phase 14 D-LINE-13: LINE sentinel 해제 (`['line', 'wechat']` → `['wechat']`).
-// Phase 16 폐기 (2026-05-22): WeChat sentinel 해제 (`['wechat']` → `<String>[]`).
+// Phase 14 D-LINE-13: LINE sentinel 해제 — 이후 마지막 placeholder 해제로
+// 목록이 비었다.
 const List<String> kPlaceholderProviders = <String>[];
 
 /// Brand asset 디렉토리 base path — `assets/brand`.
