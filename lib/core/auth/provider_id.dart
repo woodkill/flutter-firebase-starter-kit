@@ -15,7 +15,8 @@
 ///
 /// **Firebase Auth providerId (`'google.com'` 등) 와는 분리.** `User.providerData`
 /// 가 노출하는 OAuth URI 형식은 우리 도메인 식별자가 아니라 Firebase 가
-/// 자체적으로 반환하는 외부 형식이다. URI ↔ slug 간 매핑이 필요한 곳은
+/// 자체적으로 반환하는 외부 형식이다. URI → enum 변환은
+/// [AccountProvider.tryParse] 한 곳이 맡고 (Phase 16.7), 표시 라벨 변환은
 /// [provider_label_formatter] 등 boundary 에서만 처리한다.
 library;
 
@@ -175,10 +176,17 @@ enum AccountProvider {
   /// 으로 허용하므로 동일 상수를 공유한다. `'email'` / `'password'` 만
   /// 리터럴로 남긴다 — 전자는 [slug] 와 짝을 이루는 도메인 리터럴,
   /// 후자는 Firebase Auth `providerData` 의 외부 계약 문자열이다.
+  ///
+  /// **Phase 16.7 D-05:** native provider 의 URI(`'google.com'` 등)도 같은
+  /// 지위의 리터럴로 함께 인식한다 — Firebase `providerData.providerId` 가
+  /// 돌려주는 외부 계약 문자열이라 `'password'` 와 같다. `User.providerIds`
+  /// 는 URI 와 slug 가 섞여 있으므로, 표시 정렬(`provider_label_formatter`)
+  /// · 계정 연결 섹션 · 재인증 수단 계산이 URI ↔ slug 변환을 모두 본 메서드
+  /// 하나로 처리한다.
   static AccountProvider? tryParse(String? slug) => switch (slug) {
-    kProviderIdGoogle => AccountProvider.google,
-    kProviderIdApple => AccountProvider.apple,
-    kProviderIdFacebook => AccountProvider.facebook,
+    kProviderIdGoogle || 'google.com' => AccountProvider.google,
+    kProviderIdApple || 'apple.com' => AccountProvider.apple,
+    kProviderIdFacebook || 'facebook.com' => AccountProvider.facebook,
     'email' || 'password' => AccountProvider.email,
     kProviderIdKakao => AccountProvider.kakao,
     kProviderIdNaver => AccountProvider.naver,

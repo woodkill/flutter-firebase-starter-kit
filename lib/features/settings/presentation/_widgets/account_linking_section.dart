@@ -239,19 +239,14 @@ class AccountLinkingSection extends ConsumerWidget {
 ///
 /// **두 형식 공존 (Phase 12 D-16):** native 3 provider 는 Firebase Auth URI
 /// 형식 (`google.com` / `apple.com` / `facebook.com`), Custom Token provider
-/// 는 도메인 slug (`kakao` / `naver` / `line`). [AccountProvider.tryParse]
-/// 는 slug + `password` 만 인식하므로 URI 형식은 본 함수가 별도 매핑한다.
+/// 는 도메인 slug (`kakao` / `naver` / `line`). URI · slug 모두
+/// [AccountProvider.tryParse] 가 인식한다 (Phase 16.7 — 매핑 단일화).
 /// `password`(email) 는 소셜이 아니므로 제외한다 (mockup §0 email EXCLUDE).
 Set<AccountProvider> _linkedSocialProviders(List<String>? providerIds) {
   if (providerIds == null) return const <AccountProvider>{};
   final result = <AccountProvider>{};
   for (final id in providerIds) {
-    final provider = switch (id) {
-      'google.com' => AccountProvider.google,
-      'apple.com' => AccountProvider.apple,
-      'facebook.com' => AccountProvider.facebook,
-      _ => AccountProvider.tryParse(id),
-    };
+    final provider = AccountProvider.tryParse(id);
     // email(=password slug) 은 소셜 아님 → 제외 (mockup §0).
     if (provider != null && provider != AccountProvider.email) {
       result.add(provider);

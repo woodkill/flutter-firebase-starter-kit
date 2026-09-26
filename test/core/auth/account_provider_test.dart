@@ -62,6 +62,15 @@ void main() {
       expect(AccountProvider.tryParse('line'), AccountProvider.line);
     });
 
+    test('Firebase URI 3종 → enum (Phase 16.7 D-05)', () {
+      expect(AccountProvider.tryParse('google.com'), AccountProvider.google);
+      expect(AccountProvider.tryParse('apple.com'), AccountProvider.apple);
+      expect(
+        AccountProvider.tryParse('facebook.com'),
+        AccountProvider.facebook,
+      );
+    });
+
     test('알 수 없는 slug 는 null 반환 (unknown fallback)', () {
       expect(AccountProvider.tryParse('unknown'), isNull);
       expect(AccountProvider.tryParse(''), isNull);

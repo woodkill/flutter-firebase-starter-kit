@@ -22,22 +22,16 @@ typedef ReauthMethods = ({List<AuthStrategy> strategies, bool hasPassword});
 ///
 /// `User.providerIds` 는 native URI 형식(`google.com` · `apple.com` ·
 /// `facebook.com` · `password`) 과 Custom Token slug(`kakao` 등) 의
-/// 합집합이다 (`currentUserProvider` D-16). URI 매핑은 계정 연결 섹션
-/// (`account_linking_section.dart` `_linkedSocialProviders`) 과 같은 규칙이며,
-/// 재인증은 `password` 도 수단이라 제외하지 않는다. [user] 가 null 이면 수단
-/// 0 이다.
+/// 합집합이다 (`currentUserProvider` D-16). URI · slug 모두
+/// [AccountProvider.tryParse] 가 인식한다 (Phase 16.7 — 매핑 단일화). 재인증은
+/// `password` 도 수단이라 제외하지 않는다. [user] 가 null 이면 수단 0 이다.
 ReauthMethods resolveReauthMethods(
   User? user,
   List<AuthStrategy> activeStrategies,
 ) {
   final linked = <AccountProvider>{
     for (final providerId in user?.providerIds ?? const <String>[])
-      ?switch (providerId) {
-        'google.com' => AccountProvider.google,
-        'apple.com' => AccountProvider.apple,
-        'facebook.com' => AccountProvider.facebook,
-        _ => AccountProvider.tryParse(providerId),
-      },
+      ?AccountProvider.tryParse(providerId),
   };
   return (
     strategies: <AuthStrategy>[
