@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-09-26
-phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록)]
+last_updated: 2026-09-27
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -2515,6 +2515,42 @@ Home AppBar → Icons.settings tap → /settings route
 
 **확인 방법:** 두 끝을 모두 본다 — 한쪽만 보면 사이 wiring 누락을 놓친다. (1) Firebase Console > Firestore `users/{uid}` 문서에 `signUpProviderId` 가 가입한 수단 값으로 있는지, (2) 같은 계정으로 앱의 홈 계정정보 카드와 설정 「내 계정」 에 가입 수단 · 연결된 계정이 그 값대로 보이는지. 이어서 설정에서 다른 provider 를 연결하고 그 수단으로 재로그인해도 (1) 의 값이 바뀌지 않아야 한다. Admin 으로 원장을 바꾼 직후에는 기기 캐시가 옛 값을 보일 수 있으니 재로그인 뒤 대조한다. 예: 합성 사용자 `uid = test-uid-0001` 이 Kakao 로 가입했다면 문서는 `signUpProviderId: "kakao"` 이고 홈 카드는 가입 수단 = 카카오 · 연결된 계정 = 없음이다.
 
+### 계정 연결 해제 (Phase 16.8)
+
+**동작:** 설정 「내 계정」 의 「연결된 계정」 값에 나열된 provider 이름 가운데 **밑줄이 있는 이름은 해제 버튼**이고, **밑줄 없는 일반 글자는 해제할 수 없는 이름**이다 — 버튼인지 아닌지가 곧 해제 가능 여부다(스크린 리더는 버튼을 「{provider} 연결 해제」 로 읽는다). 이름을 누르면 「{provider} 연결을 해제할까요?」 다이얼로그가 본문 「해제하면 {provider} 계정으로 로그인할 수 없습니다.」 와 「취소」 · 「해제」 두 버튼으로 뜬다. 「해제」 를 누르면 다이얼로그가 닫히지 않은 채 두 버튼이 비활성되고 본문 아래 스피너가 돌다가(이 동안 back · 바깥 탭으로 닫히지 않는다) 결과가 오면 닫힌다. 성공하면 「{provider} 계정 연결이 해제되었습니다」 SnackBar 가 뜨고, 그 provider 가 「연결된 계정」 에서 빠지며 「계정 연결」 섹션에 「{provider} 연결」 버튼이 다시 나타난다. 실패는 원인별 SnackBar 다 — 「로그인 수단이 하나뿐이라 연결을 해제할 수 없습니다.」 · 「이미 연결이 해제된 계정입니다.」 · 「네트워크 또는 서비스 오류로 연결을 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.」 · 「연결 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.」. 홈 계정정보 카드의 「연결된 계정」 은 **보기 전용**이라 해제 버튼이 없다. 해제 전 재인증은 요구하지 않는다 — Firebase 가 최근 로그인을 요구하는 작업은 계정 삭제 · 기본 이메일 변경 · 비밀번호 변경이고 unlink 는 여기에 없으며, 해제는 계정에 새 접근 권한을 주지 않고 가입 수단이 남아 언제든 다시 연결할 수 있기 때문이다(D-06). 지금 로그인에 쓴 수단도 해제할 수 있다 — 현재 세션은 유지되고 다음 로그인부터 그 수단을 쓸 수 없다(D-02).
+
+**해제 가능 규칙:** 이름을 밑줄 버튼으로 그릴지는 `canUnlinkProvider`(`lib/features/settings/application/unlink_eligibility.dart`) 한 함수가 정하고, 아래 세 조건이 모두 참일 때만 버튼이다. (1) 가입 수단 기록이 있다(`signUpProviderId` non-null) — 로그인 직후 첫 emit 전이나 Firestore 읽기 실패 fallback 동안은 가입 수단이 연결된 계정 목록에 섞여 있을 수 있으므로 전부 일반 글자다(D-05). (2) 로그인 수단(`User.providerIds`)이 2개 이상이다 — 1개뿐이면 그 행 전체가 일반 글자다(D-03). (3) id 를 식별할 수 있다(`AccountProvider.tryParse` non-null) — 알 수 없는 값은 해제 경로와 문구를 정할 수 없어 일반 글자이고, 한 행에 버튼과 일반 글자가 섞이는 경우는 이 조건에서만 생긴다(D-11). 「연결 가능한 provider 목록」 은 조건에 없다 — 「연결된 계정」 에 나타난 provider 는 어느 것이든 같은 규칙을 탄다. 그래서 지금은 연결 경로가 없는 Naver 도 연결이 생기면 이 함수를 고치지 않고 해제 대상이 된다(D-04 · D-19). 설정 화면의 span 빌더 `buildUnlinkableLinkedAccountsValue` 와 `SettingsNotifier` 는 `canUnlinkProvider` 에 위임만 한다.
+
+**경로:** `SettingsNotifier.unlinkProvider` 가 `AccountProvider.isNative` 로 한 번 분기한다(provider 별 switch 없음). **native (Google · Apple · Facebook)** — 클라이언트 `AuthRepository.unlinkNativeProvider` 가 Firebase `User.unlink(providerId)` 를 부른 뒤 `reload()` 한다. native 연결은 Firestore 에 사본이 없으므로 서버 호출도 Firestore write 도 없다. **Custom Token (Kakao · LINE)** — `AuthRepository.unlinkCustomTokenProvider` 가 callable `unlinkCustomTokenProvider({provider})`(`functions/src/auth/unlink_custom_token_provider.ts` · App Check 필수 · 익명 caller 거부)를 부르고 `{ok: true}` 를 받으면 `reload()` 한다. 서버는 한 transaction 에서 세 항목만 지운다 — `identity_index/{provider}:{providerUserId}` 문서 · `users/{uid}.linkedProviders` 의 그 provider 항목 · `users/{uid}.providerLinkedAt.<provider>` 키. transaction 안에서 후보 `identity_index` 문서와 `users/{uid}` 를 먼저 모두 다시 읽어 소유 여부와 남은 로그인 수단을 다시 세므로, 두 기기에서 동시에 해제해도 수단이 0 이 되지 않는다. 남은 수단은 서버가 Admin `providerData` ∪ 내 소유 `identity_index` 로만 센다 — 클라이언트가 쓸 수 있는 `linkedProviders` 배열은 정리 대상일 뿐 판정에 쓰지 않는다. 입력은 provider 슬러그 하나뿐이고(uid 는 `request.auth.uid`, 문서 id 입력 없음), 서버 로그는 `{event, uid, provider, 계수}` 만 남긴다(provider sub · 이메일 없음).
+
+**불변식:** (1) **가입 수단은 해제할 수 없다.** 가입 수단은 `splitAccountProviders` 가 「연결된 계정」 목록에서 이미 빼고 「가입 수단」 값에 일반 글자로 보이므로 해제 버튼 자체가 없다 — 가입 수단을 없애는 방법은 회원탈퇴뿐이다(D-01). (2) **해제는 `signUpProviderId` 를 쓰지 않는다.** native 경로와 CT callable 모두 읽기만 하고 write 는 0 이다(unit · Jest 로 고정). 그래서 해제 뒤에도 「가입 수단」 은 그대로다. (3) **마지막 로그인 수단은 해제할 수 없다.** 클라이언트는 위 규칙 (2) 로 버튼을 그리지 않고, Custom Token 은 서버가 한 번 더 거부한다(`failed-precondition` · `details.reason: 'last_credential'` → 「로그인 수단이 하나뿐이라 연결을 해제할 수 없습니다.」). native 는 클라이언트가 Firebase 를 직접 부르므로 서버 가드가 없다 — 이 앱 UI 로는 그 상태에 닿을 수 없고, 다른 클라이언트나 Admin 경로가 수단 0 을 만드는 경우는 킷 방어 범위 밖이다(D-03 · D-22).
+
+**한계:** 해제는 **킷 쪽 연결만** 끊는다 — Firebase Auth 의 provider 연결과 위 Firestore 세 항목이다. provider 쪽 앱 연결 끊기와 토큰 폐기 요청은 하지 않는다: Kakao 연결 끊기 API · Google disconnect · Facebook 권한 삭제 · Apple token revoke · LINE revoke 모두 호출하지 않는다. 그래서 해제한 뒤에도 사용자의 Kakao · Google 등 계정 설정에는 이 앱이 연결된 앱으로 남을 수 있다. 회원탈퇴도 현재 같은 수준이다. Kakao 는 서비스 탈퇴 과정에 연결 끊기 요청을 포함하라고 요구하므로 provider 측 끊기는 todo `2026-09-26-withdrawal-provider-side-disconnect.md` 에서 탈퇴와 함께 다루고, 해제에도 적용할지는 그때 정한다(D-08 · D-09).
+
+**해제 후 같은 provider 로 다시 로그인하면:** 결과는 provider 종류가 아니라 **그 provider 가 알려 주는 이메일**로 갈린다(D-21). 해제는 Firebase 계정에 저장된 `email` 을 지우지 않고, Firebase 는 이메일 하나에 계정 하나만 허용하기 때문이다. 「해제하면 완전히 남남(새 계정)」 으로 만드는 방법은 회원탈퇴뿐이다.
+
+| 해제한 provider 가 주는 이메일 | 결과 |
+|---|---|
+| 남은 계정의 이메일과 **같음** | **새 계정이 생기지 않는다.** 로그인 화면에 기존 계정 안내 시트가 뜬다 — 「이 이메일은 {provider}로 가입되어 있습니다. {provider}로 로그인하여 계정을 연결하세요.」({provider} = 기존 계정의 수단). 시트 버튼으로 기존 수단에 로그인한다. 기존 수단이 Custom Token 이면 로그인 뒤 「{provider} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 계정 연결에서 추가할 수 있습니다.」 안내가 뜨고, 해제했던 provider 는 **자동으로 다시 붙지 않는다** — 설정 「계정 연결」 에서 다시 연결한다. 기존 수단이 native(Google · Apple · Facebook)이고 시트가 방금 받은 자격증명을 넘겨받은 경우(예: Google 재로그인)에는 기존 수단으로 본인 확인한 뒤 해제했던 provider 가 바로 다시 연결된다. 기존 수단이 이메일이면 이메일 로그인 화면으로 간다. 시트를 닫으면 게스트 상태가 유지되고 새 계정은 없다. |
+| **다르거나 없음** | **새 계정이 생긴다** — 로그인하던 게스트(익명) 계정이 그 provider 로 가입한 계정으로 바뀌고(가입 수단 = 그 provider), 원래 계정과는 무관하다. 이메일을 주지 않는 예: Kakao 일반 앱(비즈 앱 전환 전) · LINE(킷이 현재 email scope 를 요청하지 않는다 — todo `2026-09-27-line-email-scope-support.md` · D-23). **귀결:** 원래 계정으로 돌아와 설정에서 그 provider 를 다시 연결하면 그 신원이 새 계정에 묶여 있어 거부된다(Custom Token 은 callable `already-exists` → 「이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.」). 다시 연결하려면 **새 계정으로 로그인해 회원탈퇴한 뒤** 원래 계정에서 연결한다. |
+
+Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 위 두 행 규칙을 그대로 따른다 — 서버 쪽 동작은 Jest `functions/test/auth/identity_index.test.ts` 의 「resolveIdentity Phase 16.8 D-21」 M1~M4 가 고정한다.
+
+**provider 를 추가 · 제거할 때:**
+
+- **Custom Token provider** — 해제 callable 은 편집 0 이다. `CUSTOM_TOKEN_PROVIDER_PRIORITY`(`functions/src/auth/identity_index.ts`) 목록에 슬러그가 있으면 해제 대상이고, 목록에서 빼면 그 슬러그 요청은 `invalid-argument` 로 거부된다. 목록을 바꾸면 `unlinkCustomTokenProvider` 도 재배포 대상에 넣는다. Naver 는 지금 연결 경로가 없어 「연결된 계정」 에 나타나지 않지만, 연결이 생기면(todo `2026-09-26-naver-account-linking-support.md` · D-20) 해제는 목록에 이미 있는 `naver` 로 자동 동작한다 — 클라이언트 `canUnlinkProvider` 도 목록을 보지 않는다.
+- **native provider** — 해제 쪽 편집 0 이다. `AccountProvider.isNative` 가 경로를 정하므로, 새 provider 가 `AccountProvider` 에 native 로 등록되면(위 「가입 수단 기록」 절의 표시 쪽 할 일) 해제는 `User.unlink` 경로를 탄다.
+- **문구** — ARB 키 `settingsUnlinkProviderSemantic` · `settingsUnlinkDialogTitle` · `settingsUnlinkDialogBody` · `settingsUnlinkConfirmAction` · `accountUnlinkSucceededSnackbar` · `settingsUnlinkFailedLastCredential` · `settingsUnlinkFailedAlreadyUnlinked` · `settingsUnlinkFailedTransient` · `settingsUnlinkFailedUnknown` 를 3 locale(ko · en · ja) 함께 바꾼다. 다이얼로그 제목 · 본문 · 버튼 라벨을 바꾸면 설정 · 해제 다이얼로그 golden(`test/features/settings/presentation/goldens/`)과 widget test 의 문구 단언이 먼저 red 가 된다.
+
+**확인 방법:** 두 끝을 모두 본다. (1) 화면 — 설정 「연결된 계정」 에서 해제한 provider 이름이 빠지고 「계정 연결」 섹션에 「{provider} 연결」 버튼이 다시 보이는지, 홈 계정정보 카드도 같은 목록인지, 「가입 수단」 은 그대로인지. (2) 원장 — native 는 Identity Toolkit `accounts:lookup` 응답의 `providerUserInfo` 에서 그 provider 가 빠졌는지(Firebase Console > Authentication 의 사용자 행 provider 표시도 같다). Custom Token 은 Firestore `users/{uid}.linkedProviders` 에서 그 항목이, `providerLinkedAt` 에서 그 키가 빠졌는지와 `identity_index` 에서 `firebaseUid == <uid>` 이고 `provider == <slug>` 인 문서가 0 건인지. 서버 로그에는 성공 때 `unlink_custom_token_provider_succeeded`(`removedIdentityCount` · `removedLinkedEntryCount`)가 남는다. 앱 자신의 해제는 `reload()` 로 화면이 바로 바뀌지만, Admin(Console · 스크립트)으로 원장을 바꾼 직후에는 기기가 캐시된 옛 provider 목록을 보일 수 있으니 앱 재시작이나 재로그인 뒤 대조한다.
+
+**커스터마이징:**
+
+- **해제 전 재인증을 요구하려면** — Custom Token 은 callable 의 Step 1(익명 거부) 뒤에 `assertFreshAuth(decoded.auth_time)`(`functions/src/shared/reauth.ts`)를 넣고, 요청에 `idToken` 인자를 추가해 `getAuth().verifyIdToken(idToken, true)` 로 decode 한다(`functions/src/auth/link_custom_token_provider.ts` 의 Step 1 과 같은 모양). 클라이언트 wrapper `AuthRepository.unlinkCustomTokenProvider` 도 새로 받은 ID token 을 실어 보내야 한다. 서버가 `unauthenticated` · `permission-denied` 로 거부하면 wrapper 가 `ReauthenticationRequiredException` 으로 바꾸고, 설정 화면의 재로그인 분기(「보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.」 → 로그인 화면)가 이미 받는다. native 는 Firebase 가 `requires-recent-login` 을 돌려주면 같은 분기로 온다. 킷 기본값은 재인증 없음이다(D-06).
+- **해제 가능 규칙을 바꾸려면** — `canUnlinkProvider` 한 곳과 그 테스트 `test/features/settings/application/unlink_eligibility_test.dart` 를 함께 고친다. 예를 들어 「로그인 수단이 1개여도 허용」 으로 바꾸면 EL2 가 red 가 되고, Custom Token 서버의 `last_credential` 거부도 같이 바꿔야 실제로 해제된다.
+- **진행 표시를 바꾸려면** — `UnlinkConfirmationDialog`(`lib/features/settings/presentation/_widgets/unlink_confirmation_dialog.dart`)의 로컬 상태 `_busy`(두 버튼 비활성 · 본문 아래 스피너 · 처리 중 `PopScope` 로 닫힘 차단)다. 계정 연결의 진행 상태와는 공유하지 않는다.
+- **결과 안내를 바꾸려면** — 설정 화면 `_onUnlinkPressed` 가 `AccountUnlinkOutcome` 값별로 SnackBar · 재로그인 이동을 정한다. 다이얼로그는 결과를 돌려주기만 한다.
+
 ### Phase 17 deferred — Storage cascade
 
 본 Phase 16 의 `deleteUserAccount` Cloud Function 은 다음을 삭제한다:
@@ -4468,7 +4504,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-25 | quick 260925-r1f | 「약관 동의 서버 기록 (Custom Token provider — Phase 16 G-16-A9-1)」 절의 stale 문단 재작성 — 옛 문단(2026-09-07 `518902f9`)이 37분 뒤 `6e24873a`(WR-01) 의 `isNewUser` 게이트를 반영하지 않아 서버 mirror 동작 · 재동의 시각 갱신 주체 · 권장 커스터마이징 방향이 코드와 반대였다. 「기본 동작(3 경로 `if (termsSnapshot && isNewUser)` · 재동의는 클라이언트 `force: true`)」 · 「잔여 위험(첫 등록 스냅샷 부재 · 검증 실패 · mirror 실패 후 재시도 → 클라이언트 재동의 게이트가 채울 때까지 `termsAccepted` 부재, 기록 시각은 재동의 시각)」 · 「커스터마이징(매 로그인 반영은 `&& isNewUser` 제거 + 다중 사용자 기기 덮어쓰기 대가 + Jest C3 갱신)」 3 문단으로 교체, 「확인 방법」 (b) 첫 등록 기준 + (c) 추가 + 이벤트 식별 규칙 정정(`_mirrored` 이벤트는 세 경우 모두 없음 · (c) 는 `_mirror_failed` · (a)/(b) 는 `providerLinkedAt`), 「mirror 실패」 문단을 신규 등록 요청 한정 + 재시도 결과로 정밀화. 근거: Phase 16.6 plan 10 SUMMARY 「Issues Encountered」 첫 bullet. |
 | 2026-09-25 | quick 260925-u0f | 「약관 동의 서버 기록 (Custom Token provider — Phase 16 G-16-A9-1)」 절 후속 정정 2건 — (1) 「백필 정책」 문단의 과장 정정: 이 수정 이전 가입자의 서버 기록이 영구 부재라는 서술을, 기기 로컬 값은 정식 사용자의 약관 게이트를 통과시키지 못해 다음 콜드 스타트 · 로그인에서 「잔여 위험」 의 클라이언트 재동의 게이트가 재동의 시각으로 채운다는 사실로 교체(adopter 결정은 돌아오지 않은 사용자의 처리와 재동의 시각 인정 여부 · 「사용자 커스터마이징 포인트」 참조 방향 위→아래 정정 · 자동 백필 없음 · 1회성 관리자 작업 · 법무 자문 의무는 유지) · (2) 「커스터마이징」 문단에 반대 방향 한 줄 추가: 최초 동의 시각을 불변 audit 으로 남겨야 하면 검증된 스냅샷을 `resolveIdentity` 신규 등록 transaction 의 `users/{uid}` merge write 에 함께 쓰는 방법(신원 등록과 원자적 · 사후 mirror 블록 제거 · `_mirror_failed` 이벤트 소멸로 「확인 방법」 (c) 흡수 · 킷 기본값 아님). 근거: `.planning/quick/260925-r1f-fix-stale-terms-mirror-manual-paragraph/260925-r1f-SUMMARY.md` 「Deferred / 관찰」. |
 | 2026-09-26 | 16.7-09 | Phase 16.7 가입 수단 · 연결된 계정 분리 반영 — 「가입 수단 기록 (Phase 16.7)」 절 신설(「약관 동의 서버 기록」 절 뒤: 필드 `users/{uid}.signUpProviderId` · 값 형식 7종 · 기록 지점 2곳(native = 클라이언트 `SignUpMethodRecorder` 콜백 · call site 4곳 · `unawaited` · CT = `resolveIdentity` 신규 등록 tx) · 「가입」 정의 표(D-14) · 약관 mirror 선행 순서(D-19 · D-29) · fallback(D-11 「-」 + 연결 = 전부 · D-12) · 위조 한계(WR-12 · 표시 전용 · 서버 판단 미사용 · Phase 18) · provider 추가/제거 때 할 일 · 확인 방법) · stale 2곳 정정(`linkedProvidersStream` race 절의 옛 카드 이름 → 「가입 수단」 · 「연결된 계정」 카드 + D-11 fallback 표시 · Kakao UAT 4단계 확인 문구 → 「가입 수단: 카카오」 · 「연결된 계정: 없음」) · 「Custom Token Provider 제거 가이드」 3-⑥ 잔존 데이터 계수에 `users.signUpProviderId == <slug>` 추가 |
+| 2026-09-27 | 16.8-06 | Phase 16.8 연결된 계정 해제 반영 — 「계정 연결 해제 (Phase 16.8)」 절 신설(「가입 수단 기록 (Phase 16.7)」 절 뒤 · 9 문단 + 표 1: 동작(밑줄 이름 = 해제 · 일반 글자 = 불가 · 확인 다이얼로그 · 「{provider} 연결」 버튼 재등장 · 홈 보기 전용 · 재인증 없음 D-06) · 해제 가능 규칙(`canUnlinkProvider` 3조건 · 연결 가능 목록 비의존) · 경로(native `User.unlink` + `reload` / CT callable `unlinkCustomTokenProvider` 한 transaction 3항목 삭제 · 서버 재계수) · 불변식(가입 수단 불가 = 회원탈퇴만 · `signUpProviderId` write 0 · 마지막 수단 불가) · 한계(provider 측 끊기 · 토큰 폐기 0 → todo) · 해제 후 재로그인 표(D-21 같은 이메일 → 기존 계정 안내 시트 / 다르거나 없음 → 새 계정 → 원 계정 재연결은 새 계정 탈퇴 뒤) · provider 추가/제거 때 할 일 · 확인 방법(화면 + 원장) · 커스터마이징(재인증 · 규칙 · 진행 표시 · 결과 안내)) |
 
 ---
 
-*Last updated: 2026-09-26 — 16.7-09 가입 수단 기록 절 신설 · stale 2곳 정정 · 제거 가이드 3-⑥ 항목 추가*
+*Last updated: 2026-09-27 — 16.8-06 계정 연결 해제 절 신설*
