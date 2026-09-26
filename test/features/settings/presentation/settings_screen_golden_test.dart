@@ -40,6 +40,7 @@ import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dar
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/home/presentation/provider_label_formatter.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -257,6 +258,39 @@ int _relaidLineCount(RenderParagraph rp) {
   return count;
 }
 
+/// [rp] 가 실제 렌더된 줄 수 — 같은 제약 · maxLines · ellipsis 로 재배치해 센다.
+///
+/// [RenderParagraph] 는 줄 metric 을 노출하지 않으므로 [TextPainter] 로 같은
+/// 조건을 재현한다 (mockup harness `_paragraphFacts` 와 같은 계산).
+int _renderedLineCount(RenderParagraph rp) {
+  final painter = TextPainter(
+    text: rp.text,
+    textDirection: rp.textDirection,
+    textScaler: rp.textScaler,
+    locale: rp.locale,
+    strutStyle: rp.strutStyle,
+    textWidthBasis: rp.textWidthBasis,
+    textHeightBehavior: rp.textHeightBehavior,
+    maxLines: rp.maxLines,
+    ellipsis: rp.overflow == TextOverflow.ellipsis ? '…' : null,
+  )..layout(maxWidth: rp.constraints.maxWidth);
+  final count = painter.computeLineMetrics().length;
+  painter.dispose();
+  return count;
+}
+
+/// 「이메일」 행 [ListTile] finder — leading `Icons.alternate_email` 의 조상.
+Finder _emailTile() => find.ancestor(
+  of: find.byIcon(Icons.alternate_email),
+  matching: find.byType(ListTile),
+);
+
+/// 「가입 수단」 행 [ListTile] finder — leading `Icons.how_to_reg` 의 조상.
+Finder _signUpTile() => find.ancestor(
+  of: find.byIcon(Icons.how_to_reg),
+  matching: find.byType(ListTile),
+);
+
 /// 「연결된 계정」 행 [ListTile] finder — leading `Icons.link` 의 조상.
 Finder _linkedTile() =>
     find.ancestor(of: find.byIcon(Icons.link), matching: find.byType(ListTile));
@@ -359,6 +393,79 @@ void main() {
           expect(layout.rows.last.last, isNot(endsWith(',')));
           final expected = _expectedLinkedLines[lang]!;
           expect(layout.lines, worst ? expected.$1 : expected.$2);
+        });
+      }
+    }
+  });
+
+  group('Phase 16.7 설정 가입 수단 값 — 1줄 가드 (D-04 개정 (R1) · 단언 10)', () {
+    // 지원 provider 전부 + 미지 값 1개 + 기록 없음 — 집합을 순회하고 provider
+    // 별 분기 · 하드코딩 라벨을 두지 않는다 (D-27). 새 provider 라벨이 값 폭을
+    // 넘으면 이 가드가 실패한다. 폰트 로드 harness 안에서만 의미가 있다 —
+    // flutter_test 기본 Ahem 이면 en 라벨이 거짓 실패한다.
+    final values = <String?>[...kSupportedAuthProviderIds, 'twitter.com', null];
+
+    for (final lang in <String>['ko', 'en', 'ja']) {
+      for (final width in <double>[280, 360]) {
+        testWidgets('가입 수단 값 1줄 가드 — $lang ${width.toInt()}', (tester) async {
+          final l10n = lookupAppLocalizations(Locale(lang));
+          var isTitleChecked = false;
+          for (final id in values) {
+            await _pumpSettings(
+              tester,
+              user: _fixtureUser(lang, signUpProviderId: id),
+              locale: Locale(lang),
+              brightness: Brightness.light,
+              width: width,
+            );
+            final combo = '$lang ${width.toInt()} $id';
+            expect(tester.takeException(), isNull, reason: 'overflow $combo');
+
+            // 기대 라벨 = production 과 같은 helper (null → '-' · 미지 값 →
+            // errorUnknownProvider).
+            final label = formatProviderIds(
+              id == null ? const <String>[] : <String>[id],
+              l10n,
+            );
+            final value = find.descendant(
+              of: _signUpTile(),
+              matching: find.text(label),
+            );
+            expect(value, findsOneWidget, reason: 'value $combo');
+            final rp = tester.renderObject<RenderParagraph>(value);
+            expect(_renderedLineCount(rp), 1, reason: 'guard-lines $combo');
+            expect(rp.didExceedMaxLines, isFalse, reason: 'ellipsis $combo');
+            expect(
+              tester.getSize(_signUpTile()).height,
+              closeTo(72, 0.5),
+              reason: 'row-height $combo',
+            );
+            if (id == 'twitter.com') {
+              expect(label, l10n.errorUnknownProvider);
+              expect(find.textContaining('twitter'), findsNothing);
+            }
+            if (id == null) expect(label, '-');
+
+            // 제목 3개 한 줄 — 280 렌더에서 케이스당 1회.
+            if (width == 280 && !isTitleChecked) {
+              isTitleChecked = true;
+              final titles = <(Finder, String)>[
+                (_emailTile(), l10n.authAccountEmail),
+                (_signUpTile(), l10n.authAccountSignUpMethod),
+                (_linkedTile(), l10n.authAccountLinkedAccounts),
+              ];
+              for (final (tile, title) in titles) {
+                final titleRp = tester.renderObject<RenderParagraph>(
+                  find.descendant(of: tile, matching: find.text(title)),
+                );
+                expect(
+                  _renderedLineCount(titleRp),
+                  1,
+                  reason: 'title-lines $lang $title',
+                );
+              }
+            }
+          }
         });
       }
     }
