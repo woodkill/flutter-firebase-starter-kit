@@ -21,6 +21,15 @@
 // **fixture 갱신:** `fvm flutter test --update-goldens <this file>` 후 산출
 // PNG 를 `cmp` 로 adopted 와 대조한다. 불일치면 adopted 를 덮어쓰지 말고
 // 원인(구현 트리 · harness 조건 차이)을 먼저 찾는다.
+//
+// **Phase 16.8 (Plan 16.8-01 Task 2):** 설정 golden fixture = W5(가입 naver +
+// 보유 6 — 도달 가능 최악)로 바꾸고 채택안 `mockups/adopted_settings_16_8_ko_280_
+// worst_{light,dark}.png` 와 대조한다. 해제 확인 다이얼로그 golden 2장(ko 280 ·
+// Facebook)은 같은 harness 에서 production 탭 경로(밑줄 이름 → 다이얼로그)로
+// 열어 `adopted_unlink_dialog_ko_280_facebook_{light,dark}.png` 와 대조한다.
+// D-13 — 해제 버튼 ≥ 24×24 dp · `labeledTapTargetGuideline` ·
+// `textContrastGuideline` (Android 48dp guideline 은 inline 예외라 걸지 않는다 ·
+// UI-SPEC Q6-A). 16.7 줄바꿈 단언 · 가입 수단 1줄 가드는 보유 7 fixture 그대로.
 
 import 'dart:async';
 import 'dart:io';
@@ -66,6 +75,17 @@ const List<AuthStrategy> _sixStrategies = <AuthStrategy>[
   LineAuthStrategy(),
 ];
 
+/// Phase 16.8 W5 — 가입 naver + 연결 5 (도달 가능 최악 · UI-SPEC §Golden
+/// 캡처 계약 fixture verbatim 순서).
+const List<String> _w5ProviderIds = <String>[
+  'google.com',
+  'apple.com',
+  'facebook.com',
+  'kakao',
+  'line',
+  'naver',
+];
+
 /// 보유 provider 7종 전부 — UI-SPEC fixture 표 verbatim 순서.
 const List<String> _allProviderIds = <String>[
   'google.com',
@@ -94,15 +114,19 @@ const Map<String, (int, int)> _expectedLinkedLines = <String, (int, int)>{
 };
 
 /// UI-SPEC fixture — 가입 수단 [signUpProviderId](null = D-11 기록 없음) ·
-/// 보유 provider 7종.
-User _fixtureUser(String lang, {required String? signUpProviderId}) {
+/// 보유 provider [providerIds] (기본 7종 · Phase 16.8 golden 은 [_w5ProviderIds]).
+User _fixtureUser(
+  String lang, {
+  required String? signUpProviderId,
+  List<String> providerIds = _allProviderIds,
+}) {
   return User(
     uid: 'Xy7Qa2Lm9Rt4Wz8Kp1Nc5Vb3Hd6',
     email: 'me@example.com',
     emailVerified: true,
     displayName: _displayNames[lang],
     createdAt: DateTime.utc(2026, 9, 26, 12),
-    providerIds: _allProviderIds,
+    providerIds: providerIds,
     signUpProviderId: signUpProviderId,
   );
 }
@@ -301,15 +325,17 @@ Finder _linkedTile() =>
 /// 값 문단(subtitle `Text.rich`)은 WidgetSpan 자리표시를 품어 [TextPainter] 로
 /// 재배치할 수 없다 — 줄 수는 항목을 기준선 y 로 묶은 줄 수다. 제목은 별도
 /// `Text` 이고 값 문단에는 행 라벨 prefix 가 없으므로 보정하지 않는다 (R1).
+///
+/// 바깥 문단은 `ListTile.subtitle` 위젯 identity 로 특정한다 — Phase 16.8 의
+/// 해제 버튼 항목도 `Text.rich` 라 위젯 술어로는 단일 특정 불가 (채택 harness
+/// `_linkedLayout` 과 같은 기준).
 ({int lines, List<String> items, List<List<String>> rows, int innerWrap})
 _linkedValueLayout(WidgetTester tester) {
-  final outer = find.descendant(
-    of: _linkedTile(),
-    matching: find.byWidgetPredicate((w) => w is Text && w.textSpan != null),
-  );
-  expect(outer, findsOneWidget);
+  final tile = tester.widget<ListTile>(_linkedTile());
+  final subtitle = tile.subtitle;
+  expect(subtitle, isA<Text>());
   final paragraphs = find
-      .descendant(of: outer, matching: find.byType(RichText))
+      .descendant(of: find.byWidget(subtitle!), matching: find.byType(RichText))
       .evaluate()
       .map((e) => e.renderObject! as RenderParagraph)
       .toList();
@@ -341,19 +367,23 @@ void main() {
     await _loadGoldenFonts();
   });
 
-  group('Phase 16.7 설정 화면 golden (R1) — ko 280×800 worst · push (D-07)', () {
+  group('Phase 16.8 설정 화면 golden — ko 280×800 W5 · push (D-07 · D-14)', () {
     for (final brightness in Brightness.values) {
       final mode = brightness.name;
 
       testWidgets('golden ko 280 worst — $mode', (tester) async {
         await _pumpSettings(
           tester,
-          user: _fixtureUser('ko', signUpProviderId: 'line'),
+          user: _fixtureUser(
+            'ko',
+            signUpProviderId: 'naver',
+            providerIds: _w5ProviderIds,
+          ),
           locale: const Locale('ko'),
           brightness: brightness,
           width: 280,
         );
-        // 7 provider 전부 연결 — 「계정 연결」 section 은 숨는다.
+        // W5 — 연결 가능 provider 전부 보유 · 「계정 연결」 section 은 숨는다.
         final l10n = lookupAppLocalizations(const Locale('ko'));
         expect(find.text(l10n.settingsAccountLinkingSection), findsNothing);
         expect(
@@ -367,6 +397,81 @@ void main() {
         );
       });
     }
+  });
+
+  group('Phase 16.8 해제 다이얼로그 golden — ko 280 Facebook', () {
+    for (final brightness in Brightness.values) {
+      final mode = brightness.name;
+
+      testWidgets('dialog golden ko 280 Facebook — $mode', (tester) async {
+        await _pumpSettings(
+          tester,
+          user: _fixtureUser(
+            'ko',
+            signUpProviderId: 'naver',
+            providerIds: _w5ProviderIds,
+          ),
+          locale: const Locale('ko'),
+          brightness: brightness,
+          width: 280,
+        );
+        // production 탭 경로 — 밑줄 이름 → _onUnlinkPressed →
+        // UnlinkConfirmationDialog.show. router 없는 harness 에서도 예외 0
+        // (GoRouter 는 reauthRequired arm 에서만 해석한다).
+        final handle = tester.ensureSemantics();
+        await tester.tap(find.bySemanticsLabel('Facebook 연결 해제'));
+        await tester.pumpAndSettle();
+        await _settleAssets(tester);
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'layout · 탭 경로 예외 0 이어야 golden 이 시각 계약을 대표한다',
+        );
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/unlink_dialog_ko_280_facebook_$mode.png'),
+        );
+        handle.dispose();
+      });
+    }
+  });
+
+  group('Phase 16.8 D-13 — 버튼 크기 · a11y guideline', () {
+    testWidgets('해제 버튼 ≥ 24×24 · labeledTapTarget · textContrast — ko 280 W5', (
+      tester,
+    ) async {
+      await _pumpSettings(
+        tester,
+        user: _fixtureUser(
+          'ko',
+          signUpProviderId: 'naver',
+          providerIds: _w5ProviderIds,
+        ),
+        locale: const Locale('ko'),
+        brightness: Brightness.light,
+        width: 280,
+      );
+      final handle = tester.ensureSemantics();
+      await tester.pump();
+      for (final label in const <String>[
+        'Google 연결 해제',
+        'Apple 연결 해제',
+        'Facebook 연결 해제',
+        '카카오 연결 해제',
+        '라인 연결 해제',
+      ]) {
+        final button = find.bySemanticsLabel(label);
+        expect(button, findsOneWidget, reason: label);
+        final size = tester.getSize(button);
+        // WCAG 2.2 SC 2.5.8 (AA) 24 × 24 — 48 dp 미달은 inline 예외 (Q6-A).
+        expect(size.width, greaterThanOrEqualTo(24), reason: 'width $label');
+        expect(size.height, greaterThanOrEqualTo(24), reason: 'height $label');
+      }
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      handle.dispose();
+    });
   });
 
   group('Phase 16.7 설정 연결된 계정 (R1) — 라벨 한 줄 · 줄바꿈 위치 (단언 2 · 3)', () {
