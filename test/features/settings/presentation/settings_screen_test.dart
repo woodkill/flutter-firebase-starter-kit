@@ -5,6 +5,8 @@
 // Phase 16 Plan 16-16 Task 1 — 3버튼 내비(48dp) inset 회귀 가드 (SS10).
 // Phase 16.7 Plan 16.7-05 Task 2 — 내 계정 2행(가입 수단 · 연결된 계정) SS4 재작성
 //   + 16.7-S01~S06.
+// Phase 16.7 Plan 16.7-11 Task 1 — R1 제목/값 분리(ListTile title/subtitle) 로
+//   SS4 · 16.7-S01~S06 재작성.
 //
 // 검증:
 // - SS1 render 정상: AppBar title "Settings" + 계정 section + Danger
@@ -12,11 +14,11 @@
 // - SS2 Danger zone destructive color: 회원탈퇴 ListTile title color ==
 //   Theme.colorScheme.error.
 // - SS3 tap → dialog: 회원탈퇴 tap 시 WithdrawalConfirmationDialog 노출.
-// - SS4 빈 provider fallback: providerIds==[] · 기록 null 시 가입 수단 행 "-" ·
-//   연결된 계정 행 "None" (Phase 16.7 재작성).
+// - SS4 빈 provider fallback: providerIds==[] · 기록 null 시 가입 수단 행 값 "-" ·
+//   연결된 계정 행 값 "None" — 각 행 제목은 따로 한 줄 (Phase 16.7 R1 재작성).
 // - SS5 AccountLinkingSection 노출: settingsAccountLinkingSection heading +
 //   AccountLinkingSection 위젯 (계정 section 다음, Danger zone 전).
-// - SS6 회귀 0: 계정 section (이메일 + 가입 수단 · 연결된 계정 2행) + Danger zone
+// - SS6 회귀 0: 계정 section (이메일 · 가입 수단 · 연결된 계정 3행) + Danger zone
 //   모두 노출.
 // - SS7 배치 순서: 계정 section → AccountLinkingSection → DangerZoneSection.
 // - SS8 viewport: 360dp ListView scroll — Danger zone (말단) ensureVisible.
@@ -32,11 +34,13 @@
 // - SS13 Danger zone Semantics: 회원탈퇴 ListTile 이 button + 결합 라벨 노출.
 // - SS14 계정 연결 heading role·색: "Link an account" heading 이 label 계열
 //   role metric + onSurfaceVariant.
-// - 16.7-S01 가입 수단 행 + 연결된 계정 행 semantics (D-02 · D-09).
-// - 16.7-S02 연결 0개 — 「Linked accounts: None」 · WidgetSpan 0 (D-03).
-// - 16.7-S03 기록 null — 가입 수단 「-」 · 연결 = 보유 전부 고정 순서 (D-11 · D-05).
-// - 16.7-S04 연결 행 semantics 무오염 — 보이지 않는 문자 0.
-// - 16.7-S05 ARB placeholder 1회 × 3 locale + 행별 maxLines 계약.
+// - 16.7-S01 3행 제목/값 semantics — ListTile 병합 label = '제목\n값' (D-02 R1 · D-09).
+// - 16.7-S02 연결 0개 — 연결 행 값 「None」 · WidgetSpan 0 (D-03).
+// - 16.7-S03 기록 null — 가입 수단 값 「-」 · 연결 = 보유 전부 고정 순서 (D-11 · D-05).
+// - 16.7-S04 연결 행 semantics 무오염 — 보이지 않는 문자 6종 0.
+// - 16.7-S05 R1 계약 — 제목 bodySmall + onSurfaceVariant · 값 titleMedium ·
+//   행별 maxLines/overflow · ListTile SDK 기본(세 줄 · tile 스타일 · dense ·
+//   padding 미지정).
 // - 16.7-S06 280dp viewport overflow 0.
 //
 // 동일 패턴 audit (G-16-A6-1 missing 2번째 항목 — 2026-09-07 실행):
@@ -86,9 +90,6 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/dang
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/withdrawal_confirmation_dialog.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
-import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
-import 'package:flutter_starter_kit/l10n/generated/app_localizations_ja.dart';
-import 'package:flutter_starter_kit/l10n/generated/app_localizations_ko.dart';
 
 /// 활성 소셜 Strategy 6종 전부.
 const List<AuthStrategy> _allStrategies = <AuthStrategy>[
@@ -132,14 +133,26 @@ User _testUser({
 Finder _findLinkedAccountsTile() =>
     find.ancestor(of: find.byIcon(Icons.link), matching: find.byType(ListTile));
 
-/// 「연결된 계정」 행 title `Text.rich` 위젯.
-Text _readLinkedAccountsTitle(WidgetTester tester) =>
-    tester.widget<ListTile>(_findLinkedAccountsTile()).title! as Text;
+/// 「가입 수단」 행 `ListTile` finder — leading `Icons.how_to_reg` 의 조상.
+Finder _findSignUpMethodTile() => find.ancestor(
+  of: find.byIcon(Icons.how_to_reg),
+  matching: find.byType(ListTile),
+);
 
-/// 「연결된 계정」 행 title 의 [WidgetSpan] 수 (provider 라벨 1개 = 1개).
+/// 「이메일」 행 `ListTile` finder — leading `Icons.alternate_email` 의 조상.
+Finder _findEmailTile() => find.ancestor(
+  of: find.byIcon(Icons.alternate_email),
+  matching: find.byType(ListTile),
+);
+
+/// 「연결된 계정」 행 값(subtitle) `Text.rich` 위젯.
+Text _readLinkedAccountsValue(WidgetTester tester) =>
+    tester.widget<ListTile>(_findLinkedAccountsTile()).subtitle! as Text;
+
+/// 「연결된 계정」 행 값의 [WidgetSpan] 수 (provider 라벨 1개 = 1개).
 int _countLinkedWidgetSpans(WidgetTester tester) {
   var count = 0;
-  _readLinkedAccountsTitle(tester).textSpan!.visitChildren((span) {
+  _readLinkedAccountsValue(tester).textSpan!.visitChildren((span) {
     if (span is WidgetSpan) count++;
     return true;
   });
@@ -147,12 +160,16 @@ int _countLinkedWidgetSpans(WidgetTester tester) {
 }
 
 /// 표시 span 이 낭독 문자열에 새면 나타나는 문자 — 자리표시(U+FFFC) ·
-/// WORD JOINER(U+2060) · NBSP(U+00A0). 소스에 보이지 않는 문자가 저장되지
-/// 않도록 code point 로 만든다.
+/// WORD JOINER(U+2060) · NBSP(U+00A0) · ZWSP(U+200B) · BOM(U+FEFF) ·
+/// 사용자 영역 첫 문자(U+E000). 소스에 보이지 않는 문자가 저장되지 않도록
+/// code point 로 만든다.
 final List<String> _kInvisibleChars = <String>[
   String.fromCharCode(0xFFFC),
   String.fromCharCode(0x2060),
   String.fromCharCode(0x00A0),
+  String.fromCharCode(0x200B),
+  String.fromCharCode(0xFEFF),
+  String.fromCharCode(0xE000),
 ];
 
 /// 7종 provider 전부 보유 (Phase 16.7 D-11 fallback · 280dp 최악 케이스).
@@ -258,7 +275,7 @@ void main() {
     );
 
     testWidgets(
-      'SS4 빈 provider fallback — 가입 수단 "-" · 연결된 계정 "None" (16.7 재작성)',
+      'SS4 빈 provider fallback — 가입 수단 값 "-" · 연결된 계정 값 "None" (16.7 R1 재작성)',
       (tester) async {
         await _pumpSettingsScreen(
           tester,
@@ -266,9 +283,26 @@ void main() {
         );
 
         // 기록 null → formatProviderIds([]) '-' (D-11). 연결 0개는 「None」
-        // 일반 TextSpan 이라 행 전체를 find.text 로 확인할 수 있다 (D-03).
-        expect(find.text('Sign-up method: -'), findsOneWidget);
-        expect(find.text('Linked accounts: None'), findsOneWidget);
+        // 일반 TextSpan (D-03). 짧은 값은 다른 위젯과 겹칠 수 있어 tile 로 좁힌다.
+        expect(
+          find.descendant(
+            of: _findSignUpMethodTile(),
+            matching: find.text('-'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: _findLinkedAccountsTile(),
+            matching: find.text('None'),
+          ),
+          findsOneWidget,
+        );
+        // 제목은 값과 다른 줄 — 홈 카드 라벨 키 재사용 (D-09).
+        expect(find.text('Email'), findsOneWidget);
+        expect(find.text('Sign-up method'), findsOneWidget);
+        expect(find.text('Linked accounts'), findsOneWidget);
+        expect(tester.takeException(), isNull);
       },
     );
 
@@ -554,50 +588,71 @@ void main() {
     );
   });
 
-  group('Phase 16.7 내 계정 2행 (D-02 · D-03 · D-09 · D-11)', () {
-    testWidgets('16.7-S01 가입 수단 행 + 연결된 계정 행 semantics (D-02 · D-09)', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await _pumpSettingsScreen(
-        tester,
-        user: _testUser(
-          providerIds: const <String>['password', 'kakao'],
-          signUpProviderId: 'kakao',
-        ),
-      );
-
-      expect(find.text('Sign-up method: Kakao'), findsOneWidget);
-      expect(
-        tester.getSemantics(_findLinkedAccountsTile()).label,
-        'Linked accounts: Email / Password',
-      );
-      expect(find.byIcon(Icons.how_to_reg), findsOneWidget);
-      expect(find.byIcon(Icons.link), findsOneWidget);
-      // S06 — overflow 0.
-      expect(tester.takeException(), isNull);
-      handle.dispose();
-    });
-
+  group('Phase 16.7 내 계정 3행 제목/값 (D-02 R1 · D-03 · D-09 · D-11)', () {
     testWidgets(
-      '16.7-S02 연결 0개 — "Linked accounts: None" · WidgetSpan 0 (D-03)',
+      '16.7-S01 3행 제목/값 semantics — 병합 label = 제목 줄바꿈 값 (D-02 R1 · D-09)',
       (tester) async {
+        final handle = tester.ensureSemantics();
         await _pumpSettingsScreen(
           tester,
           user: _testUser(
-            providerIds: const <String>['naver'],
-            signUpProviderId: 'naver',
+            providerIds: const <String>['password', 'kakao'],
+            signUpProviderId: 'kakao',
           ),
         );
 
-        expect(find.text('Sign-up method: Naver'), findsOneWidget);
-        expect(find.text('Linked accounts: None'), findsOneWidget);
-        expect(_countLinkedWidgetSpans(tester), 0);
+        // ListTile 은 title · subtitle 을 한 노드로 병합하고 줄바꿈으로 잇는다.
+        expect(
+          tester.getSemantics(_findEmailTile()).label,
+          'Email\nme@example.com',
+        );
+        expect(
+          tester.getSemantics(_findSignUpMethodTile()).label,
+          'Sign-up method\nKakao',
+        );
+        expect(
+          tester.getSemantics(_findLinkedAccountsTile()).label,
+          'Linked accounts\nEmail / Password',
+        );
+        expect(find.byIcon(Icons.alternate_email), findsOneWidget);
+        expect(find.byIcon(Icons.how_to_reg), findsOneWidget);
+        expect(find.byIcon(Icons.link), findsOneWidget);
+        // S06 — overflow 0.
         expect(tester.takeException(), isNull);
+        handle.dispose();
       },
     );
 
-    testWidgets('16.7-S03 기록 null — 가입 수단 "-" · 연결 = 보유 전부 (D-11 · D-05)', (
+    testWidgets('16.7-S02 연결 0개 — 연결 행 값 "None" · WidgetSpan 0 (D-03)', (
+      tester,
+    ) async {
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(
+          providerIds: const <String>['naver'],
+          signUpProviderId: 'naver',
+        ),
+      );
+
+      expect(
+        find.descendant(
+          of: _findSignUpMethodTile(),
+          matching: find.text('Naver'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: _findLinkedAccountsTile(),
+          matching: find.text('None'),
+        ),
+        findsOneWidget,
+      );
+      expect(_countLinkedWidgetSpans(tester), 0);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('16.7-S03 기록 null — 가입 수단 값 "-" · 연결 = 보유 전부 (D-11 · D-05)', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -606,10 +661,13 @@ void main() {
         user: _testUser(providerIds: _kAllProviderIdsHeld),
       );
 
-      expect(find.text('Sign-up method: -'), findsOneWidget);
+      expect(
+        tester.getSemantics(_findSignUpMethodTile()).label,
+        'Sign-up method\n-',
+      );
       expect(
         tester.getSemantics(_findLinkedAccountsTile()).label,
-        'Linked accounts: Google, Apple, Facebook, Kakao, Naver, LINE, '
+        'Linked accounts\nGoogle, Apple, Facebook, Kakao, Naver, LINE, '
         'Email / Password',
       );
       expect(_countLinkedWidgetSpans(tester), 7);
@@ -617,7 +675,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('16.7-S04 연결 행 semantics 무오염 — 보이지 않는 문자 0', (tester) async {
+    testWidgets('16.7-S04 연결 행 semantics 무오염 — 보이지 않는 문자 6종 0', (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpSettingsScreen(
         tester,
@@ -628,7 +686,7 @@ void main() {
       );
 
       final label = tester.getSemantics(_findLinkedAccountsTile()).label;
-      expect(label, 'Linked accounts: Google, Email / Password');
+      expect(label, 'Linked accounts\nGoogle, Email / Password');
       for (final char in _kInvisibleChars) {
         expect(label.contains(char), isFalse);
         // 화면 어느 semantics 노드에도 자리표시 · 결합 문자가 새지 않는다.
@@ -642,19 +700,9 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('16.7-S05 ARB placeholder 1회 × 3 locale + 행별 maxLines 계약', (
+    testWidgets('16.7-S05 R1 계약 — 제목/값 style · 행별 maxLines · ListTile SDK 기본', (
       tester,
     ) async {
-      // 설정 행이 템플릿을 sentinel 로 잘라 span 을 끼우는 전제 (UI-SPEC 테스트 8).
-      for (final l10n in <AppLocalizations>[
-        AppLocalizationsKo(),
-        AppLocalizationsEn(),
-        AppLocalizationsJa(),
-      ]) {
-        expect(l10n.settingsLinkedAccounts('X').split('X'), hasLength(2));
-      }
-      expect(AppLocalizationsJa().settingsLinkedAccounts('X'), endsWith('X'));
-
       await _pumpSettingsScreen(
         tester,
         user: _testUser(
@@ -663,15 +711,54 @@ void main() {
         ),
       );
 
-      final signUpTile = tester.widget<ListTile>(
-        find.ancestor(
-          of: find.byIcon(Icons.how_to_reg),
-          matching: find.byType(ListTile),
-        ),
-      );
-      expect((signUpTile.title! as Text).maxLines, 2);
-      expect(_readLinkedAccountsTitle(tester).maxLines, isNull);
-      expect(_readLinkedAccountsTitle(tester).overflow, isNull);
+      final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
+      final titleRole = theme.textTheme.bodySmall;
+      final valueRole = theme.textTheme.titleMedium;
+
+      final tiles = <String, ListTile>{
+        'Email': tester.widget<ListTile>(_findEmailTile()),
+        'Sign-up method': tester.widget<ListTile>(_findSignUpMethodTile()),
+        'Linked accounts': tester.widget<ListTile>(_findLinkedAccountsTile()),
+      };
+      for (final entry in tiles.entries) {
+        final tile = entry.value;
+        expect(tile.title, isNotNull);
+        expect(tile.subtitle, isNotNull);
+
+        // 제목 = 홈 카드 라벨 키 · bodySmall + onSurfaceVariant.
+        final title = tile.title! as Text;
+        expect(title.data, entry.key);
+        expect(title.style?.fontSize, equals(titleRole?.fontSize));
+        expect(title.style?.fontWeight, equals(titleRole?.fontWeight));
+        expect(title.style?.color, equals(theme.colorScheme.onSurfaceVariant));
+
+        // 값 = titleMedium (색 미지정 — theme 기본 onSurface).
+        final value = tile.subtitle! as Text;
+        expect(value.style?.fontSize, equals(valueRole?.fontSize));
+        expect(value.style?.fontWeight, equals(valueRole?.fontWeight));
+
+        // ListTile 은 SDK 기본 — mockup 과 byte 동일 전제. 세 줄 플래그는
+        // SDK 에서 nullable 이라 미지정 = null (theme · false 로 해석은 SDK 내부).
+        expect(tile.isThreeLine, isNull);
+        expect(tile.titleTextStyle, isNull);
+        expect(tile.subtitleTextStyle, isNull);
+        expect(tile.dense, isNull);
+        expect(tile.contentPadding, isNull);
+      }
+
+      // 이메일 주소만 2줄 + 말줄임 (WR-14).
+      final emailValue = tiles['Email']!.subtitle! as Text;
+      expect(emailValue.maxLines, 2);
+      expect(emailValue.overflow, TextOverflow.ellipsis);
+      // 가입 수단 값 — 줄 수 제한 없음 (D-04 개정 (R1)).
+      final signUpValue = tiles['Sign-up method']!.subtitle! as Text;
+      expect(signUpValue.maxLines, isNull);
+      expect(signUpValue.overflow, isNull);
+      expect(signUpValue.softWrap, isTrue);
+      // 연결된 계정 값 — Text.rich · 줄 수 제한 없음 (D-02 개정 (R1)).
+      expect(_readLinkedAccountsValue(tester).textSpan, isNotNull);
+      expect(_readLinkedAccountsValue(tester).maxLines, isNull);
+      expect(_readLinkedAccountsValue(tester).overflow, isNull);
       expect(tester.takeException(), isNull);
     });
 
