@@ -6,16 +6,26 @@
 //   (Phase 16.7 D-02 개정 (R1) · D-09).
 // - Danger zone section: explainer + 회원탈퇴 ListTile (destructive color).
 // - 탈퇴 ListTile tap → WithdrawalConfirmationDialog.show.
+// - 연결된 계정 값의 밑줄 provider 이름 tap → UnlinkConfirmationDialog.show
+//   → 결과별 SnackBar (Phase 16.8 D-07 · D-10 · UI-SPEC §N).
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/l10n/l10n_extensions.dart';
+import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../auth/data/auth_repository.dart';
+import '../application/unlink_eligibility.dart';
 import '_widgets/account_linking_section.dart';
 import '_widgets/danger_zone_section.dart';
+import '_widgets/linked_accounts_value.dart';
+import '_widgets/unlink_confirmation_dialog.dart';
+import 'settings_notifier.dart';
 
 /// 설정 화면 (Phase 16 D-05~D-08).
 ///
@@ -55,10 +65,20 @@ class SettingsScreen extends ConsumerWidget {
     final valueStyle = typography.titleMedium;
     // WidgetSpan 안 라벨 Text 도 valueStyle — 바깥 문단과 같은 style 이어야
     // mockup 과 byte 동일(UI-SPEC §Typography (R1)).
-    final linked = buildLinkedAccountsValue(
-      formatProviderLabels(split.linkedProviderIds, l10n),
+    // Phase 16.8 — 설정 전용 해제 가능 변형. id · label 을 쌍으로 넘겨 버튼
+    // 여부(canUnlinkProvider)와 다이얼로그 라벨을 정한다 (라벨 switch 신설 0).
+    final linkedLabels = formatProviderLabels(split.linkedProviderIds, l10n);
+    final linkedSpan = buildUnlinkableLinkedAccountsValue(
+      entries: [
+        for (final (i, id) in split.linkedProviderIds.indexed)
+          (id: id, label: linkedLabels[i]),
+      ],
       none: l10n.authAccountLinkedAccountsNone,
-      style: valueStyle,
+      valueStyle: valueStyle,
+      canUnlink: (id) => canUnlinkProvider(user, id),
+      onUnlinkTap: (id, label) =>
+          _onUnlinkPressed(context, ref, providerId: id, providerLabel: label),
+      l10n: l10n,
     );
 
     return Scaffold(
@@ -111,17 +131,18 @@ class SettingsScreen extends ConsumerWidget {
               title: Text(l10n.authAccountSignUpMethod, style: titleStyle),
               subtitle: Text(signUpValue, softWrap: true, style: valueStyle),
             ),
-            // 연결된 계정 — maxLines · overflow 없음. 표시 span 의 WidgetSpan
-            // 자리표시 문자가 낭독되지 않도록 semanticsLabel 을 plain join(값만
-            // 문단 · 템플릿 없음)으로 명시한다 (UI-SPEC §Semantics (R1)).
+            // 연결된 계정 — maxLines · overflow 없음. semanticsLabel 을 주지
+            // 않는다: 주면 안쪽 해제 버튼 노드가 지워진다. 대신 이름마다
+            // container 노드(버튼 = 「{provider} 연결 해제」 · 해제 불가 = 이름만)
+            // 를 두고 사이 공백은 빈 semantics 라 WidgetSpan 자리표시 문자가
+            // 낭독되지 않는다 (UI-SPEC §Semantics (16.8)).
             ListTile(
               leading: const Icon(Icons.link),
               title: Text(l10n.authAccountLinkedAccounts, style: titleStyle),
               subtitle: Text.rich(
-                linked.display,
+                linkedSpan,
                 softWrap: true,
                 style: valueStyle,
-                semanticsLabel: linked.semantics,
               ),
             ),
             Gap(spacing.xxl),
@@ -136,5 +157,68 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// 밑줄 provider 이름 tap — 확인 다이얼로그를 열고 결과별 SnackBar ·
+  /// 재로그인 라우팅을 처리한다 (Phase 16.8 D-07 · UI-SPEC §N).
+  ///
+  /// 해제 실행은 다이얼로그 → [SettingsNotifier.unlinkProvider] 에 위임한다
+  /// (UI 로직 위임). 다이얼로그 취소 · barrier · back 은 `null` →
+  /// [AccountUnlinkOutcome.cancelled] (SnackBar 0).
+  Future<void> _onUnlinkPressed(
+    BuildContext context,
+    WidgetRef ref, {
+    required String providerId,
+    required String providerLabel,
+  }) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final outcome =
+        await UnlinkConfirmationDialog.show(
+          context,
+          providerId: providerId,
+          providerLabel: providerLabel,
+        ) ??
+        AccountUnlinkOutcome.cancelled;
+    if (!context.mounted) return;
+
+    switch (outcome) {
+      case AccountUnlinkOutcome.success:
+        // provider 라벨만 (PII 0) · 목록은 user stream 재방출로 갱신.
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(l10n.accountUnlinkSucceededSnackbar(providerLabel)),
+          ),
+        );
+      case AccountUnlinkOutcome.reauthRequired:
+        // D-06 으로 기대하지 않는 방어 매핑 — Surface D 와 같은 재로그인
+        // 라우팅 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE: 재인증 표시 필수).
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.authReauthRequired)),
+        );
+        // await 전 캡처를 안 하는 이유 = router 없는 harness(golden)에서
+        // 탭 → 다이얼로그 경로가 예외 없이 열려야 하고, 이 arm 만 router 가 필요하다.
+        final router = GoRouter.of(context);
+        unawaited(router.push(AppRoutes.buildReauthLocation(AppRoutes.login)));
+      case AccountUnlinkOutcome.lastCredential:
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsUnlinkFailedLastCredential)),
+        );
+      case AccountUnlinkOutcome.alreadyUnlinked:
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsUnlinkFailedAlreadyUnlinked)),
+        );
+      case AccountUnlinkOutcome.transientFailure:
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsUnlinkFailedTransient)),
+        );
+      case AccountUnlinkOutcome.failed:
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsUnlinkFailedUnknown)),
+        );
+      case AccountUnlinkOutcome.cancelled:
+        break;
+    }
   }
 }

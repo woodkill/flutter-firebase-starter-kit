@@ -649,6 +649,42 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String settingsUnlinkProviderSemantic(String provider) {
+    return '$providerの連携を解除';
+  }
+
+  @override
+  String settingsUnlinkDialogTitle(String provider) {
+    return '$providerの連携を解除しますか？';
+  }
+
+  @override
+  String settingsUnlinkDialogBody(String provider) {
+    return '解除すると、$providerアカウントでログインできなくなります。';
+  }
+
+  @override
+  String get settingsUnlinkConfirmAction => '解除';
+
+  @override
+  String accountUnlinkSucceededSnackbar(String provider) {
+    return '$providerアカウントの連携を解除しました。';
+  }
+
+  @override
+  String get settingsUnlinkFailedLastCredential => 'ログイン方法が1つだけのため、連携を解除できません。';
+
+  @override
+  String get settingsUnlinkFailedAlreadyUnlinked => 'このアカウントはすでに連携が解除されています。';
+
+  @override
+  String get settingsUnlinkFailedTransient =>
+      'ネットワークまたはサービスのエラーで連携を解除できませんでした。しばらくしてからもう一度お試しください。';
+
+  @override
+  String get settingsUnlinkFailedUnknown => '連携の解除に失敗しました。しばらくしてからもう一度お試しください。';
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

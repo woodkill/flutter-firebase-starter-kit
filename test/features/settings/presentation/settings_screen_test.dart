@@ -7,6 +7,8 @@
 //   + 16.7-S01~S06.
 // Phase 16.7 Plan 16.7-11 Task 1 — R1 제목/값 분리(ListTile title/subtitle) 로
 //   SS4 · 16.7-S01~S06 재작성.
+// Phase 16.8 Plan 16.8-01 Task 1 — 연결된 계정 semantics 가 provider 별 노드
+//   (UI-SPEC §Semantics (16.8))로 바뀌어 16.7-S01 · S03 · S04 재작성 + S02 보강.
 //
 // 검증:
 // - SS1 render 정상: AppBar title "Settings" + 계정 section + Danger
@@ -34,10 +36,15 @@
 // - SS13 Danger zone Semantics: 회원탈퇴 ListTile 이 button + 결합 라벨 노출.
 // - SS14 계정 연결 heading role·색: "Link an account" heading 이 label 계열
 //   role metric + onSurfaceVariant.
-// - 16.7-S01 3행 제목/값 semantics — ListTile 병합 label = '제목\n값' (D-02 R1 · D-09).
-// - 16.7-S02 연결 0개 — 연결 행 값 「None」 · WidgetSpan 0 (D-03).
-// - 16.7-S03 기록 null — 가입 수단 값 「-」 · 연결 = 보유 전부 고정 순서 (D-11 · D-05).
-// - 16.7-S04 연결 행 semantics 무오염 — 보이지 않는 문자 6종 0.
+// - 16.7-S01 3행 제목/값 semantics — 이메일 · 가입 수단 ListTile 병합 label =
+//   '제목\n값' (D-02 R1 · D-09) · 연결된 계정은 제목만 + 해제 버튼 노드
+//   (16.8 D-12).
+// - 16.7-S02 연결 0개 — 연결 행 값 「None」 · WidgetSpan 0 · 병합 label
+//   '제목\n없음' (D-03 · 16.8 UI-SPEC E1 empty).
+// - 16.7-S03 기록 null — 가입 수단 값 「-」 · 연결 = 보유 전부 고정 순서 ·
+//   전부 일반 텍스트 노드(버튼 0) (D-11 · D-05 · 16.8 D-05).
+// - 16.7-S04 연결 행 semantics 무오염 — 보이지 않는 문자 6종 0 (제목 label +
+//   해제 버튼 노드 label).
 // - 16.7-S05 R1 계약 — 제목 bodySmall + onSurfaceVariant · 값 titleMedium ·
 //   행별 maxLines/overflow · ListTile SDK 기본(세 줄 · tile 스타일 · dense ·
 //   padding 미지정).
@@ -590,7 +597,7 @@ void main() {
 
   group('Phase 16.7 내 계정 3행 제목/값 (D-02 R1 · D-03 · D-09 · D-11)', () {
     testWidgets(
-      '16.7-S01 3행 제목/값 semantics — 병합 label = 제목 줄바꿈 값 (D-02 R1 · D-09)',
+      '16.7-S01 3행 제목/값 semantics — 병합 label = 제목 줄바꿈 값 · 연결 행은 해제 버튼 노드 (D-02 R1 · D-09 · 16.8 D-12)',
       (tester) async {
         final handle = tester.ensureSemantics();
         await _pumpSettingsScreen(
@@ -610,9 +617,17 @@ void main() {
           tester.getSemantics(_findSignUpMethodTile()).label,
           'Sign-up method\nKakao',
         );
+        // Phase 16.8 — 해제 가능 이름은 `Semantics(container, button)` 노드라
+        // ListTile 병합 label 에서 빠지고 제목만 남는다 (UI-SPEC §Semantics).
         expect(
           tester.getSemantics(_findLinkedAccountsTile()).label,
-          'Linked accounts\nEmail / Password',
+          'Linked accounts',
+        );
+        final unlinkEmail = find.bySemanticsLabel('Unlink Email / Password');
+        expect(unlinkEmail, findsOneWidget);
+        expect(
+          tester.getSemantics(unlinkEmail),
+          isSemantics(isButton: true, hasTapAction: true),
         );
         expect(find.byIcon(Icons.alternate_email), findsOneWidget);
         expect(find.byIcon(Icons.how_to_reg), findsOneWidget);
@@ -626,6 +641,7 @@ void main() {
     testWidgets('16.7-S02 연결 0개 — 연결 행 값 "None" · WidgetSpan 0 (D-03)', (
       tester,
     ) async {
+      final handle = tester.ensureSemantics();
       await _pumpSettingsScreen(
         tester,
         user: _testUser(
@@ -649,7 +665,14 @@ void main() {
         findsOneWidget,
       );
       expect(_countLinkedWidgetSpans(tester), 0);
+      // Phase 16.8 UI-SPEC E1 empty — 0개는 일반 TextSpan 이라 ListTile 이
+      // 제목 · 값을 한 label 로 병합한다 (버튼 0).
+      expect(
+        tester.getSemantics(_findLinkedAccountsTile()).label,
+        'Linked accounts\nNone',
+      );
       expect(tester.takeException(), isNull);
+      handle.dispose();
     });
 
     testWidgets('16.7-S03 기록 null — 가입 수단 값 "-" · 연결 = 보유 전부 (D-11 · D-05)', (
@@ -665,11 +688,29 @@ void main() {
         tester.getSemantics(_findSignUpMethodTile()).label,
         'Sign-up method\n-',
       );
+      // Phase 16.8 D-05 — 기록 null 이면 전부 일반 텍스트: 이름마다 label-only
+      // container 노드(쉼표 없음 · 표시 순서)이고 ListTile label 은 제목만.
       expect(
         tester.getSemantics(_findLinkedAccountsTile()).label,
-        'Linked accounts\nGoogle, Apple, Facebook, Kakao, Naver, LINE, '
-        'Email / Password',
+        'Linked accounts',
       );
+      for (final name in const <String>[
+        'Google',
+        'Apple',
+        'Facebook',
+        'Kakao',
+        'Naver',
+        'LINE',
+        'Email / Password',
+      ]) {
+        final node = find.bySemanticsLabel(name);
+        expect(node, findsOneWidget, reason: name);
+        expect(
+          tester.getSemantics(node),
+          isSemantics(isButton: false, hasTapAction: false),
+          reason: name,
+        );
+      }
       expect(_countLinkedWidgetSpans(tester), 7);
       expect(tester.takeException(), isNull);
       handle.dispose();
@@ -685,16 +726,30 @@ void main() {
         ),
       );
 
+      // Phase 16.8 — 연결 = Google · Email / Password (자격증명 3 · 기록 있음)
+      // → 둘 다 해제 버튼 노드이고 ListTile label 은 제목만.
       final label = tester.getSemantics(_findLinkedAccountsTile()).label;
-      expect(label, 'Linked accounts\nGoogle, Email / Password');
+      expect(label, 'Linked accounts');
+      final unlinkGoogle = find.bySemanticsLabel('Unlink Google');
+      final unlinkEmail = find.bySemanticsLabel('Unlink Email / Password');
+      expect(unlinkGoogle, findsOneWidget);
+      expect(unlinkEmail, findsOneWidget);
+      final labels = <String>[
+        label,
+        tester.getSemantics(unlinkGoogle).label,
+        tester.getSemantics(unlinkEmail).label,
+      ];
       for (final char in _kInvisibleChars) {
-        expect(label.contains(char), isFalse);
+        for (final l in labels) {
+          expect(l.contains(char), isFalse);
+        }
         // 화면 어느 semantics 노드에도 자리표시 · 결합 문자가 새지 않는다.
         expect(find.bySemanticsLabel(RegExp(char)), findsNothing);
       }
-      // 대조군 — 표시 span 의 plain text 에는 WidgetSpan 자리표시가 있다
-      // (flutter_test 의 text finder 가 textSpan.toPlainText() 로 매칭).
-      // 그래서 semanticsLabel 없이는 낭독 문자열이 오염된다.
+      // 대조군 — 바깥 값 `Text.rich` 의 plain text 에는 WidgetSpan 자리표시가
+      // 있다 (flutter_test 의 text finder 가 textSpan.toPlainText() 로 매칭 ·
+      // 안쪽 버튼 `Text.rich` 는 TextSpan 만이라 0). 그래서 `excludeSemantics`
+      // + 공백 span `semanticsLabel: ''` 없이는 낭독 문자열이 오염된다.
       expect(find.textContaining(_kInvisibleChars.first), findsOneWidget);
       expect(tester.takeException(), isNull);
       handle.dispose();

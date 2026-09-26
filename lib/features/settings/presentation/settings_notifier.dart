@@ -221,6 +221,107 @@ class SettingsNotifier extends _$SettingsNotifier {
       _ => AccountLinkOutcome.failed,
     };
   }
+
+  /// 연결된 계정 [providerId] 의 연결을 해제한다 (Phase 16.8 D-01 · D-02 ·
+  /// D-03 · D-06 · D-19).
+  ///
+  /// native/CT 분기는 `AccountProvider.tryParse(providerId).isNative` 한 번뿐이다
+  /// — provider 별 switch 를 두지 않는다 (D-19):
+  /// - native (`google.com` · `apple.com` · `facebook.com` · `password`) →
+  ///   [AuthRepository.unlinkNativeProvider] (Firebase URI 그대로).
+  /// - Custom Token (`kakao` · `line` 등) →
+  ///   [AuthRepository.unlinkCustomTokenProvider] (slug).
+  ///
+  /// 식별 불가 id 는 UI 의 `canUnlinkProvider` 가 이미 버튼을 숨기므로 도달하지
+  /// 않지만, 방어적으로 [AccountUnlinkOutcome.failed] 를 돌려준다.
+  ///
+  /// **진행 provider 미사용:** [accountLinkInProgressProvider] 와 그 오버레이는
+  /// 쓰지 않는다. 진행 표시는 확인 다이얼로그 안 스피너가 맡고(다이얼로그가
+  /// modal 이라 설정 화면 입력이 이미 막힌다), 오버레이 라벨은 「로그인 처리
+  /// 중…」 이라 해제에 틀리다 (UI-SPEC §Surface U). 탈퇴용 [state] 도 건드리지
+  /// 않는다 (WR-02).
+  ///
+  /// 반환: 위젯이 결과별 SnackBar · reauth 라우팅을 분기하기 위한
+  /// [AccountUnlinkOutcome]. 성공 시 목록 갱신은 user stream 재방출이 맡는다.
+  Future<AccountUnlinkOutcome> unlinkProvider(String providerId) async {
+    final provider = AccountProvider.tryParse(providerId);
+    if (provider == null) return AccountUnlinkOutcome.failed;
+    // auto-dispose notifier — await 전에 repository 핸들을 캡처한다.
+    final repo = ref.read(authRepositoryProvider);
+    try {
+      final result = provider.isNative
+          ? await repo.unlinkNativeProvider(providerId)
+          : await repo.unlinkCustomTokenProvider(provider.slug);
+      return switch (result) {
+        Success<User>() => AccountUnlinkOutcome.success,
+        Failure<User>(:final exception) => _mapUnlinkFailure(exception),
+      };
+    } on Object catch (e) {
+      // 방어적 — repository 가 Result 로 흡수하므로 도달 거의 없음 (PII 0).
+      if (kDebugMode) {
+        debugPrint(
+          'SettingsNotifier.unlinkProvider 미흡수 예외: '
+          'runtimeType=${e.runtimeType}',
+        );
+      }
+      return AccountUnlinkOutcome.failed;
+    }
+  }
+
+  /// 해제 실패 [exception] 을 원인별 [AccountUnlinkOutcome] 으로 분기한다
+  /// (Phase 16.8 · UI-SPEC §N).
+  AccountUnlinkOutcome _mapUnlinkFailure(AppException exception) {
+    return switch (exception) {
+      ReauthenticationRequiredException() =>
+        AccountUnlinkOutcome.reauthRequired,
+      UnlinkLastCredentialRejected() => AccountUnlinkOutcome.lastCredential,
+      ProviderNotLinked() => AccountUnlinkOutcome.alreadyUnlinked,
+      NetworkException() ||
+      TooManyRequests() ||
+      ServiceUnavailable() => AccountUnlinkOutcome.transientFailure,
+      _ => AccountUnlinkOutcome.failed,
+    };
+  }
+}
+
+/// 연결된 계정 해제 결과 분기 (Phase 16.8 · UI-SPEC §N).
+///
+/// [SettingsNotifier.unlinkProvider] 가 반환하며(단 [cancelled] 는 확인
+/// 다이얼로그만 만든다), 설정 화면이 결과별 SnackBar · reauth 라우팅을
+/// 분기하는 데 사용한다.
+enum AccountUnlinkOutcome {
+  /// 해제 성공 — `accountUnlinkSucceededSnackbar` 로 렌더 · 목록은 user
+  /// stream 재방출로 갱신.
+  success,
+
+  /// 다이얼로그 취소 · barrier · back — no-op (SnackBar 0). notifier 는
+  /// 이 값을 만들지 않는다.
+  cancelled,
+
+  /// 재인증 필요 ([ReauthenticationRequiredException] — native
+  /// `requires-recent-login` · callable `unauthenticated`/`permission-denied`)
+  /// — `authReauthRequired` 로 렌더 + 재로그인 라우팅. D-06 으로 기대하지 않는
+  /// 방어 매핑.
+  reauthRequired,
+
+  /// 남은 로그인 수단이 하나뿐 ([UnlinkLastCredentialRejected] — callable
+  /// `failed-precondition` + `details.reason: 'last_credential'`) —
+  /// `settingsUnlinkFailedLastCredential` 로 렌더.
+  lastCredential,
+
+  /// 이미 해제됨 ([ProviderNotLinked] — native `no-such-provider` · callable
+  /// `not-found`) — `settingsUnlinkFailedAlreadyUnlinked` 로 렌더.
+  alreadyUnlinked,
+
+  /// 네트워크 / 서비스 일시 오류 ([NetworkException] 계열 · [TooManyRequests]
+  /// · [ServiceUnavailable] — `network-request-failed` · `too-many-requests` ·
+  /// `unavailable` · `deadline-exceeded` · `resource-exhausted`) —
+  /// `settingsUnlinkFailedTransient` 로 렌더.
+  transientFailure,
+
+  /// 분류되지 않은 해제 실패 catch-all (그 외 [AppException]) —
+  /// `settingsUnlinkFailedUnknown` 으로 렌더.
+  failed,
 }
 
 /// proactive 계정 연결 결과 분기 (Phase 16 16-11 / Surface D).

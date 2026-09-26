@@ -53,6 +53,10 @@ const List<AppException> _kAllMappedExceptions = <AppException>[
   TooManyRequests(),
   AccountAlreadyLinked(),
   ProviderAlreadyLinkedToThisAccount(),
+  // Phase 16.8 — 연결 해제 (native `no-such-provider` · callable
+  // `not-found` / `failed-precondition` + `last_credential`).
+  ProviderNotLinked(),
+  UnlinkLastCredentialRejected(),
   ReauthenticationRequiredException(),
   UnauthenticatedException(),
   ReauthUserMismatch(),

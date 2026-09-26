@@ -1288,6 +1288,60 @@ abstract class AppLocalizations {
   /// **'Linking a {provider} account isn\'t supported yet.'**
   String settingsLinkUnsupportedProvider(String provider);
 
+  /// Phase 16.8 D-07/D-10/D-12 — Settings 'Linked accounts' unlink button semantics label (screen reader). {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlink {provider}'**
+  String settingsUnlinkProviderSemantic(String provider);
+
+  /// Phase 16.8 D-07/D-10 — unlink confirmation dialog title. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlink {provider}?'**
+  String settingsUnlinkDialogTitle(String provider);
+
+  /// Phase 16.8 D-07/D-10 — unlink confirmation dialog body (consequence of unlinking). {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ll no longer be able to sign in with your {provider} account.'**
+  String settingsUnlinkDialogBody(String provider);
+
+  /// Phase 16.8 D-07/D-10 — unlink confirmation dialog confirm action (TextButton, M3 default style).
+  ///
+  /// In en, this message translates to:
+  /// **'Unlink'**
+  String get settingsUnlinkConfirmAction;
+
+  /// Phase 16.8 D-07/D-10 — unlink success SnackBar (AccountUnlinkOutcome.success). {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlinked your {provider} account.'**
+  String accountUnlinkSucceededSnackbar(String provider);
+
+  /// Phase 16.8 D-03/D-07 — unlink rejected because it is the last sign-in method (AccountUnlinkOutcome.lastCredential · UnlinkLastCredentialRejected).
+  ///
+  /// In en, this message translates to:
+  /// **'You can\'t unlink your only sign-in method.'**
+  String get settingsUnlinkFailedLastCredential;
+
+  /// Phase 16.8 D-07 — unlink target no longer linked (AccountUnlinkOutcome.alreadyUnlinked · ProviderNotLinked).
+  ///
+  /// In en, this message translates to:
+  /// **'This account is already unlinked.'**
+  String get settingsUnlinkFailedAlreadyUnlinked;
+
+  /// Phase 16.8 D-07 — unlink failed with a transient network/service error (AccountUnlinkOutcome.transientFailure).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t unlink due to a network or service error. Please try again later.'**
+  String get settingsUnlinkFailedTransient;
+
+  /// Phase 16.8 D-07 — unclassified unlink failure catch-all (AccountUnlinkOutcome.failed).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t unlink your account. Please try again later.'**
+  String get settingsUnlinkFailedUnknown;
+
   /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone').
   ///
   /// In en, this message translates to:

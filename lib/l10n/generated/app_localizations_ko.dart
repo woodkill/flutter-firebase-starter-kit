@@ -648,6 +648,43 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String settingsUnlinkProviderSemantic(String provider) {
+    return '$provider 연결 해제';
+  }
+
+  @override
+  String settingsUnlinkDialogTitle(String provider) {
+    return '$provider 연결을 해제할까요?';
+  }
+
+  @override
+  String settingsUnlinkDialogBody(String provider) {
+    return '해제하면 $provider 계정으로 로그인할 수 없습니다.';
+  }
+
+  @override
+  String get settingsUnlinkConfirmAction => '해제';
+
+  @override
+  String accountUnlinkSucceededSnackbar(String provider) {
+    return '$provider 계정 연결이 해제되었습니다';
+  }
+
+  @override
+  String get settingsUnlinkFailedLastCredential =>
+      '로그인 수단이 하나뿐이라 연결을 해제할 수 없습니다.';
+
+  @override
+  String get settingsUnlinkFailedAlreadyUnlinked => '이미 연결이 해제된 계정입니다.';
+
+  @override
+  String get settingsUnlinkFailedTransient =>
+      '네트워크 또는 서비스 오류로 연결을 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String get settingsUnlinkFailedUnknown => '연결 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

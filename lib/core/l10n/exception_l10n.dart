@@ -46,6 +46,13 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     // ProviderAlreadyLinkedToThisAccount (`provider-already-linked`).
     'settingsLinkFailedAlreadyLinkedHere' =>
       l10n.settingsLinkFailedAlreadyLinkedHere,
+    // ProviderNotLinked (native `no-such-provider` · callable `not-found`).
+    'settingsUnlinkFailedAlreadyUnlinked' =>
+      l10n.settingsUnlinkFailedAlreadyUnlinked,
+    // UnlinkLastCredentialRejected (callable `failed-precondition` +
+    // `details.reason: 'last_credential'`).
+    'settingsUnlinkFailedLastCredential' =>
+      l10n.settingsUnlinkFailedLastCredential,
     // AccountAlreadyLinked (`credential-already-in-use`).
     'errorAccountExistsWithUnknownProvider' =>
       l10n.errorAccountExistsWithUnknownProvider,

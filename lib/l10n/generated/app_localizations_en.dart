@@ -667,6 +667,45 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String settingsUnlinkProviderSemantic(String provider) {
+    return 'Unlink $provider';
+  }
+
+  @override
+  String settingsUnlinkDialogTitle(String provider) {
+    return 'Unlink $provider?';
+  }
+
+  @override
+  String settingsUnlinkDialogBody(String provider) {
+    return 'You\'ll no longer be able to sign in with your $provider account.';
+  }
+
+  @override
+  String get settingsUnlinkConfirmAction => 'Unlink';
+
+  @override
+  String accountUnlinkSucceededSnackbar(String provider) {
+    return 'Unlinked your $provider account.';
+  }
+
+  @override
+  String get settingsUnlinkFailedLastCredential =>
+      'You can\'t unlink your only sign-in method.';
+
+  @override
+  String get settingsUnlinkFailedAlreadyUnlinked =>
+      'This account is already unlinked.';
+
+  @override
+  String get settingsUnlinkFailedTransient =>
+      'Couldn\'t unlink due to a network or service error. Please try again later.';
+
+  @override
+  String get settingsUnlinkFailedUnknown =>
+      'Couldn\'t unlink your account. Please try again later.';
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

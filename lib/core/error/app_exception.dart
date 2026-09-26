@@ -269,6 +269,39 @@ final class ProviderAlreadyLinkedToThisAccount extends AuthException {
     : super(userMessage: 'settingsLinkFailedAlreadyLinkedHere');
 }
 
+/// 해제하려는 provider 가 이미 이 계정에 연결되어 있지 않음 (Phase 16.8).
+///
+/// 대응 코드:
+/// - native `User.unlink` 의 Firebase `no-such-provider`.
+/// - callable `unlinkCustomTokenProvider` 의 `not-found` (대상 CT 신원 없음).
+///
+/// 다른 기기에서 먼저 해제했거나 화면이 stale 한 경합에서 발생한다. 재시도로
+/// 해소되지 않는 **결정적** 결과이므로 [ServiceUnavailable] 로 뭉개면
+/// 「잠시 후 다시 시도」 로 오안내된다 (RESEARCH Pitfall 4) — 전용 문구
+/// `settingsUnlinkFailedAlreadyUnlinked` 를 쓴다.
+final class ProviderNotLinked extends AuthException {
+  /// [ProviderNotLinked]를 생성한다.
+  const ProviderNotLinked({super.cause})
+    : super(userMessage: 'settingsUnlinkFailedAlreadyUnlinked');
+}
+
+/// 남은 로그인 수단이 하나뿐이라 서버가 해제를 거부함 (Phase 16.8 D-03).
+///
+/// 대응 코드: callable `unlinkCustomTokenProvider` 의 `failed-precondition` +
+/// `details.reason: 'last_credential'`. 클라이언트는 자격증명 1개 상태에서
+/// 해제 버튼을 숨기지만(`canUnlinkProvider`), 화면 표시와 서버 판정이 경합한
+/// 경우 서버 가드가 최종 방어선이다.
+///
+/// `failed-precondition` 은 기본 매핑(`_mapFunctionsException`)에서
+/// [ServiceUnavailable] 로 뭉개져 「잠시 후 다시 시도」 로 오안내되므로
+/// (RESEARCH Pitfall 4) 그보다 앞에서 본 타입으로 분기한다 — 재시도로는
+/// 절대 해소되지 않는다.
+final class UnlinkLastCredentialRejected extends AuthException {
+  /// [UnlinkLastCredentialRejected]를 생성한다.
+  const UnlinkLastCredentialRejected({super.cause})
+    : super(userMessage: 'settingsUnlinkFailedLastCredential');
+}
+
 /// 재인증 필요 (Phase 16 D-06 / D-07).
 ///
 /// `deleteUserAccount` Cloud Function 이 `unauthenticated` 또는

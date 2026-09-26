@@ -16,6 +16,7 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
+import '../../settings/domain/unlink_provider_request.dart';
 // Phase 16 G-16-A9-1: authRepository factory provider 의 콜백 주입 전용 import.
 // AuthRepository 클래스 본체는 본 타입을 참조하지 않는다 (D-A2 관례).
 import '../../terms/domain/terms_state.dart';
@@ -2284,6 +2285,144 @@ class AuthRepository implements AnonymousSignIn {
     }
   }
 
+  /// 현재 계정에서 native provider([providerId] — `google.com` · `apple.com` ·
+  /// `facebook.com` · `password`) 연결을 해제한다 (Phase 16.8 D-01 · D-02 ·
+  /// D-06 · D-08).
+  ///
+  /// 흐름: Firebase [fb.User.unlink] → `reload()` → `_auth.currentUser` 를
+  /// 도메인 [User] 로 매핑한다. `reload()` 로 서버 기준 `providerData` 를 다시
+  /// 읽어 stale 캐시로 「해제됨」 을 표시하는 일을 막고(T-16.8-04), 그 결과
+  /// `userChanges()` 가 재방출되어 설정 목록이 갱신된다.
+  ///
+  /// - 재인증을 요구하지 않는다 (D-06) — 확인 다이얼로그가 유일한 진입이다.
+  /// - 가입 수단 기록(`signUpProviderId`)은 읽지도 쓰지도 않는다 (D-01 ·
+  ///   D-08) — 해제 대상 판정은 UI 의 `canUnlinkProvider` 가 끝냈다.
+  /// - [SocialLinkInProgress] 를 감싸지 않는다: 해제는 `currentUser == null`
+  ///   창이 없어 익명 자동 로그인 race 가 생기지 않는다 (RESEARCH OQ2).
+  ///
+  /// 반환:
+  /// - `Result.success(User)` — 해제 성공 · reload 된 사용자.
+  /// - `Result.failure(ProviderNotLinked)` — `no-such-provider` (이미 해제됨).
+  /// - `Result.failure(ReauthenticationRequiredException)` —
+  ///   `requires-recent-login` (D-06 으로 기대하지 않는 방어 매핑).
+  /// - `Result.failure(UnknownException)` — caller 부재 · 익명 caller
+  ///   (WR-06 결정적 실패 — 재시도 유도 금지).
+  /// - 그 외 Auth 코드 → [_mapAuthException] · 비-Auth 예외 →
+  ///   [ServiceUnavailable].
+  Future<Result<User>> unlinkNativeProvider(String providerId) async {
+    final current = _auth.currentUser;
+    if (current == null || current.isAnonymous) {
+      // WR-06: 결정적 실패 — 재시도 유도 금지.
+      return const Result.failure(UnknownException());
+    }
+    try {
+      final updated = await current.unlink(providerId);
+      await updated.reload();
+      return Result.success(_mapFirebaseUser(_auth.currentUser ?? updated));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapUnlinkAuthException(e));
+    } on Object catch (e) {
+      // PII 0 — runtimeType 만.
+      if (kDebugMode) {
+        debugPrint(
+          'unlinkNativeProvider 비-Auth 예외: runtimeType=${e.runtimeType}',
+        );
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    }
+  }
+
+  /// 현재 계정에서 Custom Token provider([providerSlug] — `kakao` · `line`)
+  /// 연결을 해제한다 (Phase 16.8 D-01 · D-02 · D-03 · D-04 · D-06).
+  ///
+  /// callable `unlinkCustomTokenProvider` 에 [UnlinkProviderRequest] 를 보내고
+  /// (`{provider: slug}` — uid 는 서버가 `request.auth` 에서 읽는다) `{ok: true}`
+  /// 를 받으면 `reload()` 뒤 도메인 [User] 로 매핑한다. 서버가
+  /// `identity_index` · `users/{uid}.linkedProviders` 를 정리하므로
+  /// `linkedProvidersStreamProvider` 가 재방출되어 설정 목록이 갱신된다.
+  ///
+  /// - 재인증을 요구하지 않는다 (D-06) · `signUpProviderId` 를 쓰지 않는다
+  ///   (D-01) · [SocialLinkInProgress] 를 감싸지 않는다 (RESEARCH OQ2).
+  /// - 서버 `message` 는 렌더하지 않는다 — `code` + `details.reason` 만 분기.
+  ///
+  /// 에러 매핑 (분기 순서가 계약 — RESEARCH Pitfall 4):
+  /// 1. `failed-precondition` + `details.reason == 'last_credential'` →
+  ///    [UnlinkLastCredentialRejected] (서버 D-03 가드). [_mapFunctionsException]
+  ///    은 `failed-precondition` 을 [ServiceUnavailable] 로 뭉개므로 반드시 앞에서.
+  /// 2. `not-found` → [ProviderNotLinked] (대상 CT 신원 없음).
+  /// 3. `unauthenticated` · `permission-denied` →
+  ///    [ReauthenticationRequiredException] (link arm 과 같은 방어).
+  /// 4. `resource-exhausted` → [TooManyRequests].
+  /// 5. 나머지 → [_mapFunctionsException] (`unavailable` · `deadline-exceeded`
+  ///    는 거기서 [NoInternetConnection]).
+  ///
+  /// 반환:
+  /// - `Result.success(User)` — 해제 성공 · reload 된 사용자.
+  /// - `Result.failure(...)` — 위 매핑 · caller 부재/익명/`ok != true` 는
+  ///   [UnknownException] (WR-06 결정적 실패).
+  Future<Result<User>> unlinkCustomTokenProvider(String providerSlug) async {
+    final current = _auth.currentUser;
+    if (current == null || current.isAnonymous) {
+      // WR-06: 결정적 실패 — 재시도 유도 금지.
+      return const Result.failure(UnknownException());
+    }
+    try {
+      final callable = _functions.httpsCallable(
+        'unlinkCustomTokenProvider',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 10)),
+      );
+      final response = await callable.call<Map<String, dynamic>>(
+        UnlinkProviderRequest(provider: providerSlug).toJson(),
+      );
+      if (response.data['ok'] != true) {
+        // WR-06: 서버 계약 위반 — 재시도로 해소되지 않는다.
+        return const Result.failure(UnknownException());
+      }
+      await current.reload();
+      return Result.success(_mapFirebaseUser(_auth.currentUser ?? current));
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'failed-precondition' &&
+          _isLastCredentialRejection(e.details)) {
+        return Result.failure(UnlinkLastCredentialRejected(cause: e));
+      }
+      if (e.code == 'not-found') {
+        return Result.failure(ProviderNotLinked(cause: e));
+      }
+      if (e.code == 'unauthenticated' || e.code == 'permission-denied') {
+        return Result.failure(ReauthenticationRequiredException(cause: e));
+      }
+      if (e.code == 'resource-exhausted') {
+        return Result.failure(TooManyRequests(cause: e));
+      }
+      return Result.failure(_mapFunctionsException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on Object catch (e) {
+      // PII 0 — runtimeType 만.
+      if (kDebugMode) {
+        debugPrint(
+          'unlinkCustomTokenProvider 비-Functions 예외: '
+          'runtimeType=${e.runtimeType}',
+        );
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    }
+  }
+
+  /// native 해제의 [fb.FirebaseAuthException] 을 [AppException] 으로 매핑한다
+  /// (Phase 16.8).
+  ///
+  /// - `no-such-provider` → [ProviderNotLinked] (이미 해제됨 — 결정적).
+  /// - `requires-recent-login` → [ReauthenticationRequiredException].
+  /// - 나머지 → [_mapAuthException] (`network-request-failed` ·
+  ///   `too-many-requests` 등 공통 매핑).
+  AppException _mapUnlinkAuthException(fb.FirebaseAuthException e) =>
+      switch (e.code) {
+        'no-such-provider' => ProviderNotLinked(cause: e),
+        'requires-recent-login' => ReauthenticationRequiredException(cause: e),
+        _ => _mapAuthException(e),
+      };
+
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
   ///
   /// [fb.FirebaseAuth.signInAnonymously] 를 호출하여 임시 UID 를 발급받는다.
@@ -2870,6 +3009,13 @@ class AuthRepository implements AnonymousSignIn {
   /// 를 싣는다. [details] 가 [Map] 이 아니거나 reason 이 다르면 `false`.
   bool _isCallerIdentityMismatch(Object? details) =>
       details is Map && details['reason'] == 'caller_identity_mismatch';
+
+  /// callable `unlinkCustomTokenProvider` 거부 [details] 가 서버 D-03 가드의
+  /// `last_credential` 인지 판정한다 (Phase 16.8 · RESEARCH Pitfall 4).
+  ///
+  /// [details] 가 [Map] 이 아니거나 reason 이 다르면 `false`.
+  bool _isLastCredentialRejection(Object? details) =>
+      details is Map && details['reason'] == 'last_credential';
 
   /// [FirebaseFunctionsException.details] 에서 `existingProvider` slug 를 안전
   /// 추출해 [AccountProvider] 로 변환한다 (16-13 A4 gap closure).
