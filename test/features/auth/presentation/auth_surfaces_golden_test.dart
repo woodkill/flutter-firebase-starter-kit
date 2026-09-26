@@ -375,7 +375,9 @@ void main() {
   // - 다른 계정 배너 · 성공 SnackBar 는 production 흐름(버튼 탭 → repository
   //   결과 → 화면 반응) 을 그대로 거쳐 찍는다 (상태 주입 아님).
   group('reauth-login-auto-merge 재인증 모드 golden — 360×800 · en', () {
-    final naverUser = _reauthUser(const <String>['naver']);
+    final naverUser = _reauthUser(const <String>[
+      'naver',
+    ], signUpProviderId: 'naver');
     final multiUser = _reauthUser(const <String>[
       'apple.com',
       'google.com',
@@ -475,10 +477,14 @@ void main() {
 }
 
 /// 재인증 golden 용 정식 사용자 — [providerIds] 만 시나리오마다 다르다.
-User _reauthUser(List<String> providerIds) => User(
+///
+/// [signUpProviderId] 는 설정 「내 계정」 의 가입 수단 행 값이다. null 이면
+/// D-11 fallback(「-」)이 찍히므로 설정 복귀 golden 은 가입 수단을 준다 (D-30).
+User _reauthUser(List<String> providerIds, {String? signUpProviderId}) => User(
   uid: 'uid-mock',
   email: 'me@example.com',
   emailVerified: true,
   createdAt: DateTime.utc(2026, 1, 1),
   providerIds: providerIds,
+  signUpProviderId: signUpProviderId,
 );
