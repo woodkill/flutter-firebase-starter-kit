@@ -2839,3 +2839,152 @@ describe("resolveIdentity — 비익명 caller 가드 (reauth-login-auto-merge)"
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// Phase 16.8 D-21 — 연결 해제 뒤 같은 provider 로 다시 로그인하는 경우의 서버
+// 계약. 해제로 `identity_index/{provider}:{sub}` 문서가 사라졌으므로 lookup
+// 은 "미존재" 이고 caller 는 로그아웃 뒤의 익명 uid 다. 규칙(provider 공통):
+// 같은 이메일 → 기존 계정 안내 시트(email_in_use + existingProvider) /
+// 다른 이메일 · 이메일 없음 → 새 계정(익명 uid 승격).
+//
+// 이메일이 있는 Custom Token 행은 dev 실기기로 도달할 수 없다(Kakao 비즈 앱
+// 미전환 · LINE email scope 미요청) → 본 Jest 가 서버 계약을 보장한다.
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line max-len
+describe("resolveIdentity Phase 16.8 D-21 — 해제 후 재로그인 매트릭스 (이메일 있는 CT)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({emailVerified: true, providerData: []});
+    warnMock.mockReset();
+  });
+
+  it(
+    // eslint-disable-next-line max-len
+    "M1: 같은 이메일 + 남은 계정 native → email_in_use + existingProvider native slug (시트 경로 A/C)",
+    async () => {
+      // D-21: 같은 이메일 → 기존 계정 안내 시트. 해제한 kakao 로 다시
+      // 로그인해도 원 계정(google 이 남음)으로 자동 재연결되지 않는다.
+      // dev 실기기 도달 불가(비즈 앱 · LINE email 미요청) → Jest 가 보장.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "orig-uid",
+        providerData: [{providerId: "google.com", uid: "g"}],
+      });
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-relogin-m1",
+        callerUid: "anon-relogin",
+        callerIsAnonymous: true,
+        userInfo: {email: "same@example.com", emailVerified: true},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "google",
+      });
+      // tx 미진입 — 익명 uid 로 새 identity 를 등록하지 않는다.
+      expect(tx.get).not.toHaveBeenCalled();
+      expect(tx.set).not.toHaveBeenCalled();
+      expect(mockCreateUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "M2: 다른 이메일 → 신규 등록 (익명 uid 승격 · signUpProviderId: provider)",
+    async () => {
+      // D-21: 다른 이메일 → 새 계정. 원 계정과 무관한 새 가입이며 CT 새
+      // 계정은 원 계정 재연결을 막으므로 새 계정 탈퇴가 필요하다(manual).
+      // dev 실기기 도달 불가(비즈 앱 · LINE email 미요청) → Jest 가 보장.
+      mockGetUserByEmail.mockRejectedValueOnce(
+        Object.assign(new Error("nf"), {code: "auth/user-not-found"}),
+      );
+      const {db, tx, userRef} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-relogin-m2",
+        callerUid: "anon-relogin",
+        callerIsAnonymous: true,
+        userInfo: {email: "different@example.com", emailVerified: true},
+      });
+
+      expect(res).toMatchObject({uid: "anon-relogin", isNewUser: true});
+      expect(mockGetUserByEmail).toHaveBeenCalledTimes(1);
+      expect(mockCreateUser).not.toHaveBeenCalled();
+      const userSetCall = tx.set.mock.calls.find((c) => c[0] === userRef);
+      expect(userSetCall?.[1]).toMatchObject({signUpProviderId: "kakao"});
+      expect(userSetCall?.[2]).toEqual({merge: true});
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "M3: 이메일 없음 → getUserByEmail 미호출 + 신규 등록 (익명 uid 승격 · signUpProviderId: provider)",
+    async () => {
+      // D-21: 이메일 없음 → 새 계정 (충돌 판정 근거가 없다). dev 의 Kakao ·
+      // LINE 은 이메일이 오지 않아 이 행만 실기기로 관측된다.
+      const {db, tx, userRef} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-relogin-m3",
+        callerUid: "anon-relogin",
+        callerIsAnonymous: true,
+      });
+
+      expect(mockGetUserByEmail).not.toHaveBeenCalled();
+      expect(res).toMatchObject({uid: "anon-relogin", isNewUser: true});
+      expect(mockCreateUser).not.toHaveBeenCalled();
+      const userSetCall = tx.set.mock.calls.find((c) => c[0] === userRef);
+      expect(userSetCall?.[1]).toMatchObject({signUpProviderId: "kakao"});
+      expect(userSetCall?.[2]).toEqual({merge: true});
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "M4: 같은 이메일 + 남은 계정 CT 전용 → 역조회 existingProvider CT slug (시트 경로 B)",
+    async () => {
+      // D-21: 같은 이메일 → 기존 계정 안내 시트. 남은 계정이 CT 전용이라
+      // providerData 가 비어 있어도 identity_index 역조회가 남은 provider
+      // (line) 를 찾는다. dev 실기기 도달 불가(비즈 앱 · LINE email 미요청)
+      // → Jest 가 보장.
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: "orig-uid",
+        providerData: [],
+      });
+      const {db, tx, where} = makeDb({
+        preExists: false,
+        txExists: false,
+        reverseDocs: [{provider: "line", providerUserId: "l1"}],
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-relogin-m4",
+        callerUid: "anon-relogin",
+        callerIsAnonymous: true,
+        userInfo: {email: "same@example.com", emailVerified: true},
+      });
+
+      expect(res).toMatchObject({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "email_in_use",
+        existingProvider: "line",
+      });
+      expect(where).toHaveBeenCalledWith("firebaseUid", "==", "orig-uid");
+      expect(tx.set).not.toHaveBeenCalled();
+    },
+  );
+});
