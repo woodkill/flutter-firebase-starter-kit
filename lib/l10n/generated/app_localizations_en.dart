@@ -583,11 +583,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String settingsLinkedProviders(String providers) {
-    return 'Linked sign-in: $providers';
-  }
-
-  @override
   String settingsSignUpMethod(String method) {
     return 'Sign-up method: $method';
   }

@@ -571,11 +571,6 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
-  String settingsLinkedProviders(String providers) {
-    return '연결된 로그인: $providers';
-  }
-
-  @override
   String settingsSignUpMethod(String method) {
     return '가입 수단: $method';
   }

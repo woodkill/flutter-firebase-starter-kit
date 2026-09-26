@@ -2,7 +2,7 @@
 // section + Withdrawal 진입 path.
 //
 // UI-SPEC Surface B (line 248~275) verbatim 채택:
-// - 계정 section: 이메일 + 연결된 로그인 (linkedProviders join).
+// - 계정 section: 이메일 + 가입 수단 + 연결된 계정 (Phase 16.7 D-02 · D-09).
 // - Danger zone section: explainer + 회원탈퇴 ListTile (destructive color).
 // - 탈퇴 ListTile tap → WithdrawalConfirmationDialog.show.
 import 'package:flutter/material.dart';
@@ -16,6 +16,14 @@ import '../../home/presentation/provider_label_formatter.dart';
 import '_widgets/account_linking_section.dart';
 import '_widgets/danger_zone_section.dart';
 
+/// 「연결된 계정」 행 템플릿을 자르는 sentinel (Phase 16.7 D-04 보강).
+///
+/// `settingsLinkedAccounts` 템플릿에 이 값을 넣고 split 해 앞 · 뒤 문구
+/// 사이에 provider 별 span 을 끼운다. 사용자 영역(PUA) 문자라 ARB 번역
+/// 문구에 나올 수 없다 — 템플릿의 placeholder 가 정확히 1회라는 전제는
+/// 위젯 테스트 16.7-S05 가 3 locale 로 고정한다.
+const String _kLinkedAccountsSentinel = '\u{E000}';
+
 /// 설정 화면 (Phase 16 D-05~D-08).
 ///
 /// Material 3 ListView 기반 — 계정 section + Danger zone section 의 2-section
@@ -23,7 +31,8 @@ import '_widgets/danger_zone_section.dart';
 /// 표시되며 탭 시 `WithdrawalConfirmationDialog` 가 표시된다.
 ///
 /// **UI-SPEC Surface B verbatim mirror** (16-UI-SPEC.md line 248~275):
-/// - 계정 section (settingsAccountSection) — 이메일 + 연결된 로그인.
+/// - 계정 section (settingsAccountSection) — 이메일 + 가입 수단 + 연결된
+///   계정 (Phase 16.7 D-02 · D-09).
 /// - Danger zone section (settingsDangerZoneSection) — explainer +
 ///   회원탈퇴 ListTile (Icons.delete_forever + destructive 색상).
 class SettingsScreen extends ConsumerWidget {
@@ -40,8 +49,25 @@ class SettingsScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
 
     final email = user?.email ?? '-';
-    final providerIds = user?.providerIds ?? const <String>[];
-    final providersLabel = formatProviderIds(providerIds, l10n);
+    // Phase 16.7 — 가입 수단 · 연결된 계정 분리. 홈 계정 카드와 같은 helper
+    // (D-11 기록 없음 = 「-」 · 연결 = 보유 전부, D-12 미보유 기록값 그대로).
+    final split = splitAccountProviders(user);
+    final signUpValue = formatProviderIds(
+      split.signUpProviderId == null
+          ? const <String>[]
+          : <String>[split.signUpProviderId!],
+      l10n,
+    );
+    // style 미지정 — WidgetSpan 안 라벨도 ListTile title 의 DefaultTextStyle 을
+    // 상속해 바깥 문단과 같은 스타일이 된다.
+    final linked = buildLinkedAccountsValue(
+      formatProviderLabels(split.linkedProviderIds, l10n),
+      none: l10n.authAccountLinkedAccountsNone,
+    );
+    // 템플릿을 sentinel 로 잘라 앞 · 뒤 문구를 얻는다 (ko/en/ja 는 뒤가 빈 문자열).
+    final parts = l10n
+        .settingsLinkedAccounts(_kLinkedAccountsSentinel)
+        .split(_kLinkedAccountsSentinel);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
@@ -72,10 +98,11 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            // WR-14: 280dp 최소 뷰포트 오버플로 방어. 긴 이메일이나 다중
-            // 연결 계정(최대 7개 로그인 수단 — 소셜 6 + 이메일 — 을 `, ` 로
-            // join)에서 레이아웃이 깨진다. 같은 scope 의 _EnvironmentCard 가 이미 쓰는
-            // maxLines + softWrap + ellipsis 조합을 그대로 따른다.
+            // WR-14: 280dp 최소 뷰포트 오버플로 방어. 긴 이메일 · 가입 수단 행은
+            // 같은 scope 의 _EnvironmentCard 가 쓰는 maxLines 2 + softWrap +
+            // ellipsis 방어를 유지한다. 연결된 계정 행은 스크롤 ListView 안에서
+            // 소셜 전체 + 이메일 목록을 줄이지 않고 전부 표시한다(D-02 개정) —
+            // 줄바꿈은 provider 사이에서만 일어난다(D-04 보강).
             ListTile(
               leading: const Icon(Icons.alternate_email),
               title: Text(
@@ -86,12 +113,29 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.link),
+              leading: const Icon(Icons.how_to_reg),
               title: Text(
-                l10n.settingsLinkedProviders(providersLabel),
+                l10n.settingsSignUpMethod(signUpValue),
                 maxLines: 2,
                 softWrap: true,
                 overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // 연결된 계정 — maxLines · overflow 없음. 표시 span 의 WidgetSpan
+            // 자리표시 문자가 낭독되지 않도록 semanticsLabel 을 plain join 으로
+            // 명시한다 (UI-SPEC §Semantics).
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: parts.first),
+                    linked.display,
+                    TextSpan(text: parts.length > 1 ? parts.last : ''),
+                  ],
+                ),
+                softWrap: true,
+                semanticsLabel: l10n.settingsLinkedAccounts(linked.semantics),
               ),
             ),
             Gap(spacing.xxl),

@@ -1162,12 +1162,6 @@ abstract class AppLocalizations {
   /// **'{email}'**
   String settingsAccountEmail(String email);
 
-  /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings linked-providers row. {providers} 는 authAccountProvider{X} 7 brand verbatim 라벨의 comma-joined list.
-  ///
-  /// In en, this message translates to:
-  /// **'Linked sign-in: {providers}'**
-  String settingsLinkedProviders(String providers);
-
   /// Phase 16.7 D-02/D-09 — Settings account row. {method} is one authAccountProvider{X} label, '-' when not recorded.
   ///
   /// In en, this message translates to:

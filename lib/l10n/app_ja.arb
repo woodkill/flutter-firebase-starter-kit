@@ -244,7 +244,6 @@
   "settingsTitle": "設定",
   "settingsAccountSection": "アカウント",
   "settingsAccountEmail": "{email}",
-  "settingsLinkedProviders": "連携済みログイン: {providers}",
   "settingsSignUpMethod": "登録方法: {method}",
   "settingsLinkedAccounts": "連携済みアカウント: {accounts}",
   "settingsAccountLinkingSection": "アカウント連携",

@@ -570,11 +570,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String settingsLinkedProviders(String providers) {
-    return '連携済みログイン: $providers';
-  }
-
-  @override
   String settingsSignUpMethod(String method) {
     return '登録方法: $method';
   }

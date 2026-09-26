@@ -930,17 +930,6 @@
     }
   },
 
-  "settingsLinkedProviders": "Linked sign-in: {providers}",
-  "@settingsLinkedProviders": {
-    "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings linked-providers row. {providers} 는 authAccountProvider{X} 7 brand verbatim 라벨의 comma-joined list.",
-    "placeholders": {
-      "providers": {
-        "type": "String",
-        "example": "Kakao, Google"
-      }
-    }
-  },
-
   "settingsSignUpMethod": "Sign-up method: {method}",
   "@settingsSignUpMethod": {
     "description": "Phase 16.7 D-02/D-09 — Settings account row. {method} is one authAccountProvider{X} label, '-' when not recorded.",
