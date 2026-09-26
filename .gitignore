@@ -183,6 +183,9 @@ app.*.map.json
 # STATE.md / ROADMAP.md 에서 파생된 best-effort 스냅샷 캐시. step-boundary 명령마다
 # 재발행되어 커밋 churn 만 유발한다. 진실원은 STATE.md 다.
 .planning/state.json
+# gsd-phase-researcher 의 웹 조회 캐시(TTL 24시간). 결론은 RESEARCH.md 에 남으므로
+# 커밋 대상이 아니며, 남겨 두면 execute 의 porcelain 게이트를 깨뜨린다.
+.planning/research/.cache/
 
 # ==========================
 # Golden test — dev-only fixtures (라이센스 위험 회피)
