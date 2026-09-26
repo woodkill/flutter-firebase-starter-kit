@@ -387,11 +387,14 @@ class AuthRepository implements AnonymousSignIn {
       // 보존. helper 의 isLinkedFromAnonymous 명시 인자로 D-20 우회.
       // Phase 17 (Account Linking) — see ROADMAP.md.
       final isLinkedFromAnonymous = anonymous != null && anonymous.isAnonymous;
+      // Phase 16.7 D-14: link 가 정상 반환한 분기에서만 true (fallback 은 false).
+      var didLinkAnonymous = false;
       fb.UserCredential userCredential;
       if (anonymous != null && anonymous.isAnonymous) {
         // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
         try {
           userCredential = await anonymous.linkWithCredential(credential);
+          didLinkAnonymous = true;
         } on fb.FirebaseAuthException catch (e) {
           if (e.code == 'email-already-in-use') {
             // debug google-gmail-email-arm-merge — 새 로그인 금지.
@@ -451,6 +454,17 @@ class AuthRepository implements AnonymousSignIn {
       final fbUser = userCredential.user;
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
+      }
+      // Phase 16.7 D-14: isLinkedFromAnonymous 는 fallback 뒤에도 true 라 쓰지
+      // 않는다. link 분기는 isNewUser=false 라(Gap A) link 성공과 OR 한다.
+      // D-17: 서버 ack 를 기다리지 않는다 — recorder 가 모든 예외를 흡수한다.
+      final isSignUp =
+          didLinkAnonymous ||
+          (userCredential.additionalUserInfo?.isNewUser ?? false);
+      if (isSignUp) {
+        unawaited(
+          _recordSignUpMethod(fbUser.uid, fb.GoogleAuthProvider.PROVIDER_ID),
+        );
       }
       // (Phase 9.2 R4) 자동 sendEmailVerification — Google idToken
       // email_verified=true claim 자연 no-op (D-19).
@@ -546,11 +560,14 @@ class AuthRepository implements AnonymousSignIn {
       // 보존. helper 의 isLinkedFromAnonymous 명시 인자로 D-20 우회.
       // Phase 17 (Account Linking) — see ROADMAP.md.
       final isLinkedFromAnonymous = anonymous != null && anonymous.isAnonymous;
+      // Phase 16.7 D-14: link 가 정상 반환한 분기에서만 true (fallback 은 false).
+      var didLinkAnonymous = false;
       fb.UserCredential userCredential;
       if (anonymous != null && anonymous.isAnonymous) {
         // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
         try {
           userCredential = await anonymous.linkWithProvider(provider);
+          didLinkAnonymous = true;
         } on fb.FirebaseAuthException catch (e) {
           if (e.code == 'email-already-in-use') {
             // debug apple-email-merge-profile-loss — 새 로그인 금지.
@@ -613,6 +630,17 @@ class AuthRepository implements AnonymousSignIn {
       final fbUser = userCredential.user;
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
+      }
+      // Phase 16.7 D-14: isLinkedFromAnonymous 는 fallback 뒤에도 true 라 쓰지
+      // 않는다. link 분기는 isNewUser=false 라(Gap A) link 성공과 OR 한다.
+      // D-17: 서버 ack 를 기다리지 않는다 — recorder 가 모든 예외를 흡수한다.
+      final isSignUp =
+          didLinkAnonymous ||
+          (userCredential.additionalUserInfo?.isNewUser ?? false);
+      if (isSignUp) {
+        unawaited(
+          _recordSignUpMethod(fbUser.uid, fb.AppleAuthProvider.PROVIDER_ID),
+        );
       }
       // Blocker #2: `_auth.currentUser` 재조회 금지. linkWithProvider /
       // signInWithProvider 결과의 UserCredential.user 를 직접 사용한다.
@@ -699,11 +727,14 @@ class AuthRepository implements AnonymousSignIn {
       // 보존. helper 의 isLinkedFromAnonymous 명시 인자로 D-20 우회.
       // Phase 17 (Account Linking) — see ROADMAP.md.
       final isLinkedFromAnonymous = anonymous != null && anonymous.isAnonymous;
+      // Phase 16.7 D-14: link 가 정상 반환한 분기에서만 true (fallback 은 false).
+      var didLinkAnonymous = false;
       fb.UserCredential userCredential;
       if (anonymous != null && anonymous.isAnonymous) {
         // Phase 10 D-14 / BLOCKER #4: 익명 → 정식 승격.
         try {
           userCredential = await anonymous.linkWithCredential(credential);
+          didLinkAnonymous = true;
         } on fb.FirebaseAuthException catch (e) {
           if (kDebugMode) {
             // D9 (debug ios-facebook-limited-login stage 2): 실기기 재검증에서
@@ -766,6 +797,17 @@ class AuthRepository implements AnonymousSignIn {
       final fbUser = userCredential.user;
       if (fbUser == null) {
         return const Result.failure(ServiceUnavailable());
+      }
+      // Phase 16.7 D-14: isLinkedFromAnonymous 는 fallback 뒤에도 true 라 쓰지
+      // 않는다. link 분기는 isNewUser=false 라(Gap A) link 성공과 OR 한다.
+      // D-17: 서버 ack 를 기다리지 않는다 — recorder 가 모든 예외를 흡수한다.
+      final isSignUp =
+          didLinkAnonymous ||
+          (userCredential.additionalUserInfo?.isNewUser ?? false);
+      if (isSignUp) {
+        unawaited(
+          _recordSignUpMethod(fbUser.uid, fb.FacebookAuthProvider.PROVIDER_ID),
+        );
       }
       // (Phase 9.2 R4 + R5 — D-25 verify → photoURL 순차)
       // Facebook 만 emailVerified=false 기본 → 실효적 sendEmailVerification.
