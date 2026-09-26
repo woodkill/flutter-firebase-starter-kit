@@ -383,7 +383,7 @@
 
   "authAccountEmail": "Email",
   "@authAccountEmail": {
-    "description": "Label for the user's email field in the account section"
+    "description": "Label for the user's email field — home account card label and Settings 'My Account' row title (Phase 16.7 R1: title above the email address)."
   },
 
   "authAccountPhotoUrl": "Profile Photo",
@@ -403,12 +403,12 @@
 
   "authAccountSignUpMethod": "Sign-up method",
   "@authAccountSignUpMethod": {
-    "description": "Phase 16.7 D-08/D-09 — Home account card label for the sign-up method: the provider that first created the account (fixed afterwards, even when signing in with a linked account)."
+    "description": "Phase 16.7 D-08/D-09 (R1) — Label for the sign-up method: the provider that first created the account (fixed afterwards, even when signing in with a linked account). Used as the home account card label and as the Settings 'My Account' row title (value on the line below)."
   },
 
   "authAccountLinkedAccounts": "Linked accounts",
   "@authAccountLinkedAccounts": {
-    "description": "Phase 16.7 D-09 — Home account card label for the providers linked after sign-up (all providers minus the sign-up method)."
+    "description": "Phase 16.7 D-09 (R1) — Label for the providers linked after sign-up (all providers minus the sign-up method). Used as the home account card label and as the Settings 'My Account' row title (value on the line below)."
   },
 
   "authAccountLinkedAccountsNone": "None",
@@ -926,28 +926,6 @@
       "email": {
         "type": "String",
         "example": "user@example.com"
-      }
-    }
-  },
-
-  "settingsSignUpMethod": "Sign-up method: {method}",
-  "@settingsSignUpMethod": {
-    "description": "Phase 16.7 D-02/D-09 — Settings account row. {method} is one authAccountProvider{X} label, '-' when not recorded.",
-    "placeholders": {
-      "method": {
-        "type": "String",
-        "example": "Kakao"
-      }
-    }
-  },
-
-  "settingsLinkedAccounts": "Linked accounts: {accounts}",
-  "@settingsLinkedAccounts": {
-    "description": "Phase 16.7 D-02/D-09 — Settings account row. {accounts} is the comma-joined authAccountProvider{X} labels in fixed provider order, or authAccountLinkedAccountsNone. Not line-limited; lines break only between providers. The placeholder must appear exactly once (the UI splits the template around it to embed per-provider spans).",
-    "placeholders": {
-      "accounts": {
-        "type": "String",
-        "example": "Google, LINE"
       }
     }
   },

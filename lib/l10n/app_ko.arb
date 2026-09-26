@@ -241,8 +241,6 @@
   "settingsTitle": "설정",
   "settingsAccountSection": "내 계정",
   "settingsAccountEmail": "{email}",
-  "settingsSignUpMethod": "가입 수단: {method}",
-  "settingsLinkedAccounts": "연결된 계정: {accounts}",
   "settingsAccountLinkingSection": "계정 연결",
   "settingsLinkProviderCta": "{provider} 연결",
   "accountLinkingSucceededSnackbar": "{provider} 계정이 연결되었습니다",

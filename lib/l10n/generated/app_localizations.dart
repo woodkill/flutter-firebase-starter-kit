@@ -556,7 +556,7 @@ abstract class AppLocalizations {
   /// **'Display Name'**
   String get authAccountDisplayName;
 
-  /// Label for the user's email field in the account section
+  /// Label for the user's email field — home account card label and Settings 'My Account' row title (Phase 16.7 R1: title above the email address).
   ///
   /// In en, this message translates to:
   /// **'Email'**
@@ -580,13 +580,13 @@ abstract class AppLocalizations {
   /// **'Created at'**
   String get authAccountCreatedAt;
 
-  /// Phase 16.7 D-08/D-09 — Home account card label for the sign-up method: the provider that first created the account (fixed afterwards, even when signing in with a linked account).
+  /// Phase 16.7 D-08/D-09 (R1) — Label for the sign-up method: the provider that first created the account (fixed afterwards, even when signing in with a linked account). Used as the home account card label and as the Settings 'My Account' row title (value on the line below).
   ///
   /// In en, this message translates to:
   /// **'Sign-up method'**
   String get authAccountSignUpMethod;
 
-  /// Phase 16.7 D-09 — Home account card label for the providers linked after sign-up (all providers minus the sign-up method).
+  /// Phase 16.7 D-09 (R1) — Label for the providers linked after sign-up (all providers minus the sign-up method). Used as the home account card label and as the Settings 'My Account' row title (value on the line below).
   ///
   /// In en, this message translates to:
   /// **'Linked accounts'**
@@ -1161,18 +1161,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{email}'**
   String settingsAccountEmail(String email);
-
-  /// Phase 16.7 D-02/D-09 — Settings account row. {method} is one authAccountProvider{X} label, '-' when not recorded.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign-up method: {method}'**
-  String settingsSignUpMethod(String method);
-
-  /// Phase 16.7 D-02/D-09 — Settings account row. {accounts} is the comma-joined authAccountProvider{X} labels in fixed provider order, or authAccountLinkedAccountsNone. Not line-limited; lines break only between providers. The placeholder must appear exactly once (the UI splits the template around it to embed per-provider spans).
-  ///
-  /// In en, this message translates to:
-  /// **'Linked accounts: {accounts}'**
-  String settingsLinkedAccounts(String accounts);
 
   /// Phase 16 SOCL-12 proactive linking — Surface D. Settings '계정 연결' section heading (proactive account-linking 진입점). 후보 = 소셜 provider only (email EXCLUDE — Surface D mockup §0 user sign-off 2026-06-02).
   ///

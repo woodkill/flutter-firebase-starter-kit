@@ -571,16 +571,6 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
-  String settingsSignUpMethod(String method) {
-    return '가입 수단: $method';
-  }
-
-  @override
-  String settingsLinkedAccounts(String accounts) {
-    return '연결된 계정: $accounts';
-  }
-
-  @override
   String get settingsAccountLinkingSection => '계정 연결';
 
   @override

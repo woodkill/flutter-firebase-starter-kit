@@ -583,16 +583,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String settingsSignUpMethod(String method) {
-    return 'Sign-up method: $method';
-  }
-
-  @override
-  String settingsLinkedAccounts(String accounts) {
-    return 'Linked accounts: $accounts';
-  }
-
-  @override
   String get settingsAccountLinkingSection => 'Link an account';
 
   @override

@@ -570,16 +570,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String settingsSignUpMethod(String method) {
-    return '登録方法: $method';
-  }
-
-  @override
-  String settingsLinkedAccounts(String accounts) {
-    return '連携済みアカウント: $accounts';
-  }
-
-  @override
   String get settingsAccountLinkingSection => 'アカウント連携';
 
   @override
