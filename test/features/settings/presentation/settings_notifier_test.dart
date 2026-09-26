@@ -466,4 +466,162 @@ void main() {
       }
     });
   });
+
+  group('Phase 16.8 D-03 · D-19 — SettingsNotifier.unlinkProvider', () {
+    // 해제 성공 fixture — L 그룹 stubUser 와 같은 합성 값.
+    User unlinkedUser() => User(
+      uid: 'u1',
+      email: 'user@example.com',
+      emailVerified: true,
+      createdAt: DateTime.utc(2026, 1, 1),
+      providerIds: const ['kakao'],
+      signUpProviderId: 'kakao',
+    );
+
+    test(
+      'UN1: google.com → unlinkNativeProvider 만 · success · Firestore 0 (D-01)',
+      () async {
+        when(
+          () => mockAuthRepo.unlinkNativeProvider('google.com'),
+        ).thenAnswer((_) async => Result<User>.success(unlinkedUser()));
+
+        final notifier = container.read(settingsProvider.notifier);
+        final outcome = await notifier.unlinkProvider('google.com');
+
+        expect(outcome, AccountUnlinkOutcome.success);
+        verify(() => mockAuthRepo.unlinkNativeProvider('google.com')).called(1);
+        verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+        // D-01 — 해제 dispatch 는 settings repository(Firestore) 를 만지지 않는다.
+        verifyZeroInteractions(mockSettingsRepo);
+      },
+    );
+
+    test(
+      'UN2: kakao → unlinkCustomTokenProvider 만 · success · Firestore 0 (D-01)',
+      () async {
+        when(
+          () => mockAuthRepo.unlinkCustomTokenProvider('kakao'),
+        ).thenAnswer((_) async => Result<User>.success(unlinkedUser()));
+
+        final notifier = container.read(settingsProvider.notifier);
+        final outcome = await notifier.unlinkProvider('kakao');
+
+        expect(outcome, AccountUnlinkOutcome.success);
+        verify(() => mockAuthRepo.unlinkCustomTokenProvider('kakao')).called(1);
+        verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+        verifyZeroInteractions(mockSettingsRepo);
+      },
+    );
+
+    test('UN3: 미지 id yahoo → failed · repository 미호출 (D-11)', () async {
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.unlinkProvider('yahoo');
+
+      expect(outcome, AccountUnlinkOutcome.failed);
+      verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+      verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+    });
+
+    test('UN4: UnlinkLastCredentialRejected → lastCredential', () async {
+      when(() => mockAuthRepo.unlinkCustomTokenProvider('kakao')).thenAnswer(
+        (_) async => const Result<User>.failure(UnlinkLastCredentialRejected()),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.unlinkProvider('kakao');
+
+      expect(outcome, AccountUnlinkOutcome.lastCredential);
+    });
+
+    test('UN5: ProviderNotLinked → alreadyUnlinked', () async {
+      when(() => mockAuthRepo.unlinkNativeProvider('google.com')).thenAnswer(
+        (_) async => const Result<User>.failure(ProviderNotLinked()),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.unlinkProvider('google.com');
+
+      expect(outcome, AccountUnlinkOutcome.alreadyUnlinked);
+    });
+
+    test('UN6: ReauthenticationRequiredException → reauthRequired', () async {
+      when(() => mockAuthRepo.unlinkNativeProvider('google.com')).thenAnswer(
+        (_) async =>
+            const Result<User>.failure(ReauthenticationRequiredException()),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.unlinkProvider('google.com');
+
+      expect(outcome, AccountUnlinkOutcome.reauthRequired);
+    });
+
+    test('UN7: 일시적 오류 3종 → transientFailure', () async {
+      const transientExceptions = <AppException>[
+        NoInternetConnection(),
+        TooManyRequests(),
+        ServiceUnavailable(),
+      ];
+
+      for (final exception in transientExceptions) {
+        when(
+          () => mockAuthRepo.unlinkNativeProvider('google.com'),
+        ).thenAnswer((_) async => Result<User>.failure(exception));
+
+        final notifier = container.read(settingsProvider.notifier);
+        final outcome = await notifier.unlinkProvider('google.com');
+
+        expect(
+          outcome,
+          AccountUnlinkOutcome.transientFailure,
+          reason: '${exception.runtimeType} 은 transientFailure 이어야 한다',
+        );
+      }
+    });
+
+    test('UN8: UnknownException → failed (catch-all)', () async {
+      when(
+        () => mockAuthRepo.unlinkCustomTokenProvider('kakao'),
+      ).thenAnswer((_) async => const Result<User>.failure(UnknownException()));
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.unlinkProvider('kakao');
+
+      expect(outcome, AccountUnlinkOutcome.failed);
+    });
+
+    test('UN9: repository 미흡수 throw → failed 로 흡수', () async {
+      when(
+        () => mockAuthRepo.unlinkNativeProvider('google.com'),
+      ).thenThrow(StateError('boom'));
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.unlinkProvider('google.com');
+
+      expect(outcome, AccountUnlinkOutcome.failed);
+    });
+
+    test('UN10: (WR-02) 해제 진행 중에도 탈퇴용 state · 연결 진행 플래그 불변', () async {
+      final unlinkGate = Completer<Result<User>>();
+      when(
+        () => mockAuthRepo.unlinkNativeProvider('google.com'),
+      ).thenAnswer((_) => unlinkGate.future);
+
+      final before = container.read(settingsProvider);
+      final notifier = container.read(settingsProvider.notifier);
+      final future = notifier.unlinkProvider('google.com');
+      await pumpEventQueue();
+
+      // 진행 표시는 다이얼로그 로컬 스피너 몫 — 두 provider 모두 흔들리지 않는다.
+      expect(container.read(settingsProvider), before);
+      expect(container.read(settingsProvider).isLoading, isFalse);
+      expect(container.read(accountLinkInProgressProvider), isFalse);
+
+      unlinkGate.complete(Result<User>.success(unlinkedUser()));
+      expect(await future, AccountUnlinkOutcome.success);
+
+      expect(container.read(settingsProvider), before);
+      expect(container.read(accountLinkInProgressProvider), isFalse);
+    });
+  });
 }
