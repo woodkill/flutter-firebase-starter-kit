@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-09-25
-phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드)]
+last_updated: 2026-09-26
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -491,8 +491,8 @@ dev 빌드 실 단말 + KakaoTalk 설치 단말 + 미설치 단말 양쪽에서:
 3. 탭 → KakaoTalk 설치 시 KakaoTalk app-to-app 1-tap, 미설치 시 카카오계정
    웹뷰 (Custom Tab / SFSafariViewController) → "동의하고 계속하기".
 
-4. 인증 성공 → Home 진입 + EnvironmentInfoScreen Account 카드 → "로그인
-   수단: 카카오" 라벨 확인.
+4. 인증 성공 → Home 진입 + EnvironmentInfoScreen Account 카드 →
+   「가입 수단: 카카오」 · 「연결된 계정: 없음」 확인.
 
 5. Firebase Console > Firestore → `identity_index/kakao:{kakaoUserId}` 문서
    존재 + `firebaseUid` / `linkedAt` / `lastSeenAt` 확인.
@@ -2036,8 +2036,9 @@ lastSeenAt)` 만 호출, Firebase Auth user record 미갱신 root cause 식별.
 token cache propagate timing race → `linkedProvidersStream` 이 sign-in
 직후 잠시 `[cloud_firestore/permission-denied]` 를 받음. fix 전에는 stream
 의 `handleError` 가 즉시 빈 배열 emit (R6 D-41 정책) → `AsyncData([])`
-정착 → UI 의 EnvironmentInfoScreen "로그인 수단" 카드가 첫 frame `"-"`
-표시 (cold start 시 회복).
+정착 → UI 의 EnvironmentInfoScreen 「가입 수단」 · 「연결된 계정」 카드가
+첫 frame 에 「-」 · 보유 provider 전부(D-11 fallback)로 표시 (cold start 시
+회복).
 
 **해결됨 (R10-FOLLOWUP-2 fix):** `lib/features/auth/data/auth_repository.dart::linkedProvidersStream`
 이 `async*` generator + `permission-denied` 1s × 5회 retry 로 재작성됨
@@ -2256,6 +2257,8 @@ Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측�
    - ⑥ **잔존 데이터 계수** — Firestore `identity_index` (`provider == <slug>`) ·
      `users.linkedProviders` (요소가 map `{providerId, providerUserId}` 라 문자열
      `ARRAY_CONTAINS` 는 항상 0 — map 필드를 집계한다) · `users.providerLinkedAt.<slug>`
+     · `users.signUpProviderId == <slug>` (가입 수단 기록 — 제거 뒤 남은 값의
+     표시는 `errorUnknownProvider` 로 떨어지므로 삭제 대상 여부는 별도 승인)
      · RC `auth_provider_<slug>_enabled`. 남은 provider 로 대조군 (≥1) 을 먼저 세고
      계수만 출력한다 (값 출력 0). 0 이 아니면 삭제는 별도 승인.
    - ⑦ **외부 콘솔 앱 등록 삭제** — provider 개발자 콘솔의 앱 (Client ID) 은 수동
@@ -2478,6 +2481,39 @@ Home AppBar → Icons.settings tap → /settings route
 **확인 방법:** Firestore `users/{uid}` 문서에 `termsAccepted` 5 필드가 존재하는지 확인한다. 없다면 (a) 이 수정 이전에 가입한 사용자이거나, (b) **첫 등록 시점에** 기기 로컬 동의 값이 없어 클라이언트가 스냅샷을 부착하지 않았거나 서버 5 필드 검증에 걸려 무시된 경우이거나, (c) 첫 등록의 mirror 가 실패한 뒤 재시도로 로그인한 경우이고, 어느 쪽이든 아직 재동의 화면을 통과하지 않은 사용자다. `{provider}_terms_acceptance_mirrored` 이벤트는 신규 등록 요청에서 mirror 가 실제로 수행될 때만 남으므로 (a) · (b) · (c) 어디에도 없다 — 이벤트 유무로는 나눌 수 없다. (c) 는 같은 uid 의 `{provider}_terms_acceptance_mirror_failed` 이벤트로 식별하고, (a) 와 (b) 는 `users/{uid}.providerLinkedAt.{provider}`(신원 등록 시각 — `identity_index` 가 신규 등록 write 에 함께 기록)를 이 기능의 배포 시각과 비교해 나눈다.
 
 **mirror 실패는 로그인을 실패시킨다.** mirror 가 실제로 수행되는 **신규 등록 요청** 에서 공용 helper `mirrorTermsAccepted`(`functions/src/auth/mirror_terms.ts`)의 `set(merge:true)` 가 던지면 `{provider}_terms_acceptance_mirror_failed` 를 남긴 뒤 `HttpsError('internal')` 로 callable 을 실패시킨다 — 4개 endpoint(Kakao · LINE · `naverCustomToken` · `naverWebCustomToken`) 공통. 의도는 동의 기록 없이 로그인이 성공하는 요청을 만들지 않는 것(fail-closed)이다. 다만 신원 등록은 그 앞의 `identity_index` transaction 에서 이미 확정되고 이를 되돌리는 코드가 없으므로, 실패하는 것은 첫 등록 요청 하나뿐이다 — **재시도는 성공하고 `termsAccepted` 는 비어 있다**(위 (c) · 재동의 전까지). 재로그인(`isNewUser=false`)에서는 mirror 가 실행되지 않으므로 이 실패 경로도 없다.
+
+### 가입 수단 기록 (Phase 16.7)
+
+**동작:** 계정을 처음 만든 수단을 Firestore `users/{uid}.signUpProviderId` 필드 1개에 한 번 기록하고, 홈 계정정보 카드와 설정 「내 계정」 이 이 값으로 「가입 수단」 과 「연결된 계정」 을 나눠 보여 준다. 연결된 계정 = 보유 provider(`User.providerIds`) 에서 가입 수단을 뺀 나머지이고, 0개면 「없음」 이다. 값 형식은 `User.providerIds` 와 같다 — `'google.com'` · `'apple.com'` · `'facebook.com'` · `'password'` · `'kakao'` · `'naver'` · `'line'`. 그래서 표시 쪽은 변환 없이 차집합을 만들고 기존 라벨 매핑(`formatProviderLabels`)을 그대로 쓴다. 클라이언트는 `linkedProvidersStream` 이 같은 `users/{uid}` snapshot 에서 `linkedProviders` 와 함께 읽고 `currentUserProvider` 가 `User.signUpProviderId` 에 싣는다. 두 표면은 `splitAccountProviders`(`lib/features/home/presentation/provider_label_formatter.dart`) 한 곳의 규칙으로 나눈다.
+
+**기록 지점:** 경로별로 한 곳씩, 두 곳뿐이다.
+
+- **native (Google · Apple · Facebook · 이메일)** — 클라이언트 `SignUpMethodRecorder`(`lib/features/auth/data/sign_up_method_recorder.dart`) 가 `users/{uid}` 에 `{signUpProviderId: <값>}` 을 set-merge 한다. `AuthRepository` 는 recorder 타입을 모르고 named optional 콜백 `recordSignUpMethod`(`RecordSignUpMethod` signature) 만 받는다 — factory provider 가 주입한다. call site 는 `AuthRepository` 의 가입 확정 분기 4곳(이메일 가입 · Google · Apple · Facebook)이며 모두 `unawaited(_recordSignUpMethod(fbUser.uid, <SDK>.PROVIDER_ID))` 다. 로그인 흐름은 서버 ack 를 기다리지 않는다 — 네트워크 실패는 Firestore SDK 오프라인 큐가 재전송하고, 즉시 던지는 예외(`permission-denied` 등)만 잡아 Crashlytics 에 reason `sign_up_method_record` 로 남긴 뒤 로그인은 계속된다. 앱 레벨 재시도는 없다.
+- **Custom Token (Kakao · Naver · LINE)** — 서버 `resolveIdentity`(`functions/src/auth/identity_index.ts`) 의 신규 등록 transaction 이 `users/{uid}` set-merge 에 `linkedProviders` · `providerLinkedAt` 와 함께 `signUpProviderId: provider` 를 쓴다(원자적). Naver 는 앱 1-tap(`naverCustomToken`) 과 웹(`naverWebCustomToken`) 이 공용 helper 를 거쳐 같은 함수를 부르므로 둘 다 기록된다. 재로그인(`isNewUser: false`) 은 이 분기에 들어가지 않으므로 기록이 0 이다. 서버 쪽은 클라이언트 call site 가 필요 없다.
+
+「가입」 의 정의 (D-14) — 이 표 밖의 경로는 기록하지 않으므로 한 번 쓴 값은 연결 · 재로그인으로 바뀌지 않는다:
+
+| 기록함 | 기록 안 함 |
+|--------|-----------|
+| native 익명 → `link*` 성공 (익명 계정 제자리 승격) | 기존 계정 재로그인 |
+| native 비익명 신규 sign-in (`additionalUserInfo.isNewUser == true`) | `credential-already-in-use` 뒤 익명 폐기 + 기존 계정 sign-in |
+| 이메일 가입 (`createUserWithEmailAndPassword` · 익명 이메일 link) | 설정 화면 · 충돌 시트의 계정 연결 (native `link*` · `linkCustomTokenProvider`) |
+| Custom Token `resolveIdentity` 신규 등록 분기 | Custom Token 재로그인 (`isNewUser: false`) |
+
+**순서 — 약관 mirror 가 먼저:** `SignUpMethodRecorder` 는 경로 구분 없이 항상 `TermsNotifier.mirrorToFirestore` 를 먼저 await 한 뒤 `signUpProviderId` 를 쓴다 (D-19 · D-29). 약관 mirror 는 pre-read 에서 `users/{uid}` 문서가 이미 있으면 skip 하는데(다중 사용자 기기 보호), 가입 수단을 먼저 쓰면 Firestore 가 자기 pending write 를 로컬 읽기에 반영해 문서가 「있다」 고 보고 약관 mirror 가 건너뛰어진다 → 서버에 `termsAccepted` 가 없어 다음 재읽기에서 재동의 화면이 뜬다. 위 「약관 동의 서버 기록」 절의 Custom Token 경합과 같은 함정이다. 이 순서 때문에 익명을 거치지 않은 native 신규 sign-in 에서도 약관이 서버에 기록된다(행동 변화 — 의도). mirror 가 실패해도(reason `sign_up_method_terms_mirror`) 가입 수단 기록은 이어간다. **흔한 실수:** recorder 를 거치지 않고 다른 곳에서 `users/{uid}` 에 먼저 set-merge 하면 이 함정이 그대로 재현된다.
+
+**기록 없는 계정 (fallback):** `signUpProviderId` 가 없으면 가입 수단은 「-」, 연결된 계정은 보유 provider 전부다 (D-11). provider 가 1개뿐이어도 추론하지 않는다 — 읽기 실패 때 추론값이 진짜처럼 보이기 때문이다. 같은 규칙이 Firestore 읽기 실패(`linkedProvidersStream` 의 빈 fallback) · 로그인 직후 첫 emit 전 과도 상태 · 이 기능 이전에 만든 계정에 똑같이 적용된다. 킷은 backfill 을 제공하지 않는다(추론 · lazy 기록 0). 기록값이 현재 `providerIds` 에 없으면(Admin 조작으로만 생긴다) 기록값을 그대로 가입 수단으로 보이고 연결된 계정은 보유 전부가 된다 (D-12). 등록되지 않은 값은 raw 문자열 대신 `errorUnknownProvider` 라벨로 표시된다.
+
+**위조 한계:** 이 필드는 **표시 전용** 이다. `firestore.rules` 의 `users/{userId}` 규칙은 본인 문서 전체 write 를 허용하므로(WR-12 — 알려진 갭) 로그인한 사용자는 앱을 거치지 않고 자기 `signUpProviderId` 를 바꿀 수 있고, 서버 `resolveIdentity` 가 쓴 값도 이후 클라이언트가 덮어쓸 수 있다. 그래서 서버는 이 값을 읽지 않고, 인가 · 권한 판단에도 쓰지 않는다 — 지금 위조의 영향은 자기 화면 표시뿐이다. 필드 단위 write 금지는 client write 경로(약관 mirror · 이 recorder)를 서버 callable 로 옮기는 작업과 함께 **Phase 18** 에서 한다(WR-12). 그 전에 이 값으로 서버 쪽 결정(예: 해제 불가 수단 판정)을 하려면 서버가 따로 검증하는 경로가 먼저 필요하다.
+
+**provider 를 추가 · 제거할 때:**
+
+- **native provider 추가** — 그 provider 의 sign-in 메서드에 3줄 패턴을 넣는다: `userCredential` 선언 앞 `var didLinkAnonymous = false;` → 익명 `link*` 호출 **바로 다음 줄** `didLinkAnonymous = true;`(catch 안 `credential-already-in-use` fallback 에는 넣지 않는다) → `fbUser == null` 검사 뒤 `final isSignUp = didLinkAnonymous || (userCredential.additionalUserInfo?.isNewUser ?? false);` 이면 `unawaited(_recordSignUpMethod(fbUser.uid, <SDK>.PROVIDER_ID));`. 표시 쪽은 `AccountProvider.tryParse`(`lib/core/auth/provider_id.dart`) 에 Firebase URI or-pattern 1개 + `formatProviderLabels` switch 1행 + ARB `authAccountProvider{X}` 3 locale. **흔한 실수:** 기존 `isLinkedFromAnonymous`(인증 메일용)를 기록 조건으로 쓰면 fallback 뒤에도 true 라 기존 계정 로그인이 「가입」 으로 기록된다 — `test/features/auth/data/auth_repository_sign_up_method_test.dart` 의 `credential-already-in-use` 케이스가 red 로 잡는다(새 provider 도 이 파일에 1회 · 0회 케이스를 복제한다).
+- **Custom Token provider 추가** — 가입 수단 기록 쪽 편집은 0 이다. 새 endpoint 가 `resolveIdentity(db, {provider: "<slug>", …})` 를 부르면 신규 등록에서 자동 기록된다(slug 는 `ProviderId` closed union 에 먼저 넣어야 컴파일된다). 그 함수는 `resolveIdentity` 를 바꿀 때마다 재배포 대상에 들어간다.
+- **provider 제거** — 이미 그 값으로 기록된 문서는 남는다. 표시는 `errorUnknownProvider` 라벨로 떨어지고(raw slug 노출 0), 잔존 계수 · 정리는 「Custom Token Provider 제거 가이드」 3-⑥ 의 `users.signUpProviderId == <slug>` 항목을 따른다.
+- 기록 자체를 끄려면 `authRepository` factory 의 `recordSignUpMethod:` 인자 1줄을 지운다 — no-op 기본값으로 돌아가고 모든 계정이 위 fallback 으로 보인다.
+
+**확인 방법:** 두 끝을 모두 본다 — 한쪽만 보면 사이 wiring 누락을 놓친다. (1) Firebase Console > Firestore `users/{uid}` 문서에 `signUpProviderId` 가 가입한 수단 값으로 있는지, (2) 같은 계정으로 앱의 홈 계정정보 카드와 설정 「내 계정」 에 가입 수단 · 연결된 계정이 그 값대로 보이는지. 이어서 설정에서 다른 provider 를 연결하고 그 수단으로 재로그인해도 (1) 의 값이 바뀌지 않아야 한다. Admin 으로 원장을 바꾼 직후에는 기기 캐시가 옛 값을 보일 수 있으니 재로그인 뒤 대조한다. 예: 합성 사용자 `uid = test-uid-0001` 이 Kakao 로 가입했다면 문서는 `signUpProviderId: "kakao"` 이고 홈 카드는 가입 수단 = 카카오 · 연결된 계정 = 없음이다.
 
 ### Phase 17 deferred — Storage cascade
 
@@ -4431,7 +4467,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-25 | 16.6-10 | Custom Token provider 1종 제거(Phase 16.6)에 따른 정리 — 해당 provider 절 삭제 · 절 밖 서술을 남은 provider(Kakao / Naver / LINE) 기준으로 재작성(Initial Setup 참조 · relay 서술 · IdP 동기화 적용 범위 · Kill Switch 인용 · 계정 연결 분기 「Custom Token 3 provider」 · 약관 서버 기록 mirror 위치를 provider 3종 + Naver 공용 helper `naver_profile_to_custom_token.ts` 로 · 회원탈퇴 TODO · Brand Asset 6 provider · 디렉터리 트리 · 출처 표 · sentinel 이력 · enum 예시 주석) · 「Custom Token Provider 추가 가이드 (stub)」 제목 · 본문 중립화(검증 방식 표 행 삭제) · **「Custom Token Provider 제거 가이드 (Phase 16.6)」 절 신설**(비활성 레버 2 · 의존 역순 체크리스트 ①~⑧ + 게이트 · dev 배포 정리 순서 ①~⑦ — secret 은 read-only 판정 뒤 `--force` 1회 · 실측 함정 5) · 목차 항목 7 stale 앵커 정정 + 제거 절 항목 8 삽입(21 항목) · SPM 고정값 표 `appauth-ios` 비고를 전이 의존 사유로, `googlesignin-ios` 비고의 상향 서술 정정 |
 | 2026-09-25 | quick 260925-r1f | 「약관 동의 서버 기록 (Custom Token provider — Phase 16 G-16-A9-1)」 절의 stale 문단 재작성 — 옛 문단(2026-09-07 `518902f9`)이 37분 뒤 `6e24873a`(WR-01) 의 `isNewUser` 게이트를 반영하지 않아 서버 mirror 동작 · 재동의 시각 갱신 주체 · 권장 커스터마이징 방향이 코드와 반대였다. 「기본 동작(3 경로 `if (termsSnapshot && isNewUser)` · 재동의는 클라이언트 `force: true`)」 · 「잔여 위험(첫 등록 스냅샷 부재 · 검증 실패 · mirror 실패 후 재시도 → 클라이언트 재동의 게이트가 채울 때까지 `termsAccepted` 부재, 기록 시각은 재동의 시각)」 · 「커스터마이징(매 로그인 반영은 `&& isNewUser` 제거 + 다중 사용자 기기 덮어쓰기 대가 + Jest C3 갱신)」 3 문단으로 교체, 「확인 방법」 (b) 첫 등록 기준 + (c) 추가 + 이벤트 식별 규칙 정정(`_mirrored` 이벤트는 세 경우 모두 없음 · (c) 는 `_mirror_failed` · (a)/(b) 는 `providerLinkedAt`), 「mirror 실패」 문단을 신규 등록 요청 한정 + 재시도 결과로 정밀화. 근거: Phase 16.6 plan 10 SUMMARY 「Issues Encountered」 첫 bullet. |
 | 2026-09-25 | quick 260925-u0f | 「약관 동의 서버 기록 (Custom Token provider — Phase 16 G-16-A9-1)」 절 후속 정정 2건 — (1) 「백필 정책」 문단의 과장 정정: 이 수정 이전 가입자의 서버 기록이 영구 부재라는 서술을, 기기 로컬 값은 정식 사용자의 약관 게이트를 통과시키지 못해 다음 콜드 스타트 · 로그인에서 「잔여 위험」 의 클라이언트 재동의 게이트가 재동의 시각으로 채운다는 사실로 교체(adopter 결정은 돌아오지 않은 사용자의 처리와 재동의 시각 인정 여부 · 「사용자 커스터마이징 포인트」 참조 방향 위→아래 정정 · 자동 백필 없음 · 1회성 관리자 작업 · 법무 자문 의무는 유지) · (2) 「커스터마이징」 문단에 반대 방향 한 줄 추가: 최초 동의 시각을 불변 audit 으로 남겨야 하면 검증된 스냅샷을 `resolveIdentity` 신규 등록 transaction 의 `users/{uid}` merge write 에 함께 쓰는 방법(신원 등록과 원자적 · 사후 mirror 블록 제거 · `_mirror_failed` 이벤트 소멸로 「확인 방법」 (c) 흡수 · 킷 기본값 아님). 근거: `.planning/quick/260925-r1f-fix-stale-terms-mirror-manual-paragraph/260925-r1f-SUMMARY.md` 「Deferred / 관찰」. |
+| 2026-09-26 | 16.7-09 | Phase 16.7 가입 수단 · 연결된 계정 분리 반영 — 「가입 수단 기록 (Phase 16.7)」 절 신설(「약관 동의 서버 기록」 절 뒤: 필드 `users/{uid}.signUpProviderId` · 값 형식 7종 · 기록 지점 2곳(native = 클라이언트 `SignUpMethodRecorder` 콜백 · call site 4곳 · `unawaited` · CT = `resolveIdentity` 신규 등록 tx) · 「가입」 정의 표(D-14) · 약관 mirror 선행 순서(D-19 · D-29) · fallback(D-11 「-」 + 연결 = 전부 · D-12) · 위조 한계(WR-12 · 표시 전용 · 서버 판단 미사용 · Phase 18) · provider 추가/제거 때 할 일 · 확인 방법) · stale 2곳 정정(`linkedProvidersStream` race 절의 옛 카드 이름 → 「가입 수단」 · 「연결된 계정」 카드 + D-11 fallback 표시 · Kakao UAT 4단계 확인 문구 → 「가입 수단: 카카오」 · 「연결된 계정: 없음」) · 「Custom Token Provider 제거 가이드」 3-⑥ 잔존 데이터 계수에 `users.signUpProviderId == <slug>` 추가 |
 
 ---
 
-*Last updated: 2026-09-25 — quick 260925-u0f 약관 동의 서버 기록 절 백필 정책 정정 · 커스터마이징 반대 방향 한 줄 추가*
+*Last updated: 2026-09-26 — 16.7-09 가입 수단 기록 절 신설 · stale 2곳 정정 · 제거 가이드 3-⑥ 항목 추가*
