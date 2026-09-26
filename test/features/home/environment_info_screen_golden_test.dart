@@ -489,7 +489,7 @@ void main() {
               width: width,
             );
             expect(tester.takeException(), isNull);
-            final label = formatProviderIds(<String>[providerId], l10n);
+            final label = formatSignUpMethod(providerId, l10n);
             final value = find.descendant(
               of: _cardOf(Icons.how_to_reg),
               matching: find.text(label),

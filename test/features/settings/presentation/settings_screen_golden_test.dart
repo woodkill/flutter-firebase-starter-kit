@@ -423,10 +423,7 @@ void main() {
 
             // 기대 라벨 = production 과 같은 helper (null → '-' · 미지 값 →
             // errorUnknownProvider).
-            final label = formatProviderIds(
-              id == null ? const <String>[] : <String>[id],
-              l10n,
-            );
+            final label = formatSignUpMethod(id, l10n);
             final value = find.descendant(
               of: _signUpTile(),
               matching: find.text(label),
