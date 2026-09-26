@@ -9,6 +9,11 @@
 //   SS4 · 16.7-S01~S06 재작성.
 // Phase 16.8 Plan 16.8-01 Task 1 — 연결된 계정 semantics 가 provider 별 노드
 //   (UI-SPEC §Semantics (16.8))로 바뀌어 16.7-S01 · S03 · S04 재작성 + S02 보강.
+// Phase 16.8 Plan 16.8-04 Task 1 — 연결된 계정 해제 16.8-S01~S11 (semantics
+//   구조 · 3조건 fixture · 탭 → 다이얼로그 → outcome SnackBar · reauth 라우팅 ·
+//   CT 분기 · ja 280 SnackBar). 탭 → outcome 케이스는 GoRouter harness
+//   (`_pumpSettingsScreenWithRouter`)로 pump 한다 — reauthRequired arm 이
+//   `GoRouter.of(context)` 를 그 arm 안에서 해석하기 때문이다.
 //
 // 검증:
 // - SS1 render 정상: AppBar title "Settings" + 계정 section + Danger
@@ -49,6 +54,15 @@
 //   행별 maxLines/overflow · ListTile SDK 기본(세 줄 · tile 스타일 · dense ·
 //   padding 미지정).
 // - 16.7-S06 280dp viewport overflow 0.
+// - 16.8-S01 semantics 구조 — ListTile label = 제목만 · 해제 버튼마다 button +
+//   tap 노드 · 보이지 않는 문자 · 공백 전용 label 노드 0 (D-12).
+// - 16.8-S02 덮어쓰기(D-03 · D-22) — 자격증명 1개면 일반 텍스트 · 탭 no-op.
+// - 16.8-S03 가입 수단 기록 null(D-05 로딩 · 읽기 실패 fallback) — 버튼 0 ·
+//   같은 보유에 기록이 오면 버튼 6.
+// - 16.8-S04 미지 provider 혼재(D-11) · 16.8-S05 1개 · 자격증명 2 — 쉼표 없음.
+// - 16.8-S06 취소 no-op · 16.8-S07 success SnackBar · 16.8-S08 실패 outcome 4
+//   문구 · 16.8-S09 reauthRequired → /login + 재인증 표시 · 16.8-S10 CT 분기 ·
+//   16.8-S11 ja 280 SnackBar overflow 0 (E3).
 //
 // 동일 패턴 audit (G-16-A6-1 missing 2번째 항목 — 2026-09-07 실행):
 //
@@ -78,8 +92,11 @@
 // → 신규 누락(UNGUARDED) 0건이므로 본 task 는 `lib/**/*_screen.dart` 를 수정하지 않는다.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
@@ -89,6 +106,9 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
@@ -97,6 +117,9 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/dang
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/withdrawal_confirmation_dialog.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
+
+class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// 활성 소셜 Strategy 6종 전부.
 const List<AuthStrategy> _allStrategies = <AuthStrategy>[
@@ -195,6 +218,7 @@ Future<void> _pumpSettingsScreen(
   required User? user,
   Locale locale = const Locale('en'),
   List<AuthStrategy> strategies = _allStrategies,
+  AuthRepository? authRepo,
 }) async {
   // 280dp 이상 (PROJECT.md mobile 반응형) — default 800x600 사용.
   await tester.pumpWidget(
@@ -203,6 +227,9 @@ Future<void> _pumpSettingsScreen(
         currentUserProvider.overrideWith((ref) => user),
         // 활성 Strategy 직접 주입 — AccountLinkingSection available 계산 결정성.
         activeStrategiesProvider.overrideWith((ref) => strategies),
+        // Phase 16.8 — 해제 경로가 실 Firebase 에 닿지 않도록 mock 주입(선택).
+        if (authRepo != null)
+          authRepositoryProvider.overrideWithValue(authRepo),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -213,6 +240,60 @@ Future<void> _pumpSettingsScreen(
       ),
     ),
   );
+  await tester.pumpAndSettle();
+}
+
+/// [SettingsScreen] 을 GoRouter 안에서 pump 하고 router 를 돌려준다 (Phase 16.8).
+///
+/// `_onUnlinkPressed` 의 reauthRequired arm 은 `GoRouter.of(context)` 를 그 arm
+/// 안에서 해석하므로 탭 → outcome 케이스는 이 harness 로 통일한다
+/// (`account_linking_section_test.dart` AL4 mirror). `/login` 은 stub 화면.
+Future<GoRouter> _pumpSettingsScreenWithRouter(
+  WidgetTester tester, {
+  required User? user,
+  required AuthRepository authRepo,
+  Locale locale = const Locale('en'),
+}) async {
+  final router = GoRouter(
+    initialLocation: AppRoutes.home,
+    routes: [
+      GoRoute(
+        path: AppRoutes.home,
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const Scaffold(body: Text('LOGIN ROUTE')),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        currentUserProvider.overrideWith((ref) => user),
+        activeStrategiesProvider.overrideWith((ref) => _allStrategies),
+        authRepositoryProvider.overrideWithValue(authRepo),
+      ],
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return router;
+}
+
+/// 해제 버튼 [button] 을 탭해 확인 다이얼로그를 연다 (전환 완료까지 settle).
+///
+/// 연결된 계정 행은 800×600 · 280×800 모두 fold 위라 `ensureVisible` 불필요.
+Future<void> _openUnlinkDialog(WidgetTester tester, Finder button) async {
+  await tester.tap(button);
   await tester.pumpAndSettle();
 }
 
@@ -834,5 +915,413 @@ void main() {
       expect(_countLinkedWidgetSpans(tester), 7);
       expect(tester.takeException(), isNull);
     });
+  });
+
+  group('Phase 16.8 연결된 계정 해제 (D-03 · D-05 · D-07 · D-10 · D-11 · D-12)', () {
+    late _MockAuthRepository authRepo;
+
+    setUp(() {
+      authRepo = _MockAuthRepository();
+    });
+
+    /// 해제 버튼 · 일반 텍스트 이름 판정 — button flag 노드 목록에 있는지.
+    ///
+    /// `SemanticsNode.hasFlag` 가 deprecated 라 semantics finder 로 모은다.
+    bool isButtonNode(WidgetTester tester, Finder name) => find.semantics
+        .byFlag(SemanticsFlag.isButton)
+        .evaluate()
+        .contains(tester.getSemantics(name));
+
+    testWidgets(
+      '16.8-S01: semantics 구조 — 제목만 label · 해제 버튼마다 button + tap 노드 · 보이지 않는 문자 0 (D-12)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['kakao', 'google.com', 'line'],
+            signUpProviderId: 'kakao',
+          ),
+        );
+
+        // 이름이 전부 자기 container 노드라 ListTile 병합 label 은 제목만 남는다.
+        final tileLabel = tester.getSemantics(_findLinkedAccountsTile()).label;
+        expect(tileLabel, 'Linked accounts');
+
+        final unlinkGoogle = find.bySemanticsLabel('Unlink Google');
+        final unlinkLine = find.bySemanticsLabel('Unlink LINE');
+        expect(unlinkGoogle, findsOneWidget);
+        expect(unlinkLine, findsOneWidget);
+        final buttonNodes = find.semantics
+            .byFlag(SemanticsFlag.isButton)
+            .evaluate()
+            .toList();
+        final tapNodes = find.semantics
+            .byAction(SemanticsAction.tap)
+            .evaluate()
+            .toList();
+        for (final button in <Finder>[unlinkGoogle, unlinkLine]) {
+          expect(buttonNodes, contains(tester.getSemantics(button)));
+          expect(tapNodes, contains(tester.getSemantics(button)));
+        }
+        // 표시 순서 — Google 이 LINE 보다 앞 (같은 줄이면 왼쪽).
+        expect(
+          tester.getTopLeft(unlinkGoogle).dx,
+          lessThan(tester.getTopLeft(unlinkLine).dx),
+        );
+
+        // 자리표시 · 결합 문자가 제목 label · 버튼 label 어디에도 없다.
+        final labels = <String>[
+          tileLabel,
+          tester.getSemantics(unlinkGoogle).label,
+          tester.getSemantics(unlinkLine).label,
+        ];
+        for (final char in _kInvisibleChars) {
+          for (final label in labels) {
+            expect(label.contains(char), isFalse);
+          }
+        }
+        // 사이 공백 span 은 빈 semantics — 공백만 가진 label 노드가 없다.
+        expect(find.bySemanticsLabel(RegExp(r'^\s+$')), findsNothing);
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      '16.8-S02: 덮어쓰기 — 가입 기록 password · 자격증명 1개(google.com)면 일반 텍스트 · 탭 no-op (D-03 · D-22)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['google.com'],
+            signUpProviderId: 'password',
+          ),
+          authRepo: authRepo,
+        );
+
+        final google = find.bySemanticsLabel('Google');
+        expect(google, findsOneWidget);
+        expect(isButtonNode(tester, google), isFalse);
+        expect(find.bySemanticsLabel('Unlink Google'), findsNothing);
+        expect(_countLinkedWidgetSpans(tester), 1);
+
+        // 일반 텍스트라 눌러도 다이얼로그 · 해제 호출이 없다.
+        await tester.tap(google);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verifyNever(() => authRepo.unlinkNativeProvider(any()));
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      '16.8-S03: 가입 수단 기록 null — 버튼 0 · 라벨 노드 7, 기록이 오면 같은 자리에 버튼 6 (D-05 로딩 · 읽기 실패 fallback)',
+      (tester) async {
+        // D-05 의 두 상태 — 첫 emit 전(로딩)과 Firestore 읽기 실패 fallback —
+        // 는 둘 다 `signUpProviderId == null` 로 같은 표시다.
+        final handle = tester.ensureSemantics();
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(providerIds: _kAllProviderIdsHeld),
+        );
+
+        expect(find.bySemanticsLabel(RegExp(r'^Unlink ')), findsNothing);
+        const names = <String>[
+          'Google',
+          'Apple',
+          'Facebook',
+          'Kakao',
+          'Naver',
+          'LINE',
+          'Email / Password',
+        ];
+        for (final name in names) {
+          final node = find.bySemanticsLabel(name);
+          expect(node, findsOneWidget, reason: name);
+          expect(isButtonNode(tester, node), isFalse, reason: name);
+        }
+
+        // 기록 emit — 같은 보유 7 에 가입 수단 line 이 오면 연결 6 이 전부 버튼.
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(
+            providerIds: _kAllProviderIdsHeld,
+            signUpProviderId: 'line',
+          ),
+        );
+        expect(find.bySemanticsLabel(RegExp(r'^Unlink ')), findsNWidgets(6));
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('16.8-S04: 미지 provider 혼재 — 미지 라벨은 일반 텍스트 · 나머지는 버튼 (D-11)', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(
+          providerIds: const <String>['kakao', 'google.com', 'yahoo'],
+          signUpProviderId: 'kakao',
+        ),
+      );
+
+      final unlinkGoogle = find.bySemanticsLabel('Unlink Google');
+      expect(unlinkGoogle, findsOneWidget);
+      expect(isButtonNode(tester, unlinkGoogle), isTrue);
+      final unknown = find.bySemanticsLabel(
+        AppLocalizationsEn().errorUnknownProvider,
+      );
+      expect(unknown, findsOneWidget);
+      expect(isButtonNode(tester, unknown), isFalse);
+      expect(_countLinkedWidgetSpans(tester), 2);
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
+
+    testWidgets(
+      '16.8-S05: 1개 · 자격증명 2 — 버튼 1개 · 쉼표 없음 (UI-SPEC E1 zero-one-many)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpSettingsScreen(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['kakao', 'google.com'],
+            signUpProviderId: 'kakao',
+          ),
+        );
+
+        final unlinkGoogle = find.bySemanticsLabel('Unlink Google');
+        expect(unlinkGoogle, findsOneWidget);
+        expect(_countLinkedWidgetSpans(tester), 1);
+        // WidgetSpan 안 버튼 `Text.rich` 의 plain text = 이름만 (쉼표 0).
+        // ListTile 자신도 InkWell 을 만들므로 버튼 semantics 노드 아래로 좁힌다.
+        final innerText = tester.widget<Text>(
+          find.descendant(of: unlinkGoogle, matching: find.byType(Text)),
+        );
+        expect(innerText.textSpan!.toPlainText(), 'Google');
+        expect(find.textContaining('Google,'), findsNothing);
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      '16.8-S06: 탭 → 다이얼로그 → 취소 — SnackBar 0 · repository 미호출 (D-07 · §N cancelled)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpSettingsScreenWithRouter(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['kakao', 'google.com'],
+            signUpProviderId: 'kakao',
+          ),
+          authRepo: authRepo,
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Unlink Google'));
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.text('Unlink Google?'), findsOneWidget);
+
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.byType(SnackBar), findsNothing);
+        verifyNever(() => authRepo.unlinkNativeProvider(any()));
+        verifyNever(() => authRepo.unlinkCustomTokenProvider(any()));
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      '16.8-S07: 확인 → success — 다이얼로그 닫힘 · 성공 SnackBar (§N success)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final user = _testUser(
+          providerIds: const <String>['kakao', 'google.com'],
+          signUpProviderId: 'kakao',
+        );
+        when(
+          () => authRepo.unlinkNativeProvider('google.com'),
+        ).thenAnswer((_) async => Result<User>.success(user));
+        await _pumpSettingsScreenWithRouter(
+          tester,
+          user: user,
+          authRepo: authRepo,
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Unlink Google'));
+        await tester.tap(find.text('Unlink'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.text('Unlinked your Google account.'), findsOneWidget);
+        verify(() => authRepo.unlinkNativeProvider('google.com')).called(1);
+        handle.dispose();
+      },
+    );
+
+    // §N 실패 outcome 4 — en ARB verbatim (재시도는 이름을 다시 탭한다).
+    for (final (exception, message) in <(AppException, String)>[
+      (
+        const UnlinkLastCredentialRejected(),
+        "You can't unlink your only sign-in method.",
+      ),
+      (const ProviderNotLinked(), 'This account is already unlinked.'),
+      (
+        const NoInternetConnection(),
+        "Couldn't unlink due to a network or service error. Please try again later.",
+      ),
+      (
+        const UnknownException(),
+        "Couldn't unlink your account. Please try again later.",
+      ),
+    ]) {
+      testWidgets(
+        '16.8-S08: 실패 outcome ${exception.runtimeType} — 다이얼로그 닫힘 · 원인별 SnackBar (§N)',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          when(
+            () => authRepo.unlinkNativeProvider('google.com'),
+          ).thenAnswer((_) async => Result<User>.failure(exception));
+          await _pumpSettingsScreenWithRouter(
+            tester,
+            user: _testUser(
+              providerIds: const <String>['kakao', 'google.com'],
+              signUpProviderId: 'kakao',
+            ),
+            authRepo: authRepo,
+          );
+
+          await _openUnlinkDialog(
+            tester,
+            find.bySemanticsLabel('Unlink Google'),
+          );
+          await tester.tap(find.text('Unlink'));
+          await tester.pumpAndSettle();
+
+          expect(find.byType(AlertDialog), findsNothing);
+          expect(find.text(message), findsOneWidget);
+          handle.dispose();
+        },
+      );
+    }
+
+    testWidgets(
+      '16.8-S09: reauthRequired — authReauthRequired SnackBar + 재인증 표시가 붙은 /login push (§N)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        when(() => authRepo.unlinkNativeProvider('google.com')).thenAnswer(
+          (_) async =>
+              const Result<User>.failure(ReauthenticationRequiredException()),
+        );
+        final router = await _pumpSettingsScreenWithRouter(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['kakao', 'google.com'],
+            signUpProviderId: 'kakao',
+          ),
+          authRepo: authRepo,
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Unlink Google'));
+        await tester.tap(find.text('Unlink'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('For security, please sign in again and retry.'),
+          findsOneWidget,
+        );
+        expect(find.text('LOGIN ROUTE'), findsOneWidget);
+        expect(
+          router.routerDelegate.currentConfiguration.last.matchedLocation,
+          AppRoutes.login,
+        );
+        expect(
+          AppRoutes.hasReauthMarker(router.state.uri),
+          isTrue,
+          reason:
+              'R_EXTRA_G3_REAUTH_LOGIN_BOUNCE: 표시가 없으면 앱 guard 가 push 한 '
+              '로그인 화면을 홈으로 튕긴다',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      '16.8-S10: CT provider(kakao) 해제 — unlinkCustomTokenProvider 만 호출 (D-19)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final user = _testUser(
+          providerIds: const <String>['google.com', 'kakao'],
+          signUpProviderId: 'google.com',
+        );
+        when(
+          () => authRepo.unlinkCustomTokenProvider('kakao'),
+        ).thenAnswer((_) async => Result<User>.success(user));
+        await _pumpSettingsScreenWithRouter(
+          tester,
+          user: user,
+          authRepo: authRepo,
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Unlink Kakao'));
+        await tester.tap(find.text('Unlink'));
+        await tester.pumpAndSettle();
+
+        verify(() => authRepo.unlinkCustomTokenProvider('kakao')).called(1);
+        verifyNever(() => authRepo.unlinkNativeProvider(any()));
+        expect(find.text('Unlinked your Kakao account.'), findsOneWidget);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      '16.8-S11: ja 280dp transient SnackBar — 높이가 늘고 자르지 않는다 · overflow 0 (UI-SPEC E3)',
+      (tester) async {
+        tester.view.physicalSize = const Size(280, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final handle = tester.ensureSemantics();
+        when(() => authRepo.unlinkNativeProvider('google.com')).thenAnswer(
+          (_) async => const Result<User>.failure(NoInternetConnection()),
+        );
+        await _pumpSettingsScreenWithRouter(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['kakao', 'google.com'],
+            signUpProviderId: 'kakao',
+          ),
+          authRepo: authRepo,
+          locale: const Locale('ja'),
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Googleの連携を解除'));
+        await tester.tap(find.text('解除'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(
+          find.text('ネットワークまたはサービスのエラーで連携を解除できませんでした。しばらくしてからもう一度お試しください。'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        final snackText = tester.widget<Text>(
+          find.descendant(
+            of: find.byType(SnackBar),
+            matching: find.byType(Text),
+          ),
+        );
+        expect(snackText.maxLines, isNull);
+        expect(snackText.overflow, isNull);
+        handle.dispose();
+      },
+    );
   });
 }
