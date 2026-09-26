@@ -92,7 +92,6 @@
   "authAccountPhotoUrl": "プロフィール写真",
   "authAccountUid": "ユーザーID",
   "authAccountCreatedAt": "作成日",
-  "authAccountProviders": "ログイン方法",
   "authAccountSignUpMethod": "登録方法",
   "authAccountLinkedAccounts": "連携済みアカウント",
   "authAccountLinkedAccountsNone": "なし",

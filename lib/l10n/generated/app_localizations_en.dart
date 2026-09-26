@@ -256,9 +256,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountCreatedAt => 'Created at';
 
   @override
-  String get authAccountProviders => 'Providers';
-
-  @override
   String get authAccountSignUpMethod => 'Sign-up method';
 
   @override

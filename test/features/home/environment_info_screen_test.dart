@@ -28,6 +28,7 @@ Future<void> _pumpScreen(
   WidgetTester tester, {
   required User? user,
   _MockAuthRepository? mockRepo,
+  Size viewport = const Size(800, 8000),
 }) async {
   final repo = mockRepo ?? _MockAuthRepository();
   // 화면 전체 ListView 컨텐츠가 약 6000dp 이상이므로 viewport 를 충분히
@@ -35,7 +36,8 @@ Future<void> _pumpScreen(
   // 260425-n31: _TypographySample 가 1행 → 3행 (라벨 + 영문 패가그램 + 한국어
   // 패가그램) 으로 확장되며 15 인스턴스 × 추가 라인으로 컨텐츠가 증가했다.
   // 안전 마진 포함하여 8000 으로 키운다 (dev_tools_test 와 동일 정책).
-  tester.view.physicalSize = const Size(800, 8000);
+  // Phase 16.7 H08 은 280dp 폭(최소 지원 뷰포트)으로 바꿔 overflow 0 을 본다.
+  tester.view.physicalSize = viewport;
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
@@ -98,6 +100,64 @@ Future<void> _pumpScreenWithFirebase(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+/// 연결된 계정 카드(`Card`) finder — 라벨 「Linked accounts」 의 조상 Card.
+Finder _findLinkedAccountsCard() => find.ancestor(
+  of: find.text('Linked accounts', skipOffstage: false),
+  matching: find.byType(Card, skipOffstage: false),
+);
+
+/// 연결된 계정 카드 값 `Text.rich` 의 [WidgetSpan] 을 표시 순서대로 모은다.
+///
+/// 값 위젯은 `textSpan` 을 가진 `Text` 1개다 — WidgetSpan 안 라벨 `Text` 는
+/// `data` 만 가지므로 predicate 로 구분된다.
+List<WidgetSpan> _collectLinkedWidgetSpans(WidgetTester tester) {
+  final valueText = tester.widget<Text>(
+    find.descendant(
+      of: _findLinkedAccountsCard(),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Text && widget.textSpan != null,
+        skipOffstage: false,
+      ),
+    ),
+  );
+  final spans = <WidgetSpan>[];
+  valueText.textSpan!.visitChildren((span) {
+    if (span is WidgetSpan) spans.add(span);
+    return true;
+  });
+  return spans;
+}
+
+/// 연결된 계정 카드의 semantics label 을 돌려준다 (`Linked accounts: …`).
+String _readLinkedAccountsSemantics(WidgetTester tester) => tester
+    .getSemantics(find.bySemanticsLabel(RegExp(r'^Linked accounts: ')))
+    .label;
+
+/// 표시 span 이 낭독 문자열에 새면 나타나는 문자 — 자리표시(U+FFFC) ·
+/// WORD JOINER(U+2060) · NBSP(U+00A0). 소스에 보이지 않는 문자가 저장되지
+/// 않도록 code point 로 만든다.
+final List<String> _kInvisibleChars = <String>[
+  String.fromCharCode(0xFFFC),
+  String.fromCharCode(0x2060),
+  String.fromCharCode(0x00A0),
+];
+
+/// 테스트 fixture 사용자 — Phase 16.7 H 케이스 공통.
+User _buildSplitUser({
+  required List<String> providerIds,
+  String? signUpProviderId,
+}) {
+  return User(
+    uid: 'uid-split-1',
+    email: 'split@example.com',
+    emailVerified: true,
+    displayName: 'Split User',
+    createdAt: DateTime.utc(2026),
+    providerIds: providerIds,
+    signUpProviderId: signUpProviderId,
+  );
 }
 
 void main() {
@@ -223,9 +283,9 @@ void main() {
   });
 
   group('EnvironmentInfoScreen Account 섹션 (Phase 7 D-11/D-12)', () {
-    testWidgets('providerIds [password] 시 "Email / Password" 표시 (D-11)', (
-      tester,
-    ) async {
+    testWidgets('providerIds [password] 시 연결된 계정 "Email / Password" 표시 '
+        '(D-11 · 16.7 재작성)', (tester) async {
+      final handle = tester.ensureSemantics();
       final user = User(
         uid: 'uid-provider-1',
         email: 'pw@example.com',
@@ -237,14 +297,24 @@ void main() {
 
       await _pumpScreen(tester, user: user);
 
+      // 기록 없음(null) → 가입 수단 「-」 · 연결된 계정 = 보유 전부 (D-11).
+      // 라벨 1개 = WidgetSpan 안 Text 1개라 항목 find.text 로 확인한다.
       expect(
         find.text('Email / Password', skipOffstage: false),
         findsOneWidget,
       );
+      expect(find.bySemanticsLabel('Sign-up method: -'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Linked accounts: Email / Password'),
+        findsOneWidget,
+      );
+
+      handle.dispose();
     });
 
-    testWidgets('providerIds [password, google.com] 시 '
-        '"Email / Password, Google" 표시 (D-11)', (tester) async {
+    testWidgets('providerIds [password, google.com] 시 연결된 계정 '
+        '"Google, Email / Password" 표시 (D-05 · 16.7 재작성)', (tester) async {
+      final handle = tester.ensureSemantics();
       final user = User(
         uid: 'uid-provider-2',
         email: 'multi@example.com',
@@ -256,13 +326,24 @@ void main() {
 
       await _pumpScreen(tester, user: user);
 
+      // Text.rich 의 plain text 는 WidgetSpan 자리표시 문자를 담아 전체 목록
+      // find.text 는 매칭 0 — 전체 목록은 semantics, 항목은 WidgetSpan Text.
       expect(
-        find.text('Email / Password, Google', skipOffstage: false),
+        find.bySemanticsLabel('Linked accounts: Google, Email / Password'),
         findsOneWidget,
       );
+      expect(find.text('Google,', skipOffstage: false), findsOneWidget);
+      expect(
+        find.text('Email / Password', skipOffstage: false),
+        findsOneWidget,
+      );
+
+      handle.dispose();
     });
 
-    testWidgets('providerIds 빈 리스트 시 "-" 표시 (D-11 fallback)', (tester) async {
+    testWidgets('providerIds 빈 리스트 시 가입 수단 "-" · 연결된 계정 "None" 표시 '
+        '(D-03 · D-11 · 16.7 재작성)', (tester) async {
+      final handle = tester.ensureSemantics();
       final user = User(
         uid: 'uid-provider-3',
         email: 'empty@example.com',
@@ -272,10 +353,11 @@ void main() {
 
       await _pumpScreen(tester, user: user);
 
-      // Providers 카드의 값이 '-'
-      // (displayName도 null이므로 '-'가 복수 개 존재)
-      final dashFinder = find.text('-', skipOffstage: false);
-      expect(dashFinder, findsWidgets);
+      expect(find.bySemanticsLabel('Sign-up method: -'), findsOneWidget);
+      expect(find.bySemanticsLabel('Linked accounts: None'), findsOneWidget);
+      expect(find.text('None', skipOffstage: false), findsOneWidget);
+
+      handle.dispose();
     });
 
     testWidgets('photoUrl null 시 CircleAvatar에 Icons.person 아이콘 표시 (D-12)', (
@@ -325,9 +407,11 @@ void main() {
     });
 
     testWidgets('미지원 프로바이더 → l10n.errorUnknownProvider Localizable Unknown '
-        'fallback (Phase 13 D-53 — raw slug 노출 차단)', (tester) async {
+        'fallback (Phase 13 D-53 — raw slug 노출 차단 · 16.7 재작성)', (tester) async {
       // Phase 13 D-53: switch 에 매핑되지 않은 slug 는 l10n.errorUnknownProvider
       // 로 fallback (raw slug 노출 절대 금지). 기존 `_ => id` raw fallback 제거.
+      // Phase 16.7: 기록 null 이면 연결된 계정 카드가 보유 전부를 표시한다.
+      final handle = tester.ensureSemantics();
       final user = User(
         uid: 'uid-provider-4',
         email: 'raw@example.com',
@@ -348,11 +432,17 @@ void main() {
         find.text('Unknown sign-in method', skipOffstage: false),
         findsOneWidget,
       );
+      expect(
+        find.bySemanticsLabel('Linked accounts: Unknown sign-in method'),
+        findsOneWidget,
+      );
+
+      handle.dispose();
     });
 
-    testWidgets('providerIds [apple.com] 시 "Apple" 표시 (Phase 8)', (
-      tester,
-    ) async {
+    testWidgets('providerIds [apple.com] 시 연결된 계정 "Apple" 표시 '
+        '(Phase 8 · 16.7 재작성)', (tester) async {
+      final handle = tester.ensureSemantics();
       final user = User(
         uid: 'uid-provider-apple',
         email: 'apple@example.com',
@@ -365,6 +455,9 @@ void main() {
       await _pumpScreen(tester, user: user);
 
       expect(find.text('Apple', skipOffstage: false), findsOneWidget);
+      expect(find.bySemanticsLabel('Linked accounts: Apple'), findsOneWidget);
+
+      handle.dispose();
     });
   });
 
@@ -494,6 +587,197 @@ void main() {
       expect(find.bySemanticsLabel('Sign-up method: -'), findsOneWidget);
 
       handle.dispose();
+    });
+  });
+
+  group('Phase 16.7 카드 2장 (D-01 · D-03 · D-05 · D-06 · D-11 · D-12)', () {
+    testWidgets('16.7-H01 가입 수단 · 연결된 계정 카드 2장 — 옛 카드 부재 (D-01)', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+
+      await _pumpScreen(
+        tester,
+        user: _buildSplitUser(
+          providerIds: ['google.com', 'kakao', 'password'],
+          signUpProviderId: 'google.com',
+        ),
+      );
+
+      expect(find.text('Sign-up method', skipOffstage: false), findsOneWidget);
+      expect(find.text('Linked accounts', skipOffstage: false), findsOneWidget);
+      expect(find.bySemanticsLabel('Sign-up method: Google'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Linked accounts: Kakao, Email / Password'),
+        findsOneWidget,
+      );
+      expect(
+        find.byIcon(Icons.how_to_reg, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.link, skipOffstage: false), findsOneWidget);
+      expect(find.byIcon(Icons.security, skipOffstage: false), findsNothing);
+      // H08 — overflow 0.
+      expect(tester.takeException(), isNull);
+
+      handle.dispose();
+    });
+
+    testWidgets('16.7-H02 연결 0개 — 카드 유지 · 「None」 TextSpan (D-03)', (
+      tester,
+    ) async {
+      await _pumpScreen(
+        tester,
+        user: _buildSplitUser(
+          providerIds: ['google.com'],
+          signUpProviderId: 'google.com',
+        ),
+      );
+
+      expect(_findLinkedAccountsCard(), findsOneWidget);
+      expect(find.text('None', skipOffstage: false), findsOneWidget);
+      expect(_collectLinkedWidgetSpans(tester), isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('16.7-H03 기록 null — 가입 수단 「-」 · 연결 = 보유 전부 (D-11)', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+
+      await _pumpScreen(
+        tester,
+        user: _buildSplitUser(
+          providerIds: [
+            'password',
+            'line',
+            'naver',
+            'kakao',
+            'facebook.com',
+            'apple.com',
+            'google.com',
+          ],
+        ),
+      );
+
+      expect(find.bySemanticsLabel('Sign-up method: -'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Linked accounts: Google, Apple, Facebook, Kakao, Naver, LINE, '
+          'Email / Password',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+
+      handle.dispose();
+    });
+
+    testWidgets('16.7-H04 미보유 · 미지 기록값 — 그대로 표시 · raw 노출 0 (D-12)', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+
+      await _pumpScreen(
+        tester,
+        user: _buildSplitUser(
+          providerIds: ['password'],
+          signUpProviderId: 'twitter.com',
+        ),
+      );
+
+      expect(
+        find.bySemanticsLabel('Sign-up method: Unknown sign-in method'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Linked accounts: Email / Password'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('twitter', skipOffstage: false), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      handle.dispose();
+    });
+
+    testWidgets('16.7-H05 연결 카드 semantics — 보이지 않는 문자 0 · 전체 목록', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+
+      await _pumpScreen(
+        tester,
+        user: _buildSplitUser(
+          providerIds: ['google.com', 'kakao', 'line', 'password'],
+          signUpProviderId: 'google.com',
+        ),
+      );
+
+      final label = _readLinkedAccountsSemantics(tester);
+      expect(label, 'Linked accounts: Kakao, LINE, Email / Password');
+      for (final char in _kInvisibleChars) {
+        expect(label.contains(char), isFalse);
+      }
+      expect(tester.takeException(), isNull);
+
+      handle.dispose();
+    });
+
+    testWidgets('16.7-H06 연결 순서 = kAllProviderIds 순 + 이메일 끝 (D-05)', (
+      tester,
+    ) async {
+      await _pumpScreen(
+        tester,
+        user: _buildSplitUser(
+          providerIds: ['password', 'line', 'google.com', 'kakao'],
+        ),
+      );
+
+      final labels = _collectLinkedWidgetSpans(
+        tester,
+      ).map((span) => (span.child as Text).data).toList();
+      expect(labels, ['Google,', 'Kakao,', 'LINE,', 'Email / Password']);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('16.7-H07 게스트 — 가입 수단 「-」 · 연결 「None」 (D-06)', (tester) async {
+      final handle = tester.ensureSemantics();
+
+      await _pumpScreen(tester, user: _buildSplitUser(providerIds: []));
+
+      expect(find.bySemanticsLabel('Sign-up method: -'), findsOneWidget);
+      expect(find.text('None', skipOffstage: false), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      handle.dispose();
+    });
+
+    testWidgets('16.7-H08 280dp · 보유 전부 + 미지 값 — overflow 0 (D-02 개정)', (
+      tester,
+    ) async {
+      await _pumpScreen(
+        tester,
+        user: _buildSplitUser(
+          providerIds: [
+            'google.com',
+            'apple.com',
+            'facebook.com',
+            'kakao',
+            'naver',
+            'line',
+            'twitter.com',
+            'password',
+          ],
+          signUpProviderId: 'github.com',
+        ),
+        // 280dp 폭에서는 본문이 길어져 계정 section 까지 한 번에 렌더되도록
+        // 높이를 더 키운다 (lazy ListView 회피 — _pumpScreen 과 같은 정책).
+        viewport: const Size(280, 20000),
+      );
+
+      // maxLines 없이 전부 표시 — 항목 8개가 모두 WidgetSpan 으로 존재한다.
+      expect(_collectLinkedWidgetSpans(tester), hasLength(8));
+      expect(tester.takeException(), isNull);
     });
   });
 }

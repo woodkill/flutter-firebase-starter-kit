@@ -250,9 +250,6 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountCreatedAt => '가입일';
 
   @override
-  String get authAccountProviders => '로그인 수단';
-
-  @override
   String get authAccountSignUpMethod => '가입 수단';
 
   @override

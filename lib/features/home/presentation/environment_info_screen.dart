@@ -810,8 +810,8 @@ class _SpacingBar extends StatelessWidget {
 /// [currentUserProvider]를 watch하여 인증 상태에 따라 사용자 정보를 표시한다.
 /// 비인증 상태일 경우 섹션 자체를 숨긴다 (D-36).
 /// 인증 상태일 경우 CircleAvatar 프로필 사진(D-12) +
-/// displayName/email/uid/createdAt/providers(D-11 동적)/ID 토큰 복사
-/// 버튼(kDebugMode)/로그아웃 버튼을 표시한다.
+/// displayName/email/uid/createdAt/가입 수단 · 연결된 계정(Phase 16.7
+/// D-01)/ID 토큰 복사 버튼(kDebugMode)/로그아웃 버튼을 표시한다.
 class _AccountSection extends ConsumerWidget {
   const _AccountSection();
 
@@ -823,7 +823,21 @@ class _AccountSection extends ConsumerWidget {
     final spacing = context.appSpacing;
     final l10n = context.l10n;
     final locale = ref.watch(localeProvider);
-    final signUp = user.signUpProviderId;
+    // Phase 16.7 — 가입 수단 · 연결된 계정 분리 (D-11 추론 0 · D-12 미보유
+    // 기록값 그대로). 게스트(익명)도 같은 규칙이라 isAnonymous 분기가 없다
+    // (D-06).
+    final split = splitAccountProviders(user);
+    final signUpValue = formatProviderIds(
+      split.signUpProviderId == null
+          ? const <String>[]
+          : <String>[split.signUpProviderId!],
+      l10n,
+    );
+    final linked = buildLinkedAccountsValue(
+      formatProviderLabels(split.linkedProviderIds, l10n),
+      none: l10n.authAccountLinkedAccountsNone,
+      style: context.appTypography.titleMedium,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -920,21 +934,29 @@ class _AccountSection extends ConsumerWidget {
         Gap(spacing.md),
         // Phase 16.7 D-01 첫 카드 — 가입 수단. 기록 없음(null)이면 '-'
         // (D-11 — 추론 0), 미지 값은 formatProviderIds 의 errorUnknownProvider
-        // (D-12). 기존 로그인 수단 카드의 「연결된 계정」 카드 교체는 plan 05.
+        // (D-12). value 경로라 maxLines 2 · ellipsis 방어가 그대로 적용된다.
         _EnvironmentCard(
           icon: Icons.how_to_reg,
           label: l10n.authAccountSignUpMethod,
-          value: formatProviderIds(
-            signUp == null ? const <String>[] : <String>[signUp],
-            l10n,
-          ),
+          value: signUpValue,
         ),
         Gap(spacing.md),
-        // D-11: providerIds 동적 표시 (Phase 7).
+        // Phase 16.7 D-01 둘째 카드 — 연결된 계정(보유 − 가입 수단, D-05
+        // 고정 순서). 0개면 숨기지 않고 「없음」 (D-03). 값은 provider 라벨마다
+        // WidgetSpan 이라 라벨 내부에서 줄이 바뀌지 않고 maxLines 없이 전부
+        // 보인다 (D-02 개정 · D-04 보강). child 슬롯은 fallback semantics 에서
+        // 값이 빠지므로 semanticLabel 을 plain join 으로 반드시 명시한다
+        // (UI-SPEC §Semantics).
         _EnvironmentCard(
-          icon: Icons.security,
-          label: l10n.authAccountProviders,
-          value: formatProviderIds(user.providerIds, l10n),
+          icon: Icons.link,
+          label: l10n.authAccountLinkedAccounts,
+          semanticLabel:
+              '${l10n.authAccountLinkedAccounts}: ${linked.semantics}',
+          child: Text.rich(
+            linked.display,
+            softWrap: true,
+            style: context.appTypography.titleMedium,
+          ),
         ),
         if (kDebugMode) ...[
           Gap(spacing.md),

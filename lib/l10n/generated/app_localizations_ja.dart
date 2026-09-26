@@ -250,9 +250,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authAccountCreatedAt => '作成日';
 
   @override
-  String get authAccountProviders => 'ログイン方法';
-
-  @override
   String get authAccountSignUpMethod => '登録方法';
 
   @override

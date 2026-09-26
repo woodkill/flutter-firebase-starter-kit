@@ -401,11 +401,6 @@
     "description": "Label for the account creation date in the account section"
   },
 
-  "authAccountProviders": "Providers",
-  "@authAccountProviders": {
-    "description": "Label for the linked auth providers list in the account section"
-  },
-
   "authAccountSignUpMethod": "Sign-up method",
   "@authAccountSignUpMethod": {
     "description": "Phase 16.7 D-08/D-09 — Home account card label for the sign-up method: the provider that first created the account (fixed afterwards, even when signing in with a linked account)."

@@ -92,7 +92,6 @@
   "authAccountPhotoUrl": "프로필 사진",
   "authAccountUid": "사용자 ID",
   "authAccountCreatedAt": "가입일",
-  "authAccountProviders": "로그인 수단",
   "authAccountSignUpMethod": "가입 수단",
   "authAccountLinkedAccounts": "연결된 계정",
   "authAccountLinkedAccountsNone": "없음",

@@ -580,12 +580,6 @@ abstract class AppLocalizations {
   /// **'Created at'**
   String get authAccountCreatedAt;
 
-  /// Label for the linked auth providers list in the account section
-  ///
-  /// In en, this message translates to:
-  /// **'Providers'**
-  String get authAccountProviders;
-
   /// Phase 16.7 D-08/D-09 — Home account card label for the sign-up method: the provider that first created the account (fixed afterwards, even when signing in with a linked account).
   ///
   /// In en, this message translates to:
