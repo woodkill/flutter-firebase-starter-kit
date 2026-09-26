@@ -452,4 +452,48 @@ void main() {
       },
     );
   });
+
+  group('Phase 16.7 가입 수단 카드 (D-01 · D-11)', () {
+    testWidgets('signUpProviderId=password 시 가입 수단 카드가 '
+        '"Sign-up method: Email / Password" 로 노출 (D-01)', (tester) async {
+      final handle = tester.ensureSemantics();
+      final user = User(
+        uid: 'uid-signup-1',
+        email: 'signup@example.com',
+        emailVerified: true,
+        displayName: 'Sign-up User',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['password'],
+        signUpProviderId: 'password',
+      );
+
+      await _pumpScreen(tester, user: user);
+
+      expect(
+        find.bySemanticsLabel('Sign-up method: Email / Password'),
+        findsOneWidget,
+      );
+
+      handle.dispose();
+    });
+
+    testWidgets('signUpProviderId null 시 가입 수단 카드가 '
+        '"Sign-up method: -" 로 노출 (D-11 — 추론 0)', (tester) async {
+      final handle = tester.ensureSemantics();
+      final user = User(
+        uid: 'uid-signup-2',
+        email: 'legacy@example.com',
+        emailVerified: true,
+        displayName: 'Legacy User',
+        createdAt: DateTime.utc(2026),
+        providerIds: ['password'],
+      );
+
+      await _pumpScreen(tester, user: user);
+
+      expect(find.bySemanticsLabel('Sign-up method: -'), findsOneWidget);
+
+      handle.dispose();
+    });
+  });
 }

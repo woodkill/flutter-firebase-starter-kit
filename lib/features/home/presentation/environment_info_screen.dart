@@ -823,6 +823,7 @@ class _AccountSection extends ConsumerWidget {
     final spacing = context.appSpacing;
     final l10n = context.l10n;
     final locale = ref.watch(localeProvider);
+    final signUp = user.signUpProviderId;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -916,6 +917,18 @@ class _AccountSection extends ConsumerWidget {
             ),
           ),
         ],
+        Gap(spacing.md),
+        // Phase 16.7 D-01 첫 카드 — 가입 수단. 기록 없음(null)이면 '-'
+        // (D-11 — 추론 0), 미지 값은 formatProviderIds 의 errorUnknownProvider
+        // (D-12). 기존 로그인 수단 카드의 「연결된 계정」 카드 교체는 plan 05.
+        _EnvironmentCard(
+          icon: Icons.how_to_reg,
+          label: l10n.authAccountSignUpMethod,
+          value: formatProviderIds(
+            signUp == null ? const <String>[] : <String>[signUp],
+            l10n,
+          ),
+        ),
         Gap(spacing.md),
         // D-11: providerIds 동적 표시 (Phase 7).
         _EnvironmentCard(

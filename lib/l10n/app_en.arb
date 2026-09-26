@@ -406,6 +406,21 @@
     "description": "Label for the linked auth providers list in the account section"
   },
 
+  "authAccountSignUpMethod": "Sign-up method",
+  "@authAccountSignUpMethod": {
+    "description": "Phase 16.7 D-08/D-09 — Home account card label for the sign-up method: the provider that first created the account (fixed afterwards, even when signing in with a linked account)."
+  },
+
+  "authAccountLinkedAccounts": "Linked accounts",
+  "@authAccountLinkedAccounts": {
+    "description": "Phase 16.7 D-09 — Home account card label for the providers linked after sign-up (all providers minus the sign-up method)."
+  },
+
+  "authAccountLinkedAccountsNone": "None",
+  "@authAccountLinkedAccountsNone": {
+    "description": "Phase 16.7 D-03 — Value shown for Linked accounts when no provider other than the sign-up method is linked (home card and settings row)."
+  },
+
   "authAccountProviderEmailPassword": "Email / Password",
   "@authAccountProviderEmailPassword": {
     "description": "Provider value displayed in the account section when the user signed in with email and password"
@@ -927,6 +942,28 @@
       "providers": {
         "type": "String",
         "example": "Kakao, Google"
+      }
+    }
+  },
+
+  "settingsSignUpMethod": "Sign-up method: {method}",
+  "@settingsSignUpMethod": {
+    "description": "Phase 16.7 D-02/D-09 — Settings account row. {method} is one authAccountProvider{X} label, '-' when not recorded.",
+    "placeholders": {
+      "method": {
+        "type": "String",
+        "example": "Kakao"
+      }
+    }
+  },
+
+  "settingsLinkedAccounts": "Linked accounts: {accounts}",
+  "@settingsLinkedAccounts": {
+    "description": "Phase 16.7 D-02/D-09 — Settings account row. {accounts} is the comma-joined authAccountProvider{X} labels in fixed provider order, or authAccountLinkedAccountsNone. Not line-limited; lines break only between providers. The placeholder must appear exactly once (the UI splits the template around it to embed per-provider spans).",
+    "placeholders": {
+      "accounts": {
+        "type": "String",
+        "example": "Google, LINE"
       }
     }
   },

@@ -586,6 +586,24 @@ abstract class AppLocalizations {
   /// **'Providers'**
   String get authAccountProviders;
 
+  /// Phase 16.7 D-08/D-09 — Home account card label for the sign-up method: the provider that first created the account (fixed afterwards, even when signing in with a linked account).
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-up method'**
+  String get authAccountSignUpMethod;
+
+  /// Phase 16.7 D-09 — Home account card label for the providers linked after sign-up (all providers minus the sign-up method).
+  ///
+  /// In en, this message translates to:
+  /// **'Linked accounts'**
+  String get authAccountLinkedAccounts;
+
+  /// Phase 16.7 D-03 — Value shown for Linked accounts when no provider other than the sign-up method is linked (home card and settings row).
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get authAccountLinkedAccountsNone;
+
   /// Provider value displayed in the account section when the user signed in with email and password
   ///
   /// In en, this message translates to:
@@ -1155,6 +1173,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Linked sign-in: {providers}'**
   String settingsLinkedProviders(String providers);
+
+  /// Phase 16.7 D-02/D-09 — Settings account row. {method} is one authAccountProvider{X} label, '-' when not recorded.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-up method: {method}'**
+  String settingsSignUpMethod(String method);
+
+  /// Phase 16.7 D-02/D-09 — Settings account row. {accounts} is the comma-joined authAccountProvider{X} labels in fixed provider order, or authAccountLinkedAccountsNone. Not line-limited; lines break only between providers. The placeholder must appear exactly once (the UI splits the template around it to embed per-provider spans).
+  ///
+  /// In en, this message translates to:
+  /// **'Linked accounts: {accounts}'**
+  String settingsLinkedAccounts(String accounts);
 
   /// Phase 16 SOCL-12 proactive linking — Surface D. Settings '계정 연결' section heading (proactive account-linking 진입점). 후보 = 소셜 provider only (email EXCLUDE — Surface D mockup §0 user sign-off 2026-06-02).
   ///

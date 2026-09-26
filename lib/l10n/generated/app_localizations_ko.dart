@@ -253,6 +253,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authAccountProviders => '로그인 수단';
 
   @override
+  String get authAccountSignUpMethod => '가입 수단';
+
+  @override
+  String get authAccountLinkedAccounts => '연결된 계정';
+
+  @override
+  String get authAccountLinkedAccountsNone => '없음';
+
+  @override
   String get authAccountProviderEmailPassword => '이메일 / 비밀번호';
 
   @override
@@ -567,6 +576,16 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String settingsLinkedProviders(String providers) {
     return '연결된 로그인: $providers';
+  }
+
+  @override
+  String settingsSignUpMethod(String method) {
+    return '가입 수단: $method';
+  }
+
+  @override
+  String settingsLinkedAccounts(String accounts) {
+    return '연결된 계정: $accounts';
   }
 
   @override

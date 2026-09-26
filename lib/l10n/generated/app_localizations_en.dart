@@ -259,6 +259,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccountProviders => 'Providers';
 
   @override
+  String get authAccountSignUpMethod => 'Sign-up method';
+
+  @override
+  String get authAccountLinkedAccounts => 'Linked accounts';
+
+  @override
+  String get authAccountLinkedAccountsNone => 'None';
+
+  @override
   String get authAccountProviderEmailPassword => 'Email / Password';
 
   @override
@@ -579,6 +588,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String settingsLinkedProviders(String providers) {
     return 'Linked sign-in: $providers';
+  }
+
+  @override
+  String settingsSignUpMethod(String method) {
+    return 'Sign-up method: $method';
+  }
+
+  @override
+  String settingsLinkedAccounts(String accounts) {
+    return 'Linked accounts: $accounts';
   }
 
   @override

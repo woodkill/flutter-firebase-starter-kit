@@ -179,9 +179,12 @@ Future<GoRouter> _pumpReauthFlow(
           currentUserProvider.overrideWith((ref) => user)
         else ...[
           authStateProvider.overrideWith((ref) => sdkUserChanges),
-          linkedProvidersStreamProvider(
-            _currentUid,
-          ).overrideWith((ref) => Stream<List<String>>.value(linkedProviders)),
+          linkedProvidersStreamProvider(_currentUid).overrideWith(
+            (ref) => Stream<UserProviderRecord>.value((
+              linkedProviderIds: linkedProviders,
+              signUpProviderId: null,
+            )),
+          ),
         ],
       ],
       child: MaterialApp.router(

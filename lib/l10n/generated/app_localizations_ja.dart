@@ -253,6 +253,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authAccountProviders => 'ログイン方法';
 
   @override
+  String get authAccountSignUpMethod => '登録方法';
+
+  @override
+  String get authAccountLinkedAccounts => '連携済みアカウント';
+
+  @override
+  String get authAccountLinkedAccountsNone => 'なし';
+
+  @override
   String get authAccountProviderEmailPassword => 'メール / パスワード';
 
   @override
@@ -566,6 +575,16 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String settingsLinkedProviders(String providers) {
     return '連携済みログイン: $providers';
+  }
+
+  @override
+  String settingsSignUpMethod(String method) {
+    return '登録方法: $method';
+  }
+
+  @override
+  String settingsLinkedAccounts(String accounts) {
+    return '連携済みアカウント: $accounts';
   }
 
   @override

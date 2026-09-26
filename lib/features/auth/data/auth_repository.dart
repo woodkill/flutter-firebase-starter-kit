@@ -27,6 +27,7 @@ import 'kakao_sdk_client.dart';
 import 'line_sdk_client.dart';
 import 'naver_sdk_client.dart';
 import 'naver_sign_in_result.dart';
+import 'sign_up_method_recorder.dart';
 
 part 'auth_repository.g.dart';
 
@@ -90,6 +91,15 @@ class AuthRepository implements AnonymousSignIn {
   /// acceptedAt) 와 정확히 일치해야 한다 (D-13 / D-14 anchor). 미주입 시
   /// 기본값은 항상 null 을 반환하는 [_readNoTermsAcceptanceSnapshot] 이며,
   /// 이때 payload 는 기존과 100% 동일하다 (add-only, 회귀 0).
+  ///
+  /// [recordSignUpMethod] 는 가입 수단을 `users/{uid}.signUpProviderId` 에
+  /// 기록하는 콜백이다 (Phase 16.7 D-13 · D-15). 같은 D-A2 논리로
+  /// `SignUpMethodRecorder` 타입은 [authRepository] factory provider 영역
+  /// 한정이며, 본체는 [RecordSignUpMethod] signature 만 의존한다. 가입이
+  /// 확정된 분기에서만 `unawaited(...)` 로 호출한다 — 서버 ack 를 기다리지
+  /// 않고, 콜백은 어떤 예외도 던지지 않는다 (D-17). 미주입 시 기본값은
+  /// no-op [_recordNoSignUpMethod] 라 기존 생성자 호출부는 변경 0 이다
+  /// (positional 9 인자 불변 · D-27).
   AuthRepository(
     this._auth,
     this._googleSignIn,
@@ -102,9 +112,11 @@ class AuthRepository implements AnonymousSignIn {
     this._onResetOnboarding, {
     DateTime Function()? now,
     Map<String, dynamic>? Function()? readTermsAcceptanceSnapshot,
+    RecordSignUpMethod? recordSignUpMethod,
   }) : _now = now ?? DateTime.now,
        _readTermsAcceptanceSnapshot =
-           readTermsAcceptanceSnapshot ?? _readNoTermsAcceptanceSnapshot;
+           readTermsAcceptanceSnapshot ?? _readNoTermsAcceptanceSnapshot,
+       _recordSignUpMethod = recordSignUpMethod ?? _recordNoSignUpMethod;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -119,6 +131,9 @@ class AuthRepository implements AnonymousSignIn {
   /// device-local 약관 동의 snapshot 을 서버 계약 JSON 으로 읽는 콜백
   /// (Phase 16 G-16-A9-1). 동의 부재 시 null.
   final Map<String, dynamic>? Function() _readTermsAcceptanceSnapshot;
+
+  /// 가입 수단 기록 콜백 (Phase 16.7 D-13 · D-17). 절대 throw 하지 않는다.
+  final RecordSignUpMethod _recordSignUpMethod;
 
   /// Phase 16 D-12 / Pitfall 5 — client-side cache for `lookupSignInMethods`
   /// callable responses. 동일 collisionEmail 의 rate limit 누적 회피
@@ -265,6 +280,12 @@ class AuthRepository implements AnonymousSignIn {
       if (fbUser == null) {
         return const Result.failure(InvalidCredentials());
       }
+      // Phase 16.7 D-14: 익명 link · createUser 둘 다 가입 확정이라 조건 없이
+      // 기록한다 (email-already-in-use 는 throw 라 여기 도달하지 않는다).
+      // D-17: 서버 ack 를 기다리지 않는다 — recorder 가 모든 예외를 흡수한다.
+      unawaited(
+        _recordSignUpMethod(fbUser.uid, fb.EmailAuthProvider.PROVIDER_ID),
+      );
       // displayName 업데이트는 실패해도 가입은 성공 처리한다 (D-10).
       //
       // reload() 는 토큰 만료 / 네트워크 오류 시 FirebaseAuthException 외에도
@@ -3142,6 +3163,20 @@ class _CachedProvider {
 /// (add-only invariant — 기존 테스트 12곳의 생성자 호출부 회귀 0).
 Map<String, dynamic>? _readNoTermsAcceptanceSnapshot() => null;
 
+/// 가입 수단 기록 콜백 signature (Phase 16.7 D-13 · D-15).
+///
+/// [uid] 문서에 [providerId] (`User.providerIds` 와 같은 형식) 를 기록한다.
+/// 구현은 어떤 예외도 던지지 않아야 한다 — 호출처가 `unawaited` 로 부른다
+/// (D-17).
+typedef RecordSignUpMethod =
+    Future<void> Function(String uid, String providerId);
+
+/// [AuthRepository.new] 의 `recordSignUpMethod` 미주입 시 기본 구현
+/// (Phase 16.7).
+///
+/// 아무것도 기록하지 않는다 — 기존 테스트의 생성자 호출부 회귀 0.
+Future<void> _recordNoSignUpMethod(String uid, String providerId) async {}
+
 /// firebase_auth [fb.User]를 도메인 [User]로 변환한다 (D-12).
 ///
 /// firebase_auth import는 features/auth/data 경계 안에만 존재해야 하며,
@@ -3188,6 +3223,15 @@ AuthRepository authRepository(Ref ref) {
     // (acceptedAt = UTC 정규화된 ISO 8601 — CR-01).
     readTermsAcceptanceSnapshot: () =>
         ref.read(termsProvider).buildAcceptanceSnapshotJson(),
+    // Phase 16.7 D-13 · D-15: 동일한 D-A2 콜백 주입 관례.
+    // SignUpMethodRecorder 타입은 본 factory 영역에서만 알며, AuthRepository
+    // 클래스 본체는 RecordSignUpMethod signature 만 의존한다.
+    // 콜백을 async 로 둬 recorder provider 생성 중 동기 예외
+    // (_assertFirebaseReady 등) 도 Future 안으로 흘린다 — 가입 흐름의 catch 에
+    // 닿아 가입을 실패로 바꾸지 않는다 (D-17).
+    recordSignUpMethod: (uid, providerId) async => ref
+        .read(signUpMethodRecorderProvider)
+        .record(uid: uid, providerId: providerId),
   );
 }
 
@@ -3223,6 +3267,12 @@ AuthRepository authRepository(Ref ref) {
 /// `maybeWhen(data:..., orElse: const <String>[])` — AsyncLoading + AsyncError
 /// 모두 빈 배열 fallback 으로 fall-through → ephemeral "-" UX 회귀.
 ///
+/// **Phase 16.7 (D-11 데이터 계층):** 같은 snapshot 의 `signUpProviderId` 를
+/// [User.signUpProviderId] 에 싣는다. stream 은 [UserProviderRecord] 로
+/// 두 필드를 함께 emit 하며, 위 3 분기 규칙(AsyncLoading = 직전 cached
+/// record · AsyncError = 빈 record)이 두 필드에 똑같이 적용된다. 첫 emit
+/// 전(cached 없음) · 읽기 실패 · 필드 부재는 모두 null — 추론 0.
+///
 /// **Race 안전성 (Pitfall 12):** 12-02 Cloud Function 이 `users/{uid}` 를
 /// `set({...}, {merge: true})` 로 작성하므로 Plan 10-12 mirrorToFirestore 와
 /// 공존한다. linkedProviders 가 사라지지 않는다.
@@ -3237,31 +3287,65 @@ User? currentUser(Ref ref) {
   // Phase 12 D-16 + Phase 13 R13 fix (옵션 A): 합집합 — explicit AsyncValue
   // pattern matching 으로 AsyncLoading 직전 cached emit 보존.
   //
-  // - AsyncData(list)  → list 그대로 사용
-  // - AsyncLoading     → linkedAsync.value (직전 cached emit) ?? const <String>[]
+  // - AsyncData(rec)   → record 그대로 사용
+  // - AsyncLoading     → recAsync.value (직전 cached record)
+  //                      ?? _emptyUserProviderRecord
   //                      sign-in 직후 첫 emit 도착 전 시점에 base.providerIds
   //                      만으로 fallback 하지 않음 — Custom Token user (Naver/
-  //                      Kakao) 의 ephemeral '-' UX (R13) 차단.
-  // - AsyncError       → const <String>[] (영구 spinner 회피, handleError 가
-  //                      이미 AsyncData([]) 정착하므로 실질 도달 거의 없음)
-  final linkedAsync = ref.watch(linkedProvidersStreamProvider(fbUser.uid));
-  final linked = linkedAsync.when(
-    data: (list) => list,
-    loading: () => linkedAsync.value ?? const <String>[],
-    error: (_, _) => const <String>[],
+  //                      Kakao) 의 ephemeral '-' UX (R13) 차단. Phase 16.7:
+  //                      signUpProviderId 도 같은 cached record 에서 보존.
+  // - AsyncError       → _emptyUserProviderRecord (영구 spinner 회피,
+  //                      handleError 가 이미 빈 record 로 정착하므로 실질 도달
+  //                      거의 없음)
+  final recAsync = ref.watch(linkedProvidersStreamProvider(fbUser.uid));
+  final rec = recAsync.when(
+    data: (r) => r,
+    loading: () => recAsync.value ?? _emptyUserProviderRecord,
+    error: (_, _) => _emptyUserProviderRecord,
   );
 
-  if (linked.isEmpty) return base;
   // Set 기반 중복 제거 (Native URI + Custom Token slug 양쪽 보존).
-  final merged = <String>{...base.providerIds, ...linked}.toList();
-  return base.copyWith(providerIds: merged);
+  // Phase 16.7: 연결 목록이 비어도 signUpProviderId 를 실어야 하므로 early
+  // return 없이 항상 합성한다 (D-11 — 값이 없으면 null 그대로).
+  final merged = <String>{
+    ...base.providerIds,
+    ...rec.linkedProviderIds,
+  }.toList();
+  return base.copyWith(
+    providerIds: merged,
+    signUpProviderId: rec.signUpProviderId,
+  );
 }
 
-/// Firestore `users/{uid}.linkedProviders[].providerId` 를 stream 으로 노출한다
-/// (Phase 12 D-16, family by uid).
+/// [linkedProvidersStream] 이 emit 하는 `users/{uid}` provider 상태 record
+/// (Phase 16.7 D-11).
 ///
-/// `users/{uid}` 문서가 미존재 (mirrorToFirestore 가 작성 전) 이거나
-/// `linkedProviders` 필드가 없으면 빈 배열을 emit 한다.
+/// - `linkedProviderIds`: `linkedProviders[].providerId` (Custom Token slug 등).
+/// - `signUpProviderId`: 가입 수단 providerId — 필드 부재 · String 아닌
+///   타입 · 문서 부재 · 읽기 실패는 null (추론 0).
+typedef UserProviderRecord = ({
+  List<String> linkedProviderIds,
+  String? signUpProviderId,
+});
+
+/// 빈 [UserProviderRecord] — 문서 부재 · 읽기 실패 · 첫 emit 전 fallback.
+const UserProviderRecord _emptyUserProviderRecord = (
+  linkedProviderIds: <String>[],
+  signUpProviderId: null,
+);
+
+/// Firestore `users/{uid}.linkedProviders[].providerId` + `signUpProviderId`
+/// 를 [UserProviderRecord] stream 으로 노출한다 (Phase 12 D-16 · Phase 16.7
+/// D-11, family by uid).
+///
+/// `users/{uid}` 문서가 미존재 (mirrorToFirestore 가 작성 전) 이면 빈
+/// record 를, `linkedProviders` 필드가 없으면 빈 연결 목록을 emit 한다.
+/// `signUpProviderId` 는 String 일 때만 싣고 그 외(부재 · 타입 불일치)는
+/// null 이다. 같은 문서에 두 번째 listener 를 두지 않도록 두 필드를 한 번에
+/// 파싱한다 (Phase 16.7).
+///
+/// 아래 설명의 「빈 배열」 은 Phase 16.7 부터 빈 record
+/// (`_emptyUserProviderRecord`) 를 뜻한다.
 ///
 /// **에러 흡수 (Phase 12.1 R6 / D-41 보존):** 네트워크 / 다른 FirebaseException
 /// 발생 시 빈 배열을 명시적으로 emit 한다 — `AsyncData(<String>[])` 정착으로
@@ -3300,7 +3384,7 @@ User? currentUser(Ref ref) {
 /// (firebase-android-sdk #5101, flutterfire #11146). 본 fix 는 client-side
 /// workaround. spec: `docs/superpowers/specs/2026-05-08-r10-followup-2-design.md`.
 @Riverpod(keepAlive: true)
-Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
+Stream<UserProviderRecord> linkedProvidersStream(Ref ref, String uid) async* {
   final firestore = ref.watch(firebaseFirestoreProvider);
   var permissionDeniedRetries = 0;
   const maxRetries = 5;
@@ -3321,20 +3405,31 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
         permissionDeniedRetries = 0;
         errorBackoff = initialErrorBackoff;
         if (!snap.exists) {
-          yield const <String>[];
+          yield _emptyUserProviderRecord;
           continue;
         }
-        final raw = snap.data()?['linkedProviders'] as List<dynamic>?;
+        final data = snap.data();
+        // Phase 16.7 D-11: 가입 수단 — String 이 아니면 null (I4 관례).
+        final signUpRaw = data?['signUpProviderId'];
+        final signUpProviderId = signUpRaw is String ? signUpRaw : null;
+        final raw = data?['linkedProviders'] as List<dynamic>?;
         if (raw == null) {
-          yield const <String>[];
+          // linkedProviders 부재여도 signUpProviderId 는 버리지 않는다.
+          yield (
+            linkedProviderIds: const <String>[],
+            signUpProviderId: signUpProviderId,
+          );
           continue;
         }
         // I4: Type-safe parsing — invalid entry 자동 제거.
-        yield raw
-            .whereType<Map<String, dynamic>>()
-            .map((m) => m['providerId'] as String?)
-            .whereType<String>()
-            .toList(growable: false);
+        yield (
+          linkedProviderIds: raw
+              .whereType<Map<String, dynamic>>()
+              .map((m) => m['providerId'] as String?)
+              .whereType<String>()
+              .toList(growable: false),
+          signUpProviderId: signUpProviderId,
+        );
       }
       // source stream 정상 종료 (provider dispose 등) — loop 탈출.
       break;
@@ -3372,7 +3467,7 @@ Stream<List<String>> linkedProvidersStream(Ref ref, String uid) async* {
           '${errorBackoff.inSeconds}s 후 재구독): ${e.code}\n$st',
         );
       }
-      yield const <String>[];
+      yield _emptyUserProviderRecord;
       // WR-04: 이전 구현은 여기서 `break` 로 generator 를 종료시켰다. 본
       // provider 는 `@Riverpod(keepAlive: true)` 라 재구독이 일어나지 않아
       // 일시적 `unavailable` 한 번이면 세션 내내 linkedProviders 가 빈

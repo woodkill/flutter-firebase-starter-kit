@@ -25,6 +25,16 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 /// 4. Firestore stream 에러 → Firebase providerData 만 사용 (fallback)
 /// 5. linkedProviders 필드 부재 → Firebase providerData 만 사용
 /// 6. linkedProviders 가 잘못된 schema → type-safe filter 가 차단
+///
+/// Phase 16.7 — [UserProviderRecord] 의 두 필드가 같은 snapshot 에서 함께
+/// 파싱되고 loading 에서 함께 보존된다 (D-11 · assumption-delta 불변식):
+/// 7. linkedProviders=[{kakao}] + signUpProviderId='kakao' → User 에 실림 ·
+///    providerIds 합집합 불변
+/// 8. signUpProviderId 가 String 아닌 타입(42) → null (추론 0)
+/// 9. linkedProviders 부재 + signUpProviderId='password' → providerIds =
+///    providerData 만 · signUpProviderId 보존 (부재 fallback 이 버리지 않음)
+/// 10. 첫 emit 뒤 재구독 중 AsyncLoading → 직전 cached record 의
+///     signUpProviderId 유지
 
 class _MockFbUser extends Mock implements fb.User {}
 
@@ -295,7 +305,7 @@ void main() {
       // widget) 가 spinner 무한 회피.
       final asyncValue = container.read(linkedProvidersStreamProvider(uid));
       expect(asyncValue.hasValue, isTrue);
-      expect(asyncValue.value, isEmpty);
+      expect(asyncValue.value?.linkedProviderIds, isEmpty);
 
       // 합집합 결과는 동일 — Firebase providerData 만 사용
       // (currentUserProvider 의 linkedAsync.when data 분기로 자연 흐름).
@@ -375,11 +385,13 @@ void main() {
   //
   // 신규 contract (auth_repository.dart::currentUser):
   //
-  //   final linked = linkedAsync.when(
-  //     data: (list) => list,
-  //     loading: () => linkedAsync.value ?? const <String>[],
-  //     error: (_, _) => const <String>[],
+  //   final rec = recAsync.when(
+  //     data: (r) => r,
+  //     loading: () => recAsync.value ?? _emptyUserProviderRecord,
+  //     error: (_, _) => _emptyUserProviderRecord,
   //   );
+  //
+  // (Phase 16.7: List → UserProviderRecord 로 확장 — 분기 규칙은 동일.)
   //
   // 폐기된 invariant: "AsyncLoading 첫 frame 시 base.providerIds 유지"
   // (기존 maybeWhen orElse: empty 의 의도적 deferred 동작) — Phase 13
@@ -476,7 +488,7 @@ void main() {
           firebaseFirestoreProvider.overrideWithValue(_MockFirebaseFirestore()),
           // linkedProvidersStreamProvider 직접 override — AsyncError 강제.
           linkedProvidersStreamProvider(uid).overrideWith(
-            (ref) => Stream<List<String>>.error(
+            (ref) => Stream<UserProviderRecord>.error(
               StateError('forced error for R13 fallback test'),
             ),
           ),
@@ -529,7 +541,7 @@ void main() {
         // Stream provider 의 첫 emit 까지 대기 — AsyncValue<List<String>>.
         await _settle();
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
-        expect(asyncValue.value, ['kakao', 'naver']);
+        expect(asyncValue.value?.linkedProviderIds, ['kakao', 'naver']);
       },
     );
   });
@@ -581,7 +593,7 @@ void main() {
         await _settle();
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.hasValue, isTrue);
-        expect(asyncValue.value, ['naver']);
+        expect(asyncValue.value?.linkedProviderIds, ['naver']);
       });
 
       test('2. permission-denied 1회 후 정상 (R10-FOLLOWUP-2 핵심) — 1s delay 후 '
@@ -625,7 +637,7 @@ void main() {
         await _settle();
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.hasValue, isTrue);
-        expect(asyncValue.value, [
+        expect(asyncValue.value?.linkedProviderIds, [
           'naver',
         ], reason: 'retry 후 정상 emit 도달 (R10-FOLLOWUP-2 핵심)');
       }, timeout: const Timeout(Duration(seconds: 10)));
@@ -655,7 +667,7 @@ void main() {
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.hasValue, isTrue);
         expect(
-          asyncValue.value,
+          asyncValue.value?.linkedProviderIds,
           isEmpty,
           reason: '5회 escape → 빈 배열 fallback (영구 spinner 회피)',
         );
@@ -685,7 +697,7 @@ void main() {
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.hasValue, isTrue);
         expect(
-          asyncValue.value,
+          asyncValue.value?.linkedProviderIds,
           isEmpty,
           reason: 'permission-denied 가 아닌 코드는 즉시 fallback (I1)',
         );
@@ -732,7 +744,7 @@ void main() {
 
         final asyncValue = container.read(linkedProvidersStreamProvider(uid));
         expect(asyncValue.hasValue, isTrue);
-        expect(asyncValue.value, [
+        expect(asyncValue.value?.linkedProviderIds, [
           'naver',
         ], reason: '카운터 리셋 후 재 retry 통해 정상 emit 도달 (I3)');
       }, timeout: const Timeout(Duration(seconds: 10)));
@@ -779,7 +791,10 @@ void main() {
       // 1차 — 즉시 빈 배열 fallback (D-41 / I1 보존).
       await _settle();
       expect(
-        container.read(linkedProvidersStreamProvider(uid)).value,
+        container
+            .read(linkedProvidersStreamProvider(uid))
+            .value
+            ?.linkedProviderIds,
         isEmpty,
         reason: '비-permission-denied 는 즉시 빈 배열 fallback (I1)',
       );
@@ -787,9 +802,163 @@ void main() {
       // 2차 — 5s backoff 후 재구독하여 정상 emit 도달 (I5).
       await Future<void>.delayed(const Duration(milliseconds: 5500));
       await _settle();
-      expect(container.read(linkedProvidersStreamProvider(uid)).value, [
-        'kakao',
-      ], reason: 'generator 가 살아 있어 세션 내 자력 복구 (WR-04)');
+      expect(
+        container
+            .read(linkedProvidersStreamProvider(uid))
+            .value
+            ?.linkedProviderIds,
+        ['kakao'],
+        reason: 'generator 가 살아 있어 세션 내 자력 복구 (WR-04)',
+      );
     }, timeout: const Timeout(Duration(seconds: 20)));
+  });
+
+  // ==========================================================================
+  // Phase 16.7 D-11: UserProviderRecord — linkedProviderIds 와
+  // signUpProviderId 가 같은 snapshot 에서 함께 파싱되고 함께 보존된다.
+  // ==========================================================================
+  group('Phase 16.7: signUpProviderId record (D-11)', () {
+    test('7. linkedProviders=[{kakao}] + signUpProviderId=kakao → '
+        'User.signUpProviderId=kakao · providerIds 합집합 불변', () async {
+      const uid = 'uid-signup-kakao';
+      final fbUser = _buildFbUser(uid: uid, providerIds: <String>[]);
+      final snap = _buildSnapshot(
+        exists: true,
+        data: <String, dynamic>{
+          'linkedProviders': <Map<String, dynamic>>[
+            {'providerId': 'kakao', 'providerUserId': 'kk1'},
+          ],
+          'signUpProviderId': 'kakao',
+        },
+      );
+      final firestore = _buildFirestore(
+        uid: uid,
+        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+      );
+
+      final container = _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.signUpProviderId, 'kakao');
+      expect(user.providerIds, ['kakao']);
+    });
+
+    test('8. signUpProviderId 가 String 아닌 타입 (42) → null', () async {
+      const uid = 'uid-signup-bad-type';
+      final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
+      final snap = _buildSnapshot(
+        exists: true,
+        data: <String, dynamic>{
+          'linkedProviders': <Map<String, dynamic>>[],
+          'signUpProviderId': 42,
+        },
+      );
+      final firestore = _buildFirestore(
+        uid: uid,
+        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+      );
+
+      final container = _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.signUpProviderId, isNull);
+      expect(user.providerIds, ['google.com']);
+    });
+
+    test('9. linkedProviders 부재 + signUpProviderId=password → '
+        'providerIds = providerData 만 · signUpProviderId 보존', () async {
+      const uid = 'uid-signup-no-linked';
+      final fbUser = _buildFbUser(uid: uid, providerIds: ['password']);
+      final snap = _buildSnapshot(
+        exists: true,
+        data: <String, dynamic>{'signUpProviderId': 'password'},
+      );
+      final firestore = _buildFirestore(
+        uid: uid,
+        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+      );
+
+      final container = _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.providerIds, ['password']);
+      expect(user.signUpProviderId, 'password');
+    });
+
+    test('10. 첫 emit 뒤 재구독 중 AsyncLoading → 직전 cached record 의 '
+        'signUpProviderId 유지', () async {
+      const uid = 'uid-signup-loading-cached';
+      final fbUser = _buildFbUser(uid: uid, providerIds: <String>[]);
+      final snap = _buildSnapshot(
+        exists: true,
+        data: <String, dynamic>{
+          'linkedProviders': <Map<String, dynamic>>[
+            {'providerId': 'naver', 'providerUserId': 'nv1'},
+          ],
+          'signUpProviderId': 'naver',
+        },
+      );
+      // 2차 구독은 영원히 emit 하지 않는다 — invalidate 뒤 AsyncLoading 유지.
+      final pending = StreamController<_MockDocumentSnapshot>();
+      addTearDown(pending.close);
+      final firestore = _buildRetryFirestore(
+        uid: uid,
+        streamFactories: [_valueFactory(snap), () => pending.stream],
+      );
+
+      final container = _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      expect(container.read(currentUserProvider)?.signUpProviderId, 'naver');
+
+      // 재구독 — 새 generator 가 아직 emit 전이라 AsyncLoading(cached).
+      container.invalidate(linkedProvidersStreamProvider(uid));
+      await _settle();
+      final recAsync = container.read(linkedProvidersStreamProvider(uid));
+      expect(recAsync.isLoading, isTrue);
+
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.signUpProviderId, 'naver');
+      expect(user.providerIds, ['naver']);
+    });
   });
 }
