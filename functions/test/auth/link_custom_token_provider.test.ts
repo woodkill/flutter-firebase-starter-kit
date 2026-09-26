@@ -190,6 +190,17 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
     );
     // tx.set 2회 (idxRef + userRef) — RESEARCH Pattern 2 verbatim.
     expect(mockTxSet).toHaveBeenCalledTimes(2);
+    // Phase 16.7 D-14 · D-18 — 연결 경로는 가입 이벤트가 아니므로 users
+    // payload 에 가입 수단 필드가 없다 (코드 미변경 + 본 단언으로 보장).
+    const usersSetCalls = mockTxSet.mock.calls.filter(
+      (c: unknown[]) =>
+        typeof c[1] === "object" &&
+        c[1] !== null &&
+        "linkedProviders" in (c[1] as Record<string, unknown>),
+    );
+    expect(usersSetCalls).toHaveLength(1);
+    const usersPayload = usersSetCalls[0][1];
+    expect(usersPayload).not.toHaveProperty("signUpProviderId");
     // happy path info log.
     expect(infoMock).toHaveBeenCalledWith(
       expect.objectContaining({

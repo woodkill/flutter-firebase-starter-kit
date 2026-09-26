@@ -8,6 +8,10 @@
  * - Pitfall 12 회피 (users/{uid} set-merge)
  * - R2 (BL-03 / D-31) — race-loser preCreatedUid post-tx best-effort cleanup +
  *   logger.warn (Pitfall 7 PII 미포함) + idempotent (cleanup 실패 시 outer 정상 반환)
+ * - Phase 16.7 D-16 — 신규 등록 2 분기(익명 caller · preCreatedUid) users
+ *   set-merge payload 에 가입 수단 동승 + line pass-through (closed union)
+ * - Phase 16.7 D-18 — 재로그인(isNewUser: false) · 비익명 caller 가드는
+ *   users 문서 write 0 (가입 수단 덮어쓰기 0)
  *
  * Phase 13~16 의 Custom Token provider 가 같은 helper 를 재사용하므로
  * 본 테스트가 helper 시그니처 회귀 가드 역할 (D-08).
@@ -272,6 +276,8 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
       idxRef,
       expect.objectContaining({lastSeenAt: expect.anything()}),
     );
+    // Phase 16.7 D-18 — 재로그인(isNewUser: false) 은 users 문서 write 0 이라
+    // 가입 수단(signUpProviderId) 을 구조적으로 덮어쓰지 않는다.
     expect(tx.set).not.toHaveBeenCalled();
     // Pitfall 4 회피 — 기존 매핑이면 createUser 미호출.
     expect(mockCreateUser).not.toHaveBeenCalled();
@@ -298,6 +304,8 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
     expect(userSetCall).toBeDefined();
     if (userSetCall) {
       expect(userSetCall[2]).toEqual({merge: true});
+      // Phase 16.7 D-16 — 익명 caller 제자리 승격도 가입 수단을 같은 write 에 싣는다.
+      expect(userSetCall[1]).toMatchObject({signUpProviderId: "kakao"});
     }
   });
 
@@ -305,7 +313,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
     "미존재 + 미인증 호출자 → Pitfall 4 회피 (createUser 외부 1회 + tx 내부 0회)",
     async () => {
       mockCreateUser.mockResolvedValueOnce({uid: "new-uid-pre"});
-      const {db} = makeDb({
+      const {db, tx, userRef} = makeDb({
         preExists: false,
         txExists: false,
       });
@@ -320,6 +328,35 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
       expect(res.isNewUser).toBe(true);
       // 핵심 — createUser 는 transaction 외부에서 단 1회만 호출.
       expect(mockCreateUser).toHaveBeenCalledTimes(1);
+      // Phase 16.7 D-16 — preCreatedUid 신규 등록도 가입 수단을 같은 write 에 싣는다.
+      const userSetCall = tx.set.mock.calls.find((c) => c[0] === userRef);
+      expect(userSetCall?.[1]).toMatchObject({signUpProviderId: "kakao"});
+      expect(userSetCall?.[2]).toEqual({merge: true});
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "D-16: line pass-through — provider line 신규 등록 → users payload signUpProviderId === \"line\"",
+    async () => {
+      const {db, tx, userRef} = makeDb({
+        preExists: false,
+        txExists: false,
+      });
+
+      const res = await resolveIdentity(db, {
+        provider: "line",
+        providerUserId: "line-new-1",
+        callerUid: "anon-uid-2",
+        callerIsAnonymous: true,
+      });
+
+      expect(res).toMatchObject({uid: "anon-uid-2", isNewUser: true});
+      // closed union ProviderId 를 그대로 따라간다
+      // (값 형식 = linkedProviders[].providerId).
+      const userSetCall = tx.set.mock.calls.find((c) => c[0] === userRef);
+      expect(userSetCall?.[1]).toMatchObject({signUpProviderId: "line"});
+      expect(userSetCall?.[2]).toEqual({merge: true});
     },
   );
 
@@ -2774,6 +2811,31 @@ describe("resolveIdentity — 비익명 caller 가드 (reauth-login-auto-merge)"
       );
       const logged = JSON.stringify(warnMock.mock.calls);
       expect(logged).not.toContain("PII_");
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "D-18: 비익명 caller + 매핑 미존재 → guardsCaller → tx.set 0 (가입 수단 덮어쓰기 0 · GUARD-01 과 같은 경로의 D-18 관점 재단언)",
+    async () => {
+      const {db, tx} = makeDb({preExists: false, txExists: false});
+
+      const res = await resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-formal-new",
+        callerUid: "formal-uid",
+        callerIsAnonymous: false,
+      });
+
+      // 거부는 throw 가 아니라 결과 반환 (GUARD-01 과 같은 계약).
+      expect(res).toEqual({
+        uid: "",
+        isNewUser: false,
+        conflictKind: "caller_identity_mismatch",
+      });
+      // 신규 등록 분기에 도달하지 않으므로 users 문서 write 0 — 기존 가입 수단 보존.
+      expect(tx.set).not.toHaveBeenCalled();
+      expect(mockCreateUser).not.toHaveBeenCalled();
     },
   );
 });

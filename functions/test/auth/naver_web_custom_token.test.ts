@@ -7,7 +7,7 @@
  * 셋업은 `naver_custom_token.test.ts` 의 mock 패턴(fetch · logger · params ·
  * admin) 을 미러한다. 케이스 마커 T-16.5-NAVER-WEB-CT-01~07 · 09~11
  * (08 · 12 · 13 은 폐기 전용이라 quick 260924-lw2 에서 삭제) +
- * T-QUICK-260924-LW2-*.
+ * T-QUICK-260924-LW2-* + Phase 16.7 D-21(웹 신규 등록 가입 수단 기록).
  *
  * 모든 jest.mock 호출은 hoist 되므로 src import 보다 먼저 정의되어야 한다
  * (firebase-functions-test 공식 권장 패턴).
@@ -334,6 +334,41 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         }),
         expect.any(String),
       );
+    },
+  );
+
+  // Phase 16.7 D-21 — 웹 경로도 1-tap 과 같은 공용 helper 를 거쳐 실제
+  // resolveIdentity 신규 등록 분기에 도달한다. mock transaction 이 tx.set 을
+  // 노출하므로 spy 대신 users payload 를 직접 단언한다 (end-to-end 배선).
+  it(
+    // eslint-disable-next-line max-len
+    "D-21: 웹 신규 등록 → 공용 helper → resolveIdentity 신규 등록 tx 의 users payload signUpProviderId === \"naver\"",
+    async () => {
+      mockTokenOk();
+      mockProfileOk("naver-web-d21");
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const result = (await callWeb({
+        auth: anonymousCallerAuth("anon-web-d21"),
+        data: {
+          code: FAKE_CODE,
+          state: FAKE_STATE_22CHARS,
+          termsAcceptanceSnapshot: TERMS_SNAPSHOT,
+        },
+      })) as WebResult;
+
+      expect(result).toMatchObject({uid: "anon-web-d21", isNewUser: true});
+      // users 문서 set (linkedProviders 를 싣는 호출) 은 정확히 1건.
+      const usersSetCalls = mockTxSet.mock.calls.filter(
+        (c: unknown[]) =>
+          typeof c[1] === "object" &&
+          c[1] !== null &&
+          "linkedProviders" in (c[1] as Record<string, unknown>),
+      );
+      expect(usersSetCalls).toHaveLength(1);
+      expect(usersSetCalls[0][1]).toMatchObject({signUpProviderId: "naver"});
+      expect(usersSetCalls[0][2]).toEqual({merge: true});
     },
   );
 

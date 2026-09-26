@@ -919,6 +919,10 @@ export async function resolveIdentity(
           providerUserId,
         }),
         providerLinkedAt: {[provider]: now},
+        // Phase 16.7 D-16 — 가입 수단. 값 형식 = linkedProviders[].providerId
+        // (closed union ProviderId). 신규 등록 분기에서만 쓰이므로 재로그인
+        // (isNewUser: false) · 비익명 caller 가드는 구조적으로 기록 0 (D-18).
+        signUpProviderId: provider,
       },
       {merge: true},
     );
