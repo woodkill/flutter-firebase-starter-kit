@@ -827,12 +827,7 @@ class _AccountSection extends ConsumerWidget {
     // 기록값 그대로). 게스트(익명)도 같은 규칙이라 isAnonymous 분기가 없다
     // (D-06).
     final split = splitAccountProviders(user);
-    final signUpValue = formatProviderIds(
-      split.signUpProviderId == null
-          ? const <String>[]
-          : <String>[split.signUpProviderId!],
-      l10n,
-    );
+    final signUpValue = formatSignUpMethod(split.signUpProviderId, l10n);
     final linked = buildLinkedAccountsValue(
       formatProviderLabels(split.linkedProviderIds, l10n),
       none: l10n.authAccountLinkedAccountsNone,

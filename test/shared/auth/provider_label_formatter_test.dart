@@ -507,6 +507,26 @@ void main() {
         expect(value.display.toPlainText(), contains('\uFFFC'));
       }
     });
+
+    test('H13 formatSignUpMethod — null 은 -, 알려진 id 는 라벨, 미지 값은 '
+        'Unknown', () {
+      for (final l10n in <AppLocalizations>[en, ko, ja]) {
+        // D-11 — 기록 없음은 추론 없이 '-'.
+        expect(formatSignUpMethod(null, l10n), '-');
+        // 알려진 id — native URI 와 CT slug 모두 formatProviderLabels 라벨.
+        for (final id in orderedIds) {
+          expect(
+            formatSignUpMethod(id, l10n),
+            formatProviderLabels(<String>[id], l10n).single,
+          );
+        }
+        // D-12 — 미지 기록값도 raw 노출 없이 Localizable Unknown.
+        expect(
+          formatSignUpMethod('zzz_unknown_slug', l10n),
+          l10n.errorUnknownProvider,
+        );
+      }
+    });
   });
 }
 

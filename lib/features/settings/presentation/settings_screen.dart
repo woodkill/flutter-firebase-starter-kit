@@ -46,12 +46,7 @@ class SettingsScreen extends ConsumerWidget {
     // Phase 16.7 — 가입 수단 · 연결된 계정 분리. 홈 계정 카드와 같은 helper
     // (D-11 기록 없음 = 「-」 · 연결 = 보유 전부, D-12 미보유 기록값 그대로).
     final split = splitAccountProviders(user);
-    final signUpValue = formatProviderIds(
-      split.signUpProviderId == null
-          ? const <String>[]
-          : <String>[split.signUpProviderId!],
-      l10n,
-    );
+    final signUpValue = formatSignUpMethod(split.signUpProviderId, l10n);
     // 제목 = 홈 계정 카드 라벨과 같은 식 · 값 = 홈 카드 값과 같은 식. 각 Text 에
     // 명시한다 (UI-SPEC §Typography (R1)).
     final titleStyle = typography.bodySmall.copyWith(

@@ -134,6 +134,22 @@ splitAccountProviders(User? user) {
   );
 }
 
+/// 「가입 수단」 값 문자열을 만든다 (Phase 16.7 D-11 · D-12 — 두 표면 공통).
+///
+/// - [signUpProviderId] 가 null(기록 없음)이면 `'-'` — `providerIds` 에서
+///   추론하지 않는다 (D-11).
+/// - 알려진 id 면 [formatProviderLabels] 의 라벨, 미지 값이면
+///   [AppLocalizations.errorUnknownProvider] — 보유 여부와 무관하게 기록값을
+///   그대로 표시한다 (D-12).
+///
+/// 홈 계정 카드와 설정 「내 계정」 이 [splitAccountProviders] 결과의
+/// `signUpProviderId` 로 호출한다.
+String formatSignUpMethod(String? signUpProviderId, AppLocalizations l10n) =>
+    formatProviderIds(switch (signUpProviderId) {
+      final id? => <String>[id],
+      null => const <String>[],
+    }, l10n);
+
 /// [providerIds] 를 표시 순서로 정렬한 새 리스트를 돌려준다 (Phase 16.7 D-05).
 ///
 /// 순서 = [kAllProviderIds] 순 소셜 → 미지 값 → 이메일(`'password'`) 맨 끝.
