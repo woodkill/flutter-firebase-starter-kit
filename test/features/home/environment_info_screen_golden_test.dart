@@ -12,9 +12,17 @@
 // 쓰지 않는다. viewport 는 `tester.view` 로 주입한다 (MediaQuery 동기화).
 //
 // **단언:** UI-SPEC §Line-break Mechanism 테스트 단언 2 · 3 · 7(ko/en/ja ×
-// worst · D-11) + E1 가입 수단 값 ellipsis 0 · 줄 수 실측(7 라벨 × ko/en/ja ×
-// 280/360 → `build/uat-16.7/p06-signup-lines-home.tsv`). 줄 수 1 은 단언하지
-// 않는다 — 1줄 초과 조합은 plan verify 의 E1 gate 가 사용자 sign-off 로 넘긴다.
+// worst · D-11) + E1 가입 수단 값 ellipsis 0(7 라벨 × ko/en/ja × 280/360).
+// 줄 수 1 은 단언하지 않는다 — 1줄 초과 조합은 plan verify 의 E1 gate 가
+// 사용자 sign-off 로 넘긴다.
+//
+// **증거 수집 (opt-in, IN-04):** 기본 실행은 단언만 하고 파일을 쓰지 않는다.
+// E1 줄 수 실측 TSV(`build/uat-16.7/p06-signup-lines-home.tsv`, 42 행) 와 1줄
+// 초과 조합의 light · dark 재렌더 PNG(`build/uat-16.7/signup-label-exceed/`)
+// 는 아래 명령으로만 다시 만든다.
+//
+//   fvm flutter test --dart-define=UAT_EVIDENCE=true \
+//     test/features/home/environment_info_screen_golden_test.dart
 //
 // **fixture 갱신:** `fvm flutter test --update-goldens <this file>` 후 산출
 // PNG 를 `cmp` 로 adopted 와 대조한다. 불일치면 adopted 를 덮어쓰지 말고
@@ -53,10 +61,14 @@ const double _dpr = 3.0;
 /// 홈 viewport 높이 (logical px) — UI-SPEC §Golden 캡처 계약 H 열.
 const double _homeHeight = 1400;
 
+/// 증거 수집 게이트 — `--dart-define=UAT_EVIDENCE=true` 일 때만 TSV · PNG 를
+/// 쓴다 (IN-04). 기본 실행은 읽기 전용 파일시스템에서도 통과해야 한다.
+const bool _collectEvidence = bool.fromEnvironment('UAT_EVIDENCE');
+
 /// 결과 산출 디렉터리 (gitignored `build/`).
 const String _outDir = 'build/uat-16.7';
 
-/// E1 가입 수단 값 줄 수 실측 TSV — 실행마다 42 행을 새로 쓴다.
+/// E1 가입 수단 값 줄 수 실측 TSV — 증거 수집 실행마다 42 행을 새로 쓴다.
 const String _tsvPath = '$_outDir/p06-signup-lines-home.tsv';
 
 /// 1줄 초과 조합의 실 렌더 PNG 디렉터리 (사용자 sign-off 제시용).
@@ -392,9 +404,11 @@ Future<void> _saveExceedPngs(
 void main() {
   setUpAll(() async {
     await _loadGoldenFonts();
-    Directory(_outDir).createSync(recursive: true);
-    final tsv = File(_tsvPath);
-    if (tsv.existsSync()) tsv.deleteSync();
+    if (_collectEvidence) {
+      Directory(_outDir).createSync(recursive: true);
+      final tsv = File(_tsvPath);
+      if (tsv.existsSync()) tsv.deleteSync();
+    }
   });
 
   setUp(() {
@@ -482,6 +496,8 @@ void main() {
             );
             final rp = tester.renderObject<RenderParagraph>(value);
             expect(rp.didExceedMaxLines, isFalse, reason: '$providerId 값');
+            // 이하 증거 수집 — 회귀 가드는 위 didExceedMaxLines 단언뿐이다.
+            if (!_collectEvidence) continue;
             final lines = _renderedLineCount(rp);
             File(_tsvPath).writeAsStringSync(
               'home\t$lang\t${width.toInt()}\t$providerId\t$lines\t'
@@ -491,6 +507,7 @@ void main() {
             if (lines > 1) exceeded.add(providerId);
           }
           // 줄 수 1 은 단언하지 않는다 — 초과 조합은 PNG 로 남겨 sign-off.
+          // exceeded 는 증거 수집 실행에서만 채워진다.
           for (final providerId in exceeded) {
             await _saveExceedPngs(
               tester,
