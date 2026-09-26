@@ -57,6 +57,8 @@ export {naverWebCustomToken} from "./auth/naver_web_custom_token";
 export {lineCustomToken} from "./auth/line_custom_token";
 // Phase 16 Wave 0 sentinel — Plan 16-02 가 본체 채움 (D-04/06/07/08/09/10/14).
 export {linkCustomTokenProvider} from "./auth/link_custom_token_provider";
+// Phase 16.8 SOCL-15 — Custom Token 신원 해제 (D-01/03/06/08 · link 의 역연산).
+export {unlinkCustomTokenProvider} from "./auth/unlink_custom_token_provider";
 export {deleteUserAccount} from "./auth/delete_user_account";
 export {lookupSignInMethods} from "./auth/lookup_sign_in_methods";
 export {mirrorTermsAcceptanceSnapshot} from "./auth/mirror_terms_acceptance";
