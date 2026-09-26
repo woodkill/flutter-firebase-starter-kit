@@ -12,8 +12,8 @@ import 'package:gap/gap.dart';
 
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/auth/provider_label_formatter.dart';
 import '../../auth/data/auth_repository.dart';
-import '../../home/presentation/provider_label_formatter.dart';
 import '_widgets/account_linking_section.dart';
 import '_widgets/danger_zone_section.dart';
 

@@ -2484,7 +2484,7 @@ Home AppBar → Icons.settings tap → /settings route
 
 ### 가입 수단 기록 (Phase 16.7)
 
-**동작:** 계정을 처음 만든 수단을 Firestore `users/{uid}.signUpProviderId` 필드 1개에 한 번 기록하고, 홈 계정정보 카드와 설정 「내 계정」 이 이 값으로 「가입 수단」 과 「연결된 계정」 을 나눠 보여 준다. 연결된 계정 = 보유 provider(`User.providerIds`) 에서 가입 수단을 뺀 나머지이고, 0개면 「없음」 이다. 값 형식은 `User.providerIds` 와 같다 — `'google.com'` · `'apple.com'` · `'facebook.com'` · `'password'` · `'kakao'` · `'naver'` · `'line'`. 그래서 표시 쪽은 변환 없이 차집합을 만들고 기존 라벨 매핑(`formatProviderLabels`)을 그대로 쓴다. 클라이언트는 `linkedProvidersStream` 이 같은 `users/{uid}` snapshot 에서 `linkedProviders` 와 함께 읽고 `currentUserProvider` 가 `User.signUpProviderId` 에 싣는다. 두 표면은 `splitAccountProviders`(`lib/features/home/presentation/provider_label_formatter.dart`) 한 곳의 규칙으로 나눈다.
+**동작:** 계정을 처음 만든 수단을 Firestore `users/{uid}.signUpProviderId` 필드 1개에 한 번 기록하고, 홈 계정정보 카드와 설정 「내 계정」 이 이 값으로 「가입 수단」 과 「연결된 계정」 을 나눠 보여 준다. 연결된 계정 = 보유 provider(`User.providerIds`) 에서 가입 수단을 뺀 나머지이고, 0개면 「없음」 이다. 값 형식은 `User.providerIds` 와 같다 — `'google.com'` · `'apple.com'` · `'facebook.com'` · `'password'` · `'kakao'` · `'naver'` · `'line'`. 그래서 표시 쪽은 변환 없이 차집합을 만들고 기존 라벨 매핑(`formatProviderLabels`)을 그대로 쓴다. 클라이언트는 `linkedProvidersStream` 이 같은 `users/{uid}` snapshot 에서 `linkedProviders` 와 함께 읽고 `currentUserProvider` 가 `User.signUpProviderId` 에 싣는다. 두 표면은 `splitAccountProviders`(`lib/shared/auth/provider_label_formatter.dart`) 한 곳의 규칙으로 나눈다.
 
 **기록 지점:** 경로별로 한 곳씩, 두 곳뿐이다.
 

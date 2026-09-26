@@ -18,10 +18,10 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/auth/provider_label_formatter.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
-import 'provider_label_formatter.dart';
 
 // IN-03 — 매직 넘버를 저장소의 지배적 규약 2가지(설계 토큰 유도 / 파일 상단
 // 명명 상수)로 정리한다. 아래 값들은 `spacing.*` 스케일(4/8/12/16/24/32/48)

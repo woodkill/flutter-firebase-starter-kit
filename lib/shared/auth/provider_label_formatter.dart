@@ -3,9 +3,9 @@
 
 import 'package:flutter/widgets.dart';
 
-import '../../../core/auth/provider_id.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../auth/domain/user.dart';
+import '../../core/auth/provider_id.dart';
+import '../../features/auth/domain/user.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 /// [formatProviderLabels] 가 라벨로 변환하는 매핑 키 set.
 ///

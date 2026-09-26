@@ -14,7 +14,7 @@ part 'user.g.dart';
 /// - Phase 12+: Firebase `providerData[].providerId` ∪ Firestore
 ///   `users/{uid}.linkedProviders[].providerId` (Custom Token slug —
 ///   `'kakao'` 등) 합집합 (Set 기반 중복 제거).
-/// - 매핑 책임: `lib/features/home/presentation/provider_label_formatter.dart`
+/// - 매핑 책임: `lib/shared/auth/provider_label_formatter.dart`
 ///   의 `formatProviderIds` 헬퍼가 slug + URI 양 형식을 모두 인식한다.
 ///
 /// 합집합 로직은 `currentUserProvider` (auth_repository.dart) 가 수행하며,
