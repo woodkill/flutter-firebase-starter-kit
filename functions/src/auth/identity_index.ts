@@ -446,10 +446,15 @@ export type IdentityResolution = {
  *    - tx.set(idxRef, {firebaseUid, provider, providerUserId, linkedAt,
  *      lastSeenAt})
  *    - tx.set(userRef, {linkedProviders: arrayUnion({providerId,
- *      providerUserId})}, {merge: true})  ← Pitfall 12 (Plan 10-12
- *      mirrorToFirestore race 방어)
- *    - tx.set(userRef, {providerLinkedAt: {[providerId]: serverTimestamp()}},
- *      {merge: true})  ← Pitfall 5 회피 (linkedAt 별도 map)
+ *      providerUserId}), providerLinkedAt: {[providerId]: serverTimestamp()},
+ *      signUpProviderId: providerId}, {merge: true}) — users write 는 이
+ *      set-merge 1회에 3 필드가 원자적으로 동승한다.
+ *      · linkedProviders ← Pitfall 12 (Plan 10-12 mirrorToFirestore race 방어)
+ *      · providerLinkedAt ← Pitfall 5 회피 (linkedAt 은 arrayUnion 객체 밖
+ *        별도 map)
+ *      · signUpProviderId ← Phase 16.7 D-16 (가입 수단 — 신규 등록 분기에서만.
+ *        기존 identity 재사용(재로그인 · R12 빈 익명 재사용) · 비익명 caller
+ *        가드 · race-loser 는 users write 자체가 없다, D-18)
  *
  * Phase 14 LINE 진입 시 본 helper 의 시그니처가 일반화 표본 (D-08).
  *
