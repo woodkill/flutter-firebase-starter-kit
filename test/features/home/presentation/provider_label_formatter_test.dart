@@ -1,4 +1,6 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/home/presentation/provider_label_formatter.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
@@ -249,4 +251,292 @@ void main() {
       expect(kSupportedAuthProviderIds.length, 7);
     });
   });
+
+  group('Phase 16.7 표시 helper (D-04 · D-05 · D-11 · D-12)', () {
+    final AppLocalizations en = AppLocalizationsEn();
+    final AppLocalizations ko = AppLocalizationsKo();
+    final AppLocalizations ja = AppLocalizationsJa();
+
+    // 사용자가 보유할 수 있는 provider 전부 — native URI 와 CT slug 혼합,
+    // kAllProviderIds 순서와 일부러 다르게 섞었다.
+    const mixedIds = <String>[
+      'password',
+      kProviderIdLine,
+      'google.com',
+      kProviderIdKakao,
+      'apple.com',
+      kProviderIdNaver,
+      'facebook.com',
+    ];
+
+    // D-05 표시 순서 — kAllProviderIds 순 소셜 + 이메일 맨 끝.
+    const orderedIds = <String>[
+      'google.com',
+      'apple.com',
+      'facebook.com',
+      kProviderIdKakao,
+      kProviderIdNaver,
+      kProviderIdLine,
+      'password',
+    ];
+
+    test('H1 formatProviderLabels — 기존 switch 매핑 · 미지 = Unknown', () {
+      for (final l10n in <AppLocalizations>[en, ko, ja]) {
+        expect(
+          formatProviderLabels(const <String>[
+            'password',
+            'google.com',
+            'apple.com',
+            'facebook.com',
+            kProviderIdKakao,
+            kProviderIdNaver,
+            kProviderIdLine,
+            'zzz_unknown_slug',
+          ], l10n),
+          <String>[
+            l10n.authAccountProviderEmailPassword,
+            l10n.authAccountProviderGoogle,
+            l10n.authAccountProviderApple,
+            l10n.authAccountProviderFacebook,
+            l10n.authAccountProviderKakao,
+            l10n.authAccountProviderNaver,
+            l10n.authAccountProviderLine,
+            l10n.errorUnknownProvider,
+          ],
+        );
+      }
+      // raw providerId 가 라벨에 섞이지 않는다 (D-12 · D-53).
+      final labels = formatProviderLabels(const <String>[
+        'zzz_unknown_slug',
+        kProviderIdKakao,
+        'google.com',
+      ], en);
+      expect(labels.join(', '), isNot(contains('zzz_unknown_slug')));
+      expect(labels, isNot(contains(kProviderIdKakao)));
+      expect(labels, isNot(contains('google.com')));
+      expect(formatProviderLabels(const <String>[], en), isEmpty);
+    });
+
+    test('H2 formatProviderIds — 결과 불변 (빈 = "-" · ", " 결합)', () {
+      expect(formatProviderIds(const <String>[], ko), '-');
+      for (final l10n in <AppLocalizations>[en, ko, ja]) {
+        expect(
+          formatProviderIds(mixedIds, l10n),
+          formatProviderLabels(mixedIds, l10n).join(', '),
+        );
+      }
+      expect(
+        formatProviderIds(const <String>['kakao', 'password'], ko),
+        '카카오, 이메일 / 비밀번호',
+      );
+    });
+
+    test('H3 orderForDisplay — URI · slug 혼합 → kAllProviderIds 순 + 이메일 끝', () {
+      expect(orderForDisplay(mixedIds), orderedIds);
+      // 입력을 바꾸지 않는다.
+      expect(mixedIds.first, 'password');
+    });
+
+    test('H4 orderForDisplay — 미지 값은 소셜 뒤 · 이메일 앞 · 입력 순', () {
+      expect(
+        orderForDisplay(const <String>[
+          'password',
+          'zzz',
+          kProviderIdLine,
+          'aaa',
+          'google.com',
+        ]),
+        <String>['google.com', kProviderIdLine, 'zzz', 'aaa', 'password'],
+      );
+      // rank 가 같은 원소만 있으면 입력 순서 그대로 (안정 정렬).
+      expect(orderForDisplay(const <String>['zzz', 'aaa', 'mmm']), <String>[
+        'zzz',
+        'aaa',
+        'mmm',
+      ]);
+    });
+
+    test('H5 splitAccountProviders — 기록 X · 보유 {X, Y, Z} → (X, [Y, Z])', () {
+      final split = splitAccountProviders(
+        _userWith(
+          providerIds: const <String>[
+            'password',
+            kProviderIdKakao,
+            'google.com',
+          ],
+          signUpProviderId: kProviderIdKakao,
+        ),
+      );
+      expect(split.signUpProviderId, kProviderIdKakao);
+      expect(split.linkedProviderIds, <String>['google.com', 'password']);
+    });
+
+    test('H6 splitAccountProviders — 기록 ∉ 보유 · 유일 보유 · 중복', () {
+      // 기록 X ∉ 보유 → 기록값 그대로 + 연결 = 보유 전부 (D-12).
+      final notOwned = splitAccountProviders(
+        _userWith(
+          providerIds: const <String>['password', 'google.com'],
+          signUpProviderId: kProviderIdNaver,
+        ),
+      );
+      expect(notOwned.signUpProviderId, kProviderIdNaver);
+      expect(notOwned.linkedProviderIds, <String>['google.com', 'password']);
+
+      // 기록이 유일한 보유 → 연결 0개.
+      final onlyOwned = splitAccountProviders(
+        _userWith(
+          providerIds: const <String>['google.com'],
+          signUpProviderId: 'google.com',
+        ),
+      );
+      expect(onlyOwned.signUpProviderId, 'google.com');
+      expect(onlyOwned.linkedProviderIds, isEmpty);
+
+      // 같은 값이 둘 이상이면 전부 빠지고 나머지는 보존된다.
+      final duplicated = splitAccountProviders(
+        _userWith(
+          providerIds: const <String>[
+            kProviderIdKakao,
+            kProviderIdLine,
+            kProviderIdKakao,
+          ],
+          signUpProviderId: kProviderIdKakao,
+        ),
+      );
+      expect(duplicated.linkedProviderIds, <String>[kProviderIdLine]);
+    });
+
+    test('H7 splitAccountProviders — null · 빈 보유 (기록 유무)', () {
+      final guest = splitAccountProviders(null);
+      expect(guest.signUpProviderId, isNull);
+      expect(guest.linkedProviderIds, isEmpty);
+
+      final emptyNoRecord = splitAccountProviders(_userWith());
+      expect(emptyNoRecord.signUpProviderId, isNull);
+      expect(emptyNoRecord.linkedProviderIds, isEmpty);
+
+      final emptyWithRecord = splitAccountProviders(
+        _userWith(signUpProviderId: kProviderIdLine),
+      );
+      expect(emptyWithRecord.signUpProviderId, kProviderIdLine);
+      expect(emptyWithRecord.linkedProviderIds, isEmpty);
+    });
+
+    test('H8 splitAccountProviders — 기록 null 이면 추론 0 · 보유 전부 정렬', () {
+      final split = splitAccountProviders(_userWith(providerIds: mixedIds));
+      // 첫 원소 · 단일 원소 등에서 가입 수단을 추론하지 않는다 (D-11).
+      expect(split.signUpProviderId, isNull);
+      expect(split.linkedProviderIds, orderedIds);
+
+      final single = splitAccountProviders(
+        _userWith(providerIds: const <String>['google.com']),
+      );
+      expect(single.signUpProviderId, isNull);
+      expect(single.linkedProviderIds, <String>['google.com']);
+    });
+
+    test('H9 buildLinkedAccountsValue — 0개 = TextSpan(none)', () {
+      final value = buildLinkedAccountsValue(
+        const <String>[],
+        none: ko.authAccountLinkedAccountsNone,
+      );
+      expect(value.semantics, ko.authAccountLinkedAccountsNone);
+      final display = value.display;
+      expect(display, isA<TextSpan>());
+      expect((display as TextSpan).text, ko.authAccountLinkedAccountsNone);
+      // 자식 span 이 없으므로 WidgetSpan 0.
+      expect(display.children, isNull);
+      expect(_widgetSpansOf(display), isEmpty);
+    });
+
+    test('H10 buildLinkedAccountsValue — 1개 = WidgetSpan 1 · 쉼표 0', () {
+      final value = buildLinkedAccountsValue(<String>[
+        ko.authAccountProviderKakao,
+      ], none: ko.authAccountLinkedAccountsNone);
+      final widgetSpans = _widgetSpansOf(value.display);
+      expect(widgetSpans, hasLength(1));
+      expect(
+        _itemTextsOf(widgetSpans).single.data,
+        ko.authAccountProviderKakao,
+      );
+      expect(_itemTextsOf(widgetSpans).single.data, isNot(contains(',')));
+      expect(_separatorSpansOf(value.display), isEmpty);
+      expect(value.semantics, ko.authAccountProviderKakao);
+    });
+
+    test('H11 buildLinkedAccountsValue — N개 span 트리 (baseline · 쉼표)', () {
+      const style = TextStyle(fontSize: 14);
+      final labels = formatProviderLabels(orderedIds, ko);
+      final value = buildLinkedAccountsValue(
+        labels,
+        none: ko.authAccountLinkedAccountsNone,
+        style: style,
+      );
+      final widgetSpans = _widgetSpansOf(value.display);
+      expect(widgetSpans, hasLength(labels.length));
+      for (final span in widgetSpans) {
+        expect(span.alignment, PlaceholderAlignment.baseline);
+        expect(span.baseline, TextBaseline.alphabetic);
+      }
+      final texts = _itemTextsOf(widgetSpans);
+      expect(texts, hasLength(labels.length));
+      for (var i = 0; i < labels.length; i++) {
+        final isLast = i == labels.length - 1;
+        expect(texts[i].data, isLast ? labels[i] : '${labels[i]},');
+        expect(texts[i].style, style);
+      }
+      final separators = _separatorSpansOf(value.display);
+      expect(separators, hasLength(labels.length - 1));
+      for (final separator in separators) {
+        expect(separator.text, ' ');
+      }
+    });
+
+    test('H12 buildLinkedAccountsValue — semantics 무오염 · 표시만 U+FFFC', () {
+      for (final l10n in <AppLocalizations>[en, ko, ja]) {
+        final labels = formatProviderLabels(orderedIds, l10n);
+        final value = buildLinkedAccountsValue(
+          labels,
+          none: l10n.authAccountLinkedAccountsNone,
+        );
+        expect(value.semantics, labels.join(', '));
+        expect(value.semantics, isNot(contains('\uFFFC')));
+        expect(value.semantics, isNot(contains('\u2060')));
+        expect(value.semantics, isNot(contains('\u00A0')));
+        // WidgetSpan 자리표시 — find.text 가 전체 목록과 맞지 않는 근거.
+        expect(value.display.toPlainText(), contains('\uFFFC'));
+      }
+    });
+  });
 }
+
+/// [providerIds] · [signUpProviderId] 를 가진 정식 사용자 도메인 모델.
+User _userWith({
+  List<String> providerIds = const <String>[],
+  String? signUpProviderId,
+}) => User(
+  uid: 'uid-16-7-04',
+  email: 'user@example.com',
+  emailVerified: true,
+  createdAt: DateTime.utc(2026, 9, 26),
+  providerIds: providerIds,
+  signUpProviderId: signUpProviderId,
+);
+
+/// [display] 의 직계 자식 중 [WidgetSpan] 만 순서대로 모은다.
+List<WidgetSpan> _widgetSpansOf(InlineSpan display) => switch (display) {
+  TextSpan(:final children?) => children.whereType<WidgetSpan>().toList(),
+  _ => const <WidgetSpan>[],
+};
+
+/// [display] 의 직계 자식 중 라벨 사이 구분 [TextSpan] 만 순서대로 모은다.
+List<TextSpan> _separatorSpansOf(InlineSpan display) => switch (display) {
+  TextSpan(:final children?) => children.whereType<TextSpan>().toList(),
+  _ => const <TextSpan>[],
+};
+
+/// [widgetSpans] 각각의 child 중 [Text] 만 순서대로 모은다.
+List<Text> _itemTextsOf(List<WidgetSpan> widgetSpans) => <Text>[
+  for (final span in widgetSpans)
+    if (span.child case final Text text) text,
+];
