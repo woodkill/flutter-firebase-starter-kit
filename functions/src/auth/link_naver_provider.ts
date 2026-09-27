@@ -7,6 +7,7 @@
 // - 검증 helper `fetchNaverProfile` (`naver_profile_to_custom_token.ts`)
 // - 연결 transaction `linkCustomTokenIdentity` (`link_identity_transaction.ts`)
 // - 재인증 신선도 `assertFreshAuth` (`shared/reauth.ts`)
+// - code 교환 `exchangeNaverAuthCode` (`naver_token_exchange.ts` — 웹 모양)
 //
 // **Mock 한계:** Jest 는 NAVER 서버 · App Check · 실 Firestore 를 흉내낼
 // 뿐이다 — 실 단말 UAT 가 ground truth.
@@ -22,16 +23,18 @@ import * as logger from "firebase-functions/logger";
 import {invalidArgument} from "../shared/custom_token_errors";
 import {NAVER_CLIENT_ID, NAVER_CLIENT_SECRET} from "../shared/naver_secrets";
 import {assertFreshAuth} from "../shared/reauth";
-import {requireStringArg} from "../shared/require_string_arg";
+import {
+  MAX_NONCE_ARG_LENGTH,
+  requireStringArg,
+} from "../shared/require_string_arg";
 import {fingerprintError} from "./identity_index";
 import {linkCustomTokenIdentity} from "./link_identity_transaction";
 import {fetchNaverProfile} from "./naver_profile_to_custom_token";
 import type {NaverSignInPath} from "./naver_profile_to_custom_token";
-
-// Authorization 헤더 injection 방어 — CRLF / NUL 거부
-// (`naver_custom_token.ts` 1-tap 로그인과 같은 필터).
-// eslint-disable-next-line no-control-regex
-const CONTROL_CHARS = /[\r\n\x00]/;
+import {
+  exchangeNaverAuthCode,
+  NAVER_CONTROL_CHARS,
+} from "./naver_token_exchange";
 
 /**
  * `linkNaverProvider` 요청 — 필드 존재로 모양을 판별한다.
@@ -53,6 +56,15 @@ type LinkNaverProviderRequest = {
   state?: unknown;
 };
 
+/**
+ * Step 0 이 좁힌 연결 자격증명 — `kind` 로 모양을 구분한다.
+ * - `app`: 1-tap access token (그대로 검증)
+ * - `web`: authorization code · state (Step 3 에서 교환)
+ */
+type NaverLinkCredential =
+  | {kind: "app"; accessToken: string}
+  | {kind: "web"; code: string; state: string};
+
 /** `linkNaverProvider` 응답 — link callable 과 같은 모양. */
 type LinkNaverProviderResponse = {
   ok: true;
@@ -62,18 +74,24 @@ type LinkNaverProviderResponse = {
  * Naver 신원을 호출자의 기존 계정에 연결한다 (Phase 16.9 D-01).
  *
  * 흐름:
- *   Step 0: request.auth + 입력 모양 · 위생 검증 (Admin Auth 호출 전).
+ *   Step 0: request.auth + 입력 모양 판별 · 위생 검증 (Admin Auth 호출 전).
+ *           `accessToken` 있음 = 1-tap 모양, `code`/`state` 있음 = 웹 모양 —
+ *           둘 다이거나 둘 다 없으면 `invalid-argument`. CRLF/NUL 은
+ *           `NAVER_CONTROL_CHARS`, state 상한은 `MAX_NONCE_ARG_LENGTH`.
  *   Step 1: 재인증 ID Token 검증 (`verifyIdToken(checkRevoked)` + uid 일치 +
  *           `assertFreshAuth` 300s).
  *   Step 2: 익명 caller 거부 (`failed-precondition`).
+ *   Step 3: 웹 모양만 — `exchangeNaverAuthCode` 로 code → access token.
+ *           Step 1~2 뒤에 둔다 — stale 세션이 1회용 code 를 소비하지 않는다.
+ *           access token 은 이 호출의 지역 변수로만 존재한다 (C-03).
  *   Step 4: `fetchNaverProfile` — `/v1/nid/me` 검증 후 `id` 만 소비.
  *   Step 5: `linkCustomTokenIdentity` — identity_index 생성 + linkedProviders
  *           갱신 (공용 transaction).
  *   Step 6: 성공 로그 + `{ok: true}`.
  *
  * **PII 금지:** logger payload 는 `{event, uid, path, code}` 만. idToken ·
- * access token · Naver 응답 본문(email · nickname 등)은 로그 · 응답에 싣지
- * 않는다. 프로필은 `id` 만 읽고 user record · 프로필 필드는 쓰지 않는다
+ * access token · code · state · client secret · Naver 응답 본문(email ·
+ * nickname 등)은 로그 · 응답에 싣지 않는다. 프로필은 `id` 만 읽고 user record · 프로필 필드는 쓰지 않는다
  * (C-06).
  *
  * @param {{data: LinkNaverProviderRequest, auth?: {uid: string}}} request
@@ -92,15 +110,31 @@ export const linkNaverProvider = onCall<LinkNaverProviderRequest>(
     }
     const callerUid = request.auth.uid;
     const idToken = requireStringArg(request.data?.idToken);
-    // 웹 모양은 아직 받지 않는다 — 1-tap 모양만.
-    if (request.data?.code !== undefined || request.data?.state !== undefined) {
+    // 모양 판별 — 필드 존재로 정확히 한 모양만 허용한다.
+    const hasApp = request.data?.accessToken !== undefined;
+    const hasWeb =
+      request.data?.code !== undefined || request.data?.state !== undefined;
+    if (hasApp === hasWeb) {
       throw invalidArgument();
     }
-    const accessToken = requireStringArg(request.data?.accessToken);
-    if (CONTROL_CHARS.test(accessToken)) {
-      throw invalidArgument();
+    let credential: NaverLinkCredential;
+    if (hasApp) {
+      const accessToken = requireStringArg(request.data?.accessToken);
+      // Authorization 헤더 injection 방어 — CRLF / NUL 거부.
+      if (NAVER_CONTROL_CHARS.test(accessToken)) {
+        throw invalidArgument();
+      }
+      credential = {kind: "app", accessToken};
+    } else {
+      const code = requireStringArg(request.data?.code);
+      const state = requireStringArg(request.data?.state, MAX_NONCE_ARG_LENGTH);
+      if (NAVER_CONTROL_CHARS.test(code) || NAVER_CONTROL_CHARS.test(state)) {
+        throw invalidArgument();
+      }
+      credential = {kind: "web", code, state};
     }
-    const path: NaverSignInPath = "link_app";
+    // helper 로그의 경로 축 — 로그인(`app` · `web`)과 구분된다 (IN-02).
+    const path: NaverSignInPath = hasApp ? "link_app" : "link_web";
 
     // Step 1: 재인증 ID Token 검증 (link callable verbatim mirror).
     let decoded;
@@ -130,6 +164,16 @@ export const linkNaverProvider = onCall<LinkNaverProviderRequest>(
         "errorAnonymousLinkNotAllowed",
       );
     }
+
+    // Step 3: 웹 모양만 code 교환 — caller 검사(Step 1~2) 뒤라 거부된
+    // 세션은 1회용 code 를 소비하지 않는다 (D-01 흐름 1).
+    // access token 은 이 호출의 지역 변수로만 존재한다 (C-03).
+    const accessToken = credential.kind === "web" ?
+      (await exchangeNaverAuthCode({
+        code: credential.code,
+        state: credential.state,
+      })).accessToken :
+      credential.accessToken;
 
     // Step 4: Naver 검증 — `id` 만 소비 (email · nickname 미독 · C-06).
     const {id: naverUserId} = await fetchNaverProfile({accessToken, path});

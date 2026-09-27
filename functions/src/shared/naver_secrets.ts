@@ -1,9 +1,10 @@
 // Phase 13 D-60 · Phase 16.5 D-13 — Naver OAuth secret 선언 단일 진실원.
 //
-// 두 Naver callable 이 같은 secret 을 바인딩하므로 선언을 한 곳에 둔다
-// (`naver_custom_token.ts` · `naver_web_custom_token.ts` 가 import).
+// Naver 를 쓰는 callable (`naver_custom_token.ts` · `naver_web_custom_token.ts` ·
+// `link_naver_provider.ts` — 교환 helper `naver_token_exchange.ts` 경유) 이
+// 같은 secret 을 바인딩하므로 선언을 한 곳에 둔다.
 //
-// 배포 전 의무 (2종 모두):
+// 배포 전 의무 (아래 secret 모두):
 //   firebase functions:secrets:set NAVER_CLIENT_SECRET
 //   firebase functions:secrets:set NAVER_CLIENT_ID
 // 값은 Naver Developers 콘솔 → 애플리케이션 → 개요의 Client Secret / Client ID.
@@ -12,8 +13,10 @@ import {defineSecret} from "firebase-functions/params";
 /**
  * Naver Client Secret (Phase 13 D-60 · Phase 16.5 D-13).
  *
- * **사용처 1 (Phase 16.5 부터):** `naverWebCustomToken` 이 authorization code
- * 교환(`grant_type=authorization_code`)에서 form body 로 보낸다. 토큰 폐기
+ * **사용처 (Phase 16.5 부터 · Phase 16.9 확장):** `exchangeNaverAuthCode`
+ * (`auth/naver_token_exchange.ts`)가 authorization code 교환
+ * (`grant_type=authorization_code`)의 form body 로 보낸다 — 호출자는
+ * `naverWebCustomToken`(웹 로그인) · `linkNaverProvider`(웹 모양 연결). 토큰 폐기
  * 요청은 보내지 않는다 — NAVER 에서 연동 해제라서다 (quick 260924-lw2).
  * Phase 13 단계에서는 사용처가 없었지만 secret 정책 일관성 / 시스템 보안
  * 권장으로 미리 등록했다 (D-60).
@@ -39,7 +42,8 @@ import {defineSecret} from "firebase-functions/params";
 export const NAVER_CLIENT_SECRET = defineSecret("NAVER_CLIENT_SECRET");
 
 /**
- * Naver Client ID (Phase 16.5 D-13 — `naverWebCustomToken` 전용).
+ * Naver Client ID (Phase 16.5 D-13 · Phase 16.9 D-01 — `exchangeNaverAuthCode`
+ * 경유로 `naverWebCustomToken` · `linkNaverProvider` 가 읽는다).
  *
  * Client ID 는 authorize URL 에 실리는 **공개 식별자** 지만 LINE 의
  * `LINE_CHANNEL_ID` (shared/oidc_providers.ts) 와 같은 이유로 Secret Manager

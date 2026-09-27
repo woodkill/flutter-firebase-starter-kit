@@ -129,7 +129,8 @@ const CALLER_UID = "caller-uid-naver";
 /** `/v1/nid/me` 가 돌려주는 Naver 사용자 id fixture. */
 const NAVER_SUB = "naver-sub-1";
 
-/** NAVER `/v1/nid/me` — 전역 fetch 호출 모양 단언용. */
+/** NAVER endpoint — 전역 fetch 호출 모양 단언용. */
+const NAVER_TOKEN_URL = "https://nid.naver.com/oauth2.0/token";
 const NAVER_PROFILE_URL = "https://openapi.naver.com/v1/nid/me";
 
 /** 모든 케이스의 logger 호출 누적 — N15 PII sentinel 이 검사한다. */
@@ -157,6 +158,14 @@ afterAll(() => testEnv.cleanup());
  */
 function freshAuthTime(): number {
   return Math.floor(Date.now() / 1000) - 60;
+}
+
+/**
+ * auth_time 만료 (now - 600s = 10분) — stale ID Token fixture.
+ * @return {number} auth_time epoch seconds.
+ */
+function staleAuthTime(): number {
+  return Math.floor(Date.now() / 1000) - 600;
 }
 
 /**
@@ -200,8 +209,20 @@ function callLink(
   return wrapped(request as never) as Promise<unknown>;
 }
 
+/** token 교환 정상 응답 — access_token 은 PII sentinel. */
+function mockExchangeOk() {
+  mockFetchOk({access_token: "PII_NAVER_ACCESS_TOKEN", expires_in: "3600"});
+}
+
 /** 1-tap 모양 요청 data. */
 const APP_DATA = {idToken: "FRESH", accessToken: "PII_NAVER_ACCESS_TOKEN"};
+
+/** 웹 모양 요청 data. */
+const WEB_DATA = {
+  idToken: "FRESH",
+  code: "PII_NAVER_CODE",
+  state: "PII_NAVER_STATE",
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -298,5 +319,84 @@ describe("linkNaverProvider — 1-tap 연결 · transaction (N1~N3)", () => {
     expect(mockOrdered.calls).toEqual(["get"]);
     expect(mockOrdered.sets).toHaveLength(0);
     expect(infoMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", () => {
+  it("N4: 웹 성공 — code 교환 → /v1/nid/me → 연결", async () => {
+    mockExchangeOk();
+    mockProfileOk();
+
+    await expect(callLink(WEB_DATA)).resolves.toEqual({ok: true});
+
+    // 교환 → 프로필 순서로 전역 fetch 2회.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [exchangeUrl, exchangeInit] = fetchMock.mock.calls[0] as [
+      string,
+      {method: string; body: unknown},
+    ];
+    expect(exchangeUrl).toBe(NAVER_TOKEN_URL);
+    expect(exchangeInit).toEqual(expect.objectContaining({method: "POST"}));
+    const form = String(exchangeInit.body);
+    expect(form).toContain("grant_type=authorization_code");
+    expect(form).toContain("client_id=fake-naver-client-id");
+    expect(form).toContain("code=PII_NAVER_CODE");
+    expect(form).toContain("state=PII_NAVER_STATE");
+    expect(fetchMock.mock.calls[1][0]).toBe(NAVER_PROFILE_URL);
+    expect(fetchMock.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer PII_NAVER_ACCESS_TOKEN",
+        }),
+      }),
+    );
+    expect(mockOrdered.calls).toEqual(["get", "set", "set"]);
+    expect(infoMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "link_naver_provider_succeeded",
+        uid: CALLER_UID,
+        path: "link_web",
+      }),
+      expect.any(String),
+    );
+  });
+
+  it("N5: stale auth_time + 웹 — 재인증 요구 · code 교환 0", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: CALLER_UID,
+      auth_time: staleAuthTime(),
+      firebase: {sign_in_provider: "google.com"},
+    });
+
+    await expect(callLink(WEB_DATA)).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: "errorReauthenticationRequired",
+    });
+    // 1회용 code 미소비 — 교환 · 프로필 fetch 모두 0 (D-01 흐름 1 · D-04).
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
+  });
+
+  it("N6: revoked idToken + 웹 — 재인증 요구 · fingerprint 로그 · 교환 0", async () => {
+    // firebase-admin 은 code 프로퍼티를 가진 Error 를 던진다 — fingerprintError
+    // 는 Error 인스턴스일 때만 code 를 읽는다.
+    mockVerifyIdToken.mockRejectedValue(
+      Object.assign(new Error("revoked"), {code: "auth/id-token-revoked"}),
+    );
+
+    await expect(callLink(WEB_DATA)).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: "errorReauthenticationRequired",
+    });
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "link_naver_id_token_verify_failed",
+        code: "auth/id-token-revoked",
+      }),
+      expect.any(String),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
   });
 });
