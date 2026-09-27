@@ -2357,11 +2357,17 @@ class AuthRepository implements AnonymousSignIn {
   ///    [UnlinkLastCredentialRejected] (서버 D-03 가드). [_mapFunctionsException]
   ///    은 `failed-precondition` 을 [ServiceUnavailable] 로 뭉개므로 반드시 앞에서.
   /// 2. `not-found` → [ProviderNotLinked] (대상 CT 신원 없음).
-  /// 3. `unauthenticated` · `permission-denied` →
-  ///    [ReauthenticationRequiredException] (link arm 과 같은 방어).
-  /// 4. `resource-exhausted` → [TooManyRequests].
-  /// 5. 나머지 → [_mapFunctionsException] (`unavailable` · `deadline-exceeded`
-  ///    는 거기서 [NoInternetConnection]).
+  /// 3. `resource-exhausted` → [TooManyRequests].
+  /// 4. 나머지 → [_mapFunctionsException] (`unavailable` · `deadline-exceeded`
+  ///    는 거기서 [NoInternetConnection], `unauthenticated` ·
+  ///    `permission-denied` 는 [ServiceUnavailable] → 「잠시 후 다시 시도」).
+  ///
+  /// `unauthenticated` · `permission-denied` 를 [ReauthenticationRequiredException]
+  /// 으로 바꾸지 않는 이유 (16.8 review IN-06): App Check 차단(INVALID ·
+  /// MISSING)은 SDK 가 `unauthenticated` 로 던지고 재로그인으로 해소되지 않는다.
+  /// 이 callable 은 `permission-denied` 를 던지지 않으며(idToken uid 불일치 ·
+  /// `caller_identity_mismatch` 경로 없음), 해제는 재인증이 없어(D-06)
+  /// 재로그인 안내는 native `requires-recent-login` 방어에만 쓴다.
   ///
   /// 반환:
   /// - `Result.success(User)` — 해제 성공 · reload 된 사용자 (reload 실패는
@@ -2398,9 +2404,6 @@ class AuthRepository implements AnonymousSignIn {
       }
       if (e.code == 'not-found') {
         return Result.failure(ProviderNotLinked(cause: e));
-      }
-      if (e.code == 'unauthenticated' || e.code == 'permission-denied') {
-        return Result.failure(ReauthenticationRequiredException(cause: e));
       }
       if (e.code == 'resource-exhausted') {
         return Result.failure(TooManyRequests(cause: e));
@@ -2985,8 +2988,9 @@ class AuthRepository implements AnonymousSignIn {
   /// Cloud Function 의 [HttpsError] 표준 코드 → [AppException] 분류:
   /// - `unauthenticated` / `invalid-argument` / `failed-precondition` /
   ///   `permission-denied`
-  ///   → [ServiceUnavailable] (App Check 차단 / JWT 검증 실패 / 사전 조건
-  ///    위배 / App Check enforcement 실패 / token age 위반)
+  ///   → [ServiceUnavailable] (`unauthenticated` = App Check 차단 · auth
+  ///    무효 · token age 위반 / JWT 검증 실패 / 사전 조건 위배 /
+  ///    `permission-denied` = idToken uid 불일치 — 16.8 review IN-06 정정)
   /// - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
   ///   (Cloud Function 일시 장애 / 네트워크 지연)
   /// - `already-exists` → [AccountExistsWithDifferentCredential]
@@ -2996,14 +3000,20 @@ class AuthRepository implements AnonymousSignIn {
   ///    `email != null` 분기에서만 트리거)
   /// - 그 외 → [ServiceUnavailable(cause: e)]
   AppException _mapFunctionsException(FirebaseFunctionsException e) {
-    // debug reauth-login-auto-merge — 서버 비익명 caller 가드 거부. App Check
-    // 차단과 같은 `permission-denied` 라 details.reason 으로만 구분한다.
+    // debug reauth-login-auto-merge — 서버 비익명 caller 가드 거부. idToken
+    // uid 불일치 거부와 같은 `permission-denied` 라 details.reason 으로만
+    // 구분한다 (App Check 차단은 `unauthenticated` — 아래 주석).
     if (e.code == 'permission-denied' && _isCallerIdentityMismatch(e.details)) {
       return ReauthUserMismatch(cause: e);
     }
     return switch (e.code) {
-      // IN-02: permission-denied 명시 분기 — App Check enforcement 차단
-      // (enforceAppCheck:true onCall) 또는 Firebase Auth token age 위반.
+      // IN-02: permission-denied 명시 분기 — 서버 코드의 출처는 idToken uid
+      // 불일치(`delete_user_account` · `link_custom_token_provider`)와
+      // `caller_identity_mismatch`(위 선분기)뿐이다. App Check 차단
+      // (enforceAppCheck:true — INVALID · MISSING) · auth 무효 · token age
+      // 위반은 `unauthenticated` 로 온다 (firebase-functions 7.2.5
+      // `common/providers/https.js` · `shared/reauth.ts`). SDK 자체의
+      // permission-denied 는 authPolicy(킷 미사용) 전용 (16.8 review IN-06).
       // 기존 default 분기 (ServiceUnavailable(cause: e)) 와 동일 시맨틱이나
       // ops triage 시 unclassified default 와 분리되어 fingerprint 가능.
       'unauthenticated' ||

@@ -12,7 +12,9 @@
 //   C1 happy — callable 'unlinkCustomTokenProvider' payload {provider} ·
 //      {ok: true} → reload · 진행 플래그 begin 0 · recorder 호출 0 (D-01)
 //   C2 · C3 `failed-precondition` reason 선분기 쌍 (RESEARCH Pitfall 4)
-//   C4~C8 code → AppException 매핑 · C9 `{ok: false}` 계약 위반
+//   C4~C8 code → AppException 매핑 (C5 · C6 `unauthenticated` ·
+//      `permission-denied` → ServiceUnavailable — review IN-06) ·
+//      C9 `{ok: false}` 계약 위반
 //   C10 caller 부재 · 익명 → UnknownException (callable 미호출)
 //   C11 비-Functions 예외 → ServiceUnavailable
 //   C12 `{ok: true}` 확정 뒤 reload 실패 → Success 유지 (review WR-01)
@@ -324,20 +326,27 @@ void main() {
       expect(_failureOf(result), isA<ProviderNotLinked>());
     });
 
-    test('C5: unauthenticated → ReauthenticationRequiredException', () async {
+    // review IN-06 — App Check 차단은 `unauthenticated` 로 오고 재로그인으로
+    // 해소되지 않는다. 해제는 재인증이 없으므로(D-06) 두 code 모두 일반
+    // 오류(ServiceUnavailable → 「잠시 후 다시 시도」)로 흘린다.
+    test('C5: unauthenticated → ServiceUnavailable (재로그인 유도 0)', () async {
       stubCallableThrows('unauthenticated');
 
       final result = await repository.unlinkCustomTokenProvider('kakao');
 
-      expect(_failureOf(result), isA<ReauthenticationRequiredException>());
+      final exception = _failureOf(result);
+      expect(exception, isA<ServiceUnavailable>());
+      expect(exception, isNot(isA<ReauthenticationRequiredException>()));
     });
 
-    test('C6: permission-denied → ReauthenticationRequiredException', () async {
+    test('C6: permission-denied → ServiceUnavailable (재로그인 유도 0)', () async {
       stubCallableThrows('permission-denied');
 
       final result = await repository.unlinkCustomTokenProvider('kakao');
 
-      expect(_failureOf(result), isA<ReauthenticationRequiredException>());
+      final exception = _failureOf(result);
+      expect(exception, isA<ServiceUnavailable>());
+      expect(exception, isNot(isA<ReauthenticationRequiredException>()));
     });
 
     test('C7: resource-exhausted → TooManyRequests', () async {
