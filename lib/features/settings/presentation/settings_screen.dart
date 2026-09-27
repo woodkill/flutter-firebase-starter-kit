@@ -77,7 +77,7 @@ class SettingsScreen extends ConsumerWidget {
       valueStyle: valueStyle,
       canUnlink: (id) => canUnlinkProvider(user, id),
       onUnlinkTap: (id, label) =>
-          _onUnlinkPressed(context, ref, providerId: id, providerLabel: label),
+          _onUnlinkPressed(context, providerId: id, providerLabel: label),
       l10n: l10n,
     );
 
@@ -166,8 +166,7 @@ class SettingsScreen extends ConsumerWidget {
   /// (UI 로직 위임). 다이얼로그 취소 · barrier · back 은 `null` →
   /// [AccountUnlinkOutcome.cancelled] (SnackBar 0).
   Future<void> _onUnlinkPressed(
-    BuildContext context,
-    WidgetRef ref, {
+    BuildContext context, {
     required String providerId,
     required String providerLabel,
   }) async {
