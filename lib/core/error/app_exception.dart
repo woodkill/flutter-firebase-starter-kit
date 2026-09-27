@@ -305,7 +305,9 @@ final class UnlinkLastCredentialRejected extends AuthException {
 /// 재인증 필요 (Phase 16 D-06 / D-07).
 ///
 /// 서버는 `errorReauthenticationRequired` 를 `unauthenticated` 로만 보낸다
-/// (`deleteUserAccount` — auth_time 5분 초과 · idToken 검증 실패).
+/// (`deleteUserAccount` · `linkCustomTokenProvider` — idToken 검증 실패 ·
+/// `assertFreshAuth` auth_time 5분 초과 · 누락 · 미래값 — 16.8 review
+/// iteration 2 IN-01).
 /// `permission-denied` 는 uid 불일치(`errorUnauthenticated`)다. 클라이언트는
 /// 메시지가 아니라 code 만 보고 매핑한다 — `SettingsRepository._mapDeleteError`
 /// 는 두 code 모두 본 타입으로 만들므로 App Check 차단(firebase-functions
