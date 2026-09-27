@@ -10,6 +10,8 @@
  * 시나리오 (U1~U11):
  *  - U1: happy — idx 삭제 + linkedProviders 필터 재기록 + providerLinkedAt dot 삭제
  *  - U2: last credential — 남은 자격증명 0 → failed-precondition(last_credential)
+ *  - U2b: linkedProviders 배열 비판정 — 배열에 다른 항목이 남아도 idx 없으면
+ *    여전히 last_credential · write 0 (review IN-04)
  *  - U3: anonymous caller → failed-precondition(anonymous_caller)
  *  - U4: not-found — idx 0 + 배열 항목 0
  *  - U5: read-before-write — ordered tx 호출 순서 + 메타 케이스
@@ -343,6 +345,36 @@ describe("unlinkCustomTokenProvider onCall — Phase 16.8 (U1~U11)", () => {
     });
     expect(mockOrdered.deletes).toHaveLength(0);
     expect(mockOrdered.updates).toHaveLength(0);
+    expect(successLogPayload()).toBeUndefined();
+  });
+
+  // eslint-disable-next-line max-len
+  it("U2b: linkedProviders 배열은 D-03 판정에 쓰지 않는다 — 배열에 line 이 남아도(idx 없음) last_credential", async () => {
+    // 배열은 클라이언트가 위조할 수 있다 (WR-12) — 정리 대상일 뿐 계수 0.
+    arrange({
+      uid: "uid-U2b",
+      nativeProviderIds: [],
+      idx: [{provider: "kakao", firebaseUid: "uid-U2b"}],
+      user: {
+        linkedProviders: [
+          {providerId: "kakao", providerUserId: `${SENTINEL}-kakao`},
+          {providerId: "line", providerUserId: `${SENTINEL}-line`},
+        ],
+      },
+    });
+
+    const err = await captureHttpsError(
+      callAsSignedIn("uid-U2b", {provider: "kakao"}),
+    );
+
+    expect(err).toMatchObject({
+      code: "failed-precondition",
+      message: "errorUnlinkLastCredential",
+      details: {reason: "last_credential"},
+    });
+    expect(mockOrdered.deletes).toHaveLength(0);
+    expect(mockOrdered.updates).toHaveLength(0);
+    expect(mockOrdered.sets).toHaveLength(0);
     expect(successLogPayload()).toBeUndefined();
   });
 
