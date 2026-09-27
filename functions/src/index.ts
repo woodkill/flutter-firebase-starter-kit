@@ -59,6 +59,9 @@ export {lineCustomToken} from "./auth/line_custom_token";
 export {linkCustomTokenProvider} from "./auth/link_custom_token_provider";
 // Phase 16.8 SOCL-15 — Custom Token 신원 해제 (D-01/03/06/08 · link 의 역연산).
 export {unlinkCustomTokenProvider} from "./auth/unlink_custom_token_provider";
+// Phase 16.9 SOCL-12 — Naver 계정 연결
+// (access token · code → /v1/nid/me → identity_index).
+export {linkNaverProvider} from "./auth/link_naver_provider";
 export {deleteUserAccount} from "./auth/delete_user_account";
 export {lookupSignInMethods} from "./auth/lookup_sign_in_methods";
 export {mirrorTermsAcceptanceSnapshot} from "./auth/mirror_terms_acceptance";

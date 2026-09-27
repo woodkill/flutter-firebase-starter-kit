@@ -61,8 +61,23 @@ type NaverProfileResponse = {
  * 구분은 이 필드로 한다.
  * - `"app"` — `naverCustomToken` (1-tap SDK 경로)
  * - `"web"` — `naverWebCustomToken` (킷 소유 웹 경로)
+ * - `"link_app"` — `linkNaverProvider` 1-tap 모양 (Phase 16.9 계정 연결)
+ * - `"link_web"` — `linkNaverProvider` 웹 모양 (Phase 16.9 계정 연결)
  */
-export type NaverSignInPath = "app" | "web";
+export type NaverSignInPath = "app" | "web" | "link_app" | "link_web";
+
+/**
+ * [fetchNaverProfile] 결과 — `/v1/nid/me` 가 검증한 Naver 신원.
+ *
+ * `id` 만 필수다. 나머지는 동의 항목 활성화 + 사용자 동의 시에만 채워지며,
+ * 로그인 발급 경로만 읽는다 (계정 연결은 `id` 만 소비 — Phase 16.9 C-06).
+ */
+export type NaverVerifiedProfile = {
+  id: string;
+  email?: string;
+  nickname?: string;
+  profileImage?: string;
+};
 
 /**
  * [verifyNaverProfileAndIssueCustomToken] 입력.
@@ -94,56 +109,38 @@ export type NaverCustomTokenResult = {
 };
 
 /**
- * Naver access_token 을 `/v1/nid/me` 로 검증하고 Firebase Custom Token 을 발급한다.
+ * Naver access_token 을 `/v1/nid/me` 로 검증하고 신원을 돌려준다 (검증 전용).
  *
- * 흐름 (Phase 13 D-46~D-51 · Phase 16 D-13/D-14):
- * 1. Node fetch + `AbortSignal.timeout`(5s · 헤더 + 본문 읽기 전체, IN-04) →
- *    Authorization: Bearer (D-46/D-48).
- *    WR-01: 아래 매핑은 4 endpoint 공용 표
- *    (shared/custom_token_errors.ts) 를 따른다.
- *    - HTTP 401/403 → unauthenticated (errorInvalidCredentials)
- *    - HTTP 5xx → unavailable (errorServiceUnavailable)
- *    - HTTP 기타 4xx (예: 429) → unavailable (errorServiceUnavailable)
- *    - TimeoutError(5s 초과) / network → unavailable (errorServiceUnavailable)
- * 2. JSON parse → resultcode='00' + response.id 검증 (D-47).
- *    - 본문 읽기 중 5s 초과(TimeoutError) → unavailable + `naver_fetch_failed`
- *      (1 의 timeout 과 같은 결과 · 같은 event — IN-04)
- *    - 그 외 JSON parse 실패 → internal (errorUnknown)
- *    - resultcode != '00' → unauthenticated (errorInvalidCredentials)
- *    - response.id 부재 → unauthenticated (errorInvalidCredentials)
- * 3. resolveIdentity helper (Phase 12.1 D-31~D-34 자동 상속).
- *    - resolveIdentity throw → internal (errorUnknown)
- * 4. caller switch on conflictKind (D-32 carry-forward).
- *    - 'email_in_use' → already-exists
- *      (errorAccountExistsWithDifferentCredential)
- *    - 'anonymous_existing_collision' → 동일
- *    - 'caller_identity_mismatch' → permission-denied (errorReauthUserMismatch)
- * 5. createCustomToken — 1h 만료. throw → internal (errorUnknown).
- * 6. termsSnapshot 이 있고 isNewUser 일 때만 termsAccepted mirror
- *    (Phase 16 D-13/D-14 · WR-01 게이트). 실패 → internal (errorUnknown).
- * 7. issued structured log 후 결과 반환.
+ * Phase 16.9 D-01 — [verifyNaverProfileAndIssueCustomToken] 의 앞부분
+ * (fetch → status → 본문 → resultcode → id)을 동작 · event 이름 불변으로
+ * 옮겨 왔다. 로그인 발급 경로와 계정 연결(`linkNaverProvider`)이 공유한다.
+ * 전역 `fetch` 는 정확히 1회 — 재시도 · 사전 probe 없음.
  *
- * **PII 금지 (D-51, Phase 11 D-08):** logger payload 는 {event, path, uid?,
- * isNewUser?, status?, resultcode?, code?} 만. `path` 는 진입 경로 (IN-02 —
- * 같은 event 이름을 1-tap · 웹이 공유하므로 경로 구분 축). Naver
- * `/v1/nid/me` response 본문 (id / email / name / nickname / profile_image /
- * age / gender /
- * birthday) 은 절대 logger 인자에 포함 금지. err.message 미노출 — err.name
- * 만 fingerprint 로 노출 (Pitfall 1/7).
+ * 매핑 (WR-01 공용 표 — shared/custom_token_errors.ts):
+ * - fetch reject (TimeoutError / network) → unavailable + `naver_fetch_failed`
+ * - HTTP 401/403 → unauthenticated + `naver_verify_unauthenticated`
+ * - HTTP 5xx → unavailable + `naver_verify_unavailable`
+ * - HTTP 기타 non-OK → unavailable + `naver_verify_failed`
+ * - 본문 읽기 TimeoutError → unavailable + `naver_fetch_failed` (IN-04)
+ * - 그 외 JSON parse 실패 → internal + `naver_parse_failed`
+ * - resultcode != '00' → unauthenticated + `naver_resultcode_non_success`
+ * - response.id 부재 → unauthenticated + `naver_response_id_missing`
  *
- * @param {NaverProfileToCustomTokenInput} input 검증 대상 access_token 과
- *     호출자가 계산한 caller 정보 · terms snapshot.
- * @return {Promise<NaverCustomTokenResult>} customToken + uid + isNewUser.
- * @throws {HttpsError} 위 흐름의 매핑 표에 따른 표준 에러
- *     (shared/custom_token_errors.ts · account_exists_error.ts).
+ * **PII 금지 (D-51):** logger payload 는 {event, path, status?, resultcode?,
+ * code?} 만. access_token · 응답 본문(id / email / nickname 등)은 절대 logger
+ * 인자에 싣지 않는다. err.message 미노출 — err.name 만 fingerprint.
+ *
+ * @param {{accessToken: string, path: NaverSignInPath}} input 검증할
+ *     access_token (호출자가 타입 · 길이 · CRLF 검증 완료) 과 로그 경로 축.
+ * @return {Promise<NaverVerifiedProfile>} 검증된 Naver 신원 (`id` 필수).
+ * @throws {HttpsError} 위 매핑 표에 따른 표준 에러.
  */
-export async function verifyNaverProfileAndIssueCustomToken(
-  input: NaverProfileToCustomTokenInput,
-): Promise<NaverCustomTokenResult> {
-  const {accessToken, callerUid, callerIsAnonymous, termsSnapshot, path} =
-    input;
+export async function fetchNaverProfile(input: {
+  accessToken: string;
+  path: NaverSignInPath;
+}): Promise<NaverVerifiedProfile> {
+  const {accessToken, path} = input;
 
-  // Step 2: Naver REST 검증 (D-46/D-47/D-48).
   let resp: Response;
   try {
     resp = await fetch(NAVER_PROFILE_URL, {
@@ -246,12 +243,74 @@ export async function verifyNaverProfileAndIssueCustomToken(
     // 통일한다 (4 endpoint 공용 매핑 표).
     throw idpCredentialRejected();
   }
-  const naverEmail = responseBody.response?.email;
+  return {
+    id: naverUserId,
+    email: responseBody.response?.email,
+    nickname: responseBody.response?.nickname,
+    profileImage: responseBody.response?.profile_image,
+  };
+}
+
+/**
+ * Naver access_token 을 `/v1/nid/me` 로 검증하고 Firebase Custom Token 을 발급한다.
+ *
+ * 흐름 (Phase 13 D-46~D-51 · Phase 16 D-13/D-14):
+ * 1. Node fetch + `AbortSignal.timeout`(5s · 헤더 + 본문 읽기 전체, IN-04) →
+ *    Authorization: Bearer (D-46/D-48).
+ *    WR-01: 아래 매핑은 4 endpoint 공용 표
+ *    (shared/custom_token_errors.ts) 를 따른다.
+ *    - HTTP 401/403 → unauthenticated (errorInvalidCredentials)
+ *    - HTTP 5xx → unavailable (errorServiceUnavailable)
+ *    - HTTP 기타 4xx (예: 429) → unavailable (errorServiceUnavailable)
+ *    - TimeoutError(5s 초과) / network → unavailable (errorServiceUnavailable)
+ * 2. JSON parse → resultcode='00' + response.id 검증 (D-47).
+ *    - 본문 읽기 중 5s 초과(TimeoutError) → unavailable + `naver_fetch_failed`
+ *      (1 의 timeout 과 같은 결과 · 같은 event — IN-04)
+ *    - 그 외 JSON parse 실패 → internal (errorUnknown)
+ *    - resultcode != '00' → unauthenticated (errorInvalidCredentials)
+ *    - response.id 부재 → unauthenticated (errorInvalidCredentials)
+ * 3. resolveIdentity helper (Phase 12.1 D-31~D-34 자동 상속).
+ *    - resolveIdentity throw → internal (errorUnknown)
+ * 4. caller switch on conflictKind (D-32 carry-forward).
+ *    - 'email_in_use' → already-exists
+ *      (errorAccountExistsWithDifferentCredential)
+ *    - 'anonymous_existing_collision' → 동일
+ *    - 'caller_identity_mismatch' → permission-denied (errorReauthUserMismatch)
+ * 5. createCustomToken — 1h 만료. throw → internal (errorUnknown).
+ * 6. termsSnapshot 이 있고 isNewUser 일 때만 termsAccepted mirror
+ *    (Phase 16 D-13/D-14 · WR-01 게이트). 실패 → internal (errorUnknown).
+ * 7. issued structured log 후 결과 반환.
+ *
+ * **PII 금지 (D-51, Phase 11 D-08):** logger payload 는 {event, path, uid?,
+ * isNewUser?, status?, resultcode?, code?} 만. `path` 는 진입 경로 (IN-02 —
+ * 같은 event 이름을 1-tap · 웹이 공유하므로 경로 구분 축). Naver
+ * `/v1/nid/me` response 본문 (id / email / name / nickname / profile_image /
+ * age / gender /
+ * birthday) 은 절대 logger 인자에 포함 금지. err.message 미노출 — err.name
+ * 만 fingerprint 로 노출 (Pitfall 1/7).
+ *
+ * @param {NaverProfileToCustomTokenInput} input 검증 대상 access_token 과
+ *     호출자가 계산한 caller 정보 · terms snapshot.
+ * @return {Promise<NaverCustomTokenResult>} customToken + uid + isNewUser.
+ * @throws {HttpsError} 위 흐름의 매핑 표에 따른 표준 에러
+ *     (shared/custom_token_errors.ts · account_exists_error.ts).
+ */
+export async function verifyNaverProfileAndIssueCustomToken(
+  input: NaverProfileToCustomTokenInput,
+): Promise<NaverCustomTokenResult> {
+  const {accessToken, callerUid, callerIsAnonymous, termsSnapshot, path} =
+    input;
+
+  // Step 2: Naver REST 검증 (D-46/D-47/D-48) — 검증 전용 helper 로 분리
+  // (Phase 16.9 D-01). fetch 1회 · event 이름 · 매핑은 helper 안에서 불변.
+  const profile = await fetchNaverProfile({accessToken, path});
+  const naverUserId = profile.id;
+  const naverEmail = profile.email;
   // R10: response.nickname + response.profile_image 추출 → Firebase Auth
   // user record 의 displayName / photoURL 에 propagate. 동의 항목 활성화 +
   // 사용자 동의 시에만 응답에 포함 — 부재 시 undefined (silent).
-  const naverNickname = responseBody.response?.nickname;
-  const naverProfileImage = responseBody.response?.profile_image;
+  const naverNickname = profile.nickname;
+  const naverProfileImage = profile.profileImage;
 
   // Step 3: Identity Index resolve (Phase 12.1 D-31~D-34 자동 상속).
   // helper 가 conflictKind 로 detect → caller 가 try/catch + switch 로 안전한

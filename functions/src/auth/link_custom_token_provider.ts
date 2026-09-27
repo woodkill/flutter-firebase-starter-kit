@@ -19,7 +19,7 @@
 // 토큰이다. client 는 `code` 로만 분기하며 서버 message 를 렌더하지 않는다.
 // 계약 전문은 `shared/custom_token_errors.ts` 헤더 참조.
 import {getAuth} from "firebase-admin/auth";
-import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
@@ -28,7 +28,6 @@ import {
   idpCredentialRejected,
   invalidArgument,
   mapOidcVerifyError,
-  serverFailure,
 } from "../shared/custom_token_errors";
 import {
   KAKAO_NATIVE_APP_KEY,
@@ -41,15 +40,16 @@ import {
   MAX_NONCE_ARG_LENGTH,
   requireStringArg,
 } from "../shared/require_string_arg";
-import {fingerprintError, identityIndexDocId} from "./identity_index";
+import {fingerprintError} from "./identity_index";
+import {linkCustomTokenIdentity} from "./link_identity_transaction";
 
 // Phase 16 D-04 — OIDC provider secret 재사용 (Phase 12/14 Custom Token
 // endpoint 와 동일 secret 공유). target provider 별 OIDC verifier 분기 의무.
 //
-// Note: Naver 는 OIDC 미지원 (access_token / userinfo API 기반) 이므로 본
-// linkCustomTokenProvider 의 target verifier 분기 는 OIDC provider 2종
-// (kakao/line) 만 지원. naver target link 는 Plan 16-04 의 client-side
-// access_token path 와 별도 phase 분리 (Phase 17+ carry-forward).
+// Note (Phase 16.9 D-01): Naver 연결은 access token / authorization code
+// 검증이라 별도 callable `linkNaverProvider` (`link_naver_provider.ts`) 가
+// 맡는다. 본 callable 은 OIDC ID token 을 검증하는 provider (kakao · line)
+// 만 받는다. 연결 transaction 은 `link_identity_transaction.ts` 를 공유한다.
 // WR-06 (Phase 15 리뷰 당시): 3 provider 의 issuer / jwksUrl / algorithms /
 // nonceHashing 리터럴과 secret 선언이 본 파일과 4 Custom Token endpoint 에
 // 각각 존재해 (3쌍 완전 중복) drift 위험 + provider 당 JWKS 캐시 2개 문제가
@@ -201,76 +201,14 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
     }
 
     // Step 4: Firestore runTransaction — identity_index atomic create +
-    // linkedProviders[] update.
-    // "all reads before all writes" invariant 의무 (Pitfall 2 회피).
-    const db = getFirestore();
-    const idxRef = db
-      .collection("identity_index")
-      .doc(identityIndexDocId(targetProvider, targetSub));
-    const userRef = db.collection("users").doc(callerUid);
-    try {
-      await db.runTransaction(async (tx) => {
-        // (all reads first — invariant 의무, Pitfall 2 회피)
-        //
-        // WR-10 (Phase 15 리뷰): 이전에는
-        // `const [idxSnap] = await Promise.all([tx.get(idxRef),
-        // tx.get(userRef)])` 로 **결과를 버리는 read** 가 있었다.
-        // `tx.set(userRef, ..., {merge:true})` 는 선행 read 를 요구하지
-        // 않으므로 그 read 는 불필요한 왕복이자 오독 유발 요인이었다.
-        const idxSnap = await tx.get(idxRef);
-
-        // WR-10: 같은 uid 로의 재연동은 **멱등** 이어야 한다. 이전 구현은
-        // `idxSnap.exists` 만 보고 무조건 already-exists 를 던져서, 이미
-        // 연동된 provider 를 사용자가 다시 누르거나 (client 10초 타임아웃
-        // 이후) 재시도하면 자기 계정에 대해 "이미 다른 계정에 연동됨"
-        // 계열 오류를 받았다 (client 의 AccountAlreadyLinked 매핑).
-        const owner = idxSnap.exists ?
-          (idxSnap.data() as {firebaseUid?: string} | undefined)?.firebaseUid :
-          undefined;
-        if (idxSnap.exists && owner !== callerUid) {
-          throw new HttpsError("already-exists", "errorAccountAlreadyLinked");
-        }
-
-        // (writes second — read 종료 후만)
-        // 재연동이면 idx 문서를 다시 쓰지 않는다 — 최초 linkedAt 보존.
-        if (!idxSnap.exists) {
-          tx.set(idxRef, {
-            firebaseUid: callerUid,
-            provider: targetProvider,
-            providerUserId: targetSub,
-            linkedAt: FieldValue.serverTimestamp(),
-            lastSeenAt: FieldValue.serverTimestamp(),
-          });
-        }
-        // linkedProviders 는 arrayUnion 이라 멱등하다. 재연동 경로에서도
-        // 실행해 "idx 문서는 있는데 users/{uid} 에는 반영이 빠진" 부분
-        // 상태를 self-heal 한다.
-        tx.set(
-          userRef,
-          {
-            linkedProviders: FieldValue.arrayUnion({
-              providerId: targetProvider,
-              providerUserId: targetSub,
-            }),
-            providerLinkedAt: {
-              [targetProvider]: FieldValue.serverTimestamp(),
-            },
-          },
-          {merge: true},
-        );
-      });
-    } catch (err: unknown) {
-      // HttpsError 는 그대로 propagate (already-exists 등 known HttpsError).
-      if (err instanceof HttpsError) {
-        throw err;
-      }
-      const errCode = fingerprintError(err);
-      logger.error(
-        {event: "link_transaction_failed", uid: callerUid, code: errCode},
-        "runTransaction threw",
-      );
-      throw serverFailure();
-    }
+    // linkedProviders[] update. "all reads before all writes" invariant 의무
+    // (Pitfall 2 회피) — 본문은 공용 helper (Phase 16.9 D-01 · 동작 불변).
+    await linkCustomTokenIdentity({
+      db: getFirestore(),
+      callerUid,
+      provider: targetProvider,
+      providerUserId: targetSub,
+    });
 
     // Step 5: structured log + return.
     // PII 금지 — {event, uid, targetProvider, isNewUser} 만.
