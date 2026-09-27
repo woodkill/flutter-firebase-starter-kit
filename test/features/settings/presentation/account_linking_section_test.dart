@@ -17,8 +17,10 @@
 // - AL8 빈 available set: 모든 활성 소셜 provider link 완료 → 섹션 미노출.
 //
 // Phase 16 G-16-A6-2 추가 (실패 원인별 문구 분기 — collapse 해소):
-// - AL9 emailInUse / AL10 transientFailure / AL11 failed / AL12 unsupported:
-//   outcome 별 en verbatim SnackBar 문구 단언.
+// - AL9 emailInUse / AL10 transientFailure / AL11 failed: outcome 별 en
+//   verbatim SnackBar 문구 단언.
+// - AL12 (Phase 16.9 D-12): naver 후보 노출 · 순서 kakao < naver < line ·
+//   tap → linkNaverProviderArm + 성공 SnackBar.
 // - AL13 collapse 재발 방지: 5 문구 상호 비동등 + 이전 collapse 문구 미사용.
 
 import 'package:flutter/material.dart';
@@ -58,7 +60,9 @@ const _transientText =
     "Couldn't link due to a network or service error. Please try again later.";
 const _unknownFailureText =
     "Couldn't link your account. Please try again later.";
-const _unsupportedNaverText = "Linking a Naver account isn't supported yet.";
+// unsupported 는 email 전용 (Surface D EXCLUDE — 후보에 없어 방어적 분기).
+const _unsupportedEmailText =
+    "Linking a Email / Password account isn't supported yet.";
 
 /// 테스트용 User factory.
 User _testUser({required List<String> providerIds}) {
@@ -380,20 +384,47 @@ void main() {
       expect(find.text(_transientText), findsNothing);
     });
 
-    testWidgets('AL12 (WR-15) — naver 는 후보에서 제외되어 버튼 자체가 렌더되지 않는다', (
-      tester,
-    ) async {
-      // naver 는 deployed callable OIDC 부재로 탭하면 100% 미지원 SnackBar 로
-      // 끝나는 성공 확률 0 의 affordance 였다 — 후보 집합에서 제거했다.
-      // linkProvider 의 naver arm(unsupported) 은 방어적 분기로 남아 있으며
-      // settings_notifier_test L1 이 잠근다.
-      final user = _testUser(providerIds: const <String>['google.com']);
-      await _pumpSection(tester, user: user, repo: repo);
+    testWidgets(
+      'AL12 (16.9 D-12) — naver 후보 노출 · 순서 kakao < naver < line · tap → linkNaverProviderArm',
+      (tester) async {
+        final user = _testUser(providerIds: const <String>['google.com']);
+        when(
+          () => repo.linkNaverProviderArm(),
+        ).thenAnswer((_) async => Result.success(user));
 
-      expect(find.text('Link Naver'), findsNothing);
-      // 섹션 자체는 다른 활성 provider 로 계속 렌더된다 (미노출 회귀 방지).
-      expect(find.text('Link Apple'), findsOneWidget);
-    });
+        await _pumpSection(tester, user: user, repo: repo);
+
+        final kakao = find.text('Link Kakao');
+        final naver = find.text('Link Naver');
+        final line = find.text('Link LINE');
+        expect(find.text('Link Naver'), findsOneWidget);
+
+        // Pitfall 7 — 후보가 늘어 fold 아래일 수 있으므로 세 버튼 모두
+        // ensureVisible 로 렌더를 확정한 뒤, 같은 스크롤 위치에서 세 좌표를
+        // 한꺼번에 읽어 비교한다 (ensureVisible 마다 스크롤이 옮겨질 수 있음).
+        for (final finder in <Finder>[kakao, naver, line]) {
+          await tester.ensureVisible(finder);
+        }
+        final kakaoY = tester.getTopLeft(kakao).dy;
+        final naverY = tester.getTopLeft(naver).dy;
+        final lineY = tester.getTopLeft(line).dy;
+        expect(kakaoY < naverY, isTrue, reason: 'kakao < naver');
+        expect(naverY < lineY, isTrue, reason: 'naver < line');
+
+        final naverButton = find.text('Link Naver');
+        await tester.ensureVisible(naverButton);
+        await tester.tap(naverButton);
+        await tester.pumpAndSettle();
+
+        verify(() => repo.linkNaverProviderArm()).called(1);
+        verifyNever(
+          () => repo.linkCustomTokenProviderArm(
+            targetProvider: any(named: 'targetProvider'),
+          ),
+        );
+        expect(find.text('Linked your Naver account.'), findsOneWidget);
+      },
+    );
 
     // WR-04: `provider-already-linked` (이미 현재 계정에 연결) 와
     // `credential-already-in-use` (다른 계정이 사용 중) 는 의미가 정반대다.
@@ -435,7 +466,7 @@ void main() {
         _emailInUseText,
         _transientText,
         _unknownFailureText,
-        _unsupportedNaverText,
+        _unsupportedEmailText,
       ];
 
       expect(messages.toSet().length, messages.length);

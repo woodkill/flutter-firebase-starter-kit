@@ -1316,10 +1316,9 @@ class AuthRepository implements AnonymousSignIn {
   /// button → Kakao SDK" 가 fresh 재획득을 전제). proactive arm 과 동일
   /// mechanism.
   ///
-  /// **targetProvider 제약:** kakao/line 만 허용한다 (naver/native 는
-  /// deployed callable OIDC 미지원 — link_custom_token_provider.ts line 27~33
-  /// verbatim, Naver-as-target reactive link 는 Phase 17+ carry-forward).
-  /// 그 외 입력은 [ArgumentError] throw.
+  /// **targetProvider 제약:** kakao/line(OIDC ID token) 전용 — naver 는
+  /// [linkNaverProviderArm] 이 access token/code 로 맡는다(16.9 D-01).
+  /// native 는 `link*Credential` 이 맡는다. 그 외 입력은 [ArgumentError] throw.
   ///
   /// 에러 매핑 (deployed callable HttpsError code):
   /// - `unauthenticated` / `permission-denied` →
@@ -1354,7 +1353,7 @@ class AuthRepository implements AnonymousSignIn {
         targetProvider,
         'targetProvider',
         'linkCustomTokenProvider 는 kakao/line 만 지원 '
-            '(naver/native deployed callable OIDC 미지원 — Phase 17+).',
+            '(naver 는 linkNaverProviderArm, native 는 link*Credential).',
       );
     }
     try {
@@ -1445,6 +1444,115 @@ class AuthRepository implements AnonymousSignIn {
       // 1회성 토큰 정책 (signInWithKakao/Line finally logout mirror) —
       // Pitfall 2 race-fix end 직전 위치.
       await _logoutTargetProvider(targetProvider);
+      _socialLinkInProgress.end();
+    }
+  }
+
+  /// Naver 계정을 로그인된 현재 계정에 연결한다 — Surface D proactive link arm
+  /// (Phase 16.9 D-01 · SOCL-12).
+  ///
+  /// 흐름 ([linkCustomTokenProviderArm] 골격 mirror):
+  /// 1. [SocialLinkInProgress.begin] (race-fix Pitfall 8 단일 진실원) —
+  ///    try-finally 로 [SocialLinkInProgress.end] 1:1 보장.
+  /// 2. [NaverSdkClient.signIn] — 경로 선택(설치 판정 · 1-tap/웹) · `state`
+  ///    생성/대조 · 취소 처리는 전부 이 호출에서 상속한다(C-02 · 16.5 D-04).
+  ///    `null`(사용자 취소 · 재진입) → `null` 반환(no-op).
+  /// 3. caller fresh ID Token (`getIdToken(true)`) — 서버 auth_time 5분
+  ///    boundary 통과 의무.
+  /// 4. 결과 variant 로 payload · timeout 을 고른다([_naverLinkPayload]) →
+  ///    callable `linkNaverProvider` 호출 → `{ok:true}` 검증 → reload.
+  /// 5. finally: [NaverSdkClient.logout] (로컬 SDK 토큰만 — C-05 1회성 토큰
+  ///    정책, [signInWithNaver] mirror) + [SocialLinkInProgress.end].
+  ///
+  /// 가입 수단(`signUpProviderId`) · 프로필 필드는 쓰지 않는다(C-06) — 연결
+  /// 원장 기록은 서버 transaction 이 맡는다.
+  ///
+  /// 에러 매핑 ([linkCustomTokenProviderArm] 과 동일 — C-04):
+  /// - `unauthenticated` / `permission-denied` →
+  ///   [ReauthenticationRequiredException] (재로그인 유도).
+  /// - `already-exists` → [AccountAlreadyLinked] (Naver 신원이 다른 계정 소유).
+  /// - 그 외 [FirebaseFunctionsException] → [_mapFunctionsException].
+  /// - [NaverSdkClient.signIn] 의 [ServiceUnavailable] (SDK/웹 세션 오류) 은
+  ///   그대로 전달, 기타 [Object] → [ServiceUnavailable] 단일 매핑.
+  ///
+  /// **구조적(결정적) 실패는 [UnknownException] 이다 (WR-06).** caller 부재 /
+  /// 익명 caller / `getIdToken` null / 응답 `ok != true` 는 재시도로 해소되지
+  /// 않는다.
+  ///
+  /// **PII invariant (T-16-09-02 관례):** catch path 의 [debugPrint] 는
+  /// runtimeType 만 출력한다 — access token · code · state · idToken · 이메일
+  /// 본문은 싣지 않는다.
+  ///
+  /// 반환:
+  /// - `Result.success(User)` — 연결 성공.
+  /// - `Result.failure(...)` — callable 거부 / reauth 초과 / 다른 계정 소유.
+  /// - `null` — Naver SDK 단계 사용자 취소 (no-op).
+  Future<Result<User>?> linkNaverProviderArm() async {
+    try {
+      _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
+
+      // C-02 — 1-tap/웹 라우팅 · state · 취소는 signIn() 계약을 상속한다.
+      final result = await _naverSdkClient.signIn();
+      if (result == null) return null; // 사용자 취소 — no-op.
+
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        // WR-06: 결정적 실패 — 재시도 유도 금지.
+        return const Result.failure(UnknownException());
+      }
+      if (currentUser.isAnonymous) {
+        // WR-06: 익명 caller 는 연결 불가 — 서버 왕복 전에 loud fail.
+        return const Result.failure(UnknownException());
+      }
+      final callerIdToken = await currentUser.getIdToken(true);
+      if (callerIdToken == null) {
+        // WR-06: 결정적 실패 — 재시도 유도 금지.
+        return const Result.failure(UnknownException());
+      }
+
+      final request = _naverLinkPayload(result, callerIdToken);
+      final callable = _functions.httpsCallable(
+        'linkNaverProvider',
+        options: HttpsCallableOptions(timeout: request.timeout),
+      );
+      final response = await callable.call<Map<String, dynamic>>(
+        request.payload,
+      );
+
+      if (response.data['ok'] != true) {
+        // WR-06: 서버 계약 위반 (도달은 성공했으나 ok != true).
+        return const Result.failure(UnknownException());
+      }
+      await currentUser.reload();
+      return Result.success(_mapFirebaseUser(_auth.currentUser ?? currentUser));
+    } on FirebaseFunctionsException catch (e) {
+      // 기존 link arm 과 같은 선분기 — unauthenticated/permission-denied →
+      // 재로그인 유도.
+      if (e.code == 'unauthenticated' || e.code == 'permission-denied') {
+        return Result.failure(ReauthenticationRequiredException(cause: e));
+      }
+      // already-exists → Naver 신원이 다른 계정에 이미 연결됨.
+      if (e.code == 'already-exists') {
+        return Result.failure(AccountAlreadyLinked(cause: e));
+      }
+      return Result.failure(_mapFunctionsException(e));
+    } on fb.FirebaseAuthException catch (e) {
+      return Result.failure(_mapAuthException(e));
+    } on ServiceUnavailable catch (e) {
+      // NaverSdkClient.signIn 의 SDK/웹 세션 오류 — 원본 보존.
+      return Result.failure(e);
+    } on Object catch (e) {
+      // PII invariant: runtimeType 만 — 토큰 · code · state · 이메일 비포함.
+      if (kDebugMode) {
+        debugPrint(
+          'linkNaverProviderArm 비-Functions 예외: '
+          'runtimeType=${e.runtimeType}',
+        );
+      }
+      return Result.failure(ServiceUnavailable(cause: e));
+    } finally {
+      // C-05 — 모든 경로에서 로컬 SDK 토큰 정리 (signInWithNaver mirror).
+      await _naverSdkClient.logout();
       _socialLinkInProgress.end();
     }
   }
@@ -1854,9 +1962,8 @@ class AuthRepository implements AnonymousSignIn {
       AccountProvider.apple => signInWithApple(),
       AccountProvider.facebook => signInWithFacebook(),
       AccountProvider.kakao => signInWithKakao(),
-      // naver 는 **로그인 대상**으로 완전히 지원된다 — deployed callable OIDC
-      // 미지원은 link *target* 에 한정된 제약이며(Phase 17+ carry-forward)
-      // step 1 로그인과는 무관하다.
+      // naver 는 로그인 · 연결 모두 지원(연결은 linkNaverProviderArm · 16.9).
+      // 이 메서드는 step 1 로그인만 맡는다.
       AccountProvider.naver => signInWithNaver(),
       AccountProvider.line => signInWithLine(),
       AccountProvider.email => throw ArgumentError.value(
@@ -2213,6 +2320,38 @@ class AuthRepository implements AnonymousSignIn {
       NaverWebSignIn(:final code, :final state) => (
         callableName: 'naverWebCustomToken',
         payload: <String, dynamic>{'code': code, 'state': state},
+        timeout: _kNaverWebCustomTokenTimeout,
+      ),
+    };
+  }
+
+  /// Naver SDK 결과 variant → 연결 callable payload · timeout (Phase 16.9).
+  ///
+  /// callable 은 하나(`linkNaverProvider`) — 모양은 서버가 필드 존재로
+  /// 판별한다(1-tap `accessToken` / 웹 `code`+`state` 배타). 결과 variant
+  /// switch 라 새 variant 는 컴파일 에러로 잡힌다. timeout 은 로그인과 같은
+  /// 경로별 상수를 쓴다.
+  /// - [NaverAppSignIn] → `{idToken, accessToken}` · [_kCustomTokenTimeout]
+  /// - [NaverWebSignIn] → `{idToken, code, state}` ·
+  ///   [_kNaverWebCustomTokenTimeout] (NAVER 직렬 호출 — WR-01)
+  ({Map<String, dynamic> payload, Duration timeout}) _naverLinkPayload(
+    NaverSignInResult result,
+    String callerIdToken,
+  ) {
+    return switch (result) {
+      NaverAppSignIn(:final accessToken) => (
+        payload: <String, dynamic>{
+          'idToken': callerIdToken,
+          'accessToken': accessToken,
+        },
+        timeout: _kCustomTokenTimeout,
+      ),
+      NaverWebSignIn(:final code, :final state) => (
+        payload: <String, dynamic>{
+          'idToken': callerIdToken,
+          'code': code,
+          'state': state,
+        },
         timeout: _kNaverWebCustomTokenTimeout,
       ),
     };

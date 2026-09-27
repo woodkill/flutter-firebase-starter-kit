@@ -104,9 +104,8 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///   / [AuthRepository.linkFacebookCredential].
   /// - Custom Token (kakao/line) →
   ///   [AuthRepository.linkCustomTokenProviderArm].
-  /// - naver → deployed callable OIDC 미지원 ([AccountLinkOutcome.unsupported]
-  ///   — sheet `_linkCustomToken` 의 naver graceful 분기 mirror, Phase 17+
-  ///   carry-forward).
+  /// - naver → [AuthRepository.linkNaverProviderArm] (1-tap access token /
+  ///   웹 code · Phase 16.9).
   /// - email → Surface D 에서 제외 (mockup §0 EXCLUDE) — 본 메서드에 도달 시
   ///   [AccountLinkOutcome.unsupported] (방어적 차단, UI 후보 집합에 email
   ///   미포함).
@@ -125,17 +124,19 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// `currentUserProvider` 가 Firestore linkedProviders stream 으로 자동 refresh
   /// 되어 해당 provider 버튼이 available 집합에서 제거된다.
   Future<AccountLinkOutcome> linkProvider(AccountProvider provider) {
-    // WR-03: unsupported provider (naver: deployed callable OIDC 부재 / email:
-    // Surface D EXCLUDE) 를 switch 자체에 단일 진실원으로 둔다. 별도 early-
+    // WR-03: unsupported provider (email: Surface D EXCLUDE) 를 switch
+    // 자체에 단일 진실원으로 둔다. 별도 early-
     // guard 와 dead `null` switch arm 의 수동 동기화 결합을 제거해, 미래에
     // email 을 wire 하더라도 "cancelled" 로 오보고되지 않게 한다.
     return switch (provider) {
-      AccountProvider.naver || AccountProvider.email =>
-        Future<AccountLinkOutcome>.value(AccountLinkOutcome.unsupported),
+      AccountProvider.email => Future<AccountLinkOutcome>.value(
+        AccountLinkOutcome.unsupported,
+      ),
       AccountProvider.google ||
       AccountProvider.apple ||
       AccountProvider.facebook ||
       AccountProvider.kakao ||
+      AccountProvider.naver ||
       AccountProvider.line => _dispatchLink(provider),
     };
   }
@@ -144,7 +145,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///
   /// [state] 를 loading 으로 설정하고 repository link 메서드를 호출한 뒤,
   /// 결과를 [AccountLinkOutcome] 으로 매핑한다. unsupported provider
-  /// (naver/email) 는 [linkProvider] switch 에서 사전 분기되므로 본 메서드에
+  /// (email) 는 [linkProvider] switch 에서 사전 분기되므로 본 메서드에
   /// 도달하지 않는다.
   ///
   /// **WR-04 / 10-REVIEW WR-02 (ref-disposed guard):** 본 Notifier 는
@@ -164,8 +165,9 @@ class SettingsNotifier extends _$SettingsNotifier {
         AccountProvider.facebook => await repo.linkFacebookCredential(),
         AccountProvider.kakao || AccountProvider.line =>
           await repo.linkCustomTokenProviderArm(targetProvider: provider),
-        // naver / email 은 linkProvider switch 에서 사전 분기 — 도달하지 않음.
-        AccountProvider.naver || AccountProvider.email => null,
+        AccountProvider.naver => await repo.linkNaverProviderArm(),
+        // email 은 linkProvider switch 에서 사전 분기 — 도달하지 않음.
+        AccountProvider.email => null,
       };
       // 사용자 SDK 취소 (null) — no-op.
       if (result == null) return AccountLinkOutcome.cancelled;
@@ -390,8 +392,8 @@ enum AccountLinkOutcome {
   /// kDebugMode `code=` 로그로 logcat 에 남는다.
   failed,
 
-  /// proactive link 미지원 (naver: deployed callable OIDC 부재 / email:
-  /// Surface D EXCLUDE) — **실패가 아니라 미지원**이므로 실패 4 문구와 구분되는
+  /// proactive link 미지원 (email: Surface D EXCLUDE) — **실패가 아니라
+  /// 미지원**이므로 실패 4 문구와 구분되는
   /// 전용 문구 `settingsLinkUnsupportedProvider` 로 렌더한다 (G-16-A6-2).
   unsupported,
 }

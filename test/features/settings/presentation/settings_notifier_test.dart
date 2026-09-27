@@ -250,19 +250,45 @@ void main() {
       providerIds: const ['google.com'],
     );
 
-    test('L1 naver → unsupported + repository 미호출 (WR-03 단일 진실원)', () async {
+    test('L1 naver → linkNaverProviderArm 호출 + success (16.9 D-04)', () async {
+      when(
+        () => mockAuthRepo.linkNaverProviderArm(),
+      ).thenAnswer((_) async => Result<User>.success(stubUser()));
+
       final notifier = container.read(settingsProvider.notifier);
       final outcome = await notifier.linkProvider(AccountProvider.naver);
 
-      expect(outcome, AccountLinkOutcome.unsupported);
-      verifyNever(() => mockAuthRepo.linkGoogleCredential());
-      verifyNever(() => mockAuthRepo.linkAppleCredential());
-      verifyNever(() => mockAuthRepo.linkFacebookCredential());
+      expect(outcome, AccountLinkOutcome.success);
+      verify(() => mockAuthRepo.linkNaverProviderArm()).called(1);
       verifyNever(
         () => mockAuthRepo.linkCustomTokenProviderArm(
           targetProvider: any(named: 'targetProvider'),
         ),
       );
+      verifyNever(() => mockAuthRepo.linkGoogleCredential());
+    });
+
+    test('L1b naver 취소(null) → cancelled', () async {
+      when(
+        () => mockAuthRepo.linkNaverProviderArm(),
+      ).thenAnswer((_) async => null);
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.naver);
+
+      expect(outcome, AccountLinkOutcome.cancelled);
+    });
+
+    test('L1c naver AccountAlreadyLinked → alreadyLinked', () async {
+      // callable `already-exists` — Naver 신원이 다른 계정 소유.
+      when(() => mockAuthRepo.linkNaverProviderArm()).thenAnswer(
+        (_) async => const Result<User>.failure(AccountAlreadyLinked()),
+      );
+
+      final notifier = container.read(settingsProvider.notifier);
+      final outcome = await notifier.linkProvider(AccountProvider.naver);
+
+      expect(outcome, AccountLinkOutcome.alreadyLinked);
     });
 
     test('L2 email → unsupported + repository 미호출 (WR-03 단일 진실원)', () async {

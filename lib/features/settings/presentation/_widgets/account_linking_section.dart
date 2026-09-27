@@ -5,7 +5,8 @@
 // - heading (settingsAccountLinkingSection "계정 연결") + available-provider
 //   "연결" 버튼 vertical list.
 // - available = (소셜 AccountProvider 6값) ∩ 활성 Strategy − 이미 link 된 소셜
-//   provider. email (mockup §0) 과 naver (WR-15 — 항상 미지원) 는 후보 제외.
+//   provider. email (mockup §0) 은 후보 제외 · naver 는 Phase 16.9 부터
+//   후보(카카오와 라인 사이 — mockup §2).
 // - 버튼 tap → 16-10/16-09 proactive link 메서드 dispatch (settings_notifier).
 //   성공 → accountLinkingSucceededSnackbar + linkedProviders 자동 refresh +
 //   버튼 사라짐. reauth → 재로그인 라우팅 (withdrawal D-06 mirror). already-
@@ -29,27 +30,25 @@ import '../../../auth/presentation/_widgets/branded_social_button.dart';
 import '../../application/account_link_in_progress.dart';
 import '../settings_notifier.dart';
 
-/// Surface D 의 소셜 proactive 후보 (email / naver EXCLUDE).
+/// Surface D 의 소셜 proactive 후보 (email EXCLUDE).
 ///
 /// `available = _kProactiveLinkCandidates ∩ 활성 Strategy − 이미 link 된 소셜
 /// provider`. 표시 순서는 mockup §2 의 cross-provider 비교 배열을 따른다.
 ///
-/// **제외 대상 2종:**
+/// **제외 대상:**
 /// - `email` — 사용자 시각 sign-off 2026-06-02 (mockup §0 EXCLUDE).
 ///   이메일/비밀번호는 킷이 권장하는 로그인 수단이 아니라 보완적으로 제공하는
 ///   수단이라 계정 연결 대상에서 의도적으로 뺀다. 그래서 연결된 계정에서
 ///   해제한 이메일/비밀번호(Phase 16.8)도 이 화면으로 다시 연결하지 않는다.
-/// - `naver` — deployed callable 이 OIDC 를 지원하지 않아
-///   [SettingsNotifier.linkProvider] 가 100% [AccountLinkOutcome.unsupported]
-///   로 끝난다 (10-REVIEW WR-15). 성공 확률 0 인 affordance 는 사용자에게
-///   고장난 버튼이므로 후보 집합에서 뺀다. `linkProvider` 의 naver arm 은
-///   방어적 분기로 유지되어 다른 경로에서 도달해도 graceful 하다. naver
-///   proactive link 자체는 Phase 17+ carry-forward.
+///
+/// `naver` 는 Phase 16.9 부터 후보다 — kakao 와 line 사이(mockup §2 순서)에
+/// 두며, 탭은 [AuthRepository.linkNaverProviderArm] 으로 연결된다.
 const List<AccountProvider> _kProactiveLinkCandidates = <AccountProvider>[
   AccountProvider.google,
   AccountProvider.apple,
   AccountProvider.facebook,
   AccountProvider.kakao,
+  AccountProvider.naver,
   AccountProvider.line,
 ];
 
@@ -58,8 +57,8 @@ const List<AccountProvider> _kProactiveLinkCandidates = <AccountProvider>[
 /// 로그인된 사용자가 아직 link 안 된 소셜 provider 의 "연결" 버튼을 탭하면
 /// 16-10(native) / 16-09(Custom Token) 의 proactive link 메서드가 호출되어
 /// 계정 연결이 수행된다. email(이메일/비밀번호) 은 mockup §0 사용자 시각
-/// sign-off 에 따라, naver 는 항상 미지원으로 끝나므로 (WR-15) 본 목록에서
-/// **제외**된다.
+/// sign-off 에 따라 본 목록에서 **제외**된다. naver 는 16.9 부터
+/// [AuthRepository.linkNaverProviderArm] 으로 연결된다.
 ///
 /// **available-provider 규칙:** `available = (소셜 6값) ∩ 활성 Strategy −
 /// 이미 link 된 소셜 provider`. 본인 [currentUserProvider] linkedProviders
@@ -88,7 +87,7 @@ class AccountLinkingSection extends ConsumerWidget {
         .map((s) => s.providerId)
         .toSet();
 
-    // (3) available = 소셜 6값 ∩ 활성 − linked (email / naver 후보 미포함).
+    // (3) available = 후보 ∩ 활성 − linked (email 후보 미포함).
     final available = <AccountProvider>[
       for (final provider in _kProactiveLinkCandidates)
         if (activeSlugs.contains(provider.slug) && !linked.contains(provider))
@@ -222,8 +221,8 @@ class AccountLinkingSection extends ConsumerWidget {
           SnackBar(content: Text(l10n.settingsLinkFailedUnknown)),
         );
       case AccountLinkOutcome.unsupported:
-        // naver (deployed callable OIDC 부재) / email (Surface D EXCLUDE) —
-        // 실패가 아니라 미지원. providerLabel 은 기존 authAccountProvider{X}
+        // email (Surface D EXCLUDE) — 실패가 아니라 미지원. 후보 목록에
+        // email 이 없어 방어적 분기다. providerLabel 은 기존 authAccountProvider{X}
         // brand verbatim 라벨 (brand 라벨 신규 0, T-16-15-03).
         messenger.showSnackBar(
           SnackBar(
