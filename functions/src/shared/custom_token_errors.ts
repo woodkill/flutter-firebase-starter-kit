@@ -27,8 +27,9 @@
 // `errorInvalidCredentials` / `errorInvalidArgument` / `errorUnknown` 등은
 // **taxonomy 토큰** 이지 `lib/l10n/app_en.arb` 의 키가 아니다. 실제로
 // `errorInvalidArgument` / `errorAnonymousLinkNotAllowed` /
-// `errorAccountAlreadyLinked` / `errorReauthenticationRequired` 는 ARB 에
-// 존재하지 않는다 (나머지는 client 가 같은 어휘를 쓰는 우연의 일치다).
+// `errorAccountAlreadyLinked` / `errorReauthenticationRequired` /
+// `errorProviderAlreadyLinked` 는 ARB 에 존재하지 않는다 (나머지는 client 가
+// 같은 어휘를 쓰는 우연의 일치다).
 //
 // **client 는 서버 message 를 렌더하지 않는다.** `AuthRepository.
 // _mapFunctionsException` 은 `FirebaseFunctionsException.code` 로만 분기해
