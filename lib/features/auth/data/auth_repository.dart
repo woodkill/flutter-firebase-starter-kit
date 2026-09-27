@@ -172,19 +172,18 @@ class AuthRepository implements AnonymousSignIn {
   /// `lookupSignInMethods` callable 호출 타임아웃 — 5 초.
   static const Duration _kLookupTimeout = Duration(seconds: 5);
 
-  /// Custom Token sign-in callable (kakao/naver/line) 타임아웃
-  /// — 10 초 (WR-10, `linkCustomTokenProvider` link arm 과 동일 값).
+  /// Custom Token sign-in callable (kakao/naver/line) 타임아웃 — 10 초
+  /// (WR-10). link arm(`linkCustomTokenProvider`) · 해제
+  /// (`unlinkCustomTokenProvider`, Phase 16.8) callable 도 이 상수를 공유한다
+  /// — 값을 바꿀 때 호출처가 조용히 어긋나지 않도록 리터럴을 두지 않는다
+  /// (16.8 review IN-02 · iteration 2 IN-03).
   ///
-  /// link arm(`linkCustomTokenProvider`) · 해제(`unlinkCustomTokenProvider`,
-  /// Phase 16.8) callable 도 이 상수를 쓴다 — 값을 바꿀 때 호출처가 조용히
-  /// 어긋나지 않도록 리터럴을 두지 않는다 (16.8 review IN-02).
-  ///
-  /// 이 callable 들은 모두 race-fix try-finally 블록 안에서 await 된다. hang 시
-  /// `_socialLinkInProgress.end()` 도 hang 하여 splash 의 자동 익명 sign-in
-  /// 과 auth_guard GC-04 fail-safe redirect 가 무한 차단된다 (Phase 9.1 D-03
-  /// race-fix 와 직접 충돌). 같은 논리로 이미 timeout 이 적용된 지점:
-  /// `linkCustomTokenProvider` (10s) / `lookupSignInMethods` (5s) /
-  /// `sendEmailVerification` (5s) / Facebook Graph + updatePhotoURL (각 5s).
+  /// 로그인 · link arm callable 은 race-fix try-finally 블록 안에서 await
+  /// 된다. hang 시 `_socialLinkInProgress.end()` 도 hang 하여 splash 의 자동
+  /// 익명 sign-in 과 auth_guard GC-04 fail-safe redirect 가 무한 차단된다
+  /// (Phase 9.1 D-03 race-fix 와 직접 충돌). 같은 논리로 별도 timeout 이
+  /// 적용된 지점: `lookupSignInMethods` (5s) / `sendEmailVerification` (5s) /
+  /// Facebook Graph + updatePhotoURL (각 5s).
   static const Duration _kCustomTokenTimeout = Duration(seconds: 10);
 
   /// Naver 킷 웹 경로 callable(`naverWebCustomToken`) 타임아웃 — 20 초
