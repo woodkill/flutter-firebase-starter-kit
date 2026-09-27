@@ -175,6 +175,10 @@ class AuthRepository implements AnonymousSignIn {
   /// Custom Token sign-in callable (kakao/naver/line) 타임아웃
   /// — 10 초 (WR-10, `linkCustomTokenProvider` link arm 과 동일 값).
   ///
+  /// link arm(`linkCustomTokenProvider`) · 해제(`unlinkCustomTokenProvider`,
+  /// Phase 16.8) callable 도 이 상수를 쓴다 — 값을 바꿀 때 호출처가 조용히
+  /// 어긋나지 않도록 리터럴을 두지 않는다 (16.8 review IN-02).
+  ///
   /// 이 callable 들은 모두 race-fix try-finally 블록 안에서 await 된다. hang 시
   /// `_socialLinkInProgress.end()` 도 hang 하여 splash 의 자동 익명 sign-in
   /// 과 auth_guard GC-04 fail-safe redirect 가 무한 차단된다 (Phase 9.1 D-03
@@ -1391,7 +1395,7 @@ class AuthRepository implements AnonymousSignIn {
       // Step 4 — deployed linkCustomTokenProvider callable 호출.
       final callable = _functions.httpsCallable(
         'linkCustomTokenProvider',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 10)),
+        options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
       );
       final response = await callable
           .call<Map<String, dynamic>>(<String, dynamic>{
@@ -2373,7 +2377,7 @@ class AuthRepository implements AnonymousSignIn {
     try {
       final callable = _functions.httpsCallable(
         'unlinkCustomTokenProvider',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 10)),
+        options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
       );
       final response = await callable.call<Map<String, dynamic>>(
         UnlinkProviderRequest(provider: providerSlug).toJson(),
