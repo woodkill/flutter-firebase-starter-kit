@@ -76,8 +76,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// already-exists / Custom Token) 는
   /// [AuthRepository.signInWithExistingProvider] 로 **기존 provider 에
   /// 로그인**한 뒤 설정 > 계정 연결로 안내한다. naver 는 로그인 대상으로 완전
-  /// 지원 (link *target* 만 Phase 17+ 이월) — 본 screen 은 sheet 노출만
-  /// 담당한다.
+  /// 지원되고 연결 대상으로도 Phase 16.9 부터 지원된다(설정 Surface D
+  /// `linkNaverProviderArm`) — 본 screen 은 sheet 노출만 담당한다.
   void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

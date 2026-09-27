@@ -1050,7 +1050,7 @@
 
   "settingsLinkUnsupportedProvider": "Linking a {provider} account isn't supported yet.",
   "@settingsLinkUnsupportedProvider": {
-    "description": "Phase 16 G-16-A6-2 — Surface D '미지원' 전용 문구. 실패가 아니라 미지원임을 실패 4 문구와 구분해 노출한다. 소비: AccountLinkOutcome.unsupported (naver — Naver-as-target Phase 17+ 이월 / email — Surface D EXCLUDE). {provider} 에는 caller 가 기존 authAccountProvider{X} 8 키의 brand verbatim 라벨을 주입하므로 brand 라벨 신규 0 → brand_label_whitelist_test 확장 불요 (settingsLinkProviderCta 선례 동일, T-16-15-03 mitigate).",
+    "description": "Phase 16 G-16-A6-2 — Surface D '미지원' 전용 문구. 실패가 아니라 미지원임을 실패 4 문구와 구분해 노출한다. 소비: AccountLinkOutcome.unsupported (email — Surface D EXCLUDE (naver 는 Phase 16.9 부터 linkNaverProviderArm 로 연결 지원)). {provider} 에는 caller 가 기존 authAccountProvider{X} 8 키의 brand verbatim 라벨을 주입하므로 brand 라벨 신규 0 → brand_label_whitelist_test 확장 불요 (settingsLinkProviderCta 선례 동일, T-16-15-03 mitigate).",
     "placeholders": {
       "provider": {
         "type": "String",

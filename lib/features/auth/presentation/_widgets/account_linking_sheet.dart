@@ -75,9 +75,9 @@ typedef ExistingProviderSignInCallback =
 /// linkProvider` → [AuthRepository.linkCustomTokenProviderArm]) 이 담당한다.
 /// 그 메서드는 본 sheet 에서만 호출이 사라졌을 뿐 orphan 이 아니다.
 ///
-/// **Naver:** step 1 **로그인 대상**으로 완전히 지원된다. deployed callable
-/// OIDC 미지원은 link *target* 에 한정된 제약이며 Phase 17+ carry-forward —
-/// 따라서 과거의 naver 전용 graceful 차단 분기는 제거되었다.
+/// **Naver:** step 1 **로그인 대상**으로 완전히 지원되고, 연결 대상으로도
+/// Phase 16.9 부터 지원된다(설정 Surface D [AuthRepository.linkNaverProviderArm])
+/// — 따라서 과거의 naver 전용 graceful 차단 분기는 제거되었다.
 ///
 /// **충돌 이메일 미수신 (Phase 09 WR-06).** 본 위젯은 충돌한 이메일 주소를
 /// 매개변수로 받지 않는다. 과거에는 `collisionEmail` 을 `required` 로 받으면서

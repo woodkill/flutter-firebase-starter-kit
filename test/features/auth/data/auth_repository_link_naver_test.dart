@@ -1,0 +1,393 @@
+// ignore_for_file: lines_longer_than_80_chars
+//
+// Phase 16.9 Plan 16.9-02 Task 2 — Naver proactive account linking
+// (`AuthRepository.linkNaverProviderArm()`) 단위 테스트 (D-04).
+//
+// 설정 Surface D 「네이버 연결」 → `NaverSdkClient.signIn()` 상속(1-tap/웹
+// 라우팅 · state · 취소) → caller fresh ID Token → callable
+// `linkNaverProvider` payload → `{ok:true}` → reload 계약을 mock 으로 잠근다.
+// 서버 계약(callable 이름 · payload 키 · code 분기)은 plan 16.9-01 과 같다.
+//
+// 케이스:
+//   R1: 1-tap 성공 — payload 키 {idToken, accessToken} · timeout 10s · reload · logout
+//   R2: 웹 성공 — payload 키 {idToken, code, state} · timeout 20s
+//   R3: 취소 (signIn null) — null · callable/getIdToken 미호출 · logout
+//   R4: unauthenticated · permission-denied → ReauthenticationRequiredException
+//   R5: already-exists → AccountAlreadyLinked
+//   R6: unavailable → NoInternetConnection · failed-precondition → ServiceUnavailable
+//   R7: ok:false · currentUser null · 익명 → UnknownException (WR-06)
+//   R8: signIn 이 ServiceUnavailable throw → 그대로 전달 · callable 미호출
+//   R9: SocialLinkInProgress begin/end 1회 — 성공 · 취소 · SDK 오류
+//
+// 모든 케이스는 finally 의 Naver SDK logout 1회를 단언한다 (C-05 1회성 토큰).
+// PII: payload 는 키 · 고정 fixture 값만 단언한다 (T-16.9-08).
+
+import 'package:cloud_functions/cloud_functions.dart' hide Result;
+import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mocktail/mocktail.dart';
+
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
+import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
+
+class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
+
+class _MockFbUser extends Mock implements fb.User {}
+
+class _MockUserMetadata extends Mock implements fb.UserMetadata {}
+
+class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
+
+class _MockFacebookAuth extends Mock implements FacebookAuth {}
+
+class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
+
+class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
+
+class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
+
+class _MockLineSdkClient extends Mock implements LineSdkClient {}
+
+class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
+
+class _MockHttpsCallable extends Mock implements HttpsCallable {}
+
+class _MockHttpsCallableResult extends Mock
+    implements HttpsCallableResult<Map<String, dynamic>> {}
+
+void main() {
+  late _MockFirebaseAuth mockAuth;
+  late _MockSocialLinkInProgress mockSocialLinkInProgress;
+  late _MockNaverSdkClient mockNaverSdkClient;
+  late _MockFirebaseFunctions mockFunctions;
+  late _MockHttpsCallable mockLinkCallable;
+  late _MockHttpsCallableResult mockResult;
+  late _MockFbUser mockCurrentUser;
+  late _MockUserMetadata mockMetadata;
+  late AuthRepository repository;
+
+  setUpAll(() {
+    registerFallbackValue(<String, dynamic>{});
+  });
+
+  setUp(() {
+    mockAuth = _MockFirebaseAuth();
+    mockSocialLinkInProgress = _MockSocialLinkInProgress();
+    mockNaverSdkClient = _MockNaverSdkClient();
+    mockFunctions = _MockFirebaseFunctions();
+    mockLinkCallable = _MockHttpsCallable();
+    mockResult = _MockHttpsCallableResult();
+    mockCurrentUser = _MockFbUser();
+    mockMetadata = _MockUserMetadata();
+
+    repository = AuthRepository(
+      mockAuth,
+      _MockGoogleSignIn(),
+      _MockFacebookAuth(),
+      mockSocialLinkInProgress,
+      _MockKakaoSdkClient(),
+      mockFunctions,
+      mockNaverSdkClient,
+      _MockLineSdkClient(),
+      () async {},
+    );
+
+    // _mapFirebaseUser 가 참조하는 fb.User getter default stub.
+    when(() => mockCurrentUser.uid).thenReturn('linked-uid');
+    when(() => mockCurrentUser.email).thenReturn('user@example.com');
+    when(() => mockCurrentUser.emailVerified).thenReturn(true);
+    when(() => mockCurrentUser.displayName).thenReturn('User');
+    when(() => mockCurrentUser.photoURL).thenReturn(null);
+    when(() => mockCurrentUser.isAnonymous).thenReturn(false);
+    when(() => mockCurrentUser.metadata).thenReturn(mockMetadata);
+    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+    when(() => mockCurrentUser.providerData).thenReturn(const []);
+    when(() => mockCurrentUser.reload()).thenAnswer((_) async {});
+    when(
+      () => mockCurrentUser.getIdToken(any()),
+    ).thenAnswer((_) async => 'caller-fresh-id-token');
+
+    when(() => mockAuth.currentUser).thenReturn(mockCurrentUser);
+
+    // C-05 1회성 토큰 — finally logout default stub.
+    when(() => mockNaverSdkClient.logout()).thenAnswer((_) async {});
+
+    // linkNaverProvider callable default wiring — {ok:true}.
+    when(
+      () => mockFunctions.httpsCallable(
+        'linkNaverProvider',
+        options: any(named: 'options'),
+      ),
+    ).thenReturn(mockLinkCallable);
+    when(() => mockResult.data).thenReturn(<String, dynamic>{'ok': true});
+    when(
+      () => mockLinkCallable.call<Map<String, dynamic>>(any()),
+    ).thenAnswer((_) async => mockResult);
+  });
+
+  /// 1-tap 경로 fixture — NAVER 앱이 돌려준 access token.
+  void stubAppSignIn() {
+    when(() => mockNaverSdkClient.signIn()).thenAnswer(
+      (_) async => const NaverAppSignIn(accessToken: 'naver-app-token'),
+    );
+  }
+
+  /// 킷 웹 경로 fixture — authorization code + 대조 완료 state.
+  void stubWebSignIn() {
+    when(
+      () => mockNaverSdkClient.signIn(),
+    ).thenAnswer((_) async => const NaverWebSignIn(code: 'c', state: 's'));
+  }
+
+  /// callable 이 [code] 로 거부하도록 stub 한다.
+  void stubCallableThrows(String code) {
+    when(() => mockLinkCallable.call<Map<String, dynamic>>(any())).thenThrow(
+      FirebaseFunctionsException(code: code, message: 'server-token'),
+    );
+  }
+
+  /// [result] 가 [Failure] 이면 그 예외를 돌려준다.
+  AppException failureOf(Result<dynamic>? result) {
+    expect(result, isA<Failure<dynamic>>());
+    return (result! as Failure<dynamic>).exception;
+  }
+
+  test(
+    'R1: 1-tap 성공 — payload {idToken, accessToken} · timeout 10s · reload · logout 1',
+    () async {
+      stubAppSignIn();
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(result, isA<Success<dynamic>>());
+      final captured =
+          verify(
+                () => mockLinkCallable.call<Map<String, dynamic>>(captureAny()),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(captured.keys.toSet(), <String>{'idToken', 'accessToken'});
+      expect(captured['idToken'], 'caller-fresh-id-token');
+      expect(captured['accessToken'], 'naver-app-token');
+      final options =
+          verify(
+                () => mockFunctions.httpsCallable(
+                  'linkNaverProvider',
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as HttpsCallableOptions;
+      expect(options.timeout, const Duration(seconds: 10));
+      verify(() => mockCurrentUser.getIdToken(true)).called(1);
+      verify(() => mockCurrentUser.reload()).called(1);
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    },
+  );
+
+  test(
+    'R2: 웹 성공 — payload {idToken, code, state} · timeout 20s · logout 1',
+    () async {
+      stubWebSignIn();
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(result, isA<Success<dynamic>>());
+      final captured =
+          verify(
+                () => mockLinkCallable.call<Map<String, dynamic>>(captureAny()),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(captured.keys.toSet(), <String>{'idToken', 'code', 'state'});
+      expect(captured.containsKey('accessToken'), isFalse);
+      expect(captured['idToken'], 'caller-fresh-id-token');
+      expect(captured['code'], 'c');
+      expect(captured['state'], 's');
+      final options =
+          verify(
+                () => mockFunctions.httpsCallable(
+                  'linkNaverProvider',
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as HttpsCallableOptions;
+      expect(options.timeout, const Duration(seconds: 20));
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    },
+  );
+
+  test(
+    'R3: 취소 — signIn null → null · callable · getIdToken 미호출 · logout 1',
+    () async {
+      when(() => mockNaverSdkClient.signIn()).thenAnswer((_) async => null);
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(result, isNull);
+      verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
+      verifyNever(() => mockCurrentUser.getIdToken(any()));
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    },
+  );
+
+  group('R4 — 재로그인 유도 코드', () {
+    for (final code in <String>['unauthenticated', 'permission-denied']) {
+      test(
+        'R4: $code → ReauthenticationRequiredException · logout 1',
+        () async {
+          stubAppSignIn();
+          stubCallableThrows(code);
+
+          final result = await repository.linkNaverProviderArm();
+
+          expect(failureOf(result), isA<ReauthenticationRequiredException>());
+          verifyNever(() => mockCurrentUser.reload());
+          verify(() => mockNaverSdkClient.logout()).called(1);
+        },
+      );
+    }
+
+    test(
+      'R4: 웹 경로 unauthenticated (code 교환 거부) 도 ReauthenticationRequiredException',
+      () async {
+        stubWebSignIn();
+        stubCallableThrows('unauthenticated');
+
+        final result = await repository.linkNaverProviderArm();
+
+        expect(failureOf(result), isA<ReauthenticationRequiredException>());
+        verify(() => mockNaverSdkClient.logout()).called(1);
+      },
+    );
+  });
+
+  test(
+    'R5: already-exists → AccountAlreadyLinked (다른 계정 소유) · logout 1',
+    () async {
+      stubAppSignIn();
+      stubCallableThrows('already-exists');
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<AccountAlreadyLinked>());
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    },
+  );
+
+  group('R6 — _mapFunctionsException 경유', () {
+    test('R6: unavailable → NoInternetConnection · logout 1', () async {
+      stubAppSignIn();
+      stubCallableThrows('unavailable');
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<NoInternetConnection>());
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+
+    test('R6: failed-precondition → ServiceUnavailable · logout 1', () async {
+      stubAppSignIn();
+      stubCallableThrows('failed-precondition');
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<ServiceUnavailable>());
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+  });
+
+  group('R7 — 결정적 실패 UnknownException (WR-06)', () {
+    test('R7: 응답 ok:false → UnknownException · reload 미호출', () async {
+      stubAppSignIn();
+      when(() => mockResult.data).thenReturn(<String, dynamic>{'ok': false});
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<UnknownException>());
+      verifyNever(() => mockCurrentUser.reload());
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+
+    test('R7: currentUser null → UnknownException · callable 미호출', () async {
+      stubAppSignIn();
+      when(() => mockAuth.currentUser).thenReturn(null);
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<UnknownException>());
+      verifyNever(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      );
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+
+    test('R7: 익명 caller → UnknownException · callable 미호출', () async {
+      stubAppSignIn();
+      when(() => mockCurrentUser.isAnonymous).thenReturn(true);
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<UnknownException>());
+      verifyNever(() => mockCurrentUser.getIdToken(any()));
+      verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+  });
+
+  test(
+    'R8: signIn 이 ServiceUnavailable throw → 그대로 전달 · callable 미호출 · logout 1',
+    () async {
+      final sdkError = ServiceUnavailable(cause: StateError('naver-sdk'));
+      when(() => mockNaverSdkClient.signIn()).thenThrow(sdkError);
+
+      final result = await repository.linkNaverProviderArm();
+
+      final exception = failureOf(result);
+      expect(exception, isA<ServiceUnavailable>());
+      expect(identical(exception, sdkError), isTrue);
+      verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    },
+  );
+
+  group('R9 — SocialLinkInProgress begin/end 1:1', () {
+    test('R9: 성공 경로 begin 1 · end 1', () async {
+      stubAppSignIn();
+
+      await repository.linkNaverProviderArm();
+
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+
+    test('R9: 취소 경로 begin 1 · end 1', () async {
+      when(() => mockNaverSdkClient.signIn()).thenAnswer((_) async => null);
+
+      await repository.linkNaverProviderArm();
+
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+
+    test('R9: SDK 오류 경로 begin 1 · end 1', () async {
+      when(
+        () => mockNaverSdkClient.signIn(),
+      ).thenThrow(const ServiceUnavailable());
+
+      await repository.linkNaverProviderArm();
+
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+  });
+}

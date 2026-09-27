@@ -21,6 +21,8 @@
 //   verbatim SnackBar 문구 단언.
 // - AL12 (Phase 16.9 D-12): naver 후보 노출 · 순서 kakao < naver < line ·
 //   tap → linkNaverProviderArm + 성공 SnackBar.
+// - AL14~AL17 (Phase 16.9): naver 연결 후 버튼 소멸 · alreadyLinked 문구 ·
+//   reauth 라우팅 · reactive 2단계 도착지(가입 kakao 사용자의 「네이버 연결」).
 // - AL13 collapse 재발 방지: 5 문구 상호 비동등 + 이전 collapse 문구 미사용.
 
 import 'package:flutter/material.dart';
@@ -481,6 +483,89 @@ void main() {
       await tapAppleWithFailure(tester, const AccountAlreadyLinked());
       expect(find.text(oldCollapsedText), findsNothing);
       expect(find.text(_alreadyLinkedText), findsOneWidget);
+    });
+  });
+
+  group('Phase 16.9 — Surface D 「네이버 연결」', () {
+    testWidgets('AL14 naver 연결 후 — providerIds 에 naver → 버튼 소멸', (
+      tester,
+    ) async {
+      await _pumpSection(
+        tester,
+        user: _testUser(providerIds: const <String>['google.com', 'naver']),
+        repo: repo,
+      );
+
+      expect(find.text('Link Naver'), findsNothing);
+      // 섹션은 다른 후보로 계속 렌더된다 (섹션 통째 미노출 회귀 방지).
+      expect(find.text('Link Apple'), findsOneWidget);
+    });
+
+    testWidgets('AL15 naver AccountAlreadyLinked → 「다른 계정에 연결됨」 문구', (
+      tester,
+    ) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(
+        () => repo.linkNaverProviderArm(),
+      ).thenAnswer((_) async => const Result.failure(AccountAlreadyLinked()));
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Naver');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(_alreadyLinkedText), findsOneWidget);
+      // alreadyLinkedHere (「이미 이 계정에 연결됨」) 와 뒤바뀌지 않는다.
+      expect(find.text(_alreadyLinkedHereText), findsNothing);
+    });
+
+    testWidgets('AL16 naver ReauthenticationRequired → 재로그인 라우팅', (
+      tester,
+    ) async {
+      final user = _testUser(providerIds: const <String>['google.com']);
+      when(() => repo.linkNaverProviderArm()).thenAnswer(
+        (_) async => const Result.failure(ReauthenticationRequiredException()),
+      );
+
+      final router = await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Naver');
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('For security, please sign in again and retry.'),
+        findsOneWidget,
+      );
+      expect(find.text('LOGIN ROUTE'), findsOneWidget);
+      expect(AppRoutes.hasReauthMarker(router.state.uri), isTrue);
+    });
+
+    // D-07 reactive 연결성: kakao 가입자가 Naver 로 로그인하다 이메일 충돌로
+    // 시트(경로 B) → kakao 로그인 뒤 안내 문구를 본다. TS2
+    // (account_linking_sheet_two_step_test.dart) 가 hint 문구까지, 이 케이스가
+    // 안내가 가리키는 도착지 버튼(설정 「네이버 연결」)을 잇는다.
+    testWidgets('AL17 (D-07) 가입 kakao 사용자 — 「네이버 연결」 노출 · tap → arm', (
+      tester,
+    ) async {
+      final user = _testUser(providerIds: const <String>['kakao']);
+      when(
+        () => repo.linkNaverProviderArm(),
+      ).thenAnswer((_) async => Result.success(user));
+
+      await _pumpSection(tester, user: user, repo: repo);
+
+      final btn = find.text('Link Naver');
+      expect(btn, findsOneWidget);
+      await tester.ensureVisible(btn);
+      await tester.tap(btn);
+      await tester.pumpAndSettle();
+
+      verify(() => repo.linkNaverProviderArm()).called(1);
     });
   });
 }
