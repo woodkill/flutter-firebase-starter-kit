@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
 last_updated: 2026-09-27
-phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제)]
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제), 16.9 (Naver 연결)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -724,12 +724,12 @@ NAVER_URL_SCHEME = <Naver Console 에서 입력한 iOS URL Scheme>
 
 ### 8단계 — Firebase Secret Manager 등록 (Phase 13 D-60 · Phase 16.5)
 
-Naver 서버 함수 2개가 Secret Manager 의 secret 2종을 씁니다.
+Naver 서버 함수(`naverCustomToken` · `naverWebCustomToken` · `linkNaverProvider`)가 Secret Manager 의 secret 을 씁니다.
 
 | secret | 값 | 사용처 |
 |--------|----|--------|
-| `NAVER_CLIENT_SECRET` | 개요 탭의 Client Secret (`config/{flavor}.json` 의 `naverClientSecret` 와 같은 값) | Phase 16.5 부터 사용처 1 — `naverWebCustomToken` 의 `code` 교환. `naverCustomToken`(1-tap) 은 D-60 정책으로 선언만 하고 쓰지 않습니다 |
-| `NAVER_CLIENT_ID` | 개요 탭의 Client ID (`config/{flavor}.json` 의 `naverClientId` 와 같은 값) | Phase 16.5 신규 — `naverWebCustomToken` 의 교환 요청 파라미터. 앱 쪽 값과 다르면 NAVER 가 교환을 거부합니다 |
+| `NAVER_CLIENT_SECRET` | 개요 탭의 Client Secret (`config/{flavor}.json` 의 `naverClientSecret` 와 같은 값) | `naverWebCustomToken` 의 `code` 교환(Phase 16.5) · `linkNaverProvider` 의 웹 모양 `code` 교환(Phase 16.9 — 교환 코드는 `naver_token_exchange.ts` 공유). `naverCustomToken`(1-tap) 은 D-60 정책으로 선언만 하고 쓰지 않습니다 |
+| `NAVER_CLIENT_ID` | 개요 탭의 Client ID (`config/{flavor}.json` 의 `naverClientId` 와 같은 값) | `naverWebCustomToken`(Phase 16.5) · `linkNaverProvider`(Phase 16.9 웹 모양)의 교환 요청 파라미터. 앱 쪽 값과 다르면 NAVER 가 교환을 거부합니다 |
 
 ```bash
 firebase use <dev-project-id>
@@ -937,32 +937,44 @@ PBXFileReference · Runner group · Sources), Dart `naver_host_channel.dart` ·
 
 ### 10단계 — Cloud Function 배포
 
-Naver 서버 함수 2개 — `naverCustomToken`(Phase 13-02, 1-tap 의 access token 검증)과
-`naverWebCustomToken`(Phase 16.5, 웹 경로의 `code` 교환) — 를 dev Firebase
-프로젝트 (asia-northeast3) 에 배포합니다. 두 함수는 `/v1/nid/me` 검증 → identity →
-Custom Token 체인을 공용 helper 로 공유합니다.
+Naver 서버 함수 — `naverCustomToken`(Phase 13-02, 1-tap 의 access token 검증) ·
+`naverWebCustomToken`(Phase 16.5, 웹 경로의 `code` 교환) · `linkNaverProvider`
+(Phase 16.9 · 연결 — 「Naver 계정 연결 (Phase 16.9)」 절) — 를 dev Firebase
+프로젝트 (asia-northeast3) 에 배포합니다. 로그인 두 함수는 `/v1/nid/me` 검증 → identity →
+Custom Token 체인을 공용 helper 로 공유하고, 연결 함수는 그중 검증 helper
+(`fetchNaverProfile`)와 교환 모듈(`naver_token_exchange.ts`)만 공유합니다.
 
 ```bash
 cd functions
 pnpm install           # 최초 1회 (corepack 활성화는 0단락의 4단계 참조)
 pnpm run lint          # 0 errors 확인
 pnpm run build         # tsc OK 확인
-pnpm test              # 전체 jest PASS 확인 (naver 는 naver_custom_token + naver_web_custom_token 두 파일)
+pnpm test              # 전체 jest PASS 확인 (naver 는 naver_custom_token · naver_web_custom_token · link_naver_provider 파일)
 
 # 배포 (8단계의 secret 2종이 먼저 등록돼 있어야 한다)
 firebase use <dev-project-id>
-firebase deploy --only functions:naverCustomToken,functions:naverWebCustomToken
+firebase deploy --only functions:naverCustomToken,functions:naverWebCustomToken,functions:linkNaverProvider
 ```
 
-기대 응답 (최초 배포 시 `naverWebCustomToken` 은 create):
+기대 응답 (최초 배포 시 새 함수는 create):
 ```
 ✔ functions[naverCustomToken(asia-northeast3)] Successful update operation.
 ✔ functions[naverWebCustomToken(asia-northeast3)] Successful create operation.
+✔ functions[linkNaverProvider(asia-northeast3)] Successful create operation.
 ```
 
 확인 — Firebase Console:
-- "빌드 > Functions" → `naverCustomToken` · `naverWebCustomToken` 함수 row →
-  region = `asia-northeast3` + "활성" 상태
+- "빌드 > Functions" → `naverCustomToken` · `naverWebCustomToken` · `linkNaverProvider`
+  함수 row → region = `asia-northeast3` + "활성" 상태
+- `linkNaverProvider` 는 새로 만들어지는 함수라 배포 뒤 Cloud Run invoker 를 확인한다 —
+  `gcloud run services get-iam-policy linknaverprovider --region asia-northeast3 --project <dev-project-id>`
+  에 `roles/run.invoker` + `allUsers` 가 있어야 하고, 미인증
+  `curl -X POST <함수 URL> -H 'Content-Type: application/json' -d '{"data":{}}'` 가
+  **401** 이면 정상이다(App Check / auth 게이트). **첫 배포가 도중에 끊겼다면
+  재배포는 update 로 처리돼 invoker 를 붙이지 않는다** — probe 가 403 이면
+  `gcloud run services add-iam-policy-binding linknaverprovider --region asia-northeast3 --project <dev-project-id> --member=allUsers --role=roles/run.invoker`
+  로 해소한다(Phase 16.9 dev 실측 · `uat-evidence/deploy-16.9.md`). 새 함수 생성은 공개
+  IAM 바인딩을 동반하므로 에이전트 자동화 환경에서는 사람이 직접 실행한다.
 - 웹 경로에만 있는 구간(code 교환 · 최종 발급)은 `naver_web_*` 이벤트
   3종(`naver_web_custom_token_issued` · `naver_web_token_exchange_failed` ·
   `naver_web_token_error_response`)을 남깁니다. `naver_web_custom_token_issued` 의
@@ -2210,6 +2222,19 @@ Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측�
      파일이 아니라 공유 `functions/src/shared/oidc_providers.ts` 에 있고 link
      callable 이 전부 bind 하므로, 전용 파일만 지우면 binding 이 남는다.
      `functions/lib` 는 지우고 다시 빌드한다 (tsc 는 고아 `.js` 를 지우지 않는다).
+     **Naver 를 제거할 때 (Phase 16.9 연결 callable 포함)** — Naver 연결은
+     `linkCustomTokenProvider` 가 아니라 전용 callable 이다. 연결 callable
+     `functions/src/auth/link_naver_provider.ts` 를 삭제하고 `index.ts` 의
+     `export {linkNaverProvider}` 줄(+ 위 주석)을 지운 뒤, 배포 정리 ③ 에서
+     `firebase functions:delete linkNaverProvider` 를 함께 실행한다.
+     `linkCustomTokenProvider` 에는 Naver 분기 · secret 이 없으므로 재배포할 필요가
+     없다. `naver_token_exchange.ts`(code 교환) · `fetchNaverProfile`
+     (`naver_profile_to_custom_token.ts`)은 Naver 파일만 쓰므로 함께 삭제하고,
+     `link_identity_transaction.ts`(연결 transaction)는 Kakao / LINE 연결이 쓰므로
+     유지한다. 잔존 데이터 계수(배포 정리 ⑥)는 `identity_index where provider == "naver"`
+     와 `users.providerLinkedAt.naver` 로 연결 사본까지 센다. 클라이언트는
+     `_kProactiveLinkCandidates` 원소 1개와 `SettingsNotifier` 의 naver arm ·
+     `AuthRepository.linkNaverProviderArm` 을 ②(switch 일괄)와 같은 커밋에서 지운다.
    - ⑧ **문서 · 스킬 · 계획 문서** — 이 매뉴얼의 provider 절 · 목차 · 표, 스킬
      `references/`, `.planning` 활성 문서.
 
@@ -2400,7 +2425,8 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 2. **client-side `AccountLinkingSheet`** (Plan 16-04) — Material 3 Modal Bottom Sheet 본체. 본문 메시지는 provider-aware (예: "이 이메일은 Google 로 가입되어 있습니다. Google 로 로그인하여 계정을 연결하세요.") + 단일 BrandedSocialButton (D-02 single button 정책 — 정확한 기존 provider 만 노출하여 사용자 confusion 차단) + dismiss TextButton (D-03 cancel — Navigator.pop(false)).
 3. **native↔native vs Custom Token 분기 (D-04):**
    - **Native 4 provider (Google/Apple/Facebook/Email):** Firebase Auth 의 `User.linkWithCredential` 로 직접 연결.
-   - **Custom Token 3 provider (Kakao/Naver/LINE):** `linkCustomTokenProvider` callable (server-side hybrid) — 외부 IdP 토큰을 server 에서 검증 후 Firebase Custom Token 으로 변환하여 link.
+   - **Custom Token provider — Kakao/LINE (OIDC ID token):** `linkCustomTokenProvider` callable (server-side) — 외부 IdP 의 OIDC ID token 을 server 에서 검증한 뒤 `identity_index` 와 `users/{uid}.linkedProviders` 에 연결을 기록한다.
+   - **Custom Token provider — Naver (access token / authorization code):** `linkNaverProvider` callable — Phase 16.9 · 아래 「Naver 계정 연결 (Phase 16.9)」 절.
 4. **사용자 cancel 시 state 손실 0 (D-03):** sheet 의 dismiss 또는 backdrop tap 시 기존 세션 / onboarding 상태는 모두 보존. `Navigator.pop(false)` 만 호출 → caller 의 catch path 가 fresh 진입점으로 fallback.
 
 **PII invariant (T-16-NEW-07):** `lookupSignInMethods` 호출의 collisionEmail 본문은 client logger / Crashlytics payload 에 절대 전파되지 않는다 (memory `feedback_test_lint_quality` 의 `__` 금지 + Plan 16-04 R7 sentinel test).
@@ -2420,7 +2446,7 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 5. 사용자가 원하면 **설정 > 계정 연결**에서 다른 수단을 추가한다 (이 화면이 본 매뉴얼 위쪽의 proactive linking 경로다).
 6. 취소하거나 로그인이 실패하면 시트는 그대로 유지되고 계정 상태는 아무것도 바뀌지 않는다.
 
-**Naver 에 대한 주의 (지원 범위가 방향에 따라 다르다):** Naver 는 **로그인 대상으로는 완전히 지원**된다 — 위 3단계에서 "네이버로 로그인하기" 버튼은 정상 동작한다. 그러나 **연결 대상으로는 아직 미지원**이다 — 이미 로그인한 계정에 Naver 를 덧붙이는 경로는 Cloud Function 쪽 OIDC 검증기가 없어 Phase 17 이후로 미뤄져 있다. 설정 > 계정 연결 목록에서 Naver 를 고르면 "지원하지 않는 수단" 안내가 뜬다.
+**Naver:** 로그인 대상 · 연결 대상 모두 지원된다(Phase 16.9). 설정 > 계정 연결의 「네이버 연결」 이 NAVER 앱(1-tap) 또는 브라우저로 인증해 `linkNaverProvider` 로 연결하고, 해제는 「계정 연결 해제」 절 규칙을 따른다. 자세한 동작은 「Naver 계정 연결 (Phase 16.9)」 절에 있다.
 
 **adopter 가 건드릴 수 있는 지점:** 안내 문구는 ARB 키 `accountLinkingSignInThenLinkHint`(`lib/l10n/app_{ko,en,ja}.arb`) 하나이며 `{provider}` placeholder 에는 **기존 provider 라벨 8 키의 값만** 주입된다(서버 응답 문자열이 그대로 화면에 뜨는 경로는 없다). 시트 자체의 분기는 `lib/features/auth/presentation/_widgets/account_linking_sheet.dart`, 로그인 위임은 `lib/features/auth/data/auth_repository.dart` 의 `signInWithExistingProvider`, 서버측 provider 판별은 `functions/src/auth/identity_index.ts` 다.
 
@@ -2497,7 +2523,7 @@ Home AppBar → Icons.settings tap → /settings route
 |--------|-----------|
 | native 익명 → `link*` 성공 (익명 계정 제자리 승격) | 기존 계정 재로그인 |
 | native 비익명 신규 sign-in (`additionalUserInfo.isNewUser == true`) | `credential-already-in-use` 뒤 익명 폐기 + 기존 계정 sign-in |
-| 이메일 가입 (`createUserWithEmailAndPassword` · 익명 이메일 link) | 설정 화면 · 충돌 시트의 계정 연결 (native `link*` · `linkCustomTokenProvider`) |
+| 이메일 가입 (`createUserWithEmailAndPassword` · 익명 이메일 link) | 설정 화면 · 충돌 시트의 계정 연결 (native `link*` · `linkCustomTokenProvider` · `linkNaverProvider`) |
 | Custom Token `resolveIdentity` 신규 등록 분기 | Custom Token 재로그인 (`isNewUser: false`) |
 
 **순서 — 약관 mirror 가 먼저:** `SignUpMethodRecorder` 는 경로 구분 없이 항상 `TermsNotifier.mirrorToFirestore` 를 먼저 await 한 뒤 `signUpProviderId` 를 쓴다 (D-19 · D-29). 약관 mirror 는 pre-read 에서 `users/{uid}` 문서가 이미 있으면 skip 하는데(다중 사용자 기기 보호), 가입 수단을 먼저 쓰면 Firestore 가 자기 pending write 를 로컬 읽기에 반영해 문서가 「있다」 고 보고 약관 mirror 가 건너뛰어진다 → 서버에 `termsAccepted` 가 없어 다음 재읽기에서 재동의 화면이 뜬다. 위 「약관 동의 서버 기록」 절의 Custom Token 경합과 같은 함정이다. 이 순서 때문에 익명을 거치지 않은 native 신규 sign-in 에서도 약관이 서버에 기록된다(행동 변화 — 의도). mirror 가 실패해도(reason `sign_up_method_terms_mirror`) 가입 수단 기록은 이어간다. **흔한 실수:** recorder 를 거치지 않고 다른 곳에서 `users/{uid}` 에 먼저 set-merge 하면 이 함정이 그대로 재현된다.
@@ -2519,9 +2545,9 @@ Home AppBar → Icons.settings tap → /settings route
 
 **동작:** 설정 「내 계정」 의 「연결된 계정」 값에 나열된 provider 이름 가운데 **밑줄이 있는 이름은 해제 버튼**이고, **밑줄 없는 일반 글자는 해제할 수 없는 이름**이다 — 버튼인지 아닌지가 곧 해제 가능 여부다(스크린 리더는 버튼을 「{provider} 연결 해제」 로 읽는다). 이름을 누르면 「{provider} 연결을 해제할까요?」 다이얼로그가 본문 「해제하면 {provider} 계정으로 로그인할 수 없습니다.」 와 「취소」 · 「해제」 두 버튼으로 뜬다. 「해제」 를 누르면 다이얼로그가 닫히지 않은 채 두 버튼이 비활성되고 본문 아래 스피너가 돌다가(이 동안 back · 바깥 탭으로 닫히지 않는다) 결과가 오면 닫힌다. 성공하면 「{provider} 계정 연결이 해제되었습니다」 SnackBar 가 뜨고, 그 provider 가 「연결된 계정」 에서 빠지며 「계정 연결」 섹션에 「{provider} 연결」 버튼이 다시 나타난다(이메일/비밀번호는 예외 — 다시 연결하는 버튼이 없다, 아래 「경로」). 실패는 원인별 SnackBar 다 — 「로그인 수단이 하나뿐이라 연결을 해제할 수 없습니다.」 · 「이미 연결이 해제된 계정입니다.」 · 「네트워크 또는 서비스 오류로 연결을 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.」 · 「연결 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.」. 홈 계정정보 카드의 「연결된 계정」 은 **보기 전용**이라 해제 버튼이 없다. 해제 전 재인증은 요구하지 않는다 — Firebase 가 최근 로그인을 요구하는 작업은 계정 삭제 · 기본 이메일 변경 · 비밀번호 변경이고 unlink 는 여기에 없으며, 해제는 계정에 새 접근 권한을 주지 않고 가입 수단이 남으며, 소셜 provider 는 「계정 연결」 에서 언제든 다시 연결할 수 있기 때문이다(D-06 — 이메일/비밀번호는 다시 연결하는 경로를 의도적으로 두지 않았다, 아래 「경로」). 지금 로그인에 쓴 수단도 해제할 수 있다 — 현재 세션은 유지되고 다음 로그인부터 그 수단을 쓸 수 없다(D-02).
 
-**해제 가능 규칙:** 이름을 밑줄 버튼으로 그릴지는 `canUnlinkProvider`(`lib/features/settings/application/unlink_eligibility.dart`) 한 함수가 정하고, 아래 세 조건이 모두 참일 때만 버튼이다. (1) 가입 수단 기록이 있다(`signUpProviderId` non-null) — 로그인 직후 첫 emit 전이나 Firestore 읽기 실패 fallback 동안은 가입 수단이 연결된 계정 목록에 섞여 있을 수 있으므로 전부 일반 글자다(D-05). (2) 로그인 수단(`User.providerIds`)이 2개 이상이다 — 1개뿐이면 그 행 전체가 일반 글자다(D-03). (3) id 를 식별할 수 있다(`AccountProvider.tryParse` non-null) — 알 수 없는 값은 해제 경로와 문구를 정할 수 없어 일반 글자이고, 한 행에 버튼과 일반 글자가 섞이는 경우는 이 조건에서만 생긴다(D-11). 「연결 가능한 provider 목록」 은 조건에 없다 — 「연결된 계정」 에 나타난 provider 는 어느 것이든 같은 규칙을 탄다. 그래서 지금은 연결 경로가 없는 Naver 도 연결이 생기면 이 함수를 고치지 않고 해제 대상이 된다(D-04 · D-19). 설정 화면의 span 빌더 `buildUnlinkableLinkedAccountsValue` 와 `SettingsNotifier` 는 `canUnlinkProvider` 에 위임만 한다.
+**해제 가능 규칙:** 이름을 밑줄 버튼으로 그릴지는 `canUnlinkProvider`(`lib/features/settings/application/unlink_eligibility.dart`) 한 함수가 정하고, 아래 세 조건이 모두 참일 때만 버튼이다. (1) 가입 수단 기록이 있다(`signUpProviderId` non-null) — 로그인 직후 첫 emit 전이나 Firestore 읽기 실패 fallback 동안은 가입 수단이 연결된 계정 목록에 섞여 있을 수 있으므로 전부 일반 글자다(D-05). (2) 로그인 수단(`User.providerIds`)이 2개 이상이다 — 1개뿐이면 그 행 전체가 일반 글자다(D-03). (3) id 를 식별할 수 있다(`AccountProvider.tryParse` non-null) — 알 수 없는 값은 해제 경로와 문구를 정할 수 없어 일반 글자이고, 한 행에 버튼과 일반 글자가 섞이는 경우는 이 조건에서만 생긴다(D-11). 「연결 가능한 provider 목록」 은 조건에 없다 — 「연결된 계정」 에 나타난 provider 는 어느 것이든 같은 규칙을 탄다. Naver 연결(Phase 16.9)도 이 함수를 고치지 않고 같은 규칙으로 해제된다 — Android UAT 실측(D-04 · D-19 · 16.9 C-07). 설정 화면의 span 빌더 `buildUnlinkableLinkedAccountsValue` 와 `SettingsNotifier` 는 `canUnlinkProvider` 에 위임만 한다.
 
-**경로:** `SettingsNotifier.unlinkProvider` 가 `AccountProvider.isNative` 로 한 번 분기한다(provider 별 switch 없음). **native (Google · Apple · Facebook · Email / Password)** — 클라이언트 `AuthRepository.unlinkNativeProvider` 가 Firebase `User.unlink(providerId)` 를 부른 뒤 `reload()` 한다. native 연결은 Firestore 에 사본이 없으므로 서버 호출도 Firestore write 도 없다. 이메일/비밀번호(`password`)도 같은 규칙으로 해제할 수 있지만, 해제한 이메일/비밀번호를 킷 UI 로 다시 연결하는 경로는 **의도적으로 두지 않았다** — 이메일/비밀번호는 킷이 권장하는 로그인 수단이 아니라 보완적으로 제공하는 수단이라, 설정 「계정 연결」 의 연결 대상에서 제외했다(`AccountLinkingSection` 후보 목록에 없고, `SettingsNotifier.linkProvider` 는 email 에 `unsupported` 를 돌려준다). 해제해도 가입 수단 로그인은 그대로 남는다(아래 불변식 (1)). **Custom Token (Kakao · LINE)** — `AuthRepository.unlinkCustomTokenProvider` 가 callable `unlinkCustomTokenProvider({provider})`(`functions/src/auth/unlink_custom_token_provider.ts` · App Check 필수 · 익명 caller 거부)를 부르고 `{ok: true}` 를 받으면 `reload()` 한다. 서버는 한 transaction 에서 세 항목만 지운다 — `identity_index/{provider}:{providerUserId}` 문서 · `users/{uid}.linkedProviders` 의 그 provider 항목 · `users/{uid}.providerLinkedAt.<provider>` 키. transaction 안에서 후보 `identity_index` 문서와 `users/{uid}` 를 먼저 모두 다시 읽어 소유 여부와 남은 로그인 수단을 다시 세므로, 두 기기에서 동시에 해제해도 수단이 0 이 되지 않는다. 남은 수단은 서버가 Admin `providerData` ∪ 내 소유 `identity_index` 로만 센다 — 클라이언트가 쓸 수 있는 `linkedProviders` 배열은 정리 대상일 뿐 판정에 쓰지 않는다. 입력은 provider 슬러그 하나뿐이고(uid 는 `request.auth.uid`, 문서 id 입력 없음), 서버 로그는 `{event, uid, provider, 계수}` 만 남긴다(provider sub · 이메일 없음).
+**경로:** `SettingsNotifier.unlinkProvider` 가 `AccountProvider.isNative` 로 한 번 분기한다(provider 별 switch 없음). **native (Google · Apple · Facebook · Email / Password)** — 클라이언트 `AuthRepository.unlinkNativeProvider` 가 Firebase `User.unlink(providerId)` 를 부른 뒤 `reload()` 한다. native 연결은 Firestore 에 사본이 없으므로 서버 호출도 Firestore write 도 없다. 이메일/비밀번호(`password`)도 같은 규칙으로 해제할 수 있지만, 해제한 이메일/비밀번호를 킷 UI 로 다시 연결하는 경로는 **의도적으로 두지 않았다** — 이메일/비밀번호는 킷이 권장하는 로그인 수단이 아니라 보완적으로 제공하는 수단이라, 설정 「계정 연결」 의 연결 대상에서 제외했다(`AccountLinkingSection` 후보 목록에 없고, `SettingsNotifier.linkProvider` 는 email 에 `unsupported` 를 돌려준다). 해제해도 가입 수단 로그인은 그대로 남는다(아래 불변식 (1)). **Custom Token (Kakao · Naver · LINE)** — `AuthRepository.unlinkCustomTokenProvider` 가 callable `unlinkCustomTokenProvider({provider})`(`functions/src/auth/unlink_custom_token_provider.ts` · App Check 필수 · 익명 caller 거부)를 부르고 `{ok: true}` 를 받으면 `reload()` 한다. 서버는 한 transaction 에서 세 항목만 지운다 — `identity_index/{provider}:{providerUserId}` 문서 · `users/{uid}.linkedProviders` 의 그 provider 항목 · `users/{uid}.providerLinkedAt.<provider>` 키. transaction 안에서 후보 `identity_index` 문서와 `users/{uid}` 를 먼저 모두 다시 읽어 소유 여부와 남은 로그인 수단을 다시 세므로, 두 기기에서 동시에 해제해도 수단이 0 이 되지 않는다. 남은 수단은 서버가 Admin `providerData` ∪ 내 소유 `identity_index` 로만 센다 — 클라이언트가 쓸 수 있는 `linkedProviders` 배열은 정리 대상일 뿐 판정에 쓰지 않는다. 입력은 provider 슬러그 하나뿐이고(uid 는 `request.auth.uid`, 문서 id 입력 없음), 서버 로그는 `{event, uid, provider, 계수}` 만 남긴다(provider sub · 이메일 없음).
 
 **불변식:** (1) **가입 수단은 해제할 수 없다.** 가입 수단은 `splitAccountProviders` 가 「연결된 계정」 목록에서 이미 빼고 「가입 수단」 값에 일반 글자로 보이므로 해제 버튼 자체가 없다 — 가입 수단을 없애는 방법은 회원탈퇴뿐이다(D-01). (2) **해제는 `signUpProviderId` 를 쓰지 않는다.** native 경로와 CT callable 모두 읽기만 하고 write 는 0 이다(unit · Jest 로 고정). 그래서 해제 뒤에도 「가입 수단」 은 그대로다. (3) **마지막 로그인 수단은 해제할 수 없다.** 클라이언트는 위 규칙 (2) 로 버튼을 그리지 않고, Custom Token 은 서버가 한 번 더 거부한다(`failed-precondition` · `details.reason: 'last_credential'` → 「로그인 수단이 하나뿐이라 연결을 해제할 수 없습니다.」). native 는 클라이언트가 Firebase 를 직접 부르므로 서버 가드가 없다 — 이 앱 UI 로는 그 상태에 닿을 수 없고, 다른 클라이언트나 Admin 경로가 수단 0 을 만드는 경우는 킷 방어 범위 밖이다(D-03 · D-22).
 
@@ -2538,7 +2564,7 @@ Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 �
 
 **provider 를 추가 · 제거할 때:**
 
-- **Custom Token provider** — 해제 callable 은 편집 0 이다. `CUSTOM_TOKEN_PROVIDER_PRIORITY`(`functions/src/auth/identity_index.ts`) 목록에 슬러그가 있으면 해제 대상이고, 목록에서 빼면 그 슬러그 요청은 `invalid-argument` 로 거부된다. 목록을 바꾸면 `unlinkCustomTokenProvider` 도 재배포 대상에 넣는다. Naver 는 지금 연결 경로가 없어 「연결된 계정」 에 나타나지 않지만, 연결이 생기면(todo `2026-09-26-naver-account-linking-support.md` · D-20) 해제는 목록에 이미 있는 `naver` 로 자동 동작한다 — 클라이언트 `canUnlinkProvider` 도 목록을 보지 않는다.
+- **Custom Token provider** — 해제 callable 은 편집 0 이다. `CUSTOM_TOKEN_PROVIDER_PRIORITY`(`functions/src/auth/identity_index.ts`) 목록에 슬러그가 있으면 해제 대상이고, 목록에서 빼면 그 슬러그 요청은 `invalid-argument` 로 거부된다. 목록을 바꾸면 `unlinkCustomTokenProvider` 도 재배포 대상에 넣는다. Naver 는 Phase 16.9 부터 「연결된 계정」 에 나타나며, 해제는 목록에 이미 있는 `naver` 로 자동 동작한다 — 클라이언트 `canUnlinkProvider` 도 목록을 보지 않는다.
 - **native provider** — 해제 쪽 편집 0 이다. `AccountProvider.isNative` 가 경로를 정하므로, 새 provider 가 `AccountProvider` 에 native 로 등록되면(위 「가입 수단 기록」 절의 표시 쪽 할 일) 해제는 `User.unlink` 경로를 탄다.
 - **문구** — ARB 키 `settingsUnlinkProviderSemantic` · `settingsUnlinkDialogTitle` · `settingsUnlinkDialogBody` · `settingsUnlinkConfirmAction` · `accountUnlinkSucceededSnackbar` · `settingsUnlinkFailedLastCredential` · `settingsUnlinkFailedAlreadyUnlinked` · `settingsUnlinkFailedTransient` · `settingsUnlinkFailedUnknown` 를 3 locale(ko · en · ja) 함께 바꾼다. 다이얼로그 제목 · 본문 · 버튼 라벨을 바꾸면 설정 · 해제 다이얼로그 golden(`test/features/settings/presentation/goldens/`)과 widget test 의 문구 단언이 먼저 red 가 된다.
 
@@ -2550,6 +2576,27 @@ Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 �
 - **해제 가능 규칙을 바꾸려면** — `canUnlinkProvider` 한 곳과 그 테스트 `test/features/settings/application/unlink_eligibility_test.dart` 를 함께 고친다. 예를 들어 「로그인 수단이 1개여도 허용」 으로 바꾸면 EL2 가 red 가 되고, Custom Token 서버의 `last_credential` 거부도 같이 바꿔야 실제로 해제된다.
 - **진행 표시를 바꾸려면** — `UnlinkConfirmationDialog`(`lib/features/settings/presentation/_widgets/unlink_confirmation_dialog.dart`)의 로컬 상태 `_busy`(두 버튼 비활성 · 본문 아래 스피너 · 처리 중 `PopScope` 로 닫힘 차단)다. 계정 연결의 진행 상태와는 공유하지 않는다.
 - **결과 안내를 바꾸려면** — 설정 화면 `_onUnlinkPressed` 가 `AccountUnlinkOutcome` 값별로 SnackBar · 재로그인 이동을 정한다. 다이얼로그는 결과를 돌려주기만 한다.
+
+### Naver 계정 연결 (Phase 16.9)
+
+**동작:** 설정 「계정 연결」 섹션에 「네이버 연결」 버튼이 있다 — 후보 목록 `_kProactiveLinkCandidates`(`lib/features/settings/presentation/_widgets/account_linking_section.dart`)에서 카카오와 라인 사이다(Phase 16 Surface D mockup 순서 · 서버 `CUSTOM_TOKEN_PROVIDER_PRIORITY` 와 같은 순서). 누르면 `SettingsNotifier.linkProvider` → `AuthRepository.linkNaverProviderArm` 이 로그인과 같은 `NaverSdkClient.signIn()` 을 부른다 — NAVER 앱이 설치돼 있으면 1-tap, 없거나 설치 판정에 실패하면 브라우저(킷 웹 흐름)이고, 경로 선택은 자동이다. 연결되는 네이버 계정은 그 경로에 이미 로그인돼 있는 계정이다(1-tap = NAVER 앱 계정 · 웹 = 브라우저 SSO 쿠키 — 네이버 로그인과 같다). 잘못된 네이버 계정을 연결했다면 아래 **해제** 로 끊고 원하는 계정으로 다시 연결한다. 성공하면 「네이버 계정이 연결되었습니다」 SnackBar 가 뜨고, 「연결된 계정」 에 네이버가 밑줄 이름(= 해제 버튼)으로 나타나며, 「네이버 연결」 버튼은 사라진다. NAVER 앱이나 브라우저에서 취소하면 안내 없이 조용히 끝난다(no-op · 서버 호출 0). 마지막 로그인 뒤 5분이 지난 세션이면 서버가 거부하고 「보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.」 SnackBar 와 함께 재로그인 화면으로 간다 — 재로그인 뒤 다시 누르면 네이버 인증을 한 번 더 하게 되어 인증이 두 번 낭비된다. 이것은 Kakao · LINE · Google 연결과 같은 공통 한계이고, 연결 전에 세션 신선도를 먼저 확인하는 개선은 todo `2026-09-27-link-reauth-precheck.md` 에 있다(16.9 D-02).
+
+**서버:** callable `linkNaverProvider`(`functions/src/auth/link_naver_provider.ts` · App Check 필수)다. 입력은 두 모양이고 필드 존재로 판별한다 — 1-tap `{idToken, accessToken}` / 웹 `{idToken, code, state}`. 두 모양이 섞이거나 둘 다 없으면 `invalid-argument` 다. 순서가 중요하다: (1) caller 검사 — `idToken` 을 `verifyIdToken(checkRevoked)` 로 풀어 uid 일치 · 재인증 신선도(`assertFreshAuth` · 300초) · 익명 caller 거부(`failed-precondition`)를 **code 교환보다 먼저** 한다. 오래된 세션이면 1회용 code 를 소비하지 않고 거부한다. (2) 웹 모양이면 `exchangeNaverAuthCode`(`functions/src/auth/naver_token_exchange.ts` — 웹 로그인 `naverWebCustomToken` 과 같은 교환 코드)로 code 를 access token 으로 바꾼다. (3) `fetchNaverProfile`(`naver_profile_to_custom_token.ts` — 로그인과 같은 `/v1/nid/me` 검증)로 네이버 `id` 를 얻는다. (4) `linkCustomTokenIdentity`(`link_identity_transaction.ts` — Kakao / LINE 연결과 같은 transaction)가 `identity_index/naver:{id}` 문서를 만들고 `users/{uid}.linkedProviders` 항목과 `providerLinkedAt.naver` 를 쓴 뒤 `{ok: true}` 를 돌려준다. secret `NAVER_CLIENT_SECRET` · `NAVER_CLIENT_ID` 는 이 함수에 binding 된다(웹 모양 교환용 — 「Naver Login」 절 8단계 표). 클라이언트 timeout 은 1-tap 10초 · 웹 20초로 로그인과 같다. 오류 매핑은 연결 공통이다 — `unauthenticated`(재인증 필요) → 재로그인 화면, `already-exists` → 「이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.」, `unavailable` → 「네트워크 또는 서비스 오류로 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.」.
+
+**불변식:** 연결은 계정의 신원 원장만 바꾼다. (1) `signUpProviderId` 는 쓰지 않는다 — 「가입 수단」 은 연결 뒤에도 그대로다(「가입 수단 기록」 절 표의 「기록 안 함」 행). (2) Firebase user record(email · displayName · photoURL)와 Firestore 프로필 필드 write 는 0 이다. (3) 이메일 충돌 검사는 하지 않는다 — 연결 callable 은 네이버 이메일을 읽지 않는다. (4) 다른 계정에 이미 묶인 네이버 신원은 `already-exists` 로 거부되고 원장은 바뀌지 않는다. 같은 계정에 다시 연결하면 멱등이다(`linkedAt` 보존). (5) access token 은 서버 메모리에서만 쓰고 클라이언트로 돌려주지 않으며, NAVER 토큰 삭제(폐기) 요청은 0 이다. 연결이 끝나면 클라이언트는 `finally` 에서 NAVER 로컬 로그아웃만 한다. **주의 — 연결 뒤 네이버로 로그인할 때:** 연결 callable 과 달리 **로그인** 경로는 「IdP 프로필 동기화 정책」 절의 정책을 그대로 탄다. 그래서 연결된 네이버로 다시 로그인하면 계정 email · 이름 · 사진이 네이버 값으로 바뀐다(Android UAT 관측 O1 · `signUpProviderId` 는 불변). 가입 수단으로 로그인할 때만 갱신하도록 바꾸는 작업은 todo `2026-09-27-linked-relogin-profile-refresh-signup-only.md` 에 있다.
+
+**해제:** 「계정 연결 해제 (Phase 16.8)」 절 규칙 그대로다 — 「연결된 계정」 의 밑줄 이름 「네이버」 → 확인 다이얼로그 → `unlinkCustomTokenProvider`. 서버 `CUSTOM_TOKEN_PROVIDER_PRIORITY` 에 `naver` 가 이미 있어 해제 쪽 코드 변경은 0 이다 — Android 실기기 UAT 에서 해제 뒤 원장 부재 · 「네이버 연결」 버튼 재등장을 실측했다(`.planning/phases/16.9-naver-account-linking/uat-evidence/android-uat-16.9.md` 마커 `UAT169_UNLINK: PASS` · `UAT169_UNLINK_CODE_CHANGE: none`).
+
+**확인 방법:** 두 끝을 모두 본다. (1) 화면 — 연결 뒤 「연결된 계정」 에 네이버가 있고 「네이버 연결」 버튼이 없는지, 「가입 수단」 은 그대로인지. 로그아웃 뒤 네이버로 로그인하면 같은 계정(같은 데이터)으로 들어오는지. (2) 원장 — Firestore `identity_index` 에 `provider == "naver"` 이고 `firebaseUid == <uid>` 인 문서가 1건인지, `users/{uid}.linkedProviders` 에 naver 항목 · `providerLinkedAt.naver` 키가 있는지, `users/{uid}.signUpProviderId` 가 연결 전과 같은지, Identity Toolkit `accounts:lookup` 의 email · displayName · photoUrl 이 연결 전과 같은지(연결 직후 · 재로그인 전 기준). 서버 로그 Cloud Logging 에는 성공 때 `link_naver_provider_succeeded` 가 `path` `link_app`(1-tap) 또는 `link_web`(웹)으로 남는다 — 로그인 이벤트(`path` `app` · `web`)와는 `path` 로 가른다. 검증 단계의 공용 이벤트(`naver_verify_*` · `naver_fetch_failed`)도 같은 `path` 값을 싣는다. Admin(Console · 스크립트)으로 원장을 바꾼 직후에는 기기 캐시가 옛 목록을 보일 수 있으니 앱 재시작이나 재로그인 뒤 대조한다.
+
+**배포 · 제거:** 새 함수는 `firebase deploy --only functions:linkNaverProvider` 로 배포하고 invoker 를 확인한다(「Naver Login」 절 10단계 — 첫 배포가 끊기면 invoker 가 빠질 수 있다). Phase 16.9 는 dev 에 `linkNaverProvider` 와 `linkCustomTokenProvider`(연결 transaction 을 `link_identity_transaction.ts` 로 옮긴 재배포)만 배포했다. Naver 로그인 함수 `naverCustomToken` · `naverWebCustomToken` 은 소스가 동작 불변 리팩터(검증 helper 분리 · 교환 모듈 이동)만 받아 재배포하지 않았다 — dev 배포본은 리팩터 전 코드이고 다음 전체 배포 때 따라간다(`uat-evidence/deploy-16.9.md` 마커 `NOT_REDEPLOYED_REFACTOR`). **provider 를 추가 · 제거할 때:** Naver 연결만 빼려면 `link_naver_provider.ts` 삭제 + `functions/src/index.ts` 의 export 1줄 + `firebase functions:delete linkNaverProvider` + 클라이언트 후보 목록 원소 1개 · `SettingsNotifier` 의 naver arm · `AuthRepository.linkNaverProviderArm` 이다 — `linkCustomTokenProvider` 는 재배포할 필요가 없다(Naver 분기 · secret 0). Naver 를 킷에서 통째로 빼는 순서는 「Custom Token Provider 제거 가이드 (Phase 16.6)」 ⑦ 의 Naver 항목을 따른다. OIDC ID token 을 주는 새 provider 는 `linkCustomTokenProvider` 에 붙이고, Naver 처럼 access token 으로 검증하는 provider 는 이 callable 을 본떠 전용 callable 을 두면 연결 transaction(`linkCustomTokenIdentity`)과 해제 callable 은 그대로 재사용된다.
+
+**커스터마이징:**
+
+- **후보 · 순서** — `_kProactiveLinkCandidates` 원소 순서가 버튼 순서다. 원소를 빼면 「네이버 연결」 버튼만 사라지고 서버 · 해제는 그대로 남는다.
+- **타임아웃** — `AuthRepository._kCustomTokenTimeout`(1-tap 10초) · `_kNaverWebCustomTokenTimeout`(웹 20초). 로그인과 연결이 같은 상수를 쓴다.
+- **재인증 창** — `functions/src/shared/reauth.ts` 의 `assertFreshAuth`(300초) 한 곳이다. `linkCustomTokenProvider` · `linkNaverProvider` · `deleteUserAccount` 가 공유하므로 Naver 만 바꾸려면 호출부에서 따로 판정해야 한다.
+- **연결 전 신선도 사전 확인** — 미구현(todo `2026-09-27-link-reauth-precheck.md`). 켜면 클라이언트가 `getIdTokenResult().authTime` 을 먼저 보고 네이버 인증 전에 재로그인으로 보낸다.
 
 ### Phase 17 deferred — Storage cascade
 
@@ -4506,7 +4553,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-26 | 16.7-09 | Phase 16.7 가입 수단 · 연결된 계정 분리 반영 — 「가입 수단 기록 (Phase 16.7)」 절 신설(「약관 동의 서버 기록」 절 뒤: 필드 `users/{uid}.signUpProviderId` · 값 형식 7종 · 기록 지점 2곳(native = 클라이언트 `SignUpMethodRecorder` 콜백 · call site 4곳 · `unawaited` · CT = `resolveIdentity` 신규 등록 tx) · 「가입」 정의 표(D-14) · 약관 mirror 선행 순서(D-19 · D-29) · fallback(D-11 「-」 + 연결 = 전부 · D-12) · 위조 한계(WR-12 · 표시 전용 · 서버 판단 미사용 · Phase 18) · provider 추가/제거 때 할 일 · 확인 방법) · stale 2곳 정정(`linkedProvidersStream` race 절의 옛 카드 이름 → 「가입 수단」 · 「연결된 계정」 카드 + D-11 fallback 표시 · Kakao UAT 4단계 확인 문구 → 「가입 수단: 카카오」 · 「연결된 계정: 없음」) · 「Custom Token Provider 제거 가이드」 3-⑥ 잔존 데이터 계수에 `users.signUpProviderId == <slug>` 추가 |
 | 2026-09-27 | 16.8-06 | Phase 16.8 연결된 계정 해제 반영 — 「계정 연결 해제 (Phase 16.8)」 절 신설(「가입 수단 기록 (Phase 16.7)」 절 뒤 · 9 문단 + 표 1: 동작(밑줄 이름 = 해제 · 일반 글자 = 불가 · 확인 다이얼로그 · 「{provider} 연결」 버튼 재등장 · 홈 보기 전용 · 재인증 없음 D-06) · 해제 가능 규칙(`canUnlinkProvider` 3조건 · 연결 가능 목록 비의존) · 경로(native `User.unlink` + `reload` / CT callable `unlinkCustomTokenProvider` 한 transaction 3항목 삭제 · 서버 재계수) · 불변식(가입 수단 불가 = 회원탈퇴만 · `signUpProviderId` write 0 · 마지막 수단 불가) · 한계(provider 측 끊기 · 토큰 폐기 0 → todo) · 해제 후 재로그인 표(D-21 같은 이메일 → 기존 계정 안내 시트 / 다르거나 없음 → 새 계정 → 원 계정 재연결은 새 계정 탈퇴 뒤) · provider 추가/제거 때 할 일 · 확인 방법(화면 + 원장) · 커스터마이징(재인증 · 규칙 · 진행 표시 · 결과 안내)) |
 | 2026-09-27 | 16.8 review fix | 「계정 연결 해제 (Phase 16.8)」 절 정정 — 「경로」 native 목록에 Email / Password 추가(review IN-03) · 이메일/비밀번호는 권장 수단이 아닌 보완 수단이라 계정 연결 대상에서 의도적으로 제외했고 해제 뒤 킷 UI 재연결 경로가 없다는 설계 명시 · 「동작」 의 「{provider} 연결」 버튼 재등장과 D-06 근거(「언제든 다시 연결」)에 이메일/비밀번호 예외 병기(review WR-02) · 커스터마이징 「해제 전 재인증」 항목을 현행 매핑으로 정정 — 해제 wrapper 는 `unauthenticated` · `permission-denied` 를 일반 오류로 흘리므로(App Check 차단 = `unauthenticated`) 재인증을 켤 때 `details.reason` 선분기를 더해야 함(review IN-06). |
+| 2026-09-27 | 16.9-05 | Phase 16.9 Naver 계정 연결 반영 — 「Naver 계정 연결 (Phase 16.9)」 절 신설(「계정 연결 해제 (Phase 16.8)」 절 뒤 · 7 문단: 동작(「네이버 연결」 버튼 · 카카오와 라인 사이 · `NaverSdkClient.signIn()` 1-tap/웹 자동 · 취소 no-op · 재인증 5분 → 재로그인 · 인증 2회 낭비 todo) · 서버(`linkNaverProvider` 입력 두 모양 · caller 검사 뒤 code 교환 · `fetchNaverProfile` · `linkCustomTokenIdentity` · secret binding) · 불변식(가입 수단 · 프로필 write 0 · 이메일 미검사 · 토큰 폐기 0 · 연결 뒤 네이버 로그인의 프로필 덮어쓰기 주의) · 해제(16.8 규칙 · UAT 실측) · 확인 방법(화면 + 원장 · `link_app`/`link_web`) · 배포 · 제거(로그인 함수 미재배포 · provider 추가/제거) · 커스터마이징) · Account Linking 분기 bullet 을 Kakao/LINE(`linkCustomTokenProvider`)과 Naver(`linkNaverProvider`)로 분리 · Naver 주의 문단을 양방향 지원으로 교체 · 해제 절 2 문장 현재형 + 「경로」 Custom Token 목록에 Naver · Naver 절 8단계 secret 표 사용처 · 10단계 배포 필터 · 콘솔 확인 · invoker 확인 · 제거 가이드 ⑦ Naver 항목 · 가입 정의 표 「기록 안 함」 셀에 `linkNaverProvider` |
 
 ---
 
-*Last updated: 2026-09-27 — 16.8 review fix 계정 연결 해제 절 정정*
+*Last updated: 2026-09-27 — 16.9-05 Naver 계정 연결 절 신설*
