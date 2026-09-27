@@ -28,6 +28,13 @@ import '../../auth/domain/user.dart';
 /// 가입 수단 자체는 `splitAccountProviders` 가 연결된 계정 목록에서 이미
 /// 뺐으므로 여기로 오지 않는다 — 가입 수단을 없애는 방법은 회원탈퇴뿐이다
 /// (D-01).
+///
+/// **이메일/비밀번호(`password`)도 해제 대상이다 (16.8 review WR-02).** 같은
+/// 3조건을 타며, 해제한 이메일/비밀번호를 킷 UI 로 다시 연결하는 경로가 없는
+/// 것은 결함이 아니라 의도된 설계다 — 이메일/비밀번호는 킷이 권장하는 로그인
+/// 수단이 아니라 보완적으로 제공하는 수단이라 설정 「계정 연결」 의 연결
+/// 대상에서 일부러 뺐다(`AccountLinkingSection` 후보 · `linkProvider` 의
+/// `unsupported`). 해제해도 가입 수단 로그인은 그대로 남는다.
 bool canUnlinkProvider(User? user, String providerId) {
   if (user == null) return false;
   return user.signUpProviderId != null &&

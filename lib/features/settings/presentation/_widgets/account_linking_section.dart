@@ -36,6 +36,9 @@ import '../settings_notifier.dart';
 ///
 /// **제외 대상 2종:**
 /// - `email` — 사용자 시각 sign-off 2026-06-02 (mockup §0 EXCLUDE).
+///   이메일/비밀번호는 킷이 권장하는 로그인 수단이 아니라 보완적으로 제공하는
+///   수단이라 계정 연결 대상에서 의도적으로 뺀다. 그래서 연결된 계정에서
+///   해제한 이메일/비밀번호(Phase 16.8)도 이 화면으로 다시 연결하지 않는다.
 /// - `naver` — deployed callable 이 OIDC 를 지원하지 않아
 ///   [SettingsNotifier.linkProvider] 가 100% [AccountLinkOutcome.unsupported]
 ///   로 끝난다 (10-REVIEW WR-15). 성공 확률 0 인 affordance 는 사용자에게
@@ -247,7 +250,8 @@ Set<AccountProvider> _linkedSocialProviders(List<String>? providerIds) {
   final result = <AccountProvider>{};
   for (final id in providerIds) {
     final provider = AccountProvider.tryParse(id);
-    // email(=password slug) 은 소셜 아님 → 제외 (mockup §0).
+    // email(=password slug) 은 소셜 아님 → 제외 (mockup §0). 이메일/비밀번호는
+    // 보완 수단이라 연결 대상이 아니다 (`_kProactiveLinkCandidates` 참고).
     if (provider != null && provider != AccountProvider.email) {
       result.add(provider);
     }
