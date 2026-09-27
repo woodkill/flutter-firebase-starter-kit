@@ -373,7 +373,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String errorAccountExistsWithProvider(String provider) {
-    return '이 이메일은 $provider로 가입되어 있습니다. $provider로 로그인하여 계정을 연결하세요.';
+    return '이 이메일은 $provider 계정으로 가입되어 있습니다. $provider 계정으로 로그인하여 연결하세요.';
   }
 
   @override
