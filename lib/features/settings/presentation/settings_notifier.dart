@@ -299,9 +299,11 @@ enum AccountUnlinkOutcome {
   cancelled,
 
   /// 재인증 필요 ([ReauthenticationRequiredException] — native
-  /// `requires-recent-login` · callable `unauthenticated`/`permission-denied`)
-  /// — `authReauthRequired` 로 렌더 + 재로그인 라우팅. D-06 으로 기대하지 않는
-  /// 방어 매핑.
+  /// `requires-recent-login` 뿐) — `authReauthRequired` 로 렌더 + 재로그인
+  /// 라우팅. D-06 으로 기대하지 않는 방어 매핑. callable 의 `unauthenticated`
+  /// · `permission-denied` 는 App Check 차단과 code 를 공유해 재로그인으로
+  /// 해소되지 않으므로 여기가 아니라 [transientFailure] 로 간다 (16.8 review
+  /// IN-06 · iteration 2 WR-01).
   reauthRequired,
 
   /// 남은 로그인 수단이 하나뿐 ([UnlinkLastCredentialRejected] — callable
@@ -314,9 +316,18 @@ enum AccountUnlinkOutcome {
   alreadyUnlinked,
 
   /// 네트워크 / 서비스 일시 오류 ([NetworkException] 계열 · [TooManyRequests]
-  /// · [ServiceUnavailable] — `network-request-failed` · `too-many-requests` ·
-  /// `unavailable` · `deadline-exceeded` · `resource-exhausted`) —
-  /// `settingsUnlinkFailedTransient` 로 렌더.
+  /// · [ServiceUnavailable]) — `settingsUnlinkFailedTransient` 로 렌더.
+  ///
+  /// - native: `network-request-failed` · `too-many-requests` · 그 밖의
+  ///   미분류 Auth code(`_logAndFallback`).
+  /// - callable: `unavailable` · `deadline-exceeded` · `resource-exhausted` ·
+  ///   `unauthenticated`(App Check 차단 · auth 부재) · `invalid-argument` ·
+  ///   reason 이 `last_credential` 이 아닌 `failed-precondition`
+  ///   (`anonymous_caller`) · `internal` 등 미분류 code, 서버가 던지지 않는
+  ///   `permission-denied`(`caller_identity_mismatch` 제외) 방어 매핑.
+  /// - 비-Auth · 비-Functions 예외.
+  ///
+  /// (16.8 review IN-06 · iteration 2 WR-01)
   transientFailure,
 
   /// 분류되지 않은 해제 실패 catch-all (그 외 [AppException]) —
