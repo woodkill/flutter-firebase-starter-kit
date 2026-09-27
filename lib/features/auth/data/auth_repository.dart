@@ -2989,8 +2989,10 @@ class AuthRepository implements AnonymousSignIn {
   /// - `unauthenticated` / `invalid-argument` / `failed-precondition` /
   ///   `permission-denied`
   ///   → [ServiceUnavailable] (`unauthenticated` = App Check 차단 · auth
-  ///    무효 · token age 위반 / JWT 검증 실패 / 사전 조건 위배 /
-  ///    `permission-denied` = idToken uid 불일치 — 16.8 review IN-06 정정)
+  ///    무효 · idToken 검증 실패 · token age 위반 · IdP 자격증명 거부 /
+  ///    `invalid-argument` = 입력 계약 위반 / `failed-precondition` = 사전
+  ///    조건 위배(익명 caller 등) / `permission-denied` = idToken uid 불일치
+  ///    — 16.8 review IN-06 · iteration 2 IN-02 정정)
   /// - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
   ///   (Cloud Function 일시 장애 / 네트워크 지연)
   /// - `already-exists` → [AccountExistsWithDifferentCredential]
