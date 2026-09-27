@@ -1302,9 +1302,12 @@ class AuthRepository implements AnonymousSignIn {
   ///    (kakao→[KakaoSdkClient.signIn], line→[LineSdkClient.signIn]).
   ///    사용자 취소 (null) 시 `null` 반환
   ///    (silent — linkedProviders 변경 0).
-  /// 4. `currentUser.getIdToken(true /* forceRefresh */)` 로 caller fresh ID
-  ///    Token 발급 — signIn **뒤** 에 둔다 (server-side auth_time 5분 boundary
-  ///    는 SDK 왕복 시간을 뺀 뒤에 재야 한다).
+  /// 4. SDK 왕복 뒤 caller 재확인 ([_readUnchangedCaller]) — current user 가
+  ///    null · 익명 · 2 단계와 다른 uid 로 바뀌었으면 [UnknownException]
+  ///    (16.9 review iteration 2 WR-01). 통과하면 `getIdToken(true /*
+  ///    forceRefresh */)` 로 caller fresh ID Token 발급 — signIn **뒤** 에
+  ///    둔다 (server-side auth_time 5분 boundary 는 SDK 왕복 시간을 뺀 뒤에
+  ///    재야 한다).
   /// 5. `_functions.httpsCallable('linkCustomTokenProvider')` 호출 —
   ///    deployed contract `{idToken, targetProvider, targetProviderToken,
   ///    nonce} → {ok:true}` (link_custom_token_provider.ts line 67~80 verbatim).
@@ -1339,8 +1342,8 @@ class AuthRepository implements AnonymousSignIn {
   ///   [_mapFunctionsException] (적절 [AppException]).
   ///
   /// **구조적(결정적) 실패는 [UnknownException] 이다 (WR-06).** caller 부재 /
-  /// 익명 caller / `getIdToken` null / 응답 `ok != true` 는 재시도로 해소되지
-  /// 않는다. [ServiceUnavailable] 로 두면 하류 `SettingsNotifier._mapLinkFailure`
+  /// 익명 caller / SDK 왕복 중 caller 교체 / `getIdToken` null / 응답
+  /// `ok != true` 는 재시도로 해소되지 않는다. [ServiceUnavailable] 로 두면 하류 `SettingsNotifier._mapLinkFailure`
   /// 가 [AccountLinkOutcome.transientFailure] ("잠시 후 다시 시도해 주세요") 로
   /// 안내해 사용자가 매 시도마다 SDK OAuth 왕복을 반복하는 무한 루프에 든다.
   /// [ServiceUnavailable] 은 실제 서비스 **도달** 실패에만 남긴다.
@@ -1396,10 +1399,21 @@ class AuthRepository implements AnonymousSignIn {
       final targetToken = await _acquireTargetProviderToken(targetProvider);
       if (targetToken == null) return null; // 사용자 취소 — no-op.
 
-      // Step 3-1 — caller fresh ID Token (forceRefresh=true). signIn 뒤에
+      // Step 3-1 — WR-06 재확인 (16.9 review iteration 2 WR-01). SDK 왕복
+      // 동안 세션이 바뀌었으면 (sign-out · 익명 재진입 · 다른 계정) 결정적
+      // 실패다. `User.getIdToken` 은 캡처한 객체가 아니라 호출 시점의
+      // native current user 토큰을 만들므로, 캡처 객체만 믿으면 이 실패가
+      // 서버 왕복 + transientFailure 로 흘러간다.
+      final caller = _readUnchangedCaller(currentUser.uid);
+      if (caller == null) {
+        // WR-06: 결정적 실패 — 재시도 유도 금지 (왕복 전 검사와 같은 판정).
+        return const Result.failure(UnknownException());
+      }
+
+      // Step 3-2 — caller fresh ID Token (forceRefresh=true). signIn 뒤에
       // 발급해야 server-side auth_time 5분 boundary 가 SDK 왕복 시간을
       // 잡아먹지 않는다.
-      final callerIdToken = await currentUser.getIdToken(true);
+      final callerIdToken = await caller.getIdToken(true);
       if (callerIdToken == null) {
         // WR-06: 결정적 실패 — 재시도 유도 금지.
         return const Result.failure(UnknownException());
@@ -1426,8 +1440,8 @@ class AuthRepository implements AnonymousSignIn {
         // (unavailable / deadline-exceeded) 에만 남긴다.
         return const Result.failure(UnknownException());
       }
-      await currentUser.reload();
-      final refreshed = _auth.currentUser ?? currentUser;
+      await caller.reload();
+      final refreshed = _auth.currentUser ?? caller;
       return Result.success(_mapFirebaseUser(refreshed));
     } on FirebaseFunctionsException catch (e) {
       // 16.9 review WR-01: 연결 callable 공용 판정 — 재로그인은 서버가
@@ -1467,7 +1481,9 @@ class AuthRepository implements AnonymousSignIn {
   /// 3. [NaverSdkClient.signIn] — 경로 선택(설치 판정 · 1-tap/웹) · `state`
   ///    생성/대조 · 취소 처리는 전부 이 호출에서 상속한다(C-02 · 16.5 D-04).
   ///    `null`(사용자 취소 · 재진입) → `null` 반환(no-op).
-  /// 4. caller fresh ID Token (`getIdToken(true)`) — signIn **뒤** 에 발급
+  /// 4. NAVER 왕복 뒤 caller 재확인 ([_readUnchangedCaller] — null · 익명 ·
+  ///    다른 uid 면 [UnknownException], 16.9 review iteration 2 WR-01) →
+  ///    caller fresh ID Token (`getIdToken(true)`) — signIn **뒤** 에 발급
   ///    한다(서버 auth_time 5분 boundary 통과 의무).
   /// 5. 결과 variant 로 payload · timeout 을 고른다([_naverLinkPayload]) →
   ///    callable `linkNaverProvider` 호출 → `{ok:true}` 검증 → reload.
@@ -1493,8 +1509,8 @@ class AuthRepository implements AnonymousSignIn {
   ///   그대로 전달, 기타 [Object] → [ServiceUnavailable] 단일 매핑.
   ///
   /// **구조적(결정적) 실패는 [UnknownException] 이다 (WR-06).** caller 부재 /
-  /// 익명 caller / `getIdToken` null / 응답 `ok != true` 는 재시도로 해소되지
-  /// 않는다.
+  /// 익명 caller / NAVER 왕복 중 caller 교체 / `getIdToken` null / 응답
+  /// `ok != true` 는 재시도로 해소되지 않는다.
   ///
   /// **PII invariant (T-16-09-02 관례):** catch path 의 [debugPrint] 는
   /// runtimeType 만 출력한다 — access token · code · state · idToken · 이메일
@@ -1525,9 +1541,19 @@ class AuthRepository implements AnonymousSignIn {
       final result = await _naverSdkClient.signIn();
       if (result == null) return null; // 사용자 취소 — no-op.
 
+      // WR-06 재확인 (16.9 review iteration 2 WR-01) — NAVER 왕복 동안 세션이
+      // 바뀌었으면 결정적 실패다. `User.getIdToken` 은 호출 시점의 native
+      // current user 토큰을 만들므로 캡처 객체만 믿지 않는다
+      // ([linkCustomTokenProviderArm] mirror).
+      final caller = _readUnchangedCaller(currentUser.uid);
+      if (caller == null) {
+        // WR-06: 결정적 실패 — 재시도 유도 금지.
+        return const Result.failure(UnknownException());
+      }
+
       // signIn 뒤에 발급 — 서버 auth_time 5분 boundary 가 NAVER 왕복 시간을
       // 잡아먹지 않는다.
-      final callerIdToken = await currentUser.getIdToken(true);
+      final callerIdToken = await caller.getIdToken(true);
       if (callerIdToken == null) {
         // WR-06: 결정적 실패 — 재시도 유도 금지.
         return const Result.failure(UnknownException());
@@ -1546,8 +1572,8 @@ class AuthRepository implements AnonymousSignIn {
         // WR-06: 서버 계약 위반 (도달은 성공했으나 ok != true).
         return const Result.failure(UnknownException());
       }
-      await currentUser.reload();
-      return Result.success(_mapFirebaseUser(_auth.currentUser ?? currentUser));
+      await caller.reload();
+      return Result.success(_mapFirebaseUser(_auth.currentUser ?? caller));
     } on FirebaseFunctionsException catch (e) {
       // 16.9 review WR-01: [linkCustomTokenProviderArm] 과 같은 공용 판정 —
       // Naver 거부(`/v1/nid/me` 401 · code 교환 invalid_grant) · App Check
@@ -1572,6 +1598,25 @@ class AuthRepository implements AnonymousSignIn {
       await _naverSdkClient.logout();
       _socialLinkInProgress.end();
     }
+  }
+
+  /// SDK 왕복 뒤 current user 가 왕복 전 [expectedUid] 의 정식 계정 그대로면
+  /// 그 [fb.User] 를, 아니면 `null` 을 돌려준다 — 두 연결 arm 공용
+  /// (16.9 review iteration 2 WR-01).
+  ///
+  /// NAVER · Kakao · LINE 왕복(수십 초~분) 동안 SDK 가 세션을 끊고 Splash 가
+  /// 익명으로 재진입하거나 다른 계정으로 바뀔 수 있다. `User.getIdToken` 은
+  /// 캡처한 객체가 아니라 호출 시점의 native current user 토큰을 만들므로
+  /// (firebase_auth 6.7.0 — Android `getCurrentUserFromPigeon` · iOS
+  /// `getFIRAuthFromPigeon(app).currentUser`), 왕복 전에 캡처한 객체로 토큰을 받으면 익명 caller 는
+  /// 서버 `failed-precondition` → transientFailure(WR-06 위반), 다른 계정은
+  /// 사전 검사하지 않은 계정에 연결된다. network 비용 없는 동기 읽기다.
+  fb.User? _readUnchangedCaller(String expectedUid) {
+    final user = _auth.currentUser;
+    if (user == null || user.isAnonymous || user.uid != expectedUid) {
+      return null;
+    }
+    return user;
   }
 
   /// 연결 callable(`linkCustomTokenProvider` · `linkNaverProvider`) 거부를

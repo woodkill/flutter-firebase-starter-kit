@@ -20,7 +20,9 @@
 //       → ProviderAlreadyLinkedToThisAccount (16.9 review IN-03)
 //   R6: unavailable → NoInternetConnection · failed-precondition → ServiceUnavailable
 //   R7: ok:false · currentUser null · 익명 → UnknownException (WR-06) —
-//       null · 익명은 signIn 전에 거부 (16.9 review IN-02)
+//       null · 익명은 signIn 전에 거부 (16.9 review IN-02) · NAVER 왕복 중
+//       current user 가 null · 익명 · 다른 uid 로 바뀌어도 거부
+//       (16.9 review iteration 2 WR-01)
 //   R8: signIn 이 ServiceUnavailable throw → 그대로 전달 · callable 미호출
 //   R9: SocialLinkInProgress begin/end 1회 — 성공 · 취소 · SDK 오류
 //
@@ -172,6 +174,15 @@ void main() {
   AppException failureOf(Result<dynamic>? result) {
     expect(result, isA<Failure<dynamic>>());
     return (result! as Failure<dynamic>).exception;
+  }
+
+  /// 왕복 중 교체된 current user — [uid] · [isAnonymous] 만 다르다.
+  fb.User buildSwappedUser({required String uid, required bool isAnonymous}) {
+    final user = _MockFbUser();
+    when(() => user.uid).thenReturn(uid);
+    when(() => user.isAnonymous).thenReturn(isAnonymous);
+    when(() => user.getIdToken(any())).thenAnswer((_) async => 'swapped-token');
+    return user;
   }
 
   test(
@@ -414,6 +425,52 @@ void main() {
       verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
       verify(() => mockNaverSdkClient.logout()).called(1);
     });
+
+    // 16.9 review iteration 2 WR-01: 왕복 전 검사를 통과해도 NAVER 왕복 동안
+    // 세션이 바뀌면 결정적 실패다. `User.getIdToken` 은 호출 시점의 native
+    // current user 토큰을 만들므로 캡처 객체로 진행하면 안 된다. signIn() mock
+    // 안에서 currentUser stub 을 바꿔 arm 내부 읽기 횟수와 무관하게 「왕복 뒤」
+    // 시점만 교체한다. 익명 케이스는 uid 를 같게 두어 uid 대조와 독립적으로
+    // isAnonymous 분기를 잠근다.
+    for (final (label, buildReplacement) in <(String, fb.User? Function())>[
+      ('null (sign-out)', () => null),
+      (
+        '익명 (Splash 익명 재진입)',
+        () => buildSwappedUser(uid: 'linked-uid', isAnonymous: true),
+      ),
+      (
+        '다른 uid 정식 계정',
+        () => buildSwappedUser(uid: 'other-uid', isAnonymous: false),
+      ),
+    ]) {
+      test('R7: NAVER 왕복 중 current user 가 $label 로 교체 → UnknownException '
+          '· getIdToken · callable 미호출 · logout 1 · end 1', () async {
+        final replacement = buildReplacement();
+        when(() => mockNaverSdkClient.signIn()).thenAnswer((_) async {
+          when(() => mockAuth.currentUser).thenReturn(replacement);
+          return const NaverAppSignIn(accessToken: 'naver-app-token');
+        });
+
+        final result = await repository.linkNaverProviderArm();
+
+        expect(failureOf(result), isA<UnknownException>());
+        verify(() => mockNaverSdkClient.signIn()).called(1);
+        verifyNever(() => mockCurrentUser.getIdToken(any()));
+        if (replacement != null) {
+          verifyNever(() => replacement.getIdToken(any()));
+        }
+        verifyNever(
+          () => mockFunctions.httpsCallable(
+            any(),
+            options: any(named: 'options'),
+          ),
+        );
+        verifyNever(() => mockCurrentUser.reload());
+        verify(() => mockNaverSdkClient.logout()).called(1);
+        verify(() => mockSocialLinkInProgress.begin()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+      });
+    }
   });
 
   test(

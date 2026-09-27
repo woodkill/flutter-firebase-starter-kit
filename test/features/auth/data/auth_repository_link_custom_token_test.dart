@@ -25,6 +25,9 @@
 //   T7 (token freshness): callable payload idToken 은 getIdToken(true) 결과
 //       (forceRefresh=true 호출 검증)
 //   T8 (1회성 토큰): target SDK 가 finally logout 호출 (verify logout 1회)
+//   T9 (WR-06 · 16.9 review IN-02 / iteration 2 WR-01): caller null · 익명은
+//       SDK 왕복 전에, Kakao/LINE 왕복 중 current user 가 null · 익명 · 다른
+//       uid 로 바뀌면 왕복 뒤에 UnknownException (getIdToken · callable 미호출)
 
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -154,6 +157,15 @@ void main() {
         nonce: 'line-nonce',
       ),
     );
+  }
+
+  /// 왕복 중 교체된 current user — [uid] · [isAnonymous] 만 다르다.
+  fb.User buildSwappedUser({required String uid, required bool isAnonymous}) {
+    final user = _MockFbUser();
+    when(() => user.uid).thenReturn(uid);
+    when(() => user.isAnonymous).thenReturn(isAnonymous);
+    when(() => user.getIdToken(any())).thenAnswer((_) async => 'swapped-token');
+    return user;
   }
 
   group('T1 — linkCustomTokenProviderArm(line) 실제 link', () {
@@ -426,6 +438,85 @@ void main() {
       verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
       verify(() => mockSocialLinkInProgress.end()).called(1);
     });
+
+    // 16.9 review iteration 2 WR-01: 왕복 전 검사를 통과해도 target SDK 왕복
+    // 동안 세션이 바뀌면 결정적 실패다. `User.getIdToken` 은 호출 시점의
+    // native current user 토큰을 만들므로 캡처 객체로 진행하면 안 된다.
+    // signIn() mock 안에서 currentUser stub 을 바꿔 arm 내부 읽기 횟수와
+    // 무관하게 「왕복 뒤」 시점만 교체한다. 익명 케이스는 uid 를 같게 두어
+    // uid 대조와 독립적으로 isAnonymous 분기를 잠근다.
+    for (final targetProvider in <AccountProvider>[
+      AccountProvider.kakao,
+      AccountProvider.line,
+    ]) {
+      for (final (label, buildReplacement) in <(String, fb.User? Function())>[
+        ('null (sign-out)', () => null),
+        (
+          '익명 (Splash 익명 재진입)',
+          () => buildSwappedUser(uid: 'linked-uid', isAnonymous: true),
+        ),
+        (
+          '다른 uid 정식 계정',
+          () => buildSwappedUser(uid: 'other-uid', isAnonymous: false),
+        ),
+      ]) {
+        test('${targetProvider.slug} 왕복 중 current user 가 $label 로 교체 → '
+            'UnknownException · getIdToken · callable 미호출 · logout 1 · '
+            'end 1', () async {
+          final replacement = buildReplacement();
+          void swapCaller() =>
+              when(() => mockAuth.currentUser).thenReturn(replacement);
+          if (targetProvider == AccountProvider.kakao) {
+            when(() => mockKakaoSdkClient.signIn()).thenAnswer((_) async {
+              swapCaller();
+              return const KakaoSignInResult(
+                idToken: 'kakao-fresh-id-token',
+                nonce: 'kakao-nonce',
+              );
+            });
+          } else {
+            when(() => mockLineSdkClient.signIn()).thenAnswer((_) async {
+              swapCaller();
+              return const LineSignInResult(
+                idToken: 'line-fresh-id-token',
+                nonce: 'line-nonce',
+              );
+            });
+          }
+
+          final result = await repository.linkCustomTokenProviderArm(
+            targetProvider: targetProvider,
+          );
+
+          expect(result, isA<Failure<dynamic>>());
+          final failure = result! as Failure<dynamic>;
+          // WR-06: 결정적 실패 — transientFailure 로 떨어지지 않는다.
+          expect(failure.exception, isA<UnknownException>());
+          expect(failure.exception, isNot(isA<ServiceUnavailable>()));
+          verifyNever(() => mockCurrentUser.getIdToken(any()));
+          if (replacement != null) {
+            verifyNever(() => replacement.getIdToken(any()));
+          }
+          verifyNever(
+            () => mockFunctions.httpsCallable(
+              any(),
+              options: any(named: 'options'),
+            ),
+          );
+          verifyNever(() => mockCurrentUser.reload());
+          // race-fix invariant + 1회성 토큰 logout 보존.
+          verify(() => mockSocialLinkInProgress.begin()).called(1);
+          verify(() => mockSocialLinkInProgress.end()).called(1);
+          if (targetProvider == AccountProvider.kakao) {
+            verify(() => mockKakaoSdkClient.signIn()).called(1);
+            verify(() => mockKakaoSdkClient.logout()).called(1);
+          } else {
+            verify(() => mockLineSdkClient.signIn()).called(1);
+            verify(() => mockLineSdkClient.logout()).called(1);
+          }
+        });
+      }
+    }
   });
 
   group('T10 — WR-06: 결정적 실패는 transientFailure 로 분류되지 않는다', () {
