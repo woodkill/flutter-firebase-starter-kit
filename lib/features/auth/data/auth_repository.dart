@@ -3251,8 +3251,10 @@ class AuthRepository implements AnonymousSignIn {
   ///   → [ServiceUnavailable] (`unauthenticated` = App Check 차단 · auth
   ///    무효 · idToken 검증 실패 · token age 위반 · IdP 자격증명 거부 /
   ///    `invalid-argument` = 입력 계약 위반 / `failed-precondition` = 사전
-  ///    조건 위배(익명 caller 등) / `permission-denied` = idToken uid 불일치
-  ///    — 16.8 review IN-06 · iteration 2 IN-02 정정)
+  ///    조건 위배(익명 caller 등) / `permission-denied` = 미분류 방어 분기 —
+  ///    연결 callable 의 idToken uid 불일치는 [_mapLinkCallableException] 이
+  ///    선분기한다 · 16.8 review IN-06 · iteration 2 IN-02 · 16.9 review
+  ///    iteration 2 IN-03 정정)
   /// - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
   ///   (Cloud Function 일시 장애 / 네트워크 지연)
   /// - `already-exists` → [AccountExistsWithDifferentCredential]
@@ -3269,11 +3271,15 @@ class AuthRepository implements AnonymousSignIn {
       return ReauthUserMismatch(cause: e);
     }
     return switch (e.code) {
-      // IN-02: permission-denied 명시 분기 — 서버 코드의 출처는 idToken uid
-      // 불일치(`delete_user_account` · `link_custom_token_provider`)와
-      // `caller_identity_mismatch`(위 선분기)뿐이다. App Check 차단
-      // (enforceAppCheck:true — INVALID · MISSING) · auth 무효 · token age
-      // 위반은 `unauthenticated` 로 온다 (firebase-functions 7.2.5
+      // IN-02: permission-denied 명시 분기 — `caller_identity_mismatch`(위
+      // 선분기) 외 미분류 permission-denied 의 방어 분기다. 서버의 다른
+      // 출처는 idToken uid 불일치 셋뿐이고 여기 도달하지 않는다
+      // (16.9 review iteration 2 IN-03): 연결 callable
+      // (`link_custom_token_provider` · `link_naver_provider`)의 불일치는
+      // `_mapLinkCallableException` 이 선분기(재로그인)하고,
+      // `delete_user_account` 는 `SettingsRepository._mapDeleteError` 경로다.
+      // App Check 차단 (enforceAppCheck:true — INVALID · MISSING) · auth
+      // 무효 · token age 위반은 `unauthenticated` 로 온다 (firebase-functions 7.2.5
       // `common/providers/https.js` · `shared/reauth.ts`). SDK 자체의
       // permission-denied 는 authPolicy(킷 미사용) 전용 (16.8 review IN-06).
       // 기존 default 분기 (ServiceUnavailable(cause: e)) 와 동일 시맨틱이나
