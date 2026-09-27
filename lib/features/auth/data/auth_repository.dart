@@ -1310,7 +1310,8 @@ class AuthRepository implements AnonymousSignIn {
   ///    재야 한다).
   /// 5. `_functions.httpsCallable('linkCustomTokenProvider')` 호출 —
   ///    deployed contract `{idToken, targetProvider, targetProviderToken,
-  ///    nonce} → {ok:true}` (link_custom_token_provider.ts line 67~80 verbatim).
+  ///    nonce} → {ok:true}` (link_custom_token_provider.ts line 67~80
+  ///    verbatim).
   /// 6. `{ok:true}` 검증 후 `_auth.currentUser` reload → [_mapFirebaseUser].
   /// 7. finally 에서 target SDK logout (1회성 토큰 정책 —
   ///    [signInWithKakao]/[signInWithLine] 의 finally logout mirror) +
@@ -1344,8 +1345,9 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// **구조적(결정적) 실패는 [UnknownException] 이다 (WR-06).** caller 부재 /
   /// 익명 caller / SDK 왕복 중 caller 교체 / `getIdToken` null / 응답
-  /// `ok != true` 는 재시도로 해소되지 않는다. [ServiceUnavailable] 로 두면 하류 `SettingsNotifier._mapLinkFailure`
-  /// 가 [AccountLinkOutcome.transientFailure] ("잠시 후 다시 시도해 주세요") 로
+  /// `ok != true` 는 재시도로 해소되지 않는다. [ServiceUnavailable] 로 두면
+  /// 하류 `SettingsNotifier._mapLinkFailure` 가
+  /// [AccountLinkOutcome.transientFailure] ("잠시 후 다시 시도해 주세요") 로
   /// 안내해 사용자가 매 시도마다 SDK OAuth 왕복을 반복하는 무한 루프에 든다.
   /// [ServiceUnavailable] 은 실제 서비스 **도달** 실패에만 남긴다.
   ///
@@ -1610,9 +1612,10 @@ class AuthRepository implements AnonymousSignIn {
   /// 익명으로 재진입하거나 다른 계정으로 바뀔 수 있다. `User.getIdToken` 은
   /// 캡처한 객체가 아니라 호출 시점의 native current user 토큰을 만들므로
   /// (firebase_auth 6.7.0 — Android `getCurrentUserFromPigeon` · iOS
-  /// `getFIRAuthFromPigeon(app).currentUser`), 왕복 전에 캡처한 객체로 토큰을 받으면 익명 caller 는
-  /// 서버 `failed-precondition` → transientFailure(WR-06 위반), 다른 계정은
-  /// 사전 검사하지 않은 계정에 연결된다. network 비용 없는 동기 읽기다.
+  /// `getFIRAuthFromPigeon(app).currentUser`),
+  /// 왕복 전에 캡처한 객체로 토큰을 받으면 익명 caller 는 서버
+  /// `failed-precondition` → transientFailure(WR-06 위반), 다른 계정은 사전
+  /// 검사하지 않은 계정에 연결된다. network 비용 없는 동기 읽기다.
   fb.User? _readUnchangedCaller(String expectedUid) {
     final user = _auth.currentUser;
     if (user == null || user.isAnonymous || user.uid != expectedUid) {
