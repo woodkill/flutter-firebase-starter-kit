@@ -304,10 +304,16 @@ final class UnlinkLastCredentialRejected extends AuthException {
 
 /// 재인증 필요 (Phase 16 D-06 / D-07).
 ///
-/// `deleteUserAccount` Cloud Function 이 `unauthenticated` 또는
-/// `permission-denied` 코드와 함께 `errorReauthenticationRequired` 메시지를
-/// 반환할 때 매핑된다. 5분 auth_time boundary 초과 시 발생 — 사용자는
-/// `/login` 으로 redirect 후 재로그인 의무.
+/// 서버는 `errorReauthenticationRequired` 를 `unauthenticated` 로만 보낸다
+/// (`deleteUserAccount` — auth_time 5분 초과 · idToken 검증 실패).
+/// `permission-denied` 는 uid 불일치(`errorUnauthenticated`)다. 클라이언트는
+/// 메시지가 아니라 code 만 보고 매핑한다 — `SettingsRepository._mapDeleteError`
+/// 는 두 code 모두 본 타입으로 만들므로 App Check 차단(firebase-functions
+/// 7.2.5 는 `unauthenticated`)도 본 타입이 된다(알려진 한계 · 동작 불변). 그 밖의
+/// 생성처: `getIdToken(true)` 비네트워크 실패 · null/빈 idToken
+/// (`SettingsRepository`), `linkCustomTokenProvider` 의 두 code
+/// (`AuthRepository`), native link · unlink 의 `requires-recent-login`.
+/// 사용자는 `/login` 으로 redirect 후 재로그인 의무.
 final class ReauthenticationRequiredException extends AuthException {
   /// [ReauthenticationRequiredException]을 생성한다.
   const ReauthenticationRequiredException({super.cause})

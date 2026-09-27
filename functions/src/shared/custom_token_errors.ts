@@ -97,10 +97,13 @@ export function serverFailure(): HttpsError {
  * 정식 로그인 caller 가 자기 계정에 매핑되지 않은 identity 로 Custom Token
  * 로그인을 요청했을 때의 표준 에러 (debug reauth-login-auto-merge).
  *
- * `permission-denied` 는 App Check 차단과 code 를 공유하므로 client 는
+ * `permission-denied` 는 `deleteUserAccount` · `linkCustomTokenProvider` 의
+ * uid 불일치 throw(`errorUnauthenticated`)와 code 를 공유하므로 client 는
  * `details.reason` 으로 구분한다 (`AuthRepository._mapFunctionsException` →
- * `ReauthUserMismatch`). details 에는 reason 토큰 하나만 담는다 — uid · sub ·
- * email 등 식별자는 넣지 않는다 (PII slug-only 정책 D-51 과 같은 원칙).
+ * `ReauthUserMismatch`). App Check 차단은 firebase-functions 7.2.5 가
+ * `unauthenticated` 로 던지므로 이 code 를 공유하지 않는다. details 에는
+ * reason 토큰 하나만 담는다 — uid · sub · email 등 식별자는 넣지 않는다
+ * (PII slug-only 정책 D-51 과 같은 원칙).
  *
  * @return {HttpsError} `permission-denied` / `errorReauthUserMismatch` /
  *     `{reason: "caller_identity_mismatch"}`.
