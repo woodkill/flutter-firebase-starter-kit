@@ -2301,7 +2301,8 @@ class AuthRepository implements AnonymousSignIn {
   ///   창이 없어 익명 자동 로그인 race 가 생기지 않는다 (RESEARCH OQ2).
   ///
   /// 반환:
-  /// - `Result.success(User)` — 해제 성공 · reload 된 사용자.
+  /// - `Result.success(User)` — 해제 성공 · reload 된 사용자 (reload 실패는
+  ///   흡수하고 성공 유지 — [_reloadAfterUnlink]).
   /// - `Result.failure(ProviderNotLinked)` — `no-such-provider` (이미 해제됨).
   /// - `Result.failure(ReauthenticationRequiredException)` —
   ///   `requires-recent-login` (D-06 으로 기대하지 않는 방어 매핑).
@@ -2317,7 +2318,9 @@ class AuthRepository implements AnonymousSignIn {
     }
     try {
       final updated = await current.unlink(providerId);
-      await updated.reload();
+      // 해제는 Firebase 에서 이미 확정됐다 — 후속 reload 실패가 성공 판정을
+      // 뒤집지 않는다 (16.8 review WR-01 · signUpWithEmail 선례).
+      await _reloadAfterUnlink(updated, 'unlinkNativeProvider');
       return Result.success(_mapFirebaseUser(_auth.currentUser ?? updated));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapUnlinkAuthException(e));
@@ -2357,7 +2360,8 @@ class AuthRepository implements AnonymousSignIn {
   ///    는 거기서 [NoInternetConnection]).
   ///
   /// 반환:
-  /// - `Result.success(User)` — 해제 성공 · reload 된 사용자.
+  /// - `Result.success(User)` — 해제 성공 · reload 된 사용자 (reload 실패는
+  ///   흡수하고 성공 유지 — [_reloadAfterUnlink]).
   /// - `Result.failure(...)` — 위 매핑 · caller 부재/익명/`ok != true` 는
   ///   [UnknownException] (WR-06 결정적 실패).
   Future<Result<User>> unlinkCustomTokenProvider(String providerSlug) async {
@@ -2378,7 +2382,10 @@ class AuthRepository implements AnonymousSignIn {
         // WR-06: 서버 계약 위반 — 재시도로 해소되지 않는다.
         return const Result.failure(UnknownException());
       }
-      await current.reload();
+      // 서버 원장에서 해제가 확정됐다 — reload 는 providerData 갱신용일 뿐이고
+      // CT 목록은 Firestore stream 이 갱신하므로 실패를 성공에 반영하지 않는다
+      // (16.8 review WR-01).
+      await _reloadAfterUnlink(current, 'unlinkCustomTokenProvider');
       return Result.success(_mapFirebaseUser(_auth.currentUser ?? current));
     } on FirebaseFunctionsException catch (e) {
       if (e.code == 'failed-precondition' &&
@@ -2422,6 +2429,25 @@ class AuthRepository implements AnonymousSignIn {
         'requires-recent-login' => ReauthenticationRequiredException(cause: e),
         _ => _mapAuthException(e),
       };
+
+  /// 해제가 확정된 뒤 [user] 를 `reload()` 하고 실패는 흡수한다 (Phase 16.8
+  /// review WR-01).
+  ///
+  /// 해제는 Firebase Auth(native) · 서버 원장(CT)에서 이미 확정됐으므로 여기서
+  /// 실패를 전파하면 성공이 「잠시 후 다시 시도」 로 뒤집히고, 재시도는
+  /// 「이미 해제됨」 이 되어 안내가 모순된다. `signUpWithEmail` 의 reload 흡수와
+  /// 같은 원칙이다. 로그는 [fb.FirebaseAuthException.code] 또는 runtimeType 만
+  /// 남긴다 (PII 0). [caller] 는 로그에 붙일 호출 메서드 이름이다.
+  Future<void> _reloadAfterUnlink(fb.User user, String caller) async {
+    try {
+      await user.reload();
+    } on Object catch (e) {
+      if (kDebugMode) {
+        final reason = e is fb.FirebaseAuthException ? e.code : e.runtimeType;
+        debugPrint('$caller reload 실패(해제 성공 유지): $reason');
+      }
+    }
+  }
 
   /// 익명 로그인으로 게스트 사용자 세션을 시작한다 (Phase 10 D-09).
   ///

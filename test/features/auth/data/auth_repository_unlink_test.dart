@@ -6,6 +6,7 @@
 //   N2~N5 FirebaseAuthException code → AppException 매핑
 //   N6 · N7 caller 부재 · 익명 → UnknownException (unlink 미호출)
 //   N8 비-Auth 예외 → ServiceUnavailable
+//   N9 unlink 확정 뒤 reload 실패 → Success 유지 (review WR-01)
 //
 // Custom Token wrapper (`unlinkCustomTokenProvider`):
 //   C1 happy — callable 'unlinkCustomTokenProvider' payload {provider} ·
@@ -14,6 +15,7 @@
 //   C4~C8 code → AppException 매핑 · C9 `{ok: false}` 계약 위반
 //   C10 caller 부재 · 익명 → UnknownException (callable 미호출)
 //   C11 비-Functions 예외 → ServiceUnavailable
+//   C12 `{ok: true}` 확정 뒤 reload 실패 → Success 유지 (review WR-01)
 //
 // fixture 는 합성 값만 쓴다 (`uid-1` · `me@example.com`).
 
@@ -251,6 +253,22 @@ void main() {
 
       expect(_failureOf(result), isA<ServiceUnavailable>());
     });
+
+    test('N9: unlink 확정 뒤 reload 가 throw 해도 Success (WR-01)', () async {
+      when(() => mockCurrentUser.unlink('google.com')).thenAnswer((_) async {
+        providerInfos = <fb.UserInfo>[_buildUserInfo('password')];
+        return mockCurrentUser;
+      });
+      when(
+        () => mockCurrentUser.reload(),
+      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
+
+      final result = await repository.unlinkNativeProvider('google.com');
+
+      expect(result, isA<Success<User>>());
+      expect((result as Success<User>).data.providerIds, <String>['password']);
+      verify(() => mockCurrentUser.reload()).called(1);
+    });
   });
 
   group('Phase 16.8 D-02 · D-06 — unlinkCustomTokenProvider', () {
@@ -375,6 +393,17 @@ void main() {
       final result = await repository.unlinkCustomTokenProvider('kakao');
 
       expect(_failureOf(result), isA<ServiceUnavailable>());
+    });
+
+    test('C12: ok 확정 뒤 reload 가 throw 해도 Success (WR-01)', () async {
+      when(
+        () => mockCurrentUser.reload(),
+      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
+
+      final result = await repository.unlinkCustomTokenProvider('kakao');
+
+      expect(result, isA<Success<User>>());
+      verify(() => mockCurrentUser.reload()).called(1);
     });
   });
 }
