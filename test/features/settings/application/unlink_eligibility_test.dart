@@ -76,6 +76,21 @@ void main() {
       expect(canUnlinkProvider(user, 'google.com'), isTrue);
     });
 
+    test(
+      'EL4b: 식별 불가 id 도 ≥2 계수에 포함 — google.com + yahoo → google.com 해제 가능',
+      () {
+        // 식별 불가 id(AccountProvider 미등록 provider 등)도 실제 로그인 가능한
+        // 자격증명이라 계수에 넣는다 (review IN-05 — 현행 동작 고정).
+        final user = _testUser(
+          providerIds: const <String>['google.com', 'yahoo'],
+          signUpProviderId: 'yahoo',
+        );
+
+        expect(canUnlinkProvider(user, 'google.com'), isTrue);
+        expect(canUnlinkProvider(user, 'yahoo'), isFalse);
+      },
+    );
+
     test('EL5: user null → 해제 불가', () {
       expect(canUnlinkProvider(null, 'google.com'), isFalse);
     });
