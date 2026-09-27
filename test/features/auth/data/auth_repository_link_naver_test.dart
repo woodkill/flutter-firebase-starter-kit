@@ -23,7 +23,8 @@
 //   R7: ok:false · currentUser null · 익명 → UnknownException (WR-06) —
 //       null · 익명은 signIn 전에 거부 (16.9 review IN-02) · NAVER 왕복 중
 //       current user 가 null · 익명 · 다른 uid 로 바뀌어도 거부
-//       (16.9 review iteration 2 WR-01)
+//       (16.9 review iteration 2 WR-01) · 같은 uid 의 새 인스턴스로 바뀌면
+//       통과 — 새 인스턴스 토큰으로 연결 (uid 대조 시맨틱 · iteration 3 IN-05)
 //   R8: signIn 이 ServiceUnavailable throw → 그대로 전달 · callable 미호출
 //   R9: SocialLinkInProgress begin/end 1회 — 성공 · 취소 · SDK 오류
 //
@@ -182,6 +183,27 @@ void main() {
     final user = _MockFbUser();
     when(() => user.uid).thenReturn(uid);
     when(() => user.isAnonymous).thenReturn(isAnonymous);
+    when(() => user.getIdToken(any())).thenAnswer((_) async => 'swapped-token');
+    return user;
+  }
+
+  /// 왕복 중 SDK 가 새로 만든 **같은 uid** 의 current user wrapper.
+  ///
+  /// 실제 SDK 는 `currentUser` 를 읽을 때마다 새 [fb.User] 를 만든다
+  /// (firebase_auth 6.7.0 `User._(this, _delegate.currentUser!)`). 연결 성공
+  /// 경로까지 진행하므로 `_mapFirebaseUser` 가 읽는 getter 와 `reload` 까지
+  /// stub 한다 — [buildSwappedUser] 는 거부 경로 전용이라 이 getter 가 없다.
+  fb.User buildSameUidReplacement() {
+    final user = _MockFbUser();
+    when(() => user.uid).thenReturn('linked-uid');
+    when(() => user.isAnonymous).thenReturn(false);
+    when(() => user.email).thenReturn('user@example.com');
+    when(() => user.emailVerified).thenReturn(true);
+    when(() => user.displayName).thenReturn('User');
+    when(() => user.photoURL).thenReturn(null);
+    when(() => user.metadata).thenReturn(mockMetadata);
+    when(() => user.providerData).thenReturn(const []);
+    when(() => user.reload()).thenAnswer((_) async {});
     when(() => user.getIdToken(any())).thenAnswer((_) async => 'swapped-token');
     return user;
   }
@@ -488,6 +510,37 @@ void main() {
         verify(() => mockSocialLinkInProgress.end()).called(1);
       });
     }
+
+    // 16.9 review iteration 3 IN-05: 재확인은 객체 identity 가 아니라 uid
+    // 대조다. 실제 SDK 는 `currentUser` 를 읽을 때마다 새 wrapper 를 만들므로
+    // 같은 uid 의 다른 인스턴스는 통과해야 하고, 토큰 · reload 는 캡처 객체가
+    // 아니라 재확인한 인스턴스에서 받아야 한다.
+    test('R7: NAVER 왕복 중 같은 uid 의 새 인스턴스로 교체 → 연결 성공 '
+        '· 새 인스턴스 토큰 · 캡처 객체 getIdToken 미호출', () async {
+      final replacement = buildSameUidReplacement();
+      when(() => mockNaverSdkClient.signIn()).thenAnswer((_) async {
+        when(() => mockAuth.currentUser).thenReturn(replacement);
+        return const NaverAppSignIn(accessToken: 'naver-app-token');
+      });
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(result, isA<Success<dynamic>>());
+      final captured =
+          verify(
+                () => mockLinkCallable.call<Map<String, dynamic>>(captureAny()),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(captured['idToken'], 'swapped-token');
+      expect(captured['accessToken'], 'naver-app-token');
+      verify(() => replacement.getIdToken(true)).called(1);
+      verify(() => replacement.reload()).called(1);
+      verifyNever(() => mockCurrentUser.getIdToken(any()));
+      verifyNever(() => mockCurrentUser.reload());
+      verify(() => mockNaverSdkClient.logout()).called(1);
+      verify(() => mockSocialLinkInProgress.begin()).called(1);
+      verify(() => mockSocialLinkInProgress.end()).called(1);
+    });
   });
 
   test(
