@@ -16,6 +16,7 @@ import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
+import {reauthenticationRequired} from "../shared/custom_token_errors";
 import {assertFreshAuth} from "../shared/reauth";
 import {fingerprintError} from "./identity_index";
 
@@ -123,10 +124,9 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
         {event: "delete_user_id_token_verify_failed", code: errCode},
         "verifyIdToken threw",
       );
-      throw new HttpsError(
-        "unauthenticated",
-        "errorReauthenticationRequired",
-      );
+      // details.reason 으로 재로그인 분기를 표시한다 (16.9 review WR-01) —
+      // 같은 code 의 IdP 거부 · App Check 차단은 reason 이 없다.
+      throw reauthenticationRequired();
     }
     if (decoded.uid !== callerUid) {
       throw new HttpsError("permission-denied", "errorUnauthenticated");

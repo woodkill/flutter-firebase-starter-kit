@@ -83,6 +83,7 @@ describe("assertFreshAuth — WR-11", () => {
       expect(err).toMatchObject({
         code: "unauthenticated",
         message: "errorReauthenticationRequired",
+        details: {reason: "reauthentication_required"},
       });
     }
   });

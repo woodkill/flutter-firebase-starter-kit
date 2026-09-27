@@ -240,6 +240,7 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
     await expect(promise).rejects.toMatchObject({
       code: "unauthenticated",
       message: "errorReauthenticationRequired",
+      details: {reason: "reauthentication_required"},
     });
     expect(mockDeleteUser).not.toHaveBeenCalled();
   });
@@ -278,6 +279,7 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
     await expect(promise).rejects.toMatchObject({
       code: "unauthenticated",
       message: "errorReauthenticationRequired",
+      details: {reason: "reauthentication_required"},
     });
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({

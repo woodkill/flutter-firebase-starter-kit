@@ -337,6 +337,7 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
     await expect(promise).rejects.toMatchObject({
       code: "unauthenticated",
       message: "errorReauthenticationRequired",
+      details: {reason: "reauthentication_required"},
     });
     // target verifier 호출 안 됨 (Step 2 까지만 도달).
     expect(mockVerifyTargetIdToken).not.toHaveBeenCalled();
@@ -364,6 +365,7 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
     await expect(promise).rejects.toMatchObject({
       code: "unauthenticated",
       message: "errorReauthenticationRequired",
+      details: {reason: "reauthentication_required"},
     });
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -431,6 +433,9 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
       code: "unauthenticated",
       message: "errorInvalidCredentials",
     });
+    // 16.9 review WR-01: IdP 자격증명 거부는 재인증 reason 을 싣지 않는다.
+    const rejection = await promise.catch((e: unknown) => e);
+    expect((rejection as HttpsError).details).toBeUndefined();
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "link_target_token_verify_failed",

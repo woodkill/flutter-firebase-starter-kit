@@ -398,6 +398,7 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
     await expect(callLink(WEB_DATA)).rejects.toMatchObject({
       code: "unauthenticated",
       message: "errorReauthenticationRequired",
+      details: {reason: "reauthentication_required"},
     });
     // 1회용 code 미소비 — 교환 · 프로필 fetch 모두 0 (D-01 흐름 1 · D-04).
     expect(fetchMock).not.toHaveBeenCalled();
@@ -414,6 +415,7 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
     await expect(callLink(WEB_DATA)).rejects.toMatchObject({
       code: "unauthenticated",
       message: "errorReauthenticationRequired",
+      details: {reason: "reauthentication_required"},
     });
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -567,7 +569,11 @@ describe("linkNaverProvider — 실패 매핑 WR-01 (N12 · N13)", () => {
     async (_label, arrange, code, message, logMockFn, logPayload) => {
       arrange();
 
-      await expect(callLink(APP_DATA)).rejects.toMatchObject({code, message});
+      const err = await callLink(APP_DATA).catch((e: unknown) => e);
+      expect(err).toMatchObject({code, message});
+      // 16.9 review WR-01: IdP 거부 · 도달 실패는 재인증 reason 을 싣지
+      // 않는다 — client 는 재로그인이 아니라 일시 오류로 안내한다.
+      expect((err as HttpsError).details).toBeUndefined();
       expect(logMockFn).toHaveBeenCalledWith(
         expect.objectContaining(logPayload),
         expect.any(String),
@@ -604,7 +610,11 @@ describe("linkNaverProvider — 실패 매핑 WR-01 (N12 · N13)", () => {
     async (_label, arrange, code, message, logPayload) => {
       arrange();
 
-      await expect(callLink(WEB_DATA)).rejects.toMatchObject({code, message});
+      const err = await callLink(WEB_DATA).catch((e: unknown) => e);
+      expect(err).toMatchObject({code, message});
+      // 16.9 review WR-01: code 교환 거부(`invalid_grant` 등)도 재인증
+      // reason 이 없다 — Firebase 세션은 정상이다.
+      expect((err as HttpsError).details).toBeUndefined();
       expect(warnMock).toHaveBeenCalledWith(
         expect.objectContaining(logPayload),
         expect.any(String),

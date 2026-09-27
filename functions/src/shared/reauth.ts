@@ -16,7 +16,7 @@
 // 2. **하한 부재** — `auth_time` 이 미래값이면 (클라이언트/발급 측 시계 오차)
 //    차이가 음수가 되어 무조건 통과한다.
 // 3. 매직 넘버 `300` 이 두 파일에 각각 박혀 있어 정책 변경이 drift 를 만든다.
-import {HttpsError} from "firebase-functions/https";
+import {reauthenticationRequired} from "./custom_token_errors";
 
 /** 재인증 유효 시간 (초). 두 callable 의 공통 정책. */
 export const REAUTH_MAX_AGE_SEC = 300;
@@ -36,9 +36,11 @@ export const REAUTH_CLOCK_SKEW_SEC = 60;
  * @param {unknown} authTime `DecodedIdToken.auth_time` (epoch seconds).
  *     타입을 신뢰하지 않고 `unknown` 으로 받아 런타임 검증한다.
  * @return {void} 조건을 만족하면 아무것도 하지 않는다.
- * @throws {HttpsError} `unauthenticated` / `errorReauthenticationRequired` —
- *     값이 숫자가 아니거나(누락 포함), 유한하지 않거나, 허용 오차를 넘는
- *     미래값이거나, [REAUTH_MAX_AGE_SEC] 보다 오래된 경우.
+ * @throws {HttpsError} `unauthenticated` / `errorReauthenticationRequired` /
+ *     `details.reason: "reauthentication_required"` (`reauthenticationRequired`
+ *     — Phase 16.9 review WR-01) — 값이 숫자가 아니거나(누락 포함), 유한하지
+ *     않거나, 허용 오차를 넘는 미래값이거나, [REAUTH_MAX_AGE_SEC] 보다
+ *     오래된 경우.
  */
 export function assertFreshAuth(authTime: unknown): void {
   const nowSec = Math.floor(Date.now() / 1000);
@@ -48,6 +50,8 @@ export function assertFreshAuth(authTime: unknown): void {
     authTime > nowSec + REAUTH_CLOCK_SKEW_SEC ||
     nowSec - authTime > REAUTH_MAX_AGE_SEC
   ) {
-    throw new HttpsError("unauthenticated", "errorReauthenticationRequired");
+    // client 는 details.reason 으로만 재로그인 분기한다 — 같은 code 를
+    // 쓰는 IdP 거부 · App Check 차단과 구분하기 위해서다 (WR-01).
+    throw reauthenticationRequired();
   }
 }

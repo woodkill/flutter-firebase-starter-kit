@@ -94,6 +94,36 @@ export function serverFailure(): HttpsError {
 }
 
 /**
+ * 재인증 필요 거부의 `details.reason` 토큰 (Phase 16.9 review WR-01).
+ *
+ * `unauthenticated` 는 재인증 필요 외에도 IdP 자격증명 거부
+ * ([idpCredentialRejected]) · App Check 차단 · auth token 무효
+ * (firebase-functions 7.2.5 `common/providers/https.js` — details 없음)가
+ * 공유한다. client 는 code 만으로는 셋을 구분할 수 없으므로, 재로그인으로
+ * 해소되는 거부에만 이 reason 을 싣고 client 는 그 reason 일 때만 재로그인
+ * 으로 보낸다 (fail-closed — reason 이 없으면 일시 오류로 안내).
+ */
+export const REAUTH_REQUIRED_REASON = "reauthentication_required";
+
+/**
+ * 재인증(fresh ID Token)이 필요할 때의 표준 에러 (Phase 16.9 review WR-01).
+ *
+ * 생성처: `assertFreshAuth`(auth_time 누락 · 미래값 · 300초 초과) 와 세
+ * callable(`deleteUserAccount` · `linkCustomTokenProvider` ·
+ * `linkNaverProvider`)의 `verifyIdToken(checkRevoked)` 실패. details 에는
+ * reason 토큰 하나만 담는다 — uid · 토큰 등 식별자는 넣지 않는다 (PII
+ * slug-only 정책 D-51 · [callerIdentityMismatch] 와 같은 원칙).
+ *
+ * @return {HttpsError} `unauthenticated` / `errorReauthenticationRequired` /
+ *     `{reason: "reauthentication_required"}`.
+ */
+export function reauthenticationRequired(): HttpsError {
+  return new HttpsError("unauthenticated", "errorReauthenticationRequired", {
+    reason: REAUTH_REQUIRED_REASON,
+  });
+}
+
+/**
  * 정식 로그인 caller 가 자기 계정에 매핑되지 않은 identity 로 Custom Token
  * 로그인을 요청했을 때의 표준 에러 (debug reauth-login-auto-merge).
  *

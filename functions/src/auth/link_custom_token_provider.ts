@@ -16,7 +16,9 @@
 //   가 ground truth (memory feedback_mock_transaction_constraint mirror).
 //
 // **IN-04**: 아래 `HttpsError` 들의 message 는 ARB 키가 아니라 taxonomy
-// 토큰이다. client 는 `code` 로만 분기하며 서버 message 를 렌더하지 않는다.
+// 토큰이다. client 는 `code` + `details.reason` 으로만 분기하며 서버 message
+// 를 렌더하지 않는다 (재인증 필요 = `reason: reauthentication_required` —
+// 16.9 review WR-01).
 // 계약 전문은 `shared/custom_token_errors.ts` 헤더 참조.
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
@@ -28,6 +30,7 @@ import {
   idpCredentialRejected,
   invalidArgument,
   mapOidcVerifyError,
+  reauthenticationRequired,
 } from "../shared/custom_token_errors";
 import {
   KAKAO_NATIVE_APP_KEY,
@@ -146,10 +149,9 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
         {event: "link_id_token_verify_failed", code: errCode},
         "verifyIdToken threw",
       );
-      throw new HttpsError(
-        "unauthenticated",
-        "errorReauthenticationRequired",
-      );
+      // details.reason 으로 재로그인 분기를 표시한다 (16.9 review WR-01) —
+      // 같은 code 의 IdP 거부 · App Check 차단은 reason 이 없다.
+      throw reauthenticationRequired();
     }
     if (decoded.uid !== callerUid) {
       throw new HttpsError("permission-denied", "errorUnauthenticated");

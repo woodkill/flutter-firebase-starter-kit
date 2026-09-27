@@ -12,7 +12,10 @@
 //   R1: 1-tap 성공 — payload 키 {idToken, accessToken} · timeout 10s · reload · logout
 //   R2: 웹 성공 — payload 키 {idToken, code, state} · timeout 20s
 //   R3: 취소 (signIn null) — null · callable/getIdToken 미호출 · logout
-//   R4: unauthenticated · permission-denied → ReauthenticationRequiredException
+//   R4: details.reason 'reauthentication_required' · permission-denied →
+//       ReauthenticationRequiredException / reason 없는 unauthenticated
+//       (Naver 거부 · code 교환 거부 · App Check 차단) → ServiceUnavailable
+//       (16.9 review WR-01)
 //   R5: already-exists → AccountAlreadyLinked
 //   R6: unavailable → NoInternetConnection · failed-precondition → ServiceUnavailable
 //   R7: ok:false · currentUser null · 익명 → UnknownException (WR-06)
@@ -147,12 +150,21 @@ void main() {
     ).thenAnswer((_) async => const NaverWebSignIn(code: 'c', state: 's'));
   }
 
-  /// callable 이 [code] 로 거부하도록 stub 한다.
-  void stubCallableThrows(String code) {
+  /// callable 이 [code] (· 선택 [details]) 로 거부하도록 stub 한다.
+  void stubCallableThrows(String code, {Object? details}) {
     when(() => mockLinkCallable.call<Map<String, dynamic>>(any())).thenThrow(
-      FirebaseFunctionsException(code: code, message: 'server-token'),
+      FirebaseFunctionsException(
+        code: code,
+        message: 'server-token',
+        details: details,
+      ),
     );
   }
+
+  /// 서버 `reauthenticationRequired()` 의 details 모양.
+  const reauthDetails = <String, Object?>{
+    'reason': 'reauthentication_required',
+  };
 
   /// [result] 가 [Failure] 이면 그 예외를 돌려준다.
   AppException failureOf(Result<dynamic>? result) {
@@ -236,33 +248,70 @@ void main() {
     },
   );
 
-  group('R4 — 재로그인 유도 코드', () {
-    for (final code in <String>['unauthenticated', 'permission-denied']) {
-      test(
-        'R4: $code → ReauthenticationRequiredException · logout 1',
-        () async {
-          stubAppSignIn();
-          stubCallableThrows(code);
+  group('R4 — 재로그인 유도는 서버 표시(reason)만 (16.9 review WR-01)', () {
+    for (final stub in <void Function()>[stubAppSignIn, stubWebSignIn]) {
+      test('R4: unauthenticated + reason reauthentication_required → '
+          'ReauthenticationRequiredException · logout 1', () async {
+        stub();
+        stubCallableThrows('unauthenticated', details: reauthDetails);
 
-          final result = await repository.linkNaverProviderArm();
+        final result = await repository.linkNaverProviderArm();
 
-          expect(failureOf(result), isA<ReauthenticationRequiredException>());
-          verifyNever(() => mockCurrentUser.reload());
-          verify(() => mockNaverSdkClient.logout()).called(1);
-        },
-      );
+        expect(failureOf(result), isA<ReauthenticationRequiredException>());
+        verifyNever(() => mockCurrentUser.reload());
+        verify(() => mockNaverSdkClient.logout()).called(1);
+      });
     }
 
     test(
-      'R4: 웹 경로 unauthenticated (code 교환 거부) 도 ReauthenticationRequiredException',
+      'R4: permission-denied (idToken uid 불일치) → ReauthenticationRequiredException',
       () async {
-        stubWebSignIn();
-        stubCallableThrows('unauthenticated');
+        stubAppSignIn();
+        stubCallableThrows('permission-denied');
 
         final result = await repository.linkNaverProviderArm();
 
         expect(failureOf(result), isA<ReauthenticationRequiredException>());
         verify(() => mockNaverSdkClient.logout()).called(1);
+      },
+    );
+
+    test('R4: 1-tap unauthenticated · reason 없음 (/v1/nid/me 거부 · App Check 차단) '
+        '→ ServiceUnavailable (재로그인 아님)', () async {
+      stubAppSignIn();
+      stubCallableThrows('unauthenticated');
+
+      final result = await repository.linkNaverProviderArm();
+
+      final exception = failureOf(result);
+      expect(exception, isA<ServiceUnavailable>());
+      expect(exception, isNot(isA<ReauthenticationRequiredException>()));
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+
+    test('R4: 웹 unauthenticated · reason 없음 (code 교환 invalid_grant) '
+        '→ ServiceUnavailable (재로그인 아님)', () async {
+      stubWebSignIn();
+      stubCallableThrows('unauthenticated');
+
+      final result = await repository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<ServiceUnavailable>());
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+
+    test(
+      'R4: unauthenticated · 다른 reason → ServiceUnavailable (fail-closed)',
+      () async {
+        stubAppSignIn();
+        stubCallableThrows(
+          'unauthenticated',
+          details: const <String, Object?>{'reason': 'other'},
+        );
+
+        final result = await repository.linkNaverProviderArm();
+
+        expect(failureOf(result), isA<ServiceUnavailable>());
       },
     );
   });

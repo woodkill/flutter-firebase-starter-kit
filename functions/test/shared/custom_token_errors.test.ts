@@ -27,6 +27,8 @@ import {
   idpUnavailable,
   invalidArgument,
   mapOidcVerifyError,
+  reauthenticationRequired,
+  REAUTH_REQUIRED_REASON,
   serverFailure,
 } from "../../src/shared/custom_token_errors";
 
@@ -36,6 +38,22 @@ describe("표준 에러 팩토리 — WR-01 공용 매핑 표", () => {
       code: "unauthenticated",
       message: "errorInvalidCredentials",
     });
+  });
+
+  // 16.9 review WR-01: 같은 `unauthenticated` 를 쓰는 재인증 필요와 IdP
+  // 거부를 client 가 details.reason 으로만 가른다 — 재인증만 reason 을
+  // 싣고 IdP 거부는 싣지 않는다.
+  it("재인증 필요 = unauthenticated + details.reason 토큰", () => {
+    expect(REAUTH_REQUIRED_REASON).toBe("reauthentication_required");
+    expect(reauthenticationRequired()).toMatchObject({
+      code: "unauthenticated",
+      message: "errorReauthenticationRequired",
+      details: {reason: "reauthentication_required"},
+    });
+  });
+
+  it("IdP 자격증명 거부는 재인증 reason 을 싣지 않는다", () => {
+    expect(idpCredentialRejected().details).toBeUndefined();
   });
 
   it("IdP 도달 실패 = unavailable / errorServiceUnavailable", () => {

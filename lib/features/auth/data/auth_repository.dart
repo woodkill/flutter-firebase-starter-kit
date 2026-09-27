@@ -1320,10 +1320,13 @@ class AuthRepository implements AnonymousSignIn {
   /// [linkNaverProviderArm] 이 access token/code 로 맡는다(16.9 D-01).
   /// native 는 `link*Credential` 이 맡는다. 그 외 입력은 [ArgumentError] throw.
   ///
-  /// 에러 매핑 (deployed callable HttpsError code):
-  /// - `unauthenticated` / `permission-denied` →
-  ///   [ReauthenticationRequiredException] (auth_time 초과 / verifyIdToken 실패
-  ///   → 재로그인 유도).
+  /// 에러 매핑 ([_mapLinkCallableException] — [linkNaverProviderArm] 과 공용 ·
+  /// 16.9 review WR-01):
+  /// - `details.reason == 'reauthentication_required'` (auth_time 초과 /
+  ///   verifyIdToken 실패) · `permission-denied` (idToken uid 불일치) →
+  ///   [ReauthenticationRequiredException] (재로그인 유도).
+  /// - reason 없는 `unauthenticated` (Kakao/LINE ID token 거부 · App Check
+  ///   차단) → [_mapFunctionsException] 의 [ServiceUnavailable] (일시 오류).
   /// - `already-exists` → [AccountAlreadyLinked] (identity_index 이미 존재).
   /// - 그 외 (`failed-precondition` 익명 caller / `invalid-argument` 등) →
   ///   [_mapFunctionsException] (적절 [AppException]).
@@ -1415,16 +1418,9 @@ class AuthRepository implements AnonymousSignIn {
       final refreshed = _auth.currentUser ?? currentUser;
       return Result.success(_mapFirebaseUser(refreshed));
     } on FirebaseFunctionsException catch (e) {
-      // deployed contract — unauthenticated/permission-denied → 재로그인 유도.
-      if (e.code == 'unauthenticated' || e.code == 'permission-denied') {
-        return Result.failure(ReauthenticationRequiredException(cause: e));
-      }
-      // already-exists → 이미 link 된 identity (회귀 안전 ARB 재사용).
-      if (e.code == 'already-exists') {
-        return Result.failure(AccountAlreadyLinked(cause: e));
-      }
-      // failed-precondition (익명 caller) / invalid-argument 등 → 표준 매핑.
-      return Result.failure(_mapFunctionsException(e));
+      // 16.9 review WR-01: 연결 callable 공용 판정 — 재로그인은 서버가
+      // details.reason 으로 표시한 거부에만 (IdP 거부 · App Check 차단 제외).
+      return Result.failure(_mapLinkCallableException(e));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on ServiceUnavailable catch (e) {
@@ -1467,9 +1463,13 @@ class AuthRepository implements AnonymousSignIn {
   /// 가입 수단(`signUpProviderId`) · 프로필 필드는 쓰지 않는다(C-06) — 연결
   /// 원장 기록은 서버 transaction 이 맡는다.
   ///
-  /// 에러 매핑 ([linkCustomTokenProviderArm] 과 동일 — C-04):
-  /// - `unauthenticated` / `permission-denied` →
-  ///   [ReauthenticationRequiredException] (재로그인 유도).
+  /// 에러 매핑 ([_mapLinkCallableException] — [linkCustomTokenProviderArm] 과
+  /// 공용 · C-04 · 16.9 review WR-01):
+  /// - `details.reason == 'reauthentication_required'` · `permission-denied`
+  ///   → [ReauthenticationRequiredException] (재로그인 유도).
+  /// - reason 없는 `unauthenticated` (Naver `/v1/nid/me` 거부 · code 교환
+  ///   `invalid_grant` · App Check 차단) → [ServiceUnavailable] (일시 오류 —
+  ///   로그인 경로 [_mapFunctionsException] 과 같은 안내).
   /// - `already-exists` → [AccountAlreadyLinked] (Naver 신원이 다른 계정 소유).
   /// - 그 외 [FirebaseFunctionsException] → [_mapFunctionsException].
   /// - [NaverSdkClient.signIn] 의 [ServiceUnavailable] (SDK/웹 세션 오류) 은
@@ -1526,16 +1526,10 @@ class AuthRepository implements AnonymousSignIn {
       await currentUser.reload();
       return Result.success(_mapFirebaseUser(_auth.currentUser ?? currentUser));
     } on FirebaseFunctionsException catch (e) {
-      // 기존 link arm 과 같은 선분기 — unauthenticated/permission-denied →
-      // 재로그인 유도.
-      if (e.code == 'unauthenticated' || e.code == 'permission-denied') {
-        return Result.failure(ReauthenticationRequiredException(cause: e));
-      }
-      // already-exists → Naver 신원이 다른 계정에 이미 연결됨.
-      if (e.code == 'already-exists') {
-        return Result.failure(AccountAlreadyLinked(cause: e));
-      }
-      return Result.failure(_mapFunctionsException(e));
+      // 16.9 review WR-01: [linkCustomTokenProviderArm] 과 같은 공용 판정 —
+      // Naver 거부(`/v1/nid/me` 401 · code 교환 invalid_grant) · App Check
+      // 차단은 재로그인이 아니라 일시 오류다.
+      return Result.failure(_mapLinkCallableException(e));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on ServiceUnavailable catch (e) {
@@ -1555,6 +1549,48 @@ class AuthRepository implements AnonymousSignIn {
       await _naverSdkClient.logout();
       _socialLinkInProgress.end();
     }
+  }
+
+  /// 연결 callable(`linkCustomTokenProvider` · `linkNaverProvider`) 거부를
+  /// [AppException] 으로 매핑한다 — 두 link arm 의 단일 진실원
+  /// (Phase 16.9 review WR-01).
+  ///
+  /// 서버 `unauthenticated` 는 재인증 필요 외에도 IdP 자격증명 거부
+  /// (`idpCredentialRejected` — Naver `/v1/nid/me` 401 · `resultcode != 00` ·
+  /// code 교환 `invalid_grant` · Kakao/LINE ID token 검증 실패) · App Check
+  /// 차단 · auth token 무효(firebase-functions 7.2.5 — details 없음)가 함께
+  /// 쓴다. code 만 보고 재로그인으로 보내면 Firebase 세션이 정상인데도
+  /// 「보안을 위해 다시 로그인」 안내 + 로그인 화면 이동이 되고, 재로그인
+  /// 뒤에도 같은 원인이면 같은 결과가 반복된다. 그래서:
+  ///
+  /// 1. `details.reason == 'reauthentication_required'` →
+  ///    [ReauthenticationRequiredException] (서버 `reauthenticationRequired()`
+  ///    — `verifyIdToken(checkRevoked)` 실패 · `assertFreshAuth`).
+  /// 2. `permission-denied` (`caller_identity_mismatch` 아님) →
+  ///    [ReauthenticationRequiredException]. 두 연결 callable 의
+  ///    `permission-denied` 출처는 idToken uid ≠ `request.auth.uid` 하나뿐이다
+  ///    (App Check 차단 · auth 무효는 `unauthenticated`, firebase-functions 의
+  ///    `permission-denied` 는 킷 미사용 `authPolicy` 전용). 같은 기기의 같은
+  ///    `currentUser` 에서 두 값을 만들므로 불일치는 세션이 흔들린 상태이고,
+  ///    재로그인이 세션을 다시 맞추는 해소책이다.
+  /// 3. `already-exists` → [AccountAlreadyLinked] (신원이 다른 계정 소유).
+  /// 4. 나머지 → [_mapFunctionsException] — reason 없는 `unauthenticated` 는
+  ///    로그인 경로와 같은 [ServiceUnavailable] (하류
+  ///    `SettingsNotifier._mapLinkFailure` → transientFailure 「잠시 후 다시
+  ///    시도」), `unavailable` → [NoInternetConnection], `failed-precondition`
+  ///    (익명 caller) · `invalid-argument` → [ServiceUnavailable].
+  ///
+  /// 서버 message 는 읽지 않는다 — `code` + `details.reason` 만 분기한다.
+  AppException _mapLinkCallableException(FirebaseFunctionsException e) {
+    if (_isReauthRequiredRejection(e.details) ||
+        (e.code == 'permission-denied' &&
+            !_isCallerIdentityMismatch(e.details))) {
+      return ReauthenticationRequiredException(cause: e);
+    }
+    if (e.code == 'already-exists') {
+      return AccountAlreadyLinked(cause: e);
+    }
+    return _mapFunctionsException(e);
   }
 
   /// [targetProvider] 별 SDK signIn 으로 target OIDC 토큰을 fresh 재획득한다
@@ -3189,6 +3225,15 @@ class AuthRepository implements AnonymousSignIn {
   /// 를 싣는다. [details] 가 [Map] 이 아니거나 reason 이 다르면 `false`.
   bool _isCallerIdentityMismatch(Object? details) =>
       details is Map && details['reason'] == 'caller_identity_mismatch';
+
+  /// callable 거부 [details] 가 서버 재인증 필요 표시
+  /// (`{reason: 'reauthentication_required'}`)인지 판정한다
+  /// (Phase 16.9 review WR-01).
+  ///
+  /// functions `reauthenticationRequired()` 가 싣는다. [details] 가 [Map] 이
+  /// 아니거나 reason 이 다르면 `false` — fail-closed 로 재로그인 분기를 막는다.
+  bool _isReauthRequiredRejection(Object? details) =>
+      details is Map && details['reason'] == 'reauthentication_required';
 
   /// callable `unlinkCustomTokenProvider` 거부 [details] 가 서버 D-03 가드의
   /// `last_credential` 인지 판정한다 (Phase 16.8 · RESEARCH Pitfall 4).

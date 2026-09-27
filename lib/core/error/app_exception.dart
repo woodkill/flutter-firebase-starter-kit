@@ -304,17 +304,21 @@ final class UnlinkLastCredentialRejected extends AuthException {
 
 /// 재인증 필요 (Phase 16 D-06 / D-07).
 ///
-/// 서버는 `errorReauthenticationRequired` 를 `unauthenticated` 로만 보낸다
-/// (`deleteUserAccount` · `linkCustomTokenProvider` — idToken 검증 실패 ·
-/// `assertFreshAuth` auth_time 5분 초과 · 누락 · 미래값 — 16.8 review
-/// iteration 2 IN-01).
+/// 서버는 `errorReauthenticationRequired` 를 `unauthenticated` +
+/// `details.reason: 'reauthentication_required'` 로 보낸다
+/// (`deleteUserAccount` · `linkCustomTokenProvider` · `linkNaverProvider` —
+/// idToken 검증 실패 · `assertFreshAuth` auth_time 5분 초과 · 누락 · 미래값 —
+/// 16.8 review iteration 2 IN-01 · 16.9 review WR-01).
 /// `permission-denied` 는 uid 불일치(`errorUnauthenticated`)다. 클라이언트는
-/// 메시지가 아니라 code 만 보고 매핑한다 — `SettingsRepository._mapDeleteError`
-/// 는 두 code 모두 본 타입으로 만들므로 App Check 차단(firebase-functions
-/// 7.2.5 는 `unauthenticated`)도 본 타입이 된다(알려진 한계 · 동작 불변). 그 밖의
-/// 생성처: `getIdToken(true)` 비네트워크 실패 · null/빈 idToken
-/// (`SettingsRepository`), `linkCustomTokenProvider` 의 두 code
-/// (`AuthRepository`), native link · unlink 의 `requires-recent-login`.
+/// 메시지를 읽지 않는다. 두 연결 arm(`AuthRepository._mapLinkCallableException`)
+/// 은 reason 이 있는 `unauthenticated` 와 `permission-denied` 만 본 타입으로
+/// 만들고, reason 없는 `unauthenticated`(IdP 자격증명 거부 · App Check 차단)는
+/// 일시 오류로 흘린다. `SettingsRepository._mapDeleteError` 는 아직 code 만
+/// 보고 두 code 모두 본 타입으로 만들므로 App Check 차단(firebase-functions
+/// 7.2.5 는 `unauthenticated`)도 본 타입이 된다(알려진 한계 · 동작 불변 —
+/// 서버가 싣는 reason 은 이 경로에 무해하다). 그 밖의 생성처:
+/// `getIdToken(true)` 비네트워크 실패 · null/빈 idToken
+/// (`SettingsRepository`), native link · unlink 의 `requires-recent-login`.
 /// 사용자는 `/login` 으로 redirect 후 재로그인 의무.
 final class ReauthenticationRequiredException extends AuthException {
   /// [ReauthenticationRequiredException]을 생성한다.

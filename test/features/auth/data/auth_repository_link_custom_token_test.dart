@@ -12,8 +12,10 @@
 //   T1: line target → LineSdkClient.signIn() fresh 토큰 → getIdToken(true) →
 //       httpsCallable('linkCustomTokenProvider')(...) → {ok:true} → success
 //   T2: target SDK signIn 사용자 취소(null) → null (silent cancel, link 미호출)
-//   T3: callable 'unauthenticated'/'errorReauthenticationRequired' →
-//       ReauthenticationRequiredException
+//   T3: callable 'unauthenticated' + details.reason 'reauthentication_required'
+//       · 'permission-denied' → ReauthenticationRequiredException / reason 없는
+//       'unauthenticated' (ID token 거부 · App Check 차단) → ServiceUnavailable
+//       (16.9 review WR-01 — linkNaverProviderArm 과 같은 판정)
 //   T4: callable 'already-exists'/'errorAccountAlreadyLinked' → AccountAlreadyLinked
 //   T5: callable 'failed-precondition'/'errorAnonymousLinkNotAllowed' → 적절 매핑
 //   T6 (PII sentinel): catch path debugPrint 가 idToken/targetProviderToken/email
@@ -191,30 +193,76 @@ void main() {
     });
   });
 
-  group(
-    'T3 — callable unauthenticated → ReauthenticationRequiredException',
-    () {
-      test('unauthenticated → ReauthenticationRequiredException', () async {
+  group('T3 — 재로그인 유도는 서버 표시(reason)만 (16.9 review WR-01)', () {
+    /// callable 이 [code] (· 선택 [details]) 로 거부하도록 stub 한다.
+    void stubCallableThrows(String code, {Object? details}) {
+      when(() => mockLinkCallable.call<Map<String, dynamic>>(any())).thenThrow(
+        FirebaseFunctionsException(
+          code: code,
+          message: 'server-token',
+          details: details,
+        ),
+      );
+    }
+
+    /// [result] 가 [Failure] 이면 그 예외를 돌려준다.
+    AppException failureOf(Result<dynamic>? result) {
+      expect(result, isA<Failure<dynamic>>());
+      return (result! as Failure<dynamic>).exception;
+    }
+
+    test(
+      'unauthenticated + reason reauthentication_required → ReauthenticationRequiredException',
+      () async {
         stubLineSignInSuccess();
-        when(
-          () => mockLinkCallable.call<Map<String, dynamic>>(any()),
-        ).thenThrow(
-          FirebaseFunctionsException(
-            code: 'unauthenticated',
-            message: 'errorReauthenticationRequired',
-          ),
+        stubCallableThrows(
+          'unauthenticated',
+          details: const <String, Object?>{
+            'reason': 'reauthentication_required',
+          },
         );
 
         final result = await repository.linkCustomTokenProviderArm(
           targetProvider: AccountProvider.line,
         );
 
-        expect(result, isA<Failure<dynamic>>());
-        final failure = result! as Failure<dynamic>;
-        expect(failure.exception, isA<ReauthenticationRequiredException>());
-      });
-    },
-  );
+        expect(failureOf(result), isA<ReauthenticationRequiredException>());
+      },
+    );
+
+    test(
+      'permission-denied (idToken uid 불일치) → ReauthenticationRequiredException',
+      () async {
+        stubLineSignInSuccess();
+        stubCallableThrows('permission-denied');
+
+        final result = await repository.linkCustomTokenProviderArm(
+          targetProvider: AccountProvider.line,
+        );
+
+        expect(failureOf(result), isA<ReauthenticationRequiredException>());
+      },
+    );
+
+    test(
+      'unauthenticated · reason 없음 (LINE ID token 거부 · App Check 차단) → ServiceUnavailable',
+      () async {
+        stubLineSignInSuccess();
+        stubCallableThrows('unauthenticated');
+
+        final result = await repository.linkCustomTokenProviderArm(
+          targetProvider: AccountProvider.line,
+        );
+
+        final exception = failureOf(result);
+        expect(exception, isA<ServiceUnavailable>());
+        expect(exception, isNot(isA<ReauthenticationRequiredException>()));
+        // 1회성 토큰 정책 · race-fix invariant 는 실패 경로에서도 유지.
+        verify(() => mockLineSdkClient.logout()).called(1);
+        verify(() => mockSocialLinkInProgress.end()).called(1);
+      },
+    );
+  });
 
   group('T4 — callable already-exists → AccountAlreadyLinked', () {
     test('already-exists → AccountAlreadyLinked', () async {
