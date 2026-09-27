@@ -26,8 +26,9 @@
  *  - N14: transaction 일반 오류 → internal + fingerprint 로그
  *  - N15: PII sentinel — 모든 케이스의 logger 호출 누적 검사
  *
- * PII sentinel: access token · code · state · client secret · Naver 이메일
- * fixture 값(`PII_NAVER_*`) 은 어느 logger 호출 인자에도 나오면 안 된다.
+ * PII sentinel: caller idToken · access token · code · state · client secret ·
+ * Naver 이메일 fixture 값(`PII_NAVER_*`) 은 어느 logger 호출 인자에도 나오면
+ * 안 된다 (idToken 은 서버 docstring PII 금지 목록 첫 항목 — 16.9 review IN-01).
  */
 
 // fetch mock — token 교환 · /v1/nid/me 호출을 순서대로 stub.
@@ -240,12 +241,15 @@ function mockExchangeOk() {
   mockFetchOk({access_token: "PII_NAVER_ACCESS_TOKEN", expires_in: "3600"});
 }
 
+/** caller fresh idToken fixture — PII sentinel (N15 · 16.9 review IN-01). */
+const ID_TOKEN = "PII_NAVER_ID_TOKEN";
+
 /** 1-tap 모양 요청 data. */
-const APP_DATA = {idToken: "FRESH", accessToken: "PII_NAVER_ACCESS_TOKEN"};
+const APP_DATA = {idToken: ID_TOKEN, accessToken: "PII_NAVER_ACCESS_TOKEN"};
 
 /** 웹 모양 요청 data. */
 const WEB_DATA = {
-  idToken: "FRESH",
+  idToken: ID_TOKEN,
   code: "PII_NAVER_CODE",
   state: "PII_NAVER_STATE",
 };
@@ -277,7 +281,7 @@ describe("linkNaverProvider — 1-tap 연결 · transaction (N1~N3)", () => {
     const result = await callLink(APP_DATA);
 
     expect(result).toEqual({ok: true});
-    expect(mockVerifyIdToken).toHaveBeenCalledWith("FRESH", true);
+    expect(mockVerifyIdToken).toHaveBeenCalledWith(ID_TOKEN, true);
     // 전역 fetch 정확히 1회 — /v1/nid/me Bearer (교환 없음).
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -431,7 +435,7 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
 
 describe("linkNaverProvider — 입력 모양 · 위생 (N7 · N8)", () => {
   it("N7: (a) 모양 부재 {idToken} — invalid-argument · Admin Auth 0", async () => {
-    await expect(callLink({idToken: "FRESH"})).rejects.toMatchObject({
+    await expect(callLink({idToken: ID_TOKEN})).rejects.toMatchObject({
       code: "invalid-argument",
       message: "errorInvalidArgument",
     });
@@ -452,7 +456,7 @@ describe("linkNaverProvider — 입력 모양 · 위생 (N7 · N8)", () => {
 
   it("N7: (c) 웹 모양 state 부재 {idToken, code} — invalid-argument", async () => {
     await expect(
-      callLink({idToken: "FRESH", code: "PII_NAVER_CODE"}),
+      callLink({idToken: ID_TOKEN, code: "PII_NAVER_CODE"}),
     ).rejects.toMatchObject({
       code: "invalid-argument",
       message: "errorInvalidArgument",
@@ -462,7 +466,7 @@ describe("linkNaverProvider — 입력 모양 · 위생 (N7 · N8)", () => {
   });
 
   it.each([
-    ["accessToken CRLF", {idToken: "FRESH", accessToken: "a\r\nb"}],
+    ["accessToken CRLF", {idToken: ID_TOKEN, accessToken: "a\r\nb"}],
     ["code NUL", {...WEB_DATA, code: "c\x00"}],
     ["state 513자", {...WEB_DATA, state: "s".repeat(513)}],
   ])("N8: 위생 — %s → invalid-argument", async (_label, data) => {
@@ -657,6 +661,7 @@ describe("linkNaverProvider — PII sentinel (N15)", () => {
     expect(accumulatedLogCalls.length).toBeGreaterThan(10);
     const serialized = JSON.stringify(accumulatedLogCalls);
     for (const sentinel of [
+      "PII_NAVER_ID_TOKEN",
       "PII_NAVER_ACCESS_TOKEN",
       "PII_NAVER_CODE",
       "PII_NAVER_STATE",
