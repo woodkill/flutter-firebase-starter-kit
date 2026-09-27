@@ -94,7 +94,9 @@ type LinkCustomTokenProviderResponse = {
  *           feedback_oidc_mock_self_referential mirror).
  *   Step 4: Firestore runTransaction — identity_index atomic create +
  *           linkedProviders[] update. "all reads before all writes"
- *           invariant 의무 (Pitfall 2 회피).
+ *           invariant 의무 (Pitfall 2 회피). 같은 provider 의 다른 신원이
+ *           이미 연결돼 있으면 `already-exists` + reason
+ *           `provider_already_linked` (16.9 review IN-03).
  *   Step 5: structured log + return.
  *
  * **PII 금지 (T-16-NEW-07 mitigation)**: logger payload 는

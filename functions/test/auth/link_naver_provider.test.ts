@@ -25,6 +25,9 @@
  *  - N13: code 교환 실패 매핑 (웹)
  *  - N14: transaction 일반 오류 → internal + fingerprint 로그
  *  - N15: PII sentinel — 모든 케이스의 logger 호출 누적 검사
+ *  - N16~N19: provider 당 신원 1개 (16.9 review IN-03) — 같은 provider 다른
+ *    신원 거부 · 같은 신원 멱등 · 다른 provider 허용 · 판별 불가 항목 거부.
+ *    모든 tx.get 이 첫 tx.set 보다 앞선다 (순서 강제 tx + calls 단언).
  *
  * PII sentinel: caller idToken · access token · code · state · client secret ·
  * Naver 이메일 fixture 값(`PII_NAVER_*`) 은 어느 logger 호출 인자에도 나오면
@@ -142,6 +145,12 @@ const accumulatedLogCalls: unknown[][] = [];
 
 /** 이번 케이스의 identity_index tx read 결과 (undefined = 문서 없음). */
 let idxOwnerUid: string | undefined;
+
+/**
+ * 이번 케이스의 users/{uid} tx read 결과의 `linkedProviders`
+ * (undefined = 필드 없음 · 16.9 review IN-03).
+ */
+let userLinkedProviders: unknown[] | undefined;
 
 afterEach(() => {
   // beforeEach 의 clearAllMocks 가 지우기 전에 누적한다.
@@ -264,13 +273,20 @@ beforeEach(() => {
     firebase: {sign_in_provider: "google.com"},
   });
   idxOwnerUid = undefined;
+  userLinkedProviders = undefined;
   mockOrdered = createOrderedTx((ref) =>
     (ref as {label: string}).label === "identity_index" ?
       {
         exists: idxOwnerUid !== undefined,
         data: () => ({firebaseUid: idxOwnerUid}),
       } :
-      {exists: true, data: () => ({})},
+      {
+        exists: true,
+        data: () =>
+          userLinkedProviders === undefined ?
+            {} :
+            {linkedProviders: userLinkedProviders},
+      },
   );
 });
 
@@ -294,8 +310,9 @@ describe("linkNaverProvider — 1-tap 연결 · transaction (N1~N3)", () => {
         signal: expect.anything(),
       }),
     );
-    // read 1 → set 2 (idx 신규 + users merge) — 순서 강제 tx 통과.
-    expect(mockOrdered.calls).toEqual(["get", "set", "set"]);
+    // read 2 (idx + users — 16.9 review IN-03) → set 2 (idx 신규 + users
+    // merge) — 순서 강제 tx 통과.
+    expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
     expect(mockOrdered.sets[0].ref).toEqual({
       label: "identity_index",
       id: `naver:${NAVER_SUB}`,
@@ -332,7 +349,7 @@ describe("linkNaverProvider — 1-tap 연결 · transaction (N1~N3)", () => {
 
     await expect(callLink(APP_DATA)).resolves.toEqual({ok: true});
 
-    expect(mockOrdered.calls).toEqual(["get", "set"]);
+    expect(mockOrdered.calls).toEqual(["get", "get", "set"]);
     expect(mockOrdered.sets[0].ref).toEqual({label: "users", id: CALLER_UID});
   });
 
@@ -346,7 +363,7 @@ describe("linkNaverProvider — 1-tap 연결 · transaction (N1~N3)", () => {
       code: "already-exists",
       message: "errorAccountAlreadyLinked",
     });
-    expect(mockOrdered.calls).toEqual(["get"]);
+    expect(mockOrdered.calls).toEqual(["get", "get"]);
     expect(mockOrdered.sets).toHaveLength(0);
     expect(infoMock).not.toHaveBeenCalled();
   });
@@ -381,7 +398,7 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
         }),
       }),
     );
-    expect(mockOrdered.calls).toEqual(["get", "set", "set"]);
+    expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
     expect(infoMock).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "link_naver_provider_succeeded",
@@ -651,6 +668,106 @@ describe("linkNaverProvider — transaction 오류 (N14)", () => {
       expect.any(String),
     );
     expect(infoMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("linkNaverProvider — provider 당 신원 1개 (N16~N19 · IN-03)", () => {
+  it.each([
+    ["연결 신원", {providerId: "naver", providerUserId: "naver-sub-OTHER"}],
+    // 가입 경로(`resolveIdentity` 신규 등록)도 같은 모양의 항목을 쓴다.
+    ["가입 신원", {providerId: "naver", providerUserId: "naver-signup-sub"}],
+  ])(
+    "N16: 같은 provider 의 다른 %s 이미 연결 — already-exists · reason · write 0",
+    async (_label, entry) => {
+      userLinkedProviders = [{providerId: "google.com"}, entry];
+      mockProfileOk();
+
+      const err = await callLink(APP_DATA).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpsError);
+      expect(err).toMatchObject({
+        code: "already-exists",
+        message: "errorProviderAlreadyLinked",
+        details: {reason: "provider_already_linked"},
+      });
+      // 모든 read 가 먼저 · write 0.
+      expect(mockOrdered.calls).toEqual(["get", "get"]);
+      expect(mockOrdered.sets).toHaveLength(0);
+      expect(warnMock).toHaveBeenCalledWith(
+        {
+          event: "link_provider_already_linked",
+          uid: CALLER_UID,
+          provider: "naver",
+        },
+        expect.any(String),
+      );
+      expect(infoMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("N16: 다른 uid 소유 거부는 reason 없는 errorAccountAlreadyLinked 그대로", async () => {
+    idxOwnerUid = "other-owner-uid";
+    userLinkedProviders = [
+      {providerId: "naver", providerUserId: "naver-sub-OTHER"},
+    ];
+    mockProfileOk();
+
+    const err = await callLink(APP_DATA).catch((e: unknown) => e);
+    expect(err).toMatchObject({
+      code: "already-exists",
+      message: "errorAccountAlreadyLinked",
+    });
+    expect((err as HttpsError).details).toBeUndefined();
+    expect(mockOrdered.sets).toHaveLength(0);
+  });
+
+  it("N17: 같은 신원 재연결 — 멱등 성공 · idx 재작성 0 (WR-10 유지)", async () => {
+    idxOwnerUid = CALLER_UID;
+    userLinkedProviders = [{providerId: "naver", providerUserId: NAVER_SUB}];
+    mockProfileOk();
+
+    await expect(callLink(APP_DATA)).resolves.toEqual({ok: true});
+    expect(mockOrdered.calls).toEqual(["get", "get", "set"]);
+    expect(mockOrdered.sets[0].ref).toEqual({label: "users", id: CALLER_UID});
+  });
+
+  it("N17: idx 가 내 소유면 다른 naver 항목이 남아 있어도 재연결은 멱등", async () => {
+    // 이 가드 이전에 생긴 다중 신원 상태 — 새 신원 추가가 아니므로 거부 0.
+    idxOwnerUid = CALLER_UID;
+    userLinkedProviders = [
+      {providerId: "naver", providerUserId: "naver-sub-OTHER"},
+      {providerId: "naver", providerUserId: NAVER_SUB},
+    ];
+    mockProfileOk();
+
+    await expect(callLink(APP_DATA)).resolves.toEqual({ok: true});
+    expect(mockOrdered.calls).toEqual(["get", "get", "set"]);
+  });
+
+  it("N18: 다른 provider 만 연결돼 있으면 허용 — idx 신규 + users merge", async () => {
+    userLinkedProviders = [
+      {providerId: "kakao", providerUserId: "kakao-sub-1"},
+      {providerId: "line", providerUserId: "line-sub-1"},
+    ];
+    mockExchangeOk();
+    mockProfileOk();
+
+    await expect(callLink(WEB_DATA)).resolves.toEqual({ok: true});
+    expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
+    expect(mockOrdered.sets[0].ref).toEqual({
+      label: "identity_index",
+      id: `naver:${NAVER_SUB}`,
+    });
+  });
+
+  it("N19: providerUserId 판별 불가 naver 항목 — fail-closed 거부", async () => {
+    userLinkedProviders = [{providerId: "naver"}];
+    mockProfileOk();
+
+    await expect(callLink(APP_DATA)).rejects.toMatchObject({
+      code: "already-exists",
+      details: {reason: "provider_already_linked"},
+    });
+    expect(mockOrdered.sets).toHaveLength(0);
   });
 });
 

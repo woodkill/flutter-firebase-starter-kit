@@ -209,7 +209,8 @@ class SettingsNotifier extends _$SettingsNotifier {
       ProviderAlreadyLinkedToThisAccount() =>
         AccountLinkOutcome.alreadyLinkedHere,
       // `credential-already-in-use` (해당 자격증명이 **다른 계정에** 연결) +
-      // Custom Token arm 의 callable `already-exists`.
+      // Custom Token arm 의 callable `already-exists` (reason 없음 — reason
+      // `provider_already_linked` 는 위 alreadyLinkedHere · 16.9 IN-03).
       AccountAlreadyLinked() => AccountLinkOutcome.alreadyLinked,
       // `email-already-in-use` / `account-exists-with-different-credential`.
       EmailAlreadyInUse() ||

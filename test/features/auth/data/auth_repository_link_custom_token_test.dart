@@ -17,6 +17,8 @@
 //       'unauthenticated' (ID token 거부 · App Check 차단) → ServiceUnavailable
 //       (16.9 review WR-01 — linkNaverProviderArm 과 같은 판정)
 //   T4: callable 'already-exists'/'errorAccountAlreadyLinked' → AccountAlreadyLinked
+//       · + details.reason 'provider_already_linked' →
+//       ProviderAlreadyLinkedToThisAccount (16.9 review IN-03)
 //   T5: callable 'failed-precondition'/'errorAnonymousLinkNotAllowed' → 적절 매핑
 //   T6 (PII sentinel): catch path debugPrint 가 idToken/targetProviderToken/email
 //       본문 미포함 (code/runtimeType-only)
@@ -281,6 +283,27 @@ void main() {
       expect(result, isA<Failure<dynamic>>());
       final failure = result! as Failure<dynamic>;
       expect(failure.exception, isA<AccountAlreadyLinked>());
+    });
+
+    test('already-exists + reason provider_already_linked → '
+        'ProviderAlreadyLinkedToThisAccount (16.9 review IN-03)', () async {
+      stubLineSignInSuccess();
+      when(() => mockLinkCallable.call<Map<String, dynamic>>(any())).thenThrow(
+        FirebaseFunctionsException(
+          code: 'already-exists',
+          message: 'errorProviderAlreadyLinked',
+          details: const <String, Object?>{'reason': 'provider_already_linked'},
+        ),
+      );
+
+      final result = await repository.linkCustomTokenProviderArm(
+        targetProvider: AccountProvider.line,
+      );
+
+      expect(result, isA<Failure<dynamic>>());
+      final failure = result! as Failure<dynamic>;
+      expect(failure.exception, isA<ProviderAlreadyLinkedToThisAccount>());
+      expect(failure.exception, isNot(isA<AccountAlreadyLinked>()));
     });
   });
 

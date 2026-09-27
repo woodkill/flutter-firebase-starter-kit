@@ -27,6 +27,8 @@ import {
   idpUnavailable,
   invalidArgument,
   mapOidcVerifyError,
+  PROVIDER_ALREADY_LINKED_REASON,
+  providerAlreadyLinked,
   reauthenticationRequired,
   REAUTH_REQUIRED_REASON,
   serverFailure,
@@ -49,6 +51,17 @@ describe("표준 에러 팩토리 — WR-01 공용 매핑 표", () => {
       code: "unauthenticated",
       message: "errorReauthenticationRequired",
       details: {reason: "reauthentication_required"},
+    });
+  });
+
+  // 16.9 review IN-03: 다른 계정 소유 거부(details 없음)와 같은 code 를
+  // 공유하므로 client 는 reason 으로만 「이 계정에 이미 연결」 을 가른다.
+  it("provider 당 신원 1개 = already-exists + details.reason 토큰", () => {
+    expect(PROVIDER_ALREADY_LINKED_REASON).toBe("provider_already_linked");
+    expect(providerAlreadyLinked()).toMatchObject({
+      code: "already-exists",
+      message: "errorProviderAlreadyLinked",
+      details: {reason: "provider_already_linked"},
     });
   });
 

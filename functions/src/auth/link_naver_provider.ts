@@ -91,7 +91,9 @@ type LinkNaverProviderResponse = {
  *           access token 은 이 호출의 지역 변수로만 존재한다 (C-03).
  *   Step 4: `fetchNaverProfile` — `/v1/nid/me` 검증 후 `id` 만 소비.
  *   Step 5: `linkCustomTokenIdentity` — identity_index 생성 + linkedProviders
- *           갱신 (공용 transaction).
+ *           갱신 (공용 transaction). 다른 Naver 신원이 이미 이 계정에 있으면
+ *           `already-exists` + reason `provider_already_linked` (16.9 review
+ *           IN-03 — provider 당 신원 1개).
  *   Step 6: 성공 로그 + `{ok: true}`.
  *
  * **PII 금지:** logger payload 는 `{event, uid, path, code}` 만. idToken ·

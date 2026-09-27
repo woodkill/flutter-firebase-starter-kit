@@ -124,6 +124,35 @@ export function reauthenticationRequired(): HttpsError {
 }
 
 /**
+ * 같은 provider 의 다른 신원이 이미 caller 계정에 연결돼 있을 때의
+ * `details.reason` 토큰 (Phase 16.9 review IN-03).
+ */
+export const PROVIDER_ALREADY_LINKED_REASON = "provider_already_linked";
+
+/**
+ * caller 계정에 같은 provider 의 다른 신원이 이미 연결돼 있어 연결을 거부할
+ * 때의 표준 에러 (Phase 16.9 review IN-03 — provider 당 신원 1개).
+ *
+ * Firebase 네이티브 `linkWithCredential` 의 `provider-already-linked` 를
+ * mirror 한다. code 는 다른 계정 소유 거부(`errorAccountAlreadyLinked` —
+ * details 없음)와 같은 `already-exists` 를 공유하고 client 는
+ * `details.reason` 으로 가른다 — 두 거부 모두 「연결 대상이 이미 존재」 라는
+ * gRPC 의미가 같고, reason 을 모르는 옛 client 가 받아도 「기존 연결을 해제한
+ * 뒤 다시 시도」 안내가 해소 절차(기존 연결 해제)와 맞는다. `failed-precondition`
+ * 은 옛 client 에서 「잠시 후 다시 시도」 로 떨어져 재시도 루프가 된다.
+ * details 에는 reason 토큰 하나만 담는다 — providerUserId 등 식별자는 넣지
+ * 않는다 (PII slug-only 정책 D-51).
+ *
+ * @return {HttpsError} `already-exists` / `errorProviderAlreadyLinked` /
+ *     `{reason: "provider_already_linked"}`.
+ */
+export function providerAlreadyLinked(): HttpsError {
+  return new HttpsError("already-exists", "errorProviderAlreadyLinked", {
+    reason: PROVIDER_ALREADY_LINKED_REASON,
+  });
+}
+
+/**
  * 정식 로그인 caller 가 자기 계정에 매핑되지 않은 identity 로 Custom Token
  * 로그인을 요청했을 때의 표준 에러 (debug reauth-login-auto-merge).
  *

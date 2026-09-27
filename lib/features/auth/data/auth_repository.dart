@@ -1331,6 +1331,9 @@ class AuthRepository implements AnonymousSignIn {
   ///   [ReauthenticationRequiredException] (재로그인 유도).
   /// - reason 없는 `unauthenticated` (Kakao/LINE ID token 거부 · App Check
   ///   차단) → [_mapFunctionsException] 의 [ServiceUnavailable] (일시 오류).
+  /// - `already-exists` + reason `provider_already_linked` →
+  ///   [ProviderAlreadyLinkedToThisAccount] (같은 provider 의 다른 신원이 이미
+  ///   이 계정에 연결 — 16.9 review IN-03).
   /// - `already-exists` → [AccountAlreadyLinked] (identity_index 이미 존재).
   /// - 그 외 (`failed-precondition` 익명 caller / `invalid-argument` 등) →
   ///   [_mapFunctionsException] (적절 [AppException]).
@@ -1481,6 +1484,9 @@ class AuthRepository implements AnonymousSignIn {
   /// - reason 없는 `unauthenticated` (Naver `/v1/nid/me` 거부 · code 교환
   ///   `invalid_grant` · App Check 차단) → [ServiceUnavailable] (일시 오류 —
   ///   로그인 경로 [_mapFunctionsException] 과 같은 안내).
+  /// - `already-exists` + reason `provider_already_linked` →
+  ///   [ProviderAlreadyLinkedToThisAccount] (다른 Naver 신원이 이미 이 계정에
+  ///   연결 — 16.9 review IN-03).
   /// - `already-exists` → [AccountAlreadyLinked] (Naver 신원이 다른 계정 소유).
   /// - 그 외 [FirebaseFunctionsException] → [_mapFunctionsException].
   /// - [NaverSdkClient.signIn] 의 [ServiceUnavailable] (SDK/웹 세션 오류) 은
@@ -1590,8 +1596,14 @@ class AuthRepository implements AnonymousSignIn {
   ///    `permission-denied` 는 킷 미사용 `authPolicy` 전용). 같은 기기의 같은
   ///    `currentUser` 에서 두 값을 만들므로 불일치는 세션이 흔들린 상태이고,
   ///    재로그인이 세션을 다시 맞추는 해소책이다.
-  /// 3. `already-exists` → [AccountAlreadyLinked] (신원이 다른 계정 소유).
-  /// 4. 나머지 → [_mapFunctionsException] — reason 없는 `unauthenticated` 는
+  /// 3. `already-exists` + `details.reason == 'provider_already_linked'` →
+  ///    [ProviderAlreadyLinkedToThisAccount] (같은 provider 의 다른 신원이
+  ///    **이 계정에** 이미 연결 — 16.9 review IN-03 · Firebase
+  ///    `provider-already-linked` mirror). 아래 4 와 code 를 공유하지만 의미가
+  ///    정반대이므로 반드시 먼저 판정한다.
+  /// 4. `already-exists` (reason 없음) → [AccountAlreadyLinked] (신원이 다른
+  ///    계정 소유).
+  /// 5. 나머지 → [_mapFunctionsException] — reason 없는 `unauthenticated` 는
   ///    로그인 경로와 같은 [ServiceUnavailable] (하류
   ///    `SettingsNotifier._mapLinkFailure` → transientFailure 「잠시 후 다시
   ///    시도」), `unavailable` → [NoInternetConnection], `failed-precondition`
@@ -1605,7 +1617,10 @@ class AuthRepository implements AnonymousSignIn {
       return ReauthenticationRequiredException(cause: e);
     }
     if (e.code == 'already-exists') {
-      return AccountAlreadyLinked(cause: e);
+      // IN-03: 「이 계정에 이미 연결」 (reason) 을 「다른 계정 소유」 보다 먼저.
+      return _isProviderAlreadyLinkedRejection(e.details)
+          ? ProviderAlreadyLinkedToThisAccount(cause: e)
+          : AccountAlreadyLinked(cause: e);
     }
     return _mapFunctionsException(e);
   }
@@ -3251,6 +3266,15 @@ class AuthRepository implements AnonymousSignIn {
   /// 아니거나 reason 이 다르면 `false` — fail-closed 로 재로그인 분기를 막는다.
   bool _isReauthRequiredRejection(Object? details) =>
       details is Map && details['reason'] == 'reauthentication_required';
+
+  /// 연결 callable 거부 [details] 가 서버 provider 당 신원 1개 가드
+  /// (`{reason: 'provider_already_linked'}`)인지 판정한다
+  /// (Phase 16.9 review IN-03).
+  ///
+  /// functions `providerAlreadyLinked()` 가 싣는다. [details] 가 [Map] 이
+  /// 아니거나 reason 이 다르면 `false` ([AccountAlreadyLinked] 로 남는다).
+  bool _isProviderAlreadyLinkedRejection(Object? details) =>
+      details is Map && details['reason'] == 'provider_already_linked';
 
   /// callable `unlinkCustomTokenProvider` 거부 [details] 가 서버 D-03 가드의
   /// `last_credential` 인지 판정한다 (Phase 16.8 · RESEARCH Pitfall 4).

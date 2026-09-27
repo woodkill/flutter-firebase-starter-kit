@@ -21,7 +21,13 @@
  *
  * Phase 15 리뷰 WR-10 회귀 가드:
  *  - L8: 같은 uid 재연동 — 멱등 성공 (이전에는 already-exists 오분류)
- *  - L9: transaction read 1건 — 결과를 버리는 죽은 read 제거
+ *  - L9: transaction read 2건 (idx + users) — 결과를 버리는 죽은 read 는 없고,
+ *    users read 는 16.9 review IN-03 의 provider 당 신원 1개 검사가 쓴다.
+ *    모든 read 가 첫 write 보다 앞선다.
+ *
+ * Phase 16.9 리뷰 IN-03 (provider 당 신원 1개):
+ *  - L10: 같은 provider(kakao) 다른 신원 연결 → already-exists + reason
+ *  - L11: 다른 provider 만 연결 → 허용
  */
 
 // firebase-functions/logger mock — read-only export 라 jest.spyOn 미동작.
@@ -151,6 +157,9 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
     mockTxUpdate.mockReset();
     mockVerifyIdToken.mockReset();
     mockVerifyTargetIdToken.mockReset();
+    // users/{uid} read 기본값 — 연결 항목 없음 (16.9 review IN-03). 케이스별
+    // mockResolvedValueOnce(idx 먼저 · users 다음 순)가 우선한다.
+    mockTxGet.mockResolvedValue({exists: true, data: () => ({})});
   });
 
   // eslint-disable-next-line max-len
@@ -163,7 +172,7 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
     mockVerifyTargetIdToken.mockResolvedValue({sub: "kakao-sub-L1"});
     // tx.get 호출 2회 (idxRef + userRef) — Promise.all 순서 보존.
     mockTxGet.mockResolvedValueOnce({exists: false});
-    mockTxGet.mockResolvedValueOnce({exists: true});
+    mockTxGet.mockResolvedValueOnce({exists: true, data: () => ({})});
 
     const wrapped = testEnv.wrap(myFunctions.linkCustomTokenProvider);
     const result = (await wrapped({
@@ -291,7 +300,8 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
     expect(mockTxSet).toHaveBeenCalledTimes(1);
   });
 
-  it("L9: transaction read 는 idxRef 1건만 수행한다 (죽은 read 제거)", async () => {
+  // eslint-disable-next-line max-len
+  it("L9: transaction read 는 idx + users 2건 · 모든 read 가 첫 write 앞 (IN-03)", async () => {
     mockVerifyIdToken.mockResolvedValue({
       uid: "caller-uid-L9",
       auth_time: freshAuthTime(),
@@ -312,8 +322,88 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
       },
     } as never);
 
-    // 이전에는 결과를 버리는 tx.get(userRef) 가 함께 돌아 2회였다.
-    expect(mockTxGet).toHaveBeenCalledTimes(1);
+    // WR-10 이 지운 「결과를 버리는」 users read 와 달리, 이번 users read 는
+    // provider 당 신원 1개 검사(16.9 review IN-03)가 결과를 쓴다.
+    expect(mockTxGet).toHaveBeenCalledTimes(2);
+    expect(mockTxGet.mock.calls.map((c: unknown[]) => c[0])).toEqual([
+      {label: "idxRef"},
+      {label: "userRef"},
+    ]);
+    // 「all reads before all writes」 — 마지막 get 이 첫 set 보다 앞선다.
+    // (이 mock 은 순서를 강제하지 않으므로 호출 순서로 잠근다.)
+    const lastGetOrder = Math.max(...mockTxGet.mock.invocationCallOrder);
+    const firstSetOrder = Math.min(...mockTxSet.mock.invocationCallOrder);
+    expect(mockTxSet).toHaveBeenCalledTimes(2);
+    expect(lastGetOrder).toBeLessThan(firstSetOrder);
+  });
+
+  // eslint-disable-next-line max-len
+  it("L10: 같은 provider(kakao) 다른 신원이 이미 연결 → already-exists + reason · write 0", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "caller-uid-L10",
+      auth_time: freshAuthTime(),
+      firebase: {sign_in_provider: "google.com"},
+    });
+    mockVerifyTargetIdToken.mockResolvedValue({sub: "kakao-sub-NEW"});
+    mockTxGet.mockResolvedValueOnce({exists: false});
+    mockTxGet.mockResolvedValueOnce({
+      exists: true,
+      data: () => ({
+        linkedProviders: [
+          {providerId: "kakao", providerUserId: "kakao-sub-EXISTING"},
+        ],
+      }),
+    });
+
+    const wrapped = testEnv.wrap(myFunctions.linkCustomTokenProvider);
+    const promise = wrapped({
+      auth: {uid: "caller-uid-L10"},
+      app: {appId: "test"},
+      data: {
+        idToken: "FAKE_FRESH",
+        targetProvider: "kakao",
+        targetProviderToken: "FAKE_TARGET",
+        nonce: "n",
+      },
+    } as never);
+    await expect(promise).rejects.toMatchObject({
+      code: "already-exists",
+      message: "errorProviderAlreadyLinked",
+      details: {reason: "provider_already_linked"},
+    });
+    expect(mockTxGet).toHaveBeenCalledTimes(2);
+    expect(mockTxSet).not.toHaveBeenCalled();
+  });
+
+  it("L11: 다른 provider(line) 만 연결돼 있으면 kakao 연결 허용", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "caller-uid-L11",
+      auth_time: freshAuthTime(),
+      firebase: {sign_in_provider: "google.com"},
+    });
+    mockVerifyTargetIdToken.mockResolvedValue({sub: "kakao-sub-L11"});
+    mockTxGet.mockResolvedValueOnce({exists: false});
+    mockTxGet.mockResolvedValueOnce({
+      exists: true,
+      data: () => ({
+        linkedProviders: [{providerId: "line", providerUserId: "line-sub"}],
+      }),
+    });
+
+    const wrapped = testEnv.wrap(myFunctions.linkCustomTokenProvider);
+    const result = (await wrapped({
+      auth: {uid: "caller-uid-L11"},
+      app: {appId: "test"},
+      data: {
+        idToken: "FAKE_FRESH",
+        targetProvider: "kakao",
+        targetProviderToken: "FAKE_TARGET",
+        nonce: "n",
+      },
+    } as never)) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    expect(mockTxSet).toHaveBeenCalledTimes(2);
   });
 
   it("L3: stale idToken (auth_time > 5분) → unauthenticated", async () => {

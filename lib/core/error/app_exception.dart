@@ -248,7 +248,11 @@ final class AccountAlreadyLinked extends AuthException {
 /// 안내가 나간다.
 ///
 /// - `provider-already-linked` → 본 타입. "이미 이 계정에 연결되어 있다" —
-///   사용자가 할 일이 없다.
+///   사용자가 할 일이 없다. Custom Token 연결 callable(`linkNaverProvider` ·
+///   `linkCustomTokenProvider`)의 `already-exists` + `details.reason:
+///   'provider_already_linked'`(같은 provider 의 다른 신원이 이미 이 계정에
+///   연결 — 서버가 provider 당 신원 1개로 거부 · 16.9 review IN-03)도 본
+///   타입이다(`AuthRepository._mapLinkCallableException`).
 /// - `credential-already-in-use` → [AccountAlreadyLinked]. "다른 계정이
 ///   쓰고 있다" — 해제는 그 계정 소유주만 가능하다.
 ///

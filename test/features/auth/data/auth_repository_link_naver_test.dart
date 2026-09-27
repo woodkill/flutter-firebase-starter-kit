@@ -16,7 +16,8 @@
 //       ReauthenticationRequiredException / reason 없는 unauthenticated
 //       (Naver 거부 · code 교환 거부 · App Check 차단) → ServiceUnavailable
 //       (16.9 review WR-01)
-//   R5: already-exists → AccountAlreadyLinked
+//   R5: already-exists → AccountAlreadyLinked / + reason provider_already_linked
+//       → ProviderAlreadyLinkedToThisAccount (16.9 review IN-03)
 //   R6: unavailable → NoInternetConnection · failed-precondition → ServiceUnavailable
 //   R7: ok:false · currentUser null · 익명 → UnknownException (WR-06) —
 //       null · 익명은 signIn 전에 거부 (16.9 review IN-02)
@@ -326,6 +327,26 @@ void main() {
       final result = await repository.linkNaverProviderArm();
 
       expect(failureOf(result), isA<AccountAlreadyLinked>());
+      verify(() => mockNaverSdkClient.logout()).called(1);
+    },
+  );
+
+  test(
+    'R5: already-exists + reason provider_already_linked → '
+    'ProviderAlreadyLinkedToThisAccount (다른 Naver 신원이 이미 이 계정에 · IN-03)',
+    () async {
+      stubAppSignIn();
+      stubCallableThrows(
+        'already-exists',
+        details: const <String, Object?>{'reason': 'provider_already_linked'},
+      );
+
+      final result = await repository.linkNaverProviderArm();
+
+      final exception = failureOf(result);
+      expect(exception, isA<ProviderAlreadyLinkedToThisAccount>());
+      // 의미가 정반대인 「다른 계정 소유」 로 뭉개지지 않는다.
+      expect(exception, isNot(isA<AccountAlreadyLinked>()));
       verify(() => mockNaverSdkClient.logout()).called(1);
     },
   );

@@ -7,15 +7,20 @@
 // - `linkNaverProvider` — Naver access token / authorization code 검증
 //
 // 「all reads before all writes」 invariant (Pitfall 2) — tx 안 read 는
-// `identity_index` 1건뿐이고 write 는 그 뒤에만 한다. `tx.update` ·
-// `FieldValue.delete` · 추가 read 를 넣지 않는다 (기존 link Jest 의 FieldValue
-// mock 계약 · memory feedback_mock_transaction_constraint).
+// `identity_index` 1건 + `users/{uid}` 1건(16.9 review IN-03 — provider 당
+// 신원 1개 검사)을 **한 번에 먼저** 하고 write 는 그 뒤에만 한다. `tx.update`
+// · `FieldValue.delete` 는 넣지 않는다 (기존 link Jest 의 FieldValue mock 계약).
+// Jest 는 순서 강제 tx(`test/mocks/ordered_transaction.ts`)로 read-after-write
+// 를 실패로 만든다 (memory feedback_mock_transaction_constraint).
 import {FieldValue} from "firebase-admin/firestore";
-import type {Firestore} from "firebase-admin/firestore";
+import type {DocumentSnapshot, Firestore} from "firebase-admin/firestore";
 import {HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
-import {serverFailure} from "../shared/custom_token_errors";
+import {
+  providerAlreadyLinked,
+  serverFailure,
+} from "../shared/custom_token_errors";
 import {fingerprintError, identityIndexDocId} from "./identity_index";
 import type {ProviderId} from "./identity_index";
 
@@ -32,15 +37,58 @@ export type LinkCustomTokenIdentityArgs = {
 };
 
 /**
+ * `users/{uid}.linkedProviders` 에 [provider] 의 **다른** 신원 항목이 있는지
+ * 판정한다 (Phase 16.9 review IN-03).
+ *
+ * 항목 모양은 연결 · 가입 경로가 쓰는 `{providerId, providerUserId}` 다.
+ * `providerId` 가 같고 `providerUserId` 가 [providerUserId] 와 다르면 true —
+ * `providerUserId` 가 없거나 문자열이 아닌 같은 provider 항목도 「다른 신원」
+ * 으로 본다 (fail-closed: 판별 불가 항목을 두고 두 번째 신원을 붙이지
+ * 않는다. 해제 callable 은 `providerId` 만으로 항목을 지우므로 해제 후
+ * 다시 연결하면 된다). 문서가 없거나 필드가 배열이 아니면 false.
+ *
+ * @param {DocumentSnapshot} userSnap tx 안에서 읽은 users 문서.
+ * @param {string} provider 연결 대상 provider 슬러그.
+ * @param {string} providerUserId 연결 대상 provider 사용자 식별자.
+ * @return {boolean} 같은 provider 의 다른 신원 항목이 있으면 true.
+ */
+function linksOtherIdentityOfProvider(
+  userSnap: DocumentSnapshot,
+  provider: string,
+  providerUserId: string,
+): boolean {
+  if (!userSnap.exists) return false;
+  const data: unknown = userSnap.data();
+  if (typeof data !== "object" || data === null) return false;
+  const linked = (data as Record<string, unknown>).linkedProviders;
+  if (!Array.isArray(linked)) return false;
+  return linked.some((entry: unknown) => {
+    if (typeof entry !== "object" || entry === null) return false;
+    const record = entry as Record<string, unknown>;
+    return (
+      record.providerId === provider &&
+      record.providerUserId !== providerUserId
+    );
+  });
+}
+
+/**
  * identity_index 문서를 만들고 users/{uid} 의 연결 목록을 갱신한다.
  *
  * 흐름 (transaction 1회):
- *   1. `identity_index/{provider}:{providerUserId}` read 1건.
+ *   1. `identity_index/{provider}:{providerUserId}` · `users/{uid}` read 2건
+ *      (둘 다 write 보다 먼저).
  *   2. 다른 uid 가 소유 → `already-exists` (`errorAccountAlreadyLinked`) ·
  *      write 0.
- *   3. 문서가 없을 때만 idx set — 같은 uid 재연결은 최초 `linkedAt` 보존
- *      (WR-10 멱등).
- *   4. users/{uid} 에 `linkedProviders` arrayUnion + `providerLinkedAt` merge
+ *   3. 새 신원(idx 문서 없음)인데 `users/{uid}.linkedProviders` 에 같은
+ *      `providerId` · 다른 `providerUserId` 항목이 있으면 → `already-exists`
+ *      + `details.reason: "provider_already_linked"` · write 0 (16.9 review
+ *      IN-03 — provider 당 신원 1개, Firebase `provider-already-linked`
+ *      mirror). 가입 경로(`resolveIdentity` 신규 등록)도 같은 모양의 항목을
+ *      쓰므로 가입 신원도 잡힌다.
+ *   4. 문서가 없을 때만 idx set — 같은 uid 재연결은 최초 `linkedAt` 보존
+ *      (WR-10 멱등 · 3 의 검사를 타지 않는다).
+ *   5. users/{uid} 에 `linkedProviders` arrayUnion + `providerLinkedAt` merge
  *      set — 재연결에서도 실행해 부분 상태를 self-heal 한다.
  *
  * 연결은 가입 이벤트가 아니므로 `signUpProviderId` · 프로필 필드는 쓰지
@@ -52,8 +100,10 @@ export type LinkCustomTokenIdentityArgs = {
  * @param {LinkCustomTokenIdentityArgs} args Firestore · caller uid ·
  *     연결 대상 provider · provider 사용자 식별자.
  * @return {Promise<void>} 연결 기록이 커밋되면 resolve.
- * @throws {HttpsError} 타 uid 소유면 `already-exists`, 그 외 transaction
- *     실패는 `internal` (`serverFailure`).
+ * @throws {HttpsError} 타 uid 소유면 `already-exists`, 같은 provider 의 다른
+ *     신원이 이미 연결돼 있으면 `already-exists` + reason
+ *     `provider_already_linked`, 그 외 transaction 실패는 `internal`
+ *     (`serverFailure`).
  */
 export async function linkCustomTokenIdentity(
   args: LinkCustomTokenIdentityArgs,
@@ -67,12 +117,14 @@ export async function linkCustomTokenIdentity(
     await db.runTransaction(async (tx) => {
       // (all reads first — invariant 의무, Pitfall 2 회피)
       //
-      // WR-10 (Phase 15 리뷰): 이전에는
-      // `const [idxSnap] = await Promise.all([tx.get(idxRef),
-      // tx.get(userRef)])` 로 **결과를 버리는 read** 가 있었다.
-      // `tx.set(userRef, ..., {merge:true})` 는 선행 read 를 요구하지
-      // 않으므로 그 read 는 불필요한 왕복이자 오독 유발 요인이었다.
-      const idxSnap = await tx.get(idxRef);
+      // WR-10 (Phase 15 리뷰) 은 결과를 버리던 `tx.get(userRef)` 를 지웠다.
+      // 16.9 review IN-03 에서 users read 가 다시 들어오지만 이번에는 결과를
+      // 쓴다 (provider 당 신원 1개 검사). 두 read 는 병렬로 한 번에 하고
+      // 어떤 write 보다 앞선다.
+      const [idxSnap, userSnap] = await Promise.all([
+        tx.get(idxRef),
+        tx.get(userRef),
+      ]);
 
       // WR-10: 같은 uid 로의 재연동은 **멱등** 이어야 한다. 이전 구현은
       // `idxSnap.exists` 만 보고 무조건 already-exists 를 던져서, 이미
@@ -84,6 +136,18 @@ export async function linkCustomTokenIdentity(
         undefined;
       if (idxSnap.exists && owner !== callerUid) {
         throw new HttpsError("already-exists", "errorAccountAlreadyLinked");
+      }
+      // 16.9 review IN-03: 새 신원 연결일 때만 검사한다 — 이미 내 소유인 idx
+      // (같은 신원 재연결)는 WR-10 멱등 경로라 거부하지 않는다.
+      if (
+        !idxSnap.exists &&
+        linksOtherIdentityOfProvider(userSnap, provider, providerUserId)
+      ) {
+        logger.warn(
+          {event: "link_provider_already_linked", uid: callerUid, provider},
+          "provider already linked with another identity",
+        );
+        throw providerAlreadyLinked();
       }
 
       // (writes second — read 종료 후만)
