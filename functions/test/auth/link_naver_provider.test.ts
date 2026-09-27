@@ -108,7 +108,10 @@ import {createOrderedTx} from "../mocks/ordered_transaction";
 // eslint-disable-next-line import/first
 import type {OrderedTxHandle} from "../mocks/ordered_transaction";
 // eslint-disable-next-line import/first
-import {signedInCallerAuth} from "../mocks/caller_auth";
+import {
+  anonymousCallerAuth,
+  signedInCallerAuth,
+} from "../mocks/caller_auth";
 // eslint-disable-next-line import/first
 import type {CallerAuthFixture} from "../mocks/caller_auth";
 
@@ -179,6 +182,29 @@ function mockFetchOk(body: object) {
     status: 200,
     json: async () => body,
   });
+}
+
+/**
+ * fetch mock — 임의 status (4xx/5xx).
+ *
+ * @param {number} status HTTP status 코드.
+ * @param {object} body 응답 본문 (default 빈 객체).
+ */
+function mockFetchStatus(status: number, body: object = {}) {
+  fetchMock.mockResolvedValueOnce({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  });
+}
+
+/**
+ * fetch mock — TimeoutError (5s `AbortSignal.timeout` 초과).
+ */
+function mockFetchTimeout() {
+  const err = new Error("The operation was aborted due to timeout");
+  (err as Error & {name: string}).name = "TimeoutError";
+  fetchMock.mockRejectedValueOnce(err);
 }
 
 /** `/v1/nid/me` 정상 응답 — email 은 PII sentinel. */
@@ -398,5 +424,236 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
     );
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mockOrdered.calls).toEqual([]);
+  });
+});
+
+describe("linkNaverProvider — 입력 모양 · 위생 (N7 · N8)", () => {
+  it("N7: (a) 모양 부재 {idToken} — invalid-argument · Admin Auth 0", async () => {
+    await expect(callLink({idToken: "FRESH"})).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "errorInvalidArgument",
+    });
+    expect(mockVerifyIdToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("N7: (b) 모양 섞임 {accessToken, code, state} — 거부", async () => {
+    await expect(
+      callLink({...WEB_DATA, accessToken: "PII_NAVER_ACCESS_TOKEN"}),
+    ).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "errorInvalidArgument",
+    });
+    expect(mockVerifyIdToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("N7: (c) 웹 모양 state 부재 {idToken, code} — invalid-argument", async () => {
+    await expect(
+      callLink({idToken: "FRESH", code: "PII_NAVER_CODE"}),
+    ).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "errorInvalidArgument",
+    });
+    expect(mockVerifyIdToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["accessToken CRLF", {idToken: "FRESH", accessToken: "a\r\nb"}],
+    ["code NUL", {...WEB_DATA, code: "c\x00"}],
+    ["state 513자", {...WEB_DATA, state: "s".repeat(513)}],
+  ])("N8: 위생 — %s → invalid-argument", async (_label, data) => {
+    await expect(callLink(data)).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "errorInvalidArgument",
+    });
+    expect(mockVerifyIdToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("linkNaverProvider — caller 검사 (N9~N11)", () => {
+  it("N9: request.auth 부재 — unauthenticated", async () => {
+    await expect(callLink(APP_DATA, null)).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: "errorUnauthenticated",
+    });
+    expect(mockVerifyIdToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("N10: idToken uid ≠ caller uid — permission-denied", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "someone-else",
+      auth_time: freshAuthTime(),
+      firebase: {sign_in_provider: "google.com"},
+    });
+
+    await expect(callLink(WEB_DATA)).rejects.toMatchObject({
+      code: "permission-denied",
+      message: "errorUnauthenticated",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
+  });
+
+  it("N11: 익명 caller — failed-precondition · fetch 0", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: CALLER_UID,
+      auth_time: freshAuthTime(),
+      firebase: {sign_in_provider: "anonymous"},
+    });
+
+    await expect(
+      callLink(WEB_DATA, anonymousCallerAuth(CALLER_UID)),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: "errorAnonymousLinkNotAllowed",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
+  });
+});
+
+describe("linkNaverProvider — 실패 매핑 WR-01 (N12 · N13)", () => {
+  it.each([
+    [
+      "401",
+      () => mockFetchStatus(401),
+      "unauthenticated",
+      "errorInvalidCredentials",
+      warnMock,
+      {event: "naver_verify_unauthenticated", path: "link_app", status: 401},
+    ],
+    [
+      "503",
+      () => mockFetchStatus(503),
+      "unavailable",
+      "errorServiceUnavailable",
+      warnMock,
+      {event: "naver_verify_unavailable", path: "link_app", status: 503},
+    ],
+    [
+      "timeout",
+      () => mockFetchTimeout(),
+      "unavailable",
+      "errorServiceUnavailable",
+      warnMock,
+      {event: "naver_fetch_failed", path: "link_app", code: "TimeoutError"},
+    ],
+    [
+      "resultcode 024",
+      () => mockFetchOk({resultcode: "024"}),
+      "unauthenticated",
+      "errorInvalidCredentials",
+      warnMock,
+      {
+        event: "naver_resultcode_non_success",
+        path: "link_app",
+        resultcode: "024",
+      },
+    ],
+    [
+      "id 부재",
+      () => mockFetchOk({resultcode: "00", response: {}}),
+      "unauthenticated",
+      "errorInvalidCredentials",
+      errorMock,
+      {event: "naver_response_id_missing", path: "link_app"},
+    ],
+  ])(
+    "N12: 프로필 %s — 매핑 · 연결 tx 0",
+    async (_label, arrange, code, message, logMockFn, logPayload) => {
+      arrange();
+
+      await expect(callLink(APP_DATA)).rejects.toMatchObject({code, message});
+      expect(logMockFn).toHaveBeenCalledWith(
+        expect.objectContaining(logPayload),
+        expect.any(String),
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(mockOrdered.calls).toEqual([]);
+    },
+  );
+
+  it.each([
+    [
+      "교환 401",
+      () => mockFetchStatus(401),
+      "unauthenticated",
+      "errorInvalidCredentials",
+      {event: "naver_web_token_exchange_failed", status: 401},
+    ],
+    [
+      "교환 본문 error",
+      () => mockFetchOk({error: "invalid_grant"}),
+      "unauthenticated",
+      "errorInvalidCredentials",
+      {event: "naver_web_token_error_response", error: "invalid_grant"},
+    ],
+    [
+      "교환 timeout",
+      () => mockFetchTimeout(),
+      "unavailable",
+      "errorServiceUnavailable",
+      {event: "naver_web_token_exchange_failed", code: "TimeoutError"},
+    ],
+  ])(
+    "N13: 웹 %s — 매핑 · 프로필 미호출",
+    async (_label, arrange, code, message, logPayload) => {
+      arrange();
+
+      await expect(callLink(WEB_DATA)).rejects.toMatchObject({code, message});
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining(logPayload),
+        expect.any(String),
+      );
+      // 교환 1회뿐 — /v1/nid/me 는 부르지 않는다.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toBe(NAVER_TOKEN_URL);
+      expect(mockOrdered.calls).toEqual([]);
+    },
+  );
+});
+
+describe("linkNaverProvider — transaction 오류 (N14)", () => {
+  it("N14: tx 일반 Error — internal + link_transaction_failed", async () => {
+    mockOrdered = createOrderedTx(() => {
+      throw new Error("tx boom");
+    });
+    mockProfileOk();
+
+    await expect(callLink(APP_DATA)).rejects.toMatchObject({
+      code: "internal",
+      message: "errorUnknown",
+    });
+    expect(errorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "link_transaction_failed",
+        uid: CALLER_UID,
+        code: "Error",
+      }),
+      expect.any(String),
+    );
+    expect(infoMock).not.toHaveBeenCalled();
+  });
+});
+
+// 반드시 마지막 describe — 앞선 모든 케이스의 logger 호출을 검사한다.
+describe("linkNaverProvider — PII sentinel (N15)", () => {
+  it("N15: 모든 케이스의 logger 호출에 PII fixture 값 0", () => {
+    // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
+    expect(accumulatedLogCalls.length).toBeGreaterThan(10);
+    const serialized = JSON.stringify(accumulatedLogCalls);
+    for (const sentinel of [
+      "PII_NAVER_ACCESS_TOKEN",
+      "PII_NAVER_CODE",
+      "PII_NAVER_STATE",
+      "PII_NAVER_SECRET",
+      "PII_NAVER_EMAIL",
+    ]) {
+      expect(serialized).not.toContain(sentinel);
+    }
   });
 });
