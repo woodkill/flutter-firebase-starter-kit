@@ -300,10 +300,17 @@ enum AccountUnlinkOutcome {
 
   /// 재인증 필요 ([ReauthenticationRequiredException] — native
   /// `requires-recent-login` 뿐) — `authReauthRequired` 로 렌더 + 재로그인
-  /// 라우팅. D-06 으로 기대하지 않는 방어 매핑. callable 의 `unauthenticated`
-  /// · `permission-denied` 는 App Check 차단과 code 를 공유해 재로그인으로
-  /// 해소되지 않으므로 여기가 아니라 [transientFailure] 로 간다 (16.8 review
-  /// IN-06 · iteration 2 WR-01).
+  /// 라우팅. D-06 으로 기대하지 않는 방어 매핑. callable 의 두 code 는
+  /// 근거가 달라도 둘 다 여기가 아니라 [transientFailure] 로 간다.
+  /// - `unauthenticated`: App Check 차단(INVALID · MISSING)도 이 code 로 와
+  ///   code 만으로는 auth 부재와 구분되지 않고, App Check 차단은 재로그인으로
+  ///   해소되지 않는다.
+  /// - `permission-denied`: App Check 와 code 를 공유하지 않는다. 이
+  ///   callable 이 던지지 않는 code 라(uid 는 `request.auth.uid` 만 써서
+  ///   idToken uid 불일치 · `caller_identity_mismatch` 경로 없음) 방어
+  ///   매핑일 뿐이다.
+  ///
+  /// (16.8 review IN-06 · iteration 2 WR-01 · iteration 3 IN-01)
   reauthRequired,
 
   /// 남은 로그인 수단이 하나뿐 ([UnlinkLastCredentialRejected] — callable
