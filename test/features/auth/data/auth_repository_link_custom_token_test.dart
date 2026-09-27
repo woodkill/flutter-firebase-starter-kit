@@ -15,7 +15,8 @@
 //   T3: callable 'unauthenticated' + details.reason 'reauthentication_required'
 //       · 'permission-denied' → ReauthenticationRequiredException / reason 없는
 //       'unauthenticated' (ID token 거부 · App Check 차단) → ServiceUnavailable
-//       (16.9 review WR-01 — linkNaverProviderArm 과 같은 판정)
+//       (16.9 review WR-01 — linkNaverProviderArm 과 같은 판정) / 다른 code +
+//       reauth reason 은 재로그인 아님 (code anchor · iteration 2 IN-01)
 //   T4: callable 'already-exists'/'errorAccountAlreadyLinked' → AccountAlreadyLinked
 //       · + details.reason 'provider_already_linked' →
 //       ProviderAlreadyLinkedToThisAccount (16.9 review IN-03)
@@ -274,6 +275,28 @@ void main() {
         // 1회성 토큰 정책 · race-fix invariant 는 실패 경로에서도 유지.
         verify(() => mockLineSdkClient.logout()).called(1);
         verify(() => mockSocialLinkInProgress.end()).called(1);
+      },
+    );
+
+    test(
+      'already-exists + reason reauthentication_required → AccountAlreadyLinked '
+      '(code anchor · 재로그인 아님 · 16.9 review iteration 2 IN-01)',
+      () async {
+        stubLineSignInSuccess();
+        stubCallableThrows(
+          'already-exists',
+          details: const <String, Object?>{
+            'reason': 'reauthentication_required',
+          },
+        );
+
+        final result = await repository.linkCustomTokenProviderArm(
+          targetProvider: AccountProvider.line,
+        );
+
+        final exception = failureOf(result);
+        expect(exception, isA<AccountAlreadyLinked>());
+        expect(exception, isNot(isA<ReauthenticationRequiredException>()));
       },
     );
   });

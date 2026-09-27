@@ -1329,8 +1329,9 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// 에러 매핑 ([_mapLinkCallableException] — [linkNaverProviderArm] 과 공용 ·
   /// 16.9 review WR-01):
-  /// - `details.reason == 'reauthentication_required'` (auth_time 초과 /
-  ///   verifyIdToken 실패) · `permission-denied` (idToken uid 불일치) →
+  /// - `unauthenticated` + `details.reason == 'reauthentication_required'`
+  ///   (auth_time 초과 / verifyIdToken 실패) · `permission-denied` (idToken
+  ///   uid 불일치) →
   ///   [ReauthenticationRequiredException] (재로그인 유도).
   /// - reason 없는 `unauthenticated` (Kakao/LINE ID token 거부 · App Check
   ///   차단) → [_mapFunctionsException] 의 [ServiceUnavailable] (일시 오류).
@@ -1495,8 +1496,9 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// 에러 매핑 ([_mapLinkCallableException] — [linkCustomTokenProviderArm] 과
   /// 공용 · C-04 · 16.9 review WR-01):
-  /// - `details.reason == 'reauthentication_required'` · `permission-denied`
-  ///   → [ReauthenticationRequiredException] (재로그인 유도).
+  /// - `unauthenticated` + `details.reason == 'reauthentication_required'` ·
+  ///   `permission-denied` → [ReauthenticationRequiredException] (재로그인
+  ///   유도).
   /// - reason 없는 `unauthenticated` (Naver `/v1/nid/me` 거부 · code 교환
   ///   `invalid_grant` · App Check 차단) → [ServiceUnavailable] (일시 오류 —
   ///   로그인 경로 [_mapFunctionsException] 과 같은 안내).
@@ -1631,9 +1633,11 @@ class AuthRepository implements AnonymousSignIn {
   /// 「보안을 위해 다시 로그인」 안내 + 로그인 화면 이동이 되고, 재로그인
   /// 뒤에도 같은 원인이면 같은 결과가 반복된다. 그래서:
   ///
-  /// 1. `details.reason == 'reauthentication_required'` →
+  /// 1. `unauthenticated` + `details.reason == 'reauthentication_required'` →
   ///    [ReauthenticationRequiredException] (서버 `reauthenticationRequired()`
-  ///    — `verifyIdToken(checkRevoked)` 실패 · `assertFreshAuth`).
+  ///    — `verifyIdToken(checkRevoked)` 실패 · `assertFreshAuth`). 다른 code
+  ///    에 같은 reason 이 실려도 재로그인으로 보내지 않는다(code anchor —
+  ///    16.9 review iteration 2 IN-01).
   /// 2. `permission-denied` (`caller_identity_mismatch` 아님) →
   ///    [ReauthenticationRequiredException]. 두 연결 callable 의
   ///    `permission-denied` 출처는 idToken uid ≠ `request.auth.uid` 하나뿐이다
@@ -1656,7 +1660,12 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// 서버 message 는 읽지 않는다 — `code` + `details.reason` 만 분기한다.
   AppException _mapLinkCallableException(FirebaseFunctionsException e) {
-    if (_isReauthRequiredRejection(e.details) ||
+    // 16.9 review iteration 2 IN-01: code 가 1차 축 · reason 은 그 안의 2차
+    // 축이다 (아래 provider_already_linked 판정과 같은 규칙) — reauth reason
+    // 은 서버 `reauthenticationRequired()` 가 만드는 `unauthenticated` 에서만
+    // 읽는다.
+    if ((e.code == 'unauthenticated' &&
+            _isReauthRequiredRejection(e.details)) ||
         (e.code == 'permission-denied' &&
             !_isCallerIdentityMismatch(e.details))) {
       return ReauthenticationRequiredException(cause: e);

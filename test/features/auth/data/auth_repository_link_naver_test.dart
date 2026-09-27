@@ -12,10 +12,11 @@
 //   R1: 1-tap 성공 — payload 키 {idToken, accessToken} · timeout 10s · reload · logout
 //   R2: 웹 성공 — payload 키 {idToken, code, state} · timeout 20s
 //   R3: 취소 (signIn null) — null · callable/getIdToken 미호출 · logout
-//   R4: details.reason 'reauthentication_required' · permission-denied →
-//       ReauthenticationRequiredException / reason 없는 unauthenticated
-//       (Naver 거부 · code 교환 거부 · App Check 차단) → ServiceUnavailable
-//       (16.9 review WR-01)
+//   R4: unauthenticated + details.reason 'reauthentication_required' ·
+//       permission-denied → ReauthenticationRequiredException / reason 없는
+//       unauthenticated (Naver 거부 · code 교환 거부 · App Check 차단) →
+//       ServiceUnavailable (16.9 review WR-01) / 다른 code + reauth reason 은
+//       재로그인 아님 (code anchor · iteration 2 IN-01)
 //   R5: already-exists → AccountAlreadyLinked / + reason provider_already_linked
 //       → ProviderAlreadyLinkedToThisAccount (16.9 review IN-03)
 //   R6: unavailable → NoInternetConnection · failed-precondition → ServiceUnavailable
@@ -325,6 +326,22 @@ void main() {
         final result = await repository.linkNaverProviderArm();
 
         expect(failureOf(result), isA<ServiceUnavailable>());
+      },
+    );
+
+    test(
+      'R4: already-exists + reason reauthentication_required → '
+      'AccountAlreadyLinked (code anchor · 재로그인 아님 · iteration 2 IN-01)',
+      () async {
+        stubAppSignIn();
+        stubCallableThrows('already-exists', details: reauthDetails);
+
+        final result = await repository.linkNaverProviderArm();
+
+        final exception = failureOf(result);
+        expect(exception, isA<AccountAlreadyLinked>());
+        expect(exception, isNot(isA<ReauthenticationRequiredException>()));
+        verify(() => mockNaverSdkClient.logout()).called(1);
       },
     );
   });
