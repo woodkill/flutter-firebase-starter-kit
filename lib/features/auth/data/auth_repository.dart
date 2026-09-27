@@ -1295,17 +1295,21 @@ class AuthRepository implements AnonymousSignIn {
   /// (RESEARCH § reactive Custom Token data flow + Pattern 2):
   /// 1. [SocialLinkInProgress.begin] (Phase 9.1 D-22 race-fix invariant) —
   ///    try-finally 로 [SocialLinkInProgress.end] 1:1 보장.
-  /// 2. [targetProvider] 별 SDK signIn 으로 **target OIDC 토큰 fresh 재획득**
+  /// 2. caller 결정적 실패 검사 — `currentUser == null` · `isAnonymous` 면
+  ///    SDK 왕복 전에 [UnknownException] (16.9 review IN-02 — 재시도로 해소
+  ///    되지 않는 실패를 target 인증을 마친 뒤에 알리지 않는다).
+  /// 3. [targetProvider] 별 SDK signIn 으로 **target OIDC 토큰 fresh 재획득**
   ///    (kakao→[KakaoSdkClient.signIn], line→[LineSdkClient.signIn]).
   ///    사용자 취소 (null) 시 `null` 반환
   ///    (silent — linkedProviders 변경 0).
-  /// 3. `_auth.currentUser.getIdToken(true /* forceRefresh */)` 로 caller
-  ///    fresh ID Token 발급 (server-side auth_time 5분 boundary 통과 의무).
-  /// 4. `_functions.httpsCallable('linkCustomTokenProvider')` 호출 —
+  /// 4. `currentUser.getIdToken(true /* forceRefresh */)` 로 caller fresh ID
+  ///    Token 발급 — signIn **뒤** 에 둔다 (server-side auth_time 5분 boundary
+  ///    는 SDK 왕복 시간을 뺀 뒤에 재야 한다).
+  /// 5. `_functions.httpsCallable('linkCustomTokenProvider')` 호출 —
   ///    deployed contract `{idToken, targetProvider, targetProviderToken,
   ///    nonce} → {ok:true}` (link_custom_token_provider.ts line 67~80 verbatim).
-  /// 5. `{ok:true}` 검증 후 `_auth.currentUser` reload → [_mapFirebaseUser].
-  /// 6. finally 에서 target SDK logout (1회성 토큰 정책 —
+  /// 6. `{ok:true}` 검증 후 `_auth.currentUser` reload → [_mapFirebaseUser].
+  /// 7. finally 에서 target SDK logout (1회성 토큰 정책 —
   ///    [signInWithKakao]/[signInWithLine] 의 finally logout mirror) +
   ///    [SocialLinkInProgress.end].
   ///
@@ -1362,13 +1366,9 @@ class AuthRepository implements AnonymousSignIn {
     try {
       _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
 
-      // Step 2 — target OIDC 토큰 fresh 재획득 (1회성 정책). 사용자 취소 시
-      // null silent return.
-      final targetToken = await _acquireTargetProviderToken(targetProvider);
-      if (targetToken == null) return null; // 사용자 취소 — no-op.
-
-      // Step 3 — caller fresh ID Token (forceRefresh=true) — server-side
-      // auth_time 5분 boundary 통과 의무.
+      // Step 2 — caller 결정적 실패 검사. SDK 호출과 의존 관계가 없으므로
+      // target OAuth 왕복 **앞** 에 둔다 (16.9 review IN-02 — 이전에는
+      // 인증을 마친 뒤에야 「연결 실패」 를 보였다).
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
         // WR-06: 재시도로 해소되지 않는 **결정적** 실패다. ServiceUnavailable
@@ -1381,12 +1381,21 @@ class AuthRepository implements AnonymousSignIn {
       // collision arm 의 caller 는 구조상 fresh collided sign-in 이므로
       // 익명일 수 없다 — 익명 도달은 upstream 로직 오류 신호다. 서버
       // `failed-precondition` 거부에만 의존하지 않고 client 에서 loud
-      // fail 하여 불필요한 callable round-trip 을 회피한다 (proactive arm /
-      // deployed callable 익명 차단 mirror).
+      // fail 하여 불필요한 SDK · callable round-trip 을 회피한다 (proactive
+      // arm / deployed callable 익명 차단 mirror).
       if (currentUser.isAnonymous) {
         // WR-06: 결정적 실패 — 재시도 유도 금지 (currentUser==null 동일).
         return const Result.failure(UnknownException());
       }
+
+      // Step 3 — target OIDC 토큰 fresh 재획득 (1회성 정책). 사용자 취소 시
+      // null silent return.
+      final targetToken = await _acquireTargetProviderToken(targetProvider);
+      if (targetToken == null) return null; // 사용자 취소 — no-op.
+
+      // Step 3-1 — caller fresh ID Token (forceRefresh=true). signIn 뒤에
+      // 발급해야 server-side auth_time 5분 boundary 가 SDK 왕복 시간을
+      // 잡아먹지 않는다.
       final callerIdToken = await currentUser.getIdToken(true);
       if (callerIdToken == null) {
         // WR-06: 결정적 실패 — 재시도 유도 금지.
@@ -1450,14 +1459,16 @@ class AuthRepository implements AnonymousSignIn {
   /// 흐름 ([linkCustomTokenProviderArm] 골격 mirror):
   /// 1. [SocialLinkInProgress.begin] (race-fix Pitfall 8 단일 진실원) —
   ///    try-finally 로 [SocialLinkInProgress.end] 1:1 보장.
-  /// 2. [NaverSdkClient.signIn] — 경로 선택(설치 판정 · 1-tap/웹) · `state`
+  /// 2. caller 결정적 실패 검사 — `currentUser == null` · `isAnonymous` 면
+  ///    NAVER 앱 · 브라우저 왕복 전에 [UnknownException] (16.9 review IN-02).
+  /// 3. [NaverSdkClient.signIn] — 경로 선택(설치 판정 · 1-tap/웹) · `state`
   ///    생성/대조 · 취소 처리는 전부 이 호출에서 상속한다(C-02 · 16.5 D-04).
   ///    `null`(사용자 취소 · 재진입) → `null` 반환(no-op).
-  /// 3. caller fresh ID Token (`getIdToken(true)`) — 서버 auth_time 5분
-  ///    boundary 통과 의무.
-  /// 4. 결과 variant 로 payload · timeout 을 고른다([_naverLinkPayload]) →
+  /// 4. caller fresh ID Token (`getIdToken(true)`) — signIn **뒤** 에 발급
+  ///    한다(서버 auth_time 5분 boundary 통과 의무).
+  /// 5. 결과 variant 로 payload · timeout 을 고른다([_naverLinkPayload]) →
   ///    callable `linkNaverProvider` 호출 → `{ok:true}` 검증 → reload.
-  /// 5. finally: [NaverSdkClient.logout] (로컬 SDK 토큰만 — C-05 1회성 토큰
+  /// 6. finally: [NaverSdkClient.logout] (로컬 SDK 토큰만 — C-05 1회성 토큰
   ///    정책, [signInWithNaver] mirror) + [SocialLinkInProgress.end].
   ///
   /// 가입 수단(`signUpProviderId`) · 프로필 필드는 쓰지 않는다(C-06) — 연결
@@ -1491,19 +1502,25 @@ class AuthRepository implements AnonymousSignIn {
     try {
       _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
 
-      // C-02 — 1-tap/웹 라우팅 · state · 취소는 signIn() 계약을 상속한다.
-      final result = await _naverSdkClient.signIn();
-      if (result == null) return null; // 사용자 취소 — no-op.
-
+      // 16.9 review IN-02: 결정적 caller 실패는 NAVER 왕복 **앞** 에서 검사
+      // 한다 — SDK 호출과 의존 관계가 없고, 익명 사용자가 브라우저 인증을
+      // 마친 뒤에야 「연결 실패」 를 보는 일을 막는다.
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
         // WR-06: 결정적 실패 — 재시도 유도 금지.
         return const Result.failure(UnknownException());
       }
       if (currentUser.isAnonymous) {
-        // WR-06: 익명 caller 는 연결 불가 — 서버 왕복 전에 loud fail.
+        // WR-06: 익명 caller 는 연결 불가 — SDK · 서버 왕복 전에 loud fail.
         return const Result.failure(UnknownException());
       }
+
+      // C-02 — 1-tap/웹 라우팅 · state · 취소는 signIn() 계약을 상속한다.
+      final result = await _naverSdkClient.signIn();
+      if (result == null) return null; // 사용자 취소 — no-op.
+
+      // signIn 뒤에 발급 — 서버 auth_time 5분 boundary 가 NAVER 왕복 시간을
+      // 잡아먹지 않는다.
       final callerIdToken = await currentUser.getIdToken(true);
       if (callerIdToken == null) {
         // WR-06: 결정적 실패 — 재시도 유도 금지.

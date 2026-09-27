@@ -376,13 +376,32 @@ void main() {
       // 유도한다 (매 시도 SDK OAuth 왕복 포함).
       expect(failure.exception, isA<UnknownException>());
       expect(failure.exception, isNot(isA<ServiceUnavailable>()));
-      // client 에서 loud fail — callable round-trip / caller token 발급 회피.
+      // client 에서 loud fail — SDK 왕복 (16.9 review IN-02) / callable
+      // round-trip / caller token 발급 회피.
+      verifyNever(() => mockLineSdkClient.signIn());
       verifyNever(() => mockCurrentUser.getIdToken(any()));
       verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
       // race-fix invariant + 1회성 토큰 logout 보존.
       verify(() => mockSocialLinkInProgress.begin()).called(1);
       verify(() => mockSocialLinkInProgress.end()).called(1);
       verify(() => mockLineSdkClient.logout()).called(1);
+    });
+
+    test('currentUser == null → Result.failure(UnknownException) + '
+        'target SDK signIn 미호출 (16.9 review IN-02)', () async {
+      stubLineSignInSuccess();
+      when(() => mockAuth.currentUser).thenReturn(null);
+
+      final result = await repository.linkCustomTokenProviderArm(
+        targetProvider: AccountProvider.line,
+      );
+
+      expect(result, isA<Failure<dynamic>>());
+      final failure = result! as Failure<dynamic>;
+      expect(failure.exception, isA<UnknownException>());
+      verifyNever(() => mockLineSdkClient.signIn());
+      verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
+      verify(() => mockSocialLinkInProgress.end()).called(1);
     });
   });
 

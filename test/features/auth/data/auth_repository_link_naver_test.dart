@@ -18,7 +18,8 @@
 //       (16.9 review WR-01)
 //   R5: already-exists → AccountAlreadyLinked
 //   R6: unavailable → NoInternetConnection · failed-precondition → ServiceUnavailable
-//   R7: ok:false · currentUser null · 익명 → UnknownException (WR-06)
+//   R7: ok:false · currentUser null · 익명 → UnknownException (WR-06) —
+//       null · 익명은 signIn 전에 거부 (16.9 review IN-02)
 //   R8: signIn 이 ServiceUnavailable throw → 그대로 전달 · callable 미호출
 //   R9: SocialLinkInProgress begin/end 1회 — 성공 · 취소 · SDK 오류
 //
@@ -370,6 +371,8 @@ void main() {
       final result = await repository.linkNaverProviderArm();
 
       expect(failureOf(result), isA<UnknownException>());
+      // 16.9 review IN-02: 결정적 실패는 NAVER 왕복 전에 검사한다.
+      verifyNever(() => mockNaverSdkClient.signIn());
       verifyNever(
         () =>
             mockFunctions.httpsCallable(any(), options: any(named: 'options')),
@@ -384,6 +387,8 @@ void main() {
       final result = await repository.linkNaverProviderArm();
 
       expect(failureOf(result), isA<UnknownException>());
+      // 16.9 review IN-02: 익명 사용자는 브라우저 인증 전에 거부된다.
+      verifyNever(() => mockNaverSdkClient.signIn());
       verifyNever(() => mockCurrentUser.getIdToken(any()));
       verifyNever(() => mockLinkCallable.call<Map<String, dynamic>>(any()));
       verify(() => mockNaverSdkClient.logout()).called(1);
