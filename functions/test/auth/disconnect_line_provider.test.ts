@@ -15,6 +15,14 @@
  *    (caller_identity_mismatch) · 발급 · 해제 · custom token 0
  *  - LR3: deauthorize 400 → 이미 해제 · 성공 (D-14 멱등)
  *  - LR4: 익명 → anonymous_caller · 외부 호출 0
+ *  - LR5: 미인증 → unauthenticated · 외부 호출 0
+ *  - LR6 · LR7: 입력 위생 — accessToken 부재 · 숫자 · CRLF · NUL →
+ *    invalid-argument · 외부 호출 0
+ *  - LR8~LR10: 프로필 실패 매핑 — 401 · fetch reject · userId 결손
+ *  - LR11 · LR12: channel token 발급 실패 매핑 — 400/401 · fetch reject
+ *  - LR13 · LR14: deauthorize 실패 매핑 — 401 · 500
+ *  - LR15: custom token 발급 실패 → internal · 실패 로그
+ *  - LR16: PII sentinel — 모든 케이스의 logger 호출 누적 검사 (마지막)
  *
  * PII sentinel: 사용자 access token · LINE userId · channel secret ·
  * channel token · 프로필 displayName · 발급 custom token fixture
@@ -422,5 +430,228 @@ describe("disconnectLineProvider — caller 가드", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mockDocGet).not.toHaveBeenCalled();
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
+  });
+});
+
+describe("disconnectLineProvider — 미인증 · 입력 위생", () => {
+  it("LR5: request.auth 부재 → unauthenticated · fetch 0", async () => {
+    const err = await captureHttpsError(callDisconnect(LINE_DATA, null));
+    expect(err.code).toBe("unauthenticated");
+    expect(err.message).toBe("errorUnauthenticated");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockDocGet).not.toHaveBeenCalled();
+  });
+
+  it("LR6: accessToken 부재 · 숫자 → invalid-argument · fetch 0", async () => {
+    for (const data of [{}, {accessToken: 12345}, {accessToken: ""}]) {
+      const err = await captureHttpsError(callDisconnect(data));
+      expect(err.code).toBe("invalid-argument");
+      expect(err.message).toBe("errorInvalidArgument");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockDocGet).not.toHaveBeenCalled();
+  });
+
+  it("LR7: accessToken CRLF · NUL → invalid-argument · fetch 0", async () => {
+    for (const accessToken of [
+      "PII_LINE_ACCESS_TOKEN\r\nX-Injected: 1",
+      "PII_LINE_ACCESS_TOKEN\n",
+      "PII_LINE_ACCESS_TOKEN\u0000",
+    ]) {
+      const err = await captureHttpsError(callDisconnect({accessToken}));
+      expect(err.code).toBe("invalid-argument");
+      expect(err.message).toBe("errorInvalidArgument");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("disconnectLineProvider — 프로필 실패 매핑", () => {
+  it("LR8: 프로필 401 → unauthenticated · 대조 0 · 발급 0", async () => {
+    mockFetchResponse(401, JSON.stringify({message: "invalid token"}));
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("unauthenticated");
+    expect(err.message).toBe("errorInvalidCredentials");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockDocGet).not.toHaveBeenCalled();
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {event: "disconnect_line_profile_failed", uid: CALLER_UID, status: 401},
+      expect.any(String),
+    );
+  });
+
+  it("LR9: 프로필 fetch reject → unavailable · err.name 만 로그", async () => {
+    fetchMock.mockRejectedValueOnce(
+      new TypeError("PII_LINE_ACCESS_TOKEN fetch failed"),
+    );
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(mockDocGet).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_line_profile_failed",
+        uid: CALLER_UID,
+        code: "TypeError",
+      },
+      expect.any(String),
+    );
+  });
+
+  it("LR10: 프로필 200 인데 userId 부재 → internal · 대조 0", async () => {
+    mockFetchResponse(
+      200,
+      JSON.stringify({displayName: "PII_LINE_DISPLAY_NAME"}),
+    );
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("internal");
+    expect(err.message).toBe("errorUnknown");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockDocGet).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {event: "disconnect_line_profile_invalid", uid: CALLER_UID},
+      expect.any(String),
+    );
+  });
+});
+
+describe("disconnectLineProvider — channel token 발급 실패 매핑", () => {
+  it("LR11: 발급 400 · 401 → provider_config · 해제 0", async () => {
+    for (const status of [400, 401]) {
+      fetchMock.mockReset();
+      mockProfileOk();
+      mockFetchResponse(
+        status,
+        JSON.stringify({
+          error: "invalid_client",
+          error_description: "PII_LINE_CHANNEL_SECRET rejected",
+        }),
+      );
+
+      const err = await captureHttpsError(callDisconnect(LINE_DATA));
+      expect(err.code).toBe("failed-precondition");
+      expect(err.message).toBe("errorProviderConfig");
+      expect(err.details).toEqual({reason: "provider_config"});
+      // 프로필 · 발급 2회뿐 — deauthorize 호출 0.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(errorMock).toHaveBeenCalledWith(
+        {
+          event: "disconnect_line_channel_token_failed",
+          uid: CALLER_UID,
+          status,
+        },
+        expect.any(String),
+      );
+    }
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+  });
+
+  it("LR12: 발급 fetch reject → unavailable · 해제 0", async () => {
+    mockProfileOk();
+    fetchMock.mockRejectedValueOnce(new Error("socket hang up"));
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_line_channel_token_failed",
+        uid: CALLER_UID,
+        code: "Error",
+      },
+      expect.any(String),
+    );
+  });
+});
+
+describe("disconnectLineProvider — deauthorize 실패 매핑", () => {
+  it("LR13: 해제 401 → provider_config · 토큰 0", async () => {
+    mockProfileOk();
+    mockChannelTokenOk();
+    mockFetchResponse(401, JSON.stringify({message: "Authentication failed"}));
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("failed-precondition");
+    expect(err.message).toBe("errorProviderConfig");
+    expect(err.details).toEqual({reason: "provider_config"});
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(infoMock).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_line_deauthorize_failed",
+        uid: CALLER_UID,
+        status: 401,
+      },
+      expect.any(String),
+    );
+  });
+
+  it("LR14: 해제 500 → unavailable · 토큰 0", async () => {
+    mockProfileOk();
+    mockChannelTokenOk();
+    mockFetchResponse(500, "");
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(infoMock).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_line_deauthorize_failed",
+        uid: CALLER_UID,
+        status: 500,
+      },
+      expect.any(String),
+    );
+  });
+});
+
+describe("disconnectLineProvider — custom token 발급 실패", () => {
+  it("LR15: createCustomToken 던짐 → internal · 실패 로그", async () => {
+    mockProfileOk();
+    mockChannelTokenOk();
+    mockDeauthorizeOk();
+    mockCreateCustomToken.mockRejectedValueOnce(
+      new Error("PII_MINTED_CUSTOM_TOKEN signer failed"),
+    );
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("internal");
+    expect(err.message).toBe("errorUnknown");
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_relogin_token_failed",
+        provider: "line",
+        code: "Error",
+      },
+      expect.any(String),
+    );
+    expect(infoMock).not.toHaveBeenCalled();
+  });
+});
+
+// 반드시 마지막 describe — 앞선 모든 케이스의 logger 호출을 검사한다.
+describe("disconnectLineProvider — PII sentinel (LR16)", () => {
+  it("LR16: 모든 케이스의 logger 호출에 PII fixture 값 0", () => {
+    // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
+    expect(accumulatedLogCalls.length).toBeGreaterThan(10);
+    const serialized = JSON.stringify(accumulatedLogCalls);
+    for (const sentinel of [
+      "PII_LINE_ACCESS_TOKEN",
+      "PII_LINE_USER_ID",
+      "PII_LINE_CHANNEL_SECRET",
+      "PII_LINE_CHANNEL_TOKEN",
+      "PII_LINE_DISPLAY_NAME",
+      "PII_MINTED_CUSTOM_TOKEN",
+    ]) {
+      expect(serialized).not.toContain(sentinel);
+    }
   });
 });
