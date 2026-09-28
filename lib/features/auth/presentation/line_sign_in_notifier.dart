@@ -27,9 +27,9 @@ part 'line_sign_in_notifier.g.dart';
 /// T-13-NAVER-NOTIFIER-R7-01 lesson). 회귀 가드 테스트 + docstring 으로
 /// invariant enforce.
 ///
-/// **Custom Token 이므로 emailVerified=true 가 자동 부여**: Apple / Kakao /
-/// Naver 동일 경로. resolveAuthRedirect 는 home 으로 자동 이동하며 `/verify-email`
-/// 우회.
+/// **서버가 emailVerified=true 로 둔다**: 이메일이 없으면 `resolveIdentity`
+/// 기본값, 이메일이 있으면 verified 취급 (quick 260928-luw D-2). 그래서
+/// resolveAuthRedirect 는 `/verify-email` 을 거치지 않고 home 으로 간다.
 @riverpod
 class LineSignInNotifier extends _$LineSignInNotifier {
   @override

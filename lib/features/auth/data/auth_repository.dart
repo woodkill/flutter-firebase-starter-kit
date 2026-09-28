@@ -2013,12 +2013,14 @@ class AuthRepository implements AnonymousSignIn {
         return const Result.failure(ServiceUnavailable());
       }
       // (Phase 9.2 R4) 자동 sendEmailVerification — IN-01 (Phase 14 review)
-      // 정정: LINE 은 D-LINE-21 (email scope 미채택) 으로 Firebase Auth user
-      // record 의 email 필드가 비어 있어 [_autoSendEmailVerification] 내부의
-      // `email.isEmpty` 가드가 자연 no-op 처리 (IN-02 — 라인 번호 인용
-      // 폐기, 심볼 참조로 대체). Kakao/Naver 의
-      // `emailVerified=true 자동 set` no-op 와는 다른 mechanism — LINE 전용
-      // path 명시.
+      // 이력 · IN-02 (라인 번호 인용 폐기, 심볼 참조로 대체). LINE 은 두
+      // 이유로 [_autoSendEmailVerification] 이 발송하지 않는다
+      // (quick 260928-luw):
+      // - email 권한 없는 채널 — Firebase Auth user record 의 email 이 비어
+      //   `email.isEmpty` 가드가 return.
+      // - email 권한 있는 채널 — 서버가 LINE email 을 verified 로 취급해
+      //   (quick 260928-luw D-2) `emailVerified` 가드가 먼저 return.
+      // auth_repository_auto_verify_test.dart V14 · V15 가 잠근다.
       await _autoSendEmailVerification(userCredential);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
@@ -2855,8 +2857,9 @@ class AuthRepository implements AnonymousSignIn {
   /// - Apple / Google — idToken 의 `email_verified=true` claim
   /// - Kakao / Naver — Cloud Function `identity_index.ts` 가
   ///   `emailVerified: true` 자동 set
-  /// - LINE — email scope 미채택 (D-LINE-21) 으로
-  ///   user record 의 email 이 비어 있어 아래 `email.isEmpty` 가드가 차단
+  /// - LINE — email 권한 없는 채널은 user record 의 email 이 비어 아래
+  ///   `email.isEmpty` 가드가 차단, 권한 있는 채널은 서버가 LINE email 을
+  ///   verified 로 취급해 (quick 260928-luw D-2) `emailVerified` 가드가 차단
   ///
   /// 따라서 **실효적 발송은 Facebook 경로 하나**다.
   ///

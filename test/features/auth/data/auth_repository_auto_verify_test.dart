@@ -257,6 +257,28 @@ void main() {
     ).thenAnswer((_) async => mockCredential);
   }
 
+  /// LINE 성공 fixture — [stubKakaoSuccess] mirror (quick 260928-luw V14 · V15).
+  void stubLineSuccess() {
+    when(() => mockLineSdkClient.signIn()).thenAnswer(
+      (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
+    );
+    when(
+      () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+    ).thenReturn(mockCallable);
+    final defaultResult = _MockHttpsCallableResult();
+    when(() => defaultResult.data).thenReturn(<String, dynamic>{
+      'customToken': 'CT_LINE',
+      'uid': 'line-uid',
+      'isNewUser': true,
+    });
+    when(
+      () => mockCallable.call<Map<String, dynamic>>(any()),
+    ).thenAnswer((_) async => defaultResult);
+    when(
+      () => mockAuth.signInWithCustomToken('CT_LINE'),
+    ).thenAnswer((_) async => mockCredential);
+  }
+
   group(
     'Phase 9.2 R4 — _autoSendEmailVerification 5 provider no-op + isNewUser '
     '+ graceful + race-fix',
@@ -311,6 +333,37 @@ void main() {
           stubNaverSuccess();
 
           await repository.signInWithNaver();
+
+          verifyNever(() => mockUser.sendEmailVerification());
+        },
+      );
+
+      // -----------------------------------------------------------------
+      // V14~V15 (quick 260928-luw): LINE — 이메일이 있으면 서버가 verified 로
+      // 취급(D-2) → `emailVerified` 가드, 없으면 `email.isEmpty` 가드.
+      // -----------------------------------------------------------------
+
+      test('V14: LINE email 있음 + emailVerified=true (서버 D-2 verified 취급) '
+          '+ isNewUser=true → sendEmailVerification 미호출', () async {
+        when(() => mockUser.email).thenReturn('line-user@line.example');
+        when(() => mockUser.emailVerified).thenReturn(true);
+        stubLineSuccess();
+
+        await repository.signInWithLine();
+
+        verifyNever(() => mockUser.sendEmailVerification());
+      });
+
+      test(
+        'V15: LINE email 없음 (채널 email 권한 없음) → sendEmailVerification 미호출',
+        () async {
+          when(() => mockUser.email).thenReturn(null);
+          // 서버 기본값은 true 지만, false 로 두어 `email.isEmpty` 가드만으로
+          // 차단됨을 격리해 잠근다.
+          when(() => mockUser.emailVerified).thenReturn(false);
+          stubLineSuccess();
+
+          await repository.signInWithLine();
 
           verifyNever(() => mockUser.sendEmailVerification());
         },

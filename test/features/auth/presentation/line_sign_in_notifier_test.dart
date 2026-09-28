@@ -41,7 +41,8 @@ void main() {
     });
 
     test('Test 2 (성공): repository Result.success → AsyncData(null)', () async {
-      // Custom Token 흐름: emailVerified=true 자동 부여 (D-LINE-21 docstring).
+      // 서버가 emailVerified=true 로 둔다 (이메일 없음 = 기본값 · 이메일 있음 =
+      // quick 260928-luw D-2 verified 취급).
       final user = User(
         uid: 'line-uid-001',
         email: 'test@line.me',

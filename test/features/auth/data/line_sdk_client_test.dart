@@ -84,6 +84,29 @@ void main() {
     });
 
     test(
+      'Test 1b: scopes = openid + profile + email (quick 260928-luw D-1)',
+      () async {
+        List<String>? capturedScopes;
+        final client = LineSdkClient.forTest(
+          login: ({required scopes, required option}) async {
+            capturedScopes = scopes;
+            return _buildLoginResult(
+              idTokenRaw: 'JWT',
+              nonce: option.idTokenNonce,
+            );
+          },
+          logout: () async {},
+        );
+
+        await client.signIn();
+
+        // D-1: email scope 무조건 요청 — 채널에 email 권한이 없어도 로그인은
+        // 정상이고 ID token 에 email 만 빠진다 (2026-09-28 Android 실측).
+        expect(capturedScopes, <String>['openid', 'profile', 'email']);
+      },
+    );
+
+    test(
       'Test 2: fake login 의 LoginResult.idToken + 호출 nonce 가 정확 매핑',
       () async {
         const idToken = 'JWT_HEADER.JWT_PAYLOAD.JWT_SIG';

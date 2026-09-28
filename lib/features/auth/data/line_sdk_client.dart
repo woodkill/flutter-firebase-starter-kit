@@ -145,12 +145,20 @@ class LineSdkClient {
   /// 1. [generateNonce] (`byteLength: 16`, IN-05 공통 helper) 로 raw nonce
   ///    1회 생성 (D-LINE-21 single nonce). 16 bytes = 22 chars
   ///    (base64url, padding 제거).
-  /// 2. `_login(scopes: const ['openid', 'profile'], option: LoginOption(
-  ///    false, 'normal')..idTokenNonce = nonce)` 호출.
+  /// 2. `_login(scopes: const ['openid', 'profile', 'email'],
+  ///    option: LoginOption(false, 'normal')..idTokenNonce = nonce)` 호출.
   /// 3. `result.accessToken.idTokenRaw == null` (Pitfall 1 — OIDC scope 누락) →
   ///    [ServiceUnavailable] throw.
   /// 4. 사용자 취소 (`PlatformException` code 가 iOS '3003' / Android 'CANCEL'
   ///    / 'AUTHENTICATION_CANCELLED') → null 반환 (D-LINE-21 silent).
+  ///
+  /// email scope (quick 260928-luw D-1 — D-LINE-21 개정): 항상 요청하며 설정
+  /// 스위치는 없다. 채널에 email 권한이 없으면 로그인은 정상이고 동의 화면에서
+  /// 이메일 항목만 빠지며 ID token 에 email 이 없다 (2026-09-28 Android 실기기
+  /// 실측 — iOS 미실측). 권한 있는 채널에서는 사용자가 동의하고 LINE 계정에
+  /// 이메일이 있으면 ID token 에 email 이 실려 서버 `lineCustomToken` 이
+  /// 처리한다. flutter_line_sdk 2.7.2 `AccessToken.email` 문서: openid + email
+  /// 둘 다 필요, 사용자가 거부하면 null.
   ///
   /// 반환:
   /// - [LineSignInResult] (idToken + 같은 nonce) — 성공.
@@ -160,7 +168,7 @@ class LineSdkClient {
     try {
       final option = LoginOption(false, 'normal')..idTokenNonce = nonce;
       final result = await _login(
-        scopes: const <String>['openid', 'profile'],
+        scopes: const <String>['openid', 'profile', 'email'],
         option: option,
       );
       final idTokenRaw = result.accessToken.idTokenRaw;
