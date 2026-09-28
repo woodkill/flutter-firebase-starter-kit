@@ -22,6 +22,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../../../core/auth/auth_strategy.dart';
 import '../../../../core/auth/provider_id.dart';
 import '../../../../core/error/app_exception.dart';
+import '../../../auth/data/auth_repository.dart';
 import '../../../auth/data/line_sdk_client.dart';
 import '../../../auth/data/naver_sdk_client.dart';
 
@@ -178,6 +179,27 @@ DisconnectOutcome disconnectOutcomeFromFunctionsException(
   if (e.code == 'resource-exhausted') {
     return DisconnectFailed(TooManyRequests(cause: e));
   }
+  return DisconnectFailed(ServiceUnavailable(cause: e));
+}
+
+/// 재로그인 · 토큰 폐기의 Firebase Auth 거부를 [DisconnectOutcome] 으로
+/// 매핑한다 (D-08 · D-11).
+///
+/// 판정 code 목록은 기존 재인증 경로와 공유한다 — [AuthRepository]
+/// `isReauthUserMismatchCode` → [DisconnectIdentityMismatch] ·
+/// `isOAuthCancelCode` → [DisconnectCancelled] · 그 밖 → [ServiceUnavailable].
+DisconnectOutcome disconnectOutcomeFromAuthException(
+  AccountProvider provider,
+  fb.FirebaseAuthException e,
+) {
+  if (AuthRepository.isReauthUserMismatchCode(e.code)) {
+    logDisconnectFailure(provider, 'identity mismatch code=${e.code}');
+    return const DisconnectIdentityMismatch();
+  }
+  if (AuthRepository.isOAuthCancelCode(e.code)) {
+    return const DisconnectCancelled();
+  }
+  logDisconnectFailure(provider, 'auth code=${e.code}');
   return DisconnectFailed(ServiceUnavailable(cause: e));
 }
 

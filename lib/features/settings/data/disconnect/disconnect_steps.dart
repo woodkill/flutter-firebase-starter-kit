@@ -13,7 +13,9 @@ import '../../../../core/auth/provider_id.dart';
 import '../../../../core/providers/firebase_providers.dart';
 import '../../../auth/data/line_sdk_client.dart';
 import '../../../auth/data/naver_sdk_client.dart';
+import 'apple_disconnect_step.dart';
 import 'disconnect_step.dart';
+import 'google_disconnect_step.dart';
 import 'server_disconnect_step.dart';
 
 part 'disconnect_steps.g.dart';
@@ -33,6 +35,8 @@ const List<DisconnectStep> kDisconnectSteps = <DisconnectStep>[
     provider: AccountProvider.facebook,
     callableName: 'disconnectFacebookProvider',
   ),
+  GoogleDisconnectStep(),
+  AppleDisconnectStep(),
 ];
 
 /// 끊기 step 레지스트리를 제공한다 — Firebase 를 읽지 않는다.

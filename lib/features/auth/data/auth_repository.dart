@@ -2205,7 +2205,7 @@ class AuthRepository implements AnonymousSignIn {
       if (e.code == GoogleSignInExceptionCode.canceled) return null;
       return Result.failure(_mapGoogleException(e));
     } on fb.FirebaseAuthException catch (e) {
-      if (_isOAuthCancelCode(e.code)) return null;
+      if (isOAuthCancelCode(e.code)) return null;
       return Result.failure(_mapReauthAuthException(provider, e));
     } on FirebaseFunctionsException catch (e) {
       return Result.failure(_mapFunctionsException(e));
@@ -2534,18 +2534,30 @@ class AuthRepository implements AnonymousSignIn {
     AccountProvider provider,
     fb.FirebaseAuthException e,
   ) {
-    switch (e.code) {
-      case 'user-mismatch':
-      case 'user-not-found':
-      case 'account-exists-with-different-credential':
-        _logReauthMismatch(provider, e.code);
-        return ReauthUserMismatch(cause: e);
+    if (isReauthUserMismatchCode(e.code)) {
+      _logReauthMismatch(provider, e.code);
+      return ReauthUserMismatch(cause: e);
     }
     return _mapSocialAuthException(e);
   }
 
+  /// 재인증 거부 code 가 신원 불일치인지 판정한다 (Phase 16.10 promote).
+  ///
+  /// `user-mismatch` · `user-not-found` ·
+  /// `account-exists-with-different-credential` 세 code 다(근거는
+  /// [_mapReauthAuthException] 문서). 탈퇴 · 해제 끊기
+  /// step(`lib/features/settings/data/disconnect/`)이 같은 판정을 공유한다 —
+  /// 판정 목록을 바꾸면 두 경로가 함께 바뀐다.
+  static bool isReauthUserMismatchCode(String code) =>
+      code == 'user-mismatch' ||
+      code == 'user-not-found' ||
+      code == 'account-exists-with-different-credential';
+
   /// OAuth 창 사용자 취소 code 인지 판정한다 (Apple · 웹 인증 공통).
-  static bool _isOAuthCancelCode(String code) =>
+  ///
+  /// 탈퇴 · 해제 끊기 step 이 재로그인 취소 판정에 공유한다 (Phase 16.10
+  /// promote — 취소는 실패가 아니다, D-11).
+  static bool isOAuthCancelCode(String code) =>
       code == 'canceled' ||
       code == 'web-context-canceled' ||
       code == 'web-context-cancelled' ||
