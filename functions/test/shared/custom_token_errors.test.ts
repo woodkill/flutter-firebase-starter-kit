@@ -22,13 +22,17 @@ import {errors as joseErrors} from "jose";
 
 // eslint-disable-next-line import/first
 import {
+  ANONYMOUS_CALLER_REASON,
+  anonymousDisconnectNotAllowed,
   fingerprintJoseError,
   idpCredentialRejected,
   idpUnavailable,
   invalidArgument,
   mapOidcVerifyError,
   PROVIDER_ALREADY_LINKED_REASON,
+  PROVIDER_CONFIG_REASON,
   providerAlreadyLinked,
+  providerConfigError,
   reauthenticationRequired,
   REAUTH_REQUIRED_REASON,
   serverFailure,
@@ -62,6 +66,27 @@ describe("표준 에러 팩토리 — WR-01 공용 매핑 표", () => {
       code: "already-exists",
       message: "errorProviderAlreadyLinked",
       details: {reason: "provider_already_linked"},
+    });
+  });
+
+  // 16.10 D-12: provider 측 설정 결함은 재시도로 해소되지 않으므로
+  // 일시 오류(unavailable)와 code 를 나누고 reason 으로 운영 신호를 준다.
+  it("provider 설정 결함 = failed-precondition + provider_config reason", () => {
+    expect(PROVIDER_CONFIG_REASON).toBe("provider_config");
+    expect(providerConfigError()).toMatchObject({
+      code: "failed-precondition",
+      message: "errorProviderConfig",
+      details: {reason: "provider_config"},
+    });
+  });
+
+  // 16.10 C-06: 익명 끊기 거부는 16.8 익명 해제 거부와 같은 reason 이다.
+  it("익명 끊기 거부 = failed-precondition + anonymous_caller reason", () => {
+    expect(ANONYMOUS_CALLER_REASON).toBe("anonymous_caller");
+    expect(anonymousDisconnectNotAllowed()).toMatchObject({
+      code: "failed-precondition",
+      message: "errorAnonymousDisconnectNotAllowed",
+      details: {reason: "anonymous_caller"},
     });
   });
 

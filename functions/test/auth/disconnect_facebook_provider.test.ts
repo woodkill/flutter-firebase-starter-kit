@@ -287,3 +287,162 @@ describe("disconnectFacebookProvider — caller 가드", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("disconnectFacebookProvider — 미인증", () => {
+  it("F5: auth 부재 → unauthenticated · getUser 0 · fetch 0", async () => {
+    const err = await captureHttpsError(callDisconnect(null));
+    expect(err.code).toBe("unauthenticated");
+    expect(err.message).toBe("errorUnauthenticated");
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("disconnectFacebookProvider — Graph 오류 코드 매핑", () => {
+  it("F6: 190(app token 무효) → provider_config 거부", async () => {
+    arrangeProviderData([{providerId: "facebook.com", uid: FB_ASID}]);
+    mockGraphResponse(401, {
+      error: {code: 190, error_subcode: 460, message: "PII_FB_GRAPH_MESSAGE"},
+    });
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("failed-precondition");
+    expect(err.message).toBe("errorProviderConfig");
+    expect(err.details).toEqual({reason: "provider_config"});
+    // 로그는 정수 코드 · status 만 — Graph message · asid 0.
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_facebook_delete_failed",
+        uid: CALLER_UID,
+        status: 401,
+        code: 190,
+        subcode: 460,
+      },
+      expect.any(String),
+    );
+  });
+
+  it("F7: 613(호출 한도) → resource-exhausted", async () => {
+    arrangeProviderData([{providerId: "facebook.com", uid: FB_ASID}]);
+    mockGraphResponse(400, {
+      error: {code: 613, message: "PII_FB_GRAPH_MESSAGE"},
+    });
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("resource-exhausted");
+    expect(err.message).toBe("errorTooManyRequests");
+  });
+
+  it.each([4, 17])(
+    "F8: Graph code %i(호출 한도) → resource-exhausted",
+    async (code) => {
+      arrangeProviderData([{providerId: "facebook.com", uid: FB_ASID}]);
+      mockGraphResponse(400, {
+        error: {code, message: "PII_FB_GRAPH_MESSAGE"},
+      });
+
+      const err = await captureHttpsError(callDisconnect());
+      expect(err.code).toBe("resource-exhausted");
+      expect(err.message).toBe("errorTooManyRequests");
+    },
+  );
+
+  // A2 보수 매핑 (RESEARCH Pitfall 7): 「이미 끊긴 사용자」 후보(100/33)는
+  // 실측 전이라 성공으로 매핑하지 않는다 — plan 11 이 UAT 실측 fixture 로
+  // 이 케이스를 다시 잠근다.
+  it("F9: 100/33(이미 끊김 후보) → unavailable · A2 보수", async () => {
+    arrangeProviderData([{providerId: "facebook.com", uid: FB_ASID}]);
+    mockGraphResponse(400, {
+      error: {code: 100, error_subcode: 33, message: "PII_FB_GRAPH_MESSAGE"},
+    });
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+  });
+
+  it("F10: fetch reject(TypeError) → unavailable · err.name 만 로그", async () => {
+    arrangeProviderData([{providerId: "facebook.com", uid: FB_ASID}]);
+    fetchMock.mockRejectedValueOnce(
+      new TypeError("PII_FB_GRAPH_MESSAGE fetch failed"),
+    );
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_facebook_delete_failed",
+        uid: CALLER_UID,
+        code: "TypeError",
+      },
+      expect.any(String),
+    );
+  });
+
+  it("F11: 200 + {success: false} → unavailable", async () => {
+    arrangeProviderData([{providerId: "facebook.com", uid: FB_ASID}]);
+    mockGraphResponse(200, {success: false});
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_facebook_delete_failed",
+        uid: CALLER_UID,
+        status: 200,
+        code: "unexpected_body",
+      },
+      expect.any(String),
+    );
+  });
+});
+
+describe("disconnectFacebookProvider — 원장 결함", () => {
+  it("F12: asid 형식 밖(abc) → internal · fetch 0 · 값 로그 0", async () => {
+    arrangeProviderData([{providerId: "facebook.com", uid: "abc"}]);
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("internal");
+    expect(err.message).toBe("errorUnknown");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {event: "disconnect_facebook_target_invalid", uid: CALLER_UID},
+      expect.any(String),
+    );
+  });
+
+  it("F13: getUser throw → internal · fingerprint 로그", async () => {
+    mockGetUser.mockRejectedValueOnce(
+      Object.assign(new Error("PII_FB_GRAPH_MESSAGE"), {
+        code: "auth/internal-error",
+      }),
+    );
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("internal");
+    expect(err.message).toBe("errorUnknown");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_facebook_precheck_failed",
+        uid: CALLER_UID,
+        code: "auth/internal-error",
+      },
+      expect.any(String),
+    );
+  });
+});
+
+// 반드시 마지막 describe — 앞선 모든 케이스의 logger 호출을 검사한다.
+describe("disconnectFacebookProvider — PII sentinel (F14)", () => {
+  it("F14: 모든 logger 호출에 asid · 시크릿 · Graph message 0", () => {
+    // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
+    expect(accumulatedLogCalls.length).toBeGreaterThan(8);
+    const serialized = JSON.stringify(accumulatedLogCalls);
+    for (const sentinel of PII_SENTINELS) {
+      expect(serialized).not.toContain(sentinel);
+    }
+  });
+});

@@ -304,3 +304,161 @@ describe("disconnectKakaoProvider — caller 가드", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("disconnectKakaoProvider — 미인증 · 0 건", () => {
+  it("K4: request.auth 부재 → unauthenticated · 조회 0 · fetch 0", async () => {
+    const err = await captureHttpsError(callDisconnect(null));
+    expect(err.code).toBe("unauthenticated");
+    expect(err.message).toBe("errorUnauthenticated");
+    expect(mockWhere).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("K5: Kakao 신원 없음 → {ok, disconnectedCount: 0} · fetch 0", async () => {
+    arrangeKakaoIdentities([]);
+
+    await expect(callDisconnect()).resolves.toEqual({
+      ok: true,
+      disconnectedCount: 0,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(infoMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_kakao_succeeded",
+        uid: CALLER_UID,
+        disconnectedCount: 0,
+      },
+      expect.any(String),
+    );
+  });
+});
+
+describe("disconnectKakaoProvider — Kakao 오류 코드 매핑", () => {
+  it("K6: -401(어드민 키 무효) → failed-precondition(provider_config)", async () => {
+    arrangeKakaoIdentities([KAKAO_USER_ID]);
+    mockKakaoResponse(401, {code: -401, msg: "PII_KAKAO_MSG"});
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("failed-precondition");
+    expect(err.message).toBe("errorProviderConfig");
+    expect(err.details).toEqual({reason: "provider_config"});
+    // 로그는 정수 코드 · status 만 — msg 본문 · 회원번호 0.
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_kakao_unlink_failed",
+        uid: CALLER_UID,
+        status: 401,
+        code: -401,
+      },
+      expect.any(String),
+    );
+  });
+
+  it("K7: -3(앱 설정 미허용) → failed-precondition(provider_config)", async () => {
+    arrangeKakaoIdentities([KAKAO_USER_ID]);
+    mockKakaoResponse(400, {code: -3, msg: "PII_KAKAO_MSG"});
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("failed-precondition");
+    expect(err.message).toBe("errorProviderConfig");
+    expect(err.details).toEqual({reason: "provider_config"});
+  });
+
+  it("K8: -10(사용량 제한) → resource-exhausted", async () => {
+    arrangeKakaoIdentities([KAKAO_USER_ID]);
+    mockKakaoResponse(400, {code: -10, msg: "PII_KAKAO_MSG"});
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("resource-exhausted");
+    expect(err.message).toBe("errorTooManyRequests");
+  });
+
+  it("K9: fetch reject(TypeError) → unavailable · err.name 만 로그", async () => {
+    arrangeKakaoIdentities([KAKAO_USER_ID]);
+    fetchMock.mockRejectedValueOnce(
+      new TypeError("PII_KAKAO_MSG fetch failed"),
+    );
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_kakao_unlink_failed",
+        uid: CALLER_UID,
+        code: "TypeError",
+      },
+      expect.any(String),
+    );
+  });
+
+  it("K10: 500 + 비-JSON 본문 → unavailable · code other", async () => {
+    arrangeKakaoIdentities([KAKAO_USER_ID]);
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new SyntaxError("Unexpected token < in JSON");
+      },
+    });
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_kakao_unlink_failed",
+        uid: CALLER_UID,
+        status: 500,
+        code: "other",
+      },
+      expect.any(String),
+    );
+  });
+});
+
+describe("disconnectKakaoProvider — 원장 결함", () => {
+  it("K11: 회원번호 형식 밖(abc) → internal · fetch 0 · 값 로그 0", async () => {
+    arrangeKakaoIdentities(["abc"]);
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("internal");
+    expect(err.message).toBe("errorUnknown");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {event: "disconnect_kakao_target_invalid", uid: CALLER_UID},
+      expect.any(String),
+    );
+  });
+
+  it("K12: identity_index 조회 throw → internal · fingerprint 로그", async () => {
+    mockWhereGet.mockRejectedValueOnce(
+      Object.assign(new Error("PII_KAKAO_MSG"), {code: "unavailable"}),
+    );
+
+    const err = await captureHttpsError(callDisconnect());
+    expect(err.code).toBe("internal");
+    expect(err.message).toBe("errorUnknown");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_kakao_precheck_failed",
+        uid: CALLER_UID,
+        code: "unavailable",
+      },
+      expect.any(String),
+    );
+  });
+});
+
+// 반드시 마지막 describe — 앞선 모든 케이스의 logger 호출을 검사한다.
+describe("disconnectKakaoProvider — PII sentinel (K13)", () => {
+  it("K13: 모든 케이스의 logger 호출에 회원번호 · 어드민 키 · msg 0", () => {
+    // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
+    expect(accumulatedLogCalls.length).toBeGreaterThan(8);
+    const serialized = JSON.stringify(accumulatedLogCalls);
+    for (const sentinel of PII_SENTINELS) {
+      expect(serialized).not.toContain(sentinel);
+    }
+  });
+});
