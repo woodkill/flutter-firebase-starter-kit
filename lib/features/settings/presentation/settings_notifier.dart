@@ -201,7 +201,9 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// 실측에서 `credential-already-in-use` 실패에 이메일 문구가 표시된 원인.
   AccountLinkOutcome _mapLinkFailure(AppException exception) {
     return switch (exception) {
-      // `requires-recent-login` — 5분 auth_time boundary (기존 동작 유지).
+      // native `requires-recent-login` · CT `reauthentication_required` reason
+      // — 방어 매핑. Firebase 는 연결에 최근 로그인을 요구하지 않는다
+      // (quick 260928-cxs).
       ReauthenticationRequiredException() => AccountLinkOutcome.reauthRequired,
       // WR-04: `provider-already-linked` — 이미 **현재 계정에** 연결됨.
       // AccountAlreadyLinked 보다 먼저 둘 필요는 없지만 (형제 타입),
@@ -362,7 +364,8 @@ enum AccountLinkOutcome {
   /// 사용자 SDK 취소 (null) — no-op (snackbar 0, 버튼 유지).
   cancelled,
 
-  /// 재인증 필요 (`requires-recent-login`) — 재로그인 라우팅 (D-06 mirror).
+  /// 재인증 필요 (`requires-recent-login` · CT reason) — 재로그인 라우팅.
+  /// 방어 매핑 — 정상 연결 경로에서는 오지 않는다 (quick 260928-cxs).
   reauthRequired,
 
   /// 해당 로그인 정보가 이미 **다른 계정에** 연결됨 ([AccountAlreadyLinked]

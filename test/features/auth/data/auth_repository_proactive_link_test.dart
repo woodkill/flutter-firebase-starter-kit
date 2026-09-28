@@ -25,7 +25,8 @@
 //       ProviderAlreadyLinkedToThisAccount (WR-04),
 //       'credential-already-in-use' → AccountAlreadyLinked
 //   T7 (reauth boundary): linkWithCredential 'requires-recent-login' →
-//       ReauthenticationRequiredException (5분 auth_time boundary)
+//       ReauthenticationRequiredException (방어 매핑 — Firebase 는 연결에
+//       최근 로그인을 요구하지 않는다 · quick 260928-cxs)
 //   T8 (race-fix): 전 구간 _socialLinkInProgress.begin/finally end (1:1)
 //   T9 (proactive Custom Token 재사용): linkCustomTokenProviderArm 재사용
 //       (16-09) — 별도 proactive Custom Token 메서드 추가 0 sentinel

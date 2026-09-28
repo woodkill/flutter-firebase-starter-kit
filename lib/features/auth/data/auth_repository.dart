@@ -1100,8 +1100,9 @@ class AuthRepository implements AnonymousSignIn {
   ///    linkedProviders 변경 0).
   /// 3. `_auth.currentUser.linkWithCredential(googleCredential)`.
   /// 4. 에러 매핑 ([_mapProactiveLinkException]): `requires-recent-login` →
-  ///    [ReauthenticationRequiredException] (5분 auth_time boundary — withdrawal
-  ///    D-06 reauth gate mirror), `provider-already-linked` /
+  ///    [ReauthenticationRequiredException] (방어 매핑 — Firebase 는 연결에
+  ///    최근 로그인을 요구하지 않는다 · quick 260928-cxs),
+  ///    `provider-already-linked` /
   ///    `credential-already-in-use` → [AccountAlreadyLinked], 그 외 →
   ///    [_mapAuthException].
   ///
@@ -1257,9 +1258,10 @@ class AuthRepository implements AnonymousSignIn {
   /// proactive native link 의 [fb.FirebaseAuthException] → [AppException] 매핑
   /// (Phase 16 16-10).
   ///
-  /// - `requires-recent-login` → [ReauthenticationRequiredException] (5분
-  ///   auth_time boundary 초과 — withdrawal D-06 reauth gate mirror. 16-11 UI
-  ///   가 재로그인 라우팅. threat T-16-10-01 mitigate).
+  /// - `requires-recent-login` → [ReauthenticationRequiredException] (방어
+  ///   매핑 — Firebase 는 연결에 최근 로그인을 요구하지 않아 정상 경로에서는
+  ///   오지 않는다 · quick 260928-cxs. 16-11 UI 가 재로그인 라우팅. threat
+  ///   T-16-10-01 은 accept 로 재분류 — 16-SECURITY.md add-only 절).
   /// - `provider-already-linked` / `credential-already-in-use` →
   ///   [AccountAlreadyLinked] (회귀 안전 ARB 재사용. threat T-16-10-02 mitigate).
   /// - 그 외 → [_mapAuthException] (기존 표준 매핑 재사용). 위임 결과 중
@@ -1306,8 +1308,9 @@ class AuthRepository implements AnonymousSignIn {
   ///    null · 익명 · 2 단계와 다른 uid 로 바뀌었으면 [UnknownException]
   ///    (16.9 review iteration 2 WR-01). 통과하면 `getIdToken(true /*
   ///    forceRefresh */)` 로 caller fresh ID Token 발급 — signIn **뒤** 에
-  ///    둔다 (server-side auth_time 5분 boundary 는 SDK 왕복 시간을 뺀 뒤에
-  ///    재야 한다).
+  ///    둔다 (재확인한 caller 의 토큰을 싣는다. 서버는 `verifyIdToken(
+  ///    checkRevoked)` · uid 일치만 검사하고 auth_time 신선도는 검사하지
+  ///    않는다 — quick 260928-cxs).
   /// 5. `_functions.httpsCallable('linkCustomTokenProvider')` 호출 —
   ///    deployed contract `{idToken, targetProvider, targetProviderToken,
   ///    nonce} → {ok:true}` (link_custom_token_provider.ts line 67~80
@@ -1331,7 +1334,7 @@ class AuthRepository implements AnonymousSignIn {
   /// 에러 매핑 ([_mapLinkCallableException] — [linkNaverProviderArm] 과 공용 ·
   /// 16.9 review WR-01):
   /// - `unauthenticated` + `details.reason == 'reauthentication_required'`
-  ///   (auth_time 초과 / verifyIdToken 실패) · `permission-denied` (idToken
+  ///   (verifyIdToken 실패 — 폐기 · 만료) · `permission-denied` (idToken
   ///   uid 불일치) →
   ///   [ReauthenticationRequiredException] (재로그인 유도).
   /// - reason 없는 `unauthenticated` (Kakao/LINE ID token 거부 · App Check
@@ -1414,8 +1417,8 @@ class AuthRepository implements AnonymousSignIn {
       }
 
       // Step 3-2 — caller fresh ID Token (forceRefresh=true). signIn 뒤에
-      // 발급해야 server-side auth_time 5분 boundary 가 SDK 왕복 시간을
-      // 잡아먹지 않는다.
+      // 발급해 재확인한 caller 의 토큰을 싣는다 — 서버는 checkRevoked ·
+      // uid 일치만 검사한다(auth_time 신선도 검사 없음 · quick 260928-cxs).
       final callerIdToken = await caller.getIdToken(true);
       if (callerIdToken == null) {
         // WR-06: 결정적 실패 — 재시도 유도 금지.
@@ -1487,7 +1490,8 @@ class AuthRepository implements AnonymousSignIn {
   /// 4. NAVER 왕복 뒤 caller 재확인 ([_readUnchangedCaller] — null · 익명 ·
   ///    다른 uid 면 [UnknownException], 16.9 review iteration 2 WR-01) →
   ///    caller fresh ID Token (`getIdToken(true)`) — signIn **뒤** 에 발급
-  ///    한다(서버 auth_time 5분 boundary 통과 의무).
+  ///    한다(재확인한 caller 의 토큰 · 서버 auth_time 신선도 검사 없음 —
+  ///    quick 260928-cxs).
   /// 5. 결과 variant 로 payload · timeout 을 고른다([_naverLinkPayload]) →
   ///    callable `linkNaverProvider` 호출 → `{ok:true}` 검증 → reload.
   /// 6. finally: [NaverSdkClient.logout] (로컬 SDK 토큰만 — C-05 1회성 토큰
@@ -1555,8 +1559,8 @@ class AuthRepository implements AnonymousSignIn {
         return const Result.failure(UnknownException());
       }
 
-      // signIn 뒤에 발급 — 서버 auth_time 5분 boundary 가 NAVER 왕복 시간을
-      // 잡아먹지 않는다.
+      // signIn 뒤에 발급 — 재확인한 caller 의 토큰을 싣는다(서버 auth_time
+      // 신선도 검사 없음 · quick 260928-cxs).
       final callerIdToken = await caller.getIdToken(true);
       if (callerIdToken == null) {
         // WR-06: 결정적 실패 — 재시도 유도 금지.
@@ -1638,7 +1642,8 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// 1. `unauthenticated` + `details.reason == 'reauthentication_required'` →
   ///    [ReauthenticationRequiredException] (서버 `reauthenticationRequired()`
-  ///    — `verifyIdToken(checkRevoked)` 실패 · `assertFreshAuth`). 다른 code
+  ///    — `verifyIdToken(checkRevoked)` 실패. 연결 callable 은 auth_time
+  ///    신선도를 검사하지 않는다 · quick 260928-cxs). 다른 code
   ///    에 같은 reason 이 실려도 재로그인으로 보내지 않는다(code anchor —
   ///    16.9 review iteration 2 IN-01).
   /// 2. `permission-denied` (`caller_identity_mismatch` 아님) →

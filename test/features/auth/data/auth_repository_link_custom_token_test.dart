@@ -418,7 +418,7 @@ void main() {
         targetProvider: AccountProvider.line,
       );
 
-      // forceRefresh=true 로 caller ID Token 발급 (server-side auth_time boundary).
+      // forceRefresh=true 로 caller ID Token 발급 (재확인한 caller 의 토큰 — 서버 auth_time 신선도 검사 없음 · quick 260928-cxs).
       verify(() => mockCurrentUser.getIdToken(true)).called(1);
     });
   });

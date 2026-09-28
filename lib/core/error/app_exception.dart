@@ -311,8 +311,9 @@ final class UnlinkLastCredentialRejected extends AuthException {
 /// 서버는 `errorReauthenticationRequired` 를 `unauthenticated` +
 /// `details.reason: 'reauthentication_required'` 로 보낸다
 /// (`deleteUserAccount` · `linkCustomTokenProvider` · `linkNaverProvider` —
-/// idToken 검증 실패 · `assertFreshAuth` auth_time 5분 초과 · 누락 · 미래값 —
-/// 16.8 review iteration 2 IN-01 · 16.9 review WR-01).
+/// idToken 검증 실패 공통. `assertFreshAuth` auth_time 5분 초과 · 누락 ·
+/// 미래값은 `deleteUserAccount` 만 — 연결 callable 은 quick 260928-cxs 로
+/// 신선도 검사를 뺐다 — 16.8 review iteration 2 IN-01 · 16.9 review WR-01).
 /// `permission-denied` 는 uid 불일치(`errorUnauthenticated`)다. 클라이언트는
 /// 메시지를 읽지 않는다. 두 연결 arm(`AuthRepository._mapLinkCallableException`)
 /// 은 reason 이 있는 `unauthenticated` 와 `permission-denied` 만 본 타입으로
