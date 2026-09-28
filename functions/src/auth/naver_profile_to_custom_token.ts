@@ -63,8 +63,18 @@ type NaverProfileResponse = {
  * - `"web"` — `naverWebCustomToken` (킷 소유 웹 경로)
  * - `"link_app"` — `linkNaverProvider` 1-tap 모양 (Phase 16.9 계정 연결)
  * - `"link_web"` — `linkNaverProvider` 웹 모양 (Phase 16.9 계정 연결)
+ * - `"disconnect_app"` — `disconnectNaverProvider` 1-tap 모양 (Phase 16.10
+ *   앱 연결 끊기)
+ * - `"disconnect_web"` — `disconnectNaverProvider` 웹 모양 (Phase 16.10
+ *   앱 연결 끊기)
  */
-export type NaverSignInPath = "app" | "web" | "link_app" | "link_web";
+export type NaverSignInPath =
+  | "app"
+  | "web"
+  | "link_app"
+  | "link_web"
+  | "disconnect_app"
+  | "disconnect_web";
 
 /**
  * [fetchNaverProfile] 결과 — `/v1/nid/me` 가 검증한 Naver 신원.

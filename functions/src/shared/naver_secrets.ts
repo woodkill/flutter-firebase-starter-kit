@@ -1,8 +1,9 @@
 // Phase 13 D-60 · Phase 16.5 D-13 — Naver OAuth secret 선언 단일 진실원.
 //
 // Naver 를 쓰는 callable (`naver_custom_token.ts` · `naver_web_custom_token.ts` ·
-// `link_naver_provider.ts` — 교환 helper `naver_token_exchange.ts` 경유) 이
-// 같은 secret 을 바인딩하므로 선언을 한 곳에 둔다.
+// `link_naver_provider.ts` — 교환 helper `naver_token_exchange.ts` 경유 ·
+// `disconnect_naver_provider.ts` — 교환 + Token Revocation) 이 같은 secret 을
+// 바인딩하므로 선언을 한 곳에 둔다.
 //
 // 배포 전 의무 (아래 secret 모두):
 //   firebase functions:secrets:set NAVER_CLIENT_SECRET
@@ -13,11 +14,16 @@ import {defineSecret} from "firebase-functions/params";
 /**
  * Naver Client Secret (Phase 13 D-60 · Phase 16.5 D-13).
  *
- * **사용처 (Phase 16.5 부터 · Phase 16.9 확장):** `exchangeNaverAuthCode`
- * (`auth/naver_token_exchange.ts`)가 authorization code 교환
- * (`grant_type=authorization_code`)의 form body 로 보낸다 — 호출자는
- * `naverWebCustomToken`(웹 로그인) · `linkNaverProvider`(웹 모양 연결). 토큰 폐기
- * 요청은 보내지 않는다 — NAVER 에서 연동 해제라서다 (quick 260924-lw2).
+ * **사용처 (Phase 16.5 부터 · Phase 16.9 · 16.10 확장):**
+ * `exchangeNaverAuthCode` (`auth/naver_token_exchange.ts`)가 authorization
+ * code 교환(`grant_type=authorization_code`)의 form body 로 보낸다 —
+ * 호출자는 `naverWebCustomToken`(웹 로그인) · `linkNaverProvider`(웹 모양
+ * 연결) · `disconnectNaverProvider`(웹 모양 끊기). 로그인 · 연결 경로는 토큰
+ * 폐기 요청을 보내지 않는다 — NAVER 에서 폐기는 연동 해제라 다음 로그인에
+ * 동의 화면이 다시 뜨는 부작용이 있어서다 (quick 260924-lw2). 탈퇴 · 해제의
+ * `disconnectNaverProvider` (`auth/disconnect_naver_provider.ts`)는 Token
+ * Revocation(`/oauth2.0/revoke`) form body 로 보낸다 — 여기서는 동의 화면
+ * 재노출이 의도된 결과다 (Phase 16.10 D-09).
  * Phase 13 단계에서는 사용처가 없었지만 secret 정책 일관성 / 시스템 보안
  * 권장으로 미리 등록했다 (D-60).
  *
@@ -43,7 +49,9 @@ export const NAVER_CLIENT_SECRET = defineSecret("NAVER_CLIENT_SECRET");
 
 /**
  * Naver Client ID (Phase 16.5 D-13 · Phase 16.9 D-01 — `exchangeNaverAuthCode`
- * 경유로 `naverWebCustomToken` · `linkNaverProvider` 가 읽는다).
+ * 경유로 `naverWebCustomToken` · `linkNaverProvider` 가 읽는다. Phase 16.10
+ * 부터 `disconnectNaverProvider` 가 웹 교환과 Token Revocation form body 에
+ * 싣는다).
  *
  * Client ID 는 authorize URL 에 실리는 **공개 식별자** 지만 LINE 의
  * `LINE_CHANNEL_ID` (shared/oidc_providers.ts) 와 같은 이유로 Secret Manager
