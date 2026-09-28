@@ -68,6 +68,7 @@ class DisconnectRow {
     required this.provider,
     required this.kind,
     required this.status,
+    this.wasDisconnected = false,
   });
 
   /// `User.providerIds` 원소 그대로 (라벨 변환 입력 — `'google.com'` 등).
@@ -82,17 +83,29 @@ class DisconnectRow {
   /// 현재 행 상태.
   final DisconnectRowStatus status;
 
+  /// 이 화면 세션에서 step 이 [DisconnectDone] 을 돌려준 적이 있는가 (비시각).
+  ///
+  /// 5분 창 재해제 대상 판정에 쓴다 — 재인증 로그인은 해제된 provider 를 다시
+  /// 연결(재동의)할 수 있으므로, 재인증 뒤에는 한 번이라도 끊었던 행을 다시
+  /// 끊어야 한다(D-07 · D-14 · C-09). 한 번도 끊지 않은 건너뛴 행은 대상이
+  /// 아니다. 영속화 0 — 재진입하면 처음부터다(D-14).
+  final bool wasDisconnected;
+
   /// 해제됨 또는 건너뜀 — 「탈퇴」 활성 조건의 행 단위 판정.
   bool get isFinished =>
       status == DisconnectRowStatus.done ||
       status == DisconnectRowStatus.skipped;
 
-  /// [status] 만 바꾼 새 행을 돌려준다.
-  DisconnectRow copyWith({DisconnectRowStatus? status}) => DisconnectRow(
+  /// [status] · [wasDisconnected] 를 바꾼 새 행을 돌려준다.
+  DisconnectRow copyWith({
+    DisconnectRowStatus? status,
+    bool? wasDisconnected,
+  }) => DisconnectRow(
     providerId: providerId,
     provider: provider,
     kind: kind,
     status: status ?? this.status,
+    wasDisconnected: wasDisconnected ?? this.wasDisconnected,
   );
 }
 
@@ -298,6 +311,69 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
     await settings.requestAccountDeletion();
   }
 
+  /// 5분 창 (a) — 마지막 「해제됨」 재로그인 행을 로그인 대기로 되돌린다.
+  ///
+  /// 호출 전제: 계정 삭제가 신선도 부족([ReauthenticationRequiredException])
+  /// 으로 거부된 직후(모든 행이 끝났고 진행 없음 — [requestDeletion] 가드).
+  ///
+  /// 「해제됨」 재로그인 행이 있으면 행 순서상 마지막 행(보통 가장 최근에 끝낸
+  /// 행)을 대기로 바꾸고 현재 행으로 정규화한 뒤 `true` — 그 행의 로그인이
+  /// 신선도 갱신과 재해제를 한 step 에서 한다(D-07 · D-14 멱등). 재인증 화면은
+  /// 어느 provider 로 로그인했는지 돌려주지 않고, 해제한 provider 로 다시
+  /// 로그인하면 provider 측 연결이 다시 생기므로(재동의) 재인증 화면을 거치지
+  /// 않는 이 경로가 로그인 1회로 끝난다(C-09). 없으면 행 불변 · `false` —
+  /// 화면이 재인증 화면으로 보낸 뒤 [redisconnectAfterReauth] 를 부른다.
+  bool reopenRowForFreshness() {
+    final target = state.rows
+        .where(
+          (row) =>
+              row.kind == DisconnectKind.relogin &&
+              row.status == DisconnectRowStatus.done,
+        )
+        .lastOrNull;
+    if (target == null) return false;
+    state = WithdrawalDisconnectState(
+      rows: _replaceRow(target.provider, DisconnectRowStatus.waiting),
+      userTriggered: state.userTriggered,
+    );
+    return true;
+  }
+
+  /// 5분 창 (b) — 재인증 화면에서 돌아온 뒤 해제됐던 행을 다시 끊는다.
+  ///
+  /// 재인증 로그인은 이미 해제된 provider 를 다시 연결(재동의)할 수 있고,
+  /// 재인증 화면은 어느 provider 로 로그인했는지 돌려주지 않는다 — 그래서
+  /// 결과와 무관하게 이 화면에서 한 번이라도 끊었던 행([DisconnectRow.wasDisconnected])
+  /// 중 해제됨 · 건너뜀인 행을 모두 다시 연다(D-07 · C-09). 서버 행은 자동
+  /// 재실행(D-14 멱등 · 로그인 0), 재로그인 행은 로그인 대기로 되돌린다. 한
+  /// 번도 끊지 않은 건너뛴 행은 그대로다. 다시 연 행이 끝날 때까지 「탈퇴」 는
+  /// 기존 활성 조건으로 막힌다.
+  Future<void> redisconnectAfterReauth() async {
+    final reopen = <DisconnectRow>[
+      for (final row in state.rows)
+        if (row.wasDisconnected && row.isFinished) row,
+    ];
+    if (reopen.isEmpty) return;
+    final reloginProviders = <AccountProvider>{
+      for (final row in reopen)
+        if (row.kind == DisconnectKind.relogin) row.provider,
+    };
+    state = WithdrawalDisconnectState(
+      rows: normalizeDisconnectRows(<DisconnectRow>[
+        for (final row in state.rows)
+          reloginProviders.contains(row.provider)
+              ? row.copyWith(status: DisconnectRowStatus.waiting)
+              : row,
+      ]),
+      userTriggered: state.userTriggered,
+    );
+    await Future.wait(<Future<void>>[
+      for (final row in reopen)
+        if (row.kind == DisconnectKind.server)
+          _runRow(row.provider, userTriggered: false),
+    ]);
+  }
+
   /// 로그인 버튼이 동작하는 현재 행 상태.
   static const Set<DisconnectRowStatus> _actionableStatuses =
       <DisconnectRowStatus>{
@@ -311,13 +387,18 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
       state.rows.where((row) => row.provider == provider).firstOrNull;
 
   /// [provider] 행의 상태를 [status] 로 바꾸고 현재 행을 다시 맞춘 목록.
+  ///
+  /// [wasDisconnected] 가 주어지면 그 표시도 함께 바꾼다.
   List<DisconnectRow> _replaceRow(
     AccountProvider provider,
-    DisconnectRowStatus status,
-  ) {
+    DisconnectRowStatus status, {
+    bool? wasDisconnected,
+  }) {
     return normalizeDisconnectRows(<DisconnectRow>[
       for (final row in state.rows)
-        row.provider == provider ? row.copyWith(status: status) : row,
+        row.provider == provider
+            ? row.copyWith(status: status, wasDisconnected: wasDisconnected)
+            : row,
     ]);
   }
 
@@ -362,7 +443,12 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
       DisconnectFailed() => DisconnectRowStatus.failed,
     };
     state = WithdrawalDisconnectState(
-      rows: _replaceRow(provider, next),
+      // Done 을 받은 행만 5분 창 재해제 대상으로 표시한다.
+      rows: _replaceRow(
+        provider,
+        next,
+        wasDisconnected: outcome is DisconnectDone ? true : null,
+      ),
       userTriggered: userTriggered ? null : state.userTriggered,
     );
   }

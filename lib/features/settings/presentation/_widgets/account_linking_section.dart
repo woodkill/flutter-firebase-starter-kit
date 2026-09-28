@@ -20,6 +20,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_strategies_registry.dart';
 import '../../../../core/auth/provider_id.dart';
+import '../../../../core/auth/provider_order.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
@@ -29,28 +30,6 @@ import '../../../auth/presentation/_widgets/auth_in_progress_overlay.dart';
 import '../../../auth/presentation/_widgets/branded_social_button.dart';
 import '../../application/account_link_in_progress.dart';
 import '../settings_notifier.dart';
-
-/// Surface D 의 소셜 proactive 후보 (email EXCLUDE).
-///
-/// `available = _kProactiveLinkCandidates ∩ 활성 Strategy − 이미 link 된 소셜
-/// provider`. 표시 순서는 mockup §2 의 cross-provider 비교 배열을 따른다.
-///
-/// **제외 대상:**
-/// - `email` — 사용자 시각 sign-off 2026-06-02 (mockup §0 EXCLUDE).
-///   이메일/비밀번호는 킷이 권장하는 로그인 수단이 아니라 보완적으로 제공하는
-///   수단이라 계정 연결 대상에서 의도적으로 뺀다. 그래서 연결된 계정에서
-///   해제한 이메일/비밀번호(Phase 16.8)도 이 화면으로 다시 연결하지 않는다.
-///
-/// `naver` 는 Phase 16.9 부터 후보다 — kakao 와 line 사이(mockup §2 순서)에
-/// 두며, 탭은 [AuthRepository.linkNaverProviderArm] 으로 연결된다.
-const List<AccountProvider> _kProactiveLinkCandidates = <AccountProvider>[
-  AccountProvider.google,
-  AccountProvider.apple,
-  AccountProvider.facebook,
-  AccountProvider.kakao,
-  AccountProvider.naver,
-  AccountProvider.line,
-];
 
 /// 계정 연결 섹션 위젯 (Phase 16 16-11 / Surface D / SOCL-12).
 ///
@@ -88,8 +67,16 @@ class AccountLinkingSection extends ConsumerWidget {
         .toSet();
 
     // (3) available = 후보 ∩ 활성 − linked (email 후보 미포함).
+    //
+    // 후보 · 표시 순서 = 킷 표준 순서 목록 [kSocialProviderOrder] (Phase 16.10
+    // C-08 — 탈퇴 진행 화면과 공유). email 은 그 목록에 없다 — 사용자 시각
+    // sign-off 2026-06-02 (mockup §0 EXCLUDE): 이메일/비밀번호는 킷이 권장하는
+    // 로그인 수단이 아니라 보완 수단이라 계정 연결 대상에서 의도적으로 뺀다.
+    // 그래서 연결된 계정에서 해제한 이메일/비밀번호(Phase 16.8)도 이 화면으로
+    // 다시 연결하지 않는다. naver 는 Phase 16.9 부터 후보다 — 탭은
+    // [AuthRepository.linkNaverProviderArm] 으로 연결된다.
     final available = <AccountProvider>[
-      for (final provider in _kProactiveLinkCandidates)
+      for (final provider in kSocialProviderOrder)
         if (activeSlugs.contains(provider.slug) && !linked.contains(provider))
           provider,
     ];
@@ -250,7 +237,7 @@ Set<AccountProvider> _linkedSocialProviders(List<String>? providerIds) {
   for (final id in providerIds) {
     final provider = AccountProvider.tryParse(id);
     // email(=password slug) 은 소셜 아님 → 제외 (mockup §0). 이메일/비밀번호는
-    // 보완 수단이라 연결 대상이 아니다 (`_kProactiveLinkCandidates` 참고).
+    // 보완 수단이라 연결 대상이 아니다 (`kSocialProviderOrder` 참고).
     if (provider != null && provider != AccountProvider.email) {
       result.add(provider);
     }

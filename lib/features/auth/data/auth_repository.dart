@@ -1195,8 +1195,9 @@ class AuthRepository implements AnonymousSignIn {
   /// - **reactive (16-08 충돌 arm):** generic `linkPendingNativeCredential`
   ///   (pendingCredential 직접 link) 를 사용하므로 본 메서드 미경유.
   ///
-  /// email/password proactive 연결이 필요한 프로젝트는 (1) 16-11
-  /// `_kProactiveLinkCandidates` 에 [AccountProvider.email] 을 추가하고,
+  /// email/password proactive 연결이 필요한 프로젝트는 (1) 16-11 후보 목록
+  /// `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`) 에
+  /// [AccountProvider.email] 을 추가하고,
   /// (2) 별도 password 입력 다이얼로그를 신설한 뒤, (3) 본 메서드를 그
   /// affordance 에 wire 하면 된다 (mockup §0 EXCLUDE 결정 역전 — starter-kit
   /// 기본은 소셜만). 본 메서드를 dead code 로 제거하지 않는 이유는 위
