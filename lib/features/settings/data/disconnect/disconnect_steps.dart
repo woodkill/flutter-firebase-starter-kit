@@ -17,6 +17,7 @@ import 'apple_disconnect_step.dart';
 import 'disconnect_step.dart';
 import 'google_disconnect_step.dart';
 import 'line_disconnect_step.dart';
+import 'naver_disconnect_step.dart';
 import 'server_disconnect_step.dart';
 
 part 'disconnect_steps.g.dart';
@@ -38,6 +39,7 @@ const List<DisconnectStep> kDisconnectSteps = <DisconnectStep>[
   ),
   GoogleDisconnectStep(),
   AppleDisconnectStep(),
+  NaverDisconnectStep(),
   LineDisconnectStep(),
 ];
 
