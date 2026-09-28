@@ -16,6 +16,8 @@
 // - WC10 Semantics destructive intent (withdrawalConfirmActionSemantic consume)
 // - WC11/WC12 (WR-03) 원인별 실패 문구 — TooManyRequests /
 //   NoInternetConnection → withdrawalFailureTransient (generic 미노출)
+// - WC17~WC19 (Phase 16.10 D-05 · Q6-A) 확인 뒤 분기 — 끊을 행이 있으면
+//   진행 화면 push(삭제 0), 없으면(이메일/비밀번호만 · 사용자 부재) 바로 삭제
 
 import 'dart:async';
 
@@ -29,6 +31,7 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/withdrawal_confirmation_dialog.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -50,6 +53,8 @@ Future<_DialogHandle> _pumpAndShowDialog(
   _MockAuthRepository? authRepo,
   Locale locale = const Locale('ko'),
   List<String>? visitedRoutes,
+  List<String>? providerIds,
+  bool nullUser = false,
 }) async {
   Future<bool?>? dialogResult;
   final repo = settingsRepo ?? _MockSettingsRepository();
@@ -79,6 +84,12 @@ Future<_DialogHandle> _pumpAndShowDialog(
         builder: (context, state) =>
             const Scaffold(body: Center(child: Text('login-stub'))),
       ),
+      // Phase 16.10 — 탈퇴 진행 화면 route stub (WC17).
+      GoRoute(
+        path: AppRoutes.withdrawalDisconnect,
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('withdraw-stub'))),
+      ),
     ],
   );
   if (visitedRoutes != null) {
@@ -94,6 +105,16 @@ Future<_DialogHandle> _pumpAndShowDialog(
       overrides: [
         settingsRepositoryProvider.overrideWithValue(repo),
         authRepositoryProvider.overrideWithValue(aRepo),
+        if (providerIds != null)
+          currentUserProvider.overrideWith(
+            (ref) => User(
+              uid: 'uid-test',
+              emailVerified: true,
+              createdAt: DateTime(2026),
+              providerIds: providerIds,
+            ),
+          ),
+        if (nullUser) currentUserProvider.overrideWith((ref) => null),
       ],
       child: MaterialApp.router(
         locale: locale,
@@ -458,6 +479,85 @@ void main() {
         find.widgetWithText(FilledButton, 'Delete'),
       );
       expect(confirmBtn.onPressed, isNull);
+    });
+
+    testWidgets('WC17 (16.10 D-05) — 끊을 행이 있으면 다이얼로그를 닫고 진행 화면 push · 삭제 0', (
+      tester,
+    ) async {
+      final settingsRepo = _MockSettingsRepository();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      final handle = await _pumpAndShowDialog(
+        tester,
+        settingsRepo: settingsRepo,
+        providerIds: const <String>['kakao', 'google.com'],
+      );
+
+      await tester.enterText(find.byType(TextField), koHint);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
+      expect(find.text('withdraw-stub'), findsOneWidget);
+      expect(
+        GoRouterState.of(
+          tester.element(find.text('withdraw-stub')),
+        ).matchedLocation,
+        AppRoutes.withdrawalDisconnect,
+      );
+      expect(await handle.result, isFalse);
+      verifyNever(() => settingsRepo.requestAccountDeletion());
+    });
+
+    testWidgets('WC18 (16.10 Q6-A) — 이메일/비밀번호만이면 진행 화면 없이 바로 삭제', (
+      tester,
+    ) async {
+      final settingsRepo = _MockSettingsRepository();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      await _pumpAndShowDialog(
+        tester,
+        settingsRepo: settingsRepo,
+        providerIds: const <String>['password'],
+      );
+
+      await tester.enterText(find.byType(TextField), koHint);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      verify(() => settingsRepo.requestAccountDeletion()).called(1);
+      expect(find.text('withdraw-stub'), findsNothing);
+      expect(find.text('회원탈퇴가 완료되었습니다.'), findsOneWidget);
+    });
+
+    testWidgets('WC19 (16.10 Q6-A) — 로그인 사용자 부재(null)면 기존 경로로 바로 삭제', (
+      tester,
+    ) async {
+      final settingsRepo = _MockSettingsRepository();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      await _pumpAndShowDialog(
+        tester,
+        settingsRepo: settingsRepo,
+        nullUser: true,
+      );
+
+      await tester.enterText(find.byType(TextField), koHint);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      verify(() => settingsRepo.requestAccountDeletion()).called(1);
+      expect(find.text('withdraw-stub'), findsNothing);
     });
   });
 }

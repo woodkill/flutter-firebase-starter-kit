@@ -63,6 +63,30 @@ class _WithdrawalDisconnectScreenState
   WithdrawalDisconnect get _notifier =>
       ref.read(withdrawalDisconnectProvider.notifier);
 
+  /// 5분 창 초과로 삭제가 거부된 뒤 신선도를 되찾는다 (D-07 · C-02 · C-09).
+  ///
+  /// 판정은 서버 거부뿐이다(C-02 — 클라이언트 사전 점검 0). 해제한 provider 로
+  /// 다시 로그인하면 provider 측 연결이 다시 생기고(재동의), 재인증 화면은
+  /// 어느 provider 로 로그인했는지 돌려주지 않는다. 그래서:
+  /// - (a) 「해제됨」 재로그인 행이 있으면 그 행을 다시 로그인 대기로 연다 —
+  ///   그 행의 로그인이 신선도 갱신과 재해제를 한 번에 한다(재인증 화면 0).
+  /// - (b) 없으면 재인증 화면을 push 하고, 돌아오면 결과와 무관하게(취소 ·
+  ///   실패한 재인증도 provider 단계에서 이미 재동의했을 수 있다) 이 화면에서
+  ///   해제됐던 행을 다시 끊는다.
+  ///
+  /// 다시 연 행이 끝날 때까지 「탈퇴」 는 비활성이다 — 되살아난 연결을 남긴 채
+  /// 삭제로 넘어가지 않는다.
+  Future<void> _recoverFreshness() async {
+    final notifier = _notifier;
+    if (notifier.reopenRowForFreshness()) return;
+    final router = GoRouter.of(context);
+    // 재인증 목적 push 라 표시를 붙여야 guard 가 로그인 화면을 홈으로
+    // 튕기지 않는다 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE).
+    await router.push<bool>(AppRoutes.buildReauthLocation(AppRoutes.login));
+    if (!mounted) return;
+    await notifier.redisconnectAfterReauth();
+  }
+
   /// 삭제 결과 SnackBar 를 root messenger 에 띄운다.
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(
@@ -92,13 +116,7 @@ class _WithdrawalDisconnectScreenState
         final error = next.error;
         if (error is ReauthenticationRequiredException) {
           _showSnackBar(l10n.withdrawalReauthRequired);
-          // 재인증 목적 push 라 표시를 붙여야 guard 가 로그인 화면을 홈으로
-          // 튕기지 않는다 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE).
-          unawaited(
-            GoRouter.of(
-              context,
-            ).push(AppRoutes.buildReauthLocation(AppRoutes.login)),
-          );
+          unawaited(_recoverFreshness());
         } else {
           // 원인별 문구 · 화면 유지 — 재시도 = 「탈퇴」 다시.
           _showSnackBar(resolveWithdrawalFailureMessage(l10n, error));
