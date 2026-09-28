@@ -158,6 +158,7 @@ void main() {
       (_) async => const LineSignInResult(
         idToken: 'line-fresh-id-token',
         nonce: 'line-nonce',
+        accessToken: 'line-at',
       ),
     );
   }
@@ -526,6 +527,7 @@ void main() {
               return const LineSignInResult(
                 idToken: 'line-fresh-id-token',
                 nonce: 'line-nonce',
+                accessToken: 'line-at',
               );
             });
           }
@@ -592,6 +594,7 @@ void main() {
             return const LineSignInResult(
               idToken: 'line-fresh-id-token',
               nonce: 'line-nonce',
+              accessToken: 'line-at',
             );
           });
         }

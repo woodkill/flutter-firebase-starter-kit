@@ -72,6 +72,8 @@ void main() {
       final result = await client.signIn();
 
       expect(result, isNotNull);
+      // Phase 16.10 C-03: 끊기 callable 용 사용자 access token 을 함께 싣는다.
+      expect(result!.accessToken, 'AT');
       expect(capturedNonce, isNotNull);
       // base64url 의 padding-stripped 형식 — A-Z / a-z / 0-9 / - / _.
       expect(

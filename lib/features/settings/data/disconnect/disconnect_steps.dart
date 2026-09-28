@@ -16,6 +16,7 @@ import '../../../auth/data/naver_sdk_client.dart';
 import 'apple_disconnect_step.dart';
 import 'disconnect_step.dart';
 import 'google_disconnect_step.dart';
+import 'line_disconnect_step.dart';
 import 'server_disconnect_step.dart';
 
 part 'disconnect_steps.g.dart';
@@ -37,6 +38,7 @@ const List<DisconnectStep> kDisconnectSteps = <DisconnectStep>[
   ),
   GoogleDisconnectStep(),
   AppleDisconnectStep(),
+  LineDisconnectStep(),
 ];
 
 /// 끊기 step 레지스트리를 제공한다 — Firebase 를 읽지 않는다.

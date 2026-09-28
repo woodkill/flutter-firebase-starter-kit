@@ -26,6 +26,7 @@ import '../domain/anonymous_sign_in.dart';
 import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
 import 'line_sdk_client.dart';
+import 'minted_custom_token.dart';
 import 'naver_sdk_client.dart';
 import 'naver_sign_in_result.dart';
 import 'sign_up_method_recorder.dart';
@@ -2382,14 +2383,16 @@ class AuthRepository implements AnonymousSignIn {
       options: HttpsCallableOptions(timeout: request.timeout),
     );
     final response = await callable.call<Map<String, dynamic>>(request.payload);
-    final customToken = response.data['customToken'];
-    final uid = response.data['uid'];
-    if (customToken is! String || customToken.isEmpty || uid is! String) {
-      throw const UnknownException();
-    }
-    if (uid != current.uid) {
+    final String customToken;
+    try {
+      // 계약 검증 · uid 대조는 끊기 step 과 공유한다(Phase 16.10 D-08).
+      customToken = requireMintedCustomToken(
+        response.data,
+        currentUid: current.uid,
+      );
+    } on ReauthUserMismatch {
       _logReauthMismatch(provider, 'callable uid');
-      throw const ReauthUserMismatch();
+      rethrow;
     }
     return _auth.signInWithCustomToken(customToken);
   }

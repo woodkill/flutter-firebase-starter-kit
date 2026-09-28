@@ -260,7 +260,11 @@ void main() {
   /// LINE 성공 fixture — [stubKakaoSuccess] mirror (quick 260928-luw V14 · V15).
   void stubLineSuccess() {
     when(() => mockLineSdkClient.signIn()).thenAnswer(
-      (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
+      (_) async => const LineSignInResult(
+        idToken: 'LIDT',
+        nonce: 'LNONCE',
+        accessToken: 'line-at',
+      ),
     );
     when(
       () => mockFunctions.httpsCallable(any(), options: any(named: 'options')),

@@ -12,15 +12,21 @@ import '../../../core/error/app_exception.dart';
 
 part 'line_sdk_client.g.dart';
 
-/// [LineSdkClient.signIn] 의 결과 — LINE OIDC ID Token + 호출 시점 nonce.
+/// [LineSdkClient.signIn] 의 결과 — LINE OIDC ID Token + 호출 시점 nonce +
+/// 사용자 access token.
 ///
 /// `AuthRepository.signInWithLine` 가 본 nonce 를 Cloud Function
 /// `lineCustomToken` 호출 인자에 그대로 전달해야 jose 검증이 일치한다
 /// (Phase 14 D-LINE-21 single nonce invariant — Phase 12 Kakao 패턴 mirror).
 @immutable
 class LineSignInResult {
-  /// [idToken] (LINE OIDC ID Token, JWT) + [nonce] (단일 호출 raw nonce) 묶음.
-  const LineSignInResult({required this.idToken, required this.nonce});
+  /// [idToken] (LINE OIDC ID Token, JWT) + [nonce] (단일 호출 raw nonce) +
+  /// [accessToken] (LINE 사용자 access token) 묶음.
+  const LineSignInResult({
+    required this.idToken,
+    required this.nonce,
+    required this.accessToken,
+  });
 
   /// LINE OIDC ID Token — JWT raw 문자열. Cloud Function 의 jose 검증 대상.
   final String idToken;
@@ -31,6 +37,13 @@ class LineSignInResult {
   /// Function 측에서 client 가 보낸 raw nonce 를 동일하게 SHA256 해 claim 과
   /// 비교한다 (Wave 3 A1 emulator 검증 의무 — Plan 14-04 helper nonceHashing).
   final String nonce;
+
+  /// LINE 사용자 access token — 끊기 callable(`disconnectLineProvider`) 전용.
+  ///
+  /// 로그인 · 연결 경로는 읽지 않는다. 1회성이다(Phase 16.10 C-03 — 호출자가
+  /// `finally` 에서 [LineSdkClient.logout] 으로 폐기). 필드 · 캐시 · 로그에
+  /// 남기지 않는다.
+  final String accessToken;
 }
 
 /// LINE SDK `login(scopes:, option:)` 함수 시그니처 typedef.
@@ -161,7 +174,7 @@ class LineSdkClient {
   /// 둘 다 필요, 사용자가 거부하면 null.
   ///
   /// 반환:
-  /// - [LineSignInResult] (idToken + 같은 nonce) — 성공.
+  /// - [LineSignInResult] (idToken + 같은 nonce + access token) — 성공.
   /// - null — 사용자 취소.
   Future<LineSignInResult?> signIn() async {
     final nonce = generateNonce(byteLength: 16);
@@ -182,7 +195,11 @@ class LineSdkClient {
         // 또는 native parse 결과 빈 문자열 케이스.
         throw const ServiceUnavailable();
       }
-      return LineSignInResult(idToken: idTokenRaw, nonce: nonce);
+      return LineSignInResult(
+        idToken: idTokenRaw,
+        nonce: nonce,
+        accessToken: result.accessToken.value,
+      );
     } on PlatformException catch (e) {
       // message · details 는 SDK userInfo 원문(URL 등)을 실을 수 있어 미출력 —
       // 코드형 문자열인 code 만 거른 뒤 출력한다.

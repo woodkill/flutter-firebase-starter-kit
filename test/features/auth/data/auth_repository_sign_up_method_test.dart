@@ -666,8 +666,11 @@ void main() {
         () => existing.getIdToken(true),
       ).thenAnswer((_) async => 'caller-fresh-id-token');
       when(() => mockLineSdkClient.signIn()).thenAnswer(
-        (_) async =>
-            const LineSignInResult(idToken: 'line-id-token', nonce: 'nonce'),
+        (_) async => const LineSignInResult(
+          idToken: 'line-id-token',
+          nonce: 'nonce',
+          accessToken: 'line-at',
+        ),
       );
       final callable = _MockHttpsCallable();
       final response = _MockHttpsCallableResult();
@@ -722,8 +725,11 @@ void main() {
 
     test('C3 signInWithLine(isNewUser=true) → 0회', () async {
       when(() => mockLineSdkClient.signIn()).thenAnswer(
-        (_) async =>
-            const LineSignInResult(idToken: 'line-id-token', nonce: 'nonce'),
+        (_) async => const LineSignInResult(
+          idToken: 'line-id-token',
+          nonce: 'nonce',
+          accessToken: 'line-at',
+        ),
       );
       stubCustomTokenSignIn(buildFbUser(_newUid));
 

@@ -182,7 +182,11 @@ void main() {
 
     // 3 provider SDK 성공 fixture.
     when(() => mockLineSdkClient.signIn()).thenAnswer(
-      (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
+      (_) async => const LineSignInResult(
+        idToken: 'LIDT',
+        nonce: 'LNONCE',
+        accessToken: 'line-at',
+      ),
     );
     when(() => mockKakaoSdkClient.signIn()).thenAnswer(
       (_) async => const KakaoSignInResult(idToken: 'KIDT', nonce: 'KNONCE'),

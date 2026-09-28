@@ -502,7 +502,11 @@ void main() {
       'RA-C3: LINE — 서버 permission-denied + caller_identity_mismatch → ReauthUserMismatch',
       () async {
         when(() => mockLineSdkClient.signIn()).thenAnswer(
-          (_) async => const LineSignInResult(idToken: 'line-id', nonce: 'n'),
+          (_) async => const LineSignInResult(
+            idToken: 'line-id',
+            nonce: 'n',
+            accessToken: 'line-at',
+          ),
         );
         when(
           () => mockFunctions.httpsCallable(

@@ -2791,7 +2791,11 @@ void main() {
       mockCallable = _MockHttpsCallable();
       // 기본: LineSdkClient 가 ID Token + nonce 반환.
       when(() => mockLineSdkClient.signIn()).thenAnswer(
-        (_) async => const LineSignInResult(idToken: 'LIDT', nonce: 'LNONCE'),
+        (_) async => const LineSignInResult(
+          idToken: 'LIDT',
+          nonce: 'LNONCE',
+          accessToken: 'line-at',
+        ),
       );
       // 기본: httpsCallable('lineCustomToken') → mockCallable.
       when(
