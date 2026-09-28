@@ -18,20 +18,37 @@
 //
 // 10-REVIEW CR-04 회귀 가드 (성공 emit 이 사후 정리에 갇히지 않는지):
 // - N6: signOutAndResetOnboarding 이 미완료 상태여도 state 는 이미 data(null)
+//
+// Phase 16.10 Plan 16.10-08 Task 1 — disconnectAndUnlinkProvider (D-09 · D-11):
+// - DU1 재로그인 행 Done → native 해제 1 · 세션 교체 0(reloginForFreshness false)
+// - DU2 서버 행 Done → CT 해제 1
+// - DU3 신원 불일치 · DU4 끊기 실패 · DU5 네트워크 · DU6 로그인 취소 → 해제 0
+// - DU7 password(끊기 행 없음) → 끊기 0 · 해제 1 · DU8 미지 id → failed
+// - DU9 step 예상 밖 throw → disconnectFailed · 해제 0
 
 import 'dart:async';
 
+import 'package:cloud_functions/cloud_functions.dart' show FirebaseFunctions;
+import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/application/account_link_in_progress.dart';
+import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
+import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_steps.dart';
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_notifier.dart';
 
@@ -42,6 +59,60 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 class _FakeStackTrace extends Fake implements StackTrace {}
+
+class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
+
+class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
+
+class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
+
+class _MockLineSdkClient extends Mock implements LineSdkClient {}
+
+class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
+
+/// 정해 둔 결과를 돌려주는 끊기 step — run 호출 · reloginForFreshness 를 기록한다.
+class _FixedStep extends DisconnectStep {
+  _FixedStep(this.provider, this.outcome, {this.signInStrategy, this.error});
+
+  @override
+  final AccountProvider provider;
+
+  @override
+  final AuthStrategy? signInStrategy;
+
+  /// run 이 돌려줄 결과.
+  final DisconnectOutcome outcome;
+
+  /// 설정되면 run 이 결과 대신 이 값을 던진다 (계약 위반 흉내).
+  final Object? error;
+
+  /// run 호출마다 받은 reloginForFreshness 값.
+  final List<bool> relogins = <bool>[];
+
+  /// 마지막 run 의 reloginForFreshness 값.
+  bool? get lastRelogin => relogins.lastOrNull;
+
+  @override
+  Future<DisconnectOutcome> run(
+    DisconnectDeps deps, {
+    required bool reloginForFreshness,
+  }) async {
+    relogins.add(reloginForFreshness);
+    final thrown = error;
+    if (thrown != null) throw thrown;
+    return outcome;
+  }
+}
+
+/// 실행 의존 묶음 — fake step 은 읽지 않는다 (Firebase 초기화 회피용 dummy).
+DisconnectDeps _dummyDeps() => DisconnectDeps(
+  auth: _MockFirebaseAuth(),
+  functions: _MockFirebaseFunctions(),
+  googleSignIn: _MockGoogleSignIn(),
+  lineSdkClient: _MockLineSdkClient(),
+  naverSdkClient: _MockNaverSdkClient(),
+  platform: TargetPlatform.android,
+);
 
 void main() {
   late _MockSettingsRepository mockSettingsRepo;
@@ -648,6 +719,205 @@ void main() {
 
       expect(container.read(settingsProvider), before);
       expect(container.read(accountLinkInProgressProvider), isFalse);
+    });
+  });
+  group('Phase 16.10 D-09 · D-11 — disconnectAndUnlinkProvider', () {
+    // 해제 성공 fixture — unlink group 과 같은 합성 값.
+    User unlinkedUser() => User(
+      uid: 'u1',
+      email: 'user@example.com',
+      emailVerified: true,
+      createdAt: DateTime.utc(2026, 1, 1),
+      providerIds: const ['kakao'],
+      signUpProviderId: 'kakao',
+    );
+
+    /// [steps] 레지스트리 · dummy 실행 의존으로 container 를 만든다.
+    ProviderContainer makeContainer(List<DisconnectStep> steps) {
+      final scoped = ProviderContainer(
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(mockSettingsRepo),
+          authRepositoryProvider.overrideWithValue(mockAuthRepo),
+          crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
+          disconnectStepsProvider.overrideWithValue(steps),
+          disconnectDepsProvider.overrideWithValue(_dummyDeps()),
+        ],
+      );
+      addTearDown(scoped.dispose);
+      return scoped;
+    }
+
+    /// Google 재로그인 행 fake — [outcome] 을 돌려준다.
+    _FixedStep googleStep(DisconnectOutcome outcome, {Object? error}) =>
+        _FixedStep(
+          AccountProvider.google,
+          outcome,
+          signInStrategy: const GoogleAuthStrategy(),
+          error: error,
+        );
+
+    test(
+      'DU1: google.com 재로그인 행 Done → unlinkNativeProvider 1 · success · 세션 교체 0',
+      () async {
+        final step = googleStep(const DisconnectDone());
+        when(
+          () => mockAuthRepo.unlinkNativeProvider('google.com'),
+        ).thenAnswer((_) async => Result<User>.success(unlinkedUser()));
+        final scoped = makeContainer(<DisconnectStep>[step]);
+
+        final outcome = await scoped
+            .read(settingsProvider.notifier)
+            .disconnectAndUnlinkProvider('google.com');
+
+        expect(outcome, AccountUnlinkOutcome.success);
+        expect(step.relogins, hasLength(1));
+        // D-09 — 해제는 신선도가 필요 없어 custom token 소비 · 세션 교체 0.
+        expect(step.lastRelogin, isFalse);
+        verify(() => mockAuthRepo.unlinkNativeProvider('google.com')).called(1);
+        verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+        verifyZeroInteractions(mockSettingsRepo);
+      },
+    );
+
+    test(
+      'DU2: kakao 서버 행 Done → unlinkCustomTokenProvider 1 · success',
+      () async {
+        final step = _FixedStep(AccountProvider.kakao, const DisconnectDone());
+        when(
+          () => mockAuthRepo.unlinkCustomTokenProvider('kakao'),
+        ).thenAnswer((_) async => Result<User>.success(unlinkedUser()));
+        final scoped = makeContainer(<DisconnectStep>[step]);
+
+        final outcome = await scoped
+            .read(settingsProvider.notifier)
+            .disconnectAndUnlinkProvider('kakao');
+
+        expect(outcome, AccountUnlinkOutcome.success);
+        expect(step.relogins, hasLength(1));
+        verify(() => mockAuthRepo.unlinkCustomTokenProvider('kakao')).called(1);
+        verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+      },
+    );
+
+    test('DU3: 신원 불일치 → identityMismatch · 킷 해제 0 (D-08 · 연결 유지)', () async {
+      final step = googleStep(const DisconnectIdentityMismatch());
+      final scoped = makeContainer(<DisconnectStep>[step]);
+
+      final outcome = await scoped
+          .read(settingsProvider.notifier)
+          .disconnectAndUnlinkProvider('google.com');
+
+      expect(outcome, AccountUnlinkOutcome.identityMismatch);
+      verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+      verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+    });
+
+    test(
+      'DU4: Failed(ServiceUnavailable) → disconnectFailed · 킷 해제 0 (D-11)',
+      () async {
+        final step = _FixedStep(
+          AccountProvider.kakao,
+          const DisconnectFailed(ServiceUnavailable()),
+        );
+        final scoped = makeContainer(<DisconnectStep>[step]);
+
+        final outcome = await scoped
+            .read(settingsProvider.notifier)
+            .disconnectAndUnlinkProvider('kakao');
+
+        expect(outcome, AccountUnlinkOutcome.disconnectFailed);
+        verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+        verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+      },
+    );
+
+    test(
+      'DU5: Failed(NoInternetConnection) · Failed(TooManyRequests) → transientFailure · 킷 해제 0',
+      () async {
+        const failures = <AppException>[
+          NoInternetConnection(),
+          TooManyRequests(),
+        ];
+        for (final exception in failures) {
+          final step = googleStep(DisconnectFailed(exception));
+          final scoped = makeContainer(<DisconnectStep>[step]);
+
+          final outcome = await scoped
+              .read(settingsProvider.notifier)
+              .disconnectAndUnlinkProvider('google.com');
+
+          expect(
+            outcome,
+            AccountUnlinkOutcome.transientFailure,
+            reason: '${exception.runtimeType} 은 transientFailure 이어야 한다',
+          );
+        }
+        verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+        verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+      },
+    );
+
+    test('DU6: provider 로그인 취소 → cancelled · 킷 해제 0 (D-11)', () async {
+      final step = googleStep(const DisconnectCancelled());
+      final scoped = makeContainer(<DisconnectStep>[step]);
+
+      final outcome = await scoped
+          .read(settingsProvider.notifier)
+          .disconnectAndUnlinkProvider('google.com');
+
+      expect(outcome, AccountUnlinkOutcome.cancelled);
+      verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+      verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+    });
+
+    test(
+      'DU7: password — 끊기 행 없음 → step 호출 0 · unlinkNativeProvider(password) 1',
+      () async {
+        final google = googleStep(const DisconnectDone());
+        final kakao = _FixedStep(AccountProvider.kakao, const DisconnectDone());
+        when(
+          () => mockAuthRepo.unlinkNativeProvider('password'),
+        ).thenAnswer((_) async => Result<User>.success(unlinkedUser()));
+        final scoped = makeContainer(<DisconnectStep>[google, kakao]);
+
+        final outcome = await scoped
+            .read(settingsProvider.notifier)
+            .disconnectAndUnlinkProvider('password');
+
+        expect(outcome, AccountUnlinkOutcome.success);
+        expect(google.relogins, isEmpty);
+        expect(kakao.relogins, isEmpty);
+        verify(() => mockAuthRepo.unlinkNativeProvider('password')).called(1);
+      },
+    );
+
+    test('DU8: 미지 id yahoo → failed · step · repository 호출 0', () async {
+      final google = googleStep(const DisconnectDone());
+      final scoped = makeContainer(<DisconnectStep>[google]);
+
+      final outcome = await scoped
+          .read(settingsProvider.notifier)
+          .disconnectAndUnlinkProvider('yahoo');
+
+      expect(outcome, AccountUnlinkOutcome.failed);
+      expect(google.relogins, isEmpty);
+      verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+      verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+    });
+
+    test('DU9: step 예상 밖 throw → disconnectFailed · 킷 해제 0 (방어)', () async {
+      final step = googleStep(
+        const DisconnectDone(),
+        error: StateError('boom'),
+      );
+      final scoped = makeContainer(<DisconnectStep>[step]);
+
+      final outcome = await scoped
+          .read(settingsProvider.notifier)
+          .disconnectAndUnlinkProvider('google.com');
+
+      expect(outcome, AccountUnlinkOutcome.disconnectFailed);
+      verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
     });
   });
 }

@@ -7,7 +7,8 @@
 // - Danger zone section: explainer + 회원탈퇴 ListTile (destructive color).
 // - 탈퇴 ListTile tap → WithdrawalConfirmationDialog.show.
 // - 연결된 계정 값의 밑줄 provider 이름 tap → UnlinkConfirmationDialog.show
-//   → 결과별 SnackBar (Phase 16.8 D-07 · D-10 · UI-SPEC §N).
+//   → 결과별 SnackBar (Phase 16.8 D-07 · D-10 · UI-SPEC §N · Phase 16.10
+//   §N′ — 신원 불일치 · 끊기 실패 2종 추가).
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -164,8 +165,9 @@ class SettingsScreen extends ConsumerWidget {
   /// 밑줄 provider 이름 tap — 확인 다이얼로그를 열고 결과별 SnackBar ·
   /// 재로그인 라우팅을 처리한다 (Phase 16.8 D-07 · UI-SPEC §N).
   ///
-  /// 해제 실행은 다이얼로그 → [SettingsNotifier.unlinkProvider] 에 위임한다
-  /// (UI 로직 위임). 다이얼로그 취소 · barrier · back 은 `null` →
+  /// 해제 실행은 다이얼로그 → [SettingsNotifier.disconnectAndUnlinkProvider]
+  /// 에 위임한다 (UI 로직 위임 · Phase 16.10 D-09 — provider 측 끊기 성공
+  /// 뒤에만 킷 해제). 다이얼로그 취소 · barrier · back 은 `null` →
   /// [AccountUnlinkOutcome.cancelled] (SnackBar 0).
   Future<void> _onUnlinkPressed(
     BuildContext context, {
@@ -218,7 +220,24 @@ class SettingsScreen extends ConsumerWidget {
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.settingsUnlinkFailedUnknown)),
         );
+      case AccountUnlinkOutcome.identityMismatch:
+        // Phase 16.10 D-08 — 다른 provider 계정으로 로그인함 · 연결 유지.
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.settingsUnlinkFailedIdentityMismatch(providerLabel),
+            ),
+          ),
+        );
+      case AccountUnlinkOutcome.disconnectFailed:
+        // Phase 16.10 D-11 — provider 측 끊기 실패로 킷 해제 중단 · 연결 유지.
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(l10n.settingsUnlinkFailedDisconnect(providerLabel)),
+          ),
+        );
       case AccountUnlinkOutcome.cancelled:
+        // 다이얼로그 닫힘 · provider 로그인 취소(16.10 D-11) — SnackBar 0.
         break;
     }
   }

@@ -63,6 +63,12 @@
 // - 16.8-S06 취소 no-op · 16.8-S07 success SnackBar · 16.8-S08 실패 outcome 4
 //   문구 · 16.8-S09 reauthRequired → /login + 재인증 표시 · 16.8-S10 CT 분기 ·
 //   16.8-S11 ja 280 SnackBar overflow 0 (E3).
+// Phase 16.10 Plan 16.10-08 Task 1 — 해제 「해제」 가 provider 측 끊기 → 킷
+//   해제로 바뀌어(D-09 · D-11) 확인을 누르는 16.8-S07~S11 은
+//   `_pumpSettingsScreenWithRouter` 의 끊기 step(기본 = google.com · kakao
+//   Done fake) · dummy 실행 의존 override 로 픽스처만 갱신(기대값 불변).
+// - SU1 신원 불일치 → settingsUnlinkFailedIdentityMismatch SnackBar · 연결 유지.
+// - SU2 끊기 실패(ServiceUnavailable) → settingsUnlinkFailedDisconnect SnackBar.
 //
 // 동일 패턴 audit (G-16-A6-1 missing 2번째 항목 — 2026-09-07 실행):
 //
@@ -91,15 +97,19 @@
 // `SafeArea` 를 직접 적용한다 (audit 명령의 `*_screen.dart` 범위 밖이므로 별도 확인).
 // → 신규 누락(UNGUARDED) 0건이므로 본 task 는 `lib/**/*_screen.dart` 를 수정하지 않는다.
 
+import 'package:cloud_functions/cloud_functions.dart' show FirebaseFunctions;
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
@@ -111,7 +121,11 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
+import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
+import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_steps.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/account_linking_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/danger_zone_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/withdrawal_confirmation_dialog.dart';
@@ -120,6 +134,60 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
+
+class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
+
+class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
+
+class _MockLineSdkClient extends Mock implements LineSdkClient {}
+
+class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
+
+/// 정해 둔 결과를 돌려주는 끊기 step — 실 step 은 Firebase 를 읽는다.
+class _FixedStep extends DisconnectStep {
+  const _FixedStep(this.provider, this.outcome, {this.signInStrategy});
+
+  @override
+  final AccountProvider provider;
+
+  @override
+  final AuthStrategy? signInStrategy;
+
+  /// run 이 돌려줄 결과.
+  final DisconnectOutcome outcome;
+
+  @override
+  Future<DisconnectOutcome> run(
+    DisconnectDeps deps, {
+    required bool reloginForFreshness,
+  }) async => outcome;
+}
+
+/// Google 재로그인 행 fake — [outcome] 을 돌려준다.
+DisconnectStep _googleStep(DisconnectOutcome outcome) => _FixedStep(
+  AccountProvider.google,
+  outcome,
+  signInStrategy: const GoogleAuthStrategy(),
+);
+
+/// 확인 대상 provider(google.com · kakao)의 끊기가 모두 성공하는 기본 레지스트리
+/// — 16.8 해제 테스트가 끊기 뒤의 킷 해제 경로를 그대로 탄다 (Phase 16.10).
+final List<DisconnectStep> _kDoneSteps = <DisconnectStep>[
+  _googleStep(const DisconnectDone()),
+  const _FixedStep(AccountProvider.kakao, DisconnectDone()),
+];
+
+/// 실행 의존 묶음 — fake step 은 읽지 않는다 (Firebase 초기화 회피용 dummy).
+DisconnectDeps _dummyDeps() => DisconnectDeps(
+  auth: _MockFirebaseAuth(),
+  functions: _MockFirebaseFunctions(),
+  googleSignIn: _MockGoogleSignIn(),
+  lineSdkClient: _MockLineSdkClient(),
+  naverSdkClient: _MockNaverSdkClient(),
+  platform: TargetPlatform.android,
+);
 
 /// 활성 소셜 Strategy 6종 전부.
 const List<AuthStrategy> _allStrategies = <AuthStrategy>[
@@ -248,11 +316,16 @@ Future<void> _pumpSettingsScreen(
 /// `_onUnlinkPressed` 의 reauthRequired arm 은 `GoRouter.of(context)` 를 그 arm
 /// 안에서 해석하므로 탭 → outcome 케이스는 이 harness 로 통일한다
 /// (`account_linking_section_test.dart` AL4 mirror). `/login` 은 stub 화면.
+///
+/// Phase 16.10 — 「해제」 는 provider 측 끊기 뒤 킷 해제다. [disconnectSteps]
+/// (기본 = google.com · kakao 끊기 성공 fake)와 dummy 실행 의존을 override 해
+/// 실 step 이 Firebase 를 읽지 않게 한다.
 Future<GoRouter> _pumpSettingsScreenWithRouter(
   WidgetTester tester, {
   required User? user,
   required AuthRepository authRepo,
   Locale locale = const Locale('en'),
+  List<DisconnectStep>? disconnectSteps,
 }) async {
   final router = GoRouter(
     initialLocation: AppRoutes.home,
@@ -275,6 +348,10 @@ Future<GoRouter> _pumpSettingsScreenWithRouter(
         currentUserProvider.overrideWith((ref) => user),
         activeStrategiesProvider.overrideWith((ref) => _allStrategies),
         authRepositoryProvider.overrideWithValue(authRepo),
+        disconnectStepsProvider.overrideWithValue(
+          disconnectSteps ?? _kDoneSteps,
+        ),
+        disconnectDepsProvider.overrideWithValue(_dummyDeps()),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -1320,6 +1397,75 @@ void main() {
         );
         expect(snackText.maxLines, isNull);
         expect(snackText.overflow, isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'SU1: 끊기 신원 불일치 → settingsUnlinkFailedIdentityMismatch SnackBar · 연결 유지 (D-08)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpSettingsScreenWithRouter(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['kakao', 'google.com'],
+            signUpProviderId: 'kakao',
+          ),
+          authRepo: authRepo,
+          disconnectSteps: <DisconnectStep>[
+            _googleStep(const DisconnectIdentityMismatch()),
+          ],
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Unlink Google'));
+        await tester.tap(find.text('Unlink'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(
+          find.text(
+            AppLocalizationsEn().settingsUnlinkFailedIdentityMismatch('Google'),
+          ),
+          findsOneWidget,
+        );
+        // 연결 유지 — 킷 해제 0 · 해제 버튼 그대로.
+        verifyNever(() => authRepo.unlinkNativeProvider(any()));
+        verifyNever(() => authRepo.unlinkCustomTokenProvider(any()));
+        expect(find.bySemanticsLabel('Unlink Google'), findsOneWidget);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'SU2: 끊기 실패(ServiceUnavailable) → settingsUnlinkFailedDisconnect SnackBar · 연결 유지 (D-11)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpSettingsScreenWithRouter(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['kakao', 'google.com'],
+            signUpProviderId: 'kakao',
+          ),
+          authRepo: authRepo,
+          disconnectSteps: <DisconnectStep>[
+            _googleStep(const DisconnectFailed(ServiceUnavailable())),
+          ],
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Unlink Google'));
+        await tester.tap(find.text('Unlink'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(
+          find.text(
+            AppLocalizationsEn().settingsUnlinkFailedDisconnect('Google'),
+          ),
+          findsOneWidget,
+        );
+        verifyNever(() => authRepo.unlinkNativeProvider(any()));
+        verifyNever(() => authRepo.unlinkCustomTokenProvider(any()));
+        expect(find.bySemanticsLabel('Unlink Google'), findsOneWidget);
         handle.dispose();
       },
     );

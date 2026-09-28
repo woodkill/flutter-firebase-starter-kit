@@ -11,6 +11,13 @@
 //    을 best-effort 로 호출 (실패는 Crashlytics 기록만 하고 흡수)
 //
 // signOutAndResetOnboarding 후 router 의 resolveAuthRedirect 가 자동으로 `/onboarding` 으로 reset.
+//
+// Phase 16.10 D-09 · D-10 · D-11 — 연결된 계정 해제에도 provider 측 끊기를
+// 붙인다(`disconnectAndUnlinkProvider`). 해제 뒤에는 신원 기록이 사라져 나중에
+// 탈퇴해도 provider 측 연결을 끊을 수 없으므로(D-09 근거 ②) 해제 시점에
+// 끊는다. 이로써 16.8 D-08(「킷 쪽만 해제」)은 폐기되고, 16.8 D-06(「재인증
+// 없음」)은 재로그인 provider(Google · Apple · 네이버 · 라인)에 한해 부분
+// 개정된다 — 끊기용 provider 로그인 1회가 붙는다(Firebase 세션은 불변).
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -21,6 +28,8 @@ import '../../../core/error/result.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/user.dart';
 import '../application/account_link_in_progress.dart';
+import '../data/disconnect/disconnect_step.dart';
+import '../data/disconnect/disconnect_steps.dart';
 import '../data/settings_repository.dart';
 
 part 'settings_notifier.g.dart';
@@ -252,7 +261,81 @@ class SettingsNotifier extends _$SettingsNotifier {
     final provider = AccountProvider.tryParse(providerId);
     if (provider == null) return AccountUnlinkOutcome.failed;
     // auto-dispose notifier — await 전에 repository 핸들을 캡처한다.
+    return _unlinkWith(ref.read(authRepositoryProvider), provider, providerId);
+  }
+
+  /// provider 측 연결을 먼저 끊고, 성공했을 때만 킷 쪽 연결을 해제한다
+  /// (Phase 16.10 D-09 · D-10 · D-11 · RESEARCH Pattern 4).
+  ///
+  /// 순서:
+  /// 1. [providerId] 식별 불가 → [AccountUnlinkOutcome.failed] (호출 0).
+  /// 2. 레지스트리에 끊기 step 이 없는 id(이메일/비밀번호 — provider 측 연결이
+  ///    없다)는 끊기 없이 16.8 해제만 한다 (D-09 범위 = provider 6종).
+  /// 3. step 이 있으면 `reloginForFreshness: false` 로 실행한다 — 해제는
+  ///    서버 탈퇴의 300초 신선도가 필요 없으므로(D-09) 재로그인 provider 도
+  ///    끊기 토큰만 확보하고 Firebase 세션 · custom token 은 건드리지 않는다
+  ///    (세션 교체는 탈퇴 진행 화면만의 목적 — D-07).
+  /// 4. [DisconnectDone] 일 때만 기존 해제([unlinkProvider] 와 같은 경로 —
+  ///    `unlinkNativeProvider` · `unlinkCustomTokenProvider` 변경 0)로 간다.
+  ///    끊기가 실패했는데 해제하면 신원 기록이 사라져 provider 측 연결이 영구
+  ///    고아가 되므로 나머지 결과는 모두 해제 0 · 연결 유지다 (D-11):
+  ///    - [DisconnectCancelled] (provider 로그인 취소) → `cancelled`.
+  ///    - [DisconnectIdentityMismatch] → `identityMismatch` (D-08).
+  ///    - [DisconnectFailed] → 네트워크 · rate limit 은 `transientFailure`,
+  ///      그 밖은 `disconnectFailed`.
+  ///    - 예상 밖 throw (step 계약 위반 · 실행 의존 생성 실패) →
+  ///      `disconnectFailed`.
+  ///
+  /// [unlinkProvider] 와 마찬가지로 탈퇴용 [state] · 연결 진행 provider 를
+  /// 건드리지 않는다 — 진행 표시는 다이얼로그 스피너 몫이다 (WR-02).
+  Future<AccountUnlinkOutcome> disconnectAndUnlinkProvider(
+    String providerId,
+  ) async {
+    final provider = AccountProvider.tryParse(providerId);
+    if (provider == null) return AccountUnlinkOutcome.failed;
+    // auto-dispose notifier — await 전에 repository · step 을 캡처한다.
     final repo = ref.read(authRepositoryProvider);
+    final step = disconnectStepFor(ref.read(disconnectStepsProvider), provider);
+    if (step == null) return _unlinkWith(repo, provider, providerId);
+
+    final DisconnectOutcome disconnected;
+    try {
+      // 실행 의존은 이 시점에만 평가한다 — 인프라 provider 생성 실패도 끊기
+      // 실패로 흡수한다(해제 0).
+      final deps = ref.read(disconnectDepsProvider);
+      disconnected = await step.run(deps, reloginForFreshness: false);
+    } on Object catch (e) {
+      // 방어적 — step.run 은 예외 없이 결과를 돌려주는 계약이다 (PII 0).
+      if (kDebugMode) {
+        debugPrint(
+          'SettingsNotifier.disconnectAndUnlinkProvider 미흡수 예외: '
+          'runtimeType=${e.runtimeType}',
+        );
+      }
+      return AccountUnlinkOutcome.disconnectFailed;
+    }
+
+    switch (disconnected) {
+      case DisconnectDone():
+        return _unlinkWith(repo, provider, providerId);
+      case DisconnectCancelled():
+        return AccountUnlinkOutcome.cancelled;
+      case DisconnectIdentityMismatch():
+        return AccountUnlinkOutcome.identityMismatch;
+      case DisconnectFailed(:final exception):
+        return _mapDisconnectFailure(exception);
+    }
+  }
+
+  /// 킷 쪽 연결 해제 본체 — [unlinkProvider] 와 [disconnectAndUnlinkProvider]
+  /// 가 공유한다 (Phase 16.8 D-19 native/CT 분기 그대로).
+  ///
+  /// [repo] 는 호출자가 await 전에 캡처한 핸들이다(auto-dispose notifier).
+  Future<AccountUnlinkOutcome> _unlinkWith(
+    AuthRepository repo,
+    AccountProvider provider,
+    String providerId,
+  ) async {
     try {
       final result = provider.isNative
           ? await repo.unlinkNativeProvider(providerId)
@@ -287,20 +370,35 @@ class SettingsNotifier extends _$SettingsNotifier {
       _ => AccountUnlinkOutcome.failed,
     };
   }
+
+  /// provider 측 끊기 실패 [exception] 을 [AccountUnlinkOutcome] 으로
+  /// 분기한다 (Phase 16.10 D-11 · UI-SPEC §N′).
+  ///
+  /// 네트워크 · rate limit 은 기존 `settingsUnlinkFailedTransient` 로 안내하고,
+  /// 그 밖(운영 설정 · App Check · SDK 오류 · 로그인 사용자 부재)은 「앱 연결을
+  /// 해제하지 못해 연결을 유지했습니다」 로 안내한다.
+  AccountUnlinkOutcome _mapDisconnectFailure(AppException exception) {
+    return switch (exception) {
+      NetworkException() ||
+      TooManyRequests() => AccountUnlinkOutcome.transientFailure,
+      _ => AccountUnlinkOutcome.disconnectFailed,
+    };
+  }
 }
 
-/// 연결된 계정 해제 결과 분기 (Phase 16.8 · UI-SPEC §N).
+/// 연결된 계정 해제 결과 분기 (Phase 16.8 · UI-SPEC §N · 16.10 §N′).
 ///
-/// [SettingsNotifier.unlinkProvider] 가 반환하며(단 [cancelled] 는 확인
-/// 다이얼로그만 만든다), 설정 화면이 결과별 SnackBar · reauth 라우팅을
-/// 분기하는 데 사용한다.
+/// [SettingsNotifier.disconnectAndUnlinkProvider] ·
+/// [SettingsNotifier.unlinkProvider] 가 반환하며, 설정 화면이 결과별
+/// SnackBar · reauth 라우팅을 분기하는 데 사용한다.
 enum AccountUnlinkOutcome {
   /// 해제 성공 — `accountUnlinkSucceededSnackbar` 로 렌더 · 목록은 user
   /// stream 재방출로 갱신.
   success,
 
-  /// 다이얼로그 취소 · barrier · back — no-op (SnackBar 0). notifier 는
-  /// 이 값을 만들지 않는다.
+  /// 다이얼로그 취소 · barrier · back · provider 로그인 취소(16.10) — no-op
+  /// (SnackBar 0 · 연결 유지). 다이얼로그 닫힘은 확인 다이얼로그가, 로그인
+  /// 취소는 notifier 가 만든다.
   cancelled,
 
   /// 재인증 필요 ([ReauthenticationRequiredException] — native
@@ -345,6 +443,16 @@ enum AccountUnlinkOutcome {
   /// 분류되지 않은 해제 실패 catch-all (그 외 [AppException]) —
   /// `settingsUnlinkFailedUnknown` 으로 렌더.
   failed,
+
+  /// 재로그인한 provider 신원이 이 계정에 연결된 신원이 아님 (D-08) — native
+  /// user-mismatch · CT caller_identity_mismatch · 응답 uid 불일치.
+  /// `settingsUnlinkFailedIdentityMismatch` 로 렌더 · 연결 유지.
+  identityMismatch,
+
+  /// provider 측 연결 끊기 실패로 킷 해제를 중단함 (D-11) — provider_config ·
+  /// App Check · 서버 결함 등. `settingsUnlinkFailedDisconnect` 로 렌더 ·
+  /// 연결 유지.
+  disconnectFailed,
 }
 
 /// proactive 계정 연결 결과 분기 (Phase 16 16-11 / Surface D).
