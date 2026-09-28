@@ -18,9 +18,18 @@ import * as logger from "firebase-functions/logger";
  *   항목 일시 OFF/ON 빈번한 도메인 (일부 B2B 툴 등) 에서 데이터 안정성
  *   우선. 단점: 사용자가 IdP 에서 프로필 *삭제* 의도 reflect 안 됨.
  *
- * **email 은 정책 무관 항상 preserve** — sign-in 식별자라 clear 시 user
- * lockout 위험 (다음 로그인에 email 매칭 안 되면 새 user record 충돌
- * 가능). 정책은 displayName / photoURL 에만 적용.
+ * **email 은 정책 무관 — 비우지 않는다**: IdP 가 email 을 주면 그 값으로
+ * 갱신하고, 주지 않으면 기존 값을 그대로 둔다 (clear 하지 않음 — sign-in
+ * 식별자라 clear 시 user lockout 위험, 다음 로그인에 email 매칭 안 되면 새
+ * user record 충돌 가능). 이 갱신도 가입 수단 로그인 때만 일어난다 (아래
+ * 적용 조건). 정책은 displayName / photoURL 에만 적용.
+ *
+ * **적용 조건 (quick 260928-jwe)**: 재로그인 갱신은 가입 수단
+ * (`users/{uid}.signUpProviderId`) 으로 로그인할 때만 적용한다. 연결 수단
+ * (가입 수단이 아닌 provider) 으로 로그인하면 email 포함 갱신 0. 가입 수단
+ * 기록이 없거나 읽기에 실패하면 보존한다 (fail-closed). 원칙 — Auth
+ * top-level email · 이름 · 사진은 가입 수단 기준의 계정당 1개 대표값이며
+ * 로그인 수단과 무관하다.
  *
  * 첫 등록 path (createUser, isNewUser=true) 는 정책과 무관 — falsy 필드는
  * 단순 미설정 (R10 패턴 유지).
@@ -37,6 +46,8 @@ export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
  *
  * 정책 분기 결과를 객체로 반환 — `Object.keys(...).length === 0` 이면 caller
  * 가 `updateUser` 호출 자체를 skip 한다 (preserve + 모든 필드 부재 케이스).
+ * 호출 조건 (가입 수단 로그인 — quick 260928-jwe) 은 caller `resolveIdentity`
+ * 가 판정한다 — 이 helper 는 정책 분기만 한다.
  *
  * @param {ProfileRefreshPolicy} policy 정책 — "truth-of-source" | "preserve".
  * @param {{email: (string|undefined), displayName: (string|undefined),
@@ -61,8 +72,8 @@ export function profileFieldsForRefresh(
     displayName?: string | null;
     photoURL?: string | null;
   } = {};
-  // email — sign-in 식별자, 정책 무관 항상 preserve (있으면 update,
-  // 없으면 미포함). clear 시 user lockout 위험.
+  // email — sign-in 식별자, 정책 무관 · 비우지 않는다 (있으면 update,
+  // 없으면 미포함 = 기존 값 유지). clear 시 user lockout 위험.
   if (userInfo.email) update.email = userInfo.email;
   if (policy === "truth-of-source") {
     // 응답 부재 시 명시 null clear (Firebase Auth updateUser spec — null 은
@@ -127,6 +138,56 @@ export function fingerprintError(err: unknown): string {
   if (err === null) return "null-thrown";
   if (err === undefined) return "undefined-thrown";
   return "non-error-thrown";
+}
+
+/**
+ * 재로그인 계정의 가입 수단 read 결과 (quick 260928-jwe).
+ *
+ * - `found`: `users/{uid}.signUpProviderId` 가 비어 있지 않은 문자열.
+ * - `missing`: 문서 없음 · 필드 없음 · 문자열 아님 · 빈 문자열.
+ * - `read_failed`: Firestore read 실패 — `code` 는 fingerprintError 결과만.
+ */
+type SignUpProviderRead =
+  | {kind: "found"; providerId: string}
+  | {kind: "missing"}
+  | {kind: "read_failed"; code: string};
+
+/**
+ * 재로그인 계정의 가입 수단(`users/{uid}.signUpProviderId`)을 읽는다
+ * (quick 260928-jwe — 가입 수단 로그인 때만 프로필 갱신).
+ *
+ * **transaction 밖 전용 (Pitfall 4)**: caller 는 `db.runTransaction(...)` 이
+ * 끝난 뒤 best-effort 프로필 refresh 블록에서만 부른다. transaction body 안에
+ * 두면 retry 마다 중복 read 가 생기고 "all reads before all writes" 제약
+ * (WR-05) 과도 충돌한다 — 갱신 자체가 tx 밖 best-effort 이므로 tx 에 넣을
+ * 이유가 없다.
+ *
+ * **fail-closed (절대 throw 하지 않음)**: read 실패 · 기록 없음은 호출자가
+ * 「갱신하지 않음(보존)」 으로 처리하도록 판정값으로 돌려준다. 로그인 자체는
+ * 이 read 의 성패와 무관하게 계속된다. 실패 시 err.message 는 담지 않는다
+ * (Pitfall 7 — fingerprint 만).
+ *
+ * @param {Firestore} db Firestore Admin 인스턴스.
+ * @param {string} uid 재로그인 대상 Firebase UID.
+ * @return {Promise<SignUpProviderRead>} `found` = 기록된 가입 수단 문자열,
+ *     `missing` = 기록 없음(보존 대상), `read_failed` = read 실패(보존 대상 ·
+ *     code 만).
+ */
+async function readSignUpProviderId(
+  db: Firestore,
+  uid: string,
+): Promise<SignUpProviderRead> {
+  try {
+    const snap = await db.collection("users").doc(uid).get();
+    if (!snap.exists) return {kind: "missing"};
+    const value = snap.data()?.signUpProviderId;
+    if (typeof value !== "string" || value.length === 0) {
+      return {kind: "missing"};
+    }
+    return {kind: "found", providerId: value};
+  } catch (err: unknown) {
+    return {kind: "read_failed", code: fingerprintError(err)};
+  }
 }
 
 /**
@@ -455,6 +516,10 @@ export type IdentityResolution = {
  *      · signUpProviderId ← Phase 16.7 D-16 (가입 수단 — 신규 등록 분기에서만.
  *        기존 identity 재사용(재로그인 · R12 빈 익명 재사용) · 비익명 caller
  *        가드 · race-loser 는 users write 자체가 없다, D-18)
+ * 3. transaction 이후 (tx 밖 · best-effort): 재로그인 (isNewUser=false +
+ *    userInfo) 이면 로그인 계정 `users/{uid}` 를 1회 read 해
+ *    `signUpProviderId === provider` (가입 수단 로그인) 일 때만 IdP 프로필로
+ *    Auth user record 를 갱신한다 (quick 260928-jwe · R10-FOLLOWUP).
  *
  * Phase 14 LINE 진입 시 본 helper 의 시그니처가 일반화 표본 (D-08).
  *
@@ -505,6 +570,9 @@ export async function resolveIdentity(
      * R10 (Phase 13 retroactive — 12-UAT 가 nickname/email/photo UI 표시
      * 검증 누락 → Phase 12 + 13 양쪽 재발현). 모든 OAuth Custom Token
      * provider (Phase 13~16) 에 동일 매개변수 사용.
+     *
+     * 재로그인 때는 가입 수단 로그인일 때만 Auth 에 반영한다
+     * (quick 260928-jwe — 연결 수단 로그인은 보존).
      */
     userInfo?: {
       email?: string;
@@ -1072,28 +1140,84 @@ export async function resolveIdentity(
   // 필드 부재 케이스).
   //
   // helper 자체에 fix → kakao + naver + Phase 14~16 자동 상속 (D-08).
+  //
+  // **가입 수단 게이트 (quick 260928-jwe)**: 연결 기능 (Phase 16 · 16.7~16.9)
+  // 뒤로 계정당 로그인 수단이 여럿이 되었다. 로그인 provider 기준으로 갱신하면
+  // 연결 수단으로 한 번 로그인하기만 해도 계정 email 이 그 수단의 email 로
+  // 바뀌고, `email_in_use` (getUserByEmail) 판정 기준이 옮겨 간다 (16.9-04
+  // R1). 그래서 로그인 계정 `users/{uid}.signUpProviderId` 를 tx 밖에서 1회
+  // 읽어 (readSignUpProviderId) 결과별로 처리한다:
+  //   - found + 같은 provider (가입 수단 로그인) → 아래 기존 refresh 그대로.
+  //   - found + 다른 값 (연결 수단 · native 가입 기록값) → 갱신 0 +
+  //     logger.info `identity_index_profile_refresh_skipped_linked`.
+  //   - missing (문서 · 필드 없음, 문자열 아님) → 갱신 0 (fail-closed) +
+  //     logger.warn `identity_index_profile_refresh_signup_missing`.
+  //   - read_failed → 갱신 0 (fail-closed) + logger.warn
+  //     `identity_index_profile_refresh_signup_read_failed` (code 만).
+  // 세 skip 분기 모두 throw 하지 않는다 — 로그인은 정상 완료. 로그 payload 는
+  // event · uid · provider slug · code 뿐이다 (저장된 signUpProviderId 값 ·
+  // userInfo · err.message 미포함, Pitfall 7).
+  //
+  // 형식 일치 근거: 신규 등록 tx 가 쓰는 값 (`signUpProviderId: provider`) 과
+  // 여기 비교 키가 같은 `args.provider` (closed union ProviderId) 다. native
+  // 가입은 클라이언트 recorder 가 Firebase providerId 형식 (`google.com` 등)
+  // 으로만 기록하므로 CT slug 와 겹치지 않는다 → 정규화 불필요. 본인이
+  // signUpProviderId 를 바꿀 수 있으나 (WR-12) 영향은 자기 계정 프로필 갱신
+  // 여부뿐이다 (manual 「가입 수단 기록」 절 「위조 한계」).
   if (!result.isNewUser && result.uid && userInfo) {
-    const refreshUpdate = profileFieldsForRefresh(
-      PROFILE_REFRESH_POLICY,
-      userInfo,
-    );
-    if (Object.keys(refreshUpdate).length > 0) {
-      try {
-        await getAuth().updateUser(result.uid, refreshUpdate);
-      } catch (refreshErr: unknown) {
-        // **Pitfall 7 보존**: err.message 본문 미로깅 (PII 가능성).
-        // fingerprintError helper 가 err.code / err.name / non-Error throw
-        // fingerprint 만 안전 추출 (WR-07).
-        const errCode = fingerprintError(refreshErr);
-        logger.warn(
-          {
-            event: "identity_index_profile_refresh_failed",
-            uid: result.uid,
-            code: errCode,
-          },
-          "profile refresh failed",
-        );
-        // 의도적으로 재던지지 않음 — outer call 정상 반환 (best-effort).
+    const signUp = await readSignUpProviderId(db, result.uid);
+    if (signUp.kind === "read_failed") {
+      logger.warn(
+        {
+          event: "identity_index_profile_refresh_signup_read_failed",
+          uid: result.uid,
+          provider,
+          code: signUp.code,
+        },
+        "sign-up provider read failed; profile refresh skipped",
+      );
+    } else if (signUp.kind === "missing") {
+      logger.warn(
+        {
+          event: "identity_index_profile_refresh_signup_missing",
+          uid: result.uid,
+          provider,
+        },
+        "sign-up provider missing; profile refresh skipped",
+      );
+    } else if (signUp.providerId !== provider) {
+      logger.info(
+        {
+          event: "identity_index_profile_refresh_skipped_linked",
+          uid: result.uid,
+          provider,
+        },
+        "linked provider sign-in; profile refresh skipped",
+      );
+    } else {
+      // 가입 수단 로그인 — 기존 R10-FOLLOWUP refresh 그대로.
+      const refreshUpdate = profileFieldsForRefresh(
+        PROFILE_REFRESH_POLICY,
+        userInfo,
+      );
+      if (Object.keys(refreshUpdate).length > 0) {
+        try {
+          await getAuth().updateUser(result.uid, refreshUpdate);
+        } catch (refreshErr: unknown) {
+          // **Pitfall 7 보존**: err.message 본문 미로깅 (PII 가능성).
+          // fingerprintError helper 가 err.code / err.name / non-Error throw
+          // fingerprint 만 안전 추출 (WR-07).
+          const errCode = fingerprintError(refreshErr);
+          logger.warn(
+            {
+              event: "identity_index_profile_refresh_failed",
+              uid: result.uid,
+              code: errCode,
+            },
+            "profile refresh failed",
+          );
+          // 의도적으로 재던지지 않음 — outer call 정상 반환 (best-effort).
+        }
       }
     }
   }

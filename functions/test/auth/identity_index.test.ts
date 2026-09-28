@@ -68,6 +68,8 @@ import {
 import * as logger from "firebase-functions/logger";
 
 const warnMock = logger.warn as jest.MockedFunction<typeof logger.warn>;
+// quick 260928-jwe — 연결 수단 재로그인 skip 로그(info) 검증용.
+const infoMock = logger.info as jest.MockedFunction<typeof logger.info>;
 
 type MockDoc = {
   exists: boolean;
@@ -89,7 +91,10 @@ type MockDb = {
   where: jest.Mock;
   whereGet: jest.Mock;
   // Plan 16-17: 호출 순서 태그 배열 ("reverse-lookup" / "runTransaction").
+  // quick 260928-jwe: tx 밖 로그인 계정 users read 는 "login-user-read".
   callOrder: string[];
+  // quick 260928-jwe: 로그인 계정 users/{uid} 비-tx read stub.
+  userGet: jest.Mock;
 };
 
 /**
@@ -109,8 +114,13 @@ type ReverseDoc = {provider: unknown; providerUserId?: unknown};
  *     txExists: boolean, txData: (Record<string, unknown>|undefined),
  *     callerUserExists: (boolean|undefined),
  *     reverseDocs: (Array<ReverseDoc>|undefined),
- *     reverseRejects: (boolean|undefined)}} opts
+ *     reverseRejects: (boolean|undefined),
+ *     loginUserDoc: ({exists: boolean,
+ *       data: (Record<string, unknown>|undefined)}|undefined),
+ *     loginUserReadRejects: (boolean|undefined)}} opts
  *     비-tx read / tx.get / identity_index 역조회 분기 설정.
+ *     loginUserDoc = 재로그인 계정 users/{uid} 비-tx read 결과(기본 문서 없음).
+ *     loginUserReadRejects = 그 read 실패 시뮬레이션(quick 260928-jwe).
  * @return {MockDb} mock db + tx + ref + 역조회 stub.
  */
 function makeDb(opts: {
@@ -128,6 +138,11 @@ function makeDb(opts: {
   reverseDocs?: Array<ReverseDoc>;
   // Plan 16-17: 역조회 쿼리 실패 시뮬레이션 (best-effort graceful 검증용).
   reverseRejects?: boolean;
+  // quick 260928-jwe: 재로그인 계정 users/{uid} 의 tx 밖 read 결과
+  // (signUpProviderId 판정용). 기본값 = 문서 없음.
+  loginUserDoc?: {exists: boolean; data?: Record<string, unknown>};
+  // quick 260928-jwe: 그 read 의 실패 시뮬레이션 (fail-closed 검증용).
+  loginUserReadRejects?: boolean;
 }): MockDb {
   const idxRef = {
     get: jest.fn().mockResolvedValue({
@@ -136,7 +151,26 @@ function makeDb(opts: {
     }),
     label: "idxRef",
   };
-  const userRef = {label: "userRef"};
+  // Plan 16-17: 호출 순서 태그 배열. quick 260928-jwe 에서 userRef.get 도
+  // 태그를 남기므로 userRef 생성보다 앞에 선언한다.
+  const callOrder: string[] = [];
+  // quick 260928-jwe: 로그인 계정 users/{uid} 비-tx read stub. userRef 는
+  // 같은 객체 인스턴스를 유지한다 (tx.get 의 ref === userRef 판정 불변).
+  const loginUserExists = opts.loginUserDoc?.exists ?? false;
+  const loginUserData = opts.loginUserDoc?.data;
+  const userGet = jest.fn(async (): Promise<MockDoc> => {
+    callOrder.push("login-user-read");
+    if (opts.loginUserReadRejects) {
+      throw Object.assign(new Error("PII_JWE_READ_ERR"), {
+        code: "unavailable",
+      });
+    }
+    return {
+      exists: loginUserExists,
+      data: loginUserData ? () => loginUserData : undefined,
+    };
+  });
+  const userRef = {label: "userRef", get: userGet};
 
   // WR-05 (Phase 13 review): "all reads before all writes" Firestore
   // transaction 제약 회귀 가드. firestore production 은 첫 write (set/update)
@@ -178,7 +212,6 @@ function makeDb(opts: {
 
   // Plan 16-17: identity_index 역조회 stub. callOrder 태그로 runTransaction
   // 대비 호출 순서를 관측 가능하게 한다 (transaction 밖 선행 read 회귀 잠금).
-  const callOrder: string[] = [];
   const whereGet = jest.fn(async () => {
     callOrder.push("reverse-lookup");
     if (opts.reverseRejects) {
@@ -205,7 +238,16 @@ function makeDb(opts: {
     ),
   };
 
-  return {db: db as never, tx, idxRef, userRef, where, whereGet, callOrder};
+  return {
+    db: db as never,
+    tx,
+    idxRef,
+    userRef,
+    where,
+    whereGet,
+    callOrder,
+    userGet,
+  };
 }
 
 describe("identityIndexDocId", () => {
@@ -1511,6 +1553,7 @@ describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate"
         preExists: true,
         txExists: true,
         txData: {firebaseUid: "existing-fol1"},
+        loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
       });
 
       await resolveIdentity(db, {
@@ -1557,6 +1600,7 @@ describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate"
         preExists: true,
         txExists: true,
         txData: {firebaseUid: "existing-fol3"},
+        loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
       });
 
       await resolveIdentity(db, {
@@ -1590,6 +1634,7 @@ describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate"
         preExists: true,
         txExists: true,
         txData: {firebaseUid: "existing-fol4"},
+        loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
       });
 
       const res = await resolveIdentity(db, {
@@ -1620,6 +1665,304 @@ describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate"
     },
   );
 });
+
+// quick 260928-jwe — 가입 수단 로그인 때만 프로필 갱신.
+// 연결 수단(가입 수단이 아닌 Custom Token provider)으로 재로그인하면 Auth
+// top-level email · displayName · photoURL 을 덮어쓰지 않는다 (16.9-04 R1).
+// 판정 기준 = users/{uid}.signUpProviderId — tx 밖 best-effort read 1회.
+// 기록 없음 · 읽기 실패는 보존(fail-closed) + logger.warn.
+describe(
+  // eslint-disable-next-line max-len
+  "resolveIdentity quick-260928-jwe — 가입 수단 로그인 때만 프로필 갱신 (연결 수단 재로그인 보존)",
+  () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      mockCreateUser.mockReset();
+      mockDeleteUser.mockReset();
+      mockUpdateUser.mockReset();
+      mockUpdateUser.mockResolvedValue(undefined);
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockRejectedValue(
+        Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+      );
+      mockGetUser.mockReset();
+      mockGetUser.mockResolvedValue({emailVerified: true, providerData: []});
+      warnMock.mockReset();
+      infoMock.mockReset();
+    });
+
+    // PII sentinel — 로그 payload 에 새면 즉시 RED.
+    const jweUserInfo = {
+      email: "PII_JWE_EMAIL@example.com",
+      displayName: "PII JWE Name",
+      photoURL: "https://idp.example.com/PII_jwe.jpg",
+    };
+
+    /**
+     * warn · info 호출 전체를 직렬화 — PII · 저장값 비노출 단언용.
+     *
+     * @return {string} 두 logger mock 의 호출 인자 JSON.
+     */
+    function serializeLogCalls(): string {
+      return JSON.stringify([warnMock.mock.calls, infoMock.mock.calls]);
+    }
+
+    it(
+      // eslint-disable-next-line max-len
+      "JWE-1: 가입 수단 재로그인(저장값 naver · 로그인 naver) → updateUser 1회 · users read 는 runTransaction 뒤 tx 밖 1회",
+      async () => {
+        const {db, tx, userGet, callOrder} = makeDb({
+          preExists: true,
+          preData: {firebaseUid: "U-jwe-1"},
+          txExists: true,
+          txData: {firebaseUid: "U-jwe-1"},
+          loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
+        });
+
+        const res = await resolveIdentity(db, {
+          provider: "naver",
+          providerUserId: "naver-jwe-1",
+          callerUid: undefined,
+          userInfo: jweUserInfo,
+        });
+
+        expect(res).toEqual({
+          uid: "U-jwe-1",
+          isNewUser: false,
+          conflictKind: null,
+        });
+        expect(mockUpdateUser).toHaveBeenCalledTimes(1);
+        expect(mockUpdateUser).toHaveBeenCalledWith("U-jwe-1", {
+          email: "PII_JWE_EMAIL@example.com",
+          displayName: "PII JWE Name",
+          photoURL: "https://idp.example.com/PII_jwe.jpg",
+        });
+        // D-03 · Pitfall 4 — read 는 transaction 밖 · 그 뒤.
+        expect(callOrder.indexOf("runTransaction")).toBeGreaterThanOrEqual(0);
+        expect(callOrder.indexOf("login-user-read")).toBeGreaterThan(
+          callOrder.indexOf("runTransaction"),
+        );
+        expect(tx.get).toHaveBeenCalledTimes(1);
+        expect(userGet).toHaveBeenCalledTimes(1);
+        expect(warnMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      // eslint-disable-next-line max-len
+      "JWE-2: 연결 수단 재로그인(저장값 kakao · 로그인 naver) → updateUser 0 · info skipped_linked 1회 · 로그 PII · 저장값 0",
+      async () => {
+        const {db} = makeDb({
+          preExists: true,
+          preData: {firebaseUid: "U-jwe-2"},
+          txExists: true,
+          txData: {firebaseUid: "U-jwe-2"},
+          loginUserDoc: {exists: true, data: {signUpProviderId: "kakao"}},
+        });
+
+        const res = await resolveIdentity(db, {
+          provider: "naver",
+          providerUserId: "naver-jwe-2",
+          callerUid: undefined,
+          userInfo: jweUserInfo,
+        });
+
+        expect(res).toEqual({
+          uid: "U-jwe-2",
+          isNewUser: false,
+          conflictKind: null,
+        });
+        expect(mockUpdateUser).not.toHaveBeenCalled();
+        expect(warnMock).not.toHaveBeenCalled();
+        expect(infoMock).toHaveBeenCalledTimes(1);
+        expect(infoMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "identity_index_profile_refresh_skipped_linked",
+            uid: "U-jwe-2",
+            provider: "naver",
+          }),
+          expect.any(String),
+        );
+        const logged = serializeLogCalls();
+        expect(logged).not.toContain("PII_JWE");
+        expect(logged).not.toContain("PII JWE");
+        expect(logged).not.toContain("kakao");
+      },
+    );
+
+    it(
+      // eslint-disable-next-line max-len
+      "JWE-3: native 가입 기록값(저장값 google.com · 로그인 kakao) → updateUser 0 (역방향 시나리오)",
+      async () => {
+        const {db} = makeDb({
+          preExists: true,
+          preData: {firebaseUid: "U-jwe-3"},
+          txExists: true,
+          txData: {firebaseUid: "U-jwe-3"},
+          loginUserDoc: {exists: true, data: {signUpProviderId: "google.com"}},
+        });
+
+        const res = await resolveIdentity(db, {
+          provider: "kakao",
+          providerUserId: "kakao-jwe-3",
+          callerUid: undefined,
+          userInfo: jweUserInfo,
+        });
+
+        expect(res).toMatchObject({uid: "U-jwe-3", isNewUser: false});
+        expect(mockUpdateUser).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ["문서 없음", undefined],
+      ["필드 없음", {exists: true, data: {}}],
+      ["문자열 아님", {exists: true, data: {signUpProviderId: 123}}],
+    ] as const)(
+      // eslint-disable-next-line max-len
+      "JWE-4: 가입 수단 기록 %s → updateUser 0 + warn signup_missing 1회 (fail-closed 보존)",
+      async (_label, loginUserDoc) => {
+        const {db} = makeDb({
+          preExists: true,
+          preData: {firebaseUid: "U-jwe-4"},
+          txExists: true,
+          txData: {firebaseUid: "U-jwe-4"},
+          loginUserDoc,
+        });
+
+        const res = await resolveIdentity(db, {
+          provider: "naver",
+          providerUserId: "naver-jwe-4",
+          callerUid: undefined,
+          userInfo: jweUserInfo,
+        });
+
+        expect(res).toMatchObject({uid: "U-jwe-4", isNewUser: false});
+        expect(mockUpdateUser).not.toHaveBeenCalled();
+        expect(warnMock).toHaveBeenCalledTimes(1);
+        expect(warnMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "identity_index_profile_refresh_signup_missing",
+            uid: "U-jwe-4",
+            provider: "naver",
+          }),
+          expect.any(String),
+        );
+        const logged = serializeLogCalls();
+        expect(logged).not.toContain("PII_JWE");
+        expect(logged).not.toContain("PII JWE");
+      },
+    );
+
+    it(
+      // eslint-disable-next-line max-len
+      "JWE-5: users read 실패 → updateUser 0 + warn signup_read_failed(code 만) · 로그인 결과 정상",
+      async () => {
+        const {db} = makeDb({
+          preExists: true,
+          preData: {firebaseUid: "U-jwe-5"},
+          txExists: true,
+          txData: {firebaseUid: "U-jwe-5"},
+          loginUserReadRejects: true,
+        });
+
+        const res = await resolveIdentity(db, {
+          provider: "line",
+          providerUserId: "line-jwe-5",
+          callerUid: undefined,
+          userInfo: jweUserInfo,
+        });
+
+        expect(res).toEqual({
+          uid: "U-jwe-5",
+          isNewUser: false,
+          conflictKind: null,
+        });
+        expect(mockUpdateUser).not.toHaveBeenCalled();
+        expect(warnMock).toHaveBeenCalledTimes(1);
+        expect(warnMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "identity_index_profile_refresh_signup_read_failed",
+            uid: "U-jwe-5",
+            provider: "line",
+            code: "unavailable",
+          }),
+          expect.any(String),
+        );
+        // Pitfall 7 — err.message 본문 미노출.
+        const logged = serializeLogCalls();
+        expect(logged).not.toContain("PII_JWE_READ_ERR");
+        expect(logged).not.toContain("PII JWE");
+      },
+    );
+
+    it(
+      "JWE-6: 재로그인 + userInfo 없음 → users read 0 · updateUser 0",
+      async () => {
+        const {db, userGet} = makeDb({
+          preExists: true,
+          preData: {firebaseUid: "U-jwe-6"},
+          txExists: true,
+          txData: {firebaseUid: "U-jwe-6"},
+          loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
+        });
+
+        await resolveIdentity(db, {
+          provider: "naver",
+          providerUserId: "naver-jwe-6",
+          callerUid: undefined,
+          userInfo: undefined,
+        });
+
+        expect(userGet).not.toHaveBeenCalled();
+        expect(mockUpdateUser).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["kakao", "naver", "line"] as const)(
+      // eslint-disable-next-line max-len
+      "JWE-7: %s 신규 등록이 쓴 signUpProviderId → 같은 provider 재로그인 → updateUser 1회 (형식 일치 왕복)",
+      async (p) => {
+        // 1단계 — 신규 등록이 users 에 쓰는 가입 수단 값을 캡처.
+        const first = makeDb({preExists: false, txExists: false});
+        await resolveIdentity(first.db, {
+          provider: p,
+          providerUserId: `${p}-jwe-7`,
+          callerUid: `anon-jwe-${p}`,
+          callerIsAnonymous: true,
+        });
+        const userSetCall = first.tx.set.mock.calls.find(
+          (c) => c[0] === first.userRef,
+        );
+        const written = (userSetCall?.[1] as {signUpProviderId?: unknown})
+          ?.signUpProviderId;
+        expect(written).toBe(p);
+        mockUpdateUser.mockClear();
+
+        // 2단계 — 그 값을 그대로 저장값으로 두고 같은 provider 로 재로그인.
+        const second = makeDb({
+          preExists: true,
+          preData: {firebaseUid: `U-jwe-${p}`},
+          txExists: true,
+          txData: {firebaseUid: `U-jwe-${p}`},
+          loginUserDoc: {exists: true, data: {signUpProviderId: written}},
+        });
+        await resolveIdentity(second.db, {
+          provider: p,
+          providerUserId: `${p}-jwe-7`,
+          callerUid: undefined,
+          userInfo: {displayName: "n"},
+        });
+
+        expect(mockUpdateUser).toHaveBeenCalledTimes(1);
+        expect(mockUpdateUser).toHaveBeenCalledWith("U-jwe-" + p, {
+          displayName: "n",
+          photoURL: null,
+        });
+      },
+    );
+  },
+);
 
 // Phase 16 D-09 (Plan 16-03 Task 3.1) — IdentityResolution 에 add-only
 // `existingProvider: ProviderId | "unknown"` 필드 추가. 기존 conflictKind union
@@ -2674,6 +3017,7 @@ describe("resolveIdentity — 비익명 caller 가드 (reauth-login-auto-merge)"
         preData: selfDoc,
         txExists: true,
         txData: selfDoc,
+        loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
       });
 
       const res = await resolveIdentity(db, {
