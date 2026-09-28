@@ -31,19 +31,21 @@ import {defineSecret} from "firebase-functions/params";
  * `secrets:` 바인딩을 유지한다 — D-60 정책 일관용. 바인딩을 "미사용" 으로 보고
  * 제거하지 말 것 (D-60 결정을 되돌리는 것이다).
  *
- * **IN-02 (Phase 15 리뷰) — LINE 과 정반대 정책인 이유 (의도된 비대칭):**
- * 같은 "사용처 0건 secret" 상황에서 LINE 은 `LINE_CHANNEL_SECRET` 선언을
- * **제거** 했다 (shared/oidc_providers.ts 의 해당 선언부 주석 참조). 두
- * provider 의 결정이 갈린 이유는 운영자 부담의 비대칭이다.
+ * **IN-02 (Phase 15 리뷰) — LINE 과의 선언 시점 비대칭 (Phase 16.10 해소):**
+ * Phase 15 당시 같은 "사용처 0건 secret" 상황에서 Naver 는 선언을 유지했고
+ * LINE 은 `LINE_CHANNEL_SECRET` 선언을 제거했다. 결정이 갈린 이유는 운영자
+ * 부담의 비대칭이었다.
  * - Naver: `docs/manual.md` 단계 8 이 이미 등록 절차를 안내하고 있고, Naver
  *   Developers 콘솔은 client secret 을 앱 생성과 동시에 발급하므로 운영자가
  *   추가로 얻어야 할 값이 없다 → forward-prep 유지 (D-60). Phase 16.5 에서
  *   실사용처(웹 경로 token 교환)를 확보했다.
- * - LINE: 별도 채널 설정 화면에서 값을 찾아 1회성 더미 주입을 강제받는
- *   부담이 있어 "최소 설정으로 시작" 가치와 충돌 → 선언 제거.
+ * - LINE: 사용처가 생길 때 선언한다 (WR-04 — shared/oidc_providers.ts 의
+ *   해당 선언부 주석 참조).
  *
- * Phase 17+ 에서 deauth / refresh flow 를 도입할 때 **두 provider 를 함께**
- * 정렬한다 (그 시점에 LINE 은 재선언).
+ * Phase 16.10 에서 두 provider 모두 끊기 경로가 secret 을 쓴다 — Naver
+ * `disconnectNaverProvider`(Token Revocation form body) · LINE
+ * `disconnectLineProvider`(stateless channel token 발급 — 이때
+ * `LINE_CHANNEL_SECRET` 을 사용처와 함께 재선언했다). 비대칭은 해소됐다.
  */
 export const NAVER_CLIENT_SECRET = defineSecret("NAVER_CLIENT_SECRET");
 

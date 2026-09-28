@@ -69,6 +69,9 @@ export {disconnectFacebookProvider} from "./auth/disconnect_facebook_provider";
 // Phase 16.10 SOCL-13 · SOCL-15 — Naver 앱 연결 끊기
 // (Token Revocation · 재로그인 custom token).
 export {disconnectNaverProvider} from "./auth/disconnect_naver_provider";
+// Phase 16.10 SOCL-13 · SOCL-15 — LINE 앱 권한 해제
+// (stateless channel token · deauthorize · 재로그인 custom token).
+export {disconnectLineProvider} from "./auth/disconnect_line_provider";
 export {deleteUserAccount} from "./auth/delete_user_account";
 export {lookupSignInMethods} from "./auth/lookup_sign_in_methods";
 export {mirrorTermsAcceptanceSnapshot} from "./auth/mirror_terms_acceptance";

@@ -23,22 +23,28 @@ import {createOidcVerifier, OidcVerifier} from "./oidc_verifier";
 // 배포 전 의무: `firebase functions:secrets:set KAKAO_NATIVE_APP_KEY`.
 export const KAKAO_NATIVE_APP_KEY = defineSecret("KAKAO_NATIVE_APP_KEY");
 
-// Phase 14 D-LINE-16 — 배포 전 의무:
+// Phase 14 D-LINE-16 · Phase 16.10 D-18 — 배포 전 의무:
 //   firebase functions:secrets:set LINE_CHANNEL_ID
+//   firebase functions:secrets:set LINE_CHANNEL_SECRET
 //
 // LINE_CHANNEL_ID 는 OIDC ID Token audience 검증 (aud claim) 의 정답값으로
-// runtime 시점에 사용된다.
+// runtime 시점에 사용된다. Phase 16.10 부터는 stateless channel access token
+// 발급의 `client_id` 로도 쓰인다.
 //
-// WR-04 (Phase 14 review): LINE_CHANNEL_SECRET 은 Phase 17+ refresh /
-// verify-token / revoke API 진입 시점에 도입한다. 현 시점 사용처 0 인 secret
-// 을 declared 하면 운영자가 deploy 전 1회성 더미 주입을 강제받아 starter-kit
-// "최소 설정으로 시작" 가치와 충돌 → declaration 제거. Phase 17 진입 시 본
-// 위치에 재선언 + onCall secrets 배열에 재포함 의무.
+// LINE_CHANNEL_SECRET 의 사용처는 `disconnectLineProvider`
+// (`auth/disconnect_line_provider.ts`)다 — LINE 앱 권한 해제(deauthorize)에
+// 쓸 stateless channel access token 을 발급할 때 `client_secret` 으로
+// 보낸다 (Phase 16.10 D-18). WR-04 (Phase 14 review) 원칙 「사용처가 없는
+// secret 은 선언하지 않고, 사용처와 함께 선언한다」 에 따라 사용처가 생긴
+// 이 시점에 선언했다. 바인딩은 `disconnectLineProvider` 만 한다 —
+// `lineCustomToken` · `linkCustomTokenProvider` 는 값을 읽지 않으므로
+// `secrets:` 에 넣지 않는다.
 //
-// (Naver 는 정반대 정책을 택했다 — `shared/naver_secrets.ts` 의
-// `NAVER_CLIENT_SECRET` 주석 참조. 두 provider 의 정책 차이는 의도적이며
-// 그 사유가 양쪽 선언부에 명시되어 있다.)
+// (Naver 는 사용처가 생기기 전에 미리 선언했다 — `shared/naver_secrets.ts`
+// 의 `NAVER_CLIENT_SECRET` 주석 참조. Phase 16.10 부터 두 provider 모두
+// 끊기 경로에서 secret 을 쓴다.)
 export const LINE_CHANNEL_ID = defineSecret("LINE_CHANNEL_ID");
+export const LINE_CHANNEL_SECRET = defineSecret("LINE_CHANNEL_SECRET");
 
 /** OIDC ID Token 을 발급하는 Custom Token provider (Naver 는 REST 기반). */
 export type OidcProviderId = "kakao" | "line";
