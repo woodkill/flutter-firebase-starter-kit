@@ -62,6 +62,8 @@ export {unlinkCustomTokenProvider} from "./auth/unlink_custom_token_provider";
 // Phase 16.9 SOCL-12 — Naver 계정 연결
 // (access token · code → /v1/nid/me → identity_index).
 export {linkNaverProvider} from "./auth/link_naver_provider";
+// Phase 16.10 SOCL-13 · SOCL-15 — Kakao 앱 연결 끊기 (어드민 키 · identity_index 회원번호).
+export {disconnectKakaoProvider} from "./auth/disconnect_kakao_provider";
 export {deleteUserAccount} from "./auth/delete_user_account";
 export {lookupSignInMethods} from "./auth/lookup_sign_in_methods";
 export {mirrorTermsAcceptanceSnapshot} from "./auth/mirror_terms_acceptance";

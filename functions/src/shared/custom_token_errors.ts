@@ -29,7 +29,8 @@
 // `errorInvalidArgument` / `errorAnonymousLinkNotAllowed` /
 // `errorAnonymousUnlinkNotAllowed` / `errorAccountAlreadyLinked` /
 // `errorProviderAlreadyLinked` / `errorProviderNotLinked` /
-// `errorUnlinkLastCredential` / `errorReauthenticationRequired` 는 ARB 에
+// `errorUnlinkLastCredential` / `errorReauthenticationRequired` /
+// `errorProviderConfig` / `errorAnonymousDisconnectNotAllowed` 는 ARB 에
 // 존재하지 않는다 (나머지는 client 가 같은 어휘를 쓰는 우연의 일치다).
 // 목록은 `grep -rhoE '"error[A-Z][A-Za-z]+"' functions/src | sort -u` 결과를
 // ARB 3 locale 키와 대조해 확정한다 — 토큰을 추가하면 여기도 갱신하라.
@@ -177,6 +178,56 @@ export function callerIdentityMismatch(): HttpsError {
   return new HttpsError("permission-denied", "errorReauthUserMismatch", {
     reason: "caller_identity_mismatch",
   });
+}
+
+/**
+ * provider 측 설정 결함 거부의 `details.reason` 토큰 (Phase 16.10 D-12).
+ */
+export const PROVIDER_CONFIG_REASON = "provider_config";
+
+/**
+ * provider 측 자격증명 · 콘솔 설정 결함으로 끊기가 거부됐을 때의 표준 에러
+ * (Phase 16.10 D-12 · T-16.10-09).
+ *
+ * 대상: 어드민 키 무효 · 「사용 가능 API」 미허용 · app token 무효 · client
+ * 인증 실패처럼 **운영자 설정** 이 원인인 거부다. 재시도로 해소되지 않으므로
+ * 일시 오류([idpUnavailable])와 code 를 나눈다 — client 는 행 실패 → 건너뛰기
+ * 안내로, 운영자는 Cloud Logging 의 reason 축으로 설정 결함을 찾는다.
+ * details 에는 reason 토큰 하나만 담는다 — 키 · 회원번호 · provider 응답
+ * 본문 등 식별자는 넣지 않는다 (PII slug-only 정책 D-51).
+ *
+ * @return {HttpsError} `failed-precondition` / `errorProviderConfig` /
+ *     `{reason: "provider_config"}`.
+ */
+export function providerConfigError(): HttpsError {
+  return new HttpsError("failed-precondition", "errorProviderConfig", {
+    reason: PROVIDER_CONFIG_REASON,
+  });
+}
+
+/**
+ * 익명 caller 거부의 `details.reason` 토큰 (Phase 16.10 C-06 — 16.8 해제
+ * callable 의 인라인 값과 같다).
+ */
+export const ANONYMOUS_CALLER_REASON = "anonymous_caller";
+
+/**
+ * 익명 caller 가 provider 연결 끊기를 요청했을 때의 표준 에러 (Phase 16.10
+ * C-06).
+ *
+ * 익명 계정에는 끊을 provider 연결이 없다. provider · Firestore 호출 전에
+ * 거부한다. code · reason 은 16.8 `unlinkCustomTokenProvider` 의 익명 거부와
+ * 같은 값이라 client 는 같은 분기로 처리한다.
+ *
+ * @return {HttpsError} `failed-precondition` /
+ *     `errorAnonymousDisconnectNotAllowed` / `{reason: "anonymous_caller"}`.
+ */
+export function anonymousDisconnectNotAllowed(): HttpsError {
+  return new HttpsError(
+    "failed-precondition",
+    "errorAnonymousDisconnectNotAllowed",
+    {reason: ANONYMOUS_CALLER_REASON},
+  );
 }
 
 /**
