@@ -113,8 +113,9 @@ export const REAUTH_REQUIRED_REASON = "reauthentication_required";
 /**
  * 재인증(fresh ID Token)이 필요할 때의 표준 에러 (Phase 16.9 review WR-01).
  *
- * 생성처: `assertFreshAuth`(auth_time 누락 · 미래값 · 300초 초과) 와 세
- * callable(`deleteUserAccount` · `linkCustomTokenProvider` ·
+ * 생성처: `assertFreshAuth`(auth_time 누락 · 미래값 · 300초 초과 —
+ * `deleteUserAccount` 만 호출 · 연결 callable 은 quick 260928-cxs 로 제외) 와
+ * 세 callable(`deleteUserAccount` · `linkCustomTokenProvider` ·
  * `linkNaverProvider`)의 `verifyIdToken(checkRevoked)` 실패. details 에는
  * reason 토큰 하나만 담는다 — uid · 토큰 등 식별자는 넣지 않는다 (PII
  * slug-only 정책 D-51 · [callerIdentityMismatch] 와 같은 원칙).

@@ -14,7 +14,7 @@
  *  - N2: 같은 uid 재연결 — idx 재작성 0 · users self-heal 만
  *  - N3: 타 uid 소유 — already-exists · write 0
  *  - N4: 웹 성공 — code 교환 → /v1/nid/me → 연결
- *  - N5: stale auth_time + 웹 — 재인증 요구 · code 교환 0
+ *  - N5: stale auth_time + 웹 — 연결 성공 · code 교환 진행 (quick 260928-cxs)
  *  - N6: revoked idToken + 웹 — 재인증 요구 · fingerprint 로그 · 교환 0
  *  - N7: 입력 모양 — 모양 부재 · 섞임 · state 부재 → invalid-argument
  *  - N8: 입력 위생 — CRLF · NUL · state 길이 상한 → invalid-argument
@@ -409,21 +409,32 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
     );
   });
 
-  it("N5: stale auth_time + 웹 — 재인증 요구 · code 교환 0", async () => {
+  it("N5: stale auth_time + 웹 — 연결 성공 · code 교환 진행 (260928-cxs)", async () => {
+    // Firebase 는 계정 연결에 최근 로그인을 요구하지 않는다 — 서버 5분 규칙을
+    // 뺐으므로 오래된 세션도 caller 검사(checkRevoked · uid 일치 · 비익명)만
+    // 통과하면 code 교환 → 프로필 → transaction 으로 진행한다.
     mockVerifyIdToken.mockResolvedValue({
       uid: CALLER_UID,
       auth_time: staleAuthTime(),
       firebase: {sign_in_provider: "google.com"},
     });
+    mockExchangeOk();
+    mockProfileOk();
 
-    await expect(callLink(WEB_DATA)).rejects.toMatchObject({
-      code: "unauthenticated",
-      message: "errorReauthenticationRequired",
-      details: {reason: "reauthentication_required"},
-    });
-    // 1회용 code 미소비 — 교환 · 프로필 fetch 모두 0 (D-01 흐름 1 · D-04).
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(mockOrdered.calls).toEqual([]);
+    await expect(callLink(WEB_DATA)).resolves.toEqual({ok: true});
+    // 교환 → 프로필 순서로 전역 fetch 2회 · transaction read 2 → set 2.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe(NAVER_TOKEN_URL);
+    expect(fetchMock.mock.calls[1][0]).toBe(NAVER_PROFILE_URL);
+    expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
+    expect(infoMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "link_naver_provider_succeeded",
+        uid: CALLER_UID,
+        path: "link_web",
+      }),
+      expect.any(String),
+    );
   });
 
   it("N6: revoked idToken + 웹 — 재인증 요구 · fingerprint 로그 · 교환 0", async () => {

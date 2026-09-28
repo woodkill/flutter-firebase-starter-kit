@@ -18,7 +18,10 @@
 // 3. 매직 넘버 `300` 이 두 파일에 각각 박혀 있어 정책 변경이 drift 를 만든다.
 import {reauthenticationRequired} from "./custom_token_errors";
 
-/** 재인증 유효 시간 (초). 두 callable 의 공통 정책. */
+/**
+ * 재인증 유효 시간 (초). 회원탈퇴 `deleteUserAccount` 의 정책 — 연결
+ * callable 은 quick 260928-cxs 부터 호출하지 않는다(연결은 최근 로그인 불필요).
+ */
 export const REAUTH_MAX_AGE_SEC = 300;
 
 /**

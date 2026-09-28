@@ -13,7 +13,7 @@
  * Task 2.1 시나리오 (L1-L7):
  *  - L1: happy native→Custom Token — identity_index 신규 + linkedProviders update
  *  - L2: already linked — already-exists HttpsError
- *  - L3: stale idToken (auth_time > 5분) — unauthenticated
+ *  - L3: stale idToken (auth_time > 5분) — 연결 진행 (quick 260928-cxs)
  *  - L4: revoked idToken — verifyIdToken throws → unauthenticated
  *  - L5: uid mismatch — permission-denied
  *  - L6: target ID Token invalid — unauthenticated + fingerprint
@@ -406,15 +406,22 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
     expect(mockTxSet).toHaveBeenCalledTimes(2);
   });
 
-  it("L3: stale idToken (auth_time > 5분) → unauthenticated", async () => {
+  it("L3: stale idToken (auth_time > 5분) → 연결 진행 (260928-cxs)", async () => {
+    // Firebase 는 계정 연결에 최근 로그인을 요구하지 않는다 — 서버 5분 규칙을
+    // 뺐으므로 오래된 세션도 Step 1(checkRevoked · uid 일치)만 통과하면
+    // target 검증 · transaction 으로 진행한다. 회원탈퇴의 5분 규칙은
+    // delete_user_account.test.ts D4 가 그대로 잠근다.
     mockVerifyIdToken.mockResolvedValue({
       uid: "caller-uid-L3",
       auth_time: staleAuthTime(),
       firebase: {sign_in_provider: "google.com"},
     });
+    mockVerifyTargetIdToken.mockResolvedValue({sub: "kakao-sub-L3"});
+    mockTxGet.mockResolvedValueOnce({exists: false});
+    mockTxGet.mockResolvedValueOnce({exists: true, data: () => ({})});
 
     const wrapped = testEnv.wrap(myFunctions.linkCustomTokenProvider);
-    const promise = wrapped({
+    const result = (await wrapped({
       auth: {uid: "caller-uid-L3"},
       app: {appId: "test"},
       data: {
@@ -423,14 +430,12 @@ describe("linkCustomTokenProvider onCall — Task 2.1 (L1-L7)", () => {
         targetProviderToken: "FAKE_TARGET",
         nonce: "n",
       },
-    } as never);
-    await expect(promise).rejects.toMatchObject({
-      code: "unauthenticated",
-      message: "errorReauthenticationRequired",
-      details: {reason: "reauthentication_required"},
-    });
-    // target verifier 호출 안 됨 (Step 2 까지만 도달).
-    expect(mockVerifyTargetIdToken).not.toHaveBeenCalled();
+    } as never)) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    // 오래된 세션이 재인증 거부 없이 target 검증까지 도달했다.
+    expect(mockVerifyTargetIdToken).toHaveBeenCalledWith("FAKE_TARGET", "n");
+    expect(mockTxSet).toHaveBeenCalledTimes(2);
   });
 
   // eslint-disable-next-line max-len

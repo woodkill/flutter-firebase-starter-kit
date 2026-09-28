@@ -6,7 +6,6 @@
 // 공유하는 것:
 // - 검증 helper `fetchNaverProfile` (`naver_profile_to_custom_token.ts`)
 // - 연결 transaction `linkCustomTokenIdentity` (`link_identity_transaction.ts`)
-// - 재인증 신선도 `assertFreshAuth` (`shared/reauth.ts`)
 // - code 교환 `exchangeNaverAuthCode` (`naver_token_exchange.ts` — 웹 모양)
 //
 // **Mock 한계:** Jest 는 NAVER 서버 · App Check · 실 Firestore 를 흉내낼
@@ -27,7 +26,6 @@ import {
   reauthenticationRequired,
 } from "../shared/custom_token_errors";
 import {NAVER_CLIENT_ID, NAVER_CLIENT_SECRET} from "../shared/naver_secrets";
-import {assertFreshAuth} from "../shared/reauth";
 import {
   MAX_NONCE_ARG_LENGTH,
   requireStringArg,
@@ -83,11 +81,13 @@ type LinkNaverProviderResponse = {
  *           `accessToken` 있음 = 1-tap 모양, `code`/`state` 있음 = 웹 모양 —
  *           둘 다이거나 둘 다 없으면 `invalid-argument`. CRLF/NUL 은
  *           `NAVER_CONTROL_CHARS`, state 상한은 `MAX_NONCE_ARG_LENGTH`.
- *   Step 1: 재인증 ID Token 검증 (`verifyIdToken(checkRevoked)` + uid 일치 +
- *           `assertFreshAuth` 300s).
+ *   Step 1: caller ID Token 검증 (`verifyIdToken(checkRevoked)` + uid 일치).
+ *           auth_time 신선도(300s)는 검사하지 않는다 — Firebase 는 연결에
+ *           최근 로그인을 요구하지 않는다 (quick 260928-cxs).
  *   Step 2: 익명 caller 거부 (`failed-precondition`).
  *   Step 3: 웹 모양만 — `exchangeNaverAuthCode` 로 code → access token.
- *           Step 1~2 뒤에 둔다 — stale 세션이 1회용 code 를 소비하지 않는다.
+ *           Step 1~2 뒤에 둔다 — 거부되는 caller(폐기 토큰 · uid 불일치 ·
+ *           익명)가 1회용 code 를 소비하지 않는다.
  *           access token 은 이 호출의 지역 변수로만 존재한다 (C-03).
  *   Step 4: `fetchNaverProfile` — `/v1/nid/me` 검증 후 `id` 만 소비.
  *   Step 5: `linkCustomTokenIdentity` — identity_index 생성 + linkedProviders
@@ -143,7 +143,7 @@ export const linkNaverProvider = onCall<LinkNaverProviderRequest>(
     // helper 로그의 경로 축 — 로그인(`app` · `web`)과 구분된다 (IN-02).
     const path: NaverSignInPath = hasApp ? "link_app" : "link_web";
 
-    // Step 1: 재인증 ID Token 검증 (link callable verbatim mirror).
+    // Step 1: caller ID Token 검증 (link callable mirror · 신선도 검사 없음).
     let decoded;
     try {
       decoded = await getAuth().verifyIdToken(idToken, true /* checkRevoked */);
@@ -161,7 +161,7 @@ export const linkNaverProvider = onCall<LinkNaverProviderRequest>(
     if (decoded.uid !== callerUid) {
       throw new HttpsError("permission-denied", "errorUnauthenticated");
     }
-    assertFreshAuth(decoded.auth_time);
+    // auth_time 신선도 검사 없음 (quick 260928-cxs — link callable mirror).
 
     // Step 2: anonymous caller 거부.
     if (decoded.firebase?.sign_in_provider === "anonymous") {

@@ -5,8 +5,8 @@
 //   Custom Token→native / Custom Token↔Custom Token) link 처리.
 //
 // 본 callable 은 server-side admin SDK 가 identity_index/{provider}:{sub}→uid
-// atomic create + users/{uid}.linkedProviders[] update + reauth ID Token
-// 검증 (Firebase Admin SDK verifyIdToken) 을 수행한다.
+// atomic create + users/{uid}.linkedProviders[] update + caller ID Token
+// 검증 (Firebase Admin SDK verifyIdToken · checkRevoked · uid 일치) 을 수행한다.
 //
 // 5층 안전망 §7-A/B/C:
 // - §7-A: RESEARCH Pattern 2 verbatim 채택 (자체 verifier 0,
@@ -38,7 +38,6 @@ import {
   OIDC_VERIFIERS,
   OidcProviderId,
 } from "../shared/oidc_providers";
-import {assertFreshAuth} from "../shared/reauth";
 import {
   MAX_NONCE_ARG_LENGTH,
   requireStringArg,
@@ -63,7 +62,7 @@ import {linkCustomTokenIdentity} from "./link_identity_transaction";
 type TargetProvider = OidcProviderId;
 
 type LinkCustomTokenProviderRequest = {
-  /** current Firebase user 의 fresh ID Token (reauth verify). */
+  /** current Firebase user 의 ID Token (caller 검증 — checkRevoked · uid 일치). */
   idToken: string;
   /** target provider 슬러그 — link 대상. */
   targetProvider: TargetProvider;
@@ -83,9 +82,11 @@ type LinkCustomTokenProviderResponse = {
  *
  * 흐름 (RESEARCH Pattern 2 verbatim):
  *   Step 0: input + request.auth 검증.
- *   Step 1: reauth ID Token freshness verify
- *           (`getAuth().verifyIdToken(idToken, checkRevoked=true)` + auth_time
- *           300s boundary + uid === request.auth.uid).
+ *   Step 1: caller ID Token verify
+ *           (`getAuth().verifyIdToken(idToken, checkRevoked=true)` + uid ===
+ *           request.auth.uid). auth_time 신선도(300s)는 검사하지 않는다 —
+ *           Firebase 는 계정 연결에 최근 로그인을 요구하지 않는다 (quick
+ *           260928-cxs · `assertFreshAuth` 는 `deleteUserAccount` 만).
  *   Step 2: anonymous caller 거부 (Open Question #2 채택 —
  *           익명 user 는 link 거부, 4 Custom Token endpoint 의 신규 sign-up
  *           path 로 routing).
@@ -138,7 +139,7 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
     }
     const targetProvider: TargetProvider = rawTargetProvider;
 
-    // Step 1: reauth ID Token freshness verify
+    // Step 1: caller ID Token verify (신선도 검사 없음 — quick 260928-cxs)
     // (Firebase Admin SDK 공식 함수 — memory feedback_oidc_mock_self_referential
     // mirror, 자체 JWT decode 0).
     let decoded;
@@ -158,10 +159,10 @@ export const linkCustomTokenProvider = onCall<LinkCustomTokenProviderRequest>(
     if (decoded.uid !== callerUid) {
       throw new HttpsError("permission-denied", "errorUnauthenticated");
     }
-    // WR-11: 누락 / 미래값 / 상한을 공용 helper 로 한 번에 검사한다.
-    // 이전 인라인 구현은 auth_time 이 없으면 NaN > 300 === false 로
-    // **통과** 했고, 미래값(시계 오차)도 무조건 통과했다.
-    assertFreshAuth(decoded.auth_time);
+    // auth_time 신선도는 검사하지 않는다 (quick 260928-cxs) — Firebase 는
+    // 계정 연결에 최근 로그인을 요구하지 않으므로(native link 도 동일)
+    // 서버 5분 규칙은 CT 3 provider 에서만 인증 2회 낭비를 만들었다.
+    // 회원탈퇴(`delete_user_account.ts`)의 신선도 검사는 표준대로 유지.
 
     // Step 2: anonymous caller 거부 (Open Question #2 채택).
     if (decoded.firebase?.sign_in_provider === "anonymous") {
