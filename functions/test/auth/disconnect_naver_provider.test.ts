@@ -15,6 +15,14 @@
  *    (caller_identity_mismatch) · revoke 0 · custom token 0
  *  - NR3: 웹 성공 — code 교환 → 프로필 → revoke · path `disconnect_web`
  *  - NR4: revoke form body 4 필드 정확 · URL 에 시크릿 없음
+ *  - NR5~NR8: 입력 모양 · 위생 — 모양 섞임 · 모양 부재 · CRLF · state 상한
+ *    → invalid-argument · 외부 호출 0 (1회용 code 미소비)
+ *  - NR9 · NR10: 익명(anonymous_caller) · 미인증 거부 · 외부 호출 0
+ *  - NR11: 프로필 401 → unauthenticated · 원장 read 0 · revoke 0
+ *  - NR12~NR15: revoke 실패 매핑 — provider_config · 200+error 본문 ·
+ *    401 빈 본문 · fetch reject
+ *  - NR16: custom token 발급 실패 → internal · 실패 로그
+ *  - NR17: PII sentinel — 모든 케이스의 logger 호출 누적 검사 (마지막)
  *
  * PII sentinel: access token · code · state · client secret · Naver id ·
  * 발급 custom token · 이메일 fixture(`PII_NAVER_*` · `PII_MINTED_*` ·
@@ -93,7 +101,10 @@ import * as logger from "firebase-functions/logger";
 // eslint-disable-next-line import/first
 import {HttpsError} from "firebase-functions/https";
 // eslint-disable-next-line import/first
-import {signedInCallerAuth} from "../mocks/caller_auth";
+import {
+  anonymousCallerAuth,
+  signedInCallerAuth,
+} from "../mocks/caller_auth";
 // eslint-disable-next-line import/first
 import type {CallerAuthFixture} from "../mocks/caller_auth";
 
@@ -281,6 +292,8 @@ describe("disconnectNaverProvider — 1-tap 성공 · 소유 대조", () => {
     mockProfileOk();
     mockRevokeOk();
 
+    // customToken 은 호출자 응답에만 간다 — 「응답에만 있고 로그에는 없음」
+    // 의 뒤쪽 절반은 NR17 PII sentinel 이 누적 logger 호출로 함께 증명한다.
     await expect(callDisconnect(APP_DATA)).resolves.toEqual({
       ok: true,
       customToken: "PII_MINTED_CUSTOM_TOKEN",
@@ -407,5 +420,222 @@ describe("disconnectNaverProvider — 웹 성공 · revoke 요청 모양", () =>
       ["token_type_hint", "access_token"],
     ]);
     expect(fetchMock.mock.calls[1][0]).not.toContain("PII_NAVER_SECRET");
+  });
+});
+
+describe("disconnectNaverProvider — 입력 모양 · 위생", () => {
+  it("NR5: accessToken + code 동시 → invalid-argument · fetch 0", async () => {
+    const err = await captureHttpsError(
+      callDisconnect({...APP_DATA, code: "PII_NAVER_CODE"}),
+    );
+    expect(err.code).toBe("invalid-argument");
+    expect(err.message).toBe("errorInvalidArgument");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockDocGet).not.toHaveBeenCalled();
+  });
+
+  it("NR6: 모양 필드 0 → invalid-argument · fetch 0", async () => {
+    const err = await captureHttpsError(callDisconnect({}));
+    expect(err.code).toBe("invalid-argument");
+    expect(err.message).toBe("errorInvalidArgument");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("NR7: accessToken CRLF · code NUL → invalid-argument", async () => {
+    for (const data of [
+      {accessToken: "PII_NAVER_ACCESS_TOKEN\r\nX-Injected: 1"},
+      {code: "PII_NAVER_CODE\u0000", state: "PII_NAVER_STATE"},
+    ]) {
+      const err = await captureHttpsError(callDisconnect(data));
+      expect(err.code).toBe("invalid-argument");
+      expect(err.message).toBe("errorInvalidArgument");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("NR8: state 513자 → invalid-argument · 교환 0", async () => {
+    const err = await captureHttpsError(
+      callDisconnect({code: "PII_NAVER_CODE", state: "s".repeat(513)}),
+    );
+    expect(err.code).toBe("invalid-argument");
+    expect(err.message).toBe("errorInvalidArgument");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("disconnectNaverProvider — caller 가드", () => {
+  it("NR9: 익명 → anonymous_caller · fetch 0 · 원장 read 0", async () => {
+    const err = await captureHttpsError(
+      callDisconnect(WEB_DATA, anonymousCallerAuth("anon-uid")),
+    );
+    expect(err.code).toBe("failed-precondition");
+    expect(err.message).toBe("errorAnonymousDisconnectNotAllowed");
+    expect(err.details).toEqual({reason: "anonymous_caller"});
+    // 거부되는 caller 는 1회용 code 를 소비하지 않는다.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockDocGet).not.toHaveBeenCalled();
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+  });
+
+  it("NR10: request.auth 부재 → unauthenticated · fetch 0", async () => {
+    const err = await captureHttpsError(callDisconnect(APP_DATA, null));
+    expect(err.code).toBe("unauthenticated");
+    expect(err.message).toBe("errorUnauthenticated");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockDocGet).not.toHaveBeenCalled();
+  });
+});
+
+describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => {
+  it("NR11: 프로필 401 → unauthenticated · 대조 0 · revoke 0", async () => {
+    mockFetchResponse(401, "");
+
+    const err = await captureHttpsError(callDisconnect(APP_DATA));
+    expect(err.code).toBe("unauthenticated");
+    expect(err.message).toBe("errorInvalidCredentials");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockDocGet).not.toHaveBeenCalled();
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(warnMock).toHaveBeenCalledWith(
+      {
+        event: "naver_verify_unauthenticated",
+        path: "disconnect_app",
+        status: 401,
+      },
+      expect.any(String),
+    );
+  });
+
+  it("NR12: revoke unauthorized_client → provider_config", async () => {
+    mockProfileOk();
+    mockFetchResponse(
+      400,
+      JSON.stringify({
+        error: "unauthorized_client",
+        error_description: "PII_NAVER_SECRET rejected",
+      }),
+    );
+
+    const err = await captureHttpsError(callDisconnect(APP_DATA));
+    expect(err.code).toBe("failed-precondition");
+    expect(err.message).toBe("errorProviderConfig");
+    expect(err.details).toEqual({reason: "provider_config"});
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    // 로그는 화이트리스트 error 코드 · status 만 — error_description 0.
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_naver_revoke_failed",
+        uid: CALLER_UID,
+        path: "disconnect_app",
+        status: 400,
+        code: "unauthorized_client",
+      },
+      expect.any(String),
+    );
+  });
+
+  it("NR13: revoke 200 + error 본문 → unavailable (성공 오판 0)", async () => {
+    mockProfileOk();
+    mockFetchResponse(200, JSON.stringify({error: "invalid_request"}));
+
+    const err = await captureHttpsError(callDisconnect(APP_DATA));
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(infoMock).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_naver_revoke_failed",
+        uid: CALLER_UID,
+        path: "disconnect_app",
+        status: 200,
+        code: "invalid_request",
+      },
+      expect.any(String),
+    );
+  });
+
+  it("NR14: revoke 401 + 빈 본문 → unauthenticated", async () => {
+    mockProfileOk();
+    mockFetchResponse(401, "");
+
+    const err = await captureHttpsError(callDisconnect(APP_DATA));
+    expect(err.code).toBe("unauthenticated");
+    expect(err.message).toBe("errorInvalidCredentials");
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_naver_revoke_failed",
+        uid: CALLER_UID,
+        path: "disconnect_app",
+        status: 401,
+        code: "none",
+      },
+      expect.any(String),
+    );
+  });
+
+  it("NR15: revoke fetch reject → unavailable · err.name 만 로그", async () => {
+    mockProfileOk();
+    fetchMock.mockRejectedValueOnce(
+      new TypeError("PII_NAVER_ACCESS_TOKEN fetch failed"),
+    );
+
+    const err = await captureHttpsError(callDisconnect(APP_DATA));
+    expect(err.code).toBe("unavailable");
+    expect(err.message).toBe("errorServiceUnavailable");
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_naver_revoke_failed",
+        uid: CALLER_UID,
+        path: "disconnect_app",
+        code: "TypeError",
+      },
+      expect.any(String),
+    );
+  });
+});
+
+describe("disconnectNaverProvider — custom token 발급 실패", () => {
+  it("NR16: createCustomToken 던짐 → internal · 실패 로그", async () => {
+    mockProfileOk();
+    mockRevokeOk();
+    mockCreateCustomToken.mockRejectedValueOnce(
+      new Error("PII_MINTED_CUSTOM_TOKEN signer failed"),
+    );
+
+    const err = await captureHttpsError(callDisconnect(APP_DATA));
+    expect(err.code).toBe("internal");
+    expect(err.message).toBe("errorUnknown");
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_relogin_token_failed",
+        provider: "naver",
+        code: "Error",
+      },
+      expect.any(String),
+    );
+    expect(infoMock).not.toHaveBeenCalled();
+  });
+});
+
+// 반드시 마지막 describe — 앞선 모든 케이스의 logger 호출을 검사한다.
+describe("disconnectNaverProvider — PII sentinel (NR17)", () => {
+  it("NR17: 모든 케이스의 logger 호출에 PII fixture 값 0", () => {
+    // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
+    expect(accumulatedLogCalls.length).toBeGreaterThan(10);
+    const serialized = JSON.stringify(accumulatedLogCalls);
+    for (const sentinel of [
+      "PII_NAVER_ACCESS_TOKEN",
+      "PII_NAVER_CODE",
+      "PII_NAVER_STATE",
+      "PII_NAVER_SECRET",
+      "PII_NAVER_ID",
+      "PII_MINTED_CUSTOM_TOKEN",
+      "pii-naver@example.com",
+    ]) {
+      expect(serialized).not.toContain(sentinel);
+    }
   });
 });
