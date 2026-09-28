@@ -13,6 +13,8 @@
 //   S8: 비-Functions 예외 → Failed(ServiceUnavailable)
 //   S9: 레지스트리 — provider 중복 0 · 서버 행 kind · email 조회 null ·
 //       Facebook callable 이름 · provider 가 Firebase 없이 읽힘
+//   S10: 레지스트리 완결 (plan 06) — 항목 수 · provider 집합 · 서버 행 =
+//        Kakao · Facebook · 재로그인 행 strategy non-null · email 없음
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -278,6 +280,37 @@ void main() {
       expect(
         identical(container.read(disconnectStepsProvider), kDisconnectSteps),
         isTrue,
+      );
+    });
+
+    test('S10: 레지스트리 완결 — D-01 대상 전부 · 서버 행 = Kakao · Facebook', () {
+      expect(kDisconnectSteps.length, 6);
+      expect(
+        kDisconnectSteps.map((step) => step.provider).toSet(),
+        <AccountProvider>{
+          AccountProvider.google,
+          AccountProvider.apple,
+          AccountProvider.facebook,
+          AccountProvider.kakao,
+          AccountProvider.naver,
+          AccountProvider.line,
+        },
+      );
+      expect(
+        kDisconnectSteps
+            .where((step) => step.kind == DisconnectKind.server)
+            .map((step) => step.provider)
+            .toSet(),
+        <AccountProvider>{AccountProvider.kakao, AccountProvider.facebook},
+      );
+      for (final step in kDisconnectSteps.where(
+        (step) => step.kind == DisconnectKind.relogin,
+      )) {
+        expect(step.signInStrategy, isNotNull, reason: step.provider.slug);
+      }
+      expect(
+        kDisconnectSteps.any((step) => step.provider == AccountProvider.email),
+        isFalse,
       );
     });
   });

@@ -6,6 +6,13 @@
 //   LN2: 해제 — signInWithCustomToken 0 · logout 1 → Done
 //   LN3: SDK 취소(null) → Cancelled · callable 0 · logout 1
 //   LN4: 응답 uid 다름 → IdentityMismatch · signInWithCustomToken 0
+//   LN5: 서버 permission-denied + caller_identity_mismatch → IdentityMismatch
+//   LN6: unavailable → Failed(NoInternetConnection)
+//   LN7: 응답 customToken 부재 → Failed(UnknownException) · 소비 0
+//   LN8: 로그인 사용자 부재 · 익명 → Failed(UnknownException) · SDK 0
+//   LN9: SDK signIn 이 ServiceUnavailable → Failed(ServiceUnavailable)
+//   LN10: access token 빈 문자열 → Failed(ServiceUnavailable) · callable 0
+//   LN11: signInWithCustomToken 거부 → Failed(ServiceUnavailable) · logout 1
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -16,6 +23,7 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
@@ -60,6 +68,23 @@ void main() {
     when(
       () => mockCallable.call<Map<String, dynamic>>(any()),
     ).thenAnswer((_) async => result);
+  }
+
+  /// 끊기 callable 이 [code] (+ [details]) 로 거부하게 stub 한다.
+  void stubCallableThrows(String code, {Object? details}) {
+    when(() => mockCallable.call<Map<String, dynamic>>(any())).thenThrow(
+      FirebaseFunctionsException(
+        message: 'server message',
+        code: code,
+        details: details,
+      ),
+    );
+  }
+
+  /// [outcome] 이 [DisconnectFailed] 이고 원인이 [matcher] 인지 단언한다.
+  void expectFailedWith(DisconnectOutcome outcome, Matcher matcher) {
+    expect(outcome, isA<DisconnectFailed>());
+    expect((outcome as DisconnectFailed).exception, matcher);
   }
 
   /// LINE SDK 로그인이 [accessToken] 을 돌려주게 stub 한다.
@@ -183,4 +208,118 @@ void main() {
     verifyNever(() => mockAuth.signInWithCustomToken(any()));
     verify(() => mockLine.logout()).called(1);
   });
+
+  test(
+    'LN5: 서버 permission-denied + caller_identity_mismatch → IdentityMismatch · logout 1',
+    () async {
+      stubLineSignIn();
+      stubCallableThrows(
+        'permission-denied',
+        details: const <String, dynamic>{'reason': 'caller_identity_mismatch'},
+      );
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expect(outcome, isA<DisconnectIdentityMismatch>());
+      verifyNever(() => mockAuth.signInWithCustomToken(any()));
+      verify(() => mockLine.logout()).called(1);
+    },
+  );
+
+  test('LN6: unavailable → Failed(NoInternetConnection) · logout 1', () async {
+    stubLineSignIn();
+    stubCallableThrows('unavailable');
+
+    final outcome = await _step.run(deps, reloginForFreshness: true);
+
+    expectFailedWith(outcome, isA<NoInternetConnection>());
+    verify(() => mockLine.logout()).called(1);
+  });
+
+  test('LN7: 응답 customToken 부재 → Failed(UnknownException) · 소비 0', () async {
+    stubLineSignIn();
+    stubCallableResponse(<String, dynamic>{'ok': true, 'uid': _currentUid});
+
+    final outcome = await _step.run(deps, reloginForFreshness: true);
+
+    expectFailedWith(outcome, isA<UnknownException>());
+    verifyNever(() => mockAuth.signInWithCustomToken(any()));
+    verify(() => mockLine.logout()).called(1);
+  });
+
+  group('LN8: 로그인 사용자 부재 · 익명 → Failed(UnknownException) · SDK 0', () {
+    test('LN8a: currentUser null', () async {
+      when(() => mockAuth.currentUser).thenReturn(null);
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expectFailedWith(outcome, isA<UnknownException>());
+      verifyNever(() => mockLine.signIn());
+      verifyNever(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      );
+    });
+
+    test('LN8b: 익명 사용자', () async {
+      when(() => mockUser.isAnonymous).thenReturn(true);
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expectFailedWith(outcome, isA<UnknownException>());
+      verifyNever(() => mockLine.signIn());
+    });
+  });
+
+  test(
+    'LN9: SDK signIn 이 ServiceUnavailable → Failed(ServiceUnavailable) · logout 1',
+    () async {
+      when(() => mockLine.signIn()).thenThrow(const ServiceUnavailable());
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expectFailedWith(outcome, isA<ServiceUnavailable>());
+      verifyNever(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      );
+      verify(() => mockLine.logout()).called(1);
+    },
+  );
+
+  test(
+    'LN10: access token 빈 문자열 → Failed(ServiceUnavailable) · callable 0 · logout 1',
+    () async {
+      stubLineSignIn(accessToken: '');
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expectFailedWith(outcome, isA<ServiceUnavailable>());
+      verifyNever(
+        () =>
+            mockFunctions.httpsCallable(any(), options: any(named: 'options')),
+      );
+      verify(() => mockLine.logout()).called(1);
+    },
+  );
+
+  test(
+    'LN11: signInWithCustomToken 이 FirebaseAuthException → Failed(ServiceUnavailable) · logout 1',
+    () async {
+      stubLineSignIn();
+      stubCallableResponse(<String, dynamic>{
+        'ok': true,
+        'customToken': 'ct-U',
+        'uid': _currentUid,
+      });
+      when(
+        () => mockAuth.signInWithCustomToken('ct-U'),
+      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expectFailedWith(outcome, isA<ServiceUnavailable>());
+      verify(() => mockLine.logout()).called(1);
+    },
+  );
 }
