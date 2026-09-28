@@ -1075,6 +1075,9 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   `Completer` 다중 complete 가드는 **Phase 16.2 에서 구조 자체가 사라졌습니다** —
   이제 플러그인이 돌려주는 Future 를 그대로 await 합니다. 앱 쪽 타이머가 없으므로
   「늦게 끝난 성공을 버리는」 주체도 없습니다.
+  앱 쪽 대기 한도를 두지 않는 것은 Naver · LINE · Kakao 공통 정책입니다(2026-09-28
+  결정). 근거 · 대기 중 잠기는 것 · 재검토 조건은 「Multi-Provider Account Linking
+  (Phase 9.2)」 절 §5 를 참조하십시오.
 - **Pitfall 2 (race-fix logout 위치):** D-57 — `signInWithNaver` finally 블록의
   `_naverSdkClient.logout()` 호출은 `_socialLinkInProgress.end()` 직전 위치.
   Plan 13-03 정착, verifyInOrder 정적 가드 보유.
@@ -3244,6 +3247,74 @@ Phase 9.2 의 add-only 패치가 5 SDK 세션 cache 일괄 해제 보장.
 시 native prompt 가 계정 B 선택지 표시 (계정 A cache 미잔존) —
 09.2-VALIDATION.md 의 UAT (d) 시나리오.
 
+### 5. 소셜 로그인 SDK 앱 경로의 앱 쪽 대기 한도 — 두지 않는다 (2026-09-28 결정)
+
+**정책 · 범위:** 소셜 로그인 SDK 앱 경로(Naver 1-tap `NaverSdkClient.signIn()` →
+`FlutterNaverLogin.logIn()` · LINE `LineSDK.instance.login` · Kakao
+`loginWithKakaoTalk` / `loginWithKakaoAccount`)에는 앱 쪽 대기 한도(타이머)를 두지
+않고, SDK 가 돌려주는 Future 를 그대로 await 한다. 따라서 사용자가 인증 창(NAVER 앱 ·
+LINE 앱 · 카카오톡 · SDK 가 띄운 브라우저)을 닫지 않으면 앱은 계속 기다린다.
+2026-09-28 사용자 결정이다(todo `2026-09-20-cross-provider-app-wait-limit-policy.md` 종결).
+킷 웹 경로(NAVER 앱 미설치 단말의 `flutter_web_auth_2` 흐름)는 대상이 아니다 —
+Android Auth Tab/Custom Tabs 의 `CANCELED` · iOS `ASWebAuthenticationSession` 의
+canceledLogin 이 「창 닫힘 = Future 완료」 를 보장하므로 무기한 대기 자체가 없다.
+클라이언트 → Cloud Function 호출의 timeout(`_kCustomTokenTimeout` 10초 ·
+`_kNaverWebCustomTokenTimeout` 20초)은 별개다 — 인증 창이 닫힌 뒤의 서버 호출에만 걸린다.
+
+**왜 한도를 두지 않나:** 세 SDK 의 Dart API 표면에 진행 중인 로그인을 앱이 끊는 취소
+API 가 없다(2026-09-28 pub cache 소스 실측 · 킷이 해석하는 버전 = pub.dev 최신).
+- `flutter_line_sdk` 2.7.2 — `login` · `logout` 만(`lib/src/line_sdk.dart` · `cancel` 0건).
+- `kakao_flutter_sdk_user` 2.0.0+1 — `loginWithKakaoTalk` · `loginWithKakaoAccount` ·
+  `loginWithKakao` · `loginWithNewScopes` · `logout` 만(`lib/src/user_api.dart` — `cancel`
+  은 사용자 취소 예외 `ClientErrorCause.cancelled` 뿐 · pub.dev 최신 2.0.1 changelog 에도
+  취소 API 없음).
+- `naver_login_flutter` 4.0.0 — `logIn` · `logOut` · `logOutAndDeleteToken` ·
+  `getCurrentAccount` · `getCurrentAccessToken` · `refreshAccessTokenWithRefreshToken` ·
+  `isLoggedIn` · `setLogEnabled` 만(`cancel` 0건).
+
+취소 수단 없이 타이머만 얹으면 앱은 먼저 끝나지만 인증 창은 그대로 남는다. 반례도 있다 —
+구 Naver 플러그인 시절 Naver 한 provider 에만 있던 앱 쪽 60초 타이머가 (a) 사용자 입력
+시간까지 한도에 포함해 60초 뒤 도착한 성공을 조용히 버렸고, (b) 타이머 뒤 finally 의
+logout 이 먼저 돈 다음 SDK 가 토큰을 새로 저장해 D-57 「1회성 토큰」 불변식이 새는 경로를
+만들었다(Phase 16.2 D-16 에서 구조 제거 · 「Naver Login」 절 Pitfall 1). 한도를 한
+provider 에만 얹으면 같은 두 결함이 그 provider 에서 재발한다.
+
+**기다리는 동안:** 로그인 화면의 로딩 오버레이가 유지된다. `AuthRepository` 가
+try-finally 로 잡은 `socialLinkInProgress` 플래그(`_socialLinkInProgress.begin()` …
+`end()`)가 내려가지 않으므로 splash 의 자동 익명 sign-in(`splash_initializer.dart` ·
+Phase 9.1 D-02-A)과 `auth_guard.dart` 의 fail-safe 분기(Phase 9.1 D-02-B)가 보류된다 —
+결함이 아니라 위 §3 race-fix invariant 가 의도한 동작이다. 인증 창을 닫으면 그 시각에
+취소가 도착해 전부 풀린다(Android 101.3초 · iOS 157초 방치 실측 — `16.2-HUMAN-UAT.md`
+A5 · I5). iOS Naver 1-tap wedge(「Naver Login」 절 Pitfall 12)와는 증상(무반응)이 같지만
+원인이 다르며, 구분은 debug 로그다. 무기한 대기는 `Naver logIn 시작` 뒤
+`Naver logIn 도착` 이 아직 없는 상태다(인증 창이 열려 있고, 창을 닫으면 도착 줄이 찍힌다).
+wedge 는 인증 창 없이 탭마다 `Naver logIn 재진입 무시 (in-flight)` 만 찍히며 앱 재시작
+전까지 풀리지 않는다.
+
+**한도를 두고 싶다면(킷 기본값 아님):** 아래 5단계를 순서대로 확인하고, 결과를 세
+provider 에 **동시에** 적용한다.
+1. provider 별 SDK 에 진행 중 세션을 끊는 취소 API 가 있는지 먼저 확인한다 — 없으면 앱만
+   끝나고 인증 창은 남으므로, 취소 수단 없이 타이머만 얹지 않는다.
+2. 만료를 silent 로 접을지 안내할지 정한다 — 킷의 취소는 silent no-op(D-09)이라 만료를
+   같은 silent 로 접으면 무반응으로 보이고, 배너로 띄우면 취소와 구분이 필요하다.
+3. 타이머 기준을 정한다 — 호출 시점부터인지, 사용자 조작(동의 · 계정 선택) 이후부터인지.
+   호출 시점 기준은 사용자의 입력 시간을 한도에 포함시킨다(구 60초 타이머의 실패 원인).
+4. 늦게 도착한 성공의 처분을 정한다 — 폐기하면 SDK 토큰 정리(logout)가 반드시 따라와야
+   하고, 수용하면 한도의 의미를 다시 정한다.
+5. 정한 규칙을 세 provider 에 같은 형태로 적용하고, provider 마다 「한도 동작」 회귀
+   테스트를 같은 모양으로 둔다.
+
+**UAT 교훈:** 타이머가 살아 있으면 실기기 checkpoint 를 「탭 1회 → 보고」 로 쪼갤 수
+없다 — 보고 왕복 시간이 한도에 포함돼 UAT 하네스 때문에 만료가 난다(2026-09-17 D2-a
+INVALIDATED 실증). 타이머가 있는 경로의 UAT 는 연속 조작 1개 + 사전 warm-up 으로 설계한다.
+
+**재검토 조건:** (a) 사용자가 「눌렀는데 아무 반응이 없다」 를 실제로 제보한 경우(위
+로그로 wedge 와 구분) (b) 세 SDK 중 하나가 세션 취소 API 를 제공하기 시작한 경우(SDK
+상향 때 changelog 확인 항목) (c) 무기한 대기 중 보류되는 항목(splash 자동 익명 sign-in ·
+`auth_guard` fail-safe)에 실사용 영향이 관측된 경우. 2026-09-28 현재 킷의 실사용자는 0
+이고 세 조건 모두 미충족이다. 결정 경위 · 실측 원문은
+`.planning/todos/completed/2026-09-20-cross-provider-app-wait-limit-policy.md`.
+
 ### 커스터마이징 포인트 (사용자 관점)
 
 starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞춰 조정할 때:
@@ -4555,7 +4626,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-27 | 16.9-05 | Phase 16.9 Naver 계정 연결 반영 — 「Naver 계정 연결 (Phase 16.9)」 절 신설(「계정 연결 해제 (Phase 16.8)」 절 뒤 · 7 문단: 동작(「네이버 연결」 버튼 · 카카오와 라인 사이 · `NaverSdkClient.signIn()` 1-tap/웹 자동 · 취소 no-op · 재인증 5분 → 재로그인 · 인증 2회 낭비 todo) · 서버(`linkNaverProvider` 입력 두 모양 · caller 검사 뒤 code 교환 · `fetchNaverProfile` · `linkCustomTokenIdentity` · secret binding) · 불변식(가입 수단 · 프로필 write 0 · 이메일 미검사 · 토큰 폐기 0 · 연결 뒤 네이버 로그인의 프로필 덮어쓰기 주의) · 해제(16.8 규칙 · UAT 실측) · 확인 방법(화면 + 원장 · `link_app`/`link_web`) · 배포 · 제거(로그인 함수 미재배포 · provider 추가/제거) · 커스터마이징) · Account Linking 분기 bullet 을 Kakao/LINE(`linkCustomTokenProvider`)과 Naver(`linkNaverProvider`)로 분리 · Naver 주의 문단을 양방향 지원으로 교체 · 해제 절 2 문장 현재형 + 「경로」 Custom Token 목록에 Naver · Naver 절 8단계 secret 표 사용처 · 10단계 배포 필터 · 콘솔 확인 · invoker 확인 · 제거 가이드 ⑦ Naver 항목 · 가입 정의 표 「기록 안 함」 셀에 `linkNaverProvider` |
 | 2026-09-28 | 16.9 review fix | 「Naver 계정 연결 (Phase 16.9)」 절 「서버」 문단의 오류 매핑 정정(review WR-01) — 재로그인 화면은 서버가 `details.reason: 'reauthentication_required'` 를 실은 `unauthenticated`(`reauthenticationRequired()` — verifyIdToken 실패 · `assertFreshAuth`)와 `permission-denied`(uid 불일치)만이고, reason 없는 `unauthenticated`(NAVER 거부 · code 교환 거부 · App Check 차단)는 일시 오류 안내로 바뀌었음을 명시(Kakao · LINE 연결 공통 `_mapLinkCallableException`) · 「계정 연결 해제」 커스터마이징 「해제 전 재인증」 항목을 `assertFreshAuth` 가 이미 reason 을 싣는 현행으로 정정 · 「불변식」 (4) 에 provider 당 신원 1개 정책 명시(review IN-03 — 같은 provider 다른 신원 연결은 `already-exists` + `details.reason: 'provider_already_linked'` 거부 · Firebase `provider-already-linked` mirror · Kakao · LINE 공통 · 바꾸려면 해제 후 연결) |
 | 2026-09-28 | quick 260928-cxs | 계정 연결의 서버 5분 재인증 규칙 제거 반영 — 「Naver 계정 연결 (Phase 16.9)」 「동작」 문단의 「5분 지난 세션 → 서버 거부 → 재로그인 · 인증 2회 낭비 · 사전 확인 todo」 문장을 「재로그인 없이 연결(Firebase 표준 · 2026-09-28 실기기 확인) · 재로그인은 토큰 폐기 · 만료 · uid 불일치만」 으로 교체 · 「서버」 (1) caller 검사에서 `assertFreshAuth` 제거 명시 · 커스터마이징 「재인증 창」 을 회원탈퇴 전용 + 되돌리는 방법으로 교체 · 「연결 전 신선도 사전 확인」 항목 삭제(만들지 않기로 결정) · 「계정 연결 해제」 「해제 전 재인증」 의 참조 모양을 `delete_user_account.ts` 로 정정. Kakao · LINE · Naver 연결 callable 의 `assertFreshAuth` 호출 제거(Jest L3 · N5 진행 단언) · 회원탈퇴 규칙 유지 |
+| 2026-09-28 | quick 260928-h94 | 「Multi-Provider Account Linking (Phase 9.2)」 절에 §5 신설 — 소셜 로그인 SDK 앱 경로 앱 쪽 대기 한도 「두지 않는다」 정책 기록: 정책 · 범위(SDK 앱 경로 Naver 1-tap · LINE · Kakao · 웹 경로 제외 사유 `CANCELED` / `ASWebAuthenticationSession`) · 근거(세 SDK Dart API 에 진행 중 로그인 취소 API 없음 — `flutter_line_sdk` 2.7.2 · `kakao_flutter_sdk_user` 2.0.0+1 · `naver_login_flutter` 4.0.0 · 2026-09-28 실측 · 구 Naver 60초 타이머 반례 2건) · 대기 중 잠기는 것(`socialLinkInProgress` · splash 자동 익명 sign-in · `auth_guard` fail-safe 보류) · wedge 와의 debug 로그 구분 · 한도를 두려는 adopter 용 5단계 체크리스트 + UAT 교훈 · 재검토 조건 3 · 「Naver Login」 절 Pitfall 1 에 §5 참조 · 출처 todo `2026-09-20-cross-provider-app-wait-limit-policy.md` 종결(사용자 결정 2026-09-28 「한도 없음(SDK 동작 그대로)」) · 코드 변경 0 |
 
 ---
 
-*Last updated: 2026-09-28 — quick 260928-cxs (계정 연결 서버 5분 재인증 규칙 제거)*
+*Last updated: 2026-09-28 — quick 260928-h94 (소셜 로그인 SDK 앱 경로 대기 한도 「없음」 정책 기록)*
