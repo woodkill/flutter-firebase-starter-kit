@@ -1971,9 +1971,52 @@ Cloud Function `naverCustomToken` 이 Naver access_token 으로 호출하는
 ## IdP 프로필 동기화 정책 (R10-FOLLOWUP)
 
 OAuth Custom Token provider (Kakao + Naver + Phase 14 LINE)
-의 **재로그인** 시 IdP 응답의 `displayName` / `photoURL` 을 Firebase Auth
-user record 에 어떻게 반영할지 결정하는 정책. 신규 등록 path 는 정책과 무관
-(Phase 13 R10 retroactive fix 가 createUser/updateUser 시점에 이미 propagate).
+의 **재로그인** 시 IdP 응답의 `email` · `displayName` · `photoURL` 을 Firebase
+Auth user record(top-level 프로필)에 어떻게 반영할지 결정하는 정책. 원칙은
+「Auth top-level email · 이름 · 사진 = 계정 대표값(가입 수단 기준), 로그인 수단과 무관」
+이다. 이 절의 갱신은 가입 수단(`users/{uid}.signUpProviderId`)으로 로그인할
+때만 일어난다. 신규 등록 path 는 정책과 무관 (Phase 13 R10 retroactive fix 가
+createUser/updateUser 시점에 이미 propagate).
+
+### 가입 수단 로그인에만 적용 (quick 260928-jwe)
+
+- **규칙:** Custom Token 재로그인에서 로그인 provider 가 `users/{uid}.signUpProviderId`
+  와 같을 때만 아래 `PROFILE_REFRESH_POLICY` 에 따라 갱신한다. 값이 다르면(연결
+  수단으로 로그인 · native 가입 계정의 `google.com` 등) email 을 포함해 아무것도
+  갱신하지 않는다. 연결 callable(`linkNaverProvider` · `linkCustomTokenProvider`)은
+  원래 프로필을 건드리지 않는다.
+- **보존(fail-closed):** 필드가 없거나(Phase 16.7 이전 가입자 · 기록 누락) `users`
+  문서 읽기에 실패하면 갱신하지 않는다. backfill 은 없다 — 「가입 수단 기록
+  (Phase 16.7)」 절 fallback 과 같은 태도다. 로그인 자체는 정상 완료된다.
+- **운영 로그 3종** (payload 는 uid · provider slug · code 뿐 — 저장된
+  `signUpProviderId` 값 · IdP 프로필 · 오류 message 는 남기지 않는다):
+
+  | event | 수준 | 뜻 |
+  |-------|------|----|
+  | `identity_index_profile_refresh_skipped_linked` | info | 연결 수단 로그인 — 갱신 건너뜀 (정상 경로) |
+  | `identity_index_profile_refresh_signup_missing` | warn | 가입 수단 기록 없음 — 보존 |
+  | `identity_index_profile_refresh_signup_read_failed` | warn | `users` 문서 읽기 실패 — 보존 (`code` 만) |
+
+- **`PROFILE_REFRESH_POLICY` 와의 관계:** 정책은 가입 수단 로그인 때 「어떻게」
+  갱신할지(비우기 vs 보존)만 정한다. 연결 수단 로그인은 정책과 무관하게 갱신하지
+  않는다.
+- **가입 수단이 해제되면:** UI 는 가입 수단 해제를 막는다(Phase 16.8 D-01 ·
+  `canUnlinkProvider`). 서버 callable `unlinkCustomTokenProvider` 로만 가능하며,
+  그러면 어느 로그인도 가입 수단과 같지 않아 프로필이 그 시점 값으로 고정된다 —
+  킷은 이를 수용한다.
+- **범위:** 서버 Custom Token 경로(`kakaoCustomToken` · `naverCustomToken` ·
+  `naverWebCustomToken` · `lineCustomToken`)만. native Google · Apple · Facebook
+  은 이 규칙 밖이다 — Facebook `_setFacebookPhotoUrl`(로그인마다 top-level
+  `photoURL` 갱신)은 Phase 17 D-27 이 정리하고, native Google · Apple 재로그인
+  때 top-level 이 바뀌는지는 아직 실측하지 않았다.
+- **위조:** `signUpProviderId` 는 본인이 쓸 수 있는 필드라(WR-12) 바꿔도 영향은
+  자기 계정 프로필 갱신 여부뿐이다 — 「가입 수단 기록 (Phase 16.7)」 절 「위조
+  한계」 참조.
+- **커스터마이징:** 로그인 수단마다 갱신하던 이전 동작이 필요하면
+  `resolveIdentity` 재로그인 분기의 가입 수단 비교(`readSignUpProviderId` 판정)를
+  걷어내고 JWE-2 · JWE-3 테스트를 갱신 단언으로 바꾼다 — 권장하지 않는다(연결
+  수단 이메일로 계정 email 이 바뀌어 `email_in_use` 판정 기준이 옮겨 간다).
+  바꾼 뒤에는 CT 로그인 함수 4개를 다시 배포한다.
 
 ### 정책
 
@@ -1989,11 +2032,12 @@ export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
 | `"truth-of-source"` (default) | 응답에 필드가 있으면 update, 없으면 명시 `null` 로 clear. 사용자가 IdP 측에서 프로필 이미지/닉네임 *삭제* → 다음 로그인에 starter-kit 측에서도 즉시 clear | 일반 production app (Slack/Discord 등 패턴) + GDPR Art. 17 (right to erasure) 친화 |
 | `"preserve"` | 응답 있으면 update, 없으면 기존 값 보존 | IdP 동의 항목 일시 OFF/ON 빈번한 도메인 (일부 B2B 툴) — 데이터 안정성 우선 |
 
-### email 은 정책 무관 항상 preserve
+### email 은 정책 무관 — 비우지 않는다
 
-`email` 은 sign-in 식별자라 clear 시 user lockout 위험 (다음 로그인에 email
-매칭 안 되면 새 user record 충돌 가능). 정책은 `displayName` / `photoURL`
-에만 적용.
+`email` 은 정책과 무관하게 IdP 가 주면 그 값으로 갱신하고, 주지 않으면 그대로
+둔다(clear 하지 않음 — sign-in 식별자라 clear 시 user lockout 위험, 다음
+로그인에 email 매칭 안 되면 새 user record 충돌 가능). 이 갱신도 가입 수단으로
+로그인할 때만 일어난다. 정책은 `displayName` / `photoURL` 에만 적용.
 
 ### 적용 절차
 
@@ -2042,7 +2086,10 @@ lastSeenAt)` 만 호출, Firebase Auth user record 미갱신 root cause 식별.
 
 상세 helper / test 코드: `functions/src/auth/identity_index.ts` 의
 `profileFieldsForRefresh` JSDoc + `functions/test/auth/identity_index.test.ts`
-의 R10-FOLLOWUP describe 블록 (pure 6 케이스 + 통합 4 케이스).
+의 R10-FOLLOWUP describe 블록 (pure 6 케이스 + 통합 4 케이스) · 가입 수단
+게이트는 `resolveIdentity quick-260928-jwe — …` describe 블록(JWE-1~7 · 11 tests
+— 가입 수단 · 연결 수단 · native 기록값 · 기록 없음 · 읽기 실패 · userInfo 없음 ·
+provider 3종 형식 일치 왕복).
 
 ### sign-in 직후 linkedProvidersStream permission-denied race (해결됨, R10-FOLLOWUP-2 fix)
 
@@ -2533,7 +2580,7 @@ Home AppBar → Icons.settings tap → /settings route
 
 **기록 없는 계정 (fallback):** `signUpProviderId` 가 없으면 가입 수단은 「-」, 연결된 계정은 보유 provider 전부다 (D-11). provider 가 1개뿐이어도 추론하지 않는다 — 읽기 실패 때 추론값이 진짜처럼 보이기 때문이다. 같은 규칙이 Firestore 읽기 실패(`linkedProvidersStream` 의 빈 fallback) · 로그인 직후 첫 emit 전 과도 상태 · 이 기능 이전에 만든 계정에 똑같이 적용된다. 킷은 backfill 을 제공하지 않는다(추론 · lazy 기록 0). 기록값이 현재 `providerIds` 에 없으면(Admin 조작으로만 생긴다) 기록값을 그대로 가입 수단으로 보이고 연결된 계정은 보유 전부가 된다 (D-12). 등록되지 않은 값은 raw 문자열 대신 `errorUnknownProvider` 라벨로 표시된다.
 
-**위조 한계:** 이 필드는 **표시 전용** 이다. `firestore.rules` 의 `users/{userId}` 규칙은 본인 문서 전체 write 를 허용하므로(WR-12 — 알려진 갭) 로그인한 사용자는 앱을 거치지 않고 자기 `signUpProviderId` 를 바꿀 수 있고, 서버 `resolveIdentity` 가 쓴 값도 이후 클라이언트가 덮어쓸 수 있다. 그래서 서버는 이 값을 읽지 않고, 인가 · 권한 판단에도 쓰지 않는다 — 지금 위조의 영향은 자기 화면 표시뿐이다. 필드 단위 write 금지는 client write 경로(약관 mirror · 이 recorder)를 서버 callable 로 옮기는 작업과 함께 **Phase 18** 에서 한다(WR-12). 그 전에 이 값으로 서버 쪽 결정(예: 해제 불가 수단 판정)을 하려면 서버가 따로 검증하는 경로가 먼저 필요하다.
+**위조 한계:** 이 필드는 **표시 · 프로필 갱신 판단 전용** 이다(인가 · 권한에는 쓰지 않는다). `firestore.rules` 의 `users/{userId}` 규칙은 본인 문서 전체 write 를 허용하므로(WR-12 — 알려진 갭) 로그인한 사용자는 앱을 거치지 않고 자기 `signUpProviderId` 를 바꿀 수 있고, 서버 `resolveIdentity` 가 쓴 값도 이후 클라이언트가 덮어쓸 수 있다. 서버는 이 값을 딱 한 곳 — Custom Token 재로그인 때 Auth 프로필 갱신 여부 판단(quick 260928-jwe · 「IdP 프로필 동기화 정책」 절) — 에서만 읽고, 인가 · 권한 판단에는 쓰지 않는다. 위조 영향은 자기 계정뿐이다: 값을 연결 수단 slug 로 바꾸면 그 수단으로 로그인할 때 자기 프로필이 그 IdP 가 검증한 값으로 갱신되고(이 수정 전 기본 동작과 같다), 지우거나 엉뚱한 값이면 갱신이 멈춘다. 화면 표시 영향도 자기 화면뿐이다. 필드 단위 write 금지는 client write 경로(약관 mirror · 이 recorder)를 서버 callable 로 옮기는 작업과 함께 **Phase 18** 에서 한다(WR-12). 그 전에 이 값으로 서버 쪽 결정(예: 해제 불가 수단 판정)을 하려면 서버가 따로 검증하는 경로가 먼저 필요하다 — 프로필 갱신 판단은 인가가 아니고 영향이 자기 계정에 갇혀 이 조건 없이 수용했다.
 
 **provider 를 추가 · 제거할 때:**
 
@@ -2586,7 +2633,7 @@ Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 �
 
 **서버:** callable `linkNaverProvider`(`functions/src/auth/link_naver_provider.ts` · App Check 필수)다. 입력은 두 모양이고 필드 존재로 판별한다 — 1-tap `{idToken, accessToken}` / 웹 `{idToken, code, state}`. 두 모양이 섞이거나 둘 다 없으면 `invalid-argument` 다. 순서가 중요하다: (1) caller 검사 — `idToken` 을 `verifyIdToken(checkRevoked)` 로 풀어 uid 일치 · 익명 caller 거부(`failed-precondition`)를 **code 교환보다 먼저** 한다(재인증 신선도 `assertFreshAuth` 는 quick 260928-cxs 로 뺐다 — Firebase 는 연결에 최근 로그인을 요구하지 않는다). 거부되는 caller(폐기 · 만료 토큰 · uid 불일치 · 익명)는 1회용 code 를 소비하지 않는다. (2) 웹 모양이면 `exchangeNaverAuthCode`(`functions/src/auth/naver_token_exchange.ts` — 웹 로그인 `naverWebCustomToken` 과 같은 교환 코드)로 code 를 access token 으로 바꾼다. (3) `fetchNaverProfile`(`naver_profile_to_custom_token.ts` — 로그인과 같은 `/v1/nid/me` 검증)로 네이버 `id` 를 얻는다. (4) `linkCustomTokenIdentity`(`link_identity_transaction.ts` — Kakao / LINE 연결과 같은 transaction)가 `identity_index/naver:{id}` 문서를 만들고 `users/{uid}.linkedProviders` 항목과 `providerLinkedAt.naver` 를 쓴 뒤 `{ok: true}` 를 돌려준다. secret `NAVER_CLIENT_SECRET` · `NAVER_CLIENT_ID` 는 이 함수에 binding 된다(웹 모양 교환용 — 「Naver Login」 절 8단계 표). 클라이언트 timeout 은 1-tap 10초 · 웹 20초로 로그인과 같다. 오류 매핑은 연결 공통이다(`AuthRepository._mapLinkCallableException` — Kakao · LINE 연결과 같은 판정) — 재인증 필요(`unauthenticated` + `details.reason: 'reauthentication_required'` · 서버 `reauthenticationRequired()`) 와 idToken uid 불일치(`permission-denied`) → 재로그인 화면, reason 없는 `unauthenticated`(NAVER 거부 — `/v1/nid/me` 401 · `resultcode != 00` · code 교환 `invalid_grant` 등 · App Check 차단) → 재로그인이 아니라 「네트워크 또는 서비스 오류로 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.」(같은 실패를 로그인 경로도 일시 오류로 안내한다 — Firebase 세션은 정상이므로 재로그인으로 해소되지 않는다), `already-exists` → 「이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.」, `unavailable` → 「네트워크 또는 서비스 오류로 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.」.
 
-**불변식:** 연결은 계정의 신원 원장만 바꾼다. (1) `signUpProviderId` 는 쓰지 않는다 — 「가입 수단」 은 연결 뒤에도 그대로다(「가입 수단 기록」 절 표의 「기록 안 함」 행). (2) Firebase user record(email · displayName · photoURL)와 Firestore 프로필 필드 write 는 0 이다. (3) 이메일 충돌 검사는 하지 않는다 — 연결 callable 은 네이버 이메일을 읽지 않는다. (4) 다른 계정에 이미 묶인 네이버 신원은 `already-exists` 로 거부되고 원장은 바뀌지 않는다. 같은 계정에 다시 연결하면 멱등이다(`linkedAt` 보존). **provider 당 신원은 1개다** — 이 계정에 이미 다른 네이버 신원(가입 때 쓴 신원 포함)이 연결돼 있으면 새 네이버 신원 연결은 서버가 `already-exists` + `details.reason: 'provider_already_linked'` 로 거부하고 원장은 바뀌지 않으며, 「이미 이 계정에 연결된 로그인 방식입니다.」 가 뜬다(Firebase 네이티브 `provider-already-linked` 와 같은 정책 · `link_identity_transaction.ts` 공용이라 Kakao · LINE 연결도 같다). 다른 네이버 계정으로 바꾸려면 먼저 해제한 뒤 연결한다. (5) access token 은 서버 메모리에서만 쓰고 클라이언트로 돌려주지 않으며, NAVER 토큰 삭제(폐기) 요청은 0 이다. 연결이 끝나면 클라이언트는 `finally` 에서 NAVER 로컬 로그아웃만 한다. **주의 — 연결 뒤 네이버로 로그인할 때:** 연결 callable 과 달리 **로그인** 경로는 「IdP 프로필 동기화 정책」 절의 정책을 그대로 탄다. 그래서 연결된 네이버로 다시 로그인하면 계정 email · 이름 · 사진이 네이버 값으로 바뀐다(Android UAT 관측 O1 · `signUpProviderId` 는 불변). 가입 수단으로 로그인할 때만 갱신하도록 바꾸는 작업은 todo `2026-09-27-linked-relogin-profile-refresh-signup-only.md` 에 있다.
+**불변식:** 연결은 계정의 신원 원장만 바꾼다. (1) `signUpProviderId` 는 쓰지 않는다 — 「가입 수단」 은 연결 뒤에도 그대로다(「가입 수단 기록」 절 표의 「기록 안 함」 행). (2) Firebase user record(email · displayName · photoURL)와 Firestore 프로필 필드 write 는 0 이다. (3) 이메일 충돌 검사는 하지 않는다 — 연결 callable 은 네이버 이메일을 읽지 않는다. (4) 다른 계정에 이미 묶인 네이버 신원은 `already-exists` 로 거부되고 원장은 바뀌지 않는다. 같은 계정에 다시 연결하면 멱등이다(`linkedAt` 보존). **provider 당 신원은 1개다** — 이 계정에 이미 다른 네이버 신원(가입 때 쓴 신원 포함)이 연결돼 있으면 새 네이버 신원 연결은 서버가 `already-exists` + `details.reason: 'provider_already_linked'` 로 거부하고 원장은 바뀌지 않으며, 「이미 이 계정에 연결된 로그인 방식입니다.」 가 뜬다(Firebase 네이티브 `provider-already-linked` 와 같은 정책 · `link_identity_transaction.ts` 공용이라 Kakao · LINE 연결도 같다). 다른 네이버 계정으로 바꾸려면 먼저 해제한 뒤 연결한다. (5) access token 은 서버 메모리에서만 쓰고 클라이언트로 돌려주지 않으며, NAVER 토큰 삭제(폐기) 요청은 0 이다. 연결이 끝나면 클라이언트는 `finally` 에서 NAVER 로컬 로그아웃만 한다. **주의 — 연결 뒤 네이버로 로그인할 때:** 연결된 네이버로 로그인해도 계정 email · 이름 · 사진은 바뀌지 않는다 — Auth 프로필은 가입 수단으로 로그인할 때만 갱신된다(「IdP 프로필 동기화 정책」 절 · quick 260928-jwe). 다만 이 수정 전(16.9 Android UAT 관측 O1)에 이미 바뀐 값은 되돌아오지 않는다.
 
 **해제:** 「계정 연결 해제 (Phase 16.8)」 절 규칙 그대로다 — 「연결된 계정」 의 밑줄 이름 「네이버」 → 확인 다이얼로그 → `unlinkCustomTokenProvider`. 서버 `CUSTOM_TOKEN_PROVIDER_PRIORITY` 에 `naver` 가 이미 있어 해제 쪽 코드 변경은 0 이다 — Android 실기기 UAT 에서 해제 뒤 원장 부재 · 「네이버 연결」 버튼 재등장을 실측했다(`.planning/phases/16.9-naver-account-linking/uat-evidence/android-uat-16.9.md` 마커 `UAT169_UNLINK: PASS` · `UAT169_UNLINK_CODE_CHANGE: none`).
 
@@ -4627,7 +4674,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-28 | 16.9 review fix | 「Naver 계정 연결 (Phase 16.9)」 절 「서버」 문단의 오류 매핑 정정(review WR-01) — 재로그인 화면은 서버가 `details.reason: 'reauthentication_required'` 를 실은 `unauthenticated`(`reauthenticationRequired()` — verifyIdToken 실패 · `assertFreshAuth`)와 `permission-denied`(uid 불일치)만이고, reason 없는 `unauthenticated`(NAVER 거부 · code 교환 거부 · App Check 차단)는 일시 오류 안내로 바뀌었음을 명시(Kakao · LINE 연결 공통 `_mapLinkCallableException`) · 「계정 연결 해제」 커스터마이징 「해제 전 재인증」 항목을 `assertFreshAuth` 가 이미 reason 을 싣는 현행으로 정정 · 「불변식」 (4) 에 provider 당 신원 1개 정책 명시(review IN-03 — 같은 provider 다른 신원 연결은 `already-exists` + `details.reason: 'provider_already_linked'` 거부 · Firebase `provider-already-linked` mirror · Kakao · LINE 공통 · 바꾸려면 해제 후 연결) |
 | 2026-09-28 | quick 260928-cxs | 계정 연결의 서버 5분 재인증 규칙 제거 반영 — 「Naver 계정 연결 (Phase 16.9)」 「동작」 문단의 「5분 지난 세션 → 서버 거부 → 재로그인 · 인증 2회 낭비 · 사전 확인 todo」 문장을 「재로그인 없이 연결(Firebase 표준 · 2026-09-28 실기기 확인) · 재로그인은 토큰 폐기 · 만료 · uid 불일치만」 으로 교체 · 「서버」 (1) caller 검사에서 `assertFreshAuth` 제거 명시 · 커스터마이징 「재인증 창」 을 회원탈퇴 전용 + 되돌리는 방법으로 교체 · 「연결 전 신선도 사전 확인」 항목 삭제(만들지 않기로 결정) · 「계정 연결 해제」 「해제 전 재인증」 의 참조 모양을 `delete_user_account.ts` 로 정정. Kakao · LINE · Naver 연결 callable 의 `assertFreshAuth` 호출 제거(Jest L3 · N5 진행 단언) · 회원탈퇴 규칙 유지 |
 | 2026-09-28 | quick 260928-h94 | 「Multi-Provider Account Linking (Phase 9.2)」 절에 §5 신설 — 소셜 로그인 SDK 앱 경로 앱 쪽 대기 한도 「두지 않는다」 정책 기록: 정책 · 범위(SDK 앱 경로 Naver 1-tap · LINE · Kakao · 웹 경로 제외 사유 `CANCELED` / `ASWebAuthenticationSession`) · 근거(세 SDK Dart API 에 진행 중 로그인 취소 API 없음 — `flutter_line_sdk` 2.7.2 · `kakao_flutter_sdk_user` 2.0.0+1 · `naver_login_flutter` 4.0.0 · 2026-09-28 실측 · 구 Naver 60초 타이머 반례 2건) · 대기 중 잠기는 것(`socialLinkInProgress` · splash 자동 익명 sign-in · `auth_guard` fail-safe 보류) · wedge 와의 debug 로그 구분 · 한도를 두려는 adopter 용 5단계 체크리스트 + UAT 교훈 · 재검토 조건 3 · 「Naver Login」 절 Pitfall 1 에 §5 참조 · 출처 todo `2026-09-20-cross-provider-app-wait-limit-policy.md` 종결(사용자 결정 2026-09-28 「한도 없음(SDK 동작 그대로)」) · 코드 변경 0 |
+| 2026-09-28 | quick 260928-jwe | 연결 수단 재로그인 프로필 보존 반영 — 「IdP 프로필 동기화 정책 (R10-FOLLOWUP)」 절 도입 문단을 email · displayName · photoURL 기준으로 고치고 계정 대표값 원칙(가입 수단 기준 · 로그인 수단과 무관) 명시 · 「가입 수단 로그인에만 적용 (quick 260928-jwe)」 소절 신설(규칙 · 보존(fail-closed · backfill 없음) · 운영 로그 3종 `identity_index_profile_refresh_skipped_linked` / `_signup_missing` / `_signup_read_failed` · `PROFILE_REFRESH_POLICY` 관계 · 가입 수단 해제 시 고정(`unlinkCustomTokenProvider`) · native 범위 밖(Facebook → Phase 17 D-27) · 위조 영향 · 커스터마이징) · email 소절을 「비우지 않는다」 의미로 정정 · 테스트 참조에 JWE-1~7 추가 · 「Naver 계정 연결 (Phase 16.9)」 불변식 문단의 「주의」 문장을 새 동작으로 교체 · 「가입 수단 기록 (Phase 16.7)」 「위조 한계」 문단에 서버가 이 값을 읽는 유일한 지점 명시 · 서버 코드 `resolveIdentity` 가입 수단 게이트 |
 
 ---
 
-*Last updated: 2026-09-28 — quick 260928-h94 (소셜 로그인 SDK 앱 경로 대기 한도 「없음」 정책 기록)*
+*Last updated: 2026-09-28 — quick 260928-jwe (연결 수단 재로그인 프로필 보존 — 가입 수단 로그인 때만 갱신)*
