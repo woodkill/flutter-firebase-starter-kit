@@ -1463,24 +1463,37 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <device-
   추적 (Plan 14-05 UAT 학습: Tester role 등록 + OIDC 활성화 + LINE 앱
   설치 단말에서 app-to-app 1-tap A3 queries 검증).
 
-### email permission 신청 절차 (선택 — Phase 17+ 책임 범위)
+### email permission 신청 절차 (선택 — 신청만 하면 동작)
 
-본 starter-kit 의 Phase 14 단계는 LINE scope = `openid + profile` 만 사용
-(D-LINE-21 — email 회피). `user.email = null` 수용. Phase 17 (Account Linking)
-이후 사용자 식별 강화 시 email scope 활성화 필요:
-
-1. **신청:** LINE Console > Channel > "LINE Login settings" → "OpenID Connect"
-   탭 → "Email address permission" → "Apply" 버튼 클릭 → 사용 목적 + 사용자
-   안내 스크린샷 업로드 → LINE 검수 (수일~수 주 [ASSUMED] — 정확한 timeline
-   은 LINE 공식 미공개). 참조:
+1. **킷 동작 — 코드 수정 불필요 (quick 260928-luw · D-LINE-21 개정):** 앱은
+   LINE 로그인 때 항상 `openid` · `profile` · `email` 을 요청한다
+   (`lib/features/auth/data/line_sdk_client.dart`). 채널에 email 권한이 없으면
+   로그인은 정상이고, 동의 화면에 이메일 항목이 없으며, 이메일 없이 가입된다.
+   권한을 받으면 — 사용자가 동의하고 LINE 계정에 이메일이 등록된 경우 — 서버
+   `lineCustomToken`(`functions/src/auth/line_custom_token.ts`)이 그 이메일을
+   Firebase Auth 계정 이메일로 저장하고, 같은 이메일의 기존 계정이 있으면 기존
+   계정 안내 시트로 보낸다(아래 「계정 연결 해제」 절의 재로그인 표와 같은 규칙).
+   신청만 하면 되고 **코드 수정 불필요**.
+2. **신청 절차 (LINE 공식):** LINE Developers Console > 채널 > **Basic settings**
+   탭 > **OpenID Connect** > **Apply** → 약관 동의 + 이메일 수집 목적을
+   사용자에게 안내하는 화면의 스크린샷 업로드. 참조:
    <https://developers.line.biz/en/docs/line-login/integrate-line-login/#applying-email-permission>
-2. **승인 후 code 변경** (Phase 17+ 책임 — starter-kit Phase 14 단계 적용 X):
-   - `lib/features/auth/data/line_sdk_client.dart` 의 `LoginOption` scopes
-     에 `'email'` 추가
-   - `functions/src/auth/line_custom_token.ts` 의 `typedPayload` type 에
-     `email?: string` + `email_verified?: boolean` 추가
-   - `userInfo.email` 설정 + `createCustomToken(uid, developerClaims: {email,
-     email_verified})` 분기
+   심사 기간 · 방식은 LINE 이 공개하지 않는다.
+3. **이메일 검증 취급:** LINE ID token 에는 `email_verified` 가 없다
+   (<https://developers.line.biz/en/docs/line-login/verify-id-token/>). 킷은
+   이메일이 있으면 검증된 것으로 취급한다 — 근거는 LINE Help Center 의 이메일
+   등록 절차(사용자가 인증 코드나 메일의 URL 로 확인해야 등록된다)이며 Naver 와
+   같은 정책이다. 그래서 LINE 가입자는 `/verify-email` 화면을 거치지 않는다.
+   미검증으로 취급하려면 `functions/src/auth/line_custom_token.ts` 의
+   `userInfo.emailVerified = true` 와 developerClaims 의 `email_verified: true`
+   두 줄을 함께 `false` 로 바꾸고 `lineCustomToken` 을 재배포한다 — 그러면
+   이메일 있는 LINE 사용자는 `/verify-email` 을 거친다.
+4. **실기기 검증 상태:** Android — email 권한 없는 채널에서 `email` 을 요청해도
+   로그인 정상 · 동의 화면 이메일 항목 없음 · 이메일 없이 가입됨을 확인했다
+   (2026-09-28). 이메일이 오는 경로는 실기기 미검증이다 — 서버 계약은 Jest
+   `functions/test/auth/line_custom_token.test.ts` 의 LUW-1~5 로만 보장한다.
+   iOS 는 실측하지 않았다(SDK 가 email 권한 값을 그대로 넘기는 것까지 소스로
+   확인 — 같은 LINE 서버 인가 요청이라 Android 와 같을 것으로 보지만 미확인).
 
 ### 비즈니스 인증 절차 (production 전환 시)
 
@@ -2608,9 +2621,9 @@ Home AppBar → Icons.settings tap → /settings route
 | 해제한 provider 가 주는 이메일 | 결과 |
 |---|---|
 | 남은 계정의 이메일과 **같음** | **새 계정이 생기지 않는다.** 로그인 화면에 기존 계정 안내 시트가 뜬다 — 「이 이메일은 {provider}로 가입되어 있습니다. {provider}로 로그인하여 계정을 연결하세요.」({provider} = 기존 계정의 수단). 시트 버튼으로 기존 수단에 로그인한다. 기존 수단이 Custom Token 이면 로그인 뒤 「{provider} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 계정 연결에서 추가할 수 있습니다.」 안내가 뜨고, 해제했던 provider 는 **자동으로 다시 붙지 않는다** — 설정 「계정 연결」 에서 다시 연결한다. 기존 수단이 native(Google · Apple · Facebook)이고 시트가 방금 받은 자격증명을 넘겨받은 경우(예: Google 재로그인)에는 기존 수단으로 본인 확인한 뒤 해제했던 provider 가 바로 다시 연결된다. 기존 수단이 이메일이면 이메일 로그인 화면으로 간다. 시트를 닫으면 게스트 상태가 유지되고 새 계정은 없다. |
-| **다르거나 없음** | **새 계정이 생긴다** — 로그인하던 게스트(익명) 계정이 그 provider 로 가입한 계정으로 바뀌고(가입 수단 = 그 provider), 원래 계정과는 무관하다. 이메일을 주지 않는 예: Kakao 일반 앱(비즈 앱 전환 전) · LINE(킷이 현재 email scope 를 요청하지 않는다 — todo `2026-09-27-line-email-scope-support.md` · D-23). **귀결:** 원래 계정으로 돌아와 설정에서 그 provider 를 다시 연결하면 그 신원이 새 계정에 묶여 있어 거부된다(Custom Token 은 callable `already-exists` → 「이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.」). 다시 연결하려면 **새 계정으로 로그인해 회원탈퇴한 뒤** 원래 계정에서 연결한다. |
+| **다르거나 없음** | **새 계정이 생긴다** — 로그인하던 게스트(익명) 계정이 그 provider 로 가입한 계정으로 바뀌고(가입 수단 = 그 provider), 원래 계정과는 무관하다. 이메일을 주지 않는 예: Kakao 일반 앱(비즈 앱 전환 전) · LINE(채널 email 권한 신청 전 — 신청하면 코드 수정 없이 이메일이 온다 · quick 260928-luw). **귀결:** 원래 계정으로 돌아와 설정에서 그 provider 를 다시 연결하면 그 신원이 새 계정에 묶여 있어 거부된다(Custom Token 은 callable `already-exists` → 「이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.」). 다시 연결하려면 **새 계정으로 로그인해 회원탈퇴한 뒤** 원래 계정에서 연결한다. |
 
-Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 위 두 행 규칙을 그대로 따른다 — 서버 쪽 동작은 Jest `functions/test/auth/identity_index.test.ts` 의 「resolveIdentity Phase 16.8 D-21」 M1~M4 가 고정한다.
+Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 위 두 행 규칙을 그대로 따른다 — 서버 쪽 동작은 Jest `functions/test/auth/identity_index.test.ts` 의 「resolveIdentity Phase 16.8 D-21」 M1~M4 가 고정한다. LINE endpoint 쪽 충돌 발화는 `functions/test/auth/line_custom_token.test.ts` LUW-4 · LUW-5 · T-16-17-LINE-CT-EXISTING-01 이 고정한다.
 
 **provider 를 추가 · 제거할 때:**
 
@@ -4675,7 +4688,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-28 | quick 260928-cxs | 계정 연결의 서버 5분 재인증 규칙 제거 반영 — 「Naver 계정 연결 (Phase 16.9)」 「동작」 문단의 「5분 지난 세션 → 서버 거부 → 재로그인 · 인증 2회 낭비 · 사전 확인 todo」 문장을 「재로그인 없이 연결(Firebase 표준 · 2026-09-28 실기기 확인) · 재로그인은 토큰 폐기 · 만료 · uid 불일치만」 으로 교체 · 「서버」 (1) caller 검사에서 `assertFreshAuth` 제거 명시 · 커스터마이징 「재인증 창」 을 회원탈퇴 전용 + 되돌리는 방법으로 교체 · 「연결 전 신선도 사전 확인」 항목 삭제(만들지 않기로 결정) · 「계정 연결 해제」 「해제 전 재인증」 의 참조 모양을 `delete_user_account.ts` 로 정정. Kakao · LINE · Naver 연결 callable 의 `assertFreshAuth` 호출 제거(Jest L3 · N5 진행 단언) · 회원탈퇴 규칙 유지 |
 | 2026-09-28 | quick 260928-h94 | 「Multi-Provider Account Linking (Phase 9.2)」 절에 §5 신설 — 소셜 로그인 SDK 앱 경로 앱 쪽 대기 한도 「두지 않는다」 정책 기록: 정책 · 범위(SDK 앱 경로 Naver 1-tap · LINE · Kakao · 웹 경로 제외 사유 `CANCELED` / `ASWebAuthenticationSession`) · 근거(세 SDK Dart API 에 진행 중 로그인 취소 API 없음 — `flutter_line_sdk` 2.7.2 · `kakao_flutter_sdk_user` 2.0.0+1 · `naver_login_flutter` 4.0.0 · 2026-09-28 실측 · 구 Naver 60초 타이머 반례 2건) · 대기 중 잠기는 것(`socialLinkInProgress` · splash 자동 익명 sign-in · `auth_guard` fail-safe 보류) · wedge 와의 debug 로그 구분 · 한도를 두려는 adopter 용 5단계 체크리스트 + UAT 교훈 · 재검토 조건 3 · 「Naver Login」 절 Pitfall 1 에 §5 참조 · 출처 todo `2026-09-20-cross-provider-app-wait-limit-policy.md` 종결(사용자 결정 2026-09-28 「한도 없음(SDK 동작 그대로)」) · 코드 변경 0 |
 | 2026-09-28 | quick 260928-jwe | 연결 수단 재로그인 프로필 보존 반영 — 「IdP 프로필 동기화 정책 (R10-FOLLOWUP)」 절 도입 문단을 email · displayName · photoURL 기준으로 고치고 계정 대표값 원칙(가입 수단 기준 · 로그인 수단과 무관) 명시 · 「가입 수단 로그인에만 적용 (quick 260928-jwe)」 소절 신설(규칙 · 보존(fail-closed · backfill 없음) · 운영 로그 3종 `identity_index_profile_refresh_skipped_linked` / `_signup_missing` / `_signup_read_failed` · `PROFILE_REFRESH_POLICY` 관계 · 가입 수단 해제 시 고정(`unlinkCustomTokenProvider`) · native 범위 밖(Facebook → Phase 17 D-27) · 위조 영향 · 커스터마이징) · email 소절을 「비우지 않는다」 의미로 정정 · 테스트 참조에 JWE-1~7 추가 · 「Naver 계정 연결 (Phase 16.9)」 불변식 문단의 「주의」 문장을 새 동작으로 교체 · 「가입 수단 기록 (Phase 16.7)」 「위조 한계」 문단에 서버가 이 값을 읽는 유일한 지점 명시 · 서버 코드 `resolveIdentity` 가입 수단 게이트 |
+| 2026-09-28 | quick 260928-luw | LINE email 지원 반영 — 「email permission 신청 절차」 절을 「신청만 하면 동작」 으로 재작성: 킷 동작(항상 `openid` · `profile` · `email` 요청 · 권한 없으면 이메일 없이 가입 · 권한 있으면 서버 `lineCustomToken` 이 이메일 저장 + 같은 이메일 기존 계정 안내 시트 · 코드 수정 불필요) · 공식 신청 절차(Basic settings > OpenID Connect > Apply · 스크린샷 업로드 · 심사 기간 비공개) · verified 취급 근거와 fork 전환 두 곳(`userInfo.emailVerified` · developerClaims `email_verified`) · 실기기 검증 상태(Android 이메일-없음 경로 2026-09-28 실측 · 이메일-있음 경로 Jest LUW-1~5 만 · iOS 미실측) — 옛 「승인 후 코드 변경」 3항목 · Phase 17 책임 서술 삭제 / 「계정 연결 해제」 재로그인 표 LINE 예시를 「채널 email 권한 신청 전」 으로 정정 · 뒤 문단에 LINE endpoint 충돌 발화 Jest 참조 추가 |
 
 ---
 
-*Last updated: 2026-09-28 — quick 260928-jwe (연결 수단 재로그인 프로필 보존 — 가입 수단 로그인 때만 갱신)*
+*Last updated: 2026-09-28 — quick 260928-luw (LINE email 권한 신청만 하면 동작 — email scope 요청 · 서버 verified 취급)*
