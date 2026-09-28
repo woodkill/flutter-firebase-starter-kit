@@ -206,9 +206,9 @@ import {
   anonymousCallerAuth,
   signedInCallerAuth,
 } from "../mocks/caller_auth";
-// Plan 16-17 — resolveIdentity spy 용 namespace import. 본 endpoint 는
-// scope 상 email claim 을 받지 않아(D-LINE-21) CT-existing
-// 충돌을 자체 trigger 할 수 없다 — endpoint 의 slug 전달 배선만 검증한다.
+// resolveIdentity call-through spy 용 namespace import — LUW 가 endpoint 가
+// helper 에 넘긴 userInfo 모양을 확인한다 (quick 260928-luw). 구현은 바꾸지
+// 않는다.
 // eslint-disable-next-line import/first
 import * as identityIndex from "../../src/auth/identity_index";
 
@@ -300,7 +300,8 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
       "FAKE_LINE_JWT",
       "client-raw-nonce",
     );
-    // D-LINE-21: email 미발급 → developerClaims 인자 없이 호출.
+    // payload 에 email 없음(채널 email 권한 없음과 같은 상태) → 1-인자 호출
+    // 유지 (quick 260928-luw D-2).
     expect(mockCreateCustomToken).toHaveBeenCalledWith("anon-uid-line-1");
     // PII 금지 sentinel — info 호출 1회 이상.
     expect(infoMock.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -550,7 +551,8 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
 
     expect(result.uid).toBe("existing-line-uid-9");
     expect(result.isNewUser).toBe(false);
-    // D-LINE-21: developerClaims 미발급 → 두 번째 인자 없음.
+    // payload 에 email 없음(채널 email 권한 없음과 같은 상태) → 1-인자 호출
+    // 유지 (quick 260928-luw D-2).
     expect(mockCreateCustomToken).toHaveBeenCalledWith("existing-line-uid-9");
   });
 
@@ -598,8 +600,9 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
 
 // Task 2 — 잔여 Test 10-14 (conflictKind + PII regression).
 // Phase 12 kakao_custom_token.test.ts 의 conflict 시나리오 + PII regression
-// 패턴 직접 mirror. D-LINE-21 (email scope 미채택) 이라 자체 trigger 가능성은
-// 0 이지만 caller switch 분기는 정책 일관성 보존 — 회귀 가드 의무.
+// 패턴 직접 mirror. email_in_use 충돌 분기는 LINE ID token 에 email 이 있을
+// 때(채널 email 권한 + 사용자 동의) 실제로 도달한다 — 실제 발화는 LUW-4 ·
+// LUW-5 · 아래 CT-existing 케이스가 잠근다 (quick 260928-luw).
 describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -641,8 +644,9 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       code: "already-exists",
       message: "errorAccountExistsWithDifferentCredential",
     });
-    // 16-13: details.existingProvider 전달. LINE 은 email scope 미채택 →
-    // userInfo.email 부재 → createUser path provider 추론 skip → 'unknown'.
+    // 16-13: details.existingProvider 전달. payload 에 email 이 없으면
+    // createUser 경로가 기존 provider 를 추론할 수 없어 'unknown' — email 이
+    // 있으면 LUW-5 처럼 추론한다.
     await expect(promise).rejects.toMatchObject({
       details: {existingProvider: "unknown"},
     });
@@ -652,52 +656,74 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
     );
   });
 
-  // Plan 16-17 (A4 매트릭스) — LINE caller 가 다른 Custom Token 기존 계정의
-  // slug 를 client 로 전달하는지 검증. LINE 은 scope=openid+profile 고정으로
-  // email claim 을 받지 않으므로(D-LINE-21) endpoint 스스로 CT-existing
-  // 충돌을 trigger 할 수 없다 → resolveIdentity 를 spy 로 stub 하여
-  // "helper 가 kakao slug 를 산출하면 endpoint 가 그대로 details 에 실어
-  // 던진다" 는 배선 계약만 잠근다. 산출 능력 자체는 identity_index.test.ts
-  // 의 T-16-17-* 케이스가 담당한다.
+  // Plan 16-17 (A4 매트릭스) — LINE caller 가 다른 Custom Token 기존 계정
+  // (providerData 비어 있음)을 identity_index 역조회로 정확히 라벨링하는지
+  // 검증. payload 에 email 이 있으면 endpoint 스스로 CT-existing 충돌을
+  // 발화한다 — 16-17 OPT-OUT 해소 (quick 260928-luw). 이전에는
+  // resolveIdentity 를 stub 해 배선만 검증했다. kakao_custom_token.test.ts 의
+  // Kakao CT-existing 매트릭스 mirror.
   it(
     // eslint-disable-next-line max-len
-    "T-16-17-LINE-CT-EXISTING-01: existingProvider='kakao' → details 로 그대로 전달",
+    "T-16-17-LINE-CT-EXISTING-01: 기존 kakao Custom Token 계정 → details.existingProvider='kakao' (실제 발화)",
     async () => {
+      const email = "PII_LINE_CT_EXISTING_email@line.example";
+      const existingUid = "PII_LINE_CT_EXISTING_UID";
       mockVerifyLineIdToken.mockResolvedValue({
         sub: "U_line_ct_existing",
         name: "Tanaka",
+        email,
       });
       mockIdxGet.mockResolvedValue({exists: false});
-      const spy = jest
-        .spyOn(identityIndex, "resolveIdentity")
-        .mockResolvedValueOnce({
-          uid: "",
-          isNewUser: false,
-          conflictKind: "email_in_use",
-          existingProvider: "kakao",
-        });
+      // Custom Token 계정 — providerData 비어 있음 (라이브 관측 사실).
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: existingUid,
+        providerData: [],
+      });
+      mockIdxWhereGet.mockResolvedValueOnce({
+        docs: [{data: () => ({provider: "kakao"})}],
+      });
 
-      try {
-        const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
-        const promise = wrapped({
-          auth: anonymousCallerAuth("anon-uid-line-ct"),
-          app: {appId: "test"},
-          data: {idToken: "FAKE", nonce: "n"},
-        } as never);
-        await expect(promise).rejects.toBeInstanceOf(HttpsError);
-        await expect(promise).rejects.toMatchObject({
-          code: "already-exists",
-          message: "errorAccountExistsWithDifferentCredential",
-          details: {existingProvider: "kakao"},
-        });
-        expect(warnMock).toHaveBeenCalledWith(
-          expect.objectContaining({event: "line_email_collision"}),
-          expect.any(String),
-        );
-        expect(mockCreateCustomToken).not.toHaveBeenCalled();
-      } finally {
-        spy.mockRestore();
+      const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+      const promise = wrapped({
+        auth: anonymousCallerAuth("anon-uid-line-ct"),
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+        details: {existingProvider: "kakao"},
+      });
+      expect(mockIdxWhere).toHaveBeenCalledWith(
+        "firebaseUid",
+        "==",
+        existingUid,
+      );
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "line_email_collision"}),
+        expect.any(String),
+      );
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+
+      // PII regression sentinel — email / 기존 uid 본문 미노출.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
+      ];
+      for (const args of allLogCalls) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain(email);
+        expect(stringified).not.toContain(existingUid);
       }
+      const details = await promise.catch((e: HttpsError) => e.details);
+      const detailsStr = JSON.stringify(details);
+      expect(detailsStr).not.toContain(email);
+      expect(detailsStr).not.toContain(existingUid);
     },
   );
 
@@ -991,6 +1017,262 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       expect(result.isNewUser).toBe(false);
       // 핵심 — 기존 사용자 문서는 건드리지 않는다.
       expect(mockUserDocSet).not.toHaveBeenCalled();
+    },
+  );
+});
+
+// quick 260928-luw — LINE email (D-1 · D-2). 클라이언트가 email scope 를
+// 요청하고, 채널에 email 권한 + 사용자 동의가 있으면 ID token 에 `email` 이
+// 실린다. 서버는 이를 verified 로 취급해 userInfo · developerClaims 에 싣고
+// (Naver 선례), 없으면 이전과 같다 (userInfo.email 없음 · 1-인자 호출).
+// 이메일-있음 경로는 실기기 미검증 (dev 채널 email 권한 없음 — D-3) — 본
+// describe 가 서버 계약을 보장한다.
+describe("lineCustomToken — quick 260928-luw LINE email (D-1 · D-2)", () => {
+  const lineEmail = "PII_LINE_email@line.example";
+
+  // info · warn · error · debug · log 다섯 mock 호출 전부 (PII sentinel 검사용).
+  const collectLogCalls = (): unknown[][] => [
+    ...infoMock.mock.calls,
+    ...warnMock.mock.calls,
+    ...errorMock.mock.calls,
+    ...debugMock.mock.calls,
+    ...logMock.mock.calls,
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateCustomToken.mockResolvedValue("MOCK_LINE_TOKEN");
+    mockCreateUser.mockResolvedValue({uid: "new-uid-line-pre"});
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+    mockIdxWhere.mockReset();
+    mockIdxWhereGet.mockReset();
+    mockIdxWhereGet.mockResolvedValue({docs: []});
+  });
+
+  it(
+    // eslint-disable-next-line max-len
+    "LUW-1: 익명 caller + email 있음 → userInfo verified · Auth record verified · developerClaims {email, email_verified: true}",
+    async () => {
+      mockVerifyLineIdToken.mockResolvedValue({
+        sub: "U_line_luw_1",
+        name: "Taro",
+        email: lineEmail,
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      // call-through spy — 구현을 바꾸지 않고 endpoint 가 넘긴 인자만 본다.
+      const spy = jest.spyOn(identityIndex, "resolveIdentity");
+
+      try {
+        const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+        const result = (await wrapped({
+          auth: anonymousCallerAuth("anon-uid-luw-1"),
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+        expect(result.uid).toBe("anon-uid-luw-1");
+        expect(result.isNewUser).toBe(true);
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy.mock.calls[0][1].userInfo).toEqual({
+          email: lineEmail,
+          emailVerified: true,
+          displayName: "Taro",
+        });
+        // Auth record verified — auth_guard 분기 (4) (/verify-email) 미발동.
+        expect(mockUpdateUser).toHaveBeenCalledWith("anon-uid-luw-1", {
+          emailVerified: true,
+        });
+        // developerClaims strict — Naver 와 같은 「email 있으면 verified」.
+        expect(mockCreateCustomToken).toHaveBeenCalledWith("anon-uid-luw-1", {
+          email: lineEmail,
+          email_verified: true,
+        });
+        for (const args of collectLogCalls()) {
+          expect(JSON.stringify(args)).not.toContain(lineEmail);
+        }
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "LUW-2: 미인증 caller + email 있음 → createUser({emailVerified: true, email}) + developerClaims",
+    async () => {
+      mockVerifyLineIdToken.mockResolvedValue({
+        sub: "U_line_luw_2",
+        name: "Hanako",
+        email: lineEmail,
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+
+      const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+      const result = (await wrapped({
+        // auth 없음 — 재설치 후 첫 진입.
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never)) as {customToken: string; uid: string; isNewUser: boolean};
+
+      expect(result.uid).toBe("new-uid-line-pre");
+      expect(mockCreateUser).toHaveBeenCalledWith(
+        expect.objectContaining({emailVerified: true, email: lineEmail}),
+      );
+      expect(mockCreateCustomToken).toHaveBeenCalledWith("new-uid-line-pre", {
+        email: lineEmail,
+        email_verified: true,
+      });
+      for (const args of collectLogCalls()) {
+        expect(JSON.stringify(args)).not.toContain(lineEmail);
+      }
+    },
+  );
+
+  it.each([
+    ["email 키 없음", {}],
+    ["빈 문자열", {email: ""}],
+    ["비문자열 12345", {email: 12345}],
+  ])(
+    // eslint-disable-next-line max-len
+    "LUW-3 (%s): email 없음으로 처리 → userInfo 에 email 없음 · getUserByEmail 0 · createCustomToken 1-인자",
+    async (_label: string, emailField: Record<string, unknown>) => {
+      mockVerifyLineIdToken.mockResolvedValue({
+        sub: "U_line_luw_3",
+        name: "Jiro",
+        ...emailField,
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      const spy = jest.spyOn(identityIndex, "resolveIdentity");
+
+      try {
+        const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+        await wrapped({
+          auth: anonymousCallerAuth("anon-uid-luw-3"),
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never);
+
+        expect(mockGetUserByEmail).not.toHaveBeenCalled();
+        const userInfo = spy.mock.calls[0][1].userInfo;
+        expect(userInfo).not.toHaveProperty("email");
+        expect(userInfo).not.toHaveProperty("emailVerified");
+        // 이메일 없음 경로 = 오늘과 동일 — developerClaims 인자 자체가 없다.
+        expect(mockCreateCustomToken.mock.calls[0]).toEqual(["anon-uid-luw-3"]);
+        expect(mockCreateCustomToken.mock.calls[0]).toHaveLength(1);
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "LUW-4: 익명 caller + email 있음 + 같은 이메일 Google 계정 → already-exists · existingProvider 'google'",
+    async () => {
+      const existingUid = "PII_LINE_LUW4_EXISTING_UID";
+      const platformUid = "PII_LINE_LUW4_google_platform_uid";
+      mockVerifyLineIdToken.mockResolvedValue({
+        sub: "U_line_luw_4",
+        name: "Saburo",
+        email: lineEmail,
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: existingUid,
+        providerData: [{providerId: "google.com", uid: platformUid}],
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+      const promise = wrapped({
+        auth: anonymousCallerAuth("anon-uid-luw-4"),
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+        details: {existingProvider: "google"},
+      });
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "line_email_collision"}),
+        expect.any(String),
+      );
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+
+      for (const args of collectLogCalls()) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain(lineEmail);
+        expect(stringified).not.toContain(existingUid);
+        expect(stringified).not.toContain(platformUid);
+      }
+      const details = await promise.catch((e: HttpsError) => e.details);
+      const detailsStr = JSON.stringify(details);
+      expect(detailsStr).not.toContain(lineEmail);
+      expect(detailsStr).not.toContain(existingUid);
+      expect(detailsStr).not.toContain(platformUid);
+    },
+  );
+
+  it(
+    // eslint-disable-next-line max-len
+    "LUW-5: 미인증 caller + email 있음 + createUser email-already-in-use → existingProvider 'google' 추론",
+    async () => {
+      const existingUid = "PII_LINE_LUW5_EXISTING_UID";
+      const platformUid = "PII_LINE_LUW5_google_platform_uid";
+      mockVerifyLineIdToken.mockResolvedValue({
+        sub: "U_line_luw_5",
+        name: "Shiro",
+        email: lineEmail,
+      });
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockCreateUser.mockRejectedValueOnce(
+        Object.assign(new Error("email exists"), {
+          code: "auth/email-already-in-use",
+        }),
+      );
+      mockGetUserByEmail.mockReset();
+      mockGetUserByEmail.mockResolvedValueOnce({
+        uid: existingUid,
+        providerData: [{providerId: "google.com", uid: platformUid}],
+      });
+
+      const wrapped = testEnv.wrap(myFunctions.lineCustomToken);
+      const promise = wrapped({
+        app: {appId: "test"},
+        data: {idToken: "FAKE", nonce: "n"},
+      } as never);
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      // 이메일 없는 Test 10 의 'unknown' 과 대비 — email 이 있으면 추론된다.
+      await expect(promise).rejects.toMatchObject({
+        code: "already-exists",
+        message: "errorAccountExistsWithDifferentCredential",
+        details: {existingProvider: "google"},
+      });
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.objectContaining({event: "line_email_collision"}),
+        expect.any(String),
+      );
+      expect(mockCreateCustomToken).not.toHaveBeenCalled();
+
+      for (const args of collectLogCalls()) {
+        const stringified = JSON.stringify(args);
+        expect(stringified).not.toContain(lineEmail);
+        expect(stringified).not.toContain(existingUid);
+        expect(stringified).not.toContain(platformUid);
+      }
+      const details = await promise.catch((e: HttpsError) => e.details);
+      const detailsStr = JSON.stringify(details);
+      expect(detailsStr).not.toContain(lineEmail);
+      expect(detailsStr).not.toContain(existingUid);
+      expect(detailsStr).not.toContain(platformUid);
     },
   );
 });

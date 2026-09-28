@@ -67,7 +67,7 @@ type LineCustomTokenResponse = {
  *
  * **PII 금지 (D-LINE-40 carry-forward / Phase 11 D-08, Pitfall 1/7):** logger
  * payload 는 {event, uid, isNewUser} 만. idToken / payload 본문 (sub / name /
- * picture) 절대 금지.
+ * picture / email) 절대 금지.
  *
  * **App Check + 미인증 양립 (D-LINE-D11):** request.auth = null 분기 = 재설치
  * 후 첫 진입. App Check 토큰은 디바이스 attestation 으로 abuse 방어.
@@ -81,9 +81,12 @@ type LineCustomTokenResponse = {
  * - 입력 계약 위반 → `invalid-argument` / `errorInvalidArgument`.
  * - 서버 자체 결함 (Firestore / admin SDK) → `internal` / `errorUnknown`.
  *
- * **email 미발급 (D-LINE-21):** LINE 본 단계 scope = openid + profile 만.
- * payload 에서 email 추출 X, resolveIdentity 의 userInfo.email undefined,
- * createCustomToken 의 developerClaims undefined.
+ * **email (quick 260928-luw — D-LINE-21 개정):** 클라이언트는 openid +
+ * profile + email 을 요청한다 (D-1). payload `email` 은 채널에 email 권한이
+ * 있고 · 사용자가 동의했고 · LINE 계정에 이메일이 등록된 경우에만 온다.
+ * 있으면 userInfo.email + emailVerified=true · developerClaims
+ * `{email, email_verified: true}`, 없으면 이전과 같다 (userInfo.email 미설정 ·
+ * `createCustomToken(uid)` 1-인자).
  *
  * @param {{data: LineCustomTokenRequest, auth?: {uid: string}}} request
  *     onCall request — data.idToken / data.nonce 의무, auth optional.
@@ -106,6 +109,7 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
     let lineUserId: string | undefined;
     let lineDisplayName: string | undefined;
     let linePictureUrl: string | undefined;
+    let lineEmail: string | undefined;
     try {
       // helper 가 issuer / aud / alg / nonce 검증 모두 흡수. nonce 는 raw
       // 그대로 claim 과 비교 (Phase 14.1 D-14.1-02 — line-sdk-android
@@ -113,17 +117,29 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
       // request"). 위반 시 joseErrors.JWTClaimValidationFailed / 기타
       // JOSEError throw.
       const payload = await verifyLineIdToken(idToken, nonce);
+      // LINE ID token payload 필드 = iss · sub · aud · exp · iat ·
+      // auth_time · nonce · amr · name · picture · email — `email_verified`
+      // 는 없다 (<https://developers.line.biz/en/docs/line-login/verify-id-token/>).
+      // email 은 scope 에 email 이 있고 채널 email 권한 + 사용자 동의가 있을
+      // 때만 포함된다 (quick 260928-luw). 반드시 위 검증 성공 뒤에만 읽는다.
       const typedPayload = payload as {
         sub?: string;
-        // D-LINE-21: scope openid+profile 만 — email claim 비채택. OIDC 표준
-        // userinfo claim — LINE 사용자 표시명 + 프로필 이미지 (사용자 동의 시
-        // 포함). 미동의 시 undefined → Firebase Auth user record 미갱신.
+        // OIDC 표준 userinfo claim — LINE 사용자 표시명 + 프로필 이미지
+        // (사용자 동의 시 포함). 미동의 시 undefined → Firebase Auth user
+        // record 미갱신.
         name?: string;
         picture?: string;
+        // 신뢰 경계 — 타입을 가정하지 않고 아래 타입 가드로 좁힌다.
+        email?: unknown;
       };
       lineUserId = typedPayload.sub;
       lineDisplayName = typedPayload.name;
       linePictureUrl = typedPayload.picture;
+      // 비어 있지 않은 문자열만 채택 — 빈 문자열 · 비문자열은 「없음」.
+      const rawEmail = typedPayload.email;
+      if (typeof rawEmail === "string" && rawEmail.length > 0) {
+        lineEmail = rawEmail;
+      }
     } catch (err: unknown) {
       // PII 금지 (Pitfall 1 / 7 / D-LINE-40 carry-forward) — jose 에러 code
       // 비-PII 로깅. err.message / err.payload / err.claim / err.reason 본문
@@ -146,15 +162,26 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
     }
 
     // Step 2: Identity Index resolve — Phase 12.1 helper 자동 상속.
-    // D-LINE-21: email 미발급 → userInfo.email 미설정. displayName / photoURL
-    // 만 helper 에 전달, helper 가 createUser / updateUser 시점에 Firebase Auth
-    // user record 의 displayName / photoURL 에 propagate.
+    // email (quick 260928-luw) · displayName · photoURL 을 helper 에 전달하고,
+    // helper 가 createUser / updateUser 시점에 Firebase Auth user record 에
+    // propagate 한다. email 이 있으면 helper 의 같은-이메일 충돌 감지
+    // (email_in_use) 도 LINE 에서 동작한다. 없으면 userInfo.email 미설정.
     const callerUid = request.auth?.uid; // unauthenticated 허용.
     // debug reauth-login-auto-merge — 정식 로그인 caller 는 자기 계정에 매핑된
     // identity 로만 통과한다 (resolveIdentity 비익명 caller 가드, fail-closed).
     const callerIsAnonymous = isAnonymousCaller(request.auth);
-    const userInfo: {email?: string; displayName?: string; photoURL?: string} =
-      {};
+    const userInfo: {
+      email?: string;
+      emailVerified?: boolean;
+      displayName?: string;
+      photoURL?: string;
+    } = {};
+    if (lineEmail) userInfo.email = lineEmail;
+    // LINE ID token 에는 email_verified claim 이 없다 → 아래 developerClaims
+    // 주석과 **같은 가정** (「payload 에 email 이 있으면 verified」) 을 user
+    // record 에도 적용한다 (Naver WR-04 선례). 가정을 뒤집으려면 두 곳을
+    // 함께 바꿀 것.
+    if (lineEmail) userInfo.emailVerified = true;
     if (lineDisplayName) userInfo.displayName = lineDisplayName;
     if (linePictureUrl) userInfo.photoURL = linePictureUrl;
     let resolution;
@@ -181,26 +208,23 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
     // 자동 강제 (default arm 미사용 → union type 누락 시 컴파일 에러).
     switch (resolution.conflictKind) {
     case "email_in_use":
-      // **IN-06 (Phase 15 리뷰) — 구조적으로 도달 불가 (unreachable).**
-      // LINE 는 scope 가 openid + profile 이라 `userInfo.email` 을 절대
-      // 설정하지 않는다 (D-LINE-21). `resolveIdentity` 가 `email_in_use` 를
-      // 반환하는 두 경로는 모두 email 을 전제한다 — (1) `callerUid &&
-      // userInfo?.email` 가드, (2) `createUser` 의 `auth/email-already-in-use`
-      // (email 인자 없으면 발생 불가).
+      // quick 260928-luw — LINE ID token 에 email 이 있을 때 도달한다.
+      // `resolveIdentity` 가 `email_in_use` 를 반환하는 두 경로:
+      // (1) caller 가 있고 `userInfo.email` 이 있을 때 `getUserByEmail` 로
+      //     다른 계정 (native providerData 또는 identity_index 역조회의
+      //     Custom Token slug) 을 찾은 경우,
+      // (2) caller 가 없을 때 `createUser` 가 `auth/email-already-in-use`.
       //
-      // **arm 은 계약 보존용으로 유지한다.** exhaustive switch 가
-      // conflictKind union 변경을 컴파일 단계에서 강제하고, Phase 9.2 Gap B
-      // (callerUid + userInfo.email) path 와의 정책 일관성도 여기서 잠긴다.
-      // Phase 16 회귀 테스트가 이 arm 의 already-exists + details 계약을
-      // 명시적으로 검증하므로 동작을 바꾸지 않는다.
+      // **ops 주의:** email 권한이 없는 채널 (킷 dev 채널 포함) 은 payload 에
+      // email 이 없어 이 arm 이 발화하지 않는다. `line_email_collision` 을
+      // 운영 지표로 쓸 때는 채널 email 권한 여부를 함께 볼 것.
       //
-      // **ops 주의:** 아래 `line_email_collision` 은 현재 scope 에서
-      // **절대 발화하지 않는다.** 대시보드/알람 지표로 채택하면 "충돌 0건"
-      // 이라는 잘못된 안심 신호가 된다. email scope 를 추가하는 시점에
-      // 비로소 유효한 지표가 된다.
+      // exhaustive switch 가 conflictKind union 변경을 컴파일 단계에서
+      // 강제하고, Phase 9.2 Gap B (callerUid + userInfo.email) path 와의
+      // 정책 일관성도 여기서 잠긴다.
       logger.warn(
         {event: "line_email_collision"},
-        "LINE email collides with existing account (unreachable scope)",
+        "LINE email collides with existing account",
       );
       // 16-13: existingProvider slug 를 details 로 전달 (client sheet 분기 wiring).
       throw buildAccountExistsError(resolution.existingProvider);
@@ -233,15 +257,37 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
     const {uid, isNewUser} = resolution;
 
     // Step 3: Custom Token 발급 (admin SDK — 1h 만료).
-    // D-LINE-21: email 미발급 → developerClaims undefined (Phase 12 kakao 의
-    // userInfo.email 있을 때 propagate 분기와 동등하게 LINE 은 email 부재로
-    // undefined). Phase 17 (Account Linking) 가 link 시점에 email 통합 처리.
+    // quick 260928-luw — userInfo.email 이 있으면 developerClaims 로 client
+    // 의 getIdTokenResult().claims.email 에 propagate 한다 (Kakao · Naver 옵션
+    // C 와 같은 모양). 충돌 path 는 위 switch 가 먼저 throw 하므로 여기 미도달.
+    //
+    // LINE ID token 에는 `email_verified` claim 이 없다 → 본 starter-kit 은
+    // **「payload 에 email 이 있으면 verified」** 정책을 채택하고
+    // email_verified=true 를 명시 발급한다. 근거: LINE Help Center 의 이메일
+    // 등록 절차 — 사용자가 그 주소로 온 인증 코드를 입력하거나 메일의 URL 을
+    // 탭해야 등록된다
+    // (<https://help.line.me/line/smartphone/?contentId=20000060&lang=en>).
+    // fork 에서 미검증 취급으로 바꾸려면 이 단락의 `email_verified: true` 와
+    // Step 2 의 `userInfo.emailVerified = true` 두 곳을 함께 false 로 (각 한
+    // 줄) — 그러면 이메일 있는 LINE 사용자는 `/verify-email` 게이트
+    // (auth_guard 분기 (4)) 를 거친다.
+    //
+    // **PII 정책**: developerClaims 는 ID token claim 으로만 전파되고 logger
+    // 에는 싣지 않는다.
+    //
+    // email 이 없으면 developerClaims 없이 `createCustomToken(uid)` 1-인자
+    // 호출을 그대로 둔다 (이메일 없음 = 이전과 동일).
     //
     // CR-01 carry-forward: admin SDK throw 도 internal + errorUnknown 매핑.
     // err.message 본문 미노출 (PII 금지) — err.name 만 fingerprint.
+    const developerClaims = userInfo.email ?
+      {email: userInfo.email, email_verified: true} :
+      undefined;
     let customToken: string;
     try {
-      customToken = await getAuth().createCustomToken(uid);
+      customToken = developerClaims ?
+        await getAuth().createCustomToken(uid, developerClaims) :
+        await getAuth().createCustomToken(uid);
     } catch (err: unknown) {
       const errCode = err instanceof Error ? err.name : "unknown";
       logger.error(

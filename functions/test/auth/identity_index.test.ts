@@ -2461,9 +2461,9 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
   );
 
   // Plan 16-17 — 3 caller × CT-existing 양방향 매트릭스 (helper 레벨).
-  // LINE endpoint 는 scope 상 email claim 을 받지 않아
-  // (D-LINE-21) endpoint 테스트로는 이 truth 를 잠글 수 없다 —
-  // helper 는 caller 종류와 무관하게 동일 규칙으로 동작함을 여기서 잠근다.
+  // LINE endpoint 의 실제 발화는 line_custom_token.test.ts 의 CT-existing
+  // 교체본이 잠근다 (quick 260928-luw) — 여기서는 caller 종류와 무관한
+  // helper 규칙 (동일 규칙으로 동작) 을 잠근다.
   // IN-07 (Phase 15 리뷰): resolveIdentity 의 provider 가 ProviderId 로
   // 좁혀졌으므로 매트릭스 fixture 도 같은 union 으로 선언한다 — 오타 슬러그가
   // 컴파일 단계에서 걸린다.
@@ -3192,7 +3192,7 @@ describe("resolveIdentity — 비익명 caller 가드 (reauth-login-auto-merge)"
 // 다른 이메일 · 이메일 없음 → 새 계정(익명 uid 승격).
 //
 // 이메일이 있는 Custom Token 행은 dev 실기기로 도달할 수 없다(Kakao 비즈 앱
-// 미전환 · LINE email scope 미요청) → 본 Jest 가 서버 계약을 보장한다.
+// 미전환 · LINE email 권한 미신청) → 본 Jest 가 서버 계약을 보장한다.
 // ---------------------------------------------------------------------------
 // eslint-disable-next-line max-len
 describe("resolveIdentity Phase 16.8 D-21 — 해제 후 재로그인 매트릭스 (이메일 있는 CT)", () => {
@@ -3214,7 +3214,7 @@ describe("resolveIdentity Phase 16.8 D-21 — 해제 후 재로그인 매트릭�
     async () => {
       // D-21: 같은 이메일 → 기존 계정 안내 시트. 해제한 kakao 로 다시
       // 로그인해도 원 계정(google 이 남음)으로 자동 재연결되지 않는다.
-      // dev 실기기 도달 불가(비즈 앱 · LINE email 미요청) → Jest 가 보장.
+      // dev 실기기 도달 불가(비즈 앱 · LINE email 권한 미신청) → Jest 가 보장.
       mockGetUserByEmail.mockResolvedValueOnce({
         uid: "orig-uid",
         providerData: [{providerId: "google.com", uid: "g"}],
@@ -3248,7 +3248,7 @@ describe("resolveIdentity Phase 16.8 D-21 — 해제 후 재로그인 매트릭�
     async () => {
       // D-21: 다른 이메일 → 새 계정. 원 계정과 무관한 새 가입이며 CT 새
       // 계정은 원 계정 재연결을 막으므로 새 계정 탈퇴가 필요하다(manual).
-      // dev 실기기 도달 불가(비즈 앱 · LINE email 미요청) → Jest 가 보장.
+      // dev 실기기 도달 불가(비즈 앱 · LINE email 권한 미신청) → Jest 가 보장.
       mockGetUserByEmail.mockRejectedValueOnce(
         Object.assign(new Error("nf"), {code: "auth/user-not-found"}),
       );
@@ -3301,7 +3301,7 @@ describe("resolveIdentity Phase 16.8 D-21 — 해제 후 재로그인 매트릭�
     async () => {
       // D-21: 같은 이메일 → 기존 계정 안내 시트. 남은 계정이 CT 전용이라
       // providerData 가 비어 있어도 identity_index 역조회가 남은 provider
-      // (line) 를 찾는다. dev 실기기 도달 불가(비즈 앱 · LINE email 미요청)
+      // (line) 를 찾는다. dev 실기기 도달 불가(비즈 앱 · LINE email 권한 미신청)
       // → Jest 가 보장.
       mockGetUserByEmail.mockResolvedValueOnce({
         uid: "orig-uid",

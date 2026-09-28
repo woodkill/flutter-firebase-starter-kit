@@ -632,7 +632,8 @@ export async function resolveIdentity(
   if (userInfo?.photoURL) profileFields.photoURL = userInfo.photoURL;
 
   // WR-04: email 이 없으면 verify-email gate 오트리거 방지를 위해 true 를
-  // 유지하고 (LINE), email 이 있으면 IdP 가 보고한 상태를 따른다.
+  // 유지하고 (email 권한 없는 LINE 채널 등), email 이 있으면 IdP 가 보고한
+  // 상태를 따른다.
   // 미보고 시 보수적으로 false.
   const resolvedEmailVerified = userInfo?.email ?
     (userInfo.emailVerified ?? false) :
