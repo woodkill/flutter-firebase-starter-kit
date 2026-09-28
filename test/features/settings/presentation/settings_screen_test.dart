@@ -146,7 +146,7 @@ List<String> get _allSocialLinked => const <String>[
 /// 테스트용 User factory.
 User _testUser({
   List<String> providerIds = const <String>['password'],
-  String email = 'me@example.com',
+  String? email = 'me@example.com',
   String? signUpProviderId,
 }) {
   return User(
@@ -1323,5 +1323,36 @@ void main() {
         handle.dispose();
       },
     );
+  });
+
+  group('quick 260928-fp6 null email (D-01 · D-03)', () {
+    testWidgets('이메일 없는 사용자 — 이메일 행 값 「-」 · 병합 semantics '
+        '제목 줄바꿈 「-」 (16.7-S01 과 같은 병합 규칙)', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(
+          email: null,
+          providerIds: const <String>['kakao'],
+          signUpProviderId: 'kakao',
+        ),
+      );
+
+      // (a) 행 값 「-」.
+      expect(
+        find.descendant(of: _findEmailTile(), matching: find.text('-')),
+        findsOneWidget,
+      );
+      // (b) ListTile 병합 label = 제목 줄바꿈 값.
+      expect(tester.getSemantics(_findEmailTile()).label, 'Email\n-');
+      // (c) 대조군 — 가입 수단 행은 「-」 가 아니다.
+      expect(
+        tester.getSemantics(_findSignUpMethodTile()).label,
+        'Sign-up method\nKakao',
+      );
+      // (d) 렌더 예외 0.
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
   });
 }

@@ -37,7 +37,7 @@ class _MockFirebaseUser extends Mock implements fb.User {}
 
 User _stubUser({String uid = 'anon-uid'}) => User(
   uid: uid,
-  email: '',
+  email: null,
   emailVerified: false,
   displayName: null,
   photoUrl: null,

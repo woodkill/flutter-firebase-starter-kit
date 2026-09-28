@@ -199,7 +199,7 @@ void main() {
       expect(user.createdAt, DateTime.utc(2026, 1, 15, 10, 30));
     });
 
-    test('email 이 null 인 경우 빈 문자열로 fallback', () async {
+    test('email 이 null 인 경우 도메인 email 도 null (sentinel 없음)', () async {
       when(() => mockUser.uid).thenReturn('uid-no-email');
       when(() => mockUser.email).thenReturn(null);
       when(() => mockUser.emailVerified).thenReturn(false);
@@ -221,7 +221,7 @@ void main() {
       );
 
       final user = (result as Success).data;
-      expect(user.email, '');
+      expect(user.email, isNull);
       expect(user.displayName, isNull);
       expect(user.photoUrl, isNull);
     });

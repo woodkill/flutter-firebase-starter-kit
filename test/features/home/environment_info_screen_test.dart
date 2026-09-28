@@ -780,4 +780,60 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('quick 260928-fp6 null email (D-01 · D-03)', () {
+    testWidgets('이메일 없는 사용자 — 헤더 줄 · 이메일 카드 모두 「-」 '
+        '(줄 숨김 아님 · semantics Email: -)', (tester) async {
+      final handle = tester.ensureSemantics();
+      final user = User(
+        uid: 'uid-no-email',
+        email: null,
+        emailVerified: false,
+        displayName: 'No Email User',
+        createdAt: DateTime.utc(2026, 9, 28),
+        providerIds: const <String>['kakao'],
+        signUpProviderId: 'kakao',
+      );
+
+      await _pumpScreen(tester, user: user);
+
+      // (a) 헤더 — displayName 과 같은 Column 안에 「-」 줄이 그려진다.
+      final headerColumn = find
+          .ancestor(
+            of: find.text('No Email User', skipOffstage: false),
+            matching: find.byType(Column),
+          )
+          .first;
+      expect(
+        find.descendant(
+          of: headerColumn,
+          matching: find.text('-', skipOffstage: false),
+        ),
+        findsOneWidget,
+      );
+
+      // (b) 이메일 카드 — 값 「-」 + semantics 「Email: -」.
+      expect(find.bySemanticsLabel('Email: -'), findsOneWidget);
+      final emailCard = find
+          .ancestor(
+            of: find.byIcon(Icons.email, skipOffstage: false),
+            matching: find.byType(Card),
+          )
+          .first;
+      expect(
+        find.descendant(
+          of: emailCard,
+          matching: find.text('-', skipOffstage: false),
+        ),
+        findsOneWidget,
+      );
+
+      // (c) 대조군 — 가입 수단 값은 「-」 가 아니므로 위 「-」 는 이메일의 것.
+      expect(find.bySemanticsLabel('Sign-up method: Kakao'), findsOneWidget);
+
+      // (d) 렌더 예외 0.
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
+  });
 }

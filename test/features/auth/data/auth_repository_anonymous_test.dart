@@ -98,7 +98,7 @@ void main() {
       expect(result, isA<Success<dynamic>>());
       final user = (result as Success).data;
       expect(user.uid, 'anon-uid');
-      expect(user.email, '');
+      expect(user.email, isNull);
       expect(user.emailVerified, isFalse);
       expect(user.providerIds, isEmpty);
       verify(() => mockAuth.signInAnonymously()).called(1);

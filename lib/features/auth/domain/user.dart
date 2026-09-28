@@ -36,8 +36,10 @@ abstract class User with _$User {
     /// Firebase Auth UID.
     required String uid,
 
-    /// 사용자 이메일 주소.
-    required String email,
+    /// 사용자 이메일 주소. null = 이메일 없음(익명 · 이메일을 주지 않는
+    /// Custom Token 사용자) — firebase_auth `User.email` 과 같은 계약
+    /// (quick 260928-fp6 D-02). 표시 층은 `?? '-'` 로 받는다(D-01).
+    String? email,
 
     /// 이메일 인증 완료 여부.
     required bool emailVerified,

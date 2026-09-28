@@ -52,6 +52,8 @@ class SettingsScreen extends ConsumerWidget {
     final typography = context.appTypography;
     final user = ref.watch(currentUserProvider);
 
+    // quick 260928-fp6 D-01 · D-02: user null · email null 모두 「-」 — 도메인
+    // email 이 nullable 이라 빈 문자열 sentinel 은 없다.
     final email = user?.email ?? '-';
     // Phase 16.7 — 가입 수단 · 연결된 계정 분리. 홈 계정 카드와 같은 helper
     // (D-11 기록 없음 = 「-」 · 연결 = 보유 전부, D-12 미보유 기록값 그대로).

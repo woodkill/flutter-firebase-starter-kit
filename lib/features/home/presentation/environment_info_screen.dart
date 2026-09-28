@@ -873,8 +873,10 @@ class _AccountSection extends ConsumerWidget {
                     user.displayName ?? '-',
                     style: context.appTypography.bodyMedium,
                   ),
+                  // quick 260928-fp6 D-01: 이메일 없음 = 「-」 (16.7 D-11 · D-06
+                  // 「값 없음 = -」 규칙 · 줄은 숨기지 않고 높이 유지).
                   Text(
-                    user.email,
+                    user.email ?? '-',
                     style: context.appTypography.bodyMedium.copyWith(
                       color: context.colorScheme.onSurfaceVariant,
                     ),
@@ -888,7 +890,7 @@ class _AccountSection extends ConsumerWidget {
         _EnvironmentCard(
           icon: Icons.email,
           label: l10n.authAccountEmail,
-          value: user.email,
+          value: user.email ?? '-',
         ),
         Gap(spacing.md),
         InkWell(

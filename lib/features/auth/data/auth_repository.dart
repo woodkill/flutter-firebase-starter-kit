@@ -3705,12 +3705,14 @@ Future<void> _recordNoSignUpMethod(String uid, String providerId) async {}
 /// 본 함수가 그 경계 변환점이다. `lib/features/auth/domain/user.dart`는
 /// 본 함수에 의존하지 않으며, 순수 Freezed 모델로 유지된다.
 ///
-/// - [fbUser.email]이 null이면 빈 문자열로 fallback.
+/// - [fbUser.email] 은 그대로 넘긴다 — null = 이메일 없음(익명 · 이메일을
+///   주지 않는 Custom Token 사용자 · quick 260928-fp6 D-02). 표시 층이 `-` 로
+///   받는다(D-01).
 /// - [fbUser.metadata.creationTime]이 null이면 [DateTime.now]로 fallback.
 User _mapFirebaseUser(fb.User fbUser) {
   return User(
     uid: fbUser.uid,
-    email: fbUser.email ?? '',
+    email: fbUser.email,
     emailVerified: fbUser.emailVerified,
     displayName: fbUser.displayName,
     photoUrl: fbUser.photoURL,

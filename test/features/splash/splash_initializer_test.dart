@@ -36,7 +36,7 @@ _MockCrashlytics _buildCrashlyticsMock() {
 User stubUser({String uid = 'anon-uid'}) {
   return User(
     uid: uid,
-    email: '',
+    email: null,
     emailVerified: false,
     displayName: null,
     photoUrl: null,

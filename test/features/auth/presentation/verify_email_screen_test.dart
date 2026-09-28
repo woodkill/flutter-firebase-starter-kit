@@ -175,18 +175,18 @@ void main() {
 
     // ========================================================================
     // Phase 9.2 Gap B Dart consumer (HUMAN-UAT 2026-05-11):
-    // currentUser.email 가 빈 문자열일 때 graceful fallback 메시지가 표시되는
+    // currentUser.email 가 null 일 때 graceful fallback 메시지가 표시되는
     // invariant + non-empty 시 기존 메시지가 보존되는 regression sentinel.
-    // User.email 은 freezed 모델에서 required non-null String 이므로 'email
-    // 미설정' 시나리오는 빈 문자열로 표현된다 (verify_email_screen 의
-    // `userEmail.isEmpty` 분기와 정합). 본 테스트는 generated getter 호출
+    // `User.email` 은 nullable(quick 260928-fp6 D-02) — 'email 미설정' 은
+    // null 이고 `verify_email_screen` 의 `?? ''` + `isEmpty` 분기가 fallback 을
+    // 낸다. 본 테스트는 generated getter 호출
     // 대신 ARB 본문 verbatim 비교로 컴파일 의존성 최소화.
     // ========================================================================
-    testWidgets('VE-EMAIL-NULL-01: currentUser.email 빈 문자열 → graceful fallback '
+    testWidgets('VE-EMAIL-NULL-01: currentUser.email null → graceful fallback '
         '메시지 표시 (ko 로케일 verbatim)', (tester) async {
       final emptyEmailUser = User(
         uid: 'test-uid-empty-email',
-        email: '',
+        email: null,
         emailVerified: false,
         createdAt: DateTime.utc(2026),
       );
