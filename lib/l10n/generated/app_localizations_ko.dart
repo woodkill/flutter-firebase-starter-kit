@@ -685,6 +685,26 @@ class AppLocalizationsKo extends AppLocalizations {
   String get settingsUnlinkFailedUnknown => '연결 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.';
 
   @override
+  String settingsUnlinkDialogDisclosure(String provider) {
+    return '$provider 앱 연결(권한)도 함께 해제됩니다.';
+  }
+
+  @override
+  String settingsUnlinkDialogSignInGuide(String provider) {
+    return '해제하려면 $provider 계정으로 한 번 로그인합니다.';
+  }
+
+  @override
+  String settingsUnlinkFailedIdentityMismatch(String provider) {
+    return '연결된 $provider 계정이 아닙니다. 연결된 계정으로 다시 로그인해 주세요.';
+  }
+
+  @override
+  String settingsUnlinkFailedDisconnect(String provider) {
+    return '$provider 앱 연결을 해제하지 못해 연결을 유지했습니다. 잠시 후 다시 시도해 주세요.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override
@@ -733,4 +753,57 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get withdrawalConfirmActionSemantic => '회원탈퇴 — 영구 삭제, 복구 불가';
+
+  @override
+  String get withdrawalDisconnectIntro =>
+      '탈퇴하기 전에 이 계정에 연결된 서비스의 앱 연결(권한)을 하나씩 해제합니다. 일부 서비스는 해제를 위해 한 번 더 로그인해야 합니다.';
+
+  @override
+  String get withdrawalDisconnectStatusWaiting => '대기';
+
+  @override
+  String get withdrawalDisconnectStatusNeedsSignIn => '로그인하면 연결을 해제합니다';
+
+  @override
+  String get withdrawalDisconnectStatusWorking => '해제 중…';
+
+  @override
+  String get withdrawalDisconnectStatusDone => '해제됨';
+
+  @override
+  String get withdrawalDisconnectStatusFailed => '해제하지 못했습니다';
+
+  @override
+  String withdrawalDisconnectStatusMismatch(String provider) {
+    return '연결된 $provider 계정으로 로그인하세요';
+  }
+
+  @override
+  String get withdrawalDisconnectStatusSkipped => '건너뜀';
+
+  @override
+  String withdrawalDisconnectSkippedGuide(String provider) {
+    return '$provider 계정 설정에서 이 앱의 연결을 직접 해제해 주세요.';
+  }
+
+  @override
+  String get withdrawalDisconnectSkip => '건너뛰기';
+
+  @override
+  String withdrawalDisconnectSkipSemantic(String provider) {
+    return '$provider 건너뛰기';
+  }
+
+  @override
+  String withdrawalDisconnectRetrySemantic(String provider) {
+    return '$provider 재시도';
+  }
+
+  @override
+  String withdrawalDisconnectRowSemantic(String provider, String status) {
+    return '$provider: $status';
+  }
+
+  @override
+  String get withdrawalDisconnectFinalHint => '모든 서비스를 해제하거나 건너뛰면 탈퇴할 수 있습니다.';
 }

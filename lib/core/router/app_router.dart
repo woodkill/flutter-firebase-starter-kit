@@ -12,6 +12,7 @@ import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/home/presentation/environment_info_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/settings/presentation/withdrawal_disconnect_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/terms/presentation/terms_detail_screen.dart';
 import '../analytics/analytics_observer.dart';
@@ -173,6 +174,12 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.settings,
         name: AppRoutes.settingsName,
         builder: (context, state) => const SettingsScreen(),
+      ),
+      // Phase 16.10 D-06 — 탈퇴 진행 화면 (탈퇴 다이얼로그 확인 뒤 push).
+      GoRoute(
+        path: AppRoutes.withdrawalDisconnect,
+        name: AppRoutes.withdrawalDisconnectName,
+        builder: (context, state) => const WithdrawalDisconnectScreen(),
       ),
     ],
   );

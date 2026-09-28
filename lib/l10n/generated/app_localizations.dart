@@ -1342,6 +1342,30 @@ abstract class AppLocalizations {
   /// **'Couldn\'t unlink your account. Please try again later.'**
   String get settingsUnlinkFailedUnknown;
 
+  /// Phase 16.10 D-19 — unlink dialog disclosure: the provider-side app connection is removed too. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'This also removes the app\'s access to your {provider} account.'**
+  String settingsUnlinkDialogDisclosure(String provider);
+
+  /// Phase 16.10 D-10 — unlink dialog guide for re-sign-in providers: the user signs in once to unlink. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'To unlink, you\'ll sign in with {provider} once.'**
+  String settingsUnlinkDialogSignInGuide(String provider);
+
+  /// Phase 16.10 D-08 — unlink failed because the signed-in provider account is not the linked one (AccountUnlinkOutcome.identityMismatch). {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'That isn\'t the linked {provider} account. Sign in with the linked account and try again.'**
+  String settingsUnlinkFailedIdentityMismatch(String provider);
+
+  /// Phase 16.10 D-11 — unlink kept because the provider-side disconnect failed (AccountUnlinkOutcome.disconnectFailed). {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t disconnect from {provider}, so the account is still linked. Please try again later.'**
+  String settingsUnlinkFailedDisconnect(String provider);
+
   /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone').
   ///
   /// In en, this message translates to:
@@ -1431,6 +1455,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Withdraw account — permanent deletion, cannot be undone'**
   String get withdrawalConfirmActionSemantic;
+
+  /// Phase 16.10 D-06 · D-19 — withdrawal progress screen intro paragraph (discloses that each linked service's app connection is removed).
+  ///
+  /// In en, this message translates to:
+  /// **'Before deleting your account, we\'ll disconnect this app from each linked service and remove the access you gave it. Some services ask you to sign in once more to do this.'**
+  String get withdrawalDisconnectIntro;
+
+  /// Phase 16.10 D-06 — progress row status: waiting (not the current sign-in row yet).
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting'**
+  String get withdrawalDisconnectStatusWaiting;
+
+  /// Phase 16.10 D-06 — progress row status: the current re-sign-in row waits for the user to sign in.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to disconnect'**
+  String get withdrawalDisconnectStatusNeedsSignIn;
+
+  /// Phase 16.10 D-06 — progress row status: disconnect in progress (spinner row).
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnecting…'**
+  String get withdrawalDisconnectStatusWorking;
+
+  /// Phase 16.10 D-06 — progress row status: provider-side disconnect finished.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get withdrawalDisconnectStatusDone;
+
+  /// Phase 16.10 D-06 · D-12 — progress row status: disconnect failed (retry or skip).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t disconnect'**
+  String get withdrawalDisconnectStatusFailed;
+
+  /// Phase 16.10 D-08 — progress row status: the signed-in provider account is not the linked one. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with the linked {provider} account'**
+  String withdrawalDisconnectStatusMismatch(String provider);
+
+  /// Phase 16.10 D-12 — progress row status: the user skipped this provider.
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped'**
+  String get withdrawalDisconnectStatusSkipped;
+
+  /// Phase 16.10 D-12 — guide under a skipped row: disconnect the app manually in the provider account settings. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect this app yourself in your {provider} account settings.'**
+  String withdrawalDisconnectSkippedGuide(String provider);
+
+  /// Phase 16.10 D-12 — progress row skip button label.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get withdrawalDisconnectSkip;
+
+  /// Phase 16.10 D-12 — screen reader label of the skip button. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip {provider}'**
+  String withdrawalDisconnectSkipSemantic(String provider);
+
+  /// Phase 16.10 D-12 — screen reader label of the server row retry button. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry {provider}'**
+  String withdrawalDisconnectRetrySemantic(String provider);
+
+  /// Phase 16.10 D-06 — screen reader label of a progress row header. {status} is one withdrawalDisconnectStatus* value. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'{provider}: {status}'**
+  String withdrawalDisconnectRowSemantic(String provider, String status);
+
+  /// Phase 16.10 D-05 — hint above the disabled final delete button until every row is disconnected or skipped.
+  ///
+  /// In en, this message translates to:
+  /// **'You can delete your account once every service is disconnected or skipped.'**
+  String get withdrawalDisconnectFinalHint;
 }
 
 class _AppLocalizationsDelegate

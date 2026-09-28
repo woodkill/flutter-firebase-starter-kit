@@ -69,6 +69,12 @@ abstract final class AppRoutes {
   /// 설정 화면 name (Phase 16 D-05).
   static const String settingsName = 'settings';
 
+  /// 탈퇴 진행 화면 path (Phase 16.10 D-06).
+  static const String withdrawalDisconnect = '/settings/withdraw';
+
+  /// 탈퇴 진행 화면 name (Phase 16.10 D-06).
+  static const String withdrawalDisconnectName = 'withdrawalDisconnect';
+
   // ---------------------------------------------------------------------------
   // 재인증 진입 표시 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE, quick 260916-p8d)
   // ---------------------------------------------------------------------------

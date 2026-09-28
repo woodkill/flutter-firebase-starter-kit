@@ -706,6 +706,26 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t unlink your account. Please try again later.';
 
   @override
+  String settingsUnlinkDialogDisclosure(String provider) {
+    return 'This also removes the app\'s access to your $provider account.';
+  }
+
+  @override
+  String settingsUnlinkDialogSignInGuide(String provider) {
+    return 'To unlink, you\'ll sign in with $provider once.';
+  }
+
+  @override
+  String settingsUnlinkFailedIdentityMismatch(String provider) {
+    return 'That isn\'t the linked $provider account. Sign in with the linked account and try again.';
+  }
+
+  @override
+  String settingsUnlinkFailedDisconnect(String provider) {
+    return 'Couldn\'t disconnect from $provider, so the account is still linked. Please try again later.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override
@@ -756,4 +776,58 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get withdrawalConfirmActionSemantic =>
       'Withdraw account — permanent deletion, cannot be undone';
+
+  @override
+  String get withdrawalDisconnectIntro =>
+      'Before deleting your account, we\'ll disconnect this app from each linked service and remove the access you gave it. Some services ask you to sign in once more to do this.';
+
+  @override
+  String get withdrawalDisconnectStatusWaiting => 'Waiting';
+
+  @override
+  String get withdrawalDisconnectStatusNeedsSignIn => 'Sign in to disconnect';
+
+  @override
+  String get withdrawalDisconnectStatusWorking => 'Disconnecting…';
+
+  @override
+  String get withdrawalDisconnectStatusDone => 'Disconnected';
+
+  @override
+  String get withdrawalDisconnectStatusFailed => 'Couldn\'t disconnect';
+
+  @override
+  String withdrawalDisconnectStatusMismatch(String provider) {
+    return 'Sign in with the linked $provider account';
+  }
+
+  @override
+  String get withdrawalDisconnectStatusSkipped => 'Skipped';
+
+  @override
+  String withdrawalDisconnectSkippedGuide(String provider) {
+    return 'Disconnect this app yourself in your $provider account settings.';
+  }
+
+  @override
+  String get withdrawalDisconnectSkip => 'Skip';
+
+  @override
+  String withdrawalDisconnectSkipSemantic(String provider) {
+    return 'Skip $provider';
+  }
+
+  @override
+  String withdrawalDisconnectRetrySemantic(String provider) {
+    return 'Retry $provider';
+  }
+
+  @override
+  String withdrawalDisconnectRowSemantic(String provider, String status) {
+    return '$provider: $status';
+  }
+
+  @override
+  String get withdrawalDisconnectFinalHint =>
+      'You can delete your account once every service is disconnected or skipped.';
 }

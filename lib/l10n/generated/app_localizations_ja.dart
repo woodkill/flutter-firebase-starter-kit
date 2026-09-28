@@ -685,6 +685,26 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsUnlinkFailedUnknown => '連携の解除に失敗しました。しばらくしてからもう一度お試しください。';
 
   @override
+  String settingsUnlinkDialogDisclosure(String provider) {
+    return '$providerとのアプリ連携（アクセス）も解除されます。';
+  }
+
+  @override
+  String settingsUnlinkDialogSignInGuide(String provider) {
+    return '解除するには、$providerで一度ログインします。';
+  }
+
+  @override
+  String settingsUnlinkFailedIdentityMismatch(String provider) {
+    return '連携中の$providerアカウントではありません。連携中のアカウントでもう一度ログインしてください。';
+  }
+
+  @override
+  String settingsUnlinkFailedDisconnect(String provider) {
+    return '$providerとのアプリ連携を解除できなかったため、連携はそのままです。しばらくしてからもう一度お試しください。';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override
@@ -732,4 +752,58 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get withdrawalConfirmActionSemantic => 'アカウント退会 — 永久削除、復元不可';
+
+  @override
+  String get withdrawalDisconnectIntro =>
+      'アカウントを削除する前に、連携中のサービスとのアプリ連携（アクセス）を1つずつ解除します。サービスによっては、解除のためにもう一度ログインが必要です。';
+
+  @override
+  String get withdrawalDisconnectStatusWaiting => '未処理';
+
+  @override
+  String get withdrawalDisconnectStatusNeedsSignIn => 'ログインすると解除します';
+
+  @override
+  String get withdrawalDisconnectStatusWorking => '解除中…';
+
+  @override
+  String get withdrawalDisconnectStatusDone => '解除済み';
+
+  @override
+  String get withdrawalDisconnectStatusFailed => '解除できませんでした';
+
+  @override
+  String withdrawalDisconnectStatusMismatch(String provider) {
+    return '連携中の$providerアカウントでログインしてください';
+  }
+
+  @override
+  String get withdrawalDisconnectStatusSkipped => 'スキップ済み';
+
+  @override
+  String withdrawalDisconnectSkippedGuide(String provider) {
+    return '$providerのアカウント設定から、このアプリの連携を解除してください。';
+  }
+
+  @override
+  String get withdrawalDisconnectSkip => 'スキップ';
+
+  @override
+  String withdrawalDisconnectSkipSemantic(String provider) {
+    return '$providerをスキップ';
+  }
+
+  @override
+  String withdrawalDisconnectRetrySemantic(String provider) {
+    return '$providerを再試行';
+  }
+
+  @override
+  String withdrawalDisconnectRowSemantic(String provider, String status) {
+    return '$provider：$status';
+  }
+
+  @override
+  String get withdrawalDisconnectFinalHint =>
+      'すべてのサービスを解除またはスキップすると、アカウントを削除できます。';
 }

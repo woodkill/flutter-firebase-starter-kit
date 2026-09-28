@@ -17,6 +17,8 @@
 // - AsyncValue.error(NetworkException 계열 / TooManyRequests) →
 //   withdrawalFailureTransient SnackBar (WR-03 — 원인별 문구).
 // - AsyncValue.error(그 외) → withdrawalFailure SnackBar (dialog 유지 — 재시도).
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -27,7 +29,10 @@ import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../auth/data/auth_repository.dart';
+import '../../data/disconnect/disconnect_steps.dart';
 import '../settings_notifier.dart';
+import '../withdrawal_disconnect_notifier.dart';
 
 /// 탈퇴 확인 다이얼로그 (Phase 16 D-05~D-08 / UI-SPEC Surface C).
 ///
@@ -87,8 +92,24 @@ class _WithdrawalConfirmationDialogState
     }
   }
 
+  /// 「탈퇴」 확인을 처리한다 (Phase 16.10 D-05 · UI-SPEC §Surface W 진입).
+  ///
+  /// 끊을 provider 행이 하나 이상이면 다이얼로그를 닫고 탈퇴 진행 화면을
+  /// 연다 — 이 시점에는 계정 삭제를 부르지 않는다. 행이 없으면(이메일/비밀번호만
+  /// · 로그인 사용자 부재) 지금처럼 바로 삭제한다(Q6-A).
   Future<void> _onConfirm() async {
-    await ref.read(settingsProvider.notifier).requestAccountDeletion();
+    final rows = buildDisconnectRows(
+      ref.read(currentUserProvider)?.providerIds ?? const <String>[],
+      ref.read(disconnectStepsProvider),
+    );
+    if (rows.isEmpty) {
+      await ref.read(settingsProvider.notifier).requestAccountDeletion();
+      return;
+    }
+    // 다이얼로그를 닫으면 이 context 가 사라지므로 router 를 먼저 캡처한다.
+    final router = GoRouter.of(context);
+    Navigator.of(context).pop(false);
+    unawaited(router.push(AppRoutes.withdrawalDisconnect));
   }
 
   @override
@@ -129,7 +150,7 @@ class _WithdrawalConfirmationDialogState
           // (2026-09-07 실측: dev Cloud Run 할당량 차단이 "회원탈퇴에
           // 실패했습니다" 로 표시되어 원인 오인 유발). Surface D 의
           // outcome 별 문구 분기와 동일한 정책이다.
-          _showSnackBar(context, _resolveFailureMessage(l10n, error));
+          _showSnackBar(context, resolveWithdrawalFailureMessage(l10n, error));
         }
       }
     });
@@ -219,25 +240,6 @@ class _WithdrawalConfirmationDialogState
     );
   }
 
-  /// 탈퇴 실패 [error] 를 원인별 SnackBar 문구로 변환한다 (WR-03).
-  ///
-  /// 입력 계약은 `SettingsRepository._mapDeleteError` 가 만든 [AppException]
-  /// 서브타입이다. [ReauthenticationRequiredException] 은 호출처가 라우팅
-  /// 분기로 먼저 처리하므로 본 함수에 도달하지 않는다.
-  ///
-  /// - [NetworkException] 계열 (`unavailable` / `deadline-exceeded`) /
-  ///   [TooManyRequests] (`resource-exhausted`) — 재시도로 해소 가능한
-  ///   일시 오류이므로 [AppLocalizations.withdrawalFailureTransient].
-  /// - 그 외 ([UnknownException] 등) — 기존 generic
-  ///   [AppLocalizations.withdrawalFailure] (UI-SPEC Surface C verbatim).
-  String _resolveFailureMessage(AppLocalizations l10n, Object? error) {
-    return switch (error) {
-      NetworkException() ||
-      TooManyRequests() => l10n.withdrawalFailureTransient,
-      _ => l10n.withdrawalFailure,
-    };
-  }
-
   void _showSnackBar(BuildContext context, String message) {
     // dialog 가 같은 BuildContext 위에 떠 있어 ScaffoldMessenger 는 root 의
     // 것을 자동 사용 — root context 의 SnackBar 노출.
@@ -245,4 +247,24 @@ class _WithdrawalConfirmationDialogState
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+/// 탈퇴 실패 [error] 를 원인별 SnackBar 문구로 변환한다 (WR-03).
+///
+/// 탈퇴 다이얼로그와 탈퇴 진행 화면(Phase 16.10 Surface W)이 공유한다.
+///
+/// 입력 계약은 `SettingsRepository._mapDeleteError` 가 만든 [AppException]
+/// 서브타입이다. [ReauthenticationRequiredException] 은 호출처가 라우팅
+/// 분기로 먼저 처리하므로 본 함수에 도달하지 않는다.
+///
+/// - [NetworkException] 계열 (`unavailable` / `deadline-exceeded`) /
+///   [TooManyRequests] (`resource-exhausted`) — 재시도로 해소 가능한
+///   일시 오류이므로 [AppLocalizations.withdrawalFailureTransient].
+/// - 그 외 ([UnknownException] 등) — 기존 generic
+///   [AppLocalizations.withdrawalFailure] (UI-SPEC Surface C verbatim).
+String resolveWithdrawalFailureMessage(AppLocalizations l10n, Object? error) {
+  return switch (error) {
+    NetworkException() || TooManyRequests() => l10n.withdrawalFailureTransient,
+    _ => l10n.withdrawalFailure,
+  };
 }

@@ -1128,6 +1128,50 @@
     "description": "Phase 16.8 D-07 — unclassified unlink failure catch-all (AccountUnlinkOutcome.failed)."
   },
 
+  "settingsUnlinkDialogDisclosure": "This also removes the app's access to your {provider} account.",
+  "@settingsUnlinkDialogDisclosure": {
+    "description": "Phase 16.10 D-19 — unlink dialog disclosure: the provider-side app connection is removed too. {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
+  "settingsUnlinkDialogSignInGuide": "To unlink, you'll sign in with {provider} once.",
+  "@settingsUnlinkDialogSignInGuide": {
+    "description": "Phase 16.10 D-10 — unlink dialog guide for re-sign-in providers: the user signs in once to unlink. {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
+  "settingsUnlinkFailedIdentityMismatch": "That isn't the linked {provider} account. Sign in with the linked account and try again.",
+  "@settingsUnlinkFailedIdentityMismatch": {
+    "description": "Phase 16.10 D-08 — unlink failed because the signed-in provider account is not the linked one (AccountUnlinkOutcome.identityMismatch). {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
+  "settingsUnlinkFailedDisconnect": "Couldn't disconnect from {provider}, so the account is still linked. Please try again later.",
+  "@settingsUnlinkFailedDisconnect": {
+    "description": "Phase 16.10 D-11 — unlink kept because the provider-side disconnect failed (AccountUnlinkOutcome.disconnectFailed). {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
   "settingsDangerZoneSection": "Danger zone",
   "@settingsDangerZoneSection": {
     "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone')."
@@ -1207,5 +1251,109 @@
   "withdrawalConfirmActionSemantic": "Withdraw account — permanent deletion, cannot be undone",
   "@withdrawalConfirmActionSemantic": {
     "description": "Phase 16 D-08 destructive intent Semantics label — UI-SPEC line 332 verbatim 채택 (Warning 7). Plan 16-06 Task 6.2 WC10 의 withdrawalConfirmAction 버튼 Semantics label 이 본 key consume 의무. 시각 라벨 (withdrawalConfirmAction='Delete') 과 분리 — 스크린리더 사용자에게 destructive intent + 영구성 + 비가역성 명시."
+  },
+
+  "withdrawalDisconnectIntro": "Before deleting your account, we'll disconnect this app from each linked service and remove the access you gave it. Some services ask you to sign in once more to do this.",
+  "@withdrawalDisconnectIntro": {
+    "description": "Phase 16.10 D-06 · D-19 — withdrawal progress screen intro paragraph (discloses that each linked service's app connection is removed)."
+  },
+
+  "withdrawalDisconnectStatusWaiting": "Waiting",
+  "@withdrawalDisconnectStatusWaiting": {
+    "description": "Phase 16.10 D-06 — progress row status: waiting (not the current sign-in row yet)."
+  },
+
+  "withdrawalDisconnectStatusNeedsSignIn": "Sign in to disconnect",
+  "@withdrawalDisconnectStatusNeedsSignIn": {
+    "description": "Phase 16.10 D-06 — progress row status: the current re-sign-in row waits for the user to sign in."
+  },
+
+  "withdrawalDisconnectStatusWorking": "Disconnecting…",
+  "@withdrawalDisconnectStatusWorking": {
+    "description": "Phase 16.10 D-06 — progress row status: disconnect in progress (spinner row)."
+  },
+
+  "withdrawalDisconnectStatusDone": "Disconnected",
+  "@withdrawalDisconnectStatusDone": {
+    "description": "Phase 16.10 D-06 — progress row status: provider-side disconnect finished."
+  },
+
+  "withdrawalDisconnectStatusFailed": "Couldn't disconnect",
+  "@withdrawalDisconnectStatusFailed": {
+    "description": "Phase 16.10 D-06 · D-12 — progress row status: disconnect failed (retry or skip)."
+  },
+
+  "withdrawalDisconnectStatusMismatch": "Sign in with the linked {provider} account",
+  "@withdrawalDisconnectStatusMismatch": {
+    "description": "Phase 16.10 D-08 — progress row status: the signed-in provider account is not the linked one. {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
+  "withdrawalDisconnectStatusSkipped": "Skipped",
+  "@withdrawalDisconnectStatusSkipped": {
+    "description": "Phase 16.10 D-12 — progress row status: the user skipped this provider."
+  },
+
+  "withdrawalDisconnectSkippedGuide": "Disconnect this app yourself in your {provider} account settings.",
+  "@withdrawalDisconnectSkippedGuide": {
+    "description": "Phase 16.10 D-12 — guide under a skipped row: disconnect the app manually in the provider account settings. {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
+  "withdrawalDisconnectSkip": "Skip",
+  "@withdrawalDisconnectSkip": {
+    "description": "Phase 16.10 D-12 — progress row skip button label."
+  },
+
+  "withdrawalDisconnectSkipSemantic": "Skip {provider}",
+  "@withdrawalDisconnectSkipSemantic": {
+    "description": "Phase 16.10 D-12 — screen reader label of the skip button. {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
+  "withdrawalDisconnectRetrySemantic": "Retry {provider}",
+  "@withdrawalDisconnectRetrySemantic": {
+    "description": "Phase 16.10 D-12 — screen reader label of the server row retry button. {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+
+  "withdrawalDisconnectRowSemantic": "{provider}: {status}",
+  "@withdrawalDisconnectRowSemantic": {
+    "description": "Phase 16.10 D-06 — screen reader label of a progress row header. {status} is one withdrawalDisconnectStatus* value. {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Google"
+      },
+      "status": {
+        "type": "String",
+        "example": "Disconnected"
+      }
+    }
+  },
+
+  "withdrawalDisconnectFinalHint": "You can delete your account once every service is disconnected or skipped.",
+  "@withdrawalDisconnectFinalHint": {
+    "description": "Phase 16.10 D-05 — hint above the disabled final delete button until every row is disconnected or skipped."
   }
 }
