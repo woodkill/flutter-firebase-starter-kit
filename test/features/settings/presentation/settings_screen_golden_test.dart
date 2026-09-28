@@ -30,23 +30,19 @@
 // D-13 — 해제 버튼 ≥ 24×24 dp · `labeledTapTargetGuideline` ·
 // `textContrastGuideline` (Android 48dp guideline 은 inline 예외라 걸지 않는다 ·
 // UI-SPEC Q6-A). 16.7 줄바꿈 단언 · 가입 수단 1줄 가드는 보유 7 fixture 그대로.
-
-import 'dart:async';
-import 'dart:io';
+//
+// **Phase 16.10 (Plan 16.10-08 Task 2):** 해제 다이얼로그 content 가 U′(본문 +
+// 앱 연결 고지 + 재로그인 provider 로그인 안내)로 바뀌어(Q7-A) Facebook
+// 다이얼로그 golden 은 반드시 바뀐다. 대조 채택안은 16.10
+// `mockups/adopted_unlink_dialog_16_10_ko_280_{google,facebook}_{light,dark}.png`
+// 로 바뀌고 Google 2장이 새로 생긴다 — 16.8 `adopted_unlink_dialog_ko_280_
+// facebook_*` 는 이력으로 보존한다(덮어쓰기 0). 설정 화면 golden 은 byte 불변.
+// 공용 harness(FontLoader · theme · settle · push 진입)는 같은 디렉터리의
+// golden harness 파일로 승격했다(진행 화면 golden 과 공유).
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
-import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
-import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
@@ -55,25 +51,11 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'settings_golden_harness.dart';
+
 /// [AuthRepository] 대체 Mock — 설정 화면 렌더는 repository 를 호출하지
 /// 않으므로 stub 을 두지 않는다.
 class _MockAuthRepository extends Mock implements AuthRepository {}
-
-/// golden device pixel ratio — mockup 촬영 조건(DPR 3)과 같다.
-const double _dpr = 3.0;
-
-/// 설정 viewport 높이 (logical px) — UI-SPEC §Golden 캡처 계약 S 열.
-const double _settingsHeight = 800;
-
-/// 활성 소셜 Strategy 6종 — `settings_screen_test.dart` `_allStrategies` 순서.
-const List<AuthStrategy> _sixStrategies = <AuthStrategy>[
-  GoogleAuthStrategy(),
-  AppleAuthStrategy(),
-  FacebookAuthStrategy(),
-  KakaoAuthStrategy(),
-  NaverAuthStrategy(),
-  LineAuthStrategy(),
-];
 
 /// Phase 16.8 W5 — 가입 naver + 연결 5 (도달 가능 최악 · UI-SPEC §Golden
 /// 캡처 계약 fixture verbatim 순서).
@@ -131,139 +113,30 @@ User _fixtureUser(
   );
 }
 
-/// [family] 이름으로 [paths] 의 폰트 파일들을 [FontLoader] 에 등록한다.
-///
-/// 자산 부재는 [TestFailure] 로 surface 한다 — silent fallback 으로 golden 이
-/// tofu · Ahem 렌더로 바뀌는 drift 를 막는다.
-Future<void> _loadFamily(String family, List<String> paths) async {
-  final loader = FontLoader(family);
-  for (final path in paths) {
-    final file = File(path);
-    if (!file.existsSync()) {
-      throw TestFailure(
-        '$family 폰트 자산 부재 ($path) — Phase 16.7 golden 생성 불가. '
-        'production bundle 자산 또는 assets/test_fonts 누락 여부 확인 의무.',
-      );
-    }
-    final bytes = await file.readAsBytes();
-    loader.addFont(Future.value(ByteData.sublistView(bytes)));
-  }
-  await loader.load();
-}
-
-/// golden 폰트 5 family + CJK subset 2종을 등록한다.
-///
-/// flutter_test 는 pubspec `fonts:` 를 자동 로드하지 않고 동적 로드 폰트로
-/// 자동 fallback 하지도 않는다 — ko/ja 글리프는 [_theme] 의 test 전용
-/// `fontFamilyFallback` 으로만 CJK subset 에 닿는다.
-Future<void> _loadGoldenFonts() async {
-  await _loadFamily('Roboto', <String>[
-    'assets/fonts/roboto/Roboto-VariableFont_wdth_wght.ttf',
-  ]);
-  await _loadFamily('Inter', <String>[
-    'assets/fonts/inter/Inter-Regular.ttf',
-    'assets/fonts/inter/Inter-Medium.ttf',
-  ]);
-  await _loadFamily('Pretendard', <String>[
-    'assets/fonts/pretendard/PretendardVariable.ttf',
-  ]);
-  final flutterRoot = Platform.environment['FLUTTER_ROOT'];
-  if (flutterRoot == null || flutterRoot.isEmpty) {
-    throw TestFailure(
-      'FLUTTER_ROOT 환경변수 부재 — MaterialIcons 폰트 경로를 결정할 수 없다. '
-      '`fvm flutter test` 로 실행했는지 확인 의무.',
-    );
-  }
-  await _loadFamily('MaterialIcons', <String>[
-    '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
-  ]);
-  await _loadFamily('MockCjkKR', <String>[
-    'assets/test_fonts/NotoSansCJKKR-Regular-Subset.otf',
-  ]);
-  await _loadFamily('MockCjkJP', <String>[
-    'assets/test_fonts/NotoSansCJKJP-Regular-Subset.otf',
-  ]);
-}
-
-/// [lang] 의 CJK fallback family 이름 (ko/ja 외 null).
-String? _cjkFamily(String lang) => switch (lang) {
-  'ko' => 'MockCjkKR',
-  'ja' => 'MockCjkJP',
-  _ => null,
-};
-
-/// production [AppTheme] + ko/ja 만 test 전용 CJK `fontFamilyFallback`.
-///
-/// `lib/` 테마는 건드리지 않는다 — Android 시스템 CJK fallback 을 test 에서
-/// 재현하는 장치다 (UI-SPEC §Mockup CJK 재현성).
-ThemeData _theme(Brightness brightness, String lang) {
-  final base = brightness == Brightness.light
-      ? AppTheme.light()
-      : AppTheme.dark();
-  final family = _cjkFamily(lang);
-  if (family == null) return base;
-  return base.copyWith(
-    textTheme: base.textTheme.apply(fontFamilyFallback: <String>[family]),
-  );
-}
-
-/// 비동기 이미지 디코딩을 흡수한 뒤 frame 을 안정화한다 (16.1 golden 패턴).
-Future<void> _settleAssets(WidgetTester tester) async {
-  await tester.runAsync(() async {
-    await tester.pumpAndSettle();
-    for (final element in find.byType(Image).evaluate().toList()) {
-      final widget = element.widget as Image;
-      await precacheImage(widget.image, element);
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    await tester.pumpAndSettle();
-  });
-  await tester.pumpAndSettle();
-}
-
 /// 빈 [Scaffold] 위에 production [SettingsScreen] 을 push 해 [width]×800 ·
-/// DPR 3 viewport 에 올린다.
+/// DPR 3 viewport 에 올린다 ([pumpGoldenRoute] 위임).
 ///
 /// override 는 UI-SPEC §Golden 캡처 계약 S 열 — repository mock · 활성
-/// strategy 6 · 사용자 fixture. [ProviderScope] 에 새 key 를 줘 반복 pump
-/// 마다 새 container 를 만든다.
-Future<void> _pumpSettings(
+/// strategy 6 · 사용자 fixture.
+Future<void> _pumpSettingsScreen(
   WidgetTester tester, {
   required User user,
   required Locale locale,
   required Brightness brightness,
   required double width,
-}) async {
-  tester.view.devicePixelRatio = _dpr;
-  tester.view.physicalSize = Size(width, _settingsHeight) * _dpr;
-  addTearDown(tester.view.resetDevicePixelRatio);
-  addTearDown(tester.view.resetPhysicalSize);
-
-  await tester.pumpWidget(
-    ProviderScope(
-      key: UniqueKey(),
-      overrides: [
-        authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
-        activeStrategiesProvider.overrideWithValue(_sixStrategies),
-        currentUserProvider.overrideWith((ref) => user),
-      ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: _theme(brightness, locale.languageCode),
-        locale: locale,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: const Scaffold(),
-      ),
-    ),
+}) {
+  return pumpGoldenRoute(
+    tester,
+    route: (_) => const SettingsScreen(),
+    overrides: [
+      authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
+      activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),
+      currentUserProvider.overrideWith((ref) => user),
+    ],
+    locale: locale,
+    brightness: brightness,
+    width: width,
   );
-  await tester.pump();
-  unawaited(
-    Navigator.of(
-      tester.element(find.byType(Scaffold)),
-    ).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen())),
-  );
-  await _settleAssets(tester);
 }
 
 /// [rp] 를 같은 폭으로 [TextPainter] 에 재배치했을 때의 줄 수.
@@ -364,7 +237,7 @@ _linkedValueLayout(WidgetTester tester) {
 
 void main() {
   setUpAll(() async {
-    await _loadGoldenFonts();
+    await loadGoldenFonts();
   });
 
   group('Phase 16.8 설정 화면 golden — ko 280×800 W5 · push (D-07 · D-14)', () {
@@ -372,7 +245,7 @@ void main() {
       final mode = brightness.name;
 
       testWidgets('golden ko 280 worst — $mode', (tester) async {
-        await _pumpSettings(
+        await _pumpSettingsScreen(
           tester,
           user: _fixtureUser(
             'ko',
@@ -399,41 +272,49 @@ void main() {
     }
   });
 
-  group('Phase 16.8 해제 다이얼로그 golden — ko 280 Facebook', () {
-    for (final brightness in Brightness.values) {
-      final mode = brightness.name;
+  group('Phase 16.10 해제 다이얼로그 golden — ko 280 Google · Facebook', () {
+    for (final (provider, label) in const <(String, String)>[
+      ('google', 'Google'),
+      ('facebook', 'Facebook'),
+    ]) {
+      for (final brightness in Brightness.values) {
+        final mode = brightness.name;
 
-      testWidgets('dialog golden ko 280 Facebook — $mode', (tester) async {
-        await _pumpSettings(
-          tester,
-          user: _fixtureUser(
-            'ko',
-            signUpProviderId: 'naver',
-            providerIds: _w5ProviderIds,
-          ),
-          locale: const Locale('ko'),
-          brightness: brightness,
-          width: 280,
-        );
-        // production 탭 경로 — 밑줄 이름 → _onUnlinkPressed →
-        // UnlinkConfirmationDialog.show. router 없는 harness 에서도 예외 0
-        // (GoRouter 는 reauthRequired arm 에서만 해석한다).
-        final handle = tester.ensureSemantics();
-        await tester.tap(find.bySemanticsLabel('Facebook 연결 해제'));
-        await tester.pumpAndSettle();
-        await _settleAssets(tester);
-        expect(find.byType(AlertDialog), findsOneWidget);
-        expect(
-          tester.takeException(),
-          isNull,
-          reason: 'layout · 탭 경로 예외 0 이어야 golden 이 시각 계약을 대표한다',
-        );
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/unlink_dialog_ko_280_facebook_$mode.png'),
-        );
-        handle.dispose();
-      });
+        testWidgets('dialog golden ko 280 $label — $mode', (tester) async {
+          await _pumpSettingsScreen(
+            tester,
+            user: _fixtureUser(
+              'ko',
+              signUpProviderId: 'naver',
+              providerIds: _w5ProviderIds,
+            ),
+            locale: const Locale('ko'),
+            brightness: brightness,
+            width: 280,
+          );
+          // production 탭 경로 — 밑줄 이름 → _onUnlinkPressed →
+          // UnlinkConfirmationDialog.show. router 없는 harness 에서도 예외 0
+          // (GoRouter 는 reauthRequired arm 에서만 해석한다). 끊기 dispatch 는
+          // 「해제」 탭 전이라 호출 0 (다이얼로그는 레지스트리 kind 만 읽는다).
+          final handle = tester.ensureSemantics();
+          await tester.tap(find.bySemanticsLabel('$label 연결 해제'));
+          await tester.pumpAndSettle();
+          await settleGoldenAssets(tester);
+          expect(find.byType(AlertDialog), findsOneWidget);
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'layout · 탭 경로 예외 0 이어야 golden 이 시각 계약을 대표한다',
+          );
+          await expectLater(
+            find.byType(MaterialApp),
+            matchesGoldenFile(
+              'goldens/unlink_dialog_ko_280_${provider}_$mode.png',
+            ),
+          );
+          handle.dispose();
+        });
+      }
     }
   });
 
@@ -441,7 +322,7 @@ void main() {
     testWidgets('해제 버튼 ≥ 24×24 · labeledTapTarget · textContrast — ko 280 W5', (
       tester,
     ) async {
-      await _pumpSettings(
+      await _pumpSettingsScreen(
         tester,
         user: _fixtureUser(
           'ko',
@@ -480,7 +361,7 @@ void main() {
         final fixture = worst ? 'worst' : 'd11';
 
         testWidgets('라벨 한 줄 · 줄바꿈 위치 — $lang $fixture', (tester) async {
-          await _pumpSettings(
+          await _pumpSettingsScreen(
             tester,
             user: _fixtureUser(lang, signUpProviderId: worst ? 'line' : null),
             locale: Locale(lang),
@@ -516,7 +397,7 @@ void main() {
           final l10n = lookupAppLocalizations(Locale(lang));
           var isTitleChecked = false;
           for (final id in values) {
-            await _pumpSettings(
+            await _pumpSettingsScreen(
               tester,
               user: _fixtureUser(lang, signUpProviderId: id),
               locale: Locale(lang),
