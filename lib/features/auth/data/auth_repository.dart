@@ -3882,7 +3882,7 @@ List<String> _mergeProviderIds(
 typedef ServerProviderIdsReader = Future<List<String>> Function();
 
 /// 현재 로그인 사용자의 providerId 목록을 **서버에서 1회** 읽는다 (Phase
-/// 16.10 review WR-01).
+/// 16.10 review WR-01 · iteration 2 IN-03).
 ///
 /// 결과 = Firebase `providerData` id ∪ `users/{uid}.linkedProviders[]` —
 /// [currentUser] 와 같은 합집합이다. 차이는 진실원이다: [currentUser] 는
@@ -3891,20 +3891,37 @@ typedef ServerProviderIdsReader = Future<List<String>> Function();
 /// 끊기 행처럼 비었다는 판정이 되돌릴 수 없는 동작(바로 삭제)으로 이어지는
 /// 곳은 이 함수를 쓴다.
 ///
-/// - 로그인 사용자 부재 → 빈 목록 (Firestore 호출 0 — 삭제 경로가 부재를
-///   스스로 거부한다).
-/// - 문서는 `GetOptions(source: Source.server)` 로 읽는다 — 캐시로 대체하지
-///   않고 서버에 닿지 못하면 [FirebaseException] 을 던진다(cloud_firestore
-///   platform interface 8.0.7 `Source.server` 계약). 읽기 실패는 흡수하지
-///   않고 그대로 던진다 — 호출부가 삭제하지 않고 재시도를 안내한다(fail-closed).
+/// 두 입력 모두 서버 값이다.
+/// - native 절반(`providerData`)은 `User.reload()` 로 Auth 서버에서 다시 받은
+///   사용자에서 읽는다 — SDK 캐시는 다른 기기에서 연결한 Google · Apple ·
+///   Facebook 을 모를 수 있다(서버 `linkedProviders` 는 Custom Token 전용이라
+///   native 연결을 담지 않는다). 같은 파일의 [AuthRepository] 재인증 경로
+///   (`_reloadLinkedNativeUser`)와 같은 관례다.
+/// - Custom Token 절반은 `users/{uid}` 문서를
+///   `GetOptions(source: Source.server)` 로 읽는다 — 캐시로 대체하지 않고
+///   서버에 닿지 못하면 [FirebaseException] 을 던진다(cloud_firestore
+///   platform interface 8.0.7 `Source.server` 계약).
+///
+/// - 로그인 사용자 부재 → 빈 목록 (reload · Firestore 호출 0 — 삭제 경로가
+///   부재를 스스로 거부한다).
+/// - reload 실패 · reload 뒤 같은 uid 세션 없음 · 문서 읽기 실패는 흡수하지
+///   않고 그대로 던진다 — 호출부가 삭제하지 않고 재시도를 안내한다
+///   (fail-closed).
 /// - 문서 부재 · 필드 부재는 빈 연결 목록이다(문서가 없다는 것은 서버 확정).
 /// - 필드 파싱은 [linkedProvidersStream] 과 같은 파서를 쓴다.
 Future<List<String>> fetchProviderIdsFromServer({
   required fb.FirebaseAuth auth,
   required FirebaseFirestore firestore,
 }) async {
+  final cached = auth.currentUser;
+  if (cached == null) return const <String>[];
+  // IN-03 (iteration 2): SDK 캐시 providerData 가 아니라 서버 기준 사용자.
+  await cached.reload();
   final user = auth.currentUser;
-  if (user == null) return const <String>[];
+  if (user == null || user.uid != cached.uid) {
+    // PII 0 — uid 를 싣지 않는다.
+    throw StateError('no same-uid session after reload');
+  }
   final nativeProviderIds = user.providerData
       .map((info) => info.providerId)
       .toList(growable: false);
