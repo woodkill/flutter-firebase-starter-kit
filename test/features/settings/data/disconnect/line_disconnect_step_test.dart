@@ -12,7 +12,7 @@
 //   LN8: 로그인 사용자 부재 · 익명 → Failed(UnknownException) · SDK 0
 //   LN9: SDK signIn 이 ServiceUnavailable → Failed(ServiceUnavailable)
 //   LN10: access token 빈 문자열 → Failed(ServiceUnavailable) · callable 0
-//   LN11: signInWithCustomToken 거부 → Failed(ServiceUnavailable) · logout 1
+//   LN11: (review IN-03) 서버 끊기 뒤 signInWithCustomToken 거부 → Done · logout 1
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -312,7 +312,7 @@ void main() {
   );
 
   test(
-    'LN11: signInWithCustomToken 이 FirebaseAuthException → Failed(ServiceUnavailable) · logout 1',
+    'LN11 (review IN-03): 서버 끊기 뒤 signInWithCustomToken 실패 → Done(provider 측 해제됨) · logout 1',
     () async {
       stubLineSignIn();
       stubCallableResponse(<String, dynamic>{
@@ -326,7 +326,10 @@ void main() {
 
       final outcome = await _step.run(deps, reloginForFreshness: true);
 
-      expectFailedWith(outcome, isA<ServiceUnavailable>());
+      // 신선도만 갱신하지 못했다 — 삭제가 신선도 부족으로 거부되면 진행
+      // 화면의 5분 창 복구가 이 「해제됨」 행을 다시 연다.
+      expect(outcome, isA<DisconnectDone>());
+      verify(() => mockAuth.signInWithCustomToken('ct-U')).called(1);
       verify(() => mockLine.logout()).called(1);
     },
   );

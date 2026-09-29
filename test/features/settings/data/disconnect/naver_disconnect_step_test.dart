@@ -11,6 +11,7 @@
 //   NV7: resource-exhausted → Failed(TooManyRequests)
 //   NV8: 로그인 사용자 부재 → Failed(UnknownException) · SDK 0
 //   NV9: SDK signIn 이 ServiceUnavailable → Failed(ServiceUnavailable) · logout 1
+//   NV10: (review IN-03) 서버 끊기 뒤 signInWithCustomToken 거부 → Done · logout 1
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -288,6 +289,23 @@ void main() {
         () =>
             mockFunctions.httpsCallable(any(), options: any(named: 'options')),
       );
+      verify(() => mockNaver.logout()).called(1);
+    },
+  );
+
+  test(
+    'NV10 (review IN-03): 서버 끊기 뒤 signInWithCustomToken 실패 → Done(provider 측 해제됨) · logout 1',
+    () async {
+      stubAppSignIn();
+      stubCallableResponse(_okResponse);
+      when(
+        () => mockAuth.signInWithCustomToken('ct-U'),
+      ).thenThrow(fb.FirebaseAuthException(code: 'network-request-failed'));
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expect(outcome, isA<DisconnectDone>());
+      verify(() => mockAuth.signInWithCustomToken('ct-U')).called(1);
       verify(() => mockNaver.logout()).called(1);
     },
   );

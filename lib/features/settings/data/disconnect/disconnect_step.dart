@@ -260,6 +260,33 @@ DisconnectStep? disconnectStepFor(
   return steps.where((step) => step.provider == provider).firstOrNull;
 }
 
+/// 재로그인 끊기 뒤 서버가 준 [customToken] 으로 같은 uid 세션을 새로 연다
+/// (D-07 · 16.10 review IN-03).
+///
+/// 탈퇴 진행 화면(`reloginForFreshness: true`)에서 서버 끊기가 **성공한 뒤**
+/// 에만 부른다. 이 로그인이 실패해도 provider 측 연결은 이미 끊겼으므로 끊기
+/// 결과는 바꾸지 않는다(호출부는 [DisconnectDone]). 실패는 서버 탈퇴의 300초
+/// 신선도(`auth_time`)만 갱신하지 못한 것이다 — 계정 삭제가 신선도 부족으로
+/// 거부되면 진행 화면의 5분 창 복구(마지막 「해제됨」 재로그인 행 재개방 →
+/// 재로그인 · 재끊기 · 토큰 소비)가 처리한다. 실패로 표시하면 건너뛴 사용자가
+/// 「직접 해제하세요」 라는 틀린 안내를 받는다.
+Future<void> signInWithReloginToken(
+  DisconnectDeps deps,
+  AccountProvider provider,
+  String customToken,
+) async {
+  try {
+    await deps.auth.signInWithCustomToken(customToken);
+  } on Object catch (e) {
+    // PII 0 — 분류만. 토큰 · uid 는 싣지 않는다.
+    logDisconnectFailure(
+      provider,
+      'disconnected, relogin failed '
+      '${e is fb.FirebaseAuthException ? 'code=${e.code}' : 'runtimeType=${e.runtimeType}'}',
+    );
+  }
+}
+
 /// 끊기를 실행할 로그인 사용자를 돌려준다 — 부재 · 익명이면 null.
 fb.User? signedInUserOf(fb.FirebaseAuth auth) {
   final current = auth.currentUser;
