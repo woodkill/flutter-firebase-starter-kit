@@ -2787,7 +2787,7 @@ firebase functions:secrets:set LINE_CHANNEL_SECRET
 - **특정 provider 끊기를 끄기** — 레지스트리에서 그 줄을 지운다. 서버 callable 과 secret 까지 지우면 그 provider 의 끊기 설정이 필요 없다.
 - **행 순서** — `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`). 설정 「계정 연결」 후보 순서와 공유하며, 진행 화면은 서버 행을 항상 먼저 둔다.
 - **문구** — ARB `withdrawalDisconnect*`(진행 화면) · `settingsUnlinkDialogDisclosure` · `settingsUnlinkDialogSignInGuide` · `settingsUnlinkFailedIdentityMismatch` · `settingsUnlinkFailedDisconnect`(`lib/l10n/app_{ko,en,ja}.arb`). 문구를 바꾸면 golden 이 바뀐다 — `fvm flutter test --no-pub --update-goldens test/features/settings/presentation/withdrawal_disconnect_golden_test.dart test/features/settings/presentation/settings_screen_golden_test.dart` 로 다시 찍고 before/after 를 비교한다.
-- **timeout** — 끊기 callable timeout 은 `AuthRepository.customTokenCallableTimeout`(10초) · 네이버 웹 모양은 `naverWebCallableTimeout`(20초) 한 곳에서 바뀐다.
+- **timeout** — 서버 행(카카오 · Facebook) 끊기 callable timeout 은 `AuthRepository.customTokenCallableTimeout`(10초), 재로그인 끊기(라인 · 네이버 1-tap · 네이버 웹)는 `kReloginDisconnectCallableTimeout`(25초 · `lib/features/settings/data/disconnect/disconnect_step.dart`) 한 곳에서 바뀐다. 25초 근거: 서버가 외부 API 를 각 5초 상한으로 직렬 호출하는 최악 예산(라인 verify ∥ 프로필 → channel token → deauthorize = 15초 · 네이버 웹 code 교환 → 프로필 → revoke = 15초) 위에 Firestore · 토큰 서명 · cold start 여유 10초다. 서버에 외부 호출을 더하면 이 값도 함께 다시 계산한다 — 짧으면 서버는 끊었는데 행이 「해제하지 못했습니다」 로 표시된다(16.10 review WR-03).
 - **삭제 로직** — 진행 화면은 `SettingsNotifier.requestAccountDeletion()` 만 부른다. 삭제 단계를 바꾸려면 그 한 곳과 `deleteUserAccount` 를 고친다.
 
 ### Naver 계정 연결 (Phase 16.9)

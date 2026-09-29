@@ -2,8 +2,8 @@
 //
 // Phase 16.10 plan 06 Task 2 — Naver 재로그인 끊기 step.
 //
-//   NV1: 1-tap 탈퇴 — payload {accessToken} · Custom Token timeout · 순서
-//   NV2: 웹 — payload {code, state} · 웹 timeout
+//   NV1: 1-tap 탈퇴 — payload {accessToken} · 재로그인 끊기 timeout(WR-03) · 순서
+//   NV2: 웹 — payload {code, state} · 같은 재로그인 끊기 timeout(WR-03)
 //   NV3: SDK 취소(null) → Cancelled · callable 0 · logout 1
 //   NV4: 응답 uid 다름 → IdentityMismatch · signInWithCustomToken 0
 //   NV5: 서버 permission-denied + caller_identity_mismatch → IdentityMismatch
@@ -23,7 +23,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
-import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
@@ -47,6 +46,12 @@ class _MockHttpsCallableResult extends Mock
     implements HttpsCallableResult<Map<String, dynamic>> {}
 
 const String _currentUid = 'U';
+
+/// 서버 직렬 외부 호출 최악 예산 (review WR-03) — Naver 웹: code 교환 5s → 프로필 5s → revoke 5s.
+///
+/// 각 호출은 서버 `FETCH_TIMEOUT_MS`(5000) `AbortSignal.timeout` 상한이다.
+/// client timeout 은 이보다 커야 서버 성공을 실패로 오표시하지 않는다.
+const Duration _serverWorstExternalBudget = Duration(seconds: 15);
 
 const NaverDisconnectStep _step = NaverDisconnectStep();
 
@@ -144,7 +149,7 @@ void main() {
   });
 
   test(
-    'NV1: 1-tap 탈퇴 — {accessToken} · Custom Token timeout · callable → 세션 갱신 → logout 순서',
+    'NV1: 1-tap 탈퇴 — {accessToken} · 재로그인 끊기 timeout(WR-03) · callable → 세션 갱신 → logout 순서',
     () async {
       stubAppSignIn();
       stubCallableResponse(_okResponse);
@@ -160,11 +165,14 @@ void main() {
         () => mockAuth.signInWithCustomToken('ct-U'),
         () => mockNaver.logout(),
       ]);
-      expect(capturedTimeout(), AuthRepository.customTokenCallableTimeout);
+      // WR-03: 서버 최악 외부 예산(1-tap 10s · 웹 15s)보다 길고 두 모양이 같다.
+      final timeout = capturedTimeout();
+      expect(timeout, kReloginDisconnectCallableTimeout);
+      expect(timeout, greaterThan(_serverWorstExternalBudget));
     },
   );
 
-  test('NV2: 웹 — {code, state} · naverWebCallableTimeout', () async {
+  test('NV2: 웹 — {code, state} · 재로그인 끊기 timeout(WR-03)', () async {
     when(
       () => mockNaver.signIn(),
     ).thenAnswer((_) async => const NaverWebSignIn(code: 'c', state: 's'));
@@ -179,7 +187,9 @@ void main() {
         'state': 's',
       }),
     ).called(1);
-    expect(capturedTimeout(), AuthRepository.naverWebCallableTimeout);
+    final timeout = capturedTimeout();
+    expect(timeout, kReloginDisconnectCallableTimeout);
+    expect(timeout, greaterThan(_serverWorstExternalBudget));
     verify(() => mockNaver.logout()).called(1);
   });
 

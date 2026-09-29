@@ -31,7 +31,6 @@ import '../../../../core/auth/auth_strategy.dart';
 import '../../../../core/auth/provider_id.dart';
 import '../../../../core/auth/strategies/line_auth_strategy.dart';
 import '../../../../core/error/app_exception.dart';
-import '../../../auth/data/auth_repository.dart';
 import '../../../auth/data/line_sdk_client.dart';
 import '../../../auth/data/minted_custom_token.dart';
 import 'disconnect_step.dart';
@@ -75,8 +74,9 @@ class LineDisconnectStep extends DisconnectStep {
       }
       final callable = deps.functions.httpsCallable(
         'disconnectLineProvider',
+        // WR-03: 서버 외부 호출 예산(verify ∥ 프로필 → 발급 → 해제)보다 길게.
         options: HttpsCallableOptions(
-          timeout: AuthRepository.customTokenCallableTimeout,
+          timeout: kReloginDisconnectCallableTimeout,
         ),
       );
       final response = await callable.call<Map<String, dynamic>>(

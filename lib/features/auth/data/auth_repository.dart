@@ -204,16 +204,12 @@ class AuthRepository implements AnonymousSignIn {
 
   /// Custom Token 계열 callable 타임아웃의 공개 alias (Phase 16.10).
   ///
-  /// 탈퇴 · 해제 끊기 step(`lib/features/settings/data/disconnect/`)이
-  /// 공유한다 — 값을 바꾸면 [_kCustomTokenTimeout] 한 곳만 바꾼다(리터럴
-  /// 복제 0 · 16.8 IN-02).
+  /// 탈퇴 · 해제의 서버 단독 끊기 step(Kakao · Facebook — `lib/features/
+  /// settings/data/disconnect/server_disconnect_step.dart`)이 쓴다 — 값을
+  /// 바꾸면 [_kCustomTokenTimeout] 한 곳만 바꾼다(리터럴 복제 0 · 16.8
+  /// IN-02). 재로그인 끊기(LINE · Naver)는 외부 호출이 더 많아 별도
+  /// `kReloginDisconnectCallableTimeout` 을 쓴다(16.10 review WR-03).
   static const Duration customTokenCallableTimeout = _kCustomTokenTimeout;
-
-  /// Naver 킷 웹 경로 callable 타임아웃의 공개 alias (Phase 16.10).
-  ///
-  /// 끊기 step 이 공유한다 — 값을 바꾸면
-  /// [_kNaverWebCustomTokenTimeout] 한 곳만 바꾼다(리터럴 복제 0).
-  static const Duration naverWebCallableTimeout = _kNaverWebCustomTokenTimeout;
 
   /// 단위 테스트 결정성 보장을 위한 시간 주입 hook.
   final DateTime Function() _now;

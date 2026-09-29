@@ -3,13 +3,16 @@
 // Naver 재로그인 끊기 행 (D-02 · D-07 · D-08 · D-09 · D-11 · C-03).
 //
 // Naver 토큰 폐기에는 `client_secret` 이 필요해 서버(`disconnectNaverProvider`)
-// 를 거친다. 로그인 결과는 두 모양이고 callable 은 하나다 — payload 와
-// timeout 만 [NaverSignInResult] sealed 결과로 고른다(provider 분기 아님).
-// - 1-tap(NAVER 앱): `{accessToken}` · 로그인과 같은 Custom Token timeout.
-// - 킷 웹: `{code, state}` · 20초 timeout. 서버가 code 교환 · 프로필 · 소유
-//   대조 · 폐기 · custom token 발급을 NAVER 에 직렬로 호출하므로 1-tap 보다
-//   길다(16.5 WR-01 — 로그인 웹 경로와 같은 예산). code 는 1회용이라 재로그인
-//   과 끊기를 한 callable 이 함께 처리한다(RESEARCH Pitfall 5).
+// 를 거친다. 로그인 결과는 두 모양이고 callable 은 하나다 — payload 만
+// [NaverSignInResult] sealed 결과로 고른다(provider 분기 아님).
+// - 1-tap(NAVER 앱): `{accessToken}`.
+// - 킷 웹: `{code, state}`. code 는 1회용이라 재로그인과 끊기를 한 callable
+//   이 함께 처리한다(RESEARCH Pitfall 5).
+// timeout 은 두 모양 모두 [kReloginDisconnectCallableTimeout](25s)이다 (16.10
+// review WR-03). 서버가 NAVER 를 직렬로 부른다 — 웹 = code 교환 · 프로필 ·
+// 폐기 3회(15s), 1-tap = 프로필 · 폐기 2회(10s) — 로그인 경로보다 폐기 1회가
+// 더 많아 로그인 timeout(10s · 웹 20s)을 쓰면 서버는 끊었는데 클라이언트는
+// 실패로 표시할 수 있었다.
 //
 // 순서 의무 (RESEARCH Pitfall 1 · A7): SDK logout 은 callable 응답을 받은 뒤
 // `finally` 에서만 부른다 — LINE 과 같은 규칙으로 두어 토큰 폐기 시점이
@@ -26,7 +29,6 @@ import '../../../../core/auth/auth_strategy.dart';
 import '../../../../core/auth/provider_id.dart';
 import '../../../../core/auth/strategies/naver_auth_strategy.dart';
 import '../../../../core/error/app_exception.dart';
-import '../../../auth/data/auth_repository.dart';
 import '../../../auth/data/minted_custom_token.dart';
 import '../../../auth/data/naver_sdk_client.dart';
 import '../../../auth/data/naver_sign_in_result.dart';
@@ -65,19 +67,20 @@ class NaverDisconnectStep extends DisconnectStep {
         // D-11: 로그인 취소는 실패가 아니다.
         return const DisconnectCancelled();
       }
-      final (payload, timeout) = switch (result) {
-        NaverAppSignIn(:final accessToken) => (
-          <String, dynamic>{'accessToken': accessToken},
-          AuthRepository.customTokenCallableTimeout,
-        ),
-        NaverWebSignIn(:final code, :final state) => (
-          <String, dynamic>{'code': code, 'state': state},
-          AuthRepository.naverWebCallableTimeout,
-        ),
+      final payload = switch (result) {
+        NaverAppSignIn(:final accessToken) => <String, dynamic>{
+          'accessToken': accessToken,
+        },
+        NaverWebSignIn(:final code, :final state) => <String, dynamic>{
+          'code': code,
+          'state': state,
+        },
       };
       final callable = deps.functions.httpsCallable(
         'disconnectNaverProvider',
-        options: HttpsCallableOptions(timeout: timeout),
+        options: HttpsCallableOptions(
+          timeout: kReloginDisconnectCallableTimeout,
+        ),
       );
       final response = await callable.call<Map<String, dynamic>>(payload);
       final customToken = requireMintedCustomToken(

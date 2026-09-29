@@ -25,7 +25,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
-import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/line_disconnect_step.dart';
@@ -48,6 +47,12 @@ class _MockHttpsCallableResult extends Mock
     implements HttpsCallableResult<Map<String, dynamic>> {}
 
 const String _currentUid = 'U';
+
+/// 서버 직렬 외부 호출 최악 예산 (review WR-03) — LINE: verify ∥ 프로필 5s → channel token 5s → deauthorize 5s.
+///
+/// 각 호출은 서버 `FETCH_TIMEOUT_MS`(5000) `AbortSignal.timeout` 상한이다.
+/// client timeout 은 이보다 커야 서버 성공을 실패로 오표시하지 않는다.
+const Duration _serverWorstExternalBudget = Duration(seconds: 15);
 
 const LineDisconnectStep _step = LineDisconnectStep();
 
@@ -164,7 +169,9 @@ void main() {
                 ),
               ).captured.single
               as HttpsCallableOptions;
-      expect(options.timeout, AuthRepository.customTokenCallableTimeout);
+      // WR-03: 서버 최악 외부 예산(verify ∥ 프로필 → 발급 → 해제 = 15s)보다 길다.
+      expect(options.timeout, kReloginDisconnectCallableTimeout);
+      expect(options.timeout, greaterThan(_serverWorstExternalBudget));
     },
   );
 

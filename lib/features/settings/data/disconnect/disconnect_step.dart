@@ -82,6 +82,24 @@ final class DisconnectFailed extends DisconnectOutcome {
   final AppException exception;
 }
 
+/// 재로그인 끊기 callable(LINE · Naver 1-tap · Naver 웹)의 client timeout —
+/// 25초 (16.10 review WR-03).
+///
+/// 서버 최악 예산 = 직렬 외부 호출 × 각 5s(`FETCH_TIMEOUT_MS` ·
+/// `AbortSignal.timeout` — 헤더 + 본문 전체) + Firestore 소유 대조 read +
+/// `createCustomToken` + cold start:
+/// - LINE: verify ∥ `/v2/profile`(병렬 5s) → channel token 5s → deauthorize
+///   5s = 15s. channel token 발급은 소유 대조 뒤라(D-08) 병렬화하지 않는다.
+/// - Naver 웹: code 교환 5s → `/v1/nid/me` 5s → revoke 5s = 15s.
+/// - Naver 1-tap: `/v1/nid/me` 5s → revoke 5s = 10s.
+///
+/// 외부 15s 위에 Firestore · 토큰 서명 · dev cold start(수 초)를 얹어 10s 여유를
+/// 둔다. 이보다 짧으면 서버가 이미 끊었는데 클라이언트가 `deadline-exceeded` →
+/// 행 실패로 표시해 「직접 해제하세요」 라는 틀린 안내를 낸다. 로그인 경로의
+/// Custom Token timeout(10s · Naver 웹 20s)과는 별개다 — 끊기 callable 은 외부
+/// 호출이 1회 더 많다.
+const Duration kReloginDisconnectCallableTimeout = Duration(seconds: 25);
+
 /// 끊기 행의 종류 — 진행 화면의 행 순서 · 버튼 모양을 정한다 (UI-SPEC Q2-A).
 enum DisconnectKind {
   /// 서버 단독 끊기 — 사용자 로그인 없이 callable 1회 (Kakao · Facebook).
