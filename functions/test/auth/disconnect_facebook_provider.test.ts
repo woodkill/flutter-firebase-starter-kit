@@ -4,8 +4,9 @@
  *
  * **Mock 한계 — 실 단말 UAT (plan 10) 가 ground truth.** 본 파일은 Admin
  * `getUser` · 전역 `fetch`(Graph `DELETE /{asid}/permissions`)를 jest stub
- * 으로 흉내낸다. 「이미 끊긴 사용자」 의 실제 Graph 응답(A2)은 UAT 재진입이
- * 관측하고 plan 11 이 실측 fixture 로 잠근다 — 그 전까지는 보수 매핑이다.
+ * 으로 흉내낸다. 「이미 끊긴 사용자」 의 실제 Graph 응답(A2)은 plan 10 UAT
+ * 재진입이 관측했다 — 재삭제도 성공 본문이고 F15 가 그 실측 fixture 다. 오류
+ * 응답 경로(iOS Limited Login 등)는 미실측이라 보수 매핑이다.
  *
  * 시나리오:
  *  - F1: 성공 `{success: true}` — getUser(uid) · 정확 URL · DELETE · Bearer
@@ -402,8 +403,8 @@ describe("disconnectFacebookProvider — Graph 오류 코드 매핑", () => {
   );
 
   // A2 보수 매핑 (RESEARCH Pitfall 7): 「이미 끊긴 사용자」 후보(100/33)는
-  // 실측 전이라 성공으로 매핑하지 않는다 — plan 11 이 UAT 실측 fixture 로
-  // 이 케이스를 다시 잠근다.
+  // 성공으로 매핑하지 않는다. plan 10 실측에서 재삭제는 이 오류가 아니라 성공
+  // 본문이었다(F15) — 이 오류 코드 자체는 미실측이다.
   it("F9: 100/33(이미 끊김 후보) → unavailable · A2 보수", async () => {
     arrangeProviderData([{providerId: "facebook.com", uid: FB_ASID}]);
     mockGraphResponse(400, {

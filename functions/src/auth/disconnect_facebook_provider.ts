@@ -13,10 +13,13 @@
 //   Login 토큰은 Graph API 를 쓸 수 없으므로 「재로그인 user token 으로
 //   전환」 하는 대체 경로는 없다. 이 callable 이 실패하면 진행 화면 행 실패 →
 //   건너뛰기(D-12)로 흡수하고, 실제 동작은 iOS batch UAT(D-17)가 실측한다.
-// - **A2 보수 매핑 (Pitfall 7):** 「이미 끊긴 사용자」 응답 코드는 아직
-//   실측되지 않았다. 후보를 추측해 성공으로 매핑하지 않는다 — 성공 ·
-//   명시 실패(`190` · rate limit · 네트워크) 외에는 모두 `unavailable` 이다.
-//   plan 10 UAT 재진입 실측 뒤 plan 11 이 실측 fixture 로 잠근다.
+// - **A2 재진입 (Pitfall 7 · plan 10 실측):** 이미 권한을 지운 사용자를 다시
+//   지워도 Graph 는 성공 본문(`{success: true}`)을 돌려준다 — plan 10 Android
+//   UAT 재진입 관측(`UAT1610_FB_REDELETE: success`)을 Jest F15 로 잠갔다.
+//   그래서 「이미 끊긴 사용자」 전용 오류 코드 매핑은 없다. 오류 응답 경로
+//   (iOS Limited Login 등)는 미실측이라 후보 코드를 추측해 성공으로 매핑하지
+//   않는다 — 성공 · 명시 실패(`190` · rate limit · 네트워크) 외에는 모두
+//   `unavailable` 이다.
 // - T-16.10-07: app token 을 URL 쿼리 문자열에 싣지 않는다 — URL 은 요청
 //   로그 · 프록시 · 에러 보고에 남는다. `Authorization: Bearer` 헤더로만
 //   보낸다 (plan 01 Wave 0 `A3_GRAPH_BEARER: accepted` 실측).
@@ -268,7 +271,8 @@ export const disconnectFacebookProvider = onCall(
       if (code !== undefined && GRAPH_RATE_LIMIT_CODES.includes(code)) {
         throw new HttpsError("resource-exhausted", "errorTooManyRequests");
       }
-      // A2 보수 매핑 — 「이미 끊긴 사용자」 후보 코드도 여기로 온다.
+      // A2 — 재삭제는 성공 본문이라(plan 10 실측 · F15) 여기 오지 않는다.
+      // 미실측 오류 응답(iOS Limited Login 등)은 보수적으로 unavailable.
       throw idpUnavailable();
     }
 
