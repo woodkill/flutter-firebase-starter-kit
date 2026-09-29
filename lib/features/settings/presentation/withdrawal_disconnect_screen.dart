@@ -25,7 +25,6 @@ import '../../../core/auth/provider_id.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/router/app_routes.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../auth/presentation/_widgets/social_button.dart';
@@ -215,15 +214,12 @@ class _WithdrawalDisconnectScreenState
                 ),
               ),
               // Q9-A 아래 영역 위 선 — SDK Scaffold persistentFooter 기본 장식과
-              // 같은 식이며 목록이 넘치지 않아도 항상 그린다.
+              // 같은 식이며 목록이 넘치지 않아도 항상 그린다. 두께는 인자 없이
+              // M3 기본값(`_DividerDefaultsM3.thickness` 1.0)을 따른다 (16.10
+              // review IN-04 — iteration 2).
               Container(
                 decoration: BoxDecoration(
-                  border: Border(
-                    top: Divider.createBorderSide(
-                      context,
-                      width: AppTheme.dividerThickness,
-                    ),
-                  ),
+                  border: Border(top: Divider.createBorderSide(context)),
                 ),
                 child: _FinalBar(
                   allDone: state.allDone,
