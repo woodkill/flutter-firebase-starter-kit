@@ -12,6 +12,7 @@
  *    body 문자열 그대로) · 성공 로그
  *  - K2: `-101`(이미 끊긴 사용자) → 성공 · 멱등 (D-14)
  *  - K3: 익명 caller → failed-precondition(anonymous_caller) · 조회 0 · fetch 0
+ *  - K14: UAT1610 실측 재진입 — 200 뒤 재호출 -101 → 둘 다 성공 (plan 11)
  *
  * PII sentinel: Kakao 회원번호(`1234567890123456789`) · 어드민 키
  * (`PII_KAKAO_ADMIN_KEY`) · Kakao 응답 `msg`(`PII_KAKAO_MSG`)는 HttpsError
@@ -290,6 +291,59 @@ describe("disconnectKakaoProvider — 성공 · 멱등", () => {
     );
     expect(errorMock).not.toHaveBeenCalled();
   });
+
+  // UAT1610 실측 fixture (plan 11 · D-14 · RESEARCH A10) — plan 10 Android
+  // 실기기 UAT 재진입 순서를 그대로 재현한다.
+  // 근거: uat-evidence/android-uat-16.10.md `## 2.` 첫 패스 23:44:24Z
+  // `disconnect_kakao_succeeded`(1) → `## 4.` 재진입 23:52:58Z 호출 →
+  // 23:52:59Z `disconnect_kakao_already_unlinked` + 같은 ms
+  // `disconnect_kakao_succeeded`(1) · `## 9.` 마커
+  // `UAT1610_REENTRY_KAKAO: already_unlinked`.
+  // 서버 분기 역추적 · 원시 본문 미로깅: Kakao 원시 응답은 로그에 없다.
+  // `disconnect_kakao_already_unlinked` 를 내는 분기는 `!resp.ok` + 본문
+  // `code === -101` 하나뿐이므로 fixture code = -101 이다.
+  // [ASSUMED] -101 응답의 HTTP status 400 — 서버 분기가 status 를 읽지 않고
+  // 로그에도 없다(K2 값 재사용). 첫 호출 성공 본문 `{id}` 도 로그에 없다
+  // (`resp.ok` 분기는 본문을 읽지 않는다).
+  it(
+    "K14: UAT1610 실측 재진입 — 200 뒤 재호출 -101 → 둘 다 성공 · 멱등",
+    async () => {
+      arrangeKakaoIdentities([KAKAO_USER_ID]);
+      // 첫 패스: 연결 끊기 성공.
+      mockKakaoResponse(200, {id: KAKAO_USER_ID});
+      // 재진입: 이미 끊긴 사용자.
+      mockKakaoResponse(400, {code: -101, msg: "PII_KAKAO_MSG"});
+
+      await expect(callDisconnect()).resolves.toEqual({
+        ok: true,
+        disconnectedCount: 1,
+      });
+      await expect(callDisconnect()).resolves.toEqual({
+        ok: true,
+        disconnectedCount: 1,
+      });
+
+      // 두 호출 모두 같은 원장 회원번호로 끊기를 시도한다.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchBodyAt(0).get("target_id")).toBe(KAKAO_USER_ID);
+      expect(fetchBodyAt(1).get("target_id")).toBe(KAKAO_USER_ID);
+      // UAT 서버 로그 event 순서와 같다.
+      expect(infoMock.mock.calls.map((call) => call[0])).toEqual([
+        {
+          event: "disconnect_kakao_succeeded",
+          uid: CALLER_UID,
+          disconnectedCount: 1,
+        },
+        {event: "disconnect_kakao_already_unlinked", uid: CALLER_UID},
+        {
+          event: "disconnect_kakao_succeeded",
+          uid: CALLER_UID,
+          disconnectedCount: 1,
+        },
+      ]);
+      expect(errorMock).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("disconnectKakaoProvider — caller 가드", () => {

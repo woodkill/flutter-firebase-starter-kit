@@ -15,6 +15,7 @@
  *    fetch 0
  *  - F4: 익명 caller → failed-precondition(anonymous_caller) · getUser 0 ·
  *    fetch 0
+ *  - F15: UAT1610 실측 재진입 — 재삭제도 성공 본문 → 둘 다 성공 (plan 11)
  *
  * PII sentinel: Facebook asid(`9876543210123456`) · 앱 시크릿
  * (`PII_FB_APP_SECRET`) · Graph 응답 `message`(`PII_FB_GRAPH_MESSAGE`)는
@@ -255,6 +256,59 @@ describe("disconnectFacebookProvider — 성공 · 0 건", () => {
     });
     expect(errorMock).not.toHaveBeenCalled();
   });
+
+  // UAT1610 실측 fixture (plan 11 · D-14 · RESEARCH A2) — plan 10 Android
+  // 실기기 UAT 재진입 순서를 그대로 재현한다.
+  // 근거: uat-evidence/android-uat-16.10.md `## 2.` 첫 패스 23:44:28Z
+  // `disconnect_facebook_succeeded`(1) → `## 4.` 재진입 23:52:58Z 호출 →
+  // 23:53:00Z `disconnect_facebook_succeeded`(1) ·
+  // `disconnect_facebook_delete_failed` 0 · `## 9.` 마커
+  // `UAT1610_FB_REDELETE: success`.
+  // 서버 분기 역추적 · 원시 본문 미로깅: Graph 원시 응답은 로그에 없다.
+  // `disconnect_facebook_delete_failed` 없이 `succeeded` 가 나오는 분기는
+  // `resp.ok` + `isGraphDeleteSuccess(body)` 하나뿐이다 → 이미 지운 권한의
+  // 재삭제도 Graph 는 성공 본문으로 응답한다(오류 code/subcode 없음).
+  // [ASSUMED] 성공 본문 모양 `{success: true}` · status 200 — 서버는 `true`
+  // 와 `{success: true}` 를 모두 수용하고 어느 쪽인지 로그에 없다.
+  // (이름 F15: `F14` 는 마지막 describe 의 PII sentinel 이 이미 쓴다.)
+  it(
+    "F15: UAT1610 실측 재진입 — 권한 삭제 뒤 재삭제도 성공 본문 → 둘 다 성공",
+    async () => {
+      arrangeProviderData([{providerId: "facebook.com", uid: FB_ASID}]);
+      // 첫 패스: 권한 삭제 성공.
+      mockGraphResponse(200, {success: true});
+      // 재진입: 이미 지운 권한의 재삭제.
+      mockGraphResponse(200, {success: true});
+
+      await expect(callDisconnect()).resolves.toEqual({
+        ok: true,
+        disconnectedCount: 1,
+      });
+      await expect(callDisconnect()).resolves.toEqual({
+        ok: true,
+        disconnectedCount: 1,
+      });
+
+      // 두 호출 모두 같은 원장 asid 경로로 삭제를 시도한다.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][0]).toBe(GRAPH_PERMISSIONS_URL);
+      expect(fetchMock.mock.calls[1][0]).toBe(GRAPH_PERMISSIONS_URL);
+      // UAT 서버 로그 event 순서와 같다 — delete_failed 0.
+      expect(infoMock.mock.calls.map((call) => call[0])).toEqual([
+        {
+          event: "disconnect_facebook_succeeded",
+          uid: CALLER_UID,
+          disconnectedCount: 1,
+        },
+        {
+          event: "disconnect_facebook_succeeded",
+          uid: CALLER_UID,
+          disconnectedCount: 1,
+        },
+      ]);
+      expect(errorMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("F3: facebook.com 연결 없음 → 끊기 0 건 · fetch 0", async () => {
     arrangeProviderData([{providerId: "google.com", uid: "google-sub"}]);
