@@ -21,6 +21,9 @@
 // - WC20~WC21 (16.10 review WR-01) 행 입력 = 서버 1회 조회 — 조회 실패면
 //   삭제 0 · 재시도 안내 · 다이얼로그 유지, 캐시가 비어도 서버에 CT 연결이
 //   있으면 진행 화면
+// - WC22 (16.10 review IN-02 — iteration 2) 조회 reader 생성 자체가 throw 해도
+//   조회 실패와 같이 흡수 — 삭제 0 · 재시도 안내 · 다이얼로그 유지 · 잡히지
+//   않은 예외 0
 
 import 'dart:async';
 
@@ -62,6 +65,7 @@ Future<_DialogHandle> _pumpAndShowDialog(
   List<String>? serverProviderIds,
   Object? serverReadError,
   List<int>? serverReads,
+  bool serverReaderThrows = false,
 }) async {
   Future<bool?>? dialogResult;
   final repo = settingsRepo ?? _MockSettingsRepository();
@@ -124,12 +128,19 @@ Future<_DialogHandle> _pumpAndShowDialog(
         if (nullUser) currentUserProvider.overrideWith((ref) => null),
         // 16.10 review WR-01: 행 입력은 서버 1회 조회다. 기본은 캐시와 같은
         // 목록(사용자 부재면 빈 목록)을 돌려준다.
-        serverProviderIdsReaderProvider.overrideWithValue(() async {
-          if (serverReads != null) serverReads[0] += 1;
-          final error = serverReadError;
-          if (error != null) throw error;
-          return serverProviderIds ?? providerIds ?? const <String>[];
-        }),
+        // IN-02 (iteration 2): reader provider 생성 자체의 실패(`[core/no-app]`
+        // 류)를 흉내 낸다.
+        if (serverReaderThrows)
+          serverProviderIdsReaderProvider.overrideWith(
+            (ref) => throw StateError('reader unavailable'),
+          )
+        else
+          serverProviderIdsReaderProvider.overrideWithValue(() async {
+            if (serverReads != null) serverReads[0] += 1;
+            final error = serverReadError;
+            if (error != null) throw error;
+            return serverProviderIds ?? providerIds ?? const <String>[];
+          }),
       ],
       child: MaterialApp.router(
         locale: locale,
@@ -639,6 +650,42 @@ void main() {
         expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
         expect(find.text('withdraw-stub'), findsOneWidget);
         verifyNever(() => settingsRepo.requestAccountDeletion());
+      },
+    );
+
+    testWidgets(
+      'WC22 (review IN-02 · iter 2) — 조회 reader 생성 실패도 조회 실패처럼 흡수 · 삭제 0 · 재시도 안내 · 다이얼로그 유지',
+      (tester) async {
+        final settingsRepo = _MockSettingsRepository();
+        when(
+          () => settingsRepo.requestAccountDeletion(),
+        ).thenAnswer((_) async {});
+        await _pumpAndShowDialog(
+          tester,
+          settingsRepo: settingsRepo,
+          providerIds: const <String>['kakao'],
+          serverReaderThrows: true,
+        );
+
+        await tester.enterText(find.byType(TextField), koHint);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        // 확인 버튼 핸들러가 잡히지 않은 예외로 끝나지 않는다.
+        expect(tester.takeException(), isNull);
+        verifyNever(() => settingsRepo.requestAccountDeletion());
+        expect(
+          find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+          findsOneWidget,
+        );
+        expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+        expect(find.text('withdraw-stub'), findsNothing);
+        final confirmBtn = tester.widget<FilledButton>(
+          find.widgetWithText(FilledButton, koHint),
+        );
+        expect(confirmBtn.onPressed, isNotNull);
       },
     );
   });

@@ -30,6 +30,7 @@
 //   WN22: (review WR-01) 캐시가 비어도 서버 목록(카카오 · 라인)으로 행 생성
 //   WN23: (iteration 2 IN-01) 재로그인 로그인 실패 Done 행은 (a) 대상 아님 → false · (b) 로 재개방
 //   WN24: (iteration 2 IN-01) (a) 는 신선도를 갱신한 「해제됨」 행만 — 뒤의 로그인 실패 행을 건너뛴다
+//   WN25: (iteration 2 IN-02) 조회 reader 생성 실패 → load failed(pending 고정 0) · 행 0 · 삭제 불가
 
 import 'dart:async';
 
@@ -202,24 +203,33 @@ void main() {
   /// 행 입력은 서버 1회 조회다 (review WR-01) — 기본은 [providerIds] 를
   /// 돌려주고, [serverProviderIds] · [serverReadError] 로 캐시와 다른 서버
   /// 결과 · 읽기 실패를 주입한다. [serverReads] 는 조회 횟수를 센다.
+  ///
+  /// [serverReaderThrows] 면 조회 reader provider 생성 자체가 throw 한다
+  /// (review IN-02 — iteration 2).
   ProviderContainer makeContainer(
     List<String> providerIds, {
     bool depsThrow = false,
     List<String>? serverProviderIds,
     Object? serverReadError,
     List<int>? serverReads,
+    bool serverReaderThrows = false,
   }) {
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith(
           (ref) => ref.watch(_userHolderProvider),
         ),
-        serverProviderIdsReaderProvider.overrideWithValue(() async {
-          if (serverReads != null) serverReads[0] += 1;
-          final error = serverReadError;
-          if (error != null) throw error;
-          return serverProviderIds ?? providerIds;
-        }),
+        if (serverReaderThrows)
+          serverProviderIdsReaderProvider.overrideWith(
+            (ref) => throw StateError('reader unavailable'),
+          )
+        else
+          serverProviderIdsReaderProvider.overrideWithValue(() async {
+            if (serverReads != null) serverReads[0] += 1;
+            final error = serverReadError;
+            if (error != null) throw error;
+            return serverProviderIds ?? providerIds;
+          }),
         disconnectStepsProvider.overrideWithValue(fakes.all),
         if (depsThrow)
           disconnectDepsProvider.overrideWith(
@@ -942,6 +952,28 @@ void main() {
           statusOf(container, AccountProvider.line),
           DisconnectRowStatus.done,
         );
+      },
+    );
+
+    test(
+      'WN25 (review IN-02 · iter 2): 조회 reader 생성 실패 → load failed(pending 고정 0) · 행 0 · step 0 · 삭제 불가',
+      () async {
+        final container = makeContainer(<String>[
+          'kakao',
+          'line',
+        ], serverReaderThrows: true);
+        final notifier = container.read(withdrawalDisconnectProvider.notifier);
+
+        // 예외가 start() 밖으로 새지 않는다.
+        await notifier.start();
+
+        final state = stateOf(container);
+        // pending 에 머물면 화면이 행 없는 비활성 「탈퇴」 로 고정된다.
+        expect(state.load, DisconnectRowsLoad.failed);
+        expect(state.rows, isEmpty);
+        expect(fakes.kakao.calls, isEmpty);
+        await notifier.requestDeletion();
+        verifyNever(() => mockSettingsRepo.requestAccountDeletion());
       },
     );
   });

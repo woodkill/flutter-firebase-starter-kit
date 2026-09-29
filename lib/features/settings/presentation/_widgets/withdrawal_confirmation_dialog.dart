@@ -118,14 +118,19 @@ class _WithdrawalConfirmationDialogState
   /// 값으로 「행 0 = 바로 삭제」 를 판정하면 필수 끊기(Kakao · LINE) 없이 계정이
   /// 삭제될 수 있다. 조회가 실패하면 삭제하지 않고 재시도를 안내한다
   /// (fail-closed · 다이얼로그 유지).
+  ///
+  /// 조회 reader 생성(Firebase 인스턴스 watch)의 throw 도 같은 실패로
+  /// 흡수한다 (16.10 review IN-02 — iteration 2) — 확인 버튼이 잡히지 않은
+  /// 예외로 끝나지 않고 재시도 안내가 뜬다.
   Future<void> _onConfirm() async {
     if (_resolvingRows) return;
     // await 전에 캡처한다.
-    final readProviderIds = ref.read(serverProviderIdsReaderProvider);
     final steps = ref.read(disconnectStepsProvider);
     setState(() => _resolvingRows = true);
     final List<String> providerIds;
     try {
+      // reader 읽기는 첫 await 전이라 mounted 상태에서 한다.
+      final readProviderIds = ref.read(serverProviderIdsReaderProvider);
       providerIds = await readProviderIds();
     } on Object catch (e) {
       // PII 0 — runtimeType 만.

@@ -276,14 +276,20 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
   /// 이후 user stream 재방출은 행에 반영하지 않는다. 조회가 실패하면 행 없이
   /// [DisconnectRowsLoad.failed] 로 끝난다 — 행 0 과 구분돼 삭제로 이어지지
   /// 않는다.
+  ///
+  /// 조회 reader 생성(`serverProviderIdsReaderProvider` 가 watch 하는 Firebase
+  /// 인스턴스)도 `try` 안에서 읽는다 (16.10 review IN-02 — iteration 2). 밖에서
+  /// throw 하면 `_started` 가 참인 채 [DisconnectRowsLoad.pending] 에 영구히
+  /// 머문다 — 다시 부를 수 없고 화면은 행 없는 비활성 「탈퇴」 로 남는다.
   Future<void> start() async {
     if (_started) return;
     _started = true;
     // await 전에 캡처한다 (auto-dispose notifier).
-    final readProviderIds = ref.read(serverProviderIdsReaderProvider);
     final steps = ref.read(disconnectStepsProvider);
     final List<String> providerIds;
     try {
+      // reader 생성 실패도 조회 실패와 같이 흡수한다(IN-02 — iteration 2).
+      final readProviderIds = ref.read(serverProviderIdsReaderProvider);
       providerIds = await readProviderIds();
     } on Object catch (e) {
       // PII 0 — runtimeType 만.
