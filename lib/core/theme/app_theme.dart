@@ -27,6 +27,14 @@ abstract final class AppTheme {
   /// `AppTheme.light(seedColor: Colors.teal)`.
   static const MaterialColor seedColor = Colors.deepPurple;
 
+  /// 화면이 명시적으로 그리는 1dp 구분선 두께 (16.10 review IN-09).
+  ///
+  /// `Divider.createBorderSide(context, width: …)` 처럼 선 두께를 직접 넘기는
+  /// 곳에서 원시 리터럴 대신 쓴다. 전역 [DividerThemeData.thickness] 는
+  /// 설정하지 않는다 — 인자 없는 `createBorderSide` 는 여전히 0.0(hairline)
+  /// 이라, 전역 값을 바꾸면 다른 화면 · golden 의 구분선이 함께 바뀐다.
+  static const double dividerThickness = 1.0;
+
   /// 라이트 모드 [ThemeData]를 생성한다.
   ///
   /// [AppColors], [AppTypography], [AppSpacing] 3개 ThemeExtension을 포함한다.
