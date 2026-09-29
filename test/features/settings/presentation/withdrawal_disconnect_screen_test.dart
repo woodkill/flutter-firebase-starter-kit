@@ -25,6 +25,9 @@
 //   WS17: 5분 창 (b) — 재인증 결과 없이 돌아와도 카카오 재실행
 //   WS18: (review WR-01) 진행 화면 서버 조회 실패 → 재시도 안내 · 이전 화면 복귀 · 삭제 0
 //   WS19: (review IN-04) 서버 확정 행 0 → 진행 화면 닫힘 · 삭제 0
+//   WS20: (review IN-02 iter3) 목록 조회 중 = 원형 스피너 1개 · commonLoading 낭독
+//   WS21: (review IN-02 iter3) 조회 끝(행 ≥ 1) = 목록 조회 스피너 0 · 행 스피너와 구분
+//   WS22: (review IN-02 iter3) 조회 중에도 back 허용 (canPop true)
 
 import 'dart:async';
 
@@ -239,7 +242,8 @@ Future<void> _pumpWithDialogEntry(
 /// 진행 화면을 root 로 띄우고 첫 프레임 뒤 start 를 반영한다.
 ///
 /// /login stub 은 [visits] 에 location 을 기록하고 「reauth-ok」(pop(true)) ·
-/// 「reauth-back」(결과 없는 pop) 버튼을 둔다.
+/// 「reauth-back」(결과 없는 pop) 버튼을 둔다. [serverRead] 가 있으면 서버
+/// 1회 조회를 그 함수로 바꾼다 — 없으면 [providerIds] 를 바로 돌려준다.
 Future<void> _pumpScreen(
   WidgetTester tester, {
   required List<String> providerIds,
@@ -247,6 +251,7 @@ Future<void> _pumpScreen(
   required _MockSettingsRepository settingsRepo,
   _LoginVisits? visits,
   Locale locale = const Locale('ko'),
+  Future<List<String>> Function()? serverRead,
 }) async {
   final router = GoRouter(
     initialLocation: AppRoutes.withdrawalDisconnect,
@@ -284,7 +289,7 @@ Future<void> _pumpScreen(
         currentUserProvider.overrideWith((ref) => _userWith(providerIds)),
         // 행 입력 = 서버 1회 조회 (review WR-01).
         serverProviderIdsReaderProvider.overrideWithValue(
-          () async => providerIds,
+          serverRead ?? () async => providerIds,
         ),
         disconnectStepsProvider.overrideWithValue(fakes.all),
         disconnectDepsProvider.overrideWithValue(_deps()),
@@ -1316,6 +1321,121 @@ void main() {
       expect(find.text(l10n.withdrawalFailureTransient), findsNothing);
       expect(kakao.calls, isEmpty);
       verifyNever(() => settingsRepo.requestAccountDeletion());
+    });
+
+    group('review IN-02 (iteration 3) — 목록 조회 중 원형 스피너', () {
+      /// 목록 조회 스피너 — `commonLoading` 낭독이 붙은 것만 (행 스피너 제외).
+      Finder listLoadingSpinner(AppLocalizations l10n) => find.descendant(
+        of: find.byType(WithdrawalDisconnectScreen),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is CircularProgressIndicator &&
+              w.semanticsLabel == l10n.commonLoading,
+        ),
+      );
+
+      testWidgets('WS20: 조회 중(pending) = 스피너 1개 · commonLoading 으로 낭독된다', (
+        tester,
+      ) async {
+        _useView(tester);
+        final fakes = _Fakes();
+        final read = Completer<List<String>>();
+        await _pumpScreen(
+          tester,
+          providerIds: _w5ProviderIds,
+          fakes: fakes,
+          settingsRepo: _countingRepo().repo,
+          serverRead: () => read.future,
+        );
+        // 스피너 생성 뒤 주기 734 ms 지점 (호 모양 · UI-SPEC F1).
+        await tester.pump(const Duration(milliseconds: 734));
+        final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+
+        expect(
+          find.descendant(
+            of: find.byType(WithdrawalDisconnectScreen),
+            matching: find.byType(CircularProgressIndicator),
+          ),
+          findsOneWidget,
+        );
+        expect(listLoadingSpinner(l10n), findsOneWidget);
+        expect(find.bySemanticsLabel(l10n.commonLoading), findsOneWidget);
+        // 행은 아직 0 — 소개 문단 · 안내 · 비활성 「탈퇴」 는 그대로다.
+        expect(find.byType(SocialButton), findsNothing);
+        expect(find.text(l10n.withdrawalDisconnectIntro), findsOneWidget);
+        expect(find.text(l10n.withdrawalDisconnectFinalHint), findsOneWidget);
+        expect(_finalButton(tester).onPressed, isNull);
+
+        read.complete(<String>['kakao']);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+      });
+
+      testWidgets('WS21: 조회 끝(행 ≥ 1) = 목록 조회 스피너 0 · 행 스피너는 행 안에만', (
+        tester,
+      ) async {
+        _useView(tester);
+        final fakes = _Fakes();
+        final read = Completer<List<String>>();
+        await _pumpScreen(
+          tester,
+          providerIds: <String>['kakao'],
+          fakes: fakes,
+          settingsRepo: _countingRepo().repo,
+          serverRead: () => read.future,
+        );
+        final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+        expect(listLoadingSpinner(l10n), findsOneWidget);
+
+        read.complete(<String>['kakao']);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 734));
+
+        // 카카오 행은 해제 중 — 스피너는 행 아이콘 자리 1개뿐이다.
+        expect(listLoadingSpinner(l10n), findsNothing);
+        expect(find.bySemanticsLabel(l10n.commonLoading), findsNothing);
+        expect(
+          _inRow(AccountProvider.kakao, find.byType(CircularProgressIndicator)),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(WithdrawalDisconnectScreen),
+            matching: find.byType(CircularProgressIndicator),
+          ),
+          findsOneWidget,
+        );
+
+        fakes.kakao.calls.last.complete(const DisconnectDone());
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: find.byType(WithdrawalDisconnectScreen),
+            matching: find.byType(CircularProgressIndicator),
+          ),
+          findsNothing,
+        );
+      });
+
+      testWidgets('WS22: 조회 중에도 back 은 막히지 않는다 (canPop true)', (tester) async {
+        _useView(tester);
+        final fakes = _Fakes();
+        final read = Completer<List<String>>();
+        await _pumpScreen(
+          tester,
+          providerIds: _w5ProviderIds,
+          fakes: fakes,
+          settingsRepo: _countingRepo().repo,
+          serverRead: () => read.future,
+        );
+        final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+        expect(listLoadingSpinner(l10n), findsOneWidget);
+        expect(_canPop(tester), isTrue);
+
+        read.complete(<String>['kakao']);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+      });
     });
   });
 }

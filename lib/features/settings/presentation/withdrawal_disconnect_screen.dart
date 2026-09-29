@@ -39,7 +39,8 @@ import 'withdrawal_disconnect_notifier.dart';
 /// 첫 프레임 뒤 [WithdrawalDisconnect.start] 를 1회 불러 행을 스냅샷하고
 /// 서버 행을 자동 시작한다. 처리 중(어떤 행이 해제 중 · 계정 삭제 중)에는
 /// back 이 막히고, 그 밖에는 확인 없이 나갈 수 있다(D-14 — 계정은 그대로).
-/// 행 목록 서버 조회가 실패하면 재시도 안내와 함께(WR-01), 끊을 행이 0 이면
+/// 행 목록 서버 조회 중에는 소개 문단 아래 원형 스피너를 보인다(review
+/// IN-02 — iteration 3). 행 목록 서버 조회가 실패하면 재시도 안내와 함께(WR-01), 끊을 행이 0 이면
 /// 안내 없이(IN-04 · Q6-A) 이전 화면으로 돌아간다.
 class WithdrawalDisconnectScreen extends ConsumerStatefulWidget {
   /// [WithdrawalDisconnectScreen] 을 생성한다.
@@ -187,6 +188,19 @@ class _WithdrawalDisconnectScreenState
                         ),
                       ),
                     ),
+                    // 16.10 review IN-02 (iteration 3 · UI-SPEC §Surface W
+                    // 「목록 조회 중」): 행 목록 서버 조회 중에는 행이 올
+                    // 자리에 원형 스피너 1개를 둔다. pending 은 busy 가
+                    // 아니라 back 을 막지 않는다(D-14).
+                    if (state.load == DisconnectRowsLoad.pending)
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: spacing.lg),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            semanticsLabel: l10n.commonLoading,
+                          ),
+                        ),
+                      ),
                     for (final (i, row) in rows.indexed)
                       _separate(
                         context,

@@ -94,11 +94,15 @@ WithdrawalDisconnectState _state(List<DisconnectRowStatus> statuses) {
     ('naver', AccountProvider.naver, DisconnectKind.relogin),
     ('line', AccountProvider.line, DisconnectKind.relogin),
   ];
+  // load 기본값은 pending(목록 조회 중 스피너 · review IN-02 iteration 3) —
+  // 행이 있는 실제 상태와 같게 loaded 를 명시한다. 빠뜨리면 스피너가 떠
+  // golden 이 바뀌고 settle 이 끝나지 않는다.
   return WithdrawalDisconnectState(
     rows: <DisconnectRow>[
       for (var i = 0; i < specs.length; i++)
         _row(specs[i].$1, specs[i].$2, specs[i].$3, statuses[i]),
     ],
+    load: DisconnectRowsLoad.loaded,
   );
 }
 
