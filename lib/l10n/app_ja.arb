@@ -279,6 +279,7 @@
   "settingsUnlinkFailedIdentityMismatch": "連携中の{provider}アカウントではありません。連携中のアカウントでもう一度ログインしてください。",
   "settingsUnlinkFailedDisconnect": "{provider}とのアプリ連携を解除できなかったため、連携はそのままです。しばらくしてからもう一度お試しください。",
   "settingsUnlinkFailedAfterDisconnect": "{provider}とのアプリ連携は解除しましたが、アカウントの連携は解除できませんでした。しばらくしてからもう一度お試しください。",
+  "settingsUnlinkFailedProviderConfig": "アプリの設定の問題で{provider}とのアプリ連携を解除できなかったため、連携はそのままです。",
   "settingsDangerZoneSection": "Danger zone",
   "settingsDangerZoneExplainer": "以下の操作は取り消せません。",
   "settingsWithdrawalLabel": "アカウントを削除",

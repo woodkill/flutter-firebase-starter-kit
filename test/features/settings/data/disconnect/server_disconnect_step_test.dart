@@ -8,7 +8,10 @@
 //   S3: permission-denied + caller_identity_mismatch → IdentityMismatch
 //   S4: unavailable · deadline-exceeded → Failed(NoInternetConnection)
 //   S5: resource-exhausted → Failed(TooManyRequests)
-//   S6: failed-precondition + provider_config → Failed(ServiceUnavailable)
+//   S6: failed-precondition + provider_config → Failed(ProviderMisconfigured)
+//       (review IN-04 iteration 3) · anonymous_caller · reason 없음 → ServiceUnavailable
+//   S6m: (review IN-04 iteration 3) disconnectOutcomeFromFunctionsException 직접 —
+//        provider_config 는 failed-precondition 에서만 · 그 밖 code · reason → 기존 분류
 //   S7: 로그인 사용자 부재 · 익명 → Failed(UnknownException) · callable 0
 //   S8: 비-Functions 예외 → Failed(ServiceUnavailable)
 //   S9: 레지스트리 — provider 중복 0 · 서버 행 kind · email 조회 null ·
@@ -177,7 +180,7 @@ void main() {
     });
 
     test(
-      'S6: failed-precondition + provider_config → Failed(ServiceUnavailable)',
+      'S6: failed-precondition + provider_config → Failed(ProviderMisconfigured) (review IN-04 iter3)',
       () async {
         stubCallableThrows(
           FirebaseFunctionsException(
@@ -189,7 +192,35 @@ void main() {
 
         final outcome = await runKakao();
 
-        expect(failureOf(outcome), isA<ServiceUnavailable>());
+        expect(failureOf(outcome), isA<ProviderMisconfigured>());
+        expect(failureOf(outcome), isNot(isA<ServiceUnavailable>()));
+      },
+    );
+
+    test(
+      'S6: failed-precondition + anonymous_caller · reason 없음 → Failed(ServiceUnavailable)',
+      () async {
+        for (final details in <Object?>[
+          const <String, dynamic>{'reason': 'anonymous_caller'},
+          null,
+          const <String, dynamic>{},
+        ]) {
+          stubCallableThrows(
+            FirebaseFunctionsException(
+              message: 'x',
+              code: 'failed-precondition',
+              details: details,
+            ),
+          );
+
+          final outcome = await runKakao();
+
+          expect(
+            failureOf(outcome),
+            isA<ServiceUnavailable>(),
+            reason: '$details',
+          );
+        }
       },
     );
 
@@ -233,6 +264,60 @@ void main() {
       expect(failureOf(outcome), isA<ServiceUnavailable>());
     });
   });
+
+  group(
+    'S6m (review IN-04 iter3): disconnectOutcomeFromFunctionsException 매핑',
+    () {
+      AppException? failureCause(DisconnectOutcome outcome) =>
+          outcome is DisconnectFailed ? outcome.exception : null;
+
+      test(
+        'provider_config 는 failed-precondition 일 때만 ProviderMisconfigured',
+        () {
+          final exception = FirebaseFunctionsException(
+            message: 'errorProviderConfig',
+            code: 'failed-precondition',
+            details: const <String, dynamic>{'reason': 'provider_config'},
+          );
+
+          final outcome = disconnectOutcomeFromFunctionsException(exception);
+
+          expect(failureCause(outcome), isA<ProviderMisconfigured>());
+          // 원인 보존 — 진단 로그용 (UI 노출 0).
+          expect(failureCause(outcome)?.cause, same(exception));
+        },
+      );
+
+      test(
+        'anonymous_caller · reason 없음 · 다른 code 의 provider_config → ServiceUnavailable',
+        () {
+          for (final (code, details) in <(String, Object?)>[
+            (
+              'failed-precondition',
+              const <String, dynamic>{'reason': 'anonymous_caller'},
+            ),
+            ('failed-precondition', null),
+            ('internal', const <String, dynamic>{'reason': 'provider_config'}),
+            ('unauthenticated', null),
+          ]) {
+            final outcome = disconnectOutcomeFromFunctionsException(
+              FirebaseFunctionsException(
+                message: 'x',
+                code: code,
+                details: details,
+              ),
+            );
+
+            expect(
+              failureCause(outcome),
+              isA<ServiceUnavailable>(),
+              reason: '$code $details',
+            );
+          }
+        },
+      );
+    },
+  );
 
   group('kDisconnectSteps 레지스트리', () {
     test(

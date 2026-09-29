@@ -276,6 +276,7 @@
   "settingsUnlinkFailedIdentityMismatch": "연결된 {provider} 계정이 아닙니다. 연결된 계정으로 다시 로그인해 주세요.",
   "settingsUnlinkFailedDisconnect": "{provider} 앱 연결을 해제하지 못해 연결을 유지했습니다. 잠시 후 다시 시도해 주세요.",
   "settingsUnlinkFailedAfterDisconnect": "{provider} 앱 연결은 해제했지만 계정 연결은 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+  "settingsUnlinkFailedProviderConfig": "앱 설정 문제로 {provider} 앱 연결을 해제하지 못해 연결을 유지했습니다.",
   "settingsDangerZoneSection": "Danger zone",
   "settingsDangerZoneExplainer": "아래 작업은 복구할 수 없습니다.",
   "settingsWithdrawalLabel": "회원탈퇴",

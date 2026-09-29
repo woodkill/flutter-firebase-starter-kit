@@ -14,6 +14,7 @@
 //   NV10: (review IN-03) 서버 끊기 뒤 signInWithCustomToken 거부 → Done · logout 1
 //         (iteration 2 IN-01) 그 Done 은 sessionRefreshed false — 5분 창 (a) 제외 신호
 //   NV1 · NV6 의 Done 은 sessionRefreshed true (세션 갱신 성공 · 해제 다이얼로그)
+//   NV11: (review IN-04 iter3) failed-precondition + provider_config → Failed(ProviderMisconfigured) · logout 1
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -270,6 +271,26 @@ void main() {
     expect((outcome as DisconnectFailed).exception, isA<TooManyRequests>());
     verify(() => mockNaver.logout()).called(1);
   });
+
+  test(
+    'NV11 (review IN-04 iter3): failed-precondition + provider_config → Failed(ProviderMisconfigured) · logout 1',
+    () async {
+      stubAppSignIn();
+      stubCallableThrows(
+        'failed-precondition',
+        details: const <String, dynamic>{'reason': 'provider_config'},
+      );
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expect(outcome, isA<DisconnectFailed>());
+      expect(
+        (outcome as DisconnectFailed).exception,
+        isA<ProviderMisconfigured>(),
+      );
+      verify(() => mockNaver.logout()).called(1);
+    },
+  );
 
   test('NV8: 로그인 사용자 부재 → Failed(UnknownException) · SDK 0', () async {
     when(() => mockAuth.currentUser).thenReturn(null);

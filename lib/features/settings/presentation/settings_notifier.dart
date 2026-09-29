@@ -290,7 +290,9 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///    - [DisconnectCancelled] (provider 로그인 취소) → `cancelled`.
   ///    - [DisconnectIdentityMismatch] → `identityMismatch` (D-08).
   ///    - [DisconnectFailed] → 네트워크 · rate limit 은 `transientFailure`,
-  ///      그 밖은 `disconnectFailed`.
+  ///      서버 `provider_config`([ProviderMisconfigured])는
+  ///      `providerConfigFailed`(16.10 review IN-04 — iteration 3), 그 밖은
+  ///      `disconnectFailed`.
   ///    - 예상 밖 throw (step 계약 위반 · 실행 의존 생성 실패) →
   ///      `disconnectFailed`.
   ///
@@ -399,13 +401,16 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// provider 측 끊기 실패 [exception] 을 [AccountUnlinkOutcome] 으로
   /// 분기한다 (Phase 16.10 D-11 · UI-SPEC §N′).
   ///
-  /// 네트워크 · rate limit 은 기존 `settingsUnlinkFailedTransient` 로 안내하고,
-  /// 그 밖(운영 설정 · App Check · SDK 오류 · 로그인 사용자 부재)은 「앱 연결을
-  /// 해제하지 못해 연결을 유지했습니다」 로 안내한다.
+  /// 네트워크 · rate limit 은 기존 `settingsUnlinkFailedTransient` 로 안내한다.
+  /// 서버 `provider_config`([ProviderMisconfigured] — 운영자 설정 결함)는
+  /// 재시도로 풀리지 않으므로 재시도 안내가 없는 전용 문구로 보낸다(16.10
+  /// review IN-04 — iteration 3). 그 밖(App Check · SDK 오류 · 로그인 사용자
+  /// 부재 등)은 「앱 연결을 해제하지 못해 연결을 유지했습니다」 로 안내한다.
   AccountUnlinkOutcome _mapDisconnectFailure(AppException exception) {
     return switch (exception) {
       NetworkException() ||
       TooManyRequests() => AccountUnlinkOutcome.transientFailure,
+      ProviderMisconfigured() => AccountUnlinkOutcome.providerConfigFailed,
       _ => AccountUnlinkOutcome.disconnectFailed,
     };
   }
@@ -474,9 +479,9 @@ enum AccountUnlinkOutcome {
   /// `settingsUnlinkFailedIdentityMismatch` 로 렌더 · 연결 유지.
   identityMismatch,
 
-  /// provider 측 연결 끊기 실패로 킷 해제를 중단함 (D-11) — provider_config ·
-  /// App Check · 서버 결함 등. `settingsUnlinkFailedDisconnect` 로 렌더 ·
-  /// 연결 유지.
+  /// provider 측 연결 끊기 실패로 킷 해제를 중단함 (D-11) — App Check ·
+  /// 익명 거부 · 서버 결함 등. `settingsUnlinkFailedDisconnect` 로 렌더 ·
+  /// 연결 유지. 서버 `provider_config` 는 [providerConfigFailed] 다.
   disconnectFailed,
 
   /// provider 측 끊기는 성공했는데 이어진 킷 해제가 일시 오류 · 미분류로
@@ -487,6 +492,13 @@ enum AccountUnlinkOutcome {
   /// 만 돌려준다 — 끊기 step 이 없는 이메일/비밀번호 해제와
   /// [SettingsNotifier.unlinkProvider] 는 기존 [transientFailure] · [failed] 다.
   unlinkFailedAfterDisconnect,
+
+  /// provider 측 끊기 callable 이 운영자 설정 결함으로 거부함
+  /// ([ProviderMisconfigured] — `failed-precondition` + `details.reason:
+  /// 'provider_config'`) — 킷 해제 중단 (16.10 review IN-04 — iteration 3 ·
+  /// UI-SPEC §N′). `settingsUnlinkFailedProviderConfig` 로 렌더 · 연결 유지.
+  /// 재시도로 풀리지 않으므로 문구에 재시도 · 문의 안내가 없다(sign-off R4).
+  providerConfigFailed,
 }
 
 /// proactive 계정 연결 결과 분기 (Phase 16 16-11 / Surface D).

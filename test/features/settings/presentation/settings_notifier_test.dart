@@ -30,6 +30,9 @@
 //   unlinkFailedAfterDisconnect
 // - DU11 lastCredential · alreadyUnlinked · reauthRequired 는 기존 outcome 그대로
 // - DU12 이메일/비밀번호(끊기 step 없음) · unlinkProvider 는 기존 outcome 그대로
+// 16.10 review IN-04 (iteration 3):
+// - DU13 끊기 Failed(ProviderMisconfigured) → providerConfigFailed · 킷 해제 0
+//   (ServiceUnavailable 은 disconnectFailed 그대로)
 
 import 'dart:async';
 
@@ -1037,6 +1040,51 @@ void main() {
           );
         }
         expect(google.relogins, isEmpty);
+      },
+    );
+
+    test(
+      'DU13 (review IN-04 iter3): 끊기 Failed(ProviderMisconfigured) → providerConfigFailed · 킷 해제 0',
+      () async {
+        for (final provider in <AccountProvider>[
+          AccountProvider.kakao,
+          AccountProvider.google,
+        ]) {
+          final step = provider == AccountProvider.google
+              ? googleStep(const DisconnectFailed(ProviderMisconfigured()))
+              : _FixedStep(
+                  provider,
+                  const DisconnectFailed(ProviderMisconfigured()),
+                );
+          final scoped = makeContainer(<DisconnectStep>[step]);
+
+          final outcome = await scoped
+              .read(settingsProvider.notifier)
+              .disconnectAndUnlinkProvider(
+                provider == AccountProvider.google ? 'google.com' : 'kakao',
+              );
+
+          expect(
+            outcome,
+            AccountUnlinkOutcome.providerConfigFailed,
+            reason: provider.slug,
+          );
+        }
+        // 일시 · 기타 서버 원인은 기존 outcome 그대로 (DU4 · DU5 와 같은 분류).
+        final other = makeContainer(<DisconnectStep>[
+          _FixedStep(
+            AccountProvider.kakao,
+            const DisconnectFailed(ServiceUnavailable()),
+          ),
+        ]);
+        expect(
+          await other
+              .read(settingsProvider.notifier)
+              .disconnectAndUnlinkProvider('kakao'),
+          AccountUnlinkOutcome.disconnectFailed,
+        );
+        verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+        verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
       },
     );
   });

@@ -1181,6 +1181,16 @@
       }
     }
   },
+  "settingsUnlinkFailedProviderConfig": "Couldn't disconnect from {provider} because of an app setup problem, so the account is still linked.",
+  "@settingsUnlinkFailedProviderConfig": {
+    "description": "Phase 16.10 review IN-04 (iteration 3 · UI-SPEC §N′ sign-off R4) — the provider-side disconnect callable rejected the request with failed-precondition + details.reason provider_config (an operator setup defect such as a missing secret or a rejected channel/app setting), so the unlink stopped and the account is still linked (AccountUnlinkOutcome.providerConfigFailed · ProviderMisconfigured). Retrying does not help, so the copy has no retry or contact-support sentence. {provider} is one authAccountProvider{X} label.",
+    "placeholders": {
+      "provider": {
+        "type": "String",
+        "example": "Kakao"
+      }
+    }
+  },
 
   "settingsDangerZoneSection": "Danger zone",
   "@settingsDangerZoneSection": {

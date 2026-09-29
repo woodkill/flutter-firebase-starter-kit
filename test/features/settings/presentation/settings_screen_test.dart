@@ -73,6 +73,8 @@
 //   부분 상태 문구. 16.8-S08(NoInternet · Unknown) · 16.8-S11 기대 문구를
 //   settingsUnlinkFailedAfterDisconnect 로 갱신 · 16.8-S08b 이메일/비밀번호는
 //   16.8 §N 문구 그대로 · SU3 Kakao 서버 행 Done 뒤 일시 오류.
+// 16.10 review IN-04 (iteration 3) — SU4 끊기 provider_config
+//   (ProviderMisconfigured) → settingsUnlinkFailedProviderConfig SnackBar · 연결 유지.
 //
 // 동일 패턴 audit (G-16-A6-1 missing 2번째 항목 — 2026-09-07 실행):
 //
@@ -1493,6 +1495,47 @@ void main() {
         );
         verify(() => authRepo.unlinkCustomTokenProvider('kakao')).called(1);
         expect(find.bySemanticsLabel('Unlink Kakao'), findsOneWidget);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'SU4 (review IN-04 iteration 3): 끊기 provider_config → settingsUnlinkFailedProviderConfig SnackBar · 재시도 안내 없음 · 연결 유지',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpSettingsScreenWithRouter(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['kakao', 'google.com'],
+            signUpProviderId: 'kakao',
+          ),
+          authRepo: authRepo,
+          disconnectSteps: <DisconnectStep>[
+            _googleStep(const DisconnectFailed(ProviderMisconfigured())),
+          ],
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Unlink Google'));
+        await tester.tap(find.text('Unlink'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        const expected =
+            "Couldn't disconnect from Google because of an app setup problem, so the account is still linked.";
+        expect(
+          AppLocalizationsEn().settingsUnlinkFailedProviderConfig('Google'),
+          expected,
+        );
+        expect(find.text(expected), findsOneWidget);
+        expect(
+          find.text(
+            AppLocalizationsEn().settingsUnlinkFailedDisconnect('Google'),
+          ),
+          findsNothing,
+        );
+        verifyNever(() => authRepo.unlinkNativeProvider(any()));
+        verifyNever(() => authRepo.unlinkCustomTokenProvider(any()));
+        expect(find.bySemanticsLabel('Unlink Google'), findsOneWidget);
         handle.dispose();
       },
     );

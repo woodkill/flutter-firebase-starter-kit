@@ -55,6 +55,8 @@ void main() {
       const exceptions = <ServerException>[
         InternalServerError(),
         ServiceUnavailable(),
+        // 16.10 review IN-04 (iteration 3) — 서버 provider 설정 결함.
+        ProviderMisconfigured(),
       ];
 
       for (final ex in exceptions) {
@@ -136,6 +138,7 @@ void main() {
         TooManyRequests(),
         InternalServerError(),
         ServiceUnavailable(),
+        ProviderMisconfigured(),
       ];
 
       for (final ex in allExceptions) {
@@ -236,6 +239,7 @@ void main() {
         ReauthMethodUnavailable(),
         InternalServerError(),
         ServiceUnavailable(),
+        ProviderMisconfigured(),
         InvalidInput(),
         UnknownException(),
       ];

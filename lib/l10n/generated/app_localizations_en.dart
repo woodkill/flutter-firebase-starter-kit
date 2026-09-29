@@ -731,6 +731,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String settingsUnlinkFailedProviderConfig(String provider) {
+    return 'Couldn\'t disconnect from $provider because of an app setup problem, so the account is still linked.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

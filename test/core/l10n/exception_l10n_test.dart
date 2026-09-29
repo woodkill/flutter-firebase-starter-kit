@@ -64,6 +64,8 @@ const List<AppException> _kAllMappedExceptions = <AppException>[
   // ServerException
   InternalServerError(),
   ServiceUnavailable(),
+  // 16.10 review IN-04 (iteration 3) — userMessage 는 errorUnknown 재사용.
+  ProviderMisconfigured(),
   // 입력/계약 위반 (WR-13) — userMessage 는 errorUnknown 재사용.
   InvalidInput(),
   UnknownException(),

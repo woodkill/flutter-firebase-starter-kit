@@ -15,6 +15,7 @@
 //   LN11: (review IN-03) 서버 끊기 뒤 signInWithCustomToken 거부 → Done · logout 1
 //         (iteration 2 IN-01) 그 Done 은 sessionRefreshed false — 5분 창 (a) 제외 신호
 //   LN1 · LN2 의 Done 은 sessionRefreshed true (세션 갱신 성공 · 해제 다이얼로그)
+//   LN12: (review IN-04 iter3) failed-precondition + provider_config → Failed(ProviderMisconfigured) · logout 1
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -254,6 +255,22 @@ void main() {
     expectFailedWith(outcome, isA<NoInternetConnection>());
     verify(() => mockLine.logout()).called(1);
   });
+
+  test(
+    'LN12 (review IN-04 iter3): failed-precondition + provider_config → Failed(ProviderMisconfigured) · logout 1',
+    () async {
+      stubLineSignIn();
+      stubCallableThrows(
+        'failed-precondition',
+        details: const <String, dynamic>{'reason': 'provider_config'},
+      );
+
+      final outcome = await _step.run(deps, reloginForFreshness: true);
+
+      expectFailedWith(outcome, isA<ProviderMisconfigured>());
+      verify(() => mockLine.logout()).called(1);
+    },
+  );
 
   test('LN7: 응답 customToken 부재 → Failed(UnknownException) · 소비 0', () async {
     stubLineSignIn();

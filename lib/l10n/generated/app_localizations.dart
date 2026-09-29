@@ -1372,6 +1372,12 @@ abstract class AppLocalizations {
   /// **'Disconnected from {provider}, but couldn\'t unlink the account. Please try again later.'**
   String settingsUnlinkFailedAfterDisconnect(String provider);
 
+  /// Phase 16.10 review IN-04 (iteration 3 · UI-SPEC §N′ sign-off R4) — the provider-side disconnect callable rejected the request with failed-precondition + details.reason provider_config (an operator setup defect such as a missing secret or a rejected channel/app setting), so the unlink stopped and the account is still linked (AccountUnlinkOutcome.providerConfigFailed · ProviderMisconfigured). Retrying does not help, so the copy has no retry or contact-support sentence. {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t disconnect from {provider} because of an app setup problem, so the account is still linked.'**
+  String settingsUnlinkFailedProviderConfig(String provider);
+
   /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone').
   ///
   /// In en, this message translates to:

@@ -82,9 +82,11 @@ final class DisconnectIdentityMismatch extends DisconnectOutcome {
 /// 끊기 실패 — 재시도 또는 건너뛰기(D-12) 대상.
 ///
 /// [exception] 은 원인 분류다: [NoInternetConnection] (네트워크 · 시간 초과)
-/// · [TooManyRequests] · [ServiceUnavailable] (운영 설정 · App Check · SDK
-/// 오류 · 토큰 부재) · [UnknownException] (로그인 사용자 부재 · 서버 계약
-/// 위반). 진행 화면 = 행 「실패」 · 해제 다이얼로그 = `disconnectFailed`.
+/// · [TooManyRequests] · [ProviderMisconfigured] (서버 `provider_config` —
+/// 운영자 설정 결함 · 16.10 review IN-04) · [ServiceUnavailable] (App Check ·
+/// 익명 거부 · SDK 오류 · 토큰 부재 등) · [UnknownException] (로그인 사용자
+/// 부재 · 서버 계약 위반). 진행 화면 = 타입과 무관하게 행 「실패」 · 해제
+/// 다이얼로그 = `transientFailure` · `providerConfigFailed` · `disconnectFailed`.
 final class DisconnectFailed extends DisconnectOutcome {
   /// [exception] 원인으로 [DisconnectFailed] 를 생성한다.
   const DisconnectFailed(this.exception);
@@ -207,8 +209,13 @@ abstract class DisconnectStep {
 ///   [DisconnectIdentityMismatch].
 /// - `unavailable` · `deadline-exceeded` → [NoInternetConnection].
 /// - `resource-exhausted` → [TooManyRequests].
-/// - 그 밖(`provider_config` · 익명 거부 · App Check `unauthenticated` ·
-///   `internal` 등) → [ServiceUnavailable].
+/// - `failed-precondition` + reason `provider_config`(서버
+///   `providerConfigError` — 운영자 설정 결함) → [ProviderMisconfigured]
+///   (16.10 review IN-04 — iteration 3). 재시도로 풀리지 않아 일시 오류와
+///   구분한다.
+/// - 그 밖(`failed-precondition` + `anonymous_caller` · reason 없는
+///   `failed-precondition` · App Check `unauthenticated` · `internal` 등) →
+///   [ServiceUnavailable].
 DisconnectOutcome disconnectOutcomeFromFunctionsException(
   FirebaseFunctionsException e,
 ) {
@@ -217,6 +224,11 @@ DisconnectOutcome disconnectOutcomeFromFunctionsException(
       details is Map &&
       details['reason'] == 'caller_identity_mismatch') {
     return const DisconnectIdentityMismatch();
+  }
+  if (e.code == 'failed-precondition' &&
+      details is Map &&
+      details['reason'] == 'provider_config') {
+    return DisconnectFailed(ProviderMisconfigured(cause: e));
   }
   if (e.code == 'unavailable' || e.code == 'deadline-exceeded') {
     return DisconnectFailed(NoInternetConnection(cause: e));

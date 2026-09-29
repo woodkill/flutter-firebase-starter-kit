@@ -246,6 +246,16 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
         );
+      case AccountUnlinkOutcome.providerConfigFailed:
+        // 16.10 review IN-04 (iteration 3) — 서버 provider 설정 결함 · 재시도로
+        // 풀리지 않아 재시도 안내 없는 문구 · 연결 유지.
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.settingsUnlinkFailedProviderConfig(providerLabel),
+            ),
+          ),
+        );
       case AccountUnlinkOutcome.cancelled:
         // 다이얼로그 닫힘 · provider 로그인 취소(16.10 D-11) — SnackBar 0.
         break;

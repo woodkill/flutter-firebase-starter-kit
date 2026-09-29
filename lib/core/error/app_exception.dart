@@ -404,6 +404,36 @@ final class ServiceUnavailable extends ServerException {
     : super(userMessage: 'errorServiceUnavailable');
 }
 
+/// 서버가 운영자 설정 결함으로 요청을 거부함 (Phase 16.10 review IN-04 —
+/// iteration 3).
+///
+/// 대응 코드: provider 측 끊기 callable(`disconnectKakaoProvider` ·
+/// `disconnectFacebookProvider` · `disconnectNaverProvider` ·
+/// `disconnectLineProvider`)의 `failed-precondition` + `details.reason:
+/// 'provider_config'`(`functions/src/shared/custom_token_errors.ts`
+/// `providerConfigError` — secret 누락 · 채널 · 앱 설정 거부 등). 매핑은
+/// `disconnectOutcomeFromFunctionsException` 한 곳이다.
+///
+/// **재시도로 풀리지 않는다.** [ServiceUnavailable] 로 뭉개면 「잠시 후 다시
+/// 시도」 로 오안내되므로 따로 둔다 — 해제 다이얼로그는
+/// `AccountUnlinkOutcome.providerConfigFailed` 로 분기해 전용 문구
+/// `settingsUnlinkFailedProviderConfig`(provider 라벨 placeholder)를 렌더한다.
+/// 탈퇴 진행 화면은 타입을 보지 않고 행 「해제하지 못했습니다」 로 둔다
+/// (UI-SPEC §N′ 「IN-04 범위」).
+///
+/// [ServerException] 하위인 이유: 원인이 서버 쪽 설정이고, [AppException]
+/// 직속 5종 exhaustive switch 를 늘리지 않는다. [userMessage] 는 전용 ARB
+/// 키를 신설하지 않고 `errorUnknown` 을 재사용한다 ([InvalidInput] 과 같은
+/// deviation) — 유일한 소비처가 provider 라벨이 들어간 전용 문구를 고르므로
+/// 범용 표면(`resolveExceptionMessage`)에 노출될 일이 없고, 재시도 약속이 없는
+/// 문구여야 하기 때문이다(`errorInternalServer` · `errorServiceUnavailable` 은
+/// 재시도 · 일시 장애를 암시한다).
+final class ProviderMisconfigured extends ServerException {
+  /// [ProviderMisconfigured] 를 생성한다.
+  const ProviderMisconfigured({super.cause})
+    : super(userMessage: 'errorUnknown');
+}
+
 // ---------------------------------------------------------------------------
 // 입력 / 계약 위반
 // ---------------------------------------------------------------------------

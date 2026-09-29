@@ -710,6 +710,11 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String settingsUnlinkFailedProviderConfig(String provider) {
+    return '앱 설정 문제로 $provider 앱 연결을 해제하지 못해 연결을 유지했습니다.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override
