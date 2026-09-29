@@ -705,6 +705,11 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String settingsUnlinkFailedAfterDisconnect(String provider) {
+    return '$provider 앱 연결은 해제했지만 계정 연결은 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

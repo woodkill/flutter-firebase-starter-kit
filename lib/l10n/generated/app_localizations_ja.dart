@@ -705,6 +705,11 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String settingsUnlinkFailedAfterDisconnect(String provider) {
+    return '$providerとのアプリ連携は解除しましたが、アカウントの連携は解除できませんでした。しばらくしてからもう一度お試しください。';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

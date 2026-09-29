@@ -726,6 +726,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String settingsUnlinkFailedAfterDisconnect(String provider) {
+    return 'Disconnected from $provider, but couldn\'t unlink the account. Please try again later.';
+  }
+
+  @override
   String get settingsDangerZoneSection => 'Danger zone';
 
   @override

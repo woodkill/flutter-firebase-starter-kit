@@ -69,6 +69,10 @@
 //   Done fake) · dummy 실행 의존 override 로 픽스처만 갱신(기대값 불변).
 // - SU1 신원 불일치 → settingsUnlinkFailedIdentityMismatch SnackBar · 연결 유지.
 // - SU2 끊기 실패(ServiceUnavailable) → settingsUnlinkFailedDisconnect SnackBar.
+// 16.10 review IN-03 (iteration 3) — 끊기 Done 뒤 킷 해제 일시 · 미분류 실패는
+//   부분 상태 문구. 16.8-S08(NoInternet · Unknown) · 16.8-S11 기대 문구를
+//   settingsUnlinkFailedAfterDisconnect 로 갱신 · 16.8-S08b 이메일/비밀번호는
+//   16.8 §N 문구 그대로 · SU3 Kakao 서버 행 Done 뒤 일시 오류.
 //
 // 동일 패턴 audit (G-16-A6-1 missing 2번째 항목 — 2026-09-07 실행):
 //
@@ -1236,6 +1240,11 @@ void main() {
     );
 
     // §N 실패 outcome 4 — en ARB verbatim (재시도는 이름을 다시 탭한다).
+    // Google 은 provider 측 끊기(Done fake) 뒤 킷 해제다 — 일시 오류 · 미분류는
+    // 부분 상태 문구(16.10 review IN-03 — iteration 3 · §N′)로 바뀌고, 원인
+    // 문구가 구체적인 lastCredential · alreadyUnlinked 는 그대로다. 16.8 §N 의
+    // 일시 · 미분류 문구는 끊기 step 이 없는 이메일/비밀번호 해제(아래
+    // 16.8-S08b)가 계속 쓴다.
     for (final (exception, message) in <(AppException, String)>[
       (
         const UnlinkLastCredentialRejected(),
@@ -1244,11 +1253,11 @@ void main() {
       (const ProviderNotLinked(), 'This account is already unlinked.'),
       (
         const NoInternetConnection(),
-        "Couldn't unlink due to a network or service error. Please try again later.",
+        "Disconnected from Google, but couldn't unlink the account. Please try again later.",
       ),
       (
         const UnknownException(),
-        "Couldn't unlink your account. Please try again later.",
+        "Disconnected from Google, but couldn't unlink the account. Please try again later.",
       ),
     ]) {
       testWidgets(
@@ -1276,6 +1285,56 @@ void main() {
 
           expect(find.byType(AlertDialog), findsNothing);
           expect(find.text(message), findsOneWidget);
+          handle.dispose();
+        },
+      );
+    }
+
+    // 16.8-S08b — 끊기 step 이 없는 이메일/비밀번호 해제는 16.8 §N 문구
+    // 그대로다 (16.10 review IN-03 — iteration 3 범위 밖).
+    for (final (exception, message) in <(AppException, String)>[
+      (
+        const NoInternetConnection(),
+        "Couldn't unlink due to a network or service error. Please try again later.",
+      ),
+      (
+        const UnknownException(),
+        "Couldn't unlink your account. Please try again later.",
+      ),
+    ]) {
+      testWidgets(
+        '16.8-S08b: 이메일/비밀번호 해제 실패 ${exception.runtimeType} — 16.8 §N 문구 그대로',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          when(
+            () => authRepo.unlinkNativeProvider('password'),
+          ).thenAnswer((_) async => Result<User>.failure(exception));
+          await _pumpSettingsScreenWithRouter(
+            tester,
+            user: _testUser(
+              providerIds: const <String>['kakao', 'password'],
+              signUpProviderId: 'kakao',
+            ),
+            authRepo: authRepo,
+          );
+
+          await _openUnlinkDialog(
+            tester,
+            find.bySemanticsLabel('Unlink Email / Password'),
+          );
+          await tester.tap(find.text('Unlink'));
+          await tester.pumpAndSettle();
+
+          expect(find.byType(AlertDialog), findsNothing);
+          expect(find.text(message), findsOneWidget);
+          expect(
+            find.text(
+              AppLocalizationsEn().settingsUnlinkFailedAfterDisconnect(
+                'Email / Password',
+              ),
+            ),
+            findsNothing,
+          );
           handle.dispose();
         },
       );
@@ -1350,8 +1409,11 @@ void main() {
       },
     );
 
+    // 16.10 review IN-03 (iteration 3): Google 은 끊기(Done) 뒤 킷 해제라 일시
+    // 오류가 부분 상태 문구다 — ja 280 에서 4줄로 가장 긴 해제 SnackBar(UI-SPEC
+    // E6 108 dp)이므로 overflow 가드를 이 문구로 옮긴다.
     testWidgets(
-      '16.8-S11: ja 280dp transient SnackBar — 높이가 늘고 자르지 않는다 · overflow 0 (UI-SPEC E3)',
+      '16.8-S11: ja 280dp 끊기 뒤 해제 일시 오류 SnackBar — 높이가 늘고 자르지 않는다 · overflow 0 (UI-SPEC E3 · E6)',
       (tester) async {
         tester.view.physicalSize = const Size(280, 800);
         tester.view.devicePixelRatio = 1;
@@ -1378,7 +1440,9 @@ void main() {
 
         expect(find.byType(SnackBar), findsOneWidget);
         expect(
-          find.text('ネットワークまたはサービスのエラーで連携を解除できませんでした。しばらくしてからもう一度お試しください。'),
+          find.text(
+            'Googleとのアプリ連携は解除しましたが、アカウントの連携は解除できませんでした。しばらくしてからもう一度お試しください。',
+          ),
           findsOneWidget,
         );
         expect(tester.takeException(), isNull);
@@ -1390,6 +1454,45 @@ void main() {
         );
         expect(snackText.maxLines, isNull);
         expect(snackText.overflow, isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'SU3 (review IN-03 iteration 3): 끊기 Done 뒤 킷 해제 일시 오류 → settingsUnlinkFailedAfterDisconnect SnackBar · 킷 연결 유지',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        when(() => authRepo.unlinkCustomTokenProvider('kakao')).thenAnswer(
+          (_) async => const Result<User>.failure(ServiceUnavailable()),
+        );
+        await _pumpSettingsScreenWithRouter(
+          tester,
+          user: _testUser(
+            providerIds: const <String>['google.com', 'kakao'],
+            signUpProviderId: 'google.com',
+          ),
+          authRepo: authRepo,
+        );
+
+        await _openUnlinkDialog(tester, find.bySemanticsLabel('Unlink Kakao'));
+        await tester.tap(find.text('Unlink'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(
+          find.text(
+            AppLocalizationsEn().settingsUnlinkFailedAfterDisconnect('Kakao'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            "Couldn't unlink due to a network or service error. Please try again later.",
+          ),
+          findsNothing,
+        );
+        verify(() => authRepo.unlinkCustomTokenProvider('kakao')).called(1);
+        expect(find.bySemanticsLabel('Unlink Kakao'), findsOneWidget);
         handle.dispose();
       },
     );

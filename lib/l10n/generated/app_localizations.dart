@@ -1366,6 +1366,12 @@ abstract class AppLocalizations {
   /// **'Couldn\'t disconnect from {provider}, so the account is still linked. Please try again later.'**
   String settingsUnlinkFailedDisconnect(String provider);
 
+  /// Phase 16.10 review IN-03 (iteration 3 · UI-SPEC §N′ sign-off R2 · R3) — the provider-side disconnect succeeded but the following kit unlink failed with a transient or unclassified error, so the account is still linked while the app access on the provider side is already gone (AccountUnlinkOutcome.unlinkFailedAfterDisconnect). {provider} is one authAccountProvider{X} label.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected from {provider}, but couldn\'t unlink the account. Please try again later.'**
+  String settingsUnlinkFailedAfterDisconnect(String provider);
+
   /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'Danger zone' section header. 3 locale 영문 일관 (ko/en/ja 모두 'Danger zone').
   ///
   /// In en, this message translates to:

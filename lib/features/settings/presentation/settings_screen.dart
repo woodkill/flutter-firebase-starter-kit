@@ -236,6 +236,16 @@ class SettingsScreen extends ConsumerWidget {
             content: Text(l10n.settingsUnlinkFailedDisconnect(providerLabel)),
           ),
         );
+      case AccountUnlinkOutcome.unlinkFailedAfterDisconnect:
+        // 16.10 review IN-03 (iteration 3) — provider 측은 끊겼고 킷 해제만
+        // 실패한 부분 상태 · 킷 연결 유지.
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.settingsUnlinkFailedAfterDisconnect(providerLabel),
+            ),
+          ),
+        );
       case AccountUnlinkOutcome.cancelled:
         // 다이얼로그 닫힘 · provider 로그인 취소(16.10 D-11) — SnackBar 0.
         break;

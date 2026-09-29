@@ -278,6 +278,13 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///    (세션 교체는 탈퇴 진행 화면만의 목적 — D-07).
   /// 4. [DisconnectDone] 일 때만 기존 해제([unlinkProvider] 와 같은 경로 —
   ///    `unlinkNativeProvider` · `unlinkCustomTokenProvider` 변경 0)로 간다.
+  ///    그 해제가 일시 오류(`transientFailure`) · 미분류(`failed`)로 실패하면
+  ///    provider 측은 이미 끊겼고 킷 연결만 남은 부분 상태라
+  ///    `unlinkFailedAfterDisconnect` 로 바꿔 돌려준다(16.10 review IN-03 —
+  ///    iteration 3 · UI-SPEC §N′ sign-off R2). 원인 문구가 더 구체적인
+  ///    `lastCredential` · `alreadyUnlinked` · `reauthRequired` 와 `success` 는
+  ///    그대로다. 끊기 전 서버 사전 확인은 두지 않는다(R2 기각 — 네트워크
+  ///    오류는 사전 확인으로 막을 수 없다).
   ///    끊기가 실패했는데 해제하면 신원 기록이 사라져 provider 측 연결이 영구
   ///    고아가 되므로 나머지 결과는 모두 해제 0 · 연결 유지다 (D-11):
   ///    - [DisconnectCancelled] (provider 로그인 취소) → `cancelled`.
@@ -318,7 +325,8 @@ class SettingsNotifier extends _$SettingsNotifier {
 
     switch (disconnected) {
       case DisconnectDone():
-        return _unlinkWith(repo, provider, providerId);
+        final unlinked = await _unlinkWith(repo, provider, providerId);
+        return _markPartialAfterDisconnect(unlinked);
       case DisconnectCancelled():
         return AccountUnlinkOutcome.cancelled;
       case DisconnectIdentityMismatch():
@@ -326,6 +334,22 @@ class SettingsNotifier extends _$SettingsNotifier {
       case DisconnectFailed(:final exception):
         return _mapDisconnectFailure(exception);
     }
+  }
+
+  /// provider 측 끊기 성공 뒤의 킷 해제 결과 [unlinked] 를 부분 상태 안내로
+  /// 바꾼다 (16.10 review IN-03 — iteration 3 · UI-SPEC §N′).
+  ///
+  /// 일시 오류 · 미분류 실패만 [AccountUnlinkOutcome.unlinkFailedAfterDisconnect]
+  /// 가 된다 — 기존 문구(「잠시 후 다시 시도」 · 「알 수 없는 오류」)는 provider
+  /// 측이 이미 끊겼다는 사실을 알리지 않는다. 나머지 값은 그대로 돌려준다.
+  AccountUnlinkOutcome _markPartialAfterDisconnect(
+    AccountUnlinkOutcome unlinked,
+  ) {
+    return switch (unlinked) {
+      AccountUnlinkOutcome.transientFailure || AccountUnlinkOutcome.failed =>
+        AccountUnlinkOutcome.unlinkFailedAfterDisconnect,
+      _ => unlinked,
+    };
   }
 
   /// 킷 쪽 연결 해제 본체 — [unlinkProvider] 와 [disconnectAndUnlinkProvider]
@@ -454,6 +478,15 @@ enum AccountUnlinkOutcome {
   /// App Check · 서버 결함 등. `settingsUnlinkFailedDisconnect` 로 렌더 ·
   /// 연결 유지.
   disconnectFailed,
+
+  /// provider 측 끊기는 성공했는데 이어진 킷 해제가 일시 오류 · 미분류로
+  /// 실패함 — provider 측은 끊기고 킷 연결은 남은 부분 상태 (16.10 review
+  /// IN-03 — iteration 3 · UI-SPEC §N′).
+  /// `settingsUnlinkFailedAfterDisconnect` 로 렌더 · 킷 연결 유지(다시
+  /// 로그인할 수 있어 고아는 없다). [SettingsNotifier.disconnectAndUnlinkProvider]
+  /// 만 돌려준다 — 끊기 step 이 없는 이메일/비밀번호 해제와
+  /// [SettingsNotifier.unlinkProvider] 는 기존 [transientFailure] · [failed] 다.
+  unlinkFailedAfterDisconnect,
 }
 
 /// proactive 계정 연결 결과 분기 (Phase 16 16-11 / Surface D).

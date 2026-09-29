@@ -25,6 +25,11 @@
 // - DU3 신원 불일치 · DU4 끊기 실패 · DU5 네트워크 · DU6 로그인 취소 → 해제 0
 // - DU7 password(끊기 행 없음) → 끊기 0 · 해제 1 · DU8 미지 id → failed
 // - DU9 step 예상 밖 throw → disconnectFailed · 해제 0
+// 16.10 review IN-03 (iteration 3) — 끊기 Done 뒤 킷 해제 부분 실패:
+// - DU10 해제 일시 오류(transient) · 미분류(failed) · 예상 밖 throw →
+//   unlinkFailedAfterDisconnect
+// - DU11 lastCredential · alreadyUnlinked · reauthRequired 는 기존 outcome 그대로
+// - DU12 이메일/비밀번호(끊기 step 없음) · unlinkProvider 는 기존 outcome 그대로
 
 import 'dart:async';
 
@@ -912,5 +917,127 @@ void main() {
       expect(outcome, AccountUnlinkOutcome.disconnectFailed);
       verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
     });
+
+    test(
+      'DU10 (review IN-03 iter3): 끊기 Done 뒤 해제 transient · failed → unlinkFailedAfterDisconnect',
+      () async {
+        // 일시 오류 3종(transientFailure) · 미분류(failed) — 재로그인 행 · 서버 행.
+        const failures = <AppException>[
+          NoInternetConnection(),
+          TooManyRequests(),
+          ServiceUnavailable(),
+          UnknownException(),
+        ];
+        for (final exception in failures) {
+          final google = googleStep(const DisconnectDone());
+          final kakao = _FixedStep(
+            AccountProvider.kakao,
+            const DisconnectDone(),
+          );
+          when(
+            () => mockAuthRepo.unlinkNativeProvider('google.com'),
+          ).thenAnswer((_) async => Result<User>.failure(exception));
+          when(
+            () => mockAuthRepo.unlinkCustomTokenProvider('kakao'),
+          ).thenAnswer((_) async => Result<User>.failure(exception));
+          final scoped = makeContainer(<DisconnectStep>[google, kakao]);
+          final notifier = scoped.read(settingsProvider.notifier);
+
+          expect(
+            await notifier.disconnectAndUnlinkProvider('google.com'),
+            AccountUnlinkOutcome.unlinkFailedAfterDisconnect,
+            reason: 'google ${exception.runtimeType}',
+          );
+          expect(
+            await notifier.disconnectAndUnlinkProvider('kakao'),
+            AccountUnlinkOutcome.unlinkFailedAfterDisconnect,
+            reason: 'kakao ${exception.runtimeType}',
+          );
+          expect(google.relogins, hasLength(1));
+          expect(kakao.relogins, hasLength(1));
+        }
+      },
+    );
+
+    test(
+      'DU10b (review IN-03 iter3): 끊기 Done 뒤 해제가 예상 밖 throw(failed) → unlinkFailedAfterDisconnect',
+      () async {
+        final step = googleStep(const DisconnectDone());
+        when(
+          () => mockAuthRepo.unlinkNativeProvider('google.com'),
+        ).thenThrow(StateError('boom'));
+        final scoped = makeContainer(<DisconnectStep>[step]);
+
+        final outcome = await scoped
+            .read(settingsProvider.notifier)
+            .disconnectAndUnlinkProvider('google.com');
+
+        expect(outcome, AccountUnlinkOutcome.unlinkFailedAfterDisconnect);
+      },
+    );
+
+    test(
+      'DU11 (review IN-03 iter3): 끊기 Done 뒤 lastCredential · alreadyUnlinked · reauthRequired 는 기존 outcome',
+      () async {
+        for (final (exception, expected)
+            in <(AppException, AccountUnlinkOutcome)>[
+              (
+                const UnlinkLastCredentialRejected(),
+                AccountUnlinkOutcome.lastCredential,
+              ),
+              (const ProviderNotLinked(), AccountUnlinkOutcome.alreadyUnlinked),
+              (
+                const ReauthenticationRequiredException(),
+                AccountUnlinkOutcome.reauthRequired,
+              ),
+            ]) {
+          final step = googleStep(const DisconnectDone());
+          when(
+            () => mockAuthRepo.unlinkNativeProvider('google.com'),
+          ).thenAnswer((_) async => Result<User>.failure(exception));
+          final scoped = makeContainer(<DisconnectStep>[step]);
+
+          final outcome = await scoped
+              .read(settingsProvider.notifier)
+              .disconnectAndUnlinkProvider('google.com');
+
+          expect(outcome, expected, reason: '${exception.runtimeType}');
+        }
+      },
+    );
+
+    test(
+      'DU12 (review IN-03 iter3): 이메일/비밀번호(끊기 step 없음) · unlinkProvider 는 transient · failed 그대로',
+      () async {
+        final google = googleStep(const DisconnectDone());
+        final scoped = makeContainer(<DisconnectStep>[google]);
+        final notifier = scoped.read(settingsProvider.notifier);
+        for (final (exception, expected)
+            in <(AppException, AccountUnlinkOutcome)>[
+              (
+                const NoInternetConnection(),
+                AccountUnlinkOutcome.transientFailure,
+              ),
+              (const UnknownException(), AccountUnlinkOutcome.failed),
+            ]) {
+          when(
+            () => mockAuthRepo.unlinkNativeProvider(any()),
+          ).thenAnswer((_) async => Result<User>.failure(exception));
+
+          expect(
+            await notifier.disconnectAndUnlinkProvider('password'),
+            expected,
+            reason: 'password ${exception.runtimeType}',
+          );
+          // 16.8 경로(끊기 없음)도 바뀌지 않는다.
+          expect(
+            await notifier.unlinkProvider('google.com'),
+            expected,
+            reason: 'unlinkProvider ${exception.runtimeType}',
+          );
+        }
+        expect(google.relogins, isEmpty);
+      },
+    );
   });
 }
