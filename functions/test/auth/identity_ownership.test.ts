@@ -11,9 +11,12 @@
  *  - IO3: 문서 없음 → IO2 와 같은 거부 (존재 여부 비노출)
  *  - IO4: get throw → internal · fingerprint 로그
  *  - IO5: readStringField — 비객체 · 비문자열 → undefined
+ *  - IO6: PII sentinel — 모든 케이스의 logger 5종 호출 누적 검사 (마지막)
  *
  * PII: providerUserId(`PII_IO_PROVIDER_USER_ID`)는 HttpsError details 와
- * logger 호출 인자 어디에도 나오면 안 된다.
+ * logger 호출 인자 어디에도 나오면 안 된다. 검사 구조는 4개 provider 끊기
+ * 테스트와 같다 — afterEach 가 logger 5종(debug · info · log · warn · error)
+ * 호출을 누적하고 마지막 describe 가 검사한다 (16.10 review IN-06).
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -36,8 +39,14 @@ import {
   readStringField,
 } from "../../src/auth/identity_ownership";
 
+const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
 const errorMock = logger.error as unknown as jest.Mock;
+const debugMock = logger.debug as unknown as jest.Mock;
+const logMock = logger.log as unknown as jest.Mock;
+
+/** 모든 케이스의 logger 호출 누적 — 마지막 describe 의 PII sentinel 이 검사. */
+const accumulatedLogCalls: unknown[][] = [];
 
 /** caller UID. */
 const CALLER_UID = "caller-uid-io";
@@ -108,13 +117,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // 모든 케이스 — logger 인자에 providerUserId · 문서 id 0.
-  const serialized = JSON.stringify([
+  // 다음 beforeEach 의 clearAllMocks 가 지우기 전에 logger 5종을 누적한다.
+  accumulatedLogCalls.push(
+    ...infoMock.mock.calls,
     ...warnMock.mock.calls,
     ...errorMock.mock.calls,
-    ...(logger.info as unknown as jest.Mock).mock.calls,
-  ]);
-  expect(serialized).not.toContain(PROVIDER_USER_ID);
+    ...debugMock.mock.calls,
+    ...logMock.mock.calls,
+  );
 });
 
 describe("assertIdentityOwnedByCaller — 소유 대조 (D-08)", () => {
@@ -190,5 +200,16 @@ describe("readStringField", () => {
     expect(readStringField({k: 1}, "k")).toBeUndefined();
     expect(readStringField({}, "k")).toBeUndefined();
     expect(readStringField({k: "v"}, "k")).toBe("v");
+  });
+});
+
+// 반드시 마지막 describe — 앞선 모든 케이스의 logger 호출을 검사한다.
+describe("identity_ownership — PII sentinel (IO6)", () => {
+  it("IO6: 모든 케이스의 logger 5종 호출에 providerUserId 0", () => {
+    // 앞선 케이스가 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
+    expect(accumulatedLogCalls.length).toBeGreaterThan(0);
+    expect(JSON.stringify(accumulatedLogCalls)).not.toContain(
+      PROVIDER_USER_ID,
+    );
   });
 });
