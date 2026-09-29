@@ -22,6 +22,10 @@
  *  - LR11 · LR12: channel token 발급 실패 매핑 — 400/401 · fetch reject
  *  - LR13 · LR14: deauthorize 실패 매핑 — 401 · 500
  *  - LR15: custom token 발급 실패 → internal · 실패 로그
+ *  - LR17~LR21 (16.10 review WR-02): verify 채널 귀속 — 다른 채널 client_id ·
+ *    만료(expires_in 0 · 400) → unauthenticated · 대조 · 발급 · 해제 · custom
+ *    token 0 / verify 장애 · 본문 위반 매핑 / verify ∥ profile 병렬 호출 ·
+ *    verify 거부 우선
  *  - LR16: PII sentinel — 모든 케이스의 logger 호출 누적 검사 (마지막)
  *
  * PII sentinel: 사용자 access token · LINE userId · channel secret ·
@@ -129,6 +133,7 @@ const CALLER_UID = "caller-uid-line";
 const MINTED_TOKEN = "PII_MINTED_CUSTOM_TOKEN";
 
 /** LINE endpoint — 전역 fetch 호출 모양 단언용. */
+const LINE_VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify";
 const LINE_PROFILE_URL = "https://api.line.me/v2/profile";
 const LINE_STATELESS_TOKEN_URL = "https://api.line.me/oauth2/v3/token";
 const LINE_DEAUTHORIZE_URL = "https://api.line.me/user/v1/deauthorize";
@@ -197,6 +202,28 @@ function mockFetchResponse(status: number, body = ""): void {
     json: async () => JSON.parse(body),
     text: async () => body,
   });
+}
+
+/**
+ * `/oauth2/v2.1/verify` 응답 — 기본은 이 채널(`fake-line-channel-id`)의 유효
+ * 토큰이다. LINE reference 원문의 필드 · 타입(client_id String · expires_in
+ * Number · scope String)을 따른다.
+ *
+ * @param {object} [fields] 덮어쓸 값 — `clientId` · `expiresIn`.
+ */
+function mockVerifyOk(
+  fields: {clientId?: unknown; expiresIn?: unknown} = {},
+): void {
+  mockFetchResponse(
+    200,
+    JSON.stringify({
+      scope: "profile openid",
+      client_id: "clientId" in fields ?
+        fields.clientId :
+        "fake-line-channel-id",
+      expires_in: "expiresIn" in fields ? fields.expiresIn : 2591659,
+    }),
+  );
 }
 
 /** `/v2/profile` 정상 응답 — displayName 은 PII sentinel (미독 확인용). */
@@ -291,6 +318,7 @@ function fetchInitAt(index: number): FetchInit {
 
 describe("disconnectLineProvider — 성공 · 소유 대조", () => {
   it("LR1: 프로필 → 대조 → 발급 → 해제 → 토큰 · 응답", async () => {
+    mockVerifyOk();
     mockProfileOk();
     mockChannelTokenOk();
     mockDeauthorizeOk();
@@ -303,15 +331,23 @@ describe("disconnectLineProvider — 성공 · 소유 대조", () => {
       uid: CALLER_UID,
     });
 
-    // fetch 3회 순서 — 프로필 GET → channel token POST → deauthorize POST.
+    // fetch 4회 순서 — verify GET ∥ 프로필 GET → channel token POST →
+    // deauthorize POST (WR-02 · WR-03).
     expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      `${LINE_VERIFY_URL}?access_token=PII_LINE_ACCESS_TOKEN`,
       LINE_PROFILE_URL,
       LINE_STATELESS_TOKEN_URL,
       LINE_DEAUTHORIZE_URL,
     ]);
 
+    // verify — 공식 계약대로 쿼리 access_token · 헤더 없음.
+    expect(fetchInitAt(0)).toEqual({
+      method: "GET",
+      signal: expect.anything(),
+    });
+
     // 프로필 — 사용자 access token 을 Bearer 로.
-    expect(fetchInitAt(0)).toEqual(
+    expect(fetchInitAt(1)).toEqual(
       expect.objectContaining({
         method: "GET",
         headers: {Authorization: "Bearer PII_LINE_ACCESS_TOKEN"},
@@ -320,7 +356,7 @@ describe("disconnectLineProvider — 성공 · 소유 대조", () => {
     );
 
     // channel token 발급 — form body 3 필드 정확 · URL 에 시크릿 없음.
-    const tokenInit = fetchInitAt(1);
+    const tokenInit = fetchInitAt(2);
     expect(tokenInit.method).toBe("POST");
     expect(tokenInit.headers).toEqual({
       "Content-Type": "application/x-www-form-urlencoded",
@@ -332,12 +368,12 @@ describe("disconnectLineProvider — 성공 · 소유 대조", () => {
       ["client_id", "fake-line-channel-id"],
       ["client_secret", "PII_LINE_CHANNEL_SECRET"],
     ]);
-    expect(fetchMock.mock.calls[1][0]).not.toContain(
+    expect(fetchMock.mock.calls[2][0]).not.toContain(
       "PII_LINE_CHANNEL_SECRET",
     );
 
     // deauthorize — channel token Bearer + JSON 본문 userAccessToken (A11).
-    const deauthInit = fetchInitAt(2);
+    const deauthInit = fetchInitAt(3);
     expect(deauthInit.method).toBe("POST");
     expect(deauthInit.headers).toEqual({
       "Authorization": "Bearer PII_LINE_CHANNEL_TOKEN",
@@ -357,11 +393,16 @@ describe("disconnectLineProvider — 성공 · 소유 대조", () => {
     // custom token 은 caller uid 로만 · developer claims 0.
     expect(mockCreateCustomToken.mock.calls).toEqual([[CALLER_UID]]);
 
-    // 호출 순서: 소유 대조 < 발급 < 해제 < custom token (D-08 · D-07).
+    // 호출 순서: verify · 프로필 < 소유 대조 < 발급 < 해제 < custom token
+    // (WR-02 · D-08 · D-07).
+    const verifyOrder = fetchMock.mock.invocationCallOrder[0];
+    const profileOrder = fetchMock.mock.invocationCallOrder[1];
     const docOrder = mockDocGet.mock.invocationCallOrder[0];
-    const issueOrder = fetchMock.mock.invocationCallOrder[1];
-    const deauthOrder = fetchMock.mock.invocationCallOrder[2];
+    const issueOrder = fetchMock.mock.invocationCallOrder[2];
+    const deauthOrder = fetchMock.mock.invocationCallOrder[3];
     const mintOrder = mockCreateCustomToken.mock.invocationCallOrder[0];
+    expect(verifyOrder).toBeLessThan(docOrder);
+    expect(profileOrder).toBeLessThan(docOrder);
     expect(docOrder).toBeLessThan(issueOrder);
     expect(issueOrder).toBeLessThan(deauthOrder);
     expect(deauthOrder).toBeLessThan(mintOrder);
@@ -376,21 +417,23 @@ describe("disconnectLineProvider — 성공 · 소유 대조", () => {
     for (const ownerUid of ["other-uid", undefined]) {
       fetchMock.mockReset();
       arrangeOwner(ownerUid);
+      mockVerifyOk();
       mockProfileOk();
 
       const err = await captureHttpsError(callDisconnect(LINE_DATA));
       expect(err.code).toBe("permission-denied");
       expect(err.message).toBe("errorReauthUserMismatch");
       expect(err.details).toEqual({reason: "caller_identity_mismatch"});
-      // 프로필 1회뿐 — channel token 발급 · deauthorize 호출 0.
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock.mock.calls[0][0]).toBe(LINE_PROFILE_URL);
+      // verify · 프로필 2회뿐 — channel token 발급 · deauthorize 호출 0.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[1][0]).toBe(LINE_PROFILE_URL);
     }
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(infoMock).not.toHaveBeenCalled();
   });
 
   it("LR3: deauthorize 400 → 이미 해제 · 성공 (D-14 멱등)", async () => {
+    mockVerifyOk();
     mockProfileOk();
     mockChannelTokenOk();
     mockFetchResponse(
@@ -405,7 +448,7 @@ describe("disconnectLineProvider — 성공 · 소유 대조", () => {
       customToken: "PII_MINTED_CUSTOM_TOKEN",
       uid: CALLER_UID,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(mockCreateCustomToken.mock.calls).toEqual([[CALLER_UID]]);
     expect(infoMock).toHaveBeenCalledWith(
       {event: "disconnect_line_already_deauthorized", uid: CALLER_UID},
@@ -468,12 +511,13 @@ describe("disconnectLineProvider — 미인증 · 입력 위생", () => {
 
 describe("disconnectLineProvider — 프로필 실패 매핑", () => {
   it("LR8: 프로필 401 → unauthenticated · 대조 0 · 발급 0", async () => {
+    mockVerifyOk();
     mockFetchResponse(401, JSON.stringify({message: "invalid token"}));
 
     const err = await captureHttpsError(callDisconnect(LINE_DATA));
     expect(err.code).toBe("unauthenticated");
     expect(err.message).toBe("errorInvalidCredentials");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mockDocGet).not.toHaveBeenCalled();
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
@@ -483,6 +527,7 @@ describe("disconnectLineProvider — 프로필 실패 매핑", () => {
   });
 
   it("LR9: 프로필 fetch reject → unavailable · err.name 만 로그", async () => {
+    mockVerifyOk();
     fetchMock.mockRejectedValueOnce(
       new TypeError("PII_LINE_ACCESS_TOKEN fetch failed"),
     );
@@ -502,6 +547,7 @@ describe("disconnectLineProvider — 프로필 실패 매핑", () => {
   });
 
   it("LR10: 프로필 200 인데 userId 부재 → internal · 대조 0", async () => {
+    mockVerifyOk();
     mockFetchResponse(
       200,
       JSON.stringify({displayName: "PII_LINE_DISPLAY_NAME"}),
@@ -510,7 +556,7 @@ describe("disconnectLineProvider — 프로필 실패 매핑", () => {
     const err = await captureHttpsError(callDisconnect(LINE_DATA));
     expect(err.code).toBe("internal");
     expect(err.message).toBe("errorUnknown");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mockDocGet).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
       {event: "disconnect_line_profile_invalid", uid: CALLER_UID},
@@ -523,6 +569,7 @@ describe("disconnectLineProvider — channel token 발급 실패 매핑", () => 
   it("LR11: 발급 400 · 401 → provider_config · 해제 0", async () => {
     for (const status of [400, 401]) {
       fetchMock.mockReset();
+      mockVerifyOk();
       mockProfileOk();
       mockFetchResponse(
         status,
@@ -536,8 +583,8 @@ describe("disconnectLineProvider — channel token 발급 실패 매핑", () => 
       expect(err.code).toBe("failed-precondition");
       expect(err.message).toBe("errorProviderConfig");
       expect(err.details).toEqual({reason: "provider_config"});
-      // 프로필 · 발급 2회뿐 — deauthorize 호출 0.
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // verify · 프로필 · 발급 3회뿐 — deauthorize 호출 0.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(errorMock).toHaveBeenCalledWith(
         {
           event: "disconnect_line_channel_token_failed",
@@ -551,13 +598,14 @@ describe("disconnectLineProvider — channel token 발급 실패 매핑", () => 
   });
 
   it("LR12: 발급 fetch reject → unavailable · 해제 0", async () => {
+    mockVerifyOk();
     mockProfileOk();
     fetchMock.mockRejectedValueOnce(new Error("socket hang up"));
 
     const err = await captureHttpsError(callDisconnect(LINE_DATA));
     expect(err.code).toBe("unavailable");
     expect(err.message).toBe("errorServiceUnavailable");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
       {
@@ -572,6 +620,7 @@ describe("disconnectLineProvider — channel token 발급 실패 매핑", () => 
 
 describe("disconnectLineProvider — deauthorize 실패 매핑", () => {
   it("LR13: 해제 401 → provider_config · 토큰 0", async () => {
+    mockVerifyOk();
     mockProfileOk();
     mockChannelTokenOk();
     mockFetchResponse(401, JSON.stringify({message: "Authentication failed"}));
@@ -593,6 +642,7 @@ describe("disconnectLineProvider — deauthorize 실패 매핑", () => {
   });
 
   it("LR14: 해제 500 → unavailable · 토큰 0", async () => {
+    mockVerifyOk();
     mockProfileOk();
     mockChannelTokenOk();
     mockFetchResponse(500, "");
@@ -615,6 +665,7 @@ describe("disconnectLineProvider — deauthorize 실패 매핑", () => {
 
 describe("disconnectLineProvider — custom token 발급 실패", () => {
   it("LR15: createCustomToken 던짐 → internal · 실패 로그", async () => {
+    mockVerifyOk();
     mockProfileOk();
     mockChannelTokenOk();
     mockDeauthorizeOk();
@@ -634,6 +685,134 @@ describe("disconnectLineProvider — custom token 발급 실패", () => {
       expect.any(String),
     );
     expect(infoMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("disconnectLineProvider — verify 채널 귀속 (WR-02)", () => {
+  /**
+   * 거부 뒤 소유 대조 · 발급 · 해제 · custom token 이 모두 0 인지 단언한다.
+   * fetch 는 verify · 프로필 2회뿐이어야 한다(병렬 호출).
+   */
+  function expectNothingAfterVerify(): void {
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const urls = fetchMock.mock.calls.map((call) => call[0]);
+    expect(urls).not.toContain(LINE_STATELESS_TOKEN_URL);
+    expect(urls).not.toContain(LINE_DEAUTHORIZE_URL);
+    expect(mockDocGet).not.toHaveBeenCalled();
+    expect(mockCreateCustomToken).not.toHaveBeenCalled();
+    expect(infoMock).not.toHaveBeenCalled();
+  }
+
+  it("LR17: 다른 채널 client_id → unauthenticated · 이후 호출 0", async () => {
+    mockVerifyOk({clientId: "another-line-channel-id"});
+    mockProfileOk();
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("unauthenticated");
+    expect(err.message).toBe("errorInvalidCredentials");
+    expectNothingAfterVerify();
+    expect(warnMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_line_verify_rejected",
+        uid: CALLER_UID,
+        reason: "channel",
+      },
+      expect.any(String),
+    );
+  });
+
+  it("LR18: 만료 — expires_in 0 · verify 400 → unauthenticated", async () => {
+    mockVerifyOk({expiresIn: 0});
+    mockProfileOk();
+    const expired = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(expired.code).toBe("unauthenticated");
+    expectNothingAfterVerify();
+    expect(warnMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_line_verify_rejected",
+        uid: CALLER_UID,
+        reason: "expired",
+      },
+      expect.any(String),
+    );
+
+    // 400 = 형식 오류 · 만료 · 폐기 (reference 원문).
+    fetchMock.mockReset();
+    mockCreateCustomToken.mockClear();
+    mockDocGet.mockClear();
+    mockFetchResponse(
+      400,
+      JSON.stringify({
+        error: "invalid_request",
+        error_description: "access token expired",
+      }),
+    );
+    mockProfileOk();
+    const rejected = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(rejected.code).toBe("unauthenticated");
+    expect(rejected.message).toBe("errorInvalidCredentials");
+    expectNothingAfterVerify();
+    expect(errorMock).toHaveBeenCalledWith(
+      {event: "disconnect_line_verify_failed", uid: CALLER_UID, status: 400},
+      expect.any(String),
+    );
+  });
+
+  it("LR19: verify 장애 — reject · 500 → unavailable · err.name 만", async () => {
+    fetchMock.mockRejectedValueOnce(
+      new TypeError("PII_LINE_ACCESS_TOKEN verify failed"),
+    );
+    mockProfileOk();
+    const rejected = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(rejected.code).toBe("unavailable");
+    expectNothingAfterVerify();
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "disconnect_line_verify_failed",
+        uid: CALLER_UID,
+        code: "TypeError",
+      },
+      expect.any(String),
+    );
+
+    fetchMock.mockReset();
+    mockFetchResponse(500, "");
+    mockProfileOk();
+    const down = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(down.code).toBe("unavailable");
+    expect(down.message).toBe("errorServiceUnavailable");
+    expectNothingAfterVerify();
+  });
+
+  it("LR20: verify 200 본문 계약 위반 → internal · 이후 호출 0", async () => {
+    for (const fields of [
+      {clientId: 12345},
+      {clientId: undefined},
+      {expiresIn: "2591659"},
+    ]) {
+      fetchMock.mockReset();
+      mockVerifyOk(fields);
+      mockProfileOk();
+      const err = await captureHttpsError(callDisconnect(LINE_DATA));
+      expect(err.code).toBe("internal");
+      expect(err.message).toBe("errorUnknown");
+      expectNothingAfterVerify();
+    }
+    expect(errorMock).toHaveBeenCalledWith(
+      {event: "disconnect_line_verify_invalid", uid: CALLER_UID},
+      expect.any(String),
+    );
+  });
+
+  it("LR21: verify 와 프로필이 함께 실패하면 verify 거부가 이긴다", async () => {
+    // verify 500(unavailable) · 프로필 401(unauthenticated) — 프로필 거부가
+    // 먼저 settle 해도 판정은 verify 먼저다(allSettled · 결정적).
+    mockFetchResponse(500, "");
+    mockFetchResponse(401, JSON.stringify({message: "invalid token"}));
+
+    const err = await captureHttpsError(callDisconnect(LINE_DATA));
+    expect(err.code).toBe("unavailable");
+    expectNothingAfterVerify();
   });
 });
 

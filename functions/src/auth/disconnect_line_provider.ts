@@ -26,11 +26,26 @@
 //   `Content-Type: application/json`. 채택 근거는 plan 01 A11 dry-run 이다 —
 //   JSON 빈 객체는 「[userAccessToken] must not be null」 로 본문을 파싱했고,
 //   form 본문은 415 로 거부됐다.
+// - 채널 귀속 검증 (16.10 review WR-02): `/v2/profile` 200 은 토큰이 **이
+//   채널(`LINE_CHANNEL_ID`)에서 발급됐는지** 보여 주지 않는다 — 같은 LINE
+//   provider 의 다른 채널 토큰도 같은 userId 를 준다. 그래서 LINE 공식
+//   `GET https://api.line.me/oauth2/v2.1/verify?access_token=…` 로
+//   `client_id`("Channel ID for which the access token is issued" · String)
+//   === `LINE_CHANNEL_ID` 와 `expires_in`(Number) > 0 을 먼저 확인한다.
+//   불일치 · 만료 · 400(형식 오류 · 만료 · 폐기)은 `idpCredentialRejected`
+//   로 끝나고 소유 대조 · 발급 · 해제 · custom token 은 0 이다. 계약 출처 =
+//   developers.line.biz/en/reference/line-login/ 「Verify access token
+//   validity」 SSR 원문(2026-09-29 확인). 토큰을 쿼리에 싣는 것은 공식
+//   계약이며 URL 은 로그에 남기지 않는다.
 // - D-14 멱등: deauthorize 400 은 성공으로 본다. LINE reference 원문 —
 //   "Invalid access token for the target user … The user has already
 //   deauthorized your app. / You have already deauthorized your app on behalf
-//   of the user via the API." 직전 단계가 같은 토큰으로 프로필 200 을 받았으므로
-//   여기서의 400 은 이미 해제된 상태다.
+//   of the user via the API." 이 매핑은 위 채널 귀속 검증과 프로필 200 을
+//   **모두 통과한 뒤에만** 도달한다 — 이 채널의 유효한 토큰이 거부되는
+//   경우만 「이미 해제」 로 본다. 400 본문의 `error` 코드는 대조하지 않는다:
+//   실측 본문(wave0 A11 — `message` 만 · `invalid token` /
+//   `[userAccessToken] must not be null`)에 「이미 해제」 를 구분하는 코드가
+//   관측된 적이 없어 값을 지어낼 근거가 없다.
 //
 // 순서 함정 (RESEARCH Pitfall 1 · plan 06): LINE SDK `logout()` 은 access
 // token 을 서버에서 폐기한다. client 는 이 callable 응답을 받은 뒤에만
@@ -62,6 +77,9 @@ import {LINE_CHANNEL_ID, LINE_CHANNEL_SECRET} from "../shared/oidc_providers";
 import {mintReloginToken} from "../shared/relogin_token";
 import {requireStringArg} from "../shared/require_string_arg";
 import {assertIdentityOwnedByCaller} from "./identity_ownership";
+
+/** LINE access token 검증 엔드포인트 — 쿼리 `access_token` (공식 계약). */
+const LINE_VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify";
 
 /** LINE 사용자 프로필 엔드포인트 — Bearer 사용자 access token. */
 const LINE_PROFILE_URL = "https://api.line.me/v2/profile";
@@ -135,6 +153,98 @@ async function readStringFieldFromBody(
   const value = (parsed as Record<string, unknown>)[key];
   if (typeof value !== "string" || value.length === 0) return undefined;
   return hasHeaderControlChars(value) ? undefined : value;
+}
+
+/**
+ * 사용자 access token 이 이 채널에서 발급된 유효 토큰인지 LINE verify 로
+ * 확인한다 (16.10 review WR-02).
+ *
+ * 계약 (LINE Login v2.1 reference 「Verify access token validity」 원문):
+ * `GET /oauth2/v2.1/verify?access_token=…` → 200 JSON `{scope, client_id
+ * (String), expires_in (Number)}` · 400 = 형식 오류 · 만료 · 폐기.
+ *
+ * 매핑:
+ * - fetch reject (TimeoutError · network) → `unavailable`
+ * - HTTP 400 → `unauthenticated` (`errorInvalidCredentials`)
+ * - 그 밖 비-2xx → `unavailable`
+ * - 2xx 인데 `client_id` 가 문자열이 아님 · `expires_in` 이 숫자가 아님 →
+ *   `internal` (IdP 계약 위반)
+ * - `client_id` ≠ `LINE_CHANNEL_ID` · `expires_in` ≤ 0 → `unauthenticated`
+ *
+ * 로그 payload 는 `{event, uid}` + `status | code | reason` 뿐이다 — 토큰 ·
+ * URL · `client_id` 값 · `scope` 는 싣지 않는다.
+ *
+ * @param {{accessToken: string, uid: string}} args 사용자 access token ·
+ *     로그 축 uid.
+ * @return {Promise<void>} 이 채널의 유효 토큰이면 resolve.
+ * @throws {HttpsError} 위 매핑 표에 따른 표준 에러.
+ */
+async function verifyLineAccessTokenChannel(args: {
+  accessToken: string;
+  uid: string;
+}): Promise<void> {
+  const {accessToken, uid} = args;
+  let resp: Response;
+  try {
+    resp = await fetch(
+      `${LINE_VERIFY_URL}?access_token=${encodeURIComponent(accessToken)}`,
+      {method: "GET", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)},
+    );
+  } catch (err: unknown) {
+    // err.message 미로깅 — URL(토큰 포함)이 실릴 수 있다. err.name 만.
+    logger.error(
+      {
+        event: "disconnect_line_verify_failed",
+        uid,
+        code: err instanceof Error ? err.name : "unknown",
+      },
+      "LINE verify request failed",
+    );
+    throw idpUnavailable();
+  }
+
+  if (!resp.ok) {
+    logger.error(
+      {event: "disconnect_line_verify_failed", uid, status: resp.status},
+      "LINE verify rejected",
+    );
+    if (resp.status === 400) throw idpCredentialRejected();
+    throw idpUnavailable();
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = await resp.json();
+  } catch {
+    parsed = undefined;
+  }
+  const body =
+    typeof parsed === "object" && parsed !== null ?
+      (parsed as Record<string, unknown>) :
+      {};
+  const clientId = body["client_id"];
+  const expiresIn = body["expires_in"];
+  if (typeof clientId !== "string" || typeof expiresIn !== "number") {
+    logger.error(
+      {event: "disconnect_line_verify_invalid", uid},
+      "LINE verify body invalid",
+    );
+    throw serverFailure();
+  }
+  if (clientId !== LINE_CHANNEL_ID.value()) {
+    logger.warn(
+      {event: "disconnect_line_verify_rejected", uid, reason: "channel"},
+      "LINE access token issued for another channel",
+    );
+    throw idpCredentialRejected();
+  }
+  if (!(expiresIn > 0)) {
+    logger.warn(
+      {event: "disconnect_line_verify_rejected", uid, reason: "expired"},
+      "LINE access token expired",
+    );
+    throw idpCredentialRejected();
+  }
 }
 
 /**
@@ -273,7 +383,9 @@ async function issueStatelessChannelToken(uid: string): Promise<string> {
  * `Authorization: Bearer <channel token>` + JSON 본문 `{userAccessToken}` 을
  * POST 한다. 매핑 (D-12 · D-14):
  * - HTTP 2xx (문서상 204) → 성공
- * - HTTP 400 → 「이미 해제됨」 으로 성공 (D-14 멱등 · reference 원문)
+ * - HTTP 400 → 「이미 해제됨」 으로 성공 (D-14 멱등 · reference 원문). 호출부가
+ *   verify(채널 귀속 · 만료) · 프로필 200 을 통과한 뒤에만 이 함수에 온다
+ *   (WR-02) — 이 전제 없이 이 함수를 재사용하지 않는다.
  * - HTTP 401 → `failed-precondition` (reason `provider_config` — channel
  *   token 거부)
  * - fetch reject · 그 밖 → `unavailable`
@@ -342,7 +454,10 @@ async function deauthorizeLineUser(args: {
  *           `anonymous_caller`).
  *   Step 2: 입력 위생 — `accessToken` 은 비어 있지 않은 문자열 · 길이 상한 ·
  *           CR/LF/NUL 없음. 아니면 `invalid-argument`.
- *   Step 3: `/v2/profile` 로 LINE userId 획득.
+ *   Step 3: `/oauth2/v2.1/verify` 채널 귀속 · 만료 검증과 `/v2/profile`
+ *           userId 획득을 병렬로 한다 — 둘 다 사용자 토큰 읽기뿐이라 부작용이
+ *           없다. 결과는 verify 먼저 판정한다(verify 실패면 프로필 결과와
+ *           무관하게 그 거부 · WR-02). 직렬 5s+5s 대신 5s (WR-03).
  *   Step 4: `identity_index/line:{userId}` 가 caller 소유인지 대조 — 아니면
  *           `permission-denied` · reason `caller_identity_mismatch` (channel
  *           token 발급 · deauthorize · custom token 0 · D-08).
@@ -352,7 +467,7 @@ async function deauthorizeLineUser(args: {
  *           `{ok: true, customToken, uid}`.
  *
  * **PII 금지 (C-03 · C-06):** logger payload 는 `{event, uid}` 와 실패 시
- * `status | code` 뿐이다. 사용자 access token · LINE userId · channel
+ * `status | code | reason` 뿐이다. 사용자 access token · LINE userId · channel
  * secret · channel token · 프로필 이름 · custom token 은 로그 · HttpsError
  * details 에 싣지 않는다. 토큰은 이 호출의 지역 변수로만 존재하고, custom
  * token 은 응답에만 싣는다.
@@ -385,8 +500,17 @@ export const disconnectLineProvider = onCall<DisconnectLineProviderRequest>(
       throw invalidArgument();
     }
 
-    // Step 3: LINE 검증 — userId 만 소비 (displayName 미독 · C-06).
-    const userId = await fetchLineUserId({accessToken, uid});
+    // Step 3: LINE 검증 — 채널 귀속(verify) ∥ userId(profile). 둘 다 읽기
+    // 전용이라 병렬로 부르고(WR-03), 판정은 verify 먼저다(WR-02). allSettled
+    // 로 두 결과를 모두 기다려 어느 거부가 이기는지를 결정적으로 만든다.
+    // userId 만 소비한다 (displayName 미독 · C-06).
+    const [verified, profile] = await Promise.allSettled([
+      verifyLineAccessTokenChannel({accessToken, uid}),
+      fetchLineUserId({accessToken, uid}),
+    ]);
+    if (verified.status === "rejected") throw verified.reason;
+    if (profile.status === "rejected") throw profile.reason;
+    const userId = profile.value;
 
     // Step 4: 소유 대조 — channel token 발급 · deauthorize 보다 앞 (D-08).
     await assertIdentityOwnedByCaller({
