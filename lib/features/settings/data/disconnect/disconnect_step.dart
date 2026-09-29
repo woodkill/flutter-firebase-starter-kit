@@ -221,7 +221,15 @@ DisconnectOutcome disconnectOutcomeFromFunctionsException(
 ///
 /// 판정 code 목록은 기존 재인증 경로와 공유한다 — [AuthRepository]
 /// `isReauthUserMismatchCode` → [DisconnectIdentityMismatch] ·
-/// `isOAuthCancelCode` → [DisconnectCancelled] · 그 밖 → [ServiceUnavailable].
+/// `isOAuthCancelCode` → [DisconnectCancelled].
+///
+/// 일시 오류는 Functions 매핑([disconnectOutcomeFromFunctionsException])과
+/// 같은 분류로 둔다 (16.10 review IN-02) — 해제 다이얼로그가 「잠시 후 다시
+/// 시도」(`transientFailure`)로 안내한다. code 는 `AuthRepository` 의 Auth
+/// 오류 매핑과 같은 값이다.
+/// - `network-request-failed` → [NoInternetConnection].
+/// - `too-many-requests` → [TooManyRequests].
+/// - 그 밖 → [ServiceUnavailable].
 DisconnectOutcome disconnectOutcomeFromAuthException(
   AccountProvider provider,
   fb.FirebaseAuthException e,
@@ -234,7 +242,11 @@ DisconnectOutcome disconnectOutcomeFromAuthException(
     return const DisconnectCancelled();
   }
   logDisconnectFailure(provider, 'auth code=${e.code}');
-  return DisconnectFailed(ServiceUnavailable(cause: e));
+  return DisconnectFailed(switch (e.code) {
+    'network-request-failed' => NoInternetConnection(cause: e),
+    'too-many-requests' => TooManyRequests(cause: e),
+    _ => ServiceUnavailable(cause: e),
+  });
 }
 
 /// [steps] 에서 [provider] 의 step 을 찾는다 — 없으면 null.

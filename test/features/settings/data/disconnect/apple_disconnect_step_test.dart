@@ -11,6 +11,8 @@
 //   AP7: canceled · web-context-canceled → Cancelled · revoke 0 (D-11)
 //   AP8: revokeAccessToken 이 FirebaseAuthException → Failed(ServiceUnavailable)
 //   AP9: 해제 모드(reloginForFreshness: false)도 reauthenticateWithProvider 1 → Done
+//   AP10: (review IN-02) 재인증 network-request-failed → Failed(NoInternetConnection) ·
+//         too-many-requests → Failed(TooManyRequests) · revoke 0
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -269,4 +271,27 @@ void main() {
     expect(failureOf(outcome), isA<UnknownException>());
     verifyNever(() => mockUser.reauthenticateWithProvider(any()));
   });
+
+  test(
+    'AP10 (review IN-02): 재인증 네트워크 · rate limit → NoInternetConnection · TooManyRequests · revoke 0',
+    () async {
+      final expected = <String, TypeMatcher<AppException>>{
+        'network-request-failed': isA<NoInternetConnection>(),
+        'too-many-requests': isA<TooManyRequests>(),
+      };
+      for (final MapEntry(key: code, value: matcher) in expected.entries) {
+        when(
+          () => mockUser.reauthenticateWithProvider(any()),
+        ).thenThrow(fb.FirebaseAuthException(code: code));
+
+        final outcome = await _step.run(
+          depsFor(TargetPlatform.android),
+          reloginForFreshness: true,
+        );
+
+        expect(failureOf(outcome), matcher, reason: code);
+      }
+      expectNoRevoke();
+    },
+  );
 }
