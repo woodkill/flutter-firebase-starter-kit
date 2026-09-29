@@ -24,6 +24,7 @@
 //   WS16: 5분 창 (a) — 「해제됨」 재로그인 행 재개방 · 재인증 push 0
 //   WS17: 5분 창 (b) — 재인증 결과 없이 돌아와도 카카오 재실행
 //   WS18: (review WR-01) 진행 화면 서버 조회 실패 → 재시도 안내 · 이전 화면 복귀 · 삭제 0
+//   WS19: (review IN-04) 서버 확정 행 0 → 진행 화면 닫힘 · 삭제 0
 
 import 'dart:async';
 
@@ -1272,5 +1273,49 @@ void main() {
         verifyNever(() => settingsRepo.requestAccountDeletion());
       },
     );
+
+    testWidgets('WS19 (review IN-04): 서버가 확정한 행이 0 이면 진행 화면을 닫는다 · 삭제 0', (
+      tester,
+    ) async {
+      _useView(tester);
+      final settingsRepo = _MockSettingsRepository();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      final kakao = _FakeStep(AccountProvider.kakao);
+      // 다이얼로그 판정 뒤 연결이 사라진 경우 — 진행 화면 시작 때는 행 0.
+      final reads = <int>[0];
+      await _pumpWithDialogEntry(
+        tester,
+        providerIds: <String>['kakao'],
+        steps: <DisconnectStep>[kakao],
+        settingsRepo: settingsRepo,
+        serverRead: () async {
+          reads[0] += 1;
+          return reads[0] > 1 ? <String>['password'] : <String>['kakao'];
+        },
+      );
+      final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+
+      await tester.tap(find.text('open-dialog'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '탈퇴');
+      await tester.pump();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(WithdrawalConfirmationDialog),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(reads[0], 2);
+      expect(find.byType(WithdrawalDisconnectScreen), findsNothing);
+      expect(find.text('open-dialog'), findsOneWidget);
+      // 오류가 아니므로 실패 안내는 없다.
+      expect(find.text(l10n.withdrawalFailureTransient), findsNothing);
+      expect(kakao.calls, isEmpty);
+      verifyNever(() => settingsRepo.requestAccountDeletion());
+    });
   });
 }

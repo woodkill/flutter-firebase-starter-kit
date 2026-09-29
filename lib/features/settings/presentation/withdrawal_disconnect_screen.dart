@@ -39,8 +39,8 @@ import 'withdrawal_disconnect_notifier.dart';
 /// 첫 프레임 뒤 [WithdrawalDisconnect.start] 를 1회 불러 행을 스냅샷하고
 /// 서버 행을 자동 시작한다. 처리 중(어떤 행이 해제 중 · 계정 삭제 중)에는
 /// back 이 막히고, 그 밖에는 확인 없이 나갈 수 있다(D-14 — 계정은 그대로).
-/// 행 목록 서버 조회가 실패하면 재시도 안내와 함께 이전 화면으로 돌아간다
-/// (16.10 review WR-01).
+/// 행 목록 서버 조회가 실패하면 재시도 안내와 함께(WR-01), 끊을 행이 0 이면
+/// 안내 없이(IN-04 · Q6-A) 이전 화면으로 돌아간다.
 class WithdrawalDisconnectScreen extends ConsumerStatefulWidget {
   /// [WithdrawalDisconnectScreen] 을 생성한다.
   const WithdrawalDisconnectScreen({super.key});
@@ -127,6 +127,15 @@ class _WithdrawalDisconnectScreenState
       if (prev?.load == next.load) return;
       if (next.load == DisconnectRowsLoad.failed) {
         _showSnackBar(l10n.withdrawalFailureTransient);
+        _leave();
+        return;
+      }
+      // 16.10 review IN-04: 서버 조회로 확정된 행이 0 이면 이 화면은 「탈퇴」 가
+      // 영구 비활성인 막다른 화면이다(`allDone` 은 행 ≥ 1 요구). UI-SPEC Q6-A
+      // (「행 0 = 진행 화면 미표시 · 다이얼로그에서 바로 삭제」) 대로 나간다 —
+      // 딥링크 · 라우터 복원 · 다이얼로그 판정 뒤 연결이 바뀐 경우다. 삭제는
+      // 사용자가 다이얼로그에서 다시 확인할 때만 한다.
+      if (next.load == DisconnectRowsLoad.loaded && next.rows.isEmpty) {
         _leave();
       }
     });

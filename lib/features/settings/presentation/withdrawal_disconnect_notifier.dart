@@ -119,7 +119,8 @@ enum DisconnectRowsLoad {
   /// [WithdrawalDisconnect.start] 전 또는 서버 조회 중 — 행 없음.
   pending,
 
-  /// 서버 조회 성공 — 행 목록 확정(0행일 수 있다).
+  /// 서버 조회 성공 — 행 목록 확정. 0행이면 화면이 진행 화면을 닫는다
+  /// (review IN-04 · UI-SPEC Q6-A).
   loaded,
 
   /// 서버 조회 실패 — 행을 만들지 않는다. 화면은 재시도를 안내하고 이전
