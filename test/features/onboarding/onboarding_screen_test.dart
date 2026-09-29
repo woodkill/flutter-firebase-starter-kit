@@ -692,6 +692,223 @@ void main() {
       );
     });
   });
+
+  group('OnboardingScreen 가로 모드 (Phase 3 D-09 · quick 260929-pze)', () {
+    /// 기존 setUp 의 mock 3종으로 온보딩 화면을 띄운다.
+    Future<void> pumpScreen(WidgetTester tester) => _pumpOnboarding(
+      tester,
+      mockRepo: mockRepo,
+      mockAnalytics: mockAnalytics,
+      mockCrashlytics: mockCrashlytics,
+    );
+
+    // L1 — 가로 두 크기 × 슬라이드 1·2: 오버플로우 없이 세로 스크롤로 본문 도달.
+    for (final size in _landscapeSizes) {
+      final sizeLabel = '${size.width.toInt()}x${size.height.toInt()}';
+      for (final slide in _slideSpecs) {
+        final where = '$sizeLabel 슬라이드 ${slide.index + 1}';
+        testWidgets('L1 ($sizeLabel): 슬라이드 ${slide.index + 1} — '
+            '오버플로우 없이 세로 스크롤로 본문에 도달한다', (tester) async {
+          _setLogicalViewport(tester, size);
+          await pumpScreen(tester);
+          await _goToSlide(tester, slide.index);
+
+          // 제목 · 배지 finder 가 아니라 PageView 중앙에서 드래그한다 —
+          // 최소 크기에서는 제목이 뷰포트 밖이라 hit test 가 빗나간다.
+          await tester.dragFrom(
+            tester.getCenter(find.byType(PageView)),
+            Offset(0, -size.height),
+          );
+          await tester.pumpAndSettle();
+
+          final page = tester.getRect(find.byType(PageView));
+          final body = tester.getRect(find.text(slide.body));
+          expect(
+            body.bottom,
+            lessThanOrEqualTo(page.bottom + 0.5),
+            reason: '$where: 본문 bottom 이 PageView 아래로 잘림',
+          );
+          expect(
+            body.top,
+            greaterThanOrEqualTo(page.top - 0.5),
+            reason: '$where: 본문 top 이 PageView 위로 벗어남',
+          );
+          // 예외 단언은 마지막 — 수정 전 실패 메시지가 geometry 로 갈리도록.
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '$where: 레이아웃 예외(오버플로우) 없음',
+          );
+        });
+      }
+    }
+
+    // L2 — 가로 두 크기: 슬라이드 3(unbounded 경로) 무회귀.
+    for (final size in _landscapeSizes) {
+      final sizeLabel = '${size.width.toInt()}x${size.height.toInt()}';
+      testWidgets('L2 ($sizeLabel): 슬라이드 3 — 예외 없이 약관 그룹과 '
+          'Get started 버튼이 렌더된다', (tester) async {
+        _setLogicalViewport(tester, size);
+        await pumpScreen(tester);
+        await _goToSlide(tester, 2);
+
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: '$sizeLabel 슬라이드 3: 레이아웃 예외 없음',
+        );
+        expect(
+          find.byType(TermsCheckboxGroup),
+          findsOneWidget,
+          reason: '$sizeLabel 슬라이드 3: 약관 그룹 1개',
+        );
+        expect(
+          find.widgetWithText(FilledButton, 'Get started'),
+          findsOneWidget,
+          reason: '$sizeLabel 슬라이드 3: Get started 버튼 1개',
+        );
+      });
+    }
+
+    // P1 — 세로 360x800 × 슬라이드 1·2: 외관 불변 비회귀 가드(수정 전에도 통과).
+    for (final slide in _slideSpecs) {
+      final sizeLabel =
+          '${_portraitSize.width.toInt()}x${_portraitSize.height.toInt()}';
+      final where = '$sizeLabel 슬라이드 ${slide.index + 1}';
+      testWidgets('P1 ($sizeLabel): 슬라이드 ${slide.index + 1} — 세로 중앙 정렬 · '
+          '드래그해도 움직이지 않음 · Semantics 라벨 유지', (tester) async {
+        _setLogicalViewport(tester, _portraitSize);
+        final semantics = tester.ensureSemantics();
+        await pumpScreen(tester);
+        await _goToSlide(tester, slide.index);
+
+        final page = tester.getRect(find.byType(PageView));
+        // 배지 = 아이콘의 가장 가까운 Container 조상.
+        final badge = tester.getRect(
+          find
+              .ancestor(
+                of: find.byIcon(slide.icon),
+                matching: find.byType(Container),
+              )
+              .first,
+        );
+        final body = tester.getRect(find.text(slide.body));
+        final topGap = badge.top - page.top;
+        final bottomGap = page.bottom - body.bottom;
+        expect(
+          (topGap - bottomGap).abs(),
+          lessThan(1.0),
+          reason: '$where: 위 여백 $topGap · 아래 여백 $bottomGap — 세로 중앙',
+        );
+
+        final titleBefore = tester.getRect(find.text(slide.title));
+        await tester.dragFrom(
+          tester.getCenter(find.byType(PageView)),
+          const Offset(0, -300),
+        );
+        await tester.pumpAndSettle();
+        final titleAfter = tester.getRect(find.text(slide.title));
+        expect(
+          (titleAfter.top - titleBefore.top).abs(),
+          lessThanOrEqualTo(0.5),
+          reason: '$where: 세로 드래그 뒤 제목 top 불변(스크롤 불필요)',
+        );
+        expect(
+          (titleAfter.left - titleBefore.left).abs(),
+          lessThanOrEqualTo(0.5),
+          reason: '$where: 세로 드래그 뒤 제목 left 불변',
+        );
+
+        final labelPattern = RegExp('^${RegExp.escape(slide.title)}\\. ');
+        expect(
+          find.bySemanticsLabel(labelPattern),
+          findsWidgets,
+          reason: '$where: Semantics 라벨이 「제목. 」 으로 시작',
+        );
+        expect(tester.takeException(), isNull, reason: '$where: 레이아웃 예외 없음');
+        semantics.dispose();
+      });
+    }
+
+    // B1 — 최소 가로 크기: 하단 고정 영역(indicator · CTA) 측정 가드.
+    testWidgets('B1 (560x280): 슬라이드 1 — 하단 고정 영역이 화면 안에 있고 '
+        'CTA 를 탭할 수 있다', (tester) async {
+      final size = _landscapeSizes.last;
+      _setLogicalViewport(tester, size);
+      await pumpScreen(tester);
+
+      final page = tester.getRect(find.byType(PageView));
+      final indicator = tester.getRect(find.byType(OnboardingIndicator));
+      final cta = tester.getRect(find.byType(PrimaryCta));
+      expect(page.height, greaterThan(0), reason: '560x280: PageView 높이 > 0');
+      expect(
+        indicator.top,
+        greaterThanOrEqualTo(page.bottom),
+        reason: '560x280: indicator 가 PageView 아래',
+      );
+      expect(
+        cta.bottom,
+        lessThanOrEqualTo(size.height),
+        reason: '560x280: CTA 가 화면 아래로 잘리지 않음',
+      );
+      expect(
+        find.byType(PrimaryCta).hitTestable(),
+        findsOneWidget,
+        reason: '560x280: CTA hit test 가능',
+      );
+      // 예외 단언은 마지막 — 수정 전에는 슬라이드 1 오버플로우로 여기서만 실패.
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '560x280 슬라이드 1: 레이아웃 예외 없음',
+      );
+    });
+  });
+}
+
+/// 가로 모드 테스트가 다루는 슬라이드 1·2 명세 (index · 아이콘 · en 문구).
+typedef _SlideSpec = ({int index, IconData icon, String title, String body});
+
+/// 슬라이드 1·2 — harness locale 이 `en` 이라 영어 문구를 쓴다.
+const _slideSpecs = <_SlideSpec>[
+  (
+    index: 0,
+    icon: Icons.rocket_launch,
+    title: 'Get started quickly',
+    body: 'Explore core features without creating an account.',
+  ),
+  (
+    index: 1,
+    icon: Icons.security,
+    title: 'Kept safe and sound',
+    body: 'Sign in when you need more, and your data carries over.',
+  ),
+];
+
+/// 가로 모드 논리 크기 (dp).
+const _landscapeSizes = <Size>[
+  Size(800, 360), // 일반 폰 가로
+  Size(560, 280), // 지원 최소 폭 280dp 의 가로 — 최악
+];
+
+/// 세로 모드 비회귀 기준 논리 크기 (dp).
+const _portraitSize = Size(360, 800);
+
+/// 테스트 viewport 를 [size] 논리 크기로 둔다 — `_pumpOnboarding` 보다 먼저 호출.
+///
+/// DPR 1.0 이라 물리 픽셀 == dp 다.
+void _setLogicalViewport(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+}
+
+/// 「Next」 를 [index] 번 눌러 해당 슬라이드로 이동한다.
+Future<void> _goToSlide(WidgetTester tester, int index) async {
+  for (var i = 0; i < index; i++) {
+    await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+    await tester.pumpAndSettle();
+  }
 }
 
 /// 마지막 슬라이드로 이동해 필수 2개를 체크한다 (테스트 공용 단계).
