@@ -53,8 +53,16 @@ class WithdrawalConfirmationDialog extends ConsumerStatefulWidget {
   /// 다이얼로그를 표시하고 사용자 확인 결과를 반환한다.
   ///
   /// 반환값:
-  /// - `true`: 사용자가 확인 → 탈퇴 호출 + 성공.
-  /// - `false` / `null`: 사용자가 취소 또는 reauth fail (재로그인 요구).
+  /// - `true`: 사용자가 확인 → 탈퇴 호출 + 성공 (끊을 행 0 — 바로 삭제).
+  /// - `false`: 다음 셋 중 하나 — 계정 삭제는 **호출되지 않았거나 실패**했다.
+  ///   - 사용자가 취소.
+  ///   - reauth fail (재로그인 요구 — 로그인 화면으로 push).
+  ///   - 끊을 provider 행이 있어 탈퇴 진행 화면으로 넘김(Phase 16.10 D-05 —
+  ///     삭제 미호출 · 진행 화면이 마지막에 삭제한다).
+  /// - `null`: 다이얼로그가 결과 없이 닫힘(back 등).
+  ///
+  /// 행 목록 서버 조회가 실패하면(16.10 review WR-01) 다이얼로그는 닫히지 않고
+  /// 재시도를 안내하므로 반환값이 없다.
   static Future<bool?> show(BuildContext context) {
     return showDialog<bool>(
       context: context,
