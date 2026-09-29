@@ -12,6 +12,8 @@
 //   NV8: 로그인 사용자 부재 → Failed(UnknownException) · SDK 0
 //   NV9: SDK signIn 이 ServiceUnavailable → Failed(ServiceUnavailable) · logout 1
 //   NV10: (review IN-03) 서버 끊기 뒤 signInWithCustomToken 거부 → Done · logout 1
+//         (iteration 2 IN-01) 그 Done 은 sessionRefreshed false — 5분 창 (a) 제외 신호
+//   NV1 · NV6 의 Done 은 sessionRefreshed true (세션 갱신 성공 · 해제 다이얼로그)
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -62,6 +64,15 @@ const Map<String, dynamic> _okResponse = <String, dynamic>{
   'customToken': 'ct-U',
   'uid': _currentUid,
 };
+
+/// [DisconnectDone] 이고 `sessionRefreshed` 가 [sessionRefreshed] 인가
+/// (review IN-01 — iteration 2).
+Matcher _doneWith({required bool sessionRefreshed}) =>
+    isA<DisconnectDone>().having(
+      (done) => done.sessionRefreshed,
+      'sessionRefreshed',
+      sessionRefreshed,
+    );
 
 void main() {
   late _MockFirebaseAuth mockAuth;
@@ -157,7 +168,7 @@ void main() {
 
       final outcome = await _step.run(deps, reloginForFreshness: true);
 
-      expect(outcome, isA<DisconnectDone>());
+      expect(outcome, _doneWith(sessionRefreshed: true));
       // Pitfall 1: 한 호출은 한 번만 검증되므로 payload 단언도 순서 목록 안에서.
       verifyInOrder(<void Function()>[
         () => mockCallable.call<Map<String, dynamic>>(<String, dynamic>{
@@ -244,7 +255,7 @@ void main() {
 
     final outcome = await _step.run(deps, reloginForFreshness: false);
 
-    expect(outcome, isA<DisconnectDone>());
+    expect(outcome, _doneWith(sessionRefreshed: true));
     verifyNever(() => mockAuth.signInWithCustomToken(any()));
     verify(() => mockNaver.logout()).called(1);
   });
@@ -294,7 +305,7 @@ void main() {
   );
 
   test(
-    'NV10 (review IN-03): 서버 끊기 뒤 signInWithCustomToken 실패 → Done(provider 측 해제됨) · logout 1',
+    'NV10 (review IN-03): 서버 끊기 뒤 signInWithCustomToken 실패 → Done(provider 측 해제됨 · sessionRefreshed false) · logout 1',
     () async {
       stubAppSignIn();
       stubCallableResponse(_okResponse);
@@ -304,7 +315,8 @@ void main() {
 
       final outcome = await _step.run(deps, reloginForFreshness: true);
 
-      expect(outcome, isA<DisconnectDone>());
+      // 행은 「해제됨」 이지만 5분 창 (a) 재개방 대상이 아니다(iteration 2 IN-01).
+      expect(outcome, _doneWith(sessionRefreshed: false));
       verify(() => mockAuth.signInWithCustomToken('ct-U')).called(1);
       verify(() => mockNaver.logout()).called(1);
     },

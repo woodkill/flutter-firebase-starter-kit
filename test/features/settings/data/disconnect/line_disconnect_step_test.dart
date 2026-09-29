@@ -13,6 +13,8 @@
 //   LN9: SDK signIn 이 ServiceUnavailable → Failed(ServiceUnavailable)
 //   LN10: access token 빈 문자열 → Failed(ServiceUnavailable) · callable 0
 //   LN11: (review IN-03) 서버 끊기 뒤 signInWithCustomToken 거부 → Done · logout 1
+//         (iteration 2 IN-01) 그 Done 은 sessionRefreshed false — 5분 창 (a) 제외 신호
+//   LN1 · LN2 의 Done 은 sessionRefreshed true (세션 갱신 성공 · 해제 다이얼로그)
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -55,6 +57,15 @@ const String _currentUid = 'U';
 const Duration _serverWorstExternalBudget = Duration(seconds: 15);
 
 const LineDisconnectStep _step = LineDisconnectStep();
+
+/// [DisconnectDone] 이고 `sessionRefreshed` 가 [sessionRefreshed] 인가
+/// (review IN-01 — iteration 2).
+Matcher _doneWith({required bool sessionRefreshed}) =>
+    isA<DisconnectDone>().having(
+      (done) => done.sessionRefreshed,
+      'sessionRefreshed',
+      sessionRefreshed,
+    );
 
 void main() {
   late _MockFirebaseAuth mockAuth;
@@ -151,7 +162,7 @@ void main() {
 
       final outcome = await _step.run(deps, reloginForFreshness: true);
 
-      expect(outcome, isA<DisconnectDone>());
+      expect(outcome, _doneWith(sessionRefreshed: true));
       // Pitfall 1: logout 은 callable 응답 · 세션 갱신 뒤에만. 한 호출은 한 번만
       // 검증되므로 payload 단언도 순서 목록 안에서 한다.
       verifyInOrder(<void Function()>[
@@ -185,7 +196,7 @@ void main() {
 
     final outcome = await _step.run(deps, reloginForFreshness: false);
 
-    expect(outcome, isA<DisconnectDone>());
+    expect(outcome, _doneWith(sessionRefreshed: true));
     verifyNever(() => mockAuth.signInWithCustomToken(any()));
     verify(() => mockLine.logout()).called(1);
   });
@@ -312,7 +323,7 @@ void main() {
   );
 
   test(
-    'LN11 (review IN-03): 서버 끊기 뒤 signInWithCustomToken 실패 → Done(provider 측 해제됨) · logout 1',
+    'LN11 (review IN-03): 서버 끊기 뒤 signInWithCustomToken 실패 → Done(provider 측 해제됨 · sessionRefreshed false) · logout 1',
     () async {
       stubLineSignIn();
       stubCallableResponse(<String, dynamic>{
@@ -326,9 +337,9 @@ void main() {
 
       final outcome = await _step.run(deps, reloginForFreshness: true);
 
-      // 신선도만 갱신하지 못했다 — 삭제가 신선도 부족으로 거부되면 진행
-      // 화면의 5분 창 복구가 이 「해제됨」 행을 다시 연다.
-      expect(outcome, isA<DisconnectDone>());
+      // 신선도만 갱신하지 못했다 — 행은 「해제됨」 이지만 5분 창 (a) 재개방
+      // 대상이 아니다(iteration 2 IN-01 — 같은 로그인 실패 반복 루프 방지).
+      expect(outcome, _doneWith(sessionRefreshed: false));
       verify(() => mockAuth.signInWithCustomToken('ct-U')).called(1);
       verify(() => mockLine.logout()).called(1);
     },

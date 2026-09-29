@@ -28,6 +28,8 @@
 //   WN20: (review WR-05) 실행 의존 생성 실패 → 서버 행 실패 · 건너뛰기로 탈퇴 가능
 //   WN21: (review WR-01) 서버 조회 실패 → load failed · 행 0 · 삭제 불가
 //   WN22: (review WR-01) 캐시가 비어도 서버 목록(카카오 · 라인)으로 행 생성
+//   WN23: (iteration 2 IN-01) 재로그인 로그인 실패 Done 행은 (a) 대상 아님 → false · (b) 로 재개방
+//   WN24: (iteration 2 IN-01) (a) 는 신선도를 갱신한 「해제됨」 행만 — 뒤의 로그인 실패 행을 건너뛴다
 
 import 'dart:async';
 
@@ -869,5 +871,78 @@ void main() {
       // 행 갱신은 조회 단계를 바꾸지 않는다.
       expect(stateOf(container).load, DisconnectRowsLoad.loaded);
     });
+
+    test(
+      'WN23 (review IN-01 · iter 2): 재로그인 로그인 실패 Done 행 → (a) false · rows 불변 · (b) 가 그 행을 다시 연다',
+      () async {
+        final container = makeContainer(<String>['kakao', 'line']);
+        final notifier = container.read(withdrawalDisconnectProvider.notifier);
+        final started = notifier.start();
+        await _flush();
+        fakes.kakao.calls.last.complete(const DisconnectDone());
+        await started;
+        final signIn = notifier.signInAndDisconnect(AccountProvider.line);
+        // 서버 끊기는 성공, custom token 로그인만 실패 → 「해제됨」 이지만
+        // 신선도 갱신 0.
+        fakes.line.calls.last.complete(
+          const DisconnectDone(sessionRefreshed: false),
+        );
+        await signIn;
+        expect(
+          statusOf(container, AccountProvider.line),
+          DisconnectRowStatus.done,
+        );
+        final before = statusesOf(container);
+
+        // 같은 행을 다시 열면 같은 로그인 실패가 되풀이된다 → (b) 재인증 화면.
+        expect(notifier.reopenRowForFreshness(), isFalse);
+        expect(statusesOf(container), before);
+        expect(fakes.line.calls.length, 1);
+
+        // (b) 재인증 뒤에는 한 번 끊었던 라인 행도 다시 로그인 대기로 연다.
+        final redisconnect = notifier.redisconnectAfterReauth();
+        expect(
+          statusOf(container, AccountProvider.line),
+          DisconnectRowStatus.needsSignIn,
+        );
+        fakes.kakao.calls.last.complete(const DisconnectDone());
+        await redisconnect;
+        await notifier.requestDeletion();
+        verifyNever(() => mockSettingsRepo.requestAccountDeletion());
+      },
+    );
+
+    test(
+      'WN24 (review IN-01 · iter 2): (a) 는 신선도를 갱신한 「해제됨」 행만 연다 — 뒤의 로그인 실패 행은 건너뛴다',
+      () async {
+        final container = makeContainer(<String>['google.com', 'line']);
+        final notifier = container.read(withdrawalDisconnectProvider.notifier);
+        await notifier.start();
+        final googleSignIn = notifier.signInAndDisconnect(
+          AccountProvider.google,
+        );
+        fakes.google.calls.last.complete(const DisconnectDone());
+        await googleSignIn;
+        final lineSignIn = notifier.signInAndDisconnect(AccountProvider.line);
+        fakes.line.calls.last.complete(
+          const DisconnectDone(sessionRefreshed: false),
+        );
+        await lineSignIn;
+        expect(
+          [for (final row in stateOf(container).rows) row.provider],
+          <AccountProvider>[AccountProvider.google, AccountProvider.line],
+        );
+
+        expect(notifier.reopenRowForFreshness(), isTrue);
+        expect(
+          statusOf(container, AccountProvider.google),
+          DisconnectRowStatus.needsSignIn,
+        );
+        expect(
+          statusOf(container, AccountProvider.line),
+          DisconnectRowStatus.done,
+        );
+      },
+    );
   });
 }

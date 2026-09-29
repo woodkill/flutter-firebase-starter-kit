@@ -45,8 +45,19 @@ sealed class DisconnectOutcome {
 ///
 /// 진행 화면 = 행 「해제됨」 · 해제 다이얼로그 = 기존 해제 callable 진행.
 final class DisconnectDone extends DisconnectOutcome {
-  /// [DisconnectDone] 을 생성한다.
-  const DisconnectDone();
+  /// [DisconnectDone] 을 생성한다 — [sessionRefreshed] 기본값은 `true`.
+  const DisconnectDone({this.sessionRefreshed = true});
+
+  /// 이 끊기의 로그인이 서버 탈퇴 신선도(`auth_time`)를 갱신했는가
+  /// (16.10 review IN-01 — iteration 2).
+  ///
+  /// `false` 는 탈퇴 진행 화면(`reloginForFreshness: true`)의 Custom Token
+  /// 재로그인 step(LINE · Naver)이 서버 끊기 뒤 [signInWithReloginToken] 에
+  /// 실패한 경우뿐이다. 그 행은 진행 화면의 5분 창 (a) 재개방 대상이 아니다 —
+  /// 같은 로그인이 다시 실패하면 재개방이 끝없이 되풀이되므로 (b) 재인증 화면
+  /// 경로로 보낸다. 서버 행 · 해제 다이얼로그 · Google/Apple(재인증 실패는
+  /// [DisconnectFailed])은 `true` 다.
+  final bool sessionRefreshed;
 }
 
 /// 재로그인 창 사용자 취소 (D-11) — 실패가 아니다.
@@ -261,22 +272,27 @@ DisconnectStep? disconnectStepFor(
 }
 
 /// 재로그인 끊기 뒤 서버가 준 [customToken] 으로 같은 uid 세션을 새로 연다
-/// (D-07 · 16.10 review IN-03).
+/// (D-07 · 16.10 review IN-03 · iteration 2 IN-01).
 ///
 /// 탈퇴 진행 화면(`reloginForFreshness: true`)에서 서버 끊기가 **성공한 뒤**
-/// 에만 부른다. 이 로그인이 실패해도 provider 측 연결은 이미 끊겼으므로 끊기
-/// 결과는 바꾸지 않는다(호출부는 [DisconnectDone]). 실패는 서버 탈퇴의 300초
-/// 신선도(`auth_time`)만 갱신하지 못한 것이다 — 계정 삭제가 신선도 부족으로
-/// 거부되면 진행 화면의 5분 창 복구(마지막 「해제됨」 재로그인 행 재개방 →
-/// 재로그인 · 재끊기 · 토큰 소비)가 처리한다. 실패로 표시하면 건너뛴 사용자가
-/// 「직접 해제하세요」 라는 틀린 안내를 받는다.
-Future<void> signInWithReloginToken(
+/// 에만 부른다. 로그인 성공이면 `true`, 실패면 `false` 를 돌려주고 예외는
+/// 던지지 않는다.
+///
+/// 이 로그인이 실패해도 provider 측 연결은 이미 끊겼으므로 끊기 결과는
+/// 바꾸지 않는다 — 호출부는 [DisconnectDone] 에 `sessionRefreshed: false` 를
+/// 싣는다. 실패로 표시하면 건너뛴 사용자가 「직접 해제하세요」 라는 틀린
+/// 안내를 받는다. 실패는 서버 탈퇴의 300초 신선도(`auth_time`)만 갱신하지
+/// 못한 것이다 — 계정 삭제가 신선도 부족으로 거부되면 진행 화면의 5분 창
+/// 복구가 이 행을 (a) 재개방 대상에서 빼고, 다른 「해제됨」 재로그인 행이
+/// 없으면 (b) 재인증 화면으로 보낸다(같은 로그인 반복 실패 루프 0).
+Future<bool> signInWithReloginToken(
   DisconnectDeps deps,
   AccountProvider provider,
   String customToken,
 ) async {
   try {
     await deps.auth.signInWithCustomToken(customToken);
+    return true;
   } on Object catch (e) {
     // PII 0 — 분류만. 토큰 · uid 는 싣지 않는다.
     logDisconnectFailure(
@@ -284,6 +300,7 @@ Future<void> signInWithReloginToken(
       'disconnected, relogin failed '
       '${e is fb.FirebaseAuthException ? 'code=${e.code}' : 'runtimeType=${e.runtimeType}'}',
     );
+    return false;
   }
 }
 

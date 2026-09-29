@@ -86,12 +86,16 @@ class LineDisconnectStep extends DisconnectStep {
         response.data,
         currentUid: current.uid,
       );
-      if (reloginForFreshness) {
-        // D-07: 같은 uid 새 세션 = 새 auth_time (서버 탈퇴 신선도). 서버 끊기는
-        // 이미 끝났으므로 이 로그인 실패는 끊기 결과를 바꾸지 않는다(IN-03).
-        await signInWithReloginToken(deps, provider, customToken);
-      }
-      return const DisconnectDone();
+      if (!reloginForFreshness) return const DisconnectDone();
+      // D-07: 같은 uid 새 세션 = 새 auth_time (서버 탈퇴 신선도). 서버 끊기는
+      // 이미 끝났으므로 이 로그인 실패는 끊기 결과를 바꾸지 않는다(IN-03) —
+      // 실패는 5분 창 (a) 재개방 제외 표시로만 싣는다(iteration 2 IN-01).
+      final refreshed = await signInWithReloginToken(
+        deps,
+        provider,
+        customToken,
+      );
+      return DisconnectDone(sessionRefreshed: refreshed);
     } on ReauthUserMismatch {
       logDisconnectFailure(provider, 'callable uid');
       return const DisconnectIdentityMismatch();

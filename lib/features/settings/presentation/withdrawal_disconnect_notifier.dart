@@ -74,6 +74,7 @@ class DisconnectRow {
     required this.kind,
     required this.status,
     this.wasDisconnected = false,
+    this.freshnessRefreshed = false,
   });
 
   /// `User.providerIds` 원소 그대로 (라벨 변환 입력 — `'google.com'` 등).
@@ -96,21 +97,33 @@ class DisconnectRow {
   /// 아니다. 영속화 0 — 재진입하면 처음부터다(D-14).
   final bool wasDisconnected;
 
+  /// 마지막 [DisconnectDone] 의 로그인이 서버 탈퇴 신선도를 갱신했는가 (비시각
+  /// · 16.10 review IN-01 — iteration 2).
+  ///
+  /// 5분 창 (a) 재개방 대상 판정에 쓴다 — 재로그인 custom token 로그인에
+  /// 실패한 행([DisconnectDone.sessionRefreshed] `false`)을 다시 열면 같은
+  /// 로그인 실패가 되풀이되므로 (a) 대상에서 뺀다. 「해제됨」 이 아닌 행에서는
+  /// 의미가 없다.
+  final bool freshnessRefreshed;
+
   /// 해제됨 또는 건너뜀 — 「탈퇴」 활성 조건의 행 단위 판정.
   bool get isFinished =>
       status == DisconnectRowStatus.done ||
       status == DisconnectRowStatus.skipped;
 
-  /// [status] · [wasDisconnected] 를 바꾼 새 행을 돌려준다.
+  /// [status] · [wasDisconnected] · [freshnessRefreshed] 를 바꾼 새 행을
+  /// 돌려준다.
   DisconnectRow copyWith({
     DisconnectRowStatus? status,
     bool? wasDisconnected,
+    bool? freshnessRefreshed,
   }) => DisconnectRow(
     providerId: providerId,
     provider: provider,
     kind: kind,
     status: status ?? this.status,
     wasDisconnected: wasDisconnected ?? this.wasDisconnected,
+    freshnessRefreshed: freshnessRefreshed ?? this.freshnessRefreshed,
   );
 }
 
@@ -360,19 +373,26 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
   /// 호출 전제: 계정 삭제가 신선도 부족([ReauthenticationRequiredException])
   /// 으로 거부된 직후(모든 행이 끝났고 진행 없음 — [requestDeletion] 가드).
   ///
-  /// 「해제됨」 재로그인 행이 있으면 행 순서상 마지막 행(보통 가장 최근에 끝낸
-  /// 행)을 대기로 바꾸고 현재 행으로 정규화한 뒤 `true` — 그 행의 로그인이
+  /// 로그인이 신선도를 갱신한 「해제됨」 재로그인 행
+  /// ([DisconnectRow.freshnessRefreshed])이 있으면 행 순서상 마지막 행(보통
+  /// 가장 최근에 끝낸 행)을 대기로 바꾸고 현재 행으로 정규화한 뒤 `true` — 그 행의 로그인이
   /// 신선도 갱신과 재해제를 한 step 에서 한다(D-07 · D-14 멱등). 재인증 화면은
   /// 어느 provider 로 로그인했는지 돌려주지 않고, 해제한 provider 로 다시
   /// 로그인하면 provider 측 연결이 다시 생기므로(재동의) 재인증 화면을 거치지
   /// 않는 이 경로가 로그인 1회로 끝난다(C-09). 없으면 행 불변 · `false` —
   /// 화면이 재인증 화면으로 보낸 뒤 [redisconnectAfterReauth] 를 부른다.
+  ///
+  /// 재로그인 custom token 로그인에 실패한 행은 (a) 대상이 아니다 (16.10
+  /// review IN-01 — iteration 2). 그 로그인이 계속 실패하면 같은 행 재개방 →
+  /// 「해제됨」 → 재인증 거부가 끝없이 되풀이된다 — (b) 는 재인증 화면이
+  /// 신선도를 따로 갱신한다.
   bool reopenRowForFreshness() {
     final target = state.rows
         .where(
           (row) =>
               row.kind == DisconnectKind.relogin &&
-              row.status == DisconnectRowStatus.done,
+              row.status == DisconnectRowStatus.done &&
+              row.freshnessRefreshed,
         )
         .lastOrNull;
     if (target == null) return false;
@@ -434,16 +454,22 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
 
   /// [provider] 행의 상태를 [status] 로 바꾸고 현재 행을 다시 맞춘 목록.
   ///
-  /// [wasDisconnected] 가 주어지면 그 표시도 함께 바꾼다.
+  /// [wasDisconnected] · [freshnessRefreshed] 가 주어지면 그 표시도 함께
+  /// 바꾼다.
   List<DisconnectRow> _replaceRow(
     AccountProvider provider,
     DisconnectRowStatus status, {
     bool? wasDisconnected,
+    bool? freshnessRefreshed,
   }) {
     return normalizeDisconnectRows(<DisconnectRow>[
       for (final row in state.rows)
         row.provider == provider
-            ? row.copyWith(status: status, wasDisconnected: wasDisconnected)
+            ? row.copyWith(
+                status: status,
+                wasDisconnected: wasDisconnected,
+                freshnessRefreshed: freshnessRefreshed,
+              )
             : row,
     ]);
   }
@@ -497,12 +523,15 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
       DisconnectIdentityMismatch() => DisconnectRowStatus.mismatch,
       DisconnectFailed() => DisconnectRowStatus.failed,
     };
+    final disconnected = outcome is DisconnectDone ? outcome : null;
     state = WithdrawalDisconnectState(
-      // Done 을 받은 행만 5분 창 재해제 대상으로 표시한다.
+      // Done 을 받은 행만 5분 창 재해제 대상으로 표시하고, 그 로그인의 신선도
+      // 갱신 여부를 (a) 재개방 판정용으로 싣는다(review IN-01 — iteration 2).
       rows: _replaceRow(
         provider,
         next,
-        wasDisconnected: outcome is DisconnectDone ? true : null,
+        wasDisconnected: disconnected != null ? true : null,
+        freshnessRefreshed: disconnected?.sessionRefreshed,
       ),
       userTriggered: userTriggered ? null : state.userTriggered,
       load: state.load,
