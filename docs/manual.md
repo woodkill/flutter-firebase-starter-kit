@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-09-28
-phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제), 16.9 (Naver 연결)]
+last_updated: 2026-09-29
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제), 16.9 (Naver 연결), 16.10 (provider 측 연결 끊기)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -37,7 +37,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 10. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
 11. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
 12. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
-13. [회원탈퇴 cleanup TODO (Phase 17)](#회원탈퇴-cleanup-todo-phase-17)
+13. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
 14. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
 15. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
 16. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
@@ -415,6 +415,8 @@ firebase functions:secrets:access KAKAO_NATIVE_APP_KEY
 > `KAKAO_REST_API_KEY` destroy. 신규 사용자는 본 단락의
 > `KAKAO_NATIVE_APP_KEY` 만 set 하면 됩니다 (구 secret 명명 미존재).
 
+> **탈퇴 · 해제의 Kakao 연결 끊기 (Phase 16.10):** 서버가 Kakao 앱 연결을 끊을 때 쓰는 어드민 키는 이 단계와 별개인 secret `KAKAO_ADMIN_KEY` 다(값 = 같은 앱의 어드민 키). 등록 명령과 콘솔 설정(「사용 가능 API」 · 「호출 허용 IP 주소」 · 「사용자 아이디 고정」)은 [「provider 측 연결 끊기 (Phase 16.10)」](#provider-측-연결-끊기-phase-1610) 절에 있다.
+
 ### 5단계 — App Check Debug Provider 등록 — ⚠ Pitfall 6
 
 Cloud Function `kakaoCustomToken` 은 `enforceAppCheck: true` 로 abuse 방어
@@ -533,14 +535,10 @@ dev 빌드 실 단말 + KakaoTalk 설치 단말 + 미설치 단말 양쪽에서:
   누락** (1단계 #5) 또는 **앱 키 / 패키지명 / 키 해시 mismatch** 가 원인 —
   Kakao 자체 SDK 결함 아님.
 
-#### 회원탈퇴 cleanup TODO (Phase 17 까지 미구현)
+#### 탈퇴 · 해제 시 Kakao 정리 (Phase 16 · 16.10)
 
-- 현재 회원탈퇴 시 `identity_index/kakao:{id}` 문서가 잔존합니다 — Phase 17
-  의 Account Linking 일반화 단계에서 transaction 기반 cleanup 도입 예정.
-- 잔존 문서가 즉시 보안 결함은 아니지만, 같은 Kakao 계정을 다른 Firebase
-  UID 에 재등록하려 할 때 first-write-wins 정책 (D-12) 으로 기존 매핑이
-  우선됩니다. starter kit 사용자가 "회원탈퇴 후 즉시 재가입" 시나리오
-  검증 시 인지 필요.
+- 회원탈퇴는 `deleteUserAccount` 가, 연결 해제는 `unlinkCustomTokenProvider` 가 이 계정의 `identity_index/kakao:{id}` 문서를 지운다(Phase 16 · 16.8). 탈퇴한 계정에 묶인 매핑이 남지 않으므로 같은 Kakao 계정을 다른 계정에 다시 연결할 수 있다 — Phase 16.10 Android UAT 에서 탈퇴한 계정의 Kakao 신원을 새 계정에 연결해 확인했다.
+- Phase 16.10 부터는 탈퇴 진행 화면과 해제 다이얼로그가 어드민 키(`KAKAO_ADMIN_KEY`)로 **Kakao 앱 연결도 끊는다**(`disconnectKakaoProvider`). 설정과 동작은 [「provider 측 연결 끊기 (Phase 16.10)」](#provider-측-연결-끊기-phase-1610) 절, 탈퇴 정리 전체 현황은 [「회원탈퇴 정리 현황」](#회원탈퇴-정리-현황) 절에 있다.
 
 ---
 
@@ -769,6 +767,8 @@ firebase functions:secrets:access NAVER_CLIENT_ID
 > 주입합니다 (Phase 11 D-05 패턴). 배포가 compute 서비스 계정에 `secretAccessor`
 > 를 자동 부여합니다. refresh token 은 저장하지 않습니다 (refresh / deauth flow 는
 > Phase 17+).
+
+> **탈퇴 · 해제의 Naver 연동 해제 (Phase 16.10):** 위 인용의 「deauth flow 는 Phase 17+」 중 탈퇴 · 해제 경로는 Phase 16.10 에서 구현됐다 — 끊기 callable `disconnectNaverProvider` 가 재로그인으로 받은 토큰을 NAVER Token Revocation 으로 폐기한다. 새 secret 은 없고 이 단계의 `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` 을 그대로 쓴다. 동작 · 배포는 [「provider 측 연결 끊기 (Phase 16.10)」](#provider-측-연결-끊기-phase-1610) 절에 있다.
 
 ### 9단계 — 웹 경로(앱 미설치) Callback URL · redirect_uri 확인 (Phase 16.5)
 
@@ -1339,6 +1339,8 @@ Cloud Function `lineCustomToken` 이 D-LINE-16 정책으로 1개 secret 선언
 > 회피 위해 declaration 제거. Phase 17+ refresh / verify-token / revoke API
 > 도입 시점에 `LINE_CHANNEL_SECRET` 재등록 + Cloud Function 본문 사용처
 > 추가가 한 묶음으로 진행된다.
+
+> **`LINE_CHANNEL_SECRET` 재선언 (Phase 16.10 — 위 WR-04 예고 이행):** 탈퇴 · 해제의 LINE 앱 권한 해제(`disconnectLineProvider`)가 deauthorize 용 channel access token 을 발급할 때 이 secret 을 쓴다. 그래서 끊기 기능을 쓰는 킷은 `firebase functions:secrets:set LINE_CHANNEL_SECRET` 도 등록한다(값 = 같은 채널의 Channel secret). 등록 · 콘솔 주의는 [「provider 측 연결 끊기 (Phase 16.10)」](#provider-측-연결-끊기-phase-1610) 절에 있다.
 
 ```bash
 firebase use <dev-project-id>
@@ -2296,8 +2298,37 @@ Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측�
      `link_identity_transaction.ts`(연결 transaction)는 Kakao / LINE 연결이 쓰므로
      유지한다. 잔존 데이터 계수(배포 정리 ⑥)는 `identity_index where provider == "naver"`
      와 `users.providerLinkedAt.naver` 로 연결 사본까지 센다. 클라이언트는
-     `_kProactiveLinkCandidates` 원소 1개와 `SettingsNotifier` 의 naver arm ·
+     `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`) 원소 1개와 `SettingsNotifier` 의 naver arm ·
      `AuthRepository.linkNaverProviderArm` 을 ②(switch 일괄)와 같은 커밋에서 지운다.
+     **provider 측 끊기 경로 (Phase 16.10)** — 탈퇴 · 해제의 provider 측 끊기는
+     provider 마다 서버 callable 파일 1개 + export 1줄 + 클라이언트 레지스트리 1줄로
+     붙어 있다. 제거할 provider 에 해당하는 것만 지운다:
+     - 서버 — `functions/src/auth/disconnect_<provider>_provider.ts`
+       (`disconnect_kakao_provider.ts` · `disconnect_facebook_provider.ts` ·
+       `disconnect_naver_provider.ts` · `disconnect_line_provider.ts`)와 그 Jest 파일
+       삭제 + `functions/src/index.ts` 의 `export {disconnect<Provider>Provider}` 줄
+       (+ 위 주석) 삭제.
+     - secret 선언 — 그 callable 만 쓰는 선언을 함께 지운다: Kakao
+       `functions/src/shared/kakao_admin_secret.ts`(`KAKAO_ADMIN_KEY`) · Facebook
+       `functions/src/shared/facebook_secrets.ts`(`FACEBOOK_APP_ID` · `FACEBOOK_APP_SECRET`)
+       · LINE `functions/src/shared/oidc_providers.ts` 의 `LINE_CHANNEL_SECRET` 선언.
+       Naver 는 끊기 전용 secret 이 없다(`NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` 은
+       위 Naver 항목대로). 파괴는 배포 정리 ④ 순서를 따른다.
+     - 공용 helper — `functions/src/shared/relogin_token.ts`(`mintReloginToken`) ·
+       `functions/src/auth/identity_ownership.ts` 는 LINE · Naver 끊기가 함께 쓰므로
+       둘 다 제거할 때만 지운다.
+     - 배포 정리 ③ 에서 `firebase functions:delete disconnect<Provider>Provider` 를 함께
+       실행한다.
+     - 클라이언트 — `kDisconnectSteps`(`lib/features/settings/data/disconnect/disconnect_steps.dart`)
+       의 그 provider 줄 1개 삭제 + 재로그인 행이면 step 파일
+       (`lib/features/settings/data/disconnect/<provider>_disconnect_step.dart`)과 그 테스트
+       삭제. 레지스트리 항목 수를 단언하는 테스트(`server_disconnect_step_test.dart` S10)도
+       같은 커밋에서 고친다.
+     - 탈퇴 · 해제 callable(`deleteUserAccount` · `unlinkCustomTokenProvider`)과 진행 화면 ·
+       해제 다이얼로그는 편집 0 이다 — provider 분기가 없다.
+     native provider(Google · Apple · Facebook)를 제거할 때도 레지스트리의 그 줄과
+     (Google · Apple 이면) step 파일을 ② 와 같은 커밋에서 지운다 — `AccountProvider`
+     enum 값이 사라지면 그 줄이 컴파일되지 않는다.
    - ⑧ **문서 · 스킬 · 계획 문서** — 이 매뉴얼의 provider 절 · 목차 · 표, 스킬
      `references/`, `.planning` 활성 문서.
 
@@ -2523,25 +2554,40 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 2. "삭제 후에는 복구할 수 없습니다."
 3. "다시 가입하려면 동일 이메일 또는 동일 로그인 방식으로 신규 등록해야 합니다."
 
-**진입 path (D-05~D-08):**
+**진입 path (D-05~D-08 · Phase 16.10 진행 화면 추가):**
 
 ```
 Home AppBar → Icons.settings tap → /settings route
    → Settings screen (계정 section + Danger zone section)
    → Danger zone "회원탈퇴" ListTile tap (Theme.colorScheme.error 강조)
-   → WithdrawalConfirmationDialog (AlertDialog)
+   → WithdrawalConfirmationDialog (AlertDialog — 외관 · 문구는 Phase 16 그대로)
    → 3-line GDPR 경고 표시
    → TextField "탈퇴" verbatim 입력 (verbatim match 만 confirm 활성화)
    → destructive FilledButton (errorColor 배경) tap
-   → SettingsRepository.requestAccountDeletion()
-     → FirebaseAuth.currentUser.getIdToken(true) — fresh ID Token 발급
-       (D-06 의 5분 auth_time boundary 통과 baseline)
+   → 끊을 서비스가 있는 계정: 다이얼로그 닫힘 → /settings/withdraw 진행 화면 (Phase 16.10)
+       → 행마다 provider 측 앱 연결 끊기 (아래 「탈퇴 진행 화면」)
+       → 모든 행이 「해제됨」 또는 「건너뜀」 → 아래 고정 「탈퇴」 버튼 tap
+     끊을 서비스가 없는 계정 (이메일/비밀번호만): 진행 화면 없이 바로 다음 단계
+   → SettingsRepository.requestAccountDeletion()   ← 삭제 호출은 이 1곳 · 1회
+     → FirebaseAuth.currentUser.getIdToken(true) — 새 ID Token 발급
      → deleteUserAccount callable 호출 ({'idToken': idToken})
    → 성공: withdrawalSuccess SnackBar + signOut → /onboarding 자동 reset
-   → reauth fail (5분 boundary 초과): withdrawalReauthRequired SnackBar
-     + /login redirect (재로그인 후 재시도)
-   → server fail: withdrawalFailure SnackBar (dialog 유지 — 재시도)
+   → reauth fail (마지막 로그인 5분 초과): 아래 「5분 boundary」 · 「탈퇴 진행 화면」 5분 창
+   → server fail: withdrawalFailure SnackBar (재시도)
 ```
+
+**탈퇴 진행 화면 (Phase 16.10 — `/settings/withdraw`):** 탈퇴 전에 이 계정에 연결된 provider 의 앱 연결(사용자가 이 앱에 준 권한 · 토큰)을 하나씩 끊는다. provider 측 끊기의 서버 · 설정 · 확인 방법은 [「provider 측 연결 끊기 (Phase 16.10)」](#provider-측-연결-끊기-phase-1610) 절에 있다.
+
+- **행:** 이 계정의 로그인 수단 가운데 끊기 레지스트리 `kDisconnectSteps` 에 있는 provider 전부다 — 가입 수단도 포함한다(탈퇴는 모든 신원을 끊는다). 이메일/비밀번호는 끊을 provider 쪽 연결이 없어 행이 없다. 순서는 서버 행(Facebook · 카카오 — 로그인 없이 자동) 먼저, 그다음 재로그인 행(Google · Apple · 네이버 · 라인)이고 각 묶음 안은 킷 표준 순서 `kSocialProviderOrder` 다. 화면 위 소개 문단은 「탈퇴하기 전에 이 계정에 연결된 서비스의 앱 연결(권한)을 하나씩 해제합니다. 일부 서비스는 해제를 위해 한 번 더 로그인해야 합니다.」 다.
+- **자동 행:** 화면에 들어오면 카카오 · Facebook 행이 로그인 없이 곧바로 서버에서 끊긴다(「해제 중…」 → 「해제됨」).
+- **재로그인 행:** 한 번에 한 행만 열린다 — 현재 행은 「로그인하면 연결을 해제합니다」 와 그 provider 의 로그인 버튼 · 「건너뛰기」 를 보이고, 나머지는 「대기」 다. 로그인하면 이 계정에 연결된 신원인지 대조한 뒤 곧바로 끊고 「해제됨」 이 되며 다음 행이 열린다. 로그인을 취소하면 그 행이 다시 로그인을 기다린다.
+- **실패 · 불일치:** 끊기에 실패한 행은 「해제하지 못했습니다」 와 「재시도」(서버 행) 또는 로그인 버튼(재로그인 행) · 「건너뛰기」 를 보인다. 이 계정에 연결되지 않은 provider 계정으로 로그인하면 끊기 호출 없이 행이 「연결된 {provider} 계정으로 로그인하세요」 로 바뀐다(다른 사람의 앱 연결을 잘못 끊지 않기 위한 대조).
+- **건너뛰기:** 모든 행을 건너뛸 수 있다 — provider 계정을 잃어버린 사용자도 탈퇴는 끝낼 수 있어야 한다(D-12). 건너뛴 행 아래에는 「{provider} 계정 설정에서 이 앱의 연결을 직접 해제해 주세요.」 가 붙는다. provider 별 직접 해제 경로는 「provider 측 연결 끊기」 절의 확인 방법 표에 있다.
+- **「탈퇴」:** 모든 행이 「해제됨」 또는 「건너뜀」 이 되어야 활성이다(그 전에는 「모든 서비스를 해제하거나 건너뛰면 탈퇴할 수 있습니다.」 안내). 누르면 위 `requestAccountDeletion()` 을 1회 부른다 — 계정 삭제 단계(`deleteUserAccount`)는 Phase 16 그대로다. 끊기 · 삭제가 진행 중인 동안에는 뒤로가기로 나갈 수 없다.
+- **5분 창:** 서버는 마지막 로그인 뒤 5분 안에만 삭제한다(아래 「5분 boundary」). 진행 화면의 재로그인 행 로그인이 이 본인 확인을 겸하므로 보통은 로그인을 따로 더 하지 않는다 — Google · Apple 은 재인증(`reauthenticate*`), 네이버 · 라인은 끊기 callable 이 돌려준 custom token 으로 다시 로그인해 로그인 시각이 갱신된다. Android UAT 에서 라인 행을 끊고 약 1분 뒤 누른 「탈퇴」 가 재인증 없이 성공했다. 5분이 지나 서버가 거부하면 두 갈래다.
+  - 「해제됨」 재로그인 행이 있으면 그중 행 순서상 마지막 행이 다시 로그인을 기다리는 상태(「로그인하면 연결을 해제합니다」)로 돌아온다. 그 로그인 한 번이 본인 확인과 그 provider 재해제를 함께 하고, 사용자는 「탈퇴」 를 다시 누른다. 재인증 화면은 뜨지 않는다.
+  - 없으면(서버 행 · 건너뛴 행만) 재인증 화면 「본인 확인」 으로 간다. 로그인한 뒤 진행 화면으로 돌아오면 앞서 해제했던 서비스를 자동으로 다시 끊고(서버 행은 자동 · 재로그인 행은 다시 로그인을 기다림) 그동안 「탈퇴」 는 비활성이다. 끝나면 「탈퇴」 를 다시 누른다. 재해제를 하는 이유는 재인증 로그인이 그 provider 의 앱 연결을 다시 만들기 때문이다 — 예를 들어 Facebook 으로 재인증하면 Facebook 앱 권한이 새로 생기므로, 삭제 전에 다시 끊어 provider 쪽에 연결을 남기지 않는다(Android UAT 에서 재해제 뒤 Facebook 목록 부재 확인).
+- **이탈 · 재진입:** 「탈퇴」 를 누르기 전에 나가면(앱바 뒤로가기 · 앱 종료) 계정은 그대로 남고 진행 상태는 저장하지 않는다. 다시 들어오면 처음부터 한다 — 서버 행은 다시 자동으로 돌고, 이미 끊긴 서비스도 「해제됨」 으로 끝난다(카카오의 「이미 연결이 끊긴 사용자」 응답과 Facebook 의 이미 지운 권한 재삭제를 성공으로 처리 · Android UAT 실측). 재로그인 행은 다시 로그인한다.
 
 **destructive UX 가드 (D-08):**
 
@@ -2551,7 +2597,7 @@ Home AppBar → Icons.settings tap → /settings route
 - **Semantics destructive intent** — 스크린리더 사용자에게 "회원탈퇴 — 영구 삭제, 복구 불가" 명시 (UI-SPEC line 332 Warning 7 채택, `withdrawalConfirmActionSemantic` ARB key consume).
 - **loading 중 cancel 버튼 비활성화** — callable 진행 중 사용자 실수 차단.
 
-**5분 boundary 의미:** `getIdToken(true)` 의 forceRefresh 호출은 새 ID Token 을 발급하여 `auth_time` claim 을 현재 시각으로 갱신한다. server-side `deleteUserAccount` Cloud Function 은 token 의 `auth_time` 가 5 분 이내인 경우에만 hard delete 를 수락한다 (D-06). 사용자가 dialog 표시 후 다른 작업으로 시간을 보낸 경우 reauth fail SnackBar 가 표시되고 /login redirect 된다.
+**5분 boundary 의미 (Phase 16.10 정정):** server-side `deleteUserAccount` Cloud Function 은 token 의 `auth_time`(사용자가 마지막으로 **로그인한** 시각)이 5 분 이내인 경우에만 hard delete 를 수락한다 (D-06). `getIdToken(true)` 는 새 ID Token 을 발급할 뿐 `auth_time` 을 갱신하지 않는다 — 이전 판의 「forceRefresh 가 `auth_time` 을 현재 시각으로 갱신한다」 는 서술은 틀렸다. Phase 16.10 Android UAT 에서 마지막 로그인 약 33분 뒤 누른 「탈퇴」 는 `getIdToken(true)` 를 거친 요청이었지만 서버가 재인증 요구로 거부했다. 5분을 새로 채우는 것은 재로그인(재인증 · custom token 로그인)뿐이다. 거부되면 앱은 reauth fail 안내와 함께 재인증 화면으로 보낸다 — 진행 화면에서의 처리는 위 「5분 창」 이다.
 
 ### 약관 동의 서버 기록 (Custom Token provider — Phase 16 G-16-A9-1)
 
@@ -2606,7 +2652,7 @@ Home AppBar → Icons.settings tap → /settings route
 
 ### 계정 연결 해제 (Phase 16.8)
 
-**동작:** 설정 「내 계정」 의 「연결된 계정」 값에 나열된 provider 이름 가운데 **밑줄이 있는 이름은 해제 버튼**이고, **밑줄 없는 일반 글자는 해제할 수 없는 이름**이다 — 버튼인지 아닌지가 곧 해제 가능 여부다(스크린 리더는 버튼을 「{provider} 연결 해제」 로 읽는다). 이름을 누르면 「{provider} 연결을 해제할까요?」 다이얼로그가 본문 「해제하면 {provider} 계정으로 로그인할 수 없습니다.」 와 「취소」 · 「해제」 두 버튼으로 뜬다. 「해제」 를 누르면 다이얼로그가 닫히지 않은 채 두 버튼이 비활성되고 본문 아래 스피너가 돌다가(이 동안 back · 바깥 탭으로 닫히지 않는다) 결과가 오면 닫힌다. 성공하면 「{provider} 계정 연결이 해제되었습니다」 SnackBar 가 뜨고, 그 provider 가 「연결된 계정」 에서 빠지며 「계정 연결」 섹션에 「{provider} 연결」 버튼이 다시 나타난다(이메일/비밀번호는 예외 — 다시 연결하는 버튼이 없다, 아래 「경로」). 실패는 원인별 SnackBar 다 — 「로그인 수단이 하나뿐이라 연결을 해제할 수 없습니다.」 · 「이미 연결이 해제된 계정입니다.」 · 「네트워크 또는 서비스 오류로 연결을 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.」 · 「연결 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.」. 홈 계정정보 카드의 「연결된 계정」 은 **보기 전용**이라 해제 버튼이 없다. 해제 전 재인증은 요구하지 않는다 — Firebase 가 최근 로그인을 요구하는 작업은 계정 삭제 · 기본 이메일 변경 · 비밀번호 변경이고 unlink 는 여기에 없으며, 해제는 계정에 새 접근 권한을 주지 않고 가입 수단이 남으며, 소셜 provider 는 「계정 연결」 에서 언제든 다시 연결할 수 있기 때문이다(D-06 — 이메일/비밀번호는 다시 연결하는 경로를 의도적으로 두지 않았다, 아래 「경로」). 지금 로그인에 쓴 수단도 해제할 수 있다 — 현재 세션은 유지되고 다음 로그인부터 그 수단을 쓸 수 없다(D-02).
+**동작:** 설정 「내 계정」 의 「연결된 계정」 값에 나열된 provider 이름 가운데 **밑줄이 있는 이름은 해제 버튼**이고, **밑줄 없는 일반 글자는 해제할 수 없는 이름**이다 — 버튼인지 아닌지가 곧 해제 가능 여부다(스크린 리더는 버튼을 「{provider} 연결 해제」 로 읽는다). 이름을 누르면 「{provider} 연결을 해제할까요?」 다이얼로그가 본문 「해제하면 {provider} 계정으로 로그인할 수 없습니다.」 와 「취소」 · 「해제」 두 버튼으로 뜬다. Phase 16.10 부터 본문 아래에 문단이 더 붙는다 — 끊기 레지스트리에 있는 provider(카카오 · Facebook · Google · Apple · 네이버 · 라인)는 고지 「{provider} 앱 연결(권한)도 함께 해제됩니다.」, 그중 재로그인 provider(Google · Apple · 네이버 · 라인)는 로그인 안내 「해제하려면 {provider} 계정으로 한 번 로그인합니다.」 까지(아래 「provider 측 끊기」). 「해제」 를 누르면 다이얼로그가 닫히지 않은 채 두 버튼이 비활성되고 본문 아래 스피너가 돌다가(이 동안 back · 바깥 탭으로 닫히지 않는다) 결과가 오면 닫힌다. 성공하면 「{provider} 계정 연결이 해제되었습니다」 SnackBar 가 뜨고, 그 provider 가 「연결된 계정」 에서 빠지며 「계정 연결」 섹션에 「{provider} 연결」 버튼이 다시 나타난다(이메일/비밀번호는 예외 — 다시 연결하는 버튼이 없다, 아래 「경로」). 실패는 원인별 SnackBar 다 — 「로그인 수단이 하나뿐이라 연결을 해제할 수 없습니다.」 · 「이미 연결이 해제된 계정입니다.」 · 「네트워크 또는 서비스 오류로 연결을 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.」 · 「연결 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.」, 그리고 Phase 16.10 의 provider 측 끊기 실패 안내 「연결된 {provider} 계정이 아닙니다. 연결된 계정으로 다시 로그인해 주세요.」 · 「{provider} 앱 연결을 해제하지 못해 연결을 유지했습니다. 잠시 후 다시 시도해 주세요.」. 홈 계정정보 카드의 「연결된 계정」 은 **보기 전용**이라 해제 버튼이 없다. 해제 전 재인증(5분 신선도)은 요구하지 않는다 — 재로그인 provider 의 한 번 로그인은 provider 측 끊기에 쓸 토큰을 얻기 위한 것이고 Firebase 세션 · 로그인 시각을 바꾸지 않는다(Phase 16.10 D-09 · 16.8 D-06 부분 개정). Firebase 가 최근 로그인을 요구하는 작업은 계정 삭제 · 기본 이메일 변경 · 비밀번호 변경이고 unlink 는 여기에 없으며, 해제는 계정에 새 접근 권한을 주지 않고 가입 수단이 남으며, 소셜 provider 는 「계정 연결」 에서 언제든 다시 연결할 수 있기 때문이다(D-06 — 이메일/비밀번호는 다시 연결하는 경로를 의도적으로 두지 않았다, 아래 「경로」). 지금 로그인에 쓴 수단도 해제할 수 있다 — 현재 세션은 유지되고 다음 로그인부터 그 수단을 쓸 수 없다(D-02).
 
 **해제 가능 규칙:** 이름을 밑줄 버튼으로 그릴지는 `canUnlinkProvider`(`lib/features/settings/application/unlink_eligibility.dart`) 한 함수가 정하고, 아래 세 조건이 모두 참일 때만 버튼이다. (1) 가입 수단 기록이 있다(`signUpProviderId` non-null) — 로그인 직후 첫 emit 전이나 Firestore 읽기 실패 fallback 동안은 가입 수단이 연결된 계정 목록에 섞여 있을 수 있으므로 전부 일반 글자다(D-05). (2) 로그인 수단(`User.providerIds`)이 2개 이상이다 — 1개뿐이면 그 행 전체가 일반 글자다(D-03). (3) id 를 식별할 수 있다(`AccountProvider.tryParse` non-null) — 알 수 없는 값은 해제 경로와 문구를 정할 수 없어 일반 글자이고, 한 행에 버튼과 일반 글자가 섞이는 경우는 이 조건에서만 생긴다(D-11). 「연결 가능한 provider 목록」 은 조건에 없다 — 「연결된 계정」 에 나타난 provider 는 어느 것이든 같은 규칙을 탄다. Naver 연결(Phase 16.9)도 이 함수를 고치지 않고 같은 규칙으로 해제된다 — Android UAT 실측(D-04 · D-19 · 16.9 C-07). 설정 화면의 span 빌더 `buildUnlinkableLinkedAccountsValue` 와 `SettingsNotifier` 는 `canUnlinkProvider` 에 위임만 한다.
 
@@ -2614,7 +2660,17 @@ Home AppBar → Icons.settings tap → /settings route
 
 **불변식:** (1) **가입 수단은 해제할 수 없다.** 가입 수단은 `splitAccountProviders` 가 「연결된 계정」 목록에서 이미 빼고 「가입 수단」 값에 일반 글자로 보이므로 해제 버튼 자체가 없다 — 가입 수단을 없애는 방법은 회원탈퇴뿐이다(D-01). (2) **해제는 `signUpProviderId` 를 쓰지 않는다.** native 경로와 CT callable 모두 읽기만 하고 write 는 0 이다(unit · Jest 로 고정). 그래서 해제 뒤에도 「가입 수단」 은 그대로다. (3) **마지막 로그인 수단은 해제할 수 없다.** 클라이언트는 위 규칙 (2) 로 버튼을 그리지 않고, Custom Token 은 서버가 한 번 더 거부한다(`failed-precondition` · `details.reason: 'last_credential'` → 「로그인 수단이 하나뿐이라 연결을 해제할 수 없습니다.」). native 는 클라이언트가 Firebase 를 직접 부르므로 서버 가드가 없다 — 이 앱 UI 로는 그 상태에 닿을 수 없고, 다른 클라이언트나 Admin 경로가 수단 0 을 만드는 경우는 킷 방어 범위 밖이다(D-03 · D-22).
 
-**한계:** 해제는 **킷 쪽 연결만** 끊는다 — Firebase Auth 의 provider 연결과 위 Firestore 세 항목이다. provider 쪽 앱 연결 끊기와 토큰 폐기 요청은 하지 않는다: Kakao 연결 끊기 API · Google disconnect · Facebook 권한 삭제 · Apple token revoke · LINE revoke 모두 호출하지 않는다. 그래서 해제한 뒤에도 사용자의 Kakao · Google 등 계정 설정에는 이 앱이 연결된 앱으로 남을 수 있다. 회원탈퇴도 현재 같은 수준이다. Kakao 는 서비스 탈퇴 과정에 연결 끊기 요청을 포함하라고 요구하므로 provider 측 끊기는 todo `2026-09-26-withdrawal-provider-side-disconnect.md` 에서 탈퇴와 함께 다루고, 해제에도 적용할지는 그때 정한다(D-08 · D-09).
+**provider 측 끊기 (Phase 16.10 — 이전 판 「한계」 정정):** 이전 판은 「해제는 킷 쪽 연결만 끊고 provider 쪽 앱 연결 끊기 · 토큰 폐기는 하지 않는다」 고 적었다. Phase 16.10 부터 해제는 **provider 측 앱 연결을 먼저 끊고, 그것이 성공했을 때만** 킷 쪽 연결(Firebase Auth 의 provider 연결과 위 Firestore 세 항목)을 해제한다 — 다이얼로그 「해제」 는 `SettingsNotifier.disconnectAndUnlinkProvider` 를 부르고, 이 함수가 끊기 레지스트리 `kDisconnectSteps` 의 그 provider step 을 `reloginForFreshness: false` 로 실행한 뒤 결과가 `DisconnectDone` 일 때만 아래 「경로」 의 해제를 이어간다. 카카오 · Facebook 은 로그인 없이 서버가 끊고, Google · Apple · 네이버 · 라인은 그 provider 로 한 번 로그인해 얻은 토큰으로 끊는다(Firebase 세션은 그대로 — Android UAT 에서 라인 해제 뒤 계정의 마지막 로그인 시각이 바뀌지 않았다). 레지스트리에 없는 이메일/비밀번호는 끊을 것이 없어 이 절의 해제 그대로다. 결과는 다음과 같다.
+
+| provider 측 끊기 결과 | 킷 해제 | 사용자에게 보이는 것 |
+|---|---|---|
+| 성공 | 진행 | 위 성공 · 실패 SnackBar (해제 결과대로) |
+| provider 로그인 취소 | 안 함 | 안내 없음 · 연결 유지 |
+| 이 계정에 연결되지 않은 provider 계정으로 로그인 (신원 불일치) | 안 함 · 끊기 호출 0 | 「연결된 {provider} 계정이 아닙니다. 연결된 계정으로 다시 로그인해 주세요.」 · 연결 유지 |
+| 네트워크 · 과다 요청 계열 실패 | 안 함 | 「네트워크 또는 서비스 오류로 연결을 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.」 · 연결 유지 |
+| 그 밖의 끊기 실패 (provider 설정 오류 · 서비스 오류 등) | 안 함 | 「{provider} 앱 연결을 해제하지 못해 연결을 유지했습니다. 잠시 후 다시 시도해 주세요.」 · 연결 유지 |
+
+끊기가 먼저인 이유: 해제 뒤에는 그 provider 의 신원 기록(`identity_index` 문서 · Firebase `providerData`)이 사라져, 나중에 회원탈퇴를 해도 provider 쪽 연결을 끊을 수 없다. 해제가 provider 쪽 연결을 영구히 남기는 경로를 막는다. 카카오 · 라인은 공식 문서가 탈퇴뿐 아니라 연동 해제에도 연결 끊기를 요구한다. 이 개정으로 16.8 D-08(킷 쪽만 해제)은 폐기되고 D-06(재인증 없음)은 「재로그인 provider 는 토큰용 로그인 1회」 로 부분 개정됐다 — 정정 기록은 `16.10-CONTEXT.md` D-09 가 맡는다. Android UAT 에서 카카오(서버) · 라인(재로그인) 해제가 「서버 끊기 → 킷 해제」 순서로 동작하고 각 provider 목록에서 이 앱이 사라진 것을 확인했다. 설정 · 확인 방법은 [「provider 측 연결 끊기 (Phase 16.10)」](#provider-측-연결-끊기-phase-1610) 절에 있다.
 
 **해제 후 같은 provider 로 다시 로그인하면:** 결과는 provider 종류가 아니라 **그 provider 가 알려 주는 이메일**로 갈린다(D-21). 해제는 Firebase 계정에 저장된 `email` 을 지우지 않고, Firebase 는 이메일 하나에 계정 하나만 허용하기 때문이다. 「해제하면 완전히 남남(새 계정)」 으로 만드는 방법은 회원탈퇴뿐이다.
 
@@ -2629,7 +2685,8 @@ Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 �
 
 - **Custom Token provider** — 해제 callable 은 편집 0 이다. `CUSTOM_TOKEN_PROVIDER_PRIORITY`(`functions/src/auth/identity_index.ts`) 목록에 슬러그가 있으면 해제 대상이고, 목록에서 빼면 그 슬러그 요청은 `invalid-argument` 로 거부된다. 목록을 바꾸면 `unlinkCustomTokenProvider` 도 재배포 대상에 넣는다. Naver 는 Phase 16.9 부터 「연결된 계정」 에 나타나며, 해제는 목록에 이미 있는 `naver` 로 자동 동작한다 — 클라이언트 `canUnlinkProvider` 도 목록을 보지 않는다.
 - **native provider** — 해제 쪽 편집 0 이다. `AccountProvider.isNative` 가 경로를 정하므로, 새 provider 가 `AccountProvider` 에 native 로 등록되면(위 「가입 수단 기록」 절의 표시 쪽 할 일) 해제는 `User.unlink` 경로를 탄다.
-- **문구** — ARB 키 `settingsUnlinkProviderSemantic` · `settingsUnlinkDialogTitle` · `settingsUnlinkDialogBody` · `settingsUnlinkConfirmAction` · `accountUnlinkSucceededSnackbar` · `settingsUnlinkFailedLastCredential` · `settingsUnlinkFailedAlreadyUnlinked` · `settingsUnlinkFailedTransient` · `settingsUnlinkFailedUnknown` 를 3 locale(ko · en · ja) 함께 바꾼다. 다이얼로그 제목 · 본문 · 버튼 라벨을 바꾸면 설정 · 해제 다이얼로그 golden(`test/features/settings/presentation/goldens/`)과 widget test 의 문구 단언이 먼저 red 가 된다.
+- **provider 측 끊기** — 해제 전 끊기 대상은 레지스트리 `kDisconnectSteps` 로 정해진다. 줄을 지우면 그 provider 는 킷 쪽만 해제되고 다이얼로그의 고지 · 로그인 안내도 사라진다(다이얼로그 코드 수정 0). 추가 · 제거 절차는 「provider 측 연결 끊기 (Phase 16.10)」 절.
+- **문구** — ARB 키 `settingsUnlinkProviderSemantic` · `settingsUnlinkDialogTitle` · `settingsUnlinkDialogBody` · `settingsUnlinkConfirmAction` · `accountUnlinkSucceededSnackbar` · `settingsUnlinkFailedLastCredential` · `settingsUnlinkFailedAlreadyUnlinked` · `settingsUnlinkFailedTransient` · `settingsUnlinkFailedUnknown` 와 Phase 16.10 의 `settingsUnlinkDialogDisclosure`(고지) · `settingsUnlinkDialogSignInGuide`(로그인 안내) · `settingsUnlinkFailedIdentityMismatch` · `settingsUnlinkFailedDisconnect`(끊기 실패 SnackBar) 를 3 locale(ko · en · ja) 함께 바꾼다. 다이얼로그 제목 · 본문 · 버튼 라벨을 바꾸면 설정 · 해제 다이얼로그 golden(`test/features/settings/presentation/goldens/`)과 widget test 의 문구 단언이 먼저 red 가 된다.
 
 **확인 방법:** 두 끝을 모두 본다. (1) 화면 — 설정 「연결된 계정」 에서 해제한 provider 이름이 빠지고 「계정 연결」 섹션에 「{provider} 연결」 버튼이 다시 보이는지, 홈 계정정보 카드도 같은 목록인지, 「가입 수단」 은 그대로인지. (2) 원장 — native 는 Identity Toolkit `accounts:lookup` 응답의 `providerUserInfo` 에서 그 provider 가 빠졌는지(Firebase Console > Authentication 의 사용자 행 provider 표시도 같다). Custom Token 은 Firestore `users/{uid}.linkedProviders` 에서 그 항목이, `providerLinkedAt` 에서 그 키가 빠졌는지와 `identity_index` 에서 `firebaseUid == <uid>` 이고 `provider == <slug>` 인 문서가 0 건인지. 서버 로그에는 성공 때 `unlink_custom_token_provider_succeeded`(`removedIdentityCount` · `removedLinkedEntryCount`)가 남는다. 앱 자신의 해제는 `reload()` 로 화면이 바로 바뀌지만, Admin(Console · 스크립트)으로 원장을 바꾼 직후에는 기기가 캐시된 옛 provider 목록을 보일 수 있으니 앱 재시작이나 재로그인 뒤 대조한다.
 
@@ -2640,9 +2697,98 @@ Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 �
 - **진행 표시를 바꾸려면** — `UnlinkConfirmationDialog`(`lib/features/settings/presentation/_widgets/unlink_confirmation_dialog.dart`)의 로컬 상태 `_busy`(두 버튼 비활성 · 본문 아래 스피너 · 처리 중 `PopScope` 로 닫힘 차단)다. 계정 연결의 진행 상태와는 공유하지 않는다.
 - **결과 안내를 바꾸려면** — 설정 화면 `_onUnlinkPressed` 가 `AccountUnlinkOutcome` 값별로 SnackBar · 재로그인 이동을 정한다. 다이얼로그는 결과를 돌려주기만 한다.
 
+### provider 측 연결 끊기 (Phase 16.10)
+
+**동작:** 회원탈퇴와 연결 해제가 킷 데이터(Firebase Auth · Firestore)뿐 아니라 **provider 쪽 앱 연결**(사용자가 이 앱에 준 권한 · 토큰)까지 끊는다. 대상은 끊기 레지스트리에 있는 provider 전부다. 탈퇴는 진행 화면(`/settings/withdraw`)에서 행마다 끊은 뒤 마지막에 계정을 1회 삭제하고(「회원탈퇴」 절의 「탈퇴 진행 화면」), 해제는 확인 다이얼로그에서 끊기가 성공해야 킷 해제를 한다(「계정 연결 해제 (Phase 16.8)」 절의 「provider 측 끊기」). 이메일/비밀번호는 끊을 provider 쪽 연결이 없어 대상이 아니다.
+
+| provider | 누가 끊나 | provider 호출 | 끊기 전 로그인 |
+|---|---|---|---|
+| 카카오 | 서버 `disconnectKakaoProvider` | `POST https://kapi.kakao.com/v1/user/unlink` — 어드민 키 + `identity_index` 의 회원번호 | 없음 |
+| Facebook | 서버 `disconnectFacebookProvider` | `DELETE https://graph.facebook.com/{app-scoped user id}/permissions` — 앱 access token | 없음 |
+| 네이버 | 서버 `disconnectNaverProvider` | NAVER Token Revocation `POST https://nid.naver.com/oauth2.0/revoke` | 네이버 로그인(1-tap 또는 웹) |
+| 라인 | 서버 `disconnectLineProvider` | `POST https://api.line.me/user/v1/deauthorize` — channel access token + 사용자 access token | 라인 로그인 |
+| Google | 클라이언트 | `google_sign_in` 의 `disconnect()` | Google 로그인 |
+| Apple | 클라이언트 | Firebase Android `revokeAccessToken` · iOS `revokeTokenWithAuthorizationCode` | Apple 로그인 |
+
+왜 모두 끊나: 카카오 · 라인은 공식 문서가 탈퇴와 연동 해제 때 연결 끊기를 **의무**로 적고, Apple 은 계정 삭제 때 Sign in with Apple 토큰 폐기를 요구한다(App Store 심사 지침 5.1.1(v)). Google · 네이버 · Facebook 은 권장 · 선택 · 요구 없음이지만 킷은 모두 끊는다(16.10 D-01). 고지는 진행 화면 소개 문단과 해제 다이얼로그의 「{provider} 앱 연결(권한)도 함께 해제됩니다.」 다 — LINE 이 기능 근처에 결과 고지를 요구해 모든 provider 공통 문구로 둔다(D-19).
+
+**서버:** callable 은 provider 마다 파일 1개(`functions/src/auth/disconnect_<provider>_provider.ts`)와 `functions/src/index.ts` export 1줄이다. 공통 관례: App Check 필수(`enforceAppCheck: true`) · 익명 caller 거부(`failed-precondition` + `details.reason: 'anonymous_caller'`) · provider 설정 결함(어드민 키 · 앱 시크릿 · 채널 시크릿 오류) = `failed-precondition` + `details.reason: 'provider_config'` · 과다 요청 = `resource-exhausted` · 네트워크 · provider 장애 = `unavailable`. 로그는 `{event, uid}` 와 계수 · HTTP status · 정수 오류 코드만 남긴다 — 회원번호 · app-scoped id · 토큰 · provider 응답 본문은 남기지 않는다.
+
+- `disconnectKakaoProvider` · `disconnectFacebookProvider` — 입력 `{}` · 응답 `{ok: true, disconnectedCount}`. 카카오는 `identity_index` 에서 `firebaseUid == uid` · `provider == kakao` 문서의 회원번호를 숫자 변환 없이 문자열 그대로 `target_id` 로 보낸다. Facebook 은 Admin `getUser(uid).providerData` 의 `facebook.com` uid(app-scoped id)를 쓰고, 앱 token `{FACEBOOK_APP_ID}|{FACEBOOK_APP_SECRET}` 은 `Authorization: Bearer` 헤더로만 보낸다(URL 에 시크릿 0). 끊을 신원이 없으면 외부 호출 없이 `{ok: true, disconnectedCount: 0}` 이다.
+- `disconnectNaverProvider`(입력 1-tap `{accessToken}` · 웹 `{code, state}`) · `disconnectLineProvider`(입력 `{accessToken}`) — provider 토큰으로 사용자 id 를 얻고(네이버 `/v1/nid/me` · 라인 `/v2/profile`) `identity_index` 의 그 신원이 caller 소유인지 먼저 대조한다. 다르면 `permission-denied` + `details.reason: 'caller_identity_mismatch'` 로 거부하고 끊지 않는다. 대조를 통과하면 끊은 뒤 caller uid 의 custom token 을 `{ok: true, customToken, uid}` 로 돌려준다(탈퇴의 5분 창 갱신용 — 아래 「클라이언트」). 라인은 호출마다 stateless channel access token(`grant_type=client_credentials` · 15분 · 저장 0)을 새로 발급하고, deauthorize 본문은 JSON `{"userAccessToken": …}` 이다(form 본문은 415 로 거부 — Wave 0 실측).
+- **멱등 (재진입):** 이미 끊긴 provider 를 다시 호출해도 성공이다. 카카오 「이미 연결이 끊긴 사용자」 응답 `-101` 은 성공으로 처리하고, Facebook 은 이미 지운 권한을 다시 지워도 Graph 가 성공으로 응답한다 — 둘 다 Android UAT 재진입에서 관측해 Jest(`disconnect_kakao_provider.test.ts` K14 · `disconnect_facebook_provider.test.ts` F15)로 고정했다. 라인 deauthorize 의 400(이미 해제)도 성공으로 처리한다. 네이버 · 라인 · Google · Apple 은 재로그인이 새 승인을 만들므로 매번 끊을 대상이 있다. Facebook 이 오류로 응답하는 경우는 실측되지 않아 `unavailable`(행 실패 → 재시도 · 건너뛰기)로 둔다.
+- `deleteUserAccount`(탈퇴) · `unlinkCustomTokenProvider`(해제)는 편집 0 이다 — provider 호출과 provider 시크릿을 넣지 않는다. 쓰지 않는 provider 의 키 설정을 모든 클론에 강제하지 않기 위해서다(D-13).
+
+**클라이언트:** 끊기 레지스트리 `kDisconnectSteps`(`lib/features/settings/data/disconnect/disconnect_steps.dart`) 한 줄이 provider 하나다. 서버 행은 `ServerDisconnectStep(provider: …, callableName: '…')`, 재로그인 행은 `DisconnectStep` 을 상속한 step 파일(`google_disconnect_step.dart` · `apple_disconnect_step.dart` · `naver_disconnect_step.dart` · `line_disconnect_step.dart`)이다. 진행 화면과 해제 다이얼로그는 레지스트리만 보고 provider 분기가 없다 — 재로그인 안내 여부도 step 의 `signInStrategy`(null = 서버 행)로 정해진다. step 의 `run(deps, reloginForFreshness: …)` 는 예외를 던지지 않고 `DisconnectDone` · `DisconnectCancelled` · `DisconnectIdentityMismatch` · `DisconnectFailed` 중 하나를 돌려준다.
+
+- `reloginForFreshness: true` 는 탈퇴 진행 화면이다 — 재로그인이 5분 신선도를 겸한다(Google `reauthenticateWithCredential` · Apple `reauthenticateWithProvider` · 네이버 · 라인은 응답 custom token 으로 `signInWithCustomToken`). `false` 는 해제 다이얼로그다 — 끊기에 쓸 토큰만 얻고 Firebase 세션 · custom token 을 건드리지 않는다.
+- **순서 함정:** 네이버 · 라인 SDK `logout()` 은 callable 응답을 받은 뒤 `finally` 에서만 부른다 — LINE `logout()` 은 access token 을 서버에서 폐기하므로 순서가 바뀌면 deauthorize 가 실패한다. Google `disconnect()` 는 같은 프로세스에서 `authenticate()` 한 계정만 취소하므로 `authenticate()` → 연결된 신원 대조 → (탈퇴면) 재인증 → `disconnect()` 를 한 흐름에서 한다.
+- **Apple 플랫폼 분기:** Android 는 재인증 결과의 access token 으로 `revokeAccessToken`, iOS 는 `additionalUserInfo.authorizationCode` 로 `revokeTokenWithAuthorizationCode` 를 부른다. **Android 에서 `revokeTokenWithAuthorizationCode` 는 아무 일도 하지 않고 성공을 돌려준다**(firebase_auth 6.7.0 플러그인 소스) — 두 분기를 합치지 않는다. iOS 에서 `revokeAccessToken` 은 지원되지 않는다. Android 재인증 결과에 access token 이 실린다는 것은 Android UAT 에서 확인했다.
+- **신원 대조:** native 는 Firebase `user-mismatch`(Google 은 `providerData` uid 비교 포함), 네이버 · 라인은 서버 `caller_identity_mismatch` 와 응답 uid 대조(`requireMintedCustomToken` — `lib/features/auth/data/minted_custom_token.dart`)로 판정한다.
+
+**설정 (시크릿 · 콘솔):** 새 secret 은 아래 목록이다. dev 에만 실제 값을 넣고 stg/prod 는 placeholder 로 둔다(킷 flavor 정책 — 클론 사용자는 자기 프로젝트에 같은 이름으로 등록한다). 배포 전에 등록한다.
+
+```bash
+firebase use <dev-project-id>
+firebase functions:secrets:set KAKAO_ADMIN_KEY
+firebase functions:secrets:set FACEBOOK_APP_ID
+firebase functions:secrets:set FACEBOOK_APP_SECRET
+firebase functions:secrets:set LINE_CHANNEL_SECRET
+```
+
+| secret | 값을 얻는 곳 | 사용처 | 선언 |
+|---|---|---|---|
+| `KAKAO_ADMIN_KEY` | Kakao Developers → 내 애플리케이션 → (`KAKAO_NATIVE_APP_KEY` 와 **같은 앱**) → [앱] > [어드민 키] | `disconnectKakaoProvider` | `functions/src/shared/kakao_admin_secret.ts` |
+| `FACEBOOK_APP_ID` | 클라이언트 `config/<flavor>.json` 의 `facebookAppId` 와 **같은 값** — 다른 앱이면 app-scoped id 가 맞지 않는다 | `disconnectFacebookProvider` | `functions/src/shared/facebook_secrets.ts` |
+| `FACEBOOK_APP_SECRET` | Meta App Dashboard → 앱 설정 → 기본 설정 → 「앱 시크릿 코드」 | `disconnectFacebookProvider` | `functions/src/shared/facebook_secrets.ts` |
+| `LINE_CHANNEL_SECRET` | LINE Developers Console → LINE Login 채널(`LINE_CHANNEL_ID` 와 **같은 채널**) → Basic settings → Channel secret | `disconnectLineProvider` | `functions/src/shared/oidc_providers.ts` |
+
+네이버 끊기는 기존 `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET`, 라인 끊기는 기존 `LINE_CHANNEL_ID` 도 함께 쓴다(「Naver Login」 8단계 · 「LINE Login」 5단계). 콘솔 설정:
+
+- **카카오 어드민 키** — [앱] > [어드민 키] 의 「사용 가능 API」 에 카카오 로그인 「연결 해제」 가 허용돼 있어야 한다(콘솔의 「연결 해제」 = REST 문서의 「연결 끊기」). 「호출 허용 IP 주소」 는 **비워 둔다** — Cloud Functions 가 나가는 IP 는 고정이 아니라 IP 를 등록하면 끊기가 거부된다(고정 IP 는 Cloud NAT 가 필요하며 킷 범위 밖). 설정 결함은 행 실패(`provider_config`)로 드러난다.
+- **카카오 「사용자 아이디 고정」** — [카카오 로그인] > [고급]. 활성이면 연결을 끊은 뒤 다시 연결해도 같은 회원번호가 와서, 탈퇴 → 재가입 · 해제 → 재연결 때 신원 매핑이 유지된다. 기본 활성이지만 Kakao FAQ 는 2018년 9월 19일 이전에 만든 앱은 재연결 때 회원번호가 바뀌도록 설정돼 있을 수 있다고 적는다 — 오래된 앱이면 확인한다.
+- **Facebook** — 틀린 앱 시크릿은 Graph 가 401 · code 190 으로 거부해 행 실패(`provider_config`)가 된다(Wave 0 실측).
+- **LINE Channel secret** — 채널 Admin 역할 계정에만 보인다. Basic settings 에 없으면 Roles 를 확인하거나 Admin 계정으로 로그인한다. deauthorize 용 channel access token 은 callable 이 매번 발급하므로 콘솔에서 따로 발급할 것이 없다.
+- **Apple** — Firebase Console → Authentication → Sign-in method → Apple 의 「OAuth 코드 흐름 구성」(서비스 ID · 팀 ID · 키 ID · 비공개 키)이 입력돼 있어야 토큰 취소가 동작한다.
+- **Google · 네이버** — 새 콘솔 설정 없음.
+- 콘솔 스크린샷을 공유할 때는 키 · 시크릿 칸을 반드시 가린다. 클립보드로 값을 넣는 명령은 명령을 먼저 입력창에 붙여 넣은 뒤(Enter 전) 값을 복사하고 Enter 한다 — 순서가 바뀌면 클립보드가 명령 문장으로 덮어써진다.
+
+**판정 · 확인 방법:** 서버 로그 성공 · API 응답만으로 판정하지 않는다. 세 끝을 본다. (1) **provider 쪽 목록** — 각 provider 계정의 「연결된 서비스/앱」 목록에서 이 앱이 사라졌는지. 아래 경로는 Phase 16.10 Android UAT 에서 사용자가 본 화면 라벨이다. provider 가 화면을 바꿀 수 있으므로 공식 문서를 함께 둔다. 진행 화면에서 건너뛴 사용자가 직접 해제할 때도 이 경로를 쓴다.
+
+| provider | 「연결된 서비스/앱」 경로 (Android UAT 관측) | 공식 문서 |
+|---|---|---|
+| 카카오 | 카카오톡 > 설정 > 카카오계정 > 연결된 서비스 관리 — 끊은 앱은 「해제한 서비스」 이력에 따로 남는다 | `developers.kakao.com/docs/ko/kakaologin/common` |
+| Google | Google 계정 > 서드 파티 연결 > 「Google 계정으로 로그인」 — 삼성 기기 설정의 Google 메뉴에 없으면 브라우저 `myaccount.google.com/connections`(「연결된 앱」) | `support.google.com/accounts/answer/13533235` |
+| Apple | account.apple.com > 로그인 및 보안 > Apple로 로그인 | `support.apple.com/ko-kr/102571` |
+| Facebook | 설정 및 개인정보 > 설정 > 앱 및 웹사이트 > 활성 | `facebook.com/help/170585223002660` |
+| 네이버 | 네이버 내정보 > 연결된 서비스 관리 | 네이버 로그인 개발 가이드 4.3.1 (`developers.naver.com/docs/login/devguide/devguide.md`) |
+| 라인 | LINE 앱 > 설정 > 계정 > 연동 중인 앱 — 모바일 메뉴가 눈에 잘 띄지 않는다. 비어 있으면 「연동 중인 앱이 없습니다.」 | `developers.line.biz/en/docs/line-login/managing-authorized-apps/` |
+
+(2) **재동의** — 끊은 뒤 그 provider 로 다시 로그인하면 동의 화면이 다시 뜨는지. Android UAT 에서 네이버 · Apple 은 끊기 전에는 없던 동의 화면이 끊은 뒤 나왔다. 라인은 이 채널에서 로그인마다 승인 화면이 나와 이 근거가 약하므로 목록으로 판정한다. 동의 화면에서 취소하면 새 계정은 생기지 않는다. (3) **원장** — 탈퇴는 Auth 사용자 · `users/{uid}` 문서 · `firebaseUid == <uid>` 인 `identity_index` 문서가 모두 없어야 하고, 해제는 「계정 연결 해제 (Phase 16.8)」 절의 확인 방법 그대로다. 서버 로그 event 는 `disconnect_kakao_succeeded`(재진입이면 앞에 `disconnect_kakao_already_unlinked`) · `disconnect_facebook_succeeded` · `disconnect_naver_succeeded` · `disconnect_line_succeeded`(이미 해제면 `disconnect_line_already_deauthorized`)이고, 해제는 그 뒤에 `unlink_custom_token_provider_succeeded`(Custom Token provider)가 이어진다. Phase 16.10 Android UAT 결과: 탈퇴 진행 화면 전 행 해제 · 목록 부재 · 재동의 표시 · 새 계정 0 · 신원 불일치 거부 · 재진입 멱등 · 5분 창 두 갈래 · 카카오 · 라인 해제를 모두 확인했다. iOS 는 아래 「한계」.
+
+**배포 · 제거:** 배포는 secret 등록 뒤 명시 필터로 한다 — `firebase deploy --only functions:disconnectKakaoProvider,functions:disconnectFacebookProvider,functions:disconnectNaverProvider,functions:disconnectLineProvider --project <project> --non-interactive`. 필터 없는 `--only functions` 와 `--force` 는 쓰지 않는다(`--force` 는 로컬에 없는 함수를 지운다). dev 에서는 새로 생성된 함수에 invoker(`allUsers` · `roles/run.invoker`)가 자동으로 붙었다 — 배포 뒤 `gcloud run services get-iam-policy <service>` 로 바인딩을 보고 미인증 POST probe 가 401 인지 확인한다. 403 이면 invoker 누락이므로 `gcloud run services add-iam-policy-binding <service> --region <region> --member=allUsers --role=roles/run.invoker` 를 실행한다. 기존 함수는 재배포하지 않아도 된다 — 새 callable 만 추가했고 기존 함수의 동작 변경이 0 이다. **provider 하나의 끊기를 빼려면:** 서버 callable 파일 + `index.ts` export 1줄 + 그 callable 만 쓰는 secret 선언 + `firebase functions:delete disconnect<Provider>Provider` + 레지스트리 `kDisconnectSteps` 1줄(재로그인 행이면 step 파일도)이다. 탈퇴 · 해제 callable 과 진행 화면 · 다이얼로그는 편집 0 이다. 레지스트리 줄만 지우면 그 provider 는 킷 쪽만 해제되고, 진행 화면 행과 다이얼로그 고지 · 안내가 사라진다. provider 를 킷에서 통째로 빼는 순서는 「Custom Token Provider 제거 가이드 (Phase 16.6)」 ⑦ 의 「provider 측 끊기 경로」 항목을 따른다.
+
+**한계:**
+
+- **iOS 미실측** — 실기기 검증은 Android 뿐이다. Apple `revokeTokenWithAuthorizationCode`(iOS 경로) · Google `GIDSignIn.disconnect` · 진행 화면 · 해제 다이얼로그는 iOS batch UAT 로 넘겼다.
+- **iOS Facebook Limited Login** — iOS 에서 Limited Login 으로 로그인한 사용자(예: 추적 허용을 하지 않은 사용자 · 「ATT 와 iOS Facebook 로그인」 절)는 Facebook 행이 실패할 수 있다. Limited Login 토큰은 Graph API 를 쓸 수 없어, 사용자 토큰으로 바꿔 끊는 경로가 없다. 그 경우 사용자는 Facebook 행을 **건너뛰고**, 안내대로 Facebook 의 「앱 및 웹사이트」 에서 이 앱을 직접 해제한다. 미실측이다(iOS batch UAT).
+- **건너뛴 provider** — 앱이 끊지 않는다. 사용자에게 직접 해제를 안내할 뿐이다.
+- **역방향 알림 수신은 범위 밖** — 사용자가 provider 쪽에서 먼저 앱 연결을 끊었을 때 provider 가 보내는 알림(Facebook Data Deletion Callback · Kakao 연결 끊기 알림)은 받지 않는다. 그런 경우 킷 데이터는 정리되지 않는다.
+- **LINE 자동 복귀** — LINE 앱이 최근 앱에 열려 있는 상태에서 LINE 로그인을 하면, 로그인 뒤 이 앱으로 자동으로 돌아오지 않을 수 있다. 사용자가 직접 돌아오면 흐름이 이어진다(Android UAT 관측 · 원인은 대조군 1회로부터의 추론).
+- **접근성** — 진행 화면 행 · 건너뛰기 · 재시도의 TalkBack 낭독은 실기기에서 검증하지 않았다.
+
+**커스터마이징:**
+
+- **provider 끊기 추가** — 서버 행이면 서버 callable(`disconnectKakaoProvider` 모양 · 입력 `{}`) + `kDisconnectSteps` 에 `ServerDisconnectStep(provider: …, callableName: '…')` 1줄이다. Custom Token 재로그인 행이면 서버 callable(`{토큰}` → 소유 대조 → 끊기 → `{ok, customToken, uid}` · `mintReloginToken` · `assertIdentityOwnedByCaller` 재사용) + step 파일 1개(라인 step 을 복사해 SDK · callable 이름 · payload 만 교체) + 레지스트리 1줄이다. 진행 화면 · 다이얼로그 수정은 0 이다. 새 step 테스트에는 `verifyInOrder([callable, (signInWithCustomToken), logout])` 로 SDK logout 순서를 고정한다(payload 단언은 목록 안에).
+- **특정 provider 끊기를 끄기** — 레지스트리에서 그 줄을 지운다. 서버 callable 과 secret 까지 지우면 그 provider 의 끊기 설정이 필요 없다.
+- **행 순서** — `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`). 설정 「계정 연결」 후보 순서와 공유하며, 진행 화면은 서버 행을 항상 먼저 둔다.
+- **문구** — ARB `withdrawalDisconnect*`(진행 화면) · `settingsUnlinkDialogDisclosure` · `settingsUnlinkDialogSignInGuide` · `settingsUnlinkFailedIdentityMismatch` · `settingsUnlinkFailedDisconnect`(`lib/l10n/app_{ko,en,ja}.arb`). 문구를 바꾸면 golden 이 바뀐다 — `fvm flutter test --no-pub --update-goldens test/features/settings/presentation/withdrawal_disconnect_golden_test.dart test/features/settings/presentation/settings_screen_golden_test.dart` 로 다시 찍고 before/after 를 비교한다.
+- **timeout** — 끊기 callable timeout 은 `AuthRepository.customTokenCallableTimeout`(10초) · 네이버 웹 모양은 `naverWebCallableTimeout`(20초) 한 곳에서 바뀐다.
+- **삭제 로직** — 진행 화면은 `SettingsNotifier.requestAccountDeletion()` 만 부른다. 삭제 단계를 바꾸려면 그 한 곳과 `deleteUserAccount` 를 고친다.
+
 ### Naver 계정 연결 (Phase 16.9)
 
-**동작:** 설정 「계정 연결」 섹션에 「네이버 연결」 버튼이 있다 — 후보 목록 `_kProactiveLinkCandidates`(`lib/features/settings/presentation/_widgets/account_linking_section.dart`)에서 카카오와 라인 사이다(Phase 16 Surface D mockup 순서 · 서버 `CUSTOM_TOKEN_PROVIDER_PRIORITY` 와 같은 순서). 누르면 `SettingsNotifier.linkProvider` → `AuthRepository.linkNaverProviderArm` 이 로그인과 같은 `NaverSdkClient.signIn()` 을 부른다 — NAVER 앱이 설치돼 있으면 1-tap, 없거나 설치 판정에 실패하면 브라우저(킷 웹 흐름)이고, 경로 선택은 자동이다. 연결되는 네이버 계정은 그 경로에 이미 로그인돼 있는 계정이다(1-tap = NAVER 앱 계정 · 웹 = 브라우저 SSO 쿠키 — 네이버 로그인과 같다). 잘못된 네이버 계정을 연결했다면 아래 **해제** 로 끊고 원하는 계정으로 다시 연결한다. 성공하면 「네이버 계정이 연결되었습니다」 SnackBar 가 뜨고, 「연결된 계정」 에 네이버가 밑줄 이름(= 해제 버튼)으로 나타나며, 「네이버 연결」 버튼은 사라진다. NAVER 앱이나 브라우저에서 취소하면 안내 없이 조용히 끝난다(no-op · 서버 호출 0). 세션이 오래됐어도 재로그인 없이 연결된다 — Firebase 는 계정 연결에 최근 로그인을 요구하지 않고(공식 문서 `manage-users` 의 최근 로그인 필요 작업은 계정 삭제 · 이메일 설정 · 비밀번호 변경뿐 · `firebase_auth` 6.7.0 `linkWithCredential` 오류 목록에 `requires-recent-login` 없음 · 2026-09-28 실기기에서 5분 넘은 세션의 Google 연결 성공 확인), 서버도 quick 260928-cxs 부터 `auth_time` 신선도를 검사하지 않는다(6 provider 동일 · 회원탈퇴만 5분 규칙 유지). 「보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.」 SnackBar 와 재로그인 화면은 ID token 이 폐기 · 만료됐거나(`verifyIdToken` 실패) uid 가 다를 때만 나온다.
+**동작:** 설정 「계정 연결」 섹션에 「네이버 연결」 버튼이 있다 — 후보 순서 목록 `kSocialProviderOrder`(`lib/core/auth/provider_order.dart` — 설정 「계정 연결」 후보와 탈퇴 진행 화면 행이 함께 쓰는 킷 표준 순서 · Phase 16.10)에서 카카오와 라인 사이다(Phase 16 Surface D mockup 순서 · 서버 `CUSTOM_TOKEN_PROVIDER_PRIORITY` 와 같은 순서). 누르면 `SettingsNotifier.linkProvider` → `AuthRepository.linkNaverProviderArm` 이 로그인과 같은 `NaverSdkClient.signIn()` 을 부른다 — NAVER 앱이 설치돼 있으면 1-tap, 없거나 설치 판정에 실패하면 브라우저(킷 웹 흐름)이고, 경로 선택은 자동이다. 연결되는 네이버 계정은 그 경로에 이미 로그인돼 있는 계정이다(1-tap = NAVER 앱 계정 · 웹 = 브라우저 SSO 쿠키 — 네이버 로그인과 같다). 잘못된 네이버 계정을 연결했다면 아래 **해제** 로 끊고 원하는 계정으로 다시 연결한다. 성공하면 「네이버 계정이 연결되었습니다」 SnackBar 가 뜨고, 「연결된 계정」 에 네이버가 밑줄 이름(= 해제 버튼)으로 나타나며, 「네이버 연결」 버튼은 사라진다. NAVER 앱이나 브라우저에서 취소하면 안내 없이 조용히 끝난다(no-op · 서버 호출 0). 세션이 오래됐어도 재로그인 없이 연결된다 — Firebase 는 계정 연결에 최근 로그인을 요구하지 않고(공식 문서 `manage-users` 의 최근 로그인 필요 작업은 계정 삭제 · 이메일 설정 · 비밀번호 변경뿐 · `firebase_auth` 6.7.0 `linkWithCredential` 오류 목록에 `requires-recent-login` 없음 · 2026-09-28 실기기에서 5분 넘은 세션의 Google 연결 성공 확인), 서버도 quick 260928-cxs 부터 `auth_time` 신선도를 검사하지 않는다(6 provider 동일 · 회원탈퇴만 5분 규칙 유지). 「보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.」 SnackBar 와 재로그인 화면은 ID token 이 폐기 · 만료됐거나(`verifyIdToken` 실패) uid 가 다를 때만 나온다.
 
 **서버:** callable `linkNaverProvider`(`functions/src/auth/link_naver_provider.ts` · App Check 필수)다. 입력은 두 모양이고 필드 존재로 판별한다 — 1-tap `{idToken, accessToken}` / 웹 `{idToken, code, state}`. 두 모양이 섞이거나 둘 다 없으면 `invalid-argument` 다. 순서가 중요하다: (1) caller 검사 — `idToken` 을 `verifyIdToken(checkRevoked)` 로 풀어 uid 일치 · 익명 caller 거부(`failed-precondition`)를 **code 교환보다 먼저** 한다(재인증 신선도 `assertFreshAuth` 는 quick 260928-cxs 로 뺐다 — Firebase 는 연결에 최근 로그인을 요구하지 않는다). 거부되는 caller(폐기 · 만료 토큰 · uid 불일치 · 익명)는 1회용 code 를 소비하지 않는다. (2) 웹 모양이면 `exchangeNaverAuthCode`(`functions/src/auth/naver_token_exchange.ts` — 웹 로그인 `naverWebCustomToken` 과 같은 교환 코드)로 code 를 access token 으로 바꾼다. (3) `fetchNaverProfile`(`naver_profile_to_custom_token.ts` — 로그인과 같은 `/v1/nid/me` 검증)로 네이버 `id` 를 얻는다. (4) `linkCustomTokenIdentity`(`link_identity_transaction.ts` — Kakao / LINE 연결과 같은 transaction)가 `identity_index/naver:{id}` 문서를 만들고 `users/{uid}.linkedProviders` 항목과 `providerLinkedAt.naver` 를 쓴 뒤 `{ok: true}` 를 돌려준다. secret `NAVER_CLIENT_SECRET` · `NAVER_CLIENT_ID` 는 이 함수에 binding 된다(웹 모양 교환용 — 「Naver Login」 절 8단계 표). 클라이언트 timeout 은 1-tap 10초 · 웹 20초로 로그인과 같다. 오류 매핑은 연결 공통이다(`AuthRepository._mapLinkCallableException` — Kakao · LINE 연결과 같은 판정) — 재인증 필요(`unauthenticated` + `details.reason: 'reauthentication_required'` · 서버 `reauthenticationRequired()`) 와 idToken uid 불일치(`permission-denied`) → 재로그인 화면, reason 없는 `unauthenticated`(NAVER 거부 — `/v1/nid/me` 401 · `resultcode != 00` · code 교환 `invalid_grant` 등 · App Check 차단) → 재로그인이 아니라 「네트워크 또는 서비스 오류로 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.」(같은 실패를 로그인 경로도 일시 오류로 안내한다 — Firebase 세션은 정상이므로 재로그인으로 해소되지 않는다), `already-exists` → 「이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.」, `unavailable` → 「네트워크 또는 서비스 오류로 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.」.
 
@@ -2656,7 +2802,7 @@ Kakao 비즈 앱 · LINE email 권한을 신청해 이메일을 받는 앱도 �
 
 **커스터마이징:**
 
-- **후보 · 순서** — `_kProactiveLinkCandidates` 원소 순서가 버튼 순서다. 원소를 빼면 「네이버 연결」 버튼만 사라지고 서버 · 해제는 그대로 남는다.
+- **후보 · 순서** — `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`) 원소 순서가 버튼 순서다(탈퇴 진행 화면의 행 순서도 같은 목록 · Phase 16.10). 원소를 빼면 「네이버 연결」 버튼이 사라지고 서버 · 해제는 그대로 남는다 — 탈퇴 진행 화면의 네이버 행은 목록에 없는 provider 로 취급돼 재로그인 행 묶음 맨 뒤에 선다.
 - **타임아웃** — `AuthRepository._kCustomTokenTimeout`(1-tap 10초) · `_kNaverWebCustomTokenTimeout`(웹 20초). 로그인과 연결이 같은 상수를 쓴다.
 - **재인증 창** — 연결에는 없다. `functions/src/shared/reauth.ts` 의 `assertFreshAuth`(300초)는 회원탈퇴 `deleteUserAccount` 만 호출한다(quick 260928-cxs — Firebase 표준: 연결은 최근 로그인 불필요, 삭제는 필요). 연결에 재인증을 다시 요구하려면 `linkNaverProvider` · `linkCustomTokenProvider` 의 Step 1(uid 일치 검사 뒤)에 `assertFreshAuth(decoded.auth_time)` 한 줄을 되돌리고 Jest N5 · L3 를 거부 단언으로 바꾼다 — 클라이언트 매핑(`_mapLinkCallableException` 의 `reauthentication_required` reason → 재로그인 화면)은 방어 계층으로 남아 있어 바로 받는다.
 
@@ -2741,28 +2887,19 @@ curl -X POST \
 
 ---
 
-## 회원탈퇴 cleanup TODO (Phase 16)
+## 회원탈퇴 정리 현황
 
-현재 starter kit 의 회원탈퇴 흐름은 다음 cleanup 작업이 누락된 상태입니다
-(Phase 16 의 Account Linking 일반화 단계에서 일괄 도입 예정):
+이 절은 매뉴얼 초판(Phase 12-07)이 회원탈퇴의 미구현 정리 작업으로 적어 둔 목록을 대체한다. 그 목록의 항목은 지금 다음과 같다.
 
-- **`identity_index/{provider}:{providerUserId}` 문서 cleanup** — 회원탈퇴
-  시 사용자가 등록한 Kakao / Naver / LINE 의 매핑 문서가
-  잔존. 같은 외부 계정으로 재가입 시 first-write-wins 정책 (D-12) 으로
-  기존 매핑이 우선되어 새 UID 가 아닌 기존 (탈퇴된) UID 로 매핑되는
-  결함 가능성.
-- **Native 4 provider (Email/Google/Apple/Facebook) 의 `linkedProviders`
-  회고 등록** — Phase 12 의 Identity Index 컬렉션 등록은 Custom Token
-  provider 만 자동. Native 4 provider 도 Phase 16 에서 회고 등록 후 통합
-  관리 예정.
-- **충돌 UI** — 동일 외부 계정이 다른 Firebase UID 에 등록된 상태에서 새
-  사용자가 같은 계정으로 로그인 시 "이 카카오 계정은 다른 앱 계정에
-  등록됐습니다. 통합할까요?" 다이얼로그 (Plan 10-06 의 `account-exists-with-
-  different-credential` 패턴 확장).
+- **`identity_index/{provider}:{providerUserId}` 문서 정리 — 해소 (Phase 16).** 회원탈퇴 `deleteUserAccount` 가 Auth 사용자 · `users/{uid}` 문서와 함께 이 계정의 `identity_index` 문서를 지운다(「Account Linking & Withdrawal」 절의 「Phase 17 deferred — Storage cascade」 목록). 연결 해제도 `unlinkCustomTokenProvider` 가 그 provider 문서를 지운다(Phase 16.8). 그래서 탈퇴한 계정의 매핑이 남아 같은 외부 계정의 재가입 · 재연결을 막는 일은 없다.
+- **provider 쪽 앱 연결 끊기 — 해소 (Phase 16.10).** 탈퇴 진행 화면과 해제 다이얼로그가 provider 쪽 앱 연결(권한 · 토큰)까지 끊는다 — [「provider 측 연결 끊기 (Phase 16.10)」](#provider-측-연결-끊기-phase-1610) 절.
+- **동일 외부 계정 충돌 UI — 해소 (Phase 16).** 이미 가입된 이메일로 다른 소셜 로그인을 하면 기존 가입 수단을 알려 주는 안내 시트가 뜬다(「동일 이메일 Account Linking」 절). 다른 계정에 이미 묶인 신원을 연결하려 하면 `already-exists` 로 거부된다(「계정 연결 해제 (Phase 16.8)」 절의 재로그인 표).
+- **native provider 의 `linkedProviders` 등록 — 현재 구조에서는 필요 없음.** native 연결(Google · Apple · Facebook · 이메일)은 Firestore 에 사본을 두지 않고 Firebase `providerData` 가 원장이다(「계정 연결 해제 (Phase 16.8)」 절의 「경로」). 해제 · 탈퇴 · Facebook 끊기 모두 이 원장을 읽는다.
 
-starter kit 사용자가 production 진입 시점에 회원탈퇴 / Account Linking
-플로우를 자체 구현하거나 Phase 17 도입 후 본 starter kit 의 후속 버전을
-merge 하는 두 가지 옵션 중 선택.
+남은 범위 밖:
+
+- **역방향 해제 알림 수신** — 사용자가 provider 쪽에서 먼저 앱 연결을 끊었을 때 오는 알림(Facebook Data Deletion Callback · Kakao 연결 끊기 알림)을 받아 킷 데이터를 정리하는 기능은 없다.
+- **Cloud Storage cascade** — 「Phase 17 deferred — Storage cascade」 절 그대로다(킷은 Storage 사용처가 없다).
 
 ---
 
@@ -4689,7 +4826,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-28 | quick 260928-h94 | 「Multi-Provider Account Linking (Phase 9.2)」 절에 §5 신설 — 소셜 로그인 SDK 앱 경로 앱 쪽 대기 한도 「두지 않는다」 정책 기록: 정책 · 범위(SDK 앱 경로 Naver 1-tap · LINE · Kakao · 웹 경로 제외 사유 `CANCELED` / `ASWebAuthenticationSession`) · 근거(세 SDK Dart API 에 진행 중 로그인 취소 API 없음 — `flutter_line_sdk` 2.7.2 · `kakao_flutter_sdk_user` 2.0.0+1 · `naver_login_flutter` 4.0.0 · 2026-09-28 실측 · 구 Naver 60초 타이머 반례 2건) · 대기 중 잠기는 것(`socialLinkInProgress` · splash 자동 익명 sign-in · `auth_guard` fail-safe 보류) · wedge 와의 debug 로그 구분 · 한도를 두려는 adopter 용 5단계 체크리스트 + UAT 교훈 · 재검토 조건 3 · 「Naver Login」 절 Pitfall 1 에 §5 참조 · 출처 todo `2026-09-20-cross-provider-app-wait-limit-policy.md` 종결(사용자 결정 2026-09-28 「한도 없음(SDK 동작 그대로)」) · 코드 변경 0 |
 | 2026-09-28 | quick 260928-jwe | 연결 수단 재로그인 프로필 보존 반영 — 「IdP 프로필 동기화 정책 (R10-FOLLOWUP)」 절 도입 문단을 email · displayName · photoURL 기준으로 고치고 계정 대표값 원칙(가입 수단 기준 · 로그인 수단과 무관) 명시 · 「가입 수단 로그인에만 적용 (quick 260928-jwe)」 소절 신설(규칙 · 보존(fail-closed · backfill 없음) · 운영 로그 3종 `identity_index_profile_refresh_skipped_linked` / `_signup_missing` / `_signup_read_failed` · `PROFILE_REFRESH_POLICY` 관계 · 가입 수단 해제 시 고정(`unlinkCustomTokenProvider`) · native 범위 밖(Facebook → Phase 17 D-27) · 위조 영향 · 커스터마이징) · email 소절을 「비우지 않는다」 의미로 정정 · 테스트 참조에 JWE-1~7 추가 · 「Naver 계정 연결 (Phase 16.9)」 불변식 문단의 「주의」 문장을 새 동작으로 교체 · 「가입 수단 기록 (Phase 16.7)」 「위조 한계」 문단에 서버가 이 값을 읽는 유일한 지점 명시 · 서버 코드 `resolveIdentity` 가입 수단 게이트 |
 | 2026-09-28 | quick 260928-luw | LINE email 지원 반영 — 「email permission 신청 절차」 절을 「신청만 하면 동작」 으로 재작성: 킷 동작(항상 `openid` · `profile` · `email` 요청 · 권한 없으면 이메일 없이 가입 · 권한 있으면 서버 `lineCustomToken` 이 이메일 저장 + 같은 이메일 기존 계정 안내 시트 · 코드 수정 불필요) · 공식 신청 절차(Basic settings > OpenID Connect > Apply · 스크린샷 업로드 · 심사 기간 비공개) · verified 취급 근거와 fork 전환 두 곳(`userInfo.emailVerified` · developerClaims `email_verified`) · 실기기 검증 상태(Android 이메일-없음 경로 2026-09-28 실측 · 이메일-있음 경로 Jest LUW-1~5 만 · iOS 미실측) — 옛 「승인 후 코드 변경」 3항목 · Phase 17 책임 서술 삭제 / 「계정 연결 해제」 재로그인 표 LINE 예시를 「채널 email 권한 신청 전」 으로 정정 · 뒤 문단에 LINE endpoint 충돌 발화 Jest 참조 추가 |
+| 2026-09-29 | 16.10-12 | 탈퇴 · 해제의 provider 측 연결 끊기 반영 — 「Account Linking & Withdrawal」 에 「provider 측 연결 끊기 (Phase 16.10)」 절 신설(동작 · provider 표 · 서버 callable `disconnectKakaoProvider` · `disconnectFacebookProvider` · `disconnectNaverProvider` · `disconnectLineProvider` 계약과 멱등 · 클라이언트 레지스트리 `kDisconnectSteps` · `reloginForFreshness` · Apple 플랫폼 분기 · 새 secret `KAKAO_ADMIN_KEY` · `FACEBOOK_APP_ID` · `FACEBOOK_APP_SECRET` · `LINE_CHANNEL_SECRET` 등록 명령과 콘솔 설정 · provider 별 연결 목록 경로와 공식 문서 · 배포 · 제거 · 한계(iOS 미실측 · iOS Facebook Limited Login 건너뛰기 · 역방향 알림 범위 밖) · 커스터마이징) · 「회원탈퇴」 절에 진입 path 개정과 「탈퇴 진행 화면」(행 · 자동 행 · 재로그인 행 · 건너뛰기 · 5분 창 두 갈래 · 이탈 · 재진입) 추가 · 「5분 boundary」 문단의 `getIdToken(true)` 가 `auth_time` 을 갱신한다는 서술 정정 · 「계정 연결 해제 (Phase 16.8)」 의 「한계」 문단을 「provider 측 끊기」 현재 동작(끊기 성공 뒤에만 킷 해제 · 결과 표)으로 교체하고 다이얼로그 고지 · 로그인 안내 · 끊기 실패 SnackBar · 새 ARB 키 반영 · 「Custom Token Provider 제거 가이드」 ⑦ 에 끊기 경로 추가 · 옛 회원탈퇴 cleanup 절 2곳을 「회원탈퇴 정리 현황」 과 Kakao 절 「탈퇴 · 해제 시 Kakao 정리 (Phase 16 · 16.10)」 로 교체(목차 13번 갱신) · Kakao 4단계 · Naver 8단계 · LINE 5단계에 끊기 설정 포인터 · 옛 후보 목록 이름을 `kSocialProviderOrder` 로 교체 |
 
 ---
 
-*Last updated: 2026-09-28 — quick 260928-luw (LINE email 권한 신청만 하면 동작 — email scope 요청 · 서버 verified 취급)*
+*Last updated: 2026-09-29 — 16.10-12 (탈퇴 · 해제의 provider 측 연결 끊기 — 진행 화면 · 해제 전 끊기 · 새 secret · 제거 가이드)*
