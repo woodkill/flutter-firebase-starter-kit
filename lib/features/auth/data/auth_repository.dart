@@ -1193,9 +1193,12 @@ class AuthRepository implements AnonymousSignIn {
   /// - **reactive (16-08 충돌 arm):** generic `linkPendingNativeCredential`
   ///   (pendingCredential 직접 link) 를 사용하므로 본 메서드 미경유.
   ///
-  /// email/password proactive 연결이 필요한 프로젝트는 (1) 16-11 후보 목록
-  /// `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`) 에
-  /// [AccountProvider.email] 을 추가하고,
+  /// email/password proactive 연결이 필요한 프로젝트는 (1) 설정 「계정 연결」
+  /// 후보 필터(`account_linking_section.dart` 의 `available` 계산)에
+  /// [AccountProvider.email] 후보를 따로 더하고 — 소셜 표시 순서
+  /// `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`)에는 넣지
+  /// 않는다. 그 목록은 탈퇴 진행 화면 행 정렬도 겸하며 「이메일/비밀번호는
+  /// 소셜이 아니므로 넣지 않는다」 가 계약이다(16.10 review IN-07) —,
   /// (2) 별도 password 입력 다이얼로그를 신설한 뒤, (3) 본 메서드를 그
   /// affordance 에 wire 하면 된다 (mockup §0 EXCLUDE 결정 역전 — starter-kit
   /// 기본은 소셜만). 본 메서드를 dead code 로 제거하지 않는 이유는 위
