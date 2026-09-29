@@ -1014,9 +1014,20 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android
   enable com.nhn.android.search`) 한 번 로그인합니다. debug 로그의
   `Naver 경로 선택: mode=web installed=false` / `mode=app installed=true` 가 경로를
   알려 줍니다 (Pitfall 19 의 여섯 접두어).
-- iOS 는 Phase 16.5 에서 NAVER 앱 미설치 웹 경로(로그인 · 취소)만 실기기로 확인했고,
-  1-tap 은 테스트 SIM 부재로 미검증입니다 —
-  `.planning/todos/pending/2026-05-05-ios-naver-uat-deferred.md` 추적.
+- iOS 웹 경로(NAVER 앱 미설치)는 Phase 16.5 에서 로그인 · 취소를 실기기로
+  확인했습니다. iOS NAVER 앱 1-tap 도 2026-09-29 실기기(iPhone 16 Pro · iOS 26.6 ·
+  NAVER 12.23.72)에서 로그인 완료까지 확인했습니다 — `navercustomtoken` 의
+  `naver_custom_token_issued`(`path = "app"`) 로 교차 확인했고, 기록은
+  `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md`
+  입니다.
+- iOS 첫 1-tap 에서는 iOS 가 「"<앱 이름>" wants to open "NAVER"」 확인 알림을
+  띄웁니다. [Open] 을 눌러야 NAVER 앱으로 넘어갑니다. [Cancel] 은 오류 배너가
+  됩니다(Pitfall 11).
+- Naver Developers 의 앱이 **개발 중 상태**이면 등록된 아이디만 로그인할 수
+  있습니다. NAVER 앱에 로그인된 계정이 등록되지 않았으면 NAVER 앱이 「입력하신
+  아이디로 로그인할 수 없습니다 … 개발 중 상태에서는 등록된 아이디만 로그인할 수
+  있습니다」 화면을 띄웁니다. 검증에 쓰는 네이버 계정을 콘솔의 멤버 관리(테스터
+  ID)에 먼저 등록하십시오. 메뉴 이름은 콘솔 화면 기준으로 찾으십시오.
 
 자세한 8 시나리오 검증 양식 (Phase 13 이력): `.planning/phases/13-naver-login/13-HUMAN-UAT.md`.
 플러그인 교체 후의 시나리오와 기대값은
@@ -1108,25 +1119,52 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
     debug 로그에 취소 로그(`Naver logIn cancel: status=loggedOut …`)가 찍혔는지
     확인하십시오. 사용자가 취소한 적이 없는데 이 줄이 있다면 취소가 아니라
     흡수된 오류입니다 (Pitfall 12 의 무반응과 원인이 다릅니다).
-- **Pitfall 12 (iOS 1-tap 미복귀 wedge) — 미해결 · 미검증:** iOS 에서 NAVER 앱으로
-  넘어간 뒤 사용자가 돌아오지 않으면, 플러그인의 대기 슬롯이 점유된 채 남아 이후
-  호출이 플러그인 내부에서 `Another request is in progress` 로 거부되는 상태가
-  됩니다. 다만 **킷을 쓰는 한 이 문구를 보게 되지는 않습니다** — 킷의 in-flight
-  가드가 그보다 먼저 plugin 호출 자체를 막기 때문입니다.
-  - 증상: **오류 배너도 로딩도 없이, 버튼을 눌러도 아무 반응이 없습니다.**
-    가드에 걸린 재진입은 `null` 로 돌아오고 킷은 그것을 사용자 취소와 같게
-    (= silent) 처리하므로 화면에는 아무 일도 일어나지 않습니다.
-  - 진단: debug 빌드 로그의 `Naver logIn 재진입 무시 (in-flight)` 한 줄이
-    유일한 단서입니다. 이 줄이 탭할 때마다 찍힌다면 단말 · 계정 · 콘솔 설정이
-    아니라 이 wedge 입니다 (UAT 에서 가장 오진하기 쉬운 증상).
-  - 복구: **앱 재시작.** 플러그인에 이 상태를 되돌릴 API 가 없고, 킷에도
-    점유된 가드를 되돌리는 경로가 없습니다.
+  - **iOS 고정 리터럴은 웹 경로 취소에만 맞습니다.** iOS NAVER 앱 1-tap 경로의
+    취소는 그 리터럴로 오지 않고 오류 배너(「서비스를 일시적으로 사용할 수
+    없습니다.」)가 됩니다. 2026-09-29 실기기 관측(debug 로그의 message 이름)은 두
+    가지입니다. NAVER 동의 화면 [취소] → `ios_sdk_nid_given_error`(native
+    `access_denied`). iOS 「앱 열기」 확인 알림 [Cancel] →
+    `ios_sdk_naver_app_not_installed`. 표면 수정은 미결정이며
+    `.planning/todos/pending/2026-09-29-ios-naver-1tap-cancel-banner.md` 가
+    추적합니다.
+- **Pitfall 12 (iOS 1-tap 미복귀 wedge) — 미해결 · 실기기 재현됨 (2026-09-29, iPhone 16 Pro · iOS 26.6):**
+  iOS 에서 NAVER 앱으로 넘어간 뒤 사용자가 돌아오지 않으면(홈으로 나감 · NAVER
+  강제 종료) 원래 `logIn()` 호출의 결과가 영영 오지 않습니다. 킷은 그 결과를
+  기다리는 동안 in-flight 가드와 로그인 화면의 로딩 상태를 쥐고 있으므로 Naver
+  로그인이 잠깁니다.
+  - 증상은 **2단계**입니다. ① 킷으로 돌아온 직후에는 로그인 화면에 어두운 막 +
+    스피너 + 「로그인 처리 중…」 이 남아 버튼 탭을 흡수합니다(로그 한 줄도 없음).
+    ② 뒤로 가서 로그인 화면을 다시 열면 막은 사라지지만, 오류 배너도 로딩도 없이
+    Naver 버튼을 눌러도 아무 반응이 없습니다. 가드에 걸린 재진입은 `null` 로
+    돌아오고 킷은 그것을 사용자 취소와 같게(= silent) 처리합니다.
+  - 진단: ② 단계에서는 debug 빌드 로그에 탭마다 `Naver logIn 재진입 무시
+    (in-flight)` 와 `NaverSdkClient.logout 지연 (in-flight)` 가 한 쌍씩 찍힙니다.
+    이 쌍이 탭마다 찍히면 단말 · 계정 · 콘솔 설정이 아니라 이 wedge 입니다(UAT
+    에서 가장 오진하기 쉬운 증상). ① 단계는 로그가 없으므로, 화면에 로딩 막이
+    남아 있는지로 판단합니다.
+  - 복구 (실기기 관측):
+    - NAVER 앱으로 돌아가 결과를 내면 풀립니다. 동의 화면이 그대로 남아 있었고,
+      [취소] → 킷 복귀 시 기다리던 결과가 도착해 가드가 해제됐습니다.
+    - **cold restart**(앱 완전 종료 후 재실행)로 풀립니다. 첫 탭부터 정상입니다.
+    - **hot restart**(개발 중) 뒤에는 첫 탭이 한 번 「서비스를 일시적으로 사용할 수
+      없습니다.」 배너(debug 로그 `message=ios_plugin_request_in_progress`)로
+      소모되고, 두 번째 탭부터 정상입니다. 플러그인 내부 대기 슬롯은 이 1회
+      거부로 비워집니다. 「이후 모든 메서드가 거부된다」 는 이전 서술은 관측으로
+      뒤집혔습니다.
   - 킷의 in-flight 가드는 **요청 폭주만 막는 부분 완화**입니다 — 이미 잠긴 상태를
-    풀지 못합니다.
-  - 테스트 SIM 이 없는 단말이라 **미검증**으로 남습니다 (재현 자체가 불가).
+    풀지 못합니다. 남는 잠금은 킷 쪽 대기(가드 + 로딩 상태)입니다.
+  - 관측 기록: `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md`
+    (W1 · W2 REPRODUCED · R1 RECOVERED · R2 PARTIAL · R3 RECOVERED, 단말 1대 ·
+    그룹당 1회). 해제 방안은 `.planning/todos/pending/2026-09-20-naver-ios-one-tap-pending-wedge.md`
+    가 추적합니다.
 - **Pitfall 13 (토큰 객체 문자열 보간):** 플러그인의 토큰 클래스는 `toString` 이
   access token 과 refresh token **전문**을 출력합니다. 토큰 객체를 로그 ·
   Crashlytics 에 넣지 말고 필요한 필드 하나만 꺼내 쓰십시오.
+  - iOS 1-tap 에서는 NAVER SDK native 쪽 콜백 dict 가 debug 콘솔(flutter run 이
+    캡처하는 출력)에 한 번 찍힙니다. 로그인 성공이면 `authCode` 키를, 취소 · 오류면
+    `error_detail` 키를 담습니다(2026-09-29 실기기 관측 — access · refresh token 문자열은
+    0건). debug 로그를 외부로 공유할 때는 이 줄을 빼십시오. 끄는 방법은 미확인이며
+    `.planning/todos/pending/2026-09-29-ios-naver-1tap-cancel-banner.md` 가 추적합니다.
 - **Pitfall 14 (프로필 API 실패 = 로그인 실패):** 토큰을 이미 받았어도 클라이언트
   프로필 조회가 실패하면 로그인 전체가 실패합니다 — 구 플러그인보다 실패 지점이
   하나 늘었습니다. 보안 위험은 없습니다 (finally 의 logout 이 토큰을 지웁니다).
@@ -4837,7 +4875,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-29 | 16.10-12 | 탈퇴 · 해제의 provider 측 연결 끊기 반영 — 「Account Linking & Withdrawal」 에 「provider 측 연결 끊기 (Phase 16.10)」 절 신설(동작 · provider 표 · 서버 callable `disconnectKakaoProvider` · `disconnectFacebookProvider` · `disconnectNaverProvider` · `disconnectLineProvider` 계약과 멱등 · 클라이언트 레지스트리 `kDisconnectSteps` · `reloginForFreshness` · Apple 플랫폼 분기 · 새 secret `KAKAO_ADMIN_KEY` · `FACEBOOK_APP_ID` · `FACEBOOK_APP_SECRET` · `LINE_CHANNEL_SECRET` 등록 명령과 콘솔 설정 · provider 별 연결 목록 경로와 공식 문서 · 배포 · 제거 · 한계(iOS 미실측 · iOS Facebook Limited Login 건너뛰기 · 역방향 알림 범위 밖) · 커스터마이징) · 「회원탈퇴」 절에 진입 path 개정과 「탈퇴 진행 화면」(행 · 자동 행 · 재로그인 행 · 건너뛰기 · 5분 창 두 갈래 · 이탈 · 재진입) 추가 · 「5분 boundary」 문단의 `getIdToken(true)` 가 `auth_time` 을 갱신한다는 서술 정정 · 「계정 연결 해제 (Phase 16.8)」 의 「한계」 문단을 「provider 측 끊기」 현재 동작(끊기 성공 뒤에만 킷 해제 · 결과 표)으로 교체하고 다이얼로그 고지 · 로그인 안내 · 끊기 실패 SnackBar · 새 ARB 키 반영 · 「Custom Token Provider 제거 가이드」 ⑦ 에 끊기 경로 추가 · 옛 회원탈퇴 cleanup 절 2곳을 「회원탈퇴 정리 현황」 과 Kakao 절 「탈퇴 · 해제 시 Kakao 정리 (Phase 16 · 16.10)」 로 교체(목차 13번 갱신) · Kakao 4단계 · Naver 8단계 · LINE 5단계에 끊기 설정 포인터 · 옛 후보 목록 이름을 `kSocialProviderOrder` 로 교체 |
 | 2026-09-29 | 16.10 review fix | 「회원탈퇴」 · 「provider 측 연결 끊기 (Phase 16.10)」 · 「Custom Token Provider 제거 가이드」 절 정정(code review iteration 1 · 2) — 「탈퇴 진행 화면」 **행** 항목: 행 입력을 탈퇴 다이얼로그 「탈퇴」 확인 · 진행 화면 시작 때 각각 서버 1회 조회(`fetchProviderIdsFromServer` — `providerData` ∪ `users/{uid}.linkedProviders` · `Source.server`)로 정정하고 목록용 캐시(`currentUserProvider`)로 「행 0 = 바로 삭제」 를 판정하면 안 되는 이유 · 조회 실패 = 삭제 0(다이얼로그 유지 · 진행 화면은 이전 화면으로 복귀) 명시(iteration 1 WR-01) · `providerData` 는 `User.reload()` 뒤 읽고 `linkedProviders` 는 Custom Token 전용이라는 설명 · reload 실패 · reload 뒤 같은 사용자 세션 없음도 조회 실패로 처리(iteration 2 IN-03) · **행 0** 항목(안내 없이 닫힘 · 삭제는 다이얼로그 재확인 때만)과 **재로그인 뒤 로그인 실패** 항목(행 「해제됨」 · 5분 창 재개방 대상 제외 · 재인증 화면 경로) 추가 · 5분 창 (a) 에 제외 괄호(iteration 2 IN-05) / 「provider 측 연결 끊기」 서버 항목: 라인 verify(`client_id` === `LINE_CHANNEL_ID` · `expires_in` > 0 · 실패 `unauthenticated`) 추가 · 라인 deauthorize 400 멱등은 verify · 프로필 통과 뒤에만(iteration 1 WR-02) · 판정 순서를 verify → 소유 대조(`permission-denied` + `caller_identity_mismatch`)로 정정(iteration 2 IN-05) / 커스터마이징 「timeout」: 재로그인 끊기(라인 · 네이버 1-tap · 네이버 웹) `kReloginDisconnectCallableTimeout`(25초) 분리 + 서버 최악 예산 근거(iteration 1 WR-03) / 끊기 추가 · 제거 경로: 제거 가이드 ⑦ 「provider 측 끊기 경로」 · 「배포 · 제거」 · 커스터마이징 「provider 끊기 추가」 에 step import 1줄 · 공용 계약 `DisconnectDeps` · `disconnectDepsProvider` 편집 0 · SDK client 는 `deps.read(...)` 로 직접 읽기 반영(iteration 1 WR-04) |
 | 2026-09-29 | 16.10 review fix (iteration 3) | 「회원탈퇴」 절 「탈퇴 진행 화면」 에 **목록 조회 중** 항목 추가 — 행 목록 서버 조회 중 소개 문단 아래 원형 스피너(낭독 「불러오는 중」 · `commonLoading`) · 「탈퇴」 비활성 · 뒤로가기 허용(review IN-02) / 「계정 연결 해제 (Phase 16.8)」 절: provider 측 끊기 결과 표 「성공」 행에 킷 해제만 실패한 부분 상태 문구(`settingsUnlinkFailedAfterDisconnect` — 일시 · 미분류 실패만 · 로그인 수단 하나뿐 · 이미 해제됨 · 재로그인 필요는 기존 문구 · 서버 사전 확인 없음) · 「동작」 실패 SnackBar 목록 · 「문구」 키 목록 반영 / 「provider 측 연결 끊기」 커스터마이징 「문구」 키 목록 반영(review IN-03) / 「계정 연결 해제 (Phase 16.8)」 절: 끊기 결과 표에서 「provider 설정 오류」(`provider_config`)를 「그 밖의 끊기 실패」 에서 떼어 재시도 안내 없는 새 문구 행(`settingsUnlinkFailedProviderConfig` · `ProviderMisconfigured`)으로 분리 · 「동작」 실패 SnackBar 목록 · 「문구」 키 목록 / 「provider 측 연결 끊기」 서버 항목에 클라이언트 분류(해제 다이얼로그 전용 문구 · 진행 화면 행은 그대로) · 커스터마이징 「문구」 키 목록 반영(review IN-04) |
+| 2026-09-29 | quick 260929-snf | Naver 절 iOS 1-tap 실기기 관측 반영(iPhone 16 Pro · iOS 26.6 · NAVER 12.23.72) — **Pitfall 12** 제목을 「미해결 · 실기기 재현됨」 으로 바꾸고 증상을 2단계(복귀 직후 로딩 막 → 재개방 뒤 무반응 + `재진입 무시` · `logout 지연` 쌍)로, 복구를 관측 3경로(NAVER 로 돌아가 결과 내기 · cold restart · hot restart 는 첫 탭 1회 `ios_plugin_request_in_progress` 배너 뒤 정상)로 정정(「이후 모든 메서드 거부」 · 「앱 재시작뿐」 · 「SIM 부재로 미검증」 서술 대체) / **Pitfall 11** 에 1-tap 취소는 고정 리터럴이 아니라 오류 배너(`ios_sdk_nid_given_error` · 앱 열기 알림 Cancel 은 `ios_sdk_naver_app_not_installed`)라는 관측 추가 / **Pitfall 13** 에 SDK native 콜백 dict(`authCode` 키) debug 콘솔 1회 출력 관측 추가 / **11단계** iOS 1-tap 미검증 bullet 을 로그인 완료 관측(`naver_custom_token_issued` path=app)으로 교체하고 iOS 앱 열기 확인 알림 · 개발 중 앱은 등록 아이디(테스터)만 로그인 가능 bullet 추가. 근거: `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md`. |
 
 ---
 
-*Last updated: 2026-09-29 — 16.10 review fix iteration 3 (탈퇴 진행 화면 목록 조회 중 스피너 · 해제 부분 상태 안내 · provider 설정 오류 안내)*
+*Last updated: 2026-09-29 — quick 260929-snf (Naver Pitfall 11 · 12 · 13 · 11단계 iOS 1-tap 실기기 관측 반영)*
