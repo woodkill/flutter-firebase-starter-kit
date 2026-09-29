@@ -2320,10 +2320,14 @@ Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측�
      - 배포 정리 ③ 에서 `firebase functions:delete disconnect<Provider>Provider` 를 함께
        실행한다.
      - 클라이언트 — `kDisconnectSteps`(`lib/features/settings/data/disconnect/disconnect_steps.dart`)
-       의 그 provider 줄 1개 삭제 + 재로그인 행이면 step 파일
+       의 그 provider 줄 1개 삭제 + 재로그인 행이면 그 step import 1줄 · step 파일
        (`lib/features/settings/data/disconnect/<provider>_disconnect_step.dart`)과 그 테스트
        삭제. 레지스트리 항목 수를 단언하는 테스트(`server_disconnect_step_test.dart` S10)도
-       같은 커밋에서 고친다.
+       같은 커밋에서 고친다. 공용 계약 `DisconnectDeps`(`disconnect_step.dart`)와
+       `disconnectDepsProvider` 는 편집 0 이다 — LINE · Naver step 은 자기 SDK client 를
+       `deps.read(lineSdkClientProvider)` · `deps.read(naverSdkClientProvider)` 로 직접 읽고,
+       `DisconnectDeps` 에는 provider 별 필드가 없다. 다른 테스트의 `DisconnectDeps(...)`
+       생성부도 그대로다.
      - 탈퇴 · 해제 callable(`deleteUserAccount` · `unlinkCustomTokenProvider`)과 진행 화면 ·
        해제 다이얼로그는 편집 0 이다 — provider 분기가 없다.
      native provider(Google · Apple · Facebook)를 제거할 때도 레지스트리의 그 줄과
@@ -2766,7 +2770,7 @@ firebase functions:secrets:set LINE_CHANNEL_SECRET
 
 (2) **재동의** — 끊은 뒤 그 provider 로 다시 로그인하면 동의 화면이 다시 뜨는지. Android UAT 에서 네이버 · Apple 은 끊기 전에는 없던 동의 화면이 끊은 뒤 나왔다. 라인은 이 채널에서 로그인마다 승인 화면이 나와 이 근거가 약하므로 목록으로 판정한다. 동의 화면에서 취소하면 새 계정은 생기지 않는다. (3) **원장** — 탈퇴는 Auth 사용자 · `users/{uid}` 문서 · `firebaseUid == <uid>` 인 `identity_index` 문서가 모두 없어야 하고, 해제는 「계정 연결 해제 (Phase 16.8)」 절의 확인 방법 그대로다. 서버 로그 event 는 `disconnect_kakao_succeeded`(재진입이면 앞에 `disconnect_kakao_already_unlinked`) · `disconnect_facebook_succeeded` · `disconnect_naver_succeeded` · `disconnect_line_succeeded`(이미 해제면 `disconnect_line_already_deauthorized`)이고, 해제는 그 뒤에 `unlink_custom_token_provider_succeeded`(Custom Token provider)가 이어진다. Phase 16.10 Android UAT 결과: 탈퇴 진행 화면 전 행 해제 · 목록 부재 · 재동의 표시 · 새 계정 0 · 신원 불일치 거부 · 재진입 멱등 · 5분 창 두 갈래 · 카카오 · 라인 해제를 모두 확인했다. iOS 는 아래 「한계」.
 
-**배포 · 제거:** 배포는 secret 등록 뒤 명시 필터로 한다 — `firebase deploy --only functions:disconnectKakaoProvider,functions:disconnectFacebookProvider,functions:disconnectNaverProvider,functions:disconnectLineProvider --project <project> --non-interactive`. 필터 없는 `--only functions` 와 `--force` 는 쓰지 않는다(`--force` 는 로컬에 없는 함수를 지운다). dev 에서는 새로 생성된 함수에 invoker(`allUsers` · `roles/run.invoker`)가 자동으로 붙었다 — 배포 뒤 `gcloud run services get-iam-policy <service>` 로 바인딩을 보고 미인증 POST probe 가 401 인지 확인한다. 403 이면 invoker 누락이므로 `gcloud run services add-iam-policy-binding <service> --region <region> --member=allUsers --role=roles/run.invoker` 를 실행한다. 기존 함수는 재배포하지 않아도 된다 — 새 callable 만 추가했고 기존 함수의 동작 변경이 0 이다. **provider 하나의 끊기를 빼려면:** 서버 callable 파일 + `index.ts` export 1줄 + 그 callable 만 쓰는 secret 선언 + `firebase functions:delete disconnect<Provider>Provider` + 레지스트리 `kDisconnectSteps` 1줄(재로그인 행이면 step 파일도)이다. 탈퇴 · 해제 callable 과 진행 화면 · 다이얼로그는 편집 0 이다. 레지스트리 줄만 지우면 그 provider 는 킷 쪽만 해제되고, 진행 화면 행과 다이얼로그 고지 · 안내가 사라진다. provider 를 킷에서 통째로 빼는 순서는 「Custom Token Provider 제거 가이드 (Phase 16.6)」 ⑦ 의 「provider 측 끊기 경로」 항목을 따른다.
+**배포 · 제거:** 배포는 secret 등록 뒤 명시 필터로 한다 — `firebase deploy --only functions:disconnectKakaoProvider,functions:disconnectFacebookProvider,functions:disconnectNaverProvider,functions:disconnectLineProvider --project <project> --non-interactive`. 필터 없는 `--only functions` 와 `--force` 는 쓰지 않는다(`--force` 는 로컬에 없는 함수를 지운다). dev 에서는 새로 생성된 함수에 invoker(`allUsers` · `roles/run.invoker`)가 자동으로 붙었다 — 배포 뒤 `gcloud run services get-iam-policy <service>` 로 바인딩을 보고 미인증 POST probe 가 401 인지 확인한다. 403 이면 invoker 누락이므로 `gcloud run services add-iam-policy-binding <service> --region <region> --member=allUsers --role=roles/run.invoker` 를 실행한다. 기존 함수는 재배포하지 않아도 된다 — 새 callable 만 추가했고 기존 함수의 동작 변경이 0 이다. **provider 하나의 끊기를 빼려면:** 서버 callable 파일 + `index.ts` export 1줄 + 그 callable 만 쓰는 secret 선언 + `firebase functions:delete disconnect<Provider>Provider` + 레지스트리 `kDisconnectSteps` 1줄(재로그인 행이면 step 파일 · 그 import 1줄도)이다. 탈퇴 · 해제 callable 과 진행 화면 · 다이얼로그 · 공용 계약 `DisconnectDeps` · `disconnectDepsProvider` 는 편집 0 이다(재로그인 step 은 자기 SDK client 를 `deps.read(...)` 로 직접 읽는다). 레지스트리 줄만 지우면 그 provider 는 킷 쪽만 해제되고, 진행 화면 행과 다이얼로그 고지 · 안내가 사라진다. provider 를 킷에서 통째로 빼는 순서는 「Custom Token Provider 제거 가이드 (Phase 16.6)」 ⑦ 의 「provider 측 끊기 경로」 항목을 따른다.
 
 **한계:**
 
@@ -2779,7 +2783,7 @@ firebase functions:secrets:set LINE_CHANNEL_SECRET
 
 **커스터마이징:**
 
-- **provider 끊기 추가** — 서버 행이면 서버 callable(`disconnectKakaoProvider` 모양 · 입력 `{}`) + `kDisconnectSteps` 에 `ServerDisconnectStep(provider: …, callableName: '…')` 1줄이다. Custom Token 재로그인 행이면 서버 callable(`{토큰}` → 소유 대조 → 끊기 → `{ok, customToken, uid}` · `mintReloginToken` · `assertIdentityOwnedByCaller` 재사용) + step 파일 1개(라인 step 을 복사해 SDK · callable 이름 · payload 만 교체) + 레지스트리 1줄이다. 진행 화면 · 다이얼로그 수정은 0 이다. 새 step 테스트에는 `verifyInOrder([callable, (signInWithCustomToken), logout])` 로 SDK logout 순서를 고정한다(payload 단언은 목록 안에).
+- **provider 끊기 추가** — 서버 행이면 서버 callable(`disconnectKakaoProvider` 모양 · 입력 `{}`) + `kDisconnectSteps` 에 `ServerDisconnectStep(provider: …, callableName: '…')` 1줄이다. Custom Token 재로그인 행이면 서버 callable(`{토큰}` → 소유 대조 → 끊기 → `{ok, customToken, uid}` · `mintReloginToken` · `assertIdentityOwnedByCaller` 재사용) + step 파일 1개(라인 step 을 복사해 SDK · callable 이름 · payload 만 교체 — SDK client 는 `deps.read(<sdk>ClientProvider)` 로 읽고 `DisconnectDeps` 에 필드를 더하지 않는다) + 레지스트리 1줄이다. 진행 화면 · 다이얼로그 수정은 0 이다. 새 step 테스트에는 `verifyInOrder([callable, (signInWithCustomToken), logout])` 로 SDK logout 순서를 고정한다(payload 단언은 목록 안에).
 - **특정 provider 끊기를 끄기** — 레지스트리에서 그 줄을 지운다. 서버 callable 과 secret 까지 지우면 그 provider 의 끊기 설정이 필요 없다.
 - **행 순서** — `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`). 설정 「계정 연결」 후보 순서와 공유하며, 진행 화면은 서버 행을 항상 먼저 둔다.
 - **문구** — ARB `withdrawalDisconnect*`(진행 화면) · `settingsUnlinkDialogDisclosure` · `settingsUnlinkDialogSignInGuide` · `settingsUnlinkFailedIdentityMismatch` · `settingsUnlinkFailedDisconnect`(`lib/l10n/app_{ko,en,ja}.arb`). 문구를 바꾸면 golden 이 바뀐다 — `fvm flutter test --no-pub --update-goldens test/features/settings/presentation/withdrawal_disconnect_golden_test.dart test/features/settings/presentation/settings_screen_golden_test.dart` 로 다시 찍고 before/after 를 비교한다.

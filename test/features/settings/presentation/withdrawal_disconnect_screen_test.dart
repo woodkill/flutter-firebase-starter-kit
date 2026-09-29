@@ -47,8 +47,6 @@ import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/theme_extensions.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
-import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
@@ -71,10 +69,6 @@ class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 /// 결과를 테스트가 제어하는 끊기 step — run 호출마다 Completer 1개.
 class _FakeStep extends DisconnectStep {
@@ -160,9 +154,8 @@ DisconnectDeps _deps() => DisconnectDeps(
   auth: _MockFirebaseAuth(),
   functions: _MockFirebaseFunctions(),
   googleSignIn: _MockGoogleSignIn(),
-  lineSdkClient: _MockLineSdkClient(),
-  naverSdkClient: _MockNaverSdkClient(),
   platform: TargetPlatform.android,
+  read: ProviderContainer.test().read,
 );
 
 _MockAuthRepository _authRepo() {

@@ -15,6 +15,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
@@ -22,8 +23,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
-import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/apple_disconnect_step.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_steps.dart';
@@ -41,10 +40,6 @@ class _MockAuthCredential extends Mock implements fb.AuthCredential {}
 class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 const AppleDisconnectStep _step = AppleDisconnectStep();
 
@@ -87,9 +82,8 @@ void main() {
     auth: mockAuth,
     functions: _MockFirebaseFunctions(),
     googleSignIn: _MockGoogleSignIn(),
-    lineSdkClient: _MockLineSdkClient(),
-    naverSdkClient: _MockNaverSdkClient(),
     platform: platform,
+    read: ProviderContainer.test().read,
   );
 
   void expectNoRevoke() {

@@ -121,8 +121,6 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
-import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_steps.dart';
@@ -140,10 +138,6 @@ class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 /// 정해 둔 결과를 돌려주는 끊기 step — 실 step 은 Firebase 를 읽는다.
 class _FixedStep extends DisconnectStep {
@@ -184,9 +178,8 @@ DisconnectDeps _dummyDeps() => DisconnectDeps(
   auth: _MockFirebaseAuth(),
   functions: _MockFirebaseFunctions(),
   googleSignIn: _MockGoogleSignIn(),
-  lineSdkClient: _MockLineSdkClient(),
-  naverSdkClient: _MockNaverSdkClient(),
   platform: TargetPlatform.android,
+  read: ProviderContainer.test().read,
 );
 
 /// 활성 소셜 Strategy 6종 전부.

@@ -15,6 +15,8 @@
 //       Facebook callable 이름 · provider 가 Firebase 없이 읽힘
 //   S10: 레지스트리 완결 (plan 06) — 항목 수 · provider 집합 · 서버 행 =
 //        Kakao · Facebook · 재로그인 행 strategy non-null · email 없음
+//   S11: (review WR-04) 공용 계약 · 레지스트리는 LINE · Naver SDK client 를
+//        import 하지 않는다 — step 파일만 import 한다(양성 대조)
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -27,21 +29,17 @@ import 'package:mocktail/mocktail.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
-import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_steps.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/server_disconnect_step.dart';
+
+import '../../../../helpers/source_text.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockFbUser extends Mock implements fb.User {}
 
 class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
@@ -76,9 +74,8 @@ void main() {
       auth: mockAuth,
       functions: mockFunctions,
       googleSignIn: _MockGoogleSignIn(),
-      lineSdkClient: _MockLineSdkClient(),
-      naverSdkClient: _MockNaverSdkClient(),
       platform: TargetPlatform.android,
+      read: ProviderContainer.test().read,
     );
   });
 
@@ -313,5 +310,42 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'S11 (review WR-04): 공용 계약 · 레지스트리는 provider 별 SDK client import 0',
+      () {
+        const dir = 'lib/features/settings/data/disconnect';
+        const sdkImports = <String>[
+          "import '../../../auth/data/line_sdk_client.dart';",
+          "import '../../../auth/data/naver_sdk_client.dart';",
+        ];
+        String codeOf(String file) => stripBlockComments(
+          stripSlashComments(readTrackedFile('$dir/$file')),
+        );
+
+        // 공용 파일 — LINE · Naver 를 지워도 이 두 파일은 편집 0 이어야 한다(C-08).
+        for (final file in <String>[
+          'disconnect_step.dart',
+          'disconnect_steps.dart',
+        ]) {
+          for (final line in sdkImports) {
+            expect(
+              countOccurrences(codeOf(file), line),
+              0,
+              reason: '$file: $line',
+            );
+          }
+        }
+        // 양성 대조 — 같은 매칭이 step 파일에서는 실제로 1건을 찾는다.
+        expect(
+          countOccurrences(codeOf('line_disconnect_step.dart'), sdkImports[0]),
+          1,
+        );
+        expect(
+          countOccurrences(codeOf('naver_disconnect_step.dart'), sdkImports[1]),
+          1,
+        );
+      },
+    );
   });
 }

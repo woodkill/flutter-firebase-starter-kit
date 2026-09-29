@@ -11,6 +11,12 @@
 // 행 = step 파일 1개 + 레지스트리 1줄. [AccountProvider] 로 분기하는 switch 를
 // 새로 쓰지 않는다 — 조회는 [disconnectStepFor] 의 목록 탐색 하나다.
 //
+// 이 공용 계약 파일은 provider 별 SDK client 를 import 하지 않는다 (16.10
+// review WR-04). Custom Token 재로그인 step(LINE · Naver)은 자기 SDK client
+// 를 [DisconnectDeps.read] 로 `run` 시점에 직접 읽는다 — 그래서 그 provider
+// 를 킷에서 지울 때 이 파일 · `disconnectDepsProvider` · step 테스트 밖의
+// `DisconnectDeps(...)` 생성부는 편집 0 이다.
+//
 // 테스트 가능성: step 은 const 이고 생성 시점에 Firebase 를 읽지 않는다. 실행
 // 의존은 모두 [DisconnectDeps] 로 `run` 인자에 들어온다 — 행 종류([kind])만
 // 읽는 다이얼로그 · golden 테스트는 Firebase 초기화 없이 동작한다.
@@ -18,13 +24,12 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/auth/auth_strategy.dart';
 import '../../../../core/auth/provider_id.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../auth/data/auth_repository.dart';
-import '../../../auth/data/line_sdk_client.dart';
-import '../../../auth/data/naver_sdk_client.dart';
 
 /// provider 측 연결 끊기 1행의 결과 (Phase 16.10 · UI-SPEC §행 상태).
 ///
@@ -86,11 +91,22 @@ enum DisconnectKind {
   relogin,
 }
 
+/// provider 를 한 번 읽어 현재 값을 돌려주는 범용 reader.
+///
+/// `Ref.read` · `ProviderContainer.read` tear-off 와 같은 모양이다
+/// (16.10 review WR-04).
+typedef DisconnectProviderReader =
+    T Function<T>(ProviderListenable<T> provider);
+
 /// [DisconnectStep.run] 의 실행 의존 묶음 (C-08 · 테스트 가능성).
 ///
 /// `disconnectDepsProvider` 가 인프라 provider 에서 만들고, 테스트는 mock 을
 /// 직접 넣는다. step 은 이 값을 `run` 시점에만 받는다 — 레지스트리 · step
 /// 생성은 Firebase 를 읽지 않는다.
+///
+/// 필드는 여러 step 이 공유하는 킷 공통 인프라뿐이다. 한 provider 만 쓰는
+/// SDK client(LINE · Naver)는 필드로 두지 않고 그 step 이 [read] 로 직접
+/// 읽는다 — provider 제거가 이 계약을 건드리지 않게 한다(C-08 · WR-04).
 @immutable
 class DisconnectDeps {
   /// 실행 의존 전부를 받아 [DisconnectDeps] 를 생성한다.
@@ -98,9 +114,8 @@ class DisconnectDeps {
     required this.auth,
     required this.functions,
     required this.googleSignIn,
-    required this.lineSdkClient,
-    required this.naverSdkClient,
     required this.platform,
+    required this.read,
   });
 
   /// 현재 로그인 사용자 · 재인증 · Apple 토큰 폐기에 쓰는 Firebase Auth.
@@ -112,14 +127,15 @@ class DisconnectDeps {
   /// Google 재로그인 · `disconnect` 에 쓰는 SDK 인스턴스.
   final GoogleSignIn googleSignIn;
 
-  /// LINE 재로그인 SDK client (LINE step 이 사용).
-  final LineSdkClient lineSdkClient;
-
-  /// Naver 재로그인 SDK client (Naver step 이 사용).
-  final NaverSdkClient naverSdkClient;
-
   /// 실행 플랫폼 — Apple 토큰 폐기 API 분기에 쓴다(C-09).
   final TargetPlatform platform;
+
+  /// step 전용 의존을 `run` 시점에 읽는 reader (예: LINE step 의
+  /// `read(lineSdkClientProvider)`).
+  ///
+  /// 앱에서는 keepAlive `disconnectDepsProvider` 의 `Ref.read` 다. 테스트는
+  /// override 를 담은 `ProviderContainer.read` 를 넣는다.
+  final DisconnectProviderReader read;
 }
 
 /// provider 1개의 측 연결 끊기 — 진행 화면과 해제 다이얼로그가 공유한다.

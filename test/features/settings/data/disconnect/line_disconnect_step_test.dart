@@ -17,6 +17,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
@@ -26,7 +27,6 @@ import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/line_disconnect_step.dart';
 
@@ -39,8 +39,6 @@ class _MockUserCredential extends Mock implements fb.UserCredential {}
 class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
 
 class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
@@ -117,13 +115,16 @@ void main() {
     when(
       () => mockAuth.signInWithCustomToken(any()),
     ).thenAnswer((_) async => _MockUserCredential());
+    // step 은 자기 SDK client 를 deps.read 로 얻는다 (review WR-04).
+    final container = ProviderContainer.test(
+      overrides: [lineSdkClientProvider.overrideWithValue(mockLine)],
+    );
     deps = DisconnectDeps(
       auth: mockAuth,
       functions: mockFunctions,
       googleSignIn: _MockGoogleSignIn(),
-      lineSdkClient: mockLine,
-      naverSdkClient: _MockNaverSdkClient(),
       platform: TargetPlatform.android,
+      read: container.read,
     );
   });
 

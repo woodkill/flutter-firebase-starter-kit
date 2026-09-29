@@ -28,6 +28,7 @@ import '../../../../core/auth/strategies/naver_auth_strategy.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/data/minted_custom_token.dart';
+import '../../../auth/data/naver_sdk_client.dart';
 import '../../../auth/data/naver_sign_in_result.dart';
 import 'disconnect_step.dart';
 
@@ -52,8 +53,14 @@ class NaverDisconnectStep extends DisconnectStep {
       logDisconnectFailure(provider, 'no signed-in user');
       return const DisconnectFailed(UnknownException());
     }
+    NaverSdkClient? sdkClient;
     try {
-      final result = await deps.naverSdkClient.signIn();
+      // 자기 SDK client 를 직접 읽는다 — 공용 [DisconnectDeps] 에 provider 별
+      // 필드를 두지 않는다(C-08 · review WR-04). 읽기 실패도 아래 `on Object`
+      // 가 실패로 흡수한다(run 은 예외를 던지지 않는 계약).
+      final client = deps.read(naverSdkClientProvider);
+      sdkClient = client;
+      final result = await client.signIn();
       if (result == null) {
         // D-11: 로그인 취소는 실패가 아니다.
         return const DisconnectCancelled();
@@ -97,7 +104,7 @@ class NaverDisconnectStep extends DisconnectStep {
       return DisconnectFailed(ServiceUnavailable(cause: e));
     } finally {
       // Pitfall 1 · C-03: callable 응답 뒤에만 SDK 토큰을 폐기한다.
-      await deps.naverSdkClient.logout();
+      await sdkClient?.logout();
     }
   }
 }
