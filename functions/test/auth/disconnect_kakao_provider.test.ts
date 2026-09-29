@@ -12,6 +12,8 @@
  *    body 문자열 그대로) · 성공 로그
  *  - K2: `-101`(이미 끊긴 사용자) → 성공 · 멱등 (D-14)
  *  - K3: 익명 caller → failed-precondition(anonymous_caller) · 조회 0 · fetch 0
+ *  - K5: 신원 0 건 → 성공 · fetch 0 · warn `disconnect_kakao_no_identity`
+ *    (review IN-05 — 원장 불일치 표지)
  *  - K14: UAT1610 실측 재진입 — 200 뒤 재호출 -101 → 둘 다 성공 (plan 11)
  *
  * PII sentinel: Kakao 회원번호(`1234567890123456789`) · 어드민 키
@@ -275,6 +277,8 @@ describe("disconnectKakaoProvider — 성공 · 멱등", () => {
       },
       expect.any(String),
     );
+    // review IN-05: 원장 불일치 warn 은 신원 0 건일 때만.
+    expect(warnMock).not.toHaveBeenCalled();
   });
 
   it("K2: -101(이미 끊긴 사용자) → 성공 · 멱등 로그", async () => {
@@ -368,7 +372,7 @@ describe("disconnectKakaoProvider — 미인증 · 0 건", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("K5: Kakao 신원 없음 → {ok, disconnectedCount: 0} · fetch 0", async () => {
+  it("K5: 신원 없음 → {ok, disconnectedCount: 0} · fetch 0 · warn", async () => {
     arrangeKakaoIdentities([]);
 
     await expect(callDisconnect()).resolves.toEqual({
@@ -376,6 +380,11 @@ describe("disconnectKakaoProvider — 미인증 · 0 건", () => {
       disconnectedCount: 0,
     });
     expect(fetchMock).not.toHaveBeenCalled();
+    // review IN-05: 원장 불일치 표지 — 성공 event 와 같은 {event, uid} 형태.
+    expect(warnMock).toHaveBeenCalledWith(
+      {event: "disconnect_kakao_no_identity", uid: CALLER_UID},
+      expect.any(String),
+    );
     expect(infoMock).toHaveBeenCalledWith(
       {
         event: "disconnect_kakao_succeeded",

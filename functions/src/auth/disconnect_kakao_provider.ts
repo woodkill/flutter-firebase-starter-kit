@@ -223,6 +223,16 @@ export const disconnectKakaoProvider = onCall(
     }
 
     // Step 4: 성공.
+    // 16.10 review IN-05: client 는 `linkedProviders` 에 kakao 가 있을 때만
+    // 이 행을 부르므로 신원 0 건은 원장 불일치(`identity_index` 누락)다.
+    // 결과는 그대로 성공(행 「해제됨」)이지만 운영자가 찾을 수 있게 warn 을
+    // 남긴다 — payload 는 성공 event 와 같은 `{event, uid}` 형태.
+    if (disconnectedCount === 0) {
+      logger.warn(
+        {event: "disconnect_kakao_no_identity", uid},
+        "No Kakao identity in identity_index for caller",
+      );
+    }
     logger.info(
       {event: "disconnect_kakao_succeeded", uid, disconnectedCount},
       "Kakao disconnected",
