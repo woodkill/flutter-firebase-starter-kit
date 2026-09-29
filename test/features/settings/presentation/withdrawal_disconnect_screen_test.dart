@@ -23,6 +23,7 @@
 //   WS15: 사용자 트리거 진행 중 다른 행 버튼 · 「탈퇴」 비활성
 //   WS16: 5분 창 (a) — 「해제됨」 재로그인 행 재개방 · 재인증 push 0
 //   WS17: 5분 창 (b) — 재인증 결과 없이 돌아와도 카카오 재실행
+//   WS18: (review WR-01) 진행 화면 서버 조회 실패 → 재시도 안내 · 이전 화면 복귀 · 삭제 0
 
 import 'dart:async';
 
@@ -172,11 +173,15 @@ void _useView(WidgetTester tester, {Size size = const Size(400, 1400)}) {
 }
 
 /// 탈퇴 다이얼로그 진입 root + 진행 화면 route + /login stub 을 띄운다 (WS1).
+///
+/// [serverRead] 가 있으면 서버 1회 조회를 그 함수로 바꾼다 (review WR-01) —
+/// 없으면 [providerIds] 를 돌려준다.
 Future<void> _pumpWithDialogEntry(
   WidgetTester tester, {
   required List<String> providerIds,
   required List<DisconnectStep> steps,
   required _MockSettingsRepository settingsRepo,
+  Future<List<String>> Function()? serverRead,
 }) async {
   final router = GoRouter(
     initialLocation: '/',
@@ -209,6 +214,10 @@ Future<void> _pumpWithDialogEntry(
     ProviderScope(
       overrides: [
         currentUserProvider.overrideWith((ref) => _userWith(providerIds)),
+        // 행 입력 = 서버 1회 조회 (review WR-01).
+        serverProviderIdsReaderProvider.overrideWithValue(
+          serverRead ?? () async => providerIds,
+        ),
         disconnectStepsProvider.overrideWithValue(steps),
         disconnectDepsProvider.overrideWithValue(_deps()),
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
@@ -272,6 +281,10 @@ Future<void> _pumpScreen(
     ProviderScope(
       overrides: [
         currentUserProvider.overrideWith((ref) => _userWith(providerIds)),
+        // 행 입력 = 서버 1회 조회 (review WR-01).
+        serverProviderIdsReaderProvider.overrideWithValue(
+          () async => providerIds,
+        ),
         disconnectStepsProvider.overrideWithValue(fakes.all),
         disconnectDepsProvider.overrideWithValue(_deps()),
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
@@ -1214,5 +1227,50 @@ void main() {
       expect(_finalButton(tester).onPressed, isNotNull);
       expect(deletion.count[0], 1);
     });
+
+    testWidgets(
+      'WS18 (review WR-01): 진행 화면 서버 조회 실패 → 재시도 안내 · 이전 화면 복귀 · 삭제 0',
+      (tester) async {
+        _useView(tester);
+        final settingsRepo = _MockSettingsRepository();
+        when(
+          () => settingsRepo.requestAccountDeletion(),
+        ).thenAnswer((_) async {});
+        final kakao = _FakeStep(AccountProvider.kakao);
+        // 다이얼로그 확인 때는 읽히고, 진행 화면 시작 때는 실패한다.
+        final reads = <int>[0];
+        await _pumpWithDialogEntry(
+          tester,
+          providerIds: <String>['kakao'],
+          steps: <DisconnectStep>[kakao],
+          settingsRepo: settingsRepo,
+          serverRead: () async {
+            reads[0] += 1;
+            if (reads[0] > 1) throw StateError('offline');
+            return <String>['kakao'];
+          },
+        );
+        final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+
+        await tester.tap(find.text('open-dialog'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '탈퇴');
+        await tester.pump();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(WithdrawalConfirmationDialog),
+            matching: find.byType(FilledButton),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(reads[0], 2);
+        expect(find.byType(WithdrawalDisconnectScreen), findsNothing);
+        expect(find.text('open-dialog'), findsOneWidget);
+        expect(find.text(l10n.withdrawalFailureTransient), findsOneWidget);
+        expect(kakao.calls, isEmpty);
+        verifyNever(() => settingsRepo.requestAccountDeletion());
+      },
+    );
   });
 }

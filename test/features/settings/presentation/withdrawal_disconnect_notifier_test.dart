@@ -26,6 +26,8 @@
 //   WN18: 5분 창 (b) — wasDisconnected 서버 행 재실행 · 끊긴 적 없는 건너뛴 행 불변
 //   WN19: 5분 창 (b) — (a) 로 열렸다 건너뛴 재로그인 행 재개방 · 끝나기 전 삭제 0
 //   WN20: (review WR-05) 실행 의존 생성 실패 → 서버 행 실패 · 건너뛰기로 탈퇴 가능
+//   WN21: (review WR-01) 서버 조회 실패 → load failed · 행 0 · 삭제 불가
+//   WN22: (review WR-01) 캐시가 비어도 서버 목록(카카오 · 라인)으로 행 생성
 
 import 'dart:async';
 
@@ -194,15 +196,28 @@ void main() {
   /// 진행 notifier · settings notifier 는 auto-dispose 라 listen 으로 붙잡는다.
   ///
   /// [depsThrow] 면 실행 의존 provider 생성이 throw 한다 (review WR-05).
+  ///
+  /// 행 입력은 서버 1회 조회다 (review WR-01) — 기본은 [providerIds] 를
+  /// 돌려주고, [serverProviderIds] · [serverReadError] 로 캐시와 다른 서버
+  /// 결과 · 읽기 실패를 주입한다. [serverReads] 는 조회 횟수를 센다.
   ProviderContainer makeContainer(
     List<String> providerIds, {
     bool depsThrow = false,
+    List<String>? serverProviderIds,
+    Object? serverReadError,
+    List<int>? serverReads,
   }) {
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith(
           (ref) => ref.watch(_userHolderProvider),
         ),
+        serverProviderIdsReaderProvider.overrideWithValue(() async {
+          if (serverReads != null) serverReads[0] += 1;
+          final error = serverReadError;
+          if (error != null) throw error;
+          return serverProviderIds ?? providerIds;
+        }),
         disconnectStepsProvider.overrideWithValue(fakes.all),
         if (depsThrow)
           disconnectDepsProvider.overrideWith(
@@ -245,6 +260,7 @@ void main() {
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
 
       final started = notifier.start();
+      await _flush();
       var state = stateOf(container);
       expect(state.rows, hasLength(1));
       expect(state.rows.single.provider, AccountProvider.kakao);
@@ -266,9 +282,10 @@ void main() {
       expect(fakes.kakao.lastRelogin, isTrue);
     });
 
-    test('WN2: W5 fixture — 서버 행 먼저 · 각 묶음은 킷 표준 순서', () {
+    test('WN2: W5 fixture — 서버 행 먼저 · 각 묶음은 킷 표준 순서', () async {
       final container = makeContainer(_w5ProviderIds);
       unawaited(container.read(withdrawalDisconnectProvider.notifier).start());
+      await _flush();
 
       expect(
         [for (final row in stateOf(container).rows) row.provider],
@@ -285,13 +302,14 @@ void main() {
       expect(stateOf(container).rows.first.providerId, 'facebook.com');
     });
 
-    test('WN3: password · 미지 id 는 행이 아니다 → 행 [kakao]', () {
+    test('WN3: password · 미지 id 는 행이 아니다 → 행 [kakao]', () async {
       final container = makeContainer(<String>[
         'password',
         'kakao',
         'twitter.com',
       ]);
       unawaited(container.read(withdrawalDisconnectProvider.notifier).start());
+      await _flush();
 
       expect(
         [for (final row in stateOf(container).rows) row.provider],
@@ -299,9 +317,10 @@ void main() {
       );
     });
 
-    test('WN4: start 직후 — 서버 행 해제 중 · 첫 재로그인 행만 로그인 대기', () {
+    test('WN4: start 직후 — 서버 행 해제 중 · 첫 재로그인 행만 로그인 대기', () async {
       final container = makeContainer(_w5ProviderIds);
       unawaited(container.read(withdrawalDisconnectProvider.notifier).start());
+      await _flush();
 
       expect(statusesOf(container), <DisconnectRowStatus>[
         DisconnectRowStatus.working,
@@ -424,6 +443,7 @@ void main() {
       final container = makeContainer(<String>['kakao']);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       final started = notifier.start();
+      await _flush();
       fakes.kakao.calls.last.complete(
         const DisconnectFailed(NoInternetConnection()),
       );
@@ -455,6 +475,7 @@ void main() {
       ]);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       final started = notifier.start();
+      await _flush();
       fakes.kakao.calls.last.complete(
         const DisconnectFailed(ServiceUnavailable()),
       );
@@ -486,6 +507,7 @@ void main() {
       ]);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       final started = notifier.start();
+      await _flush();
       fakes.kakao.calls.last.complete(
         const DisconnectFailed(ServiceUnavailable()),
       );
@@ -516,10 +538,11 @@ void main() {
       expect(stateOf(container).actionsLocked, isFalse);
     });
 
-    test('WN12: 자동 행 진행 중에도 현재 재로그인 행 로그인 허용', () {
+    test('WN12: 자동 행 진행 중에도 현재 재로그인 행 로그인 허용', () async {
       final container = makeContainer(<String>['kakao', 'google.com']);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       unawaited(notifier.start());
+      await _flush();
       expect(
         statusOf(container, AccountProvider.kakao),
         DisconnectRowStatus.working,
@@ -537,6 +560,7 @@ void main() {
       final container = makeContainer(<String>['kakao', 'google.com']);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       unawaited(notifier.start());
+      await _flush();
       final before = statusesOf(container);
 
       // 재로그인(signInWithCustomToken 등)이 user 를 재방출한 상황.
@@ -558,6 +582,7 @@ void main() {
         final container = makeContainer(<String>['kakao', 'google.com']);
         final notifier = container.read(withdrawalDisconnectProvider.notifier);
         final started = notifier.start();
+        await _flush();
         unawaited(notifier.start());
         expect(fakes.kakao.calls.length, 1);
 
@@ -583,6 +608,7 @@ void main() {
       final container = makeContainer(<String>['kakao', 'google.com']);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       final started = notifier.start();
+      await _flush();
       fakes.kakao.calls.last.complete(const DisconnectDone());
       await started;
       final signIn = notifier.signInAndDisconnect(AccountProvider.google);
@@ -616,6 +642,7 @@ void main() {
       ]);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       final started = notifier.start();
+      await _flush();
       fakes.kakao.calls.last.complete(const DisconnectDone());
       await started;
       final googleSignIn = notifier.signInAndDisconnect(AccountProvider.google);
@@ -665,6 +692,7 @@ void main() {
       ]);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       final started = notifier.start();
+      await _flush();
       fakes.kakao.calls.last.complete(const DisconnectDone());
       fakes.facebook.calls.last.complete(const DisconnectDone());
       await started;
@@ -689,6 +717,7 @@ void main() {
         ]);
         final notifier = container.read(withdrawalDisconnectProvider.notifier);
         final started = notifier.start();
+        await _flush();
         fakes.kakao.calls.last.complete(const DisconnectDone());
         fakes.facebook.calls.last.complete(const DisconnectDone());
         await started;
@@ -728,6 +757,7 @@ void main() {
       final container = makeContainer(<String>['kakao', 'google.com']);
       final notifier = container.read(withdrawalDisconnectProvider.notifier);
       final started = notifier.start();
+      await _flush();
       fakes.kakao.calls.last.complete(const DisconnectDone());
       await started;
       final signIn = notifier.signInAndDisconnect(AccountProvider.google);
@@ -789,5 +819,55 @@ void main() {
         verify(() => mockSettingsRepo.requestAccountDeletion()).called(1);
       },
     );
+
+    test(
+      'WN21 (review WR-01): 서버 조회 실패 → load failed · 행 0 · step 호출 0 · 삭제 불가',
+      () async {
+        final reads = <int>[0];
+        final container = makeContainer(
+          <String>['kakao', 'line'],
+          serverReadError: StateError('offline'),
+          serverReads: reads,
+        );
+        final notifier = container.read(withdrawalDisconnectProvider.notifier);
+
+        await notifier.start();
+
+        final state = stateOf(container);
+        expect(reads.single, 1);
+        expect(state.load, DisconnectRowsLoad.failed);
+        expect(state.rows, isEmpty);
+        expect(state.allDone, isFalse);
+        expect(fakes.kakao.calls, isEmpty);
+        await notifier.requestDeletion();
+        verifyNever(() => mockSettingsRepo.requestAccountDeletion());
+      },
+    );
+
+    test('WN22 (review WR-01): 캐시가 비어도 서버 목록으로 행을 만든다 — 카카오 · 라인', () async {
+      final reads = <int>[0];
+      final container = makeContainer(
+        const <String>[],
+        serverProviderIds: const <String>['kakao', 'line'],
+        serverReads: reads,
+      );
+      final notifier = container.read(withdrawalDisconnectProvider.notifier);
+
+      final started = notifier.start();
+      expect(stateOf(container).load, DisconnectRowsLoad.pending);
+      await _flush();
+
+      expect(reads.single, 1);
+      expect(stateOf(container).load, DisconnectRowsLoad.loaded);
+      expect(
+        [for (final row in stateOf(container).rows) row.provider],
+        <AccountProvider>[AccountProvider.kakao, AccountProvider.line],
+      );
+      expect(fakes.kakao.calls.length, 1);
+      fakes.kakao.calls.last.complete(const DisconnectDone());
+      await started;
+      // 행 갱신은 조회 단계를 바꾸지 않는다.
+      expect(stateOf(container).load, DisconnectRowsLoad.loaded);
+    });
   });
 }

@@ -19,6 +19,7 @@
 // - AsyncValue.error(그 외) → withdrawalFailure SnackBar (dialog 유지 — 재시도).
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -72,6 +73,12 @@ class _WithdrawalConfirmationDialogState
   final TextEditingController _controller = TextEditingController();
   bool _verbatimMatch = false;
 
+  /// 확인 뒤 provider 목록을 서버에서 읽는 중인가 (16.10 review WR-01).
+  ///
+  /// 삭제 중(`settingsProvider` loading)과 같은 잠금 · 스피너를 쓴다 — 조회
+  /// 중 이중 탭 · 이탈을 막는다.
+  bool _resolvingRows = false;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -97,11 +104,37 @@ class _WithdrawalConfirmationDialogState
   /// 끊을 provider 행이 하나 이상이면 다이얼로그를 닫고 탈퇴 진행 화면을
   /// 연다 — 이 시점에는 계정 삭제를 부르지 않는다. 행이 없으면(이메일/비밀번호만
   /// · 로그인 사용자 부재) 지금처럼 바로 삭제한다(Q6-A).
+  ///
+  /// 행의 입력은 서버 1회 조회다 (16.10 review WR-01). `currentUserProvider`
+  /// 캐시는 연결 목록 읽기 실패 · 첫 emit 전을 빈 목록으로 흡수하므로, 그
+  /// 값으로 「행 0 = 바로 삭제」 를 판정하면 필수 끊기(Kakao · LINE) 없이 계정이
+  /// 삭제될 수 있다. 조회가 실패하면 삭제하지 않고 재시도를 안내한다
+  /// (fail-closed · 다이얼로그 유지).
   Future<void> _onConfirm() async {
-    final rows = buildDisconnectRows(
-      ref.read(currentUserProvider)?.providerIds ?? const <String>[],
-      ref.read(disconnectStepsProvider),
-    );
+    if (_resolvingRows) return;
+    // await 전에 캡처한다.
+    final readProviderIds = ref.read(serverProviderIdsReaderProvider);
+    final steps = ref.read(disconnectStepsProvider);
+    setState(() => _resolvingRows = true);
+    final List<String> providerIds;
+    try {
+      providerIds = await readProviderIds();
+    } on Object catch (e) {
+      // PII 0 — runtimeType 만.
+      if (kDebugMode) {
+        debugPrint(
+          'WithdrawalConfirmationDialog: provider 목록 서버 조회 실패 '
+          'runtimeType=${e.runtimeType}',
+        );
+      }
+      if (!mounted) return;
+      setState(() => _resolvingRows = false);
+      _showSnackBar(context, context.l10n.withdrawalFailureTransient);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _resolvingRows = false);
+    final rows = buildDisconnectRows(providerIds, steps);
     if (rows.isEmpty) {
       await ref.read(settingsProvider.notifier).requestAccountDeletion();
       return;
@@ -120,7 +153,8 @@ class _WithdrawalConfirmationDialogState
     final typography = context.appTypography;
     final errorColor = context.colorScheme.error;
     final state = ref.watch(settingsProvider);
-    final isLoading = state.isLoading;
+    // 삭제 중 또는 확인 뒤 서버 조회 중 (16.10 review WR-01) — 같은 잠금.
+    final isLoading = state.isLoading || _resolvingRows;
 
     // ref.listen 으로 success/error 분기 처리.
     ref.listen<AsyncValue<void>>(settingsProvider, (prev, next) {

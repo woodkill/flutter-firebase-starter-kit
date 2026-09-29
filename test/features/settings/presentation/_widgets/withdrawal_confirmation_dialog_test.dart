@@ -18,9 +18,13 @@
 //   NoInternetConnection → withdrawalFailureTransient (generic 미노출)
 // - WC17~WC19 (Phase 16.10 D-05 · Q6-A) 확인 뒤 분기 — 끊을 행이 있으면
 //   진행 화면 push(삭제 0), 없으면(이메일/비밀번호만 · 사용자 부재) 바로 삭제
+// - WC20~WC21 (16.10 review WR-01) 행 입력 = 서버 1회 조회 — 조회 실패면
+//   삭제 0 · 재시도 안내 · 다이얼로그 유지, 캐시가 비어도 서버에 CT 연결이
+//   있으면 진행 화면
 
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,6 +59,9 @@ Future<_DialogHandle> _pumpAndShowDialog(
   List<String>? visitedRoutes,
   List<String>? providerIds,
   bool nullUser = false,
+  List<String>? serverProviderIds,
+  Object? serverReadError,
+  List<int>? serverReads,
 }) async {
   Future<bool?>? dialogResult;
   final repo = settingsRepo ?? _MockSettingsRepository();
@@ -115,6 +122,14 @@ Future<_DialogHandle> _pumpAndShowDialog(
             ),
           ),
         if (nullUser) currentUserProvider.overrideWith((ref) => null),
+        // 16.10 review WR-01: 행 입력은 서버 1회 조회다. 기본은 캐시와 같은
+        // 목록(사용자 부재면 빈 목록)을 돌려준다.
+        serverProviderIdsReaderProvider.overrideWithValue(() async {
+          if (serverReads != null) serverReads[0] += 1;
+          final error = serverReadError;
+          if (error != null) throw error;
+          return serverProviderIds ?? providerIds ?? const <String>[];
+        }),
       ],
       child: MaterialApp.router(
         locale: locale,
@@ -559,5 +574,72 @@ void main() {
       verify(() => settingsRepo.requestAccountDeletion()).called(1);
       expect(find.text('withdraw-stub'), findsNothing);
     });
+
+    testWidgets('WC20 (review WR-01) — 서버 조회 실패면 삭제 0 · 재시도 안내 · 다이얼로그 유지', (
+      tester,
+    ) async {
+      final settingsRepo = _MockSettingsRepository();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      final reads = <int>[0];
+      await _pumpAndShowDialog(
+        tester,
+        settingsRepo: settingsRepo,
+        // 캐시는 「연결 없음」 으로 보인다 — 읽기 실패를 빈 목록으로 흡수한 모양.
+        providerIds: const <String>[],
+        serverReadError: FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'unavailable',
+        ),
+        serverReads: reads,
+      );
+
+      await tester.enterText(find.byType(TextField), koHint);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(reads.single, 1);
+      verifyNever(() => settingsRepo.requestAccountDeletion());
+      expect(
+        find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+        findsOneWidget,
+      );
+      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      expect(find.text('withdraw-stub'), findsNothing);
+      // 재시도할 수 있다 — 확인 버튼이 다시 활성이다.
+      final confirmBtn = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, koHint),
+      );
+      expect(confirmBtn.onPressed, isNotNull);
+    });
+
+    testWidgets(
+      'WC21 (review WR-01) — 캐시가 비어도 서버에 카카오 · 라인이 있으면 진행 화면 · 삭제 0',
+      (tester) async {
+        final settingsRepo = _MockSettingsRepository();
+        when(
+          () => settingsRepo.requestAccountDeletion(),
+        ).thenAnswer((_) async {});
+        await _pumpAndShowDialog(
+          tester,
+          settingsRepo: settingsRepo,
+          providerIds: const <String>[],
+          serverProviderIds: const <String>['kakao', 'line'],
+        );
+
+        await tester.enterText(find.byType(TextField), koHint);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
+        expect(find.text('withdraw-stub'), findsOneWidget);
+        verifyNever(() => settingsRepo.requestAccountDeletion());
+      },
+    );
   });
 }

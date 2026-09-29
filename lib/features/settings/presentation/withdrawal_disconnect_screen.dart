@@ -39,6 +39,8 @@ import 'withdrawal_disconnect_notifier.dart';
 /// 첫 프레임 뒤 [WithdrawalDisconnect.start] 를 1회 불러 행을 스냅샷하고
 /// 서버 행을 자동 시작한다. 처리 중(어떤 행이 해제 중 · 계정 삭제 중)에는
 /// back 이 막히고, 그 밖에는 확인 없이 나갈 수 있다(D-14 — 계정은 그대로).
+/// 행 목록 서버 조회가 실패하면 재시도 안내와 함께 이전 화면으로 돌아간다
+/// (16.10 review WR-01).
 class WithdrawalDisconnectScreen extends ConsumerStatefulWidget {
   /// [WithdrawalDisconnectScreen] 을 생성한다.
   const WithdrawalDisconnectScreen({super.key});
@@ -87,6 +89,16 @@ class _WithdrawalDisconnectScreenState
     await notifier.redisconnectAfterReauth();
   }
 
+  /// 이 화면을 닫고 이전 화면(없으면 설정)으로 돌아간다.
+  void _leave() {
+    final router = GoRouter.of(context);
+    if (router.canPop()) {
+      router.pop();
+    } else {
+      router.go(AppRoutes.settings);
+    }
+  }
+
   /// 삭제 결과 SnackBar 를 root messenger 에 띄운다.
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(
@@ -105,6 +117,19 @@ class _WithdrawalDisconnectScreenState
     final busy = state.anyWorking || deleting;
     final steps = ref.watch(disconnectStepsProvider);
     final disabled = state.actionsLocked || deleting;
+
+    // 16.10 review WR-01: 행 목록 서버 조회가 실패하면 삭제로 이어지지 않게
+    // 재시도를 안내하고 나간다(fail-closed). 다시 들어오면 처음부터다(D-14).
+    ref.listen<WithdrawalDisconnectState>(withdrawalDisconnectProvider, (
+      prev,
+      next,
+    ) {
+      if (prev?.load == next.load) return;
+      if (next.load == DisconnectRowsLoad.failed) {
+        _showSnackBar(l10n.withdrawalFailureTransient);
+        _leave();
+      }
+    });
 
     ref.listen<AsyncValue<void>>(settingsProvider, (prev, next) {
       if (prev?.isLoading == true && next.hasValue && !next.hasError) {

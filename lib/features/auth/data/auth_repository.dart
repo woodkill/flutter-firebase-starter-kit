@@ -2,6 +2,8 @@
 // 본 파일은 cloud_functions 의 Result 를 hide 한다 (본 모듈은 [Result] 만 사용).
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart'
+    show FirebaseFirestore, GetOptions, Source;
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:firebase_core/firebase_core.dart' show FirebaseException;
@@ -3860,17 +3862,73 @@ User? currentUser(Ref ref) {
     error: (_, _) => _emptyUserProviderRecord,
   );
 
-  // Set 기반 중복 제거 (Native URI + Custom Token slug 양쪽 보존).
   // Phase 16.7: 연결 목록이 비어도 signUpProviderId 를 실어야 하므로 early
   // return 없이 항상 합성한다 (D-11 — 값이 없으면 null 그대로).
-  final merged = <String>{
-    ...base.providerIds,
-    ...rec.linkedProviderIds,
-  }.toList();
   return base.copyWith(
-    providerIds: merged,
+    providerIds: _mergeProviderIds(base.providerIds, rec),
     signUpProviderId: rec.signUpProviderId,
   );
+}
+
+/// Firebase `providerData` id 와 [rec] 의 연결 목록을 합친다.
+///
+/// Set 기반 중복 제거 (Native URI + Custom Token slug 양쪽 보존) —
+/// [currentUser] 와 [fetchProviderIdsFromServer] 가 같은 합집합 규칙을 쓴다.
+List<String> _mergeProviderIds(
+  Iterable<String> nativeProviderIds,
+  UserProviderRecord rec,
+) => <String>{...nativeProviderIds, ...rec.linkedProviderIds}.toList();
+
+/// 서버에서 1회 읽은 providerId 목록을 돌려주는 함수 (16.10 review WR-01).
+typedef ServerProviderIdsReader = Future<List<String>> Function();
+
+/// 현재 로그인 사용자의 providerId 목록을 **서버에서 1회** 읽는다 (Phase
+/// 16.10 review WR-01).
+///
+/// 결과 = Firebase `providerData` id ∪ `users/{uid}.linkedProviders[]` —
+/// [currentUser] 와 같은 합집합이다. 차이는 진실원이다: [currentUser] 는
+/// [linkedProvidersStream] 캐시에 기대고, 그 stream 은 읽기 실패 · 첫 emit 전을
+/// 빈 record 로 흡수하므로 「연결 없음」 과 「모름」 이 구분되지 않는다. 탈퇴
+/// 끊기 행처럼 비었다는 판정이 되돌릴 수 없는 동작(바로 삭제)으로 이어지는
+/// 곳은 이 함수를 쓴다.
+///
+/// - 로그인 사용자 부재 → 빈 목록 (Firestore 호출 0 — 삭제 경로가 부재를
+///   스스로 거부한다).
+/// - 문서는 `GetOptions(source: Source.server)` 로 읽는다 — 캐시로 대체하지
+///   않고 서버에 닿지 못하면 [FirebaseException] 을 던진다(cloud_firestore
+///   platform interface 8.0.7 `Source.server` 계약). 읽기 실패는 흡수하지
+///   않고 그대로 던진다 — 호출부가 삭제하지 않고 재시도를 안내한다(fail-closed).
+/// - 문서 부재 · 필드 부재는 빈 연결 목록이다(문서가 없다는 것은 서버 확정).
+/// - 필드 파싱은 [linkedProvidersStream] 과 같은 파서를 쓴다.
+Future<List<String>> fetchProviderIdsFromServer({
+  required fb.FirebaseAuth auth,
+  required FirebaseFirestore firestore,
+}) async {
+  final user = auth.currentUser;
+  if (user == null) return const <String>[];
+  final nativeProviderIds = user.providerData
+      .map((info) => info.providerId)
+      .toList(growable: false);
+  final snap = await firestore
+      .collection('users')
+      .doc(user.uid)
+      .get(const GetOptions(source: Source.server));
+  return _mergeProviderIds(
+    nativeProviderIds,
+    _parseUserProviderRecord(snap.data()),
+  );
+}
+
+/// [fetchProviderIdsFromServer] 를 현재 Firebase 인스턴스로 묶어 제공한다
+/// (16.10 review WR-01).
+///
+/// 탈퇴 다이얼로그 확인 · 진행 화면 시작이 호출 시점마다 1회 부른다. 테스트는
+/// 이 provider 를 override 해 서버 결과 · 읽기 실패를 주입한다.
+@riverpod
+ServerProviderIdsReader serverProviderIdsReader(Ref ref) {
+  final auth = ref.watch(firebaseAuthProvider);
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  return () => fetchProviderIdsFromServer(auth: auth, firestore: firestore);
 }
 
 /// [linkedProvidersStream] 이 emit 하는 `users/{uid}` provider 상태 record
@@ -3889,6 +3947,35 @@ const UserProviderRecord _emptyUserProviderRecord = (
   linkedProviderIds: <String>[],
   signUpProviderId: null,
 );
+
+/// `users/{uid}` 문서 [data] 를 [UserProviderRecord] 로 파싱한다.
+///
+/// [linkedProvidersStream] (snapshot) 과 [fetchProviderIdsFromServer] (서버
+/// 1회 조회)가 공유하는 단일 파서다 (16.10 review WR-01 — 파서 중복 0).
+/// - [data] null (문서 부재) → [_emptyUserProviderRecord].
+/// - `signUpProviderId` 는 String 일 때만 싣는다 (Phase 16.7 D-11 · I4 관례).
+/// - `linkedProviders` 부재여도 `signUpProviderId` 는 버리지 않는다.
+/// - I4: Type-safe parsing — invalid entry 자동 제거 (T-12-06-05).
+UserProviderRecord _parseUserProviderRecord(Map<String, dynamic>? data) {
+  if (data == null) return _emptyUserProviderRecord;
+  final signUpRaw = data['signUpProviderId'];
+  final signUpProviderId = signUpRaw is String ? signUpRaw : null;
+  final raw = data['linkedProviders'] as List<dynamic>?;
+  if (raw == null) {
+    return (
+      linkedProviderIds: const <String>[],
+      signUpProviderId: signUpProviderId,
+    );
+  }
+  return (
+    linkedProviderIds: raw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => m['providerId'] as String?)
+        .whereType<String>()
+        .toList(growable: false),
+    signUpProviderId: signUpProviderId,
+  );
+}
 
 /// Firestore `users/{uid}.linkedProviders[].providerId` + `signUpProviderId`
 /// 를 [UserProviderRecord] stream 으로 노출한다 (Phase 12 D-16 · Phase 16.7
@@ -3960,32 +4047,9 @@ Stream<UserProviderRecord> linkedProvidersStream(Ref ref, String uid) async* {
         // 다시 retry 가능. WR-04: 에러 backoff 도 함께 리셋한다.
         permissionDeniedRetries = 0;
         errorBackoff = initialErrorBackoff;
-        if (!snap.exists) {
-          yield _emptyUserProviderRecord;
-          continue;
-        }
-        final data = snap.data();
-        // Phase 16.7 D-11: 가입 수단 — String 이 아니면 null (I4 관례).
-        final signUpRaw = data?['signUpProviderId'];
-        final signUpProviderId = signUpRaw is String ? signUpRaw : null;
-        final raw = data?['linkedProviders'] as List<dynamic>?;
-        if (raw == null) {
-          // linkedProviders 부재여도 signUpProviderId 는 버리지 않는다.
-          yield (
-            linkedProviderIds: const <String>[],
-            signUpProviderId: signUpProviderId,
-          );
-          continue;
-        }
-        // I4: Type-safe parsing — invalid entry 자동 제거.
-        yield (
-          linkedProviderIds: raw
-              .whereType<Map<String, dynamic>>()
-              .map((m) => m['providerId'] as String?)
-              .whereType<String>()
-              .toList(growable: false),
-          signUpProviderId: signUpProviderId,
-        );
+        // 문서 부재 · 필드 부재 · 타입 불일치는 공용 파서가 처리한다
+        // (서버 1회 조회와 같은 규칙 — 16.10 review WR-01).
+        yield _parseUserProviderRecord(snap.exists ? snap.data() : null);
       }
       // source stream 정상 종료 (provider dispose 등) — loop 탈출.
       break;

@@ -17,6 +17,11 @@
 // - RESEARCH Pitfall 4: 재로그인이 user stream 을 재방출해도 행이 초기화되지
 //   않도록 `build()` 는 다른 provider 를 읽지 않고, 행은 [WithdrawalDisconnect.start]
 //   에서 1회 스냅샷한 뒤 provider 키로 갱신한다.
+// - 16.10 review WR-01: 행 스냅샷의 입력은 `currentUserProvider` 캐시가 아니라
+//   서버 1회 조회(`serverProviderIdsReaderProvider`)다. 캐시는 읽기 실패 · 첫
+//   emit 전을 빈 목록으로 흡수해 필수 끊기(Kakao · LINE) 행이 빠질 수 있다.
+//   조회 실패는 [DisconnectRowsLoad.failed] 로 끝나고 삭제로 이어지지 않는다
+//   (fail-closed).
 // - UI-SPEC §행 상태 · §행 순서 · §마지막 「탈퇴」.
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -109,6 +114,19 @@ class DisconnectRow {
   );
 }
 
+/// 행 목록 서버 조회 단계 (16.10 review WR-01).
+enum DisconnectRowsLoad {
+  /// [WithdrawalDisconnect.start] 전 또는 서버 조회 중 — 행 없음.
+  pending,
+
+  /// 서버 조회 성공 — 행 목록 확정(0행일 수 있다).
+  loaded,
+
+  /// 서버 조회 실패 — 행을 만들지 않는다. 화면은 재시도를 안내하고 이전
+  /// 화면으로 돌아간다(삭제 0 · fail-closed).
+  failed,
+}
+
 /// 진행 화면 상태 — 행 목록과 사용자 트리거 직렬화 표시.
 @immutable
 class WithdrawalDisconnectState {
@@ -116,10 +134,14 @@ class WithdrawalDisconnectState {
   const WithdrawalDisconnectState({
     this.rows = const <DisconnectRow>[],
     this.userTriggered,
+    this.load = DisconnectRowsLoad.pending,
   });
 
   /// 표시 순서의 행 목록.
   final List<DisconnectRow> rows;
+
+  /// 행 목록 서버 조회 단계 — 행 상태 갱신은 이 값을 바꾸지 않는다.
+  final DisconnectRowsLoad load;
 
   /// 진행 중인 사용자 트리거 행(재로그인 로그인 · 서버 행 재시도) — 없으면
   /// null. 진입 직후 자동 행 실행은 여기에 기록하지 않는다(UI-SPEC — 자동
@@ -235,16 +257,36 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
 
   /// 행 목록을 1회 스냅샷하고 서버 행을 모두 자동 시작한다 (Q2-A).
   ///
-  /// 두 번째 호출은 무시한다. 행 대상은 이 시점의 `currentUserProvider`
-  /// providerIds 이며, 이후 user stream 재방출은 행에 반영하지 않는다.
+  /// 두 번째 호출은 무시한다. 행 대상은 이 시점에 서버에서 1회 읽은
+  /// providerIds(`serverProviderIdsReaderProvider` — 16.10 review WR-01)이며,
+  /// 이후 user stream 재방출은 행에 반영하지 않는다. 조회가 실패하면 행 없이
+  /// [DisconnectRowsLoad.failed] 로 끝난다 — 행 0 과 구분돼 삭제로 이어지지
+  /// 않는다.
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    final providerIds =
-        ref.read(currentUserProvider)?.providerIds ?? const <String>[];
+    // await 전에 캡처한다 (auto-dispose notifier).
+    final readProviderIds = ref.read(serverProviderIdsReaderProvider);
     final steps = ref.read(disconnectStepsProvider);
+    final List<String> providerIds;
+    try {
+      providerIds = await readProviderIds();
+    } on Object catch (e) {
+      // PII 0 — runtimeType 만.
+      if (kDebugMode) {
+        debugPrint(
+          'WithdrawalDisconnect: provider 목록 서버 조회 실패 '
+          'runtimeType=${e.runtimeType}',
+        );
+      }
+      if (!ref.mounted) return;
+      state = const WithdrawalDisconnectState(load: DisconnectRowsLoad.failed);
+      return;
+    }
+    if (!ref.mounted) return;
     state = WithdrawalDisconnectState(
       rows: buildDisconnectRows(providerIds, steps),
+      load: DisconnectRowsLoad.loaded,
     );
     await Future.wait(<Future<void>>[
       for (final row in state.rows)
@@ -292,6 +334,7 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
     state = WithdrawalDisconnectState(
       rows: _replaceRow(provider, DisconnectRowStatus.skipped),
       userTriggered: state.userTriggered,
+      load: state.load,
     );
   }
 
@@ -335,6 +378,7 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
     state = WithdrawalDisconnectState(
       rows: _replaceRow(target.provider, DisconnectRowStatus.waiting),
       userTriggered: state.userTriggered,
+      load: state.load,
     );
     return true;
   }
@@ -366,6 +410,7 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
               : row,
       ]),
       userTriggered: state.userTriggered,
+      load: state.load,
     );
     await Future.wait(<Future<void>>[
       for (final row in reopen)
@@ -423,6 +468,7 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
     state = WithdrawalDisconnectState(
       rows: _replaceRow(provider, DisconnectRowStatus.working),
       userTriggered: userTriggered ? provider : state.userTriggered,
+      load: state.load,
     );
     DisconnectOutcome outcome;
     try {
@@ -458,6 +504,7 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
         wasDisconnected: outcome is DisconnectDone ? true : null,
       ),
       userTriggered: userTriggered ? null : state.userTriggered,
+      load: state.load,
     );
   }
 }
