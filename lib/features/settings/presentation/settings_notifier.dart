@@ -270,7 +270,8 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// 순서:
   /// 1. [providerId] 식별 불가 → [AccountUnlinkOutcome.failed] (호출 0).
   /// 2. 레지스트리에 끊기 step 이 없는 id(이메일/비밀번호 — provider 측 연결이
-  ///    없다)는 끊기 없이 16.8 해제만 한다 (D-09 범위 = provider 6종).
+  ///    없다)는 끊기 없이 16.8 해제만 한다 (D-09 범위 = 끊기 레지스트리의
+  ///    provider).
   /// 3. step 이 있으면 `reloginForFreshness: false` 로 실행한다 — 해제는
   ///    서버 탈퇴의 300초 신선도가 필요 없으므로(D-09) 재로그인 provider 도
   ///    끊기 토큰만 확보하고 Firebase 세션 · custom token 은 건드리지 않는다

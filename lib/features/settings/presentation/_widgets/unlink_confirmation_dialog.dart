@@ -11,10 +11,10 @@
 // Phase 16.10 D-09 · D-10 · D-11 · D-19 (UI-SPEC §Surface U′ · Q7-A) — 새
 // 화면 없이 content 만 확장한다. 「해제」 는 provider 측 끊기 → 성공 시에만 킷
 // 해제이며(16.8 D-08 「킷 쪽만 해제」 폐기), 본문 아래에 앱 연결(권한) 해제
-// 고지(provider 6종 공통)와 재로그인 provider 의 로그인 안내가 붙는다. 재로그인
-// 여부는 끊기 레지스트리의 행 종류로 판정한다 — 다이얼로그 안에 provider 별
-// 분기를 두지 않는다(C-08). 제목 · 액션 · `PopScope` · 결과 pop 구조는 16.8
-// 그대로다.
+// 고지(끊기 레지스트리 provider 공통)와 재로그인 provider 의 로그인 안내가
+// 붙는다. 재로그인 여부는 끊기 레지스트리의 행 종류로 판정한다 — 다이얼로그
+// 안에 provider 별 분기를 두지 않는다(C-08). 제목 · 액션 · `PopScope` · 결과
+// pop 구조는 16.8 그대로다.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -96,14 +96,16 @@ class _UnlinkConfirmationDialogState
     final typography = context.appTypography;
     final label = widget.providerLabel;
     // 끊기 레지스트리 조회 — 행이 없으면(이메일/비밀번호) provider 측 연결이
-    // 없어 고지 · 안내를 붙이지 않는다 (D-09 범위 = provider 6종).
+    // 없어 고지 · 안내를 붙이지 않는다 (D-09 범위 = 끊기 레지스트리의
+    // provider).
     final provider = AccountProvider.tryParse(widget.providerId);
     final step = provider == null
         ? null
         : disconnectStepFor(ref.watch(disconnectStepsProvider), provider);
     final paragraphs = <String>[
       l10n.settingsUnlinkDialogBody(label),
-      // 앱 연결(권한) 해제 고지 — provider 6종 공통 (D-19 · C-09).
+      // 앱 연결(권한) 해제 고지 — 끊기 레지스트리 provider 공통
+      // (D-19 · C-09).
       if (step != null) l10n.settingsUnlinkDialogDisclosure(label),
       // 해제에 provider 로그인 1회가 필요한 행만 안내한다 (D-10 · Q7-A).
       if (step?.kind == DisconnectKind.relogin)

@@ -8,7 +8,7 @@
 // - 탈퇴 ListTile tap → WithdrawalConfirmationDialog.show.
 // - 연결된 계정 값의 밑줄 provider 이름 tap → UnlinkConfirmationDialog.show
 //   → 결과별 SnackBar (Phase 16.8 D-07 · D-10 · UI-SPEC §N · Phase 16.10
-//   §N′ — 신원 불일치 · 끊기 실패 2종 추가).
+//   §N′ — 신원 불일치 · 끊기 실패 SnackBar 추가).
 import 'dart:async';
 
 import 'package:flutter/material.dart';
