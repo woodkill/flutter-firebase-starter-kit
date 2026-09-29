@@ -407,6 +407,12 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
   /// [userTriggered] 면 실행 동안 다른 사용자 동작을 잠근다(T-16.10-32).
   /// step · 의존은 await 전에 캡처한다. step 은 예외를 던지지 않는 계약이지만
   /// 예상 밖 throw 는 실패로 흡수한다.
+  ///
+  /// 실행 의존([disconnectDepsProvider]) 읽기도 `try` 안에서 한다 (16.10
+  /// review WR-05). 밖에서 throw 하면 행이 「해제 중」 으로 바뀌기 전에
+  /// 빠져나가 서버 행이 「대기」 에 고정되는데, 대기 서버 행에는 건너뛰기 ·
+  /// 재시도가 없어 「탈퇴」 를 끝낼 수 없다(D-12 위반). 해제 다이얼로그의
+  /// `SettingsNotifier.disconnectAndUnlinkProvider` 와 같은 흡수 규칙이다.
   Future<void> _runRow(
     AccountProvider provider, {
     required bool userTriggered,
@@ -414,13 +420,15 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
     final step = disconnectStepFor(ref.read(disconnectStepsProvider), provider);
     final row = _rowOf(provider);
     if (step == null || row == null) return;
-    final deps = ref.read(disconnectDepsProvider);
     state = WithdrawalDisconnectState(
       rows: _replaceRow(provider, DisconnectRowStatus.working),
       userTriggered: userTriggered ? provider : state.userTriggered,
     );
     DisconnectOutcome outcome;
     try {
+      // 인프라 provider 생성 실패도 끊기 실패로 흡수한다 — 행은 「실패」 로
+      // 끝나 건너뛰기 · 재시도(서버 행) 또는 로그인 버튼(재로그인 행)이 남는다.
+      final deps = ref.read(disconnectDepsProvider);
       outcome = await step.run(deps, reloginForFreshness: true);
     } on Object catch (e) {
       if (kDebugMode) {

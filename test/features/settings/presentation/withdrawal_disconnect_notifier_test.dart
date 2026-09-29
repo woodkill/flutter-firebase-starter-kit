@@ -25,6 +25,7 @@
 //   WN17: 5분 창 (a) 대상 없음 → false · rows 불변
 //   WN18: 5분 창 (b) — wasDisconnected 서버 행 재실행 · 끊긴 적 없는 건너뛴 행 불변
 //   WN19: 5분 창 (b) — (a) 로 열렸다 건너뛴 재로그인 행 재개방 · 끝나기 전 삭제 0
+//   WN20: (review WR-05) 실행 의존 생성 실패 → 서버 행 실패 · 건너뛰기로 탈퇴 가능
 
 import 'dart:async';
 
@@ -198,14 +199,24 @@ void main() {
   /// providerIds [providerIds] 사용자 · [fakes] 레지스트리로 container 를 만든다.
   ///
   /// 진행 notifier · settings notifier 는 auto-dispose 라 listen 으로 붙잡는다.
-  ProviderContainer makeContainer(List<String> providerIds) {
+  ///
+  /// [depsThrow] 면 실행 의존 provider 생성이 throw 한다 (review WR-05).
+  ProviderContainer makeContainer(
+    List<String> providerIds, {
+    bool depsThrow = false,
+  }) {
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith(
           (ref) => ref.watch(_userHolderProvider),
         ),
         disconnectStepsProvider.overrideWithValue(fakes.all),
-        disconnectDepsProvider.overrideWithValue(deps),
+        if (depsThrow)
+          disconnectDepsProvider.overrideWith(
+            (ref) => throw StateError('deps unavailable'),
+          )
+        else
+          disconnectDepsProvider.overrideWithValue(deps),
         settingsRepositoryProvider.overrideWithValue(mockSettingsRepo),
         authRepositoryProvider.overrideWithValue(mockAuthRepo),
         crashlyticsServiceProvider.overrideWithValue(mockCrashlytics),
@@ -762,5 +773,28 @@ void main() {
       await notifier.requestDeletion();
       verifyNever(() => mockSettingsRepo.requestAccountDeletion());
     });
+
+    test(
+      'WN20 (review WR-05): 실행 의존 생성 실패 → 서버 행 실패(대기 고정 0) · 건너뛰면 삭제 가능',
+      () async {
+        final container = makeContainer(<String>['kakao'], depsThrow: true);
+        final notifier = container.read(withdrawalDisconnectProvider.notifier);
+
+        await notifier.start();
+
+        // 대기로 남으면 건너뛰기 · 재시도가 없어 「탈퇴」 를 끝낼 수 없다(D-12).
+        expect(
+          statusOf(container, AccountProvider.kakao),
+          DisconnectRowStatus.failed,
+        );
+        expect(fakes.kakao.calls, isEmpty);
+        expect(stateOf(container).anyWorking, isFalse);
+
+        notifier.skip(AccountProvider.kakao);
+        expect(stateOf(container).allDone, isTrue);
+        await notifier.requestDeletion();
+        verify(() => mockSettingsRepo.requestAccountDeletion()).called(1);
+      },
+    );
   });
 }
