@@ -127,8 +127,19 @@ const String kNaverIosAppAccessDeniedMessage =
 /// SDK `NidError.clientError(.naverAppNotInstalled)` 의 문구다. 출처:
 /// `naveridlogin-sdk-ios-swift` 5.2.1 `Sources/NidCore/NidError.swift:33`.
 /// 1-tap 에서 iOS 「"<앱>" wants to open "NAVER"」 알림의 [Cancel] 이 이 오류로
-/// 온다 (260929-snf SYSC 실측 `length=86`). 실제 미설치는 설치 판정이 `false`
-/// 라 웹 경로로 먼저 가므로 이 매핑에 닿지 않는다.
+/// 온다 (260929-snf SYSC 실측 `length=86`).
+///
+/// **SDK 발생 조건은 알림 [Cancel] 보다 넓다 (IN-01).** SDK 는
+/// `UIApplication.shared.open` 완료 `false` 전부를 이 오류로 만든다 (출처:
+/// `naveridlogin-sdk-ios-swift` 5.2.1
+/// `Projects/NidThirdPartyLogin/Sources/NidLogin/Data/Repository/`
+/// `DefaultAppAuthorizationCodeRepository.swift:49-64` — `:49` 의 `open` 완료
+/// 핸들러가 `:64` 에서 이 오류로 callback).
+/// 그래서 앱은 설치돼 있으나 실행이 막힌 단말(스크린 타임 · MDM 제한 등)도
+/// 같은 문구로 오며, 킷은 알림 [Cancel] 과 구분하지 못해 silent 취소로 접는다
+/// — iOS 1-tap 「무반응」 제보 시 확인 항목이다. 킷 설치 판정(`canOpenURL`)이
+/// `false` 인 단말은 웹 경로로 먼저 가므로 이 매핑에 닿는 것은 설치 판정
+/// `true` 뒤의 `open` 실패뿐이다.
 ///
 /// **iOS 1-tap 에서 완전 일치일 때만 취소다 (16.11 EX-04 · C-03 · C-04).**
 const String kNaverIosAppNotInstalledMessage =
