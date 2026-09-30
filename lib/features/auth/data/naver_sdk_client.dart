@@ -6,7 +6,10 @@
 // Phase 16.5 D-01 ~ D-04 — signIn() 이 NAVER 앱 설치 판정 bool 하나로 1-tap
 // (SDK) 과 킷 웹 흐름을 라우팅한다. 웹 클라이언트는 함수 typedef 로만 안다.
 // Phase 16.11 — see ROADMAP.md (EX-03 · EX-04 — iOS 1-tap 취소 표면 · stale 슬롯 재시도)
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:naver_login_flutter/naver_login_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -24,6 +27,41 @@ typedef NaverLoginFn = Future<NaverLoginResult> Function();
 
 /// 플러그인 `FlutterNaverLogin.logOut()` 시그니처 typedef (D-57).
 typedef NaverLogoutFn = Future<NaverLoginResult> Function();
+
+/// iOS 1-tap 에서 background 복귀(`resumed`) 뒤 포기 판정을 보류하는 시간.
+///
+/// LINE SDK 5.17.0 `AppSwitchingObserver` 의 0.3초 verbatim
+/// (`LineSDK/Login/LoginProcess.swift:66-98` · `:226-241`). 복귀 직후 콜백 URL
+/// 도착과 앱 활성화의 순서를 보정하려는 **판정 보류**일 뿐 로그인 대기 한도가
+/// 아니다 — 16.2 D-16(타이머 없음)의 명시적 예외다 (16.11 D-01 · D-02). 보류가
+/// 끝난 뒤 URL 이 도착했으면 한도 없이 계속 기다린다 (C-01). 값을 올리는 것은
+/// U1 실측(`openURL` ↔ `resumed` 간격) 근거가 있을 때만 한다.
+const Duration kNaverResumeSettleDelay = Duration(milliseconds: 300);
+
+/// 앱 lifecycle 구독 함수 시그니처 — 해제 함수를 돌려준다 (16.11 D-03).
+///
+/// [NaverSdkClient] 는 iOS 1-tap `logIn` 1회분 동안만 구독한다(시작 시 생성 ·
+/// 결과 또는 포기 시 해제). [NaverSdkClient.forTest] 가 fake 를 주입한다.
+typedef NaverLifecycleSubscribeFn =
+    void Function() Function({
+      required VoidCallback onPause,
+      required VoidCallback onResume,
+    });
+
+/// production 구독 — [AppLifecycleListener] 의 `onPause` · `onResume` 으로
+/// background 진입 · 복귀를 받고, 그 `dispose` 를 해제 함수로 돌려준다.
+///
+/// `onPause` 는 `hidden → paused`, `onResume` 은 `inactive → resumed` 전환에서만
+/// 불린다 — iOS 시스템 알림처럼 `inactive` 만 거치는 전환은 판정에 닿지 않는다
+/// (16.11 RESEARCH OQ2 · OQ6).
+@visibleForTesting
+void Function() subscribeNaverAppLifecycle({
+  required VoidCallback onPause,
+  required VoidCallback onResume,
+}) {
+  final listener = AppLifecycleListener(onPause: onPause, onResume: onResume);
+  return listener.dispose;
+}
 
 /// 플러그인 `errorMessage` 를 보관하는 구조화 에러 (Phase 16.2 D-13).
 ///
@@ -334,7 +372,10 @@ class NaverSdkClient {
     : _login = _defaultLogin,
       _logout = _defaultLogout,
       _isNaverAppInstalled = const NaverHostChannel().isNaverAppInstalled,
-      _webSignIn = webAuthClient.signIn;
+      _webSignIn = webAuthClient.signIn,
+      _subscribeLifecycle = subscribeNaverAppLifecycle,
+      _hasCallbackArrived = const NaverHostChannel().hasNaverCallbackArrived,
+      _resetCallbackRecord = const NaverHostChannel().resetNaverCallbackRecord;
 
   /// 테스트 전용 ctor — 플러그인 · 설치 판정 · 웹 흐름을 함수 typedef 로
   /// fake 한다.
@@ -344,6 +385,10 @@ class NaverSdkClient {
   /// [StateError] 를 던진다(웹 경로를 기대하지 않은 테스트가 조용히 통과하지
   /// 않게).
   ///
+  /// 16.11 포기 판정 재료 3개도 선택 인자다 — [lifecycleSubscribe] 기본값은
+  /// 아무것도 붙들지 않는 구독, [callbackArrived] 기본값은 `false`,
+  /// [callbackReset] 기본값은 no-op 이다. 기존 테스트는 인자 추가 없이 통과한다.
+  ///
   /// production 코드는 [NaverSdkClient.new] 만 사용해야 한다.
   @visibleForTesting
   NaverSdkClient.forTest({
@@ -351,10 +396,16 @@ class NaverSdkClient {
     required NaverLogoutFn logout,
     NaverInstalledFn? isNaverAppInstalled,
     NaverWebSignInFn? webSignIn,
+    NaverLifecycleSubscribeFn? lifecycleSubscribe,
+    NaverCallbackArrivedFn? callbackArrived,
+    NaverCallbackResetFn? callbackReset,
   }) : _login = login,
        _logout = logout,
        _isNaverAppInstalled = isNaverAppInstalled ?? _alwaysInstalled,
-       _webSignIn = webSignIn ?? _webSignInUnexpected;
+       _webSignIn = webSignIn ?? _webSignInUnexpected,
+       _subscribeLifecycle = lifecycleSubscribe ?? _subscribeLifecycleNoop,
+       _hasCallbackArrived = callbackArrived ?? _callbackNeverArrived,
+       _resetCallbackRecord = callbackReset ?? _resetCallbackRecordNoop;
 
   final NaverLoginFn _login;
   final NaverLogoutFn _logout;
@@ -364,6 +415,16 @@ class NaverSdkClient {
 
   /// 킷 웹 흐름 — [NaverWebAuthClient.signIn] (D-07).
   final NaverWebSignInFn _webSignIn;
+
+  /// iOS 1-tap `logIn` 1회분 lifecycle 구독 (16.11 D-03).
+  final NaverLifecycleSubscribeFn _subscribeLifecycle;
+
+  /// 현재 요청 동안 Naver 콜백 URL 이 도착했는지 — 네이티브 기록 조회
+  /// (16.11 D-05). 실패는 `true`(계속 대기) 로 접는다.
+  final NaverCallbackArrivedFn _hasCallbackArrived;
+
+  /// 네이티브 콜백 도착 기록 초기화 — iOS 1-tap 요청 시작 때 부른다.
+  final NaverCallbackResetFn _resetCallbackRecord;
 
   /// [signIn] 이 진행 중인지 — 클래스 doc 의 in-flight 가드 (D-18).
   bool _inFlight = false;
@@ -381,6 +442,18 @@ class NaverSdkClient {
   /// Future 가 영영 끝나지 않는다 (RESEARCH DG-3). [_invokeLogout] 이 채우고,
   /// 끝나면 **자기 Future 일 때만** `null` 로 되돌린다.
   Future<void>? _logoutInFlight;
+
+  /// 포기한 iOS 1-tap 요청(고아)의 plugin `logIn` Future — 없으면 `null`
+  /// (16.11 D-06 · D-07).
+  ///
+  /// 포기해도 plugin 대기 슬롯은 여전히 이 요청이 점유한다. in-flight 가드와는
+  /// 별개 상태다 — 가드는 포기 시점에 풀린다. 이 동안 plugin 을 부르면 거부
+  /// 응답이 슬롯을 비워 늦은 SDK 성공 토큰이 keychain 에 남는다(RESEARCH DG-2
+  /// S-2 · S-4). 그래서 고아가 있는 동안 [logout] 은 전부 지연된다.
+  Future<NaverLoginResult>? _orphanLogin;
+
+  /// 고아 요청이 plugin 슬롯을 점유 중인지.
+  bool get _orphanPending => _orphanLogin != null;
 
   /// Naver 로그인 — 설치 판정으로 1-tap(SDK) 또는 킷 웹 흐름을 고른다.
   ///
@@ -466,10 +539,19 @@ class NaverSdkClient {
       }
       if (!installed) return await _webSignIn();
 
+      // 이 지점은 설치 판정 true 뒤라 1-tap 전용 — 포기 판정(16.11 D-03)과
+      // iOS 1-tap 취소 표면(EX-04)은 여기서만 켠다 (웹 경로는 위에서 반환했다).
+      final isIosOneTap = defaultTargetPlatform == TargetPlatform.iOS;
+      if (isIosOneTap) await _resetCallbackRecordSafely();
+
       if (kDebugMode) {
         debugPrint('Naver logIn 시작');
       }
-      final result = await _callLoginWithStaleRetry();
+      final result = isIosOneTap
+          ? await _awaitLoginOrAbandon()
+          : await _callLoginWithStaleRetry();
+      // 포기 — silent 취소. 기존 `null` 계약이 로딩 막 · race-fix 를 푼다.
+      if (result == null) return null;
 
       // D-18 도착 줄 — status 이름과 경과 ms 만. `errorMessage` 원문은 한 글자도
       // 싣지 않는다 (WR-05). 취소 · 오류 요약은 바로 아래 기존 분기가 찍는다.
@@ -480,12 +562,10 @@ class NaverSdkClient {
         );
       }
 
-      // 이 지점은 설치 판정 true 뒤라 1-tap 전용 — iOS 1-tap 취소 표면(16.11
-      // EX-04)은 여기서만 켠다 (웹 경로는 위에서 이미 반환했다).
       if (isNaverUserCancel(
         result.status,
         result.errorMessage,
-        isIosOneTap: defaultTargetPlatform == TargetPlatform.iOS,
+        isIosOneTap: isIosOneTap,
       )) {
         // D-45 silent — Android loggedOut · iOS error + 고정 리터럴.
         if (kDebugMode) {
@@ -527,12 +607,134 @@ class NaverSdkClient {
       // 들어온 [logout] 은 다시 지연돼 이 루프가 그것까지 소비한다
       // (유실 0 · 킷이 만드는 동시 plugin 호출 0). [_invokeLogout] 은
       // throw 하지 않으므로 위 분기의 반환값 · 전파 중인 예외에 영향이 없다.
-      while (_logoutPending) {
-        _logoutPending = false;
-        await _invokeLogout();
+      if (!_orphanPending) {
+        while (_logoutPending) {
+          _logoutPending = false;
+          await _invokeLogout();
+        }
       }
       _inFlight = false;
     }
+  }
+
+  /// 콜백 기록 초기화 — 주입 함수 예외는 삼키고 진단 줄만 남긴다.
+  Future<void> _resetCallbackRecordSafely() async {
+    try {
+      await _resetCallbackRecord();
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('Naver 콜백 기록 초기화 예외(무시): ${e.runtimeType}');
+      }
+    }
+  }
+
+  /// 콜백 기록 조회 — 주입 함수 예외는 `true`(계속 대기) 로 접는다
+  /// (RESEARCH Pitfall 5 — 판정 실패가 성공 폐기로 둔갑하지 않게).
+  Future<bool> _queryCallbackArrived() async {
+    try {
+      return await _hasCallbackArrived();
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('Naver 콜백 기록 조회 예외(계속 대기로 접음): ${e.runtimeType}');
+      }
+      return true;
+    }
+  }
+
+  /// iOS 1-tap 결과를 기다리되, 결과 없는 복귀면 포기한다 (16.11 EX-01 · EX-02).
+  ///
+  /// plugin `logIn` 을 시작한 **직후** lifecycle 을 구독한다. `paused` 를 본
+  /// 뒤의 `resumed` 에서만 [kNaverResumeSettleDelay] 뒤 판정을 예약한다 —
+  /// `inactive` 만 거친 복귀(시스템 알림)는 판정하지 않는다. 판정은 네이티브
+  /// 기록을 조회해 콜백 URL 이 도착했으면 한도 없이 계속 기다리고(C-01), 아니면
+  /// 포기 신호를 보낸다. 판정 클로저는 **자기 요청의** 플래그 · 포기 신호만 본다
+  /// — 결과가 이미 왔거나 포기했으면 아무것도 하지 않는다.
+  ///
+  /// 반환: 로그인 결과, 또는 포기면 `null`(그 로그인 Future 는 고아가 된다 —
+  /// [_abandonToOrphan]). 구독은 결과 · 포기 · 예외 어느 쪽이든 해제한다.
+  Future<NaverLoginResult?> _awaitLoginOrAbandon() async {
+    final login = _callLoginWithStaleRetry();
+    final abandon = Completer<void>();
+    var settled = false;
+    var sawPaused = false;
+
+    Future<void> judgeAfterSettle() async {
+      if (settled || abandon.isCompleted) return;
+      final arrived = await _queryCallbackArrived();
+      if (settled || abandon.isCompleted) return;
+      if (arrived) return;
+      abandon.complete();
+    }
+
+    final unsubscribe = _subscribeLifecycle(
+      onPause: () {
+        sawPaused = true;
+      },
+      onResume: () {
+        if (!sawPaused) return;
+        sawPaused = false;
+        unawaited(
+          Future<void>.delayed(kNaverResumeSettleDelay, judgeAfterSettle),
+        );
+      },
+    );
+    try {
+      final outcome = await Future.any<NaverLoginResult?>(
+        <Future<NaverLoginResult?>>[
+          login,
+          abandon.future.then<NaverLoginResult?>((_) => null),
+        ],
+      );
+      if (outcome != null) return outcome;
+      _abandonToOrphan(login);
+      return null;
+    } finally {
+      settled = true;
+      unsubscribe();
+    }
+  }
+
+  /// 포기한 요청을 고아로 등록한다 (16.11 D-06 · C-02).
+  ///
+  /// 고아가 끝나면(성공 · 오류 결과 · 예외) 결과를 버리고 [logout] 을 1회
+  /// 실행한다. 예외 갈래에도 핸들러를 붙여 미처리 비동기 예외를 0 으로 둔다.
+  void _abandonToOrphan(Future<NaverLoginResult> login) {
+    _orphanLogin = login;
+    if (kDebugMode) {
+      debugPrint('Naver logIn 포기: reason=no_callback_after_resume');
+    }
+    unawaited(
+      login.then<void>(
+        (result) => _discardOrphan(
+          login,
+          () =>
+              'status=${result.status.name} '
+              '${describeNaverErrorForLog(result.errorMessage)}',
+        ),
+        onError: (Object error) =>
+            _discardOrphan(login, () => 'exception=${error.runtimeType}'),
+      ),
+    );
+  }
+
+  /// 고아 결과를 버리고 기기 토큰을 지운다 (16.11 C-02 · Phase 13 D-57).
+  ///
+  /// [orphan] 이 **현재** 고아일 때만 동작한다 — stale 거부로 이미 해제된 옛
+  /// 고아는 무시한다. [describe] 는 진단 줄 꼬리(status 이름 + 로그 이름 또는
+  /// 예외 타입)만 만든다 — 결과 · 토큰 객체는 문자열 보간에 넣지 않는다(D-21).
+  /// [logout] 을 거치므로 새 로그인이 진행 중이면 다시 지연돼 그 로그인의
+  /// finally 가 소비한다 — 킷이 만드는 동시 plugin 호출 0.
+  Future<void> _discardOrphan(
+    Future<NaverLoginResult> orphan,
+    String Function() describe,
+  ) async {
+    if (!identical(_orphanLogin, orphan)) return;
+    _orphanLogin = null;
+    if (kDebugMode) {
+      debugPrint('Naver logIn 고아 결과 도착: ${describe()}');
+    }
+    _logoutPending = false;
+    await logout();
   }
 
   /// plugin `logIn()` 을 부르고, iOS stale 슬롯 거부면 **정확히 1회** 다시
@@ -546,6 +748,15 @@ class NaverSdkClient {
   Future<NaverLoginResult> _callLoginWithStaleRetry() async {
     final first = await _login();
     if (!_isIosStaleSlotRejection(first)) return first;
+    // 거부가 고아의 슬롯을 비웠으므로 고아는 영영 완료되지 않는다 (16.11 D-06 ·
+    // RESEARCH DG-2) — 대기를 해제한다. 지연된 logout 은 이 로그인의 finally 가
+    // 소비한다.
+    if (_orphanPending) {
+      _orphanLogin = null;
+      if (kDebugMode) {
+        debugPrint('Naver logIn 고아 대기 해제: reason=stale_rejected');
+      }
+    }
     if (kDebugMode) {
       debugPrint('Naver logIn stale 슬롯 재시도: method=logIn');
     }
@@ -579,11 +790,15 @@ class NaverSdkClient {
   ///
   /// 실패 시 graceful ([kDebugMode] [debugPrint]) — outer 흐름 차단 안 함.
   Future<void> logout() async {
-    if (_inFlight) {
-      // 생략이 아니라 지연 — D-57 은 유지된다 (WR-01).
+    if (_inFlight || _orphanPending) {
+      // 생략이 아니라 지연 — D-57 은 유지된다 (WR-01 · 16.11 D-06).
       _logoutPending = true;
       if (kDebugMode) {
-        debugPrint('NaverSdkClient.logout 지연 (in-flight)');
+        debugPrint(
+          _inFlight
+              ? 'NaverSdkClient.logout 지연 (in-flight)'
+              : 'NaverSdkClient.logout 지연 (orphan-wait)',
+        );
       }
       return;
     }
@@ -664,6 +879,22 @@ Future<bool> _alwaysInstalled() async => true;
 /// 테스트가 시끄럽게 실패하도록 던진다.
 Future<NaverWebSignIn?> _webSignInUnexpected() async =>
     throw StateError('webSignIn fake 미주입');
+
+/// [NaverSdkClient.forTest] 의 lifecycle 구독 기본값 — 아무것도 붙들지 않고
+/// no-op 해제 함수를 돌려준다 (판정이 일어나지 않는다).
+void Function() _subscribeLifecycleNoop({
+  required VoidCallback onPause,
+  required VoidCallback onResume,
+}) => _unsubscribeNoop;
+
+/// [_subscribeLifecycleNoop] 이 돌려주는 해제 함수.
+void _unsubscribeNoop() {}
+
+/// [NaverSdkClient.forTest] 의 콜백 기록 조회 기본값 — 도착 없음.
+Future<bool> _callbackNeverArrived() async => false;
+
+/// [NaverSdkClient.forTest] 의 콜백 기록 초기화 기본값 — no-op.
+Future<void> _resetCallbackRecordNoop() async {}
 
 /// [NaverSdkClient] Provider — keepAlive (Phase 12 [kakaoSdkClientProvider]
 /// 패턴). 웹 클라이언트는 [naverWebAuthClientProvider] 에서 주입한다.

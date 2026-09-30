@@ -13,7 +13,11 @@ import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, debugDefaultTargetPlatformOverride, debugPrint;
+    show
+        TargetPlatform,
+        VoidCallback,
+        debugDefaultTargetPlatformOverride,
+        debugPrint;
 import 'package:flutter/services.dart'
     show MethodCall, MethodChannel, MissingPluginException, PlatformException;
 import 'package:flutter_test/flutter_test.dart';
@@ -121,6 +125,105 @@ List<String> captureLogs() {
   };
   addTearDown(() => debugPrint = originalDebugPrint);
   return logs;
+}
+
+/// 16.11 포기 판정 테스트용 lifecycle 구독 fake.
+///
+/// `NaverSdkClient.forTest(lifecycleSubscribe:)` 에 [subscribe] 를 넘기고
+/// [emitPause] · [emitResume] 으로 background 진입 · 복귀를 밀어 넣는다. 해제된
+/// 구독은 더 이상 콜백을 받지 않는다.
+class FakeLifecycle {
+  final Map<int, (VoidCallback, VoidCallback)> _active =
+      <int, (VoidCallback, VoidCallback)>{};
+  int _nextId = 0;
+
+  /// [subscribe] 호출 횟수.
+  int subscribeCalls = 0;
+
+  /// 해제 함수 호출 횟수.
+  int disposeCalls = 0;
+
+  /// `NaverLifecycleSubscribeFn` 구현 — 콜백을 붙들고 해제 함수를 돌려준다.
+  void Function() subscribe({
+    required VoidCallback onPause,
+    required VoidCallback onResume,
+  }) {
+    subscribeCalls++;
+    final id = _nextId++;
+    _active[id] = (onPause, onResume);
+    return () {
+      disposeCalls++;
+      _active.remove(id);
+    };
+  }
+
+  /// 활성 구독 전부에 background 진입(`paused`) 을 알린다.
+  void emitPause() {
+    for (final (onPause, _) in List.of(_active.values)) {
+      onPause();
+    }
+  }
+
+  /// 활성 구독 전부에 복귀(`resumed`) 를 알린다.
+  void emitResume() {
+    for (final (_, onResume) in List.of(_active.values)) {
+      onResume();
+    }
+  }
+}
+
+/// 16.11 네이티브 콜백 도착 기록 fake — 조회 · 초기화 횟수를 센다.
+class CallbackRecordProbe {
+  /// [arrived] 는 조회가 돌려줄 값이다.
+  CallbackRecordProbe({this.arrived = false});
+
+  /// 조회가 돌려줄 값 — `true` 면 콜백 URL 이 도착한 것으로 본다.
+  bool arrived;
+
+  /// [query] 호출 횟수.
+  int queries = 0;
+
+  /// [reset] 호출 횟수.
+  int resets = 0;
+
+  /// `NaverCallbackArrivedFn` 구현.
+  Future<bool> query() async {
+    queries++;
+    return arrived;
+  }
+
+  /// `NaverCallbackResetFn` 구현.
+  Future<void> reset() async {
+    resets++;
+  }
+}
+
+/// `fakeAsync` 안에서 `signIn()` 을 시작하고 완료 · 결과 · 오류를 기록한다.
+class SignInProbe {
+  /// [client] 의 `signIn()` 을 곧바로 시작한다.
+  SignInProbe(NaverSdkClient client) {
+    unawaited(
+      client.signIn().then(
+        (value) {
+          result = value;
+          completed = true;
+        },
+        onError: (Object e) {
+          error = e;
+          completed = true;
+        },
+      ),
+    );
+  }
+
+  /// `signIn()` 이 끝났는지 (값 · 예외 모두).
+  bool completed = false;
+
+  /// `signIn()` 의 결과.
+  NaverSignInResult? result;
+
+  /// `signIn()` 이 던진 예외.
+  Object? error;
 }
 
 void main() {
@@ -538,7 +641,8 @@ void main() {
       expect(code, contains('FlutterNaverLogin.logOut()'));
 
       for (final forbidden in const <String>[
-        'Completer',
+        'Completer<NaverLoginResult>',
+        'Completer<NaverSignInResult',
         '.timeout(',
         'logOutAndDeleteToken',
         'setLogEnabled',
@@ -550,6 +654,17 @@ void main() {
           reason: 'production 소스에 $forbidden 가 있으면 안 된다',
         );
       }
+
+      // 정밀화 — 포기 신호용 `Completer<void>` 1건만 허용한다.
+      const completerReason =
+          '16.11 D-01 — 포기 신호용 Completer<void> 1건만 허용 · 로그인 결과를 '
+          '감싸는 Completer · timeout 금지(16.2 D-16)';
+      expect(
+        'Completer<'.allMatches(code),
+        hasLength(1),
+        reason: completerReason,
+      );
+      expect(code, contains('Completer<void>('), reason: completerReason);
     });
 
     // WR-01 — 진행 중 logout 을 버리면 `signOut` · 재인증 finally 경로에서
@@ -1610,6 +1725,275 @@ void main() {
           'after_logout',
         ),
       );
+    });
+  });
+
+  // Phase 16.11 — iOS 1-tap 결과 없는 복귀 포기 판정 · 고아 대기 (EX-01 ·
+  // EX-02 · EX-03 · D-01 ~ D-07 · C-01 · C-02). 로그 단언은 전부 원문 · 토큰
+  // sentinel 부재를 함께 본다 (D-12 · D-21).
+  group('Phase 16.11 포기 판정 · 고아 대기 (T-16.11-NAVER-ABANDON)', () {
+    const abandonLine = 'Naver logIn 포기: reason=no_callback_after_resume';
+    const orphanWaitLine = 'NaverSdkClient.logout 지연 (orphan-wait)';
+    const releaseLine = 'Naver logIn 고아 대기 해제: reason=stale_rejected';
+    const staleLogInLine = 'Naver logIn stale 슬롯 재시도: method=logIn';
+
+    /// 고아 결과에 실리는 토큰 — 어떤 로그 줄에도 나오면 안 된다 (D-21).
+    const tokenSentinel = 'orphan_token_sentinel_7f3a';
+
+    /// iOS 로 고정하고 테스트 끝에 되돌린다 (RESEARCH Pitfall 3).
+    void useIos() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    }
+
+    /// 판정 재료(lifecycle · 기록)를 fake 로 주입한 client.
+    NaverSdkClient buildJudgedClient({
+      required NaverLoginFn login,
+      required NaverLogoutFn logout,
+      required FakeLifecycle lifecycle,
+      required CallbackRecordProbe record,
+      NaverInstalledFn? isNaverAppInstalled,
+      NaverWebSignInFn? webSignIn,
+    }) => NaverSdkClient.forTest(
+      login: login,
+      logout: logout,
+      isNaverAppInstalled: isNaverAppInstalled,
+      webSignIn: webSignIn,
+      lifecycleSubscribe: lifecycle.subscribe,
+      callbackArrived: record.query,
+      callbackReset: record.reset,
+    );
+
+    /// background 진입 → 복귀 → 판정 보류([kNaverResumeSettleDelay]) 경과.
+    void driveReturnWithoutResult(FakeAsync async, FakeLifecycle lifecycle) {
+      lifecycle
+        ..emitPause()
+        ..emitResume();
+      async.elapse(kNaverResumeSettleDelay);
+    }
+
+    /// 생존 대조군(로그 ≥1) 뒤 토큰 · 원문 조각이 어떤 줄에도 없다.
+    void expectNoSecrets(List<String> logs) {
+      expect(logs, isNotEmpty);
+      for (final line in logs) {
+        expect(line, isNot(contains(tokenSentinel)));
+        expect(line, isNot(contains('Another request')));
+        expect(line, isNot(contains('NID given Error')));
+      }
+    }
+
+    test('T-16.11-NAVER-ABANDON-01 결과 없는 복귀 → 0.3초 뒤 기록 false 면 '
+        'silent null · 가드 해제 (D-02 · D-07)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final record = CallbackRecordProbe();
+        final firstGate = Completer<NaverLoginResult>();
+        var loginCalls = 0;
+        final client = buildJudgedClient(
+          login: () {
+            loginCalls++;
+            return loginCalls == 1
+                ? firstGate.future
+                : Future<NaverLoginResult>.value(
+                    buildSuccessResult('second_token'),
+                  );
+          },
+          logout: () async => buildLoggedOutResult(),
+          lifecycle: lifecycle,
+          record: record,
+        );
+
+        final first = SignInProbe(client);
+        async.flushMicrotasks();
+        expect(record.resets, 1, reason: '요청 시작 때 기록을 초기화한다');
+        expect(lifecycle.subscribeCalls, 1);
+        expect(loginCalls, 1);
+
+        lifecycle
+          ..emitPause()
+          ..emitResume();
+        async.elapse(const Duration(milliseconds: 299));
+        expect(first.completed, isFalse);
+        expect(record.queries, 0, reason: '299ms — 아직 판정 보류 중 (D-02)');
+
+        async.elapse(const Duration(milliseconds: 1));
+        expect(first.completed, isTrue, reason: '300ms 에 판정 1');
+        expect(first.error, isNull);
+        expect(first.result, isNull);
+        expect(record.queries, 1);
+        expect(lifecycle.disposeCalls, 1, reason: '포기 시 구독 해제');
+        expect(logs.where((line) => line == abandonLine), hasLength(1));
+        expect(
+          logs.where((line) => line.startsWith('Naver logIn error')),
+          isEmpty,
+        );
+
+        // D-07 — 가드가 풀렸다: 다음 탭이 곧바로 plugin logIn 에 닿는다.
+        final second = SignInProbe(client);
+        async.flushMicrotasks();
+        expect(loginCalls, 2);
+        expect(
+          second.result,
+          isA<NaverAppSignIn>().having(
+            (r) => r.accessToken,
+            'accessToken',
+            'second_token',
+          ),
+        );
+      });
+      expect(kNaverResumeSettleDelay, const Duration(milliseconds: 300));
+      expectNoSecrets(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-04 포기 뒤 logout 은 plugin 호출 없이 지연된다 '
+        '(D-06)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final gate = Completer<NaverLoginResult>();
+        var logoutCalls = 0;
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async {
+            logoutCalls++;
+            return buildLoggedOutResult();
+          },
+          lifecycle: lifecycle,
+          record: CallbackRecordProbe(),
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+        expect(probe.completed, isTrue, reason: '대조군 — 포기가 일어났다');
+        expect(probe.result, isNull);
+
+        unawaited(client.logout());
+        async.flushMicrotasks();
+
+        expect(
+          logoutCalls,
+          0,
+          reason: '고아가 슬롯을 점유 중 — plugin 을 부르면 거부가 슬롯을 비운다',
+        );
+        expect(logs.where((line) => line == orphanWaitLine), hasLength(1));
+      });
+      expectNoSecrets(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-05 고아가 늦게 성공하면 결과를 버리고 logout '
+        '정확히 1회 (C-02 · D-57)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final gate = Completer<NaverLoginResult>();
+        var logoutCalls = 0;
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async {
+            logoutCalls++;
+            return buildLoggedOutResult();
+          },
+          lifecycle: lifecycle,
+          record: CallbackRecordProbe(),
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+        expect(probe.result, isNull);
+
+        unawaited(client.logout());
+        async.flushMicrotasks();
+        expect(logoutCalls, 0);
+
+        gate.complete(buildSuccessResult(tokenSentinel));
+        async.flushMicrotasks();
+
+        expect(logoutCalls, 1, reason: '지연분과 고아 완료가 1회로 접힌다 (2 아님)');
+        expect(
+          logs.where(
+            (line) => line.startsWith('Naver logIn 고아 결과 도착: status=loggedIn'),
+          ),
+          hasLength(1),
+        );
+
+        unawaited(client.logout());
+        async.flushMicrotasks();
+        expect(logoutCalls, 2, reason: '고아가 끝났으니 즉시 plugin 을 부른다');
+      });
+      expectNoSecrets(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-19 다음 탭의 stale 거부가 고아 대기를 해제하고 '
+        '지연 logout 은 새 로그인 finally 가 소비한다 (EX-03)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        // 실제 plugin 처럼 첫 요청은 영영 끝나지 않는다 (거부가 슬롯을 비움).
+        final orphanGate = Completer<NaverLoginResult>();
+        var loginCalls = 0;
+        var logoutCalls = 0;
+        final client = buildJudgedClient(
+          login: () {
+            loginCalls++;
+            return switch (loginCalls) {
+              1 => orphanGate.future,
+              2 => Future<NaverLoginResult>.value(
+                buildResult(
+                  status: NaverLoginStatus.error,
+                  errorMessage: kNaverIosRequestInProgressMessage,
+                ),
+              ),
+              _ => Future<NaverLoginResult>.value(
+                buildSuccessResult('fresh_token'),
+              ),
+            };
+          },
+          logout: () async {
+            logoutCalls++;
+            return buildLoggedOutResult();
+          },
+          lifecycle: lifecycle,
+          record: CallbackRecordProbe(),
+        );
+
+        final first = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+        expect(first.result, isNull);
+
+        unawaited(client.logout());
+        async.flushMicrotasks();
+        expect(logoutCalls, 0, reason: '대조군 — 고아 대기 중 지연');
+
+        final second = SignInProbe(client);
+        async.flushMicrotasks();
+
+        expect(second.completed, isTrue);
+        expect(
+          second.result,
+          isA<NaverAppSignIn>().having(
+            (r) => r.accessToken,
+            'accessToken',
+            'fresh_token',
+          ),
+        );
+        expect(loginCalls, 3);
+        expect(logs.where((line) => line == releaseLine), hasLength(1));
+        expect(logs.where((line) => line == staleLogInLine), hasLength(1));
+        expect(logoutCalls, 1, reason: '새 로그인 finally 가 지연분을 소비한다');
+
+        unawaited(client.logout());
+        async.flushMicrotasks();
+        expect(logoutCalls, 2);
+      });
+      expectNoSecrets(logs);
     });
   });
 }
