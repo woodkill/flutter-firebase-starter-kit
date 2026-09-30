@@ -5,6 +5,7 @@
 // Phase 16.4 D-18 로그 2줄 — signIn() 시작 · 도착 (kDebugMode 전용).
 // Phase 16.5 D-01 ~ D-04 — signIn() 이 NAVER 앱 설치 판정 bool 하나로 1-tap
 // (SDK) 과 킷 웹 흐름을 라우팅한다. 웹 클라이언트는 함수 typedef 로만 안다.
+// Phase 16.11 — see ROADMAP.md (EX-03 · EX-04 — iOS 1-tap 취소 표면 · stale 슬롯 재시도)
 import 'package:flutter/foundation.dart';
 import 'package:naver_login_flutter/naver_login_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -52,9 +53,27 @@ class NaverSdkError implements Exception {
 /// 만든 영문 리터럴이라 단말 locale 과 무관하다.
 const String kNaverIosCancelMessage = 'Login cancelled by user';
 
+/// iOS NAVER 앱(1-tap) 동의 화면 [Cancel] 이 오는 **고정 문구** (73자 · A1).
+///
+/// NAVER iOS SDK 5.2.1 앱 경로가 복귀 URL 의 code `10`(`AppAuthCode.undefined`)
+/// + `error_detail=access_denied` 에 붙이는 문구다. 출처:
+/// `naveridlogin-sdk-ios-swift` 5.2.1
+/// `Projects/NidThirdPartyLogin/Sources/NidLogin/Domain/UseCases/Login/`
+/// `PerformAppLogin.swift:27-61`(code 10 → `undefined` · 설명 nil 이라
+/// `error_detail` 값을 씀) · `:70`(`error_detail` 키) · `:137`(callback) 과
+/// `Sources/NidCore/NidError.swift:58`(`NID given Error. Error Code: … \n
+/// Error Description: …` 형식). 260929-snf A1 실측 `length=73`.
+///
+/// **완전 일치만 취소다 (16.11 C-03)** — 같은 접두어의 다른 NID 오류(설정 ·
+/// 서버 오류)는 계속 배너 경로다.
+const String kNaverIosAppAccessDeniedMessage =
+    'NID given Error. Error Code: undefined. \n'
+    'Error Description: access_denied';
+
 /// 완전 일치 닫힌 집합 — 원문 → 로그용 이름 (RESEARCH §9 verbatim).
 const Map<String, String> _kNaverExactMessages = <String, String>{
   kNaverIosCancelMessage: 'ios_plugin_cancelled',
+  kNaverIosAppAccessDeniedMessage: 'ios_sdk_nid_access_denied',
   'Another request is in progress. Please wait':
       'ios_plugin_request_in_progress',
   'No access token available': 'ios_plugin_no_access_token',
@@ -156,10 +175,18 @@ const Set<String> _kNaverAndroidErrorCodes = <String>{
 /// 테스트 SIM 부재로 실측이 불가능하다 (C-06). `docs/manual.md` 의 Naver
 /// Pitfall 절을 참조할 것.
 @visibleForTesting
-bool isNaverUserCancel(NaverLoginStatus status, String? errorMessage) {
+bool isNaverUserCancel(
+  NaverLoginStatus status,
+  String? errorMessage, {
+  required bool isIosOneTap,
+}) {
   if (status == NaverLoginStatus.loggedOut) return true;
-  return status == NaverLoginStatus.error &&
-      errorMessage == kNaverIosCancelMessage;
+  if (status != NaverLoginStatus.error) return false;
+  // 플랫폼 공통 — iOS 플러그인 취소 리터럴 (기존).
+  if (errorMessage == kNaverIosCancelMessage) return true;
+  // 아래는 iOS NAVER 앱 1-tap 한정 (16.11 C-04).
+  if (!isIosOneTap) return false;
+  return errorMessage == kNaverIosAppAccessDeniedMessage;
 }
 
 /// 플러그인 `errorMessage` 를 PII 없는 진단 문자열로 바꾼다 (D-14 / WR-05).
@@ -387,7 +414,13 @@ class NaverSdkClient {
         );
       }
 
-      if (isNaverUserCancel(result.status, result.errorMessage)) {
+      // 이 지점은 설치 판정 true 뒤라 1-tap 전용 — iOS 1-tap 취소 표면(16.11
+      // EX-04)은 여기서만 켠다 (웹 경로는 위에서 이미 반환했다).
+      if (isNaverUserCancel(
+        result.status,
+        result.errorMessage,
+        isIosOneTap: defaultTargetPlatform == TargetPlatform.iOS,
+      )) {
         // D-45 silent — Android loggedOut · iOS error + 고정 리터럴.
         if (kDebugMode) {
           debugPrint(

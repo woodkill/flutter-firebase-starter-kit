@@ -3,11 +3,17 @@
 // NaverSdkClient 회귀 테스트 — 플러그인 Future 직결 구조의 성공 · 취소 2분기 ·
 // 오류 · 예외 · 로그 리댁션 · PII 차단 · in-flight 가드 · 타이머 부재 가드.
 // `16.2-VALIDATION.md` Per-Task 표 — T-16.2-NAVER-SDK-{n}.
+//
+// Phase 16.11 — iOS 1-tap 취소 표면(A1 · SYSC) · stale 슬롯 재시도 · logout
+// 라운드트립 대기(U5) — T-16.11-NAVER-ABANDON-{n}. iOS 게이트 테스트는
+// `debugDefaultTargetPlatformOverride` 를 쓰고 tearDown 에서 `null` 로 되돌린다
+// (flutter_test 기본값은 android — RESEARCH Pitfall 3).
 import 'dart:async';
 import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride, debugPrint;
 import 'package:flutter/services.dart'
     show MethodCall, MethodChannel, MissingPluginException, PlatformException;
 import 'package:flutter_test/flutter_test.dart';
@@ -1144,6 +1150,65 @@ void main() {
       // 양성 대조군 — 웹 클라는 타입으로는 들어와 있다.
       expect(code, contains('naver_web_auth_client.dart'));
       expect(code, isNot(contains('flutter_web_auth_2')));
+    });
+  });
+
+  // Phase 16.11 — iOS NAVER 앱 1-tap 의 취소 표면(A1 · SYSC)을 silent 로,
+  // plugin stale 슬롯 거부를 1회 재시도로 흡수한다 (EX-03 · EX-04 · C-03 ·
+  // C-04). 로그 단언은 전부 errorMessage 원문 부재를 함께 본다 (D-12).
+  group('Phase 16.11 취소 표면 · stale 재시도 (T-16.11-NAVER-ABANDON)', () {
+    /// 260929-snf A1 실측 문자열 — 상수와 독립으로 다시 적어 원문을 고정한다.
+    const a1Message =
+        'NID given Error. Error Code: undefined. \n'
+        'Error Description: access_denied';
+
+    tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    test('T-16.11-NAVER-ABANDON-13 iOS 1-tap A1(access_denied 73자) → '
+        'silent null · cancel 줄 1 · error 줄 0', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final logs = captureLogs();
+      final client = NaverSdkClient.forTest(
+        login: () async => buildResult(
+          status: NaverLoginStatus.error,
+          errorMessage: a1Message,
+        ),
+        logout: () async => buildLoggedOutResult(),
+      );
+
+      NaverSignInResult? result;
+      Object? error;
+      try {
+        result = await client.signIn();
+      } on Object catch (e) {
+        error = e;
+      }
+
+      expect(a1Message.length, 73);
+      expect(kNaverIosAppAccessDeniedMessage, a1Message);
+      expect(error, isNull, reason: 'A1 은 사용자 취소 — 배너(throw)가 아니다');
+      expect(result, isNull);
+      expect(
+        logs.where(
+          (line) =>
+              line ==
+              'Naver logIn cancel: status=error '
+                  'message=ios_sdk_nid_access_denied length=73',
+        ),
+        hasLength(1),
+      );
+      expect(
+        logs.where((line) => line.startsWith('Naver logIn error')),
+        isEmpty,
+      );
+      // 생존 대조군 뒤 원문 부재 (D-12).
+      expect(logs, isNotEmpty);
+      // 로그 이름(`ios_sdk_nid_access_denied`)은 원문이 아니다 — 원문 고유 조각만
+      // 본다.
+      for (final line in logs) {
+        expect(line, isNot(contains('NID given Error')));
+        expect(line, isNot(contains('Error Description')));
+      }
     });
   });
 }
