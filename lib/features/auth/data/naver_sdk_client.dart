@@ -708,24 +708,33 @@ class NaverSdkClient {
       abandon.complete();
     }
 
-    final unsubscribe = _subscribeLifecycle(
-      onPause: () {
-        sawPaused = true;
-        pauseGeneration++;
-      },
-      onResume: () {
-        if (!sawPaused) return;
-        sawPaused = false;
-        final generation = pauseGeneration;
-        unawaited(
-          Future<void>.delayed(
-            kNaverResumeSettleDelay,
-            () => judgeAfterSettle(generation),
-          ),
-        );
-      },
-    );
+    void Function()? unsubscribe;
     try {
+      try {
+        unsubscribe = _subscribeLifecycle(
+          onPause: () {
+            sawPaused = true;
+            pauseGeneration++;
+          },
+          onResume: () {
+            if (!sawPaused) return;
+            sawPaused = false;
+            final generation = pauseGeneration;
+            unawaited(
+              Future<void>.delayed(
+                kNaverResumeSettleDelay,
+                () => judgeAfterSettle(generation),
+              ),
+            );
+          },
+        );
+      } on Object {
+        // 구독 실패 (IN-03) — plugin 요청은 이미 시작돼 슬롯을 점유한다. 고아로
+        // 추적해 logout 을 지연시키고(D-06) 늦은 결과 · 예외에 핸들러를 붙인
+        // 뒤(미처리 비동기 예외 0) 호출부의 ServiceUnavailable 경로로 보낸다.
+        _abandonToOrphan(login, reason: 'lifecycle_subscribe_failed');
+        rethrow;
+      }
       final outcome = await Future.any<NaverLoginResult?>(
         <Future<NaverLoginResult?>>[
           login,
@@ -733,11 +742,11 @@ class NaverSdkClient {
         ],
       );
       if (outcome != null) return outcome;
-      _abandonToOrphan(login);
+      _abandonToOrphan(login, reason: 'no_callback_after_resume');
       return null;
     } finally {
       settled = true;
-      unsubscribe();
+      unsubscribe?.call();
     }
   }
 
@@ -745,10 +754,15 @@ class NaverSdkClient {
   ///
   /// 고아가 끝나면(성공 · 오류 결과 · 예외) 결과를 버리고 [logout] 을 1회
   /// 실행한다. 예외 갈래에도 핸들러를 붙여 미처리 비동기 예외를 0 으로 둔다.
-  void _abandonToOrphan(Future<NaverLoginResult> login) {
+  /// [reason] 은 진단 줄 꼬리다 — 결과 없는 복귀(`no_callback_after_resume`)
+  /// 또는 lifecycle 구독 실패(`lifecycle_subscribe_failed` · IN-03).
+  void _abandonToOrphan(
+    Future<NaverLoginResult> login, {
+    required String reason,
+  }) {
     _orphanLogin = login;
     if (kDebugMode) {
-      debugPrint('Naver logIn 포기: reason=no_callback_after_resume');
+      debugPrint('Naver logIn 포기: reason=$reason');
     }
     unawaited(
       login.then<void>(

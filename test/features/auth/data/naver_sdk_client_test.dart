@@ -2172,6 +2172,93 @@ void main() {
       });
     });
 
+    test('T-16.11-NAVER-ABANDON-23 lifecycle 구독이 던지면 시작된 요청을 '
+        '고아로 추적한다 — 미처리 예외 0 · 가드 해제 (IN-03)', () {
+      useIos();
+      final logs = captureLogs();
+      const subscribeFailedLine =
+          'Naver logIn 포기: reason=lifecycle_subscribe_failed';
+      final uncaught = <Object>[];
+      runZonedGuarded(
+        () => fakeAsync((async) {
+          final lifecycle = FakeLifecycle();
+          final record = CallbackRecordProbe();
+          final orphanGate = Completer<NaverLoginResult>();
+          var subscribeCalls = 0;
+          var loginCalls = 0;
+          var logoutCalls = 0;
+          final client = NaverSdkClient.forTest(
+            login: () {
+              loginCalls++;
+              return loginCalls == 1
+                  ? orphanGate.future
+                  : Future<NaverLoginResult>.value(
+                      buildSuccessResult('second_token'),
+                    );
+            },
+            logout: () async {
+              logoutCalls++;
+              return buildLoggedOutResult();
+            },
+            lifecycleSubscribe:
+                ({
+                  required VoidCallback onPause,
+                  required VoidCallback onResume,
+                }) {
+                  subscribeCalls++;
+                  if (subscribeCalls == 1) {
+                    throw StateError('subscribe_failed');
+                  }
+                  return lifecycle.subscribe(
+                    onPause: onPause,
+                    onResume: onResume,
+                  );
+                },
+            callbackArrived: record.query,
+            callbackReset: record.reset,
+          );
+
+          // (1) 구독 실패 — ServiceUnavailable 로 끝난다.
+          final first = SignInProbe(client);
+          async.flushMicrotasks();
+          expect(loginCalls, 1, reason: '대조군 — plugin 요청은 이미 시작됐다');
+          expect(first.completed, isTrue);
+          expect(first.error, isA<ServiceUnavailable>());
+          expect(
+            logs.where((line) => line == subscribeFailedLine),
+            hasLength(1),
+          );
+
+          // 시작된 요청이 슬롯을 점유 중 — logout 은 plugin 을 부르지 않는다.
+          unawaited(client.logout());
+          async.flushMicrotasks();
+          expect(logoutCalls, 0, reason: '고아로 추적 — orphan-wait 지연');
+
+          // (2) 그 요청이 오류로 끝나도 핸들러가 받는다 — 미처리 예외 0.
+          orphanGate.completeError(PlatformException(code: 'x'));
+          async.flushMicrotasks();
+          expect(logoutCalls, 1, reason: '고아 완료 핸들러가 logout 1회');
+
+          // (3) 가드가 풀렸다 — 다음 탭이 plugin logIn 에 닿는다.
+          final second = SignInProbe(client);
+          async.flushMicrotasks();
+          expect(loginCalls, 2);
+          expect(
+            second.result,
+            isA<NaverAppSignIn>().having(
+              (r) => r.accessToken,
+              'accessToken',
+              'second_token',
+            ),
+          );
+          expect(lifecycle.subscribeCalls, 1);
+          expect(lifecycle.disposeCalls, 1);
+        }),
+        (error, stack) => uncaught.add(error),
+      );
+      expect(uncaught, isEmpty, reason: '미처리 비동기 예외 · 단언 실패: $uncaught');
+    });
+
     test('T-16.11-NAVER-ABANDON-06 고아의 예외 · 오류 결과도 버리고 logout '
         '1회 · 미처리 예외 0', () {
       useIos();
