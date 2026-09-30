@@ -983,7 +983,14 @@ void main() {
     }
 
     /// [source]([file]) 의 금지 토큰을 두 묶음으로 단언한다 (C-06 · IN-02).
-    void expectNoForbiddenSwiftTokens(String source, String file) {
+    ///
+    /// 임시 — 16.11-04 계측, plan 07 이 16.11-04 부모 커밋 바이트로 복원.
+    /// 출력 · 보간 묶음만 `UAT1611` 포함 줄 [uatLineCount] 개에 한해 허용한다.
+    void expectNoForbiddenSwiftTokens(
+      String source,
+      String file,
+      int uatLineCount,
+    ) {
       for (final token in urlContentTokens) {
         expect(
           countOccurrences(source, token),
@@ -993,14 +1000,40 @@ void main() {
               'URL 내용 접근 묶음 — UAT 임시 계측 중에도 조정 대상 아님.',
         );
       }
+      const uatMarker = 'UAT1611';
+      final lines = source.split('\n');
+      final uatLines = lines.where((line) => line.contains(uatMarker)).length;
+      final nonUatSource = lines
+          .where((line) => !line.contains(uatMarker))
+          .join('\n');
+      expect(
+        uatLines,
+        uatLineCount,
+        reason:
+            '임시 — 16.11-04 계측, plan 07 이 16.11-04 부모 커밋 바이트로 복원: '
+            '$file 의 $uatMarker 포함 줄 수.',
+      );
+      final outputCalls = <String>[
+        'print(',
+        'NSLog(',
+        'os_log',
+      ].fold<int>(0, (sum, token) => sum + countOccurrences(source, token));
+      expect(
+        outputCalls,
+        uatLineCount,
+        reason:
+            '임시 — 16.11-04 계측, plan 07 이 16.11-04 부모 커밋 바이트로 복원: '
+            '$file 의 출력문 수 == $uatMarker 포함 줄 수.',
+      );
       for (final token in outputTokens) {
         expect(
-          countOccurrences(source, token),
+          countOccurrences(nonUatSource, token),
           0,
           reason:
               'C-06 · Pitfall 7: $file 에 출력 · 보간을 두지 않는다 ($token). '
-              '출력 · 보간 묶음 — plan 16.11-04 UAT 임시 계측이 UAT1611 줄에 '
-              '한해 임시 조정하는 대상 (URL 내용 접근 묶음은 조정 대상 아님).',
+              '임시 — 16.11-04 계측, plan 07 이 16.11-04 부모 커밋 바이트로 '
+              '복원: $uatMarker 포함 줄 밖에서는 0 (URL 내용 접근 묶음은 '
+              '조정 대상 아님).',
         );
       }
     }
@@ -1045,7 +1078,7 @@ void main() {
         reason: 'D-04: SceneDelegate 에는 관측 override 1개 외의 함수를 두지 않는다.',
       );
       expectTokenCounterWorks();
-      expectNoForbiddenSwiftTokens(scene, 'SceneDelegate.swift');
+      expectNoForbiddenSwiftTokens(scene, 'SceneDelegate.swift', 1);
     });
 
     test('T-16.11-NATIVE-02 NaverHostChannel.swift — 분기 2 · Bool 기록만', () {
@@ -1082,7 +1115,7 @@ void main() {
         reason: 'D-05: 기록 함수 선언 1건.',
       );
       expectTokenCounterWorks();
-      expectNoForbiddenSwiftTokens(swift, 'NaverHostChannel.swift');
+      expectNoForbiddenSwiftTokens(swift, 'NaverHostChannel.swift', 4);
     });
 
     test('T-16.11-NATIVE-03 Android 호스트 — 새 메서드 0 (D-03)', () {

@@ -60,7 +60,17 @@ void Function() subscribeNaverAppLifecycle({
   required VoidCallback onPause,
   required VoidCallback onResume,
 }) {
-  final listener = AppLifecycleListener(onPause: onPause, onResume: onResume);
+  final listener = AppLifecycleListener(
+    onPause: onPause,
+    onResume: onResume,
+    // UAT 임시 — plan 07 이 제거 (U2 — Dart 가 받은 lifecycle 상태 · 시각)
+    onStateChange: kDebugMode
+        ? (state) => debugPrint(
+            'Naver lifecycle: state=${state.name} '
+            't=${DateTime.now().millisecondsSinceEpoch}',
+          )
+        : null,
+  );
   return listener.dispose;
 }
 

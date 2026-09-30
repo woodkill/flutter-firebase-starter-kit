@@ -13,7 +13,10 @@ class SceneDelegate: FlutterSceneDelegate {
   /// - 기록은 scheme 비교 결과 `Bool` 뿐이다 — URL 내용은 어디에도 넘기지 않는다 (C-06).
   /// - 분배 동작은 그대로다 — 기록 뒤 `super` 가 플러그인 분배를 이어 간다.
   override func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-    NaverHostChannel.recordIfNaverCallback(URLContexts)
+    // UAT 임시 — plan 07 이 제거
+    let isNaverCallback = NaverHostChannel.recordIfNaverCallback(URLContexts)
+    // UAT 임시 — plan 07 이 제거
+    print("UAT1611 openURL naver=\(isNaverCallback ? 1 : 0) t=\(Int(Date().timeIntervalSince1970 * 1000))"); fflush(stdout)
     super.scene(scene, openURLContexts: URLContexts)
   }
 }

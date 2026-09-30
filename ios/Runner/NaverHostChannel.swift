@@ -61,6 +61,29 @@ final class NaverHostChannel {
       }
     }
     channel = methodChannel
+
+    // UAT 임시 — plan 07 이 제거 (U1 · U2 — 엔진이 lifecycle 로 매핑하는 scene 알림 4종 시각)
+    let center = NotificationCenter.default
+    // UAT 임시 — plan 07 이 제거
+    _ = center.addObserver(forName: UIScene.willDeactivateNotification, object: nil, queue: .main) { _ in
+      // UAT 임시 — plan 07 이 제거
+      print("UAT1611 willDeactivate t=\(Int(Date().timeIntervalSince1970 * 1000))"); fflush(stdout)
+    }
+    // UAT 임시 — plan 07 이 제거
+    _ = center.addObserver(forName: UIScene.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+      // UAT 임시 — plan 07 이 제거
+      print("UAT1611 didEnterBackground t=\(Int(Date().timeIntervalSince1970 * 1000))"); fflush(stdout)
+    }
+    // UAT 임시 — plan 07 이 제거
+    _ = center.addObserver(forName: UIScene.willEnterForegroundNotification, object: nil, queue: .main) { _ in
+      // UAT 임시 — plan 07 이 제거
+      print("UAT1611 willEnterForeground t=\(Int(Date().timeIntervalSince1970 * 1000))"); fflush(stdout)
+    }
+    // UAT 임시 — plan 07 이 제거
+    _ = center.addObserver(forName: UIScene.didActivateNotification, object: nil, queue: .main) { _ in
+      // UAT 임시 — plan 07 이 제거
+      print("UAT1611 didActivate t=\(Int(Date().timeIntervalSince1970 * 1000))"); fflush(stdout)
+    }
   }
 
   /// [contexts] 중 Naver 콜백 URL 이 있으면 도착 기록을 세우고 `true` 를 돌려준다 (16.11 D-04 · D-05).
