@@ -943,6 +943,68 @@ void main() {
     });
   });
   group('Phase 16.11 관측 계약 (T-16.11-NATIVE)', () {
+    /// URL 내용 접근 토큰 — 평시 · UAT 임시 계측 중 모두 항상 0 (C-06).
+    const urlContentTokens = <String>[
+      'absoluteString',
+      '.query',
+      '.host',
+      '.path',
+      '.description',
+    ];
+
+    /// 출력 · 보간 토큰 — 평시 0. `\(` 는 Swift 문자열 보간이다.
+    const outputTokens = <String>['print(', 'NSLog(', 'os_log', r'\('];
+
+    /// 계수 방식이 두 묶음의 토큰을 실제로 세는지 먼저 확인한다 (공허 단언 방지).
+    void expectTokenCounterWorks() {
+      expect(
+        countOccurrences(r'print("a=\(x)")', r'\('),
+        1,
+        reason: '양성 대조군: r"\\(" 가 Swift 보간 1건을 세지 못한다.',
+      );
+      const sample =
+          r'NSLog("\(u.path)"); os_log("x"); '
+          'print(u.absoluteString, u.query, u.host, u.description)';
+      for (final token in <String>[...urlContentTokens, ...outputTokens]) {
+        expect(
+          countOccurrences(sample, token),
+          greaterThanOrEqualTo(1),
+          reason: '양성 대조군: 합성 문자열에서 $token 을 세지 못한다.',
+        );
+      }
+      expect(
+        countOccurrences(
+          stripSlashComments('  // NSLog("\\(url.path)")\nlet a = 1'),
+          r'\(',
+        ),
+        0,
+        reason: '주석 줄의 토큰 언급은 stripSlashComments 가 걷어낸다.',
+      );
+    }
+
+    /// [source]([file]) 의 금지 토큰을 두 묶음으로 단언한다 (C-06 · IN-02).
+    void expectNoForbiddenSwiftTokens(String source, String file) {
+      for (final token in urlContentTokens) {
+        expect(
+          countOccurrences(source, token),
+          0,
+          reason:
+              'C-06: $file 은 URL scheme 외의 내용을 읽지 않는다 ($token). '
+              'URL 내용 접근 묶음 — UAT 임시 계측 중에도 조정 대상 아님.',
+        );
+      }
+      for (final token in outputTokens) {
+        expect(
+          countOccurrences(source, token),
+          0,
+          reason:
+              'C-06 · Pitfall 7: $file 에 출력 · 보간을 두지 않는다 ($token). '
+              '출력 · 보간 묶음 — plan 16.11-04 UAT 임시 계측이 UAT1611 줄에 '
+              '한해 임시 조정하는 대상 (URL 내용 접근 묶음은 조정 대상 아님).',
+        );
+      }
+    }
+
     test('T-16.11-NATIVE-01 SceneDelegate — 기록 뒤 분배 override 1개', () {
       final scene = stripBlockComments(
         stripSlashComments(readTrackedFile('ios/Runner/SceneDelegate.swift')),
@@ -982,11 +1044,8 @@ void main() {
         1,
         reason: 'D-04: SceneDelegate 에는 관측 override 1개 외의 함수를 두지 않는다.',
       );
-      expect(
-        countOccurrences(scene, 'print('),
-        0,
-        reason: 'C-06 · Pitfall 7: SceneDelegate 에 출력문을 두지 않는다.',
-      );
+      expectTokenCounterWorks();
+      expectNoForbiddenSwiftTokens(scene, 'SceneDelegate.swift');
     });
 
     test('T-16.11-NATIVE-02 NaverHostChannel.swift — 분기 2 · Bool 기록만', () {
@@ -1022,20 +1081,8 @@ void main() {
         1,
         reason: 'D-05: 기록 함수 선언 1건.',
       );
-      for (final token in const <String>[
-        'absoluteString',
-        '.query',
-        '.host',
-        'print(',
-      ]) {
-        expect(
-          countOccurrences(swift, token),
-          0,
-          reason:
-              'C-06: Swift 는 URL scheme 외의 내용을 읽거나 출력하지 않는다 '
-              '($token).',
-        );
-      }
+      expectTokenCounterWorks();
+      expectNoForbiddenSwiftTokens(swift, 'NaverHostChannel.swift');
     });
 
     test('T-16.11-NATIVE-03 Android 호스트 — 새 메서드 0 (D-03)', () {
