@@ -228,6 +228,11 @@ class SignInProbe {
 }
 
 void main() {
+  /// stale 거부가 Dart 고아의 슬롯을 비웠을 때의 해제 진단 줄
+  /// (`naver_sdk_client.dart` `_callLoginWithStaleRetry`) — 「취소 표면 · stale
+  /// 재시도」 · 「포기 판정 · 고아 대기」 두 group 이 함께 쓴다.
+  const releaseLine = 'Naver logIn 고아 대기 해제: reason=stale_rejected';
+
   group('NaverSdkClient (T-16.2-NAVER-SDK)', () {
     test(
       'T-16.2-NAVER-SDK-01 success: loggedIn + 토큰 → accessToken 전달',
@@ -1538,6 +1543,11 @@ void main() {
       expect(loginCalls, 2);
       expect(logs.where((line) => line == staleLogInLine), hasLength(1));
       expect(
+        logs.where((line) => line == releaseLine),
+        isEmpty,
+        reason: 'Dart 고아 0 — 해제 줄이 찍히면 priorOrphan null 가드 회귀',
+      );
+      expect(
         logs.where((line) => line.startsWith('Naver logIn error')),
         isEmpty,
       );
@@ -1567,6 +1577,11 @@ void main() {
       );
       expect(loginCalls, 2, reason: '재시도는 1회뿐 — 3 이면 무한 재시도 회귀');
       expect(logs.where((line) => line == staleLogInLine), hasLength(1));
+      expect(
+        logs.where((line) => line == releaseLine),
+        isEmpty,
+        reason: 'Dart 고아 0 — 해제 줄이 찍히면 priorOrphan null 가드 회귀',
+      );
       expect(
         logs.where(
           (line) =>
@@ -1735,7 +1750,6 @@ void main() {
   group('Phase 16.11 포기 판정 · 고아 대기 (T-16.11-NAVER-ABANDON)', () {
     const abandonLine = 'Naver logIn 포기: reason=no_callback_after_resume';
     const orphanWaitLine = 'NaverSdkClient.logout 지연 (orphan-wait)';
-    const releaseLine = 'Naver logIn 고아 대기 해제: reason=stale_rejected';
     const staleLogInLine = 'Naver logIn stale 슬롯 재시도: method=logIn';
 
     /// 고아 결과에 실리는 토큰 — 어떤 로그 줄에도 나오면 안 된다 (D-21).
