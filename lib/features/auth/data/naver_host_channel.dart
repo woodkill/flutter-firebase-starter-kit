@@ -3,6 +3,7 @@
 // NAVER 앱 설치 판정 호스트 채널 (D-03 · D-23). 호스트(Android
 // `NaverHostChannel.kt` · iOS `NaverHostChannel.swift`) 가 SDK 와 같은 기준으로
 // 판정한 bool 하나만 넘긴다. 실패는 전부 `false`(= 킷 웹 경로) 로 접는다 (D-02).
+// Phase 16.11 — see ROADMAP.md (D-03 · D-05 — 콜백 도착 기록 조회 · 초기화)
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -16,6 +17,22 @@ const String kNaverHostMethodIsInstalled = 'isNaverAppInstalled';
 
 /// 설치 판정 함수 시그니처 — `NaverSdkClient.forTest` 가 fake 를 주입한다.
 typedef NaverInstalledFn = Future<bool> Function();
+
+/// 콜백 도착 기록 조회 메서드 이름 — iOS 호스트 `switch call.method` 분기와 같은
+/// 문자열 (Phase 16.11 D-05).
+const String kNaverHostMethodHasCallbackArrived = 'hasNaverCallbackArrived';
+
+/// 콜백 도착 기록 초기화 메서드 이름 — iOS 호스트 `switch call.method` 분기와
+/// 같은 문자열 (Phase 16.11 D-05).
+const String kNaverHostMethodResetCallbackRecord = 'resetNaverCallbackRecord';
+
+/// 콜백 도착 기록 조회 함수 시그니처 — `NaverSdkClient.forTest` 가 fake 를
+/// 주입한다.
+typedef NaverCallbackArrivedFn = Future<bool> Function();
+
+/// 콜백 도착 기록 초기화 함수 시그니처 — `NaverSdkClient.forTest` 가 fake 를
+/// 주입한다.
+typedef NaverCallbackResetFn = Future<void> Function();
 
 /// NAVER 앱 설치 여부를 호스트에 묻는 채널 (Phase 16.5 D-03 · D-23).
 ///
@@ -48,6 +65,43 @@ class NaverHostChannel {
         debugPrint('Naver 설치 판정 실패(web 으로 접음): ${e.runtimeType}');
       }
       return false;
+    }
+  }
+
+  /// 현재 1-tap 요청 동안 Naver 콜백 URL 이 iOS 앱에 도착했으면 `true`.
+  ///
+  /// **실패 = `true`(계속 대기)** — 설치 판정(`false`)과 방향이 반대인 이유:
+  /// 판정을 못 하면 wedge 해제가 안 될지언정 실제 성공을 버리지 않는다
+  /// (16.11 C-01 · RESEARCH Pitfall 5). 호스트 부재 · `PlatformException` ·
+  /// 반환 타입 불일치 · `null` 이 전부 여기에 해당한다.
+  ///
+  /// 진단 로그는 `kDebugMode` 전용이며 예외 타입 이름만 싣는다 (WR-05).
+  Future<bool> hasNaverCallbackArrived() async {
+    try {
+      final arrived = await _channel.invokeMethod<bool>(
+        kNaverHostMethodHasCallbackArrived,
+      );
+      return arrived ?? true;
+    } on Object catch (e) {
+      // `TypeError`(호스트 반환 타입 불일치) 를 포함해 전부 흡수한다.
+      if (kDebugMode) {
+        debugPrint('Naver 콜백 기록 조회 실패(계속 대기로 접음): ${e.runtimeType}');
+      }
+      return true;
+    }
+  }
+
+  /// 호스트의 콜백 도착 기록을 `false` 로 되돌린다 (Phase 16.11 D-05).
+  ///
+  /// 실패는 삼키고 throw 하지 않는다 — 진단 로그는 `kDebugMode` 전용이며 예외
+  /// 타입 이름만 싣는다 (WR-05).
+  Future<void> resetNaverCallbackRecord() async {
+    try {
+      await _channel.invokeMethod<void>(kNaverHostMethodResetCallbackRecord);
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('Naver 콜백 기록 초기화 실패(무시): ${e.runtimeType}');
+      }
     }
   }
 }

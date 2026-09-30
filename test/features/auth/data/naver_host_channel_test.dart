@@ -147,4 +147,42 @@ void main() {
       expect(kNaverHostMethodIsInstalled, 'isNaverAppInstalled');
     });
   });
+
+  group('NaverHostChannel 콜백 기록 (T-16.11-NAVER-HOST)', () {
+    /// 메서드 이름별로 응답하는 호스트 핸들러를 건다 (Phase 16.11).
+    ///
+    /// [responders] 에 없는 메서드는 `null` 을 돌려준다. 호출된 메서드 이름은
+    /// 전부 `calls` 에 쌓인다.
+    void mockHostByMethod(Map<String, Object? Function()> responders) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall call) async {
+            calls.add(call.method);
+            final respond = responders[call.method];
+            return respond?.call();
+          });
+    }
+
+    test('T-16.11-NAVER-HOST-01 호스트 기록 true → true · false → false', () async {
+      mockHostByMethod(<String, Object? Function()>{
+        kNaverHostMethodHasCallbackArrived: () => true,
+      });
+      expect(
+        await host.hasNaverCallbackArrived(),
+        isTrue,
+        reason: 'D-05: 호스트 기록이 그대로 전달된다 (양성 대조군)',
+      );
+      expect(calls, <String>['hasNaverCallbackArrived']);
+
+      calls.clear();
+      mockHostByMethod(<String, Object? Function()>{
+        kNaverHostMethodHasCallbackArrived: () => false,
+      });
+      expect(
+        await host.hasNaverCallbackArrived(),
+        isFalse,
+        reason: 'D-05: 「도착 안 함」 기록이 그대로 전달된다',
+      );
+      expect(calls, <String>['hasNaverCallbackArrived']);
+    });
+  });
 }

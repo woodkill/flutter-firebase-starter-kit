@@ -24,6 +24,12 @@ final class NaverHostChannel {
   /// 등록된 채널 참조 — 엔진 수명 동안 핸들러를 붙들어 둔다.
   private static var channel: FlutterMethodChannel?
 
+  /// 현재 1-tap 요청 동안 Naver 콜백 URL 이 도착했는가 — main 스레드에서만 읽고 쓴다 (16.11 D-05).
+  ///
+  /// `SceneDelegate` 가 `recordIfNaverCallback(_:)` 로 세우고, Dart 가 채널로 조회 ·
+  /// 초기화한다. 판정(포기 여부)은 Dart 가 한다 — 여기는 기록만 한다 (D-03).
+  private static var hasCallbackArrived = false
+
   /// `registry` 에서 전용 registrar 를 받아 채널을 만들고 설치 판정 핸들러를 등록한다.
   ///
   /// `AppDelegate.didInitializeImplicitFlutterEngine` 이
@@ -40,10 +46,36 @@ final class NaverHostChannel {
       case "isNaverAppInstalled":
         // 리터럴 상수라 URL 생성은 실패하지 않는다.
         result(UIApplication.shared.canOpenURL(URL(string: "naversearchthirdlogin://")!))
+      case "hasNaverCallbackArrived":
+        result(NaverHostChannel.hasCallbackArrived)
+      case "resetNaverCallbackRecord":
+        NaverHostChannel.hasCallbackArrived = false
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }
     }
     channel = methodChannel
+  }
+
+  /// [contexts] 중 Naver 콜백 URL 이 있으면 도착 기록을 세우고 `true` 를 돌려준다 (16.11 D-04 · D-05).
+  ///
+  /// 판별 규칙은 naver 플러그인과 같다 — `Info.plist` 의 Naver 콜백 scheme 값과
+  /// URL scheme 을 소문자로 바꿔 완전 일치 비교한다
+  /// (`FlutterNaverLoginPlugin.swift:171-172`). 그 값을 못 읽거나 일치하는 URL 이
+  /// 없으면 기록을 건드리지 않고 `false` 를 돌려준다.
+  ///
+  /// URL 의 host · query · 전체 문자열은 읽지 않는다 — scheme 비교 결과만 남긴다 (C-06).
+  @discardableResult
+  static func recordIfNaverCallback(_ contexts: Set<UIOpenURLContext>) -> Bool {
+    guard let naverScheme = Bundle.main.infoDictionary?["NidUrlScheme"] as? String else {
+      return false
+    }
+    let expected = naverScheme.lowercased()
+    guard contexts.contains(where: { $0.url.scheme?.lowercased() == expected }) else {
+      return false
+    }
+    hasCallbackArrived = true
+    return true
   }
 }
