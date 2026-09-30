@@ -2,8 +2,10 @@
 //
 // NAVER 앱 설치 판정 호스트 채널 (D-03 · D-23). 호스트(Android
 // `NaverHostChannel.kt` · iOS `NaverHostChannel.swift`) 가 SDK 와 같은 기준으로
-// 판정한 bool 하나만 넘긴다. 실패는 전부 `false`(= 킷 웹 경로) 로 접는다 (D-02).
+// 판정한 bool 을 넘긴다. 설치 판정 실패는 `false`(= 킷 웹 경로) 로 접는다 (D-02).
 // Phase 16.11 — see ROADMAP.md (D-03 · D-05 — 콜백 도착 기록 조회 · 초기화)
+// iOS 호스트는 콜백 도착 bool 1개와 초기화 제어 1개를 더 넘긴다. 콜백 조회
+// 실패는 `true`(= 계속 대기) 로 접는다 (C-01 · RESEARCH Pitfall 5).
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -34,15 +36,19 @@ typedef NaverCallbackArrivedFn = Future<bool> Function();
 /// 주입한다.
 typedef NaverCallbackResetFn = Future<void> Function();
 
-/// NAVER 앱 설치 여부를 호스트에 묻는 채널 (Phase 16.5 D-03 · D-23).
+/// NAVER 앱 설치 여부 · 콜백 도착 기록을 호스트에 묻는 채널 (Phase 16.5 D-03 ·
+/// D-23 · Phase 16.11 D-05).
 ///
 /// **플랫폼 가드 없음 (D-01 대칭):** Android · iOS 모두 호스트가 채널을
 /// 등록한다. 등록이 없는 환경(테스트 · 미지원 플랫폼)은 `MissingPluginException`
-/// 으로 떨어지고 아래 규칙대로 `false` 가 된다.
+/// 으로 떨어지고 아래 규칙대로 안전값이 된다. 16.11 의 두 메서드는 Dart
+/// 호출부(`NaverSdkClient`)가 iOS 1-tap 에서만 부른다 — Android 에서 불려도 호스트
+/// 미구현 → 안전값(`true` / 무시).
 ///
 /// **실패는 안전값으로 접는다 (D-02, PC-09 명시 예외):** 호스트 부재 ·
-/// `PlatformException` · 반환 타입 불일치(`TypeError`) 전부 `false` — 판정을
-/// 못 하면 SDK 커스텀탭이 아니라 킷 웹 경로로 가는 것이 이 phase 의 목적이다.
+/// `PlatformException` · 반환 타입 불일치(`TypeError`) 전부 안전값 — 설치 판정은
+/// `false`, 콜백 조회는 `true`. 설치 판정을 못 하면 SDK 커스텀탭이 아니라 킷 웹
+/// 경로로 가고, 콜백 도착을 판정하지 못하면 포기하지 않고 계속 기다린다.
 @immutable
 class NaverHostChannel {
   /// 상태 없는 채널 — 채널 이름이 유일한 상태다.

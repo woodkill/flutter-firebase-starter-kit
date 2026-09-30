@@ -5,6 +5,9 @@
 // (D-02 · D-03). 플랫폼 가드가 없으므로(D-01 대칭) Android · iOS 오버라이드
 // 양쪽에서 같은 결과여야 한다.
 //
+// Phase 16.11 — 콜백 도착 기록 조회 · 초기화(T-16.11-NAVER-HOST). 조회 실패는
+// 설치 판정과 반대로 `true`(= 계속 대기) 로 접힌다 (RESEARCH Pitfall 5).
+//
 // **양성 대조군 규율:** `false` 단언 전에 같은 채널이 `true` 를 돌려주는 것을
 // 먼저 확인한다 — 「채널이 애초에 안 불렸다」 로 `false` 가 공허하게 참이 되는
 // 것을 막는다.
@@ -183,6 +186,104 @@ void main() {
         reason: 'D-05: 「도착 안 함」 기록이 그대로 전달된다',
       );
       expect(calls, <String>['hasNaverCallbackArrived']);
+    });
+
+    test('T-16.11-NAVER-HOST-02 조회 실패(부재 · 예외 · 타입 불일치 · null) → '
+        'true (Pitfall 5)', () async {
+      // 양성 대조군 — `false` 가 그대로 오는 채널에서 시작해야 아래 `true` 가
+      // 「안전값으로 접혔다」 는 뜻이 된다.
+      mockHostByMethod(<String, Object? Function()>{
+        kNaverHostMethodHasCallbackArrived: () => false,
+      });
+      expect(await host.hasNaverCallbackArrived(), isFalse, reason: '대조군');
+
+      clearHost();
+      expect(
+        await host.hasNaverCallbackArrived(),
+        isTrue,
+        reason: 'Pitfall 5: 판정 불가 = 계속 대기 — 호스트 핸들러 부재',
+      );
+
+      mockHostByMethod(<String, Object? Function()>{
+        kNaverHostMethodHasCallbackArrived: () =>
+            throw PlatformException(code: 'boom'),
+      });
+      expect(
+        await host.hasNaverCallbackArrived(),
+        isTrue,
+        reason: 'Pitfall 5: 판정 불가 = 계속 대기 — PlatformException',
+      );
+
+      for (final raw in const <Object?>[1, 'true', null]) {
+        mockHostByMethod(<String, Object? Function()>{
+          kNaverHostMethodHasCallbackArrived: () => raw,
+        });
+        expect(
+          await host.hasNaverCallbackArrived(),
+          isTrue,
+          reason: 'Pitfall 5: 판정 불가 = 계속 대기 — raw=$raw',
+        );
+      }
+    });
+
+    test('T-16.11-NAVER-HOST-03 초기화는 1회 호출 · 실패해도 throw 없음', () async {
+      mockHostByMethod(<String, Object? Function()>{
+        kNaverHostMethodResetCallbackRecord: () => null,
+      });
+      await host.resetNaverCallbackRecord();
+      expect(calls, <String>[
+        'resetNaverCallbackRecord',
+      ], reason: 'D-05: 초기화 메서드가 정확히 1회 불린다');
+
+      clearHost();
+      await expectLater(
+        host.resetNaverCallbackRecord(),
+        completes,
+        reason: 'D-05: 호스트 핸들러 부재에서도 throw 없이 완료',
+      );
+
+      mockHostByMethod(<String, Object? Function()>{
+        kNaverHostMethodResetCallbackRecord: () =>
+            throw PlatformException(code: 'boom'),
+      });
+      await expectLater(
+        host.resetNaverCallbackRecord(),
+        completes,
+        reason: 'D-05: PlatformException 에서도 throw 없이 완료',
+      );
+    });
+
+    test('T-16.11-NAVER-HOST-04 상수 · 실패 로그는 예외 타입 이름만', () async {
+      expect(kNaverHostMethodHasCallbackArrived, 'hasNaverCallbackArrived');
+      expect(kNaverHostMethodResetCallbackRecord, 'resetNaverCallbackRecord');
+
+      final logs = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+      const sentinel = 'CALLBACK-SENTINEL-0ff1ce';
+
+      mockHostByMethod(<String, Object? Function()>{
+        kNaverHostMethodHasCallbackArrived: () =>
+            throw PlatformException(code: 'boom', message: sentinel),
+        kNaverHostMethodResetCallbackRecord: () =>
+            throw PlatformException(code: 'boom', message: sentinel),
+      });
+      expect(await host.hasNaverCallbackArrived(), isTrue);
+      await host.resetNaverCallbackRecord();
+
+      expect(logs, hasLength(2), reason: '대조군 — 실패 줄 2개가 찍혔다');
+      expect(logs[0], startsWith('Naver 콜백 기록 조회 실패(계속 대기로 접음): '));
+      expect(logs[1], startsWith('Naver 콜백 기록 초기화 실패(무시): '));
+      for (final line in logs) {
+        expect(
+          line,
+          isNot(contains(sentinel)),
+          reason: 'WR-05 · D-12: 예외 메시지 원문은 로그에 싣지 않는다',
+        );
+      }
     });
   });
 }

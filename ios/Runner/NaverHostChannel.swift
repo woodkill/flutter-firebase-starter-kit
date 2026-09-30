@@ -1,8 +1,10 @@
 // Phase 16.5 — see ROADMAP.md (D-01 · D-03 · D-22 — NAVER 앱 설치 판정 호스트 채널, iOS 절반)
+// Phase 16.11 — see ROADMAP.md (D-04 · D-05 — Naver 콜백 URL 도착 기록 · 조회 · 초기화)
 import Flutter
 import UIKit
 
-/// NAVER 앱 설치 여부만 Dart 로 넘기는 호스트 채널 (Phase 16.5 D-03 iOS · D-22).
+/// NAVER 앱 설치 여부 · 콜백 도착 기록을 Dart 로 넘기는 호스트 채널
+/// (Phase 16.5 D-03 iOS · D-22 · Phase 16.11 D-05).
 ///
 /// Android `NaverHostChannel.kt` 의 iOS 대칭이다. 판정 기준은 NAVER iOS SDK 가
 /// 1-tap(app-to-app) 을 시도할 때 쓰는 기준과 같다 — naveridlogin-sdk-ios-swift
@@ -12,11 +14,14 @@ import UIKit
 /// 간다」 는 불일치가 생기므로 문자열을 바꾸지 말 것.
 ///
 /// - `NidCore` 를 import 하지 않는다 (D-22: Naver 제거 = 이 파일 + `AppDelegate`
-///   등록 1줄 + pbxproj 4항목 삭제로 끝난다).
+///   등록 1줄 + pbxproj 4항목 + `SceneDelegate` 의 `scene(_:openURLContexts:)`
+///   override 삭제로 끝난다).
 /// - `LSApplicationQueriesSchemes` 에 `naversearchthirdlogin` 이 이미 선언돼 있다
 ///   (`Info.plist` — Phase 13). 선언이 없으면 `canOpenURL` 은 항상 `false` 다.
-/// - 채널을 건너는 것은 `Bool` 하나뿐이다 — URL · code · state 는 다루지 않는다.
-///   실패(채널 부재 · 예외)는 Dart 쪽이 `false`(= 킷 웹 경로) 로 접는다.
+/// - 채널을 건너는 것은 `Bool` 2개(설치 판정 · 콜백 도착)와 제어 호출 1개(초기화)뿐
+///   이다 — URL · code · state · authCode 는 다루지 않는다 (16.11 C-06).
+///   설치 판정 실패(채널 부재 · 예외)는 Dart 쪽이 `false`(= 킷 웹 경로) 로,
+///   콜백 도착 조회 실패는 `true`(= 계속 대기) 로 접는다.
 final class NaverHostChannel {
   /// Dart `kNaverHostChannelName` 과 **같은 문자열**이어야 한다 (소스 계약 테스트가 잠근다).
   static let channelName = "com.slimpumpkin.flutter_starter_kit/naver_host"
@@ -30,7 +35,7 @@ final class NaverHostChannel {
   /// 초기화한다. 판정(포기 여부)은 Dart 가 한다 — 여기는 기록만 한다 (D-03).
   private static var hasCallbackArrived = false
 
-  /// `registry` 에서 전용 registrar 를 받아 채널을 만들고 설치 판정 핸들러를 등록한다.
+  /// `registry` 에서 전용 registrar 를 받아 채널을 만들고 설치 판정 · 콜백 기록 핸들러를 등록한다.
   ///
   /// `AppDelegate.didInitializeImplicitFlutterEngine` 이
   /// `GeneratedPluginRegistrant` 다음 줄에서 한 번 부른다.

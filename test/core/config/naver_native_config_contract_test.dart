@@ -942,6 +942,151 @@ void main() {
       }
     });
   });
+  group('Phase 16.11 관측 계약 (T-16.11-NATIVE)', () {
+    test('T-16.11-NATIVE-01 SceneDelegate — 기록 뒤 분배 override 1개', () {
+      final scene = stripBlockComments(
+        stripSlashComments(readTrackedFile('ios/Runner/SceneDelegate.swift')),
+      );
+
+      final overrideMatches = RegExp(
+        r'override\s+func\s+scene\(\s*_\s+scene:\s*UIScene,\s*'
+        r'openURLContexts\s+URLContexts:\s*Set<UIOpenURLContext>\s*\)',
+      ).allMatches(scene);
+      expect(
+        overrideMatches.length,
+        1,
+        reason: 'D-04: scene(_:openURLContexts:) override 가 정확히 1개여야 한다.',
+      );
+
+      const record = 'NaverHostChannel.recordIfNaverCallback(URLContexts)';
+      const dispatch = 'super.scene(scene, openURLContexts: URLContexts)';
+      expect(
+        countOccurrences(scene, record),
+        1,
+        reason: 'D-04 · D-05: override 안에서 Naver 콜백 도착 기록 호출 1건.',
+      );
+      expect(
+        countOccurrences(scene, dispatch),
+        1,
+        reason: 'D-04 · A6: 플러그인 분배(super) 호출 1건 — 분배를 빼면 로그인 불가.',
+      );
+      expect(
+        scene.indexOf(record) < scene.indexOf(dispatch),
+        isTrue,
+        reason:
+            'D-04: 기록이 분배보다 앞이어야 한다 — naver 플러그인이 true 를 '
+            '반환하면 분배 뒤에서는 URL 을 볼 수 없다.',
+      );
+      expect(
+        countOccurrences(scene, 'func '),
+        1,
+        reason: 'D-04: SceneDelegate 에는 관측 override 1개 외의 함수를 두지 않는다.',
+      );
+      expect(
+        countOccurrences(scene, 'print('),
+        0,
+        reason: 'C-06 · Pitfall 7: SceneDelegate 에 출력문을 두지 않는다.',
+      );
+    });
+
+    test('T-16.11-NATIVE-02 NaverHostChannel.swift — 분기 2 · Bool 기록만', () {
+      final swift = stripBlockComments(
+        stripSlashComments(
+          readTrackedFile('ios/Runner/NaverHostChannel.swift'),
+        ),
+      );
+
+      expect(
+        countOccurrences(swift, '"$kNaverHostMethodHasCallbackArrived"'),
+        1,
+        reason:
+            'D-05: Swift switch 분기의 조회 메서드 이름이 Dart '
+            'kNaverHostMethodHasCallbackArrived 와 같은 문자열 1건이어야 한다.',
+      );
+      expect(
+        countOccurrences(swift, '"$kNaverHostMethodResetCallbackRecord"'),
+        1,
+        reason:
+            'D-05: Swift switch 분기의 초기화 메서드 이름이 Dart '
+            'kNaverHostMethodResetCallbackRecord 와 같은 문자열 1건이어야 한다.',
+      );
+      expect(
+        countOccurrences(swift, 'NidUrlScheme'),
+        1,
+        reason: 'D-05: Naver 판별은 플러그인과 같은 Info.plist NidUrlScheme 1곳.',
+      );
+      expect(
+        RegExp(
+          r'static\s+func\s+recordIfNaverCallback\(',
+        ).allMatches(swift).length,
+        1,
+        reason: 'D-05: 기록 함수 선언 1건.',
+      );
+      for (final token in const <String>[
+        'absoluteString',
+        '.query',
+        '.host',
+        'print(',
+      ]) {
+        expect(
+          countOccurrences(swift, token),
+          0,
+          reason:
+              'C-06: Swift 는 URL scheme 외의 내용을 읽거나 출력하지 않는다 '
+              '($token).',
+        );
+      }
+    });
+
+    test('T-16.11-NATIVE-03 Android 호스트 — 새 메서드 0 (D-03)', () {
+      final kotlin = stripBlockComments(
+        stripSlashComments(
+          readTrackedFile('${_findKotlinPackageDir()}/NaverHostChannel.kt'),
+        ),
+      );
+
+      // 양성 대조군 — 같은 계수 방식이 기존 설치 판정 분기를 잡는다.
+      expect(
+        countOccurrences(kotlin, '"$kNaverHostMethodIsInstalled"'),
+        1,
+        reason: '양성 대조군: Kotlin when 분기의 설치 판정 메서드 이름.',
+      );
+      for (final method in const <String>[
+        kNaverHostMethodHasCallbackArrived,
+        kNaverHostMethodResetCallbackRecord,
+      ]) {
+        expect(
+          countOccurrences(kotlin, method),
+          0,
+          reason:
+              'D-03 · D-05: Android 는 콜백 도착 기록 · 판정을 하지 않는다 '
+              '($method).',
+        );
+      }
+    });
+
+    test('T-16.11-NATIVE-04 pbxproj — 새 Swift 파일 0', () {
+      // 등장 횟수가 아니라 **줄 수**를 센다 (T-16.5-NATIVE-08 과 같은 방식).
+      final pbxprojLines = readTrackedFile(
+        'ios/Runner.xcodeproj/project.pbxproj',
+      ).split('\n');
+      expect(
+        pbxprojLines.where((l) => l.contains('AppDelegate.swift')).length,
+        4,
+        reason: '양성 대조군: AppDelegate.swift 의 pbxproj 등록 4줄.',
+      );
+      expect(
+        pbxprojLines.where((l) => l.contains('SceneDelegate.swift')).length,
+        4,
+        reason: 'D-04: 관측은 기존 SceneDelegate.swift 안에서 한다 (등록 4줄 불변).',
+      );
+      expect(
+        pbxprojLines.where((l) => l.contains('NaverHostChannel.swift')).length,
+        4,
+        reason: 'D-05: 기록 · 조회는 기존 NaverHostChannel.swift 확장이다 (4줄 불변).',
+      );
+    });
+  });
 }
 
 /// `android/app/src/main/kotlin` 아래 `MainActivity.kt` 가 있는 패키지
