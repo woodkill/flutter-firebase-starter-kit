@@ -1162,6 +1162,30 @@ void main() {
         'NID given Error. Error Code: undefined. \n'
         'Error Description: access_denied';
 
+    /// 260929-snf SYSC 실측 문자열(86자) — SDK `naverAppNotInstalled` 문구.
+    const syscMessage =
+        'Naver app is not installed. \n'
+        'Please install Naver App to authenticate using Naver App.';
+
+    /// A1 과 같은 접두어의 다른 NID 오류 — 설정 · 서버 오류는 배너여야 한다.
+    const otherNidMessage =
+        'NID given Error. Error Code: invalid_request. \n'
+        'Error Description: not given';
+
+    /// [message] 를 `status=error` 로 돌려주는 1-tap client.
+    NaverSdkClient buildErrorClient(String message) => NaverSdkClient.forTest(
+      login: () async =>
+          buildResult(status: NaverLoginStatus.error, errorMessage: message),
+      logout: () async => buildLoggedOutResult(),
+    );
+
+    /// `ServiceUnavailable(cause: NaverSdkError)` — 기존 배너 경로.
+    final isBannerError = isA<ServiceUnavailable>().having(
+      (e) => e.cause,
+      'cause',
+      isA<NaverSdkError>(),
+    );
+
     tearDown(() => debugDefaultTargetPlatformOverride = null);
 
     test('T-16.11-NAVER-ABANDON-13 iOS 1-tap A1(access_denied 73자) → '
@@ -1209,6 +1233,144 @@ void main() {
         expect(line, isNot(contains('NID given Error')));
         expect(line, isNot(contains('Error Description')));
       }
+    });
+
+    test('T-16.11-NAVER-ABANDON-14 C-03 완전 일치 밖 변형 · Android A1 → '
+        '기존 오류 경로(ServiceUnavailable)', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      // 양성 대조군 — 같은 iOS 조건에서 원문 그대로는 silent 다.
+      expect(await buildErrorClient(a1Message).signIn(), isNull);
+
+      final variants = <String, String>{
+        '꼬리 공백': '$a1Message ',
+        '대문자 변형': a1Message.replaceFirst('access_denied', 'ACCESS_DENIED'),
+        '접두어만': 'NID given Error. Error Code: undefined.',
+        '다른 NID 오류': otherNidMessage,
+      };
+      for (final entry in variants.entries) {
+        expect(
+          await captureSignInError(buildErrorClient(entry.value)),
+          isBannerError,
+          reason: '${entry.key}: 완전 일치가 아니면 취소가 아니다 (C-03)',
+        );
+      }
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      expect(
+        await captureSignInError(buildErrorClient(a1Message)),
+        isBannerError,
+        reason: 'Android 1-tap 은 A1 매핑 대상이 아니다 (C-04)',
+      );
+    });
+
+    test('T-16.11-NAVER-ABANDON-15 SYSC(86자) — iOS 1-tap 만 silent · '
+        'Android 는 오류', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final logs = captureLogs();
+
+      NaverSignInResult? result;
+      Object? error;
+      try {
+        result = await buildErrorClient(syscMessage).signIn();
+      } on Object catch (e) {
+        error = e;
+      }
+
+      expect(syscMessage.length, 86);
+      expect(kNaverIosAppNotInstalledMessage, syscMessage);
+      expect(error, isNull, reason: 'SYSC 알림 [Cancel] 은 사용자 취소다');
+      expect(result, isNull);
+      expect(
+        logs.where(
+          (line) =>
+              line.startsWith('Naver logIn cancel:') &&
+              line.contains(
+                'message=ios_sdk_naver_app_not_installed length=86',
+              ),
+        ),
+        hasLength(1),
+      );
+      expect(
+        logs.where((line) => line.startsWith('Naver logIn error')),
+        isEmpty,
+      );
+      expect(logs, isNotEmpty);
+      for (final line in logs) {
+        expect(line, isNot(contains('Please install Naver App')));
+      }
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      expect(
+        await captureSignInError(buildErrorClient(syscMessage)),
+        isBannerError,
+        reason: 'Android 1-tap 에서 SYSC 문자열은 기존처럼 오류다 (C-04)',
+      );
+    });
+
+    test('T-16.11-NAVER-ABANDON-16 isNaverUserCancel 매트릭스 · 로그 이름', () {
+      for (final isIosOneTap in const <bool>[true, false]) {
+        expect(
+          isNaverUserCancel(
+            NaverLoginStatus.loggedOut,
+            null,
+            isIosOneTap: isIosOneTap,
+          ),
+          isTrue,
+          reason: 'loggedOut 은 플랫폼 공통 취소',
+        );
+        expect(
+          isNaverUserCancel(
+            NaverLoginStatus.error,
+            kNaverIosCancelMessage,
+            isIosOneTap: isIosOneTap,
+          ),
+          isTrue,
+          reason: '기존 플러그인 취소 리터럴은 플랫폼 공통',
+        );
+        for (final message in const <String>[a1Message, syscMessage]) {
+          expect(
+            isNaverUserCancel(
+              NaverLoginStatus.error,
+              message,
+              isIosOneTap: isIosOneTap,
+            ),
+            isIosOneTap,
+            reason: 'A1 · SYSC 는 iOS 1-tap 인자를 그대로 따른다',
+          );
+        }
+      }
+      expect(
+        isNaverUserCancel(
+          NaverLoginStatus.loggedIn,
+          a1Message,
+          isIosOneTap: true,
+        ),
+        isFalse,
+        reason: 'error 가 아니면 취소가 아니다',
+      );
+      expect(
+        isNaverUserCancel(
+          NaverLoginStatus.error,
+          otherNidMessage,
+          isIosOneTap: true,
+        ),
+        isFalse,
+      );
+
+      expect(a1Message.length, 73);
+      expect(syscMessage.length, 86);
+      expect(
+        describeNaverErrorForLog(a1Message),
+        'message=ios_sdk_nid_access_denied length=73',
+      );
+      expect(
+        describeNaverErrorForLog(syscMessage),
+        'message=ios_sdk_naver_app_not_installed length=86',
+      );
+      expect(
+        describeNaverErrorForLog(otherNidMessage),
+        startsWith('message=ios_sdk_nid_given_error '),
+      );
     });
   });
 }

@@ -70,6 +70,20 @@ const String kNaverIosAppAccessDeniedMessage =
     'NID given Error. Error Code: undefined. \n'
     'Error Description: access_denied';
 
+/// iOS NAVER 앱(1-tap) 「NAVER 열기?」 시스템 알림 [Cancel] 이 오는 **고정
+/// 문구** (86자 · SYSC).
+///
+/// SDK `NidError.clientError(.naverAppNotInstalled)` 의 문구다. 출처:
+/// `naveridlogin-sdk-ios-swift` 5.2.1 `Sources/NidCore/NidError.swift:33`.
+/// 1-tap 에서 iOS 「"<앱>" wants to open "NAVER"」 알림의 [Cancel] 이 이 오류로
+/// 온다 (260929-snf SYSC 실측 `length=86`). 실제 미설치는 설치 판정이 `false`
+/// 라 웹 경로로 먼저 가므로 이 매핑에 닿지 않는다.
+///
+/// **iOS 1-tap 에서 완전 일치일 때만 취소다 (16.11 EX-04 · C-03 · C-04).**
+const String kNaverIosAppNotInstalledMessage =
+    'Naver app is not installed. \nPlease install Naver App to authenticate '
+    'using Naver App.';
+
 /// 완전 일치 닫힌 집합 — 원문 → 로그용 이름 (RESEARCH §9 verbatim).
 const Map<String, String> _kNaverExactMessages = <String, String>{
   kNaverIosCancelMessage: 'ios_plugin_cancelled',
@@ -91,9 +105,7 @@ const Map<String, String> _kNaverExactMessages = <String, String>{
       'ios_sdk_invalid_client_config',
   'User canceled the request.': 'ios_sdk_user_canceled',
   'Unsupported response type.': 'ios_sdk_unsupported_response_type',
-  'Naver app is not installed. \nPlease install Naver App to authenticate '
-          'using Naver App.':
-      'ios_sdk_naver_app_not_installed',
+  kNaverIosAppNotInstalledMessage: 'ios_sdk_naver_app_not_installed',
   'No active window scene to present the login screen on. \nPlease request '
           'login while your app is in the foreground.':
       'ios_sdk_no_window_scene',
@@ -153,9 +165,9 @@ const Set<String> _kNaverAndroidErrorCodes = <String>{
 /// - iOS: 취소는 `loggedOut` 이 아니라 [NaverLoginStatus.error] + 플러그인
 ///   고정 리터럴 [kNaverIosCancelMessage] 로 온다.
 ///
-/// **완전 일치만 본다** (D-12) — `contains` · 접두어 · 대소문자 무시 비교로
-/// 넓히면 `-999 cancelled` 같은 네트워크 오류까지 silent 로 흡수돼 사용자가
-/// 실패를 알 수 없게 된다.
+/// **완전 일치만 본다** (D-12 · 16.11 C-03) — `contains` · 접두어 · 대소문자
+/// 무시 비교로 넓히면 `-999 cancelled` 같은 네트워크 오류까지 silent 로
+/// 흡수돼 사용자가 실패를 알 수 없게 된다.
 ///
 /// **이 규칙은 iOS 표면에만 적용된다 (WR-08).** Android 는 플러그인이 킷에
 /// 결과를 주기 **전에** `errorCode == "user_cancel" ||
@@ -170,10 +182,16 @@ const Set<String> _kNaverAndroidErrorCodes = <String>{
 ///
 /// 16.4 레버 2 는 Phase 16.5 가 제거했다 — 웹 경로는 킷 소유 흐름(D-16).
 ///
-/// **비대상:** iOS 에서 NAVER 앱(1-tap) 경로의 취소는 이 매핑을 타지 않을 수
-/// 있다 — 복귀 URL 의 code 가 취소 값을 갖지 않아 서버 오류로 표면화된다.
-/// 테스트 SIM 부재로 실측이 불가능하다 (C-06). `docs/manual.md` 의 Naver
-/// Pitfall 절을 참조할 것.
+/// **iOS NAVER 앱 1-tap 의 취소 표면 (16.11 EX-04 · C-04):** 1-tap 취소는
+/// 플러그인 리터럴이 아니라 SDK 오류 문구로 온다 (260929-snf 실측). 두 표면을
+/// [isIosOneTap] 이 `true` 일 때만 **완전 일치**로 취소로 본다:
+/// - A1 — NAVER 동의 화면 [Cancel]: [kNaverIosAppAccessDeniedMessage] (73자).
+/// - SYSC — iOS 「NAVER 열기?」 알림 [Cancel]:
+///   [kNaverIosAppNotInstalledMessage] (86자).
+///
+/// Android 1-tap 은 호출부가 `false` 를 넘기므로 판정이 바뀌지 않는다. 킷 웹
+/// 경로는 설치 판정 `false` 분기가 먼저 반환하므로 이 함수에 닿지 않는다.
+/// `docs/manual.md` 의 Naver Pitfall 절을 참조할 것.
 @visibleForTesting
 bool isNaverUserCancel(
   NaverLoginStatus status,
@@ -186,7 +204,8 @@ bool isNaverUserCancel(
   if (errorMessage == kNaverIosCancelMessage) return true;
   // 아래는 iOS NAVER 앱 1-tap 한정 (16.11 C-04).
   if (!isIosOneTap) return false;
-  return errorMessage == kNaverIosAppAccessDeniedMessage;
+  return errorMessage == kNaverIosAppAccessDeniedMessage ||
+      errorMessage == kNaverIosAppNotInstalledMessage;
 }
 
 /// 플러그인 `errorMessage` 를 PII 없는 진단 문자열로 바꾼다 (D-14 / WR-05).
