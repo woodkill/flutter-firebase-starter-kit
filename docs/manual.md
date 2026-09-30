@@ -1096,7 +1096,7 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   앱 쪽 대기 한도를 두지 않는 것은 Naver · LINE · Kakao 공통 정책입니다(2026-09-28
   결정). 근거 · 대기 중 잠기는 것 · 재검토 조건은 「Multi-Provider Account Linking
   (Phase 9.2)」 절 §5 를 참조하십시오.
-  예외: iOS NAVER 앱 1-tap 에서 결과 없이 돌아온 경우는 대기가 아니라 포기 신호로 본다(Pitfall 12 · Phase 16.11).
+  예외: iOS NAVER 앱 1-tap 에서 결과 없이 돌아온 경우는 대기가 아니라 포기 신호로 봅니다(Pitfall 12 · Phase 16.11).
   이렇게 포기한 요청의 결과가 늦게 오면 킷이 그 결과를 버리고 logout 합니다.
 - **Pitfall 2 (race-fix logout 위치):** D-57 — `signInWithNaver` finally 블록의
   `_naverSdkClient.logout()` 호출은 `_socialLinkInProgress.end()` 직전 위치.
@@ -3577,10 +3577,7 @@ Android Auth Tab/Custom Tabs 의 `CANCELED` · iOS `ASWebAuthenticationSession` 
 canceledLogin 이 「창 닫힘 = Future 완료」 를 보장하므로 무기한 대기 자체가 없다.
 클라이언트 → Cloud Function 호출의 timeout(`_kCustomTokenTimeout` 10초 ·
 `_kNaverWebCustomTokenTimeout` 20초)은 별개다 — 인증 창이 닫힌 뒤의 서버 호출에만 걸린다.
-예외: iOS NAVER 앱 1-tap 에서
-1-tap 수동 복귀는 대기가 아니라 포기 신호이고(결과 URL 없이 background 에서 돌아옴),
-0.3초 순서 보정은 대기 한도가 아니다 — URL 이 도착했으면 한도 없이 기다린다
-(Phase 16.11 · 「Naver Login」 절 Pitfall 12).
+예외: iOS NAVER 앱 1-tap 에서 결과 URL 없이 background 에서 돌아온 수동 복귀는 대기가 아니라 포기 신호이고, 0.3초 순서 보정은 대기 한도가 아니다 — URL 이 도착했으면 한도 없이 기다린다(Phase 16.11 · 「Naver Login」 절 Pitfall 12).
 
 **왜 한도를 두지 않나:** 세 SDK 의 Dart API 표면에 진행 중인 로그인을 앱이 끊는 취소
 API 가 없다(2026-09-28 pub cache 소스 실측 · 킷이 해석하는 버전 = pub.dev 최신).
@@ -4955,7 +4952,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-29 | 16.10 review fix (iteration 3) | 「회원탈퇴」 절 「탈퇴 진행 화면」 에 **목록 조회 중** 항목 추가 — 행 목록 서버 조회 중 소개 문단 아래 원형 스피너(낭독 「불러오는 중」 · `commonLoading`) · 「탈퇴」 비활성 · 뒤로가기 허용(review IN-02) / 「계정 연결 해제 (Phase 16.8)」 절: provider 측 끊기 결과 표 「성공」 행에 킷 해제만 실패한 부분 상태 문구(`settingsUnlinkFailedAfterDisconnect` — 일시 · 미분류 실패만 · 로그인 수단 하나뿐 · 이미 해제됨 · 재로그인 필요는 기존 문구 · 서버 사전 확인 없음) · 「동작」 실패 SnackBar 목록 · 「문구」 키 목록 반영 / 「provider 측 연결 끊기」 커스터마이징 「문구」 키 목록 반영(review IN-03) / 「계정 연결 해제 (Phase 16.8)」 절: 끊기 결과 표에서 「provider 설정 오류」(`provider_config`)를 「그 밖의 끊기 실패」 에서 떼어 재시도 안내 없는 새 문구 행(`settingsUnlinkFailedProviderConfig` · `ProviderMisconfigured`)으로 분리 · 「동작」 실패 SnackBar 목록 · 「문구」 키 목록 / 「provider 측 연결 끊기」 서버 항목에 클라이언트 분류(해제 다이얼로그 전용 문구 · 진행 화면 행은 그대로) · 커스터마이징 「문구」 키 목록 반영(review IN-04) |
 | 2026-09-29 | quick 260929-snf | Naver 절 iOS 1-tap 실기기 관측 반영(iPhone 16 Pro · iOS 26.6 · NAVER 12.23.72) — **Pitfall 12** 제목을 「미해결 · 실기기 재현됨」 으로 바꾸고 증상을 2단계(복귀 직후 로딩 막 → 재개방 뒤 무반응 + `재진입 무시` · `logout 지연` 쌍)로, 복구를 관측 3경로(NAVER 로 돌아가 결과 내기 · cold restart · hot restart 는 첫 탭 1회 `ios_plugin_request_in_progress` 배너 뒤 정상)로 정정(「이후 모든 메서드 거부」 · 「앱 재시작뿐」 · 「SIM 부재로 미검증」 서술 대체) / **Pitfall 11** 에 1-tap 취소는 고정 리터럴이 아니라 오류 배너(`ios_sdk_nid_given_error` · 앱 열기 알림 Cancel 은 `ios_sdk_naver_app_not_installed`)라는 관측 추가 / **Pitfall 13** 에 SDK native 콜백 dict(`authCode` 키) debug 콘솔 1회 출력 관측 추가 / **11단계** iOS 1-tap 미검증 bullet 을 로그인 완료 관측(`naver_custom_token_issued` path=app)으로 교체하고 iOS 앱 열기 확인 알림 · 개발 중 앱은 등록 아이디(테스터)만 로그인 가능 bullet 추가. 근거: `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md`. |
 | 2026-10-01 | Phase 16.11 | Naver iOS 1-tap unwedge · 취소 — **Pitfall 12** 「해결됨」 재서술(자동 silent 취소 · 판정 신호 = background 복귀 + `kNaverResumeSettleDelay` + `SceneDelegate` 콜백 도착 기록 · 0.3초 보정(U1 실측 URL 이 `resumed` 보다 357ms 먼저) · 고아 대기와 늦은 결과 logout · stale 1회 재시도 · 진단 줄 6종 · 잔여 한계 3가지 · 이력 링크) / **Pitfall 11** 1-tap 취소 2종 silent(동의 화면 [취소] `ios_sdk_nid_access_denied` 실기기 확인 · 앱 열기 알림 [Cancel] 미실측 · SDK 발생 조건 확장) / 설치 안내 SYSC bullet / **Pitfall 1** · §5 예외 문장 · wedge 문단 / 제거 가이드 `SceneDelegate` override · `T-16.11-NATIVE-*` · `T-16.11-NAVER-HOST-*` / **Pitfall 13** authCode 주체(Firebase Analytics · `Runner.debug.dylib` · `firebase_analytics` 경로) · release(profile) 판정 · 결정 `record-only` · 공유 주의. 근거: `.planning/phases/16.11-naver-ios-one-tap-unwedge-and-cancel/uat-evidence/`. |
+| 2026-10-01 | 16.11 review fix (iteration 2) | 「Naver Login」 절 **Pitfall 12** 정정(code review iteration 2) — 진단 목록에 `Naver logIn 포기: reason=lifecycle_subscribe_failed` 추가(lifecycle 구독 실패 · silent 가 아니라 오류 배너 `ServiceUnavailable` · production 재현 경로 없음 · review IN-02) / 판정 신호에 판정 창 안 재-background 보류 추가(그 판정은 하지 않고 다음 복귀가 0.3초를 새로 셈 · 보류는 마지막 복귀 기준 · review IN-02) / **Pitfall 1** 예외 문장 문체 정정(「본다」 → 「봅니다」) · 「Multi-Provider Account Linking (Phase 9.2)」 §5 예외 문장을 한 문장으로 합침(「1-tap 에서 / 1-tap 수동 복귀는」 중복 · 문장 중간 줄바꿈 제거 · review IN-03). review IN-01(stale 거부 시 고아 해제를 진입 시점 고아로 한정)은 코드 수정이며 매뉴얼의 stale 재시도 · 고아 대기 서술은 수정 뒤에도 그대로 성립해 문구 변경이 없다. |
 
 ---
 
-*Last updated: 2026-10-01 — Phase 16.11 (Naver iOS 1-tap unwedge · 취소 · authCode 노출)*
+*Last updated: 2026-10-01 — Phase 16.11 review fix iteration 2 (Naver Pitfall 12 진단 줄 · 판정 신호 · Pitfall 1 · §5 예외 문장)*
