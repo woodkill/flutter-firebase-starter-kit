@@ -20,6 +20,7 @@ import 'package:flutter/foundation.dart'
         debugPrint;
 import 'package:flutter/services.dart'
     show MethodCall, MethodChannel, MissingPluginException, PlatformException;
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naver_login_flutter/naver_login_flutter.dart';
 
@@ -2252,6 +2253,137 @@ void main() {
         expect(violations, isEmpty, reason: '겹친 plugin 호출: $violations');
       });
       expectNoSecrets(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-10 Android 1-tap 은 구독 · 초기화 · 조회 0 '
+        '(D-03 · D-11 · C-04)', () {
+      useIos();
+      // 양성 대조군 — 같은 fake 로 iOS 에서는 판정 재료가 실제로 쓰인다.
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final record = CallbackRecordProbe(arrived: true);
+        final gate = Completer<NaverLoginResult>();
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async => buildLoggedOutResult(),
+          lifecycle: lifecycle,
+          record: record,
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+        gate.complete(buildSuccessResult('ios_token'));
+        async.flushMicrotasks();
+
+        expect(lifecycle.subscribeCalls, 1);
+        expect(record.resets, 1);
+        expect(record.queries, 1);
+        expect(probe.result, isA<NaverAppSignIn>());
+      });
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final record = CallbackRecordProbe();
+        final gate = Completer<NaverLoginResult>();
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async => buildLoggedOutResult(),
+          lifecycle: lifecycle,
+          record: record,
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+        expect(probe.completed, isFalse, reason: 'Android 는 포기 판정이 없다');
+
+        gate.complete(buildSuccessResult('android_token'));
+        async.flushMicrotasks();
+
+        expect(lifecycle.subscribeCalls, 0);
+        expect(record.resets, 0);
+        expect(record.queries, 0);
+        expect(
+          probe.result,
+          isA<NaverAppSignIn>().having(
+            (r) => r.accessToken,
+            'accessToken',
+            'android_token',
+          ),
+        );
+      });
+    });
+
+    test('T-16.11-NAVER-ABANDON-11 킷 웹 경로는 구독 · 초기화 · 조회 0 '
+        '(C-04)', () async {
+      useIos();
+      const webResult = NaverWebSignIn(code: 'WEB_CODE', state: 'WEB_STATE');
+      final lifecycle = FakeLifecycle();
+      final record = CallbackRecordProbe();
+      var loginCalls = 0;
+      final client = buildJudgedClient(
+        login: () async {
+          loginCalls++;
+          return buildSuccessResult('unexpected');
+        },
+        logout: () async => buildLoggedOutResult(),
+        lifecycle: lifecycle,
+        record: record,
+        isNaverAppInstalled: () async => false,
+        webSignIn: () async => webResult,
+      );
+
+      final result = await client.signIn();
+
+      expect(result, same(webResult));
+      expect(loginCalls, 0);
+      expect(lifecycle.subscribeCalls, 0);
+      expect(record.resets, 0);
+      expect(record.queries, 0);
+    });
+
+    test('T-16.11-NAVER-ABANDON-17 production 구독 — 실제 binding 의 paused · '
+        'resumed 를 각 1회 받고 해제 뒤 0 (D-03)', () {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      addTearDown(
+        () => binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+      );
+      // 엔진과 같은 순서 — AppLifecycleListener 가 잘못된 전환을 assert 한다.
+      const cycle = <AppLifecycleState>[
+        AppLifecycleState.resumed,
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ];
+      void driveCycle() {
+        for (final state in cycle) {
+          binding.handleAppLifecycleStateChanged(state);
+        }
+      }
+
+      // 구독 전 resumed 로 맞춘다 — 초기 null 에서의 첫 resumed 도 onResume
+      // 이라 계수가 흐려진다.
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      var pauses = 0;
+      var resumes = 0;
+      final unsubscribe = subscribeNaverAppLifecycle(
+        onPause: () => pauses++,
+        onResume: () => resumes++,
+      );
+
+      driveCycle();
+      expect(pauses, 1);
+      expect(resumes, 1);
+
+      unsubscribe();
+      driveCycle();
+      expect(pauses, 1, reason: '해제 뒤에는 받지 않는다');
+      expect(resumes, 1, reason: '해제 뒤에는 받지 않는다');
     });
   });
 }

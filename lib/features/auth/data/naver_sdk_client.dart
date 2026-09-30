@@ -6,6 +6,7 @@
 // Phase 16.5 D-01 ~ D-04 — signIn() 이 NAVER 앱 설치 판정 bool 하나로 1-tap
 // (SDK) 과 킷 웹 흐름을 라우팅한다. 웹 클라이언트는 함수 typedef 로만 안다.
 // Phase 16.11 — see ROADMAP.md (EX-03 · EX-04 — iOS 1-tap 취소 표면 · stale 슬롯 재시도)
+// Phase 16.11 D-01 ~ D-07 — iOS 1-tap 포기 판정 · 고아 대기
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -324,9 +325,14 @@ String _readAndroidErrorCode(String errorMessage) {
 /// - D-57 1회성 토큰 — [signIn] 성공/실패/취소 모든 분기에서
 ///   `AuthRepository.signInWithNaver` 의 finally 블록이 [logout] 을 호출한다.
 ///
-/// **타이머 없음 (D-16):** 플러그인 Future 를 그대로 await 한다. 앱 쪽
-/// `Completer` · `Future.timeout` 이 없으므로 「늦게 끝난 성공을 버리는」
-/// 주체가 구조적으로 존재하지 않는다.
+/// **타이머 없음 (D-16):** 플러그인 Future 를 그대로 await 한다. 로그인 결과를
+/// 감싸는 `Completer` · `Future.timeout` 이 없으므로 「늦게 끝난 성공을
+/// 버리는」 주체가 구조적으로 존재하지 않는다.
+/// 예외(16.11 D-01 · D-02): iOS 1-tap 에서 background 복귀 직후
+/// [kNaverResumeSettleDelay] 동안 판정을 보류한다 — 로그인 결과 대기 한도가
+/// 아니라 URL ↔ 활성화 순서 보정이며, URL 이 도착했으면 한도 없이 기다린다
+/// (C-01). 포기 신호용 `Completer<void>` 1건만 쓰고 로그인 결과를 감싸는
+/// Completer · timeout 은 여전히 0 이다.
 ///
 /// **in-flight 가드 (D-18) — 보장과 비보장:**
 /// - (보장) 킷이 만들어내는 동시 plugin 호출이 0 이다. [signIn] 이 진행 중인
@@ -346,12 +352,20 @@ String _readAndroidErrorCode(String errorMessage) {
 /// - (보장) 가드에 걸린 [logout] 은 **버려지지 않는다** (WR-01). 요청을
 ///   기억해 두고 [signIn] 의 finally 가 **가드를 든 채** 소비하므로, D-57
 ///   (「모든 path 에서 finally logout」) 이 동시성 구간에서도 유지된다.
-/// - (비보장) plugin 이 **이미 잠긴 상태**는 풀지 못한다. iOS 1-tap 에서
-///   사용자가 NAVER 앱에서 돌아오지 않으면 plugin 의 대기 슬롯이 점유된 채
-///   남고, 그 상태는 앱을 다시 켜기 전까지 지속된다 — 그동안 Naver 로그인은
-///   불가능하다. plugin 에 상태를 되돌릴 API 가 없고 C-06(테스트 SIM 부재)
-///   으로 재현조차 못 하므로 미해결 잔존으로 남긴다. 대기 시간에 한도를 두지도
-///   않는다 — cross-provider 정책이라 본 phase 범위 밖이다 (D-19).
+/// - (해결 — Phase 16.11) iOS 1-tap 에서 사용자가 결과 없이 돌아오면(홈으로
+///   나감 · NAVER 강제 종료) 포기 판정이 요청을 끝낸다: background 복귀
+///   (`paused` 뒤 `resumed`) + [kNaverResumeSettleDelay] + 네이티브 콜백 URL
+///   도착 기록 `false` → silent `null` · 가드 해제(EX-01 · D-07). 포기한 요청은
+///   plugin 슬롯을 계속 점유하는 고아로 남고, 그동안 [logout] 은 plugin 을
+///   부르지 않고 지연된다(D-06). 고아가 늦게 끝나면 결과를 버리고 logout 을
+///   1회 실행한다(C-02). 고아가 끝나지 않으면 다음 탭의 plugin 호출이 stale
+///   거부를 1회 받아 슬롯을 비우고 재시도하며(EX-03), 지연된 logout 은 그
+///   로그인의 finally 가 소비한다.
+///   잔여 한계(RESEARCH DG-2 (b)): 새 요청이 끝난 **뒤** 옛 NAVER 화면에서
+///   늦은 동의가 오면 토큰이 다음 로그인까지 keychain 에 남을 수 있다 — SDK 가
+///   process 를 정리하지 않고 앱 경로에 state 검사가 없어 킷이 알 수 없다.
+///   발생 조건은 「새 1-tap 을 끝낸 뒤 앱 전환기로 옛 동의 화면에 돌아가
+///   [동의]」 로 극히 좁고, 다음 로그인의 finally 가 지운다.
 ///
 /// **네이티브 설정 (D-01 · D-04):** 새 플러그인은 runtime `initialize()` 가
 /// 없다. client ID · secret · 앱 이름은 Android `AndroidManifest.xml` 의
@@ -474,6 +488,14 @@ class NaverSdkClient {
   ///    진단 줄 `Naver logIn stale 슬롯 재시도: method=logIn` 뒤 **1회만**
   ///    다시 부른다 (16.11 EX-03 — [_callLoginWithStaleRetry]). 재시도도
   ///    거부면 아래 6 의 오류 경로다.
+  ///    **iOS 1-tap 한정 포기 판정 (16.11 EX-01 · EX-02 · D-03):** 시작 전에
+  ///    네이티브 콜백 기록을 초기화하고, `logIn` 을 부른 직후 lifecycle 을
+  ///    구독한다. `paused` 뒤 `resumed` 로 돌아오면 [kNaverResumeSettleDelay]
+  ///    뒤 기록을 조회해 URL 이 없으면 포기(진단 줄
+  ///    `Naver logIn 포기: reason=no_callback_after_resume`) — 곧바로 null 을
+  ///    돌려주고 그 요청은 고아가 된다([_awaitLoginOrAbandon]). URL 이
+  ///    도착했으면 한도 없이 계속 기다린다(C-01). Android · 웹은 구독 · 조회 ·
+  ///    초기화 0.
   /// 5. [isNaverUserCancel] 을 **error 분기보다 먼저** 본다 — iOS 취소가
   ///    `status: error` 로 오므로 error 를 곧장 배너로 보내면 취소가 오류로
   ///    보인다 (`1c884c73` 회귀 경로).
@@ -495,12 +517,14 @@ class NaverSdkClient {
   /// 통과해 **킷이 스스로 동시 plugin 호출을 만든다**. 그 소비는
   /// [_invokeLogout] 의 내부 try/catch 로 **절대 throw 하지 않으므로**, 본
   /// 메서드의 반환값과 전파 중인 예외를 바꾸지 않는다 (logout 은 graceful
-  /// 계약).
+  /// 계약). 고아 대기 중에는 배수하지 않는다(16.11 D-06) — 포기한 요청 자신의
+  /// finally 도 마찬가지이며, 지연분은 고아 완료 또는 다음 로그인 finally 가
+  /// 소비한다.
   ///
   /// 반환:
   /// - [NaverAppSignIn] (accessToken) — 1-tap 성공.
   /// - [NaverWebSignIn] (code · state) — 킷 웹 성공 (서버가 code 를 교환).
-  /// - null — 사용자 취소 / 빈 토큰 / 재진입 (silent).
+  /// - null — 사용자 취소 / 빈 토큰 / 재진입 / iOS 1-tap 포기 (silent).
   /// - throw [ServiceUnavailable] — network / SDK / 웹 세션 · 콜백 오류.
   Future<NaverSignInResult?> signIn() async {
     if (_inFlight) {
@@ -607,6 +631,8 @@ class NaverSdkClient {
       // 들어온 [logout] 은 다시 지연돼 이 루프가 그것까지 소비한다
       // (유실 0 · 킷이 만드는 동시 plugin 호출 0). [_invokeLogout] 은
       // throw 하지 않으므로 위 분기의 반환값 · 전파 중인 예외에 영향이 없다.
+      // 고아 대기 중에는 배수하지 않는다 (16.11 D-06) — plugin 을 부르면 거부가
+      // 고아 슬롯을 비워 늦은 성공 토큰이 keychain 에 남는다.
       if (!_orphanPending) {
         while (_logoutPending) {
           _logoutPending = false;
@@ -771,11 +797,14 @@ class NaverSdkClient {
 
   /// 플러그인 logout — D-57 1회성 토큰 정책. 기기 내 토큰만 제거한다.
   ///
-  /// 호출처는 **셋**이며 모두 `AuthRepository` 다 (WR-01 — 이전 doc 은 첫
-  /// 항목 하나만 논증했다):
-  /// 1. `signInWithNaver` 의 finally — race-fix end 직전 (Pitfall 2).
-  /// 2. `_logoutCustomTokenSdk(AccountProvider.naver)` — 재인증 finally.
-  /// 3. `signOut` — 전 provider 세션 해제.
+  /// 현재 호출처 (16.11 RESEARCH DG-2 범위 명확화):
+  /// 1. `AuthRepository.signInWithNaver` 의 finally — race-fix end 직전
+  ///    (Pitfall 2).
+  /// 2. `AuthRepository._logoutCustomTokenSdk(AccountProvider.naver)` — 재인증
+  ///    finally.
+  /// 3. `AuthRepository.signOut` — 전 provider 세션 해제.
+  /// 4. `AuthRepository` 연결 arm 의 finally — 로컬 SDK 토큰 정리.
+  /// 5. 탈퇴 끊기 step(`naver_disconnect_step.dart`) — callable 응답 뒤.
   ///
   /// 서버 연동 해제(revoke) 계열 API 는 쓰지 않는다 (D-15 — 매 로그인 동의
   /// 재요구로 1-tap UX 가 깨진다).
@@ -783,16 +812,22 @@ class NaverSdkClient {
   /// **[signIn] 진행 중이면 「생략」 이 아니라 「지연」 한다 (D-18 / WR-01).**
   /// 진행 중인 로그인의 native 상태를 건드리지 않되, 요청을 [_logoutPending]
   /// 에 기억해 두고 [signIn] 의 finally 가 **가드를 든 채** 배수한다. 그래서
-  /// D-57(「매 로그인 finally 로 기기 토큰 제거」)이 **세 호출처 모두에서**
+  /// D-57(「매 로그인 finally 로 기기 토큰 제거」)이 **모든 호출처에서**
   /// 유지된다:
   /// - (1) 그 로그인 자신의 finally 는 [signIn] 완료 **뒤에** 실행되므로
   ///   애초에 가드가 풀려 있다 — 지연 없이 즉시 plugin 을 호출한다.
-  /// - (2)(3) 다른 Naver 로그인이 진행 중인 동시성 구간에서는 지연되지만,
+  /// - (2)~(5) 다른 Naver 로그인이 진행 중인 동시성 구간에서는 지연되지만,
   ///   그 로그인이 끝나는 즉시 plugin logout 이 **반드시 1회** 실행된다.
   ///   진행 중이던 로그인이 방금 받은 토큰까지 함께 지워지는데, 재인증
   ///   finally · 전면 로그아웃의 의도가 바로 세션 해제이므로 부합한다.
-  ///   이전 구현처럼 버려지면 이 두 경로에서 기기 토큰이 24h TTL 동안
+  ///   이전 구현처럼 버려지면 이 경로들에서 기기 토큰이 24h TTL 동안
   ///   소리 없이 잔존했다.
+  ///
+  /// **고아 대기 중이면 호출처와 무관하게 지연한다 (16.11 D-06 · RESEARCH DG-2
+  /// 범위 명확화).** 포기한 iOS 1-tap 요청이 plugin 슬롯을 점유하는 동안
+  /// plugin 을 부르면 거부 응답이 슬롯을 비워 늦은 성공 토큰이 keychain 에
+  /// 남는다. 지연분은 고아 완료 핸들러([_discardOrphan]) 또는 다음 로그인의
+  /// finally 가 소비한다 (진단 줄 `NaverSdkClient.logout 지연 (orphan-wait)`).
   ///
   /// 실패 시 graceful ([kDebugMode] [debugPrint]) — outer 흐름 차단 안 함.
   Future<void> logout() async {

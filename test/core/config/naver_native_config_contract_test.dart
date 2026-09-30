@@ -1086,6 +1086,32 @@ void main() {
         reason: 'D-05: 기록 · 조회는 기존 NaverHostChannel.swift 확장이다 (4줄 불변).',
       );
     });
+
+    test('T-16.11-NATIVE-05 NaverSdkClient — 0.3초 값 · production 판정 배선', () {
+      final code = stripSlashComments(
+        readTrackedFile('lib/features/auth/data/naver_sdk_client.dart'),
+      );
+
+      final contracts = <String, String>{
+        r'kNaverResumeSettleDelay\s*=\s*Duration\(\s*milliseconds:\s*300\s*,?\s*\)':
+            'D-02: 판정 보류는 LINE SDK verbatim 0.3초 — 상향은 U1 실측 근거로만.',
+        r'_subscribeLifecycle\s*=\s*subscribeNaverAppLifecycle':
+            'D-03: production ctor 가 실제 lifecycle 구독 함수를 주입한다.',
+        r'_hasCallbackArrived\s*=\s*const\s+NaverHostChannel\(\)\.hasNaverCallbackArrived':
+            'D-03 · D-05: production ctor 가 네이티브 기록 조회를 주입한다.',
+        r'_resetCallbackRecord\s*=\s*const\s+NaverHostChannel\(\)\.resetNaverCallbackRecord':
+            'D-03 · D-05: production ctor 가 네이티브 기록 초기화를 주입한다.',
+        r'AppLifecycleListener\(':
+            'D-03: 구독 수단은 AppLifecycleListener 1곳 (RESEARCH OQ6).',
+      };
+      for (final entry in contracts.entries) {
+        expect(
+          RegExp(entry.key).allMatches(code).length,
+          1,
+          reason: entry.value,
+        );
+      }
+    });
   });
 }
 
