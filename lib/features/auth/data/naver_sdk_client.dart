@@ -675,6 +675,8 @@ class NaverSdkClient {
   /// 기록을 조회해 콜백 URL 이 도착했으면 한도 없이 계속 기다리고(C-01), 아니면
   /// 포기 신호를 보낸다. 판정 클로저는 **자기 요청의** 플래그 · 포기 신호만 본다
   /// — 결과가 이미 왔거나 포기했으면 아무것도 하지 않는다.
+  /// 판정 창 안에 다시 `paused` 가 오면 예약된 판정은 판정하지 않는다 — 다음
+  /// `resumed` 가 새 판정을 예약한다 (WR-01 · 보류 0.3초는 마지막 복귀 기준).
   ///
   /// 반환: 로그인 결과, 또는 포기면 `null`(그 로그인 Future 는 고아가 된다 —
   /// [_abandonToOrphan]). 구독은 결과 · 포기 · 예외 어느 쪽이든 해제한다.
@@ -683,11 +685,19 @@ class NaverSdkClient {
     final abandon = Completer<void>();
     var settled = false;
     var sawPaused = false;
+    // `paused` 마다 올리는 세대 — 예약된 판정은 예약 시점 세대를 들고 가서,
+    // 그 뒤 다시 background 로 갔으면(세대 불일치) 판정하지 않는다 (WR-01).
+    // `sawPaused` 만 보면 복귀 · 재이탈 · 재복귀가 0.3초 안에 모두 일어날 때
+    // 첫 예약이 마지막 복귀로부터 0.3초 전에 판정해 D-02 가 깨진다.
+    var pauseGeneration = 0;
 
-    Future<void> judgeAfterSettle() async {
-      if (settled || abandon.isCompleted) return;
+    bool isJudgementStale(int generation) =>
+        settled || abandon.isCompleted || generation != pauseGeneration;
+
+    Future<void> judgeAfterSettle(int generation) async {
+      if (isJudgementStale(generation)) return;
       final arrived = await _queryCallbackArrived();
-      if (settled || abandon.isCompleted) return;
+      if (isJudgementStale(generation)) return;
       if (arrived) {
         // U1 실측 때 성공 경로에서 판정이 어느 쪽으로 갔는지 보이게 하는 줄.
         if (kDebugMode) {
@@ -701,12 +711,17 @@ class NaverSdkClient {
     final unsubscribe = _subscribeLifecycle(
       onPause: () {
         sawPaused = true;
+        pauseGeneration++;
       },
       onResume: () {
         if (!sawPaused) return;
         sawPaused = false;
+        final generation = pauseGeneration;
         unawaited(
-          Future<void>.delayed(kNaverResumeSettleDelay, judgeAfterSettle),
+          Future<void>.delayed(
+            kNaverResumeSettleDelay,
+            () => judgeAfterSettle(generation),
+          ),
         );
       },
     );

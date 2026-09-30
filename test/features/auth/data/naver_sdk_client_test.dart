@@ -2088,6 +2088,90 @@ void main() {
       }
     });
 
+    test('T-16.11-NAVER-ABANDON-21 판정 창 안에서 다시 background 로 가면 '
+        '판정하지 않고 다음 복귀가 새 판정을 예약한다 (WR-01)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final record = CallbackRecordProbe();
+        final gate = Completer<NaverLoginResult>();
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async => buildLoggedOutResult(),
+          lifecycle: lifecycle,
+          record: record,
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        lifecycle
+          ..emitPause()
+          ..emitResume();
+        async.elapse(const Duration(milliseconds: 100));
+        // 판정 창 안 재이탈 — 킷이 background 에 있다.
+        lifecycle.emitPause();
+        async.elapse(const Duration(milliseconds: 200));
+
+        expect(record.queries, 0, reason: '첫 예약 발화 시점 — 판정하지 않는다');
+        expect(probe.completed, isFalse);
+        expect(logs.where((line) => line == abandonLine), isEmpty);
+
+        // 양성 대조군 — 다음 복귀가 새 판정을 예약하고 0.3초 뒤 포기한다.
+        lifecycle.emitResume();
+        async.elapse(const Duration(milliseconds: 299));
+        expect(record.queries, 0, reason: '299ms — 새 판정도 보류 중 (D-02)');
+        async.elapse(const Duration(milliseconds: 1));
+        expect(record.queries, 1);
+        expect(probe.completed, isTrue);
+        expect(probe.error, isNull);
+        expect(probe.result, isNull);
+        expect(logs.where((line) => line == abandonLine), hasLength(1));
+      });
+    });
+
+    test('T-16.11-NAVER-ABANDON-22 복귀 · 재이탈 · 재복귀가 0.3초 안에 모두 '
+        '일어나면 보류는 마지막 복귀로부터 0.3초다 (WR-01 · D-02)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final record = CallbackRecordProbe();
+        final gate = Completer<NaverLoginResult>();
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async => buildLoggedOutResult(),
+          lifecycle: lifecycle,
+          record: record,
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        lifecycle
+          ..emitPause()
+          ..emitResume();
+        async.elapse(const Duration(milliseconds: 100));
+        lifecycle.emitPause();
+        async.elapse(const Duration(milliseconds: 100));
+        lifecycle.emitResume();
+        // 첫 예약 발화 시점 — 마지막 복귀로부터 100ms 뿐이다.
+        async.elapse(const Duration(milliseconds: 100));
+
+        expect(record.queries, 0, reason: '마지막 복귀로부터 100ms — 보류 중');
+        expect(probe.completed, isFalse);
+        expect(logs.where((line) => line == abandonLine), isEmpty);
+
+        // 양성 대조군 — 마지막 복귀로부터 300ms 에 판정 1.
+        async.elapse(const Duration(milliseconds: 199));
+        expect(record.queries, 0, reason: '마지막 복귀로부터 299ms');
+        async.elapse(const Duration(milliseconds: 1));
+        expect(record.queries, 1);
+        expect(probe.completed, isTrue);
+        expect(probe.result, isNull);
+        expect(logs.where((line) => line == abandonLine), hasLength(1));
+      });
+    });
+
     test('T-16.11-NAVER-ABANDON-06 고아의 예외 · 오류 결과도 버리고 logout '
         '1회 · 미처리 예외 0', () {
       useIos();
