@@ -929,9 +929,12 @@ skip · stg/prod 는 직접 대조).
 `MainActivity.kt` 의 등록/해제 3줄 + manifest relay 블록(`.WebAuthCallbackActivity`) +
 gradle placeholder 1줄 ·
 `compileOnly("com.navercorp.nid:oauth:…")` 1줄, iOS `NaverHostChannel.swift` +
-`AppDelegate.swift` 등록 1줄 + `project.pbxproj` 4항목(PBXBuildFile ·
-PBXFileReference · Runner group · Sources), Dart `naver_host_channel.dart` ·
-`naver_web_auth_client.dart` 와 계약 테스트 `T-16.5-NATIVE-*` 를 함께 지웁니다.
+`AppDelegate.swift` 등록 1줄 + `SceneDelegate.swift` 의 `scene(_:openURLContexts:)`
+override(Naver 콜백 도착 기록 — 메서드째 지우거나 빈 `FlutterSceneDelegate` 하위
+클래스로 되돌립니다) + `project.pbxproj` 4항목(PBXBuildFile · PBXFileReference ·
+Runner group · Sources), Dart `naver_host_channel.dart` · `naver_web_auth_client.dart`
+와 테스트 `T-16.5-NATIVE-*` · `T-16.11-NATIVE-*` · `T-16.11-NAVER-HOST-*` 를 함께
+지웁니다.
 `naver_login_flutter` 를 상향할 때는 gradle `compileOnly` 의 SDK 버전도 같이
 올립니다(`T-16.5-NATIVE-07` 이 불일치를 잡습니다).
 
@@ -1200,11 +1203,33 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
 - **Pitfall 13 (토큰 객체 문자열 보간):** 플러그인의 토큰 클래스는 `toString` 이
   access token 과 refresh token **전문**을 출력합니다. 토큰 객체를 로그 ·
   Crashlytics 에 넣지 말고 필요한 필드 하나만 꺼내 쓰십시오.
-  - iOS 1-tap 에서는 NAVER SDK native 쪽 콜백 dict 가 debug 콘솔(flutter run 이
-    캡처하는 출력)에 한 번 찍힙니다. 로그인 성공이면 `authCode` 키를, 취소 · 오류면
-    `error_detail` 키를 담습니다(2026-09-29 실기기 관측 — access · refresh token 문자열은
-    0건). debug 로그를 외부로 공유할 때는 이 줄을 빼십시오. 끄는 방법은 미확인이며
-    `.planning/todos/pending/2026-09-29-ios-naver-1tap-cancel-banner.md` 가 추적합니다.
+  - **iOS 1-tap 콜백 URL 의 `authCode` 가 기기 로그에 남습니다 (Phase 16.11 판정).**
+    로그인 성공이면 `authCode` 키를, 취소면 `error_detail` 키를 담은 URL query 가 로그로
+    찍힙니다(access · refresh token 문자열은 0건 — 2026-09-29 관측).
+    - **누가 찍나:** Firebase Analytics 입니다 — **NAVER SDK · naver 플러그인은 주체가
+      아닙니다.** `firebase_analytics` 플러그인이 모든 scene URL 을 `Analytics.handleOpen`
+      에 넘기고(12.6.0 `FirebaseAnalyticsPlugin.swift:341-361`), campaign 파라미터가 없는
+      NAVER 콜백 URL 이면
+      `[FirebaseAnalytics][I-ACS023001] Deep Link does not contain valid required params.`
+      와 함께 URL query 를 로그에 남깁니다. 로그의 sender 는
+      `GoogleAppMeasurement` 가 아니라 앱 자신의 바이너리(debug `Runner.debug.dylib` ·
+      profile `Runner`)로 보이고 subsystem 은 `com.google.firebase.analytics` 입니다 —
+      Firebase 가 SPM 정적 링크로 앱 바이너리에 들어가기 때문으로 봅니다(추론).
+    - **debug:** `flutter run` 콘솔에 로그인 1회당 `authCode` 줄이 1개 나옵니다.
+    - **release(profile):** 디버거 없이 실행한 profile 빌드에서도 기기 unified log 에
+      남았습니다(messageType `Default` · `sudo log collect` 아카이브에서 `authCode` 줄 1).
+      판정 한계: 1회 실측이고 Runner 프로세스만 셌습니다. release 빌드는 profile 과 같은
+      os_log 경로로 보지만 따로 실측하지 않았습니다(추론).
+    - **끄기 실험과 결정:** 공개 API `FirebaseConfiguration.shared.setLoggerLevel(.warning)`
+      을 넣어도 계속 찍혔습니다 — 코드로 끌 허용 수단이 없습니다. 플러그인 fork ·
+      vendoring · URL 가로채기는 쓰지 않으므로(16.11 D-15), 킷은 코드를 바꾸지 않고 이
+      기록으로 대응합니다(2026-10-01 사용자 결정 `record-only`).
+    - **로그 공유 전:** 개발 콘솔(`flutter run` · Xcode) 로그와 기기 로그(sysdiagnose ·
+      `log collect` · Console.app)를 남에게 주기 전에 `URL params` 줄과 그 뒤의
+      `authCode` · `error_detail` 줄을 지우십시오. authCode 는 1회용이고 서버가 곧바로
+      교환해 재사용할 수 없지만, 공유본에는 그대로 남습니다.
+    - 기록: `.planning/phases/16.11-naver-ios-one-tap-unwedge-and-cancel/uat-evidence/ios-authcode-16.11.md`
+      (§5 Pitfall 13 입력).
 - **Pitfall 14 (프로필 API 실패 = 로그인 실패):** 토큰을 이미 받았어도 클라이언트
   프로필 조회가 실패하면 로그인 전체가 실패합니다 — 구 플러그인보다 실패 지점이
   하나 늘었습니다. 보안 위험은 없습니다 (finally 의 logout 이 토큰을 지웁니다).
@@ -3543,6 +3568,10 @@ Android Auth Tab/Custom Tabs 의 `CANCELED` · iOS `ASWebAuthenticationSession` 
 canceledLogin 이 「창 닫힘 = Future 완료」 를 보장하므로 무기한 대기 자체가 없다.
 클라이언트 → Cloud Function 호출의 timeout(`_kCustomTokenTimeout` 10초 ·
 `_kNaverWebCustomTokenTimeout` 20초)은 별개다 — 인증 창이 닫힌 뒤의 서버 호출에만 걸린다.
+예외: iOS NAVER 앱 1-tap 에서
+1-tap 수동 복귀는 대기가 아니라 포기 신호이고(결과 URL 없이 background 에서 돌아옴),
+0.3초 순서 보정은 대기 한도가 아니다 — URL 이 도착했으면 한도 없이 기다린다
+(Phase 16.11 · 「Naver Login」 절 Pitfall 12).
 
 **왜 한도를 두지 않나:** 세 SDK 의 Dart API 표면에 진행 중인 로그인을 앱이 끊는 취소
 API 가 없다(2026-09-28 pub cache 소스 실측 · 킷이 해석하는 버전 = pub.dev 최신).
@@ -3568,11 +3597,11 @@ try-finally 로 잡은 `socialLinkInProgress` 플래그(`_socialLinkInProgress.b
 Phase 9.1 D-02-A)과 `auth_guard.dart` 의 fail-safe 분기(Phase 9.1 D-02-B)가 보류된다 —
 결함이 아니라 위 §3 race-fix invariant 가 의도한 동작이다. 인증 창을 닫으면 그 시각에
 취소가 도착해 전부 풀린다(Android 101.3초 · iOS 157초 방치 실측 — `16.2-HUMAN-UAT.md`
-A5 · I5). iOS Naver 1-tap wedge(「Naver Login」 절 Pitfall 12)와는 증상(무반응)이 같지만
-원인이 다르며, 구분은 debug 로그다. 무기한 대기는 `Naver logIn 시작` 뒤
-`Naver logIn 도착` 이 아직 없는 상태다(인증 창이 열려 있고, 창을 닫으면 도착 줄이 찍힌다).
-wedge 는 인증 창 없이 탭마다 `Naver logIn 재진입 무시 (in-flight)` 만 찍히며 앱 재시작
-전까지 풀리지 않는다.
+A5 · I5). iOS Naver 1-tap 에서 결과 없이 돌아온 경우는 Phase 16.11 부터 자동으로 silent
+취소된다(debug 로그 `Naver logIn 포기: reason=no_callback_after_resume` — 「Naver Login」 절
+Pitfall 12). 무기한 대기와의 구분은 여전히 debug 로그다: 무기한 대기는 `Naver logIn 시작`
+뒤 도착 줄(`Naver logIn 도착`)이 없고 인증 창이 열려 있는 상태다(창을 닫으면 도착 줄이
+찍힌다).
 
 **한도를 두고 싶다면(킷 기본값 아님):** 아래 5단계를 순서대로 확인하고, 결과를 세
 provider 에 **동시에** 적용한다.
@@ -4916,7 +4945,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-29 | 16.10 review fix | 「회원탈퇴」 · 「provider 측 연결 끊기 (Phase 16.10)」 · 「Custom Token Provider 제거 가이드」 절 정정(code review iteration 1 · 2) — 「탈퇴 진행 화면」 **행** 항목: 행 입력을 탈퇴 다이얼로그 「탈퇴」 확인 · 진행 화면 시작 때 각각 서버 1회 조회(`fetchProviderIdsFromServer` — `providerData` ∪ `users/{uid}.linkedProviders` · `Source.server`)로 정정하고 목록용 캐시(`currentUserProvider`)로 「행 0 = 바로 삭제」 를 판정하면 안 되는 이유 · 조회 실패 = 삭제 0(다이얼로그 유지 · 진행 화면은 이전 화면으로 복귀) 명시(iteration 1 WR-01) · `providerData` 는 `User.reload()` 뒤 읽고 `linkedProviders` 는 Custom Token 전용이라는 설명 · reload 실패 · reload 뒤 같은 사용자 세션 없음도 조회 실패로 처리(iteration 2 IN-03) · **행 0** 항목(안내 없이 닫힘 · 삭제는 다이얼로그 재확인 때만)과 **재로그인 뒤 로그인 실패** 항목(행 「해제됨」 · 5분 창 재개방 대상 제외 · 재인증 화면 경로) 추가 · 5분 창 (a) 에 제외 괄호(iteration 2 IN-05) / 「provider 측 연결 끊기」 서버 항목: 라인 verify(`client_id` === `LINE_CHANNEL_ID` · `expires_in` > 0 · 실패 `unauthenticated`) 추가 · 라인 deauthorize 400 멱등은 verify · 프로필 통과 뒤에만(iteration 1 WR-02) · 판정 순서를 verify → 소유 대조(`permission-denied` + `caller_identity_mismatch`)로 정정(iteration 2 IN-05) / 커스터마이징 「timeout」: 재로그인 끊기(라인 · 네이버 1-tap · 네이버 웹) `kReloginDisconnectCallableTimeout`(25초) 분리 + 서버 최악 예산 근거(iteration 1 WR-03) / 끊기 추가 · 제거 경로: 제거 가이드 ⑦ 「provider 측 끊기 경로」 · 「배포 · 제거」 · 커스터마이징 「provider 끊기 추가」 에 step import 1줄 · 공용 계약 `DisconnectDeps` · `disconnectDepsProvider` 편집 0 · SDK client 는 `deps.read(...)` 로 직접 읽기 반영(iteration 1 WR-04) |
 | 2026-09-29 | 16.10 review fix (iteration 3) | 「회원탈퇴」 절 「탈퇴 진행 화면」 에 **목록 조회 중** 항목 추가 — 행 목록 서버 조회 중 소개 문단 아래 원형 스피너(낭독 「불러오는 중」 · `commonLoading`) · 「탈퇴」 비활성 · 뒤로가기 허용(review IN-02) / 「계정 연결 해제 (Phase 16.8)」 절: provider 측 끊기 결과 표 「성공」 행에 킷 해제만 실패한 부분 상태 문구(`settingsUnlinkFailedAfterDisconnect` — 일시 · 미분류 실패만 · 로그인 수단 하나뿐 · 이미 해제됨 · 재로그인 필요는 기존 문구 · 서버 사전 확인 없음) · 「동작」 실패 SnackBar 목록 · 「문구」 키 목록 반영 / 「provider 측 연결 끊기」 커스터마이징 「문구」 키 목록 반영(review IN-03) / 「계정 연결 해제 (Phase 16.8)」 절: 끊기 결과 표에서 「provider 설정 오류」(`provider_config`)를 「그 밖의 끊기 실패」 에서 떼어 재시도 안내 없는 새 문구 행(`settingsUnlinkFailedProviderConfig` · `ProviderMisconfigured`)으로 분리 · 「동작」 실패 SnackBar 목록 · 「문구」 키 목록 / 「provider 측 연결 끊기」 서버 항목에 클라이언트 분류(해제 다이얼로그 전용 문구 · 진행 화면 행은 그대로) · 커스터마이징 「문구」 키 목록 반영(review IN-04) |
 | 2026-09-29 | quick 260929-snf | Naver 절 iOS 1-tap 실기기 관측 반영(iPhone 16 Pro · iOS 26.6 · NAVER 12.23.72) — **Pitfall 12** 제목을 「미해결 · 실기기 재현됨」 으로 바꾸고 증상을 2단계(복귀 직후 로딩 막 → 재개방 뒤 무반응 + `재진입 무시` · `logout 지연` 쌍)로, 복구를 관측 3경로(NAVER 로 돌아가 결과 내기 · cold restart · hot restart 는 첫 탭 1회 `ios_plugin_request_in_progress` 배너 뒤 정상)로 정정(「이후 모든 메서드 거부」 · 「앱 재시작뿐」 · 「SIM 부재로 미검증」 서술 대체) / **Pitfall 11** 에 1-tap 취소는 고정 리터럴이 아니라 오류 배너(`ios_sdk_nid_given_error` · 앱 열기 알림 Cancel 은 `ios_sdk_naver_app_not_installed`)라는 관측 추가 / **Pitfall 13** 에 SDK native 콜백 dict(`authCode` 키) debug 콘솔 1회 출력 관측 추가 / **11단계** iOS 1-tap 미검증 bullet 을 로그인 완료 관측(`naver_custom_token_issued` path=app)으로 교체하고 iOS 앱 열기 확인 알림 · 개발 중 앱은 등록 아이디(테스터)만 로그인 가능 bullet 추가. 근거: `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md`. |
+| 2026-10-01 | Phase 16.11 | Naver iOS 1-tap unwedge · 취소 — **Pitfall 12** 「해결됨」 재서술(자동 silent 취소 · 판정 신호 = background 복귀 + `kNaverResumeSettleDelay` + `SceneDelegate` 콜백 도착 기록 · 0.3초 보정(U1 실측 URL 이 `resumed` 보다 357ms 먼저) · 고아 대기와 늦은 결과 logout · stale 1회 재시도 · 진단 줄 6종 · 잔여 한계 3가지 · 이력 링크) / **Pitfall 11** 1-tap 취소 2종 silent(동의 화면 [취소] `ios_sdk_nid_access_denied` 실기기 확인 · 앱 열기 알림 [Cancel] 미실측 · SDK 발생 조건 확장) / 설치 안내 SYSC bullet / **Pitfall 1** · §5 예외 문장 · wedge 문단 / 제거 가이드 `SceneDelegate` override · `T-16.11-NATIVE-*` · `T-16.11-NAVER-HOST-*` / **Pitfall 13** authCode 주체(Firebase Analytics · `Runner.debug.dylib` · `firebase_analytics` 경로) · release(profile) 판정 · 결정 `record-only` · 공유 주의. 근거: `.planning/phases/16.11-naver-ios-one-tap-unwedge-and-cancel/uat-evidence/`. |
 
 ---
 
-*Last updated: 2026-09-29 — quick 260929-snf (Naver Pitfall 11 · 12 · 13 · 11단계 iOS 1-tap 실기기 관측 반영)*
+*Last updated: 2026-10-01 — Phase 16.11 (Naver iOS 1-tap unwedge · 취소 · authCode 노출)*
