@@ -53,6 +53,18 @@ class NaverSdkError implements Exception {
 /// 만든 영문 리터럴이라 단말 locale 과 무관하다.
 const String kNaverIosCancelMessage = 'Login cancelled by user';
 
+/// iOS 플러그인이 대기 슬롯 점유 중 새 호출을 거부할 때 붙이는 **고정 리터럴**
+/// (43자).
+///
+/// 출처: `naver_login_flutter` 4.0.0 iOS 플러그인
+/// `FlutterNaverLoginPlugin.swift:124` — `pendingResult != nil` 이면 모든
+/// 메서드를 이 문구로 거부한다. 거부 응답은 `sendError` 에서 대기 중이던 고아
+/// 슬롯(`pendingResult`)을 `nil` 로 비운다 (`:370-380` · RESEARCH DG-2 S-2).
+/// 그래서 16.11 EX-03 부터 iOS 에서는 이 거부를 stale 슬롯으로 보고 **1회**
+/// 재시도한다.
+const String kNaverIosRequestInProgressMessage =
+    'Another request is in progress. Please wait';
+
 /// iOS NAVER 앱(1-tap) 동의 화면 [Cancel] 이 오는 **고정 문구** (73자 · A1).
 ///
 /// NAVER iOS SDK 5.2.1 앱 경로가 복귀 URL 의 code `10`(`AppAuthCode.undefined`)
@@ -88,8 +100,7 @@ const String kNaverIosAppNotInstalledMessage =
 const Map<String, String> _kNaverExactMessages = <String, String>{
   kNaverIosCancelMessage: 'ios_plugin_cancelled',
   kNaverIosAppAccessDeniedMessage: 'ios_sdk_nid_access_denied',
-  'Another request is in progress. Please wait':
-      'ios_plugin_request_in_progress',
+  kNaverIosRequestInProgressMessage: 'ios_plugin_request_in_progress',
   'No access token available': 'ios_plugin_no_access_token',
   'No refresh token available': 'plugin_no_refresh_token',
   'Activity is null': 'android_plugin_activity_null',
@@ -208,6 +219,16 @@ bool isNaverUserCancel(
       errorMessage == kNaverIosAppNotInstalledMessage;
 }
 
+/// iOS 플러그인의 stale 슬롯 거부인지 판정한다 (16.11 EX-03 · C-04).
+///
+/// iOS 이고 `status` 가 [NaverLoginStatus.error] 이며 `errorMessage` 가
+/// [kNaverIosRequestInProgressMessage] 와 **완전 일치**할 때만 `true` 다.
+/// Android 는 같은 문자열이어도 `false` — 재시도 동작이 바뀌지 않는다.
+bool _isIosStaleSlotRejection(NaverLoginResult result) =>
+    defaultTargetPlatform == TargetPlatform.iOS &&
+    result.status == NaverLoginStatus.error &&
+    result.errorMessage == kNaverIosRequestInProgressMessage;
+
 /// 플러그인 `errorMessage` 를 PII 없는 진단 문자열로 바꾼다 (D-14 / WR-05).
 ///
 /// 원문은 요청 URL · NSError userInfo · 사용자 입력을 실을 수 있어 **한 글자도
@@ -277,6 +298,13 @@ String _readAndroidErrorCode(String errorMessage) {
 ///   「Another request is in progress」 를 자초하기 때문이다. **지연된
 ///   [logout] 을 소비하는 동안에도 가드는 내려가지 않는다 (WR-09)** — 그래서
 ///   이 보장이 plugin `logOut()` 라운드트립 구간까지 끊기지 않고 이어진다.
+///   **가드 밖에서 시작된 [logout] 의 라운드트립 중 들어온 [signIn] 도 그
+///   라운드트립이 끝날 때까지 기다린다 (U5 · 16.11 · RESEARCH DG-3)** — 기다리지
+///   않으면 plugin 이 `logIn` 을 거부하며 `logOut` 의 슬롯을 비워 그 Future 가
+///   영영 끝나지 않는다.
+///   **예외 (EX-03 · 16.11):** iOS 에서 이전 요청이 남긴 stale 슬롯은 다음
+///   plugin 호출이 **의도적으로** 거부를 1회 받아 비우고 1회 재시도한다. 킷이
+///   만드는 동시 호출이 아니라 plugin 에 남은 고아 슬롯의 정리다 (Android 불변).
 /// - (보장) 가드에 걸린 [logout] 은 **버려지지 않는다** (WR-01). 요청을
 ///   기억해 두고 [signIn] 의 finally 가 **가드를 든 채** 소비하므로, D-57
 ///   (「모든 path 에서 finally logout」) 이 동시성 구간에서도 유지된다.
@@ -347,11 +375,20 @@ class NaverSdkClient {
   /// 멱등이므로 횟수를 보존할 이유가 없다.
   bool _logoutPending = false;
 
+  /// plugin `logOut` 라운드트립 진행 중 — [signIn] 이 먼저 기다린다 (U5).
+  ///
+  /// 기다리지 않으면 plugin 이 `logIn` 을 거부하며 `logOut` 의 슬롯을 비워 그
+  /// Future 가 영영 끝나지 않는다 (RESEARCH DG-3). [_invokeLogout] 이 채우고,
+  /// 끝나면 **자기 Future 일 때만** `null` 로 되돌린다.
+  Future<void>? _logoutInFlight;
+
   /// Naver 로그인 — 설치 판정으로 1-tap(SDK) 또는 킷 웹 흐름을 고른다.
   ///
   /// 흐름:
   /// 1. in-flight 가드 — 진행 중이면 plugin 을 호출하지 않고 null (D-18).
-  ///    웹 경로도 같은 가드를 공유한다 (세션 중복 열기 0).
+  ///    웹 경로도 같은 가드를 공유한다 (세션 중복 열기 0). 가드를 세운 직후
+  ///    진행 중인 plugin `logOut` 라운드트립([_logoutInFlight])이 있으면 먼저
+  ///    기다린다 (U5 · 16.11).
   /// 2. 경로 선택 (Phase 16.5 D-01 ~ D-04) — 호스트 설치 판정이 `false` 이거나
   ///    예외면 [NaverWebAuthClient.signIn] 의 결과([NaverWebSignIn] · null ·
   ///    예외)를 그대로 돌려준다. 진단 줄 `Naver 경로 선택: mode=… installed=…`.
@@ -360,6 +397,10 @@ class NaverSdkClient {
   ///    (Phase 16.4 D-18). 대기 구간이 logcat 에 보이게 하는 것이 목적이라
   ///    도착 줄은 `status` 와 경과 ms 만 싣는다.
   /// 4. `_login()` 의 Future 를 **그대로 await** 한다 (D-16 — 타이머 없음).
+  ///    iOS 에서 결과가 stale 슬롯 거부([kNaverIosRequestInProgressMessage])면
+  ///    진단 줄 `Naver logIn stale 슬롯 재시도: method=logIn` 뒤 **1회만**
+  ///    다시 부른다 (16.11 EX-03 — [_callLoginWithStaleRetry]). 재시도도
+  ///    거부면 아래 6 의 오류 경로다.
   /// 5. [isNaverUserCancel] 을 **error 분기보다 먼저** 본다 — iOS 취소가
   ///    `status: error` 로 오므로 error 를 곧장 배너로 보내면 취소가 오류로
   ///    보인다 (`1c884c73` 회귀 경로).
@@ -400,6 +441,12 @@ class NaverSdkClient {
     // Stopwatch 를 만들지도 않는다 (킷은 템플릿으로 복사되는 코드다).
     final Stopwatch? watch = kDebugMode ? (Stopwatch()..start()) : null;
     try {
+      // U5 (16.11 · RESEARCH DG-3) — 가드 밖에서 시작된 plugin `logOut` 이
+      // 아직 라운드트립 중이면 끝날 때까지 기다린다. 웹 경로도 같은 순서다
+      // (부작용 0). [_invokeLogout] 은 throw 하지 않는다.
+      final logoutRoundTrip = _logoutInFlight;
+      if (logoutRoundTrip != null) await logoutRoundTrip;
+
       // Phase 16.5 D-01 ~ D-04 — 설치 판정 bool 하나로 경로를 고른다. 판정
       // 예외는 웹으로 접는다(D-02) — SDK 커스텀탭 경로를 피하는 것이 목적이다.
       bool installed;
@@ -422,7 +469,7 @@ class NaverSdkClient {
       if (kDebugMode) {
         debugPrint('Naver logIn 시작');
       }
-      final result = await _login();
+      final result = await _callLoginWithStaleRetry();
 
       // D-18 도착 줄 — status 이름과 경과 ms 만. `errorMessage` 원문은 한 글자도
       // 싣지 않는다 (WR-05). 취소 · 오류 요약은 바로 아래 기존 분기가 찍는다.
@@ -488,6 +535,23 @@ class NaverSdkClient {
     }
   }
 
+  /// plugin `logIn()` 을 부르고, iOS stale 슬롯 거부면 **정확히 1회** 다시
+  /// 부른다 (16.11 EX-03).
+  ///
+  /// 거부 응답이 이미 고아 슬롯을 비웠으므로(RESEARCH DG-2 S-2) 두 번째 호출은
+  /// 정상 진행한다. 두 번째 결과는 그대로 돌려준다 — 그것도 거부면 호출부의
+  /// 기존 error 분기가 [ServiceUnavailable] 로 보낸다(새 줄 없음 · 무한 재시도
+  /// 0). 진단 줄은 `kDebugMode` 전용이고 `errorMessage` 원문을 싣지 않는다
+  /// (D-12).
+  Future<NaverLoginResult> _callLoginWithStaleRetry() async {
+    final first = await _login();
+    if (!_isIosStaleSlotRejection(first)) return first;
+    if (kDebugMode) {
+      debugPrint('Naver logIn stale 슬롯 재시도: method=logIn');
+    }
+    return _login();
+  }
+
   /// 플러그인 logout — D-57 1회성 토큰 정책. 기기 내 토큰만 제거한다.
   ///
   /// 호출처는 **셋**이며 모두 `AuthRepository` 다 (WR-01 — 이전 doc 은 첫
@@ -538,15 +602,36 @@ class NaverSdkClient {
   /// `pendingResult != nil` 이면 `logOut` 을 포함한 모든 메서드를
   /// `Another request is in progress. Please wait` 로 거부하므로
   /// (`FlutterNaverLoginPlugin.swift:122-126`) 실제 도달 가능한 경로다.
+  /// 16.11 부터는 그 거부를 stale 슬롯으로 보고 1회 재시도한다(iOS 한정 ·
+  /// Android 는 불변 — EX-03 · C-04). 성공/실패 로그는 두 번째 결과로 판정한다.
   /// `16.2-HUMAN-UAT.md` 가 `NaverSdkClient.logout 완료` 한 줄을 D-57
   /// (기기 토큰 삭제) 성공 판정 근거로 쓰기 때문에, status 를 보지 않으면
   /// 거부된 logout 이 **PASS 로 위양성 집계**된다.
   ///
+  /// 라운드트립 동안 Future 를 [_logoutInFlight] 에 걸어 [signIn] 이 기다리게
+  /// 한다 (U5 · 16.11).
+  ///
   /// 실패 로그는 원문을 쓰지 않고 [describeNaverErrorForLog] 를 거친다
   /// (D-14 / WR-05 — `errorMessage` 는 자유 문자열이라 PII 를 실을 수 있다).
   Future<void> _invokeLogout() async {
+    final roundTrip = _runLogoutRoundTrip();
+    _logoutInFlight = roundTrip;
+    await roundTrip;
+    // 더 늦게 시작된 라운드트립의 Future 는 지우지 않는다.
+    if (identical(_logoutInFlight, roundTrip)) _logoutInFlight = null;
+  }
+
+  /// [_invokeLogout] 의 실제 본문 — plugin `logOut()` 호출 · iOS stale 슬롯
+  /// 1회 재시도 · status 판정 로그. **어떤 경우에도 throw 하지 않는다.**
+  Future<void> _runLogoutRoundTrip() async {
     try {
-      final result = await _logout();
+      var result = await _logout();
+      if (_isIosStaleSlotRejection(result)) {
+        if (kDebugMode) {
+          debugPrint('Naver logIn stale 슬롯 재시도: method=logOut');
+        }
+        result = await _logout();
+      }
       if (kDebugMode) {
         if (result.status == NaverLoginStatus.loggedOut) {
           debugPrint('NaverSdkClient.logout 완료');

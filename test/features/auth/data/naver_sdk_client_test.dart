@@ -1186,6 +1186,27 @@ void main() {
       isA<NaverSdkError>(),
     );
 
+    /// iOS 플러그인 stale 슬롯 거부 리터럴 (`FlutterNaverLoginPlugin.swift:124`).
+    const rejectMessage = 'Another request is in progress. Please wait';
+
+    /// 플러그인 거부 결과 — `status=error` + [rejectMessage].
+    NaverLoginResult buildRejectResult() => buildResult(
+      status: NaverLoginStatus.error,
+      errorMessage: rejectMessage,
+    );
+
+    const staleLogInLine = 'Naver logIn stale 슬롯 재시도: method=logIn';
+    const staleLogOutLine = 'Naver logIn stale 슬롯 재시도: method=logOut';
+
+    /// 원문 부재 (D-12) — 생존 대조군(로그 ≥1) 뒤 거부 리터럴 조각이 없다.
+    void expectNoRawMessage(List<String> logs) {
+      expect(logs, isNotEmpty);
+      for (final line in logs) {
+        expect(line, isNot(contains('Another request')));
+        expect(line, isNot(contains('Please wait')));
+      }
+    }
+
     tearDown(() => debugDefaultTargetPlatformOverride = null);
 
     test('T-16.11-NAVER-ABANDON-13 iOS 1-tap A1(access_denied 73자) → '
@@ -1370,6 +1391,224 @@ void main() {
       expect(
         describeNaverErrorForLog(otherNidMessage),
         startsWith('message=ios_sdk_nid_given_error '),
+      );
+    });
+
+    test('T-16.11-NAVER-ABANDON-07 iOS stale 슬롯 거부 → logIn 1회 재시도 '
+        '성공 · 배너 0', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final logs = captureLogs();
+      var loginCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async {
+          loginCalls++;
+          return loginCalls == 1
+              ? buildRejectResult()
+              : buildSuccessResult('retry_token');
+        },
+        logout: () async => buildLoggedOutResult(),
+      );
+
+      final result = await client.signIn();
+
+      expect(
+        result,
+        isA<NaverAppSignIn>().having(
+          (r) => r.accessToken,
+          'accessToken',
+          'retry_token',
+        ),
+      );
+      expect(loginCalls, 2);
+      expect(logs.where((line) => line == staleLogInLine), hasLength(1));
+      expect(
+        logs.where((line) => line.startsWith('Naver logIn error')),
+        isEmpty,
+      );
+      expectNoRawMessage(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-08 iOS 재시도도 거부 → 기존 오류 경로 · '
+        '재시도는 정확히 1회', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final logs = captureLogs();
+      var loginCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async {
+          loginCalls++;
+          return buildRejectResult();
+        },
+        logout: () async => buildLoggedOutResult(),
+      );
+
+      expect(
+        await captureSignInError(client),
+        isA<ServiceUnavailable>().having(
+          (e) => e.cause,
+          'cause',
+          isA<NaverSdkError>(),
+        ),
+      );
+      expect(loginCalls, 2, reason: '재시도는 1회뿐 — 3 이면 무한 재시도 회귀');
+      expect(logs.where((line) => line == staleLogInLine), hasLength(1));
+      expect(
+        logs.where(
+          (line) =>
+              line ==
+              'Naver logIn error: '
+                  'message=ios_plugin_request_in_progress length=43',
+        ),
+        hasLength(1),
+      );
+      expectNoRawMessage(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-09 iOS logOut 거부 → 1회 재시도 · 두 번 모두 '
+        '거부면 graceful 실패 로그', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final logs = captureLogs();
+
+      var logoutCalls = 0;
+      final retryOk = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
+        logout: () async {
+          logoutCalls++;
+          return logoutCalls == 1
+              ? buildRejectResult()
+              : buildLoggedOutResult();
+        },
+      );
+      await retryOk.logout();
+
+      expect(logoutCalls, 2);
+      final staleIndex = logs.indexOf(staleLogOutLine);
+      expect(staleIndex, isNonNegative);
+      expect(
+        logs.indexOf('NaverSdkClient.logout 완료'),
+        greaterThan(staleIndex),
+        reason: '재시도 줄 뒤에 두 번째 결과로 「완료」 를 판정한다',
+      );
+      expectNoRawMessage(logs);
+
+      logs.clear();
+      var rejectCalls = 0;
+      final retryRejected = NaverSdkClient.forTest(
+        login: () async => buildLoggedOutResult(),
+        logout: () async {
+          rejectCalls++;
+          return buildRejectResult();
+        },
+      );
+      Object? error;
+      try {
+        await retryRejected.logout();
+      } on Object catch (e) {
+        error = e;
+      }
+
+      expect(error, isNull, reason: 'logout 은 graceful — throw 0');
+      expect(rejectCalls, 2);
+      expect(logs.where((line) => line == staleLogOutLine), hasLength(1));
+      expect(logs, isNot(contains('NaverSdkClient.logout 완료')));
+      expect(
+        logs.where(
+          (line) =>
+              line.startsWith('NaverSdkClient.logout 실패 (무시)') &&
+              line.contains('message=ios_plugin_request_in_progress'),
+        ),
+        hasLength(1),
+      );
+      expectNoRawMessage(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-18 C-04 Android 는 같은 거부에 재시도 0', () async {
+      // 양성 대조군 — iOS 에서는 같은 fake 로 재시도가 실제로 일어난다.
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      var iosLoginCalls = 0;
+      final iosClient = NaverSdkClient.forTest(
+        login: () async {
+          iosLoginCalls++;
+          return buildRejectResult();
+        },
+        logout: () async => buildLoggedOutResult(),
+      );
+      await captureSignInError(iosClient);
+      expect(iosLoginCalls, 2, reason: '대조군 — iOS 는 1회 재시도');
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final logs = captureLogs();
+      var loginCalls = 0;
+      var logoutCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async {
+          loginCalls++;
+          return buildRejectResult();
+        },
+        logout: () async {
+          logoutCalls++;
+          return buildRejectResult();
+        },
+      );
+
+      expect(
+        await captureSignInError(client),
+        isA<ServiceUnavailable>().having(
+          (e) => e.cause,
+          'cause',
+          isA<NaverSdkError>(),
+        ),
+      );
+      expect(loginCalls, 1);
+      await client.logout();
+      expect(logoutCalls, 1);
+      expect(
+        logs.where((line) => line.startsWith('Naver logIn stale 슬롯 재시도')),
+        isEmpty,
+      );
+    });
+
+    test('T-16.11-NAVER-ABANDON-12 U5 logout 라운드트립 중 signIn 은 끝날 때까지 '
+        'plugin logIn 을 부르지 않는다', () async {
+      final logoutGate = Completer<NaverLoginResult>();
+      var loginCalls = 0;
+      var logoutCalls = 0;
+      final client = NaverSdkClient.forTest(
+        login: () async {
+          loginCalls++;
+          return buildSuccessResult('after_logout');
+        },
+        logout: () {
+          logoutCalls++;
+          return logoutGate.future;
+        },
+      );
+
+      final logoutFuture = client.logout();
+      await pumpEventQueue();
+      expect(logoutCalls, 1, reason: '대조군 — logout 라운드트립이 진행 중이다');
+
+      final signInFuture = client.signIn();
+      await pumpEventQueue();
+      expect(
+        loginCalls,
+        0,
+        reason:
+            'logOut 이 끝나기 전 logIn 을 부르면 plugin 이 거부하며 logOut 의 '
+            '슬롯을 비운다 (DG-3)',
+      );
+
+      logoutGate.complete(buildLoggedOutResult());
+      await logoutFuture;
+      final result = await signInFuture;
+
+      expect(loginCalls, 1);
+      expect(
+        result,
+        isA<NaverAppSignIn>().having(
+          (r) => r.accessToken,
+          'accessToken',
+          'after_logout',
+        ),
       );
     });
   });
