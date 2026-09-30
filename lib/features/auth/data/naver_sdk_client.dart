@@ -791,9 +791,10 @@ class NaverSdkClient {
 
   /// 고아 결과를 버리고 기기 토큰을 지운다 (16.11 C-02 · Phase 13 D-57).
   ///
-  /// [orphan] 이 **현재** 고아일 때만 동작한다 — stale 거부로 이미 해제된 옛
-  /// 고아는 무시한다. [describe] 는 진단 줄 꼬리(status 이름 + 로그 이름 또는
-  /// 예외 타입)만 만든다 — 결과 · 토큰 객체는 문자열 보간에 넣지 않는다(D-21).
+  /// [orphan] 이 **현재** 고아일 때만 동작한다 — stale 거부로 이미 해제됐거나
+  /// 더 새 고아로 교체된 옛 고아는 무시한다. [describe] 는 진단 줄 꼬리(status
+  /// 이름 + 로그 이름 또는 예외 타입)만 만든다 — 결과 · 토큰 객체는 문자열
+  /// 보간에 넣지 않는다(D-21).
   /// [logout] 을 거치므로 새 로그인이 진행 중이면 다시 지연돼 그 로그인의
   /// finally 가 소비한다 — 킷이 만드는 동시 plugin 호출 0.
   Future<void> _discardOrphan(
@@ -817,13 +818,22 @@ class NaverSdkClient {
   /// 기존 error 분기가 [ServiceUnavailable] 로 보낸다(새 줄 없음 · 무한 재시도
   /// 0). 진단 줄은 `kDebugMode` 전용이고 `errorMessage` 원문을 싣지 않는다
   /// (D-12).
+  ///
+  /// 거부 시 고아 대기 해제는 **이 호출 진입 시점의 고아**에만 적용한다
+  /// (16.11 REVIEW iteration 2 IN-01). 첫 결과를 기다리는 사이 이 호출 자신이
+  /// 고아가 됐으면(lifecycle 구독 실패 — `lifecycle_subscribe_failed`) 해제하지
+  /// 않는다 — 재시도가 슬롯을 점유하므로 [logout] 은 계속 지연되고, 재시도가
+  /// 끝나면 [_discardOrphan] 이 결과를 버리고 logout 1회를 실행한다.
   Future<NaverLoginResult> _callLoginWithStaleRetry() async {
+    // 진입 시점의 고아 identity — 거부가 비운 슬롯의 주인은 이 고아뿐이다.
+    final priorOrphan = _orphanLogin;
     final first = await _login();
     if (!_isIosStaleSlotRejection(first)) return first;
     // 거부가 고아의 슬롯을 비웠으므로 고아는 영영 완료되지 않는다 (16.11 D-06 ·
     // RESEARCH DG-2) — 대기를 해제한다. 지연된 logout 은 이 로그인의 finally 가
-    // 소비한다.
-    if (_orphanPending) {
+    // 소비한다. 진입 시점에 고아가 없었거나, 그 사이 고아가 끝났거나 다른
+    // 요청(이 호출 자신 · IN-01)으로 바뀌었으면 해제하지 않는다.
+    if (priorOrphan != null && identical(_orphanLogin, priorOrphan)) {
       _orphanLogin = null;
       if (kDebugMode) {
         debugPrint('Naver logIn 고아 대기 해제: reason=stale_rejected');

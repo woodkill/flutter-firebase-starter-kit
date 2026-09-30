@@ -2259,6 +2259,175 @@ void main() {
       expect(uncaught, isEmpty, reason: '미처리 비동기 예외 · 단언 실패: $uncaught');
     });
 
+    test('T-16.11-NAVER-ABANDON-24 구독 실패로 스스로 고아가 된 요청의 첫 결과가 '
+        'stale 거부여도 자기 자신은 해제하지 않는다 — 재시도 동안 logout 지연 · '
+        '완료 시 폐기 + logout 1회 (REVIEW it.2 IN-01)', () {
+      useIos();
+      final logs = captureLogs();
+      const subscribeFailedLine =
+          'Naver logIn 포기: reason=lifecycle_subscribe_failed';
+      final uncaught = <Object>[];
+      runZonedGuarded(
+        () => fakeAsync((async) {
+          final lifecycle = FakeLifecycle();
+          final record = CallbackRecordProbe();
+          // 이전 고아 P — 거부가 슬롯을 비우므로 영영 끝나지 않는다.
+          final priorGate = Completer<NaverLoginResult>();
+          // 구독 실패한 요청 N 의 재시도 — 사용자 동의를 기다린다.
+          final retryGate = Completer<NaverLoginResult>();
+          var subscribeCalls = 0;
+          var loginCalls = 0;
+          var logoutCalls = 0;
+          final client = NaverSdkClient.forTest(
+            login: () {
+              loginCalls++;
+              return switch (loginCalls) {
+                1 => priorGate.future,
+                2 => Future<NaverLoginResult>.value(
+                  buildResult(
+                    status: NaverLoginStatus.error,
+                    errorMessage: kNaverIosRequestInProgressMessage,
+                  ),
+                ),
+                _ => retryGate.future,
+              };
+            },
+            logout: () async {
+              logoutCalls++;
+              return buildLoggedOutResult();
+            },
+            lifecycleSubscribe:
+                ({
+                  required VoidCallback onPause,
+                  required VoidCallback onResume,
+                }) {
+                  subscribeCalls++;
+                  if (subscribeCalls == 2) {
+                    throw StateError('subscribe_failed');
+                  }
+                  return lifecycle.subscribe(
+                    onPause: onPause,
+                    onResume: onResume,
+                  );
+                },
+            callbackArrived: record.query,
+            callbackReset: record.reset,
+          );
+
+          // (1) 고아 P — 결과 없는 복귀로 포기한다 (-01 패턴).
+          final first = SignInProbe(client);
+          async.flushMicrotasks();
+          driveReturnWithoutResult(async, lifecycle);
+          expect(first.completed, isTrue, reason: '대조군 — 포기가 일어났다');
+          expect(first.result, isNull);
+          expect(logs.where((line) => line == abandonLine), hasLength(1));
+
+          // (2) N — 구독이 던져 N 자신이 고아가 된 뒤 첫 결과가 stale 거부로
+          // 도착하고, 재시도가 NAVER 를 연다.
+          final second = SignInProbe(client);
+          async.flushMicrotasks();
+          expect(second.error, isA<ServiceUnavailable>());
+          expect(
+            logs.where((line) => line == subscribeFailedLine),
+            hasLength(1),
+          );
+          expect(loginCalls, 3, reason: '대조군 — 거부 뒤 재시도가 슬롯을 점유한다');
+          expect(logs.where((line) => line == staleLogInLine), hasLength(1));
+
+          // 재시도가 슬롯을 점유 중 — logout 은 plugin 을 부르지 않는다 (D-06).
+          unawaited(client.logout());
+          async.flushMicrotasks();
+          expect(logoutCalls, 0, reason: 'N 은 여전히 고아 — orphan-wait 지연');
+          expect(
+            logs.where((line) => line == releaseLine),
+            isEmpty,
+            reason: '진입 시점 고아(P)가 이미 N 으로 교체됐다 — 해제 대상 없음',
+          );
+          expect(logs.where((line) => line == orphanWaitLine), hasLength(1));
+
+          // (3) 재시도가 동의로 끝나면 결과를 버리고 logout 1회 (C-02).
+          retryGate.complete(buildSuccessResult(tokenSentinel));
+          async.flushMicrotasks();
+          expect(logoutCalls, 1, reason: '지연분과 고아 완료가 1회로 접힌다');
+          expect(
+            logs.where(
+              (line) =>
+                  line.startsWith('Naver logIn 고아 결과 도착: status=loggedIn'),
+            ),
+            hasLength(1),
+          );
+
+          // 고아가 끝났다 — 다음 logout 은 즉시 plugin 을 부른다.
+          unawaited(client.logout());
+          async.flushMicrotasks();
+          expect(logoutCalls, 2);
+          expect(lifecycle.subscribeCalls, 1);
+          expect(lifecycle.disposeCalls, 1);
+        }),
+        (error, stack) => uncaught.add(error),
+      );
+      expect(uncaught, isEmpty, reason: '미처리 비동기 예외 · 단언 실패: $uncaught');
+      expectNoSecrets(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-25 Dart 고아 없이 plugin stale 슬롯(hot restart '
+        '잔존 등)이 구독 실패 요청의 첫 호출을 거부해도 자기 자신은 해제하지 '
+        '않는다 (REVIEW it.2 IN-01)', () {
+      useIos();
+      final logs = captureLogs();
+      final uncaught = <Object>[];
+      runZonedGuarded(
+        () => fakeAsync((async) {
+          final record = CallbackRecordProbe();
+          final retryGate = Completer<NaverLoginResult>();
+          var loginCalls = 0;
+          var logoutCalls = 0;
+          final client = NaverSdkClient.forTest(
+            login: () {
+              loginCalls++;
+              return loginCalls == 1
+                  ? Future<NaverLoginResult>.value(
+                      buildResult(
+                        status: NaverLoginStatus.error,
+                        errorMessage: kNaverIosRequestInProgressMessage,
+                      ),
+                    )
+                  : retryGate.future;
+            },
+            logout: () async {
+              logoutCalls++;
+              return buildLoggedOutResult();
+            },
+            lifecycleSubscribe:
+                ({
+                  required VoidCallback onPause,
+                  required VoidCallback onResume,
+                }) => throw StateError('subscribe_failed'),
+            callbackArrived: record.query,
+            callbackReset: record.reset,
+          );
+
+          final probe = SignInProbe(client);
+          async.flushMicrotasks();
+          expect(probe.error, isA<ServiceUnavailable>());
+          expect(loginCalls, 2, reason: '대조군 — 거부 뒤 재시도가 슬롯을 점유한다');
+          expect(logs.where((line) => line == staleLogInLine), hasLength(1));
+
+          unawaited(client.logout());
+          async.flushMicrotasks();
+          expect(logoutCalls, 0, reason: '진입 시점 고아 없음 — 자기 자신은 고아 유지');
+          expect(logs.where((line) => line == releaseLine), isEmpty);
+
+          retryGate.complete(buildSuccessResult(tokenSentinel));
+          async.flushMicrotasks();
+          expect(logoutCalls, 1, reason: '고아 완료 핸들러가 logout 1회');
+        }),
+        (error, stack) => uncaught.add(error),
+      );
+      expect(uncaught, isEmpty, reason: '미처리 비동기 예외 · 단언 실패: $uncaught');
+      expectNoSecrets(logs);
+    });
+
     test('T-16.11-NAVER-ABANDON-06 고아의 예외 · 오류 결과도 버리고 logout '
         '1회 · 미처리 예외 0', () {
       useIos();
