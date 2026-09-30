@@ -662,7 +662,13 @@ class NaverSdkClient {
       if (settled || abandon.isCompleted) return;
       final arrived = await _queryCallbackArrived();
       if (settled || abandon.isCompleted) return;
-      if (arrived) return;
+      if (arrived) {
+        // U1 실측 때 성공 경로에서 판정이 어느 쪽으로 갔는지 보이게 하는 줄.
+        if (kDebugMode) {
+          debugPrint('Naver logIn 복귀 판정: callback=arrived (계속 대기)');
+        }
+        return;
+      }
       abandon.complete();
     }
 

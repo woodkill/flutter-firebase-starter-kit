@@ -1995,5 +1995,263 @@ void main() {
       });
       expectNoSecrets(logs);
     });
+
+    test('T-16.11-NAVER-ABANDON-02 콜백 URL 이 도착했으면 한도 없이 계속 '
+        '기다리고 늦은 성공을 보존한다 (C-01 · EX-02)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final record = CallbackRecordProbe(arrived: true);
+        final gate = Completer<NaverLoginResult>();
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async => buildLoggedOutResult(),
+          lifecycle: lifecycle,
+          record: record,
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+
+        expect(record.queries, 1, reason: '대조군 — 판정은 실제로 돌았다');
+        expect(
+          logs.where(
+            (line) => line == 'Naver logIn 복귀 판정: callback=arrived (계속 대기)',
+          ),
+          hasLength(1),
+        );
+
+        async.elapse(const Duration(minutes: 10));
+        expect(probe.completed, isFalse, reason: '0.3초는 대기 한도가 아니다 (D-01)');
+
+        gate.complete(buildSuccessResult('late_token'));
+        async.flushMicrotasks();
+
+        expect(
+          probe.result,
+          isA<NaverAppSignIn>().having(
+            (r) => r.accessToken,
+            'accessToken',
+            'late_token',
+          ),
+        );
+        expect(lifecycle.disposeCalls, 1);
+        expect(logs.where((line) => line == abandonLine), isEmpty);
+      });
+      expectNoSecrets(logs);
+    });
+
+    test('T-16.11-NAVER-ABANDON-03 paused 없는 resumed(시스템 알림 · inactive '
+        '전용) 는 판정하지 않는다 (OQ2)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final record = CallbackRecordProbe();
+        final gate = Completer<NaverLoginResult>();
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async => buildLoggedOutResult(),
+          lifecycle: lifecycle,
+          record: record,
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        expect(lifecycle.subscribeCalls, 1, reason: '대조군 — 구독은 있다');
+
+        lifecycle.emitResume();
+        async.elapse(const Duration(seconds: 1));
+
+        expect(record.queries, 0);
+        expect(probe.completed, isFalse);
+        expect(logs.where((line) => line == abandonLine), isEmpty);
+
+        gate.complete(
+          buildResult(
+            status: NaverLoginStatus.error,
+            errorMessage: kNaverIosAppNotInstalledMessage,
+          ),
+        );
+        async.flushMicrotasks();
+
+        expect(probe.completed, isTrue);
+        expect(probe.error, isNull, reason: 'SYSC [Cancel] 은 silent (plan 02)');
+        expect(probe.result, isNull);
+        expect(logs.where((line) => line == abandonLine), isEmpty);
+      });
+      for (final line in logs) {
+        expect(line, isNot(contains('Please install Naver App')));
+      }
+    });
+
+    test('T-16.11-NAVER-ABANDON-06 고아의 예외 · 오류 결과도 버리고 logout '
+        '1회 · 미처리 예외 0', () {
+      useIos();
+      final logs = captureLogs();
+      const exceptionSentinel = 'orphan_exception_sentinel_91c2';
+
+      // (a) 예외 — PlatformException 이 고아 Future 로 온다.
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final gate = Completer<NaverLoginResult>();
+        var logoutCalls = 0;
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async {
+            logoutCalls++;
+            return buildLoggedOutResult();
+          },
+          lifecycle: lifecycle,
+          record: CallbackRecordProbe(),
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+        expect(probe.result, isNull);
+
+        gate.completeError(
+          PlatformException(code: 'x', message: exceptionSentinel),
+        );
+        async.flushMicrotasks();
+
+        expect(probe.error, isNull);
+        expect(logoutCalls, 1);
+        expect(
+          logs.where(
+            (line) =>
+                line == 'Naver logIn 고아 결과 도착: exception=PlatformException',
+          ),
+          hasLength(1),
+        );
+      });
+
+      // (b) 오류 결과 — A1 문자열이 고아로 온다 (배너 경로에 닿지 않는다).
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final gate = Completer<NaverLoginResult>();
+        var logoutCalls = 0;
+        final client = buildJudgedClient(
+          login: () => gate.future,
+          logout: () async {
+            logoutCalls++;
+            return buildLoggedOutResult();
+          },
+          lifecycle: lifecycle,
+          record: CallbackRecordProbe(),
+        );
+
+        final probe = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+
+        gate.complete(
+          buildResult(
+            status: NaverLoginStatus.error,
+            errorMessage: kNaverIosAppAccessDeniedMessage,
+          ),
+        );
+        async.flushMicrotasks();
+
+        expect(probe.error, isNull, reason: 'ServiceUnavailable 발생 0');
+        expect(probe.result, isNull);
+        expect(logoutCalls, 1);
+        expect(
+          logs.where(
+            (line) =>
+                line.startsWith('Naver logIn 고아 결과 도착:') &&
+                line.contains('status=error message=ios_sdk_nid_access_denied'),
+          ),
+          hasLength(1),
+        );
+      });
+
+      expectNoSecrets(logs);
+      for (final line in logs) {
+        expect(line, isNot(contains(exceptionSentinel)));
+      }
+    });
+
+    test('T-16.11-NAVER-ABANDON-20 새 signIn in-flight 중 고아가 도착해도 '
+        'plugin 호출이 겹치지 않는다 (T-16.11-09)', () {
+      useIos();
+      final logs = captureLogs();
+      fakeAsync((async) {
+        final lifecycle = FakeLifecycle();
+        final orphanGate = Completer<NaverLoginResult>();
+        final installedGate = Completer<bool>();
+        final violations = <String>[];
+        var loginCalls = 0;
+        var logoutCalls = 0;
+        var installedCalls = 0;
+        var loginsInProgress = 0;
+        var logoutsInProgress = 0;
+
+        final client = buildJudgedClient(
+          login: () {
+            loginCalls++;
+            if (logoutsInProgress != 0) violations.add('login#$loginCalls');
+            loginsInProgress++;
+            final future = loginCalls == 1
+                ? orphanGate.future
+                : Future<NaverLoginResult>.value(
+                    buildSuccessResult('second_token'),
+                  );
+            return future.whenComplete(() => loginsInProgress--);
+          },
+          logout: () async {
+            logoutCalls++;
+            if (loginsInProgress != 0) violations.add('logout#$logoutCalls');
+            logoutsInProgress++;
+            await Future<void>.value();
+            logoutsInProgress--;
+            return buildLoggedOutResult();
+          },
+          isNaverAppInstalled: () {
+            installedCalls++;
+            return installedCalls == 1
+                ? Future<bool>.value(true)
+                : installedGate.future;
+          },
+          lifecycle: lifecycle,
+          record: CallbackRecordProbe(),
+        );
+
+        final first = SignInProbe(client);
+        async.flushMicrotasks();
+        driveReturnWithoutResult(async, lifecycle);
+        expect(first.result, isNull, reason: '대조군 — 포기했다');
+
+        // 둘째 탭 — 설치 판정에서 멈춘 채 in-flight 다 (plugin logIn 전).
+        final second = SignInProbe(client);
+        async.flushMicrotasks();
+        expect(second.completed, isFalse);
+        expect(loginCalls, 1);
+
+        orphanGate.complete(buildSuccessResult(tokenSentinel));
+        async.flushMicrotasks();
+        expect(logoutCalls, 0, reason: '새 로그인이 in-flight — 고아 logout 도 지연');
+
+        installedGate.complete(true);
+        async.flushMicrotasks();
+
+        expect(loginCalls, 2);
+        expect(second.completed, isTrue);
+        expect(
+          second.result,
+          isA<NaverAppSignIn>().having(
+            (r) => r.accessToken,
+            'accessToken',
+            'second_token',
+          ),
+        );
+        expect(logoutCalls, 1, reason: '새 로그인 finally 가 소비한다');
+        expect(violations, isEmpty, reason: '겹친 plugin 호출: $violations');
+      });
+      expectNoSecrets(logs);
+    });
   });
 }
