@@ -1158,6 +1158,10 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
     `SceneDelegate` 가 플러그인보다 먼저 기록합니다. URL 이 도착했으면 한도 없이
     기다립니다(느린 망의 성공을 버리지 않습니다). 알림 · 제어 센터처럼 background
     를 거치지 않는 비활성은 판정하지 않습니다.
+    0.3초 보정 중에 킷이 다시 background 로 가면(`paused`) 그 판정은 하지 않고,
+    다음 복귀(`resumed`)가 0.3초를 새로 셉니다 — 보류는 항상 마지막 복귀
+    기준입니다. 그래서 킷에 잠깐 돌아왔다가 0.3초 안에 NAVER 로 되돌아가도 그
+    복귀로는 포기하지 않습니다.
   - **0.3초는 로그인 대기 한도가 아니라 복귀 직후 순서 보정입니다.** 16.11 실측
     (iPhone 16 Pro · iOS 26.6 · 로그인 1회)에서는 콜백 URL 이 Flutter `resumed`
     보다 357ms 먼저 도착했습니다(순서 URL → 앱 활성화 → `resumed`) — 보정 안에서
@@ -1172,6 +1176,11 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   - **진단 (debug 빌드 로그 · 코드 문자열 그대로):**
     - `Naver logIn 포기: reason=no_callback_after_resume` — 결과 없는 복귀로 요청을
       포기했습니다(silent 취소).
+    - `Naver logIn 포기: reason=lifecycle_subscribe_failed` — 포기 판정용 lifecycle
+      구독을 만들지 못해, 이미 시작된 요청을 고아로 두고 이번 탭을 오류 배너
+      (`ServiceUnavailable`)로 끝냈습니다 — silent 취소가 아닙니다. production 에서는
+      재현 경로가 없습니다. 이 줄이 보이면 Flutter binding(`WidgetsBinding`)
+      초기화 상태를 먼저 확인하십시오.
     - `Naver logIn 복귀 판정: callback=arrived (계속 대기)` — 복귀 때 콜백 URL 이 와
       있어 결과를 계속 기다립니다.
     - `Naver logIn stale 슬롯 재시도: method=logIn|logOut` — 플러그인에 남은 슬롯이
