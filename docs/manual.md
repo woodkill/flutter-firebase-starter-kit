@@ -1019,10 +1019,14 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android
   NAVER 12.23.72)에서 로그인 완료까지 확인했습니다 — `navercustomtoken` 의
   `naver_custom_token_issued`(`path = "app"`) 로 교차 확인했고, 기록은
   `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md`
+  입니다. Phase 16.11 이 취소 · 미복귀 처리를 바꾼 뒤에도 같은 단말(2026-09-30)에서
+  로그인 완료 · 동의 화면 [Cancel] · 결과 없는 복귀를 다시 확인했습니다 — 기록은
+  `.planning/phases/16.11-naver-ios-one-tap-unwedge-and-cancel/uat-evidence/ios-uat-16.11.md`
   입니다.
 - iOS 첫 1-tap 에서는 iOS 가 「"<앱 이름>" wants to open "NAVER"」 확인 알림을
-  띄웁니다. [Open] 을 눌러야 NAVER 앱으로 넘어갑니다. [Cancel] 은 오류 배너가
-  됩니다(Pitfall 11).
+  띄웁니다. [Open] 을 눌러야 NAVER 앱으로 넘어갑니다. [Cancel] 을 누르면 오류 배너 없이 로그인 화면으로 돌아옵니다(Pitfall 11 · Phase 16.11).
+  이 알림 [Cancel] 의 실기기 확인은 16.11 UAT 에서 알림이 뜨지 않아 하지 못했고
+  (미실측) iOS batch UAT 로 넘겼습니다 — 판정은 단위 테스트가 고정합니다.
 - Naver Developers 의 앱이 **개발 중 상태**이면 등록된 아이디만 로그인할 수
   있습니다. NAVER 앱에 로그인된 계정이 등록되지 않았으면 NAVER 앱이 「입력하신
   아이디로 로그인할 수 없습니다 … 개발 중 상태에서는 등록된 아이디만 로그인할 수
@@ -1089,6 +1093,8 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   앱 쪽 대기 한도를 두지 않는 것은 Naver · LINE · Kakao 공통 정책입니다(2026-09-28
   결정). 근거 · 대기 중 잠기는 것 · 재검토 조건은 「Multi-Provider Account Linking
   (Phase 9.2)」 절 §5 를 참조하십시오.
+  예외: iOS NAVER 앱 1-tap 에서 결과 없이 돌아온 경우는 대기가 아니라 포기 신호로 본다(Pitfall 12 · Phase 16.11).
+  이렇게 포기한 요청의 결과가 늦게 오면 킷이 그 결과를 버리고 logout 합니다.
 - **Pitfall 2 (race-fix logout 위치):** D-57 — `signInWithNaver` finally 블록의
   `_naverSdkClient.logout()` 호출은 `_socialLinkInProgress.end()` 직전 위치.
   Plan 13-03 정착, verifyInOrder 정적 가드 보유.
@@ -1118,45 +1124,79 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
   - 그래서 Android 에서 「눌렀는데 아무 반응이 없다」 는 제보를 받으면, 먼저
     debug 로그에 취소 로그(`Naver logIn cancel: status=loggedOut …`)가 찍혔는지
     확인하십시오. 사용자가 취소한 적이 없는데 이 줄이 있다면 취소가 아니라
-    흡수된 오류입니다 (Pitfall 12 의 무반응과 원인이 다릅니다).
-  - **iOS 고정 리터럴은 웹 경로 취소에만 맞습니다.** iOS NAVER 앱 1-tap 경로의
-    취소는 그 리터럴로 오지 않고 오류 배너(「서비스를 일시적으로 사용할 수
-    없습니다.」)가 됩니다. 2026-09-29 실기기 관측(debug 로그의 message 이름)은 두
-    가지입니다. NAVER 동의 화면 [취소] → `ios_sdk_nid_given_error`(native
-    `access_denied`). iOS 「앱 열기」 확인 알림 [Cancel] →
-    `ios_sdk_naver_app_not_installed`. 표면 수정은 미결정이며
-    `.planning/todos/pending/2026-09-29-ios-naver-1tap-cancel-banner.md` 가
-    추적합니다.
-- **Pitfall 12 (iOS 1-tap 미복귀 wedge) — 미해결 · 실기기 재현됨 (2026-09-29, iPhone 16 Pro · iOS 26.6):**
-  iOS 에서 NAVER 앱으로 넘어간 뒤 사용자가 돌아오지 않으면(홈으로 나감 · NAVER
-  강제 종료) 원래 `logIn()` 호출의 결과가 영영 오지 않습니다. 킷은 그 결과를
-  기다리는 동안 in-flight 가드와 로그인 화면의 로딩 상태를 쥐고 있으므로 Naver
-  로그인이 잠깁니다.
-  - 증상은 **2단계**입니다. ① 킷으로 돌아온 직후에는 로그인 화면에 어두운 막 +
-    스피너 + 「로그인 처리 중…」 이 남아 버튼 탭을 흡수합니다(로그 한 줄도 없음).
-    ② 뒤로 가서 로그인 화면을 다시 열면 막은 사라지지만, 오류 배너도 로딩도 없이
-    Naver 버튼을 눌러도 아무 반응이 없습니다. 가드에 걸린 재진입은 `null` 로
-    돌아오고 킷은 그것을 사용자 취소와 같게(= silent) 처리합니다.
-  - 진단: ② 단계에서는 debug 빌드 로그에 탭마다 `Naver logIn 재진입 무시
-    (in-flight)` 와 `NaverSdkClient.logout 지연 (in-flight)` 가 한 쌍씩 찍힙니다.
-    이 쌍이 탭마다 찍히면 단말 · 계정 · 콘솔 설정이 아니라 이 wedge 입니다(UAT
-    에서 가장 오진하기 쉬운 증상). ① 단계는 로그가 없으므로, 화면에 로딩 막이
-    남아 있는지로 판단합니다.
-  - 복구 (실기기 관측):
-    - NAVER 앱으로 돌아가 결과를 내면 풀립니다. 동의 화면이 그대로 남아 있었고,
-      [취소] → 킷 복귀 시 기다리던 결과가 도착해 가드가 해제됐습니다.
-    - **cold restart**(앱 완전 종료 후 재실행)로 풀립니다. 첫 탭부터 정상입니다.
-    - **hot restart**(개발 중) 뒤에는 첫 탭이 한 번 「서비스를 일시적으로 사용할 수
-      없습니다.」 배너(debug 로그 `message=ios_plugin_request_in_progress`)로
-      소모되고, 두 번째 탭부터 정상입니다. 플러그인 내부 대기 슬롯은 이 1회
-      거부로 비워집니다. 「이후 모든 메서드가 거부된다」 는 이전 서술은 관측으로
-      뒤집혔습니다.
-  - 킷의 in-flight 가드는 **요청 폭주만 막는 부분 완화**입니다 — 이미 잠긴 상태를
-    풀지 못합니다. 남는 잠금은 킷 쪽 대기(가드 + 로딩 상태)입니다.
-  - 관측 기록: `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md`
-    (W1 · W2 REPRODUCED · R1 RECOVERED · R2 PARTIAL · R3 RECOVERED, 단말 1대 ·
-    그룹당 1회). 해제 방안은 `.planning/todos/pending/2026-09-20-naver-ios-one-tap-pending-wedge.md`
-    가 추적합니다.
+    흡수된 오류입니다 (Pitfall 12 의 옛 wedge 와 원인이 다릅니다).
+  - **iOS NAVER 앱 1-tap 의 취소 표면 2종도 silent 입니다 (Phase 16.11).** 1-tap
+    취소는 플러그인 리터럴이 아니라 NAVER SDK 오류 문구로 옵니다. 킷은 두 문구를
+    iOS 1-tap 경로에서만, **완전 일치**일 때만 취소로 봅니다.
+    - NAVER 동의 화면 [취소] → 73자 문구(`kNaverIosAppAccessDeniedMessage`)와
+      완전 일치할 때만 취소입니다. debug 로그 이름은 `ios_sdk_nid_access_denied` 입니다
+      (2026-09-30 실기기 확인 — 배너 · 로딩 막 없이 로그인 화면으로 돌아옴).
+    - iOS 「앱 열기」 확인 알림 [Cancel] → `ios_sdk_naver_app_not_installed` 문구를
+      1-tap 경로에서만 취소로 봅니다(실제 미설치 단말은 설치 판정에서 웹 경로로
+      먼저 가므로 이 매핑에 닿지 않습니다). 16.11 UAT 에서는 알림이 뜨지 않아
+      실기기로 확인하지 못했고(미실측), iOS batch UAT 로 넘겼습니다.
+    - **이 문구의 SDK 발생 조건은 알림 [Cancel] 보다 넓습니다.** SDK 는
+      `UIApplication.shared.open` 완료 `false` 전부를 이 오류로 만듭니다(NAVER iOS
+      SDK 5.2.1 `DefaultAppAuthorizationCodeRepository.swift:49-64`). 그래서 NAVER
+      앱은 설치돼 있으나 실행이 막힌 단말(스크린 타임 · MDM 제한 등)도 같은 문구로
+      와 silent 취소가 됩니다 — iOS 1-tap 에서 「눌렀는데 반응이 없다」 는 제보를
+      받으면 이 제한부터 확인하십시오.
+    - 둘 다 완전 일치이고, Android 1-tap · 킷 웹 경로의 판정은 바뀌지 않았습니다
+      (`isNaverUserCancel` 의 `isIosOneTap` 인자 — Android 호출부는 `false`).
+- **Pitfall 12 (iOS 1-tap 미복귀 wedge) — 해결됨 (Phase 16.11):**
+  iOS 에서 NAVER 앱으로 넘어간 뒤 결과 없이 킷으로 돌아오면(홈으로 나갔다가 킷
+  아이콘으로 복귀 · NAVER 강제 종료 뒤 복귀) 킷이 로그인 요청을 자동으로 **silent
+  취소**합니다. 로딩 막이 사라지고 오류 배너는 뜨지 않으며, Naver 버튼을 다시
+  누르면 NAVER 가 새로 열립니다 — 앱을 다시 켤 필요가 없습니다(2026-09-30
+  실기기 확인: 홈 복귀 · NAVER 강제 종료 두 경우 모두, 다음 탭도 NAVER 열림).
+  - **판정 신호:** 킷 앱이 실제로 background 에 갔다가(`paused` 뒤 `resumed`)
+    돌아왔고, 돌아온 뒤 `kNaverResumeSettleDelay`(0.3초 — LINE SDK 와 같은 값) 안에
+    Naver 콜백 URL 이 도착하지 않았을 때만 포기합니다. 콜백 URL 은 iOS Runner
+    `SceneDelegate` 가 플러그인보다 먼저 기록합니다. URL 이 도착했으면 한도 없이
+    기다립니다(느린 망의 성공을 버리지 않습니다). 알림 · 제어 센터처럼 background
+    를 거치지 않는 비활성은 판정하지 않습니다.
+  - **0.3초는 로그인 대기 한도가 아니라 복귀 직후 순서 보정입니다.** 16.11 실측
+    (iPhone 16 Pro · iOS 26.6 · 로그인 1회)에서는 콜백 URL 이 Flutter `resumed`
+    보다 357ms 먼저 도착했습니다(순서 URL → 앱 활성화 → `resumed`) — 보정 안에서
+    URL 을 기다릴 필요도 없었습니다.
+  - **뒷정리:** 포기한 요청은 플러그인 안에 남아 있습니다(고아 대기). 그동안 킷은
+    플러그인을 부르지 않고 logout 을 미룹니다 — 늦은 동의 토큰이 단말에 남지 않게
+    하려는 것입니다. 늦게 결과가 오면 킷은 결과를 버리고 logout 합니다(2026-09-30
+    실기기 확인: 포기 뒤 NAVER 로 돌아가 [동의] → 로그인되지 않음 · 배너 0 · 서버
+    발급 0 · 다음 탭이 NAVER 를 거침). 다음 탭은 남은 슬롯 때문에 플러그인에서 한 번
+    거부되고, 킷이 1회 자동 재시도합니다. hot restart 뒤 첫 탭도 같습니다(실기기
+    확인 — 예전의 첫 탭 `ios_plugin_request_in_progress` 배너가 사라짐).
+  - **진단 (debug 빌드 로그 · 코드 문자열 그대로):**
+    - `Naver logIn 포기: reason=no_callback_after_resume` — 결과 없는 복귀로 요청을
+      포기했습니다(silent 취소).
+    - `Naver logIn 복귀 판정: callback=arrived (계속 대기)` — 복귀 때 콜백 URL 이 와
+      있어 결과를 계속 기다립니다.
+    - `Naver logIn stale 슬롯 재시도: method=logIn|logOut` — 플러그인에 남은 슬롯이
+      한 번 거부됐고 킷이 1회 재시도합니다.
+    - `Naver logIn 고아 대기 해제: reason=stale_rejected` — 그 거부로 고아 슬롯이
+      비워져 고아 대기가 끝났습니다.
+    - `Naver logIn 고아 결과 도착: …` — 포기한 요청의 결과가 늦게 왔고, 킷이 버린 뒤
+      logout 합니다(꼬리는 status 이름 + 로그 이름 또는 예외 타입뿐입니다).
+    - `NaverSdkClient.logout 지연 (orphan-wait)` — 고아 대기 중이라 logout 을
+      플러그인에 보내지 않고 미뤘습니다.
+  - **잔여 한계:**
+    - 새 요청이 끝난 **뒤** 옛 NAVER 화면에서 늦게 동의하면 토큰이 다음 로그인까지
+      단말에 남을 수 있습니다. SDK 가 옛 요청을 정리하지 않아 킷이 알 수 없습니다.
+      발생 조건은 극히 좁고(새 1-tap 을 끝낸 뒤 앱 전환기로 옛 동의 화면에 돌아가
+      [동의]) 미실측이며, 다음 로그인의 finally 가 지웁니다.
+    - naver 플러그인보다 먼저 등록된 플러그인이 Naver URL 을 삼키면, URL 은 도착했는데
+      결과가 오지 않아 계속 기다립니다. `flutter_facebook_auth` 7.2.0 의
+      `scene(_:openURLContexts:)` 가 Bool 을 반환하지 않는 구현이라 잠재 원인입니다
+      (16.11 소스 조사 · 발생 미관측). 로그에 `callback=arrived` 뒤 `Naver logIn 도착`
+      이 없으면 이 항목을 먼저 의심하십시오.
+    - 로그인 밖 3개 표면(연결 · 재인증 · 탈퇴 끊기)은 같은 `null` 경로라 코드가
+      같지만, iOS 실기기 확인은 iOS batch UAT 로 넘겼습니다(미실측).
+  - **이력:** 2026-09-29 관측(260929-snf)에서는 로딩 막 → 로그인 화면 재개방 뒤
+    무반응의 2단계로 잠겼고, NAVER 로 돌아가 결과를 내거나 앱을 다시 켜야
+    풀렸습니다. 기록은
+    `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md` ·
+    `.planning/phases/16.11-naver-ios-one-tap-unwedge-and-cancel/uat-evidence/ios-uat-16.11.md`
+    입니다.
 - **Pitfall 13 (토큰 객체 문자열 보간):** 플러그인의 토큰 클래스는 `toString` 이
   access token 과 refresh token **전문**을 출력합니다. 토큰 객체를 로그 ·
   Crashlytics 에 넣지 말고 필요한 필드 하나만 꺼내 쓰십시오.
