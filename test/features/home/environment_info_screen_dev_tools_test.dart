@@ -10,6 +10,7 @@ import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/home/presentation/environment_info_screen.dart';
+import 'package:flutter_starter_kit/features/notifications/data/test_push_client.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,6 +28,9 @@ class MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 /// [AnalyticsService] mock.
 class MockAnalyticsService extends Mock implements AnalyticsService {}
+
+/// [TestPushClient] mock (Phase 17 plan 18 — 테스트 알림 버튼).
+class MockTestPushClient extends Mock implements TestPushClient {}
 
 /// [RecordingOnboardingNotifier] 의 [OnboardingNotifier.reset] 호출 횟수를
 /// notifier 밖에서 기록하는 recorder.
@@ -75,6 +79,7 @@ class DevToolsTestEnv {
     required this.analytics,
     required this.authRepo,
     required this.onboardingRecorder,
+    required this.testPushClient,
   });
 
   /// Crashlytics mock.
@@ -88,10 +93,20 @@ class DevToolsTestEnv {
 
   /// OnboardingNotifier 의 reset 호출 기록.
   final OnboardingResetRecorder onboardingRecorder;
+
+  /// TestPushClient mock — `send()` 는 각 테스트가 stub 한다.
+  final MockTestPushClient testPushClient;
 }
 
-Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(800, 8000);
+/// Dev Tools 를 포함한 [EnvironmentInfoScreen] 을 띄운다.
+///
+/// [locale] 은 앱 언어(기본 en)이고 [width] 는 논리 폭(기본 800)이다.
+Future<DevToolsTestEnv> pumpDevToolsHarness(
+  WidgetTester tester, {
+  Locale locale = const Locale('en'),
+  double width = 800,
+}) async {
+  tester.view.physicalSize = Size(width, 8000);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
@@ -120,6 +135,8 @@ Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
   final mockAuth = MockFirebaseAuth();
   when(() => mockAuth.currentUser).thenReturn(null);
 
+  final mockTestPush = MockTestPushClient();
+
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -143,10 +160,11 @@ Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
         crashlyticsServiceProvider.overrideWithValue(mockCrash),
         analyticsServiceProvider.overrideWithValue(mockAnalytics),
         onboardingProvider.overrideWith(() => recordingOnboarding),
+        testPushClientProvider.overrideWithValue(mockTestPush),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
@@ -160,6 +178,7 @@ Future<DevToolsTestEnv> pumpDevToolsHarness(WidgetTester tester) async {
     analytics: mockAnalytics,
     authRepo: mockRepo,
     onboardingRecorder: onboardingRecorder,
+    testPushClient: mockTestPush,
   );
 }
 
@@ -261,5 +280,43 @@ void main() {
         verify(() => env.authRepo.signOutAndResetOnboarding()).called(1);
       },
     );
+  });
+
+  group('Phase 17 테스트 알림 (T-17-SEND)', () {
+    testWidgets('T-17-SEND-03 Analytics 다음 · 강제 로그아웃 앞 버튼 → 탭 → client 1회 → '
+        '성공 SnackBar(floating)', (tester) async {
+      final env = await pumpDevToolsHarness(tester, locale: const Locale('ko'));
+      when(
+        () => env.testPushClient.send(),
+      ).thenAnswer((_) async => const TestPushSent(2));
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(EnvironmentInfoScreen)),
+      );
+      final sendButton = find.widgetWithText(
+        OutlinedButton,
+        l10n.devToolsSendTestPush,
+      );
+      await _scrollTo(tester, sendButton);
+
+      // 위치: Analytics < 테스트 알림 < 강제 로그아웃 (UI-SPEC (T)).
+      final analyticsY = tester
+          .getTopLeft(find.text(l10n.devToolsTriggerAnalytics))
+          .dy;
+      final sendY = tester.getTopLeft(sendButton).dy;
+      final signOutY = tester
+          .getTopLeft(find.text(l10n.devToolsForceSignOut))
+          .dy;
+      expect(analyticsY, lessThan(sendY));
+      expect(sendY, lessThan(signOutY));
+
+      await tester.ensureVisible(sendButton);
+      await tester.tap(sendButton);
+      await tester.pumpAndSettle();
+
+      verify(() => env.testPushClient.send()).called(1);
+      expect(find.text('기기 2대에 테스트 알림을 보냈어요.'), findsOneWidget);
+      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(snackBar.behavior, SnackBarBehavior.floating);
+    });
   });
 }

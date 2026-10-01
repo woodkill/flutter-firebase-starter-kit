@@ -21,6 +21,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
+import '../../notifications/data/test_push_client.dart';
 import '../../notifications/presentation/pending_notification_route_listener.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 import '_widgets/announcement_bar.dart';
@@ -1217,14 +1218,16 @@ class _ProtectedExampleSection extends ConsumerWidget {
 /// release 빌드에서 `kDebugMode == false` 상수 분기를 tree-shake 한다
 /// (T-10-16 방어).
 ///
-/// 제공 기능 4종:
+/// 제공 기능 5종:
 /// 1. Reset onboarding — [OnboardingNotifier.reset] 호출 (Plan 03 public,
 ///    `@visibleForTesting` 없음; WARNING #8 lint clean).
 /// 2. Trigger error — [CrashlyticsService.recordError] 호출.
 /// 3. Trigger analytics — [AnalyticsService.logEvent] 호출.
-/// 4. Force sign out — [AuthRepository.signOutAndResetOnboarding] 호출
+/// 4. Send test push — [TestPushClient.send] 호출 (Phase 17 D-05 ·
+///    [_SendTestPushButton]).
+/// 5. Force sign out — [AuthRepository.signOutAndResetOnboarding] 호출
 ///    (Phase 10.2 D-A4 — production `_confirmSignOut` 와 완전 동일 동작,
-///    I2 invariant 단일 진리원).
+///    I2 invariant 단일 진리원). destructive 계열이라 계속 마지막이다.
 class _DevToolsSection extends ConsumerWidget {
   const _DevToolsSection();
 
@@ -1330,12 +1333,64 @@ class _DevToolsSection extends ConsumerWidget {
           child: Text(l10n.devToolsTriggerAnalytics),
         ),
         Gap(spacing.md),
+        // Phase 17 D-05 · UI-SPEC (T) — Analytics 다음 · 강제 로그아웃 앞.
+        const _SendTestPushButton(),
+        Gap(spacing.md),
         OutlinedButton(
           onPressed: () => _handleForceSignOut(context, ref),
           style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
           child: Text(l10n.devToolsForceSignOut),
         ),
       ],
+    );
+  }
+}
+
+/// Dev Tools 「나에게 테스트 알림 보내기」 버튼 (Phase 17 D-05 · UI-SPEC (T)).
+///
+/// 탭하면 [TestPushClient.send] 로 내 계정의 모든 기기에 테스트 알림을
+/// 요청하고 결과를 floating SnackBar 로 알린다. 요청 중에는 버튼을 비활성화해
+/// 중복 탭을 막는다(라벨 · 크기 불변 · 서버 rate limit 과 짝).
+class _SendTestPushButton extends ConsumerStatefulWidget {
+  // `key` 를 받는 형태로 둔다 — 생성자 선언 줄이 호출부
+  // `const _SendTestPushButton()` 과 같은 문자열이 되지 않게 해 Dev Tools 버튼
+  // 순서 단언(plan 17-18 verify 의 줄 번호 비교)이 호출부 1줄만 보게 한다.
+  // ignore: unused_element_parameter
+  const _SendTestPushButton({super.key});
+
+  @override
+  ConsumerState<_SendTestPushButton> createState() =>
+      _SendTestPushButtonState();
+}
+
+class _SendTestPushButtonState extends ConsumerState<_SendTestPushButton> {
+  /// 요청 진행 중 여부 — true 면 버튼이 비활성이다.
+  bool _sending = false;
+
+  /// 테스트 알림을 요청하고 결과 SnackBar 를 띄운다.
+  Future<void> _send() async {
+    setState(() => _sending = true);
+    try {
+      final outcome = await ref.read(testPushClientProvider).send();
+      if (!mounted) return;
+      final l10n = context.l10n;
+      final message = switch (outcome) {
+        TestPushSent(:final count) => l10n.devToolsSendTestPushDone(count),
+        _ => l10n.errorUnknown,
+      };
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: _sending ? null : _send,
+      child: Text(context.l10n.devToolsSendTestPush),
     );
   }
 }
