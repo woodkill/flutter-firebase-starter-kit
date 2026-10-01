@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Push Notifications capability (Phase 17 D-07 — see ROADMAP.md). Xcode 가 기입하는
+	     형식과 같다. 출시(App Store · TestFlight) 빌드는 production 으로 바꾼다(매뉴얼). -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>

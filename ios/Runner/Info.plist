@@ -91,6 +91,11 @@
 		<string>$(DISPLAY_NAME)</string>
 		<key>NidUrlScheme</key>
 		<string>$(NAVER_URL_SCHEME)</string>
+		<!-- 갤러리 사진 선택 권한 문구 (Phase 17 D-15 — see ROADMAP.md).
+		     image_picker README 필수 키. 이 plist 에는 lproj 현지화가 없으므로
+		     영문 1문장이며, 현지화는 InfoPlist.strings 로 추가한다(매뉴얼 커스터마이징 포인트). -->
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Choose a photo from your library to use as your profile photo.</string>
 		<key>CFBundleVersion</key>
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
@@ -118,6 +123,14 @@
 		</dict>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
+		<!-- FCM 백그라운드 수신 (Phase 17 D-07 — see ROADMAP.md). Xcode Background Modes
+		     capability 의 Background fetch · Remote notifications 와 같은 값.
+		     실기기 APNs 검증은 Phase 18 iOS batch. -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>fetch</string>
+			<string>remote-notification</string>
+		</array>
 		<key>UILaunchStoryboardName</key>
 		<string>LaunchScreen</string>
 		<key>UIMainStoryboardFile</key>

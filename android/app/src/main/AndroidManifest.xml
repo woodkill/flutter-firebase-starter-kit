@@ -75,6 +75,20 @@
             android:name="com.naver.sdk.logEnabled"
             android:value="false" />
 
+        <!-- Phase 17 — see ROADMAP.md · FCM 백그라운드 · 종료 상태 알림 기본값 (D-01) ·
+             채널 id 는 plan 16 의 로컬 알림 채널과 같다. 앱이 백그라운드 · 종료
+             상태일 때는 Flutter 가 아니라 OS 가 알림을 그리므로 아이콘 · 색 · 채널을
+             여기서 정한다. 알림 권한 선언은 플러그인 manifest 가 병합한다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="general" />
+
         <!-- Phase 16.5 D-07 · D-09 · G-16.5-2 — 킷 소유 웹 OAuth 콜백 relay
              (NAVER 앱 미설치 경로 · Auth Tab 미지원 브라우저의 Custom Tab fallback).
              flutter_web_auth_2 README 는 라이브러리 콜백 Activity 선언을 요구하지만,

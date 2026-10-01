@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Phase 17 — see ROADMAP.md (D-01 · UI-SPEC §(O)).
+         FCM 백그라운드 · 종료 상태 알림 색. = AppTheme.seedColor (Colors.deepPurple 500) —
+         OS 가 그리는 알림이라 Flutter 테마 토큰을 읽을 수 없다(UI-SPEC §Color 예외).
+         seedColor 를 바꾸면 이 상수도 함께 바꾼다. -->
+    <color name="notification_color">#673AB7</color>
+</resources>
