@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -75,18 +76,49 @@ enum NotificationToggleResult {
 /// 경로 · 스키마는 `FcmTokenRepository` · `FcmToken` 이 정한다.
 @Riverpod(keepAlive: true)
 class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
+  /// 켜진 동안 FCM 토큰 갱신을 듣는 구독 (D-33 · 토큰 교체).
+  StreamSubscription<String>? _tokenRefreshSubscription;
+
+  /// 정식 사용자면 OS 권한 · opt-in 을 읽고 현 기기 토큰 문서를 맞춘다.
+  ///
+  /// 앱 시작(`app.dart` 가 활성화) · 앱 복귀(`AppLifecycleState.resumed`) ·
+  /// 앱 언어 변경 · 로그인 계정 변경 때마다 다시 실행된다 (D-31 · D-32 ·
+  /// D-33):
+  /// - 권한 `authorized` 아님 → 등록 토큰 문서 삭제(결과 무시) · 등록 키
+  ///   제거 · false. opt-in 은 건드리지 않는다(사용자 의사 보존).
+  /// - 권한 `authorized` ∧ opt-in → 토큰 재등록(`expireAt` = 지금 + 30일 ·
+  ///   locale = 앱 언어) · 토큰 갱신 구독 · true.
+  /// - 재등록 실패 → [NotificationSettingsUpdateException] (섹션 오류 배너 +
+  ///   재시도 · Riverpod 기본 재시도도 적용된다).
   @override
   Future<bool> build() async {
     if (!ref.watch(isFirebaseInitializedProvider)) return false;
+    // D-31 — 앱 언어가 바뀌면 재빌드되어 켜진 기기의 토큰 문서 locale 을 갱신한다.
+    final localeCode = ref.watch(localeProvider).languageCode;
     final messaging = ref.watch(messagingServiceProvider);
     final uid = await ref.watch(authStateProvider.selectAsync(_regularUidOf));
-    if (uid == null) return false;
+    if (uid == null || !ref.mounted) return false;
+
+    // D-32 — 앱 복귀 때마다 OS 권한을 다시 읽는다(앱 밖 설정 변경 반영).
+    final lifecycle = AppLifecycleListener(onResume: _onResume);
+    ref.onDispose(lifecycle.dispose);
+    ref.onDispose(_stopTokenRefresh);
 
     final prefs = await SharedPreferences.getInstance();
-    final optIn = prefs.getBool(kNotificationsOptInKey) ?? false;
-    if (!optIn) return false;
     final status = await messaging.getAuthorizationStatus();
-    return status == AuthorizationStatus.authorized;
+    if (!ref.mounted) return false;
+    if (status != AuthorizationStatus.authorized) {
+      await _forgetRegisteredToken(uid, prefs);
+      return false;
+    }
+    if (!(prefs.getBool(kNotificationsOptInKey) ?? false)) return false;
+
+    if (!await _register(uid, localeCode: localeCode)) {
+      throw const NotificationSettingsUpdateException();
+    }
+    if (!ref.mounted) return false;
+    _startTokenRefresh(uid);
+    return true;
   }
 
   /// 「알림 받기」 를 켠다 — 권한 요청 → 토큰 등록 (D-03).
@@ -134,6 +166,7 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
       localeCode: ref.read(localeProvider).languageCode,
     );
     if (!registered) return NotificationToggleResult.failed;
+    _startTokenRefresh(uid);
     state = const AsyncData(true);
     return NotificationToggleResult.enabled;
   }
@@ -151,17 +184,26 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
     }
     await prefs.setBool(kNotificationsOptInKey, false);
     await prefs.remove(kNotificationsRegisteredTokenKey);
+    _stopTokenRefresh();
     state = const AsyncData(false);
     return NotificationToggleResult.disabled;
   }
 
-  /// 현 기기 토큰을 받아 `users/{uid}/fcmTokens/{token}` 에 쓰고 등록 키에
-  /// 기억한다. 성공하면 true.
+  /// 현 기기 토큰을 `users/{uid}/fcmTokens/{token}` 에 쓰고 등록 키에
+  /// 기억한다. 성공하면 true (D-31 · D-33).
   ///
-  /// 권한 `authorized` 를 확인한 호출부만 부른다(Pitfall 3).
-  Future<bool> _register(String uid, {required String localeCode}) async {
-    final token = await ref.read(messagingServiceProvider).getToken();
-    if (token == null) return false;
+  /// [token] 이 없으면 SDK 에서 받는다 — 권한 `authorized` 를 확인한 호출부만
+  /// 부른다(Pitfall 3). `expireAt` = 지금 + [kFcmTokenTtl] 로 다시 쓰고,
+  /// 이전 등록 토큰과 다르면 그 문서를 지운다(결과 무시 — 남은 문서는 TTL ·
+  /// 발송 실패 정리가 지운다).
+  Future<bool> _register(
+    String uid, {
+    required String localeCode,
+    String? token,
+  }) async {
+    final newToken =
+        token ?? await ref.read(messagingServiceProvider).getToken();
+    if (newToken == null) return false;
 
     final result = await _writeWithTimeout(
       () => ref
@@ -169,7 +211,7 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
           .upsert(
             uid: uid,
             token: FcmToken.forDevice(
-              token: token,
+              token: newToken,
               platform: _devicePlatform(),
               locale: normalizeFcmLocale(localeCode),
               now: DateTime.now(),
@@ -179,8 +221,66 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
     if (result is! Success<void>) return false;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(kNotificationsRegisteredTokenKey, token);
+    final previous = prefs.getString(kNotificationsRegisteredTokenKey);
+    if (previous != null && previous != newToken) {
+      await _deleteTokenDocument(uid, previous);
+    }
+    await prefs.setString(kNotificationsRegisteredTokenKey, newToken);
     return true;
+  }
+
+  /// 등록 토큰 문서를 지우고 등록 키를 제거한다 — 권한이 꺼졌을 때 (D-32).
+  ///
+  /// 문서 삭제는 기다리지 않는다(결과 무시 · 오프라인이면 연결 뒤 전송).
+  /// opt-in 은 남긴다.
+  Future<void> _forgetRegisteredToken(
+    String uid,
+    SharedPreferences prefs,
+  ) async {
+    final token = prefs.getString(kNotificationsRegisteredTokenKey);
+    if (token == null) return;
+    await prefs.remove(kNotificationsRegisteredTokenKey);
+    unawaited(_deleteTokenDocument(uid, token));
+  }
+
+  /// FCM 토큰 갱신 구독을 (다시) 시작한다 — 새 토큰이 오면 재등록 (D-33).
+  void _startTokenRefresh(String uid) {
+    _stopTokenRefresh();
+    _tokenRefreshSubscription = ref
+        .read(messagingServiceProvider)
+        .onTokenRefresh
+        .listen((token) => unawaited(_onTokenRefreshed(uid, token)));
+  }
+
+  /// FCM 토큰 갱신 구독을 멈춘다.
+  void _stopTokenRefresh() {
+    unawaited(_tokenRefreshSubscription?.cancel());
+    _tokenRefreshSubscription = null;
+  }
+
+  /// 새 토큰 [token] 을 등록하고 옛 문서를 지운다. 끈 뒤(opt-in false)에
+  /// 도착한 갱신은 무시한다. best-effort — 실패는 다음 동기화가 맞춘다.
+  Future<void> _onTokenRefreshed(String uid, String token) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool(kNotificationsOptInKey) ?? false)) return;
+      if (!ref.mounted) return;
+      await _register(
+        uid,
+        localeCode: ref.read(localeProvider).languageCode,
+        token: token,
+      );
+    } on Object catch (e) {
+      // 토큰 · uid 는 싣지 않는다 — 예외 타입 이름만.
+      if (kDebugMode) {
+        debugPrint('notification refresh sync failed: ${e.runtimeType}');
+      }
+    }
+  }
+
+  /// 앱 복귀 — 권한 · opt-in 을 다시 읽도록 재빌드한다 (D-32).
+  void _onResume() {
+    ref.invalidateSelf();
   }
 
   /// `users/{uid}/fcmTokens/{token}` 문서를 지운다 (쓰기 대기 상한 적용).

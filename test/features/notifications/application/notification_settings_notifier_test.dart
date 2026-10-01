@@ -5,16 +5,24 @@
 // - 토큰 저장은 정식 사용자만 · 권한 확인 전 getToken 0 (D-02 정정 · Pitfall 3).
 // - enable · disable 은 guardAsyncValue 경유 (D-20 ②).
 //
+// Task 2 — 앱 시작 · 복귀 동기화(D-32) · 언어 변경 갱신(D-31) · expireAt 연장
+// (D-33) · onTokenRefresh 교체. 앱 복귀는 test binding 의 lifecycle 전이
+// (inactive → resumed)로 흉내 낸다.
+//
 // SDK · Firestore 는 mocktail 로 대체한다 — [MessagingService] ·
 // [FcmTokenRepository] · [CrashlyticsService]. SharedPreferences 는
 // `setMockInitialValues` 로 채운다. Riverpod 기본 재시도(build 오류 시 타이머)는
 // 결정성을 위해 container 에서 끈다.
+
+import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_starter_kit/app.dart';
+import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
@@ -140,11 +148,29 @@ fb.User _anonymousUser() {
   return user;
 }
 
+/// 앱 복귀를 흉내 낸다 — inactive → resumed 전이 (AppLifecycleListener
+/// onResume 조건).
+void _simulateResume() {
+  final binding = TestWidgetsFlutterBinding.instance
+    ..handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+}
+
+/// [repository] 에 upsert 된 토큰 문서를 호출 순서대로 돌려준다 (기록 소비).
+List<FcmToken> _capturedUpserts(_MockFcmTokenRepository repository) => verify(
+  () => repository.upsert(
+    uid: _uid,
+    token: captureAny(named: 'token'),
+  ),
+).captured.cast<FcmToken>();
+
 /// 현재 state 값 (build 완료 대기).
 Future<bool> _settledValue(ProviderContainer container) =>
     container.read(notificationSettingsProvider.future);
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   setUpAll(() {
     registerFallbackValue(
       FcmToken.forDevice(
@@ -369,6 +395,222 @@ void main() {
           fatal: any(named: 'fatal'),
         ),
       );
+    });
+    test('T-17-NOTIF-06: 앱 시작 — opt-in ∧ authorized 면 getToken → upsert '
+        '(expireAt = now+30d) · true. 복귀 때 권한 denied 면 등록 토큰 delete · '
+        'false · opt-in 유지, 다시 authorized 로 복귀하면 재등록 · true (D-32 · '
+        'D-33)', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+
+      final before = DateTime.now();
+      expect(await _settledValue(container), isTrue);
+      verify(() => h.messaging.getToken()).called(1);
+      final first = _capturedUpserts(h.repository);
+      expect(first, hasLength(1));
+      expect(first.single.token, _token1);
+      expect(
+        first.single.expireAt.difference(first.single.updatedAt),
+        kFcmTokenTtl,
+      );
+      expect(
+        first.single.updatedAt.isBefore(
+          before.subtract(const Duration(seconds: 1)),
+        ),
+        isFalse,
+      );
+      // 같은 토큰 재등록 — 옛 문서 delete 0.
+      verifyNever(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
+      verifyNever(() => h.messaging.requestPermission());
+
+      // 앱 밖에서 권한 off → 복귀.
+      when(
+        () => h.messaging.getAuthorizationStatus(),
+      ).thenAnswer((_) async => AuthorizationStatus.denied);
+      _simulateResume();
+      expect(await _settledValue(container), isFalse);
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
+      verifyNever(() => h.messaging.getToken());
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(kNotificationsOptInKey), isTrue);
+      expect(prefs.getString(kNotificationsRegisteredTokenKey), isNull);
+
+      // 다시 권한 on → 복귀 — 조용히 재등록.
+      when(
+        () => h.messaging.getAuthorizationStatus(),
+      ).thenAnswer((_) async => AuthorizationStatus.authorized);
+      _simulateResume();
+      expect(await _settledValue(container), isTrue);
+      expect(_capturedUpserts(h.repository), hasLength(1));
+      expect(prefs.getString(kNotificationsRegisteredTokenKey), _token1);
+      verifyNever(() => h.messaging.requestPermission());
+    });
+
+    test('T-17-NOTIF-06: 등록 실패(upsert Failure)는 false 가 아니라 '
+        'AsyncError(NotificationSettingsUpdateException) — 섹션 오류 배너', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      when(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) async => const Result<void>.failure(UnknownException()));
+      final container = h.container(user: _regularUser());
+
+      await expectLater(
+        _settledValue(container),
+        throwsA(isA<NotificationSettingsUpdateException>()),
+      );
+      expect(container.read(notificationSettingsProvider).hasError, isTrue);
+    });
+
+    test('T-17-NOTIF-07: 켜진 상태에서 앱 언어를 ja 로 바꾸면 upsert 1회 '
+        '(locale ja) (D-31)', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      expect(_capturedUpserts(h.repository).single.locale, 'ko');
+
+      await container
+          .read(localeProvider.notifier)
+          .setLocale(const Locale('ja'));
+      expect(await _settledValue(container), isTrue);
+
+      final afterChange = _capturedUpserts(h.repository);
+      expect(afterChange, hasLength(1));
+      expect(afterChange.single.locale, 'ja');
+      expect(afterChange.single.token, _token1);
+    });
+
+    test('T-17-NOTIF-08: onTokenRefresh 가 t2 를 내면 t2 upsert 1회 + t1 delete '
+        '1회 · 등록 키 = t2 (D-33 · 토큰 교체)', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final refresh = StreamController<String>.broadcast();
+      addTearDown(refresh.close);
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      when(() => h.messaging.onTokenRefresh).thenAnswer((_) => refresh.stream);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      expect(_capturedUpserts(h.repository).single.token, _token1);
+
+      refresh.add('t2');
+      await pumpEventQueue();
+
+      final refreshed = _capturedUpserts(h.repository);
+      expect(refreshed, hasLength(1));
+      expect(refreshed.single.token, 't2');
+      expect(refreshed.single.locale, 'ko');
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
+      verifyNever(() => h.repository.delete(uid: _uid, token: 't2'));
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(kNotificationsRegisteredTokenKey), 't2');
+    });
+
+    test('T-17-NOTIF-08: 끈 뒤에 온 토큰 갱신은 등록하지 않는다', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final refresh = StreamController<String>.broadcast();
+      addTearDown(refresh.close);
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      when(() => h.messaging.onTokenRefresh).thenAnswer((_) => refresh.stream);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      clearInteractions(h.repository);
+
+      expect(
+        await container.read(notificationSettingsProvider.notifier).disable(),
+        NotificationToggleResult.disabled,
+      );
+      refresh.add('t2');
+      await pumpEventQueue();
+
+      verifyNever(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
+    });
+
+    for (final (label, initialized, user)
+        in <(String, bool, fb.User? Function())>[
+          ('Firebase 미초기화', false, _regularUser),
+          ('익명', true, _anonymousUser),
+        ]) {
+      test('T-17-NOTIF-09: $label → 앱 복귀에도 MessagingService · repository '
+          '호출 0', () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          kNotificationsOptInKey: true,
+          kNotificationsRegisteredTokenKey: _token1,
+        });
+        final h = _Harness()
+          ..stubDefaults(status: AuthorizationStatus.authorized);
+        final container = h.container(user: user(), initialized: initialized);
+        expect(await _settledValue(container), isFalse);
+
+        _simulateResume();
+        expect(await _settledValue(container), isFalse);
+
+        verifyZeroInteractions(h.messaging);
+        verifyZeroInteractions(h.repository);
+      });
+    }
+
+    testWidgets('T-17-NOTIF-09: App 위젯(Firebase 미초기화) — 알림 notifier 가 '
+        '앱 시작 때 활성화되고 throw 0 · 값 false', (tester) async {
+      SplashConfig.overrideMinDuration = const Duration(milliseconds: 1);
+      addTearDown(() => SplashConfig.overrideMinDuration = null);
+      final h = _Harness()..stubDefaults();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(false),
+            messagingServiceProvider.overrideWithValue(h.messaging),
+            fcmTokenRepositoryProvider.overrideWithValue(h.repository),
+          ],
+          child: const App(),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(App)),
+      );
+      expect(container.exists(notificationSettingsProvider), isTrue);
+      expect(container.read(notificationSettingsProvider).value, isFalse);
+
+      _simulateResume();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      verifyZeroInteractions(h.messaging);
+      verifyZeroInteractions(h.repository);
     });
   });
 }
