@@ -45,6 +45,7 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_b
 import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_signup_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
+import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -240,7 +241,8 @@ enum _Entry {
 /// 한다. [_Entry.sheet] 는 [surface] 를 쓰지 않는다.
 ///
 /// override 목록은 다른 16.1 screen harness 와 동형이다
-/// (`authRepositoryProvider` + `activeStrategiesProvider`). [user] 가 있으면
+/// (`authRepositoryProvider` + `activeStrategiesProvider`) — Phase 17 부터
+/// 설정 화면 알림 섹션 꺼짐 고정(`notificationSettingsProvider`)을 더한다. [user] 가 있으면
 /// `currentUserProvider` 를 그 사용자로 고정한다 (재인증 모드 golden — 연결
 /// provider 필터 · 이메일 칸 입력). [repository] 가 없으면 [_mockRepository]
 /// 를 쓴다.
@@ -269,6 +271,12 @@ Future<void> _pumpSurface(
         ),
         activeStrategiesProvider.overrideWithValue(_sixStrategies),
         if (user != null) currentUserProvider.overrideWith((ref) => user),
+        // Phase 17 (UI-SPEC §Golden 캡처 계약 「2026-10-01 정정」) — 재인증
+        // 성공 → 설정 복귀 golden 이 실제 SettingsScreen 을 그리므로 알림
+        // 섹션을 꺼짐(AsyncData(false))으로 고정한다.
+        notificationSettingsProvider.overrideWithBuild(
+          (ref, notifier) => false,
+        ),
       ],
       child: _wrapApp(brightness: brightness, home: home),
     ),

@@ -76,6 +76,11 @@
 // 16.10 review IN-04 (iteration 3) — SU4 끊기 provider_config
 //   (ProviderMisconfigured) → settingsUnlinkFailedProviderConfig SnackBar · 연결 유지.
 //
+// Phase 17 Plan 17-15 Task 1 — 알림 섹션(Q3-A)이 계정 연결 아래 · Danger zone
+//   위에 들어가 두 pump harness 가 `notificationSettingsProvider` 를 꺼짐
+//   (AsyncData(false))으로 고정한다. T-17-NOTIF-12 — 고정 override 로 섹션이
+//   꺼짐 렌더 · 배치 순서 · Danger zone 탭 경로(ensureVisible 뒤) 회귀 0.
+//
 // 동일 패턴 audit (G-16-A6-1 missing 2번째 항목 — 2026-09-07 실행):
 //
 // 재실행 명령 (Task 1 verify 와 동일):
@@ -128,10 +133,12 @@ import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_steps.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/account_linking_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/danger_zone_section.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/_widgets/notifications_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/withdrawal_confirmation_dialog.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -297,6 +304,10 @@ Future<void> _pumpSettingsScreen(
         // Phase 16.8 — 해제 경로가 실 Firebase 에 닿지 않도록 mock 주입(선택).
         if (authRepo != null)
           authRepositoryProvider.overrideWithValue(authRepo),
+        // Phase 17 T-17-NOTIF-12 — 알림 섹션 꺼짐 고정(AsyncData(false)).
+        notificationSettingsProvider.overrideWithBuild(
+          (ref, notifier) => false,
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -351,6 +362,10 @@ Future<GoRouter> _pumpSettingsScreenWithRouter(
           disconnectSteps ?? _kDoneSteps,
         ),
         disconnectDepsProvider.overrideWithValue(_dummyDeps()),
+        // Phase 17 T-17-NOTIF-12 — 알림 섹션 꺼짐 고정(AsyncData(false)).
+        notificationSettingsProvider.overrideWithBuild(
+          (ref, notifier) => false,
+        ),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -363,6 +378,24 @@ Future<GoRouter> _pumpSettingsScreenWithRouter(
   );
   await tester.pumpAndSettle();
   return router;
+}
+
+/// 설정 ListView 를 [finder] 가 보일 때까지 스크롤한다 (Phase 17 Plan 17-15).
+///
+/// 알림 섹션(Q3-A)이 들어가 Danger zone 이 800×600 의 lazy build 범위 밖으로
+/// 밀렸다 — build 되지 않은 위젯은 `ensureVisible` 로 찾을 수 없다.
+Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
+  await tester.scrollUntilVisible(
+    finder,
+    200,
+    scrollable: find
+        .descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await tester.pumpAndSettle();
 }
 
 /// 해제 버튼 [button] 을 탭해 확인 다이얼로그를 연다 (전환 완료까지 settle).
@@ -429,7 +462,8 @@ void main() {
 
         expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
 
-        await tester.ensureVisible(find.text('Delete account').last);
+        // Phase 17 — 알림 섹션 삽입으로 회원탈퇴가 fold 아래로 밀렸다.
+        await _scrollTo(tester, find.byType(DangerZoneSection));
         await tester.tap(find.text('Delete account').last);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
@@ -500,7 +534,8 @@ void main() {
         // 계정 연결 section 공존.
         expect(find.byType(AccountLinkingSection), findsOneWidget);
         expect(find.text('Link Apple'), findsOneWidget);
-        // Danger zone (회귀 0).
+        // Danger zone (회귀 0) — Phase 17 알림 섹션 삽입으로 fold 아래.
+        await _scrollTo(tester, find.byType(DangerZoneSection));
         expect(find.byType(DangerZoneSection), findsOneWidget);
         expect(find.text('Danger zone'), findsOneWidget);
       },
@@ -509,20 +544,26 @@ void main() {
     testWidgets(
       'SS7 배치 순서 — 계정 section → AccountLinkingSection → DangerZoneSection',
       (tester) async {
-        // 단일 활성 Strategy → 3 section 모두 viewport 내 동시 측정 가능.
+        // 단일 활성 Strategy → 계정 연결까지 첫 화면. Phase 17 알림 섹션
+        // 삽입으로 Danger zone 은 fold 아래라 스크롤 뒤 같은 좌표계로 잰다.
         await _pumpSettingsScreen(
           tester,
           user: _testUser(),
           strategies: const <AuthStrategy>[AppleAuthStrategy()],
         );
-
         final accountY = tester.getTopLeft(find.text('My Account')).dy;
         final linkingY = tester.getTopLeft(find.text('Link an account')).dy;
+        // 계정 section < 계정 연결 (스크롤 전 좌표계).
+        expect(accountY, lessThan(linkingY));
+
+        await _scrollTo(tester, find.byType(DangerZoneSection));
+        final linkingScrolledY = tester
+            .getTopLeft(find.text('Link an account'))
+            .dy;
         final dangerY = tester.getTopLeft(find.byType(DangerZoneSection)).dy;
 
-        // 계정 section < 계정 연결 < Danger zone (mockup 배치 verbatim).
-        expect(accountY, lessThan(linkingY));
-        expect(linkingY, lessThan(dangerY));
+        // 계정 연결 < Danger zone (mockup 배치 verbatim · 스크롤 뒤 좌표계).
+        expect(linkingScrolledY, lessThan(dangerY));
       },
     );
 
@@ -542,7 +583,8 @@ void main() {
         );
 
         // Danger zone 회원탈퇴 ListTile 이 below-fold 여도 scroll 후 접근 가능.
-        await tester.ensureVisible(find.text('Delete account').last);
+        // Phase 17 — 알림 섹션 삽입으로 lazy build 범위 밖이라 스크롤한다.
+        await _scrollTo(tester, find.byType(DangerZoneSection));
         expect(find.byType(DangerZoneSection), findsOneWidget);
       },
     );
@@ -1704,6 +1746,38 @@ void main() {
       // (d) 렌더 예외 0.
       expect(tester.takeException(), isNull);
       handle.dispose();
+    });
+  });
+  group('Phase 17 알림 섹션 회귀 (T-17-NOTIF-12)', () {
+    testWidgets('T-17-NOTIF-12: 꺼짐 고정 override — 알림 섹션(꺼짐)이 계정 연결 '
+        '아래 · Danger zone 위 · 회원탈퇴 탭 경로 회귀 0', (tester) async {
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(
+          providerIds: const <String>['google.com'],
+          signUpProviderId: 'google.com',
+        ),
+      );
+
+      final section = find.byType(NotificationsSection);
+      await _scrollTo(tester, find.byType(DangerZoneSection));
+      final toggle = tester.widget<SwitchListTile>(
+        find.descendant(of: section, matching: find.byType(SwitchListTile)),
+      );
+      expect(toggle.value, isFalse);
+      expect(toggle.onChanged, isNotNull);
+
+      final linkingY = tester.getTopLeft(find.byType(AccountLinkingSection)).dy;
+      final sectionY = tester.getTopLeft(section).dy;
+      final dangerY = tester.getTopLeft(find.byType(DangerZoneSection)).dy;
+      expect(linkingY, lessThan(sectionY));
+      expect(sectionY, lessThan(dangerY));
+
+      await _scrollTo(tester, find.byType(DangerZoneSection));
+      await tester.tap(find.text('Delete account').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

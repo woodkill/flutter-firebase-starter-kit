@@ -25,6 +25,7 @@ import '../application/unlink_eligibility.dart';
 import '_widgets/account_linking_section.dart';
 import '_widgets/danger_zone_section.dart';
 import '_widgets/linked_accounts_value.dart';
+import '_widgets/notifications_section.dart';
 import '_widgets/unlink_confirmation_dialog.dart';
 import 'settings_notifier.dart';
 
@@ -40,6 +41,9 @@ import 'settings_notifier.dart';
 ///   D-02 개정 (R1) · D-09).
 /// - Danger zone section (settingsDangerZoneSection) — explainer +
 ///   회원탈퇴 ListTile (Icons.delete_forever + destructive 색상).
+///
+/// Phase 17 D-03 — 계정 연결 section 과 Danger zone 사이에 「알림」 section
+/// ([NotificationsSection] · UI-SPEC (N) Q3-A)이 들어간다.
 class SettingsScreen extends ConsumerWidget {
   /// [SettingsScreen] 을 생성한다.
   const SettingsScreen({super.key});
@@ -153,6 +157,10 @@ class SettingsScreen extends ConsumerWidget {
             // Danger zone 전 (mockup 배치 verbatim, add-only). available 빈
             // set 시 SizedBox.shrink 로 graceful 미노출.
             const AccountLinkingSection(),
+            Gap(spacing.xxl),
+            // Phase 17 D-03 · UI-SPEC (N) Q3-A — 알림 section. 계정 연결 아래 ·
+            // Danger zone 위 (양쪽 Gap xxl).
+            const NotificationsSection(),
             Gap(spacing.xxl),
             // Danger zone — UI-SPEC line 261~275 (항상 최하단 격리).
             const DangerZoneSection(),

@@ -28,6 +28,7 @@ import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dar
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -144,6 +145,10 @@ Future<void> settleGoldenAssets(WidgetTester tester) async {
 /// 사용자 fixture · 상태 fixture)다. [ProviderScope] 에 새 key 를 줘 반복
 /// pump 마다 새 container 를 만든다. 스피너 없는 상태만 대상이다 —
 /// indeterminate 스피너가 있으면 settle 이 끝나지 않는다.
+///
+/// Phase 17 (T-17-NOTIF-12 · UI-SPEC §Golden 캡처 계약) — 설정 「알림」
+/// 섹션은 harness 가 항상 꺼짐(`AsyncData(false)`)으로 고정한다. 미초기화
+/// 기본값에 기대지 않으며, 호출부는 같은 provider 를 다시 override 하지 않는다.
 Future<void> pumpGoldenRoute(
   WidgetTester tester, {
   required WidgetBuilder route,
@@ -160,7 +165,12 @@ Future<void> pumpGoldenRoute(
   await tester.pumpWidget(
     ProviderScope(
       key: UniqueKey(),
-      overrides: overrides,
+      overrides: [
+        notificationSettingsProvider.overrideWithBuild(
+          (ref, notifier) => false,
+        ),
+        ...overrides,
+      ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: goldenTheme(brightness, locale.languageCode),
