@@ -29,6 +29,9 @@
  *  - T-17-DEL-01: Storage prefix 삭제 → Auth → identity_index 순서 (관통)
  *  - T-17-DEL-02: Storage 실패(Error) → unavailable · storage_cleanup_failed
  *  - T-17-DEL-03: Storage 실패(force 의 Error[]) → 같은 결과 + 실패 수
+ *  - T-17-DEL-04: fcmTokens 서브컬렉션 recursiveDelete — 트랜잭션 뒤 1회
+ *  - T-17-DEL-05: recursiveDelete 실패 → orphan 로그 + ok:true
+ *  - T-17-DEL-06: 멱등 재시도(user-not-found) 전 단계 진행 · 로그 경로 0
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -60,6 +63,7 @@ jest.mock("firebase-admin/auth", () => ({
 // firebase-admin/firestore — where + runTransaction.
 const mockWhereGet = jest.fn();
 const mockTxDelete = jest.fn();
+const mockRecursiveDelete = jest.fn();
 // call order sentinel — D7 / D11 invariant 검증용.
 const callOrder: string[] = [];
 jest.mock("firebase-admin/firestore", () => {
@@ -71,6 +75,10 @@ jest.mock("firebase-admin/firestore", () => {
           collectionName: name,
           docId: id,
           label: `${name}/${id ?? "?"}`,
+          // 서브컬렉션 ref — fcmTokens recursiveDelete 대상 식별용.
+          collection: (sub: string) => ({
+            label: `${name}/${id ?? "?"}/${sub}`,
+          }),
         }),
         where: () => ({
           // chained where (firebaseUid + provider in [...])
@@ -90,6 +98,11 @@ jest.mock("firebase-admin/firestore", () => {
         });
         callOrder.push("runTransaction:exit");
         return result;
+      },
+      // Phase 17 D-02 정정 — fcmTokens 서브컬렉션 재귀 삭제.
+      recursiveDelete: (ref: unknown) => {
+        callOrder.push("recursiveDelete");
+        return mockRecursiveDelete(ref);
       },
     })),
     FieldValue: {
@@ -149,6 +162,8 @@ function resetAllMocks(): void {
   mockTxDelete.mockReset();
   mockDeleteFiles.mockReset();
   mockDeleteFiles.mockResolvedValue(undefined);
+  mockRecursiveDelete.mockReset();
+  mockRecursiveDelete.mockResolvedValue(undefined);
   callOrder.length = 0;
 }
 
@@ -585,5 +600,82 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
       }),
       expect.any(String),
     );
+  });
+
+  it("T-17-DEL-04: fcmTokens recursiveDelete — 트랜잭션 뒤 1회", async () => {
+    mockWhereGet.mockResolvedValue({docs: [{id: "kakao:404"}]});
+    mockDeleteUser.mockResolvedValue(undefined);
+
+    const result = (await callDelete("uid-DEL04")) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    expect(mockRecursiveDelete).toHaveBeenCalledTimes(1);
+    expect(mockRecursiveDelete).toHaveBeenCalledWith(
+      expect.objectContaining({label: "users/uid-DEL04/fcmTokens"}),
+    );
+    // 토큰 삭제 실패가 identity_index · users 문서 삭제를 건너뛰게 하지
+    // 않도록 기존 트랜잭션 **뒤** 에 둔다.
+    const txExitIdx = callOrder.lastIndexOf("runTransaction:exit");
+    const recursiveIdx = callOrder.indexOf("recursiveDelete");
+    expect(txExitIdx).toBeGreaterThanOrEqual(0);
+    expect(recursiveIdx).toBeGreaterThan(txExitIdx);
+  });
+
+  it("T-17-DEL-05: recursiveDelete 실패 → orphan 로그 + ok:true", async () => {
+    mockWhereGet.mockResolvedValue({docs: [{id: "kakao:505"}]});
+    mockDeleteUser.mockResolvedValue(undefined);
+    mockRecursiveDelete.mockRejectedValue(
+      Object.assign(new Error("PII_FCM_SENTINEL"), {code: "unavailable"}),
+    );
+
+    const result = (await callDelete("uid-DEL05")) as {ok: true};
+
+    // WR-09 orphan 정책 — 계정은 이미 없고 TTL(D-33)이 남은 토큰을 지운다.
+    expect(result.ok).toBe(true);
+    expect(callOrder).toContain("runTransaction:exit");
+    expect(mockTxDelete).toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledTimes(1);
+    const [payload] = errorMock.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).toEqual({
+      event: "delete_user_fcm_tokens_orphan",
+      uid: "uid-DEL05",
+      code: "unavailable",
+    });
+    expect(JSON.stringify(errorMock.mock.calls)).not.toContain(
+      "PII_FCM_SENTINEL",
+    );
+  });
+
+  it("T-17-DEL-06: 멱등 재시도 — 전 단계 진행 · 로그에 경로 0", async () => {
+    // 이전 시도가 Auth 삭제 직후 중단된 상태 — Storage 는 빈 prefix resolve.
+    mockWhereGet.mockResolvedValue({docs: []});
+    mockDeleteUser.mockRejectedValue(
+      Object.assign(new Error("user not found"), {
+        code: "auth/user-not-found",
+      }),
+    );
+
+    const result = (await callDelete("uid-DEL06")) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    expect(mockDeleteFiles).toHaveBeenCalledTimes(1);
+    expect(callOrder).toContain("runTransaction:enter");
+    expect(mockRecursiveDelete).toHaveBeenCalledTimes(1);
+    expect(infoMock).toHaveBeenCalledWith(
+      expect.objectContaining({event: "delete_user_auth_already_done"}),
+      expect.any(String),
+    );
+    // PII — 파일 경로 · prefix · 문서 경로가 어떤 로그에도 실리지 않는다.
+    const allLogCalls = [
+      ...infoMock.mock.calls,
+      ...warnMock.mock.calls,
+      ...errorMock.mock.calls,
+      ...debugMock.mock.calls,
+      ...logMock.mock.calls,
+    ];
+    expect(allLogCalls.length).toBeGreaterThan(0);
+    for (const args of allLogCalls) {
+      expect(JSON.stringify(args)).not.toContain("users/");
+    }
   });
 });

@@ -14,7 +14,7 @@
 //
 // Phase 17 — see ROADMAP.md (D-16 · D-40). 삭제 순서는
 //   검증 → Storage `users/{uid}/` (D-40 · 실패 = 탈퇴 중단)
-//   → Auth (WR-09) → Firestore.
+//   → Auth (WR-09) → Firestore → `users/{uid}/fcmTokens` 재귀 삭제 (D-02).
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import {getStorage} from "firebase-admin/storage";
@@ -89,9 +89,14 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  *   Step 3: D-07 Firestore cleanup — "all reads before all writes" invariant.
  *           identity_index where query 는 transaction **외부** 의무
  *           (Pitfall 2 회피, collection query 는 transaction 안 금지).
+ *   Step 4: Phase 17 D-02 정정 — `users/{uid}/fcmTokens` 서브컬렉션을
+ *           `db.recursiveDelete` 로 지운다. 실패해도 `ok: true` (orphan 로그 ·
+ *           TTL D-33 이 30일 안에 정리). 트랜잭션 **밖** 단계라 jest mock 이
+ *           reads-before-writes 를 강제하지 않는 한계(memory
+ *           feedback_mock_transaction_constraint)에 새 위험을 더하지 않는다.
  *
  * **삭제 순서 (Phase 17 — see ROADMAP.md, D-16 · D-40)**: 검증 → Storage
- * (D-40 · 실패 = 중단) → Auth (WR-09) → Firestore. Storage 를 Auth 뒤에 두면
+ * (D-40 · 실패 = 중단) → Auth (WR-09) → Firestore → fcmTokens. Storage 를 Auth 뒤에 두면
  * Storage 실패 시 계정이 이미 없어 사용자가 재시도할 수 없고 개인 사진이
  * 영구 잔존하므로 Storage 는 Auth **앞**에 둔다. 사진만 지워지고 Auth 삭제가
  * 실패한 상태는 D-40 이 수용한다 (소셜 사진 fallback · 재업로드 가능).
@@ -113,6 +118,8 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  *   Step 1.5 · 슬래시 종결 prefix 로 `users/{uid}2/…` 오매칭 방지)
  * - `identity_index` 중 `firebaseUid == uid` 인 문서 전부
  * - `users/{uid}` **문서 1건**
+ * - `users/{uid}/fcmTokens/*` 서브컬렉션 (Step 4 · `recursiveDelete` · 실패 =
+ *   `delete_user_fcm_tokens_orphan` 로그)
  *
  * 아래는 **삭제되지 않는다.**
  * - 위에 명시하지 않은 `users/{uid}` 의 **서브컬렉션** — Firestore 특성상
@@ -301,6 +308,27 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
           code: fingerprintError(err),
         },
         "Auth user deleted but Firestore cleanup failed — orphan docs remain",
+      );
+    }
+
+    // Step 4: Phase 17 D-02 정정 — `users/{uid}/fcmTokens` 서브컬렉션 재귀 삭제.
+    //
+    // 부모 `users/{uid}` 문서 삭제로는 서브컬렉션이 지워지지 않는다. Step 3
+    // 트랜잭션 **뒤** 별도 try 로 둔다 — 토큰 삭제 실패가 더 중요한
+    // identity_index · users 문서 삭제를 건너뛰게 하지 않기 위해서다
+    // (RESEARCH §R-07 의 「identity_index 조회 앞」 안과 다른 위치).
+    // 실패 정책은 Step 3 과 같다: 계정은 이미 삭제됐으므로 orphan 로그 +
+    // `ok: true`. 남은 토큰 문서는 TTL(D-33)이 30일 안에 지운다.
+    try {
+      await db.recursiveDelete(userRef.collection("fcmTokens"));
+    } catch (err: unknown) {
+      logger.error(
+        {
+          event: "delete_user_fcm_tokens_orphan",
+          uid: callerUid,
+          code: fingerprintError(err),
+        },
+        "Auth user deleted but FCM token cleanup failed — TTL will expire",
       );
     }
 
