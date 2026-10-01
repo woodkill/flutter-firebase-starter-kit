@@ -84,7 +84,6 @@ class EnvironmentInfoScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.homeEnvironmentInfo),
-        backgroundColor: context.colorScheme.inversePrimary,
         actions: [
           if (isAnonymous)
             TextButton(
