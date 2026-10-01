@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -192,6 +194,31 @@ Future<void> _scrollTo(WidgetTester tester, Finder target) async {
   await tester.pumpAndSettle();
 }
 
+/// Dev Tools 「테스트 알림」 버튼 finder.
+Finder _sendButton(AppLocalizations l10n) =>
+    find.widgetWithText(OutlinedButton, l10n.devToolsSendTestPush);
+
+/// [outcome] 을 돌려주게 한 뒤 테스트 알림 버튼을 탭하고 SnackBar 문구를
+/// 돌려준다 (floating 단언 포함).
+Future<String> _tapAndReadSnackBar(
+  WidgetTester tester,
+  DevToolsTestEnv env,
+  TestPushOutcome outcome,
+) async {
+  when(() => env.testPushClient.send()).thenAnswer((_) async => outcome);
+  final l10n = AppLocalizations.of(
+    tester.element(find.byType(EnvironmentInfoScreen)),
+  );
+  final button = _sendButton(l10n);
+  await _scrollTo(tester, button);
+  await tester.ensureVisible(button);
+  await tester.tap(button);
+  await tester.pumpAndSettle();
+  final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+  expect(snackBar.behavior, SnackBarBehavior.floating);
+  return (snackBar.content as Text).data ?? '';
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(StackTrace.empty);
@@ -318,5 +345,92 @@ void main() {
       final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(snackBar.behavior, SnackBarBehavior.floating);
     });
+
+    testWidgets('T-17-SEND-10 기기 없음 · 운영 거부 · App Check 문구 (ko)', (
+      tester,
+    ) async {
+      final env = await pumpDevToolsHarness(tester, locale: const Locale('ko'));
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(EnvironmentInfoScreen)),
+      );
+
+      expect(
+        await _tapAndReadSnackBar(tester, env, const TestPushNoDevice()),
+        '알림을 받을 기기가 없어요. 설정에서 알림 받기를 켜 주세요.',
+      );
+      expect(
+        await _tapAndReadSnackBar(tester, env, const TestPushDisabled()),
+        '이 환경에서는 테스트 알림을 보낼 수 없어요.',
+      );
+      expect(
+        await _tapAndReadSnackBar(
+          tester,
+          env,
+          const TestPushFailed(AppCheckFailedException()),
+        ),
+        l10n.errorAppCheckFailed,
+      );
+    });
+
+    testWidgets('T-17-SEND-10 en 성공 1대 → 단수 문구', (tester) async {
+      final env = await pumpDevToolsHarness(tester);
+
+      expect(
+        await _tapAndReadSnackBar(tester, env, const TestPushSent(1)),
+        'Sent a test notification to 1 device.',
+      );
+    });
+
+    testWidgets('T-17-SEND-11 요청 중 버튼 비활성 — 두 번째 탭은 무시 · 응답 뒤 다시 활성', (
+      tester,
+    ) async {
+      final env = await pumpDevToolsHarness(tester);
+      final pending = Completer<TestPushOutcome>();
+      when(() => env.testPushClient.send()).thenAnswer((_) => pending.future);
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(EnvironmentInfoScreen)),
+      );
+      final button = _sendButton(l10n);
+      await _scrollTo(tester, button);
+      await tester.ensureVisible(button);
+
+      await tester.tap(button);
+      await tester.pump();
+      expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+      // 라벨은 그대로다 (E7 loading — 라벨 · 크기 불변).
+      expect(find.text(l10n.devToolsSendTestPush), findsOneWidget);
+
+      await tester.tap(button, warnIfMissed: false);
+      await tester.pump();
+      verify(() => env.testPushClient.send()).called(1);
+
+      pending.complete(const TestPushSent(2));
+      await tester.pumpAndSettle();
+      expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
+    });
+
+    for (final locale in const [Locale('ko'), Locale('en'), Locale('ja')]) {
+      testWidgets(
+        'T-17-SEND-12 ${locale.languageCode} 280dp — 버튼 라벨 무절단 · 예외 0',
+        (tester) async {
+          await pumpDevToolsHarness(tester, locale: locale, width: 280);
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(EnvironmentInfoScreen)),
+          );
+          final button = _sendButton(l10n);
+          await _scrollTo(tester, button);
+
+          expect(tester.takeException(), isNull);
+          final label = tester.renderObject<RenderParagraph>(
+            find.descendant(
+              of: button,
+              matching: find.text(l10n.devToolsSendTestPush),
+            ),
+          );
+          expect(label.didExceedMaxLines, isFalse);
+          expect(tester.getSize(button).width, lessThanOrEqualTo(280));
+        },
+      );
+    }
   });
 }

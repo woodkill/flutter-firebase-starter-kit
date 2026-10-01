@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/error/app_exception.dart';
+import '../../../core/functions/callable_rejection.dart';
 import '../../../core/providers/firebase_providers.dart';
 
 part 'test_push_client.g.dart';
@@ -69,7 +70,8 @@ class TestPushClient {
   /// 테스트 알림을 요청하고 결과를 돌려준다. 예외를 던지지 않는다.
   ///
   /// - 응답 `sentCount` ≥ 1 → [TestPushSent], 0 → [TestPushNoDevice].
-  /// - 그 밖의 실패 → [TestPushFailed].
+  /// - callable 거부 → [_mapRejection] (운영 거부 · App Check · code 순).
+  /// - 예상 밖 오류(응답 형식 등) → Crashlytics 1회 + [UnknownException].
   Future<TestPushOutcome> send() async {
     final functions = _functions;
     if (functions == null) {
@@ -82,12 +84,49 @@ class TestPushClient {
       final count = _readSentCount(result.data);
       return count > 0 ? TestPushSent(count) : const TestPushNoDevice();
     } on FirebaseFunctionsException catch (e) {
-      return TestPushFailed(ServiceUnavailable(cause: e));
+      return _mapRejection(e);
     } on Object catch (e, stack) {
       // 예상 밖 오류(응답 형식 등) — reason 은 코드 경로 상수만 (PII 0).
       await _crashlytics.recordError(e, stack, reason: 'test_push_client_send');
       return TestPushFailed(UnknownException(cause: e));
     }
+  }
+
+  /// callable 거부 [e] 를 [TestPushOutcome] 으로 바꾼다.
+  ///
+  /// 판정 순서 (Phase 17 D-35 · D-43 · D-44 — 앞 단계가 이긴다):
+  /// 1. `failed-precondition` + `details.reason == 'test_push_disabled'` →
+  ///    [TestPushDisabled] (서버 환경 스위치 꺼짐 · D-35).
+  /// 2. `classifyAppCheckRejection` — SDK 계층 거부(App Check 차단 · 무효 ID
+  ///    token)면 [AppCheckFailedException] + Crashlytics non-fatal 1회
+  ///    (reason `app_check_rejected_sendTestPush` · D-44).
+  /// 3. code switch: `resource-exhausted` → [TooManyRequests] (서버 rate
+  ///    limit 10회/60초) · `unavailable` / `deadline-exceeded` →
+  ///    [NoInternetConnection] · 그 밖 → [ServiceUnavailable].
+  ///
+  /// 서버 message 는 읽지 않는다 — 판별은 `code` + `details.reason` 만 본다
+  /// (IN-04 · SDK 상수 판정은 helper 안).
+  TestPushOutcome _mapRejection(FirebaseFunctionsException e) {
+    final details = e.details;
+    // 1. 서버가 reason 으로 지목한 운영 거부 — helper 보다 먼저 판정한다.
+    if (e.code == 'failed-precondition' &&
+        details is Map &&
+        details['reason'] == 'test_push_disabled') {
+      return const TestPushDisabled();
+    }
+    // 2. Phase 17 D-43 — SDK 계층 거부(App Check 차단). 호출 머리(helper ·
+    // 대상 · callable 이름)를 한 줄로 유지해 helper 경유 지점을 grep 한 번으로
+    // 계수할 수 있게 한다(plan 17-18 verify).
+    // dart format off
+    final appCheck = classifyAppCheckRejection(e, callable: 'sendTestPush',
+        crashlytics: _crashlytics);
+    // dart format on
+    if (appCheck != null) return TestPushFailed(appCheck);
+    return TestPushFailed(switch (e.code) {
+      'resource-exhausted' => TooManyRequests(cause: e),
+      'unavailable' || 'deadline-exceeded' => NoInternetConnection(cause: e),
+      _ => ServiceUnavailable(cause: e),
+    });
   }
 
   /// 응답 본문에서 `sentCount` 를 읽는다. 형식이 어긋나면 [StateError].

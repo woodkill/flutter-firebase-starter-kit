@@ -19,6 +19,7 @@ import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
+import '../../../shared/widgets/error_snack_bar.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
 import '../../notifications/data/test_push_client.dart';
@@ -1367,23 +1368,44 @@ class _SendTestPushButtonState extends ConsumerState<_SendTestPushButton> {
   /// 요청 진행 중 여부 — true 면 버튼이 비활성이다.
   bool _sending = false;
 
-  /// 테스트 알림을 요청하고 결과 SnackBar 를 띄운다.
+  /// 테스트 알림을 요청하고 결과 SnackBar 를 띄운다 (UI-SPEC (T) · E7).
+  ///
+  /// 결과 4종: 성공 `devToolsSendTestPushDone(count)` · 기기 없음
+  /// `devToolsSendTestPushNoDevice` · 운영 거부 `devToolsSendTestPushDisabled` ·
+  /// 그 밖 [showErrorSnackBar] (App Check 차단 = `errorAppCheckFailed`). 모두
+  /// floating 이고, 연속 요청 시 직전 SnackBar 를 닫고 마지막 결과만 보인다.
   Future<void> _send() async {
     setState(() => _sending = true);
     try {
       final outcome = await ref.read(testPushClientProvider).send();
       if (!mounted) return;
       final l10n = context.l10n;
-      final message = switch (outcome) {
-        TestPushSent(:final count) => l10n.devToolsSendTestPushDone(count),
-        _ => l10n.errorUnknown,
-      };
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
+      switch (outcome) {
+        case TestPushSent(:final count):
+          _showResult(l10n.devToolsSendTestPushDone(count));
+        case TestPushNoDevice():
+          _showResult(l10n.devToolsSendTestPushNoDevice);
+        case TestPushDisabled():
+          _showResult(l10n.devToolsSendTestPushDisabled);
+        case TestPushFailed(:final exception):
+          showErrorSnackBar(
+            context,
+            exception,
+            behavior: SnackBarBehavior.floating,
+          );
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  /// 결과 [message] 를 floating SnackBar 로 띄운다 (직전 SnackBar 는 닫는다).
+  void _showResult(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
   }
 
   @override
