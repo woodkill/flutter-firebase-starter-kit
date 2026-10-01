@@ -211,4 +211,53 @@ void main() {
       expect(container.read(firebaseAuthProvider), same(mockAuth));
     });
   });
+
+  group('Phase 17 인스턴스 provider (T-17-PROVIDER)', () {
+    // Phase 17 — see ROADMAP.md (D-01 · D-15). 새 인스턴스 provider 2종도
+    // 기존 6종과 같은 Phase 1 D-13 가드(_assertFirebaseReady)를 거친다.
+    // 검증 방식은 위 CR-02 그룹과 같다 — 미초기화 컨테이너에서 override 없이
+    // 읽으면 원인(provider 이름 · D-13 · 가드 방법)이 적힌 assertion 실패다.
+    Matcher guardFailureFor(String name) => throwsA(
+      isA<Object>().having(
+        (e) => e.toString(),
+        'toString()',
+        allOf(
+          contains('Failed assertion'),
+          contains(name),
+          contains('D-13'),
+          contains('isFirebaseInitializedProvider'),
+        ),
+      ),
+    );
+
+    test(
+      'T-17-PROVIDER-01 firebaseMessagingProvider 는 미초기화 상태에서 D-13 가드로 실패한다',
+      () {
+        final container = ProviderContainer(
+          overrides: [isFirebaseInitializedProvider.overrideWithValue(false)],
+        );
+        addTearDown(container.dispose);
+
+        expect(
+          () => container.read(firebaseMessagingProvider),
+          guardFailureFor('firebaseMessagingProvider'),
+        );
+      },
+    );
+
+    test(
+      'T-17-PROVIDER-02 firebaseStorageProvider 는 미초기화 상태에서 D-13 가드로 실패한다',
+      () {
+        final container = ProviderContainer(
+          overrides: [isFirebaseInitializedProvider.overrideWithValue(false)],
+        );
+        addTearDown(container.dispose);
+
+        expect(
+          () => container.read(firebaseStorageProvider),
+          guardFailureFor('firebaseStorageProvider'),
+        );
+      },
+    );
+  });
 }

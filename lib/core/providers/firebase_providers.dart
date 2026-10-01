@@ -5,7 +5,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -19,9 +21,10 @@ part 'firebase_providers.g.dart';
 ///
 /// [providerName] 은 실패 메시지에 표시할 provider 이름이다.
 ///
-/// 아래 6개 provider (`firebaseAuth` / `firebaseCrashlytics` /
-/// `firebaseAnalytics` / `firebaseFirestore` / `firebaseRemoteConfig` /
-/// `firebaseFunctions`) 는 모두 `Xxx.instance` 를 반환하며, 그 접근은
+/// 아래 8개 provider (`firebaseAuth` / `firebaseCrashlytics` /
+/// `firebaseAnalytics` / `firebaseFirestore` / `firebaseMessaging` /
+/// `firebaseStorage` / `firebaseRemoteConfig` / `firebaseFunctions`) 는 모두
+/// `Xxx.instance` 계열을 반환하며, 그 접근은
 /// 내부적으로 `Firebase.app()` 을 거치므로 앱 미초기화 상태에서
 /// `FirebaseException([core/no-app])` 을 던진다. 즉 **"Firebase 없이도 앱이
 /// 정상 실행된다" 는 D-13 은 provider 계층이 아니라 소비처 계층이 지켜야 하는
@@ -162,6 +165,34 @@ FirebaseAnalytics firebaseAnalytics(Ref ref) {
 FirebaseFirestore firebaseFirestore(Ref ref) {
   _assertFirebaseReady(ref, 'firebaseFirestoreProvider');
   return FirebaseFirestore.instance;
+}
+
+/// [FirebaseMessaging] 인스턴스를 제공한다 (Phase 17 D-01).
+///
+/// 앱 생명주기 동안 유지되는 keepAlive Provider.
+/// FCM 토큰 발급 · 권한 요청 · 포그라운드/백그라운드 수신에 사용한다.
+///
+/// Phase 17 — see ROADMAP.md (D-01/D-15). 테스트는 override 로 대체 구현을
+/// 주입한다. 미초기화 상태 접근은 [_assertFirebaseReady] 가 debug 에서
+/// 드러낸다 (Phase 1 D-13).
+@Riverpod(keepAlive: true)
+FirebaseMessaging firebaseMessaging(Ref ref) {
+  _assertFirebaseReady(ref, 'firebaseMessagingProvider');
+  return FirebaseMessaging.instance;
+}
+
+/// [FirebaseStorage] 인스턴스를 제공한다 (Phase 17 D-15).
+///
+/// 앱 생명주기 동안 유지되는 keepAlive Provider.
+/// 프로필 사진 업로드 · 삭제에 사용한다.
+///
+/// Phase 17 — see ROADMAP.md (D-01/D-15). 테스트는 override 로 대체 구현을
+/// 주입한다. 미초기화 상태 접근은 [_assertFirebaseReady] 가 debug 에서
+/// 드러낸다 (Phase 1 D-13).
+@Riverpod(keepAlive: true)
+FirebaseStorage firebaseStorage(Ref ref) {
+  _assertFirebaseReady(ref, 'firebaseStorageProvider');
+  return FirebaseStorage.instance;
 }
 
 /// [FirebaseRemoteConfig] 인스턴스를 제공한다 (Phase 11 D-22~D-27).

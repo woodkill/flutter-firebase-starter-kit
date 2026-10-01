@@ -74,6 +74,16 @@ dependencies:
   # ios-facebook-limited-login, dart.dev 공식 — Firebase Flutter 문서 권장).
   # 이미 transitive 3.0.7 로 잠겨 있어 버전 해석 변화 0.
   crypto: ^3.0.7
+  # Phase 17 — see ROADMAP.md (D-01 · D-15). FCM · Storage 는 FlutterFire 공식
+  # (firebase.google.com), 로컬 알림은 dexterx.dev, 사진 선택은 flutter.dev.
+  # image_picker_android · _platform_interface 는 Android Photo Picker opt-in
+  # 코드가 직접 import 하므로 직접 의존으로 둔다 (depend_on_referenced_packages).
+  firebase_messaging: ^16.7.0
+  firebase_storage: ^13.6.0
+  flutter_local_notifications: ^22.3.1
+  image_picker: ^1.2.3
+  image_picker_android: ^0.8.13+23
+  image_picker_platform_interface: ^2.11.1
 
 dev_dependencies:
   flutter_test:

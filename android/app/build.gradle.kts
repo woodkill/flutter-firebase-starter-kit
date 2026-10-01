@@ -17,6 +17,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Phase 17 — see ROADMAP.md · flutter_local_notifications 10+ 요구 (README Gradle setup)
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -119,6 +121,9 @@ dependencies {
     // 같은 좌표 · 같은 버전을 선언한다(런타임 AAR 은 플러그인이 공급 — 새 의존성 0).
     // 플러그인을 올려 SDK 버전이 바뀌면 T-16.5-NATIVE-07 이 이 줄의 갱신을 요구한다.
     compileOnly("com.navercorp.nid:oauth:5.11.2")
+
+    // Phase 17 — see ROADMAP.md · flutter_local_notifications 10+ 요구 (README Gradle setup)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {
