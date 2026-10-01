@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
+import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
 import 'package:flutter_starter_kit/features/notifications/application/notification_tap_handler.dart';
 import 'package:flutter_starter_kit/features/notifications/application/pending_notification_route.dart';
 import 'package:flutter_starter_kit/features/notifications/data/local_notifications_service.dart';
@@ -33,6 +34,9 @@ Future<_App> _pumpApp(WidgetTester tester) async {
       isFirebaseInitializedProvider.overrideWithValue(true),
       messagingServiceProvider.overrideWithValue(messaging),
       localNotificationsServiceProvider.overrideWithValue(local),
+      localeProvider.overrideWith(
+        () => FixedLocaleNotifier(const Locale('ko')),
+      ),
     ],
   );
   addTearDown(container.dispose);

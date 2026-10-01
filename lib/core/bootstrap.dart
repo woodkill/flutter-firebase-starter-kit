@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:flutter_starter_kit/core/error/error_widget_builder.dart';
 import 'package:flutter_starter_kit/core/firebase/firebase_initializer.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/remote_config/feature_flag.dart';
+import 'package:flutter_starter_kit/features/notifications/data/firebase_messaging_background_handler.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
 // Phase 14 — see ROADMAP.md (LINE Login SDK init).
@@ -21,6 +23,21 @@ import 'package:flutter_line_sdk/flutter_line_sdk.dart';
 // kakao_flutter_sdk_common 을 re-export 하므로 직접 의존성 import 1개로 충분.
 // pubspec.yaml 의 직접 의존성 (`kakao_flutter_sdk_user`)과 일관 — depend_on_referenced_packages 통과.
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+
+/// FCM 백그라운드 · 종료 상태 메시지 핸들러를 등록한다 (Phase 17 D-01).
+///
+/// [bootstrap] 이 Firebase 초기화 분기 안 · `runApp` 앞에서 1회 부른다.
+/// 알림 권한을 요청하지 않는다 — 권한은 설정 「알림 받기」 스위치를 켤 때만
+/// 요청한다(D-03). 등록 실패는 앱 실행을 막지 않는다(Phase 1 D-13 철학).
+void _registerBackgroundMessageHandler() {
+  try {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } on Object catch (e, st) {
+    if (kDebugMode) {
+      debugPrint('FCM 백그라운드 핸들러 등록 실패 (무시): $e\n$st');
+    }
+  }
+}
 
 /// 앱 초기화 시퀀스를 실행한다 (Phase 10 D-28).
 ///
@@ -34,6 +51,8 @@ import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 ///    - 경로 2: [FlutterError.onError] -> recordFlutterFatalError
 ///    - 경로 3: [PlatformDispatcher.onError] -> recordError(fatal: true)
 /// 6. [GoogleSignIn.instance.initialize] -- Google Sign-In 초기화
+///    (이후 Kakao · LINE · Remote Config 초기화, 그리고 FCM 백그라운드
+///    핸들러 등록 -- Phase 17 D-01, [_registerBackgroundMessageHandler])
 /// 7. release 빌드만 [ErrorWidget.builder] 를 [buildReleaseErrorWidget] 으로
 ///    교체 (Phase 17 D-22 -- 깨진 화면 대체 + non-fatal 기록, Firebase 초기화
 ///    결과와 무관하게 설치)
@@ -235,6 +254,10 @@ Future<void> bootstrap() async {
                 FirebaseCrashlytics.instance.recordError(e, st, fatal: false),
               );
             }
+
+            // Phase 17 — see ROADMAP.md (D-01) — 권한 요청 없이 핸들러 등록만.
+            // 백그라운드 · 종료 상태 메시지 핸들러는 runApp 앞에서 등록한다.
+            _registerBackgroundMessageHandler();
           }
         } on Object catch (e, st) {
           if (kDebugMode) {

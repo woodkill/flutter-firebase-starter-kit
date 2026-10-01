@@ -9,6 +9,7 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/features/notifications/data/local_notifications_service.dart';
 import 'package:flutter_starter_kit/features/notifications/data/messaging_service.dart';
@@ -183,3 +184,18 @@ GoRouter buildNotificationTestRouter({
     ),
   ],
 );
+
+/// 앱 언어를 고정하는 [LocaleNotifier] — 기기 로케일 · 저장값 복원을 건너뛴다.
+class FixedLocaleNotifier extends LocaleNotifier {
+  /// [initial] 로 시작한다.
+  FixedLocaleNotifier(this.initial);
+
+  /// 시작 언어.
+  final Locale initial;
+
+  @override
+  Locale build() => initial;
+
+  /// 저장 없이 앱 언어를 [locale] 로 바꾼다.
+  void select(Locale locale) => state = locale;
+}
