@@ -1,5 +1,3 @@
-import 'dart:ui' show PlatformDispatcher;
-
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
@@ -50,7 +48,11 @@ class ErrorFallback extends StatelessWidget {
     final l10n =
         Localizations.of<AppLocalizations>(context, AppLocalizations) ??
         lookupAppLocalizations(
-          resolveErrorFallbackLocale(PlatformDispatcher.instance.locale),
+          // binding 의 dispatcher = production 에서는 PlatformDispatcher.instance
+          // 와 같은 객체이고, 테스트에서는 locale 을 주입할 수 있는 dispatcher 다.
+          resolveErrorFallbackLocale(
+            WidgetsBinding.instance.platformDispatcher.locale,
+          ),
         );
     final content = _buildContent(
       context,

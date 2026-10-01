@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_starter_kit/core/error/error_widget_builder.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_fallback.dart';
 
+import '../../features/settings/presentation/settings_golden_harness.dart';
 import '../../helpers/source_text.dart';
 
 /// [width]×[height] logical viewport 를 DPR 1 로 주입한다.
@@ -16,15 +18,16 @@ void setViewport(WidgetTester tester, double width, double height) {
   addTearDown(tester.view.resetPhysicalSize);
 }
 
-/// [home] 을 [locale] · 앱 라이트 테마 [MaterialApp] 안에 그린다.
+/// [home] 을 [locale] · [theme](기본 앱 라이트 테마) [MaterialApp] 안에 그린다.
 Future<void> pumpLocalized(
   WidgetTester tester,
   Widget home, {
   Locale locale = const Locale('ko'),
+  ThemeData? theme,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: AppTheme.light(),
+      theme: theme ?? AppTheme.light(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: locale,
@@ -40,7 +43,32 @@ Finder findAnyButton() => find.byWidgetPredicate(
   (widget) => widget is ButtonStyleButton || widget is IconButton,
 );
 
+/// [paragraph] 가 현재 너비에서 실제로 몇 줄로 그려지는지 센다.
+///
+/// [RenderParagraph] 에는 줄 metrics API 가 없어 같은 text · 제약으로
+/// [TextPainter] 를 다시 layout 한다 (Phase 17 mockup harness 와 같은 방식).
+int countParagraphLines(RenderParagraph paragraph) {
+  final painter = TextPainter(
+    text: paragraph.text,
+    textAlign: paragraph.textAlign,
+    textDirection: paragraph.textDirection,
+    textScaler: paragraph.textScaler,
+    locale: paragraph.locale,
+    strutStyle: paragraph.strutStyle,
+    textWidthBasis: paragraph.textWidthBasis,
+    textHeightBehavior: paragraph.textHeightBehavior,
+    maxLines: paragraph.maxLines,
+  )..layout(maxWidth: paragraph.constraints.maxWidth);
+  final lines = painter.computeLineMetrics().length;
+  painter.dispose();
+  return lines;
+}
+
 void main() {
+  // ja 줄바꿈 측정(T-17-FALLBACK-06)은 실제 글꼴 폭이 필요하다 — golden 과 같은
+  // production 폰트 + CJK subset 을 등록한다.
+  setUpAll(loadGoldenFonts);
+
   group('Phase 17 깨진 화면 대체 (T-17-FALLBACK)', () {
     testWidgets(
       'T-17-FALLBACK-01 관통: 빌드 예외 → buildReleaseErrorWidget → 기록 1회 + ko 문구 · 버튼 0',
@@ -109,6 +137,162 @@ void main() {
         );
         expect(initCatchAt, greaterThanOrEqualTo(0));
         expect(builderAt, greaterThan(initCatchAt));
+      },
+    );
+
+    testWidgets(
+      'T-17-FALLBACK-04 E5 overflow: 200 dp 미만 자리는 아이콘만 · 넓은 자리는 overflow 0',
+      (tester) async {
+        final ko = lookupAppLocalizations(const Locale('ko'));
+        final compactLabel =
+            '${ko.errorWidgetFallbackTitle}. ${ko.errorWidgetFallbackBody}';
+
+        // (a) 카드 1장 크기(72 dp) · 좁은 너비(150 dp) 자리 → 아이콘 띠.
+        setViewport(tester, 280, 800);
+        await pumpLocalized(
+          tester,
+          Scaffold(
+            body: ListView(
+              padding: const EdgeInsets.all(16),
+              children: const [
+                SizedBox(
+                  key: ValueKey('card-slot'),
+                  height: 72,
+                  child: ErrorFallback(),
+                ),
+                SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    key: ValueKey('narrow-slot'),
+                    width: 150,
+                    height: 300,
+                    child: ErrorFallback(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        for (final slot in ['card-slot', 'narrow-slot']) {
+          final fallback = find.descendant(
+            of: find.byKey(ValueKey(slot)),
+            matching: find.byType(ErrorFallback),
+          );
+          expect(
+            find.descendant(of: fallback, matching: find.byType(Text)),
+            findsNothing,
+            reason: '$slot 은 compact — 제목 · 본문 Text 0',
+          );
+          final icon = tester.widget<Icon>(
+            find.descendant(of: fallback, matching: find.byType(Icon)),
+          );
+          expect(icon.icon, Icons.error_outline);
+          expect(icon.semanticLabel, compactLabel);
+        }
+        expect(
+          tester.getSize(find.byKey(const ValueKey('card-slot'))).height,
+          72,
+        );
+
+        // (b) 넓은 자리 2종(가로 780×360 · 세로 280×800) → full · overflow 0.
+        for (final size in const [Size(780, 360), Size(280, 800)]) {
+          setViewport(tester, size.width, size.height);
+          await pumpLocalized(tester, const ErrorFallback());
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '${size.width}×${size.height} overflow 0',
+          );
+          expect(find.text(ko.errorWidgetFallbackTitle), findsOneWidget);
+          expect(find.text(ko.errorWidgetFallbackBody), findsOneWidget);
+          expect(find.byType(SingleChildScrollView), findsOneWidget);
+          expect(findAnyButton(), findsNothing);
+        }
+      },
+    );
+
+    testWidgets(
+      'T-17-FALLBACK-05 E5 error backstop: MaterialApp 없이 View 루트에 바로 그려도 throw 0 · 기기 locale 문구',
+      (tester) async {
+        addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+
+        // 미지원 기기 locale(fr) → en 문구.
+        tester.platformDispatcher.localeTestValue = const Locale('fr', 'FR');
+        await tester.pumpWidget(const ErrorFallback());
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        final en = lookupAppLocalizations(const Locale('en'));
+        expect(find.text(en.errorWidgetFallbackTitle), findsOneWidget);
+        expect(find.text(en.errorWidgetFallbackBody), findsOneWidget);
+        // Directionality 부재 → ltr 로 감쌌다.
+        expect(
+          tester
+              .widget<Directionality>(
+                find
+                    .ancestor(
+                      of: find.text(en.errorWidgetFallbackTitle),
+                      matching: find.byType(Directionality),
+                    )
+                    .first,
+              )
+              .textDirection,
+          TextDirection.ltr,
+        );
+
+        // 지원 기기 locale(ja_JP) → ja 문구.
+        tester.platformDispatcher.localeTestValue = const Locale('ja', 'JP');
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(const ErrorFallback());
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        final ja = lookupAppLocalizations(const Locale('ja'));
+        expect(find.text(ja.errorWidgetFallbackTitle), findsOneWidget);
+        expect(find.text(ja.errorWidgetFallbackBody), findsOneWidget);
+
+        // 판정 함수 양성 · 음성 대조.
+        expect(
+          resolveErrorFallbackLocale(const Locale('ko', 'KR')),
+          const Locale('ko'),
+        );
+        expect(
+          resolveErrorFallbackLocale(const Locale('fr', 'FR')),
+          const Locale('en'),
+        );
+      },
+    );
+
+    testWidgets(
+      'T-17-FALLBACK-06 E5 long-text: ja 280 dp 에서 본문이 2줄 이상 줄바꿈 · maxLines 제한 없음',
+      (tester) async {
+        setViewport(tester, 280, 800);
+        await pumpLocalized(
+          tester,
+          const ErrorFallback(),
+          locale: const Locale('ja'),
+          theme: goldenTheme(Brightness.light, 'ja'),
+        );
+        expect(tester.takeException(), isNull);
+
+        final ja = lookupAppLocalizations(const Locale('ja'));
+        for (final copy in [
+          ja.errorWidgetFallbackTitle,
+          ja.errorWidgetFallbackBody,
+        ]) {
+          final text = tester.widget<Text>(find.text(copy));
+          expect(text.maxLines, isNull);
+          expect(text.overflow, isNull);
+          expect(text.textAlign, TextAlign.center);
+        }
+        final body = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: find.text(ja.errorWidgetFallbackBody),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect(countParagraphLines(body), greaterThanOrEqualTo(2));
+        expect(body.didExceedMaxLines, isFalse);
       },
     );
   });
