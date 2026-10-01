@@ -11,7 +11,7 @@
     "logs": "firebase functions:log",
     "lint": "eslint --ext .js,.ts .",
     "test": "jest",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-starter-kit \"jest -c jest.rules.config.js\""
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-starter-kit \"jest -c jest.rules.config.js\""
   },
   "engines": {
     "node": "22"

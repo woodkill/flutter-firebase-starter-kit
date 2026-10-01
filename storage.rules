@@ -1,0 +1,22 @@
+// Phase 17 — see ROADMAP.md (D-15 · D-28).
+// 본인 users/{uid}/ 경로만 · 정식 사용자만 write · 5MB · 이미지 타입. 그 밖 경로 전면 거부.
+// 탈퇴 시 prefix 일괄 삭제는 Admin(deleteUserAccount — D-40)이 rules 를 우회해 수행한다.
+//
+// 익명 세션은 write 가 막혀 30일 자동 정리 뒤 고아 사진이 생기지 않는다(D-28).
+// delete 는 업로드할 객체가 없으므로 크기 · 타입 조건 대신 빈 요청 관용구로 허용한다(A11).
+// 경로 · 크기 제한을 바꾸려면 이 파일의 해당 줄과 functions/test/rules/storage.rules.test.ts
+// (T-17-SRULES) 를 함께 고친다. 실 배포는 `firebase deploy --only storage`.
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && (request.resource == null   // delete
+            || (request.resource.size <= 5 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*')));
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}
