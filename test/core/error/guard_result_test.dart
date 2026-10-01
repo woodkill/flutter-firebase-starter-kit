@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -98,6 +99,66 @@ void main() {
 
       expect(result, isA<Success<int>>());
       expect((result as Success<int>).data, 42);
+      verifyNever(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
+    });
+
+    test(
+      'T-17-ERR-08 Notifier 가드 — AppException 은 AsyncError · 기록 0',
+      () async {
+        final value = await guardAsyncValue<int>(
+          () async => throw const ServiceUnavailable(),
+          reason: 'demo_notifier_load',
+          crashlytics: crashlytics,
+        );
+
+        expect(value, isA<AsyncError<int>>());
+        expect(value.error, isA<ServiceUnavailable>());
+        verifyNever(
+          () => crashlytics.recordError(
+            any(),
+            any(),
+            reason: any(named: 'reason'),
+            fatal: any(named: 'fatal'),
+          ),
+        );
+      },
+    );
+
+    test('T-17-ERR-08 Notifier 가드 — 예상치 못한 오류는 AsyncError · 기록 1회', () async {
+      final value = await guardAsyncValue<int>(
+        () async => throw StateError('boom'),
+        reason: 'demo_notifier_load',
+        crashlytics: crashlytics,
+      );
+
+      expect(value, isA<AsyncError<int>>());
+      expect(value.error, isA<StateError>());
+      verify(
+        () => crashlytics.recordError(
+          any(that: isA<StateError>()),
+          any(),
+          reason: 'demo_notifier_load',
+          fatal: false,
+        ),
+      ).called(1);
+    });
+
+    test('T-17-ERR-08 Notifier 가드 — 성공하면 AsyncData · 기록 0', () async {
+      final value = await guardAsyncValue<int>(
+        () async => 7,
+        reason: 'demo_notifier_load',
+        crashlytics: crashlytics,
+      );
+
+      expect(value, isA<AsyncData<int>>());
+      expect(value.value, 7);
       verifyNever(
         () => crashlytics.recordError(
           any(),
