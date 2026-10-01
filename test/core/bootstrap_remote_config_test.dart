@@ -1,8 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/bootstrap.dart';
 import 'package:flutter_starter_kit/core/config/app_config.dart';
+import 'package:flutter_starter_kit/core/remote_config/feature_flag.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// [source] 에서 `//` 주석 줄을 뺀 코드 줄만 남긴다.
+String _codeLines(String source) => source
+    .split('\n')
+    .where((line) => !line.trimLeft().startsWith('//'))
+    .join('\n');
 
 void main() {
   group('bootstrap Remote Config 통합 (D-24, D-25)', () {
@@ -82,5 +90,51 @@ void main() {
       expect(source.contains('Duration.zero'), isTrue);
       expect(source.contains('Duration(hours: 12)'), isTrue);
     });
+
+    test(
+      'T-17-RC-06 setDefaults 맵 = provider kill switch + FeatureFlag 기본값 합산 (D-11)',
+      () {
+        final code = _codeLines(
+          File('lib/core/bootstrap.dart').readAsStringSync(),
+        );
+        // 소스 계약 — 기존 provider 항목 1 · FeatureFlag 합산 1 · fetch 1.
+        expect(
+          RegExp(
+            r'rcKeyForProvider\(entry\.key\):\s*entry\.value',
+          ).allMatches(code).length,
+          1,
+        );
+        expect(
+          RegExp(
+            r'for \(final flag in FeatureFlag\.values\)\s*flag\.key:\s*flag\.defaultValue',
+          ).allMatches(code).length,
+          1,
+        );
+        expect('fetchAndActivate()'.allMatches(code).length, 1);
+        expect(
+          RegExp(
+            r'setDefaults\(\s*buildRemoteConfigDefaults\(\)\s*\)',
+          ).hasMatch(code),
+          isTrue,
+          reason: 'RC 블록의 setDefaults 가 합산 맵을 쓴다',
+        );
+
+        // 동작 — 기존 키 · 값 그대로 + 새 4키.
+        final defaults = buildRemoteConfigDefaults();
+        for (final entry in AppConfig.authProviders.entries) {
+          expect(defaults[rcKeyForProvider(entry.key)], entry.value);
+        }
+        for (final flag in FeatureFlag.values) {
+          expect(defaults[flag.key], flag.defaultValue);
+        }
+        expect(
+          defaults.length,
+          AppConfig.authProviders.length + FeatureFlag.values.length,
+        );
+
+        // RC 템플릿 파일은 만들지 않는다 (D-11).
+        expect(File('remoteconfig.template.json').existsSync(), isFalse);
+      },
+    );
   });
 }

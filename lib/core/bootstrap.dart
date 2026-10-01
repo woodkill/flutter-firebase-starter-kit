@@ -12,6 +12,7 @@ import 'package:flutter_starter_kit/core/config/app_config.dart';
 import 'package:flutter_starter_kit/core/error/error_widget_builder.dart';
 import 'package:flutter_starter_kit/core/firebase/firebase_initializer.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
+import 'package:flutter_starter_kit/core/remote_config/feature_flag.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
 // Phase 14 — see ROADMAP.md (LINE Login SDK init).
@@ -219,10 +220,11 @@ Future<void> bootstrap() async {
               // - 'auth_provider_kakao_enabled': true (Phase 12+)
               // - 'auth_provider_naver_enabled': true (Phase 13 — see ROADMAP.md)
               // - 'auth_provider_line_enabled': true (Phase 14 — see ROADMAP.md)
-              await rc.setDefaults(<String, Object>{
-                for (final entry in AppConfig.authProviders.entries)
-                  rcKeyForProvider(entry.key): entry.value,
-              });
+              //
+              // Phase 17 — see ROADMAP.md (D-11): FeatureFlag 기본값(공지 배너
+              // 스위치 · 언어별 문구)을 같은 맵에 합산한다
+              // ([buildRemoteConfigDefaults]).
+              await rc.setDefaults(buildRemoteConfigDefaults());
               await rc.fetchAndActivate();
             } on Object catch (e, st) {
               // D-25: fetch 실패는 무시. Crashlytics 로그만 + 정적 config 로 진행.
@@ -294,3 +296,20 @@ Future<void> bootstrap() async {
     ),
   );
 }
+
+/// Remote Config 기본값 맵을 만든다 — `setDefaults` 입력 (Phase 11 D-25 ·
+/// Phase 17 D-11).
+///
+/// 1. 인증 provider kill switch — [AppConfig.authProviders] 의 모든 슬러그에
+///    대해 `auth_provider_{providerId}_enabled: <정적 enabled>` (D-25).
+/// 2. [FeatureFlag] 기본값 — 공지 배너 스위치 · 언어별 문구 (D-11). 스위치를
+///    추가하면 enum 1줄로 여기에 자동 합산된다.
+///
+/// `remoteconfig.template.json` 은 만들지 않는다 — 기본값의 진실원은 이 맵이다.
+@visibleForTesting
+Map<String, Object> buildRemoteConfigDefaults() => <String, Object>{
+  for (final entry in AppConfig.authProviders.entries)
+    rcKeyForProvider(entry.key): entry.value,
+  // Phase 17 — see ROADMAP.md (D-11) — FeatureFlag 기본값 합산.
+  for (final flag in FeatureFlag.values) flag.key: flag.defaultValue,
+};
