@@ -18,6 +18,14 @@
 // - S6 unavailable → NoInternetConnection
 // - S7 deadline-exceeded → NoInternetConnection
 // - S8 resource-exhausted → TooManyRequests (Cloud Run 할당량 차단 실측)
+//
+// Phase 17 (D-24 정정 · D-43 · D-40 · D-44) 추가:
+// - T-17-WD-01 SDK 계층 거부(App Check 차단) → AppCheckFailedException ·
+//   Crashlytics 1회 (reason app_check_rejected_deleteUserAccount)
+// - T-17-WD-02 reason reauthentication_required · permission-denied · reason
+//   없는 errorUnauthenticated → ReauthenticationRequiredException (기록 0)
+// - T-17-WD-03 unavailable + storage_cleanup_failed → ServiceUnavailable,
+//   reason 없는 unavailable → NoInternetConnection (기존)
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -25,6 +33,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
 
@@ -40,6 +49,8 @@ class _MockHttpsCallableResult extends Mock
     implements HttpsCallableResult<Object?> {}
 
 class _FakeHttpsCallableOptions extends Fake implements HttpsCallableOptions {}
+
+class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 void main() {
   late _MockFirebaseAuth mockAuth;
@@ -294,5 +305,153 @@ void main() {
       );
       verifyNever(() => mockDeleteCallable.call<Object?>(any()));
     });
+  });
+
+  group('Phase 17 D-24 정정 · D-43 · D-40 — _mapDeleteError 원인별 분기', () {
+    late _MockCrashlyticsService crashlytics;
+    late SettingsRepository appCheckRepository;
+
+    setUpAll(() {
+      registerFallbackValue(StackTrace.empty);
+    });
+
+    setUp(() {
+      crashlytics = _MockCrashlyticsService();
+      when(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      ).thenAnswer((_) async {});
+      appCheckRepository = SettingsRepository(
+        auth: mockAuth,
+        functions: mockFunctions,
+        crashlytics: crashlytics,
+      );
+    });
+
+    /// deleteUserAccount callable 이 [code] · [message] · [details] 로
+    /// 거부하도록 스텁한다.
+    void stubRejection(String code, {String? message, Object? details}) {
+      stubCurrentUserWithFreshToken();
+      when(() => mockDeleteCallable.call<Object?>(any())).thenThrow(
+        FirebaseFunctionsException(
+          code: code,
+          message: message ?? code,
+          details: details,
+        ),
+      );
+    }
+
+    /// Crashlytics 기록이 한 번도 없었음을 단언한다.
+    void expectNoRecord() {
+      verifyNever(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
+    }
+
+    test(
+      'T-17-WD-01 SDK 계층 거부(App Check) → AppCheckFailedException · 기록 1회',
+      () async {
+        stubRejection('unauthenticated', message: 'Unauthenticated');
+
+        await expectLater(
+          appCheckRepository.requestAccountDeletion(),
+          throwsA(
+            allOf(
+              isA<AppCheckFailedException>(),
+              isNot(isA<ReauthenticationRequiredException>()),
+            ),
+          ),
+        );
+        verify(
+          () => crashlytics.recordError(
+            any(that: isA<FirebaseFunctionsException>()),
+            any(),
+            reason: 'app_check_rejected_deleteUserAccount',
+            fatal: false,
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'T-17-WD-02 reason reauthentication_required 가 먼저 — 재인증 · 기록 0',
+      () async {
+        stubRejection(
+          'unauthenticated',
+          message: 'Unauthenticated',
+          details: const <String, Object?>{
+            'reason': 'reauthentication_required',
+          },
+        );
+
+        await expectLater(
+          appCheckRepository.requestAccountDeletion(),
+          throwsA(isA<ReauthenticationRequiredException>()),
+        );
+        expectNoRecord();
+      },
+    );
+
+    test('T-17-WD-02 permission-denied → 재인증 (기존) · 기록 0', () async {
+      stubRejection('permission-denied', message: 'errorUnauthenticated');
+
+      await expectLater(
+        appCheckRepository.requestAccountDeletion(),
+        throwsA(isA<ReauthenticationRequiredException>()),
+      );
+      expectNoRecord();
+    });
+
+    test(
+      'T-17-WD-02 reason 없는 unauthenticated(errorUnauthenticated) → 재인증 (기존) · 기록 0',
+      () async {
+        stubRejection('unauthenticated', message: 'errorUnauthenticated');
+
+        await expectLater(
+          appCheckRepository.requestAccountDeletion(),
+          throwsA(isA<ReauthenticationRequiredException>()),
+        );
+        expectNoRecord();
+      },
+    );
+
+    test(
+      'T-17-WD-03 unavailable + storage_cleanup_failed → ServiceUnavailable · 기록 0',
+      () async {
+        stubRejection(
+          'unavailable',
+          message: 'errorServiceUnavailable',
+          details: const <String, Object?>{'reason': 'storage_cleanup_failed'},
+        );
+
+        await expectLater(
+          appCheckRepository.requestAccountDeletion(),
+          throwsA(isA<ServiceUnavailable>()),
+        );
+        expectNoRecord();
+      },
+    );
+
+    test(
+      'T-17-WD-03 reason 없는 unavailable → NoInternetConnection (기존)',
+      () async {
+        stubRejection('unavailable', message: 'errorServiceUnavailable');
+
+        await expectLater(
+          appCheckRepository.requestAccountDeletion(),
+          throwsA(isA<NoInternetConnection>()),
+        );
+        expectNoRecord();
+      },
+    );
   });
 }

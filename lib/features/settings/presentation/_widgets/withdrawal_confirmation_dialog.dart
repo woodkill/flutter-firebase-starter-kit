@@ -14,8 +14,11 @@
 //   router 가 signOut 후 /onboarding 으로 자동 reset.
 // - AsyncValue.error(ReauthenticationRequiredException) →
 //   withdrawalReauthRequired SnackBar + Navigator.pop(false) + /login push.
-// - AsyncValue.error(NetworkException 계열 / TooManyRequests) →
-//   withdrawalFailureTransient SnackBar (WR-03 — 원인별 문구).
+// - AsyncValue.error(AppCheckFailedException) → errorAppCheckFailed SnackBar
+//   (Phase 17 D-42 · D-43 — 재로그인 라우팅 0 · dialog 유지).
+// - AsyncValue.error(NetworkException 계열 / TooManyRequests /
+//   ServiceUnavailable) → withdrawalFailureTransient SnackBar (WR-03 — 원인별
+//   문구 · Phase 17 D-40 사진 삭제 실패 포함).
 // - AsyncValue.error(그 외) → withdrawalFailure SnackBar (dialog 유지 — 재시도).
 import 'dart:async';
 
@@ -304,14 +307,24 @@ class _WithdrawalConfirmationDialogState
 /// 서브타입이다. [ReauthenticationRequiredException] 은 호출처가 라우팅
 /// 분기로 먼저 처리하므로 본 함수에 도달하지 않는다.
 ///
+/// - [AppCheckFailedException] (SDK 계층 거부 · App Check 차단) —
+///   [AppLocalizations.errorAppCheckFailed] (Phase 17 D-42 · D-43 · UI-SPEC
+///   (A)). 재로그인 안내 · 라우팅이 아니다. transient arm 보다 앞에 둔다
+///   ([AppCheckFailedException] 은 [ServiceUnavailable] 과 같은
+///   [ServerException] 계열이라 순서가 의미를 가진다).
 /// - [NetworkException] 계열 (`unavailable` / `deadline-exceeded`) /
-///   [TooManyRequests] (`resource-exhausted`) — 재시도로 해소 가능한
-///   일시 오류이므로 [AppLocalizations.withdrawalFailureTransient].
+///   [TooManyRequests] (`resource-exhausted`) / [ServiceUnavailable]
+///   (사진 삭제 실패 `storage_cleanup_failed` · Phase 17 D-40 · UI-SPEC (W))
+///   — 재시도로 해소 가능한 일시 오류이므로
+///   [AppLocalizations.withdrawalFailureTransient].
 /// - 그 외 ([UnknownException] 등) — 기존 generic
 ///   [AppLocalizations.withdrawalFailure] (UI-SPEC Surface C verbatim).
 String resolveWithdrawalFailureMessage(AppLocalizations l10n, Object? error) {
   return switch (error) {
-    NetworkException() || TooManyRequests() => l10n.withdrawalFailureTransient,
+    AppCheckFailedException() => l10n.errorAppCheckFailed,
+    NetworkException() ||
+    TooManyRequests() ||
+    ServiceUnavailable() => l10n.withdrawalFailureTransient,
     _ => l10n.withdrawalFailure,
   };
 }

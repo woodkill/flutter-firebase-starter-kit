@@ -322,11 +322,11 @@ final class UnlinkLastCredentialRejected extends AuthException {
 /// 만든다. reason 없는 `unauthenticated` 중 SDK 계층 거부(App Check 차단)는
 /// [AppCheckFailedException](Phase 17 D-43 — `classifyAppCheckRejection`)이고,
 /// IdP 자격증명 거부 등 서버 taxonomy 는 일시 오류로 흘린다.
-/// `SettingsRepository._mapDeleteError` 는 아직 이 판정을 거치지 않고 code 만
-/// 보고 두 code 모두 본 타입으로 만들므로 App Check 차단(firebase-functions
-/// 7.2.5 는 `unauthenticated`)도 본 타입이 된다(알려진 한계 · 같은 helper 를
-/// 붙일 때까지 — 서버가 싣는 reason 은 이 경로에 무해하다). 그 밖의 생성처:
-/// `getIdToken(true)` 비네트워크 실패 · null/빈 idToken
+/// `SettingsRepository._mapDeleteError` 는 reason `reauthentication_required`
+/// 를 먼저 본 타입으로 만들고, 그 다음 같은 판정으로 SDK 계층 거부를
+/// [AppCheckFailedException] 으로 가른 뒤 남은 `unauthenticated` ·
+/// `permission-denied` 를 본 타입으로 만든다(Phase 17 D-24 정정).
+/// 그 밖의 생성처: `getIdToken(true)` 비네트워크 실패 · null/빈 idToken
 /// (`SettingsRepository`), native link · unlink 의 `requires-recent-login`.
 /// 사용자는 `/login` 으로 redirect 후 재로그인 의무.
 final class ReauthenticationRequiredException extends AuthException {

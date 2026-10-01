@@ -4,16 +4,20 @@
 // - fresh ID Token 발급 (`getIdToken(true)`) — revoked 토큰 차단 + 클레임
 //   최신화 목적 (D-06). **forceRefresh 는 `auth_time` 을 갱신하지 않는다**
 //   (WR-04) — 서버의 5분 boundary 통과는 실제 재인증으로만 가능하다.
-// - callable invoke + FirebaseFunctionsException 코드별 매핑
-//   (unauthenticated/permission-denied → ReauthenticationRequiredException,
-//   internal/그 외 → UnknownException).
+// - callable invoke + FirebaseFunctionsException 원인별 매핑
+//   (reason reauthentication_required → ReauthenticationRequiredException,
+//   SDK 계층 거부 → AppCheckFailedException (Phase 17 D-43),
+//   unavailable{storage_cleanup_failed} → ServiceUnavailable (Phase 17 D-40),
+//   그 밖은 code switch).
 // - PII invariant — idToken 본문 / email 본문 logger 비전파 (S5 sentinel).
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/error/app_exception.dart';
+import '../../../core/functions/callable_rejection.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../domain/delete_user_request.dart';
 
@@ -26,14 +30,24 @@ part 'settings_repository.g.dart';
 /// boundary baseline).
 class SettingsRepository {
   /// [SettingsRepository] 를 생성한다.
+  ///
+  /// [crashlytics] 는 App Check 차단 판정(`classifyAppCheckRejection`)이
+  /// non-fatal 1회를 남기는 채널이다 (Phase 17 D-44). 기본값은 no-op 이라
+  /// 기존 생성부 · 테스트는 바뀌지 않는다.
   SettingsRepository({
     required fb.FirebaseAuth auth,
     required FirebaseFunctions functions,
+    CrashlyticsService crashlytics = const CrashlyticsService(
+      null,
+      isEnabled: false,
+    ),
   }) : _auth = auth,
-       _functions = functions;
+       _functions = functions,
+       _crashlytics = crashlytics;
 
   final fb.FirebaseAuth _auth;
   final FirebaseFunctions _functions;
+  final CrashlyticsService _crashlytics;
 
   /// `deleteUserAccount` callable 호출 타임아웃 — 10 초.
   static const Duration _kDeleteTimeout = Duration(seconds: 10);
@@ -57,10 +71,8 @@ class SettingsRepository {
   ///    [ReauthenticationRequiredException] 으로 매핑된다 (WR-03). 반환값이
   ///    null/빈 문자열이면 [ReauthenticationRequiredException] (WR-20).
   /// 3. `deleteUserAccount` callable 호출 ({'idToken': idToken} payload).
-  /// 4. FirebaseFunctionsException 코드 매핑:
-  ///    - `unauthenticated` / `permission-denied` →
-  ///      [ReauthenticationRequiredException]
-  ///    - 그 외 (`internal` 포함) → [UnknownException]
+  /// 4. FirebaseFunctionsException 매핑 — [_mapDeleteError] 참조
+  ///    (재인증 reason · App Check 차단 · 사진 삭제 실패 · code switch 순).
   ///
   /// **PII invariant (S5 sentinel / T-16-NEW-07):** idToken 본문 / email 본문
   /// 모두 logger payload 에 절대 전파되지 않는다. catch path 의 debugPrint 는
@@ -113,11 +125,27 @@ class SettingsRepository {
 
   /// FirebaseFunctionsException 을 [AppException] 으로 매핑한다.
   ///
-  /// - `unauthenticated` / `permission-denied` →
-  ///   [ReauthenticationRequiredException] (5분 boundary 초과 — 재로그인 필요)
-  /// - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
-  /// - `resource-exhausted` → [TooManyRequests]
-  /// - 그 외 (`internal`, `unknown` 등) → [UnknownException]
+  /// 판정 순서 (Phase 17 D-24 정정 · D-43 · D-40 — 앞 단계가 이긴다):
+  /// 1. `unauthenticated` + `details.reason == 'reauthentication_required'` →
+  ///    [ReauthenticationRequiredException] (서버 `assertFreshAuth` 5분
+  ///    boundary 초과 · idToken 검증 실패).
+  /// 2. `classifyAppCheckRejection` — SDK 계층 거부(App Check 차단 · 무효 ID
+  ///    token)면 [AppCheckFailedException] + Crashlytics non-fatal 1회
+  ///    (reason `app_check_rejected_deleteUserAccount` · D-44). 재로그인으로
+  ///    보내지 않는다(D-42).
+  /// 3. `unavailable` + `details.reason == 'storage_cleanup_failed'` →
+  ///    [ServiceUnavailable] (plan 17-05 서버가 Storage 선삭제 실패 시 계정을
+  ///    지우지 않고 돌려주는 거부 — 재시도로 해소된다).
+  /// 4. 기존 code switch:
+  ///    - `unauthenticated` (reason 없음 · 서버 `errorUnauthenticated`) /
+  ///      `permission-denied` (idToken uid 불일치) →
+  ///      [ReauthenticationRequiredException]
+  ///    - `unavailable` / `deadline-exceeded` → [NoInternetConnection]
+  ///    - `resource-exhausted` → [TooManyRequests]
+  ///    - 그 외 (`internal`, `unknown` 등) → [UnknownException]
+  ///
+  /// 서버 코드는 바꾸지 않는다 — 판별은 `code` + `details.reason` 만 본다
+  /// (서버 taxonomy message 로 분기하지 않는다 · IN-04).
   ///
   /// **taxonomy 정렬 (Phase 16 G-16-A6-2 / IN-02 정정):**
   /// `unavailable` / `deadline-exceeded` → [NoInternetConnection] 은
@@ -126,12 +154,36 @@ class SettingsRepository {
   /// (auth 쪽은 default `ServiceUnavailable` 로 흡수). 3 코드 중 2 코드만
   /// 일치하므로 "완전 동일" 이 아니다.
   ///
-  /// **하류 계약 (WR-03):** `WithdrawalConfirmationDialog` 가 본 매퍼의
-  /// 서브타입을 원인별 SnackBar 문구로 렌더한다 —
-  /// [NetworkException] 계열 / [TooManyRequests] 는
+  /// **하류 계약 (WR-03 · Phase 17 UI-SPEC (A) · (W)):**
+  /// `WithdrawalConfirmationDialog` · 탈퇴 진행 화면이 본 매퍼의 서브타입을
+  /// `resolveWithdrawalFailureMessage` 로 원인별 SnackBar 문구로 렌더한다 —
+  /// [AppCheckFailedException] 은 `errorAppCheckFailed`,
+  /// [NetworkException] 계열 / [TooManyRequests] / [ServiceUnavailable] 는
   /// `withdrawalFailureTransient`, 그 외는 `withdrawalFailure`. 따라서 arm 을
   /// 넓히거나 좁힐 때 dialog 의 문구 분기를 함께 확인할 것.
   AppException _mapDeleteError(FirebaseFunctionsException e) {
+    final details = e.details;
+    // 1. 서버가 reason 으로 지목한 재인증 필요 — helper 보다 먼저 판정한다.
+    if (e.code == 'unauthenticated' &&
+        details is Map &&
+        details['reason'] == 'reauthentication_required') {
+      return ReauthenticationRequiredException(cause: e);
+    }
+    // 2. Phase 17 D-43 — SDK 계층 거부(App Check 차단)는 재로그인이 아니다.
+    // 호출 머리(helper · 대상 · callable 이름)를 한 줄로 유지해 helper 경유
+    // 지점을 grep 한 번으로 계수할 수 있게 한다(plan 17-11 verify).
+    // dart format off
+    final appCheck = classifyAppCheckRejection(e, callable: 'deleteUserAccount',
+        crashlytics: _crashlytics);
+    // dart format on
+    if (appCheck != null) return appCheck;
+    // 3. Phase 17 D-40 — 사진(Storage) 선삭제 실패. 계정은 그대로이므로
+    //    재시도 안내(transient)로 보낸다.
+    if (e.code == 'unavailable' &&
+        details is Map &&
+        details['reason'] == 'storage_cleanup_failed') {
+      return ServiceUnavailable(cause: e);
+    }
     return switch (e.code) {
       'unauthenticated' ||
       'permission-denied' => ReauthenticationRequiredException(cause: e),
@@ -153,5 +205,6 @@ SettingsRepository settingsRepository(Ref ref) {
   return SettingsRepository(
     auth: ref.watch(firebaseAuthProvider),
     functions: ref.watch(firebaseFunctionsProvider),
+    crashlytics: ref.watch(crashlyticsServiceProvider),
   );
 }

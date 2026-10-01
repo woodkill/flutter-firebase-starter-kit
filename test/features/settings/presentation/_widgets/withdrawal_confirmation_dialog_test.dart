@@ -24,6 +24,9 @@
 // - WC22 (16.10 review IN-02 — iteration 2) 조회 reader 생성 자체가 throw 해도
 //   조회 실패와 같이 흡수 — 삭제 0 · 재시도 안내 · 다이얼로그 유지 · 잡히지
 //   않은 예외 0
+// - T-17-WD-01 (Phase 17 D-42 · D-43) AppCheckFailedException →
+//   errorAppCheckFailed · 재로그인 라우팅 0
+// - T-17-WD-03 (Phase 17 D-40) ServiceUnavailable → withdrawalFailureTransient
 
 import 'dart:async';
 
@@ -374,6 +377,76 @@ void main() {
         when(
           () => settingsRepo.requestAccountDeletion(),
         ).thenThrow(const NoInternetConnection());
+
+        await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
+
+        await tester.enterText(find.byType(TextField), koHint);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.pump();
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+          findsOneWidget,
+        );
+        expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+        expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      },
+    );
+
+    // Phase 17 D-42 · D-43 · UI-SPEC (A) — App Check 차단은 재로그인이
+    // 아니라 errorAppCheckFailed 한 문구로 안내한다(D-24 원래 문제 재발 가드).
+    testWidgets(
+      'T-17-WD-01 AppCheckFailedException → errorAppCheckFailed SnackBar · /login 이동 0 · dialog 유지',
+      (tester) async {
+        final settingsRepo = _MockSettingsRepository();
+        when(
+          () => settingsRepo.requestAccountDeletion(),
+        ).thenThrow(const AppCheckFailedException());
+        final visited = <String>[];
+
+        await _pumpAndShowDialog(
+          tester,
+          settingsRepo: settingsRepo,
+          visitedRoutes: visited,
+        );
+
+        await tester.enterText(find.byType(TextField), koHint);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.pump();
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        // errorAppCheckFailed ko verbatim.
+        expect(
+          find.text(
+            '요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.',
+          ),
+          findsOneWidget,
+        );
+        // 재로그인 안내 · 라우팅 0.
+        expect(
+          find.text('보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.'),
+          findsNothing,
+        );
+        expect(visited.where((r) => r.startsWith('/login')), isEmpty);
+        expect(find.text('login-stub'), findsNothing);
+        expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      },
+    );
+
+    // Phase 17 D-40 · UI-SPEC (W) — 사진 삭제 실패(ServiceUnavailable)는
+    // 기존 transient 문구로 재시도를 유도한다(새 ARB 키 0).
+    testWidgets(
+      'T-17-WD-03 ServiceUnavailable(storage_cleanup_failed) → withdrawalFailureTransient SnackBar',
+      (tester) async {
+        final settingsRepo = _MockSettingsRepository();
+        when(
+          () => settingsRepo.requestAccountDeletion(),
+        ).thenThrow(const ServiceUnavailable());
 
         await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
 
