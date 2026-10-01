@@ -26,6 +26,7 @@ import '_widgets/account_linking_section.dart';
 import '_widgets/danger_zone_section.dart';
 import '_widgets/linked_accounts_value.dart';
 import '_widgets/notifications_section.dart';
+import '_widgets/profile_photo_tile.dart';
 import '_widgets/unlink_confirmation_dialog.dart';
 import 'settings_notifier.dart';
 
@@ -43,7 +44,8 @@ import 'settings_notifier.dart';
 ///   회원탈퇴 ListTile (Icons.delete_forever + destructive 색상).
 ///
 /// Phase 17 D-03 — 계정 연결 section 과 Danger zone 사이에 「알림」 section
-/// ([NotificationsSection] · UI-SPEC (N) Q3-A)이 들어간다.
+/// ([NotificationsSection] · UI-SPEC (N) Q3-A)이 들어간다. Phase 17 D-18 —
+/// 「내 계정」 첫 행은 프로필 사진 행([ProfilePhotoTile] · UI-SPEC (P) Q2-A).
 class SettingsScreen extends ConsumerWidget {
   /// [SettingsScreen] 을 생성한다.
   const SettingsScreen({super.key});
@@ -117,6 +119,8 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            // Phase 17 D-18 · UI-SPEC (P) Q2-A — 프로필 사진 행(「내 계정」 첫 행).
+            const ProfilePhotoTile(),
             // WR-14: 280dp 최소 뷰포트 방어 — 이메일 주소만 maxLines 2 + softWrap +
             // ellipsis(주소는 provider 이름 규칙 대상이 아님). 가입 수단 · 연결된
             // 계정 값은 줄 수 제한 없이 전부 표시(D-02 개정 (R1)) — 줄바꿈은

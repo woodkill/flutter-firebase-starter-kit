@@ -80,6 +80,10 @@
 //   위에 들어가 두 pump harness 가 `notificationSettingsProvider` 를 꺼짐
 //   (AsyncData(false))으로 고정한다. T-17-NOTIF-12 — 고정 override 로 섹션이
 //   꺼짐 렌더 · 배치 순서 · Danger zone 탭 경로(ensureVisible 뒤) 회귀 0.
+// Phase 17 Plan 17-17 Task 1 — 프로필 사진 행(Q2-A)이 「내 계정」 첫 행으로
+//   들어가 두 pump harness 가 `linkedProvidersStreamProvider(uid)` 를 data(업로드
+//   사진 없음)로 고정한다. T-17-PHOTO-09 — 사진 행 위치 · 값 · 밀린 Danger zone
+//   탭 경로(scrollUntilVisible 뒤) 회귀 0.
 //
 // 동일 패턴 audit (G-16-A6-1 missing 2번째 항목 — 2026-09-07 실행):
 //
@@ -139,6 +143,7 @@ import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/account_linking_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/danger_zone_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/notifications_section.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/_widgets/profile_photo_tile.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/withdrawal_confirmation_dialog.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -287,6 +292,16 @@ const List<String> _kAllProviderIdsHeld = <String>[
   'google.com',
 ];
 
+/// 사진 출처 stream fixture — 업로드 사진 없음 (Phase 17 T-17-PHOTO-09).
+///
+/// 화면은 `currentUserProvider` override 로 사용자를 고정하므로 이 record 는
+/// 사진 행의 출처 읽기 상태(data)만 결정한다.
+const UserProviderRecord _kNoPhotoRecord = (
+  linkedProviderIds: <String>[],
+  signUpProviderId: null,
+  customPhotoUrl: null,
+);
+
 Future<void> _pumpSettingsScreen(
   WidgetTester tester, {
   required User? user,
@@ -308,6 +323,12 @@ Future<void> _pumpSettingsScreen(
         notificationSettingsProvider.overrideWithBuild(
           (ref, notifier) => false,
         ),
+        // Phase 17 T-17-PHOTO-09 — 사진 행의 사진 출처 stream 을 data 로 고정
+        // (미초기화 Firestore 에 닿지 않게 · 업로드 사진 없음).
+        if (user != null)
+          linkedProvidersStreamProvider(
+            user.uid,
+          ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -366,6 +387,11 @@ Future<GoRouter> _pumpSettingsScreenWithRouter(
         notificationSettingsProvider.overrideWithBuild(
           (ref, notifier) => false,
         ),
+        // Phase 17 T-17-PHOTO-09 — 사진 출처 stream data 고정(업로드 사진 없음).
+        if (user != null)
+          linkedProvidersStreamProvider(
+            user.uid,
+          ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -619,7 +645,10 @@ void main() {
       await _pumpSettingsScreen(tester, user: _testUser());
 
       // ensureVisible 은 "겨우 보이는" 위치에서 멈출 수 있어 geometry 단언이
-      // 무의미해진다 — 충분히 큰 음수 offset 으로 끝까지 내린다.
+      // 무의미해진다 — 충분히 큰 음수 offset 으로 끝까지 내린다. Phase 17 —
+      // 사진 행까지 들어가 drag 1회는 lazy build 로 추정된 끝에서 멈춘다.
+      // Danger zone 을 먼저 build 시킨 뒤 끝까지 내린다.
+      await _scrollTo(tester, find.byType(DangerZoneSection));
       await tester.drag(find.byType(ListView), const Offset(0, -2000));
       await tester.pumpAndSettle();
 
@@ -729,8 +758,14 @@ void main() {
           equals(theme.textTheme.bodyMedium?.fontSize),
         );
 
-        // trailing chevron 은 accent 화이트리스트 대상.
-        final chevron = tester.widget<Icon>(find.byIcon(Icons.chevron_right));
+        // trailing chevron 은 accent 화이트리스트 대상. Phase 17 — 사진 행도
+        // chevron 을 가져 Danger zone 범위로 한정한다.
+        final chevron = tester.widget<Icon>(
+          find.descendant(
+            of: find.byType(DangerZoneSection),
+            matching: find.byIcon(Icons.chevron_right),
+          ),
+        );
         expect(chevron.color, equals(theme.colorScheme.primary));
 
         // destructive intent 2요소(leading icon + title)는 그대로 유지.
@@ -1772,6 +1807,46 @@ void main() {
       final dangerY = tester.getTopLeft(find.byType(DangerZoneSection)).dy;
       expect(linkingY, lessThan(sectionY));
       expect(sectionY, lessThan(dangerY));
+
+      await _scrollTo(tester, find.byType(DangerZoneSection));
+      await tester.tap(find.text('Delete account').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+  group('Phase 17 프로필 사진 행 회귀 (T-17-PHOTO-09)', () {
+    testWidgets('T-17-PHOTO-09: 사진 행이 「내 계정」 첫 행(이메일 위) · 값 「None」 · '
+        '밀린 Danger zone 탭 경로 회귀 0', (tester) async {
+      await _pumpSettingsScreen(
+        tester,
+        user: _testUser(
+          providerIds: const <String>['google.com'],
+          signUpProviderId: 'google.com',
+        ),
+      );
+
+      final photoTile = find.byType(ProfilePhotoTile);
+      expect(photoTile, findsOneWidget);
+      final row = find.descendant(
+        of: photoTile,
+        matching: find.byType(ListTile),
+      );
+      expect(
+        find.descendant(of: row, matching: find.text('Profile Photo')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text('None')),
+        findsOneWidget,
+      );
+      // heading 다음 · 이메일 행 위.
+      final headingY = tester.getTopLeft(find.text('My Account')).dy;
+      final photoY = tester.getTopLeft(row).dy;
+      final emailY = tester.getTopLeft(_findEmailTile()).dy;
+      expect(headingY, lessThan(photoY));
+      expect(photoY, lessThan(emailY));
+      expect(tester.widget<ListTile>(row).onTap, isNotNull);
 
       await _scrollTo(tester, find.byType(DangerZoneSection));
       await tester.tap(find.text('Delete account').last);

@@ -39,6 +39,12 @@
 // facebook_*` 는 이력으로 보존한다(덮어쓰기 0). 설정 화면 golden 은 byte 불변.
 // 공용 harness(FontLoader · theme · settle · push 진입)는 같은 디렉터리의
 // golden harness 파일로 승격했다(진행 화면 golden 과 공유).
+//
+// **Phase 17 (Plan 17-15 · 17-17):** 설정 화면에 알림 섹션(Q3-A) · 프로필 사진
+// 행(Q2-A)이 들어가 설정 golden 2장이 바뀌고, 채택안
+// `mockups/adopted_settings_17_ko_280_worst_{light,dark}.png`(사진 없음 · 알림
+// 꺼짐)와 byte 동일해야 한다. 해제 다이얼로그 golden 4장은 barrier 너머 설정
+// 배경만 바뀐다(다이얼로그 surface 변경 0 · UI-SPEC 「2026-10-01 정정」).
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -113,11 +119,19 @@ User _fixtureUser(
   );
 }
 
+/// 사진 출처 stream fixture — 업로드 사진 없음 (UI-SPEC §Golden 캡처 계약 ·
+/// 채택안 조건 「사진 없음」).
+const UserProviderRecord _kNoPhotoRecord = (
+  linkedProviderIds: <String>[],
+  signUpProviderId: null,
+  customPhotoUrl: null,
+);
+
 /// 빈 [Scaffold] 위에 production [SettingsScreen] 을 push 해 [width]×800 ·
 /// DPR 3 viewport 에 올린다 ([pumpGoldenRoute] 위임).
 ///
 /// override 는 UI-SPEC §Golden 캡처 계약 S 열 — repository mock · 활성
-/// strategy 6 · 사용자 fixture.
+/// strategy 6 · 사용자 fixture · 사진 출처 stream(업로드 사진 없음 · Phase 17).
 Future<void> _pumpSettingsScreen(
   WidgetTester tester, {
   required User user,
@@ -132,6 +146,12 @@ Future<void> _pumpSettingsScreen(
       authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
       activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),
       currentUserProvider.overrideWith((ref) => user),
+      // Phase 17 (UI-SPEC §Golden 캡처 계약) — 사진 행의 사진 출처 stream 을
+      // data(업로드 사진 없음)로 고정한다. 네트워크 사진 비결정성 회피 ·
+      // 미초기화 Firestore 무접촉.
+      linkedProvidersStreamProvider(
+        user.uid,
+      ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
     ],
     locale: locale,
     brightness: brightness,

@@ -271,6 +271,16 @@ Future<void> _pumpSurface(
         ),
         activeStrategiesProvider.overrideWithValue(_sixStrategies),
         if (user != null) currentUserProvider.overrideWith((ref) => user),
+        // Phase 17 (Plan 17-17) — 설정 사진 행의 사진 출처 stream 을 data(업로드
+        // 사진 없음)로 고정한다(미초기화 Firestore 무접촉).
+        if (user != null)
+          linkedProvidersStreamProvider(user.uid).overrideWith(
+            (ref) => Stream.value((
+              linkedProviderIds: const <String>[],
+              signUpProviderId: null,
+              customPhotoUrl: null,
+            )),
+          ),
         // Phase 17 (UI-SPEC §Golden 캡처 계약 「2026-10-01 정정」) — 재인증
         // 성공 → 설정 복귀 golden 이 실제 SettingsScreen 을 그리므로 알림
         // 섹션을 꺼짐(AsyncData(false))으로 고정한다.
