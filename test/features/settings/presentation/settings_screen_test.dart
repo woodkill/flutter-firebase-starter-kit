@@ -1608,6 +1608,72 @@ void main() {
         handle.dispose();
       },
     );
+
+    // Phase 17 D-42 · D-43 — 해제 callable · 끊기 step 의 App Check 차단은
+    // 둘 다 같은 errorAppCheckFailed SnackBar 다(재로그인 라우팅 0).
+    for (final (label, steps) in <(String, List<DisconnectStep>?)>[
+      ('해제 callable', null),
+      (
+        '끊기 step',
+        <DisconnectStep>[
+          _googleStep(const DisconnectFailed(AppCheckFailedException())),
+        ],
+      ),
+    ]) {
+      testWidgets(
+        'T-17-LINK-04 $label App Check 차단 → ko errorAppCheckFailed SnackBar · 다이얼로그 닫힘 · 라우팅 0',
+        (tester) async {
+          final ko = lookupAppLocalizations(const Locale('ko'));
+          final handle = tester.ensureSemantics();
+          when(() => authRepo.unlinkNativeProvider('google.com')).thenAnswer(
+            (_) async => const Result<User>.failure(AppCheckFailedException()),
+          );
+          final router = await _pumpSettingsScreenWithRouter(
+            tester,
+            user: _testUser(
+              providerIds: const <String>['kakao', 'google.com'],
+              signUpProviderId: 'kakao',
+            ),
+            authRepo: authRepo,
+            locale: const Locale('ko'),
+            disconnectSteps: steps,
+          );
+
+          await _openUnlinkDialog(
+            tester,
+            find.bySemanticsLabel(
+              ko.settingsUnlinkProviderSemantic(ko.authAccountProviderGoogle),
+            ),
+          );
+          await tester.tap(find.text(ko.settingsUnlinkConfirmAction));
+          await tester.pumpAndSettle();
+
+          expect(find.byType(AlertDialog), findsNothing);
+          expect(
+            find.descendant(
+              of: find.byType(SnackBar),
+              matching: find.text(ko.errorAppCheckFailed),
+            ),
+            findsOneWidget,
+          );
+          expect(find.text(ko.authReauthRequired), findsNothing);
+          expect(
+            find.text(ko.settingsUnlinkFailedDisconnect('Google')),
+            findsNothing,
+          );
+          expect(
+            find.text(ko.settingsUnlinkFailedAfterDisconnect('Google')),
+            findsNothing,
+          );
+          expect(find.text('LOGIN ROUTE'), findsNothing);
+          expect(
+            router.routerDelegate.currentConfiguration.last.matchedLocation,
+            AppRoutes.home,
+          );
+          handle.dispose();
+        },
+      );
+    }
   });
 
   group('quick 260928-fp6 null email (D-01 · D-03)', () {

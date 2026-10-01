@@ -292,10 +292,11 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///    고아가 되므로 나머지 결과는 모두 해제 0 · 연결 유지다 (D-11):
   ///    - [DisconnectCancelled] (provider 로그인 취소) → `cancelled`.
   ///    - [DisconnectIdentityMismatch] → `identityMismatch` (D-08).
-  ///    - [DisconnectFailed] → 네트워크 · rate limit 은 `transientFailure`,
-  ///      서버 `provider_config`([ProviderMisconfigured])는
-  ///      `providerConfigFailed`(16.10 review IN-04 — iteration 3), 그 밖은
-  ///      `disconnectFailed`.
+  ///    - [DisconnectFailed] → App Check 차단([AppCheckFailedException])은
+  ///      `appCheckFailed`(Phase 17 D-43 — 가장 먼저 판정), 네트워크 · rate
+  ///      limit 은 `transientFailure`, 서버 `provider_config`
+  ///      ([ProviderMisconfigured])는 `providerConfigFailed`(16.10 review
+  ///      IN-04 — iteration 3), 그 밖은 `disconnectFailed`.
   ///    - 예상 밖 throw (step 계약 위반 · 실행 의존 생성 실패) →
   ///      `disconnectFailed`.
   ///
@@ -336,6 +337,10 @@ class SettingsNotifier extends _$SettingsNotifier {
         return AccountUnlinkOutcome.cancelled;
       case DisconnectIdentityMismatch():
         return AccountUnlinkOutcome.identityMismatch;
+      // Phase 17 D-43 — 끊기 callable 의 App Check 차단은 disconnectFailed
+      // 보다 앞서 해제 callable 과 같은 전용 안내로 보낸다(해제 0 · 연결 유지).
+      case DisconnectFailed(exception: AppCheckFailedException()):
+        return AccountUnlinkOutcome.appCheckFailed;
       case DisconnectFailed(:final exception):
         return _mapDisconnectFailure(exception);
     }
@@ -346,7 +351,8 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///
   /// 일시 오류 · 미분류 실패만 [AccountUnlinkOutcome.unlinkFailedAfterDisconnect]
   /// 가 된다 — 기존 문구(「잠시 후 다시 시도」 · 「알 수 없는 오류」)는 provider
-  /// 측이 이미 끊겼다는 사실을 알리지 않는다. 나머지 값은 그대로 돌려준다.
+  /// 측이 이미 끊겼다는 사실을 알리지 않는다. 나머지 값은 그대로 돌려준다 —
+  /// `appCheckFailed`(Phase 17 D-43 「같은 원인 같은 안내」)도 바꾸지 않는다.
   AccountUnlinkOutcome _markPartialAfterDisconnect(
     AccountUnlinkOutcome unlinked,
   ) {
@@ -397,6 +403,8 @@ class SettingsNotifier extends _$SettingsNotifier {
       NetworkException() ||
       TooManyRequests() ||
       ServiceUnavailable() => AccountUnlinkOutcome.transientFailure,
+      // Phase 17 D-42 · D-43 — App Check 차단(SDK 계층 거부) 전용 안내.
+      AppCheckFailedException() => AccountUnlinkOutcome.appCheckFailed,
       _ => AccountUnlinkOutcome.failed,
     };
   }
@@ -407,8 +415,11 @@ class SettingsNotifier extends _$SettingsNotifier {
   /// 네트워크 · rate limit 은 기존 `settingsUnlinkFailedTransient` 로 안내한다.
   /// 서버 `provider_config`([ProviderMisconfigured] — 운영자 설정 결함)는
   /// 재시도로 풀리지 않으므로 재시도 안내가 없는 전용 문구로 보낸다(16.10
-  /// review IN-04 — iteration 3). 그 밖(App Check · SDK 오류 · 로그인 사용자
+  /// review IN-04 — iteration 3). 그 밖(익명 거부 · SDK 오류 · 로그인 사용자
   /// 부재 등)은 「앱 연결을 해제하지 못해 연결을 유지했습니다」 로 안내한다.
+  /// App Check 차단([AppCheckFailedException])은 호출 전
+  /// [disconnectAndUnlinkProvider] 가 `appCheckFailed` 로 먼저 가른다
+  /// (Phase 17 D-43).
   AccountUnlinkOutcome _mapDisconnectFailure(AppException exception) {
     return switch (exception) {
       NetworkException() ||
@@ -440,7 +451,8 @@ enum AccountUnlinkOutcome {
   /// 근거가 달라도 둘 다 여기가 아니라 [transientFailure] 로 간다.
   /// - `unauthenticated`: App Check 차단(INVALID · MISSING)도 이 code 로 와
   ///   code 만으로는 auth 부재와 구분되지 않고, App Check 차단은 재로그인으로
-  ///   해소되지 않는다.
+  ///   해소되지 않는다. Phase 17 D-43 부터 SDK 계층 거부(App Check)는 매퍼가
+  ///   [AppCheckFailedException] 으로 갈라 [appCheckFailed] 로 간다.
   /// - `permission-denied`: App Check 와 code 를 공유하지 않는다. 이
   ///   callable 이 던지지 않는 code 라(uid 는 `request.auth.uid` 만 써서
   ///   idToken uid 불일치 · `caller_identity_mismatch` 경로 없음) 방어
@@ -464,7 +476,8 @@ enum AccountUnlinkOutcome {
   /// - native: `network-request-failed` · `too-many-requests` · 그 밖의
   ///   미분류 Auth code(`_logAndFallback`).
   /// - callable: `unavailable` · `deadline-exceeded` · `resource-exhausted` ·
-  ///   `unauthenticated`(App Check 차단 · auth 부재) · `invalid-argument` ·
+  ///   `unauthenticated`(서버 taxonomy — auth 부재 등 · SDK 계층 App Check
+  ///   거부는 [appCheckFailed]) · `invalid-argument` ·
   ///   reason 이 `last_credential` 이 아닌 `failed-precondition`
   ///   (`anonymous_caller`) · `internal` 등 미분류 code, 서버가 던지지 않는
   ///   `permission-denied`(`caller_identity_mismatch` 제외) 방어 매핑.
@@ -482,9 +495,10 @@ enum AccountUnlinkOutcome {
   /// `settingsUnlinkFailedIdentityMismatch` 로 렌더 · 연결 유지.
   identityMismatch,
 
-  /// provider 측 연결 끊기 실패로 킷 해제를 중단함 (D-11) — App Check ·
-  /// 익명 거부 · 서버 결함 등. `settingsUnlinkFailedDisconnect` 로 렌더 ·
-  /// 연결 유지. 서버 `provider_config` 는 [providerConfigFailed] 다.
+  /// provider 측 연결 끊기 실패로 킷 해제를 중단함 (D-11) — 익명 거부 ·
+  /// 서버 결함 등. `settingsUnlinkFailedDisconnect` 로 렌더 · 연결 유지.
+  /// 서버 `provider_config` 는 [providerConfigFailed], App Check 차단은
+  /// [appCheckFailed] 다 (Phase 17 D-43).
   disconnectFailed,
 
   /// provider 측 끊기는 성공했는데 이어진 킷 해제가 일시 오류 · 미분류로
@@ -502,6 +516,15 @@ enum AccountUnlinkOutcome {
   /// UI-SPEC §N′). `settingsUnlinkFailedProviderConfig` 로 렌더 · 연결 유지.
   /// 재시도로 풀리지 않으므로 문구에 재시도 · 문의 안내가 없다(sign-off R4).
   providerConfigFailed,
+
+  /// App Check 차단 ([AppCheckFailedException] — SDK 계층 거부, plan 08
+  /// helper `classifyAppCheckRejection`) — `errorAppCheckFailed` SnackBar ·
+  /// 재로그인 아님 (Phase 17 D-42 · D-43). 해제 callable 실패와 provider 측
+  /// 끊기 step 의 `DisconnectFailed(AppCheckFailedException)` 둘 다 이 값이다
+  /// (끊기 실패는 [disconnectFailed] 보다 앞서 판정). 끊기 성공 뒤 해제가 App
+  /// Check 로 막혀도 [unlinkFailedAfterDisconnect] 로 바꾸지 않는다 — 같은
+  /// 원인 같은 안내(D-43)를 우선하고, 재시도는 끊기 단계부터 다시 돈다.
+  appCheckFailed,
 }
 
 /// proactive 계정 연결 결과 분기 (Phase 16 16-11 / Surface D).

@@ -1113,5 +1113,91 @@ void main() {
         verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
       },
     );
+
+    test(
+      'T-17-LINK-03a 해제 callable AppCheckFailedException → appCheckFailed (unlinkProvider · 끊기 step 없는 password)',
+      () async {
+        when(() => mockAuthRepo.unlinkNativeProvider(any())).thenAnswer(
+          (_) async => const Result<User>.failure(AppCheckFailedException()),
+        );
+        when(() => mockAuthRepo.unlinkCustomTokenProvider('kakao')).thenAnswer(
+          (_) async => const Result<User>.failure(AppCheckFailedException()),
+        );
+        final scoped = makeContainer(const <DisconnectStep>[]);
+        final notifier = scoped.read(settingsProvider.notifier);
+
+        expect(
+          await notifier.unlinkProvider('google.com'),
+          AccountUnlinkOutcome.appCheckFailed,
+        );
+        expect(
+          await notifier.unlinkProvider('kakao'),
+          AccountUnlinkOutcome.appCheckFailed,
+        );
+        expect(
+          await notifier.disconnectAndUnlinkProvider('password'),
+          AccountUnlinkOutcome.appCheckFailed,
+        );
+      },
+    );
+
+    test(
+      'T-17-LINK-03b 끊기 Failed(AppCheckFailedException) → appCheckFailed (disconnectFailed 아님) · 킷 해제 0',
+      () async {
+        for (final provider in <AccountProvider>[
+          AccountProvider.kakao,
+          AccountProvider.google,
+        ]) {
+          final step = provider == AccountProvider.google
+              ? googleStep(const DisconnectFailed(AppCheckFailedException()))
+              : _FixedStep(
+                  provider,
+                  const DisconnectFailed(AppCheckFailedException()),
+                );
+          final scoped = makeContainer(<DisconnectStep>[step]);
+
+          final outcome = await scoped
+              .read(settingsProvider.notifier)
+              .disconnectAndUnlinkProvider(
+                provider == AccountProvider.google ? 'google.com' : 'kakao',
+              );
+
+          expect(
+            outcome,
+            AccountUnlinkOutcome.appCheckFailed,
+            reason: provider.slug,
+          );
+        }
+        verifyNever(() => mockAuthRepo.unlinkNativeProvider(any()));
+        verifyNever(() => mockAuthRepo.unlinkCustomTokenProvider(any()));
+      },
+    );
+
+    test(
+      'T-17-LINK-03c 끊기 Done 뒤 해제 AppCheckFailedException → appCheckFailed 그대로 (unlinkFailedAfterDisconnect 아님)',
+      () async {
+        final google = googleStep(const DisconnectDone());
+        final kakao = _FixedStep(AccountProvider.kakao, const DisconnectDone());
+        when(() => mockAuthRepo.unlinkNativeProvider('google.com')).thenAnswer(
+          (_) async => const Result<User>.failure(AppCheckFailedException()),
+        );
+        when(() => mockAuthRepo.unlinkCustomTokenProvider('kakao')).thenAnswer(
+          (_) async => const Result<User>.failure(AppCheckFailedException()),
+        );
+        final scoped = makeContainer(<DisconnectStep>[google, kakao]);
+        final notifier = scoped.read(settingsProvider.notifier);
+
+        expect(
+          await notifier.disconnectAndUnlinkProvider('google.com'),
+          AccountUnlinkOutcome.appCheckFailed,
+        );
+        expect(
+          await notifier.disconnectAndUnlinkProvider('kakao'),
+          AccountUnlinkOutcome.appCheckFailed,
+        );
+        expect(google.relogins, hasLength(1));
+        expect(kakao.relogins, hasLength(1));
+      },
+    );
   });
 }

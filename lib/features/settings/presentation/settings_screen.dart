@@ -216,6 +216,12 @@ class SettingsScreen extends ConsumerWidget {
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.settingsUnlinkFailedTransient)),
         );
+      case AccountUnlinkOutcome.appCheckFailed:
+        // Phase 17 D-42 · D-43 — 해제 callable · provider 측 끊기의 App Check
+        // 차단 · 재로그인 라우팅 0 · 연결 유지(같은 화면에서 재시도).
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.errorAppCheckFailed)),
+        );
       case AccountUnlinkOutcome.failed:
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.settingsUnlinkFailedUnknown)),
