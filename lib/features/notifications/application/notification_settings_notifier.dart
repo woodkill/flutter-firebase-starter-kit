@@ -147,6 +147,36 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
     return _toToggleResult(result);
   }
 
+  /// 로그아웃 직전 기기 알림 상태를 처음으로 되돌린다 (Phase 17 D-30).
+  ///
+  /// `AuthRepository.signOutAndResetOnboarding` 이 3초 상한 · 실패 무시로
+  /// 부른다(D-A2 콜백). 순서:
+  /// 1. 로컬 opt-in · 등록 토큰 키를 지우고 꺼짐으로 바꾼다 — 문서 삭제가
+  ///    오프라인으로 늦어져도 다음 로그인 계정은 꺼짐으로 시작한다.
+  /// 2. 현 사용자의 등록 토큰 문서를 지운다(결과 무시 — 남으면 TTL 30일 ·
+  ///    발송 실패 정리가 지운다).
+  ///
+  /// OS 알림 권한은 건드리지 않는다. 어떤 예외도 던지지 않는다.
+  Future<void> clearForSignOut() async {
+    try {
+      final uid = _currentRegularUid();
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(kNotificationsRegisteredTokenKey);
+      await prefs.remove(kNotificationsOptInKey);
+      await prefs.remove(kNotificationsRegisteredTokenKey);
+      _stopTokenRefresh();
+      state = const AsyncData(false);
+      if (uid != null && token != null) {
+        await _deleteTokenDocument(uid, token);
+      }
+    } on Object catch (e) {
+      // 토큰 · uid 는 싣지 않는다 — 예외 타입 이름만.
+      if (kDebugMode) {
+        debugPrint('notification sign-out cleanup failed: ${e.runtimeType}');
+      }
+    }
+  }
+
   /// [enable] 본문.
   Future<NotificationToggleResult> _enable() async {
     final uid = _currentRegularUid();

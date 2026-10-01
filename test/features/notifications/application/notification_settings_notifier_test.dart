@@ -612,5 +612,109 @@ void main() {
       verifyZeroInteractions(h.messaging);
       verifyZeroInteractions(h.repository);
     });
+    test('T-17-NOTIF-11: clearForSignOut() → 등록 토큰 delete 1회(현 사용자 uid) '
+        '· opt-in · 등록 키 제거 · false (D-30)', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+
+      await container
+          .read(notificationSettingsProvider.notifier)
+          .clearForSignOut();
+
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+      expect(container.read(notificationSettingsProvider).value, isFalse);
+    });
+
+    test('T-17-NOTIF-11: 등록 토큰이 없으면 delete 0 · opt-in 제거 · false', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+      });
+      final h = _Harness()..stubDefaults();
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isFalse);
+
+      await container
+          .read(notificationSettingsProvider.notifier)
+          .clearForSignOut();
+
+      verifyNever(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+      expect(container.read(notificationSettingsProvider).value, isFalse);
+    });
+
+    test('T-17-NOTIF-11: delete 가 Failure 여도 키 제거 · false · throw 0', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      when(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) async => const Result<void>.failure(UnknownException()));
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+
+      await expectLater(
+        container.read(notificationSettingsProvider.notifier).clearForSignOut(),
+        completes,
+      );
+
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+      expect(container.read(notificationSettingsProvider).value, isFalse);
+    });
+
+    test('T-17-NOTIF-11: delete 가 끝나지 않아도(오프라인) 로컬 키는 먼저 '
+        '지워진다 — 다음 계정은 꺼짐으로 시작', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final pendingDelete = Completer<Result<void>>();
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      when(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) => pendingDelete.future);
+
+      final clearing = container
+          .read(notificationSettingsProvider.notifier)
+          .clearForSignOut();
+      await pumpEventQueue();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+      expect(container.read(notificationSettingsProvider).value, isFalse);
+
+      pendingDelete.complete(const Result<void>.success(null));
+      await clearing;
+    });
   });
 }

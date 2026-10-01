@@ -19,6 +19,7 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/functions/callable_rejection.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
+import '../../notifications/application/notification_settings_notifier.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 import '../../settings/domain/unlink_provider_request.dart';
 // Phase 16 G-16-A9-1: authRepository factory provider 의 콜백 주입 전용 import.
@@ -112,6 +113,9 @@ class AuthRepository implements AnonymousSignIn {
   /// (`classifyAppCheckRejection`)이 non-fatal 1회를 남기는 채널이다
   /// (Phase 17 D-43 · D-44). 미주입 시 기본값은 no-op
   /// `CrashlyticsService(null, isEnabled: false)` 다.
+  ///
+  /// [onSignOutCleanup] 은 로그아웃 직전 기기 알림 토큰 · opt-in 을 정리하는
+  /// 콜백이다 (Phase 17 D-30 · D-A2). 미주입 시 no-op.
   AuthRepository(
     this._auth,
     this._googleSignIn,
@@ -129,11 +133,13 @@ class AuthRepository implements AnonymousSignIn {
       null,
       isEnabled: false,
     ),
+    Future<void> Function()? onSignOutCleanup,
   }) : _now = now ?? DateTime.now,
        _readTermsAcceptanceSnapshot =
            readTermsAcceptanceSnapshot ?? _readNoTermsAcceptanceSnapshot,
        _recordSignUpMethod = recordSignUpMethod ?? _recordNoSignUpMethod,
-       _crashlytics = crashlytics;
+       _crashlytics = crashlytics,
+       _onSignOutCleanup = onSignOutCleanup ?? _cleanUpNothingOnSignOut;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -156,6 +162,13 @@ class AuthRepository implements AnonymousSignIn {
   /// (Phase 17 D-44). 미주입 시 no-op(`isEnabled: false`)이라 기존 생성자
   /// 호출부 · 테스트는 변경 0 이다.
   final CrashlyticsService _crashlytics;
+
+  /// 로그아웃 전 기기 정리 콜백 (Phase 17 D-30 · D-A2 주입 관례).
+  ///
+  /// [signOutAndResetOnboarding] 이 온보딩 reset · signOut 앞에서 3초 상한으로
+  /// 부르고 실패를 무시한다. 미주입 시 no-op 이라 기존 생성자 호출부 ·
+  /// 테스트는 변경 0 이다.
+  final Future<void> Function() _onSignOutCleanup;
 
   /// Phase 16 D-12 / Pitfall 5 — client-side cache for `lookupSignInMethods`
   /// callable responses. 동일 collisionEmail 의 rate limit 누적 회피
@@ -2850,6 +2863,13 @@ class AuthRepository implements AnonymousSignIn {
   /// (Phase 10.2 D-A1/A3, I2 invariant 단일 진리원).
   ///
   /// 흐름 (D-A3 — 순서 절대 뒤집기 금지):
+  /// 0. [_onSignOutCleanup] — Phase 17 D-30 — 기기 알림 토큰 · opt-in 정리
+  ///    (best-effort · 로그아웃을 막지 않음). 아직 로그인된 상태에서 현
+  ///    사용자의 토큰 문서를 지워야 하므로 signOut 보다 앞이다. Firestore
+  ///    delete 는 오프라인에서 서버 ack 까지 대기하므로 timeout 필수 —
+  ///    3초를 넘기거나 throw 해도 무시하고 1 · 2 로 진행한다. 탈퇴 경로도 이
+  ///    메서드를 거친다(서버 cascade 가 진실원). OS 알림 권한은 건드리지
+  ///    않는다.
   /// 1. [_onResetOnboarding] — `OnboardingNotifier.reset` 콜백.
   ///    state 동기 false set + SharedPreferences 키 제거. lossy persistence
   ///    정책 (disk 실패 시 Crashlytics 기록 후 graceful 진행).
@@ -2885,6 +2905,15 @@ class AuthRepository implements AnonymousSignIn {
   /// 로만 기록된다. deleteUser 후의 onboardingSeen 정책은 본 메서드가 수행하는
   /// reset (onboardingSeen=false) 을 그대로 따른다.
   Future<void> signOutAndResetOnboarding() async {
+    // Phase 17 D-30 — 기기 알림 토큰 · opt-in 정리. best-effort: 3초 상한 ·
+    // 실패 무시로 로그아웃을 막지 않는다.
+    try {
+      await _onSignOutCleanup().timeout(const Duration(seconds: 3));
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('signOut cleanup 실패 (무시): ${e.runtimeType}');
+      }
+    }
     await _onResetOnboarding();
     await signOut();
   }
@@ -3810,6 +3839,11 @@ typedef RecordSignUpMethod =
 /// 아무것도 기록하지 않는다 — 기존 테스트의 생성자 호출부 회귀 0.
 Future<void> _recordNoSignUpMethod(String uid, String providerId) async {}
 
+/// [AuthRepository.new] 의 `onSignOutCleanup` 미주입 시 기본 구현 (Phase 17).
+///
+/// 아무것도 정리하지 않는다 — 기존 테스트의 생성자 호출부 회귀 0.
+Future<void> _cleanUpNothingOnSignOut() async {}
+
 /// firebase_auth [fb.User]를 도메인 [User]로 변환한다 (D-12).
 ///
 /// firebase_auth import는 features/auth/data 경계 안에만 존재해야 하며,
@@ -3869,6 +3903,14 @@ AuthRepository authRepository(Ref ref) {
         .record(uid: uid, providerId: providerId),
     // Phase 17 D-44: callable App Check 차단 판정의 non-fatal 기록 채널.
     crashlytics: ref.watch(crashlyticsServiceProvider),
+    // Phase 17 D-30: 동일한 D-A2 콜백 주입 관례. NotificationSettingsNotifier
+    // 타입은 본 factory 영역에서만 알며, AuthRepository 클래스 본체는
+    // `Future<void> Function()` signature 만 의존한다 — 로그아웃 때 기기
+    // 알림 토큰 문서 · opt-in 정리. 배선을 한 줄로 유지해 grep 한 번으로
+    // 계수한다(plan 17-15 verify · wave 3 settings_repository 와 같은 관례).
+    // dart format off
+    onSignOutCleanup: () => ref.read(notificationSettingsProvider.notifier).clearForSignOut(),
+    // dart format on
   );
 }
 
