@@ -1,27 +1,101 @@
 rules_version = '2';
 
 // ============================================================================
-// Phase 12 Plan 06 — 임시 Firestore Security Rules (D-14).
+// Firestore Security Rules — 필드 단위 소유권 모델.
 // ----------------------------------------------------------------------------
-// Phase 18 — see ROADMAP.md (정식 ruleset 도입 전까지의 최소 보호 ruleset).
+// Phase 17 — see ROADMAP.md: 필드 단위 소유권 모델(D-13 · D-38 · D-39).
+// - 서버 전용 키(linkedProviders · providerLinkedAt · email · emailVerified ·
+//   IdP 프로필 미러)는 Admin SDK(Cloud Functions)만 쓴다. Admin SDK 는 본
+//   ruleset 을 우회한다.
+// - 클라이언트 write 화이트리스트 = termsAccepted · signUpProviderId ·
+//   customPhotoUrl 3키.
+// - 약관(termsAccepted)은 규칙으로 삭제 · version 역행 · 미래 시각을 막는다.
+// - 가입 수단(signUpProviderId)은 write-once 다.
 //
-// 보호 정책:
-// - identity_index: 클라이언트 read/write 전면 차단. Cloud Function (Admin
-//   SDK) 만 접근. Phase 12 D-14 / 12-02 Identity Index lookup-first.
-// - users/{uid}: 자기 자신만 read/write 임시 허용 (Phase 18 — see ROADMAP.md, 일반화 대기).
-//   Plan 10-09 termsProvider stream + Plan 10-12 mirrorToFirestore +
-//   12-02 Cloud Function set-merge 가 동일 ruleset 안에서 동작.
+// WR-12(Phase 15 리뷰) 알려진 갭 — 「본인 문서 전체 write 허용」 — 은 이 규칙으로
+// 닫혔다. 클라이언트 write 경로를 서버 callable 로 옮기는 안은 채택하지 않았다
+// (D-39 — 약관 내용은 어느 쪽이든 기기에서 오고, Phase 10 약관 흐름의 회귀 위험).
 //
-// **TODO: Phase 18 일반화 (see ROADMAP.md):** users/{uid} 정식 ruleset 일반화 시 본 임시 규칙
-// cleanup. 회원탈퇴용 self-delete + 필드 단위 보호 (linkedProviders 는
-// Cloud Function 만 write 등) 도입 검토.
+// 한계: write-once 는 서버 검증이 아니다 — native 가입 수단의 최초 값은 여전히
+// 클라이언트 자기 주장이며 영향은 자기 계정뿐이다(D-38). acceptedAt 은 기기
+// 시각이라 기기 시계가 서버보다 앞서면 약관 mirror 가 거부되고, 다음 전이 ·
+// 재동의 때 다시 시도된다(허용 오차 0 — 사용자 결정 2026-10-01).
+//
+// 검증: functions/test/rules/firestore.rules.test.ts (`pnpm test:rules`, 에뮬레이터).
 // ============================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // ------------------------------------------------------------------------
-    // identity_index 컬렉션 — D-14 클라이언트 차단.
+    // 공통 helper.
+    // ------------------------------------------------------------------------
+
+    // 인증된 본인인지 판정한다.
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // 익명이 아닌 정식 사용자인지 판정한다 (D-28 — 익명 계정은 30일 뒤 Auth 만
+    // 지워져 Firestore 데이터가 고아가 된다).
+    function isRegular() {
+      return request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // D-13 클라이언트 write 화이트리스트 — 그 외 키는 Admin SDK 전용.
+    function clientKeys() {
+      return ['termsAccepted', 'signUpProviderId', 'customPhotoUrl'];
+    }
+
+    // D-39 ③④⑤ — 약관 5필드 정확 · 타입 · 필수 동의 true · 미래 시각 금지.
+    // `service` 는 rules 예약어라 `t.service` 대신 `t['service']` 로 읽는다.
+    function termsShape(t) {
+      return t is map
+        && t.keys().hasOnly(['version', 'service', 'privacy', 'marketing', 'acceptedAt'])
+        && t.keys().hasAll(['version', 'service', 'privacy', 'marketing', 'acceptedAt'])
+        && t.version is int
+        && t['service'] == true
+        && t.privacy == true
+        && t.marketing is bool
+        && t.acceptedAt is timestamp
+        && t.acceptedAt <= request.time;
+    }
+
+    // D-39 ② — 약관이 있으면 형식을 지키고 version 은 비감소(재동의 = 같거나 큰 버전).
+    function termsOk(data, prev) {
+      return !('termsAccepted' in data)
+        || (termsShape(data.termsAccepted)
+          && (prev == null
+            || !('termsAccepted' in prev)
+            || data.termsAccepted.version >= prev.termsAccepted.version));
+    }
+
+    // D-39 ① — 한 번 기록된 약관은 삭제할 수 없다.
+    function termsNotDeleted(data, prev) {
+      return prev == null || !('termsAccepted' in prev) || ('termsAccepted' in data);
+    }
+
+    // D-38 — 가입 수단은 없을 때만 쓰고, 있으면 같은 값 재기록만 허용한다
+    // (변경 · 삭제 · 빈 문자열 거부).
+    function signUpWriteOnce(data, prev) {
+      return !('signUpProviderId' in data)
+        ? (prev == null || !('signUpProviderId' in prev))
+        : (data.signUpProviderId is string
+          && data.signUpProviderId.size() > 0
+          && (prev == null
+            || !('signUpProviderId' in prev)
+            || data.signUpProviderId == prev.signUpProviderId));
+    }
+
+    // D-17 — 앱 소유 프로필 사진 URL 은 문자열 또는 null.
+    function photoOk(data) {
+      return !('customPhotoUrl' in data)
+        || data.customPhotoUrl == null
+        || data.customPhotoUrl is string;
+    }
+
+    // ------------------------------------------------------------------------
+    // identity_index 컬렉션 — 클라이언트 read/write 전면 차단.
     // ------------------------------------------------------------------------
     // Phase 12 D-09 Identity Index 컬렉션 = `{provider}:{providerUserId}` 키.
     // Cloud Function `kakaoCustomToken` (12-02) 가 Admin SDK 로 접근하며,
@@ -32,31 +106,61 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------------
-    // users 컬렉션 — Phase 12 임시 ruleset (Phase 18 — see ROADMAP.md, 일반화 대기).
+    // users 컬렉션 — 본인 + 필드 화이트리스트.
     // ------------------------------------------------------------------------
-    // 자기 자신 (request.auth.uid == userId) 만 read / write 허용 — 다른
-    // 사용자의 linkedProviders 변조 (T-12-06-02) 차단.
+    // 본인 (request.auth.uid == userId) 만 read 하고, write 는 화이트리스트
+    // 키만 허용한다 — 다른 사용자 문서 변조 (T-12-06-02) · 서버 전용 키 조작
+    // (WR-12) 차단. set-merge 는 문서가 없으면 create, 있으면 update 로 평가된다.
     //
     // 클라이언트 진입점:
     // - Plan 10-09 termsProvider: users/{uid} stream watch
-    // - Plan 10-12 mirrorToFirestore: termsAccepted set-merge
+    // - Plan 10-12 mirrorToFirestore: termsAccepted set-merge (force 재동의 포함)
     // - Plan 12-06 currentUserProvider: linkedProviders stream watch
+    // - Phase 16.7 SignUpMethodRecorder: signUpProviderId set-merge (write-once)
+    // - Phase 17 프로필 사진: customPhotoUrl set-merge
+    // - Phase 17 FCM 토큰: users/{uid}/fcmTokens/{token} 문서 write · delete
     //
     // Cloud Function (Admin SDK) 진입점:
-    // - 12-02 kakaoCustomToken: linkedProviders + providerLinkedAt set-merge
-    //
-    // **WR-12 (Phase 15 리뷰) — 알려진 갭, Phase 18 작업 항목:**
-    // 본 규칙은 본인 문서 전체 write 를 허용하므로 client 가 callable 을
-    // 거치지 않고 `termsAccepted` / `linkedProviders` / `providerLinkedAt` 을
-    // 직접 조작할 수 있다. 서버의 `SERVER_TERMS_CURRENT_VERSION` 상한은 서버
-    // 경유 경로의 형식 정규화일 뿐 위조 방어가 아니다 (그 상수 docstring 에
-    // 명시). 지금 필드 단위 write 금지를 도입하면 client 의
-    // `TermsNotifier.mirrorToFirestore` (termsAccepted 직접 set) 가 깨지므로,
-    // 규칙 강화는 **client write 경로를 서버 callable 로 이전하는 작업과 함께**
-    // 수행해야 한다.
+    // - 12-02 kakaoCustomToken 등: linkedProviders + providerLinkedAt +
+    //   signUpProviderId set-merge
+    // - mirrorTermsAcceptance: termsAccepted set-merge
+    // - deleteUserAccount: 문서 · 서브컬렉션 삭제 (탈퇴)
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(clientKeys())
+        && termsOk(request.resource.data, null)
+        && signUpWriteOnce(request.resource.data, null)
+        && photoOk(request.resource.data);
+
+      allow update: if isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(clientKeys())
+        && termsOk(request.resource.data, resource.data)
+        && termsNotDeleted(request.resource.data, resource.data)
+        && signUpWriteOnce(request.resource.data, resource.data)
+        && photoOk(request.resource.data);
+
+      // 탈퇴는 Admin(deleteUserAccount) 만 문서를 지운다.
+      allow delete: if false;
+
+      // ----------------------------------------------------------------------
+      // fcmTokens 서브컬렉션 — 정식 사용자 본인 기기 토큰 (D-02 · D-28).
+      // ----------------------------------------------------------------------
+      // 문서 id = FCM 토큰. 키는 5개 이하(hasOnly)이고 아래 조건이 5키를 모두
+      // 참조하므로 누락 키는 평가 오류 → 거부된다. platform/locale 은 지원 집합만.
+      match /fcmTokens/{token} {
+        allow read, delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId)
+          && isRegular()
+          && request.resource.data.keys().hasOnly(['token', 'platform', 'locale', 'updatedAt', 'expireAt'])
+          && request.resource.data.token == token
+          && request.resource.data.platform in ['android', 'ios']
+          && request.resource.data.locale in ['ko', 'en', 'ja']
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.expireAt is timestamp;
+      }
     }
   }
 }
