@@ -11,8 +11,13 @@
 //   non-idempotent) / T-16-NEW-07 (PII) mitigation.
 // - §7-C: jest mock 한계 — 실 단말 backend tier UAT (Plan 16-07 A2/A5/A8)
 //   가 ground truth (memory feedback_mock_transaction_constraint mirror).
+//
+// Phase 17 — see ROADMAP.md (D-16 · D-40). 삭제 순서는
+//   검증 → Storage `users/{uid}/` (D-40 · 실패 = 탈퇴 중단)
+//   → Auth (WR-09) → Firestore.
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
+import {getStorage} from "firebase-admin/storage";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
@@ -36,6 +41,16 @@ type DeleteUserAccountResponse = {
  * 1건을 함께 지우므로 청크 크기는 여기서 1을 뺀 값을 쓴다.
  */
 const MAX_DELETES_PER_TRANSACTION = 500;
+
+/**
+ * Storage 정리 실패로 탈퇴를 중단할 때 `HttpsError.details.reason` 값
+ * (Phase 17 D-40).
+ *
+ * 클라이언트는 이 reason 으로 「일시적 오류 — 다시 시도」 를 구분한다
+ * (`SettingsRepository._mapDeleteError` 의 reason arm → `ServiceUnavailable`
+ * — Phase 17 plan 11).
+ */
+export const STORAGE_CLEANUP_FAILED_REASON = "storage_cleanup_failed";
 
 /**
  * 문서 ID 배열을 [size] 이하 청크로 나눈다 (WR-09 상한 가드).
@@ -65,36 +80,49 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  *   Step 1: D-06 reauth ID Token freshness verify
  *           (`verifyIdToken(idToken, checkRevoked=true)` + auth_time 300s
  *           boundary + uid === request.auth.uid).
+ *   Step 1.5: Phase 17 D-40 — Cloud Storage `users/{uid}/` prefix 삭제.
+ *           실패 시 `unavailable` + `details.reason`
+ *           `storage_cleanup_failed` 로 탈퇴를 **중단**한다 (Auth · Firestore
+ *           무변경 → 사용자 재시도 가능).
  *   Step 2: D-08 admin.auth().deleteUser — idempotent retry-safe.
  *           auth/user-not-found catch 는 success path treat (Pitfall 1 회피).
  *   Step 3: D-07 Firestore cleanup — "all reads before all writes" invariant.
  *           identity_index where query 는 transaction **외부** 의무
  *           (Pitfall 2 회피, collection query 는 transaction 안 금지).
  *
+ * **삭제 순서 (Phase 17 — see ROADMAP.md, D-16 · D-40)**: 검증 → Storage
+ * (D-40 · 실패 = 중단) → Auth (WR-09) → Firestore. Storage 를 Auth 뒤에 두면
+ * Storage 실패 시 계정이 이미 없어 사용자가 재시도할 수 없고 개인 사진이
+ * 영구 잔존하므로 Storage 는 Auth **앞**에 둔다. 사진만 지워지고 Auth 삭제가
+ * 실패한 상태는 D-40 이 수용한다 (소셜 사진 fallback · 재업로드 가능).
+ *
  * **WR-09 (Phase 15 리뷰) 순서 계약**: Auth 삭제가 Firestore 삭제보다 **먼저**
- * 다. Auth 삭제 실패 시에는 아무것도 지워지지 않아 사용자가 그대로 재시도할
- * 수 있고, Firestore cleanup 실패 시에는 계정 없는 uid 를 가리키는 고아 문서만
- * 남는다. 순서를 되돌리면 "탈퇴 실패 메시지 + 데이터는 이미 소실 + 계정 분열"
- * 이라는 최악의 상태가 재현된다.
+ * 다. Auth 삭제 실패 시에는 Firestore 가 아무것도 지워지지 않아 (Storage 는
+ * Step 1.5 에서 이미 정리 — D-40 수용) 사용자가 그대로 재시도할 수 있고,
+ * Firestore cleanup 실패 시에는 계정 없는 uid 를 가리키는 고아 문서만 남는다.
+ * 순서를 되돌리면 "탈퇴 실패 메시지 + 데이터는 이미 소실 + 계정 분열" 이라는
+ * 최악의 상태가 재현된다.
  *
  * **PII 금지 (T-16-NEW-07 mitigation)**: logger payload 는 `{event, uid}` 만.
  * idToken / decoded.email / err.message 본문 절대 노출 금지
  * (Phase 12.1 D-40 PII regression sentinel mirror).
  *
- * **삭제 범위 (IN-08, Phase 15 리뷰) — 확장 시 추가 의무:**
- * 본 함수는 "hard delete" 를 표방하지만 실제 삭제 대상은 딱 둘이다.
+ * **삭제 범위 (IN-08, Phase 15 리뷰 · Phase 17 D-16 갱신) — 확장 시 추가
+ * 의무:**
+ * - Cloud Storage `users/{uid}/` prefix 아래 객체 전부 (프로필 사진 등 —
+ *   Step 1.5 · 슬래시 종결 prefix 로 `users/{uid}2/…` 오매칭 방지)
  * - `identity_index` 중 `firebaseUid == uid` 인 문서 전부
  * - `users/{uid}` **문서 1건**
  *
  * 아래는 **삭제되지 않는다.**
- * - `users/{uid}` 의 **서브컬렉션** — Firestore 특성상 부모 문서 삭제로
- *   지워지지 않는다. 현재 스타터킷은 서브컬렉션을 쓰지 않아 실제 잔존
- *   데이터가 없지만, 기능을 확장하면 조용히 고아 데이터가 남는다.
- *   재귀 삭제가 필요하면 `firebase-tools` 의 recursiveDelete 패턴 또는
- *   Firestore `bulkWriter` 기반 구현을 여기에 추가할 것.
- * - **Cloud Storage 객체** (프로필 이미지 등) — 별도 삭제 경로가 필요하다.
+ * - 위에 명시하지 않은 `users/{uid}` 의 **서브컬렉션** — Firestore 특성상
+ *   부모 문서 삭제로 지워지지 않는다. 기능을 확장해 서브컬렉션을 추가하면
+ *   조용히 고아 데이터가 남으므로 `db.recursiveDelete(...)` 단계를 여기에
+ *   추가할 것.
+ * - `users/{uid}/` 밖 경로의 Cloud Storage 객체 — 다른 경로에 사용자 파일을
+ *   저장하도록 확장하면 Step 1.5 에 그 prefix 를 함께 추가할 것.
  *
- * 스타터킷 사용자가 데이터 모델을 확장할 때 이 두 항목을 함께 갱신하지 않으면
+ * 스타터킷 사용자가 데이터 모델을 확장할 때 이 항목들을 함께 갱신하지 않으면
  * 탈퇴 후에도 개인정보가 남는다.
  *
  * @param {{data: DeleteUserAccountRequest, auth?: {uid: string}}} request
@@ -135,6 +163,42 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
     // 이전 인라인 구현은 auth_time 이 없으면 NaN > 300 === false 로
     // **통과** 했고, 미래값(시계 오차)도 무조건 통과했다.
     assertFreshAuth(decoded.auth_time);
+
+    // Step 1.5: Phase 17 D-40 — Cloud Storage `users/{uid}/` prefix 삭제.
+    //
+    // Auth 삭제 **앞**에 둔다. 여기서 실패하면 아무것도 지우지 않은 채
+    // 재시도 가능한 오류로 멈춘다 — Auth 뒤에 두면 실패 시 계정이 이미 없어
+    // 재시도 경로가 사라지고 개인 사진이 영구 잔존한다.
+    // - prefix 는 슬래시로 끝나야 한다 (`users/<uid>2/…` 오매칭 방지).
+    // - `force: true` — 첫 오류에서 멈추지 않고 전부 시도한 뒤 실패 목록을
+    //   `Error[]` 로 reject 한다 (재시도 1회당 진척 최대 · 멱등).
+    // - 빈 prefix (사진 없음 · 이전 시도에서 이미 삭제) 는 그대로 resolve.
+    // - PII: 로그에 파일 경로 · prefix 를 싣지 않는다 (uid · 오류 code 만).
+    try {
+      await getStorage().bucket().deleteFiles({
+        prefix: `users/${callerUid}/`,
+        force: true,
+      });
+      logger.info(
+        {event: "delete_user_storage_done", uid: callerUid},
+        "Storage user prefix deleted",
+      );
+    } catch (err: unknown) {
+      const failed = Array.isArray(err) ? err : [err];
+      logger.error(
+        {
+          event: "delete_user_storage_failed",
+          uid: callerUid,
+          code: fingerprintError(failed[0]),
+          failedCount: failed.length,
+        },
+        "Storage cleanup failed — withdrawal aborted",
+      );
+      // 이 시점에 Auth · Firestore 는 아직 온전하다 — 사용자는 재시도 가능.
+      throw new HttpsError("unavailable", "errorServiceUnavailable", {
+        reason: STORAGE_CLEANUP_FAILED_REASON,
+      });
+    }
 
     // Step 2: D-08 — admin.auth().deleteUser (idempotent retry-safe).
     //

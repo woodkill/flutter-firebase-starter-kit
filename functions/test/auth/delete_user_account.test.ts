@@ -24,6 +24,11 @@
  *  - D9: Auth 삭제 실패 시 Firestore 는 손대지 않는다 (data loss 차단)
  *  - D10: Firestore cleanup 실패 → 고아 문서 로그 + ok:true (계정은 삭제됨)
  *  - D11: 호출 순서 sentinel — deleteUser 가 identity_index where 보다 먼저
+ *
+ * Phase 17 탈퇴 cascade (D-16 · D-40 · D-02 정정) — T-17-DEL 시리즈:
+ *  - T-17-DEL-01: Storage prefix 삭제 → Auth → identity_index 순서 (관통)
+ *  - T-17-DEL-02: Storage 실패(Error) → unavailable · storage_cleanup_failed
+ *  - T-17-DEL-03: Storage 실패(force 의 Error[]) → 같은 결과 + 실패 수
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -93,6 +98,20 @@ jest.mock("firebase-admin/firestore", () => {
   };
 });
 
+// firebase-admin/storage — bucket().deleteFiles (Phase 17 D-40 Step 1.5).
+const mockDeleteFiles = jest.fn();
+jest.mock("firebase-admin/storage", () => ({
+  getStorage: jest.fn(() => ({
+    bucket: () => ({
+      // Storage 삭제 시점을 Auth · Firestore 호출과 같은 축에 기록한다.
+      deleteFiles: (query: unknown) => {
+        callOrder.push("storage.deleteFiles");
+        return mockDeleteFiles(query);
+      },
+    }),
+  })),
+}));
+
 // eslint-disable-next-line import/first
 import functionsTest from "firebase-functions-test";
 // eslint-disable-next-line import/first
@@ -116,15 +135,25 @@ afterAll(() => testEnv.cleanup());
 const freshAuthTime = (): number => Math.floor(Date.now() / 1000) - 60;
 const staleAuthTime = (): number => Math.floor(Date.now() / 1000) - 600;
 
+/**
+ * 모든 mock 을 초기화하고 Storage 삭제는 기본 성공(빈 prefix 포함)으로 둔다.
+ *
+ * 기존 D1~D11 은 Storage 단계를 의식하지 않으므로 기본값이 resolve 여야
+ * 그대로 통과한다.
+ */
+function resetAllMocks(): void {
+  jest.clearAllMocks();
+  mockVerifyIdToken.mockReset();
+  mockDeleteUser.mockReset();
+  mockWhereGet.mockReset();
+  mockTxDelete.mockReset();
+  mockDeleteFiles.mockReset();
+  mockDeleteFiles.mockResolvedValue(undefined);
+  callOrder.length = 0;
+}
+
 describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockVerifyIdToken.mockReset();
-    mockDeleteUser.mockReset();
-    mockWhereGet.mockReset();
-    mockTxDelete.mockReset();
-    callOrder.length = 0;
-  });
+  beforeEach(resetAllMocks);
 
   it("D1: happy native — Firestore atomic delete + Auth delete", async () => {
     mockVerifyIdToken.mockResolvedValue({
@@ -452,5 +481,109 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
     const whereIdx = callOrder.indexOf("where:identity_index:get");
     expect(authIdx).toBeGreaterThanOrEqual(0);
     expect(whereIdx).toBeGreaterThan(authIdx);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 17 (D-16 · D-40) — Storage `users/{uid}/` 를 Auth 보다 먼저 지운다.
+//
+// Storage 를 Auth 뒤에 두면 Storage 실패 시 계정은 이미 없어 사용자가 재시도할
+// 수 없고 개인 사진이 영구 잔존한다. 그래서 Storage 실패는 탈퇴 자체를 멈춘다.
+// ---------------------------------------------------------------------------
+describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
+  beforeEach(resetAllMocks);
+
+  /**
+   * 신선한 ID Token 으로 [uid] 의 탈퇴를 호출한다.
+   *
+   * @param {string} uid 호출자 uid (request.auth.uid · decoded.uid 동일).
+   * @return {Promise<unknown>} callable 결과 promise.
+   */
+  function callDelete(uid: string): Promise<unknown> {
+    mockVerifyIdToken.mockResolvedValue({uid, auth_time: freshAuthTime()});
+    const wrapped = testEnv.wrap(myFunctions.deleteUserAccount);
+    return wrapped({
+      auth: {uid},
+      app: {appId: "test"},
+      data: {idToken: "FAKE_FRESH"},
+    } as never) as Promise<unknown>;
+  }
+
+  it("T-17-DEL-01: Storage prefix 삭제 → Auth → Firestore 순서", async () => {
+    mockWhereGet.mockResolvedValue({docs: [{id: "kakao:101"}]});
+    mockDeleteUser.mockResolvedValue(undefined);
+
+    const result = (await callDelete("uid-DEL01")) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    // 슬래시 종결 prefix — `users/uid-DEL012/…` 오매칭 방지 (Pitfall 10).
+    expect(mockDeleteFiles).toHaveBeenCalledTimes(1);
+    expect(mockDeleteFiles).toHaveBeenCalledWith({
+      prefix: "users/uid-DEL01/",
+      force: true,
+    });
+    const storageIdx = callOrder.indexOf("storage.deleteFiles");
+    const authIdx = callOrder.indexOf("auth.deleteUser");
+    const whereIdx = callOrder.indexOf("where:identity_index:get");
+    expect(storageIdx).toBeGreaterThanOrEqual(0);
+    expect(authIdx).toBeGreaterThan(storageIdx);
+    expect(whereIdx).toBeGreaterThan(authIdx);
+  });
+
+  it("T-17-DEL-02: Storage 실패(Error) → 탈퇴 중단 · 무변경", async () => {
+    mockDeleteFiles.mockRejectedValue(
+      Object.assign(new Error("PII_STORAGE_SENTINEL"), {code: 503}),
+    );
+
+    const promise = callDelete("uid-DEL02");
+
+    await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    await expect(promise).rejects.toMatchObject({
+      code: "unavailable",
+      message: "errorServiceUnavailable",
+      details: {reason: "storage_cleanup_failed"},
+    });
+    // 계정 · 데이터 무변경 — 사용자는 그대로 재시도할 수 있다.
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+    expect(callOrder).not.toContain("auth.deleteUser");
+    expect(callOrder).not.toContain("runTransaction:enter");
+    expect(callOrder).not.toContain("where:identity_index:get");
+    expect(errorMock).toHaveBeenCalledTimes(1);
+    const [payload] = errorMock.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).toMatchObject({
+      event: "delete_user_storage_failed",
+      uid: "uid-DEL02",
+      failedCount: 1,
+    });
+    // payload 키는 event · uid · code (+ 실패 수) 뿐 — 경로 · prefix 없음.
+    expect(Object.keys(payload).sort()).toEqual(
+      ["code", "event", "failedCount", "uid"],
+    );
+    expect(JSON.stringify(errorMock.mock.calls)).not.toContain(
+      "PII_STORAGE_SENTINEL",
+    );
+  });
+
+  it("T-17-DEL-03: Storage 실패(Error[]) → 같은 중단 + 실패 수", async () => {
+    mockDeleteFiles.mockRejectedValue([new Error("a"), new Error("b")]);
+
+    const promise = callDelete("uid-DEL03");
+
+    await expect(promise).rejects.toMatchObject({
+      code: "unavailable",
+      message: "errorServiceUnavailable",
+      details: {reason: "storage_cleanup_failed"},
+    });
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+    expect(callOrder).not.toContain("runTransaction:enter");
+    expect(errorMock).toHaveBeenCalledTimes(1);
+    expect(errorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "delete_user_storage_failed",
+        uid: "uid-DEL03",
+        failedCount: 2,
+      }),
+      expect.any(String),
+    );
   });
 });
