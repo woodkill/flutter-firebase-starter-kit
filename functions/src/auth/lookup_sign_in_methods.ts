@@ -22,6 +22,7 @@ import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
+import {readRateCounter} from "../shared/rate_limit";
 import {fingerprintError} from "./identity_index";
 
 type LookupSignInMethodsRequest = {
@@ -67,53 +68,8 @@ const RATE_WINDOW_SEC = 60;
  */
 const IP_RATE_LIMIT = 60;
 
-/** rate limit counter 문서의 해석 결과. */
-type RateCounterState = {
-  /** 현재 창의 카운트 (창이 만료됐으면 의미 없음). */
-  count: number;
-  /** 창이 없거나 만료됨 → 새 창으로 리셋해야 한다. */
-  expired: boolean;
-};
-
-/**
- * rate limit counter 문서를 방어적으로 해석한다 (WR-08 부수 결함).
- *
- * 이전 구현은 `data.windowStart.seconds` 를 직접 읽어서, 문서에
- * `windowStart` 가 없으면 (부분 write / 수동 편집 / 스키마 변경 잔재)
- * `TypeError` 로 터졌다. 그 예외를 바깥 catch 가 `internal` 로 바꿨기 때문에
- * **해당 UID 의 lookup 이 영구 실패** 했다 — 문서가 자기치유되지 않았다.
- * 이제 형태가 어긋난 문서는 "만료된 창" 으로 간주해 다음 write 에서 정상
- * 문서로 덮어쓴다.
- *
- * @param {{exists: boolean, data: function(): (object|undefined)}} snap
- *     counter 문서 스냅샷.
- * @param {Timestamp} now 현재 시각.
- * @return {RateCounterState} 카운트 + 창 만료 여부.
- */
-function readCounter(
-  snap: {exists: boolean; data(): Record<string, unknown> | undefined},
-  now: Timestamp,
-): RateCounterState {
-  if (!snap.exists) return {count: 0, expired: true};
-  const data = snap.data();
-  const windowStart = data?.windowStart;
-  const rawCount = data?.count;
-  // `Timestamp` 는 클래스지만 여기서 `instanceof` 를 쓰지 않는다 — 필요한
-  // 것은 `seconds` 하나뿐이고, duck typing 이 Firestore Timestamp 와 그
-  // 직렬화된 형태를 모두 받아준다.
-  const startSeconds = (windowStart as {seconds?: unknown} | undefined)
-    ?.seconds;
-  if (typeof startSeconds !== "number" || !Number.isFinite(startSeconds)) {
-    return {count: 0, expired: true};
-  }
-  if (now.seconds - startSeconds > RATE_WINDOW_SEC) {
-    return {count: 0, expired: true};
-  }
-  const count = typeof rawCount === "number" && Number.isFinite(rawCount) ?
-    rawCount :
-    0;
-  return {count, expired: false};
-}
+// rate limit counter 해석(`readRateCounter` · WR-08 자기치유)은 Phase 17
+// plan 18 에서 `shared/rate_limit.ts` 로 옮겨 `sendTestPush` 와 공유한다.
 
 /**
  * 클라이언트 IP 를 rate limit 문서 ID 용 해시로 변환한다 (WR-08).
@@ -192,8 +148,10 @@ export const lookupSignInMethods = onCall<LookupSignInMethodsRequest>(
         const ipSnap = ipRef ? await tx.get(ipRef) : null;
         const now = Timestamp.now();
 
-        const uidState = readCounter(uidSnap, now);
-        const ipState = ipSnap ? readCounter(ipSnap, now) : null;
+        const uidState = readRateCounter(uidSnap, now, RATE_WINDOW_SEC);
+        const ipState = ipSnap ?
+          readRateCounter(ipSnap, now, RATE_WINDOW_SEC) :
+          null;
 
         // --- 한도 판정 (write 전에 모두 끝낸다) ---
         const uidExceeded = !uidState.expired && uidState.count >= RATE_LIMIT;

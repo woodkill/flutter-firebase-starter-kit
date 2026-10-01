@@ -8,6 +8,10 @@
  * 시나리오:
  *  - T-17-SEND-01: 관통 — 호출자 토큰 전체 → locale 그룹별 발송 → sentCount ·
  *    로그 payload 에 토큰 문자열 0
+ *  - T-17-SEND-04: 환경 스위치 꺼짐 → failed-precondition · reason · 읽기 0
+ *  - T-17-SEND-05: uid 별 10회/60초 — 11번째 resource-exhausted · 발송 0
+ *  - T-17-SEND-06: 미등록 · 무효 토큰 응답 → 문서 삭제 · 그 밖 실패는 유지
+ *  - T-17-SEND-07: expireAt 이 지난 토큰 → 발송 제외 + 삭제 · 0개면 발송 0
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -32,6 +36,9 @@ type MockTokenDoc = {id: string; data: Record<string, unknown>};
 let mockTokenDocs: MockTokenDoc[] = [];
 const mockTokensGet = jest.fn();
 const mockTokenDelete = jest.fn();
+const mockRunTransaction = jest.fn();
+// rate_limits 문서 저장소 (path → data) — 트랜잭션 commit 을 흉내 낸다.
+const mockRateStore = new Map<string, Record<string, unknown>>();
 
 jest.mock("firebase-admin/firestore", () => {
   /** Admin Timestamp 의 테스트용 최소 구현 (seconds · toMillis). */
@@ -71,6 +78,31 @@ jest.mock("firebase-admin/firestore", () => {
       increment: (n: number) => ({increment: n}),
     },
     getFirestore: jest.fn(() => ({
+      // consumeRateLimit — 순서 강제 tx 로 reads-before-writes 를 검증하고
+      // write 를 저장소에 반영한다 (count 가 숫자가 아니면 increment 1).
+      runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+        mockRunTransaction();
+        const {createOrderedTx} = jest.requireActual(
+          "../mocks/ordered_transaction",
+        );
+        const handle = createOrderedTx((ref: {path: string}) => {
+          const data = mockRateStore.get(ref.path);
+          return {exists: data !== undefined, data: () => data};
+        });
+        const result = await fn(handle.tx);
+        for (const {ref, data} of handle.sets) {
+          mockRateStore.set(ref.path, data);
+        }
+        for (const {ref, data} of handle.updates) {
+          const prev = mockRateStore.get(ref.path) ?? {};
+          const next = (data as {count?: unknown}).count;
+          const count = typeof next === "number" ?
+            next :
+            (typeof prev.count === "number" ? prev.count : 0) + 1;
+          mockRateStore.set(ref.path, {...prev, count});
+        }
+        return result;
+      },
       collection: (name: string) => ({
         doc: (id: string) => ({
           path: `${name}/${id}`,
@@ -104,6 +136,8 @@ import functionsTest from "firebase-functions-test";
 import * as logger from "firebase-functions/logger";
 // eslint-disable-next-line import/first
 import {Timestamp} from "firebase-admin/firestore";
+// eslint-disable-next-line import/first
+import {HttpsError} from "firebase-functions/https";
 
 const testEnv = functionsTest();
 
@@ -143,6 +177,28 @@ function liveToken(token: string, locale: string): MockTokenDoc {
       expireAt: Timestamp.fromMillis(Date.now() + 30 * 24 * 3600 * 1000),
     },
   };
+}
+
+/**
+ * 이미 만료된(1시간 전) 토큰 문서 fixture 를 만든다.
+ *
+ * @param {string} token FCM 토큰 (= 문서 id).
+ * @return {MockTokenDoc} fixture.
+ */
+function expiredToken(token: string): MockTokenDoc {
+  const doc = liveToken(token, "ko");
+  doc.data.expireAt = Timestamp.fromMillis(Date.now() - 3600 * 1000);
+  return doc;
+}
+
+/**
+ * FCM 응답 오류 객체를 만든다 (Admin `FirebaseMessagingError` 의 code 모양).
+ *
+ * @param {string} code 오류 code.
+ * @return {Error} code 가 붙은 Error.
+ */
+function fcmError(code: string): Error {
+  return Object.assign(new Error("fcm rejected"), {code});
 }
 
 /**
@@ -191,6 +247,7 @@ beforeEach(() => {
   mockSendEachForMulticast.mockReset();
   mockTestPushEnabled = true;
   mockTokenDocs = [];
+  mockRateStore.clear();
 });
 
 describe("sendTestPush — Phase 17 D-05 · D-31 · D-34", () => {
@@ -236,5 +293,115 @@ describe("sendTestPush — Phase 17 D-05 · D-31 · D-34", () => {
       expect.objectContaining({uid: "u1", sent: 3, failed: 0, pruned: 0}),
     );
     expect(allLogText()).not.toContain("tok-");
+  });
+});
+
+describe("sendTestPush 방어 — Phase 17 D-35 · D-33 · Phase 16 D-10", () => {
+  it("T-17-SEND-04: 환경 스위치가 꺼져 있으면 읽기 · 발송 없이 " +
+    "failed-precondition · test_push_disabled", async () => {
+    mockTestPushEnabled = false;
+    mockTokenDocs = [liveToken("tok-ko-1", "ko")];
+    stubAllSuccess();
+
+    const error = await callAs("u4").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HttpsError);
+    expect((error as HttpsError).code).toBe("failed-precondition");
+    expect((error as HttpsError).message).toBe("errorTestPushDisabled");
+    expect((error as HttpsError).details).toEqual(
+      {reason: "test_push_disabled"},
+    );
+    expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(mockTokensGet).not.toHaveBeenCalled();
+    expect(mockSendEachForMulticast).not.toHaveBeenCalled();
+  });
+
+  it("T-17-SEND-05: 같은 uid 11번째 호출은 resource-exhausted · " +
+    "발송 0", async () => {
+    mockTokenDocs = [liveToken("tok-ko-1", "ko")];
+    stubAllSuccess();
+
+    for (let i = 0; i < 10; i += 1) {
+      await expect(callAs("u5")).resolves.toEqual({sentCount: 1});
+    }
+    expect(mockSendEachForMulticast).toHaveBeenCalledTimes(10);
+
+    const error = await callAs("u5").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HttpsError);
+    expect((error as HttpsError).code).toBe("resource-exhausted");
+    expect((error as HttpsError).message).toBe("errorTooManyRequests");
+    expect(mockSendEachForMulticast).toHaveBeenCalledTimes(10);
+    expect([...mockRateStore.keys()]).toEqual(["rate_limits/sendTestPush:u5"]);
+    expect(mockRateStore.get("rate_limits/sendTestPush:u5")?.count).toBe(10);
+  });
+
+  it("T-17-SEND-06: 미등록 · 무효 토큰 문서만 지우고 그 밖 실패는 " +
+    "유지한다", async () => {
+    mockTokenDocs = [
+      liveToken("tok-ok", "ko"),
+      liveToken("tok-unreg", "ko"),
+      liveToken("tok-invalid", "ko"),
+      liveToken("tok-busy", "ko"),
+    ];
+    const codes: Record<string, string> = {
+      "tok-unreg": "messaging/registration-token-not-registered",
+      "tok-invalid": "messaging/invalid-registration-token",
+      "tok-busy": "messaging/internal-error",
+    };
+    mockSendEachForMulticast.mockImplementation(
+      async (message: SentMessage) => ({
+        successCount: message.tokens.filter((t) => !codes[t]).length,
+        failureCount: message.tokens.filter((t) => codes[t]).length,
+        responses: message.tokens.map((t) => codes[t] ?
+          {success: false, error: fcmError(codes[t])} :
+          {success: true}),
+      }),
+    );
+
+    const result = await callAs("u6");
+
+    expect(result).toEqual({sentCount: 1});
+    expect(mockTokenDelete.mock.calls.map((c) => c[0]).sort()).toEqual(
+      ["tok-invalid", "tok-unreg"],
+    );
+    expect(infoMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "send_test_push_done",
+        uid: "u6",
+        sent: 1,
+        failed: 3,
+        pruned: 2,
+      }),
+      expect.any(String),
+    );
+    expect(allLogText()).not.toContain("tok-");
+  });
+
+  it("T-17-SEND-07: expireAt 이 지난 토큰은 발송하지 않고 지운다 · " +
+    "남은 토큰 0 → 발송 0", async () => {
+    mockTokenDocs = [expiredToken("tok-old-1"), expiredToken("tok-old-2")];
+    stubAllSuccess();
+
+    const result = await callAs("u7");
+
+    expect(result).toEqual({sentCount: 0});
+    expect(mockSendEachForMulticast).not.toHaveBeenCalled();
+    expect(mockTokenDelete.mock.calls.map((c) => c[0]).sort()).toEqual(
+      ["tok-old-1", "tok-old-2"],
+    );
+
+    // 만료 1 + 유효 1 → 유효 토큰만 발송.
+    jest.clearAllMocks();
+    mockTokenDocs = [expiredToken("tok-old-3"), liveToken("tok-new", "ja")];
+
+    const mixed = await callAs("u7");
+
+    expect(mixed).toEqual({sentCount: 1});
+    expect(mockSendEachForMulticast).toHaveBeenCalledTimes(1);
+    expect(
+      (mockSendEachForMulticast.mock.calls[0][0] as SentMessage).tokens,
+    ).toEqual(["tok-new"]);
+    expect(mockTokenDelete.mock.calls.map((c) => c[0])).toEqual(["tok-old-3"]);
   });
 });

@@ -10,12 +10,19 @@
 // - 문구는 토큰 문서 `locale` 로 고른 서버 상수다 (D-31 · `test_push_copy.ts`).
 // - 환경 스위치 `SEND_TEST_PUSH_ENABLED`(기본 false)가 켜진 환경에서만
 //   발송한다 (D-35).
+// - 남용 방지: uid 별 10회/60초 (Phase 16 D-10 mirror · `shared/rate_limit.ts`).
+// - 토큰 위생: 만료(`expireAt` 경과 — TTL 삭제 지연 ≤ 24h 방어 · D-33) · 미등록 ·
+//   무효 토큰 문서는 발송 뒤 지운다.
 // - PII: 로그에 토큰 문자열 · 알림 본문을 싣지 않는다 (uid · 수 · 오류 code).
 //
 // **IN-04**: 아래 `HttpsError` 들의 message 는 ARB 키가 아니라 taxonomy
 // 토큰이다. client 는 `code` + `details.reason` 으로만 분기한다.
-import {getFirestore} from "firebase-admin/firestore";
-import type {QueryDocumentSnapshot} from "firebase-admin/firestore";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import type {
+  DocumentReference,
+  Firestore,
+  QueryDocumentSnapshot,
+} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
 import type {MulticastMessage} from "firebase-admin/messaging";
 import {onCall, HttpsError} from "firebase-functions/https";
@@ -25,6 +32,7 @@ import {defineBoolean} from "firebase-functions/params";
 import type {BooleanParam} from "firebase-functions/params";
 
 import {fingerprintError} from "../auth/identity_index";
+import {consumeRateLimit} from "../shared/rate_limit";
 import {
   TEST_PUSH_COPY,
   TestPushLocale,
@@ -47,6 +55,12 @@ export const TEST_PUSH_DISABLED_REASON = "test_push_disabled";
 
 /** `sendEachForMulticast` 1회의 토큰 상한 (Admin SDK 제약). */
 const MAX_MULTICAST_TOKENS = 500;
+
+/** uid 별 rate limit — 창당 허용 횟수 (Phase 16 D-10 과 같은 값). */
+const RATE_LIMIT = 10;
+
+/** uid 별 rate limit — 창 길이 (초). */
+const RATE_WINDOW_SEC = 60;
 
 /**
  * 환경 스위치 param 을 선언한다 (D-35 · 기본값 false).
@@ -82,40 +96,112 @@ export function sendTestPushEnabled(): BooleanParam {
   return sendTestPushEnabledParam;
 }
 
+/** 발송 대상 토큰 1개 — 토큰 문자열 + 정리용 문서 참조. */
+type TokenTarget = {
+  token: string;
+  ref: DocumentReference;
+};
+
 /**
- * 배열을 [size] 이하 청크로 나눈다.
+ * 토큰 문서의 `expireAt` 이 [nowMillis] 보다 앞인지 판정한다 (D-33).
  *
- * @param {Array<string>} items 나눌 항목.
- * @param {number} size 청크 최대 크기 (1 이상).
- * @return {Array<Array<string>>} 청크 목록 (입력이 비면 빈 배열).
+ * Firestore TTL 은 만료 뒤 최대 24시간 지나서 지우므로(Pitfall 15) 그 사이의
+ * 문서를 서버가 직접 거른다. `expireAt` 이 없거나 Timestamp 형태가 아니면
+ * 만료로 보지 않는다(발송 대상 유지).
+ *
+ * @param {unknown} expireAt 토큰 문서 `expireAt` 필드 값.
+ * @param {number} nowMillis 현재 시각 (epoch ms).
+ * @return {boolean} 만료면 true.
  */
-function chunk(items: string[], size: number): string[][] {
-  const chunks: string[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
+function isExpired(expireAt: unknown, nowMillis: number): boolean {
+  if (typeof expireAt !== "object" || expireAt === null) return false;
+  const toMillis = (expireAt as {toMillis?: unknown}).toMillis;
+  if (typeof toMillis !== "function") return false;
+  const millis: unknown = toMillis.call(expireAt);
+  return typeof millis === "number" && millis < nowMillis;
 }
 
 /**
- * 토큰 문서를 문구 locale 별 토큰 목록으로 묶는다 (D-31).
+ * FCM 응답 오류가 「토큰 폐기」 code 인지 판정한다 (RESEARCH R-02 · A14).
+ *
+ * 미등록(앱 삭제 · 토큰 교체)과 무효 형식 두 가지만 문서를 지운다. code 는
+ * 응답 오류 값을 그대로 fingerprint 해 부분 일치로 본다(`messaging/` 접두어
+ * 유무와 무관). 그 밖의 실패(일시 오류 등)는 문서를 유지한다.
+ *
+ * @param {unknown} error `SendResponse.error`.
+ * @return {boolean} 문서를 지워야 하면 true.
+ */
+function isStaleTokenError(error: unknown): boolean {
+  const code = fingerprintError(error);
+  return code.includes("registration-token-not-registered") ||
+    code.includes("invalid-registration-token");
+}
+
+/**
+ * 토큰 문서를 만료 여부로 나누고, 살아 있는 것을 문구 locale 별로 묶는다
+ * (D-31 · D-33).
  *
  * 토큰 문자열은 문서 id 다(rules 가 `data.token == id` 를 강제).
  *
  * @param {Array<QueryDocumentSnapshot>} docs fcmTokens 문서들.
- * @return {Map<TestPushLocale, Array<string>>} locale → 토큰 목록.
+ * @param {number} nowMillis 현재 시각 (epoch ms).
+ * @return {{groups: Map<TestPushLocale, Array<TokenTarget>>,
+ *     expired: Array<DocumentReference>}} locale 그룹 · 만료 문서 참조.
  */
-function groupTokensByLocale(
+function partitionTokens(
   docs: QueryDocumentSnapshot[],
-): Map<TestPushLocale, string[]> {
-  const groups = new Map<TestPushLocale, string[]>();
+  nowMillis: number,
+): {
+  groups: Map<TestPushLocale, TokenTarget[]>;
+  expired: DocumentReference[];
+} {
+  const groups = new Map<TestPushLocale, TokenTarget[]>();
+  const expired: DocumentReference[] = [];
   for (const doc of docs) {
-    const locale = resolveTestPushLocale(doc.data().locale);
-    const tokens = groups.get(locale) ?? [];
-    tokens.push(doc.id);
-    groups.set(locale, tokens);
+    const data = doc.data();
+    if (isExpired(data.expireAt, nowMillis)) {
+      expired.push(doc.ref);
+      continue;
+    }
+    const locale = resolveTestPushLocale(data.locale);
+    const targets = groups.get(locale) ?? [];
+    targets.push({token: doc.id, ref: doc.ref});
+    groups.set(locale, targets);
   }
-  return groups;
+  return {groups, expired};
+}
+
+/**
+ * 토큰 문서들을 지우고 성공 수를 돌려준다 (best-effort).
+ *
+ * 하나가 실패해도 나머지는 계속 지운다. 실패는 `{event, uid, code}` 로만
+ * 남긴다(토큰 문자열 0). 남은 문서는 다음 발송 · TTL 이 다시 정리한다.
+ *
+ * @param {Array<DocumentReference>} refs 지울 문서 참조.
+ * @param {string} uid 호출자 uid (로그용).
+ * @return {Promise<number>} 삭제 성공 수.
+ */
+async function pruneTokens(
+  refs: DocumentReference[],
+  uid: string,
+): Promise<number> {
+  const results = await Promise.allSettled(refs.map((ref) => ref.delete()));
+  let pruned = 0;
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      pruned += 1;
+    } else {
+      logger.warn(
+        {
+          event: "send_test_push_prune_failed",
+          uid,
+          code: fingerprintError(result.reason),
+        },
+        "token document delete failed",
+      );
+    }
+  }
+  return pruned;
 }
 
 /**
@@ -145,18 +231,62 @@ function buildTestPushMessage(
 }
 
 /**
- * sendTestPush 본체 (D-05 · D-34 · D-35).
+ * uid 별 rate limit 을 1회 소비한다 — 초과면 `resource-exhausted`.
+ *
+ * 초과 응답은 `lookupSignInMethods` 와 같은 `resource-exhausted` /
+ * `errorTooManyRequests` 다. counter transaction 자체가 실패하면
+ * `internal` / `errorUnknown`.
+ *
+ * @param {Firestore} db Firestore 인스턴스.
+ * @param {string} uid 호출자 uid.
+ * @return {Promise<void>} 허용이면 resolve.
+ */
+async function enforceRateLimit(
+  db: Firestore,
+  uid: string,
+): Promise<void> {
+  let allowed: boolean;
+  try {
+    allowed = await consumeRateLimit(db, `sendTestPush:${uid}`, {
+      limit: RATE_LIMIT,
+      windowSec: RATE_WINDOW_SEC,
+    });
+  } catch (err: unknown) {
+    logger.warn(
+      {
+        event: "send_test_push_rate_limit_failed",
+        uid,
+        code: fingerprintError(err),
+      },
+      "rate limit transaction threw",
+    );
+    throw new HttpsError("internal", "errorUnknown");
+  }
+  if (!allowed) {
+    logger.warn(
+      {event: "send_test_push_rate_limited", uid},
+      "rate limit exceeded",
+    );
+    throw new HttpsError("resource-exhausted", "errorTooManyRequests");
+  }
+}
+
+/**
+ * sendTestPush 본체 (D-05 · D-33 · D-34 · D-35).
  *
  * 흐름:
  *   Step 0: `request.auth` 검증 → 미인증 `unauthenticated`.
  *   Step 1: 환경 스위치(D-35) — 꺼져 있으면 읽기 · 발송 없이
  *           `failed-precondition` + `{reason: "test_push_disabled"}`.
- *   Step 2: `users/{uid}/fcmTokens` 전체 읽기 → locale 그룹.
- *   Step 3: 그룹(· 500개 청크)마다 `sendEachForMulticast` → 성공 수 합.
- *   Step 4: `{event: "send_test_push_done", uid, sent, failed, pruned}` 로그 →
+ *   Step 2: uid 별 rate limit 10회/60초 → 초과 `resource-exhausted`.
+ *   Step 3: `users/{uid}/fcmTokens` 전체 읽기 → 만료 제외(D-33) → locale 그룹.
+ *   Step 4: 그룹(· 500개 청크)마다 `sendEachForMulticast` → 성공 수 합 ·
+ *           미등록 · 무효 토큰 수집.
+ *   Step 5: 만료 + 미등록 · 무효 토큰 문서 삭제(best-effort).
+ *   Step 6: `{event: "send_test_push_done", uid, sent, failed, pruned}` 로그 →
  *           `{sentCount}`.
  *
- * Firestore · FCM 요청 자체가 실패하면 `internal` / `errorUnknown`.
+ * Firestore 읽기 · FCM 요청 자체가 실패하면 `internal` / `errorUnknown`.
  *
  * @param {CallableRequest<unknown>} request onCall request — 본문은 읽지
  *     않는다 (입력 0).
@@ -181,23 +311,42 @@ async function runSendTestPush(
   }
 
   const db = getFirestore();
+  await enforceRateLimit(db, uid);
+
   let sent = 0;
   let failed = 0;
-  const pruned = 0;
+  const toPrune: DocumentReference[] = [];
   try {
     const snap = await db
       .collection("users")
       .doc(uid)
       .collection("fcmTokens")
       .get();
-    const groups = groupTokensByLocale(snap.docs);
-    for (const [locale, tokens] of groups) {
-      for (const batch of chunk(tokens, MAX_MULTICAST_TOKENS)) {
+    const {groups, expired} = partitionTokens(
+      snap.docs,
+      Timestamp.now().toMillis(),
+    );
+    toPrune.push(...expired);
+    for (const [locale, targets] of groups) {
+      for (let i = 0; i < targets.length; i += MAX_MULTICAST_TOKENS) {
+        const batch = targets.slice(i, i + MAX_MULTICAST_TOKENS);
         const response = await getMessaging().sendEachForMulticast(
-          buildTestPushMessage(locale, batch),
+          buildTestPushMessage(locale, batch.map((t) => t.token)),
         );
         sent += response.successCount;
         failed += response.failureCount;
+        response.responses.forEach((r, index) => {
+          if (r.success) return;
+          logger.info(
+            {
+              event: "send_test_push_token_rejected",
+              uid,
+              code: fingerprintError(r.error),
+            },
+            "token rejected by FCM",
+          );
+          if (isStaleTokenError(r.error)) toPrune.push(batch[index].ref);
+        });
       }
     }
   } catch (err: unknown) {
@@ -208,6 +357,7 @@ async function runSendTestPush(
     throw new HttpsError("internal", "errorUnknown");
   }
 
+  const pruned = await pruneTokens(toPrune, uid);
   logger.info(
     {event: "send_test_push_done", uid, sent, failed, pruned},
     "test push sent",
