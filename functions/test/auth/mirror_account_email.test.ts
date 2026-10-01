@@ -11,6 +11,8 @@
  * 시나리오:
  *  - T-17-MIRROR-01: 관통 — 토큰 email · email_verified → set-merge 1회 ·
  *    `{ok: true}` · logger payload 키 = event · uid · hasEmail 만.
+ *  - T-17-MIRROR-04: 익명 · 미인증 거부(write 0) · 토큰 email 없음 → null ·
+ *    요청 본문의 email 위조 무시 · write 실패 → internal(로그에 이메일 0).
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -64,6 +66,8 @@ jest.mock("firebase-admin/firestore", () => {
 import functionsTest from "firebase-functions-test";
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
+// eslint-disable-next-line import/first
+import {HttpsError} from "firebase-functions/https";
 
 const testEnv = functionsTest();
 
@@ -131,6 +135,152 @@ describe("mirrorAccountEmail onCall — Phase 17 D-26 (T-17-MIRROR)", () => {
     expect(serialized).not.toContain("a@example.com");
     for (const p of loggedPayloads()) {
       expect(JSON.stringify(p)).not.toContain("a@example.com");
+    }
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-04a: 익명 caller → failed-precondition · anonymous_caller · write 0", async () => {
+    const wrapped = testEnv.wrap(myFunctions.mirrorAccountEmail);
+    const promise = wrapped({
+      auth: {
+        uid: "anon-1",
+        token: {firebase: {sign_in_provider: "anonymous"}},
+      },
+      app: {appId: "test"},
+      data: {},
+    } as never);
+    await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    await expect(promise).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: {reason: "anonymous_caller"},
+    });
+    expect(mockDoc).not.toHaveBeenCalled();
+    expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-04b: auth 없음 → unauthenticated · write 0", async () => {
+    const wrapped = testEnv.wrap(myFunctions.mirrorAccountEmail);
+    const promise = wrapped({
+      app: {appId: "test"},
+      data: {},
+    } as never);
+    await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    await expect(promise).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: "errorUnauthenticated",
+    });
+    expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-04c: 토큰에 email 없음 → {email: null, emailVerified: false}", async () => {
+    const wrapped = testEnv.wrap(myFunctions.mirrorAccountEmail);
+    await wrapped({
+      auth: {
+        uid: "u-no-email",
+        token: {
+          // 이메일 없이 email_verified 만 true 인 토큰도 false 로 쓴다.
+          email_verified: true,
+          firebase: {sign_in_provider: "custom"},
+        },
+      },
+      app: {appId: "test"},
+      data: {},
+    } as never);
+
+    expect(setCalls).toEqual([
+      {
+        path: "users/u-no-email",
+        payload: {email: null, emailVerified: false},
+        options: {merge: true},
+      },
+    ]);
+    expect(infoMock).toHaveBeenCalledWith(
+      {event: "mirror_account_email_done", uid: "u-no-email", hasEmail: false},
+      expect.any(String),
+    );
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-04d: 빈 문자열 email claim → null (빈 문자열 sentinel 0)", async () => {
+    const wrapped = testEnv.wrap(myFunctions.mirrorAccountEmail);
+    await wrapped({
+      auth: {
+        uid: "u-empty",
+        token: {email: "", email_verified: true},
+      },
+      app: {appId: "test"},
+      data: {},
+    } as never);
+
+    expect(setCalls[0]?.payload).toEqual({email: null, emailVerified: false});
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-04e: 요청 본문의 email 위조는 무시 — 저장값은 토큰 값", async () => {
+    const wrapped = testEnv.wrap(myFunctions.mirrorAccountEmail);
+    await wrapped({
+      auth: {
+        uid: "u-spoof",
+        token: {
+          email: "real@example.com",
+          email_verified: false,
+          firebase: {sign_in_provider: "password"},
+        },
+      },
+      app: {appId: "test"},
+      data: {email: "spoof@example.com", emailVerified: true},
+    } as never);
+
+    expect(setCalls).toEqual([
+      {
+        path: "users/u-spoof",
+        payload: {email: "real@example.com", emailVerified: false},
+        options: {merge: true},
+      },
+    ]);
+    expect(JSON.stringify(setCalls)).not.toContain("spoof@example.com");
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-04f: 토큰 email 이 없으면 본문 email 이 있어도 null", async () => {
+    const wrapped = testEnv.wrap(myFunctions.mirrorAccountEmail);
+    await wrapped({
+      auth: {uid: "u-spoof-2", token: {}},
+      app: {appId: "test"},
+      data: {email: "spoof@example.com"},
+    } as never);
+
+    expect(setCalls[0]?.payload).toEqual({email: null, emailVerified: false});
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-04g: Firestore write 실패 → internal · 로그는 code 만", async () => {
+    mockSet.mockRejectedValueOnce(
+      Object.assign(new Error("PII_ERR a@example.com"), {code: "unavailable"}),
+    );
+    const wrapped = testEnv.wrap(myFunctions.mirrorAccountEmail);
+    const promise = wrapped({
+      auth: {uid: "u-fail", token: {email: "a@example.com"}},
+      app: {appId: "test"},
+      data: {},
+    } as never);
+    await expect(promise).rejects.toMatchObject({
+      code: "internal",
+      message: "errorUnknown",
+    });
+    expect(errorMock).toHaveBeenCalledWith(
+      {
+        event: "mirror_account_email_failed",
+        uid: "u-fail",
+        code: "unavailable",
+      },
+      expect.any(String),
+    );
+    for (const p of loggedPayloads()) {
+      expect(JSON.stringify(p)).not.toContain("a@example.com");
+      expect(JSON.stringify(p)).not.toContain("PII_ERR");
     }
   });
 });

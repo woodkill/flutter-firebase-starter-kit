@@ -95,6 +95,9 @@ type MockDb = {
   callOrder: string[];
   // quick 260928-jwe: 로그인 계정 users/{uid} 비-tx read stub.
   userGet: jest.Mock;
+  // Phase 17 D-26: 가입 수단 재로그인 email mirror 의 users/{uid} 비-tx
+  // set-merge stub (tx.set 과 구분 — tx 밖 write 만 기록).
+  userSet: jest.Mock;
 };
 
 /**
@@ -170,7 +173,9 @@ function makeDb(opts: {
       data: loginUserData ? () => loginUserData : undefined,
     };
   });
-  const userRef = {label: "userRef", get: userGet};
+  // Phase 17 D-26: 비-tx set-merge stub. 기본 성공 (기존 케이스 회귀 0).
+  const userSet = jest.fn(async (): Promise<void> => undefined);
+  const userRef = {label: "userRef", get: userGet, set: userSet};
 
   // WR-05 (Phase 13 review): "all reads before all writes" Firestore
   // transaction 제약 회귀 가드. firestore production 은 첫 write (set/update)
@@ -247,6 +252,7 @@ function makeDb(opts: {
     whereGet,
     callOrder,
     userGet,
+    userSet,
   };
 }
 
@@ -3331,4 +3337,257 @@ describe("resolveIdentity Phase 16.8 D-21 — 해제 후 재로그인 매트릭�
       expect(tx.set).not.toHaveBeenCalled();
     },
   );
+});
+
+// Phase 17 D-26 — CT 경로 email mirror (add-only). 신규 등록 tx 의 users
+// set-merge 에 `email` · `emailVerified` 2키를 더하고, 가입 수단 재로그인이
+// Auth email 을 갱신할 때만 같은 2키를 tx 밖에서 set-merge 한다.
+// eslint-disable-next-line max-len
+describe("resolveIdentity Phase 17 D-26 — CT 경로 email mirror (T-17-MIRROR-05)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({emailVerified: true, providerData: []});
+    warnMock.mockReset();
+    infoMock.mockReset();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-05a: 신규 등록(익명 caller) → users payload 에 email · emailVerified 추가 · 기존 3키 그대로", async () => {
+    const {db, tx, userRef, userSet} = makeDb({
+      preExists: false,
+      txExists: false,
+    });
+
+    const res = await resolveIdentity(db, {
+      provider: "naver",
+      providerUserId: "naver-m05a",
+      callerUid: "anon-m05a",
+      callerIsAnonymous: true,
+      userInfo: {email: "m05a@example.com", emailVerified: true},
+    });
+
+    expect(res).toMatchObject({uid: "anon-m05a", isNewUser: true});
+    const userSetCall = tx.set.mock.calls.find((c) => c[0] === userRef);
+    expect(userSetCall?.[2]).toEqual({merge: true});
+    const payload = userSetCall?.[1] as Record<string, unknown>;
+    // add-only — 기존 3키 + 추가 2키만.
+    expect(Object.keys(payload).sort()).toEqual([
+      "email",
+      "emailVerified",
+      "linkedProviders",
+      "providerLinkedAt",
+      "signUpProviderId",
+    ]);
+    expect(payload).toMatchObject({
+      signUpProviderId: "naver",
+      email: "m05a@example.com",
+      emailVerified: true,
+    });
+    expect(payload.linkedProviders).toEqual({
+      mockArrayUnion: {providerId: "naver", providerUserId: "naver-m05a"},
+    });
+    expect(payload.providerLinkedAt).toEqual({naver: "MOCK_TIMESTAMP"});
+    // 신규 등록은 tx 안 write 1건이 전부 — tx 밖 users write 0.
+    expect(userSet).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-05b: 신규 등록(미인증 · 이메일 없음) → email null · emailVerified false", async () => {
+    mockCreateUser.mockResolvedValueOnce({uid: "new-m05b"});
+    const {db, tx, userRef} = makeDb({
+      preExists: false,
+      txExists: false,
+    });
+
+    await resolveIdentity(db, {
+      provider: "line",
+      providerUserId: "line-m05b",
+      callerUid: undefined,
+      userInfo: {displayName: "닉"},
+    });
+
+    const userSetCall = tx.set.mock.calls.find((c) => c[0] === userRef);
+    expect(userSetCall?.[1]).toMatchObject({
+      signUpProviderId: "line",
+      email: null,
+      emailVerified: false,
+    });
+    // Auth record 는 기존대로 emailVerified true (verify-email gate 방지) —
+    // mirror 값과 의도적으로 다르다.
+    expect(mockCreateUser).toHaveBeenCalledWith(
+      expect.objectContaining({emailVerified: true}),
+    );
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-05c: 신규 등록 · 빈 문자열 email · 미보고 emailVerified → null · false", async () => {
+    const {db, tx, userRef} = makeDb({
+      preExists: false,
+      txExists: false,
+    });
+
+    await resolveIdentity(db, {
+      provider: "kakao",
+      providerUserId: "kakao-m05c",
+      callerUid: "anon-m05c",
+      callerIsAnonymous: true,
+      userInfo: {email: ""},
+    });
+
+    const userSetCall = tx.set.mock.calls.find((c) => c[0] === userRef);
+    expect(userSetCall?.[1]).toMatchObject({email: null, emailVerified: false});
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-05d: 가입 수단 재로그인 + email 갱신 → updateUser 뒤 users set-merge 1회", async () => {
+    const callOrder: string[] = [];
+    mockUpdateUser.mockImplementation(async () => {
+      callOrder.push("updateUser");
+    });
+    const {db, tx, userSet} = makeDb({
+      preExists: true,
+      preData: {firebaseUid: "U-m05d"},
+      txExists: true,
+      txData: {firebaseUid: "U-m05d"},
+      loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
+    });
+    userSet.mockImplementation(async () => {
+      callOrder.push("users-set");
+    });
+
+    const res = await resolveIdentity(db, {
+      provider: "naver",
+      providerUserId: "naver-m05d",
+      callerUid: undefined,
+      userInfo: {
+        email: "m05d-new@example.com",
+        emailVerified: true,
+        displayName: "닉",
+      },
+    });
+
+    expect(res).toEqual({uid: "U-m05d", isNewUser: false, conflictKind: null});
+    expect(userSet).toHaveBeenCalledTimes(1);
+    expect(userSet).toHaveBeenCalledWith(
+      {email: "m05d-new@example.com", emailVerified: true},
+      {merge: true},
+    );
+    expect(callOrder).toEqual(["updateUser", "users-set"]);
+    // 재로그인은 tx 안 users write 0 (D-18 불변).
+    expect(tx.set).not.toHaveBeenCalled();
+    expect(warnMock).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-05e: 연결 수단 재로그인(저장값 kakao · 로그인 naver) → email 키 write 0", async () => {
+    const {db, tx, userSet} = makeDb({
+      preExists: true,
+      preData: {firebaseUid: "U-m05e"},
+      txExists: true,
+      txData: {firebaseUid: "U-m05e"},
+      loginUserDoc: {exists: true, data: {signUpProviderId: "kakao"}},
+    });
+
+    await resolveIdentity(db, {
+      provider: "naver",
+      providerUserId: "naver-m05e",
+      callerUid: undefined,
+      userInfo: {email: "linked@example.com", emailVerified: true},
+    });
+
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    expect(userSet).not.toHaveBeenCalled();
+    expect(tx.set).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-05f: 가입 수단 재로그인이지만 IdP email 미제공 → updateUser 만 · email 키 write 0", async () => {
+    const {db, userSet} = makeDb({
+      preExists: true,
+      preData: {firebaseUid: "U-m05f"},
+      txExists: true,
+      txData: {firebaseUid: "U-m05f"},
+      loginUserDoc: {exists: true, data: {signUpProviderId: "line"}},
+    });
+
+    await resolveIdentity(db, {
+      provider: "line",
+      providerUserId: "line-m05f",
+      callerUid: undefined,
+      userInfo: {displayName: "닉"},
+    });
+
+    expect(mockUpdateUser).toHaveBeenCalledTimes(1);
+    expect(userSet).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-05g: 가입 수단 재로그인 updateUser 실패 → Auth email 불변이라 email 키 write 0", async () => {
+    mockUpdateUser.mockRejectedValueOnce(
+      Object.assign(new Error("transient"), {code: "auth/internal-error"}),
+    );
+    const {db, userSet} = makeDb({
+      preExists: true,
+      preData: {firebaseUid: "U-m05g"},
+      txExists: true,
+      txData: {firebaseUid: "U-m05g"},
+      loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
+    });
+
+    const res = await resolveIdentity(db, {
+      provider: "naver",
+      providerUserId: "naver-m05g",
+      callerUid: undefined,
+      userInfo: {email: "m05g@example.com", emailVerified: true},
+    });
+
+    expect(res).toMatchObject({uid: "U-m05g", isNewUser: false});
+    expect(userSet).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-17-MIRROR-05h: email mirror write 실패 → best-effort warn(code 만) · 로그인 정상 반환", async () => {
+    const {db, userSet} = makeDb({
+      preExists: true,
+      preData: {firebaseUid: "U-m05h"},
+      txExists: true,
+      txData: {firebaseUid: "U-m05h"},
+      loginUserDoc: {exists: true, data: {signUpProviderId: "naver"}},
+    });
+    userSet.mockRejectedValueOnce(
+      Object.assign(new Error("PII_M05H m05h@example.com"), {
+        code: "unavailable",
+      }),
+    );
+
+    const res = await resolveIdentity(db, {
+      provider: "naver",
+      providerUserId: "naver-m05h",
+      callerUid: undefined,
+      userInfo: {email: "m05h@example.com", emailVerified: true},
+    });
+
+    expect(res).toEqual({uid: "U-m05h", isNewUser: false, conflictKind: null});
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledWith(
+      {
+        event: "identity_index_email_mirror_failed",
+        uid: "U-m05h",
+        code: "unavailable",
+      },
+      expect.any(String),
+    );
+    const logged = JSON.stringify([warnMock.mock.calls, infoMock.mock.calls]);
+    expect(logged).not.toContain("m05h@example.com");
+    expect(logged).not.toContain("PII_M05H");
+  });
 });

@@ -191,6 +191,44 @@ async function readSignUpProviderId(
 }
 
 /**
+ * 가입 수단 재로그인으로 갱신된 계정 대표 이메일을 `users/{uid}` 에 mirror
+ * 한다 (Phase 17 D-26 — CT 경로 add-only).
+ *
+ * best-effort — Firestore write 실패는 로그인을 막지 않는다. 다음 정식 세션
+ * 시작 때 클라이언트 훅이 부르는 `mirrorAccountEmail` 이 같은 값을 다시 쓴다.
+ * 로그 payload 는 event · uid · code 뿐이다 (이메일 본문 · err.message 0 —
+ * Pitfall 7).
+ *
+ * @param {Firestore} db Firestore 인스턴스.
+ * @param {string} uid 로그인 계정 uid.
+ * @param {(string|null)} email 서버 검증 IdP 이메일 (없으면 null).
+ * @param {boolean} emailVerified IdP 가 보고한 이메일 인증 상태.
+ * @return {Promise<void>} 실패해도 resolve.
+ */
+async function mirrorRefreshedEmail(
+  db: Firestore,
+  uid: string,
+  email: string | null,
+  emailVerified: boolean,
+): Promise<void> {
+  try {
+    await db
+      .collection("users")
+      .doc(uid)
+      .set({email, emailVerified}, {merge: true});
+  } catch (err: unknown) {
+    logger.warn(
+      {
+        event: "identity_index_email_mirror_failed",
+        uid,
+        code: fingerprintError(err),
+      },
+      "account email mirror failed on sign-up provider re-login",
+    );
+  }
+}
+
+/**
  * Identity Index 조회 결과.
  *
  * R3 (Phase 12.1-06 / BL-04 + WR-06, D-32) — `conflictKind` 필드 추가.
@@ -639,6 +677,19 @@ export async function resolveIdentity(
     (userInfo.emailVerified ?? false) :
     true;
 
+  // Phase 17 D-26 — CT 경로 email mirror (add-only). 계정 대표 이메일
+  // (Auth top-level email) 을 Firestore `users/{uid}` 의 서버 전용 키
+  // `email` · `emailVerified` 로 남긴다 (D-13 — rules 클라이언트 화이트리스트
+  // 밖). 값은 이 helper 가 받은 서버 검증 IdP 프로필(userInfo)에서만 온다.
+  // - 이메일 없음(빈 문자열 포함) → `email: null` (빈 문자열 sentinel 0).
+  // - `emailVerified` 는 "이 이메일이 인증됐는가" — 이메일이 없으면 false.
+  //   Auth record 의 `resolvedEmailVerified`(이메일 없는 provider 는 true —
+  //   verify-email gate 오트리거 방지용)와 의도적으로 다르다. native callable
+  //   `mirrorAccountEmail` 의 값 규칙과 같다.
+  const mirrorEmail = userInfo?.email ? userInfo.email : null;
+  const mirrorEmailVerified =
+    mirrorEmail !== null && userInfo?.emailVerified === true;
+
   // Step 0.5 (Phase 9.2 Gap B close — HUMAN-UAT 2026-05-11):
   //
   // 익명승격 path (callerUid 가 익명 user uid + userInfo.email 제공) + 동일
@@ -997,6 +1048,10 @@ export async function resolveIdentity(
         // (closed union ProviderId). 신규 등록 분기에서만 쓰이므로 재로그인
         // (isNewUser: false) · 비익명 caller 가드는 구조적으로 기록 0 (D-18).
         signUpProviderId: provider,
+        // Phase 17 D-26 — CT 경로 email mirror (add-only). 신규 등록 때 Auth
+        // 에 쓰는 이메일(createUser / updateUser profileFields)과 같은 값.
+        email: mirrorEmail,
+        emailVerified: mirrorEmailVerified,
       },
       {merge: true},
     );
@@ -1204,6 +1259,18 @@ export async function resolveIdentity(
       if (Object.keys(refreshUpdate).length > 0) {
         try {
           await getAuth().updateUser(result.uid, refreshUpdate);
+          // Phase 17 D-26 — CT 경로 email mirror (add-only). Auth email 을
+          // 실제로 갱신한 경우(refreshUpdate.email 있음 · updateUser 성공)
+          // 에만 같은 두 키를 set-merge 한다. 연결 수단 재로그인 · 이메일
+          // 미제공 재로그인은 Auth email 을 바꾸지 않으므로 write 0.
+          if (refreshUpdate.email) {
+            await mirrorRefreshedEmail(
+              db,
+              result.uid,
+              mirrorEmail,
+              mirrorEmailVerified,
+            );
+          }
         } catch (refreshErr: unknown) {
           // **Pitfall 7 보존**: err.message 본문 미로깅 (PII 가능성).
           // fingerprintError helper 가 err.code / err.name / non-Error throw

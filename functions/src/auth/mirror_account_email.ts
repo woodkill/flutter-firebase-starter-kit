@@ -35,8 +35,9 @@ type MirrorAccountEmailResponse = {
  * 흐름:
  *   Step 0: `request.auth` 검증 — 미인증 `unauthenticated`, 익명
  *           `failed-precondition` + `{reason: "anonymous_caller"}`.
- *   Step 1: 토큰 claim `email`(문자열이 아니면 null) ·
- *           `email_verified === true` 를 `users/{uid}` 에 set-merge.
+ *   Step 1: 토큰 claim `email`(비어 있지 않은 문자열이 아니면 null) ·
+ *           `email_verified === true`(이메일이 없으면 false) 를
+ *           `users/{uid}` 에 set-merge.
  *
  * **PII 금지 (T-17-35):** logger payload 는 `{event, uid, hasEmail}` /
  * `{event, uid, code}` 뿐이다. 이메일 본문 · err.message 를 싣지 않는다.
@@ -62,7 +63,10 @@ export const mirrorAccountEmail = onCall({enforceAppCheck: true},
     const email = typeof tokenEmail === "string" && tokenEmail.length > 0 ?
       tokenEmail :
       null;
-    const emailVerified = request.auth.token.email_verified === true;
+    // 이메일이 없으면 인증 상태도 false — CT 경로(identity_index.ts)와 같은
+    // 값 규칙이다 (「이 이메일이 인증됐는가」).
+    const emailVerified =
+      email !== null && request.auth.token.email_verified === true;
 
     try {
       await getFirestore()

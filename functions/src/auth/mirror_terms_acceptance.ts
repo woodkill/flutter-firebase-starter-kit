@@ -39,6 +39,9 @@ type MirrorTermsAcceptanceSnapshotResponse = {
 /**
  * Terms acceptance snapshot Firestore mirror callable (Phase 16 D-13/D-14).
  *
+ * 킷 클라이언트 호출 0 — 서버 mirror 샘플. 계정 이메일 mirror(D-26)는
+ * `mirrorAccountEmail` 이 맡는다(Phase 17).
+ *
  * 흐름 (RESEARCH Pattern 5 verbatim):
  *   Step 0: input + request.auth 검증.
  *   Step 1: Firestore users/{uid}.termsAccepted = 5 필드 atomic set merge.
