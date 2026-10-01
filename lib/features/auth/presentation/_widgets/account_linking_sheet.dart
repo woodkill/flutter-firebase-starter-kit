@@ -302,6 +302,9 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
             NetworkException() ||
             TooManyRequests() ||
             ServiceUnavailable() => l10n.settingsLinkFailedTransient,
+            // Phase 17 D-43 — App Check 차단은 모든 callable 표면에서 같은
+            // 문구 · 재로그인 아님(D-42).
+            AppCheckFailedException() => l10n.errorAppCheckFailed,
             _ => l10n.settingsLinkFailedUnknown,
           };
           messenger.showSnackBar(SnackBar(content: Text(message)));
@@ -331,7 +334,9 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   ///
   /// **분기 값은 3개다** (`authSignInFailedTransient` /
   /// `authSignInBlockedByGuestSession` / `authSignInFailedUnknown`) —
-  /// 세 키 모두 step 1 전용이다. IN-06 (4차 리뷰) 이전에는 앞뒤 두 값이
+  /// 세 키 모두 step 1 전용이다. 예외로 App Check 차단은 모든 callable
+  /// 표면 공용 문구 `errorAppCheckFailed` 를 쓴다(Phase 17 D-43 — 재로그인
+  /// 아님 · D-42). IN-06 (4차 리뷰) 이전에는 앞뒤 두 값이
   /// Surface D 의 `settingsLinkFailed*` ("연결하지 못했습니다") 를 재사용했는데,
   /// 그 순간 사용자가 수행한 동작은 link 가 아니라 *로그인* 이라 소비처 계약
   /// (ARB description) 과 어휘가 어긋났다. —
@@ -400,6 +405,9 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
           // AR-16-07 이 수용한 유일한 탈출구(하단 dismiss)를 안내한다.
           AccountExistsWithDifferentCredential() =>
             l10n.authSignInBlockedByGuestSession,
+          // Phase 17 D-43 — App Check 차단은 모든 callable 표면에서 같은
+          // 문구 · 재로그인 아님(D-42).
+          AppCheckFailedException() => l10n.errorAppCheckFailed,
           _ => l10n.authSignInFailedUnknown,
         };
         messenger.showSnackBar(SnackBar(content: Text(message)));

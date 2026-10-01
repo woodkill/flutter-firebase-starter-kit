@@ -12,6 +12,9 @@
 //       sheet pop(true) + /home 이동
 //   T4: sheet dismiss/cancel (TextButton) → pop(false) + linkedProviders 변경 0
 //   T5 (viewport): sheet provider 버튼이 viewport 밖이면 ensureVisible 후 tap
+//   T-17-APPCHECK-05: 경로 A link 실패 · 경로 B step 1 로그인 실패가
+//       AppCheckFailedException 이면 SnackBar = ko errorAppCheckFailed · 라우팅 0
+//       (Phase 17 D-42 · D-43)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,10 +77,11 @@ void main() {
   /// LoginScreen 을 GoRouter 가 감싸는 harness 를 [tester] 로 pump 한다 —
   /// sheet → context.go(/home) 검증 가능. /home 진입 시 sentinel 'HOME' 텍스트
   /// 노출. [ProviderScope] 는 `pumpWidget` 의 직접 인자다 (riverpod_lint root
-  /// 판정).
-  Future<void> pumpHarness(
+  /// 판정). 라우팅 단언용으로 만든 [GoRouter] 를 돌려준다.
+  Future<GoRouter> pumpHarness(
     WidgetTester tester, {
     required Result<User>? Function() onGoogleSignIn,
+    Locale locale = const Locale('en'),
   }) async {
     when(
       () => mockRepo.signInWithGoogle(),
@@ -105,13 +109,14 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: AppTheme.light(),
-          locale: const Locale('en'),
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
       ),
     );
+    return router;
   }
 
   group('T1 — native account-exists → AccountLinkingSheet 노출', () {
@@ -488,6 +493,102 @@ void main() {
           pendingCredential: any(named: 'pendingCredential'),
         ),
       ).called(1);
+    });
+  });
+
+  group('T-17-APPCHECK-05: 연결 시트 App Check 문구 (Phase 17 D-42 · D-43)', () {
+    const ko = Locale('ko');
+    final appCheckCopy = lookupAppLocalizations(ko).errorAppCheckFailed;
+    final reauthCopy = lookupAppLocalizations(ko).authReauthRequired;
+
+    /// 시트를 열고 sheet provider 버튼을 탭한다. [pendingCredential] 이 있으면
+    /// 경로 A(link), 없으면 경로 B(step 1 로그인)다.
+    Future<GoRouter> openSheetAndTap(
+      WidgetTester tester, {
+      required Object? pendingCredential,
+    }) async {
+      await usePortraitSurface(tester);
+      final router = await pumpHarness(
+        tester,
+        locale: ko,
+        onGoogleSignIn: () => Result<User>.failure(
+          AccountExistsWithDifferentCredential(
+            email: 'collide@example.com',
+            existingProvider: AccountProvider.google,
+            pendingCredential: pendingCredential,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(BrandedSocialButton).first);
+      await settleSheetEntrance(tester);
+      expect(find.byType(AccountLinkingSheet), findsOneWidget);
+
+      final sheetButton = find.descendant(
+        of: find.byType(AccountLinkingSheet),
+        matching: find.byType(BrandedSocialButton),
+      );
+      await tester.ensureVisible(sheetButton);
+      await tester.tap(sheetButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      return router;
+    }
+
+    testWidgets('경로 A link 실패 AppCheckFailedException → 전용 문구 · 재로그인 0', (
+      tester,
+    ) async {
+      when(
+        () => mockRepo.linkPendingNativeCredential(
+          existingProvider: any(named: 'existingProvider'),
+          pendingCredential: any(named: 'pendingCredential'),
+        ),
+      ).thenAnswer(
+        (_) async => const Result<User>.failure(AppCheckFailedException()),
+      );
+
+      final router = await openSheetAndTap(
+        tester,
+        pendingCredential: _kPendingCredential,
+      );
+
+      expect(find.text(appCheckCopy), findsOneWidget);
+      expect(find.text(reauthCopy), findsNothing);
+      expect(find.text('HOME'), findsNothing);
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        AppRoutes.login,
+      );
+    });
+
+    testWidgets('경로 B step 1 로그인 실패 AppCheckFailedException → 전용 문구 · 시트 유지', (
+      tester,
+    ) async {
+      when(
+        () => mockRepo.signInWithExistingProvider(
+          provider: any(named: 'provider'),
+        ),
+      ).thenAnswer(
+        (_) async => const Result<User>.failure(AppCheckFailedException()),
+      );
+
+      final router = await openSheetAndTap(tester, pendingCredential: null);
+
+      verify(
+        () => mockRepo.signInWithExistingProvider(
+          provider: AccountProvider.google,
+        ),
+      ).called(1);
+      expect(find.text(appCheckCopy), findsOneWidget);
+      expect(find.text(reauthCopy), findsNothing);
+      // 실패는 시트 유지(재시도 가능) · 화면 이동 0.
+      expect(find.byType(AccountLinkingSheet), findsOneWidget);
+      expect(find.text('HOME'), findsNothing);
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        AppRoutes.login,
+      );
     });
   });
 }

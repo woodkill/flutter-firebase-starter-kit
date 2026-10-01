@@ -14,9 +14,11 @@
 //   T2: target SDK signIn 사용자 취소(null) → null (silent cancel, link 미호출)
 //   T3: callable 'unauthenticated' + details.reason 'reauthentication_required'
 //       · 'permission-denied' → ReauthenticationRequiredException / reason 없는
-//       'unauthenticated' (ID token 거부 · App Check 차단) → ServiceUnavailable
+//       'unauthenticated' (서버 taxonomy — IdP ID token 거부) → ServiceUnavailable
 //       (16.9 review WR-01 — linkNaverProviderArm 과 같은 판정) / 다른 code +
 //       reauth reason 은 재로그인 아님 (code anchor · iteration 2 IN-01)
+//   T-17-APPCHECK-04: SDK 계층 거부(App Check 차단) → AppCheckFailedException
+//       · Crashlytics 1회 / reason 분기가 helper 보다 먼저 (Phase 17 D-43)
 //   T4: callable 'already-exists'/'errorAccountAlreadyLinked' → AccountAlreadyLinked
 //       · + details.reason 'provider_already_linked' →
 //       ProviderAlreadyLinkedToThisAccount (16.9 review IN-03)
@@ -41,6 +43,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
@@ -70,6 +73,8 @@ class _MockLineSdkClient extends Mock implements LineSdkClient {}
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
+
+class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 class _MockHttpsCallableResult extends Mock
     implements HttpsCallableResult<Map<String, dynamic>> {}
@@ -284,7 +289,7 @@ void main() {
     );
 
     test(
-      'unauthenticated · reason 없음 (LINE ID token 거부 · App Check 차단) → ServiceUnavailable',
+      'unauthenticated · reason 없음 (LINE ID token 거부 · 서버 taxonomy) → ServiceUnavailable',
       () async {
         stubLineSignInSuccess();
         stubCallableThrows('unauthenticated');
@@ -642,6 +647,120 @@ void main() {
       // 서버 계약 위반 — 재시도로 해소되지 않는다.
       expect(failure.exception, isA<UnknownException>());
       expect(failure.exception, isNot(isA<ServiceUnavailable>()));
+    });
+  });
+
+  group('T-17-APPCHECK-04: 연결 callable App Check 판정 (Phase 17 D-43)', () {
+    late _MockCrashlyticsService crashlytics;
+    late AuthRepository appCheckRepository;
+
+    setUpAll(() {
+      registerFallbackValue(StackTrace.empty);
+    });
+
+    setUp(() {
+      crashlytics = _MockCrashlyticsService();
+      when(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      ).thenAnswer((_) async {});
+      appCheckRepository = AuthRepository(
+        mockAuth,
+        mockGoogleSignIn,
+        mockFacebookAuth,
+        mockSocialLinkInProgress,
+        mockKakaoSdkClient,
+        mockFunctions,
+        mockNaverSdkClient,
+        mockLineSdkClient,
+        () async {},
+        crashlytics: crashlytics,
+      );
+      stubLineSignInSuccess();
+    });
+
+    /// callable 이 SDK message `Unauthenticated` 로 거부하도록 stub 한다.
+    void stubSdkMessage(String code, {Object? details}) {
+      when(() => mockLinkCallable.call<Map<String, dynamic>>(any())).thenThrow(
+        FirebaseFunctionsException(
+          code: code,
+          message: 'Unauthenticated',
+          details: details,
+        ),
+      );
+    }
+
+    /// [result] 의 실패 예외를 돌려준다.
+    AppException failureOf(Result<dynamic>? result) {
+      expect(result, isA<Failure<dynamic>>());
+      return (result! as Failure<dynamic>).exception;
+    }
+
+    test('SDK 거부 → AppCheckFailedException · 기록 1회 · logout 유지', () async {
+      stubSdkMessage('unauthenticated');
+
+      final result = await appCheckRepository.linkCustomTokenProviderArm(
+        targetProvider: AccountProvider.line,
+      );
+
+      final exception = failureOf(result);
+      expect(exception, isA<AppCheckFailedException>());
+      expect(exception, isNot(isA<ReauthenticationRequiredException>()));
+      verify(
+        () => crashlytics.recordError(
+          any(that: isA<FirebaseFunctionsException>()),
+          any(),
+          reason: 'app_check_rejected_linkCustomTokenProvider',
+          fatal: false,
+        ),
+      ).called(1);
+      verify(() => mockLineSdkClient.logout()).called(1);
+    });
+
+    test('reason reauthentication_required 가 먼저 — 재인증 예외 · 기록 0', () async {
+      stubSdkMessage(
+        'unauthenticated',
+        details: const <String, Object?>{'reason': 'reauthentication_required'},
+      );
+
+      final result = await appCheckRepository.linkCustomTokenProviderArm(
+        targetProvider: AccountProvider.line,
+      );
+
+      expect(failureOf(result), isA<ReauthenticationRequiredException>());
+      verifyNever(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
+    });
+
+    test('reason provider_already_linked 는 기존 그대로 · 기록 0', () async {
+      stubSdkMessage(
+        'already-exists',
+        details: const <String, Object?>{'reason': 'provider_already_linked'},
+      );
+
+      final result = await appCheckRepository.linkCustomTokenProviderArm(
+        targetProvider: AccountProvider.line,
+      );
+
+      expect(failureOf(result), isA<ProviderAlreadyLinkedToThisAccount>());
+      verifyNever(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
     });
   });
 }

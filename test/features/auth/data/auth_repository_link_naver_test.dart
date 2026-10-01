@@ -14,9 +14,11 @@
 //   R3: 취소 (signIn null) — null · callable/getIdToken 미호출 · logout
 //   R4: unauthenticated + details.reason 'reauthentication_required' ·
 //       permission-denied → ReauthenticationRequiredException / reason 없는
-//       unauthenticated (Naver 거부 · code 교환 거부 · App Check 차단) →
+//       unauthenticated (Naver 거부 · code 교환 거부 — 서버 taxonomy) →
 //       ServiceUnavailable (16.9 review WR-01) / 다른 code + reauth reason 은
 //       재로그인 아님 (code anchor · iteration 2 IN-01)
+//   T-17-APPCHECK-04: SDK 계층 거부(App Check 차단) → AppCheckFailedException
+//       · Crashlytics 1회 / reason 분기가 helper 보다 먼저 (Phase 17 D-43)
 //   R5: already-exists → AccountAlreadyLinked / + reason provider_already_linked
 //       → ProviderAlreadyLinkedToThisAccount (16.9 review IN-03)
 //   R6: unavailable → NoInternetConnection · failed-precondition → ServiceUnavailable
@@ -38,6 +40,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
@@ -68,6 +71,8 @@ class _MockLineSdkClient extends Mock implements LineSdkClient {}
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
+
+class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 class _MockHttpsCallableResult extends Mock
     implements HttpsCallableResult<Map<String, dynamic>> {}
@@ -312,7 +317,7 @@ void main() {
       },
     );
 
-    test('R4: 1-tap unauthenticated · reason 없음 (/v1/nid/me 거부 · App Check 차단) '
+    test('R4: 1-tap unauthenticated · reason 없음 (/v1/nid/me 거부 · 서버 taxonomy) '
         '→ ServiceUnavailable (재로그인 아님)', () async {
       stubAppSignIn();
       stubCallableThrows('unauthenticated');
@@ -590,6 +595,110 @@ void main() {
       verify(() => mockSocialLinkInProgress.begin()).called(1);
       verify(() => mockSocialLinkInProgress.end()).called(1);
       verify(() => mockNaverSdkClient.logout()).called(1);
+    });
+  });
+
+  group('T-17-APPCHECK-04: Naver 연결 callable App Check 판정 (Phase 17 D-43)', () {
+    late _MockCrashlyticsService crashlytics;
+    late AuthRepository appCheckRepository;
+
+    setUpAll(() {
+      registerFallbackValue(StackTrace.empty);
+    });
+
+    setUp(() {
+      crashlytics = _MockCrashlyticsService();
+      when(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      ).thenAnswer((_) async {});
+      appCheckRepository = AuthRepository(
+        mockAuth,
+        _MockGoogleSignIn(),
+        _MockFacebookAuth(),
+        mockSocialLinkInProgress,
+        _MockKakaoSdkClient(),
+        mockFunctions,
+        mockNaverSdkClient,
+        _MockLineSdkClient(),
+        () async {},
+        crashlytics: crashlytics,
+      );
+    });
+
+    /// callable 이 SDK message `Unauthenticated` 로 거부하도록 stub 한다.
+    void stubSdkMessage(String code, {Object? details}) {
+      when(() => mockLinkCallable.call<Map<String, dynamic>>(any())).thenThrow(
+        FirebaseFunctionsException(
+          code: code,
+          message: 'Unauthenticated',
+          details: details,
+        ),
+      );
+    }
+
+    for (final stub in <void Function()>[stubAppSignIn, stubWebSignIn]) {
+      test('SDK 거부 → AppCheckFailedException · 기록 1회 · logout 유지', () async {
+        stub();
+        stubSdkMessage('unauthenticated');
+
+        final result = await appCheckRepository.linkNaverProviderArm();
+
+        final exception = failureOf(result);
+        expect(exception, isA<AppCheckFailedException>());
+        expect(exception, isNot(isA<ReauthenticationRequiredException>()));
+        verify(
+          () => crashlytics.recordError(
+            any(that: isA<FirebaseFunctionsException>()),
+            any(),
+            reason: 'app_check_rejected_linkNaverProvider',
+            fatal: false,
+          ),
+        ).called(1);
+        verifyNever(() => mockCurrentUser.reload());
+        verify(() => mockNaverSdkClient.logout()).called(1);
+      });
+    }
+
+    test('reason reauthentication_required 가 먼저 — 재인증 예외 · 기록 0', () async {
+      stubAppSignIn();
+      stubSdkMessage('unauthenticated', details: reauthDetails);
+
+      final result = await appCheckRepository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<ReauthenticationRequiredException>());
+      verifyNever(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
+    });
+
+    test('reason provider_already_linked 는 기존 그대로 · 기록 0', () async {
+      stubAppSignIn();
+      stubSdkMessage(
+        'already-exists',
+        details: const <String, Object?>{'reason': 'provider_already_linked'},
+      );
+
+      final result = await appCheckRepository.linkNaverProviderArm();
+
+      expect(failureOf(result), isA<ProviderAlreadyLinkedToThisAccount>());
+      verifyNever(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
     });
   });
 }
