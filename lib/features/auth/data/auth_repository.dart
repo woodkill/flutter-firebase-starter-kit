@@ -14,7 +14,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/auth/nonce.dart';
 import '../../../core/auth/provider_id.dart';
+import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/error/app_exception.dart';
+import '../../../core/functions/callable_rejection.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
@@ -104,6 +106,11 @@ class AuthRepository implements AnonymousSignIn {
   /// 않고, 콜백은 어떤 예외도 던지지 않는다 (D-17). 미주입 시 기본값은
   /// no-op [_recordNoSignUpMethod] 라 기존 생성자 호출부는 변경 0 이다
   /// (positional 9 인자 불변 · D-27).
+  ///
+  /// [crashlytics] 는 callable 의 App Check 차단 판정
+  /// (`classifyAppCheckRejection`)이 non-fatal 1회를 남기는 채널이다
+  /// (Phase 17 D-43 · D-44). 미주입 시 기본값은 no-op
+  /// `CrashlyticsService(null, isEnabled: false)` 다.
   AuthRepository(
     this._auth,
     this._googleSignIn,
@@ -117,10 +124,15 @@ class AuthRepository implements AnonymousSignIn {
     DateTime Function()? now,
     Map<String, dynamic>? Function()? readTermsAcceptanceSnapshot,
     RecordSignUpMethod? recordSignUpMethod,
+    CrashlyticsService crashlytics = const CrashlyticsService(
+      null,
+      isEnabled: false,
+    ),
   }) : _now = now ?? DateTime.now,
        _readTermsAcceptanceSnapshot =
            readTermsAcceptanceSnapshot ?? _readNoTermsAcceptanceSnapshot,
-       _recordSignUpMethod = recordSignUpMethod ?? _recordNoSignUpMethod;
+       _recordSignUpMethod = recordSignUpMethod ?? _recordNoSignUpMethod,
+       _crashlytics = crashlytics;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -138,6 +150,11 @@ class AuthRepository implements AnonymousSignIn {
 
   /// 가입 수단 기록 콜백 (Phase 16.7 D-13 · D-17). 절대 throw 하지 않는다.
   final RecordSignUpMethod _recordSignUpMethod;
+
+  /// callable 의 App Check 차단 판정을 non-fatal 로 기록하는 서비스
+  /// (Phase 17 D-44). 미주입 시 no-op(`isEnabled: false`)이라 기존 생성자
+  /// 호출부 · 테스트는 변경 0 이다.
+  final CrashlyticsService _crashlytics;
 
   /// Phase 16 D-12 / Pitfall 5 — client-side cache for `lookupSignInMethods`
   /// callable responses. 동일 collisionEmail 의 rate limit 누적 회피
@@ -1467,8 +1484,11 @@ class AuthRepository implements AnonymousSignIn {
       return Result.success(_mapFirebaseUser(refreshed));
     } on FirebaseFunctionsException catch (e) {
       // 16.9 review WR-01: 연결 callable 공용 판정 — 재로그인은 서버가
-      // details.reason 으로 표시한 거부에만 (IdP 거부 · App Check 차단 제외).
-      return Result.failure(_mapLinkCallableException(e));
+      // details.reason 으로 표시한 거부에만 (IdP 거부 · App Check 차단 제외 —
+      // App Check 차단은 Phase 17 D-43 전용 예외).
+      return Result.failure(
+        _mapLinkCallableException(e, callable: 'linkCustomTokenProvider'),
+      );
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on ServiceUnavailable catch (e) {
@@ -1600,9 +1620,11 @@ class AuthRepository implements AnonymousSignIn {
       return Result.success(_mapFirebaseUser(_auth.currentUser ?? caller));
     } on FirebaseFunctionsException catch (e) {
       // 16.9 review WR-01: [linkCustomTokenProviderArm] 과 같은 공용 판정 —
-      // Naver 거부(`/v1/nid/me` 401 · code 교환 invalid_grant) · App Check
-      // 차단은 재로그인이 아니라 일시 오류다.
-      return Result.failure(_mapLinkCallableException(e));
+      // Naver 거부(`/v1/nid/me` 401 · code 교환 invalid_grant)는 재로그인이
+      // 아니라 일시 오류, App Check 차단은 전용 예외다(Phase 17 D-43).
+      return Result.failure(
+        _mapLinkCallableException(e, callable: 'linkNaverProvider'),
+      );
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on ServiceUnavailable catch (e) {
@@ -1676,14 +1698,21 @@ class AuthRepository implements AnonymousSignIn {
   ///    정반대이므로 반드시 먼저 판정한다.
   /// 4. `already-exists` (reason 없음) → [AccountAlreadyLinked] (신원이 다른
   ///    계정 소유).
-  /// 5. 나머지 → [_mapFunctionsException] — reason 없는 `unauthenticated` 는
-  ///    로그인 경로와 같은 [ServiceUnavailable] (하류
+  /// 5. 나머지 → [_mapFunctionsException] — SDK 계층 거부(App Check 차단)는
+  ///    그 안의 helper 가 [AppCheckFailedException] 으로 가르고(Phase 17
+  ///    D-43), 남는 reason 없는 `unauthenticated`(서버 taxonomy)는 로그인
+  ///    경로와 같은 [ServiceUnavailable] (하류
   ///    `SettingsNotifier._mapLinkFailure` → transientFailure 「잠시 후 다시
   ///    시도」), `unavailable` → [NoInternetConnection], `failed-precondition`
   ///    (익명 caller) · `invalid-argument` → [ServiceUnavailable].
   ///
   /// 서버 message 는 읽지 않는다 — `code` + `details.reason` 만 분기한다.
-  AppException _mapLinkCallableException(FirebaseFunctionsException e) {
+  /// 예외는 SDK 상수 message 1건뿐이고 `callable_rejection.dart` 가 소유한다.
+  /// [callable] 은 Crashlytics reason 에 남길 export 이름이다(D-44).
+  AppException _mapLinkCallableException(
+    FirebaseFunctionsException e, {
+    required String callable,
+  }) {
     // 16.9 review iteration 2 IN-01: code 가 1차 축 · reason 은 그 안의 2차
     // 축이다 (아래 provider_already_linked 판정과 같은 규칙) — reauth reason
     // 은 서버 `reauthenticationRequired()` 가 만드는 `unauthenticated` 에서만
@@ -1700,7 +1729,7 @@ class AuthRepository implements AnonymousSignIn {
           ? ProviderAlreadyLinkedToThisAccount(cause: e)
           : AccountAlreadyLinked(cause: e);
     }
-    return _mapFunctionsException(e);
+    return _mapFunctionsException(e, callable: callable);
   }
 
   /// [targetProvider] 별 SDK signIn 으로 target OIDC 토큰을 fresh 재획득한다
@@ -1830,7 +1859,9 @@ class AuthRepository implements AnonymousSignIn {
       await _autoSendEmailVerification(userCredential);
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
-      return Result.failure(_mapFunctionsException(e));
+      return Result.failure(
+        _mapFunctionsException(e, callable: 'kakaoCustomToken'),
+      );
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on ServiceUnavailable catch (e) {
@@ -1893,6 +1924,12 @@ class AuthRepository implements AnonymousSignIn {
     // 늦은 성공이 logout 이후에 토큰을 저장하는 경로가 구조적으로 없다.
     // NaverSdkClient.logout 은 내부 try/catch graceful — SDK "no session"
     // 상태에서도 silent no-op. Kakao path 와 대칭 (D-57 일관) + 보안 우선 정책.
+    //
+    // Phase 17 D-44: callable 이름은 경로(1-tap · 웹)마다 달라 try 안 지역
+    // `request` 에서 정해진다 — catch 가 Crashlytics reason 에 실제 export
+    // 이름을 쓰도록 바깥 변수로 옮긴다. callable 예외는 `request` 생성 뒤에만
+    // 나므로 catch 시점의 값은 항상 실제 이름이다.
+    var naverCallable = 'naverCustomToken';
     try {
       _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
 
@@ -1904,6 +1941,7 @@ class AuthRepository implements AnonymousSignIn {
       // Phase 16.5 D-13: 경로별 자격증명 → callable · payload · timeout 은
       // 재인증과 공유하는 단일 진실원 [_naverCallableRequest] 가 고른다.
       final request = _naverCallableRequest(result);
+      naverCallable = request.callableName;
       final callable = _functions.httpsCallable(
         request.callableName,
         options: HttpsCallableOptions(timeout: request.timeout),
@@ -1931,7 +1969,7 @@ class AuthRepository implements AnonymousSignIn {
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
       // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
-      return Result.failure(_mapFunctionsException(e));
+      return Result.failure(_mapFunctionsException(e, callable: naverCallable));
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on ServiceUnavailable catch (e) {
@@ -2041,7 +2079,9 @@ class AuthRepository implements AnonymousSignIn {
       return Result.success(_mapFirebaseUser(fbUser));
     } on FirebaseFunctionsException catch (e) {
       // already-exists 분기는 Phase 12.1 D-34 에서 _mapFunctionsException 자동 흡수.
-      return Result.failure(_mapFunctionsException(e));
+      return Result.failure(
+        _mapFunctionsException(e, callable: 'lineCustomToken'),
+      );
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on ServiceUnavailable catch (e) {
@@ -2211,7 +2251,11 @@ class AuthRepository implements AnonymousSignIn {
       if (isOAuthCancelCode(e.code)) return null;
       return Result.failure(_mapReauthAuthException(provider, e));
     } on FirebaseFunctionsException catch (e) {
-      return Result.failure(_mapFunctionsException(e));
+      // callable 거부는 `_reauthWithCustomToken` 이 이름과 함께 먼저 매핑한다
+      // (Phase 17 D-44) — 이 절은 다른 출처 대비 방어다.
+      return Result.failure(
+        _mapFunctionsException(e, callable: 'reauthenticate'),
+      );
     } on AppException catch (e) {
       // ReauthUserMismatch (사전 대조) · ServiceUnavailable (토큰 부재) 등
       // helper 가 던진 도메인 예외를 그대로 보존한다.
@@ -2372,8 +2416,10 @@ class AuthRepository implements AnonymousSignIn {
   /// client 대조만으로는 막을 수 없다).
   ///
   /// Throws [ReauthUserMismatch] — 응답 uid 불일치. Throws [UnknownException] —
-  /// 응답 계약 위반 (customToken · uid 부재). Throws
-  /// [FirebaseFunctionsException] — callable 거부 (호출부가 매핑).
+  /// 응답 계약 위반 (customToken · uid 부재). callable 거부는 여기서
+  /// [_mapFunctionsException] 으로 매핑한 [AppException] 으로 던진다 —
+  /// Crashlytics reason 에 실제 callable 이름이 남도록 이름이 정해지는 이
+  /// 자리에서 잡는다 (Phase 17 D-44).
   Future<fb.UserCredential?> _reauthWithCustomToken(
     AccountProvider provider,
     fb.User current,
@@ -2384,7 +2430,12 @@ class AuthRepository implements AnonymousSignIn {
       request.callableName,
       options: HttpsCallableOptions(timeout: request.timeout),
     );
-    final response = await callable.call<Map<String, dynamic>>(request.payload);
+    final HttpsCallableResult<Map<String, dynamic>> response;
+    try {
+      response = await callable.call<Map<String, dynamic>>(request.payload);
+    } on FirebaseFunctionsException catch (e) {
+      throw _mapFunctionsException(e, callable: request.callableName);
+    }
     final String customToken;
     try {
       // 계약 검증 · uid 대조는 끊기 step 과 공유한다(Phase 16.10 D-08).
@@ -2708,7 +2759,9 @@ class AuthRepository implements AnonymousSignIn {
       if (e.code == 'resource-exhausted') {
         return Result.failure(TooManyRequests(cause: e));
       }
-      return Result.failure(_mapFunctionsException(e));
+      return Result.failure(
+        _mapFunctionsException(e, callable: 'unlinkCustomTokenProvider'),
+      );
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on Object catch (e) {
@@ -3286,11 +3339,17 @@ class AuthRepository implements AnonymousSignIn {
   /// [FirebaseFunctionsException] 을 [AppException] 으로 매핑한다
   /// (Phase 12 D-30 / RESEARCH Pattern 4 / Phase 12.1 R3 — D-34).
   ///
+  /// 순서: `caller_identity_mismatch` reason 분기 → App Check 판정
+  /// (`classifyAppCheckRejection` — SDK 계층 거부면 [AppCheckFailedException]
+  /// + Crashlytics non-fatal 1회, reason `app_check_rejected_<callable>`,
+  /// Phase 17 D-43 · D-44) → 아래 code switch. [callable] 은 그 reason 에
+  /// 남길 export 이름이다.
+  ///
   /// Cloud Function 의 [HttpsError] 표준 코드 → [AppException] 분류:
   /// - `unauthenticated` / `invalid-argument` / `failed-precondition` /
   ///   `permission-denied`
-  ///   → [ServiceUnavailable] (`unauthenticated` = App Check 차단 · auth
-  ///    무효 · idToken 검증 실패 · token age 위반 · IdP 자격증명 거부 /
+  ///   → [ServiceUnavailable] (`unauthenticated` = 서버 taxonomy — auth
+  ///    부재 · idToken 검증 실패 · IdP 자격증명 거부 /
   ///    `invalid-argument` = 입력 계약 위반 / `failed-precondition` = 사전
   ///    조건 위배(익명 caller 등) / `permission-denied` = 미분류 방어 분기 —
   ///    연결 callable 의 idToken uid 불일치는 [_mapLinkCallableException] 이
@@ -3304,13 +3363,24 @@ class AuthRepository implements AnonymousSignIn {
   ///    이 PII 이유로 응답에 미포함 → null 유지. LoginScreen 의 자동 채움은
   ///    `email != null` 분기에서만 트리거)
   /// - 그 외 → [ServiceUnavailable(cause: e)]
-  AppException _mapFunctionsException(FirebaseFunctionsException e) {
+  AppException _mapFunctionsException(
+    FirebaseFunctionsException e, {
+    required String callable,
+  }) {
     // debug reauth-login-auto-merge — 서버 비익명 caller 가드 거부. idToken
     // uid 불일치 거부와 같은 `permission-denied` 라 details.reason 으로만
-    // 구분한다 (App Check 차단은 `unauthenticated` — 아래 주석).
+    // 구분한다 (App Check 차단은 `unauthenticated` — 아래 helper).
     if (e.code == 'permission-denied' && _isCallerIdentityMismatch(e.details)) {
       return ReauthUserMismatch(cause: e);
     }
+    // Phase 17 D-43 · D-44: reason 분기 뒤 · code switch 앞 — SDK 계층 거부
+    // (App Check 차단)는 전용 예외 + non-fatal 1회.
+    final appCheck = classifyAppCheckRejection(
+      e,
+      callable: callable,
+      crashlytics: _crashlytics,
+    );
+    if (appCheck != null) return appCheck;
     return switch (e.code) {
       // IN-02: permission-denied 명시 분기 — `caller_identity_mismatch`(위
       // 선분기) 외 미분류 permission-denied 의 방어 분기다. 서버의 다른
@@ -3319,9 +3389,9 @@ class AuthRepository implements AnonymousSignIn {
       // (`link_custom_token_provider` · `link_naver_provider`)의 불일치는
       // `_mapLinkCallableException` 이 선분기(재로그인)하고,
       // `delete_user_account` 는 `SettingsRepository._mapDeleteError` 경로다.
-      // App Check 차단 (enforceAppCheck:true — INVALID · MISSING) · auth
-      // 무효 · token age 위반은 `unauthenticated` 로 온다 (firebase-functions 7.2.5
-      // `common/providers/https.js` · `shared/reauth.ts`). SDK 자체의
+      // SDK 계층 거부(App Check 차단 · ID token 무효)는 위 helper 가 먼저
+      // 가른다 — 여기 남는 `unauthenticated` 는 서버 taxonomy
+      // (`errorUnauthenticated` · `errorInvalidCredentials`)다. SDK 자체의
       // permission-denied 는 authPolicy(킷 미사용) 전용 (16.8 review IN-06).
       // 기존 default 분기 (ServiceUnavailable(cause: e)) 와 동일 시맨틱이나
       // ops triage 시 unclassified default 와 분리되어 fingerprint 가능.
@@ -3789,6 +3859,8 @@ AuthRepository authRepository(Ref ref) {
     recordSignUpMethod: (uid, providerId) async => ref
         .read(signUpMethodRecorderProvider)
         .record(uid: uid, providerId: providerId),
+    // Phase 17 D-44: callable App Check 차단 판정의 non-fatal 기록 채널.
+    crashlytics: ref.watch(crashlyticsServiceProvider),
   );
 }
 
