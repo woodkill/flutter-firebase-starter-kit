@@ -387,6 +387,47 @@ void main() {
     });
 
     testWidgets(
+      'T-17-LINK-02 appCheckFailed — AppCheckFailedException → ko errorAppCheckFailed SnackBar · 라우팅 0 · 재로그인 문구 0',
+      (tester) async {
+        // Phase 17 D-42 · D-43 — App Check 차단은 같은 화면에서 재시도한다.
+        final ko = lookupAppLocalizations(const Locale('ko'));
+        final user = _testUser(providerIds: const <String>['google.com']);
+        when(() => repo.linkAppleCredential()).thenAnswer(
+          (_) async => const Result<User>.failure(AppCheckFailedException()),
+        );
+
+        final router = await _pumpSection(
+          tester,
+          user: user,
+          repo: repo,
+          locale: const Locale('ko'),
+        );
+
+        final btn = find.text(
+          ko.settingsLinkProviderCta(ko.authAccountProviderApple),
+        );
+        await tester.ensureVisible(btn);
+        await tester.tap(btn);
+        await tester.pumpAndSettle();
+
+        expect(
+          find.descendant(
+            of: find.byType(SnackBar),
+            matching: find.text(ko.errorAppCheckFailed),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text(ko.authReauthRequired), findsNothing);
+        expect(find.text(ko.settingsLinkFailedTransient), findsNothing);
+        expect(find.text('LOGIN ROUTE'), findsNothing);
+        expect(
+          router.routerDelegate.currentConfiguration.last.matchedLocation,
+          AppRoutes.home,
+        );
+      },
+    );
+
+    testWidgets(
       'AL12 (16.9 D-12) — naver 후보 노출 · 순서 kakao < naver < line · tap → linkNaverProviderArm',
       (tester) async {
         final user = _testUser(providerIds: const <String>['google.com']);

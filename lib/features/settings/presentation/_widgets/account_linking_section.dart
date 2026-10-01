@@ -201,6 +201,12 @@ class AccountLinkingSection extends ConsumerWidget {
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.settingsLinkFailedTransient)),
         );
+      case AccountLinkOutcome.appCheckFailed:
+        // Phase 17 D-42 · D-43 — App Check 차단 · 재로그인 라우팅 0
+        // (같은 화면에서 재시도 → 계속되면 업데이트 안내).
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.errorAppCheckFailed)),
+        );
       case AccountLinkOutcome.failed:
         // 미분류 실패 catch-all — 정확한 코드는 repository 의 kDebugMode
         // `code=` 로그로 logcat 에 남는다 (T-16-15-01).

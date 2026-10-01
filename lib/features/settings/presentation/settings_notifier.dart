@@ -226,6 +226,9 @@ class SettingsNotifier extends _$SettingsNotifier {
       // `email-already-in-use` / `account-exists-with-different-credential`.
       EmailAlreadyInUse() ||
       AccountExistsWithDifferentCredential() => AccountLinkOutcome.emailInUse,
+      // Phase 17 D-42 · D-43 — App Check 차단(SDK 계층 거부)은 일시 오류 ·
+      // 재로그인과 다른 전용 문구로 안내한다.
+      AppCheckFailedException() => AccountLinkOutcome.appCheckFailed,
       // NetworkException 은 sealed 상위 — ConnectionTimeout /
       // NoInternetConnection(`network-request-failed`) / RequestTimeout 흡수.
       NetworkException() ||
@@ -544,6 +547,11 @@ enum AccountLinkOutcome {
   /// 네트워크 / 서비스 일시 오류 ([NetworkException] 계열 / [TooManyRequests] /
   /// [ServiceUnavailable], G-16-A6-2) — `settingsLinkFailedTransient` 로 렌더.
   transientFailure,
+
+  /// App Check 차단 ([AppCheckFailedException] — SDK 계층 거부, plan 08
+  /// helper `classifyAppCheckRejection`) — `errorAppCheckFailed` SnackBar ·
+  /// 재로그인 아님 (Phase 17 D-42 · D-43). 같은 화면에서 재시도한다.
+  appCheckFailed,
 
   /// 분류되지 않은 link 실패 catch-all (G-16-A6-2) —
   /// `settingsLinkFailedUnknown` 으로 렌더. 정확한 코드는 repository 의

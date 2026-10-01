@@ -563,6 +563,32 @@ void main() {
         );
       }
     });
+
+    test(
+      'T-17-LINK-01 AppCheckFailedException → appCheckFailed (ServiceUnavailable 은 transientFailure 그대로)',
+      () async {
+        // Phase 17 D-42 · D-43 — App Check 차단은 일시 오류 · 재로그인과
+        // 다른 전용 outcome 이다. 같은 ServerException 계열인
+        // ServiceUnavailable 의 기존 매핑은 바뀌지 않는다.
+        for (final (exception, expected)
+            in <(AppException, AccountLinkOutcome)>[
+              (
+                const AppCheckFailedException(),
+                AccountLinkOutcome.appCheckFailed,
+              ),
+              (const ServiceUnavailable(), AccountLinkOutcome.transientFailure),
+            ]) {
+          when(
+            () => mockAuthRepo.linkGoogleCredential(),
+          ).thenAnswer((_) async => Result<User>.failure(exception));
+
+          final notifier = container.read(settingsProvider.notifier);
+          final outcome = await notifier.linkProvider(AccountProvider.google);
+
+          expect(outcome, expected, reason: '${exception.runtimeType}');
+        }
+      },
+    );
   });
 
   group('Phase 16.8 D-03 · D-19 — SettingsNotifier.unlinkProvider', () {
