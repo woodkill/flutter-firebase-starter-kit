@@ -3935,9 +3935,13 @@ User? currentUser(Ref ref) {
 
   // Phase 16.7: 연결 목록이 비어도 signUpProviderId 를 실어야 하므로 early
   // return 없이 항상 합성한다 (D-11 — 값이 없으면 null 그대로).
+  // Phase 17 D-17: 표시 사진 1순위 = 업로드 사진(customPhotoUrl). 필드가
+  // 지워지면(null) 같은 record 재방출로 Auth 사진으로 돌아간다.
   return base.copyWith(
     providerIds: _mergeProviderIds(base.providerIds, rec),
     signUpProviderId: rec.signUpProviderId,
+    customPhotoUrl: rec.customPhotoUrl,
+    photoUrl: rec.customPhotoUrl ?? base.photoUrl,
   );
 }
 
@@ -4025,15 +4029,19 @@ ServerProviderIdsReader serverProviderIdsReader(Ref ref) {
 /// - `linkedProviderIds`: `linkedProviders[].providerId` (Custom Token slug 등).
 /// - `signUpProviderId`: 가입 수단 providerId — 필드 부재 · String 아닌
 ///   타입 · 문서 부재 · 읽기 실패는 null (추론 0).
+/// - `customPhotoUrl`: 사용자가 올린 사진 URL (Phase 17 D-17) — 같은 null
+///   규칙. [currentUser] 표시 사진의 1순위다.
 typedef UserProviderRecord = ({
   List<String> linkedProviderIds,
   String? signUpProviderId,
+  String? customPhotoUrl,
 });
 
 /// 빈 [UserProviderRecord] — 문서 부재 · 읽기 실패 · 첫 emit 전 fallback.
 const UserProviderRecord _emptyUserProviderRecord = (
   linkedProviderIds: <String>[],
   signUpProviderId: null,
+  customPhotoUrl: null,
 );
 
 /// `users/{uid}` 문서 [data] 를 [UserProviderRecord] 로 파싱한다.
@@ -4042,17 +4050,21 @@ const UserProviderRecord _emptyUserProviderRecord = (
 /// 1회 조회)가 공유하는 단일 파서다 (16.10 review WR-01 — 파서 중복 0).
 /// - [data] null (문서 부재) → [_emptyUserProviderRecord].
 /// - `signUpProviderId` 는 String 일 때만 싣는다 (Phase 16.7 D-11 · I4 관례).
+/// - `customPhotoUrl` 도 String 일 때만 싣는다 (Phase 17 D-17 — 같은 관례).
 /// - `linkedProviders` 부재여도 `signUpProviderId` 는 버리지 않는다.
 /// - I4: Type-safe parsing — invalid entry 자동 제거 (T-12-06-05).
 UserProviderRecord _parseUserProviderRecord(Map<String, dynamic>? data) {
   if (data == null) return _emptyUserProviderRecord;
   final signUpRaw = data['signUpProviderId'];
   final signUpProviderId = signUpRaw is String ? signUpRaw : null;
+  final customPhotoRaw = data['customPhotoUrl'];
+  final customPhotoUrl = customPhotoRaw is String ? customPhotoRaw : null;
   final raw = data['linkedProviders'] as List<dynamic>?;
   if (raw == null) {
     return (
       linkedProviderIds: const <String>[],
       signUpProviderId: signUpProviderId,
+      customPhotoUrl: customPhotoUrl,
     );
   }
   return (
@@ -4062,6 +4074,7 @@ UserProviderRecord _parseUserProviderRecord(Map<String, dynamic>? data) {
         .whereType<String>()
         .toList(growable: false),
     signUpProviderId: signUpProviderId,
+    customPhotoUrl: customPhotoUrl,
   );
 }
 

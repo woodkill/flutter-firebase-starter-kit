@@ -47,7 +47,11 @@ abstract class User with _$User {
     /// 표시 이름 (nullable -- 소셜 로그인 시 제공될 수 있음).
     String? displayName,
 
-    /// 프로필 사진 URL (nullable).
+    /// 표시용 프로필 사진 URL (nullable).
+    ///
+    /// Phase 17 D-17 — 표시 사진 = [customPhotoUrl] > Auth `photoURL` >
+    /// `providerData` 사진. `currentUserProvider` 가 합성한 결과이며,
+    /// `_mapFirebaseUser` 단독 결과(Auth top-level 값)와 다를 수 있다.
     String? photoUrl,
 
     /// 계정 생성 시각.
@@ -63,6 +67,13 @@ abstract class User with _$User {
     /// 첫 emit 전 과도 상태). 원천은 Firestore `users/{uid}.signUpProviderId`
     /// 뿐이며 추론 · backfill 하지 않는다.
     String? signUpProviderId,
+
+    /// 사용자가 직접 올린 사진 URL (Phase 17 D-17).
+    ///
+    /// 원천은 Firestore `users/{uid}.customPhotoUrl` 이다. null = 업로드
+    /// 사진 없음. [photoUrl] 은 이 값이 있으면 이 값이다(표시 우선순위
+    /// 합성 결과 — `currentUserProvider`).
+    String? customPhotoUrl,
   }) = _User;
 
   /// JSON에서 [User] 객체를 생성한다.

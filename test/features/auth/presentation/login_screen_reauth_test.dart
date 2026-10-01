@@ -183,6 +183,7 @@ Future<GoRouter> _pumpReauthFlow(
             (ref) => Stream<UserProviderRecord>.value((
               linkedProviderIds: linkedProviders,
               signUpProviderId: null,
+              customPhotoUrl: null,
             )),
           ),
         ],

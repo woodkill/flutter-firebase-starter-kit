@@ -88,6 +88,8 @@ ProviderContainer _makeContainer({required List<Object> overrides}) {
 _MockFbUser _buildFbUser({
   required String uid,
   required List<String> providerIds,
+  String? displayName = 'Test User',
+  String? photoUrl,
 }) {
   final fbUser = _MockFbUser();
   final metadata = _MockUserMetadata();
@@ -101,8 +103,8 @@ _MockFbUser _buildFbUser({
   when(() => fbUser.uid).thenReturn(uid);
   when(() => fbUser.email).thenReturn('user@example.com');
   when(() => fbUser.emailVerified).thenReturn(true);
-  when(() => fbUser.displayName).thenReturn('Test User');
-  when(() => fbUser.photoURL).thenReturn(null);
+  when(() => fbUser.displayName).thenReturn(displayName);
+  when(() => fbUser.photoURL).thenReturn(photoUrl);
   when(() => fbUser.metadata).thenReturn(metadata);
   when(() => metadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
   when(() => fbUser.providerData).thenReturn(infos);
@@ -959,6 +961,144 @@ void main() {
       expect(user, isNotNull);
       expect(user!.signUpProviderId, 'naver');
       expect(user.providerIds, ['naver']);
+    });
+  });
+
+  // ==========================================================================
+  // Phase 17 D-17 · D-18 · D-27: 표시 이름 · 사진 합성.
+  // 표시 사진 = users/{uid}.customPhotoUrl > Auth photoURL > providerData.
+  // ==========================================================================
+  group('Phase 17 프로필 표시 (T-17-PROFILE)', () {
+    /// [data] 한 번을 emit 하는 Firestore 와 Auth 사용자로 컨테이너를 만든다.
+    ProviderContainer buildContainer({
+      required _MockFbUser fbUser,
+      required String uid,
+      required Map<String, dynamic> data,
+    }) {
+      final snap = _buildSnapshot(exists: true, data: data);
+      final firestore = _buildFirestore(
+        uid: uid,
+        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+      );
+      return _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+    }
+
+    test('T-17-PROFILE-01 customPhotoUrl 있음 → photoUrl · customPhotoUrl '
+        '모두 업로드 사진', () async {
+      const uid = 'uid-profile-custom';
+      const custom = 'https://x/avatar.jpg?v=1';
+      final fbUser = _buildFbUser(
+        uid: uid,
+        providerIds: ['google.com'],
+        photoUrl: 'https://auth/photo.jpg',
+      );
+      final container = buildContainer(
+        fbUser: fbUser,
+        uid: uid,
+        data: <String, dynamic>{'customPhotoUrl': custom},
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.photoUrl, custom);
+      expect(user.customPhotoUrl, custom);
+    });
+
+    test('T-17-PROFILE-01 customPhotoUrl 부재 → photoUrl = Auth photoURL · '
+        'customPhotoUrl null', () async {
+      const uid = 'uid-profile-no-custom';
+      final fbUser = _buildFbUser(
+        uid: uid,
+        providerIds: ['google.com'],
+        photoUrl: 'https://auth/photo.jpg',
+      );
+      final container = buildContainer(
+        fbUser: fbUser,
+        uid: uid,
+        data: <String, dynamic>{'signUpProviderId': 'google.com'},
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.photoUrl, 'https://auth/photo.jpg');
+      expect(user.customPhotoUrl, isNull);
+    });
+
+    test('T-17-PROFILE-01 customPhotoUrl 이 문자열 아님(숫자) → 부재와 같다', () async {
+      const uid = 'uid-profile-bad-type';
+      final fbUser = _buildFbUser(
+        uid: uid,
+        providerIds: ['google.com'],
+        photoUrl: 'https://auth/photo.jpg',
+      );
+      final container = buildContainer(
+        fbUser: fbUser,
+        uid: uid,
+        data: <String, dynamic>{'customPhotoUrl': 42},
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.photoUrl, 'https://auth/photo.jpg');
+      expect(user.customPhotoUrl, isNull);
+    });
+
+    test('T-17-PROFILE-02 customPhotoUrl 있음 → 삭제(재방출) → Auth 사진 '
+        '복귀 (D-17)', () async {
+      const uid = 'uid-profile-revert';
+      const custom = 'https://x/avatar.jpg?v=2';
+      final fbUser = _buildFbUser(
+        uid: uid,
+        providerIds: ['google.com'],
+        photoUrl: 'https://auth/photo.jpg',
+      );
+      final snapshots = StreamController<_MockDocumentSnapshot>();
+      addTearDown(snapshots.close);
+      final firestore = _buildFirestore(uid: uid, snapshots: snapshots.stream);
+      final container = _makeContainer(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<fb.User?>.value(fbUser),
+          ),
+          firebaseFirestoreProvider.overrideWithValue(firestore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      snapshots.add(
+        _buildSnapshot(
+          exists: true,
+          data: <String, dynamic>{'customPhotoUrl': custom},
+        ),
+      );
+      await _settle();
+      expect(container.read(currentUserProvider)?.photoUrl, custom);
+
+      // 업로드 사진 삭제 = 필드 null → 같은 문서 재방출.
+      snapshots.add(
+        _buildSnapshot(
+          exists: true,
+          data: <String, dynamic>{'customPhotoUrl': null},
+        ),
+      );
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.photoUrl, 'https://auth/photo.jpg');
+      expect(user.customPhotoUrl, isNull);
     });
   });
 }
