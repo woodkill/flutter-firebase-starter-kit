@@ -356,8 +356,15 @@ starter kit 의 `firestore.rules` (Phase 12-06 산출) 를 dev Firebase
 - `identity_index/{document}` 컬렉션 클라이언트 read/write 전면 차단 (D-14)
   → Cloud Function (Admin SDK) 만 우회 가능. 다른 사용자의 Kakao→UID
   매핑을 클라이언트가 직접 read 하지 못하도록 차단.
-- `users/{uid}` self-only 임시 규칙 — 사용자가 자기 문서만 read/write 가능.
-  Phase 18 정식 ruleset 일반화 대기.
+- `users/{uid}` 필드 단위 규칙 (Phase 17 D-13 · D-38 · D-39) — 본인 문서만
+  읽고, 클라이언트 쓰기는 허용 키 화이트리스트(`termsAccepted` ·
+  `signUpProviderId` · `customPhotoUrl`)만 된다. 서버 전용 키(`linkedProviders` ·
+  `providerLinkedAt` · `email` · `emailVerified` · IdP 프로필 미러)는 Admin
+  (Cloud Functions)만 쓴다. `signUpProviderId` 는 write-once, `termsAccepted` 는
+  약관 5규칙(삭제 불가 · version 비감소 · 필수 2개 true · 미래 시각 불가 ·
+  형식/타입). `users/{uid}/fcmTokens` 는 본인 read/write(쓰기는 정식 사용자만).
+  상세는 `## Firebase Services (Phase 17)` 의
+  `### Firestore typed repository · Security Rules` 절.
 
 ```bash
 # Firebase CLI 로그인 (최초 1회)
@@ -444,10 +451,13 @@ Console 에 등록해야 통과합니다.
 4. 등록 후 다음 앱 실행부터 `enforceAppCheck` 통과 — Cloud Function 호출
    401 unauthenticated 에러 사라짐.
 
-**누락 시 증상:** Cloud Function 호출이 401 → AuthRepository 가
-`ServiceUnavailable` Failure → LoginScreen 의 FormErrorBanner 에
-`errorServiceUnavailable` 표시. Pitfall 1 (OIDC 누락) 과 동일 증상이라
-구분 어려움 — Cloud Logging 에서 `app_check_check_failed` warn 확인.
+**누락 시 증상:** Cloud Function 호출이 SDK 계층에서 `unauthenticated` 로
+거부된다 → 로그인 화면에 App Check 차단 안내(`errorAppCheckFailed` —
+「요청을 확인하지 못했습니다…」 · Phase 17 D-42 · D-43)가 뜨고 Crashlytics
+non-fatal reason `app_check_rejected_kakaoCustomToken` 이 남는다(「App Check
+debug provider 등록 절차」 절 끝 「App Check 차단 안내」). Phase 16 까지는
+`errorServiceUnavailable` 로 보여 Pitfall 1 (OIDC 누락) 과 구분이 어려웠다 —
+Cloud Logging 에서 `app_check_check_failed` warn 확인.
 
 > **Production:** Play Integrity (Android) / DeviceCheck (iOS) 정식 활성화
 > 의무. Phase 18 보안 일반화 단계에서 자동화 검토 — 본 starter kit 의
@@ -650,9 +660,12 @@ Name + Key Hash 도 정확히 일치 필요.
   - `email` (이메일 주소)
   - `nickname` (별명)
 - **선택:**
-  - `profile_image` (프로필 사진) — Phase 13 D-56. 미래 Phase 17 (Account
-    Linking 사용자 확인 다이얼로그) / Phase 18 (Cloud Storage 프로필 아바타)
-    진입 시 활용 예정. 현재 Phase 13 단계 사용처 0건.
+  - `profile_image` (프로필 사진) — Phase 13 D-56. Custom Token 로그인 서버
+    (`functions/src/auth/kakao_custom_token.ts`)가 Kakao ID token 의 `picture`
+    값을 Firebase Auth `photoURL` 로 옮기고(가입 때 · 가입 수단 재로그인 때 —
+    「IdP 프로필 동기화 정책」 절), 앱은 사용자가 직접 올린 사진이 없을 때 이
+    사진을 홈 · 설정 아바타에 보인다(Phase 17 D-17 · D-18). 동의하지 않으면
+    이 사진이 없다.
 - **비활성:** 그 외 모든 항목 (CI / 휴대폰 번호 / 생일 / 성별 등) — starter kit
   기본 범위 외.
 
@@ -2137,9 +2150,11 @@ createUser/updateUser 시점에 이미 propagate).
   은 이 규칙 밖이다 — Facebook `_setFacebookPhotoUrl`(로그인마다 top-level
   `photoURL` 갱신)은 Phase 17 D-27 이 정리하고, native Google · Apple 재로그인
   때 top-level 이 바뀌는지는 아직 실측하지 않았다.
-- **위조:** `signUpProviderId` 는 본인이 쓸 수 있는 필드라(WR-12) 바꿔도 영향은
-  자기 계정 프로필 갱신 여부뿐이다 — 「가입 수단 기록 (Phase 16.7)」 절 「위조
-  한계」 참조.
+- **위조 (D-38 write-once):** 클라이언트는 `signUpProviderId` 를 필드가 없을
+  때만 쓸 수 있고 이후 바꾸거나 지울 수 없다(Phase 17 rules). 남는 것은 최초
+  값(native 경로)이 클라이언트 자기 주장이라는 점뿐이고, 그 영향은 자기 계정
+  프로필 갱신 여부뿐이다 — 「가입 수단 기록 (Phase 16.7)」 절 위조 한계 단락
+  참조.
 - **커스터마이징:** 로그인 수단마다 갱신하던 이전 동작이 필요하면
   `resolveIdentity` 재로그인 분기의 가입 수단 비교(`readSignUpProviderId` 판정)를
   걷어내고 JWE-2 · JWE-3 테스트를 갱신 단언으로 바꾼다 — 권장하지 않는다(연결
@@ -2759,7 +2774,9 @@ Home AppBar → Icons.settings tap → /settings route
 
 **기록 없는 계정 (fallback):** `signUpProviderId` 가 없으면 가입 수단은 「-」, 연결된 계정은 보유 provider 전부다 (D-11). provider 가 1개뿐이어도 추론하지 않는다 — 읽기 실패 때 추론값이 진짜처럼 보이기 때문이다. 같은 규칙이 Firestore 읽기 실패(`linkedProvidersStream` 의 빈 fallback) · 로그인 직후 첫 emit 전 과도 상태 · 이 기능 이전에 만든 계정에 똑같이 적용된다. 킷은 backfill 을 제공하지 않는다(추론 · lazy 기록 0). 기록값이 현재 `providerIds` 에 없으면(Admin 조작으로만 생긴다) 기록값을 그대로 가입 수단으로 보이고 연결된 계정은 보유 전부가 된다 (D-12). 등록되지 않은 값은 raw 문자열 대신 `errorUnknownProvider` 라벨로 표시된다.
 
-**위조 한계:** 이 필드는 **표시 · 프로필 갱신 판단 전용** 이다(인가 · 권한에는 쓰지 않는다). `firestore.rules` 의 `users/{userId}` 규칙은 본인 문서 전체 write 를 허용하므로(WR-12 — 알려진 갭) 로그인한 사용자는 앱을 거치지 않고 자기 `signUpProviderId` 를 바꿀 수 있고, 서버 `resolveIdentity` 가 쓴 값도 이후 클라이언트가 덮어쓸 수 있다. 서버는 이 값을 딱 한 곳 — Custom Token 재로그인 때 Auth 프로필 갱신 여부 판단(quick 260928-jwe · 「IdP 프로필 동기화 정책」 절) — 에서만 읽고, 인가 · 권한 판단에는 쓰지 않는다. 위조 영향은 자기 계정뿐이다: 값을 연결 수단 slug 로 바꾸면 그 수단으로 로그인할 때 자기 프로필이 그 IdP 가 검증한 값으로 갱신되고(이 수정 전 기본 동작과 같다), 지우거나 엉뚱한 값이면 갱신이 멈춘다. 화면 표시 영향도 자기 화면뿐이다. 필드 단위 write 금지는 client write 경로(약관 mirror · 이 recorder)를 서버 callable 로 옮기는 작업과 함께 **Phase 18** 에서 한다(WR-12). 그 전에 이 값으로 서버 쪽 결정(예: 해제 불가 수단 판정)을 하려면 서버가 따로 검증하는 경로가 먼저 필요하다 — 프로필 갱신 판단은 인가가 아니고 영향이 자기 계정에 갇혀 이 조건 없이 수용했다.
+**위조 한계 (Phase 17 D-13 · D-38 · D-39 반영):** 이 필드는 **표시 · 프로필 갱신 판단 전용** 이다(인가 · 권한에는 쓰지 않는다). Phase 17 의 `firestore.rules` 가 `users/{uid}` 를 필드 단위로 잠갔다 — 클라이언트는 쓰기 허용 키 3개(`termsAccepted` · `signUpProviderId` · `customPhotoUrl`)만 쓸 수 있고, 서버 전용 키(`linkedProviders` · `providerLinkedAt` · `email` · `emailVerified` · IdP 프로필 미러)는 Admin(Cloud Functions)만 쓴다(D-13). `signUpProviderId` 는 write-once 다 — 필드가 없을 때만 쓰고, 있으면 같은 값 재기록만 허용하므로 서버 `resolveIdentity` 가 쓴 값이나 처음 기록된 값을 이후 클라이언트가 바꾸거나 지울 수 없다(D-38). `termsAccepted` 는 5규칙(삭제 불가 · `version` 비감소 · 필수 2개 true · `acceptedAt` 미래 불가 · 형식/타입)으로 막는다(D-39). Phase 15 리뷰의 알려진 갭 WR-12 는 client write 경로(약관 mirror · 이 recorder)를 서버 callable 로 옮기지 않고 이 규칙으로 닫았다 — 약관 내용은 어느 쪽이든 기기에서 오고, 옮기면 Phase 10 약관 흐름(pre-read skip · force 재동의 · 다중 사용자 invariant)이 회귀할 위험이 있어서다(D-39). **남은 한계:** write-once 는 서버 검증이 아니다 — native 경로(Google · Apple · Facebook · 이메일)의 최초 값은 `SignUpMethodRecorder` 가 쓰는 클라이언트 자기 주장이라, 앱을 거치지 않고 처음 한 번 다른 값을 쓸 수 있다. 영향은 자기 계정뿐이다: 서버는 이 값을 딱 한 곳 — Custom Token 재로그인 때 Auth 프로필 갱신 여부 판단(quick 260928-jwe · 「IdP 프로필 동기화 정책」 절) — 에서만 읽고 인가 · 권한 판단에는 쓰지 않으며, 화면 표시 영향도 자기 화면뿐이다. 이 값으로 서버 쪽 결정(예: 해제 불가 수단 판정)을 하려면 서버가 따로 검증하는 경로가 먼저 필요하다 — 프로필 갱신 판단은 인가가 아니고 영향이 자기 계정에 갇혀 이 조건 없이 수용했다.
+
+**약관 동의 시각 — 수용된 한계 (D-39 ④ · 사용자 결정 2026-10-01):** 규칙 ④ `acceptedAt <= request.time` 은 허용 오차가 0 이다(`firestore.rules` `termsShape`). `acceptedAt` 은 동의한 순간의 기기 시각이라, 기기 시계가 서버보다 앞서 있으면 약관 mirror 가 `permission-denied` 로 거부된다(앱에서는 `ServiceUnavailable` 로 잡힌다). 그러면 다음 익명 → 정식 전이나 재동의 때 다시 시도되고, 그때는 그 시각이 과거가 되어 통과한다. 전이 때의 mirror 가 거부된 뒤 가입 수단 기록이 문서를 먼저 만들면 자동 mirror 는 pre-read 에서 건너뛰고, 다음 재읽기의 재동의 화면(`force: true` 기록)이 채운다 — 위 「약관 동의 서버 기록」 절 「잔여 위험」 과 같은 회복 경로다(RESEARCH Pitfall 6). 허용 오차(예: 5분)는 채택하지 않았다. 바꾸려면 `termsShape` 의 `acceptedAt <= request.time` 줄과 `functions/test/rules/firestore.rules.test.ts` 의 「now + 10분 → 거부」 케이스(T-17-RULES-03)를 함께 고친다.
 
 **provider 를 추가 · 제거할 때:**
 
@@ -2927,24 +2944,28 @@ firebase functions:secrets:set LINE_CHANNEL_SECRET
 - **타임아웃** — `AuthRepository._kCustomTokenTimeout`(1-tap 10초) · `_kNaverWebCustomTokenTimeout`(웹 20초). 로그인과 연결이 같은 상수를 쓴다.
 - **재인증 창** — 연결에는 없다. `functions/src/shared/reauth.ts` 의 `assertFreshAuth`(300초)는 회원탈퇴 `deleteUserAccount` 만 호출한다(quick 260928-cxs — Firebase 표준: 연결은 최근 로그인 불필요, 삭제는 필요). 연결에 재인증을 다시 요구하려면 `linkNaverProvider` · `linkCustomTokenProvider` 의 Step 1(uid 일치 검사 뒤)에 `assertFreshAuth(decoded.auth_time)` 한 줄을 되돌리고 Jest N5 · L3 를 거부 단언으로 바꾼다 — 클라이언트 매핑(`_mapLinkCallableException` 의 `reauthentication_required` reason → 재로그인 화면)은 방어 계층으로 남아 있어 바로 받는다.
 
-### Phase 17 deferred — Storage cascade
+### 탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)
 
-본 Phase 16 의 `deleteUserAccount` Cloud Function 은 다음을 삭제한다:
+Phase 17 이 회원탈퇴 Cloud Function `deleteUserAccount` 를 넓혀 프로필 사진(Cloud Storage)과 기기 토큰(`users/{uid}/fcmTokens`)도 지운다(D-16 · D-40 · D-02). 순서와 실패 정책:
 
-- Firebase Auth user record (Admin SDK `auth().deleteUser(uid)`).
-- Firestore `users/{uid}` document + sub-collections (best-effort batch).
-- Firestore `identity_index/{provider}:{providerUserId}` 매핑 (Phase 12+ 도입, D-16).
+| 순서 | 단계 | 실패하면 | 사용자에게 |
+|------|------|---------|-----------|
+| 1 | 입력 · ID token 검증 · 마지막 로그인 5분 확인(위 「5분 boundary」) | 중단 | 재인증 안내 |
+| 2 | **Storage** — `users/{uid}/` prefix 일괄 삭제(`deleteFiles({prefix: "users/<uid>/", force: true})`) | **탈퇴 중단** — Auth · Firestore 는 그대로이고, 다시 시도하면 처음부터 다시 지운다. `unavailable` + `details.reason = "storage_cleanup_failed"` | 「네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.」(`withdrawalFailureTransient`) |
+| 3 | Firebase Auth 사용자 삭제 | 이미 없음 = 성공 취급(재시도 안전) · 그 밖은 중단(Firestore 그대로) | 실패 안내 |
+| 4 | Firestore — `identity_index` 매핑 · `users/{uid}` 문서(한 트랜잭션) | 계속 — orphan 로그(`delete_user_firestore_orphan`) + 성공 반환 | 탈퇴 성공 |
+| 5 | `users/{uid}/fcmTokens` 재귀 삭제(`recursiveDelete`) | 계속 — orphan 로그(`delete_user_fcm_tokens_orphan`) + 성공 반환. 남은 토큰은 TTL(D-33)이 지운다 | 탈퇴 성공 |
 
-**Cloud Storage cascade 는 Phase 17 deferred:** 본 starter-kit 은 현재 Cloud Storage 사용처가 0 이므로 Storage cleanup trigger 가 정의되어 있지 않다. 사용자가 신규 프로젝트에서 Cloud Storage 를 도입할 때는 다음 중 하나의 cascade 전략을 선택해야 한다:
-
-1. **Firestore trigger 기반 cascade** — `users/{uid}` document 삭제 onDelete 시 Cloud Storage `gs://app/users/{uid}/**` 일괄 삭제 (Cloud Functions 2nd gen).
-2. **Storage Security Rules + lifecycle** — 객체 metadata 의 ownerId 가 Firebase Auth user 와 일치하지 않는 객체를 GCS lifecycle 로 자동 삭제 (eventual consistency, 1~24h).
-
-선택 가이드: 즉시 cleanup 의무 (GDPR 30 일 이내) 가 있으면 1, 운영 단순화 우선이면 2.
+- **사진을 Auth 보다 먼저 지우는 이유 (D-40):** Auth 를 먼저 지운 뒤 사진 삭제가 실패하면 개인 사진이 영구히 남고 사용자가 다시 시도할 길이 없다. 반대로 사진만 지워지고 뒤의 Auth 삭제가 실패한 계정은 표시가 소셜 사진으로 돌아가고 다시 올릴 수 있다 — 이 상태는 수용한다. Firestore 단계를 Auth 뒤에 두는 이유(WR-09 — `identity_index` 가 먼저 사라지면 계정이 갈라진다)는 그대로다.
+- **토큰 삭제를 트랜잭션 뒤 별도 단계로 둔 이유:** 토큰 삭제가 실패해도 더 중요한 원장 정리(`identity_index` · `users/{uid}`)를 건너뛰지 않게 하려는 것이다.
+- **로그:** `delete_user_storage_done` · `delete_user_storage_failed`(`{uid, code, failedCount}` — 파일 경로 · prefix 는 남기지 않는다) · `delete_user_fcm_tokens_orphan`.
+- **채택하지 않은 대안:** (1) `users/{uid}` 문서 onDelete 트리거로 Storage 를 지우는 방식 — 탈퇴가 성공한 뒤에 돌아서 실패해도 사용자 재시도 경로가 없다. (2) GCS lifecycle 규칙으로 주인 없는 객체를 지우는 방식 — 삭제가 eventual(1~24시간)이라 즉시 삭제 의무에 맞지 않는다. 앱이 Storage 를 더 쓰면 이 둘 대신 같은 prefix 규약(`users/{uid}/…`) 안에 두는 것이 가장 단순하다 — 위 2단계가 함께 지운다.
+- **지우지 않는 것:** `rate_limits/lookupSignInMethods:<uid>` · `rate_limits/sendTestPush:<uid>` 호출 제한 카운터 문서(내용은 카운터 · 창 시각뿐 · rules 상 클라이언트 읽기 불가 — plan 17-18 T-17-77). 「회원탈퇴 정리 현황」 의 「남은 범위 밖」 에 적혀 있다.
+- **코드 · 테스트:** `functions/src/auth/delete_user_account.ts`(`STORAGE_CLEANUP_FAILED_REASON`) · `functions/test/auth/delete_user_account.test.ts`(T-17-DEL-01~06). 실제 버킷에서 탈퇴 뒤 `users/{uid}/` 가 0 이 되는지는 plan 17-22 실기기 UAT 가 확인한다.
 
 ### App Check debug provider 등록 절차
 
-Phase 11 D-11 에서 도입된 App Check enforcement (`enforceAppCheck:true` onCall) 는 dev 단말에서도 활성화된다. dev 환경 단말 (예: Samsung Galaxy SM F966N, iOS Simulator) 에서 `deleteUserAccount` callable 가 `unauthenticated` 코드로 reject 되는 경우 App Check debug provider 등록이 누락된 것이다 (Phase 16 Plan 16-06 의 reauth fail 분기와 동일 user-facing surface 라 trial-and-error 시간 낭비 발생 — 본 절차 우선 확인).
+Phase 11 D-11 에서 도입된 App Check enforcement (`enforceAppCheck:true` onCall) 는 dev 단말에서도 활성화된다. dev 환경 단말 (예: Samsung Galaxy SM F966N, iOS Simulator) 에서 `deleteUserAccount` callable 가 `unauthenticated` 코드로 reject 되는 경우 App Check debug provider 등록이 누락된 것이다 (Phase 16 Plan 16-06 시절에는 reauth fail 분기와 같은 화면이라 trial-and-error 시간 낭비가 잦았다 — Phase 17 부터는 아래 「App Check 차단 안내」 문구로 따로 보인다. 본 절차 우선 확인).
 
 **등록 절차:**
 
@@ -2989,6 +3010,13 @@ curl -X POST \
 
 본 절차는 Phase 11 의 App Check 도입 시점에 manual.md 의 다른 단락에 정의돼 있을 수 있으나, Plan 16-06 시점의 cross-reference 안전 차원에서 본 단락에도 명시.
 
+#### App Check 차단 안내 (Phase 17 D-42 · D-43 · D-44)
+
+- **의미:** 「요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.」(`errorAppCheckFailed`)는 callable 의 **SDK 계층 검증 거부**에서 뜬다 — App Check 토큰이 없거나 무효일 때, 그리고 ID token 이 무효일 때(계정 비활성화 · 폐기된 토큰 등. 만료는 SDK 가 자동 갱신하므로 드물다)다. firebase-functions 가 이 경우들을 같은 `unauthenticated` 로 던지므로 앱은 구분할 수 없다(RESEARCH Pitfall 1). dev cold start 의 일시 장애(App Check JWKS 503)도 같은 코드로 오기 때문에 문구가 재시도를 먼저 권한다(D-42). 재로그인 화면으로 보내지 않는다.
+- **판정은 한 곳 (D-43):** 모든 callable(CT 로그인 · 연결 · 해제 · 탈퇴 끊기 · 탈퇴 · `sendTestPush`)이 `lib/core/functions/callable_rejection.dart` 의 `classifyAppCheckRejection` 을 거친다. 재인증 reason 같은 기존 서버 reason 분기가 먼저 돈다. 서버 코드는 `HttpsError("unauthenticated", "Unauthenticated")` 를 쓰면 안 된다 — 인증 부재는 message `errorUnauthenticated` 를 쓴다(`functions/test/unauthenticated_message_sentinel.test.ts` T-17-APPCHECK-06). firebase-functions 를 올리면 같은 파일 T-17-APPCHECK-07 이 SDK 원문 변경을 먼저 잡는다 — 실패하면 `kSdkUnauthenticatedMessage` 를 새 원문에 맞춘다.
+- **급증 감시 (D-44):** 판정 helper 가 Crashlytics non-fatal 을 reason `app_check_rejected_<callable>`(예: `app_check_rejected_kakaoCustomToken` · `app_check_rejected_deleteUserAccount` · `app_check_rejected_sendTestPush`)로 1회 남긴다(uid 외 PII 없음). 정상 세션에서 이 reason 이 몰리면 App Check 서명 등록 누락(Play Integrity 의 SHA-256 · App Attest / DeviceCheck)이나 enforcement 설정을 먼저 의심한다. dev cold start 일시 장애도 기록된다(수용).
+- **출시 전 점검:** release 서명 인증서의 SHA-256 이 Firebase Console App Check 의 Play Integrity 에, iOS 앱이 App Attest / DeviceCheck 에 등록됐는지 확인한다 — 빠지면 출시 빌드의 callable 이 전부 위 안내로 막힌다. 디버그 토큰은 dev 단말 전용이다(위 등록 절차).
+
 ### 사용자 커스터마이징 포인트
 
 본 starter-kit 사용자가 자신의 프로젝트에서 변경할 수 있는 surface:
@@ -3002,8 +3030,8 @@ curl -X POST \
 3. **WithdrawalConfirmationDialog 의 confirmTextField verbatim 변경:**
    - 사용자 confusion 차단 의도가 약한 환경 (예: B2B 어드민 도구) 에서는 verbatim match 가드 자체를 폐기 가능. `_verbatimMatch` flag 를 `true` 상수로 교체.
 4. **deleteUserAccount Cloud Function 본문 (Plan 16-02 산출):**
-   - Firestore `users/{uid}` 외 cascade 대상 (예: notifications 컬렉션, push token 등록) 가 있는 경우 callable 본문에 batch 추가.
-   - Cloud Storage cascade (위 Phase 17 deferred 참조).
+   - Firestore `users/{uid}` 외 cascade 대상 (예: notifications 컬렉션) 가 있는 경우 callable 본문에 batch 추가. 기기 토큰(`users/{uid}/fcmTokens`)은 이미 포함돼 있다.
+   - Cloud Storage cascade — 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 절(구현됨).
 5. **법무 자문 의무:** 본 starter-kit 의 GDPR 명시는 일반적 사용 사례를 가정한 baseline. 실제 production 에서는 변호사 / DPO (Data Protection Officer) 자문 의무 — 본 starter-kit 의 manual.md 단락 verbatim 채택은 사용자 책임 범위 (memory `project_starter_kit_review_ready_scope` mirror — starter-kit 검수 scope = review-ready, 신청 / deploy 제외).
 
 ---
@@ -3012,15 +3040,16 @@ curl -X POST \
 
 이 절은 매뉴얼 초판(Phase 12-07)이 회원탈퇴의 미구현 정리 작업으로 적어 둔 목록을 대체한다. 그 목록의 항목은 지금 다음과 같다.
 
-- **`identity_index/{provider}:{providerUserId}` 문서 정리 — 해소 (Phase 16).** 회원탈퇴 `deleteUserAccount` 가 Auth 사용자 · `users/{uid}` 문서와 함께 이 계정의 `identity_index` 문서를 지운다(「Account Linking & Withdrawal」 절의 「Phase 17 deferred — Storage cascade」 목록). 연결 해제도 `unlinkCustomTokenProvider` 가 그 provider 문서를 지운다(Phase 16.8). 그래서 탈퇴한 계정의 매핑이 남아 같은 외부 계정의 재가입 · 재연결을 막는 일은 없다.
+- **`identity_index/{provider}:{providerUserId}` 문서 정리 — 해소 (Phase 16).** 회원탈퇴 `deleteUserAccount` 가 Auth 사용자 · `users/{uid}` 문서와 함께 이 계정의 `identity_index` 문서를 지운다(「Account Linking & Withdrawal」 절의 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 표). 연결 해제도 `unlinkCustomTokenProvider` 가 그 provider 문서를 지운다(Phase 16.8). 그래서 탈퇴한 계정의 매핑이 남아 같은 외부 계정의 재가입 · 재연결을 막는 일은 없다.
 - **provider 쪽 앱 연결 끊기 — 해소 (Phase 16.10).** 탈퇴 진행 화면과 해제 다이얼로그가 provider 쪽 앱 연결(권한 · 토큰)까지 끊는다 — [「provider 측 연결 끊기 (Phase 16.10)」](#provider-측-연결-끊기-phase-1610) 절.
 - **동일 외부 계정 충돌 UI — 해소 (Phase 16).** 이미 가입된 이메일로 다른 소셜 로그인을 하면 기존 가입 수단을 알려 주는 안내 시트가 뜬다(「동일 이메일 Account Linking」 절). 다른 계정에 이미 묶인 신원을 연결하려 하면 `already-exists` 로 거부된다(「계정 연결 해제 (Phase 16.8)」 절의 재로그인 표).
 - **native provider 의 `linkedProviders` 등록 — 현재 구조에서는 필요 없음.** native 연결(Google · Apple · Facebook · 이메일)은 Firestore 에 사본을 두지 않고 Firebase `providerData` 가 원장이다(「계정 연결 해제 (Phase 16.8)」 절의 「경로」). 해제 · 탈퇴 · Facebook 끊기 모두 이 원장을 읽는다.
+- **Cloud Storage · 기기 토큰 정리 — 해소 (Phase 17).** 회원탈퇴 `deleteUserAccount` 가 프로필 사진 prefix(Storage `users/{uid}/`)를 Auth 삭제보다 먼저 지우고, Firestore 정리 뒤 기기 토큰 `users/{uid}/fcmTokens` 를 재귀 삭제한다(「Account Linking & Withdrawal」 절의 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」).
 
 남은 범위 밖:
 
 - **역방향 해제 알림 수신** — 사용자가 provider 쪽에서 먼저 앱 연결을 끊었을 때 오는 알림(Facebook Data Deletion Callback · Kakao 연결 끊기 알림)을 받아 킷 데이터를 정리하는 기능은 없다.
-- **Cloud Storage cascade** — 「Phase 17 deferred — Storage cascade」 절 그대로다(킷은 Storage 사용처가 없다).
+- **rate limit 카운터 문서** — `rate_limits/{callable}:<uid>` 는 탈퇴 cascade 대상이 아니다. 내용은 호출 카운터 · 창 시각뿐이고 rules 상 클라이언트가 읽을 수 없다. 기존 `lookupSignInMethods` 관례 그대로이며 Phase 17 의 `rate_limits/sendTestPush:<uid>` 도 같다(plan 17-18 T-17-77 수용). 지워야 하는 앱은 `deleteUserAccount` 에 두 문서 삭제를 더한다.
 
 ---
 
@@ -3148,7 +3177,7 @@ CollectionReference<FcmToken> _tokens(String uid) => _firestore
 |------|------|
 | 읽기 | 본인만 |
 | 클라이언트 쓰기 허용 키 | `clientKeys()` = `termsAccepted` · `signUpProviderId` · `customPhotoUrl` 3키만(create 는 키 집합, update 는 바뀐 키 집합 `hasOnly`) |
-| 서버 전용 키 | `linkedProviders` · `providerLinkedAt` · `email` · `emailVerified` · IdP 프로필 미러 — Admin SDK(Cloud Functions)만 쓴다(Admin 은 rules 를 우회) |
+| 서버 전용 키 | `linkedProviders` · `providerLinkedAt` · `email` · `emailVerified` · IdP 프로필 미러 — Admin SDK(Cloud Functions)만 쓴다(Admin 은 rules 를 우회). `email` · `emailVerified` 는 계정 대표 이메일 1개의 mirror 다(D-26 — `mirrorAccountEmail` callable · Custom Token 서버 트랜잭션 두 곳만 쓴다. 이메일 없는 사용자는 `email: null` · `emailVerified: false`. 이메일 발송 인프라는 없다) |
 | `signUpProviderId` (D-38) | write-once — 없을 때만 쓰고, 있으면 같은 값 재기록만 허용(변경 · 삭제 거부) |
 | `termsAccepted` (D-39) | ① 기록 뒤 삭제 불가 ② `version` 비감소(재동의 = 같거나 큰 버전) ③ 필수 2개(`service` · `privacy`) = true ④ `acceptedAt` 은 timestamp 이고 `<= request.time`(미래 불가) ⑤ 5필드 형식 · 타입. `marketing` 변경은 허용 |
 | `customPhotoUrl` | 문자열 또는 null |
@@ -3259,6 +3288,34 @@ gcloud firestore fields ttls list --collection-group=fcmTokens --project=<dev>
 | `sendTestPush` 끄기 · 삭제 | 위 ③ |
 | 사진 권한 문구 현지화 | `ios/Runner/Info.plist` `NSPhotoLibraryUsageDescription` 은 영문 1문장. 이 앱에는 lproj 가 없으므로 ko · ja 는 `InfoPlist.strings` 를 추가해 현지화한다 |
 | 공개 프로필 · 이름 편집 | 아래 「공개 프로필 · 이름 편집 확장 가이드 (D-29)」 |
+
+### 익명 계정 30일 자동 정리 (D-28)
+
+**공식 동작** — Firebase 문서 「Automatic clean-up」(https://firebase.google.com/docs/auth/web/anonymous-auth · RESEARCH R-05):
+
+> "If you've upgraded your project to Firebase Authentication with Identity Platform, you can enable automatic clean-up in the Firebase console."
+> "…automatically delete anonymous accounts older than 30 days."
+> "If you 'upgrade' an anonymous account by linking it to any sign-in method, the account will not get automatically deleted."
+> "In projects with automatic clean-up enabled, anonymous authentication will not count toward usage limits or billing quotas."
+
+- **켜는 조건 — Identity Platform 업그레이드:** 프로젝트가 Firebase Authentication with Identity Platform 이어야 콘솔에서 자동 정리를 켤 수 있다. 업그레이드는 콘솔 Authentication → Settings 에서 하고, 앱 코드는 바꾸지 않아도 된다(「You do not need to change your apps when upgrading from Firebase Authentication to Identity Platform…」 — https://docs.cloud.google.com/identity-platform/docs/product-comparison). 요금 · MAU 한도 · 되돌리기 가능 여부는 공식 문서로 확인한다 — https://firebase.google.com/pricing · 위 product-comparison 페이지. 이 매뉴얼은 MAU 초과 단가를 적지 않는다.
+- **상태 확인:** Identity Toolkit Admin API v2 `projects/<dev>/config` 의 `subtype`(`IDENTITY_PLATFORM`) · `autodeleteAnonymousUsers`(`true`). 킷 dev 프로젝트는 둘 다 켜져 있다(2026-09-24 읽기 전용 조회 · 켠 시점은 모름).
+- **기준은 생성 시점이다 (비활동 아님):** 생성 후 30일이 지난 익명 계정이 삭제 대상이다. 켜기 전에 만든 계정은 켠 시점부터 30일 뒤가 대상이다. link 로 정식 계정이 된 사용자는 삭제되지 않는다.
+- **Auth 자동 삭제는 Firestore · Storage 를 지우지 않는다.** 킷에는 Auth 사용자 삭제 트리거가 없다(`functions/src` 에 `onDelete` · `beforeUserDeleted` · `onUserDeleted` 0건). 자동 정리가 사용자 삭제 이벤트를 발화하는지는 공식 문서가 다루지 않는다 [ASSUMED — 발화하지 않는 쪽으로 설계 · 킷에 트리거가 없어 어느 쪽이든 동작 차이 0]. 그래서 **킷은 익명 사용자에게 데이터를 만들지 않는다:**
+  - 기기 토큰(`users/{uid}/fcmTokens`) · 프로필 사진(Storage `users/{uid}/`) — rules 가 익명 쓰기를 막고(fcmTokens `isRegular()` · `storage.rules` 의 `sign_in_provider != 'anonymous'`), 앱도 알림 섹션 · 사진 행을 정식 사용자에게만 보인다(2중).
+  - `users/{uid}` 문서 — 앱이 익명에게 만들지 않는다. 약관 mirror 는 익명 → 정식 전이와 정식 사용자 재동의 때만 돌고, 익명의 약관 상태는 기기(SharedPreferences)에 있다. 이 문서는 rules 가 익명을 막지 않으므로 앱 코드의 약속이다.
+  - 익명 사용자에게 데이터를 저장하는 기능을 앱에 더하면 그 데이터의 정리 수단(예: 스케줄 함수)을 함께 설계한다.
+- **trade-off — 장기 게스트:** 30일 넘게 게스트로만 쓰는 사용자도 삭제된다. 삭제는 기기에 즉시 반영되지 않고 다음 ID 토큰 갱신 때 로그아웃으로 나타나며(수동 삭제 세션에서 관측 1건), 앱은 새 익명 계정으로 온보딩 · 약관을 다시 보여 준다. 그 시점이 소셜 로그인 도중이면 진행 중이던 로그인이 버려질 수 있다(추론 — 자동 삭제로는 미관측). 게스트 기간을 보장해야 하는 앱은 자동 정리를 끄거나 게스트에게 가입을 권한다.
+- 로그아웃마다 남는 빈 익명 계정과 Custom Token 로그인이 교체한 직전 익명 계정도 30일 뒤 정리 대상이다 — 별도 서버 정리 함수는 두지 않는다.
+
+### 공개 프로필 · 이름 편집 확장 가이드 (D-29)
+
+**킷은 구현하지 않는다 — 가이드만 있다.** 공개 프로필 컬렉션 · 친구 찾기는 PROJECT.md Out of Scope 「커뮤니티 · 공개 프로필」 이다. 사진 업로드는 Storage 샘플이라 킷에 있지만 이름 편집은 Firebase 서비스를 시연하지 않고, 공개 프로필 앱은 어차피 값을 다른 문서에 둔다. Firebase 도 Auth 사용자 객체에 속성을 더하지 말고 다른 저장소에 두라고 안내한다 — 「You cannot add other properties to the user object directly; instead, you can store the additional properties in any other storage services, like Google Cloud Firestore.」 (https://firebase.google.com/docs/auth/users).
+
+1. **공개 프로필 = 별도 문서(예: `profiles/{uid}`).** Firestore rules 는 문서 단위로 읽는다 — 「Reads in Rules are performed at the document level. You either retrieve the full document, or you retrieve nothing.」 (https://firebase.google.com/docs/firestore/security/rules-fields). `users/{uid}` 는 비공개 필드(`email` · `linkedProviders` · `termsAccepted`)를 담고 본인만 읽으므로(`firestore.rules` `users/{userId}` 의 `allow read: if isOwner(userId)`), 공개할 값은 별도 문서로 뺀다. 공식 예시는 민감 필드를 `private` 하위 문서로 빼는 방향이지만, 킷은 `users/{uid}` 가 이미 비공개라 공개분을 빼는 쪽이 변경이 적다.
+2. **편집 가능 필드의 진실원을 옮긴다.** 공개 프로필을 더하면 `customPhotoUrl`(D-17)과 이름 필드(더했다면)의 진실원을 공개 문서로 옮긴다. 두 문서에 사본을 두지 않는다 — 사본은 어긋난다.
+3. **공개 문서 규칙:** email 을 넣지 않는다. 공개 여부 필드를 두고 rules 에서 그 값(또는 본인)으로 읽기를 판정한다. 쓰기는 본인 + 키 화이트리스트(`users/{uid}` 의 `clientKeys()` 와 같은 방식)로 한다.
+4. **이름 편집 = 사진과 같은 패턴:** 앱 소유 Firestore 필드(예: `customDisplayName`)를 더한다 — `firestore.rules` `clientKeys()` 에 키 1개 + rules 테스트, `UserProviderRecord` · 파서에 필드 1개, `currentUser` 의 `displayName` 계산에서 `resolveProfileValue` 결과보다 먼저 쓴다(Auth `displayName` 보다 표시 우선). **Auth `displayName` 에 쓰지 않는다** — 가입 수단으로 재로그인할 때 `PROFILE_REFRESH_POLICY` 갱신이 IdP 값으로 덮어쓴다(「IdP 프로필 동기화 정책」 절).
 
 ---
 
@@ -3632,7 +3689,7 @@ Facebook `photoURL` Graph API 보완 + 5 provider `signOut` (로그아웃)
 > **🔴 Path A-narrow 채택 (2026-05-10):** RESEARCH §2.1 의 critical 결함
 > (firebase_auth 6.0.0 의 `FirebaseAuth.fetchSignInMethodsForEmail()`
 > client-side API 제거) 으로 SPEC R1 (provider-aware 정확 라벨 메시지) 은
-> **Phase 17 (Account Linking) — see ROADMAP.md** 로 이월. Phase 9.2 는
+> **Phase 16 (Account Linking) — see ROADMAP.md** 로 이월. Phase 9.2 는
 > unknown fallback 메시지 (provider-미상 명시) 를 default path 로 채택한다.
 > R1 부활 절차는 본 단락 §2 (AccountProvider enum 확장 절차) 참조.
 
@@ -3678,12 +3735,12 @@ LoginScreen 의 자동 채움 (auto-fill) + focus 호출 (R3 / D-31) 도 제거 
 배너는 `lib/features/auth/presentation/email_login_screen.dart` 로 이관됐다.
 따라서 자동 채움·focus 호출을 되살릴 수 있는 위젯 자체가 A 에 존재하지 않으며,
 R1 부활 시 검토 대상 코드 anchor 는 두 파일로 나뉜다. `AccountExistsWithDifferentCredential.email`
-필드 자체는 보존 — Phase 17 (Account Linking) — see ROADMAP.md 부활 시
+필드 자체는 보존 — Phase 16 (Account Linking) — see ROADMAP.md 부활 시
 server-side provider 매핑 input 으로 활용.
 
-### 2. AccountProvider enum 확장 절차 (Phase 17 add-only 가이드)
+### 2. AccountProvider enum 확장 절차 (Phase 16 add-only 가이드)
 
-**Phase 17 (Account Linking) — see ROADMAP.md** 진입 시점에 server-side
+**Phase 16 (Account Linking) — see ROADMAP.md** 진입 시점에 server-side
 provider 매핑 인프라 (Cloud Function `lookupSignInMethods` with App Check +
 rate limit + enumeration log alarm, 또는 Custom Token claim 기반 매핑) 위에서
 R1 (provider-aware 라벨 메시지) 부활 절차:
@@ -3716,7 +3773,7 @@ R1 (provider-aware 라벨 메시지) 부활 절차:
    인수 시험) — Apple → Facebook / Kakao → Google / password → Google /
    EEP 활성 mock.
 
-09.2-CONTEXT.md 의 D-05 ~ D-12 / D-15 / D-29 결정 (deferred) 이 Phase 17
+09.2-CONTEXT.md 의 D-05 ~ D-12 / D-15 / D-29 결정 (deferred) 이 Phase 16
 SPEC 의 starting point 로 재활용 가능 — 단 server-side 인프라 디자인 추가
 의무 (PII 노출 vector 분석 + rate limit + enumeration log alarm 설계).
 
@@ -3891,7 +3948,7 @@ starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞
    `_autoSendEmailVerification` 호출은 그대로.
 3. **자동 채움 + focus 동작 복구 (D-31 inversion)**: `login_screen.dart` 의
    listener body 안 anchor 주석 영역에 자동 채움 4줄 재도입 — 단 cognitive
-   hijack vector 재도입 위험 인지. Phase 17 (Account Linking) 부활 시
+   hijack vector 재도입 위험 인지. Phase 16 (Account Linking) 부활 시
    server-side provider 매핑 input path 와 충돌 가능성.
 4. **5 SDK signOut 순서 커스터마이즈**: `signOut()` 본체의 try/catch 블록
    순서 재배치 가능. 단 `_auth.signOut()` 가 마지막 호출 invariant 만 보존
@@ -3971,9 +4028,9 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 - D-B1: 자연 redirect 채택 — `/onboarding` 자동 진입 (UX 단절 trade-off 수용, multi-user device 안전 우선).
 - D-C1/C2: `auth_guard.dart` 분기 (3) 단일 gate 정정 + stale guard 익명 확장 (Plan 10-11 분기 (5) 패턴 mirror).
 
-### Phase 17 (Account Linking & Withdrawal) note
+### Phase 16 (Account Linking & Withdrawal) note
 
-회원탈퇴 reauthentication + `deleteUser` 경로의 onboardingSeen reset 정책은 본 단락 scope 외 — Phase 17 논의에서 결정. `AuthRepository.signOut()` 단독 호출은 `_safeDelete` fallback 등 내부 경로 전용 (Phase 10.2 D-A7 호출자 책임).
+회원탈퇴 reauthentication + `deleteUser` 경로의 onboardingSeen reset 정책은 본 단락 scope 외 — Phase 16 논의에서 결정. `AuthRepository.signOut()` 단독 호출은 `_safeDelete` fallback 등 내부 경로 전용 (Phase 10.2 D-A7 호출자 책임).
 
 ### Pitfall
 
@@ -5192,7 +5249,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-09-29 | quick 260929-snf | Naver 절 iOS 1-tap 실기기 관측 반영(iPhone 16 Pro · iOS 26.6 · NAVER 12.23.72) — **Pitfall 12** 제목을 「미해결 · 실기기 재현됨」 으로 바꾸고 증상을 2단계(복귀 직후 로딩 막 → 재개방 뒤 무반응 + `재진입 무시` · `logout 지연` 쌍)로, 복구를 관측 3경로(NAVER 로 돌아가 결과 내기 · cold restart · hot restart 는 첫 탭 1회 `ios_plugin_request_in_progress` 배너 뒤 정상)로 정정(「이후 모든 메서드 거부」 · 「앱 재시작뿐」 · 「SIM 부재로 미검증」 서술 대체) / **Pitfall 11** 에 1-tap 취소는 고정 리터럴이 아니라 오류 배너(`ios_sdk_nid_given_error` · 앱 열기 알림 Cancel 은 `ios_sdk_naver_app_not_installed`)라는 관측 추가 / **Pitfall 13** 에 SDK native 콜백 dict(`authCode` 키) debug 콘솔 1회 출력 관측 추가 / **11단계** iOS 1-tap 미검증 bullet 을 로그인 완료 관측(`naver_custom_token_issued` path=app)으로 교체하고 iOS 앱 열기 확인 알림 · 개발 중 앱은 등록 아이디(테스터)만 로그인 가능 bullet 추가. 근거: `.planning/quick/260929-snf-ios-naver-1-tap-uat-i1-a1-wedge/260929-snf-UAT.md`. |
 | 2026-10-01 | Phase 16.11 | Naver iOS 1-tap unwedge · 취소 — **Pitfall 12** 「해결됨」 재서술(자동 silent 취소 · 판정 신호 = background 복귀 + `kNaverResumeSettleDelay` + `SceneDelegate` 콜백 도착 기록 · 0.3초 보정(U1 실측 URL 이 `resumed` 보다 357ms 먼저) · 고아 대기와 늦은 결과 logout · stale 1회 재시도 · 진단 줄 6종 · 잔여 한계 3가지 · 이력 링크) / **Pitfall 11** 1-tap 취소 2종 silent(동의 화면 [취소] `ios_sdk_nid_access_denied` 실기기 확인 · 앱 열기 알림 [Cancel] 미실측 · SDK 발생 조건 확장) / 설치 안내 SYSC bullet / **Pitfall 1** · §5 예외 문장 · wedge 문단 / 제거 가이드 `SceneDelegate` override · `T-16.11-NATIVE-*` · `T-16.11-NAVER-HOST-*` / **Pitfall 13** authCode 주체(Firebase Analytics · `Runner.debug.dylib` · `firebase_analytics` 경로) · release(profile) 판정 · 결정 `record-only` · 공유 주의. 근거: `.planning/phases/16.11-naver-ios-one-tap-unwedge-and-cancel/uat-evidence/`. |
 | 2026-10-01 | 16.11 review fix (iteration 2) | 「Naver Login」 절 **Pitfall 12** 정정(code review iteration 2) — 진단 목록에 `Naver logIn 포기: reason=lifecycle_subscribe_failed` 추가(lifecycle 구독 실패 · silent 가 아니라 오류 배너 `ServiceUnavailable` · production 재현 경로 없음 · review IN-02) / 판정 신호에 판정 창 안 재-background 보류 추가(그 판정은 하지 않고 다음 복귀가 0.3초를 새로 셈 · 보류는 마지막 복귀 기준 · review IN-02) / **Pitfall 1** 예외 문장 문체 정정(「본다」 → 「봅니다」) · 「Multi-Provider Account Linking (Phase 9.2)」 §5 예외 문장을 한 문장으로 합침(「1-tap 에서 / 1-tap 수동 복귀는」 중복 · 문장 중간 줄바꿈 제거 · review IN-03). review IN-01(stale 거부 시 고아 해제를 진입 시점 고아로 한정)은 코드 수정이며 매뉴얼의 stale 재시도 · 고아 대기 서술은 수정 뒤에도 그대로 성립해 문구 변경이 없다. |
+| 2026-10-01 | 17-19 | `## Firebase Services (Phase 17)` 절 신규 — FCM 알림 · Remote Config Feature Flag · Cloud Storage · 프로필 사진 · Firestore typed repository · Security Rules · 오류 처리 패턴 · 배포 · 콘솔 설정(firebase deploy 묶음 · Firestore TTL gcloud · `SEND_TEST_PUSH_ENABLED` · RC 키 4개 · iOS APNs) · 커스터마이징 포인트 · 익명 계정 30일 자동 정리(D-28) · 공개 프로필 · 이름 편집 확장 가이드(D-29) / 「가입 수단 기록」 위조 한계 단락을 Phase 17 rules 기준으로 재작성 + 약관 동의 시각 수용 한계 단락 / 3단계 rules bullet · IdP 프로필 동기화 정책 위조 bullet 정정 / Storage cascade 절을 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 로 재작성 + 참조 3곳 · 「회원탈퇴 정리 현황」 해소 bullet · rate limit 카운터 잔존 bullet / App Check 차단 안내 단락 / Kakao `profile_image` 현재 사실 / Account Linking 옛 번호 표기 Phase 16 으로 정정(헤딩 2 · 본문 6) / 목차 14번 |
 
 ---
 
-*Last updated: 2026-10-01 — Phase 16.11 review fix iteration 2 (Naver Pitfall 12 진단 줄 · 판정 신호 · Pitfall 1 · §5 예외 문장)*
+*Last updated: 2026-10-01 — Phase 17 plan 17-19 (Firebase Services 절 · 위조 한계 · Storage cascade · D-28 · D-29)*
