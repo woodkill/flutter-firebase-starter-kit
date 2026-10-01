@@ -309,5 +309,7 @@
   "withdrawalDisconnectSkipSemantic": "{provider}をスキップ",
   "withdrawalDisconnectRetrySemantic": "{provider}を再試行",
   "withdrawalDisconnectRowSemantic": "{provider}：{status}",
-  "withdrawalDisconnectFinalHint": "すべてのサービスを解除またはスキップすると、アカウントを削除できます。"
+  "withdrawalDisconnectFinalHint": "すべてのサービスを解除またはスキップすると、アカウントを削除できます。",
+
+  "errorAppCheckFailed": "リクエストを確認できませんでした。しばらくしてからもう一度お試しください。解決しない場合は、アプリを最新バージョンにアップデートしてください。"
 }

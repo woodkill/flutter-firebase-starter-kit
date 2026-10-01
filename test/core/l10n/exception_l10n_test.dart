@@ -64,6 +64,8 @@ const List<AppException> _kAllMappedExceptions = <AppException>[
   // ServerException
   InternalServerError(),
   ServiceUnavailable(),
+  // Phase 17 D-24 · D-42 — callable 의 App Check 차단.
+  AppCheckFailedException(),
   // 16.10 review IN-04 (iteration 3) — userMessage 는 errorUnknown 재사용.
   ProviderMisconfigured(),
   // 입력/계약 위반 (WR-13) — userMessage 는 errorUnknown 재사용.

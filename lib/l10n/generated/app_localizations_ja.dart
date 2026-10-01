@@ -816,4 +816,8 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get withdrawalDisconnectFinalHint =>
       'すべてのサービスを解除またはスキップすると、アカウントを削除できます。';
+
+  @override
+  String get errorAppCheckFailed =>
+      'リクエストを確認できませんでした。しばらくしてからもう一度お試しください。解決しない場合は、アプリを最新バージョンにアップデートしてください。';
 }

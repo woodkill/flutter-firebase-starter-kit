@@ -1551,6 +1551,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You can delete your account once every service is disconnected or skipped.'**
   String get withdrawalDisconnectFinalHint;
+
+  /// Phase 17 D-42 — App Check rejection shown for every callable (D-43). Retry first, then update.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t verify this request. Please try again later. If this keeps happening, update the app to the latest version.'**
+  String get errorAppCheckFailed;
 }
 
 class _AppLocalizationsDelegate

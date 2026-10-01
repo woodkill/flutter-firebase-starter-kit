@@ -35,6 +35,9 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     'errorSessionExpired' => l10n.errorSessionExpired,
     'errorInternalServer' => l10n.errorInternalServer,
     'errorServiceUnavailable' => l10n.errorServiceUnavailable,
+    // AppCheckFailedException — SDK 계층 unauthenticated · details null ·
+    // message 'Unauthenticated' (Phase 17 D-42 · D-43).
+    'errorAppCheckFailed' => l10n.errorAppCheckFailed,
     'errorInvalidEmail' => l10n.errorInvalidEmail,
     'errorUserDisabled' => l10n.errorUserDisabled,
     'errorTooManyRequests' => l10n.errorTooManyRequests,

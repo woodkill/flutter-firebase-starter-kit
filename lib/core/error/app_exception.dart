@@ -404,6 +404,21 @@ final class ServiceUnavailable extends ServerException {
     : super(userMessage: 'errorServiceUnavailable');
 }
 
+/// callable 요청이 앱 확인(App Check) 단계에서 거부됨.
+///
+/// Phase 17 — see ROADMAP.md (D-24 · D-42 · D-43). callable 의 SDK 계층 검증
+/// 거부(App Check 토큰 무효/부재 또는 ID token 무효 — firebase-functions 가
+/// 같은 `unauthenticated` + message `Unauthenticated` 로 던진다, RESEARCH
+/// R-01). 판정은 `lib/core/functions/callable_rejection.dart` 한 곳(plan 08).
+/// 재로그인 안내([ReauthenticationRequiredException])와 다른 문구 · 동작 —
+/// 화면 이동 없이 재시도 → 계속되면 업데이트. toString 을 오버라이드하지
+/// 않는다.
+final class AppCheckFailedException extends ServerException {
+  /// [AppCheckFailedException]을 생성한다.
+  const AppCheckFailedException({super.cause})
+    : super(userMessage: 'errorAppCheckFailed');
+}
+
 /// 서버가 운영자 설정 결함으로 요청을 거부함 (Phase 16.10 review IN-04 —
 /// iteration 3).
 ///

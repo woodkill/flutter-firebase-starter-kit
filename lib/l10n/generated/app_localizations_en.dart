@@ -840,4 +840,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get withdrawalDisconnectFinalHint =>
       'You can delete your account once every service is disconnected or skipped.';
+
+  @override
+  String get errorAppCheckFailed =>
+      'We couldn\'t verify this request. Please try again later. If this keeps happening, update the app to the latest version.';
 }

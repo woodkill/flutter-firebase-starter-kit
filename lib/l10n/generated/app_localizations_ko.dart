@@ -816,4 +816,8 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get withdrawalDisconnectFinalHint => '모든 서비스를 해제하거나 건너뛰면 탈퇴할 수 있습니다.';
+
+  @override
+  String get errorAppCheckFailed =>
+      '요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.';
 }

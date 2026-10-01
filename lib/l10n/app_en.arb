@@ -1375,5 +1375,10 @@
   "withdrawalDisconnectFinalHint": "You can delete your account once every service is disconnected or skipped.",
   "@withdrawalDisconnectFinalHint": {
     "description": "Phase 16.10 D-05 — hint above the disabled final delete button until every row is disconnected or skipped."
+  },
+
+  "errorAppCheckFailed": "We couldn't verify this request. Please try again later. If this keeps happening, update the app to the latest version.",
+  "@errorAppCheckFailed": {
+    "description": "Phase 17 D-42 — App Check rejection shown for every callable (D-43). Retry first, then update."
   }
 }
