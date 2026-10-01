@@ -28,7 +28,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/auth/auth_strategy.dart';
 import '../../../../core/auth/provider_id.dart';
+import '../../../../core/crashlytics/crashlytics_service.dart';
 import '../../../../core/error/app_exception.dart';
+import '../../../../core/functions/callable_rejection.dart';
 import '../../../auth/data/auth_repository.dart';
 
 /// provider 측 연결 끊기 1행의 결과 (Phase 16.10 · UI-SPEC §행 상태).
@@ -147,6 +149,7 @@ class DisconnectDeps {
     required this.googleSignIn,
     required this.platform,
     required this.read,
+    this.crashlytics = const CrashlyticsService(null, isEnabled: false),
   });
 
   /// 현재 로그인 사용자 · 재인증 · Apple 토큰 폐기에 쓰는 Firebase Auth.
@@ -167,6 +170,14 @@ class DisconnectDeps {
   /// 앱에서는 keepAlive `disconnectDepsProvider` 의 `Ref.read` 다. 테스트는
   /// override 를 담은 `ProviderContainer.read` 를 넣는다.
   final DisconnectProviderReader read;
+
+  /// 끊기 callable 의 App Check 차단 판정(`classifyAppCheckRejection`)이
+  /// non-fatal 1회를 남기는 채널 (Phase 17 D-43 · D-44).
+  ///
+  /// 기본값은 no-op 이라 기존 `DisconnectDeps(...)` 생성부 · 테스트 fake 는
+  /// 바뀌지 않는다. 앱에서는 `disconnectDepsProvider` 가
+  /// `crashlyticsServiceProvider` 를 넘긴다.
+  final CrashlyticsService crashlytics;
 }
 
 /// provider 1개의 측 연결 끊기 — 진행 화면과 해제 다이얼로그가 공유한다.
@@ -204,21 +215,29 @@ abstract class DisconnectStep {
 
 /// 끊기 callable 거부를 [DisconnectOutcome] 으로 매핑한다 (D-12 · D-13).
 ///
-/// 서버 `message` 는 쓰지 않고 `code` + `details.reason` 만 본다.
+/// 서버 `message` 는 쓰지 않고 `code` + `details.reason` 만 본다 (SDK 계층
+/// 거부 판정은 helper 가 SDK 상수 message 를 본다 — 서버 message 아님).
+/// 판정 순서 = 서버 reason 분기 → App Check helper → code 분기 (D-43).
 /// - `permission-denied` + reason `caller_identity_mismatch` →
 ///   [DisconnectIdentityMismatch].
-/// - `unavailable` · `deadline-exceeded` → [NoInternetConnection].
-/// - `resource-exhausted` → [TooManyRequests].
 /// - `failed-precondition` + reason `provider_config`(서버
 ///   `providerConfigError` — 운영자 설정 결함) → [ProviderMisconfigured]
 ///   (16.10 review IN-04 — iteration 3). 재시도로 풀리지 않아 일시 오류와
 ///   구분한다.
+/// - SDK 계층 거부(App Check 차단 · `classifyAppCheckRejection`) →
+///   [AppCheckFailedException] (Phase 17 D-43). [crashlytics] 에 non-fatal
+///   1회 · reason `app_check_rejected_<callable>` (D-44). [callable] 은 호출부
+///   step 의 export 이름이다.
+/// - `unavailable` · `deadline-exceeded` → [NoInternetConnection].
+/// - `resource-exhausted` → [TooManyRequests].
 /// - 그 밖(`failed-precondition` + `anonymous_caller` · reason 없는
-///   `failed-precondition` · App Check `unauthenticated` · `internal` 등) →
-///   [ServiceUnavailable].
+///   `failed-precondition` · 서버 taxonomy `unauthenticated` · `internal` 등)
+///   → [ServiceUnavailable].
 DisconnectOutcome disconnectOutcomeFromFunctionsException(
-  FirebaseFunctionsException e,
-) {
+  FirebaseFunctionsException e, {
+  required String callable,
+  required CrashlyticsService crashlytics,
+}) {
   final details = e.details;
   if (e.code == 'permission-denied' &&
       details is Map &&
@@ -230,6 +249,13 @@ DisconnectOutcome disconnectOutcomeFromFunctionsException(
       details['reason'] == 'provider_config') {
     return DisconnectFailed(ProviderMisconfigured(cause: e));
   }
+  // Phase 17 D-43 — reason 분기 뒤 · code 분기 앞에서 App Check 차단을 가른다.
+  // 호출 머리를 한 줄로 유지해 helper 경유를 grep 한 번으로 계수한다.
+  // dart format off
+  final appCheck =
+    classifyAppCheckRejection(e, callable: callable, crashlytics: crashlytics);
+  // dart format on
+  if (appCheck != null) return DisconnectFailed(appCheck);
   if (e.code == 'unavailable' || e.code == 'deadline-exceeded') {
     return DisconnectFailed(NoInternetConnection(cause: e));
   }

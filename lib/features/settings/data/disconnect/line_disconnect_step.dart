@@ -104,7 +104,11 @@ class LineDisconnectStep extends DisconnectStep {
       return DisconnectFailed(e);
     } on FirebaseFunctionsException catch (e) {
       logDisconnectFailure(provider, 'code=${e.code}');
-      return disconnectOutcomeFromFunctionsException(e);
+      return disconnectOutcomeFromFunctionsException(
+        e,
+        callable: 'disconnectLineProvider',
+        crashlytics: deps.crashlytics,
+      );
     } on Object catch (e) {
       // PII 0 — runtimeType 만.
       logDisconnectFailure(provider, 'runtimeType=${e.runtimeType}');

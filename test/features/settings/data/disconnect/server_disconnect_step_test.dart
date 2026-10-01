@@ -20,6 +20,10 @@
 //        Kakao · Facebook · 재로그인 행 strategy non-null · email 없음
 //   S11: (review WR-04) 공용 계약 · 레지스트리는 LINE · Naver SDK client 를
 //        import 하지 않는다 — step 파일만 import 한다(양성 대조)
+//   T-17-WD-04: (Phase 17 D-43 · D-44) SDK 계층 거부 → Failed(AppCheckFailed)
+//        · Crashlytics 1회(reason app_check_rejected_disconnectKakaoProvider) ·
+//        reason 분기(caller_identity_mismatch · provider_config) 우선 · reason
+//        없는 errorUnauthenticated → 기존 ServiceUnavailable
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -30,6 +34,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
@@ -50,6 +55,14 @@ class _MockHttpsCallable extends Mock implements HttpsCallable {}
 
 class _MockHttpsCallableResult extends Mock
     implements HttpsCallableResult<Map<String, dynamic>> {}
+
+class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
+
+/// 기록을 남기지 않는 Crashlytics — 매퍼 직접 호출(S6m)용.
+const CrashlyticsService _kNoopCrashlytics = CrashlyticsService(
+  null,
+  isEnabled: false,
+);
 
 const ServerDisconnectStep _kakaoStep = ServerDisconnectStep(
   provider: AccountProvider.kakao,
@@ -280,7 +293,11 @@ void main() {
             details: const <String, dynamic>{'reason': 'provider_config'},
           );
 
-          final outcome = disconnectOutcomeFromFunctionsException(exception);
+          final outcome = disconnectOutcomeFromFunctionsException(
+            exception,
+            callable: 'disconnectKakaoProvider',
+            crashlytics: _kNoopCrashlytics,
+          );
 
           expect(failureCause(outcome), isA<ProviderMisconfigured>());
           // 원인 보존 — 진단 로그용 (UI 노출 0).
@@ -306,6 +323,8 @@ void main() {
                 code: code,
                 details: details,
               ),
+              callable: 'disconnectKakaoProvider',
+              crashlytics: _kNoopCrashlytics,
             );
 
             expect(
@@ -318,6 +337,130 @@ void main() {
       );
     },
   );
+
+  group('T-17-WD-04 (Phase 17 D-43 · D-44): 끊기 callable App Check 판정', () {
+    late _MockCrashlyticsService crashlytics;
+    late DisconnectDeps appCheckDeps;
+
+    setUpAll(() {
+      registerFallbackValue(StackTrace.empty);
+    });
+
+    setUp(() {
+      crashlytics = _MockCrashlyticsService();
+      when(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      ).thenAnswer((_) async {});
+      appCheckDeps = DisconnectDeps(
+        auth: mockAuth,
+        functions: mockFunctions,
+        googleSignIn: _MockGoogleSignIn(),
+        platform: TargetPlatform.android,
+        read: ProviderContainer.test().read,
+        crashlytics: crashlytics,
+      );
+    });
+
+    Future<DisconnectOutcome> runKakaoWithCrashlytics() =>
+        _kakaoStep.run(appCheckDeps, reloginForFreshness: true);
+
+    /// Crashlytics 기록이 한 번도 없었음을 단언한다.
+    void expectNoRecord() {
+      verifyNever(
+        () => crashlytics.recordError(
+          any(),
+          any(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
+    }
+
+    test(
+      'T-17-WD-04 SDK 계층 거부 → Failed(AppCheckFailedException) · 기록 1회',
+      () async {
+        stubCallableThrows(
+          FirebaseFunctionsException(
+            code: 'unauthenticated',
+            message: 'Unauthenticated',
+          ),
+        );
+
+        final outcome = await runKakaoWithCrashlytics();
+
+        expect(failureOf(outcome), isA<AppCheckFailedException>());
+        verify(
+          () => crashlytics.recordError(
+            any(that: isA<FirebaseFunctionsException>()),
+            any(),
+            reason: 'app_check_rejected_disconnectKakaoProvider',
+            fatal: false,
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'T-17-WD-04 caller_identity_mismatch 가 먼저 → IdentityMismatch · 기록 0',
+      () async {
+        stubCallableThrows(
+          FirebaseFunctionsException(
+            code: 'permission-denied',
+            message: 'Unauthenticated',
+            details: const <String, dynamic>{
+              'reason': 'caller_identity_mismatch',
+            },
+          ),
+        );
+
+        final outcome = await runKakaoWithCrashlytics();
+
+        expect(outcome, isA<DisconnectIdentityMismatch>());
+        expectNoRecord();
+      },
+    );
+
+    test(
+      'T-17-WD-04 provider_config → Failed(ProviderMisconfigured) · 기록 0',
+      () async {
+        stubCallableThrows(
+          FirebaseFunctionsException(
+            code: 'failed-precondition',
+            message: 'errorProviderConfig',
+            details: const <String, dynamic>{'reason': 'provider_config'},
+          ),
+        );
+
+        final outcome = await runKakaoWithCrashlytics();
+
+        expect(failureOf(outcome), isA<ProviderMisconfigured>());
+        expectNoRecord();
+      },
+    );
+
+    test(
+      'T-17-WD-04 reason 없는 unauthenticated(errorUnauthenticated) → Failed(ServiceUnavailable) · 기록 0',
+      () async {
+        stubCallableThrows(
+          FirebaseFunctionsException(
+            code: 'unauthenticated',
+            message: 'errorUnauthenticated',
+          ),
+        );
+
+        final outcome = await runKakaoWithCrashlytics();
+
+        expect(failureOf(outcome), isA<ServiceUnavailable>());
+        expect(failureOf(outcome), isNot(isA<AppCheckFailedException>()));
+        expectNoRecord();
+      },
+    );
+  });
 
   group('kDisconnectSteps 레지스트리', () {
     test(

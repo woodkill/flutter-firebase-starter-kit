@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/auth/provider_id.dart';
+import '../../../../core/crashlytics/crashlytics_service.dart';
 import '../../../../core/providers/firebase_providers.dart';
 import 'apple_disconnect_step.dart';
 import 'disconnect_step.dart';
@@ -68,4 +69,5 @@ DisconnectDeps disconnectDeps(Ref ref) => DisconnectDeps(
   googleSignIn: ref.watch(googleSignInProvider),
   platform: defaultTargetPlatform,
   read: ref.read,
+  crashlytics: ref.watch(crashlyticsServiceProvider),
 );
