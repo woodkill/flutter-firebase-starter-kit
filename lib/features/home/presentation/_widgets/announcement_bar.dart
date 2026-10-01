@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -7,6 +9,7 @@ import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/remote_config/feature_flag.dart';
 import '../../../../core/remote_config/feature_flags_provider.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../application/dismissed_announcement.dart';
 
 /// 홈 AppBar 바로 아래에 고정되는 운영 공지 배너 (Phase 17 D-09 · D-37).
 ///
@@ -16,28 +19,37 @@ import '../../../../core/theme/theme_extensions.dart';
 ///
 /// 문구는 일반 텍스트 그대로 표시한다 — 링크 · 마크업으로 해석하지 않고
 /// 줄 수도 자르지 않는다(UI-SPEC §(H)). 닫기는 항상 가능하다.
-class AnnouncementBar extends ConsumerStatefulWidget {
+///
+/// **닫기 기억 (D-12):** 닫으면 즉시 사라지고 표시된 문구가
+/// [dismissedAnnouncementProvider] 에 저장된다. 같은 문구는 숨고, 문구가
+/// 바뀌면(언어 전환 포함) 다시 보인다. 저장값을 읽기 전에는 그리지 않는다.
+class AnnouncementBar extends ConsumerWidget {
   /// 공지 배너를 만든다.
   const AnnouncementBar({super.key});
 
   @override
-  ConsumerState<AnnouncementBar> createState() => _AnnouncementBarState();
-}
-
-class _AnnouncementBarState extends ConsumerState<AnnouncementBar> {
-  /// 이 화면에서 닫은 문구 — 같은 문구는 다시 그리지 않는다.
-  String? _dismissedText;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final text = resolveAnnouncementText(
       ref.watch(featureFlagsProvider),
       ref.watch(localeProvider),
     );
-    if (text == null || text == _dismissedText) return const SizedBox.shrink();
+    // 표시할 문구가 없으면 닫은 문구 저장값도 읽지 않는다.
+    if (text == null) return const SizedBox.shrink();
+    final isHidden = ref
+        .watch(dismissedAnnouncementProvider)
+        .when(
+          data: (dismissed) => dismissed == text,
+          // 읽기 실패 = 닫은 적 없음.
+          error: (_, _) => false,
+          // 저장값 로딩 전에는 그리지 않는다(깜빡임 0).
+          loading: () => true,
+        );
+    if (isHidden) return const SizedBox.shrink();
     return _AnnouncementSurface(
       message: text,
-      onDismiss: () => setState(() => _dismissedText = text),
+      onDismiss: () => unawaited(
+        ref.read(dismissedAnnouncementProvider.notifier).dismiss(text),
+      ),
     );
   }
 }
