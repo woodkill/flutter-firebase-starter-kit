@@ -90,6 +90,8 @@ _MockFbUser _buildFbUser({
   required List<String> providerIds,
   String? displayName = 'Test User',
   String? photoUrl,
+  Map<String, ({String? displayName, String? photoUrl})> providerProfiles =
+      const {},
 }) {
   final fbUser = _MockFbUser();
   final metadata = _MockUserMetadata();
@@ -98,6 +100,9 @@ _MockFbUser _buildFbUser({
   for (final id in providerIds) {
     final info = _MockUserInfo();
     when(() => info.providerId).thenReturn(id);
+    final profile = providerProfiles[id];
+    when(() => info.displayName).thenReturn(profile?.displayName);
+    when(() => info.photoURL).thenReturn(profile?.photoUrl);
     infos.add(info);
   }
   when(() => fbUser.uid).thenReturn(uid);
@@ -1099,6 +1104,61 @@ void main() {
       expect(user, isNotNull);
       expect(user!.photoUrl, 'https://auth/photo.jpg');
       expect(user.customPhotoUrl, isNull);
+    });
+
+    test('T-17-PROFILE-04 top-level 이름 · 사진 null + providerData google '
+        '(Kim · g.jpg) + 가입 수단 google.com → 가입 수단 값 (D-27)', () async {
+      const uid = 'uid-profile-fallback';
+      final fbUser = _buildFbUser(
+        uid: uid,
+        providerIds: ['facebook.com', 'google.com'],
+        displayName: null,
+        providerProfiles: {
+          'facebook.com': (displayName: 'Lee', photoUrl: 'f.jpg'),
+          'google.com': (displayName: 'Kim', photoUrl: 'g.jpg'),
+        },
+      );
+      final container = buildContainer(
+        fbUser: fbUser,
+        uid: uid,
+        data: <String, dynamic>{'signUpProviderId': 'google.com'},
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.displayName, 'Kim');
+      expect(user.photoUrl, 'g.jpg');
+      expect(user.customPhotoUrl, isNull);
+    });
+
+    test('T-17-PROFILE-04 업로드 사진은 providerData 사진보다 먼저 · '
+        'top-level 이름은 providerData 이름보다 먼저', () async {
+      const uid = 'uid-profile-custom-over-provider';
+      final fbUser = _buildFbUser(
+        uid: uid,
+        providerIds: ['google.com'],
+        displayName: 'Top',
+        providerProfiles: {
+          'google.com': (displayName: 'Kim', photoUrl: 'g.jpg'),
+        },
+      );
+      final container = buildContainer(
+        fbUser: fbUser,
+        uid: uid,
+        data: <String, dynamic>{
+          'signUpProviderId': 'google.com',
+          'customPhotoUrl': 'https://x/avatar.jpg?v=3',
+        },
+      );
+      addTearDown(container.dispose);
+
+      await _settle();
+      final user = container.read(currentUserProvider);
+      expect(user, isNotNull);
+      expect(user!.displayName, 'Top');
+      expect(user.photoUrl, 'https://x/avatar.jpg?v=3');
     });
   });
 }

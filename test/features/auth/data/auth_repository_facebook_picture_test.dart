@@ -402,4 +402,84 @@ void main() {
       verifyNever(() => mockUser.updatePhotoURL(any()));
     });
   });
+
+  // -------------------------------------------------------------------
+  // Phase 17 D-27 — 대표 사진 = 가입 수단 값. Facebook 사진 덮어쓰기
+  // (`_setFacebookPhotoUrl`)는 가입 경로(`_recordSignUpMethod` 와 같은 조건)
+  // 에서만 일어나고, 기존 계정 재로그인 · 익명 충돌 fallback 로그인에서는
+  // top-level photoURL 을 건드리지 않는다.
+  // -------------------------------------------------------------------
+  group('Phase 17 D-27 — Facebook 사진 덮어쓰기 가입 경로 한정', () {
+    /// `_auth.currentUser` 를 익명 사용자로 둔다.
+    _MockFbUser stubAnonymousCurrentUser() {
+      final anonymous = _MockFbUser();
+      when(() => anonymous.uid).thenReturn('uid-anon');
+      when(() => anonymous.isAnonymous).thenReturn(true);
+      when(anonymous.delete).thenAnswer((_) async {});
+      when(() => mockAuth.currentUser).thenReturn(anonymous);
+      return anonymous;
+    }
+
+    test('T-17-PROFILE-05 신규 가입(isNewUser=true) → updatePhotoURL 1회', () async {
+      when(() => mockAdditionalUserInfo.isNewUser).thenReturn(true);
+      stubFacebookLogin();
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Success<dynamic>>());
+      verify(
+        () => mockUser.updatePhotoURL(
+          'https://platform-lookaside.fbsbx.com/profile.jpg',
+        ),
+      ).called(1);
+    });
+
+    test('T-17-PROFILE-05 익명 link 성공(가입) → updatePhotoURL 1회', () async {
+      final anonymous = stubAnonymousCurrentUser();
+      // Firebase 사양: link 분기는 isNewUser=false 다 — 가입 판정은 link 성공.
+      when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
+      when(
+        () => anonymous.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+      stubFacebookLogin();
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Success<dynamic>>());
+      verify(() => anonymous.linkWithCredential(any())).called(1);
+      verify(() => mockUser.updatePhotoURL(any())).called(1);
+    });
+
+    test('T-17-PROFILE-05 기존 계정 재로그인(isNewUser=false) → getUserData · '
+        'updatePhotoURL 0회', () async {
+      when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
+      stubFacebookLogin();
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Success<dynamic>>());
+      verifyNever(
+        () => mockFacebookAuth.getUserData(fields: any(named: 'fields')),
+      );
+      verifyNever(() => mockUser.updatePhotoURL(any()));
+    });
+
+    test('T-17-PROFILE-05 익명 link 충돌 fallback(기존 계정 로그인) → '
+        'updatePhotoURL 0회', () async {
+      final anonymous = stubAnonymousCurrentUser();
+      when(
+        () => anonymous.linkWithCredential(any()),
+      ).thenThrow(fb.FirebaseAuthException(code: 'credential-already-in-use'));
+      when(() => mockAdditionalUserInfo.isNewUser).thenReturn(false);
+      stubFacebookLogin();
+
+      final result = await repository.signInWithFacebook();
+
+      expect(result, isA<Success<dynamic>>());
+      // fallback 분기를 실제로 탔다 — 익명 폐기 뒤 기존 계정 로그인.
+      verify(anonymous.delete).called(1);
+      verify(() => mockAuth.signInWithCredential(any())).called(1);
+      verifyNever(() => mockUser.updatePhotoURL(any()));
+    });
+  });
 }

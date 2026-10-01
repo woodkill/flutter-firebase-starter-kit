@@ -27,6 +27,7 @@ import '../../terms/domain/terms_state.dart';
 import '../../terms/presentation/terms_notifier.dart';
 import '../application/social_link_in_progress.dart';
 import '../domain/anonymous_sign_in.dart';
+import '../domain/profile_display.dart';
 import '../domain/user.dart';
 import 'kakao_sdk_client.dart';
 import 'line_sdk_client.dart';
@@ -857,7 +858,11 @@ class AuthRepository implements AnonymousSignIn {
       // "The ID token cannot be used to request additional data using the
       // Graph API"). 실패가 확정된 getUserData 왕복을 race-fix 창에서
       // 생략한다 — Limited 에서 photoURL 미갱신은 문서화된 한계.
-      if (!facebook.isLimited) {
+      // Phase 17 D-27 — 대표 사진 = 가입 수단 값 · 연결/재로그인은 덮어쓰지
+      // 않는다. 조건은 위 _recordSignUpMethod 와 같은 isSignUp(가입 확정)이다
+      // — 기존 계정 재로그인 · 익명 충돌 fallback 로그인은 top-level
+      // photoURL 을 건드리지 않는다.
+      if (isSignUp && !facebook.isLimited) {
         await _setFacebookPhotoUrl(fbUser);
       }
       return Result.success(_mapFirebaseUser(fbUser));
@@ -2997,6 +3002,9 @@ class AuthRepository implements AnonymousSignIn {
   /// (Phase 9.2 D-23 — R5) Facebook Graph API picture.type(large) →
   /// [fb.User.updatePhotoURL] 갱신 단일 진실원.
   ///
+  /// Phase 17 D-27 — 호출은 [signInWithFacebook] 의 가입 경로(가입 수단 기록과
+  /// 같은 조건)뿐이다. 기존 계정 재로그인 · 연결은 대표 사진을 바꾸지 않는다.
+  ///
   /// 응답 path 추출 = safe navigation + type guard + graceful skip (D-24).
   /// [FacebookAuth.getUserData] default fields 는
   /// `'name,email,picture.width(200)'` 이지만 SPEC R5 가 `picture.type(large)`
@@ -3902,6 +3910,13 @@ AuthRepository authRepository(Ref ref) {
 /// record · AsyncError = 빈 record)이 두 필드에 똑같이 적용된다. 첫 emit
 /// 전(cached 없음) · 읽기 실패 · 필드 부재는 모두 null — 추론 0.
 ///
+/// **Phase 17 (D-17 · D-27 표시 규칙):** [User.photoUrl] = 같은 record 의
+/// `customPhotoUrl`(업로드 사진) > Auth `photoURL` > `providerData` 사진,
+/// [User.displayName] = Auth `displayName` > `providerData` 이름. `providerData`
+/// 는 가입 수단(`signUpProviderId`) 항목 먼저, 그다음 첫 비어 있지 않은 값을
+/// 쓴다([resolveProfileValue]). 합성은 메모리에서만 일어나며 Auth 에 쓰지
+/// 않는다.
+///
 /// **Race 안전성 (Pitfall 12):** 12-02 Cloud Function 이 `users/{uid}` 를
 /// `set({...}, {merge: true})` 로 작성하므로 Plan 10-12 mirrorToFirestore 와
 /// 공존한다. linkedProviders 가 사라지지 않는다.
@@ -3933,15 +3948,35 @@ User? currentUser(Ref ref) {
     error: (_, _) => _emptyUserProviderRecord,
   );
 
+  // Phase 17 D-27: 표시 이름 · 소셜 사진 = top-level → providerData 의 가입
+  // 수단 항목 → 첫 비어 있지 않은 값. 익명 link 뒤 비어 있는 top-level 을
+  // 메모리에서만 채운다(Auth write 0 · 저장 0).
+  final providerData = fbUser.providerData;
+  final displayName = resolveProfileValue(
+    topLevel: base.displayName,
+    providerValues: [
+      for (final info in providerData) (info.providerId, info.displayName),
+    ],
+    signUpProviderId: rec.signUpProviderId,
+  );
+  final socialPhotoUrl = resolveProfileValue(
+    topLevel: base.photoUrl,
+    providerValues: [
+      for (final info in providerData) (info.providerId, info.photoURL),
+    ],
+    signUpProviderId: rec.signUpProviderId,
+  );
+
   // Phase 16.7: 연결 목록이 비어도 signUpProviderId 를 실어야 하므로 early
   // return 없이 항상 합성한다 (D-11 — 값이 없으면 null 그대로).
   // Phase 17 D-17: 표시 사진 1순위 = 업로드 사진(customPhotoUrl). 필드가
-  // 지워지면(null) 같은 record 재방출로 Auth 사진으로 돌아간다.
+  // 지워지면(null) 같은 record 재방출로 소셜 사진으로 돌아간다.
   return base.copyWith(
     providerIds: _mergeProviderIds(base.providerIds, rec),
     signUpProviderId: rec.signUpProviderId,
+    displayName: displayName,
     customPhotoUrl: rec.customPhotoUrl,
-    photoUrl: rec.customPhotoUrl ?? base.photoUrl,
+    photoUrl: rec.customPhotoUrl ?? socialPhotoUrl,
   );
 }
 
