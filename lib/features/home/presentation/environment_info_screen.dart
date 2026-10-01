@@ -22,6 +22,7 @@ import '../../../shared/auth/provider_label_formatter.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
+import '_widgets/announcement_bar.dart';
 
 // IN-03 — 매직 넘버를 저장소의 지배적 규약 2가지(설계 토큰 유도 / 파일 상단
 // 명명 상수)로 정리한다. 아래 값들은 `spacing.*` 스케일(4/8/12/16/24/32/48)
@@ -107,6 +108,10 @@ class EnvironmentInfoScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
+          // Phase 17 — see ROADMAP.md (D-37 · UI-SPEC Q1-B): Remote Config 공지
+          // 배너는 AppBar 바로 아래 · 게스트 바 위에 고정된다(게스트 · 가입자
+          // 모두). 표시할 문구가 없으면 크기 0 이다.
+          const AnnouncementBar(),
           // Phase 10 D-13 / UI-REVIEW Top Fix #2: 게스트 배너는 스크롤 뷰 밖의
           // 고정 요소다 — 익명 사용자가 본문을 끝까지 내려도 AppBar 아래에
           // 계속 남아 상태를 알린다.
