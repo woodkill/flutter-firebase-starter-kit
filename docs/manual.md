@@ -1,7 +1,7 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-09-29
-phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제), 16.9 (Naver 연결), 16.10 (provider 측 연결 끊기)]
+last_updated: 2026-10-01
+phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제), 16.9 (Naver 연결), 16.10 (provider 측 연결 끊기), 17 (Firebase Services)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
 
@@ -38,14 +38,15 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 11. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
 12. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
 13. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
-14. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-15. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
-16. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
-17. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
-18. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
-19. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-20. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-21. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+14. [Firebase Services (Phase 17)](#firebase-services-phase-17)
+15. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+16. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+17. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+18. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+19. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+20. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+21. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+22. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
 
 ---
 
@@ -3020,6 +3021,244 @@ curl -X POST \
 
 - **역방향 해제 알림 수신** — 사용자가 provider 쪽에서 먼저 앱 연결을 끊었을 때 오는 알림(Facebook Data Deletion Callback · Kakao 연결 끊기 알림)을 받아 킷 데이터를 정리하는 기능은 없다.
 - **Cloud Storage cascade** — 「Phase 17 deferred — Storage cascade」 절 그대로다(킷은 Storage 사용처가 없다).
+
+---
+
+## Firebase Services (Phase 17)
+
+> Phase 17 D-01 ~ D-44 (CONTEXT 2026-09-11 · 2026-09-29 갱신) · plan 17-01 ~ 17-18. 최종 수정일: 2026-10-01 (Plan 17-19).
+
+이 절은 Phase 17 이 킷에 더한 Firebase 서비스 다섯 가지 — FCM 알림 · Remote Config Feature Flag · Cloud Storage(프로필 사진) · Firestore typed repository 와 Security Rules · 오류 처리 패턴 — 의 동작 · 설정 · 확인 · 바꾸는 법을 모은다. 코드 밖 설정(콘솔 · gcloud · Functions params)은 「배포 · 콘솔 설정」 하위 절에 한데 있다. 탈퇴 때 사진 · 기기 토큰이 지워지는 순서는 「Account Linking & Withdrawal」 절의 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 에 있다.
+
+표기: `<dev>` = dev Firebase 프로젝트 id. 이 절은 실제 프로젝트 id · 토큰 · 이메일 · 키 값을 적지 않는다.
+
+### FCM 알림
+
+**무엇이 되나 (D-01 · D-04):** 앱이 포그라운드 · 백그라운드 · 종료 상태 어디에 있든 같은 모양의 시스템 알림이 뜨고, 알림을 탭하면 payload `data.route` 의 화면으로 간다.
+
+- **포그라운드 표시 (D-01):** Android 는 앱이 떠 있을 때 FCM 이 시스템 알림을 띄우지 않으므로 `onMessage` 수신을 `flutter_local_notifications` 로컬 알림으로 표시한다. iOS 는 `setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true)` — 모양은 OS 기본이고 로컬 알림 플러그인은 iOS 에서 초기화하지 않는다.
+- **채널 (D-01):** Android 채널 1개 — id `general`(`kNotificationChannelId` · `lib/features/notifications/application/notification_route.dart`) · importance high(heads-up). 백그라운드 · 종료 상태 알림도 manifest meta-data `default_notification_channel_id` = `general` 로 같은 채널에 들어간다. 채널 이름 · 설명은 ARB `notificationChannelGeneralName` · `notificationChannelGeneralDescription` 으로 앱 언어에 맞춰 등록하고, 앱 언어를 바꾸면 같은 id 로 다시 등록해 OS 설정의 이름이 바뀐다.
+- **백그라운드 핸들러:** `lib/features/notifications/data/firebase_messaging_background_handler.dart` — top-level `@pragma('vm:entry-point')` 함수이고 지금은 아무 일도 하지 않는다. data-only 메시지로 백그라운드 작업을 하려면 여기에 넣는다. 별도 isolate 라 다른 Firebase 서비스를 쓰려면 `Firebase.initializeApp()` 을 먼저 부른다.
+- **탭 이동 (D-04):** 세 진입 경로 — 포그라운드 로컬 알림 탭 · `onMessageOpenedApp`(백그라운드) · `getInitialMessage`(종료) — 가 모두 `resolveNotificationRoute` 를 거친다. 허용 목록 `kNotificationRoutableRoutes`(`/` · `/settings` · `/terms/service` · `/terms/privacy`)에 문자열이 정확히 같을 때만 그 화면으로 가고, 목록 밖 · 없음 · 외부 URL 은 홈이다(알림 payload 는 운영자가 보낸 값이라 open redirect 를 막는다). 이동은 홈 화면이 그려진 뒤(스플래시 · 인증 redirect 통과 뒤)에 일어난다 — 종료 상태 탭도 스플래시 → 홈 → 대상 순서다.
+
+**알림 받기 토글 (D-02 · D-03):** 설정 → 「알림」 → 「알림 받기」. 정식 사용자에게만 섹션이 있고 게스트(익명)에게는 없다(D-02 · 아래 「익명 계정 30일 자동 정리 (D-28)」). 켤 때만 OS 권한을 묻는다 — 앱 시작 · 홈 · 온보딩에서 자동으로 묻지 않는다(D-03). 허용하면 이 기기 토큰이 `users/{uid}/fcmTokens/{token}` 에 저장되고(필드 5개 — `token` · `platform` · `locale` · `updatedAt` · `expireAt`), 거부하면 꺼짐 그대로 「휴대폰 설정에서 허용」 안내가 뜬다(설정 열기 버튼 없음). 끄면 이 기기 문서만 지운다. 한 계정이 여러 기기를 쓰면 기기마다 문서 1개이고, 같은 기기 · 같은 계정 재등록은 같은 문서를 덮어쓴다.
+
+| 상황 | 동작 | 결정 |
+|------|------|------|
+| 로그아웃 · 탈퇴 | 로그아웃 직전 이 기기 토큰 문서를 지우고 로컬 opt-in 을 초기화한다 — 같은 기기에 다른 계정으로 로그인하면 알림은 꺼짐으로 시작한다. 오프라인이면 3초 뒤 그냥 로그아웃되고 남은 문서는 TTL 이 지운다. OS 알림 권한은 건드리지 않는다 | D-30 |
+| 앱 언어 변경 | 켜진 기기 문서의 `locale` 을 즉시 바꾼다(`ko` · `en` · `ja` · 그 밖은 `en` — `normalizeFcmLocale`). 서버 발송 문구가 이 값으로 정해진다 | D-31 |
+| 앱 밖에서 OS 권한을 끄고 복귀 | 스위치가 조용히 꺼지고 문서가 지워진다(opt-in 은 기억). 다시 허용하고 돌아오면 조용히 켜진다 | D-32 |
+| 오래 열지 않은 기기 | 켜진 기기는 앱 시작 · 복귀 · 언어 변경 때마다 `expireAt` 을 지금 + 30일로 다시 쓴다. Firestore TTL 정책이 지난 문서를 지운다(아래 「배포 · 콘솔 설정」 ②) | D-33 |
+
+30일은 FCM 공식 「registration token 관리」 문서의 stale 기준(「hasn't connected for a month」)과 샘플 상수에 맞춘 값이다(RESEARCH R-02 · https://firebase.google.com/docs/cloud-messaging/manage-tokens).
+
+**테스트 발송 (D-05 · D-34 · D-35):** 홈 Dev Tools(debug 빌드 전용 `_DevToolsSection`)의 「나에게 테스트 알림 보내기」 버튼이 callable `sendTestPush`(region `asia-northeast3` · `enforceAppCheck: true` · 입력 없음)를 부른다. 서버는 호출자의 `users/{uid}/fcmTokens` 전체(내 계정의 모든 기기 — D-34)를 읽어 `expireAt` 이 지난 토큰은 건너뛰고 지운 뒤, `locale` 그룹마다 `sendEachForMulticast` 로 보낸다. 미등록 · 무효 응답 토큰 문서는 지운다. 버튼 결과는 SnackBar 4종(성공 · 등록된 기기 없음 · 이 환경에서 꺼짐 · 실패)이다.
+
+| 발송 payload | 값 |
+|------|------|
+| `notification.title` / `body` | 서버 상수 `TEST_PUSH_COPY`(`functions/src/messaging/test_push_copy.ts`) — ko 「테스트 알림」 · 「알림이 도착했습니다. 탭하면 설정 화면을 엽니다.」 / en · ja 동일 취지. ARB 와 별개다 |
+| `data.route` | `/settings` |
+| Android | 채널 `general` |
+| 호출 제한 | uid 당 rate limit(`functions/src/shared/rate_limit.ts` — 카운터 문서 `rate_limits/sendTestPush:<uid>`) |
+
+`sendTestPush` 는 환경 스위치 `SEND_TEST_PUSH_ENABLED` 가 `true` 인 환경에서만 보낸다(D-35 — 기본 꺼짐). 꺼진 환경에서는 rate limit · 읽기 · 발송 없이 `failed-precondition`(`details.reason = "test_push_disabled"`)으로 거부하고 버튼은 「이 환경에서는 테스트 알림을 보낼 수 없어요.」 를 띄운다. 켜기 · 끄기 · 함수 삭제는 「배포 · 콘솔 설정」 ③ 이다. Console 수동 발송은 선택이다 — Firebase Console Messaging 에서 「테스트 메시지 전송」 에 FCM 토큰(Firestore `users/{uid}/fcmTokens` 문서 id)을 넣고, 탭 이동까지 보려면 맞춤 데이터에 `route` = `/settings` 를 준다.
+
+**앱 내 알림함은 없다 (D-06):** 받은 알림을 Firestore 에 저장하거나 목록 화면으로 보여 주지 않는다 — 시스템 알림 + 탭 이동까지가 킷 범위다. 알림함이 필요한 앱은 서버 발송 때 사용자 문서 아래에 알림 문서를 함께 쓰고 목록 화면을 더한다.
+
+**iOS 설정 (D-07):** 코드 · 설정은 들어가 있고 실기기 검증은 Phase 18 iOS batch 에서 한다.
+
+- APNs 인증 키(.p8)를 Firebase Console → 프로젝트 설정 → Cloud Messaging → Apple 앱 구성에 업로드한다(콘솔 작업 — 저장소에 키 파일을 두지 않는다).
+- Xcode Runner 타깃 → Signing & Capabilities → **Push Notifications** capability. `ios/Runner/Runner.entitlements` 의 `aps-environment` 는 `development` 다 — App Store · TestFlight 출시 빌드는 `production` 이어야 하고, 프로비저닝 프로파일과 일치해야 한다.
+- **Background Modes:** `ios/Runner/Info.plist` `UIBackgroundModes` 에 `remote-notification`(과 기존 `fetch`)이 있다.
+- 포그라운드 표시는 위 presentation options(OS 기본 모양)다.
+- 사진 선택 권한 문구 `NSPhotoLibraryUsageDescription` 은 영문 1문장이다 — 현지화는 「커스터마이징 포인트」.
+
+**Android 빌드 요건:** `flutter_local_notifications` 10+ 는 예약 알림을 쓰지 않아도 core library desugaring 이 필요하다 — `android/app/build.gradle.kts` 의 `isCoreLibraryDesugaringEnabled = true` · `coreLibraryDesugaring(...)` 2줄을 지우면 Android 빌드가 실패한다.
+
+**테스트 위치:** `test/features/notifications/`(route · 토글 notifier · 탭 처리 · 토큰 repository · messaging service · 테스트 발송 client) · `test/core/bootstrap_messaging_test.dart` · `test/features/settings/presentation/notifications_section_test.dart` · `functions/test/messaging/send_test_push.test.ts`.
+
+**Crashlytics reason · 로그:** 앱 `notification_settings_enable` · `notification_settings_disable` · `test_push_client_send` · `app_check_rejected_sendTestPush`(예상 못 한 오류만 · 토큰 · uid 미기록). 서버 Cloud Logging 이벤트 `send_test_push_done` · `send_test_push_disabled` · `send_test_push_rate_limited` · `send_test_push_rate_limit_failed` · `send_test_push_token_rejected` · `send_test_push_prune_failed` · `send_test_push_failed`.
+
+### Remote Config Feature Flag
+
+**구조 (D-08 · D-11):** `enum FeatureFlag`(`lib/core/remote_config/feature_flag.dart`)가 RC 키 문자열과 기본값(Dart 상수)을 함께 갖는다. bootstrap 이 기존 인증 provider kill switch 기본값과 `FeatureFlag.values` 의 기본값을 합쳐 `setDefaults` 한다 — 그래서 콘솔에 키가 없어도 앱은 기본값으로 동작한다. 콘솔 템플릿 파일(`remoteconfig.template.json`)은 두지 않는다(D-11) — 키는 아래 절차로 콘솔에 직접 만든다. 값은 `featureFlagsProvider`(keepAlive Notifier)로 읽는다. 기존 kill switch(`auth_provider_*_enabled` · 「Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)」 절)는 이 enum 과 별개 경로로 공존한다.
+
+**샘플 = 홈 공지 배너 (D-09 · D-36 · D-37):**
+
+| 키 | 타입 | 기본값 | 뜻 |
+|----|------|--------|----|
+| `announcement_banner_enabled` | Boolean | `false` | 배너 스위치 |
+| `announcement_message_ko` | String | `''` | 한국어 앱 문구 |
+| `announcement_message_en` | String | `''` | 영어 앱 문구 · 다른 언어 칸이 비었을 때의 대체 문구 |
+| `announcement_message_ja` | String | `''` | 일본어 앱 문구 |
+
+- **표시 조건:** 스위치가 `true` 이고, 앱 언어 칸 → 비면 en 칸 순서로 고른 문구가 비어 있지 않고, 그 문구가 사용자가 닫은 문구와 다를 때(D-36). ko · en 이 모두 비면 스위치가 `true` 여도 배너가 없다. 게스트 · 가입자 모두에게 보인다(D-37) — 위치는 AppBar 바로 아래 고정이고 게스트 안내 바보다 위다.
+- **실시간 반영 (D-10):** `onConfigUpdated` 구독 → `activate()` → provider 갱신. 앱이 떠 있으면 콘솔에서 게시하는 즉시 배너가 바뀐다. 인증 provider kill switch 도 같은 구독으로 실시간 재평가된다.
+- **닫기 기억 (D-12):** 닫은 「실제로 표시된 문구」 를 SharedPreferences `home_announcement_dismissed_text` 에 저장한다. 같은 공지를 다시 보이려면 문구를 바꾼다 — 공백 1자만 달라도 다른 문구다. 앱은 문구를 자르거나 다듬지 않고, 링크 · 마크업도 해석하지 않는다.
+- **문구 길이 권장:** 360 dp 에서 3줄 이내(ko 약 60자). 배너가 고정이라 길수록 본문을 가린다(닫으면 공간이 돌아온다). 280 dp 실측 — ko 3줄 88 dp · en 4줄 105 dp · ja 4줄 106 dp.
+
+**콘솔 키 등록 절차 (D-11):** Firebase Console → 프로젝트 선택 → Remote Config → 매개변수 추가로 위 표의 4개를 만든다(이름 · 데이터 유형을 표와 똑같이) → **변경사항 게시**. 시연은 스위치 `true` + `announcement_message_ko` 에 문구 → 게시 → 실행 중인 앱에 배너 → 닫기 → 문구 변경 · 게시 → 다시 표시 순서다. 실제 dev 등록은 plan 17-20 이 한다.
+
+**테스트 위치:** `test/core/remote_config/feature_flags_provider_test.dart` · `test/core/bootstrap_remote_config_test.dart`(setDefaults 합산 회귀) · `test/features/home/announcement_bar_test.dart` · `test/features/home/home_announcement_golden_test.dart`.
+
+### Cloud Storage · 프로필 사진
+
+**경로 · 규칙 (D-15):** 사진은 `users/{uid}/profile/avatar.jpg` 한 객체를 덮어쓴다(`profilePhotoPath(uid)` · `lib/features/settings/data/profile_photo_repository.dart`). `storage.rules` 는 본인 `users/{uid}/` 경로만 읽고 쓰게 하고, 쓰기는 정식 사용자(익명 아님) · 5MB 이하 · `image/.*` 만 허용한다. 그 밖 경로는 전면 거부다. 앱은 크기를 미리 검사하지 않는다 — 넘으면 업로드 실패 SnackBar 다.
+
+**업로드 흐름:** 설정 「내 계정」 첫 행(프로필 사진) → 시트 「사진 변경」 → 갤러리 선택 → 업로드 전 리사이즈(`maxWidth: 1024` · `imageQuality: 85` · JPEG) → `putFile` 에 `contentType: 'image/jpeg'` 명시(빠뜨리면 rules 의 `image/.*` 검사에 걸릴 수 있다) → downloadURL 에 `&v=<업로드 millis>` 를 붙여 Firestore `users/{uid}.customPhotoUrl` 에 저장(D-17). URL 이 매번 바뀌므로 같은 객체를 덮어써도 설정 · 홈이 재시작 없이 새 사진을 보인다. 「사진 삭제」 는 Storage 객체를 지우고(없으면 무시) `customPhotoUrl: null` 로 돌린다 — 확인 다이얼로그 없다.
+
+**표시 우선순위 (D-17 · D-18):** 홈 · 설정 아바타가 같은 규칙을 쓴다.
+
+| 순위 | 사진 | 이름 |
+|------|------|------|
+| 1 | `users/{uid}.customPhotoUrl`(앱에 올린 사진) | Auth `displayName` |
+| 2 | Auth `photoURL` | 로그인 수단 프로필 이름(가입 수단 먼저, 없으면 연결된 수단 중 첫 값) |
+| 3 | 로그인 수단 프로필 사진(같은 순서) | 홈 「-」 |
+| 4 | 기본 아바타 | — |
+
+합성은 `currentUserProvider` 가 앱 메모리에서만 한다 — Firebase Auth 프로필과 Firestore 에는 쓰지 않는다. 그래서 익명에서 link 한 계정은 Firebase Console 의 이름 · 사진 칸이 비어 있어도 앱에는 보인다(D-27). 업로드 사진을 지우면 같은 문서 갱신만으로 소셜 사진으로 돌아간다. Facebook 은 가입할 때만 Graph 사진을 Auth `photoURL` 에 쓴다. Apple 처럼 `providerData` 에 이름이 없는 provider 는 「-」 가 그대로 보인다(Apple 실기기 판정 = Phase 18 iOS batch).
+
+**권한 요청 0:** Android 는 Photo Picker opt-in(`useAndroidPhotoPicker = true`) — 저장소 · 카메라 권한 창이 없다. iOS 는 PHPicker(14+). 카메라 촬영 경로는 없다.
+
+**자르기 화면은 없다 (D-41):** 원형 40 dp 에 `BoxFit.cover` 가운데 맞춤으로 그린다. 자르기 · 필터를 넣으려면 `image_cropper` 류를 고르기 전에 **iOS SPM 지원 여부부터 확인**하고(「iOS 의존성 관리 (SPM)」 절 ③), `pickAndUpload` 의 `pickImage` 뒤 · `putFile` 앞에 끼운다. `contentType` 은 자른 결과 형식에 맞춘다.
+
+**탈퇴 때:** 서버 `deleteUserAccount` 가 `users/{uid}/` prefix 를 Auth 삭제보다 먼저 지운다 — 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」.
+
+**테스트 위치:** `functions/test/rules/storage.rules.test.ts`(타인 · 익명 · 크기 · 타입 거부) · `test/features/settings/data/profile_photo_repository_test.dart` · `test/features/settings/presentation/profile_photo_tile_test.dart`.
+
+### Firestore typed repository · Security Rules
+
+**typed repository 예제 (D-14):** `users/{uid}/fcmTokens` 가 킷의 「타입 안전 Firestore 저장소」 예제다.
+
+```dart
+// lib/features/notifications/data/fcm_token_repository.dart (요약 — 실제 코드는 data null 방어 포함)
+CollectionReference<FcmToken> _tokens(String uid) => _firestore
+    .collection('users').doc(uid).collection('fcmTokens')
+    .withConverter<FcmToken>(
+      fromFirestore: (snapshot, _) => FcmToken.fromJson(snapshot.data()!),
+      toFirestore: (token, _) => token.toJson(),
+    );
+```
+
+모델은 Freezed `FcmToken`(`lib/features/notifications/domain/fcm_token.dart`), Timestamp 변환은 `@TimestampConverter()`(`lib/core/firestore/timestamp_converter.dart` — 다른 모델에서도 재사용)다. 메서드는 `Result<T>` 를 돌려준다. 대비되는 raw map 예는 약관 mirror(`lib/features/terms/presentation/terms_notifier.dart` 의 `set({'termsAccepted': …}, SetOptions(merge: true))`)다 — 필드가 적고 다른 writer(서버)와 문서를 공유하면 raw map, 서브컬렉션처럼 문서 전체를 앱이 소유하면 typed repository 가 맞다.
+
+**`users/{uid}` 필드 단위 규칙 (D-13 · D-38 · D-39):**
+
+| 대상 | 규칙 |
+|------|------|
+| 읽기 | 본인만 |
+| 클라이언트 쓰기 허용 키 | `clientKeys()` = `termsAccepted` · `signUpProviderId` · `customPhotoUrl` 3키만(create 는 키 집합, update 는 바뀐 키 집합 `hasOnly`) |
+| 서버 전용 키 | `linkedProviders` · `providerLinkedAt` · `email` · `emailVerified` · IdP 프로필 미러 — Admin SDK(Cloud Functions)만 쓴다(Admin 은 rules 를 우회) |
+| `signUpProviderId` (D-38) | write-once — 없을 때만 쓰고, 있으면 같은 값 재기록만 허용(변경 · 삭제 거부) |
+| `termsAccepted` (D-39) | ① 기록 뒤 삭제 불가 ② `version` 비감소(재동의 = 같거나 큰 버전) ③ 필수 2개(`service` · `privacy`) = true ④ `acceptedAt` 은 timestamp 이고 `<= request.time`(미래 불가) ⑤ 5필드 형식 · 타입. `marketing` 변경은 허용 |
+| `customPhotoUrl` | 문자열 또는 null |
+| 문서 삭제 | 클라이언트 불가(탈퇴는 Admin) |
+| `users/{uid}/fcmTokens/{token}` | 본인 read · delete, 정식 사용자 본인만 create · update — 키 5개 `hasOnly` · 문서 id = `token` · `platform` ∈ android/ios · `locale` ∈ ko/en/ja · timestamp 2개 |
+| `identity_index/**` | 전면 차단(Phase 12 그대로) |
+
+**한계 (D-38 · D-39):** write-once 는 서버 검증이 아니다 — native 경로의 `signUpProviderId` 최초 값은 클라이언트 자기 주장이고 영향은 자기 계정뿐이다. `acceptedAt` 은 기기 시각이라 기기 시계가 서버보다 앞서면 약관 mirror 가 `permission-denied` 로 거부되고 다음 전이 · 재동의 때 다시 시도된다(허용 오차 0 — 사용자 결정 2026-10-01). 자세한 의미는 「가입 수단 기록 (Phase 16.7)」 절의 위조 한계 단락이다.
+
+**새 클라이언트 필드를 쓰려면:** `firestore.rules` `clientKeys()` 에 키를 더하고 rules 테스트 케이스를 같이 추가한다 — 안 하면 앱 쓰기가 `permission-denied` 다. `FcmToken` 에 필드를 더하면 fcmTokens 규칙의 `hasOnly` 목록도 같이 고친다(T-17-FCM-02/03 이 키 집합 불일치를 잡는다).
+
+**rules 자동 테스트 — `pnpm test:rules` (D-19):**
+
+```bash
+cd functions && pnpm test:rules
+```
+
+- 내용: `firebase emulators:exec --only firestore,storage --project demo-starter-kit "jest -c jest.rules.config.js"` — `functions/test/rules/firestore.rules.test.ts` · `storage.rules.test.ts` 를 Firestore · Storage 에뮬레이터에서 돌린다. `demo-` 프로젝트라 실 Firebase 프로젝트에 접속하지 않는다.
+- 필요: Java 11 이상. **최초 1회** 에뮬레이터 jar 를 네트워크로 내려받는다(이후는 캐시).
+- 포트: Firestore 8080 · Storage 9199(`firebase.json` `emulators`) · Firestore 에뮬레이터 websocket 9150 이 비어 있어야 한다.
+- 일반 `pnpm test`(Jest unit)는 `test/rules/` 를 제외하므로 에뮬레이터 없이 돈다.
+- **CI 없음** — rules 를 바꾼 사람이 로컬에서 실행한다. 실 배포는 「배포 · 콘솔 설정」 ① 이다.
+
+### 오류 처리 패턴
+
+**자동 수집 이중 안전망 (D-20):** 데이터 계층과 화면 상태 계층이 각각 한 번씩 예상 못 한 예외를 잡는다. `AppException` 은 이미 분류된 오류라 다시 기록하지 않는다.
+
+| 상황 | 쓸 것 | 비고 |
+|------|------|------|
+| Repository 메서드 본문 | `guardResult('<repo>_<method>', () async { … }, crashlytics: …)`(`lib/core/error/guard_result.dart`) | `AppException` 은 그대로 `Result.failure`, 그 외는 Crashlytics 기록 + `UnknownException` |
+| Notifier 의 비동기 작업 | `state = await guardAsyncValue(() => …, reason: '<notifier>_<method>', crashlytics: …)` | non-AppException 만 기록. 기존 수동 `recordError` 호출부는 그대로 둔다 |
+| 화면 안 고정 위치가 있는 오류(폼 상단 등) | `ErrorBanner(exception: e)`(`lib/shared/widgets/error_banner.dart`) | null 이면 높이 0. 옛 이름 `FormErrorBanner` 도 그대로 쓸 수 있다(D-21) |
+| 고정 위치가 없는 일시 오류(버튼 동작 실패 등) | `showErrorSnackBar(context, e)`(`lib/shared/widgets/error_snack_bar.dart`) | 연속 호출 시 마지막 1개만 남는다(D-21) |
+| provider 의 `AsyncValue` 를 그대로 그릴 때 | `AsyncValueView<T>(value: …, data: …, onRetry: …)`(`lib/shared/widgets/async_value_view.dart`) | 기본 loading · error(+「다시 시도」) 또는 `loading:` · `error:` builder. Phase 17 새 화면부터 쓰고 기존 화면은 바꾸지 않았다(D-23) |
+
+- **reason 규칙:** `'<repo>_<method>'` / `'<notifier>_<method>'` 같은 코드 경로 식별자 상수만 쓴다. 이메일 · 토큰 · URL · 파일 경로 · 서버 message 는 넣지 않는다(Phase 10 D-28~30).
+- **문구:** 세 표면 모두 `resolveExceptionMessage` 를 거친다 — 새 `AppException` 서브타입을 만들면 `lib/core/l10n/exception_l10n.dart` switch 에 arm 을, `test/core/l10n/exception_l10n_test.dart` 에 항목을 더한다. arm 이 빠지면 debug 는 assert, release 는 `errorUnknown` 이다. Dialog 는 파괴적 확인 전용으로 남긴다.
+
+**깨진 화면 대체 — `ErrorFallback` (D-22):** release · profile 빌드에서 위젯 빌드 예외가 나면 SDK 의 빨간 화면 대신 「문제가 발생했습니다」 / 「앱을 종료한 뒤 다시 실행해 주세요.」(ARB `errorWidgetFallbackTitle` · `errorWidgetFallbackBody`) 화면을 그리고 Crashlytics non-fatal 1건(reason `error_widget_build`)을 남긴다. 연결은 `lib/core/bootstrap.dart` 의 `ErrorWidget.builder`, 위젯은 `lib/shared/widgets/error_fallback.dart` 다. **debug 빌드에서는 보이지 않는다** — SDK 기본 빨간 화면 그대로이므로 확인은 `--profile` 또는 `--release` 로 한다. 자리가 200 dp 미만(`kErrorFallbackCompactExtent`)이면 아이콘만 그린다. 재시도 버튼은 의도적으로 없다.
+
+**App Check 차단 안내 (D-42 · D-43 · D-44):** 모든 callable(CT 로그인 · 연결 · 해제 · 탈퇴 끊기 · 탈퇴 · `sendTestPush`)의 `FirebaseFunctionsException` 은 같은 판정 helper `classifyAppCheckRejection`(`lib/core/functions/callable_rejection.dart`)을 거친다(D-43). SDK 계층 검증 거부로 판정되면 `AppCheckFailedException` → 「요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.」(ARB `errorAppCheckFailed` · D-42)를 띄우고, 재로그인 화면으로 보내지 않는다. 같은 helper 가 Crashlytics non-fatal reason `app_check_rejected_<callable>` 을 1회 남긴다(D-44). 의미 · 감시 · 출시 전 점검은 「App Check debug provider 등록 절차」 절 끝의 「App Check 차단 안내」 단락이다.
+
+**오프라인 전역 배너는 없다 (D-25):** 연결 감지 라이브러리를 넣지 않았다. 요청이 실패하면 기존 `NoInternetConnection` 문구가 위 표면으로 나간다. 상시 오프라인 배너가 필요한 앱은 연결 감지 패키지를 더하고 그 상태를 앱 셸에 그린다(확장 — 킷 범위 밖).
+
+**테스트 위치:** `test/core/error/guard_result_test.dart` · `test/shared/widgets/`(`error_banner` · `error_snack_bar` · `async_value_view` · `error_fallback` + golden) · `test/core/functions/callable_rejection_test.dart`.
+
+### 배포 · 콘솔 설정
+
+Phase 17 은 코드 밖 설정 네 가지가 있다. 모두 dev 프로젝트 기준이며(stg · prod 는 placeholder — 「flavor 정책」), 실제 dev 실행 기록은 plan 17-20 이다.
+
+**① 배포 — rules · indexes · Storage rules · Functions 한 번에:**
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes,storage,functions --project <dev>
+```
+
+functions 를 통째로 배포하는 이유: Phase 17 이 공유 helper(`identity_index` · `rate_limit`)를 바꿔 Custom Token 함수와 `lookupSignInMethods` 도 다시 배포해야 하고, 새 함수 `mirrorAccountEmail` · `sendTestPush` 가 생겼다. 배포 전 게이트는 `cd functions && pnpm run lint && pnpm run build && pnpm test` + `pnpm test:rules` 다.
+
+**② Firestore TTL 정책 — 1회 (D-33):**
+
+```bash
+gcloud firestore fields ttls update expireAt --collection-group=fcmTokens --enable-ttl --project=<dev>
+# 상태 확인 (CREATING → ACTIVE)
+gcloud firestore fields ttls list --collection-group=fcmTokens --project=<dev>
+```
+
+- 범위: 이름이 `fcmTokens` 인 모든 서브컬렉션(collection group). collection group 당 TTL 필드는 1개다.
+- 지연: 만료 뒤 보통 24시간 안에 삭제된다(「Data is typically deleted within 24 hours after its expiration date.」) — 그 사이 문서가 보일 수 있어 `sendTestPush` 는 `expireAt` 이 지난 토큰을 스스로 건너뛰고 지운다.
+- 요금: TTL 삭제는 일반 문서 삭제 비용으로 계산된다(추가 요금 없음). 출처: https://firebase.google.com/docs/firestore/ttl
+- 콘솔로도 할 수 있다(Firestore → Time-to-live). 활성화에 10분 이상 걸릴 수 있다.
+
+**③ `sendTestPush` 환경 스위치 — `SEND_TEST_PUSH_ENABLED` (D-35):**
+
+- **켜기 (dev):** `functions/.env.<dev>` 파일에 아래 1줄을 넣고 functions 를 다시 배포한다(`firebase deploy --only functions:sendTestPush --project <dev>` 또는 ①). 이 파일은 root `.gitignore`(`functions/.env` · `functions/.env.*`) 대상이라 **커밋하지 않는다**.
+
+  ```
+  SEND_TEST_PUSH_ENABLED=true
+  ```
+
+- **param 이 배포 프롬프트에 나오지 않는다:** `SEND_TEST_PUSH_ENABLED` 는 모듈 로드 때가 아니라 handler 첫 호출 때 선언된다(`functions/src/messaging/send_test_push.ts` — 기존 jest mock 과의 충돌 회피, plan 17-18). 그래서 `firebase deploy` 의 params 해석 · 프롬프트 목록에 없고, 값은 `.env.<dev>` 의 환경 변수로만 함수에 전달된다. [ASSUMED] Firebase CLI 는 `.env` · `.env.<projectId>` 의 모든 키를 함수 환경 변수로 배포한다 — dev 배포 뒤 버튼이 성공 또는 「등록된 기기 없음」 을 보이는지로 plan 17-20 이 실측한다.
+- **끄기 (운영 필수):** 그 줄을 지우거나 `false` 로 바꾸고 재배포한다. 값이 정확히 `true` 가 아니면 모두 꺼짐이다(firebase-functions `BooleanParam` — `process.env[name] === "true"`). stg · prod 에는 이 줄을 넣지 않는다.
+- **함수 삭제(킷에서 빼기):** `functions/src/index.ts` 의 `export {sendTestPush} …` 줄과 `functions/src/messaging/` 를 지운 뒤 `firebase functions:delete sendTestPush --region asia-northeast3 --project <dev>`(`-f` 는 확인 프롬프트 생략). 클라이언트 `lib/features/notifications/data/test_push_client.dart` 와 Dev Tools `_SendTestPushButton` 도 함께 지운다. export 만 남기면 다음 배포가 함수를 다시 만든다.
+
+**④ Remote Config 키 4개 (D-11):** 위 「Remote Config Feature Flag」 의 콘솔 키 등록 절차(`announcement_banner_enabled` Boolean · `announcement_message_ko` · `announcement_message_en` · `announcement_message_ja` String) → 게시.
+
+**⑤ iOS APNs 인증 키 업로드 (D-07):** 위 「FCM 알림」 의 iOS 설정. 검증은 Phase 18 iOS batch.
+
+### 커스터마이징 포인트
+
+| 바꾸고 싶은 것 | 고칠 곳 |
+|------|------|
+| Feature flag 스위치 추가 | `FeatureFlag` enum 에 `myFeatureEnabled('my_feature_enabled', false),` 1줄 — bootstrap 기본값에 자동 합산. 소비처는 `ref.watch(featureFlagsProvider).boolValue(FeatureFlag.myFeatureEnabled)`. 콘솔에 같은 키를 만든다 |
+| 공지 언어 추가 | enum 에 `announcementMessageXx('announcement_message_xx', '')` 1줄 + `announcementMessageFlagFor` switch 1줄. 앱 언어 자체(ARB · supportedLocales) 추가는 별도 작업 |
+| 알림 채널 id | `kNotificationChannelId` + Android manifest `default_notification_channel_id` 두 곳. 이미 설치된 기기의 채널 importance 는 OS 가 사용자 설정을 우선하므로 바꾸려면 새 id 가 필요하다 [Android 채널 일반 규칙 — 실기기 미확인] |
+| 알림 채널 이름 · 설명 | ARB `notificationChannelGeneralName` · `notificationChannelGeneralDescription` |
+| 알림 아이콘 | `android/app/src/main/res/drawable/ic_notification.xml` 하나 — 흰색 단색 vector 로 브랜드 실루엣을 넣는다(색을 넣어도 OS 는 알파만 쓴다). 백그라운드 · 포그라운드 둘 다 바뀐다 |
+| 알림 색 | `android/app/src/main/res/values/colors.xml` `notification_color` + `local_notifications_service.dart` `_kNotificationColor` 두 곳(현재 `#673AB7` = `AppTheme.seedColor`). seedColor 를 바꾸면 함께 바꾼다 |
+| 알림 문구 언어 추가 | 서버 `functions/src/messaging/test_push_copy.ts` 의 `TestPushLocale` 에 코드 · `TEST_PUSH_COPY` 에 `{title, body}` 1항목 + 앱 `normalizeFcmLocale` 지원 집합 + `firestore.rules` fcmTokens `locale` 허용 집합. ARB 와 별개다 |
+| 알림 탭으로 열 화면 | `kNotificationRoutableRoutes` 에 `AppRoutes` 상수 1줄. 문자열 정확 일치만(query · 경로 변수 불가). 흐름 진입 전용 화면(로그인 · 온보딩 · 탈퇴 진행 등)은 넣지 않는다 |
+| 토큰 만료 기간 | `kFcmTokenTtl = Duration(days: 30)`(`lib/features/notifications/domain/fcm_token.dart`) 상수 1개. TTL 정책은 필드(`expireAt`) 기준이라 다시 설정하지 않아도 된다 |
+| 알림 섹션 위치 · 저장 키 | `settings_screen.dart` 의 `const NotificationsSection()` 한 줄 · SharedPreferences `notifications_opt_in` · `notifications_registered_token` |
+| Storage 경로 · 크기 · 타입 | `storage.rules` 해당 줄(예: 5MB → `5 * 1024 * 1024`) + `functions/test/rules/storage.rules.test.ts` 경계 케이스 → `pnpm test:rules`. 경로를 바꾸면 `profilePhotoPath` 와 탈퇴 prefix 도 함께 |
+| 업로드 리사이즈 | `profile_photo_repository.dart` 의 `pickImage` 인자(`maxWidth` · `imageQuality`) |
+| 표시 우선순위 | `lib/features/auth/domain/profile_display.dart` `resolveProfileValue` 한 곳. 사진 1순위는 `auth_repository.dart` `currentUser` 의 `photoUrl:` 줄 |
+| 오류 배너 스타일 | `lib/shared/widgets/error_banner.dart` · `error_snack_bar.dart` · `async_value_view.dart` — 모든 화면이 이 세 위젯을 거친다 |
+| 깨진 화면 대체 문구 | ARB `errorWidgetFallbackTitle` · `errorWidgetFallbackBody`(바꾸면 golden 2장이 바뀐다) |
+| Dev Tools 제거 | 홈 `_DevToolsSection`(debug 전용)을 지우면 테스트 알림 버튼도 사라진다. 서버 함수까지 빼려면 위 ③ 「함수 삭제」 |
+| `sendTestPush` 끄기 · 삭제 | 위 ③ |
+| 사진 권한 문구 현지화 | `ios/Runner/Info.plist` `NSPhotoLibraryUsageDescription` 은 영문 1문장. 이 앱에는 lproj 가 없으므로 ko · ja 는 `InfoPlist.strings` 를 추가해 현지화한다 |
+| 공개 프로필 · 이름 편집 | 아래 「공개 프로필 · 이름 편집 확장 가이드 (D-29)」 |
 
 ---
 
