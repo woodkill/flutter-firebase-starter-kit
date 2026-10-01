@@ -260,7 +260,13 @@ void main() {
     await loadGoldenFonts();
   });
 
-  group('Phase 16.8 설정 화면 golden — ko 280×800 W5 · push (D-07 · D-14)', () {
+  // Phase 17 T-17-PHOTO-08 — W5 fixture + 사진 없음(record data · customPhotoUrl ·
+  // photoUrl null) + 알림 꺼짐으로 그린 golden 2장이 채택안
+  // `mockups/adopted_settings_17_ko_280_worst_{light,dark}.png` 와 byte 동일하다는
+  // 계약 이름이다(대조 = plan 17-17 Task 3 `cmp` · 채택안 파일은 test 에서 읽지
+  // 않는다 — public 배포본에는 `.planning/` 이 없다).
+  group('T-17-PHOTO-08: 설정 화면 golden — ko 280×800 W5 · 사진 없음 · 알림 꺼짐 '
+      '= 채택안 byte 동일 (Phase 16.8 D-07 · D-14 · Phase 17)', () {
     for (final brightness in Brightness.values) {
       final mode = brightness.name;
 
