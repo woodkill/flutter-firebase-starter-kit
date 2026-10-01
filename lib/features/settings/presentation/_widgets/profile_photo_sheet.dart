@@ -13,23 +13,37 @@ import '../../../../core/theme/theme_extensions.dart';
 enum ProfilePhotoSheetAction {
   /// 「갤러리에서 사진 선택」.
   pick,
+
+  /// 「올린 사진 삭제」 (직접 올린 사진이 있을 때만).
+  remove,
 }
 
 /// 프로필 사진 메뉴를 연다 (UI-SPEC (P) · M3 modal bottom sheet).
 ///
 /// 고른 동작을 돌려준다. 「취소」 · 바깥 탭 · back 은 null.
-Future<ProfilePhotoSheetAction?> showProfilePhotoSheet(BuildContext context) {
+/// [hasCustomPhoto] 가 true 일 때만 「올린 사진 삭제」 항목을 그린다 — 항목
+/// 3개(선택 · 삭제 · 취소), 아니면 2개(선택 · 취소) (UI-SPEC E3).
+Future<ProfilePhotoSheetAction?> showProfilePhotoSheet(
+  BuildContext context, {
+  required bool hasCustomPhoto,
+}) {
   return showModalBottomSheet<ProfilePhotoSheetAction>(
     context: context,
     showDragHandle: true,
-    builder: (_) => const ProfilePhotoSheet(),
+    builder: (_) => ProfilePhotoSheet(hasCustomPhoto: hasCustomPhoto),
   );
 }
 
 /// 프로필 사진 메뉴 본문 — 제목 + 항목 [ListTile] + 「취소」.
+///
+/// 「올린 사진 삭제」 는 기본 색이다(destructive 강조 · 확인 다이얼로그 없음 —
+/// 소셜 사진으로 돌아갈 뿐 복구 가능한 동작).
 class ProfilePhotoSheet extends StatelessWidget {
   /// [ProfilePhotoSheet] 를 생성한다.
-  const ProfilePhotoSheet({super.key});
+  const ProfilePhotoSheet({super.key, required this.hasCustomPhoto});
+
+  /// 직접 올린 사진이 있으면 true — 「올린 사진 삭제」 항목을 그린다.
+  final bool hasCustomPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +76,17 @@ class ProfilePhotoSheet extends StatelessWidget {
             onTap: () =>
                 Navigator.of(context).pop(ProfilePhotoSheetAction.pick),
           ),
+          if (hasCustomPhoto)
+            ListTile(
+              contentPadding: itemPadding,
+              leading: const Icon(Icons.delete_outline),
+              title: Text(
+                l10n.settingsProfilePhotoRemove,
+                style: typography.bodyLarge,
+              ),
+              onTap: () =>
+                  Navigator.of(context).pop(ProfilePhotoSheetAction.remove),
+            ),
           ListTile(
             contentPadding: itemPadding,
             leading: Icon(Icons.close, color: scheme.onSurfaceVariant),

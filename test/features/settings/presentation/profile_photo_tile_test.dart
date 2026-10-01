@@ -2,12 +2,20 @@
 //
 // - T-17-PHOTO-03: 설정 「내 계정」 첫 행 = 사진 행 → 탭 → 메뉴 2항목(사진
 //   없음) → 「갤러리에서 사진 선택」 → 시트 닫힘 · 업로드 1회 · 성공 SnackBar.
+// - T-17-PHOTO-05: 업로드 사진 있음 → 메뉴 3항목 · 삭제 아이콘 기본 색 · 확인
+//   다이얼로그 없이 삭제 1회 · 성공 SnackBar · 취소 = 호출 0.
+// - T-17-PHOTO-06: 행 상태 — 출처 loading(「불러오는 중」 · 탭 비활성) · error
+//   (업로드 사진 없음 취급 · 탭 가능 · 배너 0) · busy(진행 링 · 「사진을 올리는
+//   중…」 · 탭 비활성) · 업로드 실패(SnackBar · 값 이전 상태).
+// - T-17-PHOTO-07: ja 280 — 값 「アップロードした写真」 2줄 · 삭제 항목 2줄 ·
+//   overflow 0.
 // - T-17-PHOTO-10: Notifier 층 안전망(D-20 ②) — repository 밖 throw 는 기록 1회 ·
 //   결과 failed · busy 해제, repository Failure 는 기록 0.
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -27,6 +35,7 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/prof
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/profile_photo_tile.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
 
 import 'settings_golden_harness.dart' show kGoldenSixStrategies;
 
@@ -36,22 +45,38 @@ class _MockFbUser extends Mock implements fb.User {}
 
 class _FakeStackTrace extends Fake implements StackTrace {}
 
-/// [ProfilePhotoRepository] 대체 — 호출 uid 를 기록하고 [onUpload] 결과를 준다.
+/// [ProfilePhotoRepository] 대체 — 호출 uid 를 기록하고 [onUpload] ·
+/// [onRemove] 결과를 준다.
 class _FakeProfilePhotoRepository implements ProfilePhotoRepository {
-  _FakeProfilePhotoRepository({required this.onUpload});
+  _FakeProfilePhotoRepository({required this.onUpload, this.onRemove});
 
   /// pickAndUpload 동작.
   Future<Result<String?>> Function() onUpload;
 
+  /// remove 동작 (null = 성공).
+  Future<Result<void>> Function()? onRemove;
+
   /// pickAndUpload 에 넘어온 uid 목록.
   final List<String> uploadUids = <String>[];
+
+  /// remove 에 넘어온 uid 목록.
+  final List<String> removeUids = <String>[];
 
   @override
   Future<Result<String?>> pickAndUpload(String uid) {
     uploadUids.add(uid);
     return onUpload();
   }
+
+  @override
+  Future<Result<void>> remove(String uid) {
+    removeUids.add(uid);
+    return onRemove?.call() ?? Future.value(const Result.success(null));
+  }
 }
+
+/// 업로드 사진 URL fixture — 합성 값.
+const String _kCustomUrl = 'https://example.com/avatar.jpg?alt=media&v=1';
 
 /// 업로드 사진 · 소셜 사진 없는 정식 사용자 fixture.
 final User _user = User(
@@ -61,6 +86,12 @@ final User _user = User(
   createdAt: DateTime.utc(2026, 10),
   providerIds: const <String>['google.com'],
   signUpProviderId: 'google.com',
+);
+
+/// [_user] 에 업로드 사진이 있는 fixture (D-17 — 표시 사진 = 업로드 사진).
+final User _customUser = _user.copyWith(
+  customPhotoUrl: _kCustomUrl,
+  photoUrl: _kCustomUrl,
 );
 
 /// 사진 출처 stream fixture — 업로드 사진 없음.
@@ -78,28 +109,35 @@ fb.User _regularFbUser() {
   return user;
 }
 
-/// production [SettingsScreen] 을 ko 로 pump 한다 (800×600 기본 viewport).
+/// production [SettingsScreen] 을 pump 한다 (기본 ko · 800×600 viewport).
+///
+/// [records] 는 사진 출처 stream (기본 = 업로드 사진 없음 data 1회). 재시도는
+/// 끈다 — error 상태가 재구독으로 흔들리지 않게 한다.
 Future<void> _pumpSettings(
   WidgetTester tester, {
   required ProfilePhotoRepository repository,
+  User? user,
+  Stream<UserProviderRecord> Function()? records,
+  Locale locale = const Locale('ko'),
 }) async {
   await tester.pumpWidget(
     ProviderScope(
+      retry: (_, _) => null,
       overrides: [
-        currentUserProvider.overrideWith((ref) => _user),
+        currentUserProvider.overrideWith((ref) => user ?? _user),
         activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),
         notificationSettingsProvider.overrideWithBuild(
           (ref, notifier) => false,
         ),
-        linkedProvidersStreamProvider(
-          'u1',
-        ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
+        linkedProvidersStreamProvider('u1').overrideWith(
+          (ref) => records?.call() ?? Stream.value(_kNoPhotoRecord),
+        ),
         authStateProvider.overrideWithValue(AsyncData(_regularFbUser())),
         profilePhotoRepositoryProvider.overrideWithValue(repository),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
-        locale: const Locale('ko'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: const SettingsScreen(),
@@ -107,6 +145,31 @@ Future<void> _pumpSettings(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+/// 설정의 사진 행 [ListTile].
+Finder _photoRow() => find.descendant(
+  of: find.byType(ProfilePhotoTile),
+  matching: find.byType(ListTile),
+);
+
+/// [finder] 문단의 렌더 줄 수 — 같은 폭 · maxLines · ellipsis 로 재배치해 센다.
+int _lineCountOf(WidgetTester tester, Finder finder) {
+  final rp = tester.renderObject<RenderParagraph>(finder);
+  expect(rp.maxLines, isNull, reason: '줄 수 제한 없음(자르지 않음)');
+  expect(rp.didExceedMaxLines, isFalse);
+  final painter = TextPainter(
+    text: rp.text,
+    textDirection: rp.textDirection,
+    textScaler: rp.textScaler,
+    locale: rp.locale,
+    strutStyle: rp.strutStyle,
+    textWidthBasis: rp.textWidthBasis,
+    textHeightBehavior: rp.textHeightBehavior,
+  )..layout(maxWidth: rp.constraints.maxWidth);
+  final count = painter.computeLineMetrics().length;
+  painter.dispose();
+  return count;
 }
 
 void main() {
@@ -225,6 +288,217 @@ void main() {
 
       expect(repository.uploadUids, <String>['u1']);
       expect(find.byType(SnackBar), findsNothing);
+    });
+  });
+
+  group('Phase 17 사진 메뉴 · 삭제 · 행 상태 (T-17-PHOTO)', () {
+    testWidgets('T-17-PHOTO-05: 업로드 사진 있음 → 메뉴 3항목 · 삭제 아이콘 기본 색 · '
+        '확인 없이 삭제 1회 · 성공 SnackBar', (tester) async {
+      final repository = _FakeProfilePhotoRepository(
+        onUpload: () async => const Result.success(_kCustomUrl),
+      );
+      await _pumpSettings(tester, repository: repository, user: _customUser);
+
+      final row = _photoRow();
+      expect(
+        find.descendant(of: row, matching: find.text('직접 올린 사진')),
+        findsOneWidget,
+      );
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      final sheet = find.byType(ProfilePhotoSheet);
+      expect(
+        find.descendant(of: sheet, matching: find.byType(ListTile)),
+        findsNWidgets(3),
+      );
+      // 삭제 항목 — destructive 색 아님(기본 색 · Icon.color 미지정).
+      final deleteIcon = tester.widget<Icon>(
+        find.descendant(of: sheet, matching: find.byIcon(Icons.delete_outline)),
+      );
+      expect(deleteIcon.color, isNull);
+      final deleteTitle = tester.widget<Text>(
+        find.descendant(of: sheet, matching: find.text('올린 사진 삭제')),
+      );
+      final scheme = Theme.of(tester.element(sheet)).colorScheme;
+      expect(deleteTitle.style?.color, isNot(scheme.error));
+
+      await tester.tap(find.text('올린 사진 삭제'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(ProfilePhotoSheet), findsNothing);
+      expect(repository.removeUids, <String>['u1']);
+      expect(repository.uploadUids, isEmpty);
+      expect(find.text('올린 사진을 삭제했습니다.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-17-PHOTO-05: 업로드 사진 있음 · 취소 → 시트 닫힘 · 호출 0', (tester) async {
+      final repository = _FakeProfilePhotoRepository(
+        onUpload: () async => const Result.success(_kCustomUrl),
+      );
+      await _pumpSettings(tester, repository: repository, user: _customUser);
+
+      await tester.tap(_photoRow());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('취소'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfilePhotoSheet), findsNothing);
+      expect(repository.removeUids, isEmpty);
+      expect(repository.uploadUids, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('T-17-PHOTO-05: 삭제 실패 → errorProfilePhotoRemoveFailed '
+        'SnackBar · 값 이전 상태', (tester) async {
+      final repository = _FakeProfilePhotoRepository(
+        onUpload: () async => const Result.success(_kCustomUrl),
+        onRemove: () async =>
+            const Result<void>.failure(ProfilePhotoRemoveException()),
+      );
+      await _pumpSettings(tester, repository: repository, user: _customUser);
+
+      await tester.tap(_photoRow());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('올린 사진 삭제'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('사진을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+      expect(
+        find.descendant(of: _photoRow(), matching: find.text('직접 올린 사진')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('T-17-PHOTO-06: 출처 loading → 「불러오는 중」 · 탭 비활성', (tester) async {
+      final controller = StreamController<UserProviderRecord>();
+      addTearDown(controller.close);
+      await _pumpSettings(
+        tester,
+        repository: _FakeProfilePhotoRepository(
+          onUpload: () async => const Result.success(_kCustomUrl),
+        ),
+        records: () => controller.stream,
+      );
+
+      final row = _photoRow();
+      expect(
+        find.descendant(of: row, matching: find.text('불러오는 중')),
+        findsOneWidget,
+      );
+      expect(tester.widget<ListTile>(row).onTap, isNull);
+    });
+
+    testWidgets('T-17-PHOTO-06: 출처 error → 업로드 사진 없음 취급 · 탭 가능 · '
+        '배너 0 · 메뉴 2항목', (tester) async {
+      await _pumpSettings(
+        tester,
+        repository: _FakeProfilePhotoRepository(
+          onUpload: () async => const Result.success(_kCustomUrl),
+        ),
+        // currentUser 는 업로드 사진을 들고 있어도 출처 읽기 실패면 없음 취급.
+        user: _customUser,
+        records: () => Stream.error(StateError('read failed')),
+      );
+
+      final row = _photoRow();
+      expect(
+        find.descendant(of: row, matching: find.text('없음')),
+        findsOneWidget,
+      );
+      expect(find.byType(ErrorBanner), findsNothing);
+      expect(tester.widget<ListTile>(row).onTap, isNotNull);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(ProfilePhotoSheet),
+          matching: find.byType(ListTile),
+        ),
+        findsNWidgets(2),
+      );
+      expect(find.text('올린 사진 삭제'), findsNothing);
+    });
+
+    testWidgets('T-17-PHOTO-06: 업로드 중 → 진행 링(40 dp) · 「사진을 올리는 중…」 · '
+        '탭 비활성 → 실패 SnackBar · 값 이전 상태', (tester) async {
+      final completer = Completer<Result<String?>>();
+      await _pumpSettings(
+        tester,
+        repository: _FakeProfilePhotoRepository(
+          onUpload: () => completer.future,
+        ),
+      );
+
+      await tester.tap(_photoRow());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('갤러리에서 사진 선택'));
+      // 진행 링이 계속 돌아 settle 하지 않는다 — 시트 닫힘 전환만 흘린다.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      final row = _photoRow();
+      expect(
+        find.descendant(of: row, matching: find.text('사진을 올리는 중…')),
+        findsOneWidget,
+      );
+      expect(tester.widget<ListTile>(row).onTap, isNull);
+      final ring = find.descendant(
+        of: row,
+        matching: find.byType(CircularProgressIndicator),
+      );
+      expect(ring, findsOneWidget);
+      expect(tester.getSize(ring), const Size(40, 40));
+
+      completer.complete(
+        const Result<String?>.failure(ProfilePhotoUploadException()),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('사진을 올리지 못했습니다. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+      expect(
+        find.descendant(of: _photoRow(), matching: find.text('없음')),
+        findsOneWidget,
+      );
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.widget<ListTile>(_photoRow()).onTap, isNotNull);
+    });
+
+    testWidgets('T-17-PHOTO-07: ja 280 — 값 「アップロードした写真」 2줄 · 삭제 항목 '
+        '2줄 · overflow 0', (tester) async {
+      tester.view.physicalSize = const Size(280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _pumpSettings(
+        tester,
+        repository: _FakeProfilePhotoRepository(
+          onUpload: () async => const Result.success(_kCustomUrl),
+        ),
+        user: _customUser,
+        locale: const Locale('ja'),
+      );
+      expect(tester.takeException(), isNull);
+
+      final value = find.descendant(
+        of: _photoRow(),
+        matching: find.text('アップロードした写真'),
+      );
+      expect(value, findsOneWidget);
+      expect(_lineCountOf(tester, value), 2);
+
+      await tester.tap(_photoRow());
+      await tester.pumpAndSettle();
+      final removeItem = find.descendant(
+        of: find.byType(ProfilePhotoSheet),
+        matching: find.text('アップロードした写真を削除'),
+      );
+      expect(removeItem, findsOneWidget);
+      expect(_lineCountOf(tester, removeItem), 2);
+      expect(tester.takeException(), isNull);
     });
   });
 

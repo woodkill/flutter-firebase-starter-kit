@@ -4,6 +4,8 @@
 //   customPhotoUrl set-merge · 취소 = 호출 0 · 리사이즈 인자.
 // - T-17-PHOTO-02: Firebase 실패 = ProfilePhotoUploadException(기록 0) ·
 //   예상치 못한 오류 = UnknownException(기록 1 · reason 상수).
+// - T-17-PHOTO-04: 삭제 = Storage delete → customPhotoUrl null merge ·
+//   object-not-found 무시 · 그 밖 실패 = ProfilePhotoRemoveException · 필드 write 0.
 import 'dart:async';
 import 'dart:io';
 
@@ -229,6 +231,93 @@ void main() {
           any<Object>(that: isA<StateError>()),
           any<StackTrace?>(),
           reason: 'profile_photo_repository_upload',
+          fatal: false,
+        ),
+      ).called(1);
+      verifyNever(() => userDoc.set(any(), any()));
+    });
+
+    test('T-17-PHOTO-04: remove → Storage delete 1회 → customPhotoUrl null '
+        'merge 1회 · Success', () async {
+      when(() => reference.delete()).thenAnswer((_) async {});
+
+      final result = await repository.remove('u1');
+
+      expect(result, isA<Success<void>>());
+      verify(() => storage.ref('users/u1/profile/avatar.jpg')).called(1);
+      verify(() => reference.delete()).called(1);
+      final setArgs = verify(
+        () => userDoc.set(captureAny(), captureAny()),
+      ).captured;
+      expect(setArgs[0], <String, Object?>{'customPhotoUrl': null});
+      expect((setArgs[1] as SetOptions).merge, isTrue);
+    });
+
+    test('T-17-PHOTO-04: Storage object-not-found → 무시하고 필드 null · '
+        'Success', () async {
+      when(() => reference.delete()).thenThrow(
+        FirebaseException(plugin: 'firebase_storage', code: 'object-not-found'),
+      );
+
+      final result = await repository.remove('u1');
+
+      expect(result, isA<Success<void>>());
+      verify(() => userDoc.set(any(), any())).called(1);
+    });
+
+    test('T-17-PHOTO-04: Storage 그 밖 FirebaseException → '
+        'Failure(ProfilePhotoRemoveException) · 필드 write 0 · 기록 0', () async {
+      when(() => reference.delete()).thenThrow(
+        FirebaseException(plugin: 'firebase_storage', code: 'unauthorized'),
+      );
+
+      final result = await repository.remove('u1');
+
+      expect(result, isA<Failure<void>>());
+      expect(
+        (result as Failure<void>).exception,
+        isA<ProfilePhotoRemoveException>(),
+      );
+      verifyNever(() => userDoc.set(any(), any()));
+      verifyNever(
+        () => crashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
+    });
+
+    test('T-17-PHOTO-04: 필드 write FirebaseException → '
+        'Failure(ProfilePhotoRemoveException)', () async {
+      when(() => reference.delete()).thenAnswer((_) async {});
+      when(() => userDoc.set(any(), any())).thenThrow(
+        FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+      );
+
+      final result = await repository.remove('u1');
+
+      expect(result, isA<Failure<void>>());
+      expect(
+        (result as Failure<void>).exception,
+        isA<ProfilePhotoRemoveException>(),
+      );
+    });
+
+    test('T-17-PHOTO-04: 예상치 못한 StateError → UnknownException · '
+        '기록 1회(reason profile_photo_repository_remove)', () async {
+      when(() => reference.delete()).thenThrow(StateError('boom'));
+
+      final result = await repository.remove('u1');
+
+      expect(result, isA<Failure<void>>());
+      expect((result as Failure<void>).exception, isA<UnknownException>());
+      verify(
+        () => crashlytics.recordError(
+          any<Object>(that: isA<StateError>()),
+          any<StackTrace?>(),
+          reason: 'profile_photo_repository_remove',
           fatal: false,
         ),
       ).called(1);

@@ -40,28 +40,61 @@ class ProfilePhotoNotifier extends _$ProfilePhotoNotifier {
   /// 본문은 [guardAsyncValue] 로 감싼다 — repository 의 `Result` 실패는
   /// throw 가 아니라 기록 0, 그 밖에서 throw 된 non-AppException 은 1회 기록
   /// (D-20 ②). 진행 중 재호출은 [ProfilePhotoActionResult.cancelled].
-  Future<ProfilePhotoActionResult> pickAndUpload() async {
+  Future<ProfilePhotoActionResult> pickAndUpload() => _runWhileBusy(
+    (crashlytics) => guardAsyncValue<ProfilePhotoActionResult>(
+      () async {
+        final uid = _currentRegularUid();
+        if (uid == null) return ProfilePhotoActionResult.failed;
+        final outcome = await ref
+            .read(profilePhotoRepositoryProvider)
+            .pickAndUpload(uid);
+        return switch (outcome) {
+          Success(data: null) => ProfilePhotoActionResult.cancelled,
+          Success() => ProfilePhotoActionResult.success,
+          Failure() => ProfilePhotoActionResult.failed,
+        };
+      },
+      reason: 'profile_photo_notifier_upload',
+      crashlytics: crashlytics,
+    ),
+  );
+
+  /// 직접 올린 사진을 지운다 (D-17 · 확인 다이얼로그 없음).
+  ///
+  /// [pickAndUpload] 와 같은 안전망 · busy 규칙을 쓴다 (D-20 ②).
+  Future<ProfilePhotoActionResult> remove() => _runWhileBusy(
+    (crashlytics) => guardAsyncValue<ProfilePhotoActionResult>(
+      () async {
+        final uid = _currentRegularUid();
+        if (uid == null) return ProfilePhotoActionResult.failed;
+        final outcome = await ref
+            .read(profilePhotoRepositoryProvider)
+            .remove(uid);
+        return switch (outcome) {
+          Success() => ProfilePhotoActionResult.success,
+          Failure() => ProfilePhotoActionResult.failed,
+        };
+      },
+      reason: 'profile_photo_notifier_remove',
+      crashlytics: crashlytics,
+    ),
+  );
+
+  /// [action] 동안 busy 를 켜 두고 결과를 동작 결과로 바꾼다.
+  ///
+  /// 이미 진행 중이면 [action] 없이 [ProfilePhotoActionResult.cancelled] —
+  /// 동시 업로드 · 삭제 0. busy 해제는 `finally` 로 보장한다.
+  Future<ProfilePhotoActionResult> _runWhileBusy(
+    Future<AsyncValue<ProfilePhotoActionResult>> Function(
+      CrashlyticsService crashlytics,
+    )
+    action,
+  ) async {
     if (state) return ProfilePhotoActionResult.cancelled;
     final crashlytics = ref.read(crashlyticsServiceProvider);
     state = true;
     try {
-      final result = await guardAsyncValue<ProfilePhotoActionResult>(
-        () async {
-          final uid = _currentRegularUid();
-          if (uid == null) return ProfilePhotoActionResult.failed;
-          final outcome = await ref
-              .read(profilePhotoRepositoryProvider)
-              .pickAndUpload(uid);
-          return switch (outcome) {
-            Success(data: null) => ProfilePhotoActionResult.cancelled,
-            Success() => ProfilePhotoActionResult.success,
-            Failure() => ProfilePhotoActionResult.failed,
-          };
-        },
-        reason: 'profile_photo_notifier_upload',
-        crashlytics: crashlytics,
-      );
-      return _resultOf(result);
+      return _resultOf(await action(crashlytics));
     } finally {
       if (ref.mounted) state = false;
     }
