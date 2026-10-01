@@ -8,6 +8,7 @@ import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/notifications/application/notification_settings_notifier.dart';
+import 'features/notifications/application/notification_tap_handler.dart';
 import 'l10n/generated/app_localizations.dart';
 
 /// 앱의 루트 위젯.
@@ -45,6 +46,8 @@ class App extends ConsumerWidget {
     // listen 은 값이 바뀌어도 App 을 다시 그리지 않는다 — 알림 notifier 가
     // 앱 시작 때 OS 권한 · opt-in 을 읽고 토큰 문서를 맞추게 깨우기만 한다.
     ref.listen<AsyncValue<bool>>(notificationSettingsProvider, (_, _) {});
+    // Phase 17 D-01 · D-04 — 알림 수신 표시 · 탭 경로 핸들러 활성화(재빌드 0).
+    ref.listen(notificationTapHandlerProvider, (previous, next) {});
 
     return MaterialApp.router(
       // 앱 타이틀은 OS 최근 앱 화면(task description) 과 접근성 표면에

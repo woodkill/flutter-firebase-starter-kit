@@ -21,6 +21,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
+import '../../notifications/presentation/pending_notification_route_listener.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 import '_widgets/announcement_bar.dart';
 
@@ -108,6 +109,9 @@ class EnvironmentInfoScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
+          // Phase 17 D-04 — authRedirect 뒤 소비: 알림 탭 경로를 홈이 그려진
+          // 뒤에 꺼내 이동한다(크기 0).
+          const PendingNotificationRouteListener(),
           // Phase 17 — see ROADMAP.md (D-37 · UI-SPEC Q1-B): Remote Config 공지
           // 배너는 AppBar 바로 아래 · 게스트 바 위에 고정된다(게스트 · 가입자
           // 모두). 표시할 문구가 없으면 크기 0 이다.
