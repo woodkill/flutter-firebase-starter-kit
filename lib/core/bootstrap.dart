@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/app.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/config/app_config.dart';
+import 'package:flutter_starter_kit/core/error/error_widget_builder.dart';
 import 'package:flutter_starter_kit/core/firebase/firebase_initializer.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -32,7 +33,10 @@ import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 ///    - 경로 2: [FlutterError.onError] -> recordFlutterFatalError
 ///    - 경로 3: [PlatformDispatcher.onError] -> recordError(fatal: true)
 /// 6. [GoogleSignIn.instance.initialize] -- Google Sign-In 초기화
-/// 7. [runApp] -- [ProviderScope] 로 감싼 [App] 위젯 실행
+/// 7. release 빌드만 [ErrorWidget.builder] 를 [buildReleaseErrorWidget] 으로
+///    교체 (Phase 17 D-22 -- 깨진 화면 대체 + non-fatal 기록, Firebase 초기화
+///    결과와 무관하게 설치)
+/// 8. [runApp] -- [ProviderScope] 로 감싼 [App] 위젯 실행
 ///
 /// [isFirebaseInitializedProvider] 에 Firebase 초기화 결과를 override 로
 /// 주입하여 Router 와 화면 모두에서 Provider 를 통해 접근할 수 있도록 한다.
@@ -234,6 +238,28 @@ Future<void> bootstrap() async {
           if (kDebugMode) {
             debugPrint('bootstrap 초기화 실패 (Firebase 비활성): $e\n$st');
           }
+        }
+
+        // release 깨진 화면 대체 (Phase 17 — see ROADMAP.md (D-22)) — debug 는
+        // SDK 기본 빨간 화면 유지. Firebase 초기화 결과와 무관하게 설치하고,
+        // Crashlytics 미초기화면 기록만 생략한다. 위 3경로 fatal 은 그대로다 —
+        // 이 기록은 「대체 화면이 사용자에게 보였다」 는 별도 non-fatal 신호다.
+        if (!kDebugMode) {
+          ErrorWidget.builder = (details) => buildReleaseErrorWidget(
+            details,
+            onBuildError: (d) {
+              if (isFirebaseInitialized) {
+                unawaited(
+                  FirebaseCrashlytics.instance.recordError(
+                    d.exception,
+                    d.stack,
+                    reason: kErrorWidgetBuildReason,
+                    fatal: false,
+                  ),
+                );
+              }
+            },
+          );
         }
 
         runApp(
