@@ -3,6 +3,9 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
   testMatch: ["**/test/**/*.test.ts"],
+  // Phase 17 — see ROADMAP.md · rules 테스트는 에뮬레이터 전용 → jest.rules.config.js
+  // (`pnpm test:rules`). unit jest 는 에뮬레이터 없이 돌아야 하므로 제외한다.
+  testPathIgnorePatterns: ["/node_modules/", "/test/rules/"],
   transform: {
     "^.+\\.ts$": ["ts-jest", {tsconfig: "tsconfig.dev.json"}],
   },
