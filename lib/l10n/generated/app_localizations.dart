@@ -1552,11 +1552,161 @@ abstract class AppLocalizations {
   /// **'You can delete your account once every service is disconnected or skipped.'**
   String get withdrawalDisconnectFinalHint;
 
+  /// Phase 17 D-09 · D-12 · D-37 — semantics prefix of the home announcement banner (not visible).
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement'**
+  String get homeAnnouncementLabel;
+
+  /// Phase 17 D-09 · D-12 · D-37 — tooltip and semantics label of the announcement banner close button.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss announcement'**
+  String get homeAnnouncementDismiss;
+
+  /// Phase 17 D-03 · D-32 — Settings notifications section heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get settingsNotificationsSection;
+
+  /// Phase 17 D-03 · D-32 — title of the per-device notification opt-in switch.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive notifications'**
+  String get settingsNotificationsToggle;
+
+  /// Phase 17 D-03 · D-32 — switch subtitle telling the setting applies to this device only (token = device).
+  ///
+  /// In en, this message translates to:
+  /// **'Get notifications on this device.'**
+  String get settingsNotificationsToggleSubtitle;
+
+  /// Phase 17 D-03 · D-32 — SnackBar shown when the OS notification permission is denied while turning the switch on.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are turned off for this app. Allow them in your phone\'s settings.'**
+  String get settingsNotificationsPermissionDenied;
+
+  /// Phase 17 D-03 · D-23 — notification switch on/off or read failure (NotificationSettingsUpdateException).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t update notification settings. Please try again later.'**
+  String get errorNotificationsUpdateFailed;
+
+  /// Phase 17 D-15 · D-17 · D-18 — profile photo row value when the user uploaded a photo.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded photo'**
+  String get settingsProfilePhotoSourceCustom;
+
+  /// Phase 17 D-15 · D-17 · D-18 — profile photo row value when the social account photo (Auth photoURL) is shown.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo from your social account'**
+  String get settingsProfilePhotoSourceSocial;
+
+  /// Phase 17 D-15 · D-17 · D-18 — profile photo row value when there is no photo.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get settingsProfilePhotoSourceNone;
+
+  /// Phase 17 D-15 · D-17 · D-18 — profile photo row value while uploading or removing.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading photo…'**
+  String get settingsProfilePhotoUploading;
+
+  /// Phase 17 D-15 · D-17 · D-18 — profile photo menu item that opens the gallery picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose from gallery'**
+  String get settingsProfilePhotoPick;
+
+  /// Phase 17 D-15 · D-17 · D-18 — profile photo menu item shown only when an uploaded photo exists.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove uploaded photo'**
+  String get settingsProfilePhotoRemove;
+
+  /// Phase 17 D-15 · D-17 · D-18 — success SnackBar after uploading a profile photo.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile photo updated.'**
+  String get settingsProfilePhotoUpdated;
+
+  /// Phase 17 D-15 · D-17 · D-18 — success SnackBar after removing the uploaded photo.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded photo removed.'**
+  String get settingsProfilePhotoRemoved;
+
+  /// Phase 17 D-15 · D-21 — profile photo upload failure SnackBar (ProfilePhotoUploadException).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t upload the photo. Please try again later.'**
+  String get errorProfilePhotoUploadFailed;
+
+  /// Phase 17 D-15 · D-21 — profile photo removal failure SnackBar (ProfilePhotoRemoveException).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t remove the photo. Please try again later.'**
+  String get errorProfilePhotoRemoveFailed;
+
+  /// Phase 17 D-05 · D-34 · D-35 — Dev Tools button that calls sendTestPush for the signed-in user.
+  ///
+  /// In en, this message translates to:
+  /// **'Send me a test notification'**
+  String get devToolsSendTestPush;
+
+  /// Phase 17 D-05 · D-34 · D-35 — success message; count = number of devices the server sent to (>= 1).
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Sent a test notification to 1 device.} other{Sent a test notification to {count} devices.}}'**
+  String devToolsSendTestPushDone(int count);
+
+  /// Phase 17 D-05 · D-34 · D-35 — no target device or zero successful sends.
+  ///
+  /// In en, this message translates to:
+  /// **'No devices can receive notifications. Turn on \"Receive notifications\" in Settings.'**
+  String get devToolsSendTestPushNoDevice;
+
+  /// Phase 17 D-05 · D-34 · D-35 — server refused because test pushes are disabled in this environment (D-35).
+  ///
+  /// In en, this message translates to:
+  /// **'Test notifications are turned off in this environment.'**
+  String get devToolsSendTestPushDisabled;
+
   /// Phase 17 D-42 — App Check rejection shown for every callable (D-43). Retry first, then update.
   ///
   /// In en, this message translates to:
   /// **'We couldn\'t verify this request. Please try again later. If this keeps happening, update the app to the latest version.'**
   String get errorAppCheckFailed;
+
+  /// Phase 17 D-22 — release ErrorWidget fallback title.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong'**
+  String get errorWidgetFallbackTitle;
+
+  /// Phase 17 D-22 — release ErrorWidget fallback body; no retry button because the widget tree cannot be rebuilt safely.
+  ///
+  /// In en, this message translates to:
+  /// **'Close the app and open it again.'**
+  String get errorWidgetFallbackBody;
+
+  /// Phase 17 D-01 · D-31 — Android notification channel name shown in OS notification settings.
+  ///
+  /// In en, this message translates to:
+  /// **'General notifications'**
+  String get notificationChannelGeneralName;
+
+  /// Phase 17 D-01 · D-31 — Android notification channel description.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications sent by this app.'**
+  String get notificationChannelGeneralDescription;
 }
 
 class _AppLocalizationsDelegate

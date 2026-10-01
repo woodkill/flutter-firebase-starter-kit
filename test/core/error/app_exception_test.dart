@@ -72,11 +72,16 @@ void main() {
       // 명시적으로 다루지 않으면 여기서 컴파일 에러가 난다 — 오분류가
       // 침묵하지 않는다는 것이 이 변경의 핵심이다.
       // WR-13: InvalidInput 이 추가되어 직속 하위가 4 → 5 종이 됐다.
+      // Phase 17 — see ROADMAP.md (D-03 · D-15 · D-23): 기능별 실패 leaf 3종이
+      // 추가되어 5 → 8 종이 됐다.
       String classify(AppException exception) => switch (exception) {
         NetworkException() => 'network',
         AuthException() => 'auth',
         ServerException() => 'server',
         InvalidInput() => 'invalid-input',
+        NotificationSettingsUpdateException() => 'notifications',
+        ProfilePhotoUploadException() => 'photo-upload',
+        ProfilePhotoRemoveException() => 'photo-remove',
         UnknownException() => 'unknown',
       };
 

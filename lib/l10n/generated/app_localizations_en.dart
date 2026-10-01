@@ -842,6 +842,98 @@ class AppLocalizationsEn extends AppLocalizations {
       'You can delete your account once every service is disconnected or skipped.';
 
   @override
+  String get homeAnnouncementLabel => 'Announcement';
+
+  @override
+  String get homeAnnouncementDismiss => 'Dismiss announcement';
+
+  @override
+  String get settingsNotificationsSection => 'Notifications';
+
+  @override
+  String get settingsNotificationsToggle => 'Receive notifications';
+
+  @override
+  String get settingsNotificationsToggleSubtitle =>
+      'Get notifications on this device.';
+
+  @override
+  String get settingsNotificationsPermissionDenied =>
+      'Notifications are turned off for this app. Allow them in your phone\'s settings.';
+
+  @override
+  String get errorNotificationsUpdateFailed =>
+      'Couldn\'t update notification settings. Please try again later.';
+
+  @override
+  String get settingsProfilePhotoSourceCustom => 'Uploaded photo';
+
+  @override
+  String get settingsProfilePhotoSourceSocial =>
+      'Photo from your social account';
+
+  @override
+  String get settingsProfilePhotoSourceNone => 'None';
+
+  @override
+  String get settingsProfilePhotoUploading => 'Uploading photo…';
+
+  @override
+  String get settingsProfilePhotoPick => 'Choose from gallery';
+
+  @override
+  String get settingsProfilePhotoRemove => 'Remove uploaded photo';
+
+  @override
+  String get settingsProfilePhotoUpdated => 'Profile photo updated.';
+
+  @override
+  String get settingsProfilePhotoRemoved => 'Uploaded photo removed.';
+
+  @override
+  String get errorProfilePhotoUploadFailed =>
+      'Couldn\'t upload the photo. Please try again later.';
+
+  @override
+  String get errorProfilePhotoRemoveFailed =>
+      'Couldn\'t remove the photo. Please try again later.';
+
+  @override
+  String get devToolsSendTestPush => 'Send me a test notification';
+
+  @override
+  String devToolsSendTestPushDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Sent a test notification to $count devices.',
+      one: 'Sent a test notification to 1 device.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get devToolsSendTestPushNoDevice =>
+      'No devices can receive notifications. Turn on \"Receive notifications\" in Settings.';
+
+  @override
+  String get devToolsSendTestPushDisabled =>
+      'Test notifications are turned off in this environment.';
+
+  @override
   String get errorAppCheckFailed =>
       'We couldn\'t verify this request. Please try again later. If this keeps happening, update the app to the latest version.';
+
+  @override
+  String get errorWidgetFallbackTitle => 'Something went wrong';
+
+  @override
+  String get errorWidgetFallbackBody => 'Close the app and open it again.';
+
+  @override
+  String get notificationChannelGeneralName => 'General notifications';
+
+  @override
+  String get notificationChannelGeneralDescription =>
+      'Notifications sent by this app.';
 }

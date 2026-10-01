@@ -5,9 +5,11 @@ import '../auth/provider_id.dart';
 /// 모든 도메인별 예외는 이 클래스를 상속한다.
 /// sealed class이므로 switch 문에서 exhaustive 패턴 매칭이 가능하다.
 ///
-/// 직속 하위는 5종이다 — [NetworkException] / [AuthException] /
+/// 직속 하위는 8종이다 — [NetworkException] / [AuthException] /
 /// [ServerException] / [InvalidInput] (입력·계약 위반, WR-13) /
-/// [UnknownException] (캐치올, IN-05). exhaustive switch 는 다섯 갈래를 모두
+/// [NotificationSettingsUpdateException] · [ProfilePhotoUploadException] ·
+/// [ProfilePhotoRemoveException] (기능별 실패, Phase 17 — see ROADMAP.md) /
+/// [UnknownException] (캐치올, IN-05). exhaustive switch 는 여덟 갈래를 모두
 /// 다뤄야 한다.
 ///
 /// [userMessage]는 ARB 키 문자열을 저장하고,
@@ -472,6 +474,47 @@ final class ProviderMisconfigured extends ServerException {
 final class InvalidInput extends AppException {
   /// [InvalidInput] 을 생성한다.
   const InvalidInput({super.cause}) : super(userMessage: 'errorUnknown');
+}
+
+// ---------------------------------------------------------------------------
+// 기능별 실패 (Phase 17)
+// ---------------------------------------------------------------------------
+
+/// 알림 받기 설정을 켜거나 끄지 못함, 또는 현재 설정을 읽지 못함.
+///
+/// Phase 17 — see ROADMAP.md (D-03 · D-23). 생성처는 설정 화면 「알림 받기」
+/// 토글(plan 15) — 기기 토큰 문서 등록 · 삭제나 로컬 opt-in 저장이 실패했을
+/// 때 SnackBar(켜기 · 끄기)와 `AsyncValueView` 배너(읽기)가 이 문구를 쓴다.
+/// 권한 거부는 실패가 아니라 별도 안내(`settingsNotificationsPermissionDenied`)
+/// 다. toString 을 오버라이드하지 않는다.
+final class NotificationSettingsUpdateException extends AppException {
+  /// [NotificationSettingsUpdateException]을 생성한다.
+  const NotificationSettingsUpdateException({super.cause})
+    : super(userMessage: 'errorNotificationsUpdateFailed');
+}
+
+/// 프로필 사진을 올리지 못함.
+///
+/// Phase 17 — see ROADMAP.md (D-15 · D-21). 생성처는 설정 화면 프로필 사진
+/// 메뉴 「갤러리에서 사진 선택」(plan 17) — Storage 업로드 또는 프로필 갱신이
+/// 실패했을 때 `showErrorSnackBar` 가 이 문구를 쓴다. 사용자가 고르기를
+/// 취소한 것은 실패가 아니다. toString 을 오버라이드하지 않는다.
+final class ProfilePhotoUploadException extends AppException {
+  /// [ProfilePhotoUploadException]을 생성한다.
+  const ProfilePhotoUploadException({super.cause})
+    : super(userMessage: 'errorProfilePhotoUploadFailed');
+}
+
+/// 직접 올린 프로필 사진을 삭제하지 못함.
+///
+/// Phase 17 — see ROADMAP.md (D-15 · D-21). 생성처는 설정 화면 프로필 사진
+/// 메뉴 「올린 사진 삭제」(plan 17) — Storage 삭제 또는 프로필 갱신이 실패했을
+/// 때 `showErrorSnackBar` 가 이 문구를 쓴다. toString 을 오버라이드하지
+/// 않는다.
+final class ProfilePhotoRemoveException extends AppException {
+  /// [ProfilePhotoRemoveException]을 생성한다.
+  const ProfilePhotoRemoveException({super.cause})
+    : super(userMessage: 'errorProfilePhotoRemoveFailed');
 }
 
 // ---------------------------------------------------------------------------

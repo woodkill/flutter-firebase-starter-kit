@@ -818,6 +818,87 @@ class AppLocalizationsKo extends AppLocalizations {
   String get withdrawalDisconnectFinalHint => '모든 서비스를 해제하거나 건너뛰면 탈퇴할 수 있습니다.';
 
   @override
+  String get homeAnnouncementLabel => '공지';
+
+  @override
+  String get homeAnnouncementDismiss => '공지 닫기';
+
+  @override
+  String get settingsNotificationsSection => '알림';
+
+  @override
+  String get settingsNotificationsToggle => '알림 받기';
+
+  @override
+  String get settingsNotificationsToggleSubtitle => '이 기기에서 알림을 받습니다.';
+
+  @override
+  String get settingsNotificationsPermissionDenied =>
+      '알림 권한이 꺼져 있습니다. 휴대폰 설정에서 이 앱의 알림을 허용해 주세요.';
+
+  @override
+  String get errorNotificationsUpdateFailed =>
+      '알림 설정을 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String get settingsProfilePhotoSourceCustom => '직접 올린 사진';
+
+  @override
+  String get settingsProfilePhotoSourceSocial => '소셜 계정 사진';
+
+  @override
+  String get settingsProfilePhotoSourceNone => '없음';
+
+  @override
+  String get settingsProfilePhotoUploading => '사진을 올리는 중…';
+
+  @override
+  String get settingsProfilePhotoPick => '갤러리에서 사진 선택';
+
+  @override
+  String get settingsProfilePhotoRemove => '올린 사진 삭제';
+
+  @override
+  String get settingsProfilePhotoUpdated => '프로필 사진을 변경했습니다.';
+
+  @override
+  String get settingsProfilePhotoRemoved => '올린 사진을 삭제했습니다.';
+
+  @override
+  String get errorProfilePhotoUploadFailed => '사진을 올리지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String get errorProfilePhotoRemoveFailed =>
+      '사진을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String get devToolsSendTestPush => '나에게 테스트 알림 보내기';
+
+  @override
+  String devToolsSendTestPushDone(int count) {
+    return '기기 $count대에 테스트 알림을 보냈어요.';
+  }
+
+  @override
+  String get devToolsSendTestPushNoDevice =>
+      '알림을 받을 기기가 없어요. 설정에서 알림 받기를 켜 주세요.';
+
+  @override
+  String get devToolsSendTestPushDisabled => '이 환경에서는 테스트 알림을 보낼 수 없어요.';
+
+  @override
   String get errorAppCheckFailed =>
       '요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.';
+
+  @override
+  String get errorWidgetFallbackTitle => '문제가 발생했습니다';
+
+  @override
+  String get errorWidgetFallbackBody => '앱을 종료한 뒤 다시 실행해 주세요.';
+
+  @override
+  String get notificationChannelGeneralName => '일반 알림';
+
+  @override
+  String get notificationChannelGeneralDescription => '이 앱에서 보내는 알림입니다.';
 }

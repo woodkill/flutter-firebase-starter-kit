@@ -1377,8 +1377,139 @@
     "description": "Phase 16.10 D-05 — hint above the disabled final delete button until every row is disconnected or skipped."
   },
 
+  "homeAnnouncementLabel": "Announcement",
+  "@homeAnnouncementLabel": {
+    "description": "Phase 17 D-09 · D-12 · D-37 — semantics prefix of the home announcement banner (not visible)."
+  },
+
+  "homeAnnouncementDismiss": "Dismiss announcement",
+  "@homeAnnouncementDismiss": {
+    "description": "Phase 17 D-09 · D-12 · D-37 — tooltip and semantics label of the announcement banner close button."
+  },
+
+  "settingsNotificationsSection": "Notifications",
+  "@settingsNotificationsSection": {
+    "description": "Phase 17 D-03 · D-32 — Settings notifications section heading."
+  },
+
+  "settingsNotificationsToggle": "Receive notifications",
+  "@settingsNotificationsToggle": {
+    "description": "Phase 17 D-03 · D-32 — title of the per-device notification opt-in switch."
+  },
+
+  "settingsNotificationsToggleSubtitle": "Get notifications on this device.",
+  "@settingsNotificationsToggleSubtitle": {
+    "description": "Phase 17 D-03 · D-32 — switch subtitle telling the setting applies to this device only (token = device)."
+  },
+
+  "settingsNotificationsPermissionDenied": "Notifications are turned off for this app. Allow them in your phone's settings.",
+  "@settingsNotificationsPermissionDenied": {
+    "description": "Phase 17 D-03 · D-32 — SnackBar shown when the OS notification permission is denied while turning the switch on."
+  },
+
+  "errorNotificationsUpdateFailed": "Couldn't update notification settings. Please try again later.",
+  "@errorNotificationsUpdateFailed": {
+    "description": "Phase 17 D-03 · D-23 — notification switch on/off or read failure (NotificationSettingsUpdateException)."
+  },
+
+  "settingsProfilePhotoSourceCustom": "Uploaded photo",
+  "@settingsProfilePhotoSourceCustom": {
+    "description": "Phase 17 D-15 · D-17 · D-18 — profile photo row value when the user uploaded a photo."
+  },
+
+  "settingsProfilePhotoSourceSocial": "Photo from your social account",
+  "@settingsProfilePhotoSourceSocial": {
+    "description": "Phase 17 D-15 · D-17 · D-18 — profile photo row value when the social account photo (Auth photoURL) is shown."
+  },
+
+  "settingsProfilePhotoSourceNone": "None",
+  "@settingsProfilePhotoSourceNone": {
+    "description": "Phase 17 D-15 · D-17 · D-18 — profile photo row value when there is no photo."
+  },
+
+  "settingsProfilePhotoUploading": "Uploading photo…",
+  "@settingsProfilePhotoUploading": {
+    "description": "Phase 17 D-15 · D-17 · D-18 — profile photo row value while uploading or removing."
+  },
+
+  "settingsProfilePhotoPick": "Choose from gallery",
+  "@settingsProfilePhotoPick": {
+    "description": "Phase 17 D-15 · D-17 · D-18 — profile photo menu item that opens the gallery picker."
+  },
+
+  "settingsProfilePhotoRemove": "Remove uploaded photo",
+  "@settingsProfilePhotoRemove": {
+    "description": "Phase 17 D-15 · D-17 · D-18 — profile photo menu item shown only when an uploaded photo exists."
+  },
+
+  "settingsProfilePhotoUpdated": "Profile photo updated.",
+  "@settingsProfilePhotoUpdated": {
+    "description": "Phase 17 D-15 · D-17 · D-18 — success SnackBar after uploading a profile photo."
+  },
+
+  "settingsProfilePhotoRemoved": "Uploaded photo removed.",
+  "@settingsProfilePhotoRemoved": {
+    "description": "Phase 17 D-15 · D-17 · D-18 — success SnackBar after removing the uploaded photo."
+  },
+
+  "errorProfilePhotoUploadFailed": "Couldn't upload the photo. Please try again later.",
+  "@errorProfilePhotoUploadFailed": {
+    "description": "Phase 17 D-15 · D-21 — profile photo upload failure SnackBar (ProfilePhotoUploadException)."
+  },
+
+  "errorProfilePhotoRemoveFailed": "Couldn't remove the photo. Please try again later.",
+  "@errorProfilePhotoRemoveFailed": {
+    "description": "Phase 17 D-15 · D-21 — profile photo removal failure SnackBar (ProfilePhotoRemoveException)."
+  },
+
+  "devToolsSendTestPush": "Send me a test notification",
+  "@devToolsSendTestPush": {
+    "description": "Phase 17 D-05 · D-34 · D-35 — Dev Tools button that calls sendTestPush for the signed-in user."
+  },
+
+  "devToolsSendTestPushDone": "{count, plural, =1{Sent a test notification to 1 device.} other{Sent a test notification to {count} devices.}}",
+  "@devToolsSendTestPushDone": {
+    "description": "Phase 17 D-05 · D-34 · D-35 — success message; count = number of devices the server sent to (>= 1).",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+
+  "devToolsSendTestPushNoDevice": "No devices can receive notifications. Turn on \"Receive notifications\" in Settings.",
+  "@devToolsSendTestPushNoDevice": {
+    "description": "Phase 17 D-05 · D-34 · D-35 — no target device or zero successful sends."
+  },
+
+  "devToolsSendTestPushDisabled": "Test notifications are turned off in this environment.",
+  "@devToolsSendTestPushDisabled": {
+    "description": "Phase 17 D-05 · D-34 · D-35 — server refused because test pushes are disabled in this environment (D-35)."
+  },
+
   "errorAppCheckFailed": "We couldn't verify this request. Please try again later. If this keeps happening, update the app to the latest version.",
   "@errorAppCheckFailed": {
     "description": "Phase 17 D-42 — App Check rejection shown for every callable (D-43). Retry first, then update."
+  },
+
+  "errorWidgetFallbackTitle": "Something went wrong",
+  "@errorWidgetFallbackTitle": {
+    "description": "Phase 17 D-22 — release ErrorWidget fallback title."
+  },
+
+  "errorWidgetFallbackBody": "Close the app and open it again.",
+  "@errorWidgetFallbackBody": {
+    "description": "Phase 17 D-22 — release ErrorWidget fallback body; no retry button because the widget tree cannot be rebuilt safely."
+  },
+
+  "notificationChannelGeneralName": "General notifications",
+  "@notificationChannelGeneralName": {
+    "description": "Phase 17 D-01 · D-31 — Android notification channel name shown in OS notification settings."
+  },
+
+  "notificationChannelGeneralDescription": "Notifications sent by this app.",
+  "@notificationChannelGeneralDescription": {
+    "description": "Phase 17 D-01 · D-31 — Android notification channel description."
   }
 }

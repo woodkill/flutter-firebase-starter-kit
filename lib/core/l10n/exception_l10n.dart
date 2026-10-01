@@ -68,6 +68,13 @@ String resolveExceptionMessage(BuildContext context, AppException exception) {
     'errorReauthUserMismatch' => l10n.errorReauthUserMismatch,
     // ReauthMethodUnavailable — 재인증 수단 0 (Q7 배너).
     'errorReauthMethodUnavailable' => l10n.errorReauthMethodUnavailable,
+    // NotificationSettingsUpdateException — 알림 토글 실패 (Phase 17 D-03 ·
+    // D-23).
+    'errorNotificationsUpdateFailed' => l10n.errorNotificationsUpdateFailed,
+    // ProfilePhotoUploadException · ProfilePhotoRemoveException — 프로필 사진
+    // 실패 (Phase 17 D-15 · D-21).
+    'errorProfilePhotoUploadFailed' => l10n.errorProfilePhotoUploadFailed,
+    'errorProfilePhotoRemoveFailed' => l10n.errorProfilePhotoRemoveFailed,
     final other => _resolveUnmappedFallback(l10n, other),
   };
 }

@@ -70,6 +70,11 @@ const List<AppException> _kAllMappedExceptions = <AppException>[
   ProviderMisconfigured(),
   // 입력/계약 위반 (WR-13) — userMessage 는 errorUnknown 재사용.
   InvalidInput(),
+  // Phase 17 D-03 · D-23 — 알림 토글 실패.
+  NotificationSettingsUpdateException(),
+  // Phase 17 D-15 · D-21 — 프로필 사진 업로드 · 삭제 실패.
+  ProfilePhotoUploadException(),
+  ProfilePhotoRemoveException(),
   UnknownException(),
 ];
 

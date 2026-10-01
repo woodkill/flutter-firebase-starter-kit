@@ -818,6 +818,88 @@ class AppLocalizationsJa extends AppLocalizations {
       'すべてのサービスを解除またはスキップすると、アカウントを削除できます。';
 
   @override
+  String get homeAnnouncementLabel => 'お知らせ';
+
+  @override
+  String get homeAnnouncementDismiss => 'お知らせを閉じる';
+
+  @override
+  String get settingsNotificationsSection => '通知';
+
+  @override
+  String get settingsNotificationsToggle => '通知を受け取る';
+
+  @override
+  String get settingsNotificationsToggleSubtitle => 'この端末で通知を受け取ります。';
+
+  @override
+  String get settingsNotificationsPermissionDenied =>
+      'このアプリの通知がオフになっています。端末の設定で通知を許可してください。';
+
+  @override
+  String get errorNotificationsUpdateFailed =>
+      '通知設定を変更できませんでした。しばらくしてからもう一度お試しください。';
+
+  @override
+  String get settingsProfilePhotoSourceCustom => 'アップロードした写真';
+
+  @override
+  String get settingsProfilePhotoSourceSocial => 'ソーシャルアカウントの写真';
+
+  @override
+  String get settingsProfilePhotoSourceNone => 'なし';
+
+  @override
+  String get settingsProfilePhotoUploading => '写真をアップロード中…';
+
+  @override
+  String get settingsProfilePhotoPick => 'ギャラリーから選択';
+
+  @override
+  String get settingsProfilePhotoRemove => 'アップロードした写真を削除';
+
+  @override
+  String get settingsProfilePhotoUpdated => 'プロフィール写真を変更しました。';
+
+  @override
+  String get settingsProfilePhotoRemoved => 'アップロードした写真を削除しました。';
+
+  @override
+  String get errorProfilePhotoUploadFailed =>
+      '写真をアップロードできませんでした。しばらくしてからもう一度お試しください。';
+
+  @override
+  String get errorProfilePhotoRemoveFailed =>
+      '写真を削除できませんでした。しばらくしてからもう一度お試しください。';
+
+  @override
+  String get devToolsSendTestPush => '自分にテスト通知を送る';
+
+  @override
+  String devToolsSendTestPushDone(int count) {
+    return 'テスト通知を$count台の端末に送りました。';
+  }
+
+  @override
+  String get devToolsSendTestPushNoDevice =>
+      '通知を受け取る端末がありません。設定で「通知を受け取る」をオンにしてください。';
+
+  @override
+  String get devToolsSendTestPushDisabled => 'この環境ではテスト通知を送信できません。';
+
+  @override
   String get errorAppCheckFailed =>
       'リクエストを確認できませんでした。しばらくしてからもう一度お試しください。解決しない場合は、アプリを最新バージョンにアップデートしてください。';
+
+  @override
+  String get errorWidgetFallbackTitle => '問題が発生しました';
+
+  @override
+  String get errorWidgetFallbackBody => 'アプリを終了して、もう一度起動してください。';
+
+  @override
+  String get notificationChannelGeneralName => '一般の通知';
+
+  @override
+  String get notificationChannelGeneralDescription => 'このアプリから送信される通知です。';
 }

@@ -85,6 +85,11 @@ void main() {
           // WR-13: InvalidInput 은 입력/계약 위반 전용 직속 leaf 다
           // (서비스 장애가 아니므로 재시도 어휘를 붙이면 안 된다).
           InvalidInput() => 'invalid input',
+          // Phase 17 — see ROADMAP.md (D-03 · D-15 · D-23): 기능별 실패
+          // leaf 3종.
+          NotificationSettingsUpdateException() => 'notifications error',
+          ProfilePhotoUploadException() => 'photo upload error',
+          ProfilePhotoRemoveException() => 'photo remove error',
           // IN-05: UnknownException 은 AppException 직속 leaf 이므로
           // 별도 arm 이 필요하다 (캐치올을 서버 장애로 뭉개지 않는다).
           UnknownException() => 'unknown error',
