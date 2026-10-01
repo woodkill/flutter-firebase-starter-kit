@@ -75,3 +75,5 @@ export {disconnectLineProvider} from "./auth/disconnect_line_provider";
 export {deleteUserAccount} from "./auth/delete_user_account";
 export {lookupSignInMethods} from "./auth/lookup_sign_in_methods";
 export {mirrorTermsAcceptanceSnapshot} from "./auth/mirror_terms_acceptance";
+// Phase 17 — see ROADMAP.md (D-26)
+export {mirrorAccountEmail} from "./auth/mirror_account_email";

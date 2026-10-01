@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../features/auth/application/social_link_in_progress.dart';
+import '../../features/auth/data/account_email_mirror_client.dart';
 import '../../features/onboarding/presentation/onboarding_notifier.dart';
 import '../../features/terms/presentation/terms_notifier.dart';
 import '../analytics/analytics_service.dart';
@@ -459,6 +460,22 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
   return null; // (7) AUTH-13 자동 검증 — 인증 완료 사용자 Home 랜딩 허용.
 }
 
+/// 계정 대표 이메일 mirror 를 fire-and-forget 으로 시작한다 (Phase 17 D-26).
+///
+/// client 의 `mirror()` 는 스스로 실패를 삼킨다. 여기서는 client 를 얻는 단계
+/// (functions provider 생성 등)의 동기 예외까지 삼켜 `authUserObserver` 의
+/// tick 실패 · `auth_user_observer_tick` Crashlytics 기록으로 번지지 않게 한다.
+/// 기록은 debug 빌드 debugPrint(예외 타입 이름)뿐이다.
+void _startAccountEmailMirror(Ref ref) {
+  try {
+    unawaited(ref.read(accountEmailMirrorClientProvider).mirror());
+  } on Object catch (e) {
+    if (kDebugMode) {
+      debugPrint('authUserObserver: email mirror 시작 실패 (무시): ${e.runtimeType}');
+    }
+  }
+}
+
 /// userChanges 이벤트를 Analytics/Crashlytics setUser + Firestore mirror
 /// + termsProvider reload 에 연결한다 (Phase 10 D-30, BLOCKER #4, INFO #21,
 /// Issue #6 — Plan 10-09).
@@ -477,6 +494,10 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
 /// **호출 순서 보장:** mirrorToFirestore 가 reloadForUser 보다 **먼저**
 /// 호출된다 — anonymous→full 전이 시 Firestore 에 먼저 write 한 후 read
 /// 해야 stale read 가 발생하지 않음 (race condition 차단).
+///
+/// **Phase 17 D-26:** 정식 사용자 세션 시작(첫 emit · uid 변경 · 익명 → 정식
+/// 전이)마다 [AccountEmailMirrorClient.mirror] 를 fire-and-forget 으로 1회
+/// 부른다 — 서버가 ID token 의 대표 이메일을 `users/{uid}` 에 mirror 한다.
 ///
 /// **INFO #21 이행:** [Ref.keepAlive] 로 appRouter rebuild 시 구독이 churn
 /// 하지 않도록 보장한다.
@@ -568,6 +589,16 @@ Stream<void> authUserObserver(Ref ref) async* {
         // 수 있도록 명시적으로 redirect 재평가를 트리거한다. AuthRefresh 는 class
         // notifier 이므로 `.notifier` 를 붙여 read 한다 (revision bump).
         ref.read(authRefreshProvider.notifier).triggerRedirect();
+      }
+
+      // Phase 17 D-26 — 정식 세션 시작 1회 email mirror (native · link ·
+      // 콜드 스타트 · CT 멱등). 첫 emit · uid 변경 · 익명 → 정식 전이에서만
+      // 부르고 같은 uid 재emit 은 건너뛴다. fire-and-forget — 실패는 전부
+      // 삼키며 tick 실패 · Crashlytics 기록으로 번지지 않는다 (RESEARCH R-03 (5)).
+      if (user != null &&
+          !curIsAnonymous &&
+          (isFirstEmit || uid != prevUid || prevIsAnonymous == true)) {
+        _startAccountEmailMirror(ref);
       }
     } on Object catch (e, st) {
       // WR-03: throw 가능 지점 — terms reload 의 Error 계열 (플랫폼 채널),
