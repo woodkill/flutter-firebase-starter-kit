@@ -27,6 +27,7 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
+import '../../../shared/widgets/error_snack_bar.dart';
 import '../../auth/presentation/_widgets/social_button.dart';
 import '../data/disconnect/disconnect_step.dart';
 import '../data/disconnect/disconnect_steps.dart';
@@ -143,6 +144,19 @@ class _WithdrawalDisconnectScreenState
       }
     });
 
+    // Phase 17 D-43 · UI-SPEC (A) — 같은 원인 같은 안내 · 실패 전이 1회당 1번.
+    // 행 표시(「해제하지 못했습니다」 + 재시도)는 그대로 두고, 행이 App Check
+    // 차단으로 실패 상태에 「들어서는」 전이에서만 SnackBar 를 띄운다 — 같은
+    // 실패 상태의 재빌드 · 다른 행 갱신에는 다시 띄우지 않는다.
+    ref.listen<WithdrawalDisconnectState>(withdrawalDisconnectProvider, (
+      prev,
+      next,
+    ) {
+      if (_enteredAppCheckFailure(prev?.rows ?? const [], next.rows)) {
+        showErrorSnackBar(context, const AppCheckFailedException());
+      }
+    });
+
     ref.listen<AsyncValue<void>>(settingsProvider, (prev, next) {
       if (prev?.isLoading == true && next.hasValue && !next.hasError) {
         // 성공 — router 가 사후 정리(signOut) 뒤 /onboarding 으로 reset 한다.
@@ -247,6 +261,26 @@ class _WithdrawalDisconnectScreenState
         ),
       ),
     );
+  }
+
+  /// [next] 에 App Check 차단([AppCheckFailedException])으로 실패 상태에
+  /// 새로 들어선 행이 있는가 (Phase 17 D-43 · UI-SPEC (A) 행 4).
+  ///
+  /// 같은 provider 의 [prev] 행이 이미 실패였으면 전이가 아니다 — 재시도는
+  /// 실패 → 해제 중 → 실패로 지나가므로 다시 전이로 센다.
+  static bool _enteredAppCheckFailure(
+    List<DisconnectRow> prev,
+    List<DisconnectRow> next,
+  ) {
+    for (final row in next) {
+      if (row.status != DisconnectRowStatus.failed ||
+          row.failure is! AppCheckFailedException) {
+        continue;
+      }
+      final before = prev.where((p) => p.provider == row.provider).firstOrNull;
+      if (before?.status != DisconnectRowStatus.failed) return true;
+    }
+    return false;
   }
 
   /// 마지막 행이 아니면 행 아래 1dp 구분선을 foreground 로 그린다 (Q10).

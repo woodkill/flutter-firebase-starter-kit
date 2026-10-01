@@ -75,6 +75,7 @@ class DisconnectRow {
     required this.status,
     this.wasDisconnected = false,
     this.freshnessRefreshed = false,
+    this.failure,
   });
 
   /// `User.providerIds` 원소 그대로 (라벨 변환 입력 — `'google.com'` 등).
@@ -106,25 +107,43 @@ class DisconnectRow {
   /// 의미가 없다.
   final bool freshnessRefreshed;
 
+  /// 마지막 [DisconnectFailed] 의 원인 예외 (비시각 · Phase 17 D-43).
+  ///
+  /// [status] 가 [DisconnectRowStatus.failed] 일 때만 값이 있다 — 다른 상태로
+  /// 바뀌면 [copyWith] 가 지운다. 행 표시(「해제하지 못했습니다」)는 이 값을
+  /// 보지 않고, 화면이 실패 전이의 원인별 안내(App Check 차단 SnackBar ·
+  /// UI-SPEC (A) 행 4)를 고를 때만 읽는다.
+  final AppException? failure;
+
   /// 해제됨 또는 건너뜀 — 「탈퇴」 활성 조건의 행 단위 판정.
   bool get isFinished =>
       status == DisconnectRowStatus.done ||
       status == DisconnectRowStatus.skipped;
 
-  /// [status] · [wasDisconnected] · [freshnessRefreshed] 를 바꾼 새 행을
-  /// 돌려준다.
+  /// [status] · [wasDisconnected] · [freshnessRefreshed] · [failure] 를 바꾼
+  /// 새 행을 돌려준다.
+  ///
+  /// [failure] 는 결과 상태가 [DisconnectRowStatus.failed] 일 때만 남는다
+  /// (주어지지 않으면 기존 값 유지) — 그 밖의 상태면 지운다.
   DisconnectRow copyWith({
     DisconnectRowStatus? status,
     bool? wasDisconnected,
     bool? freshnessRefreshed,
-  }) => DisconnectRow(
-    providerId: providerId,
-    provider: provider,
-    kind: kind,
-    status: status ?? this.status,
-    wasDisconnected: wasDisconnected ?? this.wasDisconnected,
-    freshnessRefreshed: freshnessRefreshed ?? this.freshnessRefreshed,
-  );
+    AppException? failure,
+  }) {
+    final nextStatus = status ?? this.status;
+    return DisconnectRow(
+      providerId: providerId,
+      provider: provider,
+      kind: kind,
+      status: nextStatus,
+      wasDisconnected: wasDisconnected ?? this.wasDisconnected,
+      freshnessRefreshed: freshnessRefreshed ?? this.freshnessRefreshed,
+      failure: nextStatus == DisconnectRowStatus.failed
+          ? failure ?? this.failure
+          : null,
+    );
+  }
 }
 
 /// 행 목록 서버 조회 단계 (16.10 review WR-01).
@@ -460,13 +479,14 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
 
   /// [provider] 행의 상태를 [status] 로 바꾸고 현재 행을 다시 맞춘 목록.
   ///
-  /// [wasDisconnected] · [freshnessRefreshed] 가 주어지면 그 표시도 함께
-  /// 바꾼다.
+  /// [wasDisconnected] · [freshnessRefreshed] · [failure] 가 주어지면 그
+  /// 표시도 함께 바꾼다.
   List<DisconnectRow> _replaceRow(
     AccountProvider provider,
     DisconnectRowStatus status, {
     bool? wasDisconnected,
     bool? freshnessRefreshed,
+    AppException? failure,
   }) {
     return normalizeDisconnectRows(<DisconnectRow>[
       for (final row in state.rows)
@@ -475,6 +495,7 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
                 status: status,
                 wasDisconnected: wasDisconnected,
                 freshnessRefreshed: freshnessRefreshed,
+                failure: failure,
               )
             : row,
     ]);
@@ -538,6 +559,8 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
         next,
         wasDisconnected: disconnected != null ? true : null,
         freshnessRefreshed: disconnected?.sessionRefreshed,
+        // Phase 17 D-43 — 실패 원인을 행에 실어 화면이 원인별 안내를 고른다.
+        failure: outcome is DisconnectFailed ? outcome.exception : null,
       ),
       userTriggered: userTriggered ? null : state.userTriggered,
       load: state.load,

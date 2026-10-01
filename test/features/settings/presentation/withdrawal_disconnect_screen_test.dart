@@ -28,6 +28,10 @@
 //   WS20: (review IN-02 iter3) 목록 조회 중 = 원형 스피너 1개 · commonLoading 낭독
 //   WS21: (review IN-02 iter3) 조회 끝(행 ≥ 1) = 목록 조회 스피너 0 · 행 스피너와 구분
 //   WS22: (review IN-02 iter3) 조회 중에도 back 허용 (canPop true)
+//   T-17-WD-05: (Phase 17 D-43 · UI-SPEC (A) 행 4) App Check 실패 전이 1회 = SnackBar
+//        errorAppCheckFailed 1회 · 행 표시 유지 · 재빌드 추가 0 · 재시도 실패 전이에 1회 더 ·
+//        ServiceUnavailable 실패 전이 SnackBar 0
+//   T-17-WD-06: (UI-SPEC E6 long-text) ja 280 × 800 SnackBar 무절단 · overflow 0
 
 import 'dart:async';
 
@@ -1437,5 +1441,148 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       });
     });
+  });
+
+  group('Phase 17 D-43 · UI-SPEC (A) 행 4 — App Check 실패 전이 SnackBar', () {
+    /// 화면 위 SnackBar 를 애니메이션 없이 지운다 — 이후 새로 뜨는지 본다.
+    void clearSnackBars(WidgetTester tester) {
+      ScaffoldMessenger.of(
+        tester.element(find.byType(WithdrawalDisconnectScreen)),
+      ).removeCurrentSnackBar();
+    }
+
+    testWidgets(
+      'T-17-WD-05 App Check 실패 전이 1회 = SnackBar 1회 · 행 표시 유지 · 재빌드 추가 0 · 재시도 실패 전이에 1회 더',
+      (tester) async {
+        _useView(tester);
+        final fakes = _Fakes();
+        await _pumpScreen(
+          tester,
+          providerIds: <String>['kakao', 'facebook.com'],
+          fakes: fakes,
+          settingsRepo: _countingRepo().repo,
+        );
+        final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+        expect(find.byType(SnackBar), findsNothing);
+
+        // 진행 → App Check 실패 전이.
+        fakes.kakao.calls.last.complete(
+          const DisconnectFailed(AppCheckFailedException()),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text(l10n.errorAppCheckFailed), findsOneWidget);
+        // 행 표시 = 「해제하지 못했습니다」 + 재시도 (기존 그대로).
+        expect(
+          _inRow(
+            AccountProvider.kakao,
+            find.text(l10n.withdrawalDisconnectStatusFailed),
+          ),
+          findsOneWidget,
+        );
+        final retry = _inRow(
+          AccountProvider.kakao,
+          find.widgetWithText(TextButton, l10n.commonRetry),
+        );
+        expect(retry, findsOneWidget);
+
+        // 같은 실패 상태 — 다른 행 상태 변화 · 강제 재빌드에도 추가 0.
+        clearSnackBars(tester);
+        await tester.pump();
+        expect(find.byType(SnackBar), findsNothing);
+        fakes.facebook.calls.last.complete(const DisconnectDone());
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        tester
+            .element(find.byType(WithdrawalDisconnectScreen))
+            .markNeedsBuild();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.byType(SnackBar), findsNothing);
+        expect(find.text(l10n.errorAppCheckFailed), findsNothing);
+
+        // 재시도 → 다시 App Check 실패 전이 → SnackBar 1회 더 (누적 2).
+        await tester.ensureVisible(retry);
+        await tester.tap(retry);
+        await tester.pump();
+        expect(fakes.kakao.calls.length, 2);
+        expect(find.byType(SnackBar), findsNothing);
+        fakes.kakao.calls.last.complete(
+          const DisconnectFailed(AppCheckFailedException()),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text(l10n.errorAppCheckFailed), findsOneWidget);
+        expect(find.text('login-stub'), findsNothing);
+      },
+    );
+
+    testWidgets('T-17-WD-05 ServiceUnavailable 실패 전이 → SnackBar 0 (기존 동작)', (
+      tester,
+    ) async {
+      _useView(tester);
+      final fakes = _Fakes();
+      await _pumpScreen(
+        tester,
+        providerIds: <String>['kakao'],
+        fakes: fakes,
+        settingsRepo: _countingRepo().repo,
+      );
+      final l10n = await AppLocalizations.delegate.load(const Locale('ko'));
+
+      fakes.kakao.calls.last.complete(
+        const DisconnectFailed(ServiceUnavailable()),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(SnackBar), findsNothing);
+      expect(
+        _inRow(
+          AccountProvider.kakao,
+          find.text(l10n.withdrawalDisconnectStatusFailed),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'T-17-WD-06 ja 280 × 800 — errorAppCheckFailed SnackBar 무절단 · overflow 0',
+      (tester) async {
+        _useView(tester, size: const Size(280, 800));
+        final fakes = _Fakes();
+        await _pumpScreen(
+          tester,
+          providerIds: <String>['kakao'],
+          fakes: fakes,
+          settingsRepo: _countingRepo().repo,
+          locale: const Locale('ja'),
+        );
+        final l10n = await AppLocalizations.delegate.load(const Locale('ja'));
+
+        fakes.kakao.calls.last.complete(
+          const DisconnectFailed(AppCheckFailedException()),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(tester.takeException(), isNull);
+        final content = find.descendant(
+          of: find.byType(SnackBar),
+          matching: find.text(l10n.errorAppCheckFailed),
+        );
+        expect(content, findsOneWidget);
+        final text = tester.widget<Text>(content);
+        // 잘림 없이 높이가 늘어난다 — 줄 수 제한 · ellipsis 0.
+        expect(text.maxLines, isNull);
+        expect(text.overflow, isNot(TextOverflow.ellipsis));
+        final rect = tester.getRect(find.byType(SnackBar));
+        expect(rect.top, greaterThanOrEqualTo(0));
+        expect(rect.bottom, lessThanOrEqualTo(800));
+      },
+    );
   });
 }
