@@ -30,6 +30,16 @@ class _MockTokenCollection extends Mock
 // ignore: subtype_of_sealed_class
 class _MockTokenDoc extends Mock implements DocumentReference<FcmToken> {}
 
+class _MockTokenQuerySnapshot extends Mock implements QuerySnapshot<FcmToken> {}
+
+// ignore: subtype_of_sealed_class
+class _MockTokenQueryDoc extends Mock
+    implements QueryDocumentSnapshot<FcmToken> {}
+
+// ignore: subtype_of_sealed_class
+class _MockRawSnapshot extends Mock
+    implements DocumentSnapshot<Map<String, dynamic>> {}
+
 class _FakeSetOptions extends Fake implements SetOptions {}
 
 class _FakeStackTrace extends Fake implements StackTrace {}
@@ -76,6 +86,7 @@ void main() {
   late _MockTokenDoc tokenDoc;
   late FcmTokenRepository repository;
   ToFirestore<FcmToken>? capturedToFirestore;
+  FromFirestore<FcmToken>? capturedFromFirestore;
 
   setUp(() {
     mockCrashlytics = _MockCrashlyticsService();
@@ -86,6 +97,7 @@ void main() {
     typedTokens = _MockTokenCollection();
     tokenDoc = _MockTokenDoc();
     capturedToFirestore = null;
+    capturedFromFirestore = null;
 
     when(
       () => mockCrashlytics.recordError(
@@ -105,7 +117,9 @@ void main() {
         toFirestore: any(named: 'toFirestore'),
       ),
     ).thenAnswer((invocation) {
+      final from = invocation.namedArguments[#fromFirestore];
       final to = invocation.namedArguments[#toFirestore];
+      if (from is FromFirestore<FcmToken>) capturedFromFirestore = from;
       if (to is ToFirestore<FcmToken>) capturedToFirestore = to;
       return typedTokens;
     });
@@ -113,6 +127,7 @@ void main() {
     when(
       () => tokenDoc.set(any<FcmToken>(), any<SetOptions>()),
     ).thenAnswer((_) async {});
+    when(() => tokenDoc.delete()).thenAnswer((_) async {});
 
     repository = FcmTokenRepository(
       firestore: mockFirestore,
@@ -218,6 +233,93 @@ void main() {
           any<Object>(that: isA<StateError>()),
           any<StackTrace?>(),
           reason: 'fcm_token_repository_upsert',
+          fatal: false,
+        ),
+      ).called(1);
+    });
+
+    test('T-17-FCM-04: delete 는 그 토큰 문서 delete() 를 1회 부르고 Success', () async {
+      final result = await repository.delete(uid: 'u1', token: 't1');
+
+      expect(result, isA<Success<void>>());
+      verify(() => usersCollection.doc('u1')).called(1);
+      verify(() => typedTokens.doc('t1')).called(1);
+      verify(() => tokenDoc.delete()).called(1);
+    });
+
+    test('T-17-FCM-04: delete 실패 → Failure(UnknownException) · recordError '
+        "1회(reason 'fcm_token_repository_delete')", () async {
+      when(() => tokenDoc.delete()).thenThrow(StateError('boom'));
+
+      final result = await repository.delete(uid: 'u1', token: 't1');
+
+      expect(result, isA<Failure<void>>());
+      expect((result as Failure<void>).exception, isA<UnknownException>());
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(that: isA<StateError>()),
+          any<StackTrace?>(),
+          reason: 'fcm_token_repository_delete',
+          fatal: false,
+        ),
+      ).called(1);
+    });
+
+    test('T-17-FCM-05: fetchAll 은 typed 스냅샷 2건을 fromFirestore 경로로 '
+        'List<FcmToken> 2개로 돌려준다', () async {
+      final second = FcmToken.forDevice(
+        token: 't2',
+        platform: 'ios',
+        locale: 'ja',
+        now: DateTime.utc(2026, 9, 15),
+      );
+      final querySnapshot = _MockTokenQuerySnapshot();
+      when(() => typedTokens.get()).thenAnswer((_) async => querySnapshot);
+      // typed 문서의 data() 는 repository 가 넘긴 fromFirestore 로 raw map
+      // (Firestore 가 돌려주는 Timestamp 값)을 변환한 결과다.
+      QueryDocumentSnapshot<FcmToken> typedDocFor(FcmToken token) {
+        final raw = _MockRawSnapshot();
+        when(raw.data).thenReturn(<String, dynamic>{
+          'token': token.token,
+          'platform': token.platform,
+          'locale': token.locale,
+          'updatedAt': Timestamp.fromDate(token.updatedAt),
+          'expireAt': Timestamp.fromDate(token.expireAt),
+        });
+        final typed = _MockTokenQueryDoc();
+        when(typed.data).thenAnswer((_) {
+          final fromFirestore = capturedFromFirestore;
+          if (fromFirestore == null) {
+            throw StateError('withConverter 미경유');
+          }
+          return fromFirestore(raw, null);
+        });
+        return typed;
+      }
+
+      final docs = [typedDocFor(sampleToken), typedDocFor(second)];
+      when(() => querySnapshot.docs).thenReturn(docs);
+
+      final result = await repository.fetchAll('u1');
+
+      expect(result, isA<Success<List<FcmToken>>>());
+      final tokens = (result as Success<List<FcmToken>>).data;
+      expect(tokens, [sampleToken, second]);
+      verify(() => usersCollection.doc('u1')).called(1);
+    });
+
+    test('T-17-FCM-05: fetchAll 실패 → Failure(UnknownException) · reason '
+        "'fcm_token_repository_fetch_all'", () async {
+      when(() => typedTokens.get()).thenThrow(StateError('boom'));
+
+      final result = await repository.fetchAll('u1');
+
+      expect(result, isA<Failure<List<FcmToken>>>());
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(that: isA<StateError>()),
+          any<StackTrace?>(),
+          reason: 'fcm_token_repository_fetch_all',
           fatal: false,
         ),
       ).called(1);

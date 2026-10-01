@@ -61,6 +61,27 @@ class FcmTokenRepository {
         () => _tokens(uid).doc(token.token).set(token, SetOptions(merge: true)),
         crashlytics: _crashlytics,
       );
+
+  /// `users/{uid}/fcmTokens/{token}` 문서를 지운다.
+  ///
+  /// 로그아웃 · 권한 해제 · 토큰 교체 때 호출부(plan 15)가 부른다. 없는 문서를
+  /// 지워도 Firestore 는 성공으로 처리한다.
+  Future<Result<void>> delete({required String uid, required String token}) =>
+      guardResult(
+        'fcm_token_repository_delete',
+        () => _tokens(uid).doc(token).delete(),
+        crashlytics: _crashlytics,
+      );
+
+  /// [uid] 의 모든 토큰 문서를 typed 로 읽어 돌려준다.
+  ///
+  /// 각 문서는 `withConverter` 의 `fromFirestore` 를 거쳐 [FcmToken] 이 된다
+  /// (Timestamp → UTC DateTime).
+  Future<Result<List<FcmToken>>> fetchAll(String uid) =>
+      guardResult('fcm_token_repository_fetch_all', () async {
+        final snapshot = await _tokens(uid).get();
+        return [for (final doc in snapshot.docs) doc.data()];
+      }, crashlytics: _crashlytics);
 }
 
 /// [FcmTokenRepository] Provider (Phase 17 D-14).
