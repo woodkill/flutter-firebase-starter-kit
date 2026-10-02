@@ -13,7 +13,7 @@
 //   가 ground truth (memory feedback_mock_transaction_constraint mirror).
 //
 // Phase 17 — see ROADMAP.md (D-16 · D-40). 삭제 순서는
-//   검증 → Storage `users/{uid}/` (D-40 · 실패 = 탈퇴 중단)
+//   검증 → Storage `users/{uid}/` (D-40 · 실패 = 탈퇴 중단 · 404 는 진행)
 //   → Auth (WR-09) → Firestore → `users/{uid}/fcmTokens` 재귀 삭제 (D-02).
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
@@ -114,7 +114,8 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  *           feedback_mock_transaction_constraint)에 새 위험을 더하지 않는다.
  *
  * **삭제 순서 (Phase 17 — see ROADMAP.md, D-16 · D-40)**: 검증 → Storage
- * (D-40 · 실패 = 중단) → Auth (WR-09) → Firestore → fcmTokens. Storage 를 Auth 뒤에 두면
+ * (D-40 · 실패 = 중단 · 404 는 진행) → Auth (WR-09) → Firestore →
+ * fcmTokens. Storage 를 Auth 뒤에 두면
  * Storage 실패 시 계정이 이미 없어 사용자가 재시도할 수 없고 개인 사진이
  * 영구 잔존하므로 Storage 는 Auth **앞**에 둔다. 사진만 지워지고 Auth 삭제가
  * 실패한 상태는 D-40 이 수용한다 (소셜 사진 fallback · 재업로드 가능).
