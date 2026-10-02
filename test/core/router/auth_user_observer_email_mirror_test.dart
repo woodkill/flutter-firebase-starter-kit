@@ -7,6 +7,8 @@
 // - 익명 → 정식 전이(같은 uid) → 1회
 // - 다른 uid 정식 → 1회
 // - Firebase 미초기화 → 0
+// - 같은 uid 의 emailVerified false → true 전이 → ID token 강제 갱신 뒤 1회 더
+//   (리뷰 IN-15 · T-17-MIRROR-03g~i)
 
 import 'dart:async';
 
@@ -70,13 +72,17 @@ class _NoopTermsNotifier extends TermsNotifier {
   Future<void> reloadForUser({String? uid, bool isAnonymous = false}) async {}
 }
 
-/// `mirror()` 호출 횟수만 기록하는 가짜 client.
+/// `mirror()` 호출 횟수와 순서를 기록하는 가짜 client.
 class _RecordingMirrorClient extends Fake implements AccountEmailMirrorClient {
   int calls = 0;
+
+  /// mirror · token 갱신 호출 순서 (token 갱신은 [makeUser] 가 기록한다).
+  final List<String> events = <String>[];
 
   @override
   Future<void> mirror() async {
     calls++;
+    events.add('mirror');
   }
 }
 
@@ -85,12 +91,25 @@ void main() {
     registerFallbackValue(StackTrace.empty);
   });
 
-  fb.User makeUser({required String uid, required bool isAnonymous}) {
+  fb.User makeUser({
+    required String uid,
+    required bool isAnonymous,
+    bool emailVerified = false,
+    List<String>? events,
+    bool isTokenRefreshFailing = false,
+  }) {
     final user = _MockUser();
     when(() => user.uid).thenReturn(uid);
     when(() => user.isAnonymous).thenReturn(isAnonymous);
     when(() => user.email).thenReturn(null);
-    when(() => user.emailVerified).thenReturn(false);
+    when(() => user.emailVerified).thenReturn(emailVerified);
+    when(() => user.getIdToken(true)).thenAnswer((_) async {
+      events?.add('refreshToken');
+      if (isTokenRefreshFailing) {
+        throw fb.FirebaseAuthException(code: 'network-request-failed');
+      }
+      return 'fresh-token';
+    });
     return user;
   }
 
@@ -201,6 +220,93 @@ void main() {
       await emit(h.controller, makeUser(uid: 'reg-2', isAnonymous: false));
 
       expect(h.client.calls, 2);
+    });
+
+    test('T-17-MIRROR-03g: 같은 uid 의 emailVerified false → true → ID token '
+        '강제 갱신 뒤 mirror 1회 더 (리뷰 IN-15)', () async {
+      final h = setUpObserver();
+      final events = h.client.events;
+
+      await emit(
+        h.controller,
+        makeUser(uid: 'reg-1', isAnonymous: false, events: events),
+      );
+      await emit(
+        h.controller,
+        makeUser(uid: 'reg-1', isAnonymous: false, events: events),
+      );
+      expect(events, ['mirror']);
+
+      await emit(
+        h.controller,
+        makeUser(
+          uid: 'reg-1',
+          isAnonymous: false,
+          emailVerified: true,
+          events: events,
+        ),
+      );
+      // token 갱신이 mirror 보다 먼저다 — 서버는 token 클레임을 읽는다.
+      expect(events, ['mirror', 'refreshToken', 'mirror']);
+
+      // 이미 true 인 재emit(token 갱신이 일으킨 emit 포함)은 추가 0.
+      await emit(
+        h.controller,
+        makeUser(
+          uid: 'reg-1',
+          isAnonymous: false,
+          emailVerified: true,
+          events: events,
+        ),
+      );
+      expect(events, ['mirror', 'refreshToken', 'mirror']);
+    });
+
+    test('T-17-MIRROR-03h: 첫 emit 이 이미 인증됨 → 세션 시작 1회뿐 · token '
+        '강제 갱신 0', () async {
+      final h = setUpObserver();
+      final events = h.client.events;
+
+      await emit(
+        h.controller,
+        makeUser(
+          uid: 'reg-1',
+          isAnonymous: false,
+          emailVerified: true,
+          events: events,
+        ),
+      );
+
+      expect(events, ['mirror']);
+    });
+
+    test('T-17-MIRROR-03i: token 강제 갱신 실패 → 그 전이의 mirror 생략 · '
+        'observer 는 계속', () async {
+      final h = setUpObserver();
+      final events = h.client.events;
+
+      await emit(
+        h.controller,
+        makeUser(uid: 'reg-1', isAnonymous: false, events: events),
+      );
+      await emit(
+        h.controller,
+        makeUser(
+          uid: 'reg-1',
+          isAnonymous: false,
+          emailVerified: true,
+          events: events,
+          isTokenRefreshFailing: true,
+        ),
+      );
+      expect(events, ['mirror', 'refreshToken']);
+
+      // 다음 세션(다른 uid)은 그대로 mirror 한다.
+      await emit(
+        h.controller,
+        makeUser(uid: 'reg-2', isAnonymous: false, events: events),
+      );
+      expect(events, ['mirror', 'refreshToken', 'mirror']);
     });
 
     test('T-17-MIRROR-03f: Firebase 미초기화 → 호출 0', () async {

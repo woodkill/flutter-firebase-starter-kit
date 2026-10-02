@@ -466,14 +466,46 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
 /// (functions provider 생성 등)의 동기 예외까지 삼켜 `authUserObserver` 의
 /// tick 실패 · `auth_user_observer_tick` Crashlytics 기록으로 번지지 않게 한다.
 /// 기록은 debug 빌드 debugPrint(예외 타입 이름)뿐이다.
-void _startAccountEmailMirror(Ref ref) {
+///
+/// [refreshTokenOf] 가 있으면 mirror 전에 그 사용자의 ID token 을 강제로
+/// 새로 받는다 (리뷰 IN-15). 서버는 ID token 의 `email_verified` 클레임을
+/// 읽는데, `User.reload()` 는 프로필만 갱신하고 token 은 캐시를 쓴다
+/// (firebase-ios-sdk `UserProfileUpdate.getAccountInfoRefreshingCache` 가
+/// `internalGetTokenAsync` 를 forceRefresh 없이 부른다) — 그대로 부르면 옛
+/// `false` 를 다시 쓴다.
+void _startAccountEmailMirror(Ref ref, {fb.User? refreshTokenOf}) {
   try {
-    unawaited(ref.read(accountEmailMirrorClientProvider).mirror());
+    final client = ref.read(accountEmailMirrorClientProvider);
+    if (refreshTokenOf == null) {
+      unawaited(client.mirror());
+    } else {
+      unawaited(_refreshTokenThenMirror(refreshTokenOf, client));
+    }
   } on Object catch (e) {
     if (kDebugMode) {
       debugPrint('authUserObserver: email mirror 시작 실패 (무시): ${e.runtimeType}');
     }
   }
+}
+
+/// [user] 의 ID token 을 강제로 새로 받은 뒤 [client] 로 mirror 한다.
+///
+/// token 갱신이 실패하면(오프라인 등) mirror 하지 않는다 — 옛 클레임으로
+/// 같은 값을 다시 쓸 뿐이다. 다음 세션 시작(콜드 스타트 · 재로그인)이
+/// 이어받는다. 예외를 던지지 않는다.
+Future<void> _refreshTokenThenMirror(
+  fb.User user,
+  AccountEmailMirrorClient client,
+) async {
+  try {
+    await user.getIdToken(true);
+  } on Object catch (e) {
+    if (kDebugMode) {
+      debugPrint('authUserObserver: ID token 갱신 실패 (무시): ${e.runtimeType}');
+    }
+    return;
+  }
+  await client.mirror();
 }
 
 /// userChanges 이벤트를 Analytics/Crashlytics setUser + Firestore mirror
@@ -498,6 +530,8 @@ void _startAccountEmailMirror(Ref ref) {
 /// **Phase 17 D-26:** 정식 사용자 세션 시작(첫 emit · uid 변경 · 익명 → 정식
 /// 전이)마다 [AccountEmailMirrorClient.mirror] 를 fire-and-forget 으로 1회
 /// 부른다 — 서버가 ID token 의 대표 이메일을 `users/{uid}` 에 mirror 한다.
+/// 같은 세션에서 `emailVerified` 가 false → true 로 바뀌면(이메일 인증 완료)
+/// ID token 을 강제로 새로 받은 뒤 1회 더 부른다 (리뷰 IN-15).
 ///
 /// **INFO #21 이행:** [Ref.keepAlive] 로 appRouter rebuild 시 구독이 churn
 /// 하지 않도록 보장한다.
@@ -526,6 +560,7 @@ Stream<void> authUserObserver(Ref ref) async* {
 
   bool? prevIsAnonymous;
   String? prevUid;
+  bool? prevEmailVerified;
   bool isFirstEmit = true;
 
   // WR-03: 스트림 에러를 흡수한다. `await for` 는 에러가 올라오면 그대로
@@ -541,6 +576,7 @@ Stream<void> authUserObserver(Ref ref) async* {
   await for (final user in guardedStream) {
     final uid = user?.uid;
     final curIsAnonymous = user?.isAnonymous ?? false;
+    final curEmailVerified = user?.emailVerified ?? false;
     // WR-03: 이벤트 단위 격리. 이 tick 이 실패하면 prev* 스냅샷을 갱신하지
     // 않아 다음 emit 에서 동일 전이를 재시도한다 (실패한 reload 재시도 정책).
     var isTickFailed = false;
@@ -595,10 +631,19 @@ Stream<void> authUserObserver(Ref ref) async* {
       // 콜드 스타트 · CT 멱등). 첫 emit · uid 변경 · 익명 → 정식 전이에서만
       // 부르고 같은 uid 재emit 은 건너뛴다. fire-and-forget — 실패는 전부
       // 삼키며 tick 실패 · Crashlytics 기록으로 번지지 않는다 (RESEARCH R-03 (5)).
+      // 리뷰 IN-15 — 같은 세션에서 이메일 인증을 마쳐 emailVerified 가
+      // false → true 로 바뀌면 ID token 을 새로 받은 뒤 1회 더 부른다.
+      final isSessionStart =
+          isFirstEmit || uid != prevUid || prevIsAnonymous == true;
+      final isEmailJustVerified =
+          !isSessionStart && prevEmailVerified == false && curEmailVerified;
       if (user != null &&
           !curIsAnonymous &&
-          (isFirstEmit || uid != prevUid || prevIsAnonymous == true)) {
-        _startAccountEmailMirror(ref);
+          (isSessionStart || isEmailJustVerified)) {
+        _startAccountEmailMirror(
+          ref,
+          refreshTokenOf: isEmailJustVerified ? user : null,
+        );
       }
     } on Object catch (e, st) {
       // WR-03: throw 가능 지점 — terms reload 의 Error 계열 (플랫폼 채널),
@@ -620,6 +665,7 @@ Stream<void> authUserObserver(Ref ref) async* {
     if (!isTickFailed) {
       prevIsAnonymous = curIsAnonymous;
       prevUid = uid;
+      prevEmailVerified = curEmailVerified;
       isFirstEmit = false;
     }
     yield null;
