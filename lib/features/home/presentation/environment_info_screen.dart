@@ -1353,11 +1353,8 @@ class _DevToolsSection extends ConsumerWidget {
 /// 요청하고 결과를 floating SnackBar 로 알린다. 요청 중에는 버튼을 비활성화해
 /// 중복 탭을 막는다(라벨 · 크기 불변 · 서버 rate limit 과 짝).
 class _SendTestPushButton extends ConsumerStatefulWidget {
-  // `key` 를 받는 형태로 둔다 — 생성자 선언 줄이 호출부
-  // `const _SendTestPushButton()` 과 같은 문자열이 되지 않게 해 Dev Tools 버튼
-  // 순서 단언(plan 17-18 verify 의 줄 번호 비교)이 호출부 1줄만 보게 한다.
-  // ignore: unused_element_parameter
-  const _SendTestPushButton({super.key});
+  // 버튼 순서는 위젯 테스트(T-17-SEND-03 — 트리 순서)가 잠근다 (리뷰 IN-11).
+  const _SendTestPushButton();
 
   @override
   ConsumerState<_SendTestPushButton> createState() =>

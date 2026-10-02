@@ -346,6 +346,38 @@ void main() {
       expect(snackBar.behavior, SnackBarBehavior.floating);
     });
 
+    testWidgets('T-17-SEND-03 Dev Tools 버튼 5개의 트리 순서 — 초기화 · 오류 · '
+        'Analytics · 테스트 알림 · 강제 로그아웃 (리뷰 IN-11)', (tester) async {
+      await pumpDevToolsHarness(tester, locale: const Locale('ko'));
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(EnvironmentInfoScreen)),
+      );
+      await _scrollTo(tester, find.text(l10n.devToolsForceSignOut));
+
+      final devToolsLabels = <String>{
+        l10n.devToolsResetOnboarding,
+        l10n.devToolsTriggerError,
+        l10n.devToolsTriggerAnalytics,
+        l10n.devToolsSendTestPush,
+        l10n.devToolsForceSignOut,
+      };
+      // find.byType 는 위젯 트리 순서(깊이 우선)로 돌려준다.
+      final labels = tester
+          .widgetList<OutlinedButton>(find.byType(OutlinedButton))
+          .map((button) => button.child)
+          .whereType<Text>()
+          .map((text) => text.data)
+          .where(devToolsLabels.contains)
+          .toList();
+      expect(labels, [
+        l10n.devToolsResetOnboarding,
+        l10n.devToolsTriggerError,
+        l10n.devToolsTriggerAnalytics,
+        l10n.devToolsSendTestPush,
+        l10n.devToolsForceSignOut,
+      ]);
+    });
+
     testWidgets('T-17-SEND-10 기기 없음 · 운영 거부 · App Check 문구 (ko)', (
       tester,
     ) async {
