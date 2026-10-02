@@ -46,13 +46,14 @@ void _registerBackgroundMessageHandler() {
 /// 2. [WidgetsFlutterBinding.ensureInitialized] -- Flutter 엔진 바인딩
 /// 3. [initializeDateFormatting] -- intl 날짜 포맷 데이터 초기화
 /// 4. [initializeFirebase] -- Firebase 초기화 (실패 허용)
-/// 5. Firebase 초기화 성공 시 Crashlytics 3경로 등록 + flavor custom key
+/// 5. Firebase 초기화 성공 시 App Check 활성화 → FCM 백그라운드 핸들러 등록
+///    (Phase 17 D-01, [_registerBackgroundMessageHandler] — 다른 초기화에
+///    묶이지 않게 맨 앞) → Crashlytics 3경로 등록 + flavor custom key
 ///    - 경로 1: [runZonedGuarded] 의 onError -> recordError(fatal: true)
 ///    - 경로 2: [FlutterError.onError] -> recordFlutterFatalError
 ///    - 경로 3: [PlatformDispatcher.onError] -> recordError(fatal: true)
 /// 6. [GoogleSignIn.instance.initialize] -- Google Sign-In 초기화
-///    (이후 Kakao · LINE · Remote Config 초기화, 그리고 FCM 백그라운드
-///    핸들러 등록 -- Phase 17 D-01, [_registerBackgroundMessageHandler])
+///    (이후 Kakao · LINE · Remote Config 초기화)
 /// 7. release 빌드만 [ErrorWidget.builder] 를 [buildReleaseErrorWidget] 으로
 ///    교체 (Phase 17 D-22 -- 깨진 화면 대체 + non-fatal 기록, Firebase 초기화
 ///    결과와 무관하게 설치)
@@ -114,6 +115,13 @@ Future<void> bootstrap() async {
                 debugPrint('FirebaseAppCheck.activate() 실패 (무시): $e\n$st');
               }
             }
+
+            // Phase 17 — see ROADMAP.md (D-01) — 권한 요청 없이 핸들러 등록만.
+            // 백그라운드 · 종료 상태 메시지 핸들러는 runApp 앞에서 등록한다.
+            // 다른 SDK · Remote Config 에 의존하지 않으므로 그 초기화들 **앞**에
+            // 둔다 — RC fetch 지연(최대 1분)이나 아래 try/catch 없는
+            // setCustomKey 의 throw 가 등록을 생략시키지 않게 (리뷰 IN-07).
+            _registerBackgroundMessageHandler();
 
             // 경로 2: Flutter framework 에러 -> Crashlytics
             FlutterError.onError =
@@ -254,10 +262,6 @@ Future<void> bootstrap() async {
                 FirebaseCrashlytics.instance.recordError(e, st, fatal: false),
               );
             }
-
-            // Phase 17 — see ROADMAP.md (D-01) — 권한 요청 없이 핸들러 등록만.
-            // 백그라운드 · 종료 상태 메시지 핸들러는 runApp 앞에서 등록한다.
-            _registerBackgroundMessageHandler();
           }
         } on Object catch (e, st) {
           if (kDebugMode) {

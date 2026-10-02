@@ -69,6 +69,22 @@ void main() {
       expect(_count(bootstrap, 'registerBackgroundMessageHandler();'), 1);
     });
 
+    test('T-17-PUSH-07: 등록은 try/catch 없는 Crashlytics setCustomKey · '
+        'Remote Config fetch 앞이다 (리뷰 IN-07)', () {
+      final registration = bootstrap.indexOf(
+        'registerBackgroundMessageHandler();',
+      );
+      final flavorKey = bootstrap.indexOf(
+        'FirebaseCrashlytics.instance.setCustomKey(',
+      );
+      final rcFetch = bootstrap.indexOf('fetchAndActivate()');
+      expect(registration, isNonNegative);
+      expect(flavorKey, isNonNegative);
+      expect(rcFetch, isNonNegative);
+      expect(registration, lessThan(flavorKey));
+      expect(registration, lessThan(rcFetch));
+    });
+
     test("T-17-PUSH-07: 핸들러 = @pragma('vm:entry-point') top-level 함수 · "
         'ref · WidgetsBinding · 로그 0', () {
       expect(_count(handler, "@pragma('vm:entry-point')"), 1);
