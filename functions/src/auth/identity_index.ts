@@ -121,10 +121,16 @@ export function identityIndexDocId(
  * **PII 정책 (D-51 / Pitfall 7)**: 본 함수는 fingerprint *문자열* 만 반환
  * 하며 err.message / payload / claim 등 본문은 절대 노출하지 않는다.
  *
+ * **숫자 code (Phase 17 리뷰 IN-02)**: `@google-cloud/storage` 의 `ApiError.code`
+ * 는 HTTP 상태 숫자(404 · 503 …)이고, Firestore Admin(google-gax
+ * `GoogleError.code`)은 gRPC status 숫자다. 이전에는 문자열 code 만 써서 두
+ * 경우 모두 `"Error"`/`"ApiError"` 로 뭉개졌다 — 이제 숫자를 문자열로 남겨
+ * ops 가 「영구(404) vs 일시(503)」 를 가를 수 있다.
+ *
  * @param {unknown} err catch (err: unknown) 의 err.
  * @return {string} logger.code 필드용 short fingerprint
- *     ('auth/user-not-found' / 'TypeError' / 'string-thrown' / 'null-thrown'
- *      / 'non-error-thrown' / 'unknown' 등).
+ *     ('auth/user-not-found' / '503' / 'TypeError' / 'string-thrown' /
+ *      'null-thrown' / 'non-error-thrown' / 'unknown' 등).
  */
 export function fingerprintError(err: unknown): string {
   if (err instanceof Error) {
@@ -132,6 +138,7 @@ export function fingerprintError(err: unknown): string {
     // public API. instanceof Error 가드 통과 후 code 안전 접근.
     const code = (err as Error & {code?: unknown}).code;
     if (typeof code === "string" && code.length > 0) return code;
+    if (typeof code === "number" && Number.isFinite(code)) return String(code);
     return err.name;
   }
   if (typeof err === "string") return "string-thrown";

@@ -575,6 +575,8 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
       uid: "uid-DEL02",
       failedCount: 1,
     });
+    // 숫자 HTTP 상태가 code 로 남는다 — 「영구 vs 일시」 판정 근거 (리뷰 IN-02).
+    expect(payload.code).toBe("503");
     // payload 키는 event · uid · code (+ 실패 수) 뿐 — 경로 · prefix 없음.
     expect(Object.keys(payload).sort()).toEqual(
       ["code", "event", "failedCount", "uid"],
@@ -756,6 +758,8 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
       expect.objectContaining({
         event: "delete_user_storage_failed",
         uid: "uid-DEL09",
+        // 대표 오류 = 404 가 아닌 첫 항목(중단 사유) (리뷰 IN-02).
+        code: "503",
         failedCount: 2,
       }),
       expect.any(String),

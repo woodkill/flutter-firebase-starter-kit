@@ -233,11 +233,15 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
           "Storage files already gone — continuing",
         );
       } else {
+        // 대표 오류는 404 가 아닌 첫 항목 — 섞인 배열에서 중단 사유(예: 503)를
+        // 로그 code 로 남긴다 (리뷰 IN-02).
+        const representative =
+          failed.find((e) => !isStorageNotFound(e)) ?? failed[0];
         logger.error(
           {
             event: "delete_user_storage_failed",
             uid: callerUid,
-            code: fingerprintError(failed[0]),
+            code: fingerprintError(representative),
             failedCount: failed.length,
           },
           "Storage cleanup failed — withdrawal aborted",
