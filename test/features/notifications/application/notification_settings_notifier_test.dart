@@ -16,6 +16,9 @@
 // 리뷰 fix (iteration 2) — WR-07 끄기 처리 중 로그아웃 정리가 끝나면 opt-in 을
 // 되돌리지 않는다 (T-17-NOTIF-18).
 //
+// 리뷰 fix (iteration 3) — IN-26 켜기 · 끄기의 첫 await 중 로그아웃 정리가
+// 끝나면 opt-in 을 쓰지 않는다 (T-17-NOTIF-19~20).
+//
 // SDK · Firestore 는 mocktail 로 대체한다 — [MessagingService] ·
 // [FcmTokenRepository] · [CrashlyticsService]. SharedPreferences 는
 // `setMockInitialValues` 로 채운다. Riverpod 기본 재시도(build 오류 시 타이머)는
@@ -181,6 +184,21 @@ List<FcmToken> _capturedUpserts(_MockFcmTokenRepository repository) => verify(
 /// 현재 state 값 (build 완료 대기).
 Future<bool> _settledValue(ProviderContainer container) =>
     container.read(notificationSettingsProvider.future);
+
+/// SharedPreferences 의 `getInstance()` 캐시만 비운다 — 저장된 값은 그대로다.
+///
+/// `setMockInitialValues` 가 legacy 구현의 `_completer` 를 null 로 되돌린다.
+/// 캐시가 빈 채로 두 호출이 겹치면 첫 호출자는 저장소 읽기를 await 하고, 두
+/// 번째 호출자는 `_completer!.future` 에 먼저 listener 를 걸어 첫 호출자보다
+/// 먼저 재개된다(shared_preferences 2.5.5 `shared_preferences_legacy.dart`
+/// `getInstance`). 그래야 토글이 첫 await 에 머무는 동안 로그아웃 정리가 끝까지
+/// 실행된다 — 캐시가 차 있으면 토글이 먼저 재개되어 이 순서가 생기지 않는다.
+Future<void> _resetPrefsCache() async {
+  final prefs = await SharedPreferences.getInstance();
+  SharedPreferences.setMockInitialValues(<String, Object>{
+    for (final key in prefs.getKeys()) key: prefs.get(key)!,
+  });
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -1188,6 +1206,65 @@ void main() {
           token: any(named: 'token'),
         ),
       );
+    });
+  });
+
+  group('Phase 17 리뷰 IN-26 — 토글 첫 await 중 로그아웃 정리', () {
+    test('T-17-NOTIF-19: enable() 의 첫 await 중 clearForSignOut 이 끝나면 '
+        'opt-in 을 쓰지 않는다 · failed · 다음 계정은 꺼짐', () async {
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isFalse);
+      await pumpEventQueue();
+      await _resetPrefsCache();
+
+      final notifier = container.read(notificationSettingsProvider.notifier);
+      final enabling = notifier.enable();
+      await notifier.clearForSignOut();
+
+      expect(await enabling, NotificationToggleResult.failed);
+      await pumpEventQueue();
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+
+      // 같은 기기에 다른 계정(B)이 로그인 — 켠 적이 없으니 꺼짐 · 등록 0.
+      clearInteractions(h.repository);
+      clearInteractions(h.messaging);
+      final userB = _MockUser();
+      when(() => userB.uid).thenReturn('uid-regular-2');
+      when(() => userB.isAnonymous).thenReturn(false);
+      final containerB = h.container(user: userB);
+      expect(await _settledValue(containerB), isFalse);
+      await pumpEventQueue();
+      verifyNever(() => h.messaging.getToken());
+      verifyNever(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
+    });
+
+    test('T-17-NOTIF-20: disable() 의 첫 await 중 clearForSignOut 이 끝나면 '
+        '(등록 토큰 없음) opt-in 을 쓰지 않는다 · failed', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+      });
+      final h = _Harness()..stubDefaults(status: AuthorizationStatus.denied);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isFalse);
+      await pumpEventQueue();
+      await _resetPrefsCache();
+
+      final notifier = container.read(notificationSettingsProvider.notifier);
+      final disabling = notifier.disable();
+      await notifier.clearForSignOut();
+
+      expect(await disabling, NotificationToggleResult.failed);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
     });
   });
 }

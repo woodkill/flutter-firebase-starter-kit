@@ -270,6 +270,9 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
   }
 
   /// [enable] 본문.
+  ///
+  /// 첫 await 중에 로그아웃 정리([clearForSignOut])가 끝나면 opt-in 을 쓰지
+  /// 않고 `failed` 다 (리뷰 IN-26 — 다음 계정은 꺼짐으로 시작).
   Future<NotificationToggleResult> _enable() async {
     final uid = _currentRegularUid();
     if (uid == null) return NotificationToggleResult.failed;
@@ -277,6 +280,9 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
     bool isStale() => signOutEpoch != _signOutEpoch;
 
     final prefs = await SharedPreferences.getInstance();
+    // 정리가 먼저 끝났으면 아무것도 쓰지 않는다 — 키 부재가 정리의 결과다
+    // (리뷰 IN-26).
+    if (isStale()) return NotificationToggleResult.failed;
     await prefs.setBool(kNotificationsOptInKey, true);
 
     final status = await ref.read(messagingServiceProvider).requestPermission();
@@ -302,6 +308,7 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
   /// 돌더라도 같은 토큰을 다시 등록하지 않는다. 삭제가 실패하면 opt-in 을
   /// 되돌려 「켜짐 유지」 와 맞춘다. 로그아웃 정리([clearForSignOut])와
   /// 겹치면 되돌리지 않고 `failed` 다 (리뷰 WR-07 — 다음 계정은 꺼짐으로 시작).
+  /// 정리가 첫 await 중에 끝났으면 opt-in 도 쓰지 않는다 (리뷰 IN-26).
   Future<NotificationToggleResult> _disable() async {
     final uid = _currentRegularUid();
     if (uid == null) return NotificationToggleResult.failed;
@@ -309,6 +316,9 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
     bool isStale() => signOutEpoch != _signOutEpoch;
 
     final prefs = await SharedPreferences.getInstance();
+    // 정리가 먼저 끝났으면 아무것도 쓰지 않는다 — 키 부재가 정리의 결과다
+    // (리뷰 IN-26).
+    if (isStale()) return NotificationToggleResult.failed;
     final token = prefs.getString(kNotificationsRegisteredTokenKey);
     await prefs.setBool(kNotificationsOptInKey, false);
     if (token != null) {
