@@ -300,10 +300,13 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
   ///
   /// opt-in 을 삭제 **전에** 내린다 (리뷰 WR-05) — 삭제 대기 중 재동기화가
   /// 돌더라도 같은 토큰을 다시 등록하지 않는다. 삭제가 실패하면 opt-in 을
-  /// 되돌려 「켜짐 유지」 와 맞춘다.
+  /// 되돌려 「켜짐 유지」 와 맞춘다. 로그아웃 정리([clearForSignOut])와
+  /// 겹치면 되돌리지 않고 `failed` 다 (리뷰 WR-07 — 다음 계정은 꺼짐으로 시작).
   Future<NotificationToggleResult> _disable() async {
     final uid = _currentRegularUid();
     if (uid == null) return NotificationToggleResult.failed;
+    final signOutEpoch = _signOutEpoch;
+    bool isStale() => signOutEpoch != _signOutEpoch;
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(kNotificationsRegisteredTokenKey);
@@ -314,10 +317,16 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
         final result = await _deleteTokenDocument(uid, token);
         isDeleted = result is Success<void>;
       } finally {
-        if (!isDeleted) await prefs.setBool(kNotificationsOptInKey, true);
+        // 로그아웃 정리가 먼저 opt-in 을 지웠으면 되돌리지 않는다 — 다음
+        // 계정은 꺼짐으로 시작해야 한다 (D-30 · 리뷰 WR-07).
+        if (!isDeleted && !isStale()) {
+          await prefs.setBool(kNotificationsOptInKey, true);
+        }
       }
-      if (!isDeleted) return NotificationToggleResult.failed;
+      if (!isDeleted || isStale()) return NotificationToggleResult.failed;
     }
+    // 정리가 등록 키 · state 를 이미 처음으로 돌렸다 — 건드리지 않는다.
+    if (isStale()) return NotificationToggleResult.failed;
     await prefs.remove(kNotificationsRegisteredTokenKey);
     _stopTokenRefresh();
     state = const AsyncData(false);

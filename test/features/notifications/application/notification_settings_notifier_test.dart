@@ -13,6 +13,9 @@
 // 재시도 · 토큰 폐기, WR-05 스위치 처리 중 복귀 보류 · 끄기 opt-in 선행,
 // WR-06 stale build 부수효과 차단 (T-17-NOTIF-14~16).
 //
+// 리뷰 fix (iteration 2) — WR-07 끄기 처리 중 로그아웃 정리가 끝나면 opt-in 을
+// 되돌리지 않는다 (T-17-NOTIF-18).
+//
 // SDK · Firestore 는 mocktail 로 대체한다 — [MessagingService] ·
 // [FcmTokenRepository] · [CrashlyticsService]. SharedPreferences 는
 // `setMockInitialValues` 로 채운다. Riverpod 기본 재시도(build 오류 시 타이머)는
@@ -1128,6 +1131,63 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
       expect(container.read(notificationSettingsProvider).value, isFalse);
+    });
+  });
+
+  group('Phase 17 리뷰 WR-07 — 끄기 처리 중 로그아웃 정리', () {
+    test('T-17-NOTIF-18: disable() 의 삭제 대기 중 clearForSignOut 이 끝난 뒤 '
+        '삭제가 실패해도 opt-in 을 되살리지 않는다 · 다음 계정은 꺼짐', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      // 첫 삭제(끄기)만 오프라인으로 멈추고, 정리의 삭제는 확정된다.
+      final pendingDelete = Completer<Result<void>>();
+      final deleteResults = <Future<Result<void>>>[
+        pendingDelete.future,
+        Future.value(const Result<void>.success(null)),
+      ];
+      when(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) => deleteResults.removeAt(0));
+
+      final disabling = container
+          .read(notificationSettingsProvider.notifier)
+          .disable();
+      await pumpEventQueue();
+      await container
+          .read(notificationSettingsProvider.notifier)
+          .clearForSignOut();
+      pendingDelete.complete(const Result<void>.failure(UnknownException()));
+
+      expect(await disabling, NotificationToggleResult.failed);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+      expect(container.read(notificationSettingsProvider).value, isFalse);
+
+      // 같은 기기에 다른 계정(B)이 로그인 — 켠 적이 없으니 꺼짐 · 등록 0.
+      clearInteractions(h.repository);
+      clearInteractions(h.messaging);
+      final userB = _MockUser();
+      when(() => userB.uid).thenReturn('uid-regular-2');
+      when(() => userB.isAnonymous).thenReturn(false);
+      final containerB = h.container(user: userB);
+      expect(await _settledValue(containerB), isFalse);
+      await pumpEventQueue();
+      verifyNever(() => h.messaging.getToken());
+      verifyNever(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
     });
   });
 }
