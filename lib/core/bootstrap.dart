@@ -272,10 +272,10 @@ Future<void> bootstrap() async {
         // release 깨진 화면 대체 (Phase 17 — see ROADMAP.md (D-22)) — debug 는
         // SDK 기본 빨간 화면 유지. Firebase 초기화 결과와 무관하게 설치하고,
         // Crashlytics 미초기화면 기록만 생략한다. 위 3경로 fatal 은 그대로다 —
-        // 이 기록은 「대체 화면이 사용자에게 보였다」 는 별도 non-fatal 신호다.
+        // 이 기록은 「대체 화면이 사용자에게 보였다」 는 별도 non-fatal 신호이고
+        // 세션당 1회만 남긴다(재빌드마다 반복 기록 방지 · 리뷰 IN-14).
         if (!kDebugMode) {
-          ErrorWidget.builder = (details) => buildReleaseErrorWidget(
-            details,
+          ErrorWidget.builder = createReleaseErrorWidgetBuilder(
             onBuildError: (d) {
               if (isFirebaseInitialized) {
                 unawaited(

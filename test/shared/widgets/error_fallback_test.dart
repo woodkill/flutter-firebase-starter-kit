@@ -104,6 +104,53 @@ void main() {
       },
     );
 
+    testWidgets('T-17-FALLBACK-07 재빌드마다 새 예외로 builder 가 다시 불려도 non-fatal 기록은 '
+        '세션당 1회 · 대체 화면은 매번 (리뷰 IN-14)', (tester) async {
+      final recorded = <FlutterErrorDetails>[];
+      final builder = createReleaseErrorWidgetBuilder(
+        onBuildError: recorded.add,
+      );
+      // framework 는 재빌드마다 build() 를 새로 실행해 새 예외 · 새 details
+      // 를 만든다 — 같은 객체가 아니다.
+      final first = FlutterErrorDetails(exception: StateError('build 1'));
+      final second = FlutterErrorDetails(exception: StateError('build 2'));
+
+      for (final details in [first, second, first]) {
+        await pumpLocalized(tester, Builder(builder: (_) => builder(details)));
+        expect(find.byType(ErrorFallback), findsOneWidget);
+      }
+
+      expect(recorded, hasLength(1));
+      expect(identical(recorded.single, first), isTrue);
+
+      // builder 를 새로 만들면(새 세션) 다시 1회 기록한다.
+      final nextSession = createReleaseErrorWidgetBuilder(
+        onBuildError: recorded.add,
+      );
+      await pumpLocalized(tester, Builder(builder: (_) => nextSession(second)));
+      expect(recorded, hasLength(2));
+    });
+
+    testWidgets('T-17-FALLBACK-07 첫 기록이 throw 해도 대체 화면은 그려지고 다시 시도하지 않는다', (
+      tester,
+    ) async {
+      var calls = 0;
+      final builder = createReleaseErrorWidgetBuilder(
+        onBuildError: (_) {
+          calls++;
+          throw StateError('record failed');
+        },
+      );
+      final details = FlutterErrorDetails(exception: StateError('build'));
+
+      for (var i = 0; i < 2; i++) {
+        await pumpLocalized(tester, Builder(builder: (_) => builder(details)));
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ErrorFallback), findsOneWidget);
+      }
+      expect(calls, 1);
+    });
+
     test(
       'T-17-FALLBACK-02 소스 계약: bootstrap 이 !kDebugMode 에서만 ErrorWidget.builder 를 설치하고 기존 fatal 경로를 유지한다',
       () {
@@ -115,6 +162,14 @@ void main() {
         expect(countOccurrences(source, 'recordFlutterFatalError'), 1);
 
         expect(countOccurrences(source, 'ErrorWidget.builder ='), 1);
+        // 설치하는 builder 는 세션당 1회 기록 게이트를 거친다 (리뷰 IN-14).
+        expect(
+          countOccurrences(
+            source,
+            'ErrorWidget.builder = createReleaseErrorWidgetBuilder(',
+          ),
+          1,
+        );
         expect(countOccurrences(source, 'kErrorWidgetBuildReason'), 1);
         expect(
           countOccurrences(source, 'fatal: false'),

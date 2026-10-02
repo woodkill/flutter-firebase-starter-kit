@@ -33,3 +33,30 @@ Widget buildReleaseErrorWidget(
   }
   return const ErrorFallback();
 }
+
+/// release 빌드에 설치할 `ErrorWidget.builder` 를 만든다 — [onBuildError] 는
+/// 이 builder 의 수명(= 앱 프로세스 · 세션) 동안 **처음 1회만** 불린다.
+///
+/// Phase 17 리뷰 IN-14. 깨진 위젯은 다시 빌드될 때마다 framework 가
+/// `build()` 를 새로 실행하고(새 예외 객체) `_reportException` 으로 새
+/// [FlutterErrorDetails] 를 만들어 builder 를 부른다
+/// (flutter `framework.dart` `ComponentElement.performRebuild`). 그래서
+/// `identical(details.exception, last)` 같은 객체 비교로는 반복을 거를 수 없고,
+/// 예외 종류 · 위치 키는 집합이 커질 수 있다. D-22 의 non-fatal 은 「대체
+/// 화면이 사용자에게 보였다」 는 신호라 세션당 1회면 충분하다 — 개별 실패의
+/// 상세는 `FlutterError.onError`(fatal 경로)가 매번 남긴다. 대체 화면은 매번
+/// 그린다.
+ErrorWidgetBuilder createReleaseErrorWidgetBuilder({
+  required void Function(FlutterErrorDetails details) onBuildError,
+}) {
+  var hasRecorded = false;
+  return (details) => buildReleaseErrorWidget(
+    details,
+    onBuildError: (d) {
+      if (hasRecorded) return;
+      // 기록이 throw 해도 다시 시도하지 않도록 먼저 표시한다.
+      hasRecorded = true;
+      onBuildError(d);
+    },
+  );
+}
