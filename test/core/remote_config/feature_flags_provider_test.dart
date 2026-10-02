@@ -120,6 +120,13 @@ void main() {
       );
       // 앱은 문구를 가공하지 않는다 — 공백도 그대로다.
       expect(resolveAnnouncementText(_values(ko: ' 공지 A '), ko), ' 공지 A ');
+      // 공백만 있는 칸은 빈 칸 — 다음 칸으로 넘어가고, 둘 다면 배너 없음
+      // (리뷰 IN-12). 표시 문구는 원문 그대로다.
+      expect(
+        resolveAnnouncementText(_values(ko: '  ', en: ' Notice'), ko),
+        ' Notice',
+      );
+      expect(resolveAnnouncementText(_values(ko: ' ', en: '\n\t'), ko), isNull);
     });
 
     group('실시간 반영 (D-10)', () {

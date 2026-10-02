@@ -104,12 +104,13 @@ class FeatureFlagValues {
 /// 홈 공지 배너에 표시할 문구를 결정한다 (D-09 · D-36).
 ///
 /// [FeatureFlag.announcementBannerEnabled] 가 false 면 null. 켜져 있으면 앱
-/// 언어 [locale] 칸 → 비면 en 칸 → en 도 비면 null(배너 없음)이다. 문구는
-/// 자르거나 다듬지 않고 그대로 돌려준다.
+/// 언어 [locale] 칸 → 비면 en 칸 → en 도 비면 null(배너 없음)이다. 공백만
+/// 있는 칸은 빈 칸으로 본다 — 빈 배너를 그리지 않는다 (리뷰 IN-12). 표시할
+/// 문구는 자르거나 다듬지 않고 원문 그대로 돌려준다(D-36 — 판정만 trim).
 String? resolveAnnouncementText(FeatureFlagValues values, Locale locale) {
   if (!values.boolValue(FeatureFlag.announcementBannerEnabled)) return null;
   final localized = values.stringValue(announcementMessageFlagFor(locale));
-  if (localized.isNotEmpty) return localized;
+  if (localized.trim().isNotEmpty) return localized;
   final english = values.stringValue(FeatureFlag.announcementMessageEn);
-  return english.isEmpty ? null : english;
+  return english.trim().isEmpty ? null : english;
 }
