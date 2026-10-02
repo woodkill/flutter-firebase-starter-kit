@@ -10,7 +10,8 @@ import 'result.dart';
 ///
 /// - 성공: `Result.success(값)`.
 /// - [AppException]: 이미 분류된 실패라 기록하지 않고 `Result.failure(그 예외)`
-///   로 돌려준다 (중복 방지 — Notifier 층 [guardAsyncValue] 와 짝).
+///   로 돌려준다 — Notifier 층 [guardAsyncValue] 도 기록하지 않는다. 분류된
+///   실패는 어느 가드도 Crashlytics 에 남기지 않는 것이 정책이다 (리뷰 IN-13).
 /// - 그 밖의 [Object]: 예상치 못한 오류 — [crashlytics] 에 non-fatal 로 1회
 ///   기록한 뒤 `Result.failure(UnknownException(cause: 원본))` 로 바꾼다.
 ///
@@ -40,8 +41,10 @@ Future<Result<T>> guardResult<T>(
 /// Phase 17 — see ROADMAP.md (D-20 ②).
 ///
 /// 결과가 error 이고 그 error 가 [AppException] 이 **아닐** 때만 [crashlytics]
-/// 에 non-fatal 로 1회 기록한다. [AppException] 은 repository 의
-/// [guardResult] 가 이미 분류 · 기록한 실패라 다시 기록하지 않는다 (중복 0).
+/// 에 non-fatal 로 1회 기록한다. [AppException] 은 분류된 실패라 어느
+/// 가드([guardResult] 포함)도 기록하지 않는다 — 관측이 필요하면 매퍼 또는
+/// 호출부가 명시적으로 기록한다(예: `classifyAppCheckRejection` 의 App Check
+/// 차단 기록). 그래서 두 가드를 겹쳐 써도 중복 기록은 0 이다 (리뷰 IN-13).
 /// 기존 Notifier 의 수동 `recordError` 호출부는 바꾸지 않는다.
 ///
 /// **PII 금지 (Phase 10 D-28~30).** [reason] 은 `'<notifier>_<method>'` 형식의
