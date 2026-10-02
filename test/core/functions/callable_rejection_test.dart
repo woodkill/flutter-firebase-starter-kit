@@ -105,6 +105,31 @@ void main() {
       ).called(1);
     });
 
+    test('T-17-APPCHECK-01: 기록 스택 = 예외의 원 스택 (리뷰 IN-08)', () {
+      final original = StackTrace.fromString('#0 kakaoCustomToken call site');
+      final e = FirebaseFunctionsException(
+        code: 'unauthenticated',
+        message: 'Unauthenticated',
+        stackTrace: original,
+      );
+
+      classifyAppCheckRejection(
+        e,
+        callable: 'kakaoCustomToken',
+        crashlytics: crashlytics,
+      );
+
+      final captured = verify(
+        () => crashlytics.recordError(
+          e,
+          captureAny(),
+          reason: 'app_check_rejected_kakaoCustomToken',
+          fatal: false,
+        ),
+      ).captured;
+      expect(captured.single, same(original));
+    });
+
     group('T-17-APPCHECK-02: 비판정 4갈래 — null · 기록 0', () {
       final cases = <String, FirebaseFunctionsException>{
         '서버 taxonomy errorUnauthenticated': FirebaseFunctionsException(

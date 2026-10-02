@@ -56,6 +56,9 @@ bool isSdkLayerUnauthenticated(FirebaseFunctionsException e) =>
 /// export 이름 상수다 — 서버 message · details 본문 · 토큰은 reason 에 넣지
 /// 않는다(PII 0). 기록은 best-effort 라 기다리지 않는다
 /// ([CrashlyticsService] 는 예외를 던지지 않는다). 판정이 아니면 기록 0.
+/// 스택은 예외의 원 스택([FirebaseException.stackTrace] — method channel 이
+/// 호출 지점 스택을 싣는다)을 쓰고, 없을 때만 이 helper 호출 지점이다
+/// (리뷰 IN-08).
 AppCheckFailedException? classifyAppCheckRejection(
   FirebaseFunctionsException e, {
   required String callable,
@@ -65,7 +68,7 @@ AppCheckFailedException? classifyAppCheckRejection(
   unawaited(
     crashlytics.recordError(
       e,
-      StackTrace.current,
+      e.stackTrace ?? StackTrace.current,
       reason: 'app_check_rejected_$callable',
       fatal: false,
     ),
