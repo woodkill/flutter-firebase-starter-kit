@@ -3,11 +3,26 @@
         android:label="flutter_starter_kit"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- 최근 앱 자동 제거 (debug notification-task-duplication RC2 · 2026-10-03).
+             알림 탭으로 만든 task 의 루트 Activity 는 홈(런처) 발 실행이 아니라서
+             시스템 뒤로에서 finish 된다(Android 12+ 의 「루트 런처 Activity 는 뒤로 대신
+             task 를 뒤로 보냄」 규칙은 홈 발 실행에만 적용). 빈 taskAffinity 라 런처 실행이
+             그 빈 task 를 최근 앱에서 지우지 못하면 카드가 2장이 되고, 옛 카드가 옛 알림
+             intent 를 재실행하며, 두 task 가 함께 살면 Flutter 엔진 2개로 포그라운드 알림이
+             2건씩 뜬다. 그래서 MainActivity 를 루트로 한 task 는 마지막 Activity 가 끝나면
+             최근 앱에서 바로 빠지게 한다. 빈 taskAffinity 는 StrandHogg 방어라 유지한다.
+             대가: 런처로 연 앱이라도 Android 7~11 에서는 루트 뒤로가 finish 라 카드가
+             사라진다(AOSP 소스 근거 · 단말 미실측). Android 12+ 는 런처로 연 루트를 뒤로에서
+             task 째 뒤로 보내므로 카드가 남는다. 대조 테스트는
+             phase17_platform_config_test 의 PLATFORM-06 이다.
+
+             이 주석에 XML 속성 리터럴을 쓰지 않는 이유는 아래 Naver 블록과 같다. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
+            android:autoRemoveFromRecents="true"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"

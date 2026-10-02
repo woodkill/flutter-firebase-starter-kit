@@ -70,10 +70,19 @@ class NotificationTapHandler extends _$NotificationTapHandler {
   ///
   /// `ref.mounted` 가드는 **provider dispose 만** 걸러 낸다 — keepAlive
   /// notifier 의 `ref` 는 요소의 현재 Ref 라 재빌드 뒤에도 true 다(riverpod
-  /// 3.2.1 · 리뷰 WR-06). 여기서는 그것이 맞다: `getInitialMessage` 는 1회만
-  /// 값을 준다(Android 플러그인이 꺼낸 메시지를 소비 처리) — 재빌드 중에 받은
-  /// 경로를 빌드 세대로 버리면 종료 상태 탭 이동이 사라진다. 보관 대상
-  /// [PendingNotificationRoute] 는 별도 provider 라 이전 세대가 넣어도 안전하다.
+  /// 3.2.1 · 리뷰 WR-06). 여기서는 그것이 맞다: `getInitialMessage` 는 같은
+  /// 엔진 안에서 1회만 값을 준다(Android 플러그인 인스턴스가 꺼낸 메시지를
+  /// 소비 처리) — 재빌드 중에 받은 경로를 빌드 세대로 버리면 종료 상태 탭
+  /// 이동이 사라진다. 보관 대상 [PendingNotificationRoute] 는 별도 provider 라
+  /// 이전 세대가 넣어도 안전하다.
+  ///
+  /// 「1회」 는 엔진 단위다(debug notification-task-duplication RC3 · 소스
+  /// 추론 · 미관측). firebase_messaging 16.7.0 Android 는 소비 기록을 플러그인
+  /// 인스턴스 메모리에만 두고, 콜드 탭의 메모리 경로 소비는 디스크 저장본을
+  /// 지우지 않으며, 이 메서드에는 최근 앱 재실행(LAUNCHED_FROM_HISTORY) 필터가
+  /// 없다. 그래서 앱 task 가 살아 있는 채 프로세스가 죽은 뒤 최근 앱 카드로
+  /// 다시 열면 같은 메시지를 1회 더 받을 수 있다 — 후속 과제
+  /// `.planning/todos/pending/2026-10-03-fcm-initial-message-history-replay.md`.
   Future<void> _startLocalNotifications(
     MessagingService messaging,
     LocalNotificationsService local,

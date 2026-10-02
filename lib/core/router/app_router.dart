@@ -102,6 +102,16 @@ GoRouter appRouter(Ref ref) {
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash, // D-14 상태머신 시작점
+    // 플랫폼 기본 경로(defaultRouteName)를 무시하고 항상 /splash 에서 시작한다
+    // (debug notification-task-duplication RC1). Android Flutter 엔진은 launch
+    // intent 의 extra "route"(EXTRA_INITIAL_ROUTE)를 초기 경로로 넘기는데,
+    // FCM 은 알림 data 를 그 intent 의 extra 로 복사한다 — 킷 알림 payload 키가
+    // 마침 `route` 다. 이 값을 끄지 않으면 알림 콜드 탭 · 최근 앱 재실행이
+    // 스플래시 · 홈 리스너(D-04) · 허용 목록(T-17-53)을 건너뛰고 그 경로로
+    // 바로 열린다. 알림 경로 이동은 홈 리스너만 한다.
+    // 대가: 콜드 시작 deep link 의 경로도 무시된다. MainActivity 에 VIEW
+    // intent-filter(App Links)를 붙이는 앱은 이 줄과 함께 다시 설계한다.
+    overridePlatformDefaultLocation: true,
     debugLogDiagnostics: kDebugMode,
     refreshListenable: refreshListenable,
     redirect: (context, state) => resolveAuthRedirect(ref, state),

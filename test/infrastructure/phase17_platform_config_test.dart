@@ -157,5 +157,42 @@ void main() {
       );
       expect(countOccurrences(gradle, 'desugar_jdk_libs:2.1.4'), 1);
     });
+
+    // debug notification-task-duplication RC2 (2026-10-03) — 알림 PendingIntent
+    // 로 만든 task 의 루트는 back 에서 finish 된다(홈 발 실행만 task 를 뒤로
+    // 보냄). 빈 taskAffinity 라 런처 실행이 그 빈 task 를 최근 앱에서 지우지
+    // 못해 카드 2장 · 옛 알림 intent 재실행 · 엔진 2개(알림 2중)로 번졌다.
+    test(
+      'T-17-PLATFORM-06 MainActivity 는 마지막 Activity 가 끝나면 최근 앱에서 빠지고 빈 taskAffinity 는 유지한다',
+      () {
+        final String manifest = stripXmlComments(
+          readTrackedFile(_manifestPath),
+        );
+        final RegExpMatch? mainTag = RegExp(
+          r'<activity\s+android:name="\.MainActivity"[^>]*>',
+        ).firstMatch(manifest);
+        expect(mainTag, isNotNull, reason: 'MainActivity 선언을 찾지 못했다');
+        final String tag = mainTag!.group(0)!;
+
+        expect(
+          RegExp(r'android:autoRemoveFromRecents="true"').hasMatch(tag),
+          isTrue,
+          reason:
+              '알림 탭 → 뒤로 로 끝난 task 가 최근 앱에 빈 카드로 남으면 그 카드가 '
+              '옛 알림 intent 를 재실행하고, 런처 task 와 함께 엔진 2개가 된다',
+        );
+        // 양성 대조군 겸 유지 단언 — 같은 태그 범위에서 빈 affinity 를 잡는다.
+        expect(
+          RegExp(r'android:taskAffinity=""').hasMatch(tag),
+          isTrue,
+          reason: '빈 taskAffinity 는 StrandHogg 방어라 유지한다 (minSdk 24)',
+        );
+        expect(
+          countOccurrences(manifest, 'android:autoRemoveFromRecents='),
+          1,
+          reason: 'MainActivity 1곳에만 둔다 — relay 등 다른 Activity 는 대상 밖',
+        );
+      },
+    );
   });
 }
