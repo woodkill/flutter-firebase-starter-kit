@@ -88,6 +88,59 @@ void main() {
     });
   });
 
+  // debug notification-task-duplication RC1 (2026-10-03) — Android 는 launch
+  // intent 의 extra "route" 를 Flutter 초기 경로(defaultRouteName)로 넘긴다.
+  // FCM 은 data 키를 그 extra 로 복사하므로 `data.route=/settings` 알림 탭이
+  // 플랫폼 기본 경로 `/settings` 가 된다. 초기 위치는 그와 무관하게 D-14
+  // 상태머신 시작점 /splash 여야 한다 — 알림 경로 이동은 홈 리스너(D-04)의 몫.
+  group('초기 위치 = /splash 고정 (debug notification-task-duplication RC1)', () {
+    /// 플랫폼 기본 경로를 [platformRoute] 로 둔 채 만든 라우터의 초기 위치.
+    Future<String> readInitialLocation(
+      WidgetTester tester,
+      String platformRoute,
+    ) async {
+      tester.platformDispatcher.defaultRouteNameTestValue = platformRoute;
+      addTearDown(tester.platformDispatcher.clearDefaultRouteNameTestValue);
+      final mockAuth = _MockFirebaseAuth();
+      when(
+        () => mockAuth.authStateChanges(),
+      ).thenAnswer((_) => const Stream<User?>.empty());
+      final container = ProviderContainer(
+        overrides: [
+          isFirebaseInitializedProvider.overrideWithValue(false),
+          firebaseAuthProvider.overrideWithValue(mockAuth),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = container.read(appRouterProvider);
+      return router.routeInformationProvider.value.uri.toString();
+    }
+
+    testWidgets('플랫폼 기본 경로 / (런처 실행) → /splash (대조군)', (tester) async {
+      expect(await readInitialLocation(tester, '/'), AppRoutes.splash);
+    });
+
+    // 알림 data.route 허용 목록 값 · 목록 밖 흐름 화면 · query 붙은 값.
+    for (final platformRoute in const [
+      '/settings',
+      '/terms/service',
+      '/login',
+      '/settings?from=fcm',
+    ]) {
+      testWidgets('플랫폼 기본 경로 $platformRoute (알림 탭 extra) → /splash', (
+        tester,
+      ) async {
+        expect(
+          await readInitialLocation(tester, platformRoute),
+          AppRoutes.splash,
+          reason:
+              '알림 intent 의 extra "route" 가 초기 위치가 되면 스플래시 · 홈 리스너 · '
+              '허용 목록을 건너뛴다',
+        );
+      });
+    }
+  });
+
   // debug reauth-login-auto-merge (2026-09-17) — 재인증 표시가 guard 뿐 아니라
   // 화면 모드까지 결정한다. 표시를 화면에 넘기지 않으면 재인증 push 가 일반
   // 로그인 화면(연결 안 된 provider · 가입 링크 · 새 로그인)을 그린다.
