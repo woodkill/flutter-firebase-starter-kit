@@ -388,6 +388,41 @@ describe("Phase 17 Firestore rules (T-17-RULES)", () => {
     });
 
   it(
+    "T-17-RULES-11: 바뀌지 않은 키는 재검증하지 않는다 — legacy 문서에 무관한 merge 허용",
+    async () => {
+      const alice = regularUser("alice").firestore();
+      const path = "users/alice";
+      // 규칙 배포 전 기기 시계 skew 로 미래 acceptedAt 이 남은 legacy 문서.
+      const future = Timestamp.fromMillis(Date.now() + TEN_MINUTES_MS);
+      await seed(path, {termsAccepted: terms({acceptedAt: future})});
+      await assertSucceeds(
+        setMerge(alice, path, {customPhotoUrl: null}),
+      );
+      // 약관 자체를 바꾸면 그때는 검증한다(미래 시각 거부 유지). 같은 값
+      // 재기록은 affectedKeys 에 들지 않으므로 다른 미래 시각을 쓴다.
+      const later = Timestamp.fromMillis(Date.now() + 2 * TEN_MINUTES_MS);
+      await assertFails(
+        setMerge(alice, path, {termsAccepted: terms({acceptedAt: later})}),
+      );
+
+      // 가입 수단 · 사진 값이 지금 규칙에 맞지 않는 legacy 문서 — 약관
+      // 재동의는 그 값들에 묶이지 않는다.
+      const bob = regularUser("bob").firestore();
+      await seed("users/bob", {
+        termsAccepted: terms(),
+        signUpProviderId: "",
+        customPhotoUrl: 42,
+      });
+      await assertSucceeds(
+        setMerge(bob, "users/bob", {termsAccepted: terms({version: 2})}),
+      );
+      // 바꾸려 하면 그때는 검증한다.
+      await assertFails(
+        setMerge(bob, "users/bob", {signUpProviderId: "google.com"}),
+      );
+    });
+
+  it(
     "T-17-RULES-09: firestore.rules stale 표기 정정 (Phase 18 · TODO 0)",
     () => {
       const rules = readFileSync(RULES_PATH, "utf8");

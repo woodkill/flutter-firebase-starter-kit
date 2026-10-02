@@ -87,6 +87,13 @@ service cloud.firestore {
             || data.signUpProviderId == prev.signUpProviderId));
     }
 
+    // update 에서 [key] 가 바뀌는지(추가 · 변경 · 삭제) 판정한다 (리뷰 IN-01).
+    // 바뀌지 않은 키는 다시 검증하지 않는다 — 사진 업로드 같은 무관한 write 가
+    // 기존 약관 · 가입 수단 값의 모양(legacy 미래 acceptedAt 등)에 묶이지 않게.
+    function changes(key) {
+      return key in request.resource.data.diff(resource.data).affectedKeys();
+    }
+
     // D-17 — 앱 소유 프로필 사진 URL 은 문자열 또는 null.
     function photoOk(data) {
       return !('customPhotoUrl' in data)
@@ -134,12 +141,16 @@ service cloud.firestore {
         && signUpWriteOnce(request.resource.data, null)
         && photoOk(request.resource.data);
 
+      // 각 검증은 해당 키가 바뀔 때만 평가한다 (리뷰 IN-01). 삭제도
+      // affectedKeys 에 들어가므로 약관 삭제 · 가입 수단 삭제는 그대로 거부된다.
       allow update: if isOwner(userId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(clientKeys())
-        && termsOk(request.resource.data, resource.data)
-        && termsNotDeleted(request.resource.data, resource.data)
-        && signUpWriteOnce(request.resource.data, resource.data)
-        && photoOk(request.resource.data);
+        && (!changes('termsAccepted')
+          || (termsOk(request.resource.data, resource.data)
+            && termsNotDeleted(request.resource.data, resource.data)))
+        && (!changes('signUpProviderId')
+          || signUpWriteOnce(request.resource.data, resource.data))
+        && (!changes('customPhotoUrl') || photoOk(request.resource.data));
 
       // 탈퇴는 Admin(deleteUserAccount) 만 문서를 지운다.
       allow delete: if false;

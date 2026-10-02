@@ -1,6 +1,6 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제), 16.9 (Naver 연결), 16.10 (provider 측 연결 끊기), 17 (Firebase Services)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
@@ -3185,7 +3185,7 @@ CollectionReference<FcmToken> _tokens(String uid) => _firestore
 | 대상 | 규칙 |
 |------|------|
 | 읽기 | 본인만 |
-| 클라이언트 쓰기 허용 키 | `clientKeys()` = `termsAccepted` · `signUpProviderId` · `customPhotoUrl` 3키만(create 는 키 집합, update 는 바뀐 키 집합 `hasOnly`) |
+| 클라이언트 쓰기 허용 키 | `clientKeys()` = `termsAccepted` · `signUpProviderId` · `customPhotoUrl` 3키만(create 는 키 집합, update 는 바뀐 키 집합 `hasOnly`). update 는 **바뀌는 키만** 아래 규칙으로 검증한다 — 사진만 바꾸는 write 는 기존 `termsAccepted` · `signUpProviderId` 값을 다시 검사하지 않는다(규칙 배포 전 값이 남은 legacy 문서 · 서버가 약관 map 에 키를 더해도 무관한 write 가 깨지지 않게 · review IN-01). 삭제도 「바뀐 키」 라 약관 삭제 · 가입 수단 삭제는 그대로 거부된다 |
 | 서버 전용 키 | `linkedProviders` · `providerLinkedAt` · `email` · `emailVerified` · IdP 프로필 미러 — Admin SDK(Cloud Functions)만 쓴다(Admin 은 rules 를 우회). `email` · `emailVerified` 는 계정 대표 이메일 1개의 mirror 다(D-26 — `mirrorAccountEmail` callable · Custom Token 서버 트랜잭션 두 곳만 쓴다. 이메일 없는 사용자는 `email: null` · `emailVerified: false`. 이메일 발송 인프라는 없다) |
 | `signUpProviderId` (D-38) | write-once — 없을 때만 쓰고, 있으면 같은 값 재기록만 허용(변경 · 삭제 거부) |
 | `termsAccepted` (D-39) | ① 기록 뒤 삭제 불가 ② `version` 비감소(재동의 = 같거나 큰 버전) ③ 필수 2개(`service` · `privacy`) = true ④ `acceptedAt` 은 timestamp 이고 `<= request.time`(미래 불가) ⑤ 5필드 형식 · 타입. `marketing` 변경은 허용 |
@@ -5262,7 +5262,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-01 | 16.11 review fix (iteration 2) | 「Naver Login」 절 **Pitfall 12** 정정(code review iteration 2) — 진단 목록에 `Naver logIn 포기: reason=lifecycle_subscribe_failed` 추가(lifecycle 구독 실패 · silent 가 아니라 오류 배너 `ServiceUnavailable` · production 재현 경로 없음 · review IN-02) / 판정 신호에 판정 창 안 재-background 보류 추가(그 판정은 하지 않고 다음 복귀가 0.3초를 새로 셈 · 보류는 마지막 복귀 기준 · review IN-02) / **Pitfall 1** 예외 문장 문체 정정(「본다」 → 「봅니다」) · 「Multi-Provider Account Linking (Phase 9.2)」 §5 예외 문장을 한 문장으로 합침(「1-tap 에서 / 1-tap 수동 복귀는」 중복 · 문장 중간 줄바꿈 제거 · review IN-03). review IN-01(stale 거부 시 고아 해제를 진입 시점 고아로 한정)은 코드 수정이며 매뉴얼의 stale 재시도 · 고아 대기 서술은 수정 뒤에도 그대로 성립해 문구 변경이 없다. |
 | 2026-10-01 | 17-19 | `## Firebase Services (Phase 17)` 절 신규 — FCM 알림 · Remote Config Feature Flag · Cloud Storage · 프로필 사진 · Firestore typed repository · Security Rules · 오류 처리 패턴 · 배포 · 콘솔 설정(firebase deploy 묶음 · Firestore TTL gcloud · `SEND_TEST_PUSH_ENABLED` · RC 키 4개 · iOS APNs) · 커스터마이징 포인트 · 익명 계정 30일 자동 정리(D-28) · 공개 프로필 · 이름 편집 확장 가이드(D-29) / 「가입 수단 기록」 위조 한계 단락을 Phase 17 rules 기준으로 재작성 + 약관 동의 시각 수용 한계 단락 / 3단계 rules bullet · IdP 프로필 동기화 정책 위조 bullet 정정 / Storage cascade 절을 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 로 재작성 + 참조 3곳 · 「회원탈퇴 정리 현황」 해소 bullet · rate limit 카운터 잔존 bullet / App Check 차단 안내 단락 / Kakao `profile_image` 현재 사실 / Account Linking 옛 번호 표기 Phase 16 으로 정정(헤딩 2 · 본문 6) / 목차 14번 |
 | 2026-10-02 | 17 review fix | Phase 17 code review iteration 1 반영 — 「배포 · 콘솔 설정」 에 ⓪ Cloud Storage 기본 버킷 만들기 추가(없으면 사진 업로드 실패 · 탈퇴는 진행) · 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 표 2단계에 404 진행 규칙 · 404 를 중단하지 않는 이유 · 새 warn 로그 2종 · 테스트 범위 T-17-DEL-01~09 (review WR-01) / 「FCM 알림」 의 `sendTestPush` 단락에 익명 caller 거부(`anonymous_caller` · 카운터 · 읽기 0 · 버튼은 기기 없음 문구) 추가 (review WR-02) / 「FCM 알림」 표 「로그아웃 · 탈퇴」 행을 표식 먼저 · 네트워크 나중으로 정정(「오프라인이면 남은 문서는 TTL 이 지운다」 삭제) · 「로그아웃 정리가 끊겼을 때」 단락 신설(같은 계정 재로그인 = 문서 삭제 재시도 · 다른 계정 켜기 = `deleteToken` 선행 · 그 밖의 재시도 · 남는 한계 · 저장 키) · 「앱 밖에서 OS 권한을 끄고 복귀」 행에 표식 · 처리 중 복귀 보류 · 커스터마이징 「저장 키」 2개 추가 (review WR-03 · WR-05) |
+| 2026-10-02 | 17 review fix (iteration 2) | Phase 17 code review iteration 2 반영 — 「Firestore Security Rules」 `users/{uid}` 표 「클라이언트 쓰기 허용 키」 행에 update 는 바뀌는 키만 검증 추가 (review IN-01) |
 
 ---
 
-*Last updated: 2026-10-02 — Phase 17 code review fix iteration 1 (Storage 기본 버킷 · 탈퇴 404 진행 · sendTestPush 익명 거부 · 로그아웃 알림 토큰 정리)*
+*Last updated: 2026-10-02 — Phase 17 code review fix iteration 2 (users 규칙 바뀐 키만 검증)*
