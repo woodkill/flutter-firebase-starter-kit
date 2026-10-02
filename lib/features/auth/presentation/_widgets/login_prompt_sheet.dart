@@ -39,6 +39,11 @@ Future<void> showLoginPromptSheet(BuildContext context) {
   );
 }
 
+/// 고정 배치에서 목록 창이 가져야 하는 최소 높이 — provider 버튼 1개 피치
+/// (56dp · quick 261003-0fp 실측 버튼 높이). 이보다 낮으면 전체 스크롤로
+/// 바꾼다 (Phase 3 D-09 · 사용자 sign-off 2026-10-03 선택지 1).
+const double _minPinnedListHeight = 56;
+
 /// 로그인 유도 Bottom Sheet 본체 (Phase 10 D-10).
 ///
 /// 소셜 로그인 **성공** 시 sheet 를 닫고 [context.go] 로 Home 이동을
@@ -74,6 +79,13 @@ Future<void> showLoginPromptSheet(BuildContext context) {
 /// 보인다 (quick 260911-0t3 -- Sketch 004 winner B 「전체 스크롤」 supersede).
 /// Drag handle 은 Bottom Sheet 이 builder 밖에 렌더하므로 스크롤과 무관하게
 /// 고정된다.
+///
+/// **저높이 전체 스크롤 (Phase 3 D-09 · quick 261003-0fp · 사용자 sign-off
+/// 2026-10-03 선택지 1):** 가로 모드처럼 시트가 낮아 고정 헤더(2)와 고정
+/// footer(4) 사이 목록 창이 provider 버튼 1개(56dp)보다 낮아지면, 헤더 ·
+/// 목록 · footer 를 스크롤 뷰 1겹에 함께 넣는다. 판정은 그려진 헤더 ·
+/// footer 의 실측 높이로 하므로 언어 · 폭 · 글꼴 크기가 바뀌어도 맞는다.
+/// 세로 폰과 780x360 처럼 창이 충분하면 지금의 고정 배치 그대로다.
 class LoginPromptSheet extends ConsumerStatefulWidget {
   /// [LoginPromptSheet] 를 생성한다.
   const LoginPromptSheet({super.key});
@@ -85,6 +97,15 @@ class LoginPromptSheet extends ConsumerStatefulWidget {
 class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
   /// 소셜 로그인 에러를 소셜 버튼 영역에 표시하기 위한 상태.
   AppException? _socialError;
+
+  /// 고정 헤더 실측용 key (저높이 전체 스크롤 판정 · quick 261003-0fp).
+  final GlobalKey _headerKey = GlobalKey();
+
+  /// 고정 footer 실측용 key (저높이 전체 스크롤 판정 · quick 261003-0fp).
+  final GlobalKey _footerKey = GlobalKey();
+
+  /// 저높이 전체 스크롤 모드 여부 — 기본은 고정 헤더 · footer 배치.
+  bool _isAllScroll = false;
 
   /// account-exists 충돌 시 계정 연결 시트를 본 sheet **위에** 노출한다
   /// (quick 260910-uff -- Surface A 의 동명 메서드 1:1 mirror).
@@ -188,80 +209,135 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
     // helper (복제 3곳 제거 — 단일 진실원).
     final isSocialLoading = watchAnySocialSignInLoading(ref);
 
+    // 고정 헤더 — 스크롤해도 "왜 로그인이 필요한가" 맥락이 남는다.
+    // 전체 스크롤 모드에서도 같은 위젯이라 높이가 같다 (모드 판정 안정).
+    final header = Padding(
+      key: _headerKey,
+      padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Gap(spacing.lg),
+          Text(
+            l10n.authPromptSheetTitle,
+            style: typography.headlineMedium.copyWith(
+              color: colorScheme.onSurface,
+            ),
+          ),
+          Gap(spacing.sm),
+          Text(
+            l10n.authPromptSheetBody,
+            style: typography.bodyMedium.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          Gap(spacing.xl),
+        ],
+      ),
+    );
+    final socialSection = SocialSignInSection(
+      isFormLoading: false,
+      showOrDivider: false,
+      errorBanner: FormErrorBanner(exception: _socialError),
+    );
+    // 고정 footer — CTA 가 스크롤 영역 밖이라 폰 높이·provider 수와
+    // 무관하게 첫 화면에 보인다 (quick 260911-0t3).
+    final footer = Padding(
+      key: _footerKey,
+      padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Gap(spacing.md),
+          // WR-08 — 소셜 OAuth 진행 중에는 null 을 넘겨 disabled 시각·
+          // 시맨틱을 AuthInProgressOverlay 의 탭 차단과 일치시킨다.
+          EmailAuthCta(
+            onPressed: isSocialLoading
+                ? null
+                : () => _handleContinueWithEmail(context),
+          ),
+          Gap(spacing.lg),
+        ],
+      ),
+    );
+
     return SafeArea(
-      child: Stack(
-        children: <Widget>[
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 고정 헤더 — 스크롤해도 "왜 로그인이 필요한가" 맥락이 남는다.
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Gap(spacing.lg),
-                    Text(
-                      l10n.authPromptSheetTitle,
-                      style: typography.headlineMedium.copyWith(
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                    Gap(spacing.sm),
-                    Text(
-                      l10n.authPromptSheetBody,
-                      style: typography.bodyMedium.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Gap(spacing.xl),
-                  ],
-                ),
-              ),
-              // provider 목록만 스크롤 — Flexible 은 기본 FlexFit.loose 라
-              // 콘텐츠가 작으면 sheet 가 cap 아래로 줄어든다 (Expanded 금지).
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 그려진 헤더 · footer 실측 높이로 모드를 다시 판정한다 — 회전 ·
+          // 언어 · 글꼴 크기가 바뀌면 다시 layout 되어 이 경로를 다시 탄다.
+          _scheduleLayoutModeCheck(constraints.maxHeight);
+          return Stack(
+            children: <Widget>[
+              if (_isAllScroll)
+                // 저높이(가로) 전체 스크롤 — 헤더 · 목록 · footer 를 스크롤
+                // 1겹에 넣는다 (Phase 3 D-09 · quick 261003-0fp · 사용자
+                // sign-off 2026-10-03 선택지 1).
+                SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SocialSignInSection(
-                        isFormLoading: false,
-                        showOrDivider: false,
-                        errorBanner: FormErrorBanner(exception: _socialError),
+                      header,
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+                        child: socialSection,
                       ),
+                      footer,
                     ],
                   ),
-                ),
-              ),
-              // 고정 footer — CTA 가 스크롤 영역 밖이라 폰 높이·provider 수와
-              // 무관하게 첫 화면에 보인다 (quick 260911-0t3).
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-                child: Column(
+                )
+              else
+                Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Gap(spacing.md),
-                    // WR-08 — 소셜 OAuth 진행 중에는 null 을 넘겨 disabled 시각·
-                    // 시맨틱을 AuthInProgressOverlay 의 탭 차단과 일치시킨다.
-                    EmailAuthCta(
-                      onPressed: isSocialLoading
-                          ? null
-                          : () => _handleContinueWithEmail(context),
+                    header,
+                    // provider 목록만 스크롤 — Flexible 은 기본 FlexFit.loose
+                    // 라 콘텐츠가 작으면 sheet 가 cap 아래로 줄어든다
+                    // (Expanded 금지).
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [socialSection],
+                        ),
+                      ),
                     ),
-                    Gap(spacing.lg),
+                    footer,
                   ],
                 ),
-              ),
+              if (isSocialLoading) const AuthInProgressOverlay(),
             ],
-          ),
-          if (isSocialLoading) const AuthInProgressOverlay(),
-        ],
+          );
+        },
       ),
     );
+  }
+
+  /// 다음 프레임에 헤더 · footer 실측 높이로 배치 모드를 판정한다.
+  ///
+  /// 고정 헤더와 고정 footer 사이에 남는 목록 창(`maxHeight − 헤더 − footer`)
+  /// 이 [_minPinnedListHeight] 보다 낮으면 전체 스크롤, 아니면 고정 배치다.
+  /// 헤더 · footer 는 두 모드에서 같은 위젯 · 같은 폭이라 높이가 같으므로
+  /// 판정이 모드 전환으로 뒤집히지 않는다(진동 없음). 판정이 바뀔 때만
+  /// `setState` 한다.
+  void _scheduleLayoutModeCheck(double maxHeight) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !maxHeight.isFinite) return;
+      final headerBox = _headerKey.currentContext?.findRenderObject();
+      final footerBox = _footerKey.currentContext?.findRenderObject();
+      if (headerBox is! RenderBox || !headerBox.hasSize) return;
+      if (footerBox is! RenderBox || !footerBox.hasSize) return;
+      final pinnedListWindow =
+          maxHeight - headerBox.size.height - footerBox.size.height;
+      final shouldScrollAll = pinnedListWindow < _minPinnedListHeight;
+      if (shouldScrollAll != _isAllScroll) {
+        setState(() => _isAllScroll = shouldScrollAll);
+      }
+    });
   }
 
   /// "이메일로 계속" 탭 핸들러.
