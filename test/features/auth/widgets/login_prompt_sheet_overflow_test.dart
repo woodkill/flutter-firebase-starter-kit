@@ -32,6 +32,7 @@ import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dar
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_auth_cta.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/login_prompt_sheet.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
@@ -74,10 +75,13 @@ const List<AuthStrategy> _sevenStrategies = <AuthStrategy>[
 ///
 /// WR-09 (Phase 7 review) 이후 `activeStrategiesProvider` 는 family 가
 /// 아니므로 locale 일치 제약이 없다 — override 는 provider 자체에 건다.
+///
+/// [locale] 기본값은 en 이다 (quick 261003-0fp 가로 점검이 ko · ja 로 바꾼다).
 Future<LastLocationRecorder> pumpOverflowHarness(
   WidgetTester tester,
-  List<AuthStrategy> strategies,
-) async {
+  List<AuthStrategy> strategies, {
+  Locale locale = const Locale('en'),
+}) async {
   final recorder = LastLocationRecorder();
   final mockRepo = _MockAuthRepository();
 
@@ -115,7 +119,7 @@ Future<LastLocationRecorder> pumpOverflowHarness(
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
@@ -255,4 +259,69 @@ void main() {
       await expectCtaAboveFold(tester, _sevenStrategies);
     });
   });
+
+  group('LoginPromptSheet 가로 모드 (Phase 3 D-09 · quick 261003-0fp)', () {
+    for (final size in _landscapeSizes) {
+      for (final locale in _sweepLocales) {
+        final label =
+            '${_formatSize(size)} · ${locale.languageCode} · 6 provider';
+
+        testWidgets(
+          'LP ($label): 시트 넘침 0 · CTA · 마지막 버튼 도달 · '
+          '261003-0fp',
+          (tester) async {
+            _setLogicalViewport(tester, size);
+            await pumpOverflowHarness(tester, _sixStrategies, locale: locale);
+            expect(find.byType(LoginPromptSheet), findsOneWidget);
+            expect(tester.takeException(), isNull, reason: '$label 시트');
+
+            expect(
+              find.byType(EmailAuthCta).hitTestable(),
+              findsOneWidget,
+              reason: '$label 고정 footer CTA 도달',
+            );
+            final lastButton = find.byType(BrandedSocialButton).last;
+            await tester.ensureVisible(lastButton);
+            await tester.pumpAndSettle();
+            expect(
+              lastButton.hitTestable(),
+              findsOneWidget,
+              reason: '$label 마지막 provider 버튼 도달',
+            );
+            expect(tester.takeException(), isNull, reason: '$label 마지막');
+          },
+          // quick 261003-0fp — 외관 변경 수정 필요 · 사용자 결정 대기.
+          skip: size == _appearanceDecisionPendingSize,
+        );
+      }
+    }
+  });
 }
+
+/// 가로 모드 점검 크기 (logical px).
+///
+/// - 780x360: SM-S942N 가로 실측 w780dp h360dp.
+/// - 560x280: 지원 최소 폭 280dp 의 가로 — 최악.
+const _landscapeSizes = <Size>[Size(780, 360), Size(560, 280)];
+
+/// 점검 언어 — ko 먼저(R2), en, ja.
+const _sweepLocales = <Locale>[Locale('ko'), Locale('en'), Locale('ja')];
+
+/// 테스트 view 를 logical [size] 로 맞춘다 (DPR 1.0 · pump 전에 호출).
+///
+/// `setSurfaceSize` 는 MediaQuery 를 갱신하지 않으므로 쓰지 않는다
+/// (quick 260929-pze 선례).
+void _setLogicalViewport(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+/// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
+String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';
+
+/// 외관 변경 결정을 기다리는 크기 — 560x280 에서 고정 헤더 · footer 가 시트를
+/// 차지해 provider 목록 스크롤 영역이 버튼 1개보다 낮다 (quick 261003-0fp
+/// 실측). 사용자 결정 뒤 continuation 이 이 skip 을 지운다.
+const _appearanceDecisionPendingSize = Size(560, 280);

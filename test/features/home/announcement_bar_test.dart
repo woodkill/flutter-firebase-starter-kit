@@ -69,11 +69,21 @@ class _ReadFailingPrefsStore extends SharedPreferencesStorePlatform {
 /// 닫은 문구 저장 키 (D-12).
 const String _dismissedKey = 'home_announcement_dismissed_text';
 
-/// 공지 스위치 · 한국어 문구만 지정한 [FeatureFlagValues].
-FeatureFlagValues _flags({required bool enabled, String ko = ''}) {
+/// 공지 스위치 · 언어별 문구를 지정한 [FeatureFlagValues].
+///
+/// [en] · [ja] 는 기본 빈 칸(= RC 기본값과 같음)이라 한국어만 주는 기존 호출의
+/// 값은 그대로다 (quick 261003-0fp 가 en · ja 인자 추가).
+FeatureFlagValues _flags({
+  required bool enabled,
+  String ko = '',
+  String en = '',
+  String ja = '',
+}) {
   return FeatureFlagValues(<FeatureFlag, Object>{
     FeatureFlag.announcementBannerEnabled: enabled,
     FeatureFlag.announcementMessageKo: ko,
+    FeatureFlag.announcementMessageEn: en,
+    FeatureFlag.announcementMessageJa: ja,
   });
 }
 
@@ -355,4 +365,141 @@ void main() {
       });
     });
   });
+
+  group('게스트 홈 고정 영역 가로 모드 (Phase 3 D-09 · quick 261003-0fp)', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+    });
+
+    for (final size in _landscapeSizes) {
+      for (final locale in _sweepLocales) {
+        final label = '${_formatSize(size)} · ${locale.languageCode}';
+
+        testWidgets('HM ($label): 공지 + 게스트 바 넘침 0 · 닫기 도달 · '
+            '261003-0fp', (tester) async {
+          await _pumpGuestHomeAt(
+            tester,
+            size: size,
+            locale: locale,
+            flags: _flags(
+              enabled: true,
+              ko: _sampleAnnouncementKo,
+              en: _sampleAnnouncementEn,
+              ja: _sampleAnnouncementJa,
+            ),
+          );
+          expect(tester.takeException(), isNull, reason: '$label 홈');
+
+          final l10n = lookupAppLocalizations(locale);
+          final bar = find.byType(AnnouncementBar);
+          final dismiss = find.descendant(
+            of: bar,
+            matching: find.byType(IconButton),
+          );
+          expect(
+            dismiss.hitTestable(),
+            findsOneWidget,
+            reason: '$label 공지 닫기 도달',
+          );
+          final guestText = find.text(l10n.homeGuestBanner);
+          expect(guestText, findsOneWidget, reason: '$label 게스트 바');
+          final guestBar = find
+              .ancestor(of: guestText, matching: find.byType(Material))
+              .first;
+          expect(
+            tester.getRect(guestBar).bottom,
+            lessThanOrEqualTo(size.height),
+            reason: '$label 게스트 바가 화면 안',
+          );
+          final body = find
+              .descendant(
+                of: find.byType(EnvironmentInfoScreen),
+                matching: find.byType(ListView),
+              )
+              .first;
+          expect(
+            tester.getSize(body).height,
+            greaterThan(0),
+            reason: '$label 본문 ListView 높이',
+          );
+          expect(tester.takeException(), isNull, reason: '$label 마지막');
+        });
+      }
+    }
+  });
+}
+
+/// 가로 모드 점검 크기 (logical px).
+///
+/// - 780x360: SM-S942N 가로 실측 w780dp h360dp.
+/// - 560x280: 지원 최소 폭 280dp 의 가로 — 최악.
+const _landscapeSizes = <Size>[Size(780, 360), Size(560, 280)];
+
+/// 점검 언어 — ko 먼저(R2), en, ja.
+const _sweepLocales = <Locale>[Locale('ko'), Locale('en'), Locale('ja')];
+
+/// 테스트 view 를 logical [size] 로 맞춘다 (DPR 1.0 · pump 전에 호출).
+///
+/// `setSurfaceSize` 는 MediaQuery 를 갱신하지 않으므로 쓰지 않는다
+/// (quick 260929-pze 선례).
+void _setLogicalViewport(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+/// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
+String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';
+
+/// Phase 17 mockup 예시 공지 문구 (ko) — ARB/RC 기본값 아님 · verbatim 복사.
+const _sampleAnnouncementKo =
+    '9월 30일(수) 오전 2시~4시에 서버 점검이 있어요. 점검 중에는 로그인할 수 없어요.';
+
+/// Phase 17 mockup 예시 공지 문구 (en) — ARB/RC 기본값 아님 · verbatim 복사.
+const _sampleAnnouncementEn =
+    'Scheduled maintenance on Sep 30, 2:00–4:00 AM. Sign-in will be unavailable during this time.';
+
+/// Phase 17 mockup 예시 공지 문구 (ja) — ARB/RC 기본값 아님 · verbatim 복사.
+const _sampleAnnouncementJa =
+    '9月30日（水）午前2時〜4時にサーバーメンテナンスを行います。メンテナンス中はログインできません。';
+
+/// 게스트(익명) 홈을 [size] · [locale] 로 띄운다 — [_pumpGuestHome] 과 같은
+/// override 에 크기 · 언어만 인자로 받는다 (quick 261003-0fp).
+Future<void> _pumpGuestHomeAt(
+  WidgetTester tester, {
+  required Size size,
+  required Locale locale,
+  required FeatureFlagValues flags,
+}) async {
+  _setLogicalViewport(tester, size);
+
+  final anon = _MockFbUser();
+  when(() => anon.isAnonymous).thenReturn(true);
+  when(() => anon.uid).thenReturn('anon-uid');
+  final auth = _MockFirebaseAuth();
+  when(() => auth.currentUser).thenReturn(anon);
+
+  await tester.pumpWidget(
+    ProviderScope(
+      key: UniqueKey(),
+      overrides: [
+        isFirebaseInitializedProvider.overrideWithValue(false),
+        firebaseAuthProvider.overrideWithValue(auth),
+        authStateProvider.overrideWith((ref) => Stream.value(anon)),
+        currentUserProvider.overrideWith((ref) => null),
+        authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
+        localeProvider.overrideWithBuild((ref, notifier) => locale),
+        featureFlagsProvider.overrideWithBuild((ref, notifier) => flags),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light(),
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const EnvironmentInfoScreen(),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }

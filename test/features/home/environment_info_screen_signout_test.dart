@@ -13,6 +13,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -92,7 +93,12 @@ class _SignOutTestEnv {
 /// 직접 차용 + `_confirmSignOut` 다이얼로그 확인 path 전용 stub 추가.
 /// `tester.view.physicalSize = const Size(800, 8000)` 으로 긴 ListView 가
 /// 한 frame 에 렌더되도록 한다.
-Future<_SignOutTestEnv> _pumpSignOutHarness(WidgetTester tester) async {
+///
+/// [locale] 기본값은 en 이다 (quick 261003-0fp 가로 점검이 ko · ja 로 바꾼다).
+Future<_SignOutTestEnv> _pumpSignOutHarness(
+  WidgetTester tester, {
+  Locale locale = const Locale('en'),
+}) async {
   tester.view.physicalSize = const Size(800, 8000);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
@@ -172,7 +178,7 @@ Future<_SignOutTestEnv> _pumpSignOutHarness(WidgetTester tester) async {
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
@@ -252,4 +258,83 @@ void main() {
       },
     );
   });
+
+  group('로그아웃 확인 다이얼로그 가로 모드 (Phase 3 D-09 · quick 261003-0fp)', () {
+    for (final size in _landscapeSizes) {
+      for (final locale in _sweepLocales) {
+        final label = '${_formatSize(size)} · ${locale.languageCode}';
+
+        testWidgets('LO ($label): 넘침 0 · 본문 잘림 0 · 두 액션 도달 · '
+            '261003-0fp', (tester) async {
+          await _pumpSignOutHarness(tester, locale: locale);
+          final l10n = lookupAppLocalizations(locale);
+          await _scrollTo(tester, find.text(l10n.authAccountSignOut));
+          await tester.tap(find.text(l10n.authAccountSignOut));
+          await tester.pumpAndSettle();
+
+          // 다이얼로그를 연 채 기기를 가로로 돌린 상황 재현.
+          _setLogicalViewport(tester, size);
+          await tester.pumpAndSettle();
+
+          final dialog = find.byType(AlertDialog);
+          expect(dialog, findsOneWidget, reason: '$label 다이얼로그 열림');
+          expect(tester.takeException(), isNull, reason: '$label 다이얼로그');
+
+          // 본문은 Text 1개라 넘쳐도 예외 없이 잘리기만 한다 — 잘림을 따로 본다.
+          final body = tester.renderObject<RenderParagraph>(
+            find.descendant(
+              of: dialog,
+              matching: find.text(l10n.authLogoutConfirmMessage),
+            ),
+          );
+          expect(
+            body.size.height,
+            greaterThanOrEqualTo(
+              body.getMaxIntrinsicHeight(body.size.width) - 0.5,
+            ),
+            reason: '$label 본문 문단 잘림 0',
+          );
+          for (final action in <String>[
+            l10n.commonCancel,
+            l10n.authAccountSignOut,
+          ]) {
+            expect(
+              find
+                  .descendant(
+                    of: dialog,
+                    matching: find.widgetWithText(TextButton, action),
+                  )
+                  .hitTestable(),
+              findsOneWidget,
+              reason: '$label 「$action」 도달',
+            );
+          }
+          expect(tester.takeException(), isNull, reason: '$label 마지막');
+        });
+      }
+    }
+  });
 }
+
+/// 가로 모드 점검 크기 (logical px).
+///
+/// - 780x360: SM-S942N 가로 실측 w780dp h360dp.
+/// - 560x280: 지원 최소 폭 280dp 의 가로 — 최악.
+const _landscapeSizes = <Size>[Size(780, 360), Size(560, 280)];
+
+/// 점검 언어 — ko 먼저(R2), en, ja.
+const _sweepLocales = <Locale>[Locale('ko'), Locale('en'), Locale('ja')];
+
+/// 테스트 view 를 logical [size] 로 맞춘다 (DPR 1.0 · pump 전에 호출).
+///
+/// `setSurfaceSize` 는 MediaQuery 를 갱신하지 않으므로 쓰지 않는다
+/// (quick 260929-pze 선례).
+void _setLogicalViewport(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+/// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
+String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';

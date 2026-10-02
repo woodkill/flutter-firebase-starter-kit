@@ -19,6 +19,7 @@ import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/splash/presentation/splash_error_code.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_screen.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_initializer.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -45,17 +46,19 @@ User _stubUser({String uid = 'anon-uid'}) => User(
   providerIds: const <String>[],
 );
 
+/// [SplashScreen] 을 [router] 로 pump 한다 (기본 en — [locale] 로 바꾼다).
 Future<void> _pumpSplash(
   WidgetTester tester, {
   required SplashInitializer initializer,
   required GoRouter router,
+  Locale locale = const Locale('en'),
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [splashInitializerProvider.overrideWith((ref) => initializer)],
       child: MaterialApp.router(
         theme: AppTheme.light(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
@@ -1217,4 +1220,231 @@ void main() {
       );
     });
   });
+
+  group('SplashScreen 가로 모드 (Phase 3 D-09 · quick 261003-0fp)', () {
+    tearDown(() {
+      SplashConfig.overrideMinDuration = null;
+    });
+
+    for (final size in _landscapeSizes) {
+      for (final locale in _sweepLocales) {
+        final label = '${_formatSize(size)} · ${locale.languageCode}';
+
+        testWidgets('SB ($label): 스플래시 본문 넘침 0 · 261003-0fp', (tester) async {
+          // Test 1 방식 — init 이 5분 뒤에 끝나 대기 상태 첫 프레임만 본다.
+          SplashConfig.overrideMinDuration = const Duration(minutes: 5);
+          _setLogicalViewport(tester, size);
+          final initializer = SplashInitializer(
+            authRepository: _MockAuthRepository(),
+            isFirebaseInitialized: false,
+            currentUserIsNull: true,
+            onboardingFuture: Future.value(false),
+            isSocialLinkInProgress: false,
+          );
+          final router = _testRouter();
+          addTearDown(router.dispose);
+
+          await tester.runAsync(() async {
+            await _pumpSplash(
+              tester,
+              initializer: initializer,
+              router: router,
+              locale: locale,
+            );
+            await tester.pump();
+            expect(tester.takeException(), isNull, reason: '$label 본문');
+            final preparing = find.text(
+              lookupAppLocalizations(locale).splashPreparing,
+            );
+            expect(preparing, findsOneWidget, reason: '$label 준비 문구');
+            expect(
+              tester.getRect(preparing).bottom,
+              lessThanOrEqualTo(size.height),
+              reason: '$label 준비 문구가 화면 안',
+            );
+          });
+        });
+
+        testWidgets('SD ($label): 실패 다이얼로그 넘침 0 · 액션 · 지문 도달 · '
+            '261003-0fp', (tester) async {
+          _setLogicalViewport(tester, size);
+          final mockRepo = _MockAuthRepository();
+          when(mockRepo.signInAnonymously).thenAnswer(
+            (_) async => const Result.failure(NoInternetConnection()),
+          );
+          final initializer = SplashInitializer(
+            authRepository: mockRepo,
+            isFirebaseInitialized: true,
+            currentUserIsNull: true,
+            onboardingFuture: Future.value(true),
+            isSocialLinkInProgress: false,
+          );
+          final router = _testRouter();
+          addTearDown(router.dispose);
+
+          await _pumpSplash(
+            tester,
+            initializer: initializer,
+            router: router,
+            locale: locale,
+          );
+          await tester.pump(const Duration(milliseconds: 50));
+          await tester.pumpAndSettle();
+
+          final l10n = lookupAppLocalizations(locale);
+          final dialog = find.byType(AlertDialog);
+          expect(dialog, findsOneWidget, reason: '$label 다이얼로그 열림');
+          expect(tester.takeException(), isNull, reason: '$label 다이얼로그');
+          expect(
+            find
+                .descendant(
+                  of: dialog,
+                  matching: find.widgetWithText(FilledButton, l10n.commonRetry),
+                )
+                .hitTestable(),
+            findsOneWidget,
+            reason: '$label 재시도 도달',
+          );
+          expect(
+            find
+                .descendant(
+                  of: dialog,
+                  matching: find.widgetWithText(
+                    TextButton,
+                    l10n.splashContinueOffline,
+                  ),
+                )
+                .hitTestable(),
+            findsOneWidget,
+            reason: '$label 나중에 로그인 도달',
+          );
+          final fingerprint = find.descendant(
+            of: dialog,
+            matching: find.text(
+              l10n.splashErrorCodeFingerprint(
+                extractSplashErrorCode(const NoInternetConnection()),
+              ),
+            ),
+          );
+          await tester.ensureVisible(fingerprint);
+          await tester.pumpAndSettle();
+          expect(
+            fingerprint.hitTestable(),
+            findsOneWidget,
+            reason: '$label 오류 지문 도달',
+          );
+          expect(tester.takeException(), isNull, reason: '$label 마지막');
+        });
+      }
+    }
+
+    testWidgets('P (360x800 · ko): 실패 다이얼로그 세로 rect 고정 · 261003-0fp', (
+      tester,
+    ) async {
+      _setLogicalViewport(tester, _portraitSize);
+      final mockRepo = _MockAuthRepository();
+      when(
+        mockRepo.signInAnonymously,
+      ).thenAnswer((_) async => const Result.failure(NoInternetConnection()));
+      final initializer = SplashInitializer(
+        authRepository: mockRepo,
+        isFirebaseInitialized: true,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(true),
+        isSocialLinkInProgress: false,
+      );
+      final router = _testRouter();
+      addTearDown(router.dispose);
+
+      await _pumpSplash(
+        tester,
+        initializer: initializer,
+        router: router,
+        locale: const Locale('ko'),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      final l10n = lookupAppLocalizations(const Locale('ko'));
+      final dialog = find.byType(AlertDialog);
+      Finder inDialog(Finder matching) =>
+          find.descendant(of: dialog, matching: matching);
+      final actual = <Rect>[
+        tester.getRect(inDialog(find.byType(Material)).first),
+        tester.getRect(inDialog(find.text(l10n.splashFailureTitle))),
+        tester.getRect(inDialog(find.text(l10n.splashFailureMessage))),
+        tester.getRect(
+          inDialog(
+            find.text(
+              l10n.splashErrorCodeFingerprint(
+                extractSplashErrorCode(const NoInternetConnection()),
+              ),
+            ),
+          ),
+        ),
+        tester.getRect(
+          inDialog(find.widgetWithText(TextButton, l10n.splashContinueOffline)),
+        ),
+        tester.getRect(
+          inDialog(find.widgetWithText(FilledButton, l10n.commonRetry)),
+        ),
+      ];
+      const expected = _portraitFailureDialogRects;
+      expect(actual.length, expected.length);
+      for (var i = 0; i < expected.length; i++) {
+        _expectRectNear(actual[i], expected[i], reason: '#$i');
+      }
+    });
+  });
 }
+
+/// 가로 모드 점검 크기 (logical px).
+///
+/// - 780x360: SM-S942N 가로 실측 w780dp h360dp.
+/// - 560x280: 지원 최소 폭 280dp 의 가로 — 최악.
+const _landscapeSizes = <Size>[Size(780, 360), Size(560, 280)];
+
+/// 세로 rect 고정 가드(P) 크기 — 일반 세로 폰.
+const _portraitSize = Size(360, 800);
+
+/// 점검 언어 — ko 먼저(R2), en, ja.
+const _sweepLocales = <Locale>[Locale('ko'), Locale('en'), Locale('ja')];
+
+/// 테스트 view 를 logical [size] 로 맞춘다 (DPR 1.0 · pump 전에 호출).
+///
+/// `setSurfaceSize` 는 MediaQuery 를 갱신하지 않으므로 쓰지 않는다
+/// (quick 260929-pze 선례).
+void _setLogicalViewport(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+/// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
+String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';
+
+/// [actual] 의 네 변이 [expected] 와 ±0.5 안인지 단언한다.
+void _expectRectNear(Rect actual, Rect expected, {required String reason}) {
+  expect(actual.left, closeTo(expected.left, 0.5), reason: '$reason left');
+  expect(actual.top, closeTo(expected.top, 0.5), reason: '$reason top');
+  expect(actual.right, closeTo(expected.right, 0.5), reason: '$reason right');
+  expect(
+    actual.bottom,
+    closeTo(expected.bottom, 0.5),
+    reason: '$reason bottom',
+  );
+}
+
+/// 360x800 · ko 실패 다이얼로그의 수정 전 rect — 다이얼로그 Material · 제목 ·
+/// 본문 · 오류 지문 · 「나중에 로그인」 · 「재시도」 (quick 261003-0fp 가 lib
+/// 수정 전 트리에서 실측).
+const _portraitFailureDialogRects = <Rect>[
+  Rect.fromLTRB(40, 222, 320, 578),
+  Rect.fromLTRB(64, 286, 296, 318),
+  Rect.fromLTRB(64, 334, 296, 394),
+  Rect.fromLTRB(64, 402, 296, 434),
+  Rect.fromLTRB(131, 458, 296, 506),
+  Rect.fromLTRB(205.7, 506, 296, 554),
+];

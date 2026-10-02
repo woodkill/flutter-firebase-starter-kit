@@ -524,4 +524,120 @@ void main() {
       expect(find.textContaining('한 번 로그인합니다.'), findsNothing);
     });
   });
+
+  group('UnlinkConfirmationDialog 가로 모드 (Phase 3 D-09 · quick 261003-0fp)', () {
+    for (final size in _landscapeSizes) {
+      for (final locale in _sweepLocales) {
+        final label = '${_formatSize(size)} · ${locale.languageCode} · Google';
+
+        testWidgets('UL idle ($label): 넘침 0 · 두 액션 도달 · 261003-0fp', (
+          tester,
+        ) async {
+          await _pumpAndShowDialog(
+            tester,
+            authRepo: authRepo,
+            locale: locale,
+            viewport: size,
+            overrides: _googleDoneOverrides(),
+          );
+          final l10n = lookupAppLocalizations(locale);
+          final dialog = find.byType(AlertDialog);
+          expect(dialog, findsOneWidget, reason: '$label 다이얼로그 열림');
+          // 재로그인 행 = 문단 3개(본문 · 고지 · 로그인 안내) — 최악.
+          expect(
+            find.text(l10n.settingsUnlinkDialogSignInGuide('Google')),
+            findsOneWidget,
+            reason: '$label 로그인 안내 문단',
+          );
+          expect(tester.takeException(), isNull, reason: '$label 다이얼로그');
+          for (final action in <String>[
+            l10n.commonCancel,
+            l10n.settingsUnlinkConfirmAction,
+          ]) {
+            expect(
+              find
+                  .descendant(
+                    of: dialog,
+                    matching: find.widgetWithText(TextButton, action),
+                  )
+                  .hitTestable(),
+              findsOneWidget,
+              reason: '$label 「$action」 도달',
+            );
+          }
+          expect(tester.takeException(), isNull, reason: '$label 마지막');
+        });
+
+        testWidgets('UL busy ($label): 진행 표시 넘침 0 · 261003-0fp', (
+          tester,
+        ) async {
+          final completer = Completer<Result<User>>();
+          when(
+            () => authRepo.unlinkNativeProvider('google.com'),
+          ).thenAnswer((_) => completer.future);
+          final handle = await _pumpAndShowDialog(
+            tester,
+            authRepo: authRepo,
+            locale: locale,
+            viewport: size,
+            overrides: _googleDoneOverrides(),
+          );
+          final l10n = lookupAppLocalizations(locale);
+          final dialog = find.byType(AlertDialog);
+          expect(tester.takeException(), isNull, reason: '$label idle');
+          expect(
+            find
+                .descendant(
+                  of: dialog,
+                  matching: find.widgetWithText(
+                    TextButton,
+                    l10n.settingsUnlinkConfirmAction,
+                  ),
+                )
+                .hitTestable(),
+            findsOneWidget,
+            reason: '$label 「해제」 도달',
+          );
+
+          await _tapConfirmUntilBusy(tester, l10n.settingsUnlinkConfirmAction);
+
+          expect(
+            find.descendant(
+              of: dialog,
+              matching: find.byType(CircularProgressIndicator),
+            ),
+            findsOneWidget,
+            reason: '$label 진행 표시',
+          );
+          expect(tester.takeException(), isNull, reason: '$label busy');
+
+          // pending future 0 — 끝내고 닫힘까지 settle.
+          completer.complete(Result<User>.success(_unlinkedUser));
+          await tester.pumpAndSettle();
+          expect(await handle.result, AccountUnlinkOutcome.success);
+          expect(tester.takeException(), isNull, reason: '$label 마지막');
+        });
+      }
+    }
+  });
 }
+
+/// 가로 모드 점검 크기 (logical px).
+///
+/// - 780x360: SM-S942N 가로 실측 w780dp h360dp.
+/// - 560x280: 지원 최소 폭 280dp 의 가로 — 최악.
+const _landscapeSizes = <Size>[Size(780, 360), Size(560, 280)];
+
+/// 점검 언어 — ko 먼저(R2), en, ja.
+const _sweepLocales = <Locale>[Locale('ko'), Locale('en'), Locale('ja')];
+
+/// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
+String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';
+
+/// Google 재로그인 행 끊기 성공 fake · dummy 실행 의존 override 묶음.
+List<Override> _googleDoneOverrides() => <Override>[
+  disconnectStepsProvider.overrideWithValue(<DisconnectStep>[
+    _googleStep(const DisconnectDone()),
+  ]),
+  disconnectDepsProvider.overrideWithValue(_dummyDeps()),
+];

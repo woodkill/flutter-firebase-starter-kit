@@ -255,4 +255,58 @@ void main() {
       expect(header.style?.color, equals(theme.colorScheme.onSurface));
     });
   });
+
+  group('AccountLinkingSheet 가로 모드 (Phase 3 D-09 · quick 261003-0fp)', () {
+    for (final size in _landscapeSizes) {
+      for (final locale in _sweepLocales) {
+        final label = '${_formatSize(size)} · ${locale.languageCode} · Kakao';
+
+        testWidgets('AL ($label): 시트 넘침 0 · 로그인 버튼 도달 · 261003-0fp', (
+          tester,
+        ) async {
+          _setLogicalViewport(tester, size);
+          await _pumpAndShowSheet(
+            tester,
+            provider: AccountProvider.kakao,
+            locale: locale,
+          );
+          expect(find.byType(AccountLinkingSheet), findsOneWidget);
+          expect(tester.takeException(), isNull, reason: '$label 시트');
+
+          final button = find.byType(BrandedSocialButton);
+          await tester.ensureVisible(button);
+          await tester.pump();
+          expect(
+            button.hitTestable(),
+            findsOneWidget,
+            reason: '$label 로그인 버튼 도달',
+          );
+          expect(tester.takeException(), isNull, reason: '$label 마지막');
+        });
+      }
+    }
+  });
 }
+
+/// 가로 모드 점검 크기 (logical px).
+///
+/// - 780x360: SM-S942N 가로 실측 w780dp h360dp.
+/// - 560x280: 지원 최소 폭 280dp 의 가로 — 최악.
+const _landscapeSizes = <Size>[Size(780, 360), Size(560, 280)];
+
+/// 점검 언어 — ko 먼저(R2), en, ja.
+const _sweepLocales = <Locale>[Locale('ko'), Locale('en'), Locale('ja')];
+
+/// 테스트 view 를 logical [size] 로 맞춘다 (DPR 1.0 · pump 전에 호출).
+///
+/// `setSurfaceSize` 는 MediaQuery 를 갱신하지 않으므로 쓰지 않는다
+/// (quick 260929-pze 선례).
+void _setLogicalViewport(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+/// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
+String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';

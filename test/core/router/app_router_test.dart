@@ -522,4 +522,100 @@ void main() {
       },
     );
   });
+
+  group('404 화면 가로 모드 (Phase 3 D-09 · quick 261003-0fp)', () {
+    for (final size in _landscapeSizes) {
+      for (final locale in _sweepLocales) {
+        final label = '${_formatSize(size)} · ${locale.languageCode}';
+
+        testWidgets('NF ($label): 404 넘침 0 · 홈으로 도달 · 261003-0fp', (
+          tester,
+        ) async {
+          _setLogicalViewport(tester, size);
+          await _pumpNotFound(tester, locale: locale);
+          expect(tester.takeException(), isNull, reason: '$label 404');
+
+          final goHome = find.widgetWithText(
+            FilledButton,
+            lookupAppLocalizations(locale).errorNotFoundGoHomeCta,
+          );
+          await tester.ensureVisible(goHome);
+          await tester.pumpAndSettle();
+          expect(goHome.hitTestable(), findsOneWidget, reason: '$label 홈으로 도달');
+          expect(tester.takeException(), isNull, reason: '$label 마지막');
+        });
+      }
+    }
+
+    testWidgets('P (360x800 · ko): 404 세로 rect 고정 · 261003-0fp', (
+      tester,
+    ) async {
+      _setLogicalViewport(tester, _portraitSize);
+      await _pumpNotFound(tester, locale: const Locale('ko'));
+      expect(tester.takeException(), isNull);
+
+      final l10n = lookupAppLocalizations(const Locale('ko'));
+      final icon = find.byIcon(Icons.error_outline);
+      final actual = <Rect>[
+        tester.getRect(
+          find.ancestor(of: icon, matching: find.byType(Column)).first,
+        ),
+        tester.getRect(icon),
+        tester.getRect(find.text(l10n.errorNotFoundBody)),
+        tester.getRect(find.byType(FilledButton)),
+      ];
+      const expected = _portraitNotFoundRects;
+      expect(actual.length, expected.length);
+      for (var i = 0; i < expected.length; i++) {
+        _expectRectNear(actual[i], expected[i], reason: '#$i');
+      }
+    });
+  });
 }
+
+/// 가로 모드 점검 크기 (logical px).
+///
+/// - 780x360: SM-S942N 가로 실측 w780dp h360dp.
+/// - 560x280: 지원 최소 폭 280dp 의 가로 — 최악.
+const _landscapeSizes = <Size>[Size(780, 360), Size(560, 280)];
+
+/// 세로 rect 고정 가드(P) 크기 — 일반 세로 폰.
+const _portraitSize = Size(360, 800);
+
+/// 점검 언어 — ko 먼저(R2), en, ja.
+const _sweepLocales = <Locale>[Locale('ko'), Locale('en'), Locale('ja')];
+
+/// 테스트 view 를 logical [size] 로 맞춘다 (DPR 1.0 · pump 전에 호출).
+///
+/// `setSurfaceSize` 는 MediaQuery 를 갱신하지 않으므로 쓰지 않는다
+/// (quick 260929-pze 선례).
+void _setLogicalViewport(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+/// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
+String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';
+
+/// [actual] 의 네 변이 [expected] 와 ±0.5 안인지 단언한다.
+void _expectRectNear(Rect actual, Rect expected, {required String reason}) {
+  expect(actual.left, closeTo(expected.left, 0.5), reason: '$reason left');
+  expect(actual.top, closeTo(expected.top, 0.5), reason: '$reason top');
+  expect(actual.right, closeTo(expected.right, 0.5), reason: '$reason right');
+  expect(
+    actual.bottom,
+    closeTo(expected.bottom, 0.5),
+    reason: '$reason bottom',
+  );
+}
+
+/// 360x800 · ko 404 본문의 수정 전 rect — 본문 Column · 아이콘 · 안내 문구 ·
+/// 「홈으로」 버튼 (quick 261003-0fp 가 lib 수정 전 트리에서 실측).
+const _portraitNotFoundRects = <Rect>[
+  Rect.fromLTRB(26, 324, 334, 532),
+  Rect.fromLTRB(148, 324, 212, 388),
+  Rect.fromLTRB(37.5, 440, 322.5, 460),
+  Rect.fromLTRB(125.9, 484, 234.1, 532),
+];
