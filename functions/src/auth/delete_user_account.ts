@@ -53,6 +53,22 @@ const MAX_DELETES_PER_TRANSACTION = 500;
 export const STORAGE_CLEANUP_FAILED_REASON = "storage_cleanup_failed";
 
 /**
+ * Cloud Storage 오류가 HTTP 404(대상 없음)인지 판정한다 (Phase 17 리뷰 WR-01).
+ *
+ * `@google-cloud/storage` 7.x 의 `ApiError` 는 `code` 에 HTTP 상태를
+ * **숫자** 로 싣는다 (`nodejs-common/util.js` — `statusCode` 또는 응답 본문
+ * `error.code`). 문자열 code(`firebase-admin` 류)와 섞이지 않도록 숫자
+ * 404 만 인정한다.
+ *
+ * @param {unknown} err reject 값 하나.
+ * @return {boolean} 404 이면 true.
+ */
+function isStorageNotFound(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (err as Error & {code?: unknown}).code === 404;
+}
+
+/**
  * 문서 ID 배열을 [size] 이하 청크로 나눈다 (WR-09 상한 가드).
  *
  * 입력이 비어 있어도 **빈 청크 1개** 를 돌려준다 — 호출부가 identity_index
@@ -83,7 +99,9 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  *   Step 1.5: Phase 17 D-40 — Cloud Storage `users/{uid}/` prefix 삭제.
  *           실패 시 `unavailable` + `details.reason`
  *           `storage_cleanup_failed` 로 탈퇴를 **중단**한다 (Auth · Firestore
- *           무변경 → 사용자 재시도 가능).
+ *           무변경 → 사용자 재시도 가능). 단, 404(기본 버킷 없음 · 파일이
+ *           이미 없음)는 지울 것이 없는 상태라 warn 로그 뒤 진행한다
+ *           (리뷰 WR-01 — 재시도로 풀리지 않는 영구 오류로 탈퇴를 막지 않음).
  *   Step 2: D-08 admin.auth().deleteUser — idempotent retry-safe.
  *           auth/user-not-found catch 는 success path treat (Pitfall 1 회피).
  *   Step 3: D-07 Firestore cleanup — "all reads before all writes" invariant.
@@ -180,6 +198,14 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
     // - `force: true` — 첫 오류에서 멈추지 않고 전부 시도한 뒤 실패 목록을
     //   `Error[]` 로 reject 한다 (재시도 1회당 진척 최대 · 멱등).
     // - 빈 prefix (사진 없음 · 이전 시도에서 이미 삭제) 는 그대로 resolve.
+    // - 404 는 「지울 것 없음」 으로 보고 진행한다 (리뷰 WR-01). 기본 버킷이
+    //   아직 없는 프로젝트(콘솔 Storage 「시작하기」 미실행)는 목록 조회
+    //   단계에서 **단일** 404 로 reject 되는데, 이는 재시도로 풀리지 않는
+    //   영구 오류이고 지울 사진도 있을 수 없다. `force` 의 `Error[]` 가 전부
+    //   404 면 목록 조회 뒤 파일이 이미 지워진 경우라 역시 진행한다. 404 와
+    //   다른 오류가 하나라도 섞이면 아래 중단 분기를 그대로 탄다.
+    // - `bucket.exists()` 사전 조회는 쓰지 않는다 — 함수 SA 에
+    //   `storage.buckets.get` 권한과 호출 1회를 더 요구한다.
     // - PII: 로그에 파일 경로 · prefix 를 싣지 않는다 (uid · 오류 code 만).
     try {
       await getStorage().bucket().deleteFiles({
@@ -192,19 +218,35 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
       );
     } catch (err: unknown) {
       const failed = Array.isArray(err) ? err : [err];
-      logger.error(
-        {
-          event: "delete_user_storage_failed",
-          uid: callerUid,
-          code: fingerprintError(failed[0]),
-          failedCount: failed.length,
-        },
-        "Storage cleanup failed — withdrawal aborted",
-      );
-      // 이 시점에 Auth · Firestore 는 아직 온전하다 — 사용자는 재시도 가능.
-      throw new HttpsError("unavailable", "errorServiceUnavailable", {
-        reason: STORAGE_CLEANUP_FAILED_REASON,
-      });
+      if (!Array.isArray(err) && isStorageNotFound(err)) {
+        logger.warn(
+          {event: "delete_user_storage_bucket_missing", uid: callerUid},
+          "Storage bucket not found — nothing to delete, continuing",
+        );
+      } else if (failed.length > 0 && failed.every(isStorageNotFound)) {
+        logger.warn(
+          {
+            event: "delete_user_storage_already_gone",
+            uid: callerUid,
+            failedCount: failed.length,
+          },
+          "Storage files already gone — continuing",
+        );
+      } else {
+        logger.error(
+          {
+            event: "delete_user_storage_failed",
+            uid: callerUid,
+            code: fingerprintError(failed[0]),
+            failedCount: failed.length,
+          },
+          "Storage cleanup failed — withdrawal aborted",
+        );
+        // 이 시점에 Auth · Firestore 는 아직 온전하다 — 사용자는 재시도 가능.
+        throw new HttpsError("unavailable", "errorServiceUnavailable", {
+          reason: STORAGE_CLEANUP_FAILED_REASON,
+        });
+      }
     }
 
     // Step 2: D-08 — admin.auth().deleteUser (idempotent retry-safe).

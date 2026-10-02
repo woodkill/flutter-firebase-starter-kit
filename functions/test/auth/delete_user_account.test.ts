@@ -32,6 +32,11 @@
  *  - T-17-DEL-04: fcmTokens 서브컬렉션 recursiveDelete — 트랜잭션 뒤 1회
  *  - T-17-DEL-05: recursiveDelete 실패 → orphan 로그 + ok:true
  *  - T-17-DEL-06: 멱등 재시도(user-not-found) 전 단계 진행 · 로그 경로 0
+ *
+ * Phase 17 리뷰 WR-01 — 404 는 「지울 것 없음」 (영구 오류로 탈퇴를 막지 않음):
+ *  - T-17-DEL-07: 단일 404(기본 버킷 없음) → warn 로그 · Auth · Firestore 진행
+ *  - T-17-DEL-08: 전부 404 인 Error[](이미 삭제됨) → warn 로그 · 진행
+ *  - T-17-DEL-09: 404 와 다른 code 가 섞인 Error[] → 기존대로 중단
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -677,5 +682,83 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
     for (const args of allLogCalls) {
       expect(JSON.stringify(args)).not.toContain("users/");
     }
+  });
+
+  /**
+   * `@google-cloud/storage` `ApiError` 모양의 오류를 만든다 — `code` 는 HTTP
+   * 상태 **숫자** 다 (`nodejs-common/util.js`).
+   *
+   * @param {number} status HTTP 상태.
+   * @return {Error} code 가 붙은 Error.
+   */
+  function storageError(status: number): Error {
+    return Object.assign(new Error("PII_STORAGE_404_SENTINEL"), {code: status});
+  }
+
+  it("T-17-DEL-07: 단일 404(버킷 없음) → warn 로그 뒤 Auth · Firestore 진행",
+    async () => {
+      mockWhereGet.mockResolvedValue({docs: [{id: "kakao:707"}]});
+      mockDeleteUser.mockResolvedValue(undefined);
+      mockDeleteFiles.mockRejectedValue(storageError(404));
+
+      const result = (await callDelete("uid-DEL07")) as {ok: true};
+
+      expect(result.ok).toBe(true);
+      expect(mockDeleteUser).toHaveBeenCalledWith("uid-DEL07");
+      expect(callOrder).toContain("runTransaction:enter");
+      expect(mockRecursiveDelete).toHaveBeenCalledTimes(1);
+      expect(warnMock).toHaveBeenCalledWith(
+        {event: "delete_user_storage_bucket_missing", uid: "uid-DEL07"},
+        expect.any(String),
+      );
+      expect(errorMock).not.toHaveBeenCalled();
+      expect(JSON.stringify(warnMock.mock.calls)).not.toContain(
+        "PII_STORAGE_404_SENTINEL",
+      );
+    });
+
+  it("T-17-DEL-08: 전부 404 인 Error[](이미 삭제) → warn 로그 뒤 진행",
+    async () => {
+      mockWhereGet.mockResolvedValue({docs: []});
+      mockDeleteUser.mockResolvedValue(undefined);
+      mockDeleteFiles.mockRejectedValue([storageError(404), storageError(404)]);
+
+      const result = (await callDelete("uid-DEL08")) as {ok: true};
+
+      expect(result.ok).toBe(true);
+      expect(mockDeleteUser).toHaveBeenCalledWith("uid-DEL08");
+      expect(callOrder).toContain("runTransaction:enter");
+      expect(warnMock).toHaveBeenCalledWith(
+        {
+          event: "delete_user_storage_already_gone",
+          uid: "uid-DEL08",
+          failedCount: 2,
+        },
+        expect.any(String),
+      );
+      expect(errorMock).not.toHaveBeenCalled();
+    });
+
+  it("T-17-DEL-09: 404 와 다른 code 가 섞인 Error[] → 탈퇴 중단", async () => {
+    mockDeleteFiles.mockRejectedValue([storageError(404), storageError(503)]);
+
+    const promise = callDelete("uid-DEL09");
+
+    await expect(promise).rejects.toMatchObject({
+      code: "unavailable",
+      message: "errorServiceUnavailable",
+      details: {reason: "storage_cleanup_failed"},
+    });
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+    expect(callOrder).not.toContain("runTransaction:enter");
+    expect(warnMock).not.toHaveBeenCalled();
+    expect(errorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "delete_user_storage_failed",
+        uid: "uid-DEL09",
+        failedCount: 2,
+      }),
+      expect.any(String),
+    );
   });
 });

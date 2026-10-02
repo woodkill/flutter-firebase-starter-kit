@@ -2951,17 +2951,18 @@ Phase 17 이 회원탈퇴 Cloud Function `deleteUserAccount` 를 넓혀 프로�
 | 순서 | 단계 | 실패하면 | 사용자에게 |
 |------|------|---------|-----------|
 | 1 | 입력 · ID token 검증 · 마지막 로그인 5분 확인(위 「5분 boundary」) | 중단 | 재인증 안내 |
-| 2 | **Storage** — `users/{uid}/` prefix 일괄 삭제(`deleteFiles({prefix: "users/<uid>/", force: true})`) | **탈퇴 중단** — Auth · Firestore 는 그대로이고, 다시 시도하면 처음부터 다시 지운다. `unavailable` + `details.reason = "storage_cleanup_failed"` | 「네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.」(`withdrawalFailureTransient`) |
+| 2 | **Storage** — `users/{uid}/` prefix 일괄 삭제(`deleteFiles({prefix: "users/<uid>/", force: true})`) | **탈퇴 중단** — Auth · Firestore 는 그대로이고, 다시 시도하면 처음부터 다시 지운다. `unavailable` + `details.reason = "storage_cleanup_failed"`. 단, 404 는 지울 것이 없는 상태라 진행한다 — 기본 버킷이 없음(단일 404) · 목록 조회 뒤 파일이 이미 지워짐(실패 목록이 전부 404). 404 와 다른 오류가 하나라도 섞이면 중단한다 | 「네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.」(`withdrawalFailureTransient`) |
 | 3 | Firebase Auth 사용자 삭제 | 이미 없음 = 성공 취급(재시도 안전) · 그 밖은 중단(Firestore 그대로) | 실패 안내 |
 | 4 | Firestore — `identity_index` 매핑 · `users/{uid}` 문서(한 트랜잭션) | 계속 — orphan 로그(`delete_user_firestore_orphan`) + 성공 반환 | 탈퇴 성공 |
 | 5 | `users/{uid}/fcmTokens` 재귀 삭제(`recursiveDelete`) | 계속 — orphan 로그(`delete_user_fcm_tokens_orphan`) + 성공 반환. 남은 토큰은 TTL(D-33)이 지운다 | 탈퇴 성공 |
 
 - **사진을 Auth 보다 먼저 지우는 이유 (D-40):** Auth 를 먼저 지운 뒤 사진 삭제가 실패하면 개인 사진이 영구히 남고 사용자가 다시 시도할 길이 없다. 반대로 사진만 지워지고 뒤의 Auth 삭제가 실패한 계정은 표시가 소셜 사진으로 돌아가고 다시 올릴 수 있다 — 이 상태는 수용한다. Firestore 단계를 Auth 뒤에 두는 이유(WR-09 — `identity_index` 가 먼저 사라지면 계정이 갈라진다)는 그대로다.
 - **토큰 삭제를 트랜잭션 뒤 별도 단계로 둔 이유:** 토큰 삭제가 실패해도 더 중요한 원장 정리(`identity_index` · `users/{uid}`)를 건너뛰지 않게 하려는 것이다.
-- **로그:** `delete_user_storage_done` · `delete_user_storage_failed`(`{uid, code, failedCount}` — 파일 경로 · prefix 는 남기지 않는다) · `delete_user_fcm_tokens_orphan`.
+- **404 를 중단하지 않는 이유 (Phase 17 리뷰 WR-01):** 기본 버킷이 없는 프로젝트(위 「배포 · 콘솔 설정」 ⓪ 을 건너뜀)는 매번 404 를 받는다. 다시 시도해도 풀리지 않는 오류라 중단하면 모든 사용자가 탈퇴할 수 없고, 버킷이 없으니 지울 사진도 없다. 버킷 존재를 미리 묻는 `bucket.exists()` 는 쓰지 않는다 — 함수 서비스 계정에 `storage.buckets.get` 권한과 호출 1회가 더 필요하다. 대신 `deleteFiles` 의 실패를 code 로 나눈다(`@google-cloud/storage` 의 `ApiError.code` 는 HTTP 상태 숫자).
+- **로그:** `delete_user_storage_done` · `delete_user_storage_failed`(`{uid, code, failedCount}` — 파일 경로 · prefix 는 남기지 않는다) · `delete_user_storage_bucket_missing`(warn · `{uid}`) · `delete_user_storage_already_gone`(warn · `{uid, failedCount}`) · `delete_user_fcm_tokens_orphan`.
 - **채택하지 않은 대안:** (1) `users/{uid}` 문서 onDelete 트리거로 Storage 를 지우는 방식 — 탈퇴가 성공한 뒤에 돌아서 실패해도 사용자 재시도 경로가 없다. (2) GCS lifecycle 규칙으로 주인 없는 객체를 지우는 방식 — 삭제가 eventual(1~24시간)이라 즉시 삭제 의무에 맞지 않는다. 앱이 Storage 를 더 쓰면 이 둘 대신 같은 prefix 규약(`users/{uid}/…`) 안에 두는 것이 가장 단순하다 — 위 2단계가 함께 지운다.
 - **지우지 않는 것:** `rate_limits/lookupSignInMethods:<uid>` · `rate_limits/sendTestPush:<uid>` 호출 제한 카운터 문서(내용은 카운터 · 창 시각뿐 · rules 상 클라이언트 읽기 불가 — plan 17-18 T-17-77). 「회원탈퇴 정리 현황」 의 「남은 범위 밖」 에 적혀 있다.
-- **코드 · 테스트:** `functions/src/auth/delete_user_account.ts`(`STORAGE_CLEANUP_FAILED_REASON`) · `functions/test/auth/delete_user_account.test.ts`(T-17-DEL-01~06). 실제 버킷에서 탈퇴 뒤 `users/{uid}/` 가 0 이 되는지는 plan 17-22 실기기 UAT 가 확인한다.
+- **코드 · 테스트:** `functions/src/auth/delete_user_account.ts`(`STORAGE_CLEANUP_FAILED_REASON`) · `functions/test/auth/delete_user_account.test.ts`(T-17-DEL-01~09 — 07~09 는 404 분기). 실제 버킷에서 탈퇴 뒤 `users/{uid}/` 가 0 이 되는지는 plan 17-22 실기기 UAT 가 확인한다.
 
 ### App Check debug provider 등록 절차
 
@@ -3226,7 +3227,9 @@ cd functions && pnpm test:rules
 
 ### 배포 · 콘솔 설정
 
-Phase 17 은 코드 밖 설정 네 가지가 있다. 모두 dev 프로젝트 기준이며(stg · prod 는 placeholder — 「flavor 정책」), 실제 dev 실행 기록은 plan 17-20 이다.
+Phase 17 은 코드 밖 준비가 ⓪~⑤ 여섯 단계 있다. 모두 dev 프로젝트 기준이며(stg · prod 는 placeholder — 「flavor 정책」), 실제 dev 실행 기록은 plan 17-20 이다.
+
+**⓪ Cloud Storage 기본 버킷 만들기 — 프로젝트당 1회:** Firebase 콘솔 → Storage → 「시작하기」 로 기본 버킷을 만든다. Firestore · Auth 만 켠 새 프로젝트에는 기본 버킷이 없다. 버킷이 없으면 아래 ① 의 Storage rules 배포 대상이 없고, 앱의 프로필 사진 업로드는 실패한다. 회원탈퇴는 막히지 않는다 — `deleteUserAccount` 는 버킷 없음(404)을 「지울 사진 없음」 으로 보고 `delete_user_storage_bucket_missing` warn 로그를 남긴 뒤 계속 진행한다(아래 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」).
 
 **① 배포 — rules · indexes · Storage rules · Functions 한 번에:**
 
@@ -5250,7 +5253,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-01 | Phase 16.11 | Naver iOS 1-tap unwedge · 취소 — **Pitfall 12** 「해결됨」 재서술(자동 silent 취소 · 판정 신호 = background 복귀 + `kNaverResumeSettleDelay` + `SceneDelegate` 콜백 도착 기록 · 0.3초 보정(U1 실측 URL 이 `resumed` 보다 357ms 먼저) · 고아 대기와 늦은 결과 logout · stale 1회 재시도 · 진단 줄 6종 · 잔여 한계 3가지 · 이력 링크) / **Pitfall 11** 1-tap 취소 2종 silent(동의 화면 [취소] `ios_sdk_nid_access_denied` 실기기 확인 · 앱 열기 알림 [Cancel] 미실측 · SDK 발생 조건 확장) / 설치 안내 SYSC bullet / **Pitfall 1** · §5 예외 문장 · wedge 문단 / 제거 가이드 `SceneDelegate` override · `T-16.11-NATIVE-*` · `T-16.11-NAVER-HOST-*` / **Pitfall 13** authCode 주체(Firebase Analytics · `Runner.debug.dylib` · `firebase_analytics` 경로) · release(profile) 판정 · 결정 `record-only` · 공유 주의. 근거: `.planning/phases/16.11-naver-ios-one-tap-unwedge-and-cancel/uat-evidence/`. |
 | 2026-10-01 | 16.11 review fix (iteration 2) | 「Naver Login」 절 **Pitfall 12** 정정(code review iteration 2) — 진단 목록에 `Naver logIn 포기: reason=lifecycle_subscribe_failed` 추가(lifecycle 구독 실패 · silent 가 아니라 오류 배너 `ServiceUnavailable` · production 재현 경로 없음 · review IN-02) / 판정 신호에 판정 창 안 재-background 보류 추가(그 판정은 하지 않고 다음 복귀가 0.3초를 새로 셈 · 보류는 마지막 복귀 기준 · review IN-02) / **Pitfall 1** 예외 문장 문체 정정(「본다」 → 「봅니다」) · 「Multi-Provider Account Linking (Phase 9.2)」 §5 예외 문장을 한 문장으로 합침(「1-tap 에서 / 1-tap 수동 복귀는」 중복 · 문장 중간 줄바꿈 제거 · review IN-03). review IN-01(stale 거부 시 고아 해제를 진입 시점 고아로 한정)은 코드 수정이며 매뉴얼의 stale 재시도 · 고아 대기 서술은 수정 뒤에도 그대로 성립해 문구 변경이 없다. |
 | 2026-10-01 | 17-19 | `## Firebase Services (Phase 17)` 절 신규 — FCM 알림 · Remote Config Feature Flag · Cloud Storage · 프로필 사진 · Firestore typed repository · Security Rules · 오류 처리 패턴 · 배포 · 콘솔 설정(firebase deploy 묶음 · Firestore TTL gcloud · `SEND_TEST_PUSH_ENABLED` · RC 키 4개 · iOS APNs) · 커스터마이징 포인트 · 익명 계정 30일 자동 정리(D-28) · 공개 프로필 · 이름 편집 확장 가이드(D-29) / 「가입 수단 기록」 위조 한계 단락을 Phase 17 rules 기준으로 재작성 + 약관 동의 시각 수용 한계 단락 / 3단계 rules bullet · IdP 프로필 동기화 정책 위조 bullet 정정 / Storage cascade 절을 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 로 재작성 + 참조 3곳 · 「회원탈퇴 정리 현황」 해소 bullet · rate limit 카운터 잔존 bullet / App Check 차단 안내 단락 / Kakao `profile_image` 현재 사실 / Account Linking 옛 번호 표기 Phase 16 으로 정정(헤딩 2 · 본문 6) / 목차 14번 |
+| 2026-10-02 | 17 review fix | Phase 17 code review iteration 1 반영 — 「배포 · 콘솔 설정」 에 ⓪ Cloud Storage 기본 버킷 만들기 추가(없으면 사진 업로드 실패 · 탈퇴는 진행) · 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 표 2단계에 404 진행 규칙 · 404 를 중단하지 않는 이유 · 새 warn 로그 2종 · 테스트 범위 T-17-DEL-01~09 (review WR-01) |
 
 ---
 
-*Last updated: 2026-10-01 — Phase 17 plan 17-19 (Firebase Services 절 · 위조 한계 · Storage cascade · D-28 · D-29)*
+*Last updated: 2026-10-02 — Phase 17 code review fix iteration 1 (Storage 기본 버킷 · 탈퇴 404 진행)*
