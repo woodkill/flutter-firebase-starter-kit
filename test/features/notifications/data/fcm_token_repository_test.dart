@@ -8,6 +8,8 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/notifications/data/fcm_token_repository.dart';
 import 'package:flutter_starter_kit/features/notifications/domain/fcm_token.dart';
 
+import '../../../helpers/source_text.dart';
+
 class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 class _MockFirestore extends Mock implements FirebaseFirestore {}
@@ -156,6 +158,20 @@ void main() {
       expect(json['locale'], 'ko');
       expect(json['updatedAt'], isA<Timestamp>());
       expect(json['expireAt'], isA<Timestamp>());
+    });
+
+    test('T-17-FCM-06: rules 의 expireAt 상한(일)이 kFcmTokenTtl 보다 길다 '
+        '(리뷰 IN-03 — TTL 을 늘리면 규칙도 같이)', () {
+      final rules = stripSlashComments(readTrackedFile('firestore.rules'));
+      final caps = RegExp(
+        r"expireAt <= request\.time \+ duration\.value\((\d+), 'd'\)",
+      ).allMatches(rules).toList();
+
+      expect(caps, hasLength(1));
+      final capDays = int.parse(caps.single.group(1)!);
+      expect(capDays, 60);
+      // 앱이 쓰는 지금 + TTL 이 상한 안이어야 하고, 남는 몫은 기기 시계 여유다.
+      expect(kFcmTokenTtl.inDays, lessThan(capDays));
     });
 
     test('T-17-FCM-02: normalizeFcmLocale 은 ko/en/ja 만 통과 · 그 밖은 en', () {

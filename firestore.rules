@@ -94,11 +94,17 @@ service cloud.firestore {
       return key in request.resource.data.diff(resource.data).affectedKeys();
     }
 
-    // D-17 — 앱 소유 프로필 사진 URL 은 문자열 또는 null.
+    // D-17 — 앱 소유 프로필 사진 URL 은 null 또는 Firebase Storage download URL
+    // (2048자 이하 · https · firebasestorage.googleapis.com) 이다 (리뷰 IN-03).
+    // iOS SDK 는 URL 에 `:443` 을 붙이고(firebase-ios-sdk Storage.swift 의
+    // port = 443 → URLComponents) Android 는 붙이지 않으므로 포트는 선택이다.
+    // 킷이 뒤에 붙이는 `&v=<millis>` 는 `/.*` 가 받는다.
     function photoOk(data) {
       return !('customPhotoUrl' in data)
         || data.customPhotoUrl == null
-        || data.customPhotoUrl is string;
+        || (data.customPhotoUrl is string
+          && data.customPhotoUrl.size() <= 2048
+          && data.customPhotoUrl.matches('https://firebasestorage[.]googleapis[.]com(:443)?/.*'));
     }
 
     // ------------------------------------------------------------------------
@@ -160,6 +166,9 @@ service cloud.firestore {
       // ----------------------------------------------------------------------
       // 문서 id = FCM 토큰. 키는 5개 이하(hasOnly)이고 아래 조건이 5키를 모두
       // 참조하므로 누락 키는 평가 오류 → 거부된다. platform/locale 은 지원 집합만.
+      // expireAt 상한 60일(리뷰 IN-03) — 앱은 지금 + kFcmTokenTtl(30일)을 쓰고
+      // 나머지 30일은 기기 시계 오차 여유다. 먼 미래 값으로 TTL(D-33)을
+      // 무력화하지 못하게 한다. kFcmTokenTtl 을 60일 넘게 바꾸면 이 값도 같이.
       match /fcmTokens/{token} {
         allow read, delete: if isOwner(userId);
 
@@ -170,7 +179,8 @@ service cloud.firestore {
           && request.resource.data.platform in ['android', 'ios']
           && request.resource.data.locale in ['ko', 'en', 'ja']
           && request.resource.data.updatedAt is timestamp
-          && request.resource.data.expireAt is timestamp;
+          && request.resource.data.expireAt is timestamp
+          && request.resource.data.expireAt <= request.time + duration.value(60, 'd');
       }
     }
   }

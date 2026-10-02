@@ -3189,14 +3189,14 @@ CollectionReference<FcmToken> _tokens(String uid) => _firestore
 | 서버 전용 키 | `linkedProviders` · `providerLinkedAt` · `email` · `emailVerified` · IdP 프로필 미러 — Admin SDK(Cloud Functions)만 쓴다(Admin 은 rules 를 우회). `email` · `emailVerified` 는 계정 대표 이메일 1개의 mirror 다(D-26 — `mirrorAccountEmail` callable · Custom Token 서버 트랜잭션 두 곳만 쓴다. 이메일 없는 사용자는 `email: null` · `emailVerified: false`. 이메일 발송 인프라는 없다) |
 | `signUpProviderId` (D-38) | write-once — 없을 때만 쓰고, 있으면 같은 값 재기록만 허용(변경 · 삭제 거부) |
 | `termsAccepted` (D-39) | ① 기록 뒤 삭제 불가 ② `version` 비감소(재동의 = 같거나 큰 버전) ③ 필수 2개(`service` · `privacy`) = true ④ `acceptedAt` 은 timestamp 이고 `<= request.time`(미래 불가) ⑤ 5필드 형식 · 타입. `marketing` 변경은 허용 |
-| `customPhotoUrl` | 문자열 또는 null |
+| `customPhotoUrl` | null 또는 Firebase Storage download URL — 2048자 이하 · `https://firebasestorage.googleapis.com` 으로 시작(포트 `:443` 은 선택). iOS SDK 는 URL 에 `:443` 을 붙이고(firebase-ios-sdk `Storage.swift` 의 `port = 443` 을 `URLComponents` 에 그대로 넣는다) Android 는 붙이지 않아 둘 다 받는다. 킷이 뒤에 붙이는 `&v=<millis>` 도 통과한다. 다른 호스트 · `http://` · 2049자 이상은 거부(review IN-03) |
 | 문서 삭제 | 클라이언트 불가(탈퇴는 Admin) |
-| `users/{uid}/fcmTokens/{token}` | 본인 read · delete, 정식 사용자 본인만 create · update — 키 5개 `hasOnly` · 문서 id = `token` · `platform` ∈ android/ios · `locale` ∈ ko/en/ja · timestamp 2개 |
+| `users/{uid}/fcmTokens/{token}` | 본인 read · delete, 정식 사용자 본인만 create · update — 키 5개 `hasOnly` · 문서 id = `token` · `platform` ∈ android/ios · `locale` ∈ ko/en/ja · timestamp 2개 · `expireAt` ≤ 지금 + 60일(review IN-03 — 앱은 지금 + `kFcmTokenTtl` 30일을 쓰고 나머지 30일은 기기 시계 오차 여유. 먼 미래 값으로 TTL(D-33)을 무력화하지 못하게 한다) |
 | `identity_index/**` | 전면 차단(Phase 12 그대로) |
 
 **한계 (D-38 · D-39):** write-once 는 서버 검증이 아니다 — native 경로의 `signUpProviderId` 최초 값은 클라이언트 자기 주장이고 영향은 자기 계정뿐이다. `acceptedAt` 은 기기 시각이라 기기 시계가 서버보다 앞서면 약관 mirror 가 `permission-denied` 로 거부되고 다음 전이 · 재동의 때 다시 시도된다(허용 오차 0 — 사용자 결정 2026-10-01). 자세한 의미는 「가입 수단 기록 (Phase 16.7)」 절의 위조 한계 단락이다.
 
-**새 클라이언트 필드를 쓰려면:** `firestore.rules` `clientKeys()` 에 키를 더하고 rules 테스트 케이스를 같이 추가한다 — 안 하면 앱 쓰기가 `permission-denied` 다. `FcmToken` 에 필드를 더하면 fcmTokens 규칙의 `hasOnly` 목록도 같이 고친다(T-17-FCM-02/03 이 키 집합 불일치를 잡는다).
+**새 클라이언트 필드를 쓰려면:** `firestore.rules` `clientKeys()` 에 키를 더하고 rules 테스트 케이스를 같이 추가한다 — 안 하면 앱 쓰기가 `permission-denied` 다. `FcmToken` 에 필드를 더하면 fcmTokens 규칙의 `hasOnly` 목록도 같이 고친다(T-17-FCM-02/03 이 키 집합 불일치를 잡는다). 규칙은 타입뿐 아니라 **값의 범위도** 검사한다 — 새 필드도 길이 · 형식 상한을 같이 두는 것이 기본이다(공개 프로필 문서를 더하면 그 값이 타인에게 보이기 때문이다). 지금 값 검사는 두 가지다: `customPhotoUrl` 은 2048자 이하 · Storage download URL 호스트(`:443` 선택), `fcmTokens.expireAt` 은 지금 + 60일 이하. 사진을 다른 저장소(CDN 등)에 두도록 바꾸면 `photoOk` 의 호스트 정규식을, `kFcmTokenTtl` 을 60일 넘게 바꾸면 fcmTokens 규칙의 `duration.value(60, 'd')` 를 같이 고친다 — 안 하면 앱 쓰기가 `permission-denied` 다(T-17-RULES-06 · 08 이 경계를 잡는다).
 
 **rules 자동 테스트 — `pnpm test:rules` (D-19):**
 
@@ -3288,7 +3288,7 @@ gcloud firestore fields ttls list --collection-group=fcmTokens --project=<dev>
 | 알림 색 | `android/app/src/main/res/values/colors.xml` `notification_color` + `local_notifications_service.dart` `_kNotificationColor` 두 곳(현재 `#673AB7` = `AppTheme.seedColor`). seedColor 를 바꾸면 함께 바꾼다 |
 | 알림 문구 언어 추가 | 서버 `functions/src/messaging/test_push_copy.ts` 의 `TestPushLocale` 에 코드 · `TEST_PUSH_COPY` 에 `{title, body}` 1항목 + 앱 `normalizeFcmLocale` 지원 집합 + `firestore.rules` fcmTokens `locale` 허용 집합. ARB 와 별개다 |
 | 알림 탭으로 열 화면 | `kNotificationRoutableRoutes` 에 `AppRoutes` 상수 1줄. 문자열 정확 일치만(query · 경로 변수 불가). 흐름 진입 전용 화면(로그인 · 온보딩 · 탈퇴 진행 등)은 넣지 않는다 |
-| 토큰 만료 기간 | `kFcmTokenTtl = Duration(days: 30)`(`lib/features/notifications/domain/fcm_token.dart`) 상수 1개. TTL 정책은 필드(`expireAt`) 기준이라 다시 설정하지 않아도 된다 |
+| 토큰 만료 기간 | `kFcmTokenTtl = Duration(days: 30)`(`lib/features/notifications/domain/fcm_token.dart`) 상수 1개. TTL 정책은 필드(`expireAt`) 기준이라 다시 설정하지 않아도 된다. 단 `firestore.rules` 가 `expireAt` 을 지금 + 60일 이하로 막으므로 60일 넘게 늘리면 규칙의 `duration.value(60, 'd')` 도 같이 고친다(review IN-03) |
 | 알림 섹션 위치 · 저장 키 | `settings_screen.dart` 의 `const NotificationsSection()` 한 줄 · SharedPreferences `notifications_opt_in` · `notifications_registered_token` · `notifications_pending_token_deletion` · `notifications_token_revoke_pending`(뒤 둘은 로그아웃 정리 재시도용 — 「FCM 알림」 의 「로그아웃 정리가 끊겼을 때」) |
 | Storage 경로 · 크기 · 타입 | `storage.rules` 해당 줄(예: 5MB → `5 * 1024 * 1024`) + `functions/test/rules/storage.rules.test.ts` 경계 케이스 → `pnpm test:rules`. 경로를 바꾸면 `profilePhotoPath` 와 탈퇴 prefix 도 함께 |
 | 업로드 리사이즈 | `profile_photo_repository.dart` 의 `pickImage` 인자(`maxWidth` · `imageQuality`) |
@@ -5262,8 +5262,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-01 | 16.11 review fix (iteration 2) | 「Naver Login」 절 **Pitfall 12** 정정(code review iteration 2) — 진단 목록에 `Naver logIn 포기: reason=lifecycle_subscribe_failed` 추가(lifecycle 구독 실패 · silent 가 아니라 오류 배너 `ServiceUnavailable` · production 재현 경로 없음 · review IN-02) / 판정 신호에 판정 창 안 재-background 보류 추가(그 판정은 하지 않고 다음 복귀가 0.3초를 새로 셈 · 보류는 마지막 복귀 기준 · review IN-02) / **Pitfall 1** 예외 문장 문체 정정(「본다」 → 「봅니다」) · 「Multi-Provider Account Linking (Phase 9.2)」 §5 예외 문장을 한 문장으로 합침(「1-tap 에서 / 1-tap 수동 복귀는」 중복 · 문장 중간 줄바꿈 제거 · review IN-03). review IN-01(stale 거부 시 고아 해제를 진입 시점 고아로 한정)은 코드 수정이며 매뉴얼의 stale 재시도 · 고아 대기 서술은 수정 뒤에도 그대로 성립해 문구 변경이 없다. |
 | 2026-10-01 | 17-19 | `## Firebase Services (Phase 17)` 절 신규 — FCM 알림 · Remote Config Feature Flag · Cloud Storage · 프로필 사진 · Firestore typed repository · Security Rules · 오류 처리 패턴 · 배포 · 콘솔 설정(firebase deploy 묶음 · Firestore TTL gcloud · `SEND_TEST_PUSH_ENABLED` · RC 키 4개 · iOS APNs) · 커스터마이징 포인트 · 익명 계정 30일 자동 정리(D-28) · 공개 프로필 · 이름 편집 확장 가이드(D-29) / 「가입 수단 기록」 위조 한계 단락을 Phase 17 rules 기준으로 재작성 + 약관 동의 시각 수용 한계 단락 / 3단계 rules bullet · IdP 프로필 동기화 정책 위조 bullet 정정 / Storage cascade 절을 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 로 재작성 + 참조 3곳 · 「회원탈퇴 정리 현황」 해소 bullet · rate limit 카운터 잔존 bullet / App Check 차단 안내 단락 / Kakao `profile_image` 현재 사실 / Account Linking 옛 번호 표기 Phase 16 으로 정정(헤딩 2 · 본문 6) / 목차 14번 |
 | 2026-10-02 | 17 review fix | Phase 17 code review iteration 1 반영 — 「배포 · 콘솔 설정」 에 ⓪ Cloud Storage 기본 버킷 만들기 추가(없으면 사진 업로드 실패 · 탈퇴는 진행) · 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 표 2단계에 404 진행 규칙 · 404 를 중단하지 않는 이유 · 새 warn 로그 2종 · 테스트 범위 T-17-DEL-01~09 (review WR-01) / 「FCM 알림」 의 `sendTestPush` 단락에 익명 caller 거부(`anonymous_caller` · 카운터 · 읽기 0 · 버튼은 기기 없음 문구) 추가 (review WR-02) / 「FCM 알림」 표 「로그아웃 · 탈퇴」 행을 표식 먼저 · 네트워크 나중으로 정정(「오프라인이면 남은 문서는 TTL 이 지운다」 삭제) · 「로그아웃 정리가 끊겼을 때」 단락 신설(같은 계정 재로그인 = 문서 삭제 재시도 · 다른 계정 켜기 = `deleteToken` 선행 · 그 밖의 재시도 · 남는 한계 · 저장 키) · 「앱 밖에서 OS 권한을 끄고 복귀」 행에 표식 · 처리 중 복귀 보류 · 커스터마이징 「저장 키」 2개 추가 (review WR-03 · WR-05) |
-| 2026-10-02 | 17 review fix (iteration 2) | Phase 17 code review iteration 2 반영 — 「Firestore Security Rules」 `users/{uid}` 표 「클라이언트 쓰기 허용 키」 행에 update 는 바뀌는 키만 검증 추가 (review IN-01) |
+| 2026-10-02 | 17 review fix (iteration 2) | Phase 17 code review iteration 2 반영 — 「Firestore Security Rules」 `users/{uid}` 표 「클라이언트 쓰기 허용 키」 행에 update 는 바뀌는 키만 검증 추가 (review IN-01) / 같은 표 `customPhotoUrl` 행(2048자 · Storage 호스트 · `:443` 선택 이유 · `&v=`) · fcmTokens 행(`expireAt` ≤ 지금 + 60일과 `kFcmTokenTtl` 30일의 관계) · 「새 클라이언트 필드를 쓰려면」 단락에 값 범위 검사 · 「커스터마이징 포인트」 토큰 만료 기간 행에 규칙 상한 (review IN-03) |
 
 ---
 
-*Last updated: 2026-10-02 — Phase 17 code review fix iteration 2 (users 규칙 바뀐 키만 검증)*
+*Last updated: 2026-10-02 — Phase 17 code review fix iteration 2 (users 규칙 바뀐 키만 검증 · 사진 URL · 토큰 만료 값 검사)*

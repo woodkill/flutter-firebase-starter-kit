@@ -29,6 +29,11 @@ const PROJECT_ID = "demo-starter-kit";
 const REPO_ROOT = path.resolve(__dirname, "../../..");
 const RULES_PATH = path.join(REPO_ROOT, "firestore.rules");
 const TEN_MINUTES_MS = 10 * 60 * 1000;
+const DAY_MS = 24 * 3600 * 1000;
+// Android SDK 형식 download URL (포트 없음 · 합성 값).
+const PHOTO_URL =
+  "https://firebasestorage.googleapis.com/v0/b/demo.firebasestorage.app/o/" +
+  "users%2Falice%2Fprofile%2Favatar.jpg?alt=media&token=t";
 
 type DocData = Record<string, unknown>;
 // rules-unit-testing context 가 돌려주는 클라이언트 Firestore (compat 타입).
@@ -124,7 +129,8 @@ function fcmToken(token: string, overrides: DocData = {}): DocData {
     platform: "android",
     locale: "ko",
     updatedAt: nowTs(),
-    expireAt: Timestamp.fromMillis(Date.now() + 60 * 24 * 3600 * 1000),
+    // 앱과 같은 지금 + kFcmTokenTtl(30일).
+    expireAt: Timestamp.fromMillis(Date.now() + 30 * DAY_MS),
     ...overrides,
   };
 }
@@ -313,14 +319,46 @@ describe("Phase 17 Firestore rules (T-17-RULES)", () => {
     });
 
   it(
-    "T-17-RULES-06: customPhotoUrl 문자열 · null 허용 · 숫자 거부",
+    "T-17-RULES-06: customPhotoUrl = Storage download URL(포트 선택 · &v=) · " +
+      "null 허용 · 다른 호스트 · http · 2049자 · 숫자 거부",
     async () => {
       const alice = regularUser("alice").firestore();
       const path = "users/alice";
+      // Android 형식(포트 없음) · iOS 형식(:443) · 킷의 &v= 버전 쿼리.
+      await assertSucceeds(setMerge(alice, path, {customPhotoUrl: PHOTO_URL}));
+      const iosUrl = PHOTO_URL.replace(
+        "googleapis.com/",
+        "googleapis.com:443/",
+      );
+      await assertSucceeds(setMerge(alice, path, {customPhotoUrl: iosUrl}));
       await assertSucceeds(
-        setMerge(alice, path, {customPhotoUrl: "https://example.com/a.jpg"}),
+        setMerge(alice, path, {customPhotoUrl: `${iosUrl}&v=1759363200000`}),
       );
       await assertSucceeds(setMerge(alice, path, {customPhotoUrl: null}));
+
+      await assertFails(
+        setMerge(alice, path, {customPhotoUrl: "https://example.com/a.jpg"}),
+      );
+      await assertFails(
+        setMerge(alice, path, {
+          customPhotoUrl: PHOTO_URL.replace("https://", "http://"),
+        }),
+      );
+      await assertFails(
+        setMerge(alice, path, {
+          customPhotoUrl: PHOTO_URL.replace(
+            "googleapis.com/",
+            "googleapis.com.evil.example/",
+          ),
+        }),
+      );
+      // 길이 경계 — 2048자 허용 · 2049자 거부.
+      const at2048 = PHOTO_URL + "x".repeat(2048 - PHOTO_URL.length);
+      expect(at2048.length).toBe(2048);
+      await assertSucceeds(setMerge(alice, path, {customPhotoUrl: at2048}));
+      await assertFails(
+        setMerge(alice, path, {customPhotoUrl: `${at2048}y`}),
+      );
       await assertFails(setMerge(alice, path, {customPhotoUrl: 42}));
     });
 
@@ -333,11 +371,12 @@ describe("Phase 17 Firestore rules (T-17-RULES)", () => {
       const anon = testEnv.unauthenticatedContext().firestore();
 
       await assertFails(deleteDoc(doc(alice, "users/alice")));
+      // 값은 유효한 URL — 거부 사유가 소유권만이게 한다.
       await assertFails(
-        setMerge(bob, "users/alice", {customPhotoUrl: "https://x/y.jpg"}),
+        setMerge(bob, "users/alice", {customPhotoUrl: PHOTO_URL}),
       );
       await assertFails(
-        setMerge(anon, "users/alice", {customPhotoUrl: "https://x/y.jpg"}),
+        setMerge(anon, "users/alice", {customPhotoUrl: PHOTO_URL}),
       );
     });
 
@@ -370,6 +409,23 @@ describe("Phase 17 Firestore rules (T-17-RULES)", () => {
         setDoc(
           doc(alice, other),
           fcmToken("tok-2", {updatedAt: "2026-10-01T00:00:00Z"}),
+        ),
+      );
+      // expireAt 상한 60일 — 59일 허용 · 61일 거부 (리뷰 IN-03 · D-33 TTL).
+      await assertSucceeds(
+        setDoc(
+          doc(alice, other),
+          fcmToken("tok-2", {
+            expireAt: Timestamp.fromMillis(Date.now() + 59 * DAY_MS),
+          }),
+        ),
+      );
+      await assertFails(
+        setDoc(
+          doc(alice, other),
+          fcmToken("tok-2", {
+            expireAt: Timestamp.fromMillis(Date.now() + 61 * DAY_MS),
+          }),
         ),
       );
 
