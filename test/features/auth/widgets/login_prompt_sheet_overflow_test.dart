@@ -265,34 +265,78 @@ void main() {
       for (final locale in _sweepLocales) {
         final label =
             '${_formatSize(size)} · ${locale.languageCode} · 6 provider';
+        // 사용자 sign-off 선택지 1 (2026-10-03): 고정 헤더 · footer 사이 목록
+        // 창이 버튼 1개보다 낮을 때만 전체 스크롤. 560x280 은 창 4~24px →
+        // 전체 스크롤, 780x360 은 창 96px → 지금처럼 고정.
+        final expectAllScroll = size == _allScrollSize;
 
-        testWidgets(
-          'LP ($label): 시트 넘침 0 · CTA · 마지막 버튼 도달 · '
-          '261003-0fp',
-          (tester) async {
-            _setLogicalViewport(tester, size);
-            await pumpOverflowHarness(tester, _sixStrategies, locale: locale);
-            expect(find.byType(LoginPromptSheet), findsOneWidget);
-            expect(tester.takeException(), isNull, reason: '$label 시트');
+        testWidgets('LP ($label): 시트 넘침 0 · CTA · 마지막 버튼 도달 · '
+            '${expectAllScroll ? '전체 스크롤' : '고정 헤더 · footer'} · '
+            '261003-0fp', (tester) async {
+          _setLogicalViewport(tester, size);
+          await pumpOverflowHarness(tester, _sixStrategies, locale: locale);
+          final sheet = find.byType(LoginPromptSheet);
+          expect(sheet, findsOneWidget);
+          expect(tester.takeException(), isNull, reason: '$label 시트');
 
+          final l10n = lookupAppLocalizations(locale);
+          final title = find.text(l10n.authPromptSheetTitle);
+          final cta = find.byType(EmailAuthCta);
+          final scrollView = find.descendant(
+            of: sheet,
+            matching: find.byType(SingleChildScrollView),
+          );
+          Finder inScroll(Finder target) =>
+              find.descendant(of: scrollView, matching: target);
+
+          // 스크롤 맨 위에서 제목이 보인다 (두 모드 공통).
+          expect(
+            title.hitTestable(),
+            findsOneWidget,
+            reason: '$label 제목이 첫 화면에 보임',
+          );
+          if (expectAllScroll) {
             expect(
-              find.byType(EmailAuthCta).hitTestable(),
+              inScroll(title),
               findsOneWidget,
-              reason: '$label 고정 footer CTA 도달',
+              reason: '$label 제목이 스크롤 안 (전체 스크롤)',
             );
-            final lastButton = find.byType(BrandedSocialButton).last;
-            await tester.ensureVisible(lastButton);
-            await tester.pumpAndSettle();
             expect(
-              lastButton.hitTestable(),
+              inScroll(cta),
               findsOneWidget,
-              reason: '$label 마지막 provider 버튼 도달',
+              reason: '$label CTA 가 스크롤 안 (전체 스크롤)',
             );
-            expect(tester.takeException(), isNull, reason: '$label 마지막');
-          },
-          // quick 261003-0fp — 외관 변경 수정 필요 · 사용자 결정 대기.
-          skip: size == _appearanceDecisionPendingSize,
-        );
+          } else {
+            expect(
+              inScroll(title),
+              findsNothing,
+              reason: '$label 제목은 고정 헤더 (스크롤 밖)',
+            );
+            expect(
+              inScroll(cta),
+              findsNothing,
+              reason: '$label CTA 는 고정 footer (스크롤 밖)',
+            );
+            expect(
+              cta.hitTestable(),
+              findsOneWidget,
+              reason: '$label 고정 footer CTA 가 스크롤 없이 도달',
+            );
+          }
+
+          final lastButton = find.byType(BrandedSocialButton).last;
+          await tester.ensureVisible(lastButton);
+          await tester.pumpAndSettle();
+          expect(
+            lastButton.hitTestable(),
+            findsOneWidget,
+            reason: '$label 마지막 provider 버튼 도달',
+          );
+          await tester.ensureVisible(cta);
+          await tester.pumpAndSettle();
+          expect(cta.hitTestable(), findsOneWidget, reason: '$label CTA 도달');
+          expect(tester.takeException(), isNull, reason: '$label 마지막');
+        });
       }
     }
   });
@@ -321,7 +365,7 @@ void _setLogicalViewport(WidgetTester tester, Size size) {
 /// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
 String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';
 
-/// 외관 변경 결정을 기다리는 크기 — 560x280 에서 고정 헤더 · footer 가 시트를
-/// 차지해 provider 목록 스크롤 영역이 버튼 1개보다 낮다 (quick 261003-0fp
-/// 실측). 사용자 결정 뒤 continuation 이 이 skip 을 지운다.
-const _appearanceDecisionPendingSize = Size(560, 280);
+/// 전체 스크롤로 바뀌어야 하는 크기 — 560x280 은 고정 헤더 · footer 사이
+/// 목록 창이 버튼 1개보다 낮다 (quick 261003-0fp 실측 · 사용자 sign-off
+/// 선택지 1).
+const _allScrollSize = Size(560, 280);
