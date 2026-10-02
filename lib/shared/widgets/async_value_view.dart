@@ -51,10 +51,9 @@ class AsyncValueView<T> extends StatelessWidget {
       skipLoadingOnReload: true,
       data: data,
       loading: loading ?? () => const _DefaultLoadingView(),
+      // 람다 매개변수는 필드 [error](builder)와 이름을 나눈다 (리뷰 IN-09).
       error:
-          error ??
-          (error, stackTrace) =>
-              _DefaultErrorView(error: error, onRetry: onRetry),
+          error ?? (err, _) => _DefaultErrorView(error: err, onRetry: onRetry),
     );
   }
 }
