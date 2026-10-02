@@ -6,8 +6,11 @@
 //   예상치 못한 오류 = UnknownException(기록 1 · reason 상수).
 // - T-17-PHOTO-04: 삭제 = Storage delete → customPhotoUrl null merge ·
 //   object-not-found 무시 · 그 밖 실패 = ProfilePhotoRemoveException · 필드 write 0.
+// - T-17-PHOTO-05~07 (리뷰 IN-18): contentType = 앞 바이트 판정 · 업로드 전
+//   크기 검사 · 상한 상수 = storage.rules 값.
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -19,6 +22,8 @@ import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/settings/data/profile_photo_repository.dart';
+
+import '../../../helpers/source_text.dart';
 
 class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
@@ -66,6 +71,35 @@ const String _kDownloadUrl =
 
 /// 업로드 시각 fixture — 버전 쿼리 값.
 final DateTime _kNow = DateTime.utc(2026, 10, 1, 9);
+
+/// 파일 머리 바이트 fixture (매직 넘버 + 여분).
+const List<int> _kJpegHeader = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46];
+const List<int> _kPngHeader = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+const List<int> _kGifHeader = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00];
+
+/// [header] 바이트를 가진 선택 결과 — 경로는 실제 picker 와 같은 모양이다.
+///
+/// [length] 를 주면 실제 바이트 대신 그 크기로 보고한다(5MB 를 만들지 않고
+/// 상한을 검사하기 위해).
+XFile _pickedFile(
+  List<int> header, {
+  int? length,
+  String? mimeType,
+  String path = '/tmp/picked.jpg',
+}) => XFile.fromData(
+  Uint8List.fromList(header),
+  path: path,
+  length: length,
+  mimeType: mimeType,
+);
+
+/// putFile 에 넘긴 contentType 을 돌려준다.
+String? Function() _capturedContentType(_MockReference reference) => () {
+  final captured = verify(
+    () => reference.putFile(any(), captureAny()),
+  ).captured;
+  return (captured.single as SettableMetadata).contentType;
+};
 
 void main() {
   setUpAll(() {
@@ -136,7 +170,7 @@ void main() {
   group('Phase 17 프로필 사진 (T-17-PHOTO)', () {
     test('T-17-PHOTO-01: 선택 → putFile(image/jpeg) → downloadURL(+v) → '
         'customPhotoUrl set-merge · Success(url)', () async {
-      stubPick(XFile('/tmp/picked.jpg'));
+      stubPick(_pickedFile(_kJpegHeader));
 
       final result = await repository.pickAndUpload('u1');
 
@@ -191,7 +225,7 @@ void main() {
 
     test('T-17-PHOTO-02: putFile FirebaseException → '
         'Failure(ProfilePhotoUploadException) · 기록 0 · set 0', () async {
-      stubPick(XFile('/tmp/picked.jpg'));
+      stubPick(_pickedFile(_kJpegHeader));
       when(() => reference.putFile(any(), any())).thenAnswer(
         (_) => _FakeUploadTask(
           Future<TaskSnapshot>.error(
@@ -219,7 +253,7 @@ void main() {
 
     test('T-17-PHOTO-02: 예상치 못한 StateError → Failure(UnknownException) · '
         '기록 1회(reason profile_photo_repository_upload)', () async {
-      stubPick(XFile('/tmp/picked.jpg'));
+      stubPick(_pickedFile(_kJpegHeader));
       when(() => reference.getDownloadURL()).thenThrow(StateError('boom'));
 
       final result = await repository.pickAndUpload('u1');
@@ -322,6 +356,85 @@ void main() {
         ),
       ).called(1);
       verifyNever(() => userDoc.set(any(), any()));
+    });
+
+    test('T-17-PHOTO-05: contentType 은 파일 앞 바이트로 판정 — PNG · GIF · '
+        'JPEG (확장자 · XFile.mimeType 무관 · 리뷰 IN-18)', () async {
+      // Android 리사이즈는 알파가 있으면 PNG 로 쓰면서 확장자는 .jpg 그대로다.
+      final cases = <List<int>, String>{
+        _kPngHeader: 'image/png',
+        _kGifHeader: 'image/gif',
+        _kJpegHeader: 'image/jpeg',
+      };
+      for (final entry in cases.entries) {
+        clearInteractions(reference);
+        stubPick(_pickedFile(entry.key, mimeType: 'image/heic'));
+
+        expect(await repository.pickAndUpload('u1'), isA<Success<String?>>());
+        expect(_capturedContentType(reference)(), entry.value);
+      }
+    });
+
+    test('T-17-PHOTO-05: 모르는 형식 → XFile.mimeType → 없으면 image/jpeg · '
+        '빈 파일도 안전', () async {
+      stubPick(
+        _pickedFile(const [0x52, 0x49, 0x46, 0x46], mimeType: 'image/webp'),
+      );
+      await repository.pickAndUpload('u1');
+      expect(_capturedContentType(reference)(), 'image/webp');
+
+      clearInteractions(reference);
+      stubPick(_pickedFile(const [0x00, 0x01]));
+      await repository.pickAndUpload('u1');
+      expect(_capturedContentType(reference)(), 'image/jpeg');
+
+      clearInteractions(reference);
+      stubPick(_pickedFile(const <int>[]));
+      expect(await repository.pickAndUpload('u1'), isA<Success<String?>>());
+      expect(_capturedContentType(reference)(), 'image/jpeg');
+    });
+
+    test('T-17-PHOTO-06: 상한 초과 → 전송 없이 Failure(ProfilePhotoUploadException) '
+        '· 기록 0 · 상한 그대로는 업로드', () async {
+      stubPick(_pickedFile(_kJpegHeader, length: kProfilePhotoMaxBytes + 1));
+
+      final result = await repository.pickAndUpload('u1');
+
+      expect(result, isA<Failure<String?>>());
+      expect(
+        (result as Failure<String?>).exception,
+        isA<ProfilePhotoUploadException>(),
+      );
+      verifyNever(() => storage.ref(any()));
+      verifyNever(() => reference.putFile(any(), any()));
+      verifyNever(() => userDoc.set(any(), any()));
+      verifyNever(
+        () => crashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      );
+
+      stubPick(_pickedFile(_kJpegHeader, length: kProfilePhotoMaxBytes));
+      expect(await repository.pickAndUpload('u1'), isA<Success<String?>>());
+      verify(() => reference.putFile(any(), any())).called(1);
+    });
+
+    test('T-17-PHOTO-07: kProfilePhotoMaxBytes = storage.rules 의 크기 상한', () {
+      final rules = stripSlashComments(readTrackedFile('storage.rules'));
+      final caps = RegExp(
+        r'request\.resource\.size\s*<=\s*(\d+)\s*\*\s*(\d+)\s*\*\s*(\d+)',
+      ).allMatches(rules).toList();
+
+      expect(caps, hasLength(1));
+      final cap = caps.single;
+      final bytes =
+          int.parse(cap.group(1)!) *
+          int.parse(cap.group(2)!) *
+          int.parse(cap.group(3)!);
+      expect(kProfilePhotoMaxBytes, bytes);
     });
   });
 }

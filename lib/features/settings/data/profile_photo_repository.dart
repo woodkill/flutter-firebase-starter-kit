@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
@@ -27,6 +28,43 @@ part 'profile_photo_repository.g.dart';
 /// 사용자당 단일 객체를 덮어쓴다(Pitfall 7 · 옛 사진 정리 불필요). 경로는
 /// Storage rules(plan 06)와 탈퇴 cascade(plan 05)가 같은 값을 쓴다.
 String profilePhotoPath(String uid) => 'users/$uid/profile/avatar.jpg';
+
+/// 프로필 사진 업로드 최대 크기(바이트) — `storage.rules` 의
+/// `request.resource.size <= 5 * 1024 * 1024` 와 짝이다 (리뷰 IN-18).
+///
+/// 업로드 전에 이 값으로 먼저 걸러 전송 뒤 거부되는 왕복을 없앤다. 규칙을
+/// 바꾸면 이 값도 같이 고친다(T-17-PHOTO-07 이 두 값을 대조한다).
+const int kProfilePhotoMaxBytes = 5 * 1024 * 1024;
+
+/// 이미지 파일 앞 [header] 바이트(매직 넘버)로 MIME 타입을 판정한다
+/// (리뷰 IN-18). JPEG · PNG · GIF 만 알아보고 그 밖은 `null` 이다.
+///
+/// image_picker 1.2.3 이 돌려주는 [XFile] 은 Android · iOS 모두 `XFile(path)`
+/// 로 만들어져 [XFile.mimeType] 이 항상 `null` 이고(cross_file `io.dart` —
+/// 경로에서 추론하지 않는다), Android 리사이즈는 알파가 있으면 PNG 로 다시
+/// 쓰면서 파일 이름 확장자는 원본 그대로 둔다(image_picker_android
+/// `ImageResizer.java`). 그래서 확장자 · `mimeType` 대신 바이트로 본다. 리사이즈
+/// 결과는 Android = JPEG · PNG, iOS = JPEG · PNG · GIF 다.
+@visibleForTesting
+String? sniffImageContentType(List<int> header) {
+  bool startsWith(List<int> magic) {
+    if (header.length < magic.length) return false;
+    for (var i = 0; i < magic.length; i++) {
+      if (header[i] != magic[i]) return false;
+    }
+    return true;
+  }
+
+  if (startsWith(const [0xFF, 0xD8, 0xFF])) return 'image/jpeg';
+  if (startsWith(const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) {
+    return 'image/png';
+  }
+  if (startsWith(const [0x47, 0x49, 0x46, 0x38])) return 'image/gif';
+  return null;
+}
+
+/// [sniffImageContentType] 에 넘길 머리 바이트 수 (PNG 서명 8바이트).
+const int _kImageHeaderLength = 8;
 
 /// 프로필 사진 업로드 · 삭제 repository (Phase 17 D-15 · D-17 · D-20 ①).
 ///
@@ -66,8 +104,13 @@ class ProfilePhotoRepository {
   /// - 성공: `Success(<기록한 URL>)` — downloadURL 뒤에 `&v=<업로드 millis>`
   ///   를 붙여 저장한다. 같은 객체를 덮어써도 URL(캐시 키)이 바뀌어 설정 ·
   ///   홈이 재시작 없이 새 사진을 보인다(Pitfall 8).
-  /// - `contentType: image/jpeg` 명시 — 미지정이면 rules 의 `image/.*` 검사를
-  ///   통과하지 못할 수 있다(Pitfall 7). 크기 상한(5MB)은 rules 가 검사한다.
+  /// - `contentType` 명시 — 미지정이면 rules 의 `image/.*` 검사를 통과하지
+  ///   못할 수 있다(Pitfall 7). 값은 파일 앞 바이트로 판정한다(JPEG · PNG ·
+  ///   GIF → [XFile.mimeType] → `image/jpeg` 순 · [sniffImageContentType] ·
+  ///   리뷰 IN-18).
+  /// - 크기 상한([kProfilePhotoMaxBytes] = 5MB)을 업로드 **전에** 검사한다 —
+  ///   넘으면 Storage · Firestore 호출 없이 [ProfilePhotoUploadException]
+  ///   (기록 0). rules 도 같은 상한을 검사한다.
   Future<Result<String?>> pickAndUpload(String uid) {
     return guardResult<String?>('profile_photo_repository_upload', () async {
       // D-41 — 자르기 없이 업로드 전 리사이즈만(가로 1024 px · JPEG 품질 85).
@@ -77,11 +120,16 @@ class ProfilePhotoRepository {
         imageQuality: 85,
       );
       if (picked == null) return null;
+      final size = await picked.length();
+      if (size > kProfilePhotoMaxBytes) {
+        throw const ProfilePhotoUploadException();
+      }
+      final contentType = await _resolveContentType(picked, size);
       try {
         final ref = _storage.ref(profilePhotoPath(uid));
         await ref.putFile(
           File(picked.path),
-          SettableMetadata(contentType: 'image/jpeg'),
+          SettableMetadata(contentType: contentType),
         );
         final downloadUrl = await ref.getDownloadURL();
         final url = '$downloadUrl&v=${_now().millisecondsSinceEpoch}';
@@ -123,6 +171,19 @@ class ProfilePhotoRepository {
         throw ProfilePhotoRemoveException(cause: e);
       }
     }, crashlytics: _crashlytics);
+  }
+
+  /// [picked] 의 업로드 contentType 을 정한다 — 앞 바이트 판정 →
+  /// [XFile.mimeType] → `image/jpeg` 순 (리뷰 IN-18).
+  Future<String> _resolveContentType(XFile picked, int size) async {
+    final headerLength = size < _kImageHeaderLength
+        ? size
+        : _kImageHeaderLength;
+    final header = <int>[];
+    if (headerLength > 0) {
+      await picked.openRead(0, headerLength).forEach(header.addAll);
+    }
+    return sniffImageContentType(header) ?? picked.mimeType ?? 'image/jpeg';
   }
 
   /// `users/{uid}` 문서 참조.
