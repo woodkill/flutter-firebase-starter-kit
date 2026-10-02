@@ -54,9 +54,10 @@ void _registerBackgroundMessageHandler() {
 ///    - 경로 3: [PlatformDispatcher.onError] -> recordError(fatal: true)
 /// 6. [GoogleSignIn.instance.initialize] -- Google Sign-In 초기화
 ///    (이후 Kakao · LINE · Remote Config 초기화)
-/// 7. release 빌드만 [ErrorWidget.builder] 를 [buildReleaseErrorWidget] 으로
-///    교체 (Phase 17 D-22 -- 깨진 화면 대체 + non-fatal 기록, Firebase 초기화
-///    결과와 무관하게 설치)
+/// 7. release 빌드만 [ErrorWidget.builder] 를 [createReleaseErrorWidgetBuilder]
+///    가 만든 builder([buildReleaseErrorWidget] 본문 + 세션당 1회 non-fatal
+///    기록 · 리뷰 IN-14)로 교체 (Phase 17 D-22 -- 깨진 화면 대체, Firebase
+///    초기화 결과와 무관하게 설치)
 /// 8. [runApp] -- [ProviderScope] 로 감싼 [App] 위젯 실행
 ///
 /// [isFirebaseInitializedProvider] 에 Firebase 초기화 결과를 override 로
