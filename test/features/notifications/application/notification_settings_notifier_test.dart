@@ -17,7 +17,7 @@
 // 되돌리지 않는다 (T-17-NOTIF-18).
 //
 // 리뷰 fix (iteration 3) — IN-26 켜기 · 끄기의 첫 await 중 로그아웃 정리가
-// 끝나면 opt-in 을 쓰지 않는다 (T-17-NOTIF-19~20).
+// 끝나면 opt-in 을 쓰지 않는다 (T-17-NOTIF-19~21 · 순서 무관 판별자 IN-27).
 //
 // SDK · Firestore 는 mocktail 로 대체한다 — [MessagingService] ·
 // [FcmTokenRepository] · [CrashlyticsService]. SharedPreferences 는
@@ -1224,6 +1224,8 @@ void main() {
       await notifier.clearForSignOut();
 
       expect(await enabling, NotificationToggleResult.failed);
+      // 첫 await 에서 되돌아가 권한 요청에 닿지 않는다 — 재개 순서와 무관.
+      verifyNever(() => h.messaging.requestPermission());
       await pumpEventQueue();
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
@@ -1262,6 +1264,33 @@ void main() {
       await notifier.clearForSignOut();
 
       expect(await disabling, NotificationToggleResult.failed);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+    });
+
+    test('T-17-NOTIF-21: disable() 의 첫 await 중 clearForSignOut 이 끝나면 '
+        '(등록 토큰 있음) 토큰 문서 삭제는 정리의 1회뿐 · failed', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      await pumpEventQueue();
+      await _resetPrefsCache();
+      // build 재동기화의 호출은 삭제 계수에서 뺀다.
+      clearInteractions(h.repository);
+
+      final notifier = container.read(notificationSettingsProvider.notifier);
+      final disabling = notifier.disable();
+      await notifier.clearForSignOut();
+
+      expect(await disabling, NotificationToggleResult.failed);
+      // 끄기는 첫 await 에서 되돌아가 삭제는 정리의 1회뿐 — 재개 순서와 무관.
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
       expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
