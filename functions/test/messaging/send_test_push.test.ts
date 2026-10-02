@@ -8,6 +8,8 @@
  * 시나리오:
  *  - T-17-SEND-01: 관통 — 호출자 토큰 전체 → locale 그룹별 발송 → sentCount ·
  *    로그 payload 에 토큰 문자열 0
+ *  - T-17-SEND-02: 미인증(auth 없음) → unauthenticated · 카운터 · 읽기 ·
+ *    발송 0 (리뷰 IN-06 — 첫 분기 회귀 방지)
  *  - T-17-SEND-04: 환경 스위치 꺼짐 → failed-precondition · reason · 읽기 0
  *  - T-17-SEND-05: uid 별 10회/60초 — 11번째 resource-exhausted · 발송 0
  *  - T-17-SEND-06: 미등록 · 무효 토큰 응답 → 문서 삭제 · 그 밖 실패는 유지
@@ -314,6 +316,26 @@ describe("sendTestPush 방어 — Phase 17 D-35 · D-33 · Phase 16 D-10", () =>
       {reason: "test_push_disabled"},
     );
     expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(mockTokensGet).not.toHaveBeenCalled();
+    expect(mockSendEachForMulticast).not.toHaveBeenCalled();
+  });
+
+  it("T-17-SEND-02: 미인증 caller 는 카운터 · 읽기 · 발송 없이 " +
+    "unauthenticated", async () => {
+    mockTokenDocs = [liveToken("tok-ko-1", "ko")];
+    stubAllSuccess();
+    const wrapped = testEnv.wrap(myFunctions.sendTestPush);
+
+    const error = await (wrapped({
+      app: {appId: "test"},
+      data: {},
+    } as never) as Promise<unknown>).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HttpsError);
+    expect((error as HttpsError).code).toBe("unauthenticated");
+    expect((error as HttpsError).message).toBe("errorUnauthenticated");
+    expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(mockRateStore.size).toBe(0);
     expect(mockTokensGet).not.toHaveBeenCalled();
     expect(mockSendEachForMulticast).not.toHaveBeenCalled();
   });
