@@ -227,40 +227,51 @@ Widget buildNotFoundScreen(BuildContext context) {
   // 은 AppTypography extension override 를 반영하지 않아, 사용자가 ThemeData
   // 를 교체하면 이 화면만 나머지와 다르게 drift 한다.
   final typography = context.appTypography;
-  return Scaffold(
-    appBar: AppBar(title: Text(l10n.errorNotFoundTitle)),
-    body: Center(
-      child: Padding(
-        padding: EdgeInsets.all(spacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: _notFoundIconSize,
+  // 기존 가운데 정렬 트리 — 아래 body 가 높이 부족 시에만 스크롤로 감싼다.
+  final content = Center(
+    child: Padding(
+      padding: EdgeInsets.all(spacing.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: _notFoundIconSize,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          Gap(spacing.lg),
+          Text(
+            l10n.errorNotFoundTitle,
+            style: typography.titleLarge,
+            textAlign: TextAlign.center,
+          ),
+          Gap(spacing.sm),
+          Text(
+            l10n.errorNotFoundBody,
+            style: typography.bodyMedium.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
-            Gap(spacing.lg),
-            Text(
-              l10n.errorNotFoundTitle,
-              style: typography.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            Gap(spacing.sm),
-            Text(
-              l10n.errorNotFoundBody,
-              style: typography.bodyMedium.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            Gap(spacing.xl),
-            FilledButton.icon(
-              onPressed: () => context.go(AppRoutes.home),
-              icon: const Icon(Icons.home),
-              label: Text(l10n.errorNotFoundGoHomeCta),
-            ),
-          ],
+            textAlign: TextAlign.center,
+          ),
+          Gap(spacing.xl),
+          FilledButton.icon(
+            onPressed: () => context.go(AppRoutes.home),
+            icon: const Icon(Icons.home),
+            label: Text(l10n.errorNotFoundGoHomeCta),
+          ),
+        ],
+      ),
+    ),
+  );
+  return Scaffold(
+    appBar: AppBar(title: Text(l10n.errorNotFoundTitle)),
+    // 맞으면 지금처럼 가운데, 넘치면 스크롤 (Phase 3 D-09 · quick 261003-0fp ·
+    // quick 260929-pze 와 같은 bounded 분기).
+    body: LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: content,
         ),
       ),
     ),
