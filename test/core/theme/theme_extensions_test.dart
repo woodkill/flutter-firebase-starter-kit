@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
+import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
 import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
@@ -65,6 +66,29 @@ void main() {
 
       expect(spacing, isNotNull);
       expect(spacing, isA<AppSpacing>());
+    });
+
+    testWidgets('context.appIconSizes가 등록된 토큰을 돌려준다 (리뷰 IN-10)', (
+      tester,
+    ) async {
+      late AppIconSizes iconSizes;
+      final custom = const AppIconSizes().copyWith(sm: 28);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[custom],
+          ),
+          home: Builder(
+            builder: (context) {
+              iconSizes = context.appIconSizes;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(iconSizes, equals(custom));
     });
 
     testWidgets('context.colorScheme에 접근할 수 있다', (tester) async {
@@ -294,6 +318,7 @@ void main() {
       late AppColors colors;
       late AppSpacing spacing;
       late AppTypography typography;
+      late AppIconSizes iconSizes;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -302,6 +327,7 @@ void main() {
               colors = context.appColors;
               spacing = context.appSpacing;
               typography = context.appTypography;
+              iconSizes = context.appIconSizes;
               return const SizedBox.shrink();
             },
           ),
@@ -311,6 +337,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(colors, equals(AppColors.fromBrightness(Brightness.light)));
       expect(spacing, equals(const AppSpacing()));
+      expect(iconSizes, equals(const AppIconSizes()));
       expect(typography.bodyMedium.fontSize, isNotNull);
     });
 

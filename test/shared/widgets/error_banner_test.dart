@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart'
     show FormErrorBanner;
@@ -58,6 +59,37 @@ void main() {
       expect(find.byType(ErrorBanner), findsOneWidget);
       expect(find.text(ko.errorServiceUnavailable), findsOneWidget);
       expect(findLiveRegion(), findsOneWidget);
+    });
+
+    testWidgets('T-17-ERR-04 아이콘 크기는 AppIconSizes.sm 토큰을 따른다 '
+        '(기본 20 · 리뷰 IN-10)', (tester) async {
+      await pumpKo(tester, const ErrorBanner(exception: ServiceUnavailable()));
+      expect(
+        tester.getSize(find.byIcon(Icons.error_outline)),
+        const Size(20, 20),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[
+              const AppIconSizes().copyWith(sm: 28),
+            ],
+          ),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('ko'),
+          home: const Scaffold(
+            body: ErrorBanner(exception: ServiceUnavailable()),
+          ),
+        ),
+      );
+      // MaterialApp 의 AnimatedTheme 가 테마 전환을 lerp 로 그린다.
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byIcon(Icons.error_outline)),
+        const Size(28, 28),
+      );
     });
   });
 }

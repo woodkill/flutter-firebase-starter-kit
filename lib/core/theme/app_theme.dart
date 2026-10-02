@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'app_icon_sizes.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
 
 /// 앱의 라이트/다크 [ThemeData]를 조립하는 유틸리티 클래스.
 ///
 /// [seedColor]를 기반으로 [ColorScheme.fromSeed]를 사용하여 M3 팔레트를 생성하고,
-/// [AppColors], [AppTypography], [AppSpacing] ThemeExtension을 등록한다.
+/// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes] ThemeExtension을
+/// 등록한다.
 /// [seedColor]를 변경하면 전체 팔레트가 교체된다.
 ///
 /// **타이포그래피 계약:** 등록되는 [AppTypography] 는 기하를 포함하지 않는
@@ -29,7 +31,8 @@ abstract final class AppTheme {
 
   /// 라이트 모드 [ThemeData]를 생성한다.
   ///
-  /// [AppColors], [AppTypography], [AppSpacing] 3개 ThemeExtension을 포함한다.
+  /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes] 4개
+  /// ThemeExtension을 포함한다.
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]).
   static ThemeData light({Color seedColor = AppTheme.seedColor}) {
@@ -42,13 +45,15 @@ abstract final class AppTheme {
         AppColors.fromBrightness(Brightness.light),
         AppTypography.empty,
         const AppSpacing(),
+        const AppIconSizes(),
       ],
     );
   }
 
   /// 다크 모드 [ThemeData]를 생성한다.
   ///
-  /// [AppColors], [AppTypography], [AppSpacing] 3개 ThemeExtension을 포함한다.
+  /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes] 4개
+  /// ThemeExtension을 포함한다.
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]). [light] 와 동일한 시드를 넘겨야 두 모드의
   /// 팔레트가 일관된다.
@@ -65,6 +70,7 @@ abstract final class AppTheme {
         AppColors.fromBrightness(Brightness.dark),
         AppTypography.empty,
         const AppSpacing(),
+        const AppIconSizes(),
       ],
     );
   }

@@ -41,7 +41,11 @@ class ErrorBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.error_outline, color: colors.onErrorContainer, size: 20),
+            Icon(
+              Icons.error_outline,
+              color: colors.onErrorContainer,
+              size: context.appIconSizes.sm,
+            ),
             SizedBox(width: spacing.sm),
             Expanded(
               child: Text(

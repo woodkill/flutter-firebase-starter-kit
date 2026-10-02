@@ -4193,38 +4193,40 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
 > 그 이전 코드를 기준으로 쓰인 커스터마이징 방법은 더 이상 유효하지 않습니다 —
 > 특히 타이포그래피는 등록되는 extension 자체가 바뀌었습니다 (아래 2번).
 
-Starter kit 의 디자인 시스템은 **`ThemeExtension` 3종** 으로 구성됩니다.
+Starter kit 의 디자인 시스템은 **`ThemeExtension` 4종** 으로 구성됩니다.
 
 | Extension | 파일 | 담는 것 |
 |---|---|---|
 | `AppColors` | `lib/core/theme/app_colors.dart` | `ColorScheme` 에 없는 앱 고유 시맨틱 컬러 6종 |
 | `AppTypography` | `lib/core/theme/app_typography.dart` | M3 `TextTheme` 15 스타일의 **override 레이어** |
 | `AppSpacing` | `lib/core/theme/app_spacing.dart` | 4 의 배수 간격 스케일 7단계 |
+| `AppIconSizes` | `lib/core/theme/app_icon_sizes.dart` | 아이콘 크기 토큰 — 지금은 `sm` 20 1단계 (Phase 17 review IN-10) |
 
-세 extension 을 `ThemeData` 로 조립하는 곳은 `AppTheme.light()` / `AppTheme.dark()`
+네 extension 을 `ThemeData` 로 조립하는 곳은 `AppTheme.light()` / `AppTheme.dark()`
 (`lib/core/theme/app_theme.dart`) 이고, 호출부는 `lib/app.dart:53-54` 의
 `theme: AppTheme.light(),` / `darkTheme: AppTheme.dark(),` 단 두 줄입니다.
 `ColorScheme` 은 `seedColor` 하나에서 `ColorScheme.fromSeed` 로 파생되고,
-extension 3종은 `base.copyWith(extensions: [...])` 로 등록됩니다 —
-`AppColors.fromBrightness(...)` · `AppTypography.empty` · `const AppSpacing()`
-순서입니다.
+extension 4종은 `base.copyWith(extensions: [...])` 로 등록됩니다 —
+`AppColors.fromBrightness(...)` · `AppTypography.empty` · `const AppSpacing()` ·
+`const AppIconSizes()` 순서입니다.
 
 이 밖에 반응형은 `AppBreakpoint` + `ResponsiveX`
 (`lib/core/theme/app_breakpoint.dart`) 가, 키보드 focus outline 은
 `BrandFocusWrapper` (`lib/core/theme/brand_focus_wrapper.dart`) 가 담당합니다.
 
 앱 코드가 토큰에 접근하는 경로는 `ThemeX` extension
-(`lib/core/theme/theme_extensions.dart`) 의 **다섯 getter** 입니다.
+(`lib/core/theme/theme_extensions.dart`) 의 **여섯 getter** 입니다.
 
 | getter | 반환 | extension 미등록 테마에서의 동작 |
 |---|---|---|
 | `context.appColors` | `AppColors` | `AppColors.fromBrightness(theme.brightness)` 로 폴백 |
 | `context.appTypography` | `AppTypography` (합성 결과) | 테마 `textTheme` 기하를 그대로 반영 |
 | `context.appSpacing` | `AppSpacing` | `const AppSpacing()` 으로 폴백 |
+| `context.appIconSizes` | `AppIconSizes` | `const AppIconSizes()` 으로 폴백 |
 | `context.colorScheme` | `ColorScheme` | `Theme.of` 직통 |
 | `context.textTheme` | `TextTheme` | `Theme.of` 직통 — **extension override 미반영** |
 
-세 토큰 getter 는 extension 이 등록되지 않은 테마에서도 크래시하지 않고 기본
+네 토큰 getter 는 extension 이 등록되지 않은 테마에서도 크래시하지 않고 기본
 토큰으로 폴백하므로, 사용자가 자체 `ThemeData` 를 쓰거나 위젯 테스트에서 맨몸
 `MaterialApp()` 을 써도 안전합니다.
 
@@ -4288,11 +4290,12 @@ darkTheme: AppTheme.dark(seedColor: Colors.teal),
 채워 등록합니다.
 
 ```dart
-// 타이포그래피 부분 override — extensions 리스트에 3종을 모두 넣는다.
+// 타이포그래피 부분 override — extensions 리스트에 4종을 모두 넣는다.
 final lightTheme = AppTheme.light().copyWith(
   extensions: <ThemeExtension<dynamic>>[
     AppColors.fromBrightness(Brightness.light),
     const AppSpacing(),
+    const AppIconSizes(),
     AppTypography.empty.copyWith(
       bodyMedium: const TextStyle(fontSize: 15, height: 1.5),
       titleLarge: const TextStyle(fontWeight: FontWeight.w700),
@@ -4303,9 +4306,9 @@ final lightTheme = AppTheme.light().copyWith(
 
 > ⚠ **`ThemeData.copyWith(extensions:)` 는 기존 extension map 을 통째로
 > 교체합니다** (교체이지 병합이 아닙니다). 위 리스트에서 `AppTypography` 만
-> 넘기면 `AppColors` 와 `AppSpacing` 이 **등록에서 사라집니다**.
+> 넘기면 `AppColors` · `AppSpacing` · `AppIconSizes` 가 **등록에서 사라집니다**.
 > `ThemeX` 의 폴백 덕에 크래시는 나지 않지만, 사용자가 `copyWith` 로 조정해 둔
-> 색·간격 값은 조용히 유실되고 기본 토큰으로 되돌아갑니다. **항상 세 원소를
+> 색·간격 값은 조용히 유실되고 기본 토큰으로 되돌아갑니다. **항상 네 원소를
 > 모두 나열하세요.**
 
 `copyWith` 에 넘길 수 있는 인자는 M3 15 스타일과 같은 이름입니다 —
@@ -4339,12 +4342,22 @@ AppColors.fromBrightness(Brightness.light)
 | `lg` | 16 | | |
 
 `const AppSpacing()` 이 기본값이고, `const AppSpacing().copyWith(md: 16)` 처럼
-개별 단계만 조정합니다. 두 extension 모두 위 2번의 `extensions:` 리스트에
-함께 넣어 등록합니다.
+개별 단계만 조정합니다.
+
+**`AppIconSizes`** 는 아이콘 크기 토큰입니다 (Phase 17 review IN-10). 지금은
+`sm` = 20 (본문 줄과 나란히 놓이는 인라인 아이콘 — 공용 `ErrorBanner` 의
+`error_outline`) 1단계만 둡니다 — 값은 쓰는 곳이 생길 때만 더합니다. 기본 아이콘
+크기 24 는 `IconThemeData` 가 이미 정하므로 토큰을 두지 않고 `size` 를 생략합니다.
+`const AppIconSizes().copyWith(sm: 18)` 처럼 조정하면 오류 배너 아이콘이 함께
+바뀝니다. 아직 숫자 리터럴로 남은 아이콘 크기(로그인 · 인증 화면 일부)는 이 토큰으로
+옮기지 않았습니다.
+
+세 extension(`AppColors` · `AppSpacing` · `AppIconSizes`) 모두 위 2번의
+`extensions:` 리스트에 함께 넣어 등록합니다.
 
 이 절의 커스터마이징과 직결된 계약이 둘 더 있습니다.
 
-- **세 extension 모두 전 필드 기반 `==` / `hashCode` 가 구현돼 있습니다.**
+- **네 extension 모두 전 필드 기반 `==` / `hashCode` 가 구현돼 있습니다.**
   덕분에 `lib/app.dart` 처럼 `build` 안에서 `AppTheme.light()` 를 매번 새로
   만들어도 `ThemeData` 가 동일로 판정됩니다. 테스트가 잠그는 것은
   `AppTheme.light() == AppTheme.light()` 이며 (`T-03-WR-02: ThemeData 동등성`),
@@ -4353,7 +4366,7 @@ AppColors.fromBrightness(Brightness.light)
   리빌드되던 동작이 사라집니다. 이 fix 이전에도 `const` 정규화 덕에 기본값끼리는
   `==` 였고, **사용자가 `copyWith` 로 커스터마이즈하는 순간** 깨졌습니다 —
   즉 starter kit 의 주 사용 시나리오가 정확히 피해자였습니다.
-- **extension 이 등록되지 않은 테마에서도 세 getter 는 크래시하지 않습니다.**
+- **extension 이 등록되지 않은 테마에서도 네 토큰 getter 는 크래시하지 않습니다.**
   사용자가 `AppTheme` 을 쓰지 않고 자체 `ThemeData` 를 만들거나, 위젯 테스트가
   맨몸 `MaterialApp()` 을 써도 기본 토큰으로 폴백합니다
   (`T-03-WR-04: extension 미등록 테마에서도 기본 토큰을 돌려준다`).
@@ -4470,7 +4483,7 @@ focus 의미론을 차단하는 경우가 있습니다. 그래서 wrapper 는
 |---|---|
 | 시드 컬러 주입 (`light`/`dark` 의 `seedColor` 인자) | `test/core/theme/app_theme_test.dart` — `T-03-IN-02: seedColor 를 인자로 주입할 수 있다` |
 | `ThemeData` 동등성 (`AppTheme.light() == AppTheme.light()`) | `test/core/theme/app_theme_test.dart` — `T-03-WR-02: ThemeData 동등성` |
-| extension 값 동등성 3종 (`==` / `hashCode`) | `test/core/theme/app_colors_test.dart` — `T-03-WR-02: AppColors 값 동등성` · `app_spacing_test.dart` — `T-03-WR-02: AppSpacing 값 동등성` · `app_typography_test.dart` — `T-03-WR-02: AppTypography 값 동등성` |
+| extension 값 동등성 4종 (`==` / `hashCode`) | `test/core/theme/app_colors_test.dart` — `T-03-WR-02: AppColors 값 동등성` · `app_spacing_test.dart` — `T-03-WR-02: AppSpacing 값 동등성` · `app_icon_sizes_test.dart` — `값 동등성` · `app_typography_test.dart` — `T-03-WR-02: AppTypography 값 동등성` |
 | 시맨틱 컬러 대비 (라이트/다크 pair) | `test/core/theme/app_colors_test.dart` — `WCAG AA contrast` |
 | 타이포그래피 로케일 기하 + override 우선순위 | `test/core/theme/theme_extensions_test.dart` — `T-03-WR-03: appTypography 가 로케일별 기하를 따른다` |
 | extension 미등록 테마 폴백 | `test/core/theme/theme_extensions_test.dart` — `T-03-WR-04: extension 미등록 테마에서도 기본 토큰을 돌려준다` |
@@ -4486,7 +4499,7 @@ focus 의미론을 차단하는 경우가 있습니다. 그래서 wrapper 는
   등록된 값은 `AppTypography.empty` 다. 완성된 스타일은 `context.appTypography`
   로만 얻는다.
 - **`copyWith(extensions:)` 로 일부만 넘기면 나머지 extension 등록이 사라진다** —
-  map 통째 교체이므로 `AppColors` · `AppTypography` · `AppSpacing` 셋을 항상
+  map 통째 교체이므로 `AppColors` · `AppTypography` · `AppSpacing` · `AppIconSizes` 넷을 항상
   함께 나열한다. 폴백 덕에 크래시는 없지만 커스터마이즈 값이 조용히 유실된다.
 - **`AppBreakpoint.maxWidth` 를 가용 폭으로 오용** — 포화 정책상 800dp 화면도
   674 를 돌려준다. 레이아웃 계산에는 `LayoutBuilder` 의 `constraints.maxWidth`
@@ -5262,7 +5275,7 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-01 | 16.11 review fix (iteration 2) | 「Naver Login」 절 **Pitfall 12** 정정(code review iteration 2) — 진단 목록에 `Naver logIn 포기: reason=lifecycle_subscribe_failed` 추가(lifecycle 구독 실패 · silent 가 아니라 오류 배너 `ServiceUnavailable` · production 재현 경로 없음 · review IN-02) / 판정 신호에 판정 창 안 재-background 보류 추가(그 판정은 하지 않고 다음 복귀가 0.3초를 새로 셈 · 보류는 마지막 복귀 기준 · review IN-02) / **Pitfall 1** 예외 문장 문체 정정(「본다」 → 「봅니다」) · 「Multi-Provider Account Linking (Phase 9.2)」 §5 예외 문장을 한 문장으로 합침(「1-tap 에서 / 1-tap 수동 복귀는」 중복 · 문장 중간 줄바꿈 제거 · review IN-03). review IN-01(stale 거부 시 고아 해제를 진입 시점 고아로 한정)은 코드 수정이며 매뉴얼의 stale 재시도 · 고아 대기 서술은 수정 뒤에도 그대로 성립해 문구 변경이 없다. |
 | 2026-10-01 | 17-19 | `## Firebase Services (Phase 17)` 절 신규 — FCM 알림 · Remote Config Feature Flag · Cloud Storage · 프로필 사진 · Firestore typed repository · Security Rules · 오류 처리 패턴 · 배포 · 콘솔 설정(firebase deploy 묶음 · Firestore TTL gcloud · `SEND_TEST_PUSH_ENABLED` · RC 키 4개 · iOS APNs) · 커스터마이징 포인트 · 익명 계정 30일 자동 정리(D-28) · 공개 프로필 · 이름 편집 확장 가이드(D-29) / 「가입 수단 기록」 위조 한계 단락을 Phase 17 rules 기준으로 재작성 + 약관 동의 시각 수용 한계 단락 / 3단계 rules bullet · IdP 프로필 동기화 정책 위조 bullet 정정 / Storage cascade 절을 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 로 재작성 + 참조 3곳 · 「회원탈퇴 정리 현황」 해소 bullet · rate limit 카운터 잔존 bullet / App Check 차단 안내 단락 / Kakao `profile_image` 현재 사실 / Account Linking 옛 번호 표기 Phase 16 으로 정정(헤딩 2 · 본문 6) / 목차 14번 |
 | 2026-10-02 | 17 review fix | Phase 17 code review iteration 1 반영 — 「배포 · 콘솔 설정」 에 ⓪ Cloud Storage 기본 버킷 만들기 추가(없으면 사진 업로드 실패 · 탈퇴는 진행) · 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 표 2단계에 404 진행 규칙 · 404 를 중단하지 않는 이유 · 새 warn 로그 2종 · 테스트 범위 T-17-DEL-01~09 (review WR-01) / 「FCM 알림」 의 `sendTestPush` 단락에 익명 caller 거부(`anonymous_caller` · 카운터 · 읽기 0 · 버튼은 기기 없음 문구) 추가 (review WR-02) / 「FCM 알림」 표 「로그아웃 · 탈퇴」 행을 표식 먼저 · 네트워크 나중으로 정정(「오프라인이면 남은 문서는 TTL 이 지운다」 삭제) · 「로그아웃 정리가 끊겼을 때」 단락 신설(같은 계정 재로그인 = 문서 삭제 재시도 · 다른 계정 켜기 = `deleteToken` 선행 · 그 밖의 재시도 · 남는 한계 · 저장 키) · 「앱 밖에서 OS 권한을 끄고 복귀」 행에 표식 · 처리 중 복귀 보류 · 커스터마이징 「저장 키」 2개 추가 (review WR-03 · WR-05) |
-| 2026-10-02 | 17 review fix (iteration 2) | Phase 17 code review iteration 2 반영 — 「Firestore Security Rules」 `users/{uid}` 표 「클라이언트 쓰기 허용 키」 행에 update 는 바뀌는 키만 검증 추가 (review IN-01) / 같은 표 `customPhotoUrl` 행(2048자 · Storage 호스트 · `:443` 선택 이유 · `&v=`) · fcmTokens 행(`expireAt` ≤ 지금 + 60일과 `kFcmTokenTtl` 30일의 관계) · 「새 클라이언트 필드를 쓰려면」 단락에 값 범위 검사 · 「커스터마이징 포인트」 토큰 만료 기간 행에 규칙 상한 (review IN-03) / 「탈퇴 시 Storage · 기기 토큰 삭제」 로그 bullet 에 `delete_user_storage_failed` 의 `code` = HTTP 상태 문자열 · 대표 오류 규칙 (review IN-02) / 「Cloud Storage · 프로필 사진」 경로 · 규칙 (D-15) 단락에 본인 prefix 아래 객체 수 · 경로 상한 없음 · 탈퇴 prefix 삭제 부담 · 좁히는 법 (review IN-04 — `storage.rules` 무변경) / 「가입 수단 기록」 절 「약관 동의 시각 — 수용된 한계」 단락에 문서 선생성 writer 로 세션 시작 email mirror 추가 (review IN-05 — 코드 무변경 · Phase 16 G-16-A9-1 skip 조건 유지) |
+| 2026-10-02 | 17 review fix (iteration 2) | Phase 17 code review iteration 2 반영 — 「Firestore Security Rules」 `users/{uid}` 표 「클라이언트 쓰기 허용 키」 행에 update 는 바뀌는 키만 검증 추가 (review IN-01) / 같은 표 `customPhotoUrl` 행(2048자 · Storage 호스트 · `:443` 선택 이유 · `&v=`) · fcmTokens 행(`expireAt` ≤ 지금 + 60일과 `kFcmTokenTtl` 30일의 관계) · 「새 클라이언트 필드를 쓰려면」 단락에 값 범위 검사 · 「커스터마이징 포인트」 토큰 만료 기간 행에 규칙 상한 (review IN-03) / 「탈퇴 시 Storage · 기기 토큰 삭제」 로그 bullet 에 `delete_user_storage_failed` 의 `code` = HTTP 상태 문자열 · 대표 오류 규칙 (review IN-02) / 「Cloud Storage · 프로필 사진」 경로 · 규칙 (D-15) 단락에 본인 prefix 아래 객체 수 · 경로 상한 없음 · 탈퇴 prefix 삭제 부담 · 좁히는 법 (review IN-04 — `storage.rules` 무변경) / 「가입 수단 기록」 절 「약관 동의 시각 — 수용된 한계」 단락에 문서 선생성 writer 로 세션 시작 email mirror 추가 (review IN-05 — 코드 무변경 · Phase 16 G-16-A9-1 skip 조건 유지) / 「Design System — 디자인 토큰 커스터마이징」 절에 `ThemeExtension` 4종째 `AppIconSizes`(`sm` 20 · `context.appIconSizes` · `extensions:` 예시 · 회귀 가드 · Pitfall) 반영 (review IN-10 — 오류 배너 아이콘 값 20 그대로 · 픽셀 동일) |
 
 ---
 

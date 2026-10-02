@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
+import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
 import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
@@ -33,6 +34,12 @@ void main() {
         expect(theme.extension<AppSpacing>(), isNotNull);
       });
 
+      test('ThemeData에 AppIconSizes extension이 등록되어 있다 (리뷰 IN-10)', () {
+        final theme = AppTheme.light();
+
+        expect(theme.extension<AppIconSizes>(), equals(const AppIconSizes()));
+      });
+
       test('colorScheme.brightness가 Brightness.light이다', () {
         final theme = AppTheme.light();
 
@@ -57,6 +64,12 @@ void main() {
         final theme = AppTheme.dark();
 
         expect(theme.extension<AppSpacing>(), isNotNull);
+      });
+
+      test('ThemeData에 AppIconSizes extension이 등록되어 있다 (리뷰 IN-10)', () {
+        final theme = AppTheme.dark();
+
+        expect(theme.extension<AppIconSizes>(), equals(const AppIconSizes()));
       });
 
       test('colorScheme.brightness가 Brightness.dark이다', () {
