@@ -15,7 +15,9 @@ import '../application/pending_notification_route.dart';
 /// (인증 가드 우회 0 · Phase 10.2 invariant).
 ///
 /// - 홈이 처음 그려진 뒤 이미 쌓인 경로를 소비한다(종료 · 백그라운드 탭).
-/// - 홈이 떠 있는 동안 새 경로가 들어오면 곧바로 소비한다(포그라운드 탭).
+/// - 홈이 트리에 있는 동안(다른 화면 아래에 있어도) 새 경로가 들어오면
+///   곧바로 소비한다(포그라운드 탭) — `ref.listen` 은 TickerMode 에 pause
+///   되지 않는다(T-17-PUSH-08 · 리뷰 IN-24).
 /// - 경로가 홈이면 이동하지 않는다(허용 목록 밖 payload 포함).
 class PendingNotificationRouteListener extends ConsumerStatefulWidget {
   /// [PendingNotificationRouteListener] 를 생성한다.
