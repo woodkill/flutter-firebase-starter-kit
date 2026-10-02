@@ -77,6 +77,13 @@ class FcmTokenRepository {
   ///
   /// 각 문서는 `withConverter` 의 `fromFirestore` 를 거쳐 [FcmToken] 이 된다
   /// (Timestamp → UTC DateTime).
+  ///
+  /// **production 미사용 · 킷 예제 (리뷰 IN-21):** 앱 코드에서 이 메서드를
+  /// 부르는 곳은 없다 — typed repository 의 `withConverter` **읽기** 경로를
+  /// 보여 주는 예제이며 `fcm_token_repository_test.dart`(T-17-FCM-05)만
+  /// 호출한다. 서버 발송(`sendTestPush`)은 Admin SDK 로 직접 읽는다. 쓰지
+  /// 않을 거면 지워도 된다(그때 T-17-FCM-05 도 함께). rules 를 바꿀 때 이
+  /// 경로의 회귀는 그 테스트만 잡는다.
   Future<Result<List<FcmToken>>> fetchAll(String uid) =>
       guardResult('fcm_token_repository_fetch_all', () async {
         final snapshot = await _tokens(uid).get();
