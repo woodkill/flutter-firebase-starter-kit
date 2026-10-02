@@ -162,7 +162,7 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
       // 로그아웃 정리가 끝내지 못한 토큰 폐기를 한 번 더 시도한다(결과 무시).
       // 다음 계정이 알림을 켜지 않아도 이전 계정 문서가 무효 토큰이 되게 한다.
       final prefs = await SharedPreferences.getInstance();
-      unawaited(_revokePendingDeviceToken(prefs, currentUid: null));
+      _revokeInBackground(prefs, currentUid: null);
       return false;
     }
 
@@ -175,7 +175,7 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
     if (isStale()) return false;
     await _retryPendingDeletion(uid, prefs);
     if (isStale()) return false;
-    unawaited(_revokePendingDeviceToken(prefs, currentUid: uid));
+    _revokeInBackground(prefs, currentUid: uid);
 
     final status = await messaging.getAuthorizationStatus();
     if (isStale()) return false;
@@ -391,7 +391,12 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
     final pending = (uid: uid, token: token);
     await _markPendingDeletion(prefs, pending);
     await prefs.remove(kNotificationsRegisteredTokenKey);
-    unawaited(_deletePendingDocument(prefs, pending));
+    unawaited(
+      _deletePendingDocument(prefs, pending).then<void>(
+        (_) {},
+        onError: (Object e) => _logBackgroundFailure('forget', e),
+      ),
+    );
   }
 
   /// 같은 [uid] 의 삭제 대기 기록이 있으면 문서 삭제를 다시 시도한다
@@ -461,6 +466,28 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
       await prefs.remove(kNotificationsPendingTokenDeletionKey);
     }
     return true;
+  }
+
+  /// [_revokePendingDeviceToken] 을 기다리지 않고 시도한다 (결과 무시 ·
+  /// 예외는 debug 로그로만 흡수).
+  void _revokeInBackground(
+    SharedPreferences prefs, {
+    required String? currentUid,
+  }) {
+    unawaited(
+      _revokePendingDeviceToken(prefs, currentUid: currentUid).then<void>(
+        (_) {},
+        onError: (Object e) => _logBackgroundFailure('revoke', e),
+      ),
+    );
+  }
+
+  /// 기다리지 않는 정리 작업 [label] 의 실패를 debug 로그에 남긴다 —
+  /// 토큰 · uid 는 싣지 않는다(예외 타입 이름만).
+  void _logBackgroundFailure(String label, Object error) {
+    if (kDebugMode) {
+      debugPrint('notification $label cleanup failed: ${error.runtimeType}');
+    }
   }
 
   /// FCM 토큰을 폐기하고, 확정되면 폐기 표식을 지운다.
