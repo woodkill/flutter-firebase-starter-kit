@@ -340,6 +340,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
+          // 가로 모드에서 넘칠 때만 스크롤 (Phase 3 D-09 · quick 261003-0fp).
+          scrollable: true,
           icon: Icon(Icons.cloud_off, color: colorScheme.onErrorContainer),
           iconColor: colorScheme.errorContainer,
           title: Text(l10n.splashFailureTitle),
