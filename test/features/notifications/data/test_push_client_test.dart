@@ -128,6 +128,18 @@ void main() {
       expectNoRecord();
     });
 
+    test('T-17-SEND-14 failed-precondition + reason anonymous_caller → '
+        'TestPushNoDevice', () async {
+      stubRejection(
+        'failed-precondition',
+        message: 'errorAnonymousCallerNotAllowed',
+        details: const <String, Object?>{'reason': 'anonymous_caller'},
+      );
+
+      expect(await client.send(), isA<TestPushNoDevice>());
+      expectNoRecord();
+    });
+
     test('T-17-SEND-09 SDK 계층 거부(App Check) → AppCheckFailedException · '
         '기록 1회', () async {
       stubRejection('unauthenticated', message: kSdkUnauthenticatedMessage);

@@ -97,6 +97,10 @@ class TestPushClient {
   /// 판정 순서 (Phase 17 D-35 · D-43 · D-44 — 앞 단계가 이긴다):
   /// 1. `failed-precondition` + `details.reason == 'test_push_disabled'` →
   ///    [TestPushDisabled] (서버 환경 스위치 꺼짐 · D-35).
+  ///    `failed-precondition` + `details.reason == 'anonymous_caller'` →
+  ///    [TestPushNoDevice] (리뷰 WR-02 — 익명은 토큰을 둘 수 없다(D-02).
+  ///    서버가 읽기 · 카운터 없이 거부하기 전에는 `sentCount: 0` 으로 같은
+  ///    결과였다).
   /// 2. `classifyAppCheckRejection` — SDK 계층 거부(App Check 차단 · 무효 ID
   ///    token)면 [AppCheckFailedException] + Crashlytics non-fatal 1회
   ///    (reason `app_check_rejected_sendTestPush` · D-44).
@@ -109,10 +113,13 @@ class TestPushClient {
   TestPushOutcome _mapRejection(FirebaseFunctionsException e) {
     final details = e.details;
     // 1. 서버가 reason 으로 지목한 운영 거부 — helper 보다 먼저 판정한다.
-    if (e.code == 'failed-precondition' &&
-        details is Map &&
-        details['reason'] == 'test_push_disabled') {
-      return const TestPushDisabled();
+    if (e.code == 'failed-precondition' && details is Map) {
+      switch (details['reason']) {
+        case 'test_push_disabled':
+          return const TestPushDisabled();
+        case 'anonymous_caller':
+          return const TestPushNoDevice();
+      }
     }
     // 2. Phase 17 D-43 — SDK 계층 거부(App Check 차단). 호출 머리(helper ·
     // 대상 · callable 이름)를 한 줄로 유지해 helper 경유 지점을 grep 한 번으로

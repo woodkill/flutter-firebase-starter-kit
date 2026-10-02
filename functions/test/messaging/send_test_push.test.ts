@@ -12,6 +12,8 @@
  *  - T-17-SEND-05: uid 별 10회/60초 — 11번째 resource-exhausted · 발송 0
  *  - T-17-SEND-06: 미등록 · 무효 토큰 응답 → 문서 삭제 · 그 밖 실패는 유지
  *  - T-17-SEND-07: expireAt 이 지난 토큰 → 발송 제외 + 삭제 · 0개면 발송 0
+ *  - T-17-SEND-13: 익명 caller → failed-precondition · anonymous_caller ·
+ *    rate limit 카운터 · 토큰 읽기 0 (리뷰 WR-02 · D-28)
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -312,6 +314,32 @@ describe("sendTestPush 방어 — Phase 17 D-35 · D-33 · Phase 16 D-10", () =>
       {reason: "test_push_disabled"},
     );
     expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(mockTokensGet).not.toHaveBeenCalled();
+    expect(mockSendEachForMulticast).not.toHaveBeenCalled();
+  });
+
+  it("T-17-SEND-13: 익명 caller 는 카운터 · 읽기 · 발송 없이 " +
+    "failed-precondition · anonymous_caller", async () => {
+    mockTokenDocs = [liveToken("tok-ko-1", "ko")];
+    stubAllSuccess();
+    const wrapped = testEnv.wrap(myFunctions.sendTestPush);
+
+    const error = await (wrapped({
+      auth: {uid: "anon-1", token: {firebase: {sign_in_provider: "anonymous"}}},
+      app: {appId: "test"},
+      data: {},
+    } as never) as Promise<unknown>).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HttpsError);
+    expect((error as HttpsError).code).toBe("failed-precondition");
+    expect((error as HttpsError).message).toBe(
+      "errorAnonymousCallerNotAllowed",
+    );
+    expect((error as HttpsError).details).toEqual(
+      {reason: "anonymous_caller"},
+    );
+    expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(mockRateStore.size).toBe(0);
     expect(mockTokensGet).not.toHaveBeenCalled();
     expect(mockSendEachForMulticast).not.toHaveBeenCalled();
   });

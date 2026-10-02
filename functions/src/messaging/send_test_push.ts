@@ -32,6 +32,8 @@ import {defineBoolean} from "firebase-functions/params";
 import type {BooleanParam} from "firebase-functions/params";
 
 import {fingerprintError} from "../auth/identity_index";
+import {isAnonymousCaller} from "../shared/caller_auth";
+import {ANONYMOUS_CALLER_REASON} from "../shared/custom_token_errors";
 import {consumeRateLimit} from "../shared/rate_limit";
 import {
   TEST_PUSH_COPY,
@@ -275,7 +277,11 @@ async function enforceRateLimit(
  * sendTestPush 본체 (D-05 · D-33 · D-34 · D-35).
  *
  * 흐름:
- *   Step 0: `request.auth` 검증 → 미인증 `unauthenticated`.
+ *   Step 0: `request.auth` 검증 → 미인증 `unauthenticated`, 익명
+ *           `failed-precondition` + `{reason: "anonymous_caller"}`
+ *           (리뷰 WR-02 — 익명은 토큰이 없다(D-02). rate limit 카운터 ·
+ *           Firestore 읽기 전에 거부해 익명 uid 로 문서를 만들지 않는다 ·
+ *           D-28 · `mirrorAccountEmail` 과 같은 code · reason).
  *   Step 1: 환경 스위치(D-35) — 꺼져 있으면 읽기 · 발송 없이
  *           `failed-precondition` + `{reason: "test_push_disabled"}`.
  *   Step 2: uid 별 rate limit 10회/60초 → 초과 `resource-exhausted`.
@@ -297,6 +303,13 @@ async function runSendTestPush(
 ): Promise<SendTestPushResponse> {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "errorUnauthenticated");
+  }
+  if (isAnonymousCaller(request.auth)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "errorAnonymousCallerNotAllowed",
+      {reason: ANONYMOUS_CALLER_REASON},
+    );
   }
   const uid = request.auth.uid;
 
