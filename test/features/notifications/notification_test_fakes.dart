@@ -72,6 +72,9 @@ class FakeMessagingService implements MessagingService {
   @override
   Future<String?> getToken() async => null;
 
+  @override
+  Future<bool> deleteToken() async => false;
+
   /// 스트림을 닫는다.
   Future<void> close() async {
     await foreground.close();

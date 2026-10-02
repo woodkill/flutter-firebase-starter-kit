@@ -6,6 +6,13 @@ import '../../../core/providers/firebase_providers.dart';
 
 part 'messaging_service.g.dart';
 
+/// FCM 토큰 폐기([MessagingService.deleteToken]) 대기 상한.
+///
+/// 폐기는 FCM 서버 왕복이 필요해 오프라인이면 끝나지 않을 수 있다. 상한을
+/// 넘으면 실패(false)로 접는다 — 호출부는 폐기 대기 표식을 남겨 다음 기회에
+/// 다시 시도한다.
+const Duration kFcmDeleteTokenTimeout = Duration(seconds: 10);
+
 /// Firebase Cloud Messaging SDK 를 감싸는 no-op 래퍼 (Phase 17 D-01 · D-15).
 ///
 /// `CrashlyticsService` 와 같은 형식이다.
@@ -60,6 +67,19 @@ class MessagingService {
     null,
     (messaging) => messaging.getToken(),
   );
+
+  /// 이 기기의 FCM registration token 을 폐기한다. 폐기가 확정되면 true.
+  ///
+  /// 폐기된 토큰으로 보낸 발송은 실패한다(SDK 문서 「Messages sent by the
+  /// server to this token will fail.」). 다음 [getToken] 은 새 토큰을 준다.
+  /// 로그아웃 정리가 이전 계정의 토큰 문서를 지우지 못했을 때, 그 문서가 같은
+  /// 기기의 다음 계정에 알림을 흘리지 않게 하려고 쓴다 (Phase 17 리뷰 WR-03).
+  /// [kFcmDeleteTokenTimeout] 을 넘거나 no-op · 실패면 false.
+  Future<bool> deleteToken() =>
+      _runBestEffort<bool>('deleteToken', false, (messaging) async {
+        await messaging.deleteToken().timeout(kFcmDeleteTokenTimeout);
+        return true;
+      });
 
   /// 토큰이 새로 발급될 때마다 새 토큰을 흘린다.
   ///

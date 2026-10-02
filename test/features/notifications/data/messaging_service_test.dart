@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,6 +35,7 @@ void main() {
       await expectLater(service.onMessageOpenedApp, emitsDone);
       expect(await service.getInitialMessage(), isNull);
       await expectLater(service.setForegroundPresentationOptions(), completes);
+      expect(await service.deleteToken(), isFalse);
     });
 
     test('T-17-FCM-06: isEnabled=false 면 SDK 인스턴스가 있어도 호출 0', () async {
@@ -45,6 +47,7 @@ void main() {
       await service.getToken();
       await service.getInitialMessage();
       await service.setForegroundPresentationOptions();
+      await service.deleteToken();
       await expectLater(service.onTokenRefresh, emitsDone);
 
       verifyZeroInteractions(messaging);
@@ -176,6 +179,45 @@ void main() {
       expect(logs, hasLength(1));
       expect(logs.single, contains('StateError'));
       expect(logs.single, isNot(contains(_secretToken)));
+    });
+
+    // Phase 17 리뷰 WR-03 — 로그아웃 정리가 못 지운 이전 계정 문서를 무효
+    // 토큰으로 만드는 폐기 래퍼.
+    test('T-17-FCM-08: deleteToken 이 끝나면 true · SDK 1회', () async {
+      when(() => messaging.deleteToken()).thenAnswer((_) async {});
+
+      expect(await service.deleteToken(), isTrue);
+      verify(() => messaging.deleteToken()).called(1);
+      expect(logs, isEmpty);
+    });
+
+    test('T-17-FCM-08: deleteToken 이 throw 하면 false · 진단 로그는 예외 '
+        '타입 이름만', () async {
+      when(
+        () => messaging.deleteToken(),
+      ).thenThrow(StateError('leak $_secretToken'));
+
+      expect(await service.deleteToken(), isFalse);
+      expect(logs, hasLength(1));
+      expect(logs.single, contains('StateError'));
+      expect(logs.single, isNot(contains(_secretToken)));
+    });
+
+    test('T-17-FCM-08: deleteToken 이 상한(kFcmDeleteTokenTimeout)을 넘으면 '
+        'false', () {
+      fakeAsync((async) {
+        when(
+          () => messaging.deleteToken(),
+        ).thenAnswer((_) => Completer<void>().future);
+        bool? result;
+        unawaited(service.deleteToken().then((value) => result = value));
+
+        async.elapse(kFcmDeleteTokenTimeout - const Duration(seconds: 1));
+        expect(result, isNull);
+        async.elapse(const Duration(seconds: 2));
+        expect(result, isFalse);
+        expect(logs.single, contains('TimeoutException'));
+      });
     });
   });
 }

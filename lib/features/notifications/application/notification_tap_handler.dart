@@ -67,6 +67,13 @@ class NotificationTapHandler extends _$NotificationTapHandler {
   /// FCM 알림 탭으로 시작했으면 그 메시지의 route, 아니면 로컬 알림 탭으로
   /// 시작했을 때의 payload 를 pending 으로 보관한다. 둘 다 없으면 아무것도
   /// 하지 않는다.
+  ///
+  /// `ref.mounted` 가드는 **provider dispose 만** 걸러 낸다 — keepAlive
+  /// notifier 의 `ref` 는 요소의 현재 Ref 라 재빌드 뒤에도 true 다(riverpod
+  /// 3.2.1 · 리뷰 WR-06). 여기서는 그것이 맞다: `getInitialMessage` 는 1회만
+  /// 값을 준다(Android 플러그인이 꺼낸 메시지를 소비 처리) — 재빌드 중에 받은
+  /// 경로를 빌드 세대로 버리면 종료 상태 탭 이동이 사라진다. 보관 대상
+  /// [PendingNotificationRoute] 는 별도 provider 라 이전 세대가 넣어도 안전하다.
   Future<void> _startLocalNotifications(
     MessagingService messaging,
     LocalNotificationsService local,

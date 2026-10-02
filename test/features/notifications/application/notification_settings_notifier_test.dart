@@ -9,6 +9,10 @@
 // (D-33) · onTokenRefresh 교체. 앱 복귀는 test binding 의 lifecycle 전이
 // (inactive → resumed)로 흉내 낸다.
 //
+// 리뷰 fix (Phase 17 code review iteration 1) — WR-03 로그아웃 정리 표식 ·
+// 재시도 · 토큰 폐기, WR-05 스위치 처리 중 복귀 보류 · 끄기 opt-in 선행,
+// WR-06 stale build 부수효과 차단 (T-17-NOTIF-14~16).
+//
 // SDK · Firestore 는 mocktail 로 대체한다 — [MessagingService] ·
 // [FcmTokenRepository] · [CrashlyticsService]. SharedPreferences 는
 // `setMockInitialValues` 로 채운다. Riverpod 기본 재시도(build 오류 시 타이머)는
@@ -83,6 +87,7 @@ class _Harness {
       () => messaging.requestPermission(),
     ).thenAnswer((_) async => requestResult);
     when(() => messaging.getToken()).thenAnswer((_) async => _token1);
+    when(() => messaging.deleteToken()).thenAnswer((_) async => true);
     when(
       () => messaging.onTokenRefresh,
     ).thenAnswer((_) => const Stream<String>.empty());
@@ -109,15 +114,21 @@ class _Harness {
   }
 
   /// [user] (null = 미로그인) · [initialized] · [locale] 로 container 를 만든다.
+  ///
+  /// [authStream] 을 주면 [user] 대신 그 스트림이 로그인 상태를 흘린다
+  /// (계정 전환 시나리오).
   ProviderContainer container({
     fb.User? user,
     bool initialized = true,
     Locale locale = const Locale('ko'),
+    Stream<fb.User?>? authStream,
   }) {
     final container = ProviderContainer(
       overrides: [
         isFirebaseInitializedProvider.overrideWithValue(initialized),
-        authStateProvider.overrideWith((ref) => Stream.value(user)),
+        authStateProvider.overrideWith(
+          (ref) => authStream ?? Stream.value(user),
+        ),
         messagingServiceProvider.overrideWithValue(messaging),
         fcmTokenRepositoryProvider.overrideWithValue(repository),
         crashlyticsServiceProvider.overrideWithValue(crashlytics),
@@ -715,6 +726,408 @@ void main() {
 
       pendingDelete.complete(const Result<void>.success(null));
       await clearing;
+    });
+  });
+
+  group('Phase 17 리뷰 WR-03 — 로그아웃 정리 표식 · 재시도 · 토큰 폐기', () {
+    test('T-17-NOTIF-14: 오프라인 로그아웃(삭제 미완료) → 삭제 대기 기록 · '
+        '폐기 표식은 네트워크 전에 남고 등록 키 · opt-in 은 지워진다', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      // 오프라인 — 삭제가 서버 ack 를 받지 못한다(바깥 3초 상한이 끊는 상황).
+      final pendingDelete = Completer<Result<void>>();
+      when(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) => pendingDelete.future);
+
+      unawaited(
+        container.read(notificationSettingsProvider.notifier).clearForSignOut(),
+      );
+      await pumpEventQueue();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList(kNotificationsPendingTokenDeletionKey), [
+        _uid,
+        _token1,
+      ]);
+      expect(prefs.getBool(kNotificationsTokenRevokePendingKey), isTrue);
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+      expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
+      // 삭제가 끝나지 않았으므로 폐기 단계에도 아직 가지 않았다.
+      verifyNever(() => h.messaging.deleteToken());
+    });
+
+    test('T-17-NOTIF-14: 정상 로그아웃(삭제 확정) → 삭제 대기 기록 · 폐기 '
+        '표식 모두 소거 · 토큰 폐기 0', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+
+      await container
+          .read(notificationSettingsProvider.notifier)
+          .clearForSignOut();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsPendingTokenDeletionKey), isFalse);
+      expect(prefs.containsKey(kNotificationsTokenRevokePendingKey), isFalse);
+      verifyNever(() => h.messaging.deleteToken());
+    });
+
+    test('T-17-NOTIF-14: 삭제 실패 → 토큰 폐기를 바로 시도 · 확정되면 폐기 '
+        '표식만 지우고 같은 uid 재시도 기록은 남긴다', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      when(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) async => const Result<void>.failure(UnknownException()));
+
+      await container
+          .read(notificationSettingsProvider.notifier)
+          .clearForSignOut();
+
+      verify(() => h.messaging.deleteToken()).called(1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsTokenRevokePendingKey), isFalse);
+      expect(prefs.getStringList(kNotificationsPendingTokenDeletionKey), [
+        _uid,
+        _token1,
+      ]);
+    });
+
+    test('T-17-NOTIF-15: 같은 uid 재로그인 → build 가 문서 삭제를 재시도 · '
+        '성공하면 기록 · 폐기 표식 소거 · 토큰 폐기 0', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsPendingTokenDeletionKey: <String>[_uid, _token1],
+        kNotificationsTokenRevokePendingKey: true,
+      });
+      final h = _Harness()..stubDefaults();
+      final container = h.container(user: _regularUser());
+
+      expect(await _settledValue(container), isFalse);
+      await pumpEventQueue();
+
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsPendingTokenDeletionKey), isFalse);
+      expect(prefs.containsKey(kNotificationsTokenRevokePendingKey), isFalse);
+      verifyNever(() => h.messaging.deleteToken());
+    });
+
+    test('T-17-NOTIF-15: 다른 uid 가 켤 때 → deleteToken 이 getToken 보다 먼저 · '
+        '폐기 확정 뒤 이전 계정 기록은 버린다', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsPendingTokenDeletionKey: <String>['uid-previous', 't0'],
+        kNotificationsTokenRevokePendingKey: true,
+      });
+      final h = _Harness()..stubDefaults();
+      final sdkCalls = <String>[];
+      // build 의 기회성 폐기는 실패(오프라인)하고, 켤 때의 폐기는 성공한다.
+      final revokeResults = <bool>[false, true];
+      when(() => h.messaging.deleteToken()).thenAnswer((_) async {
+        sdkCalls.add('deleteToken');
+        return revokeResults.removeAt(0);
+      });
+      when(() => h.messaging.getToken()).thenAnswer((_) async {
+        sdkCalls.add('getToken');
+        return _token1;
+      });
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isFalse);
+      await pumpEventQueue();
+
+      final result = await container
+          .read(notificationSettingsProvider.notifier)
+          .enable();
+
+      expect(result, NotificationToggleResult.enabled);
+      expect(sdkCalls, ['deleteToken', 'deleteToken', 'getToken']);
+      // rules 상 지울 수 없는 다른 계정 문서 — 무효 토큰이 되어 버린다.
+      verifyNever(() => h.repository.delete(uid: 'uid-previous', token: 't0'));
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsTokenRevokePendingKey), isFalse);
+      expect(prefs.containsKey(kNotificationsPendingTokenDeletionKey), isFalse);
+      expect(_capturedUpserts(h.repository).single.token, _token1);
+    });
+
+    test('T-17-NOTIF-15: 토큰 폐기 실패 → enable failed · getToken · upsert 0 '
+        '(이전 토큰으로 새 계정을 등록하지 않는다)', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsPendingTokenDeletionKey: <String>['uid-previous', 't0'],
+        kNotificationsTokenRevokePendingKey: true,
+      });
+      final h = _Harness()..stubDefaults();
+      when(() => h.messaging.deleteToken()).thenAnswer((_) async => false);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isFalse);
+      await pumpEventQueue();
+
+      final result = await container
+          .read(notificationSettingsProvider.notifier)
+          .enable();
+
+      expect(result, NotificationToggleResult.failed);
+      verifyNever(() => h.messaging.getToken());
+      verifyNever(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(kNotificationsTokenRevokePendingKey), isTrue);
+      expect(prefs.getStringList(kNotificationsPendingTokenDeletionKey), [
+        'uid-previous',
+        't0',
+      ]);
+    });
+  });
+
+  group('Phase 17 리뷰 WR-05 — 스위치 처리 중 앱 복귀', () {
+    test('T-17-NOTIF-16: disable() 의 삭제 대기 중 복귀 → 재빌드 보류 · '
+        'upsert 0 · 최종 꺼짐', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      clearInteractions(h.repository);
+      clearInteractions(h.messaging);
+      final pendingDelete = Completer<Result<void>>();
+      when(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) => pendingDelete.future);
+
+      final disabling = container
+          .read(notificationSettingsProvider.notifier)
+          .disable();
+      await pumpEventQueue();
+      _simulateResume();
+      await pumpEventQueue();
+      pendingDelete.complete(const Result<void>.success(null));
+
+      expect(await disabling, NotificationToggleResult.disabled);
+      expect(await _settledValue(container), isFalse);
+      verifyNever(() => h.messaging.getAuthorizationStatus());
+      verifyNever(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(kNotificationsOptInKey), isFalse);
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+    });
+
+    test('T-17-NOTIF-16: disable() 은 삭제 대기 중에 opt-in 을 이미 false 로 '
+        '둔다 — 진행 중인 재동기화가 같은 토큰을 다시 등록하지 않게', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isTrue);
+      final pendingDelete = Completer<Result<void>>();
+      when(
+        () => h.repository.delete(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) => pendingDelete.future);
+
+      final disabling = container
+          .read(notificationSettingsProvider.notifier)
+          .disable();
+      await pumpEventQueue();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(kNotificationsOptInKey), isFalse);
+
+      pendingDelete.complete(const Result<void>.success(null));
+      expect(await disabling, NotificationToggleResult.disabled);
+    });
+
+    test('T-17-NOTIF-16: enable() 중 권한 다이얼로그가 일으킨 복귀 → '
+        'getToken · upsert 각 1회 (등록 2중 실행 0)', () async {
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      when(() => h.messaging.requestPermission()).thenAnswer((_) async {
+        // Android 13+ — OS 다이얼로그가 닫히며 inactive → resumed.
+        _simulateResume();
+        await pumpEventQueue();
+        return AuthorizationStatus.authorized;
+      });
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isFalse);
+
+      final result = await container
+          .read(notificationSettingsProvider.notifier)
+          .enable();
+      expect(await _settledValue(container), isTrue);
+      await pumpEventQueue();
+
+      expect(result, NotificationToggleResult.enabled);
+      verify(() => h.messaging.getToken()).called(1);
+      expect(_capturedUpserts(h.repository), hasLength(1));
+    });
+  });
+
+  group('Phase 17 리뷰 WR-06 — stale build 부수효과 차단', () {
+    test('T-17-NOTIF-17: build 의 권한 조회 대기 중 복귀 재빌드 → 이전 build 는 '
+        'upsert 하지 않는다 (upsert 1회 = 새 build 몫)', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final firstStatus = Completer<AuthorizationStatus>();
+      var statusCalls = 0;
+      when(() => h.messaging.getAuthorizationStatus()).thenAnswer((_) {
+        statusCalls++;
+        return statusCalls == 1
+            ? firstStatus.future
+            : Future.value(AuthorizationStatus.authorized);
+      });
+      final container = h.container(user: _regularUser());
+      await pumpEventQueue();
+      expect(statusCalls, 1);
+
+      _simulateResume();
+      expect(await _settledValue(container), isTrue);
+      firstStatus.complete(AuthorizationStatus.authorized);
+      await pumpEventQueue();
+
+      expect(_capturedUpserts(h.repository), hasLength(1));
+      verify(() => h.messaging.getToken()).called(1);
+    });
+
+    test('T-17-NOTIF-17: build 대기 중 계정이 바뀌면(로그아웃) 이전 uid 로 '
+        'upsert 0 · 등록 키 미기록', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final firstStatus = Completer<AuthorizationStatus>();
+      when(
+        () => h.messaging.getAuthorizationStatus(),
+      ).thenAnswer((_) => firstStatus.future);
+      final auth = StreamController<fb.User?>();
+      addTearDown(auth.close);
+      final container = h.container(authStream: auth.stream);
+      auth.add(_regularUser());
+      await pumpEventQueue();
+
+      auth.add(null);
+      expect(await _settledValue(container), isFalse);
+      firstStatus.complete(AuthorizationStatus.authorized);
+      await pumpEventQueue();
+
+      verifyNever(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+    });
+
+    test('T-17-NOTIF-17: build 가 토큰을 받는 중 clearForSignOut → 이전 build '
+        '는 정리된 토큰 문서를 다시 쓰지 않는다', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kNotificationsOptInKey: true,
+        kNotificationsRegisteredTokenKey: _token1,
+      });
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      // opt-in 확인을 지난 뒤(_register 의 getToken)에서 멈춘다.
+      final firstToken = Completer<String?>();
+      when(() => h.messaging.getToken()).thenAnswer((_) => firstToken.future);
+      final container = h.container(user: _regularUser());
+      await pumpEventQueue();
+      verify(() => h.messaging.getToken()).called(1);
+
+      await container
+          .read(notificationSettingsProvider.notifier)
+          .clearForSignOut();
+      firstToken.complete(_token1);
+      await pumpEventQueue();
+
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
+      verifyNever(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+      expect(container.read(notificationSettingsProvider).value, isFalse);
+    });
+
+    test('T-17-NOTIF-17: 첫 등록(enable)의 upsert 대기 중 clearForSignOut → '
+        '정리가 새 토큰 문서도 지운다 · enable 은 failed', () async {
+      final h = _Harness()
+        ..stubDefaults(status: AuthorizationStatus.authorized);
+      final pendingUpsert = Completer<Result<void>>();
+      when(
+        () => h.repository.upsert(
+          uid: any(named: 'uid'),
+          token: any(named: 'token'),
+        ),
+      ).thenAnswer((_) => pendingUpsert.future);
+      final container = h.container(user: _regularUser());
+      expect(await _settledValue(container), isFalse);
+
+      final enabling = container
+          .read(notificationSettingsProvider.notifier)
+          .enable();
+      await pumpEventQueue();
+      await container
+          .read(notificationSettingsProvider.notifier)
+          .clearForSignOut();
+      pendingUpsert.complete(const Result<void>.success(null));
+
+      expect(await enabling, NotificationToggleResult.failed);
+      // 등록 키를 upsert 전에 써 두었으므로 정리가 지울 토큰을 알았다.
+      verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kNotificationsRegisteredTokenKey), isFalse);
+      expect(container.read(notificationSettingsProvider).value, isFalse);
     });
   });
 }

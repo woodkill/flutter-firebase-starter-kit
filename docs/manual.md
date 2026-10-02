@@ -3075,10 +3075,18 @@ curl -X POST \
 
 | 상황 | 동작 | 결정 |
 |------|------|------|
-| 로그아웃 · 탈퇴 | 로그아웃 직전 이 기기 토큰 문서를 지우고 로컬 opt-in 을 초기화한다 — 같은 기기에 다른 계정으로 로그인하면 알림은 꺼짐으로 시작한다. 오프라인이면 3초 뒤 그냥 로그아웃되고 남은 문서는 TTL 이 지운다. OS 알림 권한은 건드리지 않는다 | D-30 |
+| 로그아웃 · 탈퇴 | 로그아웃 직전 이 기기 토큰 문서를 지우고 로컬 opt-in 을 초기화한다 — 같은 기기에 다른 계정으로 로그인하면 알림은 꺼짐으로 시작한다. 정리는 3초 상한이라 오프라인이면 문서 삭제가 끝나기 전에 로그아웃된다. 그래서 네트워크 호출 **전에** 기기에 「삭제 대기 기록(uid · 토큰)」 과 「토큰 폐기 표식」 을 남긴다(아래 「로그아웃 정리가 끊겼을 때」). OS 알림 권한은 건드리지 않는다 | D-30 |
 | 앱 언어 변경 | 켜진 기기 문서의 `locale` 을 즉시 바꾼다(`ko` · `en` · `ja` · 그 밖은 `en` — `normalizeFcmLocale`). 서버 발송 문구가 이 값으로 정해진다 | D-31 |
-| 앱 밖에서 OS 권한을 끄고 복귀 | 스위치가 조용히 꺼지고 문서가 지워진다(opt-in 은 기억). 다시 허용하고 돌아오면 조용히 켜진다 | D-32 |
+| 앱 밖에서 OS 권한을 끄고 복귀 | 스위치가 조용히 꺼지고 문서가 지워진다(opt-in 은 기억 · 삭제를 확정하지 못하면 로그아웃과 같은 표식을 남긴다). 다시 허용하고 돌아오면 조용히 켜진다. 켜기 · 끄기 처리 중의 복귀는 재동기화하지 않는다 — 처리 끝에서 상태를 확정한다 | D-32 |
 | 오래 열지 않은 기기 | 켜진 기기는 앱 시작 · 복귀 · 언어 변경 때마다 `expireAt` 을 지금 + 30일로 다시 쓴다. Firestore TTL 정책이 지난 문서를 지운다(아래 「배포 · 콘솔 설정」 ②) | D-33 |
+
+**로그아웃 정리가 끊겼을 때 (Phase 17 리뷰 WR-03):** 이전 계정 문서가 남은 채 그 토큰이 유효하면, 같은 기기의 다음 계정이 로그인해 있는 동안에도 이전 계정 앞 발송이 이 기기에 뜬다. 서버 발송 정리(`sendTestPush`)는 무효 토큰(`registration-token-not-registered` 등)만 지우므로 유효 토큰 문서는 TTL(30일)까지 남는다. 그래서 기기에 남긴 두 표식으로 다음 기회에 마저 정리한다.
+
+- **같은 계정으로 다시 로그인:** 문서 삭제를 다시 시도한다. 확정되면 두 표식을 지운다(토큰은 폐기하지 않는다 — 남은 문서가 없으므로).
+- **다른 계정이 알림을 켬:** 토큰을 받기(`getToken`) **전에** 이전 FCM 토큰을 먼저 폐기한다(`FirebaseMessaging.deleteToken` · 래퍼 `MessagingService.deleteToken` · 상한 `kFcmDeleteTokenTimeout` 10초). 폐기에 실패하면 등록도 실패(스위치 오류 안내)다 — 이전 토큰으로 새 계정을 등록하지 않는다. 폐기된 토큰으로 보낸 발송은 실패하고(「FCM returns an invalid response if … a client explicitly unregistered」 — https://firebase.google.com/docs/cloud-messaging/manage-tokens) 서버 발송 정리가 그 문서를 지운다. 폐기가 확정되면 다른 계정의 삭제 대기 기록은 버린다(그 계정 세션이 아니면 rules 상 지울 수 없다).
+- **그 밖의 재시도:** 정리 직후(문서 삭제가 실패하면 그 자리에서) · 로그아웃 상태의 앱 시작 · 다음 정식 로그인 때 폐기를 한 번씩 더 시도한다(결과 무시).
+- **남는 한계:** 폐기가 끝날 때까지(계속 오프라인) 이전 계정 앞 알림이 이 기기에 뜰 수 있다. 게스트(익명) 로그인은 재시도 계기가 아니다(로그인 상태 변화로 보지 않음). 서버 쪽 단일화(같은 토큰이 다른 uid 아래 등록되면 지우는 Firestore 트리거)는 킷에 넣지 않았다 — 운영 발송을 붙이는 앱은 추가를 검토한다.
+- **저장 키:** SharedPreferences `notifications_pending_token_deletion`(`[uid, token]`) · `notifications_token_revoke_pending`(bool). 코드 · 테스트: `notification_settings_notifier.dart` · `notification_settings_notifier_test.dart` T-17-NOTIF-14~17.
 
 30일은 FCM 공식 「registration token 관리」 문서의 stale 기준(「hasn't connected for a month」)과 샘플 상수에 맞춘 값이다(RESEARCH R-02 · https://firebase.google.com/docs/cloud-messaging/manage-tokens).
 
@@ -3281,7 +3289,7 @@ gcloud firestore fields ttls list --collection-group=fcmTokens --project=<dev>
 | 알림 문구 언어 추가 | 서버 `functions/src/messaging/test_push_copy.ts` 의 `TestPushLocale` 에 코드 · `TEST_PUSH_COPY` 에 `{title, body}` 1항목 + 앱 `normalizeFcmLocale` 지원 집합 + `firestore.rules` fcmTokens `locale` 허용 집합. ARB 와 별개다 |
 | 알림 탭으로 열 화면 | `kNotificationRoutableRoutes` 에 `AppRoutes` 상수 1줄. 문자열 정확 일치만(query · 경로 변수 불가). 흐름 진입 전용 화면(로그인 · 온보딩 · 탈퇴 진행 등)은 넣지 않는다 |
 | 토큰 만료 기간 | `kFcmTokenTtl = Duration(days: 30)`(`lib/features/notifications/domain/fcm_token.dart`) 상수 1개. TTL 정책은 필드(`expireAt`) 기준이라 다시 설정하지 않아도 된다 |
-| 알림 섹션 위치 · 저장 키 | `settings_screen.dart` 의 `const NotificationsSection()` 한 줄 · SharedPreferences `notifications_opt_in` · `notifications_registered_token` |
+| 알림 섹션 위치 · 저장 키 | `settings_screen.dart` 의 `const NotificationsSection()` 한 줄 · SharedPreferences `notifications_opt_in` · `notifications_registered_token` · `notifications_pending_token_deletion` · `notifications_token_revoke_pending`(뒤 둘은 로그아웃 정리 재시도용 — 「FCM 알림」 의 「로그아웃 정리가 끊겼을 때」) |
 | Storage 경로 · 크기 · 타입 | `storage.rules` 해당 줄(예: 5MB → `5 * 1024 * 1024`) + `functions/test/rules/storage.rules.test.ts` 경계 케이스 → `pnpm test:rules`. 경로를 바꾸면 `profilePhotoPath` 와 탈퇴 prefix 도 함께 |
 | 업로드 리사이즈 | `profile_photo_repository.dart` 의 `pickImage` 인자(`maxWidth` · `imageQuality`) |
 | 표시 우선순위 | `lib/features/auth/domain/profile_display.dart` `resolveProfileValue` 한 곳. 사진 1순위는 `auth_repository.dart` `currentUser` 의 `photoUrl:` 줄 |
@@ -5253,8 +5261,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-01 | Phase 16.11 | Naver iOS 1-tap unwedge · 취소 — **Pitfall 12** 「해결됨」 재서술(자동 silent 취소 · 판정 신호 = background 복귀 + `kNaverResumeSettleDelay` + `SceneDelegate` 콜백 도착 기록 · 0.3초 보정(U1 실측 URL 이 `resumed` 보다 357ms 먼저) · 고아 대기와 늦은 결과 logout · stale 1회 재시도 · 진단 줄 6종 · 잔여 한계 3가지 · 이력 링크) / **Pitfall 11** 1-tap 취소 2종 silent(동의 화면 [취소] `ios_sdk_nid_access_denied` 실기기 확인 · 앱 열기 알림 [Cancel] 미실측 · SDK 발생 조건 확장) / 설치 안내 SYSC bullet / **Pitfall 1** · §5 예외 문장 · wedge 문단 / 제거 가이드 `SceneDelegate` override · `T-16.11-NATIVE-*` · `T-16.11-NAVER-HOST-*` / **Pitfall 13** authCode 주체(Firebase Analytics · `Runner.debug.dylib` · `firebase_analytics` 경로) · release(profile) 판정 · 결정 `record-only` · 공유 주의. 근거: `.planning/phases/16.11-naver-ios-one-tap-unwedge-and-cancel/uat-evidence/`. |
 | 2026-10-01 | 16.11 review fix (iteration 2) | 「Naver Login」 절 **Pitfall 12** 정정(code review iteration 2) — 진단 목록에 `Naver logIn 포기: reason=lifecycle_subscribe_failed` 추가(lifecycle 구독 실패 · silent 가 아니라 오류 배너 `ServiceUnavailable` · production 재현 경로 없음 · review IN-02) / 판정 신호에 판정 창 안 재-background 보류 추가(그 판정은 하지 않고 다음 복귀가 0.3초를 새로 셈 · 보류는 마지막 복귀 기준 · review IN-02) / **Pitfall 1** 예외 문장 문체 정정(「본다」 → 「봅니다」) · 「Multi-Provider Account Linking (Phase 9.2)」 §5 예외 문장을 한 문장으로 합침(「1-tap 에서 / 1-tap 수동 복귀는」 중복 · 문장 중간 줄바꿈 제거 · review IN-03). review IN-01(stale 거부 시 고아 해제를 진입 시점 고아로 한정)은 코드 수정이며 매뉴얼의 stale 재시도 · 고아 대기 서술은 수정 뒤에도 그대로 성립해 문구 변경이 없다. |
 | 2026-10-01 | 17-19 | `## Firebase Services (Phase 17)` 절 신규 — FCM 알림 · Remote Config Feature Flag · Cloud Storage · 프로필 사진 · Firestore typed repository · Security Rules · 오류 처리 패턴 · 배포 · 콘솔 설정(firebase deploy 묶음 · Firestore TTL gcloud · `SEND_TEST_PUSH_ENABLED` · RC 키 4개 · iOS APNs) · 커스터마이징 포인트 · 익명 계정 30일 자동 정리(D-28) · 공개 프로필 · 이름 편집 확장 가이드(D-29) / 「가입 수단 기록」 위조 한계 단락을 Phase 17 rules 기준으로 재작성 + 약관 동의 시각 수용 한계 단락 / 3단계 rules bullet · IdP 프로필 동기화 정책 위조 bullet 정정 / Storage cascade 절을 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 로 재작성 + 참조 3곳 · 「회원탈퇴 정리 현황」 해소 bullet · rate limit 카운터 잔존 bullet / App Check 차단 안내 단락 / Kakao `profile_image` 현재 사실 / Account Linking 옛 번호 표기 Phase 16 으로 정정(헤딩 2 · 본문 6) / 목차 14번 |
-| 2026-10-02 | 17 review fix | Phase 17 code review iteration 1 반영 — 「배포 · 콘솔 설정」 에 ⓪ Cloud Storage 기본 버킷 만들기 추가(없으면 사진 업로드 실패 · 탈퇴는 진행) · 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 표 2단계에 404 진행 규칙 · 404 를 중단하지 않는 이유 · 새 warn 로그 2종 · 테스트 범위 T-17-DEL-01~09 (review WR-01) / 「FCM 알림」 의 `sendTestPush` 단락에 익명 caller 거부(`anonymous_caller` · 카운터 · 읽기 0 · 버튼은 기기 없음 문구) 추가 (review WR-02) |
+| 2026-10-02 | 17 review fix | Phase 17 code review iteration 1 반영 — 「배포 · 콘솔 설정」 에 ⓪ Cloud Storage 기본 버킷 만들기 추가(없으면 사진 업로드 실패 · 탈퇴는 진행) · 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」 표 2단계에 404 진행 규칙 · 404 를 중단하지 않는 이유 · 새 warn 로그 2종 · 테스트 범위 T-17-DEL-01~09 (review WR-01) / 「FCM 알림」 의 `sendTestPush` 단락에 익명 caller 거부(`anonymous_caller` · 카운터 · 읽기 0 · 버튼은 기기 없음 문구) 추가 (review WR-02) / 「FCM 알림」 표 「로그아웃 · 탈퇴」 행을 표식 먼저 · 네트워크 나중으로 정정(「오프라인이면 남은 문서는 TTL 이 지운다」 삭제) · 「로그아웃 정리가 끊겼을 때」 단락 신설(같은 계정 재로그인 = 문서 삭제 재시도 · 다른 계정 켜기 = `deleteToken` 선행 · 그 밖의 재시도 · 남는 한계 · 저장 키) · 「앱 밖에서 OS 권한을 끄고 복귀」 행에 표식 · 처리 중 복귀 보류 · 커스터마이징 「저장 키」 2개 추가 (review WR-03 · WR-05) |
 
 ---
 
-*Last updated: 2026-10-02 — Phase 17 code review fix iteration 1 (Storage 기본 버킷 · 탈퇴 404 진행)*
+*Last updated: 2026-10-02 — Phase 17 code review fix iteration 1 (Storage 기본 버킷 · 탈퇴 404 진행 · sendTestPush 익명 거부 · 로그아웃 알림 토큰 정리)*

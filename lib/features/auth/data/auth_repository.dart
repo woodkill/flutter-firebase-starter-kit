@@ -2907,6 +2907,12 @@ class AuthRepository implements AnonymousSignIn {
   Future<void> signOutAndResetOnboarding() async {
     // Phase 17 D-30 — 기기 알림 토큰 · opt-in 정리. best-effort: 3초 상한 ·
     // 실패 무시로 로그아웃을 막지 않는다.
+    // 이 3초가 cleanup 안의 Firestore 쓰기 상한(10초)보다 먼저 끊으므로
+    // 로그아웃 경로에서 유효한 상한은 3초뿐이다. 끊겨도 안전한 이유는
+    // cleanup(`NotificationSettingsNotifier.clearForSignOut`)이 네트워크
+    // 호출 **전에** 삭제 대기 기록과 토큰 폐기 표식을 남기기 때문이다 —
+    // 같은 uid 재로그인이 문서 삭제를 재시도하고, 다음 토큰 등록은 이전
+    // 토큰을 먼저 폐기한다(Phase 17 리뷰 WR-03).
     try {
       await _onSignOutCleanup().timeout(const Duration(seconds: 3));
     } on Object catch (e) {
