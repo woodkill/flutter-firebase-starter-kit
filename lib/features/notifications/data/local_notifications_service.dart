@@ -15,6 +15,9 @@ part 'local_notifications_service.g.dart';
 /// 상수로 둔다.
 const Color _kNotificationColor = Color(0xFF673AB7);
 
+/// 알림 id 상한(배타) — Android 알림 id 는 int32 다.
+const int _kMaxNotificationId = 0x7FFFFFFF;
+
 /// `flutter_local_notifications` 를 감싸는 Android 전용 래퍼 (Phase 17 D-01).
 ///
 /// Android 는 앱이 포그라운드일 때 FCM 알림을 표시하지 않으므로 이 래퍼가
@@ -41,6 +44,9 @@ class LocalNotificationsService {
   /// 때만 쓰인다.
   String _channelName = kNotificationChannelId;
   String? _channelDescription;
+
+  /// 마지막으로 쓴 알림 id — 같은 순간에 온 두 메시지도 다른 id 를 받게 한다.
+  int _lastNotificationId = -1;
 
   /// 플러그인을 초기화하고 로컬 알림 탭을 [onTap] 으로 전달한다.
   Future<void> initialize({required void Function(String? payload) onTap}) =>
@@ -116,9 +122,16 @@ class LocalNotificationsService {
     return payload;
   }
 
-  /// 알림 id — 초 단위 시각으로 만들어 이전 알림을 덮어쓰지 않게 한다.
-  int _nextNotificationId() =>
-      DateTime.now().millisecondsSinceEpoch ~/ 1000 % 0x7FFFFFFF;
+  /// 알림 id — 밀리초 시각을 바탕으로 하되 직전 id 보다 항상 커서, 이전
+  /// 알림을 덮어쓰지 않는다 (리뷰 IN-16 — 초 단위면 같은 초에 온 두 메시지가
+  /// 같은 id 로 서로 덮어썼다). 시각 기반이라 앱을 다시 시작해도 이전 실행의
+  /// 알림 id 와 겹치지 않는다. int32 양수 범위를 넘으면 0 부터 다시 센다.
+  int _nextNotificationId() {
+    final now = DateTime.now().millisecondsSinceEpoch % _kMaxNotificationId;
+    final next = now > _lastNotificationId ? now : _lastNotificationId + 1;
+    _lastNotificationId = next % _kMaxNotificationId;
+    return _lastNotificationId;
+  }
 
   /// Android 에서만 [call] 을 실행하고 실패하면 조용히 접는다.
   Future<void> _runBestEffort(
