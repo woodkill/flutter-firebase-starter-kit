@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
@@ -284,6 +285,15 @@ void main() {
       expect(find.byType(ErrorBanner), findsOneWidget);
       expect(find.text(l10n.errorNotificationsUpdateFailed), findsOneWidget);
       expect(find.byType(SwitchListTile), findsNothing);
+      // UI-SPEC §(N) — 오류 표시(배너 · 재시도)만 좌우 lg 안쪽 (리뷰 IN-17 —
+      // errorPadding 으로 옮겨도 기하가 같다).
+      final section = tester.getRect(find.byType(NotificationsSection));
+      final banner = tester.getRect(find.byType(ErrorBanner));
+      final retryButton = tester.getRect(find.byType(TextButton));
+      final lg = const AppSpacing().lg;
+      expect(banner.left - section.left, lg);
+      expect(section.right - banner.right, lg);
+      expect(retryButton.left - section.left, lg);
 
       final retry = find.text(l10n.commonRetry);
       await tester.ensureVisible(retry);

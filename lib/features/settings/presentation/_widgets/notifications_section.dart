@@ -65,15 +65,8 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
           value: ref.watch(notificationSettingsProvider),
           onRetry: _retry,
           // UI-SPEC §(N) — 오류 표시만 좌우 lg 안쪽에 둔다. 배너 · 재시도
-          // 버튼 자체는 AsyncValueView 기본값을 그대로 쓴다.
-          error: (error, stackTrace) => Padding(
-            padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-            child: AsyncValueView<bool>(
-              value: AsyncError<bool>(error, stackTrace),
-              onRetry: _retry,
-              data: (_) => const SizedBox.shrink(),
-            ),
-          ),
+          // 버튼 자체는 AsyncValueView 기본값을 그대로 쓴다 (리뷰 IN-17).
+          errorPadding: EdgeInsets.symmetric(horizontal: spacing.lg),
           data: (isOn) => SwitchListTile(
             secondary: const Icon(Icons.notifications),
             title: Text(

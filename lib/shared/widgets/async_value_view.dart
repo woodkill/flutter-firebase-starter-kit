@@ -18,7 +18,9 @@ import 'error_banner.dart';
 /// - 값이 있는 상태의 재로딩 중에는 [data] 를 계속 그린다
 ///   (`skipLoadingOnReload`).
 ///
-/// 좌우 padding 은 호출부 책임이다.
+/// 좌우 padding 은 호출부 책임이다. 기본 오류 표시에만 안쪽 여백을 주려면
+/// [errorPadding] 을 쓴다 — `error:` builder 안에서 [AsyncValueView] 를 다시
+/// 감쌀 필요가 없다 (리뷰 IN-17).
 class AsyncValueView<T> extends StatelessWidget {
   /// [AsyncValueView] 를 생성한다.
   const AsyncValueView({
@@ -28,6 +30,7 @@ class AsyncValueView<T> extends StatelessWidget {
     this.loading,
     this.error,
     this.onRetry,
+    this.errorPadding,
   });
 
   /// 그릴 비동기 상태.
@@ -45,16 +48,28 @@ class AsyncValueView<T> extends StatelessWidget {
   /// 기본 error 표시의 「재시도」 콜백. null 이면 버튼을 그리지 않는다.
   final VoidCallback? onRetry;
 
+  /// 기본 error 표시(배너 + 「재시도」)를 감쌀 안쪽 여백. null 이면 여백 없음.
+  ///
+  /// [error] builder 를 주면 쓰이지 않는다(builder 가 표시 전체를 정한다).
+  final EdgeInsetsGeometry? errorPadding;
+
   @override
   Widget build(BuildContext context) {
     return value.when(
       skipLoadingOnReload: true,
       data: data,
       loading: loading ?? () => const _DefaultLoadingView(),
-      // 람다 매개변수는 필드 [error](builder)와 이름을 나눈다 (리뷰 IN-09).
-      error:
-          error ?? (err, _) => _DefaultErrorView(error: err, onRetry: onRetry),
+      error: error ?? _buildDefaultError,
     );
+  }
+
+  /// 기본 error 표시 — [errorPadding] 이 있으면 그 여백으로 감싼다.
+  ///
+  /// 매개변수 이름은 필드 [error](builder)와 나눈다 (리뷰 IN-09).
+  Widget _buildDefaultError(Object err, StackTrace _) {
+    final view = _DefaultErrorView(error: err, onRetry: onRetry);
+    final padding = errorPadding;
+    return padding == null ? view : Padding(padding: padding, child: view);
   }
 }
 
