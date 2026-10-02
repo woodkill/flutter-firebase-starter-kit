@@ -885,6 +885,10 @@ class AppLocalizationsJa extends AppLocalizations {
       '通知を受け取る端末がありません。設定で「通知を受け取る」をオンにしてください。';
 
   @override
+  String get devToolsSendTestPushAnonymous =>
+      'ゲストの状態ではテスト通知を送れません。ログイン後、設定で「通知を受け取る」をオンにしてください。';
+
+  @override
   String get devToolsSendTestPushDisabled => 'この環境ではテスト通知を送信できません。';
 
   @override

@@ -129,14 +129,14 @@ void main() {
     });
 
     test('T-17-SEND-14 failed-precondition + reason anonymous_caller → '
-        'TestPushNoDevice', () async {
+        'TestPushAnonymous (리뷰 IN-22)', () async {
       stubRejection(
         'failed-precondition',
         message: 'errorAnonymousCallerNotAllowed',
         details: const <String, Object?>{'reason': 'anonymous_caller'},
       );
 
-      expect(await client.send(), isA<TestPushNoDevice>());
+      expect(await client.send(), isA<TestPushAnonymous>());
       expectNoRecord();
     });
 

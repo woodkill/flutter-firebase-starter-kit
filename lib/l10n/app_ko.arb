@@ -328,6 +328,7 @@
   "devToolsSendTestPush": "나에게 테스트 알림 보내기",
   "devToolsSendTestPushDone": "기기 {count}대에 테스트 알림을 보냈어요.",
   "devToolsSendTestPushNoDevice": "알림을 받을 기기가 없어요. 설정에서 알림 받기를 켜 주세요.",
+  "devToolsSendTestPushAnonymous": "게스트 상태에서는 테스트 알림을 보낼 수 없어요. 로그인한 뒤 설정에서 알림 받기를 켜 주세요.",
   "devToolsSendTestPushDisabled": "이 환경에서는 테스트 알림을 보낼 수 없어요.",
   "errorAppCheckFailed": "요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.",
   "errorWidgetFallbackTitle": "문제가 발생했습니다",

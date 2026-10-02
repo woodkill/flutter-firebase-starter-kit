@@ -51,7 +51,7 @@ class _CopyRow {
   };
 }
 
-/// UI-SPEC 표 26행 전체 (표 순서 그대로).
+/// UI-SPEC 표 27행 전체 (표 순서 그대로 · 2026-10-02 amend 1행 포함).
 ///
 /// `devToolsSendTestPushDone` 은 count 3 의 값으로 담는다 — count 1 의 en
 /// 단수형은 T-17-COPY-02 안에서 따로 단언한다.
@@ -198,6 +198,15 @@ final List<_CopyRow> _kPhase17Rows = <_CopyRow>[
         'in Settings.',
     '通知を受け取る端末がありません。設定で「通知を受け取る」をオンにしてください。',
   ),
+  // 2026-10-02 UI-SPEC amend (리뷰 IN-22) — 사용자 sign-off.
+  _CopyRow(
+    'devToolsSendTestPushAnonymous',
+    (l) => l.devToolsSendTestPushAnonymous,
+    '게스트 상태에서는 테스트 알림을 보낼 수 없어요. 로그인한 뒤 설정에서 알림 받기를 켜 주세요.',
+    'Test notifications aren\'t available as a guest. Sign in, then turn on '
+        '"Receive notifications" in Settings.',
+    'ゲストの状態ではテスト通知を送れません。ログイン後、設定で「通知を受け取る」をオンにしてください。',
+  ),
   _CopyRow(
     'devToolsSendTestPushDisabled',
     (l) => l.devToolsSendTestPushDisabled,
@@ -295,10 +304,10 @@ void main() {
       }
     });
 
-    test('T-17-COPY-02 ARB 26키가 ko · en · ja 모두 UI-SPEC 셀과 verbatim 같다', () {
-      // 양성 대조 — 표가 26행 전부를 담고 있고 키 중복이 없다.
-      expect(_kPhase17Rows, hasLength(26));
-      expect(_kPhase17Rows.map((r) => r.key).toSet(), hasLength(26));
+    test('T-17-COPY-02 ARB 27키가 ko · en · ja 모두 UI-SPEC 셀과 verbatim 같다', () {
+      // 양성 대조 — 표가 27행 전부를 담고 있고 키 중복이 없다.
+      expect(_kPhase17Rows, hasLength(27));
+      expect(_kPhase17Rows.map((r) => r.key).toSet(), hasLength(27));
 
       for (final code in _kLocales) {
         final l10n = lookupAppLocalizations(Locale(code));
@@ -318,7 +327,7 @@ void main() {
       );
     });
 
-    testWidgets('T-17-COPY-03 새 예외 3종은 ko 문구로 해석되고 26키 ko 값에 문의 채널 '
+    testWidgets('T-17-COPY-03 새 예외 3종은 ko 문구로 해석되고 27키 ko 값에 문의 채널 '
         '문구가 없다', (tester) async {
       const ko = Locale('ko');
       final cases = <AppException, String>{
@@ -340,10 +349,10 @@ void main() {
         );
       }
 
-      // 양성 대조를 먼저 — 검사 대상이 26개 전부임을 확인한 뒤 부재를 단언한다.
+      // 양성 대조를 먼저 — 검사 대상이 27개 전부임을 확인한 뒤 부재를 단언한다.
       final koL10n = lookupAppLocalizations(ko);
       final koValues = _kPhase17Rows.map((r) => r.read(koL10n)).toList();
-      expect(koValues, hasLength(26));
+      expect(koValues, hasLength(27));
       for (final value in koValues) {
         expect(value, isNot(contains('문의')));
         expect(value, isNot(contains('고객센터')));

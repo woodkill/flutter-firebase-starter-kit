@@ -1367,8 +1367,10 @@ class _SendTestPushButtonState extends ConsumerState<_SendTestPushButton> {
 
   /// 테스트 알림을 요청하고 결과 SnackBar 를 띄운다 (UI-SPEC (T) · E7).
   ///
-  /// 결과 4종: 성공 `devToolsSendTestPushDone(count)` · 기기 없음
-  /// `devToolsSendTestPushNoDevice` · 운영 거부 `devToolsSendTestPushDisabled` ·
+  /// 결과 5종: 성공 `devToolsSendTestPushDone(count)` · 기기 없음
+  /// `devToolsSendTestPushNoDevice` · 게스트 거부
+  /// `devToolsSendTestPushAnonymous`(리뷰 IN-22) · 운영 거부
+  /// `devToolsSendTestPushDisabled` ·
   /// 그 밖 [showErrorSnackBar] (App Check 차단 = `errorAppCheckFailed`). 모두
   /// floating 이고, 연속 요청 시 직전 SnackBar 를 닫고 마지막 결과만 보인다.
   Future<void> _send() async {
@@ -1382,6 +1384,8 @@ class _SendTestPushButtonState extends ConsumerState<_SendTestPushButton> {
           _showResult(l10n.devToolsSendTestPushDone(count));
         case TestPushNoDevice():
           _showResult(l10n.devToolsSendTestPushNoDevice);
+        case TestPushAnonymous():
+          _showResult(l10n.devToolsSendTestPushAnonymous);
         case TestPushDisabled():
           _showResult(l10n.devToolsSendTestPushDisabled);
         case TestPushFailed(:final exception):

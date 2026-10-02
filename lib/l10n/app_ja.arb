@@ -331,6 +331,7 @@
   "devToolsSendTestPush": "自分にテスト通知を送る",
   "devToolsSendTestPushDone": "テスト通知を{count}台の端末に送りました。",
   "devToolsSendTestPushNoDevice": "通知を受け取る端末がありません。設定で「通知を受け取る」をオンにしてください。",
+  "devToolsSendTestPushAnonymous": "ゲストの状態ではテスト通知を送れません。ログイン後、設定で「通知を受け取る」をオンにしてください。",
   "devToolsSendTestPushDisabled": "この環境ではテスト通知を送信できません。",
   "errorAppCheckFailed": "リクエストを確認できませんでした。しばらくしてからもう一度お試しください。解決しない場合は、アプリを最新バージョンにアップデートしてください。",
   "errorWidgetFallbackTitle": "問題が発生しました",

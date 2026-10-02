@@ -917,6 +917,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'No devices can receive notifications. Turn on \"Receive notifications\" in Settings.';
 
   @override
+  String get devToolsSendTestPushAnonymous =>
+      'Test notifications aren\'t available as a guest. Sign in, then turn on \"Receive notifications\" in Settings.';
+
+  @override
   String get devToolsSendTestPushDisabled =>
       'Test notifications are turned off in this environment.';
 

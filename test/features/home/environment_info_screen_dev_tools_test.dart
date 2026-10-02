@@ -378,7 +378,7 @@ void main() {
       ]);
     });
 
-    testWidgets('T-17-SEND-10 기기 없음 · 운영 거부 · App Check 문구 (ko)', (
+    testWidgets('T-17-SEND-10 기기 없음 · 게스트 · 운영 거부 · App Check 문구 (ko)', (
       tester,
     ) async {
       final env = await pumpDevToolsHarness(tester, locale: const Locale('ko'));
@@ -389,6 +389,11 @@ void main() {
       expect(
         await _tapAndReadSnackBar(tester, env, const TestPushNoDevice()),
         '알림을 받을 기기가 없어요. 설정에서 알림 받기를 켜 주세요.',
+      );
+      expect(
+        await _tapAndReadSnackBar(tester, env, const TestPushAnonymous()),
+        '게스트 상태에서는 테스트 알림을 보낼 수 없어요. '
+        '로그인한 뒤 설정에서 알림 받기를 켜 주세요.',
       );
       expect(
         await _tapAndReadSnackBar(tester, env, const TestPushDisabled()),

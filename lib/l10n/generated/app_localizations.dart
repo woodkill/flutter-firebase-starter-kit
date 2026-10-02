@@ -1672,6 +1672,12 @@ abstract class AppLocalizations {
   /// **'No devices can receive notifications. Turn on \"Receive notifications\" in Settings.'**
   String get devToolsSendTestPushNoDevice;
 
+  /// Phase 17 review IN-22 / WR-02 — the server rejected a guest (anonymous) caller (failed-precondition + reason anonymous_caller). Guests have no Settings entry, so the message asks them to sign in first.
+  ///
+  /// In en, this message translates to:
+  /// **'Test notifications aren\'t available as a guest. Sign in, then turn on \"Receive notifications\" in Settings.'**
+  String get devToolsSendTestPushAnonymous;
+
   /// Phase 17 D-05 · D-34 · D-35 — server refused because test pushes are disabled in this environment (D-35).
   ///
   /// In en, this message translates to:

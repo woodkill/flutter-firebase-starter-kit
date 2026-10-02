@@ -32,6 +32,15 @@ final class TestPushNoDevice extends TestPushOutcome {
   const TestPushNoDevice();
 }
 
+/// 게스트(익명) 세션이라 서버가 거부했다 (리뷰 WR-02 · IN-22).
+///
+/// 익명은 토큰을 둘 수 없고(D-02 · D-28) 설정 진입점도 없으므로, 「기기 없음」
+/// 의 「설정에서 켜 주세요」 대신 로그인을 먼저 안내한다.
+final class TestPushAnonymous extends TestPushOutcome {
+  /// 게스트 거부 결과를 만든다.
+  const TestPushAnonymous();
+}
+
 /// 이 환경은 테스트 발송이 꺼져 있다 (서버 D-35 운영 거부).
 final class TestPushDisabled extends TestPushOutcome {
   /// 운영 거부 결과를 만든다.
@@ -98,9 +107,8 @@ class TestPushClient {
   /// 1. `failed-precondition` + `details.reason == 'test_push_disabled'` →
   ///    [TestPushDisabled] (서버 환경 스위치 꺼짐 · D-35).
   ///    `failed-precondition` + `details.reason == 'anonymous_caller'` →
-  ///    [TestPushNoDevice] (리뷰 WR-02 — 익명은 토큰을 둘 수 없다(D-02).
-  ///    서버가 읽기 · 카운터 없이 거부하기 전에는 `sentCount: 0` 으로 같은
-  ///    결과였다).
+  ///    [TestPushAnonymous] (리뷰 WR-02 · IN-22 — 익명은 토큰을 둘 수
+  ///    없고(D-02) 설정 진입점도 없어 「기기 없음」 안내를 따를 수 없다).
   /// 2. `classifyAppCheckRejection` — SDK 계층 거부(App Check 차단 · 무효 ID
   ///    token)면 [AppCheckFailedException] + Crashlytics non-fatal 1회
   ///    (reason `app_check_rejected_sendTestPush` · D-44).
@@ -118,7 +126,7 @@ class TestPushClient {
         case 'test_push_disabled':
           return const TestPushDisabled();
         case 'anonymous_caller':
-          return const TestPushNoDevice();
+          return const TestPushAnonymous();
       }
     }
     // 2. Phase 17 D-43 — SDK 계층 거부(App Check 차단). 호출 머리(helper ·

@@ -884,6 +884,10 @@ class AppLocalizationsKo extends AppLocalizations {
       '알림을 받을 기기가 없어요. 설정에서 알림 받기를 켜 주세요.';
 
   @override
+  String get devToolsSendTestPushAnonymous =>
+      '게스트 상태에서는 테스트 알림을 보낼 수 없어요. 로그인한 뒤 설정에서 알림 받기를 켜 주세요.';
+
+  @override
   String get devToolsSendTestPushDisabled => '이 환경에서는 테스트 알림을 보낼 수 없어요.';
 
   @override
