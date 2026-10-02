@@ -111,6 +111,12 @@ class ProfilePhotoRepository {
   /// - 크기 상한([kProfilePhotoMaxBytes] = 5MB)을 업로드 **전에** 검사한다 —
   ///   넘으면 Storage · Firestore 호출 없이 [ProfilePhotoUploadException]
   ///   (기록 0). rules 도 같은 상한을 검사한다.
+  ///
+  /// **부분 실패 (리뷰 IN-19):** `putFile` 은 성공했는데 `getDownloadURL` 또는
+  /// 필드 `set` 이 실패하면 Storage 에는 새 사진, Firestore 에는 옛 URL(또는
+  /// null)이 남는다. 보상 처리는 하지 않는다 — 객체가 사용자당 1개 덮어쓰기
+  /// (D-15)라 다음 업로드가 두 쪽을 다시 맞추고(재업로드로 수렴), 탈퇴
+  /// cascade(D-40)가 prefix 를 통째로 지운다. 화면은 실패 SnackBar 를 띄운다.
   Future<Result<String?>> pickAndUpload(String uid) {
     return guardResult<String?>('profile_photo_repository_upload', () async {
       // D-41 — 자르기 없이 업로드 전 리사이즈만(가로 1024 px · JPEG 품질 85).
