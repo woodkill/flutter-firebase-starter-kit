@@ -45,10 +45,20 @@
 // `mockups/adopted_settings_17_ko_280_worst_{light,dark}.png`(사진 없음 · 알림
 // 꺼짐)와 byte 동일해야 한다. 해제 다이얼로그 golden 4장은 barrier 너머 설정
 // 배경만 바뀐다(다이얼로그 surface 변경 0 · UI-SPEC 「2026-10-01 정정」).
+//
+// **Phase 17.1 (Plan 17.1-04 Task 3):** 게스트(익명) 설정 golden 2장
+// `goldens/settings_171_guest_ko_280_{light,dark}.png`(테마 시스템 · ko ·
+// non-release)이 채택안 `mockups/adopted_settings_guest_ko_280_{light,dark}.png`
+// 와 byte 동일해야 한다 (D-23 · UI-SPEC Q9-A). 기존 설정 golden 은 byte 불변.
 
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
+import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
+import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
+import 'package:flutter_starter_kit/core/providers/theme_provider.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
@@ -62,6 +72,9 @@ import 'settings_golden_harness.dart';
 /// [AuthRepository] 대체 Mock — 설정 화면 렌더는 repository 를 호출하지
 /// 않으므로 stub 을 두지 않는다.
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// 게스트(익명) Firebase 사용자 — 설정 화면 게스트 판정 입력 (Phase 17.1).
+class _MockFbUser extends Mock implements fb.User {}
 
 /// Phase 16.8 W5 — 가입 naver + 연결 5 (도달 가능 최악 · UI-SPEC §Golden
 /// 캡처 계약 fixture verbatim 순서).
@@ -293,6 +306,57 @@ void main() {
         await expectLater(
           find.byType(MaterialApp),
           matchesGoldenFile('goldens/settings_screen_ko_280_worst_$mode.png'),
+        );
+      });
+    }
+  });
+
+  // Phase 17.1 D-23 · UI-SPEC Q9-A — 게스트 설정 golden 2장이 채택안
+  // `mockups/adopted_settings_guest_ko_280_{light,dark}.png` 와 byte 동일하다는
+  // 계약 이름이다(대조 = plan 17.1-04 Task 3 `cmp` · 채택안 파일은 test 에서
+  // 읽지 않는다).
+  group('Phase 17.1 설정 게스트 golden (T-171-SETTINGS-golden-guest) — 익명 · '
+      '테마 시스템 · ko 280×800 · non-release', () {
+    for (final brightness in Brightness.values) {
+      final mode = brightness.name;
+
+      testWidgets('T-171-SETTINGS-golden-guest: ko 280 — $mode', (
+        tester,
+      ) async {
+        final anon = _MockFbUser();
+        when(() => anon.isAnonymous).thenReturn(true);
+        when(() => anon.uid).thenReturn('anon-uid');
+        await pumpGoldenRoute(
+          tester,
+          route: (_) => const SettingsScreen(),
+          overrides: [
+            authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
+            activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),
+            // 첫 프레임부터 익명 data — 설정 진입 전 authState 가 값을 가진
+            // 실 앱과 같다.
+            authStateProvider.overrideWithValue(AsyncData(anon)),
+            currentUserProvider.overrideWith((ref) => null),
+            // 결정성 — 테마 값 「시스템」(UI-SPEC §Golden 캡처 계약 허용) ·
+            // 언어 값 「한국어」.
+            themeProvider.overrideWithBuild(
+              (ref, notifier) => ThemeMode.system,
+            ),
+            localeProvider.overrideWithBuild(
+              (ref, notifier) => const Locale('ko'),
+            ),
+          ],
+          locale: const Locale('ko'),
+          brightness: brightness,
+          width: 280,
+        );
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'layout 예외 0 이어야 golden 이 시각 계약을 대표한다',
+        );
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/settings_171_guest_ko_280_$mode.png'),
         );
       });
     }
