@@ -505,6 +505,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeGuestBanner => '게스트로 이용 중이에요 · 로그인하면 더 많은 기능을 사용할 수 있어요';
 
   @override
+  String get homeDevGuideTitle => '이 본문을 앱 홈으로 바꾸세요';
+
+  @override
+  String get homeDevGuideBody =>
+      'home_body.dart 만 고치면 돼요. 이 안내와 데모 화면은 release 빌드에 없어요.';
+
+  @override
+  String get homeDevGuideOpenDemo => '데모 화면 열기';
+
+  @override
   String get homeSignIn => '로그인';
 
   @override
@@ -557,6 +567,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get devToolsForceSignOut => '강제 로그아웃';
 
   @override
+  String get demoScreenTitle => '개발자 · 데모 화면';
+
+  @override
+  String get demoAccountDebugSection => '계정 디버그 정보';
+
+  @override
   String get accountLinkingSheetTitle => '이미 가입된 이메일입니다';
 
   @override
@@ -564,6 +580,42 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get settingsAccountSection => '내 계정';
+
+  @override
+  String get settingsGuestLabel => '게스트로 이용 중';
+
+  @override
+  String get settingsSignInOrSignUp => '로그인 · 가입';
+
+  @override
+  String get settingsGeneralSection => '일반';
+
+  @override
+  String get settingsTheme => '테마';
+
+  @override
+  String get settingsThemeSystem => '시스템';
+
+  @override
+  String get settingsThemeLight => '라이트';
+
+  @override
+  String get settingsThemeDark => '다크';
+
+  @override
+  String get settingsLanguage => '언어';
+
+  @override
+  String get settingsDeveloperSection => '개발자';
+
+  @override
+  String get settingsDemoScreenSubtitle => 'release 빌드에서는 보이지 않습니다.';
+
+  @override
+  String get accountProfileSection => '프로필';
+
+  @override
+  String get accountSignInMethodsSection => '로그인 수단';
 
   @override
   String settingsAccountEmail(String email) {

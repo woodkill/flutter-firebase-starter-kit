@@ -75,6 +75,18 @@ abstract final class AppRoutes {
   /// 탈퇴 진행 화면 name (Phase 16.10 D-06).
   static const String withdrawalDisconnectName = 'withdrawalDisconnect';
 
+  /// 계정 정보 화면 path (Phase 17.1 D-02).
+  static const String account = '/settings/account';
+
+  /// 계정 정보 화면 name (Phase 17.1 D-02).
+  static const String accountName = 'account';
+
+  /// 개발자 · 데모 화면 path — release 빌드에는 등록되지 않는다 (Phase 17.1 D-14).
+  static const String developerDemo = '/settings/developer';
+
+  /// 개발자 · 데모 화면 name — release 빌드에는 등록되지 않는다 (Phase 17.1 D-14).
+  static const String developerDemoName = 'developerDemo';
+
   // ---------------------------------------------------------------------------
   // 재인증 진입 표시 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE, quick 260916-p8d)
   // ---------------------------------------------------------------------------

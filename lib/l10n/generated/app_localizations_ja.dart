@@ -504,6 +504,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeGuestBanner => 'ゲストとして利用中 · ログインでさらに多くの機能を利用できます';
 
   @override
+  String get homeDevGuideTitle => 'この本文をアプリのホームに置き換えてください';
+
+  @override
+  String get homeDevGuideBody =>
+      'home_body.dart だけを編集してください。この案内とデモ画面はリリースビルドには表示されません。';
+
+  @override
+  String get homeDevGuideOpenDemo => 'デモ画面を開く';
+
+  @override
   String get homeSignIn => 'ログイン';
 
   @override
@@ -556,6 +566,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get devToolsForceSignOut => '強制ログアウト';
 
   @override
+  String get demoScreenTitle => '開発者・デモ画面';
+
+  @override
+  String get demoAccountDebugSection => 'アカウントのデバッグ情報';
+
+  @override
   String get accountLinkingSheetTitle => '登録済みのメールアドレスです';
 
   @override
@@ -563,6 +579,42 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get settingsAccountSection => 'アカウント';
+
+  @override
+  String get settingsGuestLabel => 'ゲストとして利用中';
+
+  @override
+  String get settingsSignInOrSignUp => 'ログイン・登録';
+
+  @override
+  String get settingsGeneralSection => '一般';
+
+  @override
+  String get settingsTheme => 'テーマ';
+
+  @override
+  String get settingsThemeSystem => 'システム';
+
+  @override
+  String get settingsThemeLight => 'ライト';
+
+  @override
+  String get settingsThemeDark => 'ダーク';
+
+  @override
+  String get settingsLanguage => '言語';
+
+  @override
+  String get settingsDeveloperSection => '開発者';
+
+  @override
+  String get settingsDemoScreenSubtitle => 'リリースビルドでは表示されません。';
+
+  @override
+  String get accountProfileSection => 'プロフィール';
+
+  @override
+  String get accountSignInMethodsSection => 'ログイン方法';
 
   @override
   String settingsAccountEmail(String email) {

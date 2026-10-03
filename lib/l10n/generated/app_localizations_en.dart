@@ -515,6 +515,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeGuestBanner => 'Browsing as a guest · Sign in to unlock more';
 
   @override
+  String get homeDevGuideTitle => 'Replace this with your app\'s home';
+
+  @override
+  String get homeDevGuideBody =>
+      'Edit only home_body.dart. This note and the demo screen don\'t appear in release builds.';
+
+  @override
+  String get homeDevGuideOpenDemo => 'Open demo screen';
+
+  @override
   String get homeSignIn => 'Sign in';
 
   @override
@@ -569,6 +579,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get devToolsForceSignOut => 'Force sign out';
 
   @override
+  String get demoScreenTitle => 'Developer demo screen';
+
+  @override
+  String get demoAccountDebugSection => 'Account debug info';
+
+  @override
   String get accountLinkingSheetTitle => 'Email already in use';
 
   @override
@@ -576,6 +592,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAccountSection => 'My Account';
+
+  @override
+  String get settingsGuestLabel => 'Using as a guest';
+
+  @override
+  String get settingsSignInOrSignUp => 'Sign in or sign up';
+
+  @override
+  String get settingsGeneralSection => 'General';
+
+  @override
+  String get settingsTheme => 'Theme';
+
+  @override
+  String get settingsThemeSystem => 'System';
+
+  @override
+  String get settingsThemeLight => 'Light';
+
+  @override
+  String get settingsThemeDark => 'Dark';
+
+  @override
+  String get settingsLanguage => 'Language';
+
+  @override
+  String get settingsDeveloperSection => 'Developer';
+
+  @override
+  String get settingsDemoScreenSubtitle => 'Hidden in release builds.';
+
+  @override
+  String get accountProfileSection => 'Profile';
+
+  @override
+  String get accountSignInMethodsSection => 'Sign-in methods';
 
   @override
   String settingsAccountEmail(String email) {

@@ -1036,6 +1036,24 @@ abstract class AppLocalizations {
   /// **'Browsing as a guest · Sign in to unlock more'**
   String get homeGuestBanner;
 
+  /// Phase 17.1 D-11 — non-release home developer guide card title.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace this with your app\'s home'**
+  String get homeDevGuideTitle;
+
+  /// Phase 17.1 D-11 — non-release home developer guide card body.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit only home_body.dart. This note and the demo screen don\'t appear in release builds.'**
+  String get homeDevGuideBody;
+
+  /// Phase 17.1 D-11 — non-release home developer guide card button that opens the demo screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open demo screen'**
+  String get homeDevGuideOpenDemo;
+
   /// Home AppBar action label that opens the login prompt sheet
   ///
   /// In en, this message translates to:
@@ -1138,6 +1156,18 @@ abstract class AppLocalizations {
   /// **'Force sign out'**
   String get devToolsForceSignOut;
 
+  /// Phase 17.1 D-15 · D-16 — Settings demo row title and demo screen AppBar title.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer demo screen'**
+  String get demoScreenTitle;
+
+  /// Phase 17.1 D-16 — demo screen account debug card title.
+  ///
+  /// In en, this message translates to:
+  /// **'Account debug info'**
+  String get demoAccountDebugSection;
+
   /// Phase 16 D-11 / UI-SPEC Surface A verbatim — AccountLinkingSheet header title. 본문 (errorAccountExistsWithProvider) 위 표제로 노출.
   ///
   /// In en, this message translates to:
@@ -1155,6 +1185,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'My Account'**
   String get settingsAccountSection;
+
+  /// Phase 17.1 D-07 — Settings guest row label.
+  ///
+  /// In en, this message translates to:
+  /// **'Using as a guest'**
+  String get settingsGuestLabel;
+
+  /// Phase 17.1 D-07 — Settings guest row value that opens sign-in.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in or sign up'**
+  String get settingsSignInOrSignUp;
+
+  /// Phase 17.1 D-04 — Settings 'General' group heading.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get settingsGeneralSection;
+
+  /// Phase 17.1 D-04 — Settings theme row label and theme picker sheet title.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get settingsTheme;
+
+  /// Phase 17.1 D-04 — theme value and picker option: follow the system setting.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get settingsThemeSystem;
+
+  /// Phase 17.1 D-04 — theme value and picker option: light.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsThemeLight;
+
+  /// Phase 17.1 D-04 — theme value and picker option: dark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get settingsThemeDark;
+
+  /// Phase 17.1 D-04 — Settings language row label and language picker sheet title.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get settingsLanguage;
+
+  /// Phase 17.1 D-15 — Settings 'Developer' group heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer'**
+  String get settingsDeveloperSection;
+
+  /// Phase 17.1 D-15 — Settings demo row subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden in release builds.'**
+  String get settingsDemoScreenSubtitle;
+
+  /// Phase 17.1 D-02 — Account screen 'Profile' group heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get accountProfileSection;
+
+  /// Phase 17.1 D-02 — Account screen 'Sign-in methods' group heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in methods'**
+  String get accountSignInMethodsSection;
 
   /// Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings account email placeholder (3 locale identical pass-through).
   ///

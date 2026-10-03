@@ -819,6 +819,21 @@
     "description": "Muted banner shown on Home for anonymous users"
   },
 
+  "homeDevGuideTitle": "Replace this with your app's home",
+  "@homeDevGuideTitle": {
+    "description": "Phase 17.1 D-11 — non-release home developer guide card title."
+  },
+
+  "homeDevGuideBody": "Edit only home_body.dart. This note and the demo screen don't appear in release builds.",
+  "@homeDevGuideBody": {
+    "description": "Phase 17.1 D-11 — non-release home developer guide card body."
+  },
+
+  "homeDevGuideOpenDemo": "Open demo screen",
+  "@homeDevGuideOpenDemo": {
+    "description": "Phase 17.1 D-11 — non-release home developer guide card button that opens the demo screen."
+  },
+
   "homeSignIn": "Sign in",
   "@homeSignIn": {
     "description": "Home AppBar action label that opens the login prompt sheet"
@@ -904,6 +919,16 @@
     "description": "Dev tools action: force FirebaseAuth.signOut"
   },
 
+  "demoScreenTitle": "Developer demo screen",
+  "@demoScreenTitle": {
+    "description": "Phase 17.1 D-15 · D-16 — Settings demo row title and demo screen AppBar title."
+  },
+
+  "demoAccountDebugSection": "Account debug info",
+  "@demoAccountDebugSection": {
+    "description": "Phase 17.1 D-16 — demo screen account debug card title."
+  },
+
   "accountLinkingSheetTitle": "Email already in use",
   "@accountLinkingSheetTitle": {
     "description": "Phase 16 D-11 / UI-SPEC Surface A verbatim — AccountLinkingSheet header title. 본문 (errorAccountExistsWithProvider) 위 표제로 노출."
@@ -917,6 +942,66 @@
   "settingsAccountSection": "My Account",
   "@settingsAccountSection": {
     "description": "Phase 16 D-11 / UI-SPEC Surface B verbatim — Settings 'My Account' section header (이메일 + 연결된 로그인 노출)."
+  },
+
+  "settingsGuestLabel": "Using as a guest",
+  "@settingsGuestLabel": {
+    "description": "Phase 17.1 D-07 — Settings guest row label."
+  },
+
+  "settingsSignInOrSignUp": "Sign in or sign up",
+  "@settingsSignInOrSignUp": {
+    "description": "Phase 17.1 D-07 — Settings guest row value that opens sign-in."
+  },
+
+  "settingsGeneralSection": "General",
+  "@settingsGeneralSection": {
+    "description": "Phase 17.1 D-04 — Settings 'General' group heading."
+  },
+
+  "settingsTheme": "Theme",
+  "@settingsTheme": {
+    "description": "Phase 17.1 D-04 — Settings theme row label and theme picker sheet title."
+  },
+
+  "settingsThemeSystem": "System",
+  "@settingsThemeSystem": {
+    "description": "Phase 17.1 D-04 — theme value and picker option: follow the system setting."
+  },
+
+  "settingsThemeLight": "Light",
+  "@settingsThemeLight": {
+    "description": "Phase 17.1 D-04 — theme value and picker option: light."
+  },
+
+  "settingsThemeDark": "Dark",
+  "@settingsThemeDark": {
+    "description": "Phase 17.1 D-04 — theme value and picker option: dark."
+  },
+
+  "settingsLanguage": "Language",
+  "@settingsLanguage": {
+    "description": "Phase 17.1 D-04 — Settings language row label and language picker sheet title."
+  },
+
+  "settingsDeveloperSection": "Developer",
+  "@settingsDeveloperSection": {
+    "description": "Phase 17.1 D-15 — Settings 'Developer' group heading."
+  },
+
+  "settingsDemoScreenSubtitle": "Hidden in release builds.",
+  "@settingsDemoScreenSubtitle": {
+    "description": "Phase 17.1 D-15 — Settings demo row subtitle."
+  },
+
+  "accountProfileSection": "Profile",
+  "@accountProfileSection": {
+    "description": "Phase 17.1 D-02 — Account screen 'Profile' group heading."
+  },
+
+  "accountSignInMethodsSection": "Sign-in methods",
+  "@accountSignInMethodsSection": {
+    "description": "Phase 17.1 D-02 — Account screen 'Sign-in methods' group heading."
   },
 
   "settingsAccountEmail": "{email}",
