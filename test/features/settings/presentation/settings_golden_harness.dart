@@ -102,10 +102,15 @@ Future<void> loadGoldenFonts() async {
   ]);
 }
 
-/// [lang] 의 CJK fallback family 이름 (ko/ja 외 null).
-String? goldenCjkFamily(String lang) => switch (lang) {
-  'ko' => 'MockCjkKR',
-  'ja' => 'MockCjkJP',
+/// [lang] 의 CJK fallback family 목록 (ko/ja 외 null).
+///
+/// Phase 17.1 — 언어 선택창이 모든 locale 에서 日本語 · 한국어 를 함께 그린다.
+/// 그래서 ko 는 JP subset 을 두 번째 fallback 으로 더한다. KR 이 먼저라 한글
+/// 글리프는 그대로 KR 에서 그려진다(기존 golden byte 불변 — 17.1 mockups/README
+/// §하네스 검증).
+List<String>? goldenCjkFamilies(String lang) => switch (lang) {
+  'ko' => <String>['MockCjkKR', 'MockCjkJP'],
+  'ja' => <String>['MockCjkJP'],
   _ => null,
 };
 
@@ -117,10 +122,10 @@ ThemeData goldenTheme(Brightness brightness, String lang) {
   final base = brightness == Brightness.light
       ? AppTheme.light()
       : AppTheme.dark();
-  final family = goldenCjkFamily(lang);
-  if (family == null) return base;
+  final families = goldenCjkFamilies(lang);
+  if (families == null) return base;
   return base.copyWith(
-    textTheme: base.textTheme.apply(fontFamilyFallback: <String>[family]),
+    textTheme: base.textTheme.apply(fontFamilyFallback: families),
   );
 }
 
