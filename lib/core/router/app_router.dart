@@ -8,7 +8,7 @@ import '../../features/auth/presentation/email_signup_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
-import '../../features/home/presentation/environment_info_screen.dart';
+import '../../features/home/presentation/home_screen.dart';
 import '../../features/not_found/presentation/not_found_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
@@ -120,7 +120,7 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.home,
         name: AppRoutes.homeName,
-        builder: (context, state) => const EnvironmentInfoScreen(),
+        builder: (context, state) => const HomeScreen(),
       ),
       GoRoute(
         path: AppRoutes.splash,
