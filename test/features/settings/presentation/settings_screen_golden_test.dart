@@ -64,6 +64,14 @@
 // · W5 · 사진 없음 · 알림 꺼짐 · 테마 시스템)로 대체했다. 채택안
 // `mockups/adopted_settings_member_ko_280_{light,dark}.png` 와 byte 동일해야
 // 한다 (D-23 · UI-SPEC Q9-A). 게스트 golden 은 byte 불변.
+//
+// **Phase 17.1 (Plan 17.1-09 Task 2):** 테마 · 언어 선택창 golden 4장
+// `goldens/settings_171_picker_{theme,language}_ko_280_{light,dark}.png` 은 정식
+// 설정 화면에서 행을 탭하는 production 경로로 연다(T-171-SETTINGS-golden-picker).
+// 채택안 `mockups/adopted_picker_{theme,language}_ko_280_{light,dark}.png` 와
+// byte 동일해야 한다 — `ChoiceSheet` 의 `toggleable: true`(plan 04)가 렌더에
+// 영향 0 이라는 증거이고, 언어 선택창은 ko fallback `[KR, JP]` 로 「日本語」 ·
+// 「한국어」 를 함께 그린다.
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -75,6 +83,7 @@ import 'package:flutter_starter_kit/core/providers/theme_provider.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -265,6 +274,60 @@ void main() {
           matchesGoldenFile('goldens/settings_171_guest_ko_280_$mode.png'),
         );
       });
+    }
+  });
+
+  // Phase 17.1 D-23 · UI-SPEC Q9-A — 선택창 golden 4장이 채택안
+  // `mockups/adopted_picker_{theme,language}_ko_280_{light,dark}.png` 와 byte
+  // 동일하다는 계약 이름이다(대조 = plan 17.1-09 Task 2 `cmp`).
+  group('Phase 17.1 선택창 golden (T-171-SETTINGS-golden-picker) — 정식 설정에서 '
+      '행 탭 · W5 · 테마 시스템 · ko 280×800', () {
+    final ko = lookupAppLocalizations(const Locale('ko'));
+
+    for (final (which, rowLabel) in <(String, String)>[
+      ('theme', ko.settingsTheme),
+      ('language', ko.settingsLanguage),
+    ]) {
+      for (final brightness in Brightness.values) {
+        final mode = brightness.name;
+
+        testWidgets('T-171-SETTINGS-golden-picker: $which ko 280 — $mode', (
+          tester,
+        ) async {
+          await _pumpMemberSettingsScreen(
+            tester,
+            user: _fixtureUser(
+              'ko',
+              signUpProviderId: 'naver',
+              providerIds: _w5ProviderIds,
+            ),
+            locale: const Locale('ko'),
+            brightness: brightness,
+            width: 280,
+          );
+          // production 탭 경로 — 설정 행을 눌러 선택창을 연다.
+          await tester.tap(find.text(rowLabel));
+          await settleGoldenAssets(tester);
+
+          expect(find.byType(BottomSheet), findsOneWidget);
+          if (which == 'language') {
+            // 日本語 · 한국어 동시 렌더(한국어 = 행 값 + 시트 항목).
+            expect(find.text('日本語'), findsOneWidget);
+            expect(find.text('한국어'), findsNWidgets(2));
+          }
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'layout 예외 0 이어야 golden 이 시각 계약을 대표한다',
+          );
+          await expectLater(
+            find.byType(MaterialApp),
+            matchesGoldenFile(
+              'goldens/settings_171_picker_${which}_ko_280_$mode.png',
+            ),
+          );
+        });
+      }
     }
   });
 }

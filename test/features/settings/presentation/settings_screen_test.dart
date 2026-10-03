@@ -14,6 +14,9 @@
 //   화면에서 다시 잠금 — 말단 행 = non-release 테스트 VM 의 데모 행) · T-17-NOTIF-12
 //   의 위치 단언을 「알림 섹션이 일반 섹션 아래 · 개발자 위」 로 고쳤다(옛 단언 =
 //   계정 연결 아래 · Danger zone 위 — 두 섹션은 계정 화면으로 옮겨 갔다).
+// Phase 17.1 Plan 17.1-09 Task 2 — T-171-SETTINGS-14(정식 ko 280 a11y guideline
+//   3종) · 15(정식 · 게스트 × ko/en/ja 280×800 넘침 0 · 행 값 maxLines 없음) ·
+//   16(계정 화면 경로를 push/go 하는 presentation 파일 = 설정 화면 1개 · D-03).
 //
 // Phase 16 Plan 16-06 Task 6.2 — SettingsScreen widget test (SS1~SS4).
 // Phase 16 Plan 16-11 Task 2 — AccountLinkingSection 삽입 + 회귀 가드 (SS5~SS9).
@@ -128,6 +131,7 @@
 // → 신규 누락(UNGUARDED) 0건이므로 본 task 는 `lib/**/*_screen.dart` 를 수정하지 않는다.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -161,6 +165,8 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/noti
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/profile_photo_tile.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+
+import '../../../helpers/source_text.dart';
 
 class _MockFbUser extends Mock implements fb.User {}
 
@@ -415,6 +421,21 @@ void _useViewport(WidgetTester tester, Size size) {
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 }
+
+/// [label] 을 title 로 가진 설정 행 [ListTile] 의 subtitle [Text].
+Text _rowValueText(WidgetTester tester, String label) {
+  final tile = tester.widget<ListTile>(
+    find.ancestor(of: find.text(label), matching: find.byType(ListTile)),
+  );
+  return tile.subtitle! as Text;
+}
+
+/// 주석을 걷어낸 [source] 가 계정 화면 경로를 push/go 하는 호출 수 (D-03).
+///
+/// `push` · `go` · `pushReplacement` · `replace` 와 `…Named` 변형을 모두 센다.
+int _countAccountRouteNavigations(String source) => RegExp(
+  r'\.(push|go|pushReplacement|replace)(Named)?\(\s*AppRoutes\.account(Name)?\b',
+).allMatches(stripBlockComments(stripSlashComments(source))).length;
 
 /// 열린 선택창 [RadioGroup] 의 현재 선택값.
 T? _sheetGroupValue<T>(WidgetTester tester) =>
@@ -689,6 +710,91 @@ void main() {
           equals(theme.colorScheme.onSurfaceVariant),
         );
       }
+    });
+
+    testWidgets('T-171-SETTINGS-14: 정식 ko 280 light — 터치 영역 · 라벨 · 대비 '
+        'guideline (설정에는 inline 해제 버튼이 없다)', (tester) async {
+      final handle = tester.ensureSemantics();
+      _useViewport(tester, const Size(280, 800));
+      await _pumpMemberSettings(tester, user: _testUser(displayName: '홍길동'));
+
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      handle.dispose();
+    });
+
+    for (final code in const ['ko', 'en', 'ja']) {
+      for (final isAnonymous in const [false, true]) {
+        final who = isAnonymous ? '게스트' : '정식';
+        testWidgets('T-171-SETTINGS-15: $who 280×800 $code — overflow 0 · 행 값 '
+            'maxLines 없음 (E3 long-text)', (tester) async {
+          _useViewport(tester, const Size(280, 800));
+          final l10n = lookupAppLocalizations(Locale(code));
+          const names = {'ko': '홍길동', 'en': 'Jane Doe', 'ja': '山田太郎'};
+          if (isAnonymous) {
+            await _pumpGuestSettings(tester, locale: Locale(code));
+          } else {
+            await _pumpMemberSettings(
+              tester,
+              user: _testUser(displayName: names[code]),
+              locale: Locale(code),
+            );
+          }
+          expect(tester.takeException(), isNull);
+
+          // 행 값은 softWrap 으로 줄을 늘리고 자르지 않는다 (UI-SPEC E3).
+          final topLabel = isAnonymous
+              ? l10n.settingsGuestLabel
+              : l10n.settingsAccountSection;
+          for (final label in [
+            topLabel,
+            l10n.settingsTheme,
+            l10n.settingsLanguage,
+          ]) {
+            final value = _rowValueText(tester, label);
+            expect(value.maxLines, isNull, reason: '$label 값');
+            expect(value.overflow, isNull, reason: '$label 값');
+          }
+          // 데모 행(말단)까지 그려도 넘침 0 — ja 데모 행 · en 알림 행 포함.
+          await _scrollTo(tester, find.text(l10n.demoScreenTitle));
+          final demoSubtitle = _rowValueText(tester, l10n.demoScreenTitle);
+          expect(demoSubtitle.maxLines, isNull);
+          if (!isAnonymous) {
+            expect(find.byType(NotificationsSection), findsOneWidget);
+          }
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
+    test('T-171-SETTINGS-16: 계정 화면 경로를 push/go 하는 presentation 파일 = '
+        '설정 화면 1개 (D-03 — 진입점 1곳)', () {
+      const settingsPath =
+          'lib/features/settings/presentation/settings_screen.dart';
+      // 양성 대조 — 같은 helper 가 설정 화면의 계정 행 push 를 센다.
+      expect(_countAccountRouteNavigations(readTrackedFile(settingsPath)), 1);
+
+      final files =
+          Directory('lib/features')
+              .listSync(recursive: true)
+              .whereType<File>()
+              .map((file) => file.path.replaceAll(r'\', '/'))
+              .where(
+                (path) =>
+                    path.contains('/presentation/') &&
+                    path.endsWith('.dart') &&
+                    !path.endsWith('.g.dart') &&
+                    !path.endsWith('.freezed.dart'),
+              )
+              .toList()
+            ..sort();
+      expect(files, contains(settingsPath));
+      final navigating = [
+        for (final path in files)
+          if (_countAccountRouteNavigations(readTrackedFile(path)) > 0) path,
+      ];
+      expect(navigating, [settingsPath]);
     });
   });
 
