@@ -166,41 +166,11 @@ abstract class AppLocalizations {
   /// **'Signing you in…'**
   String get authSocialSigningIn;
 
-  /// AppBar title for the environment info screen
-  ///
-  /// In en, this message translates to:
-  /// **'Environment Info'**
-  String get homeEnvironmentInfo;
-
-  /// Section title for theme mode toggle
-  ///
-  /// In en, this message translates to:
-  /// **'Theme Mode'**
-  String get homeThemeMode;
-
   /// Section title for language selection
   ///
   /// In en, this message translates to:
   /// **'Language'**
   String get homeLanguage;
-
-  /// Light theme option label
-  ///
-  /// In en, this message translates to:
-  /// **'Light'**
-  String get homeThemeLight;
-
-  /// System default theme option label
-  ///
-  /// In en, this message translates to:
-  /// **'System'**
-  String get homeThemeSystem;
-
-  /// Dark theme option label
-  ///
-  /// In en, this message translates to:
-  /// **'Dark'**
-  String get homeThemeDark;
 
   /// Section title for color palette showcase
   ///
@@ -315,12 +285,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Firebase Project ID is a placeholder. Replace it in the flavor config JSON before building.'**
   String get homeFirebaseProjectIdPlaceholderWarning;
-
-  /// Snackbar message confirming the app language was changed successfully. Displayed in the newly selected language.
-  ///
-  /// In en, this message translates to:
-  /// **'Language changed'**
-  String get languageChanged;
 
   /// Error message when network connection times out
   ///
@@ -628,7 +592,7 @@ abstract class AppLocalizations {
   /// **'ID token unavailable (debug)'**
   String get debugAuthTokenUnavailable;
 
-  /// 10-REVIEW IN-05 — Debug-only snackbar shown after _copyIdToken writes a Firebase ID token to the clipboard (environment_info_screen.dart, kDebugMode-guarded surface). **Why a dedicated key:** the clipboard is readable by any other app and a Firebase ID token is a bearer credential valid for one hour, so the confirmation must carry the do-not-share warning and the expiry window. The generic authAccountCopied ('Copied to clipboard.') is retained for _copyUid, which copies a non-secret identifier. Does not embed the token, email, or uid in the message itself.
+  /// 10-REVIEW IN-05 — Debug-only snackbar shown after _copyIdToken writes a Firebase ID token to the clipboard (demo_screen.dart, kDebugMode-guarded surface). **Why a dedicated key:** the clipboard is readable by any other app and a Firebase ID token is a bearer credential valid for one hour, so the confirmation must carry the do-not-share warning and the expiry window. The generic authAccountCopied ('Copied to clipboard.') is retained for _copyUid, which copies a non-secret identifier. Does not embed the token, email, or uid in the message itself.
   ///
   /// In en, this message translates to:
   /// **'ID token copied — debug only. Do not share; it stays readable by other apps until it expires (1 hour).'**

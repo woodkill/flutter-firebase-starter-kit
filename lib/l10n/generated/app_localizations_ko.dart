@@ -42,22 +42,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authSocialSigningIn => '로그인 처리 중…';
 
   @override
-  String get homeEnvironmentInfo => '환경 정보';
-
-  @override
-  String get homeThemeMode => '테마 모드';
-
-  @override
   String get homeLanguage => '언어';
-
-  @override
-  String get homeThemeLight => '라이트';
-
-  @override
-  String get homeThemeSystem => '시스템';
-
-  @override
-  String get homeThemeDark => '다크';
 
   @override
   String get homeColorPalette => '컬러 팔레트';
@@ -116,9 +101,6 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get homeFirebaseProjectIdPlaceholderWarning =>
       'Firebase 프로젝트 ID가 placeholder입니다. 빌드 전에 flavor별 config JSON을 교체하세요.';
-
-  @override
-  String get languageChanged => '언어가 변경되었습니다';
 
   @override
   String get errorNetworkTimeout => '연결 시간이 초과되었습니다. 다시 시도해 주세요.';

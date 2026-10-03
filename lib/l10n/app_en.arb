@@ -56,34 +56,9 @@
     "description": "Overlay label shown while a social OAuth flow finishes (user returned from external auth, app is exchanging tokens / persisting profile)"
   },
 
-  "homeEnvironmentInfo": "Environment Info",
-  "@homeEnvironmentInfo": {
-    "description": "AppBar title for the environment info screen"
-  },
-
-  "homeThemeMode": "Theme Mode",
-  "@homeThemeMode": {
-    "description": "Section title for theme mode toggle"
-  },
-
   "homeLanguage": "Language",
   "@homeLanguage": {
     "description": "Section title for language selection"
-  },
-
-  "homeThemeLight": "Light",
-  "@homeThemeLight": {
-    "description": "Light theme option label"
-  },
-
-  "homeThemeSystem": "System",
-  "@homeThemeSystem": {
-    "description": "System default theme option label"
-  },
-
-  "homeThemeDark": "Dark",
-  "@homeThemeDark": {
-    "description": "Dark theme option label"
   },
 
   "homeColorPalette": "Color Palette",
@@ -179,11 +154,6 @@
   "homeFirebaseProjectIdPlaceholderWarning": "Firebase Project ID is a placeholder. Replace it in the flavor config JSON before building.",
   "@homeFirebaseProjectIdPlaceholderWarning": {
     "description": "Semantics label + visual warning shown on the Firebase Project ID card when the injected firebaseProjectId still starts with 'your-' (Starter Kit placeholder not yet replaced). See REVIEW WR-01."
-  },
-
-  "languageChanged": "Language changed",
-  "@languageChanged": {
-    "description": "Snackbar message confirming the app language was changed successfully. Displayed in the newly selected language."
   },
 
   "errorNetworkTimeout": "Connection timed out. Please try again.",
@@ -443,7 +413,7 @@
 
   "debugAuthTokenCopiedWarning": "ID token copied — debug only. Do not share; it stays readable by other apps until it expires (1 hour).",
   "@debugAuthTokenCopiedWarning": {
-    "description": "10-REVIEW IN-05 — Debug-only snackbar shown after _copyIdToken writes a Firebase ID token to the clipboard (environment_info_screen.dart, kDebugMode-guarded surface). **Why a dedicated key:** the clipboard is readable by any other app and a Firebase ID token is a bearer credential valid for one hour, so the confirmation must carry the do-not-share warning and the expiry window. The generic authAccountCopied ('Copied to clipboard.') is retained for _copyUid, which copies a non-secret identifier. Does not embed the token, email, or uid in the message itself."
+    "description": "10-REVIEW IN-05 — Debug-only snackbar shown after _copyIdToken writes a Firebase ID token to the clipboard (demo_screen.dart, kDebugMode-guarded surface). **Why a dedicated key:** the clipboard is readable by any other app and a Firebase ID token is a bearer credential valid for one hour, so the confirmation must carry the do-not-share warning and the expiry window. The generic authAccountCopied ('Copied to clipboard.') is retained for _copyUid, which copies a non-secret identifier. Does not embed the token, email, or uid in the message itself."
   },
 
   "authLogoutConfirmTitle": "Sign out",

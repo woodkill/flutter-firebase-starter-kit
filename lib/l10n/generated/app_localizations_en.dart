@@ -42,22 +42,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authSocialSigningIn => 'Signing you in…';
 
   @override
-  String get homeEnvironmentInfo => 'Environment Info';
-
-  @override
-  String get homeThemeMode => 'Theme Mode';
-
-  @override
   String get homeLanguage => 'Language';
-
-  @override
-  String get homeThemeLight => 'Light';
-
-  @override
-  String get homeThemeSystem => 'System';
-
-  @override
-  String get homeThemeDark => 'Dark';
 
   @override
   String get homeColorPalette => 'Color Palette';
@@ -116,9 +101,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get homeFirebaseProjectIdPlaceholderWarning =>
       'Firebase Project ID is a placeholder. Replace it in the flavor config JSON before building.';
-
-  @override
-  String get languageChanged => 'Language changed';
 
   @override
   String get errorNetworkTimeout => 'Connection timed out. Please try again.';

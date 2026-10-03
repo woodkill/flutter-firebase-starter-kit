@@ -42,22 +42,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authSocialSigningIn => 'サインイン処理中…';
 
   @override
-  String get homeEnvironmentInfo => '環境情報';
-
-  @override
-  String get homeThemeMode => 'テーマモード';
-
-  @override
   String get homeLanguage => '言語';
-
-  @override
-  String get homeThemeLight => 'ライト';
-
-  @override
-  String get homeThemeSystem => 'システム';
-
-  @override
-  String get homeThemeDark => 'ダーク';
 
   @override
   String get homeColorPalette => 'カラーパレット';
@@ -116,9 +101,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get homeFirebaseProjectIdPlaceholderWarning =>
       'Firebase プロジェクト ID が placeholder のままです。ビルド前に flavor 別の config JSON を置き換えてください。';
-
-  @override
-  String get languageChanged => '言語を変更しました';
 
   @override
   String get errorNetworkTimeout => '接続がタイムアウトしました。もう一度お試しください。';
