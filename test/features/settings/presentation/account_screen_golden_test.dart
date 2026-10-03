@@ -29,6 +29,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
+import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
@@ -85,16 +86,22 @@ const Map<String, (int, int)> _expectedLinkedLines = <String, (int, int)>{
   'ja': (3, 3),
 };
 
+/// Phase 17.1 계정 화면 worst fixture 의 긴 이메일 — 합성 값 · PII 0
+/// (mockup harness `_longEmail` verbatim · UI-SPEC §Golden 캡처 계약).
+const String _longEmail = 'gildong.hong.starterkit.test@example-mail.com';
+
 /// UI-SPEC fixture — 가입 수단 [signUpProviderId](null = D-11 기록 없음) ·
-/// 보유 provider [providerIds] (기본 7종 · Phase 16.8 golden 은 [_w5ProviderIds]).
+/// 보유 provider [providerIds] (기본 7종 · Phase 16.8 golden 은 [_w5ProviderIds])
+/// · 이메일 [email] (기본 `me@example.com` · 17.1 worst 는 [_longEmail]).
 User _fixtureUser(
   String lang, {
   required String? signUpProviderId,
   List<String> providerIds = _allProviderIds,
+  String email = 'me@example.com',
 }) {
   return User(
     uid: 'Xy7Qa2Lm9Rt4Wz8Kp1Nc5Vb3Hd6',
-    email: 'me@example.com',
+    email: email,
     emailVerified: true,
     displayName: _displayNames[lang],
     createdAt: DateTime.utc(2026, 9, 26, 12),
@@ -116,12 +123,19 @@ const UserProviderRecord _kNoPhotoRecord = (
 ///
 /// override = repository mock · 활성 strategy 6 · 정식 authState(비익명) ·
 /// 사용자 fixture · 사진 출처 stream(업로드 사진 없음).
+///
+/// [isLocalePinned] = true 면 `localeProvider` 도 [locale] 로 고정한다 —
+/// production 은 `MaterialApp.locale` 과 가입일 형식이 같은 provider 를 보므로
+/// Phase 17.1 계정 golden(채택 시안 harness `_overrides` 와 같은 조건)은 이
+/// 값을 켠다. 기본 false 는 Phase 16.10 해제 다이얼로그 golden 4장(barrier 뒤
+/// 가입일이 기기 기본 locale 형식)의 byte 불변을 지키기 위한 것이다.
 Future<void> _pumpAccountScreen(
   WidgetTester tester, {
   required User user,
   required Locale locale,
   required Brightness brightness,
   required double width,
+  bool isLocalePinned = false,
 }) {
   final fbUser = _MockFbUser();
   when(() => fbUser.isAnonymous).thenReturn(false);
@@ -139,6 +153,8 @@ Future<void> _pumpAccountScreen(
       linkedProvidersStreamProvider(
         user.uid,
       ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
+      if (isLocalePinned)
+        localeProvider.overrideWithBuild((ref, notifier) => locale),
     ],
     locale: locale,
     brightness: brightness,
@@ -290,6 +306,43 @@ void main() {
           handle.dispose();
         });
       }
+    }
+  });
+
+  group('Phase 17.1 계정 화면 golden — ko 280 worst (T-171-ACCOUNT-golden)', () {
+    // 채택 시안 `mockups/adopted_account_ko_280_worst{,_end}_{light,dark}.png`
+    // 와 byte 동일해야 한다 (D-23 · 성공 기준 5 · UI-SPEC E5 overflow).
+    // fixture = mockup harness 계정 worst 와 같은 값 — W5(가입 네이버 + 연결
+    // 5) · 홍길동 · 긴 이메일 · 사진 없음.
+    for (final brightness in Brightness.values) {
+      final mode = brightness.name;
+
+      testWidgets('T-171-ACCOUNT-golden-top: 위 W5 + 긴 이메일 ko 280 — $mode', (
+        tester,
+      ) async {
+        await _pumpAccountScreen(
+          tester,
+          user: _fixtureUser(
+            'ko',
+            signUpProviderId: 'naver',
+            providerIds: _w5ProviderIds,
+            email: _longEmail,
+          ),
+          locale: const Locale('ko'),
+          brightness: brightness,
+          width: 280,
+          isLocalePinned: true,
+        );
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'overflow 0 이어야 golden 이 시각 계약을 대표한다 (E5)',
+        );
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/account_171_worst_ko_280_$mode.png'),
+        );
+      });
     }
   });
 
