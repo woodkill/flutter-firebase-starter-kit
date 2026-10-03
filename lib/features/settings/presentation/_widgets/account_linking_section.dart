@@ -47,7 +47,13 @@ import '../settings_notifier.dart';
 /// 미노출한다 (mockup §2 — 빈 set graceful).
 class AccountLinkingSection extends ConsumerWidget {
   /// [AccountLinkingSection] 을 생성한다.
-  const AccountLinkingSection({super.key});
+  const AccountLinkingSection({this.leadingGap = false, super.key});
+
+  /// true 면 섹션이 보일 때만 첫 원소로 Gap(xxl) 을 둔다 — 숨으면 간격도 0
+  /// (Phase 17.1 UI-SPEC §Spacing).
+  ///
+  /// 기본값 false 는 기존 배치(호출부가 앞뒤 간격을 직접 둠) 그대로다.
+  final bool leadingGap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -94,6 +100,8 @@ class AccountLinkingSection extends ConsumerWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            // Phase 17.1 §Spacing — 보일 때만 앞 간격(계정 화면 W5 겹침 0).
+            if (leadingGap) Gap(spacing.xxl),
             // heading — danger_zone_section.dart 패턴 mirror.
             Padding(
               padding: EdgeInsets.fromLTRB(

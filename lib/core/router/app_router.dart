@@ -11,6 +11,7 @@ import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/not_found/presentation/not_found_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/settings/presentation/account_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/withdrawal_disconnect_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
@@ -185,6 +186,12 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.withdrawalDisconnect,
         name: AppRoutes.withdrawalDisconnectName,
         builder: (context, state) => const WithdrawalDisconnectScreen(),
+      ),
+      // Phase 17.1 D-02 — 계정 정보 화면(설정 계정 행에서 push · 탈퇴 진행은 여기서 push).
+      GoRoute(
+        path: AppRoutes.account,
+        name: AppRoutes.accountName,
+        builder: (context, state) => const AccountScreen(),
       ),
     ],
   );
