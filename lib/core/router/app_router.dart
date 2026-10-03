@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -10,14 +9,13 @@ import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/home/presentation/environment_info_screen.dart';
+import '../../features/not_found/presentation/not_found_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/withdrawal_disconnect_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/terms/presentation/terms_detail_screen.dart';
 import '../analytics/analytics_observer.dart';
-import '../l10n/l10n_extensions.dart';
-import '../theme/theme_extensions.dart';
 import 'app_routes.dart';
 import 'auth_guard.dart';
 import 'auth_refresh.dart';
@@ -116,11 +114,8 @@ GoRouter appRouter(Ref ref) {
     refreshListenable: refreshListenable,
     redirect: (context, state) => resolveAuthRedirect(ref, state),
     observers: [observer],
-    // TODO: dedicated NotFoundScreen — see .planning/todos/pending/2026-09-09-not-found-screen.md
-    // 현재는 EnvironmentInfoScreen 폴백 대신 임시 Scaffold 로 명시적
-    // 404 안내를 표시하여, 잘못된 deep link 에서도 home 으로 silent
-    // redirect 되지 않도록 한다 (IN-05).
-    errorBuilder: (context, state) => buildNotFoundScreen(context),
+    // Phase 17.1 D-18 — 잘못된 경로는 전용 404 화면 (IN-05 — home silent redirect 금지 · state 미사용)
+    errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
       GoRoute(
         path: AppRoutes.home,
@@ -215,75 +210,4 @@ GoRouter appRouter(Ref ref) {
   ref.onDispose(router.dispose);
   ref.onDispose(refreshListenable.dispose);
   return router;
-}
-
-/// 404 화면의 안내 아이콘 크기 (IN-01 — 매직 넘버 명명).
-///
-/// [AppSpacing] 스케일(4px 기반)의 배수가 아닌 독립 illustration 치수이므로
-/// spacing 토큰을 재사용하지 않고 전용 상수로 둔다.
-const double _notFoundIconSize = 64;
-
-/// 404 errorBuilder 본문 — 잘못된 deep link 진입 시 표시되는 recovery UI.
-///
-/// [GoRouter.errorBuilder] 에서 호출된다.
-/// [visibleForTesting] 으로 노출하여 GoRouter 전체 스택 없이
-/// widget test 에서 직접 pump 할 수 있게 한다.
-@visibleForTesting
-Widget buildNotFoundScreen(BuildContext context) {
-  final l10n = context.l10n;
-  final spacing = context.appSpacing;
-  final colorScheme = context.colorScheme;
-  // IN-01: 저장소 dominant 규약인 토큰 접근자를 사용한다. `context.textTheme`
-  // 은 AppTypography extension override 를 반영하지 않아, 사용자가 ThemeData
-  // 를 교체하면 이 화면만 나머지와 다르게 drift 한다.
-  final typography = context.appTypography;
-  // 기존 가운데 정렬 트리 — 아래 body 가 높이 부족 시에만 스크롤로 감싼다.
-  final content = Center(
-    child: Padding(
-      padding: EdgeInsets.all(spacing.lg),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: _notFoundIconSize,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          Gap(spacing.lg),
-          Text(
-            l10n.errorNotFoundTitle,
-            style: typography.titleLarge,
-            textAlign: TextAlign.center,
-          ),
-          Gap(spacing.sm),
-          Text(
-            l10n.errorNotFoundBody,
-            style: typography.bodyMedium.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          Gap(spacing.xl),
-          FilledButton.icon(
-            onPressed: () => context.go(AppRoutes.home),
-            icon: const Icon(Icons.home),
-            label: Text(l10n.errorNotFoundGoHomeCta),
-          ),
-        ],
-      ),
-    ),
-  );
-  return Scaffold(
-    appBar: AppBar(title: Text(l10n.errorNotFoundTitle)),
-    // 맞으면 지금처럼 가운데, 넘치면 스크롤 (Phase 3 D-09 · quick 261003-0fp ·
-    // quick 260929-pze 와 같은 bounded 분기).
-    body: LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: content,
-        ),
-      ),
-    ),
-  );
 }

@@ -18,6 +18,7 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
+import 'package:flutter_starter_kit/features/not_found/presentation/not_found_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
@@ -34,7 +35,7 @@ User _authUser() {
   return user;
 }
 
-/// 404 [buildNotFoundScreen] 본문을 지정한 [locale] 로 pump 한다.
+/// 404 [NotFoundScreen] 본문을 지정한 [locale] 로 pump 한다.
 ///
 /// GoRouter 전체 스택 없이 errorBuilder 의 본문 위젯만 직접 검증한다.
 Future<void> _pumpNotFound(
@@ -47,7 +48,7 @@ Future<void> _pumpNotFound(
       locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const Builder(builder: buildNotFoundScreen),
+      home: const NotFoundScreen(),
     ),
   );
   await tester.pumpAndSettle();
@@ -202,6 +203,45 @@ void main() {
         isA<EmailLoginScreen>().having((w) => w.isReauth, 'isReauth', isFalse),
       );
     });
+  });
+
+  // Phase 17.1 D-18 · IN-05 — 등록되지 않은 경로는 전용 404 화면으로 간다
+  // (home 으로 조용히 넘기지 않는다). 실제 라우터의 errorBuilder 를 직접 호출해
+  // 배선만 잠근다 — 404 본문 단언은 not_found_screen_test.dart 가 맡는다.
+  group('Phase 17.1 404 배선 (T-171-ROUTER)', () {
+    testWidgets(
+      'T-171-ROUTER-01: 미등록 경로의 errorBuilder 는 NotFoundScreen 을 만든다',
+      (tester) async {
+        final mockAuth = _MockFirebaseAuth();
+        when(
+          () => mockAuth.authStateChanges(),
+        ).thenAnswer((_) => const Stream<User?>.empty());
+        final container = ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(false),
+            firebaseAuthProvider.overrideWithValue(mockAuth),
+          ],
+        );
+        addTearDown(container.dispose);
+        final router = container.read(appRouterProvider);
+        await tester.pumpWidget(const SizedBox());
+        final context = tester.element(find.byType(SizedBox));
+
+        const location = '/no-such-path-171';
+        final state = GoRouterState(
+          router.configuration,
+          uri: Uri.parse(location),
+          matchedLocation: location,
+          fullPath: location,
+          pathParameters: const <String, String>{},
+          pageKey: const ValueKey<String>(location),
+        );
+        final errorBuilder = router.routerDelegate.builder.errorBuilder;
+
+        expect(errorBuilder, isNotNull, reason: '404 는 errorBuilder 로 처리한다');
+        expect(errorBuilder!(context, state), isA<NotFoundScreen>());
+      },
+    );
   });
 
   group('appRouterProvider 생명주기 회귀 가드 (코드 리뷰 05 CR-01)', () {
@@ -484,7 +524,7 @@ void main() {
     });
   });
 
-  group('errorBuilder (buildNotFoundScreen)', () {
+  group('errorBuilder (NotFoundScreen)', () {
     testWidgets('1. en 로케일에서 l10n 제목/본문/CTA + error_outline 렌더', (
       tester,
     ) async {
@@ -537,7 +577,7 @@ void main() {
             locale: const Locale('en'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const Builder(builder: buildNotFoundScreen),
+            home: const NotFoundScreen(),
           ),
         );
         await tester.pumpAndSettle();
