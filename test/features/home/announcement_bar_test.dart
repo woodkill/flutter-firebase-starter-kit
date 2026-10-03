@@ -22,7 +22,8 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/home/application/dismissed_announcement.dart';
 import 'package:flutter_starter_kit/features/home/presentation/_widgets/announcement_bar.dart';
-import 'package:flutter_starter_kit/features/home/presentation/environment_info_screen.dart';
+import 'package:flutter_starter_kit/features/home/presentation/home_body.dart';
+import 'package:flutter_starter_kit/features/home/presentation/home_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -146,7 +147,7 @@ Future<void> _pumpGuestHome(
         locale: const Locale('ko'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const EnvironmentInfoScreen(),
+        home: const HomeScreen(),
       ),
     ),
   );
@@ -411,16 +412,15 @@ void main() {
             lessThanOrEqualTo(size.height),
             reason: '$label 게스트 바가 화면 안',
           );
-          final body = find
-              .descendant(
-                of: find.byType(EnvironmentInfoScreen),
-                matching: find.byType(ListView),
-              )
-              .first;
+          // Phase 17.1 — 본문은 HomeBody(넘치면 자체 스크롤)다.
+          final body = find.descendant(
+            of: find.byType(HomeScreen),
+            matching: find.byType(HomeBody),
+          );
           expect(
             tester.getSize(body).height,
             greaterThan(0),
-            reason: '$label 본문 ListView 높이',
+            reason: '$label 본문 HomeBody 높이',
           );
           expect(tester.takeException(), isNull, reason: '$label 마지막');
         });
@@ -497,7 +497,7 @@ Future<void> _pumpGuestHomeAt(
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const EnvironmentInfoScreen(),
+        home: const HomeScreen(),
       ),
     ),
   );
