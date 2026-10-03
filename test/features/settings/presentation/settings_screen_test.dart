@@ -117,10 +117,12 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
@@ -133,6 +135,9 @@ import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
+import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
+import 'package:flutter_starter_kit/core/providers/theme_provider.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -152,6 +157,8 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
+
+class _MockFbUser extends Mock implements fb.User {}
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
@@ -431,6 +438,87 @@ Future<void> _openUnlinkDialog(WidgetTester tester, Finder button) async {
   await tester.tap(button);
   await tester.pumpAndSettle();
 }
+
+/// 게스트(익명) 설정 화면을 GoRouter 안에서 pump 하고 provider container 를
+/// 돌려준다 (Phase 17.1 T-171-SETTINGS).
+///
+/// - `authStateProvider` = 익명 mock(`isAnonymous` true) data — 설정 화면의
+///   게스트 판정 입력 (RESEARCH Pitfall 6).
+/// - 테마 = 실 notifier + 빈 SharedPreferences(→ 시스템) · 언어 = 실 notifier
+///   (초기값만 [locale] 로 고정) — 시트 저장이 실제 저장 경로를 탄다.
+/// - `MaterialApp.locale` 을 `localeProvider` 에 묶는다(앱 `app.dart` 와 같게).
+/// - `/login` · 데모 경로는 stub 화면.
+///
+/// [screen] 으로 설정 화면 생성 방식을, [extraOverrides] 로 상태 override 를
+/// 바꾼다.
+Future<ProviderContainer> _pumpGuestSettings(
+  WidgetTester tester, {
+  Locale locale = const Locale('ko'),
+  Widget screen = const SettingsScreen(),
+  List<Override> extraOverrides = const <Override>[],
+}) async {
+  SharedPreferences.setMockInitialValues(<String, Object>{});
+  final anon = _MockFbUser();
+  when(() => anon.isAnonymous).thenReturn(true);
+  when(() => anon.uid).thenReturn('anon-uid');
+
+  final router = GoRouter(
+    initialLocation: AppRoutes.home,
+    routes: [
+      GoRoute(path: AppRoutes.home, builder: (context, state) => screen),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const Scaffold(body: Text('LOGIN ROUTE')),
+      ),
+      GoRoute(
+        path: AppRoutes.developerDemo,
+        builder: (context, state) => const Scaffold(body: Text('DEMO ROUTE')),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        // 첫 프레임부터 익명 data — 실 앱은 authState(keepAlive)가 설정 진입 전에
+        // 이미 값을 가진다.
+        authStateProvider.overrideWithValue(AsyncData(anon)),
+        currentUserProvider.overrideWith((ref) => null),
+        localeProvider.overrideWithBuild((ref, notifier) => locale),
+        ...extraOverrides,
+      ],
+      child: Consumer(
+        builder: (context, ref, _) => MaterialApp.router(
+          theme: AppTheme.light(),
+          locale: ref.watch(localeProvider),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return ProviderScope.containerOf(tester.element(find.byType(SettingsScreen)));
+}
+
+/// 열린 선택창의 [RadioListTile] 라벨을 화면 위 → 아래 순서로 돌려준다.
+List<String> _sheetLabels<T>(WidgetTester tester) {
+  final tiles = find.byType(RadioListTile<T>);
+  final entries = [
+    for (final element in tiles.evaluate())
+      (
+        y: tester.getTopLeft(find.byWidget(element.widget)).dy,
+        label: ((element.widget as RadioListTile<T>).title! as Text).data ?? '',
+      ),
+  ]..sort((a, b) => a.y.compareTo(b.y));
+  return [for (final entry in entries) entry.label];
+}
+
+/// 열린 선택창 [RadioGroup] 의 현재 선택값.
+T? _sheetGroupValue<T>(WidgetTester tester) =>
+    tester.widget<RadioGroup<T>>(find.byType(RadioGroup<T>)).groupValue;
 
 void main() {
   group('Phase 16 D-05~D-08 — SettingsScreen', () {
@@ -1852,6 +1940,84 @@ void main() {
       await tester.tap(find.text('Delete account').last);
       await tester.pumpAndSettle();
       expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Phase 17.1 설정 게스트 (T-171-SETTINGS)', () {
+    final ko = lookupAppLocalizations(const Locale('ko'));
+
+    testWidgets('T-171-SETTINGS-01: 게스트 — 로그인 · 가입 행 · 일반(테마 · 언어) · '
+        '개발자 데모 행 · 알림 · 계정 블록 0 (D-07)', (tester) async {
+      await _pumpGuestSettings(tester);
+
+      expect(find.text(ko.settingsGuestLabel), findsOneWidget);
+      expect(find.text(ko.settingsSignInOrSignUp), findsOneWidget);
+      expect(find.text(ko.settingsGeneralSection), findsOneWidget);
+      expect(find.text(ko.settingsTheme), findsOneWidget);
+      expect(find.text(ko.settingsThemeSystem), findsOneWidget);
+      expect(find.text(ko.settingsLanguage), findsOneWidget);
+      expect(find.text('한국어'), findsOneWidget);
+      expect(find.text(ko.settingsDeveloperSection), findsOneWidget);
+      expect(find.text(ko.demoScreenTitle), findsOneWidget);
+      expect(find.text(ko.settingsDemoScreenSubtitle), findsOneWidget);
+      // 17 D-02 정정 — 게스트에게 알림 · 정식 전용 블록 0 (T-17.1-07).
+      expect(find.byType(NotificationsSection), findsNothing);
+      expect(find.byType(DangerZoneSection), findsNothing);
+      expect(find.byType(ProfilePhotoTile), findsNothing);
+      expect(find.byType(AccountLinkingSection), findsNothing);
+      expect(find.text(ko.settingsAccountSection), findsNothing);
+
+      // 배치 순서 — 게스트 행 → 일반 → 테마 → 언어 → 개발자 → 데모 행.
+      final ys = [
+        for (final text in [
+          ko.settingsGuestLabel,
+          ko.settingsGeneralSection,
+          ko.settingsTheme,
+          ko.settingsLanguage,
+          ko.settingsDeveloperSection,
+          ko.demoScreenTitle,
+        ])
+          tester.getTopLeft(find.text(text)).dy,
+      ];
+      for (var i = 1; i < ys.length; i++) {
+        expect(ys[i - 1], lessThan(ys[i]));
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-171-SETTINGS-02: 게스트 행 탭 → 로그인 화면 push', (tester) async {
+      await _pumpGuestSettings(tester);
+
+      await tester.tap(find.text(ko.settingsSignInOrSignUp));
+      await tester.pumpAndSettle();
+
+      expect(find.text('LOGIN ROUTE'), findsOneWidget);
+    });
+
+    testWidgets('T-171-SETTINGS-03: 테마 행 → 시트(시스템 · 라이트 · 다크 · 시스템 '
+        '선택) → 다크 = 저장 + 닫힘 · SnackBar 0 (D-04 · Q2-A)', (tester) async {
+      final container = await _pumpGuestSettings(tester);
+
+      await tester.tap(find.text(ko.settingsTheme));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
+      expect(_sheetLabels<ThemeMode>(tester), [
+        ko.settingsThemeSystem,
+        ko.settingsThemeLight,
+        ko.settingsThemeDark,
+      ]);
+      expect(_sheetGroupValue<ThemeMode>(tester), ThemeMode.system);
+
+      await tester.tap(find.text(ko.settingsThemeDark));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RadioListTile<ThemeMode>), findsNothing);
+      expect(container.read(themeProvider).value, ThemeMode.dark);
+      expect(find.text(ko.settingsThemeDark), findsOneWidget);
+      expect(find.text(ko.settingsThemeSystem), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });
