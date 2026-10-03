@@ -112,10 +112,12 @@
 // `SafeArea` 를 직접 적용한다 (audit 명령의 `*_screen.dart` 범위 밖이므로 별도 확인).
 // → 신규 누락(UNGUARDED) 0건이므로 본 task 는 `lib/**/*_screen.dart` 를 수정하지 않는다.
 
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart' show FirebaseFunctions;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -480,6 +482,8 @@ Future<ProviderContainer> _pumpGuestSettings(
 
   await tester.pumpWidget(
     ProviderScope(
+      // 테마 build 실패 케이스(T-171-SETTINGS-08)가 재시도 타이머를 남기지 않게.
+      retry: (retryCount, error) => null,
       overrides: [
         // 첫 프레임부터 익명 data — 실 앱은 authState(keepAlive)가 설정 진입 전에
         // 이미 값을 가진다.
@@ -514,6 +518,31 @@ List<String> _sheetLabels<T>(WidgetTester tester) {
       ),
   ]..sort((a, b) => a.y.compareTo(b.y));
   return [for (final entry in entries) entry.label];
+}
+
+/// [finder] 문단의 렌더 줄 수 — 같은 폭으로 재배치해 센다.
+int _countLines(WidgetTester tester, Finder finder) {
+  final rp = tester.renderObject<RenderParagraph>(finder);
+  final painter = TextPainter(
+    text: rp.text,
+    textDirection: rp.textDirection,
+    textScaler: rp.textScaler,
+    locale: rp.locale,
+    strutStyle: rp.strutStyle,
+    textWidthBasis: rp.textWidthBasis,
+    textHeightBehavior: rp.textHeightBehavior,
+  )..layout(maxWidth: rp.constraints.maxWidth);
+  final count = painter.computeLineMetrics().length;
+  painter.dispose();
+  return count;
+}
+
+/// 테스트 viewport 를 [size](DPR 1)로 바꾼다 — 테스트 끝에 되돌린다.
+void _useViewport(WidgetTester tester, Size size) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = size;
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
 }
 
 /// 열린 선택창 [RadioGroup] 의 현재 선택값.
@@ -2019,6 +2048,210 @@ void main() {
       expect(find.text(ko.settingsThemeSystem), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-171-SETTINGS-04: 언어 행 → 시트(English · 日本語 · 한국어 · '
+        '한국어 선택) → English = 저장 + 닫힘 · SnackBar 0 (D-04)', (tester) async {
+      final container = await _pumpGuestSettings(tester);
+
+      await tester.tap(find.text(ko.settingsLanguage));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RadioListTile<Locale>), findsNWidgets(3));
+      expect(_sheetLabels<Locale>(tester), ['English', '日本語', '한국어']);
+      expect(_sheetGroupValue<Locale>(tester), const Locale('ko'));
+
+      await tester.tap(find.text('English'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RadioListTile<Locale>), findsNothing);
+      expect(container.read(localeProvider), const Locale('en'));
+      // 앱 언어가 바로 바뀐다 — 행 라벨도 영어, 값 = English.
+      final en = lookupAppLocalizations(const Locale('en'));
+      expect(find.text(en.settingsLanguage), findsOneWidget);
+      expect(find.text('English'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-171-SETTINGS-05: 바깥 탭 · back · 현재값 다시 탭 → 시트 닫힘 · '
+        '값 불변 · 저장 0 (E4 populated)', (tester) async {
+      final container = await _pumpGuestSettings(tester);
+      final prefs = await SharedPreferences.getInstance();
+
+      Future<void> openThemeSheet() async {
+        await tester.tap(find.text(ko.settingsTheme));
+        await tester.pumpAndSettle();
+        expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
+      }
+
+      void expectThemeUnchanged() {
+        expect(find.byType(RadioListTile<ThemeMode>), findsNothing);
+        expect(container.read(themeProvider).value, ThemeMode.system);
+        expect(find.text(ko.settingsThemeSystem), findsOneWidget);
+      }
+
+      // 1) 바깥(barrier) 탭 — 시트 위 화면 좌상단.
+      await openThemeSheet();
+      await tester.tapAt(const Offset(8, 8));
+      await tester.pumpAndSettle();
+      expectThemeUnchanged();
+
+      // 2) back.
+      await openThemeSheet();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expectThemeUnchanged();
+
+      // 3) 현재값(시스템) 다시 탭 — toggleable → null → 닫힘.
+      await openThemeSheet();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(RadioListTile<ThemeMode>),
+          matching: find.text(ko.settingsThemeSystem),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expectThemeUnchanged();
+
+      // 언어도 현재값(한국어) 다시 탭 = 닫힘 · 값 불변.
+      await tester.tap(find.text(ko.settingsLanguage));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(RadioListTile<Locale>),
+          matching: find.text('한국어'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(RadioListTile<Locale>), findsNothing);
+      expect(container.read(localeProvider), const Locale('ko'));
+
+      // 저장 호출 0 — 두 provider 의 저장 키가 비어 있다.
+      expect(prefs.getInt('theme_mode'), isNull);
+      expect(prefs.getString('locale_language_code'), isNull);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('T-171-SETTINGS-06: showsDemoRow false(release) — 「개발자」 '
+        'heading · 데모 행 0 · 언어 행이 마지막 (D-14)', (tester) async {
+      await _pumpGuestSettings(
+        tester,
+        screen: const SettingsScreen(showsDemoRow: false),
+      );
+
+      expect(find.text(ko.settingsDeveloperSection), findsNothing);
+      expect(find.text(ko.demoScreenTitle), findsNothing);
+      expect(find.byIcon(Icons.developer_mode), findsNothing);
+      expect(find.text(ko.settingsLanguage), findsOneWidget);
+      expect(find.text(ko.settingsSignInOrSignUp), findsOneWidget);
+    });
+
+    testWidgets('T-171-SETTINGS-07: 데모 행 탭 → 데모 경로 push (D-15)', (
+      tester,
+    ) async {
+      await _pumpGuestSettings(tester);
+
+      await _scrollTo(tester, find.text(ko.demoScreenTitle));
+      await tester.tap(find.text(ko.demoScreenTitle));
+      await tester.pumpAndSettle();
+
+      expect(find.text('DEMO ROUTE'), findsOneWidget);
+    });
+
+    for (final (name, build) in <(String, FutureOr<ThemeMode> Function())>[
+      ('loading(끝나지 않는 build)', () => Completer<ThemeMode>().future),
+      ('error(throw 하는 build)', () => throw StateError('theme_load')),
+    ]) {
+      testWidgets('T-171-SETTINGS-08: 테마 $name → 행 값 「시스템」 · 시트도 시스템 '
+          '선택 (E3 · E4 loading)', (tester) async {
+        await _pumpGuestSettings(
+          tester,
+          extraOverrides: [
+            themeProvider.overrideWithBuild((ref, notifier) => build()),
+          ],
+        );
+
+        expect(find.text(ko.settingsThemeSystem), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(ListView),
+            matching: find.byType(CircularProgressIndicator),
+          ),
+          findsNothing,
+        );
+
+        await tester.tap(find.text(ko.settingsTheme));
+        await tester.pumpAndSettle();
+        expect(_sheetGroupValue<ThemeMode>(tester), ThemeMode.system);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final code in const ['ko', 'en', 'ja']) {
+      testWidgets('T-171-SETTINGS-10: 게스트 280×800 $code — overflow 0 · '
+          '선택창 제목 maxLines 없음 (E3 · E4 long-text)', (tester) async {
+        _useViewport(tester, const Size(280, 800));
+        final l10n = lookupAppLocalizations(Locale(code));
+        await _pumpGuestSettings(tester, locale: Locale(code));
+
+        expect(find.text(l10n.settingsSignInOrSignUp), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        if (code == 'ja') {
+          // UI-SPEC (S) — ja 게스트 값 「ログイン・登録」 1줄.
+          expect(
+            _countLines(tester, find.text(l10n.settingsSignInOrSignUp)),
+            1,
+          );
+        }
+
+        await tester.tap(find.text(l10n.settingsTheme));
+        await tester.pumpAndSettle();
+        final tiles = tester.widgetList<RadioListTile<ThemeMode>>(
+          find.byType(RadioListTile<ThemeMode>),
+        );
+        expect(tiles, hasLength(3));
+        for (final tile in tiles) {
+          expect((tile.title! as Text).maxLines, isNull);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('T-171-SETTINGS-10: 가로 780×360 — 테마 · 언어 시트 넘침 0 '
+        '(E4 overflow)', (tester) async {
+      _useViewport(tester, const Size(780, 360));
+      await _pumpGuestSettings(tester);
+
+      await tester.tap(find.text(ko.settingsTheme));
+      await tester.pumpAndSettle();
+      expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+      await tester.tapAt(const Offset(8, 8));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(ko.settingsLanguage));
+      await tester.pumpAndSettle();
+      expect(find.byType(RadioListTile<Locale>), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-171-SETTINGS-10: ko 280 light — 설정 · 선택창 터치 영역 · '
+        '라벨 · 대비 guideline', (tester) async {
+      final handle = tester.ensureSemantics();
+      _useViewport(tester, const Size(280, 800));
+      await _pumpGuestSettings(tester);
+
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+
+      await tester.tap(find.text(ko.settingsTheme));
+      await tester.pumpAndSettle();
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      handle.dispose();
     });
   });
 }

@@ -8,13 +8,19 @@
 // 기본 테스트 viewport(800×600)에서는 섹션이 ListView 의 lazy build 범위
 // 밖이라 위젯 자체가 없다 — 키 큰 viewport(800×2000)로 올리고, 탭 전에도
 // `ensureVisible` 한다.
+//
+// Phase 17.1 Plan 17.1-04 — T-171-SETTINGS-09 (D-07 · 17 D-02 정정): 게스트
+// (익명 `authStateProvider`)의 설정 화면에는 알림 섹션 · 스위치가 없고 알림
+// 설정 notifier 도 읽지 않는다.
 
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -27,8 +33,12 @@ import 'package:flutter_starter_kit/features/settings/presentation/settings_scre
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'settings_golden_harness.dart';
+
+class _MockFbUser extends Mock implements fb.User {}
 
 /// 결과 · 완료 시점을 테스트가 쥐는 [NotificationSettingsNotifier] fake.
 ///
@@ -304,6 +314,48 @@ void main() {
       expect(builds, 2);
       expect(find.byType(ErrorBanner), findsNothing);
       expect(find.byType(SwitchListTile), findsOneWidget);
+    });
+  });
+
+  group('Phase 17.1 게스트 설정 알림 숨김 (T-171-SETTINGS-09)', () {
+    testWidgets('T-171-SETTINGS-09: 게스트(익명) 설정 — 알림 섹션 · 스위치 0 · '
+        '알림 설정 읽기 0 (D-07 · 17 D-02 정정)', (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final anon = _MockFbUser();
+      when(() => anon.isAnonymous).thenReturn(true);
+      var builds = 0;
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWithValue(AsyncData(anon)),
+            currentUserProvider.overrideWith((ref) => null),
+            notificationSettingsProvider.overrideWith(
+              () => _FakeNotificationSettings(
+                initial: () async {
+                  builds++;
+                  return false;
+                },
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            locale: const Locale('ko'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.settingsSignInOrSignUp), findsOneWidget);
+      expect(find.byType(NotificationsSection), findsNothing);
+      expect(find.byType(SwitchListTile), findsNothing);
+      expect(find.text(l10n.settingsNotificationsSection), findsNothing);
+      expect(builds, 0);
+      expect(tester.takeException(), isNull);
     });
   });
 }

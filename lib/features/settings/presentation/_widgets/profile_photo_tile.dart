@@ -3,7 +3,8 @@
 //
 // 참조 구현 = mockups/p17_widgets.dart.txt `ProfilePhotoTile` (같은 트리 · 토큰,
 // 문구만 ARB). 행 탭 → 사진 메뉴 → 업로드 · 삭제 → 결과 SnackBar.
-import 'package:cached_network_image/cached_network_image.dart';
+// Phase 17.1 UI-SPEC §(S) DRY — 아바타는 공용 [ProfileAvatar](profile_avatar.dart)
+// 로 추출했다(설정 계정 · 게스트 행과 공유 · 렌더 동일).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,6 +16,7 @@ import '../../../../shared/widgets/error_snack_bar.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/domain/user.dart';
 import '../../application/profile_photo_notifier.dart';
+import 'profile_avatar.dart';
 import 'profile_photo_sheet.dart';
 
 /// 사진 행 아바타 지름 — [CircleAvatar] 기본 반지름 20 의 2배 (UI-SPEC (P)).
@@ -181,7 +183,7 @@ class _PhotoRow extends StatelessWidget {
     // WR-07: appTypography 가 AppTypography override 를 반영하는 유일한 경로.
     final typography = context.appTypography;
     final scheme = context.colorScheme;
-    final avatar = _ProfileAvatar(photoUrl: photoUrl);
+    final avatar = ProfileAvatar(photoUrl: photoUrl);
     return ListTile(
       leading: ExcludeSemantics(
         child: isBusy
@@ -202,28 +204,6 @@ class _PhotoRow extends StatelessWidget {
       subtitle: Text(value, softWrap: true, style: typography.titleMedium),
       trailing: Icon(Icons.chevron_right, color: scheme.primary),
       onTap: onTap,
-    );
-  }
-}
-
-/// 기본 반지름 [CircleAvatar] — 사진(cover) 또는 `Icons.person` placeholder.
-class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({required this.photoUrl});
-
-  /// 사진 URL (null = placeholder).
-  final String? photoUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = photoUrl;
-    // CircleAvatar 는 backgroundImage 를 BoxFit.cover 로 채운다 — 원형 가운데
-    // 맞춤(D-41). 이미지 로드 실패는 배경색만 남기고 조용히 넘긴다.
-    return CircleAvatar(
-      backgroundImage: url != null ? CachedNetworkImageProvider(url) : null,
-      onBackgroundImageError: url != null ? (_, _) {} : null,
-      child: url == null
-          ? Icon(Icons.person, color: context.colorScheme.onSurfaceVariant)
-          : null,
     );
   }
 }
