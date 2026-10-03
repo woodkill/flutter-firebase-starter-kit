@@ -1,6 +1,6 @@
 // Phase 17 Plan 17-17 — 프로필 사진 행 · 사진 메뉴 · Notifier 테스트 (T-17-PHOTO).
 //
-// - T-17-PHOTO-03: 설정 「내 계정」 첫 행 = 사진 행 → 탭 → 메뉴 2항목(사진
+// - T-17-PHOTO-03: 계정 화면 「프로필」 첫 행 = 사진 행 → 탭 → 메뉴 2항목(사진
 //   없음) → 「갤러리에서 사진 선택」 → 시트 닫힘 · 업로드 1회 · 성공 SnackBar.
 // - T-17-PHOTO-05: 업로드 사진 있음 → 메뉴 3항목 · 삭제 아이콘 기본 색 · 확인
 //   다이얼로그 없이 삭제 1회 · 성공 SnackBar · 취소 = 호출 0.
@@ -33,7 +33,7 @@ import 'package:flutter_starter_kit/features/settings/application/profile_photo_
 import 'package:flutter_starter_kit/features/settings/data/profile_photo_repository.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/profile_photo_sheet.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/profile_photo_tile.dart';
-import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/account_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
 
@@ -109,11 +109,13 @@ fb.User _regularFbUser() {
   return user;
 }
 
-/// production [SettingsScreen] 을 pump 한다 (기본 ko · 800×600 viewport).
+/// production [AccountScreen] 을 pump 한다 (기본 ko · 800×600 viewport).
+///
+/// Phase 17.1 D-02 — 사진 행은 정식 사용자 계정 화면의 첫 행이다(17 D-18 정정).
 ///
 /// [records] 는 사진 출처 stream (기본 = 업로드 사진 없음 data 1회). 재시도는
 /// 끈다 — error 상태가 재구독으로 흔들리지 않게 한다.
-Future<void> _pumpSettings(
+Future<void> _pumpAccount(
   WidgetTester tester, {
   required ProfilePhotoRepository repository,
   User? user,
@@ -140,14 +142,14 @@ Future<void> _pumpSettings(
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const SettingsScreen(),
+        home: const AccountScreen(),
       ),
     ),
   );
   await tester.pumpAndSettle();
 }
 
-/// 설정의 사진 행 [ListTile].
+/// 계정 화면의 사진 행 [ListTile].
 Finder _photoRow() => find.descendant(
   of: find.byType(ProfilePhotoTile),
   matching: find.byType(ListTile),
@@ -183,9 +185,9 @@ void main() {
       final repository = _FakeProfilePhotoRepository(
         onUpload: () async => const Result.success('https://x/avatar?v=1'),
       );
-      await _pumpSettings(tester, repository: repository);
+      await _pumpAccount(tester, repository: repository);
 
-      // 「내 계정」 heading 다음 · 이메일 행 위 = 사진 행.
+      // 「프로필」 heading 다음 · 이메일 행 위 = 사진 행 (Phase 17.1 계정 화면).
       final row = find.descendant(
         of: find.byType(ProfilePhotoTile),
         matching: find.byType(ListTile),
@@ -204,7 +206,7 @@ void main() {
         matching: find.byType(ListTile),
       );
       expect(
-        tester.getTopLeft(find.text('내 계정')).dy,
+        tester.getTopLeft(find.text('프로필')).dy,
         lessThan(tester.getTopLeft(row).dy),
       );
       expect(
@@ -251,7 +253,7 @@ void main() {
       final repository = _FakeProfilePhotoRepository(
         onUpload: () async => const Result.success('https://x/avatar?v=1'),
       );
-      await _pumpSettings(tester, repository: repository);
+      await _pumpAccount(tester, repository: repository);
 
       await tester.tap(
         find.descendant(
@@ -274,7 +276,7 @@ void main() {
       final repository = _FakeProfilePhotoRepository(
         onUpload: () async => const Result<String?>.success(null),
       );
-      await _pumpSettings(tester, repository: repository);
+      await _pumpAccount(tester, repository: repository);
 
       await tester.tap(
         find.descendant(
@@ -297,7 +299,7 @@ void main() {
       final repository = _FakeProfilePhotoRepository(
         onUpload: () async => const Result.success(_kCustomUrl),
       );
-      await _pumpSettings(tester, repository: repository, user: _customUser);
+      await _pumpAccount(tester, repository: repository, user: _customUser);
 
       final row = _photoRow();
       expect(
@@ -338,7 +340,7 @@ void main() {
       final repository = _FakeProfilePhotoRepository(
         onUpload: () async => const Result.success(_kCustomUrl),
       );
-      await _pumpSettings(tester, repository: repository, user: _customUser);
+      await _pumpAccount(tester, repository: repository, user: _customUser);
 
       await tester.tap(_photoRow());
       await tester.pumpAndSettle();
@@ -358,7 +360,7 @@ void main() {
         onRemove: () async =>
             const Result<void>.failure(ProfilePhotoRemoveException()),
       );
-      await _pumpSettings(tester, repository: repository, user: _customUser);
+      await _pumpAccount(tester, repository: repository, user: _customUser);
 
       await tester.tap(_photoRow());
       await tester.pumpAndSettle();
@@ -375,7 +377,7 @@ void main() {
     testWidgets('T-17-PHOTO-06: 출처 loading → 「불러오는 중」 · 탭 비활성', (tester) async {
       final controller = StreamController<UserProviderRecord>();
       addTearDown(controller.close);
-      await _pumpSettings(
+      await _pumpAccount(
         tester,
         repository: _FakeProfilePhotoRepository(
           onUpload: () async => const Result.success(_kCustomUrl),
@@ -393,7 +395,7 @@ void main() {
 
     testWidgets('T-17-PHOTO-06: 출처 error → 업로드 사진 없음 취급 · 탭 가능 · '
         '배너 0 · 메뉴 2항목', (tester) async {
-      await _pumpSettings(
+      await _pumpAccount(
         tester,
         repository: _FakeProfilePhotoRepository(
           onUpload: () async => const Result.success(_kCustomUrl),
@@ -426,7 +428,7 @@ void main() {
     testWidgets('T-17-PHOTO-06: 업로드 중 → 진행 링(40 dp) · 「사진을 올리는 중…」 · '
         '탭 비활성 → 실패 SnackBar · 값 이전 상태', (tester) async {
       final completer = Completer<Result<String?>>();
-      await _pumpSettings(
+      await _pumpAccount(
         tester,
         repository: _FakeProfilePhotoRepository(
           onUpload: () => completer.future,
@@ -473,7 +475,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await _pumpSettings(
+      await _pumpAccount(
         tester,
         repository: _FakeProfilePhotoRepository(
           onUpload: () async => const Result.success(_kCustomUrl),
@@ -635,7 +637,7 @@ void main() {
             tester,
           ) async {
             _setLogicalViewport(tester, size);
-            await _pumpSettings(
+            await _pumpAccount(
               tester,
               repository: _FakeProfilePhotoRepository(
                 onUpload: () async => const Result.success(_kCustomUrl),
@@ -643,7 +645,7 @@ void main() {
               user: hasPhoto ? _customUser : null,
               locale: locale,
             );
-            expect(tester.takeException(), isNull, reason: '$label 설정 화면');
+            expect(tester.takeException(), isNull, reason: '$label 계정 화면');
 
             await _openPhotoSheet(tester);
             final sheet = find.byType(ProfilePhotoSheet);
@@ -686,7 +688,7 @@ void main() {
       testWidgets('P (360x800 · ko · 항목 $itemCount개): 세로 rect 고정 · '
           '261003-0fp', (tester) async {
         _setLogicalViewport(tester, _portraitSize);
-        await _pumpSettings(
+        await _pumpAccount(
           tester,
           repository: _FakeProfilePhotoRepository(
             onUpload: () async => const Result.success(_kCustomUrl),
@@ -776,7 +778,7 @@ void _setLogicalViewport(WidgetTester tester, Size size) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
-/// 설정의 사진 행을 화면에 보이게 한 뒤 탭해 사진 메뉴 시트를 연다.
+/// 계정 화면의 사진 행을 화면에 보이게 한 뒤 탭해 사진 메뉴 시트를 연다.
 Future<void> _openPhotoSheet(WidgetTester tester) async {
   await tester.ensureVisible(_photoRow());
   await tester.pumpAndSettle();
