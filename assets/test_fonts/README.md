@@ -79,7 +79,7 @@ subset 옵션: `layout_features=['*']` · `name_IDs=['*']` · `name_languages=['
 | 파일 | face | 포함 code point | cmap 수 | 크기 | sha256 |
 |------|------|-----------------|---------|------|--------|
 | `NotoSansCJKKR-Regular-Subset.otf` | 1 (KR) | ASCII · 완성형 한글 11,172자 전부(U+AC00–D7A3) · 호환 자모(U+3130–318F) · `app_ko.arb` 값 문자 · fixture 문자 | 11,383 | 3,420,572 B | `68f3dd74e4c432c89d86314761e9b0c2ecab9447a48df9ee9cf6911249dbc324` |
-| `NotoSansCJKJP-Regular-Subset.otf` | 0 (JP) | ASCII · U+3000–30FF(CJK 기호 · 히라가나 · 가타카나) · U+FF00–FFEF(전각) · `app_ja.arb` 값 문자 · fixture 문자(`登録方法 連携済みアカウント なし 山田太郎` 등) | 790 (한자 200) | 551,312 B | `8d88fafaa1b1709c9cc57687964d6782d53314a135d2e5b75e8c7885bcc3e9e9` |
+| `NotoSansCJKJP-Regular-Subset.otf` | 0 (JP) | ASCII · U+3000–30FF(CJK 기호 · 히라가나 · 가타카나) · U+FF00–FFEF(전각) · `app_ja.arb` 값 문자 · fixture 문자(`登録方法 連携済みアカウント なし 山田太郎` 등) | 793 (한자 203) | 553,676 B | `f069561a2b145c5e06a89e7a2b622c7a8353c67198da49549e061af3856b742c` |
 
 **갱신 조건:** `app_ja.arb` 에 subset 에 없는 한자가 추가되면 ja golden 에서 tofu 로 드러난다
 → 스크립트를 다시 돌려 JP 파일과 이 표의 해시를 갱신한다. 한글은 전 음절을 담아 갱신 불요.
@@ -93,3 +93,4 @@ subset 옵션: `layout_features=['*']` · `name_IDs=['*']` · `name_languages=['
 |------|------|------|
 | 2026-09-26 | KR · JP | Phase 16.7 — 최초 생성 (JP cmap 780 · 한자 190) |
 | 2026-10-01 | JP | Phase 17 — see ROADMAP.md: 새 ja 문구 한자 10자(分 台 択 決 知 般 許 起 通 選) 추가 — cmap 780 → 790 · 한자 190 → 200 · 제거 0. KR 은 byte 동일(sha256 불변) |
+| 2026-10-03 | JP | Phase 17.1 — see ROADMAP.md: 새 ja 문구 한자(案 画 面) 추가 — cmap 790 → 793 · 한자 200 → 203 · 제거 0. KR 은 byte 동일(sha256 불변) |
