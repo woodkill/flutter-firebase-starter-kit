@@ -8,6 +8,7 @@ import '../../features/auth/presentation/email_signup_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
+import '../../features/demo/presentation/demo_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/not_found/presentation/not_found_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
@@ -193,6 +194,14 @@ GoRouter appRouter(Ref ref) {
         name: AppRoutes.accountName,
         builder: (context, state) => const AccountScreen(),
       ),
+      // Phase 17.1 D-14 — 데모는 release 가 아닌 빌드에서만 등록한다(const 분기 →
+      // release 바이너리에서 DemoScreen 참조가 빠진다). release 는 이 경로가 404(D-18).
+      if (!kReleaseMode)
+        GoRoute(
+          path: AppRoutes.developerDemo,
+          name: AppRoutes.developerDemoName,
+          builder: (context, state) => const DemoScreen(),
+        ),
     ],
   );
 
