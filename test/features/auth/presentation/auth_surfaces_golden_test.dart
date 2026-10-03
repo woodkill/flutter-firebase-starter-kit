@@ -45,8 +45,7 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_b
 import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_signup_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
-import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
-import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/account_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -241,11 +240,14 @@ enum _Entry {
 /// 한다. [_Entry.sheet] 는 [surface] 를 쓰지 않는다.
 ///
 /// override 목록은 다른 16.1 screen harness 와 동형이다
-/// (`authRepositoryProvider` + `activeStrategiesProvider`) — Phase 17 부터
-/// 설정 화면 알림 섹션 꺼짐 고정(`notificationSettingsProvider`)을 더한다. [user] 가 있으면
+/// (`authRepositoryProvider` + `activeStrategiesProvider`). [user] 가 있으면
 /// `currentUserProvider` 를 그 사용자로 고정한다 (재인증 모드 golden — 연결
 /// provider 필터 · 이메일 칸 입력). [repository] 가 없으면 [_mockRepository]
 /// 를 쓴다.
+///
+/// Phase 17.1 (D-23 · UI-SPEC Q9-A) — 재인증 복귀 golden 의 출발 · 복귀 화면이
+/// 설정에서 계정 화면으로 바뀌어 설정 「알림」 섹션 꺼짐 고정
+/// (`notificationSettingsProvider`)은 더 이상 그려지는 화면이 없어 뺐다.
 Future<void> _pumpSurface(
   WidgetTester tester, {
   required Brightness brightness,
@@ -271,8 +273,9 @@ Future<void> _pumpSurface(
         ),
         activeStrategiesProvider.overrideWithValue(_sixStrategies),
         if (user != null) currentUserProvider.overrideWith((ref) => user),
-        // Phase 17 (Plan 17-17) — 설정 사진 행의 사진 출처 stream 을 data(업로드
-        // 사진 없음)로 고정한다(미초기화 Firestore 무접촉).
+        // Phase 17 (Plan 17-17) — 사진 행의 사진 출처 stream 을 data(업로드
+        // 사진 없음)로 고정한다(미초기화 Firestore 무접촉). 17.1 부터 사진
+        // 행은 계정 화면에 있다.
         if (user != null)
           linkedProvidersStreamProvider(user.uid).overrideWith(
             (ref) => Stream.value((
@@ -281,12 +284,6 @@ Future<void> _pumpSurface(
               customPhotoUrl: null,
             )),
           ),
-        // Phase 17 (UI-SPEC §Golden 캡처 계약 「2026-10-01 정정」) — 재인증
-        // 성공 → 설정 복귀 golden 이 실제 SettingsScreen 을 그리므로 알림
-        // 섹션을 꺼짐(AsyncData(false))으로 고정한다.
-        notificationSettingsProvider.overrideWithBuild(
-          (ref, notifier) => false,
-        ),
       ],
       child: _wrapApp(brightness: brightness, home: home),
     ),
@@ -461,7 +458,13 @@ void main() {
         await _expectSurfaceGolden(tester, 'reauth_email_$mode.png');
       });
 
-      testWidgets('재인증 성공 → 설정 복귀 + SnackBar — $mode', (tester) async {
+      // Phase 17.1 D-23 (UI-SPEC Q9-A 정정 · RESEARCH §R-02) — 계정 연결 ·
+      // 해제의 재인증은 계정 화면에서 출발해 계정 화면으로 돌아온다(코드
+      // 변경 0 — LoginScreen 이 요청 화면으로 pop). 옛 이름
+      // `reauth_settings_success_*` 를 대체한다.
+      testWidgets('T-171-ACCOUNT-10: 재인증 성공 → 계정 화면 복귀 + SnackBar — $mode', (
+        tester,
+      ) async {
         final repository = _mockRepository();
         when(
           () => repository.reauthenticate(AccountProvider.naver),
@@ -470,13 +473,13 @@ void main() {
           tester,
           brightness: brightness,
           entry: _Entry.pushed,
-          surface: const SettingsScreen(),
+          surface: const AccountScreen(),
           user: naverUser,
           repository: repository,
         );
-        // 설정 → 재인증 화면 push (production 진입점과 같은 스택).
+        // 계정 화면 → 재인증 화면 push (production 진입점과 같은 스택).
         unawaited(
-          Navigator.of(tester.element(find.byType(SettingsScreen))).push(
+          Navigator.of(tester.element(find.byType(AccountScreen))).push(
             MaterialPageRoute<void>(
               builder: (_) => const LoginScreen(isReauth: true),
             ),
@@ -488,7 +491,12 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(LoginScreen), findsNothing);
-        await _expectSurfaceGolden(tester, 'reauth_settings_success_$mode.png');
+        expect(find.byType(AccountScreen), findsOneWidget);
+        // 재인증 성공 SnackBar — root ScaffoldMessenger 라 pop 뒤 계정 화면에
+        // 남는다 (LoginScreen `_completeReauth`).
+        final en = lookupAppLocalizations(const Locale('en'));
+        expect(find.text(en.authReauthSucceeded), findsOneWidget);
+        await _expectSurfaceGolden(tester, 'reauth_account_success_$mode.png');
       });
     }
   });
@@ -496,8 +504,8 @@ void main() {
 
 /// 재인증 golden 용 정식 사용자 — [providerIds] 만 시나리오마다 다르다.
 ///
-/// [signUpProviderId] 는 설정 「내 계정」 의 가입 수단 행 값이다. null 이면
-/// D-11 fallback(「-」)이 찍히므로 설정 복귀 golden 은 가입 수단을 준다 (D-30).
+/// [signUpProviderId] 는 계정 화면의 가입 수단 행 값이다. null 이면 D-11
+/// fallback(「-」)이 찍히므로 계정 화면 복귀 golden 은 가입 수단을 준다 (D-30).
 User _reauthUser(List<String> providerIds, {String? signUpProviderId}) => User(
   uid: 'uid-mock',
   email: 'me@example.com',
