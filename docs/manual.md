@@ -47,6 +47,7 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 20. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
 21. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
 22. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+23. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
 
 ---
 
@@ -5213,6 +5214,135 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
   닫는다). 빌드 성패는 **`✓ Built` 와 종료 코드**로 판정한다.
   - 근거: `.planning/phases/16.3-ios-cocoapods-to-spm-migration/16.3-01-SUMMARY.md`
     (후속 plan 이월 2).
+
+---
+
+## 홈 화면 바꾸기 (Phase 17.1)
+
+> **2026-10-04 도입.** 근거 = Phase 17.1 산출물
+> (`.planning/phases/17.1-production-home-and-404-screen-split/` 의 `17.1-CONTEXT.md`
+> D-06 · D-10 ~ D-17). 킷의 홈(`/`)은 킷 사용자가 바꾸는 **본문**과 킷이 유지하는
+> **배선**으로 나뉘어 있다. 옛 홈(데모)에 섞여 있던 기능은 설정 · 계정 정보 화면 ·
+> 데모 화면으로 옮겨졌다(맨 아래 표).
+
+| 파일 | 맡는 일 | 킷 사용자가 |
+|------|---------|-------------|
+| `lib/features/home/presentation/home_screen.dart` (`HomeScreen`) | AppBar(앱 제목 · 게스트 「로그인」 · 설정 아이콘) · 알림 탭 이동 리스너 · 운영 공지 배너 · 게스트 안내 바 · 본문 자리 | 그대로 둔다 |
+| `lib/features/home/presentation/home_body.dart` (`HomeBody`) | 본문 | **바꾼다** |
+| `lib/features/home/presentation/_widgets/announcement_bar.dart` · `guest_banner.dart` | 공지 배너 · 게스트 안내 바 위젯 | 모양 · 문구를 바꿀 때만 |
+
+### ① 기본 방법 — `home_body.dart` 만 바꾼다
+
+1. `HomeBody` 의 `build` 를 앱 홈 내용으로 바꾼다. 클래스 이름과 `const HomeBody()`
+   로 부를 수 있는 생성자는 남긴다 — `home_screen.dart` 가
+   `const Expanded(child: HomeBody())` 로 부른다. 개발자 안내 카드가 필요 없으면
+   `showsDeveloperGuide` 인자와 카드 코드를 지워도 된다(그때는
+   `test/features/home/home_body_test.dart` 도 함께 고친다).
+2. `home_screen.dart` 는 손대지 않는다. 알림 탭 이동 · 공지 · 게스트 안내 · 설정
+   진입은 이 파일이 맡으므로, 본문을 통째로 바꿔도 그 기능은 그대로 남는다.
+3. 지금 본문 — **release 빌드는 빈 본문**(`SizedBox.shrink`)이다. 그 밖 빌드(debug ·
+   profile)는 개발자 안내 카드 1장(「이 본문을 앱 홈으로 바꾸세요」 + 「데모 화면
+   열기」 버튼)이다. 분기는 `showsDeveloperGuide` 기본값 const `!kReleaseMode` 하나다.
+4. 본문은 `Expanded` 안에 들어가 높이가 정해져 있다. 내용이 길면 스크롤 위젯으로
+   감싼다(280 dp 폭 · 가로 회전에서도 넘치지 않게).
+5. **앱 이름** — config `appName`(`config/{flavor}.json` → `--dart-define-from-file`)
+   하나를 바꾸면 OS 최근 앱 화면의 제목(`onGenerateTitle`)과 홈 AppBar 제목이 함께
+   바뀐다. 두 곳이 `resolveAppTitle`(`lib/core/l10n/app_title.dart`) 한 함수를
+   쓴다(D-12). 값이 비어 있으면 로케일별 ARB `appTitle` 이다. 게스트 홈은 AppBar
+   오른쪽에 「로그인」 · 설정 아이콘이 있어 280 dp 에서 긴 이름은 한 줄로 말줄임된다.
+
+### ② 화면을 통째로 바꿀 때 — 옮길 배선 체크리스트
+
+`home_screen.dart` 를 다른 화면으로 바꾸거나 `AppRoutes.home` 의 builder 가 다른
+위젯을 띄우게 할 때는 아래 5가지를 새 화면에 옮긴다.
+
+| 배선 | 지금 위치 | 빠뜨리면 생기는 일 |
+|------|-----------|--------------------|
+| 알림 탭 이동 리스너 `PendingNotificationRouteListener` | `lib/features/notifications/presentation/pending_notification_route_listener.dart` · `home_screen.dart` 본문 맨 위 | 알림을 탭해도 대상 화면으로 가지 않는다 — **오류 · 로그 없이 끊긴다.** 저장된 이동 요청을 꺼내 쓰는 곳이 이 위젯 하나다 |
+| 운영 공지 배너 `AnnouncementBar` | `_widgets/announcement_bar.dart` · AppBar 바로 아래(게스트 · 정식 모두) | Remote Config 공지(「Firebase Services」 의 Remote Config Feature Flag)가 어디에도 보이지 않는다 |
+| 게스트 안내 바 `GuestBanner` | `_widgets/guest_banner.dart` · 공지 배너 아래(게스트일 때만) | 게스트에게 가입 안내가 사라진다 |
+| 게스트 「로그인」 버튼 | `home_screen.dart` AppBar `actions`(게스트일 때 `context.push(AppRoutes.login)`) | 게스트가 로그인 화면으로 가는 길이 설정의 「로그인 · 가입」 행 하나만 남는다 |
+| 설정 아이콘 | `home_screen.dart` AppBar `actions`(`context.push(AppRoutes.settings)` · 게스트 포함) | 설정 · 계정 정보 · 알림 받기 · 데모 화면으로 가는 길이 사라진다 |
+
+- **리스너는 위젯 트리에 1개만, 홈 화면에만 둔다.** 종료 상태에서 알림을 탭하면
+  스플래시 → 홈 → 대상 순서로 가는데, 이 순서는 홈이 그려진 뒤 홈의 리스너가 요청을
+  꺼내 쓰기 때문에 성립한다(Phase 17 D-04). 다른 화면에 두면 그 화면이 먼저 요청을
+  꺼내 쓸 수 있어 이 순서가 보장되지 않는다.
+- **테스트가 실수를 잡는다** — `test/features/home/home_listener_source_guard_test.dart`.
+  T-171-HOME-14 는 `lib` 에서 리스너를 만드는 파일이 홈 배선 파일 하나인지 본다
+  (빠뜨리거나 다른 파일에 하나 더 두면 실패). **홈 파일 이름을 바꾸면 이 테스트의
+  `_homeScreenPath` 도 바꾼다.** T-171-HOME-16 은 로그아웃(`signOutAndResetOnboarding()`)
+  을 부르는 파일 집합을 고정한다 — 로그아웃 호출 위치를 늘리거나 옮기면 그 기대
+  집합도 함께 고친다. 홈 화면 테스트(`test/features/home/home_screen_test.dart`)와
+  홈 golden `home_171_guest_announcement_ko_280_{light,dark}.png`
+  (`home_announcement_golden_test.dart`)도 새 화면 기준으로 다시 만든다.
+
+### ③ 데모 화면 — 위치 · 노출 조건 · 지우는 법
+
+- **위치:** `lib/features/demo/presentation/demo_screen.dart`(`DemoScreen` 한 파일) ·
+  경로 `/settings/developer`(`AppRoutes.developerDemo`). 옛 홈(데모)의 개발 · 데모
+  기능이 여기 있다 — 환경 정보 카드 · 날짜 · 숫자 · 복수형 쇼케이스 · 색 · 글꼴 ·
+  간격 쇼케이스 · 보호된 기능 예시 · **계정 디버그 정보**(UID 탭 복사 · 가입 수단 ·
+  연결된 계정 · 프로필 사진 URL 썸네일) · Dev Tools.
+- **노출 조건:**
+  - **release 빌드에는 없다.** 데모 GoRoute 를 `if (!kReleaseMode)` 로만 등록하므로
+    (`lib/core/router/app_router.dart`) release 에서는 그 경로가 404(`NotFoundScreen`)
+    이고, 진입점 2곳도 같은 조건으로 사라진다. 스토어 배포본은 release 로 만든다.
+  - **profile 빌드에서는 열린다.** 실기기 UAT 에서 계정 디버그 정보를 확인 화면으로
+    쓰려는 것이다(Phase 17.1 D-14). profile 빌드를 배포하면 UID · 환경 정보가
+    보이므로 배포에 쓰지 않는다.
+  - **Dev Tools 는 debug 빌드만**(`kDebugMode`) — 온보딩 초기화 · 테스트 오류 ·
+    테스트 Analytics · 테스트 알림 · 강제 로그아웃. ID 토큰 복사도 debug 빌드만이다.
+    profile 데모에서는 보이지 않는다.
+- **진입 2곳:** 설정 맨 아래 「개발자」 묶음의 「개발자 · 데모 화면」 행(게스트 포함 ·
+  `SettingsScreen.showsDemoRow` 기본값 `!kReleaseMode`)과 홈 개발자 안내 카드의
+  「데모 화면 열기」 버튼. 둘 다 데모 위젯을 import 하지 않고 경로 문자열
+  (`context.push(AppRoutes.developerDemo)`)만 쓴다 — release 바이너리에 데모 코드가
+  남지 않게 하려는 것이다. `home_body.dart` 를 바꿔 카드가 사라져도 설정 행은 남는다.
+- **데모에 production 배선을 넣지 않는다.** 데모 화면이 알림 리스너 · 공지 배너 ·
+  라우트 상수 · 테마 provider 를 import 하면 T-171-HOME-15 가 실패한다. 테마 ·
+  언어 바꾸기는 설정 한 곳이다.
+- **게스트 로그아웃은 없다.** 개발 중 처음 상태로 돌리려면 데모 Dev Tools 의 강제
+  로그아웃(debug)을 쓴다. profile · release 빌드의 게스트는 앱 데이터 삭제로만 처음
+  상태가 된다(D-09).
+- **지우는 법(데모를 앱에서 빼기):**
+  1. `app_router.dart` 의 `if (!kReleaseMode) GoRoute(…AppRoutes.developerDemo…)`
+     1개와 `demo_screen.dart` import 를 지운다.
+  2. 진입점 2곳 — `settings_screen.dart` 의 「개발자」 묶음(`showsDemoRow`)과
+     `home_body.dart` 카드의 버튼 — 을 지운다.
+  3. `lib/features/demo/` 폴더를 지운다.
+  4. 테스트를 정리한다 — `test/features/demo/` 3파일 · `app_router_observers_test.dart`
+     의 T-171-ROUTER-02 · 03 과 라우트 개수 단언(비 release 14) ·
+     `home_listener_source_guard_test.dart` 의 T-171-HOME-15 와 T-171-HOME-16 기대
+     집합의 `demo_screen.dart` · 설정 · 홈 본문 테스트의 데모 행 · 카드 단언.
+  5. Dev Tools 의 테스트 알림 버튼이 같이 사라진다. 서버 함수 `sendTestPush` 까지
+     빼려면 「Firebase Services」 「배포 · 콘솔 설정」 ③ 의 「함수 삭제」 를 따른다.
+
+### ④ 알림 탭으로 열 화면 — 허용 목록
+
+- 알림 payload `data.route` 로 열 수 있는 화면은 `kNotificationRoutableRoutes`
+  (`lib/features/notifications/application/notification_route.dart`) **5개**다 —
+  `/`(홈) · `/settings`(설정) · `/settings/account`(계정 정보 · Phase 17.1 D-06) ·
+  `/terms/service` · `/terms/privacy`. 문자열이 정확히 같을 때만 그 화면으로 가고,
+  목록 밖 · 없음 · 외부 URL 은 홈이다(「Firebase Services」 FCM 알림의 「탭 이동」).
+- **새 화면을 더하는 법:** 경로 상수(`AppRoutes`) 1줄을 이 목록에 더하고
+  `test/features/notifications/application/notification_route_test.dart` 의
+  T-17-PUSH-01 기대 Set 에도 1줄 더한다. query · 경로 변수는 쓸 수 없다.
+- **넣지 않는 화면:** 앞 단계 상태 없이 열리면 안 되는 흐름 화면(스플래시 · 온보딩 ·
+  로그인 · 가입 · 이메일 로그인 · 비밀번호 찾기 · 이메일 인증 · 탈퇴 진행)과 release
+  에 없는 데모 경로 `/settings/developer`.
+- **정식 사용자 전용 화면은 guard 로 막는다.** 계정 정보 화면이 선례다 — 게스트가 알림
+  탭 · 딥링크 · 앱 안 이동으로 `/settings/account` 에 오면 `lib/core/router/auth_guard.dart`
+  분기 (3) 이 `/settings` 로 돌린다. 새 정식 전용 화면도 같은 분기에 조건 1개를 더한다.
+
+### 옛 홈(데모)에 있던 것의 지금 위치
+
+| 옛 홈 항목 | 지금 위치 |
+|------------|-----------|
+| 테마 · 언어 바꾸기 | 설정 「일반」 묶음의 테마 · 언어 행(누르면 아래 시트) |
+| 계정 정보(프로필 사진 · 이름 · 이메일 · 가입일 · 가입 수단 · 연결된 계정) · 연결 해제 · 계정 연결 · 로그아웃 · 회원탈퇴 | 설정 → 내 계정(계정 정보 화면 · `lib/features/settings/presentation/account_screen.dart` · `/settings/account`) — 정식 사용자만. 설정 맨 위 계정 행이 유일한 진입점이다 |
+| UID 복사 · 프로필 사진 URL · ID 토큰 복사 · 환경 정보 · 디자인 쇼케이스 · Dev Tools | 데모 화면(위 ③) |
+| 404 화면 | `NotFoundScreen`(`lib/features/not_found/presentation/not_found_screen.dart`) — 요청 경로 · 쿼리는 개인 정보가 섞일 수 있어 그리지 않는다. 404 화면을 바꾸려면 이 파일 하나만 고친다 |
 
 ---
 
