@@ -261,6 +261,11 @@ FutureOr<String?> resolveAuthRedirect(Ref ref, GoRouterState state) {
     if (matchedLocation == AppRoutes.verifyEmail) {
       return AppRoutes.home;
     }
+    // Phase 17.1 D-07 — 게스트에게는 계정 화면이 없다. 직접 진입(딥링크 · 알림 · 앱 안 go)은
+    // 로그인 · 가입 행이 있는 설정으로 보낸다(빈 계정 화면 금지).
+    if (matchedLocation == AppRoutes.account) {
+      return AppRoutes.settings;
+    }
     // (D-C1) 단일 gate: onboardingSeen + termsAccepted 모두 완료 시에만
     // /home 통과. 두 truth 중 하나라도 false 면 trip.
     if ((!onboardingSeen || !termsAccepted) &&

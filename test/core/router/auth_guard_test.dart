@@ -475,6 +475,61 @@ void main() {
         expect(result, AppRoutes.home);
       });
 
+      // Phase 17.1 D-07 — 게스트에게는 계정 화면이 없다. 온보딩 · 약관을 마친
+      // 게스트(D-C1 게이트 통과 상태)로 두어 결과가 새 분기에서만 나오게 한다.
+      test(
+        'T-171-ROUTER-04: 익명 + /settings/account -> /settings (Phase 17.1 D-07)',
+        () async {
+          final container = makeContainer(
+            isInitialized: true,
+            user: anonymousUser(),
+            onboardingSeen: true,
+            termsAcceptance: acceptedTerms(),
+          );
+          addTearDown(container.dispose);
+          when(() => mockState.matchedLocation).thenReturn(AppRoutes.account);
+
+          final result = await _callAuthRedirect(container, mockState);
+          expect(result, AppRoutes.settings);
+        },
+      );
+
+      test(
+        'T-171-ROUTER-05: 정식 + /settings/account -> null (대조군 · 계정 화면 허용)',
+        () async {
+          final container = makeContainer(
+            isInitialized: true,
+            user: regularUser(),
+            onboardingSeen: true,
+            termsAcceptance: acceptedTerms(),
+          );
+          addTearDown(container.dispose);
+          when(() => mockState.matchedLocation).thenReturn(AppRoutes.account);
+
+          final result = await _callAuthRedirect(container, mockState);
+          expect(result, isNull);
+        },
+      );
+
+      test(
+        'T-171-ROUTER-06: 익명 + /settings/developer -> null (대조군 · D-15 데모 게스트 허용)',
+        () async {
+          final container = makeContainer(
+            isInitialized: true,
+            user: anonymousUser(),
+            onboardingSeen: true,
+            termsAcceptance: acceptedTerms(),
+          );
+          addTearDown(container.dispose);
+          when(
+            () => mockState.matchedLocation,
+          ).thenReturn(AppRoutes.developerDemo);
+
+          final result = await _callAuthRedirect(container, mockState);
+          expect(result, isNull);
+        },
+      );
+
       test(
         'Test 13: 미인증 + onboardingSeen=false + /splash -> null (스플래시 진입 허용)',
         () async {
