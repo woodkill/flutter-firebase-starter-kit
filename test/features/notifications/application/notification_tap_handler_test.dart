@@ -27,11 +27,42 @@ import 'package:flutter_starter_kit/features/notifications/application/pending_n
 import 'package:flutter_starter_kit/features/notifications/data/local_notifications_service.dart';
 import 'package:flutter_starter_kit/features/notifications/data/messaging_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import '../notification_test_fakes.dart';
 
 class _MockPlugin extends Mock implements FlutterLocalNotificationsPlugin {}
+
+/// 쓰기만 실패하는 SharedPreferences 스토어 (quick 261003-cti fail-open 재현용).
+///
+/// `setMockInitialValues` 의 in-memory 스토어는 쓰기가 항상 성공해서 기록
+/// 실패 경로를 재현할 수 없다. 읽기 · 삭제는 정상이고 `setValue` 만 던진다.
+class _WriteFailingPrefsStore extends SharedPreferencesStorePlatform {
+  final Map<String, Object> _values = <String, Object>{};
+
+  @override
+  Future<bool> clear() async {
+    _values.clear();
+    return true;
+  }
+
+  @override
+  Future<Map<String, Object>> getAll() async => Map<String, Object>.of(_values);
+
+  @override
+  Future<bool> remove(String key) async {
+    _values.remove(key);
+    return true;
+  }
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    throw StateError('prefs write failed (261003-cti 재현)');
+  }
+}
 
 /// 탭 핸들러를 깨운 container 와 fake 묶음.
 typedef _Harness = ({
@@ -88,17 +119,60 @@ _Harness _startHandler({
   return h;
 }
 
-/// route [route] 를 실은 알림 메시지.
-RemoteMessage _routeMessage(String? route) => buildRemoteMessage(
-  title: 'T',
-  body: 'B',
-  data: <String, dynamic>{'route': ?route},
-);
+/// route [route] 를 실은 알림 메시지 — [messageId] 는 재생 방지 테스트용.
+RemoteMessage _routeMessage(String? route, {String? messageId}) =>
+    buildRemoteMessage(
+      title: 'T',
+      body: 'B',
+      data: <String, dynamic>{'route': ?route},
+      messageId: messageId,
+    );
+
+/// 처리한 초기 메시지 id 기록을 저장소에서 읽는다 (없으면 null).
+Future<List<String>?> _readHandledIds() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getStringList(kNotificationsHandledInitialMessageIdsKey);
+}
+
+/// 처리한 초기 메시지 id 기록 [ids] 를 저장소에 시드한다.
+void _seedHandledIds(List<String> ids) {
+  SharedPreferences.setMockInitialValues(<String, Object>{
+    kNotificationsHandledInitialMessageIdsKey: ids,
+  });
+}
+
+/// [router] 로 스플래시에서 시작하는 「프로세스」 1회를 띄우고 홈으로 보낸 뒤
+/// 그 harness 를 돌려준다 — 같은 저장소로 여러 번 부르면 최근 앱 복원을
+/// 흉내 낸다.
+Future<_Harness> _runSplashProcess(
+  WidgetTester tester,
+  RemoteMessage initialMessage,
+  GoRouter router,
+) async {
+  final h = _buildHarness(initialMessage: initialMessage);
+  h.container.listen(notificationTapHandlerProvider, (previous, next) {});
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: h.container,
+      child: MaterialApp.router(routerConfig: router),
+    ),
+  );
+  await tester.pumpAndSettle();
+  expect(find.text(kTestSplashLabel), findsOneWidget);
+
+  router.go('/');
+  await tester.pumpAndSettle();
+  return h;
+}
 
 void main() {
   setUpAll(() {
     registerFallbackValue(const NotificationDetails());
   });
+
+  // 매 테스트 빈 저장소로 시작한다 (처리한 초기 메시지 id 기록 격리).
+  setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
   tearDown(() => debugDefaultTargetPlatformOverride = null);
 
@@ -379,6 +453,115 @@ void main() {
         service.showRemote(title: 'T', body: 'B', route: null),
         completes,
       );
+    });
+  });
+
+  group('quick 261003-cti 초기 메시지 재생 방지', () {
+    test('이미 기록된 messageId 의 초기 메시지 → pending null · 로컬 launch '
+        '조회 0 · 기록 그대로', () async {
+      _seedHandledIds(<String>['msg-a']);
+      final h = _startHandler(
+        initialMessage: _routeMessage('/settings', messageId: 'msg-a'),
+      );
+      await pumpEventQueue();
+
+      expect(h.container.read(pendingNotificationRouteProvider), isNull);
+      expect(h.messaging.initialMessageCalls, 1);
+      expect(h.local.launchPayloadCalls, 0);
+      expect(await _readHandledIds(), <String>['msg-a']);
+    });
+
+    test('처음 보는 messageId → pending /settings · 기록 끝에 추가', () async {
+      _seedHandledIds(<String>['msg-a']);
+      final h = _startHandler(
+        initialMessage: _routeMessage('/settings', messageId: 'msg-b'),
+      );
+      await pumpEventQueue();
+
+      expect(h.container.read(pendingNotificationRouteProvider), '/settings');
+      expect(await _readHandledIds(), <String>['msg-a', 'msg-b']);
+    });
+
+    testWidgets('같은 저장소로 프로세스 2회 — 1회째는 /settings 이동 · '
+        '2회째(최근 앱 복원 재생)는 홈에 머문다', (tester) async {
+      final message = _routeMessage('/settings', messageId: 'msg-a');
+
+      final firstRouter = buildNotificationTestRouter(
+        initialLocation: '/splash',
+      );
+      addTearDown(firstRouter.dispose);
+      await _runSplashProcess(tester, message, firstRouter);
+
+      expect(firstRouter.state.uri.path, '/settings');
+      expect(find.text(kTestSettingsLabel), findsOneWidget);
+
+      // 새 프로세스 — 메모리 캐시만 버리고 디스크(스토어)는 그대로 둔다.
+      SharedPreferences.resetStatic();
+      final secondRouter = buildNotificationTestRouter(
+        initialLocation: '/splash',
+      );
+      addTearDown(secondRouter.dispose);
+      final second = await _runSplashProcess(tester, message, secondRouter);
+
+      expect(secondRouter.state.uri.path, '/');
+      expect(find.text(kTestHomeLabel), findsOneWidget);
+      expect(second.container.read(pendingNotificationRouteProvider), isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    test('messageId null → 기록 없이 pending /settings', () async {
+      final h = _startHandler(initialMessage: _routeMessage('/settings'));
+      await pumpEventQueue();
+
+      expect(h.container.read(pendingNotificationRouteProvider), '/settings');
+      expect(await _readHandledIds(), isNull);
+    });
+
+    test('messageId 빈 문자열 → 기록 없이 pending /settings', () async {
+      final h = _startHandler(
+        initialMessage: _routeMessage('/settings', messageId: ''),
+      );
+      await pumpEventQueue();
+
+      expect(h.container.read(pendingNotificationRouteProvider), '/settings');
+      expect(await _readHandledIds(), isNull);
+    });
+
+    test('기록 쓰기 실패 → 이동 유지(pending /settings) · throw 0', () async {
+      final originalStore = SharedPreferencesStorePlatform.instance;
+      SharedPreferencesStorePlatform.instance = _WriteFailingPrefsStore();
+      SharedPreferences.resetStatic();
+      addTearDown(() {
+        SharedPreferencesStorePlatform.instance = originalStore;
+        SharedPreferences.resetStatic();
+      });
+
+      final h = _startHandler(
+        initialMessage: _routeMessage('/settings', messageId: 'msg-a'),
+      );
+      await pumpEventQueue();
+
+      expect(h.container.read(pendingNotificationRouteProvider), '/settings');
+    });
+
+    test('기록이 상한(100)이면 가장 오래된 id 를 밀어내고 새 id 를 끝에 '
+        '붙인다', () async {
+      _seedHandledIds(
+        List<String>.generate(
+          kNotificationsHandledInitialMessageIdsLimit,
+          (index) => 'msg-$index',
+        ),
+      );
+      final h = _startHandler(
+        initialMessage: _routeMessage('/settings', messageId: 'msg-new'),
+      );
+      await pumpEventQueue();
+
+      expect(h.container.read(pendingNotificationRouteProvider), '/settings');
+      final ids = await _readHandledIds();
+      expect(ids, hasLength(kNotificationsHandledInitialMessageIdsLimit));
+      expect(ids!.first, 'msg-1');
+      expect(ids.last, 'msg-new');
     });
   });
 }

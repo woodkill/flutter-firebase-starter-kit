@@ -140,11 +140,15 @@ class FakeLocalNotificationsService implements LocalNotificationsService {
 }
 
 /// 알림 제목 · 본문 · data 로 [RemoteMessage] 를 만든다.
+///
+/// [messageId] 는 초기 메시지 재생 방지 테스트용이다(기본 null — id 없음).
 RemoteMessage buildRemoteMessage({
   String? title,
   String? body,
   Map<String, dynamic> data = const <String, dynamic>{},
+  String? messageId,
 }) => RemoteMessage(
+  messageId: messageId,
   notification: title == null && body == null
       ? null
       : RemoteNotification(title: title, body: body),
