@@ -6,6 +6,14 @@
 //   게스트 그룹(T-171-SETTINGS)만 남는다 — 설정 고유 단언(AppBar 제목 · 말단
 //   스크롤 · 3버튼 내비 hit-test · heading)은 plan 09 T-171-SETTINGS-17 이 최종
 //   설정 화면에서 다시 잠근다.
+// Phase 17.1 Plan 17.1-09 Task 1 — 설정 「내 계정」 사본을 지우고(copy → move
+//   완료 · D-02) 정식 · 게스트를 한 목록(계정 행 · 일반 · 알림 · 개발자)으로
+//   합쳤다. T-171-SETTINGS-11~13(정식 구성 · 계정 행 push · 같은 목록의 알림
+//   분기) · T-171-SETTINGS-17(옛 SS1 AppBar 제목 · SS8 360dp 말단 스크롤 · SS10
+//   3버튼 내비 hit-test + SafeArea geometry · SS11 heading 계약을 최종 설정
+//   화면에서 다시 잠금 — 말단 행 = non-release 테스트 VM 의 데모 행) · T-17-NOTIF-12
+//   의 위치 단언을 「알림 섹션이 일반 섹션 아래 · 개발자 위」 로 고쳤다(옛 단언 =
+//   계정 연결 아래 · Danger zone 위 — 두 섹션은 계정 화면으로 옮겨 갔다).
 //
 // Phase 16 Plan 16-06 Task 6.2 — SettingsScreen widget test (SS1~SS4).
 // Phase 16 Plan 16-11 Task 2 — AccountLinkingSection 삽입 + 회귀 가드 (SS5~SS9).
@@ -151,7 +159,6 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/acco
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/danger_zone_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/notifications_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/profile_photo_tile.dart';
-import 'package:flutter_starter_kit/features/settings/presentation/_widgets/withdrawal_confirmation_dialog.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
@@ -172,11 +179,13 @@ User _testUser({
   List<String> providerIds = const <String>['password'],
   String? email = 'me@example.com',
   String? signUpProviderId,
+  String? displayName,
 }) {
   return User(
     uid: 'uid-1',
     email: email,
     emailVerified: true,
+    displayName: displayName,
     createdAt: DateTime.utc(2026, 1, 1),
     providerIds: providerIds,
     signUpProviderId: signUpProviderId,
@@ -256,10 +265,7 @@ Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
 ///
 /// - `authStateProvider` = 익명 mock(`isAnonymous` true) data — 설정 화면의
 ///   게스트 판정 입력 (RESEARCH Pitfall 6).
-/// - 테마 = 실 notifier + 빈 SharedPreferences(→ 시스템) · 언어 = 실 notifier
-///   (초기값만 [locale] 로 고정) — 시트 저장이 실제 저장 경로를 탄다.
-/// - `MaterialApp.locale` 을 `localeProvider` 에 묶는다(앱 `app.dart` 와 같게).
-/// - `/login` · 데모 경로는 stub 화면.
+/// - 나머지 조건은 [_pumpRoutedSettings] 와 같다.
 ///
 /// [screen] 으로 설정 화면 생성 방식을, [extraOverrides] 로 상태 override 를
 /// 바꾼다.
@@ -268,11 +274,58 @@ Future<ProviderContainer> _pumpGuestSettings(
   Locale locale = const Locale('ko'),
   Widget screen = const SettingsScreen(),
   List<Override> extraOverrides = const <Override>[],
+}) {
+  return _pumpRoutedSettings(
+    tester,
+    isAnonymous: true,
+    user: null,
+    locale: locale,
+    screen: screen,
+    extraOverrides: extraOverrides,
+  );
+}
+
+/// 정식(비익명) 설정 화면을 GoRouter 안에서 pump 하고 provider container 를
+/// 돌려준다 (Phase 17.1 T-171-SETTINGS-11~17).
+///
+/// `authStateProvider` = 비익명 mock data · `currentUserProvider` = [user] ·
+/// 알림 설정 = 꺼짐 고정. 나머지 조건은 [_pumpRoutedSettings] 와 같다.
+Future<ProviderContainer> _pumpMemberSettings(
+  WidgetTester tester, {
+  required User? user,
+  Locale locale = const Locale('ko'),
+  Widget screen = const SettingsScreen(),
+}) {
+  return _pumpRoutedSettings(
+    tester,
+    isAnonymous: false,
+    user: user,
+    locale: locale,
+    screen: screen,
+  );
+}
+
+/// 설정 화면을 GoRouter 안에서 pump 하고 provider container 를 돌려준다.
+///
+/// - `authStateProvider` = [isAnonymous] 를 돌려주는 Firebase 사용자 mock data —
+///   설정 화면의 게스트 판정 입력. `currentUserProvider` = [user].
+/// - 알림 설정 = 꺼짐 고정(`AsyncData(false)` · 게스트는 읽지 않는다).
+/// - 테마 = 실 notifier + 빈 SharedPreferences(→ 시스템) · 언어 = 실 notifier
+///   (초기값만 [locale] 로 고정) — 시트 저장이 실제 저장 경로를 탄다.
+/// - `MaterialApp.locale` 을 `localeProvider` 에 묶는다(앱 `app.dart` 와 같게).
+/// - `/login` · 계정 화면 · 데모 경로는 stub 화면.
+Future<ProviderContainer> _pumpRoutedSettings(
+  WidgetTester tester, {
+  required bool isAnonymous,
+  required User? user,
+  required Locale locale,
+  required Widget screen,
+  List<Override> extraOverrides = const <Override>[],
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
-  final anon = _MockFbUser();
-  when(() => anon.isAnonymous).thenReturn(true);
-  when(() => anon.uid).thenReturn('anon-uid');
+  final authUser = _MockFbUser();
+  when(() => authUser.isAnonymous).thenReturn(isAnonymous);
+  when(() => authUser.uid).thenReturn(user?.uid ?? 'anon-uid');
 
   final router = GoRouter(
     initialLocation: AppRoutes.home,
@@ -281,6 +334,11 @@ Future<ProviderContainer> _pumpGuestSettings(
       GoRoute(
         path: AppRoutes.login,
         builder: (context, state) => const Scaffold(body: Text('LOGIN ROUTE')),
+      ),
+      GoRoute(
+        path: AppRoutes.account,
+        builder: (context, state) =>
+            const Scaffold(body: Text('ACCOUNT ROUTE')),
       ),
       GoRoute(
         path: AppRoutes.developerDemo,
@@ -295,10 +353,13 @@ Future<ProviderContainer> _pumpGuestSettings(
       // 테마 build 실패 케이스(T-171-SETTINGS-08)가 재시도 타이머를 남기지 않게.
       retry: (retryCount, error) => null,
       overrides: [
-        // 첫 프레임부터 익명 data — 실 앱은 authState(keepAlive)가 설정 진입 전에
+        // 첫 프레임부터 data — 실 앱은 authState(keepAlive)가 설정 진입 전에
         // 이미 값을 가진다.
-        authStateProvider.overrideWithValue(AsyncData(anon)),
-        currentUserProvider.overrideWith((ref) => null),
+        authStateProvider.overrideWithValue(AsyncData(authUser)),
+        currentUserProvider.overrideWith((ref) => user),
+        notificationSettingsProvider.overrideWithBuild(
+          (ref, notifier) => false,
+        ),
         localeProvider.overrideWithBuild((ref, notifier) => locale),
         ...extraOverrides,
       ],
@@ -361,8 +422,14 @@ T? _sheetGroupValue<T>(WidgetTester tester) =>
 
 void main() {
   group('Phase 17 알림 섹션 회귀 (T-17-NOTIF-12)', () {
-    testWidgets('T-17-NOTIF-12: 꺼짐 고정 override — 알림 섹션(꺼짐)이 계정 연결 '
-        '아래 · Danger zone 위 · 회원탈퇴 탭 경로 회귀 0', (tester) async {
+    // Phase 17.1 Plan 17.1-09 (D-22) — 옛 위치 단언(계정 연결 아래 · Danger zone
+    // 위 · 회원탈퇴 탭 경로)은 두 섹션이 계정 화면으로 옮겨 가(D-02) 「알림
+    // 섹션이 일반 섹션(언어 행) 아래 · 개발자 위」 로 고쳤다. 꺼짐 고정 override
+    // 로 섹션이 꺼짐 렌더되는 의도는 그대로다. 회원탈퇴 탭 경로는
+    // account_screen_test(SS3 · SS10)가 잠근다.
+    testWidgets('T-17-NOTIF-12: 꺼짐 고정 override — 알림 섹션(꺼짐)이 일반 '
+        '섹션(언어 행) 아래 · 개발자 위', (tester) async {
+      final en = lookupAppLocalizations(const Locale('en'));
       await _pumpSettingsScreen(
         tester,
         user: _testUser(
@@ -372,24 +439,256 @@ void main() {
       );
 
       final section = find.byType(NotificationsSection);
-      await _scrollTo(tester, find.byType(DangerZoneSection));
+      await _scrollTo(tester, find.text(en.settingsDeveloperSection));
       final toggle = tester.widget<SwitchListTile>(
         find.descendant(of: section, matching: find.byType(SwitchListTile)),
       );
       expect(toggle.value, isFalse);
       expect(toggle.onChanged, isNotNull);
 
-      final linkingY = tester.getTopLeft(find.byType(AccountLinkingSection)).dy;
+      final generalY = tester
+          .getTopLeft(find.text(en.settingsGeneralSection))
+          .dy;
+      final languageY = tester.getTopLeft(find.text(en.settingsLanguage)).dy;
       final sectionY = tester.getTopLeft(section).dy;
-      final dangerY = tester.getTopLeft(find.byType(DangerZoneSection)).dy;
-      expect(linkingY, lessThan(sectionY));
-      expect(sectionY, lessThan(dangerY));
-
-      await _scrollTo(tester, find.byType(DangerZoneSection));
-      await tester.tap(find.text('Delete account').last);
-      await tester.pumpAndSettle();
-      expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
+      final developerY = tester
+          .getTopLeft(find.text(en.settingsDeveloperSection))
+          .dy;
+      expect(generalY, lessThan(languageY));
+      expect(languageY, lessThan(sectionY));
+      expect(sectionY, lessThan(developerY));
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Phase 17.1 설정 정식 (T-171-SETTINGS-11~13 · 17)', () {
+    final ko = lookupAppLocalizations(const Locale('ko'));
+    final en = lookupAppLocalizations(const Locale('en'));
+
+    testWidgets('T-171-SETTINGS-11: 정식 — 계정 행(「내 계정」 + 이름) · 일반(테마 · '
+        '언어) · 알림 · 개발자 데모 행 순서 · 계정 상세 · 계정 연결 · Danger zone 0 '
+        '(D-02 · E3 populated)', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
+      // 연결 가능 provider 6 — 옛 트리였다면 계정 연결 섹션이 보였을 fixture.
+      await _pumpMemberSettings(tester, user: _testUser(displayName: '홍길동'));
+
+      expect(find.text(ko.settingsAccountSection), findsOneWidget);
+      expect(find.text('홍길동'), findsOneWidget);
+      expect(find.text(ko.settingsGeneralSection), findsOneWidget);
+      expect(find.text(ko.settingsThemeSystem), findsOneWidget);
+      expect(find.text('한국어'), findsOneWidget);
+      expect(find.byType(NotificationsSection), findsOneWidget);
+      expect(find.text(ko.settingsDeveloperSection), findsOneWidget);
+      expect(find.text(ko.demoScreenTitle), findsOneWidget);
+
+      // 계정 상세는 계정 화면으로 옮겨 갔다 (D-02 — copy → move 완료).
+      expect(find.byType(ProfilePhotoTile), findsNothing);
+      expect(find.text(ko.authAccountEmail), findsNothing);
+      expect(find.textContaining('me@example.com'), findsNothing);
+      expect(find.text(ko.authAccountSignUpMethod), findsNothing);
+      expect(find.text(ko.authAccountLinkedAccounts), findsNothing);
+      expect(find.byType(AccountLinkingSection), findsNothing);
+      expect(find.byType(DangerZoneSection), findsNothing);
+      expect(find.text(ko.settingsGuestLabel), findsNothing);
+
+      // 배치 순서 — 계정 행 → 일반 → 테마 → 언어 → 알림 → 개발자 → 데모 행.
+      final ys = [
+        tester.getTopLeft(find.text(ko.settingsAccountSection)).dy,
+        tester.getTopLeft(find.text(ko.settingsGeneralSection)).dy,
+        tester.getTopLeft(find.text(ko.settingsTheme)).dy,
+        tester.getTopLeft(find.text(ko.settingsLanguage)).dy,
+        tester.getTopLeft(find.byType(NotificationsSection)).dy,
+        tester.getTopLeft(find.text(ko.settingsDeveloperSection)).dy,
+        tester.getTopLeft(find.text(ko.demoScreenTitle)).dy,
+      ];
+      for (var i = 1; i < ys.length; i++) {
+        expect(ys[i - 1], lessThan(ys[i]));
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-171-SETTINGS-12: 계정 행 탭 → 계정 화면 경로 push · 병합 '
+        'label 「내 계정\\n이름」 (D-03)', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpMemberSettings(tester, user: _testUser(displayName: '홍길동'));
+
+      expect(
+        find.bySemanticsLabel('${ko.settingsAccountSection}\n홍길동'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('홍길동'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ACCOUNT ROUTE'), findsOneWidget);
+      handle.dispose();
+    });
+
+    for (final (name, user, expected) in <(String, User, String)>[
+      ('이름 없음 → 이메일', _testUser(), 'me@example.com'),
+      ('이름 · 이메일 없음 → 「-」', _testUser(email: null), '-'),
+    ]) {
+      testWidgets('T-171-SETTINGS-12: 계정 행 값 $name (UI-SPEC §(S))', (
+        tester,
+      ) async {
+        await _pumpMemberSettings(tester, user: user);
+
+        final row = find.ancestor(
+          of: find.text(ko.settingsAccountSection),
+          matching: find.byType(ListTile),
+        );
+        expect(
+          find.descendant(of: row, matching: find.text(expected)),
+          findsOneWidget,
+        );
+      });
+    }
+
+    for (final isAnonymous in const [true, false]) {
+      final who = isAnonymous ? '게스트' : '정식';
+      testWidgets('T-171-SETTINGS-13: 같은 목록 — $who 알림 섹션 '
+          '${isAnonymous ? 0 : 1} · 일반(테마 · 언어) 공통 (D-07)', (tester) async {
+        _useViewport(tester, const Size(800, 2000));
+        if (isAnonymous) {
+          await _pumpGuestSettings(tester);
+        } else {
+          await _pumpMemberSettings(tester, user: _testUser());
+        }
+
+        expect(
+          find.byType(NotificationsSection),
+          isAnonymous ? findsNothing : findsOneWidget,
+        );
+        expect(find.text(ko.settingsGeneralSection), findsOneWidget);
+        expect(find.text(ko.settingsTheme), findsOneWidget);
+        expect(find.text(ko.settingsLanguage), findsOneWidget);
+        expect(find.text(ko.demoScreenTitle), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('T-171-SETTINGS-17 ① (옛 SS1): 설정 AppBar 제목 「Settings」', (
+      tester,
+    ) async {
+      await _pumpMemberSettings(
+        tester,
+        user: _testUser(displayName: 'Jane Doe'),
+        locale: const Locale('en'),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text(en.settingsTitle),
+        ),
+        findsOneWidget,
+      );
+      expect(en.settingsTitle, 'Settings');
+    });
+
+    testWidgets('T-171-SETTINGS-17 ② (옛 SS8): 360dp — 스크롤로 말단 행(데모 행) '
+        '도달 · hit-test 가능', (tester) async {
+      _useViewport(tester, const Size(360, 640));
+      await _pumpMemberSettings(
+        tester,
+        user: _testUser(displayName: 'Jane Doe'),
+        locale: const Locale('en'),
+      );
+
+      await _scrollTo(tester, find.text(en.demoScreenTitle));
+      expect(find.text(en.demoScreenTitle).hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('T-171-SETTINGS-17 ③ (옛 SS10): 3버튼 내비 48dp viewPadding — '
+        '말단 행 hit-test 가능 + SafeArea geometry 회귀 가드 (G-16-A6-1)', (
+      tester,
+    ) async {
+      // 옛 SS10 과 같은 관측량 — 위젯 테스트에는 시스템 내비게이션 바라는 실제
+      // occluder 가 없어 tap 만으로는 SafeArea 유무를 구분하지 못한다. 끝까지
+      // 스크롤한 뒤 말단 행 bottom 이 `화면 높이 − inset` 이하인지가 신호다.
+      const double screenHeight = 640;
+      const double bottomInset = 48; // 3버튼 내비게이션 상당.
+      const double safeBottom = screenHeight - bottomInset; // 592.0
+
+      _useViewport(tester, const Size(360, screenHeight));
+      // SafeArea 가 읽는 것은 MediaQuery.paddingOf 이므로 viewPadding 과
+      // padding 을 **둘 다** 설정해야 inset 이 실제로 반영된다.
+      tester.view.viewPadding = const FakeViewPadding(bottom: bottomInset);
+      tester.view.padding = const FakeViewPadding(bottom: bottomInset);
+      addTearDown(tester.view.resetViewPadding);
+      addTearDown(tester.view.resetPadding);
+
+      await _pumpMemberSettings(
+        tester,
+        user: _testUser(displayName: 'Jane Doe'),
+        locale: const Locale('en'),
+      );
+
+      // 전제 — 목록이 viewport 를 넘어야 「끝까지 스크롤한 상태」 가 성립한다.
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(scrollable.position.maxScrollExtent, greaterThan(0));
+
+      await _scrollTo(tester, find.text(en.demoScreenTitle));
+      await tester.drag(find.byType(ListView), const Offset(0, -2000));
+      await tester.pumpAndSettle();
+
+      final lastTile = find
+          .ancestor(
+            of: find.text(en.demoScreenTitle),
+            matching: find.byType(ListTile),
+          )
+          .hitTestable();
+
+      // (a) hit-test 가능 — inset 아래에서도 실제로 탭 대상이 된다.
+      expect(lastTile, findsOneWidget);
+
+      // (b) geometry — SafeArea 제거 시 실패하는 유일한 관측량.
+      expect(
+        tester.getRect(lastTile).bottom,
+        lessThanOrEqualTo(safeBottom),
+        reason:
+            '말단 행(데모 행)의 bottom 이 $safeBottom (= 화면 높이 $screenHeight '
+            '− 하단 system inset $bottomInset) 을 넘으면 실 단말의 3버튼 '
+            '내비게이션 바에 가려져 탭 불가가 된다. 이 단언은 '
+            'settings_screen.dart 의 `body: SafeArea(...)` (`3674ec3`, '
+            'G-16-A6-1) 가 제거되면 실패하는 유일한 관측량이다.',
+      );
+
+      // (c) 진입 path — 탭이 실제로 데모 경로를 연다.
+      await tester.tap(lastTile);
+      await tester.pumpAndSettle();
+      expect(find.text('DEMO ROUTE'), findsOneWidget);
+    });
+
+    testWidgets('T-171-SETTINGS-17 ④ (옛 SS11): 묶음 제목 「일반」 · 「개발자」 '
+        '— label 계열 role + onSurfaceVariant', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
+      await _pumpMemberSettings(
+        tester,
+        user: _testUser(displayName: 'Jane Doe'),
+        locale: const Locale('en'),
+      );
+
+      final theme = Theme.of(tester.element(find.byType(SettingsScreen)));
+      final headingRole = theme.textTheme.labelMedium;
+      for (final label in [
+        en.settingsGeneralSection,
+        en.settingsDeveloperSection,
+      ]) {
+        final heading = tester.widget<Text>(find.text(label));
+        expect(heading.style?.fontSize, equals(headingRole?.fontSize));
+        expect(heading.style?.fontWeight, equals(headingRole?.fontWeight));
+        expect(
+          heading.style?.color,
+          equals(theme.colorScheme.onSurfaceVariant),
+        );
+      }
     });
   });
 

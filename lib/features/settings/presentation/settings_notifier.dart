@@ -159,7 +159,8 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///
   /// **WR-04 / 10-REVIEW WR-02 (ref-disposed guard):** 본 Notifier 는
   /// auto-dispose `@riverpod` 이며, OAuth/callable round-trip 진행 중 사용자가
-  /// SettingsScreen 을 pop 하면 disposed 될 수 있다. 진행 플래그 핸들
+  /// 계정 정보 화면(`AccountScreen` · Phase 17.1 D-02 — 계정 연결 섹션이 설정에서
+  /// 옮겨 감)을 pop 하면 disposed 될 수 있다. 진행 플래그 핸들
   /// ([accountLinkInProgressProvider] notifier) 과 repository 핸들을 진입
   /// 시점에 캡처해 두면, dispose 이후에도 `finally` 의 `end()` 가 도달해
   /// 오버레이가 `true` 로 고착되지 않는다 (플래그 provider 는 keepAlive).

@@ -56,6 +56,14 @@
 // 줄바꿈 · 가입 수단 값 가드 그룹을 `account_screen_golden_test.dart` 로
 // 이전했다. 이 파일에는 설정 worst(T-17-PHOTO-08 — plan 09 가 대체) · 게스트
 // golden 만 남는다.
+//
+// **Phase 17.1 (Plan 17.1-09 Task 1):** 설정 「내 계정」 사본이 지워지고(D-02 ·
+// copy → move 완료) 정식 설정이 계정 행 · 일반 · 알림 · 개발자 목록이 되어,
+// worst 2장(`settings_screen_ko_280_worst_*`)을 정식 golden
+// `goldens/settings_171_member_ko_280_{light,dark}.png`(T-171-SETTINGS-golden-member
+// · W5 · 사진 없음 · 알림 꺼짐 · 테마 시스템)로 대체했다. 채택안
+// `mockups/adopted_settings_member_ko_280_{light,dark}.png` 와 byte 동일해야
+// 한다 (D-23 · UI-SPEC Q9-A). 게스트 golden 은 byte 불변.
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -67,7 +75,6 @@ import 'package:flutter_starter_kit/core/providers/theme_provider.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
-import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -127,20 +134,21 @@ User _fixtureUser(
   );
 }
 
-/// 사진 출처 stream fixture — 업로드 사진 없음 (UI-SPEC §Golden 캡처 계약 ·
-/// 채택안 조건 「사진 없음」).
-const UserProviderRecord _kNoPhotoRecord = (
-  linkedProviderIds: <String>[],
-  signUpProviderId: null,
-  customPhotoUrl: null,
-);
+/// 정식(비익명) Firebase 사용자 mock — 설정 화면 게스트 판정 입력 (Phase 17.1).
+_MockFbUser _memberAuthUser(String uid) {
+  final member = _MockFbUser();
+  when(() => member.isAnonymous).thenReturn(false);
+  when(() => member.uid).thenReturn(uid);
+  return member;
+}
 
-/// 빈 [Scaffold] 위에 production [SettingsScreen] 을 push 해 [width]×800 ·
+/// 빈 [Scaffold] 위에 production 정식 [SettingsScreen] 을 push 해 [width]×800 ·
 /// DPR 3 viewport 에 올린다 ([pumpGoldenRoute] 위임).
 ///
-/// override 는 UI-SPEC §Golden 캡처 계약 S 열 — repository mock · 활성
-/// strategy 6 · 사용자 fixture · 사진 출처 stream(업로드 사진 없음 · Phase 17).
-Future<void> _pumpSettingsScreen(
+/// override 는 UI-SPEC §Golden 캡처 계약 「설정 정식」 — repository mock · 활성
+/// strategy 6 · 정식 `authStateProvider`(`isAnonymous` false) · 사용자 fixture ·
+/// 테마 시스템 · 언어 [locale] 고정(알림 꺼짐은 harness 고정).
+Future<void> _pumpMemberSettingsScreen(
   WidgetTester tester, {
   required User user,
   required Locale locale,
@@ -153,13 +161,13 @@ Future<void> _pumpSettingsScreen(
     overrides: [
       authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
       activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),
+      // 첫 프레임부터 정식 data — 설정 진입 전 authState 가 값을 가진 실 앱과
+      // 같다.
+      authStateProvider.overrideWithValue(AsyncData(_memberAuthUser(user.uid))),
       currentUserProvider.overrideWith((ref) => user),
-      // Phase 17 (UI-SPEC §Golden 캡처 계약) — 사진 행의 사진 출처 stream 을
-      // data(업로드 사진 없음)로 고정한다. 네트워크 사진 비결정성 회피 ·
-      // 미초기화 Firestore 무접촉.
-      linkedProvidersStreamProvider(
-        user.uid,
-      ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
+      // 결정성 — 테마 값 「시스템」 · 언어 값은 [locale] 의 endonym.
+      themeProvider.overrideWithBuild((ref, notifier) => ThemeMode.system),
+      localeProvider.overrideWithBuild((ref, notifier) => locale),
     ],
     locale: locale,
     brightness: brightness,
@@ -172,18 +180,20 @@ void main() {
     await loadGoldenFonts();
   });
 
-  // Phase 17 T-17-PHOTO-08 — W5 fixture + 사진 없음(record data · customPhotoUrl ·
-  // photoUrl null) + 알림 꺼짐으로 그린 golden 2장이 채택안
-  // `mockups/adopted_settings_17_ko_280_worst_{light,dark}.png` 와 byte 동일하다는
-  // 계약 이름이다(대조 = plan 17-17 Task 3 `cmp` · 채택안 파일은 test 에서 읽지
-  // 않는다 — public 배포본에는 `.planning/` 이 없다).
-  group('T-17-PHOTO-08: 설정 화면 golden — ko 280×800 W5 · 사진 없음 · 알림 꺼짐 '
-      '= 채택안 byte 동일 (Phase 16.8 D-07 · D-14 · Phase 17)', () {
+  // Phase 17.1 D-23 · UI-SPEC Q9-A — 정식 설정 golden 2장이 채택안
+  // `mockups/adopted_settings_member_ko_280_{light,dark}.png` 와 byte 동일하다는
+  // 계약 이름이다(대조 = plan 17.1-09 Task 1 `cmp` · 채택안 파일은 test 에서
+  // 읽지 않는다). 옛 T-17-PHOTO-08 worst 2장(`settings_screen_ko_280_worst_*`)을
+  // 대체한다 — 「내 계정」 상세가 계정 화면으로 옮겨 갔다(D-02).
+  group('Phase 17.1 설정 정식 golden (T-171-SETTINGS-golden-member) — W5 · '
+      '사진 없음 · 알림 꺼짐 · 테마 시스템 · ko 280×800 · non-release', () {
     for (final brightness in Brightness.values) {
       final mode = brightness.name;
 
-      testWidgets('golden ko 280 worst — $mode', (tester) async {
-        await _pumpSettingsScreen(
+      testWidgets('T-171-SETTINGS-golden-member: ko 280 — $mode', (
+        tester,
+      ) async {
+        await _pumpMemberSettingsScreen(
           tester,
           user: _fixtureUser(
             'ko',
@@ -194,9 +204,6 @@ void main() {
           brightness: brightness,
           width: 280,
         );
-        // W5 — 연결 가능 provider 전부 보유 · 「계정 연결」 section 은 숨는다.
-        final l10n = lookupAppLocalizations(const Locale('ko'));
-        expect(find.text(l10n.settingsAccountLinkingSection), findsNothing);
         expect(
           tester.takeException(),
           isNull,
@@ -204,7 +211,7 @@ void main() {
         );
         await expectLater(
           find.byType(MaterialApp),
-          matchesGoldenFile('goldens/settings_screen_ko_280_worst_$mode.png'),
+          matchesGoldenFile('goldens/settings_171_member_ko_280_$mode.png'),
         );
       });
     }

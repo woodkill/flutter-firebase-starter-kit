@@ -12,6 +12,11 @@
 // Phase 17.1 Plan 17.1-04 — T-171-SETTINGS-09 (D-07 · 17 D-02 정정): 게스트
 // (익명 `authStateProvider`)의 설정 화면에는 알림 섹션 · 스위치가 없고 알림
 // 설정 notifier 도 읽지 않는다.
+//
+// Phase 17.1 Plan 17.1-09 (D-02 · D-22) — 계정 연결 · Danger zone 이 계정 정보
+// 화면으로 옮겨 가 정식 설정은 계정 행 · 일반 · 알림 · 개발자 목록이 됐다.
+// T-17-NOTIF-05 의 위치 단언(옛 = 계정 연결 아래 · Danger zone 위)을 「일반
+// 섹션(언어 행) 아래 · 개발자 heading 위」 로 고쳤다(의도 = 섹션 배치 잠금 유지).
 
 import 'dart:async';
 
@@ -26,8 +31,6 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
-import 'package:flutter_starter_kit/features/settings/presentation/_widgets/account_linking_section.dart';
-import 'package:flutter_starter_kit/features/settings/presentation/_widgets/danger_zone_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/notifications_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -142,8 +145,8 @@ void main() {
   final l10n = lookupAppLocalizations(const Locale('ko'));
 
   group('Phase 17 알림 토글 (T-17-NOTIF)', () {
-    testWidgets('T-17-NOTIF-05: 「알림」 heading · 「알림 받기」 스위치 · 부제가 계정 '
-        '연결 아래 · Danger zone 위에 있다', (tester) async {
+    testWidgets('T-17-NOTIF-05: 「알림」 heading · 「알림 받기」 스위치 · 부제가 일반 '
+        '섹션(언어 행) 아래 · 개발자 위에 있다', (tester) async {
       await _pumpSettings(
         tester,
         notifier: _FakeNotificationSettings(initial: () async => false),
@@ -165,8 +168,13 @@ void main() {
       );
       expect(_switch(tester).value, isFalse);
 
-      final linkingBottom = tester
-          .getBottomLeft(find.byType(AccountLinkingSection))
+      final languageBottom = tester
+          .getBottomLeft(
+            find.ancestor(
+              of: find.text(l10n.settingsLanguage),
+              matching: find.byType(ListTile),
+            ),
+          )
           .dy;
       final sectionTop = tester
           .getTopLeft(find.byType(NotificationsSection))
@@ -174,9 +182,11 @@ void main() {
       final sectionBottom = tester
           .getBottomLeft(find.byType(NotificationsSection))
           .dy;
-      final dangerTop = tester.getTopLeft(find.byType(DangerZoneSection)).dy;
-      expect(linkingBottom, lessThan(sectionTop));
-      expect(sectionBottom, lessThan(dangerTop));
+      final developerTop = tester
+          .getTopLeft(find.text(l10n.settingsDeveloperSection))
+          .dy;
+      expect(languageBottom, lessThan(sectionTop));
+      expect(sectionBottom, lessThan(developerTop));
       expect(tester.takeException(), isNull);
     });
 
