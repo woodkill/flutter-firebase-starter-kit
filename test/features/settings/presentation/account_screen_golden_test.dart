@@ -199,6 +199,17 @@ int _renderedLineCount(RenderParagraph rp) {
   return count;
 }
 
+/// 계정 화면 목록을 끝까지 내린다 — `ScrollPosition.jumpTo(maxScrollExtent)`.
+///
+/// 드래그(fling)는 ink · overscroll 흔적을 남겨 golden 이 비결정적이 되므로
+/// 쓰지 않는다 (UI-SPEC §Golden 캡처 계약 「드래그 금지 — ink」). 계정 화면의
+/// [Scrollable] 은 본문 [ListView] 하나뿐이다.
+Future<void> _jumpToEnd(WidgetTester tester) async {
+  final state = tester.state<ScrollableState>(find.byType(Scrollable).first);
+  state.position.jumpTo(state.position.maxScrollExtent);
+  await tester.pump();
+}
+
 /// 「이메일」 행 [ListTile] finder — leading `Icons.alternate_email` 의 조상.
 Finder _emailTile() => find.ancestor(
   of: find.byIcon(Icons.alternate_email),
@@ -342,6 +353,117 @@ void main() {
           find.byType(MaterialApp),
           matchesGoldenFile('goldens/account_171_worst_ko_280_$mode.png'),
         );
+      });
+
+      testWidgets('T-171-ACCOUNT-golden-end: 끝 W5 + 긴 이메일 ko 280 — $mode', (
+        tester,
+      ) async {
+        await _pumpAccountScreen(
+          tester,
+          user: _fixtureUser(
+            'ko',
+            signUpProviderId: 'naver',
+            providerIds: _w5ProviderIds,
+            email: _longEmail,
+          ),
+          locale: const Locale('ko'),
+          brightness: brightness,
+          width: 280,
+          isLocalePinned: true,
+        );
+        await _jumpToEnd(tester);
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'overflow 0 이어야 golden 이 시각 계약을 대표한다 (E5)',
+        );
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/account_171_worst_end_ko_280_$mode.png'),
+        );
+      });
+    }
+  });
+
+  group('Phase 17.1 계정 화면 a11y · 3 locale (T-171-ACCOUNT-08 · 09)', () {
+    testWidgets('T-171-ACCOUNT-08: labeledTapTarget · textContrast (W5) · '
+        'androidTapTarget (해제 버튼 없는 fixture) — ko 280 light', (tester) async {
+      // (1) W5 + 긴 이메일 — 위 · 끝 모두 labeled · contrast 통과. tap48 은
+      // inline 「{provider} 연결 해제」 버튼(16.8 Q6-A 알려진 예외 · 24×24
+      // 충족)이 있어 이 fixture 에서는 단언하지 않는다.
+      await _pumpAccountScreen(
+        tester,
+        user: _fixtureUser(
+          'ko',
+          signUpProviderId: 'naver',
+          providerIds: _w5ProviderIds,
+          email: _longEmail,
+        ),
+        locale: const Locale('ko'),
+        brightness: Brightness.light,
+        width: 280,
+        isLocalePinned: true,
+      );
+      final handle = tester.ensureSemantics();
+      await tester.pump();
+      expect(find.bySemanticsLabel('Google 연결 해제'), findsOneWidget);
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      await _jumpToEnd(tester);
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+
+      // (2) 연결 1 · 자격증명 1 — canUnlinkProvider false(D-03) 라 연결된
+      // 계정 값이 일반 텍스트다. 예외 노드가 없으므로 계정 화면 전체(위 ·
+      // 끝)에서 tap48 · labeled 가 통과해야 한다. textContrast 는 이
+      // fixture 에서 걸지 않는다 — 미연결 provider 의 계정 연결 버튼이
+      // 끝에서 보이고, 네이버 · LINE 버튼은 공식 BI 색(흰 라벨 · 브랜드
+      // 녹색)을 verbatim 으로 쓰는 브랜드 자산 예외라 WCAG 4.5 미달이다
+      // (Phase 13.3 브랜드 버튼 외관 hardcode). 대비는 (1) W5 에서 단언했다.
+      await _pumpAccountScreen(
+        tester,
+        user: _fixtureUser(
+          'ko',
+          signUpProviderId: 'naver',
+          providerIds: const <String>['google.com'],
+          email: _longEmail,
+        ),
+        locale: const Locale('ko'),
+        brightness: Brightness.light,
+        width: 280,
+        isLocalePinned: true,
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.bySemanticsLabel(RegExp('연결 해제')), findsNothing);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await _jumpToEnd(tester);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      handle.dispose();
+    });
+
+    for (final lang in <String>['ko', 'en', 'ja']) {
+      testWidgets('T-171-ACCOUNT-09: 넘침 0 W5 + 긴 이메일 — $lang 280', (
+        tester,
+      ) async {
+        await _pumpAccountScreen(
+          tester,
+          user: _fixtureUser(
+            lang,
+            signUpProviderId: 'naver',
+            providerIds: _w5ProviderIds,
+            email: _longEmail,
+          ),
+          locale: Locale(lang),
+          brightness: Brightness.light,
+          width: 280,
+          isLocalePinned: true,
+        );
+        expect(tester.takeException(), isNull, reason: 'overflow 위 $lang');
+        await _jumpToEnd(tester);
+        expect(tester.takeException(), isNull, reason: 'overflow 끝 $lang');
       });
     }
   });
