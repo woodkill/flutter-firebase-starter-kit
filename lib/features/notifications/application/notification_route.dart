@@ -18,9 +18,12 @@ const String kNotificationChannelId = 'general';
 ///
 /// **커스터마이징 포인트:** 알림으로 열 새 화면은 이 목록에 경로 상수 1줄을
 /// 더한다. 문자열 정확 일치로만 비교한다 — query · 경로 변수는 허용하지 않는다.
+///
+/// Phase 17.1 D-06 — 계정 화면(앞 단계 상태 없이 열어도 안전 · 흐름 화면 아님).
 const Set<String> kNotificationRoutableRoutes = {
   AppRoutes.home,
   AppRoutes.settings,
+  AppRoutes.account,
   AppRoutes.termsService,
   AppRoutes.termsPrivacy,
 };
