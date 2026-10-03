@@ -556,8 +556,10 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// [fb.FirebaseAuth.signInWithProvider]를 사용하여 양 플랫폼 모두
   /// Firebase가 OAuth 플로우를 내부 처리한다:
-  /// - **iOS:** 네이티브 ASAuthorizationController 시트를 띄우고
-  ///   displayName 자동 저장 (최초 로그인 시).
+  /// - **iOS:** 네이티브 ASAuthorizationController 시트를 띄운다. Apple 은
+  ///   이름을 최초 인가에만 주고, 익명 link 경로에서는 Firebase 가 그 이름을
+  ///   top-level `displayName` 에 저장하지 않는다(2026-10-03 iOS 실측) — 아래
+  ///   quick 261003-kgc 문단.
   /// - **Android:** Chrome Custom Tab으로 Apple 웹 OAuth를 처리하고
   ///   인증 완료 후 Custom Tab 자동 닫힘.
   ///
@@ -588,6 +590,12 @@ class AuthRepository implements AnonymousSignIn {
   /// [fb.UserCredential.user] 를 직접 [_mapFirebaseUser] 에 전달하며,
   /// `_auth.currentUser` 재조회는 수행하지 않는다. 구현 단순화 + 테스트 stub
   /// 복잡도 제거 이중 효과.
+  ///
+  /// **quick 261003-kgc — Apple 가입 이름 top-level 복사:** 가입(익명 link
+  /// 정상 반환 또는 isNewUser)일 때 [_copyAppleNameToTopLevel] 이 비어 있는
+  /// top-level `displayName` 을 `providerData`(apple.com) 이름으로 1회 채운다.
+  /// 실패 · 5초 초과는 로그인을 막지 않는다. 성공하면 반환 [User.displayName]
+  /// 은 재조회 없이 복사한 값이다.
   ///
   /// **Phase 9.1 D-03 / D-04:** 메서드 body 전체를 try-finally 로 감싸
   /// 진입 직후 [SocialLinkInProgress.begin] / 종료 시 [SocialLinkInProgress.end]
@@ -700,7 +708,19 @@ class AuthRepository implements AnonymousSignIn {
         userCredential,
         isLinkedFromAnonymous: isLinkedFromAnonymous,
       );
-      return Result.success(_mapFirebaseUser(fbUser));
+      // quick 261003-kgc: 가입이면 비어 있는 top-level 이름을 Apple 이름으로
+      // 1회 채운다. 조건은 위 _recordSignUpMethod 와 같은 isSignUp 이다
+      // (Facebook _setFacebookPhotoUrl 과 같은 가입 경계 — 재로그인 · 충돌
+      // fallback · 연결은 쓰지 않는다). race-fix 창 안에서 await 한다(5초 상한).
+      // 반환 User 는 Blocker #2 대로 재조회 없이 복사한 값으로 맞춘다 — fbUser
+      // 객체는 updateProfile 뒤에도 옛 값을 든다.
+      final copiedName = isSignUp
+          ? await _copyAppleNameToTopLevel(fbUser)
+          : null;
+      final user = _mapFirebaseUser(fbUser);
+      return Result.success(
+        copiedName == null ? user : user.copyWith(displayName: copiedName),
+      );
     } on fb.FirebaseAuthException catch (e) {
       // D-09: 사용자 취소 시 null 반환.
       if (e.code == 'canceled' ||
@@ -3104,6 +3124,75 @@ class AuthRepository implements AnonymousSignIn {
     }
   }
 
+  /// (quick 261003-kgc) Apple 가입 때 비어 있는 Auth top-level `displayName` 을
+  /// `providerData`(apple.com) 이름으로 1회 채운다.
+  ///
+  /// **목적 (R_08_4E):** Apple 은 이름을 최초 인가에만 주고, 같은 Apple 로 다시
+  /// 로그인하면 서버가 `providerUserInfo(apple.com).displayName` 을 빈 값으로
+  /// 갱신한다(2026-10-03 iPhone Air 실측). Identity Platform 표준은 처음 받은
+  /// 이름을 `currentUser.displayName` 으로 보존하지만, 익명 link 경로에서는 그
+  /// 저장이 일어나지 않아 재로그인 뒤 이름이 원장 어디에도 남지 않는다. 그래서
+  /// 앱이 가입 시점에 대신 쓴다.
+  ///
+  /// **조건:** 호출부([signInWithApple])가 가입 확정(`isSignUp`)일 때만
+  /// 부른다. top-level 이 [hasProfileValue] 로 비어 있을 때만 쓰고, 원천은
+  /// apple.com 항목의 이름 원문이다(재배열 · trim 등 가공 없음). Apple 이름도
+  /// 비어 있으면 아무것도 하지 않는다. 플랫폼 분기는 두지 않는다.
+  ///
+  /// **실패:** [fb.User.updateDisplayName] 은 5초 timeout 으로 감싸고 모든
+  /// 예외를 흡수해 null 을 돌려준다 — 로그인은 성공 그대로다. timeout 뒤
+  /// native 쓰기가 늦게 끝나면 `userChanges()` 가 그때 반영한다.
+  ///
+  /// [fb.User.reload] 는 부르지 않는다 — iOS 플러그인 `updateProfile` 이 commit
+  /// 뒤 이미 reload 하고, Dart 쪽은 새 사용자 객체로 `auth.currentUser` 를
+  /// 바꿔 `userChanges()` 로 내보내므로 race-fix 창 안 네트워크 왕복만 는다.
+  ///
+  /// **D-27 PII regression invariant:** 로그는 고정 문구와 catch 블록의
+  /// `e.runtimeType` + [StackTrace] 만 출력한다 — 이름 값 · 길이 · uid ·
+  /// `e.toString()` 출력 금지. `_setFacebookPhotoUrl` 과 같은 형식이다.
+  ///
+  /// 반환: 복사한 이름. 건너뜀 · 실패 · timeout 이면 null.
+  Future<String?> _copyAppleNameToTopLevel(fb.User user) async {
+    try {
+      if (hasProfileValue(user.displayName)) {
+        if (kDebugMode) {
+          debugPrint('_copyAppleNameToTopLevel: 건너뜀 (top-level 있음)');
+        }
+        return null;
+      }
+      String? name;
+      for (final info in user.providerData) {
+        if (info.providerId == fb.AppleAuthProvider.PROVIDER_ID &&
+            hasProfileValue(info.displayName)) {
+          name = info.displayName;
+          break;
+        }
+      }
+      if (name == null) {
+        if (kDebugMode) {
+          debugPrint('_copyAppleNameToTopLevel: 건너뜀 (Apple 이름 없음)');
+        }
+        return null;
+      }
+      // race-fix try-finally 안에서 await 되므로 hang 시 end() 도 막힌다 —
+      // 5초 상한. [TimeoutException] 은 아래 `on Object catch` 가 흡수한다.
+      await user.updateDisplayName(name).timeout(const Duration(seconds: 5));
+      if (kDebugMode) {
+        debugPrint('_copyAppleNameToTopLevel: 복사 완료');
+      }
+      return name;
+    } on Object catch (e, st) {
+      // (D-27 PII invariant) e.runtimeType + StackTrace 만 — 예외 message 에
+      // 이름이 실릴 수 있다.
+      if (kDebugMode) {
+        debugPrint(
+          '_copyAppleNameToTopLevel 실패 (graceful skip): ${e.runtimeType}\n$st',
+        );
+      }
+      return null;
+    }
+  }
+
   /// 로그아웃한다.
   ///
   /// [GoogleSignIn.signOut]을 병행 호출하여 Google 세션도 해제한다 (D-07).
@@ -3963,7 +4052,9 @@ AuthRepository authRepository(Ref ref) {
 /// [User.displayName] = Auth `displayName` > `providerData` 이름. `providerData`
 /// 는 가입 수단(`signUpProviderId`) 항목 먼저, 그다음 첫 비어 있지 않은 값을
 /// 쓴다([resolveProfileValue]). 합성은 메모리에서만 일어나며 Auth 에 쓰지
-/// 않는다.
+/// 않는다. (Apple 가입만 예외로 [AuthRepository.signInWithApple] 이 Apple
+/// 이름을 top-level 에 1회 복사한다 — quick 261003-kgc. 이 provider 자체는
+/// 쓰지 않는다.)
 ///
 /// **Race 안전성 (Pitfall 12):** 12-02 Cloud Function 이 `users/{uid}` 를
 /// `set({...}, {merge: true})` 로 작성하므로 Plan 10-12 mirrorToFirestore 와

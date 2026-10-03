@@ -94,4 +94,18 @@ void main() {
       );
     });
   });
+
+  group('quick 261003-kgc hasProfileValue', () {
+    test('K-D1: null · 빈 문자열 · 공백만 · 탭/개행만은 값이 없다', () {
+      expect(hasProfileValue(null), isFalse);
+      expect(hasProfileValue(''), isFalse);
+      expect(hasProfileValue('   '), isFalse);
+      expect(hasProfileValue('\t\n'), isFalse);
+    });
+
+    test('K-D2: 공백이 아닌 글자가 하나라도 있으면 값이 있다', () {
+      expect(hasProfileValue('a'), isTrue);
+      expect(hasProfileValue(' Kgc '), isTrue);
+    });
+  });
 }
