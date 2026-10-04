@@ -193,7 +193,6 @@ class _LanguageFormatSection extends ConsumerWidget {
       children: [
         Text(l10n.homeLanguage, style: context.appTypography.titleLarge),
         Gap(spacing.md),
-        Gap(spacing.lg),
         // 날짜 포맷 라이브 예제
         Text(l10n.showcaseDateFormat, style: context.appTypography.titleSmall),
         Gap(spacing.sm),
