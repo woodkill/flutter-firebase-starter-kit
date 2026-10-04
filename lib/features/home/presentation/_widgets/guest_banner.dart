@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
@@ -15,13 +14,14 @@ import '../../../../core/theme/theme_extensions.dart';
 /// 차원에서 닫는 변경이다.
 ///
 /// Phase 17.1 — 옛 홈의 private 배너를 렌더 그대로 옮겨 public 위젯으로
-/// 승격했다(D-10 · golden byte 동일 목표라 [ConsumerWidget] 형태도 유지).
-class GuestBanner extends ConsumerWidget {
+/// 승격했다(D-10). provider 를 읽지 않으므로 [StatelessWidget] 이다 — 위젯
+/// 기반 클래스는 레이아웃 · 페인트에 관여하지 않아 golden 은 그대로다.
+class GuestBanner extends StatelessWidget {
   /// 게스트 안내 배너를 만든다.
   const GuestBanner({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
     final colorScheme = context.colorScheme;
