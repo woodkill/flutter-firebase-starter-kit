@@ -666,7 +666,8 @@ Name + Key Hash 도 정확히 일치 필요.
     (`functions/src/auth/kakao_custom_token.ts`)가 Kakao ID token 의 `picture`
     값을 Firebase Auth `photoURL` 로 옮기고(가입 때 · 가입 수단 재로그인 때 —
     「IdP 프로필 동기화 정책」 절), 앱은 사용자가 직접 올린 사진이 없을 때 이
-    사진을 홈 · 설정 아바타에 보인다(Phase 17 D-17 · D-18). 동의하지 않으면
+    사진을 설정 계정 행 · 계정 정보 화면 아바타에 보인다(Phase 17 D-17 · D-18 ·
+    17.1 D-02 — 홈에는 아바타가 없다). 동의하지 않으면
     이 사진이 없다.
 - **비활성:** 그 외 모든 항목 (CI / 휴대폰 번호 / 생일 / 성별 등) — starter kit
   기본 범위 외.
@@ -2550,8 +2551,10 @@ Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측�
    - **(d) 골든 재생성.** `fvm flutter test --no-pub --update-goldens <파일>` 은 그
      파일의 골든 전부를 다시 찍는다. 대상 외 fixture 가 제거 직전 tag 와 바이트
      동일한지 `cmp` 로 확인한다 — 다르면 폰트 · SDK 환경 drift 이므로 원인부터
-     추적한다. 대상 수는 harness override 목록에 달려 있다 (설정 화면 연결 섹션
-     골든 포함). 사용자 승인 전 커밋 금지.
+     추적한다. 대상 수는 harness override 목록에 달려 있다 (계정 정보 화면 연결
+     섹션을 찍는 `auth_surfaces_golden_test.dart` 의 `reauth_account_success_*`
+     골든 포함 — 17.1 D-02 로 연결 섹션이 설정 화면에서 이동). 사용자 승인 전
+     커밋 금지.
    - **(e) manifest placeholder.** 플러그인 AAR 이 intent-filter 에 `${placeholder}`
      를 요구하므로 placeholder 를 플러그인보다 먼저 지우면 manifest merger 가 치환
      실패로 빌드를 깬다. 반대 순서는 무해하지만 같은 커밋이 원칙이다. 병합 결과는
@@ -2666,7 +2669,7 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 
 #### 충돌 시 안내 시트의 동작 — 2단계 플로우 (Phase 16 gap closure, 2026-09-08 갱신)
 
-**동작 요약:** 이미 가입된 이메일로 **다른 소셜 로그인**을 시도하면, 앱은 (1) 그 이메일이 **어떤 수단으로 가입돼 있었는지 정확한 이름**을 안내 시트에 표시하고, (2) 시트의 버튼은 **그 수단으로 로그인**시킨 뒤, (3) 다른 로그인 수단을 추가하고 싶으면 **설정 > 계정 연결**에서 하도록 안내한다. 즉 시트 버튼 한 번으로 두 계정이 자동 연결되지는 않는다 — **로그인(1단계) → 계정 연결(2단계)** 두 걸음이다.
+**동작 요약:** 이미 가입된 이메일로 **다른 소셜 로그인**을 시도하면, 앱은 (1) 그 이메일이 **어떤 수단으로 가입돼 있었는지 정확한 이름**을 안내 시트에 표시하고, (2) 시트의 버튼은 **그 수단으로 로그인**시킨 뒤, (3) 다른 로그인 수단을 추가하고 싶으면 **설정 → 내 계정 → 계정 연결**에서 하도록 안내한다. 즉 시트 버튼 한 번으로 두 계정이 자동 연결되지는 않는다 — **로그인(1단계) → 계정 연결(2단계)** 두 걸음이다.
 
 **왜 자동 연결이 아닌가.** 충돌 시트가 떠 있는 시점의 사용자는 **아직 로그인되지 않은 상태**다. 계정 연결은 "이미 로그인한 계정에 다른 수단을 덧붙이는" 동작이라 로그인되지 않은 상태에서는 성립할 수 없다. 예전 구현은 이 시점에 곧바로 연결을 시도했기 때문에 실질적으로 항상 실패했다. 그래서 지금은 **먼저 로그인시키고**, 연결은 로그인 이후 화면(설정)에서 하도록 나눴다.
 
@@ -3156,13 +3159,13 @@ curl -X POST \
 
 **업로드 흐름:** 설정 → 내 계정(계정 정보 화면)의 「프로필」 첫 행(프로필 사진) → 시트 「사진 변경」 → 갤러리 선택 → 업로드 전 리사이즈(`maxWidth: 1024` · `imageQuality: 85` — 결과는 대개 JPEG 이지만 Android 는 알파가 있는 이미지를 PNG 로, iOS 는 PNG · GIF 원본을 그 형식으로 쓴다) → `putFile` 에 `contentType` 명시(빠뜨리면 rules 의 `image/.*` 검사에 걸릴 수 있다). 값은 파일 앞 바이트(매직 넘버)로 판정한다 — JPEG · PNG · GIF → `XFile.mimeType` → `image/jpeg` 순(`sniffImageContentType`). image_picker 1.2.3 의 `XFile.mimeType` 은 Android · iOS 모두 항상 null 이고, Android 리사이즈는 PNG 로 다시 쓸 때도 파일 확장자를 원본 그대로 두기 때문이다(review IN-18) → downloadURL 에 `&v=<업로드 millis>` 를 붙여 Firestore `users/{uid}.customPhotoUrl` 에 저장(D-17). URL 이 매번 바뀌므로 같은 객체를 덮어써도 설정 계정 행 · 계정 정보 화면이 재시작 없이 새 사진을 보인다. 「사진 삭제」 는 Storage 객체를 지우고(없으면 무시) `customPhotoUrl: null` 로 돌린다 — 확인 다이얼로그 없다.
 
-**표시 우선순위 (D-17 · D-18):** 홈 · 설정 아바타가 같은 규칙을 쓴다.
+**표시 우선순위 (D-17 · D-18):** 설정 계정 행 · 계정 정보 화면 아바타가 같은 규칙을 쓴다(17.1 D-02 — 홈에는 아바타 · 이름이 없다).
 
 | 순위 | 사진 | 이름 |
 |------|------|------|
 | 1 | `users/{uid}.customPhotoUrl`(앱에 올린 사진) | Auth `displayName` |
 | 2 | Auth `photoURL` | 로그인 수단 프로필 이름(가입 수단 먼저, 없으면 연결된 수단 중 첫 값) |
-| 3 | 로그인 수단 프로필 사진(같은 순서) | 홈 「-」 |
+| 3 | 로그인 수단 프로필 사진(같은 순서) | 계정 정보 화면 「-」 (설정 계정 행은 이메일, 없으면 「-」) |
 | 4 | 기본 아바타 | — |
 
 합성은 `currentUserProvider` 가 앱 메모리에서만 한다 — Firebase Auth 프로필과 Firestore 에는 쓰지 않는다. Apple 가입 1회 복사는 아래 예외다. 그래서 익명에서 link 한 계정은 Firebase Console 의 이름 · 사진 칸이 비어 있어도 앱에는 보인다(D-27). 업로드 사진을 지우면 같은 문서 갱신만으로 소셜 사진으로 돌아간다. Facebook 은 가입할 때만 Graph 사진을 Auth `photoURL` 에 쓴다.
@@ -5423,7 +5426,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-02 | 17 review fix (iteration 2) | Phase 17 code review iteration 2 반영 — 「Firestore Security Rules」 `users/{uid}` 표 「클라이언트 쓰기 허용 키」 행에 update 는 바뀌는 키만 검증 추가 (review IN-01) / 같은 표 `customPhotoUrl` 행(2048자 · Storage 호스트 · `:443` 선택 이유 · `&v=`) · fcmTokens 행(`expireAt` ≤ 지금 + 60일과 `kFcmTokenTtl` 30일의 관계) · 「새 클라이언트 필드를 쓰려면」 단락에 값 범위 검사 · 「커스터마이징 포인트」 토큰 만료 기간 행에 규칙 상한 (review IN-03) / 「탈퇴 시 Storage · 기기 토큰 삭제」 로그 bullet 에 `delete_user_storage_failed` 의 `code` = HTTP 상태 문자열 · 대표 오류 규칙 (review IN-02) / 「Cloud Storage · 프로필 사진」 경로 · 규칙 (D-15) 단락에 본인 prefix 아래 객체 수 · 경로 상한 없음 · 탈퇴 prefix 삭제 부담 · 좁히는 법 (review IN-04 — `storage.rules` 무변경) / 「가입 수단 기록」 절 「약관 동의 시각 — 수용된 한계」 단락에 문서 선생성 writer 로 세션 시작 email mirror 추가 (review IN-05 — 코드 무변경 · Phase 16 G-16-A9-1 skip 조건 유지) / 「FCM 알림」 `sendTestPush` 단락의 익명 거부 결과 문구를 게스트 전용 `devToolsSendTestPushAnonymous` 로 (review IN-22) / 「오류 처리 패턴」 자동 수집 이중 안전망 문장을 「AppException 은 어느 가드도 기록하지 않는다 · 관측은 매퍼 · 호출부가 명시적으로」 로 정정 (review IN-13) / 「오류 처리 패턴」 표 `AsyncValueView` 행에 `errorPadding:` (review IN-17) / 「Cloud Storage · 프로필 사진」 경로 · 규칙 단락 · 업로드 흐름 · 「커스터마이징 포인트」 Storage 행에 업로드 전 크기 검사(`kProfilePhotoMaxBytes`)와 contentType 바이트 판정 (review IN-18) / 「커스터마이징 포인트」 표에 Android 사진 선택 중 앱 종료 회수(`retrieveLostData()`) 행 (review IN-20 — 구현 없음) / 「Firestore Security Rules」 표 서버 전용 키 행에 email mirror 호출 시점(세션 시작 + 같은 세션 이메일 인증 완료 시 token 강제 갱신 뒤 1회) (review IN-15) / 「오류 처리 패턴」 깨진 화면 대체 단락에 non-fatal 세션당 1회 (review IN-14) / 「Remote Config Feature Flag」 홈 공지 표시 조건에 공백만 있는 칸 = 빈 칸 (review IN-12) / 「Design System — 디자인 토큰 커스터마이징」 절에 `ThemeExtension` 4종째 `AppIconSizes`(`sm` 20 · `context.appIconSizes` · `extensions:` 예시 · 회귀 가드 · Pitfall) 반영 (review IN-10 — 오류 배너 아이콘 값 20 그대로 · 픽셀 동일) |
 | 2026-10-03 | quick 261003-kgc | 「Cloud Storage · 프로필 사진」 「합성은 …」 문단의 Apple 서술(「-」 · iOS 판정 이관 괄호)을 가입 1회 복사 단락으로 교체 — 조건(가입 · top-level 비었음 · apple.com 이름 원문) · 이유(2026-10-03 iPhone Air 실측 · Identity Platform 공식 문서의 `currentUser.displayName` 보존) · 5초 · 실패 · 범위 밖(재로그인 · 계정 연결 · 기존 계정 · Google · Facebook · Android 미확인) / 「커스터마이징 포인트」 「표시 우선순위」 행에 `_copyAppleNameToTopLevel` · `hasProfileValue` / PASS 뒤 재검증 문장 2곳(「Cloud Storage · 프로필 사진」 Apple 단락 · 「IdP 프로필 동기화 정책」 「범위」 bullet) |
 | 2026-10-04 | 17.1-10 | 「홈 화면 바꾸기 (Phase 17.1)」 절 신규(목차 23번) — ① `home_body.dart` 만 바꾸는 기본 방법 · config `appName` 단일 제목 ② 화면 통째 교체 시 배선 체크리스트 5종(리스너 누락 = 알림 탭 이동 무음 단절 · source guard `_homeScreenPath` · T-171-HOME-16) ③ 데모 화면 위치 · release 제외 · profile 열림 · Dev Tools debug 전용 · 진입 2곳 · 지우는 법 ④ 알림 허용 목록 5개 · 새 화면 추가 · guard 분기 · 옛 홈 항목 위치 표 / 옛 홈 계정 카드 참조를 계정 정보 화면(설정 → 내 계정) · 데모 계정 디버그 정보 카드로(Kakao 7단계 · Naver 11단계 · LINE 8단계 · R10-FOLLOWUP-2 · 제공자 추가 가이드 라벨 · 가입 수단 기록 · 연결 해제 동작 · 확인 방법) · 사진 업로드 흐름 · 계정 연결 위치(제공자 제거 가이드 ① · 충돌 시트 5단계 · Naver 연결 · 해제 결과 안내 `_onUnlinkPressed` · 행 순서) / FCM 탭 이동 허용 목록 5개(`/settings/account` · D-06) · 커스터마이징 「알림 탭으로 열 화면」 행 / 「홈 Dev Tools」 → 데모 화면 Dev Tools(테스트 발송 · Dev Tools 제거 · Reset Onboarding 위치 문맥) / `signOutAndResetOnboarding` 호출자 4곳(계정 정보 화면 · 데모 · 회원탈퇴 사후 정리 · 이메일 인증) / 404 = `NotFoundScreen` |
+| 2026-10-04 | 17.1 review fix | Phase 17.1 code review iteration 1 반영 — 「Account Linking & Withdrawal」 「동일 이메일 Account Linking」 동작 요약의 안내 경로를 「설정 → 내 계정 → 계정 연결」 로 (review IN-03) · 「충돌 시 안내 시트의 동작」 4단계 SnackBar 인용과 「계정 연결 해제 (Phase 16.8)」 표 「같음」 행의 SnackBar 인용 · 재연결 경로를 새 문구 「… 설정 > 내 계정 > 계정 연결에서 추가할 수 있습니다.」 · 「설정 → 내 계정(계정 정보 화면) → 「계정 연결」」 로 (review WR-01 · 17.1 D-02 로 연결 섹션이 계정 정보 화면으로 이동) / 「Naver Login」 5단계 `profile_image` 설명 · 「Cloud Storage · 프로필 사진」 표시 우선순위 머리말과 표 3순위 이름 열의 「홈 · 설정 아바타」 · 「홈 「-」」 를 설정 계정 행 · 계정 정보 화면 기준으로 (홈에는 아바타 · 이름 없음 · review IN-03) / 「Custom Token Provider 제거 가이드」 (d) 골든 재생성의 「설정 화면 연결 섹션 골든」 을 연결 섹션을 실제로 찍는 `auth_surfaces_golden_test.dart` `reauth_account_success_*` 로 정정 (review 미등재 확장) |
 
 ---
 
-*Last updated: 2026-10-04 — Phase 17.1 plan 10 (홈 화면 바꾸기)*
+*Last updated: 2026-10-04 — Phase 17.1 code review fix (WR-01 · IN-03 — 계정 연결 경로 · 아바타 위치 서술)*
