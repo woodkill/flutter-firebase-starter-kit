@@ -5321,10 +5321,31 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
   2. 진입점 2곳 — `settings_screen.dart` 의 「개발자」 묶음(`showsDemoRow`)과
      `home_body.dart` 카드의 버튼 — 을 지운다.
   3. `lib/features/demo/` 폴더를 지운다.
-  4. 테스트를 정리한다 — `test/features/demo/` 3파일 · `app_router_observers_test.dart`
-     의 T-171-ROUTER-02 · 03 과 라우트 개수 단언(비 release 14) ·
-     `home_listener_source_guard_test.dart` 의 T-171-HOME-15 와 T-171-HOME-16 기대
-     집합의 `demo_screen.dart` · 설정 · 홈 본문 테스트의 데모 행 · 카드 단언.
+  4. 테스트를 정리한다 — 아래 항목을 위에서부터 차례로 따라 한다.
+     - `test/features/demo/` — 폴더째(3파일) 지운다.
+     - `test/core/router/app_router_observers_test.dart` — T-171-ROUTER-02 · 03
+       이 든 group 을 통째로 지우고, Test 2 · 3 의 라우트 개수 `14`(비 release)를
+       `13` 으로 고친다(Test 2 이름의 「14개」 · `developerDemo` 도).
+     - `test/features/home/home_listener_source_guard_test.dart` — T-171-HOME-15
+       를 지우고, T-171-HOME-16 기대 집합에서 `demo_screen.dart`(상수
+       `_demoScreenPath`)를 뺀다.
+     - `test/features/settings/presentation/settings_screen_test.dart` —
+       T-171-SETTINGS-06 · 07 은 지운다. 데모 행 · 「개발자」 묶음을 보는 01 ·
+       11 · 13 · 15 · 17 ②~④ · T-17-NOTIF-12 는 지우지 말고, 그 기대를 빼거나
+       기준을 새 마지막 행으로 바꾼다.
+     - `test/features/settings/presentation/notifications_section_test.dart` —
+       T-17-NOTIF-05 위치 테스트(「… 개발자 위에 있다」)는 지우지 말고 「개발자」
+       기준 단언만 뺀다.
+     - `test/features/home/home_body_test.dart` — T-171-HOME-11 에서 버튼 · 데모
+       경로 이동 단언을 지운다.
+     - `test/features/settings/presentation/settings_screen_golden_test.dart` ·
+       `test/features/home/home_announcement_golden_test.dart` — 데모 행 · 카드가
+       찍힌 golden(설정 8장 · 홈 2장)을 이 두 파일만
+       `fvm flutter test --no-pub --update-goldens` 로 다시 만든다.
+     - 끝으로 `fvm dart analyze` 가 0 건이 될 때까지, 지운 파일을 가리키거나 쓰는
+       곳이 없어진 import · 선언을 lib · test 모두에서 지운다(라우터 테스트의
+       `demo_screen.dart` · 테스트 전용 import · mock 클래스, source guard 의
+       `_demoScreenPath`, 2단계 뒤 `home_body.dart` 의 `go_router` 등).
   5. Dev Tools 의 테스트 알림 버튼이 같이 사라진다. 서버 함수 `sendTestPush` 까지
      빼려면 「Firebase Services」 「배포 · 콘솔 설정」 ③ 의 「함수 삭제」 를 따른다.
 
@@ -5429,7 +5450,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-04 | 17.1-10 | 「홈 화면 바꾸기 (Phase 17.1)」 절 신규(목차 23번) — ① `home_body.dart` 만 바꾸는 기본 방법 · config `appName` 단일 제목 ② 화면 통째 교체 시 배선 체크리스트 5종(리스너 누락 = 알림 탭 이동 무음 단절 · source guard `_homeScreenPath` · T-171-HOME-16) ③ 데모 화면 위치 · release 제외 · profile 열림 · Dev Tools debug 전용 · 진입 2곳 · 지우는 법 ④ 알림 허용 목록 5개 · 새 화면 추가 · guard 분기 · 옛 홈 항목 위치 표 / 옛 홈 계정 카드 참조를 계정 정보 화면(설정 → 내 계정) · 데모 계정 디버그 정보 카드로(Kakao 7단계 · Naver 11단계 · LINE 8단계 · R10-FOLLOWUP-2 · 제공자 추가 가이드 라벨 · 가입 수단 기록 · 연결 해제 동작 · 확인 방법) · 사진 업로드 흐름 · 계정 연결 위치(제공자 제거 가이드 ① · 충돌 시트 5단계 · Naver 연결 · 해제 결과 안내 `_onUnlinkPressed` · 행 순서) / FCM 탭 이동 허용 목록 5개(`/settings/account` · D-06) · 커스터마이징 「알림 탭으로 열 화면」 행 / 「홈 Dev Tools」 → 데모 화면 Dev Tools(테스트 발송 · Dev Tools 제거 · Reset Onboarding 위치 문맥) / `signOutAndResetOnboarding` 호출자 4곳(계정 정보 화면 · 데모 · 회원탈퇴 사후 정리 · 이메일 인증) / 404 = `NotFoundScreen` |
 | 2026-10-04 | 17.1 review fix | Phase 17.1 code review iteration 1 반영 — 「Account Linking & Withdrawal」 「동일 이메일 Account Linking」 동작 요약의 안내 경로를 「설정 → 내 계정 → 계정 연결」 로 (review IN-03) · 「충돌 시 안내 시트의 동작」 4단계 SnackBar 인용과 「계정 연결 해제 (Phase 16.8)」 표 「같음」 행의 SnackBar 인용 · 재연결 경로를 새 문구 「… 설정 > 내 계정 > 계정 연결에서 추가할 수 있습니다.」 · 「설정 → 내 계정(계정 정보 화면) → 「계정 연결」」 로 (review WR-01 · 17.1 D-02 로 연결 섹션이 계정 정보 화면으로 이동) / 「Naver Login」 5단계 `profile_image` 설명 · 「Cloud Storage · 프로필 사진」 표시 우선순위 머리말과 표 3순위 이름 열의 「홈 · 설정 아바타」 · 「홈 「-」」 를 설정 계정 행 · 계정 정보 화면 기준으로 (홈에는 아바타 · 이름 없음 · review IN-03) / 「Custom Token Provider 제거 가이드」 (d) 골든 재생성의 「설정 화면 연결 섹션 골든」 을 연결 섹션을 실제로 찍는 `auth_surfaces_golden_test.dart` `reauth_account_success_*` 로 정정 (review 미등재 확장) |
 | 2026-10-04 | 17.1 review fix (iteration 2) | Phase 17.1 code review iteration 2 반영 — 「Naver Login」 5단계 `profile_image` 설명의 서버 파일 · 출처를 Kakao(`kakao_custom_token.ts` · Kakao ID token `picture`)에서 `functions/src/auth/naver_profile_to_custom_token.ts`(1-tap · 웹 로그인 공용 helper) · `/v1/nid/me` 응답 `profile_image` 로 정정 (review IN-08) / 「Cloud Storage · 프로필 사진」 「Apple 가입 이름 복사」 문단의 「홈이 「-」 가 된다」 · 「홈에 이름이 보였다」 를 실측 당시 화면(17.1 이전 홈)과 지금 표시 위치(계정 정보 화면 이름 칸 「-」 · 설정 계정 행은 표 3순위 이메일 · 이름은 설정 계정 행 · 계정 정보 화면)로 구분 (review IN-07) |
+| 2026-10-05 | 17.1-14 | G-17.1-4: 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계(테스트 정리)를 하위 목록 8항목으로 풀어 씀(UAT test 4 「빽빽해」) — 테스트 파일마다 한 항목(`test/features/demo/` · 라우터 · source guard · 설정 · 알림 섹션 · 홈 본문 · golden 2파일)에 지울 테스트 ID · 고칠 단언을 같은 항목에, 끝 항목은 `fvm dart analyze` 0 건까지 lib · test 의 import · 선언 정리. 다시 확인해 보탠 것: 라우터 group 통째 삭제 · 라우트 개수 `14` → `13`(Test 2 이름 포함) · 설정 테스트의 지울 것(06 · 07)과 고칠 것(01 · 11 · 13 · 15 · 17 ②~④ · T-17-NOTIF-12) 구분 · 알림 섹션 T-17-NOTIF-05 위치 단언 · 데모 행 · 카드가 찍힌 golden 10장 재생성 · analyze 정리(라우터 테스트의 `demo_screen.dart` · 전용 import · mock 클래스 · `_demoScreenPath` · `home_body.dart` 의 `go_router`). 1 · 2 · 3 · 5단계와 다른 절은 그대로 |
 
 ---
 
-*Last updated: 2026-10-04 — Phase 17.1 code review fix iteration 2 (IN-07 · IN-08 — Apple 이름 표시 위치 · Naver 사진 서버 출처)*
+*Last updated: 2026-10-05 — Phase 17.1 gap closure 17.1-14 (G-17.1-4 — 「지우는 법」 4단계 테스트 정리를 파일별 목록으로)*
