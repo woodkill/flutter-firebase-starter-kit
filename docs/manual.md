@@ -5355,9 +5355,13 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
        마지막 줄(`git status`)의 출력이 정확히 10장(설정 `settings_171_*` 8 · 홈
        `home_171_*` 2 · 모두 `M`)인지 확인한다.
      - 끝으로 `fvm dart analyze` 가 0 건이 될 때까지, 지운 파일을 가리키거나 쓰는
-       곳이 없어진 import · 선언을 lib · test 모두에서 지운다(라우터 테스트의
-       `demo_screen.dart` · 테스트 전용 import · mock 클래스, source guard 의
-       `_demoScreenPath`, 2단계 뒤 `home_body.dart` 의 `go_router` 등).
+       곳이 없어진 import · 선언 · 지역 변수를 lib · test 모두에서 지운다(라우터
+       테스트의 `demo_screen.dart` · 테스트 전용 import · mock 클래스와 그 뒤
+       2차로 드러나는 `auth_repository.dart` import, source guard 의
+       `_demoScreenPath`, 알림 섹션 테스트의 `sectionBottom`, 2단계 뒤
+       `home_body.dart` 의 `go_router` · `settings_screen.dart` 의
+       `foundation.dart` 등). 하나를 지우면 다른 것이 새로 드러날 수 있으므로
+       analyze 는 0 건이 될 때까지 되풀이한다.
   5. Dev Tools 의 테스트 알림 버튼이 같이 사라진다. 서버 함수 `sendTestPush` 까지
      빼려면 「Firebase Services」 「배포 · 콘솔 설정」 ③ 의 「함수 삭제」 를 따른다.
 
