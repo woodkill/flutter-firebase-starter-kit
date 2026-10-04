@@ -1,4 +1,5 @@
-// Phase 16 16-11 / Surface D — Proactive Account Linking (Settings) section.
+// Phase 16 16-11 / Surface D — Proactive Account Linking section.
+// 소비처: 계정 정보 화면(`AccountScreen` · Phase 17.1 D-02 로 설정에서 이동).
 //
 // LOCKED mockup (mockups/surface-d-account-linking.md, 사용자 시각 sign-off
 // 2026-06-02 — email EXCLUDE) verbatim 구현:

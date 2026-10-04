@@ -36,8 +36,8 @@ const double _kAvatarDiameter = 40;
 /// 읽기 실패 = 업로드 사진 없음 취급(소셜 · 없음) · 탭 가능, 업로드 · 삭제
 /// 중 = 사진 위 진행 링 + 「사진을 올리는 중…」 · 탭 비활성.
 ///
-/// 정식 사용자만 설정에 들어온다(게스트 진입점 숨김) — 사용자가 없으면 행을
-/// 그리지 않는다.
+/// 계정 정보 화면(`AccountScreen`)은 guard 가 정식 사용자만 들여보낸다
+/// (17.1 D-07) — 사용자가 없으면 행을 그리지 않는다.
 class ProfilePhotoTile extends ConsumerWidget {
   /// [ProfilePhotoTile] 을 생성한다.
   const ProfilePhotoTile({super.key});

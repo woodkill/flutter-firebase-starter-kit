@@ -6,7 +6,8 @@
 // barrier 닫힘을 막는다.
 //
 // 결과는 `Navigator.pop<AccountUnlinkOutcome?>` 로 돌려주고 SnackBar · 재로그인
-// 라우팅은 설정 화면이 맡는다(콜백형). 취소 · barrier · back = `null`.
+// 라우팅은 계정 정보 화면(`AccountScreen`)이 맡는다(콜백형). 취소 · barrier ·
+// back = `null`.
 //
 // Phase 16.10 D-09 · D-10 · D-11 · D-19 (UI-SPEC §Surface U′ · Q7-A) — 새
 // 화면 없이 content 만 확장한다. 「해제」 는 provider 측 끊기 → 성공 시에만 킷

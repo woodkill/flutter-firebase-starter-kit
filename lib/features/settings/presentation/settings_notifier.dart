@@ -255,9 +255,9 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///
   /// **진행 provider 미사용:** [accountLinkInProgressProvider] 와 그 오버레이는
   /// 쓰지 않는다. 진행 표시는 확인 다이얼로그 안 스피너가 맡고(다이얼로그가
-  /// modal 이라 설정 화면 입력이 이미 막힌다), 오버레이 라벨은 「로그인 처리
-  /// 중…」 이라 해제에 틀리다 (UI-SPEC §Surface U). 탈퇴용 [state] 도 건드리지
-  /// 않는다 (WR-02).
+  /// modal 이라 계정 정보 화면(`AccountScreen`) 입력이 이미 막힌다), 오버레이
+  /// 라벨은 「로그인 처리 중…」 이라 해제에 틀리다 (UI-SPEC §Surface U). 탈퇴용
+  /// [state] 도 건드리지 않는다 (WR-02).
   ///
   /// 반환: 위젯이 결과별 SnackBar · reauth 라우팅을 분기하기 위한
   /// [AccountUnlinkOutcome]. 성공 시 목록 갱신은 user stream 재방출이 맡는다.
@@ -434,8 +434,8 @@ class SettingsNotifier extends _$SettingsNotifier {
 /// 연결된 계정 해제 결과 분기 (Phase 16.8 · UI-SPEC §N · 16.10 §N′).
 ///
 /// [SettingsNotifier.disconnectAndUnlinkProvider] ·
-/// [SettingsNotifier.unlinkProvider] 가 반환하며, 설정 화면이 결과별
-/// SnackBar · reauth 라우팅을 분기하는 데 사용한다.
+/// [SettingsNotifier.unlinkProvider] 가 반환하며, 계정 정보 화면
+/// (`AccountScreen`)이 결과별 SnackBar · reauth 라우팅을 분기하는 데 사용한다.
 enum AccountUnlinkOutcome {
   /// 해제 성공 — `accountUnlinkSucceededSnackbar` 로 렌더 · 목록은 user
   /// stream 재방출로 갱신.

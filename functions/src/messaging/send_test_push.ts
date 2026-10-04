@@ -211,8 +211,9 @@ async function pruneTokens(
  *
  * notification(title · body) + `data.route` + Android 채널 + iOS 기본 소리.
  * - `data.route` 는 앱 알림 탭 허용 목록(`kNotificationRoutableRoutes` —
- *   `/` · `/settings` · `/terms/service` · `/terms/privacy`) 안이어야 그
- *   화면으로 이동한다(목록 밖이면 홈). 본문 「설정 화면을 엽니다」 와 짝.
+ *   `/` · `/settings` · `/settings/account` · `/terms/service` ·
+ *   `/terms/privacy`) 안이어야 그 화면으로 이동한다(목록 밖이면 홈).
+ *   본문 「설정 화면을 엽니다」 와 짝.
  * - Android 채널 id 는 앱이 bootstrap 에서 만드는 채널(plan 16)과 같다.
  *
  * @param {TestPushLocale} locale 문구 locale.

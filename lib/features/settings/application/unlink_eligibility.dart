@@ -6,8 +6,8 @@
 import '../../../core/auth/provider_id.dart';
 import '../../auth/domain/user.dart';
 
-/// [user] 의 연결된 계정 [providerId] 를 설정 화면에서 해제할 수 있는지
-/// 판정한다 (Phase 16.8 D-03 · D-05 · D-11 · D-19).
+/// [user] 의 연결된 계정 [providerId] 를 계정 정보 화면(`AccountScreen`)에서
+/// 해제할 수 있는지 판정한다 (Phase 16.8 D-03 · D-05 · D-11 · D-19).
 ///
 /// 아래 3조건이 모두 참일 때만 `true`:
 /// 1. 가입 수단 기록이 있다 (`signUpProviderId` non-null — D-05). null 은
