@@ -1012,9 +1012,9 @@
     }
   },
 
-  "accountLinkingSignInThenLinkHint": "Signed in with your {provider} account. You can add other sign-in methods in Settings > Link an account.",
+  "accountLinkingSignInThenLinkHint": "Signed in with your {provider} account. You can add other sign-in methods in Settings > My Account > Link an account.",
   "@accountLinkingSignInThenLinkHint": {
-    "description": "Phase 16 Plan 16-18 (CR-02 gap closure) — Surface A 2단계 reactive 플로우의 step 1 성공 안내 SnackBar. 경로 B(서버 already-exists 로 pendingCredential 부재)에서 시트 CTA 가 기존 provider 로 '로그인'(link 아님)에 성공한 직후 /home 에서 1회 노출되며, 나머지 로그인 수단 추가는 step 2 (Settings > 계정 연결, Surface D proactive arm)에서 한다는 후속 경로를 알린다. {provider} 에는 위젯이 계산한 _providerLabel(l10n, provider) 결과 = 기존 authAccountProvider{X} 8 키의 verbatim 라벨만 주입된다 (서버 응답/예외 문자열 주입 경로 0, brand 라벨 신설 0, brand_label_whitelist 확장 0 — 위협 T-16-18-01 mitigation). 문구의 'Settings' 는 settingsTitle, 'Link an account' 는 settingsAccountLinkingSection 값의 verbatim 인용이므로 그 두 키가 바뀌면 본 문구도 함께 바꾼다. 사용자 sign-off 및 확정 문구 표: .planning/phases/16-account-linking-withdrawal/mockups/surface-a-two-step-reactive.md (§8, status locked-plan-16-18).",
+    "description": "Phase 16 Plan 16-18 (CR-02 gap closure) — Surface A 2단계 reactive 플로우의 step 1 성공 안내 SnackBar. 경로 B(서버 already-exists 로 pendingCredential 부재)에서 시트 CTA 가 기존 provider 로 '로그인'(link 아님)에 성공한 직후 /home 에서 1회 노출되며, 나머지 로그인 수단 추가는 step 2 (Settings > My Account > 계정 연결, Surface D proactive arm)에서 한다는 후속 경로를 알린다. {provider} 에는 위젯이 계산한 _providerLabel(l10n, provider) 결과 = 기존 authAccountProvider{X} 8 키의 verbatim 라벨만 주입된다 (서버 응답/예외 문자열 주입 경로 0, brand 라벨 신설 0, brand_label_whitelist 확장 0 — 위협 T-16-18-01 mitigation). 문구의 'Settings' 는 settingsTitle, 'My Account' 는 settingsAccountSection, 'Link an account' 는 settingsAccountLinkingSection 값의 verbatim 인용이므로 그 세 키(settingsTitle · settingsAccountSection · settingsAccountLinkingSection)가 바뀌거나 섹션 위치가 바뀌면 본 문구도 함께 바꾼다. 'My Account' 는 settingsAccountSection 인용 · Phase 17.1 D-02 로 계정 연결 섹션이 계정 정보 화면으로 이동(17.1 WR-01). 사용자 sign-off 및 확정 문구 표: .planning/phases/16-account-linking-withdrawal/mockups/surface-a-two-step-reactive.md (§8, status locked-plan-16-18 · 17.1 경로 갱신은 문서 끝 「17.1 amendment」 절).",
     "placeholders": {
       "provider": {
         "type": "String",

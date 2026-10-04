@@ -619,7 +619,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String accountLinkingSignInThenLinkHint(String provider) {
-    return '$provider 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 계정 연결에서 추가할 수 있습니다.';
+    return '$provider 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 내 계정 > 계정 연결에서 추가할 수 있습니다.';
   }
 
   @override

@@ -618,7 +618,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String accountLinkingSignInThenLinkHint(String provider) {
-    return '$providerアカウントでログインしました。他のログイン方法は「設定」>「アカウント連携」から追加できます。';
+    return '$providerアカウントでログインしました。他のログイン方法は「設定」>「アカウント」>「アカウント連携」から追加できます。';
   }
 
   @override

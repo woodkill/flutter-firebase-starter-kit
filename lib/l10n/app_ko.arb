@@ -255,7 +255,7 @@
   "settingsAccountLinkingSection": "계정 연결",
   "settingsLinkProviderCta": "{provider} 연결",
   "accountLinkingSucceededSnackbar": "{provider} 계정이 연결되었습니다",
-  "accountLinkingSignInThenLinkHint": "{provider} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 계정 연결에서 추가할 수 있습니다.",
+  "accountLinkingSignInThenLinkHint": "{provider} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 내 계정 > 계정 연결에서 추가할 수 있습니다.",
   "authReauthRequired": "보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.",
   "authReauthTitle": "본인 확인",
   "authReauthGuide": "보안을 위해 지금 로그인한 계정으로 한 번 더 로그인해 주세요.",

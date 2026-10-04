@@ -239,7 +239,7 @@ void main() {
         expect(
           find.text(
             'Signed in with your Kakao account. You can add other sign-in '
-            'methods in Settings > Link an account.',
+            'methods in Settings > My Account > Link an account.',
           ),
           findsOneWidget,
         );

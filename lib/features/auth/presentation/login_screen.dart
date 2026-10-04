@@ -75,7 +75,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// [AuthRepository.linkPendingNativeCredential] 로 link 하고, 그 외(서버
   /// already-exists / Custom Token) 는
   /// [AuthRepository.signInWithExistingProvider] 로 **기존 provider 에
-  /// 로그인**한 뒤 설정 > 계정 연결로 안내한다. naver 는 로그인 대상으로 완전
+  /// 로그인**한 뒤 설정 > 내 계정 > 계정 연결로 안내한다. naver 는 로그인 대상으로 완전
   /// 지원되고 연결 대상으로도 Phase 16.9 부터 지원된다(설정 Surface D
   /// `linkNaverProviderArm`) — 본 screen 은 sheet 노출만 담당한다.
   void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
@@ -156,7 +156,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           // AccountLinkingSheet 노출. native + pendingCredential 보존은
           // sheet 가 linkPendingNativeCredential, 그 외는
           // signInWithExistingProvider 로 **기존 provider 에 로그인** (step
-          // 1) 후 설정 > 계정 연결 안내 (step 2). naver 도 로그인 대상으로
+          // 1) 후 설정 > 내 계정 > 계정 연결 안내 (step 2). naver 도 로그인 대상으로
           // 정상 수행된다.
           // existingProvider == null (unknown) 만 FormErrorBanner inline 으로
           // fallback (R2 회귀 0).

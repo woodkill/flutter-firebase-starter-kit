@@ -191,7 +191,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
   ///   onExistingProviderSignIn] 이 주입되었으면 그 bool 결과를, 아니면
   ///   [AuthRepository.signInWithExistingProvider] 결과를 사용해 **기존
   ///   provider 로 로그인** (step 1) 한다. 성공 시 pop(true) → 안내 SnackBar
-  ///   (step 2 = 설정 > 계정 연결) → `/home`.
+  ///   (step 2 = 설정 > 내 계정 > 계정 연결) → `/home`.
   /// - **경로 D:** 취소(null) 는 silent no-op (sheet 유지), 실패는 SnackBar
   ///   후 sheet 유지 — 익명 caller 재충돌(A-16-19-01) 도 이 경로로 흡수되어
   ///   crash 0 · 네비게이션 0 이다.
@@ -231,7 +231,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
       switch (outcome) {
         case _ExistingProviderSignInOutcome.success:
           navigator.pop(true);
-          // step 2 안내 — 나머지 로그인 수단은 설정 > 계정 연결에서 추가
+          // step 2 안내 — 나머지 로그인 수단은 설정 > 내 계정 > 계정 연결에서 추가
           // (PII 0: ARB + provider 라벨만).
           messenger.showSnackBar(
             SnackBar(

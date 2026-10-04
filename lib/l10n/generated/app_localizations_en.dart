@@ -631,7 +631,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String accountLinkingSignInThenLinkHint(String provider) {
-    return 'Signed in with your $provider account. You can add other sign-in methods in Settings > Link an account.';
+    return 'Signed in with your $provider account. You can add other sign-in methods in Settings > My Account > Link an account.';
   }
 
   @override

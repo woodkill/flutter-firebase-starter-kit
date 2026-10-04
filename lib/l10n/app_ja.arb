@@ -258,7 +258,7 @@
   "settingsAccountLinkingSection": "アカウント連携",
   "settingsLinkProviderCta": "{provider}と連携",
   "accountLinkingSucceededSnackbar": "{provider}アカウントを連携しました。",
-  "accountLinkingSignInThenLinkHint": "{provider}アカウントでログインしました。他のログイン方法は「設定」>「アカウント連携」から追加できます。",
+  "accountLinkingSignInThenLinkHint": "{provider}アカウントでログインしました。他のログイン方法は「設定」>「アカウント」>「アカウント連携」から追加できます。",
   "authReauthRequired": "セキュリティのため、再ログインしてから再試行してください。",
   "authReauthTitle": "本人確認",
   "authReauthGuide": "セキュリティのため、現在ログインしているアカウントでもう一度ログインしてください。",
