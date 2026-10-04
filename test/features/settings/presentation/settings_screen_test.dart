@@ -119,7 +119,7 @@
 // | `settings/presentation/settings_screen.dart` | ListView | `SafeArea` 직접 (`3674ec3`) | GUARDED — 본 SS10 이 회귀 잠금 |
 // | `terms/presentation/terms_detail_screen.dart` | SingleChildScrollView | `SafeArea` 직접 | GUARDED |
 // | `onboarding/presentation/onboarding_screen.dart` | SingleChildScrollView | `SafeArea` 직접 | GUARDED |
-// | `home/presentation/environment_info_screen.dart` | ListView | ListView padding 에 `MediaQuery.paddingOf(context).bottom` 가산 | GUARDED — 대체 방식 (동일 결함 없음) |
+// | `home/presentation/environment_info_screen.dart` → 현 `demo/presentation/demo_screen.dart` (17.1 에서 이동 · 같은 inset 가산 방식 유지) | ListView | ListView padding 에 `MediaQuery.paddingOf(context).bottom` 가산 | GUARDED — 대체 방식 (동일 결함 없음) |
 // | `auth/presentation/login_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 (`auth_scaffold.dart:36` `body: SafeArea(child: SingleChildScrollView)`) | GUARDED — 위임 (오탐 아님) |
 // | `auth/presentation/signup_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |
 // | `auth/presentation/forgot_password_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |

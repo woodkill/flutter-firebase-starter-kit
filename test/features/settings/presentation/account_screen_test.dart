@@ -368,14 +368,6 @@ Future<void> _openUnlinkDialog(WidgetTester tester, Finder button) async {
   await tester.pumpAndSettle();
 }
 
-/// 게스트(익명) 설정 화면을 GoRouter 안에서 pump 하고 provider container 를
-/// 돌려준다 (Phase 17.1 T-171-SETTINGS).
-///
-/// - `authStateProvider` = 익명 mock(`isAnonymous` true) data — 설정 화면의
-///   게스트 판정 입력 (RESEARCH Pitfall 6).
-/// - 테마 = 실 notifier + 빈 SharedPreferences(→ 시스템) · 언어 = 실 notifier
-///   (초기값만 [locale] 로 고정) — 시트 저장이 실제 저장 경로를 탄다.
-
 /// 테스트 view 를 logical [size](DPR 1)로 바꾼다 — 테스트 끝에 되돌린다.
 void _useViewport(WidgetTester tester, Size size) {
   tester.view.devicePixelRatio = 1;
@@ -845,7 +837,7 @@ void main() {
     testWidgets('SS13 Danger zone Semantics — 회원탈퇴 ListTile 결합 라벨 노출', (
       tester,
     ) async {
-      // 시맨틱 트리를 명시적으로 켠다 (environment_info_screen_test 패턴).
+      // 시맨틱 트리를 명시적으로 켠다 (demo_screen_test 와 같은 패턴).
       final handle = tester.ensureSemantics();
       await _pumpAccountScreen(
         tester,

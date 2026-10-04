@@ -1199,7 +1199,8 @@ void main() {
         expect(
           await _callAuthRedirect(container, mockState),
           isNull,
-          reason: 'environment_info_screen 의 익명 전용 로그인 push 경로는 불변이어야 한다',
+          reason:
+              '홈(home_screen) · 설정(settings_screen) 의 익명 전용 로그인 push 경로는 불변이어야 한다',
         );
       });
     },
