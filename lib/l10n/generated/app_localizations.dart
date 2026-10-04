@@ -1282,7 +1282,7 @@ abstract class AppLocalizations {
   /// **'Confirm'**
   String get authReauthConfirmCta;
 
-  /// 재인증 성공 후 재인증을 요청한 화면(계정 정보 화면 · 탈퇴 진행 화면)으로 돌아가며 띄우는 SnackBar (Q6). 탈퇴 · 계정 연결 어느 쪽 어휘도 넣지 않는다 (두 진입점 공용). 소비: LoginScreen 의 재인증 완료 처리. debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
+  /// 재인증 성공 후 재인증을 요청한 화면(계정 정보 화면 · 탈퇴 진행 화면)으로 돌아가며 띄우는 SnackBar (Q6). 탈퇴 · 계정 연결 · 연결 해제 어느 쪽 어휘도 넣지 않는다 (화면 2개 · 유스케이스 3개 공용 — 16.8 에서 해제 추가). 소비: LoginScreen 의 재인증 완료 처리. debug reauth-login-auto-merge (2026-09-17) — 재인증 모드 로그인 화면(/login?reauth=1 · /login/email?reauth=1). ko 문구는 사용자 시각 sign-off(Q1~Q7) verbatim 이며 en/ja 는 번역 초안이다. email/uid/token 을 노출하지 않는다.
   ///
   /// In en, this message translates to:
   /// **'You\'re verified. Try that again.'**
