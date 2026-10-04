@@ -123,6 +123,10 @@
 // 라우터 파일에서 화면 파일로 승격되며 audit 범위에 새로 들어옴) → `SafeArea`
 // 로 해소(17.1 review WR-02) · 해소 뒤 bash · zsh 모두 0건. 스크롤 말단에
 // 상호작용 요소를 두는 화면 중 하단 system inset 미반영 화면은 없다.
+// 아래 표 = 2026-10-04 재실행 기준 14 화면(`git ls-files` 결과와 1:1). 09-07
+// 이후 생긴 4 화면(email_login 16.1-01 · withdrawal_disconnect 16.10-07 ·
+// home 17.1-03 · account 17.1-06) 행을 더하고 삭제된 `signup_screen.dart`
+// 행을 대체 파일로 고쳤다(17.1 review IN-10).
 //
 // | 화면 파일 | 스크롤 보유 | 하단 inset 반영 방식 | 판정 |
 // |---|---|---|---|
@@ -131,11 +135,15 @@
 // | `onboarding/presentation/onboarding_screen.dart` | SingleChildScrollView | `SafeArea` 직접 | GUARDED |
 // | `home/presentation/environment_info_screen.dart` → 현 `demo/presentation/demo_screen.dart` (17.1 에서 이동 · 같은 inset 가산 방식 유지) | ListView | ListView padding 에 `MediaQuery.paddingOf(context).bottom` 가산 | GUARDED — 대체 방식 (동일 결함 없음) |
 // | `auth/presentation/login_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 (`auth_scaffold.dart:36` `body: SafeArea(child: SingleChildScrollView)`) | GUARDED — 위임 (오탐 아님) |
-// | `auth/presentation/signup_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |
+// | `auth/presentation/email_login_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |
+// | `auth/presentation/email_signup_screen.dart` (16.1-02 에서 옛 `signup_screen.dart` 삭제 · 대체) | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |
 // | `auth/presentation/forgot_password_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |
 // | `auth/presentation/verify_email_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |
 // | `splash/presentation/splash_screen.dart` | 없음 (스크롤 없음) | `SafeArea` 직접 | 해당 없음 |
 // | `not_found/presentation/not_found_screen.dart` | SingleChildScrollView | `SafeArea` 직접 (17.1 review WR-02) | GUARDED — not_found_screen_test T-171-NOTFOUND-07 이 회귀 잠금 |
+// | `home/presentation/home_screen.dart` | 없음 (스크롤 없음) | — | 해당 없음 |
+// | `settings/presentation/account_screen.dart` | ListView | `SafeArea` 직접 (`account_screen.dart:94`) | GUARDED |
+// | `settings/presentation/withdrawal_disconnect_screen.dart` | ListView | `SafeArea` 직접 (`withdrawal_disconnect_screen.dart:184`) | GUARDED |
 //
 // 시트 2종(`account_linking_sheet.dart` / `login_prompt_sheet.dart`) 도 각각
 // `SafeArea` 를 직접 적용한다 (audit 명령의 `*_screen.dart` 범위 밖이므로 별도 확인).
