@@ -5344,8 +5344,16 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
        경로 이동 단언을 지운다.
      - `test/features/settings/presentation/settings_screen_golden_test.dart` ·
        `test/features/home/home_announcement_golden_test.dart` — 데모 행 · 카드가
-       찍힌 golden(설정 8장 · 홈 2장)을 이 두 파일만
-       `fvm flutter test --no-pub --update-goldens` 로 다시 만든다.
+       찍힌 golden(설정 8장 · 홈 2장)을 이 두 파일만 다시 만든다. 두 경로를 인자로
+       준 아래 명령을 그대로 쓴다 — 인자 없이 돌리면 모든 golden 이 다시 찍힌다:
+       ```bash
+       fvm flutter test --no-pub --update-goldens \
+         test/features/settings/presentation/settings_screen_golden_test.dart \
+         test/features/home/home_announcement_golden_test.dart
+       git status --short -- '*.png'
+       ```
+       마지막 줄(`git status`)의 출력이 정확히 10장(설정 `settings_171_*` 8 · 홈
+       `home_171_*` 2 · 모두 `M`)인지 확인한다.
      - 끝으로 `fvm dart analyze` 가 0 건이 될 때까지, 지운 파일을 가리키거나 쓰는
        곳이 없어진 import · 선언을 lib · test 모두에서 지운다(라우터 테스트의
        `demo_screen.dart` · 테스트 전용 import · mock 클래스, source guard 의
