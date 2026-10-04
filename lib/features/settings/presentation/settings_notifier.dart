@@ -34,7 +34,7 @@ import '../data/settings_repository.dart';
 
 part 'settings_notifier.g.dart';
 
-/// 사용자 설정 화면의 상태 관리자 (Phase 16 D-06).
+/// 계정 정보 화면(탈퇴 · 연결 · 해제) · 탈퇴 진행 화면의 상태 관리자 (Phase 16 D-06).
 ///
 /// 탈퇴 진행 상태 (`AsyncValue<void>`) 를 노출하며, UI 는 본 Notifier 의
 /// AsyncValue 를 ref.listen 으로 구독하여 success/error 분기를 처리한다.
@@ -42,7 +42,7 @@ part 'settings_notifier.g.dart';
 /// **10-REVIEW WR-02:** 본 state 는 **회원탈퇴 전용**이다. proactive 계정
 /// 연결의 진행 표시는 [accountLinkInProgressProvider] 가 따로 보유한다 —
 /// 서로 무관한 두 유스케이스가 하나의 AsyncValue 를 공유하면 탈퇴 진행 중
-/// 연결 버튼이 전부 잠기고, 탈퇴 실패 error state 가 Settings 화면에
+/// 연결 버튼이 전부 잠기고, 탈퇴 실패 error state 가 계정 정보 화면에
 /// 살아남으며, 향후 link 실패가 "탈퇴 실패" 로 오표시된다.
 ///
 /// **Plan 16-06 Task 6.1 (D-06):** `requestAccountDeletion()` 본체 채움.

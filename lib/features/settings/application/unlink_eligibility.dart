@@ -1,7 +1,7 @@
 // Phase 16.8 D-03 · D-05 · D-11 · D-19 — 연결된 계정 해제 버튼 여부 규칙.
 //
-// 설정 「내 계정」 「연결된 계정」 값에서 어느 provider 이름을 밑줄 해제 버튼으로
-// 그릴지 정하는 provider 중립 순수 함수. 위젯 · notifier 어디에도 같은 조건을
+// 계정 정보 화면 「로그인 수단」 「연결된 계정」 값에서 어느 provider 이름을
+// 밑줄 해제 버튼으로 그릴지 정하는 provider 중립 순수 함수. 위젯 · notifier 어디에도 같은 조건을
 // 다시 쓰지 않는다 — 해제 가능 규칙을 바꾸려면 이 파일 한 곳만 고친다.
 import '../../../core/auth/provider_id.dart';
 import '../../auth/domain/user.dart';
@@ -36,8 +36,8 @@ import '../../auth/domain/user.dart';
 /// **이메일/비밀번호(`password`)도 해제 대상이다 (16.8 review WR-02).** 같은
 /// 3조건을 타며, 해제한 이메일/비밀번호를 킷 UI 로 다시 연결하는 경로가 없는
 /// 것은 결함이 아니라 의도된 설계다 — 이메일/비밀번호는 킷이 권장하는 로그인
-/// 수단이 아니라 보완적으로 제공하는 수단이라 설정 「계정 연결」 의 연결
-/// 대상에서 일부러 뺐다(`AccountLinkingSection` 후보 · `linkProvider` 의
+/// 수단이 아니라 보완적으로 제공하는 수단이라 계정 정보 화면 「계정 연결」
+/// 의 연결 대상에서 일부러 뺐다(`AccountLinkingSection` 후보 · `linkProvider` 의
 /// `unsupported`). 해제해도 가입 수단 로그인은 그대로 남는다.
 bool canUnlinkProvider(User? user, String providerId) {
   if (user == null) return false;

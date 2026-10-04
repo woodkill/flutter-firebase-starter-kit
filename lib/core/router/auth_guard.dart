@@ -24,8 +24,9 @@ part 'auth_guard.g.dart';
 /// [_unauthEntryRoutes] 와 분리한 이유: 약관/개인정보처리방침은 "미인증자가
 /// 들어와도 되는 경로" 이면서 **"완료 사용자가 있으면 안 되는 진입 화면" 은
 /// 아니다.** 두 의미를 한 Set 에 과적재하면 분기 (6) 이 정식·검증·약관 동의를
-/// 마친 사용자를 `/terms/service` 에서 `/home` 으로 튕겨내, 설정 화면의 약관
-/// 링크 같은 상시 열람 진입점이 조용히 죽는다 (앱스토어 심사 요구사항).
+/// 마친 사용자를 `/terms/service` 에서 `/home` 으로 튕겨내, 알림 탭 이동
+/// (`kNotificationRoutableRoutes` 의 약관 2경로)이나 adopter 가 설정에 더할
+/// 약관 링크 같은 상시 열람 진입점이 조용히 죽는다 (앱스토어 심사 요구사항).
 const Set<String> _publicDocRoutes = <String>{
   AppRoutes.termsService,
   AppRoutes.termsPrivacy,

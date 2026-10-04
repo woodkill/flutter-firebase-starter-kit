@@ -497,8 +497,8 @@ final class NotificationSettingsUpdateException extends AppException {
 
 /// 프로필 사진을 올리지 못함.
 ///
-/// Phase 17 — see ROADMAP.md (D-15 · D-21). 생성처는 설정 화면 프로필 사진
-/// 메뉴 「갤러리에서 사진 선택」(plan 17) — Storage 업로드 또는 프로필 갱신이
+/// Phase 17 — see ROADMAP.md (D-15 · D-21). 생성처는 계정 정보 화면 프로필
+/// 사진 메뉴 「갤러리에서 사진 선택」(plan 17) — Storage 업로드 또는 프로필 갱신이
 /// 실패했을 때 `showErrorSnackBar` 가 이 문구를 쓴다. 사용자가 고르기를
 /// 취소한 것은 실패가 아니다. toString 을 오버라이드하지 않는다.
 final class ProfilePhotoUploadException extends AppException {
@@ -509,8 +509,8 @@ final class ProfilePhotoUploadException extends AppException {
 
 /// 직접 올린 프로필 사진을 삭제하지 못함.
 ///
-/// Phase 17 — see ROADMAP.md (D-15 · D-21). 생성처는 설정 화면 프로필 사진
-/// 메뉴 「올린 사진 삭제」(plan 17) — Storage 삭제 또는 프로필 갱신이 실패했을
+/// Phase 17 — see ROADMAP.md (D-15 · D-21). 생성처는 계정 정보 화면 프로필
+/// 사진 메뉴 「올린 사진 삭제」(plan 17) — Storage 삭제 또는 프로필 갱신이 실패했을
 /// 때 `showErrorSnackBar` 가 이 문구를 쓴다. toString 을 오버라이드하지
 /// 않는다.
 final class ProfilePhotoRemoveException extends AppException {

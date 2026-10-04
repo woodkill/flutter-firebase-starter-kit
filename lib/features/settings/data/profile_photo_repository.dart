@@ -122,9 +122,9 @@ class ProfilePhotoRepository {
   /// 동안 메모리 압박으로 MainActivity 가 파괴되면 `pickImage` 결과는 사라지고
   /// 앱이 다시 시작될 때 `ImagePicker.retrieveLostData()`(Android 전용)로만
   /// 회수된다(image_picker 1.2.3 `pickImage` 문서). 킷은 이를 회수하지 않아
-  /// 사용자는 피드백 없이 「없음」 으로 돌아온다. 필요하면 설정 화면 진입 때
-  /// `retrieveLostData()` 를 1회 확인해 `file != null` 이면 업로드를 이어간다
-  /// (매뉴얼 커스터마이징 포인트).
+  /// 사용자는 피드백 없이 「없음」 으로 돌아온다. 필요하면 계정 정보
+  /// 화면(`AccountScreen`) 진입 때 `retrieveLostData()` 를 1회 확인해
+  /// `file != null` 이면 업로드를 이어간다 (매뉴얼 커스터마이징 포인트).
   Future<Result<String?>> pickAndUpload(String uid) {
     return guardResult<String?>('profile_photo_repository_upload', () async {
       // D-41 — 자르기 없이 업로드 전 리사이즈만(가로 1024 px · JPEG 품질 85).

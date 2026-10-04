@@ -1,5 +1,5 @@
-// Phase 17 D-15 · D-17 · D-18 · D-23 · D-41 · UI-SPEC (P) Q2-A — 설정 「내 계정」
-// 첫 행 프로필 사진.
+// Phase 17 D-15 · D-17 · D-18 · D-23 · D-41 · UI-SPEC (P) Q2-A — 계정 정보
+// 화면(`AccountScreen`) 「프로필」 첫 행 프로필 사진.
 //
 // 참조 구현 = mockups/p17_widgets.dart.txt `ProfilePhotoTile` (같은 트리 · 토큰,
 // 문구만 ARB). 행 탭 → 사진 메뉴 → 업로드 · 삭제 → 결과 SnackBar.
@@ -22,7 +22,7 @@ import 'profile_photo_sheet.dart';
 /// 사진 행 아바타 지름 — [CircleAvatar] 기본 반지름 20 의 2배 (UI-SPEC (P)).
 const double _kAvatarDiameter = 40;
 
-/// 설정 「내 계정」 첫 행 — 프로필 사진 (Phase 17 D-18 · UI-SPEC (P) Q2-A).
+/// 계정 정보 화면 첫 행 — 프로필 사진 (Phase 17 D-18 · UI-SPEC (P) Q2-A).
 ///
 /// - 아바타: 기본 반지름 [CircleAvatar](40 dp) · 사진은 `BoxFit.cover` 가운데
 ///   맞춤(D-41 — 자르기 화면 없음) · 없으면 `Icons.person` · 장식이라

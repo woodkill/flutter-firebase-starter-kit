@@ -142,8 +142,8 @@ splitAccountProviders(User? user) {
 ///   [AppLocalizations.errorUnknownProvider] — 보유 여부와 무관하게 기록값을
 ///   그대로 표시한다 (D-12).
 ///
-/// 홈 계정 카드와 설정 「내 계정」 이 [splitAccountProviders] 결과의
-/// `signUpProviderId` 로 호출한다.
+/// 계정 정보 화면(`AccountScreen`)과 데모 화면 계정 디버그 정보 카드가
+/// [splitAccountProviders] 결과의 `signUpProviderId` 로 호출한다.
 String formatSignUpMethod(String? signUpProviderId, AppLocalizations l10n) =>
     formatProviderIds(switch (signUpProviderId) {
       final id? => <String>[id],

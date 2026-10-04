@@ -76,7 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// already-exists / Custom Token) 는
   /// [AuthRepository.signInWithExistingProvider] 로 **기존 provider 에
   /// 로그인**한 뒤 설정 > 내 계정 > 계정 연결로 안내한다. naver 는 로그인 대상으로 완전
-  /// 지원되고 연결 대상으로도 Phase 16.9 부터 지원된다(설정 Surface D
+  /// 지원되고 연결 대상으로도 Phase 16.9 부터 지원된다(계정 정보 화면 Surface D
   /// `linkNaverProviderArm`) — 본 screen 은 sheet 노출만 담당한다.
   void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -241,8 +241,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 /// 계속」. 가입 링크는 없다 (새 계정 생성 = 다른 계정 전환).
 ///
 /// - 버튼 탭 → [SocialReauthNotifier] → `AuthRepository.reauthenticate`.
-/// - 성공 → SnackBar(`authReauthSucceeded`) + 이전 화면(설정)으로 pop (Q6).
-///   SnackBar 는 root [ScaffoldMessenger] 에 띄우므로 pop 뒤 설정 화면에 남는다.
+/// - 성공 → SnackBar(`authReauthSucceeded`) + 재인증을 요청한 이전 화면(계정
+///   정보 화면 · 탈퇴 진행 화면)으로 pop (Q6). SnackBar 는 root
+///   [ScaffoldMessenger] 에 띄우므로 pop 뒤 그 화면에 남는다.
 /// - 취소 → 이동 없음. 실패 → 인라인 [FormErrorBanner] (다른 계정 = Q2 문구).
 /// - 쓸 수 있는 수단 0 → [ReauthMethodUnavailable] 배너 (Q7). 연결 안 된
 ///   provider 를 대안으로 노출하지 않는다.
