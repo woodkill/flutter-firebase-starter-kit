@@ -71,11 +71,18 @@ class NotFoundScreen extends StatelessWidget {
       appBar: AppBar(title: Text(l10n.errorNotFoundTitle)),
       // 맞으면 지금처럼 가운데, 넘치면 스크롤 (Phase 3 D-09 · quick 261003-0fp ·
       // quick 260929-pze 와 같은 bounded 분기).
-      body: LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: content,
+      // SafeArea — 넘쳐서 스크롤할 때 말단 「홈으로」 가 하단 system inset(제스처
+      // 바 · 3버튼 내비)에 깔리지 않게 한다(17.1 review WR-02). AppBar 가 있어
+      // Scaffold 가 top padding 은 이미 뺐으므로 실제로는 하단 · 가로 모드 좌우만
+      // 더해진다. 하단 padding 가산은 minHeight 가운데 정렬과 겹쳐 내용 높이가
+      // 늘 maxHeight + inset 이 되므로(항상 inset 만큼 스크롤) 쓰지 않는다.
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: content,
+            ),
           ),
         ),
       ),

@@ -105,14 +105,24 @@
 //
 // 동일 패턴 audit (G-16-A6-1 missing 2번째 항목 — 2026-09-07 실행):
 //
-// 재실행 명령 (Task 1 verify 와 동일):
-//   SCREENS=$(git ls-files 'lib/**/*_screen.dart'); for f in $SCREENS; do \
+// 재실행 명령 (bash · zsh 공통 — 17.1 review WR-02 에서 형태 변경):
+//   for f in $(git ls-files 'lib/**/*_screen.dart'); do \
 //     if grep -qE 'ListView|SingleChildScrollView|CustomScrollView|GridView' "$f" \
 //     && ! grep -q 'SafeArea' "$f" && ! grep -q 'paddingOf(context).bottom' "$f" \
 //     && ! grep -q 'AuthScaffold' "$f"; then echo "UNGUARDED: $f"; fi; done; echo AUDIT_DONE
 //
-// 결과: `UNGUARDED:` 0건 (AUDIT_DONE). 스크롤 말단에 상호작용 요소를 두는 화면
-// 중 하단 system inset 미반영 화면은 없다.
+// zsh 함정: 옛 형태 `SCREENS=$(…); for f in $SCREENS` 는 zsh 가 `$SCREENS` 를
+// 단어 분리하지 않아 순회가 1회만 돈다 — 목록 전체가 한 단어가 되어 grep 이
+// 그 이름의 파일을 못 찾고(No such file) 조건이 거짓이 되므로 `UNGUARDED` 0 +
+// `AUDIT_DONE` 의 거짓 0건이 나온다. `$(…)` 를 for 목록에 직접 쓰면 zsh 도
+// 따옴표 없는 명령 치환 결과를 IFS 로 나눠 bash 와 같이 14회 순회한다
+// (2026-10-04 실측 · 경로에 공백이 없다는 전제).
+//
+// 결과: 2026-09-07 실행 당시 `UNGUARDED:` 0건 (AUDIT_DONE). 2026-10-04 재실행
+// 시 `not_found/presentation/not_found_screen.dart` 1건(17.1 D-18 로 404 본문이
+// 라우터 파일에서 화면 파일로 승격되며 audit 범위에 새로 들어옴) → `SafeArea`
+// 로 해소(17.1 review WR-02) · 해소 뒤 bash · zsh 모두 0건. 스크롤 말단에
+// 상호작용 요소를 두는 화면 중 하단 system inset 미반영 화면은 없다.
 //
 // | 화면 파일 | 스크롤 보유 | 하단 inset 반영 방식 | 판정 |
 // |---|---|---|---|
@@ -125,10 +135,12 @@
 // | `auth/presentation/forgot_password_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |
 // | `auth/presentation/verify_email_screen.dart` | 화면 파일에는 없음 | `AuthScaffold` 위임 | GUARDED — 위임 |
 // | `splash/presentation/splash_screen.dart` | 없음 (스크롤 없음) | `SafeArea` 직접 | 해당 없음 |
+// | `not_found/presentation/not_found_screen.dart` | SingleChildScrollView | `SafeArea` 직접 (17.1 review WR-02) | GUARDED — not_found_screen_test T-171-NOTFOUND-07 이 회귀 잠금 |
 //
 // 시트 2종(`account_linking_sheet.dart` / `login_prompt_sheet.dart`) 도 각각
 // `SafeArea` 를 직접 적용한다 (audit 명령의 `*_screen.dart` 범위 밖이므로 별도 확인).
-// → 신규 누락(UNGUARDED) 0건이므로 본 task 는 `lib/**/*_screen.dart` 를 수정하지 않는다.
+// → (Phase 16 Plan 16-16 당시 · 2026-09-07) 신규 누락(UNGUARDED) 0건이므로 그
+// task 는 `lib/**/*_screen.dart` 를 수정하지 않았다.
 
 import 'dart:async';
 import 'dart:io';

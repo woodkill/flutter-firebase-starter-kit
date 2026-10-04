@@ -183,6 +183,69 @@ void main() {
         }
       },
     );
+
+    testWidgets('T-171-NOTFOUND-07 (560x280 · ko): 하단 inset 48dp — 끝까지 스크롤한 '
+        '홈으로 hit-test 가능 + SafeArea geometry 회귀 가드 (17.1 review WR-02)', (
+      tester,
+    ) async {
+      // settings_screen_test T-171-SETTINGS-17 ③ (옛 SS10) 과 같은 관측량 —
+      // 위젯 테스트에는 실제 occluder(시스템 내비게이션 바)가 없어 tap 만으로는
+      // SafeArea 유무를 구분하지 못한다. 끝까지 스크롤한 뒤 「홈으로」 bottom 이
+      // `화면 높이 − inset` 이하인지가 신호다.
+      const screenSize = Size(560, 280);
+      const double bottomInset = 48; // 3버튼 내비게이션 상당.
+      final safeBottom = screenSize.height - bottomInset; // 232.0
+
+      _setLogicalViewport(tester, screenSize);
+      // SafeArea 가 읽는 것은 MediaQuery.paddingOf 이므로 viewPadding 과
+      // padding 을 **둘 다** 설정해야 inset 이 실제로 반영된다.
+      tester.view.viewPadding = const FakeViewPadding(bottom: bottomInset);
+      tester.view.padding = const FakeViewPadding(bottom: bottomInset);
+      addTearDown(tester.view.resetViewPadding);
+      addTearDown(tester.view.resetPadding);
+
+      await _pumpNotFound(tester, locale: const Locale('ko'));
+      expect(tester.takeException(), isNull);
+
+      // 전제 — 본문이 viewport 를 넘어야 「끝까지 스크롤한 상태」 가 성립한다.
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(SingleChildScrollView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(scrollable.position.maxScrollExtent, greaterThan(0));
+
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -2000),
+      );
+      await tester.pumpAndSettle();
+
+      final goHome = find
+          .widgetWithText(
+            FilledButton,
+            lookupAppLocalizations(const Locale('ko')).errorNotFoundGoHomeCta,
+          )
+          .hitTestable();
+
+      // (a) hit-test 가능 — inset 아래에서도 실제로 탭 대상이 된다.
+      expect(goHome, findsOneWidget);
+
+      // (b) geometry — SafeArea 제거 시 실패하는 관측량.
+      expect(
+        tester.getRect(goHome).bottom,
+        lessThanOrEqualTo(safeBottom),
+        reason:
+            '「홈으로」 bottom 이 $safeBottom (= 화면 높이 '
+            '${screenSize.height} − 하단 system inset $bottomInset) 을 '
+            '넘으면 실 단말의 내비게이션 바 · 제스처 바에 깔린다. 이 단언은 '
+            'not_found_screen.dart 의 `body: SafeArea(...)` (17.1 review '
+            'WR-02) 가 제거되면 실패한다.',
+      );
+    });
   });
 
   // UI-SPEC §UI Considerations E6 (long-text) — 지원 최소 폭 280dp 세로에서도
