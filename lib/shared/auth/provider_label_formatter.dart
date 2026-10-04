@@ -189,8 +189,9 @@ int _rankForDisplay(String providerId) {
 /// - semantics 는 `labels.join(', ')` 로 따로 만든다 — 표시 span 의
 ///   자리표시 문자가 낭독 문자열에 섞이지 않는다.
 ///
-/// `Text.rich` 생성과 `semanticsLabel` 지정은 호출 쪽(홈 카드 · 설정 행)
-/// 책임이다. [style] 은 바깥 `Text.rich` 와 같은 style 을 넘긴다.
+/// `Text.rich` 생성과 semantics label 지정은 호출 쪽(데모 화면 계정 디버그
+/// 정보 카드 — `demo_screen.dart` `_AccountDebugSection`) 책임이다. [style] 은
+/// 바깥 `Text.rich` 와 같은 style 을 넘긴다.
 ({InlineSpan display, String semantics}) buildLinkedAccountsValue(
   List<String> labels, {
   required String none,

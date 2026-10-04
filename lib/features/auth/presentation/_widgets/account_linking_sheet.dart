@@ -71,8 +71,9 @@ typedef ExistingProviderSignInCallback =
 ///   (step 1). 성공 시 안내 SnackBar 로 step 2 위치를 알린다.
 /// - **경로 D** — step 1 취소는 silent no-op, 실패는 SnackBar 후 sheet 유지.
 ///
-/// **step 2 는 Settings "계정 연결"** (proactive arm — `SettingsNotifier.
-/// linkProvider` → [AuthRepository.linkCustomTokenProviderArm]) 이 담당한다.
+/// **step 2 는 계정 정보 화면 「계정 연결」** (proactive arm —
+/// `SettingsNotifier.linkProvider` →
+/// [AuthRepository.linkCustomTokenProviderArm]) 이 담당한다.
 /// 그 메서드는 본 sheet 에서만 호출이 사라졌을 뿐 orphan 이 아니다.
 ///
 /// **Naver:** step 1 **로그인 대상**으로 완전히 지원되고, 연결 대상으로도

@@ -1153,8 +1153,8 @@ class AuthRepository implements AnonymousSignIn {
   /// 로그인된 사용자에게 Google 계정을 proactive 하게 연결한다
   /// (Phase 16 16-10 — proactive native link arm / SOCL-12 / UAT A6).
   ///
-  /// Settings "계정 연결" 섹션 (Surface D) 에서 사용자가 Google 버튼을 탭하면
-  /// 호출된다 — account-exists 충돌 없이 logged-in user 가 직접 provider 를
+  /// 계정 정보 화면 「계정 연결」 섹션 (Surface D) 에서 사용자가 Google 버튼을
+  /// 탭하면 호출된다 — account-exists 충돌 없이 logged-in user 가 직접 provider 를
   /// 추가하는 흐름. 익명 승격 분기는 타지 않으며 (currentUser 가 이미 정식
   /// user 전제), Cloud Functions callable 을 호출하지 않는다 (native — UAT A6
   /// invariant).
@@ -1244,7 +1244,7 @@ class AuthRepository implements AnonymousSignIn {
   /// 시각 sign-off — email EXCLUDE). 본 메서드는 starter-kit 의 email-credential
   /// linking **확장점** 으로 제공되며, 기본 동작에서는 의도적으로 어떤 UI 에도
   /// wire 되지 않는다:
-  /// - **proactive (Settings Surface D):** call site 0 — email 후보 미포함.
+  /// - **proactive (계정 정보 화면 Surface D):** call site 0 — email 후보 미포함.
   /// - **reactive (16-08 충돌 arm):** generic `linkPendingNativeCredential`
   ///   (pendingCredential 직접 link) 를 사용하므로 본 메서드 미경유.
   ///
@@ -2151,7 +2151,7 @@ class AuthRepository implements AnonymousSignIn {
   /// [linkCustomTokenProviderArm]) 은 구조적으로 성공할 수 없다 — 본 메서드가
   /// 그 자리를 대신한다 (mockup `surface-a-two-step-reactive.md` 경로 B).
   ///
-  /// **step 2 계약:** 나머지 로그인 수단 추가는 Settings "계정 연결"
+  /// **step 2 계약:** 나머지 로그인 수단 추가는 계정 정보 화면 「계정 연결」
   /// (proactive arm — `SettingsNotifier.linkProvider`) 가 담당한다. 본
   /// 메서드는 link 를 수행하지 않으며 자동 연속 link 도 하지 않는다.
   ///
@@ -4367,7 +4367,8 @@ Stream<UserProviderRecord> linkedProvidersStream(Ref ref, String uid) async* {
       // provider 는 `@Riverpod(keepAlive: true)` 라 재구독이 일어나지 않아
       // 일시적 `unavailable` 한 번이면 세션 내내 linkedProviders 가 빈
       // 배열로 고정되고, currentUser 의 합집합이 Custom Token provider 들을
-      // 영구 누락했다 (Settings "계정 연결" 섹션 / provider 라벨 오표시).
+      // 영구 누락했다 (계정 정보 화면 「계정 연결」 섹션 / provider 라벨
+      // 오표시).
       // permission-denied 에 이미 존재하는 "일시 장애에서 복구한다" 의도를
       // 나머지 에러에도 대칭 적용한다.
       await Future<void>.delayed(errorBackoff);

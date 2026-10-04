@@ -1,9 +1,12 @@
-// Phase 16.8 D-10 · D-11 · D-12 — 설정 「연결된 계정」 값 (해제 가능 변형).
+// Phase 16.8 D-10 · D-11 · D-12 — 계정 정보 화면 「연결된 계정」 값
+// (해제 가능 변형).
 //
-// UI-SPEC §Surface S (16.8) 트리 verbatim. 홈 계정정보 카드의 보기 전용
-// `buildLinkedAccountsValue`(lib/shared/auth/)는 손대지 않는다 — 홈은 보기
-// 전용이고(D-10) 홈 golden byte 동일이 가드다. `InkWell` · `Semantics` 는
-// material 위젯이라 widgets 만 쓰는 `shared/` 대신 설정 feature 에 둔다.
+// UI-SPEC §Surface S (16.8) 트리 verbatim. 보기 전용 `buildLinkedAccountsValue`
+// (lib/shared/auth/ · 지금 소비처는 데모 화면 계정 디버그 정보 카드)는 손대지
+// 않는다 — 그쪽은 보기 전용이고(D-10) span 트리는
+// `test/shared/auth/provider_label_formatter_test.dart` H9~H12 가 지킨다.
+// `InkWell` · `Semantics` 는 material 위젯이라 widgets 만 쓰는 `shared/` 대신
+// 설정 feature 에 둔다.
 //
 // 16.7 (c) 메커니즘 그대로 provider 1개 = baseline `WidgetSpan` 1개이고 사이는
 // 공백 `TextSpan` 이다 — 줄은 쉼표 뒤에서만 바뀌고 라벨 내부에서는 끊기지
@@ -13,8 +16,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 
-/// 설정 「연결된 계정」 값 span 을 만든다 — 해제 가능 이름은 밑줄 텍스트
-/// 버튼, 해제 불가 이름은 일반 텍스트 (Phase 16.8 D-10 · D-11 · D-12 ·
+/// 계정 정보 화면 「연결된 계정」 값 span 을 만든다 — 해제 가능 이름은 밑줄
+/// 텍스트 버튼, 해제 불가 이름은 일반 텍스트 (Phase 16.8 D-10 · D-11 · D-12 ·
 /// UI-SPEC §Surface S (16.8)).
 ///
 /// - [entries] — 표시 순서의 연결된 계정 `(id, label)` 쌍. 라벨은

@@ -221,7 +221,7 @@ final class AccountExistsWithDifferentCredential extends AuthException {
 /// 반환할 때 매핑된다. 이미 연결된 자격증명을 중복 link 시도한 경우다.
 ///
 /// **표시 문구는 표면마다 다르다 (Phase 16 G-16-A6-2 / WR-02 / WR-04).**
-/// - proactive (Settings Surface D): `SettingsNotifier` 가 본 타입을
+/// - proactive (계정 정보 화면 Surface D): `SettingsNotifier` 가 본 타입을
 ///   `AccountLinkOutcome.alreadyLinked` 로 분기하고 위젯이 전용 문구
 ///   `settingsLinkFailedAlreadyLinked` 를 렌더한다. 2026-09-07 A6 실측에서
 ///   실제 원인이 `credential-already-in-use` 인데 이메일 문구가 표시된 collapse
