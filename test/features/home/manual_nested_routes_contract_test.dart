@@ -78,6 +78,8 @@ String _sliceFromHeading(String manual, String heading) =>
 ///
 /// 범위 표기(예: `T-172-ROUTES-01~03`)는 01 · 02 · 03 을 모두 인용한 것으로
 /// 본다 — 첫 ID 만 뽑으면 02 · 03 의 이름이 바뀌어도 포인터 검사가 통과한다.
+/// 역순 범위(`NN~MM` 에서 MM < NN)는 매뉴얼 오타로 보고 test 를 실패시킨다 —
+/// 그대로 펼치면 ID 를 하나도 모으지 않아 검사가 조용히 빈다.
 Set<String> _collectTest172Ids(String text) {
   final Set<String> ids = <String>{};
   for (final RegExpMatch match in RegExp(
@@ -86,6 +88,11 @@ Set<String> _collectTest172Ids(String text) {
     final String prefix = match.group(1)!;
     final int first = int.parse(match.group(2)!);
     final int last = int.parse(match.group(3) ?? match.group(2)!);
+    expect(
+      last >= first,
+      isTrue,
+      reason: '범위 표기 `${match.group(0)}` 가 역순이다 — NN~MM 은 NN <= MM 이어야 한다',
+    );
     for (int number = first; number <= last; number++) {
       ids.add('$prefix${number.toString().padLeft(2, '0')}');
     }
@@ -207,7 +214,12 @@ void main() {
     });
 
     test('T-172-DOCS-06: 인용된 T-172 test ID 가 실제 test 이름이다 (포인터 무결성)', () {
-      final String nestingSource = readTrackedFile(_nestingTestPath);
+      // 선언을 찾는 소스는 `//` 행 주석을 걷어낸다 — 주석 처리로 비활성화한
+      // test 는 선언이 아니다. 인용을 모으는 notification_route.dart 는 주석이
+      // 곧 인용이므로 원문을 쓴다.
+      final String nestingSource = stripSlashComments(
+        readTrackedFile(_nestingTestPath),
+      );
       final String notificationRouteSource = readTrackedFile(
         _notificationRoutePath,
       );
@@ -243,12 +255,13 @@ void main() {
       // test/ 아래 모든 dart test 파일을 한 번 읽어 선언을 찾는다. 이 파일도
       // 포함한다 — 매뉴얼 ③ 이 이 파일의 T-172-DOCS-07 을 인용하고,
       // [_declaresTestName] 은 `test(` 의 첫 인자만 선언으로 세므로 이 파일의
-      // ID 목록 · reason 문자열이 선언으로 잘못 잡히지 않는다.
+      // ID 목록 · reason 문자열이 선언으로 잘못 잡히지 않는다. `//` 로 주석
+      // 처리한 test 도 선언으로 세지 않도록 행 주석을 걷어낸 뒤 찾는다.
       final List<String> testSources = Directory('test')
           .listSync(recursive: true)
           .whereType<File>()
           .where((File f) => f.path.endsWith('_test.dart'))
-          .map((File f) => f.readAsStringSync())
+          .map((File f) => stripSlashComments(f.readAsStringSync()))
           .toList();
       expect(testSources, isNotEmpty, reason: 'test/ 파일을 못 찾았다');
 
