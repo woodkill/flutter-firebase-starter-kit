@@ -4169,11 +4169,18 @@ Source: `.planning/phases/09.2-multi-provider-account-linking-enhancement/09.2-H
    사용자**" 로 바뀐다.
 3. `signup` 은 이름·경로 모두 그대로지만 화면에 소셜 버튼이 없으므로 그
    화면에서 발생하던 소셜 가입 이벤트는 0 이 된다.
+4. **알림으로 연 화면 (Phase 17.2):** 알림을 탭해 계정 정보 화면을 열면
+   `settings` · `account` 두 개의 `screen_view` 가 이 순서로 생긴다
+   (2026-10-05 실측 — 홈 하위 route 를 `go` 로 열면 중간 화면도 Navigator 에
+   들어와 observer 가 둘 다 받는다 · T-172-ANALYTICS-01). 알림 → 설정 · 약관은
+   1건이다. 대상 화면 1건만 남기는 커스텀 observer 는 두지 않았다(observer 단일
+   발신 구조 · `lib/core/analytics/analytics_observer.dart`).
 
 **필요한 조치:** Firebase Console 등록 작업은 **불필요**하다. 다만 `login` 을
 기준으로 funnel/대시보드를 만든 경우 (a) `emailLogin` 을 step 으로 추가하거나
 (b) `login` 을 "인증 진입" 으로 재정의해야 한다. 배포 시점을 annotation 으로
-남겨 before/after 를 구분할 것을 권장한다.
+남겨 before/after 를 구분할 것을 권장한다. 알림 진입 funnel 은 계정 화면 앞의
+`settings` 1건을 알림 이동의 일부로 본다(앱 안 이동은 화면 1장당 1건 그대로).
 
 ### 회귀 가드 위치
 
@@ -5265,7 +5272,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 ### ② 화면을 통째로 바꿀 때 — 옮길 배선 체크리스트
 
 `home_screen.dart` 를 다른 화면으로 바꾸거나 `AppRoutes.home` 의 builder 가 다른
-위젯을 띄우게 할 때는 아래 5가지를 새 화면에 옮긴다.
+위젯을 띄우게 할 때는 아래 6가지를 새 화면에 옮긴다(6번째는 라우터에 그대로
+남긴다).
 
 | 배선 | 지금 위치 | 빠뜨리면 생기는 일 |
 |------|-----------|--------------------|
@@ -5274,6 +5282,7 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 게스트 안내 바 `GuestBanner` | `_widgets/guest_banner.dart` · 공지 배너 아래(게스트일 때만) | 게스트에게 가입 안내가 사라진다 |
 | 게스트 「로그인」 버튼 | `home_screen.dart` AppBar `actions`(게스트일 때 `context.push(AppRoutes.login)`) | 게스트가 로그인 화면으로 가는 길이 설정의 「로그인 · 가입」 행 하나만 남는다 |
 | 설정 아이콘 | `home_screen.dart` AppBar `actions`(`context.push(AppRoutes.settings)` · 게스트 포함) | 설정 · 계정 정보 · 알림 받기 · 데모 화면으로 가는 길이 사라진다 |
+| 홈 GoRoute 의 하위 route `routes:`(설정 · 계정 · 탈퇴 · 데모 · 약관 2) | `lib/core/router/app_router.dart` 의 `AppRoutes.home` GoRoute(Phase 17.2) | 알림으로 연 설정 · 계정 · 약관 화면이 스택 1장(「뒤로」 없음)이 되고 홈 리스너가 트리에서 빠진다 — 구조 불변식 테스트 T-172-ROUTER-01 이 실패한다. builder 만 바꾸고 `routes:` 는 그대로 둔다 |
 
 - **리스너는 위젯 트리에 1개만, 홈 화면에만 둔다.** 종료 상태에서 알림을 탭하면
   스플래시 → 홈 → 대상 순서로 가는데, 이 순서는 홈이 그려진 뒤 홈의 리스너가 요청을
@@ -5287,11 +5296,18 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
   집합도 함께 고친다. 홈 화면 테스트(`test/features/home/home_screen_test.dart`)와
   홈 golden `home_171_guest_announcement_ko_280_{light,dark}.png`
   (`home_announcement_golden_test.dart`)도 새 화면 기준으로 다시 만든다.
+  홈 파일 · 클래스 이름을 바꾸면(예: `my_home_screen.dart` · `MyHomeScreen`) lib ·
+  test 에서 옛 이름을 쓰는 곳을 모두 새 이름으로 바꾼다 — `grep -rlw HomeScreen lib test`
+  · `grep -rlF home_screen.dart lib test` 로 찾는다(import · `find.byType` · doc 참조 ·
+  source guard `_homeScreenPath`). 매뉴얼 문구를 지키는
+  `test/features/home/manual_home_replacement_contract_test.dart` 의 토큰 목록은
+  매뉴얼을 함께 고칠 때만 바꾼다.
 
 ### ③ 데모 화면 — 위치 · 노출 조건 · 지우는 법
 
 - **위치:** `lib/features/demo/presentation/demo_screen.dart`(`DemoScreen` 한 파일) ·
-  경로 `/settings/developer`(`AppRoutes.developerDemo`). 옛 홈(데모)의 개발 · 데모
+  경로 `/settings/developer`(`AppRoutes.developerDemo`) — 설정 GoRoute 의 하위
+  route(`AppRoutes.developerDemoSegment`)다(Phase 17.2). 옛 홈(데모)의 개발 · 데모
   기능이 여기 있다 — 환경 정보 카드 · 날짜 · 숫자 · 복수형 쇼케이스 · 색 · 글꼴 ·
   간격 쇼케이스 · 보호된 기능 예시 · **계정 디버그 정보**(UID 탭 복사 · 가입 수단 ·
   연결된 계정 · 프로필 사진 URL 썸네일) · Dev Tools.
@@ -5317,16 +5333,19 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
   로그아웃(debug)을 쓴다. profile · release 빌드의 게스트는 앱 데이터 삭제로만 처음
   상태가 된다(D-09).
 - **지우는 법(데모를 앱에서 빼기):**
-  1. `app_router.dart` 의 `if (!kReleaseMode) GoRoute(…AppRoutes.developerDemo…)`
-     1개와 `demo_screen.dart` import 를 지운다.
+  1. `app_router.dart` 설정 GoRoute 의 `routes` 안에 있는 `if (!kReleaseMode)` 데모
+     GoRoute(`path: AppRoutes.developerDemoSegment`) 1개와 `demo_screen.dart`
+     import 를 지운다.
   2. 진입점 2곳 — `settings_screen.dart` 의 「개발자」 묶음(`showsDemoRow`)과
      `home_body.dart` 카드의 버튼 — 을 지운다.
   3. `lib/features/demo/` 폴더를 지운다.
   4. 테스트를 정리한다 — 아래 항목을 위에서부터 차례로 따라 한다.
      - `test/features/demo/` — 폴더째(3파일) 지운다.
      - `test/core/router/app_router_observers_test.dart` — T-171-ROUTER-02 · 03
-       이 든 group 을 통째로 지우고, Test 2 · 3 의 라우트 개수 `14`(비 release)를
-       `13` 으로 고친다(Test 2 이름의 「14개」 · `developerDemo` 도).
+       이 든 group 을 통째로 지우고, Test 2 · 3 의 재귀 개수 `14`(비 release)를
+       `13` 으로 고친다(최상위 `8` 은 그대로 · Test 2 이름의 「14개」 ·
+       `developerDemo` 도). `test/helpers/route_tree.dart` 는 지우지 않는다
+       (Test 2 · 3 이 쓴다).
      - `test/features/home/home_listener_source_guard_test.dart` — T-171-HOME-15
        를 지우고, T-171-HOME-16 기대 집합에서 `demo_screen.dart`(상수
        `_demoScreenPath`)를 뺀다.
@@ -5509,7 +5528,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-05 | 17.1-14 | G-17.1-4: 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계(테스트 정리)를 하위 목록 8항목으로 풀어 씀(UAT test 4 「빽빽해」) — 테스트 파일마다 한 항목(`test/features/demo/` · 라우터 · source guard · 설정 · 알림 섹션 · 홈 본문 · golden 2파일)에 지울 테스트 ID · 고칠 단언을 같은 항목에, 끝 항목은 `fvm dart analyze` 0 건까지 lib · test 의 import · 선언 정리. 다시 확인해 보탠 것: 라우터 group 통째 삭제 · 라우트 개수 `14` → `13`(Test 2 이름 포함) · 설정 테스트의 지울 것(06 · 07)과 고칠 것(01 · 11 · 13 · 15 · 17 ②~④ · T-17-NOTIF-12) 구분 · 알림 섹션 T-17-NOTIF-05 위치 단언 · 데모 행 · 카드가 찍힌 golden 10장 재생성 · analyze 정리(라우터 테스트의 `demo_screen.dart` · 전용 import · mock 클래스 · `_demoScreenPath` · `home_body.dart` 의 `go_router`). 1 · 2 · 3 · 5단계와 다른 절은 그대로 |
 | 2026-10-05 | 17.1 review fix (iteration 5) | Phase 17.1 code review iteration 5 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계: 설정 테스트 항목에 T-171-SETTINGS-17 ③ 전용 손질 추가 — (c) 데모 경로 탭 단언 삭제 · `screenHeight` 640 → 목록이 넘치는 값(예: 400) · 전제 단언(`maxScrollExtent > 0`)은 유지 (데모 묶음이 빠지면 목록이 viewport 를 넘지 않아 전제가 실패 · 새 마지막 행은 정식 = 알림 스위치) (review WR-03) / golden 재생성 명령을 두 파일 경로를 인자로 준 목록 안 코드 블록으로 바꾸고 `git status --short -- '*.png'` = 정확히 10장 확인 추가 (인자 없는 명령을 복사하면 일괄 `--update-goldens` 가 됨) (review WR-04) / 끝 항목 analyze 정리 예시에 2차로 드러나는 `auth_repository.dart` import · 알림 섹션 테스트의 `sectionBottom` · `settings_screen.dart` 의 `foundation.dart` 추가 · 「analyze 는 0 건이 될 때까지 되풀이한다」 명시 (review IN-13). 1~3 · 5단계와 다른 절은 그대로 |
 | 2026-10-05 | 17.1 review fix (iteration 6) | Phase 17.1 code review iteration 6 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계 설정 테스트 항목: 「새 마지막 행(정식은 알림 스위치)」 괄호에 게스트 분기를 보탬 — 「게스트는 언어 행」 + 게스트로 데모 행을 보는 테스트 명시(13 · 15 는 정식 · 게스트 둘 다, 01 은 게스트만) (게스트에게는 알림 섹션이 없어 데모 묶음을 빼면 언어 행이 말단) (review IN-14) / 17 ③ 문장에 `screenHeight` 를 줄이면 같은 테스트의 `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로, (b) reason 문자열의 「말단 행(데모 행)」 은 「말단 행(알림 스위치)」 로 고친다는 한 마디 추가 (review 관찰 5 · 사용자 결정으로 IN-14 와 함께 반영). 1~3 · 5단계와 다른 절은 그대로 |
+| 2026-10-05 | 17.2-04 | 「FCM 알림」 탭 이동 뒤 「결과 스택 (Phase 17.2)」 bullet · 커스터마이징 「알림 탭으로 열 화면」 홈 하위 조건 · 「Analytics(GA4) screen name」 4항(알림 → 계정 settings · account 2건) · 「홈 화면 바꾸기」 ② 6번째 배선(홈 GoRoute routes:) · 이름 바꾸기 안내 · ③ 데모 위치(설정 child)와 지우는 법 1 · 4단계 · ④ 새 화면 추가 6단계 + 구조 불변식 실패 메시지 / 다른 절은 그대로 |
 
 ---
 
-*Last updated: 2026-10-05 — Phase 17.1 code review fix iteration 6 (「지우는 법」 4단계 설정 테스트 — IN-14 게스트 분기 새 마지막 행(언어 행) · 관찰 5 17 ③ 주석 · reason 문자열 손질)*
+*Last updated: 2026-10-05 — Phase 17.2 plan 04 (알림 대상 홈 하위 route — 결과 스택 · 새 화면 추가 · 데모 위치 · GA4 2건)*
