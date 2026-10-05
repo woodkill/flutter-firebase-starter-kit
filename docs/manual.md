@@ -3119,7 +3119,7 @@ curl -X POST \
 
 **앱 내 알림함은 없다 (D-06):** 받은 알림을 Firestore 에 저장하거나 목록 화면으로 보여 주지 않는다 — 시스템 알림 + 탭 이동까지가 킷 범위다. 알림함이 필요한 앱은 서버 발송 때 사용자 문서 아래에 알림 문서를 함께 쓰고 목록 화면을 더한다.
 
-**iOS 설정 (D-07):** 코드 · 설정은 들어가 있고 실기기 검증은 Phase 18 iOS batch 에서 한다.
+**iOS 설정 (D-07):** 코드 · 설정은 들어가 있고 실기기 검증은 Phase 17.2 에서 했다(iPhone Air · profile 빌드 · 2026-10-05 — 포그라운드 · 백그라운드 · 종료 알림 탭 · 「알림 받기」 토큰 문서 · 알림으로 연 화면 스와이프 뒤로 → 홈 · `.planning/phases/17.2-notification-deep-link-back-stack/uat-evidence/ios-uat-172.md`).
 
 - APNs 인증 키(.p8)를 Firebase Console → 프로젝트 설정 → Cloud Messaging → Apple 앱 구성에 업로드한다(콘솔 작업 — 저장소에 키 파일을 두지 않는다).
 - Xcode Runner 타깃 → Signing & Capabilities → **Push Notifications** capability. `ios/Runner/Runner.entitlements` 의 `aps-environment` 는 `development` 다 — App Store · TestFlight 출시 빌드는 `production` 이어야 하고, 프로비저닝 프로파일과 일치해야 한다.
@@ -3292,7 +3292,7 @@ gcloud firestore fields ttls list --collection-group=fcmTokens --project=<dev>
 
 **④ Remote Config 키 4개 (D-11):** 위 「Remote Config Feature Flag」 의 콘솔 키 등록 절차(`announcement_banner_enabled` Boolean · `announcement_message_ko` · `announcement_message_en` · `announcement_message_ja` String) → 게시.
 
-**⑤ iOS APNs 인증 키 업로드 (D-07):** 위 「FCM 알림」 의 iOS 설정. 검증은 Phase 18 iOS batch.
+**⑤ iOS APNs 인증 키 업로드 (D-07):** 위 「FCM 알림」 의 iOS 설정. 검증은 Phase 17.2 iOS 실기기 UAT(위 「FCM 알림」 iOS 설정).
 
 ### 커스터마이징 포인트
 
@@ -5529,7 +5529,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-05 | 17.1 review fix (iteration 5) | Phase 17.1 code review iteration 5 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계: 설정 테스트 항목에 T-171-SETTINGS-17 ③ 전용 손질 추가 — (c) 데모 경로 탭 단언 삭제 · `screenHeight` 640 → 목록이 넘치는 값(예: 400) · 전제 단언(`maxScrollExtent > 0`)은 유지 (데모 묶음이 빠지면 목록이 viewport 를 넘지 않아 전제가 실패 · 새 마지막 행은 정식 = 알림 스위치) (review WR-03) / golden 재생성 명령을 두 파일 경로를 인자로 준 목록 안 코드 블록으로 바꾸고 `git status --short -- '*.png'` = 정확히 10장 확인 추가 (인자 없는 명령을 복사하면 일괄 `--update-goldens` 가 됨) (review WR-04) / 끝 항목 analyze 정리 예시에 2차로 드러나는 `auth_repository.dart` import · 알림 섹션 테스트의 `sectionBottom` · `settings_screen.dart` 의 `foundation.dart` 추가 · 「analyze 는 0 건이 될 때까지 되풀이한다」 명시 (review IN-13). 1~3 · 5단계와 다른 절은 그대로 |
 | 2026-10-05 | 17.1 review fix (iteration 6) | Phase 17.1 code review iteration 6 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계 설정 테스트 항목: 「새 마지막 행(정식은 알림 스위치)」 괄호에 게스트 분기를 보탬 — 「게스트는 언어 행」 + 게스트로 데모 행을 보는 테스트 명시(13 · 15 는 정식 · 게스트 둘 다, 01 은 게스트만) (게스트에게는 알림 섹션이 없어 데모 묶음을 빼면 언어 행이 말단) (review IN-14) / 17 ③ 문장에 `screenHeight` 를 줄이면 같은 테스트의 `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로, (b) reason 문자열의 「말단 행(데모 행)」 은 「말단 행(알림 스위치)」 로 고친다는 한 마디 추가 (review 관찰 5 · 사용자 결정으로 IN-14 와 함께 반영). 1~3 · 5단계와 다른 절은 그대로 |
 | 2026-10-05 | 17.2-04 | 「FCM 알림」 탭 이동 뒤 「결과 스택 (Phase 17.2)」 bullet · 커스터마이징 「알림 탭으로 열 화면」 홈 하위 조건 · 「Analytics(GA4) screen name」 4항(알림 → 계정 settings · account 2건) · 「홈 화면 바꾸기」 ② 6번째 배선(홈 GoRoute routes:) · 이름 바꾸기 안내 · ③ 데모 위치(설정 child)와 지우는 법 1 · 4단계 · ④ 새 화면 추가 6단계 + 구조 불변식 실패 메시지 / 다른 절은 그대로 |
+| 2026-10-05 | 17.2-06 | 「FCM 알림」 iOS 설정 · 배포 ⑤ 의 실기기 검증 위치를 Phase 17.2 로(iPhone Air · profile UAT 결과) / 다른 절은 그대로 |
 
 ---
 
-*Last updated: 2026-10-05 — Phase 17.2 plan 04 (알림 대상 홈 하위 route — 결과 스택 · 새 화면 추가 · 데모 위치 · GA4 2건)*
+*Last updated: 2026-10-05 — Phase 17.2 plan 06 (iOS 알림 실기기 검증 위치)*
