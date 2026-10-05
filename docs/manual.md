@@ -5344,8 +5344,11 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
      `test/core/router/auth_guard_test.dart` T-171-ROUTER-06 삭제,
      `settings_screen_test.dart` · `home_body_test.dart` 하네스의 데모 stub
      GoRoute(`path: AppRoutes.developerDemo`) 삭제, `home_body.dart` doc 의
-     `[AppRoutes.developerDemo]` 참조. 끝나면 `grep -rn developerDemo lib test` 가
-     0 건이어야 한다.
+     `[AppRoutes.developerDemo]` 참조 삭제. 상수를 지우면 그 상수를 쓰는 2단계의
+     진입점 2곳(`settings_screen.dart` · `home_body.dart`)과 4단계에서 정리할
+     테스트(`app_router_observers_test.dart` · `test/features/demo/`)가 그 단계를
+     마칠 때까지 컴파일되지 않는다 — 4단계까지 이어서 하고, 확인(analyze · `grep`)은
+     4단계 끝에서 한 번에 한다.
   2. 진입점 2곳 — `settings_screen.dart` 의 「개발자」 묶음(`showsDemoRow`)과
      `home_body.dart` 카드의 버튼 — 을 지운다.
   3. `lib/features/demo/` 폴더를 지운다.
@@ -5402,7 +5405,12 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
        `_demoScreenPath`, 알림 섹션 테스트의 `sectionBottom`, 2단계 뒤
        `home_body.dart` 의 `go_router` · `settings_screen.dart` 의
        `foundation.dart` 등). 하나를 지우면 다른 것이 새로 드러날 수 있으므로
-       analyze 는 0 건이 될 때까지 되풀이한다.
+       analyze 는 0 건이 될 때까지 되풀이한다. analyze 가 0 건이면
+       `grep -rn developerDemo lib test` 도 본다 — 1단계에서 상수까지 지웠다면
+       0 건이어야 한다. 상수를 남겼다면 `lib/core/router/app_routes.dart` 의 상수
+       3개와 1단계에 적은 상수 참조처(`app_routes_test.dart` ·
+       `auth_guard_test.dart` T-171-ROUTER-06 · 두 하네스의 데모 stub GoRoute ·
+       `home_body.dart` doc)만 남는다.
   5. Dev Tools 의 테스트 알림 버튼이 같이 사라진다. 서버 함수 `sendTestPush` 까지
      빼려면 「Firebase Services」 「배포 · 콘솔 설정」 ③ 의 「함수 삭제」 를 따른다.
 
@@ -5549,7 +5557,7 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-05 | 17.2-04 | 「FCM 알림」 탭 이동 뒤 「결과 스택 (Phase 17.2)」 bullet · 커스터마이징 「알림 탭으로 열 화면」 홈 하위 조건 · 「Analytics(GA4) screen name」 4항(알림 → 계정 settings · account 2건) · 「홈 화면 바꾸기」 ② 6번째 배선(홈 GoRoute routes:) · 이름 바꾸기 안내 · ③ 데모 위치(설정 child)와 지우는 법 1 · 4단계 · ④ 새 화면 추가 6단계 + 구조 불변식 실패 메시지 / 다른 절은 그대로 |
 | 2026-10-05 | 17.2-06 | 「FCM 알림」 iOS 설정 · 배포 ⑤ 의 실기기 검증 위치를 Phase 17.2 로(iPhone Air · profile UAT 결과) / 다른 절은 그대로 |
 | 2026-10-05 | 17.2 review fix | Phase 17.2 code review iteration 1 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 1단계에 데모 상수 3개(`developerDemo` · `developerDemoName` · `developerDemoSegment`)는 남겨도 되고 지우면 함께 고칠 곳(`app_routes_test.dart` T-172-ROUTES-01~03 데모 항목 · `hasLength` 14 → 13 · 14 → 13 · 6 → 5, `auth_guard_test.dart` T-171-ROUTER-06, 설정 · 홈 본문 테스트 하네스의 데모 stub GoRoute, `home_body.dart` doc 참조 · `grep` 0 건 확인) 추가 · 4단계 라우터 항목을 「`route_tree.dart` 는 남기되 `buildRoutesWithoutNamed`(T-171-ROUTER-03 전용)만 지운다」 로 정정 (review IN-02) / 「FCM 알림」 「결과 스택 (Phase 17.2)」 bullet 에 홈 하위 `go` 가 중간 화면(설정)도 build 해 `notificationSettingsProvider` 초기화(권한 조회 · 토큰 문서 upsert)가 알림 이동 시점으로 당겨질 수 있다는 문장 추가 (review IN-03) / 「홈 화면 바꾸기 (Phase 17.1)」 ② 머리 문장을 「5가지를 새 화면에 옮기고, 6번째(홈 GoRoute 의 `routes:`)는 라우터에 그대로 둔다」 로 정정 (review IN-04) |
-| 2026-10-05 | 17.2 review fix (iteration 2) | Phase 17.2 code review iteration 2 반영 — 「FCM 알림」 「결과 스택 (Phase 17.2)」 bullet 의 build 부수효과 두 문장을 하위 bullet 「중간 화면의 build 부수효과」 로 떼고 「keepAlive 라 앱 실행당 1회 · 시점만 앞당겨진다」 를 정정 — `notificationSettingsProvider` 는 `lib/app.dart` 가 앱 시작 때 `ref.listen` 으로 깨워 두므로 알림 경로의 설정 화면 build 가 그것을 다시 build 하지 않고, 다시 build 되는 때는 로그인 사용자 · 앱 언어 변경 · 앱 복귀 · 섹션 재시도다 (review IN-08) / 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계에 매뉴얼 계약 테스트 2파일 항목 추가 — ③ 절을 매뉴얼에서 함께 지울 때만 `manual_nested_routes_contract_test.dart` 의 T-172-DOCS-07(③ 토큰 검사를 T-172-DOCS-05 에서 분리) · 전용 선언과 `manual_home_replacement_contract_test.dart` T-171-DOCS-02 의 `demo_screen.dart` 경로 토큰을 정리 (review IN-06) |
+| 2026-10-05 | 17.2 review fix (iteration 2) | Phase 17.2 code review iteration 2 반영 — 「FCM 알림」 「결과 스택 (Phase 17.2)」 bullet 의 build 부수효과 두 문장을 하위 bullet 「중간 화면의 build 부수효과」 로 떼고 「keepAlive 라 앱 실행당 1회 · 시점만 앞당겨진다」 를 정정 — `notificationSettingsProvider` 는 `lib/app.dart` 가 앱 시작 때 `ref.listen` 으로 깨워 두므로 알림 경로의 설정 화면 build 가 그것을 다시 build 하지 않고, 다시 build 되는 때는 로그인 사용자 · 앱 언어 변경 · 앱 복귀 · 섹션 재시도다 (review IN-08) / 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계에 매뉴얼 계약 테스트 2파일 항목 추가 — ③ 절을 매뉴얼에서 함께 지울 때만 `manual_nested_routes_contract_test.dart` 의 T-172-DOCS-07(③ 토큰 검사를 T-172-DOCS-05 에서 분리) · 전용 선언과 `manual_home_replacement_contract_test.dart` T-171-DOCS-02 의 `demo_screen.dart` 경로 토큰을 정리 (review IN-06) / 같은 ③ 1단계 끝의 「`grep -rn developerDemo lib test` 0 건」 확인을 4단계 마지막 항목(analyze 0 건 뒤)으로 옮기고 상수를 남겼을 때 남는 곳을 명시 · 1단계에 상수를 지우면 2단계 진입점 2곳과 4단계 정리 대상 테스트가 그 단계까지 컴파일되지 않는다는 안내 추가 · 목록 마지막 항목에 「삭제」 동사 보충 (review IN-07) |
 
 ---
 
