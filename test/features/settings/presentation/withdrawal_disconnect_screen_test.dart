@@ -69,6 +69,8 @@ import 'package:flutter_starter_kit/features/settings/presentation/withdrawal_di
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 
+import '../../../helpers/route_tree.dart' show readMatchedLocations;
+
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -1484,9 +1486,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          router.routerDelegate.currentConfiguration.matches
-              .map((match) => match.matchedLocation)
-              .toList(),
+          readMatchedLocations(router.routerDelegate.currentConfiguration),
           <String>[AppRoutes.home, AppRoutes.settings],
           reason:
               '_leave() 의 pop 불가 fallback 은 go(AppRoutes.settings) — 홈 하위 '

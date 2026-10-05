@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,11 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:flutter_starter_kit/app.dart';
 import 'package:flutter_starter_kit/core/analytics/analytics_observer.dart'
     show analyticsObserverProvider;
-import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
-import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_router.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
@@ -25,11 +21,10 @@ import 'package:flutter_starter_kit/features/not_found/presentation/not_found_sc
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
 import '../../helpers/route_tree.dart';
+import '../../helpers/router_harness.dart' show pumpProductionApp;
 import '../../helpers/source_text.dart';
 
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
-
-class _MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
 class _FakeNavigatorObserver extends NavigatorObserver {}
 
@@ -206,66 +201,15 @@ void main() {
       // (실 Firebase 미접촉), production 과 동일한 모양의 observer /
       // AnalyticsService 를 mock FirebaseAnalytics 에 연결해 두 경로가
       // 같은 계측 지점을 공유하게 한다 — 어느 쪽이 발신하든 잡힌다.
-      SharedPreferences.setMockInitialValues({});
-      SplashConfig.overrideMinDuration = const Duration(milliseconds: 1);
-      addTearDown(() => SplashConfig.overrideMinDuration = null);
-
-      final mockAnalytics = _MockFirebaseAnalytics();
-      when(
-        () => mockAnalytics.logScreenView(
-          screenName: any(named: 'screenName'),
-          screenClass: any(named: 'screenClass'),
-          parameters: any(named: 'parameters'),
-          callOptions: any(named: 'callOptions'),
-        ),
-      ).thenAnswer((_) async {});
-
-      final mockAuth = _MockFirebaseAuth();
-      when(
-        () => mockAuth.authStateChanges(),
-      ).thenAnswer((_) => const Stream<User?>.empty());
-      when(
-        () => mockAuth.userChanges(),
-      ).thenAnswer((_) => const Stream<User?>.empty());
-      when(() => mockAuth.currentUser).thenReturn(null);
-
-      final container = ProviderContainer(
-        overrides: [
-          isFirebaseInitializedProvider.overrideWithValue(false),
-          firebaseAuthProvider.overrideWithValue(mockAuth),
-          analyticsObserverProvider.overrideWith(
-            (ref) => FirebaseAnalyticsObserver(
-              analytics: mockAnalytics,
-              nameExtractor: (settings) => settings.name,
-            ),
-          ),
-          analyticsServiceProvider.overrideWith(
-            (ref) => AnalyticsService(mockAnalytics, isEnabled: true),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(container: container, child: const App()),
-      );
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pumpAndSettle();
-
-      /// 마지막 drain 이후 발신된 screenName 목록을 반환한다.
-      List<Object?> drainScreenNames() => verify(
-        () => mockAnalytics.logScreenView(
-          screenName: captureAny(named: 'screenName'),
-          screenClass: any(named: 'screenClass'),
-          parameters: any(named: 'parameters'),
-          callOptions: any(named: 'callOptions'),
-        ),
-      ).captured;
+      // 하네스 = test/helpers/router_harness.dart [pumpProductionApp] (17.2
+      // review IN-01 — nesting 테스트와 공용 · 추가 override 없음).
+      final app = await pumpProductionApp(tester);
+      final drainScreenNames = app.drainScreenNames;
 
       // splash -> home 착지까지의 발신을 비운 뒤 단일 전환만 계측한다.
       drainScreenNames();
 
-      final router = container.read(appRouterProvider);
+      final router = app.router;
 
       unawaited(router.push(AppRoutes.termsService));
       await tester.pumpAndSettle();

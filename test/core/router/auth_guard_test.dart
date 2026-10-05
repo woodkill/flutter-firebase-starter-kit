@@ -21,6 +21,9 @@ import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart'
 import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
 
+import '../../helpers/route_tree.dart' show readMatchedLocations;
+import '../../helpers/router_harness.dart' show buildRouteTableContainer;
+
 class _MockGoRouterState extends Mock implements GoRouterState {}
 
 class _MockUser extends Mock implements fb.User {}
@@ -536,30 +539,15 @@ void main() {
           '[/, /settings] (I8 ④ · 대조군 정식 3장)', () async {
         // production route 표 — guard 결과 경로가 중첩 트리에서 어떤 스택이
         // 되는지 본다 (Firebase 미초기화 · 빈 인증 스트림 · 위젯 없음).
-        final tableAuth = _MockFirebaseAuth();
-        when(
-          () => tableAuth.authStateChanges(),
-        ).thenAnswer((_) => const Stream<fb.User?>.empty());
-        when(
-          () => tableAuth.userChanges(),
-        ).thenAnswer((_) => const Stream<fb.User?>.empty());
-        final tableContainer = ProviderContainer(
-          overrides: [
-            isFirebaseInitializedProvider.overrideWithValue(false),
-            firebaseAuthProvider.overrideWithValue(tableAuth),
-          ],
-        );
+        final tableContainer = buildRouteTableContainer();
         addTearDown(tableContainer.dispose);
         final RouteConfiguration configuration = tableContainer
             .read(appRouterProvider)
             .configuration;
 
         /// [location] 을 열었을 때의 스택(match 의 matchedLocation 목록).
-        List<String> readStackAt(String location) => configuration
-            .findMatch(Uri.parse(location))
-            .matches
-            .map((match) => match.matchedLocation)
-            .toList();
+        List<String> readStackAt(String location) =>
+            readMatchedLocations(configuration.findMatch(Uri.parse(location)));
 
         // 익명 — guard 가 계정 경로를 설정으로 돌린다 (17.1 D-07).
         final anonymousContainer = makeContainer(

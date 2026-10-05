@@ -11,30 +11,18 @@
 
 import 'dart:async';
 
-import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:flutter_starter_kit/app.dart' show App;
-import 'package:flutter_starter_kit/core/analytics/analytics_observer.dart'
-    show analyticsObserverProvider;
-import 'package:flutter_starter_kit/core/analytics/analytics_service.dart'
-    show AnalyticsService, analyticsServiceProvider;
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart'
     show activeStrategiesProvider;
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart'
     show AuthStrategy;
 import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart'
     show GoogleAuthStrategy;
-import 'package:flutter_starter_kit/core/config/splash_config.dart'
-    show SplashConfig;
-import 'package:flutter_starter_kit/core/providers/firebase_providers.dart'
-    show firebaseAuthProvider, isFirebaseInitializedProvider;
 import 'package:flutter_starter_kit/core/router/app_router.dart'
     show appRouterProvider;
 import 'package:flutter_starter_kit/core/router/app_routes.dart' show AppRoutes;
@@ -65,9 +53,9 @@ import 'package:flutter_starter_kit/features/settings/presentation/settings_scre
 import 'package:flutter_starter_kit/features/terms/presentation/terms_detail_screen.dart'
     show TermsDetailScreen;
 
-class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
-
-class _MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+import '../../helpers/route_tree.dart' show readMatchedLocations;
+import '../../helpers/router_harness.dart'
+    show ProductionApp, buildRouteTableContainer, pumpProductionApp;
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -89,122 +77,28 @@ final User _kTestUser = User(
   signUpProviderId: null,
 );
 
-/// production `appRouterProvider` 로 그린 앱 한 벌.
-///
-/// [drainScreenNames] 는 직전 drain 이후 발신된 `screen_view` 의 screenName
-/// 목록을 돌려준다 — 직전 drain 이후 이동이 0회면 `verify` 가 실패하므로 매
-/// drain 앞에 이동이 1회 이상 있어야 한다.
-typedef _ProductionApp = ({
-  ProviderContainer container,
-  GoRouter router,
-  List<Object?> Function() drainScreenNames,
-});
-
-/// Firebase 미초기화 mock 인증을 단 container 를 만든다 — 위젯 없이 route 표만
-/// 볼 때 쓴다.
-ProviderContainer _buildRouteTableContainer() {
-  final mockAuth = _MockFirebaseAuth();
-  when(
-    () => mockAuth.authStateChanges(),
-  ).thenAnswer((_) => const Stream<fb.User?>.empty());
-  when(
-    () => mockAuth.userChanges(),
-  ).thenAnswer((_) => const Stream<fb.User?>.empty());
-  when(() => mockAuth.currentUser).thenReturn(null);
-  return ProviderContainer(
-    overrides: [
-      isFirebaseInitializedProvider.overrideWithValue(false),
-      firebaseAuthProvider.overrideWithValue(mockAuth),
-    ],
-  );
-}
-
 /// production 라우터 배선(`App()`)을 그리고 홈 착지까지 진행한다.
 ///
-/// 하네스는 `app_router_observers_test.dart` Test 6 과 같다 —
-/// `isFirebaseInitialized=false` 로 guard 를 통과시키고, 설정 · 계정 화면이 실
-/// Firebase 에 닿지 않게 설정 화면 테스트의 override 5종을 더한다.
-Future<_ProductionApp> _pumpProductionApp(WidgetTester tester) async {
-  SharedPreferences.setMockInitialValues({});
-  SplashConfig.overrideMinDuration = const Duration(milliseconds: 1);
-  addTearDown(() => SplashConfig.overrideMinDuration = null);
-
-  final mockAnalytics = _MockFirebaseAnalytics();
-  when(
-    () => mockAnalytics.logScreenView(
-      screenName: any(named: 'screenName'),
-      screenClass: any(named: 'screenClass'),
-      parameters: any(named: 'parameters'),
-      callOptions: any(named: 'callOptions'),
+/// 하네스 본체는 `test/helpers/router_harness.dart` [pumpProductionApp] 이다
+/// (`app_router_observers_test.dart` Test 6 과 공용) — 여기서는 설정 · 계정
+/// 화면이 실 Firebase 에 닿지 않게 설정 화면 테스트의 override 5종만 더한다.
+Future<ProductionApp> _pumpProductionApp(
+  WidgetTester tester,
+) => pumpProductionApp(
+  tester,
+  extraOverrides: [
+    // 설정 · 계정 화면이 실 Firebase 에 닿지 않게 (설정 화면 테스트와 같다).
+    currentUserProvider.overrideWith((ref) => _kTestUser),
+    activeStrategiesProvider.overrideWith(
+      (ref) => const <AuthStrategy>[GoogleAuthStrategy()],
     ),
-  ).thenAnswer((_) async {});
-
-  final mockAuth = _MockFirebaseAuth();
-  when(
-    () => mockAuth.authStateChanges(),
-  ).thenAnswer((_) => const Stream<fb.User?>.empty());
-  when(
-    () => mockAuth.userChanges(),
-  ).thenAnswer((_) => const Stream<fb.User?>.empty());
-  when(() => mockAuth.currentUser).thenReturn(null);
-
-  final container = ProviderContainer(
-    overrides: [
-      isFirebaseInitializedProvider.overrideWithValue(false),
-      firebaseAuthProvider.overrideWithValue(mockAuth),
-      analyticsObserverProvider.overrideWith(
-        (ref) => FirebaseAnalyticsObserver(
-          analytics: mockAnalytics,
-          nameExtractor: (settings) => settings.name,
-        ),
-      ),
-      analyticsServiceProvider.overrideWith(
-        (ref) => AnalyticsService(mockAnalytics, isEnabled: true),
-      ),
-      // 설정 · 계정 화면이 실 Firebase 에 닿지 않게 (설정 화면 테스트와 같다).
-      currentUserProvider.overrideWith((ref) => _kTestUser),
-      activeStrategiesProvider.overrideWith(
-        (ref) => const <AuthStrategy>[GoogleAuthStrategy()],
-      ),
-      authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
-      notificationSettingsProvider.overrideWithBuild((ref, notifier) => false),
-      linkedProvidersStreamProvider(
-        _kTestUser.uid,
-      ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
-    ],
-  );
-  addTearDown(container.dispose);
-
-  await tester.pumpWidget(
-    UncontrolledProviderScope(container: container, child: const App()),
-  );
-  await tester.pump(const Duration(milliseconds: 50));
-  await tester.pumpAndSettle();
-
-  /// 직전 drain 이후 발신된 screenName 목록을 반환한다.
-  List<Object?> drainScreenNames() => verify(
-    () => mockAnalytics.logScreenView(
-      screenName: captureAny(named: 'screenName'),
-      screenClass: any(named: 'screenClass'),
-      parameters: any(named: 'parameters'),
-      callOptions: any(named: 'callOptions'),
-    ),
-  ).captured;
-
-  return (
-    container: container,
-    router: container.read(appRouterProvider),
-    drainScreenNames: drainScreenNames,
-  );
-}
-
-/// 현재 Navigator 스택을 match 의 `matchedLocation` 목록으로 읽는다.
-List<String> _readStack(GoRouter router) => router
-    .routerDelegate
-    .currentConfiguration
-    .matches
-    .map((match) => match.matchedLocation)
-    .toList();
+    authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
+    notificationSettingsProvider.overrideWithBuild((ref, notifier) => false),
+    linkedProvidersStreamProvider(
+      _kTestUser.uid,
+    ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
+  ],
+);
 
 /// production 과 같은 리스너 경로로 알림 이동을 일으킨다.
 ///
@@ -225,7 +119,7 @@ void main() {
   group('Phase 17.2 홈 하위 route 중첩 (T-172-ROUTER · T-172-STACK)', () {
     test('T-172-ROUTER-01: 알림 허용 목록 중 홈이 아닌 경로는 모두 홈 하위 route 다 '
         '(구조 불변식 · 실패 메시지 = 고치는 법)', () {
-      final container = _buildRouteTableContainer();
+      final container = buildRouteTableContainer();
       addTearDown(container.dispose);
       final RouteConfiguration configuration = container
           .read(appRouterProvider)
@@ -285,11 +179,11 @@ void main() {
 
       await _deliverNotificationRoute(tester, app.container, AppRoutes.account);
 
-      expect(_readStack(app.router), <String>[
-        '/',
-        AppRoutes.settings,
-        AppRoutes.account,
-      ], reason: '알림 → 계정 = 홈 · 설정 · 계정 3장 (D-01 ① 실측 · todo 결정 1)');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>['/', AppRoutes.settings, AppRoutes.account],
+        reason: '알림 → 계정 = 홈 · 설정 · 계정 3장 (D-01 ① 실측 · todo 결정 1)',
+      );
       expect(
         app.router.routerDelegate.currentConfiguration.matches
             .whereType<ImperativeRouteMatch>(),
@@ -316,16 +210,21 @@ void main() {
 
       app.router.pop();
       await tester.pumpAndSettle();
-      expect(_readStack(app.router), <String>[
-        '/',
-        AppRoutes.settings,
-      ], reason: '← 1회 = 설정 (D-11)');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>['/', AppRoutes.settings],
+        reason: '← 1회 = 설정 (D-11)',
+      );
       expect(find.byType(BackButton), findsOneWidget, reason: '설정 앱바에도 ←');
       expect(find.byType(SettingsScreen), findsOneWidget, reason: '설정 화면이 보인다');
 
       app.router.pop();
       await tester.pumpAndSettle();
-      expect(_readStack(app.router), <String>['/'], reason: '← 2회 = 홈 (D-11)');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>['/'],
+        reason: '← 2회 = 홈 (D-11)',
+      );
       expect(app.router.canPop(), isFalse, reason: '홈에서는 더 pop 할 수 없다');
       expect(find.byType(BackButton), findsNothing, reason: '홈 앱바에는 ← 가 없다');
       expect(
@@ -347,15 +246,20 @@ void main() {
         app.container,
         AppRoutes.settings,
       );
-      expect(_readStack(app.router), <String>[
-        '/',
-        AppRoutes.settings,
-      ], reason: '알림 → 설정 = 홈 · 설정 2장 (D-04 (d) 위젯 수준 · todo 결정 1)');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>['/', AppRoutes.settings],
+        reason: '알림 → 설정 = 홈 · 설정 2장 (D-04 (d) 위젯 수준 · todo 결정 1)',
+      );
       expect(find.byType(BackButton), findsOneWidget, reason: '설정 앱바에 ←');
 
       app.router.pop();
       await tester.pumpAndSettle();
-      expect(_readStack(app.router), <String>['/'], reason: '← 1회 = 홈');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>['/'],
+        reason: '← 1회 = 홈',
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -367,10 +271,11 @@ void main() {
         AppRoutes.termsPrivacy,
       ]) {
         await _deliverNotificationRoute(tester, app.container, route);
-        expect(_readStack(app.router), <String>[
-          '/',
-          route,
-        ], reason: '알림 → 약관 $route = 홈 · 약관 2장 (todo 결정 2 · D-04 (b))');
+        expect(
+          readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+          <String>['/', route],
+          reason: '알림 → 약관 $route = 홈 · 약관 2장 (todo 결정 2 · D-04 (b))',
+        );
         expect(find.byType(BackButton), findsOneWidget, reason: '약관 앱바에 ←');
         expect(
           find.byType(TermsDetailScreen),
@@ -380,9 +285,11 @@ void main() {
 
         app.router.pop();
         await tester.pumpAndSettle();
-        expect(_readStack(app.router), <String>[
-          '/',
-        ], reason: '약관 $route 에서 ← 1회 = 홈');
+        expect(
+          readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+          <String>['/'],
+          reason: '약관 $route 에서 ← 1회 = 홈',
+        );
       }
       expect(tester.takeException(), isNull);
     });
@@ -397,21 +304,22 @@ void main() {
       final State listenerState = tester.state(listener);
 
       await _deliverNotificationRoute(tester, app.container, AppRoutes.account);
-      expect(_readStack(app.router), <String>[
-        '/',
-        AppRoutes.settings,
-        AppRoutes.account,
-      ], reason: '전제 — 알림 → 계정 3장');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>['/', AppRoutes.settings, AppRoutes.account],
+        reason: '전제 — 알림 → 계정 3장',
+      );
 
       await _deliverNotificationRoute(
         tester,
         app.container,
         AppRoutes.settings,
       );
-      expect(_readStack(app.router), <String>[
-        '/',
-        AppRoutes.settings,
-      ], reason: '계정 화면 위의 새 알림(설정)도 홈 리스너가 소비한다 (D-04 (a) 위젯 수준)');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>['/', AppRoutes.settings],
+        reason: '계정 화면 위의 새 알림(설정)도 홈 리스너가 소비한다 (D-04 (a) 위젯 수준)',
+      );
       expect(
         app.container.read(pendingNotificationRouteProvider),
         isNull,
@@ -540,7 +448,11 @@ void main() {
       await tester.pumpAndSettle();
       app.router.pop();
       await tester.pumpAndSettle();
-      expect(_readStack(app.router), <String>['/'], reason: '← 2회 = 홈');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>['/'],
+        reason: '← 2회 = 홈',
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -580,26 +492,28 @@ void main() {
 
       app.router.pop();
       await tester.pumpAndSettle();
-      expect(_readStack(app.router), <String>[
-        AppRoutes.onboarding,
-      ], reason: '← 1회 = 온보딩');
+      expect(
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
+        <String>[AppRoutes.onboarding],
+        reason: '← 1회 = 온보딩',
+      );
       expect(tester.takeException(), isNull);
     });
 
     testWidgets('T-172-WITHDRAW-01: 탈퇴 진행 경로는 설정 하위 · go(settings) 는 홈 '
         '하위 트리에서 홈 · 설정 2장 (_leave() fallback 의 전제)', (tester) async {
       // 위젯 없이 — 탈퇴 진행 경로의 match 목록.
-      final container = _buildRouteTableContainer();
+      final container = buildRouteTableContainer();
       addTearDown(container.dispose);
       final RouteMatchList withdrawMatch = container
           .read(appRouterProvider)
           .configuration
           .findMatch(Uri.parse(AppRoutes.withdrawalDisconnect));
-      expect(
-        withdrawMatch.matches.map((match) => match.matchedLocation).toList(),
-        <String>['/', AppRoutes.settings, AppRoutes.withdrawalDisconnect],
-        reason: '탈퇴 진행은 설정 하위 route (todo 결정 3)',
-      );
+      expect(readMatchedLocations(withdrawMatch), <String>[
+        '/',
+        AppRoutes.settings,
+        AppRoutes.withdrawalDisconnect,
+      ], reason: '탈퇴 진행은 설정 하위 route (todo 결정 3)');
 
       // 하네스 — production 라우터에서 `go(settings)` 결과 스택만 본다. 탈퇴
       // 진행 화면도 `_leave()` 도 여기서 그리거나 부르지 않는다 — `_leave()` 가
@@ -609,7 +523,7 @@ void main() {
       app.router.go(AppRoutes.settings);
       await tester.pumpAndSettle();
       expect(
-        _readStack(app.router),
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
         <String>['/', AppRoutes.settings],
         reason: 'go(settings) = 홈 · 설정 2장 (_leave() fallback 의 전제 · todo 결정 3)',
       );

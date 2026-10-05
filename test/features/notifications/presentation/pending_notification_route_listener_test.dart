@@ -30,6 +30,7 @@ import 'package:flutter_starter_kit/features/notifications/presentation/pending_
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../helpers/route_tree.dart' show readMatchedLocations;
 import '../notification_test_fakes.dart';
 
 /// 테스트 라우터 · 탭 핸들러를 띄운 앱 한 벌.
@@ -68,10 +69,6 @@ Future<_App> _pumpApp(WidgetTester tester) async {
   await tester.pumpAndSettle();
   return (container: container, router: router, local: local);
 }
-
-/// Navigator 스택 [configuration] 을 match 의 `matchedLocation` 목록으로 읽는다.
-List<String> _readStack(RouteMatchList configuration) =>
-    configuration.matches.map((match) => match.matchedLocation).toList();
 
 void main() {
   test('T-172-FAKE-01: buildNotificationTestRouter 의 설정 · 약관은 홈 하위 '
@@ -112,7 +109,7 @@ void main() {
 
       expect(app.router.state.uri.path, '/settings');
       expect(
-        _readStack(app.router.routerDelegate.currentConfiguration),
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
         <String>['/', AppRoutes.settings],
         reason: '알림으로 연 설정 아래에 홈이 남는다 (Phase 17.2 · ← 로 홈 복귀)',
       );
@@ -158,7 +155,7 @@ void main() {
       expect(app.container.read(pendingNotificationRouteProvider), isNull);
       await tester.pumpAndSettle();
       expect(
-        _readStack(app.router.routerDelegate.currentConfiguration),
+        readMatchedLocations(app.router.routerDelegate.currentConfiguration),
         <String>['/', AppRoutes.termsService],
         reason: '홈 위 push 설정은 go 로 대체되고 홈은 스택 맨 아래에 남는다 (Phase 17.2)',
       );
@@ -185,10 +182,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(router.state.uri.path, '/settings');
-      expect(_readStack(router.routerDelegate.currentConfiguration), <String>[
-        '/',
-        '/settings',
-      ], reason: '홈 mount 전 pending 으로 연 설정 아래에도 홈이 남는다 (Phase 17.2)');
+      expect(
+        readMatchedLocations(router.routerDelegate.currentConfiguration),
+        <String>['/', '/settings'],
+        reason: '홈 mount 전 pending 으로 연 설정 아래에도 홈이 남는다 (Phase 17.2)',
+      );
       expect(container.read(pendingNotificationRouteProvider), isNull);
     });
   });

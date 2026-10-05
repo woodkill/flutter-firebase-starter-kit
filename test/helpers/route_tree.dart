@@ -46,6 +46,13 @@ GoRoute findGoRouteByPath(RouteConfiguration configuration, String fullPath) {
   return last.route;
 }
 
+/// [matchList] 를 match 의 `matchedLocation` 목록(아래 → 위 스택)으로 읽는다.
+///
+/// 띄운 라우터의 현재 스택은 `router.routerDelegate.currentConfiguration` 을,
+/// 위젯 없이 특정 경로의 스택은 `configuration.findMatch(uri)` 결과를 넘긴다.
+List<String> readMatchedLocations(RouteMatchList matchList) =>
+    matchList.matches.map((match) => match.matchedLocation).toList();
+
 /// name 이 [dropName] 인 [GoRoute] 를 재귀적으로 뺀 복사본을 만든다.
 ///
 /// T-171-ROUTER-03 release 시뮬레이션용(17.1 D-14 · RESEARCH §R-03 실측) —
