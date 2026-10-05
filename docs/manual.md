@@ -5337,7 +5337,9 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
        (c) 데모 경로 탭 단언을 지우고, `screenHeight` 640 을 목록이 넘치는
        값(예: 400)으로 줄인다 — 목록이 짧아져 스크롤이 생기지 않으므로 전제
        단언(`maxScrollExtent > 0`)이 실패한다. 전제 단언은 지우지 않는다(지우면
-       (b) geometry 단언이 스크롤 없이 통과해 회귀 가드가 빈다).
+       (b) geometry 단언이 스크롤 없이 통과해 회귀 가드가 빈다). 같은 테스트의
+       `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로, (b)
+       reason 문자열의 「말단 행(데모 행)」 은 「말단 행(알림 스위치)」 로 고친다.
      - `test/features/settings/presentation/notifications_section_test.dart` —
        T-17-NOTIF-05 위치 테스트(「… 개발자 위에 있다」)는 지우지 말고 「개발자」
        기준 단언만 뺀다.
