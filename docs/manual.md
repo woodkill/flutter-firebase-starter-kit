@@ -5335,7 +5335,16 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 - **지우는 법(데모를 앱에서 빼기):**
   1. `app_router.dart` 설정 GoRoute 의 `routes` 안에 있는 `if (!kReleaseMode)` 데모
      GoRoute(`path: AppRoutes.developerDemoSegment`) 1개와 `demo_screen.dart`
-     import 를 지운다.
+     import 를 지운다. `AppRoutes` 의 데모 상수 3개(`developerDemo` ·
+     `developerDemoName` · `developerDemoSegment`)는 남겨도 테스트가 그대로
+     통과한다. 상수까지 지우면 쓰는 곳도 함께 고친다 —
+     `test/core/router/app_routes_test.dart` T-172-ROUTES-01~03 의 데모 항목
+     1줄씩(`hasLength` 14 → 13 · 14 → 13 · 6 → 5, 테스트 이름 · reason 의 개수도),
+     `test/core/router/auth_guard_test.dart` T-171-ROUTER-06 삭제,
+     `settings_screen_test.dart` · `home_body_test.dart` 하네스의 데모 stub
+     GoRoute(`path: AppRoutes.developerDemo`) 삭제, `home_body.dart` doc 의
+     `[AppRoutes.developerDemo]` 참조. 끝나면 `grep -rn developerDemo lib test` 가
+     0 건이어야 한다.
   2. 진입점 2곳 — `settings_screen.dart` 의 「개발자」 묶음(`showsDemoRow`)과
      `home_body.dart` 카드의 버튼 — 을 지운다.
   3. `lib/features/demo/` 폴더를 지운다.
@@ -5344,8 +5353,9 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
      - `test/core/router/app_router_observers_test.dart` — T-171-ROUTER-02 · 03
        이 든 group 을 통째로 지우고, Test 2 · 3 의 재귀 개수 `14`(비 release)를
        `13` 으로 고친다(최상위 `8` 은 그대로 · Test 2 이름의 「14개」 ·
-       `developerDemo` 도). `test/helpers/route_tree.dart` 는 지우지 않는다
-       (Test 2 · 3 이 쓴다).
+       `developerDemo` 도). `test/helpers/route_tree.dart` 는 남기되(다른 테스트
+       여러 파일이 import 한다) `buildRoutesWithoutNamed` 만 지운다 —
+       T-171-ROUTER-03 전용이라 그 group 과 함께 호출자가 사라진다.
      - `test/features/home/home_listener_source_guard_test.dart` — T-171-HOME-15
        를 지우고, T-171-HOME-16 기대 집합에서 `demo_screen.dart`(상수
        `_demoScreenPath`)를 뺀다.
@@ -5530,7 +5540,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-05 | 17.1 review fix (iteration 6) | Phase 17.1 code review iteration 6 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계 설정 테스트 항목: 「새 마지막 행(정식은 알림 스위치)」 괄호에 게스트 분기를 보탬 — 「게스트는 언어 행」 + 게스트로 데모 행을 보는 테스트 명시(13 · 15 는 정식 · 게스트 둘 다, 01 은 게스트만) (게스트에게는 알림 섹션이 없어 데모 묶음을 빼면 언어 행이 말단) (review IN-14) / 17 ③ 문장에 `screenHeight` 를 줄이면 같은 테스트의 `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로, (b) reason 문자열의 「말단 행(데모 행)」 은 「말단 행(알림 스위치)」 로 고친다는 한 마디 추가 (review 관찰 5 · 사용자 결정으로 IN-14 와 함께 반영). 1~3 · 5단계와 다른 절은 그대로 |
 | 2026-10-05 | 17.2-04 | 「FCM 알림」 탭 이동 뒤 「결과 스택 (Phase 17.2)」 bullet · 커스터마이징 「알림 탭으로 열 화면」 홈 하위 조건 · 「Analytics(GA4) screen name」 4항(알림 → 계정 settings · account 2건) · 「홈 화면 바꾸기」 ② 6번째 배선(홈 GoRoute routes:) · 이름 바꾸기 안내 · ③ 데모 위치(설정 child)와 지우는 법 1 · 4단계 · ④ 새 화면 추가 6단계 + 구조 불변식 실패 메시지 / 다른 절은 그대로 |
 | 2026-10-05 | 17.2-06 | 「FCM 알림」 iOS 설정 · 배포 ⑤ 의 실기기 검증 위치를 Phase 17.2 로(iPhone Air · profile UAT 결과) / 다른 절은 그대로 |
+| 2026-10-05 | 17.2 review fix | Phase 17.2 code review iteration 1 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 1단계에 데모 상수 3개(`developerDemo` · `developerDemoName` · `developerDemoSegment`)는 남겨도 되고 지우면 함께 고칠 곳(`app_routes_test.dart` T-172-ROUTES-01~03 데모 항목 · `hasLength` 14 → 13 · 14 → 13 · 6 → 5, `auth_guard_test.dart` T-171-ROUTER-06, 설정 · 홈 본문 테스트 하네스의 데모 stub GoRoute, `home_body.dart` doc 참조 · `grep` 0 건 확인) 추가 · 4단계 라우터 항목을 「`route_tree.dart` 는 남기되 `buildRoutesWithoutNamed`(T-171-ROUTER-03 전용)만 지운다」 로 정정 (review IN-02) |
 
 ---
 
-*Last updated: 2026-10-05 — Phase 17.2 plan 06 (iOS 알림 실기기 검증 위치)*
+*Last updated: 2026-10-05 — Phase 17.2 review fix (code review iteration 1)*
