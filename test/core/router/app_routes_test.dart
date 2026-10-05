@@ -108,6 +108,45 @@ void main() {
           );
         }
       });
+
+      test('T-172-ROUTES-03: 조각 상수 6개 값 · 전체 경로 = 조각 조합', () {
+        const List<(String, String)> segments = <(String, String)>[
+          (AppRoutes.settingsSegment, 'settings'),
+          (AppRoutes.accountSegment, 'account'),
+          (AppRoutes.withdrawalDisconnectSegment, 'withdraw'),
+          (AppRoutes.developerDemoSegment, 'developer'),
+          (AppRoutes.termsServiceSegment, 'terms/service'),
+          (AppRoutes.termsPrivacySegment, 'terms/privacy'),
+        ];
+        expect(segments, hasLength(6), reason: '홈 하위 조각 상수 6개를 모두 고정한다');
+        for (final (String actual, String expected) in segments) {
+          expect(actual, expected, reason: '조각 상수 값이 바뀌었다 (기대 $expected)');
+        }
+
+        // 전체 경로 = 조각 조합 — GoRoute.path(조각)와 guard · 허용 목록 ·
+        // push(전체 경로)가 같은 경로를 가리킨다.
+        const List<(String, String)> joined = <(String, String)>[
+          (AppRoutes.settings, '/${AppRoutes.settingsSegment}'),
+          (
+            AppRoutes.account,
+            '${AppRoutes.settings}/${AppRoutes.accountSegment}',
+          ),
+          (
+            AppRoutes.withdrawalDisconnect,
+            '${AppRoutes.settings}/${AppRoutes.withdrawalDisconnectSegment}',
+          ),
+          (
+            AppRoutes.developerDemo,
+            '${AppRoutes.settings}/${AppRoutes.developerDemoSegment}',
+          ),
+          (AppRoutes.termsService, '/${AppRoutes.termsServiceSegment}'),
+          (AppRoutes.termsPrivacy, '/${AppRoutes.termsPrivacySegment}'),
+        ];
+        expect(joined, hasLength(6), reason: '조각으로 조합한 전체 경로 6개');
+        for (final (String actual, String expected) in joined) {
+          expect(actual, expected, reason: '전체 경로가 조각 조합과 다르다 (기대 $expected)');
+        }
+      });
     });
 
     group('재인증 표시 API — R_EXTRA_G3_REAUTH_LOGIN_BOUNCE (260916-p8d)', () {

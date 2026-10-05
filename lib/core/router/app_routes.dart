@@ -2,6 +2,7 @@
 ///
 /// 문자열 기반 route 하드코딩을 방지하고, 모든 route를 단일 지점에서 관리한다.
 /// 새 route 추가 시 이 클래스에 상수를 먼저 추가한다.
+/// 홈 하위 route 는 조각 상수(GoRoute.path)와 전체 경로 상수를 짝으로 둔다 (Phase 17.2).
 abstract final class AppRoutes {
   /// Home 화면 path.
   static const String home = '/';
@@ -51,38 +52,73 @@ abstract final class AppRoutes {
   /// Onboarding 화면 name.
   static const String onboardingName = 'onboarding';
 
+  /// 약관(이용약관) 상세 화면의 홈 하위 상대 경로 조각 — GoRoute.path 전용 (Phase 17.2 todo 결정 5).
+  ///
+  /// `/terms` 화면이 없어 한 조각이다.
+  static const String termsServiceSegment = 'terms/service';
+
   /// 약관(이용약관) 상세 화면 path (Phase 10 D-21).
-  static const String termsService = '/terms/service';
+  ///
+  /// 값은 그대로 — guard · 알림 허용 목록 · push 는 이 상수를 쓴다.
+  static const String termsService = '/$termsServiceSegment';
 
   /// 약관(이용약관) 상세 화면 name.
   static const String termsServiceName = 'termsService';
 
+  /// 약관(개인정보처리방침) 상세 화면의 홈 하위 상대 경로 조각 — GoRoute.path 전용 (Phase 17.2 todo 결정 5).
+  ///
+  /// `/terms` 화면이 없어 한 조각이다.
+  static const String termsPrivacySegment = 'terms/privacy';
+
   /// 약관(개인정보처리방침) 상세 화면 path (Phase 10 D-21).
-  static const String termsPrivacy = '/terms/privacy';
+  ///
+  /// 값은 그대로 — guard · 알림 허용 목록 · push 는 이 상수를 쓴다.
+  static const String termsPrivacy = '/$termsPrivacySegment';
 
   /// 약관(개인정보처리방침) 상세 화면 name.
   static const String termsPrivacyName = 'termsPrivacy';
 
+  /// 설정 화면의 홈 하위 상대 경로 조각 — GoRoute.path 전용 (Phase 17.2 todo 결정 5).
+  static const String settingsSegment = 'settings';
+
   /// 설정 화면 path (Phase 16 D-05).
-  static const String settings = '/settings';
+  ///
+  /// 값은 그대로 — guard · 알림 허용 목록 · push 는 이 상수를 쓴다.
+  static const String settings = '/$settingsSegment';
 
   /// 설정 화면 name (Phase 16 D-05).
   static const String settingsName = 'settings';
 
+  /// 탈퇴 진행 화면의 설정 하위 상대 경로 조각 — GoRoute.path 전용 (Phase 17.2 todo 결정 5).
+  static const String withdrawalDisconnectSegment = 'withdraw';
+
   /// 탈퇴 진행 화면 path (Phase 16.10 D-06).
-  static const String withdrawalDisconnect = '/settings/withdraw';
+  ///
+  /// 값은 그대로 — guard · 알림 허용 목록 · push 는 이 상수를 쓴다.
+  static const String withdrawalDisconnect =
+      '$settings/$withdrawalDisconnectSegment';
 
   /// 탈퇴 진행 화면 name (Phase 16.10 D-06).
   static const String withdrawalDisconnectName = 'withdrawalDisconnect';
 
+  /// 계정 정보 화면의 설정 하위 상대 경로 조각 — GoRoute.path 전용 (Phase 17.2 todo 결정 5).
+  static const String accountSegment = 'account';
+
   /// 계정 정보 화면 path (Phase 17.1 D-02).
-  static const String account = '/settings/account';
+  ///
+  /// 값은 그대로 — guard · 알림 허용 목록 · push 는 이 상수를 쓴다.
+  static const String account = '$settings/$accountSegment';
 
   /// 계정 정보 화면 name (Phase 17.1 D-02).
   static const String accountName = 'account';
 
+  /// 개발자 · 데모 화면의 설정 하위 상대 경로 조각 — GoRoute.path 전용 (Phase 17.2 todo 결정 5).
+  static const String developerDemoSegment = 'developer';
+
   /// 개발자 · 데모 화면 path — release 빌드에는 등록되지 않는다 (Phase 17.1 D-14).
-  static const String developerDemo = '/settings/developer';
+  ///
+  /// 값은 그대로 — guard · 알림 허용 목록 · push 는 이 상수를 쓴다.
+  static const String developerDemo = '$settings/$developerDemoSegment';
 
   /// 개발자 · 데모 화면 name — release 빌드에는 등록되지 않는다 (Phase 17.1 D-14).
   static const String developerDemoName = 'developerDemo';

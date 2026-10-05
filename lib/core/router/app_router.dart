@@ -123,6 +123,51 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.home,
         name: AppRoutes.homeName,
         builder: (context, state) => const HomeScreen(),
+        // Phase 17.2 todo 결정 1 — 알림 허용 목록의 홈 아닌 4경로는 홈 하위 route.
+        // `go` 로 열어도 홈이 스택 맨 아래에 남아 ← · 시스템 뒤로 · iOS 스와이프로
+        // 홈까지 돌아오고 홈 리스너(17.1 D-17)도 트리에 남는다.
+        routes: [
+          // Phase 16 D-05 — Settings 진입 path.
+          GoRoute(
+            path: AppRoutes.settingsSegment,
+            name: AppRoutes.settingsName,
+            builder: (context, state) => const SettingsScreen(),
+            routes: [
+              // Phase 17.1 D-02 — 계정 정보 화면(설정 계정 행에서 push · 탈퇴 진행은 여기서 push).
+              GoRoute(
+                path: AppRoutes.accountSegment,
+                name: AppRoutes.accountName,
+                builder: (context, state) => const AccountScreen(),
+              ),
+              // Phase 16.10 D-06 — 탈퇴 진행 화면 (탈퇴 다이얼로그 확인 뒤 push).
+              GoRoute(
+                path: AppRoutes.withdrawalDisconnectSegment,
+                name: AppRoutes.withdrawalDisconnectName,
+                builder: (context, state) => const WithdrawalDisconnectScreen(),
+              ),
+              // Phase 17.1 D-14 — 데모는 release 가 아닌 빌드에서만 등록한다(const 분기 →
+              // release 바이너리에서 DemoScreen 참조가 빠진다). release 는 이 경로가 404(D-18).
+              if (!kReleaseMode)
+                GoRoute(
+                  path: AppRoutes.developerDemoSegment,
+                  name: AppRoutes.developerDemoName,
+                  builder: (context, state) => const DemoScreen(),
+                ),
+            ],
+          ),
+          GoRoute(
+            path: AppRoutes.termsServiceSegment,
+            name: AppRoutes.termsServiceName,
+            builder: (context, state) =>
+                const TermsDetailScreen(type: TermsType.service),
+          ),
+          GoRoute(
+            path: AppRoutes.termsPrivacySegment,
+            name: AppRoutes.termsPrivacyName,
+            builder: (context, state) =>
+                const TermsDetailScreen(type: TermsType.privacy),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.splash,
@@ -164,44 +209,6 @@ GoRouter appRouter(Ref ref) {
         name: AppRoutes.verifyEmailName,
         builder: (context, state) => const VerifyEmailScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.termsService,
-        name: AppRoutes.termsServiceName,
-        builder: (context, state) =>
-            const TermsDetailScreen(type: TermsType.service),
-      ),
-      GoRoute(
-        path: AppRoutes.termsPrivacy,
-        name: AppRoutes.termsPrivacyName,
-        builder: (context, state) =>
-            const TermsDetailScreen(type: TermsType.privacy),
-      ),
-      // Phase 16 D-05 — Settings 진입 path.
-      GoRoute(
-        path: AppRoutes.settings,
-        name: AppRoutes.settingsName,
-        builder: (context, state) => const SettingsScreen(),
-      ),
-      // Phase 16.10 D-06 — 탈퇴 진행 화면 (탈퇴 다이얼로그 확인 뒤 push).
-      GoRoute(
-        path: AppRoutes.withdrawalDisconnect,
-        name: AppRoutes.withdrawalDisconnectName,
-        builder: (context, state) => const WithdrawalDisconnectScreen(),
-      ),
-      // Phase 17.1 D-02 — 계정 정보 화면(설정 계정 행에서 push · 탈퇴 진행은 여기서 push).
-      GoRoute(
-        path: AppRoutes.account,
-        name: AppRoutes.accountName,
-        builder: (context, state) => const AccountScreen(),
-      ),
-      // Phase 17.1 D-14 — 데모는 release 가 아닌 빌드에서만 등록한다(const 분기 →
-      // release 바이너리에서 DemoScreen 참조가 빠진다). release 는 이 경로가 404(D-18).
-      if (!kReleaseMode)
-        GoRoute(
-          path: AppRoutes.developerDemo,
-          name: AppRoutes.developerDemoName,
-          builder: (context, state) => const DemoScreen(),
-        ),
     ],
   );
 
@@ -212,7 +219,8 @@ GoRouter appRouter(Ref ref) {
   // T-10-20 PII 보호는 observer 의 `nameExtractor` 가 계속 담당한다 —
   // `settings.name` (= go_router 가 page 에 심는 `GoRoute.name`) 만 읽으므로
   // 쿼리 파라미터가 screenName 에 섞이지 않는다. 따라서 모든 `GoRoute` 에
-  // `name` 설정은 여전히 필수다 (Pitfall 1, Test 3 이 잠근다).
+  // `name` 설정은 여전히 필수다 (Pitfall 1, Test 3 이 잠근다)
+  // (하위 route 포함 — Test 3 은 재귀로 센다 · Phase 17.2).
 
   // CR-01: Provider 파기(컨테이너 dispose / 예기치 못한 rebuild) 시 GoRouter 를
   // 반드시 dispose 한다. `GoRouteInformationProvider` 는 생성자에서

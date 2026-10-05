@@ -78,8 +78,8 @@ void main() {
       },
     );
 
-    test('Test 2: GoRoute 14개 등록 (home/splash/onboarding/login/emailLogin/'
-        'signup/forgotPassword/verifyEmail/termsService/termsPrivacy/'
+    test('Test 2: GoRoute 14개 등록 · 최상위 8 (home/splash/onboarding/login/'
+        'emailLogin/signup/forgotPassword/verifyEmail/termsService/termsPrivacy/'
         'settings/withdrawalDisconnect/account/developerDemo)', () {
       final container = makeContainer();
       addTearDown(container.dispose);
@@ -90,7 +90,17 @@ void main() {
       // Phase 16.10 — /settings/withdraw 추가로 11 → 12.
       // Phase 17.1 — /settings/account 추가로 12 → 13.
       // Phase 17.1 — /settings/developer(!kReleaseMode) 추가로 13 → 14 (release 빌드는 13).
-      expect(router.configuration.routes.length, 14);
+      // Phase 17.2 — 홈 하위 중첩(todo 결정 1): 최상위 14 → 8 · 재귀 14 (release 빌드는 재귀 13).
+      expect(
+        router.configuration.routes.length,
+        8,
+        reason: '최상위 = home + 흐름 화면 7 (설정 · 약관은 홈 하위)',
+      );
+      expect(
+        collectGoRoutes(router.configuration.routes).length,
+        14,
+        reason: '재귀 14',
+      );
     });
 
     test('Test 3: 모든 GoRoute 에 name 이 설정됨 (Pitfall 1)', () {
@@ -285,6 +295,7 @@ void main() {
   // 등록된다. 테스트 VM 은 kReleaseMode 를 뒤집을 수 없으므로 (RESEARCH §R-11)
   // ① 소스 가드로 const 분기 형태를 잠그고 ② 실제 route 표에서 데모 GoRoute 를
   // 뺀 표(= release 의 표)로 404 를 시뮬레이션한다.
+  // Phase 17.2 — 데모는 settings GoRoute 의 child.
   group('Phase 17.1 데모 경로 조건부 등록 (T-171-ROUTER)', () {
     test('T-171-ROUTER-02: 데모 GoRoute 는 if (!kReleaseMode) 바로 뒤 1곳 · '
         'DemoScreen import 는 app_router.dart 1파일 (D-14 · 소스 가드)', () {
@@ -293,7 +304,7 @@ void main() {
       );
       final guarded = RegExp(
         r'if\s*\(\s*!kReleaseMode\s*\)\s*GoRoute\s*\(\s*'
-        r'path:\s*AppRoutes\.developerDemo\s*,\s*'
+        r'path:\s*AppRoutes\.developerDemoSegment\s*,\s*'
         r'name:\s*AppRoutes\.developerDemoName\s*,\s*'
         r'builder:\s*\(\s*context\s*,\s*state\s*\)\s*=>\s*'
         r'const\s+DemoScreen\s*\(\s*\)\s*,?\s*\)',
@@ -304,7 +315,12 @@ void main() {
         reason: 'const !kReleaseMode 바로 뒤 데모 GoRoute 블록이 정확히 1개',
       );
       // 다른 곳(무조건 등록)에 같은 경로가 없다 — 경로 · 생성자 각 1회.
-      expect(countOccurrences(code, 'AppRoutes.developerDemo,'), 1);
+      expect(countOccurrences(code, 'AppRoutes.developerDemoSegment,'), 1);
+      expect(
+        countOccurrences(code, 'AppRoutes.developerDemo,'),
+        0,
+        reason: '데모 GoRoute.path 는 조각 상수 — 최상위 복귀 회귀 방지',
+      );
       expect(countOccurrences(code, 'DemoScreen('), 1);
 
       // release tree-shake 전제 — DemoScreen 을 import 하는 lib 파일은
@@ -346,6 +362,11 @@ void main() {
           collectGoRoutes(releaseRoutes).length,
           collectGoRoutes(allRoutes).length - 1,
           reason: 'release 표 = 데모 GoRoute 1개만 빠진다(재귀)',
+        );
+        expect(
+          releaseRoutes,
+          hasLength(allRoutes.length),
+          reason: '최상위 8 은 그대로 — 데모는 settings 의 child (Phase 17.2)',
         );
         final errorBuilder = appRouter.routerDelegate.builder.errorBuilder;
         expect(errorBuilder, isNotNull, reason: '404 는 앱 errorBuilder 가 그린다');
