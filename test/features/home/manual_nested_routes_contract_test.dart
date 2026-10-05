@@ -12,7 +12,8 @@
 // T-172-DOCS-03: ④ 의 실패 메시지가 T-172-ROUTER-01 의 실제 메시지와 같다.
 // T-172-DOCS-04: GA4 안내 4항(알림으로 연 화면 · settings · account).
 // T-172-DOCS-05: ② 의 6번째 배선(routes:) · ③ 의 데모 위치 · 지우는 법 토큰.
-// T-172-DOCS-06: 매뉴얼 · 코드 주석이 인용한 T-172 test ID 가 실제 test 이름이다.
+// T-172-DOCS-06: 매뉴얼 · 코드 주석이 인용한 T-172 test ID 가 실제 test 이름이다
+//   (범위 표기 `T-172-XXX-NN~MM` 은 펼쳐서 모두 본다).
 //
 // 킷 사용자 안전 규칙(매뉴얼 ② · ③ 절차가 이 파일을 건드리지 않게):
 // - 데모 상수 이름은 리터럴 없이 조각을 이어 만든다(③ 의 grep 0 건 확인).
@@ -69,14 +70,35 @@ const List<String> _demoSegmentParts = <String>[
 String _sliceFromHeading(String manual, String heading) =>
     sliceMarkdownSection(manual, heading, maxLevel: 3);
 
-/// [text] 안의 `T-172-XXX-NN` 형태 test ID 를 중복 없이 모은다.
-Set<String> _collectTest172Ids(String text) => RegExp(
-  r'T-172-[A-Z]+-\d\d',
-).allMatches(text).map((RegExpMatch m) => m.group(0)!).toSet();
+/// [text] 안의 `T-172-XXX-NN` 과 범위 표기 `T-172-XXX-NN~MM` 을 개별 ID 로
+/// 펼쳐 중복 없이 모은다.
+///
+/// 범위 표기(예: `T-172-ROUTES-01~03`)는 01 · 02 · 03 을 모두 인용한 것으로
+/// 본다 — 첫 ID 만 뽑으면 02 · 03 의 이름이 바뀌어도 포인터 검사가 통과한다.
+Set<String> _collectTest172Ids(String text) {
+  final Set<String> ids = <String>{};
+  for (final RegExpMatch match in RegExp(
+    r'(T-172-[A-Z]+-)(\d\d)(?:~(\d\d))?',
+  ).allMatches(text)) {
+    final String prefix = match.group(1)!;
+    final int first = int.parse(match.group(2)!);
+    final int last = int.parse(match.group(3) ?? match.group(2)!);
+    for (int number = first; number <= last; number++) {
+      ids.add('$prefix${number.toString().padLeft(2, '0')}');
+    }
+  }
+  return ids;
+}
 
-/// [id] 가 [source] 안에서 test 이름(따옴표로 시작하는 `ID:`)으로 선언됐는지 본다.
-bool _declaresTestName(String source, String id) =>
-    RegExp("['\"]${RegExp.escape(id)}:").hasMatch(source);
+/// [id] 가 [source] 안에서 test 이름으로 선언됐는지 본다.
+///
+/// `test(` · `testWidgets(` 의 첫 인자 문자열이 [id] 로 시작하고 바로 뒤가
+/// `:` · 공백 · `(` 인 경우만 센다 — `reason: 'ID: …'` 같은 다른 문자열
+/// 리터럴은 선언이 아니다. 공백 · `(` 는 `'T-172-WITHDRAW-02 (Phase 17.2 …'`
+/// 처럼 ID 뒤에 괄호가 오는 기존 이름을 받기 위한 것이다.
+bool _declaresTestName(String source, String id) => RegExp(
+  "\\b(?:test|testWidgets)\\(\\s*['\"]${RegExp.escape(id)}[:\\s(]",
+).hasMatch(source);
 
 void main() {
   final String manual = readTrackedFile(_manualPath);
