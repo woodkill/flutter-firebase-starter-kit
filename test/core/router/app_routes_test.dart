@@ -109,7 +109,10 @@ void main() {
         }
       });
 
-      test('T-172-ROUTES-03: 조각 상수 6개 값 · 전체 경로 = 조각 조합', () {
+      // 조각 → 전체 경로 조합 결과는 따로 단언하지 않는다 — 조각(여기) · 전체
+      // 경로(T-172-ROUTES-01) 둘 다 리터럴로 고정돼 있어 조합식을 다시 쓴 단언은
+      // 새로 잠그는 것이 없다 (17.2 review IN-05).
+      test('T-172-ROUTES-03: 조각 상수 6개 값이 그대로다', () {
         const List<(String, String)> segments = <(String, String)>[
           (AppRoutes.settingsSegment, 'settings'),
           (AppRoutes.accountSegment, 'account'),
@@ -121,30 +124,6 @@ void main() {
         expect(segments, hasLength(6), reason: '홈 하위 조각 상수 6개를 모두 고정한다');
         for (final (String actual, String expected) in segments) {
           expect(actual, expected, reason: '조각 상수 값이 바뀌었다 (기대 $expected)');
-        }
-
-        // 전체 경로 = 조각 조합 — GoRoute.path(조각)와 guard · 허용 목록 ·
-        // push(전체 경로)가 같은 경로를 가리킨다.
-        const List<(String, String)> joined = <(String, String)>[
-          (AppRoutes.settings, '/${AppRoutes.settingsSegment}'),
-          (
-            AppRoutes.account,
-            '${AppRoutes.settings}/${AppRoutes.accountSegment}',
-          ),
-          (
-            AppRoutes.withdrawalDisconnect,
-            '${AppRoutes.settings}/${AppRoutes.withdrawalDisconnectSegment}',
-          ),
-          (
-            AppRoutes.developerDemo,
-            '${AppRoutes.settings}/${AppRoutes.developerDemoSegment}',
-          ),
-          (AppRoutes.termsService, '/${AppRoutes.termsServiceSegment}'),
-          (AppRoutes.termsPrivacy, '/${AppRoutes.termsPrivacySegment}'),
-        ];
-        expect(joined, hasLength(6), reason: '조각으로 조합한 전체 경로 6개');
-        for (final (String actual, String expected) in joined) {
-          expect(actual, expected, reason: '전체 경로가 조각 조합과 다르다 (기대 $expected)');
         }
       });
     });
