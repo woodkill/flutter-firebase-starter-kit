@@ -31,6 +31,7 @@ import 'package:flutter_starter_kit/features/home/presentation/_widgets/guest_ba
 import 'package:flutter_starter_kit/features/notifications/presentation/pending_notification_route_listener.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
+import '../../helpers/route_tree.dart';
 import '../../helpers/source_text.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -185,12 +186,12 @@ void main() {
       );
       addTearDown(container.dispose);
       final router = container.read(appRouterProvider);
-      final demoRoutes = router.configuration.routes
-          .whereType<GoRoute>()
-          .where((route) => route.path == AppRoutes.developerDemo)
-          .toList();
-      expect(demoRoutes, hasLength(1));
-      expect(demoRoutes.single.name, AppRoutes.developerDemoName);
+      // Phase 17.2 — 전체 경로를 findMatch 로 조회(트리 깊이 독립).
+      final GoRoute demoRoute = findGoRouteByPath(
+        router.configuration,
+        AppRoutes.developerDemo,
+      );
+      expect(demoRoute.name, AppRoutes.developerDemoName);
 
       await tester.pumpWidget(const SizedBox());
       final context = tester.element(find.byType(SizedBox));
@@ -202,7 +203,7 @@ void main() {
         pathParameters: const <String, String>{},
         pageKey: const ValueKey<String>(AppRoutes.developerDemo),
       );
-      expect(demoRoutes.single.builder!(context, state), isA<DemoScreen>());
+      expect(demoRoute.builder!(context, state), isA<DemoScreen>());
 
       // (b) 화면 — AppBar 제목 · actions 없음 · 빌드 환경 heading.
       await _pumpDemo(tester, user: null);

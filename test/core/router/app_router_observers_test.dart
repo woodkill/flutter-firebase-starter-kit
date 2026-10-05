@@ -24,6 +24,7 @@ import 'package:flutter_starter_kit/features/demo/presentation/demo_screen.dart'
 import 'package:flutter_starter_kit/features/not_found/presentation/not_found_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
+import '../../helpers/route_tree.dart';
 import '../../helpers/source_text.dart';
 
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
@@ -97,10 +98,10 @@ void main() {
       addTearDown(container.dispose);
 
       final router = container.read(appRouterProvider);
-      final names = router.configuration.routes
-          .whereType<GoRoute>()
-          .map((r) => r.name)
-          .toList();
+      // Phase 17.2 — 재귀 수집(트리 깊이 독립 · flat 이든 중첩이든 14).
+      final names = collectGoRoutes(
+        router.configuration.routes,
+      ).map((r) => r.name).toList();
       // Phase 16 D-05 — /settings route 추가로 9 → 10.
       // Phase 16.1 — /login/email route 추가로 10 → 11.
       // Phase 16.10 — /settings/withdraw 추가로 11 → 12.
@@ -335,13 +336,17 @@ void main() {
         addTearDown(container.dispose);
         final appRouter = container.read(appRouterProvider);
         final allRoutes = appRouter.configuration.routes;
-        final releaseRoutes = allRoutes
-            .where(
-              (route) =>
-                  !(route is GoRoute && route.path == AppRoutes.developerDemo),
-            )
-            .toList();
-        expect(releaseRoutes, hasLength(allRoutes.length - 1));
+        // Phase 17.2 — 데모 GoRoute 가 트리 어느 깊이에 있어도 name 으로 재귀
+        // 복사해 뺀다. 절대 개수(재귀 14 · release 13)는 Test 2 · 3 에만 둔다.
+        final List<RouteBase> releaseRoutes = buildRoutesWithoutNamed(
+          allRoutes,
+          AppRoutes.developerDemoName,
+        );
+        expect(
+          collectGoRoutes(releaseRoutes).length,
+          collectGoRoutes(allRoutes).length - 1,
+          reason: 'release 표 = 데모 GoRoute 1개만 빠진다(재귀)',
+        );
         final errorBuilder = appRouter.routerDelegate.builder.errorBuilder;
         expect(errorBuilder, isNotNull, reason: '404 는 앱 errorBuilder 가 그린다');
 

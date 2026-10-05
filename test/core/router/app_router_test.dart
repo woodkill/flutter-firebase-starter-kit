@@ -18,6 +18,8 @@ import 'package:flutter_starter_kit/features/auth/presentation/email_login_scree
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/features/not_found/presentation/not_found_screen.dart';
 
+import '../../helpers/route_tree.dart';
+
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
 class _MockUser extends Mock implements User {}
@@ -144,9 +146,7 @@ void main() {
 
       /// production [GoRoute.builder] 를 [location] 상태로 호출한다.
       Widget buildAt(String path, String location) {
-        final route = router.configuration.routes
-            .whereType<GoRoute>()
-            .singleWhere((r) => r.path == path);
+        final GoRoute route = findGoRouteByPath(router.configuration, path);
         final state = GoRouterState(
           router.configuration,
           uri: Uri.parse(location),
