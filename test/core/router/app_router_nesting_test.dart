@@ -9,6 +9,8 @@
 // 이 파일은 데모 경로 · 데모 화면을 참조하지 않는다(매뉴얼 「데모 지우는 법」
 // 이 이 파일을 건드리지 않게).
 
+import 'dart:async';
+
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -44,6 +46,10 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart'
         currentUserProvider,
         linkedProvidersStreamProvider;
 import 'package:flutter_starter_kit/features/auth/domain/user.dart' show User;
+import 'package:flutter_starter_kit/features/home/presentation/home_screen.dart'
+    show HomeScreen;
+import 'package:flutter_starter_kit/features/not_found/presentation/not_found_screen.dart'
+    show NotFoundScreen;
 import 'package:flutter_starter_kit/features/notifications/application/notification_route.dart'
     show kNotificationRoutableRoutes;
 import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart'
@@ -56,6 +62,8 @@ import 'package:flutter_starter_kit/features/settings/presentation/account_scree
     show AccountScreen;
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart'
     show SettingsScreen;
+import 'package:flutter_starter_kit/features/terms/presentation/terms_detail_screen.dart'
+    show TermsDetailScreen;
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -324,6 +332,304 @@ void main() {
         identical(tester.state(listener), listenerState),
         isTrue,
         reason: 'pop 2회 뒤에도 홈 리스너 State 유지 (D-01 ①)',
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Phase 17.2 알림 · 앱 안 이동 회귀 (T-172-STACK · LISTENER · ANALYTICS · '
+      'PUSH · WITHDRAW · ROUTER-02)', () {
+    testWidgets('T-172-STACK-02: 알림 → 설정 = 2장 · ← 1회면 홈', (tester) async {
+      final app = await _pumpProductionApp(tester);
+
+      await _deliverNotificationRoute(
+        tester,
+        app.container,
+        AppRoutes.settings,
+      );
+      expect(_readStack(app.router), <String>[
+        '/',
+        AppRoutes.settings,
+      ], reason: '알림 → 설정 = 홈 · 설정 2장 (D-04 (d) 위젯 수준 · todo 결정 1)');
+      expect(find.byType(BackButton), findsOneWidget, reason: '설정 앱바에 ←');
+
+      app.router.pop();
+      await tester.pumpAndSettle();
+      expect(_readStack(app.router), <String>['/'], reason: '← 1회 = 홈');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-172-STACK-03: 알림 → 약관 2개 = 각 2장 · ← 1회면 홈', (tester) async {
+      final app = await _pumpProductionApp(tester);
+
+      for (final String route in <String>[
+        AppRoutes.termsService,
+        AppRoutes.termsPrivacy,
+      ]) {
+        await _deliverNotificationRoute(tester, app.container, route);
+        expect(_readStack(app.router), <String>[
+          '/',
+          route,
+        ], reason: '알림 → 약관 $route = 홈 · 약관 2장 (todo 결정 2 · D-04 (b))');
+        expect(find.byType(BackButton), findsOneWidget, reason: '약관 앱바에 ←');
+        expect(
+          find.byType(TermsDetailScreen),
+          findsOneWidget,
+          reason: '약관 화면이 보인다 ($route)',
+        );
+
+        app.router.pop();
+        await tester.pumpAndSettle();
+        expect(_readStack(app.router), <String>[
+          '/',
+        ], reason: '약관 $route 에서 ← 1회 = 홈');
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-172-LISTENER-01: 알림으로 연 계정 화면 위에서 새 알림(설정)을 '
+        '소비한다 · 홈 리스너 State 유지', (tester) async {
+      final app = await _pumpProductionApp(tester);
+      final listener = find.byType(
+        PendingNotificationRouteListener,
+        skipOffstage: false,
+      );
+      final State listenerState = tester.state(listener);
+
+      await _deliverNotificationRoute(tester, app.container, AppRoutes.account);
+      expect(_readStack(app.router), <String>[
+        '/',
+        AppRoutes.settings,
+        AppRoutes.account,
+      ], reason: '전제 — 알림 → 계정 3장');
+
+      await _deliverNotificationRoute(
+        tester,
+        app.container,
+        AppRoutes.settings,
+      );
+      expect(_readStack(app.router), <String>[
+        '/',
+        AppRoutes.settings,
+      ], reason: '계정 화면 위의 새 알림(설정)도 홈 리스너가 소비한다 (D-04 (a) 위젯 수준)');
+      expect(
+        app.container.read(pendingNotificationRouteProvider),
+        isNull,
+        reason: '두 번째 pending 도 소비됐다',
+      );
+      expect(
+        identical(tester.state(listener), listenerState),
+        isTrue,
+        reason: '홈 리스너 State 가 맨 처음 것 그대로다 (D-01 ①)',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'T-172-ANALYTICS-01: screen_view — 알림 → 계정 [settings, account] · '
+      '설정 1 · 약관 1 · pop 1회당 1건',
+      (tester) async {
+        final app = await _pumpProductionApp(tester);
+        // splash → home 착지까지의 발신을 비운다.
+        app.drainScreenNames();
+
+        const String measured =
+            '2026-10-05 실측(17.2-RESEARCH §R-01) · todo 결정 4 — '
+            '커스텀 observer 로 1건으로 줄이지 않는다';
+
+        await _deliverNotificationRoute(
+          tester,
+          app.container,
+          AppRoutes.account,
+        );
+        expect(app.drainScreenNames(), <Object?>[
+          AppRoutes.settingsName,
+          AppRoutes.accountName,
+        ], reason: '알림 → 계정 = 설정 · 계정 2건 (순서 포함) — $measured');
+
+        app.router.pop();
+        await tester.pumpAndSettle();
+        expect(app.drainScreenNames(), <Object?>[
+          AppRoutes.settingsName,
+        ], reason: 'pop 1회 = 1건 (계정 → 설정) — $measured');
+
+        app.router.pop();
+        await tester.pumpAndSettle();
+        expect(app.drainScreenNames(), <Object?>[
+          AppRoutes.homeName,
+        ], reason: 'pop 1회 = 1건 (설정 → 홈) — $measured');
+
+        await _deliverNotificationRoute(
+          tester,
+          app.container,
+          AppRoutes.settings,
+        );
+        expect(app.drainScreenNames(), <Object?>[
+          AppRoutes.settingsName,
+        ], reason: '알림 → 설정 = 1건 — $measured');
+
+        app.router.pop();
+        await tester.pumpAndSettle();
+        expect(app.drainScreenNames(), <Object?>[
+          AppRoutes.homeName,
+        ], reason: 'pop 1회 = 1건 (설정 → 홈) — $measured');
+
+        await _deliverNotificationRoute(
+          tester,
+          app.container,
+          AppRoutes.termsService,
+        );
+        expect(app.drainScreenNames(), <Object?>[
+          AppRoutes.termsServiceName,
+        ], reason: '알림 → 약관 = 1건 — $measured');
+
+        app.router.pop();
+        await tester.pumpAndSettle();
+        expect(app.drainScreenNames(), <Object?>[
+          AppRoutes.homeName,
+        ], reason: 'pop 1회 = 1건 (약관 → 홈) — $measured');
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('T-172-PUSH-01: 앱 안 push 회귀 — 홈 → 설정 → 계정 1장씩 · '
+        'ImperativeRouteMatch 2 · ← 2회면 홈', (tester) async {
+      final app = await _pumpProductionApp(tester);
+      app.drainScreenNames();
+
+      /// 현재 스택의 push(ImperativeRouteMatch) 장 수를 센다.
+      int countImperativeMatches() => app
+          .router
+          .routerDelegate
+          .currentConfiguration
+          .matches
+          .whereType<ImperativeRouteMatch>()
+          .length;
+
+      unawaited(app.router.push(AppRoutes.settings));
+      await tester.pumpAndSettle();
+      final List<RouteMatchBase> afterSettings =
+          app.router.routerDelegate.currentConfiguration.matches;
+      expect(afterSettings, hasLength(2), reason: '홈 → push 설정 = 2장 (17 D-04)');
+      expect(
+        afterSettings.last,
+        isA<ImperativeRouteMatch>(),
+        reason: '앱 안 이동은 push 그대로 — go 로 바뀌지 않는다 (성공 기준 3)',
+      );
+      expect(app.drainScreenNames(), <Object?>[
+        AppRoutes.settingsName,
+      ], reason: 'push 1장 = screen_view 1건');
+
+      unawaited(app.router.push(AppRoutes.account));
+      await tester.pumpAndSettle();
+      expect(
+        app.router.routerDelegate.currentConfiguration.matches,
+        hasLength(3),
+        reason: '설정 → push 계정 = 1장 더 (중첩 부모가 끼어들지 않는다)',
+      );
+      expect(
+        countImperativeMatches(),
+        2,
+        reason: '설정 · 계정 모두 push(ImperativeRouteMatch)',
+      );
+      expect(app.drainScreenNames(), <Object?>[
+        AppRoutes.accountName,
+      ], reason: 'push 1장 = screen_view 1건');
+
+      app.router.pop();
+      await tester.pumpAndSettle();
+      app.router.pop();
+      await tester.pumpAndSettle();
+      expect(_readStack(app.router), <String>['/'], reason: '← 2회 = 홈');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-172-PUSH-02: 온보딩 → 약관 push = 1장 · 홈이 끼지 않는다', (
+      tester,
+    ) async {
+      final app = await _pumpProductionApp(tester);
+
+      app.router.go(AppRoutes.onboarding);
+      await tester.pumpAndSettle();
+      unawaited(app.router.push(AppRoutes.termsService));
+      await tester.pumpAndSettle();
+
+      final List<RouteMatchBase> matches =
+          app.router.routerDelegate.currentConfiguration.matches;
+      expect(matches, hasLength(2), reason: '온보딩 → push 약관 = 2장 (1장만 더)');
+      expect(
+        matches.first.matchedLocation,
+        AppRoutes.onboarding,
+        reason: '맨 아래는 온보딩 그대로',
+      );
+      expect(
+        matches.last,
+        isA<ImperativeRouteMatch>(),
+        reason: '약관은 push(ImperativeRouteMatch)',
+      );
+      expect(
+        matches.last.matchedLocation,
+        AppRoutes.termsService,
+        reason: '맨 위는 약관',
+      );
+      expect(
+        find.byType(HomeScreen, skipOffstage: false),
+        findsNothing,
+        reason: '약관을 push 해도 홈(중첩 부모)이 스택에 끼지 않는다',
+      );
+
+      app.router.pop();
+      await tester.pumpAndSettle();
+      expect(_readStack(app.router), <String>[
+        AppRoutes.onboarding,
+      ], reason: '← 1회 = 온보딩');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-172-WITHDRAW-01: 탈퇴 진행 경로는 설정 하위 · _leave() fallback '
+        'go(settings) = 홈 · 설정 2장', (tester) async {
+      // 위젯 없이 — 탈퇴 진행 경로의 match 목록.
+      final container = _buildRouteTableContainer();
+      addTearDown(container.dispose);
+      final RouteMatchList withdrawMatch = container
+          .read(appRouterProvider)
+          .configuration
+          .findMatch(Uri.parse(AppRoutes.withdrawalDisconnect));
+      expect(
+        withdrawMatch.matches.map((match) => match.matchedLocation).toList(),
+        <String>['/', AppRoutes.settings, AppRoutes.withdrawalDisconnect],
+        reason: '탈퇴 진행은 설정 하위 route (todo 결정 3)',
+      );
+
+      // 하네스 — 탈퇴 진행 화면은 진입 즉시 탈퇴 notifier 를 시작하므로 그리지
+      // 않고, `_leave()` 의 pop 불가 fallback(`go(settings)`)만 재현한다.
+      final app = await _pumpProductionApp(tester);
+      app.router.go(AppRoutes.settings);
+      await tester.pumpAndSettle();
+      expect(_readStack(app.router), <String>[
+        '/',
+        AppRoutes.settings,
+      ], reason: '_leave() fallback go(settings) = 홈 · 설정 2장 (todo 결정 3)');
+      expect(app.router.canPop(), isTrue, reason: '설정에서 홈으로 pop 가능');
+      expect(find.byType(BackButton), findsOneWidget, reason: '설정 앱바에 ←');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-172-ROUTER-02: 홈 하위 접두가 맞아도 없는 경로는 NotFoundScreen '
+        '(IN-05)', (tester) async {
+      final app = await _pumpProductionApp(tester);
+
+      app.router.go('/settings/nope');
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(NotFoundScreen),
+        findsOneWidget,
+        reason: '없는 하위 경로는 전용 404 (IN-05 — 설정 · 홈으로 조용히 넘기지 않는다)',
+      );
+      expect(
+        app.router.routerDelegate.currentConfiguration.isError,
+        isTrue,
+        reason: 'match 목록이 오류 상태 (router.state 는 읽지 않는다 — Pitfall 4)',
       );
       expect(tester.takeException(), isNull);
     });

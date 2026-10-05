@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
+import 'package:flutter_starter_kit/core/router/app_router.dart'
+    show appRouterProvider;
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/router/auth_guard.dart';
 import 'package:flutter_starter_kit/core/router/auth_refresh.dart';
@@ -529,6 +531,78 @@ void main() {
           expect(result, isNull);
         },
       );
+
+      test('T-172-GUARD-01: 익명 + 알림 계정 경로 → /settings → production 트리 결과 스택 '
+          '[/, /settings] (I8 ④ · 대조군 정식 3장)', () async {
+        // production route 표 — guard 결과 경로가 중첩 트리에서 어떤 스택이
+        // 되는지 본다 (Firebase 미초기화 · 빈 인증 스트림 · 위젯 없음).
+        final tableAuth = _MockFirebaseAuth();
+        when(
+          () => tableAuth.authStateChanges(),
+        ).thenAnswer((_) => const Stream<fb.User?>.empty());
+        when(
+          () => tableAuth.userChanges(),
+        ).thenAnswer((_) => const Stream<fb.User?>.empty());
+        final tableContainer = ProviderContainer(
+          overrides: [
+            isFirebaseInitializedProvider.overrideWithValue(false),
+            firebaseAuthProvider.overrideWithValue(tableAuth),
+          ],
+        );
+        addTearDown(tableContainer.dispose);
+        final RouteConfiguration configuration = tableContainer
+            .read(appRouterProvider)
+            .configuration;
+
+        /// [location] 을 열었을 때의 스택(match 의 matchedLocation 목록).
+        List<String> readStackAt(String location) => configuration
+            .findMatch(Uri.parse(location))
+            .matches
+            .map((match) => match.matchedLocation)
+            .toList();
+
+        // 익명 — guard 가 계정 경로를 설정으로 돌린다 (17.1 D-07).
+        final anonymousContainer = makeContainer(
+          isInitialized: true,
+          user: anonymousUser(),
+          onboardingSeen: true,
+          termsAcceptance: acceptedTerms(),
+        );
+        addTearDown(anonymousContainer.dispose);
+        when(() => mockState.matchedLocation).thenReturn(AppRoutes.account);
+        final String? anonymousResult = await _callAuthRedirect(
+          anonymousContainer,
+          mockState,
+        );
+        expect(
+          anonymousResult,
+          AppRoutes.settings,
+          reason: '게스트에게 알림 경로로 계정 정보 화면을 보이지 않는다 (17.1 D-07)',
+        );
+        expect(readStackAt(anonymousResult!), <String>[
+          '/',
+          AppRoutes.settings,
+        ], reason: '게스트 결과 스택 = 홈 · 설정 2장 (I8 ④ 위젯 수준 대체 · D-06)');
+
+        // 대조군 — 정식 사용자는 계정 경로 그대로 3장.
+        final regularContainer = makeContainer(
+          isInitialized: true,
+          user: regularUser(),
+          onboardingSeen: true,
+          termsAcceptance: acceptedTerms(),
+        );
+        addTearDown(regularContainer.dispose);
+        final String? regularResult = await _callAuthRedirect(
+          regularContainer,
+          mockState,
+        );
+        expect(regularResult, isNull, reason: '정식 사용자는 계정 화면 허용');
+        expect(readStackAt(AppRoutes.account), <String>[
+          '/',
+          AppRoutes.settings,
+          AppRoutes.account,
+        ], reason: '정식 결과 스택 = 홈 · 설정 · 계정 3장');
+      });
 
       test(
         'Test 13: 미인증 + onboardingSeen=false + /splash -> null (스플래시 진입 허용)',
