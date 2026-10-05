@@ -5272,8 +5272,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 ### ② 화면을 통째로 바꿀 때 — 옮길 배선 체크리스트
 
 `home_screen.dart` 를 다른 화면으로 바꾸거나 `AppRoutes.home` 의 builder 가 다른
-위젯을 띄우게 할 때는 아래 6가지를 새 화면에 옮긴다(6번째는 라우터에 그대로
-남긴다).
+위젯을 띄우게 할 때는 아래 5가지를 새 화면에 옮기고, 6번째(홈 GoRoute 의
+`routes:`)는 라우터에 그대로 둔다 — 빠뜨리면 생기는 일은 표에 있다.
 
 | 배선 | 지금 위치 | 빠뜨리면 생기는 일 |
 |------|-----------|--------------------|
@@ -5540,7 +5540,7 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 | 2026-10-05 | 17.1 review fix (iteration 6) | Phase 17.1 code review iteration 6 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 4단계 설정 테스트 항목: 「새 마지막 행(정식은 알림 스위치)」 괄호에 게스트 분기를 보탬 — 「게스트는 언어 행」 + 게스트로 데모 행을 보는 테스트 명시(13 · 15 는 정식 · 게스트 둘 다, 01 은 게스트만) (게스트에게는 알림 섹션이 없어 데모 묶음을 빼면 언어 행이 말단) (review IN-14) / 17 ③ 문장에 `screenHeight` 를 줄이면 같은 테스트의 `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로, (b) reason 문자열의 「말단 행(데모 행)」 은 「말단 행(알림 스위치)」 로 고친다는 한 마디 추가 (review 관찰 5 · 사용자 결정으로 IN-14 와 함께 반영). 1~3 · 5단계와 다른 절은 그대로 |
 | 2026-10-05 | 17.2-04 | 「FCM 알림」 탭 이동 뒤 「결과 스택 (Phase 17.2)」 bullet · 커스터마이징 「알림 탭으로 열 화면」 홈 하위 조건 · 「Analytics(GA4) screen name」 4항(알림 → 계정 settings · account 2건) · 「홈 화면 바꾸기」 ② 6번째 배선(홈 GoRoute routes:) · 이름 바꾸기 안내 · ③ 데모 위치(설정 child)와 지우는 법 1 · 4단계 · ④ 새 화면 추가 6단계 + 구조 불변식 실패 메시지 / 다른 절은 그대로 |
 | 2026-10-05 | 17.2-06 | 「FCM 알림」 iOS 설정 · 배포 ⑤ 의 실기기 검증 위치를 Phase 17.2 로(iPhone Air · profile UAT 결과) / 다른 절은 그대로 |
-| 2026-10-05 | 17.2 review fix | Phase 17.2 code review iteration 1 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 1단계에 데모 상수 3개(`developerDemo` · `developerDemoName` · `developerDemoSegment`)는 남겨도 되고 지우면 함께 고칠 곳(`app_routes_test.dart` T-172-ROUTES-01~03 데모 항목 · `hasLength` 14 → 13 · 14 → 13 · 6 → 5, `auth_guard_test.dart` T-171-ROUTER-06, 설정 · 홈 본문 테스트 하네스의 데모 stub GoRoute, `home_body.dart` doc 참조 · `grep` 0 건 확인) 추가 · 4단계 라우터 항목을 「`route_tree.dart` 는 남기되 `buildRoutesWithoutNamed`(T-171-ROUTER-03 전용)만 지운다」 로 정정 (review IN-02) / 「FCM 알림」 「결과 스택 (Phase 17.2)」 bullet 에 홈 하위 `go` 가 중간 화면(설정)도 build 해 `notificationSettingsProvider` 초기화(권한 조회 · 토큰 문서 upsert)가 알림 이동 시점으로 당겨질 수 있다는 문장 추가 (review IN-03) |
+| 2026-10-05 | 17.2 review fix | Phase 17.2 code review iteration 1 반영 — 「홈 화면 바꾸기 (Phase 17.1)」 ③ 「지우는 법」 1단계에 데모 상수 3개(`developerDemo` · `developerDemoName` · `developerDemoSegment`)는 남겨도 되고 지우면 함께 고칠 곳(`app_routes_test.dart` T-172-ROUTES-01~03 데모 항목 · `hasLength` 14 → 13 · 14 → 13 · 6 → 5, `auth_guard_test.dart` T-171-ROUTER-06, 설정 · 홈 본문 테스트 하네스의 데모 stub GoRoute, `home_body.dart` doc 참조 · `grep` 0 건 확인) 추가 · 4단계 라우터 항목을 「`route_tree.dart` 는 남기되 `buildRoutesWithoutNamed`(T-171-ROUTER-03 전용)만 지운다」 로 정정 (review IN-02) / 「FCM 알림」 「결과 스택 (Phase 17.2)」 bullet 에 홈 하위 `go` 가 중간 화면(설정)도 build 해 `notificationSettingsProvider` 초기화(권한 조회 · 토큰 문서 upsert)가 알림 이동 시점으로 당겨질 수 있다는 문장 추가 (review IN-03) / 「홈 화면 바꾸기 (Phase 17.1)」 ② 머리 문장을 「5가지를 새 화면에 옮기고, 6번째(홈 GoRoute 의 `routes:`)는 라우터에 그대로 둔다」 로 정정 (review IN-04) |
 
 ---
 
