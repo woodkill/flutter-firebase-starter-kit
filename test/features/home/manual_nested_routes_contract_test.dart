@@ -11,14 +11,17 @@
 // T-172-DOCS-02: 커스터마이징 표 「알림 탭으로 열 화면」 행 1개 · 필수 토큰.
 // T-172-DOCS-03: ④ 의 실패 메시지가 T-172-ROUTER-01 의 실제 메시지와 같다.
 // T-172-DOCS-04: GA4 안내 4항(알림으로 연 화면 · settings · account).
-// T-172-DOCS-05: ② 의 6번째 배선(routes:) · ③ 의 데모 위치 · 지우는 법 토큰.
+// T-172-DOCS-05: ② 의 6번째 배선(routes:).
 // T-172-DOCS-06: 매뉴얼 · 코드 주석이 인용한 T-172 test ID 가 실제 test 이름이다
 //   (범위 표기 `T-172-XXX-NN~MM` 은 펼쳐서 모두 본다).
+// T-172-DOCS-07: ③ 의 데모 위치(설정 하위 조각) · 지우는 법 토큰.
 //
 // 킷 사용자 안전 규칙(매뉴얼 ② · ③ 절차가 이 파일을 건드리지 않게):
 // - 데모 상수 이름은 리터럴 없이 조각을 이어 만든다(③ 의 grep 0 건 확인).
 // - 옛 홈 파일 · 클래스 이름은 쓰지 않는다(② 의 이름 바꾸기 grep).
 // - 경로 개수는 하드코딩하지 않는다(④ 가 route 를 더해도 깨지지 않게).
+// - 예외: 매뉴얼에서 ③ 절 자체를 지울 때는 T-172-DOCS-07 과 그 전용 선언을
+//   함께 지운다(③ 「지우는 법」 4단계에 적혀 있다). ③ 을 남기면 그대로 둔다.
 
 import 'dart:io';
 
@@ -174,7 +177,7 @@ void main() {
       }
     });
 
-    test('T-172-DOCS-05: ② 에 routes: 배선 · ③ 에 데모 위치와 지우는 법이 있다 (SC4)', () {
+    test('T-172-DOCS-05: ② 에 6번째 배선(routes:)이 있다 (SC4)', () {
       expect(replaceSection.trim(), isNotEmpty, reason: '② 슬라이스가 비었다');
       expect(countOccurrences(replaceSection, _replaceHeading), 1);
       for (final String token in <String>['routes:', 'T-172-ROUTER-01']) {
@@ -184,7 +187,10 @@ void main() {
           reason: '② 에 `$token` 이 없다',
         );
       }
+    });
 
+    // ③ 을 매뉴얼에서 지우면 이 test 를 함께 지운다(③ 「지우는 법」 4단계).
+    test('T-172-DOCS-07: ③ 에 데모 위치(설정 하위 조각)와 지우는 법이 있다 (SC4)', () {
       expect(demoSection.trim(), isNotEmpty, reason: '③ 슬라이스가 비었다');
       expect(countOccurrences(demoSection, _demoHeading), 1);
       final String demoSegment = _demoSegmentParts.join();
@@ -234,17 +240,14 @@ void main() {
         reason: '슬라이스에서 T-172 ID 추출이 실패했다: $cited',
       );
 
-      // test/ 아래 모든 dart 파일(이 파일 제외)을 한 번 읽어 선언을 찾는다.
-      final String self =
-          'test/features/home/manual_nested_routes_contract_test.dart';
+      // test/ 아래 모든 dart test 파일을 한 번 읽어 선언을 찾는다. 이 파일도
+      // 포함한다 — 매뉴얼 ③ 이 이 파일의 T-172-DOCS-07 을 인용하고,
+      // [_declaresTestName] 은 `test(` 의 첫 인자만 선언으로 세므로 이 파일의
+      // ID 목록 · reason 문자열이 선언으로 잘못 잡히지 않는다.
       final List<String> testSources = Directory('test')
           .listSync(recursive: true)
           .whereType<File>()
-          .where(
-            (File f) =>
-                f.path.endsWith('_test.dart') &&
-                !f.path.replaceAll(r'\', '/').endsWith(self),
-          )
+          .where((File f) => f.path.endsWith('_test.dart'))
           .map((File f) => f.readAsStringSync())
           .toList();
       expect(testSources, isNotEmpty, reason: 'test/ 파일을 못 찾았다');
