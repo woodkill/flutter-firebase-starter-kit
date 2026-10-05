@@ -5332,7 +5332,8 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
      - `test/features/settings/presentation/settings_screen_test.dart` —
        T-171-SETTINGS-06 · 07 은 지운다. 데모 행 · 「개발자」 묶음을 보는 01 ·
        11 · 13 · 15 · 17 ②~④ · T-17-NOTIF-12 는 지우지 말고, 그 기대를 빼거나
-       기준을 새 마지막 행(정식은 알림 스위치)으로 바꾼다. 17 ③ 은 거기에 더해
+       기준을 새 마지막 행(정식은 알림 스위치 · 게스트는 언어 행 — 13 · 15 는
+       둘 다, 01 은 게스트로 본다)으로 바꾼다. 17 ③ 은 거기에 더해
        (c) 데모 경로 탭 단언을 지우고, `screenHeight` 640 을 목록이 넘치는
        값(예: 400)으로 줄인다 — 목록이 짧아져 스크롤이 생기지 않으므로 전제
        단언(`maxScrollExtent > 0`)이 실패한다. 전제 단언은 지우지 않는다(지우면
