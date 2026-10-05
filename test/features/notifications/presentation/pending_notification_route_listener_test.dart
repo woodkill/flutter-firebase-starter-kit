@@ -11,6 +11,9 @@
 // `watch` 의존성에만 걸린다(`_updateTickerMode` :394-414 · `watch` 의
 // `_applyTickerMode` :479 — `listen` 의 `_listeners.add` :510-531 은 대상
 // 밖). flutter_riverpod 을 올려 이 동작이 바뀌면 이 테스트가 먼저 깨진다.
+//
+// Phase 17.2 — 테스트 라우터를 production 과 같은 홈 하위 중첩으로 바꾸고 알림
+// 이동 뒤 스택을 단언한다(이번 버그 — 알림으로 연 화면 스택 1장 — 가 여기 안 걸렸던 이유).
 
 import 'dart:async';
 
@@ -66,7 +69,38 @@ Future<_App> _pumpApp(WidgetTester tester) async {
   return (container: container, router: router, local: local);
 }
 
+/// Navigator 스택 [configuration] 을 match 의 `matchedLocation` 목록으로 읽는다.
+List<String> _readStack(RouteMatchList configuration) =>
+    configuration.matches.map((match) => match.matchedLocation).toList();
+
 void main() {
+  test('T-172-FAKE-01: buildNotificationTestRouter 의 설정 · 약관은 홈 하위 '
+      'route 다 (production 모양 · Pitfall 3)', () {
+    final router = buildNotificationTestRouter();
+    addTearDown(router.dispose);
+
+    for (final String path in [AppRoutes.settings, AppRoutes.termsService]) {
+      final RouteMatchList matchList = router.configuration.findMatch(
+        Uri.parse(path),
+      );
+      expect(matchList.isError, isFalse, reason: '테스트 라우터에 $path 가 없다');
+      expect(
+        matchList.matches,
+        hasLength(2),
+        reason: '테스트 라우터의 $path 는 홈 위에 쌓인다 (홈 + 대상 2장)',
+      );
+      final RouteMatchBase first = matchList.matches.first;
+      expect(first, isA<RouteMatch>());
+      expect(
+        (first as RouteMatch).route.path,
+        AppRoutes.home,
+        reason:
+            '테스트 라우터의 $path 가 홈 하위 route 가 아니다 — production '
+            '(lib/core/router/app_router.dart)과 같이 홈 GoRoute routes 안에 둔다',
+      );
+    }
+  });
+
   group('Phase 17 알림 수신 · 탭 (T-17-PUSH)', () {
     testWidgets('T-17-PUSH-03: 관통 — 로컬 알림 탭(payload /settings) → pending → '
         '홈 리스너 consume → /settings 이동 · pending 비움', (tester) async {
@@ -77,6 +111,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(app.router.state.uri.path, '/settings');
+      expect(
+        _readStack(app.router.routerDelegate.currentConfiguration),
+        <String>['/', AppRoutes.settings],
+        reason: '알림으로 연 설정 아래에 홈이 남는다 (Phase 17.2 · ← 로 홈 복귀)',
+      );
       expect(find.text(kTestSettingsLabel), findsOneWidget);
       expect(app.container.read(pendingNotificationRouteProvider), isNull);
       expect(tester.takeException(), isNull);
@@ -118,6 +157,11 @@ void main() {
       expect(app.router.state.uri.path, AppRoutes.termsService);
       expect(app.container.read(pendingNotificationRouteProvider), isNull);
       await tester.pumpAndSettle();
+      expect(
+        _readStack(app.router.routerDelegate.currentConfiguration),
+        <String>['/', AppRoutes.termsService],
+        reason: '홈 위 push 설정은 go 로 대체되고 홈은 스택 맨 아래에 남는다 (Phase 17.2)',
+      );
       expect(find.text(kTestTermsServiceLabel), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -141,6 +185,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(router.state.uri.path, '/settings');
+      expect(_readStack(router.routerDelegate.currentConfiguration), <String>[
+        '/',
+        '/settings',
+      ], reason: '홈 mount 전 pending 으로 연 설정 아래에도 홈이 남는다 (Phase 17.2)');
       expect(container.read(pendingNotificationRouteProvider), isNull);
     });
   });

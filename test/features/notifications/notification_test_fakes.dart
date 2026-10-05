@@ -170,7 +170,9 @@ const String kTestTermsServiceLabel = 'terms-service-screen';
 /// 홈에 [PendingNotificationRouteListener] 를 단 테스트 라우터를 만든다.
 ///
 /// 실제 홈처럼 리스너는 홈 트리 안에만 있다 — 스플래시 · 설정 · 약관에는
-/// 없다.
+/// 없다. 설정 · 약관은 production(`lib/core/router/app_router.dart`)과 같이
+/// 홈의 하위 route 다(Phase 17.2 todo 결정 1) — `go` 로 열어도 홈이 스택
+/// 아래에 남는다.
 GoRouter buildNotificationTestRouter({
   String initialLocation = AppRoutes.home,
 }) => GoRouter(
@@ -183,20 +185,22 @@ GoRouter buildNotificationTestRouter({
           children: [PendingNotificationRouteListener(), Text(kTestHomeLabel)],
         ),
       ),
+      routes: [
+        GoRoute(
+          path: AppRoutes.settingsSegment,
+          builder: (context, state) =>
+              const Scaffold(body: Text(kTestSettingsLabel)),
+        ),
+        GoRoute(
+          path: AppRoutes.termsServiceSegment,
+          builder: (context, state) =>
+              const Scaffold(body: Text(kTestTermsServiceLabel)),
+        ),
+      ],
     ),
     GoRoute(
       path: AppRoutes.splash,
       builder: (context, state) => const Scaffold(body: Text(kTestSplashLabel)),
-    ),
-    GoRoute(
-      path: AppRoutes.settings,
-      builder: (context, state) =>
-          const Scaffold(body: Text(kTestSettingsLabel)),
-    ),
-    GoRoute(
-      path: AppRoutes.termsService,
-      builder: (context, state) =>
-          const Scaffold(body: Text(kTestTermsServiceLabel)),
     ),
   ],
 );
