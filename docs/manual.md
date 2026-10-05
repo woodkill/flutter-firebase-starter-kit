@@ -3081,6 +3081,7 @@ curl -X POST \
 - **채널 (D-01):** Android 채널 1개 — id `general`(`kNotificationChannelId` · `lib/features/notifications/application/notification_route.dart`) · importance high(heads-up). 백그라운드 · 종료 상태 알림도 manifest meta-data `default_notification_channel_id` = `general` 로 같은 채널에 들어간다. 채널 이름 · 설명은 ARB `notificationChannelGeneralName` · `notificationChannelGeneralDescription` 으로 앱 언어에 맞춰 등록하고, 앱 언어를 바꾸면 같은 id 로 다시 등록해 OS 설정의 이름이 바뀐다.
 - **백그라운드 핸들러:** `lib/features/notifications/data/firebase_messaging_background_handler.dart` — top-level `@pragma('vm:entry-point')` 함수이고 지금은 아무 일도 하지 않는다. data-only 메시지로 백그라운드 작업을 하려면 여기에 넣는다. 별도 isolate 라 다른 Firebase 서비스를 쓰려면 `Firebase.initializeApp()` 을 먼저 부른다.
 - **탭 이동 (D-04):** 세 진입 경로 — 포그라운드 로컬 알림 탭 · `onMessageOpenedApp`(백그라운드) · `getInitialMessage`(종료) — 가 모두 `resolveNotificationRoute` 를 거친다. 허용 목록 `kNotificationRoutableRoutes`(`/` · `/settings` · `/settings/account` · `/terms/service` · `/terms/privacy` — 5개 · 계정 정보 화면은 Phase 17.1 D-06 에서 추가 · 게스트가 계정 경로를 받으면 guard 가 `/settings` 로 돌린다)에 문자열이 정확히 같을 때만 그 화면으로 가고, 목록 밖 · 없음 · 외부 URL 은 홈이다(알림 payload 는 운영자가 보낸 값이라 open redirect 를 막는다). 이동은 홈 화면이 그려진 뒤(스플래시 · 인증 redirect 통과 뒤)에 일어난다 — 종료 상태 탭도 스플래시 → 홈 → 대상 순서다.
+- **결과 스택 (Phase 17.2):** 허용 목록 중 홈이 아닌 4경로(설정 · 계정 정보 · 약관 2)는 홈 하위 route 다(`lib/core/router/app_router.dart` 홈 GoRoute 의 `routes`). 그래서 알림 탭 이동이 `go` 한 번이어도 홈 → (설정) → 대상 스택이 만들어진다 — 계정 정보 화면은 홈 · 설정 · 계정 3장, 설정 · 약관은 2장이고, 앱바 ← · Android 시스템 뒤로 · iOS 스와이프 뒤로로 홈까지 돌아온다. 홈(알림 탭 이동 리스너)이 스택 맨 아래에 남으므로 계정 화면 위에서도 다음 알림을 받아 이동한다. 앱 안 이동(설정 아이콘 · 계정 행 등)은 그대로 push 라 화면이 1장씩 쌓인다. 테스트는 `test/core/router/app_router_nesting_test.dart`(T-172-STACK-01 · T-172-LISTENER-01)다. 알림으로 열 화면을 새로 더하는 법은 「홈 화면 바꾸기 (Phase 17.1)」 ④ 를 따른다.
 - **`data.route` 와 Flutter 초기 경로 (Android · 2026-10-03):** FCM 은 알림 data 를 launch intent 의 extra 로 복사하고, Flutter Android 엔진은 extra `route` 를 앱의 초기 경로로 쓴다(`FlutterActivityLaunchConfigs.EXTRA_INITIAL_ROUTE`). 그래서 `lib/core/router/app_router.dart` 의 `GoRouter` 는 `overridePlatformDefaultLocation: true` 로 플랫폼 초기 경로를 무시하고 항상 `/splash` 에서 시작한다. 이 줄이 없으면 알림 콜드 탭 · 최근 앱 재실행이 스플래시 · 홈 리스너 · 허용 목록을 건너뛰고 `data.route` 화면으로 바로 열린다. 회귀 테스트는 `test/core/router/app_router_test.dart` 「초기 위치 = /splash 고정」 이다. 대가로 콜드 시작 deep link 의 경로도 무시되므로, MainActivity 에 App Links(VIEW intent-filter)를 붙이는 앱은 이 설정을 함께 다시 설계한다.
 - **task · 최근 앱 (Android · 2026-10-03):** 알림 탭으로 만든 task 의 루트 Activity 는 홈(런처) 발 실행이 아니라서 시스템 「뒤로」 에서 finish 된다. MainActivity 는 빈 `taskAffinity`(StrandHogg 방어 · Flutter 템플릿 기본값)라 런처가 그 빈 task 를 최근 앱에서 지우지 못하므로, manifest 에서 MainActivity 에 `autoRemoveFromRecents="true"` 를 둬 마지막 Activity 가 끝난 task 는 최근 앱에서 바로 빠지게 했다. 이 설정이 없으면 「알림 탭 → 뒤로 → 아이콘」 뒤 최근 앱 카드가 2장이 되고, 옛 카드가 옛 알림 intent 를 재실행하며, 두 task 가 함께 살면 Flutter 엔진 2개로 포그라운드 알림이 2건씩 뜬다. Android 12+ 에서 런처로 연 앱의 루트 「뒤로」 는 task 를 뒤로 보내므로 카드가 남는다. Android 7~11 은 루트 「뒤로」 가 finish 라 카드가 사라진다(AOSP 소스 근거 · 단말 미실측). 계약 테스트는 `test/infrastructure/phase17_platform_config_test.dart` T-17-PLATFORM-06 이다.
 - **최근 앱 복원 재생 방지 (Android · 2026-10-03):** 알림 탭으로 연 앱을 홈 버튼으로 내린 뒤 프로세스가 죽고 최근 앱 카드로 다시 열면, Android 는 그 task 를 처음 연 알림 intent 로 Activity 를 다시 만든다. firebase_messaging 16.7.0 은 콜드 탭으로 소비한 메시지의 저장본을 지우지 않으므로 새 프로세스의 `getInitialMessage` 가 같은 메시지를 다시 돌려준다 — 2026-10-03 SM-S942N 에서 탭 없이 스플래시 → 홈 → 옛 알림 경로로 재생됐고, 저장본이 남아 복원 때마다 같은 조건이 된다(반복 횟수는 세지 않았다). 킷은 처리한 `messageId` 를 SharedPreferences `notifications_handled_initial_message_ids`(최근 100개 · `kNotificationsHandledInitialMessageIdsKey` · `lib/features/notifications/application/notification_tap_handler.dart`)에 이동 전에 기록하고, 같은 id 가 다시 오면 이동하지 않는다. `messageId` 가 없으면 기록 없이 이동하고, 기록에 실패해도 이동한다. 기록은 기기 단위라 로그아웃 · 탈퇴에서 지우지 않고 앱 데이터 삭제로만 초기화된다. 회귀 테스트는 `test/features/notifications/application/notification_tap_handler_test.dart` 의 「quick 261003-cti」 group 이다.
@@ -3304,7 +3305,7 @@ gcloud firestore fields ttls list --collection-group=fcmTokens --project=<dev>
 | 알림 아이콘 | `android/app/src/main/res/drawable/ic_notification.xml` 하나 — 흰색 단색 vector 로 브랜드 실루엣을 넣는다(색을 넣어도 OS 는 알파만 쓴다). 백그라운드 · 포그라운드 둘 다 바뀐다 |
 | 알림 색 | `android/app/src/main/res/values/colors.xml` `notification_color` + `local_notifications_service.dart` `_kNotificationColor` 두 곳(현재 `#673AB7` = `AppTheme.seedColor`). seedColor 를 바꾸면 함께 바꾼다 |
 | 알림 문구 언어 추가 | 서버 `functions/src/messaging/test_push_copy.ts` 의 `TestPushLocale` 에 코드 · `TEST_PUSH_COPY` 에 `{title, body}` 1항목 + 앱 `normalizeFcmLocale` 지원 집합 + `firestore.rules` fcmTokens `locale` 허용 집합. ARB 와 별개다 |
-| 알림 탭으로 열 화면 | `kNotificationRoutableRoutes`(지금 5개 · 계정 정보 화면 포함)에 `AppRoutes` 상수 1줄 + `notification_route_test.dart` T-17-PUSH-01 기대 Set 1줄. 문자열 정확 일치만(query · 경로 변수 불가). 흐름 진입 전용 화면(로그인 · 온보딩 · 탈퇴 진행 등)과 release 에 없는 데모 경로는 넣지 않는다. 정식 사용자 전용 화면은 guard 분기 — 「홈 화면 바꾸기 (Phase 17.1)」 ④ |
+| 알림 탭으로 열 화면 | 새 화면은 홈(또는 앱 안 부모) GoRoute 의 `routes` 안에 둔다(최상위면 `app_router_nesting_test.dart` T-172-ROUTER-01 이 실패) · `kNotificationRoutableRoutes`(지금 5개 · 계정 정보 화면 포함)에 `AppRoutes` 상수 1줄 + `notification_route_test.dart` T-17-PUSH-01 기대 Set 1줄 + `app_router_observers_test.dart` Test 2 · 3 재귀 개수 +1. 문자열 정확 일치만(query · 경로 변수 불가). 흐름 진입 전용 화면(로그인 · 온보딩 · 탈퇴 진행 등)과 release 에 없는 데모 경로는 넣지 않는다. 정식 사용자 전용 화면은 guard 분기 — 「홈 화면 바꾸기 (Phase 17.1)」 ④ |
 | 토큰 만료 기간 | `kFcmTokenTtl = Duration(days: 30)`(`lib/features/notifications/domain/fcm_token.dart`) 상수 1개. TTL 정책은 필드(`expireAt`) 기준이라 다시 설정하지 않아도 된다. 단 `firestore.rules` 가 `expireAt` 을 지금 + 60일 이하로 막으므로 60일 넘게 늘리면 규칙의 `duration.value(60, 'd')` 도 같이 고친다(review IN-03) |
 | 알림 섹션 위치 · 저장 키 | `settings_screen.dart` 의 `const NotificationsSection()` 한 줄 · SharedPreferences `notifications_opt_in` · `notifications_registered_token` · `notifications_pending_token_deletion` · `notifications_token_revoke_pending`(뒤 둘은 로그아웃 정리 재시도용 — 「FCM 알림」 의 「로그아웃 정리가 끊겼을 때」) · `notifications_handled_initial_message_ids`(알림 탭 재생 방지 · 기기 단위 · 로그아웃에도 유지 — 「FCM 알림」 의 「최근 앱 복원 재생 방지」) |
 | Storage 경로 · 크기 · 타입 | `storage.rules` 해당 줄(예: 5MB → `5 * 1024 * 1024`) + `functions/test/rules/storage.rules.test.ts` 경계 케이스 → `pnpm test:rules`. 크기를 바꾸면 앱의 `kProfilePhotoMaxBytes`(`lib/features/settings/data/profile_photo_repository.dart`)도 같이 고친다(T-17-PHOTO-07 이 어긋남을 잡는다). 경로를 바꾸면 `profilePhotoPath` 와 탈퇴 prefix 도 함께 |
@@ -5375,9 +5376,45 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
   `/`(홈) · `/settings`(설정) · `/settings/account`(계정 정보 · Phase 17.1 D-06) ·
   `/terms/service` · `/terms/privacy`. 문자열이 정확히 같을 때만 그 화면으로 가고,
   목록 밖 · 없음 · 외부 URL 은 홈이다(「Firebase Services」 FCM 알림의 「탭 이동」).
-- **새 화면을 더하는 법:** 경로 상수(`AppRoutes`) 1줄을 이 목록에 더하고
-  `test/features/notifications/application/notification_route_test.dart` 의
-  T-17-PUSH-01 기대 Set 에도 1줄 더한다. query · 경로 변수는 쓸 수 없다.
+- **새 화면을 더하는 법:** 아래 6단계를 차례로 따른다(예시 이름 = 공지 화면
+  `notices`). 알림으로 연 화면에 「뒤로」 가 있고 홈 리스너가 트리에 남으려면 새
+  화면이 홈 하위 route 여야 한다(「Firebase Services」 FCM 알림의 「결과 스택」).
+  1. `AppRoutes`(`lib/core/router/app_routes.dart`)에 조각 · 전체 경로 · name 상수
+     3개를 더한다 — 예: `noticesSegment = 'notices'` · `notices = '/$noticesSegment'`
+     · `noticesName = 'notices'`.
+     ```dart
+     static const String noticesSegment = 'notices';
+     static const String notices = '/$noticesSegment';
+     static const String noticesName = 'notices';
+     ```
+  2. 새 화면(예: `lib/features/notices/presentation/notices_screen.dart` 의
+     `NoticesScreen`)을 만들고, `lib/core/router/app_router.dart` 에서 그 파일을
+     import 한 뒤 **홈 GoRoute(`AppRoutes.home`)의 `routes:` 안에**(앱 안 부모 화면이
+     있으면 그 GoRoute 의 `routes:` 안에) 등록한다. 하위 route 의 `path` 는 `/` 없는
+     조각 상수다. `name` 은 필수다(GA4 screen name · Test 3).
+     ```dart
+     GoRoute(
+       path: AppRoutes.noticesSegment,
+       name: AppRoutes.noticesName,
+       builder: (context, state) => const NoticesScreen(),
+     ),
+     ```
+  3. `kNotificationRoutableRoutes` 에 `AppRoutes.notices` 1줄을 더한다.
+  4. `test/features/notifications/application/notification_route_test.dart` 의
+     T-17-PUSH-01 기대 Set 에 `AppRoutes.notices` 1줄을 더한다.
+  5. `test/core/router/app_router_observers_test.dart` Test 2 · 3 의 재귀 개수
+     (Test 2 의 `collectGoRoutes(…).length` · Test 3 의 `names.length` 기대값)
+     `14` 를 `15` 로 고친다. Test 2 이름의 「14개」 도 「15개」 로 고친다. 최상위
+     `8` 은 그대로다(데모를 지웠다면 `13` → `14` — 지금 값에 1 을 더한다).
+  6. `fvm dart analyze` 가 0 건인지, 전체 `fvm flutter test` 가 통과하는지 본다.
+
+  **최상위에 두면 실패한다.** 알림으로 열었을 때 「뒤로」 가 없고 홈 리스너가
+  트리에서 빠지므로 `test/core/router/app_router_nesting_test.dart` 의
+  T-172-ROUTER-01 이 아래 메시지로 실패한다(예시 `/notices`):
+  ```text
+  알림 허용 목록 경로 /notices 가 홈 하위 route 가 아니다 (첫 match = /notices). lib/core/router/app_router.dart 의 홈 GoRoute routes 안으로 옮긴다 — docs/manual.md 「홈 화면 바꾸기」 ④
+  ```
+  query · 경로 변수는 쓸 수 없다.
 - **넣지 않는 화면:** 앞 단계 상태 없이 열리면 안 되는 흐름 화면(스플래시 · 온보딩 ·
   로그인 · 가입 · 이메일 로그인 · 비밀번호 찾기 · 이메일 인증 · 탈퇴 진행)과 release
   에 없는 데모 경로 `/settings/developer`.
