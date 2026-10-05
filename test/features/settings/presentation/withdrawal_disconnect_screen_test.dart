@@ -32,6 +32,8 @@
 //        errorAppCheckFailed 1회 · 행 표시 유지 · 재빌드 추가 0 · 재시도 실패 전이에 1회 더 ·
 //        ServiceUnavailable 실패 전이 SnackBar 0
 //   T-17-WD-06: (UI-SPEC E6 long-text) ja 280 × 800 SnackBar 무절단 · overflow 0
+//   T-172-WITHDRAW-02: (Phase 17.2 review WR-01) pop 불가 진행 화면의 _leave() fallback
+//        go(settings) → 홈 하위 트리에서 스택 ['/', '/settings']
 
 import 'dart:async';
 
@@ -248,7 +250,10 @@ Future<void> _pumpWithDialogEntry(
 /// /login stub 은 [visits] 에 location 을 기록하고 「reauth-ok」(pop(true)) ·
 /// 「reauth-back」(결과 없는 pop) 버튼을 둔다. [serverRead] 가 있으면 서버
 /// 1회 조회를 그 함수로 바꾼다 — 없으면 [providerIds] 를 바로 돌려준다.
-Future<void> _pumpScreen(
+/// [extraRoutes] 는 진행 화면 · /login 뒤에 붙는 route 다 — 앞의 두 route 가
+/// 먼저 match 되므로 진행 화면은 그대로 pop 불가 1장으로 뜬다. 띄운
+/// [GoRouter] 를 돌려준다.
+Future<GoRouter> _pumpScreen(
   WidgetTester tester, {
   required List<String> providerIds,
   required _Fakes fakes,
@@ -256,6 +261,7 @@ Future<void> _pumpScreen(
   _LoginVisits? visits,
   Locale locale = const Locale('ko'),
   Future<List<String>> Function()? serverRead,
+  List<RouteBase> extraRoutes = const <RouteBase>[],
 }) async {
   final router = GoRouter(
     initialLocation: AppRoutes.withdrawalDisconnect,
@@ -284,6 +290,7 @@ Future<void> _pumpScreen(
           );
         },
       ),
+      ...extraRoutes,
     ],
   );
   addTearDown(router.dispose);
@@ -312,6 +319,7 @@ Future<void> _pumpScreen(
   );
   // 첫 프레임 뒤 start() → 행 스냅샷 반영.
   await tester.pump();
+  return router;
 }
 
 /// 삭제 호출 수를 세는 settings repository — [answers] 를 순서대로 적용한다.
@@ -1441,6 +1449,55 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       });
     });
+
+    testWidgets(
+      'T-172-WITHDRAW-02 (Phase 17.2 review WR-01): pop 불가 진행 화면의 _leave() '
+      'fallback go(settings) = 홈 · 설정 2장',
+      (tester) async {
+        _useView(tester);
+        // production 처럼 설정을 홈 GoRoute 하위에 둔 트리. 진행 화면은 앞쪽
+        // 최상위 route 로 먼저 match 되어 pop 불가 1장으로 뜬다(딥링크 · 라우터
+        // 복원 상황) — 그래서 `_leave()` 는 pop 이 아니라 fallback 분기를 탄다.
+        final router = await _pumpScreen(
+          tester,
+          providerIds: <String>['kakao'],
+          fakes: _Fakes(),
+          settingsRepo: _countingRepo().repo,
+          // 진행 화면 시작 때 서버가 확정한 행 = 0 → 리스너가 `_leave()` 호출.
+          serverRead: () async => <String>['password'],
+          extraRoutes: <RouteBase>[
+            GoRoute(
+              path: AppRoutes.home,
+              builder: (context, state) =>
+                  const Scaffold(body: Center(child: Text('home-stub'))),
+              routes: [
+                GoRoute(
+                  path: AppRoutes.settingsSegment,
+                  builder: (context, state) => const Scaffold(
+                    body: Center(child: Text('settings-stub')),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          router.routerDelegate.currentConfiguration.matches
+              .map((match) => match.matchedLocation)
+              .toList(),
+          <String>[AppRoutes.home, AppRoutes.settings],
+          reason:
+              '_leave() 의 pop 불가 fallback 은 go(AppRoutes.settings) — 홈 하위 '
+              '트리에서 홈 · 설정 2장 (17.2 todo 결정 3)',
+        );
+        expect(find.byType(WithdrawalDisconnectScreen), findsNothing);
+        expect(find.text('settings-stub'), findsOneWidget);
+        expect(router.canPop(), isTrue, reason: '설정에서 홈으로 pop 가능');
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group('Phase 17 D-43 · UI-SPEC (A) 행 4 — App Check 실패 전이 SnackBar', () {

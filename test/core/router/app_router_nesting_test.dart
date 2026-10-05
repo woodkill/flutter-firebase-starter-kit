@@ -586,8 +586,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('T-172-WITHDRAW-01: 탈퇴 진행 경로는 설정 하위 · _leave() fallback '
-        'go(settings) = 홈 · 설정 2장', (tester) async {
+    testWidgets('T-172-WITHDRAW-01: 탈퇴 진행 경로는 설정 하위 · go(settings) 는 홈 '
+        '하위 트리에서 홈 · 설정 2장 (_leave() fallback 의 전제)', (tester) async {
       // 위젯 없이 — 탈퇴 진행 경로의 match 목록.
       final container = _buildRouteTableContainer();
       addTearDown(container.dispose);
@@ -601,15 +601,18 @@ void main() {
         reason: '탈퇴 진행은 설정 하위 route (todo 결정 3)',
       );
 
-      // 하네스 — 탈퇴 진행 화면은 진입 즉시 탈퇴 notifier 를 시작하므로 그리지
-      // 않고, `_leave()` 의 pop 불가 fallback(`go(settings)`)만 재현한다.
+      // 하네스 — production 라우터에서 `go(settings)` 결과 스택만 본다. 탈퇴
+      // 진행 화면도 `_leave()` 도 여기서 그리거나 부르지 않는다 — `_leave()` 가
+      // 실제로 이 `go` 를 부르는지는 withdrawal_disconnect_screen_test.dart
+      // T-172-WITHDRAW-02 가 production 화면으로 잠근다 (17.2 review WR-01).
       final app = await _pumpProductionApp(tester);
       app.router.go(AppRoutes.settings);
       await tester.pumpAndSettle();
-      expect(_readStack(app.router), <String>[
-        '/',
-        AppRoutes.settings,
-      ], reason: '_leave() fallback go(settings) = 홈 · 설정 2장 (todo 결정 3)');
+      expect(
+        _readStack(app.router),
+        <String>['/', AppRoutes.settings],
+        reason: 'go(settings) = 홈 · 설정 2장 (_leave() fallback 의 전제 · todo 결정 3)',
+      );
       expect(app.router.canPop(), isTrue, reason: '설정에서 홈으로 pop 가능');
       expect(find.byType(BackButton), findsOneWidget, reason: '설정 앱바에 ←');
       expect(tester.takeException(), isNull);
