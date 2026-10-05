@@ -18,6 +18,8 @@ import '../application/pending_notification_route.dart';
 /// - 홈이 트리에 있는 동안(다른 화면 아래에 있어도) 새 경로가 들어오면
 ///   곧바로 소비한다(포그라운드 탭) — `ref.listen` 은 TickerMode 에 pause
 ///   되지 않는다(T-17-PUSH-08 · 리뷰 IN-24).
+/// - 결과 스택은 홈 → (설정) → 대상이다(Phase 17.2 todo 결정 1) — 대상 route 가
+///   홈 하위라 `go` 라도 홈이 맨 아래에 남고, 이 위젯의 `State` 도 유지된다(T-172-STACK-01).
 /// - 경로가 홈이면 이동하지 않는다(허용 목록 밖 payload 포함).
 class PendingNotificationRouteListener extends ConsumerStatefulWidget {
   /// [PendingNotificationRouteListener] 를 생성한다.

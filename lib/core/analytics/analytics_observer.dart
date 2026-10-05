@@ -31,8 +31,8 @@ class _NoOpNavigatorObserver extends NavigatorObserver {
 /// [FirebaseAnalyticsObserver] 는 `didPush` 시점에만 동작하지 않는다 —
 /// 패키지 소스 (`firebase_analytics/lib/observer.dart`) 기준
 /// `didPush` / `didReplace` / `didPop` **3콜백 모두**가 `_sendScreenView`
-/// 를 호출하므로 `go_router` 의 push / `context.go()` same-level replace /
-/// pop 이 전부 커버된다.
+/// 를 호출하므로 `go_router` 의 push / `context.go()` 전환(홈 하위 경로면
+/// 중간 페이지 add 포함) / pop 이 전부 커버된다.
 ///
 /// 과거 WARNING #14 (Pitfall 1) 는 그 반대를 전제로 `appRouter` 에
 /// `routerDelegate.addListener` 수동 `logScreenView` 를 덧붙였는데, 두 경로
@@ -40,6 +40,13 @@ class _NoOpNavigatorObserver extends NavigatorObserver {
 /// 경로는 제거했다 — 본 Provider 가 공급하는 observer 가 유일한 발신
 /// 주체다. 소비처 화면에서 `didChangeDependencies` 등으로 추가 발신을
 /// 넣으면 같은 이중 계측이 재발하므로 금지한다.
+///
+/// **알림 `go` 로 홈 하위 경로를 열 때의 건수 (Phase 17.2 todo 결정 4 ·
+/// 2026-10-05 실측).** 대상 route 가 홈 하위이면 `go` 한 번에 중간
+/// 페이지(설정)도 Navigator 에 add 되고 그 페이지도 `didPush` 로 들어온다 —
+/// 알림 → 계정 = `settings` · `account` **2건**(순서 settings → account),
+/// 알림 → 설정 · 약관 = 1건. 대상 화면 1건만 남기는 커스텀 observer 는 두지
+/// 않는다(이 단일 발신 구조 유지 · 매뉴얼 「Analytics(GA4) screen name」).
 @Riverpod(keepAlive: true)
 NavigatorObserver analyticsObserver(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);
