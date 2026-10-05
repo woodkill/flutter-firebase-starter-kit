@@ -97,3 +97,16 @@ List<RouteBase> buildRoutesWithoutNamed(
   }
   return copied;
 }
+
+/// T-172-ROUTER-01 의 「홈 하위 route 가 아니다」 실패 메시지를 만든다.
+///
+/// [path] 는 알림 허용 목록 경로, [firstMatchedLocation] 은 그 경로의 첫 match 의
+/// `matchedLocation` 이다. 이 문장은 사용자에게 「고치는 법」 을 알려 주는 메시지라
+/// 매뉴얼 「홈 화면 바꾸기」 ④ 가 그대로 인용한다 — 구조 불변식 test 와 매뉴얼 계약
+/// test(`manual_nested_routes_contract_test.dart`)가 같은 출처를 쓰게 여기 한 번만
+/// 정의한다. 문구를 바꾸면 매뉴얼 ④ 의 코드 블록도 함께 고친다.
+String describeRouteNotUnderHome(String path, String firstMatchedLocation) =>
+    '알림 허용 목록 경로 $path 가 홈 하위 route 가 아니다 '
+    '(첫 match = $firstMatchedLocation). '
+    'lib/core/router/app_router.dart 의 홈 GoRoute routes 안으로 옮긴다'
+    ' — docs/manual.md 「홈 화면 바꾸기」 ④';

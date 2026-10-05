@@ -53,7 +53,8 @@ import 'package:flutter_starter_kit/features/settings/presentation/settings_scre
 import 'package:flutter_starter_kit/features/terms/presentation/terms_detail_screen.dart'
     show TermsDetailScreen;
 
-import '../../helpers/route_tree.dart' show readMatchedLocations;
+import '../../helpers/route_tree.dart'
+    show describeRouteNotUnderHome, readMatchedLocations;
 import '../../helpers/router_harness.dart'
     show ProductionApp, buildRouteTableContainer, pumpProductionApp;
 
@@ -148,11 +149,7 @@ void main() {
         expect(
           (first as RouteMatch).route.path,
           AppRoutes.home,
-          reason:
-              '알림 허용 목록 경로 $path 가 홈 하위 route 가 아니다 '
-              '(첫 match = ${first.matchedLocation}). '
-              'lib/core/router/app_router.dart 의 홈 GoRoute routes 안으로 옮긴다'
-              ' — docs/manual.md 「홈 화면 바꾸기」 ④',
+          reason: describeRouteNotUnderHome(path, first.matchedLocation),
         );
         expect(
           matchList.matches.length,
