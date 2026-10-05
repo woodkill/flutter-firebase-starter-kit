@@ -48,14 +48,11 @@ const List<String> _routableRoutes = <String>[
 ];
 
 /// 매뉴얼에서 [_sectionHeading] 부터 다음 `## ` 헤딩 직전까지를 돌려준다.
-String _sliceSection(String manual) {
-  final int start = manual.indexOf('$_sectionHeading\n');
-  if (start == -1) {
-    return '';
-  }
-  final int next = manual.indexOf('\n## ', start + _sectionHeading.length);
-  return next == -1 ? manual.substring(start) : manual.substring(start, next);
-}
+///
+/// 자르기 규칙은 `test/helpers/source_text.dart` 의 [sliceMarkdownSection] 한
+/// 곳에 있다 — 이 절은 ①~④ `### ` 하위 절을 포함해야 하므로 경계 수준 2 다.
+String _sliceSection(String manual) =>
+    sliceMarkdownSection(manual, _sectionHeading, maxLevel: 2);
 
 /// 매뉴얼에서 [_historyHeading] 이전 본문을 돌려준다(헤딩 부재 시 빈 문자열).
 String _sliceBodyBeforeHistory(String manual) {

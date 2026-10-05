@@ -64,19 +64,10 @@ const List<String> _demoSegmentParts = <String>[
 
 /// 매뉴얼에서 [heading] 줄부터 다음 `## ` · `### ` 헤딩 직전까지를 돌려준다.
 ///
-/// 헤딩이 없으면 빈 문자열. [heading] 은 정확히 한 줄이어야 한다.
-String _sliceFromHeading(String manual, String heading) {
-  final int start = manual.indexOf('$heading\n');
-  if (start == -1) {
-    return '';
-  }
-  final int next = manual.indexOf(RegExp(r'\n#{2,3} '), start + heading.length);
-  return next == -1 ? manual.substring(start) : manual.substring(start, next);
-}
-
-/// [manual] 에서 [prefix] 로 시작하는 줄만 모은다.
-List<String> _linesStartingWith(String manual, String prefix) =>
-    manual.split('\n').where((String l) => l.startsWith(prefix)).toList();
+/// 자르기 규칙은 `test/helpers/source_text.dart` 의 [sliceMarkdownSection] 한
+/// 곳에 있다 — 이 파일은 `### ` 하위 절을 자르므로 경계 수준 3 을 쓴다.
+String _sliceFromHeading(String manual, String heading) =>
+    sliceMarkdownSection(manual, heading, maxLevel: 3);
 
 /// [text] 안의 `T-172-XXX-NN` 형태 test ID 를 중복 없이 모은다.
 Set<String> _collectTest172Ids(String text) => RegExp(
@@ -96,7 +87,7 @@ void main() {
 
   group('매뉴얼 홈 하위 중첩 안내 계약 (T-172-DOCS)', () {
     test('T-172-DOCS-01: FCM 알림 절에 결과 스택 bullet 이 1개 있다 (SC4)', () {
-      final List<String> bullets = _linesStartingWith(
+      final List<String> bullets = linesStartingWith(
         manual,
         _stackBulletPrefix,
       );
@@ -113,7 +104,7 @@ void main() {
     });
 
     test('T-172-DOCS-02: 커스터마이징 표 「알림 탭으로 열 화면」 행이 1개다 (SC4)', () {
-      final List<String> rows = _linesStartingWith(
+      final List<String> rows = linesStartingWith(
         manual,
         _customizationRowPrefix,
       );
@@ -194,11 +185,11 @@ void main() {
       );
 
       // 매뉴얼 슬라이스가 인용한 ID (삭제 안내 대상 T-171-* 는 대상이 아니다).
-      final String bullet = _linesStartingWith(
+      final String bullet = linesStartingWith(
         manual,
         _stackBulletPrefix,
       ).join();
-      final String row = _linesStartingWith(
+      final String row = linesStartingWith(
         manual,
         _customizationRowPrefix,
       ).join();

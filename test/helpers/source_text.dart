@@ -5,7 +5,9 @@
 // 파일에 본문까지 똑같이 복제돼 있었다. DRY 위반일 뿐 아니라 실제 위험은
 // divergence 다 — 사본 하나만 「주석 제거 규칙」 이 바뀌면(예: 인라인 `#` 주석까지
 // 제거) 같은 이름의 함수가 파일마다 다르게 동작하면서 감사용 카운트가 갈린다.
-// 여기 한 번만 정의하고 모든 호출자가 import 한다.
+// 여기 한 번만 정의하고 모든 호출자가 import 한다. 매뉴얼(`docs/manual.md`)
+// 계약 test 들의 절 자르기 · 줄 모으기 헬퍼도 같은 이유로 여기 있다(Phase 17.2
+// 코드 리뷰 IN-10).
 //
 // **주석을 걷어낸 뒤 세는 이유:** 설명 주석이 감사용 카운트를 오염시킨다.
 // 「금지 문자열 0건」 을 세는 단언은 그 문자열을 언급한 설명 주석 한 줄에도 red 가
@@ -71,3 +73,34 @@ int countOccurrences(String haystack, String needle) {
   }
   return count;
 }
+
+/// 마크다운 [text] 에서 [heading] 줄부터 다음 헤딩 직전까지를 돌려준다.
+///
+/// 경계로 치는 헤딩은 `## ` 부터 [maxLevel] 개의 `#` 까지다 — 2 면 `## ` 만,
+/// 3 이면 `## ` · `### ` 이다. [heading] 은 정확히 한 줄이어야 하며, 없으면 빈
+/// 문자열을 돌려준다(호출자가 「비어 있지 않음 · 헤딩 1회」 양성 대조를 세운다).
+///
+/// 매뉴얼 계약 test 들이 같은 자르기 규칙을 쓰게 여기 한 번만 둔다 — 사본마다
+/// 경계 규칙이 갈리면 같은 헤딩의 슬라이스가 파일마다 다른 범위가 된다.
+String sliceMarkdownSection(
+  String text,
+  String heading, {
+  required int maxLevel,
+}) {
+  if (maxLevel < 2) {
+    throw ArgumentError.value(maxLevel, 'maxLevel', '2 이상이어야 한다');
+  }
+  final int start = text.indexOf('$heading\n');
+  if (start == -1) {
+    return '';
+  }
+  final int next = text.indexOf(
+    RegExp('\\n#{2,$maxLevel} '),
+    start + heading.length,
+  );
+  return next == -1 ? text.substring(start) : text.substring(start, next);
+}
+
+/// [text] 에서 [prefix] 로 시작하는 줄만 모은다.
+List<String> linesStartingWith(String text, String prefix) =>
+    text.split('\n').where((String line) => line.startsWith(prefix)).toList();
