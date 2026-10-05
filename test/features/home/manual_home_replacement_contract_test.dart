@@ -9,6 +9,7 @@
 // T-171-DOCS-02: 절 본문이 비어 있지 않고 필수 토큰을 모두 담는다.
 // T-171-DOCS-03: 킷 문구는 문의 채널을 가정하지 않는다(「고객센터」 · 「문의」 0).
 // T-171-DOCS-04: 절의 알림 이동 가능 경로 목록이 코드 상수와 어긋나지 않는다.
+//   (Phase 17.2 — 코드 쪽은 상수 값 import 로 대조 · 조각 조합 · 앱의 경로 추가에도 깨지지 않는다)
 // T-171-DOCS-05: 변경 이력 이전 본문에 옛 홈 · 옛 위치 표기가 0 이다.
 // T-171-DOCS-06: 새 위치(계정 정보 화면 · 데모 화면 · 404 화면) 표기가 있다.
 //
@@ -17,17 +18,13 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flutter_starter_kit/features/notifications/application/notification_route.dart'
+    show kNotificationRoutableRoutes;
+
 import '../../helpers/source_text.dart';
 
 /// 매뉴얼 경로.
 const String _manualPath = 'docs/manual.md';
-
-/// 라우트 상수 정의 파일.
-const String _appRoutesPath = 'lib/core/router/app_routes.dart';
-
-/// 알림 이동 가능 경로 정의 파일.
-const String _notificationRoutePath =
-    'lib/features/notifications/application/notification_route.dart';
 
 /// 절 헤딩 (정확히 한 줄).
 const String _sectionHeading = '## 홈 화면 바꾸기 (Phase 17.1)';
@@ -114,29 +111,15 @@ void main() {
     });
 
     test('T-171-DOCS-04: 절의 알림 이동 가능 경로가 코드 상수와 같다 (SC5)', () {
-      // 코드 쪽 교차 검증: 5개 리터럴이 라우트 정의 파일에 실제 있고,
-      // 이동 가능 집합 정의가 5개 상수만 담는다.
-      final String routes = readTrackedFile(_appRoutesPath);
-      for (final String route in _routableRoutes) {
-        // format 이 긴 선언을 줄바꿈해도 맞도록 공백 무관 매칭(dart-format 규칙 3).
-        final RegExp routeLiteral = RegExp("=\\s*'${RegExp.escape(route)}';");
-        expect(
-          routeLiteral.hasMatch(routes),
-          isTrue,
-          reason: 'app_routes.dart 에 `$route` 상수가 없다 — 목록을 갱신한다',
-        );
-      }
-      final RegExp setBody = RegExp(
-        r'kNotificationRoutableRoutes\s*=\s*\{([^}]*)\}',
-      );
-      final RegExpMatch? match = setBody.firstMatch(
-        readTrackedFile(_notificationRoutePath),
-      );
-      expect(match, isNotNull, reason: '이동 가능 집합 선언을 찾지 못했다');
+      // 코드 쪽 교차 검증(Phase 17.2): 소스 리터럴 정규식 대신 상수 값을 import 해
+      // 대조한다 — 전체 경로를 조각 상수로 조합해도(`'/$settingsSegment'`) 깨지지
+      // 않고, 앱이 허용 목록에 경로를 더해도(매뉴얼 ④) 실패하지 않는다.
       expect(
-        RegExp(r'AppRoutes\.\w+').allMatches(match!.group(1)!).length,
-        _routableRoutes.length,
-        reason: '코드의 이동 가능 경로 수가 바뀌었다 — 매뉴얼과 이 목록을 함께 갱신한다',
+        kNotificationRoutableRoutes.containsAll(_routableRoutes),
+        isTrue,
+        reason:
+            '킷 기본 이동 가능 경로 5개가 코드 목록에 없다 — 매뉴얼 「홈 화면 바꾸기」 ④ 와 '
+            '이 목록을 함께 갱신한다',
       );
 
       // 매뉴얼 쪽: 절이 5개 경로를 모두 코드 표기(백틱)로 언급한다.

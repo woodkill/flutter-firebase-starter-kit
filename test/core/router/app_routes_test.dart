@@ -56,6 +56,60 @@ void main() {
       });
     });
 
+    // Phase 17.2 todo 결정 5 사전 잠금 — 전체 경로를 조각 상수로 조합해도
+    // guard · 알림 허용 목록 · GA4 screen name 키가 되는 값은 그대로여야 한다.
+    group('Phase 17.2 경로 · name 값 고정 (todo 결정 5 — 조각 조합 전후 불변)', () {
+      test('T-172-ROUTES-01: 전체 경로 상수 14개 값이 그대로다', () {
+        const List<(String, String)> paths = <(String, String)>[
+          (AppRoutes.home, '/'),
+          (AppRoutes.login, '/login'),
+          (AppRoutes.splash, '/splash'),
+          (AppRoutes.signup, '/signup'),
+          (AppRoutes.emailLogin, '/login/email'),
+          (AppRoutes.forgotPassword, '/forgot-password'),
+          (AppRoutes.verifyEmail, '/verify-email'),
+          (AppRoutes.onboarding, '/onboarding'),
+          (AppRoutes.termsService, '/terms/service'),
+          (AppRoutes.termsPrivacy, '/terms/privacy'),
+          (AppRoutes.settings, '/settings'),
+          (AppRoutes.withdrawalDisconnect, '/settings/withdraw'),
+          (AppRoutes.account, '/settings/account'),
+          (AppRoutes.developerDemo, '/settings/developer'),
+        ];
+        expect(paths, hasLength(14), reason: '전체 경로 상수 14개를 모두 고정한다');
+        for (final (String actual, String expected) in paths) {
+          expect(actual, expected, reason: '전체 경로 값이 바뀌었다 (기대 $expected)');
+        }
+      });
+
+      test('T-172-ROUTES-02: GoRoute name 상수 14개 값이 그대로다', () {
+        const List<(String, String)> names = <(String, String)>[
+          (AppRoutes.homeName, 'home'),
+          (AppRoutes.loginName, 'login'),
+          (AppRoutes.splashName, 'splash'),
+          (AppRoutes.signupName, 'signup'),
+          (AppRoutes.emailLoginName, 'emailLogin'),
+          (AppRoutes.forgotPasswordName, 'forgotPassword'),
+          (AppRoutes.verifyEmailName, 'verifyEmail'),
+          (AppRoutes.onboardingName, 'onboarding'),
+          (AppRoutes.termsServiceName, 'termsService'),
+          (AppRoutes.termsPrivacyName, 'termsPrivacy'),
+          (AppRoutes.settingsName, 'settings'),
+          (AppRoutes.withdrawalDisconnectName, 'withdrawalDisconnect'),
+          (AppRoutes.accountName, 'account'),
+          (AppRoutes.developerDemoName, 'developerDemo'),
+        ];
+        expect(names, hasLength(14), reason: 'GoRoute name 상수 14개를 모두 고정한다');
+        for (final (String actual, String expected) in names) {
+          expect(
+            actual,
+            expected,
+            reason: 'GoRoute name 값이 바뀌었다 (기대 $expected)',
+          );
+        }
+      });
+    });
+
     group('재인증 표시 API — R_EXTRA_G3_REAUTH_LOGIN_BOUNCE (260916-p8d)', () {
       const loginFlowPaths = <String>[
         AppRoutes.login,
