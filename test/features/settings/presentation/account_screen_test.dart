@@ -71,6 +71,8 @@ import 'package:flutter_starter_kit/features/settings/presentation/account_scree
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
 
+import '../../../helpers/route_tree.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
@@ -1893,12 +1895,12 @@ void main() {
         addTearDown(container.dispose);
 
         final router = container.read(appRouterProvider);
-        final routes = router.configuration.routes
-            .whereType<GoRoute>()
-            .where((r) => r.path == AppRoutes.account)
-            .toList();
-        expect(routes, hasLength(1), reason: '/settings/account GoRoute 1개');
-        final route = routes.single;
+        // Phase 17.2 — 트리 깊이에 독립인 전체 경로 조회(findMatch).
+        // 하위 GoRoute 의 path 는 상대 조각이라 최상위 path 비교는 쓰지 않는다.
+        final GoRoute route = findGoRouteByPath(
+          router.configuration,
+          AppRoutes.account,
+        );
         expect(route.name, AppRoutes.accountName);
 
         // builder 는 context · state 를 쓰지 않는다 — 임의 element · state 로 호출.
