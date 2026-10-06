@@ -8,6 +8,7 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_auth_cta.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/login_prompt_sheet.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/or_divider.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
@@ -33,9 +34,16 @@ class LastLocationRecorder {
 ///   push 된 URL 을 기록하여 "이메일로 계속" 클릭 시의 도착지와 쿼리 유무를
 ///   확인할 수 있게 한다 (Phase 16.1).
 /// - 트리거 버튼 탭 → [showLoginPromptSheet] 호출.
+/// - [strategies] 는 `activeStrategiesProvider` 로 표시할 소셜 목록이다 —
+///   기본값은 Google · Apple · Facebook 3개, Phase 17.3 D-17 테스트는 빈 목록.
 Future<LastLocationRecorder> pumpLoginPromptSheetHarness(
-  WidgetTester tester,
-) async {
+  WidgetTester tester, {
+  List<AuthStrategy> strategies = const <AuthStrategy>[
+    GoogleAuthStrategy(),
+    AppleAuthStrategy(),
+    FacebookAuthStrategy(),
+  ],
+}) async {
   final recorder = LastLocationRecorder();
   final mockRepo = _MockAuthRepository();
   when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
@@ -79,11 +87,7 @@ Future<LastLocationRecorder> pumpLoginPromptSheetHarness(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
-          GoogleAuthStrategy(),
-          AppleAuthStrategy(),
-          FacebookAuthStrategy(),
-        ]),
+        activeStrategiesProvider.overrideWithValue(strategies),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -191,6 +195,27 @@ void main() {
         isNot(contains('focus=')),
         reason: '전용 route 로 대체된 쿼리 진입 계약이 재도입되면 안 됨',
       );
+    });
+  });
+
+  group('Phase 17.3 소셜 0개 로그인 시트 (D-17)', () {
+    testWidgets('T-173-NOSOCIAL-03: 소셜 0개 시트 렌더 — 예외 0 · 버튼 0 · 구분선 0 (D-17)', (
+      tester,
+    ) async {
+      await pumpLoginPromptSheetHarness(
+        tester,
+        strategies: const <AuthStrategy>[],
+      );
+      await tester.tap(find.text('Trigger'));
+      await tester.pumpAndSettle();
+
+      // 시트는 원래 구분선이 없다 — 0개 상태가 예외 없이 그려지고 「이메일로
+      // 계속」 이 남는지만 확인한다.
+      expect(tester.takeException(), isNull);
+      expect(find.byType(LoginPromptSheet), findsOneWidget);
+      expect(find.byType(SocialButton), findsNothing);
+      expect(find.byType(OrDivider), findsNothing);
+      expect(find.byType(EmailAuthCta), findsOneWidget);
     });
   });
 }

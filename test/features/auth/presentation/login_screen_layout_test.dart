@@ -40,9 +40,18 @@ class LastLocationRecorder {
 /// Phase 16.1 에서 `?focus=email` 쿼리 진입 계약이 폐기되어 이 harness 는 더
 /// 이상 쿼리 파라미터를 주입하지 않는다. [ProviderScope] 는 `pumpWidget` 의
 /// 직접 인자다 (riverpod_lint root 판정).
+///
+/// [strategies] 는 `activeStrategiesProvider` 로 표시할 소셜 목록이다 —
+/// 기본값은 Google · Apple · Facebook 3개이고, Phase 17.3 D-17 테스트는 빈
+/// 목록(소셜 0개)을 넘긴다.
 Future<void> pumpWrapper(
   WidgetTester tester, {
   LastLocationRecorder? recorder,
+  List<AuthStrategy> strategies = const <AuthStrategy>[
+    GoogleAuthStrategy(),
+    AppleAuthStrategy(),
+    FacebookAuthStrategy(),
+  ],
 }) async {
   final mockAuth = _FakeFirebaseAuth();
   when(
@@ -77,11 +86,7 @@ Future<void> pumpWrapper(
         isFirebaseInitializedProvider.overrideWithValue(false),
         firebaseAuthProvider.overrideWithValue(mockAuth),
         authRepositoryProvider.overrideWithValue(mockRepo),
-        activeStrategiesProvider.overrideWithValue(const <AuthStrategy>[
-          GoogleAuthStrategy(),
-          AppleAuthStrategy(),
-          FacebookAuthStrategy(),
-        ]),
+        activeStrategiesProvider.overrideWithValue(strategies),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -187,6 +192,33 @@ void main() {
       await pumpWrapper(tester);
       await tester.pumpAndSettle();
       expect(find.byType(PasswordField), findsNothing);
+    });
+  });
+
+  group('Phase 17.3 소셜 0개 로그인 화면 (D-17)', () {
+    testWidgets('T-173-NOSOCIAL-02: 소셜 0개면 또는 구분선 없이 이메일로 계속 · 가입 링크만 (D-17)', (
+      tester,
+    ) async {
+      await pumpWrapper(tester, strategies: const <AuthStrategy>[]);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(LoginScreen)),
+      );
+      // 구분선은 「소셜 버튼 또는 이메일」 을 가르는 것이라 버튼이 없으면
+      // 그리지 않는다. 화면 구조(섹션 · CTA · 가입 링크)는 그대로다.
+      expect(find.byType(SocialButton), findsNothing);
+      expect(
+        find.byType(OrDivider),
+        findsNothing,
+        reason: 'D-17: 표시할 소셜이 0개면 「또는」 구분선이 없어야 함',
+      );
+      expect(find.byType(EmailAuthCta), findsOneWidget);
+      expect(
+        find.widgetWithText(TextButton, l10n.authLoginNoAccount),
+        findsOneWidget,
+      );
     });
   });
 }

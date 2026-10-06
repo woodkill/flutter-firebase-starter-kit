@@ -60,6 +60,10 @@ class SocialSignInSection extends ConsumerWidget {
   ///   divider 아래는 이메일 폼이 아니라 [EmailAuthCta] 다.
   /// - `false`: [LoginPromptSheet] 처럼 Divider 없이 소셜 버튼만 노출하는
   ///   Bottom Sheet에서 사용 (뒤에 "이메일로 계속" CTA 가 이어짐).
+  ///
+  /// 표시할 provider 가 0개면 값과 무관하게 그리지 않는다 — 구분선은 소셜
+  /// 버튼과 이메일을 가르는 것이라 버튼이 없으면 뜻이 없다(Phase 17.3 D-17 ·
+  /// see ROADMAP.md).
   final bool showOrDivider;
 
   /// 렌더할 Strategy 목록 대체. null 이면 [activeStrategiesProvider] 전체.
@@ -126,7 +130,7 @@ class SocialSignInSection extends ConsumerWidget {
           ),
         ],
         if (errorBanner != null) ...[Gap(spacing.md), errorBanner!],
-        if (showOrDivider) ...[
+        if (showOrDivider && visibleStrategies.isNotEmpty) ...[
           Gap(spacing.lg),
           const OrDivider(),
           Gap(spacing.lg),
