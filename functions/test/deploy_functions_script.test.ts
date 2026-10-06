@@ -275,14 +275,16 @@ describe("deploy_functions.sh", () => {
     expect(r.stdout).not.toContain("command:");
   });
 
-  // 알려진 구현 결함(17.3 validate 에스컬레이션): macOS bash 3.2 의 UTF-8 locale
-  // (en_US.UTF-8 · ko_KR.UTF-8 모두)에서 `[a-z]` 가 대문자까지 매치해 대문자 프로젝트
-  // ID 가 통과한다. 위 T-173-DEPLOY-12 는 LC_ALL=C 라 이 경로를 보지 못한다.
-  // 스크립트를 고치면 이 테스트가 통과해 failing 이 깨진다 → `.failing` 을 지운다.
-  it.failing("T-173-DEPLOY-12b UTF-8 locale 대문자 ID 거부", () => {
+  // 회귀 가드(quick 261007-0j4): macOS `/bin/bash` 3.2 는 UTF-8 로캘에서 대괄호
+  // 문자 범위를 정렬 순서로 해석해 소문자 범위가 대문자까지 매치했다(대문자 ID 통과).
+  // 스크립트는 허용 문자를 나열해 로캘과 무관하게 거부한다 — 그 동작을 지킨다.
+  it("T-173-DEPLOY-12b UTF-8 locale 대문자 ID 거부", () => {
     writeConfig({firebaseProjectId: "My-proj", enabledAuthProviders: ""});
     const r = runScript(["dev"], {LC_ALL: "en_US.UTF-8"});
     expect(r.status).toBe(1);
+    expect(r.stderr.startsWith("FAIL:")).toBe(true);
+    expect(r.stderr).toContain("firebaseProjectId 형식이 잘못됐다");
+    expect(r.stdout).not.toContain("command:");
   });
 
   it("T-173-DEPLOY-13 --apply 는 출력한 명령을 같은 순서 · 인자로 실행한다", () => {

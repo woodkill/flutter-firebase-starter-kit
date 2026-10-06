@@ -121,12 +121,15 @@ CSV="$(jq -r '.enabledAuthProviders // ""' "$CONFIG")" ||
 [ -n "$PROJECT" ] || fail "config/${FLAVOR}.json 의 firebaseProjectId 가 비어 있다"
 # Firebase 프로젝트 ID 형식(소문자 · 숫자 · 하이픈, 소문자로 시작)만 받는다 —
 # 값이 `-` 로 시작해 CLI 옵션으로 읽히는 일을 막는다.
+# 문자 범위 표기 대신 허용 문자를 전부 나열한다 — macOS `/bin/bash` 3.2 는 UTF-8
+# 로캘(en_US.UTF-8 · ko_KR.UTF-8)에서 대괄호 범위를 정렬 순서로 해석해 소문자 범위가
+# 대문자까지 매치한다. 나열은 로캘과 무관하므로 스크립트 로캘은 바꾸지 않는다(한국어 안내 유지).
 case "$PROJECT" in
-  [a-z]*) ;;
+  [abcdefghijklmnopqrstuvwxyz]*) ;;
   *) fail "config/${FLAVOR}.json 의 firebaseProjectId 형식이 잘못됐다: ${PROJECT}" ;;
 esac
 case "$PROJECT" in
-  *[!a-z0-9-]*) fail "config/${FLAVOR}.json 의 firebaseProjectId 형식이 잘못됐다: ${PROJECT}" ;;
+  *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) fail "config/${FLAVOR}.json 의 firebaseProjectId 형식이 잘못됐다: ${PROJECT}" ;;
 esac
 
 KNOWN="$(jq -r '.providers | keys_unsorted | join(" ")' "$MANIFEST")" ||
