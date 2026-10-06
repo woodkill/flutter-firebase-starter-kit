@@ -35,6 +35,33 @@ const manifest = JSON.parse(
 const ALL_SLUGS = Object.keys(manifest.providers);
 const BATCH_MAX = 10;
 
+/**
+ * 프로젝트 ID 검사를 돌릴 로캘. C 는 하네스 기본이고, UTF-8 두 개는 macOS
+ * `/bin/bash` 3.2 가 대괄호 문자 범위를 정렬 순서로 해석하는 경로다(ko_KR 은
+ * 유지보수자 로캘). 설치되지 않은 로캘은 bash 가 C 로 처리한다는 한계가 있다.
+ */
+const ID_CHECK_LOCALES: string[] = ["C", "en_US.UTF-8", "ko_KR.UTF-8"];
+
+/** 형식 검사에서 거부돼야 하는 프로젝트 ID (라벨, 값). */
+const INVALID_PROJECT_IDS: Array<[string, string]> = [
+  ["빈 값", ""],
+  ["하이픈 시작", "-evil"],
+  ["대문자 포함", "myProj"],
+  ["대문자 시작", "My-proj"],
+  ["허용 밖 문자", "my_proj"],
+  ["공백 포함", "my proj"],
+];
+
+/** 잘못된 프로젝트 ID 를 로캘마다 펼친 (라벨, 로캘, 값) 표. */
+const INVALID_PROJECT_ID_CASES: Array<[string, string, string]> =
+  INVALID_PROJECT_IDS.flatMap(([label, id]) =>
+    ID_CHECK_LOCALES.map((locale): [string, string, string] => [
+      label,
+      locale,
+      id,
+    ]),
+  );
+
 let sandbox = "";
 let fakeBin = "";
 let invocationLog = "";
@@ -260,20 +287,17 @@ describe("deploy_functions.sh", () => {
     expect(existsSync(markerFile)).toBe(false);
   });
 
-  it.each([
-    ["빈 값", ""],
-    ["하이픈 시작", "-evil"],
-    ["대문자 포함", "myProj"],
-    ["대문자 시작", "My-proj"],
-    ["허용 밖 문자", "my_proj"],
-    ["공백 포함", "my proj"],
-  ])("T-173-DEPLOY-12 잘못된 firebaseProjectId(%s)는 FAIL", (_label, id) => {
-    writeConfig({firebaseProjectId: id, enabledAuthProviders: ""});
-    const r = runScript(["dev"]);
-    expect(r.status).toBe(1);
-    expect(r.stderr.startsWith("FAIL:")).toBe(true);
-    expect(r.stdout).not.toContain("command:");
-  });
+  // 표 전체를 C 와 UTF-8 로캘에서 모두 돌린다 — 형식 검사가 로캘에 기대지 않는다.
+  it.each(INVALID_PROJECT_ID_CASES)(
+    "T-173-DEPLOY-12 잘못된 firebaseProjectId(%s · LC_ALL=%s)는 FAIL",
+    (_label, locale, id) => {
+      writeConfig({firebaseProjectId: id, enabledAuthProviders: ""});
+      const r = runScript(["dev"], {LC_ALL: locale});
+      expect(r.status).toBe(1);
+      expect(r.stderr.startsWith("FAIL:")).toBe(true);
+      expect(r.stdout).not.toContain("command:");
+    },
+  );
 
   // 회귀 가드(quick 261007-0j4): macOS `/bin/bash` 3.2 는 UTF-8 로캘에서 대괄호
   // 문자 범위를 정렬 순서로 해석해 소문자 범위가 대문자까지 매치했다(대문자 ID 통과).
@@ -286,6 +310,22 @@ describe("deploy_functions.sh", () => {
     expect(r.stderr).toContain("firebaseProjectId 형식이 잘못됐다");
     expect(r.stdout).not.toContain("command:");
   });
+
+  it.each(ID_CHECK_LOCALES)(
+    "T-173-DEPLOY-12c 유효한 소문자 ID(LC_ALL=%s)는 통과",
+    (locale) => {
+      writeConfig({firebaseProjectId: "my-proj-123", enabledAuthProviders: ""});
+      const r = runScript(["dev"], {LC_ALL: locale});
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain("project: my-proj-123\n");
+      expect(r.stdout).toContain(
+        "command: firebase deploy --project my-proj-123 --only ",
+      );
+      expect(lastLine(r.stdout)).toBe(
+        `DRY-RUN OK dev functions=${manifest.common.length} batches=1`,
+      );
+    },
+  );
 
   it("T-173-DEPLOY-13 --apply 는 출력한 명령을 같은 순서 · 인자로 실행한다", () => {
     writeConfig({
