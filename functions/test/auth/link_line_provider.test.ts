@@ -107,6 +107,8 @@ import functionsTest from "firebase-functions-test";
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
 // eslint-disable-next-line import/first
+import * as jose from "jose";
+// eslint-disable-next-line import/first
 import {createOrderedTx} from "../mocks/ordered_transaction";
 // eslint-disable-next-line import/first
 import type {OrderedTxHandle} from "../mocks/ordered_transaction";
@@ -147,6 +149,9 @@ const NONCE = "PII_LINE_NONCE";
 /** verifier payload 의 email fixture — PII sentinel. */
 const TARGET_EMAIL = "PII_LINE_EMAIL";
 
+/** target verifier 거부 오류 본문 fixture — PII sentinel (로그 노출 0). */
+const TARGET_ERROR_BODY = "PII_LINE_TARGET_BODY";
+
 /** 기본 요청 data — `targetProvider` 필드 없음. */
 const LINK_DATA = {
   idToken: ID_TOKEN,
@@ -182,6 +187,19 @@ afterAll(() => testEnv.cleanup());
  */
 function freshAuthTime(): number {
   return Math.floor(Date.now() / 1000) - 60;
+}
+
+/**
+ * jose `JWTClaimValidationFailed` (mock) 인스턴스를 만든다.
+ *
+ * @param {string} message 오류 본문 — PII sentinel 로그 노출 0 단언 대상.
+ * @return {Error} target verifier 가 던질 오류.
+ */
+function buildClaimValidationError(message: string): Error {
+  const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
+    m: string,
+  ) => Error;
+  return new ErrCtor(message);
 }
 
 /**
@@ -280,5 +298,89 @@ describe("linkLineProvider — provider 전용 연결 callable", () => {
     const secrets =
       myFunctions.linkLineProvider.__endpoint.secretEnvironmentVariables ?? [];
     expect(secrets.map((s) => s.key)).toEqual(["LINE_CHANNEL_ID"]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-LINE-03: 요청에 targetProvider \"kakao\" 가 섞여도 line verifier 로 검증 · 문서 id line:", async () => {
+    const result = await callLink({...LINK_DATA, targetProvider: "kakao"});
+
+    expect(result).toEqual({ok: true});
+    expect(mockVerifyTargetIdToken).toHaveBeenCalledTimes(1);
+    expect(mockVerifyTargetIdToken).toHaveBeenCalledWith(
+      "https://access.line.me",
+      TARGET_TOKEN,
+      NONCE,
+    );
+    expect(mockVerifyTargetIdToken).not.toHaveBeenCalledWith(
+      "https://kauth.kakao.com",
+      expect.anything(),
+      expect.anything(),
+    );
+    const idxRef = mockOrdered.sets[0].ref as {label: string; id: string};
+    expect(idxRef.label).toBe("identity_index");
+    expect(idxRef.id.startsWith("line:")).toBe(true);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-LINE-04: 같은 provider 다른 신원 → already-exists + reason provider_already_linked · write 0 (L10 대칭)", async () => {
+    userLinkedProviders = [
+      {providerId: "line", providerUserId: "line-sub-EXISTING"},
+    ];
+
+    await expect(callLink()).rejects.toMatchObject({
+      code: "already-exists",
+      message: "errorProviderAlreadyLinked",
+      details: {reason: "provider_already_linked"},
+    });
+    expect(mockOrdered.calls).toEqual(["get", "get"]);
+    expect(mockOrdered.sets).toHaveLength(0);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-LINE-05: 다른 provider(kakao)만 연결돼 있으면 line 연결 허용 (L11 대칭)", async () => {
+    userLinkedProviders = [{providerId: "kakao", providerUserId: "kakao-sub"}];
+
+    await expect(callLink()).resolves.toEqual({ok: true});
+
+    expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-LINE-06: target 토큰 거부 → unauthenticated + event link_line_target_token_verify_failed (L6)", async () => {
+    mockVerifyTargetIdToken.mockRejectedValue(
+      buildClaimValidationError(TARGET_ERROR_BODY),
+    );
+
+    await expect(callLink()).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: "errorInvalidCredentials",
+    });
+    expect(warnMock).toHaveBeenCalledWith(
+      {
+        event: "link_line_target_token_verify_failed",
+        code: "ERR_JWT_CLAIM_VALIDATION_FAILED",
+      },
+      expect.any(String),
+    );
+    expect(mockOrdered.calls).toEqual([]);
+  });
+});
+
+// 반드시 마지막 describe — 앞선 모든 케이스의 logger 호출을 검사한다.
+describe("linkLineProvider — PII sentinel", () => {
+  // eslint-disable-next-line max-len
+  it("T-173-LINE-07: 모든 케이스의 logger 호출에 idToken · target 토큰 · nonce · email fixture 0", () => {
+    // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
+    expect(accumulatedLogCalls.length).toBeGreaterThan(3);
+    const serialized = JSON.stringify(accumulatedLogCalls);
+    for (const sentinel of [
+      ID_TOKEN,
+      TARGET_TOKEN,
+      NONCE,
+      TARGET_EMAIL,
+      TARGET_ERROR_BODY,
+    ]) {
+      expect(serialized).not.toContain(sentinel);
+    }
   });
 });

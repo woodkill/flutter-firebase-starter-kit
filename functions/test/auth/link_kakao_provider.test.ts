@@ -113,11 +113,18 @@ import functionsTest from "firebase-functions-test";
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
 // eslint-disable-next-line import/first
+import {HttpsError} from "firebase-functions/https";
+// eslint-disable-next-line import/first
+import * as jose from "jose";
+// eslint-disable-next-line import/first
 import {createOrderedTx} from "../mocks/ordered_transaction";
 // eslint-disable-next-line import/first
 import type {OrderedTxHandle} from "../mocks/ordered_transaction";
 // eslint-disable-next-line import/first
-import {signedInCallerAuth} from "../mocks/caller_auth";
+import {
+  anonymousCallerAuth,
+  signedInCallerAuth,
+} from "../mocks/caller_auth";
 // eslint-disable-next-line import/first
 import type {CallerAuthFixture} from "../mocks/caller_auth";
 
@@ -152,6 +159,9 @@ const NONCE = "PII_KAKAO_NONCE";
 
 /** verifier payload 의 email fixture — PII sentinel. */
 const TARGET_EMAIL = "PII_KAKAO_EMAIL";
+
+/** target verifier 거부 오류 본문 fixture — PII sentinel (로그 노출 0). */
+const TARGET_ERROR_BODY = "PII_KAKAO_TARGET_BODY";
 
 /** 기본 요청 data — `targetProvider` 필드 없음. */
 const LINK_DATA = {
@@ -188,6 +198,27 @@ afterAll(() => testEnv.cleanup());
  */
 function freshAuthTime(): number {
   return Math.floor(Date.now() / 1000) - 60;
+}
+
+/**
+ * auth_time 만료 (now - 600s = 10분) — stale ID Token fixture.
+ * @return {number} auth_time epoch seconds.
+ */
+function staleAuthTime(): number {
+  return Math.floor(Date.now() / 1000) - 600;
+}
+
+/**
+ * jose `JWTClaimValidationFailed` (mock) 인스턴스를 만든다.
+ *
+ * @param {string} message 오류 본문 — PII sentinel 로그 노출 0 단언 대상.
+ * @return {Error} target verifier 가 던질 오류.
+ */
+function buildClaimValidationError(message: string): Error {
+  const ErrCtor = jose.errors.JWTClaimValidationFailed as unknown as new (
+    m: string,
+  ) => Error;
+  return new ErrCtor(message);
 }
 
 /**
@@ -286,5 +317,227 @@ describe("linkKakaoProvider — provider 전용 연결 callable", () => {
     const secrets =
       myFunctions.linkKakaoProvider.__endpoint.secretEnvironmentVariables ?? [];
     expect(secrets.map((s) => s.key)).toEqual(["KAKAO_NATIVE_APP_KEY"]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-03: 요청에 targetProvider \"line\" 이 섞여도 kakao verifier 로 검증 · 문서 id kakao:", async () => {
+    const result = await callLink({...LINK_DATA, targetProvider: "line"});
+
+    expect(result).toEqual({ok: true});
+    expect(mockVerifyTargetIdToken).toHaveBeenCalledTimes(1);
+    expect(mockVerifyTargetIdToken).toHaveBeenCalledWith(
+      "https://kauth.kakao.com",
+      TARGET_TOKEN,
+      NONCE,
+    );
+    expect(mockVerifyTargetIdToken).not.toHaveBeenCalledWith(
+      "https://access.line.me",
+      expect.anything(),
+      expect.anything(),
+    );
+    const idxRef = mockOrdered.sets[0].ref as {label: string; id: string};
+    expect(idxRef.label).toBe("identity_index");
+    expect(idxRef.id.startsWith("kakao:")).toBe(true);
+  });
+});
+
+// eslint-disable-next-line max-len
+describe("linkKakaoProvider — 연결 transaction (옛 L2 · L8 · L9 · L10 · L11)", () => {
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-04: 다른 uid 소유 신원 → already-exists · write 0 (L2)", async () => {
+    idxOwnerUid = "other-owner-uid";
+
+    const promise = callLink();
+    await expect(promise).rejects.toBeInstanceOf(HttpsError);
+    await expect(promise).rejects.toMatchObject({
+      code: "already-exists",
+      message: "errorAccountAlreadyLinked",
+    });
+    expect(mockOrdered.calls).toEqual(["get", "get"]);
+    expect(mockOrdered.sets).toHaveLength(0);
+    expect(infoMock).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-05: 같은 uid 재연결 → 멱등 성공 · idx 재작성 0 (L8)", async () => {
+    idxOwnerUid = CALLER_UID;
+
+    await expect(callLink()).resolves.toEqual({ok: true});
+
+    // idx 문서는 다시 쓰지 않는다 (최초 linkedAt 보존) — users self-heal 만.
+    expect(mockOrdered.calls).toEqual(["get", "get", "set"]);
+    expect(mockOrdered.sets[0].ref).toEqual({label: "users", id: CALLER_UID});
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-06: tx read 2건이 첫 write 보다 앞 — 순서 강제 tx (L9)", async () => {
+    await expect(callLink()).resolves.toEqual({ok: true});
+
+    // 순서 강제 tx 는 write 뒤 get 이면 READ_AFTER_WRITE 로 reject 한다 —
+    // 여기까지 왔다면 위반이 없었고, 호출 기록으로 순서를 한 번 더 잠근다.
+    expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
+    expect(mockOrdered.calls.lastIndexOf("get")).toBeLessThan(
+      mockOrdered.calls.indexOf("set"),
+    );
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-07: 같은 provider 다른 신원 → already-exists + reason provider_already_linked · write 0 (L10)", async () => {
+    userLinkedProviders = [
+      {providerId: "kakao", providerUserId: "kakao-sub-EXISTING"},
+    ];
+
+    await expect(callLink()).rejects.toMatchObject({
+      code: "already-exists",
+      message: "errorProviderAlreadyLinked",
+      details: {reason: "provider_already_linked"},
+    });
+    expect(mockOrdered.calls).toEqual(["get", "get"]);
+    expect(mockOrdered.sets).toHaveLength(0);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-08: 다른 provider(line)만 연결돼 있으면 kakao 연결 허용 (L11)", async () => {
+    userLinkedProviders = [{providerId: "line", providerUserId: "line-sub"}];
+
+    await expect(callLink()).resolves.toEqual({ok: true});
+
+    expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
+  });
+});
+
+describe("linkKakaoProvider — caller 검사 (옛 L3 · L4 · L5 · L7)", () => {
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-09: stale auth_time(10분 전) → 연결 진행 (L3 · 260928-cxs)", async () => {
+    // Firebase 는 계정 연결에 최근 로그인을 요구하지 않는다 — 오래된 세션도
+    // Step 1(checkRevoked · uid 일치)만 통과하면 target 검증으로 진행한다.
+    mockVerifyIdToken.mockResolvedValue({
+      uid: CALLER_UID,
+      auth_time: staleAuthTime(),
+      firebase: {sign_in_provider: "google.com"},
+    });
+
+    await expect(callLink()).resolves.toEqual({ok: true});
+
+    expect(mockVerifyTargetIdToken).toHaveBeenCalledWith(
+      KAKAO_ISSUER,
+      TARGET_TOKEN,
+      NONCE,
+    );
+    expect(mockOrdered.sets).toHaveLength(2);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-10: verifyIdToken throw → unauthenticated + reason reauthentication_required (L4)", async () => {
+    mockVerifyIdToken.mockRejectedValue(
+      Object.assign(new Error("id token revoked"), {
+        code: "auth/id-token-revoked",
+      }),
+    );
+
+    await expect(callLink()).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: "errorReauthenticationRequired",
+      details: {reason: "reauthentication_required"},
+    });
+    expect(warnMock).toHaveBeenCalledWith(
+      {
+        event: "link_kakao_id_token_verify_failed",
+        code: "auth/id-token-revoked",
+      },
+      expect.any(String),
+    );
+    expect(mockVerifyTargetIdToken).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-11: decoded uid ≠ caller uid → permission-denied (L5)", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: "DIFFERENT-UID",
+      auth_time: freshAuthTime(),
+      firebase: {sign_in_provider: "google.com"},
+    });
+
+    await expect(callLink()).rejects.toMatchObject({
+      code: "permission-denied",
+      message: "errorUnauthenticated",
+    });
+    expect(mockVerifyTargetIdToken).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-12: target 토큰 거부 → unauthenticated(reason 없음) + fingerprint 로그 (L6)", async () => {
+    mockVerifyTargetIdToken.mockRejectedValue(
+      buildClaimValidationError(TARGET_ERROR_BODY),
+    );
+
+    const promise = callLink();
+    // WR-01 / WR-02: Custom Token endpoint 와 같은 공용 매핑 표 — IdP 자격증명
+    // 거부는 `unauthenticated` · 재인증 reason 없음 (16.9 review WR-01).
+    await expect(promise).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: "errorInvalidCredentials",
+    });
+    const rejection = await promise.catch((e: unknown) => e);
+    expect((rejection as HttpsError).details).toBeUndefined();
+    expect(warnMock).toHaveBeenCalledWith(
+      {
+        event: "link_kakao_target_token_verify_failed",
+        code: "ERR_JWT_CLAIM_VALIDATION_FAILED",
+      },
+      expect.any(String),
+    );
+    expect(mockOrdered.calls).toEqual([]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-13: 익명 caller → failed-precondition errorAnonymousLinkNotAllowed (L7)", async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: CALLER_UID,
+      auth_time: freshAuthTime(),
+      firebase: {sign_in_provider: "anonymous"},
+    });
+
+    await expect(
+      callLink(LINK_DATA, anonymousCallerAuth(CALLER_UID)),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: "errorAnonymousLinkNotAllowed",
+    });
+    // Step 2 거부 뒤 Step 3(target 검증) 미진입.
+    expect(mockVerifyTargetIdToken).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-14: request.auth 부재 → unauthenticated · verifier 미호출", async () => {
+    await expect(callLink(LINK_DATA, null)).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: "errorUnauthenticated",
+    });
+    expect(mockVerifyIdToken).not.toHaveBeenCalled();
+    expect(mockVerifyTargetIdToken).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
+  });
+});
+
+// 반드시 마지막 describe — 앞선 모든 케이스의 logger 호출을 검사한다.
+describe("linkKakaoProvider — PII sentinel", () => {
+  // eslint-disable-next-line max-len
+  it("T-173-KAKAO-15: 모든 케이스의 logger 호출에 idToken · target 토큰 · nonce · email fixture 0", () => {
+    // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
+    expect(accumulatedLogCalls.length).toBeGreaterThan(5);
+    const serialized = JSON.stringify(accumulatedLogCalls);
+    for (const sentinel of [
+      ID_TOKEN,
+      TARGET_TOKEN,
+      NONCE,
+      TARGET_EMAIL,
+      TARGET_ERROR_BODY,
+    ]) {
+      expect(serialized).not.toContain(sentinel);
+    }
   });
 });
