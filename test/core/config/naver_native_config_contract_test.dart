@@ -11,8 +11,9 @@
 //
 // **유일한 예외 — `T-16.5-NATIVE-01`:** Phase 16.5 부터 `naverClientId` 가 Dart
 // (dart-define) 와 iOS(xcconfig) 두 곳에서 읽히므로 두 gitignored 실 키 파일의
-// 값 일치를 비교한다. 두 파일이 모두 있을 때만 비교하고(없으면 skip), 값은 실패
-// 메시지에도 싣지 않는다 — bool 비교 결과만 단언한다.
+// 값 일치를 비교한다. 두 파일이 모두 있고 실 config 에서 Naver 가 켜져 있을 때만
+// 비교하고(아니면 skip), 값은 실패 메시지에도 싣지 않는다 — bool 비교 결과만
+// 단언한다.
 
 import 'dart:convert';
 import 'dart:io';
@@ -193,7 +194,10 @@ void main() {
         'NidClientID': r'$(NAVER_CLIENT_ID)',
         'NidClientSecret': r'$(NAVER_CLIENT_SECRET)',
         'NidAppName': r'$(DISPLAY_NAME)',
-        'NidUrlScheme': r'$(NAVER_URL_SCHEME)',
+        // 키가 비면 앱 고유 자리표시로 떨어진다(Phase 17.3 D-04) — 값이 있으면
+        // xcconfig 변수 값이 그대로 들어가므로 「변수 참조만」 취지는 같다.
+        'NidUrlScheme':
+            r'$(NAVER_URL_SCHEME:default=unset.naver.$(PRODUCT_BUNDLE_IDENTIFIER))',
       };
 
       for (final entry in expected.entries) {
@@ -224,11 +228,15 @@ void main() {
       }
 
       expect(
-        countOccurrences(plist, r'$(NAVER_URL_SCHEME)'),
+        countOccurrences(
+          plist,
+          r'$(NAVER_URL_SCHEME:default=unset.naver.$(PRODUCT_BUNDLE_IDENTIFIER))',
+        ),
         2,
         reason:
             'D-02: CFBundleURLSchemes 1건 + NidUrlScheme 1건 = 2건이어야 한다. '
-            '두 값이 어긋나면 플러그인의 복귀 URL 필터가 콜백을 버린다.',
+            '두 값이 어긋나면 플러그인의 복귀 URL 필터가 콜백을 버린다. '
+            '키가 비면 두 곳 모두 같은 자리표시로 떨어진다(Phase 17.3 D-04).',
       );
     });
 
@@ -398,6 +406,24 @@ void main() {
       }
       final json =
           jsonDecode(jsonFile.readAsStringSync()) as Map<String, dynamic>;
+
+      // 끈 provider 의 키는 비교 대상이 아니다(Phase 17.3 D-10) — 비워 두거나
+      // example 값 그대로여도 된다. 두 example 의 Naver placeholder 가 서로 달라
+      // 둘 다 복사하고 Naver 를 켜지 않은 사용자도 여기서 실패했다. CSV 해석은
+      // AppConfig.parseEnabledProviders 와 같은 split · trim 규칙이다.
+      final enabledProviders = ((json['enabledAuthProviders'] as String?) ?? '')
+          .split(',')
+          .map((String token) => token.trim())
+          .where((String token) => token.isNotEmpty)
+          .toSet();
+      if (!enabledProviders.contains('naver')) {
+        markTestSkipped(
+          'Naver 가 꺼져 있어 값을 비교하지 않는다 — 끈 provider 의 키는 비워 두거나 '
+          'example 값 그대로여도 된다 (Phase 17.3 D-10).',
+        );
+        return;
+      }
+
       final xcconfig = stripSlashComments(xcconfigFile.readAsStringSync());
 
       // 값은 실패 메시지에 싣지 않는다 — 비교 결과 bool 만 단언한다.

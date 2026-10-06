@@ -22,6 +22,9 @@
 		<string>$(FLUTTER_BUILD_NAME)</string>
 		<key>CFBundleSignature</key>
 		<string>????</string>
+		<!-- xcconfig 키가 비면 :default= 로 앱 고유 자리표시 scheme 이 들어간다 (Phase 17.3 — see ROADMAP.md).
+		     끈 provider 가 다른 앱과 같은 scheme(fb · kakao · 빈 값)을 등록하지 않게 한다.
+		     값이 있으면 그 값이 그대로 들어간다. provider on/off CSV 는 읽지 않는다. -->
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
@@ -29,13 +32,13 @@
 				<string>Editor</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>$(REVERSED_CLIENT_ID)</string>
+					<string>$(REVERSED_CLIENT_ID:default=unset.google.$(PRODUCT_BUNDLE_IDENTIFIER))</string>
 				</array>
 			</dict>
 			<dict>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>fb$(FACEBOOK_APP_ID)</string>
+					<string>fb$(FACEBOOK_APP_ID:default=unset.$(PRODUCT_BUNDLE_IDENTIFIER))</string>
 				</array>
 			</dict>
 			<dict>
@@ -45,7 +48,7 @@
 				<string>kakao</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>kakao$(KAKAO_NATIVE_APP_KEY)</string>
+					<string>kakao$(KAKAO_NATIVE_APP_KEY:default=unset.$(PRODUCT_BUNDLE_IDENTIFIER))</string>
 				</array>
 			</dict>
 			<!-- Naver Login (Phase 13 — see ROADMAP.md). xcconfig NAVER_URL_SCHEME 변수 substitution. -->
@@ -56,7 +59,7 @@
 				<string>naver</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>$(NAVER_URL_SCHEME)</string>
+					<string>$(NAVER_URL_SCHEME:default=unset.naver.$(PRODUCT_BUNDLE_IDENTIFIER))</string>
 				</array>
 			</dict>
 			<!-- LINE Login (Phase 14 — see ROADMAP.md, D-LINE-18).
@@ -90,7 +93,7 @@
 		<key>NidAppName</key>
 		<string>$(DISPLAY_NAME)</string>
 		<key>NidUrlScheme</key>
-		<string>$(NAVER_URL_SCHEME)</string>
+		<string>$(NAVER_URL_SCHEME:default=unset.naver.$(PRODUCT_BUNDLE_IDENTIFIER))</string>
 		<!-- 갤러리 사진 선택 권한 문구 (Phase 17 D-15 — see ROADMAP.md).
 		     image_picker README 필수 키. 이 plist 에는 lproj 현지화가 없으므로
 		     영문 1문장이며, 현지화는 InfoPlist.strings 로 추가한다(매뉴얼 커스터마이징 포인트). -->

@@ -103,5 +103,66 @@ void main() {
         reason: 'D-05: manifest 는 provider on/off CSV 를 참조하지 않는다.',
       );
     });
+
+    test('T-173-SCHEME-03: Info.plist — 4 provider scheme 은 :default= 자리표시 · '
+        'LINE 불변 · CSV 미참조', () {
+      final String rawPlist = readTrackedFile('ios/Runner/Info.plist');
+      final String plist = stripXmlComments(rawPlist);
+
+      // 키가 비면 `:default=` 의 앱 고유 자리표시로, 값이 있으면 그 값 그대로.
+      const Map<String, int> expectedSubstitutions = <String, int>{
+        r'<string>$(REVERSED_CLIENT_ID:default=unset.google.$(PRODUCT_BUNDLE_IDENTIFIER))</string>':
+            1,
+        r'<string>fb$(FACEBOOK_APP_ID:default=unset.$(PRODUCT_BUNDLE_IDENTIFIER))</string>':
+            1,
+        r'<string>kakao$(KAKAO_NATIVE_APP_KEY:default=unset.$(PRODUCT_BUNDLE_IDENTIFIER))</string>':
+            1,
+        // CFBundleURLSchemes 의 naver 항목 + NidUrlScheme — 같은 값이어야
+        // 플러그인의 복귀 URL 필터가 콜백을 통과시킨다.
+        r'<string>$(NAVER_URL_SCHEME:default=unset.naver.$(PRODUCT_BUNDLE_IDENTIFIER))</string>':
+            2,
+      };
+      for (final MapEntry<String, int> entry in expectedSubstitutions.entries) {
+        expect(
+          countOccurrences(plist, entry.key),
+          entry.value,
+          reason:
+              'D-04: Info.plist 에 ${entry.key} 가 ${entry.value}건이어야 '
+              '한다 — 키가 빈 provider 가 일반 scheme 을 등록하지 않게 한다.',
+        );
+      }
+
+      // 옛 꼴은 키가 비면 빈 값 · fb · kakao 를 그대로 등록한다.
+      const List<String> legacyForms = <String>[
+        r'<string>$(REVERSED_CLIENT_ID)</string>',
+        r'<string>fb$(FACEBOOK_APP_ID)</string>',
+        r'<string>kakao$(KAKAO_NATIVE_APP_KEY)</string>',
+        r'<string>$(NAVER_URL_SCHEME)</string>',
+      ];
+      for (final String legacy in legacyForms) {
+        expect(
+          countOccurrences(plist, legacy),
+          0,
+          reason:
+              'D-04: 옛 꼴 $legacy 는 키가 비면 일반 scheme 을 등록한다 — '
+              ':default= 자리표시 꼴로 바꿀 것.',
+        );
+      }
+
+      // LINE 은 이미 bundle id 로 앱별 고유라 바꾸지 않는다 (양성 대조 겸).
+      expect(
+        countOccurrences(
+          plist,
+          r'<string>line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)</string>',
+        ),
+        1,
+        reason: 'LINE scheme 은 line3rdp + bundle id 그대로여야 한다.',
+      );
+      expect(
+        countOccurrences(rawPlist, _csvKey),
+        0,
+        reason: 'D-05: Info.plist 는 provider on/off CSV 를 참조하지 않는다.',
+      );
+    });
   });
 }
