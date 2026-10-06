@@ -1,9 +1,11 @@
 // Phase 16.9 D-01 — Custom Token 신원 연결 transaction 공용 helper.
 //
-// `link_custom_token_provider.ts` Step 4 (identity_index atomic create +
-// users/{uid}.linkedProviders[] update) 를 동작 · 로그 event 이름 불변으로
-// 옮겨 왔다. 두 연결 callable 이 공유한다.
-// - `linkCustomTokenProvider` — OIDC ID token 을 검증하는 provider (kakao · line)
+// OIDC 연결 callable 의 Step 4 (identity_index atomic create +
+// users/{uid}.linkedProviders[] update)를 동작 · 로그 event 이름 불변으로
+// 옮겨 온 helper 다 — 지금은 공용 팩토리 `link_oidc_provider.ts` Step 4 가
+// 부른다. 연결 callable 들이 공유한다.
+// - `linkKakaoProvider` · `linkLineProvider` — OIDC ID token 을 검증하는
+//   provider (kakao · line, 공용 팩토리 `link_oidc_provider.ts`)
 // - `linkNaverProvider` — Naver access token / authorization code 검증
 //
 // 「all reads before all writes」 invariant (Pitfall 2) — tx 안 read 는

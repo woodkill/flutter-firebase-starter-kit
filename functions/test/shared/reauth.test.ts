@@ -1,8 +1,10 @@
 /**
  * 재인증 신선도 검사 회귀 테스트 (Phase 15 리뷰 WR-11).
  *
- * `deleteUserAccount` / `linkCustomTokenProvider` 두 최고 위험 동작의 유일한
- * 신선도 근거다. 이전 인라인 구현 (`nowSec - authTime > 300`) 은
+ * 회원탈퇴 `deleteUserAccount` 라는 최고 위험 동작의 유일한 신선도 근거다
+ * (연결 callable `linkKakaoProvider` · `linkLineProvider` ·
+ * `linkNaverProvider` 는 quick 260928-cxs 부터 부르지 않는다 — 연결은 최근
+ * 로그인 불필요). 이전 인라인 구현 (`nowSec - authTime > 300`) 은
  *
  * - `auth_time` 누락 시 `NaN > 300 === false` 로 **검사를 통과** 했고,
  * - 미래값 (시계 오차 / 위조) 도 차이가 음수라 무조건 통과했다.

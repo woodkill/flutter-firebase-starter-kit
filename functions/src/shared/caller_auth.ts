@@ -22,7 +22,7 @@ type CallerAuthLike = {
  * caller 세션이 익명 로그인인지 판정한다.
  *
  * Firebase ID Token 의 `firebase.sign_in_provider` claim 이 `"anonymous"` 일
- * 때만 `true` 다 (`link_custom_token_provider.ts` 의 익명 거부와 같은 claim).
+ * 때만 `true` 다 (`link_oidc_provider.ts` 의 익명 거부와 같은 claim).
  * claim 이 없거나 다른 값이면 `false` — 호출자는 이를 **비익명** 으로 다뤄
  * 가드를 적용한다 (fail-closed). 미인증 호출(`auth` 부재)은 caller 가 없으므로
  * `false` 를 돌려주며, `callerUid` 도 없어 가드 대상이 아니다.

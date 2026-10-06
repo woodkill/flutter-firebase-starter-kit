@@ -2,7 +2,8 @@
 //
 // 이전에는 issuer / jwksUrl / algorithms / nonceHashing 4-튜플이 provider
 // 당시 3종 × 2 파일 = 6개 리터럴로 존재했다 (각 Custom Token endpoint 1 +
-// `link_custom_token_provider.ts` 1). 결과로 두 가지 결함이 있었다.
+// OIDC 연결 callable 1 — 현 공용 팩토리 `link_oidc_provider.ts`). 결과로
+// 두 가지 결함이 있었다.
 //
 // 1. **drift 위험** — IdP 가 issuer 나 JWKS URL 을 바꾸면 두 곳을 동시에
 //    고쳐야 하고, 한 곳만 고치면 "로그인은 되는데 연동은 안 되는" (또는 그
@@ -37,7 +38,7 @@ export const KAKAO_NATIVE_APP_KEY = defineSecret("KAKAO_NATIVE_APP_KEY");
 // 보낸다 (Phase 16.10 D-18). WR-04 (Phase 14 review) 원칙 「사용처가 없는
 // secret 은 선언하지 않고, 사용처와 함께 선언한다」 에 따라 사용처가 생긴
 // 이 시점에 선언했다. 바인딩은 `disconnectLineProvider` 만 한다 —
-// `lineCustomToken` · `linkCustomTokenProvider` 는 값을 읽지 않으므로
+// `lineCustomToken` · `linkLineProvider` 는 값을 읽지 않으므로
 // `secrets:` 에 넣지 않는다.
 //
 // (Naver 는 사용처가 생기기 전에 미리 선언했다 — `shared/naver_secrets.ts`

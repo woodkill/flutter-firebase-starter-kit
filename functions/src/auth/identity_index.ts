@@ -374,8 +374,8 @@ export const CUSTOM_TOKEN_PROVIDER_PRIORITY: readonly ProviderId[] = [
  *
  * **multi-identity 계정 계약 (CR-01 / 2026-09-09)**: 기존 계정이 caller 자신의
  * provider identity 를 **이미 보유** 하면 그것은 cross-provider 충돌이 아니라
- * "자기 계정 재로그인" 이다. proactive linking
- * (`link_custom_token_provider.ts`) 이 동일 `firebaseUid` 로 2번째·3번째
+ * "자기 계정 재로그인" 이다. proactive linking (`linkKakaoProvider` ·
+ * `linkLineProvider` · `linkNaverProvider`) 이 동일 `firebaseUid` 로 2번째·3번째
  * `identity_index` 문서를 만들기 때문에 이 상태는 Phase 16 의 정상 상태다.
  * 이때 형제 slug 를 라벨로 내보내면 사용자에게 쓰지도 않는 provider 로
  * 로그인하라고 안내하게 되므로 (`AccountLinkingSheet` step 1 CTA), `null` 을
@@ -747,8 +747,8 @@ export async function resolveIdentity(
   // 이 가드가 없을 때 재인증 로그인 화면에서 정식 사용자 U 가 연결 안 된
   // provider 를 누르면 아래 경로가 (a) 새 identity 를 U 에 등록하고
   // (b) R9/R10 블록이 U 의 email · displayName · photoURL 을 IdP 값으로
-  // 덮어썼다 — 사용자 동의 없는 연결이며, `linkCustomTokenProvider` 의
-  // auth_time · 익명 거부 게이트(T-16-10-01)도 우회한다. 다른 계정에 매핑된
+  // 덮어썼다 — 사용자 동의 없는 연결이며, 연결 callable(`linkKakaoProvider`
+  // · `linkLineProvider`)의 익명 거부 게이트(T-16-10-01)도 우회한다. 다른 계정에 매핑된
   // identity 는 "다른 계정으로 전환" 을 뜻하므로 역시 거부한다.
   //
   // 익명 caller (익명 → 소셜 승격) 와 미인증 caller 는 기존 경로 그대로다.

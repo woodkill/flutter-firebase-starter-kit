@@ -1,8 +1,9 @@
 // Phase 16.9 SOCL-12 — Naver 신원을 기존 Firebase 계정에 연결하는 callable.
 //
 // D-01: Naver 는 OIDC ID token 이 아니라 access token 을 `/v1/nid/me` 로
-// 검증하므로 `linkCustomTokenProvider` 에 분기를 넣지 않고 별도 callable 로
-// 둔다 — Naver 제거 = 본 파일 삭제 + index export 1줄 + 배포 정리.
+// 검증하므로 OIDC 연결 공용 팩토리(`link_oidc_provider.ts`)에 분기를 넣지
+// 않고 별도 callable 로 둔다 — Naver 제거 = 본 파일 삭제 + index export
+// 1줄 + 배포 정리.
 // 공유하는 것:
 // - 검증 helper `fetchNaverProfile` (`naver_profile_to_custom_token.ts`)
 // - 연결 transaction `linkCustomTokenIdentity` (`link_identity_transaction.ts`)

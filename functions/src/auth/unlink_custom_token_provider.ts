@@ -2,9 +2,9 @@
 //
 // `identity_index` 는 firestore.rules 로 클라이언트 read/write 가 전면 차단되어
 // 있어 Custom Token(CT) provider 의 연결 해제는 서버 경로가 필수다. 본
-// callable 은 `link_custom_token_provider.ts` 의 골격(App Check · 인자 가드 ·
-// 익명 거부 · catch 관례 · PII-0 로깅)을 미러하되, OIDC 검증 · secret ·
-// 재인증 신선도 검사가 없는 더 짧은 함수다.
+// callable 은 OIDC 연결 공용 팩토리 `link_oidc_provider.ts` 의 골격(App
+// Check · 인자 가드 · 익명 거부 · catch 관례 · PII-0 로깅)을 미러하되, OIDC
+// 검증 · secret 이 없는 더 짧은 함수다.
 //
 // 결정 (16.8-CONTEXT):
 // - D-01: 가입 수단 필드는 읽지도 쓰지도 않는다 (표시 전용 — 서버 판정 제외).

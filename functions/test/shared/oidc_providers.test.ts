@@ -3,7 +3,8 @@
  *
  * 이전에는 issuer / jwksUrl / algorithms / nonceHashing 4-튜플이 provider
  * 2종 × 2 파일 = 4개 리터럴로 존재해서 (각 Custom Token endpoint 1 +
- * link_custom_token_provider.ts 1) 두 가지 결함이 있었다.
+ * OIDC 연결 callable 1 — 현 공용 팩토리 link_oidc_provider.ts) 두 가지
+ * 결함이 있었다.
  *
  * 1. drift — 한 곳만 고치면 "로그인은 되는데 연동은 안 되는" 부분 장애.
  *    issuer 의 trailing slash 처럼 한 글자 차이가 치명적인 값에서 특히

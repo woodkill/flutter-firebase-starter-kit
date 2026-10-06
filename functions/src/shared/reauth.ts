@@ -1,7 +1,7 @@
 // Phase 15 code review WR-11 — 재인증 신선도 검사 단일 진실원.
 //
-// `deleteUserAccount` 와 `linkCustomTokenProvider` 두 곳이 각각 아래 3줄을
-// 인라인으로 갖고 있었다.
+// `deleteUserAccount` 와 당시의 OIDC 연결 callable(현 `linkKakaoProvider` ·
+// `linkLineProvider`) 두 곳이 각각 아래 3줄을 인라인으로 갖고 있었다.
 //
 //   const authTime = decoded.auth_time;
 //   const nowSec = Math.floor(Date.now() / 1000);

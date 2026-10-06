@@ -2509,8 +2509,9 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
   );
 
   // CR-01 / WR-06 (2차 리뷰 2026-09-09) — proactive linking
-  // (link_custom_token_provider) 성공 시마다 동일 firebaseUid 로 2번째
-  // identity_index 문서가 생기는 multi-identity 계정 상태. 16-17 최초 테스트
+  // (linkKakaoProvider · linkLineProvider · linkNaverProvider) 성공 시마다
+  // 동일 firebaseUid 로 2번째 identity_index 문서가 생기는 multi-identity
+  // 계정 상태. 16-17 최초 테스트
   // 9건은 전부 reverseDocs 0~1건 단일 identity 라 이 상태를 잠그지 못했다.
   it(
     // eslint-disable-next-line max-len
@@ -2923,8 +2924,8 @@ describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 emai
 // 재인증 로그인 화면이 정식 사용자로 Custom Token callable 을 부르면, 가드
 // 이전에는 caller 에 매핑 안 된 identity 가 (a) caller uid 에 조용히 등록되고
 // (b) email · displayName · photoURL 이 IdP 값으로 덮어써졌다 (WR-05 · R10
-// 계약이 그 결과를 고정). linkCustomTokenProvider 의 auth_time · 익명 거부
-// 게이트도 우회된다. 가드는 "비익명 caller 는 자기 계정에 이미 매핑된
+// 계약이 그 결과를 고정). 연결 callable(linkKakaoProvider · linkLineProvider)
+// 의 익명 거부 게이트도 우회된다. 가드는 "비익명 caller 는 자기 계정에 이미 매핑된
 // identity 로만 통과" 이며 부작용(등록 · updateUser · email lookup) 전에
 // 거부한다. 익명 · 미인증 caller 는 불변이다.
 // ---------------------------------------------------------------------------

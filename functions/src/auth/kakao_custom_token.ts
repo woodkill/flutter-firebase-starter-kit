@@ -30,8 +30,9 @@ import {mirrorTermsAccepted} from "./mirror_terms";
 // Phase 14 D-LINE-02/04 — OIDC verifier helper 추출 + retroactive 마이그.
 // WR-06 (Phase 15 리뷰): issuer / jwksUrl / algorithms / nonceHashing 리터럴과
 // secret 선언은 shared/oidc_providers.ts 단일 진실원으로 이동했다. 이전에는
-// 같은 4-튜플이 본 파일과 link_custom_token_provider.ts 에 각각 존재해
-// drift 위험 + provider 당 JWKS 캐시 2개 문제가 있었다.
+// 같은 4-튜플이 본 파일과 OIDC 연결 callable(현 공용 팩토리
+// link_oidc_provider.ts)에 각각 존재해 drift 위험 + provider 당 JWKS 캐시
+// 2개 문제가 있었다.
 const verifyKakaoIdToken = OIDC_VERIFIERS.kakao;
 
 type KakaoCustomTokenRequest = {

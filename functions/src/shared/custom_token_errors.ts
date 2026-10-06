@@ -116,8 +116,8 @@ export const REAUTH_REQUIRED_REASON = "reauthentication_required";
  *
  * 생성처: `assertFreshAuth`(auth_time 누락 · 미래값 · 300초 초과 —
  * `deleteUserAccount` 만 호출 · 연결 callable 은 quick 260928-cxs 로 제외) 와
- * 세 callable(`deleteUserAccount` · `linkCustomTokenProvider` ·
- * `linkNaverProvider`)의 `verifyIdToken(checkRevoked)` 실패. details 에는
+ * 네 callable(`deleteUserAccount` · `linkKakaoProvider` · `linkLineProvider`
+ * · `linkNaverProvider`)의 `verifyIdToken(checkRevoked)` 실패. details 에는
  * reason 토큰 하나만 담는다 — uid · 토큰 등 식별자는 넣지 않는다 (PII
  * slug-only 정책 D-51 · [callerIdentityMismatch] 와 같은 원칙).
  *
@@ -163,9 +163,9 @@ export function providerAlreadyLinked(): HttpsError {
  * 정식 로그인 caller 가 자기 계정에 매핑되지 않은 identity 로 Custom Token
  * 로그인을 요청했을 때의 표준 에러 (debug reauth-login-auto-merge).
  *
- * `permission-denied` 는 `deleteUserAccount` · `linkCustomTokenProvider` ·
- * `linkNaverProvider` 의 uid 불일치 throw(`errorUnauthenticated`)와 code 를
- * 공유하므로 client 는 `details.reason` 으로 구분한다
+ * `permission-denied` 는 `deleteUserAccount` · `linkKakaoProvider` ·
+ * `linkLineProvider` · `linkNaverProvider` 의 uid 불일치
+ * throw(`errorUnauthenticated`)와 code 를 공유하므로 client 는 `details.reason` 으로 구분한다
  * (`AuthRepository._mapFunctionsException` → `ReauthUserMismatch`). App Check
  * 차단은 firebase-functions 7.2.5 가 `unauthenticated` 로 던지므로 이 code 를
  * 공유하지 않는다. details 에는 reason 토큰 하나만 담는다 — uid · sub · email
