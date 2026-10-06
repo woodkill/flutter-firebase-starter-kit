@@ -295,13 +295,21 @@ Kakao 를 켜는 예다. 다른 provider 도 표의 그 행을 보고 같은 순
 KAKAO_NATIVE_APP_KEY = REPLACE_WITH_DEV_NATIVE_APP_KEY
 ```
 
-**④ secret 을 만들고 켠 provider 의 값을 등록한다.** 함수 배포는 Secret Manager 에 secret 8개(아래 반복문의 이름)가 모두 있어야 진행된다. Firebase CLI 는 배포할 함수가 무엇이든 코드에 선언된 secret 을 전부 확인하고, 없는 secret 은 배포 중에 값을 묻는다(터미널 입력을 받을 수 없으면 오류로 끝난다). 그래서 프로젝트마다 함수를 처음 배포하기 전에 한 번, 아래 반복문으로 아직 없는 secret 을 자리표시 값 `unset` 으로 만든다. 이미 있는 secret 은 건너뛰므로 등록해 둔 값을 덮어쓰지 않는다. 끈 provider 의 secret 은 `unset` 그대로 둬도 된다 — 그 provider 의 함수가 배포되지 않으므로 값이 읽히지 않는다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
+**④ secret 을 만들고 켠 provider 의 값을 등록한다.** 함수 배포는 Secret Manager 에 secret 8개(아래 반복문의 이름)가 모두 있어야 진행된다. Firebase CLI 는 배포할 함수가 무엇이든 코드에 선언된 secret 을 전부 확인하고, 없는 secret 은 배포 중에 값을 묻는다(터미널 입력을 받을 수 없으면 오류로 끝난다). 그래서 프로젝트마다 함수를 처음 배포하기 전에 한 번, 아래 반복문으로 아직 없는 secret 을 자리표시 값 `unset` 으로 만든다. 반복문은 Firebase CLI 가 `HTTP Error: 404`(secret 없음)로 답한 secret 만 만들고 이미 있는 secret 은 건너뛰므로, 등록해 둔 값을 덮어쓰지 않는다. 로그인 만료 · 권한 부족 · 네트워크 같은 다른 오류가 나면 CLI 의 메시지를 출력하고 멈춘다 — 원인을 고친 뒤 반복문을 다시 실행한다. 끈 provider 의 secret 은 `unset` 그대로 둬도 된다 — 그 provider 의 함수가 배포되지 않으므로 값이 읽히지 않는다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
 
 ```bash
 for s in KAKAO_NATIVE_APP_KEY KAKAO_ADMIN_KEY LINE_CHANNEL_ID LINE_CHANNEL_SECRET \
          NAVER_CLIENT_ID NAVER_CLIENT_SECRET FACEBOOK_APP_ID FACEBOOK_APP_SECRET; do
-  firebase functions:secrets:get "$s" --project <your-project-id> > /dev/null 2>&1 ||
-    printf 'unset' | firebase functions:secrets:set "$s" --project <your-project-id> --data-file -
+  if out="$(firebase functions:secrets:get "$s" --project <your-project-id> 2>&1)"; then
+    continue
+  fi
+  case "$out" in
+    *"HTTP Error: 404"*)
+      printf 'unset' | firebase functions:secrets:set "$s" --project <your-project-id> --data-file - || break ;;
+    *)
+      printf '%s\n' "$out" >&2
+      break ;;
+  esac
 done
 ```
 
@@ -382,6 +390,7 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
 - **켰는데 버튼을 누르면 오류 배너가 뜬다.** 표에서 그 provider 행의 config 키 · xcconfig 변수 · 콘솔 등록 · 함수 배포가 모두 끝났는지 다시 확인한다.
 - **켠 provider 의 버튼이 로그인 화면에 없다.** 앱을 다시 빌드했는지, Remote Config 의 `auth_provider_<provider>_enabled` 가 `false` 로 게시돼 있지 않은지 확인한다.
 - **배포 중 Firebase CLI 가 secret 값을 묻는다.** 코드에 선언된 secret 8개 가운데 그 프로젝트에 아직 없는 것이 있다는 뜻이다 — 끈 provider 의 secret 도 묻는다. Firebase CLI 의 표준 동작이다. 「켜기」 ④ 의 반복문으로 없는 secret 을 만든 뒤 다시 배포한다. 켠 provider 의 secret 이면 실제 값을 등록한다.
+- **「켜기」 ④ 의 반복문이 오류 메시지를 출력하고 멈춘다.** secret 이 없다는 응답(`HTTP Error: 404`)이 아닌 오류다. 메시지에 `Failed to authenticate` 가 있으면 `firebase login` 을 다시 하고, `HTTP Error: 403` 이면 로그인한 계정에 그 프로젝트의 Secret Manager 권한(예: `roles/secretmanager.admin`)이 있는지 확인한다. 원인을 고친 뒤 반복문을 다시 실행하면 이미 만든 secret 은 건너뛴다.
 - **배포 스크립트가 `알 수 없는 provider` 로 끝난다.** `enabledAuthProviders` 의 토큰 철자를 확인한다. 쓸 수 있는 값은 `google` · `apple` · `facebook` · `kakao` · `naver` · `line` 6개다.
 - **배포가 HTTP 429 · 500 으로 실패한다.** 배포 스크립트를 다시 실행한다. 스크립트는 함수를 10개씩 나눠 배포한다.
 

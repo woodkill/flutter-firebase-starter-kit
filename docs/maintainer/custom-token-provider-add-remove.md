@@ -92,7 +92,14 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
      Firebase CLI 는 `--only` 필터와 상관없이 코드베이스가 선언한 `defineSecret` 전부의
      존재를 확인하고 없으면 값을 묻는다(firebase-tools 15.29.0 `deploy/functions/params.js`
      `resolveParams` → `ensureSecret`). 그래서 끈 provider 의 secret 도 자리표시 값으로
-     만들어 둔다 — 매뉴얼 「로그인 수단 켜고 끄기」 「켜기」 ④. 새 provider 의
+     만들어 둔다 — 매뉴얼 「로그인 수단 켜고 끄기」 「켜기」 ④. 그 반복문은
+     `functions:secrets:get` 의 출력에 `HTTP Error: 404` 가 있을 때만 `unset` 으로
+     만들고, 다른 실패(로그인 · 권한 · 네트워크)에서는 메시지를 보이고 멈춘다 — 기존
+     secret 에 `secrets:set` 을 부르면 새 버전 `unset` 이 더해지기 때문이다
+     (`functions-secrets-set.js` → `ensureSecret` → `addVersion`). 이 문구는
+     firebase-tools 의 `lib/responseToError.js`(`"HTTP Error: " + statusCode + ", " …`)가
+     만들고 종료 코드로는 404 와 403 을 가를 수 없으므로(둘 다 1), CLI 를 올릴 때 이
+     형식이 그대로인지 확인한다. 새 provider 의
      `defineSecret` 을 더하면 그 반복문의 secret 이름 목록에도 더한다.
    - `functions/src/index.ts` 에 export 1줄씩. 클라이언트는
      `AuthRepository.linkCustomTokenProviderArm` 의 callable 이름 switch 에 1행
