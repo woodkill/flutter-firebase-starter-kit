@@ -52,8 +52,8 @@ void _registerBackgroundMessageHandler() {
 ///    - 경로 1: [runZonedGuarded] 의 onError -> recordError(fatal: true)
 ///    - 경로 2: [FlutterError.onError] -> recordFlutterFatalError
 ///    - 경로 3: [PlatformDispatcher.onError] -> recordError(fatal: true)
-/// 6. [GoogleSignIn.instance.initialize] -- Google Sign-In 초기화
-///    (이후 Kakao · LINE · Remote Config 초기화)
+/// 6. provider SDK 초기화 — 정적 CSV 에 있는 Google · Kakao · LINE 만
+///    ([selectEnabledSdkInits]) → Remote Config 초기화
 /// 7. release 빌드만 [ErrorWidget.builder] 를 [createReleaseErrorWidgetBuilder]
 ///    가 만든 builder([buildReleaseErrorWidget] 본문 + 세션당 1회 non-fatal
 ///    기록 · 리뷰 IN-14)로 교체 (Phase 17 D-22 -- 깨진 화면 대체, Firebase
@@ -147,75 +147,26 @@ Future<void> bootstrap() async {
               AppConfig.flavor,
             );
 
-            // GoogleSignIn 초기화 (기존 로직 유지).
-            //
-            // serverClientId 는 `--dart-define-from-file` 에서 명시적으로
-            // 전달한다. Android 는 `android/app/build.gradle.kts` 가
-            // `com.google.gms.google-services` 플러그인을 적용하지만, 그
-            // 플러그인이 노출하는 값에 의존하지 않고 flavor config 를 단일
-            // 진실원으로 쓰기 위함이다 (iOS 와 동일 경로 유지).
-            const serverClientId = String.fromEnvironment(
-              'googleServerClientId',
-            );
-            try {
-              await GoogleSignIn.instance.initialize(
-                serverClientId: serverClientId.isEmpty ? null : serverClientId,
-              );
-            } on Object catch (e, st) {
-              if (kDebugMode) {
-                debugPrint('GoogleSignIn.initialize() 실패 (무시): $e\n$st');
-              }
-            }
-
-            // Kakao SDK 초기화 (Phase 12 D-04 / Pattern A).
-            //
-            // Firebase 초기화 직후 + RC fetch 전 위치 — 첫 SDK API 호출
-            // (loginWithKakaoTalk 등) 시점에 실제 PlatformChannel가 초기화된다.
-            // [KakaoSdk.init]은 [Future<void>] 반환 (kakao_flutter_sdk_common
-            // 2.0.0+1) — `await` 필수.
-            //
-            // dev flavor만 실 키 주입 (D-22), stg/prod는 placeholder —
-            // manual.md 안내. 빈 문자열 시 throw하지 않으나 (`_nativeKey = '' OK`),
-            // 첫 SDK API 호출에서 실패하므로 silent failure 회피 (D-20 의도).
-            //
-            // KakaoSdk.init이 throw할 가능성(`null` 인자 시 KakaoClientException)에
-            // 대비해 try/catch + debugPrint fallback (GoogleSignIn 패턴 일관).
-            try {
-              await KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
-            } on Object catch (e, st) {
-              if (kDebugMode) {
-                debugPrint('KakaoSdk.init() 실패 (무시): $e\n$st');
-              }
-            }
-
             // Naver 는 runtime 초기화 블록이 없다 (Phase 16.2 D-04).
             //
             // 교체된 플러그인은 client ID · secret · 앱 이름을 plugin
             // registration 시점에 네이티브 설정에서 읽는다 — Android 는
             // AndroidManifest meta-data, iOS 는 Info.plist 키다. 따라서
             // bootstrap 이 호출할 초기화 API 자체가 존재하지 않는다.
-
-            // LINE SDK 초기화 (Phase 14 D-LINE-17).
             //
-            // flutter_line_sdk 의 [LineSDK.instance.setup] 호출 의무. KakaoSdk
-            // init 직후 + RC fetch 전 위치 — LoginScreen 진입 직전 사용 가능 +
-            // cold start 의 첫 클릭 지연 회피. SDK 자체 멱등성 보장 (LineSDK
-            // _channel 의 'setup' invokeMethod 가 native side 에서 idempotent
-            // 처리).
-            //
-            // [LineSDK.instance.setup] 는 [Future<void>] 반환 — `await` 의무.
-            // dev flavor 만 실 키 주입 (D-LINE-19 / memory `project_firebase_dev_only`),
-            // stg/prod 는 placeholder — manual.md D-LINE-22a (1) 절차 따름.
-            // 빈 문자열 시 SDK 첫 login() 호출에서 실패하므로 silent failure 회피
-            // (KakaoSdk 패턴 일관).
-            //
-            // 호출 자체가 throw 할 가능성 (assertion 등) 에 대비해 try/catch +
-            // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
-            try {
-              await LineSDK.instance.setup(AppConfig.lineChannelId);
-            } on Object catch (e, st) {
-              if (kDebugMode) {
-                debugPrint('LineSDK.setup() 실패 (무시): $e\n$st');
+            // provider SDK 초기화 — 정적 CSV(`enabledAuthProviders`)에 있는
+            // provider 만 (Phase 17.3 — see ROADMAP.md · off 면 Dart 가 그
+            // SDK 를 건드리지 않는다). 초기화 실패는 무시하고 다음으로 간다.
+            for (final entry in selectEnabledSdkInits(
+              buildProviderSdkInits(),
+              AppConfig.authProviders,
+            )) {
+              try {
+                await entry.init();
+              } on Object catch (e, st) {
+                if (kDebugMode) {
+                  debugPrint('${entry.label} 실패 (무시): $e\n$st');
+                }
               }
             }
 
@@ -241,13 +192,8 @@ Future<void> bootstrap() async {
               // setDefaults 는 [AppConfig.authProviders] 의 모든 슬러그
               // ([kAllProviderIds]) 에 대해
               // `auth_provider_{providerId}_enabled: <CSV 포함 여부>` 를 자동
-              // 생성한다. enabledAuthProviders CSV 토큰 기준:
-              // - 'auth_provider_google_enabled': true (Phase 6+)
-              // - 'auth_provider_apple_enabled': true (Phase 7+)
-              // - 'auth_provider_facebook_enabled': true (Phase 9+)
-              // - 'auth_provider_kakao_enabled': true (Phase 12+)
-              // - 'auth_provider_naver_enabled': true (Phase 13 — see ROADMAP.md)
-              // - 'auth_provider_line_enabled': true (Phase 14 — see ROADMAP.md)
+              // 생성한다. 각 키의 값 = 그 slug 가 CSV 에 있는지(기본 example
+              // 은 전부 false).
               //
               // Phase 17 — see ROADMAP.md (D-11): FeatureFlag 기본값(공지 배너
               // 스위치 · 언어별 문구)을 같은 맵에 합산한다
@@ -324,6 +270,69 @@ Future<void> bootstrap() async {
     ),
   );
 }
+
+/// provider SDK 초기화 표의 한 줄 — providerId 와 그 SDK 의 Dart 초기화 (Phase 17.3 — see ROADMAP.md).
+///
+/// - `providerId`: [kAllProviderIds] 의 slug (`kProviderIdGoogle` 등).
+/// - `label`: 초기화 실패 debugPrint 에 쓰는 이름.
+/// - `init`: 그 SDK 의 Dart 초기화 호출.
+typedef ProviderSdkInit = ({
+  String providerId,
+  String label,
+  Future<void> Function() init,
+});
+
+/// bootstrap 이 아는 provider SDK 의 Dart 초기화 전부를 만든다.
+///
+/// Facebook · Naver 는 Dart 초기화가 없고 네이티브가 빌드 설정을 읽는다.
+/// 표 순서 = 호출 순서. 실행할 줄은 [selectEnabledSdkInits] 가 정적 CSV 로
+/// 고른다 — 세 SDK 의 Dart 초기화 호출은 이 표 안에만 둔다.
+@visibleForTesting
+List<ProviderSdkInit> buildProviderSdkInits() => <ProviderSdkInit>[
+  // Google — serverClientId 는 `--dart-define-from-file` 에서 받는다.
+  // Android 는 `com.google.gms.google-services` 플러그인을 적용하지만 그
+  // 플러그인이 노출하는 값에 의존하지 않고 flavor config 를 단일 진실원으로
+  // 쓴다(iOS 와 같은 경로). 빈 값이면 null 을 넘긴다.
+  (
+    providerId: kProviderIdGoogle,
+    label: 'GoogleSignIn.initialize()',
+    init: () async {
+      const serverClientId = String.fromEnvironment('googleServerClientId');
+      await GoogleSignIn.instance.initialize(
+        serverClientId: serverClientId.isEmpty ? null : serverClientId,
+      );
+    },
+  ),
+  // Kakao — Firebase 초기화 뒤 · RC fetch 전에 부른다. 실제 PlatformChannel
+  // 은 첫 SDK API 호출(loginWithKakaoTalk 등) 때 열린다. 빈 키는 init 에서
+  // throw 하지 않고 첫 SDK API 호출에서 실패한다.
+  (
+    providerId: kProviderIdKakao,
+    label: 'KakaoSdk.init()',
+    init: () => KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey),
+  ),
+  // LINE — 로그인 화면 진입 전에 준비해 cold start 첫 탭 지연을 피한다.
+  // setup 은 네이티브 쪽에서 멱등이다. 빈 채널 ID 는 첫 login() 에서 실패한다.
+  (
+    providerId: kProviderIdLine,
+    label: 'LineSDK.setup()',
+    init: () => LineSDK.instance.setup(AppConfig.lineChannelId),
+  ),
+];
+
+/// 정적 CSV 맵 [staticEnabled] 로 [table] 에서 실행할 초기화만 고른다.
+///
+/// Remote Config 는 보지 않는다 — RC 는 부팅 뒤에 받아오고, kill switch 를
+/// 풀면 재시작 없이 다시 켜져야 하기 때문이다(정적 false 절대 우위). 표
+/// 순서를 보존하고 맵에 없는 id 는 false 로 본다.
+@visibleForTesting
+List<ProviderSdkInit> selectEnabledSdkInits(
+  List<ProviderSdkInit> table,
+  Map<String, bool> staticEnabled,
+) => <ProviderSdkInit>[
+  for (final entry in table)
+    if (staticEnabled[entry.providerId] ?? false) entry,
+];
 
 /// Remote Config 기본값 맵을 만든다 — `setDefaults` 입력 (Phase 11 D-25 ·
 /// Phase 17 D-11).
