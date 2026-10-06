@@ -12,13 +12,15 @@
  * secret **존재** 확인은 binding 과 무관하다 — Firebase CLI 는 `--only` 필터와
  * 상관없이 선언된 `defineSecret` 전부를 확인하므로 끈 provider 의 secret 도
  * Secret Manager 에 있어야 한다(docs/manual.md 「켜기」 ④ 일괄 생성).
+ * 그 반복문의 secret 이름 · 아래 소유 맵 · `src/` 의 `defineSecret` 선언은
+ * T-173-DEPLOY-15 가 서로 대조한다.
  *
  * `firebase-functions/params` 는 mock 하지 않는다 — 실제 secret 이름이
  * `__endpoint.secretEnvironmentVariables` 에 남아야 binding 을 검사할 수 있다.
  * 앱 쪽 provider 키 대조는 `test/core/config/functions_manifest_contract_test.dart`.
  */
 
-import {readFileSync} from "node:fs";
+import {readdirSync, readFileSync} from "node:fs";
 import {join} from "node:path";
 import functionsTest from "firebase-functions-test";
 
@@ -51,8 +53,8 @@ const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as Manifest;
  * provider secret 이름 → 소유 provider.
  *
  * 선언 위치: `src/shared/oidc_providers.ts` · `kakao_admin_secret.ts` ·
- * `naver_secrets.ts` · `facebook_secrets.ts`. provider secret 을 더했다면 이 맵도
- * 갱신한다.
+ * `naver_secrets.ts` · `facebook_secrets.ts`. provider secret 을 더했다면 이 맵과
+ * docs/manual.md 「켜기」 ④ 반복문을 함께 갱신한다(T-173-DEPLOY-15).
  */
 const PROVIDER_SECRET_OWNER: Readonly<Record<string, string>> = {
   KAKAO_NATIVE_APP_KEY: "kakao",
@@ -64,6 +66,73 @@ const PROVIDER_SECRET_OWNER: Readonly<Record<string, string>> = {
   FACEBOOK_APP_ID: "facebook",
   FACEBOOK_APP_SECRET: "facebook",
 };
+
+const SRC_DIR = join(__dirname, "..", "src");
+const MANUAL_PATH = join(__dirname, "..", "..", "docs", "manual.md");
+
+/** `defineSecret("<이름>")` 호출 — 따옴표 인자만 잡는다(주석의 `defineSecret()` 제외). */
+const DEFINE_SECRET_PATTERN = /defineSecret\("([A-Z0-9_]+)"\)/g;
+
+/**
+ * 디렉터리 아래 `.ts` 파일 경로를 재귀로 모은다.
+ *
+ * @param {string} dir 시작 디렉터리.
+ * @return {Array<string>} `.ts` 파일 경로 목록.
+ */
+function listTsFiles(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, {withFileTypes: true})) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listTsFiles(path));
+    } else if (entry.name.endsWith(".ts")) {
+      files.push(path);
+    }
+  }
+  return files;
+}
+
+/**
+ * `src/` 전체에서 `defineSecret("<이름>")` 으로 선언한 secret 이름을 모은다.
+ *
+ * @return {Array<string>} 정렬한 secret 이름 목록 (중복 제거).
+ */
+function readDeclaredSecrets(): string[] {
+  const names = new Set<string>();
+  for (const file of listTsFiles(SRC_DIR)) {
+    const text = readFileSync(file, "utf8");
+    DEFINE_SECRET_PATTERN.lastIndex = 0;
+    let match = DEFINE_SECRET_PATTERN.exec(text);
+    while (match !== null) {
+      names.add(match[1]);
+      match = DEFINE_SECRET_PATTERN.exec(text);
+    }
+  }
+  return [...names].sort();
+}
+
+/**
+ * 매뉴얼 「로그인 수단 켜고 끄기」 절의 `for s in …; do` 반복문들에서 이름 목록을 뽑는다.
+ *
+ * @return {Array<Array<string>>} 반복문마다의 secret 이름 목록.
+ */
+function readManualSecretLoops(): string[][] {
+  const manual = readFileSync(MANUAL_PATH, "utf8");
+  const start = manual.indexOf("\n## 로그인 수단 켜고 끄기\n");
+  if (start === -1) {
+    return [];
+  }
+  const next = manual.indexOf("\n## ", start + 1);
+  const section = manual.slice(start, next === -1 ? undefined : next);
+  const loops: string[][] = [];
+  const loopPattern = /^for s in ([\s\S]*?); do$/gm;
+  let match = loopPattern.exec(section);
+  while (match !== null) {
+    loops.push(match[1].split(/[\s\\]+/).filter((t) => t.length > 0));
+    match = loopPattern.exec(section);
+  }
+  return loops;
+}
 
 /**
  * export 이름으로 배포 함수의 secret binding key 목록을 돌려준다.
@@ -147,6 +216,54 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
         }
       }
     }
+
+    expect(violations).toEqual([]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-173-DEPLOY-15 src 의 defineSecret 선언 · 소유 맵 · 매뉴얼 ④ 반복문 이름이 서로 맞다", () => {
+    const declared = readDeclaredSecrets();
+    const mapped = Object.keys(PROVIDER_SECRET_OWNER).sort();
+    // 양성 대조 — 선언을 하나도 못 읽으면 아래 검사가 공허하게 통과한다.
+    expect(declared).toEqual(expect.arrayContaining(["KAKAO_ADMIN_KEY"]));
+
+    const violations: string[] = [];
+
+    // 맵의 이름은 모두 코드에 선언돼 있어야 한다(지운 secret 이 맵에 남지 않게).
+    for (const key of mapped) {
+      if (!declared.includes(key)) {
+        violations.push(`소유 맵의 ${key} 가 src/ 의 defineSecret 에 없다`);
+      }
+    }
+
+    // 맵 밖 선언은 공통 함수만 묶는 사용자 secret 이어야 한다(매뉴얼 「Functions
+    // 추가 절차」 ③). provider 함수가 묶으면 T-173-DEPLOY-03 이, 아무 함수도 묶지
+    // 않으면 여기서 잡는다 — 새 provider secret 의 맵 · 반복문 누락.
+    const providerFunctions = Object.values(manifest.providers).flat();
+    for (const key of declared) {
+      if (PROVIDER_SECRET_OWNER[key] !== undefined) {
+        continue;
+      }
+      const isBoundByCommon = manifest.common.some((name) =>
+        readSecretKeys(name).includes(key),
+      );
+      const isBoundByProvider = providerFunctions.some((name) =>
+        readSecretKeys(name).includes(key),
+      );
+      if (!isBoundByCommon || isBoundByProvider) {
+        violations.push(
+          `src/ 의 ${key} 가 소유 맵에 없다 — provider secret 이면 ` +
+            "PROVIDER_SECRET_OWNER 와 docs/manual.md 「켜기」 ④ 반복문에 더한다",
+        );
+      }
+    }
+
+    // 매뉴얼 ④ 반복문은 절에 하나이고, 이름 집합이 소유 맵과 같다.
+    const loops = readManualSecretLoops();
+    expect(loops).toHaveLength(1);
+    const loopNames = loops[0] ?? [];
+    expect(new Set(loopNames).size).toBe(loopNames.length);
+    expect([...loopNames].sort()).toEqual(mapped);
 
     expect(violations).toEqual([]);
   });

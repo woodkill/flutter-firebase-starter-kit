@@ -8,8 +8,8 @@
 #   필요 없다.
 #
 # secret 전제 (끈 provider 포함):
-#   Firebase CLI 는 `--only` 필터와 무관하게 코드베이스가 선언한 secret 8개
-#   (`defineSecret` — functions/src/shared/) 전부가 Secret Manager 에 있는지 확인하고,
+#   Firebase CLI 는 `--only` 필터와 무관하게 코드베이스가 선언한 secret
+#   (`defineSecret` — functions/src/) 전부가 Secret Manager 에 있는지 확인하고,
 #   없으면 배포 중 값을 묻는다(비대화형이면 오류). 그래서 끈 provider 의 secret 도
 #   **존재**해야 한다 — 값은 자리표시(예: unset)여도 된다. 그 provider 의 함수가
 #   배포되지 않으므로 값이 읽히지 않고, 함수 단위로 거르는 유효 버전 검사 · secret

@@ -6,8 +6,9 @@
 //   §4 표 전체)이 0 건이다.
 // T-173-DOCS-03: 절의 JSON 예시 값 == example 파일 값(enabledAuthProviders 제외) ·
 //   provider config 키 8개 · xcconfig 변수 8개가 절과 example 파일 양쪽에 있다.
-// T-173-DOCS-04: manifest 의 함수 이름 · provider secret 8개 · 배포 명령 2줄 ·
-//   provider 토큰 6개가 절에 있다.
+// T-173-DOCS-04: manifest 의 함수 이름 · provider secret · 배포 명령 2줄 ·
+//   provider 토큰 6개가 절에 있고, 「켜기」 ④ 반복문의 secret 이름 집합이 provider
+//   secret 목록과 같다.
 // T-173-DOCS-05: 절의 `###` 소절 8개가 절 템플릿 순서 그대로이고, 확인 방법 ·
 //   끄기 · iOS 서명 · 심사 4.8 문구가 있다.
 // T-173-DOCS-06: Initial Setup 키 표가 「off 면 비워도 됨」 열과 example 키 14개를
@@ -72,8 +73,9 @@ const List<String> _providerXcconfigVars = <String>[
   'LINE_CHANNEL_ID',
 ];
 
-/// provider 함수가 쓰는 secret 8개
-/// (`functions/test/deploy_manifest.test.ts` 의 소유 맵과 같은 목록).
+/// provider 함수가 쓰는 secret 이름 목록 — 「켜기」 ④ 반복문과 집합이 같아야 한다
+/// (`functions/test/deploy_manifest.test.ts` T-173-DEPLOY-15 가 소유 맵 ·
+/// `functions/src` 의 `defineSecret` 선언 · 같은 반복문을 대조한다).
 const List<String> _providerSecrets = <String>[
   'KAKAO_NATIVE_APP_KEY',
   'KAKAO_ADMIN_KEY',
@@ -90,6 +92,13 @@ const List<String> _deployCommandLines = <String>[
   'bash scripts/deploy_functions.sh dev',
   'bash scripts/deploy_functions.sh dev --apply',
 ];
+
+/// 「켜기」 ④ secret 반복문의 `for s in … ; do` 머리(이름은 줄 이음 `\` 을 넘어
+/// 이어진다).
+final RegExp _secretLoopPattern = RegExp(
+  r'^for s in ([\s\S]*?); do$',
+  multiLine: true,
+);
 
 /// `enabledAuthProviders` 에서 쓸 수 있는 토큰 6개.
 const List<String> _providerTokens = <String>[
@@ -371,6 +380,26 @@ void main() {
       for (final String secret in _providerSecrets) {
         expect(section, contains(secret), reason: '절에 secret $secret 이 없다');
       }
+
+      final List<RegExpMatch> loops = _secretLoopPattern
+          .allMatches(section)
+          .toList();
+      expect(loops, hasLength(1), reason: '절에 「켜기」 ④ secret 반복문이 1개가 아니다');
+      final List<String> loopNames = loops.single
+          .group(1)!
+          .split(RegExp(r'[\s\\]+'))
+          .where((String token) => token.isNotEmpty)
+          .toList();
+      expect(
+        loopNames.toSet(),
+        hasLength(loopNames.length),
+        reason: '④ 반복문에 같은 secret 이름이 두 번 있다',
+      );
+      expect(
+        loopNames.toSet(),
+        _providerSecrets.toSet(),
+        reason: '④ 반복문의 secret 이름 집합이 provider secret 목록과 다르다',
+      );
 
       for (final String line in _deployCommandLines) {
         expect(

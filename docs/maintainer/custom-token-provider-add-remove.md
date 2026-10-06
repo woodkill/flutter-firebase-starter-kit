@@ -100,7 +100,12 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
      firebase-tools 의 `lib/responseToError.js`(`"HTTP Error: " + statusCode + ", " …`)가
      만들고 종료 코드로는 404 와 403 을 가를 수 없으므로(둘 다 1), CLI 를 올릴 때 이
      형식이 그대로인지 확인한다. 새 provider 의
-     `defineSecret` 을 더하면 그 반복문의 secret 이름 목록에도 더한다.
+     `defineSecret` 을 더하면 그 반복문의 secret 이름 목록에도 더한다. 같은 이름을
+     `functions/test/deploy_manifest.test.ts` 의 `PROVIDER_SECRET_OWNER` 와
+     `test/features/auth/manual_provider_on_off_contract_test.dart` 의 `_providerSecrets`
+     에도 더한다 — T-173-DEPLOY-15 가 `functions/src` 의 `defineSecret` 선언 · 소유 맵 ·
+     반복문을, T-173-DOCS-04 가 반복문 · `_providerSecrets` 를 집합으로 대조한다. 매뉴얼 ·
+     `config/README.md` · 배포 스크립트 머리말은 secret 개수를 적지 않는다(반복문이 목록).
    - `functions/src/index.ts` 에 export 1줄씩. 클라이언트는
      `AuthRepository.linkCustomTokenProviderArm` 의 callable 이름 switch 에 1행
      (`lib/features/auth/data/auth_repository.dart`), access token provider 는
