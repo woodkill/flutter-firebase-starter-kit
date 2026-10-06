@@ -73,23 +73,38 @@ android {
 
         // Kakao SDK 네이티브 앱 키 (Phase 12 D-20, D-21).
         //
-        // AndroidManifest.xml의 com.kakao.sdk.AppKey meta-data와
-        // OAuth redirect Activity의 URL scheme intent-filter (kakao${kakaoNativeAppKey}://oauth)
-        // 가 manifestPlaceholders로 주입받는다. dart-define 미주입 시 빈 문자열 →
-        // KakaoSdk 첫 SDK API 호출 시점에 throw로 즉시 발견 가능 (silent failure 아님).
-        manifestPlaceholders["kakaoNativeAppKey"] = dartDefines["kakaoNativeAppKey"] ?: ""
+        // AndroidManifest.xml의 com.kakao.sdk.AppKey meta-data(kakaoNativeAppKey)와
+        // OAuth redirect Activity의 URL scheme intent-filter(kakaoOAuthScheme)가
+        // manifestPlaceholders로 주입받는다. 키가 있으면 scheme 은 kakao + 키다.
+        //
+        // 키가 비면 meta-data 는 빈 값 그대로 두고, scheme 은 일반 scheme(kakao://)
+        // 대신 앱이 쓰지 않는 소문자 자리표시 scheme 을 등록한다 — 다른 앱의
+        // 링크를 가로채지 않게 (Phase 17.3 — see ROADMAP.md). gradle 은 provider
+        // on/off CSV 를 읽지 않고 이미 읽는 키 값의 비어 있음만 본다. 키가 빈 채로
+        // Kakao 를 켜면 KakaoSdk 첫 SDK API 호출 시점에 throw로 즉시 발견 가능
+        // (silent failure 아님).
+        val kakaoNativeAppKey = dartDefines["kakaoNativeAppKey"] ?: ""
+        manifestPlaceholders["kakaoNativeAppKey"] = kakaoNativeAppKey
+        manifestPlaceholders["kakaoOAuthScheme"] =
+            if (kakaoNativeAppKey.isEmpty()) "unset.kakao.oauth" else "kakao$kakaoNativeAppKey"
 
         // Naver 킷 소유 웹 OAuth 콜백 scheme (Phase 16.5 D-09 · probe ② A).
         //
-        // Dart `AppConfig.naverWebCallbackScheme` 과 같은 식 — 둘 다 config json 의
-        // 기존 naverUrlScheme 키를 읽는다(새 키 0). AndroidManifest.xml 의
+        // Dart `AppConfig.naverWebCallbackScheme` 과 같은 키 — 둘 다 config json 의
+        // 기존 naverUrlScheme 키를 읽는다(새 키 0 · 키가 있으면 같은 값). AndroidManifest.xml 의
         // flutter_web_auth_2 CallbackActivity intent-filter 가 이 값을 scheme 으로 쓴다.
         // Android intent-filter 는 scheme 대소문자를 구분하므로 RFC 3986 소문자
         // 값이어야 한다(Dart 가 같은 규칙으로 검사한다). 이 값은 secret 이 아니다 —
         // client_id · client_secret 은 위 resValue 경로를 유지한다.
-        // dart-define 미주입 시 빈 문자열 → 첫 Naver 웹 로그인 시도에서 Dart 가
-        // ServiceUnavailable 로 즉시 알린다 (silent failure 아님).
-        manifestPlaceholders["naverWebCallbackScheme"] = dartDefines["naverUrlScheme"] ?: ""
+        //
+        // 키가 비면 일반 scheme(빈 scheme) 대신 앱이 쓰지 않는 소문자 자리표시
+        // scheme 을 등록한다 — 다른 앱의 링크를 가로채지 않게 (Phase 17.3 — see
+        // ROADMAP.md). gradle 은 provider on/off CSV 를 읽지 않고 이미 읽는 키 값의
+        // 비어 있음만 본다. 키가 빈 채로 Naver 를 켜면 첫 Naver 웹 로그인 시도에서
+        // Dart 가 ServiceUnavailable 로 즉시 알린다 (silent failure 아님).
+        val naverUrlScheme = dartDefines["naverUrlScheme"] ?: ""
+        manifestPlaceholders["naverWebCallbackScheme"] =
+            if (naverUrlScheme.isEmpty()) "unset.naver.web" else naverUrlScheme
     }
 
     flavorDimensions += "environment"

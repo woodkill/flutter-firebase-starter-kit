@@ -53,8 +53,10 @@
              Native App Key는 build.gradle.kts manifestPlaceholders로 주입된다.
              Auth Activity (com.kakao.sdk.flutter.auth.AuthCodeHandlerActivity) 자체는
              kakao_flutter_sdk_auth 패키지의 AndroidManifest.xml에서 자동 merge되며,
-             URL scheme (kakao${kakaoNativeAppKey}://oauth) intent-filter만 앱 측에서
-             등록한다 (앱별 nativeAppKey가 다르므로). -->
+             OAuth redirect URL scheme intent-filter만 앱 측에서 등록한다 (앱별
+             nativeAppKey가 다르므로). OAuth redirect scheme 은 gradle placeholder
+             kakaoOAuthScheme 가 공급한다 (키가 있으면 kakao + 키, 비면 다른 앱과
+             겹치지 않는 자리표시 — Phase 17.3 — see ROADMAP.md). -->
         <meta-data
             android:name="com.kakao.sdk.AppKey"
             android:value="${kakaoNativeAppKey}" />
@@ -65,7 +67,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="kakao${kakaoNativeAppKey}" android:host="oauth" />
+                <data android:scheme="${kakaoOAuthScheme}" android:host="oauth" />
             </intent-filter>
         </activity>
 

@@ -735,15 +735,24 @@ void main() {
         readTrackedFile('android/app/build.gradle.kts'),
       );
       expect(
-        countOccurrences(
-          gradle,
-          'manifestPlaceholders["naverWebCallbackScheme"] = '
-          'dartDefines["naverUrlScheme"] ?: ""',
-        ),
+        countOccurrences(gradle, 'dartDefines["naverUrlScheme"]'),
+        1,
+        reason:
+            'probe ③ A: gradle 은 config json 의 naverUrlScheme 을 정확히 '
+            '1곳에서 읽어야 한다.',
+      );
+      // gradle 포맷이 줄바꿈 위치를 바꿀 수 있어 공백 무관 정규식으로 센다.
+      expect(
+        RegExp(
+          r'manifestPlaceholders\["naverWebCallbackScheme"\]\s*=\s*'
+          r'if\s*\(naverUrlScheme\.isEmpty\(\)\)\s*"unset\.naver\.web"\s*'
+          r'else\s+naverUrlScheme\b',
+        ).allMatches(gradle).length,
         1,
         reason:
             'probe ③ A: gradle placeholder 는 config json 의 naverUrlScheme 을 '
-            '그대로 공급하는 1줄이어야 한다.',
+            '그대로 공급해야 한다. 키가 비면 gradle 만 자리표시 scheme 을 쓴다 — '
+            'Naver 를 켜면 둘 다 같은 키 값이다 (Phase 17.3 D-04).',
       );
 
       final appConfig = stripSlashComments(
