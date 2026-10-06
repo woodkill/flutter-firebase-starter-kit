@@ -47,12 +47,14 @@ const GET_RESPONSES: Record<string, [number, "out" | "err", string]> = {
   403: [
     1,
     "out",
-    "Error: HTTP Error: 403, Permission 'secretmanager.versions.list' denied",
+    "Error: Request to https://secretmanager.googleapis.com/v1/x had HTTP " +
+      "Error: 403, Permission 'secretmanager.versions.list' denied.",
   ],
   auth: [
     1,
     "out",
-    "Error: Failed to authenticate, have you run firebase login?",
+    "Error: Authentication Error: Your credentials are no longer valid. " +
+      "Please run firebase login --reauth",
   ],
   net: [2, "out", "Error: Failed to make request to https://x"],
 };

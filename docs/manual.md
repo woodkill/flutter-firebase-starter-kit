@@ -401,7 +401,7 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
   `unset` 이면 「켜기」 ④ 의 등록 명령으로 실제 값을 넣고 「켜기」 ⑤ 로 함수를 다시 배포한다. 함수는 배포할 때의 secret 버전을 쓰므로 다시 배포해야 새 값이 적용된다.
 - **켠 provider 의 버튼이 로그인 화면에 없다.** 앱을 다시 빌드했는지, Remote Config 의 `auth_provider_<provider>_enabled` 가 `false` 로 게시돼 있지 않은지 확인한다.
 - **배포 중 Firebase CLI 가 secret 값을 묻는다.** 코드에 선언된 secret 가운데 그 프로젝트에 아직 없는 것이 있다는 뜻이다 — 끈 provider 의 secret 도 묻는다. Firebase CLI 의 표준 동작이다. 「켜기」 ④ 의 반복문으로 없는 secret 을 만든 뒤 다시 배포한다. 켠 provider 의 secret 이면 실제 값을 등록한다.
-- **「켜기」 ④ 의 반복문이 오류 메시지를 출력하고 멈춘다.** secret 이 없다는 응답(`HTTP Error: 404`)이 아닌 오류다. 메시지에 `Failed to authenticate` 가 있으면 `firebase login` 을 다시 하고, `HTTP Error: 403` 이면 로그인한 계정에 그 프로젝트의 Secret Manager 권한(예: `roles/secretmanager.admin`)이 있는지 확인한다. 원인을 고친 뒤 반복문을 다시 실행하면 이미 만든 secret 은 건너뛴다.
+- **「켜기」 ④ 의 반복문이 오류 메시지를 출력하고 멈춘다.** secret 이 없다는 응답(`HTTP Error: 404`)이 아닌 오류다. 메시지에 든 문구로 조치를 고른다. `Failed to authenticate` 가 있으면 이 컴퓨터의 Firebase CLI 에 로그인한 계정이 없으므로 `firebase login` 을 실행한다. `Your credentials are no longer valid` 나 `HTTP Error: 401` 이 있으면 로그인이 만료된 것이므로 `firebase login --reauth` 를 실행한다 — 네트워크 연결이 끊겨 있을 때도 `Your credentials are no longer valid` 가 나올 수 있으니 연결도 확인한다. `HTTP Error: 403` 이 있으면 로그인한 계정에 그 프로젝트의 Secret Manager 권한(예: `roles/secretmanager.admin`)이 있는지 확인한다. 원인을 고친 뒤 반복문을 다시 실행하면 이미 만든 secret 은 건너뛴다.
 - **배포 스크립트가 `알 수 없는 provider` 로 끝난다.** `enabledAuthProviders` 의 토큰 철자를 확인한다. 쓸 수 있는 값은 `google` · `apple` · `facebook` · `kakao` · `naver` · `line` 6개다.
 - **배포가 HTTP 429 · 500 으로 실패한다.** 배포 스크립트를 다시 실행한다. 스크립트는 함수를 10개씩 나눠 배포한다.
 
