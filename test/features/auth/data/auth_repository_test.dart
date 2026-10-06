@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/auth/nonce.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
@@ -56,6 +57,17 @@ class _MockHttpsCallableResult extends Mock
 class _FakeAuthCredential extends Fake implements fb.AuthCredential {}
 
 class _FakeAuthProvider extends Fake implements fb.AuthProvider {}
+
+/// 정적 CSV 에 모든 provider 가 켜진 맵 (Phase 17.3 — see ROADMAP.md).
+///
+/// `signOut` 은 정적 CSV 에서 꺼진 provider 의 SDK 로그아웃을 건너뛴다. 이
+/// 파일의 로그아웃 테스트는 5 SDK 가 모두 불리는 계약을 검증하므로 전부 켠
+/// 맵을 주입한다(미주입 기본값 `AppConfig.authProviders` 는 테스트 빌드에서
+/// 전부 꺼져 있다). off 판정 자체는
+/// `auth_repository_sign_out_static_gate_test.dart` 가 잠근다.
+final Map<String, bool> _allProvidersOn = <String, bool>{
+  for (final id in kAllProviderIds) id: true,
+};
 
 void main() {
   late _MockFirebaseAuth mockAuth;
@@ -109,6 +121,7 @@ void main() {
       mockNaverSdkClient,
       mockLineSdkClient,
       () async {},
+      staticProviders: _allProvidersOn,
     );
 
     // Pitfall 9 회귀 가드 — 모든 path 의 finally 블록에서 호출되는
@@ -2690,6 +2703,7 @@ void main() {
           mockNaverSdkClient,
           mockLineSdkClient,
           onResetOnboarding,
+          staticProviders: _allProvidersOn,
         );
 
         when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {
@@ -2750,6 +2764,7 @@ void main() {
         mockNaverSdkClient,
         mockLineSdkClient,
         failingReset,
+        staticProviders: _allProvidersOn,
       );
 
       when(() => mockGoogleSignIn.signOut()).thenAnswer((_) async {});

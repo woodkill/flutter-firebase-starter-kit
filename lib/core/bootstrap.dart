@@ -324,14 +324,16 @@ List<ProviderSdkInit> buildProviderSdkInits() => <ProviderSdkInit>[
 ///
 /// Remote Config 는 보지 않는다 — RC 는 부팅 뒤에 받아오고, kill switch 를
 /// 풀면 재시작 없이 다시 켜져야 하기 때문이다(정적 false 절대 우위). 표
-/// 순서를 보존하고 맵에 없는 id 는 false 로 본다.
+/// 순서를 보존하고 맵에 없는 id 는 false 로 본다. 판정은
+/// [isProviderStaticallyEnabled] 한 곳 — 로그아웃의 SDK fan-out
+/// (`AuthRepository.signOut`)이 같은 판정으로 초기화하지 않은 SDK 를 건너뛴다.
 @visibleForTesting
 List<ProviderSdkInit> selectEnabledSdkInits(
   List<ProviderSdkInit> table,
   Map<String, bool> staticEnabled,
 ) => <ProviderSdkInit>[
   for (final entry in table)
-    if (staticEnabled[entry.providerId] ?? false) entry,
+    if (isProviderStaticallyEnabled(staticEnabled, entry.providerId)) entry,
 ];
 
 /// Remote Config 기본값 맵을 만든다 — `setDefaults` 입력 (Phase 11 D-25 ·

@@ -244,8 +244,21 @@ abstract final class AppConfig {
   /// 의미상 [authProviders][providerId] 와 동일하지만 set membership 을
   /// 명시적으로 노출해 "CSV 가 정적 진실" 을 강조한다.
   static bool isEnabledStatically(String providerId) =>
-      authProviders[providerId] ?? false;
+      isProviderStaticallyEnabled(authProviders, providerId);
 }
+
+/// 정적 활성화 맵 [staticEnabled] 에서 [providerId] 가 켜져 있는지 판정한다.
+///
+/// 맵에 없는 id 는 false 다 (D-21 안전 default). Remote Config 는 보지 않는다.
+/// 이 판정을 provider SDK 를 부르는 두 곳이 공유한다 (Phase 17.3 — see
+/// ROADMAP.md) — bootstrap 의 SDK 초기화 선택(`selectEnabledSdkInits`)과
+/// 로그아웃의 SDK 로그아웃 fan-out(`AuthRepository.signOut`). 초기화하지 않은
+/// SDK 를 부르면 LINE 은 네이티브가 프로세스를 끝내므로(Dart `try/catch` 로
+/// 막을 수 없다) 두 곳의 판정이 어긋나면 안 된다.
+bool isProviderStaticallyEnabled(
+  Map<String, bool> staticEnabled,
+  String providerId,
+) => staticEnabled[providerId] ?? false;
 
 /// 정적 활성화 맵 Provider — Registry ([activeStrategies]) 가 watch.
 ///

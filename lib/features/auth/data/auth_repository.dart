@@ -14,6 +14,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/auth/nonce.dart';
 import '../../../core/auth/provider_id.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/functions/callable_rejection.dart';
@@ -116,6 +117,11 @@ class AuthRepository implements AnonymousSignIn {
   ///
   /// [onSignOutCleanup] 은 로그아웃 직전 기기 알림 토큰 · opt-in 을 정리하는
   /// 콜백이다 (Phase 17 D-30 · D-A2). 미주입 시 no-op.
+  ///
+  /// [staticProviders] 는 정적 CSV 활성화 맵이다 (Phase 17.3 — see
+  /// ROADMAP.md). [signOut] 이 이 맵으로 꺼진 provider 의 SDK 로그아웃을
+  /// 건너뛴다. 미주입 시 기본값은 bootstrap 이 SDK 초기화를 고를 때 쓰는
+  /// 맵과 같은 [AppConfig.authProviders] 다.
   AuthRepository(
     this._auth,
     this._googleSignIn,
@@ -134,12 +140,14 @@ class AuthRepository implements AnonymousSignIn {
       isEnabled: false,
     ),
     Future<void> Function()? onSignOutCleanup,
+    Map<String, bool>? staticProviders,
   }) : _now = now ?? DateTime.now,
        _readTermsAcceptanceSnapshot =
            readTermsAcceptanceSnapshot ?? _readNoTermsAcceptanceSnapshot,
        _recordSignUpMethod = recordSignUpMethod ?? _recordNoSignUpMethod,
        _crashlytics = crashlytics,
-       _onSignOutCleanup = onSignOutCleanup ?? _cleanUpNothingOnSignOut;
+       _onSignOutCleanup = onSignOutCleanup ?? _cleanUpNothingOnSignOut,
+       _staticProviders = staticProviders ?? AppConfig.authProviders;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -169,6 +177,15 @@ class AuthRepository implements AnonymousSignIn {
   /// 부르고 실패를 무시한다. 미주입 시 no-op 이라 기존 생성자 호출부 ·
   /// 테스트는 변경 0 이다.
   final Future<void> Function() _onSignOutCleanup;
+
+  /// 정적 CSV 활성화 맵 (Phase 17.3 — see ROADMAP.md).
+  ///
+  /// bootstrap 은 이 맵에서 켜진 provider 의 SDK 만 초기화한다. [signOut] 은
+  /// 같은 판정([isProviderStaticallyEnabled])으로 초기화되지 않은 SDK 를
+  /// 부르지 않는다. Remote Config kill switch 는 보지 않는다 — RC 로 끈
+  /// provider 는 부팅 때 SDK 가 초기화돼 있으므로 로그아웃을 계속 불러 남은
+  /// SDK 세션을 지운다.
+  final Map<String, bool> _staticProviders;
 
   /// Phase 16 D-12 / Pitfall 5 — client-side cache for `lookupSignInMethods`
   /// callable responses. 동일 collisionEmail 의 rate limit 누적 회피
@@ -3209,6 +3226,15 @@ class AuthRepository implements AnonymousSignIn {
   /// 각 소셜 로그인 SDK의 signOut/logOut 실패 시에도
   /// [fb.FirebaseAuth.signOut]은 반드시 호출한다.
   ///
+  /// **꺼진 provider 의 SDK 는 부르지 않는다 (Phase 17.3 — see ROADMAP.md).**
+  /// 정적 CSV 에 없는 provider 는 bootstrap 이 SDK 를 초기화하지 않는다. 그
+  /// 상태에서 LINE `logout` 을 부르면 Android 는 미초기화 `lateinit` 예외가
+  /// coroutine 밖으로 새어 프로세스가 죽고, iOS 는 LineSDK 가 `fatalError` 를
+  /// 부른다 — Dart `try/catch` 로는 막을 수 없다. 그래서 각 SDK 블록을
+  /// bootstrap 과 같은 판정([isProviderStaticallyEnabled])으로 가린다. 5 SDK
+  /// 에 같은 규칙을 둔다(Kakao · Naver · Google · Facebook 은 crash 가 확인되지
+  /// 않았지만 「off 면 Dart 가 그 SDK 를 건드리지 않는다」 를 한 줄로 유지).
+  ///
   /// **I2 invariant 호출자 책임 (Phase 10.2 D-A7):** 재진입 path (logout UI)
   /// 의도시 [signOutAndResetOnboarding] 사용. [signOut] 단독 호출은
   /// [signOutAndResetOnboarding] 내부 단계 전용 (현재 production 의 유일한
@@ -3221,43 +3247,56 @@ class AuthRepository implements AnonymousSignIn {
   /// vector). Phase 17 (회원탈퇴 reauthentication + deleteUser) 는 별도
   /// 논의 — see ROADMAP Phase 17.
   Future<void> signOut() async {
-    try {
-      await _googleSignIn.signOut();
-    } on Object catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('GoogleSignIn.signOut() 실패 (무시): ${e.runtimeType}\n$st');
+    if (_isProviderSdkEnabled(kProviderIdGoogle)) {
+      try {
+        await _googleSignIn.signOut();
+      } on Object catch (e, st) {
+        if (kDebugMode) {
+          debugPrint('GoogleSignIn.signOut() 실패 (무시): ${e.runtimeType}\n$st');
+        }
       }
     }
     // Facebook 세션 해제 (D-08).
-    try {
-      await _facebookAuth.logOut();
-    } on Object catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('FacebookAuth.logOut() 실패 (무시): ${e.runtimeType}\n$st');
+    if (_isProviderSdkEnabled(kProviderIdFacebook)) {
+      try {
+        await _facebookAuth.logOut();
+      } on Object catch (e, st) {
+        if (kDebugMode) {
+          debugPrint('FacebookAuth.logOut() 실패 (무시): ${e.runtimeType}\n$st');
+        }
       }
     }
     // Kakao SDK 세션 해제 (Phase 9.2 D-26 — Phase 12 D-57 정합).
-    try {
-      await _kakaoSdkClient.logout();
-    } on Object catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('KakaoSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
+    if (_isProviderSdkEnabled(kProviderIdKakao)) {
+      try {
+        await _kakaoSdkClient.logout();
+      } on Object catch (e, st) {
+        if (kDebugMode) {
+          debugPrint('KakaoSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
+        }
       }
     }
     // Naver SDK 세션 해제 (Phase 9.2 D-26 — Phase 13 D-57 정합).
-    try {
-      await _naverSdkClient.logout();
-    } on Object catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('NaverSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
+    if (_isProviderSdkEnabled(kProviderIdNaver)) {
+      try {
+        await _naverSdkClient.logout();
+      } on Object catch (e, st) {
+        if (kDebugMode) {
+          debugPrint('NaverSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
+        }
       }
     }
     // LINE SDK 세션 해제 (Phase 14 D-LINE-57 — Kakao/Naver 패턴 일관).
-    try {
-      await _lineSdkClient.logout();
-    } on Object catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('LineSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
+    // setup 없이 logout 을 부르면 네이티브가 fatal 이다 (flutter_line_sdk
+    // 2.7.2 Android `lateinit lineApiClient` · LineSDK iOS 5.17.0
+    // `guardSharedProperty`) — 위 가드가 호출 자체를 건너뛴다.
+    if (_isProviderSdkEnabled(kProviderIdLine)) {
+      try {
+        await _lineSdkClient.logout();
+      } on Object catch (e, st) {
+        if (kDebugMode) {
+          debugPrint('LineSdkClient.logout() 실패 (무시): ${e.runtimeType}\n$st');
+        }
       }
     }
     // WR-07 (Phase 7 review): 계정 경계에서 PII (평문 email key) 잔류 차단 +
@@ -3270,6 +3309,14 @@ class AuthRepository implements AnonymousSignIn {
     _accountExistsCache.clear();
     await _auth.signOut();
   }
+
+  /// [providerId] 의 SDK 를 Dart 가 불러도 되는지 판정한다 (Phase 17.3 — see
+  /// ROADMAP.md).
+  ///
+  /// bootstrap 의 SDK 초기화 선택과 같은 판정([isProviderStaticallyEnabled])
+  /// 을 [_staticProviders] 에 적용한다 — 정적 CSV 에 있는 provider 만 true.
+  bool _isProviderSdkEnabled(String providerId) =>
+      isProviderStaticallyEnabled(_staticProviders, providerId);
 
   /// 비밀번호 재설정 메일을 발송한다.
   ///
@@ -4015,6 +4062,9 @@ AuthRepository authRepository(Ref ref) {
     // dart format off
     onSignOutCleanup: () => ref.read(notificationSettingsProvider.notifier).clearForSignOut(),
     // dart format on
+    // Phase 17.3 — see ROADMAP.md: 로그아웃 SDK fan-out 의 on/off 판정 맵.
+    // bootstrap 의 SDK 초기화와 같은 정적 CSV([AppConfig.authProviders])다.
+    staticProviders: ref.watch(staticAuthProvidersProvider),
   );
 }
 
