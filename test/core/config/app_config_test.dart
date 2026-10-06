@@ -6,6 +6,29 @@ import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/config/app_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// [json] 의 `enabledAuthProviders` CSV 에 [providerId] 가 있을 때만 [key]
+/// 값이 비어 있지 않은지 검사한다.
+///
+/// 끈 provider 의 키는 비워 둬도 빌드 · 실행되므로 검사하지 않는다 (D-10).
+/// CSV 는 실 json 형식 계약과 같은 split · trim 규칙으로 읽는다.
+void _expectProviderKeyFilled(
+  Map<String, dynamic> json,
+  String providerId,
+  String key,
+  String reason,
+) {
+  final csv = json['enabledAuthProviders'] as String? ?? '';
+  final enabled = csv
+      .split(',')
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toSet();
+  if (!enabled.contains(providerId)) {
+    return;
+  }
+  expect((json[key] as String? ?? '').isNotEmpty, isTrue, reason: reason);
+}
+
 void main() {
   group('AppConfig.authProviders 단일 CSV 진실 (Pitfall 2, T-11-CONST-01)', () {
     test('미주입 키는 false 안전 default 를 반환한다 (D-21)', () {
@@ -103,57 +126,26 @@ void main() {
         );
       });
 
-      test('$flavor.json 의 기본값 (google/apple/facebook/kakao 활성, '
-          'flavor 별 Phase 13~16 Custom Token 정책)', () {
-        // CR-02 (Phase 13 review): missing 시 graceful skip — 위 contract
-        // test 와 동일 정책.
-        final file = File('config/$flavor.json');
+      test('T-173-CONFIG-01: $flavor.example.json 기본 CSV 는 소셜 전부 off '
+          '(빈 문자열 · D-10)', () {
+        // tracked example 파일이라 skip 하지 않는다. 실 `config/<flavor>.json`
+        // 의 CSV 내용은 사용자 선택이라 위 형식 계약만 본다.
+        final file = File('config/$flavor.example.json');
         if (!file.existsSync()) {
-          markTestSkipped(
-            'config/$flavor.json missing — `cp config/$flavor.example.json '
-            'config/$flavor.json` 실행 후 재시도.',
-          );
-          return;
+          fail('tracked example 파일이 없다: config/$flavor.example.json');
         }
-        final raw = file.readAsStringSync();
-        final json = jsonDecode(raw) as Map<String, dynamic>;
-        final csv = (json['enabledAuthProviders'] as String? ?? '');
-        final enabled = csv
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toSet();
-
-        // 활성: Google / Apple / Facebook (Phase 7~9) + Kakao (Phase 12 D-19).
-        expect(enabled.contains(kProviderIdGoogle), isTrue);
-        expect(enabled.contains(kProviderIdApple), isTrue);
-        expect(enabled.contains(kProviderIdFacebook), isTrue);
-        expect(enabled.contains(kProviderIdKakao), isTrue);
-
-        // dev 는 Phase 진행에 따라 Custom Token 점진 활성화 (Phase 13:
-        // naver, Phase 14: line).
-        // stg/prod 는 Starter Kit 정책상 placeholder — Phase 13~16 모두 비활성.
-        if (flavor == 'dev') {
-          expect(
-            enabled.contains(kProviderIdNaver),
-            isTrue,
-            reason: 'dev.json: naver should be enabled (Phase 13)',
-          );
-          expect(
-            enabled.contains(kProviderIdLine),
-            isTrue,
-            reason: 'dev.json: line should be enabled (Phase 14)',
-          );
-        } else {
-          for (final id in const <String>[kProviderIdNaver, kProviderIdLine]) {
-            expect(
-              enabled.contains(id),
-              isFalse,
-              reason:
-                  '$flavor.json: $id should be disabled (placeholder policy)',
-            );
-          }
-        }
+        final json =
+            jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        expect(
+          json.containsKey('enabledAuthProviders'),
+          isTrue,
+          reason: '$flavor.example.json missing enabledAuthProviders',
+        );
+        expect(
+          json['enabledAuthProviders'],
+          '',
+          reason: '$flavor.example.json: 기본 CSV 는 빈 문자열(소셜 0개)이어야 한다',
+        );
       });
     }
   });
@@ -189,14 +181,41 @@ void main() {
           isA<String>(),
           reason: '$flavor.json: kakaoNativeAppKey must be String',
         );
-        // placeholder 또는 실 키 — 빈 문자열은 D-20 에서 silent fallback 회피.
-        expect(
-          (json['kakaoNativeAppKey'] as String).isNotEmpty,
-          isTrue,
-          reason: '$flavor.json: kakaoNativeAppKey 가 빈 문자열이면 silent failure',
+        // 켠 provider 만 키가 채워져 있어야 한다 — 끈 provider 의 키는 비워도
+        // 된다 (D-10).
+        _expectProviderKeyFilled(
+          json,
+          kProviderIdKakao,
+          'kakaoNativeAppKey',
+          '$flavor.json: kakao 를 켰는데 kakaoNativeAppKey 가 빈 문자열',
         );
       });
     }
+
+    test('T-173-CONFIG-02: 키 채움 규칙 — 끈 provider 는 빈 키 허용 · '
+        '켠 provider 는 빈 키 실패 (D-10)', () {
+      // 끈 경우 — CSV 에 kakao 가 없으면 빈 키를 허용한다.
+      _expectProviderKeyFilled(
+        <String, dynamic>{'enabledAuthProviders': '', 'kakaoNativeAppKey': ''},
+        kProviderIdKakao,
+        'kakaoNativeAppKey',
+        'fixture: kakao off',
+      );
+
+      // 켠 경우 — CSV 에 kakao 가 있는데 키가 비면 실패한다.
+      expect(
+        () => _expectProviderKeyFilled(
+          <String, dynamic>{
+            'enabledAuthProviders': 'kakao',
+            'kakaoNativeAppKey': '',
+          },
+          kProviderIdKakao,
+          'kakaoNativeAppKey',
+          'fixture: kakao on',
+        ),
+        throwsA(isA<TestFailure>()),
+      );
+    });
   });
 
   // IN-03 테스트 2건(Naver 3종 평탄화 · client secret doc)은 Phase 16.2 D-04 로

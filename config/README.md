@@ -2,44 +2,26 @@
 
 `--dart-define-from-file` 방식으로 빌드 타임에 주입되는 환경 변수 (Flavor:
 `dev` / `stg` / `prod`). `*.example.json` 파일은 placeholder 만 tracked,
-실제 키가 들어간 `dev.json` / `stg.json` / `prod.json` 은 `.gitignore` 처리
-(MEMORY `project_starter_kit_config_secrets`).
+실제 키가 들어간 `dev.json` / `stg.json` / `prod.json` 은 `.gitignore` 처리.
 
-## `enabledAuthProviders` 정책
+## `enabledAuthProviders` — 켤 로그인 수단
 
-CSV 문자열로 활성 소셜 로그인 provider 를 list. **Flavor 별 의도된 차이:**
+로그인 화면에 보일 소셜 로그인을 쉼표로 구분해 적는다. 쓸 수 있는 값은
+`google` · `apple` · `facebook` · `kakao` · `naver` · `line` 이다.
 
-| Flavor | 기본 CSV | 이유 |
-|--------|----------|------|
-| `dev`  | `google,apple,facebook,kakao,naver,line` | 전체 provider 검증용 |
-| `stg`  | `google,apple,facebook,kakao` | `naver` / `line` 는 의도된 부재 |
-| `prod` | `google,apple,facebook,kakao` | `naver` / `line` 는 의도된 부재 |
+```json
+"enabledAuthProviders": "google,kakao"
+```
 
-**Why naver/line 가 stg/prod 에서 빠져 있나? (IN-04 — Phase 14 review):**
-
-starter-kit 은 dev flavor 만 실제 Firebase 프로젝트에 연결되어 있고
-(MEMORY `project_firebase_dev_only`), `naverClientId` / `lineChannelId`
-는 stg/prod 에서 placeholder 상태 (`YOUR_..._HERE`). placeholder 로 LINE
-/ NAVER 버튼을 활성화하면 첫 `login()` 호출에서 silent UX 실패 → 운영자
-실수 회피 위해 **비활성화가 안전 default**.
-
-starter-kit 을 clone 한 운영자가 stg / prod 출시 시:
-1. `config/stg.json` (또는 `prod.json`) 의 `naverClientId` / `naverClientSecret`
-   / `naverUrlScheme` / `lineChannelId` 를 실제 발급 키로 교체.
-   **+ `ios/Flutter/{flavor}.xcconfig` 의 NAVER 3변수** (`NAVER_CLIENT_ID` /
-   `NAVER_CLIENT_SECRET` / `NAVER_URL_SCHEME`) 도 같은 값으로 교체 — iOS 는
-   이 xcconfig 가 실제 출처라 json 만 고치면 반영되지 않는다 (아래 절 참조).
-2. `enabledAuthProviders` 의 CSV 에 `naver` / `line` 토큰 명시적 추가
-   (예: `"google,apple,facebook,kakao,naver,line"`).
-3. Firebase Secret Manager 에 `LINE_CHANNEL_ID` (Phase 17+ 진입 시
-   `LINE_CHANNEL_SECRET` 도 함께) + `NAVER_CLIENT_SECRET` · `NAVER_CLIENT_ID`
-   (Phase 16.5 — Naver 웹 경로 서버 교환) 등록.
-
-## `kakao` / `google` / `apple` / `facebook` 의 차이
-
-위 4 provider 는 stg / prod CSV 에 포함되어 있지만, 같이 placeholder
-키로 동작 → 운영자는 동일 절차로 실제 키 교체 의무. 본 README 의 정책
-설명은 CSV 토큰 부재 여부와 무관하게 모든 provider 에 적용.
+- **기본값은 빈 문자열이다.** 세 example 파일(`dev` · `stg` · `prod`) 모두 이
+  값이 비어 있어서, 복사한 직후 로그인 화면에는 「이메일로 계속」 만 보인다.
+- **켠 provider 만 키 · 콘솔 등록이 필요하다.** 끈 provider 의 키는 비워 둬도
+  빌드 · 실행된다. provider 를 켜기 전에 그 provider 의 키를 채운다.
+- **값은 빌드 때 들어간다.** 바꾼 뒤에는 앱을 다시 빌드한다.
+- **출시 뒤 provider 를 끌 때는 이 값을 고치지 않는다.** Remote Config kill
+  switch 로 끈다 — `docs/manual.md` 의 [RC Kill Switch 운영 절차](../docs/manual.md#rc-kill-switch-운영-절차-emergency-disable).
+  CSV 에서 빼면 그 provider 로 가입한 사용자는 로그인 · 재인증 · 회원탈퇴를
+  할 수 없다.
 
 ## Naver 키의 소비처 (Phase 16.2 · Phase 16.5)
 

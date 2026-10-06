@@ -13,5 +13,5 @@
   "lineChannelId": "YOUR_LINE_CHANNEL_ID_STG_HERE",
   "functionsRegion": "asia-northeast3",
   "splashMinDurationMs": 2000,
-  "enabledAuthProviders": "google,apple,facebook,kakao"
+  "enabledAuthProviders": ""
 }
