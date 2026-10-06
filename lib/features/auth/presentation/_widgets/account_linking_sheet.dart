@@ -507,7 +507,8 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
             ),
           ),
           // UI-SPEC Surface A State — native linkWithCredential / Custom Token
-          // linkCustomTokenProvider 진행 (section-level modal overlay).
+          // 연결 callable(linkKakaoProvider · linkNaverProvider ·
+          // linkLineProvider) 진행 (section-level modal overlay).
           if (_isLinking) const AuthInProgressOverlay(),
           // WR-05 drag 차단기 — `PopScope` 가 막지 못하는 유일한 dismiss
           // 경로. `AuthInProgressOverlay` 의 `AbsorbPointer` 는 **자손** 의

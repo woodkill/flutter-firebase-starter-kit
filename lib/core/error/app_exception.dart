@@ -251,10 +251,10 @@ final class AccountAlreadyLinked extends AuthException {
 ///
 /// - `provider-already-linked` → 본 타입. "이미 이 계정에 연결되어 있다" —
 ///   사용자가 할 일이 없다. Custom Token 연결 callable(`linkNaverProvider` ·
-///   `linkCustomTokenProvider`)의 `already-exists` + `details.reason:
-///   'provider_already_linked'`(같은 provider 의 다른 신원이 이미 이 계정에
-///   연결 — 서버가 provider 당 신원 1개로 거부 · 16.9 review IN-03)도 본
-///   타입이다(`AuthRepository._mapLinkCallableException`).
+///   `linkKakaoProvider` · `linkLineProvider`)의 `already-exists` +
+///   `details.reason: 'provider_already_linked'`(같은 provider 의 다른
+///   신원이 이미 이 계정에 연결 — 서버가 provider 당 신원 1개로 거부 · 16.9
+///   review IN-03)도 본 타입이다(`AuthRepository._mapLinkCallableException`).
 /// - `credential-already-in-use` → [AccountAlreadyLinked]. "다른 계정이
 ///   쓰고 있다" — 해제는 그 계정 소유주만 가능하다.
 ///
@@ -312,10 +312,11 @@ final class UnlinkLastCredentialRejected extends AuthException {
 ///
 /// 서버는 `errorReauthenticationRequired` 를 `unauthenticated` +
 /// `details.reason: 'reauthentication_required'` 로 보낸다
-/// (`deleteUserAccount` · `linkCustomTokenProvider` · `linkNaverProvider` —
-/// idToken 검증 실패 공통. `assertFreshAuth` auth_time 5분 초과 · 누락 ·
-/// 미래값은 `deleteUserAccount` 만 — 연결 callable 은 quick 260928-cxs 로
-/// 신선도 검사를 뺐다 — 16.8 review iteration 2 IN-01 · 16.9 review WR-01).
+/// (`deleteUserAccount` · `linkKakaoProvider` · `linkLineProvider` ·
+/// `linkNaverProvider` — idToken 검증 실패 공통. `assertFreshAuth` auth_time
+/// 5분 초과 · 누락 · 미래값은 `deleteUserAccount` 만 — 연결 callable 은
+/// quick 260928-cxs 로 신선도 검사를 뺐다 — 16.8 review iteration 2 IN-01 ·
+/// 16.9 review WR-01).
 /// `permission-denied` 는 uid 불일치(`errorUnauthenticated`)다. 클라이언트는
 /// 메시지를 읽지 않는다. 두 연결 arm(`AuthRepository._mapLinkCallableException`)
 /// 은 reason 이 있는 `unauthenticated` 와 `permission-denied` 만 본 타입으로

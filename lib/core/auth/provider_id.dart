@@ -115,9 +115,10 @@ enum AccountProvider {
   ///
   /// `true` — google / apple / facebook / email (native:
   /// `linkWithCredential` 기반 reactive link arm 대상). `false` — Custom
-  /// Token 3값 (kakao / naver / line: `linkCustomTokenProvider`
-  /// callable 기반, 16-09 책임). LoginScreen 의 sheet 분기 +
-  /// 16-09 의 Custom Token sheet 분기가 본 getter 를 공유한다.
+  /// Token 3값 (kakao / naver / line: provider 전용 연결 callable
+  /// `linkKakaoProvider` · `linkNaverProvider` · `linkLineProvider` 기반,
+  /// 16-09 책임). LoginScreen 의 sheet 분기 + 16-09 의 Custom Token sheet
+  /// 분기가 본 getter 를 공유한다.
   /// (Phase 16.1 — 소셜 섹션을 함께 담던 구 가입 화면이 삭제되어 sheet
   /// 호출처는 1곳이다.)
   bool get isNative => switch (this) {
@@ -133,11 +134,12 @@ enum AccountProvider {
   /// 도메인 slug 문자열 (`google` / `kakao` / `line` 등).
   ///
   /// [tryParse] 의 역변환 — [kProviderIdGoogle] 등 const String 슬러그와 1:1
-  /// 일치한다. Phase 16 16-09 의 `linkCustomTokenProvider` callable 호출 시
-  /// `targetProvider` payload (kakao/line) 에 사용된다. [email] 은
-  /// Firebase Auth `password` providerData 도메인이지만 본 getter 는 slug
-  /// 형태 `email` 을 반환한다 ([tryParse] 의 `'email' || 'password'` 양방향과
-  /// 대칭 — link callable 의 target 대상은 아님).
+  /// 일치한다. 해제 callable payload · 로그 등 provider 식별에 쓴다 (연결
+  /// callable 은 provider 별 이름이 provider 를 고정해 payload 에 싣지
+  /// 않는다). [email] 은 Firebase Auth `password` providerData 도메인이지만
+  /// 본 getter 는 slug 형태 `email` 을 반환한다 ([tryParse] 의
+  /// `'email' || 'password'` 양방향과 대칭 — link callable 의 target 대상은
+  /// 아님).
   String get slug => switch (this) {
     AccountProvider.google => kProviderIdGoogle,
     AccountProvider.apple => kProviderIdApple,
