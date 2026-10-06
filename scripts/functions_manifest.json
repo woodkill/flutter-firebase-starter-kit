@@ -1,0 +1,34 @@
+{
+  "common": [
+    "ping",
+    "unlinkCustomTokenProvider",
+    "deleteUserAccount",
+    "lookupSignInMethods",
+    "mirrorTermsAcceptanceSnapshot",
+    "mirrorAccountEmail",
+    "sendTestPush"
+  ],
+  "providers": {
+    "google": [],
+    "apple": [],
+    "facebook": [
+      "disconnectFacebookProvider"
+    ],
+    "kakao": [
+      "kakaoCustomToken",
+      "linkKakaoProvider",
+      "disconnectKakaoProvider"
+    ],
+    "naver": [
+      "naverCustomToken",
+      "naverWebCustomToken",
+      "linkNaverProvider",
+      "disconnectNaverProvider"
+    ],
+    "line": [
+      "lineCustomToken",
+      "linkLineProvider",
+      "disconnectLineProvider"
+    ]
+  }
+}
