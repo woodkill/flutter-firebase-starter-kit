@@ -25,29 +25,30 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ## 목차
 
 0. [Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통)
-1. [Kakao Login (Phase 12)](#kakao-login-phase-12)
-2. [Naver Login (Phase 13)](#naver-login-phase-13)
-3. [LINE Login (Phase 14)](#line-login-phase-14)
-4. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
-5. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
-6. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
-7. [Custom Token Provider 추가 가이드 (stub)](#custom-token-provider-추가-가이드-stub)
-8. [Custom Token Provider 제거 가이드 (Phase 16.6)](#custom-token-provider-제거-가이드-phase-166)
-9. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-10. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-11. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-12. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
-13. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
-14. [Firebase Services (Phase 17)](#firebase-services-phase-17)
-15. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-16. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
-17. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
-18. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
-19. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
-20. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-21. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-22. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
-23. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
+1. [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기)
+2. [Kakao Login (Phase 12)](#kakao-login-phase-12)
+3. [Naver Login (Phase 13)](#naver-login-phase-13)
+4. [LINE Login (Phase 14)](#line-login-phase-14)
+5. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
+6. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
+7. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
+8. [Custom Token Provider 추가 가이드 (stub)](#custom-token-provider-추가-가이드-stub)
+9. [Custom Token Provider 제거 가이드 (Phase 16.6)](#custom-token-provider-제거-가이드-phase-166)
+10. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+11. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+12. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+13. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
+14. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
+15. [Firebase Services (Phase 17)](#firebase-services-phase-17)
+16. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+17. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+18. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+19. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+20. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+21. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+22. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+23. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+24. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
 
 ---
 
@@ -249,6 +250,82 @@ Functions region 을 결정합니다. 기본값은 `asia-northeast3` (서울) �
 > `functions/src/shared/region.ts` 의 REGION 과 일치한다" 테스트가 **기본값**의
 > 드리프트를 잡아 줍니다. 다만 `config/{flavor}.json` 은 gitignore 대상이라
 > 테스트가 검사하지 않으므로, 실제 주입값과 TS 의 일치는 사용자 책임입니다.
+
+---
+
+## 로그인 수단 켜고 끄기
+
+앱의 로그인 화면에 보일 소셜 로그인을 고르는 절차다. clone 직후 기본값은 소셜 로그인 0개라 로그인 화면에는 「이메일로 계속」 과 가입 링크만 보인다. 켠 provider 만 키 · 함수 · secret · 콘솔 등록이 필요하고, 끈 provider 는 아무것도 필요 없다.
+
+**전제:** [Initial Setup](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통) 의 `config/{flavor}.json` · `ios/Flutter/{flavor}.xcconfig` 복사와 `functions/` 의 `pnpm install` 이 끝나 있다. 함수 배포에는 PATH 에 설치된 Firebase CLI(`firebase`)와 `firebase login` 이 필요하다.
+
+### provider 별로 켤 때 필요한 것
+
+| provider | `enabledAuthProviders` 토큰 | config 키 | xcconfig 변수 | Cloud Functions | secret | 콘솔 등록 |
+|----------|-----------------------------|-----------|---------------|-----------------|--------|-----------|
+| Google | `google` | `googleServerClientId` | `REVERSED_CLIENT_ID` | 없음 | 없음 | Firebase Console → Authentication → 로그인 방법 → Google 사용 설정 |
+| Apple | `apple` | 없음 | 없음 | 없음 | 없음 | Firebase Console → Authentication → 로그인 방법 → Apple 사용 설정 |
+| Facebook | `facebook` | `facebookAppId` · `facebookClientToken` | `FACEBOOK_APP_ID` · `FACEBOOK_CLIENT_TOKEN` | `disconnectFacebookProvider` | `FACEBOOK_APP_ID` · `FACEBOOK_APP_SECRET` | Facebook Developers Console 에 Meta 앱 등록 + Firebase Console → Authentication → 로그인 방법 → Facebook 사용 설정 |
+| Kakao | `kakao` | `kakaoNativeAppKey` | `KAKAO_NATIVE_APP_KEY` | `kakaoCustomToken` · `linkKakaoProvider` · `disconnectKakaoProvider` | `KAKAO_NATIVE_APP_KEY` · `KAKAO_ADMIN_KEY` | [Kakao Login](#kakao-login-phase-12) |
+| Naver | `naver` | `naverClientId` · `naverClientSecret` · `naverUrlScheme` | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `NAVER_URL_SCHEME` | `naverCustomToken` · `naverWebCustomToken` · `linkNaverProvider` · `disconnectNaverProvider` | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | [Naver Login](#naver-login-phase-13) |
+| LINE | `line` | `lineChannelId` | `LINE_CHANNEL_ID` | `lineCustomToken` · `linkLineProvider` · `disconnectLineProvider` | `LINE_CHANNEL_ID` · `LINE_CHANNEL_SECRET` | [LINE Login](#line-login-phase-14) |
+
+공통 함수(`ping` · `unlinkCustomTokenProvider` · `deleteUserAccount` · `lookupSignInMethods` · `mirrorTermsAcceptanceSnapshot` · `mirrorAccountEmail` · `sendTestPush`)는 provider 와 무관하게 늘 배포된다.
+
+### 켜기
+
+Kakao 를 켜는 예다. 다른 provider 도 표의 그 행을 보고 같은 순서로 한다. 예시는 dev flavor 기준이고, stg · prod 는 `dev` 자리에 flavor 이름을 넣는다.
+
+**① 콘솔 등록 · 키 발급.** 표의 「콘솔 등록」 칸에 있는 절차로 앱을 등록하고 키를 발급한다. Kakao 는 [Kakao Login](#kakao-login-phase-12) 절이다.
+
+**② config 에 키를 넣고 토큰을 더한다.** `config/dev.json` 의 표 「config 키」 칸 값을 발급받은 값으로 바꾸고, `enabledAuthProviders` 에 토큰을 더한다. 아래 `kakaoNativeAppKey` 값은 example 파일의 자리표시 값이다.
+
+```json
+"kakaoNativeAppKey": "YOUR_KAKAO_NATIVE_APP_KEY_HERE",
+"enabledAuthProviders": "kakao"
+```
+
+여러 provider 를 켤 때는 쉼표로 잇는다 — `"enabledAuthProviders": "google,kakao"`.
+
+**③ xcconfig 에 같은 값을 넣는다.** `ios/Flutter/dev.xcconfig` 의 표 「xcconfig 변수」 칸 값을 바꾼다. 아래는 example 파일의 자리표시 값이다.
+
+```
+KAKAO_NATIVE_APP_KEY = REPLACE_WITH_DEV_NATIVE_APP_KEY
+```
+
+**④ secret 을 등록한다.** 표의 「secret」 칸 이름으로 Secret Manager 에 값을 등록한다. secret 은 `firebase use` 로 고른 프로젝트에 등록되므로 먼저 `config/dev.json` 의 `firebaseProjectId` 프로젝트를 고른다. 미리 등록하지 않으면 배포 중에 Firebase CLI 가 값을 묻는다. 각 값이 무엇인지는 provider 절에 있다 — Kakao 는 [Kakao Login](#kakao-login-phase-12) 4단계, `KAKAO_ADMIN_KEY` 는 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절.
+
+```bash
+firebase use <your-project-id>
+firebase functions:secrets:set KAKAO_NATIVE_APP_KEY
+firebase functions:secrets:set KAKAO_ADMIN_KEY
+```
+
+**⑤ 함수를 배포한다.** 먼저 배포 스크립트를 옵션 없이 실행한다. 이 명령은 `config/dev.json` 의 `firebaseProjectId` · `enabledAuthProviders` 로 배포할 함수 목록과 `firebase deploy` 명령을 출력할 뿐 아무것도 바꾸지 않는다.
+
+```bash
+bash scripts/deploy_functions.sh dev
+```
+
+출력의 `functions` 목록에 공통 함수 7개와 켠 provider 의 함수(Kakao 는 3개)가 있는지 본다. 맞으면 `--apply` 를 붙여 출력한 명령을 실행한다. 함수가 10개를 넘으면 10개씩 나눠 차례로 배포한다.
+
+```bash
+bash scripts/deploy_functions.sh dev --apply
+```
+
+**⑥ 처음 만든 함수의 Cloud Run invoker 를 확인한다.** 새로 생긴 함수는 Cloud Run 서비스에 `allUsers` · `roles/run.invoker` 바인딩이 있어야 앱에서 호출된다. 확인 명령과 바인딩이 빠졌을 때의 조치는 [Naver Login 10단계](#10단계--cloud-function-배포) 의 `linkNaverProvider` 항목과 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절의 「배포 · 제거」 문단에 있다.
+
+**⑦ 앱을 다시 빌드해 실행한다.** `enabledAuthProviders` 와 키는 빌드 때 들어가므로 바꾼 뒤에는 다시 빌드한다.
+
+```bash
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+```
+
+### 확인 방법
+
+- 로그인 화면에 켠 provider 의 버튼이 보이고, 소셜 버튼 아래에 「또는」 구분선이 나타난다.
+- `bash scripts/deploy_functions.sh dev` 출력의 `functions` 목록에 켠 provider 의 함수가 있다.
+- Firebase Console → Functions 에 그 함수가 리전 `asia-northeast3` 으로 있다.
 
 ---
 
