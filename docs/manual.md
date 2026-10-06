@@ -318,7 +318,7 @@ firebase functions:secrets:set KAKAO_ADMIN_KEY --project <your-project-id>
 bash scripts/deploy_functions.sh dev
 ```
 
-출력의 `functions` 목록에 공통 함수 7개와 켠 provider 의 함수(Kakao 는 3개)가 있는지 본다. 맞으면 `--apply` 를 붙여 출력한 명령을 실행한다. 함수가 10개를 넘으면 10개씩 나눠 차례로 배포한다.
+출력의 `functions` 목록에 공통 함수 7개와 켠 provider 의 함수(Kakao 는 3개)가 있는지 본다. 맞으면 `--apply` 를 붙여 출력한 명령을 실행한다. 함수가 10개를 넘으면 10개씩 나눠 차례로 배포한다. 묶음마다 `firebase deploy` 를 따로 실행하므로 `functions/` 의 lint · build 와 secret 확인이 묶음 수만큼 다시 돈다.
 
 ```bash
 bash scripts/deploy_functions.sh dev --apply

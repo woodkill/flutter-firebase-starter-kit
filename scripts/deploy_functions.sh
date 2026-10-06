@@ -43,6 +43,8 @@
 #   문서(https://firebase.google.com/docs/functions/manage-functions) 원문 —
 #   "When deploying large numbers of functions, you may exceed the standard quota and receive
 #    HTTP 429 or 500 error messages. To solve this, deploy functions in groups of 10 or fewer."
+#   묶음마다 `firebase deploy` 를 따로 실행하므로 firebase.json 의 functions predeploy
+#   (pnpm lint · build) · 코드베이스 로드 · secret 존재 확인이 묶음 수만큼 반복된다(정상).
 #
 # 함수 목록의 진실원:
 #   scripts/functions_manifest.json 한 곳이다(common + providers.<slug>). 이 목록과
