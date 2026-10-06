@@ -12,6 +12,8 @@
 //   끄기 · iOS 서명 · 심사 4.8 문구가 있다.
 // T-173-DOCS-06: Initial Setup 키 표가 「off 면 비워도 됨」 열과 example 키 14개를
 //   한 줄씩 갖고, 표에 금지 패턴이 0 건이며 표 바로 뒤에 새 절 링크 줄이 있다.
+// T-173-DOCS-07: provider 추가 · 제거 가이드가 매뉴얼에서 빠져 유지보수자 문서로
+//   옮겨졌고(현재 구조 토큰 · 플러그인 scheme 기록), 새 절에 그 문서 링크가 1줄 있다.
 
 import 'dart:convert';
 
@@ -145,6 +147,46 @@ const String _keyTableHeader = '| 키 | 값 출처 | off 면 비워도 됨 | 비
 const String _keyTableLinkLine =
     '끈 provider 의 키는 비워 둬도 된다 — 무엇을 켤 때 무엇이 필요한지는 '
     '[로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기).';
+
+/// 유지보수자 문서 경로(provider 추가 · 제거 가이드).
+const String _maintainerDocPath =
+    'docs/maintainer/custom-token-provider-add-remove.md';
+
+/// 새 절에서 유지보수자 문서를 가리키는 상대 링크 조각.
+const String _maintainerDocLink =
+    '](maintainer/custom-token-provider-add-remove.md)';
+
+/// 매뉴얼에서 빠진 두 가이드 절의 제목(헤딩 · 목차 항목에 다시 나오면 안 된다).
+const List<String> _movedGuideTitles = <String>[
+  'Custom Token Provider 추가 가이드 (stub)',
+  'Custom Token Provider 제거 가이드 (Phase 16.6)',
+];
+
+/// 유지보수자 문서에 있어야 하는 현재 구조 토큰
+/// (연결 팩토리 · 배포 함수 목록 · 초기화 표 · 자리표시 scheme · 플러그인 scheme).
+const List<String> _maintainerDocTokens = <String>[
+  'buildLinkOidcProviderCallable',
+  'scripts/functions_manifest.json',
+  'buildProviderSdkInits',
+  ':default=unset.',
+  'naver3rdpartylogin',
+];
+
+/// 옛 공유 연결 callable 이름 조각 — 이어 붙여야 이름이 된다(리터럴 0).
+const List<String> _legacyCallableParts = <String>[
+  'linkCustom',
+  'Token',
+  'Provider',
+];
+
+/// 옛 공유 연결 callable 이름을 세는 정규식을 만든다.
+///
+/// 해제 callable(이름 앞에 `un`)과 클라이언트 arm(이름 뒤에 `Arm`)은 다른
+/// 식별자라 세지 않는다.
+RegExp _buildLegacyCallablePattern() {
+  final String legacyCallable = _legacyCallableParts.join();
+  return RegExp('(^|[^n])$legacyCallable([^A]|\$)', multiLine: true);
+}
 
 /// 매뉴얼에서 `## 목차` 다음 줄부터 그 뒤 첫 `---` 줄 앞까지를 돌려준다.
 ///
@@ -393,6 +435,57 @@ void main() {
         _countExactLines(setup, _keyTableLinkLine),
         1,
         reason: '새 절 링크 줄이 없거나 중복이다',
+      );
+    });
+
+    test('T-173-DOCS-07: 추가 · 제거 가이드가 유지보수자 문서로 옮겨지고 새 절에 링크 1줄', () {
+      final RegExp legacyPattern = _buildLegacyCallablePattern();
+      // 양성 대조: 정규식이 옛 이름은 잡고 해제 callable · arm 이름은 잡지 않는다.
+      final String legacyCallable = _legacyCallableParts.join();
+      expect(legacyPattern.hasMatch('`$legacyCallable`'), isTrue);
+      expect(legacyPattern.hasMatch('`un$legacyCallable`'), isFalse);
+      expect(legacyPattern.hasMatch('`${legacyCallable}Arm`'), isFalse);
+
+      final String toc = _tocBlock(manual);
+      expect(toc.trim(), isNotEmpty, reason: '목차 블록을 찾지 못했다');
+      for (final String title in _movedGuideTitles) {
+        expect(
+          _countExactLines(manual, '## $title'),
+          0,
+          reason: '매뉴얼에 옮긴 절 헤딩 「$title」 이 남아 있다',
+        );
+        expect(
+          countOccurrences(toc, '[$title]('),
+          0,
+          reason: '목차에 옮긴 절 항목 「$title」 이 남아 있다',
+        );
+      }
+
+      expect(
+        countOccurrences(section, _maintainerDocLink),
+        1,
+        reason: '새 절에 유지보수자 문서 링크가 없거나 중복이다',
+      );
+
+      final String maintainerDoc = readTrackedFile(_maintainerDocPath);
+      for (final String heading in <String>['## 추가 가이드', '## 제거 가이드']) {
+        expect(
+          _countExactLines(maintainerDoc, heading),
+          1,
+          reason: '유지보수자 문서에 「$heading」 헤딩이 없거나 중복이다',
+        );
+      }
+      for (final String token in _maintainerDocTokens) {
+        expect(
+          maintainerDoc,
+          contains(token),
+          reason: '유지보수자 문서에 현재 구조 토큰 「$token」 이 없다',
+        );
+      }
+      expect(
+        legacyPattern.allMatches(maintainerDoc).length,
+        0,
+        reason: '유지보수자 문서에 옛 공유 연결 callable 이름이 있다',
       );
     });
   });

@@ -32,23 +32,21 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 5. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
 6. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
 7. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
-8. [Custom Token Provider 추가 가이드 (stub)](#custom-token-provider-추가-가이드-stub)
-9. [Custom Token Provider 제거 가이드 (Phase 16.6)](#custom-token-provider-제거-가이드-phase-166)
-10. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-11. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-12. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-13. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
-14. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
-15. [Firebase Services (Phase 17)](#firebase-services-phase-17)
-16. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-17. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
-18. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
-19. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
-20. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
-21. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-22. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-23. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
-24. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
+8. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+9. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+10. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+11. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
+12. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
+13. [Firebase Services (Phase 17)](#firebase-services-phase-17)
+14. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+15. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+16. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+17. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+18. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+19. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+20. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+21. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+22. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
 
 ---
 
@@ -381,6 +379,8 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
 ### 되돌리기
 
 `enabledAuthProviders` 를 바꾸기 전 값으로 되돌리고 앱을 다시 빌드한다. 새로 배포한 함수는 「끄기」 의 `firebase functions:delete` 명령으로 지운다.
+
+자세한 배경: provider 를 킷에 더하거나 빼는 절차와 설계 이유는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md)에 있다.
 
 ---
 
@@ -2397,283 +2397,6 @@ workaround. spec 평가는 옵션 A (retry) / B (handleError 분기) / C
 
 **후속 fix 추적:** `.planning/todos/completed/2026-05-08-r10-followup-permission-denied-race.md`
 (pending → completed). spec: `docs/superpowers/specs/2026-05-08-r10-followup-2-design.md`.
-
----
-
-## Custom Token Provider 추가 가이드 (stub)
-
-Phase 12 (Kakao OIDC) + Phase 13 (Naver REST) 의 통합 패턴을 그대로 미러링하여
-새 Custom Token provider 를 추가할 수 있습니다 (Phase 14 LINE 이 이 절차로 추가됐다).
-제거는 역순이다 — 바로 아래 「Custom Token Provider 제거 가이드 (Phase 16.6)」 절을 따른다.
-9 단계 절차:
-
-1. **Provider ID 등록** — `lib/core/auth/provider_id.dart` 의
-   `kProviderId{Provider}` 가 이미 등재되어 있음 (Phase 11-02 wave 1). 변경
-   없음.
-
-2. **Notifier** — `lib/features/auth/presentation/{provider}_sign_in_notifier.dart`
-   신규. Phase 12 `kakao_sign_in_notifier.dart` 1:1 미러 (Facebook → Kakao
-   → Naver/... 일괄 치환). autoDispose AsyncNotifier + `ref.mounted` 가드 +
-   Result switch.
-
-3. **SDK Client** — `lib/features/auth/data/{provider}_sdk_client.dart` 신규.
-   Phase 12 `kakao_sdk_client.dart` 미러. 단 검증 방식이 OIDC vs REST 인지에
-   따라 Cloud Function 호출 인자 / SDK 호출 흐름 다름:
-
-   | Phase | Provider | 검증 방식 | 근거 |
-   |-------|----------|-----------|------|
-   | 12 | Kakao | OIDC ID Token JWT | Kakao 공식 권장 |
-   | 13 | Naver | REST `/v1/nid/me` | Naver OIDC 미지원 |
-   | 14 | LINE | OIDC ID Token JWT | LINE 공식 OIDC |
-
-   각 phase 의 discuss-phase 진입 시 본 매트릭스 + 실 provider 공식 문서
-   재확인 의무.
-
-4. **AuthStrategy** — `lib/core/auth/strategies/{provider}_auth_strategy.dart`
-   신규. Phase 12 `kakao_auth_strategy.dart` 미러. **race-fix invariant 의무
-   (Pitfall 8)** — Strategy.signIn 본문은 Notifier 위임만 수행, `socialLink-
-   InProgress.begin/end` 직접 호출 절대 금지.
-
-5. **Registry add-only** — `lib/core/auth/auth_strategies_registry.dart` 의
-   `_allStrategies` 끝줄에 1줄 추가. 기존 Google/Apple/Facebook/Kakao 위치
-   무변경.
-
-6. **Helper resolver** —
-   `lib/features/auth/presentation/_helpers/social_provider_resolver.dart`
-   switch 에 1줄 추가 (Pitfall 6 단일 진실원). 본 1줄로
-   LoginScreen / LoginPromptSheet 2 화면의 ref.listen for-loop 자동 반영
-   (Phase 16.1 — SignupScreen 삭제, 소셜 진입점 2곳으로 단일화).
-
-7. **ARB keys × 3 로케일** — `auth{Provider}SignIn` (소셜 버튼 라벨) +
-   `authAccountProvider{Provider}` (계정 정보 화면 · 데모 계정 디버그 정보 카드 라벨) × en/ko/ja 3 파일 +
-   `flutter gen-l10n` 자동 호출.
-
-8. **SocialButton 분기** —
-   `lib/features/auth/presentation/_widgets/social_button.dart` 의 `build()`
-   첫 줄 if 분기 + `_build{Provider}Button` 메서드 + 색 상수 (각 Brand
-   Guideline). Kakao 가 sign_in_button 패키지 미지원 provider 의 표본 패턴
-   (Material+InkWell+SVG 직접 그리기) — Naver / LINE 모두 동일
-   패턴.
-
-9. **Cloud Function** —
-   `functions/src/auth/{provider}_custom_token.ts` 신규. Phase 12
-   `kakao_custom_token.ts` 미러:
-   - `setGlobalOptions` region 자동 상속 (asia-northeast3)
-   - `enforceAppCheck: true` + `secrets: [PROVIDER_*_SECRET]`
-   - `resolveIdentity(db, {provider, providerUserId, callerUid})` helper 재
-     사용 (Phase 12 의 `functions/src/auth/identity_index.ts` 단일 진실원
-     — Phase 13~16 모두 같은 helper 호출)
-   - 검증 helper 는 OIDC verifier 가 Phase 14 LINE 진입 시 일반화 (D-08)
-
-각 phase 마다 본 manual 의 Kakao 단락 + Phase 12 D-07 검증 매트릭스 + 실
-provider 공식 문서 재확인 의무.
-
----
-
-## Custom Token Provider 제거 가이드 (Phase 16.6)
-
-위 추가 가이드의 역순이다. 킷에서 provider 하나를 완전히 빼야 할 때 따른다.
-Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측한 절차와
-함정을 provider 이름 없이 옮겼다. `<provider>` · `<slug>` · `<PROVIDER>_CLIENT_ID`
-는 제거 대상에 맞게 바꿔 읽는다. 4 단계 절차:
-
-1. **먼저 — 비활성으로 충분한가.** 코드를 지우지 않고 provider 를 끄는 레버가
-   두 개 있고, 둘 다 코드 변경 0 이다.
-
-   | 레버 | 시점 | 방법 |
-   |------|------|------|
-   | 정적 CSV | 빌드 | `config/{flavor}.json` 의 `enabledAuthProviders` 에서 `<slug>` 토큰을 뺀다 |
-   | Remote Config | 운영 | `auth_provider_<slug>_enabled = false` 게시 — [RC Kill Switch 운영 절차](#rc-kill-switch-운영-절차-emergency-disable) |
-
-   두 레버의 관계는 Kill Switch 절의 제약 그대로다 — 정적 CSV 에서 빠진
-   provider 는 RC 로 켤 수 없다 (정적 false 절대 우위). 그래서 「이 앱은 이
-   provider 를 쓰지 않는다」 는 CSV 토큰 제거만으로 확정되고, 운영 중 임시
-   차단은 RC 로 충분하다. 코드까지 지우는 경우는 다음 중 하나다: 검증 · 유지가
-   불가능하다 (개발자 · 테스트 계정을 만들 수 없어 로그인 경로를 검증하지 못함),
-   의존성 부담이 크다 (전용 플러그인 · native SDK · secret · 배포 함수의 유지비),
-   킷 가치가 비대칭이다 (대상 사용자층 대비 설정 비용).
-
-2. **제거 체크리스트 — 의존 역순, 매 커밋 green.** 추가 9 단계의 역순이다.
-   항목 하나가 커밋 하나이고, 게이트를 통과해야 다음 항목으로 간다.
-   - ① **등록 해제 (UI 소멸)** — `lib/core/auth/auth_strategies_registry.dart`
-     의 `_allStrategies` 1줄 + `social_provider_resolver.dart` 1줄 삭제, strategy
-     · notifier 파일 삭제 (고아 `.g.dart` 는 `rm`). 이 1줄로 `/login` chooser ·
-     LoginPromptSheet · 계정 정보 화면(설정 → 내 계정) 「계정 연결」 에서 버튼이 모두 사라진다.
-     버튼 수를 단언하는 테스트 (`findsNWidgets`) 와 골든 harness 의 override
-     목록을 함께 고치고 골든을 재생성한다 — before/after 를 사용자에게 보여
-     승인받은 뒤 커밋하고 촬영 locale 을 기록한다 (함정 (d)).
-   - ② **enum · 상수 · switch 일괄 (한 커밋)** — `AccountProvider` enum 값 ·
-     `kProviderId<Provider>` · `kAllProviderIds` · exhaustive switch 사이트 전부 ·
-     `AuthRepository` 생성자 인자와 signIn / signOut / link 분기 · `AppConfig`
-     getter. enum 값 하나가 여러 파일의 switch 를 끌고 다니므로 (이번 실측 8 파일
-     21 사이트) 컴파일 결합 단위로 한 커밋에 묶고, 테스트의 생성자 mock ·
-     provider 행도 같은 커밋에 넣는다. 그 provider 가 우연히 유일하게 증명하던
-     성질 (매트릭스 행 · 두 번째 slug 증명) 은 지우지 말고 남은 provider 로
-     이관한다. 이 커밋 **전에** 로컬 `config/*.json` 의 CSV 토큰을 먼저 뺀다
-     (함정 (b)).
-   - ③ **brand 버튼 · 자산** — sealed `BrandSpec` 서브클래스 ·
-     `BrandedSocialButton.<provider>` factory · `build()` switch case · render
-     메서드 4 블록 + `assets/brand/<slug>/` + `pubspec.yaml` assets 행 + brand
-     테스트의 provider 목록 (`brand_assets_lint_test` · `brand_label_whitelist_test`).
-   - ④ **ARB** — 키 × 3 locale 삭제, 수가 박힌 description 정정,
-     `fvm flutter gen-l10n` 산출 4 파일을 같은 커밋에 넣는다 (description 만
-     바꿔도 generated dart 의 `///` 가 바뀐다). 한 번 더 돌려 diff 0 을 확인한다.
-   - ⑤ **남은 주석 · docstring** — 이름 0. 「N provider」 처럼 수가 박힌 문장은
-     수도 함께 고치고, 교훈은 이름만 빼고 남긴다.
-   - ⑥ **플러그인 + native 등록 (같은 커밋)** — `fvm flutter pub remove <plugin>`
-     + 그 플러그인이 요구하던 Android manifest placeholder · iOS `Info.plist` URL
-     type · xcconfig 변수 · `config/*.example.json` 키 (함정 (e)). gitignored
-     로컬 파일 (`ios/Flutter/<flavor>.xcconfig` · `config/<flavor>.json`) 은 도구가
-     알려주지 않으므로 값 출력 없이 줄 단위로 지우고 계수로 확인한다. iOS 는
-     3 flavor debug 빌드 후 `Package.resolved` 를 판독한다 (함정 (c)).
-   - ⑦ **Cloud Functions** — closed union (`ProviderId` · `OidcProviderId`) 과
-     짝 맵 (`OIDC_VERIFIERS` · priority 배열) · `defineSecret` 선언 ·
-     `linkCustomTokenProvider` 의 `secrets:` 와 narrowing · `index.ts` export ·
-     전용 endpoint 파일 · Jest (유일 증명 이관 포함). OIDC secret 선언은 provider
-     파일이 아니라 공유 `functions/src/shared/oidc_providers.ts` 에 있고 link
-     callable 이 전부 bind 하므로, 전용 파일만 지우면 binding 이 남는다.
-     `functions/lib` 는 지우고 다시 빌드한다 (tsc 는 고아 `.js` 를 지우지 않는다).
-     **Naver 를 제거할 때 (Phase 16.9 연결 callable 포함)** — Naver 연결은
-     `linkCustomTokenProvider` 가 아니라 전용 callable 이다. 연결 callable
-     `functions/src/auth/link_naver_provider.ts` 를 삭제하고 `index.ts` 의
-     `export {linkNaverProvider}` 줄(+ 위 주석)을 지운 뒤, 배포 정리 ③ 에서
-     `firebase functions:delete linkNaverProvider` 를 함께 실행한다.
-     `linkCustomTokenProvider` 에는 Naver 분기 · secret 이 없으므로 재배포할 필요가
-     없다. `naver_token_exchange.ts`(code 교환) · `fetchNaverProfile`
-     (`naver_profile_to_custom_token.ts`)은 Naver 파일만 쓰므로 함께 삭제하고,
-     `link_identity_transaction.ts`(연결 transaction)는 Kakao / LINE 연결이 쓰므로
-     유지한다. 잔존 데이터 계수(배포 정리 ⑥)는 `identity_index where provider == "naver"`
-     와 `users.providerLinkedAt.naver` 로 연결 사본까지 센다. 클라이언트는
-     `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`) 원소 1개와 `SettingsNotifier` 의 naver arm ·
-     `AuthRepository.linkNaverProviderArm` 을 ②(switch 일괄)와 같은 커밋에서 지운다.
-     **provider 측 끊기 경로 (Phase 16.10)** — 탈퇴 · 해제의 provider 측 끊기는
-     provider 마다 서버 callable 파일 1개 + export 1줄 + 클라이언트 레지스트리 1줄로
-     붙어 있다. 제거할 provider 에 해당하는 것만 지운다:
-     - 서버 — `functions/src/auth/disconnect_<provider>_provider.ts`
-       (`disconnect_kakao_provider.ts` · `disconnect_facebook_provider.ts` ·
-       `disconnect_naver_provider.ts` · `disconnect_line_provider.ts`)와 그 Jest 파일
-       삭제 + `functions/src/index.ts` 의 `export {disconnect<Provider>Provider}` 줄
-       (+ 위 주석) 삭제.
-     - secret 선언 — 그 callable 만 쓰는 선언을 함께 지운다: Kakao
-       `functions/src/shared/kakao_admin_secret.ts`(`KAKAO_ADMIN_KEY`) · Facebook
-       `functions/src/shared/facebook_secrets.ts`(`FACEBOOK_APP_ID` · `FACEBOOK_APP_SECRET`)
-       · LINE `functions/src/shared/oidc_providers.ts` 의 `LINE_CHANNEL_SECRET` 선언.
-       Naver 는 끊기 전용 secret 이 없다(`NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` 은
-       위 Naver 항목대로). 파괴는 배포 정리 ④ 순서를 따른다.
-     - 공용 helper — `functions/src/shared/relogin_token.ts`(`mintReloginToken`) ·
-       `functions/src/auth/identity_ownership.ts` 는 LINE · Naver 끊기가 함께 쓰므로
-       둘 다 제거할 때만 지운다.
-     - 배포 정리 ③ 에서 `firebase functions:delete disconnect<Provider>Provider` 를 함께
-       실행한다.
-     - 클라이언트 — `kDisconnectSteps`(`lib/features/settings/data/disconnect/disconnect_steps.dart`)
-       의 그 provider 줄 1개 삭제 + 재로그인 행이면 그 step import 1줄 · step 파일
-       (`lib/features/settings/data/disconnect/<provider>_disconnect_step.dart`)과 그 테스트
-       삭제. 레지스트리 항목 수를 단언하는 테스트(`server_disconnect_step_test.dart` S10)도
-       같은 커밋에서 고친다. 공용 계약 `DisconnectDeps`(`disconnect_step.dart`)와
-       `disconnectDepsProvider` 는 편집 0 이다 — LINE · Naver step 은 자기 SDK client 를
-       `deps.read(lineSdkClientProvider)` · `deps.read(naverSdkClientProvider)` 로 직접 읽고,
-       `DisconnectDeps` 에는 provider 별 필드가 없다. 다른 테스트의 `DisconnectDeps(...)`
-       생성부도 그대로다.
-     - 탈퇴 · 해제 callable(`deleteUserAccount` · `unlinkCustomTokenProvider`)과 진행 화면 ·
-       해제 다이얼로그는 편집 0 이다 — provider 분기가 없다.
-     native provider(Google · Apple · Facebook)를 제거할 때도 레지스트리의 그 줄과
-     (Google · Apple 이면) step 파일을 ② 와 같은 커밋에서 지운다 — `AccountProvider`
-     enum 값이 사라지면 그 줄이 컴파일되지 않는다.
-   - ⑧ **문서 · 스킬 · 계획 문서** — 이 매뉴얼의 provider 절 · 목차 · 표, 스킬
-     `references/`, `.planning` 활성 문서.
-
-   각 항목의 게이트 (C-04):
-
-   ```bash
-   fvm dart run build_runner build --delete-conflicting-outputs
-   fvm flutter analyze && fvm dart analyze     # riverpod_lint 진단은 dart analyze 만
-   fvm flutter test --no-pub <범위>             # ② 이후는 full suite
-   fvm dart format --output=none --set-exit-if-changed lib test
-   cd functions && pnpm run lint && pnpm build && pnpm test   # ⑦
-   ```
-
-   테스트 수는 산식 「착수 − 삭제 + 이관 = 종료」 로 기록한다.
-   `AccountProvider.values` · `kAllProviderIds` 를 순회해 생성되는 테스트는 코드
-   편집 없이 줄어들므로 그 몫을 따로 센다.
-
-3. **dev 배포 리소스 정리 순서.** 체크리스트 ⑦ 을 커밋한 뒤 배포본을 소스에
-   맞춘다. 단계마다 삭제 전 read-only 스냅샷을 남기고 개별 승인 후 실행한다.
-   - ① **남는 함수만 명시 필터로 재배포** —
-     `firebase deploy --project <project> --non-interactive --only functions:<fn1>,functions:<fn2>,…`.
-     필터 없는 `--only functions` 는 로컬 소스에 없는 함수 (제거 대상) 때문에
-     non-interactive 에서 배포 전체를 abort 한다. 이 재배포가 link callable
-     revision 의 secret binding 을 해제한다 — `gcloud functions describe
-     linkCustomTokenProvider --gen2 --region <region> --format='value(serviceConfig.secretEnvironmentVariables)'`
-     에 대상 secret 이 없고 revision 번호가 올랐는지 확인한다.
-   - ② **warm-up probe** — `curl -X POST <함수 URL> -H 'Content-Type: application/json' -d '{"data":{}}'`.
-     401 = 함수 살아 있음 (App Check / auth 게이트 거부). 403 = Cloud Run IAM
-     거부, 429 = 할당량 · 인스턴스 부족, 5xx = 기동 실패 의심 — 401 외에는 정지한다.
-   - ③ **함수 삭제** — `firebase functions:delete <fn> --region <region> --project <project> --force`.
-     대상은 인자 1개, `--region` 명시. 여기서 `--force` 는 non-interactive 의 확인
-     prompt 를 넘기기 위한 것이다. 성공 로그는 `Successful delete operation`.
-   - ④ **secret 파괴** — in-use 판정은 **read-only 로만** 한다. 남는 함수 전부에
-     `gcloud functions describe <fn> --gen2 --region <region> --format='value(serviceConfig.secretEnvironmentVariables)'`
-     를 돌려 `<PROVIDER>_CLIENT_ID` 가 0 인지 (대조군 secret 은 ≥1) 세고,
-     `firebase functions:secrets:get <PROVIDER>_CLIENT_ID` 로 버전 상태를 기록한다.
-     승인 뒤 `firebase functions:secrets:destroy <PROVIDER>_CLIENT_ID --project <project> --force`
-     를 1회 실행한다 — `--force` 1회 외의 실행은 없다 (함정 (a)). functions-managed
-     secret 은 마지막 활성 버전이 파괴되면 secret 자체가 삭제된다
-     (`No active secret versions left. Destroying secret …`).
-     `functions:secrets:prune` (다른 미참조 secret 까지 후보) · `functions:secrets:access`
-     (값 출력) 는 쓰지 않는다.
-   - ⑤ **probe 재실행** — 401 + `gcloud run services describe <svc> --region <region> --format='value(status.latestReadyRevisionName)'`
-     가 ① 의 새 revision 과 같은지.
-   - ⑥ **잔존 데이터 계수** — Firestore `identity_index` (`provider == <slug>`) ·
-     `users.linkedProviders` (요소가 map `{providerId, providerUserId}` 라 문자열
-     `ARRAY_CONTAINS` 는 항상 0 — map 필드를 집계한다) · `users.providerLinkedAt.<slug>`
-     · `users.signUpProviderId == <slug>` (가입 수단 기록 — 제거 뒤 남은 값의
-     표시는 `errorUnknownProvider` 로 떨어지므로 삭제 대상 여부는 별도 승인)
-     · RC `auth_provider_<slug>_enabled`. 남은 provider 로 대조군 (≥1) 을 먼저 세고
-     계수만 출력한다 (값 출력 0). 0 이 아니면 삭제는 별도 승인.
-   - ⑦ **외부 콘솔 앱 등록 삭제** — provider 개발자 콘솔의 앱 (Client ID) 은 수동
-     삭제하고 스크린샷을 남긴다. 되돌릴 수 없는 콘솔이 많으므로 ④ 뒤 (참조 0
-     확인 뒤) 에 한다.
-
-   파괴적 명령 (③ · ④) 은 에이전트 대신 사용자가 직접 실행하고
-   (`; echo "EXIT=$?"` 로 종료 코드를 남긴다) 에이전트는 read-only 로 사후 확인한다.
-
-4. **함정 — Phase 16.6 실측.**
-   - **(a) secret binding 순서.** Cloud Run 은 secret 환경변수를 인스턴스 기동
-     **전에** 해석한다. binding 이 남은 revision 에서 secret 을 파괴하면 떠 있는
-     인스턴스는 멀쩡하지만 새 인스턴스 (cold start · scale-out) 가 조용히 기동에
-     실패한다 — 그래서 순서가 재배포 → 삭제 → 파괴다. Firebase CLI 의 in-use 거부
-     (`Refusing to destroy secret in use`) 는 소스가 아니라 **배포본** 기준이고
-     binding 이 **남아 있을 때만** 작동한다. binding 이 0 이면 곧바로 confirm 으로
-     가는데 `--non-interactive` 에서 confirm 기본값이 승인이다 — binding 0 상태의
-     `--force` 를 뺀 `--non-interactive` 관측 실행 = 파괴다 (firebase-tools 15.29.0 소스). 판정은
-     `gcloud functions describe` 로, 파괴는 `--force` 1회로 한다.
-   - **(b) `enabledAuthProviders` debug assert.** `parseEnabledProviders` 는 CSV 의
-     미지 슬러그를 debug assert (`StateError`) 로 거부한다. `app_config_test` 가
-     gitignored 로컬 `config/*.json` 을 실제로 읽으므로, 로컬 CSV 정리가
-     `kAllProviderIds` 축소 커밋의 게이트보다 먼저여야 한다.
-   - **(c) SPM transitive pin.** 제거한 플러그인이 끌어오던 iOS native 패키지를
-     다른 플러그인이 전이 의존으로 요구하면 `Package.resolved` 의 핀은 남고 diff 0
-     이 정상이다 — 핀 소실을 기대하지 않는다. 핀을 지우려고 `Package.resolved` 를
-     삭제하거나 「Update to Latest Package Versions」 · `flutter clean` 을 돌리면 킷의
-     모든 핀이 풀린다. 판독은 `cmp -s` 두 파일 → `git diff --stat -- '**/Package.resolved'`
-     → `jq -r '.pins[].identity'` 전후 비교 → `test/ios/spm_policy_test.dart` 순서로
-     하고, 핀이 남은 이유를 「iOS 의존성 관리 (SPM)」 절 고정값 표 비고에 적는다.
-   - **(d) 골든 재생성.** `fvm flutter test --no-pub --update-goldens <파일>` 은 그
-     파일의 골든 전부를 다시 찍는다. 대상 외 fixture 가 제거 직전 tag 와 바이트
-     동일한지 `cmp` 로 확인한다 — 다르면 폰트 · SDK 환경 drift 이므로 원인부터
-     추적한다. 대상 수는 harness override 목록에 달려 있다 (계정 정보 화면 연결
-     섹션을 찍는 `auth_surfaces_golden_test.dart` 의 `reauth_account_success_*`
-     골든 포함 — 17.1 D-02 로 연결 섹션이 설정 화면에서 이동). 사용자 승인 전
-     커밋 금지.
-   - **(e) manifest placeholder.** 플러그인 AAR 이 intent-filter 에 `${placeholder}`
-     를 요구하므로 placeholder 를 플러그인보다 먼저 지우면 manifest merger 가 치환
-     실패로 빌드를 깬다. 반대 순서는 무해하지만 같은 커밋이 원칙이다. 병합 결과는
-     `build/app/intermediates/merged_manifests/<flavor>Debug/` 아래
-     `AndroidManifest.xml` 을 grep 해 확인한다.
-
-제거는 `git grep -i <provider>` (`.planning/` · sketch `sources/` sign-off 증거 제외)
-0 건으로 종결한다 — 0 을 판정하기 전에 남은 provider 이름으로 대조군 (≥1) 을
-먼저 센다.
 
 ---
 
