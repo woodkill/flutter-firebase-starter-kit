@@ -16,6 +16,15 @@
 #   google ② Google 만 on — enabledAuthProviders "google" · googleServerClientId 외 키 7개 비움
 #   all    ③ 6개 전부 on — enabledAuthProviders 6개 · 키는 example placeholder 그대로 (16.2 D-05 회귀, 기본값)
 #
+# 빌드 뒤 부팅 체크리스트 (사람이 확인 — 이 스크립트 밖, D-15 매트릭스 · D-16 실기기):
+#   산출물을 에뮬레이터 · 시뮬레이터 · 실기기에 설치해 케이스마다 차례로 본다.
+#   1. 부팅 → 온보딩 → 로그인 화면(케이스의 소셜 버튼 수 · 「또는」 구분선 유무).
+#   2. 설정 화면.
+#   3. 이메일 로그인 → 로그아웃 → 온보딩 복귀. off · google 케이스는 bootstrap 이 초기화하지
+#      않은 SDK 의 로그아웃을 부르면 안 된다(LINE 은 setup 없이 logout 을 부르면 네이티브가
+#      프로세스를 끝낸다 — 17.3 code review CR-01 · WR-01). Android 는 logcat `FATAL EXCEPTION`
+#      0 건, iOS 는 앱 생존(crash log 0 건)을 기록한다. 이메일 계정이 없으면 가입 링크로 만든다.
+#
 # 사용법:
 #   bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|google|all] [--simulator]
 #   셋째 인자 생략 = all. --simulator 는 ios 전용(시뮬레이터 부팅용 build/ios/iphonesimulator/Runner.app).
