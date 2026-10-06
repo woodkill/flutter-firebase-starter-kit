@@ -313,7 +313,7 @@ for s in KAKAO_NATIVE_APP_KEY KAKAO_ADMIN_KEY LINE_CHANNEL_ID LINE_CHANNEL_SECRE
 done
 ```
 
-그다음 켠 provider 의 secret 에 실제 값을 등록한다 — 표의 「secret」 칸 이름이다. 명령마다 `--project` 로 배포 스크립트와 같은 프로젝트를 지정한다. 각 값이 무엇인지는 provider 절에 있다 — Kakao 는 [Kakao Login](#kakao-login-phase-12) 4단계, `KAKAO_ADMIN_KEY` 는 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절.
+그다음 켠 provider 의 secret 에 실제 값을 등록한다 — 표의 「secret」 칸 이름이다. 위 반복문을 돌린 프로젝트에는 secret 이 모두 있으므로 배포 때 Firebase CLI 가 값을 묻지 않는다. 이 등록을 빠뜨리면 그 provider 의 함수가 `unset` 으로 배포되고, 로그인 · 연결 끊기가 앱에서 실패한다. 명령마다 `--project` 로 배포 스크립트와 같은 프로젝트를 지정한다. 각 값이 무엇인지는 provider 절에 있다 — Kakao 는 [Kakao Login](#kakao-login-phase-12) 4단계, `KAKAO_ADMIN_KEY` 는 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절.
 
 ```bash
 firebase functions:secrets:set KAKAO_NATIVE_APP_KEY --project <your-project-id>
@@ -387,7 +387,18 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
 
 ### 문제 해결
 
-- **켰는데 버튼을 누르면 오류 배너가 뜬다.** 표에서 그 provider 행의 config 키 · xcconfig 변수 · 콘솔 등록 · 함수 배포가 모두 끝났는지 다시 확인한다.
+- **켰는데 버튼을 누르면 오류 배너가 뜬다.** 표에서 그 provider 행의 config 키 · xcconfig 변수 · 콘솔 등록 · 함수 배포가 모두 끝났는지 다시 확인한다. secret 도 확인한다 — 표의 「secret」 칸 이름마다 아래 명령을 실행한다. 값을 화면에 출력하지 않고 자리표시 값 `unset` 인지만 알려 준다(`functions:secrets:access` 를 그대로 실행하면 값이 출력되므로 그 출력은 공유하지 않는다).
+
+  ```bash
+  if v="$(firebase functions:secrets:access <secret 이름> --project <your-project-id> 2>&1)"; then
+    if [ "$v" = unset ]; then echo 'unset — 실제 값을 등록한다'; else echo 'unset 이 아니다'; fi
+  else
+    printf '%s\n' "$v"
+  fi
+  unset v
+  ```
+
+  `unset` 이면 「켜기」 ④ 의 등록 명령으로 실제 값을 넣고 「켜기」 ⑤ 로 함수를 다시 배포한다. 함수는 배포할 때의 secret 버전을 쓰므로 다시 배포해야 새 값이 적용된다.
 - **켠 provider 의 버튼이 로그인 화면에 없다.** 앱을 다시 빌드했는지, Remote Config 의 `auth_provider_<provider>_enabled` 가 `false` 로 게시돼 있지 않은지 확인한다.
 - **배포 중 Firebase CLI 가 secret 값을 묻는다.** 코드에 선언된 secret 8개 가운데 그 프로젝트에 아직 없는 것이 있다는 뜻이다 — 끈 provider 의 secret 도 묻는다. Firebase CLI 의 표준 동작이다. 「켜기」 ④ 의 반복문으로 없는 secret 을 만든 뒤 다시 배포한다. 켠 provider 의 secret 이면 실제 값을 등록한다.
 - **「켜기」 ④ 의 반복문이 오류 메시지를 출력하고 멈춘다.** secret 이 없다는 응답(`HTTP Error: 404`)이 아닌 오류다. 메시지에 `Failed to authenticate` 가 있으면 `firebase login` 을 다시 하고, `HTTP Error: 403` 이면 로그인한 계정에 그 프로젝트의 Secret Manager 권한(예: `roles/secretmanager.admin`)이 있는지 확인한다. 원인을 고친 뒤 반복문을 다시 실행하면 이미 만든 secret 은 건너뛴다.
@@ -2804,7 +2815,7 @@ firebase functions:secrets:set LINE_CHANNEL_SECRET
 
 (2) **재동의** — 끊은 뒤 그 provider 로 다시 로그인하면 동의 화면이 다시 뜨는지. Android UAT 에서 네이버 · Apple 은 끊기 전에는 없던 동의 화면이 끊은 뒤 나왔다. 라인은 이 채널에서 로그인마다 승인 화면이 나와 이 근거가 약하므로 목록으로 판정한다. 동의 화면에서 취소하면 새 계정은 생기지 않는다. (3) **원장** — 탈퇴는 Auth 사용자 · `users/{uid}` 문서 · `firebaseUid == <uid>` 인 `identity_index` 문서가 모두 없어야 하고, 해제는 「계정 연결 해제 (Phase 16.8)」 절의 확인 방법 그대로다. 서버 로그 event 는 `disconnect_kakao_succeeded`(재진입이면 앞에 `disconnect_kakao_already_unlinked`) · `disconnect_facebook_succeeded` · `disconnect_naver_succeeded` · `disconnect_line_succeeded`(이미 해제면 `disconnect_line_already_deauthorized`)이고, 해제는 그 뒤에 `unlink_custom_token_provider_succeeded`(Custom Token provider)가 이어진다. Phase 16.10 Android UAT 결과: 탈퇴 진행 화면 전 행 해제 · 목록 부재 · 재동의 표시 · 새 계정 0 · 신원 불일치 거부 · 재진입 멱등 · 5분 창 두 갈래 · 카카오 · 라인 해제를 모두 확인했다. iOS 는 아래 「한계」.
 
-**배포 (연결 끊기 함수):** 연결 끊기 함수(`disconnectKakaoProvider` · `disconnectFacebookProvider` · `disconnectNaverProvider` · `disconnectLineProvider`)는 그 provider 를 켠 flavor 에서 배포 스크립트(「[로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기)」 의 「켜기」 ⑤)가 다른 함수와 함께 배포한다 — 끈 provider 의 끊기 함수는 필요 없고, 그 secret 은 「켜기」 ④ 의 자리표시 값으로 둔다. secret 은 배포 전에 위 표의 이름으로 `firebase functions:secrets:set <secret 이름>` 을 실행해 등록한다(등록하지 않으면 Firebase CLI 가 배포 중 값을 묻는다). 필터 없는 `--only functions` 와 `--force` 는 쓰지 않는다(`--force` 는 로컬에 없는 함수를 지운다). 처음 만든 함수는 배포 뒤 `gcloud run services get-iam-policy <service> --region <region>` 으로 invoker(`allUsers` · `roles/run.invoker`) 바인딩을 보고, 인증 없이 보낸 POST 요청이 401 로 거부되는지 확인한다. 403 이면 invoker 가 빠진 것이므로 `gcloud run services add-iam-policy-binding <service> --region <region> --member=allUsers --role=roles/run.invoker` 를 실행한다. provider 를 킷에서 빼는 절차는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md)에 있다.
+**배포 (연결 끊기 함수):** 연결 끊기 함수(`disconnectKakaoProvider` · `disconnectFacebookProvider` · `disconnectNaverProvider` · `disconnectLineProvider`)는 그 provider 를 켠 flavor 에서 배포 스크립트(「[로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기)」 의 「켜기」 ⑤)가 다른 함수와 함께 배포한다 — 끈 provider 의 끊기 함수는 필요 없고, 그 secret 은 「켜기」 ④ 의 자리표시 값으로 둔다. 켠 provider 의 secret 은 배포 **전에** 위 표의 이름으로 `firebase functions:secrets:set <secret 이름> --project <your-project-id>` 를 실행해 실제 값을 등록한다 — 「켜기」 ④ 의 자리표시 값이 있으면 Firebase CLI 는 값을 묻지 않고 그 값으로 배포한다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다. 필터 없는 `--only functions` 와 `--force` 는 쓰지 않는다(`--force` 는 로컬에 없는 함수를 지운다). 처음 만든 함수는 배포 뒤 `gcloud run services get-iam-policy <service> --region <region>` 으로 invoker(`allUsers` · `roles/run.invoker`) 바인딩을 보고, 인증 없이 보낸 POST 요청이 401 로 거부되는지 확인한다. 403 이면 invoker 가 빠진 것이므로 `gcloud run services add-iam-policy-binding <service> --region <region> --member=allUsers --role=roles/run.invoker` 를 실행한다. provider 를 킷에서 빼는 절차는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md)에 있다.
 
 **한계:**
 
