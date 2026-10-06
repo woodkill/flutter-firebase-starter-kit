@@ -274,13 +274,6 @@ for (const [shellName, shell, available] of SHELLS) {
       expect(calls("set")).toHaveLength(1);
     });
 
-    it("T-173-SNIPPET-10 반복문에 주석 줄이 없다", () => {
-      for (const line of loopSnippet().split("\n")) {
-        expect(line).not.toMatch(/^\s*#/);
-        expect(line).not.toMatch(/\s#/);
-      }
-    });
-
     it("T-173-SNIPPET-21 값이 unset 이면 등록 안내만 출력한다", () => {
       const r = run(shell, checkSnippet(), "raw:0|out|unset");
       expect(r.stdout).toBe("unset — 실제 값을 등록한다\n");
@@ -311,3 +304,17 @@ for (const [shellName, shell, available] of SHELLS) {
     });
   });
 }
+
+// 기본 zsh(대화형 · interactive_comments 꺼짐)에 붙여 넣으면 `#` 이하가 명령 인수가
+// 되어 스니펫이 깨진다. 셸 레인(bash · `zsh -f` 비대화형)은 주석을 허용해 동적으로는
+// 잡히지 않으므로, 셸과 무관한 정적 검사로 두 스니펫을 한 번만 확인한다.
+describe("manual secret snippets (static)", () => {
+  it("T-173-SNIPPET-10 반복문 · 점검 스니펫에 주석이 없다", () => {
+    for (const snippet of [loopSnippet(), checkSnippet()]) {
+      for (const line of snippet.split("\n")) {
+        expect(line).not.toMatch(/^\s*#/);
+        expect(line).not.toMatch(/\s#/);
+      }
+    }
+  });
+});
