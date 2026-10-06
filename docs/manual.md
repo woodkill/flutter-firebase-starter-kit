@@ -305,12 +305,11 @@ for s in KAKAO_NATIVE_APP_KEY KAKAO_ADMIN_KEY LINE_CHANNEL_ID LINE_CHANNEL_SECRE
 done
 ```
 
-그다음 켠 provider 의 secret 에 실제 값을 등록한다 — 표의 「secret」 칸 이름이다. secret 은 `firebase use` 로 고른 프로젝트에 등록되므로 먼저 `config/dev.json` 의 `firebaseProjectId` 프로젝트를 고른다. 각 값이 무엇인지는 provider 절에 있다 — Kakao 는 [Kakao Login](#kakao-login-phase-12) 4단계, `KAKAO_ADMIN_KEY` 는 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절.
+그다음 켠 provider 의 secret 에 실제 값을 등록한다 — 표의 「secret」 칸 이름이다. 명령마다 `--project` 로 배포 스크립트와 같은 프로젝트를 지정한다. 각 값이 무엇인지는 provider 절에 있다 — Kakao 는 [Kakao Login](#kakao-login-phase-12) 4단계, `KAKAO_ADMIN_KEY` 는 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절.
 
 ```bash
-firebase use <your-project-id>
-firebase functions:secrets:set KAKAO_NATIVE_APP_KEY
-firebase functions:secrets:set KAKAO_ADMIN_KEY
+firebase functions:secrets:set KAKAO_NATIVE_APP_KEY --project <your-project-id>
+firebase functions:secrets:set KAKAO_ADMIN_KEY --project <your-project-id>
 ```
 
 **⑤ 함수를 배포한다.** 먼저 배포 스크립트를 옵션 없이 실행한다. 이 명령은 `config/dev.json` 의 `firebaseProjectId` · `enabledAuthProviders` 로 배포할 함수 목록과 `firebase deploy` 명령을 출력할 뿐 아무것도 바꾸지 않는다.
@@ -335,10 +334,10 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 ### 끄기
 
-**출시 전.** `enabledAuthProviders` 에서 그 provider 의 토큰을 빼고 앱을 다시 빌드한다. 그 provider 의 config 키 · xcconfig 값은 비워도 되고 남겨도 된다. 이미 배포한 그 provider 의 함수는 Firebase 에 남는다 — 지우려면 표의 「Cloud Functions」 칸 이름으로 지운다. 배포 스크립트는 끈 provider 의 함수를 다시 만들지 않는다.
+**출시 전.** `enabledAuthProviders` 에서 그 provider 의 토큰을 빼고 앱을 다시 빌드한다. 그 provider 의 config 키 · xcconfig 값은 비워도 되고 남겨도 된다. 이미 배포한 그 provider 의 함수는 Firebase 에 남는다 — 지우려면 표의 「Cloud Functions」 칸 이름으로 지운다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다. 배포 스크립트는 끈 provider 의 함수를 다시 만들지 않는다.
 
 ```bash
-firebase functions:delete <함수 이름> --region asia-northeast3
+firebase functions:delete <함수 이름> --region asia-northeast3 --project <your-project-id>
 ```
 
 **출시 뒤.** `enabledAuthProviders` 에서 빼지 않는다. [RC Kill Switch 운영 절차](#rc-kill-switch-운영-절차-emergency-disable)로 그 provider 의 `auth_provider_<provider>_enabled` 를 `false` 로 게시해 끄고, 키 · 함수 · secret 은 남긴다. CSV 에서 빼면 그 provider 로 가입한 사용자는 로그인 · 재인증 · 회원탈퇴를 할 수 없다.
@@ -2452,10 +2451,10 @@ export {myFunction} from "./my_function";
 
 **② 테스트.** `functions/test/` 에 테스트를 둔다. `firebase-functions-test` 로 함수를 감싸 부르는 기존 테스트(예: `functions/test/auth/kakao_custom_token.test.ts`)와 같은 방식이다.
 
-**③ secret.** 함수가 secret 을 쓰면 예시처럼 `defineSecret` 으로 선언해 `secrets` 옵션에 넣고, 배포 전에 값을 등록한다.
+**③ secret.** 함수가 secret 을 쓰면 예시처럼 `defineSecret` 으로 선언해 `secrets` 옵션에 넣고, 배포 전에 값을 등록한다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
 
 ```bash
-firebase functions:secrets:set MY_SECRET
+firebase functions:secrets:set MY_SECRET --project <your-project-id>
 ```
 
 **④ 배포 목록에 이름을 더한다.** 함수 이름(예: `myFunction`)을 `scripts/functions_manifest.json` 의 `common` 배열에 더한다. 빠뜨리면 `functions/` 의 `pnpm test` 에서 배포 목록 대조 테스트가 실패하고, 배포 스크립트가 그 함수를 배포하지 않는다.
