@@ -86,8 +86,14 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
      전용 callable. 검증 helper 만 provider 것으로 바꾸고 연결 transaction 은
      `linkCustomTokenIdentity` 를 그대로 부른다.
    - 어느 경우든 공용 callable 에 provider 분기를 넣지 않는다 — 각 callable 은 자기
-     secret 만 binding 해야 그 provider 를 끈 프로젝트가 secret 없이 나머지 함수를
-     배포할 수 있다(on/off 계약 (4)).
+     secret 만 binding 해야 그 provider 를 끈 프로젝트가 나머지 함수를 배포할 때 끈
+     provider 의 secret 에 접근 권한 부여 · 유효 버전 검사가 걸리지 않고, 값이 런타임에
+     읽히지도 않는다(on/off 계약 (4)). secret **존재**는 binding 과 무관하다 —
+     Firebase CLI 는 `--only` 필터와 상관없이 코드베이스가 선언한 `defineSecret` 전부의
+     존재를 확인하고 없으면 값을 묻는다(firebase-tools 15.29.0 `deploy/functions/params.js`
+     `resolveParams` → `ensureSecret`). 그래서 끈 provider 의 secret 도 자리표시 값으로
+     만들어 둔다 — 매뉴얼 「로그인 수단 켜고 끄기」 「켜기」 ④. 새 provider 의
+     `defineSecret` 을 더하면 그 반복문의 secret 이름 목록에도 더한다.
    - `functions/src/index.ts` 에 export 1줄씩. 클라이언트는
      `AuthRepository.linkCustomTokenProviderArm` 의 callable 이름 switch 에 1행
      (`lib/features/auth/data/auth_repository.dart`), access token provider 는
@@ -151,8 +157,10 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
 
    정적 CSV 에서 빠진 provider 는 RC 로 켤 수 없다(정적 false 절대 우위). 그래서
    「이 앱은 이 provider 를 쓰지 않는다」 는 CSV 토큰 제거만으로 확정되고, 운영 중 임시
-   차단은 RC 로 충분하다. CSV 에서 뺀 provider 는 SDK 초기화 · 배포 함수 · secret ·
-   URL scheme 도 따라 빠진다(초기화 표 · 배포 스크립트 · 자리표시 scheme). 코드까지
+   차단은 RC 로 충분하다. CSV 에서 뺀 provider 는 SDK 초기화 · 배포 함수 · URL scheme
+   도 따라 빠진다(초기화 표 · 배포 스크립트 · 자리표시 scheme).
+   secret 은 빠지지 않는다 — 코드에 `defineSecret` 이 남아 있는 한 Firebase CLI 가
+   존재를 확인하므로 자리표시 값으로 남겨 둔다(값은 읽히지 않는다). 코드까지
    지우는 경우는 다음 중 하나다: 검증 · 유지가 불가능하다(개발자 · 테스트 계정을 만들
    수 없어 로그인 경로를 검증하지 못함), 의존성 부담이 크다(전용 플러그인 · native SDK
    의 유지비), 킷 가치가 비대칭이다(대상 사용자층 대비 설정 비용).

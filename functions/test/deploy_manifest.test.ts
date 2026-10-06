@@ -6,8 +6,12 @@
  * 함수를 배포한다. 그래서 manifest 가 `src/index.ts` 의 export 와 어긋나면
  * 새 함수가 배포되지 않거나 지운 함수가 명령에 남는다(T-173-12). 또 공통 함수가
  * provider secret 을 묶거나 provider 함수가 다른 provider 의 secret 을 묶으면,
- * 그 provider 를 꺼도 secret 프롬프트가 남아 계약 (4) 「끈 provider 의 함수
- * 배포 · secret 생성이 필요 없다」 가 깨진다(T-173-11).
+ * 그 provider 를 꺼도 그 secret 의 유효 버전 검사 · 접근 권한 부여가 배포에
+ * 걸리고 값이 런타임에 읽힌다 — binding 최소화가 계약 (4) 「끈 provider 의 함수
+ * 배포가 필요 없고 secret 값은 자리표시여도 된다」 를 지킨다(T-173-11).
+ * secret **존재** 확인은 binding 과 무관하다 — Firebase CLI 는 `--only` 필터와
+ * 상관없이 선언된 `defineSecret` 전부를 확인하므로 끈 provider 의 secret 도
+ * Secret Manager 에 있어야 한다(docs/manual.md 「켜기」 ④ 일괄 생성).
  *
  * `firebase-functions/params` 는 mock 하지 않는다 — 실제 secret 이름이
  * `__endpoint.secretEnvironmentVariables` 에 남아야 binding 을 검사할 수 있다.

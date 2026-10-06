@@ -17,6 +17,10 @@
   값이 비어 있어서, 복사한 직후 로그인 화면에는 「이메일로 계속」 만 보인다.
 - **켠 provider 만 키 · 콘솔 등록이 필요하다.** 끈 provider 의 키는 비워 둬도
   빌드 · 실행된다. provider 를 켜기 전에 그 provider 의 키를 채운다.
+- **Cloud Functions secret 은 끈 provider 것도 만들어 둔다.** 함수 배포는 코드에
+  선언된 secret 8개가 Secret Manager 에 모두 있어야 진행된다. 끈 provider 의
+  secret 은 자리표시 값이면 된다 — 일괄 생성 명령은 `docs/manual.md`
+  「[로그인 수단 켜고 끄기](../docs/manual.md#로그인-수단-켜고-끄기)」 의 「켜기」 ④.
 - **값은 빌드 때 들어간다.** 바꾼 뒤에는 앱을 다시 빌드한다.
 - **출시 뒤 provider 를 끌 때는 이 값을 고치지 않는다.** Remote Config kill
   switch 로 끈다 — `docs/manual.md` 의 [RC Kill Switch 운영 절차](../docs/manual.md#rc-kill-switch-운영-절차-emergency-disable).

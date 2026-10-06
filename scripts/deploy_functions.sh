@@ -4,9 +4,17 @@
 # 목적:
 #   config/<flavor>.json 의 enabledAuthProviders(CSV)를 읽어 공통 함수 + 켠 provider 의
 #   함수만 표준 `firebase deploy --project <id> --only functions:…` 명령으로 배포한다.
-#   끈 provider 의 함수는 배포 목록에 들어가지 않으므로, 그 함수가 묶은 secret 도
-#   Secret Manager 에 만들 필요가 없다(Firebase CLI 는 묶인 secret 이 없으면 배포 중
-#   값을 묻는다 — 끈 provider 때문에 그 질문을 받지 않게 하는 것이 이 스크립트의 목적이다).
+#   끈 provider 의 함수는 배포 목록에 들어가지 않으므로 그 provider 의 함수 배포가
+#   필요 없다.
+#
+# secret 전제 (끈 provider 포함):
+#   Firebase CLI 는 `--only` 필터와 무관하게 코드베이스가 선언한 secret 8개
+#   (`defineSecret` — functions/src/shared/) 전부가 Secret Manager 에 있는지 확인하고,
+#   없으면 배포 중 값을 묻는다(비대화형이면 오류). 그래서 끈 provider 의 secret 도
+#   **존재**해야 한다 — 값은 자리표시(예: unset)여도 된다. 그 provider 의 함수가
+#   배포되지 않으므로 값이 읽히지 않고, 함수 단위로 거르는 유효 버전 검사 · secret
+#   접근 권한 부여도 그 secret 에는 걸리지 않는다. 일괄 생성 명령은 docs/manual.md
+#   「로그인 수단 켜고 끄기」 의 「켜기」 ④.
 #
 # 사용법:
 #   bash scripts/deploy_functions.sh <dev|stg|prod>            # dry-run (기본 — 아무것도 배포하지 않는다)
