@@ -1482,7 +1482,7 @@ LINE 로그인은 Custom Token 방식 + OIDC ID Token JWT 검증 (Kakao 와 같�
    - 약관 동의 후 "Create"
 4. **Channel ID / Channel Secret 확인** — 생성 직후 Channel 상세 페이지의
    "Basic settings" 탭에서 두 키 확인 + 메모:
-   - `Channel ID` — 숫자 (예: `0000000000`) — 공개 키, `config/dev.json` 의
+   - `Channel ID` — 숫자로만 된 ID — 공개 키, `config/dev.json` 의
      `lineChannelId` 에 주입
    - `Channel Secret` — 영숫자 32자리 — 비공개 키, **Firebase Secret Manager
      로만** 주입 (단계 5)
