@@ -14,6 +14,8 @@
 //   한 줄씩 갖고, 표에 금지 패턴이 0 건이며 표 바로 뒤에 새 절 링크 줄이 있다.
 // T-173-DOCS-07: provider 추가 · 제거 가이드가 매뉴얼에서 빠져 유지보수자 문서로
 //   옮겨졌고(현재 구조 토큰 · 플러그인 scheme 기록), 새 절에 그 문서 링크가 1줄 있다.
+// T-173-DOCS-08: 변경 이력 앞 본문에 옛 공유 연결 callable 이름 · 옮긴 절 제목 참조가
+//   0 건이고, 계정 연결 · 해제 절의 고친 단위 머리 줄 5개가 각각 1줄이며 금지 패턴 0 건이다.
 
 import 'dart:convert';
 
@@ -170,6 +172,25 @@ const List<String> _maintainerDocTokens = <String>[
   'buildProviderSdkInits',
   ':default=unset.',
   'naver3rdpartylogin',
+];
+
+/// 변경 이력 헤딩 — 이 앞까지가 「본문」 이다(이력 표는 옛 이름을 그대로 둔다).
+const String _historyHeading = '## 변경 이력';
+
+/// 본문에서 옮긴 절을 가리키면 안 되는 제목 조각(번호 · 괄호 꼬리 없이).
+const List<String> _movedGuideTitleStems = <String>[
+  'Custom Token Provider 제거 가이드',
+  'Custom Token Provider 추가 가이드',
+];
+
+/// 계정 연결 · 해제 절에서 고친 단위의 머리 문자열 — 각각 정확히 한 줄이 이것으로
+/// 시작한다(앞 공백은 무시 — 중첩 bullet 이 있다).
+const List<String> _correctedUnitHeads = <String>[
+  '**배포 (연결 끊기 함수):**',
+  '**배포 (Naver 연결 함수):**',
+  '- **재인증 창** —',
+  '- **provider 제거** —',
+  '- **Custom Token provider — Kakao/LINE (OIDC ID token):**',
 ];
 
 /// 옛 공유 연결 callable 이름 조각 — 이어 붙여야 이름이 된다(리터럴 0).
@@ -488,5 +509,50 @@ void main() {
         reason: '유지보수자 문서에 옛 공유 연결 callable 이름이 있다',
       );
     });
+
+    test(
+      'T-173-DOCS-08: 본문에 옛 연결 callable · 옮긴 절 참조 0 · 고친 단위 머리 줄 1개씩 · 금지 패턴 0',
+      () {
+        final int historyIndex = manual.indexOf('\n$_historyHeading\n');
+        expect(historyIndex, greaterThan(0), reason: '변경 이력 헤딩을 찾지 못했다');
+        final String body = manual.substring(0, historyIndex);
+        // 양성 대조: 본문 슬라이스가 새 절을 포함한다.
+        expect(countOccurrences(body, '$_sectionHeading\n'), 1);
+
+        expect(
+          _buildLegacyCallablePattern().allMatches(body).length,
+          0,
+          reason: '본문에 옛 공유 연결 callable 이름이 있다',
+        );
+        for (final String stem in _movedGuideTitleStems) {
+          expect(
+            countOccurrences(body, stem),
+            0,
+            reason: '본문이 옮긴 절 「$stem」 을 가리킨다',
+          );
+        }
+        expect(
+          countOccurrences(body, 'linkKakaoProvider'),
+          greaterThanOrEqualTo(1),
+          reason: '본문에 새 Kakao 연결 callable 이름이 없다',
+        );
+
+        final List<String> bodyLines = body.split('\n');
+        final List<String> unitLines = <String>[];
+        for (final String head in _correctedUnitHeads) {
+          final List<String> selected = bodyLines
+              .where((String line) => line.trimLeft().startsWith(head))
+              .toList();
+          expect(selected, hasLength(1), reason: head);
+          unitLines.addAll(selected);
+        }
+
+        final List<String> hits = RegExp(_forbiddenPatternSource)
+            .allMatches(unitLines.join('\n'))
+            .map((RegExpMatch m) => m.group(0)!)
+            .toList();
+        expect(hits, isEmpty, reason: '고친 단위에 금지 패턴이 있다: $hits');
+      },
+    );
   });
 }

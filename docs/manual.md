@@ -315,7 +315,7 @@ bash scripts/deploy_functions.sh dev
 bash scripts/deploy_functions.sh dev --apply
 ```
 
-**⑥ 처음 만든 함수의 Cloud Run invoker 를 확인한다.** 새로 생긴 함수는 Cloud Run 서비스에 `allUsers` · `roles/run.invoker` 바인딩이 있어야 앱에서 호출된다. 확인 명령과 바인딩이 빠졌을 때의 조치는 [Naver Login 10단계](#10단계--cloud-function-배포) 의 `linkNaverProvider` 항목과 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절의 「배포 · 제거」 문단에 있다.
+**⑥ 처음 만든 함수의 Cloud Run invoker 를 확인한다.** 새로 생긴 함수는 Cloud Run 서비스에 `allUsers` · `roles/run.invoker` 바인딩이 있어야 앱에서 호출된다. 확인 명령과 바인딩이 빠졌을 때의 조치는 [Naver Login 10단계](#10단계--cloud-function-배포) 의 `linkNaverProvider` 항목과 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절의 「배포 (연결 끊기 함수)」 문단에 있다.
 
 **⑦ 앱을 다시 빌드해 실행한다.** `enabledAuthProviders` 와 키는 빌드 때 들어가므로 바꾼 뒤에는 다시 빌드한다.
 
@@ -2239,8 +2239,8 @@ createUser/updateUser 시점에 이미 propagate).
 - **규칙:** Custom Token 재로그인에서 로그인 provider 가 `users/{uid}.signUpProviderId`
   와 같을 때만 아래 `PROFILE_REFRESH_POLICY` 에 따라 갱신한다. 값이 다르면(연결
   수단으로 로그인 · native 가입 계정의 `google.com` 등) email 을 포함해 아무것도
-  갱신하지 않는다. 연결 callable(`linkNaverProvider` · `linkCustomTokenProvider`)은
-  원래 프로필을 건드리지 않는다.
+  갱신하지 않는다. 연결 callable(`linkNaverProvider` · `linkKakaoProvider` ·
+  `linkLineProvider`)은 원래 프로필을 건드리지 않는다.
 - **보존(fail-closed):** 필드가 없거나(Phase 16.7 이전 가입자 · 기록 누락) `users`
   문서 읽기에 실패하면 갱신하지 않는다. backfill 은 없다 — 「가입 수단 기록
   (Phase 16.7)」 절 fallback 과 같은 태도다. 로그인 자체는 정상 완료된다.
@@ -2533,7 +2533,7 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 2. **client-side `AccountLinkingSheet`** (Plan 16-04) — Material 3 Modal Bottom Sheet 본체. 본문 메시지는 provider-aware (예: "이 이메일은 Google 로 가입되어 있습니다. Google 로 로그인하여 계정을 연결하세요.") + 단일 BrandedSocialButton (D-02 single button 정책 — 정확한 기존 provider 만 노출하여 사용자 confusion 차단) + dismiss TextButton (D-03 cancel — Navigator.pop(false)).
 3. **native↔native vs Custom Token 분기 (D-04):**
    - **Native 4 provider (Google/Apple/Facebook/Email):** Firebase Auth 의 `User.linkWithCredential` 로 직접 연결.
-   - **Custom Token provider — Kakao/LINE (OIDC ID token):** `linkCustomTokenProvider` callable (server-side) — 외부 IdP 의 OIDC ID token 을 server 에서 검증한 뒤 `identity_index` 와 `users/{uid}.linkedProviders` 에 연결을 기록한다.
+   - **Custom Token provider — Kakao/LINE (OIDC ID token):** provider 전용 callable `linkKakaoProvider` · `linkLineProvider` (server-side) — 외부 IdP 의 OIDC ID token 을 server 에서 검증한 뒤 `identity_index` 와 `users/{uid}.linkedProviders` 에 연결을 기록한다.
    - **Custom Token provider — Naver (access token / authorization code):** `linkNaverProvider` callable — Phase 16.9 · 아래 「Naver 계정 연결 (Phase 16.9)」 절.
 4. **사용자 cancel 시 state 손실 0 (D-03):** sheet 의 dismiss 또는 backdrop tap 시 기존 세션 / onboarding 상태는 모두 보존. `Navigator.pop(false)` 만 호출 → caller 의 catch path 가 fresh 진입점으로 fallback.
 
@@ -2649,7 +2649,7 @@ Home AppBar → Icons.settings tap → /settings route
 |--------|-----------|
 | native 익명 → `link*` 성공 (익명 계정 제자리 승격) | 기존 계정 재로그인 |
 | native 비익명 신규 sign-in (`additionalUserInfo.isNewUser == true`) | `credential-already-in-use` 뒤 익명 폐기 + 기존 계정 sign-in |
-| 이메일 가입 (`createUserWithEmailAndPassword` · 익명 이메일 link) | 계정 정보 화면 · 충돌 시트의 계정 연결 (native `link*` · `linkCustomTokenProvider` · `linkNaverProvider`) |
+| 이메일 가입 (`createUserWithEmailAndPassword` · 익명 이메일 link) | 계정 정보 화면 · 충돌 시트의 계정 연결 (native `link*` · `linkKakaoProvider` · `linkLineProvider` · `linkNaverProvider`) |
 | Custom Token `resolveIdentity` 신규 등록 분기 | Custom Token 재로그인 (`isNewUser: false`) |
 
 **순서 — 약관 mirror 가 먼저:** `SignUpMethodRecorder` 는 경로 구분 없이 항상 `TermsNotifier.mirrorToFirestore` 를 먼저 await 한 뒤 `signUpProviderId` 를 쓴다 (D-19 · D-29). 약관 mirror 는 pre-read 에서 `users/{uid}` 문서가 이미 있으면 skip 하는데(다중 사용자 기기 보호), 가입 수단을 먼저 쓰면 Firestore 가 자기 pending write 를 로컬 읽기에 반영해 문서가 「있다」 고 보고 약관 mirror 가 건너뛰어진다 → 서버에 `termsAccepted` 가 없어 다음 재읽기에서 재동의 화면이 뜬다. 위 「약관 동의 서버 기록」 절의 Custom Token 경합과 같은 함정이다. 이 순서 때문에 익명을 거치지 않은 native 신규 sign-in 에서도 약관이 서버에 기록된다(행동 변화 — 의도). mirror 가 실패해도(reason `sign_up_method_terms_mirror`) 가입 수단 기록은 이어간다. **흔한 실수:** recorder 를 거치지 않고 다른 곳에서 `users/{uid}` 에 먼저 set-merge 하면 이 함정이 그대로 재현된다.
@@ -2664,7 +2664,7 @@ Home AppBar → Icons.settings tap → /settings route
 
 - **native provider 추가** — 그 provider 의 sign-in 메서드에 3줄 패턴을 넣는다: `userCredential` 선언 앞 `var didLinkAnonymous = false;` → 익명 `link*` 호출 **바로 다음 줄** `didLinkAnonymous = true;`(catch 안 `credential-already-in-use` fallback 에는 넣지 않는다) → `fbUser == null` 검사 뒤 `final isSignUp = didLinkAnonymous || (userCredential.additionalUserInfo?.isNewUser ?? false);` 이면 `unawaited(_recordSignUpMethod(fbUser.uid, <SDK>.PROVIDER_ID));`. 표시 쪽은 `AccountProvider.tryParse`(`lib/core/auth/provider_id.dart`) 에 Firebase URI or-pattern 1개 + `formatProviderLabels` switch 1행 + ARB `authAccountProvider{X}` 3 locale + `kSupportedAuthProviderIds`(`lib/shared/auth/provider_label_formatter.dart`) 에 URI 추가(설정 가입 수단 1줄 가드 · 홈 E1 sweep 은 이 set 을 순회하므로 새 provider 가 자동 포함된다. 반면 `test/shared/auth/provider_label_formatter_test.dart` 의 「kSupportedAuthProviderIds 컨트랙트」 그룹은 set 리터럴 동등과 원소 수(`length, 7`)를 단언하므로 URI 를 추가하면 먼저 red 가 된다 — 리터럴 · 원소 수를 같은 커밋에서 갱신한다) + `kAllProviderIds`(`lib/core/auth/provider_id.dart`) 에 slug 등재(D-05 표시 순서의 원천 — 누락하면 enum 에 있어도 `orderForDisplay` 가 미지 값 자리로 조용히 정렬한다) + 같은 slug 를 `formatProviderLabels` 안 D-53 assert 의 `knownIds` 리터럴에도 추가(assert 는 `kAllProviderIds` 의 모든 slug 가 `knownIds` 에 있는지 대조한다 — 누락하면 assert 가 켜진 debug 빌드 · 테스트에서 첫 라벨 변환 때 `StateError` 로 멈추고, 위 컨트랙트 테스트 파일(`test/shared/auth/provider_label_formatter_test.dart`)의 `T-13-FORMATTER-ASSERT-01` 이 red 가 된다). **흔한 실수:** 기존 `isLinkedFromAnonymous`(인증 메일용)를 기록 조건으로 쓰면 fallback 뒤에도 true 라 기존 계정 로그인이 「가입」 으로 기록된다 — `test/features/auth/data/auth_repository_sign_up_method_test.dart` 의 `credential-already-in-use` 케이스가 red 로 잡는다(새 provider 도 이 파일에 1회 · 0회 케이스를 복제한다).
 - **Custom Token provider 추가** — 가입 수단 기록 쪽 편집은 0 이다. 새 endpoint 가 `resolveIdentity(db, {provider: "<slug>", …})` 를 부르면 신규 등록에서 자동 기록된다(slug 는 `ProviderId` closed union 에 먼저 넣어야 컴파일된다). 그 함수는 `resolveIdentity` 를 바꿀 때마다 재배포 대상에 들어간다.
-- **provider 제거** — 이미 그 값으로 기록된 문서는 남는다. 표시는 `errorUnknownProvider` 라벨로 떨어지고(raw slug 노출 0), 잔존 계수 · 정리는 「Custom Token Provider 제거 가이드」 3-⑥ 의 `users.signUpProviderId == <slug>` 항목을 따른다.
+- **provider 제거** — 이미 그 값으로 기록된 문서는 남는다. 표시는 `errorUnknownProvider` 라벨로 떨어지고(raw slug 노출 0), `users.signUpProviderId == <slug>` 잔존 계수 · 정리는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md)의 제거 가이드를 따른다.
 - 기록 자체를 끄려면 `authRepository` factory 의 `recordSignUpMethod:` 인자 1줄을 지운다 — no-op 기본값으로 돌아가고 모든 계정이 위 fallback 으로 보인다.
 
 **확인 방법:** 두 끝을 모두 본다 — 한쪽만 보면 사이 wiring 누락을 놓친다. (1) Firebase Console > Firestore `users/{uid}` 문서에 `signUpProviderId` 가 가입한 수단 값으로 있는지, (2) 같은 계정으로 앱의 설정 → 내 계정(계정 정보 화면)과 데모 계정 디버그 정보 카드에 가입 수단 · 연결된 계정이 그 값대로 보이는지. 이어서 계정 정보 화면 「계정 연결」 에서 다른 provider 를 연결하고 그 수단으로 재로그인해도 (1) 의 값이 바뀌지 않아야 한다. Admin 으로 원장을 바꾼 직후에는 기기 캐시가 옛 값을 보일 수 있으니 재로그인 뒤 대조한다. 예: 합성 사용자 `uid = test-uid-0001` 이 Kakao 로 가입했다면 문서는 `signUpProviderId: "kakao"` 이고 계정 정보 화면은 가입 수단 = 카카오 · 연결된 계정 = 없음이다.
@@ -2786,7 +2786,7 @@ firebase functions:secrets:set LINE_CHANNEL_SECRET
 
 (2) **재동의** — 끊은 뒤 그 provider 로 다시 로그인하면 동의 화면이 다시 뜨는지. Android UAT 에서 네이버 · Apple 은 끊기 전에는 없던 동의 화면이 끊은 뒤 나왔다. 라인은 이 채널에서 로그인마다 승인 화면이 나와 이 근거가 약하므로 목록으로 판정한다. 동의 화면에서 취소하면 새 계정은 생기지 않는다. (3) **원장** — 탈퇴는 Auth 사용자 · `users/{uid}` 문서 · `firebaseUid == <uid>` 인 `identity_index` 문서가 모두 없어야 하고, 해제는 「계정 연결 해제 (Phase 16.8)」 절의 확인 방법 그대로다. 서버 로그 event 는 `disconnect_kakao_succeeded`(재진입이면 앞에 `disconnect_kakao_already_unlinked`) · `disconnect_facebook_succeeded` · `disconnect_naver_succeeded` · `disconnect_line_succeeded`(이미 해제면 `disconnect_line_already_deauthorized`)이고, 해제는 그 뒤에 `unlink_custom_token_provider_succeeded`(Custom Token provider)가 이어진다. Phase 16.10 Android UAT 결과: 탈퇴 진행 화면 전 행 해제 · 목록 부재 · 재동의 표시 · 새 계정 0 · 신원 불일치 거부 · 재진입 멱등 · 5분 창 두 갈래 · 카카오 · 라인 해제를 모두 확인했다. iOS 는 아래 「한계」.
 
-**배포 · 제거:** 배포는 secret 등록 뒤 명시 필터로 한다 — `firebase deploy --only functions:disconnectKakaoProvider,functions:disconnectFacebookProvider,functions:disconnectNaverProvider,functions:disconnectLineProvider --project <project> --non-interactive`. 필터 없는 `--only functions` 와 `--force` 는 쓰지 않는다(`--force` 는 로컬에 없는 함수를 지운다). dev 에서는 새로 생성된 함수에 invoker(`allUsers` · `roles/run.invoker`)가 자동으로 붙었다 — 배포 뒤 `gcloud run services get-iam-policy <service>` 로 바인딩을 보고 미인증 POST probe 가 401 인지 확인한다. 403 이면 invoker 누락이므로 `gcloud run services add-iam-policy-binding <service> --region <region> --member=allUsers --role=roles/run.invoker` 를 실행한다. 기존 함수는 재배포하지 않아도 된다 — 새 callable 만 추가했고 기존 함수의 동작 변경이 0 이다. **provider 하나의 끊기를 빼려면:** 서버 callable 파일 + `index.ts` export 1줄 + 그 callable 만 쓰는 secret 선언 + `firebase functions:delete disconnect<Provider>Provider` + 레지스트리 `kDisconnectSteps` 1줄(재로그인 행이면 step 파일 · 그 import 1줄도)이다. 탈퇴 · 해제 callable 과 진행 화면 · 다이얼로그 · 공용 계약 `DisconnectDeps` · `disconnectDepsProvider` 는 편집 0 이다(재로그인 step 은 자기 SDK client 를 `deps.read(...)` 로 직접 읽는다). 레지스트리 줄만 지우면 그 provider 는 킷 쪽만 해제되고, 진행 화면 행과 다이얼로그 고지 · 안내가 사라진다. provider 를 킷에서 통째로 빼는 순서는 「Custom Token Provider 제거 가이드 (Phase 16.6)」 ⑦ 의 「provider 측 끊기 경로」 항목을 따른다.
+**배포 (연결 끊기 함수):** 연결 끊기 함수(`disconnectKakaoProvider` · `disconnectFacebookProvider` · `disconnectNaverProvider` · `disconnectLineProvider`)는 그 provider 를 켠 flavor 에서 배포 스크립트(「[로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기)」 의 「켜기」 ⑤)가 다른 함수와 함께 배포한다 — 끈 provider 의 끊기 함수 · secret 은 필요 없다. secret 은 배포 전에 위 표의 이름으로 `firebase functions:secrets:set <secret 이름>` 을 실행해 등록한다(등록하지 않으면 Firebase CLI 가 배포 중 값을 묻는다). 필터 없는 `--only functions` 와 `--force` 는 쓰지 않는다(`--force` 는 로컬에 없는 함수를 지운다). 처음 만든 함수는 배포 뒤 `gcloud run services get-iam-policy <service> --region <region>` 으로 invoker(`allUsers` · `roles/run.invoker`) 바인딩을 보고, 인증 없이 보낸 POST 요청이 401 로 거부되는지 확인한다. 403 이면 invoker 가 빠진 것이므로 `gcloud run services add-iam-policy-binding <service> --region <region> --member=allUsers --role=roles/run.invoker` 를 실행한다. provider 를 킷에서 빼는 절차는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md)에 있다.
 
 **한계:**
 
@@ -2818,13 +2818,13 @@ firebase functions:secrets:set LINE_CHANNEL_SECRET
 
 **확인 방법:** 두 끝을 모두 본다. (1) 화면 — 연결 뒤 「연결된 계정」 에 네이버가 있고 「네이버 연결」 버튼이 없는지, 「가입 수단」 은 그대로인지. 로그아웃 뒤 네이버로 로그인하면 같은 계정(같은 데이터)으로 들어오는지. (2) 원장 — Firestore `identity_index` 에 `provider == "naver"` 이고 `firebaseUid == <uid>` 인 문서가 1건인지, `users/{uid}.linkedProviders` 에 naver 항목 · `providerLinkedAt.naver` 키가 있는지, `users/{uid}.signUpProviderId` 가 연결 전과 같은지, Identity Toolkit `accounts:lookup` 의 email · displayName · photoUrl 이 연결 전과 같은지(연결 직후 · 재로그인 전 기준). 서버 로그 Cloud Logging 에는 성공 때 `link_naver_provider_succeeded` 가 `path` `link_app`(1-tap) 또는 `link_web`(웹)으로 남는다 — 로그인 이벤트(`path` `app` · `web`)와는 `path` 로 가른다. 검증 단계의 공용 이벤트(`naver_verify_*` · `naver_fetch_failed`)도 같은 `path` 값을 싣는다. Admin(Console · 스크립트)으로 원장을 바꾼 직후에는 기기 캐시가 옛 목록을 보일 수 있으니 앱 재시작이나 재로그인 뒤 대조한다.
 
-**배포 · 제거:** 새 함수는 `firebase deploy --only functions:linkNaverProvider` 로 배포하고 invoker 를 확인한다(「Naver Login」 절 10단계 — 첫 배포가 끊기면 invoker 가 빠질 수 있다). Phase 16.9 는 dev 에 두 번 배포했다. (1) 실행 단계(plan 03): `linkNaverProvider` 와 `linkCustomTokenProvider`(연결 transaction 을 `link_identity_transaction.ts` 로 옮긴 재배포). (2) 코드 리뷰 수정 반영(2026-09-28 · `16.9-UAT.md` Test 1): `linkNaverProvider` · `linkCustomTokenProvider` · `deleteUserAccount` — 재인증 거부에 `details.reason` 을 싣고(WR-01) provider 당 신원 1개 가드를 넣은(IN-03) 서버다. 앱은 reason 없는 `unauthenticated` 를 재로그인이 아닌 일시 오류로 안내하므로, 이 수정 전 서버에 새 앱을 붙이면 재인증이 필요한 경우도 「잠시 후 다시 시도」 로 보인다 — 서버와 앱은 함께 올린다. Naver 로그인 함수 `naverCustomToken` · `naverWebCustomToken` 은 두 번 모두 재배포하지 않았다 — 소스가 동작 불변 리팩터(검증 helper 분리 · 교환 모듈 이동)와 공용 오류 모듈(`custom_token_errors.ts`)의 새 함수 추가만 받았고, dev 배포본은 리팩터 전 코드이며 다음 전체 배포 때 따라간다(`uat-evidence/deploy-16.9.md` 마커 `NOT_REDEPLOYED_REFACTOR`). **provider 를 추가 · 제거할 때:** Naver 연결만 빼려면 `link_naver_provider.ts` 삭제 + `functions/src/index.ts` 의 export 1줄 + `firebase functions:delete linkNaverProvider` + 클라이언트 후보 목록 원소 1개 · `SettingsNotifier` 의 naver arm · `AuthRepository.linkNaverProviderArm` 이다 — `linkCustomTokenProvider` 는 재배포할 필요가 없다(Naver 분기 · secret 0). Naver 를 킷에서 통째로 빼는 순서는 「Custom Token Provider 제거 가이드 (Phase 16.6)」 ⑦ 의 Naver 항목을 따른다. OIDC ID token 을 주는 새 provider 는 `linkCustomTokenProvider` 에 붙이고, Naver 처럼 access token 으로 검증하는 provider 는 이 callable 을 본떠 전용 callable 을 두면 연결 transaction(`linkCustomTokenIdentity`)과 해제 callable 은 그대로 재사용된다.
+**배포 (Naver 연결 함수):** `linkNaverProvider` 는 Naver 를 켠 flavor 에서 배포 스크립트(「[로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기)」 의 「켜기」 ⑤)가 다른 Naver 함수와 함께 배포한다. 처음 배포한 뒤에는 invoker 를 확인한다(「Naver Login」 절 10단계 — 첫 배포가 끊기면 invoker 가 빠질 수 있다). 서버와 앱은 함께 올린다 — 앱은 재로그인이 필요한 거부를 서버가 싣는 `details.reason` 으로 판정한다. provider 를 킷에서 빼는 절차는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md)에 있다.
 
 **커스터마이징:**
 
 - **후보 · 순서** — `kSocialProviderOrder`(`lib/core/auth/provider_order.dart`) 원소 순서가 버튼 순서다(탈퇴 진행 화면의 행 순서도 같은 목록 · Phase 16.10). 원소를 빼면 「네이버 연결」 버튼이 사라지고 서버 · 해제는 그대로 남는다 — 탈퇴 진행 화면의 네이버 행은 목록에 없는 provider 로 취급돼 재로그인 행 묶음 맨 뒤에 선다.
 - **타임아웃** — `AuthRepository._kCustomTokenTimeout`(1-tap 10초) · `_kNaverWebCustomTokenTimeout`(웹 20초). 로그인과 연결이 같은 상수를 쓴다.
-- **재인증 창** — 연결에는 없다. `functions/src/shared/reauth.ts` 의 `assertFreshAuth`(300초)는 회원탈퇴 `deleteUserAccount` 만 호출한다(quick 260928-cxs — Firebase 표준: 연결은 최근 로그인 불필요, 삭제는 필요). 연결에 재인증을 다시 요구하려면 `linkNaverProvider` · `linkCustomTokenProvider` 의 Step 1(uid 일치 검사 뒤)에 `assertFreshAuth(decoded.auth_time)` 한 줄을 되돌리고 Jest N5 · L3 를 거부 단언으로 바꾼다 — 클라이언트 매핑(`_mapLinkCallableException` 의 `reauthentication_required` reason → 재로그인 화면)은 방어 계층으로 남아 있어 바로 받는다.
+- **재인증 창** — 연결에는 없다. `functions/src/shared/reauth.ts` 의 `assertFreshAuth`(300초)는 회원탈퇴 `deleteUserAccount` 만 호출한다(Firebase 표준: 연결은 최근 로그인 불필요, 삭제는 필요). 연결에 재인증을 요구하려면 `functions/src/auth/link_naver_provider.ts` 와 Kakao · LINE 공용 `functions/src/auth/link_oidc_provider.ts` 의 caller 검사(uid 일치 검사 뒤)에 `assertFreshAuth(decoded.auth_time)` 한 줄을 더하고, 연결 함수 Jest(`functions/test/auth/link_*_provider.test.ts`)에서 오래된 `auth_time` 으로 연결이 진행된다고 단언하는 케이스를 거부 단언으로 바꾼다 — 클라이언트는 `reauthentication_required` reason 을 이미 재로그인 화면으로 보내므로 그대로 받는다.
 
 ### 탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)
 
