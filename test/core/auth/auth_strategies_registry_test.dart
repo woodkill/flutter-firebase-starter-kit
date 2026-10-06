@@ -316,4 +316,35 @@ void main() {
       ]);
     });
   });
+
+  group('Phase 17.3 처음부터 off — 정적 CSV 가 없으면 RC 로 켜지지 않는다', () {
+    /// RC 6키가 모두 true 인 상태 — 정적 CSV 만이 표시 여부를 가른다.
+    Map<String, bool?> allRcTrue() => <String, bool?>{
+      for (final id in kAllProviderIds) rcKeyForProvider(id): true,
+    };
+
+    test('T-173-OFF-01: 정적 CSV google · RC 모두 true → Google 하나뿐', () {
+      final c = makeContainer(
+        staticMap: AppConfig.parseEnabledProviders('google'),
+        rcMap: allRcTrue(),
+      );
+      final result = c.read(activeStrategiesProvider);
+      expect(result.map((s) => s.providerId), [
+        kProviderIdGoogle,
+      ], reason: 'CSV 에 없는 provider 는 RC true 여도 로그인 화면에 나오지 않는다');
+    });
+
+    test('T-173-OFF-02: 정적 CSV 빈 문자열 · RC 모두 true → 0개', () {
+      final c = makeContainer(
+        staticMap: AppConfig.parseEnabledProviders(''),
+        rcMap: allRcTrue(),
+      );
+      final result = c.read(activeStrategiesProvider);
+      expect(
+        result,
+        isEmpty,
+        reason: 'clone 직후 기본값(소셜 전부 off)은 RC 로 켤 수 없다 (D-26)',
+      );
+    });
+  });
 }

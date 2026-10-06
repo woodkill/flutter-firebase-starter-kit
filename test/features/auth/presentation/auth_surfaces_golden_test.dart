@@ -248,6 +248,10 @@ enum _Entry {
 /// Phase 17.1 (D-23 · UI-SPEC Q9-A) — 재인증 복귀 golden 의 출발 · 복귀 화면이
 /// 설정에서 계정 화면으로 바뀌어 설정 「알림」 섹션 꺼짐 고정
 /// (`notificationSettingsProvider`)은 더 이상 그려지는 화면이 없어 뺐다.
+///
+/// [strategies] 는 `activeStrategiesProvider` 로 표시할 소셜 목록이다 — 기본값
+/// [_sixStrategies] 라 기존 golden 은 그대로이고, Phase 17.3 D-17 golden 만
+/// 빈 목록(소셜 0개)을 넘긴다.
 Future<void> _pumpSurface(
   WidgetTester tester, {
   required Brightness brightness,
@@ -255,6 +259,7 @@ Future<void> _pumpSurface(
   Widget? surface,
   User? user,
   AuthRepository? repository,
+  List<AuthStrategy> strategies = _sixStrategies,
 }) async {
   tester.view.devicePixelRatio = _goldenDevicePixelRatio;
   tester.view.physicalSize = _goldenLogicalSize * _goldenDevicePixelRatio;
@@ -271,7 +276,7 @@ Future<void> _pumpSurface(
         authRepositoryProvider.overrideWithValue(
           repository ?? _mockRepository(),
         ),
-        activeStrategiesProvider.overrideWithValue(_sixStrategies),
+        activeStrategiesProvider.overrideWithValue(strategies),
         if (user != null) currentUserProvider.overrideWith((ref) => user),
         // Phase 17 (Plan 17-17) — 사진 행의 사진 출처 stream 을 data(업로드
         // 사진 없음)로 고정한다(미초기화 Firestore 무접촉). 17.1 부터 사진
@@ -375,6 +380,29 @@ void main() {
       testWidgets('Surface D LoginPromptSheet — $mode', (tester) async {
         await _pumpSurface(tester, brightness: brightness, entry: _Entry.sheet);
         await _expectSurfaceGolden(tester, 'login_prompt_sheet_$mode.png');
+      });
+    }
+  });
+
+  // Phase 17.3 D-17 — 소셜 0개 로그인 화면. 사용자가 승인한 실 렌더 시안
+  // (`build/uat-173/mockups/raw/after_360_en_{light,dark}.png`, 같은 helper ·
+  // 360×800 · DPR 3 · en) 과 fixture 가 byte 단위로 같다 — 승인 기록은
+  // `.planning/phases/17.3-provider-on-off-contract/uat-evidence/d17-signoff.md`.
+  group('Phase 17.3 소셜 0개 로그인 화면 golden — 360×800 · en (D-17)', () {
+    for (final brightness in <Brightness>[Brightness.light, Brightness.dark]) {
+      final mode = brightness.name;
+
+      testWidgets('T-173-NOSOCIAL-01: LoginScreen chooser 소셜 0개 — $mode', (
+        tester,
+      ) async {
+        await _pumpSurface(
+          tester,
+          brightness: brightness,
+          entry: _Entry.home,
+          surface: const LoginScreen(),
+          strategies: const <AuthStrategy>[],
+        );
+        await _expectSurfaceGolden(tester, 'login_screen_no_social_$mode.png');
       });
     }
   });

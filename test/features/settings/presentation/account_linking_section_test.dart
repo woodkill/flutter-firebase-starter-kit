@@ -77,12 +77,27 @@ User _testUser({required List<String> providerIds}) {
   );
 }
 
+/// 활성 소셜 Strategy 6종 전부 (정적 + RC overlay 대신 직접 주입) — login/
+/// signup 의 activeStrategiesProvider 결과를 결정적으로 고정한다.
+const _allStrategies = <AuthStrategy>[
+  GoogleAuthStrategy(),
+  AppleAuthStrategy(),
+  FacebookAuthStrategy(),
+  KakaoAuthStrategy(),
+  NaverAuthStrategy(),
+  LineAuthStrategy(),
+];
+
 /// AccountLinkingSection 을 GoRouter 내에서 pump 한다 (reauth push 검증용).
+///
+/// [strategies] 는 `activeStrategiesProvider` 결과다 — 기본값 6종, Phase 17.3
+/// 처음부터 off 테스트는 일부 · 빈 목록을 넘긴다.
 Future<GoRouter> _pumpSection(
   WidgetTester tester, {
   required User user,
   required AuthRepository repo,
   Locale locale = const Locale('en'),
+  List<AuthStrategy> strategies = _allStrategies,
 }) async {
   final router = GoRouter(
     initialLocation: AppRoutes.home,
@@ -100,23 +115,12 @@ Future<GoRouter> _pumpSection(
     ],
   );
 
-  // 활성 소셜 Strategy 6종 전부 (정적 + RC overlay 대신 직접 주입) — login/
-  // signup 의 activeStrategiesProvider 결과를 결정적으로 고정한다.
-  const allStrategies = <AuthStrategy>[
-    GoogleAuthStrategy(),
-    AppleAuthStrategy(),
-    FacebookAuthStrategy(),
-    KakaoAuthStrategy(),
-    NaverAuthStrategy(),
-    LineAuthStrategy(),
-  ];
-
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         currentUserProvider.overrideWith((ref) => user),
         authRepositoryProvider.overrideWithValue(repo),
-        activeStrategiesProvider.overrideWith((ref) => allStrategies),
+        activeStrategiesProvider.overrideWith((ref) => strategies),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -607,6 +611,49 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => repo.linkNaverProviderArm()).called(1);
+    });
+  });
+
+  group('Phase 17.3 처음부터 off — 계정 연결 후보는 activeStrategies 뿐', () {
+    testWidgets('T-173-OFF-03: 표시 목록 Google 1개 · 연결 0 → Google 연결 후보만', (
+      tester,
+    ) async {
+      await _pumpSection(
+        tester,
+        user: _testUser(providerIds: const <String>[]),
+        repo: repo,
+        strategies: const <AuthStrategy>[GoogleAuthStrategy()],
+      );
+
+      // 섹션이 그려졌는지 먼저 확인한 뒤 「없음」 을 단언한다(offstage 포함).
+      expect(find.text('Link an account'), findsOneWidget);
+      expect(find.text('Link Google', skipOffstage: false), findsOneWidget);
+      for (final label in const <String>[
+        'Link Apple',
+        'Link Facebook',
+        'Link Kakao',
+        'Link Naver',
+        'Link LINE',
+      ]) {
+        expect(
+          find.text(label, skipOffstage: false),
+          findsNothing,
+          reason: '처음부터 off 인 provider 는 연결 후보에 없어야 함 ($label)',
+        );
+      }
+    });
+
+    testWidgets('T-173-OFF-04: 표시 목록 0개 → 계정 연결 섹션 미노출', (tester) async {
+      await _pumpSection(
+        tester,
+        user: _testUser(providerIds: const <String>[]),
+        repo: repo,
+        strategies: const <AuthStrategy>[],
+      );
+
+      // AL8 과 같은 판정 — heading 미노출 = 섹션 미노출.
+      expect(find.byType(AccountLinkingSection), findsOneWidget);
+      expect(find.text('Link an account', skipOffstage: false), findsNothing);
     });
   });
 }
