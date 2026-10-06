@@ -38,7 +38,11 @@ const BATCH_MAX = 10;
 /**
  * 프로젝트 ID 검사를 돌릴 로캘. C 는 하네스 기본이고, UTF-8 두 개는 macOS
  * `/bin/bash` 3.2 가 대괄호 문자 범위를 정렬 순서로 해석하는 경로다(ko_KR 은
- * 유지보수자 로캘). 설치되지 않은 로캘은 bash 가 C 로 처리한다는 한계가 있다.
+ * 유지보수자 로캘).
+ *
+ * 한계: 이 로캘 행들은 PATH 의 `bash` 가 그 로캘을 갖고 범위를 정렬 순서로 해석하는
+ * 환경에서만 회귀를 잡는다. 설치되지 않은 로캘은 bash 가 C 로 처리하므로 옛 범위
+ * 패턴도 통과한다. 환경과 무관한 회귀 가드는 T-173-DEPLOY-12d(스크립트 소스 잠금)다.
  */
 const ID_CHECK_LOCALES: string[] = ["C", "en_US.UTF-8", "ko_KR.UTF-8"];
 
@@ -326,6 +330,39 @@ describe("deploy_functions.sh", () => {
       );
     },
   );
+
+  // 환경과 무관한 회귀 가드: 위 로캘 행은 실행 bash · 설치 로캘에 따라 옛 범위
+  // 패턴으로도 통과할 수 있다. 그래서 스크립트 소스의 형식 검사 두 줄이 허용 문자
+  // 나열이고, 코드 줄(주석 제외)에 대괄호 문자 범위가 없음을 직접 잠근다.
+  it("T-173-DEPLOY-12d 프로젝트 ID 검사는 문자 범위 없이 허용 문자를 나열한다(소스 잠금)", () => {
+    const lines = readFileSync(
+      join(REPO_SCRIPTS, "deploy_functions.sh"),
+      "utf8",
+    ).split("\n");
+    expect(lines).toContain("  [abcdefghijklmnopqrstuvwxyz]*) ;;");
+    expect(
+      lines.filter((l) =>
+        l.startsWith("  *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) fail "),
+      ),
+    ).toHaveLength(1);
+
+    // 대괄호 안의 `a-z` · `0-9` 꼴 범위(부정 `[!…]` 포함).
+    const rangePattern = /\[!?[^\]]*[A-Za-z0-9]-[A-Za-z0-9]/;
+    // 양성 대조 — 옛 패턴은 잡고 나열 패턴은 잡지 않는다.
+    expect(rangePattern.test("  [a-z]*) ;;")).toBe(true);
+    expect(rangePattern.test("  *[!a-z0-9-]*) fail")).toBe(true);
+    expect(
+      rangePattern.test("  [abcdefghijklmnopqrstuvwxyz]*) ;;"),
+    ).toBe(false);
+    expect(
+      rangePattern.test("  *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) fail"),
+    ).toBe(false);
+
+    const codeRanges = lines.filter(
+      (l) => !l.trimStart().startsWith("#") && rangePattern.test(l),
+    );
+    expect(codeRanges).toEqual([]);
+  });
 
   it("T-173-DEPLOY-13 --apply 는 출력한 명령을 같은 순서 · 인자로 실행한다", () => {
     writeConfig({
