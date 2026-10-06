@@ -92,20 +92,24 @@ cp config/prod.example.json  config/prod.json
 
 `config/dev.json` 을 열고 다음 키들을 본인 환경 값으로 채웁니다.
 
-| 키 | 값 출처 | 비고 |
-|----|---------|------|
-| `firebaseProjectId` | Firebase Console > 프로젝트 설정 > General | 본인 dev 프로젝트 ID |
-| `googleServerClientId` | Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client IDs > Web application | `flutterfire configure` 로 생성된 Firebase OAuth Web Client ID. iOS/Android 가 아닌 **Web** 용을 사용 (Phase 7 — Google Sign-In 정책) |
-| `facebookAppId` | Facebook Developers Console > 내 앱 > 설정 > 기본 | 숫자 문자열 |
-| `facebookClientToken` | Facebook Developers Console > 내 앱 > 설정 > 고급 > Client Token | |
-| `kakaoNativeAppKey` | Kakao Developers Console > 내 애플리케이션 > 앱 설정 > 앱 키 > **네이티브 앱 키** | REST API 키 아님 (1번 단락 — Kakao Login 1단계 #6 OIDC 활성화 함께 참조) |
-| `naverClientId` | Naver Developers Console > 본인 앱 > 개요 > **Client ID** | Android 는 gradle 이 dart-defines 에서 읽어 string resource 로 주입 (Phase 16.2). iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_ID` 에 같은 값을 따로 넣는다. **Phase 16.5 부터 Dart 도 읽는다** — `AppConfig.naverClientId`(NAVER 앱 미설치 단말의 킷 웹 경로 authorize URL 의 `client_id`, 공개 식별자). xcconfig 값과 다르면 1-tap 과 웹 경로가 서로 다른 앱으로 로그인한다 |
-| `naverClientSecret` | Naver Developers Console > 본인 앱 > 개요 > **Client Secret** | Android 는 gradle 이 dart-defines 에서 읽어 string resource 로 주입 (Phase 16.2). iOS 는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_CLIENT_SECRET` 에 같은 값을 따로 넣는다. Dart 코드는 이 키를 읽지 않는다. Firebase Secret Manager `NAVER_CLIENT_SECRET` 과 **같은 값 2본**이다 (Naver 8단계) |
-| `naverUrlScheme` | Naver Developers Console > API 설정 > iOS 환경 > **URL Scheme** | iOS SDK 의 실제 출처는 `ios/Flutter/{flavor}.xcconfig` 의 `NAVER_URL_SCHEME`. **Phase 16.5 부터 킷 웹 경로의 콜백 scheme 으로도 쓰인다** — Dart `AppConfig.naverWebCallbackScheme` + Android gradle manifest placeholder `naverWebCallbackScheme`. 소문자 영숫자(RFC 3986)여야 한다 (Naver 9단계) |
-| `appName` | (선택) 앱 표시 이름 — `StarterKit Dev` 기본값 | flavor 별 구분. Android 에서 Naver 동의 화면 앱 이름으로도 쓰인다 (Phase 16.2). 따옴표 등 특수문자가 든 값의 Android 빌드 영향은 `[ASSUMED]` 미검증이라 영숫자 · 공백만 쓰기를 권장한다 |
-| `appSuffix` | (선택) ApplicationId / BundleId suffix — `.dev` 기본값 | `flutter_native_splash` / Firebase 프로젝트 분리 |
-| `splashMinDurationMs` | (선택) 스플래시 최소 노출 시간 — `2000` 기본값 | UX 조정용 |
-| `enabledAuthProviders` | (선택) CSV — `google,apple,facebook,kakao,naver,line` 기본값 (dev 예시 기준) | Phase 11 D-26 정책: 정적 false 우위, RC 로 disable 만 가능 (Phase 13 에서 `,naver` · Phase 14 에서 `,line` 추가) |
+| 키 | 값 출처 | off 면 비워도 됨 | 비고 |
+|----|---------|------------------|------|
+| `appName` | 앱 표시 이름 — example 값 `StarterKit Dev` | 아니요 | flavor 마다 다르게 둔다. Android 에서는 Naver 동의 화면의 앱 이름으로도 쓰인다. 따옴표 같은 특수문자는 피하고 영숫자 · 공백만 쓴다 |
+| `appSuffix` | ApplicationId · Bundle ID 접미사 — example 값 `.dev` | 아니요 | flavor 마다 앱을 따로 설치하고 Firebase 앱을 나누는 데 쓴다 |
+| `firebaseProjectId` | Firebase Console → 프로젝트 설정 → 일반 | 아니요 | 본인 Firebase 프로젝트 ID. 함수 배포 스크립트도 이 값으로 배포할 프로젝트를 정한다 |
+| `googleServerClientId` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → **Web application** | Google 을 끄면 예 | Firebase 가 만든 OAuth Web Client ID. iOS · Android 용이 아니라 Web 용을 쓴다 |
+| `facebookAppId` | Facebook Developers Console → 내 앱 → 설정 → 기본 | Facebook 을 끄면 예 | 숫자 문자열. iOS 는 xcconfig `FACEBOOK_APP_ID` 에 같은 값 |
+| `facebookClientToken` | Facebook Developers Console → 내 앱 → 설정 → 고급 → Client Token | Facebook 을 끄면 예 | iOS 는 xcconfig `FACEBOOK_CLIENT_TOKEN` 에 같은 값 |
+| `kakaoNativeAppKey` | Kakao Developers Console → 내 애플리케이션 → 앱 설정 → 앱 키 → **네이티브 앱 키** | Kakao 를 끄면 예 | REST API 키가 아니다. iOS 는 xcconfig `KAKAO_NATIVE_APP_KEY` 에 같은 값. OIDC 활성화는 [Kakao Login](#kakao-login-phase-12) 1단계 |
+| `naverClientId` | Naver Developers Console → 본인 앱 → 개요 → **Client ID** | Naver 를 끄면 예 | iOS 는 xcconfig `NAVER_CLIENT_ID` 에 같은 값. 다르면 1-tap 과 웹 로그인이 서로 다른 앱으로 로그인한다 |
+| `naverClientSecret` | Naver Developers Console → 본인 앱 → 개요 → **Client Secret** | Naver 를 끄면 예 | iOS 는 xcconfig `NAVER_CLIENT_SECRET` 에 같은 값. Secret Manager 의 `NAVER_CLIENT_SECRET` 과도 같은 값이다 |
+| `naverUrlScheme` | Naver Developers Console → API 설정 → iOS 환경 → **URL Scheme** | Naver 를 끄면 예 | iOS 는 xcconfig `NAVER_URL_SCHEME` 에 같은 값. 웹 로그인의 콜백 scheme 으로도 쓰이므로 소문자 영숫자여야 한다 |
+| `lineChannelId` | LINE Developers Console → 채널 → Basic settings → **Channel ID** | LINE 을 끄면 예 | iOS 는 xcconfig `LINE_CHANNEL_ID` 에 같은 값. Secret Manager 의 `LINE_CHANNEL_ID` 와도 같은 값이다 |
+| `functionsRegion` | Cloud Functions 리전 — example 값 `asia-northeast3` | 아니요 | 바꿀 때는 `functions/src/shared/region.ts` 의 `REGION` 도 함께 바꾼다(아래 「Cloud Functions region 변경」) |
+| `splashMinDurationMs` | 스플래시 최소 노출 시간(ms) — example 값 `2000` | 아니요 | 첫 화면 전환 시점 조정용 |
+| `enabledAuthProviders` | 로그인 화면에 켤 소셜 로그인 — 쉼표로 구분 | — (켤 provider 목록 · 비우면 소셜 0개 = 기본값) | example 값이 빈 문자열이라 clone 직후 로그인 화면에는 「이메일로 계속」 만 보인다. 값은 빌드 때 들어가므로 바꾼 뒤 다시 빌드한다 |
+
+끈 provider 의 키는 비워 둬도 된다 — 무엇을 켤 때 무엇이 필요한지는 [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기).
 
 > 각 키의 콘솔 등록 절차 (앱 생성, redirect URI, 키 해시 등) 는 본 매뉴얼의
 > Phase 별 단락 (Phase 12 = Kakao, Phase 13 = Naver, Phase 14 = LINE) 을
@@ -321,11 +325,62 @@ bash scripts/deploy_functions.sh dev --apply
 fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 ```
 
+### 끄기
+
+**출시 전.** `enabledAuthProviders` 에서 그 provider 의 토큰을 빼고 앱을 다시 빌드한다. 그 provider 의 config 키 · xcconfig 값은 비워도 되고 남겨도 된다. 이미 배포한 그 provider 의 함수는 Firebase 에 남는다 — 지우려면 표의 「Cloud Functions」 칸 이름으로 지운다. 배포 스크립트는 끈 provider 의 함수를 다시 만들지 않는다.
+
+```bash
+firebase functions:delete <함수 이름> --region asia-northeast3
+```
+
+**출시 뒤.** `enabledAuthProviders` 에서 빼지 않는다. [RC Kill Switch 운영 절차](#rc-kill-switch-운영-절차-emergency-disable)로 그 provider 의 `auth_provider_<provider>_enabled` 를 `false` 로 게시해 끄고, 키 · 함수 · secret 은 남긴다. CSV 에서 빼면 그 provider 로 가입한 사용자는 로그인 · 재인증 · 회원탈퇴를 할 수 없다.
+
+### iOS 서명 — Apple 을 꺼도 필요한 capability
+
+Apple 을 꺼도 iOS 실기기 서명에는 App ID 의 Sign in with Apple capability 가 필요하다. 자동 서명이면 Xcode 가 켠다. 수동 서명이면 Apple Developer → Certificates, Identifiers & Profiles → Identifiers 에서 앱의 App ID 를 열고 Sign in with Apple 을 켠다.
+
+Apple 을 끈 앱도 이 capability 를 그대로 두는 이유는 다음과 같다.
+
+- capability 는 추가 비용 없이 체크 한 번으로 켜진다.
+- `ios/Runner/Runner.entitlements` 의 `com.apple.developer.applesignin` 은 provider 마다 나누지 않는다. 빌드 설정 9곳이 같은 파일을 쓰고, 그 파일에 푸시 알림용 `aps-environment` 도 들어 있다.
+- 파일을 나누면 `enabledAuthProviders` 와 xcconfig 두 곳을 서로 맞춰야 한다.
+- 시뮬레이터 빌드에는 영향이 없다.
+
+### App Store 심사 4.8 (Login Services) 주의
+
+Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4.8 의 「동등한 다른 로그인 수단」 요건을 검토해야 한다. 이메일/비밀번호 로그인이 그 요건을 채우는지는 Apple 이 심사에서 판단한다. 제출 전에 심사 시점의 원문을 확인한다 — <https://developer.apple.com/app-store/review/guidelines/#login-services>. 아래는 4.8 원문의 첫 문단과 세 조건이다.
+
+> Apps that use a third-party or social login service (such as Facebook Login, Google Sign-In, Log in with X, Sign In with LinkedIn, Login with Amazon, or WeChat Login) to set up or authenticate the user’s primary account with the app must also offer as an equivalent option another login service with the following features:
+>
+> - the login service limits data collection to the user’s name and email address;
+> - the login service allows users to keep their email address private as part of setting up their account; and
+> - the login service does not collect interactions with your app for advertising purposes without consent.
+
 ### 확인 방법
 
 - 로그인 화면에 켠 provider 의 버튼이 보이고, 소셜 버튼 아래에 「또는」 구분선이 나타난다.
 - `bash scripts/deploy_functions.sh dev` 출력의 `functions` 목록에 켠 provider 의 함수가 있다.
 - Firebase Console → Functions 에 그 함수가 리전 `asia-northeast3` 으로 있다.
+
+**키를 비운 채로 빌드되는지 확인.** 키가 비어 있어도 dev · stg · prod 3 flavor 의 Android · iOS 빌드와 앱 기동은 성공한다. 끈 provider 는 다른 앱과 겹칠 수 있는 URL scheme 을 등록하지 않고, `unset` 이 들어간 자리표시 scheme(Android 예: `unset.kakao.oauth`)이 그 자리에 들어간다. 아래 명령으로 확인한다.
+
+```bash
+bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|google|all]
+```
+
+셋째 인자는 확인할 설정이다. `off` 는 소셜을 모두 끄고 키를 비운 설정, `google` 은 Google 만 켠 설정, `all` 은 6개를 모두 켜고 example 값을 넣은 설정이고, 생략하면 `all` 이다. iOS 시뮬레이터용 빌드는 셋째 인자 뒤에 `--simulator` 를 붙인다(예: `bash scripts/verify_placeholder_builds.sh ios dev off --simulator`). 성공하면 마지막 줄이 `PLACEHOLDER-BUILD-OK <platform> <flavor> <case>` 다(예: `PLACEHOLDER-BUILD-OK android dev off` · 시뮬레이터용은 끝에 `simulator` 가 붙는다). 이 스크립트는 본인의 `config/{flavor}.json` · `ios/Flutter/{flavor}.xcconfig` 를 읽지도 바꾸지도 않는다.
+
+### 문제 해결
+
+- **켰는데 버튼을 누르면 오류 배너가 뜬다.** 표에서 그 provider 행의 config 키 · xcconfig 변수 · 콘솔 등록 · 함수 배포가 모두 끝났는지 다시 확인한다.
+- **켠 provider 의 버튼이 로그인 화면에 없다.** 앱을 다시 빌드했는지, Remote Config 의 `auth_provider_<provider>_enabled` 가 `false` 로 게시돼 있지 않은지 확인한다.
+- **배포 중 Firebase CLI 가 secret 값을 묻는다.** 그 secret 이 아직 등록되지 않았다는 뜻이고, Firebase CLI 의 표준 동작이다. 값을 입력하거나, 「켜기」 ④ 의 `firebase functions:secrets:set` 으로 먼저 등록한 뒤 다시 배포한다.
+- **배포 스크립트가 `알 수 없는 provider` 로 끝난다.** `enabledAuthProviders` 의 토큰 철자를 확인한다. 쓸 수 있는 값은 `google` · `apple` · `facebook` · `kakao` · `naver` · `line` 6개다.
+- **배포가 HTTP 429 · 500 으로 실패한다.** 배포 스크립트를 다시 실행한다. 스크립트는 함수를 10개씩 나눠 배포한다.
+
+### 되돌리기
+
+`enabledAuthProviders` 를 바꾸기 전 값으로 되돌리고 앱을 다시 빌드한다. 새로 배포한 함수는 「끄기」 의 `firebase functions:delete` 명령으로 지운다.
 
 ---
 
@@ -1140,21 +1195,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json -d <android
 
 ### 키를 채우기 전에도 빌드 · 기동은 된다
 
-fresh clone 직후처럼 실제 키가 하나도 없고 tracked placeholder 만 있는 상태에서도
-**dev / stg / prod 3 flavor 의 Android · iOS 빌드와 앱 기동은 성공**합니다. 새
-플러그인은 native 설정을 읽지만 값이 비어 있다고 기동 시점에 죽지 않습니다 —
-실패는 **Naver 버튼을 탭했을 때 오류 배너 1회**로만 나타나고, 다른 provider 버튼과
-화면은 정상입니다.
-
-이 계약을 직접 확인하려면:
-
-```bash
-bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod>
-```
-
-성공 시 마지막 줄이 `PLACEHOLDER-BUILD-OK <platform> <flavor>` 입니다. 이 스크립트는
-**본인의 실 키 파일(`config/{flavor}.json` · `ios/Flutter/{flavor}.xcconfig`) 을 읽지도
-바꾸지도 않습니다** — tracked placeholder 만 입력으로 씁니다.
+clone 직후처럼 키가 비어 있어도 빌드와 앱 기동은 성공하고, 기본값은 소셜 로그인 0개라 Naver 버튼도 보이지 않는다. 확인 방법은 [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기) 의 「확인 방법」 에 있다.
 
 ### 클라이언트에서의 프로필 조회와 개인정보 (Phase 16.2)
 

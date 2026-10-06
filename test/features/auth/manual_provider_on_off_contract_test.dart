@@ -8,6 +8,10 @@
 //   provider config 키 8개 · xcconfig 변수 8개가 절과 example 파일 양쪽에 있다.
 // T-173-DOCS-04: manifest 의 함수 이름 · provider secret 8개 · 배포 명령 2줄 ·
 //   provider 토큰 6개가 절에 있다.
+// T-173-DOCS-05: 절의 `###` 소절 8개가 절 템플릿 순서 그대로이고, 확인 방법 ·
+//   끄기 · iOS 서명 · 심사 4.8 문구가 있다.
+// T-173-DOCS-06: Initial Setup 키 표가 「off 면 비워도 됨」 열과 example 키 14개를
+//   한 줄씩 갖고, 표에 금지 패턴이 0 건이며 표 바로 뒤에 새 절 링크 줄이 있다.
 
 import 'dart:convert';
 
@@ -96,6 +100,52 @@ const List<String> _providerTokens = <String>[
 /// 절의 JSON 예시 `"<key>": "<value>"` 쌍.
 final RegExp _jsonPairPattern = RegExp(r'"([A-Za-z]+)":\s*"([^"]*)"');
 
+/// 절의 `###` 소절 — 절 템플릿(언제 · 전제 · 단계 · 확인 · 문제 해결 · 되돌리기) 순서.
+const List<String> _subsectionHeadings = <String>[
+  '### provider 별로 켤 때 필요한 것',
+  '### 켜기',
+  '### 끄기',
+  '### iOS 서명 — Apple 을 꺼도 필요한 capability',
+  '### App Store 심사 4.8 (Login Services) 주의',
+  '### 확인 방법',
+  '### 문제 해결',
+  '### 되돌리기',
+];
+
+/// `### 확인 방법` 소절에 있어야 하는 키를 비운 빌드 확인 명령 · 성공 줄.
+const List<String> _placeholderBuildPhrases = <String>[
+  'bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> '
+      '[off|google|all]',
+  'PLACEHOLDER-BUILD-OK <platform> <flavor> <case>',
+];
+
+/// 절에 있어야 하는 끄기 · iOS 서명 · 심사 4.8 문구.
+const List<String> _requiredSectionPhrases = <String>[
+  'Sign in with Apple capability',
+  '자동 서명이면 Xcode 가 켠다',
+  'com.apple.developer.applesignin',
+  '시뮬레이터 빌드에는 영향이 없다',
+  'Apps that use a third-party or social login service (such as Facebook '
+      'Login, Google Sign-In, Log in with X, Sign In with LinkedIn, Login '
+      'with Amazon, or WeChat Login) to set up or authenticate the user',
+  'the login service limits data collection to the user',
+  'https://developer.apple.com/app-store/review/guidelines/#login-services',
+  'RC Kill Switch 운영 절차',
+  '로그인 · 재인증 · 회원탈퇴를 할 수 없다',
+];
+
+/// Initial Setup 절 헤딩.
+const String _initialSetupHeading =
+    '## Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)';
+
+/// Initial Setup 키 표 헤더 줄.
+const String _keyTableHeader = '| 키 | 값 출처 | off 면 비워도 됨 | 비고 |';
+
+/// Initial Setup 키 표 바로 뒤의 새 절 링크 줄.
+const String _keyTableLinkLine =
+    '끈 provider 의 키는 비워 둬도 된다 — 무엇을 켤 때 무엇이 필요한지는 '
+    '[로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기).';
+
 /// 매뉴얼에서 `## 목차` 다음 줄부터 그 뒤 첫 `---` 줄 앞까지를 돌려준다.
 ///
 /// 목차 링크 문자열은 본문에도 다시 나오므로(다른 절의 안내 링크) 목차 블록
@@ -114,6 +164,21 @@ String _tocBlock(String manual) {
     block.add(lines[i]);
   }
   return block.join('\n');
+}
+
+/// [text] 에서 [header] 줄부터 `|` 로 시작하는 줄이 이어지는 동안(표 블록)을
+/// 줄 목록으로 돌려준다. [header] 가 없으면 빈 목록이다.
+List<String> _tableLines(String text, String header) {
+  final List<String> lines = text.split('\n');
+  final int start = lines.indexOf(header);
+  if (start == -1) {
+    return <String>[];
+  }
+  final List<String> table = <String>[];
+  for (int i = start; i < lines.length && lines[i].startsWith('|'); i++) {
+    table.add(lines[i]);
+  }
+  return table;
 }
 
 /// [text] 의 줄 가운데 [line] 과 정확히 같은 줄의 수를 센다.
@@ -260,6 +325,75 @@ void main() {
       for (final String token in _providerTokens) {
         expect(section, contains('`$token`'), reason: '절에 토큰 $token 이 없다');
       }
+    });
+
+    test('T-173-DOCS-05: 소절 순서 · 확인 방법 · 끄기 · iOS 서명 · 심사 4.8 문구', () {
+      expect(
+        linesStartingWith(section, '### '),
+        _subsectionHeadings,
+        reason: '절의 ### 소절이 템플릿 순서 8개와 다르다',
+      );
+
+      final String check = sliceMarkdownSection(
+        section,
+        '### 확인 방법',
+        maxLevel: 3,
+      );
+      expect(check.trim(), isNotEmpty, reason: '확인 방법 소절을 찾지 못했다');
+      for (final String phrase in _placeholderBuildPhrases) {
+        expect(check, contains(phrase), reason: '확인 방법 소절에 「$phrase」 가 없다');
+      }
+
+      for (final String phrase in _requiredSectionPhrases) {
+        expect(section, contains(phrase), reason: '절에 「$phrase」 가 없다');
+      }
+    });
+
+    test('T-173-DOCS-06: Initial Setup 키 표 · off 열 · 금지 패턴 0 · 링크 줄', () {
+      final String setup = sliceMarkdownSection(
+        manual,
+        _initialSetupHeading,
+        maxLevel: 2,
+      );
+      expect(setup.trim(), isNotEmpty, reason: 'Initial Setup 절을 찾지 못했다');
+      expect(
+        _countExactLines(setup, _keyTableHeader),
+        1,
+        reason: '「off 면 비워도 됨」 열이 있는 키 표 헤더가 없거나 중복이다',
+      );
+
+      final List<String> table = _tableLines(setup, _keyTableHeader);
+      final List<String> keys = exampleConfig.keys
+          .where((String key) => key != 'flavor')
+          .toList();
+      expect(keys, hasLength(14), reason: 'example 키 수(flavor 제외)가 14 가 아니다');
+      for (final String key in keys) {
+        expect(
+          table.where((String line) => line.startsWith('| `$key` |')).length,
+          1,
+          reason: '키 표에 $key 행이 없거나 중복이다',
+        );
+      }
+
+      final List<String> hits = RegExp(_forbiddenPatternSource)
+          .allMatches(table.join('\n'))
+          .map((RegExpMatch m) => m.group(0)!)
+          .toList();
+      expect(hits, isEmpty, reason: '키 표에 금지 패턴이 있다: $hits');
+
+      final List<String> setupLines = setup.split('\n');
+      final int afterTable =
+          setupLines.indexOf(_keyTableHeader) + table.length + 1;
+      expect(
+        afterTable < setupLines.length ? setupLines[afterTable] : '',
+        _keyTableLinkLine,
+        reason: '키 표 바로 뒤(빈 줄 다음)에 새 절 링크 줄이 없다',
+      );
+      expect(
+        _countExactLines(setup, _keyTableLinkLine),
+        1,
+        reason: '새 절 링크 줄이 없거나 중복이다',
+      );
     });
   });
 }
