@@ -23,6 +23,8 @@
   CSV 에서 빼면 그 provider 로 가입한 사용자는 로그인 · 재인증 · 회원탈퇴를
   할 수 없다.
 
+provider 마다 켤 때 필요한 것과 함수 배포(`bash scripts/deploy_functions.sh <flavor>`)는 `docs/manual.md` 「[로그인 수단 켜고 끄기](../docs/manual.md#로그인-수단-켜고-끄기)」.
+
 ## Naver 키의 소비처 (Phase 16.2 · Phase 16.5)
 
 `config/*.json` 의 naver 키는 두 경로가 나눠 쓴다 — NAVER 앱 설치 단말의 **SDK

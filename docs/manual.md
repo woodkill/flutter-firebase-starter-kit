@@ -1,6 +1,6 @@
 <!-- Phase 13 — see ROADMAP.md -->
 ---
-last_updated: 2026-10-04
+last_updated: 2026-10-06
 phases: [03 (Design System), 09 (Facebook), 11 (Cloud Functions + RC), 12 (Kakao Login), 13 (Naver Login), 16.3 (iOS SPM), 16.5 (Naver web OAuth), 16.6 (provider 제거 가이드), 16.7 (가입 수단 기록), 16.8 (연결 해제), 16.9 (Naver 연결), 16.10 (provider 측 연결 끊기), 17 (Firebase Services), 17.1 (홈 화면 바꾸기)]
 audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 ---
@@ -598,29 +598,27 @@ Cloud Logging 에서 `app_check_check_failed` warn 확인.
 
 ### 6단계 — Cloud Function 배포
 
-Phase 12-02 산출 `kakaoCustomToken` 함수를 dev Firebase 프로젝트
-(asia-northeast3) 에 배포합니다.
+Kakao 를 켤 때 Kakao 함수 3개 — `kakaoCustomToken` · `linkKakaoProvider` · `disconnectKakaoProvider` 를 배포한다. 배포 스크립트는 `config/dev.json` 의 `enabledAuthProviders` 에 `kakao` 가 있을 때 이 3개를 공통 함수와 함께 고른다. 4단계의 `KAKAO_NATIVE_APP_KEY` 와 `KAKAO_ADMIN_KEY`([provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절)가 먼저 등록돼 있어야 한다.
+
+배포 전에 `functions/` 의 lint · build · 테스트를 통과시킨다. `pnpm install` 은 처음 한 번만 한다.
 
 ```bash
 cd functions
-pnpm install           # 최초 1회 (corepack 활성화는 0단락의 4단계 참조)
-pnpm run lint          # 0 errors 확인
-pnpm run build         # tsc OK 확인
-pnpm test              # jest 14 PASS 확인 (3 suites)
-
-# 배포
-firebase use dev
-firebase deploy --only functions:kakaoCustomToken
+pnpm install
+pnpm run lint
+pnpm run build
+pnpm test
+cd ..
 ```
 
-기대 응답:
-```
-✔ functions[kakaoCustomToken(asia-northeast3)] Successful update operation.
+먼저 옵션 없이 실행해 출력의 `functions` 목록에 위 3개가 있는지 보고, 맞으면 `--apply` 로 배포한다.
+
+```bash
+bash scripts/deploy_functions.sh dev
+bash scripts/deploy_functions.sh dev --apply
 ```
 
-확인 — Firebase Console:
-- "빌드 > Functions" → `kakaoCustomToken` 함수 row → region = `asia-northeast3`
-  + "활성" 상태
+확인 — Firebase Console → Functions 에 세 함수가 리전 `asia-northeast3` 으로 있다. 처음 만든 함수는 Cloud Run invoker 를 확인한다 — [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기) 의 「켜기」 ⑥.
 
 ### 7단계 — 검증 (실 단말 UAT)
 
@@ -1090,35 +1088,28 @@ Runner group · Sources), Dart `naver_host_channel.dart` · `naver_web_auth_clie
 
 ### 10단계 — Cloud Function 배포
 
-Naver 서버 함수 — `naverCustomToken`(Phase 13-02, 1-tap 의 access token 검증) ·
-`naverWebCustomToken`(Phase 16.5, 웹 경로의 `code` 교환) · `linkNaverProvider`
-(Phase 16.9 · 연결 — 「Naver 계정 연결 (Phase 16.9)」 절) — 를 dev Firebase
-프로젝트 (asia-northeast3) 에 배포합니다. 로그인 두 함수는 `/v1/nid/me` 검증 → identity →
-Custom Token 체인을 공용 helper 로 공유하고, 연결 함수는 그중 검증 helper
-(`fetchNaverProfile`)와 교환 모듈(`naver_token_exchange.ts`)만 공유합니다.
+Naver 를 켤 때 Naver 함수 4개 — `naverCustomToken` · `naverWebCustomToken` · `linkNaverProvider` · `disconnectNaverProvider` 를 배포 스크립트로 배포한다. 8단계의 secret 2종(`NAVER_CLIENT_SECRET` · `NAVER_CLIENT_ID`)이 먼저 등록돼 있어야 한다.
+
+배포 전에 `functions/` 의 lint · build · 테스트를 통과시킨다. `pnpm install` 은 처음 한 번만 한다.
 
 ```bash
 cd functions
-pnpm install           # 최초 1회 (corepack 활성화는 0단락의 4단계 참조)
-pnpm run lint          # 0 errors 확인
-pnpm run build         # tsc OK 확인
-pnpm test              # 전체 jest PASS 확인 (naver 는 naver_custom_token · naver_web_custom_token · link_naver_provider 파일)
-
-# 배포 (8단계의 secret 2종이 먼저 등록돼 있어야 한다)
-firebase use <dev-project-id>
-firebase deploy --only functions:naverCustomToken,functions:naverWebCustomToken,functions:linkNaverProvider
+pnpm install
+pnpm run lint
+pnpm run build
+pnpm test
+cd ..
 ```
 
-기대 응답 (최초 배포 시 새 함수는 create):
-```
-✔ functions[naverCustomToken(asia-northeast3)] Successful update operation.
-✔ functions[naverWebCustomToken(asia-northeast3)] Successful create operation.
-✔ functions[linkNaverProvider(asia-northeast3)] Successful create operation.
+먼저 옵션 없이 실행해 출력의 `functions` 목록에 위 4개가 있는지 보고, 맞으면 `--apply` 로 배포한다.
+
+```bash
+bash scripts/deploy_functions.sh dev
+bash scripts/deploy_functions.sh dev --apply
 ```
 
 확인 — Firebase Console:
-- "빌드 > Functions" → `naverCustomToken` · `naverWebCustomToken` · `linkNaverProvider`
-  함수 row → region = `asia-northeast3` + "활성" 상태
+- "빌드 > Functions" 에 `naverCustomToken` · `naverWebCustomToken` · `linkNaverProvider` · `disconnectNaverProvider` 네 함수가 리전 `asia-northeast3` 으로 있다.
 - `linkNaverProvider` 는 새로 만들어지는 함수라 배포 뒤 Cloud Run invoker 를 확인한다 —
   `gcloud run services get-iam-policy linknaverprovider --region asia-northeast3 --project <dev-project-id>`
   에 `roles/run.invoker` + `allUsers` 가 있어야 하고, 미인증
@@ -1610,27 +1601,27 @@ firebase functions:secrets:set LINE_CHANNEL_ID
 firebase functions:secrets:get LINE_CHANNEL_ID
 ```
 
-배포 — `lineCustomToken` 함수를 dev Firebase 프로젝트 (asia-northeast3) 에:
+배포 — LINE 을 켤 때 LINE 함수 3개(`lineCustomToken` · `linkLineProvider` · `disconnectLineProvider`)를 배포 스크립트로 배포한다. `disconnectLineProvider` 는 `LINE_CHANNEL_SECRET` 도 쓰므로 위 `LINE_CHANNEL_ID` 와 함께 그 secret 도 먼저 등록한다([provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절).
+
+배포 전에 `functions/` 의 lint · build · 테스트를 통과시킨다. `pnpm install` 은 처음 한 번만 한다.
 
 ```bash
 cd functions
-pnpm install           # 최초 1회 (corepack 활성화는 Initial Setup 4단계 참조)
-pnpm run lint          # 0 errors 확인
-pnpm run build         # tsc OK 확인
-pnpm test              # jest 22 PASS 확인 (line 14 + oidc_verifier 8)
-
-# 배포
-firebase use <dev-project-id>
-firebase deploy --only functions:lineCustomToken
+pnpm install
+pnpm run lint
+pnpm run build
+pnpm test
+cd ..
 ```
 
-기대 응답:
-```
-✔ functions[lineCustomToken(asia-northeast3)] Successful update operation.
+먼저 옵션 없이 실행해 출력의 `functions` 목록에 위 3개가 있는지 보고, 맞으면 `--apply` 로 배포한다.
+
+```bash
+bash scripts/deploy_functions.sh dev
+bash scripts/deploy_functions.sh dev --apply
 ```
 
-확인 — Firebase Console > "빌드 > Functions" → `lineCustomToken` row →
-region = `asia-northeast3` + "활성" 상태.
+확인 — Firebase Console → Functions 에 세 함수가 리전 `asia-northeast3` 으로 있다. 처음 만든 함수는 Cloud Run invoker 를 확인한다 — [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기) 의 「켜기」 ⑥.
 
 ### 6단계 — iOS / Android platform manifest 검증
 
@@ -2694,25 +2685,64 @@ Phase 16.6 이 Custom Token provider 1종을 이 순서로 제거하며 실측�
 
 ### Functions 추가 절차 (ping 패턴 복제)
 
-1. `functions/src/auth/{provider}_custom_token.ts` 또는 신규
-   `functions/src/index.ts` 에 새 `onCall` export 추가:
-   ```typescript
-   export const myFunction = onCall(
-     {enforceAppCheck: true, secrets: [MY_SECRET]},
-     async (request) => {
-       if (!request.auth) throw new HttpsError('unauthenticated', 'errorUnauthenticated');
-       logger.info({event: 'my_function_invoked', uid: request.auth.uid}, 'invoked');
-       return { /* result */ };
-     },
-   );
-   ```
-2. `functions/test/auth/{provider}_custom_token.test.ts` 작성 —
-   `firebase-functions-test` 패턴 (기존 `kakao_custom_token.test.ts` 미러).
-3. Secrets: `firebase functions:secrets:set MY_SECRET` +
-   `defineSecret('MY_SECRET')`.
-4. `cd functions && pnpm run lint && pnpm run build && pnpm test` 풀 게이트
-   GREEN 확인.
-5. 배포: `firebase deploy --only functions:myFunction`.
+내가 만든 callable 함수를 킷 배포에 더하는 절차다.
+
+**① 함수 파일과 export.** `functions/src/` 에 `onCall` 함수 파일을 두고 `functions/src/index.ts` 에 export 1줄을 더한다. 아래 예시는 `functions/src/my_function.ts` 로 그대로 저장해도 `pnpm run build` · `pnpm run lint` 를 통과한다.
+
+```typescript
+import {onCall, HttpsError} from "firebase-functions/https";
+import * as logger from "firebase-functions/logger";
+import {defineSecret} from "firebase-functions/params";
+
+// secret 이 없는 함수는 이 줄과 아래 secrets 옵션을 지운다.
+const MY_SECRET = defineSecret("MY_SECRET");
+
+export const myFunction = onCall(
+  {enforceAppCheck: true, secrets: [MY_SECRET]},
+  (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "errorUnauthenticated");
+    }
+    const uid = request.auth.uid;
+    logger.info({event: "my_function_invoked", uid}, "myFunction invoked");
+    // secret 값은 MY_SECRET.value() 로 읽는다. 로그에 남기지 않는다.
+    return {ok: true};
+  },
+);
+```
+
+`functions/src/index.ts` 에 더할 줄:
+
+```typescript
+export {myFunction} from "./my_function";
+```
+
+**② 테스트.** `functions/test/` 에 테스트를 둔다. `firebase-functions-test` 로 함수를 감싸 부르는 기존 테스트(예: `functions/test/auth/kakao_custom_token.test.ts`)와 같은 방식이다.
+
+**③ secret.** 함수가 secret 을 쓰면 예시처럼 `defineSecret` 으로 선언해 `secrets` 옵션에 넣고, 배포 전에 값을 등록한다.
+
+```bash
+firebase functions:secrets:set MY_SECRET
+```
+
+**④ 배포 목록에 이름을 더한다.** 함수 이름(예: `myFunction`)을 `scripts/functions_manifest.json` 의 `common` 배열에 더한다. 빠뜨리면 `functions/` 의 `pnpm test` 에서 배포 목록 대조 테스트가 실패하고, 배포 스크립트가 그 함수를 배포하지 않는다.
+
+**⑤ 게이트.**
+
+```bash
+cd functions
+pnpm run lint
+pnpm run build
+pnpm test
+cd ..
+```
+
+**⑥ 배포.** 먼저 옵션 없이 실행해 출력의 `functions` 목록에 새 함수가 있는지 보고, 맞으면 `--apply` 로 배포한다. 처음 만든 함수는 Cloud Run invoker 를 확인한다 — [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기) 의 「켜기」 ⑥.
+
+```bash
+bash scripts/deploy_functions.sh dev
+bash scripts/deploy_functions.sh dev --apply
+```
 
 ### RC Kill Switch 운영 절차 (Emergency Disable)
 
@@ -3376,13 +3406,16 @@ Phase 17 은 코드 밖 준비가 ⓪~⑤ 여섯 단계 있다. 모두 dev 프�
 
 **⓪ Cloud Storage 기본 버킷 만들기 — 프로젝트당 1회:** Firebase 콘솔 → Storage → 「시작하기」 로 기본 버킷을 만든다. Firestore · Auth 만 켠 새 프로젝트에는 기본 버킷이 없다. 버킷이 없으면 아래 ① 의 Storage rules 배포 대상이 없고, 앱의 프로필 사진 업로드는 실패한다. 회원탈퇴는 막히지 않는다 — `deleteUserAccount` 는 버킷 없음(404)을 「지울 사진 없음」 으로 보고 `delete_user_storage_bucket_missing` warn 로그를 남긴 뒤 계속 진행한다(아래 「탈퇴 시 Storage · 기기 토큰 삭제 (Phase 17)」).
 
-**① 배포 — rules · indexes · Storage rules · Functions 한 번에:**
+**① 배포 — rules · indexes · Storage rules 와 Functions:**
+
+Functions 는 배포 스크립트로 배포한다 — 먼저 `bash scripts/deploy_functions.sh dev` 를 옵션 없이 실행해 배포할 함수 목록을 본 뒤 `--apply` 로 실행한다.
 
 ```bash
-firebase deploy --only firestore:rules,firestore:indexes,storage,functions --project <dev>
+firebase deploy --only firestore:rules,firestore:indexes,storage --project <dev>
+bash scripts/deploy_functions.sh dev --apply
 ```
 
-functions 를 통째로 배포하는 이유: Phase 17 이 공유 helper(`identity_index` · `rate_limit`)를 바꿔 Custom Token 함수와 `lookupSignInMethods` 도 다시 배포해야 하고, 새 함수 `mirrorAccountEmail` · `sendTestPush` 가 생겼다. 배포 전 게이트는 `cd functions && pnpm run lint && pnpm run build && pnpm test` + `pnpm test:rules` 다.
+Functions 를 통째로(`--only functions`) 배포하지 않는다 — 끈 provider 의 함수와 그 함수의 secret 까지 요구하기 때문이다. 배포 전 게이트는 `cd functions && pnpm run lint && pnpm run build && pnpm test` 와 `pnpm test:rules` 다.
 
 **② Firestore TTL 정책 — 1회 (D-33):**
 
