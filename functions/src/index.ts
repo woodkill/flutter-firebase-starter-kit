@@ -55,8 +55,10 @@ export {naverCustomToken} from "./auth/naver_custom_token";
 export {naverWebCustomToken} from "./auth/naver_web_custom_token";
 // Phase 14 D-LINE-06 — LINE OIDC ID Token → Firebase Custom Token.
 export {lineCustomToken} from "./auth/line_custom_token";
-// Phase 16 Wave 0 sentinel — Plan 16-02 가 본체 채움 (D-04/06/07/08/09/10/14).
-export {linkCustomTokenProvider} from "./auth/link_custom_token_provider";
+// Phase 17.3 — see ROADMAP.md · Kakao · LINE 계정 연결
+// (provider 전용 callable · 자기 secret 만 binding).
+export {linkKakaoProvider} from "./auth/link_kakao_provider";
+export {linkLineProvider} from "./auth/link_line_provider";
 // Phase 16.8 SOCL-15 — Custom Token 신원 해제 (D-01/03/06/08 · link 의 역연산).
 export {unlinkCustomTokenProvider} from "./auth/unlink_custom_token_provider";
 // Phase 16.9 SOCL-12 — Naver 계정 연결

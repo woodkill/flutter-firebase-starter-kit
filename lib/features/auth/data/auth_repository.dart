@@ -207,7 +207,7 @@ class AuthRepository implements AnonymousSignIn {
   static const Duration _kLookupTimeout = Duration(seconds: 5);
 
   /// Custom Token sign-in callable (kakao/naver/line) 타임아웃 — 10 초
-  /// (WR-10). link arm(`linkCustomTokenProvider`) · 해제
+  /// (WR-10). link arm(`linkKakaoProvider` · `linkLineProvider`) · 해제
   /// (`unlinkCustomTokenProvider`, Phase 16.8) callable 도 이 상수를 공유한다
   /// — 값을 바꿀 때 호출처가 조용히 어긋나지 않도록 리터럴을 두지 않는다
   /// (16.8 review IN-02 · iteration 2 IN-03).
@@ -1382,10 +1382,11 @@ class AuthRepository implements AnonymousSignIn {
   ///    둔다 (재확인한 caller 의 토큰을 싣는다. 서버는 `verifyIdToken(
   ///    checkRevoked)` · uid 일치만 검사하고 auth_time 신선도는 검사하지
   ///    않는다 — quick 260928-cxs).
-  /// 5. `_functions.httpsCallable('linkCustomTokenProvider')` 호출 —
-  ///    deployed contract `{idToken, targetProvider, targetProviderToken,
-  ///    nonce} → {ok:true}` (link_custom_token_provider.ts line 67~80
-  ///    verbatim).
+  /// 5. `_functions.httpsCallable(<provider 전용 이름>)` 호출 — 계약
+  ///    `{idToken, targetProviderToken, nonce} → {ok:true}`
+  ///    (`functions/src/auth/link_oidc_provider.ts`). 이름은 kakao →
+  ///    `linkKakaoProvider` · line → `linkLineProvider` (Phase 17.3 D-01 —
+  ///    provider 는 callable 이름이 고정하므로 payload 에 싣지 않는다).
   /// 6. `{ok:true}` 검증 후 `_auth.currentUser` reload → [_mapFirebaseUser].
   /// 7. finally 에서 target SDK logout (1회성 토큰 정책 —
   ///    [signInWithKakao]/[signInWithLine] 의 finally logout mirror) +
@@ -1442,10 +1443,17 @@ class AuthRepository implements AnonymousSignIn {
       throw ArgumentError.value(
         targetProvider,
         'targetProvider',
-        'linkCustomTokenProvider 는 kakao/line 만 지원 '
+        'linkCustomTokenProviderArm 은 kakao/line 만 지원 '
             '(naver 는 linkNaverProviderArm, native 는 link*Credential).',
       );
     }
+    // provider 전용 연결 callable 이름 (Phase 17.3 D-01) — catch 의 Crashlytics
+    // reason 에도 같은 이름을 남긴다.
+    final String callableName = switch (targetProvider) {
+      AccountProvider.kakao => 'linkKakaoProvider',
+      AccountProvider.line => 'linkLineProvider',
+      _ => throw StateError('unreachable — 사전 차단이 kakao/line 외를 막는다'),
+    };
     try {
       _socialLinkInProgress.begin(); // race-fix Pitfall 8 단일 진실원
 
@@ -1496,15 +1504,15 @@ class AuthRepository implements AnonymousSignIn {
         return const Result.failure(UnknownException());
       }
 
-      // Step 4 — deployed linkCustomTokenProvider callable 호출.
+      // Step 4 — provider 전용 연결 callable(`linkKakaoProvider` ·
+      // `linkLineProvider`) 호출. provider 는 callable 이름이 고정한다.
       final callable = _functions.httpsCallable(
-        'linkCustomTokenProvider',
+        callableName,
         options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
       );
       final response = await callable
           .call<Map<String, dynamic>>(<String, dynamic>{
             'idToken': callerIdToken,
-            'targetProvider': targetProvider.slug,
             'targetProviderToken': targetToken.idToken,
             'nonce': targetToken.nonce,
           });
@@ -1525,7 +1533,7 @@ class AuthRepository implements AnonymousSignIn {
       // details.reason 으로 표시한 거부에만 (IdP 거부 · App Check 차단 제외 —
       // App Check 차단은 Phase 17 D-43 전용 예외).
       return Result.failure(
-        _mapLinkCallableException(e, callable: 'linkCustomTokenProvider'),
+        _mapLinkCallableException(e, callable: callableName),
       );
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
@@ -1704,7 +1712,8 @@ class AuthRepository implements AnonymousSignIn {
     return user;
   }
 
-  /// 연결 callable(`linkCustomTokenProvider` · `linkNaverProvider`) 거부를
+  /// 연결 callable(`linkKakaoProvider` · `linkLineProvider` ·
+  /// `linkNaverProvider`) 거부를
   /// [AppException] 으로 매핑한다 — 두 link arm 의 단일 진실원
   /// (Phase 16.9 review WR-01).
   ///
@@ -3518,7 +3527,7 @@ class AuthRepository implements AnonymousSignIn {
       // 선분기) 외 미분류 permission-denied 의 방어 분기다. 서버의 다른
       // 출처는 idToken uid 불일치 셋뿐이고 여기 도달하지 않는다
       // (16.9 review iteration 2 IN-03): 연결 callable
-      // (`link_custom_token_provider` · `link_naver_provider`)의 불일치는
+      // (`link_oidc_provider` · `link_naver_provider`)의 불일치는
       // `_mapLinkCallableException` 이 선분기(재로그인)하고,
       // `delete_user_account` 는 `SettingsRepository._mapDeleteError` 경로다.
       // SDK 계층 거부(App Check 차단 · ID token 무효)는 위 helper 가 먼저

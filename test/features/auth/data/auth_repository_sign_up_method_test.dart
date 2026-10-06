@@ -676,7 +676,7 @@ void main() {
       final response = _MockHttpsCallableResult();
       when(
         () => mockFunctions.httpsCallable(
-          'linkCustomTokenProvider',
+          'linkLineProvider',
           options: any(named: 'options'),
         ),
       ).thenReturn(callable);

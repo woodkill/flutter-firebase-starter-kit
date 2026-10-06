@@ -4,13 +4,13 @@
 //
 // `linkCustomTokenProviderArm({required AccountProvider targetProvider})` 검증.
 // Custom Token 충돌(Kakao/LINE) 시 sheet 버튼 탭 → target provider 토큰
-// fresh 재획득 + caller fresh ID Token(getIdToken(true)) + deployed
-// `linkCustomTokenProvider` callable 호출({idToken, targetProvider,
-// targetProviderToken, nonce} → {ok:true}) 로 실제 link.
+// fresh 재획득 + caller fresh ID Token(getIdToken(true)) + provider 전용
+// 연결 callable(`linkKakaoProvider` · `linkLineProvider`) 호출({idToken,
+// targetProviderToken, nonce} → {ok:true}) 로 실제 link (Phase 17.3 D-01).
 //
 // 8 behavior:
 //   T1: line target → LineSdkClient.signIn() fresh 토큰 → getIdToken(true) →
-//       httpsCallable('linkCustomTokenProvider')(...) → {ok:true} → success
+//       httpsCallable('linkLineProvider')(...) → {ok:true} → success
 //   T2: target SDK signIn 사용자 취소(null) → null (silent cancel, link 미호출)
 //   T3: callable 'unauthenticated' + details.reason 'reauthentication_required'
 //       · 'permission-denied' → ReauthenticationRequiredException / reason 없는
@@ -143,13 +143,13 @@ void main() {
     when(() => mockKakaoSdkClient.logout()).thenAnswer((_) async {});
     when(() => mockLineSdkClient.logout()).thenAnswer((_) async {});
 
-    // linkCustomTokenProvider callable default wiring — {ok:true}.
-    when(
-      () => mockFunctions.httpsCallable(
-        'linkCustomTokenProvider',
-        options: any(named: 'options'),
-      ),
-    ).thenReturn(mockLinkCallable);
+    // provider 전용 연결 callable default wiring — {ok:true}. kakao ·
+    // line 두 이름을 같은 mock callable 로 돌려준다 (Phase 17.3 D-01).
+    for (final name in <String>['linkKakaoProvider', 'linkLineProvider']) {
+      when(
+        () => mockFunctions.httpsCallable(name, options: any(named: 'options')),
+      ).thenReturn(mockLinkCallable);
+    }
     final mockResult = _MockHttpsCallableResult();
     when(() => mockResult.data).thenReturn(<String, dynamic>{'ok': true});
     when(
@@ -200,7 +200,7 @@ void main() {
 
   group('T1 — linkCustomTokenProviderArm(line) 실제 link', () {
     test(
-      'LINE signIn fresh 토큰 → callable {idToken, line, targetProviderToken, nonce} → {ok:true} → Result.success',
+      'LINE signIn fresh 토큰 → linkLineProvider {idToken, targetProviderToken, nonce} → {ok:true} → Result.success',
       () async {
         stubLineSignInSuccess();
 
@@ -209,14 +209,21 @@ void main() {
         );
 
         expect(result, isA<Success<dynamic>>());
-        // deployed contract: targetProvider slug 'line' + fresh target token.
+        // 계약: provider 는 callable 이름이 고정한다 — payload 에
+        // targetProvider 키가 없고 fresh target token 만 싣는다.
+        verify(
+          () => mockFunctions.httpsCallable(
+            'linkLineProvider',
+            options: any(named: 'options'),
+          ),
+        ).called(1);
         final captured =
             verify(
                   () =>
                       mockLinkCallable.call<Map<String, dynamic>>(captureAny()),
                 ).captured.single
                 as Map<String, dynamic>;
-        expect(captured['targetProvider'], 'line');
+        expect(captured.containsKey('targetProvider'), isFalse);
         expect(captured['targetProviderToken'], 'line-fresh-id-token');
         expect(captured['nonce'], 'line-nonce');
         expect(captured['idToken'], 'caller-fresh-id-token');
@@ -616,7 +623,15 @@ void main() {
                 ).captured.single
                 as Map<String, dynamic>;
         expect(captured['idToken'], 'swapped-token');
-        expect(captured['targetProvider'], targetProvider.slug);
+        expect(captured.containsKey('targetProvider'), isFalse);
+        verify(
+          () => mockFunctions.httpsCallable(
+            targetProvider == AccountProvider.kakao
+                ? 'linkKakaoProvider'
+                : 'linkLineProvider',
+            options: any(named: 'options'),
+          ),
+        ).called(1);
         verify(() => replacement.getIdToken(true)).called(1);
         verify(() => replacement.reload()).called(1);
         verifyNever(() => mockCurrentUser.getIdToken(any()));
@@ -714,7 +729,7 @@ void main() {
         () => crashlytics.recordError(
           any(that: isA<FirebaseFunctionsException>()),
           any(),
-          reason: 'app_check_rejected_linkCustomTokenProvider',
+          reason: 'app_check_rejected_linkLineProvider',
           fatal: false,
         ),
       ).called(1);
