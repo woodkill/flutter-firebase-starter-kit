@@ -98,6 +98,35 @@ void main() {
     });
   });
 
+  group('validateProjectPrefix', () {
+    test('소문자 · 숫자 · 하이픈 2~25자 prefix 를 허용한다', () {
+      expect(validateProjectPrefix('my-app').isValid, isTrue);
+      expect(validateProjectPrefix('ab').isValid, isTrue);
+      expect(validateProjectPrefix('acme-app2').isValid, isTrue);
+      // 25자 — -prod 를 붙이면 Firebase 프로젝트 ID 상한 30자
+      expect(validateProjectPrefix('a' * 25).isValid, isTrue);
+    });
+
+    test('규칙을 어긴 prefix 는 영어 에러를 반환한다', () {
+      const invalidPrefixes = <String>[
+        'My-app', // 대문자
+        '-ab', // 하이픈으로 시작
+        'ab-', // 하이픈으로 끝남
+        'a', // 2자 미만
+        'my_app', // 밑줄
+        r'a$(id)', // 셸 메타문자
+        '1app', // 숫자로 시작
+      ];
+      for (final prefix in invalidPrefixes) {
+        final result = validateProjectPrefix(prefix);
+        expect(result.isValid, isFalse, reason: prefix);
+        expect(result.error, contains('Invalid project prefix'));
+      }
+      // 26자 — 상한 25자 초과
+      expect(validateProjectPrefix('a' * 26).isValid, isFalse);
+    });
+  });
+
   group('toUpperCamelCase', () {
     test('snake_case를 UpperCamelCase로 변환한다', () {
       expect(toUpperCamelCase('my_app'), equals('MyApp'));
@@ -606,6 +635,14 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       final result = await runCli(['--org', 'com.example', '--name', 'my_app']);
       expect(result.exitCode, 0);
       expect(result.stdout, contains('[DRY RUN]'));
+      expect(
+        result.stdout,
+        contains(
+          '[DRY RUN] App ID rename: '
+          'com.slimpumpkin.flutter_starter_kit -> com.example.my_app',
+        ),
+      );
+      expect(result.stdout, isNot(contains('Package rename:')));
       expect(result.stdout, contains('Changes to apply:'));
       expect(result.stdout, contains('Run with --apply to execute'));
       // F1: 한국어 문자열이 남아있지 않아야 한다
@@ -721,6 +758,80 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(result.exitCode, 0);
       expect(result.stdout, contains('No changes to apply.'));
       expect(result.stdout, contains('Possible reasons'));
+      expect(
+        result.stdout,
+        contains('current app ID: com.slimpumpkin.flutter_starter_kit'),
+      );
+    });
+
+    test('--project-prefix 로 PROJECT_ID_PREFIX 를 정한다', () async {
+      final result = await runCli([
+        '--org',
+        'com.example',
+        '--name',
+        'my_app',
+        '--project-prefix',
+        'acme-app',
+      ]);
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('-> PROJECT_ID_PREFIX="acme-app"'));
+      expect(result.stdout, isNot(contains('PROJECT_ID_PREFIX="my-app"')));
+      // dry-run 이므로 파일은 그대로다
+      expect(
+        File(
+          '${tempDir.path}/scripts/firebase-configure.sh',
+        ).readAsStringSync().split('\n'),
+        contains('PROJECT_ID_PREFIX="slimpumpkin-starter-kit"'),
+      );
+    });
+
+    test('잘못된 --project-prefix 는 영어 에러로 exit 1', () async {
+      final result = await runCli([
+        '--org',
+        'com.example',
+        '--name',
+        'my_app',
+        '--project-prefix',
+        'Bad_Prefix',
+      ]);
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains('Invalid project prefix'));
+      expect(
+        result.stderr + result.stdout,
+        isNot(matches(RegExp(r'[가-힯]'))),
+        reason: 'CLI output must contain no Korean (F1 regression guard)',
+      );
+    });
+
+    test('기본 project prefix 가 너무 길면 --project-prefix 를 안내한다', () async {
+      // 기본 prefix = name 의 _ → - (30자) — 상한 25자 초과
+      final result = await runCli([
+        '--org',
+        'com.example',
+        '--name',
+        'a_very_long_application_name_x',
+      ]);
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains('default project prefix'));
+      expect(result.stderr, contains('--project-prefix'));
+      expect(result.stdout, isNot(contains('[DRY RUN]')));
+    });
+
+    test('--help 는 앱 ID 도구 설명과 --project-prefix 를 보여준다', () async {
+      final result = await runCli(['--help']);
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('Starter Kit App ID Rename Tool'));
+      expect(result.stdout, contains('--project-prefix'));
+      expect(
+        result.stdout,
+        contains('The Dart package name stays flutter_starter_kit'),
+      );
+      expect(result.stdout, isNot(contains('Package Rename Tool')));
+      expect(
+        result.stdout,
+        isNot(matches(RegExp(r'[가-힯]'))),
+        reason: 'CLI output must contain no Korean (F1 regression guard)',
+      );
     });
   });
 }

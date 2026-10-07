@@ -129,6 +129,46 @@ ValidateResult validateInputs(String org, String name) {
   return const ValidateResult(isValid: true);
 }
 
+/// Firebase 프로젝트 ID prefix 형식 정규식.
+///
+/// 소문자로 시작하고 소문자 · 숫자 · `-` 만 쓰며 `-` 로 끝나지 않는다.
+/// 셸 메타문자(따옴표 · `$` · 공백 등)는 들어갈 수 없다.
+final _projectPrefixPattern = RegExp(r'^[a-z][a-z0-9-]*[a-z0-9]$');
+
+/// Firebase 프로젝트 ID prefix 최소 길이.
+///
+/// prefix 뒤에 `-dev` 가 붙어 Firebase 프로젝트 ID 하한 6자를 채운다.
+const projectPrefixMinLength = 2;
+
+/// Firebase 프로젝트 ID prefix 최대 길이.
+///
+/// prefix 뒤에 `-prod` 가 붙어도 Firebase 프로젝트 ID 상한 30자를 넘지 않는다.
+const projectPrefixMaxLength = 25;
+
+/// Firebase 프로젝트 ID prefix 를 검증한다.
+///
+/// [prefix]는 `scripts/firebase-configure.sh` 의 `PROJECT_ID_PREFIX` 값이며
+/// `<prefix>-dev` · `-stg` · `-prod` 가 Firebase 프로젝트 ID 가 된다.
+/// 소문자 · 숫자 · `-` 만 허용하고(문자로 시작 · `-` 로 끝나지 않음)
+/// 길이는 [projectPrefixMinLength]~[projectPrefixMaxLength] 자이다.
+ValidateResult validateProjectPrefix(String prefix) {
+  final isLengthValid =
+      prefix.length >= projectPrefixMinLength &&
+      prefix.length <= projectPrefixMaxLength;
+  if (!isLengthValid || !_projectPrefixPattern.hasMatch(prefix)) {
+    return ValidateResult(
+      isValid: false,
+      error:
+          "Invalid project prefix: '$prefix'\n"
+          'Use $projectPrefixMinLength-$projectPrefixMaxLength lowercase '
+          'letters, digits, or "-" (start with a letter, no trailing "-"; '
+          'e.g., my-company-app)',
+    );
+  }
+
+  return const ValidateResult(isValid: true);
+}
+
 // ---------------------------------------------------------------------------
 // 문자열 변환 유틸리티
 // ---------------------------------------------------------------------------
@@ -445,8 +485,8 @@ void printDryRun(
   String projectRoot,
 ) {
   stdout.writeln(
-    '${_yellow('[DRY RUN]')} Package rename: '
-    '$currentPackageName -> $newName',
+    '${_yellow('[DRY RUN]')} App ID rename: '
+    '$currentAndroidPackage -> $newOrg.$newName',
   );
   stdout.writeln(
     '${_yellow('[DRY RUN]')} Organization: $currentOrg -> $newOrg',
@@ -631,16 +671,34 @@ bool _confirmApply(int changeCount) {
 // CLI 진입점
 // ---------------------------------------------------------------------------
 
-/// Starter Kit의 Package Name / Bundle ID를 변경하는 CLI 스크립트.
+/// Starter Kit 의 앱 ID(Android package · iOS Bundle ID · Firebase 설정
+/// 스크립트 상수 · appName)를 변경하는 CLI 스크립트.
+///
+/// Dart 패키지명(`flutter_starter_kit`)과 import 는 바꾸지 않는다(D-34).
 ///
 /// 사용법:
 ///   fvm dart run bin/rename.dart --org com.mycompany --name my_app
+///   fvm dart run bin/rename.dart --org com.mycompany --name my_app \
+///     --project-prefix my-company-app
 ///   fvm dart run bin/rename.dart --org com.mycompany --name my_app --apply
 ///   fvm dart run bin/rename.dart --org com.mycompany --name my_app --apply --yes
 void main(List<String> arguments) {
   final parser = ArgParser()
     ..addOption('org', help: 'Organization identifier (e.g., com.mycompany)')
-    ..addOption('name', help: 'App name in snake_case (e.g., my_app)')
+    ..addOption(
+      'name',
+      help:
+          'App ID segment in snake_case (e.g., my_app) — Android package '
+          'tail, Kotlin dir, iOS bundle (lowerCamel), appName. '
+          'The Dart package name stays flutter_starter_kit.',
+    )
+    ..addOption(
+      'project-prefix',
+      help:
+          'Firebase project ID prefix (default: --name with "_" -> "-"). '
+          'Used as <prefix>-dev / -stg / -prod in '
+          'scripts/firebase-configure.sh',
+    )
     ..addFlag(
       'apply',
       help: 'Apply changes (default: dry-run)',
@@ -668,7 +726,7 @@ void main(List<String> arguments) {
   }
 
   if (results.flag('help')) {
-    stdout.writeln('Starter Kit Package Rename Tool');
+    stdout.writeln('Starter Kit App ID Rename Tool');
     stdout.writeln('');
     stdout.writeln('Usage: fvm dart run bin/rename.dart [options]');
     stdout.writeln('');
@@ -697,6 +755,25 @@ void main(List<String> arguments) {
     exit(1);
   }
 
+  // Firebase 프로젝트 ID prefix — 옵션이 없으면 name 의 _ 를 - 로 바꾼 값
+  final explicitPrefix = results.option('project-prefix');
+  final projectIdPrefix = explicitPrefix ?? name.replaceAll('_', '-');
+  final prefixValidation = validateProjectPrefix(projectIdPrefix);
+  if (!prefixValidation.isValid) {
+    if (explicitPrefix == null) {
+      stderr.writeln(
+        _red(
+          'Error: default project prefix "$projectIdPrefix" is invalid '
+          '— pass --project-prefix\n'
+          '${prefixValidation.error}',
+        ),
+      );
+    } else {
+      stderr.writeln(_red('Error: ${prefixValidation.error}'));
+    }
+    exit(1);
+  }
+
   // 프로젝트 루트 결정: 현재 작업 디렉토리 + pubspec.yaml 존재 확인
   final projectRoot = Directory.current.path;
   if (!File('$projectRoot${Platform.pathSeparator}pubspec.yaml').existsSync()) {
@@ -710,7 +787,12 @@ void main(List<String> arguments) {
   }
 
   // 변경 대상 수집
-  final changes = collectChanges(projectRoot, org, name);
+  final changes = collectChanges(
+    projectRoot,
+    org,
+    name,
+    projectIdPrefix: projectIdPrefix,
+  );
 
   if (changes.isEmpty) {
     stdout.writeln('No changes to apply.');
@@ -719,7 +801,7 @@ void main(List<String> arguments) {
     stdout.writeln("  - Project already renamed to '$org/$name'");
     stdout.writeln(
       '  - Wrong --org or --name '
-      '(current: $currentOrg/$currentPackageName)',
+      '(current app ID: $currentAndroidPackage)',
     );
     stdout.writeln('  - Run from wrong directory (expected: project root)');
     return;
