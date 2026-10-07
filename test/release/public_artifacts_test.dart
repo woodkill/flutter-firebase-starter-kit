@@ -1,4 +1,4 @@
-// 공개본 루트 산출물(LICENSE · CHANGELOG · CONTRIBUTING)의 모양을 고정한다
+// 공개본 루트 산출물(LICENSE · CHANGELOG · CONTRIBUTING · 이슈 · PR 템플릿)의 모양을 고정한다
 // (Phase 17.4 D-19 · D-21 · D-23 · D-26 · D-33 — see ROADMAP.md).
 //
 // T-174-ART-01: LICENSE 가 MIT 원문(첫 줄 · 저작권 줄 · 본문 3단락 글자 그대로)으로
@@ -8,6 +8,9 @@
 // T-174-ART-03: tracked 자산 라이선스 파일 목록 == LICENSE 제3자 절의 경로 목록.
 // T-174-ART-04: CONTRIBUTING · CHANGELOG 본문에 사용자 문서 금지 패턴이 0 건이고,
 //   CONTRIBUTING 이 발행본 · PR · Issues · 보안 안내를 담는다.
+// T-174-ART-05: 이슈 양식 2종의 필드(킷 판 · flavor · 켠 로그인 수단) · 빈 이슈 끄기 ·
+//   PR 템플릿의 반영 불가 안내 · 4파일 금지 패턴 0. YAML 은 텍스트로 본다
+//   (`package:yaml` 은 직접 의존이 아니다).
 //
 // **tracked 파일만 읽는다** — 모두 키 · secret 값이 없는 tracked 파일이다.
 
@@ -26,6 +29,34 @@ const String _changelogPath = 'CHANGELOG.md';
 
 /// CONTRIBUTING 경로.
 const String _contributingPath = 'CONTRIBUTING.md';
+
+/// 이슈 양식 디렉터리.
+const String _issueTemplateDir = '.github/ISSUE_TEMPLATE';
+
+/// 버그 신고 양식 경로.
+const String _bugFormPath = '$_issueTemplateDir/bug.yml';
+
+/// 제안 양식 경로.
+const String _proposalFormPath = '$_issueTemplateDir/proposal.yml';
+
+/// 이슈 양식 설정 경로.
+const String _issueConfigPath = '$_issueTemplateDir/config.yml';
+
+/// PR 템플릿 경로.
+const String _prTemplatePath = '.github/pull_request_template.md';
+
+/// 버그 양식의 flavor 선택지 (순서 그대로).
+const List<String> _flavors = <String>['dev', 'stg', 'prod'];
+
+/// 버그 양식의 로그인 수단 체크박스 (순서 그대로).
+const List<String> _providerOptions = <String>[
+  'google',
+  'apple',
+  'facebook',
+  'kakao',
+  'naver',
+  'line',
+];
 
 /// 킷 판 번호 파일 경로 (릴리스 컷 때 생긴다).
 const String _kitVersionPath = 'KIT_VERSION';
@@ -94,6 +125,50 @@ final RegExp _changelogExemptLine = RegExp(r'^## \[|^\[[^\]]+\]: https://');
 
 /// CONTRIBUTING 이 담아야 하는 토큰 (발행본 · PR 반영 불가 · 이슈 · 보안 경로).
 const List<String> _contributingTokens = <String>['발행본', 'PR', 'Issues', '보안'];
+
+/// 이슈 양식 [yaml] 의 `body` 항목을 `id` 별 텍스트 블록으로 나눈다.
+///
+/// 항목 경계는 `  - type: ` 로 시작하는 줄이다. `id` 가 없는 항목(markdown)은 뺀다.
+/// 같은 `id` 가 두 번 나오면 테스트를 실패시킨다(GitHub 양식은 `id` 가 고유해야 한다).
+Map<String, String> _splitFormFields(String yaml, String path) {
+  final Map<String, String> fields = <String, String>{};
+  final RegExp idLine = RegExp(r'^    id: (\S+)$', multiLine: true);
+  for (final String block
+      in yaml.split(RegExp(r'^  - type: ', multiLine: true)).skip(1)) {
+    final RegExpMatch? match = idLine.firstMatch(block);
+    if (match == null) {
+      continue;
+    }
+    final String id = match.group(1)!;
+    if (fields.containsKey(id)) {
+      fail('$path 에 id `$id` 가 두 번 있다');
+    }
+    fields[id] = 'type: $block';
+  }
+  return fields;
+}
+
+/// [fields] 의 [id] 항목이 [type] 이고 [required] 여부가 맞는지 단언한다.
+void _expectField(
+  Map<String, String> fields,
+  String path,
+  String id, {
+  required String type,
+  required bool required,
+}) {
+  final String? block = fields[id];
+  expect(block, isNotNull, reason: '$path 에 id `$id` 항목이 없다');
+  expect(
+    block!.startsWith('type: $type\n'),
+    isTrue,
+    reason: '$path 의 `$id` 는 `$type` 이어야 한다',
+  );
+  expect(
+    countOccurrences(block, 'required: true'),
+    required ? 1 : 0,
+    reason: '$path 의 `$id` 필수 여부가 다르다(기대: $required)',
+  );
+}
 
 /// [text] 에서 사용자 문서 금지 패턴에 맞는 문자열을 모두 돌려준다.
 List<String> _findForbidden(String text) => RegExp(
@@ -343,5 +418,113 @@ void main() {
         }
       },
     );
+
+    test('T-174-ART-05: 이슈 양식 필드 · 빈 이슈 끄기 · PR 반영 불가 안내 · 금지 패턴 0', () {
+      final String config = readTrackedFile(_issueConfigPath);
+      expect(
+        config
+            .split('\n')
+            .where((String line) => line == 'blank_issues_enabled: false')
+            .length,
+        1,
+        reason: '빈 이슈를 끄는 줄이 정확히 한 줄이어야 한다',
+      );
+
+      final String bug = readTrackedFile(_bugFormPath);
+      final Map<String, String> bugFields = _splitFormFields(bug, _bugFormPath);
+      _expectField(
+        bugFields,
+        _bugFormPath,
+        'kit_version',
+        type: 'input',
+        required: true,
+      );
+      _expectField(
+        bugFields,
+        _bugFormPath,
+        'flavor',
+        type: 'dropdown',
+        required: true,
+      );
+      _expectField(
+        bugFields,
+        _bugFormPath,
+        'providers',
+        type: 'checkboxes',
+        required: false,
+      );
+      _expectField(
+        bugFields,
+        _bugFormPath,
+        'what',
+        type: 'textarea',
+        required: true,
+      );
+      expect(
+        linesStartingWith(
+          bugFields['flavor']!,
+          '        - ',
+        ).map((String line) => line.substring(10)).toList(),
+        _flavors,
+        reason: 'flavor 선택지는 dev · stg · prod 순서여야 한다',
+      );
+      expect(
+        linesStartingWith(
+          bugFields['providers']!,
+          '        - label: ',
+        ).map((String line) => line.substring(17)).toList(),
+        _providerOptions,
+        reason: '로그인 수단 체크박스는 6종이 순서대로 있어야 한다',
+      );
+
+      final String proposal = readTrackedFile(_proposalFormPath);
+      final Map<String, String> proposalFields = _splitFormFields(
+        proposal,
+        _proposalFormPath,
+      );
+      _expectField(
+        proposalFields,
+        _proposalFormPath,
+        'kit_version',
+        type: 'input',
+        required: false,
+      );
+      _expectField(
+        proposalFields,
+        _proposalFormPath,
+        'proposal',
+        type: 'textarea',
+        required: true,
+      );
+      _expectField(
+        proposalFields,
+        _proposalFormPath,
+        'why',
+        type: 'textarea',
+        required: true,
+      );
+
+      final String prTemplate = readTrackedFile(_prTemplatePath);
+      for (final String token in <String>['반영하지 않', 'Issues']) {
+        expect(
+          countOccurrences(prTemplate, token),
+          greaterThanOrEqualTo(1),
+          reason: 'PR 템플릿에 `$token` 안내가 없다',
+        );
+      }
+
+      // 양성 대조: 금지 패턴 정규식이 동작한다(ART-04 와 같은 대조).
+      expect(_findForbidden('Phase 9'), isNotEmpty);
+      final Map<String, String> texts = <String, String>{
+        _issueConfigPath: config,
+        _bugFormPath: bug,
+        _proposalFormPath: proposal,
+        _prTemplatePath: prTemplate,
+      };
+      for (final MapEntry<String, String> entry in texts.entries) {
+        final List<String> hits = _findForbidden(entry.value);
+        expect(hits, isEmpty, reason: '${entry.key} 에 금지 패턴이 있다: $hits');
+      }
+    });
   });
 }

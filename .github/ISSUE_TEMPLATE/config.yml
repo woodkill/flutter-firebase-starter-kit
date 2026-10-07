@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 사용 매뉴얼
+    url: https://github.com/woodkill/flutter-firebase-starter-kit/blob/main/docs/manual.md
+    about: 설정 · 업데이트 반영 · 문제 해결

@@ -1,0 +1,24 @@
+name: 제안
+description: 킷에 바라는 기능 · 개선
+labels: ["enhancement"]
+body:
+  - type: input
+    id: kit_version
+    attributes:
+      label: 킷 판 (KIT_VERSION 값)
+      description: 저장소 루트 `KIT_VERSION` 파일의 값을 적습니다.
+      placeholder: 1.0.0-rc.1
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 무엇을
+      description: 킷에 더하거나 바꾸면 좋을 것을 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 왜 — 어떤 앱 작업에서 필요한가
+      description: 이 제안이 필요해진 앱 작업을 적습니다.
+    validations:
+      required: true
