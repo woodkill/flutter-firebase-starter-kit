@@ -289,10 +289,13 @@ run_recipe() {
 }
 
 cmd_mirror() {
-  local remote local_master refs main count git_version filter_version recipe_status
+  local remote local_master refs main count git_version filter_version recipe_status rules_hash
 
   # 동결 비교가 가장 먼저다 — 규칙 · 레시피가 바뀌었으면 도구 · origin 을 보기 전에 멈춘다.
-  if ! print_rules_hash | cmp -s - "$RULES/rules.sha256"; then
+  # 해시 계산을 파이프 밖에서 먼저 받는다 — 계산이 FAIL 하면 그 사유 한 줄로 끝나고, 「동결본과
+  # 다르다」 가 뒤따라 찍혀 마지막 줄(사유)이 바뀌지 않게 한다.
+  rules_hash=$(print_rules_hash) || exit 1
+  if ! printf '%s\n' "$rules_hash" | cmp -s - "$RULES/rules.sha256"; then
     fail "규칙이 동결본(rules.sha256)과 다르다 — rc.1 뒤에는 규칙을 바꾸지 않는다. rc.1 전 의도한 변경이면 bash scripts/publish_kit.sh rules-hash > .planning/release/rules.sha256"
   fi
 
