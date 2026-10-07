@@ -65,7 +65,7 @@ bash scripts/publish_kit.sh scan            # 킷 불변식 10개 + gitleaks
 bash scripts/publish_kit.sh verify          # mirror fresh clone 에서 analyze · 전체 Flutter 테스트 · Jest
 bash scripts/publish_kit.sh check           # 공개 main · v* 태그가 재생성 main 의 조상인지
 bash scripts/publish_kit.sh push            # 실행할 명령만 출력(dry-run)
-bash scripts/publish_kit.sh push --apply    # 태그 생성 · main + 태그 push
+bash scripts/publish_kit.sh push --apply    # 태그 생성 · main + 태그 원자 push(--atomic)
 bash scripts/publish_kit.sh release         # Release 명령과 notes 파일만 준비(dry-run)
 bash scripts/publish_kit.sh release --apply # GitHub Release 생성
 ```
@@ -88,7 +88,9 @@ bash scripts/publish_kit.sh release --apply # GitHub Release 생성
   같은 해시의 `push` 표시를 요구하고, CHANGELOG 의 해당 판 절(맨 아래 비교 링크 정의 제외)을
   `build/publish/release-notes-<ver>.md` 로 잘라 Release 본문으로 쓴다. rc 판은 pre-release 다.
 - `push` · `release` 는 `--apply` 없이는 원격을 바꾸지 않는다. `push` 에는 강제 옵션이 없다 —
-  공개 `main` 이 새 `main` 의 조상이 아니면 git 자체가 거부한다. 공개 저장소에 같은 태그가 이미
+  공개 `main` 이 새 `main` 의 조상이 아니면 git 자체가 거부한다. `main` 과 태그는
+  `git push --atomic` 한 번으로 보내므로 하나라도 거부되면 둘 다 반영되지 않는다(공개 `main` 이
+  태그 없는 커밋에 머무는 창이 없다). 공개 저장소에 같은 태그가 이미
   있으면 같은 커밋일 때만 통과하고 태그 push 를 건너뛴다.
 - `push` 는 `KIT_VERSION`(한 줄 semver)과 CHANGELOG 의 `## [<ver>] - YYYY-MM-DD` 절이 mirror
   `main` 에 있어야 한다 — 없으면 「릴리스 컷」 부터 한다.

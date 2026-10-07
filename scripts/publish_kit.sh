@@ -33,7 +33,8 @@
 #     `jest: Tests: …` → 마지막 줄 VERIFY OK main=<해시> flutter=pass jest=pass ios-goldens=<N|skipped>
 #   - check 마지막 줄: CHECK OK first-publish main=<해시> 또는
 #     CHECK OK main=<해시> public-main=<해시> tags=<N>
-#   - push: `command: …` 줄들 → DRY-RUN OK push tag=<TAG> main=<해시> (--apply 면 PUSH OK tag=<TAG> main=<해시>)
+#   - push: `command: …` 줄들(태그 생성 · main 과 태그를 한 번에 보내는 `push --atomic`) →
+#     DRY-RUN OK push tag=<TAG> main=<해시> (--apply 면 PUSH OK tag=<TAG> main=<해시>)
 #   - release: `command: …` 줄 → DRY-RUN OK release tag=<TAG> (--apply 면 RELEASE OK tag=<TAG>)
 #   - 인자 없음: 사용법 · 다음 할 일 → 마지막 줄
 #     status: mirror=<ok|-> scan=<ok|-> verify=<ok|-> check=<ok|-> push=<ok|-> main=<해시|none>
@@ -571,6 +572,7 @@ read_version() {
 # D-24 · D-29 — 게이트를 통과한 mirror main 과 태그 v<ver> 를 공개 저장소에 보낸다.
 cmd_push() {
   local main ver release_tag local_commit remote_refs remote_commit create_tag send_tag
+  local -a refspecs
   main=$(mirror_main)
   require_stamps mirror scan verify check
   ver=$(read_version)
@@ -598,10 +600,14 @@ cmd_push() {
     echo "공개 저장소에 $release_tag 가 이미 같은 커밋에 있다 — 태그 push 를 건너뛴다"
   fi
 
+  # main 과 태그는 한 번의 원자 push 로 보낸다 — 둘 중 하나라도 거부되면 둘 다 반영되지 않아
+  # 공개 main 이 어느 v* 태그와도 다른 커밋에 머무는 창(D-24 위반)이 생기지 않는다.
+  refspecs=(main:refs/heads/main)
+  [ "$send_tag" = 1 ] && refspecs+=("refs/tags/$release_tag:refs/tags/$release_tag")
+
   if [ "$APPLY" != 1 ]; then
     [ "$create_tag" = 1 ] && echo "command: git -C $MIRROR tag -a $release_tag -m $release_tag main"
-    echo "command: git -C $MIRROR push $PUBLIC main:refs/heads/main"
-    [ "$send_tag" = 1 ] && echo "command: git -C $MIRROR push $PUBLIC refs/tags/$release_tag:refs/tags/$release_tag"
+    echo "command: git -C $MIRROR push --atomic $PUBLIC ${refspecs[*]}"
     echo "실제로 발행하려면: bash scripts/publish_kit.sh push --apply"
     echo "DRY-RUN OK push tag=$release_tag main=$main"
     return 0
@@ -611,14 +617,9 @@ cmd_push() {
     echo "command: git -C $MIRROR tag -a $release_tag -m $release_tag main"
     git -C "$MIRROR" tag -a "$release_tag" -m "$release_tag" main || fail "태그 $release_tag 생성 실패"
   fi
-  echo "command: git -C $MIRROR push $PUBLIC main:refs/heads/main"
-  git -C "$MIRROR" push "$PUBLIC" main:refs/heads/main ||
-    fail "공개 main push 실패 — 공개 main 이 새 main 의 조상이 아니면 git 이 거부한다. check 부터 다시"
-  if [ "$send_tag" = 1 ]; then
-    echo "command: git -C $MIRROR push $PUBLIC refs/tags/$release_tag:refs/tags/$release_tag"
-    git -C "$MIRROR" push "$PUBLIC" "refs/tags/$release_tag:refs/tags/$release_tag" ||
-      fail "태그 $release_tag push 실패"
-  fi
+  echo "command: git -C $MIRROR push --atomic $PUBLIC ${refspecs[*]}"
+  git -C "$MIRROR" push --atomic "$PUBLIC" "${refspecs[@]}" ||
+    fail "공개 main · 태그 push 실패(원자 push 라 둘 다 반영되지 않았다) — 공개 main 이 새 main 의 조상이 아니면 git 이 거부한다. check 부터 다시"
   printf '%s\n' "$main" > "$WORK/push.ok"
   echo "PUSH OK tag=$release_tag main=$main"
 }
