@@ -1,13 +1,15 @@
-// 공개본 루트 산출물(LICENSE · CHANGELOG)의 모양을 고정한다 (Phase 17.4 D-19 ·
-// D-21 · D-23 — see ROADMAP.md).
+// 공개본 루트 산출물(LICENSE · CHANGELOG · CONTRIBUTING)의 모양을 고정한다
+// (Phase 17.4 D-19 · D-21 · D-23 · D-26 · D-33 — see ROADMAP.md).
 //
 // T-174-ART-01: LICENSE 가 MIT 원문(첫 줄 · 저작권 줄 · 본문 3단락 글자 그대로)으로
 //   시작하고, 본문 뒤에 제3자 자산 절이 따로 있다.
 // T-174-ART-02: CHANGELOG 가 Keep a Changelog 한국어판 형식이고 `## [Unreleased]` 가
 //   첫 절이다. 판 절 제목 · `###` 유형 이름 · `KIT_VERSION` 과 판 번호의 일치를 본다.
 // T-174-ART-03: tracked 자산 라이선스 파일 목록 == LICENSE 제3자 절의 경로 목록.
+// T-174-ART-04: CONTRIBUTING · CHANGELOG 본문에 사용자 문서 금지 패턴이 0 건이고,
+//   CONTRIBUTING 이 발행본 · PR · Issues · 보안 안내를 담는다.
 //
-// **tracked 파일만 읽는다** — 셋 다 키 · secret 값이 없는 tracked 파일이다.
+// **tracked 파일만 읽는다** — 모두 키 · secret 값이 없는 tracked 파일이다.
 
 import 'dart:convert';
 import 'dart:io';
@@ -21,6 +23,9 @@ const String _licensePath = 'LICENSE';
 
 /// CHANGELOG 경로.
 const String _changelogPath = 'CHANGELOG.md';
+
+/// CONTRIBUTING 경로.
+const String _contributingPath = 'CONTRIBUTING.md';
 
 /// 킷 판 번호 파일 경로 (릴리스 컷 때 생긴다).
 const String _kitVersionPath = 'KIT_VERSION';
@@ -83,6 +88,17 @@ const String _publicRepoUrl =
 
 /// 릴리스 컷 규칙 (ART-02 reason 공통 문구).
 const String _releaseCutRule = '릴리스 컷은 KIT_VERSION 과 판 절을 함께 만든다';
+
+/// CHANGELOG 에서 금지 패턴 검사 대상이 아닌 줄 — 판 절 제목(날짜)과 링크 정의 줄.
+final RegExp _changelogExemptLine = RegExp(r'^## \[|^\[[^\]]+\]: https://');
+
+/// CONTRIBUTING 이 담아야 하는 토큰 (발행본 · PR 반영 불가 · 이슈 · 보안 경로).
+const List<String> _contributingTokens = <String>['발행본', 'PR', 'Issues', '보안'];
+
+/// [text] 에서 사용자 문서 금지 패턴에 맞는 문자열을 모두 돌려준다.
+List<String> _findForbidden(String text) => RegExp(
+  kUserDocForbiddenPatternSource,
+).allMatches(text).map((RegExpMatch m) => m.group(0)!).toList();
 
 void main() {
   group('공개 릴리스 산출물', () {
@@ -290,5 +306,42 @@ void main() {
         );
       }
     });
+
+    test(
+      'T-174-ART-04: CONTRIBUTING · CHANGELOG 본문 금지 패턴 0 · CONTRIBUTING 필수 안내',
+      () {
+        // 양성 대조: 같은 정규식이 phase 번호와 planning 경로를 잡는다(리터럴은 조각으로).
+        expect(_findForbidden('Phase 9'), isNotEmpty);
+        expect(_findForbidden(<String>['.plan', 'ning'].join()), isNotEmpty);
+
+        final String contributing = readTrackedFile(_contributingPath);
+        final List<String> contributingHits = _findForbidden(contributing);
+        expect(
+          contributingHits,
+          isEmpty,
+          reason: 'CONTRIBUTING 에 금지 패턴이 있다: $contributingHits',
+        );
+
+        final String changelogBody = readTrackedFile(_changelogPath)
+            .split('\n')
+            .where((String line) => !_changelogExemptLine.hasMatch(line))
+            .join('\n');
+        expect(changelogBody.trim(), isNotEmpty);
+        final List<String> changelogHits = _findForbidden(changelogBody);
+        expect(
+          changelogHits,
+          isEmpty,
+          reason: 'CHANGELOG 본문(판 제목 · 링크 줄 제외)에 금지 패턴이 있다: $changelogHits',
+        );
+
+        for (final String token in _contributingTokens) {
+          expect(
+            countOccurrences(contributing, token),
+            greaterThanOrEqualTo(1),
+            reason: 'CONTRIBUTING 에 `$token` 안내가 없다',
+          );
+        }
+      },
+    );
   });
 }

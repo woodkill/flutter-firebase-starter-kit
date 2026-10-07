@@ -24,10 +24,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/source_text.dart';
 
-/// 사용자 문서 금지 패턴 (원칙 §4 표 전체 — 플랜 verify 의 `FP` 와 글자 그대로 같다).
-const String _forbiddenPatternSource =
-    r'Phase [0-9]|\bD-[0-9]{2}\b|\bD-[A-Z]+-[0-9]|\b(WR|IN|CR|BL)-[0-9]|\b[0-9]+(\.[0-9]+)?-(CONTEXT|RESEARCH|PATTERNS|PLAN|SUMMARY|LEDGER|VERIFICATION|VALIDATION|REVIEW|UAT)\b|\.planning|\bquick [0-9]{6}|\b[0-9]{6}-[a-z0-9]{3}\b|\b[0-9a-f]{7,40}\b|\bUAT|실측|재현됐|\bmemory\b|\b(project|feedback|reference)_[a-z0-9_]+|\bgsd[-:]|20[0-9]{2}-[0-9]{2}-[0-9]{2}';
-
 /// 매뉴얼 경로.
 const String _manualPath = 'docs/manual.md';
 
@@ -301,7 +297,7 @@ void main() {
     test('T-173-DOCS-02: 절에 사용자 문서 금지 패턴이 0 건이다', () {
       expect(section.trim(), isNotEmpty, reason: '절 슬라이스가 비었다');
       final List<String> hits = RegExp(
-        _forbiddenPatternSource,
+        kUserDocForbiddenPatternSource,
       ).allMatches(section).map((RegExpMatch m) => m.group(0)!).toList();
       expect(hits, isEmpty, reason: '금지 패턴이 절에 있다: $hits');
     });
@@ -467,7 +463,7 @@ void main() {
         );
       }
 
-      final List<String> hits = RegExp(_forbiddenPatternSource)
+      final List<String> hits = RegExp(kUserDocForbiddenPatternSource)
           .allMatches(table.join('\n'))
           .map((RegExpMatch m) => m.group(0)!)
           .toList();
@@ -576,7 +572,7 @@ void main() {
           unitLines.addAll(selected);
         }
 
-        final List<String> hits = RegExp(_forbiddenPatternSource)
+        final List<String> hits = RegExp(kUserDocForbiddenPatternSource)
             .allMatches(unitLines.join('\n'))
             .map((RegExpMatch m) => m.group(0)!)
             .toList();

@@ -104,3 +104,14 @@ String sliceMarkdownSection(
 /// [text] 에서 [prefix] 로 시작하는 줄만 모은다.
 List<String> linesStartingWith(String text, String prefix) =>
     text.split('\n').where((String line) => line.startsWith(prefix)).toList();
+
+/// 사용자 문서 금지 패턴 정규식 원문이다.
+///
+/// `.claude/rules/docs-user-manual.md` §4 표 전체(planning 경로 · phase 번호 ·
+/// 결정 · 리뷰 ID · quick · 세션 식별자 · 커밋 해시 · 판정 서술 · 내부 도구 이름 ·
+/// 날짜)를 한 정규식으로 적는다. 매뉴얼 · README · 공개 문서(CHANGELOG ·
+/// CONTRIBUTING · 이슈 · PR 템플릿) 계약 테스트가 모두 이 상수를 import 한다 —
+/// 사본을 두면 규칙이 바뀔 때 파일마다 다른 패턴으로 세게 된다. 플랜 verify 의
+/// `FP` 와 글자 그대로 같다.
+const String kUserDocForbiddenPatternSource =
+    r'Phase [0-9]|\bD-[0-9]{2}\b|\bD-[A-Z]+-[0-9]|\b(WR|IN|CR|BL)-[0-9]|\b[0-9]+(\.[0-9]+)?-(CONTEXT|RESEARCH|PATTERNS|PLAN|SUMMARY|LEDGER|VERIFICATION|VALIDATION|REVIEW|UAT)\b|\.planning|\bquick [0-9]{6}|\b[0-9]{6}-[a-z0-9]{3}\b|\b[0-9a-f]{7,40}\b|\bUAT|실측|재현됐|\bmemory\b|\b(project|feedback|reference)_[a-z0-9_]+|\bgsd[-:]|20[0-9]{2}-[0-9]{2}-[0-9]{2}';
