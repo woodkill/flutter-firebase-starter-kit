@@ -4721,8 +4721,7 @@ _facebookAuth.login(
 | `android/gradle.properties` | 3.47 `DisableBuiltInKotlin` · `DisableNewDsl` migrator(**모든 Android 빌드 직전** 실행) | `android.builtInKotlin=false` · `android.newDsl=false` + 각 설명 주석 **4줄 append** |
 | `pubspec.lock` | SDK 가 고정하는 pub 핀 변화 | 직접 의존성은 `test` · `intl` 둘뿐, transitive 5건(`matcher` · `meta` · `test_api` · `test_core` · `vector_math`). codegen 스택은 불변 |
 
-- `lib/l10n/generated/*.dart`(tracked) · `macos/Flutter/GeneratedPluginRegistrant.swift`
-  도 SDK 템플릿이 바뀌면 재생성된다 — 이번에는 **변화 0** 이었다.
+- `lib/l10n/generated/*.dart`(tracked) 도 SDK 템플릿이 바뀌면 재생성된다 — 이번에는 **변화 0** 이었다.
 - SPM 통합은 **이미 적용돼 있다.** `ios/Runner.xcodeproj/project.pbxproj` ·
   `ios/Runner.xcodeproj/xcshareddata/xcschemes/*.xcscheme` · `Package.resolved` 가
   바뀌면 **diff 를 읽고 원인을 확인한다** — 도구의 새 migration, 아직 빌드한 적 없는
@@ -4766,9 +4765,9 @@ _facebookAuth.login(
   있으니 `arch -x86_64 /usr/bin/true` 로 확인한다.
 - 실기기 debug 실행은 **USB 연결이 필수**다(무선은 디버거 미부착 → JIT 불가).
 - **CocoaPods 는 iOS 빌드에 더 이상 필요하지 않다**(Phase 16.3 에서 SPM 으로
-  전환했다). 단 `macos/` 는 아직 CocoaPods 를 쓰고(이 킷은 macOS 를 빌드하지
-  않는다), `flutter doctor` 의 CocoaPods 항목은 **설치 여부와 무관하게 계속
-  표시된다** — Xcode 워크플로에 조건 없이 등록된 검사라 그렇다.
+  전환했다). 이 킷에는 `macos/` 디렉터리가 없다. `flutter doctor` 의 CocoaPods
+  항목은 **설치 여부와 무관하게 계속 표시된다** — Xcode 워크플로에 조건 없이
+  등록된 검사라 그렇다.
 
 ### ⑦ golden test — SDK 상향은 렌더를 바꾼다
 
@@ -4851,8 +4850,8 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `
 
 - 특정 Flutter 버전 · 날짜를 추정해 계획을 세우지 않는다. 위 두 예고에는 버전도
   날짜도 없다. 확정된 날짜는 **2026-10** 과 **2026-12-02** 둘뿐이다.
-- **범위:** 이 전환은 `ios/` 에만 해당한다. `macos/` 는 지금도 CocoaPods 를 쓴다
-  (이 킷은 macOS 를 지원하지 않으므로 빌드하지 않는다).
+- **범위:** 이 전환은 `ios/` 에만 해당한다.
+  이 킷은 모바일 전용이라 `macos/` 디렉터리가 없다.
 
 ### ② 네이티브 SDK 버전은 어디에 고정돼 있나
 
