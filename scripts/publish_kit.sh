@@ -10,9 +10,10 @@
 #   bash scripts/publish_kit.sh            # 할 일만 출력한다(파일 · 디렉터리를 만들지 않는다)
 #   bash scripts/publish_kit.sh mirror     # origin master fresh clone → 이력 필터 → main 개명
 #   bash scripts/publish_kit.sh scan       # mirror 이력의 킷 불변식 + gitleaks
+#   bash scripts/publish_kit.sh verify     # mirror 의 fresh clone 에서 analyze · 전체 Flutter 테스트 · Jest
 #   bash scripts/publish_kit.sh check      # 공개 저장소 main · v* 태그가 재생성 main 의 조상인지
 #   bash scripts/publish_kit.sh rules-hash # 규칙 3파일 + mirror 레시피 블록의 sha256 4줄(파일을 쓰지 않는다)
-#   순서: mirror → scan → check
+#   순서: mirror → scan → verify → check
 #
 # 동결 (D-12):
 #   .planning/release/rules.sha256 이 규칙 3파일과 이 스크립트의 mirror 레시피 블록
@@ -25,6 +26,9 @@
 #   - mirror 마지막 줄: MIRROR OK main=<40자 해시> commits=<N> (앞 줄 `tools: git=… filter-repo=…`)
 #   - scan: `control: <이름>=1` 8줄 · `invariant: <이름>=<수>` 10줄 → gitleaks →
 #     마지막 줄 SCAN OK main=<해시> gitleaks=0 invariants=10
+#   - verify: `ios-goldens: copied=<N>` 또는 `ios-goldens: skipped (not macOS)` → 단계 로그
+#     $WORK/verify-{fvm,pubget,build-runner,analyze,test,functions}.log → `flutter-tests: +N ~M` ·
+#     `jest: Tests: …` → 마지막 줄 VERIFY OK main=<해시> flutter=pass jest=pass ios-goldens=<N|skipped>
 #   - check 마지막 줄: CHECK OK first-publish main=<해시> 또는
 #     CHECK OK main=<해시> public-main=<해시> tags=<N>
 #   - 단계를 통과하면 $WORK/<단계>.ok 에 그때의 mirror main 해시 1줄을 쓴다.
@@ -37,7 +41,9 @@
 #     읽기만 한다. filter-repo 의 fresh clone 검사를 우회하는 옵션을 쓰지 않는다.
 #   - 공개 저장소에는 읽기(ls-remote · fetch)만 한다. 강제 갱신 · 태그 이동 · ref 삭제를 하지 않는다.
 #   - 로컬 작업 트리를 스캔하지 않는다 — 검사 대상은 mirror 이력뿐이다.
-#   - 지우는 것은 자기 산출물 $WORK/mirror 하나다. WORK 는 <저장소>/build/ 아래만 받는다.
+#   - 지우는 것은 자기 산출물 $WORK/mirror · $WORK/verify 둘이다. WORK 는 <저장소>/build/ 아래만 받는다.
+#   - verify 가 유지보수자 트리에서 clone 으로 넘기는 파일은 gitignored iOS golden PNG(`*_ios.png`)뿐이다.
+#     실 키 파일(skip-worktree 2파일 · config/*.json · flavor xcconfig)은 복사하지 않는다.
 #
 # 환경변수 (테스트 · 리허설 대역용 — 기본값은 실제 주소):
 #   KIT_PUBLISH_ORIGIN  private origin   (기본 git@github.com:woodkill/flutter_starter_kit.git)
@@ -54,11 +60,12 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-usage: bash scripts/publish_kit.sh [mirror|scan|check|rules-hash]
+usage: bash scripts/publish_kit.sh [mirror|scan|verify|check|rules-hash]
 
   인자 없이 실행하면 할 일만 출력한다. 서브커맨드는 이 순서로 돈다:
     mirror  origin master 를 fresh clone 해 이력을 필터하고 main 으로 개명한다
     scan    mirror 이력의 킷 불변식(제외 경로 · 치환 대상 0)과 gitleaks 를 검사한다
+    verify  mirror 를 새로 clone 해 pub get · build_runner · analyze · 전체 Flutter 테스트 · Jest 를 돌린다
     check   공개 저장소의 main · v* 태그가 재생성한 main 의 조상인지 확인한다
   rules-hash  규칙 3파일 + mirror 레시피 블록의 sha256 4줄을 출력한다(동결본 rules.sha256 재생성용)
   환경변수: KIT_PUBLISH_ORIGIN · KIT_PUBLISH_PUBLIC · KIT_PUBLISH_WORK (테스트 · 리허설 대역용)
@@ -78,7 +85,7 @@ fi
 
 CMD="${1:-}"
 case "$CMD" in
-  "" | mirror | scan | check | rules-hash) ;;
+  "" | mirror | scan | verify | check | rules-hash) ;;
   *)
     usage >&2
     exit 2
@@ -166,7 +173,7 @@ show_status() {
     return 0
   fi
   echo "  mirror main=$main"
-  for step in mirror scan check; do
+  for step in mirror scan verify check; do
     if [ -f "$WORK/$step.ok" ] && [ "$(cat "$WORK/$step.ok")" = "$main" ]; then
       echo "  [완료] $step"
     else
@@ -400,6 +407,98 @@ EOF_TAGS
   echo "CHECK OK main=$main public-main=$public_main tags=$tag_count"
 }
 
+# 명령 하나를 $V(verify clone) 안에서 돌려 출력(stdout + stderr)을 로그 파일에 남긴다.
+# 종료 코드를 그대로 돌려준다 — 판정은 호출부가 종료 코드와 로그 문구로 한다.
+run_in_clone() {
+  local log="$1"
+  shift
+  ( cd "$V" && "$@" ) > "$log" 2>&1
+}
+
+# D-31 — 공개 mirror 를 사용자가 받는 그대로(fresh clone) 받아 검수한다.
+cmd_verify() {
+  local main stamp flutter_version expected found rel golden_label summary jest_line rc
+  main=$(mirror_main)
+  rm -f "$WORK/verify.ok"
+  stamp=""
+  [ -f "$WORK/mirror.ok" ] && stamp=$(cat "$WORK/mirror.ok")
+  [ "$stamp" = "$main" ] || fail "mirror 를 이 mirror(main=$main)에서 먼저 통과해야 한다"
+
+  command -v fvm >/dev/null 2>&1 || fail "fvm 이 PATH 에 없다"
+  command -v jq >/dev/null 2>&1 || fail "jq 가 PATH 에 없다"
+  command -v pnpm >/dev/null 2>&1 || fail "pnpm 이 PATH 에 없다"
+
+  V="$WORK/verify"
+  rm -rf "$V"
+  git clone --quiet --no-local "$MIRROR" "$V" || fail "mirror clone 실패: $V"
+  [ "$(git -C "$V" rev-parse HEAD)" = "$main" ] || fail "verify clone HEAD 가 mirror main 과 다르다"
+  # 공개본에 없어야 할 것이 clone 에 있으면 검수 대상이 틀렸다(T-174-26).
+  [ ! -e "$V/.planning" ] || fail "verify clone 에 .planning 이 있다 — mirror 가 공개본이 아니다"
+  [ ! -e "$V/config/dev.json" ] || fail "verify clone 에 config/dev.json 이 있다 — 공개본에 실 config 가 실렸다"
+
+  flutter_version=$(jq -r .flutter "$V/.fvmrc") || fail ".fvmrc 를 읽지 못했다"
+  run_in_clone "$WORK/verify-fvm.log" fvm use "$flutter_version" --force ||
+    fail "fvm use $flutter_version 실패 — $WORK/verify-fvm.log"
+
+  # iOS golden 은 gitignore 라 clone 에 없다(RESEARCH Pitfall 10) — macOS 에서는 유지보수자가
+  # sign-off 한 PNG 를 같은 상대경로로 복사해 회귀를 판정한다. 복사 대상은 이 PNG 뿐이다.
+  if [ "$(uname)" = Darwin ]; then
+    expected=$(git -C "$V" show HEAD:.gitignore | grep -c '_ios\.png$') || expected=0
+    found=$(find "$ROOT/test" -name '*_ios.png' -not -path '*/failures/*' | wc -l | tr -d '[:space:]')
+    [ "$found" = "$expected" ] ||
+      fail "유지보수자 트리의 iOS golden 이 $found/$expected — macOS 에서 생성 · sign-off 뒤 다시"
+    while IFS= read -r golden; do
+      [ -n "$golden" ] || continue
+      rel="${golden#"$ROOT"/}"
+      case "$rel" in
+        test/*_ios.png) ;;
+        *) fail "iOS golden 경로가 예상 밖이다: $rel" ;;
+      esac
+      mkdir -p "$V/$(dirname "$rel")"
+      cp "$golden" "$V/$rel" || fail "iOS golden 복사 실패: $rel"
+    done <<EOF_GOLDENS
+$(find "$ROOT/test" -name '*_ios.png' -not -path '*/failures/*')
+EOF_GOLDENS
+    echo "ios-goldens: copied=$expected"
+    golden_label="$expected"
+  else
+    echo "ios-goldens: skipped (not macOS)"
+    golden_label="skipped"
+  fi
+
+  run_in_clone "$WORK/verify-pubget.log" fvm flutter pub get ||
+    fail "fvm flutter pub get 실패 — $WORK/verify-pubget.log"
+  run_in_clone "$WORK/verify-build-runner.log" fvm dart run build_runner build --delete-conflicting-outputs ||
+    fail "build_runner 실패 — $WORK/verify-build-runner.log"
+
+  rc=0
+  run_in_clone "$WORK/verify-analyze.log" fvm dart analyze || rc=$?
+  grep -qF 'No issues found!' "$WORK/verify-analyze.log" ||
+    fail "fvm dart analyze 결과가 No issues found! 가 아니다(exit $rc) — $WORK/verify-analyze.log"
+
+  rc=0
+  run_in_clone "$WORK/verify-test.log" fvm flutter test --no-pub || rc=$?
+  if [ "$rc" != 0 ] || ! grep -qE 'All (other )?tests passed!' "$WORK/verify-test.log" ||
+    grep -qF 'Some tests failed' "$WORK/verify-test.log"; then
+    fail "전체 Flutter 테스트 실패(exit $rc) — $WORK/verify-test.log"
+  fi
+  summary=$(tr '\r' '\n' < "$WORK/verify-test.log" | grep -E 'All (other )?tests passed!' | tail -n 1 |
+    grep -oE '\+[0-9]+( ~[0-9]+)?' | head -n 1) || summary="?"
+  echo "flutter-tests: $summary"
+
+  rc=0
+  run_in_clone "$WORK/verify-functions.log" sh -c 'cd functions && pnpm install --frozen-lockfile && pnpm run lint && pnpm run build && pnpm test' || rc=$?
+  if [ "$rc" != 0 ] || grep -qE '^Tests:.*failed' "$WORK/verify-functions.log"; then
+    fail "functions install · lint · build · Jest 실패(exit $rc) — $WORK/verify-functions.log"
+  fi
+  jest_line=$(grep -E '^Tests:' "$WORK/verify-functions.log" | tail -n 1) ||
+    fail "Jest 요약 줄(Tests:)이 없다 — $WORK/verify-functions.log"
+  echo "jest: $jest_line"
+
+  printf '%s\n' "$main" > "$WORK/verify.ok"
+  echo "VERIFY OK main=$main flutter=pass jest=pass ios-goldens=$golden_label"
+}
+
 if [ -z "$CMD" ]; then
   show_status
   exit 0
@@ -410,6 +509,7 @@ require_rules
 case "$CMD" in
   mirror) cmd_mirror ;;
   scan) cmd_scan ;;
+  verify) cmd_verify ;;
   check) cmd_check ;;
   rules-hash) print_rules_hash ;;
 esac
