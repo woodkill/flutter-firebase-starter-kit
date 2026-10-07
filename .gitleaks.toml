@@ -1,0 +1,13 @@
+# 킷 기본 gitleaks 설정 — gitleaks 기본 규칙(useDefault)을 그대로 쓴다.
+# 허용 목록은 CocoaPods ios/Podfile.lock 의 SPEC CHECKSUMS 줄(공개 podspec SHA-1)만 — 실 값은 허용하지 않는다.
+# 스캔 결과가 나오면 허용 목록을 넓히지 말고 멈춰 값을 확인한다.
+title = "flutter-firebase-starter-kit"
+[extend]
+useDefault = true
+[[allowlists]]
+description = "CocoaPods Podfile.lock SPEC CHECKSUMS (podspec SHA-1)"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^ios/Podfile\.lock$''']
+regexTarget = "line"
+regexes = ['''^[+ -]?\s*[A-Za-z0-9_+./-]+: [0-9a-f]{40}\s*$''']
