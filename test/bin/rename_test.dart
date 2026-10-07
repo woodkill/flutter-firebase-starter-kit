@@ -472,6 +472,180 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     });
   });
 
+  group('iOS 앱 번들 ID', () {
+    late Directory tempDir;
+
+    /// 킷 원본 pbxproj 의 번들 ID 줄 꼴 + rename 과 무관한 줄.
+    ///
+    /// 마지막 주석 줄은 현재 번들 ID 를 접두어로 품지만 PRODUCT_BUNDLE_IDENTIFIER
+    /// 줄이 아니다 — rename 이 건드리면 안 된다.
+    const kitPbxproj = '''
+/* Begin XCBuildConfiguration section */
+				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev;
+				PRODUCT_NAME = "\$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev;
+				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
+				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.RunnerTests;
+/* com.slimpumpkin.flutterStarterKit.widget */
+/* End XCBuildConfiguration section */
+''';
+
+    /// `--org com.example --name my_app` 적용 뒤 기대하는 pbxproj.
+    const renamedPbxproj = '''
+/* Begin XCBuildConfiguration section */
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.dev;
+				PRODUCT_NAME = "\$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.dev;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.RunnerTests;
+/* com.slimpumpkin.flutterStarterKit.widget */
+/* End XCBuildConfiguration section */
+''';
+
+    /// flavor 별 번들 ID 접미사 — prod 는 접미사가 없다.
+    const flavorSuffixes = <String, String>{
+      'dev': '.dev',
+      'stg': '.stg',
+      'prod': '',
+    };
+
+    /// [flavor] 의 xcconfig 본문. 번들 ID 줄 앞뒤에 무관한 줄을 둔다.
+    ///
+    /// 주석 줄은 현재 번들 ID 를 품지만 PRODUCT_BUNDLE_IDENTIFIER 줄이 아니다.
+    String xcconfigContent(String flavor, String bundleId) => [
+      '// $flavor flavor 공통 변수 (예: com.slimpumpkin.flutterStarterKit)',
+      'PRODUCT_BUNDLE_IDENTIFIER = $bundleId${flavorSuffixes[flavor]}',
+      'DISPLAY_NAME = FSK $flavor',
+      'REVERSED_CLIENT_ID = com.googleusercontent.apps.EXAMPLE',
+      'DEVELOPMENT_TEAM =',
+      '',
+    ].join('\n');
+
+    File userXcconfig(String flavor) =>
+        File('${tempDir.path}/ios/Flutter/$flavor.xcconfig');
+
+    File exampleXcconfig(String flavor) =>
+        File('${tempDir.path}/ios/Flutter/$flavor.example.xcconfig');
+
+    File pbxproj() =>
+        File('${tempDir.path}/ios/Runner.xcodeproj/project.pbxproj');
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('rename_ios_bundle_');
+      File(
+        '${tempDir.path}/pubspec.yaml',
+      ).writeAsStringSync('name: flutter_starter_kit\nversion: 1.0.0\n');
+      Directory(
+        '${tempDir.path}/ios/Runner.xcodeproj',
+      ).createSync(recursive: true);
+      pbxproj().writeAsStringSync(kitPbxproj);
+      Directory('${tempDir.path}/ios/Flutter').createSync(recursive: true);
+      for (final flavor in flavorSuffixes.keys) {
+        final content = xcconfigContent(
+          flavor,
+          'com.slimpumpkin.flutterStarterKit',
+        );
+        userXcconfig(flavor).writeAsStringSync(content);
+        exampleXcconfig(flavor).writeAsStringSync(content);
+      }
+    });
+
+    tearDown(() {
+      tempDir.deleteSync(recursive: true);
+    });
+
+    test('사용자 xcconfig 3파일의 번들 ID 를 flavor 접미사를 보존해 바꾼다', () {
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final xcconfigChanges = changes
+          .where((c) => c.filePath.endsWith('.xcconfig'))
+          .toList();
+
+      expect(xcconfigChanges, hasLength(3));
+      expect(
+        {for (final c in xcconfigChanges) c.oldValue: c.newValue},
+        <String, String>{
+          'PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev':
+              'PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.dev',
+          'PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.stg':
+              'PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.stg',
+          'PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit':
+              'PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp',
+        },
+      );
+
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+      for (final flavor in flavorSuffixes.keys) {
+        expect(
+          userXcconfig(flavor).readAsStringSync(),
+          xcconfigContent(flavor, 'com.example.myApp'),
+          reason: '$flavor.xcconfig 은 번들 ID 줄만 바뀌고 다른 줄은 그대로다',
+        );
+      }
+    });
+
+    test('킷 추적 *.example.xcconfig 는 수집하지 않고 apply 뒤에도 바이트가 같다', () {
+      final before = {
+        for (final flavor in flavorSuffixes.keys)
+          flavor: exampleXcconfig(flavor).readAsBytesSync(),
+      };
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      expect(
+        changes.where((c) => c.filePath.endsWith('.example.xcconfig')),
+        isEmpty,
+      );
+
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+      for (final flavor in flavorSuffixes.keys) {
+        expect(exampleXcconfig(flavor).readAsBytesSync(), before[flavor]);
+      }
+    });
+
+    test('사용자 xcconfig 가 없으면 오류 없이 건너뛴다', () {
+      for (final flavor in flavorSuffixes.keys) {
+        userXcconfig(flavor).deleteSync();
+      }
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+
+      expect(changes.where((c) => c.filePath.endsWith('.xcconfig')), isEmpty);
+      expect(
+        changes.where((c) => c.filePath.endsWith('project.pbxproj')),
+        isNotEmpty,
+      );
+    });
+
+    test('pbxproj Runner 비 flavor 구성의 `.dev;` 번들 ID 를 수집한다', () {
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final pairs = {
+        for (final c in changes.where(
+          (c) => c.filePath.endsWith('project.pbxproj'),
+        ))
+          c.oldValue: c.newValue,
+      };
+
+      expect(
+        pairs['com.slimpumpkin.flutterStarterKit.dev;'],
+        'com.example.myApp.dev;',
+      );
+      expect(
+        pairs['com.slimpumpkin.flutterStarterKit;'],
+        'com.example.myApp;',
+        reason: 'Runner 접미사 없는 줄도 끝 `;` 까지 묶어 다른 줄을 건드리지 않는다',
+      );
+    });
+
+    test('apply 뒤 pbxproj 는 번들 ID 줄만 바뀌고 다른 줄은 그대로다', () {
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+
+      expect(pbxproj().readAsStringSync(), renamedPbxproj);
+    });
+  });
+
   group('dry-run 모드', () {
     late Directory tempDir;
 
@@ -826,6 +1000,7 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
         result.stdout,
         contains('The Dart package name stays flutter_starter_kit'),
       );
+      expect(result.stdout, contains('ios/Flutter/{dev,stg,prod}.xcconfig'));
       expect(result.stdout, isNot(contains('Package Rename Tool')));
       expect(
         result.stdout,
