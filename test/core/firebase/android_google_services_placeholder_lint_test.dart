@@ -15,9 +15,11 @@
 // 반대로 실제 Firebase 키가 든 재생성본이 커밋되면 시크릿이 repo 에 유출된다.
 //
 // 따라서 본 가드는 두 방향을 동시에 단언한다.
-//   (1) placeholder 가 존재하고 값이 gradle productFlavors · xcconfig
-//       `PRODUCT_BUNDLE_IDENTIFIER` 와 정확히 맞는가
-//       → 빌드 게이트 회귀 차단
+//   (1) placeholder 가 존재하고 값이 gradle `applicationId` + productFlavors
+//       접미사 · pbxproj 번들 ID + flavor 접미사와 정확히 맞는가
+//       → 빌드 게이트 회귀 차단. 기대 앱 ID 는 상수가 아니라 커밋된 빌드
+//         파일에서 읽는다 — `bin/rename.dart` 가 빌드 파일과 placeholder 를
+//         같이 바꾼 저장소에서도 이 가드가 참이어야 한다.
 //   (2) placeholder 어휘가 유지되고 실 키 접두사가 없는가
 //       → 시크릿 유출 회귀 차단 (skip-worktree + pre-commit hook 의 3중 방어
 //         중 상시 실행되는 마지막 층)
@@ -68,30 +70,61 @@ const String _devProjectId = 'placeholder-dev';
 const String _stgProjectId = 'placeholder-stg';
 const String _prodProjectId = 'placeholder-prod';
 
-/// stg 의 applicationId — `android/app/build.gradle.kts:44` 의 base
-/// `applicationId` + 같은 파일 77행 `create("stg") { applicationIdSuffix =
-/// ".stg" }`.
-const String _stgPackageName = 'com.slimpumpkin.flutter_starter_kit.stg';
+/// Android 앱 ID 진실원 — `applicationId` 를 담은 Gradle 빌드 파일.
+const String _gradlePath = 'android/app/build.gradle.kts';
 
-/// prod 의 applicationId — `android/app/build.gradle.kts:78` 의
-/// `create("prod") { /* prod는 suffix 없음 */ }` 이므로 **접미사가 없다**.
-/// 같은 규칙이 `ios/Flutter/prod.example.xcconfig` 의
-/// `PRODUCT_BUNDLE_IDENTIFIER` 에도 이미 적용되어 있다
-/// (`com.slimpumpkin.flutterStarterKit` — 접미사 없음).
-/// 여기에 `.prod` 를 붙이면 Gradle 이 "No matching client found" 로 실패한다.
-const String _prodPackageName = 'com.slimpumpkin.flutter_starter_kit';
+/// iOS 번들 ID 진실원 — `RunnerTests` 번들 ID 를 담은 Xcode 프로젝트 파일.
+const String _pbxprojPath = 'ios/Runner.xcodeproj/project.pbxproj';
 
-/// dev 의 iOS bundle id — 진실원은 `ios/Flutter/dev.example.xcconfig` 의
-/// `PRODUCT_BUNDLE_IDENTIFIER` 다. 이 값이 어긋나면 Xcode 가 복사한 plist 와
-/// 실제 번들이 불일치해 Firebase 초기화가 런타임에 어긋난다.
-const String _devBundleId = 'com.slimpumpkin.flutterStarterKit.dev';
+/// 커밋된 [_gradlePath] 의 base `applicationId` 를 돌려준다.
+///
+/// 앱 ID 는 `bin/rename.dart` 로 바뀌므로 상수로 박지 않고 빌드 파일에서
+/// 읽는다 — rename 이 placeholder 와 빌드 파일을 같이 바꾼 저장소에서도
+/// 같은 기준으로 비교한다. placeholder 값과 같은 출처(HEAD)를 읽어 커밋 전
+/// 작업 트리 상태에 흔들리지 않는다.
+String readBaseApplicationId() {
+  final RegExpMatch? match = RegExp(
+    r'^\s*applicationId\s*=\s*"([^"]+)"',
+    multiLine: true,
+  ).firstMatch(readCommittedText(_gradlePath));
+  expect(
+    match,
+    isNotNull,
+    reason: '커밋된 $_gradlePath 에서 applicationId 줄을 찾지 못했다.',
+  );
+  return match!.group(1)!;
+}
 
-/// stg 의 iOS bundle id — `ios/Flutter/stg.example.xcconfig` 진실원.
-const String _stgBundleId = 'com.slimpumpkin.flutterStarterKit.stg';
+/// 커밋된 [_pbxprojPath] 의 base iOS 번들 ID 를 돌려준다.
+///
+/// `RunnerTests` 타깃 번들 ID(`<base>.RunnerTests`)에서 접미사를 뗀 값이다.
+/// 킷 추적 `ios/Flutter/*.example.xcconfig` 는 rename 이 바꾸지 않으므로
+/// rename 뒤 저장소의 진실원이 될 수 없다.
+String readBaseIosBundleId() {
+  final RegExpMatch? match = RegExp(
+    r'PRODUCT_BUNDLE_IDENTIFIER = ([^;\s]+)\.RunnerTests;',
+  ).firstMatch(readCommittedText(_pbxprojPath));
+  expect(
+    match,
+    isNotNull,
+    reason: '커밋된 $_pbxprojPath 에서 RunnerTests 번들 ID 를 찾지 못했다.',
+  );
+  return match!.group(1)!;
+}
 
-/// prod 의 iOS bundle id — `ios/Flutter/prod.example.xcconfig` 진실원.
-/// Android 와 동일하게 **flavor 접미사가 없다**.
-const String _prodBundleId = 'com.slimpumpkin.flutterStarterKit';
+/// stg 의 applicationId — base `applicationId` + productFlavors
+/// `create("stg") { applicationIdSuffix = ".stg" }`.
+String stgPackageName() => '${readBaseApplicationId()}.stg';
+
+/// prod 의 applicationId — productFlavors `create("prod")` 에
+/// `applicationIdSuffix` 가 없으므로 **접미사가 없다**. 여기에 `.prod` 를
+/// 붙이면 Gradle 이 "No matching client found" 로 실패한다.
+String prodPackageName() => readBaseApplicationId();
+
+/// flavor 의 iOS bundle id — base 번들 ID + flavor 접미사(prod 는 없음).
+/// 이 값이 어긋나면 Xcode 가 복사한 plist 와 실제 번들이 불일치해 Firebase
+/// 초기화가 런타임에 어긋난다.
+String iosBundleId(String suffix) => '${readBaseIosBundleId()}$suffix';
 
 /// Google API 키 접두사. placeholder 에 이 문자열이 등장하면 실제 키가 든
 /// 재생성본이 커밋된 것이다.
@@ -215,8 +248,8 @@ void expectCommittedIosPlaceholderPlist({
     isTrue,
     reason:
         '커밋된 $path 의 BUNDLE_ID 가 $bundleId 가 아니다 — '
-        'ios/Flutter/<flavor>.example.xcconfig 의 '
-        'PRODUCT_BUNDLE_IDENTIFIER 와 어긋났거나 실 프로젝트 재생성본이 '
+        'ios/Runner.xcodeproj/project.pbxproj 의 번들 ID + flavor 접미사와 '
+        '어긋났거나 실 프로젝트 재생성본이 '
         '커밋됐다. $hint',
   );
   expect(
@@ -290,7 +323,7 @@ void main() {
 
         expect(
           readPackageName(json),
-          _stgPackageName,
+          stgPackageName(),
           reason:
               '커밋된 $_stgJsonPath 의 package_name 이 '
               'android/app/build.gradle.kts 의 stg applicationId(base + '
@@ -305,7 +338,7 @@ void main() {
 
         expect(
           readPackageName(json),
-          _prodPackageName,
+          prodPackageName(),
           reason:
               '커밋된 $_prodJsonPath 의 package_name 이 '
               'android/app/build.gradle.kts 의 prod applicationId 와 다르다. '
@@ -387,7 +420,7 @@ void main() {
     test('커밋된 dev plist 가 placeholder 사양을 만족한다', () {
       expectCommittedIosPlaceholderPlist(
         path: _devPlistPath,
-        bundleId: _devBundleId,
+        bundleId: iosBundleId('.dev'),
         projectId: _devProjectId,
       );
     });
@@ -395,7 +428,7 @@ void main() {
     test('커밋된 stg plist 가 placeholder 사양을 만족한다', () {
       expectCommittedIosPlaceholderPlist(
         path: _stgPlistPath,
-        bundleId: _stgBundleId,
+        bundleId: iosBundleId('.stg'),
         projectId: _stgProjectId,
       );
     });
@@ -403,7 +436,7 @@ void main() {
     test('커밋된 prod plist 가 placeholder 사양을 만족한다 (접미사 없음)', () {
       expectCommittedIosPlaceholderPlist(
         path: _prodPlistPath,
-        bundleId: _prodBundleId,
+        bundleId: iosBundleId(''),
         projectId: _prodProjectId,
       );
     });

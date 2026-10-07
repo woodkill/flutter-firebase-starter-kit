@@ -14,6 +14,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 앱 ID 변경 도구(`bin/rename.dart`)가 키 없는 빌드용 Firebase placeholder(Android `google-services.json` 2종의 `package_name` · iOS `GoogleService-Info.plist` 3종의 `BUNDLE_ID`)도 새 앱 ID 로 바꾼다. 앱 ID 를 바꾼 뒤 `--flavor stg` · `--flavor prod` Android 빌드가 `No matching client found for package name` 으로 멈추던 문제를 고친다. 실 값으로 바꾼 파일은 건드리지 않는다.
+- placeholder 검사 테스트가 기대 앱 ID 를 `android/app/build.gradle.kts` 의 `applicationId` 와 `ios/Runner.xcodeproj/project.pbxproj` 의 번들 ID 에서 읽는다. 앱 ID 를 바꾼 저장소에서도 `fvm flutter test` 가 통과한다.
+
 ## [1.0.0-rc.1] - 2026-10-07
 
 ### Added

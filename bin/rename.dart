@@ -229,6 +229,9 @@ String _capitalize(String s) {
 /// iOS bundle ID 는 `project.pbxproj` 와 사용자 xcconfig
 /// ([userXcconfigFileNames]) 두 곳에서 바꾼다 — flavor 빌드는 xcconfig 값을,
 /// 비 flavor 구성은 pbxproj 값을 읽는다.
+/// tracked Firebase placeholder(Android `google-services.json` 2종 · iOS
+/// `GoogleService-Info.plist` 3종)의 앱 ID 줄도 바꾼다 — 실 값으로 덮어쓴
+/// 파일은 건드리지 않는다.
 /// Dart 패키지명(`pubspec.yaml` 의 name)과 `package:` import 는 수집하지
 /// 않는다(D-34 — 바꾸면 킷 업데이트 merge 마다 import 충돌).
 /// [projectIdPrefix]가 null 이면 [newName]의 `_` 를 `-` 로 바꾼 값을
@@ -267,6 +270,14 @@ List<FileChange> collectChanges(
     newIosBundleId,
     newAndroidPackage,
     newProjectIdPrefix,
+    changes,
+  );
+
+  // 6. tracked Firebase placeholder 의 package_name · BUNDLE_ID
+  _collectFirebasePlaceholderChanges(
+    projectRoot,
+    newAndroidPackage,
+    newIosBundleId,
     changes,
   );
 
@@ -543,6 +554,93 @@ void _collectFirebaseConfigureChanges(
       ),
     );
   }
+}
+
+/// tracked Android placeholder `google-services.json` 의 flavor → 앱 ID 접미사.
+///
+/// dev 는 실 프로젝트 연결용이라 gitignored 이므로 placeholder 가 없다.
+/// prod 는 `build.gradle.kts` productFlavors 에 접미사가 없다.
+const _androidPlaceholderSuffixes = <String, String>{'stg': '.stg', 'prod': ''};
+
+/// tracked iOS placeholder `GoogleService-Info.plist` 의 flavor → 번들 ID 접미사.
+///
+/// prod 는 xcconfig `PRODUCT_BUNDLE_IDENTIFIER` 에 접미사가 없다.
+const _iosPlaceholderSuffixes = <String, String>{
+  'dev': '.dev',
+  'stg': '.stg',
+  'prod': '',
+};
+
+/// tracked Firebase placeholder 의 앱 ID 줄 변경을 수집한다.
+///
+/// Android `android/app/src/{stg,prod}/google-services.json` 의
+/// `package_name` 과 iOS `ios/config/{dev,stg,prod}/GoogleService-Info.plist`
+/// 의 `BUNDLE_ID` 를 새 앱 ID 로 바꾼다. google-services Gradle 플러그인은
+/// applicationId 와 같은 `package_name` 이 없으면 빌드를 멈추므로, 이 줄을
+/// 바꾸지 않으면 rename 뒤 키 없는 stg · prod Android 빌드가 깨진다.
+///
+/// placeholder 파일(`placeholder-<flavor>` 프로젝트 ID 를 담은 파일)만
+/// 수집한다 — `scripts/firebase-configure.sh` 가 실 값으로 덮어쓴 파일은
+/// Firebase 콘솔에 등록된 값과 맞아야 하므로 건드리지 않는다.
+void _collectFirebasePlaceholderChanges(
+  String projectRoot,
+  String newAndroidPackage,
+  String newIosBundleId,
+  List<FileChange> changes,
+) {
+  for (final MapEntry(key: flavor, value: suffix)
+      in _androidPlaceholderSuffixes.entries) {
+    _addPlaceholderChange(
+      file: File('$projectRoot/android/app/src/$flavor/google-services.json'),
+      flavor: flavor,
+      description: 'Android google-services.json package_name ($flavor)',
+      oldValue: '"package_name": "$currentAndroidPackage$suffix"',
+      newValue: '"package_name": "$newAndroidPackage$suffix"',
+      changes: changes,
+    );
+  }
+
+  for (final MapEntry(key: flavor, value: suffix)
+      in _iosPlaceholderSuffixes.entries) {
+    _addPlaceholderChange(
+      file: File('$projectRoot/ios/config/$flavor/GoogleService-Info.plist'),
+      flavor: flavor,
+      description: 'iOS GoogleService-Info.plist BUNDLE_ID ($flavor)',
+      oldValue: '<string>$currentIosBundleId$suffix</string>',
+      newValue: '<string>$newIosBundleId$suffix</string>',
+      changes: changes,
+    );
+  }
+}
+
+/// [file] 이 [flavor] 의 placeholder 이고 [oldValue] 를 담을 때만 변경을
+/// 등록한다.
+///
+/// 파일이 없거나 실 값으로 덮어써졌거나(placeholder 프로젝트 ID 없음) 이미
+/// 바뀐 경우(옛 값 없음)는 건너뛴다.
+void _addPlaceholderChange({
+  required File file,
+  required String flavor,
+  required String description,
+  required String oldValue,
+  required String newValue,
+  required List<FileChange> changes,
+}) {
+  if (!file.existsSync()) return;
+
+  final content = file.readAsStringSync();
+  if (!content.contains('placeholder-$flavor')) return;
+  if (!content.contains(oldValue)) return;
+
+  changes.add(
+    FileChange(
+      filePath: file.path,
+      type: ChangeType.replace,
+      description: description,
+      oldValue: oldValue,
+      newValue: newValue,
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------

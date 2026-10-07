@@ -646,6 +646,173 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     });
   });
 
+  group('Firebase placeholder 앱 ID', () {
+    late Directory tempDir;
+
+    /// [flavor] 의 Android placeholder 본문. package_name 줄 앞뒤에 무관한
+    /// 줄을 둔다.
+    String googleServicesJson(String flavor, String packageName) =>
+        '''
+{
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "placeholder-$flavor"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+        "android_client_info": {
+          "package_name": "$packageName"
+        }
+      }
+    }
+  ]
+}
+''';
+
+    /// [flavor] 의 iOS placeholder 본문. BUNDLE_ID 줄 앞뒤에 무관한 줄을 둔다.
+    String googleServiceInfoPlist(String flavor, String bundleId) =>
+        '''
+<dict>
+	<key>API_KEY</key>
+	<string>PLACEHOLDER</string>
+	<key>BUNDLE_ID</key>
+	<string>$bundleId</string>
+	<key>PROJECT_ID</key>
+	<string>placeholder-$flavor</string>
+</dict>
+''';
+
+    /// Android placeholder flavor → 앱 ID 접미사 (dev 는 tracked 되지 않는다).
+    const androidSuffixes = <String, String>{'stg': '.stg', 'prod': ''};
+
+    /// iOS placeholder flavor → 번들 ID 접미사.
+    const iosSuffixes = <String, String>{
+      'dev': '.dev',
+      'stg': '.stg',
+      'prod': '',
+    };
+
+    File androidPlaceholder(String flavor) =>
+        File('${tempDir.path}/android/app/src/$flavor/google-services.json');
+
+    File iosPlaceholder(String flavor) =>
+        File('${tempDir.path}/ios/config/$flavor/GoogleService-Info.plist');
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('rename_placeholder_');
+      File(
+        '${tempDir.path}/pubspec.yaml',
+      ).writeAsStringSync('name: flutter_starter_kit\nversion: 1.0.0\n');
+      for (final MapEntry(key: flavor, value: suffix)
+          in androidSuffixes.entries) {
+        androidPlaceholder(flavor)
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            googleServicesJson(
+              flavor,
+              'com.slimpumpkin.flutter_starter_kit$suffix',
+            ),
+          );
+      }
+      for (final MapEntry(key: flavor, value: suffix) in iosSuffixes.entries) {
+        iosPlaceholder(flavor)
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            googleServiceInfoPlist(
+              flavor,
+              'com.slimpumpkin.flutterStarterKit$suffix',
+            ),
+          );
+      }
+    });
+
+    tearDown(() {
+      tempDir.deleteSync(recursive: true);
+    });
+
+    test('Android placeholder 2종의 package_name 을 flavor 접미사와 함께 바꾼다', () {
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final androidChanges = changes
+          .where((c) => c.filePath.endsWith('google-services.json'))
+          .toList();
+
+      expect(
+        {for (final c in androidChanges) c.oldValue: c.newValue},
+        <String, String>{
+          '"package_name": "com.slimpumpkin.flutter_starter_kit.stg"':
+              '"package_name": "com.example.my_app.stg"',
+          '"package_name": "com.slimpumpkin.flutter_starter_kit"':
+              '"package_name": "com.example.my_app"',
+        },
+      );
+
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+      for (final MapEntry(key: flavor, value: suffix)
+          in androidSuffixes.entries) {
+        expect(
+          androidPlaceholder(flavor).readAsStringSync(),
+          googleServicesJson(flavor, 'com.example.my_app$suffix'),
+          reason: '$flavor placeholder 는 package_name 줄만 바뀐다',
+        );
+      }
+    });
+
+    test('iOS placeholder 3종의 BUNDLE_ID 를 flavor 접미사와 함께 바꾼다', () {
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final iosChanges = changes
+          .where((c) => c.filePath.endsWith('GoogleService-Info.plist'))
+          .toList();
+
+      expect(iosChanges, hasLength(3));
+
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+      for (final MapEntry(key: flavor, value: suffix) in iosSuffixes.entries) {
+        expect(
+          iosPlaceholder(flavor).readAsStringSync(),
+          googleServiceInfoPlist(flavor, 'com.example.myApp$suffix'),
+          reason: '$flavor plist 는 BUNDLE_ID 줄만 바뀐다',
+        );
+      }
+    });
+
+    test('실 값으로 덮어쓴 파일(placeholder 프로젝트 ID 없음)은 건드리지 않는다', () {
+      final realJson = googleServicesJson(
+        'stg',
+        'com.slimpumpkin.flutter_starter_kit.stg',
+      ).replaceAll('placeholder-stg', 'acme-app-stg');
+      androidPlaceholder('stg').writeAsStringSync(realJson);
+      final realPlist = googleServiceInfoPlist(
+        'dev',
+        'com.slimpumpkin.flutterStarterKit.dev',
+      ).replaceAll('placeholder-dev', 'acme-app-dev');
+      iosPlaceholder('dev').writeAsStringSync(realPlist);
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final touchedPaths = changes.map((c) => c.filePath).toSet();
+
+      expect(touchedPaths, isNot(contains(androidPlaceholder('stg').path)));
+      expect(touchedPaths, isNot(contains(iosPlaceholder('dev').path)));
+      expect(touchedPaths, contains(androidPlaceholder('prod').path));
+
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+      expect(androidPlaceholder('stg').readAsStringSync(), realJson);
+      expect(iosPlaceholder('dev').readAsStringSync(), realPlist);
+    });
+
+    test('placeholder 가 없으면 오류 없이 건너뛴다', () {
+      for (final flavor in androidSuffixes.keys) {
+        androidPlaceholder(flavor).deleteSync();
+      }
+      for (final flavor in iosSuffixes.keys) {
+        iosPlaceholder(flavor).deleteSync();
+      }
+
+      expect(collectChanges(tempDir.path, 'com.example', 'my_app'), isEmpty);
+    });
+  });
+
   group('dry-run 모드', () {
     late Directory tempDir;
 
