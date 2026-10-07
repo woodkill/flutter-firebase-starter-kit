@@ -12,8 +12,10 @@
 #   bash scripts/publish_kit.sh scan       # mirror 이력의 킷 불변식 + gitleaks
 #   bash scripts/publish_kit.sh verify     # mirror 의 fresh clone 에서 analyze · 전체 Flutter 테스트 · Jest
 #   bash scripts/publish_kit.sh check      # 공개 저장소 main · v* 태그가 재생성 main 의 조상인지
+#   bash scripts/publish_kit.sh push       # 태그 생성 · main + 태그 push 명령만 출력(dry-run) · --apply 면 실행
+#   bash scripts/publish_kit.sh release    # GitHub Release 명령 · notes 파일만 준비(dry-run) · --apply 면 실행
 #   bash scripts/publish_kit.sh rules-hash # 규칙 3파일 + mirror 레시피 블록의 sha256 4줄(파일을 쓰지 않는다)
-#   순서: mirror → scan → verify → check
+#   순서: mirror → scan → verify → check → push → release
 #
 # 동결 (D-12):
 #   .planning/release/rules.sha256 이 규칙 3파일과 이 스크립트의 mirror 레시피 블록
@@ -31,7 +33,12 @@
 #     `jest: Tests: …` → 마지막 줄 VERIFY OK main=<해시> flutter=pass jest=pass ios-goldens=<N|skipped>
 #   - check 마지막 줄: CHECK OK first-publish main=<해시> 또는
 #     CHECK OK main=<해시> public-main=<해시> tags=<N>
-#   - 단계를 통과하면 $WORK/<단계>.ok 에 그때의 mirror main 해시 1줄을 쓴다.
+#   - push: `command: …` 줄들 → DRY-RUN OK push tag=<TAG> main=<해시> (--apply 면 PUSH OK tag=<TAG> main=<해시>)
+#   - release: `command: …` 줄 → DRY-RUN OK release tag=<TAG> (--apply 면 RELEASE OK tag=<TAG>)
+#   - 인자 없음: 사용법 · 다음 할 일 → 마지막 줄
+#     status: mirror=<ok|-> scan=<ok|-> verify=<ok|-> check=<ok|-> push=<ok|-> main=<해시|none>
+#   - 단계를 통과하면 $WORK/<단계>.ok 에 그때의 mirror main 해시 1줄을 쓴다. push 는 mirror · scan ·
+#     verify · check 표시가, release 는 push 표시가 전부 지금 mirror main 해시와 같아야 열린다.
 #   - 실패: FAIL: <사유> (stderr, exit 1) · 인자 오류: usage (stderr, exit 2)
 #
 # 안전 계약:
@@ -39,7 +46,9 @@
 #     검사 정규식의 양성 대조 문자열도 실행 시점에 조각으로 조립한다.
 #   - 이력 필터는 $WORK/mirror 의 fresh clone 안에서만 돈다. 이 저장소(작업 트리 · .git)는
 #     읽기만 한다. filter-repo 의 fresh clone 검사를 우회하는 옵션을 쓰지 않는다.
-#   - 공개 저장소에는 읽기(ls-remote · fetch)만 한다. 강제 갱신 · 태그 이동 · ref 삭제를 하지 않는다.
+#   - 공개 저장소를 바꾸는 것은 `push --apply`(main fast-forward + 새 v* 태그)와 `release --apply`
+#     (GitHub Release)뿐이다. --apply 가 없으면 실행할 명령만 출력한다. 강제 갱신 · 태그 이동 ·
+#     ref 삭제 경로는 없다 — 공개 태그가 이미 있으면 같은 커밋일 때만 통과한다.
 #   - 로컬 작업 트리를 스캔하지 않는다 — 검사 대상은 mirror 이력뿐이다.
 #   - 지우는 것은 자기 산출물 $WORK/mirror · $WORK/verify 둘이다. WORK 는 <저장소>/build/ 아래만 받는다.
 #   - verify 가 유지보수자 트리에서 clone 으로 넘기는 파일은 gitignored iOS golden PNG(`*_ios.png`)뿐이다.
@@ -49,6 +58,7 @@
 #   KIT_PUBLISH_ORIGIN  private origin   (기본 git@github.com:woodkill/flutter_starter_kit.git)
 #   KIT_PUBLISH_PUBLIC  공개 저장소       (기본 git@github.com:woodkill/flutter-firebase-starter-kit.git)
 #   KIT_PUBLISH_WORK    작업 디렉터리     (기본 <저장소>/build/publish — <저장소>/build/ 아래 절대경로만)
+#   KIT_PUBLISH_REPO    Release 저장소    (기본 woodkill/flutter-firebase-starter-kit — gh 의 OWNER/REPO)
 #
 # 규칙 위치:
 #   .planning/release/ 의 규칙 파일 3종이다. 이 디렉터리는 공개 mirror 에서 빠지므로 공개본에서
@@ -61,14 +71,19 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 usage: bash scripts/publish_kit.sh [mirror|scan|verify|check|rules-hash]
+       bash scripts/publish_kit.sh push [--apply]
+       bash scripts/publish_kit.sh release [--apply]
 
   인자 없이 실행하면 할 일만 출력한다. 서브커맨드는 이 순서로 돈다:
     mirror  origin master 를 fresh clone 해 이력을 필터하고 main 으로 개명한다
     scan    mirror 이력의 킷 불변식(제외 경로 · 치환 대상 0)과 gitleaks 를 검사한다
     verify  mirror 를 새로 clone 해 pub get · build_runner · analyze · 전체 Flutter 테스트 · Jest 를 돌린다
     check   공개 저장소의 main · v* 태그가 재생성한 main 의 조상인지 확인한다
+    push    mirror main tip 에 태그 v<KIT_VERSION> 을 만들고 main 과 태그를 공개 저장소에 보낸다
+    release CHANGELOG 의 해당 판 절을 본문으로 GitHub Release 를 만든다(rc 판은 pre-release)
+  push · release 는 --apply 가 없으면 실행할 명령만 출력한다(원격 변경 0).
   rules-hash  규칙 3파일 + mirror 레시피 블록의 sha256 4줄을 출력한다(동결본 rules.sha256 재생성용)
-  환경변수: KIT_PUBLISH_ORIGIN · KIT_PUBLISH_PUBLIC · KIT_PUBLISH_WORK (테스트 · 리허설 대역용)
+  환경변수: KIT_PUBLISH_ORIGIN · KIT_PUBLISH_PUBLIC · KIT_PUBLISH_WORK · KIT_PUBLISH_REPO (테스트 · 리허설 대역용)
 USAGE
 }
 
@@ -78,14 +93,23 @@ fail() {
   exit 1
 }
 
-if [ "$#" -gt 1 ]; then
-  usage >&2
-  exit 2
-fi
-
+# 인자 검사가 가장 먼저다 — push · release 만 --apply 하나를 받고, 나머지는 인자를 받지 않는다.
 CMD="${1:-}"
+APPLY=0
 case "$CMD" in
-  "" | mirror | scan | verify | check | rules-hash) ;;
+  "" | mirror | scan | verify | check | rules-hash)
+    if [ "$#" -gt 1 ]; then
+      usage >&2
+      exit 2
+    fi
+    ;;
+  push | release)
+    if [ "$#" -gt 2 ] || { [ "$#" -eq 2 ] && [ "$2" != "--apply" ]; }; then
+      usage >&2
+      exit 2
+    fi
+    [ "$#" -eq 2 ] && APPLY=1
+    ;;
   *)
     usage >&2
     exit 2
@@ -153,33 +177,47 @@ mirror_main() {
     fail "mirror 에 main 이 없다 — 다시 bash scripts/publish_kit.sh mirror"
 }
 
+# 단계 표시 파일 $WORK/$1.ok 의 내용이 해시 $2 와 같으면 참이다.
+stamp_matches() {
+  [ -f "$WORK/$1.ok" ] && [ "$(cat "$WORK/$1.ok")" = "$2" ]
+}
+
 # 인자 없음 — 사용법과 단계별 진행 상태만 출력한다. 아무것도 만들지 않는다.
+# 마지막 줄은 언제나 `status: … main=<해시|none>` 한 줄이다.
 show_status() {
-  local main step
+  local main step state line
   usage
   echo ""
   echo "다음 할 일:"
+  main=""
   if [ ! -f "$RULES/mirror-exclude-paths.txt" ]; then
     echo "  규칙 파일이 없는 트리(공개 mirror) — 서브커맨드는 유지보수자 전용이다"
-    return 0
-  fi
-  if [ ! -d "$MIRROR/.git" ]; then
+  elif [ ! -d "$MIRROR/.git" ]; then
     echo "  아직 mirror 없음 — bash scripts/publish_kit.sh mirror 부터"
-    return 0
-  fi
-  main=$(git -C "$MIRROR" rev-parse --verify -q refs/heads/main 2>/dev/null) || main=""
-  if [ -z "$main" ]; then
-    echo "  mirror 가 불완전하다 — bash scripts/publish_kit.sh mirror 를 다시 돌린다"
-    return 0
-  fi
-  echo "  mirror main=$main"
-  for step in mirror scan verify check; do
-    if [ -f "$WORK/$step.ok" ] && [ "$(cat "$WORK/$step.ok")" = "$main" ]; then
-      echo "  [완료] $step"
+  else
+    main=$(git -C "$MIRROR" rev-parse --verify -q refs/heads/main 2>/dev/null) || main=""
+    if [ -z "$main" ]; then
+      echo "  mirror 가 불완전하다 — bash scripts/publish_kit.sh mirror 를 다시 돌린다"
     else
-      echo "  [할 일] $step"
+      echo "  mirror main=$main"
+      for step in mirror scan verify check push; do
+        if stamp_matches "$step" "$main"; then
+          echo "  [완료] $step"
+        else
+          echo "  [할 일] $step"
+        fi
+      done
     fi
+  fi
+  line="status:"
+  for step in mirror scan verify check push; do
+    state="-"
+    if [ -n "$main" ] && stamp_matches "$step" "$main"; then
+      state="ok"
+    fi
+    line="$line $step=$state"
   done
+  echo "$line main=${main:-none}"
 }
 
 # 공개 저장소에서 가져온 비교용 로컬 ref(refs/public/*)를 mirror 에서 걷어낸다.
@@ -499,6 +537,127 @@ EOF_GOLDENS
   echo "VERIFY OK main=$main flutter=pass jest=pass ios-goldens=$golden_label"
 }
 
+# 단계 표시가 전부 지금 mirror main 해시와 같은지 확인한다(D-29 게이트). 하나라도 다르면 FAIL.
+require_stamps() {
+  local main step
+  main=$(mirror_main)
+  for step in "$@"; do
+    stamp_matches "$step" "$main" || fail "$step 를 이 mirror(main=$main)에서 먼저 통과해야 한다"
+  done
+}
+
+# mirror main 의 KIT_VERSION(한 줄 semver)을 출력한다. CHANGELOG 에 그 판 절이 정확히 1개여야 한다.
+read_version() {
+  local ver count
+  ver=$(git -C "$MIRROR" show main:KIT_VERSION 2>/dev/null) ||
+    fail "KIT_VERSION 이 없다 — 릴리스 컷(유지보수자 문서 「릴리스 컷」) 먼저"
+  case "$ver" in
+    *$'\n'* | *$'\r'*) fail "KIT_VERSION 이 한 줄이 아니다" ;;
+  esac
+  printf '%s\n' "$ver" | grep -qxE '[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?' ||
+    fail "KIT_VERSION 이 판 번호 모양(X.Y.Z 또는 X.Y.Z-rc.N)이 아니다: $ver"
+  count=$(git -C "$MIRROR" show main:CHANGELOG.md 2>/dev/null |
+    awk -v p="## [$ver] - " 'index($0, p) == 1 && substr($0, length(p) + 1) ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ { n++ } END { print n + 0 }') ||
+    fail "CHANGELOG.md 를 읽지 못했다"
+  [ "$count" = 1 ] || fail "CHANGELOG.md 에 ## [$ver] - YYYY-MM-DD 절이 정확히 1개가 아니다($count) — 릴리스 컷 먼저"
+  printf '%s\n' "$ver"
+}
+
+# D-24 · D-29 — 게이트를 통과한 mirror main 과 태그 v<ver> 를 공개 저장소에 보낸다.
+cmd_push() {
+  local main ver release_tag local_commit remote_refs remote_commit create_tag send_tag
+  main=$(mirror_main)
+  require_stamps mirror scan verify check
+  ver=$(read_version)
+  release_tag="v$ver"
+  [ "$APPLY" = 1 ] && rm -f "$WORK/push.ok"
+
+  # 태그 대상은 mirror main tip 이다(RESEARCH Pitfall 4). 이미 있는 태그는 옮기지 않는다.
+  create_tag=1
+  if local_commit=$(git -C "$MIRROR" rev-parse --verify -q "refs/tags/$release_tag^{commit}"); then
+    [ "$local_commit" = "$main" ] ||
+      fail "mirror 의 $release_tag 가 main 이 아닌 커밋($local_commit)을 가리킨다 — 원인을 조사한다"
+    create_tag=0
+  fi
+
+  remote_refs="$WORK/push-public-refs.txt"
+  git ls-remote "$PUBLIC" > "$remote_refs" 2> "$WORK/push-public-refs.err" ||
+    fail "공개 저장소에 접근할 수 없다: $PUBLIC"
+  remote_commit=$(awk -F '\t' -v r="refs/tags/$release_tag" '$2 == r "^{}" { p = $1 } $2 == r { d = $1 } END { print (p != "" ? p : d) }' "$remote_refs")
+  send_tag=1
+  if [ -n "$remote_commit" ]; then
+    [ "$remote_commit" = "$main" ] ||
+      fail "공개 저장소의 $release_tag 가 다른 커밋($remote_commit)을 가리킨다 — 태그를 옮기지 않는다. 원인을 조사한다"
+    create_tag=0
+    send_tag=0
+    echo "공개 저장소에 $release_tag 가 이미 같은 커밋에 있다 — 태그 push 를 건너뛴다"
+  fi
+
+  if [ "$APPLY" != 1 ]; then
+    [ "$create_tag" = 1 ] && echo "command: git -C $MIRROR tag -a $release_tag -m $release_tag main"
+    echo "command: git -C $MIRROR push $PUBLIC main:refs/heads/main"
+    [ "$send_tag" = 1 ] && echo "command: git -C $MIRROR push $PUBLIC refs/tags/$release_tag:refs/tags/$release_tag"
+    echo "실제로 발행하려면: bash scripts/publish_kit.sh push --apply"
+    echo "DRY-RUN OK push tag=$release_tag main=$main"
+    return 0
+  fi
+
+  if [ "$create_tag" = 1 ]; then
+    echo "command: git -C $MIRROR tag -a $release_tag -m $release_tag main"
+    git -C "$MIRROR" tag -a "$release_tag" -m "$release_tag" main || fail "태그 $release_tag 생성 실패"
+  fi
+  echo "command: git -C $MIRROR push $PUBLIC main:refs/heads/main"
+  git -C "$MIRROR" push "$PUBLIC" main:refs/heads/main ||
+    fail "공개 main push 실패 — 공개 main 이 새 main 의 조상이 아니면 git 이 거부한다. check 부터 다시"
+  if [ "$send_tag" = 1 ]; then
+    echo "command: git -C $MIRROR push $PUBLIC refs/tags/$release_tag:refs/tags/$release_tag"
+    git -C "$MIRROR" push "$PUBLIC" "refs/tags/$release_tag:refs/tags/$release_tag" ||
+      fail "태그 $release_tag push 실패"
+  fi
+  printf '%s\n' "$main" > "$WORK/push.ok"
+  echo "PUSH OK tag=$release_tag main=$main"
+}
+
+# D-22 — CHANGELOG 의 해당 판 절만 잘라 notes 파일로 만들고 GitHub Release 를 만든다.
+cmd_release() {
+  local ver release_tag notes repo
+  require_stamps push
+  ver=$(read_version)
+  release_tag="v$ver"
+  notes="$WORK/release-notes-$ver.md"
+  # 절 머리 다음 줄부터 다음 `## [` 줄 전까지 — 맨 아래 비교 링크 정의(`[x]: url`)는 뺀다.
+  git -C "$MIRROR" show main:CHANGELOG.md |
+    awk -v p="## [$ver] - " 'index($0, p) == 1 { on = 1; next } on && index($0, "## [") == 1 { exit } on && /^\[[^]]+\]: / { next } on { print }' > "$notes" ||
+    fail "CHANGELOG.md 에서 $ver 절을 자르지 못했다"
+  grep -q '^### ' "$notes" || fail "CHANGELOG 의 $ver 절에 ### 소절이 없다 — $notes"
+  repo="${KIT_PUBLISH_REPO:-woodkill/flutter-firebase-starter-kit}"
+
+  if [ "$APPLY" != 1 ]; then
+    case "$ver" in
+      *-rc.*) echo "command: gh release create $release_tag --repo $repo --verify-tag --prerelease --title $release_tag --notes-file $notes" ;;
+      *) echo "command: gh release create $release_tag --repo $repo --verify-tag --title $release_tag --notes-file $notes" ;;
+    esac
+    echo "실제로 만들려면: bash scripts/publish_kit.sh release --apply"
+    echo "DRY-RUN OK release tag=$release_tag"
+    return 0
+  fi
+
+  command -v gh >/dev/null 2>&1 || fail "gh 가 PATH 에 없다 — 설치: brew install gh · 로그인: gh auth login"
+  case "$ver" in
+    *-rc.*)
+      echo "command: gh release create $release_tag --repo $repo --verify-tag --prerelease --title $release_tag --notes-file $notes"
+      gh release create "$release_tag" --repo "$repo" --verify-tag --prerelease --title "$release_tag" --notes-file "$notes" ||
+        fail "gh release create 실패"
+      ;;
+    *)
+      echo "command: gh release create $release_tag --repo $repo --verify-tag --title $release_tag --notes-file $notes"
+      gh release create "$release_tag" --repo "$repo" --verify-tag --title "$release_tag" --notes-file "$notes" ||
+        fail "gh release create 실패"
+      ;;
+  esac
+  echo "RELEASE OK tag=$release_tag"
+}
+
 if [ -z "$CMD" ]; then
   show_status
   exit 0
@@ -511,5 +670,7 @@ case "$CMD" in
   scan) cmd_scan ;;
   verify) cmd_verify ;;
   check) cmd_check ;;
+  push) cmd_push ;;
+  release) cmd_release ;;
   rules-hash) print_rules_hash ;;
 esac
