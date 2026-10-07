@@ -316,9 +316,14 @@ cmd_scan() {
   patch="$WORK/scan-patch.txt"
   messages="$WORK/scan-messages.txt"
   head="$WORK/scan-head.txt"
-  git -C "$MIRROR" -c core.quotepath=off log --all --name-only --format= > "$names" ||
+  # merge 커밋도 첫 부모 대비 diff 를 낸다 — `git log` 의 -p · --name-only 기본값은 merge 에서
+  # 아무것도 내지 않아(--diff-merges=off) 충돌 해소 중에만 들어온 경로 · 내용이 검사 밖에 남는다.
+  # 모든 커밋이 (root 는 빈 트리, merge 는 첫 부모) 대비 diff 를 내면, 어느 트리에 있는 줄 · 경로든
+  # 그것을 처음 들인 커밋의 diff 에 나온다. 도달 가능한 이력만 보므로 filter-repo 가 버린 객체는
+  # 검사 대상이 아니다.
+  git -C "$MIRROR" -c core.quotepath=off log --all --diff-merges=first-parent --name-only --format= > "$names" ||
     fail "mirror 이력 경로 목록을 만들지 못했다"
-  git -C "$MIRROR" log -p --all --no-color --no-ext-diff --no-textconv --format= > "$patch" ||
+  git -C "$MIRROR" log -p --all --diff-merges=first-parent --no-color --no-ext-diff --no-textconv --format= > "$patch" ||
     fail "mirror 이력 diff 를 만들지 못했다"
   git -C "$MIRROR" log --all --format=%B > "$messages" || fail "mirror 메시지 목록을 만들지 못했다"
   git -C "$MIRROR" -c core.quotepath=off ls-tree -r --name-only main > "$head" ||
