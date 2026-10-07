@@ -20,6 +20,7 @@
 - placeholder 검사 테스트가 기대 앱 ID 를 `android/app/build.gradle.kts` 의 `applicationId` 와 `ios/Runner.xcodeproj/project.pbxproj` 의 번들 ID 에서 읽는다. 앱 ID 를 바꾼 저장소에서도 `fvm flutter test` 가 통과한다.
 - 앱 ID 변경 도구가 `--apply` 뒤 안내하는 빌드 확인 명령에 flavor 를 준다(`--flavor dev --dart-define-from-file=config/dev.json`, 키 없이 확인할 때는 `--flavor stg`). flavor 없는 명령은 이 프로젝트에서 빌드되지 않는다.
 - README 머리를 검사하는 테스트가 킷 저장소에서만 돈다. README 를 내 앱 소개로 바꾼 저장소에서도 `fvm flutter test` 가 통과한다.
+- `ios/Runner.xcodeproj/project.pbxproj` 에 `DEVELOPMENT_TEAM` 이 없는지 검사하는 테스트가 킷 저장소에서만 돈다. Xcode 에서 Team 을 골라 그 줄이 생긴 저장소에서도 `fvm flutter test` 가 통과한다. Team ID 는 그대로 `ios/Flutter/<flavor>.xcconfig` 에 적는다.
 
 ## [1.0.0-rc.1] - 2026-10-07
 
