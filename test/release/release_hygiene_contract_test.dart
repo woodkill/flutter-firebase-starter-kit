@@ -1,5 +1,8 @@
-// 킷 릴리스 형상 계약을 고정한다 — 데스크톱 · 웹 폴더 부재, 공개 문서 위생, Ruleset ·
-// gitleaks 설정 (Phase 17.4 D-02 ~ D-06 · 17.4-04 — see ROADMAP.md).
+// 킷 릴리스 형상 계약을 고정한다 — 공개 문서 위생, Ruleset · gitleaks 설정 (Phase 17.4
+// D-03 ~ D-06 · 17.4-04 — see ROADMAP.md).
+//
+// 데스크톱 · 웹 폴더 부재(D-02)는 여기서 잠그지 않는다 — `flutter create .` 재실행으로
+// 되살아나는 경우는 가드 없이 유지보수자 문서 안내로 받아들인 위험이다.
 //
 // 전부 유지보수자 트리 전용이다. 공개 mirror 에는 `.planning/` 이 없으므로 건너뛴다
 // (D-08 skip 형).
@@ -59,28 +62,6 @@ List<String> _includes(Map<String, dynamic> ruleset) =>
         .cast<String>();
 
 void main() {
-  group('데스크톱 · 웹 폴더 부재 (D-02)', () {
-    test(
-      'T-174-HYG-01: macos · windows · linux · web 추적 파일 0, platform 은 root · android · ios',
-      () {
-        expect(_lsFiles(<String>['android']), isNotEmpty, reason: '양성 대조');
-        expect(_lsFiles(<String>['ios']), isNotEmpty, reason: '양성 대조');
-        expect(
-          _lsFiles(<String>['--', 'macos', 'windows', 'linux', 'web']),
-          isEmpty,
-        );
-
-        final List<String> platforms =
-            RegExp(r'^\s*- platform: (\w+)\s*$', multiLine: true)
-                .allMatches(readTrackedFile('.metadata'))
-                .map((RegExpMatch m) => m.group(1)!)
-                .toList();
-        expect(platforms..sort(), <String>['android', 'ios', 'root']);
-      },
-      skip: _skipPublic,
-    );
-  });
-
   group('공개 문서 위생 (D-03 ~ D-06)', () {
     test('T-174-HYG-02: 공개 대상 *.md 에 .planning/ 링크 대상이 0건 (양성 대조 포함)', () {
       expect(_planningLink.hasMatch('[x](../.planning/a.md)'), isTrue);
