@@ -486,17 +486,17 @@ EOF_TAGS
   echo "CHECK OK main=$main public-main=$public_main tags=$tag_count"
 }
 
-# 명령 하나를 $V(verify clone) 안에서 돌려 출력(stdout + stderr)을 로그 파일에 남긴다.
+# 명령 하나를 디렉터리 $1(verify clone) 안에서 돌려 출력(stdout + stderr)을 로그 파일 $2 에 남긴다.
 # 종료 코드를 그대로 돌려준다 — 판정은 호출부가 종료 코드와 로그 문구로 한다.
 run_in_clone() {
-  local log="$1"
-  shift
-  ( cd "$V" && "$@" ) > "$log" 2>&1
+  local dir="$1" log="$2"
+  shift 2
+  ( cd "$dir" && "$@" ) > "$log" 2>&1
 }
 
 # D-31 — 공개 mirror 를 사용자가 받는 그대로(fresh clone) 받아 검수한다.
 cmd_verify() {
-  local main stamp flutter_version expected found rel golden_label summary jest_line rc
+  local main stamp flutter_version expected found rel golden_label summary jest_line rc v
   main=$(mirror_main)
   rm -f "$WORK/verify.ok"
   stamp=""
@@ -507,22 +507,22 @@ cmd_verify() {
   command -v jq >/dev/null 2>&1 || fail "jq 가 PATH 에 없다"
   command -v pnpm >/dev/null 2>&1 || fail "pnpm 이 PATH 에 없다"
 
-  V="$WORK/verify"
-  rm -rf "$V"
-  git clone --quiet --no-local "$MIRROR" "$V" || fail "mirror clone 실패: $V"
-  [ "$(git -C "$V" rev-parse HEAD)" = "$main" ] || fail "verify clone HEAD 가 mirror main 과 다르다"
+  v="$WORK/verify"
+  rm -rf "$v"
+  git clone --quiet --no-local "$MIRROR" "$v" || fail "mirror clone 실패: $v"
+  [ "$(git -C "$v" rev-parse HEAD)" = "$main" ] || fail "verify clone HEAD 가 mirror main 과 다르다"
   # 공개본에 없어야 할 것이 clone 에 있으면 검수 대상이 틀렸다(T-174-26).
-  [ ! -e "$V/.planning" ] || fail "verify clone 에 .planning 이 있다 — mirror 가 공개본이 아니다"
-  [ ! -e "$V/config/dev.json" ] || fail "verify clone 에 config/dev.json 이 있다 — 공개본에 실 config 가 실렸다"
+  [ ! -e "$v/.planning" ] || fail "verify clone 에 .planning 이 있다 — mirror 가 공개본이 아니다"
+  [ ! -e "$v/config/dev.json" ] || fail "verify clone 에 config/dev.json 이 있다 — 공개본에 실 config 가 실렸다"
 
-  flutter_version=$(jq -r .flutter "$V/.fvmrc") || fail ".fvmrc 를 읽지 못했다"
-  run_in_clone "$WORK/verify-fvm.log" fvm use "$flutter_version" --force ||
+  flutter_version=$(jq -r .flutter "$v/.fvmrc") || fail ".fvmrc 를 읽지 못했다"
+  run_in_clone "$v" "$WORK/verify-fvm.log" fvm use "$flutter_version" --force ||
     fail "fvm use $flutter_version 실패 — $WORK/verify-fvm.log"
 
   # iOS golden 은 gitignore 라 clone 에 없다(RESEARCH Pitfall 10) — macOS 에서는 유지보수자가
   # sign-off 한 PNG 를 같은 상대경로로 복사해 회귀를 판정한다. 복사 대상은 이 PNG 뿐이다.
   if [ "$(uname)" = Darwin ]; then
-    expected=$(git -C "$V" show HEAD:.gitignore | grep -c '_ios\.png$') || expected=0
+    expected=$(git -C "$v" show HEAD:.gitignore | grep -c '_ios\.png$') || expected=0
     found=$(find "$ROOT/test" -name '*_ios.png' -not -path '*/failures/*' | wc -l | tr -d '[:space:]')
     [ "$found" = "$expected" ] ||
       fail "유지보수자 트리의 iOS golden 이 $found/$expected — macOS 에서 생성 · sign-off 뒤 다시"
@@ -533,8 +533,8 @@ cmd_verify() {
         test/*_ios.png) ;;
         *) fail "iOS golden 경로가 예상 밖이다: $rel" ;;
       esac
-      mkdir -p "$V/$(dirname "$rel")"
-      cp "$golden" "$V/$rel" || fail "iOS golden 복사 실패: $rel"
+      mkdir -p "$v/$(dirname "$rel")"
+      cp "$golden" "$v/$rel" || fail "iOS golden 복사 실패: $rel"
     done <<EOF_GOLDENS
 $(find "$ROOT/test" -name '*_ios.png' -not -path '*/failures/*')
 EOF_GOLDENS
@@ -545,18 +545,18 @@ EOF_GOLDENS
     golden_label="skipped"
   fi
 
-  run_in_clone "$WORK/verify-pubget.log" fvm flutter pub get ||
+  run_in_clone "$v" "$WORK/verify-pubget.log" fvm flutter pub get ||
     fail "fvm flutter pub get 실패 — $WORK/verify-pubget.log"
-  run_in_clone "$WORK/verify-build-runner.log" fvm dart run build_runner build --delete-conflicting-outputs ||
+  run_in_clone "$v" "$WORK/verify-build-runner.log" fvm dart run build_runner build --delete-conflicting-outputs ||
     fail "build_runner 실패 — $WORK/verify-build-runner.log"
 
   rc=0
-  run_in_clone "$WORK/verify-analyze.log" fvm dart analyze || rc=$?
+  run_in_clone "$v" "$WORK/verify-analyze.log" fvm dart analyze || rc=$?
   grep -qF 'No issues found!' "$WORK/verify-analyze.log" ||
     fail "fvm dart analyze 결과가 No issues found! 가 아니다(exit $rc) — $WORK/verify-analyze.log"
 
   rc=0
-  run_in_clone "$WORK/verify-test.log" fvm flutter test --no-pub || rc=$?
+  run_in_clone "$v" "$WORK/verify-test.log" fvm flutter test --no-pub || rc=$?
   if [ "$rc" != 0 ] || ! grep -qE 'All (other )?tests passed!' "$WORK/verify-test.log" ||
     grep -qF 'Some tests failed' "$WORK/verify-test.log"; then
     fail "전체 Flutter 테스트 실패(exit $rc) — $WORK/verify-test.log"
@@ -566,7 +566,7 @@ EOF_GOLDENS
   echo "flutter-tests: $summary"
 
   rc=0
-  run_in_clone "$WORK/verify-functions.log" sh -c 'cd functions && pnpm install --frozen-lockfile && pnpm run lint && pnpm run build && pnpm test' || rc=$?
+  run_in_clone "$v" "$WORK/verify-functions.log" sh -c 'cd functions && pnpm install --frozen-lockfile && pnpm run lint && pnpm run build && pnpm test' || rc=$?
   if [ "$rc" != 0 ] || grep -qE '^Tests:.*failed' "$WORK/verify-functions.log"; then
     fail "functions install · lint · build · Jest 실패(exit $rc) — $WORK/verify-functions.log"
   fi
