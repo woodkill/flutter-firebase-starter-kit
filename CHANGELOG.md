@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] - 2026-10-07
+
 ### Added
 
 - 초기 공개 — 킷의 첫 공개 판이다. 아래 기능을 담는다.
@@ -29,3 +31,6 @@
 - 키 없는 빌드 게이트(`scripts/verify_placeholder_builds.sh`)가 실제 키 없이도 flavor 별 Android · iOS 빌드가 되는지 확인한다.
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
+
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.1
