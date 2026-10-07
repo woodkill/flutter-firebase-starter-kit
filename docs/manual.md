@@ -144,6 +144,11 @@ cp ios/Flutter/prod.example.xcconfig  ios/Flutter/prod.xcconfig
   값 (Phase 7 — Google Login. `flutterfire configure` 가 생성)
 - `FACEBOOK_APP_ID` — Facebook Developers Console > 내 앱 > 설정 > 기본 (숫자 문자열)
 - `FACEBOOK_CLIENT_TOKEN` — Facebook Developers Console > 내 앱 > 설정 > 고급 > Client Token
+- `DEVELOPMENT_TEAM` — Apple Developer 의 Team ID(10자). 실기기에 설치할 때 필요하고
+  시뮬레이터 빌드에는 비워 둬도 된다. Xcode 의 Runner 타깃 > Signing & Capabilities 에
+  보이는 Team 과 같은 값이다. 그 화면에서 Team 을 고르면 Xcode 가 `project.pbxproj` 에
+  `DEVELOPMENT_TEAM` 을 다시 써 넣는다 — 그 파일은 킷이 고치는 파일이라
+  킷 업데이트 때 충돌하므로 Team 은 이 xcconfig 에만 적는다.
 
 `ios/Flutter/{dev,stg,prod}.xcconfig` 파일은 `.gitignored` 되어 있어 commit 되지
 않습니다 (`*.example.xcconfig` 만 tracked). 신규 키를 추가할 때는 `*.example.xcconfig`
