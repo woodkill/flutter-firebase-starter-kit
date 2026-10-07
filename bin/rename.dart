@@ -8,7 +8,10 @@ import 'package:args/args.dart';
 // 현재 프로젝트의 고정 값 (변경 원본)
 // ---------------------------------------------------------------------------
 
-/// 현재 pubspec.yaml의 name 필드.
+/// Kotlin 소스 디렉터리의 마지막 세그먼트.
+///
+/// Dart 패키지명(`pubspec.yaml` 의 name)과 같다 — 이 도구는 Dart 패키지명과
+/// import 를 바꾸지 않는다(D-34). Kotlin 현재 경로 계산에만 쓴다.
 const currentPackageName = 'flutter_starter_kit';
 
 /// 현재 organization (역순 도메인).
@@ -20,8 +23,19 @@ const currentAndroidPackage = 'com.slimpumpkin.flutter_starter_kit';
 /// 현재 iOS Bundle ID (Runner).
 const currentIosBundleId = 'com.slimpumpkin.flutterStarterKit';
 
+/// 현재 Firebase 프로젝트 ID prefix (`scripts/firebase-configure.sh`).
+///
+/// 스크립트가 `<prefix>-dev` · `-stg` · `-prod` 를 Firebase 프로젝트 ID 로 쓴다.
+const currentProjectIdPrefix = 'slimpumpkin-starter-kit';
+
 /// 현재 appName 기본값 (config에서 suffix 제거 전 원본).
 const currentAppName = 'StarterKit';
+
+/// appName 을 바꾸는 사용자 config 파일 이름 (`config/` 기준).
+///
+/// gitignored 사용자 config 만 대상이다. 킷 추적 `config/*.example.json` 은
+/// 바꾸지 않는다 — 킷이 example 을 고쳐도 사용자 merge 충돌이 없게(D-34).
+const List<String> userConfigFileNames = ['dev.json', 'stg.json', 'prod.json'];
 
 // ---------------------------------------------------------------------------
 // 공개 모델
@@ -152,71 +166,52 @@ String _capitalize(String s) {
 // 변경 사항 수집
 // ---------------------------------------------------------------------------
 
-/// 프로젝트 내 변경 대상을 수집한다.
+/// 프로젝트 내 앱 ID 변경 대상을 수집한다.
 ///
-/// [projectRoot]에서 현재 패키지 정보를 [newOrg]과 [newName]으로 변경할
-/// 대상 파일과 변경 내용 목록을 반환한다.
+/// [projectRoot]에서 현재 앱 ID(Android package · iOS bundle ID · Firebase
+/// 설정 스크립트 상수 · 사용자 config appName)를 [newOrg]과 [newName]으로
+/// 변경할 대상 파일과 변경 내용 목록을 반환한다.
+/// Dart 패키지명(`pubspec.yaml` 의 name)과 `package:` import 는 수집하지
+/// 않는다(D-34 — 바꾸면 킷 업데이트 merge 마다 import 충돌).
+/// [projectIdPrefix]가 null 이면 [newName]의 `_` 를 `-` 로 바꾼 값을
+/// Firebase 프로젝트 ID prefix 로 쓴다.
 /// 실제 파일 수정은 하지 않는다.
 List<FileChange> collectChanges(
   String projectRoot,
   String newOrg,
-  String newName,
-) {
+  String newName, {
+  String? projectIdPrefix,
+}) {
   final changes = <FileChange>[];
   final newAndroidPackage = '$newOrg.$newName';
   final newIosBundleId = '$newOrg.${toLowerCamelCase(newName)}';
   final newAppName = toTitleCase(newName);
+  final newProjectIdPrefix = projectIdPrefix ?? newName.replaceAll('_', '-');
 
-  // 1. pubspec.yaml
-  _collectPubspecChanges(projectRoot, newName, changes);
-
-  // 2. android/app/build.gradle.kts
+  // 1. android/app/build.gradle.kts
   _collectGradleChanges(projectRoot, newAndroidPackage, changes);
 
-  // 3. Kotlin 디렉토리 이동 + package 선언 변경
+  // 2. Kotlin 디렉토리 이동 + package 선언 변경
   _collectKotlinChanges(projectRoot, newOrg, newName, changes);
 
-  // 4. iOS project.pbxproj
+  // 3. iOS project.pbxproj
   _collectIosChanges(projectRoot, newIosBundleId, changes);
 
-  // 5. lib/**/*.dart import 경로
-  _collectDartImportChanges('$projectRoot/lib', newName, changes);
-
-  // 6. test/**/*.dart import 경로
-  _collectDartImportChanges('$projectRoot/test', newName, changes);
-
-  // 7. config/*.json appName
+  // 4. config/{dev,stg,prod}.json appName (사용자 파일만)
   _collectConfigChanges(projectRoot, newAppName, changes);
+
+  // 5. scripts/firebase-configure.sh 상수 3줄
+  _collectFirebaseConfigureChanges(
+    projectRoot,
+    newIosBundleId,
+    newAndroidPackage,
+    newProjectIdPrefix,
+    changes,
+  );
 
   // 동일 값 → 동일 값 변경(no-op)은 제외한다. 사용자가 현재 값과 동일한
   // --org/--name을 넘긴 경우 0건 진단 메시지가 정상적으로 노출되도록 한다.
   return changes.where((c) => c.oldValue != c.newValue).toList();
-}
-
-/// pubspec.yaml의 name 필드 변경을 수집한다.
-void _collectPubspecChanges(
-  String projectRoot,
-  String newName,
-  List<FileChange> changes,
-) {
-  final file = File('$projectRoot/pubspec.yaml');
-  if (!file.existsSync()) return;
-
-  // 실제로 치환 대상 문자열이 존재할 때만 변경을 등록한다.
-  // 이미 rename된 프로젝트에서 0건 케이스 진단 메시지가 정상적으로 노출되도록.
-  final content = file.readAsStringSync();
-  final oldValue = 'name: $currentPackageName';
-  if (!content.contains(oldValue)) return;
-
-  changes.add(
-    FileChange(
-      filePath: file.path,
-      type: ChangeType.replace,
-      description: 'pubspec.yaml name field',
-      oldValue: oldValue,
-      newValue: 'name: $newName',
-    ),
-  );
 }
 
 /// build.gradle.kts의 namespace와 applicationId 변경을 수집한다.
@@ -348,72 +343,91 @@ void _collectIosChanges(
   }
 }
 
-/// Dart 파일의 package import 경로 변경을 수집한다.
-void _collectDartImportChanges(
-  String directoryPath,
-  String newName,
-  List<FileChange> changes,
-) {
-  final dir = Directory(directoryPath);
-  if (!dir.existsSync()) return;
-
-  final dartFiles = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.dart'));
-
-  for (final file in dartFiles) {
-    final content = file.readAsStringSync();
-    if (content.contains('package:$currentPackageName/')) {
-      changes.add(
-        FileChange(
-          filePath: file.path,
-          type: ChangeType.replace,
-          description: 'Dart package import path',
-          oldValue: 'package:$currentPackageName/',
-          newValue: 'package:$newName/',
-        ),
-      );
-    }
-  }
-}
-
-/// config/*.json의 appName 필드 변경을 수집한다.
+/// config/{dev,stg,prod}.json 의 appName 필드 변경을 수집한다.
+///
+/// [userConfigFileNames] 의 사용자 파일만 읽는다. 킷 추적
+/// `config/*.example.json` 은 수집하지 않는다.
 void _collectConfigChanges(
   String projectRoot,
   String newAppName,
   List<FileChange> changes,
 ) {
-  final configDir = Directory('$projectRoot/config');
-  if (!configDir.existsSync()) return;
+  // appName 패턴: "appName": "..." -- 현재 값에 suffix가 붙을 수 있음
+  // JSON 파일마다 공백 유무가 다를 수 있으므로 매칭된 전체 문자열을 사용
+  final pattern = RegExp(r'"appName"\s*:\s*"([^"]*)"');
 
-  final jsonFiles = configDir.listSync().whereType<File>().where(
-    (f) => f.path.endsWith('.json'),
-  );
+  for (final fileName in userConfigFileNames) {
+    final file = File('$projectRoot/config/$fileName');
+    if (!file.existsSync()) continue;
 
-  for (final file in jsonFiles) {
     final content = file.readAsStringSync();
-    // appName 패턴: "appName": "..." -- 현재 값에 suffix가 붙을 수 있음
-    // JSON 파일마다 공백 유무가 다를 수 있으므로 매칭된 전체 문자열을 사용
-    final pattern = RegExp(r'"appName"\s*:\s*"([^"]*)"');
     final match = pattern.firstMatch(content);
-    if (match != null) {
-      final fullMatch = match.group(0)!;
-      final currentValue = match.group(1)!;
-      // flavor suffix 추출 (예: "StarterKit Dev" -> " Dev")
-      final suffix = currentValue.startsWith(currentAppName)
-          ? currentValue.substring(currentAppName.length)
-          : '';
-      changes.add(
-        FileChange(
-          filePath: file.path,
-          type: ChangeType.replace,
-          description: 'Flavor appName',
-          oldValue: fullMatch,
-          newValue: '"appName":"$newAppName$suffix"',
-        ),
-      );
-    }
+    if (match == null) continue;
+
+    final fullMatch = match.group(0)!;
+    final currentValue = match.group(1)!;
+    // flavor suffix 추출 (예: "StarterKit Dev" -> " Dev")
+    final suffix = currentValue.startsWith(currentAppName)
+        ? currentValue.substring(currentAppName.length)
+        : '';
+    changes.add(
+      FileChange(
+        filePath: file.path,
+        type: ChangeType.replace,
+        description: 'Flavor appName',
+        oldValue: fullMatch,
+        newValue: '"appName":"$newAppName$suffix"',
+      ),
+    );
+  }
+}
+
+/// `scripts/firebase-configure.sh` 의 앱 ID 상수 3줄 변경을 수집한다.
+///
+/// `PROJECT_ID_PREFIX` · `IOS_BUNDLE_ID_PREFIX` · `ANDROID_PACKAGE_PREFIX`
+/// 각 줄을 따옴표 포함 전체 줄 단위로 바꾼다. 파일이 없거나 현재 줄이
+/// 없으면(이미 바뀐 경우) 그 줄은 등록하지 않는다.
+void _collectFirebaseConfigureChanges(
+  String projectRoot,
+  String newIosBundleId,
+  String newAndroidPackage,
+  String newProjectIdPrefix,
+  List<FileChange> changes,
+) {
+  final file = File('$projectRoot/scripts/firebase-configure.sh');
+  if (!file.existsSync()) return;
+
+  final lines = file.readAsLinesSync();
+  final targets = <({String description, String oldLine, String newLine})>[
+    (
+      description: 'Firebase project ID prefix',
+      oldLine: 'PROJECT_ID_PREFIX="$currentProjectIdPrefix"',
+      newLine: 'PROJECT_ID_PREFIX="$newProjectIdPrefix"',
+    ),
+    (
+      description: 'Firebase iOS bundle ID prefix',
+      oldLine: 'IOS_BUNDLE_ID_PREFIX="$currentIosBundleId"',
+      newLine: 'IOS_BUNDLE_ID_PREFIX="$newIosBundleId"',
+    ),
+    (
+      description: 'Firebase Android package prefix',
+      oldLine: 'ANDROID_PACKAGE_PREFIX="$currentAndroidPackage"',
+      newLine: 'ANDROID_PACKAGE_PREFIX="$newAndroidPackage"',
+    ),
+  ];
+
+  // 실제로 치환 대상 줄이 존재할 때만 변경을 등록한다.
+  for (final target in targets) {
+    if (!lines.contains(target.oldLine)) continue;
+    changes.add(
+      FileChange(
+        filePath: file.path,
+        type: ChangeType.replace,
+        description: target.description,
+        oldValue: target.oldLine,
+        newValue: target.newLine,
+      ),
+    );
   }
 }
 

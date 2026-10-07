@@ -6,6 +6,36 @@ import 'package:test/test.dart';
 
 import '../../bin/rename.dart';
 
+/// 킷 원본 `scripts/firebase-configure.sh` 의 상수 3줄(현재 값).
+const _kitFirebaseConfigureConstants = <String>[
+  'PROJECT_ID_PREFIX="slimpumpkin-starter-kit"',
+  'IOS_BUNDLE_ID_PREFIX="com.slimpumpkin.flutterStarterKit"',
+  'ANDROID_PACKAGE_PREFIX="com.slimpumpkin.flutter_starter_kit"',
+];
+
+/// `--org com.example --name my_app` 로 rename 한 뒤의 상수 3줄.
+const _renamedFirebaseConfigureConstants = <String>[
+  'PROJECT_ID_PREFIX="my-app"',
+  'IOS_BUNDLE_ID_PREFIX="com.example.myApp"',
+  'ANDROID_PACKAGE_PREFIX="com.example.my_app"',
+];
+
+/// [root] 아래에 `scripts/firebase-configure.sh` fixture 를 쓰고 그 파일을 돌려준다.
+///
+/// 상수 3줄([constants]) 앞뒤에 rename 과 무관한 줄을 1개씩 둔다.
+File _writeFirebaseConfigureFixture(String root, List<String> constants) {
+  Directory('$root/scripts').createSync(recursive: true);
+  return File('$root/scripts/firebase-configure.sh')..writeAsStringSync(
+    [
+      '#!/usr/bin/env bash',
+      '# === starter-kit fork 시 아래 3개 prefix 를 수정 ===',
+      ...constants,
+      r'PROJECT_ID="${PROJECT_ID_PREFIX}-${FLAVOR}"',
+      '',
+    ].join('\n'),
+  );
+}
+
 void main() {
   group('validateInputs', () {
     test('유효한 org와 name이면 성공을 반환한다', () {
@@ -175,6 +205,16 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       File('${tempDir.path}/config/prod.json').writeAsStringSync(
         '{"flavor":"prod","appName":"StarterKit","appSuffix":""}\n',
       );
+      // 킷 추적 example 파일 — rename 대상이 아니다 (D-34 범위 확인)
+      File('${tempDir.path}/config/dev.example.json').writeAsStringSync(
+        '{"flavor":"dev","appName":"StarterKit Dev","appSuffix":".dev"}\n',
+      );
+
+      // scripts/firebase-configure.sh 생성 (상수 3줄 + 무관한 줄)
+      _writeFirebaseConfigureFixture(
+        tempDir.path,
+        _kitFirebaseConfigureConstants,
+      );
     });
 
     tearDown(() {
@@ -184,11 +224,11 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     test('모든 변경 대상 카테고리를 수집한다', () {
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
 
-      // pubspec.yaml 변경 포함 확인
+      // pubspec.yaml 은 수집하지 않는다 (D-34 — Dart 패키지명 유지)
       final pubspecChanges = changes.where(
         (c) => c.filePath.endsWith('pubspec.yaml'),
       );
-      expect(pubspecChanges, isNotEmpty);
+      expect(pubspecChanges, isEmpty);
 
       // build.gradle.kts 변경 포함 확인
       final gradleChanges = changes.where(
@@ -206,33 +246,108 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       final kotlinChanges = changes.where((c) => c.type == ChangeType.move);
       expect(kotlinChanges, isNotEmpty);
 
-      // lib/*.dart import 변경 포함 확인
+      // lib/*.dart import 는 수집하지 않는다 (D-34)
       final libChanges = changes.where(
         (c) => c.filePath.contains('/lib/') && c.type == ChangeType.replace,
       );
-      expect(libChanges, isNotEmpty);
+      expect(libChanges, isEmpty);
 
-      // test/*.dart import 변경 포함 확인
+      // test/*.dart import 는 수집하지 않는다 (D-34)
       final testChanges = changes.where(
         (c) => c.filePath.contains('/test/') && c.type == ChangeType.replace,
       );
-      expect(testChanges, isNotEmpty);
+      expect(testChanges, isEmpty);
 
       // config/*.json 변경 포함 확인
       final configChanges = changes.where(
         (c) => c.filePath.contains('/config/'),
       );
       expect(configChanges, isNotEmpty);
+
+      // scripts/firebase-configure.sh 상수 3줄 변경 포함 확인
+      final firebaseConfigureChanges = changes.where(
+        (c) => c.filePath.endsWith('scripts/firebase-configure.sh'),
+      );
+      expect(firebaseConfigureChanges, hasLength(3));
     });
 
-    test('pubspec.yaml의 name 필드를 새 이름으로 변경한다', () {
+    test('pubspec.yaml 의 name 과 Dart import 는 바꾸지 않는다', () {
+      final pubspecFile = File('${tempDir.path}/pubspec.yaml');
+      final dartFiles = [
+        File('${tempDir.path}/lib/main.dart'),
+        File('${tempDir.path}/lib/core/bootstrap.dart'),
+        File('${tempDir.path}/test/widget_test.dart'),
+      ];
+      final before = {
+        for (final file in [pubspecFile, ...dartFiles])
+          file.path: file.readAsStringSync(),
+      };
+
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
-      final pubspecChange = changes.firstWhere(
-        (c) => c.filePath.endsWith('pubspec.yaml'),
+
+      // 수집 결과에 pubspec · Dart 파일 경로가 없다
+      final touchedPaths = changes.map((c) => c.filePath).toSet();
+      for (final path in before.keys) {
+        expect(touchedPaths, isNot(contains(path)));
+      }
+      // 어떤 변경도 Dart 패키지명을 새 이름으로 바꾸지 않는다
+      for (final change in changes) {
+        expect(change.newValue, isNot(contains('package:my_app/')));
+        expect(change.newValue, isNot(contains('name: my_app')));
+      }
+
+      // replace 를 적용해도 fixture 내용은 그대로다
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+      for (final entry in before.entries) {
+        expect(File(entry.key).readAsStringSync(), entry.value);
+      }
+    });
+
+    test('scripts/firebase-configure.sh 의 상수 3줄을 앱 ID 로 바꾼다', () {
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final firebaseConfigureChanges = changes
+          .where((c) => c.filePath.endsWith('scripts/firebase-configure.sh'))
+          .toList();
+
+      expect(firebaseConfigureChanges, hasLength(3));
+      expect(
+        firebaseConfigureChanges.every((c) => c.type == ChangeType.replace),
+        isTrue,
+      );
+      final pairs = {
+        for (final change in firebaseConfigureChanges)
+          change.oldValue: change.newValue,
+      };
+      expect(pairs, <String, String>{
+        'PROJECT_ID_PREFIX="slimpumpkin-starter-kit"':
+            'PROJECT_ID_PREFIX="my-app"',
+        'IOS_BUNDLE_ID_PREFIX="com.slimpumpkin.flutterStarterKit"':
+            'IOS_BUNDLE_ID_PREFIX="com.example.myApp"',
+        'ANDROID_PACKAGE_PREFIX="com.slimpumpkin.flutter_starter_kit"':
+            'ANDROID_PACKAGE_PREFIX="com.example.my_app"',
+      });
+    });
+
+    test('config/*.example.json 은 바꾸지 않는다 (킷 추적 파일)', () {
+      final exampleFile = File('${tempDir.path}/config/dev.example.json');
+      final exampleBefore = exampleFile.readAsStringSync();
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final configChanges = changes
+          .where((c) => c.filePath.contains('/config/'))
+          .toList();
+
+      expect(
+        configChanges.where((c) => c.filePath.endsWith('.example.json')),
+        isEmpty,
+      );
+      expect(
+        configChanges.where((c) => c.filePath.endsWith('/config/dev.json')),
+        hasLength(1),
       );
 
-      expect(pubspecChange.oldValue, contains('flutter_starter_kit'));
-      expect(pubspecChange.newValue, contains('my_app'));
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+      expect(exampleFile.readAsStringSync(), exampleBefore);
     });
 
     test('build.gradle.kts의 namespace와 applicationId를 변경한다', () {
@@ -377,6 +492,12 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       File('${tempDir.path}/config/dev.json').writeAsStringSync(
         '{"flavor":"dev","appName":"StarterKit Dev","appSuffix":".dev"}\n',
       );
+
+      // scripts/firebase-configure.sh 생성
+      _writeFirebaseConfigureFixture(
+        tempDir.path,
+        _kitFirebaseConfigureConstants,
+      );
     });
 
     tearDown(() {
@@ -392,15 +513,26 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
           .toList();
       applyChanges(replaceChanges);
 
-      // pubspec.yaml 확인
+      // pubspec.yaml 은 그대로 (D-34 — Dart 패키지명 유지)
       final pubspec = File('${tempDir.path}/pubspec.yaml').readAsStringSync();
-      expect(pubspec, contains('name: my_app'));
-      expect(pubspec, isNot(contains('flutter_starter_kit')));
+      expect(pubspec, contains('name: flutter_starter_kit'));
+      expect(pubspec, isNot(contains('my_app')));
 
-      // lib/main.dart 확인
+      // lib/main.dart import 도 그대로
       final mainDart = File('${tempDir.path}/lib/main.dart').readAsStringSync();
-      expect(mainDart, contains('package:my_app/'));
-      expect(mainDart, isNot(contains('package:flutter_starter_kit/')));
+      expect(mainDart, contains('package:flutter_starter_kit/'));
+      expect(mainDart, isNot(contains('package:my_app/')));
+
+      // scripts/firebase-configure.sh 상수 3줄은 새 값
+      final firebaseConfigure = File(
+        '${tempDir.path}/scripts/firebase-configure.sh',
+      ).readAsStringSync();
+      for (final line in _renamedFirebaseConfigureConstants) {
+        expect(firebaseConfigure.split('\n'), contains(line));
+      }
+      for (final line in _kitFirebaseConfigureConstants) {
+        expect(firebaseConfigure, isNot(contains(line)));
+      }
 
       // config/dev.json 확인
       final devJson = File(
@@ -428,6 +560,11 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       File(
         '${tempDir.path}/lib/main.dart',
       ).writeAsStringSync("import 'package:flutter_starter_kit/app.dart';\n");
+      // 앱 ID 변경 대상 — 킷 원본 상수 3줄
+      _writeFirebaseConfigureFixture(
+        tempDir.path,
+        _kitFirebaseConfigureConstants,
+      );
     });
 
     tearDown(() {
@@ -511,6 +648,12 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
         File('${tempDir.path}/pubspec.yaml').readAsStringSync(),
         contains('name: flutter_starter_kit'),
       );
+      final firebaseConfigure = File(
+        '${tempDir.path}/scripts/firebase-configure.sh',
+      ).readAsStringSync();
+      for (final line in _kitFirebaseConfigureConstants) {
+        expect(firebaseConfigure.split('\n'), contains(line));
+      }
     });
 
     test('--apply --yes는 prompt 없이 변경을 적용한다', () async {
@@ -534,9 +677,20 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
             'CLI stdout must contain no Korean characters '
             '(F1 regression guard)',
       );
+      // D-34: Dart 패키지명 · import 는 그대로, 앱 ID 만 바뀐다
       expect(
         File('${tempDir.path}/pubspec.yaml').readAsStringSync(),
-        contains('name: my_app'),
+        contains('name: flutter_starter_kit'),
+      );
+      expect(
+        File('${tempDir.path}/lib/main.dart').readAsStringSync(),
+        contains('package:flutter_starter_kit/'),
+      );
+      expect(
+        File(
+          '${tempDir.path}/scripts/firebase-configure.sh',
+        ).readAsStringSync().split('\n'),
+        contains('ANDROID_PACKAGE_PREFIX="com.example.my_app"'),
       );
     });
 
@@ -557,13 +711,12 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     });
 
     test('0건 변경 케이스는 진단 힌트를 출력한다', () async {
-      // 이미 rename된 프로젝트 시뮬레이션
-      File(
-        '${tempDir.path}/pubspec.yaml',
-      ).writeAsStringSync('name: my_app\nversion: 1.0.0\n');
-      File(
-        '${tempDir.path}/lib/main.dart',
-      ).writeAsStringSync("import 'package:my_app/app.dart';\n");
+      // 이미 rename된 프로젝트 시뮬레이션 — 앱 ID 상수가 이미 새 값이다.
+      // (pubspec · import 는 rename 대상이 아니므로 0건 판정과 무관하다)
+      _writeFirebaseConfigureFixture(
+        tempDir.path,
+        _renamedFirebaseConfigureConstants,
+      );
       final result = await runCli(['--org', 'com.example', '--name', 'my_app']);
       expect(result.exitCode, 0);
       expect(result.stdout, contains('No changes to apply.'));
