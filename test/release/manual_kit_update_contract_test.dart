@@ -15,6 +15,9 @@
 // T-174-DOCS-06: README 머리(첫 `## ` 앞)에 Use this template · 매뉴얼 절 링크 ·
 //   Issues 안내가 있고 금지 패턴이 0 건이며, Getting Started 가 template → clone
 //   순이고 매뉴얼 Initial Setup 머리가 template 기준이다.
+//   README 단언은 유지보수자 트리에서만 돈다 — 사용자 소유 표면 표가 README 를
+//   「내 앱 소개로 교체」 로 사용자에게 넘기므로 사용자 저장소의 불변식이 아니다.
+//   매뉴얼 Initial Setup 머리 단언은 어디서나 돈다.
 // T-174-DOCS-07: 절 끝 배경 링크 1줄이 유지보수자 발행 문서를 가리키고, 그 문서에
 //   발행 단계 · 릴리스 컷 · 첫 공개 절차 절이 있다.
 // T-174-DOCS-08: 절의 rename 예시 옵션 · xcconfig 파일 이름이 `bin/rename.dart` 에,
@@ -23,6 +26,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../helpers/planning_docs.dart';
 import '../helpers/source_text.dart';
 
 /// 매뉴얼 경로.
@@ -241,7 +245,6 @@ String _readLikelihoodGrade(String row) {
 
 void main() {
   final String manual = readTrackedFile(_manualPath);
-  final String readme = readTrackedFile(_readmePath);
   final String section = sliceMarkdownSection(
     manual,
     _sectionHeading,
@@ -490,8 +493,9 @@ void main() {
 
   group('README · Initial Setup 진입점 계약 (T-174-DOCS)', () {
     test(
-      'T-174-DOCS-06: README 머리 · Getting Started · Initial Setup 머리가 template 기준이다',
+      'T-174-DOCS-06: README 머리 · Getting Started 가 template 기준이다',
       () {
+        final String readme = readTrackedFile(_readmePath);
         final String head = _sliceReadmeHead(readme);
         expect(head.trim(), isNotEmpty, reason: 'README 머리를 찾지 못했다');
         expect(
@@ -530,10 +534,15 @@ void main() {
         expect(countOccurrences(readme, 'git clone <this-repo>'), 0);
         expect(countOccurrences(gettingStarted, 'cd flutter_starter_kit'), 0);
         expect(countOccurrences(readme, _readmeStepSentence), 1);
-
-        expect(countOccurrences(manual, _initialSetupHead), 1);
-        expect(countOccurrences(manual, _initialSetupLegacyHead), 0);
       },
+      // 사용자는 README 를 내 앱 소개로 바꾼다 — 킷 발행 위생 검사라
+      // 비공개 작업 일지가 있는 유지보수자 트리에서만 돈다.
+      skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
     );
+
+    test('T-174-DOCS-06: 매뉴얼 Initial Setup 머리가 template 기준이다', () {
+      expect(countOccurrences(manual, _initialSetupHead), 1);
+      expect(countOccurrences(manual, _initialSetupLegacyHead), 0);
+    });
   });
 }
