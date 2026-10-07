@@ -105,6 +105,45 @@ String sliceMarkdownSection(
 List<String> linesStartingWith(String text, String prefix) =>
     text.split('\n').where((String line) => line.startsWith(prefix)).toList();
 
+/// 매뉴얼에서 `## 목차` 다음 줄부터 그 뒤 첫 `---` 줄 앞까지를 돌려준다.
+///
+/// 목차 링크 문자열은 본문에도 다시 나오므로(다른 절의 안내 링크) 목차 블록
+/// 안에서만 센다. 블록이 없으면 빈 문자열이다.
+String sliceTocBlock(String manual) {
+  final List<String> lines = manual.split('\n');
+  final int start = lines.indexOf('## 목차');
+  if (start == -1) {
+    return '';
+  }
+  final List<String> block = <String>[];
+  for (int i = start + 1; i < lines.length; i++) {
+    if (lines[i] == '---') {
+      break;
+    }
+    block.add(lines[i]);
+  }
+  return block.join('\n');
+}
+
+/// [text] 에서 [header] 줄부터 `|` 로 시작하는 줄이 이어지는 동안(표 블록)을
+/// 줄 목록으로 돌려준다. [header] 가 없으면 빈 목록이다.
+List<String> collectTableLines(String text, String header) {
+  final List<String> lines = text.split('\n');
+  final int start = lines.indexOf(header);
+  if (start == -1) {
+    return <String>[];
+  }
+  final List<String> table = <String>[];
+  for (int i = start; i < lines.length && lines[i].startsWith('|'); i++) {
+    table.add(lines[i]);
+  }
+  return table;
+}
+
+/// [text] 의 줄 가운데 [line] 과 정확히 같은 줄의 수를 센다.
+int countExactLines(String text, String line) =>
+    text.split('\n').where((String l) => l == line).length;
+
 /// 사용자 문서 금지 패턴 정규식 원문이다.
 ///
 /// `.claude/rules/docs-user-manual.md` §4 표 전체(planning 경로 · phase 번호 ·

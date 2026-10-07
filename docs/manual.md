@@ -26,27 +26,28 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 
 0. [Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통)
 1. [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기)
-2. [Kakao Login (Phase 12)](#kakao-login-phase-12)
-3. [Naver Login (Phase 13)](#naver-login-phase-13)
-4. [LINE Login (Phase 14)](#line-login-phase-14)
-5. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
-6. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
-7. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
-8. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-9. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-10. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-11. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
-12. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
-13. [Firebase Services (Phase 17)](#firebase-services-phase-17)
-14. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-15. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
-16. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
-17. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
-18. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
-19. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-20. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-21. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
-22. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
+2. [킷 업데이트 반영](#킷-업데이트-반영)
+3. [Kakao Login (Phase 12)](#kakao-login-phase-12)
+4. [Naver Login (Phase 13)](#naver-login-phase-13)
+5. [LINE Login (Phase 14)](#line-login-phase-14)
+6. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
+7. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
+8. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
+9. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+10. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+11. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+12. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
+13. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
+14. [Firebase Services (Phase 17)](#firebase-services-phase-17)
+15. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+16. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+17. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+18. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+19. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+20. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+21. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+22. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+23. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
 
 ---
 
@@ -415,6 +416,31 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
 `enabledAuthProviders` 를 바꾸기 전 값으로 되돌리고 앱을 다시 빌드한다. 새로 배포한 함수는 「끄기」 의 `firebase functions:delete` 명령으로 지운다.
 
 자세한 배경: provider 를 킷에 더하거나 빼는 절차와 설계 이유는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md)에 있다.
+
+---
+
+## 킷 업데이트 반영
+
+킷의 새 판을 내 앱 저장소에 받는 절차다. 앱 저장소를 만들 때 기준점을 한 번 만들고, 새 판이 나오면 그 판의 태그를 `git merge` 한다. 판마다 태그(`v1.0.0-rc.1` 꼴) · `KIT_VERSION` · `CHANGELOG.md` 의 그 판 절이 함께 나온다.
+
+**전제:** git 과 GitHub 계정이 있다. 앱 저장소는 private 으로 만든다. 킷 저장소를 **fork 하지 않는다** — 공개 저장소의 fork 는 공개로만 만들어져 앱 코드가 공개된다.
+
+### 시작하기 — template 로 앱 저장소 만들기
+
+**① 저장소 만들기.** 킷 저장소 페이지에서 **Use this template** → **Create a new repository** 를 누르고 **Private** 을 고른다. 새 저장소의 이력은 커밋 1개로 시작하고 킷 이력과 이어져 있지 않다.
+
+**② clone.** `git clone <your-repo-url>` 로 받은 뒤 그 디렉터리로 들어간다.
+
+**③ 킷 저장소를 upstream 으로 더하고 기준점을 만든다.** 처음 한 번만 한다. 기준점 merge 는 파일을 바꾸지 않고 「이 판까지 받았다」 는 표시만 남긴다.
+
+```bash
+git remote add upstream https://github.com/woodkill/flutter-firebase-starter-kit.git
+git fetch upstream --tags
+git merge -s ours --allow-unrelated-histories "v$(cat KIT_VERSION)" -m "킷 기준점 v$(cat KIT_VERSION)"
+git push
+```
+
+자세한 배경: 킷이 판을 내는 방법과 판 번호 규칙은 [유지보수자 문서](maintainer/kit-release-publishing.md)에 있다.
 
 ---
 

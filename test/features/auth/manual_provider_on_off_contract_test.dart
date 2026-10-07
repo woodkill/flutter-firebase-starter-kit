@@ -214,45 +214,6 @@ RegExp _buildLegacyCallablePattern() {
   return RegExp('(^|[^n])$legacyCallable([^A]|\$)', multiLine: true);
 }
 
-/// 매뉴얼에서 `## 목차` 다음 줄부터 그 뒤 첫 `---` 줄 앞까지를 돌려준다.
-///
-/// 목차 링크 문자열은 본문에도 다시 나오므로(다른 절의 안내 링크) 목차 블록
-/// 안에서만 센다. 블록이 없으면 빈 문자열이다.
-String _tocBlock(String manual) {
-  final List<String> lines = manual.split('\n');
-  final int start = lines.indexOf('## 목차');
-  if (start == -1) {
-    return '';
-  }
-  final List<String> block = <String>[];
-  for (int i = start + 1; i < lines.length; i++) {
-    if (lines[i] == '---') {
-      break;
-    }
-    block.add(lines[i]);
-  }
-  return block.join('\n');
-}
-
-/// [text] 에서 [header] 줄부터 `|` 로 시작하는 줄이 이어지는 동안(표 블록)을
-/// 줄 목록으로 돌려준다. [header] 가 없으면 빈 목록이다.
-List<String> _tableLines(String text, String header) {
-  final List<String> lines = text.split('\n');
-  final int start = lines.indexOf(header);
-  if (start == -1) {
-    return <String>[];
-  }
-  final List<String> table = <String>[];
-  for (int i = start; i < lines.length && lines[i].startsWith('|'); i++) {
-    table.add(lines[i]);
-  }
-  return table;
-}
-
-/// [text] 의 줄 가운데 [line] 과 정확히 같은 줄의 수를 센다.
-int _countExactLines(String text, String line) =>
-    text.split('\n').where((String l) => l == line).length;
-
 void main() {
   final String manual = readTrackedFile(_manualPath);
   final String section = sliceMarkdownSection(
@@ -269,12 +230,12 @@ void main() {
   group('매뉴얼 「로그인 수단 켜고 끄기」 계약 (T-173-DOCS)', () {
     test('T-173-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 목차 번호가 0부터 연속이다', () {
       expect(
-        _countExactLines(manual, _sectionHeading),
+        countExactLines(manual, _sectionHeading),
         1,
         reason: '절 헤딩이 없거나 중복이다',
       );
 
-      final String toc = _tocBlock(manual);
+      final String toc = sliceTocBlock(manual);
       expect(toc.trim(), isNotEmpty, reason: '목차 블록을 찾지 못했다');
       expect(
         _tocEntryPattern.allMatches(toc).length,
@@ -399,7 +360,7 @@ void main() {
 
       for (final String line in _deployCommandLines) {
         expect(
-          _countExactLines(section, line),
+          countExactLines(section, line),
           greaterThanOrEqualTo(1),
           reason: '절에 배포 명령 줄 「$line」 이 없다',
         );
@@ -445,12 +406,12 @@ void main() {
       );
       expect(setup.trim(), isNotEmpty, reason: 'Initial Setup 절을 찾지 못했다');
       expect(
-        _countExactLines(setup, _keyTableHeader),
+        countExactLines(setup, _keyTableHeader),
         1,
         reason: '「off 면 비워도 됨」 열이 있는 키 표 헤더가 없거나 중복이다',
       );
 
-      final List<String> table = _tableLines(setup, _keyTableHeader);
+      final List<String> table = collectTableLines(setup, _keyTableHeader);
       final List<String> keys = exampleConfig.keys
           .where((String key) => key != 'flavor')
           .toList();
@@ -478,7 +439,7 @@ void main() {
         reason: '키 표 바로 뒤(빈 줄 다음)에 새 절 링크 줄이 없다',
       );
       expect(
-        _countExactLines(setup, _keyTableLinkLine),
+        countExactLines(setup, _keyTableLinkLine),
         1,
         reason: '새 절 링크 줄이 없거나 중복이다',
       );
@@ -492,11 +453,11 @@ void main() {
       expect(legacyPattern.hasMatch('`un$legacyCallable`'), isFalse);
       expect(legacyPattern.hasMatch('`${legacyCallable}Arm`'), isFalse);
 
-      final String toc = _tocBlock(manual);
+      final String toc = sliceTocBlock(manual);
       expect(toc.trim(), isNotEmpty, reason: '목차 블록을 찾지 못했다');
       for (final String title in _movedGuideTitles) {
         expect(
-          _countExactLines(manual, '## $title'),
+          countExactLines(manual, '## $title'),
           0,
           reason: '매뉴얼에 옮긴 절 헤딩 「$title」 이 남아 있다',
         );
@@ -516,7 +477,7 @@ void main() {
       final String maintainerDoc = readTrackedFile(_maintainerDocPath);
       for (final String heading in <String>['## 추가 가이드', '## 제거 가이드']) {
         expect(
-          _countExactLines(maintainerDoc, heading),
+          countExactLines(maintainerDoc, heading),
           1,
           reason: '유지보수자 문서에 「$heading」 헤딩이 없거나 중복이다',
         );

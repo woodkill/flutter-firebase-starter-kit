@@ -4,6 +4,8 @@ Flutter + Firebase 기반 앱을 위한 Starter Kit. 인증 / 다국어 / 디자
 Firebase 설정 보일러플레이트를 제거하고, Feature-First 아키텍처와 코딩 규칙을
 프로젝트 시작 시점부터 강제한다.
 
+**시작 · 업데이트:** GitHub 의 **Use this template** 으로 내 앱 저장소(private)를 만들어 시작한다. 킷의 새 판을 받는 방법은 매뉴얼 [킷 업데이트 반영](docs/manual.md#킷-업데이트-반영)에 있다. 이 저장소는 판마다 만들어 내는 발행본이라 PR 을 반영하지 않는다 — 제안 · 버그는 Issues 로 남긴다([CONTRIBUTING](CONTRIBUTING.md)).
+
 ## Getting Started
 
 **전제:** [FVM](https://fvm.app/) 이 설치되어 있어야 한다. 본 프로젝트는 시스템
