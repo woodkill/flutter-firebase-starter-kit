@@ -26,6 +26,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../helpers/planning_docs.dart';
 import '../helpers/source_text.dart';
 
 const String _pbxprojPath = 'ios/Runner.xcodeproj/project.pbxproj';
@@ -36,6 +37,10 @@ const String _projectResolvedPath =
 const String _podfileLockPath = 'ios/Podfile.lock';
 const String _workspaceDataPath =
     'ios/Runner.xcworkspace/contents.xcworkspacedata';
+
+/// LINE 핀 결정 기록(비공개 작업 일지) — T-16.3-SPM-11 이 읽는다.
+/// 작업 일지 문서를 읽는 검사는 그 문서가 없는 트리(공개 mirror)에서
+/// 건너뛴다 — Phase 17.4 D-08 — see ROADMAP.md
 const String _linePinDecisionPath =
     '.planning/phases/16.3-ios-cocoapods-to-spm-migration/'
     'artifacts/LINE-PIN-DECISION.md';
@@ -554,6 +559,6 @@ void main() {
             '어긋났다 — version 문자열은 같아도 실제 checkout 이 달라졌을 '
             '수 있다. docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
       );
-    });
+    }, skip: skipUnlessPlanningDocsExist(const <String>[_linePinDecisionPath]));
   });
 }

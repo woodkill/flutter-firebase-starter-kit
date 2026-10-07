@@ -4,6 +4,18 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../helpers/planning_docs.dart';
+
+/// Phase 13 네이버 로그인 UI 명세(비공개 작업 일지) — R14 · R12 가 읽는다.
+const String _uiSpec13Path = '.planning/phases/13-naver-login/13-UI-SPEC.md';
+
+/// Phase 13 패턴 맵(비공개 작업 일지) — R14 가 읽는다.
+const String _patterns13Path = '.planning/phases/13-naver-login/13-PATTERNS.md';
+
+/// Phase 13.1 패턴 맵(비공개 작업 일지) — R11 이 읽는다.
+const String _patterns131Path =
+    '.planning/phases/13.1-social-brand-asset-compliance/13.1-PATTERNS.md';
+
 /// Phase 13.1 manual-review 4건의 docs/asset/ARB 회귀 가드를 자동화한다 —
 /// Nyquist auditor 가 R7/R12/R14/R15 를 manual review 에서 자동 검증으로
 /// 승격하여 미래 회귀 시 즉시 RED 노출.
@@ -21,6 +33,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// - Test 4 (R15): `docs/manual.md` `## Brand Asset Management` heading
 ///   존재 + 4 키워드 (provider 출처 / 라이선스 / 다운 절차 / 사전 검수)
 ///   substring 모두 존재.
+/// - 작업 일지 문서를 읽는 3개는 그 문서가 없는 트리(공개 mirror)에서
+///   건너뛴다 — Phase 17.4 D-08 — see ROADMAP.md
 ///
 /// **RED→GREEN tracking:** 본 test 는 commit 시점 GREEN — 미래 회귀 (예:
 /// app_ja.arb 의 fallback 값 변경, README 의 sign_in_button 키워드 삭제,
@@ -123,8 +137,8 @@ void main() {
       'R14: 13-UI-SPEC.md / 13-PATTERNS.md 의 Phase 13.1 retro 마커 ≥ 1 each',
       () {
         // Arrange — 두 phase 13 docs.
-        final uiSpec = File('.planning/phases/13-naver-login/13-UI-SPEC.md');
-        final patterns = File('.planning/phases/13-naver-login/13-PATTERNS.md');
+        final uiSpec = File(_uiSpec13Path);
+        final patterns = File(_patterns13Path);
         expect(uiSpec.existsSync(), isTrue, reason: '13-UI-SPEC.md 부재');
         expect(patterns.existsSync(), isTrue, reason: '13-PATTERNS.md 부재');
 
@@ -151,6 +165,10 @@ void main() {
               'R14 acceptance 위반 (현재 hit=$patternsHits)',
         );
       },
+      skip: skipUnlessPlanningDocsExist(<String>[
+        _uiSpec13Path,
+        _patterns13Path,
+      ]),
     );
 
     test('R15: docs/manual.md 의 Brand Asset Management heading + 4 키워드', () {
@@ -381,9 +399,7 @@ void main() {
     test('Phase 13.2 R11: 13.1-PATTERNS.md 의 retro 마커 ≥ 1 + 7 잔존 어휘 '
         'hit 0', () {
       // Arrange.
-      final patterns = File(
-        '.planning/phases/13.1-social-brand-asset-compliance/13.1-PATTERNS.md',
-      );
+      final patterns = File(_patterns131Path);
       expect(patterns.existsSync(), isTrue, reason: '13.1-PATTERNS.md 부재');
       final content = patterns.readAsStringSync();
 
@@ -430,12 +446,12 @@ void main() {
             'Phase 13.2 R11 acceptance 위반 — 13.1-PATTERNS.md 의 잔존 '
             '어휘 (target = 0, Wave 3 후 GREEN): $staleHits',
       );
-    });
+    }, skip: skipUnlessPlanningDocsExist(<String>[_patterns131Path]));
 
     test('Phase 13.2 R12: 13-UI-SPEC.md 의 retro 마커 ≥ 1 + Phase 13.1 흔적 '
         '12건 보존', () {
       // Arrange — BL-05 ground-truth: Phase 13.1 retro 마커는 12건 (NOT 9).
-      final uiSpec = File('.planning/phases/13-naver-login/13-UI-SPEC.md');
+      final uiSpec = File(_uiSpec13Path);
       expect(uiSpec.existsSync(), isTrue, reason: '13-UI-SPEC.md 부재');
       final content = uiSpec.readAsStringSync();
 
@@ -468,7 +484,7 @@ void main() {
             'hit = $phase131Hits (target = 12, history 보존 의무). '
             'Wave 3 는 Facebook 단락만 정정, Phase 13.1 흔적 변경 0.',
       );
-    });
+    }, skip: skipUnlessPlanningDocsExist(<String>[_uiSpec13Path]));
 
     test('Phase 13.2 R13: docs/manual.md 의 retro 마커 ≥ 1 + Meta 공식 URL + '
         '라이선스 verbatim + Facebook entry "Phase 18" 폐기', () {

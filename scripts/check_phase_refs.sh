@@ -8,6 +8,8 @@
 #
 # starter-kit 정책: 외부 lint framework / GitHub Actions 미도입 (D-39 단순성).
 # git pre-commit hook 으로만 강제 — 활성화는 사용자 선택 (docs/manual.md 참조).
+# ROADMAP.md 가 없는 트리(공개 mirror)에서는 [SKIP] 을 출력하고 exit 0 — 공개본에서 hook 을
+# 켜도 커밋이 막히지 않는다 (Phase 17.4 D-08).
 
 set -euo pipefail
 
@@ -17,8 +19,8 @@ SCAN_FILES=("firestore.rules")
 EXIT_CODE=0
 
 if [ ! -f "$ROADMAP" ]; then
-  echo "[FAIL] ROADMAP.md 미존재: $ROADMAP"
-  exit 1
+  echo "[SKIP] check_phase_refs.sh — $ROADMAP 없음(비공개 작업 일지가 없는 트리) · 유지보수자 검사 건너뜀"
+  exit 0
 fi
 
 # phase 번호의 성분별 선행 0 제거 — 09→9, 09.1→9.1, 9.01→9.1, 00→0. 단일 0 · 10 · 100 은 불변.
