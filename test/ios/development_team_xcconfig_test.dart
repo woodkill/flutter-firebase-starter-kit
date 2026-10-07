@@ -36,7 +36,10 @@ final RegExp _filledTeamLine = RegExp(
 );
 
 /// 앞뒤 공백을 걷어낸 줄이 [line] 과 정확히 같은 줄의 수를 센다.
-int _countExactLines(String source, String line) => source
+///
+/// 공용 `countExactLines`(`test/helpers/source_text.dart`)는 공백을 걷지 않고
+/// 비교한다 — 의미가 달라 이름을 나눈다.
+int _countTrimmedLines(String source, String line) => source
     .split('\n')
     .where((String candidate) => candidate.trim() == line)
     .length;
@@ -76,7 +79,7 @@ void main() {
         final String source = stripSlashComments(readTrackedFile(path));
 
         expect(
-          _countExactLines(source, _emptyPlaceholder),
+          _countTrimmedLines(source, _emptyPlaceholder),
           1,
           reason:
               '$path 에 빈 자리표시 "$_emptyPlaceholder" 가 정확히 1줄 '
