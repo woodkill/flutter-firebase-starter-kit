@@ -19,6 +19,7 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 키 없는 빌드용 Firebase placeholder(Android `google-services.json` 2종의 `package_name` · iOS `GoogleService-Info.plist` 3종의 `BUNDLE_ID`)도 새 앱 ID 로 바꾼다. 앱 ID 를 바꾼 뒤 `--flavor stg` · `--flavor prod` Android 빌드가 `No matching client found for package name` 으로 멈추던 문제를 고친다. 실 값으로 바꾼 파일은 건드리지 않는다.
 - placeholder 검사 테스트가 기대 앱 ID 를 `android/app/build.gradle.kts` 의 `applicationId` 와 `ios/Runner.xcodeproj/project.pbxproj` 의 번들 ID 에서 읽는다. 앱 ID 를 바꾼 저장소에서도 `fvm flutter test` 가 통과한다.
 - 앱 ID 변경 도구가 `--apply` 뒤 안내하는 빌드 확인 명령에 flavor 를 준다(`--flavor dev --dart-define-from-file=config/dev.json`, 키 없이 확인할 때는 `--flavor stg`). flavor 없는 명령은 이 프로젝트에서 빌드되지 않는다.
+- 앱 ID 변경 도구가 미리 보기에서 센 자리만 바꾼다. `project.pbxproj` · 내 xcconfig · `scripts/firebase-configure.sh` 의 주석 줄이 같은 값을 품고 있어도 그 줄은 그대로 둔다.
 - README 머리를 검사하는 테스트가 킷 저장소에서만 돈다. README 를 내 앱 소개로 바꾼 저장소에서도 `fvm flutter test` 가 통과한다.
 - `ios/Runner.xcodeproj/project.pbxproj` 에 `DEVELOPMENT_TEAM` 이 없는지 검사하는 테스트가 킷 저장소에서만 돈다. Xcode 에서 Team 을 골라 그 줄이 생긴 저장소에서도 `fvm flutter test` 가 통과한다. Team ID 는 그대로 `ios/Flutter/<flavor>.xcconfig` 에 적는다.
 

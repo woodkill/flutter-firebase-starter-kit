@@ -357,6 +357,20 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       });
     });
 
+    test('firebase-configure.sh 상수 줄을 품은 주석 줄은 바꾸지 않는다', () {
+      final script = File('${tempDir.path}/scripts/firebase-configure.sh');
+      const comment =
+          '# 예: ANDROID_PACKAGE_PREFIX="com.slimpumpkin.flutter_starter_kit"';
+      script.writeAsStringSync('$comment\n${script.readAsStringSync()}');
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+
+      final lines = script.readAsLinesSync();
+      expect(lines.first, comment);
+      expect(lines, contains('ANDROID_PACKAGE_PREFIX="com.example.my_app"'));
+    });
+
     test('config/*.example.json 은 바꾸지 않는다 (킷 추적 파일)', () {
       final exampleFile = File('${tempDir.path}/config/dev.example.json');
       final exampleBefore = exampleFile.readAsStringSync();
@@ -634,6 +648,40 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
         pairs['com.slimpumpkin.flutterStarterKit;'],
         'com.example.myApp;',
         reason: 'Runner 접미사 없는 줄도 끝 `;` 까지 묶어 다른 줄을 건드리지 않는다',
+      );
+    });
+
+    test('수집 계수와 같은 위치만 바꾸고 같은 문자열을 품은 주석 줄은 그대로 둔다', () {
+      // 주석 줄이 수집 대상 문자열을 통째로 품는다 — 문자열 전체 치환이면
+      // dry-run 계수보다 많은 곳이 바뀐다.
+      const pbxprojComment =
+          '/* old: com.slimpumpkin.flutterStarterKit.dev; '
+          'com.slimpumpkin.flutterStarterKit.RunnerTests; */';
+      const xcconfigComment =
+          '// PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev';
+      pbxproj().writeAsStringSync('$kitPbxproj$pbxprojComment\n');
+      userXcconfig('dev').writeAsStringSync(
+        '$xcconfigComment\n'
+        '${xcconfigContent('dev', 'com.slimpumpkin.flutterStarterKit')}',
+      );
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      final runnerDev = changes.singleWhere(
+        (c) => c.oldValue == 'com.slimpumpkin.flutterStarterKit.dev;',
+      );
+      expect(runnerDev.description, contains('(2 occurrences)'));
+
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+
+      expect(
+        pbxproj().readAsStringSync(),
+        '$renamedPbxproj$pbxprojComment\n',
+        reason: 'PRODUCT_BUNDLE_IDENTIFIER 값 자리만 바뀐다',
+      );
+      expect(
+        userXcconfig('dev').readAsStringSync(),
+        '$xcconfigComment\n${xcconfigContent('dev', 'com.example.myApp')}',
+        reason: '주석 줄은 그대로고 번들 ID 줄만 바뀐다',
       );
     });
 

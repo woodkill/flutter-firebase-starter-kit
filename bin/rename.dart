@@ -74,6 +74,7 @@ class FileChange {
     required this.description,
     required this.oldValue,
     required this.newValue,
+    this.pattern,
   });
 
   /// 대상 파일 경로.
@@ -90,7 +91,18 @@ class FileChange {
 
   /// 변경 후 값.
   final String newValue;
+
+  /// 치환할 위치를 정하는 정규식 (선택).
+  ///
+  /// 있으면 적용은 이 정규식에 맞는 부분만 [newValue] 로 바꾼다 — 수집 때 센
+  /// 위치와 적용 위치가 같아져, 주석 등 다른 줄에 같은 문자열이 있어도 바뀌지
+  /// 않는다. 없으면 [oldValue] 가 나오는 곳을 전부 바꾼다.
+  final RegExp? pattern;
 }
+
+/// [line] 과 정확히 같은 줄(줄 끝 `\r` 허용)에만 맞는 정규식을 만든다.
+RegExp _exactLinePattern(String line) =>
+    RegExp('^${RegExp.escape(line)}(?=\r?\$)', multiLine: true);
 
 /// 입력 유효성 검증 결과.
 class ValidateResult {
@@ -385,9 +397,9 @@ void _collectIosChanges(
   // Runner 타겟 (suffix 없음 · 비 flavor 구성 .dev)
   for (final suffix in _runnerBundleIdSuffixes) {
     final oldValue = '$currentIosBundleId$suffix;';
+    // 수집 계수와 적용 위치를 같은 정규식으로 맞춘다 — 번들 ID 값 자리만.
     final runnerPattern = RegExp(
-      r'PRODUCT_BUNDLE_IDENTIFIER = '
-      '${RegExp.escape(oldValue)}',
+      '(?<=PRODUCT_BUNDLE_IDENTIFIER = )${RegExp.escape(oldValue)}',
     );
     final runnerMatches = runnerPattern.allMatches(content).length;
     if (runnerMatches == 0) continue;
@@ -401,14 +413,15 @@ void _collectIosChanges(
             '($runnerMatches occurrences)',
         oldValue: oldValue,
         newValue: '$newIosBundleId$suffix;',
+        pattern: runnerPattern,
       ),
     );
   }
 
   // RunnerTests 타겟 (.RunnerTests suffix)
   final testsPattern = RegExp(
-    r'PRODUCT_BUNDLE_IDENTIFIER = '
-    '${RegExp.escape(currentIosBundleId)}.RunnerTests;',
+    '(?<=PRODUCT_BUNDLE_IDENTIFIER = )'
+    '${RegExp.escape('$currentIosBundleId.RunnerTests')}(?=;)',
   );
   final testsMatches = testsPattern.allMatches(content).length;
 
@@ -422,6 +435,7 @@ void _collectIosChanges(
             '($testsMatches occurrences)',
         oldValue: '$currentIosBundleId.RunnerTests',
         newValue: '$newIosBundleId.RunnerTests',
+        pattern: testsPattern,
       ),
     );
   }
@@ -462,6 +476,7 @@ void _collectXcconfigChanges(
           description: 'iOS PRODUCT_BUNDLE_IDENTIFIER (flavor xcconfig)',
           oldValue: match.group(0)!,
           newValue: '${match.group(1)}$newIosBundleId$suffix',
+          pattern: _exactLinePattern(match.group(0)!),
         ),
       );
     }
@@ -551,6 +566,7 @@ void _collectFirebaseConfigureChanges(
         description: target.description,
         oldValue: target.oldLine,
         newValue: target.newLine,
+        pattern: _exactLinePattern(target.oldLine),
       ),
     );
   }
@@ -711,7 +727,10 @@ void _applyReplace(FileChange change) {
   if (!file.existsSync()) return;
 
   final content = file.readAsStringSync();
-  final updated = content.replaceAll(change.oldValue, change.newValue);
+  final updated = switch (change.pattern) {
+    null => content.replaceAll(change.oldValue, change.newValue),
+    final RegExp pattern => content.replaceAll(pattern, change.newValue),
+  };
   file.writeAsStringSync(updated);
 }
 
