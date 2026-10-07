@@ -454,11 +454,12 @@ void _collectXcconfigChanges(
   List<FileChange> changes,
 ) {
   // 줄 머리에 고정한다 — 주석 등 다른 줄의 번들 ID 는 대상이 아니다.
-  // group 1 = 키와 구분자(원래 공백 유지) · group 2 = flavor 접미사.
+  // group 1 = 키와 구분자(원래 공백 유지) · group 2 = flavor 접미사 ·
+  // group 3 = 줄 끝 공백(원래대로 다시 붙인다 — 번들 ID 외 바이트는 바꾸지 않는다).
   final pattern = RegExp(
     r'^(PRODUCT_BUNDLE_IDENTIFIER[ \t]*=[ \t]*)'
     '${RegExp.escape(currentIosBundleId)}'
-    r'(\.[A-Za-z0-9-]+)?[ \t]*(?=\r?$)',
+    r'(\.[A-Za-z0-9-]+)?([ \t]*)(?=\r?$)',
     multiLine: true,
   );
 
@@ -475,7 +476,7 @@ void _collectXcconfigChanges(
           type: ChangeType.replace,
           description: 'iOS PRODUCT_BUNDLE_IDENTIFIER (flavor xcconfig)',
           oldValue: match.group(0)!,
-          newValue: '${match.group(1)}$newIosBundleId$suffix',
+          newValue: '${match.group(1)}$newIosBundleId$suffix${match.group(3)}',
           pattern: _exactLinePattern(match.group(0)!),
         ),
       );

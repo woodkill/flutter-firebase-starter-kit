@@ -628,6 +628,33 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       }
     });
 
+    test('xcconfig 번들 ID 줄의 끝 공백 · CRLF 는 rename 뒤에도 그대로다', () {
+      // 공백 · 탭 섞인 끝 공백(dev) · 끝 공백 + CRLF(stg). 번들 ID 외 바이트는
+      // 바꾸지 않는다.
+      userXcconfig('dev').writeAsStringSync(
+        'PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev \t\n'
+        'DISPLAY_NAME = FSK dev\n',
+      );
+      userXcconfig('stg').writeAsStringSync(
+        'PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.stg  \r\n'
+        'DISPLAY_NAME = FSK stg\r\n',
+      );
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+
+      expect(
+        userXcconfig('dev').readAsStringSync(),
+        'PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.dev \t\n'
+        'DISPLAY_NAME = FSK dev\n',
+      );
+      expect(
+        userXcconfig('stg').readAsStringSync(),
+        'PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.stg  \r\n'
+        'DISPLAY_NAME = FSK stg\r\n',
+      );
+    });
+
     test('킷 추적 *.example.xcconfig 는 수집하지 않고 apply 뒤에도 바이트가 같다', () {
       final before = {
         for (final flavor in flavorSuffixes.keys)
