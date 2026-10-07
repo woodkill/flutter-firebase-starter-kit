@@ -45,19 +45,6 @@ String? _findToolOnPath(String tool) {
   return path.isEmpty ? null : path;
 }
 
-/// [tools] 가 모두 PATH 에 있으면 `false`, 하나라도 없으면 건너뛸 사유를 돌려준다.
-///
-/// gitleaks 는 stub 으로 격리하지만 jq · git 같은 나머지 도구는 실행 환경의 것을 쓴다 —
-/// 없는 환경에서는 RED 대신 건너뛴다는 사실을 선언 시점에 드러낸다(WR-07).
-Object _skipUnlessToolsOnPath(List<String> tools) {
-  for (final String tool in tools) {
-    if (_findToolOnPath(tool) == null) {
-      return '$tool 이 PATH 에 없는 환경 — 건너뜀';
-    }
-  }
-  return false;
-}
-
 /// 테스트 하나가 쓰는 임시 작업 공간(<저장소>/build/test-publish-kit-*).
 class _Sandbox {
   _Sandbox._(this.dir);
@@ -435,8 +422,7 @@ void main() {
       '-Session: https://example.invalid/s',
     ].join();
 
-    // gitleaks 보고서 건수를 세는 도구(T-174-PUB-10) · jq 없는 PATH 를 꾸릴 도구(T-174-PUB-26).
-    const List<String> skipJqTools = <String>['jq'];
+    // jq 없는 PATH 를 꾸릴 때 링크하는 도구(T-174-PUB-26) — jq 확인 전에 스크립트가 쓰는 외부 명령.
     const List<String> jqlessTools = <String>['bash', 'git', 'dirname', 'rm'];
 
     ProcessResult runScan({bool findings = false}) => _runKit(
@@ -541,54 +527,46 @@ void main() {
       expectNoLeak(result);
     }, skip: skipRules);
 
-    test(
-      'T-174-PUB-10: gitleaks 가 찾으면 건수만 말하고 FAIL, scan.ok 는 없다',
-      () {
-        _initMirror(sb);
-        final ProcessResult result = runScan(findings: true);
-        expect(result.exitCode, 1);
-        expect(_err(result), contains('gitleaks 가 1건을'));
-        expect(File('${sb.work}/scan.ok').existsSync(), isFalse);
-      },
-      skip: skipRules == false
-          ? _skipUnlessToolsOnPath(skipJqTools)
-          : skipRules,
-    );
+    test('T-174-PUB-10: gitleaks 가 찾으면 건수만 말하고 FAIL, scan.ok 는 없다', () {
+      _initMirror(sb);
+      final ProcessResult result = runScan(findings: true);
+      expect(result.exitCode, 1);
+      expect(_err(result), contains('gitleaks 가 1건을'));
+      expect(File('${sb.work}/scan.ok').existsSync(), isFalse);
+    }, skip: skipRules);
 
-    test(
-      'T-174-PUB-26: jq 가 PATH 에 없으면 검사 전에 jq 부재를 사유로 FAIL (WR-07)',
-      () {
-        _initMirror(sb);
-        // PATH 를 이 디렉터리 하나로 좁힌다 — jq 확인까지 스크립트가 쓰는 도구만 링크하고
-        // jq 는 두지 않는다. 가짜 gitleaks 는 결과를 내므로, jq 확인이 없으면 jq length
-        // 단계까지 가서 다른 사유로 멈춘다.
-        final String bin = _writeGitleaksStub(sb, findings: true);
-        for (final String tool in jqlessTools) {
-          Link('$bin/$tool').createSync(_findToolOnPath(tool)!);
+    test('T-174-PUB-26: jq 가 PATH 에 없으면 검사 전에 jq 부재를 사유로 FAIL (WR-07)', () {
+      _initMirror(sb);
+      // PATH 를 이 디렉터리 하나로 좁힌다 — jq 확인까지 스크립트가 쓰는 도구만 링크하고
+      // jq 는 두지 않는다. 가짜 gitleaks 는 결과를 내므로, jq 확인이 없으면 jq length
+      // 단계까지 가서 다른 사유로 멈춘다.
+      final String bin = _writeGitleaksStub(sb, findings: true);
+      for (final String tool in jqlessTools) {
+        final String? path = _findToolOnPath(tool);
+        if (path == null) {
+          fail('$tool 이 PATH 에 없다 — fixture 를 만들 수 없다');
         }
-        expect(
-          Directory(
-            bin,
-          ).listSync().map((FileSystemEntity e) => e.uri.pathSegments.last),
-          isNot(contains('jq')),
-        );
-        final ProcessResult result = _runKit(
-          <String>['scan'],
-          sb,
-          pathOverride: bin,
-        );
-        expect(result.exitCode, 1, reason: _err(result));
-        expect(
-          _err(result).trimRight().split('\n').last,
-          startsWith('FAIL: jq 가 PATH 에 없다'),
-        );
-        expect(result.stdout as String, isNot(contains('control:')));
-        expect(File('${sb.work}/scan.ok').existsSync(), isFalse);
-      },
-      skip: skipRules == false
-          ? _skipUnlessToolsOnPath(jqlessTools)
-          : skipRules,
-    );
+        Link('$bin/$tool').createSync(path);
+      }
+      expect(
+        Directory(
+          bin,
+        ).listSync().map((FileSystemEntity e) => e.uri.pathSegments.last),
+        isNot(contains('jq')),
+      );
+      final ProcessResult result = _runKit(
+        <String>['scan'],
+        sb,
+        pathOverride: bin,
+      );
+      expect(result.exitCode, 1, reason: _err(result));
+      expect(
+        _err(result).trimRight().split('\n').last,
+        startsWith('FAIL: jq 가 PATH 에 없다'),
+      );
+      expect(result.stdout as String, isNot(contains('control:')));
+      expect(File('${sb.work}/scan.ok').existsSync(), isFalse);
+    }, skip: skipRules);
   });
 
   group('check 안전 게이트 (D-29, 유지보수자 트리)', () {
