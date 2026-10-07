@@ -890,33 +890,6 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     });
   });
 
-  group('dry-run 모드', () {
-    late Directory tempDir;
-
-    setUp(() {
-      tempDir = Directory.systemTemp.createTempSync('rename_dryrun_');
-
-      // 최소 구조 생성
-      File(
-        '${tempDir.path}/pubspec.yaml',
-      ).writeAsStringSync('name: flutter_starter_kit\nversion: 1.0.0\n');
-    });
-
-    tearDown(() {
-      tempDir.deleteSync(recursive: true);
-    });
-
-    test('dry-run 모드에서 실제 파일이 변경되지 않는다', () {
-      collectChanges(tempDir.path, 'com.example', 'my_app');
-
-      // dry-run에서는 applyChanges를 호출하지 않아야 함
-      // 원본 파일이 변경되지 않았는지 확인
-      final content = File('${tempDir.path}/pubspec.yaml').readAsStringSync();
-      expect(content, contains('flutter_starter_kit'));
-      expect(content, isNot(contains('my_app')));
-    });
-  });
-
   group('applyChanges', () {
     late Directory tempDir;
 
@@ -1063,6 +1036,16 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(result.stdout, isNot(contains('Package rename:')));
       expect(result.stdout, contains('Changes to apply:'));
       expect(result.stdout, contains('Run with --apply to execute'));
+      // dry-run 은 파일을 바꾸지 않는다 — 변경 대상 상수 3줄이 그대로다
+      final firebaseConfigure = File(
+        '${tempDir.path}/scripts/firebase-configure.sh',
+      ).readAsStringSync();
+      for (final line in _kitFirebaseConfigureConstants) {
+        expect(firebaseConfigure.split('\n'), contains(line));
+      }
+      for (final line in _renamedFirebaseConfigureConstants) {
+        expect(firebaseConfigure, isNot(contains(line)));
+      }
       // F1: 한국어 문자열이 남아있지 않아야 한다
       expect(result.stdout, isNot(contains('변경 대상')));
       expect(result.stdout, isNot(contains('다음 단계')));
