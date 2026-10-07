@@ -221,6 +221,36 @@ show_status() {
   echo "$line main=${main:-none}"
 }
 
+# 저장소 주소(ssh · https · 로컬 경로 · gh 의 OWNER/REPO)에서 저장소 이름만 출력한다 —
+# 끝 `/` 와 `.git` 을 떼고 마지막 `/` 또는 `:` 뒤를 남긴다.
+repo_name() {
+  local url="${1%/}"
+  url="${url%.git}"
+  printf '%s\n' "${url##*[/:]}"
+}
+
+# 공개 쪽 대상 $2(이름 $1)가 private 저장소를 가리키면 FAIL 한다(원격 오인 방어).
+# private 이름은 KIT_PUBLISH_ORIGIN 과 이 저장소의 origin remote 두 곳에서 얻는다 — 리허설용
+# 대역 환경변수를 바꿔도 실제 private 주소를 공개 대상으로 쓰지 못하게 한다.
+require_not_private() {
+  local label="$1" target="$2" name private_url
+  name=$(repo_name "$target")
+  [ "$name" != "$(repo_name "$ORIGIN")" ] ||
+    fail "$label 의 저장소 이름이 KIT_PUBLISH_ORIGIN(private)과 같다($name) — 공개 저장소 주소를 확인한다: $target"
+  private_url=$(git -C "$ROOT" remote get-url origin 2>/dev/null) || private_url=""
+  if [ -n "$private_url" ]; then
+    [ "$name" != "$(repo_name "$private_url")" ] ||
+      fail "$label 의 저장소 이름이 이 저장소의 origin(private)과 같다($name) — 공개 저장소 주소를 확인한다: $target"
+  fi
+}
+
+# 공개 저장소 주소가 private origin 과 다른지 확인한다 — check · push 가 원격을 읽거나 바꾸기 전에 돈다.
+require_public_target() {
+  [ "$ORIGIN" != "$PUBLIC" ] ||
+    fail "KIT_PUBLISH_ORIGIN 과 KIT_PUBLISH_PUBLIC 이 같다 — 공개 저장소 주소를 확인한다: $PUBLIC"
+  require_not_private KIT_PUBLISH_PUBLIC "$PUBLIC"
+}
+
 # 공개 저장소에서 가져온 비교용 로컬 ref(refs/public/*)를 mirror 에서 걷어낸다.
 drop_public_refs() {
   git -C "$MIRROR" for-each-ref --format='delete %(refname)' refs/public refs/public-tags |
@@ -409,6 +439,7 @@ cmd_check() {
   local main heads tags public_main tag_count ref
   main=$(mirror_main)
   rm -f "$WORK/check.ok"
+  require_public_target
 
   git ls-remote "$PUBLIC" > "$WORK/public-refs.txt" 2> "$WORK/public-refs.err" ||
     fail "공개 저장소에 접근할 수 없다: $PUBLIC"
@@ -417,6 +448,10 @@ cmd_check() {
 
   if [ "$heads" = 0 ]; then
     [ "$tags" = 0 ] || fail "공개 저장소에 main 없이 v* 태그만 있다 — 불일치 상태라 원인을 조사한다"
+    # 첫 발행은 빈 저장소(ref 0개)일 때만이다 — main 이 없어도 다른 ref(예: private 의 master)가
+    # 있으면 엉뚱한 저장소를 가리키고 있을 수 있다.
+    [ ! -s "$WORK/public-refs.txt" ] ||
+      fail "공개 저장소에 main 은 없는데 다른 ref 가 있다 — 빈 저장소가 아니다. 주소 · 상태를 조사한다: $PUBLIC"
     printf '%s\n' "$main" > "$WORK/check.ok"
     echo "CHECK OK first-publish main=$main"
     return 0
@@ -574,6 +609,7 @@ cmd_push() {
   local main ver release_tag local_commit remote_refs remote_commit create_tag send_tag
   local -a refspecs
   main=$(mirror_main)
+  require_public_target
   require_stamps mirror scan verify check
   ver=$(read_version)
   release_tag="v$ver"
@@ -637,6 +673,7 @@ cmd_release() {
     fail "CHANGELOG.md 에서 $ver 절을 자르지 못했다"
   grep -q '^### ' "$notes" || fail "CHANGELOG 의 $ver 절에 ### 소절이 없다 — $notes"
   repo="${KIT_PUBLISH_REPO:-woodkill/flutter-firebase-starter-kit}"
+  require_not_private KIT_PUBLISH_REPO "$repo"
 
   if [ "$APPLY" != 1 ]; then
     case "$ver" in

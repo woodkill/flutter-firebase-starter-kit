@@ -54,6 +54,11 @@
   | `KIT_PUBLISH_WORK` | `<저장소>/build/publish` | 작업 디렉터리 — `<저장소>/build/` 아래 절대경로만 · `..` 금지 |
   | `KIT_PUBLISH_REPO` | `woodkill/flutter-firebase-starter-kit` | `release` 가 GitHub Release 를 만드는 저장소 |
 
+  공개 쪽 주소(`KIT_PUBLISH_PUBLIC` · `KIT_PUBLISH_REPO`)가 `KIT_PUBLISH_ORIGIN` 과 같거나, 저장소
+  이름이 `KIT_PUBLISH_ORIGIN` 또는 이 저장소의 `origin` remote 와 같으면 `check` · `push` ·
+  `release` 가 원격을 보기 전에 멈춘다. `check` 의 첫 발행 판정(`first-publish`)은 공개 저장소의
+  ref 가 0개일 때만이다 — `main` 이 없어도 다른 ref 가 있으면 멈춘다.
+
 ## 발행 단계
 
 스크립트 하나(`scripts/publish_kit.sh`)를 단계별로 부른다. 순서는
