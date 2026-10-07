@@ -17,11 +17,12 @@ gem 을 사용한다. `ruby -e "require 'xcodeproj'"` 가 아무 출력 없이 �
 않으면 `gem install xcodeproj` 로 설치할 것. 설치돼 있지 않으면 스크립트가
 파일을 만들기 전에 멈추고 같은 안내를 출력한다.
 
-clone 직후 dev flavor 를 띄우기까지 5단계다.
+앱 저장소를 만든 뒤 dev flavor 를 띄우기까지 5단계다.
 
 ```bash
-# 1. clone
-git clone <this-repo> && cd flutter_starter_kit
+# 1. 앱 저장소 만들기 — GitHub 의 킷 저장소에서 "Use this template" → private 저장소 → clone
+git clone <your-repo-url> && cd <your-repo>
+#    (킷을 그대로 받아 볼 때만: git clone https://github.com/woodkill/flutter-firebase-starter-kit.git)
 
 # 2. flavor config 생성 — 실제 키는 gitignored 인 config/dev.json 에만 넣는다.
 #    (example 파일에는 절대 실 키를 쓰지 않는다)
