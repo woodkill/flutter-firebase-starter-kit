@@ -6,11 +6,11 @@
 배경과 이력은 아래 원본에 있고, 이 문서는 내용을 복사하지 않는다.
 
 - 원칙 P(사용자는 on/off 만) · 마찰 판정표 · on/off 계약 5항 · 누출 L1~L3:
-  [provider 추가/제거 마찰 해소 todo](../../.planning/todos/pending/2026-09-25-provider-add-remove-friction-refactor.md)
+  `.planning/todos/pending/2026-09-25-provider-add-remove-friction-refactor.md`(비공개 작업 일지 — mirror 에 없음)
 - provider 1종 제거의 마찰 계수 · 실측 원장:
-  [16.6-LEDGER.md](../../.planning/phases/16.6-yahoo-jp-login-removal/16.6-LEDGER.md) §7
+  `.planning/phases/16.6-yahoo-jp-login-removal/16.6-LEDGER.md` §7(비공개 작업 일지 — mirror 에 없음)
 - 연결 callable 분리 · 초기화 표 · 배포 함수 목록 · scheme 자리표시 결정:
-  [Phase 17.3](../../.planning/phases/17.3-provider-on-off-contract/)
+  `.planning/phases/17.3-provider-on-off-contract/`(비공개 작업 일지 — mirror 에 없음)
 
 `<provider>` · `<Provider>` · `<slug>` · `<PROVIDER>_CLIENT_ID` 는 대상 provider 에 맞게
 바꿔 읽는다(예: `line` · `Line` · `LINE_CHANNEL_ID`).

@@ -4359,7 +4359,7 @@ UserProviderRecord _parseUserProviderRecord(Map<String, dynamic>? data) {
 ///
 /// **참고:** Firestore SDK 자체의 token cache 자동 재구독 미동작은 known bug
 /// (firebase-android-sdk #5101, flutterfire #11146). 본 fix 는 client-side
-/// workaround. spec: `docs/superpowers/specs/2026-05-08-r10-followup-2-design.md`.
+/// workaround. spec: `.planning/docs/specs/2026-05-08-r10-followup-2-design.md`.
 @Riverpod(keepAlive: true)
 Stream<UserProviderRecord> linkedProvidersStream(Ref ref, String uid) async* {
   final firestore = ref.watch(firebaseFirestoreProvider);

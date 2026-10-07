@@ -2425,7 +2425,7 @@ workaround. spec 평가는 옵션 A (retry) / B (handleError 분기) / C
 (Phase 14 LINE 자동 상속).
 
 **후속 fix 추적:** `.planning/todos/completed/2026-05-08-r10-followup-permission-denied-race.md`
-(pending → completed). spec: `docs/superpowers/specs/2026-05-08-r10-followup-2-design.md`.
+(pending → completed). spec: `.planning/docs/specs/2026-05-08-r10-followup-2-design.md`.
 
 ---
 
