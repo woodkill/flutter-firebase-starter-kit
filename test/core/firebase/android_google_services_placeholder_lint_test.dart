@@ -112,19 +112,19 @@ String readBaseIosBundleId() {
   return match!.group(1)!;
 }
 
-/// stg 의 applicationId — base `applicationId` + productFlavors
-/// `create("stg") { applicationIdSuffix = ".stg" }`.
-String stgPackageName() => '${readBaseApplicationId()}.stg';
+/// stg 의 applicationId 를 읽어 돌려준다 — base `applicationId` +
+/// productFlavors `create("stg") { applicationIdSuffix = ".stg" }`.
+String readStgPackageName() => '${readBaseApplicationId()}.stg';
 
-/// prod 의 applicationId — productFlavors `create("prod")` 에
+/// prod 의 applicationId 를 읽어 돌려준다 — productFlavors `create("prod")` 에
 /// `applicationIdSuffix` 가 없으므로 **접미사가 없다**. 여기에 `.prod` 를
 /// 붙이면 Gradle 이 "No matching client found" 로 실패한다.
-String prodPackageName() => readBaseApplicationId();
+String readProdPackageName() => readBaseApplicationId();
 
-/// flavor 의 iOS bundle id — base 번들 ID + flavor 접미사(prod 는 없음).
-/// 이 값이 어긋나면 Xcode 가 복사한 plist 와 실제 번들이 불일치해 Firebase
-/// 초기화가 런타임에 어긋난다.
-String iosBundleId(String suffix) => '${readBaseIosBundleId()}$suffix';
+/// flavor 의 iOS bundle id 를 읽어 돌려준다 — base 번들 ID + flavor
+/// 접미사(prod 는 없음). 이 값이 어긋나면 Xcode 가 복사한 plist 와 실제
+/// 번들이 불일치해 Firebase 초기화가 런타임에 어긋난다.
+String readIosBundleId(String suffix) => '${readBaseIosBundleId()}$suffix';
 
 /// Google API 키 접두사. placeholder 에 이 문자열이 등장하면 실제 키가 든
 /// 재생성본이 커밋된 것이다.
@@ -323,7 +323,7 @@ void main() {
 
         expect(
           readPackageName(json),
-          stgPackageName(),
+          readStgPackageName(),
           reason:
               '커밋된 $_stgJsonPath 의 package_name 이 '
               'android/app/build.gradle.kts 의 stg applicationId(base + '
@@ -338,7 +338,7 @@ void main() {
 
         expect(
           readPackageName(json),
-          prodPackageName(),
+          readProdPackageName(),
           reason:
               '커밋된 $_prodJsonPath 의 package_name 이 '
               'android/app/build.gradle.kts 의 prod applicationId 와 다르다. '
@@ -420,7 +420,7 @@ void main() {
     test('커밋된 dev plist 가 placeholder 사양을 만족한다', () {
       expectCommittedIosPlaceholderPlist(
         path: _devPlistPath,
-        bundleId: iosBundleId('.dev'),
+        bundleId: readIosBundleId('.dev'),
         projectId: _devProjectId,
       );
     });
@@ -428,7 +428,7 @@ void main() {
     test('커밋된 stg plist 가 placeholder 사양을 만족한다', () {
       expectCommittedIosPlaceholderPlist(
         path: _stgPlistPath,
-        bundleId: iosBundleId('.stg'),
+        bundleId: readIosBundleId('.stg'),
         projectId: _stgProjectId,
       );
     });
@@ -436,7 +436,7 @@ void main() {
     test('커밋된 prod plist 가 placeholder 사양을 만족한다 (접미사 없음)', () {
       expectCommittedIosPlaceholderPlist(
         path: _prodPlistPath,
-        bundleId: iosBundleId(''),
+        bundleId: readIosBundleId(''),
         projectId: _prodProjectId,
       );
     });
