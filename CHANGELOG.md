@@ -27,5 +27,5 @@
 - 홈: 앱의 홈 화면을 바꿔 끼우는 교체 지점과 개발자 데모 화면(release 빌드 제외)을 제공한다.
 - 함수 배포 스크립트(`scripts/deploy_functions.sh`)가 켠 로그인 수단에 맞는 Cloud Functions 만 배포한다.
 - 키 없는 빌드 게이트(`scripts/verify_placeholder_builds.sh`)가 실제 키 없이도 flavor 별 Android · iOS 빌드가 되는지 확인한다.
-- 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
+- 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.

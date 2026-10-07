@@ -20,7 +20,10 @@ const currentOrg = 'com.slimpumpkin';
 /// 현재 Android applicationId / namespace.
 const currentAndroidPackage = 'com.slimpumpkin.flutter_starter_kit';
 
-/// 현재 iOS Bundle ID (Runner).
+/// 현재 iOS Bundle ID 의 앞부분 (Runner · flavor 접미사 제외).
+///
+/// pbxproj 와 사용자 xcconfig 의 값은 이 뒤에 `.dev` · `.stg` · `.RunnerTests`
+/// 같은 접미사가 붙거나(prod 는 없음) 이 값 그대로다.
 const currentIosBundleId = 'com.slimpumpkin.flutterStarterKit';
 
 /// 현재 Firebase 프로젝트 ID prefix (`scripts/firebase-configure.sh`).
@@ -36,6 +39,18 @@ const currentAppName = 'StarterKit';
 /// gitignored 사용자 config 만 대상이다. 킷 추적 `config/*.example.json` 은
 /// 바꾸지 않는다 — 킷이 example 을 고쳐도 사용자 merge 충돌이 없게(D-34).
 const List<String> userConfigFileNames = ['dev.json', 'stg.json', 'prod.json'];
+
+/// iOS 번들 ID 를 바꾸는 사용자 xcconfig 파일 이름 (`ios/Flutter/` 기준).
+///
+/// flavor 빌드는 이 파일의 `PRODUCT_BUNDLE_IDENTIFIER` 를 읽는다. gitignored
+/// 사용자 파일만 대상이고 킷 추적 `ios/Flutter/*.example.xcconfig` 는 바꾸지
+/// 않는다 — [userConfigFileNames] 와 같은 원칙(킷이 example 을 고쳐도 사용자
+/// merge 충돌이 없게).
+const List<String> userXcconfigFileNames = [
+  'dev.xcconfig',
+  'stg.xcconfig',
+  'prod.xcconfig',
+];
 
 // ---------------------------------------------------------------------------
 // 공개 모델
@@ -211,6 +226,9 @@ String _capitalize(String s) {
 /// [projectRoot]에서 현재 앱 ID(Android package · iOS bundle ID · Firebase
 /// 설정 스크립트 상수 · 사용자 config appName)를 [newOrg]과 [newName]으로
 /// 변경할 대상 파일과 변경 내용 목록을 반환한다.
+/// iOS bundle ID 는 `project.pbxproj` 와 사용자 xcconfig
+/// ([userXcconfigFileNames]) 두 곳에서 바꾼다 — flavor 빌드는 xcconfig 값을,
+/// 비 flavor 구성은 pbxproj 값을 읽는다.
 /// Dart 패키지명(`pubspec.yaml` 의 name)과 `package:` import 는 수집하지
 /// 않는다(D-34 — 바꾸면 킷 업데이트 merge 마다 import 충돌).
 /// [projectIdPrefix]가 null 이면 [newName]의 `_` 를 `-` 로 바꾼 값을
@@ -236,6 +254,9 @@ List<FileChange> collectChanges(
 
   // 3. iOS project.pbxproj
   _collectIosChanges(projectRoot, newIosBundleId, changes);
+
+  // 3-1. ios/Flutter/{dev,stg,prod}.xcconfig 번들 ID (사용자 파일만)
+  _collectXcconfigChanges(projectRoot, newIosBundleId, changes);
 
   // 4. config/{dev,stg,prod}.json appName (사용자 파일만)
   _collectConfigChanges(projectRoot, newAppName, changes);
@@ -330,7 +351,16 @@ void _collectKotlinChanges(
   }
 }
 
+/// pbxproj Runner 타깃 번들 ID 접미사.
+///
+/// 빈 문자열은 접미사 없는 꼴, `.dev` 는 비 flavor 구성(Debug · Release ·
+/// Profile)이 dev 번들 ID 를 쓰는 꼴이다.
+const _runnerBundleIdSuffixes = ['', '.dev'];
+
 /// iOS project.pbxproj의 PRODUCT_BUNDLE_IDENTIFIER 변경을 수집한다.
+///
+/// Runner 타깃은 끝 `;` 까지 묶어 바꾼다 — 접두어만 치환하면 같은 파일의
+/// 다른 줄(RunnerTests · 주석 등)까지 바뀐다.
 void _collectIosChanges(
   String projectRoot,
   String newIosBundleId,
@@ -341,22 +371,25 @@ void _collectIosChanges(
 
   final content = file.readAsStringSync();
 
-  // Runner 타겟 (suffix 없음)
-  final runnerPattern = RegExp(
-    r'PRODUCT_BUNDLE_IDENTIFIER = '
-    '${RegExp.escape(currentIosBundleId)};',
-  );
-  final runnerMatches = runnerPattern.allMatches(content).length;
+  // Runner 타겟 (suffix 없음 · 비 flavor 구성 .dev)
+  for (final suffix in _runnerBundleIdSuffixes) {
+    final oldValue = '$currentIosBundleId$suffix;';
+    final runnerPattern = RegExp(
+      r'PRODUCT_BUNDLE_IDENTIFIER = '
+      '${RegExp.escape(oldValue)}',
+    );
+    final runnerMatches = runnerPattern.allMatches(content).length;
+    if (runnerMatches == 0) continue;
 
-  if (runnerMatches > 0) {
     changes.add(
       FileChange(
         filePath: file.path,
         type: ChangeType.replace,
         description:
-            'Runner PRODUCT_BUNDLE_IDENTIFIER ($runnerMatches occurrences)',
-        oldValue: currentIosBundleId,
-        newValue: newIosBundleId,
+            'Runner PRODUCT_BUNDLE_IDENTIFIER$suffix '
+            '($runnerMatches occurrences)',
+        oldValue: oldValue,
+        newValue: '$newIosBundleId$suffix;',
       ),
     );
   }
@@ -380,6 +413,47 @@ void _collectIosChanges(
         newValue: '$newIosBundleId.RunnerTests',
       ),
     );
+  }
+}
+
+/// 사용자 xcconfig 의 `PRODUCT_BUNDLE_IDENTIFIER` 줄 변경을 수집한다.
+///
+/// [userXcconfigFileNames] 의 `ios/Flutter/` 사용자 파일만 읽고, 없는 파일은
+/// 건너뛴다. 킷 추적 `ios/Flutter/*.example.xcconfig` 는 수집하지 않는다.
+/// 값의 flavor 접미사(`.dev` · `.stg` · 없음)는 그대로 두고 앞부분만 새 번들
+/// ID 로 바꾼다. 같은 파일의 다른 줄을 건드리지 않도록 줄 전체를 oldValue ·
+/// newValue 로 쓴다.
+void _collectXcconfigChanges(
+  String projectRoot,
+  String newIosBundleId,
+  List<FileChange> changes,
+) {
+  // 줄 머리에 고정한다 — 주석 등 다른 줄의 번들 ID 는 대상이 아니다.
+  // group 1 = 키와 구분자(원래 공백 유지) · group 2 = flavor 접미사.
+  final pattern = RegExp(
+    r'^(PRODUCT_BUNDLE_IDENTIFIER[ \t]*=[ \t]*)'
+    '${RegExp.escape(currentIosBundleId)}'
+    r'(\.[A-Za-z0-9-]+)?[ \t]*(?=\r?$)',
+    multiLine: true,
+  );
+
+  for (final fileName in userXcconfigFileNames) {
+    final file = File('$projectRoot/ios/Flutter/$fileName');
+    if (!file.existsSync()) continue;
+
+    final content = file.readAsStringSync();
+    for (final match in pattern.allMatches(content)) {
+      final suffix = match.group(2) ?? '';
+      changes.add(
+        FileChange(
+          filePath: file.path,
+          type: ChangeType.replace,
+          description: 'iOS PRODUCT_BUNDLE_IDENTIFIER (flavor xcconfig)',
+          oldValue: match.group(0)!,
+          newValue: '${match.group(1)}$newIosBundleId$suffix',
+        ),
+      );
+    }
   }
 }
 
@@ -674,6 +748,10 @@ bool _confirmApply(int changeCount) {
 /// Starter Kit 의 앱 ID(Android package · iOS Bundle ID · Firebase 설정
 /// 스크립트 상수 · appName)를 변경하는 CLI 스크립트.
 ///
+/// iOS Bundle ID 는 `project.pbxproj` 와 사용자 xcconfig
+/// (`ios/Flutter/{dev,stg,prod}.xcconfig`)에서 바꾸고, 킷 추적
+/// `*.example.xcconfig` · `config/*.example.json` 은 바꾸지 않는다.
+///
 /// Dart 패키지명(`flutter_starter_kit`)과 import 는 바꾸지 않는다(D-34).
 ///
 /// 사용법:
@@ -689,7 +767,8 @@ void main(List<String> arguments) {
       'name',
       help:
           'App ID segment in snake_case (e.g., my_app) — Android package '
-          'tail, Kotlin dir, iOS bundle (lowerCamel), appName. '
+          'tail, Kotlin dir, iOS bundle (lowerCamel; project.pbxproj and '
+          'ios/Flutter/{dev,stg,prod}.xcconfig), appName. '
           'The Dart package name stays flutter_starter_kit.',
     )
     ..addOption(
