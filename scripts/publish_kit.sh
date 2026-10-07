@@ -145,6 +145,9 @@ RE_CHANNEL_MESSAGE='(client_id |Channel )[0-9]{10}'
 RE_SESSION='^Claude-Session:'
 RE_EMAIL='[A-Za-z0-9._%+-]+@(naver|gmail)\.com'
 RE_PLANNING_PATH='^"?\.planning/'
+# 제외 경로 불변식은 규칙 파일(mirror-exclude-paths.txt — skill 은 sketch-findings 한 디렉터리)보다
+# 넓게 `.claude/skills/` 전체를 금지한다. 의도다 — 새 skill 은 공개 전에 다시 검토하고, 공개해도
+# 되면 규칙 · 이 정규식을 함께 바꾼다. 그 전에는 scan 이 excluded-paths 로 멈춘다.
 RE_EXCLUDED_PATH='^"?(CLAUDE\.md|\.claude/rules/docs-user-manual\.md|\.claude/settings\.json)"?$|^"?\.claude/skills/'
 
 # 표준입력에서 ERE $1 에 맞는 줄 수를 출력한다 — 일치한 줄 자체는 출력하지 않는다.
