@@ -43,8 +43,13 @@ bool _isExcluded(String path, List<String> excluded) => excluded.any(
   (String prefix) => path == prefix || path.startsWith('$prefix/'),
 );
 
-/// 마크다운 링크 대상 `](…)` 안에 `.planning/` 이 든 패턴.
-final RegExp _planningLink = RegExp(r'\]\([^)\n]*\.planning/[^)\n]*\)');
+/// 마크다운 링크 대상에 `.planning/` 이 든 패턴 — 인라인 링크 `](…)` 와 참조식 링크
+/// 정의 줄 `[label]: <대상>`(앞 공백 0~3칸) 둘 다 본다. 정의 줄은 대상 토큰(공백 전까지)만
+/// 보므로 뒤따르는 제목 문자열의 `.planning/` 은 잡지 않는다(IN-10).
+final RegExp _planningLink = RegExp(
+  r'\]\([^)\n]*\.planning/[^)\n]*\)|^ {0,3}\[[^\]\n]+\]:[ \t]*\S*\.planning/',
+  multiLine: true,
+);
 
 Map<String, dynamic> _readJson(String path) =>
     jsonDecode(readTrackedFile(path)) as Map<String, dynamic>;
@@ -66,6 +71,13 @@ void main() {
     test('T-174-HYG-02: 공개 대상 *.md 에 .planning/ 링크 대상이 0건 (양성 대조 포함)', () {
       expect(_planningLink.hasMatch('[x](../.planning/a.md)'), isTrue);
       expect(_planningLink.hasMatch('[x](docs/a.md) `.planning/` 설명'), isFalse);
+      expect(_planningLink.hasMatch('본문\n[spec]: .planning/a.md\n'), isTrue);
+      expect(_planningLink.hasMatch('  [spec]: <../.planning/a.md>'), isTrue);
+      expect(
+        _planningLink.hasMatch('[spec]: docs/a.md ".planning/ 설명"'),
+        isFalse,
+      );
+      expect(_planningLink.hasMatch('본문 [spec]: .planning/a.md'), isFalse);
 
       final List<String> excluded = _readExcludedPaths();
       expect(excluded, isNotEmpty);
