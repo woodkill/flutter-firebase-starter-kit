@@ -11,7 +11,15 @@
 #   bash scripts/publish_kit.sh mirror     # origin master fresh clone → 이력 필터 → main 개명
 #   bash scripts/publish_kit.sh scan       # mirror 이력의 킷 불변식 + gitleaks
 #   bash scripts/publish_kit.sh check      # 공개 저장소 main · v* 태그가 재생성 main 의 조상인지
+#   bash scripts/publish_kit.sh rules-hash # 규칙 3파일 + mirror 레시피 블록의 sha256 4줄(파일을 쓰지 않는다)
 #   순서: mirror → scan → check
+#
+# 동결 (D-12):
+#   .planning/release/rules.sha256 이 규칙 3파일과 이 스크립트의 mirror 레시피 블록
+#   (`# MIRROR-RECIPE-BEGIN` ~ `# MIRROR-RECIPE-END`)의 sha256 을 담는다. mirror 는 시작할 때
+#   rules-hash 결과와 이 파일을 바이트로 비교해 다르면 clone 전에 멈춘다. rc.1 발행 뒤에는
+#   규칙 · 레시피를 바꾸지 않는다(바꾸면 공개 이력 전체의 해시가 달라진다). rc.1 전 의도한
+#   변경이면: bash scripts/publish_kit.sh rules-hash > .planning/release/rules.sha256
 #
 # 출력 계약:
 #   - mirror 마지막 줄: MIRROR OK main=<40자 해시> commits=<N> (앞 줄 `tools: git=… filter-repo=…`)
@@ -46,12 +54,13 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-usage: bash scripts/publish_kit.sh [mirror|scan|check]
+usage: bash scripts/publish_kit.sh [mirror|scan|check|rules-hash]
 
   인자 없이 실행하면 할 일만 출력한다. 서브커맨드는 이 순서로 돈다:
     mirror  origin master 를 fresh clone 해 이력을 필터하고 main 으로 개명한다
     scan    mirror 이력의 킷 불변식(제외 경로 · 치환 대상 0)과 gitleaks 를 검사한다
     check   공개 저장소의 main · v* 태그가 재생성한 main 의 조상인지 확인한다
+  rules-hash  규칙 3파일 + mirror 레시피 블록의 sha256 4줄을 출력한다(동결본 rules.sha256 재생성용)
   환경변수: KIT_PUBLISH_ORIGIN · KIT_PUBLISH_PUBLIC · KIT_PUBLISH_WORK (테스트 · 리허설 대역용)
 USAGE
 }
@@ -69,7 +78,7 @@ fi
 
 CMD="${1:-}"
 case "$CMD" in
-  "" | mirror | scan | check) ;;
+  "" | mirror | scan | check | rules-hash) ;;
   *)
     usage >&2
     exit 2
@@ -79,6 +88,7 @@ esac
 # 저장소 루트는 스크립트 위치 기준으로 찾는다 — 어느 디렉터리에서 실행해도 같은 파일을 읽는다.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RULES="$ROOT/.planning/release"
+SELF="$ROOT/scripts/publish_kit.sh"
 ORIGIN="${KIT_PUBLISH_ORIGIN:-git@github.com:woodkill/flutter_starter_kit.git}"
 PUBLIC="${KIT_PUBLISH_PUBLIC:-git@github.com:woodkill/flutter-firebase-starter-kit.git}"
 WORK="${KIT_PUBLISH_WORK:-$ROOT/build/publish}"
@@ -171,8 +181,41 @@ drop_public_refs() {
     git -C "$MIRROR" update-ref --stdin
 }
 
+# 규칙 3파일 + mirror 레시피 블록의 sha256 4줄을 `shasum -a 256` 형식으로 출력한다.
+# 경로는 저장소 루트 기준이고, 넷째 줄 이름은 scripts/publish_kit.sh#MIRROR-RECIPE 이다.
+print_rules_hash() {
+  local f sum begin end
+  for f in mirror-exclude-paths.txt mirror-replace-text.txt mirror-replace-message.txt; do
+    sum=$(shasum -a 256 < "$RULES/$f") || fail "sha256 계산 실패: .planning/release/$f"
+    printf '%s  %s\n' "${sum%% *}" ".planning/release/$f"
+  done
+  begin=$(grep -c -x -F '# MIRROR-RECIPE-BEGIN' "$SELF") || true
+  end=$(grep -c -x -F '# MIRROR-RECIPE-END' "$SELF") || true
+  if [ "$begin" != 1 ] || [ "$end" != 1 ]; then
+    fail "scripts/publish_kit.sh 의 mirror 레시피 표시 줄이 각 1줄이 아니다"
+  fi
+  sum=$(sed -n '/^# MIRROR-RECIPE-BEGIN$/,/^# MIRROR-RECIPE-END$/p' "$SELF" | shasum -a 256) ||
+    fail "sha256 계산 실패: mirror 레시피 블록"
+  printf '%s  %s\n' "${sum%% *}" "scripts/publish_kit.sh#MIRROR-RECIPE"
+}
+
+# mirror 레시피 — clone 옵션(입력 ref 집합) · 이력 필터 인자 · main 개명. 결정성 입력이라
+# 표시 줄 사이 전체가 rules.sha256 으로 동결된다. 실패 사유는 호출부가 종료 코드로 붙인다.
+run_recipe() {
+# MIRROR-RECIPE-BEGIN
+  git clone --quiet --no-local --branch master --single-branch --no-tags "$ORIGIN" "$MIRROR" || return 1
+  ( cd "$MIRROR" && git filter-repo --paths-from-file "$RULES/mirror-exclude-paths.txt" --invert-paths --replace-text "$RULES/mirror-replace-text.txt" --replace-message "$RULES/mirror-replace-message.txt" ) > "$WORK/filter-repo.log" 2>&1 || return 2
+  git -C "$MIRROR" branch -m master main || return 3
+# MIRROR-RECIPE-END
+}
+
 cmd_mirror() {
-  local remote local_master refs main count git_version filter_version
+  local remote local_master refs main count git_version filter_version recipe_status
+
+  # 동결 비교가 가장 먼저다 — 규칙 · 레시피가 바뀌었으면 도구 · origin 을 보기 전에 멈춘다.
+  if ! print_rules_hash | cmp -s - "$RULES/rules.sha256"; then
+    fail "규칙이 동결본(rules.sha256)과 다르다 — rc.1 뒤에는 규칙을 바꾸지 않는다. rc.1 전 의도한 변경이면 bash scripts/publish_kit.sh rules-hash > .planning/release/rules.sha256"
+  fi
 
   command -v git-filter-repo >/dev/null 2>&1 ||
     fail "git-filter-repo 가 PATH 에 없다 — 설치: brew install git-filter-repo"
@@ -190,9 +233,14 @@ cmd_mirror() {
   rm -rf "$MIRROR"
   mkdir -p "$WORK"
 
-  git clone --quiet --no-local --branch master --single-branch --no-tags "$ORIGIN" "$MIRROR" || fail "origin clone 실패: $ORIGIN"
-  ( cd "$MIRROR" && git filter-repo --paths-from-file "$RULES/mirror-exclude-paths.txt" --invert-paths --replace-text "$RULES/mirror-replace-text.txt" --replace-message "$RULES/mirror-replace-message.txt" ) > "$WORK/filter-repo.log" 2>&1 || fail "이력 필터 실패 — $WORK/filter-repo.log"
-  git -C "$MIRROR" branch -m master main || fail "main 개명 실패"
+  recipe_status=0
+  run_recipe || recipe_status=$?
+  case "$recipe_status" in
+    0) ;;
+    1) fail "origin clone 실패: $ORIGIN" ;;
+    2) fail "이력 필터 실패 — $WORK/filter-repo.log" ;;
+    *) fail "main 개명 실패" ;;
+  esac
 
   # 이력 필터가 조용히 아무것도 안 하는 경우(fresh clone 검사)를 메타데이터로 잡는다(Pitfall 2).
   [ -f "$MIRROR/.git/filter-repo/commit-map" ] ||
@@ -363,4 +411,5 @@ case "$CMD" in
   mirror) cmd_mirror ;;
   scan) cmd_scan ;;
   check) cmd_check ;;
+  rules-hash) print_rules_hash ;;
 esac
