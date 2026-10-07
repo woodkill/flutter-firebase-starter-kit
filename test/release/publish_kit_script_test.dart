@@ -201,6 +201,8 @@ String _writeGitleaksStub(_Sandbox sb, {required bool findings}) {
 /// 허용 서브커맨드는 무인자 · scan · check · push · release 뿐이고 `--apply` 는
 /// 금지다. [argErrorOnly] 는 인자 파서가 exit 2 로 거부해야 하는 호출(알 수 없는
 /// 서브커맨드 · 잘못된 인자)에만 쓴다. mirror · verify 는 어떤 경우에도 막는다.
+/// `--apply` 는 [argErrorOnly] 호출에서도 인자 3개 이상(파서가 인자 수로 거부하는
+/// 모양)일 때만 넘긴다 — 가드가 스크립트 동작이 아니라 테스트 자신에 있게 한다(IN-09).
 /// [stubBin] 은 PATH 앞에 붙이고, [pathOverride] 는 PATH 를 통째로 그 값으로 바꾼다
 /// (도구 부재 시나리오용 — 둘 다 주면 [pathOverride] 가 이긴다).
 ProcessResult _runKit(
@@ -224,7 +226,14 @@ ProcessResult _runKit(
       isTrue,
       reason: '허용되지 않은 서브커맨드: $first',
     );
-    expect(args.contains('--apply'), isFalse, reason: '--apply 는 부르지 않는다');
+  }
+  if (args.contains('--apply')) {
+    // 스크립트는 push · release 의 인자가 2개를 넘으면 실행 전에 exit 2 로 거부한다.
+    expect(
+      argErrorOnly && args.length > 2,
+      isTrue,
+      reason: '--apply 는 인자 파서가 인자 수로 거부하는 모양으로만 넘긴다: $args',
+    );
   }
   final Map<String, String> env = <String, String>{
     ..._gitEnv(),
