@@ -348,6 +348,10 @@ cmd_scan() {
   local names patch messages head n name failed report_count
   main=$(mirror_main)
   rm -f "$WORK/scan.ok"
+  # 전제 도구를 먼저 확인한다(verify 와 같은 모양) — jq 는 gitleaks 보고서 건수를 셀 때 쓴다.
+  # 없으면 그 자리에서 실제 원인을 사유로 멈춘다(보고서 읽기 실패로 잘못 보고하지 않는다).
+  command -v gitleaks >/dev/null 2>&1 || fail "gitleaks 가 PATH 에 없다 — 설치: brew install gitleaks"
+  command -v jq >/dev/null 2>&1 || fail "jq 가 PATH 에 없다 — 설치: brew install jq"
 
   names="$WORK/scan-names.txt"
   patch="$WORK/scan-patch.txt"
@@ -429,7 +433,6 @@ cmd_scan() {
   [ -z "$failed" ] || fail "공개 이력 불변식 위반 —$failed"
 
   # gitleaks — 설정은 기본 탐색(mirror 루트의 .gitleaks.toml)을 따른다. 결과는 가려서(--redact) 파일로만.
-  command -v gitleaks >/dev/null 2>&1 || fail "gitleaks 가 PATH 에 없다 — 설치: brew install gitleaks"
   if gitleaks git "$MIRROR" --no-banner --redact --report-format json --report-path "$WORK/gitleaks.json" > "$WORK/gitleaks.log" 2>&1; then
     echo "invariant: gitleaks=0"
     printf '%s\n' "$main" > "$WORK/scan.ok"
