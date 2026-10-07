@@ -492,9 +492,10 @@ void _collectConfigChanges(
   String newAppName,
   List<FileChange> changes,
 ) {
-  // appName 패턴: "appName": "..." -- 현재 값에 suffix가 붙을 수 있음
-  // JSON 파일마다 공백 유무가 다를 수 있으므로 매칭된 전체 문자열을 사용
-  final pattern = RegExp(r'"appName"\s*:\s*"([^"]*)"');
+  // appName 패턴: "appName": "..." -- 현재 값에 suffix가 붙을 수 있음.
+  // JSON 파일마다 공백 유무가 다르므로 group 1(키 · 구분자 · 여는 따옴표)을
+  // 그대로 남겨 사용자 포맷을 보존한다. group 2 = 현재 값.
+  final pattern = RegExp(r'("appName"\s*:\s*")([^"]*)"');
 
   for (final fileName in userConfigFileNames) {
     final file = File('$projectRoot/config/$fileName');
@@ -505,7 +506,8 @@ void _collectConfigChanges(
     if (match == null) continue;
 
     final fullMatch = match.group(0)!;
-    final currentValue = match.group(1)!;
+    final keyAndSeparator = match.group(1)!;
+    final currentValue = match.group(2)!;
     // flavor suffix 추출 (예: "StarterKit Dev" -> " Dev")
     final suffix = currentValue.startsWith(currentAppName)
         ? currentValue.substring(currentAppName.length)
@@ -516,7 +518,7 @@ void _collectConfigChanges(
         type: ChangeType.replace,
         description: 'Flavor appName',
         oldValue: fullMatch,
-        newValue: '"appName":"$newAppName$suffix"',
+        newValue: '$keyAndSeparator$newAppName$suffix"',
       ),
     );
   }

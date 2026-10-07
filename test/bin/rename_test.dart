@@ -434,6 +434,35 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       }
     });
 
+    test('config/*.json appName 의 키 · 값 사이 공백을 그대로 둔다', () {
+      // 사용자가 포맷한 JSON — 키와 값 사이에 공백이 있다
+      final stgJson = File('${tempDir.path}/config/stg.json')
+        ..writeAsStringSync(
+          '{\n'
+          '  "flavor": "stg",\n'
+          '  "appName": "StarterKit Stg",\n'
+          '  "appSuffix": ".stg"\n'
+          '}\n',
+        );
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      applyChanges(changes.where((c) => c.type == ChangeType.replace).toList());
+
+      expect(
+        stgJson.readAsStringSync(),
+        '{\n'
+        '  "flavor": "stg",\n'
+        '  "appName": "My App Stg",\n'
+        '  "appSuffix": ".stg"\n'
+        '}\n',
+      );
+      expect(
+        File('${tempDir.path}/config/dev.json').readAsStringSync(),
+        '{"flavor":"dev","appName":"My App Dev","appSuffix":".dev"}\n',
+        reason: '공백 없는 JSON 은 공백 없이 남는다',
+      );
+    });
+
     test('Kotlin 디렉토리 이동과 package 선언 변경을 포함한다', () {
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
 
