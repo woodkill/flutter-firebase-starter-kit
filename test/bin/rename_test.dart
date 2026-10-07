@@ -1046,6 +1046,21 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(result.exitCode, 0);
       expect(result.stdout, isNot(contains('[y/N]')));
       expect(result.stdout, contains('Done!'));
+      // 빌드 검증 안내는 flavor 를 준다 — productFlavors 가 있어 flavor 없는
+      // build 는 실패한다
+      expect(
+        result.stdout,
+        contains(
+          'fvm flutter build apk --debug --flavor dev '
+          '--dart-define-from-file=config/dev.json',
+        ),
+      );
+      expect(result.stdout, contains('--flavor stg'));
+      expect(
+        result.stdout,
+        isNot(contains('fvm flutter build apk --debug\n')),
+        reason: 'flavor 없는 빌드 명령을 안내하지 않는다',
+      );
       // F1 회귀 가드: --apply --yes 경로도 printDryRun을 먼저 호출하므로
       // stdout에 FileChange.description이 흐른다. 한글 유니코드 블록 전체 차단.
       expect(

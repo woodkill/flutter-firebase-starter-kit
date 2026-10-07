@@ -1011,5 +1011,20 @@ void main(List<String> arguments) {
   stdout.writeln(
     '  2. fvm dart run build_runner build --delete-conflicting-outputs',
   );
-  stdout.writeln('  3. Build verification: fvm flutter build apk --debug');
+  // flavor 가 없는 빌드는 productFlavors 를 둔 이 프로젝트에서 실패한다.
+  // dev 는 firebase-configure.sh 가 만드는 google-services.json 이 필요하므로
+  // 키 없이 빌드되는 stg placeholder 경로를 함께 안내한다.
+  stdout.writeln('  3. Build verification:');
+  stdout.writeln(
+    '     fvm flutter build apk --debug --flavor dev '
+    '--dart-define-from-file=config/dev.json',
+  );
+  stdout.writeln(
+    '     (run ./scripts/firebase-configure.sh dev first; to build without '
+    'Firebase keys, use',
+  );
+  stdout.writeln(
+    '     fvm flutter build apk --debug --flavor stg '
+    '--dart-define-from-file=config/stg.example.json)',
+  );
 }
