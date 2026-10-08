@@ -61,7 +61,7 @@ final RegExp _tocEntryPattern = RegExp(
 
 /// 새 항목 바로 앞에 있어야 하는 목차 항목(작업 순서상 이메일 절의 마지막).
 final RegExp _previousTocEntryPattern = RegExp(
-  r'^\d+\. \[인증 메일 발송 모드 켜고 끄기\]\(#인증-메일-발송-모드-켜고-끄기\)$',
+  r'^\d+\. \[인증 결과 페이지 바꾸기\]\(#인증-결과-페이지-바꾸기\)$',
 );
 
 /// 「시작하기 — template」 의 기준점 명령 4줄 (정확한 줄).
@@ -293,7 +293,7 @@ void main() {
       expect(
         _previousTocEntryPattern.hasMatch(tocLines[entryIndex - 1]),
         isTrue,
-        reason: '「킷 업데이트 반영」 항목이 「인증 메일 발송 모드 켜고 끄기」 바로 다음이 아니다',
+        reason: '「킷 업데이트 반영」 항목이 「인증 결과 페이지 바꾸기」 바로 다음이 아니다',
       );
     });
 

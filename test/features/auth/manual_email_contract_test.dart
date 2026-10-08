@@ -1,20 +1,23 @@
 // 매뉴얼 이메일 절 계약 (Phase 17.5 — see ROADMAP.md).
-// 「인증 결과 페이지 바꾸기」 · 「인증 메일 발송 모드 켜고 끄기」 두 절의 위치 ·
+// 「인증 메일 발송 모드 켜고 끄기」 · 「인증 결과 페이지 바꾸기」 두 절의 위치 ·
 // 사용자 문서 금지 패턴 · 명령 · 예시 일치 · 링크 계약.
 //
 // T-175-DOCS-01: 「인증 결과 페이지 바꾸기」 헤딩 1개 · 목차 항목 1개 · 목차에서
-//   「로그인 수단 켜고 끄기」 바로 다음이다.
+//   「인증 메일 발송 모드 켜고 끄기」 바로 다음이다(결과 페이지는 kit 모드 전용).
 // T-175-DOCS-02: 절에 금지 패턴 · 문의 채널 단어가 0 건이고, hosting 배포 명령
-//   (dry-run · `--apply`) · 작업 URL · 커스텀 도메인 공식 링크 · 로고 형식 ·
+//   (dry-run · `--apply`) · 발송 모드 절 링크 · 커스텀 도메인 공식 링크 · 로고 형식 ·
 //   example 파일과 같은 `appName` · `brandColor` 줄 · 인자 없는 deploy 금지 문장이
 //   있으며 `###` 소절이 템플릿 순서 그대로다.
 // T-175-DOCS-03: 「인증 메일 발송 모드 켜고 끄기」 헤딩 1개 · 목차 항목 1개 · 목차와
-//   본문 순서가 로그인 수단 → 결과 페이지 → 발송 모드 → 킷 업데이트 반영이다.
+//   본문 순서가 로그인 수단 → 발송 모드 → 결과 페이지 → 킷 업데이트 반영이다.
 // T-175-DOCS-04: 「로그인 수단 켜고 끄기」 「켜기」 ⑤ 가 kit 모드 메일 함수를 말하고,
 //   발송 모드 절에 금지 패턴 · 문의 채널 단어 · 강제 옵션 · secret 반복문이 0 건이며,
 //   서비스 중립 문장이 Resend 예시보다 앞이고, 명령(확장 값 복사 · kit 배포 · TTL ·
-//   함수 배포 · 확장 삭제) · DMARC 최소 레코드 · Gmail · Yahoo 공식 링크 · example
-//   파일과 같은 확장 값 줄 · 금지 문장이 있다.
+//   함수 배포 · 확장 삭제) · DMARC 최소 레코드 · Gmail · Yahoo 공식 링크 · Hosting
+//   기본 사이트 안내 · 결과 페이지 env · Firebase 기본 페이지 서술 · example 파일과
+//   같은 확장 값 줄 · 금지 문장이 있다.
+// T-175-DOCS-05: 옛 전제 문구(Console 메일 링크 주소 · 모드 무관 · 이메일 주소 복원 ·
+//   결과 페이지 생략 가능 · callbackUri)가 매뉴얼 전체와 CHANGELOG 에 0 건이다.
 
 import 'dart:convert';
 
@@ -24,6 +27,9 @@ import '../../helpers/source_text.dart';
 
 /// 매뉴얼 경로.
 const String _manualPath = 'docs/manual.md';
+
+/// CHANGELOG 경로(킷 판별 변경 사항 — 옛 전제 문구 0 단언 대상).
+const String _changelogPath = 'CHANGELOG.md';
 
 /// config 예시 파일(예시 값의 진실원).
 const String _exampleConfigPath = 'config/dev.example.json';
@@ -58,12 +64,13 @@ final RegExp _resultPageTocPattern = RegExp(
   r'^\d+\. \[인증 결과 페이지 바꾸기\]\(#인증-결과-페이지-바꾸기\)$',
 );
 
-/// 「인증 결과 페이지 바꾸기」 바로 앞에 있어야 하는 목차 항목.
+/// 「로그인 수단 켜고 끄기」 목차 항목 줄.
 final RegExp _providerTocPattern = RegExp(
   r'^\d+\. \[로그인 수단 켜고 끄기\]\(#로그인-수단-켜고-끄기\)$',
 );
 
-/// 「인증 메일 발송 모드 켜고 끄기」 목차 항목 줄.
+/// 「인증 메일 발송 모드 켜고 끄기」 목차 항목 줄 — 「인증 결과 페이지 바꾸기」
+/// 바로 앞에 있어야 한다.
 final RegExp _deliveryTocPattern = RegExp(
   r'^\d+\. \[인증 메일 발송 모드 켜고 끄기\]\(#인증-메일-발송-모드-켜고-끄기\)$',
 );
@@ -97,9 +104,8 @@ const List<String> _resultPageCommandLines = <String>[
 /// 「인증 결과 페이지 바꾸기」 절에 있어야 하는 토큰.
 const List<String> _resultPageTokens = <String>[
   'https://<your-project-id>.web.app/',
-  '작업 URL 맞춤설정',
+  '](#인증-메일-발송-모드-켜고-끄기)',
   'https://firebase.google.com/docs/hosting/custom-domain',
-  'https://firebase.google.com/docs/hosting/default-site',
   '승인된 도메인',
   'App Check',
   '`hosting/public/logo.png`',
@@ -157,6 +163,23 @@ const List<String> _deliveryTokens = <String>[
   '`delivery.error`',
   '`functions/src/email/copy.json`',
   '](#인증-결과-페이지-바꾸기)',
+  'https://firebase.google.com/docs/hosting/default-site',
+  '`EMAIL_RESULT_PAGE_URL`',
+  'Firebase 기본 페이지',
+  'https://<your-project-id>.web.app/',
+];
+
+/// 결과 페이지의 옛 전제 문구 — 매뉴얼 전체 · CHANGELOG 에 0 건이어야 한다.
+///
+/// Console 의 메일 링크 주소 변경 단계 · 결과 페이지가 발송 모드와 무관하다는
+/// 서술 · 이메일 주소 복원 화면 · 결과 페이지 없이도 된다는 서술 · Console 설정
+/// 이름이 다시 들어오는 것을 막는다.
+const List<String> _staleResultPagePhrases = <String>[
+  '작업 URL',
+  '발송 모드와 상관없이',
+  '이메일 주소 복원',
+  '결과 페이지를 바꾸지 않아도',
+  'callbackUri',
 ];
 
 /// 서비스 중립 문장 — Resend 예시보다 먼저 나온다.
@@ -208,7 +231,7 @@ void main() {
   );
 
   group('매뉴얼 「인증 결과 페이지 바꾸기」 계약 (T-175-DOCS)', () {
-    test('T-175-DOCS-01: 헤딩 1개 · 목차 항목 1개 · 로그인 수단 항목 다음이다', () {
+    test('T-175-DOCS-01: 헤딩 1개 · 목차 항목 1개 · 발송 모드 항목 다음이다', () {
       expect(
         countExactLines(manual, _resultPageHeading),
         1,
@@ -221,11 +244,11 @@ void main() {
         reason: '목차 블록 안 「인증 결과 페이지 바꾸기」 항목이 없거나 중복이다',
       );
       expect(
-        _providerTocPattern.hasMatch(
+        _deliveryTocPattern.hasMatch(
           _readPreviousTocLine(toc, _resultPageTocPattern),
         ),
         isTrue,
-        reason: '「인증 결과 페이지 바꾸기」 항목이 「로그인 수단 켜고 끄기」 바로 다음이 아니다',
+        reason: '「인증 결과 페이지 바꾸기」 항목이 「인증 메일 발송 모드 켜고 끄기」 바로 다음이 아니다',
       );
     });
 
@@ -319,21 +342,21 @@ void main() {
 
       final List<int> tocOrder = <RegExp>[
         _providerTocPattern,
-        _resultPageTocPattern,
         _deliveryTocPattern,
+        _resultPageTocPattern,
         _kitUpdateTocPattern,
       ].map((RegExp entry) => tocLines.indexWhere(entry.hasMatch)).toList();
       expect(tocOrder.first, greaterThanOrEqualTo(0), reason: '목차 항목을 찾지 못했다');
       expect(
         tocOrder,
         List<int>.generate(4, (int i) => tocOrder.first + i),
-        reason: '목차가 로그인 수단 → 결과 페이지 → 발송 모드 → 킷 업데이트 반영으로 이어지지 않는다',
+        reason: '목차가 로그인 수단 → 발송 모드 → 결과 페이지 → 킷 업데이트 반영으로 이어지지 않는다',
       );
 
       final List<int> bodyOrder = <String>[
         _providerHeading,
-        _resultPageHeading,
         _deliveryHeading,
+        _resultPageHeading,
         _kitUpdateHeading,
       ].map((String heading) => _indexOfHeading(manual, heading)).toList();
       expect(bodyOrder.first, greaterThanOrEqualTo(0), reason: '본문 헤딩을 찾지 못했다');
@@ -352,10 +375,10 @@ void main() {
           .toList();
       expect(between, <String>[
         _providerHeading,
-        _resultPageHeading,
         _deliveryHeading,
+        _resultPageHeading,
         _kitUpdateHeading,
-      ]);
+      ], reason: '네 절 사이에 다른 ## 절이 있거나 순서가 다르다');
     });
 
     test('T-175-DOCS-04: kit 함수 문장 · 금지 0 · 명령 · 링크 · 예시 일치가 있다', () {
@@ -474,6 +497,33 @@ void main() {
           1,
           reason: '절의 확장 값 예시 줄이 example 파일과 다르다: $line',
         );
+      }
+    });
+  });
+
+  group('매뉴얼 · CHANGELOG 결과 페이지 옛 전제 문구 (T-175-DOCS)', () {
+    test('T-175-DOCS-05: 옛 전제 문구가 매뉴얼 · CHANGELOG 에 0 건이다', () {
+      // 양성 대조: 목록을 이은 문자열에서 첫 문구가 세어진다.
+      expect(
+        countOccurrences(
+          _staleResultPagePhrases.join(' '),
+          _staleResultPagePhrases.first,
+        ),
+        1,
+      );
+      final Map<String, String> sources = <String, String>{
+        _manualPath: manual,
+        _changelogPath: readTrackedFile(_changelogPath),
+      };
+      for (final MapEntry<String, String> source in sources.entries) {
+        expect(source.value.trim(), isNotEmpty, reason: '${source.key} 가 비었다');
+        for (final String phrase in _staleResultPagePhrases) {
+          expect(
+            countOccurrences(source.value, phrase),
+            0,
+            reason: '${source.key} 에 옛 전제 문구가 있다: $phrase',
+          );
+        }
       }
     });
   });
