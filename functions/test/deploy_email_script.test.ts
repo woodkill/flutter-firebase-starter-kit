@@ -1,5 +1,6 @@
 /**
- * `scripts/deploy_email.sh` 동작 검증 (Phase 17.5 D-02 · D-04 · D-09).
+ * `scripts/deploy_email.sh` 동작 검증 (Phase 17.5 D-02 · D-04 · D-05 · D-06 ·
+ * D-09 · D-14).
  *
  * 스크립트 · `hosting/`(public · build.mjs) · `functions/src/email/copy.json` ·
  * 추적 중인 확장 env 두 파일을 임시 디렉터리에 복사해(ROOT 는 스크립트 위치
@@ -38,6 +39,31 @@ const BASE_CONFIG: Record<string, unknown> = {
   appName: "Starter Kit",
   brandColor: "#673AB7",
 };
+
+/** 확장 env 파일 (sandbox 기준 경로) — 사용자가 예시에서 복사해 만드는 파일. */
+const EXT_ENV_REL = `extensions/firestore-send-email.env.${PROJECT_ID}`;
+
+/** 함수 env 파일 (sandbox 기준 경로) — kit --apply 가 브랜드 3줄을 쓴다. */
+const FN_ENV_REL = `functions/.env.${PROJECT_ID}`;
+
+/** 확장 env 값에 넣는 sentinel — 어떤 출력에도 나오면 안 된다. */
+const SMTP_SENTINEL = "SENTINEL_SMTP_175";
+
+/** 키 4개가 다 있는 확장 env (값에 sentinel 을 섞는다). */
+const VALID_EXT_ENV: Record<string, string> = {
+  DATABASE_REGION: "asia-northeast3",
+  DEFAULT_FROM: `"Kit <no-reply@${SMTP_SENTINEL}.example.com>"`,
+  SMTP_CONNECTION_URI: `smtps://${SMTP_SENTINEL}@smtp.example.com:465`,
+  SMTP_PASSWORD:
+    `projects/123/secrets/${SMTP_SENTINEL}_PASSWORD/versions/latest`,
+};
+
+/** 1×1 PNG — 로고 있음 케이스에서 sandbox 에 쓴다. */
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA" +
+    "60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 let sandbox = "";
 let fakeBin = "";
@@ -104,6 +130,36 @@ afterEach(() => {
  */
 function writeConfig(config: Record<string, unknown>): void {
   writeFileSync(join(sandbox, "config", "dev.json"), JSON.stringify(config));
+}
+
+/**
+ * sandbox 확장 env 파일을 쓴다.
+ * @param {Record<string, string>} entries 키 → 값 (값은 파일에 그대로 쓴다).
+ */
+function writeExtEnv(entries: Record<string, string>): void {
+  const body = Object.entries(entries)
+    .map(([key, value]) => `${key}=${value}\n`)
+    .join("");
+  writeFileSync(join(sandbox, EXT_ENV_REL), body);
+}
+
+/**
+ * sandbox 함수 env 파일 내용 (없으면 null).
+ * @return {string | null} 파일 내용.
+ */
+function readFnEnv(): string | null {
+  const file = join(sandbox, FN_ENV_REL);
+  return existsSync(file) ? readFileSync(file, "utf8") : null;
+}
+
+/**
+ * [text] 에서 [prefix] 로 시작하는 줄 수.
+ * @param {string} text 여러 줄 텍스트.
+ * @param {string} prefix 줄 머리.
+ * @return {number} 줄 수.
+ */
+function countLines(text: string, prefix: string): number {
+  return text.split("\n").filter((l) => l.startsWith(prefix)).length;
 }
 
 /**
@@ -258,5 +314,185 @@ describe("deploy_email.sh hosting", () => {
       expect(out).not.toContain("smtp");
       expect(out).not.toContain(sentinel);
     }
+  });
+});
+
+describe("deploy_email.sh kit", () => {
+  const KIT_CONFIG = {...BASE_CONFIG, emailDelivery: "kit"};
+
+  it.each([
+    ["모드 키 없음", BASE_CONFIG],
+    ["firebase", {...BASE_CONFIG, emailDelivery: "firebase"}],
+  ])("T-175-DEPLOY-06 firebase 모드(%s)에서 kit 은 FAIL", (_label, config) => {
+    writeConfig(config);
+    writeExtEnv(VALID_EXT_ENV);
+    for (const args of [["dev", "kit"], ["dev", "kit", "--apply"]]) {
+      const r = runScript(args);
+      expect(r.status).toBe(1);
+      expect(r.stderr.startsWith("FAIL:")).toBe(true);
+      expect(r.stderr).toContain("emailDelivery");
+      expect(r.stderr).toContain("kit");
+      expect(r.stdout).not.toContain("command:");
+    }
+    expect(existsSync(markerFile)).toBe(false);
+    expect(readFnEnv()).toBeNull();
+  });
+
+  it("T-175-DEPLOY-07a 확장 env 파일이 없으면 cp 안내와 함께 FAIL", () => {
+    writeConfig(KIT_CONFIG);
+    const r = runScript(["dev", "kit", "--apply"]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(
+      "cp extensions/firestore-send-email.env.example " + EXT_ENV_REL,
+    );
+    expect(existsSync(markerFile)).toBe(false);
+    expect(readFnEnv()).toBeNull();
+  });
+
+  it.each([
+    ["DATABASE_REGION 없음", "DATABASE_REGION", undefined],
+    ["DEFAULT_FROM 없음", "DEFAULT_FROM", undefined],
+    ["SMTP_CONNECTION_URI 없음", "SMTP_CONNECTION_URI", undefined],
+    ["SMTP_PASSWORD 없음", "SMTP_PASSWORD", undefined],
+    ["SMTP_CONNECTION_URI 빈 값", "SMTP_CONNECTION_URI", ""],
+    ["SMTP_PASSWORD 가 리소스 이름 아님", "SMTP_PASSWORD", SMTP_SENTINEL],
+    [
+      "SMTP_PASSWORD 자리표시 그대로",
+      "SMTP_PASSWORD",
+      "projects/<your-project-number>/secrets/x/versions/latest",
+    ],
+  ])("T-175-DEPLOY-07b 확장 env %s → 키 이름만 알리고 FAIL", (_l, key, value) => {
+    const entries = {...VALID_EXT_ENV};
+    if (value === undefined) {
+      delete entries[key];
+    } else {
+      entries[key] = value;
+    }
+    writeConfig(KIT_CONFIG);
+    writeExtEnv(entries);
+    const r = runScript(["dev", "kit", "--apply"]);
+    expect(r.status).toBe(1);
+    expect(r.stderr.startsWith("FAIL:")).toBe(true);
+    expect(r.stderr).toContain(key);
+    expect(r.stdout + r.stderr).not.toContain(SMTP_SENTINEL);
+    expect(existsSync(markerFile)).toBe(false);
+    expect(readFnEnv()).toBeNull();
+  });
+
+  it("T-175-DEPLOY-08 kit dry-run 은 env 3줄 · 확장 명령 · 다음 단계만 출력", () => {
+    writeConfig(KIT_CONFIG);
+    writeExtEnv(VALID_EXT_ENV);
+    const r = runScript(["dev", "kit"]);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("mode: kit\n");
+    expect(r.stdout).toContain("target: kit\n");
+    expect(linesWith(r.stdout, "env: ")).toEqual([
+      "env: EMAIL_APP_NAME=\"Starter Kit\"",
+      "env: EMAIL_BRAND_COLOR=\"#673AB7\"",
+      "env: EMAIL_LOGO_URL=\"\"",
+    ]);
+    expect(linesWith(r.stdout, "command: ")).toEqual([
+      `command: firebase deploy --project ${PROJECT_ID} --only extensions`,
+    ]);
+    expect(linesWith(r.stdout, "next: ")).toEqual([
+      "next: bash scripts/deploy_functions.sh dev --apply",
+      "next: gcloud firestore fields ttls update delivery.expireAt " +
+        `--collection-group=mail --enable-ttl --project ${PROJECT_ID}`,
+    ]);
+    expect(lastLine(r.stdout)).toBe("DRY-RUN OK dev target=kit mode=kit");
+    expect(readFnEnv()).toBeNull();
+    expect(existsSync(markerFile)).toBe(false);
+    expect(r.stdout + r.stderr).not.toContain(SMTP_SENTINEL);
+  });
+
+  it("T-175-DEPLOY-09 kit --apply 는 브랜드 3줄만 바꾸고 확장을 배포한다", () => {
+    writeConfig(KIT_CONFIG);
+    writeExtEnv(VALID_EXT_ENV);
+    writeFileSync(
+      join(sandbox, FN_ENV_REL),
+      "# 사용자 주석\n" +
+        "SEND_TEST_PUSH_ENABLED=true\n" +
+        "EMAIL_APP_NAME=\"Old\"\n" +
+        "export EMAIL_LOGO_URL=\"https://old.example.com/x.png\"\n",
+    );
+    const r = runScript(["dev", "kit", "--apply"]);
+    expect(r.status).toBe(0);
+    const env = readFnEnv() ?? "";
+    expect(env).toBe(
+      "# 사용자 주석\n" +
+        "SEND_TEST_PUSH_ENABLED=true\n" +
+        "EMAIL_APP_NAME=\"Starter Kit\"\n" +
+        "EMAIL_BRAND_COLOR=\"#673AB7\"\n" +
+        "EMAIL_LOGO_URL=\"\"\n",
+    );
+    expect(countLines(env, "SEND_TEST_PUSH_ENABLED=true")).toBe(1);
+    expect(countLines(env, "EMAIL_APP_NAME=")).toBe(1);
+    expect(countLines(env, "EMAIL_BRAND_COLOR=")).toBe(1);
+    expect(countLines(env, "EMAIL_LOGO_URL=")).toBe(1);
+    expect(readCalls()).toEqual([
+      ["deploy", "--project", PROJECT_ID, "--only", "extensions"],
+    ]);
+    expect(linesWith(r.stdout, "next: ")).toHaveLength(2);
+    expect(lastLine(r.stdout)).toBe("DEPLOY OK dev target=kit mode=kit");
+    expect(r.stdout + r.stderr).not.toContain(SMTP_SENTINEL);
+    expect(readFileSync(invocationLog, "utf8")).not.toContain(SMTP_SENTINEL);
+  });
+
+  it("T-175-DEPLOY-10a 로고 파일이 있으면 Hosting 절대 URL, 없으면 빈 값", () => {
+    writeConfig(KIT_CONFIG);
+    writeExtEnv(VALID_EXT_ENV);
+    const without = runScript(["dev", "kit", "--apply"]);
+    expect(without.status).toBe(0);
+    expect(readFnEnv()).toContain("EMAIL_LOGO_URL=\"\"\n");
+
+    writeFileSync(join(sandbox, "hosting", "public", "logo.png"), TINY_PNG);
+    const withLogo = runScript(["dev", "kit", "--apply"]);
+    expect(withLogo.status).toBe(0);
+    expect(readFnEnv()).toContain(
+      `EMAIL_LOGO_URL="https://${PROJECT_ID}.web.app/logo.png"\n`,
+    );
+  });
+
+  it.each([
+    ["형식 오류", "blue", "#673AB7", true],
+    ["앞뒤 공백", " #00FF00", "#673AB7", true],
+    ["키 없음", undefined, "#673AB7", false],
+    ["빈 값", "", "#673AB7", false],
+    ["소문자 유효", "#abcdef", "#abcdef", false],
+  ])(
+    "T-175-DEPLOY-10b brandColor %s → 정규화 · 형식 오류만 warn",
+    (_label, color, expected, warns) => {
+      const config: Record<string, unknown> = {...KIT_CONFIG};
+      if (color === undefined) {
+        delete config.brandColor;
+      } else {
+        config.brandColor = color;
+      }
+      writeConfig(config);
+      writeExtEnv(VALID_EXT_ENV);
+      const r = runScript(["dev", "kit", "--apply"]);
+      expect(r.status).toBe(0);
+      expect(readFnEnv()).toContain(`EMAIL_BRAND_COLOR="${expected}"\n`);
+      expect(countLines(r.stderr, "warn: ")).toBe(warns ? 1 : 0);
+    },
+  );
+
+  it.each([
+    ["큰따옴표", "A\"B"],
+    ["달러", "A$B"],
+    ["역슬래시", "A\\B"],
+    ["백틱", "A`B"],
+    ["줄바꿈", "A\nB"],
+    ["빈 값", ""],
+    ["공백만", "   "],
+  ])("T-175-DEPLOY-10c appName %s 는 FAIL", (_label, appName) => {
+    writeConfig({...KIT_CONFIG, appName});
+    writeExtEnv(VALID_EXT_ENV);
+    const r = runScript(["dev", "kit", "--apply"]);
+    expect(r.status).toBe(1);
+    expect(r.stderr.startsWith("FAIL:")).toBe(true);
+    expect(r.stderr).toContain("appName");
+    expect(existsSync(markerFile)).toBe(false);
+    expect(readFnEnv()).toBeNull();
   });
 });

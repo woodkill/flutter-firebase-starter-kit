@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
-# Phase 17.5 D-02 · D-04 · D-09 — 인증 결과 페이지(Hosting)를 배포하는 스크립트.
+# Phase 17.5 D-02 · D-04 · D-05 · D-06 · D-09 · D-14 — 인증 메일 표면을 배포하는 스크립트.
 #
 # 목적:
-#   config/<flavor>.json 을 읽어 결과 페이지를 빌드(hosting/build.mjs)한 뒤 표준
-#   `firebase deploy --project <id> --only hosting` 명령을 출력 · 실행한다.
-#   결과 페이지는 발송 모드(emailDelivery)와 독립이다 — firebase · kit 둘 다 배포할 수 있다.
+#   hosting — config/<flavor>.json 을 읽어 인증 결과 페이지를 빌드(hosting/build.mjs)한 뒤
+#             표준 `firebase deploy --project <id> --only hosting` 명령을 출력 · 실행한다.
+#             결과 페이지는 발송 모드(emailDelivery)와 독립이다 — firebase · kit 둘 다 된다.
+#   kit     — emailDelivery 가 kit 일 때만 동작한다(원칙 P · 「off 면 설정 0」).
+#             ① 메일 함수가 쓰는 브랜드 env 3줄(EMAIL_APP_NAME · EMAIL_BRAND_COLOR ·
+#             EMAIL_LOGO_URL)을 config 에서 만들어 functions/.env.<projectId> 에 쓴다 —
+#             함수는 config 를 읽지 못하고 env 는 배포 때만 실린다.
+#             ② Trigger Email 확장을 `firebase deploy --project <id> --only extensions` 로 배포한다.
+#             kit 메일 함수 배포는 scripts/deploy_functions.sh 가 맡는다(함수 목록 진실원 1곳).
 #
 # 사용법:
-#   bash scripts/deploy_email.sh <dev|stg|prod> hosting            # dry-run (기본 — 아무것도 배포하지 않는다)
-#   bash scripts/deploy_email.sh <dev|stg|prod> hosting --apply    # 출력한 명령을 실행한다
+#   bash scripts/deploy_email.sh <dev|stg|prod> <hosting|kit>            # dry-run (기본 — 아무것도 바꾸지 않는다)
+#   bash scripts/deploy_email.sh <dev|stg|prod> <hosting|kit> --apply    # 출력한 계획을 실행한다
+#   kit 순서: deploy_email.sh <flavor> kit --apply → TTL 명령(next:) → deploy_functions.sh <flavor> --apply
 #
 # 출력 계약:
 #   - 공통 출력: `flavor:` · `project:` · `mode: <firebase|kit>` · `target: <대상>`
 #   - hosting: 빌드 결과 줄(`BUILD OK …`) · `command: firebase deploy --project <id> --only hosting` ·
 #     Console 작업 URL 안내 1줄
+#   - kit: `env: EMAIL_APP_NAME="…"` · `env: EMAIL_BRAND_COLOR="…"` · `env: EMAIL_LOGO_URL="…"` 3줄 ·
+#     `command: firebase deploy --project <id> --only extensions` · `next:` 2줄(함수 배포 · TTL) ·
+#     --apply 때 `wrote: functions/.env.<id> …` 1줄
+#   - brandColor 형식 오류: stderr `warn: …` 1줄 뒤 기본 색(#673AB7)으로 계속
 #   - dry-run 마지막 줄: DRY-RUN OK <flavor> target=<대상> mode=<firebase|kit> (exit 0)
 #   - 실행 마지막 줄:    DEPLOY OK <flavor> target=<대상> mode=<firebase|kit> (exit 0)
 #     실행 모드는 `running: firebase deploy …` 를 출력한 뒤 같은 명령을 실행한다.
@@ -23,6 +34,12 @@
 #   - config/<flavor>.json 에서 .firebaseProjectId · .emailDelivery · .appName · .brandColor
 #     네 값만 읽는다. 다른 키(키 · secret 값)는 읽지도 출력하지도 않는다.
 #     (hosting/build.mjs 도 firebaseProjectId · appName · brandColor 만 쓴다.)
+#   - 확장 env(extensions/firestore-send-email.env.<projectId>)는 키 4개의 존재만 확인한다 —
+#     값을 변수에 담거나 출력하지 않는다(SMTP 주소 · secret 리소스 이름 포함).
+#   - appName 이 비었거나 `"` · `\` · `$` · 백틱 · 제어 문자(줄바꿈 등)를 담으면 FAIL —
+#     env 파일 줄이 깨지거나 다른 키가 끼어드는 일을 막는다.
+#   - functions/.env.<projectId> 는 브랜드 3줄만 바꾸고 다른 줄(예: SEND_TEST_PUSH_ENABLED)은
+#     그대로 둔다. 파일은 --apply 때만 쓴다.
 #   - emailDelivery 는 빈 값 · firebase · kit 정확 일치만 받는다(공백 · 대소문자 보정 없음 —
 #     앱과 같은 규칙). 그 밖이면 FAIL 이고, 원문 값은 출력하지 않는다(`mode:` 는 정규화 값).
 #   - 강제 삭제 옵션과 비대화형 옵션을 명령에 넣지 않는다.
@@ -40,10 +57,11 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'USAGE'
-usage: bash scripts/deploy_email.sh <dev|stg|prod> hosting [--apply]
+usage: bash scripts/deploy_email.sh <dev|stg|prod> <hosting|kit> [--apply]
 
   hosting — 인증 결과 페이지를 빌드해 Firebase Hosting 에 배포한다(발송 모드와 무관).
-  옵션 없이 실행하면 명령만 출력한다(dry-run). --apply 를 줄 때만 실제로 배포한다.
+  kit     — emailDelivery 가 kit 일 때만: 메일 함수 브랜드 env 를 쓰고 Trigger Email 확장을 배포한다.
+  옵션 없이 실행하면 계획만 출력한다(dry-run). --apply 를 줄 때만 실제로 바꾼다.
 USAGE
 }
 
@@ -71,7 +89,7 @@ case "$FLAVOR" in
 esac
 
 case "$TARGET" in
-  hosting) ;;
+  hosting | kit) ;;
   *)
     usage
     exit 2
@@ -167,6 +185,153 @@ deploy_hosting() {
   echo "DEPLOY OK ${FLAVOR} target=hosting mode=${EMAIL_MODE}"
 }
 
+# brandColor 기본값 — 앱 테마 Colors.deepPurple · functions/src/email/brand.ts 와 같다.
+DEFAULT_BRAND_COLOR="#673AB7"
+
+# 확장 env 의 키 4개가 값과 함께 있는지 확인한다(값은 읽어 담지 않는다).
+check_extension_env() {
+  local envx="$ROOT/extensions/firestore-send-email.env.$PROJECT"
+  local rel="extensions/firestore-send-email.env.${PROJECT}"
+  [ -f "$envx" ] ||
+    fail "${rel} 이 없다 — cp extensions/firestore-send-email.env.example ${rel} 뒤 값을 채운다"
+
+  local missing="" key
+  for key in DATABASE_REGION DEFAULT_FROM SMTP_CONNECTION_URI; do
+    grep -q "^${key}=." "$envx" || missing="${missing} ${key}"
+  done
+  # SMTP_PASSWORD 는 값이 아니라 Secret Manager 리소스 이름이다.
+  grep -q '^SMTP_PASSWORD=projects/' "$envx" || missing="${missing} SMTP_PASSWORD"
+  [ -z "$missing" ] ||
+    fail "${rel} 에 값이 없는 키:${missing} (SMTP_PASSWORD 는 projects/… 로 시작하는 Secret Manager 리소스 이름)"
+
+  # 예시 파일의 자리표시(<your-…>)가 남은 키 — 배포 중 CLI 오류 대신 여기서 알린다.
+  local placeholder=""
+  for key in DATABASE_REGION DEFAULT_FROM SMTP_CONNECTION_URI SMTP_PASSWORD; do
+    if grep -q "^${key}=.*<your-" "$envx"; then
+      placeholder="${placeholder} ${key}"
+    fi
+  done
+  [ -z "$placeholder" ] ||
+    fail "${rel} 에 예시 자리표시(<your-…>)가 남은 키:${placeholder}"
+  return 0
+}
+
+# config 의 appName · brandColor 를 함수 env 값으로 만든다(APP_NAME · BRAND_COLOR · LOGO_URL).
+resolve_brand_env() {
+  local raw
+  raw="$(jq -r ".appName | ${JQ_STRING}" "$CONFIG")" ||
+    fail "config/${FLAVOR}.json 을 JSON 으로 읽지 못했다"
+  case "$raw" in
+    ok:*) APP_NAME="${raw#ok:}" ;;
+    *) fail "config/${FLAVOR}.json 의 appName 이 문자열이 아니거나 제어 문자(줄바꿈 등)를 담고 있다" ;;
+  esac
+  # 앞뒤 공백 제거 (bash 3.2 호환 — 매개변수 확장만 쓴다 · build.mjs 의 trim 과 같다).
+  APP_NAME="${APP_NAME#"${APP_NAME%%[![:space:]]*}"}"
+  APP_NAME="${APP_NAME%"${APP_NAME##*[![:space:]]}"}"
+  [ -n "$APP_NAME" ] || fail "config/${FLAVOR}.json 의 appName 이 비어 있다"
+  case "$APP_NAME" in
+    *'"'* | *'\'* | *'$'* | *'`'*)
+      fail "config/${FLAVOR}.json 의 appName 에 쓸 수 없는 문자(\" · \\ · \$ · 백틱)가 있다 — env 파일 줄이 깨진다"
+      ;;
+  esac
+
+  raw="$(jq -r ".brandColor | ${JQ_STRING}" "$CONFIG")" ||
+    fail "config/${FLAVOR}.json 을 JSON 으로 읽지 못했다"
+  # `#` + 16진 6자만 쓴다(대소문자 보존). 문자 범위 대신 허용 문자를 나열한다(bash 3.2 로캘).
+  local hex='[0123456789abcdefABCDEF]'
+  # shellcheck disable=SC2254 # 나열 문자 클래스를 패턴으로 쓰는 것이 목적이다.
+  case "$raw" in
+    ok:)
+      # 키가 없거나 빈 값이면 기본 색이 정상 동작이다(경고 없음 — build.mjs 와 같다).
+      BRAND_COLOR="$DEFAULT_BRAND_COLOR"
+      ;;
+    ok:#${hex}${hex}${hex}${hex}${hex}${hex})
+      BRAND_COLOR="${raw#ok:}"
+      ;;
+    *)
+      echo "warn: config/${FLAVOR}.json 의 brandColor 가 #RRGGBB 형식이 아니라 ${DEFAULT_BRAND_COLOR} 를 쓴다" >&2
+      BRAND_COLOR="$DEFAULT_BRAND_COLOR"
+      ;;
+  esac
+
+  # 로고 = Hosting 공개 디렉터리의 파일 1개(D-05). 없으면 빈 값 → 메일은 앱 이름 텍스트 헤더.
+  if [ -f "$ROOT/hosting/public/logo.png" ]; then
+    LOGO_URL="https://${PROJECT}.web.app/logo.png"
+  else
+    LOGO_URL=""
+  fi
+}
+
+# functions/.env.<projectId> 에서 브랜드 3줄만 바꿔 쓴다(다른 줄 · 파일 권한 유지).
+write_function_env() {
+  local fn_env="$ROOT/functions/.env.$PROJECT"
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/deploy_email.XXXXXX")" || fail "임시 파일을 만들지 못했다"
+  # shellcheck disable=SC2064 # 지금 경로로 고정한다.
+  trap "rm -f '$tmp'" EXIT
+  if [ -f "$fn_env" ]; then
+    # 세 키(앞 공백 · export 접두 포함)가 아닌 줄만 옮긴다. grep 은 고른 줄이 없으면 1 이다.
+    grep -v -E '^[[:space:]]*(export[[:space:]]+)?(EMAIL_APP_NAME|EMAIL_BRAND_COLOR|EMAIL_LOGO_URL)[[:space:]]*=' \
+      "$fn_env" >"$tmp" || [ "$?" -eq 1 ] ||
+      fail "functions/.env.${PROJECT} 을 읽지 못했다"
+  fi
+  {
+    echo "EMAIL_APP_NAME=\"${APP_NAME}\""
+    echo "EMAIL_BRAND_COLOR=\"${BRAND_COLOR}\""
+    echo "EMAIL_LOGO_URL=\"${LOGO_URL}\""
+  } >>"$tmp"
+  # 제자리에 덮어써 기존 파일 권한을 그대로 둔다(없으면 새로 만든다).
+  cat "$tmp" >"$fn_env" || fail "functions/.env.${PROJECT} 을 쓰지 못했다"
+  rm -f "$tmp"
+  trap - EXIT
+  echo "wrote: functions/.env.${PROJECT} (브랜드 3줄)"
+}
+
+# kit 다음 단계 2줄 — 메일 함수 배포 · mail 컬렉션 TTL.
+print_kit_next() {
+  echo "next: bash scripts/deploy_functions.sh ${FLAVOR} --apply"
+  echo "next: gcloud firestore fields ttls update delivery.expireAt --collection-group=mail --enable-ttl --project ${PROJECT}"
+}
+
+# kit 대상 — 모드 가드 → 확장 env 확인 → 브랜드 env 계획 → (--apply) env 쓰기 · 확장 배포.
+deploy_kit() {
+  [ "$EMAIL_MODE" = kit ] ||
+    fail "config/${FLAVOR}.json 의 emailDelivery 가 kit 이 아니다 — kit 대상은 emailDelivery 가 kit 일 때만 배포한다(firebase 모드는 확장 · 메일 함수가 필요 없다)"
+
+  check_extension_env
+  resolve_brand_env
+
+  echo "함수 env 파일: functions/.env.${PROJECT} (아래 3줄을 바꿔 쓴다 · 다른 줄은 그대로)"
+  echo "env: EMAIL_APP_NAME=\"${APP_NAME}\""
+  echo "env: EMAIL_BRAND_COLOR=\"${BRAND_COLOR}\""
+  echo "env: EMAIL_LOGO_URL=\"${LOGO_URL}\""
+  if [ -n "$LOGO_URL" ]; then
+    echo "로고 주소는 결과 페이지를 배포해야 열린다 — bash scripts/deploy_email.sh ${FLAVOR} hosting --apply"
+  fi
+  echo "command: firebase deploy --project ${PROJECT} --only extensions"
+
+  if [ "$OPTION" != "--apply" ]; then
+    print_kit_next
+    echo ""
+    echo "실제로 배포하려면: bash scripts/deploy_email.sh ${FLAVOR} kit --apply"
+    echo "DRY-RUN OK ${FLAVOR} target=kit mode=${EMAIL_MODE}"
+    return 0
+  fi
+
+  if ! command -v firebase >/dev/null 2>&1; then
+    fail "firebase CLI 가 PATH 에 없다 (npm install -g firebase-tools)"
+  fi
+  write_function_env
+  prepare_apply
+  # 확장의 secret(SMTP_PASSWORD)이 없으면 CLI 가 이 터미널에서 값을 묻는다(대화형 그대로).
+  echo "running: firebase deploy --project ${PROJECT} --only extensions"
+  firebase deploy --project "$PROJECT" --only extensions ||
+    fail "확장 배포 실패 — 브랜드 env 는 이미 functions/.env.${PROJECT} 에 썼다"
+  print_kit_next
+  echo "DEPLOY OK ${FLAVOR} target=kit mode=${EMAIL_MODE}"
+}
+
 case "$TARGET" in
   hosting) deploy_hosting ;;
+  kit) deploy_kit ;;
 esac
