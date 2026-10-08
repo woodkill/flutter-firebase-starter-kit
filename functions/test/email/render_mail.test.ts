@@ -12,20 +12,31 @@
  *  - `attachLang` — Admin 링크에 `lang` 1개 부착 · 기존 값 덮어쓰기
  *  - 치환자 완전 치환 · `&#x3D;` 0 (Pitfall 6)
  *  - handlebars 4.7.10 의 `escapeExpression("a=b")` 결과 고정 (Pitfall 6 재확인)
- *  - 렌더 스냅샷 (이름 규칙 `snapshot ${kind} ${locale} logo=${none|with}`)
+ *  - 로고 있음 / 없음 헤더 · 앱 이름 HTML escape · text 파트 조립 규칙
+ *  - 입력 방어 — 빈 앱 이름 · 속성 밖으로 새는 링크 거부
+ *  - 확장 `templates/` 컬렉션 미사용 (D-11)
+ *  - 렌더 스냅샷 12개 (이름 규칙 `snapshot ${kind} ${locale} logo=${none|with}`)
+ *
+ * 스냅샷 갱신: 템플릿 · 문구를 의도해서 바꿨을 때만
+ * `pnpm test -- -u test/email` 로 다시 쓰고, diff 를 눈으로 대조한 뒤 커밋한다.
  */
+
+import {readdirSync, readFileSync} from "fs";
+import * as path from "path";
 
 import Handlebars from "handlebars";
 
 import type {MailBrand} from "../../src/email/brand";
+import type {MailLocale} from "../../src/email/mail_locale";
 import {attachLang, renderMail} from "../../src/email/render_mail";
+import type {MailKind} from "../../src/email/render_mail";
 
 // brand.ts 가 import 하는 params 모듈 — 이 suite 는 env 를 읽지 않는다.
 jest.mock("firebase-functions/params", () => ({
   defineString: () => ({value: () => ""}),
 }));
 
-/** Admin SDK 가 만드는 액션 링크 모양 (lang 없음 — RESEARCH §R1). */
+/** Admin SDK 가 만드는 인증 액션 링크 모양 (lang 없음 — RESEARCH §R1). */
 const ADMIN_LINK =
   "https://example.firebaseapp.com/__/auth/action" +
   "?mode=verifyEmail&oobCode=c&apiKey=k";
@@ -38,8 +49,36 @@ const BRAND_NO_LOGO: MailBrand = {
   logoUrl: "",
 };
 
+/** Hosting 로고 파일이 있는 브랜드 값 (D-05). */
+const BRAND_WITH_LOGO: MailBrand = {
+  ...BRAND_NO_LOGO,
+  logoUrl: "https://example.web.app/logo.png",
+};
+
 /** 요청자 주소 fixture. */
 const EMAIL = "a@example.com";
+
+/** 스냅샷 행렬 — 메일 종류. */
+const KINDS: readonly MailKind[] = ["verifyEmail", "resetPassword"];
+
+/** 스냅샷 행렬 — locale. */
+const LOCALES: readonly MailLocale[] = ["ko", "en", "ja"];
+
+/** 스냅샷 행렬 — 로고 유/무. */
+const LOGOS = [
+  {label: "none", brand: BRAND_NO_LOGO},
+  {label: "with", brand: BRAND_WITH_LOGO},
+] as const;
+
+/**
+ * 메일 종류에 맞는 Admin 액션 링크를 만든다.
+ *
+ * @param {MailKind} kind 메일 종류.
+ * @return {string} `mode` 가 kind 인 링크 (lang 없음).
+ */
+function adminLinkFor(kind: MailKind): string {
+  return ADMIN_LINK.replace("mode=verifyEmail", `mode=${kind}`);
+}
 
 /**
  * html 안 `href="…"` 값을 순서대로 모은다.
@@ -56,6 +95,17 @@ function collectHrefs(html: string): string[] {
     match = pattern.exec(html);
   }
   return hrefs;
+}
+
+/**
+ * 문자열 안 부분 문자열 개수를 센다.
+ *
+ * @param {string} haystack 대상 문자열.
+ * @param {string} needle 찾을 문자열.
+ * @return {number} 겹치지 않는 출현 횟수.
+ */
+function countOf(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
 }
 
 describe("attachLang", () => {
@@ -121,15 +171,147 @@ describe("handlebars 4.7.10 escape 동작 (Pitfall 6)", () => {
   });
 });
 
-describe("renderMail 스냅샷", () => {
-  it("snapshot verifyEmail ko logo=none", () => {
+describe("renderMail 헤더 · escape · text 파트", () => {
+  it("로고가 있으면 높이 40 이미지 1개 · alt = 앱 이름이다", () => {
+    const mail = renderMail("resetPassword", {
+      locale: "en",
+      email: EMAIL,
+      link: attachLang(adminLinkFor("resetPassword"), "en"),
+      brand: BRAND_WITH_LOGO,
+    });
+
+    expect(countOf(mail.html, "<img")).toBe(1);
+    expect(mail.html).toContain(
+      "<img src=\"https://example.web.app/logo.png\" alt=\"Kit\" height=\"40\"",
+    );
+  });
+
+  it("앱 이름은 html 에서 escape · subject 에서는 원문이다", () => {
+    const appName = "<b>&\"";
+    const mail = renderMail("verifyEmail", {
+      locale: "en",
+      email: EMAIL,
+      link: attachLang(ADMIN_LINK, "en"),
+      brand: {...BRAND_WITH_LOGO, appName},
+    });
+
+    expect(mail.subject).toBe(`Verify your email for ${appName}`);
+    expect(mail.html).toContain("alt=\"&lt;b&gt;&amp;&quot;\"");
+    expect(mail.html).toContain("This email was sent by &lt;b&gt;&amp;&quot;.");
+    expect(mail.html).not.toContain(appName);
+  });
+
+  it("주소는 html 에서 escape 되고 break-all span 으로 감싼다", () => {
+    const mail = renderMail("verifyEmail", {
+      locale: "en",
+      email: "a<b>@example.com",
+      link: attachLang(ADMIN_LINK, "en"),
+      brand: BRAND_NO_LOGO,
+    });
+
+    expect(mail.html).toContain(
+      "<span style=\"word-break:break-all;\">a&lt;b&gt;@example.com</span>",
+    );
+    expect(mail.text).toContain("verify a<b>@example.com.");
+  });
+
+  it.each(KINDS.flatMap((kind) => LOCALES.map((locale) => [kind, locale])))(
+    "text 파트 조립 규칙 %s %s",
+    (kind, locale) => {
+      const mailKind = kind as MailKind;
+      const link = attachLang(adminLinkFor(mailKind), locale as MailLocale);
+      const mail = renderMail(mailKind, {
+        locale: locale as MailLocale,
+        email: EMAIL,
+        link,
+        brand: BRAND_NO_LOGO,
+      });
+      const lines = mail.text.split("\n");
+      const separator = lines.indexOf("--");
+
+      // 줄 끝 공백 0.
+      expect(lines.filter((line) => line !== line.trimEnd())).toEqual([]);
+      // 링크 줄 = html 의 href 값.
+      expect(lines).toContain(collectHrefs(mail.html)[0]);
+      expect(collectHrefs(mail.html)[0]).toBe(link);
+      // `--` 줄 다음 줄이 마지막 줄(footer)이다.
+      expect(separator).toBe(lines.length - 2);
+      expect(lines[lines.length - 1]).toContain("Kit");
+      // 조립 순서: heading ⏎⏎ body ⏎⏎ 링크 ⏎⏎ ignore ⏎⏎ -- ⏎ footer.
+      expect(mail.text.split("\n\n")).toHaveLength(5);
+      expect(mail.text).not.toContain("<");
+    },
+  );
+});
+
+describe("renderMail 입력 방어", () => {
+  it("앱 이름이 비면 렌더하지 않는다", () => {
+    expect(() =>
+      renderMail("verifyEmail", {
+        locale: "ko",
+        email: EMAIL,
+        link: attachLang(ADMIN_LINK, "ko"),
+        brand: {...BRAND_NO_LOGO, appName: "  "},
+      }),
+    ).toThrow("appName");
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "https://example.com/a\"onmouseover=\"x",
+    "https://example.com/a b",
+    "not a url",
+  ])("속성 밖으로 새거나 http(s) 가 아닌 링크 %j 를 거부한다", (link) => {
+    expect(() =>
+      renderMail("verifyEmail", {
+        locale: "ko",
+        email: EMAIL,
+        link,
+        brand: BRAND_NO_LOGO,
+      }),
+    ).toThrow("link");
+  });
+
+  it("안전하지 않은 로고 URL 은 앱 이름 텍스트 헤더로 대체한다", () => {
     const mail = renderMail("verifyEmail", {
       locale: "ko",
       email: EMAIL,
       link: attachLang(ADMIN_LINK, "ko"),
-      brand: BRAND_NO_LOGO,
+      brand: {...BRAND_NO_LOGO, logoUrl: "http://example.web.app/logo.png"},
     });
 
-    expect(mail).toMatchSnapshot();
+    expect(mail.html).not.toContain("<img");
   });
+});
+
+describe("확장 templates/ 컬렉션 미사용 (D-11)", () => {
+  it("src/email 소스가 Firestore 컬렉션 templates 를 읽지 않는다", () => {
+    const dir = path.join(__dirname, "..", "..", "src", "email");
+    const sources = readdirSync(dir).filter((name) => name.endsWith(".ts"));
+
+    expect(sources.length).toBeGreaterThan(0);
+    for (const name of sources) {
+      const source = readFileSync(path.join(dir, name), "utf8");
+      expect(source).not.toMatch(/collection\(\s*["'`]templates/);
+    }
+  });
+});
+
+describe("renderMail 스냅샷", () => {
+  for (const kind of KINDS) {
+    for (const locale of LOCALES) {
+      for (const logo of LOGOS) {
+        it(`snapshot ${kind} ${locale} logo=${logo.label}`, () => {
+          const mail = renderMail(kind, {
+            locale,
+            email: EMAIL,
+            link: attachLang(adminLinkFor(kind), locale),
+            brand: logo.brand,
+          });
+
+          expect(mail).toMatchSnapshot();
+        });
+      }
+    }
+  }
 });

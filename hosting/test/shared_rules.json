@@ -1,0 +1,37 @@
+{
+  "brandColor": [
+    {"input": "#673AB7", "expected": "#673AB7"},
+    {"input": "#abcdef", "expected": "#abcdef"},
+    {"input": "#ABCDEF", "expected": "#ABCDEF"},
+    {"input": "673AB7", "expected": "#673AB7"},
+    {"input": "#67", "expected": "#673AB7"},
+    {"input": "", "expected": "#673AB7"},
+    {"input": " #123456", "expected": "#673AB7"},
+    {"input": "#123456 ", "expected": "#673AB7"},
+    {"input": "#GGGGGG", "expected": "#673AB7"},
+    {"input": "#1234567", "expected": "#673AB7"}
+  ],
+  "lang": [
+    {"input": "ko", "expected": "ko"},
+    {"input": "KO ", "expected": "ko"},
+    {"input": "ko-KR", "expected": "ko"},
+    {"input": "ja_JP", "expected": "ja"},
+    {"input": "ja", "expected": "ja"},
+    {"input": "en", "expected": "en"},
+    {"input": "EN-us", "expected": "en"},
+    {"input": "fr", "expected": "en"},
+    {"input": "zh-Hant-TW", "expected": "en"},
+    {"input": "", "expected": "en"},
+    {"input": null, "expected": "en"}
+  ],
+  "onAccent": [
+    {"input": "#673AB7", "expected": "#FFFFFF"},
+    {"input": "#FFEB3B", "expected": "#000000"},
+    {"input": "#000000", "expected": "#FFFFFF"},
+    {"input": "#FFFFFF", "expected": "#000000"},
+    {"input": "#00BCD4", "expected": "#000000"},
+    {"input": "#3F51B5", "expected": "#FFFFFF"},
+    {"input": "#767676", "expected": "#FFFFFF"},
+    {"input": "#777777", "expected": "#000000"}
+  ]
+}
