@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../auth/provider_id.dart';
@@ -171,6 +172,40 @@ abstract final class AppConfig {
   /// [functionsRegion] 의 기본값 — `functions/src/shared/region.ts` 의
   /// `REGION` 과 동일해야 한다 (Phase 11 D-04).
   static const String defaultFunctionsRegion = 'asia-northeast3';
+
+  /// 브랜드 색 — `--dart-define-from-file` 의 `brandColor` 키 (Phase 17.5 D-06).
+  ///
+  /// 형식은 `#RRGGBB`(대소문자 무관 16진수 6자리). 앱 테마 seed · 인증 결과
+  /// 페이지 · 킷 발송 메일이 같은 값을 쓴다 — 세 소비처의 판정은
+  /// `hosting/test/shared_rules.json` 표가 함께 고정한다.
+  ///
+  /// 표기 규칙(IN-02)에 따라 `defaultValue` 를 생략한다. 빈 문자열 =
+  /// 미주입 sentinel 이고, 비었거나 형식이 틀린 값을 무엇으로 대체할지는
+  /// 소비처가 정한다 (앱은 [parseBrandColor] 가 null 이면 기존 테마 seed).
+  static const String brandColor = String.fromEnvironment('brandColor');
+
+  /// `#RRGGBB` 형식만 허용하는 [brandColor] 판정 정규식.
+  ///
+  /// 앞뒤 공백을 trim 하지 않는다 — 메일 · 페이지 구현과 같은 정확 일치다.
+  static final RegExp _brandColorPattern = RegExp(r'^#([0-9A-Fa-f]{6})$');
+
+  /// [raw] 를 불투명 [Color] 로 파싱한다. 형식이 틀리면 null 을 반환한다.
+  ///
+  /// [brandColor] 가 컴파일 타임 상수라 테스트가 다른 값을 주입할 수 없으므로
+  /// 순수 함수로 분리했다. 앱(`App`)이 `?? AppTheme.seedColor` 로 대체 색을
+  /// 직접 고르는 소비처라 [parseEnabledProviders] 와 달리 `@visibleForTesting`
+  /// 을 붙이지 않는다 (붙이면 lib 호출이 analyze 경고가 된다).
+  ///
+  /// 형식 오류 값은 앱 시작을 막지 않는다 — null 을 받은 소비처가 기본 색을
+  /// 쓴다 (`#673AB7` · `Colors.deepPurple` 과 같은 ARGB). `int.parse` 는
+  /// 정규식을 통과한 16진수 6자리에만 적용되므로 throw 하지 않는다.
+  static Color? parseBrandColor(String raw) {
+    final match = _brandColorPattern.firstMatch(raw);
+    if (match == null) {
+      return null;
+    }
+    return Color(0xFF000000 | int.parse(match.group(1)!, radix: 16));
+  }
 
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///

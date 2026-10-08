@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/config/app_config.dart';
 import 'core/l10n/app_title.dart';
 import 'core/providers/locale_provider.dart';
 import 'core/providers/theme_provider.dart';
@@ -48,6 +49,10 @@ class App extends ConsumerWidget {
     ref.listen<AsyncValue<bool>>(notificationSettingsProvider, (_, _) {});
     // Phase 17 D-01 · D-04 — 알림 수신 표시 · 탭 경로 핸들러 활성화(재빌드 0).
     ref.listen(notificationTapHandlerProvider, (previous, next) {});
+    // Phase 17.5 D-06 — 테마 seed 는 config `brandColor`(결과 페이지 · 메일과
+    // 같은 값). 비었거나 형식이 틀리면 기존 seed 로 동작한다.
+    final Color seed =
+        AppConfig.parseBrandColor(AppConfig.brandColor) ?? AppTheme.seedColor;
 
     return MaterialApp.router(
       // 앱 타이틀은 OS 최근 앱 화면(task description) 과 접근성 표면에
@@ -58,8 +63,8 @@ class App extends ConsumerWidget {
       onGenerateTitle: (context) =>
           resolveAppTitle(AppLocalizations.of(context)),
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(seedColor: seed),
+      darkTheme: AppTheme.dark(seedColor: seed),
       themeMode: themeMode,
       locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,

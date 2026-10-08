@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/config/app_config.dart';
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// [json] 의 `enabledAuthProviders` CSV 에 [providerId] 가 있을 때만 [key]
@@ -28,6 +30,13 @@ void _expectProviderKeyFilled(
   }
   expect((json[key] as String? ?? '').isNotEmpty, isTrue, reason: reason);
 }
+
+/// `#RRGGBB` 문자열 [hex] 를 불투명 ARGB 정수로 바꾼다.
+///
+/// 공유 판정 표의 `expected` 는 항상 유효한 `#RRGGBB` 라 형식 검사는 하지
+/// 않는다.
+int _argbFromHex(String hex) =>
+    0xFF000000 | int.parse(hex.substring(1), radix: 16);
 
 void main() {
   group('AppConfig.authProviders 단일 CSV 진실 (Pitfall 2, T-11-CONST-01)', () {
@@ -403,6 +412,44 @@ void main() {
         isTrue,
         reason: 'IN-06: region 은 AppConfig 를 경유해야 한다',
       );
+    });
+  });
+
+  group('brandColor — 공유 판정 표 (D-06)', () {
+    // 같은 표를 메일 렌더(TS) · 결과 페이지(mjs) 테스트도 읽는다 — 세 구현의
+    // 판정이 갈리면 앱만 다른 색을 쓰는 drift 가 된다.
+    final table =
+        (jsonDecode(File('hosting/test/shared_rules.json').readAsStringSync())
+                as Map<String, dynamic>)['brandColor']
+            as List<dynamic>;
+
+    test('공유 표에 brandColor 행이 있다', () {
+      expect(table, isNotEmpty);
+    });
+
+    for (final row in table.cast<Map<String, dynamic>>()) {
+      final input = row['input'] as String;
+      final expected = row['expected'] as String;
+      test('parseBrandColor("$input") → $expected', () {
+        final parsed = AppConfig.parseBrandColor(input);
+        // 유효 입력은 그 색, 그 밖은 null(= 소비처가 지금 색으로 대체).
+        expect(parsed == null, input != expected, reason: '유효 판정이 공유 표와 다르다');
+        final resolved = parsed ?? AppTheme.seedColor;
+        expect(resolved.toARGB32(), _argbFromHex(expected));
+      });
+    }
+
+    test('기본값 #673AB7 은 Colors.deepPurple 과 같은 색이다 (외관 변경 0)', () {
+      expect(
+        AppConfig.parseBrandColor('#673AB7')?.toARGB32(),
+        Colors.deepPurple.toARGB32(),
+      );
+      expect(AppTheme.seedColor.toARGB32(), 0xFF673AB7);
+    });
+
+    test('dart-define 미주입 시 brandColor 는 빈 문자열(sentinel)이다', () {
+      expect(AppConfig.brandColor, isEmpty);
+      expect(AppConfig.parseBrandColor(AppConfig.brandColor), isNull);
     });
   });
 }
