@@ -27,28 +27,29 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 0. [Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통)
 1. [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기)
 2. [인증 결과 페이지 바꾸기](#인증-결과-페이지-바꾸기)
-3. [킷 업데이트 반영](#킷-업데이트-반영)
-4. [Kakao Login (Phase 12)](#kakao-login-phase-12)
-5. [Naver Login (Phase 13)](#naver-login-phase-13)
-6. [LINE Login (Phase 14)](#line-login-phase-14)
-7. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
-8. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
-9. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
-10. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-11. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-12. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-13. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
-14. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
-15. [Firebase Services (Phase 17)](#firebase-services-phase-17)
-16. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-17. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
-18. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
-19. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
-20. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
-21. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-22. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-23. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
-24. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
+3. [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기)
+4. [킷 업데이트 반영](#킷-업데이트-반영)
+5. [Kakao Login (Phase 12)](#kakao-login-phase-12)
+6. [Naver Login (Phase 13)](#naver-login-phase-13)
+7. [LINE Login (Phase 14)](#line-login-phase-14)
+8. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
+9. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
+10. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
+11. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+12. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+13. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+14. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
+15. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
+16. [Firebase Services (Phase 17)](#firebase-services-phase-17)
+17. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+18. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+19. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+20. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+21. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+22. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+23. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+24. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+25. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
 
 ---
 
@@ -335,7 +336,7 @@ firebase functions:secrets:set KAKAO_ADMIN_KEY --project <your-project-id>
 bash scripts/deploy_functions.sh dev
 ```
 
-출력의 `functions` 목록에 공통 함수 7개와 켠 provider 의 함수(Kakao 는 3개)가 있는지 본다. 맞으면 `--apply` 를 붙여 출력한 명령을 실행한다. 함수가 10개를 넘으면 10개씩 나눠 차례로 배포한다. 묶음마다 `firebase deploy` 를 따로 실행하므로 `functions/` 의 lint · build 와 secret 확인이 묶음 수만큼 다시 돈다.
+출력의 `functions` 목록에 공통 함수 7개와 켠 provider 의 함수(Kakao 는 3개)가 있는지 본다. `emailDelivery` 가 `kit` 이면 메일 함수 2개(`sendVerificationMail` · `sendPasswordResetMail`)도 있다([발송 모드 절](#인증-메일-발송-모드-켜고-끄기)). 맞으면 `--apply` 를 붙여 출력한 명령을 실행한다. 함수가 10개를 넘으면 10개씩 나눠 차례로 배포한다. 묶음마다 `firebase deploy` 를 따로 실행하므로 `functions/` 의 lint · build 와 secret 확인이 묶음 수만큼 다시 돈다. `functions/` 의 `deploy` 스크립트(`pnpm run deploy` = `firebase deploy --only functions`)는 끈 provider 의 함수와 `firebase` 모드에서 쓰지 않는 메일 함수까지 배포하므로 쓰지 않는다 — 함수 배포는 이 배포 스크립트로만 한다.
 
 ```bash
 bash scripts/deploy_functions.sh dev --apply
@@ -424,7 +425,7 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
 
 ## 인증 결과 페이지 바꾸기
 
-인증 메일 · 비밀번호 재설정 메일의 링크를 눌렀을 때 열리는 웹 페이지를 앱 이름 · 색 · 로고로 바꾸는 절차다. 하지 않아도 된다 — 이 절을 건너뛰면 링크는 Firebase 기본 페이지로 열리고 인증 · 재설정은 그대로 된다. 이 페이지는 메일을 누가 보내는지(발송 모드)와 상관없이 쓸 수 있다. 페이지는 인증 · 비밀번호 재설정 · 이메일 주소 복원 링크를 맡고, 메일 링크의 언어(한국어 · 영어 · 일본어)로 표시된다 — 앱이 보내는 메일의 언어는 앱 언어다.
+인증 메일 · 비밀번호 재설정 메일의 링크를 눌렀을 때 열리는 웹 페이지를 앱 이름 · 색 · 로고로 바꾸는 절차다. 하지 않아도 된다 — 이 절을 건너뛰면 링크는 Firebase 기본 페이지로 열리고 인증 · 재설정은 그대로 된다. 이 페이지는 메일을 누가 보내는지([발송 모드 절](#인증-메일-발송-모드-켜고-끄기))와 상관없이 쓸 수 있다. 페이지는 인증 · 비밀번호 재설정 · 이메일 주소 복원 링크를 맡고, 메일 링크의 언어(한국어 · 영어 · 일본어)로 표시된다 — 앱이 보내는 메일의 언어는 앱 언어다.
 
 **전제:**
 
@@ -492,6 +493,147 @@ bash scripts/deploy_email.sh dev hosting --apply
 ### 되돌리기
 
 Firebase Console → Authentication → 템플릿 의 「작업 URL 맞춤설정」 을 기본 주소 `https://<your-project-id>.firebaseapp.com/__/auth/action` 으로 되돌려 저장한다. 그 뒤 메일 링크는 Firebase 기본 페이지로 열린다. 올린 Hosting 페이지는 그대로 둬도 된다.
+
+---
+
+## 인증 메일 발송 모드 켜고 끄기
+
+이메일 인증 메일과 비밀번호 재설정 메일을 누가 보내는지 고르는 절차다. 기본값 `firebase` 는 Firebase 가 기본 템플릿으로 보낸다 — 설정할 것이 없고, 메일 언어는 앱 언어를 따른다. `kit` 은 앱 이름 · `brandColor` · 로고를 넣은 킷의 메일을 내 발송 서비스로 보낸다. Firebase Console 에서는 인증 메일 본문을 바꿀 수 없으므로, 인증 메일 본문까지 앱 브랜드로 보내려면 `kit` 을 켠다. 기본값 그대로 쓰면 이 절을 건너뛴다.
+
+| 모드 | 보내는 쪽 | 메일 모양 | 필요한 설정 |
+|---|---|---|---|
+| `firebase` (기본 · 빈 값) | Firebase Authentication | Firebase 기본 템플릿 — Console 에서 발신자 이름 · 제목 · 재설정 메일 본문을 고칠 수 있다 | 없음 |
+| `kit` | 킷의 메일 함수 + Trigger Email 확장 + 내 발송 서비스 | 앱 이름 · 색 · 로고 · 앱 언어 | 아래 「켜기」 |
+
+**전제 (`kit`):**
+
+- Firebase 프로젝트가 Blaze 요금제다. Trigger Email 확장이 Blaze 를 요구한다.
+- 메일을 보낼 도메인(또는 하위 도메인)이 있고 그 DNS 레코드를 고칠 수 있다.
+- SMTP URI 를 주는 발송 서비스면 무엇이든 쓸 수 있다 — 그 서비스의 계정이 있다. 아래 「켜기」 에는 Resend 예시가 있다.
+- [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기) 의 함수 배포 전제(「켜기」 ④ 의 secret 일괄 생성)가 끝나 있다.
+- PATH 에 Firebase CLI(`firebase`) · `jq` · `gcloud` 가 있고 `firebase login` · `gcloud auth login` 이 되어 있다.
+- 메일에 로고를 넣으려면 [결과 페이지 절](#인증-결과-페이지-바꾸기) ② · ③ 으로 로고를 Hosting 에 올려 둔다. 메일 링크가 킷의 결과 페이지로 열리게 하는 것도 그 절이다. 결과 페이지를 바꾸지 않아도 `kit` 은 동작한다.
+
+### 켜기
+
+예시는 dev flavor 기준이고, stg · prod 는 `dev` 자리에 flavor 이름을 넣는다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
+
+**① 보내는 도메인을 인증한다.** 발송 서비스에 메일을 보낼 도메인을 추가하고, 서비스가 알려 주는 SPF · DKIM 레코드를 그 도메인의 DNS 에 등록한다. DMARC 는 최소 아래 값을 `_dmarc.<내 도메인>` 의 TXT 레코드로 둔다 — `rua` 는 DMARC 보고를 받을 주소다.
+
+```
+v=DMARC1; p=none; rua=mailto:<보고 받을 주소>
+```
+
+받는 쪽의 발신자 요건은 공식 안내에 있다 — Gmail: <https://support.google.com/a/answer/81126> · Yahoo: <https://senders.yahooinc.com/best-practices/>. 두 곳 모두 보낸 사람 주소의 도메인이 SPF 나 DKIM 도메인과 맞기를 요구하므로, ③ 의 `DEFAULT_FROM` 은 인증한 도메인의 주소로 쓴다.
+
+**예시 — Resend.**
+
+1. Resend 대시보드의 Domains 에서 도메인을 추가한다.
+2. 화면에 나온 DNS 레코드를 도메인의 DNS 에 등록하고, Resend 에서 도메인이 인증될 때까지 기다린다.
+3. API Keys 에서 API key 를 만든다. 이 key 가 SMTP 비밀번호다(④ 에서 넣는다).
+4. SMTP URI 는 `smtps://resend@smtp.resend.com:465` 다 — 사용자 이름 `resend` · 포트 465.
+
+Resend 는 도메인을 인증하기 전에는 Resend 계정의 이메일 주소로만 보낸다.
+
+**② config 에서 모드를 켠다.** `config/dev.json` 의 `emailDelivery` 를 `kit` 으로 바꾼다.
+
+```json
+"emailDelivery": "kit"
+```
+
+**③ 확장 값 파일을 만든다.** 프로젝트마다 한 번, example 파일을 복사한다. 복사한 파일은 git 이 무시한다.
+
+```bash
+cp extensions/firestore-send-email.env.example extensions/firestore-send-email.env.<your-project-id>
+```
+
+복사한 파일의 네 줄을 내 값으로 바꾼다. 아래는 example 파일의 값이다.
+
+```
+DATABASE_REGION=asia-northeast3
+DEFAULT_FROM="StarterKit Dev <no-reply@mail.example.com>"
+SMTP_CONNECTION_URI=smtps://resend@smtp.resend.com:465
+SMTP_PASSWORD=projects/<your-project-number>/secrets/firestore-send-email-SMTP_PASSWORD/versions/latest
+```
+
+- `DATABASE_REGION` — Firestore 데이터베이스 위치. `gcloud firestore databases describe --project <your-project-id>` 출력의 `locationId` 값이다.
+- `DEFAULT_FROM` — 보낸 사람. `앱 이름 <no-reply@인증한 도메인>` 꼴로 쓴다.
+- `SMTP_CONNECTION_URI` — 발송 서비스가 주는 SMTP URI. 비밀번호는 넣지 않는다.
+- `SMTP_PASSWORD` — SMTP 비밀번호 자체가 아니라 그 비밀번호를 담을 Secret Manager secret 의 이름이다. `<your-project-number>` 만 프로젝트 번호(Firebase Console → 프로젝트 설정 → 일반)로 바꾼다.
+
+같은 디렉터리의 `extensions/firestore-send-email.env` 는 킷이 관리하는 공통 값이라 고치지 않는다.
+
+**④ 메일 브랜드 값과 확장을 배포한다.** 먼저 옵션 없이 실행한다. 이 명령은 계획만 출력하고 아무것도 바꾸지 않는다.
+
+```bash
+bash scripts/deploy_email.sh dev kit
+```
+
+`env:` 세 줄이 메일에 들어갈 앱 이름 · 색 · 로고 주소인지(로고 파일이 없으면 로고 주소는 빈 값), 마지막 줄이 `DRY-RUN OK dev target=kit mode=kit` 인지 본다. 맞으면 `--apply` 를 붙여 실행한다. 이 명령은 `functions/.env.<your-project-id>` 의 `EMAIL_APP_NAME` · `EMAIL_BRAND_COLOR` · `EMAIL_LOGO_URL` 세 줄을 쓰고(다른 줄은 그대로 둔다) Trigger Email 확장을 설치한다. SMTP 비밀번호 secret 이 아직 없으면 Firebase CLI 가 값을 묻는다 — 발송 서비스의 SMTP 비밀번호(Resend 는 API key)를 넣는다. 터미널 입력을 받을 수 있는 터미널에서 실행한다.
+
+```bash
+bash scripts/deploy_email.sh dev kit --apply
+```
+
+마지막 줄이 `DEPLOY OK dev target=kit mode=kit` 이면 끝난 것이다. `functions/.env.<your-project-id>` 의 세 줄은 이 명령이 config 로 다시 쓰므로 직접 고치지 않는다. `appName` 은 비어 있으면 안 되고 `"` · `\` · `$` · 백틱 · 줄바꿈을 쓸 수 없다. `appName` · `brandColor` · 로고를 바꾸면 ④ 와 ⑥ 을 다시 한다.
+
+**⑤ 메일 문서를 지우는 TTL 정책을 켠다.** 프로젝트마다 한 번 실행한다. 확장은 보낸 메일마다 `mail` 컬렉션에 문서(받는 주소 · 링크가 들어 있다)를 남기는데, 이 정책을 켜면 하루 뒤 지워진다. 실제 삭제는 만료 뒤 보통 24시간 안에 일어난다.
+
+```bash
+gcloud firestore fields ttls update delivery.expireAt --collection-group=mail --enable-ttl --project <your-project-id>
+```
+
+**⑥ 메일 함수를 배포한다.** [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기) 「켜기」 ⑤ 와 같은 명령이다. 옵션 없이 실행한 출력에 `mode: kit` 이 있고 `functions` 목록에 `sendVerificationMail` · `sendPasswordResetMail` 이 있는지 본 뒤 `--apply` 를 붙인다. ④ 의 `--apply` 를 하지 않았으면 `--apply` 가 `FAIL:` 로 멈춘다. 두 함수를 처음 만들었다면 「로그인 수단 켜고 끄기」 「켜기」 ⑥ 대로 Cloud Run invoker 를 확인한다.
+
+```bash
+bash scripts/deploy_functions.sh dev
+bash scripts/deploy_functions.sh dev --apply
+```
+
+배포는 배포 스크립트로만 한다 — 인자 없는 `firebase deploy` 는 `firebase.json` 의 모든 대상(확장 포함)을 배포하므로 쓰지 않는다.
+
+**⑦ 앱을 다시 빌드해 실행한다.** `emailDelivery` 는 빌드 때 들어간다.
+
+```bash
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+```
+
+**메일 문구 · 모양 바꾸기.** 문구는 `functions/src/email/copy.json` 의 `mail.` 로 시작하는 키(ko · en · ja), 모양은 `functions/src/email/templates/` 의 `verify_email.hbs` · `reset_password.hbs` 다. 바꾼 뒤 ⑥ 으로 함수를 다시 배포한다.
+
+### 확인 방법
+
+- 앱에서 이메일로 가입하거나 인증 대기 화면에서 「인증 메일 재전송」 을 누른다. 받은 메일의 보낸 사람이 `DEFAULT_FROM` 이고, 머리에 앱 이름(로고를 올렸으면 로고) · 버튼 색이 `brandColor` · 문구가 앱 언어다. 메일의 링크를 열면 인증이 끝난다.
+- 이메일 로그인 화면의 「비밀번호를 잊으셨나요?」 로 받은 재설정 메일도 같은 모양이고, 링크로 비밀번호를 바꿀 수 있다.
+- Firebase Console → Firestore Database 의 `mail` 컬렉션에 보낸 메일마다 문서가 생기고, 문서의 `delivery.state` 가 `SUCCESS` 가 된다.
+
+### 문제 해결
+
+- **메일이 오지 않는다.** Firebase Console → Firestore Database 의 `mail` 컬렉션에서 최근 문서를 연다.
+  - 문서가 없으면 메일 함수가 메일을 만들지 못한 것이다. Firebase Console → Functions 의 로그에서 `sendVerificationMail` · `sendPasswordResetMail` 의 오류를 본다. `email_brand_unset` 이 있으면 ④ 의 `--apply` 뒤 ⑥ 으로 함수를 다시 배포한다.
+  - `delivery.state` 가 `ERROR` 면 `delivery.error` 에 발송 서비스가 거부한 사유가 있다. Resend 는 도메인을 인증하기 전 Resend 계정 주소가 아닌 받는 사람을 `You can only send testing emails to your own email address` 로 거부한다 — ① 의 도메인 인증을 끝내고 `DEFAULT_FROM` 을 그 도메인 주소로 바꾼 뒤 ④ 를 다시 한다.
+  - `delivery.state` 가 `SUCCESS` 인데 받은 편지함에 없으면 스팸함을 보고 ① 의 SPF · DKIM · DMARC 레코드를 확인한다.
+- **앱에 「요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.」 가 뜬다.** 같은 계정이나 같은 주소로 짧은 시간에 여러 번 보냈다. 잠시 뒤 다시 보낸다. 한도는 `functions/src/email/send_verification_mail.ts` · `functions/src/email/send_password_reset_mail.ts` 위쪽 상수다.
+- **`deploy_email.sh` 가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다 — `emailDelivery` 가 `kit` 이 아니다(②) · 확장 값 파일이 없거나 값이 빈 키 · 예시 자리표시(`<your-…>`)가 남은 키(③) · `appName` 이 비었거나 쓸 수 없는 문자(④). 고친 뒤 다시 실행한다.
+- **④ 의 `--apply` 가 secret 값을 묻지 못하고 끝난다.** 터미널 입력을 받을 수 없는 환경에서 실행했다. 일반 터미널에서 다시 실행한다.
+- **`firebase` 모드에서 재설정 메일이 앱 언어와 다른 언어로 온다.** Console 에서 재설정 메일 본문을 직접 고치면 그 본문 하나가 쓰인다. 앱 언어마다 다른 본문이 필요하면 `kit` 을 쓴다.
+
+### 끄기
+
+`config/dev.json` 의 `emailDelivery` 를 빈 값(`""`) 또는 `firebase` 로 바꾸고 앱을 다시 빌드한다. 그 뒤 메일은 Firebase 가 보낸다. `kit` 으로 이미 보낸 메일의 링크는 계속 열린다. `firebase` 모드에서는 `bash scripts/deploy_functions.sh dev` 가 메일 함수를 배포하지 않고 `deploy_email.sh` 의 `kit` 대상은 `FAIL:` 로 멈춘다.
+
+이미 설치한 확장과 메일 함수는 남겨 둬도 된다 — 앱이 부르지 않는다. 지우려면 아래 명령을 쓴다. 함수는 이름으로 지운다.
+
+```bash
+firebase functions:delete sendVerificationMail sendPasswordResetMail --region asia-northeast3 --project <your-project-id>
+```
+
+확장은 저장소 밖의 빈 디렉터리에서 지운다. 저장소 안에서 실행하면 Firebase CLI 가 `firebase.json` 의 확장 항목과 `extensions/firestore-send-email.env` 까지 지운다. 아래 명령은 임시 디렉터리에서 실행하고 삭제 여부를 한 번 묻는다.
+
+```bash
+( cd "$(mktemp -d)" && firebase ext:uninstall firestore-send-email --immediate --project <your-project-id> )
+```
+
+`mail` 컬렉션의 TTL 정책은 남겨 둬도 된다.
 
 ---
 
@@ -628,12 +770,12 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 
 | # | 파일 | 사용자가 바꾸는 것 | 킷이 고칠 가능성 | 충돌 시 조치 |
 |---|---|---|---|---|
-| 1 | `config/dev.json` · `config/stg.json` · `config/prod.json` (git 밖 · 예시는 `config/*.example.json`) | 키 값 전부(`appName` · `firebaseProjectId` · 로그인 수단 키 · `enabledAuthProviders` 등) | 높음 (새 키 추가 · 내 파일은 git 밖) | 충돌 없음. merge 뒤 `diff config/dev.example.json config/dev.json` 으로 새 키를 내 파일에 옮겨 적는다 |
+| 1 | `config/dev.json` · `config/stg.json` · `config/prod.json` (git 밖 · 예시는 `config/*.example.json`) | 키 값 전부(`appName` · `firebaseProjectId` · 로그인 수단 키 · `enabledAuthProviders` · `brandColor` · `emailDelivery` 등) | 높음 (새 키 추가 · 내 파일은 git 밖) | 충돌 없음. merge 뒤 `diff config/dev.example.json config/dev.json` 으로 새 키를 내 파일에 옮겨 적는다 |
 | 2 | `ios/Flutter/dev.xcconfig` · `stg.xcconfig` · `prod.xcconfig` (git 밖 · 예시는 `*.example.xcconfig`) | 변수 값 전부 · `DEVELOPMENT_TEAM` | 높음 (새 변수 추가 · 내 파일은 git 밖) | 충돌 없음. merge 뒤 `diff ios/Flutter/dev.example.xcconfig ios/Flutter/dev.xcconfig` 로 새 변수를 내 파일에 옮겨 적는다 |
 | 3 | `lib/core/firebase/firebase_options_dev.dart` · `_stg.dart` · `_prod.dart` · `ios/config/<flavor>/GoogleService-Info.plist` · `android/app/src/stg/google-services.json` · `android/app/src/prod/google-services.json` (저장소 값은 자리표시 · 실 값은 skip-worktree) | `scripts/firebase-configure.sh` 가 실 값으로 덮어쓴다 | 낮음 | 「충돌 풀기」 규칙 4 |
 | 4 | `scripts/firebase-configure.sh` 의 `PROJECT_ID_PREFIX` · `IOS_BUNDLE_ID_PREFIX` · `ANDROID_PACKAGE_PREFIX` | 내 프로젝트 식별자 3개(`bin/rename.dart` 가 바꾼다) | 중간 (스크립트 개선) | 같은 줄이 충돌하면 파일을 열어 상수 3줄만 내 값으로 남기고 나머지는 킷 값을 받는다 |
 | 5 | `.firebaserc` | 내 Firebase 프로젝트 ID | 낮음 | 내 값 |
-| 6 | `firebase.json` 의 `flutter.platforms` 프로젝트 ID · 앱 ID | FlutterFire CLI 가 쓰는 내 프로젝트 ID · 앱 ID | 중간 (`functions` · `emulators` 설정) | 다른 줄은 자동 병합 · 프로젝트 ID · 앱 ID 줄은 내 값 |
+| 6 | `firebase.json` 의 `flutter.platforms` 프로젝트 ID · 앱 ID | FlutterFire CLI 가 쓰는 내 프로젝트 ID · 앱 ID | 중간 (`functions` · `emulators` · `hosting` · `extensions` 설정) | 다른 줄은 자동 병합 · 프로젝트 ID · 앱 ID 줄은 내 값 |
 | 7 | `android/app/build.gradle.kts` 의 `namespace` · `applicationId` · flavor 접미사 · `release` 서명 설정 | 앱 ID(`bin/rename.dart`) · 릴리스 서명 | 중간 (Android Gradle Plugin · Flutter 상향) | 앱 ID · 서명 줄은 내 값 · 나머지는 킷 값 |
 | 8 | `android/app/src/main/kotlin/` 아래 앱 패키지 디렉터리의 `*.kt` | 패키지 경로(`bin/rename.dart` 가 디렉터리를 옮긴다) | 낮음 | 킷이 옛 경로의 파일을 고쳐 규칙 1 의 충돌이 나면 옛 경로를 `git rm` 하고 그 변경을 새 경로 파일에 옮겨 적는다 |
 | 9 | `ios/Runner.xcodeproj/project.pbxproj` | 번들 ID(`bin/rename.dart`) · Xcode 가 저장하는 설정 | 중간 (Flutter · Xcode 상향 · 플러그인) | 충돌이 잦다. 번들 ID 줄은 내 값 · 나머지는 킷 값을 받고 Xcode 로 열어 확인한다 |
@@ -648,7 +790,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 18 | `lib/features/home/presentation/home_body.dart` | 홈 본문 | 중간 | 내 값 · 「홈 화면 바꾸기」 의 배선 체크리스트는 지킨다 |
 | 19 | `lib/features/home/presentation/home_screen.dart` · `lib/core/router/app_router.dart` 의 홈 라우트 | 화면 교체 · 라우트 추가 | 높음 (라우트 · 리스너) | 자동 병합을 먼저 보고, 충돌은 직접 합친다 · 구조 테스트가 결과를 검사한다 |
 | 20 | `lib/features/demo/` · `test/features/demo/` · 데모를 지우며 고친 테스트 | 데모 삭제(「홈 화면 바꾸기」 ③ 지우는 법) | 중간 | 규칙 1(`git rm`) · 「데모를 지웠다면」 규칙 3 |
-| 21 | `lib/app.dart` 의 `seedColor` · `lib/core/theme/` 토큰 | 테마 색 · 토큰 | 중간 | 내 값 |
+| 21 | `lib/core/theme/` 토큰 (브랜드 색은 `config/*.json` 의 `brandColor`) | 테마 토큰 | 중간 | 내 값 |
 | 22 | `android/app/src/main/res/drawable/ic_notification.xml` · `values/colors.xml` 의 `notification_color` · `lib/features/notifications/data/local_notifications_service.dart` 의 `_kNotificationColor` | 알림 아이콘 · 색 | 낮음 | 내 값 |
 | 23 | `ios/Runner/Info.plist` · `InfoPlist.strings` | 권한 문구 · 추적 허용 문구 | 중간 (새 로그인 수단 키 · URL scheme) | 다른 키는 자동 병합 · 같은 키는 내 값 |
 | 24 | `android/app/src/main/AndroidManifest.xml` | 권한 · 메타데이터 | 중간 | 자동 병합을 먼저 보고, 충돌은 직접 합친다 |
@@ -660,6 +802,11 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 30 | `.gitignore` · `.fvmrc` · `.vscode/settings.json` | 항목 추가 · Flutter SDK 버전 | 중간 (SDK 상향) | `.gitignore` 는 자동 병합 · SDK 버전은 킷 값을 받은 뒤 `fvm install` |
 | 31 | `lib/features/<내 feature>/` · `test/features/<내 feature>/` | 사용자 전용 | 없음 | 충돌 없음 |
 | 32 | `KIT_VERSION` · `CHANGELOG.md` · `LICENSE` · `CONTRIBUTING.md` · `.github/` | 고치지 않는다(킷 전용) | 높음 | 충돌 없음(고치지 않았다면) |
+| 33 | `hosting/public/logo.png` | 결과 페이지 · 메일 로고 (킷 기본은 파일 없음) | 없음 | 충돌 없음 |
+| 34 | `hosting/public/index.html` · `page.css` · `page.js` | 결과 페이지 모양 | 중간 | 직접 합친 뒤 `bash scripts/deploy_email.sh dev hosting` 으로 빌드를 확인한다 |
+| 35 | `functions/src/email/copy.json` · `functions/src/email/templates/*.hbs` | 메일 · 결과 페이지 문구 · 메일 본문 | 중간 | 직접 합친 뒤 `functions/` 에서 `pnpm test` |
+| 36 | `extensions/firestore-send-email.env.<projectId>` (git 밖 · 예시는 `extensions/firestore-send-email.env.example`) | 발송 서비스 값(`DATABASE_REGION` · `DEFAULT_FROM` · `SMTP_CONNECTION_URI` · `SMTP_PASSWORD`) | 높음 (새 파라미터 추가 · 내 파일은 git 밖) | 충돌 없음. merge 뒤 `diff extensions/firestore-send-email.env.example extensions/firestore-send-email.env.<projectId>` 로 새 키를 내 파일에 옮겨 적는다 |
+| 37 | `functions/.env.<projectId>` (git 밖) | 함수 환경 값(`SEND_TEST_PUSH_ENABLED` 등) — `EMAIL_APP_NAME` · `EMAIL_BRAND_COLOR` · `EMAIL_LOGO_URL` 세 줄은 `scripts/deploy_email.sh` 가 쓴다 | 없음 | 충돌 없음 |
 
 ### 확인 방법
 
@@ -1361,8 +1508,9 @@ placeholder 가 채웁니다. 구현은
 `https://<project>.web.app/naver/callback` 이 `code` · `state` 를 보존한 채
 `<naverUrlScheme>://authorize?…` 로 재이동하게 만들고(세션이 그 이동을 가로챔),
 콘솔에 그 https 주소를 Callback URL 로 등록한 뒤 `AppConfig.naverWebRedirectUri`
-만 https 주소로 바꿉니다(콜백 scheme 은 그대로). 배포는 `firebase.json` 에 hosting
-항목을 추가하고 `firebase deploy --only hosting` 이며, flavor 마다 페이지의 scheme
+만 https 주소로 바꿉니다(콜백 scheme 은 그대로). 배포는 `firebase.json` 의 hosting
+공개 디렉터리에 페이지를 더하고(`hosting/build.mjs` 가 산출물에 복사하는 파일 목록에도 더한다)
+`bash scripts/deploy_email.sh <flavor> hosting --apply` 로 하며, flavor 마다 페이지의 scheme
 문자열을 그 flavor 의 값으로 바꿔야 합니다. 킷은 A 가 통과해 이 경로를 만들지
 않았습니다.
 
