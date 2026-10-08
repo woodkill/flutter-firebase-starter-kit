@@ -2,10 +2,13 @@
 # Phase 17.5 D-02 · D-04 · D-05 · D-06 · D-09 · D-14 · D-22 — 인증 메일 표면을 배포하는 스크립트.
 #
 # 목적:
-#   hosting — config/<flavor>.json 을 읽어 인증 결과 페이지를 빌드(hosting/build.mjs)한 뒤
-#             표준 `firebase deploy --project <id> --only hosting` 명령을 출력 · 실행한다.
-#             결과 페이지는 발송 모드(emailDelivery)와 독립이다 — firebase · kit 둘 다 된다.
-#   kit     — emailDelivery 가 kit 일 때만 동작한다(원칙 P · 「off 면 설정 0」).
+#   두 대상 모두 emailDelivery 가 kit 일 때만 동작한다(원칙 P · 「off 면 설정 0」 · D-22 ④).
+#   빈 값 · firebase 모드는 Firebase 메일 + Firebase 기본 페이지라 배포할 것이 없다 — FAIL 로
+#   멈추고 빌드 · 명령 출력 · firebase 호출을 하지 않는다.
+#   hosting — 결과 페이지만 다시 빌드(hosting/build.mjs)해 표준
+#             `firebase deploy --project <id> --only hosting` 명령을 출력 · 실행한다
+#             (문구 · 모양 · 로고 표시를 바꿨을 때). 결과 페이지는 kit 메일 링크가 연다.
+#   kit     — 켜기 배포(결과 페이지 · 메일 함수 env · 확장).
 #             ① 결과 페이지를 빌드해 `firebase deploy --project <id> --only hosting` 으로 먼저
 #             배포한다 — kit 메일 링크가 이 페이지를 연다(D-22 ③).
 #             ② ①이 성공한 뒤에만 메일 함수가 쓰는 env 4줄(EMAIL_APP_NAME · EMAIL_BRAND_COLOR ·
@@ -22,17 +25,17 @@
 #
 # 출력 계약:
 #   - 공통 출력: `flavor:` · `project:` · `mode: <firebase|kit>` · `target: <대상>`
-#   - hosting: 빌드 결과 줄(`BUILD OK …`) · `command: firebase deploy --project <id> --only hosting` ·
-#     Console 작업 URL 안내 1줄
+#   - hosting: 빌드 결과 줄(`BUILD OK …`) · `command: firebase deploy --project <id> --only hosting`
 #   - kit: 빌드 결과 줄(`BUILD OK …`) · `env: EMAIL_APP_NAME="…"` · `env: EMAIL_BRAND_COLOR="…"` ·
 #     `env: EMAIL_LOGO_URL="…"` · `env: EMAIL_RESULT_PAGE_URL="https://<id>.web.app/"` 4줄 ·
 #     `command:` 2줄(`… --only hosting` → `… --only extensions` 순) · `next:` 2줄(함수 배포 · TTL) ·
 #     --apply 때 `wrote: functions/.env.<id> …` 1줄(hosting 배포 성공 뒤)
 #   - brandColor 형식 오류: stderr `warn: …` 1줄(결과 페이지 빌드가 낸다) 뒤 기본 색(#673AB7)으로 계속
-#   - dry-run 마지막 줄: DRY-RUN OK <flavor> target=<대상> mode=<firebase|kit> (exit 0)
-#   - 실행 마지막 줄:    DEPLOY OK <flavor> target=<대상> mode=<firebase|kit> (exit 0)
+#   - dry-run 마지막 줄: DRY-RUN OK <flavor> target=<대상> mode=kit (exit 0)
+#   - 실행 마지막 줄:    DEPLOY OK <flavor> target=<대상> mode=kit (exit 0)
 #     실행 모드는 `running: firebase deploy …` 를 출력한 뒤 같은 명령을 실행한다.
 #   - 실패: FAIL: <사유> (stderr, exit 1) · 인자 오류: usage (stderr, exit 2)
+#     firebase 모드(빈 값 · firebase)는 두 대상 모두 `mode: firebase` 뒤 FAIL(`emailDelivery` · `kit` 언급)
 #
 # 안전 계약:
 #   - config/<flavor>.json 에서 .firebaseProjectId · .emailDelivery · .appName · .brandColor
@@ -64,8 +67,8 @@ usage() {
   cat >&2 <<'USAGE'
 usage: bash scripts/deploy_email.sh <dev|stg|prod> <hosting|kit> [--apply]
 
-  hosting — 인증 결과 페이지를 빌드해 Firebase Hosting 에 배포한다(발송 모드와 무관).
-  kit     — emailDelivery 가 kit 일 때만: 메일 함수 브랜드 env 를 쓰고 Trigger Email 확장을 배포한다.
+  hosting — emailDelivery 가 kit 일 때만: 결과 페이지만 다시 빌드해 Firebase Hosting 에 배포한다(문구 · 모양 · 로고 표시를 바꿨을 때).
+  kit     — emailDelivery 가 kit 일 때만: 결과 페이지 · 메일 함수 env · Trigger Email 확장을 배포한다.
   옵션 없이 실행하면 계획만 출력한다(dry-run). --apply 를 줄 때만 실제로 바꾼다.
 USAGE
 }
@@ -175,12 +178,19 @@ build_result_page() {
     fail "결과 페이지 빌드 실패 — 위 FAIL 사유를 고친 뒤 다시 실행한다"
 }
 
-# hosting 대상 — 결과 페이지 빌드 → 배포 명령 출력 → (--apply) 실행.
+# emailDelivery 가 kit 이 아니면 대상별 사유 $1 과 함께 FAIL 한다(원칙 P · D-22 ④).
+# 두 대상 모두 빌드 · 명령 출력보다 먼저 부른다 — firebase 모드는 빌드 산출 · 호출 0.
+require_kit_mode() {
+  [ "$EMAIL_MODE" = kit ] ||
+    fail "config/${FLAVOR}.json 의 emailDelivery 가 kit 이 아니다 — ${TARGET} 대상은 emailDelivery 가 kit 일 때만 배포한다($1)"
+}
+
+# hosting 대상 — 모드 가드 → 결과 페이지 빌드 → 배포 명령 출력 → (--apply) 실행.
 deploy_hosting() {
+  require_kit_mode "결과 페이지는 kit 모드 메일의 링크가 연다 — firebase 모드 메일 링크는 Firebase 기본 페이지로 열린다"
   build_result_page
 
   echo "command: firebase deploy --project ${PROJECT} --only hosting"
-  echo "배포 뒤 Console → Authentication → 템플릿 → 작업 URL 맞춤설정 에 https://${PROJECT}.web.app/ 를 넣는다"
 
   if [ "$OPTION" != "--apply" ]; then
     echo ""
@@ -313,8 +323,7 @@ print_kit_next() {
 # kit 대상 — 모드 가드 → 확장 env 확인 → 브랜드 · 결과 페이지 주소 → 결과 페이지 빌드 → 계획 출력
 # → (--apply) 결과 페이지 배포 → 성공 뒤에만 메일 env 4줄 쓰기 → 확장 배포(D-22 ③).
 deploy_kit() {
-  [ "$EMAIL_MODE" = kit ] ||
-    fail "config/${FLAVOR}.json 의 emailDelivery 가 kit 이 아니다 — kit 대상은 emailDelivery 가 kit 일 때만 배포한다(firebase 모드는 확장 · 메일 함수가 필요 없다)"
+  require_kit_mode "firebase 모드는 확장 · 메일 함수가 필요 없다"
 
   check_extension_env
   resolve_brand_env
