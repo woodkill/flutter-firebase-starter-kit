@@ -85,6 +85,11 @@ functions/.env.*
 env/
 *.env
 .env.*
+# Firebase Extensions manifest env — 공유 비-secret 파라미터와 예시만 추적한다
+!extensions/*.env
+extensions/*.env.*
+!extensions/*.env.example
+extensions/*.secret.local
 
 # Flavor 설정 파일 (실제 시크릿 포함, 로컬 전용 — *.example.json 만 tracked)
 # config/dev.json, config/stg.json, config/prod.json 은 fork 사용자가 본인 키로
