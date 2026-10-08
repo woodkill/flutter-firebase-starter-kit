@@ -3,22 +3,29 @@
  * 17 D-26).
  *
  * kit 모드 인증 메일 callable — 서버가 검증한 ID token 의 `email` 로 Admin
- * 링크를 만들고 `lang` 을 붙여 실제 `renderMail` 로 렌더한 뒤 Firestore
- * `mail/` 에 `{to, message}` 를 add 한다. `renderMail` 은 mock 하지 않는다
- * (렌더 관통).
+ * 링크를 만들고 결과 페이지 링크로 재작성(`toResultPageLink` — 쿼리 보존 ·
+ * `lang` 부착, D-22 ①)해 실제 `renderMail` 로 렌더한 뒤 Firestore `mail/` 에
+ * `{to, message}` 를 add 한다. `renderMail` 은 mock 하지 않는다(렌더 관통).
  *
  * **Mock 한계:** Admin 링크 · Firestore add · transaction 은 mock 이다. rate
  * limit transaction 은 `createOrderedTx` 로 reads-before-writes 를 강제한다
  * (memory feedback_mock_transaction_constraint). 실 확장 발송은 plan 12 UAT.
  *
- * 시나리오 (plan 05 Task 1 V1~V7):
- *  - V1: 관통 — 토큰 email · ja → 링크 1회 · mail add 1회 · ja 제목 · lang=ja
- *  - V2: 요청 본문 email · appName 위조 무시 (17 D-26)
+ * 시나리오 (plan 05 Task 1 V1~V7 · plan 14 V8~V10):
+ *  - V1: 관통 — 토큰 email · ja → 링크 1회 · mail add 1회 · ja 제목 · 결과
+ *    페이지 링크(`https://demo.web.app/?mode=…&lang=ja`) · 원 링크 호스트 0
+ *  - V2: 요청 본문 email · appName · resultPageUrl · link 위조 무시 (17 D-26 ·
+ *    D-22 ②)
  *  - V3: 익명 caller 거부 (failed-precondition + reason)
  *  - V4: 미인증 · 토큰 email 없음 · 이미 인증됨
  *  - V5: uid 축 · 이메일 해시 축 rate limit 초과 → resource-exhausted + 알람
  *  - V6: 브랜드 env 미설정 → internal + email_brand_unset
- *  - V7: logger 인자에 이메일 · oobCode · 링크 0
+ *  - V7: logger 인자에 이메일 · oobCode · 링크 · 결과 페이지 호스트 0
+ *  - V8: 결과 페이지 env 빈 값 · `http://` → internal + email_result_page_unset
+ *    · 링크 생성 · rate limit · add 0 (D-22 ③)
+ *  - V9: Admin 링크가 web.app 기본 핸들러여도 V1 과 같은 링크 (A1 무관)
+ *  - V10: Admin 링크에 oobCode 없음 → internal + verification_mail_failed ·
+ *    add 0 · 로그에 호스트 0
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -105,6 +112,14 @@ const TOKEN_EMAIL = "pii-verify-sentinel@example.com";
 const ADMIN_LINK =
   "https://demo.firebaseapp.com/__/auth/action?mode=verifyEmail" +
   "&oobCode=OOB_SENTINEL_123&apiKey=fake-api-key";
+
+/** 결과 페이지 env 값 fixture (`EMAIL_RESULT_PAGE_URL`). */
+const RESULT_PAGE_URL = "https://demo.web.app/";
+
+/** [ADMIN_LINK] 를 [RESULT_PAGE_URL] 로 재작성한 ja 링크 (D-22 ①). */
+const RESULT_LINK_JA =
+  "https://demo.web.app/?mode=verifyEmail" +
+  "&oobCode=OOB_SENTINEL_123&apiKey=fake-api-key&lang=ja";
 
 /** `mail/` add 1건의 payload 모양. */
 type MailDoc = {
@@ -195,6 +210,7 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
     mockEnv.EMAIL_APP_NAME = "Kit";
     mockEnv.EMAIL_BRAND_COLOR = "#673AB7";
     mockEnv.EMAIL_LOGO_URL = "";
+    mockEnv.EMAIL_RESULT_PAGE_URL = RESULT_PAGE_URL;
     counters = new Map();
     mockNewTx = newTx;
     // transaction 이 한 번도 열리지 않은 경우의 기록 (빈 handle).
@@ -206,7 +222,7 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
   });
 
   // eslint-disable-next-line max-len
-  it("V1: 토큰 email 로 링크 → lang=ja → renderMail → mail add 1회 → {ok: true}", async () => {
+  it("V1: 토큰 email 로 링크 → 결과 페이지 링크(lang=ja) → renderMail → mail add 1회 → {ok: true}", async () => {
     const result = await callAs(UNVERIFIED_TOKEN, {locale: "ja"});
 
     expect(result).toEqual({ok: true});
@@ -220,18 +236,25 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
     expect(docs[0].message.html).toContain("oobCode=OOB_SENTINEL_123");
     expect(docs[0].message.html).not.toContain("&#x3D;");
     expect(docs[0].message.text).toContain("lang=ja");
+    // 링크 = 결과 페이지 재작성 결과 · 원 링크 호스트 0 (D-22 ①).
+    expect(docs[0].message.html).toContain(`href="${RESULT_LINK_JA}"`);
+    expect(docs[0].message.text).toContain(RESULT_LINK_JA);
+    expect(docs[0].message.html).not.toContain("demo.firebaseapp.com");
+    expect(docs[0].message.text).not.toContain("demo.firebaseapp.com");
     // rate limit 2축이 같은 transaction 에서 read 뒤 새 창으로 쓰였다.
     expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
   });
 
   // eslint-disable-next-line max-len
-  it("V2: 요청 본문의 email · appName · brandColor 는 무시하고 토큰 email · env 브랜드만 쓴다", async () => {
+  it("V2: 요청 본문의 email · appName · brandColor · resultPageUrl · link 는 무시하고 토큰 email · env 값만 쓴다", async () => {
     const result = await callAs(UNVERIFIED_TOKEN, {
       locale: "ko",
       email: "evil@example.com",
       appName: "X",
       brandColor: "#000000",
       logoUrl: "https://evil.example.com/logo.png",
+      resultPageUrl: "https://evil.example.com/",
+      link: "https://evil.example.com/x",
     });
 
     expect(result).toEqual({ok: true});
@@ -243,6 +266,11 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
     expect(docs[0].message.html).not.toContain("evil@");
     expect(docs[0].message.html).not.toContain("evil.example.com");
     expect(docs[0].message.html).toContain("#673AB7");
+    expect(docs[0].message.text).not.toContain("evil.example.com");
+    expect(
+      docs[0].message.html.split("https://demo.web.app/?mode=verifyEmail")
+        .length - 1,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   // eslint-disable-next-line max-len
@@ -406,6 +434,77 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
     expect(text).not.toContain("oobCode");
     expect(text).not.toContain("OOB_SENTINEL_123");
     expect(text).not.toContain("firebaseapp.com");
+    expect(text).not.toContain("web.app");
+  });
+
+  it.each([
+    ["빈 값", ""],
+    ["http://", "http://demo.web.app/"],
+  ])(
+    // eslint-disable-next-line max-len
+    "V8: 결과 페이지 env %s → internal + email_result_page_unset · 링크 · rate limit · add 0",
+    async (_label, value) => {
+      mockEnv.EMAIL_RESULT_PAGE_URL = value;
+
+      const promise = callAs(UNVERIFIED_TOKEN, {locale: "ko"});
+      await expect(promise).rejects.toBeInstanceOf(HttpsError);
+      await expect(promise).rejects.toMatchObject({
+        code: "internal",
+        message: "errorUnknown",
+      });
+      expect(errorMock).toHaveBeenCalledWith(
+        {event: "email_result_page_unset"},
+        expect.any(String),
+      );
+      expect(mockGenerateVerifyLink).not.toHaveBeenCalled();
+      expect(mockMailAdd).not.toHaveBeenCalled();
+      expect(mockOrdered.calls).toEqual([]);
+    },
+  );
+
+  // eslint-disable-next-line max-len
+  it("V9: Admin 링크가 web.app 기본 핸들러여도 V1 과 같은 결과 페이지 링크다 (A1 무관)", async () => {
+    mockGenerateVerifyLink.mockResolvedValue(
+      "https://demo.web.app/__/auth/action?mode=verifyEmail" +
+        "&oobCode=OOB_SENTINEL_123&apiKey=fake-api-key",
+    );
+
+    const result = await callAs(UNVERIFIED_TOKEN, {locale: "ja"});
+
+    expect(result).toEqual({ok: true});
+    const docs = mailDocs();
+    expect(docs).toHaveLength(1);
+    expect(docs[0].message.html).toContain(`href="${RESULT_LINK_JA}"`);
+    expect(docs[0].message.text).toContain(RESULT_LINK_JA);
+    expect(docs[0].message.html).not.toContain("/__/auth/action");
+    expect(docs[0].message.text).not.toContain("/__/auth/action");
+  });
+
+  // eslint-disable-next-line max-len
+  it("V10: Admin 링크에 oobCode 없음 → internal + verification_mail_failed · add 0 · 로그에 호스트 0", async () => {
+    mockGenerateVerifyLink.mockResolvedValue(
+      "https://demo.firebaseapp.com/__/auth/action?mode=verifyEmail" +
+        "&apiKey=fake-api-key",
+    );
+
+    const promise = callAs(UNVERIFIED_TOKEN, {locale: "ko"});
+    await expect(promise).rejects.toMatchObject({
+      code: "internal",
+      message: "errorUnknown",
+    });
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "verification_mail_failed",
+        uid: "u-verify",
+      }),
+      expect.any(String),
+    );
+    expect(mockMailAdd).not.toHaveBeenCalled();
+    const text = allLogText();
+    expect(text).not.toContain(TOKEN_EMAIL);
+    expect(text).not.toContain("firebaseapp.com");
+    expect(text).not.toContain("web.app");
+    expect(text).not.toContain("fake-api-key");
   });
 });
 

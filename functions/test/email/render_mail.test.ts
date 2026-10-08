@@ -1,6 +1,6 @@
 /**
- * `renderMail` · `attachLang` 회귀 테스트 (Phase 17.5 — see ROADMAP.md ·
- * D-05 · D-07 · D-11 · D-15 · MAIL-02).
+ * `renderMail` · `attachLang` · `toResultPageLink` 회귀 테스트 (Phase 17.5 —
+ * see ROADMAP.md · D-05 · D-07 · D-11 · D-15 · D-22 · MAIL-02).
  *
  * 메일 HTML · text 는 함수 코드가 Handlebars 로 렌더한다(D-11). 이 테스트는
  * 배포본과 같은 렌더러(`src/email/render_mail.ts` + `templates/*.hbs`)를
@@ -10,6 +10,8 @@
  *  - ko 인증 메일 · 로고 없음 — subject · lang · 문구 · 버튼 href = 대체 링크 ·
  *    `<img` 0
  *  - `attachLang` — Admin 링크에 `lang` 1개 부착 · 기존 값 덮어쓰기
+ *  - RP1~RP4: `toResultPageLink` — 결과 페이지 호스트 · 경로 + 원 쿼리 보존 ·
+ *    원 링크 호스트 무관 · `continueUrl` 보존 · `lang` 1개 · 필수 쿼리 없으면 throw
  *  - 치환자 완전 치환 · `&#x3D;` 0 (Pitfall 6)
  *  - handlebars 4.7.10 의 `escapeExpression("a=b")` 결과 고정 (Pitfall 6 재확인)
  *  - 로고 있음 / 없음 헤더 · 앱 이름 HTML escape · text 파트 조립 규칙
@@ -28,7 +30,11 @@ import Handlebars from "handlebars";
 
 import type {MailBrand} from "../../src/email/brand";
 import type {MailLocale} from "../../src/email/mail_locale";
-import {attachLang, renderMail} from "../../src/email/render_mail";
+import {
+  attachLang,
+  renderMail,
+  toResultPageLink,
+} from "../../src/email/render_mail";
 import type {MailKind} from "../../src/email/render_mail";
 
 // brand.ts 가 import 하는 params 모듈 — 이 suite 는 env 를 읽지 않는다.
@@ -40,6 +46,9 @@ jest.mock("firebase-functions/params", () => ({
 const ADMIN_LINK =
   "https://example.firebaseapp.com/__/auth/action" +
   "?mode=verifyEmail&oobCode=c&apiKey=k";
+
+/** 결과 페이지 주소 fixture (`EMAIL_RESULT_PAGE_URL` 값 모양 — D-22 ②). */
+const RESULT_PAGE_URL = "https://example.web.app/";
 
 /** 로고 파일이 없는 킷 기본 상태의 브랜드 값. */
 const BRAND_NO_LOGO: MailBrand = {
@@ -122,6 +131,83 @@ describe("attachLang", () => {
 
     expect(out.searchParams.getAll("lang")).toEqual(["ko"]);
   });
+});
+
+describe("toResultPageLink (D-22)", () => {
+  // eslint-disable-next-line max-len
+  it("RP1: firebaseapp.com 기본 핸들러 링크 → 결과 페이지 루트 + 원 쿼리 + lang", () => {
+    expect(toResultPageLink(ADMIN_LINK, RESULT_PAGE_URL, "ko")).toBe(
+      "https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko",
+    );
+  });
+
+  // eslint-disable-next-line max-len
+  it("RP2: web.app 기본 핸들러 링크여도 RP1 과 같은 결과다 (원 링크 호스트 무관)", () => {
+    const webAppLink =
+      "https://example.web.app/__/auth/action" +
+      "?mode=verifyEmail&oobCode=c&apiKey=k";
+
+    expect(toResultPageLink(webAppLink, RESULT_PAGE_URL, "ko")).toBe(
+      toResultPageLink(ADMIN_LINK, RESULT_PAGE_URL, "ko"),
+    );
+    expect(toResultPageLink(webAppLink, RESULT_PAGE_URL, "ko")).toBe(
+      "https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko",
+    );
+  });
+
+  // eslint-disable-next-line max-len
+  it("RP3: continueUrl 은 그대로 남고 기존 lang 은 덮어써 1개다", () => {
+    const withContinue =
+      `${ADMIN_LINK}&continueUrl=https%3A%2F%2Fapp.example.com%2Fdone`;
+    const withLang =
+      "https://example.web.app/__/auth/action" +
+      "?mode=resetPassword&oobCode=c&apiKey=k&lang=fr";
+
+    expect(toResultPageLink(withContinue, RESULT_PAGE_URL, "en")).toBe(
+      "https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k" +
+        "&continueUrl=https%3A%2F%2Fapp.example.com%2Fdone&lang=en",
+    );
+    const out = toResultPageLink(withLang, RESULT_PAGE_URL, "ja");
+    expect(out).toBe(
+      "https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja",
+    );
+    expect(new URL(out).searchParams.getAll("lang")).toEqual(["ja"]);
+  });
+
+  it.each([
+    [
+      "mode",
+      "https://example.firebaseapp.com/__/auth/action" +
+        "?oobCode=OOB_RP4_SECRET&apiKey=KEY_RP4_SECRET",
+    ],
+    [
+      "oobCode",
+      "https://example.firebaseapp.com/__/auth/action" +
+        "?mode=verifyEmail&apiKey=KEY_RP4_SECRET",
+    ],
+    [
+      "apiKey",
+      "https://example.firebaseapp.com/__/auth/action" +
+        "?mode=verifyEmail&oobCode=OOB_RP4_SECRET",
+    ],
+  ])(
+    "RP4: %s 없는 링크는 throw 하고 메시지에 링크 · 값이 없다",
+    (_missing, link) => {
+      let message = "";
+      try {
+        toResultPageLink(link, RESULT_PAGE_URL, "ko");
+      } catch (err: unknown) {
+        message = err instanceof Error ? err.message : String(err);
+      }
+
+      expect(message).toBe(
+        "toResultPageLink: link has no mode, oobCode or apiKey",
+      );
+      expect(message).not.toContain("firebaseapp.com");
+      expect(message).not.toContain("OOB_RP4_SECRET");
+      expect(message).not.toContain("KEY_RP4_SECRET");
+    },
+  );
 });
 
 describe("renderMail verifyEmail ko", () => {

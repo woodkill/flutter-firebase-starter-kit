@@ -3,6 +3,7 @@
 // 서버 브랜드 값은 함수 런타임 env 에서만 읽는다 — 클라이언트 입력값을 메일에
 // 넣지 않는다(17 D-26). env 값은 배포 스크립트가 `config/<flavor>.json` 에서
 // `functions/.env.<projectId>` 로 쓴다(`.env.*` 는 root `.gitignore` 대상).
+// 결과 페이지 주소 env(`EMAIL_RESULT_PAGE_URL`)도 배포 스크립트가 같은 env 파일에 쓴다(D-22 ②).
 //
 // brandColor 판정 · on-accent 규칙은 결과 페이지 빌드 · 앱 테마와 같아야 한다
 // (UI-SPEC §Color). 세 구현의 일치는 공유 표 `hosting/test/shared_rules.json`
@@ -106,17 +107,19 @@ export function isEmbeddableUrl(
   }
 }
 
-/** env 브랜드 param 3종. */
+/** env 브랜드 param 3종 + 결과 페이지 주소 param. */
 type MailBrandParams = {
   appName: StringParam;
   brandColor: StringParam;
   logoUrl: StringParam;
+  resultPageUrl: StringParam;
 };
 
 let mailBrandParams: MailBrandParams | undefined;
 
 /**
- * 브랜드 env param 3종을 돌려준다 (D-05 · D-06).
+ * 브랜드 env param 3종 + 결과 페이지 주소 param 을 돌려준다 (D-05 · D-06 ·
+ * D-22 ②).
  *
  * **선언 시점:** 공식 예제처럼 모듈 스코프 상수로 두지 않고 첫 호출 때 한 번
  * 선언한다(`send_test_push.ts` 와 같은 lazy 패턴). `src/index.ts` 전체를
@@ -133,6 +136,7 @@ function brandParams(): MailBrandParams {
       appName: defineString("EMAIL_APP_NAME", {default: ""}),
       brandColor: defineString("EMAIL_BRAND_COLOR", {default: ""}),
       logoUrl: defineString("EMAIL_LOGO_URL", {default: ""}),
+      resultPageUrl: defineString("EMAIL_RESULT_PAGE_URL", {default: ""}),
     };
   }
   return mailBrandParams;
@@ -166,4 +170,29 @@ export function readMailBrand(): MailBrand | null {
     onBrandColor: onAccentColor(brandColor),
     logoUrl,
   };
+}
+
+/**
+ * 함수 런타임 env 에서 결과 페이지 주소를 읽는다 (D-22 ②).
+ *
+ * kit 메일 링크를 이 주소로 재작성한다(`toResultPageLink`). handler 안에서만
+ * 부른다(배포 시점 평가 금지). 값은 배포 스크립트(`deploy_email.sh <flavor>
+ * kit --apply`)가 config 의 프로젝트 ID 로 `https://<projectId>.web.app/` 를
+ * 만들어 쓴다 — 클라이언트 입력값은 쓰지 않는다(17 D-26 · 링크 위조 차단).
+ *
+ * `https://` 로 시작하고 메일 속성에 넣어도 되는 문자만 있으며
+ * ([isEmbeddableUrl]) 쿼리 · 해시가 없는 값만 받는다. 그 밖(빈 값 포함)은
+ * `null` — 호출자는 메일을 보내지 않는다(D-22 ③ fail-closed).
+ *
+ * @return {string | null} 결과 페이지 주소 또는 미설정 · 형식 오류 시 null.
+ */
+export function readResultPageUrl(): string | null {
+  const raw = brandParams().resultPageUrl.value();
+  if (!raw.startsWith("https://") || !isEmbeddableUrl(raw, ["https:"])) {
+    return null;
+  }
+  // 빈 `?` · `#` 도 거부한다 — URL 파서는 둘 다 빈 search · hash 로 읽는다.
+  const url = new URL(raw);
+  if (url.search !== "" || url.hash !== "" || /[?#]/.test(raw)) return null;
+  return raw;
 }

@@ -2,13 +2,16 @@
 // 메일 callable. `emailDelivery=kit` 일 때만 배포한다(manifest `email.kit`).
 //
 // Firebase Console 은 인증 메일 본문을 바꿀 수 없으므로 kit 모드는 함수가
-// 직접 보낸다: Admin `generateEmailVerificationLink` → `lang` 부착 →
+// 직접 보낸다: Admin `generateEmailVerificationLink` → 결과 페이지 링크로
+// 재작성(`toResultPageLink` — 쿼리 보존 · `lang` 부착, D-22 ①) →
 // `renderMail` → Firestore `mail/` add(Trigger Email 확장이 발송). callable
 // 성공 = `mail/` 기록까지다(D-12) — 실제 SMTP 전달은 확장이 맡는다.
 //
 // - 수신 주소는 검증된 ID token 의 `email` 뿐이다. 요청 본문은 `locale` 만
 //   읽는다 — `email` · `appName` 같은 값을 실어 보내도 무시한다(17 D-26).
 // - 브랜드 값은 함수 env(`readMailBrand`)만 쓴다(피싱 문구 위조 차단).
+// - 링크 호스트 · 경로는 함수 env(`readResultPageUrl`)만 쓴다(링크 위조
+//   차단 · D-22 ②). 값이 없으면 메일을 보내지 않는다(D-22 ③).
 // - 남용 방어: uid 축 · 이메일 해시 축 rate limit 을 한 transaction 에서
 //   판정한다. 문서 id 에 이메일 원문을 남기지 않는다.
 //
@@ -24,10 +27,10 @@ import {isAnonymousCaller} from "../shared/caller_auth";
 import {ANONYMOUS_CALLER_REASON} from "../shared/custom_token_errors";
 import {consumeRateLimitAxes} from "../shared/rate_limit";
 import type {ExceededRateAxis} from "../shared/rate_limit";
-import {readMailBrand} from "./brand";
+import {readMailBrand, readResultPageUrl} from "./brand";
 import {hashEmail} from "./email_hash";
 import {resolveMailLocale} from "./mail_locale";
-import {attachLang, renderMail} from "./render_mail";
+import {renderMail, toResultPageLink} from "./render_mail";
 
 /** 요청 본문 — `locale` 만 읽는다 (그 밖 키는 무시). */
 type SendVerificationMailRequest = {
@@ -63,14 +66,19 @@ const EMAIL_DOC_PREFIX = "sendVerificationMailEmail:";
  *           `failed-precondition` + `{reason: "anonymous_caller"}` · 토큰
  *           email 없음 → `failed-precondition` · 이미 인증 → 메일 없이
  *           `{ok: true}`.
- *   Step 1: 브랜드 env 미설정(`readMailBrand()` null) → `internal`.
+ *   Step 1: 브랜드 env 미설정(`readMailBrand()` null) →
+ *           `email_brand_unset` + `internal` · 결과 페이지 주소 env 미설정
+ *           (`readResultPageUrl()` null) → `email_result_page_unset` +
+ *           `internal` (rate limit · 링크 생성 전 — D-22 ③).
  *   Step 2: uid · 이메일 해시 2축 rate limit (한 transaction) — 초과 축마다
  *           `verification_mail_rate_limited` 알람 + `resource-exhausted`.
- *   Step 3: Admin 링크 → `attachLang` → `renderMail("verifyEmail")` →
- *           `mail/` add → `{ok: true}`. 실패는 `internal`.
+ *   Step 3: Admin 링크 → `toResultPageLink`(결과 페이지 + `lang`) →
+ *           `renderMail("verifyEmail")` → `mail/` add → `{ok: true}`.
+ *           실패(필수 쿼리 없는 링크 포함)는 `internal`.
  *
  * **PII 금지:** logger payload 는 `{event, uid, axis, count, code, locale}`
- * 뿐이다. 이메일 · 링크 · oobCode · `err.message` 를 싣지 않는다.
+ * 뿐이다. 이메일 · 링크 · oobCode · 결과 페이지 주소 · `err.message` 를
+ * 싣지 않는다.
  *
  * @param {{auth?: {uid: string, token: Record<string, unknown>}, data:
  *     SendVerificationMailRequest}} request onCall request.
@@ -111,6 +119,15 @@ export const sendVerificationMail = onCall<SendVerificationMailRequest>(
       logger.error(
         {event: "email_brand_unset"},
         "EMAIL_APP_NAME is not configured",
+      );
+      throw new HttpsError("internal", "errorUnknown");
+    }
+    // 결과 페이지 주소 — 없으면 기본 핸들러 링크를 보내지 않고 멈춘다.
+    const resultPageUrl = readResultPageUrl();
+    if (resultPageUrl === null) {
+      logger.error(
+        {event: "email_result_page_unset"},
+        "EMAIL_RESULT_PAGE_URL is not configured",
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -160,14 +177,14 @@ export const sendVerificationMail = onCall<SendVerificationMailRequest>(
       throw new HttpsError("resource-exhausted", "errorTooManyRequests");
     }
 
-    // Step 3: 링크 → lang → 렌더 → mail/ 큐 기록.
+    // Step 3: 링크 → 결과 페이지 재작성(+ lang) → 렌더 → mail/ 큐 기록.
     try {
       // actionCodeSettings 없음 — continueUrl 을 싣지 않는다(D-17).
       const link = await getAuth().generateEmailVerificationLink(email);
       const message = renderMail("verifyEmail", {
         locale,
         email,
-        link: attachLang(link, locale),
+        link: toResultPageLink(link, resultPageUrl, locale),
         brand,
       });
       await db.collection("mail").add({to: [email], message});

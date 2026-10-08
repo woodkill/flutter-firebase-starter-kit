@@ -33,7 +33,7 @@ export type RenderMailInput = {
   locale: MailLocale;
   /** 받는 사람 주소 — 본문 `{email}` 자리. */
   email: string;
-  /** 버튼 · 대체 링크 URL (`attachLang` 결과). */
+  /** 버튼 · 대체 링크 URL (`toResultPageLink` 결과). */
   link: string;
   /** 서버 브랜드 값 (`readMailBrand` 결과). */
   brand: MailBrand;
@@ -90,6 +90,48 @@ export function attachLang(link: string, locale: MailLocale): string {
   const url = new URL(link);
   url.searchParams.set("lang", locale);
   return url.toString();
+}
+
+/** 결과 페이지가 SDK 를 부르기 전에 요구하는 액션 링크 쿼리 키. */
+const REQUIRED_ACTION_PARAMS: readonly string[] = ["mode", "oobCode", "apiKey"];
+
+/**
+ * Admin 액션 링크를 결과 페이지 링크로 바꾼다 (D-22 ① · D-15 · D-17).
+ *
+ * Identity Platform 서버가 Console 의 메일 링크 주소(작업 URL)를 Firebase
+ * 기본 핸들러 2개(`…firebaseapp.com/__/auth/action` ·
+ * `…web.app/__/auth/action`)로만 허용해, kit 함수가 링크 자체를 결과 페이지로
+ * 바꾼다(근거 `.planning/debug/resolved/auth-action-url-update-locked.md`).
+ *
+ * 원 링크의 호스트 · 경로와 무관하게 결과 페이지 주소의 호스트 · 경로를 쓰고,
+ * 쿼리(`mode` · `oobCode` · `apiKey` · 있으면 `continueUrl`)는 그대로 둔다
+ * (킷은 `continueUrl` 을 싣지 않는다 — D-17). `lang` 은 [attachLang] 로 1개만
+ * 남긴다. `mode` · `oobCode` · `apiKey` 중 하나라도 없으면 결과 페이지
+ * (`hosting/public/state.mjs` `initialState`)가 badLink 로 끝나므로 보내지
+ * 않고 throw 한다 — 오류 메시지에 링크 · 값을 싣지 않는다.
+ *
+ * @param {string} link Admin SDK 가 만든 절대 URL.
+ * @param {string} resultPageUrl 결과 페이지 주소 (`readResultPageUrl` 결과).
+ * @param {MailLocale} locale 메일 locale.
+ * @return {string} 결과 페이지 주소 + 원 쿼리 + `lang=<locale>` 1개.
+ * @throws {Error} 원 링크에 필수 쿼리가 없을 때.
+ */
+export function toResultPageLink(
+  link: string,
+  resultPageUrl: string,
+  locale: MailLocale,
+): string {
+  const source = new URL(link);
+  const hasRequired = REQUIRED_ACTION_PARAMS.every(
+    (key) => (source.searchParams.get(key) ?? "") !== "",
+  );
+  if (!hasRequired) {
+    throw new Error("toResultPageLink: link has no mode, oobCode or apiKey");
+  }
+  const target = new URL(resultPageUrl);
+  target.search = source.search;
+  target.hash = "";
+  return attachLang(target.toString(), locale);
 }
 
 /**
