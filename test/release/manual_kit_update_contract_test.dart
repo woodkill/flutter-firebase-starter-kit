@@ -3,7 +3,7 @@
 // 예시 일치 대조.
 //
 // T-174-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 목차 번호 0부터 연속 · 새 항목이
-//   「로그인 수단 켜고 끄기」 항목 바로 다음 줄이다.
+//   작업 순서상 바로 앞 절(이메일 절의 마지막) 항목 바로 다음 줄이다.
 // T-174-DOCS-02: 절에 사용자 문서 금지 패턴이 0 건이고, template 시작 소절의 bash
 //   블록이 기준점 명령 4줄 하나다.
 // T-174-DOCS-03: 절의 `###` 소절 9개가 이 순서 그대로다.
@@ -59,9 +59,9 @@ final RegExp _tocEntryPattern = RegExp(
   multiLine: true,
 );
 
-/// 새 항목 바로 앞에 있어야 하는 목차 항목.
+/// 새 항목 바로 앞에 있어야 하는 목차 항목(작업 순서상 이메일 절의 마지막).
 final RegExp _previousTocEntryPattern = RegExp(
-  r'^\d+\. \[로그인 수단 켜고 끄기\]\(#로그인-수단-켜고-끄기\)$',
+  r'^\d+\. \[인증 결과 페이지 바꾸기\]\(#인증-결과-페이지-바꾸기\)$',
 );
 
 /// 「시작하기 — template」 의 기준점 명령 4줄 (정확한 줄).
@@ -252,7 +252,7 @@ void main() {
   );
 
   group('매뉴얼 「킷 업데이트 반영」 계약 (T-174-DOCS)', () {
-    test('T-174-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 번호 0부터 연속 · 로그인 수단 항목 다음이다', () {
+    test('T-174-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 번호 0부터 연속 · 이메일 절 항목 다음이다', () {
       expect(
         countExactLines(manual, _sectionHeading),
         1,
@@ -284,7 +284,7 @@ void main() {
       expect(
         _previousTocEntryPattern.hasMatch(tocLines[entryIndex - 1]),
         isTrue,
-        reason: '「킷 업데이트 반영」 항목이 「로그인 수단 켜고 끄기」 바로 다음이 아니다',
+        reason: '「킷 업데이트 반영」 항목이 「인증 결과 페이지 바꾸기」 바로 다음이 아니다',
       );
     });
 

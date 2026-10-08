@@ -26,28 +26,29 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 
 0. [Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통)
 1. [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기)
-2. [킷 업데이트 반영](#킷-업데이트-반영)
-3. [Kakao Login (Phase 12)](#kakao-login-phase-12)
-4. [Naver Login (Phase 13)](#naver-login-phase-13)
-5. [LINE Login (Phase 14)](#line-login-phase-14)
-6. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
-7. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
-8. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
-9. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-10. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-11. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-12. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
-13. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
-14. [Firebase Services (Phase 17)](#firebase-services-phase-17)
-15. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-16. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
-17. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
-18. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
-19. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
-20. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-21. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-22. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
-23. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
+2. [인증 결과 페이지 바꾸기](#인증-결과-페이지-바꾸기)
+3. [킷 업데이트 반영](#킷-업데이트-반영)
+4. [Kakao Login (Phase 12)](#kakao-login-phase-12)
+5. [Naver Login (Phase 13)](#naver-login-phase-13)
+6. [LINE Login (Phase 14)](#line-login-phase-14)
+7. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
+8. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
+9. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
+10. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+11. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+12. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+13. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
+14. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
+15. [Firebase Services (Phase 17)](#firebase-services-phase-17)
+16. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+17. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+18. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+19. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+20. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+21. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+22. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+23. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+24. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
 
 ---
 
@@ -418,6 +419,79 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
 `enabledAuthProviders` 를 바꾸기 전 값으로 되돌리고 앱을 다시 빌드한다. 새로 배포한 함수는 「끄기」 의 `firebase functions:delete` 명령으로 지운다.
 
 자세한 배경: provider 를 킷에 더하거나 빼는 절차와 설계 이유는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md)에 있다.
+
+---
+
+## 인증 결과 페이지 바꾸기
+
+인증 메일 · 비밀번호 재설정 메일의 링크를 눌렀을 때 열리는 웹 페이지를 앱 이름 · 색 · 로고로 바꾸는 절차다. 하지 않아도 된다 — 이 절을 건너뛰면 링크는 Firebase 기본 페이지로 열리고 인증 · 재설정은 그대로 된다. 이 페이지는 메일을 누가 보내는지(발송 모드)와 상관없이 쓸 수 있다. 페이지는 인증 · 비밀번호 재설정 · 이메일 주소 복원 링크를 맡고, 메일 링크의 언어(한국어 · 영어 · 일본어)로 표시된다 — 앱이 보내는 메일의 언어는 앱 언어다.
+
+**전제:**
+
+- Firebase Hosting 기본 사이트(`<your-project-id>.web.app`)가 있다. 기본 사이트가 없는 프로젝트는 Firebase Console → Hosting 에서 「시작하기」 로 먼저 만든다 — 공식 안내: <https://firebase.google.com/docs/hosting/default-site>. Blaze 요금제는 필요 없다.
+- `<your-project-id>.web.app` 은 Firebase Authentication 의 승인된 도메인에 기본으로 들어 있어 따로 더하지 않는다.
+- PATH 에 Firebase CLI(`firebase`) · `node` · `jq` 가 있고 `firebase login` 이 되어 있다.
+- Firebase Console → App Check 에서 Authentication 의 시행(enforcement)을 켜면 이 페이지의 요청이 거부된다. 이 페이지를 쓰는 동안에는 Authentication 시행을 켜지 않는다.
+
+### 바꾸고 배포하기
+
+예시는 dev flavor 기준이고, stg · prod 는 `dev` 자리에 flavor 이름을 넣는다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
+
+**① 앱 이름 · 색을 정한다.** `config/dev.json` 의 `appName` 이 페이지 머리에 나오는 이름이고, `brandColor` 가 버튼 · 강조 색이다. `brandColor` 는 `#RRGGBB` 형식이고, 비우거나 형식이 틀리면 `#673AB7` 로 칠한다. 같은 `brandColor` 가 앱 테마 색에도 쓰인다([Initial Setup](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통) 키 표). 아래는 example 파일의 값이다.
+
+```json
+"appName": "StarterKit Dev",
+"brandColor": "#673AB7"
+```
+
+**② (선택) 로고 파일을 넣는다.** 로고를 PNG 로 `hosting/public/logo.png` 에 둔다. 높이 120px(화면에는 높이 40px 로 줄여 보인다) · 폭 480px 이하를 권장한다. 로고는 흰 바탕 위에 놓이므로(다크 모드에서도 같다) 흰 바탕에서 잘 보이는 그림을 쓴다. SVG 는 쓸 수 없다 — 메일 앱이 SVG 를 표시하지 않는다. 파일이 없으면 페이지 머리에 `appName` 이 글자로 나온다. 같은 로고 파일이 `kit` 발송 모드 메일의 머리에도 쓰인다.
+
+**③ 배포한다.** 먼저 옵션 없이 실행한다. 이 명령은 `config/dev.json` 으로 페이지를 빌드하고 프로젝트 ID 와 배포 명령을 출력할 뿐 Firebase 에는 아무것도 바꾸지 않는다.
+
+```bash
+bash scripts/deploy_email.sh dev hosting
+```
+
+출력의 `project:` 가 내 프로젝트 ID 인지, `BUILD OK` 줄의 `logo=` 가 로고 파일 유무(`1` = 있음 · `0` = 없음)와 맞는지, 마지막 줄이 `DRY-RUN OK dev target=hosting` 으로 시작하는지 본다. 맞으면 `--apply` 를 붙여 배포한다. 마지막 줄이 `DEPLOY OK dev target=hosting` 으로 시작하면 `https://<your-project-id>.web.app/` 에 페이지가 올라간 것이다.
+
+```bash
+bash scripts/deploy_email.sh dev hosting --apply
+```
+
+배포는 배포 스크립트로만 한다 — 인자 없는 `firebase deploy` 는 `firebase.json` 의 모든 대상(확장 포함)을 배포하므로 쓰지 않는다.
+
+**④ 메일 링크가 이 페이지를 열게 한다.** Firebase Console → Authentication → 템플릿 에서 아무 템플릿이나 수정 화면을 열고, 「작업 URL 맞춤설정」 에 `https://<your-project-id>.web.app/` 를 넣어 저장한다. 이 주소는 모든 메일 템플릿에 함께 적용된다. 프로젝트(flavor)마다 한 번 한다.
+
+페이지만 바꿀 때는 앱을 다시 빌드하지 않아도 된다. `brandColor` 를 바꿨다면 앱 테마 색도 바뀌므로 앱을 다시 빌드한다.
+
+### 문구 · 모양 바꾸기
+
+- **문구.** `functions/src/email/copy.json` 의 `page.` 로 시작하는 키다(ko · en · ja). 세 언어의 키는 같아야 한다 — `functions/` 에서 `pnpm test` 가 확인한다. 같은 파일의 `mail.` 로 시작하는 키는 `kit` 발송 모드 메일 문구다.
+- **앱 버튼 이름과 함께 바꾼다.** 페이지 문구는 앱 버튼 이름 「인증 확인」 · 「인증 메일 재전송」 · 「비밀번호를 잊으셨나요?」 를 그대로 인용한다. `lib/l10n/app_*.arb` 에서 그 버튼 이름을 바꾸면 `copy.json` 의 같은 문구도 고친다.
+- **모양.** `hosting/public/` 의 `index.html` · `page.css` · `page.js` 다.
+- 바꾼 뒤에는 「바꾸고 배포하기」 ③ 으로 다시 배포한다.
+
+### 커스텀 도메인
+
+`<your-project-id>.web.app` 대신 내 도메인을 쓰려면 공식 안내(<https://firebase.google.com/docs/hosting/custom-domain>)대로 도메인을 Hosting 에 연결하고, 같은 도메인을 Firebase Console → Authentication → 설정 → 승인된 도메인에도 추가한다. 그다음 「바꾸고 배포하기」 ④ 의 「작업 URL 맞춤설정」 을 그 도메인 주소로 바꾼다.
+
+### 확인 방법
+
+- 브라우저로 `https://<your-project-id>.web.app/?lang=ko` 를 열면 앱 이름(로고를 넣었으면 로고) 머리 아래 「이 링크는 사용할 수 없습니다」 화면이 보인다 — 메일 링크 없이 열었기 때문이다.
+- 앱에서 이메일로 가입하거나 인증 대기 화면에서 「인증 메일 재전송」 을 누르고, 받은 메일의 링크를 연다. 앱 언어로 「이메일 인증 완료」 가 보이고, 앱으로 돌아가면 인증이 반영된다(바로 반영되지 않으면 「인증 확인」 을 누른다).
+- 이메일 로그인 화면의 「비밀번호를 잊으셨나요?」 로 재설정 메일을 받아 링크를 열면 「새 비밀번호 설정」 폼이 보인다. 8자 이상으로 바꾸면 「비밀번호 변경 완료」 가 보이고, 앱에서 새 비밀번호로 로그인된다.
+
+### 문제 해결
+
+- **링크를 열면 「문제가 발생했습니다」 가 뜬다.** 페이지의 Firebase Authentication 요청이 거부된 것이다. Firebase Console → App Check 에서 Authentication 시행이 켜져 있으면 끈다. Google Cloud Console → API 및 서비스 → 사용자 인증 정보 의 Browser key 에 HTTP 리퍼러 제한이 있으면 `https://<your-project-id>.web.app/*` 를 허용 목록에 더한다. 그래도 같으면 브라우저 개발자 도구의 네트워크 탭에서 `identitytoolkit.googleapis.com` 요청의 응답 코드와 메시지를 본다.
+- **배포가 `Could not determine the default site for the project.` 로 끝난다.** Hosting 기본 사이트가 없다. 「전제」 의 안내대로 만든 뒤 다시 배포한다.
+- **배포 스크립트가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다(예: `config/dev.json` 이 없다 · `appName` 이 비어 있다). 고친 뒤 다시 실행한다.
+- **`warn:` 줄이 `brandColor` 형식을 알린다.** 값을 `#RRGGBB` 로 고친다. 고치기 전에는 `#673AB7` 로 칠한다.
+- **로고가 보이지 않는다.** `BUILD OK` 줄이 `logo=0` 이면 파일 위치 · 이름(`hosting/public/logo.png`)을 확인한다. 로고를 바꾼 뒤에는 다시 배포한다.
+
+### 되돌리기
+
+Firebase Console → Authentication → 템플릿 의 「작업 URL 맞춤설정」 을 기본 주소 `https://<your-project-id>.firebaseapp.com/__/auth/action` 으로 되돌려 저장한다. 그 뒤 메일 링크는 Firebase 기본 페이지로 열린다. 올린 Hosting 페이지는 그대로 둬도 된다.
 
 ---
 
