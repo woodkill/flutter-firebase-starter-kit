@@ -6,6 +6,11 @@
 #   함수만 표준 `firebase deploy --project <id> --only functions:…` 명령으로 배포한다.
 #   끈 provider 의 함수는 배포 목록에 들어가지 않으므로 그 provider 의 함수 배포가
 #   필요 없다.
+#   Phase 17.5 원칙 P — emailDelivery 가 kit 일 때만 메일 함수(manifest email.kit)를
+#   더한다. firebase 모드(빈 값 · 누락 포함)에서는 메일 함수가 목록에 0 이다.
+#   kit 메일 함수는 브랜드 env(functions/.env.<projectId> 의 EMAIL_APP_NAME 등)가 있어야
+#   하므로 kit + --apply 는 그 env 가 없으면 FAIL 이다(먼저
+#   `bash scripts/deploy_email.sh <flavor> kit --apply`). dry-run 은 같은 상황을 warn 1줄로 알린다.
 #
 # secret 전제 (끈 provider 포함):
 #   Firebase CLI 는 `--only` 필터와 무관하게 코드베이스가 선언한 secret
@@ -21,16 +26,21 @@
 #   bash scripts/deploy_functions.sh <dev|stg|prod> --apply    # 출력한 명령을 차례로 실행한다
 #
 # 출력 계약:
-#   - 공통 출력: `flavor:` · `project:` · `enabled:` · `functions (<N>):` + 줄마다 `  - <이름>` ·
+#   - 공통 출력: `flavor:` · `project:` · `mode: <firebase|kit>` · `enabled:` ·
+#     `functions (<N>):` + 줄마다 `  - <이름>` ·
 #     묶음마다 `command: firebase deploy --project <id> --only functions:a,functions:b,…`
 #   - dry-run 마지막 줄: DRY-RUN OK <flavor> functions=<N> batches=<B> (exit 0)
 #   - 실행 마지막 줄:    DEPLOY OK <flavor> functions=<N> batches=<B> (exit 0)
 #     실행 모드는 묶음마다 `running: firebase deploy …` 를 출력한 뒤 같은 명령을 실행한다.
 #   - 실패: FAIL: <사유> (stderr, exit 1) · 인자 오류: usage (stderr, exit 2)
+#   - kit dry-run 인데 브랜드 env 가 없으면 stderr `warn: …` 1줄(배포 목록 · 마지막 줄은 그대로)
 #
 # 안전 계약:
-#   - config/<flavor>.json 에서 .firebaseProjectId · .enabledAuthProviders 두 값만 읽는다.
-#     다른 키(키 · secret 값)는 읽지도 출력하지도 않는다.
+#   - config/<flavor>.json 에서 .firebaseProjectId · .enabledAuthProviders · .emailDelivery
+#     세 값만 읽는다. 다른 키(키 · secret 값)는 읽지도 출력하지도 않는다.
+#   - emailDelivery 는 빈 값 · firebase · kit 정확 일치만 받는다(scripts/deploy_email.sh 와
+#     같은 규칙). 그 밖이면 FAIL 이고 원문 값은 출력하지 않는다(`mode:` 는 정규화 값).
+#   - functions/.env.<projectId> 는 EMAIL_APP_NAME 줄의 존재만 확인한다(값 미출력).
 #   - 함수를 지우지 않는다. 강제 삭제 옵션과 비대화형 옵션을 명령에 넣지 않는다 —
 #     없는 secret 은 Firebase CLI 가 배포 중 값을 묻는 표준 동작을 그대로 둔다.
 #   - secret 사전 점검 · 목록 밖 배포 함수 안내 · rules 배포는 하지 않는다(D-09 — 부가 기능 없음).
@@ -47,7 +57,7 @@
 #   (pnpm lint · build) · 코드베이스 로드 · secret 존재 확인이 묶음 수만큼 반복된다(정상).
 #
 # 함수 목록의 진실원:
-#   scripts/functions_manifest.json 한 곳이다(common + providers.<slug>). 이 목록과
+#   scripts/functions_manifest.json 한 곳이다(common + providers.<slug> + email.kit). 이 목록과
 #   functions/src/index.ts 의 export 가 어긋나면 functions/test/deploy_manifest.test.ts 가,
 #   providers 키가 앱의 kAllProviderIds 와 어긋나면
 #   test/core/config/functions_manifest_contract_test.dart 가 실패한다.
@@ -112,10 +122,14 @@ fi
 [ -f "$CONFIG" ] ||
   fail "config/${FLAVOR}.json 이 없다 — cp config/${FLAVOR}.example.json config/${FLAVOR}.json 뒤 값을 채운다"
 
-# config 에서 읽는 값은 이 두 개뿐이다.
+# config 에서 읽는 값은 이 세 개뿐이다.
 PROJECT="$(jq -r '.firebaseProjectId // ""' "$CONFIG")" ||
   fail "config/${FLAVOR}.json 을 JSON 으로 읽지 못했다"
 CSV="$(jq -r '.enabledAuthProviders // ""' "$CONFIG")" ||
+  fail "config/${FLAVOR}.json 을 JSON 으로 읽지 못했다"
+# emailDelivery 는 문자열이면 `ok:<값>`, 키가 없거나 null 이면 `ok:`, 그 밖(문자열 아님 ·
+# 제어 문자 포함)은 `bad` 로 꺼낸다 — scripts/deploy_email.sh 와 같은 식.
+MODE_RAW="$(jq -r '.emailDelivery | if . == null then "ok:" elif type == "string" and (test("[[:cntrl:]]") | not) then "ok:" + . else "bad" end' "$CONFIG")" ||
   fail "config/${FLAVOR}.json 을 JSON 으로 읽지 못했다"
 
 [ -n "$PROJECT" ] || fail "config/${FLAVOR}.json 의 firebaseProjectId 가 비어 있다"
@@ -130,6 +144,13 @@ case "$PROJECT" in
 esac
 case "$PROJECT" in
   *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) fail "config/${FLAVOR}.json 의 firebaseProjectId 형식이 잘못됐다: ${PROJECT}" ;;
+esac
+
+# 메일 발송 모드 — 빈 값(누락) · firebase → firebase, kit → kit, 그 밖은 FAIL(원문 미출력).
+case "$MODE_RAW" in
+  ok: | ok:firebase) EMAIL_MODE=firebase ;;
+  ok:kit) EMAIL_MODE=kit ;;
+  *) fail "config/${FLAVOR}.json 의 emailDelivery 값이 잘못됐다 — 빈 값 · firebase · kit 가운데 하나를 쓴다" ;;
 esac
 
 KNOWN="$(jq -r '.providers | keys_unsorted | join(" ")' "$MANIFEST")" ||
@@ -174,11 +195,13 @@ done
 
 ENABLED_JOINED="${ENABLED[*]+"${ENABLED[*]}"}"
 
-# 함수 목록 = common + manifest 키 순서로 켠 provider 의 배열 (CSV 순서와 무관 · 결정적).
-FN_LIST="$(jq -r --arg en "$ENABLED_JOINED" '
+# 함수 목록 = common + manifest 키 순서로 켠 provider 의 배열 + kit 모드면 email.kit
+# (CSV 순서와 무관 · 결정적).
+FN_LIST="$(jq -r --arg en "$ENABLED_JOINED" --arg mode "$EMAIL_MODE" '
   ($en | split(" ") | map(select(length > 0))) as $on
   | .common[],
-    (.providers | to_entries[] | select(.key as $k | $on | any(.[]; . == $k)) | .value[])
+    (.providers | to_entries[] | select(.key as $k | $on | any(.[]; . == $k)) | .value[]),
+    (if $mode == "kit" then .email.kit[] else empty end)
 ' "$MANIFEST")" || fail "scripts/functions_manifest.json 에서 함수 목록을 만들지 못했다"
 
 FUNCS=()
@@ -210,8 +233,26 @@ while [ "$I" -lt "$N" ]; do
 done
 B="${#BATCHES[@]}"
 
+# kit 메일 함수는 브랜드 env 가 있어야 렌더된다(함수는 config 를 읽지 못한다 · Pitfall 8).
+# 비어 있지 않은 EMAIL_APP_NAME 줄이 있는지만 본다 — `EMAIL_APP_NAME=""` 는 빈 값이다.
+if [ "$EMAIL_MODE" = kit ]; then
+  FN_ENV="$ROOT/functions/.env.$PROJECT"
+  HAS_BRAND_ENV=0
+  if [ -f "$FN_ENV" ] &&
+    grep -Eq "^[[:space:]]*(export[[:space:]]+)?EMAIL_APP_NAME[[:space:]]*=(\"[^\"]|'[^']|[^\"'[:space:]#])" "$FN_ENV"; then
+    HAS_BRAND_ENV=1
+  fi
+  if [ "$HAS_BRAND_ENV" != 1 ]; then
+    if [ "$MODE" = "--apply" ]; then
+      fail "functions/.env.${PROJECT} 에 EMAIL_APP_NAME 이 없다 — 먼저 bash scripts/deploy_email.sh ${FLAVOR} kit --apply"
+    fi
+    echo "warn: functions/.env.${PROJECT} 에 EMAIL_APP_NAME 이 없다 — 배포 전에 bash scripts/deploy_email.sh ${FLAVOR} kit --apply" >&2
+  fi
+fi
+
 echo "flavor: ${FLAVOR}"
 echo "project: ${PROJECT}"
+echo "mode: ${EMAIL_MODE}"
 if [ -n "$ENABLED_JOINED" ]; then
   echo "enabled: ${ENABLED_JOINED}"
 else

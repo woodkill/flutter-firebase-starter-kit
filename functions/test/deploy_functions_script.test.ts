@@ -1,5 +1,6 @@
 /**
- * `scripts/deploy_functions.sh` 동작 검증 (Phase 17.3 SOCL-09 · D-08 · D-09).
+ * `scripts/deploy_functions.sh` 동작 검증 (Phase 17.3 SOCL-09 · D-08 · D-09 ·
+ * Phase 17.5 원칙 P — `emailDelivery` 가 kit 일 때만 `email.kit` 함수 포함).
  *
  * 스크립트를 임시 디렉터리에 복사해(ROOT 는 스크립트 위치 기준) fixture
  * `config/dev.json` 으로 실행한다. 실제 config 는 읽지 않고, `firebase` 는 PATH 의
@@ -23,7 +24,14 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 
 /** manifest JSON 모양. */
-type Manifest = {common: string[]; providers: Record<string, string[]>};
+type Manifest = {
+  common: string[];
+  providers: Record<string, string[]>;
+  email: {kit: string[]};
+};
+
+/** 메일 발송 모드 (config `emailDelivery` 정규화 값). */
+type EmailMode = "firebase" | "kit";
 
 /** 스크립트 실행 결과. */
 type RunResult = {status: number | null; stdout: string; stderr: string};
@@ -139,16 +147,31 @@ function runScript(
 }
 
 /**
- * manifest 순서로 기대 함수 목록(common + 켠 provider)을 계산한다.
+ * manifest 순서로 기대 함수 목록(common + 켠 provider + kit 모드면 email.kit)을
+ * 계산한다.
  * @param {string[]} enabled 켠 provider slug.
+ * @param {EmailMode} mode 메일 발송 모드.
  * @return {string[]} 기대 함수 이름 목록.
  */
-function expectedFunctions(enabled: string[]): string[] {
+function expectedFunctions(
+  enabled: string[],
+  mode: EmailMode = "firebase",
+): string[] {
   const list = [...manifest.common];
   for (const slug of ALL_SLUGS) {
     if (enabled.includes(slug)) list.push(...manifest.providers[slug]);
   }
+  if (mode === "kit") list.push(...manifest.email.kit);
   return list;
+}
+
+/**
+ * sandbox 의 `functions/.env.my-proj` 를 쓴다(kit --apply 사전 확인 대상).
+ * @param {string} body 파일 내용.
+ */
+function writeFnEnv(body: string): void {
+  mkdirSync(join(sandbox, "functions"), {recursive: true});
+  writeFileSync(join(sandbox, "functions", ".env.my-proj"), body);
 }
 
 /**
@@ -419,5 +442,147 @@ describe("deploy_functions.sh", () => {
       expect(r.stderr).not.toContain(sentinel);
     }
     expect(readFileSync(invocationLog, "utf8")).not.toContain(sentinel);
+  });
+
+  it.each([
+    ["키 없음", undefined],
+    ["빈 값", ""],
+    ["firebase", "firebase"],
+  ])(
+    "T-175-DEPLOY-11 emailDelivery %s 면 메일 함수 0 · mode: firebase",
+    (_label, mode) => {
+      const config: Record<string, unknown> = {
+        firebaseProjectId: "my-proj",
+        enabledAuthProviders: "kakao",
+      };
+      if (mode !== undefined) config.emailDelivery = mode;
+      writeConfig(config);
+      const r = runScript(["dev"]);
+      expect(r.status).toBe(0);
+      expect(parseBatches(r.stdout).flat()).toEqual(
+        expectedFunctions(["kakao"]),
+      );
+      for (const fn of manifest.email.kit) {
+        expect(r.stdout).not.toContain(fn);
+      }
+      expect(
+        r.stdout.split("\n").filter((l) => l.startsWith("mode: ")),
+      ).toEqual(["mode: firebase"]);
+    },
+  );
+
+  it("T-175-DEPLOY-12 emailDelivery kit 이면 email.kit 2개를 더한다", () => {
+    writeConfig({
+      firebaseProjectId: "my-proj",
+      enabledAuthProviders: "kakao",
+      emailDelivery: "kit",
+    });
+    writeFnEnv("EMAIL_APP_NAME=\"Kit App\"\n");
+    const r = runScript(["dev"]);
+    const expected = expectedFunctions(["kakao"], "kit");
+    const batches = parseBatches(r.stdout);
+    expect(r.status).toBe(0);
+    expect(manifest.email.kit).toHaveLength(2);
+    expect(expected.length).toBe(expectedFunctions(["kakao"]).length + 2);
+    expect(batches.flat()).toEqual(expected);
+    expect(r.stdout).toContain("mode: kit\n");
+    expect(lastLine(r.stdout)).toBe(
+      `DRY-RUN OK dev functions=${expected.length} batches=${batches.length}`,
+    );
+    expect(r.stderr).not.toContain("warn:");
+  });
+
+  // 세 번째 열 = 출력에 나오면 안 되는 원문 조각. ` kit` 은 FAIL 안내문(「· kit 가운데」)과
+  // 겹쳐 원문 단언을 걸 수 없으므로 null 이다.
+  it.each([
+    ["허용 밖 값", "smtp", "smtp"],
+    ["대문자", "Kit", "Kit"],
+    ["앞뒤 공백", " kit", null],
+    ["문자열 아님", true, "true"],
+  ])("T-175-DEPLOY-13 emailDelivery %s 는 FAIL · 원문 미출력", (
+    _label,
+    mode,
+    leak,
+  ) => {
+    const sentinel = "SENTINEL_SECRET_VALUE_175";
+    writeConfig({
+      firebaseProjectId: "my-proj",
+      enabledAuthProviders: "",
+      emailDelivery: mode,
+      someApiKey: sentinel,
+    });
+    for (const args of [["dev"], ["dev", "--apply"]]) {
+      const r = runScript(args);
+      expect(r.status).toBe(1);
+      expect(r.stderr.startsWith("FAIL:")).toBe(true);
+      expect(r.stderr).toContain("emailDelivery");
+      expect(r.stdout).not.toContain("command:");
+      for (const out of [r.stdout, r.stderr]) {
+        if (leak !== null) expect(out).not.toContain(leak);
+        expect(out).not.toContain(sentinel);
+      }
+    }
+    expect(existsSync(markerFile)).toBe(false);
+  });
+
+  it.each([
+    ["env 파일 없음", null],
+    ["EMAIL_APP_NAME 없음", "SEND_TEST_PUSH_ENABLED=true\n"],
+    ["EMAIL_APP_NAME 빈 값", "EMAIL_APP_NAME=\"\"\n"],
+    ["EMAIL_APP_NAME 빈 값(따옴표 없음)", "EMAIL_APP_NAME=\n"],
+  ])("T-175-DEPLOY-14a kit --apply 사전 확인(%s)은 FAIL", (_label, body) => {
+    writeConfig({
+      firebaseProjectId: "my-proj",
+      enabledAuthProviders: "",
+      emailDelivery: "kit",
+    });
+    if (body !== null) writeFnEnv(body);
+    const r = runScript(["dev", "--apply"]);
+    expect(r.status).toBe(1);
+    expect(r.stderr.startsWith("FAIL:")).toBe(true);
+    expect(r.stderr).toContain("deploy_email.sh dev kit --apply");
+    expect(existsSync(markerFile)).toBe(false);
+  });
+
+  it("T-175-DEPLOY-14b kit --apply 는 브랜드 env 가 있으면 메일 함수까지 배포한다", () => {
+    writeConfig({
+      firebaseProjectId: "my-proj",
+      enabledAuthProviders: "",
+      emailDelivery: "kit",
+    });
+    writeFnEnv("SEND_TEST_PUSH_ENABLED=true\nEMAIL_APP_NAME=\"Kit App\"\n");
+    const r = runScript(["dev", "--apply"]);
+    const expected = expectedFunctions([], "kit");
+    expect(r.status).toBe(0);
+    const deployed = readFileSync(invocationLog, "utf8")
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => l.split("\t").filter((t) => t.length > 0)[4] ?? "")
+      .join(",")
+      .split(",")
+      .map((f) => f.replace(/^functions:/, ""));
+    expect(deployed).toEqual(expected);
+    expect(lastLine(r.stdout)).toMatch(
+      new RegExp(`^DEPLOY OK dev functions=${expected.length} batches=`),
+    );
+  });
+
+  it("T-175-DEPLOY-15 kit dry-run 은 브랜드 env 가 없으면 warn 1줄 뒤 DRY-RUN OK", () => {
+    writeConfig({
+      firebaseProjectId: "my-proj",
+      enabledAuthProviders: "",
+      emailDelivery: "kit",
+    });
+    const r = runScript(["dev"]);
+    const expected = expectedFunctions([], "kit");
+    expect(r.status).toBe(0);
+    expect(
+      r.stderr.split("\n").filter((l) => l.startsWith("warn: ")),
+    ).toHaveLength(1);
+    expect(r.stderr).toContain("deploy_email.sh dev kit --apply");
+    expect(lastLine(r.stdout)).toBe(
+      `DRY-RUN OK dev functions=${expected.length} batches=1`,
+    );
+    expect(existsSync(markerFile)).toBe(false);
   });
 });
