@@ -20,6 +20,9 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/functions/callable_rejection.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
+// Phase 17.5 D-15: authRepository factory provider 의 로케일 콜백 주입 전용
+// import. AuthRepository 클래스 본체는 본 provider 를 참조하지 않는다 (D-A2).
+import '../../../core/providers/locale_provider.dart';
 import '../../notifications/application/notification_settings_notifier.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 import '../../settings/domain/unlink_provider_request.dart';
@@ -122,6 +125,20 @@ class AuthRepository implements AnonymousSignIn {
   /// ROADMAP.md). [signOut] 이 이 맵으로 꺼진 provider 의 SDK 로그아웃을
   /// 건너뛴다. 미주입 시 기본값은 bootstrap 이 SDK 초기화를 고를 때 쓰는
   /// 맵과 같은 [AppConfig.authProviders] 다.
+  ///
+  /// [emailDeliveryMode] 는 인증 · 재설정 메일을 누가 보내는지 정하는 빌드
+  /// 상수다 (Phase 17.5 D-09). [EmailDeliveryMode.firebase] 는 FlutterFire 가
+  /// Firebase 기본 메일을, [EmailDeliveryMode.kit] 은 킷 callable
+  /// (`sendVerificationMail` · `sendPasswordResetMail`)이 킷 템플릿 메일을
+  /// 보낸다. 미주입 시 기본값은 config 키 `emailDelivery` 를 읽는
+  /// [AppConfig.emailDeliveryMode] 다 — 테스트는 [EmailDeliveryMode.kit] 을
+  /// 주입한다.
+  ///
+  /// [readLanguageCode] 는 메일 언어로 쓸 앱 로케일의 languageCode 를 읽는
+  /// 콜백이다 (Phase 17.5 D-15). 같은 D-A2 논리로 `LocaleNotifier` 타입은
+  /// [authRepository] factory provider 영역 한정이며, 본체는
+  /// `String Function()` signature 만 의존한다. 미주입 시 기본값은 앱 로케일
+  /// fallback 과 같은 `'en'` 을 돌려주는 [_readFallbackLanguageCode] 다.
   AuthRepository(
     this._auth,
     this._googleSignIn,
@@ -141,13 +158,17 @@ class AuthRepository implements AnonymousSignIn {
     ),
     Future<void> Function()? onSignOutCleanup,
     Map<String, bool>? staticProviders,
+    EmailDeliveryMode? emailDeliveryMode,
+    String Function()? readLanguageCode,
   }) : _now = now ?? DateTime.now,
        _readTermsAcceptanceSnapshot =
            readTermsAcceptanceSnapshot ?? _readNoTermsAcceptanceSnapshot,
        _recordSignUpMethod = recordSignUpMethod ?? _recordNoSignUpMethod,
        _crashlytics = crashlytics,
        _onSignOutCleanup = onSignOutCleanup ?? _cleanUpNothingOnSignOut,
-       _staticProviders = staticProviders ?? AppConfig.authProviders;
+       _staticProviders = staticProviders ?? AppConfig.authProviders,
+       _emailDeliveryMode = emailDeliveryMode ?? AppConfig.emailDeliveryMode,
+       _readLanguageCode = readLanguageCode ?? _readFallbackLanguageCode;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -186,6 +207,18 @@ class AuthRepository implements AnonymousSignIn {
   /// provider 는 부팅 때 SDK 가 초기화돼 있으므로 로그아웃을 계속 불러 남은
   /// SDK 세션을 지운다.
   final Map<String, bool> _staticProviders;
+
+  /// 인증 · 재설정 메일 발송 모드 (Phase 17.5 D-09).
+  ///
+  /// [_sendVerificationMail] · [sendPasswordReset] 두 메서드만 이 값으로
+  /// 분기한다 — 모드 분기는 이 두 곳뿐이다 (MAIL-01).
+  final EmailDeliveryMode _emailDeliveryMode;
+
+  /// 메일 언어로 쓸 앱 로케일 languageCode 를 읽는 콜백 (Phase 17.5 D-15).
+  ///
+  /// 발송 직전에 매번 읽는다 — 사용자가 앱 언어를 바꾼 뒤 보낸 메일도 새
+  /// 언어를 따른다.
+  final String Function() _readLanguageCode;
 
   /// Phase 16 D-12 / Pitfall 5 — client-side cache for `lookupSignInMethods`
   /// callable responses. 동일 collisionEmail 의 rate limit 누적 회피
@@ -3345,17 +3378,33 @@ class AuthRepository implements AnonymousSignIn {
 
   /// 현재 사용자에게 이메일 인증 메일을 발송한다.
   ///
-  /// Firebase Auth의 [fb.User.sendEmailVerification]에 위임한다.
-  /// 실패 시 [_mapAuthException]으로 변환된 [AppException]을
-  /// [Failure]에 담는다.
+  /// 발송은 [_sendVerificationMail] seam 이 모드(Phase 17.5 D-09)에 따라
+  /// FlutterFire 또는 킷 callable 로 한다. 실패 매핑:
+  /// - kit callable `resource-exhausted` → [TooManyRequests] (rate limit —
+  ///   unlink 선례와 같은 선분기. [_mapFunctionsException] 은 이 code 를
+  ///   [ServiceUnavailable] 로 뭉갠다)
+  /// - 그 밖 kit callable 거부 → [_mapFunctionsException]
+  /// - 응답 계약 위반(`ok != true`) → [UnknownException]
+  /// - FlutterFire 거부 → [_mapAuthException]
+  ///
+  /// kit callable 이 실패해도 FlutterFire 발송으로 대체하지 않는다 (D-12).
   Future<Result<void>> sendEmailVerification() async {
     final user = _auth.currentUser;
     if (user == null) {
       return const Result.failure(ServiceUnavailable());
     }
     try {
-      await user.sendEmailVerification();
+      await _sendVerificationMail(user);
       return const Result.success(null);
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'resource-exhausted') {
+        return Result.failure(TooManyRequests(cause: e));
+      }
+      return Result.failure(
+        _mapFunctionsException(e, callable: 'sendVerificationMail'),
+      );
+    } on AppException catch (e) {
+      return Result.failure(e);
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on Object catch (e, st) {
@@ -3369,6 +3418,61 @@ class AuthRepository implements AnonymousSignIn {
         debugPrint('sendEmailVerification 비-Auth 예외: ${e.runtimeType}\n$st');
       }
       return Result.failure(ServiceUnavailable(cause: e));
+    }
+  }
+
+  /// [user] 에게 이메일 인증 메일을 보낸다 — 모든 인증 메일 발송의 유일한
+  /// 경로 (Phase 17.5 MAIL-01).
+  ///
+  /// 가입 직후 자동 발송([signUpWithEmail]) · 소셜 자동 발송
+  /// ([_autoSendEmailVerification]) · 재전송([sendEmailVerification])이 모두
+  /// 여기를 지난다. 모드 분기는 이 메서드와 [sendPasswordReset] 두 곳뿐이다.
+  ///
+  /// - [EmailDeliveryMode.firebase] — 앱 로케일을 [_applyLanguageCode] 로
+  ///   넘긴 뒤 FlutterFire 가 Firebase 기본 메일을 보낸다 (D-15).
+  /// - [EmailDeliveryMode.kit] — ID 토큰을 갱신한 뒤 킷 callable
+  ///   `sendVerificationMail` 을 부른다. 가입 · 연결 직후 토큰에 email claim
+  ///   이 없을 수 있고 서버는 토큰 email 만 쓰므로 갱신이 먼저다. callable
+  ///   실패는 FlutterFire 발송으로 대체하지 않는다 (D-12).
+  ///
+  /// 예외는 호출자가 처리한다 — [FirebaseFunctionsException] ·
+  /// [fb.FirebaseAuthException] 은 그대로 전파되고, 응답 계약 위반
+  /// (`ok != true`)은 [UnknownException] 을 던진다.
+  Future<void> _sendVerificationMail(fb.User user) async {
+    final String languageCode = _readLanguageCode();
+    switch (_emailDeliveryMode) {
+      case EmailDeliveryMode.firebase:
+        await _applyLanguageCode(languageCode);
+        await user.sendEmailVerification();
+      case EmailDeliveryMode.kit:
+        await user.getIdToken(true);
+        final response = await _functions
+            .httpsCallable(
+              'sendVerificationMail',
+              options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+            )
+            .call<Map<String, dynamic>>(<String, dynamic>{
+              'locale': languageCode,
+            });
+        if (response.data['ok'] != true) {
+          // WR-06: 서버 계약 위반 — 재시도로 해소되지 않는다.
+          throw const UnknownException();
+        }
+    }
+  }
+
+  /// FlutterFire 가 보내는 메일의 언어를 [languageCode] 로 정한다
+  /// (Phase 17.5 D-15).
+  ///
+  /// 언어는 부가 정보라 실패를 삼킨다 — 발송은 프로젝트 기본 언어로 계속된다.
+  /// 로그는 PII 0 (`runtimeType` 만 — WR-05).
+  Future<void> _applyLanguageCode(String languageCode) async {
+    try {
+      await _auth.setLanguageCode(languageCode);
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('setLanguageCode 실패 (무시): ${e.runtimeType}');
+      }
     }
   }
 
@@ -3995,6 +4099,13 @@ Future<void> _recordNoSignUpMethod(String uid, String providerId) async {}
 /// 아무것도 정리하지 않는다 — 기존 테스트의 생성자 호출부 회귀 0.
 Future<void> _cleanUpNothingOnSignOut() async {}
 
+/// [AuthRepository.new] 의 `readLanguageCode` 미주입 시 기본 구현
+/// (Phase 17.5 D-15).
+///
+/// 앱 로케일 fallback(`LocaleNotifier` — 지원 밖 기기 로케일은 en)과 같은
+/// `'en'` 을 돌려준다.
+String _readFallbackLanguageCode() => 'en';
+
 /// firebase_auth [fb.User]를 도메인 [User]로 변환한다 (D-12).
 ///
 /// firebase_auth import는 features/auth/data 경계 안에만 존재해야 하며,
@@ -4065,6 +4176,10 @@ AuthRepository authRepository(Ref ref) {
     // Phase 17.3 — see ROADMAP.md: 로그아웃 SDK fan-out 의 on/off 판정 맵.
     // bootstrap 의 SDK 초기화와 같은 정적 CSV([AppConfig.authProviders])다.
     staticProviders: ref.watch(staticAuthProvidersProvider),
+    // Phase 17.5 D-15: 동일한 D-A2 콜백 주입 관례. LocaleNotifier 타입은 본
+    // factory 영역에서만 알며, AuthRepository 클래스 본체는 `String Function()`
+    // signature 만 의존한다 — 발송 직전에 읽어 메일 언어를 앱 언어로 맞춘다.
+    readLanguageCode: () => ref.read(localeProvider).languageCode,
   );
 }
 
