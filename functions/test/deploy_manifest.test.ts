@@ -32,8 +32,17 @@ import * as myFunctions from "../src/index";
 
 afterAll(() => testEnv.cleanup());
 
-/** manifest JSON 모양 — 최상위 키는 common · providers 두 개뿐이다. */
-type Manifest = {common: string[]; providers: Record<string, string[]>};
+/**
+ * manifest JSON 모양 — 최상위 키는 common · providers · email 세 개뿐이다.
+ *
+ * `email` 은 발송 모드별 묶음이다(Phase 17.5 — `email.kit` 은
+ * `emailDelivery=kit` 일 때만 배포한다 · 원칙 P).
+ */
+type Manifest = {
+  common: string[];
+  providers: Record<string, string[]>;
+  email: Record<string, string[]>;
+};
 
 /** 배포 함수의 secret binding 을 읽기 위한 최소 endpoint 모양. */
 type EndpointCarrier = {
@@ -153,6 +162,7 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
     const all: string[] = [
       ...manifest.common,
       ...Object.values(manifest.providers).flat(),
+      ...Object.values(manifest.email).flat(),
     ];
     // 중복 0 — 한 함수가 공통과 provider 에, 또는 두 provider 에 함께 있으면
     // 배포 명령이 같은 함수를 두 번 담거나 끈 provider 의 함수가 섞인다.
@@ -164,7 +174,7 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
 
   // eslint-disable-next-line max-len
   it("T-173-DEPLOY-02: providers 키 == google · apple · facebook · kakao · naver · line (순서)", () => {
-    expect(Object.keys(manifest)).toEqual(["common", "providers"]);
+    expect(Object.keys(manifest)).toEqual(["common", "providers", "email"]);
     expect(Object.keys(manifest.providers)).toEqual([
       "google",
       "apple",
@@ -217,6 +227,39 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
       }
     }
 
+    expect(violations).toEqual([]);
+  });
+
+  // eslint-disable-next-line max-len
+  it("T-175-DEPLOY-01: email 묶음 키 == kit · 이름은 common · providers 와 겹치지 않는다", () => {
+    expect(Object.keys(manifest.email)).toEqual(["kit"]);
+    const others = new Set([
+      ...manifest.common,
+      ...Object.values(manifest.providers).flat(),
+    ]);
+    const emailNames = Object.values(manifest.email).flat();
+    // 양성 대조 — 묶음이 비면 아래 검사가 공허하게 통과한다.
+    expect(emailNames).toEqual(
+      expect.arrayContaining(["sendVerificationMail"]),
+    );
+    // kit 함수가 common 에 있으면 firebase 모드 프로젝트에도 배포된다(원칙 P).
+    expect(emailNames.filter((name) => others.has(name))).toEqual([]);
+  });
+
+  it("T-175-DEPLOY-02: email 묶음 함수는 provider secret binding 0", () => {
+    const violations: string[] = [];
+    for (const [mode, names] of Object.entries(manifest.email)) {
+      for (const name of names) {
+        for (const key of readSecretKeys(name)) {
+          const owner = PROVIDER_SECRET_OWNER[key];
+          if (owner !== undefined) {
+            violations.push(
+              `email.${mode} 함수 ${name} 가 ${owner} secret ${key} 를 묶었다`,
+            );
+          }
+        }
+      }
+    }
     expect(violations).toEqual([]);
   });
 

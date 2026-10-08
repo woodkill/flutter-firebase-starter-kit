@@ -1,6 +1,7 @@
 // 배포 함수 목록(scripts/functions_manifest.json)의 provider 키는 앱의 provider
 // 등록 목록과 같아야 한다 (Phase 17.3 D-08 — see ROADMAP.md). functions 쪽 export
-// 대조는 functions/test/deploy_manifest.test.ts.
+// 대조는 functions/test/deploy_manifest.test.ts. 함수 이름 중복 0 검사는 common ·
+// providers · email(Phase 17.5 발송 모드 묶음) 전체에 건다.
 //
 // `scripts/deploy_functions.sh` 는 config 의 `enabledAuthProviders` CSV 토큰을
 // manifest 의 provider 키로만 받는다. 앱이 provider 를 더하거나 빼고 manifest 를
@@ -43,10 +44,18 @@ void main() {
               '같이 고친다',
         );
 
+        // email 은 발송 모드별 묶음이다(Phase 17.5 — `email.kit` 은
+        // emailDelivery=kit 일 때만 배포). 이름 중복 검사에 함께 넣는다.
+        final Object? emailRaw = manifest['email'];
+        expect(emailRaw, isA<Map<String, Object?>>());
+        final Map<String, Object?> email = emailRaw! as Map<String, Object?>;
+
         final List<String> names = <String>[
           ..._readNames(manifest['common'], 'common'),
           for (final MapEntry<String, Object?> entry in providers.entries)
             ..._readNames(entry.value, 'providers.${entry.key}'),
+          for (final MapEntry<String, Object?> entry in email.entries)
+            ..._readNames(entry.value, 'email.${entry.key}'),
         ];
         // 공통 함수는 항상 배포되므로 비어 있으면 manifest 가 깨진 것이다(양성 대조).
         expect(names, isNotEmpty);

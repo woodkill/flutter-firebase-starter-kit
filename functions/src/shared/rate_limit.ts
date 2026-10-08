@@ -102,3 +102,78 @@ export async function consumeRateLimit(
     return true;
   });
 }
+
+/** 다축 rate limit 의 축 1개 (Phase 17.5 kit 메일 callable). */
+export type RateLimitAxis = {
+  /** 알람 payload 의 `axis` 값 (예: `"uid"` · `"ip"` · `"email"`). */
+  axis: string;
+  /** counter 문서 id — uid · 해시만 (이메일 · IP 원문 금지). */
+  docId: string;
+  /** 창당 허용 횟수. */
+  limit: number;
+  /** 창 길이 (초). */
+  windowSec: number;
+};
+
+/** 한도를 넘은 축 — 알람 payload 용. */
+export type ExceededRateAxis = {
+  /** [RateLimitAxis.axis] 값. */
+  axis: string;
+  /** 판정 시점의 창 카운트. */
+  count: number;
+};
+
+/**
+ * 여러 축 rate limit 을 한 transaction 에서 1회 소비한다 (Phase 17.5).
+ *
+ * `lookupSignInMethods` 의 uid + IP 2축 모양을 축 목록으로 일반화했다. 모든
+ * 축을 「read 전부 → 한도 판정 → write」 순으로 처리하므로 왕복은 1회이고
+ * 원자적이다(reads-before-writes — 실 Firestore 는 write 뒤 read 를 거부한다).
+ * - 한 축이라도 창 안 · `count >= limit` → write 0 · 넘은 축 전부를 돌려준다.
+ * - 모두 허용 → 각 축을 새 창(`{count: 1, windowStart: now}`) 또는 `+1` 로
+ *   쓰고 빈 목록을 돌려준다.
+ *
+ * transaction 자체 실패(Firestore 오류)는 그대로 reject 된다 — 호출부가
+ * 로그 · HttpsError 로 바꾼다.
+ *
+ * @param {Firestore} db Firestore 인스턴스.
+ * @param {ReadonlyArray<RateLimitAxis>} axes 판정할 축 목록 (순서 = 알람 순서).
+ * @return {Promise<Array<ExceededRateAxis>>} 넘은 축 목록 (허용이면 빈 목록).
+ */
+export async function consumeRateLimitAxes(
+  db: Firestore,
+  axes: readonly RateLimitAxis[],
+): Promise<ExceededRateAxis[]> {
+  const refs = axes.map((a) => db.collection("rate_limits").doc(a.docId));
+  return db.runTransaction(async (tx) => {
+    // --- reads (모두 write 앞) ---
+    const snaps: RateCounterSnapshot[] = [];
+    for (const ref of refs) {
+      snaps.push(await tx.get(ref));
+    }
+    const now = Timestamp.now();
+    const states = axes.map((a, i) =>
+      readRateCounter(snaps[i], now, a.windowSec),
+    );
+
+    // --- 한도 판정 (write 전에 모두 끝낸다) ---
+    const exceeded: ExceededRateAxis[] = [];
+    axes.forEach((a, i) => {
+      const state = states[i];
+      if (!state.expired && state.count >= a.limit) {
+        exceeded.push({axis: a.axis, count: state.count});
+      }
+    });
+    if (exceeded.length > 0) return exceeded;
+
+    // --- writes ---
+    refs.forEach((ref, i) => {
+      if (states[i].expired) {
+        tx.set(ref, {count: 1, windowStart: now});
+      } else {
+        tx.update(ref, {count: FieldValue.increment(1)});
+      }
+    });
+    return [];
+  });
+}
