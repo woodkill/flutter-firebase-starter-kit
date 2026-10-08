@@ -17,12 +17,12 @@ exports[`renderMail 스냅샷 snapshot resetPassword en logo=none 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=en" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Reset password</a>
+    <a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=en" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Reset password</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">If you didn&#x27;t ask to reset your password, you can ignore this email. Your password won&#x27;t change.</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">If the button doesn&#x27;t work, paste this link into your browser:<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=en" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=en</a></td></tr>
+<a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=en" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=en</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">This email was sent by Kit.</td></tr>
 </table>
 </td></tr></table>
@@ -33,7 +33,7 @@ exports[`renderMail 스냅샷 snapshot resetPassword en logo=none 1`] = `
 
 Click the button below to set a new password for a@example.com.
 
-https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=en
+https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=en
 
 If you didn't ask to reset your password, you can ignore this email. Your password won't change.
 
@@ -59,12 +59,12 @@ exports[`renderMail 스냅샷 snapshot resetPassword en logo=with 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=en" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Reset password</a>
+    <a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=en" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Reset password</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">If you didn&#x27;t ask to reset your password, you can ignore this email. Your password won&#x27;t change.</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">If the button doesn&#x27;t work, paste this link into your browser:<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=en" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=en</a></td></tr>
+<a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=en" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=en</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">This email was sent by Kit.</td></tr>
 </table>
 </td></tr></table>
@@ -75,7 +75,7 @@ exports[`renderMail 스냅샷 snapshot resetPassword en logo=with 1`] = `
 
 Click the button below to set a new password for a@example.com.
 
-https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=en
+https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=en
 
 If you didn't ask to reset your password, you can ignore this email. Your password won't change.
 
@@ -101,12 +101,12 @@ exports[`renderMail 스냅샷 snapshot resetPassword ja logo=none 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ja" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Hiragino Sans',Roboto,'Noto Sans JP','Yu Gothic',Meiryo,sans-serif;">パスワードを再設定</a>
+    <a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Hiragino Sans',Roboto,'Noto Sans JP','Yu Gothic',Meiryo,sans-serif;">パスワードを再設定</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">再設定をリクエストしていない場合は、このメールを無視してください。パスワードは変更されません。</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">ボタンが開かない場合は、次のURLをブラウザに貼り付けてください。<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ja" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ja</a></td></tr>
+<a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">このメールはKitから送信されました。</td></tr>
 </table>
 </td></tr></table>
@@ -117,7 +117,7 @@ exports[`renderMail 스냅샷 snapshot resetPassword ja logo=none 1`] = `
 
 下のボタンを押して、a@example.comのアカウントの新しいパスワードを設定してください。
 
-https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ja
+https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja
 
 再設定をリクエストしていない場合は、このメールを無視してください。パスワードは変更されません。
 
@@ -143,12 +143,12 @@ exports[`renderMail 스냅샷 snapshot resetPassword ja logo=with 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ja" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Hiragino Sans',Roboto,'Noto Sans JP','Yu Gothic',Meiryo,sans-serif;">パスワードを再設定</a>
+    <a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Hiragino Sans',Roboto,'Noto Sans JP','Yu Gothic',Meiryo,sans-serif;">パスワードを再設定</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">再設定をリクエストしていない場合は、このメールを無視してください。パスワードは変更されません。</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">ボタンが開かない場合は、次のURLをブラウザに貼り付けてください。<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ja" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ja</a></td></tr>
+<a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">このメールはKitから送信されました。</td></tr>
 </table>
 </td></tr></table>
@@ -159,7 +159,7 @@ exports[`renderMail 스냅샷 snapshot resetPassword ja logo=with 1`] = `
 
 下のボタンを押して、a@example.comのアカウントの新しいパスワードを設定してください。
 
-https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ja
+https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ja
 
 再設定をリクエストしていない場合は、このメールを無視してください。パスワードは変更されません。
 
@@ -185,12 +185,12 @@ exports[`renderMail 스냅샷 snapshot resetPassword ko logo=none 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ko" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Apple SD Gothic Neo',Roboto,'Noto Sans KR','Malgun Gothic',sans-serif;">비밀번호 재설정</a>
+    <a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ko" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Apple SD Gothic Neo',Roboto,'Noto Sans KR','Malgun Gothic',sans-serif;">비밀번호 재설정</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">재설정을 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않습니다.</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">버튼이 열리지 않으면 아래 주소를 브라우저에 붙여 넣어 주세요.<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ko" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ko</a></td></tr>
+<a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ko" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ko</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">이 메일은 Kit에서 보냈습니다.</td></tr>
 </table>
 </td></tr></table>
@@ -201,7 +201,7 @@ exports[`renderMail 스냅샷 snapshot resetPassword ko logo=none 1`] = `
 
 아래 버튼을 눌러 a@example.com 계정의 새 비밀번호를 설정해 주세요.
 
-https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ko
+https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ko
 
 재설정을 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않습니다.
 
@@ -227,12 +227,12 @@ exports[`renderMail 스냅샷 snapshot resetPassword ko logo=with 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ko" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Apple SD Gothic Neo',Roboto,'Noto Sans KR','Malgun Gothic',sans-serif;">비밀번호 재설정</a>
+    <a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ko" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Apple SD Gothic Neo',Roboto,'Noto Sans KR','Malgun Gothic',sans-serif;">비밀번호 재설정</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">재설정을 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않습니다.</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">버튼이 열리지 않으면 아래 주소를 브라우저에 붙여 넣어 주세요.<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ko" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ko</a></td></tr>
+<a href="https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ko" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ko</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">이 메일은 Kit에서 보냈습니다.</td></tr>
 </table>
 </td></tr></table>
@@ -243,7 +243,7 @@ exports[`renderMail 스냅샷 snapshot resetPassword ko logo=with 1`] = `
 
 아래 버튼을 눌러 a@example.com 계정의 새 비밀번호를 설정해 주세요.
 
-https://example.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=c&apiKey=k&lang=ko
+https://example.web.app/?mode=resetPassword&oobCode=c&apiKey=k&lang=ko
 
 재설정을 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않습니다.
 
@@ -269,12 +269,12 @@ exports[`renderMail 스냅샷 snapshot verifyEmail en logo=none 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=en" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Verify email</a>
+    <a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=en" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Verify email</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">If you didn&#x27;t ask to verify this address, you can ignore this email.</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">If the button doesn&#x27;t work, paste this link into your browser:<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=en" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=en</a></td></tr>
+<a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=en" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=en</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">This email was sent by Kit.</td></tr>
 </table>
 </td></tr></table>
@@ -285,7 +285,7 @@ exports[`renderMail 스냅샷 snapshot verifyEmail en logo=none 1`] = `
 
 Click the button below to verify a@example.com.
 
-https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=en
+https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=en
 
 If you didn't ask to verify this address, you can ignore this email.
 
@@ -311,12 +311,12 @@ exports[`renderMail 스냅샷 snapshot verifyEmail en logo=with 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=en" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Verify email</a>
+    <a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=en" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Verify email</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">If you didn&#x27;t ask to verify this address, you can ignore this email.</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">If the button doesn&#x27;t work, paste this link into your browser:<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=en" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=en</a></td></tr>
+<a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=en" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=en</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">This email was sent by Kit.</td></tr>
 </table>
 </td></tr></table>
@@ -327,7 +327,7 @@ exports[`renderMail 스냅샷 snapshot verifyEmail en logo=with 1`] = `
 
 Click the button below to verify a@example.com.
 
-https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=en
+https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=en
 
 If you didn't ask to verify this address, you can ignore this email.
 
@@ -353,12 +353,12 @@ exports[`renderMail 스냅샷 snapshot verifyEmail ja logo=none 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Hiragino Sans',Roboto,'Noto Sans JP','Yu Gothic',Meiryo,sans-serif;">メールアドレスを確認</a>
+    <a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Hiragino Sans',Roboto,'Noto Sans JP','Yu Gothic',Meiryo,sans-serif;">メールアドレスを確認</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">確認をリクエストしていない場合は、このメールを無視してください。</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">ボタンが開かない場合は、次のURLをブラウザに貼り付けてください。<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja</a></td></tr>
+<a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">このメールはKitから送信されました。</td></tr>
 </table>
 </td></tr></table>
@@ -369,7 +369,7 @@ exports[`renderMail 스냅샷 snapshot verifyEmail ja logo=none 1`] = `
 
 下のボタンを押して、a@example.comを確認してください。
 
-https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja
+https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja
 
 確認をリクエストしていない場合は、このメールを無視してください。
 
@@ -395,12 +395,12 @@ exports[`renderMail 스냅샷 snapshot verifyEmail ja logo=with 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Hiragino Sans',Roboto,'Noto Sans JP','Yu Gothic',Meiryo,sans-serif;">メールアドレスを確認</a>
+    <a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Hiragino Sans',Roboto,'Noto Sans JP','Yu Gothic',Meiryo,sans-serif;">メールアドレスを確認</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">確認をリクエストしていない場合は、このメールを無視してください。</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">ボタンが開かない場合は、次のURLをブラウザに貼り付けてください。<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja</a></td></tr>
+<a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">このメールはKitから送信されました。</td></tr>
 </table>
 </td></tr></table>
@@ -411,7 +411,7 @@ exports[`renderMail 스냅샷 snapshot verifyEmail ja logo=with 1`] = `
 
 下のボタンを押して、a@example.comを確認してください。
 
-https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja
+https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ja
 
 確認をリクエストしていない場合は、このメールを無視してください。
 
@@ -437,12 +437,12 @@ exports[`renderMail 스냅샷 snapshot verifyEmail ko logo=none 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Apple SD Gothic Neo',Roboto,'Noto Sans KR','Malgun Gothic',sans-serif;">이메일 인증하기</a>
+    <a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Apple SD Gothic Neo',Roboto,'Noto Sans KR','Malgun Gothic',sans-serif;">이메일 인증하기</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">인증을 요청하지 않았다면 이 메일을 무시해 주세요.</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">버튼이 열리지 않으면 아래 주소를 브라우저에 붙여 넣어 주세요.<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko</a></td></tr>
+<a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">이 메일은 Kit에서 보냈습니다.</td></tr>
 </table>
 </td></tr></table>
@@ -453,7 +453,7 @@ exports[`renderMail 스냅샷 snapshot verifyEmail ko logo=none 1`] = `
 
 아래 버튼을 눌러 a@example.com 주소를 인증해 주세요.
 
-https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko
+https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko
 
 인증을 요청하지 않았다면 이 메일을 무시해 주세요.
 
@@ -479,12 +479,12 @@ exports[`renderMail 스냅샷 snapshot verifyEmail ko logo=with 1`] = `
 <tr><td style="padding:0 0 32px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td bgcolor="#673AB7" style="border-radius:24px;">
-    <a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Apple SD Gothic Neo',Roboto,'Noto Sans KR','Malgun Gothic',sans-serif;">이메일 인증하기</a>
+    <a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko" target="_blank" style="display:inline-block;padding:12px 24px;font-size:16px;line-height:24px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:24px;font-family:-apple-system,'Apple SD Gothic Neo',Roboto,'Noto Sans KR','Malgun Gothic',sans-serif;">이메일 인증하기</a>
   </td></tr></table>
 </td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:0 0 24px;">인증을 요청하지 않았다면 이 메일을 무시해 주세요.</td></tr>
 <tr><td style="border-top:1px solid #E0E0E0;padding:24px 0 0;font-size:14px;line-height:1.4;color:#5F6368;">버튼이 열리지 않으면 아래 주소를 브라우저에 붙여 넣어 주세요.<br>
-<a href="https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko</a></td></tr>
+<a href="https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko" style="color:#1F1F1F;text-decoration:underline;word-break:break-all;">https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko</a></td></tr>
 <tr><td style="font-size:14px;line-height:1.4;color:#5F6368;padding:24px 0 0;">이 메일은 Kit에서 보냈습니다.</td></tr>
 </table>
 </td></tr></table>
@@ -495,7 +495,7 @@ exports[`renderMail 스냅샷 snapshot verifyEmail ko logo=with 1`] = `
 
 아래 버튼을 눌러 a@example.com 주소를 인증해 주세요.
 
-https://example.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko
+https://example.web.app/?mode=verifyEmail&oobCode=c&apiKey=k&lang=ko
 
 인증을 요청하지 않았다면 이 메일을 무시해 주세요.
 

@@ -17,7 +17,8 @@
  *  - 로고 있음 / 없음 헤더 · 앱 이름 HTML escape · text 파트 조립 규칙
  *  - 입력 방어 — 빈 앱 이름 · 속성 밖으로 새는 링크 거부
  *  - 확장 `templates/` 컬렉션 미사용 (D-11)
- *  - 렌더 스냅샷 12개 (이름 규칙 `snapshot ${kind} ${locale} logo=${none|with}`)
+ *  - 렌더 스냅샷 12개 (이름 규칙 `snapshot ${kind} ${locale} logo=${none|with}`) —
+ *    링크 = 결과 페이지 재작성 결과(`toResultPageLink` — 실제로 보내는 메일)
  *
  * 스냅샷 갱신: 템플릿 · 문구를 의도해서 바꿨을 때만
  * `pnpm test -- -u test/email` 로 다시 쓰고, diff 를 눈으로 대조한 뒤 커밋한다.
@@ -391,7 +392,7 @@ describe("renderMail 스냅샷", () => {
           const mail = renderMail(kind, {
             locale,
             email: EMAIL,
-            link: attachLang(adminLinkFor(kind), locale),
+            link: toResultPageLink(adminLinkFor(kind), RESULT_PAGE_URL, locale),
             brand: logo.brand,
           });
 

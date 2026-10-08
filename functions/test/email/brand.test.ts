@@ -13,6 +13,8 @@
  *  - 공유 표 `onAccent` 행 → `onAccentColor`
  *  - `readMailBrand` — env 조합(빈 앱 이름 → null · 잘못된 색 → 기본 ·
  *    http 로고 → 빈 값)
+ *  - `readResultPageUrl` (D-22 ②) — https · 쿼리 · 해시 없음만 그대로, 빈 값 ·
+ *    env 없음 · http · 쿼리 · 해시 · 따옴표 → null
  */
 
 import {readFileSync} from "fs";
@@ -23,6 +25,7 @@ import {
   normalizeBrandColor,
   onAccentColor,
   readMailBrand,
+  readResultPageUrl,
 } from "../../src/email/brand";
 import {resolveMailLocale} from "../../src/email/mail_locale";
 
@@ -188,5 +191,47 @@ describe("readMailBrand", () => {
     delete mockEnv.EMAIL_LOGO_URL;
 
     expect(readMailBrand()?.logoUrl).toBe("");
+  });
+});
+
+describe("readResultPageUrl (D-22)", () => {
+  beforeEach(() => {
+    mockEnv = {EMAIL_RESULT_PAGE_URL: "https://example.web.app/"};
+  });
+
+  it("https · 쿼리 · 해시 없는 주소는 그대로 쓴다", () => {
+    expect(readResultPageUrl()).toBe("https://example.web.app/");
+  });
+
+  it("빈 값 · env 없음은 null 이다", () => {
+    mockEnv.EMAIL_RESULT_PAGE_URL = "";
+    expect(readResultPageUrl()).toBeNull();
+
+    delete mockEnv.EMAIL_RESULT_PAGE_URL;
+    expect(readResultPageUrl()).toBeNull();
+  });
+
+  it("http 주소는 null 이다", () => {
+    mockEnv.EMAIL_RESULT_PAGE_URL = "http://example.web.app/";
+
+    expect(readResultPageUrl()).toBeNull();
+  });
+
+  it("쿼리가 붙은 주소는 null 이다", () => {
+    mockEnv.EMAIL_RESULT_PAGE_URL = "https://example.web.app/?x=1";
+
+    expect(readResultPageUrl()).toBeNull();
+  });
+
+  it("해시가 붙은 주소는 null 이다", () => {
+    mockEnv.EMAIL_RESULT_PAGE_URL = "https://example.web.app/#a";
+
+    expect(readResultPageUrl()).toBeNull();
+  });
+
+  it("따옴표가 든 주소는 null 이다", () => {
+    mockEnv.EMAIL_RESULT_PAGE_URL = "https://example.web.app/a\"onclick=\"x";
+
+    expect(readResultPageUrl()).toBeNull();
   });
 });

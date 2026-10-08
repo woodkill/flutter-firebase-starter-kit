@@ -3,12 +3,17 @@
 // `email.kit`).
 //
 // 인증 메일과 같은 템플릿 · 브랜드로 보낸다: Admin `generatePasswordResetLink`
-// → `lang` 부착 → `renderMail("resetPassword")` → Firestore `mail/` add
+// → 결과 페이지 링크로 재작성(`toResultPageLink` — 쿼리 보존 · `lang` 부착,
+// D-22 ①) → `renderMail("resetPassword")` → Firestore `mail/` add
 // (Trigger Email 확장이 발송). callable 성공 = `mail/` 기록까지다(D-12).
+// 링크 호스트 · 경로는 함수 env(`readResultPageUrl`)만 쓰고(링크 위조 차단 ·
+// D-22 ②), 값이 없으면 메일을 보내지 않는다(D-22 ③).
 //
 // **가입 여부 비노출 (D-10 · EEP 계약 — 앱 `forgot_password_notifier.dart`):**
 // 없는 주소도 있는 주소와 같은 `{ok: true}` 를 돌려준다. rate limit 은 링크
-// 생성 **전** 에 판정하므로 존재 여부와 무관하게 같은 제한이 걸린다.
+// 생성 **전** 에 판정하므로 존재 여부와 무관하게 같은 제한이 걸린다. 결과
+// 페이지 주소 env 판정도 rate limit · 링크 생성 전이라 env 가 빠진
+// 프로젝트에서도 있는 주소 · 없는 주소 응답이 같다.
 //
 // **익명 허용 (RESEARCH §R7):** 비밀번호 찾기 화면은 로그인 전이라 세션이
 // 익명이거나(앱 시작 시 익명 로그인) 정식(재인증 흐름)이다. 그래서
@@ -29,10 +34,10 @@ import {fingerprintError} from "../auth/identity_index";
 import {consumeRateLimitAxes} from "../shared/rate_limit";
 import type {ExceededRateAxis, RateLimitAxis} from "../shared/rate_limit";
 import {requireStringArg} from "../shared/require_string_arg";
-import {readMailBrand} from "./brand";
+import {readMailBrand, readResultPageUrl} from "./brand";
 import {hashEmail} from "./email_hash";
 import {resolveMailLocale} from "./mail_locale";
-import {attachLang, renderMail} from "./render_mail";
+import {renderMail, toResultPageLink} from "./render_mail";
 
 /** 요청 본문 — `email` · `locale` 만 읽는다 (그 밖 키는 무시). */
 type SendPasswordResetMailRequest = {
@@ -136,17 +141,22 @@ function buildRateAxes(caller: {
  * 흐름:
  *   Step 0: `request.auth` 없음 → `unauthenticated` · `email` 이 문자열이
  *           아니거나 비었거나 320자 초과 → `invalid-argument`.
- *   Step 1: 브랜드 env 미설정(`readMailBrand()` null) → `internal`.
+ *   Step 1: 브랜드 env 미설정(`readMailBrand()` null) →
+ *           `email_brand_unset` + `internal` · 결과 페이지 주소 env 미설정
+ *           (`readResultPageUrl()` null) → `email_result_page_unset` +
+ *           `internal` (rate limit · 계정 조회 전 — D-22 ③ · 비노출 유지).
  *   Step 2: uid 5/60s · IP 해시 30/60s · 이메일 해시 3/600s 를 한
  *           transaction 에서 판정 — 초과 축마다
  *           `password_reset_mail_rate_limited` 알람 + `resource-exhausted`.
  *   Step 3: Admin 링크 — 계정 없음 → 메일 없이 `{ok: true}`(비노출) ·
  *           `auth/invalid-email` → `invalid-argument` · 그 밖 → `internal`.
- *   Step 4: `attachLang` → `renderMail("resetPassword")` → `mail/` add →
- *           `{ok: true}`.
+ *   Step 4: `toResultPageLink`(결과 페이지 + `lang`) →
+ *           `renderMail("resetPassword")` → `mail/` add → `{ok: true}`.
+ *           실패(필수 쿼리 없는 링크 포함)는 `internal`.
  *
  * **PII 금지:** logger payload 는 `{event, uid, axis, count, code, locale}`
- * 뿐이다. 이메일 · 링크 · oobCode · IP 원문 · `err.message` 를 싣지 않는다.
+ * 뿐이다. 이메일 · 링크 · oobCode · IP 원문 · 결과 페이지 주소 ·
+ * `err.message` 를 싣지 않는다.
  *
  * @param {{auth?: {uid: string}, rawRequest?: {ip?: string}, data:
  *     SendPasswordResetMailRequest}} request onCall request.
@@ -176,6 +186,16 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
       logger.error(
         {event: "email_brand_unset"},
         "EMAIL_APP_NAME is not configured",
+      );
+      throw new HttpsError("internal", "errorUnknown");
+    }
+    // 결과 페이지 주소 — 없으면 기본 핸들러 링크를 보내지 않고 멈춘다.
+    // 계정 조회 전이라 있는 주소 · 없는 주소 응답이 같다(D-10).
+    const resultPageUrl = readResultPageUrl();
+    if (resultPageUrl === null) {
+      logger.error(
+        {event: "email_result_page_unset"},
+        "EMAIL_RESULT_PAGE_URL is not configured",
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -238,12 +258,12 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
       throw new HttpsError("internal", "errorUnknown");
     }
 
-    // Step 4: lang → 렌더 → mail/ 큐 기록.
+    // Step 4: 결과 페이지 재작성(+ lang) → 렌더 → mail/ 큐 기록.
     try {
       const message = renderMail("resetPassword", {
         locale,
         email,
-        link: attachLang(link, locale),
+        link: toResultPageLink(link, resultPageUrl, locale),
         brand,
       });
       await db.collection("mail").add({to: [email], message});

@@ -5,19 +5,27 @@
  * kit 모드 재설정 메일 callable — 로그인 전 요청이라 익명 세션도 받고, 가입
  * 여부를 드러내지 않는다(없는 주소 = 같은 `{ok: true}`). rate limit 3축(uid ·
  * IP 해시 · 이메일 해시)을 링크 생성 **전** 한 transaction 에서 판정한다.
+ * Admin 링크는 결과 페이지 링크로 재작성한다(`toResultPageLink` — D-22 ①).
  * `renderMail` 은 mock 하지 않는다(렌더 관통).
  *
  * **Mock 한계:** Admin 링크 · Firestore add · transaction 은 mock 이다. rate
  * limit transaction 은 `createOrderedTx` 로 reads-before-writes 를 강제한다
  * (memory feedback_mock_transaction_constraint). 실 확장 발송은 plan 12 UAT.
  *
- * 시나리오 (plan 05 Task 2 R1~R6):
- *  - R1: 익명 caller · 있는 주소 → 링크 1회 · mail add 1회 · ko 제목 · lang=ko
+ * 시나리오 (plan 05 Task 2 R1~R6 · plan 14 R7 · R8):
+ *  - R1: 익명 caller · 있는 주소 → 링크 1회 · mail add 1회 · ko 제목 · 결과
+ *    페이지 링크(`https://demo.web.app/?mode=resetPassword…&lang=ko`) · 원
+ *    링크 호스트 0
  *  - R2: 없는 주소(email-not-found) → add 0 · R1 과 같은 반환
  *  - R3: 미인증 · email 누락 · 321자 · Admin invalid-email → 각 오류 코드
  *  - R4: 이메일 · uid · IP 축 초과 → resource-exhausted + 알람 · 링크 생성 0
- *  - R5: 정식 caller 허용 · 요청 브랜드 값 무시
- *  - R6: logger 인자에 이메일 · oobCode · IP 원문 0 · env 미설정 → internal
+ *  - R5: 정식 caller 허용 · 요청 브랜드 값 · resultPageUrl · link 무시
+ *  - R6: logger 인자에 이메일 · oobCode · IP 원문 · 결과 페이지 호스트 0 ·
+ *    env 미설정 → internal
+ *  - R7: 결과 페이지 env 빈 값 → 있는 주소 · 없는 주소 같은 internal · 링크
+ *    생성 · rate limit · add 0 (D-22 ③ · 가입 여부 비노출)
+ *  - R8: Admin 링크에 oobCode 없음 → internal + password_reset_mail_failed ·
+ *    add 0 · 로그에 호스트 0
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -111,6 +119,14 @@ const CLIENT_IP = "203.0.113.77";
 const ADMIN_LINK =
   "https://demo.firebaseapp.com/__/auth/action?mode=resetPassword" +
   "&oobCode=OOB_RESET_SENTINEL&apiKey=fake-api-key";
+
+/** 결과 페이지 env 값 fixture (`EMAIL_RESULT_PAGE_URL`). */
+const RESULT_PAGE_URL = "https://demo.web.app/";
+
+/** [ADMIN_LINK] 를 [RESULT_PAGE_URL] 로 재작성한 ko 링크 (D-22 ①). */
+const RESULT_LINK_KO =
+  "https://demo.web.app/?mode=resetPassword" +
+  "&oobCode=OOB_RESET_SENTINEL&apiKey=fake-api-key&lang=ko";
 
 /** caller uid fixture. */
 const UID = "u-reset";
@@ -221,6 +237,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     mockEnv.EMAIL_APP_NAME = "Kit";
     mockEnv.EMAIL_BRAND_COLOR = "#673AB7";
     mockEnv.EMAIL_LOGO_URL = "";
+    mockEnv.EMAIL_RESULT_PAGE_URL = RESULT_PAGE_URL;
     counters = new Map();
     readDocIds = [];
     mockNewTx = newTx;
@@ -233,7 +250,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
   });
 
   // eslint-disable-next-line max-len
-  it("R1: 익명 caller · 있는 주소 → 링크 → lang=ko → renderMail → mail add 1회 → {ok: true}", async () => {
+  it("R1: 익명 caller · 있는 주소 → 링크 → 결과 페이지 링크(lang=ko) → renderMail → mail add 1회 → {ok: true}", async () => {
     const result = await call(anonymousCallerAuth(UID), {
       email: REQUEST_EMAIL,
       locale: "ko",
@@ -249,6 +266,11 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     expect(docs[0].message.html).toContain("lang=ko");
     expect(docs[0].message.html).toContain("oobCode=OOB_RESET_SENTINEL");
     expect(docs[0].message.html).not.toContain("&#x3D;");
+    // 링크 = 결과 페이지 재작성 결과 · 원 링크 호스트 0 (D-22 ①).
+    expect(docs[0].message.html).toContain(`href="${RESULT_LINK_KO}"`);
+    expect(docs[0].message.text).toContain(RESULT_LINK_KO);
+    expect(docs[0].message.html).not.toContain("demo.firebaseapp.com");
+    expect(docs[0].message.text).not.toContain("demo.firebaseapp.com");
     // 3축이 한 transaction 에서 read 전부 → write 순으로 처리됐다.
     expect(mockOrdered.calls).toEqual([
       "get",
@@ -447,13 +469,15 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
   });
 
   // eslint-disable-next-line max-len
-  it("R5: 정식 caller 도 허용 · 요청의 appName · brandColor · logoUrl 은 무시한다", async () => {
+  it("R5: 정식 caller 도 허용 · 요청의 appName · brandColor · logoUrl · resultPageUrl · link 는 무시한다", async () => {
     const result = await call(signedInCallerAuth(UID, "password"), {
       email: REQUEST_EMAIL,
       locale: "en",
       appName: "Evil Corp",
       brandColor: "#000000",
       logoUrl: "https://evil.example.com/logo.png",
+      resultPageUrl: "https://evil.example.com/",
+      link: "https://evil.example.com/x",
     });
 
     expect(result).toEqual({ok: true});
@@ -464,6 +488,11 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     expect(docs[0].message.html).not.toContain("evil.example.com");
     expect(docs[0].message.html).toContain("#673AB7");
     expect(docs[0].message.html).toContain("lang=en");
+    expect(docs[0].message.text).not.toContain("evil.example.com");
+    expect(
+      docs[0].message.html.split("https://demo.web.app/?mode=resetPassword")
+        .length - 1,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   // eslint-disable-next-line max-len
@@ -509,6 +538,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     expect(text).not.toContain("oobCode");
     expect(text).not.toContain("OOB_RESET_SENTINEL");
     expect(text).not.toContain("firebaseapp.com");
+    expect(text).not.toContain("web.app");
     expect(text).not.toContain(CLIENT_IP);
   });
 
@@ -525,5 +555,62 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     );
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
     expect(mockMailAdd).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("R7: 결과 페이지 env 빈 값 → 있는 주소 · 없는 주소 모두 같은 internal · 링크 생성 · rate limit · add 0", async () => {
+    mockEnv.EMAIL_RESULT_PAGE_URL = "";
+    const auth = anonymousCallerAuth(UID);
+
+    // 있는 주소 — Admin mock 은 링크를 돌려주도록 둔다.
+    const existing = await call(auth, {email: REQUEST_EMAIL, locale: "ko"})
+      .then(() => null, (err: unknown) => err);
+    // 없는 주소 — Admin mock 이 계정 없음으로 거부하도록 둔다.
+    mockGenerateResetLink.mockRejectedValueOnce(
+      adminError("auth/email-not-found"),
+    );
+    const missing = await call(auth, {
+      email: "no-account@example.com",
+      locale: "ko",
+    }).then(() => null, (err: unknown) => err);
+
+    for (const err of [existing, missing]) {
+      expect(err).toBeInstanceOf(HttpsError);
+      expect(err).toMatchObject({code: "internal", message: "errorUnknown"});
+    }
+    expect(mockGenerateResetLink).not.toHaveBeenCalled();
+    expect(mockOrdered.calls).toEqual([]);
+    expect(
+      errorMock.mock.calls.filter(
+        (args) =>
+          (args[0] as {event?: string}).event === "email_result_page_unset",
+      ),
+    ).toHaveLength(2);
+    expect(mockMailAdd).not.toHaveBeenCalled();
+  });
+
+  // eslint-disable-next-line max-len
+  it("R8: Admin 링크에 oobCode 없음 → internal + password_reset_mail_failed · add 0 · 로그에 호스트 0", async () => {
+    mockGenerateResetLink.mockResolvedValue(
+      "https://demo.firebaseapp.com/__/auth/action?mode=resetPassword" +
+        "&apiKey=fake-api-key",
+    );
+
+    await expect(
+      call(anonymousCallerAuth(UID), {email: REQUEST_EMAIL, locale: "ko"}),
+    ).rejects.toMatchObject({code: "internal", message: "errorUnknown"});
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "password_reset_mail_failed",
+        uid: UID,
+      }),
+      expect.any(String),
+    );
+    expect(mockMailAdd).not.toHaveBeenCalled();
+    const text = allLogText();
+    expect(text).not.toContain(REQUEST_EMAIL);
+    expect(text).not.toContain("firebaseapp.com");
+    expect(text).not.toContain("web.app");
+    expect(text).not.toContain("fake-api-key");
   });
 });
