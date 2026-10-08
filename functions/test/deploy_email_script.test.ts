@@ -43,6 +43,18 @@ const BASE_CONFIG: Record<string, unknown> = {
   brandColor: "#673AB7",
 };
 
+/** kit 모드 config — hosting · kit 두 대상이 동작하는 유일한 모드(D-22). */
+const KIT_CONFIG: Record<string, unknown> = {
+  ...BASE_CONFIG,
+  emailDelivery: "kit",
+};
+
+/** firebase 모드 두 형태 — 모드 키 없음 · 명시 `firebase`. */
+const FIREBASE_MODE_CONFIGS: Array<[string, Record<string, unknown>]> = [
+  ["모드 키 없음", BASE_CONFIG],
+  ["firebase", {...BASE_CONFIG, emailDelivery: "firebase"}],
+];
+
 /** 확장 env 파일 (sandbox 기준 경로) — 사용자가 예시에서 복사해 만드는 파일. */
 const EXT_ENV_REL = `extensions/firestore-send-email.env.${PROJECT_ID}`;
 
@@ -236,45 +248,51 @@ function linesWith(stdout: string, prefix: string): string[] {
 }
 
 describe("deploy_email.sh hosting", () => {
-  it("T-175-DEPLOY-01 hosting dry-run 은 빌드 후 명령만 출력하고 firebase 호출 0", () => {
-    writeConfig(BASE_CONFIG);
+  it("T-175-DEPLOY-01 kit 모드 hosting dry-run 은 빌드 · 명령만 · 호출 0", () => {
+    writeConfig(KIT_CONFIG);
     const r = runScript(["dev", "hosting"]);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("flavor: dev\n");
     expect(r.stdout).toContain(`project: ${PROJECT_ID}\n`);
-    expect(r.stdout).toContain("mode: firebase\n");
+    expect(r.stdout).toContain("mode: kit\n");
     expect(r.stdout).toContain("target: hosting\n");
     expect(linesWith(r.stdout, "command: ")).toEqual([
       `command: firebase deploy --project ${PROJECT_ID} --only hosting`,
     ]);
-    expect(lastLine(r.stdout)).toBe(
-      "DRY-RUN OK dev target=hosting mode=firebase",
-    );
+    expect(lastLine(r.stdout)).toBe("DRY-RUN OK dev target=hosting mode=kit");
     expect(existsSync(markerFile)).toBe(false);
     expect(
       existsSync(join(sandbox, "build", "hosting", "public", "index.html")),
     ).toBe(true);
   });
 
-  it("T-175-DEPLOY-02 hosting 은 발송 모드와 독립이다(kit 모드도 DRY-RUN OK)", () => {
-    writeConfig({...BASE_CONFIG, emailDelivery: "kit"});
-    const r = runScript(["dev", "hosting"]);
-    expect(r.status).toBe(0);
-    expect(r.stdout).toContain("mode: kit\n");
-    expect(lastLine(r.stdout)).toBe("DRY-RUN OK dev target=hosting mode=kit");
-    expect(existsSync(markerFile)).toBe(false);
-  });
+  it.each(FIREBASE_MODE_CONFIGS)(
+    "T-175-DEPLOY-02 firebase 모드(%s)에서 hosting 은 FAIL · 빌드 · 호출 0",
+    (_label, config) => {
+      writeConfig(config);
+      for (const args of [["dev", "hosting"], ["dev", "hosting", "--apply"]]) {
+        const r = runScript(args);
+        expect(r.status).toBe(1);
+        expect(r.stderr.startsWith("FAIL:")).toBe(true);
+        expect(r.stderr).toContain("emailDelivery");
+        expect(r.stderr).toContain("kit");
+        expect(r.stdout).not.toContain("command:");
+      }
+      expect(existsSync(markerFile)).toBe(false);
+      expect(existsSync(join(sandbox, "build", "hosting", "public"))).toBe(
+        false,
+      );
+    },
+  );
 
-  it("T-175-DEPLOY-03 hosting --apply 는 deploy --only hosting 1회 실행", () => {
-    writeConfig({...BASE_CONFIG, emailDelivery: "firebase"});
+  it("T-175-DEPLOY-03 kit 모드 hosting --apply 는 --only hosting 1회 실행", () => {
+    writeConfig(KIT_CONFIG);
     const r = runScript(["dev", "hosting", "--apply"]);
     expect(r.status).toBe(0);
     expect(readCalls()).toEqual([
       ["deploy", "--project", PROJECT_ID, "--only", "hosting"],
     ]);
-    expect(lastLine(r.stdout)).toBe(
-      "DEPLOY OK dev target=hosting mode=firebase",
-    );
+    expect(lastLine(r.stdout)).toBe("DEPLOY OK dev target=hosting mode=kit");
   });
 
   it.each([
@@ -295,12 +313,12 @@ describe("deploy_email.sh hosting", () => {
 
   it.each([
     ["config 없음", null],
-    ["프로젝트 ID 형식 오류", {...BASE_CONFIG, firebaseProjectId: "My_Proj"}],
-    ["프로젝트 ID 빈 값", {...BASE_CONFIG, firebaseProjectId: ""}],
-    ["emailDelivery 허용 밖 값", {...BASE_CONFIG, emailDelivery: "smtp"}],
-    ["emailDelivery 대문자", {...BASE_CONFIG, emailDelivery: "Kit"}],
-    ["emailDelivery 앞뒤 공백", {...BASE_CONFIG, emailDelivery: " kit"}],
-    ["emailDelivery 문자열 아님", {...BASE_CONFIG, emailDelivery: true}],
+    ["프로젝트 ID 형식 오류", {...KIT_CONFIG, firebaseProjectId: "My_Proj"}],
+    ["프로젝트 ID 빈 값", {...KIT_CONFIG, firebaseProjectId: ""}],
+    ["emailDelivery 허용 밖 값", {...KIT_CONFIG, emailDelivery: "smtp"}],
+    ["emailDelivery 대문자", {...KIT_CONFIG, emailDelivery: "Kit"}],
+    ["emailDelivery 앞뒤 공백", {...KIT_CONFIG, emailDelivery: " kit"}],
+    ["emailDelivery 문자열 아님", {...KIT_CONFIG, emailDelivery: true}],
   ])("T-175-DEPLOY-04b 입력 오류(%s)는 FAIL exit 1", (_label, config) => {
     if (config !== null) writeConfig(config);
     const r = runScript(["dev", "hosting", "--apply"]);
@@ -312,7 +330,7 @@ describe("deploy_email.sh hosting", () => {
 
   it("T-175-DEPLOY-05 다른 config 키 값 · 모드 원문 값을 출력하지 않는다", () => {
     const sentinel = "SENTINEL_SECRET_175";
-    const config = {...BASE_CONFIG, naverClientSecret: sentinel};
+    const config = {...KIT_CONFIG, naverClientSecret: sentinel};
     writeConfig(config);
     for (const args of [["dev", "hosting"], ["dev", "hosting", "--apply"]]) {
       const r = runScript(args);
@@ -334,25 +352,26 @@ describe("deploy_email.sh hosting", () => {
 });
 
 describe("deploy_email.sh kit", () => {
-  const KIT_CONFIG = {...BASE_CONFIG, emailDelivery: "kit"};
-
-  it.each([
-    ["모드 키 없음", BASE_CONFIG],
-    ["firebase", {...BASE_CONFIG, emailDelivery: "firebase"}],
-  ])("T-175-DEPLOY-06 firebase 모드(%s)에서 kit 은 FAIL", (_label, config) => {
-    writeConfig(config);
-    writeExtEnv(VALID_EXT_ENV);
-    for (const args of [["dev", "kit"], ["dev", "kit", "--apply"]]) {
-      const r = runScript(args);
-      expect(r.status).toBe(1);
-      expect(r.stderr.startsWith("FAIL:")).toBe(true);
-      expect(r.stderr).toContain("emailDelivery");
-      expect(r.stderr).toContain("kit");
-      expect(r.stdout).not.toContain("command:");
-    }
-    expect(existsSync(markerFile)).toBe(false);
-    expect(readFnEnv()).toBeNull();
-  });
+  it.each(FIREBASE_MODE_CONFIGS)(
+    "T-175-DEPLOY-06 firebase 모드(%s)에서 kit 은 FAIL",
+    (_label, config) => {
+      writeConfig(config);
+      writeExtEnv(VALID_EXT_ENV);
+      for (const args of [["dev", "kit"], ["dev", "kit", "--apply"]]) {
+        const r = runScript(args);
+        expect(r.status).toBe(1);
+        expect(r.stderr.startsWith("FAIL:")).toBe(true);
+        expect(r.stderr).toContain("emailDelivery");
+        expect(r.stderr).toContain("kit");
+        expect(r.stdout).not.toContain("command:");
+      }
+      expect(existsSync(markerFile)).toBe(false);
+      expect(readFnEnv()).toBeNull();
+      expect(existsSync(join(sandbox, "build", "hosting", "public"))).toBe(
+        false,
+      );
+    },
+  );
 
   it("T-175-DEPLOY-07a 확장 env 파일이 없으면 cp 안내와 함께 FAIL", () => {
     writeConfig(KIT_CONFIG);
@@ -546,5 +565,41 @@ describe("deploy_email.sh kit", () => {
     expect(r.stderr).toContain("appName");
     expect(existsSync(markerFile)).toBe(false);
     expect(readFnEnv()).toBeNull();
+  });
+});
+
+describe("deploy_email.sh D-22 계약", () => {
+  /** Console 의 메일 링크 주소(작업 URL)를 바꾸라는 안내 표지 — 서버가 거부한다. */
+  const CONSOLE_MARKERS = ["작업 URL", "Console"];
+
+  it("T-175-DEPLOY-17 어떤 대상 · 모드의 출력에도 Console 링크 주소 안내가 없다", () => {
+    const outputs: string[] = [];
+    writeConfig(KIT_CONFIG);
+    writeExtEnv(VALID_EXT_ENV);
+    for (const target of ["hosting", "kit"]) {
+      for (const args of [["dev", target], ["dev", target, "--apply"]]) {
+        const r = runScript(args);
+        expect(r.status).toBe(0);
+        outputs.push(r.stdout, r.stderr);
+      }
+    }
+    for (const [, config] of FIREBASE_MODE_CONFIGS) {
+      writeConfig(config);
+      for (const target of ["hosting", "kit"]) {
+        const r = runScript(["dev", target]);
+        expect(r.status).toBe(1);
+        outputs.push(r.stdout, r.stderr);
+      }
+    }
+    for (const out of outputs) {
+      for (const marker of CONSOLE_MARKERS) {
+        expect(out).not.toContain(marker);
+      }
+    }
+    const source = readFileSync(
+      join(REPO_ROOT, "scripts", "deploy_email.sh"),
+      "utf8",
+    );
+    expect(source).not.toContain("작업 URL");
   });
 });
