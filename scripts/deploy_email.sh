@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Phase 17.5 D-02 · D-04 · D-05 · D-06 · D-09 · D-14 — 인증 메일 표면을 배포하는 스크립트.
+# Phase 17.5 D-02 · D-04 · D-05 · D-06 · D-09 · D-14 · D-22 — 인증 메일 표면을 배포하는 스크립트.
 #
 # 목적:
 #   hosting — config/<flavor>.json 을 읽어 인증 결과 페이지를 빌드(hosting/build.mjs)한 뒤
 #             표준 `firebase deploy --project <id> --only hosting` 명령을 출력 · 실행한다.
 #             결과 페이지는 발송 모드(emailDelivery)와 독립이다 — firebase · kit 둘 다 된다.
 #   kit     — emailDelivery 가 kit 일 때만 동작한다(원칙 P · 「off 면 설정 0」).
-#             ① 메일 함수가 쓰는 브랜드 env 3줄(EMAIL_APP_NAME · EMAIL_BRAND_COLOR ·
-#             EMAIL_LOGO_URL)을 config 에서 만들어 functions/.env.<projectId> 에 쓴다 —
-#             함수는 config 를 읽지 못하고 env 는 배포 때만 실린다.
-#             ② Trigger Email 확장을 `firebase deploy --project <id> --only extensions` 로 배포한다.
+#             ① 결과 페이지를 빌드해 `firebase deploy --project <id> --only hosting` 으로 먼저
+#             배포한다 — kit 메일 링크가 이 페이지를 연다(D-22 ③).
+#             ② ①이 성공한 뒤에만 메일 함수가 쓰는 env 4줄(EMAIL_APP_NAME · EMAIL_BRAND_COLOR ·
+#             EMAIL_LOGO_URL · EMAIL_RESULT_PAGE_URL)을 config 에서 만들어
+#             functions/.env.<projectId> 에 쓴다 — 함수는 config 를 읽지 못하고 env 는 배포 때만
+#             실린다. 결과 페이지 주소는 프로젝트 ID 로 만든다(https://<id>.web.app/ · 새 config 키 0).
+#             ③ Trigger Email 확장을 `firebase deploy --project <id> --only extensions` 로 배포한다.
 #             kit 메일 함수 배포는 scripts/deploy_functions.sh 가 맡는다(함수 목록 진실원 1곳).
 #
 # 사용법:
@@ -21,10 +24,11 @@
 #   - 공통 출력: `flavor:` · `project:` · `mode: <firebase|kit>` · `target: <대상>`
 #   - hosting: 빌드 결과 줄(`BUILD OK …`) · `command: firebase deploy --project <id> --only hosting` ·
 #     Console 작업 URL 안내 1줄
-#   - kit: `env: EMAIL_APP_NAME="…"` · `env: EMAIL_BRAND_COLOR="…"` · `env: EMAIL_LOGO_URL="…"` 3줄 ·
-#     `command: firebase deploy --project <id> --only extensions` · `next:` 2줄(함수 배포 · TTL) ·
-#     --apply 때 `wrote: functions/.env.<id> …` 1줄
-#   - brandColor 형식 오류: stderr `warn: …` 1줄 뒤 기본 색(#673AB7)으로 계속
+#   - kit: 빌드 결과 줄(`BUILD OK …`) · `env: EMAIL_APP_NAME="…"` · `env: EMAIL_BRAND_COLOR="…"` ·
+#     `env: EMAIL_LOGO_URL="…"` · `env: EMAIL_RESULT_PAGE_URL="https://<id>.web.app/"` 4줄 ·
+#     `command:` 2줄(`… --only hosting` → `… --only extensions` 순) · `next:` 2줄(함수 배포 · TTL) ·
+#     --apply 때 `wrote: functions/.env.<id> …` 1줄(hosting 배포 성공 뒤)
+#   - brandColor 형식 오류: stderr `warn: …` 1줄(결과 페이지 빌드가 낸다) 뒤 기본 색(#673AB7)으로 계속
 #   - dry-run 마지막 줄: DRY-RUN OK <flavor> target=<대상> mode=<firebase|kit> (exit 0)
 #   - 실행 마지막 줄:    DEPLOY OK <flavor> target=<대상> mode=<firebase|kit> (exit 0)
 #     실행 모드는 `running: firebase deploy …` 를 출력한 뒤 같은 명령을 실행한다.
@@ -38,8 +42,9 @@
 #     값을 변수에 담거나 출력하지 않는다(SMTP 주소 · secret 리소스 이름 포함).
 #   - appName 이 비었거나 `"` · `\` · `$` · 백틱 · 제어 문자(줄바꿈 등)를 담으면 FAIL —
 #     env 파일 줄이 깨지거나 다른 키가 끼어드는 일을 막는다.
-#   - functions/.env.<projectId> 는 브랜드 3줄만 바꾸고 다른 줄(예: SEND_TEST_PUSH_ENABLED)은
-#     그대로 둔다. 파일은 --apply 때만 쓴다.
+#   - functions/.env.<projectId> 는 메일 env 4줄만 바꾸고 다른 줄(예: SEND_TEST_PUSH_ENABLED)은
+#     그대로 둔다. 파일은 --apply 때, 결과 페이지 배포가 성공한 뒤에만 쓴다 — 페이지 배포가
+#     실패하면 env 와 확장은 그대로다(결과 페이지 주소가 없는 페이지를 가리키는 상태 0).
 #   - emailDelivery 는 빈 값 · firebase · kit 정확 일치만 받는다(공백 · 대소문자 보정 없음 —
 #     앱과 같은 규칙). 그 밖이면 FAIL 이고, 원문 값은 출력하지 않는다(`mode:` 는 정규화 값).
 #   - 강제 삭제 옵션과 비대화형 옵션을 명령에 넣지 않는다.
@@ -160,13 +165,19 @@ prepare_apply() {
   cd "$ROOT"
 }
 
-# hosting 대상 — 결과 페이지 빌드 → 배포 명령 출력 → (--apply) 실행.
-deploy_hosting() {
+# 결과 페이지를 build/hosting/public 에 빌드한다(hosting · kit 공용 · dry-run 에서도 한다).
+# 성공하면 hosting/build.mjs 가 `BUILD OK …` 1줄을 낸다.
+build_result_page() {
   if ! command -v node >/dev/null 2>&1; then
     fail "node 가 필요하다 (결과 페이지 빌드)"
   fi
   node "$ROOT/hosting/build.mjs" --flavor "$FLAVOR" --root "$ROOT" ||
     fail "결과 페이지 빌드 실패 — 위 FAIL 사유를 고친 뒤 다시 실행한다"
+}
+
+# hosting 대상 — 결과 페이지 빌드 → 배포 명령 출력 → (--apply) 실행.
+deploy_hosting() {
+  build_result_page
 
   echo "command: firebase deploy --project ${PROJECT} --only hosting"
   echo "배포 뒤 Console → Authentication → 템플릿 → 작업 URL 맞춤설정 에 https://${PROJECT}.web.app/ 를 넣는다"
@@ -249,7 +260,8 @@ resolve_brand_env() {
       BRAND_COLOR="${raw#ok:}"
       ;;
     *)
-      echo "warn: config/${FLAVOR}.json 의 brandColor 가 #RRGGBB 형식이 아니라 ${DEFAULT_BRAND_COLOR} 를 쓴다" >&2
+      # 형식 오류 경고(`warn:` 1줄)는 결과 페이지 빌드(hosting/build.mjs · 같은 #RRGGBB 규칙)가
+      # 낸다 — kit 은 항상 같은 config 로 빌드하므로 여기서 다시 내지 않는다(같은 경고 2줄 방지).
       BRAND_COLOR="$DEFAULT_BRAND_COLOR"
       ;;
   esac
@@ -260,9 +272,13 @@ resolve_brand_env() {
   else
     LOGO_URL=""
   fi
+
+  # 결과 페이지 주소 — 로고 주소와 같은 원천(프로젝트 ID)에서 만든다(D-22 ② · 새 config 키 0).
+  # 메일 함수의 readResultPageUrl()(functions/src/email/brand.ts)이 이 값을 읽어 링크를 바꾼다.
+  RESULT_PAGE_URL="https://${PROJECT}.web.app/"
 }
 
-# functions/.env.<projectId> 에서 브랜드 3줄만 바꿔 쓴다(다른 줄 · 파일 권한 유지).
+# functions/.env.<projectId> 에서 메일 env 4줄만 바꿔 쓴다(다른 줄 · 파일 권한 유지).
 write_function_env() {
   local fn_env="$ROOT/functions/.env.$PROJECT"
   local tmp
@@ -270,8 +286,8 @@ write_function_env() {
   # shellcheck disable=SC2064 # 지금 경로로 고정한다.
   trap "rm -f '$tmp'" EXIT
   if [ -f "$fn_env" ]; then
-    # 세 키(앞 공백 · export 접두 포함)가 아닌 줄만 옮긴다. grep 은 고른 줄이 없으면 1 이다.
-    grep -v -E '^[[:space:]]*(export[[:space:]]+)?(EMAIL_APP_NAME|EMAIL_BRAND_COLOR|EMAIL_LOGO_URL)[[:space:]]*=' \
+    # 네 키(앞 공백 · export 접두 포함)가 아닌 줄만 옮긴다. grep 은 고른 줄이 없으면 1 이다.
+    grep -v -E '^[[:space:]]*(export[[:space:]]+)?(EMAIL_APP_NAME|EMAIL_BRAND_COLOR|EMAIL_LOGO_URL|EMAIL_RESULT_PAGE_URL)[[:space:]]*=' \
       "$fn_env" >"$tmp" || [ "$?" -eq 1 ] ||
       fail "functions/.env.${PROJECT} 을 읽지 못했다"
   fi
@@ -279,12 +295,13 @@ write_function_env() {
     echo "EMAIL_APP_NAME=\"${APP_NAME}\""
     echo "EMAIL_BRAND_COLOR=\"${BRAND_COLOR}\""
     echo "EMAIL_LOGO_URL=\"${LOGO_URL}\""
+    echo "EMAIL_RESULT_PAGE_URL=\"${RESULT_PAGE_URL}\""
   } >>"$tmp"
   # 제자리에 덮어써 기존 파일 권한을 그대로 둔다(없으면 새로 만든다).
   cat "$tmp" >"$fn_env" || fail "functions/.env.${PROJECT} 을 쓰지 못했다"
   rm -f "$tmp"
   trap - EXIT
-  echo "wrote: functions/.env.${PROJECT} (브랜드 3줄)"
+  echo "wrote: functions/.env.${PROJECT} (메일 env 4줄)"
 }
 
 # kit 다음 단계 2줄 — 메일 함수 배포 · mail 컬렉션 TTL.
@@ -293,21 +310,22 @@ print_kit_next() {
   echo "next: gcloud firestore fields ttls update delivery.expireAt --collection-group=mail --enable-ttl --project ${PROJECT}"
 }
 
-# kit 대상 — 모드 가드 → 확장 env 확인 → 브랜드 env 계획 → (--apply) env 쓰기 · 확장 배포.
+# kit 대상 — 모드 가드 → 확장 env 확인 → 브랜드 · 결과 페이지 주소 → 결과 페이지 빌드 → 계획 출력
+# → (--apply) 결과 페이지 배포 → 성공 뒤에만 메일 env 4줄 쓰기 → 확장 배포(D-22 ③).
 deploy_kit() {
   [ "$EMAIL_MODE" = kit ] ||
     fail "config/${FLAVOR}.json 의 emailDelivery 가 kit 이 아니다 — kit 대상은 emailDelivery 가 kit 일 때만 배포한다(firebase 모드는 확장 · 메일 함수가 필요 없다)"
 
   check_extension_env
   resolve_brand_env
+  build_result_page
 
-  echo "함수 env 파일: functions/.env.${PROJECT} (아래 3줄을 바꿔 쓴다 · 다른 줄은 그대로)"
+  echo "함수 env 파일: functions/.env.${PROJECT} (아래 4줄을 바꿔 쓴다 · 다른 줄은 그대로)"
   echo "env: EMAIL_APP_NAME=\"${APP_NAME}\""
   echo "env: EMAIL_BRAND_COLOR=\"${BRAND_COLOR}\""
   echo "env: EMAIL_LOGO_URL=\"${LOGO_URL}\""
-  if [ -n "$LOGO_URL" ]; then
-    echo "로고 주소는 결과 페이지를 배포해야 열린다 — bash scripts/deploy_email.sh ${FLAVOR} hosting --apply"
-  fi
+  echo "env: EMAIL_RESULT_PAGE_URL=\"${RESULT_PAGE_URL}\""
+  echo "command: firebase deploy --project ${PROJECT} --only hosting"
   echo "command: firebase deploy --project ${PROJECT} --only extensions"
 
   if [ "$OPTION" != "--apply" ]; then
@@ -318,15 +336,17 @@ deploy_kit() {
     return 0
   fi
 
-  if ! command -v firebase >/dev/null 2>&1; then
-    fail "firebase CLI 가 PATH 에 없다 (npm install -g firebase-tools)"
-  fi
-  write_function_env
   prepare_apply
+  # 결과 페이지를 먼저 올린다 — 실패하면 함수 env 와 확장을 건드리지 않고 멈춘다
+  # (env 의 결과 페이지 주소가 배포되지 않은 페이지를 가리키는 상태를 만들지 않는다).
+  echo "running: firebase deploy --project ${PROJECT} --only hosting"
+  firebase deploy --project "$PROJECT" --only hosting ||
+    fail "결과 페이지 배포 실패 — 함수 env 와 확장은 바꾸지 않았다"
+  write_function_env
   # 확장의 secret(SMTP_PASSWORD)이 없으면 CLI 가 이 터미널에서 값을 묻는다(대화형 그대로).
   echo "running: firebase deploy --project ${PROJECT} --only extensions"
   firebase deploy --project "$PROJECT" --only extensions ||
-    fail "확장 배포 실패 — 브랜드 env 는 이미 functions/.env.${PROJECT} 에 썼다"
+    fail "확장 배포 실패 — 결과 페이지와 함수 env 는 이미 바꿨다"
   print_kit_next
   echo "DEPLOY OK ${FLAVOR} target=kit mode=${EMAIL_MODE}"
 }
