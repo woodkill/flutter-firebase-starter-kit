@@ -93,6 +93,9 @@ void main() {
 
   setUp(() {
     mockAuth = _MockFirebaseAuth();
+    // Phase 17.5 D-15: firebase 모드 발송은 setLanguageCode(앱 로케일) 를 먼저
+    // 부른다 — 묵시적 실패 삼킴에 기대지 않도록 명시 stub.
+    when(() => mockAuth.setLanguageCode(any())).thenAnswer((_) async {});
     mockCredential = _MockUserCredential();
     mockUser = _MockFbUser();
     mockMetadata = _MockUserMetadata();

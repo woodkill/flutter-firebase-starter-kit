@@ -405,10 +405,12 @@ class AuthRepository implements AnonymousSignIn {
       }
       final refreshed = _auth.currentUser ?? fbUser;
 
-      // 이메일 인증 메일 자동 발송 (D-01).
-      // 발송 실패 시 가입은 성공 유지한다 (D-11, Phase 6 D-10 패턴).
+      // 이메일 인증 메일 자동 발송 (D-01) — 모드 분기는 seam 이 한다
+      // (Phase 17.5 MAIL-01). 발송 실패 시 가입은 성공 유지한다 (D-11,
+      // Phase 6 D-10 패턴) — kit callable 의 FirebaseFunctionsException ·
+      // 계약 위반 UnknownException 도 아래 `on Object` 가 흡수한다.
       try {
-        await refreshed.sendEmailVerification();
+        await _sendVerificationMail(refreshed);
       } on fb.FirebaseAuthException catch (e) {
         if (kDebugMode) {
           debugPrint('sendEmailVerification 실패: ${e.code}');
@@ -3023,8 +3025,9 @@ class AuthRepository implements AnonymousSignIn {
     }
   }
 
-  /// (Phase 9.2 D-18 — R4) Firebase Auth 의 [fb.User.sendEmailVerification] 을
-  /// 소셜 sign-in success path 에서 자동 호출하는 단일 진실원.
+  /// (Phase 9.2 D-18 — R4) 인증 메일을 소셜 sign-in success path 에서 자동
+  /// 발송하는 단일 진실원. 발송 자체는 seam [_sendVerificationMail] 이 모드
+  /// (Phase 17.5 D-09 — FlutterFire 또는 킷 callable)에 따라 한다.
   ///
   /// **IN-02 정정 (Phase 7 review):** 이전 문서는 "5 social sign-in 메서드"
   /// / "5 call site" 로 적었으나 provider 증분 추가로 현재 호출자는 소셜
@@ -3098,8 +3101,10 @@ class AuthRepository implements AnonymousSignIn {
       // try-finally 블록 안에서 await 되므로 hang 시 `_socialLinkInProgress.end()`
       // 도 hang → splash 자동 익명 sign-in / auth_guard GC-04 fail-safe redirect
       // 무한 차단 (Phase 9.1 D-03 race-fix 와 직접 충돌). [TimeoutException] 은
-      // 아래 `on Object catch` 가 graceful 흡수.
-      await user.sendEmailVerification().timeout(const Duration(seconds: 5));
+      // 아래 `on Object catch` 가 graceful 흡수. kit 모드(Phase 17.5)도 같은
+      // 5s 상한이다 — callable cold start 로 넘기면 자동 발송만 조용히 빠지고,
+      // 인증 대기 화면의 재전송이 같은 callable 로 다시 보낸다.
+      await _sendVerificationMail(user).timeout(const Duration(seconds: 5));
     } on fb.FirebaseAuthException catch (e) {
       if (kDebugMode) {
         debugPrint('_autoSendEmailVerification FirebaseAuth 실패: ${e.code}');
@@ -3356,10 +3361,46 @@ class AuthRepository implements AnonymousSignIn {
   /// EEP(Email Enumeration Protection) 활성화 환경에서는 존재하지 않는
   /// 이메일에 대해서도 에러를 던지지 않으므로, 성공 응답은 "메일이
   /// 발송됐다"가 아니라 "요청이 처리됐다"를 의미한다.
+  /// kit 모드도 같은 계약이다 — 서버가 없는 주소에 같은 성공을 준다.
+  ///
+  /// 발송자는 모드(Phase 17.5 D-09)로 갈린다 — 인증 메일 seam
+  /// [_sendVerificationMail] 과 함께 모드 분기는 이 두 곳뿐이다 (MAIL-01).
+  /// - [EmailDeliveryMode.firebase] — 앱 로케일을 [_applyLanguageCode] 로
+  ///   넘긴 뒤 FlutterFire 가 보낸다 (D-15).
+  /// - [EmailDeliveryMode.kit] — 킷 callable `sendPasswordResetMail`
+  ///   `{email, locale}`. `resource-exhausted` → [TooManyRequests] 선분기 ·
+  ///   그 밖 거부 → [_mapFunctionsException] · `ok != true` →
+  ///   [UnknownException]. 실패해도 FlutterFire 로 대체하지 않는다 (D-12).
   Future<Result<void>> sendPasswordReset({required String email}) async {
+    final String languageCode = _readLanguageCode();
     try {
-      await _auth.sendPasswordResetEmail(email: email);
+      switch (_emailDeliveryMode) {
+        case EmailDeliveryMode.firebase:
+          await _applyLanguageCode(languageCode);
+          await _auth.sendPasswordResetEmail(email: email);
+        case EmailDeliveryMode.kit:
+          final response = await _functions
+              .httpsCallable(
+                'sendPasswordResetMail',
+                options: HttpsCallableOptions(timeout: _kCustomTokenTimeout),
+              )
+              .call<Map<String, dynamic>>(<String, dynamic>{
+                'email': email,
+                'locale': languageCode,
+              });
+          if (response.data['ok'] != true) {
+            // WR-06: 서버 계약 위반 — 재시도로 해소되지 않는다.
+            return const Result.failure(UnknownException());
+          }
+      }
       return const Result.success(null);
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'resource-exhausted') {
+        return Result.failure(TooManyRequests(cause: e));
+      }
+      return Result.failure(
+        _mapFunctionsException(e, callable: 'sendPasswordResetMail'),
+      );
     } on fb.FirebaseAuthException catch (e) {
       return Result.failure(_mapAuthException(e));
     } on Object catch (e, st) {
