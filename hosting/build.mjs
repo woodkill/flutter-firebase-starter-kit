@@ -36,17 +36,29 @@ const NOSCRIPT_TOKEN = "__KIT_NOSCRIPT__";
 const LOGO_FILE = "logo.png";
 
 /** 주입 JSON 에 인라인하는 표지 · 폼 아이콘 이름 (`icons/<이름>.svg`). */
-const ICON_NAMES = [];
+const ICON_NAMES = [
+  "check",
+  "schedule",
+  "link_off",
+  "person_off",
+  "wifi_off",
+  "error",
+  "lock_reset",
+  "visibility",
+  "visibility_off",
+];
 
 /** `hosting/public/` 에 반드시 있어야 하는 파일 — 없으면 FAIL. */
 const REQUIRED_FILES = [
   "index.html",
   "state.mjs",
+  "page.css",
+  "page.js",
   ...ICON_NAMES.map((name) => `icons/${name}.svg`),
 ];
 
 /** 산출물에 그대로 복사하는 파일 (index.html 은 치환해서 쓰고, 아이콘은 인라인만). */
-const COPIED_FILES = ["state.mjs"];
+const COPIED_FILES = ["state.mjs", "page.css", "page.js"];
 
 const USAGE =
   "usage: node hosting/build.mjs (--flavor <dev|stg|prod> | --project <projectId>) " +

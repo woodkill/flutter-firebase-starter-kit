@@ -23,6 +23,15 @@ const COPY = JSON.parse(
 );
 const SECRET = "SENTINEL_SECRET_175";
 const OUT_REL = "build/hosting/public";
+const ICON_NAMES = [
+  "check", "schedule", "link_off", "person_off", "wifi_off", "error",
+  "lock_reset", "visibility", "visibility_off",
+];
+// 1×1 투명 PNG — 실제 저장소 로고 파일에 기대지 않는다.
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64",
+);
 
 /** 기본 fixture config — 읽지 말아야 할 비밀 sentinel 을 함께 둔다. */
 function devConfig(overrides = {}) {
@@ -114,9 +123,30 @@ test("--flavor dev — BUILD OK 줄 · 주입 값 · 로고 없음", (t) => {
     assert.equal(keys.filter((k) => !k.startsWith("page.")).length, 0, locale);
     assert.equal(keys.filter((k) => k.startsWith("mail.")).length, 0, locale);
   }
-  assert.deepEqual(config.icons, {});
+  assert.deepEqual(Object.keys(config.icons).sort(), [...ICON_NAMES].sort());
+  for (const [name, svg] of Object.entries(config.icons)) {
+    assert.ok(svg.startsWith("<svg"), name);
+    assert.equal(/ (width|height)="24"/.test(svg), false, name);
+  }
   assert.equal(fs.existsSync(path.join(root, OUT_REL, "logo.png")), false);
-  assert.equal(fs.existsSync(path.join(root, OUT_REL, "state.mjs")), true);
+  for (const file of ["index.html", "state.mjs", "page.css", "page.js"]) {
+    assert.equal(fs.existsSync(path.join(root, OUT_REL, file)), true, file);
+  }
+  // 아이콘은 주입 JSON 에 인라인만 한다 — 파일로 복사하지 않는다.
+  assert.equal(fs.existsSync(path.join(root, OUT_REL, "icons")), false);
+});
+
+test("로고 파일이 있으면 복사 · logo=1 · hasLogo true", (t) => {
+  const root = makeFixture(t, {dev: devConfig()});
+  fs.writeFileSync(path.join(root, "hosting", "public", "logo.png"), TINY_PNG);
+  const result = runBuild(root, ["--flavor", "dev"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    lastLine(result.stdout),
+    `BUILD OK flavor=dev project=your-project-dev logo=1 out=${OUT_REL}`,
+  );
+  assert.equal(readKitConfig(root).hasLogo, true);
+  assert.deepEqual(fs.readFileSync(path.join(root, OUT_REL, "logo.png")), TINY_PNG);
 });
 
 test("자리표시자 치환 · noscript 3 locale", (t) => {
@@ -248,11 +278,49 @@ test("다른 config 키 값은 산출물 · 출력에 0건", (t) => {
 });
 
 test("필수 파일이 없으면 FAIL", (t) => {
-  const root = makeFixture(t, {dev: devConfig()});
-  fs.rmSync(path.join(root, "hosting", "public", "state.mjs"));
-  const result = runBuild(root, ["--flavor", "dev"]);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /^FAIL: hosting\/public\/state\.mjs 없음$/m);
+  for (const file of ["state.mjs", "page.js", "page.css", "icons/check.svg"]) {
+    const root = makeFixture(t, {dev: devConfig()});
+    fs.rmSync(path.join(root, "hosting", "public", file), {force: true});
+    const result = runBuild(root, ["--flavor", "dev"]);
+    assert.equal(result.status, 1, file);
+    assert.ok(
+      result.stderr.split("\n").includes(`FAIL: hosting/public/${file} 없음`),
+      result.stderr,
+    );
+    assert.equal(fs.existsSync(path.join(root, OUT_REL)), false, file);
+  }
+});
+
+/** 행 주석(`//` 로 시작하는 줄)을 뺀 소스 줄. */
+function codeLines(file) {
+  return fs
+    .readFileSync(path.join(REPO, "hosting", "public", file), "utf8")
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("//"));
+}
+
+test("page.js 소스 계약 — continueUrl 0 · innerHTML 1곳 · SDK 판 고정 동적 import", () => {
+  const lines = codeLines("page.js");
+  assert.equal(lines.filter((l) => l.includes("continueUrl")).length, 0);
+  assert.equal(lines.filter((l) => l.includes("innerHTML")).length, 1);
+  const source = lines.join("\n");
+  assert.equal(source.split("firebasejs/12.19.0/firebase-app.js").length - 1, 1);
+  assert.equal(source.split("firebasejs/12.19.0/firebase-auth.js").length - 1, 1);
+  assert.ok(source.split("import(").length - 1 >= 2);
+  assert.match(source, /from "\.\/state\.mjs"/);
+  // 정적 import 로 CDN 을 부르면 로드 실패를 연결 실패 상태로 보일 수 없다.
+  assert.equal(/^import .* from "https:/m.test(source), false);
+});
+
+test("page.css 소스 계약 — 720px 미디어 쿼리 1개 · 다크 · 움직임 줄이기 · 촬영 스위치 0", () => {
+  const css = fs.readFileSync(path.join(REPO, "hosting", "public", "page.css"), "utf8");
+  assert.equal(css.split("@media (min-width: 720px)").length - 1, 1);
+  assert.ok(css.includes("prefers-color-scheme: dark"));
+  assert.ok(css.includes("prefers-reduced-motion"));
+  for (const file of ["page.css", "page.js"]) {
+    const text = fs.readFileSync(path.join(REPO, "hosting", "public", file), "utf8");
+    assert.equal(/data-(theme|palette|layout|chip)|frozen/.test(text), false, file);
+  }
 });
 
 test("config 파일이 없으면 FAIL", (t) => {

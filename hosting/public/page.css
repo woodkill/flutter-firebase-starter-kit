@@ -1,0 +1,170 @@
+/* Phase 17.5 — see ROADMAP.md (D-05 · D-06) — 인증 결과 페이지 스타일.
+ * 아이콘: Material Symbols (Apache-2.0) — google/material-design-icons 737e33243058.
+ *
+ * 면 · 글자는 brandColor 와 무관한 중립 팔레트로 고정하고, brandColor 는 성공
+ * 표지 · 채움 버튼에만 쓴다(--brand · --on-brand 는 page.js 가 주입 값으로 설정).
+ * 720px 미만 = 카드 없음, 720px 이상 = 회색 바탕 위 카드(아래 미디어 쿼리 1개). */
+
+:root {
+  --brand: #673AB7;
+  --on-brand: #FFFFFF;
+
+  --bg: #FFFFFF;
+  --card: #FFFFFF;
+  --page-bg-card: #F1F3F4;
+  --on-bg: #1F1F1F;
+  --muted: #5F6368;
+  --outline: #747775;
+  --badge-bg: #F1F3F4;
+  --error: #B3261E;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  --font-caption: 14px;
+  --font-body: 16px;
+  --font-brand: 20px;
+  --font-title: 24px;
+
+  --radius-field: 8px;
+  --radius-button: 24px;
+  --radius-card: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131314;
+    --card: #1E1F20;
+    --page-bg-card: #0E0E0F;
+    --on-bg: #E3E3E3;
+    --muted: #A8ABAF;
+    --outline: #8E918F;
+    --badge-bg: #2A2B2D;
+    --error: #F2B8B5;
+  }
+  /* 로고는 밝은 배경(메일) 기준으로 만들어지므로 다크에서는 흰 바탕 위에 놓는다. */
+  .brand img.logo {
+    box-sizing: content-box;
+    background: #FFFFFF;
+    padding: var(--space-sm);
+    border-radius: var(--radius-field);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--on-bg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Noto Sans JP", sans-serif;
+  font-size: var(--font-body);
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+:lang(ko) body, body:lang(ko) { font-family: system-ui, -apple-system, "Apple SD Gothic Neo", Roboto, "Noto Sans KR", sans-serif; word-break: keep-all; }
+:lang(ja) body, body:lang(ja) { font-family: system-ui, -apple-system, "Hiragino Sans", Roboto, "Noto Sans JP", sans-serif; line-break: strict; word-break: auto-phrase; }
+
+.page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--space-lg) var(--space-2xl);
+  text-align: center;
+}
+
+/* 태블릿 · PC 폭 — 폰 폭(674 이하) 렌더는 바뀌지 않는다. */
+@media (min-width: 720px) {
+  body { background: var(--page-bg-card); }
+  .page { padding: var(--space-2xl) var(--space-md); }
+  .sheet {
+    background: var(--card);
+    border-radius: var(--radius-card);
+    padding: var(--space-xl) var(--space-lg);
+  }
+}
+
+/* 헤더 — 로고 파일이 있으면 이미지, 없으면 앱 이름 텍스트 */
+.brand { min-height: 40px; display: flex; align-items: center; justify-content: center; }
+.brand img { display: block; height: 40px; width: auto; max-width: 160px; object-fit: contain; }
+.brand .name { font-size: var(--font-brand); font-weight: 700; line-height: 1.2; color: var(--on-bg); overflow-wrap: anywhere; }
+
+.status { margin-top: var(--space-2xl); }
+
+/* 상태 표지 — 56 원 + 32 아이콘 */
+.badge {
+  width: 56px; height: 56px; border-radius: 50%;
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--badge-bg); color: var(--muted);
+}
+.badge svg { width: 32px; height: 32px; fill: currentColor; }
+.badge.success { background: var(--brand); color: var(--on-brand); }
+.spinner {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 4px solid var(--outline); border-top-color: transparent;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+}
+
+h1 {
+  margin: var(--space-lg) 0 0;
+  font-size: var(--font-title); font-weight: 700; line-height: 1.3;
+}
+.body { margin: var(--space-sm) 0 0; }
+.body.muted { color: var(--muted); }
+.email { overflow-wrap: anywhere; word-break: break-all; font-weight: 700; }
+
+/* 버튼 — 채움 1종 (accent) */
+.btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 48px; margin-top: var(--space-xl);
+  padding: var(--space-sm) var(--space-lg);
+  border: 0; border-radius: var(--radius-button);
+  background: var(--brand); color: var(--on-brand);
+  font: inherit; font-weight: 700; line-height: 1.4; cursor: pointer;
+}
+.btn:focus-visible { outline: 2px solid var(--on-bg); outline-offset: 2px; }
+.btn[disabled] { background: color-mix(in srgb, var(--on-bg) 12%, transparent); color: color-mix(in srgb, var(--on-bg) 38%, transparent); cursor: default; }
+
+/* 재설정 폼 — 왼쪽 정렬 */
+form { margin-top: var(--space-xl); text-align: start; }
+label.field-label { display: block; font-size: var(--font-caption); font-weight: 700; line-height: 1.4; }
+.field {
+  position: relative; margin-top: var(--space-sm);
+}
+.field input {
+  width: 100%; height: 48px;
+  padding: 0 48px 0 var(--space-md);
+  border: 1px solid var(--outline); border-radius: var(--radius-field);
+  background: transparent; color: var(--on-bg);
+  font: inherit; font-size: var(--font-body);
+}
+.field input:disabled { color: color-mix(in srgb, var(--on-bg) 38%, transparent); border-color: color-mix(in srgb, var(--on-bg) 12%, transparent); }
+.field input:focus { outline: none; border: 2px solid var(--on-bg); padding-left: 15px; }
+.field.invalid input { border: 2px solid var(--error); padding-left: 15px; }
+.field .toggle {
+  position: absolute; top: 0; right: 0; width: 48px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--muted); cursor: pointer; border-radius: 50%;
+}
+.field .toggle:focus-visible { outline: 2px solid var(--on-bg); outline-offset: -2px; }
+.field .toggle:disabled { cursor: default; color: color-mix(in srgb, var(--on-bg) 38%, transparent); }
+.field .toggle svg { width: 24px; height: 24px; fill: currentColor; }
+.helper { margin-top: var(--space-xs); font-size: var(--font-caption); line-height: 1.4; color: var(--muted); }
+.helper.error { color: var(--error); }
+.alert {
+  display: flex; gap: var(--space-sm); align-items: flex-start;
+  margin-top: var(--space-md);
+  font-size: var(--font-caption); line-height: 1.4; color: var(--error);
+}
+.alert svg { flex: none; width: 20px; height: 20px; fill: currentColor; }
+
+/* 스크립트를 끈 브라우저 안내 */
+noscript p { margin: 0; padding: var(--space-sm) var(--space-lg); text-align: center; }
