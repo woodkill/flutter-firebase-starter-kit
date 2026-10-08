@@ -13,5 +13,7 @@
   "lineChannelId": "YOUR_LINE_CHANNEL_ID_PROD_HERE",
   "functionsRegion": "asia-northeast3",
   "splashMinDurationMs": 2000,
-  "enabledAuthProviders": ""
+  "brandColor": "#673AB7",
+  "enabledAuthProviders": "",
+  "emailDelivery": ""
 }

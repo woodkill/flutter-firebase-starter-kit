@@ -6,6 +6,19 @@ import '../auth/provider_id.dart';
 
 part 'app_config.g.dart';
 
+/// 인증 · 재설정 메일을 누가 보내는지 고르는 발송 모드 (Phase 17.5 D-09).
+///
+/// config 키 `emailDelivery` 의 값과 1:1 이다 — [AppConfig.emailDeliveryMode]
+/// 가 파싱 결과를 주고, 배포 스크립트도 같은 키를 같은 규칙으로 읽는다.
+enum EmailDeliveryMode {
+  /// Firebase Auth 가 기본 템플릿으로 보낸다 (기본값 · 추가 설정 0).
+  firebase,
+
+  /// 킷 callable 이 메일을 렌더해 `mail` 컬렉션에 쓰고, Trigger Email 확장이
+  /// 사용자가 설정한 SMTP 발송 서비스로 보낸다.
+  kit,
+}
+
 /// 정적 인증 Provider 활성화 맵 (Phase 11 D-17, D-18, D-20).
 ///
 /// `--dart-define-from-file=config/{flavor}.json` 의 단일 키
@@ -206,6 +219,51 @@ abstract final class AppConfig {
     }
     return Color(0xFF000000 | int.parse(match.group(1)!, radix: 16));
   }
+
+  /// 인증 메일 발송 모드 원문 — `--dart-define-from-file` 의 `emailDelivery`
+  /// 키 (Phase 17.5 D-09).
+  ///
+  /// 값은 `firebase` · `kit` · 빈 문자열. 표기 규칙(IN-02)에 따라
+  /// `defaultValue` 를 생략한다 — 빈 문자열 = 미주입 sentinel 이며 키가 없는
+  /// 기존 config 도 [EmailDeliveryMode.firebase] 로 동작한다. 판정은
+  /// [emailDeliveryMode] 로 읽는다.
+  static const String emailDelivery = String.fromEnvironment('emailDelivery');
+
+  /// [raw] 를 [EmailDeliveryMode] 로 파싱한다.
+  ///
+  /// `''` · `'firebase'` → [EmailDeliveryMode.firebase], `'kit'` →
+  /// [EmailDeliveryMode.kit]. trim · 대소문자 변환 없이 정확 일치로만 읽는다 —
+  /// 배포 스크립트와 같은 규칙이라 두 쪽 판정이 갈리지 않는다.
+  ///
+  /// **그 밖의 값은 debug 에서 즉시 실패시킨다** ([parseEnabledProviders] 와
+  /// 같은 구조). `"Kit"` · `"smtp"` 같은 설정 오타가 조용히 firebase 로
+  /// 동작하면 「kit 메일이 안 온다」 로만 드러난다. 배포 스크립트는 같은 값을
+  /// 거부(FAIL)하므로, release 빌드(`assert` 미평가)의 firebase 대체는 배포
+  /// 단계를 거치지 않은 빌드에서만 생긴다.
+  ///
+  /// [emailDelivery] 가 컴파일 타임 상수라 테스트가 다른 값을 주입할 수
+  /// 없으므로 순수 함수로 분리해 [visibleForTesting] 으로 노출한다.
+  @visibleForTesting
+  static EmailDeliveryMode parseEmailDeliveryMode(String raw) {
+    switch (raw) {
+      case '':
+      case 'firebase':
+        return EmailDeliveryMode.firebase;
+      case 'kit':
+        return EmailDeliveryMode.kit;
+    }
+    assert(() {
+      throw StateError(
+        'emailDelivery 값이 잘못됐다: "$raw" — config/{flavor}.json 에서 '
+        'firebase · kit · 빈 값 중 하나로 고친다',
+      );
+    }());
+    return EmailDeliveryMode.firebase;
+  }
+
+  /// 현재 빌드의 인증 메일 발송 모드 — [emailDelivery] 의 파싱 결과.
+  static EmailDeliveryMode get emailDeliveryMode =>
+      parseEmailDeliveryMode(emailDelivery);
 
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///

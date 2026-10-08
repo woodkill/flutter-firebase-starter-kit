@@ -415,7 +415,7 @@ void main() {
       final List<String> keys = exampleConfig.keys
           .where((String key) => key != 'flavor')
           .toList();
-      expect(keys, hasLength(14), reason: 'example 키 수(flavor 제외)가 14 가 아니다');
+      expect(keys, hasLength(16), reason: 'example 키 수(flavor 제외)가 16 이 아니다');
       for (final String key in keys) {
         expect(
           table.where((String line) => line.startsWith('| `$key` |')).length,

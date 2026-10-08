@@ -373,7 +373,8 @@ void main() {
       );
     });
 
-    test('config/*.example.json 이 functionsRegion 키를 노출한다', () {
+    test('config/*.example.json 이 functionsRegion · brandColor · '
+        'emailDelivery 키를 노출한다', () {
       for (final flavor in const <String>['dev', 'stg', 'prod']) {
         final file = File('config/$flavor.example.json');
         final json =
@@ -387,6 +388,18 @@ void main() {
           json['functionsRegion'],
           AppConfig.defaultFunctionsRegion,
           reason: 'example 은 프로젝트 표준 region 을 그대로 보여야 한다',
+        );
+        // D-06 — example 은 지금 앱 색(Colors.deepPurple)과 같은 기본값을 보인다.
+        expect(
+          json['brandColor'],
+          '#673AB7',
+          reason: '$flavor.example.json 의 brandColor 가 기본값 #673AB7 이 아니다',
+        );
+        // D-09 — 빈 값 = firebase(기본 모드 · 추가 설정 0).
+        expect(
+          json['emailDelivery'],
+          '',
+          reason: '$flavor.example.json 의 emailDelivery 가 빈 문자열이 아니다',
         );
       }
     });
@@ -450,6 +463,42 @@ void main() {
     test('dart-define 미주입 시 brandColor 는 빈 문자열(sentinel)이다', () {
       expect(AppConfig.brandColor, isEmpty);
       expect(AppConfig.parseBrandColor(AppConfig.brandColor), isNull);
+    });
+  });
+
+  group('emailDelivery — 발송 모드 레버 (D-09)', () {
+    const Map<String, EmailDeliveryMode> validCases =
+        <String, EmailDeliveryMode>{
+          '': EmailDeliveryMode.firebase,
+          'firebase': EmailDeliveryMode.firebase,
+          'kit': EmailDeliveryMode.kit,
+        };
+    for (final MapEntry<String, EmailDeliveryMode> entry
+        in validCases.entries) {
+      test('parseEmailDeliveryMode("${entry.key}") → ${entry.value.name}', () {
+        expect(AppConfig.parseEmailDeliveryMode(entry.key), entry.value);
+      });
+    }
+
+    // 배포 스크립트와 같은 정확 일치 — 대소문자 · 공백 변환 없이 거부한다.
+    for (final String invalid in const <String>['Kit', 'smtp', ' kit']) {
+      test('parseEmailDeliveryMode("$invalid") 는 debug 에서 StateError', () {
+        expect(
+          () => AppConfig.parseEmailDeliveryMode(invalid),
+          throwsA(
+            isA<StateError>().having(
+              (StateError e) => e.message,
+              'message',
+              allOf(contains('emailDelivery'), contains('"$invalid"')),
+            ),
+          ),
+        );
+      });
+    }
+
+    test('dart-define 미주입 시 emailDeliveryMode 는 firebase 다', () {
+      expect(AppConfig.emailDelivery, isEmpty);
+      expect(AppConfig.emailDeliveryMode, EmailDeliveryMode.firebase);
     });
   });
 }
