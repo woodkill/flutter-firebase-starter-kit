@@ -83,3 +83,4 @@ export {mirrorAccountEmail} from "./auth/mirror_account_email";
 export {sendTestPush} from "./messaging/send_test_push";
 // Phase 17.5 — see ROADMAP.md (kit 메일 — emailDelivery=kit 일 때만 배포)
 export {sendVerificationMail} from "./email/send_verification_mail";
+export {sendPasswordResetMail} from "./email/send_password_reset_mail";

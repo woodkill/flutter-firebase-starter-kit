@@ -240,7 +240,7 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
     const emailNames = Object.values(manifest.email).flat();
     // 양성 대조 — 묶음이 비면 아래 검사가 공허하게 통과한다.
     expect(emailNames).toEqual(
-      expect.arrayContaining(["sendVerificationMail"]),
+      expect.arrayContaining(["sendVerificationMail", "sendPasswordResetMail"]),
     );
     // kit 함수가 common 에 있으면 firebase 모드 프로젝트에도 배포된다(원칙 P).
     expect(emailNames.filter((name) => others.has(name))).toEqual([]);

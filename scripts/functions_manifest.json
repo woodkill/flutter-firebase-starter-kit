@@ -33,7 +33,8 @@
   },
   "email": {
     "kit": [
-      "sendVerificationMail"
+      "sendVerificationMail",
+      "sendPasswordResetMail"
     ]
   }
 }
