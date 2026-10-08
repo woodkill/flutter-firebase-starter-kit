@@ -128,6 +128,9 @@ bash scripts/publish_kit.sh release --apply # GitHub Release 생성
    - 새 기능 · 새 로그인 수단은 MINOR, 수정만이면 PATCH 다.
    - 정식 판 전에는 phase 종결마다 `1.0.0-rc.N` 의 rc 번호만 올리고, Phase 19 뒤 `1.0.0` 을 낸다.
 5. 커밋 → `git push origin master` → 「발행 단계」 를 `mirror` 부터 돈다.
+6. `v1.0.0` 을 컷할 때는 README 머리의 pre-release 문장(`**판:**` 줄)과 저장소 About 설명의
+   「개발 중(pre-release)」 표기를 지운다. README 문장은 컷 커밋에서 지우고, About 은
+   `gh repo edit --description` 으로 바꾼다.
 
 컷 커밋은 공개 파일(`CHANGELOG.md` · `KIT_VERSION`)을 바꾸므로 mirror 에서 살아남는다. 태그
 대상은 비공개 HEAD 가 아니라 **mirror `main` tip** 이다 — `push` 가 그 커밋에 annotated 태그를

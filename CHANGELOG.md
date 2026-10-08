@@ -14,6 +14,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- 인증 메일 · 비밀번호 재설정 메일을 킷이 보내는 `kit` 모드를 더한다. `config/<flavor>.json` 의 `emailDelivery` 로 고르고, 키가 없거나 비었거나 `firebase` 면 지금처럼 Firebase 가 보낸다. `kit` 은 내 발송 서비스(SMTP)와 Trigger Email 확장으로 보내고, 확장 값은 내가 만드는 `extensions/firestore-send-email.env.<your-project-id>` 에 적는다 — 매뉴얼 「인증 메일 발송 모드 켜고 끄기」 절.
+- `kit` 모드의 인증 · 재설정 메일 템플릿을 한국어 · 영어 · 일본어로 제공한다. 메일 머리에 앱 이름(로고를 두면 로고)이 나오고 버튼은 `brandColor` 로 칠한다. 문구는 `functions/src/email/copy.json` 에서 고친다 — 매뉴얼 「인증 메일 발송 모드 켜고 끄기」 절.
+- 메일 링크를 눌렀을 때 여는 결과 페이지(인증 · 비밀번호 재설정 · 이메일 주소 복원)를 앱 이름 · 색 · 로고로 바꿀 수 있다(선택). `bash scripts/deploy_email.sh <flavor> hosting` 으로 배포하고, 로고는 `hosting/public/logo.png` 에 두면 페이지와 `kit` 메일 머리에 함께 쓰인다. 하지 않으면 링크는 Firebase 기본 페이지로 열린다. 새 파일을 merge 때 어떻게 다루는지는 「킷 업데이트 반영」 절의 사용자 소유 표면 표에 있다 — 매뉴얼 「인증 결과 페이지 바꾸기」 절.
+- config 의 `brandColor` 키(`#RRGGBB`)가 앱 테마 · 결과 페이지 · 메일의 브랜드 색을 정한다. 비우거나 형식이 틀리면 `#673AB7` 로 동작하고, 바꾼 뒤에는 앱을 다시 빌드한다 — 매뉴얼 Initial Setup 절의 키 표.
+- 앱이 보내는 인증 · 재설정 메일이 앱 언어(한국어 · 영어 · 일본어)로 온다. `firebase` 모드에서도 같다 — 매뉴얼 「인증 메일 발송 모드 켜고 끄기」 절.
+- README 머리에 지금 판이 `v1.0.0` 전의 pre-release 판이라 판마다 구조와 설정이 바뀔 수 있다는 안내를 둔다 — README 머리.
+
 ### Fixed
 
 - 앱 ID 변경 도구(`bin/rename.dart`)가 키 없는 빌드용 Firebase placeholder(Android `google-services.json` 2종의 `package_name` · iOS `GoogleService-Info.plist` 3종의 `BUNDLE_ID`)도 새 앱 ID 로 바꾼다. 앱 ID 를 바꾼 뒤 `--flavor stg` · `--flavor prod` Android 빌드가 `No matching client found for package name` 으로 멈추던 문제를 고친다. 실 값으로 바꾼 파일은 건드리지 않는다.
