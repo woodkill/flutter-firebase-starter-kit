@@ -15,6 +15,8 @@ import type {
   RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
+  addDoc,
+  collection,
   deleteDoc,
   deleteField,
   doc,
@@ -518,5 +520,41 @@ describe("Phase 17 Firestore rules (T-17-RULES)", () => {
       );
       expect(recorder).toContain("'signUpProviderId'");
       expect(recorder).toContain("SetOptions(merge: true)");
+    });
+});
+
+describe("mail/ 컬렉션 클라이언트 차단 (T-175-RULES)", () => {
+  // Trigger Email 확장 큐 문서 대역 — 수신 주소 · 액션 링크가 들어 있다.
+  const MAIL_DOC: DocData = {
+    to: ["a@example.com"],
+    message: {subject: "s", html: "<p></p>", text: "t"},
+  };
+
+  it(
+    "T-175-RULES-01: mail/ 를 로그인 · 익명 사용자 모두 read · write 할 수 없다",
+    async () => {
+      await seed("mail/m1", MAIL_DOC);
+
+      const alice = regularUser("alice").firestore();
+      await assertFails(getDoc(doc(alice, "mail/m1")));
+      await assertFails(setDoc(doc(alice, "mail/m2"), MAIL_DOC));
+
+      const ghost = anonymousUser("ghost").firestore();
+      await assertFails(getDoc(doc(ghost, "mail/m1")));
+      await assertFails(addDoc(collection(ghost, "mail"), MAIL_DOC));
+    });
+
+  it(
+    "T-175-RULES-02: firestore.rules 가 mail/ 전면 차단 블록을 명시한다",
+    () => {
+      // 기본 거부에 기대지 않고 의도를 규칙 파일에 고정한다 — 뒤에 넓은
+      // match 가 추가돼도 mail/ 차단이 사라졌는지 이 단언이 알려 준다.
+      const rules = readFileSync(RULES_PATH, "utf8");
+      const block = new RegExp(
+        "match /mail/\\{document=\\*\\*\\}\\s*\\{\\s*" +
+          "allow read, write: if false;\\s*\\}",
+        "g",
+      );
+      expect(rules.match(block) ?? []).toHaveLength(1);
     });
 });
