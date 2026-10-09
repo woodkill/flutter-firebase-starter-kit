@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 17.5 D-02 · D-04 · D-05 · D-06 · D-09 · D-14 · D-22 — 인증 메일 표면을 배포하는 스크립트.
+# Phase 17.5 D-02 · D-04 · D-05 · D-06 · D-09 · D-14 · D-22 · D-24 — 인증 메일 표면을 배포하는 스크립트.
 #
 # 목적:
 #   두 대상 모두 emailDelivery 가 kit 일 때만 동작한다(원칙 P · 「off 면 설정 0」 · D-22 ④).
@@ -22,13 +22,15 @@
 #   bash scripts/deploy_email.sh <dev|stg|prod> <hosting|kit>            # dry-run (기본 — 아무것도 바꾸지 않는다)
 #   bash scripts/deploy_email.sh <dev|stg|prod> <hosting|kit> --apply    # 출력한 계획을 실행한다
 #   kit 순서: deploy_email.sh <flavor> kit --apply → TTL 명령(next:) → deploy_functions.sh <flavor> --apply
+#             → 확장 함수 invoker 명령(next:)
 #
 # 출력 계약:
 #   - 공통 출력: `flavor:` · `project:` · `mode: <firebase|kit>` · `target: <대상>`
 #   - hosting: 빌드 결과 줄(`BUILD OK …`) · `command: firebase deploy --project <id> --only hosting`
 #   - kit: 빌드 결과 줄(`BUILD OK …`) · `env: EMAIL_APP_NAME="…"` · `env: EMAIL_BRAND_COLOR="…"` ·
 #     `env: EMAIL_LOGO_URL="…"` · `env: EMAIL_RESULT_PAGE_URL="https://<id>.web.app/"` 4줄 ·
-#     `command:` 2줄(`… --only hosting` → `… --only extensions` 순) · `next:` 2줄(함수 배포 · TTL) ·
+#     `command:` 2줄(`… --only hosting` → `… --only extensions` 순) ·
+#     `next:` 3줄(TTL → 함수 배포 → 확장 함수 invoker — 매뉴얼 「켜기」 ⑤ · ⑥ · ⑦ 순) ·
 #     --apply 때 `wrote: functions/.env.<id> …` 1줄(hosting 배포 성공 뒤)
 #   - brandColor 형식 오류: stderr `warn: …` 1줄(결과 페이지 빌드가 낸다) 뒤 기본 색(#673AB7)으로 계속
 #   - dry-run 마지막 줄: DRY-RUN OK <flavor> target=<대상> mode=kit (exit 0)
@@ -54,6 +56,10 @@
 #   - 인자 없는 `firebase deploy` 를 쓰지 않는다 — firebase.json 의 모든 대상(확장 포함)이
 #     배포된다. 대상은 항상 `--only` 로 고정한다.
 #   - 명령은 bash 배열 인자로 실행한다(word splitting 없음).
+#   - 스크립트는 IAM 을 쓰지 않는다 — 확장 함수(ext-firestore-send-email-processqueue ·
+#     us-central1)를 부르는 기본 Compute 서비스 계정의 invoker 부여 명령은 `next:` 로 출력만
+#     하고, 프로젝트 번호는 사용자가 그 줄을 실행할 때 `gcloud projects describe` 가 채운다
+#     (dry-run 은 네트워크 0 · 서비스 1개 단위 부여 · D-24).
 #
 # dry-run 은 firebase CLI 없이 돈다. --apply 에서만 PATH 의 `firebase` 를 확인한다.
 # 결과 페이지 빌드는 dry-run 에서도 한다(빌드 실패를 배포 전에 알린다). --apply 때는
@@ -314,10 +320,13 @@ write_function_env() {
   echo "wrote: functions/.env.${PROJECT} (메일 env 4줄)"
 }
 
-# kit 다음 단계 2줄 — 메일 함수 배포 · mail 컬렉션 TTL.
+# kit 다음 단계 3줄 — mail TTL · 메일 함수 배포 · 확장 함수 invoker(매뉴얼 「켜기」 ⑤ · ⑥ · ⑦ 순).
+# 셋째 줄은 출력만 한다(D-24) — `\$(` 는 사용자가 실행할 때 프로젝트 번호로 바뀐다.
+# PROJECT 는 위 형식 검사로 소문자 · 숫자 · 하이픈만 담아 붙여 넣어도 셸 해석이 바뀌지 않는다.
 print_kit_next() {
-  echo "next: bash scripts/deploy_functions.sh ${FLAVOR} --apply"
   echo "next: gcloud firestore fields ttls update delivery.expireAt --collection-group=mail --enable-ttl --project ${PROJECT}"
+  echo "next: bash scripts/deploy_functions.sh ${FLAVOR} --apply"
+  echo "next: gcloud run services add-iam-policy-binding ext-firestore-send-email-processqueue --region=us-central1 --member=serviceAccount:\$(gcloud projects describe ${PROJECT} --format='value(projectNumber)')-compute@developer.gserviceaccount.com --role=roles/run.invoker --project ${PROJECT}"
 }
 
 # kit 대상 — 모드 가드 → 확장 env 확인 → 브랜드 · 결과 페이지 주소 → 결과 페이지 빌드 → 계획 출력

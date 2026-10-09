@@ -1,6 +1,6 @@
 /**
  * `scripts/deploy_email.sh` 동작 검증 (Phase 17.5 D-02 · D-04 · D-05 · D-06 ·
- * D-09 · D-14 · D-22).
+ * D-09 · D-14 · D-22 · D-24).
  *
  * 스크립트 · `hosting/`(public · build.mjs) · `functions/src/email/copy.json` ·
  * 추적 중인 확장 env 두 파일을 임시 디렉터리에 복사해(ROOT 는 스크립트 위치
@@ -352,6 +352,23 @@ describe("deploy_email.sh hosting", () => {
 });
 
 describe("deploy_email.sh kit", () => {
+  /**
+   * kit 다음 단계 `next:` 3줄 — 매뉴얼 「켜기」 ⑤ TTL → ⑥ 메일 함수 배포 →
+   * ⑦ 확장 함수 invoker 순(D-24 · C-R6). 셋째 줄의 프로젝트 번호는 사용자가
+   * 붙여 넣어 실행할 때 `gcloud projects describe` 가 채운다.
+   */
+  const KIT_NEXT_LINES = [
+    "next: gcloud firestore fields ttls update delivery.expireAt " +
+      `--collection-group=mail --enable-ttl --project ${PROJECT_ID}`,
+    "next: bash scripts/deploy_functions.sh dev --apply",
+    "next: gcloud run services add-iam-policy-binding " +
+      "ext-firestore-send-email-processqueue --region=us-central1 " +
+      "--member=serviceAccount:$(gcloud projects describe " +
+      `${PROJECT_ID} --format='value(projectNumber)')` +
+      "-compute@developer.gserviceaccount.com --role=roles/run.invoker " +
+      `--project ${PROJECT_ID}`,
+  ];
+
   it.each(FIREBASE_MODE_CONFIGS)(
     "T-175-DEPLOY-06 firebase 모드(%s)에서 kit 은 FAIL",
     (_label, config) => {
@@ -432,11 +449,7 @@ describe("deploy_email.sh kit", () => {
       `command: firebase deploy --project ${PROJECT_ID} --only extensions`,
     ]);
     expect(linesWith(r.stdout, "BUILD OK")).toHaveLength(1);
-    expect(linesWith(r.stdout, "next: ")).toEqual([
-      "next: bash scripts/deploy_functions.sh dev --apply",
-      "next: gcloud firestore fields ttls update delivery.expireAt " +
-        `--collection-group=mail --enable-ttl --project ${PROJECT_ID}`,
-    ]);
+    expect(linesWith(r.stdout, "next: ")).toEqual(KIT_NEXT_LINES);
     expect(lastLine(r.stdout)).toBe("DRY-RUN OK dev target=kit mode=kit");
     expect(readFnEnv()).toBeNull();
     expect(existsSync(markerFile)).toBe(false);
@@ -481,7 +494,7 @@ describe("deploy_email.sh kit", () => {
       `running: firebase deploy --project ${PROJECT_ID} --only hosting`,
       `running: firebase deploy --project ${PROJECT_ID} --only extensions`,
     ]);
-    expect(linesWith(r.stdout, "next: ")).toHaveLength(2);
+    expect(linesWith(r.stdout, "next: ")).toEqual(KIT_NEXT_LINES);
     expect(lastLine(r.stdout)).toBe("DEPLOY OK dev target=kit mode=kit");
     expect(r.stdout + r.stderr).not.toContain(SMTP_SENTINEL);
     expect(readFileSync(invocationLog, "utf8")).not.toContain(SMTP_SENTINEL);
