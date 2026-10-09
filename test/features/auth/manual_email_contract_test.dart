@@ -22,6 +22,11 @@
 //   배포 스크립트 `next:` echo 와 글자가 대응하며, 「켜기」 ⑤ ~ ⑧ · 명령 순서가
 //   스크립트 `next:` 순서와 같고, 반영 토큰 · 로고 바탕 문장 · 무조건 실행 문장이
 //   있으며 공개 · 프로젝트 단위 부여 안내가 0 건이다.
+// T-175-DOCS-07: 결과 페이지가 Referer 를 보내지 않는다(firebase.json Hosting
+//   `Referrer-Policy` = `no-referrer` · index.html meta)는 사실이 그대로이고, 웹 API
+//   키 안내 세 곳(매뉴얼 키 표 · 매뉴얼 문제 해결 첫 항목 · config/README 절)이 리퍼러
+//   제한 키 거부 사실과 애플리케이션 제한 없는 키 조치를 말하며 옛 허용 목록 안내가
+//   0 건이다.
 
 import 'dart:convert';
 
@@ -216,6 +221,66 @@ const List<String> _forbiddenInvokerGrantTokens = <String>[
   'allAuthenticatedUsers',
   'gcloud projects add-iam-policy-binding',
 ];
+
+/// config README 경로(`firebaseWebApiKey` 안내 절의 위치).
+const String _configReadmePath = 'config/README.md';
+
+/// 결과 페이지 HTML 경로(referrer meta 의 진실원).
+const String _resultPageHtmlPath = 'hosting/public/index.html';
+
+/// config README 의 `firebaseWebApiKey` 절 헤딩.
+const String _webApiKeyReadmeHeading =
+    '## `firebaseWebApiKey` — 결과 페이지의 Firebase 웹 API 키';
+
+/// 매뉴얼 키 표에서 `firebaseWebApiKey` 행의 머리.
+const String _webApiKeyRowPrefix = '| `firebaseWebApiKey` |';
+
+/// 매뉴얼 「문제 해결」 의 「문제가 발생했습니다」 항목 머리.
+const String _webApiKeyTroubleBulletPrefix = '- **링크를 열면 「문제가 발생했습니다」 가 뜬다.**';
+
+/// 웹 API 키 안내 세 곳이 모두 말해야 하는 토큰(공백 정규화 후 비교).
+const List<String> _webApiKeyRefererTokens = <String>[
+  '웹사이트(HTTP 리퍼러) 제한',
+  'Referer',
+  '애플리케이션 제한이 없는 키',
+];
+
+/// 웹 API 키 안내 세 곳에 없어야 하는 옛 조치 문구.
+const List<String> _staleRefererAdvice = <String>[
+  'web.app/*',
+  '허용 목록에 더한다',
+  '허용 목록에 `https',
+];
+
+/// 연속 공백 · 줄바꿈을 한 칸으로 줄인다(hard-wrap 된 문서 매칭용).
+String _normalizeWhitespace(String text) =>
+    text.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+/// [text] 에서 [prefix] 로 시작하는 줄 하나를 돌려준다(없으면 빈 문자열).
+String _readLineStartingWith(String text, String prefix) => text
+    .split('\n')
+    .firstWhere((String l) => l.startsWith(prefix), orElse: () => '');
+
+/// `firebase.json` Hosting 헤더에서 [key] 의 값들을 모은다.
+List<String> _collectHostingHeaderValues(String key) {
+  final Map<String, Object?> root =
+      jsonDecode(readTrackedFile(_firebaseJsonPath)) as Map<String, Object?>;
+  final Map<String, Object?> hosting = root['hosting']! as Map<String, Object?>;
+  final List<String> values = <String>[];
+  for (final Object? rule in hosting['headers']! as List<Object?>) {
+    if (rule case {'headers': final List<Object?> headers}) {
+      for (final Object? header in headers) {
+        if (header case {
+          'key': final String k,
+          'value': final String v,
+        } when k == key) {
+          values.add(v);
+        }
+      }
+    }
+  }
+  return values;
+}
 
 /// [_invokerCommandLine] 을 배포 스크립트 소스의 echo 꼴로 바꾼다.
 ///
@@ -741,6 +806,71 @@ void main() {
           reason: '발송 모드 절이 공개 · 프로젝트 단위 부여를 안내한다: $token',
         );
       }
+    });
+  });
+
+  group('웹 API 키 안내와 no-referrer 정책 일관성 (T-175-DOCS)', () {
+    test('T-175-DOCS-07: 리퍼러 제한 키 거부 사실과 조치가 세 곳에 있고 옛 안내가 없다', () {
+      // (a) 진실원 — 결과 페이지는 Referer 를 보내지 않는다.
+      expect(_collectHostingHeaderValues('Referrer-Policy'), <String>[
+        'no-referrer',
+      ], reason: 'Hosting Referrer-Policy 가 no-referrer 가 아니다 — 키 안내를 다시 검토한다');
+      expect(
+        RegExp(
+          r'<meta\s+name="referrer"\s+content="no-referrer"\s*>',
+        ).hasMatch(readTrackedFile(_resultPageHtmlPath)),
+        isTrue,
+        reason: '$_resultPageHtmlPath 의 referrer meta 가 no-referrer 가 아니다',
+      );
+
+      final String readme = readTrackedFile(_configReadmePath);
+      final Map<String, String> regions = <String, String>{
+        '매뉴얼 키 표 행': _readLineStartingWith(manual, _webApiKeyRowPrefix),
+        '매뉴얼 문제 해결 항목': _readLineStartingWith(
+          _sliceLinesBetween(resultPage, '### 문제 해결', '### 되돌리기'),
+          _webApiKeyTroubleBulletPrefix,
+        ),
+        'config/README 절': sliceMarkdownSection(
+          readme,
+          _webApiKeyReadmeHeading,
+          maxLevel: 2,
+        ),
+      };
+
+      // 양성 대조: 정규화가 hard-wrap 을 이어 주고 세기 API 가 실제로 맞는다.
+      expect(
+        countOccurrences(_normalizeWhitespace('Referer\n  를'), 'Referer 를'),
+        1,
+      );
+
+      for (final MapEntry<String, String> region in regions.entries) {
+        expect(
+          region.value.trim(),
+          isNotEmpty,
+          reason: '${region.key} 를 찾지 못했다',
+        );
+        final String flat = _normalizeWhitespace(region.value);
+        // (c) 사실과 조치 토큰.
+        for (final String token in _webApiKeyRefererTokens) {
+          expect(
+            countOccurrences(flat, token),
+            greaterThanOrEqualTo(1),
+            reason: '${region.key} 에 토큰이 없다: $token',
+          );
+        }
+        // (b) 옛 허용 목록 안내.
+        for (final String stale in _staleRefererAdvice) {
+          expect(
+            countOccurrences(flat, stale),
+            0,
+            reason: '${region.key} 에 옛 리퍼러 허용 목록 안내가 있다: $stale',
+          );
+        }
+      }
+
+      // (b) 파일 전체에서도 결과 페이지 주소 허용 목록 안내는 없다.
+      expect(countOccurrences(manual, 'web.app/*'), 0);
+      expect(countOccurrences(readme, 'web.app/*'), 0);
     });
   });
 }
