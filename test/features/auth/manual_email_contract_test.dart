@@ -884,6 +884,20 @@ void main() {
         }
       }
 
+      // 문제 해결 항목은 웹사이트 제한 키 사용자에게 제한을 「없음」 으로 되돌리거나
+      // 제한 없는 키를 따로 고르라는 두 조치를 모두 안내한다.
+      final String troubleFlat = _normalizeWhitespace(regions['매뉴얼 문제 해결 항목']!);
+      expect(
+        countOccurrences(troubleFlat, '「없음」 으로 되돌리'),
+        greaterThanOrEqualTo(1),
+        reason: '문제 해결 항목에 웹사이트 제한을 「없음」 으로 되돌리는 조치가 없다',
+      );
+      expect(
+        countOccurrences(troubleFlat, '따로 골라'),
+        greaterThanOrEqualTo(1),
+        reason: '문제 해결 항목에 제한 없는 키를 따로 고르는 조치가 없다',
+      );
+
       // (b) 파일 전체에서도 결과 페이지 주소 허용 목록 안내는 없다.
       expect(countOccurrences(manual, 'web.app/*'), 0);
       expect(countOccurrences(readme, 'web.app/*'), 0);
