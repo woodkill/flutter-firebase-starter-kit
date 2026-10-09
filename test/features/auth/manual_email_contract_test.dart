@@ -30,10 +30,17 @@
 //   애플리케이션 제한사항이 「없음」 이 아닐 때의 조치로 제한을 「없음」 으로
 //   되돌리기 · 「없음」 인 키 따로 고르기를 둘 다 담는다.
 // T-175-DOCS-08: 웹 API 키 위치 안내 다섯 곳(매뉴얼 키 표 · 발송 모드 「켜기」 ② ·
-//   결과 페이지 문제 해결 · config/README 절 · CHANGELOG bullet)이 Google Cloud Console
-//   사용자 인증 정보의 Browser key 를 가리키고, 매뉴얼 · config/README · CHANGELOG ·
-//   hosting/build.mjs 에 옛 위치(프로젝트 설정 일반 탭) 문구와 영문 단독 메뉴 표기가
-//   0 건이며 메뉴 표기가 한국어 라벨 + 영문 괄호 한 가지다.
+//   결과 페이지 문제 해결 · config/README 절 · CHANGELOG bullet)이 Google Cloud
+//   Console 사용자 인증 정보 경로와 Browser key 이름을 담고 금지 패턴이 0 건이다.
+//   CHANGELOG 밖 네 곳은 「키 표시」 를, ② 는 애플리케이션 제한사항이 「없음」 ·
+//   `AIza` 로 시작도 담는다. 매뉴얼 키 표의 인접 행은 `googleServerClientId` 가
+//   같은 콘솔 경로 · 금지 패턴 0 이고, `firebaseProjectId` 가 프로젝트 설정 일반 탭
+//   경로를 유지하며 옛 구절 꼴에 걸리지 않는다. 매뉴얼 · config/README ·
+//   CHANGELOG · hosting/build.mjs 는 키 이름을 담고, 고치기 전 판의 옛 구절 꼴
+//   (「프로젝트 설정 → 일반」 다음에 `→` 나 「의」 로 이어진 「웹 API 키」, 굵게
+//   표시 유무 무관)과 `→` 로 이은 영문 단독 메뉴 표기가 0 건이며, 「API 및
+//   서비스」 · 「사용자 인증 정보」 는 모두 영문 괄호를 붙인다. 두 부재 패턴은 고치기
+//   전 판 구절 fixture 로 먼저 양성 대조한다.
 
 import 'dart:convert';
 
@@ -297,7 +304,8 @@ const String _webApiKeyShowKeyLabel = '「키 표시」';
 /// 키 선택 기준 확인 문구.
 const String _webApiKeyRestrictionCheck = '애플리케이션 제한사항이 「없음」';
 
-/// 옛 위치 문구 패턴 — Firebase Console 프로젝트 설정 일반 탭의 웹 API 키 줄.
+/// 옛 위치 구절 꼴 — 고치기 전 판처럼 「프로젝트 설정 → 일반」 다음에 `→` 나
+/// 「의」 로 이어진 「웹 API 키」(굵게 표시 유무 무관). 다른 꼴은 잡지 않는다.
 final RegExp _staleWebApiKeyLocation = RegExp(
   r'프로젝트 설정 → 일반 (→|의) (\*\*)?웹 API 키',
 );
@@ -310,7 +318,7 @@ const List<String> _staleWebApiKeyLocationSamples = <String>[
   '값은 Firebase Console → 프로젝트 설정 → 일반 의 웹 API 키다.',
 ];
 
-/// 영문 라벨만 화살표로 이은 메뉴 표기.
+/// 영문 라벨만 `→` 로 이은 메뉴 표기 — 이 글자 그대로만 센다.
 const String _englishOnlyCredentialsPath = 'APIs & Services → Credentials';
 
 /// 고치기 전 판의 `googleServerClientId` 값 출처 칸 —
@@ -972,7 +980,8 @@ void main() {
     test(
       'T-175-DOCS-08: 웹 API 키 위치 = Cloud Console 사용자 인증 정보의 Browser key · 옛 위치 · 영문 단독 표기 0',
       () {
-        // (a) fixture 양성 대조 — 옛 위치 패턴 · 영문 단독 표기가 고치기 전 문구를 잡는다.
+        // (a) fixture 양성 대조 — 옛 구절 꼴 패턴 · `→` 영문 단독 표기가 고치기 전
+        // 판 구절을 잡는다.
         for (final String sample in _staleWebApiKeyLocationSamples) {
           expect(
             _staleWebApiKeyLocation.hasMatch(_normalizeWhitespace(sample)),
@@ -1054,7 +1063,7 @@ void main() {
         }
 
         // (c) 인접 행 — googleServerClientId 는 같은 경로, firebaseProjectId 는
-        // 일반 탭 경로를 그대로 쓰고 옛 위치 패턴에 걸리지 않는다.
+        // 일반 탭 경로를 그대로 쓰고 옛 구절 꼴 패턴에 걸리지 않는다.
         final String serverClientIdRow = _readLineStartingWith(
           manual,
           _googleServerClientIdRowPrefix,
@@ -1086,7 +1095,8 @@ void main() {
           reason: '옛 위치 패턴이 firebaseProjectId 행의 유효한 경로를 잡는다',
         );
 
-        // (d) 네 파일 전체 — 키 이름 양성 대조 뒤 옛 위치 0 · 메뉴 표기 한 가지.
+        // (d) 네 파일 전체 — 키 이름 양성 대조 뒤 옛 구절 꼴 0 · 「API 및 서비스」 ·
+        // 「사용자 인증 정보」 영문 괄호 표기 한 가지 · `→` 영문 단독 표기 0.
         final Map<String, String> files = <String, String>{
           _manualPath: manual,
           _configReadmePath: readme,
