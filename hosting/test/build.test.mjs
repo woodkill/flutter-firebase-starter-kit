@@ -361,10 +361,18 @@ test("page.js 소스 계약 — continueUrl 0 · innerHTML 1곳 · SDK 판 고�
   assert.equal(/^import .* from "https:/m.test(source), false);
 });
 
-test("page.js 소스 계약 — 링크 쿼리 apiKey 를 읽지 않고 주입 키로만 초기화", () => {
+// 쿼리 독립성 보장 — 링크 쿼리의 apiKey 가 무엇이든 SDK 초기화 옵션은 빌드가 주입한
+// 설정에서만 나온다. page.js 가 쿼리에서 꺼내는 키는 lang · oobCode 둘뿐이다.
+test("page.js 소스 계약 — 링크 쿼리 apiKey 와 무관하게 주입 키로만 초기화 · 쿼리 키는 lang · oobCode 뿐", () => {
   const source = codeLines("page.js").join("\n");
   // 쿼리에서 apiKey 를 꺼내는 코드 0 — 링크 모양 확인은 state.mjs initialState 가 한다.
   assert.equal(/get\(\s*["']apiKey["']\s*\)/.test(source), false);
+  // query.get( 호출은 모두 문자열 리터럴 키이고, 그 키 집합은 정확히 lang · oobCode 다.
+  const queryKeys = [...source.matchAll(/query\.get\(\s*["']([^"']+)["']\s*\)/g)]
+    .map((m) => m[1])
+    .sort();
+  assert.equal(source.split("query.get(").length - 1, queryKeys.length);
+  assert.deepEqual(queryKeys, ["lang", "oobCode"]);
   assert.equal(source.split("initializeApp(").length - 1, 1);
   assert.match(source, /initializeApp\(options\)/);
   assert.match(source, /const options = firebaseOptions\(config\);/);

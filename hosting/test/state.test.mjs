@@ -65,19 +65,18 @@ test("initialState — mode · oobCode · apiKey 가 모두 있으면 loading", 
   }
 });
 
-test("firebaseOptions — 쿼리 apiKey 와 무관하게 빌드 주입 키로 초기화", () => {
-  const config = {apiKey: "AIzaInjectedOwnProjectKey", authDomain: "p.firebaseapp.com"};
-  for (const query of [
-    "mode=resetPassword&oobCode=x&apiKey=AIzaOtherProjectKey",
-    "mode=verifyEmail&oobCode=x&apiKey=AIzaInjectedOwnProjectKey",
-  ]) {
-    // 링크 모양은 그대로 loading 이고, 초기화 옵션은 쿼리 값을 보지 않는다.
-    assert.equal(stateFor(query).kind, "loading", query);
-    assert.deepEqual(firebaseOptions(config), {
-      apiKey: "AIzaInjectedOwnProjectKey",
-      authDomain: "p.firebaseapp.com",
-    });
-  }
+// 쿼리 apiKey 가 초기화에 섞이지 않는다는 보장은 build.test.mjs 의 page.js 소스
+// 계약(「링크 쿼리 apiKey 와 무관하게 …」)이 맡는다 — 여기서는 함수 모양만 고정한다.
+test("firebaseOptions — 설정 1개만 받아 apiKey · authDomain 만 돌려준다", () => {
+  const config = {
+    apiKey: "AIzaInjectedOwnProjectKey",
+    authDomain: "p.firebaseapp.com",
+    appName: "Kit",
+  };
+  assert.deepEqual(firebaseOptions(config), {
+    apiKey: "AIzaInjectedOwnProjectKey",
+    authDomain: "p.firebaseapp.com",
+  });
   // 쿼리를 받는 인자가 없다 — 설정 1개만 받는다.
   assert.equal(firebaseOptions.length, 1);
 });
