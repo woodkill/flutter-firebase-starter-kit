@@ -1,10 +1,12 @@
 /**
  * sendPasswordResetMail onCall 회귀 테스트 (Phase 17.5 plan 05 · D-10 · D-11 ·
- * D-15).
+ * D-15 · D-23).
  *
  * kit 모드 재설정 메일 callable — 로그인 전 요청이라 익명 세션도 받고, 가입
  * 여부를 드러내지 않는다(없는 주소 = 같은 `{ok: true}`). rate limit 3축(uid ·
  * IP 해시 · 이메일 해시)을 링크 생성 **전** 한 transaction 에서 판정한다.
+ * 그 뒤 · 링크 생성 전에 Admin `getUserByEmail` 로 계정 유무를 본다(D-23 —
+ * 열거 보호 프로젝트는 없는 주소의 링크 생성이 `auth/internal-error`).
  * Admin 링크는 결과 페이지 링크로 재작성한다(`toResultPageLink` — D-22 ①).
  * `renderMail` 은 mock 하지 않는다(렌더 관통).
  *
@@ -12,11 +14,12 @@
  * limit transaction 은 `createOrderedTx` 로 reads-before-writes 를 강제한다
  * (memory feedback_mock_transaction_constraint). 실 확장 발송은 plan 12 UAT.
  *
- * 시나리오 (plan 05 Task 2 R1~R6 · plan 14 R7 · R8):
- *  - R1: 익명 caller · 있는 주소 → 링크 1회 · mail add 1회 · ko 제목 · 결과
- *    페이지 링크(`https://demo.web.app/?mode=resetPassword…&lang=ko`) · 원
- *    링크 호스트 0
- *  - R2: 없는 주소(email-not-found) → add 0 · R1 과 같은 반환
+ * 시나리오 (plan 05 Task 2 R1~R6 · plan 14 R7 · R8 · plan 18 R9~R12):
+ *  - R1: 익명 caller · 있는 주소 → 조회 1회(링크 생성보다 앞) · 링크 1회 ·
+ *    mail add 1회 · ko 제목 · 결과 페이지 링크
+ *    (`https://demo.web.app/?mode=resetPassword…&lang=ko`) · 원 링크 호스트 0
+ *  - R2: 조회는 있음 · 링크 생성이 계정 없음(email-not-found · user-not-found
+ *    — 조회와 생성 사이 삭제 경합) → add 0 · R1 과 같은 반환
  *  - R3: 미인증 · email 누락 · 321자 · Admin invalid-email → 각 오류 코드
  *  - R4: 이메일 · uid · IP 축 초과 → resource-exhausted + 알람 · 링크 생성 0
  *  - R5: 정식 caller 허용 · 요청 브랜드 값 · resultPageUrl · link 무시
@@ -26,6 +29,15 @@
  *    생성 · rate limit · add 0 (D-22 ③ · 가입 여부 비노출)
  *  - R8: Admin 링크에 oobCode 없음 → internal + password_reset_mail_failed ·
  *    add 0 · 로그에 호스트 0
+ *  - R9: 열거 보호 dev 모양(조회 user-not-found · 링크 생성 internal-error)
+ *    → 링크 생성 0 · add 0 · `{ok: true}` · no_account 1회 (D-23)
+ *  - R10: 조회 invalid-email → invalid-argument · 링크 생성 · add 0
+ *  - R11: 조회 서버 오류 → internal + password_reset_mail_lookup_failed ·
+ *    링크 생성 · add 0 · 로그에 이메일 0
+ *  - R12: 있는 주소 · 없는 주소(조회) · 경합(생성) 세 응답이 같다 · 셋 다
+ *    rate limit 3축 소비
+ *  - R3-b · R4-a · R6-b · R7: 입력 오류 · rate limit 초과 · env 미설정 경로는
+ *    계정 조회 0 (조회가 제한 없는 존재 확인 수단이 되지 않게)
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -235,6 +247,40 @@ function adminError(code: string): Error {
   return Object.assign(new Error(`admin failed for ${REQUEST_EMAIL}`), {code});
 }
 
+/**
+ * info 로그 중 `password_reset_mail_no_account` 이벤트 호출만 돌려준다.
+ *
+ * @return {Array<Array<unknown>>} 해당 이벤트의 logger.info 인자 목록.
+ */
+function noAccountInfoCalls(): unknown[][] {
+  return infoMock.mock.calls.filter(
+    (args) =>
+      (args[0] as {event?: string}).event === "password_reset_mail_no_account",
+  );
+}
+
+/**
+ * 계정 없음 응답 계약을 단언한다 — 있는 주소와 같은 `{ok: true}` · 메일 0 ·
+ * rate limit 3축 소비 · no_account info 정확히 1회 · warn · error 0.
+ *
+ * @param {unknown} result callable 결과.
+ */
+function expectNoAccountResponse(result: unknown): void {
+  expect(result).toEqual({ok: true});
+  expect(mockMailAdd).not.toHaveBeenCalled();
+  // 존재 여부와 무관하게 rate limit 3축은 소비된다(같은 제한).
+  expect(mockOrdered.sets).toHaveLength(3);
+  const calls = noAccountInfoCalls();
+  expect(calls).toHaveLength(1);
+  expect(calls[0][0]).toEqual({
+    event: "password_reset_mail_no_account",
+    uid: UID,
+  });
+  // 오류 경로 로그(warn · error)는 남기지 않는다.
+  expect(warnMock).not.toHaveBeenCalled();
+  expect(errorMock).not.toHaveBeenCalled();
+}
+
 describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -299,7 +345,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
   });
 
   // eslint-disable-next-line max-len
-  it("R2: 없는 주소(auth/email-not-found) → 메일 0 · 있는 주소와 같은 {ok: true}", async () => {
+  it("R2: 조회는 있음 · 링크 생성이 계정 없음(auth/email-not-found — 조회와 생성 사이 삭제 경합) → 메일 0 · 있는 주소와 같은 {ok: true}", async () => {
     mockGenerateResetLink.mockRejectedValueOnce(
       adminError("auth/email-not-found"),
     );
@@ -309,17 +355,25 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       locale: "ko",
     });
 
-    expect(result).toEqual({ok: true});
-    expect(mockMailAdd).not.toHaveBeenCalled();
-    // 존재 여부와 무관하게 rate limit 은 소비된다(같은 제한).
-    expect(mockOrdered.sets).toHaveLength(3);
-    expect(infoMock).toHaveBeenCalledWith(
-      {event: "password_reset_mail_no_account", uid: UID},
-      expect.any(String),
+    expect(mockGetUserByEmail).toHaveBeenCalledTimes(1);
+    expect(mockGenerateResetLink).toHaveBeenCalledTimes(1);
+    expectNoAccountResponse(result);
+  });
+
+  // eslint-disable-next-line max-len
+  it("R2-b: 조회는 있음 · 링크 생성이 auth/user-not-found(경합) → R2 와 같은 결과", async () => {
+    mockGenerateResetLink.mockRejectedValueOnce(
+      adminError("auth/user-not-found"),
     );
-    // 오류 경로 로그(warn · error)는 남기지 않는다.
-    expect(warnMock).not.toHaveBeenCalled();
-    expect(errorMock).not.toHaveBeenCalled();
+
+    const result = await call(anonymousCallerAuth(UID), {
+      email: REQUEST_EMAIL,
+      locale: "ko",
+    });
+
+    expect(mockGetUserByEmail).toHaveBeenCalledTimes(1);
+    expect(mockGenerateResetLink).toHaveBeenCalledTimes(1);
+    expectNoAccountResponse(result);
   });
 
   it("R3-a: request.auth 없음 → unauthenticated", async () => {
@@ -349,6 +403,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     }
     expect(mockOrdered.calls).toEqual([]);
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
+    expect(mockGetUserByEmail).not.toHaveBeenCalled();
   });
 
   it("R3-c: Admin auth/invalid-email → invalid-argument · 메일 0", async () => {
@@ -386,11 +441,12 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       },
       expect.any(String),
     );
-    // 판정은 링크 생성 전 — 없는 주소여도 같은 제한이다.
+    // 판정은 계정 조회 · 링크 생성 전 — 없는 주소여도 같은 제한이다.
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
     expect(mockMailAdd).not.toHaveBeenCalled();
     expect(mockOrdered.sets).toHaveLength(0);
     expect(mockOrdered.updates).toHaveLength(0);
+    expect(mockGetUserByEmail).not.toHaveBeenCalled();
   });
 
   // eslint-disable-next-line max-len
@@ -508,7 +564,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
   });
 
   // eslint-disable-next-line max-len
-  it("R6-a: 성공 · 없는 주소 · Admin 실패 · add 실패 · 초과 경로 모두 logger 인자에 이메일 · oobCode · IP 원문 0", async () => {
+  it("R6-a: 성공 · 없는 주소 · 조회 실패 · Admin 실패 · add 실패 · 초과 경로 모두 logger 인자에 이메일 · oobCode · IP 원문 0", async () => {
     const auth = anonymousCallerAuth(UID);
     const data = {email: REQUEST_EMAIL, locale: "ja"};
     await call(auth, data);
@@ -518,6 +574,14 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     );
     await call(auth, data);
 
+    // 계정 조회 서버 오류 — err.message(이메일 포함)가 로그에 실리면 안 된다.
+    mockGetUserByEmail.mockRejectedValueOnce(adminError("auth/internal-error"));
+    await expect(call(auth, data)).rejects.toMatchObject({
+      code: "internal",
+      message: "errorUnknown",
+    });
+
+    // 있는 계정(조회 성공)의 링크 생성 internal-error 는 진짜 서버 오류다.
     mockGenerateResetLink.mockRejectedValueOnce(
       adminError("auth/internal-error"),
     );
@@ -545,6 +609,14 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       }),
       expect.any(String),
     );
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "password_reset_mail_lookup_failed",
+        uid: UID,
+        code: "auth/internal-error",
+      }),
+      expect.any(String),
+    );
     const text = allLogText();
     expect(text).not.toContain(REQUEST_EMAIL);
     expect(text).not.toContain("oobCode");
@@ -567,6 +639,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     );
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
     expect(mockMailAdd).not.toHaveBeenCalled();
+    expect(mockGetUserByEmail).not.toHaveBeenCalled();
   });
 
   // eslint-disable-next-line max-len
@@ -599,6 +672,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       ),
     ).toHaveLength(2);
     expect(mockMailAdd).not.toHaveBeenCalled();
+    expect(mockGetUserByEmail).not.toHaveBeenCalled();
   });
 
   // eslint-disable-next-line max-len
@@ -641,22 +715,81 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       locale: "ko",
     });
 
-    expect(result).toEqual({ok: true});
+    expect(mockGetUserByEmail).toHaveBeenCalledTimes(1);
+    expect(mockGetUserByEmail).toHaveBeenCalledWith(REQUEST_EMAIL);
+    expect(mockGenerateResetLink).not.toHaveBeenCalled();
+    expectNoAccountResponse(result);
+  });
+
+  // eslint-disable-next-line max-len
+  it("R10: 조회 auth/invalid-email → invalid-argument · 링크 생성 0 · 메일 0", async () => {
+    mockGetUserByEmail.mockRejectedValueOnce(adminError("auth/invalid-email"));
+
+    await expect(
+      call(anonymousCallerAuth(UID), {email: "not-an-email", locale: "ko"}),
+    ).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "errorInvalidArgument",
+    });
     expect(mockGetUserByEmail).toHaveBeenCalledTimes(1);
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
     expect(mockMailAdd).not.toHaveBeenCalled();
-    // 존재 여부와 무관하게 rate limit 3축은 소비된다(같은 제한).
-    expect(mockOrdered.sets).toHaveLength(3);
-    const noAccountCalls = infoMock.mock.calls.filter(
-      (args) =>
-        (args[0] as {event?: string}).event ===
-        "password_reset_mail_no_account",
+    expect(noAccountInfoCalls()).toHaveLength(0);
+  });
+
+  // eslint-disable-next-line max-len
+  it("R11: 조회 서버 오류(auth/internal-error) → internal + password_reset_mail_lookup_failed · 링크 생성 0 · 메일 0 · 로그에 이메일 0", async () => {
+    mockGetUserByEmail.mockRejectedValueOnce(adminError("auth/internal-error"));
+
+    await expect(
+      call(anonymousCallerAuth(UID), {email: REQUEST_EMAIL, locale: "ko"}),
+    ).rejects.toMatchObject({code: "internal", message: "errorUnknown"});
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "password_reset_mail_lookup_failed",
+        uid: UID,
+        code: "auth/internal-error",
+      }),
+      expect.any(String),
     );
-    expect(noAccountCalls).toHaveLength(1);
-    expect(noAccountCalls[0][0]).toEqual({
-      event: "password_reset_mail_no_account",
-      uid: UID,
-    });
+    expect(mockGenerateResetLink).not.toHaveBeenCalled();
+    expect(mockMailAdd).not.toHaveBeenCalled();
+    expect(noAccountInfoCalls()).toHaveLength(0);
+    expect(allLogText()).not.toContain(REQUEST_EMAIL);
+  });
+
+  // eslint-disable-next-line max-len
+  it("R12: 있는 주소 · 없는 주소(조회 user-not-found) · 경합(생성 email-not-found) 세 응답이 같고 셋 다 rate limit 3축을 소비한다", async () => {
+    const auth = anonymousCallerAuth(UID);
+    const data = {email: REQUEST_EMAIL, locale: "ko"};
+    const setsPerCall: number[] = [];
+
+    // 있는 주소 (기본 mock).
+    const existing = await call(auth, data);
+    setsPerCall.push(mockOrdered.sets.length);
+
+    // 없는 주소 — 조회 단계에서 계정 없음.
+    mockGetUserByEmail.mockRejectedValueOnce(
+      adminError("auth/user-not-found"),
+    );
+    const missing = await call(auth, data);
+    setsPerCall.push(mockOrdered.sets.length);
+
+    // 경합 — 조회는 있음 · 링크 생성 때 계정 없음.
+    mockGenerateResetLink.mockRejectedValueOnce(
+      adminError("auth/email-not-found"),
+    );
+    const raced = await call(auth, data);
+    setsPerCall.push(mockOrdered.sets.length);
+
+    expect(existing).toEqual({ok: true});
+    expect(missing).toEqual(existing);
+    expect(raced).toEqual(existing);
+    expect(setsPerCall).toEqual([3, 3, 3]);
+    // 메일은 있는 주소 1번뿐.
+    expect(mailDocs()).toHaveLength(1);
+    expect(noAccountInfoCalls()).toHaveLength(2);
     expect(warnMock).not.toHaveBeenCalled();
     expect(errorMock).not.toHaveBeenCalled();
   });
