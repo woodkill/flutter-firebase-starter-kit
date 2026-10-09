@@ -11,6 +11,11 @@
  * 가짜 `firebase` 는 env `FAKE_FIREBASE_FAIL_ON` 값과 같은 인자를 받으면 호출을
  * 기록한 뒤 exit 1 이다(배포 실패 주입 — 값이 없으면 항상 성공).
  *
+ * 가짜 `gcloud` 는 D-24 테스트(T-175-DEPLOY-18)만 PATH 앞에 둔다 — 인자를
+ * `gcloud_calls.log` 에 기록하고 `projects describe` 면 가짜 프로젝트 번호를
+ * 낸다. 스크립트는 gcloud 를 부르지 않아야 하므로(기록 0 단언), 이 가짜는
+ * 출력된 `next:` invoker 줄을 bash · zsh 에 붙여 넣어 실행하는 검사에만 쓴다.
+ *
  * 로고 파일은 sandbox 복사 직후 지운다(없음이 기본) — 사용자가 저장소에 자기
  * 로고를 둬도 결과가 같다.
  */
@@ -79,6 +84,19 @@ const TINY_PNG = Buffer.from(
     "60e6kgAAAABJRU5ErkJggg==",
   "base64",
 );
+
+/** 가짜 gcloud 호출 기록 파일 이름 (sandbox 기준). */
+const GCLOUD_LOG_NAME = "gcloud_calls.log";
+
+/** 가짜 gcloud 가 `projects describe` 에 내는 프로젝트 번호. */
+const FAKE_PROJECT_NUMBER = "123456789012";
+
+const HAS_ZSH = spawnSync("sh", ["-c", "command -v zsh"]).status === 0;
+/** [이름, 실행 명령, 사용 가능 여부]. zsh 가 없으면 행을 skip 으로 보고한다. */
+const SHELLS: Array<[string, string[], boolean]> = [
+  ["bash", ["bash"], true],
+  ["zsh", ["zsh", "-f"], HAS_ZSH],
+];
 
 let sandbox = "";
 let fakeBin = "";
@@ -220,11 +238,65 @@ function runScript(
  * @return {Array<Array<string>>} 호출별 인자.
  */
 function readCalls(): string[][] {
-  if (!existsSync(invocationLog)) return [];
-  return readFileSync(invocationLog, "utf8")
+  return readCallLog(invocationLog);
+}
+
+/**
+ * 가짜 실행 파일의 호출 기록(호출마다 탭 구분 한 줄)을 인자 목록으로 읽는다.
+ * @param {string} file 호출 기록 파일 경로.
+ * @return {Array<Array<string>>} 호출별 인자 (파일이 없으면 빈 목록).
+ */
+function readCallLog(file: string): string[][] {
+  if (!existsSync(file)) return [];
+  return readFileSync(file, "utf8")
     .split("\n")
     .filter((l) => l.length > 0)
     .map((l) => l.split("\t").filter((t) => t.length > 0));
+}
+
+/**
+ * sandbox `fakeBin` 에 가짜 `gcloud` 를 둔다 — 인자를 탭 구분 한 줄로
+ * [GCLOUD_LOG_NAME] 에 기록하고, `projects describe` 면 가짜 프로젝트 번호를
+ * stdout 에 낸다(항상 exit 0). 스크립트는 부르지 않아야 하고, `next:` 줄
+ * 실행 검사에만 쓴다(D-24).
+ * @return {string} 호출 기록 파일 경로.
+ */
+function installFakeGcloud(): string {
+  const log = join(sandbox, GCLOUD_LOG_NAME);
+  const fake =
+    "#!/usr/bin/env bash\n" +
+    `printf '%s\\t' "$@" >> '${log}'\n` +
+    `printf '\\n' >> '${log}'\n` +
+    "if [ \"${1:-}\" = projects ] && [ \"${2:-}\" = describe ]; then\n" +
+    `  echo ${FAKE_PROJECT_NUMBER}\n` +
+    "fi\n" +
+    "exit 0\n";
+  writeFileSync(join(fakeBin, "gcloud"), fake);
+  chmodSync(join(fakeBin, "gcloud"), 0o755);
+  return log;
+}
+
+/**
+ * 출력된 명령 한 줄을 사용자가 터미널에 붙여 넣은 것처럼 셸 `-c` 로
+ * 실행한다(가짜 gcloud · firebase 가 PATH 앞).
+ * @param {string[]} shell 셸 실행 명령(예: `["zsh", "-f"]`).
+ * @param {string} command 붙여 넣을 명령 줄.
+ * @return {RunResult} 종료 코드 · stdout · stderr.
+ */
+function runPasted(shell: string[], command: string): RunResult {
+  const [cmd, ...args] = shell;
+  const result = spawnSync(cmd ?? "bash", [...args, "-c", command], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+    },
+  });
+  return {
+    status: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+  };
 }
 
 /**
@@ -614,5 +686,105 @@ describe("deploy_email.sh D-22 계약", () => {
       "utf8",
     );
     expect(source).not.toContain("작업 URL");
+  });
+});
+
+describe("deploy_email.sh D-24 invoker 안내", () => {
+  /** 확장 함수 invoker `next:` 줄의 머리. */
+  const INVOKER_PREFIX = "next: gcloud run services add-iam-policy-binding";
+
+  /** 공개(누구나 호출) 부여 member 표지 — 안내 줄에 있으면 안 된다. */
+  const PUBLIC_MEMBER_MARKERS = ["allUsers", "allAuthenticatedUsers"];
+
+  /** 붙여 넣은 invoker 줄이 가짜 gcloud 에 남겨야 하는 호출 2개(순서 그대로). */
+  const EXPECTED_PASTE_CALLS = [
+    [
+      "projects",
+      "describe",
+      PROJECT_ID,
+      "--format=value(projectNumber)",
+    ],
+    [
+      "run",
+      "services",
+      "add-iam-policy-binding",
+      "ext-firestore-send-email-processqueue",
+      "--region=us-central1",
+      "--member=serviceAccount:" +
+        "123456789012-compute@developer.gserviceaccount.com",
+      "--role=roles/run.invoker",
+      "--project",
+      PROJECT_ID,
+    ],
+  ];
+
+  /**
+   * kit dry-run stdout 에서 invoker `next:` 줄을 꺼낸다(정확히 1줄 단언).
+   * @param {string} stdout 스크립트 stdout.
+   * @return {string} `next: ` 를 뗀 명령 줄.
+   */
+  function extractInvokerCommand(stdout: string): string {
+    const lines = linesWith(stdout, INVOKER_PREFIX);
+    expect(lines).toHaveLength(1);
+    return (lines[0] ?? "").slice("next: ".length);
+  }
+
+  it("T-175-DEPLOY-18a 스크립트는 dry-run · --apply 모두 gcloud 를 부르지 않는다", () => {
+    const log = installFakeGcloud();
+    writeConfig(KIT_CONFIG);
+    writeExtEnv(VALID_EXT_ENV);
+    for (const args of [["dev", "kit"], ["dev", "kit", "--apply"]]) {
+      const r = runScript(args);
+      expect(r.status).toBe(0);
+      expect(linesWith(r.stdout, INVOKER_PREFIX)).toHaveLength(1);
+    }
+    expect(readCallLog(log)).toEqual([]);
+  });
+
+  it("T-175-DEPLOY-18b dry-run 을 두 번 돌려도 next: 줄이 같다", () => {
+    installFakeGcloud();
+    writeConfig(KIT_CONFIG);
+    writeExtEnv(VALID_EXT_ENV);
+    const first = runScript(["dev", "kit"]);
+    const second = runScript(["dev", "kit"]);
+    expect(first.status).toBe(0);
+    expect(second.status).toBe(0);
+    expect(linesWith(first.stdout, "next: ")).toHaveLength(3);
+    expect(linesWith(second.stdout, "next: ")).toEqual(
+      linesWith(first.stdout, "next: "),
+    );
+  });
+
+  for (const [shellName, shell, available] of SHELLS) {
+    const lane = available ? it : it.skip;
+    lane(
+      `T-175-DEPLOY-18c invoker 줄을 ${shellName} 에 붙여 넣으면 ` +
+        "번호 조회 → 서비스 invoker 부여 2호출이다",
+      () => {
+        const log = installFakeGcloud();
+        writeConfig(KIT_CONFIG);
+        writeExtEnv(VALID_EXT_ENV);
+        const r = runScript(["dev", "kit"]);
+        expect(r.status).toBe(0);
+        const command = extractInvokerCommand(r.stdout);
+        // 레인마다 기록 파일을 비우고 붙여 넣기 실행만 센다.
+        rmSync(log, {force: true});
+        const pasted = runPasted(shell, command);
+        expect(pasted.status).toBe(0);
+        expect(readCallLog(log)).toEqual(EXPECTED_PASTE_CALLS);
+      },
+    );
+  }
+
+  it("T-175-DEPLOY-18d invoker 줄은 공개 부여 · Console 0 · 프로젝트 = config 값", () => {
+    writeConfig(KIT_CONFIG);
+    writeExtEnv(VALID_EXT_ENV);
+    const r = runScript(["dev", "kit"]);
+    expect(r.status).toBe(0);
+    const command = extractInvokerCommand(r.stdout);
+    for (const marker of [...PUBLIC_MEMBER_MARKERS, "Console"]) {
+      expect(command).not.toContain(marker);
+    }
+    expect(command.endsWith(` --project ${PROJECT_ID}`)).toBe(true);
   });
 });
