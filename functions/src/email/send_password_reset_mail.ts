@@ -1,4 +1,4 @@
-// Phase 17.5 — see ROADMAP.md (D-10 · D-11 · D-12 · D-15) — kit 모드 비밀번호
+// Phase 17.5 — see ROADMAP.md (D-10 · D-11 · D-12 · D-15 · D-23) — kit 모드 비밀번호
 // 재설정 메일 callable. `emailDelivery=kit` 일 때만 배포한다(manifest
 // `email.kit`).
 //
@@ -14,6 +14,11 @@
 // 생성 **전** 에 판정하므로 존재 여부와 무관하게 같은 제한이 걸린다. 결과
 // 페이지 주소 env 판정도 rate limit · 링크 생성 전이라 env 가 빠진
 // 프로젝트에서도 있는 주소 · 없는 주소 응답이 같다.
+// 이메일 열거 보호가 켜진 프로젝트는 없는 주소의 링크 생성이
+// `auth/internal-error` 로 실패하므로(계정 없음 코드가 아님), rate limit
+// 뒤 · 링크 생성 전에 Admin `getUserByEmail` 로 계정 유무를 먼저 본다(D-23).
+// 열거 보호를 꺼도 조회가 같은 `auth/user-not-found` 를 내므로 응답 · 로그가
+// 같다.
 //
 // **익명 허용 (RESEARCH §R7):** 비밀번호 찾기 화면은 로그인 전이라 세션이
 // 익명이거나(앱 시작 시 익명 로그인) 정식(재인증 흐름)이다. 그래서
@@ -79,6 +84,23 @@ const NO_ACCOUNT_CODES: readonly string[] = [
   "auth/email-not-found",
   "auth/user-not-found",
 ];
+
+/**
+ * 계정 없음 응답 — 메일 없이 있는 주소와 같은 `{ok: true}` 를 돌려준다.
+ *
+ * 계정 조회(Step 3)와 링크 생성 경합(Step 4) 두 곳이 같은 응답 · 같은 로그를
+ * 내도록 한 곳에 모은다(D-10 · D-23). 로그에는 이메일을 싣지 않는다.
+ *
+ * @param {string} uid 호출자 uid.
+ * @return {SendPasswordResetMailResponse} `{ok: true}`.
+ */
+function respondNoAccount(uid: string): SendPasswordResetMailResponse {
+  logger.info(
+    {event: "password_reset_mail_no_account", uid},
+    "sendPasswordResetMail skipped",
+  );
+  return {ok: true};
+}
 
 /**
  * 클라이언트 IP 를 rate limit 문서 id 용 해시로 바꾼다.
@@ -148,9 +170,16 @@ function buildRateAxes(caller: {
  *   Step 2: uid 5/60s · IP 해시 30/60s · 이메일 해시 3/600s 를 한
  *           transaction 에서 판정 — 초과 축마다
  *           `password_reset_mail_rate_limited` 알람 + `resource-exhausted`.
- *   Step 3: Admin 링크 — 계정 없음 → 메일 없이 `{ok: true}`(비노출) ·
- *           `auth/invalid-email` → `invalid-argument` · 그 밖 → `internal`.
- *   Step 4: `toResultPageLink`(결과 페이지 + `lang`) →
+ *   Step 3: Admin `getUserByEmail` 계정 조회 (D-23 — rate limit 뒤 · 링크
+ *           생성 전) — 계정 없음(`auth/user-not-found`) → 메일 없이
+ *           `{ok: true}` + `password_reset_mail_no_account` ·
+ *           `auth/invalid-email` → `invalid-argument` · 그 밖 →
+ *           `password_reset_mail_lookup_failed` + `internal`.
+ *   Step 4: Admin 링크 — 계정 없음(조회와 생성 사이 삭제 경합) → 메일 없이
+ *           `{ok: true}`(비노출) · `auth/invalid-email` →
+ *           `invalid-argument` · 그 밖 → `password_reset_mail_failed` +
+ *           `internal`.
+ *   Step 5: `toResultPageLink`(결과 페이지 + `lang`) →
  *           `renderMail("resetPassword")` → `mail/` add → `{ok: true}`.
  *           실패(필수 쿼리 없는 링크 포함)는 `internal`.
  *
@@ -200,7 +229,7 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
       throw new HttpsError("internal", "errorUnknown");
     }
 
-    // Step 2: 남용 · enumeration 방어 — 링크 생성 전에 판정한다.
+    // Step 2: 남용 · enumeration 방어 — 계정 조회 · 링크 생성 전에 판정한다.
     const db = getFirestore();
     let exceeded: ExceededRateAxis[];
     try {
@@ -234,7 +263,29 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
       throw new HttpsError("resource-exhausted", "errorTooManyRequests");
     }
 
-    // Step 3: Admin 링크 — 계정 없음은 성공과 같은 응답(D-10).
+    // Step 3: 계정 조회 — 열거 보호가 켜진 프로젝트는 없는 주소의 링크
+    // 생성이 계정 없음 코드가 아니라 auth/internal-error 로 실패하므로 링크
+    // 생성 전에 유무를 판정한다(D-23). 레코드는 쓰지 않는다(유무만).
+    try {
+      await getAuth().getUserByEmail(email);
+    } catch (err: unknown) {
+      const code = fingerprintError(err);
+      if (NO_ACCOUNT_CODES.includes(code)) {
+        return respondNoAccount(uid);
+      }
+      if (code === "auth/invalid-email") {
+        throw new HttpsError("invalid-argument", "errorInvalidArgument");
+      }
+      // err.message 에는 이메일이 들어 있다 — code 만 싣는다.
+      logger.warn(
+        {event: "password_reset_mail_lookup_failed", uid, code},
+        "getUserByEmail threw",
+      );
+      throw new HttpsError("internal", "errorUnknown");
+    }
+
+    // Step 4: Admin 링크 — 계정 없음(조회와 생성 사이 삭제 경합)은 성공과
+    // 같은 응답(D-10 · D-23).
     let link: string;
     try {
       // actionCodeSettings 없음 — continueUrl 을 싣지 않는다(D-17).
@@ -242,11 +293,7 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
     } catch (err: unknown) {
       const code = fingerprintError(err);
       if (NO_ACCOUNT_CODES.includes(code)) {
-        logger.info(
-          {event: "password_reset_mail_no_account", uid},
-          "sendPasswordResetMail skipped",
-        );
-        return {ok: true};
+        return respondNoAccount(uid);
       }
       if (code === "auth/invalid-email") {
         throw new HttpsError("invalid-argument", "errorInvalidArgument");
@@ -258,7 +305,7 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
       throw new HttpsError("internal", "errorUnknown");
     }
 
-    // Step 4: 결과 페이지 재작성(+ lang) → 렌더 → mail/ 큐 기록.
+    // Step 5: 결과 페이지 재작성(+ lang) → 렌더 → mail/ 큐 기록.
     try {
       const message = renderMail("resetPassword", {
         locale,
