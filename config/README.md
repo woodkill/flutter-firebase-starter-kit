@@ -78,8 +78,8 @@ provider 마다 켤 때 필요한 것과 함수 배포(`bash scripts/deploy_func
   의 「API 키」 표에 있는 `Browser key (auto created by Firebase)` 다.** 「키 표시」 로 연
   창에서 복사한다. `AIza` 로 시작한다. Android · iOS 앱 전용으로 제한한 키는 브라우저에서
   거부되고, 웹사이트(HTTP 리퍼러) 제한이 걸린 키도 이 페이지에서 거부된다(페이지가
-  Referer 를 보내지 않는다). 애플리케이션 제한이 없는 키(Firebase 가 만든 Browser key
-  기본값)를 쓴다. 공개 값이라 결과 페이지 산출물에 들어간다.
+  Referer 를 보내지 않는다). 애플리케이션 제한사항이 「없음」 인 키(Firebase 가 만든
+  Browser key 기본값)를 쓴다. 공개 값이라 결과 페이지 산출물에 들어간다.
 - **결과 페이지는 이 키로만 Firebase 를 초기화한다.** 메일 링크에 실린 키는 쓰지
   않으므로, 다른 프로젝트에서 만든 링크는 이 페이지에서 「사용할 수 없는 링크」
   로 끝난다.

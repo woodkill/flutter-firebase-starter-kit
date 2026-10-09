@@ -25,8 +25,10 @@
 // T-175-DOCS-07: 결과 페이지가 Referer 를 보내지 않는다(firebase.json Hosting
 //   `Referrer-Policy` = `no-referrer` · index.html meta)는 사실이 그대로이고, 웹 API
 //   키 안내 세 곳(매뉴얼 키 표 · 매뉴얼 문제 해결 첫 항목 · config/README 절)이 리퍼러
-//   제한 · Referer · 거부 사실(「이 페이지에서 거부된다」) · 애플리케이션 제한이 없는 키 토큰을
-//   담고 옛 허용 목록 안내가 0 건이며, 문제 해결 항목은 제한을 「없음」 으로 되돌리기 · 제한 없는 키 따로 고르기를 둘 다 담는다.
+//   제한 · Referer · 거부 사실(「이 페이지에서 거부된다」) · 애플리케이션 제한사항이
+//   「없음」 인 키 토큰을 담고 옛 허용 목록 안내가 0 건이며, 문제 해결 항목은
+//   애플리케이션 제한사항이 「없음」 이 아닐 때의 조치로 제한을 「없음」 으로
+//   되돌리기 · 「없음」 인 키 따로 고르기를 둘 다 담는다.
 // T-175-DOCS-08: 웹 API 키 위치 안내 다섯 곳(매뉴얼 키 표 · 발송 모드 「켜기」 ② ·
 //   결과 페이지 문제 해결 · config/README 절 · CHANGELOG bullet)이 Google Cloud Console
 //   사용자 인증 정보의 Browser key 를 가리키고, 매뉴얼 · config/README · CHANGELOG ·
@@ -249,7 +251,7 @@ const List<String> _webApiKeyRefererTokens = <String>[
   '웹사이트(HTTP 리퍼러) 제한',
   'Referer',
   '이 페이지에서 거부된다',
-  '애플리케이션 제한이 없는 키',
+  '애플리케이션 제한사항이 「없음」 인 키',
 ];
 
 /// 웹 API 키 안내 세 곳에 없어야 하는 옛 조치 문구(결과 페이지 주소를 리퍼러
@@ -940,18 +942,24 @@ void main() {
         }
       }
 
-      // (d) 문제 해결 항목은 웹사이트 제한 키 사용자에게 제한을 「없음」 으로 되돌리거나
-      // 제한 없는 키를 따로 고르라는 두 조치를 모두 안내한다.
+      // (d) 문제 해결 항목은 애플리케이션 제한사항이 「없음」 이 아닌 키 사용자에게
+      // 제한을 「없음」 으로 되돌리거나 「없음」 인 키를 따로 고르라는 두 조치를 모두
+      // 안내한다.
       final String troubleFlat = _normalizeWhitespace(regions['매뉴얼 문제 해결 항목']!);
+      expect(
+        countOccurrences(troubleFlat, '애플리케이션 제한사항이 「없음」 이 아니면'),
+        greaterThanOrEqualTo(1),
+        reason: '문제 해결 항목의 조치 조건이 「없음」 이 아닌 모든 제한을 다루지 않는다',
+      );
       expect(
         countOccurrences(troubleFlat, '「없음」 으로 되돌리'),
         greaterThanOrEqualTo(1),
-        reason: '문제 해결 항목에 웹사이트 제한을 「없음」 으로 되돌리는 조치가 없다',
+        reason: '문제 해결 항목에 제한을 「없음」 으로 되돌리는 조치가 없다',
       );
       expect(
         countOccurrences(troubleFlat, '따로 골라'),
         greaterThanOrEqualTo(1),
-        reason: '문제 해결 항목에 제한 없는 키를 따로 고르는 조치가 없다',
+        reason: '문제 해결 항목에 「없음」 인 키를 따로 고르는 조치가 없다',
       );
 
       // (b) 파일 전체에서도 결과 페이지 주소 허용 목록 안내는 없다.
