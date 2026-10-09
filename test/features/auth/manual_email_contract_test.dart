@@ -245,12 +245,18 @@ const List<String> _webApiKeyRefererTokens = <String>[
   '애플리케이션 제한이 없는 키',
 ];
 
-/// 웹 API 키 안내 세 곳에 없어야 하는 옛 조치 문구.
+/// 웹 API 키 안내 세 곳에 없어야 하는 옛 조치 문구(결과 페이지 주소를 리퍼러
+/// 허용 목록에 더하라는 안내) — 세 항목 모두 [_staleRefererSentence] 의 조각이다.
 const List<String> _staleRefererAdvice = <String>[
   'web.app/*',
   '허용 목록에 더한다',
-  '허용 목록에 `https',
+  '`https://<your-project-id>.web.app/*` 를 허용 목록에',
 ];
+
+/// 옛 조치 문장 — [_staleRefererAdvice] 양성 대조용.
+const String _staleRefererSentence =
+    'Browser key 에 HTTP 리퍼러 제한이 있으면 '
+    '`https://<your-project-id>.web.app/*` 를 허용 목록에 더한다.';
 
 /// 연속 공백 · 줄바꿈을 한 칸으로 줄인다(hard-wrap 된 문서 매칭용).
 String _normalizeWhitespace(String text) =>
@@ -842,6 +848,14 @@ void main() {
         countOccurrences(_normalizeWhitespace('Referer\n  를'), 'Referer 를'),
         1,
       );
+      // 양성 대조: 옛 조치 문구는 모두 옛 조치 문장에서 세어진다.
+      for (final String stale in _staleRefererAdvice) {
+        expect(
+          countOccurrences(_staleRefererSentence, stale),
+          greaterThanOrEqualTo(1),
+          reason: '옛 조치 문구가 옛 조치 문장에 없다: $stale',
+        );
+      }
 
       for (final MapEntry<String, String> region in regions.entries) {
         expect(
