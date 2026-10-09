@@ -19,6 +19,12 @@
 // 뒤 · 링크 생성 전에 Admin `getUserByEmail` 로 계정 유무를 먼저 본다(D-23).
 // 열거 보호를 꺼도 조회가 같은 `auth/user-not-found` 를 내므로 응답 · 로그가
 // 같다.
+// 비노출 범위는 **응답 모양 · 오류 코드 · 로그** 셋이다. 소요 시간은 맞추지
+// 않는다 — 있는 주소는 링크 생성 · 렌더 · `mail/` 기록을 더 치러 늦게 돌아온다.
+// 같은 방어층(App Check + `request.auth`) 아래 `lookupSignInMethods` 가 임의
+// 주소의 가입 provider 를 이미 돌려주므로 소요 축을 맞춰도 계정 유무는 감춰지지
+// 않고, rate limit(이메일 · uid · IP 3축)이 반복 측정의 비용만 올린다(리뷰
+// WR-02 수용 결정 — 최소 응답 시간 하한은 두지 않는다).
 //
 // **익명 허용 (RESEARCH §R7):** 비밀번호 찾기 화면은 로그인 전이라 세션이
 // 익명이거나(앱 시작 시 익명 로그인) 정식(재인증 흐름)이다. 그래서
@@ -271,6 +277,8 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
     } catch (err: unknown) {
       const code = fingerprintError(err);
       if (NO_ACCOUNT_CODES.includes(code)) {
+        // 응답 모양 · 코드 · 로그만 있는 주소와 같다 — 소요 시간은 맞추지 않는다
+        // (비노출 범위 · 근거는 파일 머리 「가입 여부 비노출」).
         return respondNoAccount(uid);
       }
       if (code === "auth/invalid-email") {
