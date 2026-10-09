@@ -373,6 +373,7 @@ async function run() {
       await sdk.applyActionCode(auth, oobCode);
       showState("success", mode);
     } else if (mode === "recoverEmail") {
+      // kit 메일 링크는 이 mode 를 만들지 않아 지금 도달 경로가 없다 — UI 계약상 유지하는 분기.
       // checkActionCode 의 data.email = 되돌릴(복원될) 주소.
       const info = await sdk.checkActionCode(auth, oobCode);
       const email = info?.data?.email ?? "";
