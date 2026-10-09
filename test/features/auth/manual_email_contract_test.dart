@@ -18,6 +18,10 @@
 //   같은 확장 값 줄 · 금지 문장이 있다.
 // T-175-DOCS-05: 옛 전제 문구(Console 메일 링크 주소 · 모드 무관 · 이메일 주소 복원 ·
 //   결과 페이지 생략 가능 · callbackUri)가 매뉴얼 전체와 CHANGELOG 에 0 건이다.
+// T-175-DOCS-06: 확장 함수 invoker 명령 줄이 매뉴얼 · 발송 모드 절에 정확히 2줄이고
+//   배포 스크립트 `next:` echo 와 글자가 대응하며, 「켜기」 ⑤ ~ ⑧ · 명령 순서가
+//   스크립트 `next:` 순서와 같고, 반영 토큰 · 로고 바탕 문장 · 무조건 실행 문장이
+//   있으며 공개 · 프로젝트 단위 부여 안내가 0 건이다.
 
 import 'dart:convert';
 
@@ -133,7 +137,7 @@ const List<String> _deliveryCommandLines = <String>[
   'bash scripts/deploy_email.sh dev kit',
   'bash scripts/deploy_email.sh dev kit --apply',
   'bash scripts/deploy_functions.sh dev',
-  'bash scripts/deploy_functions.sh dev --apply',
+  _functionsApplyCommandLine,
   'fvm flutter run --flavor dev --dart-define-from-file=config/dev.json',
   'firebase functions:delete sendVerificationMail sendPasswordResetMail '
       '--region asia-northeast3 --project <your-project-id>',
@@ -148,6 +152,95 @@ const String _ttlCommandLine =
 const String _extensionUninstallLine =
     '( cd "\$(mktemp -d)" && firebase ext:uninstall firestore-send-email '
     '--immediate --project <your-project-id> )';
+
+/// 메일 함수 배포 명령(`--apply`) — 발송 모드 절 「켜기」 ⑥ 의 정확한 줄.
+const String _functionsApplyCommandLine =
+    'bash scripts/deploy_functions.sh dev --apply';
+
+/// 확장 함수 invoker 부여 명령 — 발송 모드 절 「켜기」 ⑦ · 「문제 해결」 에
+/// 정확한 줄로 있고, 매뉴얼 전체에 정확히 2줄이다.
+const String _invokerCommandLine =
+    'gcloud run services add-iam-policy-binding '
+    'ext-firestore-send-email-processqueue --region=us-central1 '
+    '--member=serviceAccount:\$(gcloud projects describe <your-project-id> '
+    "--format='value(projectNumber)')-compute@developer.gserviceaccount.com "
+    '--role=roles/run.invoker --project <your-project-id>';
+
+/// 매뉴얼 명령의 프로젝트 ID 자리표시.
+const String _projectIdPlaceholder = '<your-project-id>';
+
+/// 배포 스크립트 소스에서 프로젝트 ID 를 담는 변수 꼴.
+const String _scriptProjectVariable = r'${PROJECT}';
+
+/// 배포 스크립트 `next:` 첫째 줄(TTL) echo 의 앞부분.
+const String _scriptTtlEchoPrefix =
+    'echo "next: gcloud firestore fields ttls update';
+
+/// 배포 스크립트 `next:` 둘째 줄(메일 함수 배포) echo 의 앞부분.
+const String _scriptFunctionsEchoPrefix =
+    'echo "next: bash scripts/deploy_functions.sh';
+
+/// 발송 모드 절 「켜기」 ⑦ 단계 머리 줄.
+const String _invokerStepHeading = '**⑦ 확장 함수에 호출 권한을 준다.**';
+
+/// 발송 모드 절 「켜기」 ⑧ 단계 머리 줄.
+const String _appRebuildStepHeading = '**⑧ 앱을 다시 빌드해 실행한다.**';
+
+/// 발송 모드 절 「켜기」 ⑤ ~ ⑧ 단계 머리 (순서 그대로 · 각 1개).
+const List<String> _deliveryLateStepHeads = <String>[
+  '**⑤ ',
+  '**⑥ ',
+  _invokerStepHeading,
+  _appRebuildStepHeading,
+];
+
+/// 발송 모드 절에 있어야 하는 반영 토큰(도메인 인증 상태 · 미인증 거부 문구 ·
+/// 확장 첫 설치 실패 문구 · 확장 함수 403).
+const List<String> _deliveryReflectionTokens = <String>[
+  'Not Started',
+  'Verified',
+  'domain is not verified',
+  'Eventarc Service Agent',
+  '403',
+];
+
+/// 결과 페이지 절 ② 의 로고 바탕 권장 문구.
+const String _logoBackgroundPhrase = '바탕을 채운 PNG';
+
+/// 「켜기」 ⑦ 단락의 무조건 실행 문장.
+const String _invokerAllProjectsPhrase = '모든 프로젝트에서 실행한다';
+
+/// 발송 모드 절에 없어야 하는 공개 · 프로젝트 단위 invoker 부여 토큰.
+const List<String> _forbiddenInvokerGrantTokens = <String>[
+  'allUsers',
+  'allAuthenticatedUsers',
+  'gcloud projects add-iam-policy-binding',
+];
+
+/// [_invokerCommandLine] 을 배포 스크립트 소스의 echo 꼴로 바꾼다.
+///
+/// 자리표시 → `${PROJECT}` · `$(` → `\$(` 로 바꾸고 `echo "next: …"` 로 감싼다.
+String _buildInvokerScriptEcho() {
+  final String body = _invokerCommandLine
+      .replaceAll(_projectIdPlaceholder, _scriptProjectVariable)
+      .replaceAll(r'$(', r'\$(');
+  return 'echo "next: $body"';
+}
+
+/// [text] 에서 [startPrefix] 로 시작하는 줄부터 [endPrefix] 로 시작하는 다음 줄
+/// 앞까지를 돌려준다(시작 줄이 없으면 빈 문자열).
+String _sliceLinesBetween(String text, String startPrefix, String endPrefix) {
+  final List<String> lines = text.split('\n');
+  final int start = lines.indexWhere((String l) => l.startsWith(startPrefix));
+  if (start < 0) {
+    return '';
+  }
+  final int end = lines.indexWhere(
+    (String l) => l.startsWith(endPrefix),
+    start + 1,
+  );
+  return lines.sublist(start, end < 0 ? lines.length : end).join('\n');
+}
 
 /// 「인증 메일 발송 모드 켜고 끄기」 절에 있어야 하는 토큰.
 const List<String> _deliveryTokens = <String>[
@@ -524,6 +617,129 @@ void main() {
             reason: '${source.key} 에 옛 전제 문구가 있다: $phrase',
           );
         }
+      }
+    });
+  });
+
+  group('매뉴얼 발송 모드 invoker 단계 · UAT 반영 문장 (T-175-DOCS)', () {
+    test('T-175-DOCS-06: invoker 명령 줄 · 스크립트 대조 · 순서 · 반영 문장이 있다', () {
+      expect(delivery.trim(), isNotEmpty, reason: '발송 모드 절 슬라이스가 비었다');
+      expect(resultPage.trim(), isNotEmpty, reason: '결과 페이지 절 슬라이스가 비었다');
+
+      // 양성 대조: 명령 줄을 두 번 이은 문자열에서 정확한 줄이 2개로 세어진다.
+      expect(
+        countExactLines(
+          '$_invokerCommandLine\n$_invokerCommandLine',
+          _invokerCommandLine,
+        ),
+        2,
+      );
+
+      // ① invoker 명령 줄 — 「켜기」 ⑦ · 「문제 해결」 두 곳(매뉴얼 전체도 2줄).
+      expect(
+        countExactLines(delivery, _invokerCommandLine),
+        2,
+        reason: '발송 모드 절의 invoker 명령 줄이 정확히 2줄이 아니다',
+      );
+      expect(
+        countExactLines(manual, _invokerCommandLine),
+        2,
+        reason: '매뉴얼 전체의 invoker 명령 줄이 정확히 2줄이 아니다',
+      );
+
+      // ② 배포 스크립트 `next:` 셋째 echo 와 글자가 대응한다.
+      final String script = readTrackedFile(_deployEmailScriptPath);
+      final String invokerEcho = _buildInvokerScriptEcho();
+      expect(
+        countOccurrences(script, invokerEcho),
+        1,
+        reason: '$_deployEmailScriptPath 에 매뉴얼 invoker 명령의 echo 꼴이 1개가 아니다',
+      );
+
+      // ③ 스크립트 `next:` 순서 — TTL < 메일 함수 배포 < invoker.
+      final int scriptTtl = script.indexOf(_scriptTtlEchoPrefix);
+      final int scriptFunctions = script.indexOf(_scriptFunctionsEchoPrefix);
+      final int scriptInvoker = script.indexOf(invokerEcho);
+      expect(scriptTtl, greaterThanOrEqualTo(0), reason: '스크립트에 TTL next 가 없다');
+      expect(
+        scriptTtl,
+        lessThan(scriptFunctions),
+        reason: '스크립트 next 순서가 TTL → 함수 배포가 아니다',
+      );
+      expect(
+        scriptFunctions,
+        lessThan(scriptInvoker),
+        reason: '스크립트 next 순서가 함수 배포 → invoker 가 아니다',
+      );
+
+      // ④ 매뉴얼 「켜기」 ⑤ ~ ⑧ 단계 머리 — 각 1개 · 순서 그대로.
+      int previousHead = -1;
+      for (final String head in _deliveryLateStepHeads) {
+        expect(
+          countOccurrences(delivery, head),
+          1,
+          reason: '발송 모드 절의 단계 머리가 1개가 아니다: $head',
+        );
+        final int index = delivery.indexOf(head);
+        expect(
+          index,
+          greaterThan(previousHead),
+          reason: '발송 모드 절의 단계 머리 순서가 다르다: $head',
+        );
+        previousHead = index;
+      }
+
+      // ⑤ 매뉴얼 명령 순서 — TTL < 메일 함수 배포 < invoker(스크립트 next 순서와 같다).
+      final int manualTtl = delivery.indexOf(_ttlCommandLine);
+      final int manualFunctions = delivery.indexOf(_functionsApplyCommandLine);
+      final int manualInvoker = delivery.indexOf(_invokerCommandLine);
+      expect(manualTtl, greaterThanOrEqualTo(0), reason: '절에 TTL 명령이 없다');
+      expect(
+        manualTtl,
+        lessThan(manualFunctions),
+        reason: '매뉴얼 명령 순서가 TTL → 함수 배포가 아니다',
+      );
+      expect(
+        manualFunctions,
+        lessThan(manualInvoker),
+        reason: '매뉴얼 명령 순서가 함수 배포 → invoker 가 아니다',
+      );
+
+      // ⑥ 발송 모드 절 반영 토큰.
+      for (final String token in _deliveryReflectionTokens) {
+        expect(
+          countOccurrences(delivery, token),
+          greaterThanOrEqualTo(1),
+          reason: '발송 모드 절에 반영 토큰이 없다: $token',
+        );
+      }
+
+      // ⑦ 결과 페이지 절 ② 로고 바탕 권장 문장.
+      expect(
+        countOccurrences(resultPage, _logoBackgroundPhrase),
+        greaterThanOrEqualTo(1),
+        reason: '결과 페이지 절에 로고 바탕 권장 문장이 없다',
+      );
+
+      // ⑨ 「켜기」 ⑦ 단락은 모든 프로젝트가 실행하는 단계이고, 공개 · 프로젝트
+      // 단위 부여 안내는 없다.
+      final String invokerStep = _sliceLinesBetween(
+        delivery,
+        _invokerStepHeading,
+        '**⑧ ',
+      );
+      expect(invokerStep.trim(), isNotEmpty, reason: '「켜기」 ⑦ 단락을 찾지 못했다');
+      expect(
+        countOccurrences(invokerStep, _invokerAllProjectsPhrase),
+        greaterThanOrEqualTo(1),
+        reason: '「켜기」 ⑦ 단락이 모든 프로젝트의 단계로 쓰여 있지 않다',
+      );
+      for (final String token in _forbiddenInvokerGrantTokens) {
+        expect(
+          countOccurrences(delivery, token),
+          0,
+          reason: '발송 모드 절이 공개 · 프로젝트 단위 부여를 안내한다: $token',
+        );
       }
     });
   });

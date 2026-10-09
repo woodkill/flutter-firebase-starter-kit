@@ -448,7 +448,7 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
 
 예시는 dev flavor 기준이고, stg · prod 는 `dev` 자리에 flavor 이름을 넣는다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
 
-**① 보내는 도메인을 인증한다.** 발송 서비스에 메일을 보낼 도메인을 추가하고, 서비스가 알려 주는 SPF · DKIM 레코드를 그 도메인의 DNS 에 등록한다. DMARC 는 최소 아래 값을 `_dmarc.<내 도메인>` 의 TXT 레코드로 둔다 — `rua` 는 DMARC 보고를 받을 주소다.
+**① 보내는 도메인을 인증한다.** 발송 서비스는 받는 사람의 메일 서버까지 메일을 실제로 배달하는 SMTP 서버이고, 도메인 인증은 받는 쪽 메일 서버가 보낸 사람을 믿게 하는 단계다. 발송 서비스에 메일을 보낼 도메인을 추가하고, 서비스가 알려 주는 SPF · DKIM 레코드를 그 도메인의 DNS 에 등록한다. DMARC 는 최소 아래 값을 `_dmarc.<내 도메인>` 의 TXT 레코드로 둔다. 하위 도메인으로 보내도 DMARC 레코드는 루트 도메인의 `_dmarc` 하나면 된다 — 하위 도메인은 루트 도메인의 정책을 따른다. `rua` 는 DMARC 보고를 받을 주소이고, 보고를 받을 때만 넣는다.
 
 ```
 v=DMARC1; p=none; rua=mailto:<보고 받을 주소>
@@ -459,7 +459,7 @@ v=DMARC1; p=none; rua=mailto:<보고 받을 주소>
 **예시 — Resend.**
 
 1. Resend 대시보드의 Domains 에서 도메인을 추가한다.
-2. 화면에 나온 DNS 레코드를 도메인의 DNS 에 등록하고, Resend 에서 도메인이 인증될 때까지 기다린다.
+2. 화면에 나온 DNS 레코드를 도메인의 DNS 에 등록한다. DNS 화면마다 열 이름이 다르다 — Resend 의 Name 은 DNS 화면의 호스트 칸에, Content 는 값(위치) 칸에 넣는다. 등록한 뒤 Resend 의 그 도메인 화면에서 인증을 시작하는 버튼을 눌러야 확인이 시작된다 — 누르기 전에는 Domains 목록의 Status 가 `Not Started` 에 머문다. Status 가 `Verified` 가 될 때까지 기다린다. 화면은 몇 시간 걸릴 수 있다고 안내하지만, DNS 레코드가 이미 퍼져 있으면 더 빨리 끝난다.
 3. API Keys 에서 API key 를 만든다. 이 key 가 SMTP 비밀번호다(④ 에서 넣는다).
 4. SMTP URI 는 `smtps://resend@smtp.resend.com:465` 다 — 사용자 이름 `resend` · 포트 465.
 
@@ -505,9 +505,9 @@ bash scripts/deploy_email.sh dev kit
 bash scripts/deploy_email.sh dev kit --apply
 ```
 
-마지막 줄이 `DEPLOY OK dev target=kit mode=kit` 이면 끝난 것이다 — `https://<your-project-id>.web.app/` 에 결과 페이지가 올라가 있고, `kit` 메일의 링크가 이 페이지를 연다. `functions/.env.<your-project-id>` 의 네 줄은 이 명령이 config 로 다시 쓰므로 직접 고치지 않는다. `appName` 은 비어 있으면 안 되고 `"` · `\` · `$` · 백틱 · 줄바꿈을 쓸 수 없다. `appName` · `brandColor` · 로고를 바꾸면 ④ 와 ⑥ 을 다시 한다.
+마지막 줄이 `DEPLOY OK dev target=kit mode=kit` 이면 끝난 것이다 — `https://<your-project-id>.web.app/` 에 결과 페이지가 올라가 있고, `kit` 메일의 링크가 이 페이지를 연다. `functions/.env.<your-project-id>` 의 네 줄은 이 명령이 config 로 다시 쓰므로 직접 고치지 않는다. `appName` 은 비어 있으면 안 되고 `"` · `\` · `$` · 백틱 · 줄바꿈을 쓸 수 없다. `appName` · `brandColor` · 로고를 바꾸면 ④ 와 ⑥ 을 다시 한다. 출력의 `next:` 세 줄은 ⑤ · ⑥ · ⑦ 에서 그 순서로 실행할 명령이다.
 
-**⑤ 메일 문서를 지우는 TTL 정책을 켠다.** 프로젝트마다 한 번 실행한다. 확장은 보낸 메일마다 `mail` 컬렉션에 문서(받는 주소 · 링크가 들어 있다)를 남기는데, 이 정책을 켜면 하루 뒤 지워진다. 실제 삭제는 만료 뒤 보통 24시간 안에 일어난다.
+**⑤ 메일 문서를 지우는 TTL 정책을 켠다.** 프로젝트마다 한 번 실행한다. 확장은 보낸 메일마다 `mail` 컬렉션에 문서(받는 주소 · 링크가 들어 있다)를 남기는데, 이 정책을 켜면 하루 뒤 지워진다. 실제 삭제는 만료 뒤 보통 24시간 안에 일어난다. 이 명령은 끝날 때까지 몇 분 걸릴 수 있다.
 
 ```bash
 gcloud firestore fields ttls update delivery.expireAt --collection-group=mail --enable-ttl --project <your-project-id>
@@ -522,7 +522,15 @@ bash scripts/deploy_functions.sh dev --apply
 
 배포는 배포 스크립트로만 한다 — 인자 없는 `firebase deploy` 는 `firebase.json` 의 모든 대상(확장 포함)을 배포하므로 쓰지 않는다.
 
-**⑦ 앱을 다시 빌드해 실행한다.** `emailDelivery` 는 빌드 때 들어간다.
+**⑦ 확장 함수에 호출 권한을 준다.** 프로젝트마다 한 번 실행한다. Trigger Email 확장이 메일 문서를 받아 처리하는 함수(`ext-firestore-send-email-processqueue`)는 기본 Compute 서비스 계정으로 호출된다. 조직 정책 등으로 이 계정에 권한이 자동으로 붙지 않은 프로젝트에서는 호출이 거부돼 메일이 나가지 않으므로, 이 단계는 모든 프로젝트에서 실행한다 — 이미 권한이 있어도 다시 실행한 결과는 같다. 아래 명령은 ④ 출력의 `next:` 셋째 줄과 같고, 프로젝트 번호는 명령 안의 `gcloud projects describe` 가 채운다.
+
+```bash
+gcloud run services add-iam-policy-binding ext-firestore-send-email-processqueue --region=us-central1 --member=serviceAccount:$(gcloud projects describe <your-project-id> --format='value(projectNumber)')-compute@developer.gserviceaccount.com --role=roles/run.invoker --project <your-project-id>
+```
+
+성공하면 `Updated IAM policy for service [ext-firestore-send-email-processqueue].` 가 나온다.
+
+**⑧ 앱을 다시 빌드해 실행한다.** `emailDelivery` 는 빌드 때 들어간다.
 
 ```bash
 fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
@@ -532,6 +540,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 ### 확인 방법
 
+- Resend 를 쓰면 Resend 대시보드의 Domains 목록에서 그 도메인의 Status 가 `Verified` 다.
 - 앱에서 이메일로 가입하거나 인증 대기 화면에서 「인증 메일 재전송」 을 누른다. 받은 메일의 보낸 사람이 `DEFAULT_FROM` 이고, 머리에 앱 이름(로고를 올렸으면 로고) · 버튼 색이 `brandColor` · 문구가 앱 언어다. 메일의 링크를 열면 결과 페이지(`https://<your-project-id>.web.app/`)에 앱 언어로 「이메일 인증 완료」 가 보이고, 앱으로 돌아가면 인증이 반영된다(바로 반영되지 않으면 「인증 확인」 을 누른다).
 - 이메일 로그인 화면의 「비밀번호를 잊으셨나요?」 로 받은 재설정 메일도 같은 모양이고, 링크를 열면 「새 비밀번호 설정」 폼이 보인다. 8자 이상으로 바꾸면 「비밀번호 변경 완료」 가 보이고, 앱에서 새 비밀번호로 로그인된다.
 - Firebase Console → Firestore Database 의 `mail` 컬렉션에 보낸 메일마다 문서가 생기고, 문서의 `delivery.state` 가 `SUCCESS` 가 된다.
@@ -540,13 +549,21 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 - **메일이 오지 않는다.** Firebase Console → Firestore Database 의 `mail` 컬렉션에서 최근 문서를 연다.
   - 문서가 없으면 메일 함수가 메일을 만들지 못한 것이다. Firebase Console → Functions 의 로그에서 `sendVerificationMail` · `sendPasswordResetMail` 의 오류를 본다. `email_brand_unset` 이나 `email_result_page_unset` 이 있으면 ④ 의 `--apply` 뒤 ⑥ 으로 함수를 다시 배포한다.
-  - `delivery.state` 가 `ERROR` 면 `delivery.error` 에 발송 서비스가 거부한 사유가 있다. Resend 는 도메인을 인증하기 전 Resend 계정 주소가 아닌 받는 사람을 `You can only send testing emails to your own email address` 로 거부한다 — ① 의 도메인 인증을 끝내고 `DEFAULT_FROM` 을 그 도메인 주소로 바꾼 뒤 ④ 를 다시 한다.
+  - 문서는 있는데 `delivery` 필드가 없으면 아래 「메일 문서에 `delivery` 가 생기지 않는다」 를 본다.
+  - `delivery.state` 가 `ERROR` 면 `delivery.error` 에 발송 서비스가 거부한 사유가 있다. Resend 는 도메인을 인증하기 전 Resend 계정 주소가 아닌 받는 사람을 `You can only send testing emails to your own email address` 로 거부한다 — ① 의 도메인 인증을 끝내고 `DEFAULT_FROM` 을 그 도메인 주소로 바꾼 뒤 ④ 를 다시 한다. `DEFAULT_FROM` 의 도메인 인증이 끝나지 않았으면 Resend 는 `550 The <내 도메인> domain is not verified` 로 거부한다 — Domains 목록의 Status 가 `Verified` 가 된 뒤 앱에서 다시 보낸다.
   - `delivery.state` 가 `SUCCESS` 인데 받은 편지함에 없으면 스팸함을 보고 ① 의 SPF · DKIM · DMARC 레코드를 확인한다.
+- **메일 문서에 `delivery` 가 생기지 않는다.** 확장 함수가 문서를 처리하지 못한 것이다. Google Cloud Console → Cloud Run 에서 `ext-firestore-send-email-processqueue` 서비스의 로그에 HTTP 403 이 있으면 확장 함수를 부르는 서비스 계정에 호출 권한이 없다. 아래 명령(「켜기」 ⑦ 과 같다)을 실행한다. 권한이 생기면 기다리던 메일은 하루 안에 다시 전달된다.
+
+```bash
+gcloud run services add-iam-policy-binding ext-firestore-send-email-processqueue --region=us-central1 --member=serviceAccount:$(gcloud projects describe <your-project-id> --format='value(projectNumber)')-compute@developer.gserviceaccount.com --role=roles/run.invoker --project <your-project-id>
+```
+
 - **메일 링크를 열면 「문제가 발생했습니다」 가 뜬다.** [결과 페이지 절](#인증-결과-페이지-바꾸기) 「문제 해결」 을 본다.
 - **앱에 「요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.」 가 뜬다.** 같은 계정이나 같은 주소로 짧은 시간에 여러 번 보냈다. 잠시 뒤 다시 보낸다. 한도는 `functions/src/email/send_verification_mail.ts` · `functions/src/email/send_password_reset_mail.ts` 위쪽 상수다.
 - **`deploy_email.sh` 가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다 — `emailDelivery` 가 `kit` 이 아니다(②) · 확장 값 파일이 없거나 값이 빈 키 · 예시 자리표시(`<your-…>`)가 남은 키(③) · `appName` 이 비었거나 쓸 수 없는 문자 · 결과 페이지 빌드 · 배포 실패(④). 고친 뒤 다시 실행한다.
 - **④ 의 `--apply` 가 `Could not determine the default site for the project.` 를 출력하고 `FAIL:` 로 멈춘다.** Hosting 기본 사이트가 없다. 「전제」 의 안내대로 만든 뒤 ④ 를 다시 한다.
 - **④ 의 `--apply` 가 secret 값을 묻지 못하고 끝난다.** 터미널 입력을 받을 수 없는 환경에서 실행했다. 일반 터미널에서 다시 실행한다.
+- **④ 의 `--apply` 가 확장 단계에서 `Permission denied while using the Eventarc Service Agent` 를 출력하고 `FAIL:` 로 멈춘다.** 프로젝트에서 Eventarc 를 처음 쓰면 권한이 퍼질 때까지 몇 분 걸린다. 몇 분 뒤 ④ 의 `--apply` 를 다시 실행한다. SMTP 비밀번호 secret 이 이미 만들어졌으면 값을 다시 묻지 않는다.
 - **`firebase` 모드에서 재설정 메일이 앱 언어와 다른 언어로 온다.** Console 에서 재설정 메일 본문을 직접 고치면 그 본문 하나가 쓰인다. 앱 언어마다 다른 본문이 필요하면 `kit` 을 쓴다.
 
 ### 끄기
@@ -589,7 +606,7 @@ firebase functions:delete sendVerificationMail sendPasswordResetMail --region as
 "brandColor": "#673AB7"
 ```
 
-**② (선택) 로고 파일을 넣는다.** 로고를 PNG 로 `hosting/public/logo.png` 에 둔다. 높이 120px(화면에는 높이 40px 로 줄여 보인다) · 폭 480px 이하를 권장한다. 로고는 흰 바탕 위에 놓이므로(다크 모드에서도 같다) 흰 바탕에서 잘 보이는 그림을 쓴다. SVG 는 쓸 수 없다 — 메일 앱이 SVG 를 표시하지 않는다. 파일이 없으면 페이지 머리에 `appName` 이 글자로 나온다. 같은 로고 파일이 `kit` 발송 모드 메일의 머리에도 쓰인다.
+**② (선택) 로고 파일을 넣는다.** 로고를 PNG 로 `hosting/public/logo.png` 에 둔다. 높이 120px(화면에는 높이 40px 로 줄여 보인다) · 폭 480px 이하를 권장한다. 결과 페이지에서 로고는 흰 바탕 위에 놓이므로(다크 모드에서도 같다) 흰 바탕에서 잘 보이는 그림을 쓴다. SVG 는 쓸 수 없다 — 메일 앱이 SVG 를 표시하지 않는다. 파일이 없으면 페이지 머리에 `appName` 이 글자로 나온다. 같은 로고 파일이 `kit` 발송 모드 메일의 머리에도 쓰인다. 메일 앱은 다크 모드에서 메일 바탕을 어둡게 바꿀 수 있으므로 투명 바탕 대신 바탕을 채운 PNG 를 쓴다.
 
 **③ 페이지를 다시 배포한다.** 문구 · 모양만 바꿨을 때 쓴다. 먼저 옵션 없이 실행한다. 이 명령은 `config/dev.json` 으로 페이지를 빌드하고 프로젝트 ID 와 배포 명령을 출력할 뿐 Firebase 에는 아무것도 바꾸지 않는다.
 
