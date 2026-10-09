@@ -184,7 +184,9 @@ function readWebApiKey(flavor, config) {
   if (typeof apiKey !== "string" || !WEB_API_KEY_PATTERN.test(apiKey)) {
     fail(
       `config/${flavor}.json 의 firebaseWebApiKey 가 비었거나 자리표시 값이다 — ` +
-        "Firebase Console → 프로젝트 설정 → 일반 의 웹 API 키(AIza 로 시작)를 넣는다",
+        "웹 API 키(AIza 로 시작)를 넣는다: " +
+        "Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 의 " +
+        "Browser key (auto created by Firebase)",
     );
   }
   return apiKey;

@@ -98,8 +98,8 @@ cp config/prod.example.json  config/prod.json
 | `appName` | 앱 표시 이름 — example 값 `StarterKit Dev` | 아니요 | flavor 마다 다르게 둔다. Android 에서는 Naver 동의 화면의 앱 이름으로도 쓰인다. 따옴표 같은 특수문자는 피하고 영숫자 · 공백만 쓴다 |
 | `appSuffix` | ApplicationId · Bundle ID 접미사 — example 값 `.dev` | 아니요 | flavor 마다 앱을 따로 설치하고 Firebase 앱을 나누는 데 쓴다 |
 | `firebaseProjectId` | Firebase Console → 프로젝트 설정 → 일반 | 아니요 | 본인 Firebase 프로젝트 ID. 함수 배포 스크립트도 이 값으로 배포할 프로젝트를 정한다 |
-| `firebaseWebApiKey` | Firebase Console → 프로젝트 설정 → 일반 → **웹 API 키**(Web API Key) | `emailDelivery` 가 `kit` 이 아니면 예 | `kit` 발송 모드의 결과 페이지가 이 키로 Firebase Authentication 을 부른다. `AIza` 로 시작하는 값이다. Android · iOS 앱 전용으로 제한한 키는 브라우저에서 거부되고, 웹사이트(HTTP 리퍼러) 제한이 걸린 키도 이 페이지에서 거부된다(페이지가 Referer 를 보내지 않는다). 애플리케이션 제한이 없는 키(Firebase 가 만든 Browser key 기본값)를 쓴다. 결과 페이지 빌드는 이 값이 비었거나 자리표시 값이면 `FAIL:` 로 멈춘다 |
-| `googleServerClientId` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → **Web application** | Google 을 끄면 예 | Firebase 가 만든 OAuth Web Client ID. iOS · Android 용이 아니라 Web 용을 쓴다 |
+| `firebaseWebApiKey` | **웹 API 키** — Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 의 「API 키」 표에서 `Browser key (auto created by Firebase)` 의 「키 표시」 | `emailDelivery` 가 `kit` 이 아니면 예 | `kit` 발송 모드의 결과 페이지가 이 키로 Firebase Authentication 을 부른다. `AIza` 로 시작하는 값이다. Android · iOS 앱 전용으로 제한한 키는 브라우저에서 거부되고, 웹사이트(HTTP 리퍼러) 제한이 걸린 키도 이 페이지에서 거부된다(페이지가 Referer 를 보내지 않는다). 애플리케이션 제한이 없는 키(Firebase 가 만든 Browser key 기본값)를 쓴다. 결과 페이지 빌드는 이 값이 비었거나 자리표시 값이면 `FAIL:` 로 멈춘다 |
+| `googleServerClientId` | Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) → OAuth 2.0 Client IDs → **Web application** | Google 을 끄면 예 | Firebase 가 만든 OAuth Web Client ID. iOS · Android 용이 아니라 Web 용을 쓴다 |
 | `facebookAppId` | Facebook Developers Console → 내 앱 → 설정 → 기본 | Facebook 을 끄면 예 | 숫자 문자열. iOS 는 xcconfig `FACEBOOK_APP_ID` 에 같은 값 |
 | `facebookClientToken` | Facebook Developers Console → 내 앱 → 설정 → 고급 → Client Token | Facebook 을 끄면 예 | iOS 는 xcconfig `FACEBOOK_CLIENT_TOKEN` 에 같은 값 |
 | `kakaoNativeAppKey` | Kakao Developers Console → 내 애플리케이션 → 앱 설정 → 앱 키 → **네이티브 앱 키** | Kakao 를 끄면 예 | REST API 키가 아니다. iOS 는 xcconfig `KAKAO_NATIVE_APP_KEY` 에 같은 값. OIDC 활성화는 [Kakao Login](#kakao-login-phase-12) 1단계 |
@@ -472,7 +472,7 @@ Resend 는 도메인을 인증하기 전에는 Resend 계정의 이메일 주소
 "emailDelivery": "kit"
 ```
 
-같은 파일의 `firebaseWebApiKey` 에 Firebase Console → 프로젝트 설정 → 일반 의 **웹 API 키**(`AIza` 로 시작)를 넣는다. 결과 페이지는 이 키로만 Firebase Authentication 을 부르고, 메일 링크에 실린 키는 쓰지 않는다. 비어 있거나 example 파일의 자리표시 값 그대로면 ④ 의 결과 페이지 빌드가 `FAIL:` 로 멈춘다.
+같은 파일의 `firebaseWebApiKey` 에 **웹 API 키**(`AIza` 로 시작)를 넣는다. 키는 Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 의 「API 키」 표에 있는 `Browser key (auto created by Firebase)` 다 — Firebase 가 프로젝트를 만들 때 함께 만든다. 「키 표시」 로 연 창에서 값을 복사하고, 키 이름을 눌러 연 화면에서 애플리케이션 제한사항이 「없음」 인지 확인한다. 「없음」 이 아니면 [결과 페이지 절](#인증-결과-페이지-바꾸기) 「문제 해결」 의 「문제가 발생했습니다」 항목대로 고친다. 결과 페이지는 이 키로만 Firebase Authentication 을 부르고, 메일 링크에 실린 키는 쓰지 않는다. 비어 있거나 example 파일의 자리표시 값 그대로면 ④ 의 결과 페이지 빌드가 `FAIL:` 로 멈춘다.
 
 **③ 확장 값 파일을 만든다.** 프로젝트마다 한 번, example 파일을 복사한다. 복사한 파일은 git 이 무시한다.
 
@@ -647,7 +647,7 @@ bash scripts/deploy_email.sh dev hosting --apply
 
 ### 문제 해결
 
-- **링크를 열면 「문제가 발생했습니다」 가 뜬다.** 페이지의 Firebase Authentication 요청이 거부된 것이다. `config/dev.json` 의 `firebaseWebApiKey` 가 Firebase Console → 프로젝트 설정 → 일반 의 웹 API 키와 같은지 확인하고, 고쳤으면 「바꾸고 배포하기」 ③ 으로 다시 배포한다. Firebase Console → App Check 에서 Authentication 시행이 켜져 있으면 끈다. 결과 페이지는 요청에 Referer 를 싣지 않으므로, 웹사이트(HTTP 리퍼러) 제한이 걸린 키는 허용 목록에 무엇을 적어도 이 페이지에서 거부된다. Google Cloud Console → API 및 서비스 → 사용자 인증 정보 에서 그 키의 애플리케이션 제한이 웹사이트(HTTP 리퍼러)면, 그 제한을 「없음」 으로 되돌리거나 애플리케이션 제한이 없는 키(Firebase 가 만든 Browser key 기본값)를 따로 골라 `firebaseWebApiKey` 에 넣고 「바꾸고 배포하기」 ③ 으로 다시 배포한다. 그래도 같으면 브라우저 개발자 도구의 네트워크 탭에서 `identitytoolkit.googleapis.com` 요청의 응답 코드와 메시지를 본다.
+- **링크를 열면 「문제가 발생했습니다」 가 뜬다.** 페이지의 Firebase Authentication 요청이 거부된 것이다. `config/dev.json` 의 `firebaseWebApiKey` 가 Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 에서 `Browser key (auto created by Firebase)` 의 「키 표시」 로 본 값과 같은지 확인하고, 고쳤으면 「바꾸고 배포하기」 ③ 으로 다시 배포한다. Firebase Console → App Check 에서 Authentication 시행이 켜져 있으면 끈다. 결과 페이지는 요청에 Referer 를 싣지 않으므로, 웹사이트(HTTP 리퍼러) 제한이 걸린 키는 허용 목록에 무엇을 적어도 이 페이지에서 거부된다. Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 에서 그 키의 애플리케이션 제한사항이 웹사이트(HTTP 리퍼러)면, 그 제한을 「없음」 으로 되돌리거나 애플리케이션 제한이 없는 키(Firebase 가 만든 Browser key 기본값)를 따로 골라 `firebaseWebApiKey` 에 넣고 「바꾸고 배포하기」 ③ 으로 다시 배포한다. 그래도 같으면 브라우저 개발자 도구의 네트워크 탭에서 `identitytoolkit.googleapis.com` 요청의 응답 코드와 메시지를 본다.
 - **배포 스크립트가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다(예: `config/dev.json` 이 없다 · `emailDelivery` 가 `kit` 이 아니다 · `appName` 이 비어 있다 · `firebaseWebApiKey` 가 비었거나 자리표시 값이다). 고친 뒤 다시 실행한다.
 - **`warn:` 줄이 `brandColor` 형식을 알린다.** 값을 `#RRGGBB` 로 고친다. 고치기 전에는 `#673AB7` 로 칠한다.
 - **로고가 보이지 않는다.** `BUILD OK` 줄이 `logo=0` 이면 파일 위치 · 이름(`hosting/public/logo.png`)을 확인한다. 로고를 바꾼 뒤에는 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ · ⑥ 을 다시 한다.

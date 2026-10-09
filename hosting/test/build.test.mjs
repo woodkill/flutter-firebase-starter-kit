@@ -24,6 +24,13 @@ const COPY = JSON.parse(
 const SECRET = "SENTINEL_SECRET_175";
 // 형식만 맞춘 가짜 Web API 키 — 실제 키가 아니다.
 const FAKE_WEB_API_KEY = "PLACEHOLDER";
+/** FAIL 줄이 안내해야 하는 웹 API 키 위치 — Cloud Console 의 사용자 인증 정보 화면 경로. */
+const WEB_API_KEY_CONSOLE_PATH =
+  "Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials)";
+/** FAIL 줄이 안내해야 하는 키 이름 — Firebase 가 프로젝트를 만들 때 함께 만드는 키. */
+const WEB_API_KEY_NAME = "Browser key (auto created by Firebase)";
+/** FAIL 줄에 나오면 안 되는 옛 위치 접두 — Firebase Console 프로젝트 설정의 「일반」 탭. */
+const STALE_WEB_API_KEY_LOCATION = "프로젝트 설정 → 일반";
 const OUT_REL = "build/hosting/public";
 const ICON_NAMES = [
   "check", "schedule", "link_off", "person_off", "wifi_off", "error",
@@ -287,7 +294,7 @@ test("다른 config 키 값은 산출물 · 출력에 0건", (t) => {
   }
 });
 
-test("firebaseWebApiKey 가 없거나 자리표시 값이면 FAIL · 값은 출력 0 · 산출물 0", (t) => {
+test("firebaseWebApiKey 가 없거나 자리표시 값이면 FAIL · 키 위치 안내 · 값은 출력 0 · 산출물 0", (t) => {
   const placeholder = "YOUR_FIREBASE_WEB_API_KEY_HERE";
   const cases = [
     ["키 없음", undefined],
@@ -306,6 +313,16 @@ test("firebaseWebApiKey 가 없거나 자리표시 값이면 FAIL · 값은 출�
     assert.equal(failLines.length, 1, label);
     assert.ok(failLines[0].includes("firebaseWebApiKey"), label);
     assert.ok(failLines[0].includes("웹 API 키"), label);
+    assert.ok(
+      failLines[0].includes(WEB_API_KEY_CONSOLE_PATH),
+      `${label}: FAIL 줄에 키 위치 경로가 없다`,
+    );
+    assert.ok(failLines[0].includes(WEB_API_KEY_NAME), `${label}: FAIL 줄에 키 이름이 없다`);
+    assert.equal(
+      failLines[0].includes(STALE_WEB_API_KEY_LOCATION),
+      false,
+      `${label}: FAIL 줄에 옛 위치가 남아 있다`,
+    );
     assert.equal(result.stderr.includes(placeholder), false, label);
     assert.equal(result.stdout, "", label);
     assert.equal(fs.existsSync(path.join(root, OUT_REL)), false, label);
