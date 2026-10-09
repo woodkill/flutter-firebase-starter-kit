@@ -248,11 +248,11 @@ function replaceOnce(template, token, value) {
 /** 산출 디렉터리가 지워도 되는 위치인지 확인한다. */
 function assertSafeOut(root, out) {
   const rel = path.relative(out, root);
-  const outContainsRoot = rel === "" || !rel.startsWith("..") && !path.isAbsolute(rel);
+  const outContainsRoot = rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
   const hostingDir = path.join(root, "hosting");
   const relToHosting = path.relative(hostingDir, out);
   const insideHosting =
-    relToHosting === "" || !relToHosting.startsWith("..") && !path.isAbsolute(relToHosting);
+    relToHosting === "" || (!relToHosting.startsWith("..") && !path.isAbsolute(relToHosting));
   if (outContainsRoot || insideHosting || out === path.parse(out).root) {
     fail("--out 은 저장소 root · 그 상위 · hosting/ 안을 가리킬 수 없다");
   }
