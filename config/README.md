@@ -64,6 +64,27 @@ provider 마다 켤 때 필요한 것과 함수 배포(`bash scripts/deploy_func
   `Kit` · ` kit` 도 틀린 값이다. debug 빌드 앱도 이 값을 읽는 순간 오류로 알린다.
 - **값은 빌드 때 들어간다.** 바꾼 뒤에는 앱을 다시 빌드한다.
 
+## `firebaseWebApiKey` — 결과 페이지의 Firebase 웹 API 키
+
+`kit` 발송 모드의 결과 페이지가 Firebase Authentication 을 부를 때 쓰는 키다.
+
+```json
+"firebaseWebApiKey": "YOUR_FIREBASE_WEB_API_KEY_HERE"
+```
+
+- **`emailDelivery` 가 `kit` 일 때만 채운다.** `firebase` 모드(빈 값 포함)는
+  결과 페이지를 빌드하지 않으므로 자리표시 값 그대로 둬도 된다.
+- **값은 Firebase Console → 프로젝트 설정 → 일반 의 웹 API 키다.** `AIza` 로
+  시작한다. Android · iOS 앱 전용으로 제한한 키는 브라우저에서 거부되므로 쓰지
+  않는다. 공개 값이라 결과 페이지 산출물에 들어간다.
+- **결과 페이지는 이 키로만 Firebase 를 초기화한다.** 메일 링크에 실린 키는 쓰지
+  않으므로, 다른 프로젝트에서 만든 링크는 이 페이지에서 「사용할 수 없는 링크」
+  로 끝난다.
+- **비었거나 자리표시 값이면 결과 페이지 빌드가 `FAIL:` 로 멈춘다.** 값은 출력하지
+  않는다.
+- **바꾼 뒤에는 결과 페이지를 다시 배포한다** — `docs/manual.md` 「인증 결과 페이지
+  바꾸기」 의 「바꾸고 배포하기」 ③.
+
 ## Naver 키의 소비처 (Phase 16.2 · Phase 16.5)
 
 `config/*.json` 의 naver 키는 두 경로가 나눠 쓴다 — NAVER 앱 설치 단말의 **SDK

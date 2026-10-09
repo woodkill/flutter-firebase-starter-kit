@@ -125,7 +125,8 @@ export function formErrorFor(code) {
  *
  * `mode` 가 [MODES] 중 하나이고 `oobCode` · `apiKey` 가 모두 비어 있지 않을
  * 때만 확인 중(loading)이다. 하나라도 없으면 SDK 를 부르지 않고 잘못된
- * 주소(badLink)다 — `apiKey` 가 없으면 SDK 를 초기화할 수 없다.
+ * 주소(badLink)다. `apiKey` 는 Firebase 액션 링크가 늘 싣는 값이라 링크 모양만
+ * 본다 — SDK 초기화에는 쓰지 않는다([firebaseOptions] 가 빌드 주입 키만 쓴다).
  *
  * @param {URLSearchParams} query 페이지 쿼리.
  * @returns {{kind: "badLink"} | {kind: "loading", mode: string}} 첫 상태.
@@ -138,6 +139,26 @@ export function initialState(query) {
     return {kind: "loading", mode};
   }
   return {kind: "badLink"};
+}
+
+/**
+ * 빌드 주입 설정으로 Firebase 초기화 옵션을 만든다.
+ *
+ * 링크 쿼리의 `apiKey` 는 받지 않는다 — 다른 프로젝트 키를 실은 링크가 이
+ * 페이지에서 그 프로젝트로 요청을 보내지 못하게, 빌드가 넣은 이 프로젝트의
+ * Web API 키만 쓴다(공식 custom email handler 예제와 같은 방식). 다른 프로젝트의
+ * 링크는 oobCode 가 맞지 않아 「사용할 수 없는 링크」 로 끝난다.
+ *
+ * @param {{apiKey?: unknown, authDomain?: unknown} | null} config 빌드 주입 설정.
+ * @returns {{apiKey: string, authDomain: string} | null} 옵션 — 키 · 도메인이
+ *   비었거나 문자열이 아니면 null.
+ */
+export function firebaseOptions(config) {
+  const apiKey = config?.apiKey;
+  const authDomain = config?.authDomain;
+  if (typeof apiKey !== "string" || apiKey === "") return null;
+  if (typeof authDomain !== "string" || authDomain === "") return null;
+  return {apiKey, authDomain};
 }
 
 /** 상태 하나의 화면 묶음을 만든다. */

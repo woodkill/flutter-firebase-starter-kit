@@ -41,9 +41,13 @@ type RunResult = {status: number | null; stdout: string; stderr: string};
 const REPO_ROOT = join(__dirname, "..", "..");
 const PROJECT_ID = "your-project-dev";
 
-/** 결과 페이지 빌드가 통과하는 최소 config (모드 키 없음 = firebase). */
+/**
+ * 결과 페이지 빌드가 통과하는 최소 config (모드 키 없음 = firebase).
+ * `firebaseWebApiKey` 는 형식만 맞춘 가짜 값이다(실제 키 아님).
+ */
 const BASE_CONFIG: Record<string, unknown> = {
   firebaseProjectId: PROJECT_ID,
+  firebaseWebApiKey: "PLACEHOLDER",
   appName: "Starter Kit",
   brandColor: "#673AB7",
 };
@@ -651,6 +655,31 @@ describe("deploy_email.sh kit", () => {
     expect(existsSync(markerFile)).toBe(false);
     expect(readFnEnv()).toBeNull();
   });
+
+  it.each([
+    ["키 없음", undefined],
+    ["자리표시 값", "YOUR_FIREBASE_WEB_API_KEY_HERE"],
+  ])(
+    "firebaseWebApiKey %s → 결과 페이지 빌드 FAIL · firebase 호출 0 · env 0",
+    (_label, apiKey) => {
+      const config: Record<string, unknown> = {...KIT_CONFIG};
+      if (apiKey === undefined) {
+        delete config.firebaseWebApiKey;
+      } else {
+        config.firebaseWebApiKey = apiKey;
+      }
+      writeConfig(config);
+      writeExtEnv(VALID_EXT_ENV);
+      for (const target of ["hosting", "kit"]) {
+        const r = runScript(["dev", target, "--apply"]);
+        expect(r.status).toBe(1);
+        expect(r.stderr).toContain("firebaseWebApiKey");
+        expect(r.stderr).not.toContain("YOUR_FIREBASE_WEB_API_KEY_HERE");
+        expect(existsSync(markerFile)).toBe(false);
+        expect(readFnEnv()).toBeNull();
+      }
+    },
+  );
 });
 
 describe("deploy_email.sh D-22 계약", () => {

@@ -2,10 +2,11 @@
 //
 // Firebase Auth 메일 링크(custom email action handler)가 여는 페이지다. 쿼리
 // mode · oobCode · apiKey · lang 만 읽고, 앱 복귀 주소는 읽지 않는다 — 성공
-// 화면은 「앱에서 계속」 문구뿐이고 이동 버튼이 없다.
+// 화면은 「앱에서 계속」 문구뿐이고 이동 버튼이 없다. 쿼리 apiKey 는 링크 모양
+// 확인에만 쓰고, SDK 는 빌드가 넣은 이 프로젝트의 Web API 키로만 초기화한다.
 //
-// 앱 이름 · 색 · 로고 유무 · 문구 · 아이콘은 hosting/build.mjs 가 index.html 의
-// #kit-config JSON 으로 넣는다. 동적 텍스트는 모두 textContent 로 넣고, 마크업을
+// 앱 이름 · 색 · 로고 유무 · Web API 키 · 문구 · 아이콘은 hosting/build.mjs 가
+// index.html 의 #kit-config JSON 으로 넣는다. 동적 텍스트는 모두 textContent 로 넣고, 마크업을
 // 넣는 곳은 빌드가 만든 아이콘 SVG 1곳(setIcon)뿐이다.
 //
 // Firebase JS SDK 는 판을 고정한 gstatic ES module 을 동적 import 한다 —
@@ -13,6 +14,7 @@
 
 import {
   MIN_PASSWORD_LENGTH,
+  firebaseOptions,
   formErrorFor,
   initialState,
   normalizeBrandColor,
@@ -345,6 +347,14 @@ async function run() {
   }
   const {mode} = initial;
   const oobCode = query.get("oobCode");
+  // 링크 쿼리의 apiKey 가 아니라 빌드 주입 키로만 초기화한다 — 다른 프로젝트
+  // 링크가 이 페이지에서 그 프로젝트로 비밀번호를 보내지 못한다.
+  const options = firebaseOptions(config);
+  if (!options) {
+    console.error("kit-config 에 apiKey 가 없다 — hosting/build.mjs 로 다시 빌드해 배포한다");
+    showState("unknown", mode);
+    return;
+  }
   showLoading();
 
   if (!sdk) {
@@ -358,9 +368,7 @@ async function run() {
   }
 
   try {
-    auth ??= sdk.getAuth(
-      sdk.initializeApp({apiKey: query.get("apiKey"), authDomain: config.authDomain}),
-    );
+    auth ??= sdk.getAuth(sdk.initializeApp(options));
     if (mode === "verifyEmail") {
       await sdk.applyActionCode(auth, oobCode);
       showState("success", mode);

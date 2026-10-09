@@ -42,7 +42,9 @@
 # 안전 계약:
 #   - config/<flavor>.json 에서 .firebaseProjectId · .emailDelivery · .appName · .brandColor
 #     네 값만 읽는다. 다른 키(키 · secret 값)는 읽지도 출력하지도 않는다.
-#     (hosting/build.mjs 도 firebaseProjectId · appName · brandColor 만 쓴다.)
+#     (hosting/build.mjs 는 firebaseProjectId · appName · brandColor · firebaseWebApiKey 만 쓴다 —
+#     웹 API 키는 결과 페이지가 Firebase 를 초기화하는 공개 값이고, 비었거나 자리표시 값이면
+#     빌드가 FAIL 한다. 이 스크립트는 그 값을 읽지 않는다.)
 #   - 확장 env(extensions/firestore-send-email.env.<projectId>)는 키 4개의 존재만 확인한다 —
 #     값을 변수에 담거나 출력하지 않는다(SMTP 주소 · secret 리소스 이름 포함).
 #   - appName 이 비었거나 `"` · `\` · `$` · 백틱 · 제어 문자(줄바꿈 등)를 담으면 FAIL —

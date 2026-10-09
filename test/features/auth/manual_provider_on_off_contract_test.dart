@@ -11,7 +11,7 @@
 //   secret 목록과 같다.
 // T-173-DOCS-05: 절의 `###` 소절 8개가 절 템플릿 순서 그대로이고, 확인 방법 ·
 //   끄기 · iOS 서명 · 심사 4.8 문구가 있다.
-// T-173-DOCS-06: Initial Setup 키 표가 「off 면 비워도 됨」 열과 example 키 14개를
+// T-173-DOCS-06: Initial Setup 키 표가 「off 면 비워도 됨」 열과 example 키 17개를
 //   한 줄씩 갖고, 표에 금지 패턴이 0 건이며 표 바로 뒤에 새 절 링크 줄이 있다.
 // T-173-DOCS-07: provider 추가 · 제거 가이드가 매뉴얼에서 빠져 유지보수자 문서로
 //   옮겨졌고(현재 구조 토큰 · 플러그인 scheme 기록), 새 절에 그 문서 링크가 1줄 있다.
@@ -415,7 +415,7 @@ void main() {
       final List<String> keys = exampleConfig.keys
           .where((String key) => key != 'flavor')
           .toList();
-      expect(keys, hasLength(16), reason: 'example 키 수(flavor 제외)가 16 이 아니다');
+      expect(keys, hasLength(17), reason: 'example 키 수(flavor 제외)가 17 이 아니다');
       for (final String key in keys) {
         expect(
           table.where((String line) => line.startsWith('| `$key` |')).length,

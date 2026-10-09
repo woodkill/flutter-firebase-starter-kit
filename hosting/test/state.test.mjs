@@ -14,6 +14,7 @@ import {
   MIN_PASSWORD_LENGTH,
   MODES,
   SUPPORTED_LANGS,
+  firebaseOptions,
   formErrorFor,
   initialState,
   normalizeBrandColor,
@@ -62,6 +63,36 @@ test("initialState — mode · oobCode · apiKey 가 모두 있으면 loading", 
       mode,
     });
   }
+});
+
+test("firebaseOptions — 쿼리 apiKey 와 무관하게 빌드 주입 키로 초기화", () => {
+  const config = {apiKey: "AIzaInjectedOwnProjectKey", authDomain: "p.firebaseapp.com"};
+  for (const query of [
+    "mode=resetPassword&oobCode=x&apiKey=AIzaOtherProjectKey",
+    "mode=verifyEmail&oobCode=x&apiKey=AIzaInjectedOwnProjectKey",
+  ]) {
+    // 링크 모양은 그대로 loading 이고, 초기화 옵션은 쿼리 값을 보지 않는다.
+    assert.equal(stateFor(query).kind, "loading", query);
+    assert.deepEqual(firebaseOptions(config), {
+      apiKey: "AIzaInjectedOwnProjectKey",
+      authDomain: "p.firebaseapp.com",
+    });
+  }
+  // 쿼리를 받는 인자가 없다 — 설정 1개만 받는다.
+  assert.equal(firebaseOptions.length, 1);
+});
+
+test("firebaseOptions — 주입 키 · 도메인이 없거나 문자열이 아니면 null", () => {
+  assert.equal(firebaseOptions(null), null);
+  assert.equal(firebaseOptions({}), null);
+  assert.equal(firebaseOptions({apiKey: "", authDomain: "p.firebaseapp.com"}), null);
+  assert.equal(firebaseOptions({apiKey: 1, authDomain: "p.firebaseapp.com"}), null);
+  assert.equal(firebaseOptions({apiKey: "AIzaKey", authDomain: ""}), null);
+  // 추가 키는 옵션에 싣지 않는다.
+  assert.deepEqual(
+    firebaseOptions({apiKey: "AIzaKey", authDomain: "d", appName: "Kit"}),
+    {apiKey: "AIzaKey", authDomain: "d"},
+  );
 });
 
 test("stateForError — 오류 코드 표 7행", () => {

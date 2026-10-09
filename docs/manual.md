@@ -98,6 +98,7 @@ cp config/prod.example.json  config/prod.json
 | `appName` | 앱 표시 이름 — example 값 `StarterKit Dev` | 아니요 | flavor 마다 다르게 둔다. Android 에서는 Naver 동의 화면의 앱 이름으로도 쓰인다. 따옴표 같은 특수문자는 피하고 영숫자 · 공백만 쓴다 |
 | `appSuffix` | ApplicationId · Bundle ID 접미사 — example 값 `.dev` | 아니요 | flavor 마다 앱을 따로 설치하고 Firebase 앱을 나누는 데 쓴다 |
 | `firebaseProjectId` | Firebase Console → 프로젝트 설정 → 일반 | 아니요 | 본인 Firebase 프로젝트 ID. 함수 배포 스크립트도 이 값으로 배포할 프로젝트를 정한다 |
+| `firebaseWebApiKey` | Firebase Console → 프로젝트 설정 → 일반 → **웹 API 키**(Web API Key) | `emailDelivery` 가 `kit` 이 아니면 예 | `kit` 발송 모드의 결과 페이지가 이 키로 Firebase Authentication 을 부른다. `AIza` 로 시작하는 값이다. Android · iOS 앱 전용으로 제한한 키는 브라우저에서 거부되므로 쓰지 않는다. 결과 페이지 빌드는 이 값이 비었거나 자리표시 값이면 `FAIL:` 로 멈춘다 |
 | `googleServerClientId` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → **Web application** | Google 을 끄면 예 | Firebase 가 만든 OAuth Web Client ID. iOS · Android 용이 아니라 Web 용을 쓴다 |
 | `facebookAppId` | Facebook Developers Console → 내 앱 → 설정 → 기본 | Facebook 을 끄면 예 | 숫자 문자열. iOS 는 xcconfig `FACEBOOK_APP_ID` 에 같은 값 |
 | `facebookClientToken` | Facebook Developers Console → 내 앱 → 설정 → 고급 → Client Token | Facebook 을 끄면 예 | iOS 는 xcconfig `FACEBOOK_CLIENT_TOKEN` 에 같은 값 |
@@ -471,6 +472,8 @@ Resend 는 도메인을 인증하기 전에는 Resend 계정의 이메일 주소
 "emailDelivery": "kit"
 ```
 
+같은 파일의 `firebaseWebApiKey` 에 Firebase Console → 프로젝트 설정 → 일반 의 **웹 API 키**(`AIza` 로 시작)를 넣는다. 결과 페이지는 이 키로만 Firebase Authentication 을 부르고, 메일 링크에 실린 키는 쓰지 않는다. 비어 있거나 example 파일의 자리표시 값 그대로면 ④ 의 결과 페이지 빌드가 `FAIL:` 로 멈춘다.
+
 **③ 확장 값 파일을 만든다.** 프로젝트마다 한 번, example 파일을 복사한다. 복사한 파일은 git 이 무시한다.
 
 ```bash
@@ -560,7 +563,7 @@ gcloud run services add-iam-policy-binding ext-firestore-send-email-processqueue
 
 - **메일 링크를 열면 「문제가 발생했습니다」 가 뜬다.** [결과 페이지 절](#인증-결과-페이지-바꾸기) 「문제 해결」 을 본다.
 - **앱에 「요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.」 가 뜬다.** 같은 계정이나 같은 주소로 짧은 시간에 여러 번 보냈다. 잠시 뒤 다시 보낸다. 한도는 `functions/src/email/send_verification_mail.ts` · `functions/src/email/send_password_reset_mail.ts` 위쪽 상수다.
-- **`deploy_email.sh` 가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다 — `emailDelivery` 가 `kit` 이 아니다(②) · 확장 값 파일이 없거나 값이 빈 키 · 예시 자리표시(`<your-…>`)가 남은 키(③) · `appName` 이 비었거나 쓸 수 없는 문자 · 결과 페이지 빌드 · 배포 실패(④). 고친 뒤 다시 실행한다.
+- **`deploy_email.sh` 가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다 — `emailDelivery` 가 `kit` 이 아니다(②) · `firebaseWebApiKey` 가 비었거나 자리표시 값이다(②) · 확장 값 파일이 없거나 값이 빈 키 · 예시 자리표시(`<your-…>`)가 남은 키(③) · `appName` 이 비었거나 쓸 수 없는 문자 · 결과 페이지 빌드 · 배포 실패(④). 고친 뒤 다시 실행한다.
 - **④ 의 `--apply` 가 `Could not determine the default site for the project.` 를 출력하고 `FAIL:` 로 멈춘다.** Hosting 기본 사이트가 없다. 「전제」 의 안내대로 만든 뒤 ④ 를 다시 한다.
 - **④ 의 `--apply` 가 secret 값을 묻지 못하고 끝난다.** 터미널 입력을 받을 수 없는 환경에서 실행했다. 일반 터미널에서 다시 실행한다.
 - **④ 의 `--apply` 가 확장 단계에서 `Permission denied while using the Eventarc Service Agent` 를 출력하고 `FAIL:` 로 멈춘다.** 프로젝트에서 Eventarc 를 처음 쓰면 권한이 퍼질 때까지 몇 분 걸린다. 몇 분 뒤 ④ 의 `--apply` 를 다시 실행한다. SMTP 비밀번호 secret 이 이미 만들어졌으면 값을 다시 묻지 않는다.
@@ -644,8 +647,8 @@ bash scripts/deploy_email.sh dev hosting --apply
 
 ### 문제 해결
 
-- **링크를 열면 「문제가 발생했습니다」 가 뜬다.** 페이지의 Firebase Authentication 요청이 거부된 것이다. Firebase Console → App Check 에서 Authentication 시행이 켜져 있으면 끈다. Google Cloud Console → API 및 서비스 → 사용자 인증 정보 의 Browser key 에 HTTP 리퍼러 제한이 있으면 `https://<your-project-id>.web.app/*` 를 허용 목록에 더한다. 그래도 같으면 브라우저 개발자 도구의 네트워크 탭에서 `identitytoolkit.googleapis.com` 요청의 응답 코드와 메시지를 본다.
-- **배포 스크립트가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다(예: `config/dev.json` 이 없다 · `emailDelivery` 가 `kit` 이 아니다 · `appName` 이 비어 있다). 고친 뒤 다시 실행한다.
+- **링크를 열면 「문제가 발생했습니다」 가 뜬다.** 페이지의 Firebase Authentication 요청이 거부된 것이다. `config/dev.json` 의 `firebaseWebApiKey` 가 Firebase Console → 프로젝트 설정 → 일반 의 웹 API 키와 같은지 확인하고, 고쳤으면 「바꾸고 배포하기」 ③ 으로 다시 배포한다. Firebase Console → App Check 에서 Authentication 시행이 켜져 있으면 끈다. Google Cloud Console → API 및 서비스 → 사용자 인증 정보 의 Browser key 에 HTTP 리퍼러 제한이 있으면 `https://<your-project-id>.web.app/*` 를 허용 목록에 더한다. 그래도 같으면 브라우저 개발자 도구의 네트워크 탭에서 `identitytoolkit.googleapis.com` 요청의 응답 코드와 메시지를 본다.
+- **배포 스크립트가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다(예: `config/dev.json` 이 없다 · `emailDelivery` 가 `kit` 이 아니다 · `appName` 이 비어 있다 · `firebaseWebApiKey` 가 비었거나 자리표시 값이다). 고친 뒤 다시 실행한다.
 - **`warn:` 줄이 `brandColor` 형식을 알린다.** 값을 `#RRGGBB` 로 고친다. 고치기 전에는 `#673AB7` 로 칠한다.
 - **로고가 보이지 않는다.** `BUILD OK` 줄이 `logo=0` 이면 파일 위치 · 이름(`hosting/public/logo.png`)을 확인한다. 로고를 바꾼 뒤에는 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ · ⑥ 을 다시 한다.
 

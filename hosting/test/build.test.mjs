@@ -22,6 +22,8 @@ const COPY = JSON.parse(
   fs.readFileSync(path.join(REPO, "functions", "src", "email", "copy.json"), "utf8"),
 );
 const SECRET = "SENTINEL_SECRET_175";
+// 형식만 맞춘 가짜 Web API 키 — 실제 키가 아니다.
+const FAKE_WEB_API_KEY = "PLACEHOLDER";
 const OUT_REL = "build/hosting/public";
 const ICON_NAMES = [
   "check", "schedule", "link_off", "person_off", "wifi_off", "error",
@@ -40,6 +42,7 @@ function devConfig(overrides = {}) {
     appName: "Kit",
     firebaseProjectId: "your-project-dev",
     brandColor: "#673AB7",
+    firebaseWebApiKey: FAKE_WEB_API_KEY,
     naverClientSecret: SECRET,
     ...overrides,
   };
@@ -114,7 +117,14 @@ test("--flavor dev — BUILD OK 줄 · 주입 값 · 로고 없음", (t) => {
   assert.equal(config.brandColor, "#673AB7");
   assert.equal(config.onBrandColor, "#FFFFFF");
   assert.equal(config.hasLogo, false);
+  assert.equal(config.apiKey, FAKE_WEB_API_KEY);
   assert.equal(config.authDomain, "your-project-dev.firebaseapp.com");
+  // 주입 키 목록 고정 — config 에서 온 값은 appName · brandColor · apiKey ·
+  // authDomain(프로젝트 ID) 뿐이다.
+  assert.deepEqual(Object.keys(config).sort(), [
+    "apiKey", "appName", "authDomain", "brandColor", "copy", "hasLogo", "icons",
+    "onBrandColor",
+  ]);
   assert.deepEqual(Object.keys(config.copy), ["ko", "en", "ja"]);
   assert.equal(config.copy.ko["page.loading"], COPY.ko["page.loading"]);
   for (const locale of ["ko", "en", "ja"]) {
@@ -277,6 +287,45 @@ test("다른 config 키 값은 산출물 · 출력에 0건", (t) => {
   }
 });
 
+test("firebaseWebApiKey 가 없거나 자리표시 값이면 FAIL · 값은 출력 0 · 산출물 0", (t) => {
+  const placeholder = "YOUR_FIREBASE_WEB_API_KEY_HERE";
+  const cases = [
+    ["키 없음", undefined],
+    ["빈 값", ""],
+    ["자리표시 값", placeholder],
+    ["문자열 아님", 12345],
+    ["앞뒤 공백", ` ${FAKE_WEB_API_KEY}`],
+  ];
+  for (const [label, value] of cases) {
+    const config = devConfig({firebaseWebApiKey: value});
+    if (value === undefined) delete config.firebaseWebApiKey;
+    const root = makeFixture(t, {dev: config});
+    const result = runBuild(root, ["--flavor", "dev"]);
+    assert.equal(result.status, 1, label);
+    const failLines = result.stderr.split("\n").filter((l) => l.startsWith("FAIL: "));
+    assert.equal(failLines.length, 1, label);
+    assert.ok(failLines[0].includes("firebaseWebApiKey"), label);
+    assert.ok(failLines[0].includes("웹 API 키"), label);
+    assert.equal(result.stderr.includes(placeholder), false, label);
+    assert.equal(result.stdout, "", label);
+    assert.equal(fs.existsSync(path.join(root, OUT_REL)), false, label);
+  }
+});
+
+test("--project 빌드도 고른 config 의 firebaseWebApiKey 를 넣는다", (t) => {
+  const stgKey = "AIzaTestOnly-FakeStgWebApiKey_00000000";
+  const root = makeFixture(t, {
+    dev: devConfig(),
+    stg: devConfig({
+      flavor: "stg",
+      firebaseProjectId: "your-project-stg",
+      firebaseWebApiKey: stgKey,
+    }),
+  });
+  assert.equal(runBuild(root, ["--project", "your-project-stg"]).status, 0);
+  assert.equal(readKitConfig(root).apiKey, stgKey);
+});
+
 test("필수 파일이 없으면 FAIL", (t) => {
   for (const file of ["state.mjs", "page.js", "page.css", "icons/check.svg"]) {
     const root = makeFixture(t, {dev: devConfig()});
@@ -310,6 +359,15 @@ test("page.js 소스 계약 — continueUrl 0 · innerHTML 1곳 · SDK 판 고�
   assert.match(source, /from "\.\/state\.mjs"/);
   // 정적 import 로 CDN 을 부르면 로드 실패를 연결 실패 상태로 보일 수 없다.
   assert.equal(/^import .* from "https:/m.test(source), false);
+});
+
+test("page.js 소스 계약 — 링크 쿼리 apiKey 를 읽지 않고 주입 키로만 초기화", () => {
+  const source = codeLines("page.js").join("\n");
+  // 쿼리에서 apiKey 를 꺼내는 코드 0 — 링크 모양 확인은 state.mjs initialState 가 한다.
+  assert.equal(/get\(\s*["']apiKey["']\s*\)/.test(source), false);
+  assert.equal(source.split("initializeApp(").length - 1, 1);
+  assert.match(source, /initializeApp\(options\)/);
+  assert.match(source, /const options = firebaseOptions\(config\);/);
 });
 
 test("page.css 소스 계약 — 720px 미디어 쿼리 1개 · 다크 · 움직임 줄이기 · 촬영 스위치 0", () => {

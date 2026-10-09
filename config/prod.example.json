@@ -3,6 +3,7 @@
   "appName": "StarterKit",
   "appSuffix": "",
   "firebaseProjectId": "your-project-prod",
+  "firebaseWebApiKey": "YOUR_FIREBASE_WEB_API_KEY_PROD_HERE",
   "googleServerClientId": "YOUR_GOOGLE_SERVER_CLIENT_ID_PROD_HERE",
   "facebookAppId": "YOUR_FACEBOOK_APP_ID_PROD_HERE",
   "facebookClientToken": "YOUR_FACEBOOK_CLIENT_TOKEN_PROD_HERE",

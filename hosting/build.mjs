@@ -13,8 +13,12 @@
 //   실패 — stderr `FAIL: …` · exit 1 / 인자 오류 — stderr usage · exit 2
 //
 // 안전 계약:
-//   - config 에서 읽는 키는 firebaseProjectId · appName · brandColor 셋뿐이다.
-//     다른 키(클라이언트 ID · 시크릿 등) 값은 산출물 · 출력에 넣지 않는다.
+//   - config 에서 읽는 키는 firebaseProjectId · appName · brandColor ·
+//     firebaseWebApiKey 넷뿐이다. 다른 키(클라이언트 ID · 시크릿 등) 값은
+//     산출물 · 출력에 넣지 않는다.
+//   - firebaseWebApiKey 는 페이지가 Firebase 를 초기화하는 이 프로젝트의 Web API
+//     키다(공개 값 — 산출물에 넣는다). 페이지는 링크 쿼리의 apiKey 를 쓰지 않는다.
+//     키가 없거나 자리표시 값이면 FAIL — 값은 출력하지 않는다.
 //   - 문구는 functions/src/email/copy.json 의 `page.*` 키만 넣는다(메일 문구 제외).
 //   - 주입 JSON 의 `<` 는 `<` 로 바꾼다 — 값에 든 `</script>` 가 블록을 닫지 못한다.
 //   - 필수 페이지 파일이 하나라도 없으면 빌드하지 않는다(깨진 페이지 배포 방지).
@@ -31,6 +35,11 @@ const LOCALES = ["ko", "en", "ja"];
 /** noscript 는 언어 판정 전에 보이므로 3 locale 을 이 순서로 모두 넣는다. */
 const NOSCRIPT_ORDER = ["en", "ko", "ja"];
 const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
+/**
+ * Web API 키 형식 — Google API 키는 `AIza` 로 시작하고 영숫자 · `_` · `-` 만 쓴다.
+ * example 파일의 자리표시 값(`YOUR_…_HERE`)은 여기서 걸린다.
+ */
+const WEB_API_KEY_PATTERN = /^AIza[0-9A-Za-z_-]+$/;
 const CONFIG_TOKEN = "__KIT_CONFIG__";
 const NOSCRIPT_TOKEN = "__KIT_NOSCRIPT__";
 const LOGO_FILE = "logo.png";
@@ -148,7 +157,7 @@ function selectConfig(args) {
   return matches[0];
 }
 
-/** 안전 계약의 세 키만 꺼내 검증한다. */
+/** 안전 계약의 브랜드 세 키만 꺼내 검증한다. */
 function readBrand(flavor, config) {
   const projectId = config.firebaseProjectId;
   if (typeof projectId !== "string" || !PROJECT_ID_PATTERN.test(projectId)) {
@@ -164,6 +173,21 @@ function readBrand(flavor, config) {
     process.stderr.write(`warn: brandColor 형식이 아니라 ${brandColor} 로 빌드한다\n`);
   }
   return {projectId, appName, brandColor};
+}
+
+/**
+ * 페이지가 Firebase 를 초기화할 Web API 키를 꺼낸다. 없거나 형식이 아니면 FAIL —
+ * 결과 페이지를 빌드할 때(`kit` 발송 모드)만 필요한 키다. 값은 출력하지 않는다.
+ */
+function readWebApiKey(flavor, config) {
+  const apiKey = config.firebaseWebApiKey;
+  if (typeof apiKey !== "string" || !WEB_API_KEY_PATTERN.test(apiKey)) {
+    fail(
+      `config/${flavor}.json 의 firebaseWebApiKey 가 비었거나 자리표시 값이다 — ` +
+        "Firebase Console → 프로젝트 설정 → 일반 의 웹 API 키(AIza 로 시작)를 넣는다",
+    );
+  }
+  return apiKey;
 }
 
 /** 문구 파일에서 locale 별 `page.*` 키만 꺼낸다. */
@@ -248,6 +272,7 @@ function main() {
 
   const {flavor, config} = selectConfig(args);
   const {projectId, appName, brandColor} = readBrand(flavor, config);
+  const apiKey = readWebApiKey(flavor, config);
   const copy = readPageCopy(root);
   const logoPath = path.join(publicDir, LOGO_FILE);
   const hasLogo = fs.existsSync(logoPath) && fs.statSync(logoPath).isFile();
@@ -257,6 +282,7 @@ function main() {
     brandColor,
     onBrandColor: onAccentColor(brandColor),
     hasLogo,
+    apiKey,
     authDomain: `${projectId}.firebaseapp.com`,
     copy,
     icons: readIcons(publicDir),
