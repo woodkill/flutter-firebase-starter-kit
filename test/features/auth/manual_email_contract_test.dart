@@ -25,8 +25,8 @@
 // T-175-DOCS-07: 결과 페이지가 Referer 를 보내지 않는다(firebase.json Hosting
 //   `Referrer-Policy` = `no-referrer` · index.html meta)는 사실이 그대로이고, 웹 API
 //   키 안내 세 곳(매뉴얼 키 표 · 매뉴얼 문제 해결 첫 항목 · config/README 절)이 리퍼러
-//   제한 키 거부 사실과 애플리케이션 제한 없는 키 조치를 말하며 옛 허용 목록 안내가
-//   0 건이다.
+//   제한 · Referer · 거부 사실(「이 페이지에서 거부된다」) · 애플리케이션 제한이 없는 키
+//   토큰을 모두 담으며 옛 허용 목록 안내가 0 건이다.
 
 import 'dart:convert';
 
@@ -238,10 +238,12 @@ const String _webApiKeyRowPrefix = '| `firebaseWebApiKey` |';
 /// 매뉴얼 「문제 해결」 의 「문제가 발생했습니다」 항목 머리.
 const String _webApiKeyTroubleBulletPrefix = '- **링크를 열면 「문제가 발생했습니다」 가 뜬다.**';
 
-/// 웹 API 키 안내 세 곳이 모두 말해야 하는 토큰(공백 정규화 후 비교).
+/// 웹 API 키 안내 세 곳이 모두 말해야 하는 토큰(공백 정규화 후 비교) —
+/// 제한 종류 · 원인(Referer) · 거부 사실 · 조치.
 const List<String> _webApiKeyRefererTokens = <String>[
   '웹사이트(HTTP 리퍼러) 제한',
   'Referer',
+  '이 페이지에서 거부된다',
   '애플리케이션 제한이 없는 키',
 ];
 
