@@ -96,8 +96,6 @@ jest.mock("firebase-admin/firestore", () => ({
 }));
 
 // eslint-disable-next-line import/first
-import {createHash} from "node:crypto";
-// eslint-disable-next-line import/first
 import functionsTest from "firebase-functions-test";
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
@@ -111,6 +109,8 @@ import {createOrderedTx} from "../mocks/ordered_transaction";
 import type {OrderedTxHandle} from "../mocks/ordered_transaction";
 // eslint-disable-next-line import/first
 import {hashEmail} from "../../src/email/email_hash";
+// eslint-disable-next-line import/first
+import {hashClientIp} from "../../src/shared/client_ip_hash";
 
 const testEnv = functionsTest();
 
@@ -149,8 +149,7 @@ const UID = "u-reset";
 
 /** rate limit 문서 id 들 (fixture 키). */
 const UID_DOC = `sendPasswordResetMail:${UID}`;
-const IP_DOC = "sendPasswordResetMailIp:" +
-  createHash("sha256").update(CLIENT_IP).digest("hex").slice(0, 32);
+const IP_DOC = `sendPasswordResetMailIp:${hashClientIp(CLIENT_IP)}`;
 const EMAIL_DOC = `sendPasswordResetMailEmail:${hashEmail(REQUEST_EMAIL)}`;
 
 /** `mail/` add 1건의 payload 모양. */

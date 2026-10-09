@@ -34,14 +34,13 @@
 //
 // **IN-04**: 아래 `HttpsError` 들의 message 는 ARB 키가 아니라 taxonomy
 // 토큰이다. client 는 `code` 로만 분기하며 서버 message 를 렌더하지 않는다.
-import {createHash} from "node:crypto";
-
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
 import {fingerprintError} from "../auth/identity_index";
+import {hashClientIp} from "../shared/client_ip_hash";
 import {consumeRateLimitAxes} from "../shared/rate_limit";
 import type {ExceededRateAxis, RateLimitAxis} from "../shared/rate_limit";
 import {requireStringArg} from "../shared/require_string_arg";
@@ -106,19 +105,6 @@ function respondNoAccount(uid: string): SendPasswordResetMailResponse {
     "sendPasswordResetMail skipped",
   );
   return {ok: true};
-}
-
-/**
- * 클라이언트 IP 를 rate limit 문서 id 용 해시로 바꾼다.
- *
- * IP 원문을 문서 id 에 남기지 않는다 — salt 없는 SHA-256 앞 32 hex
- * (`lookup_sign_in_methods.ts` `hashClientIp` 와 같은 모양).
- *
- * @param {string} ip 클라이언트 IP.
- * @return {string} 32자 hex 해시.
- */
-function hashClientIp(ip: string): string {
-  return createHash("sha256").update(ip).digest("hex").slice(0, 32);
 }
 
 /**
