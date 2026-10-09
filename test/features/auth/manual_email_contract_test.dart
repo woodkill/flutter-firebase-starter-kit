@@ -27,6 +27,11 @@
 //   키 안내 세 곳(매뉴얼 키 표 · 매뉴얼 문제 해결 첫 항목 · config/README 절)이 리퍼러
 //   제한 · Referer · 거부 사실(「이 페이지에서 거부된다」) · 애플리케이션 제한이 없는 키 토큰을
 //   담고 옛 허용 목록 안내가 0 건이며, 문제 해결 항목은 제한을 「없음」 으로 되돌리기 · 제한 없는 키 따로 고르기를 둘 다 담는다.
+// T-175-DOCS-08: 웹 API 키 위치 안내 다섯 곳(매뉴얼 키 표 · 발송 모드 「켜기」 ② ·
+//   결과 페이지 문제 해결 · config/README 절 · CHANGELOG bullet)이 Google Cloud Console
+//   사용자 인증 정보의 Browser key 를 가리키고, 매뉴얼 · config/README · CHANGELOG ·
+//   hosting/build.mjs 에 옛 위치(프로젝트 설정 일반 탭) 문구와 영문 단독 메뉴 표기가
+//   0 건이며 메뉴 표기가 한국어 라벨 + 영문 괄호 한 가지다.
 
 import 'dart:convert';
 
@@ -259,6 +264,57 @@ const List<String> _staleRefererAdvice = <String>[
 const String _staleRefererSentence =
     'Browser key 에 HTTP 리퍼러 제한이 있으면 '
     '`https://<your-project-id>.web.app/*` 를 허용 목록에 더한다.';
+
+/// 결과 페이지 빌드 스크립트 경로(웹 API 키 FAIL 메시지의 위치).
+const String _hostingBuildScriptPath = 'hosting/build.mjs';
+
+/// 매뉴얼 발송 모드 「켜기」 ② 의 `firebaseWebApiKey` 문단 머리.
+const String _webApiKeyStepPrefix = '같은 파일의 `firebaseWebApiKey` 에 ';
+
+/// CHANGELOG `[Unreleased]` 의 `firebaseWebApiKey` bullet 머리.
+const String _webApiKeyChangelogBulletPrefix =
+    '- config 의 `firebaseWebApiKey` 키를 더한다.';
+
+/// 매뉴얼 키 표에서 `googleServerClientId` 행의 머리.
+const String _googleServerClientIdRowPrefix = '| `googleServerClientId` |';
+
+/// 매뉴얼 키 표에서 `firebaseProjectId` 행의 머리.
+const String _firebaseProjectIdRowPrefix = '| `firebaseProjectId` |';
+
+/// 웹 API 키가 있는 콘솔 경로 — 한국어 화면 라벨 + 영문 괄호.
+const String _webApiKeyConsolePath =
+    'Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials)';
+
+/// 웹 API 키의 이름 — Firebase 가 프로젝트를 만들 때 함께 만드는 키.
+const String _webApiKeyBrowserKeyName =
+    'Browser key (auto created by Firebase)';
+
+/// 키 값을 꺼내는 버튼 라벨.
+const String _webApiKeyShowKeyLabel = '「키 표시」';
+
+/// 키 선택 기준 확인 문구.
+const String _webApiKeyRestrictionCheck = '애플리케이션 제한사항이 「없음」';
+
+/// 옛 위치 문구 패턴 — Firebase Console 프로젝트 설정 일반 탭의 웹 API 키 줄.
+final RegExp _staleWebApiKeyLocation = RegExp(
+  r'프로젝트 설정 → 일반 (→|의) (\*\*)?웹 API 키',
+);
+
+/// 고치기 전 판에 글자 그대로 있던 옛 위치 구절 — [_staleWebApiKeyLocation]
+/// 양성 대조용(매뉴얼 키 표 칸 · 「켜기」 ② · config/README 절).
+const List<String> _staleWebApiKeyLocationSamples = <String>[
+  'Firebase Console → 프로젝트 설정 → 일반 → **웹 API 키**(Web API Key)',
+  'Firebase Console → 프로젝트 설정 → 일반 의 **웹 API 키**',
+  '값은 Firebase Console → 프로젝트 설정 → 일반 의 웹 API 키다.',
+];
+
+/// 영문 라벨만 화살표로 이은 메뉴 표기.
+const String _englishOnlyCredentialsPath = 'APIs & Services → Credentials';
+
+/// 고치기 전 판의 `googleServerClientId` 값 출처 칸 —
+/// [_englishOnlyCredentialsPath] 양성 대조용.
+const String _staleGoogleServerClientIdSource =
+    'Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → **Web application**';
 
 /// 연속 공백 · 줄바꿈을 한 칸으로 줄인다(hard-wrap 된 문서 매칭용).
 String _normalizeWhitespace(String text) =>
@@ -902,5 +958,162 @@ void main() {
       expect(countOccurrences(manual, 'web.app/*'), 0);
       expect(countOccurrences(readme, 'web.app/*'), 0);
     });
+  });
+
+  group('웹 API 키 위치 안내 (T-175-DOCS)', () {
+    test(
+      'T-175-DOCS-08: 웹 API 키 위치 = Cloud Console 사용자 인증 정보의 Browser key · 옛 위치 · 영문 단독 표기 0',
+      () {
+        // (a) fixture 양성 대조 — 옛 위치 패턴 · 영문 단독 표기가 고치기 전 문구를 잡는다.
+        for (final String sample in _staleWebApiKeyLocationSamples) {
+          expect(
+            _staleWebApiKeyLocation.hasMatch(_normalizeWhitespace(sample)),
+            isTrue,
+            reason: '옛 위치 패턴이 옛 구절을 잡지 못한다: $sample',
+          );
+        }
+        expect(
+          countOccurrences(
+            _staleGoogleServerClientIdSource,
+            _englishOnlyCredentialsPath,
+          ),
+          1,
+        );
+
+        final String readme = readTrackedFile(_configReadmePath);
+        final String changelog = readTrackedFile(_changelogPath);
+        final String buildScript = readTrackedFile(_hostingBuildScriptPath);
+
+        // (b) 다섯 영역 — 경로 · 키 이름(+ 영역별 확인 토큰) · 금지 패턴 0.
+        final Map<String, (String, List<String>)>
+        regions = <String, (String, List<String>)>{
+          '매뉴얼 키 표 행': (
+            _readLineStartingWith(manual, _webApiKeyRowPrefix),
+            <String>[
+              _webApiKeyConsolePath,
+              _webApiKeyBrowserKeyName,
+              _webApiKeyShowKeyLabel,
+            ],
+          ),
+          '매뉴얼 켜기 ②': (
+            _readLineStartingWith(delivery, _webApiKeyStepPrefix),
+            <String>[
+              _webApiKeyConsolePath,
+              _webApiKeyBrowserKeyName,
+              _webApiKeyShowKeyLabel,
+              _webApiKeyRestrictionCheck,
+              '`AIza` 로 시작',
+            ],
+          ),
+          '매뉴얼 문제 해결 항목': (
+            _readLineStartingWith(
+              _sliceLinesBetween(resultPage, '### 문제 해결', '### 되돌리기'),
+              _webApiKeyTroubleBulletPrefix,
+            ),
+            <String>[
+              _webApiKeyConsolePath,
+              _webApiKeyBrowserKeyName,
+              _webApiKeyShowKeyLabel,
+            ],
+          ),
+          'config/README 절': (
+            sliceMarkdownSection(readme, _webApiKeyReadmeHeading, maxLevel: 2),
+            <String>[
+              _webApiKeyConsolePath,
+              _webApiKeyBrowserKeyName,
+              _webApiKeyShowKeyLabel,
+            ],
+          ),
+          'CHANGELOG bullet': (
+            _readLineStartingWith(changelog, _webApiKeyChangelogBulletPrefix),
+            <String>[_webApiKeyConsolePath, _webApiKeyBrowserKeyName],
+          ),
+        };
+        for (final MapEntry<String, (String, List<String>)> region
+            in regions.entries) {
+          final (String body, List<String> tokens) = region.value;
+          expect(body.trim(), isNotEmpty, reason: '${region.key} 를 찾지 못했다');
+          final String flat = _normalizeWhitespace(body);
+          for (final String token in tokens) {
+            expect(
+              countOccurrences(flat, token),
+              greaterThanOrEqualTo(1),
+              reason: '${region.key} 에 토큰이 없다: $token',
+            );
+          }
+          final List<String> hits = _collectForbiddenHits(body);
+          expect(hits, isEmpty, reason: '${region.key} 에 금지 패턴이 있다: $hits');
+        }
+
+        // (c) 인접 행 — googleServerClientId 는 같은 경로, firebaseProjectId 는
+        // 일반 탭 경로를 그대로 쓰고 옛 위치 패턴에 걸리지 않는다.
+        final String serverClientIdRow = _readLineStartingWith(
+          manual,
+          _googleServerClientIdRowPrefix,
+        );
+        expect(serverClientIdRow, isNotEmpty);
+        expect(
+          countOccurrences(serverClientIdRow, _webApiKeyConsolePath),
+          greaterThanOrEqualTo(1),
+          reason: 'googleServerClientId 행에 콘솔 경로가 없다',
+        );
+        final List<String> rowHits = _collectForbiddenHits(serverClientIdRow);
+        expect(
+          rowHits,
+          isEmpty,
+          reason: 'googleServerClientId 행 금지 패턴: $rowHits',
+        );
+        final String projectIdRow = _readLineStartingWith(
+          manual,
+          _firebaseProjectIdRowPrefix,
+        );
+        expect(
+          countOccurrences(projectIdRow, 'Firebase Console → 프로젝트 설정 → 일반'),
+          greaterThanOrEqualTo(1),
+          reason: 'firebaseProjectId 행에 일반 탭 경로가 없다',
+        );
+        expect(
+          _staleWebApiKeyLocation.hasMatch(projectIdRow),
+          isFalse,
+          reason: '옛 위치 패턴이 firebaseProjectId 행의 유효한 경로를 잡는다',
+        );
+
+        // (d) 네 파일 전체 — 키 이름 양성 대조 뒤 옛 위치 0 · 메뉴 표기 한 가지.
+        final Map<String, String> files = <String, String>{
+          _manualPath: manual,
+          _configReadmePath: readme,
+          _changelogPath: changelog,
+          _hostingBuildScriptPath: buildScript,
+        };
+        for (final MapEntry<String, String> file in files.entries) {
+          final String flat = _normalizeWhitespace(file.value);
+          expect(
+            countOccurrences(flat, _webApiKeyBrowserKeyName),
+            greaterThanOrEqualTo(1),
+            reason: '${file.key} 에 키 이름이 없다',
+          );
+          final List<String> stale = _staleWebApiKeyLocation
+              .allMatches(flat)
+              .map((RegExpMatch m) => m.group(0)!)
+              .toList();
+          expect(stale, isEmpty, reason: '${file.key} 에 옛 위치 문구가 있다: $stale');
+          expect(
+            countOccurrences(flat, 'API 및 서비스'),
+            countOccurrences(flat, 'API 및 서비스(APIs & Services)'),
+            reason: '${file.key} 에 영문 괄호 없는 「API 및 서비스」 가 있다',
+          );
+          expect(
+            countOccurrences(flat, '사용자 인증 정보'),
+            countOccurrences(flat, '사용자 인증 정보(Credentials)'),
+            reason: '${file.key} 에 영문 괄호 없는 「사용자 인증 정보」 가 있다',
+          );
+          expect(
+            countOccurrences(flat, _englishOnlyCredentialsPath),
+            0,
+            reason: '${file.key} 에 영문 단독 메뉴 표기가 있다',
+          );
+        }
+      },
+    );
   });
 }
