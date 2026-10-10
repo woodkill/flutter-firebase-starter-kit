@@ -5254,9 +5254,19 @@ Flutter 를 올렸거나 킷 업데이트를 merge 한 뒤 Android 빌드 로그
   때, 또는 내장 Kotlin 을 요구하는 Flutter 판으로 올릴 때 한다. AGP 안내문대로 이 끄는
   옵션은 AGP 10.0 에서 사라진다(`It will be removed in version 10.0 of the Android Gradle plugin.`).
   절차: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers
+  `android/settings.gradle.kts` 의 Kotlin 플러그인 선언은 이 단계에서도 지우지 않는다(위
+  「지우지 말 것」 표).
 - **새 DSL 켜기** — `android.newDsl=true` 로 바꾼다. Flutter Gradle 플러그인이 새 DSL 을
   지원할 때 한다(https://github.com/flutter/flutter/issues/180137).
 - 둘 다 Flutter 상향과 **별도 작업**으로 한다 — ② 의 원인 분리와 같은 이유다.
+- 두 단계는 계약 테스트 `test/infrastructure/android_build_toolchain_contract_test.dart` 가
+  고정한 줄을 바꾼다. 줄을 바꾼 뒤 아래 단언을 새 값으로 고치고 `fvm flutter test` 를 다시
+  돌린다.
+  - 내장 Kotlin — `T-176-ANDROID-02` 에서 `id("kotlin-android")` 를 세는 단언의 기대값
+    `1` 을 `0` 으로, `T-176-ANDROID-03` 에서 `android.builtInKotlin=false` 를
+    `android.builtInKotlin=true` 로 고친다.
+  - 새 DSL — `T-176-ANDROID-03` 에서 `android.newDsl=false` 를 `android.newDsl=true` 로
+    고친다.
 
 **확인 방법**
 
