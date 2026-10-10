@@ -21,8 +21,10 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    // Phase 17.6 — see ROADMAP.md · 아래 defaultConfig 의 resValue 5곳(Facebook 2 · Naver 3)이
+    // 이 기능을 쓴다. AGP 9 기본값은 꺼짐이라 켜지 않으면 설정 단계에서 빌드가 멈춘다.
+    buildFeatures {
+        resValues = true
     }
 
     // Facebook SDK 네이티브 설정을 위해 dart-defines에서 값을 추출한다 (D-06).
@@ -139,6 +141,14 @@ dependencies {
 
     // Phase 17 — see ROADMAP.md · flutter_local_notifications 10+ 요구 (README Gradle setup)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
+// Phase 17.6 — see ROADMAP.md · KGP 2.3 이상은 android 블록 안의 옛 Kotlin 옵션 DSL 을
+// 스크립트 컴파일 오류로 만든다 → Flutter 3.47.5 템플릿과 같은 top-level compilerOptions.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
 }
 
 flutter {
