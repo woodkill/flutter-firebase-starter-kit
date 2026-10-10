@@ -12,8 +12,11 @@
 // T-176-DOCS-01: ⑤ 슬라이스가 비어 있지 않고 금지 패턴 0.
 // T-176-DOCS-02: ⑤ 「지금 값」 표의 각 행이 그 행이 가리키는 파일의 값과 같다.
 // T-176-DOCS-03: ⑤ 「지우지 말 것」 표의 각 줄이 그 행의 파일에 정확히 1줄 있다.
-// T-176-DOCS-04: ⑤ 가 인용한 계약 test 경로 · test ID · 가리키는 줄이 실재한다
-//   (포인터 무결성 · T-172-DOCS-06 과 같은 방식).
+// T-176-DOCS-04: ⑤ 가 인용한 계약 test 경로 · test ID 가 실재하고(포인터 무결성 ·
+//   T-172-DOCS-06 과 같은 방식), 안내가 가리키는 세 단언의 키가 그 test 본문에
+//   있다 — `id("kotlin-android")` 는 T-176-ANDROID-02, `android.builtInKotlin=` ·
+//   `android.newDsl=` 는 T-176-ANDROID-03. 키는 이 파일에 적은 상수이고 매뉴얼의
+//   백틱 글자와는 견주지 않는다.
 // T-176-DOCS-05: SPM ② LINE 경고 박스가 위 표와 내부적으로 맞다(SDK 개수 · 이름).
 // T-176-DOCS-06: LINE 값(`flutter_line_sdk` 버전 · 핀 버전)이 pubspec ·
 //   Package.resolved 와 같다.
@@ -23,15 +26,15 @@
 // 「새 DSL 켜기」, SPM ② 의 「상향 절차」 핀 올리기, `flutter_line_sdk` 올리기)를
 // 따르면 자기 저장소에서 그 값이 바뀐다. 그래서 값 동일성을 보는 T-176-DOCS-02 ·
 // 03 · 06 은 비공개 작업 일지(`.planning/`)가 있는 유지보수자 트리에서만 돈다
-// (공개 mirror 에서는 건너뜀). 포인터 무결성(04)과 문서 내부 일관성(01 · 05)은
-// 사용자 저장소에서도 참이므로 어디서나 돈다.
+// (공개 mirror 에서는 건너뜀). 04(포인터 무결성 · 키 확인)와 문서 내부 일관성
+// (01 · 05)은 사용자 저장소에서도 참이므로 어디서나 돈다.
 //
 // 킷 사용자 안전 규칙(매뉴얼 절차가 이 파일과 계약 test 를 깨뜨리지 않게):
 // - 도구 버전 · LINE 버전 숫자를 리터럴로 두지 않는다. 값은 파일에서 읽는다.
-// - 04 의 (c) 는 줄의 값이 아니라 키(`android.builtInKotlin=` ·
-//   `android.newDsl=`)만 본다 — 사용자가 값을 `true` 로 고쳐도 red 가 되지 않는다.
-// - 04 는 계약 test 에서 `id("kotlin-android")` 를 세는 단언의 기대값이 아니라
-//   그 리터럴이 T-176-ANDROID-02 본문에 있는지만 본다.
+// - 04 는 세 키가 계약 test 본문에 있는지만 본다. `android.builtInKotlin=` ·
+//   `android.newDsl=` 뒤의 값과 `id("kotlin-android")` 를 세는 단언의 기대값은
+//   보지 않는다 — 사용자가 매뉴얼 안내대로 `true` · `0` 으로 고쳐도 red 가 되지
+//   않는다.
 
 import 'dart:convert';
 import 'dart:io';
@@ -348,7 +351,7 @@ void main() {
       skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
     );
 
-    test('T-176-DOCS-04: ⑤ 가 인용한 계약 test 경로 · ID · 줄이 실재한다 (포인터 무결성)', () {
+    test('T-176-DOCS-04: ⑤ 가 인용한 계약 test 경로 · ID 가 실재하고 세 키가 그 본문에 있다', () {
       expect(
         androidSection,
         contains(_contractTestPath),
