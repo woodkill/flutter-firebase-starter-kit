@@ -55,7 +55,15 @@ dependencies:
   # 라 정확 버전 고정 — caret 금지 (C-02). 상향 시 `16.2-PLUGIN-AUDIT.md` 의
   # sha256 기준선과 상향 절차로 diff 를 먼저 검토한다.
   naver_login_flutter: 4.0.0
-  # Phase 14 D-LINE-17 — LINE Corporation 공식 (verified publisher: line.me)
+  # Phase 14 D-LINE-17 — LINE Corporation 공식 (verified publisher:
+  # developers.line.biz). 정확 버전 고정 — caret 금지: 플러그인의
+  # `ios/flutter_line_sdk/Package.swift` 가 선언하는 `line-sdk-ios-swift`
+  # 하한(`from:`)은 판에 따라 다르고(2.7.2 `5.13.0` · 3.0.0 `5.17.0`), iOS
+  # `Package.resolved` 의 LINE 핀이 그 하한을 만족해야 한다. 상향 시
+  # `fvm flutter pub get` 만 쓰고 lock diff 가 LINE 항목뿐인지 본 뒤, 새 판의
+  # 하한과 핀을 대조하고 iOS 빌드 뒤 두 `Package.resolved` 가 그대로인지 확인한다
+  # — docs/manual.md 「iOS 의존성 관리 (SPM)」 의
+  # 「② 네이티브 SDK 버전은 어디에 고정돼 있나」.
   flutter_line_sdk: 3.0.0
   # Phase 13.2 — see ROADMAP.md (Wave 0 lock D-100, R8 — 옛 community
   # 버튼 위제 의존성 제거). Facebook 분기는 BrandedSocialButton.facebook
