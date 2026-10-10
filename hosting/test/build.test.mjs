@@ -23,7 +23,7 @@ const COPY = JSON.parse(
 );
 const SECRET = "SENTINEL_SECRET_175";
 // 형식만 맞춘 가짜 Web API 키 — 실제 키가 아니다.
-const FAKE_WEB_API_KEY = "PLACEHOLDER";
+const FAKE_WEB_API_KEY = "AIzaTestOnly-FakeWebApiKey_00000000000";
 /** FAIL 줄이 안내해야 하는 웹 API 키 위치 — Cloud Console 의 사용자 인증 정보 화면 경로. */
 const WEB_API_KEY_CONSOLE_PATH =
   "Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials)";

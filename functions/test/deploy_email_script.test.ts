@@ -47,7 +47,7 @@ const PROJECT_ID = "your-project-dev";
  */
 const BASE_CONFIG: Record<string, unknown> = {
   firebaseProjectId: PROJECT_ID,
-  firebaseWebApiKey: "PLACEHOLDER",
+  firebaseWebApiKey: "AIzaTestOnly-FakeWebApiKey_00000000000",
   appName: "Starter Kit",
   brandColor: "#673AB7",
 };
