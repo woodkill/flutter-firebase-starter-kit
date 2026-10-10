@@ -14,6 +14,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Android 빌드 도구를 Gradle 9.3.1 · Android Gradle Plugin 9.1.0 · Kotlin Gradle Plugin 2.4.0 · google-services Gradle 플러그인 4.5.0 · Crashlytics Gradle 플러그인 3.0.8 로 올린다. Flutter 가 내던 지원 종료 경고 3건이 사라지고, 대신 Kotlin Gradle Plugin 적용 경고 2종이 나온다(지금은 정상). `android/app/build.gradle.kts` 는 `buildFeatures { resValues = true }` 와 `kotlin { compilerOptions { … } }` 를 쓴다 — 앱 ID · 서명 줄은 그대로라 merge 로 끝난다. 바뀐 파일은 `android/settings.gradle.kts` · `android/gradle/wrapper/gradle-wrapper.properties` · `android/app/build.gradle.kts` 다. Android Studio 로 `android/` 를 열려면 2025.3.2 이상이 필요하다 — 매뉴얼 「Flutter SDK 상향 (FVM)」 ⑤.
+- `flutter_line_sdk` 를 3.0.0 으로 올린다. 새 Android Gradle Plugin 에서 Android 빌드가 되는 판이다. iOS 는 15.0 이상 · LineSDK 5.17 이상을 요구하고, 킷의 iOS 핀(5.17.0)은 그대로다. 바뀐 파일은 `pubspec.yaml` · `pubspec.lock` 이다 — 매뉴얼 「iOS 의존성 관리 (SPM)」 ②.
+
 ## [1.0.0-rc.2] - 2026-10-10
 
 ### Added
