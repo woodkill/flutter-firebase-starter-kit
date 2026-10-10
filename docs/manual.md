@@ -5465,9 +5465,12 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `
 > ⚠ **`Package.resolved` 를 지우지 말고, Xcode 의 *Update to Latest Package Versions* 를
 > 누르지 말 것.**
 >
-> 핀이 풀리면 위 표의 직접 선언한 6개 SDK 가 같은 조작 한 번에 전부 각자 선언 범위 안의
-> 최신값으로 다시 해석된다. LINE 은 `flutter_line_sdk` 3.0.0 이 `from: "5.17.0"` 으로
-> 선언하므로 **5.17.0** 을 벗어나 5.18 이상으로 올라간다.
+> 핀이 풀리면 위 표의 SDK 6개가 같은 조작 한 번에 함께 다시 해석된다. `exact` 로 선언된
+> `firebase-ios-sdk` 는 값이 그대로다. 범위로 선언된 4개(`googlesignin-ios` ·
+> `facebook-ios-sdk` · `line-sdk-ios-swift` · `naveridlogin-sdk-ios-swift`)는 각자 선언
+> 범위 안에서, 전이 의존인 `appauth-ios` 는 그것을 쓰는 패키지가 요구하는 범위 안에서
+> 다시 해석된다. LINE 은 `flutter_line_sdk` 3.0.0 이 `from: "5.17.0"` 으로 선언하므로
+> **5.17.0** 을 벗어나 5.18 이상으로 올라간다.
 >
 > 지금 킷은 `flutter_line_sdk` 3.0.0(iOS 15.0 이상 · LineSDK 5.17 이상 요구)과 핀
 > **5.17.0** 을 함께 쓴다. LINE 핀을 올리려면 위 「상향 절차」 를 따른다.
