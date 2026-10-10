@@ -56,7 +56,7 @@ dependencies:
   # sha256 기준선과 상향 절차로 diff 를 먼저 검토한다.
   naver_login_flutter: 4.0.0
   # Phase 14 D-LINE-17 — LINE Corporation 공식 (verified publisher: line.me)
-  flutter_line_sdk: ^2.7.2
+  flutter_line_sdk: 3.0.0
   # Phase 13.2 — see ROADMAP.md (Wave 0 lock D-100, R8 — 옛 community
   # 버튼 위제 의존성 제거). Facebook 분기는 BrandedSocialButton.facebook
   # (Meta 공식 PNG + 자체 위제) 위임 일관.
