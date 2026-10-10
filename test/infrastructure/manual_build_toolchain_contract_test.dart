@@ -92,7 +92,7 @@ List<String> _splitCells(String row) {
 }
 
 /// 표 줄 목록 [table] 에서 머리글 · 구분선을 뺀 데이터 행의 칸 목록을 돌려준다.
-List<List<String>> _dataRows(List<String> table) =>
+List<List<String>> _collectDataRows(List<String> table) =>
     table.skip(2).map(_splitCells).toList();
 
 /// [text] 의 백틱 조각 안쪽 문자열을 순서대로 모은다.
@@ -224,7 +224,7 @@ void main() {
         ) {
           table.add(lines[i]);
         }
-        final List<List<String>> rows = _dataRows(table);
+        final List<List<String>> rows = _collectDataRows(table);
 
         int wrapperRows = 0;
         int pluginRows = 0;
@@ -306,7 +306,7 @@ void main() {
     test(
       'T-176-DOCS-03: ⑤ 지우지 말 것 표의 각 줄이 그 파일에 정확히 1줄 있다',
       () {
-        final List<List<String>> rows = _dataRows(
+        final List<List<String>> rows = _collectDataRows(
           collectTableLines(androidSection, _keepTableHeader),
         );
         expect(rows, isNotEmpty, reason: '⑤ 에서 「$_keepTableHeader」 표를 찾지 못했다');
@@ -430,7 +430,7 @@ void main() {
             '바꾼다(.claude/rules/docs-user-manual.md): $hits',
       );
 
-      final List<List<String>> rows = _dataRows(
+      final List<List<String>> rows = _collectDataRows(
         collectTableLines(spmSection, _pinTableHeader),
       );
       expect(rows, isNotEmpty, reason: 'SPM ② 에서 핀 표를 찾지 못했다');
@@ -524,7 +524,7 @@ void main() {
           reason: 'SPM ② 에 「$_warningBoxStart…」 경고 박스가 없다',
         );
         final List<List<String>> lineRows =
-            _dataRows(collectTableLines(spmSection, _pinTableHeader))
+            _collectDataRows(collectTableLines(spmSection, _pinTableHeader))
                 .where(
                   (List<String> cells) =>
                       cells[0].replaceAll('`', '') == _lineIdentity,
