@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-10-10
+
 ### Added
 
 - 인증 메일 · 비밀번호 재설정 메일을 킷이 보내는 `kit` 모드를 더한다. `config/<flavor>.json` 의 `emailDelivery` 로 고르고, 키가 없거나 비었거나 `firebase` 면 지금처럼 Firebase 가 보낸다. `kit` 은 내 발송 서비스(SMTP)와 Trigger Email 확장으로 보내고, 확장 값은 내가 만드는 `extensions/firestore-send-email.env.<your-project-id>` 에 적는다 — 매뉴얼 「인증 메일 발송 모드 켜고 끄기」 절.
@@ -53,5 +55,6 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.1
