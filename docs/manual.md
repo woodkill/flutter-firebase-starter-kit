@@ -1950,7 +1950,7 @@ LINE 로그인은 Custom Token 방식 + OIDC ID Token JWT 검증 (Kakao 와 같�
 `admin.auth().createCustomToken(uid)` 발급, 클라이언트가 `signInWithCustomToken`
 으로 세션을 시작합니다 (Phase 12 D-08 OIDC verifier helper 재사용).
 
-`flutter_line_sdk` (publisher: LINE Corporation, ^2.7.2) 가 LINE 앱 설치 단말
+`flutter_line_sdk` (publisher: LINE Corporation, 3.0.0) 가 LINE 앱 설치 단말
 에서는 1-tap (앱 → 동의 → callback), 미설치 단말에서는 Chrome Custom Tabs (Android)
 / ASWebAuthenticationSession (iOS) 웹뷰 fallback 으로 자동 분기합니다.
 
@@ -4273,7 +4273,7 @@ canceledLogin 이 「창 닫힘 = Future 완료」 를 보장하므로 무기한
 
 **왜 한도를 두지 않나:** 세 SDK 의 Dart API 표면에 진행 중인 로그인을 앱이 끊는 취소
 API 가 없다(2026-09-28 pub cache 소스 실측 · 킷이 해석하는 버전 = pub.dev 최신).
-- `flutter_line_sdk` 2.7.2 — `login` · `logout` 만(`lib/src/line_sdk.dart` · `cancel` 0건).
+- `flutter_line_sdk` 3.0.0 — `login` · `logout` 만(`lib/src/line_sdk.dart` · `cancel` 0건).
 - `kakao_flutter_sdk_user` 2.0.0+1 — `loginWithKakaoTalk` · `loginWithKakaoAccount` ·
   `loginWithKakao` · `loginWithNewScopes` · `logout` 만(`lib/src/user_api.dart` — `cancel`
   은 사용자 취소 예외 `ClientErrorCause.cancelled` 뿐 · pub.dev 최신 2.0.1 changelog 에도
@@ -5203,18 +5203,86 @@ _facebookAuth.login(
 - iOS 네이티브 의존성의 운영(버전 고정 · 새 플러그인 확인 · 배포 타겟 · 미지원
   플러그인 증상)은 **「iOS 의존성 관리 (SPM)」**(`#ios-의존성-관리-spm`) 절에 있다.
 
-### ⑤ Android 빌드 도구 하한 — 지금 경계선에 걸쳐 있다
+### ⑤ Android 빌드 도구 — 지금 값과 정상 출력
 
-| 항목 | 킷 현재 값 | 3.47.5 오류 하한 | 3.47.5 경고 하한 |
-|---|---|---|---|
-| Gradle | 8.14 | **8.14.0** | 9.1.0 |
-| AGP | 8.11.1 | **8.11.1** | 9.0.1 |
-| KGP | 2.2.20 | **2.2.20** | 2.3.20 |
+Flutter 를 올렸거나 킷 업데이트를 merge 한 뒤 Android 빌드 로그에서 경고 · 오류를
+볼 때 이 항목을 본다. 어떤 출력이 정상인지와 지우면 안 되는 줄을 적는다.
 
-- 세 값 모두 **오류 하한과 정확히 같다** → 빌드는 통과하되 `Warning: Flutter
-  support for your project's … will soon be dropped` 3건이 찍힌다. **정상이다.**
-- 다음 Flutter 상향에서는 AGP/KGP/Gradle 상향이 강제될 가능성이 높다. SDK 상향과
-  **별도 작업**으로 잡아라(원인 분리).
+**지금 값**
+
+| 항목 | 킷 값 | 어디에 있나 | 3.47.5 오류 하한 | 3.47.5 경고 하한 |
+|---|---|---|---|---|
+| Gradle | `9.3.1` | `android/gradle/wrapper/gradle-wrapper.properties` 의 `distributionUrl` | 8.14.0 | 9.1.0 |
+| Android Gradle Plugin (AGP) | `9.1.0` | `android/settings.gradle.kts` 의 `id("com.android.application")` | 8.11.1 | 9.0.1 |
+| Kotlin Gradle Plugin (KGP) | `2.4.0` | `android/settings.gradle.kts` 의 `id("org.jetbrains.kotlin.android")` | 2.2.20 | 2.3.20 |
+| google-services Gradle 플러그인 | `4.5.0` | `android/settings.gradle.kts` 의 `id("com.google.gms.google-services")` | 없음 | 없음 |
+| Crashlytics Gradle 플러그인 | `3.0.8` | `android/settings.gradle.kts` 의 `id("com.google.firebase.crashlytics")` | 없음 | 없음 |
+
+- Flutter 는 Gradle · AGP · KGP 가 오류 하한보다 낮으면 빌드를 멈추고, 경고 하한보다
+  낮으면 지원 종료 경고를 낸다. 킷 값은 셋 모두 경고 하한 이상이다.
+
+**정상 출력**
+
+- 지원 종료 경고(`Warning: Flutter support for your project's … will soon be dropped`)는
+  나오지 않는다.
+- 대신 모든 Android 빌드에 Kotlin Gradle Plugin 적용 경고 2종이 나온다. 첫 줄은 다음과
+  같다(경로 · 플러그인 목록은 `…` 로 줄였다).
+  ```
+  WARNING: Your Android app project: app located at: …/android/app/build.gradle.kts
+  WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): …
+  ```
+  지금은 정상이다 — 앱과 목록의 플러그인이 아직 Kotlin Gradle Plugin 을 직접 적용하고,
+  킷은 AGP 의 내장 Kotlin 을 끈 상태로 빌드한다. 이 경고는 빌드를 멈추지 않는다.
+- `--verbose` 를 붙인 release 빌드 로그에는 AGP 안내 2줄
+  `WARNING: The option setting 'android.builtInKotlin=false' is deprecated.` ·
+  `WARNING: The option setting 'android.newDsl=false' is deprecated.` 도 보인다. 같은
+  이유로 지금은 정상이다.
+
+**지우지 말 것**
+
+| 줄 | 파일 | 이유 |
+|---|---|---|
+| `android.builtInKotlin=false` | `android/gradle.properties` | 내장 Kotlin 을 끈다. 켜는 조건은 아래 「남은 두 단계」 |
+| `android.newDsl=false` | `android/gradle.properties` | 옛 DSL 을 쓴다. 켜는 조건은 아래 「남은 두 단계」 |
+| `id("org.jetbrains.kotlin.android") version "2.4.0" apply false` | `android/settings.gradle.kts` | 지우면 AGP 가 함께 가져오는 KGP 2.2.10 이 쓰이고, Flutter 3.47.x 오류 하한 2.2.20 보다 낮아 빌드가 멈춘다(https://github.com/flutter/flutter/issues/192167) |
+| `id("kotlin-android")` | `android/app/build.gradle.kts` | 앱에 KGP 를 적용한다. 지우는 것은 내장 Kotlin 켜기와 같은 작업이다 |
+
+**남은 두 단계가 필요해지는 조건**
+
+- **내장 Kotlin 켜기** — `android.builtInKotlin=true` 로 바꾸고 앱의 `id("kotlin-android")`
+  를 지운다. 위 경고 목록의 플러그인이 모두 KGP 를 직접 적용하지 않는 판으로 올라왔을
+  때, 또는 내장 Kotlin 을 요구하는 Flutter 판으로 올릴 때 한다. AGP 안내문대로 이 끄는
+  옵션은 AGP 10.0 에서 사라진다(`It will be removed in version 10.0 of the Android Gradle plugin.`).
+  절차: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers
+- **새 DSL 켜기** — `android.newDsl=true` 로 바꾼다. Flutter Gradle 플러그인이 새 DSL 을
+  지원할 때 한다(https://github.com/flutter/flutter/issues/180137).
+- 둘 다 Flutter 상향과 **별도 작업**으로 한다 — ② 의 원인 분리와 같은 이유다.
+
+**확인 방법**
+
+파일을 남기지 않는 한 줄로 본다(새 clone 처럼 `build/` 가 없어도 된다).
+
+```bash
+fvm flutter build apk --debug --flavor dev --dart-define-from-file=config/dev.json 2>&1 | grep -E 'will soon be dropped|WARNING: Your |✓ Built'
+```
+
+- `WARNING: Your ` 로 시작하는 줄 2개와 `✓ Built` 줄 1개가 나오면 정상이다.
+- `will soon be dropped` 가 든 줄이 보이면 위 표의 값이 경고 하한 아래다.
+- `✓ Built` 줄이 없으면 경고 줄이 보여도 빌드가 실패한 것이다(KGP 적용 경고는 빌드
+  설정 단계에서 먼저 찍힌다). 같은 빌드 명령을 파이프 없이 다시 돌려 오류를 본다.
+
+**문제 해결**
+
+- `defaultConfig contains custom resource values, but the feature is disabled.` 로 설정
+  단계에서 빌드가 멈춘다 → `android/app/build.gradle.kts` 의 `android { buildFeatures { resValues = true } }`
+  가 빠졌다(merge 등). 되살린다 — 그 아래 `resValue(...)` 5곳이 Facebook · Naver 값을
+  리소스로 넣는데, AGP 9 는 이 기능이 기본으로 꺼져 있다.
+- 스크립트 컴파일 오류 `'var jvmTarget: String' is deprecated. Please migrate to the compilerOptions DSL.`
+  → 옛 Kotlin 옵션 블록(`kotlinOptions { jvmTarget = … }`)이 들어왔다. 지우고 `flutter {}`
+  앞에 `kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }`
+  를 둔다.
+- Android Studio 로 `android/` 를 열 때 AGP 9.1 을 지원하지 않는다는 안내가 나온다 →
+  Android Studio 2025.3.2 이상으로 올린다.
 
 ### ⑥ iOS 환경 요구치
 
@@ -5262,9 +5330,9 @@ Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · �
 `pub get` · `build_runner` · `flutter analyze` · `dart analyze` · iOS(`--no-codesign`,
 210s) · Android(dev debug APK, 88s) 전부 통과했고, 전체 test 는 golden 20장을
 사용자 승인 후 재생성한 뒤 기준선과 동일한 **`+1632 ~2` fail 0** 이었다.
-추가 조치가 필요했던 것은 **golden 20장 재생성**과 **test 6파일 포맷 drift** 둘뿐이며,
-AGP/KGP/Gradle 경고 3건과 `naver_login_sdk` SPM 미지원 경고 1건은 예상된 정상 출력이다
-(이 경고는 Phase 16.2 이후 사라졌다).
+추가 조치가 필요했던 것은 **golden 20장 재생성**과 **test 6파일 포맷 drift** 둘뿐이다.
+Android 빌드의 정상 출력은 ⑤ 를 본다 — 지금 킷 값에서는 지원 종료 경고가 나오지 않고
+Kotlin Gradle Plugin 적용 경고 2종이 나온다.
 
 ---
 
@@ -5341,7 +5409,7 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `
 | `appauth-ios` | 2.0.0 | `GoogleSignIn-iOS` · `GTMAppAuth` 의 전이 의존 — 두 패키지가 `2.0.0 ..< 3.0.0` 을 요구해 핀이 유지된다 |
 | `googlesignin-ios` | 9.1.0 | **명시 고정.** 그래프가 우연히 준 값이다 — 상향 시 `GoogleSignIn-iOS` 가 요구하는 AppAuth 범위와 함께 확인한다 |
 | `facebook-ios-sdk` | 18.0.2 | 선언이 `"18.0.2" ..< "19.0.0"` 이라 고정하지 않으면 18.1.1 로 올라간다 |
-| `line-sdk-ios-swift` | **5.17.0** | 아래 경고 박스 참고 |
+| `line-sdk-ios-swift` | **5.17.0** | `flutter_line_sdk` 3.0.0 의 선언이 `from: "5.17.0"` 이라 고정하지 않으면 5.18 이상으로 올라간다 · 아래 경고 박스 참고 |
 | `naveridlogin-sdk-ios-swift` | 5.2.1 | 선언이 `.upToNextMinor(from: "5.2.0")` |
 
 **상향 절차** — 값 문자열만 고치는 편집이다.
@@ -5387,14 +5455,12 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 더 이상 `
 > ⚠ **`Package.resolved` 를 지우지 말고, Xcode 의 *Update to Latest Package Versions* 를
 > 누르지 말 것.**
 >
-> 핀이 풀리면 LINE 이 **5.17.0** 을 벗어나 5.18+ 로 drift 하고, `flutter_line_sdk` 2.7.2 의
-> manifest 하한(iOS 13.0)과 LineSDK 의 하한 불일치는 **도구가 그 검사를 되살리는 순간
-> 빌드 에러**가 된다(upstream issue https://github.com/line/flutter_line_sdk/issues/151).
-> 다른 5개 핀도 같은 조작 한 번에 전부 풀린다.
+> 핀이 풀리면 위 표의 직접 선언한 6개 SDK 가 같은 조작 한 번에 전부 각자 선언 범위 안의
+> 최신값으로 다시 해석된다. LINE 은 `flutter_line_sdk` 3.0.0 이 `from: "5.17.0"` 으로
+> 선언하므로 **5.17.0** 을 벗어나 5.18 이상으로 올라간다.
 >
-> **복귀 조건:** `flutter_line_sdk` **3.0.0 의 pub.dev 릴리스** AND 킷 Android 의
-> **AGP 9 세대 전환** 이 둘 다 성립할 때 다시 검토한다
-> (`.planning/todos/pending/2026-09-21-flutter-line-sdk-3-0-0-return.md`).
+> 지금 킷은 `flutter_line_sdk` 3.0.0(iOS 15.0 이상 · LineSDK 5.17 이상 요구)과 핀
+> **5.17.0** 을 함께 쓴다. LINE 핀을 올리려면 위 「상향 절차」 를 따른다.
 
 - **SPM 경로에서는 `firebase_app_check` 가 `RecaptchaEnterprise`(바이너리 XCFramework,
   `recaptcha-enterprise-mobile-sdk` 18.9.1)를 함께 링크한다** — CocoaPods 경로에는 없던
@@ -5425,8 +5491,9 @@ jq -r '.plugins.ios[] | select(.native_build) | "\(.name)\t\(.path)"' .flutter-p
 - 플러그인 `Package.swift` 의 `platforms: [.iOS(...)]` 와, 그 플러그인이
   `.package(url:)` 로 끌어오는 SDK 의 같은 값을 비교한다. **의존 SDK 의 하한이 더 높으면
   SPM 이 타깃 그래프 구성 단계에서 빌드를 막는다.**
-- LINE 의 교훈: `flutter_line_sdk` 2.7.2 는 13.0 인데 LineSDK 5.17.0 은 15.0 이다. 이
-  불일치는 **앱의 배포 타겟을 올려도 해소되지 않는다** — Flutter 는 자기가 생성하는
+- 예: LineSDK 5.17.0 의 하한은 iOS 15.0 이고 `flutter_line_sdk` 3.0.0 의 `Package.swift`
+  도 15.0 이라 맞는다. 플러그인 하한이 의존 SDK 하한보다 낮으면 이 불일치는 **앱의 배포
+  타겟을 올려도 해소되지 않는다** — Flutter 는 자기가 생성하는
   패키지의 하한만 끌어올리고 플러그인 자신의 `Package.swift` 는 건드리지 않기 때문이다.
 
 **(다) FlutterFire 계열은 `firebaseSdkVersion` 이 기존 플러그인들과 같은지 본다.**
