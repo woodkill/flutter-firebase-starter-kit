@@ -20,6 +20,95 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/theme/brand_focus_wrapper.dart';
 import '_brand_assets.dart';
 
+/// 소셜 버튼 6개가 함께 쓰는 높이 (dp).
+const double kBrandButtonHeight = 48;
+
+/// 소셜 버튼 6개가 함께 쓰는 모서리 반지름 (dp).
+///
+/// 버튼 바탕 · 누름 물결 · 포커스 테두리가 모두 이 값을 쓴다.
+const double kBrandButtonRadius = 12;
+
+/// 버튼 안쪽 좌우 여백의 기본값 (dp).
+const double kBrandButtonHorizontalPadding = 12;
+
+/// 로고와 라벨 사이 간격의 기본값 (dp).
+const double kBrandButtonLogoGap = 8;
+
+/// 라벨 글자 크기 (sp).
+const double kBrandLabelFontSize = 16;
+
+/// 라벨 글자 굵기.
+const FontWeight kBrandLabelFontWeight = FontWeight.w500;
+
+/// 라벨 글꼴 이름 — iOS · macOS 가 아닌 플랫폼에서 쓴다.
+///
+/// 한글 · 가나처럼 이 글꼴에 없는 글자는 테마의 대체 글꼴 목록을 따라 기기
+/// 글꼴로 넘어간다.
+const String kBrandLabelFontFamily = 'Roboto';
+
+/// 라벨 글꼴 이름 — iOS · macOS 의 시스템 글꼴을 가리킨다.
+const String kBrandLabelFontFamilyApple = 'CupertinoSystemText';
+
+/// Google 버튼 라벨의 글꼴 이름 — 번들한 Google Sans 라틴 축소본의 family 다.
+const String kGoogleLabelFontFamily = 'GoogleSans';
+
+/// 공통 골격이 그릴 때 받는 후보 값 6개의 묶음.
+///
+/// 아직 확정하지 않은 값(라벨 배율 상한 · 비활성 투명도 · 줄 높이 · 자간 ·
+/// iOS 세로 보정 · Apple 로고 간격)을 한 곳에 모은다. 같은 위젯 트리를 여러
+/// 후보 값으로 그려 견줄 때 이 묶음만 바꾼다.
+@immutable
+class BrandButtonMetrics {
+  /// 후보 값 묶음을 만든다 — 여섯 값 모두 필수다.
+  const BrandButtonMetrics({
+    required this.labelScaleCap,
+    required this.disabledOpacity,
+    required this.labelLineHeight,
+    required this.labelLetterSpacing,
+    required this.iosLabelTopInset,
+    required this.appleLogoGap,
+  }) : assert(labelScaleCap > 0, 'labelScaleCap 은 0 보다 커야 한다.'),
+       assert(
+         disabledOpacity >= 0 && disabledOpacity <= 1,
+         'disabledOpacity 는 0 이상 1 이하여야 한다.',
+       ),
+       assert(labelLineHeight > 0, 'labelLineHeight 는 0 보다 커야 한다.'),
+       assert(iosLabelTopInset >= 0, 'iosLabelTopInset 은 0 이상이어야 한다.'),
+       assert(appleLogoGap >= 0, 'appleLogoGap 은 0 이상이어야 한다.');
+
+  /// 라벨 글자 배율의 상한.
+  ///
+  /// 기기의 글자 크기 설정이 이 배율을 넘으면 라벨은 여기서 멈춘다. 버튼 높이와
+  /// 로고는 글자 배율을 따르지 않는다.
+  final double labelScaleCap;
+
+  /// 비활성 버튼의 투명도 (0 ~ 1).
+  final double disabledOpacity;
+
+  /// 라벨 줄 높이 (dp) — [kBrandLabelFontSize] 크기 글자 한 줄이 차지하는 높이.
+  final double labelLineHeight;
+
+  /// 라벨 자간 (dp).
+  final double labelLetterSpacing;
+
+  /// iOS · macOS 에서 시스템 글꼴 라벨 위에 두는 여백 (dp).
+  ///
+  /// 시스템 한글 글꼴이 줄 안에서 위로 앉는 것을 보정한다. 자기 글꼴을 쓰는
+  /// 라벨(Google)에는 걸지 않는다.
+  final double iosLabelTopInset;
+
+  /// Apple 버튼의 로고와 라벨 사이 간격 (dp).
+  final double appleLogoGap;
+}
+
+/// 공통 골격 미리보기 값 — 테스트에서만 넣는다.
+///
+/// null(기본)이면 [BrandedSocialButton] 은 지금 외관 그대로 그린다. 값이 있으면
+/// 버튼 6개를 공통 골격 한 벌로, 그 값으로 그린다. 앱 코드는 이 변수에 값을
+/// 넣지 않는다.
+@visibleForTesting
+BrandButtonMetrics? debugBrandButtonPreviewMetrics;
+
 // Phase 13.1 REVIEW WR-02 / WR-09 정정 (2026-05-10):
 // 5 active provider brand 색 (Kakao 0xFFFEE500 / 0xD9000000 / 0xFF000000 +
 // Naver 0xFF03A94D / 0xFFFFFFFF) source const 폐기. Phase 13.1 Gap-1 X2 의
@@ -146,6 +235,41 @@ sealed class BrandSpec {
   /// 렌더 형식을 문서화하고 테스트가 그 계약을 잠그는 용도다 (IN-02 정정 —
   /// Phase 09 review). 자세한 내용은 [AssetType] 참조.
   AssetType get assetType;
+
+  /// 버튼 배경색을 밝기에 맞춰 돌려준다.
+  Color resolveBackgroundColor(Brightness brightness);
+
+  /// 라벨 글자색을 밝기에 맞춰 돌려준다.
+  Color resolveLabelColor(Brightness brightness);
+
+  /// 외곽선 색을 밝기에 맞춰 돌려준다 — 외곽선이 없는 버튼은 null 이다.
+  Color? resolveOutlineColor(Brightness brightness);
+
+  /// 로고 자산 경로를 밝기에 맞춰 돌려준다.
+  ///
+  /// `.png` 로 끝나는 경로는 비트맵으로, 그 밖은 SVG 로 그린다.
+  String resolveLogoAsset(Brightness brightness);
+
+  /// 로고를 그리는 상자의 폭 × 높이 (dp).
+  Size get logoSize;
+
+  /// 로고를 한 색으로 칠할 때의 색 — 자산의 색을 그대로 쓰는 로고는 null 이다.
+  Color? get logoTint;
+
+  /// 로고와 라벨 사이 간격 (dp) 을 플랫폼에 맞춰 돌려준다.
+  ///
+  /// 간격을 후보 값([BrandButtonMetrics.appleLogoGap])으로 정하는 버튼은 null
+  /// 을 돌려준다.
+  double? resolveLogoGap({required bool isApplePlatform});
+
+  /// 버튼 안쪽 좌우 여백 (dp) 을 플랫폼에 맞춰 돌려준다.
+  double resolveHorizontalPadding({required bool isApplePlatform});
+
+  /// 이 버튼만 쓰는 라벨 글꼴 이름.
+  ///
+  /// 플랫폼 공통 글꼴([kBrandLabelFontFamily] · [kBrandLabelFontFamilyApple])을
+  /// 쓰는 버튼은 null 이다.
+  String? get labelFontFamily;
 }
 
 /// Kakao 로그인 버튼 spec — D-61 sub-class.
@@ -174,6 +298,38 @@ class KakaoSpec extends BrandSpec {
 
   @override
   AssetType get assetType => AssetType.svg;
+
+  @override
+  Color resolveBackgroundColor(Brightness brightness) =>
+      const Color(0xFFFEE500);
+
+  // 검정 85% — Kakao 가이드의 라벨 색이다.
+  @override
+  Color resolveLabelColor(Brightness brightness) => const Color(0xD9000000);
+
+  @override
+  Color? resolveOutlineColor(Brightness brightness) => null;
+
+  @override
+  String resolveLogoAsset(Brightness brightness) =>
+      '$kBrandAssetBase/kakao/btn_signin_icon.svg';
+
+  @override
+  Size get logoSize => const Size(20, 20);
+
+  @override
+  Color? get logoTint => const Color(0xFF000000);
+
+  @override
+  double? resolveLogoGap({required bool isApplePlatform}) =>
+      kBrandButtonLogoGap;
+
+  @override
+  double resolveHorizontalPadding({required bool isApplePlatform}) =>
+      kBrandButtonHorizontalPadding;
+
+  @override
+  String? get labelFontFamily => null;
 }
 
 /// Naver 로그인 버튼 spec — D-61 sub-class.
@@ -203,6 +359,41 @@ class NaverSpec extends BrandSpec {
 
   @override
   AssetType get assetType => AssetType.svg;
+
+  @override
+  Color resolveBackgroundColor(Brightness brightness) =>
+      const Color(0xFF03A94D);
+
+  @override
+  Color resolveLabelColor(Brightness brightness) => const Color(0xFFFFFFFF);
+
+  @override
+  Color? resolveOutlineColor(Brightness brightness) => null;
+
+  @override
+  String resolveLogoAsset(Brightness brightness) =>
+      '$kBrandAssetBase/naver/btn_signin_icon.svg';
+
+  // Naver 가이드는 라벨이 로고 높이보다 작아야 한다고 정한다 — 로고 18 이
+  // 라벨 [kBrandLabelFontSize] 보다 크다.
+  @override
+  Size get logoSize => const Size(18, 18);
+
+  @override
+  Color? get logoTint => const Color(0xFFFFFFFF);
+
+  // Naver 가이드는 가운데 정렬의 로고 · 라벨 간격을 8 로 정한다. 기본 간격을
+  // 다른 값으로 바꾸면 이 자리에는 8 을 따로 적는다.
+  @override
+  double? resolveLogoGap({required bool isApplePlatform}) =>
+      kBrandButtonLogoGap;
+
+  @override
+  double resolveHorizontalPadding({required bool isApplePlatform}) =>
+      kBrandButtonHorizontalPadding;
+
+  @override
+  String? get labelFontFamily => null;
 }
 
 /// Google 로그인 버튼 spec — D-61 sub-class.
@@ -233,6 +424,49 @@ class GoogleSpec extends BrandSpec {
 
   @override
   AssetType get assetType => AssetType.svg;
+
+  @override
+  Color resolveBackgroundColor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFF131314)
+      : const Color(0xFFFFFFFF);
+
+  @override
+  Color resolveLabelColor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFFE3E3E3)
+      : const Color(0xFF1F1F1F);
+
+  @override
+  Color? resolveOutlineColor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFF8E918F)
+      : const Color(0xFF747775);
+
+  // gradient G 투명 PNG — 밝기와 무관하게 같은 그림이고, 기기 화소 밀도에 맞는
+  // 해상도 변형은 SDK 가 고른다.
+  @override
+  String resolveLogoAsset(Brightness brightness) =>
+      '$kBrandAssetBase/google/g.png';
+
+  @override
+  Size get logoSize => const Size(20, 20);
+
+  @override
+  Color? get logoTint => null;
+
+  // Google 가이드의 플랫폼별 값 — Android 10 · iOS 12.
+  @override
+  double? resolveLogoGap({required bool isApplePlatform}) =>
+      isApplePlatform ? 12 : 10;
+
+  // Google 가이드의 플랫폼별 값 — Android 12 · iOS 16.
+  @override
+  double resolveHorizontalPadding({required bool isApplePlatform}) =>
+      isApplePlatform ? 16 : kBrandButtonHorizontalPadding;
+
+  @override
+  String? get labelFontFamily => kGoogleLabelFontFamily;
 }
 
 /// Apple 로그인 버튼 spec — D-62 (Wave 4 Step 2 SDK 위제 → custom render supersede).
@@ -249,6 +483,48 @@ class AppleSpec extends BrandSpec {
 
   @override
   AssetType get assetType => AssetType.svg;
+
+  @override
+  Color resolveBackgroundColor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFFFFFFFF)
+      : const Color(0xFF000000);
+
+  @override
+  Color resolveLabelColor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFF000000)
+      : const Color(0xFFFFFFFF);
+
+  @override
+  Color? resolveOutlineColor(Brightness brightness) => null;
+
+  // 밝은 테마 = 검정 바탕에 흰 로고 · 어두운 테마 = 흰 바탕에 검정 로고.
+  @override
+  String resolveLogoAsset(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? '$kBrandAssetBase/apple/black_logo/btn_signin_icon_medium.svg'
+      : '$kBrandAssetBase/apple/white_logo/btn_signin_icon_medium.svg';
+
+  // 공식 medium 로고 — 파일 높이를 버튼 높이에 맞추고(Apple 가이드) 폭은
+  // 파일의 17 : 44 비율을 따른다.
+  @override
+  Size get logoSize =>
+      const Size(17 * kBrandButtonHeight / 44, kBrandButtonHeight);
+
+  @override
+  Color? get logoTint => null;
+
+  // Apple 로고 옆 간격은 후보 값에서 온다.
+  @override
+  double? resolveLogoGap({required bool isApplePlatform}) => null;
+
+  @override
+  double resolveHorizontalPadding({required bool isApplePlatform}) =>
+      kBrandButtonHorizontalPadding;
+
+  @override
+  String? get labelFontFamily => null;
 }
 
 /// Facebook 로그인 버튼 spec — Phase 13.2 완료 (옵션 A pivot, Wave 0 lock).
@@ -273,6 +549,45 @@ class FacebookSpec extends BrandSpec {
 
   @override
   AssetType get assetType => AssetType.svg;
+
+  @override
+  Color resolveBackgroundColor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFF131314)
+      : const Color(0xFFFFFFFF);
+
+  @override
+  Color resolveLabelColor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFFE3E3E3)
+      : const Color(0xFF1F1F1F);
+
+  @override
+  Color? resolveOutlineColor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFF8E918F)
+      : const Color(0xFF747775);
+
+  @override
+  String resolveLogoAsset(Brightness brightness) =>
+      '$kBrandAssetBase/facebook/btn_signin_icon.svg';
+
+  @override
+  Size get logoSize => const Size(20, 20);
+
+  @override
+  Color? get logoTint => null;
+
+  @override
+  double? resolveLogoGap({required bool isApplePlatform}) =>
+      kBrandButtonLogoGap;
+
+  @override
+  double resolveHorizontalPadding({required bool isApplePlatform}) =>
+      kBrandButtonHorizontalPadding;
+
+  @override
+  String? get labelFontFamily => null;
 }
 
 /// LINE 로그인 버튼 spec — Phase 14 D-LINE-08 active (sentinel → SVG).
@@ -315,6 +630,39 @@ class LineSpec extends BrandSpec {
   /// 으로 horizontal 비대육 렌더 (vertical 18dp canonical 유지 — 5 provider
   /// 시각 weight 일관, horizontal 만 LINE BI 비대육 채택).
   static const double iconAspectRatio = 47.0 / 44.0;
+
+  @override
+  Color resolveBackgroundColor(Brightness brightness) =>
+      const Color(0xFF06C755);
+
+  @override
+  Color resolveLabelColor(Brightness brightness) => const Color(0xFFFFFFFF);
+
+  @override
+  Color? resolveOutlineColor(Brightness brightness) => null;
+
+  @override
+  String resolveLogoAsset(Brightness brightness) =>
+      '$kBrandAssetBase/line/btn_signin_icon.svg';
+
+  // 높이 20 에 폭은 로고의 47 : 44 비율을 따른다 — LINE 가이드는 로고의
+  // 종횡비를 바꾸지 못하게 한다.
+  @override
+  Size get logoSize => const Size(20 * iconAspectRatio, 20);
+
+  @override
+  Color? get logoTint => const Color(0xFFFFFFFF);
+
+  @override
+  double? resolveLogoGap({required bool isApplePlatform}) =>
+      kBrandButtonLogoGap;
+
+  @override
+  double resolveHorizontalPadding({required bool isApplePlatform}) =>
+      kBrandButtonHorizontalPadding;
+
+  @override
+  String? get labelFontFamily => null;
 }
 
 /// 6 provider brand button 통합 위제 — D-61 sealed hierarchy + D-67 sealed switch.
@@ -450,6 +798,22 @@ class BrandedSocialButton extends StatelessWidget {
   // R1/R2/R3 render dispatch 단일 함수 → 3 별 함수 분리).
   @override
   Widget build(BuildContext context) {
+    // 미리보기 값이 있을 때만 공통 골격으로 그린다 — 없으면 아래 경로가 지금
+    // 외관을 그대로 그린다.
+    final previewMetrics = debugBrandButtonPreviewMetrics;
+    if (previewMetrics != null) {
+      return BrandFocusWrapper(
+        borderRadius: kBrandButtonRadius,
+        isEnabled: onPressed != null,
+        child: _renderUnifiedButton(
+          context,
+          spec,
+          label,
+          onPressed,
+          previewMetrics,
+        ),
+      );
+    }
     // D-67 — sealed switch exhaustive (Dart 3 컴파일 시점 강제).
     final Widget rendered = switch (spec) {
       // Phase 13.3 Wave 4 Step 2 (2026-05-15) — SDK 위제 (SignInWithAppleButton)
@@ -494,6 +858,143 @@ class BrandedSocialButton extends StatelessWidget {
       child: rendered,
     );
   }
+}
+
+/// 소셜 버튼 6개를 한 벌의 트리로 그린다 — 공통 골격.
+///
+/// 높이 · 모서리 · 라벨 크기 · 굵기는 파일 상단 상수에서, 아직 확정하지 않은
+/// 값은 [metrics] 에서, provider 마다 다른 값(색 · 외곽선 · 로고 · 간격 · 여백 ·
+/// 라벨 글꼴)은 [spec] 에서 온다. 테마에서 읽는 것은 밝기와 플랫폼뿐이다 —
+/// 앱 테마의 색이나 글자 스타일을 바꿔도 버튼 외관은 그대로다.
+///
+/// 라벨은 글자 배율 상한 안에서만 커진다. 버튼 높이와 로고는 글자 배율을
+/// 따르지 않는다. 포커스 테두리는 호출하는 쪽이 감싼다.
+Widget _renderUnifiedButton(
+  BuildContext context,
+  BrandSpec spec,
+  String label,
+  VoidCallback? onPressed,
+  BrandButtonMetrics metrics,
+) {
+  final theme = Theme.of(context);
+  final brightness = theme.brightness;
+  final isApplePlatform =
+      theme.platform == TargetPlatform.iOS ||
+      theme.platform == TargetPlatform.macOS;
+  final isEnabled = onPressed != null;
+  final radius = BorderRadius.circular(kBrandButtonRadius);
+  final outlineColor = spec.resolveOutlineColor(brightness);
+  // 자기 글꼴이 없는 라벨은 플랫폼 공통 글꼴을 쓴다. 글꼴 이름을 늘 명시해
+  // 앱 테마의 글꼴이 라벨에 스며들지 않게 한다.
+  final skinFontFamily = spec.labelFontFamily;
+  final labelFontFamily =
+      skinFontFamily ??
+      (isApplePlatform ? kBrandLabelFontFamilyApple : kBrandLabelFontFamily);
+  // 세로 보정은 Apple 플랫폼의 시스템 글꼴 라벨에만 건다 — 자기 글꼴을 쓰는
+  // 라벨은 두 플랫폼에서 같은 글꼴이 줄 상자를 정한다.
+  final labelTopInset = isApplePlatform && skinFontFamily == null
+      ? metrics.iosLabelTopInset
+      : 0.0;
+  final logoGap =
+      spec.resolveLogoGap(isApplePlatform: isApplePlatform) ??
+      metrics.appleLogoGap;
+  return Semantics(
+    button: true,
+    enabled: isEnabled,
+    label: label,
+    onTap: onPressed,
+    excludeSemantics: true,
+    child: SizedBox(
+      width: double.infinity,
+      height: kBrandButtonHeight,
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : metrics.disabledOpacity,
+        child: Material(
+          color: spec.resolveBackgroundColor(brightness),
+          shape: RoundedRectangleBorder(
+            borderRadius: radius,
+            side: outlineColor == null
+                ? BorderSide.none
+                : BorderSide(color: outlineColor, width: 1),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: radius,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: spec.resolveHorizontalPadding(
+                  isApplePlatform: isApplePlatform,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildBrandLogo(spec, brightness),
+                  SizedBox(width: logoGap),
+                  Flexible(
+                    // 글자 배율 상한은 라벨에만 건다 — 이 자리 한 곳이라
+                    // 버튼이 그려지는 모든 화면에 함께 걸린다.
+                    child: MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: metrics.labelScaleCap,
+                      child: Padding(
+                        padding: EdgeInsets.only(top: labelTopInset),
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          // 대체 글꼴 목록은 적지 않는다 — 테마의 목록을
+                          // 물려받아 한글 · 가나가 기기 글꼴로 넘어간다.
+                          style: TextStyle(
+                            color: spec.resolveLabelColor(brightness),
+                            fontSize: kBrandLabelFontSize,
+                            fontWeight: kBrandLabelFontWeight,
+                            height:
+                                metrics.labelLineHeight / kBrandLabelFontSize,
+                            letterSpacing: metrics.labelLetterSpacing,
+                            leadingDistribution: TextLeadingDistribution.even,
+                            fontFamily: labelFontFamily,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// 스킨의 로고를 그 상자 크기로 그린다.
+///
+/// 경로가 `.png` 로 끝나면 비트맵으로, 그 밖은 SVG 로 그린다. 단색 칠은 SVG
+/// 로고에만 한다 — 비트맵 로고는 색이 그림에 들어 있다. 로고는 접근성 트리에
+/// 넣지 않는다(버튼 전체가 라벨 하나로 읽힌다).
+Widget _buildBrandLogo(BrandSpec spec, Brightness brightness) {
+  final asset = spec.resolveLogoAsset(brightness);
+  final size = spec.logoSize;
+  final tint = spec.logoTint;
+  if (asset.endsWith('.png')) {
+    assert(tint == null, '비트맵 로고에는 단색 칠을 하지 않는다: $asset');
+    return Image.asset(
+      asset,
+      width: size.width,
+      height: size.height,
+      excludeFromSemantics: true,
+    );
+  }
+  return SvgPicture.asset(
+    asset,
+    width: size.width,
+    height: size.height,
+    colorFilter: tint == null ? null : ColorFilter.mode(tint, BlendMode.srcIn),
+    excludeFromSemantics: true,
+  );
 }
 
 // Phase 13.3 — see ROADMAP.md (R2 Kakao | R3 Naver render —
