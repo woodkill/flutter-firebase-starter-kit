@@ -29,27 +29,28 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 2. [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기)
 3. [인증 결과 페이지 바꾸기](#인증-결과-페이지-바꾸기)
 4. [킷 업데이트 반영](#킷-업데이트-반영)
-5. [Kakao Login (Phase 12)](#kakao-login-phase-12)
-6. [Naver Login (Phase 13)](#naver-login-phase-13)
-7. [LINE Login (Phase 14)](#line-login-phase-14)
-8. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
-9. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
-10. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
-11. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
-12. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
-13. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
-14. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
-15. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
-16. [Firebase Services (Phase 17)](#firebase-services-phase-17)
-17. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
-18. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
-19. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
-20. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
-21. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
-22. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-23. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-24. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
-25. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
+5. [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기)
+6. [Kakao Login (Phase 12)](#kakao-login-phase-12)
+7. [Naver Login (Phase 13)](#naver-login-phase-13)
+8. [LINE Login (Phase 14)](#line-login-phase-14)
+9. [Brand Asset (Phase 13 D-52 — Kakao + Naver 통합)](#brand-asset-phase-13-d-52--kakao--naver-통합)
+10. [Kakao 동의 항목 갱신 (Phase 13 D-56 retroactive)](#kakao-동의-항목-갱신-phase-13-d-56-retroactive)
+11. [IdP 프로필 동기화 정책 (R10-FOLLOWUP)](#idp-프로필-동기화-정책-r10-followup)
+12. [Cloud Functions 배포 / Remote Config Kill Switch (Phase 11-04)](#cloud-functions-배포--remote-config-kill-switch-phase-11-04)
+13. [Kakao Brand Asset 라이센스 / 출처 (Phase 12-07)](#kakao-brand-asset-라이센스--출처-phase-12-07)
+14. [Brand Asset Management (Phase 13.1)](#brand-asset-management-phase-131)
+15. [Account Linking & Withdrawal (Phase 16)](#account-linking--withdrawal)
+16. [회원탈퇴 정리 현황](#회원탈퇴-정리-현황)
+17. [Firebase Services (Phase 17)](#firebase-services-phase-17)
+18. [Multi-Provider Account Linking (Phase 9.2)](#multi-provider-account-linking-phase-92)
+19. [App Entry State Machine (Phase 10.2)](#app-entry-state-machine-phase-102)
+20. [로그인 화면 구조 — 이메일 격하 (Phase 16.1)](#로그인-화면-구조--이메일-격하-phase-161)
+21. [Design System — 디자인 토큰 커스터마이징 (Phase 3)](#design-system--디자인-토큰-커스터마이징-phase-3)
+22. [ATT (App Tracking Transparency) 와 iOS Facebook 로그인 — 앱 책임 영역](#att-app-tracking-transparency-와-ios-facebook-로그인--앱-책임-영역)
+23. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+24. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+25. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+26. [홈 화면 바꾸기 (Phase 17.1)](#홈-화면-바꾸기-phase-171)
 
 ---
 
@@ -871,6 +872,55 @@ git revert -m 1 <merge 커밋>
 되돌린 판을 다시 받으려면 그 revert 커밋을 `git revert` 한다.
 
 자세한 배경: 킷이 판을 내는 방법과 판 번호 규칙은 [유지보수자 문서](maintainer/kit-release-publishing.md)에 있다.
+
+---
+
+## 로그인 수단에서 이메일 받기
+
+켠 로그인 수단이 가입할 때 이메일을 주도록 provider 콘솔을 설정하는 절차다. 킷은 로그인 수단이 준 이메일을 계정의 이메일로 쓰고, 사용자가 나중에 이메일을 등록하는 화면은 두지 않는다. 이메일이 오지 않은 계정은 설정 → 내 계정(계정 정보 화면)의 「이메일」 행이 「-」 로 보이고, 같은 사람이 다른 로그인 수단으로 이미 가입해 있어도 기존 계정 안내 없이 새 계정이 하나 더 생긴다. 그래서 켠 provider 마다 이메일을 필수로 받도록 설정한다. 소셜 로그인을 하나도 켜지 않았으면 이 절을 건너뛴다.
+
+**전제:** [로그인 수단 켜고 끄기](#로그인-수단-켜고-끄기) 의 「켜기」 ① 로 그 provider 의 콘솔에 앱을 등록한다. 이 절의 설정은 모두 그 콘솔에서 하고, 앱 코드는 고치지 않는다.
+
+### provider 별 설정
+
+| provider | 이메일을 필수로 받는 설정 | 할 일 |
+|----------|---------------------------|-------|
+| Google | 없음 | 설정할 것이 없다 |
+| Apple | 없음 | 설정할 것이 없다 |
+| Facebook | 없음 | 설정할 것이 없다 — 사용자가 이메일 권한을 거부할 수 있다 |
+| Kakao | 있음 | 비즈 앱(또는 테스트 앱)에서 「카카오계정(이메일)」 동의항목을 [필수 동의] 로 설정한다 |
+| Naver | 있음 | 「연락처 이메일 주소」 를 필수 제공 항목으로 설정한다 |
+| LINE | 없음 | email 권한을 신청한다 — 권한을 받아도 사용자가 이메일 제공에 동의하지 않을 수 있다 |
+
+**Kakao.** 「카카오계정(이메일)」 동의항목의 동의 단계는 비즈 앱 또는 테스트 앱에서만 설정할 수 있다. 일반 앱이면 먼저 비즈 앱으로 전환한다 — 전환 절차는 [Kakao 검수 / 비즈앱](#kakao-검수--비즈앱--추가-수집--stg-prod-phase-14-d-line-22b-retroactive) 절의 「(2) 비즈앱 인증 절차」 에 있다. 그다음 Kakao Developers 앱 관리 페이지의 [카카오 로그인] > [동의항목] > [개인정보] 에서 「카카오계정(이메일)」 행의 [설정] 을 누르고, 동의 단계를 [필수 동의] 로 고른 뒤 동의 목적을 입력한다. 설정창에 「카카오계정으로 수집 후 제공」 이 있으면 함께 켠다 — 카카오계정에 등록되지 않은 정보를 사용자에게 동의와 입력을 요청해 받아 주는 기능이다. [필수 동의] 로 두어도 Kakao 가 갖고 있지 않은 정보는 오지 않을 수 있다. 앱 등록 순서에서 이 설정의 자리는 [Kakao Login 1단계](#1단계--kakao-developer-console-앱-등록) 의 7번이다. 공식 문서: <https://developers.kakao.com/docs/ko/kakaologin/utilize> · <https://developers.kakao.com/docs/ko/kakaologin/prerequisite>
+
+**Naver.** Naver Developers 의 애플리케이션 API 설정 메뉴에서 「연락처 이메일 주소」 를 필수 제공 항목으로 둔다. 추가 제공 항목으로 두면 사용자가 제공 여부를 고르므로 이메일이 오지 않을 수 있다. Naver 는 필수 제공 항목을 서비스 이용에 반드시 필요한 정보로만 설정하라고 안내한다. 앱 등록 순서에서 이 설정의 자리는 [Naver Login 5단계](#5단계--동의-항목-활성화-phase-13-d-56) 다. 공식 문서: <https://developers.naver.com/docs/login/devguide/devguide.md>
+
+**LINE.** LINE Developers Console 에서 채널의 Basic settings 탭 → OpenID Connect → Apply 로 email 권한을 신청한다 — 신청 절차는 [LINE Login 의 email permission 신청 절차](#email-permission-신청-절차-선택--신청만-하면-동작) 에 있다. 권한이 없는 채널은 동의 화면에 이메일 항목이 없고 이메일 없이 가입된다. 권한을 받은 뒤에도 동의 화면에서 이메일은 필수 항목이 아니다 — 사용자가 이메일 제공에 동의하지 않고 로그인할 수 있다. 공식 문서: <https://developers.line.biz/en/docs/line-login/integrate-line-login/>
+
+**Facebook.** 이메일을 필수로 받을 수 없다. 앱은 `email` 권한을 요청하지만, 사용자는 로그인할 때 공개 프로필을 뺀 권한을 모두 거부할 수 있고 Facebook 계정에 유효한 이메일이 없으면 값이 오지 않는다. 공식 문서: <https://developers.facebook.com/documentation/facebook-login/guides/permissions/handle-declined> · <https://developers.facebook.com/docs/graph-api/reference/user/>
+
+**Google · Apple.** 설정할 것이 없다. Apple 은 사용자가 가입할 때 이메일 가리기(Hide My Email)를 고르면 `privaterelay.appleid.com` 도메인의 주소가 온다. 공식 문서: <https://firebase.google.com/docs/auth/ios/apple>
+
+Facebook · LINE 처럼 이메일을 필수로 받을 수 없는 로그인 수단을 켜면 이메일 없는 계정이 생길 수 있다. 그 계정은 「이메일」 행이 「-」 로 보이고, 같은 사람이 다른 로그인 수단으로 만든 계정이 있어도 기존 계정 안내가 뜨지 않는다. 이메일이 꼭 필요한 앱은 가입 흐름에 이메일을 받는 화면을 직접 더한다.
+
+### 확인 방법
+
+- 그 provider 로 새로 가입한 뒤 설정 → 내 계정(계정 정보 화면)을 연다. 「이메일」 행에 「-」 가 아니라 그 provider 계정의 이메일이 보인다.
+- LINE 은 신청이 받아들여지면 채널 Basic settings 탭의 OpenID Connect 에서 Email address permission 아래에 「Applied」 가 보인다.
+
+### 문제 해결
+
+- **「이메일」 행이 「-」 다.** 그 계정이 가입할 때 provider 가 이메일을 주지 않았다. 원인은 provider 마다 다르다 — 설정을 고친 뒤 새로 가입하는 계정으로 다시 확인한다.
+  - Kakao — 앱이 비즈 앱(또는 테스트 앱)이 아니다. 또는 「카카오계정(이메일)」 동의항목이 [필수 동의] 가 아니다. 또는 Kakao 가 그 사용자의 이메일을 갖고 있지 않다.
+  - Naver — 「연락처 이메일 주소」 가 추가 제공 항목이고 사용자가 제공을 고르지 않았다.
+  - LINE — 채널에 email 권한이 없다. 또는 사용자가 동의 화면에서 이메일 제공에 동의하지 않았다. 또는 LINE 계정에 이메일이 등록돼 있지 않다.
+  - Facebook — 사용자가 이메일 권한을 거부했다. 또는 Facebook 계정에 유효한 이메일이 없다. 앱 설정으로는 고칠 수 없다.
+- **같은 사람인데 계정이 두 개 생겼다.** 나중에 쓴 로그인 수단이 이메일을 주지 않았거나 먼저 만든 계정과 다른 이메일을 줬다. 그 로그인 수단을 먼저 만든 계정에 연결하려면 새로 생긴 계정으로 로그인해 회원탈퇴한 뒤, 먼저 만든 계정의 설정 → 내 계정(계정 정보 화면) → 「계정 연결」 에서 연결한다. 규칙은 [계정 연결 해제](#계정-연결-해제-phase-168) 절의 「해제 후 같은 provider 로 다시 로그인하면」 표와 같다.
+
+### 되돌리기
+
+Kakao 의 동의 단계와 Naver 의 제공 항목 구분을 바꾸기 전 값으로 되돌린다. 필수로 받지 않으면 그 뒤에 가입하는 계정은 이메일 없이 만들어질 수 있다.
 
 ---
 
