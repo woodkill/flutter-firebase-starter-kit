@@ -140,6 +140,48 @@ Future<void> _loadGoldenFonts() async {
   robotoLoader.addFont(Future.value(ByteData.view(robotoBytes.buffer)));
   await robotoLoader.load();
 
+  // Google 라벨 글꼴 — 번들한 Google Sans 라틴 축소본이다. 공통 골격의 Google
+  // 버튼만 이 family 를 쓴다(미리보기 값이 없을 때의 렌더는 쓰지 않는다).
+  final googleSansFile = File(
+    'assets/fonts/googlesans/GoogleSans-Latin-wght.ttf',
+  );
+  if (!googleSansFile.existsSync()) {
+    throw TestFailure(
+      'GoogleSans 글꼴 자산 부재 '
+      '(assets/fonts/googlesans/GoogleSans-Latin-wght.ttf) — Google 버튼 '
+      '라벨이 Ahem 상자로 그려진다. `pubspec.yaml` fonts: 항목과 파일을 확인한다.',
+    );
+  }
+  final googleSansLoader = FontLoader('GoogleSans');
+  final googleSansBytes = await googleSansFile.readAsBytes();
+  googleSansLoader.addFont(Future.value(ByteData.view(googleSansBytes.buffer)));
+  await googleSansLoader.load();
+
+  // 미리보기 값이 있으면 버튼 6개를 공통 골격이 그린다. 그때 라벨이 쓰는 글꼴은
+  // 위 두 family 와 iOS 케이스의 시스템 글꼴뿐이라 아래의 옛 글꼴은 올리지
+  // 않는다.
+  if (debugBrandButtonPreviewMetrics != null) {
+    if (Platform.isMacOS) {
+      // iOS 케이스의 라벨 글꼴 — macOS 시스템 글꼴 파일을 공통 골격이 쓰는
+      // 이름으로 올린다. 이 파일의 라벨은 영문뿐이라 한글 face 는 필요 없다
+      // (`.ttc` 를 통째로 올리면 첫 face 만 올라간다).
+      final systemFontFile = File('/System/Library/Fonts/SFNS.ttf');
+      if (!systemFontFile.existsSync()) {
+        throw TestFailure(
+          'macOS SFNS.ttf 부재 (/System/Library/Fonts/SFNS.ttf) — iOS 케이스의 '
+          '라벨을 시스템 글꼴로 그릴 수 없다. 시스템 글꼴 위치를 확인한다.',
+        );
+      }
+      final systemFontLoader = FontLoader('CupertinoSystemText');
+      final systemFontBytes = await systemFontFile.readAsBytes();
+      systemFontLoader.addFont(
+        Future.value(ByteData.view(systemFontBytes.buffer)),
+      );
+      await systemFontLoader.load();
+    }
+    return;
+  }
+
   // Phase 13.3 Wave 4 Step 3 (2026-05-16) — Inter Regular + Medium golden
   // fixture font load. Apple Sign-in 버튼 라벨이 platform 분기로 Android/test
   // env 에서 'Inter' family 사용 (iOS/macOS 는 system 'SF Pro Text'). Apple
@@ -708,5 +750,91 @@ void main() {
         matchesGoldenFile('goldens/apple_dark_ios.png'),
       );
     });
+
+    // LINE 케이스는 공통 골격으로 전환한 뒤 켠다 — 미리보기 값이 없으면 건너뛴다.
+    testWidgets('LINE light', skip: debugBrandButtonPreviewMetrics == null, (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.line(label: 'Log in with LINE', onPressed: () {}),
+          brightness: Brightness.light,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/line_light.png'),
+      );
+    });
+
+    testWidgets('LINE dark', skip: debugBrandButtonPreviewMetrics == null, (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          BrandedSocialButton.line(label: 'Log in with LINE', onPressed: () {}),
+          brightness: Brightness.dark,
+        ),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/line_dark.png'),
+      );
+    });
+
+    // iOS 케이스는 위 조건에 더해 macOS 에서만 돈다(시스템 글꼴로 그린다).
+    testWidgets(
+      'LINE light (iOS)',
+      skip: debugBrandButtonPreviewMetrics == null || !Platform.isMacOS,
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.line(
+              label: 'Log in with LINE',
+              onPressed: () {},
+            ),
+            brightness: Brightness.light,
+            platform: TargetPlatform.iOS,
+          ),
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/line_light_ios.png'),
+        );
+      },
+    );
+
+    testWidgets(
+      'LINE dark (iOS)',
+      skip: debugBrandButtonPreviewMetrics == null || !Platform.isMacOS,
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _wrap(
+            BrandedSocialButton.line(
+              label: 'Log in with LINE',
+              onPressed: () {},
+            ),
+            brightness: Brightness.dark,
+            platform: TargetPlatform.iOS,
+          ),
+        );
+        await _settleAssets(tester);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/line_dark_ios.png'),
+        );
+      },
+    );
   });
 }
