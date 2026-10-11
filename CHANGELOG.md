@@ -14,10 +14,22 @@
 
 ## [Unreleased]
 
+### 사용자 조치
+
+- 데모 화면을 지운 저장소는 이 판을 받을 때 `lib/features/demo/presentation/demo_screen.dart` 에서 `CONFLICT (modify/delete)` 가 난다 — `git rm lib/features/demo/presentation/demo_screen.dart` 로 푼다. `test/features/home/home_listener_source_guard_test.dart` 가 충돌하면 `git checkout --theirs -- test/features/home/home_listener_source_guard_test.dart` 로 킷 판을 받은 뒤 T-171-HOME-15 를 지우고, T-171-HOME-16 기대 집합에서 `demo_screen.dart`(상수 `_demoScreenPath`)를 다시 빼고, 쓰는 곳이 없어진 `_demoScreenPath` 선언을 지운 다음 `git add` 한다. 데모 화면을 지우지 않았다면 할 일이 없다 — 매뉴얼 「킷 업데이트 반영」 「충돌 풀기」 규칙 3 · 「홈 화면 바꾸기」 ③ 「지우는 법」 4단계.
+
+### Added
+
+- 로그아웃과 회원탈퇴 마무리 동안 화면 전체를 덮는 진행 오버레이를 더한다. 로그아웃은 확인한 직후, 회원탈퇴는 서버 삭제가 끝난 직후부터 온보딩 화면이 뜰 때까지 스피너와 「로그아웃 처리 중…」 · 「탈퇴 처리 중…」 문구가 보이고 입력이 막힌다. 로그아웃이 예외로 끝나면 바로 걷히고, 30초가 지나면 로그아웃은 계속 진행한 채 오버레이만 걷힌다. 새 문구 키는 `authSigningOut` · `withdrawalFinalizing` 이다(영어 · 한국어 · 일본어). 로그아웃 뒤 목적지를 온보딩이 아닌 화면으로 바꿨다면 그 화면의 route `builder` 를 `SessionEndingArrival` 로 감싼다 — 매뉴얼 「App Entry State Machine」 절.
+
 ### Changed
 
 - Android 빌드 도구를 Gradle 9.3.1 · Android Gradle Plugin 9.1.0 · Kotlin Gradle Plugin 2.4.0 · google-services Gradle 플러그인 4.5.0 · Crashlytics Gradle 플러그인 3.0.8 로 올린다. Flutter 가 내던 지원 종료 경고 3건이 사라지고, 대신 Kotlin Gradle Plugin 적용 경고 2종이 나온다(지금은 정상). `android/app/build.gradle.kts` 는 `buildFeatures { resValues = true }` 와 `kotlin { compilerOptions { … } }` 를 쓴다 — 앱 ID · 서명 줄은 그대로라 merge 로 끝난다. 바뀐 파일은 `android/settings.gradle.kts` · `android/gradle/wrapper/gradle-wrapper.properties` · `android/app/build.gradle.kts` 다. Android Studio 로 `android/` 를 열려면 2025.3.2 이상이 필요하다 — 매뉴얼 「Flutter SDK 상향 (FVM)」 ⑤.
 - `flutter_line_sdk` 를 3.0.0 으로 올린다. 새 Android Gradle Plugin 에서 Android 빌드가 되는 판이다. iOS 는 15.0 이상 · LineSDK 5.17 이상을 요구하고, 킷의 iOS 핀(5.17.0)은 그대로다. 바뀐 파일은 `pubspec.yaml` · `pubspec.lock` 이다 — 매뉴얼 「iOS 의존성 관리 (SPM)」 ②.
+
+### Fixed
+
+- 회원탈퇴에서 서버 삭제가 끝난 뒤 온보딩 화면으로 넘어가기 전에 「탈퇴」 버튼과 뒤로 가기가 다시 살아나던 문제를 고친다. 이미 삭제된 계정으로 「탈퇴」 를 다시 누를 수 없다.
 
 ## [1.0.0-rc.2] - 2026-10-10
 

@@ -4445,16 +4445,16 @@ starter-kit fork 사용자가 본 단락의 동작을 프로젝트 정책에 맞
 
 `AuthRepository.signOutAndResetOnboarding()` 는 I2 invariant 의 단일 진리원이다.
 
-- **호출자 (4곳 · Phase 17.1 기준 — `grep -rn 'signOutAndResetOnboarding()' lib` · 파일 집합은 `test/features/home/home_listener_source_guard_test.dart` T-171-HOME-16 이 고정):**
-  - `lib/features/settings/presentation/account_screen.dart` `_confirmSignOut` (계정 정보 화면 「로그아웃」 → 확인 다이얼로그 confirm path — production 로그아웃의 유일한 UI)
-  - `lib/features/demo/presentation/demo_screen.dart` `_handleForceSignOut` (데모 화면 Dev Tools 강제 로그아웃 · debug 빌드 전용 — Phase 10.2 D-A4 production 와 완전 동일 동작 강제)
-  - `lib/features/settings/presentation/settings_notifier.dart` `requestAccountDeletion()` (회원탈퇴 서버 삭제 확정 뒤 best-effort 사후 정리 — 실패는 탈퇴 실패로 분류하지 않고 Crashlytics `withdrawal_post_signout` 만)
-  - `lib/features/auth/presentation/verify_email_notifier.dart` `logout()` ("다른 계정으로 로그인" verify-email 화면 TextButton — Phase 10.2 review iter3 CR-01 정정. iter3 이전에는 `signOut()` 단독 호출로 D-A7 호출자 책임 invariant 위배 — D-20 cycle 회귀 vector 였음)
+- **호출자 (1곳):** `lib/features/auth/application/session_ending.dart` 의 `SessionEnding`(세션 종료 관리자)만 이 함수를 부른다. 로그아웃과 회원탈퇴 마무리를 시작하는 화면 · notifier 는 모두 관리자를 거치고, 관리자가 진행 오버레이를 켜고 끈다. 두 파일 집합은 `test/features/home/home_listener_source_guard_test.dart` 의 T-171-HOME-16 이 고정한다.
+  - `lib/features/settings/presentation/account_screen.dart` `_confirmSignOut` — 계정 정보 화면 「로그아웃」 의 확인 다이얼로그에서 확인을 누르면 `SessionEnding.signOut()` 을 부른다.
+  - `lib/features/auth/presentation/verify_email_notifier.dart` `logout()` — 이메일 인증 화면의 「다른 계정으로 로그인」 이 `SessionEnding.signOut()` 을 부른다.
+  - `lib/features/demo/presentation/demo_screen.dart` `_handleForceSignOut` — 데모 화면 Dev Tools 의 강제 로그아웃(debug 빌드 전용)이 `SessionEnding.signOut()` 을 부른다.
+  - `lib/features/settings/presentation/settings_notifier.dart` `requestAccountDeletion()` — 회원탈퇴는 서버 삭제가 끝나면 `SessionEnding.beginWithdrawalCleanup()` 을 부른 뒤 성공을 알리고, 이어서 `SessionEnding.runWithdrawalCleanup()` 으로 사후 정리를 한다. 사후 정리가 실패해도 탈퇴 실패로 보지 않고 Crashlytics 에 `withdrawal_post_signout` 으로만 남긴다.
 - **본체 (Phase 10.2 D-A3 순서):**
   1. `await _onResetOnboarding();` — `OnboardingNotifier.reset()` 콜백 호출. state `AsyncData<bool>(false)` 동기 set + SharedPreferences `prefs.remove(_key)` lossy 정책 (실패 graceful).
   2. `await signOut();` — Firebase Auth signOut + Google / Facebook / Kakao / Naver SDK 5개 순차 logout (Phase 9.2 R6 invariant 보존).
 - **navigation 명시 호출 0건 (Phase 10.2 D-B1):** `authStateChanges → AuthChangeNotifier → authRedirect 분기 (2)` 가 `/onboarding` 으로 자연 redirect. `context.go(AppRoutes.onboarding)` 등 explicit navigation **금지** — race condition (호출 직후 vs userChanges emit 직후) 차단.
-- **Crashlytics signal / SnackBar / Loading indicator 추가 안 함 (Phase 10.2 D-A6/B2/B4):** logout 은 정상 흐름 — over-instrumentation 회피.
+- **진행 오버레이:** 로그아웃을 확인한 직후(회원탈퇴는 서버 삭제가 끝난 직후)부터 온보딩 화면이 뜰 때까지 화면 전체를 덮는 오버레이가 스피너와 문구(「로그아웃 처리 중…」 · 「탈퇴 처리 중…」)를 보이고 입력을 막는다. `lib/app.dart` 의 `MaterialApp.router` `builder` 에 둔 `SessionEndingOverlay` 가 그리고, `lib/core/router/app_router.dart` 에서 온보딩 route 를 감싼 `SessionEndingArrival` 이 화면 전환이 끝나면 걷는다. 로그아웃이 예외로 끝나면 바로 걷히고, 30초가 지나면 로그아웃은 계속 진행한 채 오버레이만 걷힌다. 회원탈퇴에서는 서버 삭제가 끝난 뒤 온보딩 화면에 닿을 때까지 「탈퇴」 버튼이 다시 눌리지 않는다. 로그아웃 뒤 목적지를 온보딩이 아닌 화면으로 바꾸면 그 화면의 route `builder` 를 `SessionEndingArrival` 로 감싼다 — 감싸지 않으면 오버레이가 30초 동안 남고, 회원탈퇴 뒤에는 앱을 다시 시작할 때까지 「탈퇴」 버튼이 눌리지 않는다. 로그아웃에는 SnackBar 와 Crashlytics 기록을 더하지 않는다.
 
 ### D-20 폐기 history (Phase 10 → Phase 10.2)
 
@@ -5791,9 +5791,10 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 - **테스트가 실수를 잡는다** — `test/features/home/home_listener_source_guard_test.dart`.
   T-171-HOME-14 는 `lib` 에서 리스너를 만드는 파일이 홈 배선 파일 하나인지 본다
   (빠뜨리거나 다른 파일에 하나 더 두면 실패). **홈 파일 이름을 바꾸면 이 테스트의
-  `_homeScreenPath` 도 바꾼다.** T-171-HOME-16 은 로그아웃(`signOutAndResetOnboarding()`)
-  을 부르는 파일 집합을 고정한다 — 로그아웃 호출 위치를 늘리거나 옮기면 그 기대
-  집합도 함께 고친다. 홈 화면 테스트(`test/features/home/home_screen_test.dart`)와
+  `_homeScreenPath` 도 바꾼다.** T-171-HOME-16 은 세션 종료 관리자
+  (`sessionEndingProvider.notifier`)를 쓰는 파일 집합과 `signOutAndResetOnboarding()` 을 직접
+  부르는 파일(관리자 1개)을 고정한다 — 로그아웃 버튼을 다른 화면에 더하면 그 화면에서
+  `SessionEnding.signOut()` 을 부르고 그 파일을 기대 집합에 더한다. 홈 화면 테스트(`test/features/home/home_screen_test.dart`)와
   홈 golden `home_171_guest_announcement_ko_280_{light,dark}.png`
   (`home_announcement_golden_test.dart`)도 새 화면 기준으로 다시 만든다.
   홈 파일 · 클래스 이름을 바꾸면(예: `my_home_screen.dart` · `MyHomeScreen`) lib ·
