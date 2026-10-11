@@ -290,7 +290,7 @@ Functions region 을 결정합니다. 기본값은 `asia-northeast3` (서울) �
 
 Kakao 를 켜는 예다. 다른 provider 도 표의 그 행을 보고 같은 순서로 한다. 예시는 dev flavor 기준이고, stg · prod 는 `dev` 자리에 flavor 이름을 넣는다.
 
-**① 콘솔 등록 · 키 발급.** 표의 「콘솔 등록」 칸에 있는 절차로 앱을 등록하고 키를 발급한다. Kakao 는 [Kakao Login](#kakao-login-phase-12) 절이다.
+**① 콘솔 등록 · 키 발급.** 표의 「콘솔 등록」 칸에 있는 절차로 앱을 등록하고 키를 발급한다. Kakao 는 [Kakao Login](#kakao-login-phase-12) 절이다. 콘솔에 등록할 때 그 provider 가 이메일을 주도록 함께 설정한다 — provider 별 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 절에 있다.
 
 **② config 에 키를 넣고 토큰을 더한다.** `config/dev.json` 의 표 「config 키」 칸 값을 발급받은 값으로 바꾸고, `enabledAuthProviders` 에 토큰을 더한다. 아래 `kakaoNativeAppKey` 값은 example 파일의 자리표시 값이다.
 
@@ -989,7 +989,9 @@ Firebase Custom Token 을 발급, 클라이언트가 `signInWithCustomToken` 으
 7. **동의항목 설정 (Phase 12 D-03)**
    - "내 애플리케이션 > 제품 설정 > 카카오 로그인 > 동의항목"
    - **닉네임 (`profile_nickname`)** — "필수 동의" 로 설정
-   - **카카오계정 이메일 (`account_email`)** — "필수 동의" 로 설정
+   - **카카오계정 이메일 (`account_email`)** — "필수 동의" 로 설정. 비즈 앱 또는
+     테스트 앱에서만 동의 단계를 설정할 수 있다 —
+     [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 참조
    - 그 외 항목 (프로필 사진, 생일, 성별 등) 은 starter kit 기본 범위 외
      (필요 시 사용자가 추가)
 
@@ -2520,6 +2522,7 @@ Kakao Developers 정책: **일일 활성 사용자 (DAU) 100명 이상** product
 - 배송지 정보
 - 카카오톡 메시지 전송 권한
 - 생일 / 성별 / 연령대 / 출생연도 (기본 동의 항목 외 민감 정보)
+- 카카오계정 이메일 `account_email` (비즈 앱 또는 테스트 앱에서만 동의 단계 설정 가능)
 
 1. **Kakao Developers Console > 본인 앱 > 비즈앱 전환** 메뉴 진입.
 2. 분기 선택:
@@ -2542,7 +2545,9 @@ Kakao Developers 정책: **일일 활성 사용자 (DAU) 100명 이상** product
 |------|-------|-----------|-------------------|
 | 닉네임 | `profile_nickname` | X | X |
 | 프로필 사진 | `profile_image` | X | X |
-| 카카오계정 이메일 | `account_email` | X | X |
+
+카카오계정 이메일(`account_email`)은 이 표에 없다 — 동의 단계를 비즈 앱 또는 테스트 앱에서만
+설정할 수 있다([로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기)).
 
 **비즈앱-only 동의 항목 (비즈앱 인증 + 검수 양쪽 의무):**
 

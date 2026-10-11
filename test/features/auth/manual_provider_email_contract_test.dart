@@ -13,6 +13,8 @@
 //   (provider 마다 한 줄 · 중복 없음).
 // C5C-DOCS-04: 절의 내부 링크(`](#…)`)가 모두 매뉴얼에 정확히 1개 있는 헤딩을
 //   가리킨다.
+// C5C-DOCS-05: 「로그인 수단 켜고 끄기」 「켜기」 ① 줄이 이 절을 링크 1개로
+//   가리키고, 카카오계정 이메일을 비즈앱 의무 없음으로 적은 표 행이 매뉴얼에 없다.
 
 import 'dart:convert';
 
@@ -73,6 +75,22 @@ final RegExp _headingLinePattern = RegExp(r'^#{2,4} ');
 final RegExp _anchorDroppedCharacters = RegExp(
   r'[^\p{L}\p{N}\p{M}\-_ ]',
   unicode: true,
+);
+
+/// 「로그인 수단 켜고 끄기」 절 헤딩 — 이 절로 오는 진입 문장이 있는 곳.
+const String _providerOnOffHeading = '## 로그인 수단 켜고 끄기';
+
+/// 「켜기」 ① 줄의 머리 — 그 절에서 정확히 한 줄이 이것으로 시작한다.
+const String _consoleStepHead = '**① 콘솔 등록 · 키 발급.**';
+
+/// 이 절을 가리키는 내부 링크 조각.
+const String _sectionLink = '](#$_sectionAnchor)';
+
+/// 카카오계정 이메일을 비즈앱 의무 없음(`X`)으로 적은 표 행 — 넷째 칸 값은 보지
+/// 않는다.
+final RegExp _kakaoEmailNoBizRowPattern = RegExp(
+  r'^\| 카카오계정 이메일 \| `account_email` \| X \|',
+  multiLine: true,
 );
 
 /// 헤딩 줄 [line] 을 GitHub 헤딩 앵커 규칙으로 바꾼다.
@@ -214,6 +232,41 @@ void main() {
           reason: '절의 링크 #$anchor 가 가리키는 헤딩이 없거나 중복이다',
         );
       }
+    });
+
+    test('C5C-DOCS-05: 「켜기」 ① 이 이 절을 가리키고 Kakao 이메일 행이 비즈앱 의무 없음 표에 없다', () {
+      final String providerOnOff = sliceMarkdownSection(
+        manual,
+        _providerOnOffHeading,
+        maxLevel: 2,
+      );
+      final List<String> consoleSteps = linesStartingWith(
+        providerOnOff,
+        _consoleStepHead,
+      );
+      expect(
+        consoleSteps,
+        hasLength(1),
+        reason: '「로그인 수단 켜고 끄기」 절에 「켜기」 ① 줄이 없거나 중복이다',
+      );
+      expect(
+        countOccurrences(consoleSteps.single, _sectionLink),
+        1,
+        reason: '「켜기」 ① 줄에 이 절로 가는 링크가 없거나 중복이다',
+      );
+
+      // 양성 대조: 정규식이 비즈앱 의무 없음으로 적은 이메일 표 행을 잡는다.
+      expect(
+        _kakaoEmailNoBizRowPattern.hasMatch(
+          '| 카카오계정 이메일 | `account_email` | X | X |',
+        ),
+        isTrue,
+      );
+      expect(
+        _kakaoEmailNoBizRowPattern.allMatches(manual).length,
+        0,
+        reason: '매뉴얼에 카카오계정 이메일을 비즈앱 의무 없음으로 적은 표 행이 있다',
+      );
     });
   });
 }
