@@ -8,6 +8,7 @@
 // 저장소에 싣지 않고, 경로를 `--dart-define` 으로 준 실행에서만 돈다. 받는 곳과
 // 해시는 각 자산의 README 에 있다.
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -15,6 +16,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../../helpers/source_text.dart';
@@ -90,6 +92,26 @@ const List<({String label, String theme, List<int> background})> _gThemes =
       (label: 'white', theme: 'Light', background: <int>[0xFF, 0xFF, 0xFF]),
       (label: 'dark', theme: 'Dark', background: <int>[0x13, 0x13, 0x14]),
     ];
+
+/// Apple 공식 medium 로고 — 검정(밝은 바탕용).
+const String _appleBlackMediumPath =
+    'assets/brand/apple/black_logo/btn_signin_icon_medium.svg';
+
+/// Apple 공식 medium 로고 — 흰색(어두운 바탕용).
+const String _appleWhiteMediumPath =
+    'assets/brand/apple/white_logo/btn_signin_icon_medium.svg';
+
+/// Apple medium 로고 path(`d` 속성 문자열)의 sha256.
+///
+/// Apple 웹 로그인 스크립트의 `medium` 로고 객체에서 옮긴 문자열 그대로다.
+const String _appleMediumPathSha256 =
+    '870e7f7ff994651ec0d878cd0dd6007c2b99089332e65efb656a4862d3cabf74';
+
+/// Apple medium 로고의 viewBox — 캔버스 31 × 44 가운데 로고 폭 17 만 잘라 쓴다.
+const String _appleMediumViewBox = 'viewBox="7 0 17 44"';
+
+/// Apple medium 로고 path 의 첫 좌표.
+const String _appleMediumPathStart = 'M15.7099491,14.8846154';
 
 /// 공식 그림 대조 기준 — 채널별 차의 평균 상한.
 const double _gMeanLimit = 3;
@@ -211,10 +233,21 @@ Future<_Raster> _renderLabel(
     ),
   );
   await tester.pumpAndSettle();
+  return _captureBoundary(tester, boundaryKey, label);
+}
+
+/// [boundaryKey] 가 붙은 `RepaintBoundary` 를 [_dpr] 배로 찍는다.
+///
+/// [what] 은 실패 메시지에 넣는 이름이다.
+Future<_Raster> _captureBoundary(
+  WidgetTester tester,
+  GlobalKey boundaryKey,
+  String what,
+) async {
   final RenderObject? renderObject = boundaryKey.currentContext
       ?.findRenderObject();
   if (renderObject is! RenderRepaintBoundary) {
-    fail('RepaintBoundary 를 찾지 못했다: $label');
+    fail('RepaintBoundary 를 찾지 못했다: $what');
   }
   final _Raster? raster = await tester.runAsync<_Raster>(() async {
     final ui.Image image = await renderObject.toImage(pixelRatio: _dpr);
@@ -223,7 +256,7 @@ Future<_Raster> _renderLabel(
     final int height = image.height;
     image.dispose();
     if (data == null) {
-      fail('그림을 RGBA 로 읽지 못했다: $label');
+      fail('그림을 RGBA 로 읽지 못했다: $what');
     }
     return (
       width: width,
@@ -232,9 +265,31 @@ Future<_Raster> _renderLabel(
     );
   });
   if (raster == null) {
-    fail('그림을 찍지 못했다: $label');
+    fail('그림을 찍지 못했다: $what');
   }
   return raster;
+}
+
+/// [raster] 에서 불투명한(alpha 255) 픽셀 수를 센다.
+int _countOpaquePixels(_Raster raster) {
+  int count = 0;
+  for (int i = 3; i < raster.rgba.length; i += 4) {
+    if (raster.rgba[i] == 255) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/// SVG [source] 의 `<path>` 에서 `d` 속성 값을 꺼낸다. 하나가 아니면 실패한다.
+String _extractSvgPathData(String source, String path) {
+  final List<RegExpMatch> matches = RegExp(
+    r'\sd="([^"]*)"',
+  ).allMatches(source).toList();
+  if (matches.length != 1) {
+    fail('$path 의 d 속성이 ${matches.length}개다(1개여야 한다)');
+  }
+  return matches.single.group(1)!;
 }
 
 /// 두 그림에서 RGBA 가 다른 픽셀 수를 센다.
@@ -605,5 +660,87 @@ void main() {
       expect(lines, hasLength(_gVariants.length));
       expect(failures, isEmpty);
     }, skip: _gDir.isEmpty);
+  });
+
+  group('Apple 공식 medium 로고', () {
+    test('T-177-ASSET-07: 흑 · 백 SVG 가 같은 공식 path 를 변형 없이 담는다', () {
+      final String black = readTrackedFile(_appleBlackMediumPath);
+      final String white = readTrackedFile(_appleWhiteMediumPath);
+      for (final (String path, String source) in <(String, String)>[
+        (_appleBlackMediumPath, black),
+        (_appleWhiteMediumPath, white),
+      ]) {
+        expect(
+          countOccurrences(source, _appleMediumViewBox),
+          1,
+          reason: '$path 의 viewBox 가 medium(7 0 17 44)이 아니다',
+        );
+        expect(
+          _extractSvgPathData(source, path),
+          startsWith('$_appleMediumPathStart '),
+          reason: '$path 의 path 가 medium 로고의 첫 좌표로 시작하지 않는다',
+        );
+      }
+
+      final String blackData = _extractSvgPathData(
+        black,
+        _appleBlackMediumPath,
+      );
+      expect(
+        _extractSvgPathData(white, _appleWhiteMediumPath),
+        blackData,
+        reason: '흑 · 백 파일의 path 가 다르다',
+      );
+      expect(
+        sha256.convert(utf8.encode(blackData)).toString(),
+        _appleMediumPathSha256,
+        reason: 'path 가 바뀌었다 — 공식 path 는 좌표를 손대지 않고 그대로 쓴다',
+      );
+
+      final RegExp pathFill = RegExp(r'<path\s+fill="(#[0-9A-Fa-f]{6})"');
+      expect(pathFill.firstMatch(black)?.group(1), '#000000');
+      expect(pathFill.firstMatch(white)?.group(1), '#FFFFFF');
+    });
+
+    testWidgets('T-177-ASSET-08: flutter_svg 가 medium 로고를 그린다', (
+      WidgetTester tester,
+    ) async {
+      final GlobalKey boundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: Center(
+            child: RepaintBoundary(
+              key: boundaryKey,
+              // 버튼 높이 48 에 맞춘 크기 — 파일 높이 44 를 48 로 늘린다.
+              child: SvgPicture.asset(
+                _appleBlackMediumPath,
+                width: 17 * 48 / 44,
+                height: 48,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // SVG 는 비동기로 올라온다 — 그려질 때까지 실제 시간으로 잠깐씩 기다린다.
+      int opaque = 0;
+      for (int attempt = 0; attempt < 20 && opaque == 0; attempt++) {
+        await tester.runAsync<void>(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+        await tester.pumpAndSettle();
+        opaque = _countOpaquePixels(
+          await _captureBoundary(tester, boundaryKey, _appleBlackMediumPath),
+        );
+      }
+
+      expect(tester.takeException(), isNull);
+      expect(
+        opaque,
+        greaterThan(0),
+        reason: '$_appleBlackMediumPath 를 그렸는데 불투명한 픽셀이 없다',
+      );
+    });
   });
 }
