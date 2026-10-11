@@ -166,6 +166,12 @@ abstract class AppLocalizations {
   /// **'Signing you in…'**
   String get authSocialSigningIn;
 
+  /// Full-screen overlay label shown from sign-out confirmation until the onboarding screen appears
+  ///
+  /// In en, this message translates to:
+  /// **'Signing you out…'**
+  String get authSigningOut;
+
   /// Section title for language selection
   ///
   /// In en, this message translates to:
@@ -1515,6 +1521,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Account deleted.'**
   String get withdrawalSuccess;
+
+  /// Full-screen overlay label shown after the server has deleted the account, until the onboarding screen appears
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting your account…'**
+  String get withdrawalFinalizing;
 
   /// Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal failure SnackBar message (generic fallback).
   ///

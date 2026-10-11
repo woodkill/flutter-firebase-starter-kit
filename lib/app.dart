@@ -8,6 +8,7 @@ import 'core/providers/locale_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/presentation/_widgets/session_ending_overlay.dart';
 import 'features/notifications/application/notification_settings_notifier.dart';
 import 'features/notifications/application/notification_tap_handler.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -16,6 +17,8 @@ import 'l10n/generated/app_localizations.dart';
 ///
 /// [MaterialApp.router]를 구성하고, [ThemeNotifier]로 테마 모드를,
 /// [LocaleNotifier]로 앱 로케일을, [GoRouter]로 라우팅을 관리한다.
+/// `builder` 에 [SessionEndingOverlay] 를 한 번 두어, 로그아웃 · 회원탈퇴
+/// 마무리 동안 어느 화면 · 다이얼로그 위에서든 진행 오버레이가 덮이게 한다.
 class App extends ConsumerWidget {
   /// 앱의 루트 위젯을 생성한다.
   const App({super.key});
@@ -70,6 +73,10 @@ class App extends ConsumerWidget {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
+      // quick 261011-e6c — Navigator 위에 진행 오버레이를 한 번만 얹는다.
+      // 진행 중이 아닐 때는 child 를 같은 크기 제약으로 그대로 그린다.
+      builder: (context, child) =>
+          SessionEndingOverlay(child: child ?? const SizedBox.shrink()),
     );
   }
 }

@@ -6,7 +6,8 @@ import 'package:gap/gap.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
 
-/// 소셜 OAuth 흐름 진행 중 화면 전체를 덮는 오버레이 (Phase 11-04 hotfix).
+/// 인증 흐름(로그인 · 로그아웃 · 탈퇴 마무리) 진행 중 화면 전체를 덮는 오버레이
+/// (Phase 11-04 hotfix).
 ///
 /// **목적:** OAuth 외부 인증 (Custom Tab / 시스템 브라우저) 에서 앱으로 복귀한
 /// 직후 `signInWithCredential` / Firestore mirror / 라우팅까지의 구간 동안
@@ -19,6 +20,8 @@ import '../../../../core/theme/theme_extensions.dart';
 /// - `ColoredBox(scrim 32%)`: M3 토큰 기반 dim — 화면 컨텐츠가 비활성임을
 ///   시각적으로 전달하면서도 컨텍스트 (어느 화면이었는지) 유지.
 /// - 중앙 [CircularProgressIndicator] + i18n 라벨: 진행 신호 강도 강.
+///   라벨은 [label] 을 주면 그 문구, 주지 않으면 「로그인 처리 중…」
+///   (`authSocialSigningIn`) 이다.
 ///
 /// **표시 조건 (debug facebook-login-double-spinner, L1+d):**
 /// - scrim · `AbsorbPointer` 는 등장 첫 프레임부터 사라질 때까지 항상 유지한다.
@@ -32,19 +35,28 @@ import '../../../../core/theme/theme_extensions.dart';
 ///   한 번 떴다 사라지는 깜빡임을 없앤다. 복귀(`resumed`) 시점엔 지연이 이미
 ///   지나 있어 스피너가 즉시 다시 보인다.
 ///
-/// 부모 화면이 [Stack] 으로 감싸 본 위젯을 마지막 child 로 push 한다 —
-/// 사용처 5곳:
+/// 부모가 [Stack] 으로 감싸 본 위젯을 마지막 child 로 push 한다 — 사용처 6곳.
+/// 앞 5곳은 [label] 없이 기본 문구(로그인)를 쓴다:
 /// - `LoginScreen` 일반 로그인
 /// - `LoginScreen` 재인증 chooser (`_ReauthChooser`)
 /// - `LoginPromptSheet`
 /// - `AccountLinkingSheet`
 /// - 설정 `AccountLinkingSection`
+/// - 앱 최상위 `SessionEndingOverlay` — 로그아웃 · 탈퇴 마무리 문구를 [label]
+///   로 넘긴다 (quick 261011-e6c).
 ///
 /// (Phase 16.1 에서 삭제된 구 가입 화면의 후임 `EmailSignupScreen` 은 소셜
 /// 진입점이 없어 사용하지 않는다.)
 class AuthInProgressOverlay extends StatefulWidget {
   /// 오버레이를 생성한다.
-  const AuthInProgressOverlay({super.key});
+  const AuthInProgressOverlay({super.key, this.label});
+
+  /// 스피너 아래에 보일 문구.
+  ///
+  /// `null` 이면 로그인 문구(`authSocialSigningIn`)를 쓴다 — 기존 사용처의
+  /// 모양과 같다. 문구만 바꾸며 scrim · 입력 차단 · 지연 · lifecycle 규칙에는
+  /// 영향이 없다.
+  final String? label;
 
   /// 오버레이 등장 후 스피너 + 라벨을 그리기 시작할 때까지의 지연.
   ///
@@ -111,20 +123,25 @@ class _AuthInProgressOverlayState extends State<AuthInProgressOverlay> {
           // M3 scrim 토큰 — Modal 컨텍스트 표준 dim.
           color: context.colorScheme.scrim.withValues(alpha: 0.32),
           // Positioned.fill 의 tight 제약이라 child 가 없어도 화면 전체를 덮는다.
-          child: shouldShowIndicator ? const _ProgressIndicatorLabel() : null,
+          child: shouldShowIndicator
+              ? _ProgressIndicatorLabel(label: widget.label)
+              : null,
         ),
       ),
     );
   }
 }
 
-/// 중앙 [CircularProgressIndicator] + 「로그인 처리 중…」 라벨.
+/// 중앙 [CircularProgressIndicator] + 진행 문구 라벨.
 class _ProgressIndicatorLabel extends StatelessWidget {
-  const _ProgressIndicatorLabel();
+  const _ProgressIndicatorLabel({required this.label});
+
+  /// 보일 문구 — `null` 이면 「로그인 처리 중…」(`authSocialSigningIn`).
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
+    final text = label ?? context.l10n.authSocialSigningIn;
     final colorScheme = context.colorScheme;
     final typography = context.appTypography;
     final spacing = context.appSpacing;
@@ -133,14 +150,14 @@ class _ProgressIndicatorLabel extends StatelessWidget {
       child: Semantics(
         container: true,
         liveRegion: true,
-        label: l10n.authSocialSigningIn,
+        label: text,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             const CircularProgressIndicator(),
             Gap(spacing.md),
             Text(
-              l10n.authSocialSigningIn,
+              text,
               style: typography.bodyMedium.copyWith(
                 color: colorScheme.onSurface,
               ),

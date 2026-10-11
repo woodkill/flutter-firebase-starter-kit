@@ -6,6 +6,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/auth/presentation/email_login_screen.dart';
 import '../../features/auth/presentation/email_signup_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
+import '../../features/auth/presentation/_widgets/session_ending_arrival.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/demo/presentation/demo_screen.dart';
@@ -177,7 +178,11 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.onboarding,
         name: AppRoutes.onboardingName,
-        builder: (context, state) => const OnboardingScreen(),
+        // quick 261011-e6c — 로그아웃 · 회원탈퇴 뒤의 목적지. 진입 전환이
+        // 끝나면 표식이 세션 종료 관리자에게 알려 진행 오버레이를 걷는다.
+        // 목적지를 다른 route 로 바꾸면 그 route 의 builder 를 감싼다.
+        builder: (context, state) =>
+            const SessionEndingArrival(child: OnboardingScreen()),
       ),
       GoRoute(
         path: AppRoutes.login,

@@ -7,8 +7,10 @@
 // - 연결된 계정 값의 밑줄 provider 이름 tap → UnlinkConfirmationDialog.show →
 //   결과별 SnackBar (Phase 16.8 D-07 · D-10 · UI-SPEC §N · Phase 16.10 §N′ —
 //   설정 화면 매핑 verbatim 이동).
-// - 로그아웃 = 목록 한 줄(기본 색) → 확인 다이얼로그 →
-//   AuthRepository.signOutAndResetOnboarding (10.2 D-A4 — 단일 진리원).
+// - 로그아웃 = 목록 한 줄(기본 색) → 확인 다이얼로그 → 세션 종료 관리자
+//   SessionEnding.signOut (quick 261011-e6c). 관리자가 진행 오버레이를 켜고
+//   AuthRepository.signOutAndResetOnboarding 을 부른다 (10.2 D-A4 — 로그아웃
+//   본체는 그 함수 하나다).
 // - 계정 연결 섹션은 보일 때만 앞 간격 xxl 을 가진다 (UI-SPEC §Spacing).
 import 'dart:async';
 
@@ -23,6 +25,7 @@ import '../../../core/providers/locale_provider.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
+import '../../auth/application/session_ending.dart';
 import '../../auth/data/auth_repository.dart';
 import '../application/unlink_eligibility.dart';
 import '_widgets/account_linking_section.dart';
@@ -282,8 +285,13 @@ class AccountScreen extends ConsumerWidget {
     }
   }
 
-  /// 로그아웃 확인 다이얼로그를 표시하고 확인 시
-  /// [AuthRepository.signOutAndResetOnboarding] 을 호출한다 (10.2 D-A4).
+  /// 로그아웃 확인 다이얼로그를 표시하고 확인 시 세션 종료 관리자의
+  /// [SessionEnding.signOut] 을 호출한다 (quick 261011-e6c).
+  ///
+  /// 관리자가 앱 최상위 진행 오버레이를 켜고
+  /// [AuthRepository.signOutAndResetOnboarding] 을 부른다 (10.2 D-A4). 오버레이는
+  /// 온보딩 화면의 진입 전환이 끝나면 걷힌다. 저장소가 던진 예외는 여기서 잡지
+  /// 않고 그대로 전파한다(오버레이는 관리자가 먼저 걷는다).
   ///
   /// 이후 화면 이동은 authStateChanges → AuthRefresh → resolveAuthRedirect
   /// 분기 (2) 가 /onboarding 으로 처리한다 (Phase 10.2 D-B1, I2 invariant
@@ -317,7 +325,7 @@ class AccountScreen extends ConsumerWidget {
       // WR-18: showDialog await 이후 라우팅이 일어났다면 WidgetRef 가 이미
       // disposed 일 수 있다.
       if (!context.mounted) return;
-      await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
+      await ref.read(sessionEndingProvider.notifier).signOut();
     }
   }
 }

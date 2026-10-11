@@ -42,6 +42,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authSocialSigningIn => 'Signing you in…';
 
   @override
+  String get authSigningOut => 'Signing you out…';
+
+  @override
   String get homeLanguage => 'Language';
 
   @override
@@ -809,6 +812,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get withdrawalSuccess => 'Account deleted.';
+
+  @override
+  String get withdrawalFinalizing => 'Deleting your account…';
 
   @override
   String get withdrawalFailure => 'Could not delete account. Please try again.';

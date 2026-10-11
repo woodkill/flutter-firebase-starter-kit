@@ -55,6 +55,10 @@
   "@authSocialSigningIn": {
     "description": "Overlay label shown while a social OAuth flow finishes (user returned from external auth, app is exchanging tokens / persisting profile)"
   },
+  "authSigningOut": "Signing you out…",
+  "@authSigningOut": {
+    "description": "Full-screen overlay label shown from sign-out confirmation until the onboarding screen appears"
+  },
 
   "homeLanguage": "Language",
   "@homeLanguage": {
@@ -1311,6 +1315,10 @@
   "withdrawalSuccess": "Account deleted.",
   "@withdrawalSuccess": {
     "description": "Phase 16 D-11 / UI-SPEC Surface C verbatim — Withdrawal success SnackBar message."
+  },
+  "withdrawalFinalizing": "Deleting your account…",
+  "@withdrawalFinalizing": {
+    "description": "Full-screen overlay label shown after the server has deleted the account, until the onboarding screen appears"
   },
 
   "withdrawalFailure": "Could not delete account. Please try again.",

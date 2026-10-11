@@ -42,6 +42,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authSocialSigningIn => 'サインイン処理中…';
 
   @override
+  String get authSigningOut => 'ログアウト処理中…';
+
+  @override
   String get homeLanguage => '言語';
 
   @override
@@ -786,6 +789,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get withdrawalSuccess => 'アカウントを削除しました。';
+
+  @override
+  String get withdrawalFinalizing => 'アカウント削除処理中…';
 
   @override
   String get withdrawalFailure => 'アカウントを削除できませんでした。再試行してください。';

@@ -42,6 +42,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authSocialSigningIn => '로그인 처리 중…';
 
   @override
+  String get authSigningOut => '로그아웃 처리 중…';
+
+  @override
   String get homeLanguage => '언어';
 
   @override
@@ -787,6 +790,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get withdrawalSuccess => '회원탈퇴가 완료되었습니다.';
+
+  @override
+  String get withdrawalFinalizing => '탈퇴 처리 중…';
 
   @override
   String get withdrawalFailure => '회원탈퇴에 실패했습니다. 다시 시도해 주세요.';

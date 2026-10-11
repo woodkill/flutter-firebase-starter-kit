@@ -100,6 +100,23 @@ Future<void> _driveLifecycle(
   await tester.pump();
 }
 
+/// [label] 을 넘긴 오버레이를 그리는 호스트 (quick 261011-e6c).
+///
+/// [_host] 와 같은 layout 이고 오버레이 생성자 인자만 다르다.
+Widget _labelHost({required Locale locale, required String label}) {
+  return MaterialApp(
+    localizationsDelegates: _delegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    locale: locale,
+    theme: AppTheme.light(),
+    home: Scaffold(
+      body: SizedBox.expand(
+        child: Stack(children: <Widget>[AuthInProgressOverlay(label: label)]),
+      ),
+    ),
+  );
+}
+
 void main() {
   group('AuthInProgressOverlay (Phase 11-04 hotfix UX gap)', () {
     testWidgets('Test 1: spinner + en 라벨 동시 표시', (tester) async {
@@ -278,6 +295,37 @@ void main() {
       _expectIndicator(findsNothing);
       await tester.pump(const Duration(milliseconds: 1));
       _expectIndicator(findsOneWidget);
+    });
+  });
+
+  // quick 261011-e6c — 문구를 받는 인자. 인자 없이 쓰는 기존 사용처의 문구는
+  // 위 Test 1 · 3 · 4 가 그대로 고정한다.
+  group('AuthInProgressOverlay label 인자 (quick 261011-e6c)', () {
+    testWidgets('E6C-OV-01: label 을 주면 Text · Semantics label 이 그 값이고 '
+        '기본 문구는 보이지 않는다', (tester) async {
+      const label = '로그아웃 처리 중…';
+      await tester.pumpWidget(
+        _labelHost(locale: const Locale('ko'), label: label),
+      );
+      await tester.pump(_indicatorDelay);
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text(label), findsOneWidget);
+      expect(find.text('로그인 처리 중…'), findsNothing);
+
+      final liveRegions = tester
+          .widgetList<Semantics>(
+            find.descendant(
+              of: find.byType(AuthInProgressOverlay),
+              matching: find.byType(Semantics),
+            ),
+          )
+          .where(
+            (Semantics semantics) => semantics.properties.liveRegion ?? false,
+          )
+          .toList();
+      expect(liveRegions, hasLength(1));
+      expect(liveRegions.single.properties.label, label);
     });
   });
 }

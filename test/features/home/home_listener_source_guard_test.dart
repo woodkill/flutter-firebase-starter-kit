@@ -7,8 +7,11 @@
 //   값을 소비해 홈 교체 실수를 숨긴다(RESEARCH §R-04). 그래서 소스로 잠근다.
 // T-171-HOME-15: 데모 화면은 알림 리스너 · 공지 배너 · 라우트 상수 · 테마
 //   provider 를 import 하지 않는다(production 배선 0 · D-17).
-// T-171-HOME-16: 로그아웃은 `signOutAndResetOnboarding()` 한 함수로만 하고(10.2
-//   D-A4), 로그아웃 확인 다이얼로그 함수는 계정 화면 한 곳에만 정의된다.
+// T-171-HOME-16: 로그아웃은 세션 종료 관리자(`sessionEndingProvider.notifier`)를
+//   거친다(quick 261011-e6c). 저장소 함수 `signOutAndResetOnboarding()`(10.2
+//   D-A4)을 직접 부르는 파일 집합 · 관리자를 쓰는 파일 집합 · 온보딩 도착을
+//   알리는 파일 집합을 고정하고, 로그아웃 확인 다이얼로그 함수는 계정 화면 한
+//   곳에만 정의된다.
 // T-171-HOME-17: 옛 홈 화면(데모 · production 이 섞여 있던 1532줄 파일)은
 //   클래스 이름 · 파일 모두 저장소에 없다. 옛 이름은 리터럴 없이 조각을 이어
 //   만든다 — 이 파일 자신이 lib · test 부재 grep 에 걸리지 않게 하기 위해서다.
@@ -43,6 +46,14 @@ const String _demoScreenPath =
 /// 계정 화면 파일 — 로그아웃 확인 다이얼로그의 유일한 자리.
 const String _accountScreenPath =
     'lib/features/settings/presentation/account_screen.dart';
+
+/// 세션 종료 관리자 파일 — 진행 오버레이 상태와 저장소 로그아웃 호출을 맡는다.
+const String _sessionEndingPath =
+    'lib/features/auth/application/session_ending.dart';
+
+/// 도착 표식 파일 — 관리자에게 온보딩 도착을 알리는 유일한 자리.
+const String _sessionEndingArrivalPath =
+    'lib/features/auth/presentation/_widgets/session_ending_arrival.dart';
 
 /// 옛 홈 클래스 이름 조각 — 이어 붙여야 이름이 된다(리터럴 0 · T-171-HOME-17).
 const List<String> _legacyParts = <String>['Environment', 'Info', 'Screen'];
@@ -124,8 +135,9 @@ void main() {
       }
     });
 
-    test('T-171-HOME-16: 로그아웃 호출 파일 집합이 고정되고 확인 다이얼로그는 계정 '
-        '화면에만 있다 (10.2 D-A4 · D-05)', () {
+    test('T-171-HOME-16: 로그아웃은 세션 종료 관리자를 거친다 — 저장소 함수를 직접 '
+        '부르는 파일 · 관리자를 쓰는 파일 · 도착을 알리는 파일 집합이 고정되고 확인 '
+        '다이얼로그는 계정 화면에만 있다 (10.2 D-A4 · D-05)', () {
       // 양성 대조: 제외하는 정의 파일에 실제 선언이 있다.
       expect(
         RegExp(
@@ -133,31 +145,62 @@ void main() {
         ).hasMatch(_readCodeWithoutComments(_authRepositoryPath)),
         isTrue,
       );
+      // 양성 대조: 관리자 파일에 실제 클래스가 있다.
+      expect(
+        RegExp(
+          r'class\s+SessionEnding\b',
+        ).hasMatch(_readCodeWithoutComments(_sessionEndingPath)),
+        isTrue,
+      );
 
       final List<String> libFiles = _listDartFiles('lib');
-      final RegExp signOutCall = RegExp(r'signOutAndResetOnboarding\s*\(');
-      final Set<String> callers = libFiles
-          .where((String path) => path != _authRepositoryPath)
+
+      /// [pattern] 이 주석을 걷어 낸 코드에 있는 lib 파일 집합 ([excluded] 제외).
+      Set<String> collectFiles(RegExp pattern, {String? excluded}) => libFiles
+          .where((String path) => path != excluded)
           .where(
-            (String path) =>
-                signOutCall.hasMatch(_readCodeWithoutComments(path)),
+            (String path) => pattern.hasMatch(_readCodeWithoutComments(path)),
           )
           .toSet();
 
+      // 집합 A — 저장소 로그아웃 함수를 직접 부르는 파일(정의 파일 제외).
       expect(
-        callers,
+        collectFiles(
+          RegExp(r'signOutAndResetOnboarding\s*\('),
+          excluded: _authRepositoryPath,
+        ),
         <String>{
-          _accountScreenPath,
+          _sessionEndingPath,
           _demoScreenPath,
           'lib/features/settings/presentation/settings_notifier.dart',
           'lib/features/auth/presentation/verify_email_notifier.dart',
         },
         reason:
-            '로그아웃은 signOutAndResetOnboarding() 한 함수로만 — 호출 위치가 '
-            '늘거나 줄면 이 집합을 결정과 함께 갱신한다',
+            '저장소 로그아웃 함수를 직접 부르는 파일 — 새 로그아웃 진입점은 여기에 '
+            '더하지 않고 SessionEnding.signOut() 을 부른다',
       );
 
-      // 정의 형태(`BuildContext` 매개변수)만 잡는다 — 호출 `(context, ref)` 는 제외.
+      // 집합 B — 세션 종료 관리자 notifier 를 쓰는 파일(진입점 + 도착 표식).
+      expect(
+        collectFiles(RegExp(r'sessionEndingProvider\s*\.\s*notifier')),
+        <String>{_accountScreenPath, _sessionEndingArrivalPath},
+        reason:
+            '로그아웃은 세션 종료 관리자를 거친다 — 로그아웃 진입점이 늘거나 줄면 '
+            '이 집합을 결정과 함께 갱신한다',
+      );
+
+      // 집합 C — 관리자에게 도착을 알리는 파일(관리자 파일 제외).
+      expect(
+        collectFiles(
+          RegExp(r'\.\s*handleOnboardingShown\s*\('),
+          excluded: _sessionEndingPath,
+        ),
+        <String>{_sessionEndingArrivalPath},
+        reason: '온보딩 도착은 도착 표식(SessionEndingArrival) 한 곳에서만 알린다',
+      );
+
+      // 집합 D — 확인 다이얼로그 정의. 정의 형태(`BuildContext` 매개변수)만
+      // 잡는다 — 호출 `(context, ref)` 는 제외.
       final RegExp confirmDialogDefinition = RegExp(
         r'\b_?confirmSignOut\w*\s*\(\s*BuildContext\b',
       );
