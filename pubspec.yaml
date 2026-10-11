@@ -199,6 +199,12 @@ flutter:
     - family: Roboto
       fonts:
         - asset: assets/fonts/roboto/Roboto-VariableFont_wdth_wght.ttf
+    # Google Sans 라틴 subset — Google 로그인 버튼의 영문 라벨에 쓴다. SIL OFL 1.1
+    # (`assets/fonts/googlesans/OFL.txt`, `README.md`). 굵기는 파일의 `wght` 축
+    # (400-700)으로 그린다 — `FontWeight.w500` 이 wght 500 으로 그려진다.
+    - family: GoogleSans
+      fonts:
+        - asset: assets/fonts/googlesans/GoogleSans-Latin-wght.ttf
     # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Pretendard variable font.
     # NAVER ID 로그인 BI 공식 PNG 자상 (NAVER_login_Light_EN_green_center_H48)
     # 의 라벨 글리프 시각 가장 부합 + 한국 design 표준 web font. SIL OFL 1.1
