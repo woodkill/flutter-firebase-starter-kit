@@ -11,7 +11,9 @@
 //
 // 분기 처리 (ref.listen):
 // - AsyncValue.data → withdrawalSuccess SnackBar + Navigator.pop(true) +
-//   router 가 signOut 후 /onboarding 으로 자동 reset.
+//   router 가 signOut 후 /onboarding 으로 자동 reset. 그사이 앱 최상위 진행
+//   오버레이가 덮고, 서버 삭제가 끝난 계정으로는 확인 버튼이 다시 눌리지
+//   않는다(세션 종료 관리자의 isAccountDeleted — quick 261011-e6c).
 // - AsyncValue.error(ReauthenticationRequiredException) →
 //   withdrawalReauthRequired SnackBar + Navigator.pop(false) + /login push.
 // - AsyncValue.error(AppCheckFailedException) → errorAppCheckFailed SnackBar
@@ -33,6 +35,7 @@ import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../auth/application/session_ending.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../data/disconnect/disconnect_steps.dart';
 import '../settings_notifier.dart';
@@ -171,6 +174,13 @@ class _WithdrawalConfirmationDialogState
     final state = ref.watch(settingsProvider);
     // 삭제 중 또는 확인 뒤 서버 조회 중 (16.10 review WR-01) — 같은 잠금.
     final isLoading = state.isLoading || _resolvingRows;
+    // quick 261011-e6c — 서버 삭제가 이미 끝났으면(온보딩 도착 전) 같은 계정으로
+    // 다시 확인할 수 없다. 마무리가 실패 · 상한으로 걷힌 뒤에도 유지된다.
+    final isAccountDeleted = ref.watch(
+      sessionEndingProvider.select(
+        (SessionEndingState ending) => ending.isAccountDeleted,
+      ),
+    );
 
     // ref.listen 으로 success/error 분기 처리.
     ref.listen<AsyncValue<void>>(settingsProvider, (prev, next) {
@@ -281,7 +291,9 @@ class _WithdrawalConfirmationDialogState
                 backgroundColor: errorColor,
                 foregroundColor: context.colorScheme.onError,
               ),
-              onPressed: (_verbatimMatch && !isLoading) ? _onConfirm : null,
+              onPressed: (_verbatimMatch && !isLoading && !isAccountDeleted)
+                  ? _onConfirm
+                  : null,
               child: Text(l10n.withdrawalConfirmAction),
             ),
           ),

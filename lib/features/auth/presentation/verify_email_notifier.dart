@@ -7,6 +7,7 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/auth_refresh.dart';
+import '../application/session_ending.dart';
 import '../data/auth_repository.dart';
 import 'verify_email_state.dart';
 
@@ -199,8 +200,12 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
 
   /// 로그아웃한다 (Phase 10.2 I2 invariant 단일 진리원 경유).
   ///
-  /// [AuthRepository.signOutAndResetOnboarding] 을 호출하여 onboarding
-  /// 완료 플래그 reset → 5 SDK 순차 logout 순서를 강제한다 (D-A1/A3).
+  /// 세션 종료 관리자의 [SessionEnding.signOut] 을 호출한다 (quick
+  /// 261011-e6c). 관리자가 앱 최상위 진행 오버레이를 켜고
+  /// [AuthRepository.signOutAndResetOnboarding] 을 불러 onboarding 완료 플래그
+  /// reset → 소셜 SDK 순차 logout 순서를 강제한다 (D-A1/A3). 관리자의 future 는
+  /// 저장소 호출이 끝나면 끝난다 — 온보딩 도착(오버레이가 걷히는 시점)을
+  /// 기다리지 않으므로 아래 재평가가 바로 이어진다.
   /// 본 메서드를 [AuthRepository.signOut] 단독으로 직접 호출하면
   /// `onboardingSeen=true` snapshot 이 유지된 채 resolveAuthRedirect 가
   /// 재평가되어 익명홈 통과 race (D-20 cycle 회귀) 가 가능하다 — Phase
@@ -211,7 +216,7 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   /// (FlutterFire Issue #8777) 보강. 자연 redirect 분기 (2)
   /// (`!isAuthenticated && !onboardingSeen`) 가 `/onboarding` 으로 이동.
   Future<void> logout() async {
-    await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
+    await ref.read(sessionEndingProvider.notifier).signOut();
     if (!ref.mounted) return;
     _triggerRedirect();
   }

@@ -33,6 +33,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -40,6 +41,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_starter_kit/features/auth/application/session_ending.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
@@ -69,6 +71,7 @@ Future<_DialogHandle> _pumpAndShowDialog(
   Object? serverReadError,
   List<int>? serverReads,
   bool serverReaderThrows = false,
+  List<Override> extraOverrides = const <Override>[],
 }) async {
   Future<bool?>? dialogResult;
   final repo = settingsRepo ?? _MockSettingsRepository();
@@ -144,6 +147,7 @@ Future<_DialogHandle> _pumpAndShowDialog(
             if (error != null) throw error;
             return serverProviderIds ?? providerIds ?? const <String>[];
           }),
+        ...extraOverrides,
       ],
       child: MaterialApp.router(
         locale: locale,
@@ -216,6 +220,39 @@ void main() {
         find.widgetWithText(FilledButton, koHint),
       );
       expect(confirmBtn.onPressed, isNotNull);
+    });
+
+    testWidgets('E6C-WC-01 — 서버 삭제가 이미 끝났으면(온보딩 도착 전) 확인 문구를 맞게 '
+        '넣어도 confirm disabled · 삭제 0 (quick 261011-e6c)', (tester) async {
+      final settingsRepo = _MockSettingsRepository();
+      when(
+        () => settingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      await _pumpAndShowDialog(
+        tester,
+        settingsRepo: settingsRepo,
+        extraOverrides: <Override>[
+          // 오버레이는 실패 · 상한으로 걷혔고 삭제 사실만 남은 상태.
+          sessionEndingProvider.overrideWithBuild(
+            (ref, notifier) =>
+                (kind: SessionEndingKind.none, isAccountDeleted: true),
+          ),
+        ],
+      );
+
+      await tester.enterText(find.byType(TextField), koHint);
+      await tester.pump();
+
+      final confirmBtn = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, koHint),
+      );
+      expect(confirmBtn.onPressed, isNull);
+      await tester.tap(
+        find.widgetWithText(FilledButton, koHint),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      verifyNever(() => settingsRepo.requestAccountDeletion());
     });
 
     testWidgets('WC4 — partial input "탈" 시 confirm disabled', (tester) async {

@@ -247,6 +247,53 @@ Future<void> _pumpWithDialogEntry(
   );
 }
 
+/// 사후 정리(저장소 로그아웃)가 [gate] 가 끝날 때까지 끝나지 않는 저장소.
+_MockAuthRepository _gatedAuthRepo(Completer<void> gate) {
+  final authRepo = _MockAuthRepository();
+  when(
+    () => authRepo.signOutAndResetOnboarding(),
+  ).thenAnswer((_) => gate.future);
+  return authRepo;
+}
+
+/// 카카오 1행 진행 화면에서 행을 끝내고 「탈퇴」 를 눌러 삭제 성공까지 진행한다
+/// (quick 261011-e6c — E6C-WD fixture).
+///
+/// 삭제 호출 수를 세는 목록을 돌려준다. 성공 SnackBar 는 「탈퇴」 를 가리지
+/// 않게 걷어 낸다.
+Future<List<int>> _deleteWithKakaoRow(
+  WidgetTester tester, {
+  required _MockAuthRepository authRepo,
+  _MockCrashlyticsService? crashlytics,
+}) async {
+  _useView(tester);
+  final fakes = _Fakes();
+  final deletion = _countingRepo();
+  await _pumpScreen(
+    tester,
+    providerIds: <String>['kakao'],
+    fakes: fakes,
+    settingsRepo: deletion.repo,
+    authRepo: authRepo,
+    crashlytics: crashlytics,
+  );
+  fakes.kakao.calls.last.complete(const DisconnectDone());
+  await tester.pumpAndSettle();
+  // 양성 대조: 삭제 전에는 「탈퇴」 가 눌리고 뒤로 가기가 열려 있다.
+  expect(_finalButton(tester).onPressed, isNotNull);
+  expect(_canPop(tester), isTrue);
+
+  await tester.tap(_finalButtonFinder());
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+  expect(deletion.count[0], 1, reason: '서버 삭제 1회 성공');
+  ScaffoldMessenger.of(
+    tester.element(find.byType(WithdrawalDisconnectScreen)),
+  ).removeCurrentSnackBar();
+  await tester.pumpAndSettle();
+  return deletion.count;
+}
+
 /// 진행 화면을 root 로 띄우고 첫 프레임 뒤 start 를 반영한다.
 ///
 /// /login stub 은 [visits] 에 location 을 기록하고 「reauth-ok」(pop(true)) ·
@@ -264,6 +311,8 @@ Future<GoRouter> _pumpScreen(
   Locale locale = const Locale('ko'),
   Future<List<String>> Function()? serverRead,
   List<RouteBase> extraRoutes = const <RouteBase>[],
+  _MockAuthRepository? authRepo,
+  _MockCrashlyticsService? crashlytics,
 }) async {
   final router = GoRouter(
     initialLocation: AppRoutes.withdrawalDisconnect,
@@ -307,8 +356,10 @@ Future<GoRouter> _pumpScreen(
         disconnectStepsProvider.overrideWithValue(fakes.all),
         disconnectDepsProvider.overrideWithValue(_deps()),
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
-        authRepositoryProvider.overrideWithValue(_authRepo()),
-        crashlyticsServiceProvider.overrideWithValue(_MockCrashlyticsService()),
+        authRepositoryProvider.overrideWithValue(authRepo ?? _authRepo()),
+        crashlyticsServiceProvider.overrideWithValue(
+          crashlytics ?? _MockCrashlyticsService(),
+        ),
       ],
       child: MaterialApp.router(
         locale: locale,
@@ -1095,6 +1146,89 @@ void main() {
         },
       );
     }
+
+    // quick 261011-e6c — 서버 삭제가 끝난 뒤 온보딩에 닿기 전까지 「탈퇴」 는 다시
+    // 눌리지 않는다. 뒤로 가기는 진행 오버레이가 덮는 동안만 잠긴다.
+    testWidgets('E6C-WD-01: 삭제 성공 + 사후 정리 미완 — 「탈퇴」 비활성 · canPop false · '
+        '다시 탭해도 삭제 1회', (tester) async {
+      final cleanup = Completer<void>();
+      final deletionCount = await _deleteWithKakaoRow(
+        tester,
+        authRepo: _gatedAuthRepo(cleanup),
+      );
+
+      expect(_finalButton(tester).onPressed, isNull);
+      expect(_canPop(tester), isFalse);
+
+      await tester.tap(_finalButtonFinder(), warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(deletionCount[0], 1, reason: '이미 삭제된 계정으로 다시 탈퇴하지 않는다');
+
+      // 정리 — 사후 정리를 끝낸다.
+      cleanup.complete();
+      await tester.pump();
+    });
+
+    testWidgets('E6C-WD-02: 사후 정리 throw 뒤 — 「탈퇴」 여전히 비활성 · canPop true', (
+      tester,
+    ) async {
+      final authRepo = _MockAuthRepository();
+      when(
+        () => authRepo.signOutAndResetOnboarding(),
+      ).thenAnswer((_) async => throw StateError('cleanup failed'));
+      final crashlytics = _MockCrashlyticsService();
+      // `any<Object>()` 의 자리 값 — 이 파일에는 다른 fallback 등록이 없다.
+      registerFallbackValue(Object());
+      when(
+        () => crashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: any(named: 'reason'),
+          fatal: any(named: 'fatal'),
+        ),
+      ).thenAnswer((_) async {});
+
+      final deletionCount = await _deleteWithKakaoRow(
+        tester,
+        authRepo: authRepo,
+        crashlytics: crashlytics,
+      );
+
+      expect(_finalButton(tester).onPressed, isNull);
+      expect(
+        _canPop(tester),
+        isTrue,
+        reason: '오버레이가 걷히면 삭제된 계정으로 갇히지 않게 뒤로 가기는 풀린다',
+      );
+      await tester.tap(_finalButtonFinder(), warnIfMissed: false);
+      await tester.pump();
+      expect(deletionCount[0], 1);
+    });
+
+    testWidgets('E6C-WD-03: 30초 경과(사후 정리 미완) — 「탈퇴」 여전히 비활성 · canPop true', (
+      tester,
+    ) async {
+      final cleanup = Completer<void>();
+      final deletionCount = await _deleteWithKakaoRow(
+        tester,
+        authRepo: _gatedAuthRepo(cleanup),
+      );
+      expect(_canPop(tester), isFalse, reason: '상한 전에는 잠겨 있다');
+
+      await tester.pump(const Duration(seconds: 30));
+      await tester.pump();
+
+      expect(_finalButton(tester).onPressed, isNull);
+      expect(_canPop(tester), isTrue);
+      await tester.tap(_finalButtonFinder(), warnIfMissed: false);
+      await tester.pump();
+      expect(deletionCount[0], 1);
+
+      // 정리 — 사후 정리를 끝낸다.
+      cleanup.complete();
+      await tester.pump();
+    });
 
     testWidgets('WS15: 사용자 트리거 진행 중 — 다른 행 버튼 · 「탈퇴」 비활성', (tester) async {
       _useView(tester);

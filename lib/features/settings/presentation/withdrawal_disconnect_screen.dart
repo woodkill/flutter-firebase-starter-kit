@@ -11,8 +11,9 @@
 // `_label` → [formatProviderLabels] · `_brandButton` → [SocialButton] ·
 // `_RS.active` → [DisconnectRowStatus.needsSignIn].
 //
-// 진행 표시는 행 아이콘 자리 스피너다 — `AuthInProgressOverlay` 는 라벨이
-// 로그인 문구라 쓰지 않는다(UI-SPEC Claude's Discretion).
+// 진행 표시는 두 가지다 — 행을 끊는 동안은 행 아이콘 자리 스피너(UI-SPEC
+// Claude's Discretion), 서버 삭제가 끝난 뒤 온보딩 화면이 뜰 때까지는 앱 최상위
+// 진행 오버레이(`SessionEndingOverlay` · 「탈퇴 처리 중…」 — quick 261011-e6c)다.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -28,6 +29,7 @@ import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../../shared/widgets/error_snack_bar.dart';
+import '../../auth/application/session_ending.dart';
 import '../../auth/presentation/_widgets/social_button.dart';
 import '../data/disconnect/disconnect_step.dart';
 import '../data/disconnect/disconnect_steps.dart';
@@ -38,8 +40,11 @@ import 'withdrawal_disconnect_notifier.dart';
 /// 탈퇴 진행 화면 (Phase 16.10 UI-SPEC §Surface W).
 ///
 /// 첫 프레임 뒤 [WithdrawalDisconnect.start] 를 1회 불러 행을 스냅샷하고
-/// 서버 행을 자동 시작한다. 처리 중(어떤 행이 해제 중 · 계정 삭제 중)에는
-/// back 이 막히고, 그 밖에는 확인 없이 나갈 수 있다(D-14 — 계정은 그대로).
+/// 서버 행을 자동 시작한다. 처리 중(어떤 행이 해제 중 · 계정 삭제 중 · 삭제 뒤
+/// 마무리 오버레이가 덮는 중)에는 back 이 막히고, 그 밖에는 확인 없이 나갈 수
+/// 있다(D-14 — 계정은 그대로). 서버 삭제가 끝난 뒤에는 온보딩 화면에 닿을
+/// 때까지 「탈퇴」 가 다시 눌리지 않는다 — 마무리가 실패하거나 오래 걸려
+/// 오버레이가 걷힌 뒤에도 그렇다(quick 261011-e6c).
 /// 행 목록 서버 조회 중에는 소개 문단 아래 원형 스피너를 보인다(review
 /// IN-02 — iteration 3). 행 목록 서버 조회가 실패하면 재시도 안내와 함께(WR-01), 끊을 행이 0 이면
 /// 안내 없이(IN-04 · Q6-A) 이전 화면으로 돌아간다.
@@ -118,7 +123,12 @@ class _WithdrawalDisconnectScreenState
     final scheme = context.colorScheme;
     final state = ref.watch(withdrawalDisconnectProvider);
     final deleting = ref.watch(settingsProvider).isLoading;
-    final busy = state.anyWorking || deleting;
+    // quick 261011-e6c — 서버 삭제 뒤 마무리 구간. 삭제 성공 emit 이 `deleting`
+    // 을 푸는 그 프레임에 이미 켜져 있다. 뒤로 가기는 오버레이가 덮는 동안만
+    // 잠근다(실패 · 상한으로 걷히면 삭제된 계정으로 갇히지 않게 풀린다).
+    final sessionEnding = ref.watch(sessionEndingProvider);
+    final isSessionEnding = sessionEnding.kind != SessionEndingKind.none;
+    final busy = state.anyWorking || deleting || isSessionEnding;
     final steps = ref.watch(disconnectStepsProvider);
     final disabled = state.actionsLocked || deleting;
 
@@ -252,7 +262,13 @@ class _WithdrawalDisconnectScreenState
                 child: _FinalBar(
                   allDone: state.allDone,
                   deleting: deleting,
-                  enabled: state.allDone && !busy && !state.actionsLocked,
+                  // 이미 삭제된 계정으로는 다시 탈퇴하지 않는다 — 오버레이가
+                  // 걷힌 뒤에도 온보딩에 닿을 때까지 잠근다.
+                  enabled:
+                      state.allDone &&
+                      !busy &&
+                      !state.actionsLocked &&
+                      !sessionEnding.isAccountDeleted,
                   onDelete: () => unawaited(_notifier.requestDeletion()),
                 ),
               ),

@@ -6,11 +6,15 @@
 // 2. SettingsRepository.requestAccountDeletion() 호출 (서버 hard delete)
 // 3. 2 가 던지면: state = AsyncValue.error(e, st) 후 종료 — 사후 정리 미수행
 //    (서버 삭제가 확정되지 않았다)
-// 4. 2 가 성공하면: 즉시 state = AsyncValue.data(null) (CR-04 — 성공 emit 이
-//    사후 정리보다 앞선다) → 그 뒤 AuthRepository.signOutAndResetOnboarding()
-//    을 best-effort 로 호출 (실패는 Crashlytics 기록만 하고 흡수)
+// 4. 2 가 성공하면: 세션 종료 관리자의 beginWithdrawalCleanup() 으로 탈퇴 마무리
+//    구간을 연다(앱 최상위 진행 오버레이 · 「탈퇴」 잠금 — quick 261011-e6c) →
+//    즉시 state = AsyncValue.data(null) (CR-04 — 성공 emit 이 사후 정리보다
+//    앞선다) → 그 뒤 관리자의 runWithdrawalCleanup() 이
+//    AuthRepository.signOutAndResetOnboarding() 을 best-effort 로 호출 (실패는
+//    Crashlytics 기록만 하고 흡수)
 //
-// signOutAndResetOnboarding 후 router 의 resolveAuthRedirect 가 자동으로 `/onboarding` 으로 reset.
+// 사후 정리 뒤 router 의 resolveAuthRedirect 가 자동으로 `/onboarding` 으로
+// reset 하고, 온보딩 화면이 뜨면 관리자가 오버레이를 걷는다.
 //
 // Phase 16.10 D-09 · D-10 · D-11 — 연결된 계정 해제에도 provider 측 끊기를
 // 붙인다(`disconnectAndUnlinkProvider`). 해제 뒤에는 신원 기록이 사라져 나중에
@@ -25,6 +29,7 @@ import '../../../core/auth/provider_id.dart';
 import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/error/result.dart';
+import '../../auth/application/session_ending.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/user.dart';
 import '../application/account_link_in_progress.dart';
@@ -64,19 +69,26 @@ class SettingsNotifier extends _$SettingsNotifier {
   ///    ref.listen 으로 `ReauthenticationRequiredException` /
   ///    `UnknownException` 분기 처리.
   /// 4. 2 가 성공하면 서버 hard delete 가 확정된 것이므로 탈퇴는 이미 성공이다.
-  ///    **10-REVIEW CR-04:** 이 시점에 즉시 state = [AsyncValue.data]`(null)`
+  ///    먼저 [SessionEnding.beginWithdrawalCleanup] 으로 탈퇴 마무리 구간을
+  ///    연다 (quick 261011-e6c) — 아래 성공 emit 이 화면의 잠금을 푸는 그
+  ///    프레임에 이미 진행 오버레이와 「탈퇴」 잠금이 켜져 있어야 틈이 없다.
+  ///    **10-REVIEW CR-04:** 이어서 즉시 state = [AsyncValue.data]`(null)`
   ///    을 emit 한다 — 성공 emit 이 사후 정리 뒤에 있으면 timeout 없는 5개
   ///    소셜 SDK logout 이 지연될 때 다이얼로그가 무한 loading 에 갇힌다.
-  /// 5. emit 이후 [AuthRepository.signOutAndResetOnboarding]
+  /// 5. emit 이후 [SessionEnding.runWithdrawalCleanup] 이
+  ///    [AuthRepository.signOutAndResetOnboarding]
   ///    (onboardingSeen=false reset + router 의 resolveAuthRedirect 가
   ///    `/onboarding` 으로 자동 reset) 을 best-effort 사후 정리로 수행하며,
-  ///    실패해도 탈퇴 실패로 분류하지 않고 Crashlytics 에만 기록한다.
+  ///    실패해도 탈퇴 실패로 분류하지 않고 Crashlytics 에만 기록한다. 사후
+  ///    정리가 실패하거나 오래 걸려 오버레이가 걷혀도 「탈퇴」 는 온보딩 화면에
+  ///    닿을 때까지 다시 눌리지 않는다.
   Future<void> requestAccountDeletion() async {
     state = const AsyncValue<void>.loading();
     // CR-04: 성공 emit 은 다이얼로그를 pop 시키고 그 결과로 본 Notifier 가
     // dispose 될 수 있다. 사후 정리에 필요한 핸들은 emit 이전에 캡처해 둔다 —
-    // dispose 된 ref 로 ref.read 를 하면 StateError 가 던져진다.
-    final authRepository = ref.read(authRepositoryProvider);
+    // dispose 된 ref 로 ref.read 를 하면 StateError 가 던져진다. 세션 종료
+    // 관리자는 keepAlive 라 본 Notifier 가 사라진 뒤에도 살아 있다.
+    final sessionEnding = ref.read(sessionEndingProvider.notifier);
     final crashlytics = ref.read(crashlyticsServiceProvider);
     try {
       await ref.read(settingsRepositoryProvider).requestAccountDeletion();
@@ -91,13 +103,18 @@ class SettingsNotifier extends _$SettingsNotifier {
     // timeout 없이 직렬 await 하므로, emit 을 그 뒤에 두면 되돌릴 수 없는
     // 삭제가 끝난 뒤에도 다이얼로그가 loading 에 고정된다 (취소 버튼 disabled
     // + barrierDismissible:false → iOS 에는 탈출 경로가 0).
+    //
+    // quick 261011-e6c: 그 emit 이 화면의 loading 잠금을 푸는 순간 「탈퇴」
+    // 버튼과 뒤로 가기가 다시 살아나지 않게, emit **전에** 탈퇴 마무리 구간을
+    // 동기로 연다(진행 오버레이 + 삭제됨 표식).
+    sessionEnding.beginWithdrawalCleanup();
     if (ref.mounted) {
       state = const AsyncValue<void>.data(null);
     }
     // 로컬 정리 실패를 "탈퇴 실패" 로 분류하면 사용자는 이미 삭제된 계정으로
     // 재시도를 반복하게 된다 — best-effort 로만 수행하고 telemetry 만 남긴다.
     try {
-      await authRepository.signOutAndResetOnboarding();
+      await sessionEnding.runWithdrawalCleanup();
     } on Object catch (e, st) {
       await crashlytics.recordError(e, st, reason: 'withdrawal_post_signout');
     }

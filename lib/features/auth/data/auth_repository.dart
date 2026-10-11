@@ -2977,8 +2977,15 @@ class AuthRepository implements AnonymousSignIn {
   /// 으로 재현되었다. Phase 10.2 (2026-05-12) 에서 메서드 자체를 완전 폐기
   /// (D-A5) 하고 본 [signOutAndResetOnboarding] 으로 교체했다.
   ///
+  /// **호출자 (quick 261011-e6c):** lib 에서 본 메서드를 직접 부르는 곳은 세션
+  /// 종료 관리자 `SessionEnding`(`application/session_ending.dart`) 하나다.
+  /// 로그아웃 · 회원탈퇴 마무리를 시작하는 화면 · notifier 는 관리자의
+  /// `signOut()` · `runWithdrawalCleanup()` 을 거치고, 관리자가 앱 최상위 진행
+  /// 오버레이를 켜고 끈다(호출 파일 집합은 테스트 T-171-HOME-16 이 고정한다).
+  ///
   /// **회원탈퇴 경로에서의 사용 (10-REVIEW CR-01 정정):** Phase 16 구현
-  /// `SettingsNotifier.requestAccountDeletion` 이 실제로 본 메서드를 사용한다
+  /// `SettingsNotifier.requestAccountDeletion` 이 관리자의
+  /// `runWithdrawalCleanup()` 을 거쳐 본 메서드를 사용한다
   /// (이전 doc 은 사용하지 않는다고 적혀 있었으나 사실과 달랐다). 단,
   /// 서버측 hard delete (`deleteUserAccount` callable) 가 확정된 **이후의
   /// best-effort 로컬 정리**로만 호출되며, 본 메서드의 실패는 탈퇴 성공/실패
@@ -3279,7 +3286,9 @@ class AuthRepository implements AnonymousSignIn {
   /// 직접 호출자 — Phase 10.2 review iter3 IN-01 정정. 이전 doc 은
   /// [_safeDelete] 를 internal caller 예시로 인용했으나 [_safeDelete] 는
   /// `user.delete()` 만 호출하고 [signOut] 은 호출하지 않으므로 self-
-  /// inconsistent 했음). UI 호출자 (로그아웃 버튼) 가 본 메서드를 직접
+  /// inconsistent 했음). UI 호출자 (로그아웃 버튼) 는 세션 종료 관리자
+  /// `SessionEnding.signOut()` 을 부르고, 관리자가 [signOutAndResetOnboarding]
+  /// 을 부른다. UI 호출자가 본 메서드를 직접
   /// 호출하면 `onboardingSeen=true` snapshot 이 유지된 채 resolveAuthRedirect
   /// 가 재평가되어 익명홈 통과 race 가 가능하다 (I2 위배 — D-20 cycle 회귀
   /// vector). Phase 17 (회원탈퇴 reauthentication + deleteUser) 는 별도

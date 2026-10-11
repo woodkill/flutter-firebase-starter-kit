@@ -50,6 +50,7 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/features/auth/application/session_ending.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/application/account_link_in_progress.dart';
@@ -310,6 +311,90 @@ void main() {
       await future;
 
       verify(() => mockAuthRepo.signOutAndResetOnboarding()).called(1);
+    });
+  });
+
+  // quick 261011-e6c — 탈퇴 마무리 구간은 세션 종료 관리자가 맡는다. 성공 emit 이
+  // 화면의 잠금을 푸는 시점에 관리자 상태가 이미 켜져 있어야 틈이 없다.
+  group('quick 261011-e6c — 탈퇴 마무리와 세션 종료 관리자', () {
+    const SessionEndingState finalizing = (
+      kind: SessionEndingKind.withdrawal,
+      isAccountDeleted: true,
+    );
+
+    test('E6C-SN-01: 성공 emit 시점에 관리자 상태가 이미 (withdrawal, 삭제됨) 이고 저장소 '
+        '로그아웃은 아직 0회 → 끝난 뒤 1회', () async {
+      when(
+        () => mockSettingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      var signOutCalls = 0;
+      when(() => mockAuthRepo.signOutAndResetOnboarding()).thenAnswer((
+        _,
+      ) async {
+        signOutCalls++;
+      });
+      final atSuccessEmit = <({SessionEndingState ending, int signOutCalls})>[];
+      container.listen<AsyncValue<void>>(settingsProvider, (prev, next) {
+        if ((prev?.isLoading ?? false) && next.hasValue && !next.isLoading) {
+          atSuccessEmit.add((
+            ending: container.read(sessionEndingProvider),
+            signOutCalls: signOutCalls,
+          ));
+        }
+      });
+      expect(container.read(sessionEndingProvider), idleSessionEndingState);
+
+      await container.read(settingsProvider.notifier).requestAccountDeletion();
+
+      expect(atSuccessEmit, hasLength(1), reason: 'loading 뒤 첫 data 1회');
+      expect(atSuccessEmit.single.ending, finalizing);
+      expect(
+        atSuccessEmit.single.signOutCalls,
+        0,
+        reason: '사후 정리는 성공 emit 뒤에 시작한다 (CR-04 순서)',
+      );
+      expect(signOutCalls, 1);
+    });
+
+    test('E6C-SN-02: 서버 삭제 실패 → 관리자 상태 그대로 없음 · 저장소 로그아웃 0회', () async {
+      when(
+        () => mockSettingsRepo.requestAccountDeletion(),
+      ).thenThrow(const UnknownException());
+
+      await container.read(settingsProvider.notifier).requestAccountDeletion();
+
+      expect(container.read(settingsProvider).hasError, isTrue);
+      expect(container.read(sessionEndingProvider), idleSessionEndingState);
+      verifyNever(() => mockAuthRepo.signOutAndResetOnboarding());
+    });
+
+    test('E6C-SN-03: 사후 정리 throw → Crashlytics withdrawal_post_signout 1회 · '
+        '관리자 상태 (none, 삭제됨)', () async {
+      when(
+        () => mockSettingsRepo.requestAccountDeletion(),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAuthRepo.signOutAndResetOnboarding(),
+      ).thenThrow(Exception('signOut failed'));
+
+      await container.read(settingsProvider.notifier).requestAccountDeletion();
+
+      expect(
+        container.read(settingsProvider),
+        const AsyncValue<void>.data(null),
+      );
+      verify(
+        () => mockCrashlytics.recordError(
+          any<Object>(),
+          any<StackTrace?>(),
+          reason: 'withdrawal_post_signout',
+          fatal: any(named: 'fatal'),
+        ),
+      ).called(1);
+      expect(container.read(sessionEndingProvider), (
+        kind: SessionEndingKind.none,
+        isAccountDeleted: true,
+      ), reason: '오버레이는 걷히고 삭제 사실은 남는다');
     });
   });
 

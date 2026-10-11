@@ -9,6 +9,7 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/auth_refresh.dart';
+import 'package:flutter_starter_kit/features/auth/application/session_ending.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_state.dart';
@@ -331,6 +332,48 @@ void main() {
       verifyNever(() => mockRepo.signOut());
       // signOut 후 redirect 트리거 확인
       expect(triggerRecorder.count, greaterThan(0));
+    });
+
+    test('E6C-VE-01: logout 진행 중 관리자 kind = signOut · redirect 재평가 0회 → '
+        '저장소 완료 시(온보딩 도착 없이) logout 이 끝나고 재평가 1회 '
+        '(quick 261011-e6c)', () async {
+      final signOutGate = Completer<void>();
+      when(
+        () => mockRepo.signOutAndResetOnboarding(),
+      ).thenAnswer((_) => signOutGate.future);
+
+      final container = makeContainer();
+      // 화면이 떠 있는 동안처럼 구독을 유지한다 — 구독이 없으면 저장소를 기다리는
+      // 사이 auto-dispose 되어 logout 의 `ref.mounted` 가드가 재평가를 건너뛴다.
+      container.listen(verifyEmailProvider, (_, _) {});
+
+      var isLogoutDone = false;
+      final logout = container
+          .read(verifyEmailProvider.notifier)
+          .logout()
+          .then((_) => isLogoutDone = true);
+      await pumpEventQueue();
+
+      expect(
+        container.read(sessionEndingProvider).kind,
+        SessionEndingKind.signOut,
+        reason: '로그아웃은 세션 종료 관리자를 거친다',
+      );
+      expect(triggerRecorder.count, 0);
+      expect(isLogoutDone, isFalse);
+
+      signOutGate.complete();
+      await logout;
+
+      expect(isLogoutDone, isTrue, reason: '온보딩 도착을 기다리지 않는다 (D-04)');
+      expect(triggerRecorder.count, 1);
+      expect(
+        container.read(sessionEndingProvider).kind,
+        SessionEndingKind.signOut,
+        reason: '오버레이는 온보딩 도착까지 남는다',
+      );
+      verify(() => mockRepo.signOutAndResetOnboarding()).called(1);
+      verifyNever(() => mockRepo.signOut());
     });
 
     // --- WR-02 (Phase 09 review) — reloadUser Failure 를 상태로 매핑 ---

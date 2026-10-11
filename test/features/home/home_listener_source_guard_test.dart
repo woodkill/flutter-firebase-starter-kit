@@ -9,9 +9,9 @@
 //   provider 를 import 하지 않는다(production 배선 0 · D-17).
 // T-171-HOME-16: 로그아웃은 세션 종료 관리자(`sessionEndingProvider.notifier`)를
 //   거친다(quick 261011-e6c). 저장소 함수 `signOutAndResetOnboarding()`(10.2
-//   D-A4)을 직접 부르는 파일 집합 · 관리자를 쓰는 파일 집합 · 온보딩 도착을
-//   알리는 파일 집합을 고정하고, 로그아웃 확인 다이얼로그 함수는 계정 화면 한
-//   곳에만 정의된다.
+//   D-A4)을 직접 부르는 파일은 관리자 하나다. 그 파일 · 관리자를 쓰는 파일 집합
+//   (진입점 4곳 + 도착 표식) · 온보딩 도착을 알리는 파일을 고정하고, 로그아웃
+//   확인 다이얼로그 함수는 계정 화면 한 곳에만 정의된다.
 // T-171-HOME-17: 옛 홈 화면(데모 · production 이 섞여 있던 1532줄 파일)은
 //   클래스 이름 · 파일 모두 저장소에 없다. 옛 이름은 리터럴 없이 조각을 이어
 //   만든다 — 이 파일 자신이 lib · test 부재 grep 에 걸리지 않게 하기 위해서다.
@@ -136,8 +136,8 @@ void main() {
     });
 
     test('T-171-HOME-16: 로그아웃은 세션 종료 관리자를 거친다 — 저장소 함수를 직접 '
-        '부르는 파일 · 관리자를 쓰는 파일 · 도착을 알리는 파일 집합이 고정되고 확인 '
-        '다이얼로그는 계정 화면에만 있다 (10.2 D-A4 · D-05)', () {
+        '부르는 파일은 관리자 하나 · 관리자를 쓰는 파일 · 도착을 알리는 파일 집합이 '
+        '고정되고 확인 다이얼로그는 계정 화면에만 있다 (10.2 D-A4 · D-05)', () {
       // 양성 대조: 제외하는 정의 파일에 실제 선언이 있다.
       expect(
         RegExp(
@@ -169,21 +169,22 @@ void main() {
           RegExp(r'signOutAndResetOnboarding\s*\('),
           excluded: _authRepositoryPath,
         ),
-        <String>{
-          _sessionEndingPath,
-          _demoScreenPath,
-          'lib/features/settings/presentation/settings_notifier.dart',
-          'lib/features/auth/presentation/verify_email_notifier.dart',
-        },
+        <String>{_sessionEndingPath},
         reason:
-            '저장소 로그아웃 함수를 직접 부르는 파일 — 새 로그아웃 진입점은 여기에 '
-            '더하지 않고 SessionEnding.signOut() 을 부른다',
+            '저장소 로그아웃 함수를 직접 부르는 파일은 세션 종료 관리자 하나다 — 새 '
+            '로그아웃 진입점은 여기에 더하지 않고 SessionEnding.signOut() 을 부른다',
       );
 
       // 집합 B — 세션 종료 관리자 notifier 를 쓰는 파일(진입점 + 도착 표식).
       expect(
         collectFiles(RegExp(r'sessionEndingProvider\s*\.\s*notifier')),
-        <String>{_accountScreenPath, _sessionEndingArrivalPath},
+        <String>{
+          _accountScreenPath,
+          _demoScreenPath,
+          'lib/features/settings/presentation/settings_notifier.dart',
+          'lib/features/auth/presentation/verify_email_notifier.dart',
+          _sessionEndingArrivalPath,
+        },
         reason:
             '로그아웃은 세션 종료 관리자를 거친다 — 로그아웃 진입점이 늘거나 줄면 '
             '이 집합을 결정과 함께 갱신한다',

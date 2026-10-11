@@ -24,6 +24,7 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../../shared/widgets/error_snack_bar.dart';
+import '../../auth/application/session_ending.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
 import '../../notifications/data/test_push_client.dart';
@@ -931,9 +932,10 @@ class _ProtectedExampleSection extends ConsumerWidget {
 /// 3. Trigger analytics — [AnalyticsService.logEvent] 호출.
 /// 4. Send test push — [TestPushClient.send] 호출 (Phase 17 D-05 ·
 ///    [_SendTestPushButton]).
-/// 5. Force sign out — [AuthRepository.signOutAndResetOnboarding] 호출
-///    (Phase 10.2 D-A4 — 계정 화면 로그아웃 확인 뒤 동작과 완전 동일,
-///    I2 invariant 단일 진리원). destructive 계열이라 계속 마지막이다.
+/// 5. Force sign out — 세션 종료 관리자 [SessionEnding.signOut] 호출
+///    (계정 화면 로그아웃 확인 뒤 동작과 완전 동일 — 관리자가 진행 오버레이를
+///    켜고 [AuthRepository.signOutAndResetOnboarding] 을 부른다 · Phase 10.2
+///    D-A4 I2 invariant 단일 진리원). destructive 계열이라 계속 마지막이다.
 class _DevToolsSection extends ConsumerWidget {
   const _DevToolsSection();
 
@@ -986,23 +988,21 @@ class _DevToolsSection extends ConsumerWidget {
   /// 즉시 강제 로그아웃 후 onboarding reset 한다 (Phase 10.2 D-A4).
   ///
   /// 확인 다이얼로그 없음 (D-33 기본 정책). 계정 화면 로그아웃 확인 뒤
-  /// 동작과 완전 동일 (I2 단일 진리원). 화면 이동은 resolveAuthRedirect 분기 (2)
-  /// 자연 redirect (Phase 10.2 D-B1).
+  /// 동작과 완전 동일하다 — 세션 종료 관리자 [SessionEnding.signOut] 을 거친다
+  /// (quick 261011-e6c · I2 단일 진리원). 화면 이동은 resolveAuthRedirect
+  /// 분기 (2) 자연 redirect (Phase 10.2 D-B1).
   ///
-  /// **D-A6: SnackBar / Loading indicator 의도적 미제공.** logout 은 정상
-  /// 흐름이므로 over-instrumentation 회피. 시그니처에 [context] 를 유지하는
-  /// 이유는 같은 `_DevToolsSection` 의 4 핸들러
-  /// (`_handleResetOnboarding` / `_handleTriggerError` /
-  /// `_handleTriggerAnalytics` / `_handleForceSignOut`) 통일성이며,
-  /// 본 함수에서 [context] 를 사용해 SnackBar 등을 표시하면 D-A6 결정을
-  /// silent 위배하는 것이므로 추후 변경 시 `docs/manual.md`
-  /// `## App Entry State Machine (Phase 10.2)` 단락의 D-A6 항목을 함께
-  /// 확인할 의무가 있다.
+  /// **진행 표시는 앱 최상위 오버레이(`SessionEndingOverlay`)가 맡는다.**
+  /// 관리자가 로그아웃을 시작할 때 켜고 온보딩 화면이 뜨면 걷는다. 이 핸들러는
+  /// SnackBar 를 띄우지 않는다 — 로그아웃은 정상 흐름이고 화면이 곧 온보딩으로
+  /// 바뀐다. 시그니처에 [context] 를 유지하는 이유는 같은 `_DevToolsSection`
+  /// 의 4 핸들러 (`_handleResetOnboarding` / `_handleTriggerError` /
+  /// `_handleTriggerAnalytics` / `_handleForceSignOut`) 통일성이다.
   ///
   /// Phase 10.2 review WR-01 정정 — context 미사용에 대한 명시적 정책 anchor.
   // ignore: unused_element_parameter
   Future<void> _handleForceSignOut(BuildContext context, WidgetRef ref) async {
-    await ref.read(authRepositoryProvider).signOutAndResetOnboarding();
+    await ref.read(sessionEndingProvider.notifier).signOut();
   }
 
   @override
