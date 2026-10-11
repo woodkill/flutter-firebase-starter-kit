@@ -4,9 +4,9 @@
 // 커밋한 파일의 sha256 과 번들 선언을 여기에 고정한다. 자산을 다시 만들면 해시가
 // 달라지므로 그 자산의 README 와 이 파일의 값을 함께 고친다.
 //
-// 원문이 있어야 하는 대조(원본 글꼴)는 opt-in 이다 — 원문은 저장소에 싣지 않고,
-// 경로를 `--dart-define` 으로 준 실행에서만 돈다. 받는 곳과 해시는 각 자산의
-// README 에 있다.
+// 원문이 있어야 하는 대조(원본 글꼴 · 공식 버튼 그림)는 opt-in 이다 — 원문은
+// 저장소에 싣지 않고, 경로를 `--dart-define` 으로 준 실행에서만 돈다. 받는 곳과
+// 해시는 각 자산의 README 에 있다.
 
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -50,8 +50,64 @@ const List<String> _gsansLabels = <String>[
 /// 찍는 배율 — 실기기(DPR 3)와 같은 밀도로 대조한다.
 const double _dpr = 3;
 
+/// Google 「G」 투명 PNG 의 배율별 경로 · sha256.
+///
+/// 1배 파일(20px)이 기본이고 2 ~ 4배(40 · 60 · 80px)는 같은 이름으로 `N.0x/`
+/// 아래에 있다. 값은 `assets/brand/google/` 의 파일을 다시 만들면 함께 고친다.
+const List<({int scale, String path, String sha256})>
+_gVariants = <({int scale, String path, String sha256})>[
+  (
+    scale: 1,
+    path: 'assets/brand/google/g.png',
+    sha256: '7dd27866e69aa77ab7b9d4aae6649e3207d29d60100d3a36b0aa69edcda2270c',
+  ),
+  (
+    scale: 2,
+    path: 'assets/brand/google/2.0x/g.png',
+    sha256: 'c56f8e471761761735fb0dc0f06500d01ac1b60f4c7ff8312eece7ab3bae4600',
+  ),
+  (
+    scale: 3,
+    path: 'assets/brand/google/3.0x/g.png',
+    sha256: '17bfc27f2bbbc7d60de882b8aad89af030aba833aa8ed0c915e5401fb705a595',
+  ),
+  (
+    scale: 4,
+    path: 'assets/brand/google/4.0x/g.png',
+    sha256: '830af225265111738899788c16db2783120e7da58c035b4c157a6f3e809f1e29',
+  ),
+];
+
+/// Google 공식 로그인 버튼 그림 묶음을 푼 디렉터리의 절대 경로.
+///
+/// 비어 있으면 공식 그림 대조를 건너뛴다.
+/// `--dart-define=BRAND_ASSET_GOOGLE_SIGNIN_DIR=<경로>` 로 준다.
+const String _gDir = String.fromEnvironment('BRAND_ASSET_GOOGLE_SIGNIN_DIR');
+
+/// 공식 그림과 대조할 때 G 를 얹는 배경 — 공식 Light · Dark 버튼의 바탕색.
+const List<({String label, String theme, List<int> background})> _gThemes =
+    <({String label, String theme, List<int> background})>[
+      (label: 'white', theme: 'Light', background: <int>[0xFF, 0xFF, 0xFF]),
+      (label: 'dark', theme: 'Dark', background: <int>[0x13, 0x13, 0x14]),
+    ];
+
+/// 공식 그림 대조 기준 — 채널별 차의 평균 상한.
+const double _gMeanLimit = 3;
+
+/// 공식 그림 대조 기준 — 채널별 차의 최대 상한.
+const double _gMaxLimit = 96;
+
+/// 공식 그림 대조 기준 — 채널 최대차가 16 을 넘는 픽셀이 칸에서 차지하는 비율 상한.
+const double _gOver16RatioLimit = 0.10;
+
 /// 한 번 찍은 그림의 크기와 RGBA 바이트.
 typedef _Raster = ({int width, int height, Uint8List rgba});
+
+/// 공식 그림 대조 통계.
+///
+/// `mean` 은 채널별 차(픽셀 × RGB)의 전체 평균, `max` 는 채널별 차의 최대,
+/// `over16` 은 채널 최대차가 16 을 넘는 픽셀 수다.
+typedef _GStats = ({double mean, double max, int over16});
 
 /// 파일 바이트의 sha256 16진 문자열을 돌려준다.
 String _computeSha256OfFile(String path) {
@@ -217,6 +273,114 @@ List<ui.FontVariation> _buildOriginalAxes(double weight) => <ui.FontVariation>[
   const ui.FontVariation('GRAD', 0),
 ];
 
+/// PNG [bytes] 의 IHDR 에서 폭 · 높이 · bit depth · color type 을 읽는다.
+({int width, int height, int bitDepth, int colorType}) _readPngHeader(
+  Uint8List bytes,
+  String path,
+) {
+  const List<int> signature = <int>[137, 80, 78, 71, 13, 10, 26, 10];
+  if (bytes.length < 26) {
+    fail('PNG 가 아니다(너무 짧다): $path');
+  }
+  for (int i = 0; i < signature.length; i++) {
+    if (bytes[i] != signature[i]) {
+      fail('PNG 서명이 아니다: $path');
+    }
+  }
+  if (String.fromCharCodes(bytes.sublist(12, 16)) != 'IHDR') {
+    fail('첫 chunk 가 IHDR 이 아니다: $path');
+  }
+  final ByteData data = ByteData.sublistView(bytes);
+  return (
+    width: data.getUint32(16),
+    height: data.getUint32(20),
+    bitDepth: bytes[24],
+    colorType: bytes[25],
+  );
+}
+
+/// PNG 파일 [path] 를 디코딩해 straight RGBA 로 돌려준다.
+///
+/// 엔진 디코더가 실제 시간으로 돌므로 `tester.runAsync` 안에서 부른다.
+Future<_Raster> _decodePngFile(String path) async {
+  final File file = File(path);
+  if (!file.existsSync()) {
+    fail('PNG 파일 부재: $path');
+  }
+  final ui.Codec codec = await ui.instantiateImageCodec(file.readAsBytesSync());
+  final ui.FrameInfo frame = await codec.getNextFrame();
+  final ui.Image image = frame.image;
+  final ByteData? data = await image.toByteData(
+    format: ui.ImageByteFormat.rawStraightRgba,
+  );
+  final int width = image.width;
+  final int height = image.height;
+  image.dispose();
+  codec.dispose();
+  if (data == null) {
+    fail('PNG 를 RGBA 로 읽지 못했다: $path');
+  }
+  return (
+    width: width,
+    height: height,
+    rgba: data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+  );
+}
+
+/// 공식 버튼 그림(Android + Web · 글자 없음 · Square)의 [scale] 배 PNG 경로.
+String _buildOfficialButtonPath(String theme, int scale) {
+  final String suffix = scale == 1 ? '' : '@${scale}x';
+  return '$_gDir/Android + Web/PNG @${scale}x/$theme/'
+      'Theme=$theme, Show text=No, Shape=Square, Platform=Android+Web$suffix.png';
+}
+
+/// [logo] 를 [background] 위에 합성한 그림과 [official] 의 한 칸을 대조한다.
+///
+/// 칸은 [official] 에서 가로 · 세로 [offset] 픽셀 떨어진 자리의 [logo] 크기
+/// 영역이다. 합성은 `c × a + 배경 × (1 − a)`(a = alpha / 255)이고 반올림하지
+/// 않는다.
+_GStats _compareWithOfficialCell(
+  _Raster logo,
+  _Raster official, {
+  required int offset,
+  required List<int> background,
+}) {
+  if (official.width < offset + logo.width ||
+      official.height < offset + logo.height) {
+    fail(
+      '공식 그림이 칸보다 작다: ${official.width}x${official.height} '
+      '< $offset + ${logo.width}x${logo.height}',
+    );
+  }
+  double sum = 0;
+  double max = 0;
+  int over16 = 0;
+  for (int y = 0; y < logo.height; y++) {
+    for (int x = 0; x < logo.width; x++) {
+      final int il = (y * logo.width + x) * 4;
+      final int io = ((y + offset) * official.width + (x + offset)) * 4;
+      final double alpha = logo.rgba[il + 3] / 255;
+      double pixelMax = 0;
+      for (int c = 0; c < 3; c++) {
+        final double composed =
+            logo.rgba[il + c] * alpha + background[c] * (1 - alpha);
+        final double diff = (composed - official.rgba[io + c]).abs();
+        sum += diff;
+        if (diff > pixelMax) {
+          pixelMax = diff;
+        }
+      }
+      if (pixelMax > max) {
+        max = pixelMax;
+      }
+      if (pixelMax > 16) {
+        over16++;
+      }
+    }
+  }
+  return (mean: sum / (logo.width * logo.height * 3), max: max, over16: over16);
+}
+
 void main() {
   group('Google Sans 라틴 subset', () {
     test('T-177-ASSET-01: 번들 글꼴 파일의 sha256 이 고정값과 같다', () {
@@ -333,5 +497,113 @@ void main() {
         );
       }, skip: _gsansOrig.isEmpty);
     });
+  });
+
+  group('Google G 투명 PNG', () {
+    test('T-177-ASSET-04: 배율 4개 PNG 의 sha256 · 크기가 고정값과 같다', () {
+      for (final ({int scale, String path, String sha256}) variant
+          in _gVariants) {
+        expect(
+          _computeSha256OfFile(variant.path),
+          variant.sha256,
+          reason:
+              '${variant.path} 가 바뀌었다 — 다시 만들었으면 README 와 이 값을 '
+              '함께 고친다',
+        );
+        final ({int width, int height, int bitDepth, int colorType}) header =
+            _readPngHeader(File(variant.path).readAsBytesSync(), variant.path);
+        final int side = 20 * variant.scale;
+        expect(
+          (header.width, header.height),
+          (side, side),
+          reason: '${variant.path} 는 $side × $side 여야 한다',
+        );
+        // bit depth 8 · color type 6 = 8-bit RGBA(투명 배경).
+        expect(
+          (header.bitDepth, header.colorType),
+          (8, 6),
+          reason: '${variant.path} 는 8-bit RGBA 여야 한다',
+        );
+      }
+    });
+
+    test('T-177-ASSET-05: 번들이 g.png 의 해상도 변형 4개를 싣는다', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final AssetManifest manifest = await AssetManifest.loadFromAssetBundle(
+        rootBundle,
+      );
+      final List<AssetMetadata> variants =
+          manifest.getAssetVariants(_gVariants.first.path) ?? <AssetMetadata>[];
+      expect(
+        <String, double>{
+          for (final AssetMetadata variant in variants)
+            variant.key: variant.targetDevicePixelRatio ?? 1,
+        },
+        <String, double>{
+          for (final ({int scale, String path, String sha256}) variant
+              in _gVariants)
+            variant.path: variant.scale.toDouble(),
+        },
+        reason:
+            '번들의 g.png 변형이 기본 · 2.0x · 3.0x · 4.0x 가 아니다 — pubspec assets: 선언이 '
+            '변형 디렉터리를 싣는지 확인한다',
+      );
+    });
+
+    // 공식 버튼 그림 묶음은 저장소에 없다 — 푼 디렉터리의 경로를 dart-define 으로
+    // 준 실행에서만 돈다.
+    testWidgets('T-177-ASSET-06: G PNG 가 공식 버튼 그림의 G 칸과 기준 안에서 같다', (
+      WidgetTester tester,
+    ) async {
+      final List<String> lines = <String>[];
+      final List<String> failures = <String>[];
+      await tester.runAsync<void>(() async {
+        for (final ({int scale, String path, String sha256}) variant
+            in _gVariants) {
+          final int n = variant.scale;
+          final int side = 20 * n;
+          final _Raster logo = await _decodePngFile(variant.path);
+          final StringBuffer line = StringBuffer('GOOGLE_G scale=$n px=$side');
+          for (final ({String label, String theme, List<int> background}) theme
+              in _gThemes) {
+            final _Raster official = await _decodePngFile(
+              _buildOfficialButtonPath(theme.theme, n),
+            );
+            // 공식 버튼은 40 × 40 이고 G 는 가운데 20 × 20 칸에 있다.
+            final _GStats cell = _compareWithOfficialCell(
+              logo,
+              official,
+              offset: 10 * n,
+              background: theme.background,
+            );
+            // 대조군: 칸을 2N 픽셀 어긋나게 자르면 같은 통계가 크게 벌어져야 한다.
+            final _GStats shifted = _compareWithOfficialCell(
+              logo,
+              official,
+              offset: 12 * n,
+              background: theme.background,
+            );
+            line.write(
+              ' ${theme.label}_mean=${cell.mean.toStringAsFixed(2)}'
+              ' ${theme.label}_max=${cell.max.floor()}'
+              ' ${theme.label}_gt16=${cell.over16}',
+            );
+            if (cell.mean > _gMeanLimit ||
+                cell.max > _gMaxLimit ||
+                cell.over16 > side * side * _gOver16RatioLimit) {
+              failures.add('scale=$n ${theme.label} 기준 밖: $cell');
+            }
+            if (shifted.mean <= _gMeanLimit) {
+              failures.add('scale=$n ${theme.label} 대조군이 차이를 내지 못한다: $shifted');
+            }
+          }
+          lines.add(line.toString());
+        }
+      });
+      lines.forEach(debugPrint);
+
+      expect(lines, hasLength(_gVariants.length));
+      expect(failures, isEmpty);
+    }, skip: _gDir.isEmpty);
   });
 }
