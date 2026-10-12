@@ -22,9 +22,10 @@ const List<Locale> kBrandScaleLocales = <Locale>[
   Locale('ja'),
 ];
 
-/// 버튼 밖 위젯의 layout 오류까지 0 으로 단언할지 정한다.
+/// 큰 글자 · 좁은 화면 단언의 범위 — 버튼에서 비롯된 layout 오류 0 을 단언한다.
 ///
-/// false 면 버튼 밖 오류는 세기만 하고, 버튼에서 비롯된 오류만 0 으로 단언한다.
+/// 버튼 밖 위젯의 넘침은 이 단언의 범위가 아니다 — 세어서 측정 줄에만 싣는다.
+/// true 로 바꾸면 버튼이 그려지는 화면 전체에서 layout 오류 0 을 단언한다.
 const bool kBrandScaleAssertsWholeScreen = false;
 
 /// 측정 줄을 출력할지 정한다 — `--dart-define=BRAND_SCALE_REPORT=true`.
