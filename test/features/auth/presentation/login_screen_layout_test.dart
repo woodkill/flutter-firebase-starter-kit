@@ -1,11 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/facebook_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -23,9 +27,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../helpers/brand_button_text_scale.dart';
+
 class _FakeFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _FakeAuthRepository extends Mock implements AuthRepository {}
+
+/// 소셜 버튼 6개를 모두 켠 목록.
+const List<AuthStrategy> _sixStrategies = <AuthStrategy>[
+  GoogleAuthStrategy(),
+  AppleAuthStrategy(),
+  FacebookAuthStrategy(),
+  KakaoAuthStrategy(),
+  NaverAuthStrategy(),
+  LineAuthStrategy(),
+];
 
 /// GoRouter 가 마지막으로 진입한 location 을 기록하는 recorder.
 class LastLocationRecorder {
@@ -44,6 +60,8 @@ class LastLocationRecorder {
 /// [strategies] 는 `activeStrategiesProvider` 로 표시할 소셜 목록이다 —
 /// 기본값은 Google · Apple · Facebook 3개이고, Phase 17.3 D-17 테스트는 빈
 /// 목록(소셜 0개)을 넘긴다.
+///
+/// [locale] 은 화면 언어다 — 기본값은 en 이다.
 Future<void> pumpWrapper(
   WidgetTester tester, {
   LastLocationRecorder? recorder,
@@ -52,6 +70,7 @@ Future<void> pumpWrapper(
     AppleAuthStrategy(),
     FacebookAuthStrategy(),
   ],
+  Locale locale = const Locale('en'),
 }) async {
   final mockAuth = _FakeFirebaseAuth();
   when(
@@ -90,7 +109,7 @@ Future<void> pumpWrapper(
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
@@ -219,6 +238,50 @@ void main() {
         find.widgetWithText(TextButton, l10n.authLoginNoAccount),
         findsOneWidget,
       );
+    });
+  });
+
+  group('큰 글자 · 좁은 화면의 소셜 버튼 라벨', () {
+    for (final locale in kBrandScaleLocales) {
+      testWidgets('T-177-SCALE-01 (${locale.languageCode}): 글자 배율 2.0 · 폭 280 '
+          '에서 버튼 6개의 라벨만 상한에서 멈춘다', (tester) async {
+        applyLargeTextNarrowView(tester);
+
+        final errors = await collectBrandScaleErrors(() async {
+          await pumpWrapper(tester, strategies: _sixStrategies, locale: locale);
+          await tester.pumpAndSettle();
+        });
+
+        expectBrandButtonLabelsCapped(
+          tester,
+          errors,
+          surface: 'login',
+          locale: locale,
+          minButtons: 6,
+        );
+
+        // 상한은 버튼 라벨에만 걸린다 — 버튼 밖 글자는 기기 배율을 그대로
+        // 따른다.
+        final l10n = lookupAppLocalizations(locale);
+        final cta = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: find.text(l10n.authContinueWithEmail),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect(cta.textScaler.scale(14), 28);
+      });
+    }
+
+    testWidgets('글자 배율 1.0 에서는 버튼 라벨이 제 크기(16)로 그려진다', (tester) async {
+      applyLargeTextNarrowView(tester, textScaleFactor: 1.0);
+
+      await pumpWrapper(tester, strategies: _sixStrategies);
+      await tester.pumpAndSettle();
+
+      final sizes = readBrandButtonLabelSizes(tester);
+      expect(sizes, hasLength(6));
+      expect(sizes, everyElement(16));
     });
   });
 }
