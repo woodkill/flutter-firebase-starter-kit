@@ -63,8 +63,9 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
    en/ko/ja + `fvm flutter gen-l10n` 산출물.
 
 8. **브랜드 버튼** — `lib/features/auth/presentation/_widgets/branded_social_button.dart`
-   의 sealed `BrandSpec` 서브클래스 · `BrandedSocialButton.<provider>` factory ·
-   `build()` switch case · render 메서드, `social_button.dart` 의 provider switch ·
+   의 sealed `BrandSpec` 서브클래스(배경색 · 글자색 · 외곽선 · 로고 자산과 상자 · 간격
+   같은 스킨 값을 구현한다) + `BrandedSocialButton.<provider>` factory — 공통 골격이
+   그리므로 provider 별 렌더 코드는 없다. 그리고 `social_button.dart` 의 provider switch ·
    라벨 switch, `assets/brand/<slug>/` + `pubspec.yaml` assets 행. 색 · 자산 · 라벨은
    그 provider 의 공식 브랜드 가이드에서 가져온다.
 
@@ -197,7 +198,7 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
      `providers.<slug>` 키도 함께 뺀다(T-173-DEPLOY-04 가 순서 · 집합을 대조). 이 커밋
      **전에** 로컬 `config/*.json` 의 CSV 토큰을 먼저 뺀다(함정 (b)).
    - ③ **brand 버튼 · 자산** — sealed `BrandSpec` 서브클래스 ·
-     `BrandedSocialButton.<provider>` factory · `build()` switch case · render 메서드 +
+     `BrandedSocialButton.<provider>` factory(공통 골격이 그리므로 지울 provider 별 렌더 코드는 없다) +
      `assets/brand/<slug>/` + `pubspec.yaml` assets 행 + brand 테스트의 provider 목록
      (`brand_assets_lint_test` · `brand_label_whitelist_test`).
    - ④ **ARB** — 키 × 3 locale 삭제, 수가 박힌 description 정정, `fvm flutter gen-l10n`
