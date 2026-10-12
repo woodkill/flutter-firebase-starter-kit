@@ -7,14 +7,14 @@
 
 | 파일 | 용도 | 라이센스 |
 |------|------|---------|
-| `Roboto-Medium.ttf` | golden test 의 Roboto Medium fixture (Google Sign-in label fontFamily) | Apache License 2.0 — `Roboto_LICENSE.txt` |
+| `Roboto-Medium.ttf` | golden test 의 Roboto Medium fixture (버튼 라벨 글꼴 `Roboto`) | Apache License 2.0 — `Roboto_LICENSE.txt` |
 | `NotoSansCJKKR-Regular-Subset.otf` | ko golden 의 한글 글리프 (Android 시스템 CJK fallback 재현) — Phase 16.7 | SIL OFL 1.1 — `NotoSansCJK_LICENSE.txt` |
 | `NotoSansCJKJP-Regular-Subset.otf` | ja golden 의 가나 · 한자 글리프 (같은 목적) — Phase 16.7 | SIL OFL 1.1 — `NotoSansCJK_LICENSE.txt` |
 
 ## 사유
 
-production code 의 `_renderGoogleButton` 은 fontFamily 'Roboto' (Google CSS
-verbatim) 사용. Android system 의 Roboto 가 default 매핑되지만, test env
+로그인 버튼 라벨(Google 을 뺀 5개 · Android)이 글꼴 `Roboto` 를 쓴다. Android
+에서는 번들한 Roboto 로 그려지지만, test env
 (macOS host) 에서는 system fallback 의 weight 분기가 macOS 시스템 폰트 (SF
 Pro / Helvetica) 로 우회 → Skia synthetic bold 발생 위험.
 

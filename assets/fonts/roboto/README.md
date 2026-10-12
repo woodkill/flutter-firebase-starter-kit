@@ -10,9 +10,12 @@
 
 ## 채택 사유
 
-**Phase 13.3 Wave 4 Step 3 (2026-05-16)** — Google Identity Services 로그인
-버튼 (`_renderGoogleButton`) 의 label fontFamily `'Roboto'` (Google production
-CSS verbatim `font-family: 'Roboto', arial, sans-serif`) 부합.
+번들 Roboto 는 Android 에서 두 곳에 쓰인다. 앱의 영문 글자가 이 파일로
+그려지고(`pubspec.yaml` 이 family `Roboto` 로 선언한다 — Flutter Material 이
+Android 에서 쓰는 기본 글꼴 이름이다), Google 을 뺀 5개 로그인 버튼의 라벨도
+이 글꼴을 쓴다(상수 `kBrandLabelFontFamily`). Google 버튼 라벨의 영문은
+Google Sans 다 — `assets/fonts/googlesans/README.md`. iOS · macOS 에서는 버튼
+라벨이 시스템 글꼴로 그려진다(상수 `kBrandLabelFontFamilyApple`).
 
 ### Test env synthetic bold 회피
 
@@ -24,10 +27,10 @@ CSS verbatim `font-family: 'Roboto', arial, sans-serif`) 부합.
 4. Skia **synthetic bold** 적용 → 글자 더 굵음
 
 Roboto variable font asset 을 bundle 함으로써:
-- production Android: system Roboto 또는 bundled Roboto 사용 (동일 visual)
-- production iOS/macOS: `_renderGoogleButton` 의 platform 분기로 `'SF Pro Text'`
-  사용 (정문 강등 정책 부합 — STEP2-google-VERBATIM §2 row `label.fontFamily`)
-- test env (macOS host): bundled Roboto 사용 (synthetic bold 회피)
+- production Android: 앱의 영문 글자와 Google 을 뺀 5개 버튼 라벨이 bundled Roboto 로 그려진다
+- production iOS/macOS: 버튼 라벨이 시스템 글꼴로 그려진다 (`kBrandLabelFontFamilyApple`)
+- test env (macOS host): 화면 golden 하네스가 이 파일을 family `Roboto` 로 올린다
+  (synthetic bold 회피). 버튼 단독 golden 은 `assets/test_fonts/Roboto-Medium.ttf` 를 올린다
 
 ### Variable font 의무
 
@@ -40,25 +43,26 @@ Flutter `fontWeight: FontWeight.w500` 명시 시 variable font 의 `wght` axis
 ### Weight 매핑
 
 - `FontWeight.w400` (Regular) → variable wght = 400 자동
-- `FontWeight.w500` (Medium) → variable wght = 500 자동 ⭐ Google CSS 채택
-- 다른 weights 미사용 — `_renderGoogleButton` 는 w500 단독
+- `FontWeight.w500` (Medium) → variable wght = 500 자동 ⭐ 버튼 라벨의 굵기
+- 버튼 라벨은 w500 하나만 쓴다 (`kBrandLabelFontWeight`)
 
 ## 다른 provider 와의 비교
 
 | Provider | Bundled font | License | 출처 |
 |---|---|---|---|
-| Apple | Inter Regular/Medium static (2 TTF) | SIL OFL 1.1 | rsms/inter |
-| **Google** | **Roboto variable (1 TTF)** | **SIL OFL 1.1** | **google/fonts** |
-| Kakao/Naver/Facebook | (자체 bundle 없음 — system font 사용) | — | — |
+| Google | Google Sans 라틴 subset (1 TTF — `assets/fonts/googlesans/`) | SIL OFL 1.1 | google/fonts |
+| **Apple/Facebook/Kakao/Naver/LINE** | **Roboto variable (1 TTF) — Android. iOS · macOS 는 시스템 글꼴** | **SIL OFL 1.1** | **google/fonts** |
 
 ## 관련 코드
 
 - `lib/features/auth/presentation/_widgets/branded_social_button.dart`
-  `_renderGoogleButton` — fontFamily `'Roboto'` (Android/Linux/Windows/test)
-  또는 `'SF Pro Text'` (iOS/macOS platform 분기)
+  `kBrandLabelFontFamily` — `'Roboto'` (iOS · macOS 가 아닌 플랫폼의 버튼 라벨) ·
+  `kBrandLabelFontFamilyApple` (iOS · macOS 의 버튼 라벨) · `kGoogleLabelFontFamily` (Google 버튼 라벨)
 - `pubspec.yaml` `flutter > fonts` 섹션 Roboto family entry
 - `test/features/auth/presentation/_widgets/branded_social_button_golden_test.dart`
-  `_loadGoldenFonts` Roboto FontLoader 등록
+  `_loadGoldenFonts` 가 `assets/test_fonts/Roboto-Medium.ttf` 를 family `Roboto` 로 올린다
+- `test/features/auth/presentation/auth_surfaces_golden_test.dart` ·
+  `test/features/settings/presentation/settings_golden_harness.dart` 가 이 파일을 family `Roboto` 로 올린다
 
 ## License compliance
 
