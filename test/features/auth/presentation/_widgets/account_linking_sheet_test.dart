@@ -8,6 +8,8 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/account_
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
+import '../../../../helpers/brand_button_text_scale.dart';
+
 /// Phase 16 Plan 16-04 Task 4.2 — AccountLinkingSheet widget test (W1~W7).
 ///
 /// **viewport 정책:** test/widgetTester default (800x600) 는 sheet
@@ -284,6 +286,38 @@ void main() {
           expect(tester.takeException(), isNull, reason: '$label 마지막');
         });
       }
+    }
+  });
+
+  group('큰 글자 · 좁은 화면의 소셜 버튼 라벨', () {
+    for (final locale in kBrandScaleLocales) {
+      testWidgets('T-177-SCALE-05 (${locale.languageCode}): 글자 배율 2.0 · 폭 280 '
+          '에서 연결 시트의 버튼 라벨만 상한에서 멈춘다', (tester) async {
+        applyLargeTextNarrowView(tester);
+
+        final button = find.byType(BrandedSocialButton);
+        final errors = await collectBrandScaleErrors(() async {
+          await _pumpAndShowSheet(
+            tester,
+            provider: AccountProvider.naver,
+            locale: locale,
+          );
+          // 시트 본문이 길어지면 버튼이 스크롤 아래로 밀린다 — 버튼까지
+          // 스크롤해 그려진 뒤에 잰다.
+          await tester.ensureVisible(button);
+          await tester.pump();
+        });
+
+        expect(find.byType(AccountLinkingSheet), findsOneWidget);
+        expect(button.hitTestable(), findsOneWidget);
+        expectBrandButtonLabelsCapped(
+          tester,
+          errors,
+          surface: 'linking_sheet',
+          locale: locale,
+          minButtons: 1,
+        );
+      });
     }
   });
 }

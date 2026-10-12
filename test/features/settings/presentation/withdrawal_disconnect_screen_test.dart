@@ -69,6 +69,7 @@ import 'package:flutter_starter_kit/features/settings/presentation/withdrawal_di
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 
+import '../../../helpers/brand_button_text_scale.dart';
 import '../../../helpers/route_tree.dart' show readMatchedLocations;
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
@@ -1775,5 +1776,49 @@ void main() {
         expect(rect.bottom, lessThanOrEqualTo(800));
       },
     );
+  });
+
+  group('큰 글자 · 좁은 화면의 소셜 버튼 라벨', () {
+    for (final locale in kBrandScaleLocales) {
+      testWidgets('T-177-SCALE-06 (${locale.languageCode}): 글자 배율 2.0 · 폭 280 '
+          '에서 탈퇴 진행 화면의 재로그인 버튼 라벨만 상한에서 멈춘다', (tester) async {
+        applyLargeTextNarrowView(tester);
+
+        // 6종을 모두 가진 계정 — 첫 재로그인 행(Google)에 브랜드 버튼이 뜬다.
+        final button = find.byType(SocialButton);
+        final list = find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        );
+        final errors = await collectBrandScaleErrors(() async {
+          await _pumpScreen(
+            tester,
+            providerIds: _w5ProviderIds,
+            fakes: _Fakes(),
+            settingsRepo: _countingRepo().repo,
+            locale: locale,
+          );
+          // 서버 행이 진행 중이라 스피너가 돈다 — settle 을 기다리지 않는다.
+          // 큰 글자에서는 행이 길어져 재로그인 행이 목록 아래로 밀리고, 목록은
+          // 보이는 근처의 행만 만든다. 목록 끝까지 내려 모든 행을 한 번씩
+          // 그린 다음, 버튼이 있는 행으로 돌아와 잰다.
+          await tester.scrollUntilVisible(button, 100, scrollable: list);
+          await tester.drag(list, const Offset(0, -5000));
+          await tester.pump();
+          await tester.scrollUntilVisible(button, -100, scrollable: list);
+          await tester.ensureVisible(button);
+          await tester.pump();
+        });
+
+        expect(button.hitTestable(), findsOneWidget);
+        expectBrandButtonLabelsCapped(
+          tester,
+          errors,
+          surface: 'withdrawal',
+          locale: locale,
+          minButtons: 1,
+        );
+      });
+    }
   });
 }
