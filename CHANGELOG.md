@@ -21,11 +21,20 @@
 ### Added
 
 - 로그아웃과 회원탈퇴 마무리 동안 화면 전체를 덮는 진행 오버레이를 더한다. 로그아웃은 확인한 직후, 회원탈퇴는 서버 삭제가 끝난 직후부터 온보딩 화면이 뜰 때까지 스피너와 「로그아웃 처리 중…」 · 「탈퇴 처리 중…」 문구가 보이고 입력이 막힌다. 로그아웃이 예외로 끝나면 바로 걷히고, 30초가 지나면 로그아웃은 계속 진행한 채 오버레이만 걷힌다. 새 문구 키는 `authSigningOut` · `withdrawalFinalizing` 이다(영어 · 한국어 · 일본어). 로그아웃 뒤 목적지를 온보딩이 아닌 화면으로 바꿨다면 그 화면의 route `builder` 를 `SessionEndingArrival` 로 감싼다 — 매뉴얼 「App Entry State Machine」 절.
+- Google 로그인 버튼에 쓰는 자산 두 가지를 싣는다. Google Sans 라틴 subset 글꼴(`assets/fonts/googlesans/` · SIL OFL 1.1)은 버튼 라벨의 영문만 그리고, 한글 · 가나는 기기 글꼴로 그려진다. gradient G 투명 PNG 4장(`assets/brand/google/` · 1 ~ 4배)은 Google 이 배포하는 공식 버튼 SVG 의 G 를 Chrome 으로 그린 것이다. Google 로그인 브랜드 가이드가 버튼 글꼴로 Google Sans Medium 을, 로고로 gradient G 를 요구한다. 바뀐 파일은 `assets/fonts/googlesans/` · `assets/brand/google/` · `pubspec.yaml` · `LICENSE` 다. 만드는 절차는 각 디렉터리의 `README.md` 에 있다 — 매뉴얼 「Brand Asset Management」.
 
 ### Changed
 
 - Android 빌드 도구를 Gradle 9.3.1 · Android Gradle Plugin 9.1.0 · Kotlin Gradle Plugin 2.4.0 · google-services Gradle 플러그인 4.5.0 · Crashlytics Gradle 플러그인 3.0.8 로 올린다. Flutter 가 내던 지원 종료 경고 3건이 사라지고, 대신 Kotlin Gradle Plugin 적용 경고 2종이 나온다(지금은 정상). `android/app/build.gradle.kts` 는 `buildFeatures { resValues = true }` 와 `kotlin { compilerOptions { … } }` 를 쓴다 — 앱 ID · 서명 줄은 그대로라 merge 로 끝난다. 바뀐 파일은 `android/settings.gradle.kts` · `android/gradle/wrapper/gradle-wrapper.properties` · `android/app/build.gradle.kts` 다. Android Studio 로 `android/` 를 열려면 2025.3.2 이상이 필요하다 — 매뉴얼 「Flutter SDK 상향 (FVM)」 ⑤.
 - `flutter_line_sdk` 를 3.0.0 으로 올린다. 새 Android Gradle Plugin 에서 Android 빌드가 되는 판이다. iOS 는 15.0 이상 · LineSDK 5.17 이상을 요구하고, 킷의 iOS 핀(5.17.0)은 그대로다. 바뀐 파일은 `pubspec.yaml` · `pubspec.lock` 이다 — 매뉴얼 「iOS 의존성 관리 (SPM)」 ②.
+- 소셜 로그인 버튼 6개(Google · Apple · Facebook · Kakao · Naver · LINE)를 한 벌의 골격으로 그린다 — 높이 48 · radius 12 · 라벨 16 · 굵기 500 · 로고와 라벨 가운데 묶음 · 로고 상자 20dp(Naver 18 · LINE 은 높이 20 에 종횡비 유지 · Apple 은 공식 medium 로고를 버튼 높이에 맞춤) · 비활성 투명도 0.38. 라벨 글꼴은 기기 기본이다 — Android 는 영문이 킷이 싣는 Roboto 이고 한글 · 가나는 기기 글꼴, iOS 는 시스템 글꼴이며 Google 버튼의 영문만 Google Sans 다. 배경색 · 글자색 · 외곽선 · 로고 · 문구는 브랜드 가이드 값 그대로다. 버튼마다 크기 · 모서리 · 글꼴이 달라 한 화면에 놓으면 들쭉날쭉했다. 바뀐 파일은 `lib/features/auth/presentation/_widgets/branded_social_button.dart` · `assets/brand/apple/` · `assets/brand/google/` · `pubspec.yaml` 이다. 버튼 값이나 로고를 바꾸면 버튼 기준 그림(golden)을 다시 만든다 — 매뉴얼 「Brand Asset Management」.
+- 휴대폰 글자 크기를 키워도 소셜 로그인 버튼의 글자는 1.34배까지만 커지고 버튼 높이와 로고는 그대로다. 버튼 밖 글자는 설정대로 커진다. 큰 글자 설정에서 버튼 글자가 잘리는 일을 줄인다. 상한은 `lib/features/auth/presentation/_widgets/branded_social_button.dart` 의 `kBrandLabelScaleCap` 이다.
+- 「이미 가입된 이메일입니다」 시트의 소셜 버튼 글자가 수단 이름(예: 「카카오」)에서 로그인 문구(예: 「카카오 로그인」)로 바뀐다. 로그인 화면의 같은 버튼과 문구가 같아진다. 새 문구 키는 없다. 바뀐 파일은 `lib/features/auth/presentation/_widgets/account_linking_sheet.dart` 다.
+
+### Removed
+
+- Pretendard · Inter 번들 글꼴을 뺀다(`assets/fonts/pretendard/` · `assets/fonts/inter/` · `pubspec.yaml` 의 `Pretendard` · `Inter` family 선언 · `LICENSE` 제3자 자산 목록의 두 줄). 소셜 로그인 버튼이 더는 쓰지 않는다. 앱 코드에서 이 두 family 이름을 `fontFamily` 로 직접 쓰고 있었다면 그 글자는 기기 기본 글꼴로 그려진다 — 계속 쓰려면 글꼴 파일과 `pubspec.yaml` 선언을 자기 프로젝트에 다시 싣는다.
+- 옛 4색 Google G(`assets/brand/google/btn_signin_icon.svg`)를 뺀다. Google 로그인 버튼은 gradient G PNG 를 쓴다.
 
 ### Fixed
 
