@@ -28,7 +28,6 @@ import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dar
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
-import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,9 +70,8 @@ Future<void> _loadFamily(String family, List<String> paths) async {
 
 /// golden 폰트 family 와 CJK subset 2종을 등록한다.
 ///
-/// 순서 = `Roboto` → `GoogleSans`(공통 골격의 Google 라벨) → `Inter` ·
-/// `Pretendard`(미리보기 값이 없을 때만 — 그때의 버튼 렌더가 쓴다) →
-/// `MaterialIcons` → `MockCjkKR` · `MockCjkJP`.
+/// 순서 = `Roboto` → `GoogleSans`(Google 버튼의 라벨) → `MaterialIcons` →
+/// `MockCjkKR` · `MockCjkJP`.
 ///
 /// flutter_test 는 pubspec `fonts:` 를 자동 로드하지 않고 동적 로드 폰트로
 /// 자동 fallback 하지도 않는다 — ko/ja 글리프는 [goldenTheme] 의 test 전용
@@ -85,15 +83,6 @@ Future<void> loadGoldenFonts() async {
   await _loadFamily('GoogleSans', <String>[
     'assets/fonts/googlesans/GoogleSans-Latin-wght.ttf',
   ]);
-  if (debugBrandButtonPreviewMetrics == null) {
-    await _loadFamily('Inter', <String>[
-      'assets/fonts/inter/Inter-Regular.ttf',
-      'assets/fonts/inter/Inter-Medium.ttf',
-    ]);
-    await _loadFamily('Pretendard', <String>[
-      'assets/fonts/pretendard/PretendardVariable.ttf',
-    ]);
-  }
   final flutterRoot = Platform.environment['FLUTTER_ROOT'];
   if (flutterRoot == null || flutterRoot.isEmpty) {
     throw TestFailure(

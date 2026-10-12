@@ -36,21 +36,8 @@ const Size _narrowViewSize = Size(280, 800);
 /// 좁은 화면의 기기 픽셀 비율.
 const double _narrowViewPixelRatio = 3;
 
-/// 표식으로 넣는 라벨 배율 상한.
-const double _markerLabelScaleCap = 1.25;
-
-/// 공통 골격을 켤 때 넣는 표식 값 — 앱에 내보내는 값이 아니다.
-const BrandButtonMetrics _markerMetrics = BrandButtonMetrics(
-  labelScaleCap: _markerLabelScaleCap,
-  disabledOpacity: 0.5,
-  labelLineHeight: 22,
-  labelLetterSpacing: 0.1,
-  iosLabelTopInset: 2,
-  appleLogoGap: 9,
-);
-
-/// 큰 글자에서 버튼 라벨이 가져야 하는 유효 글자 크기.
-const double _cappedLabelSize = kBrandLabelFontSize * _markerLabelScaleCap;
+/// 큰 글자에서 버튼 라벨이 가져야 하는 유효 글자 크기 — 글자 크기 × 배율 상한.
+const double _cappedLabelSize = kBrandLabelFontSize * kBrandLabelScaleCap;
 
 /// [collectBrandScaleErrors] 가 모은 layout 오류를 난 자리로 나눈 결과.
 ///
@@ -69,8 +56,8 @@ class BrandScaleErrors {
 
 /// 테스트 화면을 폭 280 · 글자 배율 [textScaleFactor] 로 맞춘다.
 ///
-/// pump 전에 부른다. 화면 크기 · 글자 배율 · 버튼의 공통 골격 미리보기 값을
-/// 걸고, 테스트가 끝나면 모두 되돌린다.
+/// pump 전에 부른다. 화면 크기와 글자 배율을 걸고, 테스트가 끝나면 모두
+/// 되돌린다.
 void applyLargeTextNarrowView(
   WidgetTester tester, {
   double textScaleFactor = 2.0,
@@ -81,8 +68,6 @@ void applyLargeTextNarrowView(
   addTearDown(tester.view.resetDevicePixelRatio);
   tester.platformDispatcher.textScaleFactorTestValue = textScaleFactor;
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-  debugBrandButtonPreviewMetrics = _markerMetrics;
-  addTearDown(() => debugBrandButtonPreviewMetrics = null);
 }
 
 /// 화면의 [BrandedSocialButton] 마다 라벨의 유효 글자 크기를 돌려준다.

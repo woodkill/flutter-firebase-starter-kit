@@ -39,7 +39,7 @@ class BrandFocusWrapper extends StatefulWidget {
   /// 사방 4dp씩, 즉 가로·세로 각각 **총 8dp** 잠식한다. 부모가 크기를
   /// bound 하면 (예: 300x48 → child 292x40) 브랜드 규정 높이(48dp)와 최소
   /// 터치 타겟이 함께 깨진다 — 브랜드 규격 크기는 wrapper **바깥**에서
-  /// 지정할 것 (현재 호출부는 `SizedBox(height: spec.height)` 를 child 내부에
+  /// 지정할 것 (현재 호출부는 `kBrandButtonHeight` 높이의 상자를 child 내부에
   /// 두어 이 문제를 피한다).
   const BrandFocusWrapper({
     required this.child,

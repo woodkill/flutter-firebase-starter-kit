@@ -71,7 +71,8 @@ void main() {
       await _pumpLogin(tester, mockRepo);
       // Phase 13.2 R7/R8 (옵션 A pivot, Wave 0 lock D-94) — Facebook 분기도
       // BrandedSocialButton.facebook 위임 (Meta 공식 자상 PNG + Apple
-      // SignInWithAppleButton 패턴 mirror 의 _renderFacebookButton 위제).
+      // SignInWithAppleButton 패턴 mirror — 라벨은 `BrandedSocialButton` 의
+      // 공통 골격이 로고 옆에 그린다).
       // Google/Apple/Facebook 3 provider 모두 BrandedSocialButton 단일
       // 위임 — sign_in_button 패키지 의존 폐기 (R10).
       expect(find.byType(SocialButton), findsNWidgets(3));

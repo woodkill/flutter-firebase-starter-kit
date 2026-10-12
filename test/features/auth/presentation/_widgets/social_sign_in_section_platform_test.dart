@@ -7,7 +7,7 @@
 // (Wave 0 lock D-94) 채택 후 Facebook 분기도 `BrandedSocialButton.facebook`
 // 위임으로 전환되어 모든 provider 가 `BrandedSocialButton` 단일 진실원으로
 // 일관. sign_in_button 패키지 의존 폐기 (R10) + Meta 공식 자상 PNG +
-// Apple SignInWithAppleButton 패턴 mirror 의 `_renderFacebookButton` 위제 활성.
+// 라벨은 `BrandedSocialButton` 의 공통 골격이 로고 옆에 그린다.
 // Phase 13.3 R6 — GoogleSpec.theme 필드 + appleStyle 필드 폐기. theme 검증
 // expect 폐기 — Theme.brightness 자동 분기는 위제 내부 책임.
 //
@@ -118,7 +118,7 @@ void main() {
       //   Google → BrandedSocialButton.google (GoogleSpec)
       //   Apple  → BrandedSocialButton.apple  (AppleSpec)
       //   Facebook → BrandedSocialButton.facebook (FacebookSpec — Meta 공식
-      //     자상 PNG + _renderFacebookButton 위제)
+      //     자상 + 공통 골격 렌더)
       final socialButtons = tester
           .widgetList<SocialButton>(find.byType(SocialButton))
           .toList();
@@ -245,7 +245,7 @@ void main() {
           .toList();
       expect(branded.length, 3);
       // Phase 13.3 R6 — dark Theme 에서도 동일 const Spec 인스턴스. 색 분기는
-      // 위제 내부 (_renderGoogleButton / AppleSpec build / _renderFacebookButton).
+      // 위제 내부 (스킨이 밝기를 받아 색을 정한다).
       expect(branded[0].spec, isA<GoogleSpec>());
       expect(branded[1].spec, isA<AppleSpec>());
       expect(branded[2].spec, isA<FacebookSpec>());

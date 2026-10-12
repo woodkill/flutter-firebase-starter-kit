@@ -212,12 +212,13 @@ void main() {
   });
 
   // Phase 13.3 verbatim restored (Wave 4 D-111) — Universal Layout Pattern
-  // 으로 wide 자상 통째 buttons 패턴 폐기 (Wave 2 `_renderNaverButton`).
+  // 으로 wide 자상 통째 buttons 패턴 폐기 (`BrandedSocialButton` 의 공통 골격).
   // ARB authNaverSignIn 값이 위제 트리에 Text 라벨 layer 로 부활 — ARB ↔ Naver
   // BI 화이트리스트 양방향 검증 부활. Phase 13.1 Gap-1 X2 SKIP 정책 종료.
   //
   // **ARB 키 단일 진실원:** authNaverSignIn ko/en/ja 값은 SocialButton._resolveLabel
-  // 매핑 + `_renderNaverButton` 의 Text 위제 + a11y Semantics(label) 매개변수에
+  // 매핑 + `BrandedSocialButton` 공통 골격이 로고 옆에 그리는 Text 위제 + a11y
+  // Semantics(label) 매개변수에
   // 동시 적용. 본 const Map 이 화이트리스트 단일 진실원.
   group(
     'brand_label_whitelist — Naver BI (R7) [Phase 13.3 verbatim restored]',
@@ -257,7 +258,7 @@ void main() {
   });
 
   // Phase 13.3 verbatim restored (Wave 4 D-111) — Kakao 도 Universal Layout
-  // Pattern (Wave 2 `_renderKakaoButton`) 으로 라벨 layer 부활.
+  // Pattern (`BrandedSocialButton` 의 공통 골격) 으로 라벨 layer 부활.
   group(
     'brand_label_whitelist — Kakao BI (R7) [Phase 13.3 verbatim restored]',
     () {

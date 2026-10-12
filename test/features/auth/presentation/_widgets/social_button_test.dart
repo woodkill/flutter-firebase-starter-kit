@@ -137,7 +137,7 @@ void main() {
         find.byType(BrandedSocialButton),
       );
       // Phase 13.3 R1 — GoogleSpec 은 dark Theme 에서도 동일 const 인스턴스
-      // (theme 분기 부재). 색 분기는 `_renderGoogleButton` 내부 책임.
+      // (theme 분기 부재). 색 분기는 스킨(`GoogleSpec`)이 밝기를 받아 정한다.
       expect(btn.spec, isA<GoogleSpec>());
     });
 
@@ -153,7 +153,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Phase 13.3 Wave 4 Step 2 supersede — SignInWithAppleButton SDK 위제
-      // 폐기 → custom render (`_renderAppleButton`) 전환. Apple 공식 Logo-only
+      // 폐기 → 자체 render (`BrandedSocialButton` 의 공통 골격). Apple 공식 Logo-only
       // SVG 자상 + Theme.brightness 자동 분기. `find.byType(SignInWithApple
       // Button)` sentinel 폐기 → `find.byType(SvgPicture)` 갱신.
       final btn = tester.widget<BrandedSocialButton>(
@@ -201,8 +201,8 @@ void main() {
     // - find.byType(IgnorePointer) 0 매치 — IgnorePointer 패턴 폐기.
     //
     // **Phase 13.2 REVIEW CR-01 정정 (2026-05-13):** 본 test 의 의도는
-    // "caller-side Opacity 0.5 dim wrapper 폐기" — `_renderFacebookButton`
-    // 위제 내부의 disabled state cue Opacity (CR-01 fix 로 도입) 와 의미
+    // "caller-side Opacity 0.5 dim wrapper 폐기" — `BrandedSocialButton`
+    // 공통 골격 안의 disabled state cue Opacity (CR-01 fix 로 도입) 와 의미
     // 분리. 활성 상태에서는 internal Opacity 가 1.0 이므로 시각 dim 0 —
     // assertion 을 "Opacity.opacity 가 모두 1.0" 으로 정정하여 두 개념을
     // 양립.
@@ -461,7 +461,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Phase 13.3 R2 (Wave 4 Step 2) — Kakao 가 wide PNG → SVG 자산 파일로
-      // 재설계되어 KakaoSpec.assetType == AssetType.svg. _renderKakaoButton 가
+      // 재설계됐다. `BrandedSocialButton` 의 공통 골격이
       // `SvgPicture.asset('assets/brand/kakao/btn_signin_icon.svg')` 렌더 —
       // SvgPicture 1개 매치. Image 위제는 부재 (PNG 단독 caller 였던 wide 자상
       // path 폐기).

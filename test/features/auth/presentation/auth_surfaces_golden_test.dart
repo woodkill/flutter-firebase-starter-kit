@@ -40,7 +40,6 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
-import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/login_prompt_sheet.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
@@ -135,18 +134,13 @@ Future<void> _loadFamily(String family, List<String> paths) async {
 /// 같다.
 ///
 /// - `Roboto` — M3 textTheme 전체 (AppBar title · 본문 · CTA · 링크) +
-///   소셜 버튼 라벨(미리보기 값이 없으면 Google · Facebook · LINE, 있으면
-///   Google 을 뺀 5개).
+///   소셜 버튼 라벨(Google 을 뺀 5개).
 ///   production bundle 의 variable font 를 그대로 로드한다 — pubspec 이
 ///   'Roboto' family 로 선언하므로 실 단말도 이 자산으로 렌더한다
 ///   (golden = production 렌더). 기존 button golden 이 쓰는 static
 ///   `assets/test_fonts/Roboto-Medium.ttf` 는 w400 본문을 Medium 으로
 ///   그리므로 화면 단위 golden 에는 부적합하다.
-/// - `GoogleSans` — 번들한 라틴 축소본. 공통 골격의 Google 라벨이 쓴다.
-/// - `Inter` Regular/Medium · `Pretendard` variable — 미리보기 값이 없을 때만
-///   올린다. 그때의 버튼 렌더가 Apple 라벨(Android 분기)에 Inter 를,
-///   Kakao/Naver 라벨(Android 분기)에 Pretendard 를 쓴다. 미리보기 값이 있으면
-///   버튼 6개를 공통 골격이 그려 두 family 를 쓰는 라벨이 없다.
+/// - `GoogleSans` — 번들한 라틴 축소본. Google 버튼의 라벨이 쓴다.
 /// - `MaterialIcons` — [_loadMaterialIcons].
 Future<void> _loadGoldenFonts() async {
   await _loadFamily('Roboto', <String>[
@@ -155,15 +149,6 @@ Future<void> _loadGoldenFonts() async {
   await _loadFamily('GoogleSans', <String>[
     'assets/fonts/googlesans/GoogleSans-Latin-wght.ttf',
   ]);
-  if (debugBrandButtonPreviewMetrics == null) {
-    await _loadFamily('Inter', <String>[
-      'assets/fonts/inter/Inter-Regular.ttf',
-      'assets/fonts/inter/Inter-Medium.ttf',
-    ]);
-    await _loadFamily('Pretendard', <String>[
-      'assets/fonts/pretendard/PretendardVariable.ttf',
-    ]);
-  }
   await _loadMaterialIcons();
 }
 

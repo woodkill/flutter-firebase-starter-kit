@@ -95,11 +95,11 @@ const List<({String label, String theme, List<int> background})> _gThemes =
 
 /// Apple 공식 medium 로고 — 검정(밝은 바탕용).
 const String _appleBlackMediumPath =
-    'assets/brand/apple/black_logo/btn_signin_icon_medium.svg';
+    'assets/brand/apple/black_logo/btn_signin_icon.svg';
 
 /// Apple 공식 medium 로고 — 흰색(어두운 바탕용).
 const String _appleWhiteMediumPath =
-    'assets/brand/apple/white_logo/btn_signin_icon_medium.svg';
+    'assets/brand/apple/white_logo/btn_signin_icon.svg';
 
 /// Apple medium 로고 path(`d` 속성 문자열)의 sha256.
 ///
@@ -109,6 +109,9 @@ const String _appleMediumPathSha256 =
 
 /// Apple medium 로고의 viewBox — 캔버스 31 × 44 가운데 로고 폭 17 만 잘라 쓴다.
 const String _appleMediumViewBox = 'viewBox="7 0 17 44"';
+
+/// Apple small 로고 path 의 첫 좌표 — 정식 경로의 파일에 있으면 안 된다.
+const String _appleSmallPathStart = 'M12.2337427,16.9879688';
 
 /// Apple medium 로고 path 의 첫 좌표.
 const String _appleMediumPathStart = 'M15.7099491,14.8846154';
@@ -679,6 +682,11 @@ void main() {
           _extractSvgPathData(source, path),
           startsWith('$_appleMediumPathStart '),
           reason: '$path 의 path 가 medium 로고의 첫 좌표로 시작하지 않는다',
+        );
+        expect(
+          countOccurrences(source, _appleSmallPathStart),
+          0,
+          reason: '$path 에 small 로고의 path 가 남아 있다',
         );
       }
 

@@ -15,8 +15,8 @@ import 'branded_social_button.dart';
 /// (Phase 11 D-11, Pattern G).
 ///
 /// **Phase 13.3 현재 (Wave 4 Step 2 supersede):**
-/// - Apple 분기 → [BrandedSocialButton.apple] 위임 (`_renderAppleButton` 내부
-///   [Text] 위제로 라벨 주입 — Apple 공식 Logo-only SVG + 자체 라벨 layer +
+/// - Apple 분기 → [BrandedSocialButton.apple] 위임 (공통 골격이 로고 옆에
+///   [Text] 위제로 라벨을 그린다 — Apple 공식 Logo-only SVG + 자체 라벨 layer +
 ///   Universal Layout). 인증 자체는 `firebase_auth` 의 `AppleAuthProvider`
 ///   경로 — `AuthRepository.signInWithApple()` 이 익명 사용자면
 ///   `linkWithProvider`, 그 외에는 `signInWithProvider` 를 호출한다. widget
@@ -37,8 +37,8 @@ import 'branded_social_button.dart';
 /// - Naver/Google factory 의 `theme:` parameter + Apple factory 의 `style:`
 ///   parameter 모두 폐기. caller 측 `Theme.of(context).brightness` 자동 매핑
 ///   로직 제거 — Theme.brightness 자동 분기는 [BrandedSocialButton] 위제 내부
-///   책임으로 일관 (Naver 는 BI 단일 색 강제, Google 은 `_renderGoogleButton`
-///   내부 분기, Apple 은 HIG 권장값 자동 매핑).
+///   책임으로 일관 (Naver 는 BI 단일 색 강제, Google · Apple 은 스킨이 밝기를
+///   받아 색을 정한다).
 ///
 /// **Brand Guideline 단일 진실원:**
 /// `lib/features/auth/presentation/_widgets/branded_social_button.dart`.
@@ -99,8 +99,8 @@ class SocialButton extends ConsumerWidget {
         // 폐기. caller 측 brightness 분기 책임 0.
         return BrandedSocialButton.naver(label: label, onPressed: onPressed);
       case kProviderIdGoogle:
-        // Phase 13.3 R1 — theme: parameter 폐기. `_renderGoogleButton` 내부
-        // Theme.brightness 자동 분기로 차원 축소.
+        // Phase 13.3 R1 — theme: parameter 폐기. 라벨과 밝기 분기는
+        // `BrandedSocialButton` 의 공통 골격이 맡는다.
         return BrandedSocialButton.google(label: label, onPressed: onPressed);
       case kProviderIdApple:
         // Phase 13.3 R5 — style: parameter 폐기. AppleSpec build() 가
@@ -109,15 +109,15 @@ class SocialButton extends ConsumerWidget {
       case kProviderIdFacebook:
         // Phase 13.2 R7 / R8 (옵션 A pivot, Wave 0 lock D-94) — Meta 공식
         // 자상 마이그. `BrandedSocialButton.facebook` 이 Apple
-        // `SignInWithAppleButton` 패턴 mirror 의 자체 위제 (`_renderFacebookButton`)
-        // 로 18dp 'f' 아이콘 + ARB 라벨 + Theme.brightness 자동 분기 + 1dp
+        // `SignInWithAppleButton` 패턴 mirror 의 자체 위제 (공통 골격) 로
+        // 'f' 로고(상자 20) + ARB 라벨 + Theme.brightness 자동 분기 + 1dp
         // outline + Material disabled 외관 일관 표현. Phase 13.1 의 dim wrapper
         // 패턴은 위제 내부의 Material disabled 외관으로 자연 해소.
         //
         // **Phase 13.2 REVIEW IN-02 정정 (2026-05-13):** D-94 lock 명시 —
         // FacebookSpec 의 theme 필드 부재 (Primary Logo 단독 채택, Kakao
         // 패턴 mirror). 따라서 본 분기는 `brightness` 매개변수 미전달.
-        // Theme.brightness 자동 분기는 `_renderFacebookButton` 위제 내부
+        // Theme.brightness 자동 분기는 `BrandedSocialButton` 공통 골격 내부
         // 책임 — Naver/Google 의 caller-side `brightness` 매개변수 전달
         // 패턴과 분리. 미래 reader 가 Facebook 분기의 brightness 사용 누락을
         // "미완성 implementation" 으로 오해 차단.
@@ -126,7 +126,7 @@ class SocialButton extends ConsumerWidget {
         // Phase 14 — see ROADMAP.md (SOCL-03 registry add-only 통합).
         // IN-03 정정 (Phase 09 review): 이전 주석은 "현 단계는 placeholder
         // render + Plan 14-06 에서 active 전환 의무" 로 남아 있었으나 그
-        // 전환은 이미 완료됐다. LineSpec / `_renderLineButton` 자상 active
+        // 전환은 이미 완료됐다. LineSpec 스킨 + 공통 골격의 자상 active
         // 렌더이며 (LINE Corporation Login Button Design Guidelines verbatim),
         // `_renderPlaceholder` 는 Phase 14 D-LINE-08 로 caller 0 이 되어
         // 제거됐다.
@@ -140,19 +140,19 @@ class SocialButton extends ConsumerWidget {
   ///
   /// **Phase 13.3 Wave 2 (Universal Layout Pattern 재설계):**
   /// 5 active provider (Kakao / Naver / Google / Apple / Facebook) 모두 ARB
-  /// 라벨을 `_renderXxxButton` 내부의 [Text] 위제로 렌더링한다. wide 자상
+  /// 라벨을 [BrandedSocialButton] 공통 골격의 [Text] 위제로 렌더링한다. wide 자상
   /// 통째 buttons 패턴 (Phase 13.1 Gap-1 X2) 은 폐기 — 자상은 logo-only +
   /// 라벨 layer 외부 합성으로 일관 회복. `brand_label_whitelist_test.dart`
   /// 도 Phase 13.3 진입 시 un-skip 처리 (라벨 시각 검증 활성).
   ///
   /// 라벨 렌더 매핑 (5 active provider 일관):
-  /// - `authKakaoSignIn` → `_renderKakaoButton` 내부 [Text]
-  /// - `authNaverSignIn` → `_renderNaverButton` 내부 [Text]
-  /// - `authGoogleSignIn` → `_renderGoogleButton` 내부 [Text]
-  /// - `authAppleSignIn` → `_renderAppleButton` 내부 [Text]
+  /// - `authKakaoSignIn` → Kakao 버튼의 [Text]
+  /// - `authNaverSignIn` → Naver 버튼의 [Text]
+  /// - `authGoogleSignIn` → Google 버튼의 [Text]
+  /// - `authAppleSignIn` → Apple 버튼의 [Text]
   ///   (Wave 4 Step 2 supersede — `SignInWithAppleButton` SDK 위제 폐기 후
   ///   Apple 공식 Logo-only SVG + 자체 라벨 layer)
-  /// - `authFacebookSignIn` → `_renderFacebookButton` 내부 [Text]
+  /// - `authFacebookSignIn` → Facebook 버튼의 [Text]
   ///
   /// **placeholder 분기는 현재 존재하지 않는다 (IN-03 정정 — Phase 09
   /// review).** `_renderPlaceholder` 는 Phase 14 D-LINE-08 (LINE active 전환)

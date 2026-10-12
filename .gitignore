@@ -195,12 +195,10 @@ app.*.map.json
 # ==========================
 # Golden test — dev-only fixtures (라이센스 위험 회피)
 # ==========================
-# Phase 13.3 Wave 4 Step 3 (2026-05-16) — Apple/Google/Kakao/Naver iOS golden
-# fixtures: AppleSDGothicNeo + SF Pro Text (macOS native 시스템 폰트, Apple
-# Font License + Sandoll 라이센스) 으로 렌더된 PNG 를 repo distribute 시
-# 라이센스 위반 위험. macOS dev 환경에서만 로컬 생성 + 시각 sign-off + commit
-# 차단. CI/Linux 환경은 testWidgets `skip` 매개변수로 우회 (Platform.isMacOS
-# 게이트).
+# 소셜 버튼 6개(Google · Apple · Facebook · Kakao · Naver · LINE)의 iOS golden —
+# 라벨을 macOS 시스템 글꼴(SFNS.ttf)로 그린 PNG 다. Apple 글꼴 사용권 때문에
+# 저장소에 두지 않는다. macOS 에서만 로컬로 만들어 대조하고, 다른 OS 에서는 그
+# 테스트가 건너뛴다(Platform.isMacOS). 로컬 파일마다 같은 경로를 한 줄씩 둔다.
 test/features/auth/presentation/_widgets/goldens/kakao_light_ios.png
 test/features/auth/presentation/_widgets/goldens/naver_light_ios.png
 test/features/auth/presentation/_widgets/goldens/apple_light_ios.png
@@ -209,9 +207,10 @@ test/features/auth/presentation/_widgets/goldens/google_light_ios.png
 test/features/auth/presentation/_widgets/goldens/google_dark_ios.png
 test/features/auth/presentation/_widgets/goldens/facebook_light_ios.png
 test/features/auth/presentation/_widgets/goldens/facebook_dark_ios.png
-# Phase 13.3 X3 (2026-05-17, 260517-uv4) — Kakao/Naver dark iOS variants.
 test/features/auth/presentation/_widgets/goldens/kakao_dark_ios.png
 test/features/auth/presentation/_widgets/goldens/naver_dark_ios.png
+test/features/auth/presentation/_widgets/goldens/line_light_ios.png
+test/features/auth/presentation/_widgets/goldens/line_dark_ios.png
 
 # ==========================
 # 기타

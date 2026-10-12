@@ -162,7 +162,7 @@ void main() {
       // baked-in 패턴 (라벨이 SVG 내부에 통합) 이라 `find.text(authGoogleSignIn)`
       // 무효. 대신 SocialButton (strategy.providerId == kProviderIdGoogle) 의
       // 렌더 존재 검증으로 의도 변경. Apple/Facebook 은 자체 render
-      // (`_renderAppleButton` / `_renderFacebookButton`) 가 Logo-only 자상 위에
+      // (`BrandedSocialButton` 의 공통 골격) 가 Logo-only 자상 위에
       // 라벨을 외부 텍스트 layer 로 주입하므로 라벨 finder 유효 — Phase 13.3
       // Wave 4 Step 2 이후 Apple 도 SDK 위임이 아니다.
       expect(
