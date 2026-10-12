@@ -125,11 +125,15 @@ verbatim 발췌, retrieved 2026-05-19):
     - Using a different or modified icon instead of using the LINE icon
 
 Notes:
-  1. 본 starter-kit 의 BrandedSocialButton.line (Phase 14 Plan 14-06 active 전환
-     예정) 은 Section 4.3.2 (color scheme alteration prohibition) 와 Section
-     4.4 (padding) 의 hardcoded enforcement 를 위젯 spec 으로 lock 합니다 —
-     자세한 사항은 Phase 14 plan / 14-PATTERNS.md Wave 4 (`_renderLineButton`)
-     참조.
+  1. 본 starter-kit 의 BrandedSocialButton.line 은 여섯 로그인 버튼이 함께 쓰는
+     공통 골격으로 그려진다. Section 4.3.2 (color scheme alteration
+     prohibition) 의 색은 LINE 스킨 (LineSpec) 이 값으로 고정한다 — 배경
+     #06C755 · 글자 #FFFFFF · 로고 #FFFFFF. 로고 상자는 높이 20 에 폭
+     20 × 47 / 44 로 Section 4.3.1 의 종횡비를 지킨다. 로고와 글자 사이
+     간격은 여섯 버튼 공통 값 8 (kBrandButtonLogoGap) 이다 — Section 4.4.1
+     이 글자 좌우 여백으로 요구하는 LINE Icon Speech Bubble 폭 (이 버튼에서
+     로고 상자 폭 20 × 47 / 44) 보다 좁다. 한 화면에 놓인 버튼들의 로고와
+     글자 사이 간격을 맞추기 위해서다.
   2. Section 4.16 update obligation 준수 — LINE 공식 BI 갱신 시 본 starter-kit
      의 `assets/brand/line/btn_signin_icon.svg` 재추출 + LICENSE.txt 갱신 의무.
      자산 freshness 갱신 정책: 1년 (assets/brand/line/README.md 참조).

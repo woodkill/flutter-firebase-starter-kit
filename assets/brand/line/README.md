@@ -52,12 +52,14 @@ endorsement) 시 사후 시정 조치 가능성 있음. 자세한 절차는
      verbatim 인용 (`14-LINE-LOCALE-REFERENCE.md` 갱신).
   2. `lib/l10n/app_{locale}.arb` 의 `authLineSignIn` 키에 verbatim string 추가
      (자상 변경 0).
-  3. `_renderLineButton` widget spec 변경 0 — ARB 신규 키만 추가하면 19 언어
-     확장 자동 (Phase 13.3 Wave 4 패턴 invariant).
+  3. `BrandedSocialButton` 의 공통 골격 (LINE 스킨) 변경 0 — ARB 신규 키만
+     추가하면 19 언어 확장 자동.
 
 state variant (Hover / Press / Disabled) 의 색 verbatim spec 은
-`LICENSE.txt` 의 design guidelines Color 표 + Phase 14 Plan 14-06 의
-`_renderLineButton` widget spec 에 hardcoded.
+`LICENSE.txt` 의 design guidelines Color 표에 있다. `BrandedSocialButton` 의
+공통 골격 (LINE 스킨) 은 그 표의 state 색을 따로 그리지 않는다 — 비활성은 여섯
+버튼 공통으로 버튼 전체를 투명도 0.38 (`kBrandButtonDisabledOpacity`) 로 그리고,
+눌림 · hover 는 `InkWell` 의 기본 표시다.
 
 ## 자산 freshness 갱신 빈도
 1년 권장. `다운로드 일자` 1년 경과 시:

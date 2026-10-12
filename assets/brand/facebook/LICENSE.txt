@@ -38,8 +38,8 @@ Variant scope:
     - Theme: 미분기 (D-94 Kakao 패턴, FacebookSpec theme 필드 부재)
     - Locale: 미분기 (D-96 Google 패턴, locale 독립 — Facebook 'f' 마크는
               언어 중립 — Roboto/Helvetica Latin 라벨 baked-in 아님)
-    - Format: PNG only (D-95 = AssetType.png — Meta 의 logo pack 은 AI + PNG
-              제공, SVG 미제공이라 PNG 채택)
+    - Format: SVG 1장 (btn_signin_icon.svg — Meta 의 logo pack 은 AI + PNG
+              제공, SVG 미제공이라 AI 원본의 vector path 로 만든다)
   미포함 variant:
     - Secondary Logo (흰 원형 배경 + 검정 'f') — 모노크롬 인쇄/단색 환경 전용
       이라 Flutter mobile 컬러 환경에서는 Primary 단독으로 충분. Theme.dark
@@ -52,9 +52,8 @@ Variant scope:
       에서 JS SDK 동적 위젯 (`data-button-type="continue_with"`) + 사이즈
       매트릭스 (Small 20×200 / Medium 28×200-320 / Large 40×240-400) 만
       명시. Flutter mobile 환경에서 JS SDK 위젯 임베드 불가 → starter-kit
-      이 Apple `SignInWithAppleButton` 패턴 mirror 로 자체 render
-      (Image.asset 18×18 + Text(authFacebookSignIn ARB) Row 조합, Plan
-      13.2-04 의 `_renderFacebookButton` 함수).
+      이 로고 (20dp 상자) + Text(authFacebookSignIn ARB) 를
+      BrandedSocialButton 의 공통 골격으로 직접 그린다.
 
 License terms (Meta Brand Resource Center
 https://www.meta.com/brand/resources/facebook/logo/ 2026-05-13 기준):
@@ -83,15 +82,13 @@ https://www.meta.com/brand/resources/facebook/logo/ 2026-05-13 기준):
       범위 내)
 
 Notes:
-  1. 본 starter-kit 의 `BrandedSocialButton.facebook(...)` factory (Plan
-     13.2-04 도입) 는 Apple `SignInWithAppleButton` 패턴 mirror 로 자체
-     render — `_renderFacebookButton(context, spec, label, onPressed)`
-     함수가 SizedBox(width: double.infinity, height: 48) + Material(white
-     bg, radius 12, 1dp grey outline) + InkWell(borderRadius: 12) +
-     Row(padding 12, gap 8) [Image.asset(facebook_login.png, 18×18) +
-     Text(authFacebookSignIn ARB)] 구성. Theme.brightness 자동 분기
-     (light = white bg + black text + grey outline; dark = dark bg + white
-     text + lighter outline) — D-I 일관.
+  1. 본 starter-kit 의 `BrandedSocialButton.facebook(...)` 은 여섯 로그인
+     버튼이 함께 쓰는 공통 골격으로 그려진다 — 높이 48 · radius 12 · 1dp
+     외곽선의 버튼 안에 좌우 여백 12 · 간격 8 로 [로고 btn_signin_icon.svg
+     (20dp 상자, 색 지정 없음) + Text(authFacebookSignIn ARB)] 를 가운데에
+     놓는다. 밝기에 따라 바뀌는 것은 FacebookSpec 의 스킨 값이다 (light =
+     배경 #FFFFFF + 글자 #1F1F1F + 외곽선 #747775; dark = 배경 #131314 +
+     글자 #E3E3E3 + 외곽선 #8E918F).
   2. 자상 freshness 갱신 정책: 1년 (assets/brand/facebook/README.md 의 7필드
      중 #7). 1년 경과 시 https://www.meta.com/brand/resources/facebook/logo/
      재방문 + 자상 갱신 여부 확인 의무.

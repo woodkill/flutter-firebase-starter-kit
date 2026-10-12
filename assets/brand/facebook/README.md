@@ -1,10 +1,9 @@
 # Facebook (Meta) Brand Asset
 
-Phase 13.2 — Meta 공식 자상으로 마이그 (옵션 A pivot 채택, Apple
-`SignInWithAppleButton` 패턴 mirror). Phase 13.1 까지 `sign_in_button: ^4.1.0`
-community package 의 `Buttons.facebookNew` (community-rendered, Meta 공식 BI
-아님) 위제 사용 → Phase 13.2 Wave 1 부터 Meta Brand Resource Center 의 Primary
-Logo PNG + 자체 render (`_renderFacebookButton` 함수) 로 전환.
+Facebook 로그인 버튼의 로고 자산이다. Meta Brand Resource Center 의 Primary Logo
+로 만든 SVG 1장을 싣고, 버튼은 `BrandedSocialButton` 의 공통 골격이 그린다.
+community package `sign_in_button` 의 `Buttons.facebookNew` (community-rendered,
+Meta 공식 BI 아님) 위젯은 쓰지 않는다.
 
 본 starter-kit 의 `BrandedSocialButton.facebook(...)` factory (Plan 13.2-04
 도입) 는 Apple `SignInWithAppleButton` 패턴 mirror — 별도 wide 자상 통째
@@ -98,17 +97,18 @@ these guidelines" 범위 내 verified.
 Logo PNG 1개** 만 동봉. 채택 차원 (Wave 0 lock `13.2-WAVE0-LOCK.md` 일관):
 
 - Form: Primary (파란 `#1877F2` 원형 배경 + 흰 'f') 단독 채택
-- Theme: 미분기 (D-94 Kakao 패턴 — `FacebookSpec` theme 필드 부재). Primary 의
-  `#1877F2` 배경이 Theme.brightness light/dark 양쪽에서 가시성 보장 — 외부
-  wrapper (`_renderFacebookButton`) 의 white/dark background + grey/lighter
-  outline 으로 분기 대응.
+- Theme: 로고는 밝기와 무관하게 한 장이다 (`FacebookSpec` 의 로고 경로가 하나다).
+  밝기에 따라 바뀌는 것은 스킨 값이다 — `FacebookSpec` 의 배경색 (light `#FFFFFF`
+  / dark `#131314`) · 글자색 (`#1F1F1F` / `#E3E3E3`) · 외곽선 색 (`#747775` /
+  `#8E918F`).
 - Locale: 미분기 (D-96 Google 패턴). 'f' 마크 단독 (Roboto/Helvetica Latin
   라벨 baked-in 0) → 언어 중립. 라벨 텍스트 (`'Continue with Facebook'` /
   `'Facebook 으로 시작하기'` / `'Facebookでログイン'`) 는
   `Text(AppLocalizations.of(context).authFacebookSignIn)` 외부 layer 단독
   책임 (Phase 13.1 D-82 ARB 라벨 패턴 일관).
-- Format: PNG only (D-95 = `AssetType.png` — Meta 의 logo pack 은 AI + PNG
-  제공, SVG 미제공이라 PNG 채택. `Image.asset` 표준 로드).
+- Format: SVG 1장 (`btn_signin_icon.svg` — Meta 의 logo pack 은 AI + PNG
+  제공, SVG 미제공이라 AI 원본의 vector path 로 만든다). `BrandedSocialButton` 의
+  공통 골격이 20 × 20 상자에 색 지정 없이 그린다.
 
 미포함 변형 신규 도입 시 절차:
 
@@ -133,9 +133,8 @@ Logo PNG 1개** 만 동봉. 채택 차원 (Wave 0 lock `13.2-WAVE0-LOCK.md` 일�
   data-button-type="continue_with">`) + 사이즈 매트릭스 (Small `20 × 200` /
   Medium `28 × 200-320` / Large `40 × 240-400`) 만 명시 — 다운로드 가능
   PNG/SVG 0건 verified. Flutter mobile 환경 (Dart VM, Skia render) 내 JS SDK
-  위젯 임베드 불가 → starter-kit 이 Apple `SignInWithAppleButton` 패턴 mirror
-  로 자체 render (Plan 13.2-04 의 `_renderFacebookButton` 함수, 옵션 A pivot
-  채택)
+  위젯 임베드 불가 → starter-kit 이 로고 SVG + ARB 라벨을 `BrandedSocialButton`
+  의 공통 골격으로 직접 그린다
 
 ## 자산 freshness 갱신 빈도
 
@@ -164,9 +163,8 @@ leaf (재귀 미지원, Plan 13.1-08 Rule 2 verbatim 일관).
 - `assets/brand/facebook/facebook_login.png` 콘텐츠 변경 금지 — Meta 변형 금지
   verbatim (`DON'T modify the 'f' logo in any way`) 일관. rename (디렉토리
   구조에서 차원 분리 위해) 만 허용.
-- `_renderFacebookButton` 함수 (Plan 13.2-04 도입) 가 `Image.asset(..., width: 18, height: 18)` 로 18dp icon 슬롯 로드 — `Image.asset` 의 `color` /
-  `colorBlendMode` 적용 금지 (자상 색상 변형 회귀, Phase 13.1 Kakao RESEARCH
-  §Pitfall 7 mirror).
-- Theme.brightness 자동 분기는 외부 wrapper (`_renderFacebookButton` 본문)
-  단독 책임 — `Image.asset` 자체는 색상 invariant (Primary 의 `#1877F2` +
-  흰 'f' 그대로 render).
+- `BrandedSocialButton` 의 공통 골격이 로고를 20dp 상자 (20 × 20) 에 그린다 — 로고에
+  색을 덧입히지 않는다 (`FacebookSpec` 의 로고 단색 칠 값이 null 이다). 색 · 모양
+  변형 금지.
+- 밝기에 따른 차이는 스킨 값 (`FacebookSpec` 의 배경색 · 글자색 · 외곽선 색) 이
+  맡는다 — 로고는 두 밝기에서 같은 그림이다 (자산의 파란 원 + 흰 'f' 그대로).
