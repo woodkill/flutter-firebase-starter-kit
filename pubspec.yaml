@@ -168,8 +168,10 @@ flutter:
     # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Roboto variable font.
     # Android 에서 앱의 영문 글자와 Google 을 뺀 5개 로그인 버튼의 라벨
     # (`kBrandLabelFontFamily`)에 쓴다 — iOS · macOS 의 버튼 라벨은 시스템
-    # 글꼴이다. + test env synthetic bold 회피. SIL OFL 1.1 (`assets/fonts/roboto/
-    # OFL.txt`, `README.md`). Variable axes: wdth (75-100) + wght (100-900) —
+    # 글꼴이다. 번들해 두면 테스트 환경(macOS)에서 `Roboto` 가 시스템 글꼴로
+    # 대체돼 w500 이 합성 굵기(synthetic bold)로 그려지는 일이 없다.
+    # SIL OFL 1.1 (`assets/fonts/roboto/OFL.txt`, `README.md`).
+    # Variable axes: wdth (75-100) + wght (100-900) —
     # Flutter `fontWeight: FontWeight.w500` 명시 시 wght axis 500 자동 매핑.
     - family: Roboto
       fonts:
