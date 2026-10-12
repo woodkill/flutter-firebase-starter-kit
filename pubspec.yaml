@@ -161,20 +161,10 @@ flutter:
     - assets/brand/facebook/
     - assets/brand/line/
 
-  # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Inter Medium (SIL Open Font License
-  # 1.1, github.com/rsms/inter v4.1) Android/Linux test env fallback font for
-  # Apple Sign-in 버튼 라벨. iOS/macOS 환경에서는 system 'SF Pro Text' 자동 사용
-  # (Apple OS system font), 다른 환경에서는 Inter Medium fallback. SF Pro 와
-  # 가장 시각적으로 유사한 license-safe open-source font. Apple SF Pro Font
-  # License Agreement 부합 — Apple Font binary 미배포 (system font 만 활용),
-  # Inter binary 는 SIL OFL 1.1 으로 자유 배포.
+  # 앱에 싣는 글꼴은 둘이다 — Roboto(앱 전체의 영문 글자)와 Google Sans 라틴
+  # subset(Google 로그인 버튼의 영문 라벨). 한글 · 가나는 기기 글꼴로 그려진다.
+  # 글꼴을 더하려면 아래에 family 를 더하고 그 라이선스 파일을 LICENSE 에 적는다.
   fonts:
-    - family: Inter
-      fonts:
-        - asset: assets/fonts/inter/Inter-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/inter/Inter-Medium.ttf
-          weight: 500
     # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Roboto variable font.
     # Google Identity Services production CSS `font-family: 'Roboto'` verbatim
     # 부합 + test env synthetic bold 회피. SIL OFL 1.1 (`assets/fonts/roboto/
@@ -189,15 +179,6 @@ flutter:
     - family: GoogleSans
       fonts:
         - asset: assets/fonts/googlesans/GoogleSans-Latin-wght.ttf
-    # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Pretendard variable font.
-    # NAVER ID 로그인 BI 공식 PNG 자상 (NAVER_login_Light_EN_green_center_H48)
-    # 의 라벨 글리프 시각 가장 부합 + 한국 design 표준 web font. SIL OFL 1.1
-    # (`assets/fonts/pretendard/OFL.txt`, `README.md`). Variable axis: wght
-    # (100-900) — Flutter `fontWeight: FontWeight.w800` 명시 시 wght axis 800
-    # 자동 매핑. v1.3.9 (2023-11-05) public/variable/PretendardVariable.ttf.
-    - family: Pretendard
-      fonts:
-        - asset: assets/fonts/pretendard/PretendardVariable.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

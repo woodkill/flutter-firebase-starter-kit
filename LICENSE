@@ -33,8 +33,6 @@ terms; the MIT License above does not grant any rights to them.
 - assets/brand/line/LICENSE.txt — LINE Login brand assets; use only as allowed by LINE's login button design guidelines.
 - assets/brand/naver/LICENSE.txt — NAVER ID Login brand assets; use only as allowed by NAVER's login design guide.
 - assets/fonts/googlesans/OFL.txt — Google Sans font (Latin subset); SIL Open Font License, Version 1.1.
-- assets/fonts/inter/OFL.txt — Inter font; SIL Open Font License, Version 1.1.
-- assets/fonts/pretendard/OFL.txt — Pretendard font; SIL Open Font License, Version 1.1.
 - assets/fonts/roboto/OFL.txt — Roboto font; SIL Open Font License, Version 1.1.
 - assets/test_fonts/NotoSansCJK_LICENSE.txt — Noto Sans CJK test font; SIL Open Font License, Version 1.1.
 - assets/test_fonts/Roboto_LICENSE.txt — Roboto test font (test only, not bundled in the app); Apache License, Version 2.0.

@@ -149,6 +149,22 @@ const List<String> _appleAssetFiles = <String>[
   _appleWhiteMediumPath,
 ];
 
+/// 글꼴 자산 디렉터리.
+const String _fontAssetDir = 'assets/fonts';
+
+/// 앱이 family 이름으로 쓰는 글꼴의 파일 — 글꼴 · 라이선스 · 문서.
+const List<String> _fontAssetFiles = <String>[
+  _gsansAssetPath,
+  '$_fontAssetDir/googlesans/OFL.txt',
+  '$_fontAssetDir/googlesans/README.md',
+  '$_fontAssetDir/roboto/OFL.txt',
+  '$_fontAssetDir/roboto/README.md',
+  '$_fontAssetDir/roboto/Roboto-VariableFont_wdth_wght.ttf',
+];
+
+/// 앱이 `fontFamily` 로 쓰는 family 이름 — pubspec 이 선언해야 한다.
+const List<String> _bundledFontFamilies = <String>['Roboto', _gsansFamily];
+
 /// 유지보수자 트리에만 있는 파일 — 이 파일이 없는 트리에서는 집합 대조를 건너뛴다.
 const List<String> _maintainerOnlyDocs = <String>['.planning/ROADMAP.md'];
 
@@ -483,6 +499,18 @@ Set<String> _listTrackedFiles(String directory) {
       .toSet();
 }
 
+/// pubspec [source] 의 `fonts:` 가 선언한 family 이름을 순서대로 모은다.
+///
+/// 주석 줄은 세지 않는다.
+List<String> _collectFontFamilies(String source) {
+  final RegExp family = RegExp(r'^\s+-\s*family:\s*(.+?)\s*$');
+  return <String>[
+    for (final String line in const LineSplitter().convert(source))
+      if (!line.trimLeft().startsWith('#'))
+        if (family.firstMatch(line)?.group(1) case final String name) name,
+  ];
+}
+
 /// [paths] 가운데 디스크에 없는 것을 모은다.
 List<String> _collectMissingFiles(List<String> paths) => <String>[
   for (final String path in paths)
@@ -803,6 +831,30 @@ void main() {
   });
 
   group('자산 디렉터리', () {
+    // 앱이 쓰는 글꼴 파일과 family 선언이 있는지만 본다. 글꼴을 더한 트리에서도
+    // 통과한다.
+    test('T-177-ASSET-09: 번들 글꼴 파일과 family 선언이 있다', () {
+      expect(
+        _collectMissingFiles(_fontAssetFiles),
+        isEmpty,
+        reason: '$_fontAssetDir 에 있어야 하는 파일이 없다',
+      );
+      // 양성 대조: 주석 줄의 family 는 세지 않고 선언 줄만 센다.
+      expect(
+        _collectFontFamilies(
+          'fonts:\n'
+          '  # - family: Commented\n'
+          '  - family: Sample\n',
+        ),
+        <String>['Sample'],
+      );
+      expect(
+        _collectFontFamilies(readTrackedFile(_pubspecPath)),
+        containsAll(_bundledFontFamilies),
+        reason: 'pubspec fonts: 에 앱이 쓰는 family 선언이 없다',
+      );
+    });
+
     // 앱 코드가 이름으로 부르는 파일과 그 문서가 있는지만 본다. 변형을 더한
     // 트리에서도 통과한다.
     test('T-177-ASSET-10: Google · Apple 로고 파일과 문서가 있다', () {
@@ -835,6 +887,28 @@ void main() {
         apple,
         _appleAssetFiles.toSet(),
         reason: '$_appleAssetDir 의 추적 파일이 로고 2장 + 문서 1개가 아니다',
+      );
+    }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
+
+    // 킷 저장소 자체의 정리 상태 — 쓰지 않는 글꼴이 남아 있지 않은지 본다.
+    test('T-177-ASSET-11: 글꼴 디렉터리의 추적 파일과 family 선언이 목록과 같다', () {
+      final Set<String> tracked = _listTrackedFiles(_fontAssetDir);
+      final List<String> families = _collectFontFamilies(
+        readTrackedFile(_pubspecPath),
+      );
+      // 양성 대조: 목록이 비면 아래 집합 비교가 뜻을 잃는다.
+      expect(tracked, isNotEmpty);
+      expect(families, isNotEmpty);
+
+      expect(
+        tracked,
+        _fontAssetFiles.toSet(),
+        reason: '$_fontAssetDir 의 추적 파일이 Google Sans 3개 + Roboto 3개가 아니다',
+      );
+      expect(
+        families,
+        unorderedEquals(_bundledFontFamilies),
+        reason: 'pubspec fonts: 의 family 가 Roboto · GoogleSans 둘이 아니다',
       );
     }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
   });
