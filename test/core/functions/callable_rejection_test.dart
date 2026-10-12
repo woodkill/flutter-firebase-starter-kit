@@ -2,41 +2,21 @@
 // helper 계약 + AuthRepository CT 로그인 관통.
 
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
-import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/functions/callable_rejection.dart';
-import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+
+import '../../helpers/auth_mocks.dart';
 
 /// [CrashlyticsService] mocktail 대역 — 기록 횟수 · reason 검증용.
 class MockCrashlyticsService extends Mock implements CrashlyticsService {}
-
-class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
-
-class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
-class _MockFacebookAuth extends Mock implements FacebookAuth {}
-
-class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
-
-class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
 
@@ -169,14 +149,14 @@ void main() {
     });
 
     group('T-17-APPCHECK-03: Kakao CT 로그인 관통', () {
-      late _MockKakaoSdkClient kakao;
-      late _MockFirebaseFunctions functions;
+      late MockKakaoSdkClient kakao;
+      late MockFirebaseFunctions functions;
       late _MockHttpsCallable ctCallable;
       late AuthRepository repository;
 
       setUp(() {
-        kakao = _MockKakaoSdkClient();
-        functions = _MockFirebaseFunctions();
+        kakao = MockKakaoSdkClient();
+        functions = MockFirebaseFunctions();
         ctCallable = _MockHttpsCallable();
         when(kakao.signIn).thenAnswer(
           (_) async => const KakaoSignInResult(idToken: 'IDT', nonce: 'NONCE'),
@@ -188,16 +168,9 @@ void main() {
             options: any(named: 'options'),
           ),
         ).thenReturn(ctCallable);
-        repository = AuthRepository(
-          _MockFirebaseAuth(),
-          _MockGoogleSignIn(),
-          _MockFacebookAuth(),
-          _MockSocialLinkInProgress(),
-          kakao,
-          functions,
-          _MockNaverSdkClient(),
-          _MockLineSdkClient(),
-          () async {},
+        repository = buildAuthRepository(
+          kakaoSdkClient: kakao,
+          functions: functions,
           crashlytics: crashlytics,
         );
       });
