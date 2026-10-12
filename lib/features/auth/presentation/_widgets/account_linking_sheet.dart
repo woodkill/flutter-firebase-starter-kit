@@ -479,7 +479,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
                     Gap(spacing.xl),
                     _BrandedLinkButton(
                       provider: widget.existingProvider,
-                      label: providerLabel,
+                      label: _resolveSignInLabel(l10n, widget.existingProvider),
                       // IN-04: 진행 중에는 null 로 **비활성** 상태를 표현한다.
                       // no-op 클로저는 위젯이 활성으로 보이고 접근성 트리
                       // 에서도 enabled 로 노출되어, 같은 조건에서 null 을
@@ -555,6 +555,21 @@ String _providerLabel(AppLocalizations l10n, AccountProvider provider) {
     AccountProvider.kakao => l10n.authAccountProviderKakao,
     AccountProvider.naver => l10n.authAccountProviderNaver,
     AccountProvider.line => l10n.authAccountProviderLine,
+  };
+}
+
+/// 시트의 버튼에 쓰는 글자를 돌려준다.
+///
+/// 소셜 수단은 그 수단의 로그인 문구이고, 이메일은 수단 이름이다.
+String _resolveSignInLabel(AppLocalizations l10n, AccountProvider provider) {
+  return switch (provider) {
+    AccountProvider.google => l10n.authGoogleSignIn,
+    AccountProvider.apple => l10n.authAppleSignIn,
+    AccountProvider.facebook => l10n.authFacebookSignIn,
+    AccountProvider.email => l10n.authAccountProviderEmailPassword,
+    AccountProvider.kakao => l10n.authKakaoSignIn,
+    AccountProvider.naver => l10n.authNaverSignIn,
+    AccountProvider.line => l10n.authLineSignIn,
   };
 }
 

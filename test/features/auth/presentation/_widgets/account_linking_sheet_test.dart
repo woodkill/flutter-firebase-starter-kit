@@ -289,6 +289,73 @@ void main() {
     }
   });
 
+  group('시트 버튼 글자', () {
+    testWidgets('T-177-SHEET-01: 소셜 수단 6개의 버튼 글자가 그 수단의 로그인 문구다', (
+      tester,
+    ) async {
+      for (final locale in _sweepLocales) {
+        final l10n = lookupAppLocalizations(locale);
+        for (final provider in _socialProviders) {
+          final label = '${provider.name} · ${locale.languageCode}';
+          await _resetTree(tester);
+          await _pumpAndShowSheet(tester, provider: provider, locale: locale);
+
+          final button = find.byType(BrandedSocialButton);
+          expect(button, findsOneWidget, reason: label);
+          final buttonTexts = tester
+              .widgetList<Text>(
+                find.descendant(of: button, matching: find.byType(Text)),
+              )
+              .map((Text text) => text.data)
+              .toList();
+          expect(buttonTexts, <String?>[
+            _readSignInLabel(l10n, provider),
+          ], reason: '$label — 버튼 글자가 로그인 문구가 아니다');
+          expect(
+            buttonTexts,
+            isNot(contains(_readProviderName(l10n, provider))),
+            reason: '$label — 버튼 글자가 수단 이름만이다',
+          );
+        }
+      }
+    });
+
+    testWidgets('T-177-SHEET-02: 본문은 수단 이름으로 쓴 안내 문장 그대로다', (tester) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      for (final provider in _socialProviders) {
+        await _resetTree(tester);
+        await _pumpAndShowSheet(tester, provider: provider);
+
+        final name = _readProviderName(l10n, provider);
+        expect(
+          find.text(l10n.errorAccountExistsWithProvider(name)),
+          findsOneWidget,
+          reason: '${provider.name} — 본문이 수단 이름($name)으로 쓴 문장이 아니다',
+        );
+      }
+    });
+
+    testWidgets('T-177-SHEET-03: 이메일 수단은 채움 버튼과 수단 이름 · 취소 버튼 그대로다', (
+      tester,
+    ) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      await _pumpAndShowSheet(tester, provider: AccountProvider.email);
+
+      expect(find.byType(BrandedSocialButton), findsNothing);
+      expect(
+        find.widgetWithText(
+          FilledButton,
+          l10n.authAccountProviderEmailPassword,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(TextButton, l10n.accountLinkingDismiss),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('큰 글자 · 좁은 화면의 소셜 버튼 라벨', () {
     for (final locale in kBrandScaleLocales) {
       testWidgets('T-177-SCALE-05 (${locale.languageCode}): 글자 배율 2.0 · 폭 280 '
@@ -344,3 +411,45 @@ void _setLogicalViewport(WidgetTester tester, Size size) {
 
 /// [size] 를 테스트 이름용 `WxH` 문자열로 만든다.
 String _formatSize(Size size) => '${size.width.toInt()}x${size.height.toInt()}';
+
+/// 소셜 로그인 수단 6개 — 시트가 브랜드 버튼으로 그리는 수단이다.
+const _socialProviders = <AccountProvider>[
+  AccountProvider.google,
+  AccountProvider.apple,
+  AccountProvider.facebook,
+  AccountProvider.kakao,
+  AccountProvider.naver,
+  AccountProvider.line,
+];
+
+/// 띄운 시트까지 위젯 트리를 비운다 — 한 테스트에서 시트를 여러 번 띄울 때 쓴다.
+Future<void> _resetTree(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
+}
+
+/// [provider] 의 로그인 문구를 [l10n] 에서 읽는다.
+String _readSignInLabel(AppLocalizations l10n, AccountProvider provider) {
+  return switch (provider) {
+    AccountProvider.google => l10n.authGoogleSignIn,
+    AccountProvider.apple => l10n.authAppleSignIn,
+    AccountProvider.facebook => l10n.authFacebookSignIn,
+    AccountProvider.kakao => l10n.authKakaoSignIn,
+    AccountProvider.naver => l10n.authNaverSignIn,
+    AccountProvider.line => l10n.authLineSignIn,
+    AccountProvider.email => l10n.authAccountProviderEmailPassword,
+  };
+}
+
+/// [provider] 의 수단 이름을 [l10n] 에서 읽는다.
+String _readProviderName(AppLocalizations l10n, AccountProvider provider) {
+  return switch (provider) {
+    AccountProvider.google => l10n.authAccountProviderGoogle,
+    AccountProvider.apple => l10n.authAccountProviderApple,
+    AccountProvider.facebook => l10n.authAccountProviderFacebook,
+    AccountProvider.kakao => l10n.authAccountProviderKakao,
+    AccountProvider.naver => l10n.authAccountProviderNaver,
+    AccountProvider.line => l10n.authAccountProviderLine,
+    AccountProvider.email => l10n.authAccountProviderEmailPassword,
+  };
+}
