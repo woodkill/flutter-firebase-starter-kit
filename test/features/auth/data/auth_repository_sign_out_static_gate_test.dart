@@ -9,34 +9,12 @@
 // - 켜진 provider → 그 SDK 로그아웃 `called(1)`.
 // - 어느 경우든 Firebase 로그아웃은 1회.
 
-import 'package:cloud_functions/cloud_functions.dart' hide Result;
-import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
-import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
-import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
-class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
-
-class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
-class _MockFacebookAuth extends Mock implements FacebookAuth {}
-
-class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
-
-class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
+import '../../../helpers/auth_mocks.dart';
 
 /// 로그아웃 경로 협력 객체 — 모든 SDK 로그아웃을 성공 stub 으로 둔다.
 class _Harness {
@@ -49,24 +27,21 @@ class _Harness {
     when(() => line.logout()).thenAnswer((_) async {});
   }
 
-  final _MockFirebaseAuth auth = _MockFirebaseAuth();
-  final _MockGoogleSignIn googleSignIn = _MockGoogleSignIn();
-  final _MockFacebookAuth facebookAuth = _MockFacebookAuth();
-  final _MockKakaoSdkClient kakao = _MockKakaoSdkClient();
-  final _MockNaverSdkClient naver = _MockNaverSdkClient();
-  final _MockLineSdkClient line = _MockLineSdkClient();
+  final MockFirebaseAuth auth = MockFirebaseAuth();
+  final MockGoogleSignIn googleSignIn = MockGoogleSignIn();
+  final MockFacebookAuth facebookAuth = MockFacebookAuth();
+  final MockKakaoSdkClient kakao = MockKakaoSdkClient();
+  final MockNaverSdkClient naver = MockNaverSdkClient();
+  final MockLineSdkClient line = MockLineSdkClient();
 
   /// [enabledIds] 만 정적 CSV 에 켠 repository 를 만든다.
-  AuthRepository buildRepository(Set<String> enabledIds) => AuthRepository(
-    auth,
-    googleSignIn,
-    facebookAuth,
-    _MockSocialLinkInProgress(),
-    kakao,
-    _MockFirebaseFunctions(),
-    naver,
-    line,
-    () async {},
+  AuthRepository buildRepository(Set<String> enabledIds) => buildAuthRepository(
+    auth: auth,
+    googleSignIn: googleSignIn,
+    facebookAuth: facebookAuth,
+    kakaoSdkClient: kakao,
+    naverSdkClient: naver,
+    lineSdkClient: line,
     staticProviders: <String, bool>{
       for (final id in kAllProviderIds) id: enabledIds.contains(id),
     },

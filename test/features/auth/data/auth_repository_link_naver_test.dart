@@ -35,40 +35,20 @@
 
 import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
-import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
-import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 
-class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
+import '../../../helpers/auth_mocks.dart';
 
 class _MockFbUser extends Mock implements fb.User {}
 
 class _MockUserMetadata extends Mock implements fb.UserMetadata {}
-
-class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
-class _MockFacebookAuth extends Mock implements FacebookAuth {}
-
-class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
-
-class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
 
@@ -78,10 +58,10 @@ class _MockHttpsCallableResult extends Mock
     implements HttpsCallableResult<Map<String, dynamic>> {}
 
 void main() {
-  late _MockFirebaseAuth mockAuth;
-  late _MockSocialLinkInProgress mockSocialLinkInProgress;
-  late _MockNaverSdkClient mockNaverSdkClient;
-  late _MockFirebaseFunctions mockFunctions;
+  late MockFirebaseAuth mockAuth;
+  late MockSocialLinkInProgress mockSocialLinkInProgress;
+  late MockNaverSdkClient mockNaverSdkClient;
+  late MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockLinkCallable;
   late _MockHttpsCallableResult mockResult;
   late _MockFbUser mockCurrentUser;
@@ -93,25 +73,20 @@ void main() {
   });
 
   setUp(() {
-    mockAuth = _MockFirebaseAuth();
-    mockSocialLinkInProgress = _MockSocialLinkInProgress();
-    mockNaverSdkClient = _MockNaverSdkClient();
-    mockFunctions = _MockFirebaseFunctions();
+    mockAuth = MockFirebaseAuth();
+    mockSocialLinkInProgress = MockSocialLinkInProgress();
+    mockNaverSdkClient = MockNaverSdkClient();
+    mockFunctions = MockFirebaseFunctions();
     mockLinkCallable = _MockHttpsCallable();
     mockResult = _MockHttpsCallableResult();
     mockCurrentUser = _MockFbUser();
     mockMetadata = _MockUserMetadata();
 
-    repository = AuthRepository(
-      mockAuth,
-      _MockGoogleSignIn(),
-      _MockFacebookAuth(),
-      mockSocialLinkInProgress,
-      _MockKakaoSdkClient(),
-      mockFunctions,
-      mockNaverSdkClient,
-      _MockLineSdkClient(),
-      () async {},
+    repository = buildAuthRepository(
+      auth: mockAuth,
+      socialLinkInProgress: mockSocialLinkInProgress,
+      functions: mockFunctions,
+      naverSdkClient: mockNaverSdkClient,
     );
 
     // _mapFirebaseUser 가 참조하는 fb.User getter default stub.
@@ -616,16 +591,11 @@ void main() {
           fatal: any(named: 'fatal'),
         ),
       ).thenAnswer((_) async {});
-      appCheckRepository = AuthRepository(
-        mockAuth,
-        _MockGoogleSignIn(),
-        _MockFacebookAuth(),
-        mockSocialLinkInProgress,
-        _MockKakaoSdkClient(),
-        mockFunctions,
-        mockNaverSdkClient,
-        _MockLineSdkClient(),
-        () async {},
+      appCheckRepository = buildAuthRepository(
+        auth: mockAuth,
+        socialLinkInProgress: mockSocialLinkInProgress,
+        functions: mockFunctions,
+        naverSdkClient: mockNaverSdkClient,
         crashlytics: crashlytics,
       );
     });
