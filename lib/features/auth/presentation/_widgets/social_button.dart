@@ -90,7 +90,7 @@ class SocialButton extends ConsumerWidget {
     // Phase 13.3 — see ROADMAP.md (R6 caller-side breaking change —
     // theme/style parameter 폐기 흡수). Naver/Google/Apple 분기 모두
     // Theme.brightness 자동 분기는 BrandedSocialButton 위제 내부 책임.
-    // D-67 — provider switch (BrandedSocialButton 위임 + Facebook fallback).
+    // D-67 — provider switch (BrandedSocialButton 위임).
     switch (strategy.providerId) {
       case kProviderIdKakao:
         return BrandedSocialButton.kakao(label: label, onPressed: onPressed);
@@ -103,8 +103,10 @@ class SocialButton extends ConsumerWidget {
         // `BrandedSocialButton` 의 공통 골격이 맡는다.
         return BrandedSocialButton.google(label: label, onPressed: onPressed);
       case kProviderIdApple:
-        // Phase 13.3 R5 — style: parameter 폐기. AppleSpec build() 가
-        // Theme.brightness 자동 매핑 (HIG 권장값 light → .black / dark → .white).
+        // Phase 13.3 R5 — style: parameter 폐기. 밝기 분기는 `AppleSpec` 이
+        // `resolveBackgroundColor` · `resolveLabelColor` · `resolveLogoAsset`
+        // 으로 돌려주는 값을 `BrandedSocialButton` 의 공통 골격이 쓴다 (밝은
+        // 테마 → 검정 버튼 / 어두운 테마 → 흰 버튼).
         return BrandedSocialButton.apple(label: label, onPressed: onPressed);
       case kProviderIdFacebook:
         // Phase 13.2 R7 / R8 (옵션 A pivot, Wave 0 lock D-94) — Meta 공식

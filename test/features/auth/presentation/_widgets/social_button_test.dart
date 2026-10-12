@@ -182,8 +182,9 @@ void main() {
         find.byType(BrandedSocialButton),
       );
       // Phase 13.3 Wave 4 Step 2 supersede — SDK 위제 폐기. Theme.brightness
-      // 자동 분기는 AppleSpec build() 책임 (light = #FFFFFF / dark = #000000
-      // bg). SvgPicture (Apple logo dark variant) 렌더 검증.
+      // 자동 분기는 AppleSpec 의 resolve* 값을 공통 골격이 쓴다 (light =
+      // #000000 / dark = #FFFFFF bg). SvgPicture (Apple logo dark variant) 렌더
+      // 검증.
       expect(btn.spec, isA<AppleSpec>());
       expect(find.byType(SvgPicture), findsOneWidget);
     });
