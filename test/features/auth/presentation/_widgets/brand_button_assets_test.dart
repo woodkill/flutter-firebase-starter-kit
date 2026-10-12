@@ -117,13 +117,25 @@ const String _appleSmallPathStart = 'M12.2337427,16.9879688';
 /// Apple medium 로고 path 의 첫 좌표.
 const String _appleMediumPathStart = 'M15.7099491,14.8846154';
 
+// 공식 그림 대조 기준 셋의 출처는 `assets/brand/google/README.md` 의 「다시 만들
+// 때의 확인」(평균 ≤ 3.0 · 최대 ≤ 96 · 16 초과 ≤ 칸의 10%)이다. 같은 README 의
+// 「공식 PNG 와의 대조」 표에서 가장 큰 값보다 약 1.2배 넓게 잡은 값이다 — 표가
+// 바뀌면 기준도 함께 본다.
+
 /// 공식 그림 대조 기준 — 채널별 차의 평균 상한.
+///
+/// 표의 최댓값은 2.44(1배 · 흰 배경)다 — 기준은 그 1.23배.
 const double _gMeanLimit = 3;
 
 /// 공식 그림 대조 기준 — 채널별 차의 최대 상한.
+///
+/// 표의 최댓값은 76(4배 · 어두운 배경)이다 — 기준은 그 1.26배.
 const double _gMaxLimit = 96;
 
 /// 공식 그림 대조 기준 — 채널 최대차가 16 을 넘는 픽셀이 칸에서 차지하는 비율 상한.
+///
+/// 표에서 비율이 가장 큰 칸은 1배 흰 배경의 34/400 = 8.5% 다 — 기준은 그
+/// 1.18배. 배율이 커지면 비율은 내려간다(4배는 177/6,400 = 2.8%).
 const double _gOver16RatioLimit = 0.10;
 
 /// Google 자산 디렉터리.
@@ -870,26 +882,6 @@ void main() {
       );
     });
 
-    // 킷 저장소 자체의 정리 상태 — 쓰지 않는 파일이 남아 있지 않은지 본다.
-    test('T-177-ASSET-12: Google · Apple 자산 디렉터리의 추적 파일이 목록과 같다', () {
-      final Set<String> google = _listTrackedFiles(_googleAssetDir);
-      final Set<String> apple = _listTrackedFiles(_appleAssetDir);
-      // 양성 대조: 목록이 비면 아래 집합 비교가 뜻을 잃는다.
-      expect(google, isNotEmpty);
-      expect(apple, isNotEmpty);
-
-      expect(
-        google,
-        _googleAssetFiles.toSet(),
-        reason: '$_googleAssetDir 의 추적 파일이 로고 4장 + 문서 2개가 아니다',
-      );
-      expect(
-        apple,
-        _appleAssetFiles.toSet(),
-        reason: '$_appleAssetDir 의 추적 파일이 로고 2장 + 문서 1개가 아니다',
-      );
-    }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
-
     // 킷 저장소 자체의 정리 상태 — 쓰지 않는 글꼴이 남아 있지 않은지 본다.
     test('T-177-ASSET-11: 글꼴 디렉터리의 추적 파일과 family 선언이 목록과 같다', () {
       final Set<String> tracked = _listTrackedFiles(_fontAssetDir);
@@ -909,6 +901,26 @@ void main() {
         families,
         unorderedEquals(_bundledFontFamilies),
         reason: 'pubspec fonts: 의 family 가 Roboto · GoogleSans 둘이 아니다',
+      );
+    }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
+
+    // 킷 저장소 자체의 정리 상태 — 쓰지 않는 파일이 남아 있지 않은지 본다.
+    test('T-177-ASSET-12: Google · Apple 자산 디렉터리의 추적 파일이 목록과 같다', () {
+      final Set<String> google = _listTrackedFiles(_googleAssetDir);
+      final Set<String> apple = _listTrackedFiles(_appleAssetDir);
+      // 양성 대조: 목록이 비면 아래 집합 비교가 뜻을 잃는다.
+      expect(google, isNotEmpty);
+      expect(apple, isNotEmpty);
+
+      expect(
+        google,
+        _googleAssetFiles.toSet(),
+        reason: '$_googleAssetDir 의 추적 파일이 로고 4장 + 문서 2개가 아니다',
+      );
+      expect(
+        apple,
+        _appleAssetFiles.toSet(),
+        reason: '$_appleAssetDir 의 추적 파일이 로고 2장 + 문서 1개가 아니다',
       );
     }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
   });
