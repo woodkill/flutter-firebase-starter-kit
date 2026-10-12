@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../helpers/planning_docs.dart';
 import '../../../../helpers/source_text.dart';
 
 /// 번들 선언 파일.
@@ -124,6 +125,32 @@ const double _gMaxLimit = 96;
 
 /// 공식 그림 대조 기준 — 채널 최대차가 16 을 넘는 픽셀이 칸에서 차지하는 비율 상한.
 const double _gOver16RatioLimit = 0.10;
+
+/// Google 자산 디렉터리.
+const String _googleAssetDir = 'assets/brand/google';
+
+/// Apple 자산 디렉터리.
+const String _appleAssetDir = 'assets/brand/apple';
+
+/// Google 자산 디렉터리에 있어야 하는 파일 — 로고 4장과 문서 2개.
+const List<String> _googleAssetFiles = <String>[
+  '$_googleAssetDir/2.0x/g.png',
+  '$_googleAssetDir/3.0x/g.png',
+  '$_googleAssetDir/4.0x/g.png',
+  '$_googleAssetDir/LICENSE.txt',
+  '$_googleAssetDir/README.md',
+  '$_googleAssetDir/g.png',
+];
+
+/// Apple 자산 디렉터리에 있어야 하는 파일 — 로고 2장과 문서 1개.
+const List<String> _appleAssetFiles = <String>[
+  '$_appleAssetDir/README.md',
+  _appleBlackMediumPath,
+  _appleWhiteMediumPath,
+];
+
+/// 유지보수자 트리에만 있는 파일 — 이 파일이 없는 트리에서는 집합 대조를 건너뛴다.
+const List<String> _maintainerOnlyDocs = <String>['.planning/ROADMAP.md'];
 
 /// 한 번 찍은 그림의 크기와 RGBA 바이트.
 typedef _Raster = ({int width, int height, Uint8List rgba});
@@ -439,6 +466,29 @@ _GStats _compareWithOfficialCell(
   return (mean: sum / (logo.width * logo.height * 3), max: max, over16: over16);
 }
 
+/// git 이 추적하는 [directory] 아래 파일 경로를 저장소 루트 기준으로 모은다.
+Set<String> _listTrackedFiles(String directory) {
+  final ProcessResult result = Process.runSync(
+    'git',
+    <String>['ls-files', directory],
+    stdoutEncoding: utf8,
+    stderrEncoding: utf8,
+  );
+  if (result.exitCode != 0) {
+    fail('git ls-files $directory 실패 — git 이 PATH 에 없거나 저장소 밖에서 실행됐다');
+  }
+  return (result.stdout as String)
+      .split('\n')
+      .where((String path) => path.isNotEmpty)
+      .toSet();
+}
+
+/// [paths] 가운데 디스크에 없는 것을 모은다.
+List<String> _collectMissingFiles(List<String> paths) => <String>[
+  for (final String path in paths)
+    if (!File(path).existsSync()) path,
+];
+
 void main() {
   group('Google Sans 라틴 subset', () {
     test('T-177-ASSET-01: 번들 글꼴 파일의 sha256 이 고정값과 같다', () {
@@ -750,5 +800,42 @@ void main() {
         reason: '$_appleBlackMediumPath 를 그렸는데 불투명한 픽셀이 없다',
       );
     });
+  });
+
+  group('자산 디렉터리', () {
+    // 앱 코드가 이름으로 부르는 파일과 그 문서가 있는지만 본다. 변형을 더한
+    // 트리에서도 통과한다.
+    test('T-177-ASSET-10: Google · Apple 로고 파일과 문서가 있다', () {
+      expect(
+        _collectMissingFiles(_googleAssetFiles),
+        isEmpty,
+        reason: '$_googleAssetDir 에 있어야 하는 파일이 없다',
+      );
+      expect(
+        _collectMissingFiles(_appleAssetFiles),
+        isEmpty,
+        reason: '$_appleAssetDir 에 있어야 하는 파일이 없다',
+      );
+    });
+
+    // 킷 저장소 자체의 정리 상태 — 쓰지 않는 파일이 남아 있지 않은지 본다.
+    test('T-177-ASSET-12: Google · Apple 자산 디렉터리의 추적 파일이 목록과 같다', () {
+      final Set<String> google = _listTrackedFiles(_googleAssetDir);
+      final Set<String> apple = _listTrackedFiles(_appleAssetDir);
+      // 양성 대조: 목록이 비면 아래 집합 비교가 뜻을 잃는다.
+      expect(google, isNotEmpty);
+      expect(apple, isNotEmpty);
+
+      expect(
+        google,
+        _googleAssetFiles.toSet(),
+        reason: '$_googleAssetDir 의 추적 파일이 로고 4장 + 문서 2개가 아니다',
+      );
+      expect(
+        apple,
+        _appleAssetFiles.toSet(),
+        reason: '$_appleAssetDir 의 추적 파일이 로고 2장 + 문서 1개가 아니다',
+      );
+    }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
   });
 }
