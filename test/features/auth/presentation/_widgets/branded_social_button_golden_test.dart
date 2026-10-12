@@ -5,6 +5,10 @@
 //
 // iOS 케이스는 macOS 에서만 돈다. 라벨을 macOS 시스템 글꼴로 그리므로 그 PNG
 // (`*_ios.png`)는 저장소에 두지 않는다 — `.gitignore` 에 파일마다 한 줄씩 있다.
+//
+// 케이스 24개(버튼 6 × 밝기 2 × 플랫폼 2)는 `_cases` 목록을 반복문으로 돌려
+// 만든다. 테스트 이름은 `<이름> <light|dark>[ (iOS)]`, golden 파일은
+// `goldens/<소문자 이름>_<light|dark>[_ios].png` 다.
 
 import 'dart:io';
 
@@ -135,466 +139,81 @@ Future<void> _loadGoldenFonts() async {
   }
 }
 
+/// golden 으로 찍는 버튼 6개 — 테스트 이름에 쓰는 이름과 버튼을 만드는 함수.
+///
+/// 이름의 소문자 꼴이 golden 파일 이름의 앞부분이다.
+final List<({String name, Widget Function() build})> _cases = [
+  (
+    name: 'Naver',
+    build: () =>
+        BrandedSocialButton.naver(label: 'Log in with NAVER', onPressed: () {}),
+  ),
+  (
+    name: 'Kakao',
+    build: () =>
+        BrandedSocialButton.kakao(label: 'Login with Kakao', onPressed: () {}),
+  ),
+  (
+    name: 'Google',
+    build: () => BrandedSocialButton.google(
+      label: 'Sign in with Google',
+      onPressed: () {},
+    ),
+  ),
+  (
+    name: 'Facebook',
+    build: () => BrandedSocialButton.facebook(
+      label: 'Login with Facebook',
+      onPressed: () {},
+    ),
+  ),
+  (
+    name: 'Apple',
+    build: () => BrandedSocialButton.apple(
+      label: 'Sign in with Apple',
+      onPressed: () {},
+    ),
+  ),
+  (
+    name: 'LINE',
+    build: () =>
+        BrandedSocialButton.line(label: 'Log in with LINE', onPressed: () {}),
+  ),
+];
+
 void main() {
   setUpAll(_loadGoldenFonts);
 
   group('BrandedSocialButton golden — 버튼 6개 × 밝은 · 어두운', () {
-    testWidgets('Naver light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.naver(
-            label: 'Log in with NAVER',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/naver_light.png'),
-      );
-    });
-
-    testWidgets('Naver light (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.naver(
-            label: 'Log in with NAVER',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/naver_light_ios.png'),
-      );
-    });
-
-    testWidgets('Naver dark', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.naver(
-            label: 'Log in with NAVER',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/naver_dark.png'),
-      );
-    });
-
-    testWidgets('Naver dark (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.naver(
-            label: 'Log in with NAVER',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/naver_dark_ios.png'),
-      );
-    });
-
-    testWidgets('Kakao light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.kakao(
-            label: 'Login with Kakao',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/kakao_light.png'),
-      );
-    });
-
-    testWidgets('Kakao light (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.kakao(
-            label: 'Login with Kakao',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/kakao_light_ios.png'),
-      );
-    });
-
-    testWidgets('Kakao dark', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.kakao(
-            label: 'Login with Kakao',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/kakao_dark.png'),
-      );
-    });
-
-    testWidgets('Kakao dark (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.kakao(
-            label: 'Login with Kakao',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/kakao_dark_ios.png'),
-      );
-    });
-
-    testWidgets('Google light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.google(
-            label: 'Sign in with Google',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/google_light.png'),
-      );
-    });
-
-    testWidgets('Google dark', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.google(
-            label: 'Sign in with Google',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/google_dark.png'),
-      );
-    });
-
-    testWidgets('Google light (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.google(
-            label: 'Sign in with Google',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/google_light_ios.png'),
-      );
-    });
-
-    testWidgets('Google dark (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.google(
-            label: 'Sign in with Google',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/google_dark_ios.png'),
-      );
-    });
-
-    testWidgets('Facebook light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.facebook(
-            label: 'Login with Facebook',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/facebook_light.png'),
-      );
-    });
-
-    testWidgets('Facebook dark', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.facebook(
-            label: 'Login with Facebook',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/facebook_dark.png'),
-      );
-    });
-
-    testWidgets('Facebook light (iOS)', skip: !Platform.isMacOS, (
-      tester,
-    ) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.facebook(
-            label: 'Login with Facebook',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/facebook_light_ios.png'),
-      );
-    });
-
-    testWidgets('Facebook dark (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.facebook(
-            label: 'Login with Facebook',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/facebook_dark_ios.png'),
-      );
-    });
-
-    testWidgets('Apple light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.apple(
-            label: 'Sign in with Apple',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/apple_light.png'),
-      );
-    });
-
-    testWidgets('Apple dark', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.apple(
-            label: 'Sign in with Apple',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/apple_dark.png'),
-      );
-    });
-
-    testWidgets('Apple light (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.apple(
-            label: 'Sign in with Apple',
-            onPressed: () {},
-          ),
-          brightness: Brightness.light,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/apple_light_ios.png'),
-      );
-    });
-
-    testWidgets('Apple dark (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.apple(
-            label: 'Sign in with Apple',
-            onPressed: () {},
-          ),
-          brightness: Brightness.dark,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/apple_dark_ios.png'),
-      );
-    });
-
-    testWidgets('LINE light', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.line(label: 'Log in with LINE', onPressed: () {}),
-          brightness: Brightness.light,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/line_light.png'),
-      );
-    });
-
-    testWidgets('LINE dark', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.line(label: 'Log in with LINE', onPressed: () {}),
-          brightness: Brightness.dark,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/line_dark.png'),
-      );
-    });
-
-    testWidgets('LINE light (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.line(label: 'Log in with LINE', onPressed: () {}),
-          brightness: Brightness.light,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/line_light_ios.png'),
-      );
-    });
-
-    testWidgets('LINE dark (iOS)', skip: !Platform.isMacOS, (tester) async {
-      await tester.binding.setSurfaceSize(const Size(360, 480));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        _wrap(
-          BrandedSocialButton.line(label: 'Log in with LINE', onPressed: () {}),
-          brightness: Brightness.dark,
-          platform: TargetPlatform.iOS,
-        ),
-      );
-      await _settleAssets(tester);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/line_dark_ios.png'),
-      );
-    });
+    for (final item in _cases) {
+      for (final brightness in const [Brightness.light, Brightness.dark]) {
+        for (final isIos in const [false, true]) {
+          final fileStem = '${item.name.toLowerCase()}_${brightness.name}';
+          testWidgets(
+            '${item.name} ${brightness.name}${isIos ? ' (iOS)' : ''}',
+            // iOS 케이스는 macOS 시스템 글꼴로 그리므로 macOS 에서만 돈다.
+            skip: isIos && !Platform.isMacOS,
+            (tester) async {
+              await tester.binding.setSurfaceSize(const Size(360, 480));
+              addTearDown(() => tester.binding.setSurfaceSize(null));
+              await tester.pumpWidget(
+                _wrap(
+                  item.build(),
+                  brightness: brightness,
+                  platform: isIos ? TargetPlatform.iOS : null,
+                ),
+              );
+              await _settleAssets(tester);
+              await expectLater(
+                find.byType(MaterialApp),
+                matchesGoldenFile(
+                  'goldens/$fileStem${isIos ? '_ios' : ''}.png',
+                ),
+              );
+            },
+          );
+        }
+      }
+    }
   });
 }
