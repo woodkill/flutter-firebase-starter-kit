@@ -22,6 +22,7 @@
 
 - 로그아웃과 회원탈퇴 마무리 동안 화면 전체를 덮는 진행 오버레이를 더한다. 로그아웃은 확인한 직후, 회원탈퇴는 서버 삭제가 끝난 직후부터 온보딩 화면이 뜰 때까지 스피너와 「로그아웃 처리 중…」 · 「탈퇴 처리 중…」 문구가 보이고 입력이 막힌다. 로그아웃이 예외로 끝나면 바로 걷히고, 30초가 지나면 로그아웃은 계속 진행한 채 오버레이만 걷힌다. 새 문구 키는 `authSigningOut` · `withdrawalFinalizing` 이다(영어 · 한국어 · 일본어). 로그아웃 뒤 목적지를 온보딩이 아닌 화면으로 바꿨다면 그 화면의 route `builder` 를 `SessionEndingArrival` 로 감싼다 — 매뉴얼 「App Entry State Machine」 절.
 - Google 로그인 버튼에 쓰는 자산 두 가지를 싣는다. Google Sans 라틴 subset 글꼴(`assets/fonts/googlesans/` · SIL OFL 1.1)은 버튼 라벨의 영문만 그리고, 한글 · 가나는 기기 글꼴로 그려진다. gradient G 투명 PNG 4장(`assets/brand/google/` · 1 ~ 4배)은 Google 이 배포하는 공식 버튼 SVG 의 G 를 Chrome 으로 그린 것이다. Google 로그인 브랜드 가이드가 버튼 글꼴로 Google Sans Medium 을, 로고로 gradient G 를 요구한다. 바뀐 파일은 `assets/fonts/googlesans/` · `assets/brand/google/` · `pubspec.yaml` · `LICENSE` 다. 만드는 절차는 각 디렉터리의 `README.md` 에 있다 — 매뉴얼 「Brand Asset Management」.
+- 테스트 안내 `test/README.md` 를 더한다 — 디렉터리 구조 · 분류별로 기능을 바꾸거나 지울 때 할 일 · 이름 짓기 · 린트 기준 · golden 갱신 · 커밋 전에 돌릴 검사. 복사해 쓸 수 있는 예제 테스트 2개(`test/examples/` — `LoginNotifier` unit · `NotFoundScreen` widget)와 `AuthRepository` 를 만드는 테스트 헬퍼 `buildAuthRepository` · 공용 mock(`test/helpers/auth_mocks.dart`)이 함께 들어간다. 바뀐 파일은 `test/` 아래뿐이라 merge 로 끝난다.
 
 ### Changed
 
