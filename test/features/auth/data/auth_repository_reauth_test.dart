@@ -30,16 +30,13 @@ import 'package:mocktail/mocktail.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
-import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 
+import '../../../helpers/auth_mocks.dart';
 import 'auth_test_fakes.dart';
-
-class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockUserCredential extends Mock implements fb.UserCredential {}
 
@@ -49,26 +46,12 @@ class _MockUserInfo extends Mock implements fb.UserInfo {}
 
 class _MockUserMetadata extends Mock implements fb.UserMetadata {}
 
-class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
 class _MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
 class _MockGoogleSignInAuthentication extends Mock
     implements GoogleSignInAuthentication {}
 
-class _MockFacebookAuth extends Mock implements FacebookAuth {}
-
 class _MockLoginResult extends Mock implements LoginResult {}
-
-class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
-
-class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
 
@@ -82,14 +65,14 @@ const String _currentEmail = 'current-user@example.com';
 const String _linkedGoogleSub = 'google-sub-of-U';
 
 void main() {
-  late _MockFirebaseAuth mockAuth;
-  late _MockGoogleSignIn mockGoogleSignIn;
-  late _MockFacebookAuth mockFacebookAuth;
-  late _MockSocialLinkInProgress mockSocialLinkInProgress;
-  late _MockKakaoSdkClient mockKakaoSdkClient;
-  late _MockNaverSdkClient mockNaverSdkClient;
-  late _MockLineSdkClient mockLineSdkClient;
-  late _MockFirebaseFunctions mockFunctions;
+  late MockFirebaseAuth mockAuth;
+  late MockGoogleSignIn mockGoogleSignIn;
+  late MockFacebookAuth mockFacebookAuth;
+  late MockSocialLinkInProgress mockSocialLinkInProgress;
+  late MockKakaoSdkClient mockKakaoSdkClient;
+  late MockNaverSdkClient mockNaverSdkClient;
+  late MockLineSdkClient mockLineSdkClient;
+  late MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late _MockFbUser mockCurrentUser;
   late _MockUserMetadata mockMetadata;
@@ -125,28 +108,27 @@ void main() {
   }
 
   setUp(() {
-    mockAuth = _MockFirebaseAuth();
-    mockGoogleSignIn = _MockGoogleSignIn();
-    mockFacebookAuth = _MockFacebookAuth();
-    mockSocialLinkInProgress = _MockSocialLinkInProgress();
-    mockKakaoSdkClient = _MockKakaoSdkClient();
-    mockNaverSdkClient = _MockNaverSdkClient();
-    mockLineSdkClient = _MockLineSdkClient();
-    mockFunctions = _MockFirebaseFunctions();
+    mockAuth = MockFirebaseAuth();
+    mockGoogleSignIn = MockGoogleSignIn();
+    mockFacebookAuth = MockFacebookAuth();
+    mockSocialLinkInProgress = MockSocialLinkInProgress();
+    mockKakaoSdkClient = MockKakaoSdkClient();
+    mockNaverSdkClient = MockNaverSdkClient();
+    mockLineSdkClient = MockLineSdkClient();
+    mockFunctions = MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
     mockCurrentUser = _MockFbUser();
     mockMetadata = _MockUserMetadata();
 
-    repository = AuthRepository(
-      mockAuth,
-      mockGoogleSignIn,
-      mockFacebookAuth,
-      mockSocialLinkInProgress,
-      mockKakaoSdkClient,
-      mockFunctions,
-      mockNaverSdkClient,
-      mockLineSdkClient,
-      () async {},
+    repository = buildAuthRepository(
+      auth: mockAuth,
+      googleSignIn: mockGoogleSignIn,
+      facebookAuth: mockFacebookAuth,
+      socialLinkInProgress: mockSocialLinkInProgress,
+      kakaoSdkClient: mockKakaoSdkClient,
+      functions: mockFunctions,
+      naverSdkClient: mockNaverSdkClient,
+      lineSdkClient: mockLineSdkClient,
     );
 
     when(() => mockCurrentUser.uid).thenReturn(_currentUid);
