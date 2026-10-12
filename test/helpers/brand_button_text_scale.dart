@@ -1,8 +1,9 @@
 // 소셜 버튼이 그려지는 화면을 큰 글자 · 좁은 화면에서 재는 테스트 헬퍼.
 //
-// 버튼 라벨이 글자 배율 상한에서 멈추는지, 그 조건에서 난 layout 오류가
-// 버튼에서 비롯됐는지 버튼 밖 위젯의 것인지를 화면 테스트가 같은 방법으로
-// 확인한다.
+// 버튼 라벨이 글자 배율 상한에서 멈추는지, 그 조건에서 난 넘침(RenderFlex
+// overflow)이 버튼에서 비롯됐는지 버튼 밖 위젯의 것인지를 화면 테스트가 같은
+// 방법으로 확인한다. 넘침이 아닌 오류는 이 헬퍼가 가로채지 않는다 — 테스트가
+// 평소처럼 실패한다.
 //
 // 재는 기준에는 한계가 둘 있다.
 // - 글자 배율은 글자 크기에 그대로 곱한 값(선형)이다. 기기가 큰 글자를 덜
@@ -22,10 +23,10 @@ const List<Locale> kBrandScaleLocales = <Locale>[
   Locale('ja'),
 ];
 
-/// 큰 글자 · 좁은 화면 단언의 범위 — 버튼에서 비롯된 layout 오류 0 을 단언한다.
+/// 큰 글자 · 좁은 화면 단언의 범위 — 버튼에서 비롯된 넘침 0 을 단언한다.
 ///
 /// 버튼 밖 위젯의 넘침은 이 단언의 범위가 아니다 — 세어서 측정 줄에만 싣는다.
-/// true 로 바꾸면 버튼이 그려지는 화면 전체에서 layout 오류 0 을 단언한다.
+/// true 로 바꾸면 버튼이 그려지는 화면 전체에서 넘침 0 을 단언한다.
 const bool kBrandScaleAssertsWholeScreen = false;
 
 /// 측정 줄을 출력할지 정한다 — `--dart-define=BRAND_SCALE_REPORT=true`.
@@ -40,18 +41,20 @@ const double _narrowViewPixelRatio = 3;
 /// 큰 글자에서 버튼 라벨이 가져야 하는 유효 글자 크기 — 글자 크기 × 배율 상한.
 const double _cappedLabelSize = kBrandLabelFontSize * kBrandLabelScaleCap;
 
-/// [collectBrandScaleErrors] 가 모은 layout 오류를 난 자리로 나눈 결과.
+/// [collectBrandScaleErrors] 가 모은 넘침(RenderFlex overflow)을 난 자리로
+/// 나눈 결과.
 ///
-/// 항목 하나는 「예외 첫 줄 @ 오류를 낸 위젯 < 조상 < 조상」 꼴의 한 줄이다.
+/// 넘침이 아닌 오류는 여기에 들지 않는다. 항목 하나는 「예외 첫 줄 @ 넘친
+/// 위젯 < 조상 < 조상」 꼴의 한 줄이다.
 @immutable
 class BrandScaleErrors {
-  /// 버튼에서 비롯된 오류와 버튼 밖 오류의 목록으로 만든다.
+  /// 버튼에서 비롯된 넘침과 버튼 밖 넘침의 목록으로 만든다.
   const BrandScaleErrors({required this.fromButtons, required this.outside});
 
-  /// [BrandedSocialButton] 아래의 render object 가 낸 오류.
+  /// [BrandedSocialButton] 아래의 render object 가 낸 넘침.
   final List<String> fromButtons;
 
-  /// 버튼 밖 위젯이 낸 오류 — 오류를 낸 위젯을 알 수 없는 것도 여기에 든다.
+  /// 버튼 밖 위젯이 낸 넘침 — 넘친 위젯을 알 수 없는 것도 여기에 든다.
   final List<String> outside;
 }
 
@@ -81,12 +84,16 @@ List<double> readBrandButtonLabelSizes(WidgetTester tester) {
   ];
 }
 
-/// [body] 가 도는 동안 난 Flutter 오류를 모아 난 자리로 나눠 돌려준다.
+/// [body] 가 도는 동안 난 넘침(RenderFlex overflow)을 모아 난 자리로 나눠
+/// 돌려준다.
 ///
-/// 화면을 그리는 pump 를 [body] 안에 둔다. 오류를 낸 render object 를 만든
-/// 위젯의 조상에 [BrandedSocialButton] 이 있으면 버튼의 오류로, 없거나 만든
-/// 위젯을 알 수 없으면 버튼 밖 오류로 센다. 오류 handler 는 [body] 가 예외를
-/// 던져도 원래 것으로 되돌린다.
+/// 화면을 그리는 pump 를 [body] 안에 둔다. 넘친 render object 를 만든 위젯의
+/// 조상에 [BrandedSocialButton] 이 있으면 버튼의 넘침으로, 없거나 만든 위젯을
+/// 알 수 없으면 버튼 밖 넘침으로 센다.
+///
+/// 넘침이 아닌 오류(빌드 예외 · 단언 실패 등)는 모으지 않고 원래 handler 로
+/// 넘긴다 — 테스트 바인딩이 받아 테스트가 평소처럼 실패한다. 오류 handler 는
+/// [body] 가 예외를 던져도 원래 것으로 되돌린다.
 Future<BrandScaleErrors> collectBrandScaleErrors(
   Future<void> Function() body,
 ) async {
@@ -94,6 +101,12 @@ Future<BrandScaleErrors> collectBrandScaleErrors(
   final outside = <String>[];
   final previousHandler = FlutterError.onError;
   FlutterError.onError = (FlutterErrorDetails details) {
+    // 넘침만 이 헬퍼가 분류한다. 그 밖의 오류는 원래 handler 로 넘겨 테스트가
+    // 평소처럼 실패하게 둔다.
+    if (!_isOverflowError(details)) {
+      previousHandler?.call(details);
+      return;
+    }
     final origin = _findErrorOrigin(details);
     final line = '${_readFirstLine(details)} @ ${origin.description}';
     (origin.isInButton ? fromButtons : outside).add(line);
@@ -106,12 +119,12 @@ Future<BrandScaleErrors> collectBrandScaleErrors(
   return BrandScaleErrors(fromButtons: fromButtons, outside: outside);
 }
 
-/// 화면의 버튼 라벨이 상한에서 멈췄고 버튼이 layout 오류를 내지 않았는지 본다.
+/// 화면의 버튼 라벨이 상한에서 멈췄고 버튼이 넘치지 않았는지 본다.
 ///
 /// [errors] 는 이 화면을 그리는 동안 [collectBrandScaleErrors] 가 모은 것이다.
 /// 단언하는 것은 넷이다: 버튼이 [minButtons] 개 이상 · 모든 라벨의 유효 글자
 /// 크기가 상한 값 · 모든 버튼 높이가 [kBrandButtonHeight] · 버튼에서 비롯된
-/// 오류 0. [kBrandScaleAssertsWholeScreen] 이 true 면 버튼 밖 오류도 0 이어야
+/// 넘침 0. [kBrandScaleAssertsWholeScreen] 이 true 면 버튼 밖 넘침도 0 이어야
 /// 한다.
 ///
 /// `--dart-define=BRAND_SCALE_REPORT=true` 로 돌리면 단언에 앞서 측정 줄
@@ -223,7 +236,16 @@ double _findMax(List<double> values) {
   return values.fold<double>(0, (double a, double b) => a > b ? a : b);
 }
 
-/// 오류가 난 자리 — 버튼 안인지와 측정 줄에 적을 설명.
+/// [details] 가 RenderFlex 넘침 보고인지 본다.
+///
+/// rendering library 는 넘침을 「A RenderFlex overflowed by …」 로 시작하는
+/// 오류로 보고한다.
+bool _isOverflowError(FlutterErrorDetails details) {
+  return details.library == 'rendering library' &&
+      details.exceptionAsString().startsWith('A RenderFlex overflowed');
+}
+
+/// 넘침이 난 자리 — 버튼 안인지와 측정 줄에 적을 설명.
 typedef _ErrorOrigin = ({bool isInButton, String description});
 
 /// [details] 의 오류를 낸 render object 가 어느 위젯 아래에서 만들어졌는지 찾는다.
