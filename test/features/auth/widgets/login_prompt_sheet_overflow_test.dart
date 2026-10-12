@@ -42,6 +42,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../helpers/brand_button_text_scale.dart';
+
 /// [AuthRepository] 를 mocktail 로 대체하기 위한 Mock.
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -338,6 +340,36 @@ void main() {
           expect(tester.takeException(), isNull, reason: '$label 마지막');
         });
       }
+    }
+  });
+
+  group('큰 글자 · 좁은 화면의 소셜 버튼 라벨', () {
+    for (final locale in kBrandScaleLocales) {
+      testWidgets('T-177-SCALE-03 (${locale.languageCode}): 글자 배율 2.0 · 폭 280 '
+          '에서 로그인 유도 시트의 버튼 라벨만 상한에서 멈춘다', (tester) async {
+        applyLargeTextNarrowView(tester);
+
+        final errors = await collectBrandScaleErrors(() async {
+          await pumpOverflowHarness(tester, _sixStrategies, locale: locale);
+          // 목록이 스크롤 영역이다 — 마지막 버튼까지 스크롤해 그려진 뒤에
+          // 잰다.
+          await tester.ensureVisible(find.byType(BrandedSocialButton).last);
+          await tester.pumpAndSettle();
+        });
+
+        expect(find.byType(LoginPromptSheet), findsOneWidget);
+        expect(
+          find.byType(BrandedSocialButton).last.hitTestable(),
+          findsOneWidget,
+        );
+        expectBrandButtonLabelsCapped(
+          tester,
+          errors,
+          surface: 'prompt_sheet',
+          locale: locale,
+          minButtons: 6,
+        );
+      });
     }
   });
 }

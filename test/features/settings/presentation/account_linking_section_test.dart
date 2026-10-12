@@ -49,6 +49,8 @@ import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/account_linking_section.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 
+import '../../../helpers/brand_button_text_scale.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 // G-16-A6-2 — Surface D 실패 원인별 en verbatim 문구 (app_en.arb 와 1:1).
@@ -655,5 +657,37 @@ void main() {
       expect(find.byType(AccountLinkingSection), findsOneWidget);
       expect(find.text('Link an account', skipOffstage: false), findsNothing);
     });
+  });
+
+  group('큰 글자 · 좁은 화면의 소셜 버튼 라벨', () {
+    for (final locale in kBrandScaleLocales) {
+      testWidgets(
+        'T-177-SCALE-04 (${locale.languageCode}): 글자 배율 2.0 · 폭 280 에서 계정 연결 절의 버튼 라벨만 상한에서 멈춘다',
+        (tester) async {
+          applyLargeTextNarrowView(tester);
+
+          final errors = await collectBrandScaleErrors(() async {
+            await _pumpSection(
+              tester,
+              user: _testUser(providerIds: const <String>['google.com']),
+              repo: repo,
+              locale: locale,
+            );
+          });
+
+          // Google 은 이미 연결돼 있다 — 나머지 다섯이 「연결」 문구 그대로
+          // 그려진다.
+          final l10n = lookupAppLocalizations(locale);
+          expect(find.text(l10n.settingsAccountLinkingSection), findsOneWidget);
+          expectBrandButtonLabelsCapped(
+            tester,
+            errors,
+            surface: 'linking_section',
+            locale: locale,
+            minButtons: 1,
+          );
+        },
+      );
+    }
   });
 }

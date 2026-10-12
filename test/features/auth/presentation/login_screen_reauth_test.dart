@@ -49,6 +49,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../helpers/brand_button_text_scale.dart';
+
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockFirebaseUser extends Mock implements fb.User {}
@@ -557,5 +559,35 @@ void main() {
         '지금은 이 계정의 로그인 수단으로 본인 확인을 할 수 없습니다. 잠시 후 다시 시도해 주세요.',
       );
     });
+  });
+
+  group('큰 글자 · 좁은 화면의 소셜 버튼 라벨', () {
+    for (final locale in kBrandScaleLocales) {
+      testWidgets('T-177-SCALE-02 (${locale.languageCode}): 글자 배율 2.0 · 폭 280 '
+          '에서 재인증 화면의 버튼 라벨만 상한에서 멈춘다', (tester) async {
+        applyLargeTextNarrowView(tester);
+
+        final errors = await collectBrandScaleErrors(() async {
+          await _pumpReauthFlow(
+            tester,
+            repo: repo,
+            user: _userWith(const <String>[
+              'apple.com',
+              'google.com',
+              'password',
+            ]),
+            locale: locale,
+          );
+        });
+
+        expectBrandButtonLabelsCapped(
+          tester,
+          errors,
+          surface: 'reauth',
+          locale: locale,
+          minButtons: 2,
+        );
+      });
+    }
   });
 }
