@@ -22,7 +22,7 @@ import 'branded_social_button.dart';
 ///   `linkWithProvider`, 그 외에는 `signInWithProvider` 를 호출한다. widget
 ///   은 외관 전담이며 별도 OAuth SDK 의존 0 (quick 260913-oqm 에서 pubspec
 ///   선언까지 제거).
-/// - Google 분기 → [BrandedSocialButton.google] 위임 (공식 SVG 6종)
+/// - Google 분기 → [BrandedSocialButton.google] 위임 (G 로고 PNG · 1 ~ 4배 4장)
 /// - Naver 분기 → [BrandedSocialButton.naver] 위임 (BI 단일 색 #03A94D)
 /// - Kakao 분기 → [BrandedSocialButton.kakao] 위임 (Phase 13 D-55)
 ///
@@ -116,13 +116,11 @@ class SocialButton extends ConsumerWidget {
         // outline + Material disabled 외관 일관 표현. Phase 13.1 의 dim wrapper
         // 패턴은 위제 내부의 Material disabled 외관으로 자연 해소.
         //
-        // **Phase 13.2 REVIEW IN-02 정정 (2026-05-13):** D-94 lock 명시 —
-        // FacebookSpec 의 theme 필드 부재 (Primary Logo 단독 채택, Kakao
-        // 패턴 mirror). 따라서 본 분기는 `brightness` 매개변수 미전달.
-        // Theme.brightness 자동 분기는 `BrandedSocialButton` 공통 골격 내부
-        // 책임 — Naver/Google 의 caller-side `brightness` 매개변수 전달
-        // 패턴과 분리. 미래 reader 가 Facebook 분기의 brightness 사용 누락을
-        // "미완성 implementation" 으로 오해 차단.
+        // 이 분기는 밝기를 넘기지 않는다 — 여섯 분기가 모두 같다. 밝기는
+        // `BrandedSocialButton` 공통 골격이 `Theme` 에서 읽어 스킨
+        // (`FacebookSpec`) 에 넘긴다. Phase 13.2 REVIEW IN-02 정정
+        // (2026-05-13) 때는 Naver · Google 분기가 `theme:` 를, Apple 분기가
+        // `style:` 을 넘겼고, Phase 13.3 R6 에서 그 전달이 사라졌다.
         return BrandedSocialButton.facebook(label: label, onPressed: onPressed);
       case kProviderIdLine:
         // Phase 14 — see ROADMAP.md (SOCL-03 registry add-only 통합).
