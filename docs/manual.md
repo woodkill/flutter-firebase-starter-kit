@@ -845,7 +845,7 @@ fvm flutter test
 
 - **`fatal: refusing to merge unrelated histories`.** template 로 만든 저장소에서 기준점 없이 새 판을 merge 했다. 「시작하기 — template 로 앱 저장소 만들기」 ③ 의 기준점 merge 를 먼저 한다.
 - **merge 가 「Your local changes … would be overwritten by merge」 로 시작되지 않는다.** 「충돌 풀기」 규칙 4 를 따른다. 목록에 skip-worktree 파일이 아닌 파일이 있으면 그 변경을 먼저 커밋한다.
-- **macOS 에서 `goldens/*_ios.png` 가 없다는 테스트 실패 10건.** iOS 변형 golden 이미지는 폰트 라이선스 때문에 저장소에 없다. 내 Mac 에서 한 번 만든다.
+- **macOS 에서 `goldens/*_ios.png` 가 없다는 테스트 실패 12건.** iOS 변형 golden 이미지는 폰트 라이선스 때문에 저장소에 없다. 내 Mac 에서 한 번 만든다.
 
 ```bash
 fvm flutter test --update-goldens --plain-name '(iOS)' test/features/auth/presentation/_widgets/branded_social_button_golden_test.dart
@@ -3095,7 +3095,7 @@ PNG 자상이 commit 되어 있습니다 (Phase 13.1 commit). 사용자는
 
 1. 이미 가입된 이메일로 다른 소셜 로그인 시도 → 안내 시트가 뜬다.
 2. 시트 본문에 **기존 가입 수단의 정확한 이름**이 표시된다 (예: 카카오로 가입한 계정이면 "카카오"). 여기에는 Google / Apple / Facebook 같은 네이티브 수단뿐 아니라 **Kakao / Naver / LINE 같은 Custom Token 수단도 포함**된다 — 이전에는 Custom Token 으로 가입한 계정의 이름을 서버가 알아내지 못해 충돌 자체가 감지되지 않았다.
-3. 시트의 브랜드 버튼(예: "카카오로 로그인하기") 탭 → **그 수단으로 로그인**이 진행된다.
+3. 시트의 브랜드 버튼(예: "카카오 로그인") 탭 → **그 수단으로 로그인**이 진행된다.
 4. 로그인 성공 → 시트가 닫히고 홈으로 이동하면서 `{수단} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 내 계정 > 계정 연결에서 추가할 수 있습니다.` 안내가 잠깐 표시된다 (ko / en / ja 3 locale).
 5. 사용자가 원하면 **설정 → 내 계정(계정 정보 화면) → 계정 연결**에서 다른 수단을 추가한다 (이 화면이 본 매뉴얼 위쪽의 proactive linking 경로다).
 6. 취소하거나 로그인이 실패하면 시트는 그대로 유지되고 계정 상태는 아무것도 바뀌지 않는다.
@@ -3962,11 +3962,11 @@ assets/brand/
 ├── naver/{ko,en}/{light,dark}/naver_login_h{48,56}_wide.png + LICENSE.txt + README.md
 │   # Plan 13.1-07 retro: Kakao 의 2배 차원 (light/dark 추가), 8 PNG.
 │   # light → 흰 배경 위 그린 BI, dark → 검정 배경 위 흰 BI (Naver BI 사용 패턴)
-├── google/{light,dark,neutral}/btn_signin_{full,icon}.svg + LICENSE.txt + README.md
-│   # Plan 13.1-07 retro: Android × rd × ctn 채택, 6 SVG. cross-platform 사용 라이선스 무관
+├── google/g.png + 2.0x/ · 3.0x/ · 4.0x/g.png + LICENSE.txt + README.md
+│   # 공식 SVG 의 G 를 버튼 바탕 없이 그린 투명 PNG(20 · 40 · 60 · 80px). 만드는 절차는 README.
 ├── apple/{black_logo,white_logo}/btn_signin_icon.svg + README.md
-│   # Phase 13.3 Wave 4 Step 3 (2026-05-16): Apple Sign-in JS API 의 inline SVG
-│   # verbatim 추출 (R['small'].path + viewBox "6 0 12 44"), 2 SVG.
+│   # Apple 공식 웹 로그인 스크립트가 버튼에 쓰는 medium 로고의 path 를
+│   # 좌표 그대로 담은 SVG 2장 (viewBox "7 0 17 44").
 │   # 디렉토리 명명은 logo 색 기준 — `isDark ? black_logo : white_logo`
 │   # (dark theme → 검정 logo on 흰 bg). LICENSE.txt 없음 — Apple HIG
 │   # compliance 범위 내 사용이라 배포 라이선스 본문이 존재하지 않는다
@@ -3983,7 +3983,7 @@ assets/brand/
 |----------|------------|-----------|---------|-----------------|
 | Kakao    | https://developers.kakao.com/docs/ko/kakaologin/design-guide | PNG + PSD | Kakao Resources Terms | N/A (가이드 준수만) |
 | Naver    | https://developers.naver.com/docs/login/bi/bi.md | PNG + Figma + AI | NAVER Brand License | **사용자 책임** (가이드 준수 — starter-kit 은 검수 자동화 미제공) |
-| Google   | https://developers.google.com/identity/branding-guidelines | SVG | Google Terms of Service | N/A |
+| Google   | https://developers.google.com/identity/branding-guidelines | PNG (공식 SVG 의 G 를 그린 투명 PNG · 1 ~ 4배) | Google Terms of Service | N/A |
 | Apple    | https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple | SVG (Sign-in JS API inline path verbatim) | Apple HIG compliance 범위 내 사용 (`assets/brand/apple/README.md` 「라이선스」 절 — 동봉 LICENSE.txt 없음) | N/A |
 | Facebook | https://www.meta.com/brand/resources/facebook/logo/ + https://developers.facebook.com/docs/facebook-login/userexperience/ | PNG (Primary Logo, 2084×2084) | Meta Brand License (`Meta's trademarks are owned by Meta and may only be used as provided in these guidelines or with Meta's permission.` verbatim) | **사용자 책임** (Wave 0 응답 verbatim — Meta Brand Resource Center 다운, Phase 13.2 완료) |
 | LINE     | https://developers.line.biz/en/docs/line-login/login-button/ | PNG + PSD (19 언어) | LINE Branding License | **사용자 책임** (Phase 14 진입 시) |
@@ -4074,20 +4074,23 @@ provider 진입 시 본 패턴 재도입:
   금지. 특히 PNG 자산은 `Image.asset(... fit: BoxFit.contain)` 직접 렌더 —
   `ColorFilter.mode(BlendMode.srcIn)` 적용 시 BI 색이 단색으로 변환되어
   guideline 위반 (Phase 13.1 RESEARCH §Pitfall 7).
-- **Apple:** `_renderAppleButton` 자체 render (Phase 13.3 Wave 4 Step 2/3) —
-  공식 Logo-only SVG + 외부 텍스트 라벨 layer. Apple HIG 의 3 변형 (Sign in /
-  Sign up / Continue) 중 starter-kit 은 **Sign in 만** 사용. Sign up /
-  Continue 추가는 별도 phase. 기하는 `AppleSpec` 이 `BrandSpec` 기본값을
-  그대로 쓴다 — **height 48 / borderRadius 12** 로 Naver / Kakao / Facebook
-  과 동일하며 provider 간 높이 차이는 없다 (`AppleSpec` 은 `assetType` 만
-  override). SVG 자상 변형 금지 — path 좌표 + viewBox `"6 0 12 44"` verbatim
-  유지 의무 (`assets/brand/apple/README.md` 의 HIG mandate 표 참조).
-- **Facebook:** Phase 13.2 완료 — Meta Brand Resource Center (`meta.com/brand/
-  resources/facebook/logo/`) 공식 Primary Logo PNG (2084×2084, #1877F2 파란
-  원형 + 흰 'f' 마크) 마이그. `_renderFacebookButton` 함수가 Apple
-  `SignInWithAppleButton` 패턴 mirror 로 wide button 외관 layer (white bg +
-  black text + 1dp grey outline, dark = dark bg + white text + 1dp lighter
-  outline) 형성. 자상 변형 금지 (`DON'T modify the 'f' logo in any way` —
+- **Apple:** 공식 로고 SVG 위에 앱이 버튼 바탕과 라벨을 그린다. 로그인 버튼
+  6개는 한 벌의 골격을 쓴다 — 높이 48 · 모서리 radius 12 · 라벨 16 · 굵기
+  500 · 로고와 라벨 가운데 묶음이고, 브랜드마다 다른 것은 배경색 · 글자색 ·
+  외곽선 · 로고 · 문구다. Apple 로고는 Apple 공식 웹 로그인 스크립트의
+  medium 로고를 흑 · 백 2장으로 싣고, 파일 높이를 버튼 높이 48 에 맞춰
+  그린다 (로고 상자 폭 `17 × 48 / 44`). SVG 자상 변형 금지 — path 좌표와
+  viewBox `"7 0 17 44"` 를 그대로 둔다. 버튼 문구는 **Sign in 한 가지**다
+  (`Sign in with Apple` 과 그 번역). 그리는 값과 가이드 대조표는
+  `assets/brand/apple/README.md` 의 「지금 그리는 값」 · 「Apple HIG mandate
+  부합」 절에 있다.
+- **Facebook:** Meta Brand Resource Center
+  (`meta.com/brand/resources/facebook/logo/`) 의 공식 「f」 로고 (파란 원형 +
+  흰 'f')를 SVG 1장 (`assets/brand/facebook/btn_signin_icon.svg`) 으로 싣고,
+  20dp 상자에 색을 덧입히지 않고 그린다. 로고는 밝기와 무관하게 한 장이다.
+  버튼 바탕은 앱이 그린다 — 밝은 테마는 흰 배경 + 어두운 글자, 어두운 테마는
+  어두운 배경 + 밝은 글자이고 두 테마 모두 1dp 외곽선을 두른다. 자상 변형
+  금지 (`DON'T modify the 'f' logo in any way` —
   `developers.facebook.com/docs/facebook-login/userexperience/` verbatim).
 - **사용자 책임:** Naver / LINE 은 일부 사용 시 사전 검수 신청 별도
   의무 가능 (정확한 절차는 공식 BI 페이지 — starter-kit 은 검수 자동화
@@ -4906,7 +4909,7 @@ LayoutBuilder(
 > padding 2dp 로 사방 4dp 씩 줄어듭니다. 부모가 크기를 bound 하면
 > **300x48 → child 292x40** 이 되어 브랜드 규정 높이(48dp)와 최소 터치 타겟이
 > 함께 깨집니다. **브랜드 규격 높이는 wrapper 바깥에서 지정하세요** (현재
-> 호출부는 `SizedBox(height: spec.height)` 를 child 내부에 두어 이를 피합니다).
+> 호출부는 `SizedBox(height: kBrandButtonHeight)` 를 child 내부에 두어 이를 피합니다).
 > 수치 계약은 `T-03-IN-04: wrapper 의 제약 잠식과 borderRadius 방어` group 이
 > 잠급니다.
 
