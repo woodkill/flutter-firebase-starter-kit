@@ -32,24 +32,17 @@
 
 import 'dart:async';
 
-import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:fake_async/fake_async.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show DebugPrintCallback, debugPrint;
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/error/result.dart';
-import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
-import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 
-class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
+import '../../../helpers/auth_mocks.dart';
 
 class _MockUserCredential extends Mock implements fb.UserCredential {}
 
@@ -60,20 +53,6 @@ class _MockFbUser extends Mock implements fb.User {}
 class _MockUserMetadata extends Mock implements fb.UserMetadata {}
 
 class _MockUserInfo extends Mock implements fb.UserInfo {}
-
-class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
-class _MockFacebookAuth extends Mock implements FacebookAuth {}
-
-class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
-
-class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _FakeAuthCredential extends Fake implements fb.AuthCredential {}
 
@@ -96,8 +75,8 @@ const _copiedLog = '_copyAppleNameToTopLevel: 복사 완료';
 const _failedLogPrefix = '_copyAppleNameToTopLevel 실패 (graceful skip): ';
 
 void main() {
-  late _MockFirebaseAuth mockAuth;
-  late _MockSocialLinkInProgress mockSocialLinkInProgress;
+  late MockFirebaseAuth mockAuth;
+  late MockSocialLinkInProgress mockSocialLinkInProgress;
   late _MockUserMetadata mockMetadata;
   late AuthRepository repository;
   late List<String> logs;
@@ -109,22 +88,15 @@ void main() {
   });
 
   setUp(() {
-    mockAuth = _MockFirebaseAuth();
-    mockSocialLinkInProgress = _MockSocialLinkInProgress();
+    mockAuth = MockFirebaseAuth();
+    mockSocialLinkInProgress = MockSocialLinkInProgress();
     mockMetadata = _MockUserMetadata();
     when(() => mockMetadata.creationTime).thenReturn(DateTime(2026, 10, 3));
     when(() => mockAuth.currentUser).thenReturn(null);
 
-    repository = AuthRepository(
-      mockAuth,
-      _MockGoogleSignIn(),
-      _MockFacebookAuth(),
-      mockSocialLinkInProgress,
-      _MockKakaoSdkClient(),
-      _MockFirebaseFunctions(),
-      _MockNaverSdkClient(),
-      _MockLineSdkClient(),
-      () async {},
+    repository = buildAuthRepository(
+      auth: mockAuth,
+      socialLinkInProgress: mockSocialLinkInProgress,
     );
 
     logs = <String>[];
