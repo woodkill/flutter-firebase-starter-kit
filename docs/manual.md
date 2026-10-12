@@ -5283,48 +5283,40 @@ Flutter 를 올렸거나 킷 업데이트를 merge 한 뒤 Android 빌드 로그
 
 - 지원 종료 경고(`Warning: Flutter support for your project's … will soon be dropped`)는
   나오지 않는다.
-- 대신 모든 Android 빌드에 Kotlin Gradle Plugin 적용 경고 2종이 나온다. 첫 줄은 다음과
-  같다(경로 · 플러그인 목록은 `…` 로 줄였다).
+- 대신 모든 Android 빌드에 Kotlin Gradle Plugin 적용 경고 1줄이 나온다. 그 줄은 다음과
+  같다(플러그인 목록은 `…` 로 줄였다).
   ```
-  WARNING: Your Android app project: app located at: …/android/app/build.gradle.kts
   WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): …
   ```
-  지금은 정상이다 — 앱과 목록의 플러그인이 아직 Kotlin Gradle Plugin 을 직접 적용하고,
-  킷은 AGP 의 내장 Kotlin 을 끈 상태로 빌드한다. 이 경고는 빌드를 멈추지 않는다.
-- `--verbose` 를 붙인 release 빌드 로그에는 AGP 안내 2줄
-  `WARNING: The option setting 'android.builtInKotlin=false' is deprecated.` ·
-  `WARNING: The option setting 'android.newDsl=false' is deprecated.` 도 보인다. 같은
-  이유로 지금은 정상이다.
+  정상이다 — 목록의 FlutterFire 플러그인 빌드 파일이 Kotlin Gradle Plugin 을 조건에 따라
+  적용하는 줄을 담고 있어 Flutter 도구가 경고한다. 앱 모듈은 AGP 의 내장 Kotlin 을 쓴다.
+  이 경고는 빌드를 멈추지 않는다.
+- `--verbose` 를 붙인 release 빌드 로그에는 AGP 안내 1줄
+  `WARNING: The option setting 'android.newDsl=false' is deprecated.` 도 보인다. 새 DSL 을
+  아직 끈 상태라서 정상이다(아래 「남은 단계」).
 
 **지우지 말 것**
 
 | 줄 | 파일 | 이유 |
 |---|---|---|
-| `android.builtInKotlin=false` | `android/gradle.properties` | 내장 Kotlin 을 끈다. 켜는 조건은 아래 「남은 두 단계」 |
-| `android.newDsl=false` | `android/gradle.properties` | 옛 DSL 을 쓴다. 켜는 조건은 아래 「남은 두 단계」 |
+| `android.builtInKotlin=true` | `android/gradle.properties` | 앱 모듈이 AGP 의 내장 Kotlin 을 쓴다. `false` 로 되돌리지 않는다 — 끄는 옵션은 AGP 10.0 에서 사라진다 |
+| `android.newDsl=false` | `android/gradle.properties` | 옛 DSL 을 쓴다. 켜는 조건은 아래 「남은 단계」 |
 | `id("org.jetbrains.kotlin.android") version "2.4.0" apply false` | `android/settings.gradle.kts` | 지우면 AGP 가 함께 가져오는 KGP 2.2.10 이 쓰이고, Flutter 3.47.x 오류 하한 2.2.20 보다 낮아 빌드가 멈춘다(https://github.com/flutter/flutter/issues/192167) |
-| `id("kotlin-android")` | `android/app/build.gradle.kts` | 앱에 KGP 를 적용한다. 지우는 것은 내장 Kotlin 켜기와 같은 작업이다 |
+| `resValues = true` | `android/app/build.gradle.kts` | AGP 9 는 리소스 값 기능이 기본으로 꺼져 있다. 지우면 그 아래 `resValue(...)` 5곳 때문에 설정 단계에서 빌드가 멈춘다(아래 「문제 해결」 첫 항목) |
 
-**남은 두 단계가 필요해지는 조건**
+**남은 단계가 필요해지는 조건**
 
-- **내장 Kotlin 켜기** — `android.builtInKotlin=true` 로 바꾸고 앱의 `id("kotlin-android")`
-  를 지운다. 위 경고 목록의 플러그인이 모두 KGP 를 직접 적용하지 않는 판으로 올라왔을
-  때, 또는 내장 Kotlin 을 요구하는 Flutter 판으로 올릴 때 한다. AGP 안내문대로 이 끄는
-  옵션은 AGP 10.0 에서 사라진다(`It will be removed in version 10.0 of the Android Gradle plugin.`).
-  절차: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers
-  `android/settings.gradle.kts` 의 Kotlin 플러그인 선언은 이 단계에서도 지우지 않는다(위
-  「지우지 말 것」 표).
 - **새 DSL 켜기** — `android.newDsl=true` 로 바꾼다. Flutter Gradle 플러그인이 새 DSL 을
   지원할 때 한다(https://github.com/flutter/flutter/issues/180137).
-- 둘 다 Flutter 상향과 **별도 작업**으로 한다 — ② 의 원인 분리와 같은 이유다.
-- 두 단계는 계약 테스트 `test/infrastructure/android_build_toolchain_contract_test.dart` 가
+- Flutter 상향과 **별도 작업**으로 한다 — ② 의 원인 분리와 같은 이유다.
+- 이 단계는 계약 테스트 `test/infrastructure/android_build_toolchain_contract_test.dart` 가
   고정한 줄을 바꾼다. 줄을 바꾼 뒤 아래 단언을 새 값으로 고치고 `fvm flutter test` 를 다시
   돌린다.
-  - 내장 Kotlin — `T-176-ANDROID-02` 에서 `id("kotlin-android")` 를 세는 단언의 기대값
-    `1` 을 `0` 으로, `T-176-ANDROID-03` 에서 `android.builtInKotlin=false` 를
-    `android.builtInKotlin=true` 로 고친다.
   - 새 DSL — `T-176-ANDROID-03` 에서 `android.newDsl=false` 를 `android.newDsl=true` 로
     고친다.
+
+  같은 파일의 `T-176-ANDROID-02` 는 `android/app/build.gradle.kts` 에 Kotlin Gradle Plugin
+  적용 줄이 없음을, `T-176-ANDROID-03` 은 `android.builtInKotlin=true` 를 고정한다.
 
 **확인 방법**
 
@@ -5334,7 +5326,7 @@ Flutter 를 올렸거나 킷 업데이트를 merge 한 뒤 Android 빌드 로그
 fvm flutter build apk --debug --flavor dev --dart-define-from-file=config/dev.json 2>&1 | grep -E 'will soon be dropped|WARNING: Your |✓ Built'
 ```
 
-- `WARNING: Your ` 로 시작하는 줄 2개와 `✓ Built` 줄 1개가 나오면 정상이다.
+- `WARNING: Your ` 로 시작하는 줄 1개와 `✓ Built` 줄 1개가 나오면 정상이다.
 - `will soon be dropped` 가 든 줄이 보이면 위 표의 값이 경고 하한 아래다.
 - `✓ Built` 줄이 없으면 경고 줄이 보여도 빌드가 실패한 것이다(KGP 적용 경고는 빌드
   설정 단계에서 먼저 찍힌다). 같은 빌드 명령을 파이프 없이 다시 돌려 오류를 본다.
@@ -5400,7 +5392,7 @@ Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · �
 사용자 승인 후 재생성한 뒤 기준선과 동일한 **`+1632 ~2` fail 0** 이었다.
 추가 조치가 필요했던 것은 **golden 20장 재생성**과 **test 6파일 포맷 drift** 둘뿐이다.
 Android 빌드의 정상 출력은 ⑤ 를 본다 — 지금 킷 값에서는 지원 종료 경고가 나오지 않고
-Kotlin Gradle Plugin 적용 경고 2종이 나온다.
+Kotlin Gradle Plugin 적용 경고 1줄이 나온다.
 
 ---
 

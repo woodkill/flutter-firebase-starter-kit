@@ -321,6 +321,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
+  cupertino_ui:
+    dependency: transitive
+    description:
+      name: cupertino_ui
+      sha256: ea0b8170b40a86262b2fc21ac0625303f52df209dbf6fccc2b98b27eff44f6ce
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.2"
   dart_style:
     dependency: transitive
     description:
@@ -812,18 +820,18 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_web_auth_2
-      sha256: a7655829251ee63aae64a748f8512f36670d8eba4657b0055cdf5ef304a9d164
+      sha256: ca3c3afd23d5a9b557413fb99af5438da7ecb791ccfbc6bdc07b35b9922a37ac
       url: "https://pub.dev"
     source: hosted
-    version: "5.1.0"
+    version: "6.0.0-alpha.8"
   flutter_web_auth_2_platform_interface:
     dependency: transitive
     description:
       name: flutter_web_auth_2_platform_interface
-      sha256: ba0fbba55bffb47242025f96852ad1ffba34bc451568f56ef36e613612baffab
+      sha256: "6d3f35c0435225f31c9734be69cb5ce6f4fad194d6648b00c10eaf5a844837c9"
       url: "https://pub.dev"
     source: hosted
-    version: "5.0.0"
+    version: "6.0.0-alpha.2"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -897,10 +905,10 @@ packages:
     dependency: transitive
     description:
       name: google_sign_in_android
-      sha256: be0d0733a6a7c5da165879d844a239aa87587a3c767a9163faedde581f731f76
+      sha256: c403315d87aba1f815a0a401093f97808cab6cb2bdd11ca431ff8587fd7f1c00
       url: "https://pub.dev"
     source: hosted
-    version: "7.2.10"
+    version: "7.2.17"
   google_sign_in_ios:
     dependency: transitive
     description:
@@ -1105,26 +1113,26 @@ packages:
     dependency: transitive
     description:
       name: kakao_flutter_sdk_auth
-      sha256: a1f084dace56050fc3bc12cea9504d82d99977153ce9beb6d7c1bb191f92f235
+      sha256: b9d982569462f6d31f97460f1d6f51acdc290f318967ee14009d20edc3006a12
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.0+1"
+    version: "2.0.1"
   kakao_flutter_sdk_common:
     dependency: transitive
     description:
       name: kakao_flutter_sdk_common
-      sha256: cc8685d91d3f741aed1e1ba4b54bca283cb929e60f61c91bbe9355e93b62d35b
+      sha256: "6a89e80ef6c080f434b05df87d9dd83323ff6d10ea34d9e0a6cd90d2015f7e48"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.0+1"
+    version: "2.0.1"
   kakao_flutter_sdk_user:
     dependency: "direct main"
     description:
       name: kakao_flutter_sdk_user
-      sha256: c5420bc08413f172d52332a8270237bb249066a9a82338b301441785d28248e1
+      sha256: "047ff5a82f52a7e1558086acd87b89b941b072e6029de3eee0b96dbce4ca1e48"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.0+1"
+    version: "2.0.1"
   leak_tracker:
     dependency: transitive
     description:
@@ -1181,6 +1189,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  material_ui:
+    dependency: transitive
+    description:
+      name: material_ui
+      sha256: "98ab9eda579ecae623e4b376c603035c5def78ce706f735f30bd632af5814695"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.6.0"
   meta:
     dependency: transitive
     description:
@@ -1449,10 +1465,10 @@ packages:
     dependency: transitive
     description:
       name: shared_preferences_android
-      sha256: e8d4762b1e2e8578fc4d0fd548cebf24afd24f49719c08974df92834565e2c53
+      sha256: "1e12aafe408aa50da80edfd679a2a6bf63ba7ab37c7fa98286da459a757b3399"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.23"
+    version: "2.4.28"
   shared_preferences_foundation:
     dependency: transitive
     description:
@@ -1878,10 +1894,10 @@ packages:
     dependency: transitive
     description:
       name: window_to_front
-      sha256: "14fad8984db4415e2eeb30b04bb77140b180e260d6cb66b26de126a8657a9241"
+      sha256: fe896421a872360fe38b40ab3371f94fd7ae24bd0413a0b9bbfd14e27d8cba5a
       url: "https://pub.dev"
     source: hosted
-    version: "0.0.4"
+    version: "1.0.0"
   woody_lints:
     dependency: "direct dev"
     description:
@@ -1924,5 +1940,5 @@ packages:
     source: hosted
     version: "2.2.4"
 sdks:
-  dart: ">=3.12.0 <4.0.0"
-  flutter: ">=3.44.0"
+  dart: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"

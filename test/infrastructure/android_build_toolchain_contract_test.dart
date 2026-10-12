@@ -1,10 +1,11 @@
 // Phase 17.6 — see ROADMAP.md.
 //
-// Android 빌드 설비(AGP 9 단계 A)의 소스 계약을 잠근다. AGP 9 는 resValue 기능을
+// Android 빌드 설비(AGP 9 단계 B)의 소스 계약을 잠근다. AGP 9 는 resValue 기능을
 // 기본으로 끄고, KGP 2.3 이상은 android 블록 안의 옛 Kotlin 옵션 DSL 을 스크립트
 // 컴파일 오류로 만든다 — 두 줄이 빠지면 빌드가 설정 단계에서 멈추므로 앱 gradle 의
-// 해당 줄을 고정한다. 내장 Kotlin · 새 DSL 을 끄는 플래그와 settings 의 KGP 선언은
-// 다음 단계(B · C)까지 남아 있어야 하므로 함께 잠근다. 도구(Gradle · AGP · KGP ·
+// 해당 줄을 고정한다. 앱 모듈은 AGP 내장 Kotlin 을 쓰므로 내장 Kotlin 을 켠 플래그와
+// 앱 gradle 에 KGP 적용 줄이 없음을 잠그고, 새 DSL 을 끄는 플래그와 settings 의 KGP
+// 선언은 다음 단계(C)까지 남아 있어야 하므로 함께 잠근다. 도구(Gradle · AGP · KGP ·
 // 플러그인) 버전 숫자는 단언하지 않는다 — 다음 상향마다 이 테스트를 고치게 만들지
 // 않기 위해서다. Kotlin jvmTarget 줄만은 Flutter 템플릿 원문 그대로(`JVM_17`)
 // 고정한다 — Java 타깃을 바꾸면 T-176-ANDROID-02 의 그 단언도 함께 고친다.
@@ -21,7 +22,7 @@ const String _settingsPath = 'android/settings.gradle.kts';
 const String _gradlePropertiesPath = 'android/gradle.properties';
 
 void main() {
-  group('Android 빌드 설비 계약 (AGP 9 단계 A)', () {
+  group('Android 빌드 설비 계약 (AGP 9 단계 B)', () {
     test('T-176-ANDROID-01 buildFeatures.resValues — AGP 9 기본값(꺼짐) 덮어쓰기', () {
       final String gradle = stripBlockComments(
         stripSlashComments(readTrackedFile(_appGradlePath)),
@@ -71,13 +72,13 @@ void main() {
       );
       expect(
         countOccurrences(gradle, 'id("kotlin-android")'),
-        1,
-        reason: '내장 Kotlin 전환(단계 B) 전까지 앱 모듈은 KGP 를 직접 적용한다',
+        0,
+        reason: '앱 모듈은 AGP 내장 Kotlin 을 쓴다 — KGP 를 직접 적용하지 않는다',
       );
     });
 
     test(
-      'T-176-ANDROID-03 단계 A 불변식 — 내장 Kotlin · 새 DSL 끔 · settings KGP 선언',
+      'T-176-ANDROID-03 단계 B 불변식 — 내장 Kotlin 켬 · 새 DSL 끔 · settings KGP 선언',
       () {
         final String properties = readTrackedFile(_gradlePropertiesPath);
         final String settings = stripBlockComments(
@@ -85,9 +86,14 @@ void main() {
         );
 
         expect(
-          countExactLines(properties, 'android.builtInKotlin=false'),
+          countExactLines(properties, 'android.builtInKotlin=true'),
           1,
-          reason: '내장 Kotlin 전환은 단계 B 범위다',
+          reason: '앱 모듈은 AGP 내장 Kotlin 을 쓴다',
+        );
+        expect(
+          countExactLines(properties, 'android.builtInKotlin=false'),
+          0,
+          reason: '끄는 옵션은 AGP 10.0 에서 사라진다 — false 로 되돌리지 않는다',
         );
         expect(
           countExactLines(properties, 'android.newDsl=false'),
