@@ -3931,7 +3931,7 @@ Google 패턴 locale 독립).
 > 2. ARB 라벨 시각 layer 추가 금지 (Kakao/Naver/Google 분기) — 자상에
 >    label baked-in. Apple/Facebook 만 ARB 라벨 명시 의무 (위제 위임).
 > 3. PNG / SVG 양쪽 `fit: BoxFit.contain` + `width: double.infinity`
->    + `height: spec.height` 강제 sizing 의무 — `BoxFit.fitWidth` 회귀 시
+>    + `height: kBrandButtonHeight` 강제 sizing 의무 — `BoxFit.fitWidth` 회귀 시
 >    wide 자상 자연 종횡비 무시 + 상하 잘림 + 텍스트 1.9× 확대 결함 (Plan
 >    13.1-15 round 2 사용자 보고).
 > 4. ClipRRect wrapper 폐기 + Material `clipBehavior: Clip.none` + InkWell
@@ -4097,8 +4097,8 @@ provider 진입 시 본 패턴 재도입:
   미제공).
 - **자상 layout 패턴 (Phase 13.1 Gap-1 X2):** Wide 자상 통째 buttons 패턴
   의무 — `Image.asset(fit: BoxFit.contain, width: double.infinity, height:
-  spec.height)` 또는 `SvgPicture.asset(fit: BoxFit.contain, width:
-  double.infinity, height: spec.height)`. 자상이 18dp icon 슬롯에 squash
+  kBrandButtonHeight)` 또는 `SvgPicture.asset(fit: BoxFit.contain, width:
+  double.infinity, height: kBrandButtonHeight)`. 자상이 18dp icon 슬롯에 squash
   되지 않도록 full-width sizing 강제 + 자상 자연 종횡비 보존 (`BoxFit.contain`
   강제). ClipRRect wrapper 폐기 + Material `clipBehavior: Clip.none` —
   자상 baked-in 모서리 (Naver 사각 / Kakao 7.2px scaled / Google rx=19.5
