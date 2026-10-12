@@ -8,16 +8,13 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:flutter_starter_kit/core/error/result.dart';
-import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
-import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 
+import '../../../helpers/auth_mocks.dart';
 import 'auth_test_fakes.dart';
-
-class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 class _MockUserCredential extends Mock implements fb.UserCredential {}
 
@@ -32,23 +29,9 @@ class _MockFbAnonymousUser extends Mock implements fb.User {}
 
 class _MockUserMetadata extends Mock implements fb.UserMetadata {}
 
-class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
 class _MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
-class _MockFacebookAuth extends Mock implements FacebookAuth {}
-
 class _MockUserInfo extends Mock implements fb.UserInfo {}
-
-class _MockSocialLinkInProgress extends Mock implements SocialLinkInProgress {}
-
-class _MockKakaoSdkClient extends Mock implements KakaoSdkClient {}
-
-class _MockNaverSdkClient extends Mock implements NaverSdkClient {}
-
-class _MockLineSdkClient extends Mock implements LineSdkClient {}
-
-class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
 
@@ -65,17 +48,17 @@ class _FakeAuthCredential extends Fake implements fb.AuthCredential {}
 class _FakeAuthProvider extends Fake implements fb.AuthProvider {}
 
 void main() {
-  late _MockFirebaseAuth mockAuth;
+  late MockFirebaseAuth mockAuth;
   late _MockUserCredential mockCredential;
   late _MockFbUser mockUser;
   late _MockUserMetadata mockMetadata;
-  late _MockGoogleSignIn mockGoogleSignIn;
-  late _MockFacebookAuth mockFacebookAuth;
-  late _MockSocialLinkInProgress mockSocialLinkInProgress;
-  late _MockKakaoSdkClient mockKakaoSdkClient;
-  late _MockNaverSdkClient mockNaverSdkClient;
-  late _MockLineSdkClient mockLineSdkClient;
-  late _MockFirebaseFunctions mockFunctions;
+  late MockGoogleSignIn mockGoogleSignIn;
+  late MockFacebookAuth mockFacebookAuth;
+  late MockSocialLinkInProgress mockSocialLinkInProgress;
+  late MockKakaoSdkClient mockKakaoSdkClient;
+  late MockNaverSdkClient mockNaverSdkClient;
+  late MockLineSdkClient mockLineSdkClient;
+  late MockFirebaseFunctions mockFunctions;
   late _MockHttpsCallable mockCallable;
   late _MockAdditionalUserInfo mockAdditionalUserInfo;
   late _MockFbAnonymousUser mockAnonymousUser;
@@ -92,36 +75,33 @@ void main() {
   });
 
   setUp(() {
-    mockAuth = _MockFirebaseAuth();
+    mockAuth = MockFirebaseAuth();
     // Phase 17.5 D-15: firebase 모드 발송은 setLanguageCode(앱 로케일) 를 먼저
     // 부른다 — 묵시적 실패 삼킴에 기대지 않도록 명시 stub.
     when(() => mockAuth.setLanguageCode(any())).thenAnswer((_) async {});
     mockCredential = _MockUserCredential();
     mockUser = _MockFbUser();
     mockMetadata = _MockUserMetadata();
-    mockGoogleSignIn = _MockGoogleSignIn();
-    mockFacebookAuth = _MockFacebookAuth();
-    mockSocialLinkInProgress = _MockSocialLinkInProgress();
-    mockKakaoSdkClient = _MockKakaoSdkClient();
-    mockNaverSdkClient = _MockNaverSdkClient();
-    mockLineSdkClient = _MockLineSdkClient();
-    mockFunctions = _MockFirebaseFunctions();
+    mockGoogleSignIn = MockGoogleSignIn();
+    mockFacebookAuth = MockFacebookAuth();
+    mockSocialLinkInProgress = MockSocialLinkInProgress();
+    mockKakaoSdkClient = MockKakaoSdkClient();
+    mockNaverSdkClient = MockNaverSdkClient();
+    mockLineSdkClient = MockLineSdkClient();
+    mockFunctions = MockFirebaseFunctions();
     mockCallable = _MockHttpsCallable();
     mockAdditionalUserInfo = _MockAdditionalUserInfo();
     mockAnonymousUser = _MockFbAnonymousUser();
 
-    repository = AuthRepository(
-      mockAuth,
-      mockGoogleSignIn,
-      mockFacebookAuth,
-      mockSocialLinkInProgress,
-      mockKakaoSdkClient,
-      mockFunctions,
-      mockNaverSdkClient,
-      mockLineSdkClient,
-      // Phase 10.2 D-A2: onResetOnboarding 콜백 no-op (logout invariant
-      // 비검증).
-      () async {},
+    repository = buildAuthRepository(
+      auth: mockAuth,
+      googleSignIn: mockGoogleSignIn,
+      facebookAuth: mockFacebookAuth,
+      socialLinkInProgress: mockSocialLinkInProgress,
+      kakaoSdkClient: mockKakaoSdkClient,
+      functions: mockFunctions,
+      naverSdkClient: mockNaverSdkClient,
+      lineSdkClient: mockLineSdkClient,
     );
 
     // Pitfall 9 — finally logout default stub (Phase 14 LINE 포함).
