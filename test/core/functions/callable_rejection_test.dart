@@ -16,7 +16,7 @@ import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import '../../helpers/auth_mocks.dart';
 
 /// [CrashlyticsService] mocktail 대역 — 기록 횟수 · reason 검증용.
-class MockCrashlyticsService extends Mock implements CrashlyticsService {}
+class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 class _MockHttpsCallable extends Mock implements HttpsCallable {}
 
@@ -30,7 +30,7 @@ FirebaseFunctionsException _sdkRejection() => FirebaseFunctionsException(
 );
 
 void main() {
-  late MockCrashlyticsService crashlytics;
+  late _MockCrashlyticsService crashlytics;
 
   setUpAll(() {
     registerFallbackValue(StackTrace.empty);
@@ -39,7 +39,7 @@ void main() {
   });
 
   setUp(() {
-    crashlytics = MockCrashlyticsService();
+    crashlytics = _MockCrashlyticsService();
     when(
       () => crashlytics.recordError(
         any(),

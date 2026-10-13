@@ -93,6 +93,10 @@ fvm flutter test test/features/<기능>/presentation/<원본>_test.dart
 
 ## mock 과 헬퍼
 
+새로 쓰는 테스트와 `AuthRepository` 를 만드는 테스트는 아래 규칙을 따른다. 그 밖의 기존
+테스트에는 같은 외부 경계의 mock 을 파일마다 따로 선언한 것이 남아 있고, 그대로 둔다 —
+새 테스트의 본보기로는 위 예제와 `test/helpers/auth_mocks.dart` 를 본다.
+
 - mock 은 테스트 파일 안에 private 클래스로 둔다
   (예: `class _MockAuthRepository extends Mock implements AuthRepository {}`).
 - 여러 파일이 같은 외부 경계(Firebase · 로그인 SDK 등)를 흉내 내면 `test/helpers/` 의 공용
