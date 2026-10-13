@@ -1403,12 +1403,13 @@ NAVER_URL_SCHEME = <Naver Console 에서 입력한 iOS URL Scheme>
   flavor 개념이 없어 `Debug` / `Release` 2개 xcconfig 만 인식하고, 무엇보다 tracked
   `ios/Runner/Info.plist` 에 Client ID 를 평문으로 기록하고 `android/local.properties`
   에 secret 을 씁니다. 실행하면 시크릿이 git 에 들어가고 계약 테스트가 즉시 실패합니다.
-- **iOS 웹 경로(NAVER 앱 미설치)는 추가 plist 설정이 없습니다 (Phase 16.5)** —
-  iOS 도 Android 와 같은 `flutter_web_auth_2` 5.1.0 이 `ASWebAuthenticationSession`
-  을 열고(콜백 scheme 은 인자로 넘겨 `CFBundleURLTypes` 등록 불요), 호스트 쪽
-  Swift 는 설치 판정 1파일(`ios/Runner/NaverHostChannel.swift`)뿐입니다. 이 파일은
-  `Info.plist` `LSApplicationQueriesSchemes` 의 `naversearchthirdlogin` 선언(Phase 13
-  에서 이미 존재)에 기대므로, 그 줄을 지우면 NAVER 앱이 있어도 항상 웹 경로로 갑니다.
+- **iOS 웹 경로(NAVER 앱 미설치)는 추가 plist 설정이 없습니다** —
+  iOS 도 Android 와 같은 `flutter_web_auth_2`(판은 `pubspec.yaml` 의 핀)가
+  `ASWebAuthenticationSession` 을 열고(콜백 scheme 은 인자로 넘겨 `CFBundleURLTypes`
+  등록 불요), 호스트 쪽 Swift 는 설치 판정 1파일(`ios/Runner/NaverHostChannel.swift`)
+  뿐입니다. 이 파일은 `Info.plist` `LSApplicationQueriesSchemes` 의
+  `naversearchthirdlogin` 선언에 기대므로, 그 줄을 지우면 NAVER 앱이 있어도 항상 웹
+  경로로 갑니다.
 
 ### 8단계 — Firebase Secret Manager 등록 (Phase 13 D-60 · Phase 16.5)
 
@@ -1528,8 +1529,8 @@ placeholder 가 채웁니다. 구현은
   라이브러리의 닫기 동작은 같은 task 안에서만 통합니다. 그런데 MainActivity(Flutter
   템플릿)와 콜백 Activity 가 둘 다 빈 `taskAffinity` 라서 콜백이 새 task 에
   떨어집니다. 상류 `ThexXTURBOXx/flutter_web_auth_2` **#158** 이 이 문제이고 OPEN
-  입니다. 5.1.0 · 6.0.0-alpha.8 · master 의 해당 파일이 같으므로 버전을 올려도 풀리지
-  않습니다.
+  입니다. 킷이 쓰는 판(`pubspec.yaml` 의 핀) · 5.1.0 · master 의 해당 파일이 같으므로
+  판을 바꿔도 풀리지 않습니다.
 - **relay 가 하는 일:** 콜백 URL 을 대기 중인 호출에 넘깁니다(라이브러리와 같은
   경로 — `FlutterWebAuth2Plugin.callbacks`). 그다음 MainActivity 를 띄워 기존 task 를
   앞으로 되돌립니다. flag 는 대기 호출을 실제로 넘겼는지에 따라 다릅니다.
