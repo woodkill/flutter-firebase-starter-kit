@@ -37,10 +37,7 @@ class SettingsRepository {
   SettingsRepository({
     required fb.FirebaseAuth auth,
     required FirebaseFunctions functions,
-    CrashlyticsService crashlytics = const CrashlyticsService(
-      null,
-      isEnabled: false,
-    ),
+    CrashlyticsService crashlytics = CrashlyticsService.disabled,
   }) : _auth = auth,
        _functions = functions,
        _crashlytics = crashlytics;

@@ -50,7 +50,8 @@ class MockLineSdkClient extends Mock implements LineSdkClient {}
 ///
 /// 넘기지 않은 SDK 경계 8개는 호출마다 새 공용 mock 으로 채우고,
 /// [onResetOnboarding] 을 넘기지 않으면 아무것도 하지 않는 콜백을 쓴다.
-/// [crashlytics] 기본값은 생성자 기본값과 같은 비활성 서비스다. 나머지 선택
+/// [crashlytics] 기본값은 생성자와 같은 [CrashlyticsService.disabled] 다 —
+/// non-nullable 이라 null 로 위임할 수 없어 같은 상수를 가리킨다. 나머지 선택
 /// 인자(`now` · `staticProviders` 등)는 같은 이름으로 그대로 전달한다 —
 /// 생성자가 null 을 받으면 자기 기본값을 쓰므로 여기서 기본값을 복제하지
 /// 않는다.
@@ -67,10 +68,7 @@ AuthRepository buildAuthRepository({
   DateTime Function()? now,
   Map<String, dynamic>? Function()? readTermsAcceptanceSnapshot,
   RecordSignUpMethod? recordSignUpMethod,
-  CrashlyticsService crashlytics = const CrashlyticsService(
-    null,
-    isEnabled: false,
-  ),
+  CrashlyticsService crashlytics = CrashlyticsService.disabled,
   Future<void> Function()? onSignOutCleanup,
   Map<String, bool>? staticProviders,
   EmailDeliveryMode? emailDeliveryMode,

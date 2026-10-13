@@ -116,7 +116,7 @@ class AuthRepository implements AnonymousSignIn {
   /// [crashlytics] 는 callable 의 App Check 차단 판정
   /// (`classifyAppCheckRejection`)이 non-fatal 1회를 남기는 채널이다
   /// (Phase 17 D-43 · D-44). 미주입 시 기본값은 no-op
-  /// `CrashlyticsService(null, isEnabled: false)` 다.
+  /// [CrashlyticsService.disabled] 다.
   ///
   /// [onSignOutCleanup] 은 로그아웃 직전 기기 알림 토큰 · opt-in 을 정리하는
   /// 콜백이다 (Phase 17 D-30 · D-A2). 미주입 시 no-op.
@@ -152,10 +152,7 @@ class AuthRepository implements AnonymousSignIn {
     DateTime Function()? now,
     Map<String, dynamic>? Function()? readTermsAcceptanceSnapshot,
     RecordSignUpMethod? recordSignUpMethod,
-    CrashlyticsService crashlytics = const CrashlyticsService(
-      null,
-      isEnabled: false,
-    ),
+    CrashlyticsService crashlytics = CrashlyticsService.disabled,
     Future<void> Function()? onSignOutCleanup,
     Map<String, bool>? staticProviders,
     EmailDeliveryMode? emailDeliveryMode,

@@ -34,6 +34,15 @@ class CrashlyticsService {
   /// [CrashlyticsService] 를 생성한다.
   const CrashlyticsService(this._crashlytics, {required this.isEnabled});
 
+  /// 아무것도 기록하지 않는 비활성 서비스다.
+  ///
+  /// Firebase 미초기화 환경과, crashlytics 를 주입받지 않은 생성자의 기본값이
+  /// 이 한 값을 쓴다 — 기본값을 바꿀 때 고칠 곳은 여기 하나다.
+  static const CrashlyticsService disabled = CrashlyticsService(
+    null,
+    isEnabled: false,
+  );
+
   final FirebaseCrashlytics? _crashlytics;
 
   /// Firebase 초기화 상태. false 이면 모든 메서드가 no-op 이다.
@@ -125,7 +134,7 @@ class CrashlyticsService {
 CrashlyticsService crashlyticsService(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);
   if (!isInitialized) {
-    return const CrashlyticsService(null, isEnabled: false);
+    return CrashlyticsService.disabled;
   }
   final crashlytics = ref.watch(firebaseCrashlyticsProvider);
   return CrashlyticsService(crashlytics, isEnabled: true);

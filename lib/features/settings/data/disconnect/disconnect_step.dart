@@ -149,7 +149,7 @@ class DisconnectDeps {
     required this.googleSignIn,
     required this.platform,
     required this.read,
-    this.crashlytics = const CrashlyticsService(null, isEnabled: false),
+    this.crashlytics = CrashlyticsService.disabled,
   });
 
   /// 현재 로그인 사용자 · 재인증 · Apple 토큰 폐기에 쓰는 Firebase Auth.
