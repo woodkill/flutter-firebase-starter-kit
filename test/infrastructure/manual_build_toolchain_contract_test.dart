@@ -15,8 +15,8 @@
 // T-176-DOCS-04: ⑤ 가 인용한 계약 test 경로 · test ID 가 실재하고(포인터 무결성 ·
 //   T-172-DOCS-06 과 같은 방식), ⑤ 가 그 test 로 가리키는 세 단언의 키가 그 test
 //   본문에 있다 — `id("kotlin-android")` 부재는 T-176-ANDROID-02,
-//   `android.builtInKotlin=` · `android.newDsl=` 는 T-176-ANDROID-03. 키는 이 파일에 적은 상수이고 매뉴얼의
-//   백틱 글자와는 견주지 않는다.
+//   `android.builtInKotlin=` · `android.newDsl=` 는 T-176-ANDROID-03. 키는 이
+//   파일에 적은 상수이고 매뉴얼의 백틱 글자와는 견주지 않는다.
 // T-176-DOCS-05: SPM ② LINE 경고 박스가 위 표와 내부적으로 맞다(SDK 개수 · 이름).
 // T-176-DOCS-06: LINE 값(`flutter_line_sdk` 버전 · 핀 버전)이 pubspec ·
 //   Package.resolved 와 같다.

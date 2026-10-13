@@ -33,7 +33,8 @@ const List<String> _precommitCommands = <String>[
 
 /// README 코드 블록에만 적힌 iOS golden 재생성 명령의 대상 경로.
 const String _iosGoldenTestPath =
-    'test/features/auth/presentation/_widgets/branded_social_button_golden_test.dart';
+    'test/features/auth/presentation/_widgets/'
+    'branded_social_button_golden_test.dart';
 
 /// `test/` 로 시작하는 경로 토큰을 잡는 정규식.
 ///
