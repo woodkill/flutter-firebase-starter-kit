@@ -75,6 +75,18 @@ void main() {
         0,
         reason: '앱 모듈은 AGP 내장 Kotlin 을 쓴다 — KGP 를 직접 적용하지 않는다',
       );
+      // 같은 플러그인의 정식 id · Kotlin DSL 접근자로도 적용하지 않는다.
+      // settings 의 `apply false` 선언은 T-176-ANDROID-03 이 다른 파일에서 센다.
+      for (final String alias in <String>[
+        'id("org.jetbrains.kotlin.android")',
+        'kotlin("android")',
+      ]) {
+        expect(
+          countOccurrences(gradle, alias),
+          0,
+          reason: '앱 모듈은 AGP 내장 Kotlin 을 쓴다 — `$alias` 로도 KGP 를 적용하지 않는다',
+        );
+      }
     });
 
     test(
