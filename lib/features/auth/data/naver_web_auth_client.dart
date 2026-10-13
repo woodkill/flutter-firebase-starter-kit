@@ -35,8 +35,9 @@ typedef NaverWebSignInFn = Future<NaverWebSignIn?> Function();
 /// 콜백 scheme 형태 — RFC 3986 `ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`
 /// 의 소문자 한정판.
 ///
-/// `flutter_web_auth_2` 5.1.0 이 Dart 단에서 같은 정규식으로 강제하고, 위반 시
-/// `PlatformException` 이 아닌 `ArgumentError` 를 던진다 (RESEARCH Pitfall 2).
+/// 킷이 쓰는 `flutter_web_auth_2` 판(`pubspec.yaml` 의 핀)이 Dart 단에서 같은
+/// 정규식으로 강제하고, 위반 시 `PlatformException` 이 아닌 `ArgumentError` 를
+/// 던진다 (RESEARCH Pitfall 2).
 /// 그 전에 여기서 걸러 「원인 불명 배너」 대신 `code=config` 로 드러낸다.
 final RegExp kNaverWebCallbackSchemePattern = RegExp(r'^[a-z][a-z\d+.-]*$');
 

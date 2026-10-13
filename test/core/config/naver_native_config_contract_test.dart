@@ -734,7 +734,7 @@ void main() {
           reason:
               'G-16.5-2 · IN-03 계약: 대기 호출은 main thread 에서 동기로 map 에서 '
               '꺼낸 뒤(callbacks.remove) 같은 식에서 success 한다 — 이후 '
-              'MainActivity resume 이 부르는 cleanUpDanglingCalls(남은 호출을 '
+              'MainActivity resume 이 부르는 clearAllDanglingCalls(남은 호출을 '
               'CANCELED 로 접음) · 늦은 handleAuthResult 가 빈 map 을 보게 하는 '
               '것이 보호 장치다.',
         );

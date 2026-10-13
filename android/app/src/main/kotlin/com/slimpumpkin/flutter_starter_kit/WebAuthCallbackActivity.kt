@@ -41,7 +41,7 @@ import com.linusu.flutter_web_auth_2.FlutterWebAuth2Plugin
  *
  * **계약 (16.5 review 2회차 IN-03)** — 대기 호출은 main thread 에서 **동기로 map 에서
  * 꺼낸 뒤** success 한다(`callbacks.remove(…)?.let { success }` 한 식). 그래서 이후
- * MainActivity resume 이 부르는 Dart resume observer 의 cleanUpDanglingCalls(map 에 남은
+ * MainActivity resume 이 부르는 Dart resume observer 의 clearAllDanglingCalls(map 에 남은
  * 대기 호출을 CANCELED 로 접는다) · 늦게 온 Auth Tab handleAuthResult 가 빈 map 을 보고,
  * CANCELED 경합 · double reply 가 구조적으로 없다. startActivity 는 비동기 IPC 이고
  * MainActivity onNewIntent/onResume 은 같은 main looper 에서 이 onCreate 가 반환한 뒤에야
@@ -73,7 +73,7 @@ class WebAuthCallbackActivity : Activity() {
         val scheme = url?.scheme
 
         // ① 대기 호출을 main thread 에서 동기로 map 에서 꺼내 success 로 전달 — 이후
-        //    cleanUpDanglingCalls · 늦은 handleAuthResult 는 빈 map 을 본다 (KDoc 계약).
+        //    clearAllDanglingCalls · 늦은 handleAuthResult 는 빈 map 을 본다 (KDoc 계약).
         //    delivered = 대기 호출을 실제로 꺼내 전달했는지 (remove 결과에서 파생)
         val delivered = scheme != null &&
             FlutterWebAuth2Plugin.callbacks.remove(scheme)?.let { pending ->
