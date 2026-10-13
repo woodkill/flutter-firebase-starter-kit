@@ -78,7 +78,8 @@ dependencies:
   firebase_app_check: ^0.4.8
   # Naver 웹 OAuth 세션 (verified publisher femtopedia.de). 내장 Kotlin 을
   # 지원하는 6.x 는 아직 정식판 전 alpha 라 정확한 판으로 고정한다 — 정식
-  # 6.0.0 이 나오면 `^6.0.0` 으로 올린다.
+  # 6.0.0 이 나오면 `^6.0.0` 으로 올린다. 6.x 는 transitive `material_ui` ·
+  # `cupertino_ui` 를 끌어와 lock 의 하한이 Dart 3.13 · Flutter 3.47 이 된다.
   flutter_web_auth_2: 6.0.0-alpha.8
   # Facebook iOS Limited Login nonce SHA-256 해시 (debug
   # ios-facebook-limited-login, dart.dev 공식 — Firebase Flutter 문서 권장).
