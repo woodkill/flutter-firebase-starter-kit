@@ -43,6 +43,17 @@ const String _widgetSourcePath =
 /// 버튼 밖에 두는 대조 글자 — 글자 배율 상한이 라벨에만 걸리는지 볼 때 쓴다.
 const String _controlText = 'Aa';
 
+/// Google 버튼 라벨이 쓰는 번들 글꼴 파일 — Google Sans 라틴 축소본.
+const String _googleSansFontPath =
+    'assets/fonts/googlesans/GoogleSans-Latin-wght.ttf';
+
+/// iOS 시스템 글꼴 대역 파일.
+///
+/// 시스템 글꼴 파일은 사용권 때문에 저장소에 둘 수 없다. 대역은 줄 위쪽
+/// 높이가 Google Sans 보다 조금(0.5dp 미만) 큰 글꼴이면 된다 — 기기의 iOS
+/// 시스템 글꼴도 그렇다. Roboto 가 그 조건에 맞는다.
+const String _systemFontStandInPath = 'assets/test_fonts/Roboto-Medium.ttf';
+
 /// 이름 붙은 생성자 6개가 함께 갖는 모양.
 typedef _ButtonBuilder =
     BrandedSocialButton Function({
@@ -125,6 +136,7 @@ const Set<String> _defaultGapProviders = <String>{
 /// 버튼 한 개와 대조 글자를 `MaterialApp` 안에 그린다.
 ///
 /// 호출마다 새 key 를 줘 앞선 pump 의 테마 전환 애니메이션이 섞이지 않게 한다.
+/// [label] 을 주지 않으면 provider 의 영문 로그인 문구를 쓴다.
 Future<void> _pumpButton(
   WidgetTester tester,
   _ProviderCase provider, {
@@ -132,6 +144,7 @@ Future<void> _pumpButton(
   TargetPlatform platform = TargetPlatform.android,
   bool isEnabled = true,
   double textScale = 1,
+  String? label,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -148,7 +161,7 @@ Future<void> _pumpButton(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             provider.build(
-              label: provider.label,
+              label: label ?? provider.label,
               onPressed: isEnabled ? () {} : null,
             ),
             const Text(_controlText),
@@ -178,6 +191,56 @@ double _readScaledFontSize(WidgetTester tester, String text) {
     find.descendant(of: find.text(text), matching: find.byType(RichText)),
   );
   return paragraph.textScaler.scale(16);
+}
+
+/// [path] 의 글꼴 파일을 [family] 이름으로 올린다.
+///
+/// 엔진이 실제 시간으로 글꼴을 읽으므로 `tester.runAsync` 안에서 부른다.
+Future<void> _loadFontFile(String family, String path) async {
+  final File file = File(path);
+  if (!file.existsSync()) {
+    fail('글꼴 파일 부재: $path');
+  }
+  final FontLoader loader = FontLoader(family)
+    ..addFont(
+      Future<ByteData>.value(ByteData.sublistView(file.readAsBytesSync())),
+    );
+  await loader.load();
+}
+
+/// 라벨 문단의 세로 위치 — 버튼 바탕 위 끝에서 문단 위 끝까지 ([top]) 와
+/// 문단 위 끝에서 alphabetic baseline 까지 ([baseline]) 의 거리 (dp).
+///
+/// 둘 다 엔진이 그릴 때 반올림하기 전 값이라 0.5dp 보다 작은 차이도 드러난다.
+typedef _LabelPlacement = ({double top, double baseline});
+
+/// [platform] 으로 그린 [provider] 버튼에서 라벨 [label] 의 세로 위치를 읽는다.
+Future<_LabelPlacement> _readLabelPlacement(
+  WidgetTester tester,
+  _ProviderCase provider,
+  String label, {
+  TargetPlatform platform = TargetPlatform.iOS,
+}) async {
+  await _pumpButton(tester, provider, platform: platform, label: label);
+  final Finder paragraphFinder = find.descendant(
+    of: find.text(label),
+    matching: find.byType(RichText),
+  );
+  final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(
+    paragraphFinder,
+  );
+  final double baseline =
+      paragraph.getDryBaseline(
+        paragraph.constraints,
+        TextBaseline.alphabetic,
+      ) ??
+      fail('${provider.name} 라벨 문단에 baseline 이 없다');
+  return (
+    top:
+        tester.getTopLeft(paragraphFinder).dy -
+        tester.getTopLeft(_findSurface()).dy,
+    baseline: baseline,
+  );
 }
 
 /// 번들에서 [asset] 을 읽어 바이트 수를 돌려준다 — 경로가 실제 자산인지 본다.
@@ -303,7 +366,8 @@ Future<_Snapshot> _readSnapshot(
 ) async {
   await _pumpButton(tester, provider, platform: platform);
   final Finder labelFinder = find.text(provider.label);
-  final TextStyle? style = tester.widget<Text>(labelFinder).style;
+  final Text labelText = tester.widget<Text>(labelFinder);
+  final TextStyle? style = labelText.style;
   final Finder rowFinder = _findInButton(find.byType(Row));
   final Widget gap = tester.widget<Row>(rowFinder).children[1];
   final Material surface = tester.widget<Material>(_findSurface());
@@ -314,6 +378,7 @@ Future<_Snapshot> _readSnapshot(
           find.ancestor(of: labelFinder, matching: find.byType(Padding)).first,
         )
         .padding,
+    'labelStrutStyle': labelText.strutStyle,
     'horizontalPadding': tester
         .widget<Padding>(
           find.ancestor(of: rowFinder, matching: find.byType(Padding)).first,
@@ -813,8 +878,9 @@ void main() {
   });
 
   group('iOS 에서 달라지는 값', () {
-    testWidgets('T-177-IOS-01: Android 와 iOS 사이에 달라지는 값은 Google 의 '
-        '여백 · 간격과 나머지 5개의 글꼴 · 라벨 위 여백뿐이다', (tester) async {
+    testWidgets('T-177-IOS-01: Android 와 iOS 사이에 달라지는 값은 6개의 라벨 '
+        '위 여백 · Google 의 여백 · 간격 · 줄 상자 받침 · 나머지 5개의 '
+        '글꼴뿐이다', (tester) async {
       for (final _ProviderCase provider in _cases) {
         final _Snapshot android = await _readSnapshot(
           tester,
@@ -832,8 +898,23 @@ void main() {
           TargetPlatform.macOS,
         );
 
+        const (EdgeInsets, EdgeInsets) topInset = (
+          EdgeInsets.zero,
+          EdgeInsets.only(top: _approvedIosLabelTopInset),
+        );
         final Map<String, (Object?, Object?)> want = provider.name == 'google'
             ? <String, (Object?, Object?)>{
+                'labelTopInset': topInset,
+                // 자기 글꼴 라벨의 줄 상자를 시스템 글꼴 줄 상자로 받친다.
+                'labelStrutStyle': (
+                  null,
+                  const StrutStyle(
+                    fontFamily: 'CupertinoSystemText',
+                    fontSize: 16,
+                    height: _approvedLabelLineHeight / 16,
+                    leadingDistribution: TextLeadingDistribution.even,
+                  ),
+                ),
                 'horizontalPadding': (
                   const EdgeInsets.symmetric(horizontal: 12),
                   const EdgeInsets.symmetric(horizontal: 16),
@@ -842,10 +923,7 @@ void main() {
               }
             : <String, (Object?, Object?)>{
                 'labelFontFamily': ('Roboto', 'CupertinoSystemText'),
-                'labelTopInset': (
-                  EdgeInsets.zero,
-                  const EdgeInsets.only(top: _approvedIosLabelTopInset),
-                ),
+                'labelTopInset': topInset,
               };
         expect(
           _diffSnapshots(android, ios),
@@ -854,6 +932,48 @@ void main() {
         );
         expect(macos, ios, reason: '${provider.name} macOS 는 iOS 와 같은 값을 쓴다');
       }
+    });
+
+    testWidgets('T-177-IOS-02: iOS 에서 Google 과 Apple 의 한글 라벨이 같은 '
+        'baseline 높이에 앉는다', (tester) async {
+      await tester.runAsync<void>(() async {
+        await _loadFontFile('GoogleSans', _googleSansFontPath);
+        await _loadFontFile('CupertinoSystemText', _systemFontStandInPath);
+      });
+      // 한글 대체 글꼴은 올리지 않는다 — 기기에서도 두 라벨이 같은 한글 글꼴을
+      // 쓰므로 차이는 라틴 글꼴의 줄 상자와 위 여백에서만 난다.
+      const String googleLabel = 'Google로 로그인';
+      const String appleLabel = 'Apple로 로그인';
+
+      // 대조 — 대역 글꼴과 Google Sans 의 줄 위쪽 높이가 달라야 한다. 같으면
+      // 글꼴이 올라가지 않은 것이라 아래 단언은 빈 통과다.
+      final _LabelPlacement googleAndroid = await _readLabelPlacement(
+        tester,
+        _google,
+        googleLabel,
+        platform: TargetPlatform.android,
+      );
+      final _LabelPlacement apple = await _readLabelPlacement(
+        tester,
+        _apple,
+        appleLabel,
+      );
+      expect(
+        googleAndroid.baseline,
+        isNot(closeTo(apple.baseline, 1e-3)),
+        reason: '받침 없는 Google Sans 줄과 대역 글꼴 줄의 baseline',
+      );
+
+      final _LabelPlacement google = await _readLabelPlacement(
+        tester,
+        _google,
+        googleLabel,
+      );
+      expect(
+        google.top + google.baseline,
+        closeTo(apple.top + apple.baseline, 1e-3),
+        reason: 'iOS Google 라벨 baseline = Apple 라벨 baseline (버튼 위 끝 기준)',
+      );
     });
   });
 }

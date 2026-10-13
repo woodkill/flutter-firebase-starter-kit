@@ -67,10 +67,11 @@ const double kBrandLabelLineHeight = 22;
 /// 라벨 자간 (dp).
 const double kBrandLabelLetterSpacing = 0.1;
 
-/// iOS · macOS 에서 시스템 글꼴 라벨 위에 두는 여백 (dp).
+/// iOS · macOS 에서 라벨 위에 두는 여백 (dp).
 ///
-/// 시스템 한글 글꼴이 줄 안에서 위로 앉는 것을 보정한다. 자기 글꼴을 쓰는
-/// 라벨(Google)에는 걸지 않는다.
+/// 시스템 한글 글꼴이 줄 안에서 위로 앉는 것을 보정한다. 시스템 글꼴의 줄
+/// 상자에 맞춘 값이라 버튼 6개에 모두 걸고, 자기 글꼴을 쓰는 라벨(Google)도
+/// 시스템 글꼴 줄 상자를 받쳐 같은 자리에 앉힌다.
 const double kBrandLabelIosTopInset = 1;
 
 /// Apple 버튼의 로고와 라벨 사이 간격 (dp).
@@ -546,11 +547,20 @@ Widget _renderUnifiedButton(
   final labelFontFamily =
       skinFontFamily ??
       (isApplePlatform ? kBrandLabelFontFamilyApple : kBrandLabelFontFamily);
-  // 세로 보정은 Apple 플랫폼의 시스템 글꼴 라벨에만 건다 — 자기 글꼴을 쓰는
-  // 라벨은 두 플랫폼에서 같은 글꼴이 줄 상자를 정한다.
-  final labelTopInset = isApplePlatform && skinFontFamily == null
-      ? kBrandLabelIosTopInset
-      : 0.0;
+  // 세로 보정은 Apple 플랫폼의 라벨 6개에 모두 건다. 엔진은 줄의 baseline 을
+  // dp 정수로 반올림해 그리므로, 자기 글꼴 라벨은 줄 위쪽 높이가 시스템 글꼴과
+  // 조금만 달라도 1dp 어긋난다. 그래서 자기 글꼴 라벨에는 시스템 글꼴 strut 를
+  // 받쳐 줄 상자를 시스템 글꼴 라벨과 맞춘다 — 강제하지 않아 최솟값으로만
+  // 걸린다. 다른 플랫폼은 보정도 strut 도 없다.
+  final labelTopInset = isApplePlatform ? kBrandLabelIosTopInset : 0.0;
+  final labelStrutStyle = isApplePlatform && skinFontFamily != null
+      ? const StrutStyle(
+          fontFamily: kBrandLabelFontFamilyApple,
+          fontSize: kBrandLabelFontSize,
+          height: kBrandLabelLineHeight / kBrandLabelFontSize,
+          leadingDistribution: TextLeadingDistribution.even,
+        )
+      : null;
   final logoGap = spec.resolveLogoGap(isApplePlatform: isApplePlatform);
   return Semantics(
     button: true,
@@ -598,6 +608,7 @@ Widget _renderUnifiedButton(
                           label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          strutStyle: labelStrutStyle,
                           // 대체 글꼴 목록은 적지 않는다 — 테마의 목록을
                           // 물려받아 한글 · 가나가 기기 글꼴로 넘어간다.
                           style: TextStyle(
