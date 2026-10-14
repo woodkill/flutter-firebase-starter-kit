@@ -10,44 +10,29 @@ Firebase 설정 보일러플레이트를 제거하고, Feature-First 아키텍�
 
 ## Getting Started
 
-**전제:** [FVM](https://fvm.app/) 이 설치되어 있어야 한다. 본 프로젝트는 시스템
-Flutter 를 직접 사용하지 않고 항상 `fvm flutter` / `fvm dart` 로 실행한다.
+**전제:** macOS 와 터미널 앱 · Google 계정 · 결제 수단이 있어야 한다. 결제 수단은 Firebase 프로젝트를 Blaze(종량제) 요금제에 연결하는 데 필요하다. Homebrew 와 Xcode 가 없으면 위저드가 설치 방법을 알려 주고 끝난다 — 설치한 뒤 같은 명령을 다시 실행한다. 개발자 도구가 한 번도 설치되지 않은 Mac 에서는 처음 `git clone` 을 실행할 때 macOS 가 Command Line Tools 설치 창을 띄운다 — 「설치」 를 누르고 끝나면 같은 `git clone` 명령을 다시 실행한다.
 
-**전제 2 (iOS 설정 생성 시):** `./scripts/firebase-configure.sh` 가 호출하는
-FlutterFire CLI 는 iOS build configuration 을 확인할 때 ruby 의 `xcodeproj`
-gem 을 사용한다. `ruby -e "require 'xcodeproj'"` 가 아무 출력 없이 끝나지
-않으면 `gem install xcodeproj` 로 설치할 것. 설치돼 있지 않으면 스크립트가
-파일을 만들기 전에 멈추고 같은 안내를 출력한다.
-
-앱 저장소를 만든 뒤 dev flavor 를 띄우기까지 5단계다.
+앱 저장소를 만든 뒤 dev flavor 를 띄우기까지 명령은 `./setup.sh` 하나다.
 
 ```bash
 # 1. 앱 저장소 만들기 — GitHub 의 킷 저장소에서 "Use this template" → private 저장소 → clone
 git clone <your-repo-url> && cd <your-repo>
 #    (킷을 그대로 받아 볼 때만: git clone https://github.com/woodkill/flutter-firebase-starter-kit.git)
 
-# 2. flavor config 생성 — 실제 키는 gitignored 인 config/dev.json 에만 넣는다.
-#    (example 파일에는 절대 실 키를 쓰지 않는다)
-cp config/dev.example.json config/dev.json
-#    → 에디터로 열어 placeholder 를 본인 값으로 교체.
-#      각 키의 출처는 docs/manual.md 의 "Initial Setup" 단락 참조.
-
-# 3. Firebase 설정 파일 생성 — dart options + Android google-services.json +
-#    iOS GoogleService-Info.plist 를 한 번에 생성한다.
-#    (스크립트 상단의 PROJECT_ID_PREFIX 등 3개 상수를 본인 프로젝트 식별자로
-#     먼저 수정할 것)
-#    (ruby xcodeproj gem 필요 — 위 "전제 2" 참조)
-./scripts/firebase-configure.sh dev
-
-# 4. 의존성 설치 + 코드 생성 (*.g.dart / *.freezed.dart 는 미커밋)
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-
-# 5. 실행
-fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+# 2. 설정 위저드 실행
+./setup.sh
 ```
 
-### 3단계를 건너뛰면
+**위저드가 하는 일:** 개발 도구를 확인하고, 없는 도구는 확인을 받은 뒤 설치한다. 이어서 Xcode 를 준비하고, 앱 정체성을 정하고, CLI 에 로그인하고, Firebase 프로젝트를 만들거나 고르고, 결제 계정을 연결한다. Firestore · 기본 Storage bucket · 이메일 로그인 · 익명 로그인을 켜고, 앱을 등록해 설정 파일을 만들고, rules 를 배포하고, App Check 디버그 토큰을 등록하고, Cloud Functions 를 배포한다. 마지막으로 코드를 생성하고 dev flavor 앱을 실행해 로그인을 확인한다.
+
+**사용자가 하는 일:** 처음 `git clone` 때 Command Line Tools 설치 창을 확인하고, 브라우저에서 로그인하고, 결제 수단을 등록하고, Homebrew 와 Xcode 를 설치한다. sudo 비밀번호는 Xcode 준비 명령이 직접 묻는다 — 위저드는 비밀번호를 받지 않는다. 그 밖에는 위저드 질문에 답하고, 실행된 앱에서 가입한 뒤 인증 메일의 링크를 연다.
+
+- 위저드가 실행하는 명령은 화면에 그대로 보이고, 실행 기록은 `.setup/logs/` 에 남는다(비밀 값은 가린 채 남는다).
+- 비용이 들거나 되돌릴 수 없는 선택은 값 표를 보여 주고 `y` 를 받은 뒤에만 진행한다.
+- 다시 실행하면 끝난 단계는 건너뛰고, 킷 새 판에서 생긴 config 키를 채운다.
+- 끝에 위저드가 바꾼 추적 파일 목록과 커밋 명령을 보여 준다 — 커밋은 직접 한다.
+
+### 위저드를 끝내기 전에 앱을 실행하면
 
 `lib/core/firebase/firebase_options_{dev,stg,prod}.dart` 는 placeholder 상태로
 tracked 되어 있어 **build 와 analyze 는 통과**한다. 다만 런타임에
@@ -59,7 +44,7 @@ Crashlytics, Remote Config 등)이 전부 비활성화된 채 앱이 실행된�
 
 Android 빌드는 `android/app/src/dev/google-services.json` 도 필요하며, 이 파일
 역시 같은 스크립트가 생성한다. dev 는 실 프로젝트 연결용이라 gitignored 이므로
-**fresh clone 직후에는 존재하지 않는다** — 3단계를 건너뛰면 `--flavor dev`
+**fresh clone 직후에는 존재하지 않는다** — 위저드의 앱 등록 단계를 건너뛰면 `--flavor dev`
 Android 빌드는 실패한다.
 
 반면 stg/prod 는 아래 두 placeholder 가 tracked 되어 있어 **`--flavor stg` /

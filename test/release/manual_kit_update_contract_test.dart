@@ -13,8 +13,10 @@
 // T-174-DOCS-05: 사용자 소유 표면 표가 헤더 · 37행 · 등급 단어로 시작하는 넷째 칸을
 //   갖고, 표 앞 문단의 MAJOR 기준 문장이 CHANGELOG 판 번호 규칙과 같은 문자열이다.
 // T-174-DOCS-06: README 머리(첫 `## ` 앞)에 Use this template · 매뉴얼 절 링크 ·
-//   Issues 안내가 있고 금지 패턴이 0 건이며, Getting Started 가 template → clone
-//   순이고 매뉴얼 Initial Setup 머리가 template 기준이다.
+//   Issues 안내가 있고 금지 패턴이 0 건이며, Getting Started 가 template → clone →
+//   `./setup.sh` 순이고(단독 줄 1개 · 단계 문장 1회 · dev config 복사 단계 0 ·
+//   금지 패턴 0), 매뉴얼 Initial Setup 머리가 template 기준이며 설정 위저드 안내
+//   줄이 1개다.
 //   README 단언은 유지보수자 트리에서만 돈다 — 사용자 소유 표면 표가 README 를
 //   「내 앱 소개로 교체」 로 사용자에게 넘기므로 사용자 저장소의 불변식이 아니다.
 //   매뉴얼 Initial Setup 머리 단언은 어디서나 돈다.
@@ -165,8 +167,24 @@ const String _majorCriterion =
 /// README 머리의 매뉴얼 절 링크.
 const String _readmeManualLink = '](docs/manual.md#킷-업데이트-반영)';
 
-/// README Getting Started 의 단계 수 문장.
-const String _readmeStepSentence = '앱 저장소를 만든 뒤 dev flavor 를 띄우기까지 5단계다.';
+/// README Getting Started 의 단계 문장 — 시작 명령이 설정 위저드 하나다.
+const String _readmeStepSentence =
+    '앱 저장소를 만든 뒤 dev flavor 를 띄우기까지 명령은 `./setup.sh` 하나다.';
+
+/// README Getting Started bash 블록의 설정 위저드 실행 줄 (정확한 줄).
+const String _readmeSetupCommandLine = './setup.sh';
+
+/// README Getting Started bash 블록의 앱 저장소 clone 줄 조각.
+const String _readmeCloneLine = 'git clone <your-repo-url>';
+
+/// 위저드가 대신하는 수동 단계의 dev config 복사 명령 — 남아 있으면 안 된다.
+const String _legacyConfigCopyCommand = 'cp config/dev.example.json';
+
+/// 매뉴얼 Initial Setup 헤딩 바로 아래의 설정 위저드 안내 줄 (정확한 줄).
+const String _initialSetupWizardLine =
+    '> **처음 설정은 저장소 루트에서 `./setup.sh` 를 실행하면 설정 위저드가 '
+    '이 절의 단계를 대신한다.** 아래는 위저드가 채우는 키의 뜻과 손으로 고칠 때의 '
+    '참고다.';
 
 /// 매뉴얼 Initial Setup 머리의 새 문장(조각).
 const String _initialSetupHead =
@@ -548,13 +566,30 @@ void main() {
           (String line) => line.contains('Use this template'),
         );
         final int cloneIndex = gsLines.indexWhere(
-          (String line) => line.contains('git clone <your-repo-url>'),
+          (String line) => line.contains(_readmeCloneLine),
         );
         expect(templateIndex, greaterThanOrEqualTo(0));
         expect(cloneIndex, greaterThan(templateIndex));
+        expect(
+          countExactLines(gettingStarted, _readmeSetupCommandLine),
+          1,
+          reason: 'Getting Started 에 ./setup.sh 단독 줄이 없거나 중복이다',
+        );
+        expect(
+          gsLines.indexOf(_readmeSetupCommandLine),
+          greaterThan(cloneIndex),
+          reason: './setup.sh 줄은 앱 저장소 clone 줄 뒤에 있어야 한다',
+        );
         expect(countOccurrences(readme, 'git clone <this-repo>'), 0);
         expect(countOccurrences(gettingStarted, 'cd flutter_starter_kit'), 0);
+        expect(
+          countOccurrences(gettingStarted, _legacyConfigCopyCommand),
+          0,
+          reason: '위저드가 대신하는 dev config 복사 단계가 남아 있다',
+        );
         expect(countOccurrences(readme, _readmeStepSentence), 1);
+        final List<String> gsHits = _collectForbiddenHits(gettingStarted);
+        expect(gsHits, isEmpty, reason: '금지 패턴이 Getting Started 에 있다: $gsHits');
       },
       // 사용자는 README 를 내 앱 소개로 바꾼다 — 킷 발행 위생 검사라
       // 비공개 작업 일지가 있는 유지보수자 트리에서만 돈다.
@@ -564,6 +599,11 @@ void main() {
     test('T-174-DOCS-06: 매뉴얼 Initial Setup 머리가 template 기준이다', () {
       expect(countOccurrences(manual, _initialSetupHead), 1);
       expect(countOccurrences(manual, _initialSetupLegacyHead), 0);
+      expect(
+        countExactLines(manual, _initialSetupWizardLine),
+        1,
+        reason: 'Initial Setup 머리에 설정 위저드 안내 줄이 없거나 중복이다',
+      );
     });
   });
 }

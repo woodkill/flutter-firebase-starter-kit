@@ -56,6 +56,8 @@ audience: starter kit 사용자 (clone 후 새 프로젝트 시작 시점)
 
 ## Initial Setup — Flavor Config 키 주입 (사전 작업, 모든 Phase 공통)
 
+> **처음 설정은 저장소 루트에서 `./setup.sh` 를 실행하면 설정 위저드가 이 절의 단계를 대신한다.** 아래는 위저드가 채우는 키의 뜻과 손으로 고칠 때의 참고다.
+
 > **이 단락은 template 로 만든 앱 저장소(또는 킷 clone)를 받은 직후 1회만 수행하는 사전 작업입니다.**
 > 이후의 Phase 별 단락 (Kakao Login, Cloud Functions 등) 은 모두 이 단락에서
 > 생성한 `config/{flavor}.json` 파일에 키를 주입하는 것을 전제로 합니다.
