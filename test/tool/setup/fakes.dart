@@ -1,4 +1,8 @@
+import 'dart:math';
+
 import '../../../tool/setup/command_runner.dart';
+import '../../../tool/setup/log_sink.dart';
+import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
 
@@ -155,13 +159,71 @@ final class ScriptedTerminal implements Terminal {
   }
 }
 
+/// 실행 기록을 메모리 줄 목록으로 모으는 가짜 기록.
+///
+/// 실제 파일 기록과 같이 쓰기 전에 [redactor] 로 가리고 같은 줄 모양
+/// (`[<kind>] <text>`)을 쓴다.
+final class MemoryLogSink implements LogSink {
+  /// [redactor] 로 가린 줄을 모으는 기록을 만든다.
+  MemoryLogSink(this.redactor);
+
+  /// 쓰기 전에 거치는 가림 함수.
+  final Redactor redactor;
+
+  /// 남긴 줄(순서대로).
+  final List<String> lines = <String>[];
+
+  /// 닫혔으면 true.
+  bool isClosed = false;
+
+  /// 남긴 줄 전체를 줄바꿈으로 이은 문자열.
+  String get text => lines.join('\n');
+
+  @override
+  void write(String kind, String text) {
+    if (isClosed) return;
+    lines.addAll(formatLogLines(kind, redactor.apply(text)));
+  }
+
+  @override
+  Future<void> close() async {
+    isClosed = true;
+  }
+}
+
+/// 테스트 문맥의 고정 시각.
+final DateTime fixedTestNow = DateTime(2030, 1, 2, 3, 4, 5);
+
+/// 테스트 문맥의 고정 난수 씨앗.
+const int fixedTestRandomSeed = 19;
+
 /// 가짜 실행기 · 가짜 터미널로 위저드 문맥을 만든다.
+///
+/// [terminal] 은 [RedactingTerminal] 로 감싸 넣는다 — 화면 단언은 넘긴
+/// [ScriptedTerminal] 의 `output` 으로, 기록 단언은 [log] 로 한다. [log] 를 따로
+/// 넘길 때는 같은 [redactor] 로 만든 것을 넘긴다.
 WizardContext buildTestContext({
   required String projectRoot,
   FakeCommandRunner? runner,
   ScriptedTerminal? terminal,
-}) => WizardContext(
-  projectRoot: projectRoot,
-  runner: runner ?? FakeCommandRunner(),
-  terminal: terminal ?? ScriptedTerminal(const <String?>[]),
-);
+  Redactor? redactor,
+  MemoryLogSink? log,
+  Random? random,
+  DateTime Function()? now,
+}) {
+  final Redactor usedRedactor = redactor ?? log?.redactor ?? Redactor();
+  final MemoryLogSink usedLog = log ?? MemoryLogSink(usedRedactor);
+  return WizardContext(
+    projectRoot: projectRoot,
+    runner: runner ?? FakeCommandRunner(),
+    terminal: RedactingTerminal(
+      terminal ?? ScriptedTerminal(const <String?>[]),
+      usedRedactor,
+      usedLog,
+    ),
+    redactor: usedRedactor,
+    log: usedLog,
+    random: random ?? Random(fixedTestRandomSeed),
+    now: now ?? () => fixedTestNow,
+  );
+}

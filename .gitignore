@@ -106,6 +106,10 @@ ios/Flutter/dev.xcconfig
 ios/Flutter/stg.xcconfig
 ios/Flutter/prod.xcconfig
 
+# 설정 위저드(./setup.sh) 실행 기록 · 임시 파일 — 문제 해결 때 .setup/logs/ 를 본다.
+# build/ · .dart_tool/ 밖이라 flutter clean · gradlew clean 에 지워지지 않는다.
+/.setup/
+
 # 키스토어 / 서명
 *.jks
 *.keystore

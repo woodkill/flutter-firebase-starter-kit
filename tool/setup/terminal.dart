@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'log_sink.dart';
+import 'redactor.dart';
+
 /// 위저드가 사용자와 주고받는 화면 입출력.
 abstract interface class Terminal {
   /// 한 줄을 출력한다.
@@ -127,5 +130,104 @@ final class StdioTerminal implements Terminal {
       return false;
     }
     return true;
+  }
+}
+
+/// 모든 화면 출력을 비밀 값 가림 뒤 [inner] 로 넘기고 실행 기록에도 남기는 터미널.
+///
+/// 위저드의 화면 출력은 이 감싸개 하나를 거친다 — 명령 줄 · 흘리는 출력 · 실패
+/// 원문 · 질문 모두 [Redactor.apply] 뒤에 화면과 [LogSink] 로 간다. 사용자 답은
+/// 가린 뒤 `in` 종류로 남긴다.
+final class RedactingTerminal implements Terminal {
+  /// [inner] 에 가린 문자열을 쓰고 [log] 에 같은 문자열을 남기는 터미널을 만든다.
+  RedactingTerminal(this.inner, this.redactor, this.log);
+
+  /// 실제로 출력하는 터미널.
+  final Terminal inner;
+
+  /// 비밀 값을 가리는 함수.
+  final Redactor redactor;
+
+  /// 실행 기록.
+  final LogSink log;
+
+  /// 입력이 끝났을 때 실행 기록에 남기는 답.
+  static const String endOfInputRecord = '(입력 끝)';
+
+  @override
+  void writeLine(String line) {
+    final String shown = redactor.apply(line);
+    inner.writeLine(shown);
+    log.write('out', shown);
+  }
+
+  @override
+  void writeCommand(String display) {
+    final String shown = redactor.apply(display);
+    inner.writeCommand(shown);
+    log.write('out', '  \$ $shown');
+  }
+
+  @override
+  void writeRaw(String text) {
+    final String shown = redactor.apply(text);
+    inner.writeRaw(shown);
+    if (shown.isNotEmpty) log.write('out', shown);
+  }
+
+  @override
+  bool confirm(String question) {
+    final String shown = redactor.apply(question);
+    log.write('out', '$shown [y/N]');
+    final bool answer = inner.confirm(shown);
+    log.write('in', answer ? 'y' : 'n');
+    return answer;
+  }
+
+  @override
+  String? ask(String question, {String? defaultValue}) {
+    final String shown = redactor.apply(question);
+    final String? shownDefault = defaultValue == null
+        ? null
+        : redactor.apply(defaultValue);
+    log.write('out', shownDefault == null ? shown : '$shown [$shownDefault]');
+    final String? answer;
+    if (defaultValue != null && shownDefault != defaultValue) {
+      // 기본값이 비밀 값이면 화면에는 가린 값만 보이고, Enter 면 원래 값을 쓴다.
+      final String? typed = inner.ask('$shown [$shownDefault]');
+      answer = (typed != null && typed.isEmpty) ? defaultValue : typed;
+    } else {
+      answer = inner.ask(shown, defaultValue: defaultValue);
+    }
+    log.write('in', answer == null ? endOfInputRecord : redactor.apply(answer));
+    return answer;
+  }
+
+  @override
+  int? choose(String question, List<String> options, {int defaultIndex = 0}) {
+    final String shown = redactor.apply(question);
+    final List<String> shownOptions = options
+        .map(redactor.apply)
+        .toList(growable: false);
+    log.write('out', shown);
+    for (int i = 0; i < shownOptions.length; i++) {
+      log.write('out', '  ${i + 1}) ${shownOptions[i]}');
+    }
+    final int? index = inner.choose(
+      shown,
+      shownOptions,
+      defaultIndex: defaultIndex,
+    );
+    log.write('in', index == null ? endOfInputRecord : '${index + 1}');
+    return index;
+  }
+
+  @override
+  bool waitForEnter(String message) {
+    final String shown = redactor.apply(message);
+    log.write('out', shown);
+    final bool isEntered = inner.waitForEnter(shown);
+    log.write('in', isEntered ? 'Enter' : endOfInputRecord);
+    return isEntered;
   }
 }

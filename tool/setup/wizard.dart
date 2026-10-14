@@ -1,4 +1,8 @@
+import 'dart:math';
+
 import 'command_runner.dart';
+import 'log_sink.dart';
+import 'redactor.dart';
 import 'step.dart';
 import 'terminal.dart';
 
@@ -40,12 +44,20 @@ const String stopOption = '멈춤';
 
 /// 단계 실행에 필요한 공용 문맥.
 final class WizardContext {
-  /// 저장소 루트 · 실행기 · 터미널로 문맥을 만든다.
+  /// 저장소 루트 · 실행기 · 터미널 · 가림 함수 · 실행 기록으로 문맥을 만든다.
+  ///
+  /// [random] 을 주지 않으면 암호학적으로 안전한 난수를, [now] 를 주지 않으면
+  /// 시스템 시각을 쓴다(테스트는 고정값을 넣는다).
   WizardContext({
     required this.projectRoot,
     required this.runner,
     required this.terminal,
-  });
+    required this.redactor,
+    required this.log,
+    Random? random,
+    DateTime Function()? now,
+  }) : random = random ?? Random.secure(),
+       now = now ?? DateTime.now;
 
   /// 저장소 루트의 절대 경로.
   final String projectRoot;
@@ -53,8 +65,20 @@ final class WizardContext {
   /// 외부 명령 실행기.
   final CommandRunner runner;
 
-  /// 화면 입출력.
+  /// 화면 입출력 — 위저드는 가림 터미널을 넘긴다.
   final Terminal terminal;
+
+  /// 화면 · 기록 직전에 비밀 값을 가리는 함수 — 단계가 아는 비밀 값을 등록한다.
+  final Redactor redactor;
+
+  /// 실행 기록.
+  final LogSink log;
+
+  /// 비밀 값 · 식별자를 만들 때 쓰는 난수.
+  final Random random;
+
+  /// 지금 시각을 돌려주는 함수.
+  final DateTime Function() now;
 
   /// [relativePath] 를 저장소 루트 기준 절대 경로로 바꾼다.
   String resolve(String relativePath) {
@@ -102,9 +126,13 @@ final class Wizard {
     final Map<String, CheckResult> results = <String, CheckResult>{};
     for (final Step step in steps) {
       final String? waitingFor = _findUnfinishedDependency(step, results);
-      results[step.id] = waitingFor == null
-          ? await _check(step)
-          : Blocked(waitingFor);
+      if (waitingFor == null) {
+        results[step.id] = await _check(step);
+      } else {
+        final Blocked blocked = Blocked(waitingFor);
+        _logCheck(step, blocked);
+        results[step.id] = blocked;
+      }
     }
     return results;
   }
@@ -129,13 +157,26 @@ final class Wizard {
     return id;
   }
 
-  /// 단계 하나를 검사한다 — 검사 중 예외는 할 일로 본다.
+  /// 단계 하나를 검사하고 판정을 기록에 남긴다 — 검사 중 예외는 할 일로 본다.
   Future<CheckResult> _check(Step step) async {
+    CheckResult result;
     try {
-      return await step.check(context);
+      result = await step.check(context);
     } on Exception catch (e) {
-      return Todo('검사하지 못했습니다 — $e');
+      result = Todo('검사하지 못했습니다 — $e');
     }
+    _logCheck(step, result);
+    return result;
+  }
+
+  /// 검사 판정을 `<id> <✓|✗|?> <문장>` 꼴로 기록에 남긴다.
+  void _logCheck(Step step, CheckResult result) {
+    final String line = switch (result) {
+      Done(:final String summary) => '✓ $summary',
+      Todo(:final String reason) => '✗ $reason',
+      Blocked(:final String waitingFor) => '? $waitingFor 뒤에 검사합니다',
+    };
+    context.log.write('check', '${step.id} $line');
   }
 
   /// 점검표를 한 번 출력한다.
