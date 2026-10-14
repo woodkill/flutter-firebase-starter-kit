@@ -5,6 +5,7 @@ import 'package:args/args.dart';
 import '../tool/setup/command_runner.dart';
 import '../tool/setup/log_sink.dart';
 import '../tool/setup/redactor.dart';
+import '../tool/setup/rest_client.dart';
 import '../tool/setup/steps/dev_steps.dart';
 import '../tool/setup/terminal.dart';
 import '../tool/setup/wizard.dart';
@@ -104,14 +105,28 @@ Future<void> main(List<String> arguments) async {
       return;
     }
 
+    final ProcessCommandRunner runner = ProcessCommandRunner(
+      terminal,
+      log: log,
+    );
+    final HttpRestClient rest = HttpRestClient(
+      tokens: AccessTokenSource(runner, redactor),
+      terminal: terminal,
+      log: log,
+    );
     final WizardContext context = WizardContext(
       projectRoot: projectRoot,
-      runner: ProcessCommandRunner(terminal, log: log),
+      runner: runner,
       terminal: terminal,
       redactor: redactor,
       log: log,
+      rest: rest,
     );
-    code = await runWizard(context, buildDevSteps());
+    try {
+      code = await runWizard(context, buildDevSteps());
+    } finally {
+      rest.close();
+    }
     terminal.writeLine('$logPathLinePrefix${log.path}');
   } finally {
     await log.close();

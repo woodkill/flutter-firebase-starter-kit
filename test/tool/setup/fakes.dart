@@ -5,6 +5,7 @@ import '../../../tool/setup/log_sink.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
+import 'fake_rest_client.dart';
 
 /// 가짜 실행기가 기록하는 실행 방식.
 enum RunMode {
@@ -21,7 +22,12 @@ enum RunMode {
 /// 가짜 실행기 호출 한 건.
 final class FakeCall {
   /// 실행 방식 · 명령 키 · 표준 입력 문자열로 기록을 만든다.
-  const FakeCall(this.mode, this.key, this.stdinText);
+  const FakeCall(
+    this.mode,
+    this.key,
+    this.stdinText, {
+    this.isOutputSensitive = false,
+  });
 
   /// 실행 방식.
   final RunMode mode;
@@ -31,6 +37,9 @@ final class FakeCall {
 
   /// 명령에 실린 표준 입력 문자열.
   final String? stdinText;
+
+  /// 명령이 민감 출력으로 실행됐으면 true.
+  final bool isOutputSensitive;
 }
 
 /// 등록한 결과를 돌려주는 가짜 실행기 — 실제 프로세스를 띄우지 않는다.
@@ -63,7 +72,14 @@ final class FakeCommandRunner implements CommandRunner {
 
   CommandResult _take(RunMode mode, Command command) {
     final String key = buildKey(command);
-    calls.add(FakeCall(mode, key, command.stdinText));
+    calls.add(
+      FakeCall(
+        mode,
+        key,
+        command.stdinText,
+        isOutputSensitive: command.isOutputSensitive,
+      ),
+    );
     final List<CommandResult>? queue = _results[key];
     if (queue == null || queue.isEmpty) {
       throw StateError('등록하지 않은 명령: $key');
@@ -197,7 +213,7 @@ final DateTime fixedTestNow = DateTime(2030, 1, 2, 3, 4, 5);
 /// 테스트 문맥의 고정 난수 씨앗.
 const int fixedTestRandomSeed = 19;
 
-/// 가짜 실행기 · 가짜 터미널로 위저드 문맥을 만든다.
+/// 가짜 실행기 · 가짜 터미널 · 가짜 REST 로 위저드 문맥을 만든다.
 ///
 /// [terminal] 은 [RedactingTerminal] 로 감싸 넣는다 — 화면 단언은 넘긴
 /// [ScriptedTerminal] 의 `output` 으로, 기록 단언은 [log] 로 한다. [log] 를 따로
@@ -208,6 +224,7 @@ WizardContext buildTestContext({
   ScriptedTerminal? terminal,
   Redactor? redactor,
   MemoryLogSink? log,
+  FakeRestClient? rest,
   Random? random,
   DateTime Function()? now,
 }) {
@@ -223,6 +240,7 @@ WizardContext buildTestContext({
     ),
     redactor: usedRedactor,
     log: usedLog,
+    rest: rest ?? FakeRestClient(),
     random: random ?? Random(fixedTestRandomSeed),
     now: now ?? () => fixedTestNow,
   );

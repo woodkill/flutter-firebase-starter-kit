@@ -3,6 +3,7 @@ import 'dart:math';
 import 'command_runner.dart';
 import 'log_sink.dart';
 import 'redactor.dart';
+import 'rest_client.dart';
 import 'step.dart';
 import 'terminal.dart';
 
@@ -44,7 +45,8 @@ const String stopOption = '멈춤';
 
 /// 단계 실행에 필요한 공용 문맥.
 final class WizardContext {
-  /// 저장소 루트 · 실행기 · 터미널 · 가림 함수 · 실행 기록으로 문맥을 만든다.
+  /// 저장소 루트 · 실행기 · 터미널 · 가림 함수 · 실행 기록 · REST 실행기로
+  /// 문맥을 만든다.
   ///
   /// [random] 을 주지 않으면 암호학적으로 안전한 난수를, [now] 를 주지 않으면
   /// 시스템 시각을 쓴다(테스트는 고정값을 넣는다).
@@ -54,6 +56,7 @@ final class WizardContext {
     required this.terminal,
     required this.redactor,
     required this.log,
+    required this.rest,
     Random? random,
     DateTime Function()? now,
   }) : random = random ?? Random.secure(),
@@ -73,6 +76,9 @@ final class WizardContext {
 
   /// 실행 기록.
   final LogSink log;
+
+  /// REST 실행기 — 토큰은 프로세스 안에만 두고 화면에는 curl 표시형을 보인다.
+  final RestClient rest;
 
   /// 비밀 값 · 식별자를 만들 때 쓰는 난수.
   final Random random;
