@@ -14,6 +14,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- 설정 위저드 `./setup.sh` 를 더한다. macOS 에서 개발 도구를 확인하고(없으면 확인을 받은 뒤 Homebrew 로 설치한다) 앱 정체성 · Firebase 프로젝트 만들기와 결제 연결 · Firestore · Storage · 이메일 로그인 · 앱 등록 · App Check 디버그 토큰 · Cloud Functions 배포를 거쳐 dev flavor 앱 실행과 로그인 확인까지 진행한다. 다시 실행하면 끝난 단계를 건너뛴다. 실행 기록은 `.setup/logs/` 에 남는다. 새 파일은 `setup.sh` · `bin/setup.dart` · `tool/setup/` 이고, `.gitignore` 에 `/.setup/` 한 줄이 더해진다 — README 「Getting Started」.
+- config 에 `appCheckDebugToken` 키를 더한다. debug 빌드가 쓰는 App Check 디버그 토큰이고, 위저드가 값을 만들어 Firebase 의 iOS · Android 앱에 등록한다. 비워 두면 지금처럼 앱이 만든 토큰을 로그에 출력한다. 바뀐 파일은 `config/*.example.json` · `lib/core/config/app_config.dart` · `lib/core/bootstrap.dart` 이고, merge 뒤 `./setup.sh` 를 다시 실행하면 내 `config/<flavor>.json` 에 빈 키를 채운다 — 매뉴얼 「Initial Setup」 절의 키 표.
+
+### Changed
+
+- `scripts/firebase-configure.sh` 가 `config/<flavor>.json` 의 `firebaseProjectId` 를 먼저 쓰고, 그 값이 비었거나 자리표시 값(`your-project-<flavor>`)일 때만 `PROJECT_ID_PREFIX` 로 프로젝트 ID 를 정한다. 어느 값을 썼는지는 출력의 `project source:` 줄에 보인다. config 파일이 있으면 `jq` 가 필요하다. 상수 3줄은 그대로라 merge 로 끝난다 — 매뉴얼 「킷 업데이트 반영」 사용자 소유 표면 표 4행.
+
 ## [1.0.0-rc.3] - 2026-10-14
 
 ### 사용자 조치
