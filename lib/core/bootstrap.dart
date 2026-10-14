@@ -99,16 +99,22 @@ Future<void> bootstrap() async {
             // Integrity (Android) / DeviceCheck (iOS). 활성화 실패는 무시 +
             // debugPrint fallback (GoogleSignIn / KakaoSdk 패턴 일관).
             //
-            // dev flavor 의 debug provider 첫 실행 시 logcat / Xcode console 에
-            // debug 토큰 출력 -- Firebase Console > App Check > 디버그 토큰 관리
-            // 에 등록 의무 (manual.md 5단계).
+            // debug provider 는 config 의 `appCheckDebugToken` 이 있으면 그
+            // 값을 쓴다. 비어 있으면 플러그인이 토큰을 만들어 logcat / Xcode
+            // console 에 출력하고, 그 값을 Firebase Console > App Check >
+            // 디버그 토큰 관리에 등록해야 한다. release 빌드는 이 값을 쓰지
+            // 않는다.
             try {
               await FirebaseAppCheck.instance.activate(
                 providerAndroid: kDebugMode
-                    ? const AndroidDebugProvider()
+                    ? AndroidDebugProvider(
+                        debugToken: AppConfig.appCheckDebugTokenOrNull,
+                      )
                     : const AndroidPlayIntegrityProvider(),
                 providerApple: kDebugMode
-                    ? const AppleDebugProvider()
+                    ? AppleDebugProvider(
+                        debugToken: AppConfig.appCheckDebugTokenOrNull,
+                      )
                     : const AppleDeviceCheckProvider(),
               );
             } on Object catch (e, st) {

@@ -265,6 +265,28 @@ abstract final class AppConfig {
   static EmailDeliveryMode get emailDeliveryMode =>
       parseEmailDeliveryMode(emailDelivery);
 
+  /// App Check 디버그 토큰 원문 — `--dart-define-from-file` 의
+  /// `appCheckDebugToken` 키.
+  ///
+  /// 값은 gitignored `config/<flavor>.json` 의 같은 키에서 온다. 설정 위저드
+  /// (`./setup.sh`)가 UUID 를 만들어 이 키에 쓰고 Firebase 의 iOS · Android
+  /// 앱에 등록한다. example 파일의 값은 빈 문자열이다.
+  ///
+  /// debug 빌드에서만 쓴다 — `bootstrap` 이 `kDebugMode` 분기의 debug provider
+  /// 에만 넘기고 release 빌드는 Play Integrity · DeviceCheck 를 쓴다. 비밀
+  /// 값이므로 다른 키 값 상수처럼 `defaultValue` 를 생략한다. 판정은
+  /// [appCheckDebugTokenOrNull] 로 읽는다.
+  static const String appCheckDebugToken = String.fromEnvironment(
+    'appCheckDebugToken',
+  );
+
+  /// debug provider 에 넘길 App Check 디버그 토큰 — 비었으면 null.
+  ///
+  /// null 이면 플러그인이 자기 토큰을 만들어 로그에 출력한다. 그 토큰을
+  /// Firebase Console 의 App Check 에 등록해야 보호된 callable 이 통과한다.
+  static String? get appCheckDebugTokenOrNull =>
+      appCheckDebugToken.isEmpty ? null : appCheckDebugToken;
+
   /// 활성화된 ProviderId CSV — `--dart-define-from-file` 컴파일 타임 상수.
   ///
   /// 예: `'google,apple,facebook'`. 공백 / 빈 토큰은 무시한다. dart-define

@@ -16,5 +16,6 @@
   "splashMinDurationMs": 2000,
   "brandColor": "#673AB7",
   "enabledAuthProviders": "",
-  "emailDelivery": ""
+  "emailDelivery": "",
+  "appCheckDebugToken": ""
 }

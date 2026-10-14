@@ -401,6 +401,12 @@ void main() {
           '',
           reason: '$flavor.example.json 의 emailDelivery 가 빈 문자열이 아니다',
         );
+        // 빈 값 = 플러그인이 만든 토큰을 쓴다(실 토큰은 gitignored 파일에만).
+        expect(
+          json['appCheckDebugToken'],
+          '',
+          reason: '$flavor.example.json 의 appCheckDebugToken 이 빈 문자열이 아니다',
+        );
       }
     });
 
