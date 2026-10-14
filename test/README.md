@@ -161,7 +161,7 @@ iOS 변형 이미지는 git 으로 되돌릴 수 없으니, 다시 만들기 전
 커밋하기 전에 저장소 루트에서 아래 네 명령을 차례로 돌린다. 넷 다 오류 없이 끝나야 한다.
 
 ```
-fvm dart format --output=none --set-exit-if-changed lib test bin
+fvm dart format --output=none --set-exit-if-changed lib test bin tool
 fvm flutter analyze
 fvm dart analyze
 fvm flutter test

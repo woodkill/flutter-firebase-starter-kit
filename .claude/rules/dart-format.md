@@ -33,9 +33,10 @@ fvm dart format <수정한 파일…>
 phase / post-merge / hotfix 게이트에 아래를 `analyze`·`test` 와 **동급**으로 포함한다.
 
 ```bash
-fvm dart format --output=none --set-exit-if-changed lib test
+fvm dart format --output=none --set-exit-if-changed lib test bin tool
 ```
 
+- `bin/` · `tool/` 의 Dart 파일(설정 위저드 · rename)도 같은 포매터 대상이다.
 - exit 0 = drift 없음. non-zero 면 게이트 FAIL 로 취급하고 그 자리에서 해소한다.
 - `scripts/git-hooks/pre-commit` 은 `check_phase_refs.sh` 만 실행하고 format 은
   검사하지 않는다 — hook 활성화가 이 규칙을 대체하지 못한다.

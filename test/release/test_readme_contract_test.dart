@@ -25,7 +25,7 @@ const String _unitExamplePath =
 
 /// README 「커밋 전에 돌릴 검사」 절의 명령 4줄.
 const List<String> _precommitCommands = <String>[
-  'fvm dart format --output=none --set-exit-if-changed lib test bin',
+  'fvm dart format --output=none --set-exit-if-changed lib test bin tool',
   'fvm flutter analyze',
   'fvm dart analyze',
   'fvm flutter test',
