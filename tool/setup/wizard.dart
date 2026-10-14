@@ -26,6 +26,18 @@ const String stopLine = '같은 명령을 다시 실행하면 이어집니다.';
 /// 위저드 밖 작업 안내 뒤에 붙는 줄.
 const String exitForUserTailLine = '끝나면 ./setup.sh 를 다시 실행하세요 — 끝난 단계는 건너뜁니다.';
 
+/// 위저드 밖 짧은 작업을 기다릴 때의 문구.
+const String waitForEnterMessage = '끝나면 Enter 를 누르세요';
+
+/// 실패 뒤 고르기 질문.
+const String failureChoiceQuestion = '어떻게 할까요?';
+
+/// 실패 뒤 고르기의 다시 시도 선택지.
+const String retryOption = '다시 시도';
+
+/// 실패 뒤 고르기의 멈춤 선택지.
+const String stopOption = '멈춤';
+
 /// 단계 실행에 필요한 공용 문맥.
 final class WizardContext {
   /// 저장소 루트 · 실행기 · 터미널로 문맥을 만든다.
@@ -83,12 +95,38 @@ final class Wizard {
   }
 
   /// 모든 단계를 순서대로 검사한다.
+  ///
+  /// 의존 단계 가운데 이번 점검에서 끝나지 않은 것이 있으면 그 단계는 검사하지
+  /// 않고 [Blocked] 로 적는다 — 앞 단계 없이 실패하는 검사 명령을 부르지 않는다.
   Future<Map<String, CheckResult>> _checkAll() async {
     final Map<String, CheckResult> results = <String, CheckResult>{};
     for (final Step step in steps) {
-      results[step.id] = await _check(step);
+      final String? waitingFor = _findUnfinishedDependency(step, results);
+      results[step.id] = waitingFor == null
+          ? await _check(step)
+          : Blocked(waitingFor);
     }
     return results;
+  }
+
+  /// [step] 의 의존 단계 가운데 [results] 에서 끝나지 않은 첫 단계의 제목을 찾는다.
+  String? _findUnfinishedDependency(
+    Step step,
+    Map<String, CheckResult> results,
+  ) {
+    for (final String dependency in step.dependsOn) {
+      if (results[dependency] is Done) continue;
+      return _findTitle(dependency);
+    }
+    return null;
+  }
+
+  /// [id] 단계의 제목을 찾는다 — 목록에 없으면 [id] 그대로.
+  String _findTitle(String id) {
+    for (final Step step in steps) {
+      if (step.id == id) return step.title;
+    }
+    return id;
   }
 
   /// 단계 하나를 검사한다 — 검사 중 예외는 할 일로 본다.
@@ -134,29 +172,56 @@ final class Wizard {
     _printPlannedLines(step);
     if (!_terminal.confirm(stepConfirmQuestion)) return _stop();
 
-    final StepOutcome outcome = await _apply(step);
-    switch (outcome) {
-      case Applied():
-        final CheckResult after = await _check(step);
-        if (after is Done) {
-          _terminal.writeLine(_formatCheckLine(step, after));
-          return null;
-        }
-        _printFailure(_describeIncomplete(after), null);
-        return _stop();
-      case ExitForUser(:final String guide):
-        _terminal.writeLine(guide);
-        _terminal.writeLine(exitForUserTailLine);
-        return wizardExitForUser;
-      case Failed(:final String summary, :final CommandResult? result):
-        _printFailure(summary, result);
-        return _stop();
-      case WaitForUser(:final String guide):
-        _terminal.writeLine(guide);
-        return _stop();
-      case Declined():
-        return _stop();
+    while (true) {
+      final StepOutcome outcome = await _apply(step);
+      switch (outcome) {
+        case Applied():
+          final CheckResult after = await _check(step);
+          if (after is Done) {
+            _terminal.writeLine(_formatCheckLine(step, after));
+            return null;
+          }
+          _printFailure(_describeIncomplete(after), null);
+          if (!_chooseRetry()) return _stop();
+        case ExitForUser(:final String guide):
+          _terminal.writeLine(guide);
+          _terminal.writeLine(exitForUserTailLine);
+          return wizardExitForUser;
+        case WaitForUser(:final String guide):
+          return _waitForUser(step, guide);
+        case Failed(:final String summary, :final CommandResult? result):
+          _printFailure(summary, result);
+          if (!_chooseRetry()) return _stop();
+        case Declined():
+          return _stop();
+      }
     }
+  }
+
+  /// 안내를 보이고 Enter 를 기다려 그 자리에서 다시 검사한다.
+  ///
+  /// 끝났으면 null, 입력 끝이면 멈춤 종료 코드를 돌려준다. 아직이면 사유를 보이고
+  /// 다시 기다린다.
+  Future<int?> _waitForUser(Step step, String guide) async {
+    while (true) {
+      _terminal.writeLine(guide);
+      if (!_terminal.waitForEnter(waitForEnterMessage)) return _stop();
+      final CheckResult after = await _check(step);
+      if (after is Done) {
+        _terminal.writeLine(_formatCheckLine(step, after));
+        return null;
+      }
+      _terminal.writeLine('  아직 끝나지 않았습니다 — ${_describeIncomplete(after)}');
+    }
+  }
+
+  /// 실패 뒤 다시 시도 · 멈춤을 고르게 한다 — 다시 시도면 true.
+  bool _chooseRetry() {
+    final int? choice = _terminal.choose(failureChoiceQuestion, const <String>[
+      retryOption,
+      stopOption,
+    ], defaultIndex: 1);
+    return choice == 0;
   }
 
   /// 단계를 실행한다 — 실행 중 예외는 실패로 본다.
