@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.3] - 2026-10-14
+
 ### 사용자 조치
 
 - 데모 화면을 지운 저장소는 이 판을 받을 때 `lib/features/demo/presentation/demo_screen.dart` 에서 `CONFLICT (modify/delete)` 가 난다 — `git rm lib/features/demo/presentation/demo_screen.dart` 로 푼다. `test/features/home/home_listener_source_guard_test.dart` 가 충돌하면 `git checkout --theirs -- test/features/home/home_listener_source_guard_test.dart` 로 킷 판을 받은 뒤 T-171-HOME-15 를 지우고, T-171-HOME-16 기대 집합에서 `demo_screen.dart`(상수 `_demoScreenPath`)를 다시 빼고, 쓰는 곳이 없어진 `_demoScreenPath` 선언을 지운 다음 `git add` 한다. 데모 화면을 지우지 않았다면 할 일이 없다 — 매뉴얼 「킷 업데이트 반영」 「충돌 풀기」 규칙 3 · 「홈 화면 바꾸기」 ③ 「지우는 법」 4단계.
@@ -83,6 +85,7 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.2...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.3...HEAD
+[1.0.0-rc.3]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.1
