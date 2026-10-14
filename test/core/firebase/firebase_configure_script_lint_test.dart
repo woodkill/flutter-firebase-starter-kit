@@ -190,4 +190,67 @@ void main() {
       );
     });
   });
+
+  // 프로젝트 ID 는 config/<flavor>.json 의 firebaseProjectId 가 먼저다. 실행 동작은
+  // firebase_configure_project_source_test.dart 가 DRY_RUN 으로 고정하고, 여기서는
+  // 읽기 줄의 위치(DRY_RUN 분기 앞 계산부)와 마지막 줄 계약을 실행 라인 기준으로 본다.
+  group('firebase-configure.sh 프로젝트 ID 출처 계약', () {
+    const String configRead = "jq -r '.firebaseProjectId";
+    const String completeLine =
+        r'echo "✓ Firebase configure complete for ${FLAVOR}"';
+
+    test('config 의 firebaseProjectId 를 읽는 실행 줄이 1개다', () {
+      expect(
+        lines.where((String line) => line.contains(configRead)).length,
+        1,
+        reason: '프로젝트 ID 의 진실원은 config 의 firebaseProjectId 하나다',
+      );
+    });
+
+    test('config 읽기가 DRY_RUN 분기보다 앞(계산부)에 놓인다', () {
+      final int readIndex = lines.indexWhere(
+        (String line) => line.contains(configRead),
+      );
+      final int dryRunIndex = lines.indexWhere(
+        (String line) => line.contains(r'${DRY_RUN:-0}'),
+      );
+
+      expect(readIndex, greaterThanOrEqualTo(0));
+      expect(
+        readIndex,
+        lessThan(dryRunIndex),
+        reason: 'DRY_RUN 분기 뒤에 있으면 식별자 출력이 config 값을 모른다',
+      );
+    });
+
+    test('출처 한 줄과 상수 fallback 식이 실행 라인에 있다', () {
+      expect(
+        lines.where((String line) => line.contains('project source:')).length,
+        1,
+        reason: '어느 출처로 프로젝트 ID 를 정했는지 화면에 남아야 한다',
+      );
+      expect(
+        lines
+            .where(
+              (String line) =>
+                  line.contains(r'PROJECT_ID="${PROJECT_ID_PREFIX}-${FLAVOR}"'),
+            )
+            .length,
+        1,
+        reason: 'config 값이 없거나 자리표시면 상수로 정한다',
+      );
+    });
+
+    test('마지막 실행 줄이 완료 계약 줄이다', () {
+      expect(
+        lines.where((String line) => line.contains(completeLine)).length,
+        1,
+      );
+      expect(
+        lines.last.trim(),
+        completeLine,
+        reason: '설정 위저드가 이 줄로 configure 성공을 판정한다',
+      );
+    });
+  });
 }

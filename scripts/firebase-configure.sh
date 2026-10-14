@@ -50,6 +50,11 @@
 #   ./scripts/firebase-configure.sh stg
 #   ./scripts/firebase-configure.sh prod
 #
+#   프로젝트 ID 는 config/<flavor>.json 의 firebaseProjectId 가 먼저다 — 비었거나
+#   자리표시(your-project-<flavor>)면 PROJECT_ID_PREFIX 로 정한다. config 파일이 있으면
+#   jq 가 필요하다(brew install jq). 어느 출처를 썼는지 식별자 블록의 project source
+#   줄에 나온다.
+#
 #   DRY_RUN=1 ./scripts/firebase-configure.sh prod
 #       → flutterfire 호출만 건너뛰고 식별자 계산 + skip-worktree 후처리만 실행
 #         (네트워크·Firebase 인증 불필요, 검증용)
@@ -61,6 +66,7 @@
 #
 # starter-kit fork 후 수정 사항:
 #   아래 3개 prefix 상수를 자신의 프로젝트 식별자에 맞게 변경할 것.
+#   프로젝트 ID 는 config/<flavor>.json 의 firebaseProjectId 가 이 상수보다 먼저다.
 
 set -euo pipefail
 
@@ -99,7 +105,50 @@ else
   APP_ID_SUFFIX=".${FLAVOR}"
 fi
 
-PROJECT_ID="${PROJECT_ID_PREFIX}-${FLAVOR}"
+# Firebase 프로젝트 ID — config/<flavor>.json 의 firebaseProjectId 가 먼저다.
+#   · 값이 있고 example 자리표시(your-project-<flavor>)가 아니면 그 값을 쓴다.
+#   · 값이 비었거나 자리표시거나 config 파일이 없으면 위 PROJECT_ID_PREFIX 로 정한다.
+#   · config 파일이 있는데 읽지 못하면(jq 없음 · JSON 오류) 상수로 넘어가지 않고 멈춘다
+#     — 다른 프로젝트에 앱을 등록하는 일을 막는다.
+# set -u 아래이므로 새 변수는 빈 값으로 먼저 둔다.
+CONFIG_FILE="config/${FLAVOR}.json"
+CONFIG_PROJECT_ID=""
+PROJECT_ID=""
+PROJECT_ID_SOURCE=""
+if [[ -f "$CONFIG_FILE" ]]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq 가 필요하다 (brew install jq) — ${CONFIG_FILE} 의 firebaseProjectId 를 읽는다" >&2
+    exit 1
+  fi
+  CONFIG_PROJECT_ID="$(jq -r '.firebaseProjectId // ""' "$CONFIG_FILE")" || {
+    echo "Error: ${CONFIG_FILE} 을 JSON 으로 읽지 못했다" >&2
+    exit 1
+  }
+fi
+if [[ -n "$CONFIG_PROJECT_ID" && "$CONFIG_PROJECT_ID" != "your-project-${FLAVOR}" ]]; then
+  # Firebase 프로젝트 ID 형식(소문자로 시작 · 소문자 · 숫자 · 하이픈)만 받는다 — 값이
+  # `-` 로 시작해 CLI 옵션으로 읽히는 일을 막는다. macOS bash 3.2 는 UTF-8 로캘에서
+  # 대괄호 범위를 정렬 순서로 해석하므로 허용 문자를 전부 나열한다.
+  case "$CONFIG_PROJECT_ID" in
+    [abcdefghijklmnopqrstuvwxyz]*) ;;
+    *)
+      echo "Error: ${CONFIG_FILE} 의 firebaseProjectId 형식이 잘못됐다: ${CONFIG_PROJECT_ID}" >&2
+      exit 1
+      ;;
+  esac
+  case "$CONFIG_PROJECT_ID" in
+    *[!abcdefghijklmnopqrstuvwxyz0123456789-]*)
+      echo "Error: ${CONFIG_FILE} 의 firebaseProjectId 형식이 잘못됐다: ${CONFIG_PROJECT_ID}" >&2
+      exit 1
+      ;;
+  esac
+  PROJECT_ID="$CONFIG_PROJECT_ID"
+  PROJECT_ID_SOURCE="${CONFIG_FILE} 의 firebaseProjectId"
+else
+  PROJECT_ID="${PROJECT_ID_PREFIX}-${FLAVOR}"
+  PROJECT_ID_SOURCE="PROJECT_ID_PREFIX 상수 (config 값이 없거나 자리표시)"
+fi
+
 IOS_BUNDLE_ID="${IOS_BUNDLE_ID_PREFIX}${APP_ID_SUFFIX}"
 ANDROID_PACKAGE="${ANDROID_PACKAGE_PREFIX}${APP_ID_SUFFIX}"
 
@@ -153,6 +202,7 @@ restore_cli_side_effects() {
 cat <<EOF
 ▶ Firebase configure for flavor: ${FLAVOR}
   project:       ${PROJECT_ID}
+  project source: ${PROJECT_ID_SOURCE}
   iOS bundle:    ${IOS_BUNDLE_ID}
   Android pkg:   ${ANDROID_PACKAGE}
   Dart out:      ${OUT_DART}
