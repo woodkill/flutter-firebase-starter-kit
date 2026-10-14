@@ -2,6 +2,8 @@ import functionsTest from "firebase-functions-test";
 import * as logger from "firebase-functions/logger";
 import {CallableRequest, HttpsError} from "firebase-functions/https";
 
+import {REGION} from "../src/shared/region";
+
 // firebase-functions/logger 의 export 는 read-only 라 jest.spyOn 가 동작하지 않는다.
 // 모듈 자체를 mock 해 mock fn 으로 대체 (BL-02 hotfix).
 jest.mock("firebase-functions/logger", () => ({
@@ -48,7 +50,7 @@ describe("ping onCall", () => {
     // 1. 응답 셰이프 — region 잠금 + ISO timestamp
     const typed = result as {ok: boolean; region: string; serverTime: string};
     expect(typed.ok).toBe(true);
-    expect(typed.region).toBe("asia-northeast3");
+    expect(typed.region).toBe(REGION);
     expect(typed.serverTime).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
     // 2. BL-02: logger mock 으로 인증 분기 진입 입증.

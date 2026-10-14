@@ -8,6 +8,11 @@ import 'package:flutter_starter_kit/core/config/app_config.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/planning_docs.dart';
+
+/// 단일 리전 이름 형식(예: `asia-northeast3` · `us-central1`).
+final RegExp _singleRegionPattern = RegExp(r'^[a-z]+-[a-z]+[0-9]+$');
+
 /// [json] 의 `enabledAuthProviders` CSV 에 [providerId] 가 있을 때만 [key]
 /// 값이 비어 있지 않은지 검사한다.
 ///
@@ -375,6 +380,7 @@ void main() {
 
     test('config/*.example.json 이 functionsRegion · brandColor · '
         'emailDelivery 키를 노출한다', () {
+      final Set<Object?> regions = <Object?>{};
       for (final flavor in const <String>['dev', 'stg', 'prod']) {
         final file = File('config/$flavor.example.json');
         final json =
@@ -384,11 +390,13 @@ void main() {
           isTrue,
           reason: '$flavor.example.json 에 functionsRegion 키 누락',
         );
+        // 값 자체는 사용자가 설정 위저드로 바꿀 수 있으므로 형식만 본다.
         expect(
           json['functionsRegion'],
-          AppConfig.defaultFunctionsRegion,
-          reason: 'example 은 프로젝트 표준 region 을 그대로 보여야 한다',
+          matches(_singleRegionPattern),
+          reason: '$flavor.example.json 의 functionsRegion 이 단일 리전 형식이 아니다',
         );
+        regions.add(json['functionsRegion']);
         // D-06 — example 은 지금 앱 색(Colors.deepPurple)과 같은 기본값을 보인다.
         expect(
           json['brandColor'],
@@ -408,7 +416,31 @@ void main() {
           reason: '$flavor.example.json 의 appCheckDebugToken 이 빈 문자열이 아니다',
         );
       }
+      expect(
+        regions,
+        hasLength(1),
+        reason: 'example 3종의 functionsRegion 이 서로 다르다: $regions',
+      );
     });
+
+    // 사용자가 설정 위저드로 리전을 바꾸면 Dart 기본값이 바뀌고 example 은 킷
+    // 값 그대로라, 이 단언은 킷 저장소에서만 의미가 있다.
+    test(
+      'example 의 functionsRegion 은 킷 기본 리전이다(유지보수자 트리)',
+      () {
+        for (final flavor in const <String>['dev', 'stg', 'prod']) {
+          final file = File('config/$flavor.example.json');
+          final json =
+              jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+          expect(
+            json['functionsRegion'],
+            AppConfig.defaultFunctionsRegion,
+            reason: '$flavor.example.json 은 킷 기본 리전을 그대로 보여야 한다',
+          );
+        }
+      },
+      skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
+    );
 
     test('firebase_providers.dart 가 region 을 하드코딩하지 않는다 (소스 계약)', () {
       final source = File(

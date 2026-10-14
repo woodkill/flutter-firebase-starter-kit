@@ -88,23 +88,44 @@ provider 마다 켤 때 필요한 것과 함수 배포(`bash scripts/deploy_func
 - **바꾼 뒤에는 결과 페이지를 다시 배포한다** — `docs/manual.md` 「인증 결과 페이지
   바꾸기」 의 「바꾸고 배포하기」 ③.
 
-## Naver 키의 소비처 (Phase 16.2 · Phase 16.5)
+## `appCheckDebugToken` — debug 빌드의 App Check 디버그 토큰
+
+debug 빌드 앱이 App Check 에 내는 디버그 토큰이다.
+
+```json
+"appCheckDebugToken": ""
+```
+
+- **설정 위저드(`./setup.sh`)가 만들어 넣는다.** 위저드가 UUID 를 만들어
+  `config/dev.json` 에 쓰고, 같은 값을 Firebase 의 iOS · Android 앱에 디버그 토큰으로
+  등록한다. 세 example 파일의 값은 빈 문자열이다.
+- **비우면 앱이 실행할 때 토큰을 만들어 로그(logcat · Xcode console)에 출력한다.**
+  그 값을 Firebase Console → App Check → 앱 메뉴의 디버그 토큰 관리에 등록해야
+  회원탈퇴 같은 보호된 기능이 동작한다.
+- **release 빌드는 이 값을 쓰지 않는다.** release 빌드는 Play Integrity(Android) ·
+  DeviceCheck(iOS)로 증명한다.
+- **저장소에 올리지 않는다.** 비밀 값이다 — 값이 들어가는 `config/<flavor>.json` 은
+  `.gitignore` 대상이고, example 파일에는 빈 문자열만 둔다.
+- **값은 빌드 때 들어간다.** 바꾼 뒤에는 앱을 다시 빌드한다.
+
+## Naver 키의 소비처
 
 `config/*.json` 의 naver 키는 두 경로가 나눠 쓴다 — NAVER 앱 설치 단말의 **SDK
 1-tap 경로**(`naver_login_flutter` 4.0.0, 빌드 타임 native 설정)와 미설치 단말의
-**킷 웹 경로**(Phase 16.5 — `flutter_web_auth_2` + Cloud Function
+**킷 웹 경로**(`flutter_web_auth_2` + Cloud Function
 `naverWebCustomToken`).
 
 | 키 | SDK 1-tap 소비처 (native) | 킷 웹 경로 소비처 (Dart / Android manifest) | 비고 |
 |----|---------------------------|---------------------------------------------|------|
-| `naverClientId` | `android/app/build.gradle.kts` 가 dart-defines 에서 읽어 string resource 로 주입 → manifest meta-data 가 참조 | `AppConfig.naverClientId`(웹 경로 authorize URL 의 `client_id`, Phase 16.5) | iOS SDK 는 xcconfig `NAVER_CLIENT_ID` 를 쓴다 — 값이 같아야 한다 |
+| `naverClientId` | `android/app/build.gradle.kts` 가 dart-defines 에서 읽어 string resource 로 주입 → manifest meta-data 가 참조 | `AppConfig.naverClientId`(웹 경로 authorize URL 의 `client_id`) | iOS SDK 는 xcconfig `NAVER_CLIENT_ID` 를 쓴다 — 값이 같아야 한다 |
 | `naverClientSecret` | 위와 동일 (Android string resource) | **없음** — Dart 는 읽지 않는다. 웹 경로의 교환은 서버 Secret Manager `NAVER_CLIENT_SECRET` 이 한다 | Secret Manager 와 **같은 값 2본** (SDK 1-tap 이 native 설정을 요구하므로 앱 번들에서 없앨 수 없다) |
 | `appName` | 위와 동일 — Android 동의 화면의 앱 이름으로도 쓰인다 | 없음 | iOS 는 `DISPLAY_NAME` 을 따른다 |
 | `naverUrlScheme` | iOS 는 xcconfig `NAVER_URL_SCHEME` 가 실제 출처 (json 은 기록처) | `AppConfig.naverWebCallbackScheme` + Android manifest placeholder `naverWebCallbackScheme`(gradle 이 dart-defines 에서 공급 → 킷 `WebAuthCallbackActivity`(flutter_web_auth_2 콜백 relay) intent-filter) | 웹 경로 콜백 scheme 겸용 — **소문자 영숫자**(RFC 3986)여야 한다 |
 
-**Firebase Secret Manager (서버 쪽, 2종):** `NAVER_CLIENT_SECRET`(교환 · revoke —
-Phase 16.5 부터 사용처 1) · `NAVER_CLIENT_ID`(Phase 16.5 신규 — json 의
-`naverClientId` 와 같은 값). 등록 절차는 `docs/manual.md` Naver 8단계.
+**Firebase Secret Manager (서버 쪽, 2종):** `NAVER_CLIENT_SECRET` · `NAVER_CLIENT_ID` —
+웹 경로(로그인 · 계정 연결)의 code 교환과 연결 해제의 token revoke 가 쓴다.
+`NAVER_CLIENT_ID` 는 json 의 `naverClientId` 와 같은 값이다. 등록 절차는
+`docs/manual.md` Naver 8단계.
 
 - **iOS SDK 는 `ios/Flutter/{flavor}.xcconfig` 가 실제 출처다.** 플러그인이 Dart 가
   뜨기 전(`register(with:)` 시점)에 `Info.plist` 를 직접 읽기 때문에 값이 빌드
@@ -113,10 +134,10 @@ Phase 16.5 부터 사용처 1) · `NAVER_CLIENT_ID`(Phase 16.5 신규 — json �
   **의도된 것**이며 (Kakao · Facebook 과 같은 방식), 두 값이 어긋나면 Android 와
   iOS 가 (그리고 iOS 안에서도 1-tap 과 웹 경로가) 서로 다른 앱으로 로그인한다.
   dev 는 계약 테스트 `T-16.5-NATIVE-01` 이 로컬 실 키 파일로 일치를 단언한다.
-- **Dart 가 읽는 naver 키는 `naverClientId` · `naverUrlScheme` 두 개뿐이다
-  (Phase 16.5).** 둘 다 공개 값이다 — `client_id` 는 RFC 6749 상 공개 식별자이고
-  authorize URL 에 어차피 평문으로 실린다. 16.2 D-04 의 본질인 「secret 을 Dart
-  번들에 두지 않는다」 는 그대로다: `naverClientSecret` 은 Dart 상수가 없다.
+- **Dart 가 읽는 naver 키는 `naverClientId` · `naverUrlScheme` 두 개뿐이다.**
+  둘 다 공개 값이다 — `client_id` 는 RFC 6749 상 공개 식별자이고
+  authorize URL 에 어차피 평문으로 실린다. secret 은 Dart 번들에 두지
+  않는다 — `naverClientSecret` 은 Dart 상수가 없다.
   json 을 바꾼 뒤에는 Android 빌드와 Dart dart-define 이 모두 새 값을 읽도록
   **다시 빌드**해야 한다.
 
