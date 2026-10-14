@@ -1,0 +1,445 @@
+import 'dart:io';
+
+import '../../../bin/rename.dart' as rename;
+import '../config_files.dart';
+import '../confirm.dart';
+import '../git_tree.dart';
+import '../step.dart';
+import '../terminal.dart';
+import '../wizard.dart';
+import 'user_files_step.dart';
+
+/// 앱 정체성 단계 — org · name 두 값으로 앱 ID · 번들 ID · 프로젝트 prefix ·
+/// 표시 이름을 한 번의 확인으로 바꾼다.
+///
+/// 계산 · 검증 · 변경은 `bin/rename.dart` 의 공개 함수를 그대로 부른다. 확인은
+/// 단계 진행 확인과 값 요약 표 한 번으로 끝나고 rename 도구 자체의 확인 질문은
+/// 거치지 않는다. 표시 이름은 rename 뒤 사용자 파일의 `appName` · `DISPLAY_NAME`
+/// 에 위저드가 직접 쓴다.
+final class IdentityStep implements Step {
+  /// 앱 정체성 단계를 만든다.
+  IdentityStep();
+
+  /// Android 앱 ID 를 읽는 Gradle 파일.
+  static const String gradlePath = 'android/app/build.gradle.kts';
+
+  /// 확인 표 제목.
+  static const String confirmTitle = '앱 정체성 — 확인';
+
+  /// 확인 표 경고.
+  static const String storeWarning = '스토어에 올린 뒤에는 앱 ID 를 바꿀 수 없습니다.';
+
+  /// 미리보기 뒤 고르기 질문.
+  static const String previewChoiceQuestion = '미리보기 값으로 진행할까요, 고칠까요?';
+
+  /// 미리보기 고르기 — 진행.
+  static const String proceedOption = '이대로 진행';
+
+  /// 미리보기 고르기 — 프로젝트 prefix 고치기.
+  static const String editPrefixOption = '프로젝트 prefix 고치기';
+
+  /// 미리보기 고르기 — 표시 이름 고치기.
+  static const String editDisplayNameOption = '표시 이름 고치기';
+
+  /// org 질문.
+  static const String orgQuestion = 'org — 역순 도메인 (예: com.mycompany)';
+
+  /// name 질문.
+  static const String nameQuestion = 'name — 소문자 snake_case (예: my_app)';
+
+  /// 프로젝트 prefix 질문.
+  static const String prefixQuestion =
+      '프로젝트 prefix — 소문자 · 숫자 · - 로 2~25자 (예: my-app)';
+
+  /// 표시 이름 질문.
+  static const String displayNameQuestion =
+      '표시 이름 — 영문 · 숫자 · 공백 (예: My App Dev)';
+
+  /// org 형식 오류.
+  static const String invalidOrgMessage =
+      '  org 형식이 아닙니다 — 소문자로 시작하는 역순 도메인이어야 합니다 (예: com.mycompany)';
+
+  /// name 형식 오류.
+  static const String invalidNameMessage =
+      '  name 형식이 아닙니다 — 소문자로 시작하는 snake_case 여야 합니다 (예: my_app)';
+
+  /// 프로젝트 prefix 형식 오류.
+  static const String invalidPrefixMessage =
+      '  프로젝트 prefix 형식이 아닙니다 — 소문자로 시작하고 소문자 · 숫자 · - 만 쓰며 '
+      '- 로 끝나지 않는 2~25자여야 합니다';
+
+  /// 표시 이름 형식 오류.
+  static const String invalidDisplayNameMessage =
+      '  표시 이름은 영문 · 숫자 · 공백만 쓸 수 있습니다';
+
+  /// 고칠 파일에 미커밋 변경이 있을 때의 안내.
+  static const String dirtyTreeGuidance = '커밋하거나 되돌린 뒤 다시 시도하세요';
+
+  /// 같은 질문을 다시 묻는 최대 횟수.
+  static const int maxInputAttempts = 3;
+
+  /// 표시 이름 규칙 — 영문 · 숫자 · 공백(앞뒤 공백은 뗀 뒤 검사).
+  static final RegExp displayNamePattern = RegExp(r'^[A-Za-z0-9 ]+$');
+
+  /// Gradle 의 `applicationId = "…"` 줄 — group 1 = 앱 ID.
+  static final RegExp _applicationIdPattern = RegExp(
+    r'applicationId\s*=\s*"([^"]+)"',
+  );
+
+  /// dev 표시 이름 접미사.
+  static const String _devSuffix = ' Dev';
+
+  _IdentityMode _mode = _IdentityMode.unreadable;
+  String _reason = '';
+  String _applicationId = '';
+
+  @override
+  String get id => 'identity';
+
+  @override
+  String get title => '앱 정체성';
+
+  @override
+  List<String> get dependsOn => const <String>['user_files'];
+
+  @override
+  bool get isCostlyOrIrreversible => true;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async {
+    final File gradle = File(context.resolve(gradlePath));
+    final RegExpMatch? match = gradle.existsSync()
+        ? _applicationIdPattern.firstMatch(gradle.readAsStringSync())
+        : null;
+    if (match == null) {
+      _mode = _IdentityMode.unreadable;
+      _reason = '$gradlePath 에서 applicationId 를 읽지 못했습니다';
+      return Todo(_reason);
+    }
+    _applicationId = match.group(1)!;
+    if (_applicationId == rename.currentAndroidPackage) {
+      _mode = _IdentityMode.full;
+      _reason = 'Android 앱 ID 가 킷 기본값입니다 ($_applicationId)';
+      return Todo(_reason);
+    }
+    if (_isDisplayNameDefault(context)) {
+      _mode = _IdentityMode.displayNameOnly;
+      _reason = '표시 이름이 킷 기본값입니다';
+      return Todo(_reason);
+    }
+    _mode = _IdentityMode.done;
+    return Done('Android 앱 ID $_applicationId');
+  }
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) {
+    const List<String> displayNameLines = <String>[
+      '(${UserFilesStep.jsonUserPath} 의 appName 을 표시 이름으로 바꿈)',
+      '(${UserFilesStep.xcconfigUserPath} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
+    ];
+    return switch (_mode) {
+      _IdentityMode.full => <String>[
+        '(org · name 을 묻고 미리보기와 확인 표를 보인 뒤 아래와 같은 일을 합니다)',
+        'fvm dart run bin/rename.dart --org <org> --name <name> '
+            '--project-prefix <prefix> --apply --yes',
+        ...displayNameLines,
+      ],
+      _IdentityMode.displayNameOnly => displayNameLines,
+      _IdentityMode.unreadable || _IdentityMode.done => const <String>[],
+    };
+  }
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async {
+    // 위저드는 실행 직전에 check 를 부르므로 그 판정(_mode)을 그대로 쓴다.
+    try {
+      return switch (_mode) {
+        _IdentityMode.full => await _applyFull(context),
+        _IdentityMode.displayNameOnly => _applyDisplayNameOnly(context),
+        _IdentityMode.unreadable => Failed(_reason),
+        _IdentityMode.done => const Applied(),
+      };
+    } on GitTreeException catch (e) {
+      return Failed(e.message, result: e.result);
+    } on FileSystemException catch (e) {
+      return Failed('파일을 고치지 못했습니다 — $e');
+    } on FormatException catch (e) {
+      return Failed('${UserFilesStep.jsonUserPath} 을 고치지 못했습니다 — $e');
+    } on StateError catch (e) {
+      return Failed('표시 이름을 쓰지 못했습니다 — ${e.message}');
+    }
+  }
+
+  /// org · name 을 묻고 미리보기 · 확인 뒤 rename 함수와 표시 이름 쓰기를 실행한다.
+  Future<StepOutcome> _applyFull(WizardContext context) async {
+    final Terminal terminal = context.terminal;
+    final ({String org, String name})? inputs = _askOrgAndName(terminal);
+    if (inputs == null) return const Declined();
+    final String org = inputs.org;
+    final String name = inputs.name;
+    if (org.isEmpty) {
+      return const Failed('org · name 형식이 맞지 않아 진행하지 않았습니다');
+    }
+
+    String prefix = name.replaceAll('_', '-');
+    String displayName = '${rename.toTitleCase(name)}$_devSuffix';
+    while (true) {
+      final List<SummaryRow> rows = _buildRows(org, name, prefix, displayName);
+      _writePreview(terminal, rows);
+      final int? choice = terminal.choose(previewChoiceQuestion, const <String>[
+        proceedOption,
+        editPrefixOption,
+        editDisplayNameOption,
+      ]);
+      if (choice == null) return const Declined();
+      if (choice == 1) {
+        final String? edited = _askValid(
+          terminal,
+          question: prefixQuestion,
+          defaultValue: prefix,
+          isValid: (String value) =>
+              rename.validateProjectPrefix(value).isValid,
+          invalidMessage: invalidPrefixMessage,
+        );
+        if (edited == null) return const Declined();
+        if (edited.isNotEmpty) prefix = edited;
+        continue;
+      }
+      if (choice == 2) {
+        final String? edited = _askValid(
+          terminal,
+          question: displayNameQuestion,
+          defaultValue: displayName,
+          isValid: isValidDisplayName,
+          invalidMessage: invalidDisplayNameMessage,
+        );
+        if (edited == null) return const Declined();
+        if (edited.isNotEmpty) displayName = edited;
+        continue;
+      }
+      if (!rename.validateProjectPrefix(prefix).isValid) {
+        // name 에서 계산한 prefix 가 규칙 밖이면(예: 한 글자) 고친 뒤에만 진행한다.
+        terminal.writeLine(invalidPrefixMessage);
+        continue;
+      }
+      if (!confirmSummary(
+        terminal,
+        title: confirmTitle,
+        rows: rows,
+        warnings: const <String>[storeWarning],
+      )) {
+        return const Declined();
+      }
+      break;
+    }
+
+    final String jsonPath = context.resolve(UserFilesStep.jsonUserPath);
+    final String xcconfigPath = context.resolve(UserFilesStep.xcconfigUserPath);
+    final String? missingTarget = _findMissingDisplayNameTarget(
+      jsonPath,
+      xcconfigPath,
+    );
+    if (missingTarget != null) return Failed(missingTarget);
+
+    final List<rename.FileChange> changes = rename.collectChanges(
+      context.projectRoot,
+      org,
+      name,
+      projectIdPrefix: prefix,
+    );
+    final List<String> dirty = await findDirtyTrackedFiles(
+      context,
+      _listTargetPaths(context, changes),
+    );
+    if (dirty.isNotEmpty) {
+      return Failed(
+        '고칠 파일에 커밋하지 않은 변경이 있습니다 — $dirtyTreeGuidance\n'
+        '${dirty.map((String path) => '    $path').join('\n')}',
+      );
+    }
+
+    rename.applyChanges(changes);
+    _writeDisplayName(jsonPath, xcconfigPath, displayName);
+    return const Applied();
+  }
+
+  /// 표시 이름만 묻고 두 사용자 파일에 쓴다 — rename 은 부르지 않는다.
+  StepOutcome _applyDisplayNameOnly(WizardContext context) {
+    final String jsonPath = context.resolve(UserFilesStep.jsonUserPath);
+    final String xcconfigPath = context.resolve(UserFilesStep.xcconfigUserPath);
+    final String? missingTarget = _findMissingDisplayNameTarget(
+      jsonPath,
+      xcconfigPath,
+    );
+    if (missingTarget != null) return Failed(missingTarget);
+
+    final String suggested =
+        '${rename.toTitleCase(_applicationId.split('.').last)}$_devSuffix';
+    final String? displayName = _askValid(
+      context.terminal,
+      question: displayNameQuestion,
+      defaultValue: isValidDisplayName(suggested) ? suggested : null,
+      isValid: isValidDisplayName,
+      invalidMessage: invalidDisplayNameMessage,
+    );
+    if (displayName == null) return const Declined();
+    if (displayName.isEmpty) {
+      return const Failed('표시 이름 형식이 맞지 않아 진행하지 않았습니다');
+    }
+    _writeDisplayName(jsonPath, xcconfigPath, displayName);
+    return const Applied();
+  }
+
+  /// [value] 가 표시 이름 규칙(앞뒤 공백을 뗀 뒤 영문 · 숫자 · 공백, 빈 값 아님)에 맞는지 본다.
+  static bool isValidDisplayName(String value) {
+    final String trimmed = value.trim();
+    return trimmed.isNotEmpty && displayNamePattern.hasMatch(trimmed);
+  }
+
+  /// org · name 을 묻는다 — 입력 끝이면 null, 형식이 [maxInputAttempts] 번 틀리면
+  /// 빈 org 를 돌려준다.
+  ({String org, String name})? _askOrgAndName(Terminal terminal) {
+    for (int attempt = 0; attempt < maxInputAttempts; attempt++) {
+      final String? org = terminal.ask(orgQuestion);
+      if (org == null) return null;
+      final String? name = terminal.ask(nameQuestion);
+      if (name == null) return null;
+      if (rename.validateInputs(org, name).isValid) {
+        return (org: org, name: name);
+      }
+      // name 자리에 늘 맞는 값을 넣어 어느 쪽이 틀렸는지 가린다.
+      final bool isOrgValid = rename.validateInputs(org, 'app').isValid;
+      terminal.writeLine(isOrgValid ? invalidNameMessage : invalidOrgMessage);
+    }
+    return (org: '', name: '');
+  }
+
+  /// [question] 을 규칙에 맞을 때까지 [maxInputAttempts] 번까지 묻는다.
+  ///
+  /// 입력 끝이면 null, 끝까지 틀리면 빈 문자열을 돌려준다.
+  String? _askValid(
+    Terminal terminal, {
+    required String question,
+    required bool Function(String value) isValid,
+    required String invalidMessage,
+    String? defaultValue,
+  }) {
+    for (int attempt = 0; attempt < maxInputAttempts; attempt++) {
+      final String? answer = terminal.ask(question, defaultValue: defaultValue);
+      if (answer == null) return null;
+      final String trimmed = answer.trim();
+      if (isValid(trimmed)) return trimmed;
+      terminal.writeLine(invalidMessage);
+    }
+    return '';
+  }
+
+  /// 미리보기 · 확인 표의 값 행을 만든다.
+  List<SummaryRow> _buildRows(
+    String org,
+    String name,
+    String prefix,
+    String displayName,
+  ) => <SummaryRow>[
+    SummaryRow('org', org),
+    SummaryRow('name', name),
+    SummaryRow('Android 앱 ID', '$org.$name(.dev)'),
+    SummaryRow('iOS 번들 ID', '$org.${rename.toLowerCamelCase(name)}(.dev)'),
+    SummaryRow('프로젝트 prefix', prefix),
+    SummaryRow('표시 이름', displayName),
+  ];
+
+  /// 미리보기 표를 보인다 — 라벨은 화면 폭 기준으로 맞춘다.
+  void _writePreview(Terminal terminal, List<SummaryRow> rows) {
+    final int labelWidth = rows.fold<int>(0, (int widest, SummaryRow row) {
+      final int width = measureDisplayWidth(row.label);
+      return width > widest ? width : widest;
+    });
+    terminal.writeLine('앱 정체성 — 미리보기');
+    for (final SummaryRow row in rows) {
+      final int padding = labelWidth - measureDisplayWidth(row.label);
+      terminal.writeLine('  ${row.label}${' ' * padding}  ${row.value}');
+    }
+  }
+
+  /// rename 변경 목록을 깨끗함 검사 대상(저장소 상대 경로)으로 바꾼다.
+  ///
+  /// 디렉터리 이동은 이동 원본 디렉터리 항목 하나로 넣는다(그 아래 추적 파일 전부가
+  /// 대상). 이동 뒤 새 경로를 가리키는 변경은 아직 없는 파일이라 넣지 않는다.
+  List<String> _listTargetPaths(
+    WizardContext context,
+    List<rename.FileChange> changes,
+  ) {
+    final String rootPrefix = '${context.projectRoot}/';
+    final List<String> paths = <String>[];
+    for (final rename.FileChange change in changes) {
+      final bool isMove = change.type == rename.ChangeType.move;
+      if (!isMove && !File(change.filePath).existsSync()) continue;
+      final String relative = change.filePath.startsWith(rootPrefix)
+          ? change.filePath.substring(rootPrefix.length)
+          : change.filePath;
+      if (!paths.contains(relative)) paths.add(relative);
+    }
+    return paths;
+  }
+
+  /// 표시 이름을 쓸 키 · 변수가 없으면 그 사유를 돌려준다 — 모두 있으면 null.
+  String? _findMissingDisplayNameTarget(String jsonPath, String xcconfigPath) {
+    if (!File(jsonPath).existsSync() ||
+        readJsonString(jsonPath, 'appName') == null) {
+      return '${UserFilesStep.jsonUserPath} 에 appName 문자열 값이 없습니다';
+    }
+    if (!File(xcconfigPath).existsSync() ||
+        readXcconfigValue(xcconfigPath, 'DISPLAY_NAME') == null) {
+      return '${UserFilesStep.xcconfigUserPath} 에 DISPLAY_NAME 이 없습니다';
+    }
+    return null;
+  }
+
+  /// 표시 이름을 사용자 JSON 의 `appName` · xcconfig 의 `DISPLAY_NAME` 에 쓴다.
+  void _writeDisplayName(
+    String jsonPath,
+    String xcconfigPath,
+    String displayName,
+  ) {
+    replaceJsonString(jsonPath, 'appName', displayName);
+    replaceXcconfigValue(xcconfigPath, 'DISPLAY_NAME', displayName);
+  }
+
+  /// 표시 이름이 킷 기본값(appName 이 킷 이름으로 시작 · DISPLAY_NAME 이 example 값)인지 본다.
+  bool _isDisplayNameDefault(WizardContext context) {
+    final String jsonPath = context.resolve(UserFilesStep.jsonUserPath);
+    final String xcconfigPath = context.resolve(UserFilesStep.xcconfigUserPath);
+    final String examplePath = context.resolve(
+      UserFilesStep.xcconfigExamplePath,
+    );
+    final String? appName = File(jsonPath).existsSync()
+        ? readJsonString(jsonPath, 'appName')
+        : null;
+    if (appName == null || appName.startsWith(rename.currentAppName)) {
+      return true;
+    }
+    final String? displayName = File(xcconfigPath).existsSync()
+        ? readXcconfigValue(xcconfigPath, 'DISPLAY_NAME')
+        : null;
+    final String? exampleDisplayName = File(examplePath).existsSync()
+        ? readXcconfigValue(examplePath, 'DISPLAY_NAME')
+        : null;
+    return displayName == null || displayName == exampleDisplayName;
+  }
+}
+
+/// 직전 검사의 판정.
+enum _IdentityMode {
+  /// 앱 ID 가 킷 기본값 — org · name 부터 진행.
+  full,
+
+  /// 앱 ID 는 바뀌었고 표시 이름만 기본값.
+  displayNameOnly,
+
+  /// Gradle 파일에서 앱 ID 를 읽지 못함.
+  unreadable,
+
+  /// 끝남.
+  done,
+}
