@@ -71,6 +71,7 @@ final class _ScriptedStep implements Step {
     required List<CheckResult> checks,
     List<StepOutcome> outcomes = const <StepOutcome>[Applied()],
     this.dependsOn = const <String>[],
+    this.isCostlyOrIrreversible = false,
   }) : _checks = List<CheckResult>.of(checks),
        _outcomes = List<StepOutcome>.of(outcomes);
 
@@ -90,7 +91,7 @@ final class _ScriptedStep implements Step {
   String get title => id;
 
   @override
-  bool get isCostlyOrIrreversible => false;
+  final bool isCostlyOrIrreversible;
 
   @override
   Future<CheckResult> check(WizardContext context) async {
@@ -155,6 +156,33 @@ void main() {
     expect(output, contains('  ? B — A 뒤에 검사합니다'));
     expect(b.checkCount, 0);
     expect(run.code, wizardExitStopped);
+  });
+
+  test('T-19-WIZ-13 비용 · 되돌릴 수 없는 단계만 계획 줄 끝에 값 표 재확인 안내를 한 줄 보인다', () async {
+    final _ScriptedStep plain = _ScriptedStep(
+      'A',
+      checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
+    );
+    final _ScriptedStep costly = _ScriptedStep(
+      'B',
+      checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
+      isCostlyOrIrreversible: true,
+    );
+
+    final ({int code, ScriptedTerminal terminal}) run = await runSteps(
+      <Step>[plain, costly],
+      const <String?>['y', 'y'],
+    );
+
+    final String output = run.terminal.output.toString();
+    final String noticeLine = '    $costlyStepNotice';
+    expect(run.code, wizardExitDone);
+    expect(_countExactLines(output, noticeLine), 1);
+    expect(output.indexOf(noticeLine), greaterThan(output.indexOf('▶ B')));
+    expect(
+      output.indexOf(noticeLine),
+      greaterThan(output.indexOf('  \$ run-B')),
+    );
   });
 
   test('T-19-WIZ-02 점검표 뒤 첫 ✗ 단계부터 진행하고 ✓ 단계는 실행하지 않는다', () async {

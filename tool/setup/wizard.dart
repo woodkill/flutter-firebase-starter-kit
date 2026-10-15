@@ -25,6 +25,11 @@ const String allDoneLine = '모든 단계가 끝났습니다.';
 /// 단계를 시작하기 전에 묻는 질문.
 const String stepConfirmQuestion = '이 단계를 진행할까요?';
 
+/// 비용이 들거나 되돌릴 수 없는 선택이 있는 단계의 계획 줄 끝에 붙는 안내 줄.
+const String costlyStepNotice =
+    '(비용이 들거나 되돌릴 수 없는 선택이 있으면 실행 전에 값 표를 한 번 더 보이고 '
+    '확인을 받습니다)';
+
 /// 멈출 때의 마지막 줄.
 const String stopLine = '같은 명령을 다시 실행하면 이어집니다.';
 
@@ -348,6 +353,9 @@ final class Wizard {
   }
 
   /// 단계가 실행할 명령 줄을 출력한다 — `(` 로 시작하는 줄은 안내 줄이다.
+  ///
+  /// [Step.isCostlyOrIrreversible] 단계는 끝에 값 표를 한 번 더 확인한다는 안내
+  /// 줄을 붙인다 — 단계 y 하나로 끝나지 않는다는 것을 미리 알린다.
   void _printPlannedLines(Step step) {
     for (final String line in step.plannedCommandLines(context)) {
       if (line.startsWith('(')) {
@@ -355,6 +363,9 @@ final class Wizard {
       } else {
         _terminal.writeCommand(line);
       }
+    }
+    if (step.isCostlyOrIrreversible) {
+      _terminal.writeLine('    $costlyStepNotice');
     }
   }
 
