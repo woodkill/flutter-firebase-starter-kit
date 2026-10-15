@@ -9,6 +9,7 @@ import 'functions_step.dart';
 import 'identity_step.dart';
 import 'login_step.dart';
 import 'rules_step.dart';
+import 'run_step.dart';
 import 'sign_in_step.dart';
 import 'storage_step.dart';
 import 'tools_step.dart';
@@ -35,4 +36,5 @@ List<Step> buildDevSteps() => <Step>[
   RulesStep(),
   AppCheckStep(),
   FunctionsStep(),
+  RunStep(),
 ];

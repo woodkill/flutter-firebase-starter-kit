@@ -1,0 +1,508 @@
+import 'dart:convert';
+
+import '../command_runner.dart';
+import '../rest_client.dart';
+import '../step.dart';
+import '../wizard.dart';
+import 'billing_step.dart';
+import 'user_files_step.dart';
+
+/// 앱 실행 · 로그인 확인 단계 — 위저드의 마지막 단계다.
+///
+/// 검사는 Identity Toolkit 의 사용자 목록(`accounts:batchGet`)을 끝 페이지까지
+/// 읽어 이메일이 인증된 비밀번호 사용자 수를 센다. 1명 이상이면 끝이다 — 앱이
+/// 떴는지가 아니라 사용자가 가입 · 인증까지 마쳤는지로 판정한다. 응답의 이메일 ·
+/// uid · 표시 이름은 화면 · 기록에 쓰지 않고 개수만 보인다.
+///
+/// 실행은 패키지 받기 → 코드 생성 → 실행 대상 고르기(iOS · Android 만 · 기본값은
+/// iOS 시뮬레이터 · 대상이 없으면 iOS 시뮬레이터를 띄운 뒤 다시 찾음) → 할 일
+/// 안내 → 대화형 `flutter run` 이다. 실행이 끝나 돌아오면 위저드가 다시 검사한다.
+final class RunStep implements Step {
+  /// 앱 실행 · 로그인 확인 단계를 만든다.
+  ///
+  /// [delay] 는 iOS 시뮬레이터를 띄운 뒤 기기 목록을 다시 보기 전에 기다리는
+  /// 함수다(기본 = 실제로 기다림 · 테스트는 기다리지 않는 함수를 넣는다).
+  RunStep({Future<void> Function(Duration duration)? delay})
+    : _delay = delay ?? _waitFor;
+
+  /// 단계 제목.
+  static const String stepTitle = '앱 실행 · 로그인 확인';
+
+  /// 사용자 목록 API 주소의 앞부분 — 뒤에 `<프로젝트 ID>/accounts:batchGet` 이 붙는다.
+  static const String usersUrlPrefix =
+      'https://identitytoolkit.googleapis.com/v1/projects/';
+
+  /// 사용자 목록 한 페이지의 최대 사용자 수(API 상한).
+  static const int pageSize = 1000;
+
+  /// 사용자 목록을 끝까지 읽을 때의 최대 페이지 수 — 응답이 끝나지 않는 경우를 막는다.
+  static const int maxPages = 1000;
+
+  /// 실행에 쓰는 dev config 파일(저장소 루트 기준).
+  static const String devConfigPath = 'config/dev.json';
+
+  /// 대상이 없을 때 띄우는 Flutter 에뮬레이터 id.
+  static const String iosSimulatorEmulatorId = 'apple_ios_simulator';
+
+  /// iOS 시뮬레이터를 띄운 뒤 기기 목록을 다시 보는 간격.
+  static const Duration launchPollInterval = Duration(seconds: 3);
+
+  /// iOS 시뮬레이터를 띄운 뒤 기기 목록을 다시 보는 최대 횟수.
+  static const int maxLaunchPolls = 20;
+
+  /// 실행 대상을 고르는 질문.
+  static const String targetChoiceQuestion = '앱을 실행할 기기를 고르세요';
+
+  /// 할 일 안내의 마지막 줄.
+  static const String quitLine = '끝나면 이 터미널에서 q 를 눌러 실행을 끝냅니다 — 위저드가 가입을 확인합니다';
+
+  /// 앱을 실행하기 전에 보이는 할 일 안내(마지막 줄은 [quitLine]).
+  static const List<String> signUpGuideLines = <String>[
+    '  앱에서 할 일 (화면 문구는 기기 언어가 한국어일 때의 문구 · 괄호 안은 영어):',
+    '    1. 첫 안내 화면을 넘기고(「건너뛰기」 Skip) 약관에 동의한 뒤(「전체 동의」 Accept all) '
+        '「시작하기」(Get started)',
+    '    2. 홈 오른쪽 위 「로그인」(Sign in) → 「계정이 없으신가요? 가입하기」'
+        '(No account? Create one) → 이름 · 이메일 · 비밀번호를 넣고 「가입하기」(Create account)',
+    '    3. 받은 메일의 인증 링크를 엽니다 — 메일이 보이지 않으면 스팸함을 확인하세요',
+    '    4. 앱으로 돌아와 「인증 확인」(I\'ve verified my email)',
+    '  $quitLine',
+  ];
+
+  /// 앱 실행이 실패했을 때의 요약.
+  static const String runFailedSummary = '앱 실행이 실패했습니다';
+
+  /// 시뮬레이터를 띄운 뒤에도 실행 대상이 없을 때의 요약.
+  static const String noTargetSummary =
+      '실행할 iOS · Android 기기를 찾지 못했습니다 — iOS 시뮬레이터를 띄우지 못했거나 아직 '
+      '켜지는 중입니다. 시뮬레이터가 켜진 뒤 다시 시도하세요';
+
+  /// 사용자가 없을 때의 할 일 사유.
+  static const String noUserReason =
+      '인증된 이메일 사용자가 없습니다 — 앱에서 가입 · 이메일 인증을 마쳐야 합니다';
+
+  /// 패키지를 받는 명령을 만든다.
+  static Command buildPubGetCommand({String? workingDirectory}) => Command(
+    'fvm',
+    const <String>['flutter', 'pub', 'get'],
+    workingDirectory: workingDirectory,
+  );
+
+  /// 코드 생성 명령을 만든다.
+  static Command buildCodegenCommand({String? workingDirectory}) =>
+      Command('fvm', const <String>[
+        'dart',
+        'run',
+        'build_runner',
+        'build',
+        '--delete-conflicting-outputs',
+      ], workingDirectory: workingDirectory);
+
+  /// 실행 대상 목록을 JSON 으로 읽는 명령을 만든다.
+  static Command buildDevicesCommand({String? workingDirectory}) => Command(
+    'fvm',
+    const <String>['flutter', 'devices', '--machine'],
+    workingDirectory: workingDirectory,
+  );
+
+  /// iOS 시뮬레이터를 띄우는 명령을 만든다.
+  static Command buildLaunchSimulatorCommand({String? workingDirectory}) =>
+      Command('fvm', const <String>[
+        'flutter',
+        'emulators',
+        '--launch',
+        'apple_ios_simulator',
+      ], workingDirectory: workingDirectory);
+
+  /// [deviceId] 기기에서 dev 앱을 실행하는 명령을 만든다.
+  static Command buildRunCommand(String deviceId, {String? workingDirectory}) =>
+      Command('fvm', <String>[
+        'flutter',
+        'run',
+        '--flavor',
+        'dev',
+        '--dart-define-from-file=config/dev.json',
+        '-d',
+        deviceId,
+      ], workingDirectory: workingDirectory);
+
+  /// [projectId] 의 사용자 목록 한 페이지를 읽는 요청을 만든다.
+  ///
+  /// 응답에 이메일 · uid · 비밀번호 해시가 실리므로 민감 응답으로 둔다.
+  /// [pageToken] 이 있으면 그 페이지부터 읽는다.
+  static RestRequest buildBatchGetRequest(
+    String projectId, {
+    String? pageToken,
+  }) {
+    final StringBuffer url = StringBuffer()
+      ..write('$usersUrlPrefix$projectId/accounts:batchGet')
+      ..write('?maxResults=$pageSize');
+    if (pageToken != null) {
+      url.write('&nextPageToken=${Uri.encodeQueryComponent(pageToken)}');
+    }
+    return RestRequest(
+      method: 'GET',
+      url: Uri.parse(url.toString()),
+      quotaProject: projectId,
+      isResponseSensitive: true,
+    );
+  }
+
+  /// 사용자 목록 응답의 사용자 하나가 인증된 이메일 · 비밀번호 사용자인지 본다.
+  static bool isVerifiedPasswordUser(Object? user) {
+    if (user is! Map<String, Object?>) return false;
+    if (user['emailVerified'] != true) return false;
+    final Object? providers = user['providerUserInfo'];
+    if (providers is! List<Object?>) return false;
+    return providers.any(
+      (Object? provider) =>
+          provider is Map<String, Object?> &&
+          provider['providerId'] == 'password',
+    );
+  }
+
+  /// 기기 목록 출력에서 iOS · Android 실행 대상을 꺼낸다 — 해석할 수 없으면 null.
+  ///
+  /// `targetPlatform` 이 `ios` 또는 `android` 로 시작하는 항목만 남기고, Flutter 가
+  /// 이 프로젝트를 실행할 수 없다고 표시한 항목(`isSupported` 가 false)은 뺀다.
+  /// 표준 출력 앞에 JSON 이 아닌 줄이 있으면 `[` 로 시작하는 첫 줄부터 읽는다.
+  static List<RunTarget>? parseRunTargets(String stdout) {
+    final List<String> lines = const LineSplitter().convert(stdout);
+    final int start = lines.indexWhere(
+      (String line) => line.trimLeft().startsWith('['),
+    );
+    if (start < 0) return null;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(lines.sublist(start).join('\n'));
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! List<Object?>) return null;
+    final List<RunTarget> targets = <RunTarget>[];
+    for (final Object? item in decoded) {
+      if (item is! Map<String, Object?>) continue;
+      final Object? name = item['name'];
+      final Object? id = item['id'];
+      final Object? platform = item['targetPlatform'];
+      if (name is! String || id is! String || platform is! String) continue;
+      if (!platform.startsWith('ios') && !platform.startsWith('android')) {
+        continue;
+      }
+      if (item['isSupported'] == false) continue;
+      targets.add(
+        RunTarget(
+          name: name,
+          id: id,
+          isIos: platform.startsWith('ios'),
+          isEmulator: item['emulator'] == true,
+        ),
+      );
+    }
+    return targets;
+  }
+
+  /// 기본으로 고를 대상의 번호(0부터) — 첫 iOS 시뮬레이터, 없으면 첫 대상.
+  static int findDefaultTargetIndex(List<RunTarget> targets) {
+    final int simulator = targets.indexWhere(
+      (RunTarget target) => target.isIos && target.isEmulator,
+    );
+    return simulator < 0 ? 0 : simulator;
+  }
+
+  final Future<void> Function(Duration duration) _delay;
+  _RunMode _mode = _RunMode.unreadable;
+  String _reason = '';
+  String _projectId = '';
+  CommandResult? _failedResult;
+
+  @override
+  String get id => 'run';
+
+  @override
+  String get title => stepTitle;
+
+  @override
+  List<String> get dependsOn => const <String>[
+    'functions',
+    'app_check',
+    'sign_in',
+    'rules',
+    'configure',
+  ];
+
+  @override
+  bool get isCostlyOrIrreversible => false;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async {
+    final String? projectId = readConfiguredProjectId(context);
+    if (projectId == null) {
+      return _mark(
+        _RunMode.unreadable,
+        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
+      );
+    }
+    _projectId = projectId;
+    final _UserCount count = await _countVerifiedUsers(context, projectId);
+    switch (count) {
+      case _UserCountFailed(:final String reason, :final CommandResult? result):
+        return _mark(_RunMode.requestFailed, reason, result: result);
+      case _UserCountOk(:final int verified) when verified > 0:
+        _mode = _RunMode.done;
+        return Done('인증된 이메일 사용자 $verified명');
+      case _UserCountOk():
+        return _mark(_RunMode.run, noUserReason);
+    }
+  }
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
+    _RunMode.run => <String>[
+      buildPubGetCommand().render(),
+      buildCodegenCommand().render(),
+      buildDevicesCommand().render(),
+      '(iOS · Android 기기만 보여 주고 고르게 합니다 — 기본값은 iOS 시뮬레이터입니다. '
+          '대상이 없으면 아래 명령으로 iOS 시뮬레이터를 띄운 뒤 다시 찾습니다)',
+      buildLaunchSimulatorCommand().render(),
+      '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
+      'fvm flutter run --flavor dev --dart-define-from-file=$devConfigPath '
+          '-d <고른 기기>',
+      '(실행이 끝나면 아래 요청으로 인증된 이메일 사용자를 다시 셉니다 — 개수만 보입니다)',
+      buildBatchGetRequest(_projectId).displayCurl(),
+    ],
+    _RunMode.requestFailed => <String>['(응답 원문을 보입니다)'],
+    _RunMode.unreadable || _RunMode.done => const <String>[],
+  };
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async {
+    // 위저드는 실행 직전에 check 를 부르므로 그 판정(_mode)을 그대로 쓴다.
+    return switch (_mode) {
+      _RunMode.run => await _runApp(context),
+      _RunMode.requestFailed => Failed(_reason, result: _failedResult),
+      _RunMode.unreadable => Failed(_reason),
+      _RunMode.done => const Applied(),
+    };
+  }
+
+  /// 패키지 받기 → 코드 생성 → 대상 고르기 → 할 일 안내 → 앱 실행.
+  Future<StepOutcome> _runApp(WizardContext context) async {
+    final String root = context.projectRoot;
+    final CommandResult pubGet = await context.runner.stream(
+      buildPubGetCommand(workingDirectory: root),
+    );
+    if (!pubGet.isSuccess) {
+      return Failed('패키지를 받지 못했습니다', result: pubGet);
+    }
+    final CommandResult codegen = await context.runner.stream(
+      buildCodegenCommand(workingDirectory: root),
+    );
+    if (!codegen.isSuccess) {
+      return Failed('코드 생성이 실패했습니다', result: codegen);
+    }
+
+    final _TargetLookup lookup = await _findTargets(context);
+    final List<RunTarget> targets;
+    switch (lookup) {
+      case _TargetLookupFailed(:final StepOutcome outcome):
+        return outcome;
+      case _TargetLookupOk(targets: final List<RunTarget> found):
+        targets = found;
+    }
+
+    final int? choice = context.terminal.choose(targetChoiceQuestion, <String>[
+      for (final RunTarget target in targets) target.label,
+    ], defaultIndex: findDefaultTargetIndex(targets));
+    if (choice == null) return const Declined();
+    final RunTarget target = targets[choice];
+
+    for (final String line in signUpGuideLines) {
+      context.terminal.writeLine(line);
+    }
+    final int code = await context.runner.interactive(
+      buildRunCommand(target.id, workingDirectory: root),
+    );
+    if (code != 0) {
+      return Failed('$runFailedSummary (종료 코드 $code)');
+    }
+    return const Applied();
+  }
+
+  /// 실행 대상을 찾는다 — 없으면 iOS 시뮬레이터를 띄우고 기다리며 다시 찾는다.
+  ///
+  /// 시뮬레이터 띄우기 명령은 앱을 열지 못해도 종료 코드 0 을 낼 수 있으므로,
+  /// 띄운 뒤의 판정은 종료 코드가 아니라 기기 목록 재조회로 한다.
+  Future<_TargetLookup> _findTargets(WizardContext context) async {
+    final String root = context.projectRoot;
+    final _TargetLookup first = await _readTargets(context);
+    if (first is! _TargetLookupOk || first.targets.isNotEmpty) return first;
+
+    final CommandResult launch = await context.runner.stream(
+      buildLaunchSimulatorCommand(workingDirectory: root),
+    );
+    if (!launch.isSuccess) {
+      return _TargetLookupFailed(
+        Failed('iOS 시뮬레이터를 띄우지 못했습니다', result: launch),
+      );
+    }
+    for (int poll = 0; poll < maxLaunchPolls; poll++) {
+      await _delay(launchPollInterval);
+      final _TargetLookup next = await _readTargets(context);
+      if (next is! _TargetLookupOk || next.targets.isNotEmpty) return next;
+    }
+    return const _TargetLookupFailed(Failed(noTargetSummary));
+  }
+
+  /// 기기 목록을 한 번 읽어 실행 대상을 꺼낸다.
+  Future<_TargetLookup> _readTargets(WizardContext context) async {
+    final CommandResult result = await context.runner.capture(
+      buildDevicesCommand(workingDirectory: context.projectRoot),
+    );
+    final List<RunTarget>? targets = result.isSuccess
+        ? parseRunTargets(result.stdout)
+        : null;
+    if (targets == null) {
+      return _TargetLookupFailed(Failed('실행 대상 목록을 읽지 못했습니다', result: result));
+    }
+    return _TargetLookupOk(targets);
+  }
+
+  /// 사용자 목록을 끝 페이지까지 읽어 인증된 이메일 · 비밀번호 사용자를 센다.
+  ///
+  /// 응답 본문은 메모리에서 개수만 세고 버린다.
+  Future<_UserCount> _countVerifiedUsers(
+    WizardContext context,
+    String projectId,
+  ) async {
+    int verified = 0;
+    String? pageToken;
+    for (int page = 0; page < maxPages; page++) {
+      final RestResponse response = await context.rest.send(
+        buildBatchGetRequest(projectId, pageToken: pageToken),
+      );
+      if (!response.isOk) {
+        return _UserCountFailed(
+          '로그인 사용자 목록을 읽지 못했습니다 — ${_describeStatus(response)}',
+          // 실패 응답은 오류 설명뿐이라 원문을 보인다 — 사용자 목록이 아니다.
+          response.body.isEmpty ? null : CommandResult(1, '', response.body),
+        );
+      }
+      final Object? decoded = response.decodeJson();
+      if (decoded is! Map<String, Object?>) {
+        return const _UserCountFailed('로그인 사용자 목록 응답을 해석하지 못했습니다', null);
+      }
+      final Object? users = decoded['users'];
+      if (users is List<Object?>) {
+        verified += users.where(isVerifiedPasswordUser).length;
+      }
+      final Object? next = decoded['nextPageToken'];
+      if (next is! String || next.isEmpty || next == pageToken) break;
+      pageToken = next;
+    }
+    return _UserCountOk(verified);
+  }
+
+  /// [mode] 판정과 사유를 두고 할 일 결과를 만든다.
+  CheckResult _mark(_RunMode mode, String reason, {CommandResult? result}) {
+    _mode = mode;
+    _reason = reason;
+    _failedResult = result;
+    return Todo(reason);
+  }
+
+  /// 응답 상태를 한 줄로 적는다 — 상태 코드 0 은 요청하지 못한 경우다.
+  static String _describeStatus(RestResponse response) =>
+      response.statusCode == 0 ? '요청하지 못했습니다' : 'HTTP ${response.statusCode}';
+
+  /// 실제로 [duration] 만큼 기다린다.
+  static Future<void> _waitFor(Duration duration) =>
+      Future<void>.delayed(duration);
+}
+
+/// 앱을 실행할 수 있는 기기 하나.
+final class RunTarget {
+  /// 기기 이름 · id · 플랫폼 · 에뮬레이터 여부로 대상을 만든다.
+  const RunTarget({
+    required this.name,
+    required this.id,
+    required this.isIos,
+    required this.isEmulator,
+  });
+
+  /// 기기 이름.
+  final String name;
+
+  /// `flutter run -d` 에 넘기는 기기 id — 고르기 목록에는 보이지 않는다.
+  final String id;
+
+  /// iOS 기기 · 시뮬레이터면 true(아니면 Android).
+  final bool isIos;
+
+  /// 시뮬레이터 · 에뮬레이터면 true.
+  final bool isEmulator;
+
+  /// 고르기 목록에 보일 문구 — 이름과 종류만(id 는 보이지 않는다).
+  String get label {
+    final String kind = switch ((isIos, isEmulator)) {
+      (true, true) => 'iOS 시뮬레이터',
+      (true, false) => 'iOS 기기',
+      (false, true) => 'Android 에뮬레이터',
+      (false, false) => 'Android 기기',
+    };
+    return '$name ($kind)';
+  }
+}
+
+/// 직전 검사의 판정.
+enum _RunMode {
+  /// 인증된 사용자가 없다 — 앱을 실행한다.
+  run,
+
+  /// 사용자 목록을 읽지 못했다.
+  requestFailed,
+
+  /// 프로젝트 ID 를 읽지 못했다.
+  unreadable,
+
+  /// 끝남.
+  done,
+}
+
+/// 사용자 수 세기 결과.
+sealed class _UserCount {
+  const _UserCount();
+}
+
+/// 센 결과.
+final class _UserCountOk extends _UserCount {
+  const _UserCountOk(this.verified);
+
+  final int verified;
+}
+
+/// 읽지 못한 결과.
+final class _UserCountFailed extends _UserCount {
+  const _UserCountFailed(this.reason, this.result);
+
+  final String reason;
+  final CommandResult? result;
+}
+
+/// 실행 대상 찾기 결과.
+sealed class _TargetLookup {
+  const _TargetLookup();
+}
+
+/// 찾은 대상(비어 있을 수 있다).
+final class _TargetLookupOk extends _TargetLookup {
+  const _TargetLookupOk(this.targets);
+
+  final List<RunTarget> targets;
+}
+
+/// 찾지 못해 단계를 끝낼 결과.
+final class _TargetLookupFailed extends _TargetLookup {
+  const _TargetLookupFailed(this.outcome);
+
+  final StepOutcome outcome;
+}
