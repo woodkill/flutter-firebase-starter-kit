@@ -43,6 +43,12 @@ const String retryOption = '다시 시도';
 /// 실패 뒤 고르기의 멈춤 선택지.
 const String stopOption = '멈춤';
 
+/// 모든 단계가 끝난 뒤 부르는 함수 — 끝 요약 등을 보인다.
+typedef WizardCompletion = Future<void> Function(WizardContext context);
+
+/// 끝난 뒤 함수가 실패했을 때의 안내 머리 — 종료 코드는 바꾸지 않는다.
+const String completionFailedPrefix = '끝 요약을 보이지 못했습니다 — ';
+
 /// 단계 실행에 필요한 공용 문맥.
 final class WizardContext {
   /// 저장소 루트 · 실행기 · 터미널 · 가림 함수 · 실행 기록 · REST 실행기로
@@ -96,13 +102,18 @@ final class WizardContext {
 /// 점검표를 보이고 첫 할 일 단계부터 차례로 진행하는 위저드.
 final class Wizard {
   /// [context] 로 [steps] 를 순서대로 진행하는 위저드를 만든다.
-  Wizard(this.context, this.steps);
+  ///
+  /// [onCompleted] 는 모든 단계가 끝났을 때(종료 코드 0 직전)에만 부른다.
+  Wizard(this.context, this.steps, {this.onCompleted});
 
   /// 공용 문맥.
   final WizardContext context;
 
   /// 순서대로 진행할 단계 목록.
   final List<Step> steps;
+
+  /// 모든 단계가 끝났을 때 부를 함수. null 이면 부르지 않는다.
+  final WizardCompletion? onCompleted;
 
   Terminal get _terminal => context.terminal;
 
@@ -112,7 +123,7 @@ final class Wizard {
     _printChecklist(results);
     if (results.values.every((CheckResult result) => result is Done)) {
       _terminal.writeLine(allDoneLine);
-      return wizardExitDone;
+      return _complete();
     }
     for (final Step step in steps) {
       if (results[step.id] is Done) continue;
@@ -121,6 +132,20 @@ final class Wizard {
     }
     _terminal.writeLine('');
     _terminal.writeLine(allDoneLine);
+    return _complete();
+  }
+
+  /// 끝난 뒤 함수를 부르고 끝남 종료 코드를 돌려준다.
+  ///
+  /// 함수가 예외를 던져도 단계는 모두 끝났으므로 한 줄로 알리고 끝남으로 둔다.
+  Future<int> _complete() async {
+    final WizardCompletion? completion = onCompleted;
+    if (completion == null) return wizardExitDone;
+    try {
+      await completion(context);
+    } on Exception catch (e) {
+      _terminal.writeLine('$completionFailedPrefix$e');
+    }
     return wizardExitDone;
   }
 
@@ -316,5 +341,11 @@ final class Wizard {
 }
 
 /// [steps] 를 [context] 로 진행하고 종료 코드(0 · 1 · 3)를 돌려준다.
-Future<int> runWizard(WizardContext context, List<Step> steps) =>
-    Wizard(context, steps).run();
+///
+/// [onCompleted] 는 모든 단계가 끝났을 때(종료 코드 0 직전)에만 부른다 — 이미
+/// 모든 단계가 끝난 저장소의 재실행도 포함한다.
+Future<int> runWizard(
+  WizardContext context,
+  List<Step> steps, {
+  WizardCompletion? onCompleted,
+}) => Wizard(context, steps, onCompleted: onCompleted).run();

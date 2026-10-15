@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 
 import '../tool/setup/command_runner.dart';
+import '../tool/setup/completion.dart';
 import '../tool/setup/log_sink.dart';
 import '../tool/setup/redactor.dart';
 import '../tool/setup/rest_client.dart';
@@ -123,7 +124,11 @@ Future<void> main(List<String> arguments) async {
       rest: rest,
     );
     try {
-      code = await runWizard(context, buildDevSteps());
+      code = await runWizard(
+        context,
+        buildDevSteps(),
+        onCompleted: showCommitHint,
+      );
     } finally {
       rest.close();
     }
