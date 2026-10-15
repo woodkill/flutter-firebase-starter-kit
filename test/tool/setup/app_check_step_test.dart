@@ -429,6 +429,86 @@ void main() {
     expect(log.text, isNot(contains(token)));
   });
 
+  test(
+    'T-19-APPCHECK-09 옛 항목 DELETE 가 403 이면 config 토큰은 빈 값 그대로 · 다시 시도의 재검사가 create 로 다시 지운 뒤 등록한다',
+    () async {
+      writeAppFiles();
+      final FakeRestClient rest = FakeRestClient()
+        ..on(
+          'GET',
+          iosTokensUrl,
+          buildTokenList(iosTokensUrl, <String>['$wizardDisplayName:old1']),
+        )
+        ..on(
+          'GET',
+          iosTokensUrl,
+          buildTokenList(iosTokensUrl, <String>['$wizardDisplayName:old1']),
+        )
+        ..on(
+          'GET',
+          iosTokensUrl,
+          buildTokenList(iosTokensUrl, <String>['$wizardDisplayName:new1']),
+        )
+        ..on('GET', androidTokensUrl, buildTokenList(androidTokensUrl, []))
+        ..on(
+          'GET',
+          androidTokensUrl,
+          buildTokenList(androidTokensUrl, <String>['$wizardDisplayName:new2']),
+        )
+        ..on('DELETE', '$iosTokensUrl/old1', const RestResponse(403, '{}'))
+        ..on('DELETE', '$iosTokensUrl/old1', const RestResponse(200, '{}'))
+        ..on('POST', iosTokensUrl, const RestResponse(200, '{}'))
+        ..on('POST', androidTokensUrl, const RestResponse(200, '{}'));
+      // y → DELETE 403 실패 → 1(다시 시도).
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+        'y',
+        '1',
+      ]);
+      final MemoryLogSink log = MemoryLogSink(Redactor());
+
+      final int code = await runAppCheckStep(rest, terminal, log: log);
+
+      final String output = terminal.output.toString();
+      final int firstPostAt = rest.requests.indexWhere(
+        (RestRequest request) => request.method == 'POST',
+      );
+      final List<String> createChecks = log.text
+          .split('\n')
+          .where(
+            (String line) =>
+                line.contains('app_check ✗') && line.contains('디버그 토큰이 없습니다'),
+          )
+          .toList();
+      expect(code, wizardExitDone);
+      expect(output, contains('HTTP 403'));
+      // 실패 전에는 POST 가 없고, 첫 POST 앞에 DELETE 가 두 번(실패 · 성공) 있다.
+      expect(rest.countRequests('DELETE', '$iosTokensUrl/old1'), 2);
+      expect(firstPostAt, greaterThan(0));
+      expect(
+        rest.requests
+            .take(firstPostAt)
+            .where((RestRequest request) => request.method == 'DELETE'),
+        hasLength(2),
+      );
+      // 점검표 · 단계 진입 · 다시 시도의 재검사 세 번 모두 config 토큰이 없다는
+      // create 판정이다 — 실패 뒤에도 config 에 새 토큰이 쓰이지 않았다.
+      expect(createChecks, hasLength(3));
+      final String token = readToken();
+      expect(isUuidV4(token), isTrue);
+      expect(
+        listRequests(
+          rest,
+          'POST',
+        ).map((RestRequest request) => jsonDecode(request.body!)),
+        everyElement(<String, Object?>{
+          'displayName': wizardDisplayName,
+          'token': token,
+        }),
+      );
+      expect(output, contains('  ✓ ${AppCheckStep.stepTitle} — '));
+    },
+  );
+
   test('T-19-APPCHECK-06 앱 등록 파일이 없으면 ✗ 사유 · 적용하지 않고 실패 · 요청 0', () async {
     final FakeRestClient rest = FakeRestClient();
     final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);

@@ -174,8 +174,9 @@ final class AppCheckStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _AppCheckMode.create => <String>[
-      '(UUID4 디버그 토큰을 위저드 안에서 만들어 ${UserFilesStep.jsonUserPath} 의 '
-          '$tokenKey 에 씁니다 — 외부 명령을 부르지 않습니다)',
+      '(UUID4 디버그 토큰을 위저드 안에서 만들고, 두 앱의 옛 항목을 지운 뒤 '
+          '${UserFilesStep.jsonUserPath} 의 $tokenKey 에 씁니다 — '
+          '외부 명령을 부르지 않습니다)',
       for (final _App app in _apps) ...<String>[
         '(${app.label} 앱: 목록에서 표시 이름 $displayName 인 옛 항목을 지운 뒤 '
             '새 토큰을 등록합니다)',
@@ -224,16 +225,15 @@ final class AppCheckStep implements Step {
     return outcome;
   }
 
-  /// 새 토큰을 만들어 config 에 쓰고, 두 앱의 옛 항목을 지운 뒤 등록한다.
+  /// 새 토큰을 만들고 두 앱의 옛 항목을 지운 뒤 config 에 써서 등록한다.
+  ///
+  /// config 쓰기는 옛 항목을 모두 지운 **뒤**다. 목록 응답은 토큰 값을 주지
+  /// 않으므로, 먼저 쓰면 삭제 중 실패 뒤 재검사가 「config 토큰 UUID4 + 옛
+  /// 항목 있음」 을 ✓ 로 오판한다. 지금 순서면 삭제 중 실패 → config 는 여전히
+  /// 무효 → `create`, 등록 중 실패 → 목록에 항목 없음 → `register` 로 다시 간다.
   Future<StepOutcome> _applyCreate(WizardContext context) async {
     final String token = generateUuidV4(context.random);
     context.redactor.register(token);
-    replaceJsonString(
-      context.resolve(UserFilesStep.jsonUserPath),
-      tokenKey,
-      token,
-    );
-    _token = token;
     for (final _App app in _apps) {
       final RestResponse list = await context.rest.send(
         buildListRequest(_projectId, app.appId),
@@ -258,6 +258,12 @@ final class AppCheckStep implements Step {
         }
       }
     }
+    replaceJsonString(
+      context.resolve(UserFilesStep.jsonUserPath),
+      tokenKey,
+      token,
+    );
+    _token = token;
     return _registerAll(context, _apps, token);
   }
 
