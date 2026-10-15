@@ -102,6 +102,14 @@ final class CommandResult {
 
   /// 종료 코드가 0 이면 true.
   bool get isSuccess => exitCode == 0;
+
+  /// 표준 출력을 뺀 사본을 만든다.
+  ///
+  /// [Command.isOutputSensitive] 명령의 결과를 실패 원문으로 화면에 보일 때
+  /// 쓴다 — 민감 표시는 기록의 본문 생략에만 걸리므로, 화면에 넘기는 결과는
+  /// 단계가 이 함수로 표준 출력을 떼고 오류 원문만 남긴다.
+  CommandResult withoutStdout() =>
+      CommandResult(exitCode, '', stderr, isOutputShown: isOutputShown);
 }
 
 /// 외부 명령 실행기 — 테스트는 가짜 구현을 주입한다.

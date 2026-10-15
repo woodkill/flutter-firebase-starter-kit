@@ -130,7 +130,7 @@ final class BillingStep implements Step {
     if (isEnabled == null) {
       _mode = _BillingMode.infoFailed;
       _reason = '$projectId 의 결제 정보를 읽지 못했습니다';
-      _failedResult = _dropStdout(result);
+      _failedResult = result.withoutStdout();
       return Todo(_reason);
     }
     if (isEnabled) {
@@ -176,7 +176,7 @@ final class BillingStep implements Step {
       );
       final List<_BillingAccount>? parsed = _parseAccounts(result);
       if (parsed == null) {
-        return Failed('결제 계정 목록을 읽지 못했습니다', result: _dropStdout(result));
+        return Failed('결제 계정 목록을 읽지 못했습니다', result: result.withoutStdout());
       }
       if (parsed.isNotEmpty) {
         accounts = parsed;
@@ -258,10 +258,6 @@ final class BillingStep implements Step {
       return null;
     }
   }
-
-  /// 민감 출력 명령의 실패 결과에서 표준 출력을 뺀다 — 화면에는 오류 원문만 보인다.
-  static CommandResult _dropStdout(CommandResult result) =>
-      CommandResult(result.exitCode, '', result.stderr);
 }
 
 /// 열린 결제 계정 하나.

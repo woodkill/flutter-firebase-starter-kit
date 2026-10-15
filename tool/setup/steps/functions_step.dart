@@ -445,7 +445,7 @@ final class FunctionsStep implements Step {
         // 민감 출력이라 표준 출력은 버리고 오류 원문만 보인다.
         return Failed(
           'secret $name 을 만들지 못했습니다 (종료 코드 ${created.exitCode})',
-          result: CommandResult(created.exitCode, '', created.stderr),
+          result: created.withoutStdout(),
         );
       }
     }

@@ -172,10 +172,11 @@ final class ConfigureStep implements Step {
     );
     final Set<String>? appIds = _parseAppIds(result);
     if (appIds == null) {
+      // 민감 출력 명령이라 표준 출력(앱 ID 목록)은 떼고 오류 원문만 보인다.
       return _mark(
         _ConfigureMode.listFailed,
         '$projectId 의 Firebase 앱 목록을 읽지 못했습니다',
-        result: result,
+        result: result.withoutStdout(),
       );
     }
     if (!appIds.contains(files.iosAppId) ||
@@ -195,7 +196,7 @@ final class ConfigureStep implements Step {
       '(FlutterFire CLI 가 Firebase 에 iOS · Android 앱을 등록하고 설정 파일 3개를 '
           '만듭니다 — 생성 파일은 skip-worktree 로 커밋 대상에서 빠집니다)',
     ],
-    _ConfigureMode.listFailed => <String>['(명령 원문을 보입니다)'],
+    _ConfigureMode.listFailed => <String>['(명령의 오류 원문을 보입니다)'],
     _ConfigureMode.unreadable || _ConfigureMode.done => const <String>[],
   };
 

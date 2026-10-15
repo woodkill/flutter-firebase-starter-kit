@@ -563,6 +563,29 @@ void main() {
     expect(runner.countCalls(RunMode.capture, diffKey), 0);
   });
 
+  test('T-19-CONF-11 앱 목록 명령이 실패하면 오류 원문만 보이고 민감 출력(표준 출력)은 보이지 않는다', () async {
+    writeRealFiles();
+    const String stdoutMarker = 'apps-list-stdout-marker';
+    const String stderrLine = 'Error: Failed to list Firebase apps.';
+    final FakeCommandRunner runner = FakeCommandRunner()
+      ..on(
+        appsListKey,
+        const CommandResult(1, '{"status":"$stdoutMarker"}', '$stderrLine\n'),
+      );
+    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final MemoryLogSink log = MemoryLogSink(Redactor());
+
+    final int code = await runConfigureStep(runner, terminal, log: log);
+
+    final String output = terminal.output.toString();
+    expect(code, wizardExitStopped);
+    expect(output, contains('  실패 — '));
+    expect(output, contains(stderrLine));
+    expect(output, isNot(contains(stdoutMarker)));
+    expect(log.text, isNot(contains(stdoutMarker)));
+    expect(runner.countMode(RunMode.stream), 0);
+  });
+
   test(
     'T-19-CONF-07 iOS 설정 파일의 프로젝트가 다르면 ✗ 사유 「다른 프로젝트」 · 화면 · 기록에 키 · 앱 ID 0',
     () async {
