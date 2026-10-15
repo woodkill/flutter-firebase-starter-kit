@@ -528,13 +528,42 @@ void _registerEarlySteps(_Run run, {required bool isResumed}) {
     ]);
 }
 
+/// 실제 Firebase CLI 가 Firebase 추가에 실패할 때 표준 오류에 쓰는 한 줄.
+const String addFirebaseFailedLine =
+    'Error: Failed to add Firebase to Google Cloud Platform project. '
+    'See firebase-debug.log for more info.';
+
+/// Firebase 추가 실패 결과 — 출력은 실제 CLI 의 실패 줄 하나다.
+CommandResult buildAddFirebaseFailure() =>
+    const CommandResult(1, '', '$addFirebaseFailedLine\n');
+
+/// 내 계정의 Firebase 프로젝트 목록 응답 — [hasProject] 면 흐름의 프로젝트를 담는다.
+CommandResult buildProjectsList({required bool hasProject}) => ok(
+  jsonEncode(<String, Object?>{
+    'status': 'success',
+    'result': <Object?>[
+      if (hasProject)
+        <String, Object?>{'projectId': projectId, 'displayName': projectId},
+    ],
+  }),
+);
+
 /// 프로젝트 ~ 로그인 수단 단계를 「처음 할 일 → 실행 → 끝남」 순서로 등록한다.
-void _registerCloudSteps(_Run run) {
+///
+/// 프로젝트 단계의 결과 큐는 갈래마다 바꿀 수 있다. 기본값은 새로 만들기가
+/// 한 번에 끝나는 갈래다 — describe 없음 → create → addfirebase → 목록에 있음.
+/// 큐는 그 실행에서 실제로 불리는 check · apply 순서대로 적는다(가짜 실행기는
+/// 앞에서부터 쓰다 마지막 값을 되풀이한다).
+void _registerCloudSteps(
+  _Run run, {
+  List<CommandResult>? describeResults,
+  List<CommandResult>? addFirebaseResults,
+  List<CommandResult>? listResults,
+}) {
   run
-    // 프로젝트: 새로 만들기 — describe 없음 → create → addfirebase → 목록에 있음.
     ..onCommand(
       FirebaseProjectStep.buildDescribeCommand(projectId),
-      <CommandResult>[fail('NOT_FOUND')],
+      describeResults ?? <CommandResult>[fail('NOT_FOUND')],
     )
     ..onCommand(
       FirebaseProjectStep.buildCreateCommand(projectId),
@@ -542,18 +571,12 @@ void _registerCloudSteps(_Run run) {
     )
     ..onCommand(
       FirebaseProjectStep.buildAddFirebaseCommand(projectId),
-      <CommandResult>[ok()],
+      addFirebaseResults ?? <CommandResult>[ok()],
     )
-    ..onCommand(FirebaseProjectStep.projectsListCommand, <CommandResult>[
-      ok(
-        jsonEncode(<String, Object?>{
-          'status': 'success',
-          'result': <Object?>[
-            <String, Object?>{'projectId': projectId, 'displayName': projectId},
-          ],
-        }),
-      ),
-    ])
+    ..onCommand(
+      FirebaseProjectStep.projectsListCommand,
+      listResults ?? <CommandResult>[buildProjectsList(hasProject: true)],
+    )
     // 결제: 연결 안 됨 → 계정 고르기 → 연결 → 연결됨.
     ..onCommand(BillingStep.billingInfoCommand(projectId), <CommandResult>[
       ok('{"billingEnabled":false}'),
@@ -882,12 +905,16 @@ const List<String> earlyInputs = <String>[
   'y', // 확인 표
 ];
 
-/// 프로젝트 ~ configure 진행까지의 입력.
-const List<String> cloudInputs = <String>[
+/// 프로젝트 단계에서 새로 만들기를 고르고 새 프로젝트 표까지 답하는 입력.
+const List<String> projectCreateInputs = <String>[
   'y', // 프로젝트
   '1', // 새로 만들기
   '', // 기본 ID
   'y', // 확인 표
+];
+
+/// 프로젝트 단계 뒤 결제 ~ 로그인 수단까지의 입력.
+const List<String> afterProjectInputs = <String>[
   'y', // 결제
   '1', // 결제 계정
   'y', // 확인 표
@@ -899,6 +926,30 @@ const List<String> cloudInputs = <String>[
   'y', // 확인 표
   'y', // 로그인 수단
 ];
+
+/// 프로젝트 ~ configure 진행까지의 입력.
+const List<String> cloudInputs = <String>[
+  ...projectCreateInputs,
+  ...afterProjectInputs,
+];
+
+/// 앱 등록 ~ 앱 실행까지 모두 진행하는 입력.
+const List<String> appInputs = <String>[
+  'y', // 앱 등록
+  'y', // rules
+  'y', // App Check
+  'y', // Functions
+  'y', // 앱 실행
+  '', // 기본 실행 대상
+];
+
+/// [text] 안에 [pattern] 이 나오는 횟수를 센다.
+int _countOccurrences(String text, String pattern) =>
+    pattern.allMatches(text).length;
+
+/// 질문 기록에서 [question] 이 나온 횟수를 센다.
+int _countAsks(_Run run, String question) =>
+    run.screen.asks.where((String asked) => asked == question).length;
 
 void main() {
   late _Fixture fixture;
@@ -1047,6 +1098,100 @@ void main() {
       );
       expect(second.screen.asks.last, failureChoiceQuestion);
       expect(output, isNot(contains(commitHintHeading)));
+    },
+  );
+
+  test(
+    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 16단계 끝까지',
+    () async {
+      final _Run run = _Run(fixture, <String?>[
+        ...earlyInputs,
+        'y', // 로그인
+        ...projectCreateInputs,
+        '', // Enter — 아직 Firebase 가 추가되지 않음
+        '', // Enter — 추가됨
+        ...afterProjectInputs,
+        ...appInputs,
+      ]);
+      _registerEarlySteps(run, isResumed: false);
+      // 앞 check 두 번(점검표 · 단계 머리)은 config 가 자리표시라 목록 · describe 를
+      // 부르지 않는다. describe = 만들기 판단(없음) → Enter#1 재검사(내 프로젝트),
+      // 목록 = Enter#1(없음) → Enter#2(있음).
+      _registerCloudSteps(
+        run,
+        describeResults: <CommandResult>[fail('NOT_FOUND'), ok('$projectId\n')],
+        addFirebaseResults: <CommandResult>[buildAddFirebaseFailure()],
+        listResults: <CommandResult>[
+          buildProjectsList(hasProject: false),
+          buildProjectsList(hasProject: true),
+        ],
+      );
+      _registerAppSteps(run);
+
+      final int code = await run.run();
+      final String output = run.output;
+
+      expect(code, wizardExitDone, reason: output);
+      final String guide = FirebaseProjectStep.buildAddFirebaseGuide(projectId);
+      expect(output, contains(const LineSplitter().convert(guide).first));
+      expect(output, contains(FirebaseProjectStep.firebaseConsoleUrl));
+      expect(_countOccurrences(output, addFirebaseFailedLine), 1);
+      expect(_countOccurrences(output, '  아직 끝나지 않았습니다 — '), 1);
+      expect(_countAsks(run, waitForEnterMessage), 2);
+      expect(_countAsks(run, failureChoiceQuestion), 0);
+      expect(_countAsks(run, FirebaseProjectStep.projectChoiceQuestion), 1);
+      expect(_countAsks(run, FirebaseProjectStep.idQuestion), 1);
+      expect(
+        _countOccurrences(output, '── ${FirebaseProjectStep.confirmTitle} ──'),
+        1,
+      );
+      expect(
+        _countOccurrences(
+          output,
+          '── ${FirebaseProjectStep.addFirebaseConfirmTitle} ──',
+        ),
+        0,
+      );
+      for (final Command command in <Command>[
+        FirebaseProjectStep.buildCreateCommand(projectId),
+        FirebaseProjectStep.buildAddFirebaseCommand(projectId),
+      ]) {
+        expect(
+          run.fake.countCalls(
+            RunMode.stream,
+            FakeCommandRunner.buildKey(command),
+          ),
+          1,
+        );
+      }
+      for (final Command command in <Command>[
+        FirebaseProjectStep.buildDescribeCommand(projectId),
+        FirebaseProjectStep.projectsListCommand,
+      ]) {
+        expect(
+          run.fake.countCalls(
+            RunMode.capture,
+            FakeCommandRunner.buildKey(command),
+          ),
+          2,
+        );
+      }
+      expect(output, contains(allDoneLine));
+
+      final List<String> status = const LineSplitter().convert(
+        fixture.runGitChecked(<String>['status', '--porcelain']),
+      );
+      expect(status, contains(' M ${FirebaseProjectStep.firebasercPath}'));
+      final int hintStart = output.indexOf(commitHintHeading);
+      expect(hintStart, greaterThan(output.indexOf(allDoneLine)));
+      expect(
+        output.substring(hintStart),
+        contains('\n  ${FirebaseProjectStep.firebasercPath}\n'),
+      );
+      for (final String text in <String>[output, run.log.text]) {
+        expect(text, isNot(contains(buildFakeAccessToken())));
+        expect(text, isNot(contains(buildFakeApiKey())));
+      }
     },
   );
 }
