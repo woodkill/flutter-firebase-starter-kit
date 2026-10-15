@@ -3,13 +3,64 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
+import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/step.dart';
+import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
+import 'fake_rest_client.dart';
 import 'fakes.dart';
 
 const String _stopLine = '같은 명령을 다시 실행하면 이어집니다.';
 const String _confirmQuestion = '이 단계를 진행할까요?';
 const String _waitMessage = '끝나면 Enter 를 누르세요';
+
+/// 실제 명령이 찍는 고유 줄 — 가림 패턴에 걸리지 않는 평범한 영문 · 숫자다.
+const String _markerLine = 'wizard-stream-marker-42';
+
+/// 고유 줄을 찍고 3 으로 끝나는 셸 명령.
+const Command _markerCommand = Command('/bin/sh', <String>[
+  '-c',
+  "printf '$_markerLine\\n'; exit 3",
+]);
+
+/// 실패 요약 줄의 요약 문구.
+const String _commandFailureSummary = '흘린 명령 실패';
+
+/// [text] 에서 [line] 과 똑같은 줄의 개수를 센다.
+int _countExactLines(String text, String line) =>
+    text.split('\n').where((String shown) => shown == line).length;
+
+/// 실행이 실제 실행기로 명령을 돌리고 그 결과를 실패로 돌려주는 단계.
+final class _CommandFailureStep implements Step {
+  _CommandFailureStep(this.runCommand);
+
+  /// 실행기로 명령을 돌려 결과를 받는 함수.
+  final Future<CommandResult> Function(CommandRunner runner) runCommand;
+
+  @override
+  String get id => 'command';
+
+  @override
+  String get title => '명령 단계';
+
+  @override
+  List<String> get dependsOn => const <String>[];
+
+  @override
+  bool get isCostlyOrIrreversible => false;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async => const Todo('할 일');
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) => const <String>[
+    'sh marker',
+  ];
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async =>
+      Failed(_commandFailureSummary, result: await runCommand(context.runner));
+}
 
 /// 검사 결과 · 실행 결과를 미리 정해 두는 테스트용 단계.
 ///
@@ -395,5 +446,87 @@ void main() {
         expect(run.code, entry.proceeds ? wizardExitDone : wizardExitStopped);
       });
     }
+  });
+
+  group('T-19-WIZ-12 실시간으로 흘린 출력은 실패 때 다시 찍지 않는다', () {
+    late Redactor redactor;
+    late MemoryLogSink log;
+    late ScriptedTerminal screen;
+    late ProcessCommandRunner runner;
+    late WizardContext context;
+
+    setUp(() {
+      redactor = Redactor();
+      log = MemoryLogSink(redactor);
+      screen = ScriptedTerminal(const <String?>['y']);
+      final RedactingTerminal terminal = RedactingTerminal(
+        screen,
+        redactor,
+        log,
+      );
+      runner = ProcessCommandRunner(terminal, log: log);
+      context = WizardContext(
+        projectRoot: tempDir.path,
+        runner: runner,
+        terminal: terminal,
+        redactor: redactor,
+        log: log,
+        rest: FakeRestClient(),
+      );
+    });
+
+    test('T-19-WIZ-12 흘린 실패 줄은 화면에 한 번 · 기록은 명령 · 출력 · 종료 코드 그대로', () async {
+      final int code = await runWizard(context, <Step>[
+        _CommandFailureStep(
+          (CommandRunner commandRunner) => commandRunner.stream(_markerCommand),
+        ),
+      ]);
+
+      final String shown = screen.output.toString();
+      expect(_countExactLines(shown, _markerLine), 1);
+      expect(_countExactLines(shown, '  실패 — $_commandFailureSummary'), 1);
+      expect(
+        log.lines.where((String line) => line.startsWith('[cmd] /bin/sh')),
+        hasLength(1),
+      );
+      expect(log.lines, contains('[exit] 3'));
+      expect(_countExactLines(log.text, '[out] $_markerLine'), 1);
+      expect(log.lines, contains('[out]   실패 — $_commandFailureSummary'));
+      expect(code, wizardExitStopped);
+    });
+
+    test('T-19-WIZ-12 캡처한 실패 출력은 지금처럼 원문으로 한 번 보인다', () async {
+      final int code = await runWizard(context, <Step>[
+        _CommandFailureStep(
+          (CommandRunner commandRunner) =>
+              commandRunner.capture(_markerCommand),
+        ),
+      ]);
+
+      final String shown = screen.output.toString();
+      expect(_countExactLines(shown, _markerLine), 1);
+      expect(_countExactLines(shown, '  실패 — $_commandFailureSummary'), 1);
+      expect(log.lines, contains('[exit] 3'));
+      expect(log.lines, contains('[stdout] $_markerLine'));
+      expect(code, wizardExitStopped);
+    });
+
+    test('T-19-WIZ-12 흘린 결과만 이미 보였다고 표시한다', () async {
+      expect(const CommandResult(0, '', '').isOutputShown, isFalse);
+
+      final CommandResult streamed = await runner.stream(_markerCommand);
+      expect(streamed.exitCode, 3);
+      expect(streamed.isOutputShown, isTrue);
+
+      final CommandResult captured = await runner.capture(_markerCommand);
+      expect(captured.exitCode, 3);
+      expect(captured.isOutputShown, isFalse);
+
+      final CommandResult missing = await runner.stream(
+        Command('${tempDir.path}/missing-tool', const <String>[]),
+      );
+      expect(missing.exitCode, ProcessCommandRunner.commandNotFoundExitCode);
+      expect(missing.isOutputShown, isTrue);
+    });
   });
 }

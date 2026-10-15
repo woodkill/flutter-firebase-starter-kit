@@ -58,7 +58,14 @@ final class Command {
 /// 명령 실행 결과.
 final class CommandResult {
   /// 종료 코드와 캡처한 출력으로 결과를 만든다.
-  const CommandResult(this.exitCode, this.stdout, this.stderr);
+  ///
+  /// 출력이 실행 중에 이미 화면에 흘렀으면 [isOutputShown] 을 true 로 준다.
+  const CommandResult(
+    this.exitCode,
+    this.stdout,
+    this.stderr, {
+    this.isOutputShown = false,
+  });
 
   /// 종료 코드.
   final int exitCode;
@@ -68,6 +75,12 @@ final class CommandResult {
 
   /// 캡처한 표준 오류.
   final String stderr;
+
+  /// 출력이 실행 중에 이미 화면에 흘렀으면 true.
+  ///
+  /// 위저드는 실패 때 이 결과의 출력 원문을 다시 쓰지 않고 실패 요약 줄만
+  /// 보인다. 캡처만 한 결과와 단계가 만든 결과는 false 라 원문을 보인다.
+  final bool isOutputShown;
 
   /// 종료 코드가 0 이면 true.
   bool get isSuccess => exitCode == 0;
@@ -150,14 +163,26 @@ final class ProcessCommandRunner implements CommandRunner {
     CommandResult result;
     try {
       final Process process = await _start(command);
-      result = await _collect(
+      final CommandResult collected = await _collect(
         process,
         command,
         onLine: (String line) => terminal.writeRaw('$line\n'),
       );
+      // 줄마다 이미 화면에 흘렸다 — 위저드가 실패 때 다시 쓰지 않게 표시한다.
+      result = CommandResult(
+        collected.exitCode,
+        collected.stdout,
+        collected.stderr,
+        isOutputShown: true,
+      );
     } on ProcessException catch (e) {
       terminal.writeRaw('${e.message}\n');
-      result = CommandResult(commandNotFoundExitCode, '', e.message);
+      result = CommandResult(
+        commandNotFoundExitCode,
+        '',
+        e.message,
+        isOutputShown: true,
+      );
     }
     log.write('exit', '${result.exitCode}');
     return result;

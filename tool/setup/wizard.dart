@@ -366,9 +366,12 @@ final class Wizard {
   };
 
   /// 실패 요약과 명령 출력 원문을 그대로 보인다.
+  ///
+  /// 실행 중에 이미 화면에 흘린 출력([CommandResult.isOutputShown])은 다시 쓰지
+  /// 않고 요약 줄만 보인다 — 흘린 출력은 그때 실행 기록에도 남았다.
   void _printFailure(String summary, CommandResult? result) {
     _terminal.writeLine('  실패 — $summary');
-    if (result == null) return;
+    if (result == null || result.isOutputShown) return;
     for (final String text in <String>[result.stdout, result.stderr]) {
       if (text.isEmpty) continue;
       _terminal.writeRaw(text.endsWith('\n') ? text : '$text\n');
