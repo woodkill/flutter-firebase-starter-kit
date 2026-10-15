@@ -231,6 +231,65 @@ void main() {
     },
   );
 
+  test(
+    'T-19-XCODE-07 Command Line Tools 선택 상태면 선택 명령 · 재검사 안내만 보이고 선택 뒤 필요한 것만 보인 뒤 실행한다',
+    () async {
+      Directory(xcodeAppPath).createSync(recursive: true);
+      final String selectRunKey =
+          'sudo xcode-select -s $xcodeAppPath/Contents/Developer';
+      final FakeCommandRunner runner = FakeCommandRunner()
+        // 점검표 · 단계 시작은 Command Line Tools, 선택 뒤에는 Xcode.
+        ..on(_selectKey, _cltSelected)
+        ..on(_selectKey, _cltSelected)
+        ..on(_selectKey, _selectedResult(xcodeAppPath))
+        ..on(_licenseKey, _ok)
+        ..on(_firstLaunchKey, _fail)
+        ..on(_firstLaunchKey, _ok)
+        ..on(_runtimesKey, _iosRuntime)
+        ..on(selectRunKey, _ok)
+        ..on(_firstLaunchRunKey, _ok);
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+
+      final int code = await runWizard(
+        buildTestContext(
+          projectRoot: tempDir.path,
+          runner: runner,
+          terminal: terminal,
+        ),
+        <XcodeStep>[XcodeStep(xcodeAppPath: xcodeAppPath)],
+      );
+
+      final String output = terminal.output.toString();
+      final int askAt = output.indexOf('이 단계를 진행할까요?');
+      final String planned = output.substring(0, askAt);
+      final String applied = output.substring(askAt);
+      expect(code, wizardExitDone);
+      expect(output, contains('  ✗ Xcode 준비 — Xcode 선택 필요(선택 뒤 나머지를 검사합니다)'));
+      // 확인 전에는 선택 명령과 재검사 안내만 보인다.
+      expect(planned, contains('  \$ $selectRunKey'));
+      expect(planned, contains('    ${XcodeStep.recheckAfterSelectNotice}'));
+      expect(planned, isNot(contains(_licenseAcceptKey)));
+      expect(planned, isNot(contains(_firstLaunchRunKey)));
+      expect(planned, isNot(contains('수 GB')));
+      // 선택 뒤에는 실제로 이어서 실행하는 명령만 실행 전에 보인다.
+      expect(applied, contains('    ${XcodeStep.followUpNotice}'));
+      expect(applied, contains('  \$ $_firstLaunchRunKey'));
+      expect(
+        applied.indexOf(XcodeStep.followUpNotice),
+        lessThan(applied.indexOf('  \$ $_firstLaunchRunKey')),
+      );
+      expect(applied, isNot(contains(_licenseAcceptKey)));
+      expect(applied, isNot(contains('수 GB')));
+      expect(
+        runner.calls
+            .where((FakeCall call) => call.mode == RunMode.interactive)
+            .map((FakeCall call) => call.key),
+        <String>[selectRunKey, _firstLaunchRunKey],
+      );
+      expect(runner.countMode(RunMode.stream), 0);
+    },
+  );
+
   test('T-19-XCODE-06 sudo 명령은 비밀번호를 묻거나 표준 입력으로 넘기지 않는다', () async {
     Directory(xcodeAppPath).createSync(recursive: true);
     final String selectRunKey =

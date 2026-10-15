@@ -26,6 +26,14 @@ final class XcodeStep implements Step {
   static const String runtimeDownloadNotice =
       '(iOS 시뮬레이터 런타임 — 내려받기 크기는 수 GB 이고 네트워크에 따라 오래 걸립니다)';
 
+  /// Command Line Tools 가 선택된 상태에서 선택 명령 뒤에 보이는 안내.
+  static const String recheckAfterSelectNotice =
+      '(선택한 뒤 라이선스 · 첫 실행 준비 · iOS 런타임을 다시 검사해 필요한 것만 '
+      '이어서 실행합니다)';
+
+  /// 선택 뒤 다시 검사해 이어서 실행할 일이 있을 때 그 명령 앞에 보이는 안내.
+  static const String followUpNotice = '(선택한 Xcode 로 다시 검사했습니다 — 이어서 실행합니다)';
+
   _XcodeState _state = const _XcodeState.unknown();
 
   @override
@@ -68,6 +76,9 @@ final class XcodeStep implements Step {
     if (_state.isMissing) {
       return const Todo('Xcode 가 설치돼 있지 않습니다');
     }
+    if (_state.isRestUnchecked) {
+      return const Todo('Xcode 선택 필요(선택 뒤 나머지를 검사합니다)');
+    }
     final List<String> missing = <String>[
       if (!_state.isSelected) 'Xcode 선택 필요',
       if (!_state.isLicenseAccepted) '라이선스 동의 필요',
@@ -83,16 +94,25 @@ final class XcodeStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) {
     if (_state.isMissing) return const <String>[];
+    if (_state.isRestUnchecked) {
+      // 선택 전에는 나머지를 알 수 없다 — 실행할지 모르는 명령은 보이지 않는다.
+      return <String>[_selectCommand.render(), recheckAfterSelectNotice];
+    }
     return <String>[
       if (!_state.isSelected) _selectCommand.render(),
-      if (!_state.isLicenseAccepted) _licenseCommand.render(),
-      if (!_state.isFirstLaunchDone) _firstLaunchCommand.render(),
-      if (!_state.hasIosRuntime) ...<String>[
-        runtimeDownloadNotice,
-        _runtimeCommand.render(),
-      ],
+      ..._listFollowUpLines(_state),
     ];
   }
+
+  /// 선택 뒤 [state] 에서 이어서 실행할 명령 · 안내 줄을 만든다.
+  List<String> _listFollowUpLines(_XcodeState state) => <String>[
+    if (!state.isLicenseAccepted) _licenseCommand.render(),
+    if (!state.isFirstLaunchDone) _firstLaunchCommand.render(),
+    if (!state.hasIosRuntime) ...<String>[
+      runtimeDownloadNotice,
+      _runtimeCommand.render(),
+    ],
+  ];
 
   @override
   Future<StepOutcome> apply(WizardContext context) async {
@@ -115,6 +135,7 @@ final class XcodeStep implements Step {
       if (code != 0) return Failed('Xcode 를 선택하지 못했습니다 (종료 코드 $code)');
       // 선택이 바뀌면 라이선스 · 첫 실행 · 런타임 판정이 달라질 수 있어 다시 검사한다.
       _state = await _inspect(context);
+      _printFollowUpLines(context, _state);
     }
     if (!_state.isLicenseAccepted) {
       final int code = await context.runner.interactive(_licenseCommand);
@@ -133,6 +154,24 @@ final class XcodeStep implements Step {
     return const Applied();
   }
 
+  /// 선택 뒤 다시 검사한 [state] 에서 이어서 실행할 명령을 실행 전에 보인다.
+  ///
+  /// 계획 줄은 선택 명령까지만 보였으므로, 실제로 이어서 실행하는 명령(수 GB
+  /// 내려받기 안내 포함)을 실행 전에 같은 모양으로 보인다. 없으면 아무것도 쓰지
+  /// 않는다.
+  void _printFollowUpLines(WizardContext context, _XcodeState state) {
+    final List<String> lines = _listFollowUpLines(state);
+    if (lines.isEmpty) return;
+    context.terminal.writeLine('    $followUpNotice');
+    for (final String line in lines) {
+      if (line.startsWith('(')) {
+        context.terminal.writeLine('    $line');
+      } else {
+        context.terminal.writeCommand(line);
+      }
+    }
+  }
+
   /// 네 가지 상태를 읽기 전용 명령으로 검사한다.
   Future<_XcodeState> _inspect(WizardContext context) async {
     final CommandResult selected = await context.runner.capture(
@@ -147,12 +186,7 @@ final class XcodeStep implements Step {
     if (!isSelected) {
       // Command Line Tools 가 선택된 상태에서는 나머지 검사가 의미 없다 —
       // 선택 뒤 다시 검사해 필요한 것만 실행한다.
-      return const _XcodeState(
-        isSelected: false,
-        isLicenseAccepted: false,
-        isFirstLaunchDone: false,
-        hasIosRuntime: false,
-      );
+      return const _XcodeState.unselected();
     }
     final CommandResult license = await context.runner.capture(
       const Command('xcodebuild', <String>['-license', 'check']),
@@ -204,10 +238,21 @@ final class _XcodeState {
     required this.isLicenseAccepted,
     required this.isFirstLaunchDone,
     required this.hasIosRuntime,
-  }) : isMissing = false;
+  }) : isMissing = false,
+       isRestUnchecked = false;
+
+  /// Xcode 는 있지만 선택되지 않아 나머지를 아직 검사하지 않은 상태.
+  const _XcodeState.unselected()
+    : isMissing = false,
+      isRestUnchecked = true,
+      isSelected = false,
+      isLicenseAccepted = false,
+      isFirstLaunchDone = false,
+      hasIosRuntime = false;
 
   const _XcodeState.missing()
     : isMissing = true,
+      isRestUnchecked = false,
       isSelected = false,
       isLicenseAccepted = false,
       isFirstLaunchDone = false,
@@ -215,12 +260,16 @@ final class _XcodeState {
 
   const _XcodeState.unknown()
     : isMissing = false,
+      isRestUnchecked = false,
       isSelected = false,
       isLicenseAccepted = false,
       isFirstLaunchDone = false,
       hasIosRuntime = false;
 
   final bool isMissing;
+
+  /// 선택 전이라 라이선스 · 첫 실행 · 런타임을 검사하지 않았으면 true.
+  final bool isRestUnchecked;
   final bool isSelected;
   final bool isLicenseAccepted;
   final bool isFirstLaunchDone;
