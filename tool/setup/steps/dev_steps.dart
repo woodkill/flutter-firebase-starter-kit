@@ -1,4 +1,5 @@
 import '../step.dart';
+import 'firebase_project_step.dart';
 import 'identity_step.dart';
 import 'login_step.dart';
 import 'tools_step.dart';
@@ -15,4 +16,5 @@ List<Step> buildDevSteps() => <Step>[
   UserFilesStep(),
   IdentityStep(),
   LoginStep(),
+  FirebaseProjectStep(),
 ];
