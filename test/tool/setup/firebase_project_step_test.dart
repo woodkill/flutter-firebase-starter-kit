@@ -375,18 +375,27 @@ void main() {
     },
   );
 
-  test(
-    'T-19-PROJ-06 이미 쓰이는 ID 면 원문과 다른 ID 안내로 실패하고 다시 시도에서 새 ID 로 진행한다',
-    () async {
+  // 1차는 gcloud 가 409 를 바꿔 보이는 실제 문구(SDK surface/projects/create.py),
+  // 보조는 gcloud 가 치환하기 전의 API 원문이다.
+  const Map<String, String> conflictOutputs = <String, String>{
+    'gcloud 문구':
+        'ERROR: (gcloud.projects.create) Project creation failed. The project '
+        'ID you specified is already in use by another project. Please try an '
+        'alternative ID.\n',
+    'API 원문':
+        'ERROR: (gcloud.projects.create) Resource in projects [my-app-dev] '
+        'is the subject of a conflict: Requested entity already exists\n',
+  };
+  for (final MapEntry<String, String> conflictCase in conflictOutputs.entries) {
+    test('T-19-PROJ-06 이미 쓰이는 ID 면(${conflictCase.key}) 원문과 다른 ID 안내로 '
+        '실패하고 다시 시도에서 새 ID 로 진행한다', () async {
       writeProjectFixture(root);
       const String retryId = 'my-app-dev2';
-      const String conflict =
-          'ERROR: (gcloud.projects.create) Resource in projects [my-app-dev] '
-          'is the subject of a conflict: Requested entity already exists\n';
+      final String conflict = conflictCase.value;
       final FakeCommandRunner runner = FakeCommandRunner()
         ..on(_gitStatusKey, _cleanTree)
         ..on(describeKey(suggestedId), _notFound)
-        ..on(createKey(suggestedId), const CommandResult(1, '', conflict))
+        ..on(createKey(suggestedId), CommandResult(1, '', conflict))
         ..on(describeKey(retryId), _notFound)
         ..on(createKey(retryId), _ok)
         ..on(addFirebaseKey(retryId), _ok)
@@ -411,6 +420,7 @@ void main() {
       expect(code, wizardExitDone);
       expect(output, contains(conflict));
       expect(output, contains(FirebaseProjectStep.idTakenGuidance));
+      expect(output, isNot(contains(FirebaseProjectStep.cloudTermsGuidance)));
       expect(listStreamKeys(runner), <String>[
         createKey(suggestedId),
         createKey(retryId),
@@ -418,8 +428,8 @@ void main() {
       ]);
       expect(readConfigProjectId(), retryId);
       expect(readAliases()['dev'], retryId);
-    },
-  );
+    });
+  }
 
   test('T-19-PROJ-07 내 계정에 이미 있는 프로젝트면 만들기를 건너뛰고 Firebase 추가만 한다', () async {
     writeProjectFixture(root);

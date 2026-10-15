@@ -94,6 +94,16 @@ final class FirebaseProjectStep implements Step {
       '로그인한 계정이 이 프로젝트에 접근할 수 있는지(계정 · 권한) 확인하세요 — '
       '다른 프로젝트를 쓰려면 config/dev.json 의 firebaseProjectId 를 고친 뒤 다시 실행하세요';
 
+  /// gcloud 가 ID 충돌(HTTP 409)을 자기 문구로 바꿔 보이는 조각(소문자).
+  ///
+  /// `gcloud projects create` 는 409 를 잡아 「The project ID you specified is
+  /// already in use by another project」 로 다시 던진다(SDK
+  /// `surface/projects/create.py`).
+  static const String idTakenMarker = 'already in use by another project';
+
+  /// gcloud 가 치환하지 않은 API 원문의 ID 충돌 조각(소문자) — 보조 술어.
+  static const String apiConflictMarker = 'already exists';
+
   /// 이미 쓰이는 프로젝트 ID 일 때의 안내.
   static const String idTakenGuidance =
       '이미 쓰이는 프로젝트 ID 입니다 — 다시 시도에서 다른 ID 를 입력하세요';
@@ -360,8 +370,11 @@ final class FirebaseProjectStep implements Step {
         buildCreateCommand(projectId),
       );
       if (!created.isSuccess) {
-        final String output = '${created.stdout}\n${created.stderr}';
-        final String guidance = output.toLowerCase().contains('already exists')
+        final String output = '${created.stdout}\n${created.stderr}'
+            .toLowerCase();
+        // gcloud 문구가 1차 술어, API 원문은 다른 출력 경로를 위한 보조 술어다.
+        final String guidance =
+            output.contains(idTakenMarker) || output.contains(apiConflictMarker)
             ? idTakenGuidance
             : cloudTermsGuidance;
         return Failed('프로젝트를 만들지 못했습니다 — $guidance', result: created);
