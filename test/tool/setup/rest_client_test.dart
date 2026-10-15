@@ -61,6 +61,7 @@ void main() {
   late List<ReceivedRequest> received;
   late int responseStatus;
   late String responseBody;
+  late bool isResponseHeld;
   late Redactor redactor;
   late MemoryLogSink log;
   late ScriptedTerminal screen;
@@ -72,6 +73,7 @@ void main() {
     received = <ReceivedRequest>[];
     responseStatus = 200;
     responseBody = '{"ok":true}';
+    isResponseHeld = false;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((HttpRequest request) async {
       final String body = await utf8.decodeStream(request);
@@ -85,6 +87,8 @@ void main() {
           body: body,
         ),
       );
+      // 응답을 멈춘 서버를 흉내 낸다 — tearDown 의 강제 종료가 연결을 끊는다.
+      if (isResponseHeld) return;
       request.response
         ..statusCode = responseStatus
         ..headers.contentType = ContentType.json
@@ -216,6 +220,35 @@ void main() {
     final String shown = screen.output.toString();
     expect(countText(shown, HttpRestClient.tokenUnavailableMessage), 1);
     expect(countText(shown, 'curl '), 0);
+  });
+
+  test('T-19-REST-06: 연결 뒤 응답이 없으면 상한에서 끊고 안내 한 줄과 빈 응답', () async {
+    isResponseHeld = true;
+    runner.on(
+      tokenCommandKey,
+      CommandResult(0, '${buildFakeAccessToken()}\n', ''),
+    );
+    final HttpRestClient slowClient = HttpRestClient(
+      tokens: AccessTokenSource(runner, redactor),
+      terminal: terminal,
+      log: log,
+      responseTimeout: const Duration(milliseconds: 200),
+    );
+    addTearDown(slowClient.close);
+    final Uri url = buildLocalUrl('/v1/projects/demo-p/stalled');
+
+    final RestResponse response = await slowClient.send(
+      RestRequest(method: 'GET', url: url, quotaProject: 'demo-p'),
+    );
+
+    expect(response.statusCode, 0);
+    expect(response.body, isEmpty);
+    expect(received, hasLength(1));
+    expect(
+      screen.output.toString(),
+      contains(HttpRestClient.responseTimeoutMessage),
+    );
+    expect(log.lines, contains('[rest] GET $url → 응답 없음 (200ms)'));
   });
 
   test('T-19-REST-05: FakeRestClient 는 등록 안 된 요청에 StateError', () async {

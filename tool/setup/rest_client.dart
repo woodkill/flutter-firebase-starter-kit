@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -151,12 +152,14 @@ final class HttpRestClient implements RestClient {
   /// [tokens] 로 토큰을 읽고 [terminal] · [log] 에 요청을 남기는 실행기를 만든다.
   ///
   /// [httpClient] 를 주지 않으면 연결 제한 시간 [connectionTimeout] 의 새
-  /// 클라이언트를 쓴다.
+  /// 클라이언트를 쓴다. [responseTimeout] 은 연결 뒤 응답 머리 · 본문을 각각
+  /// 기다리는 상한이다.
   HttpRestClient({
     required this.tokens,
     required this.terminal,
     required this.log,
     HttpClient? httpClient,
+    this.responseTimeout = defaultResponseTimeout,
   }) : _http =
            httpClient ?? (HttpClient()..connectionTimeout = connectionTimeout);
 
@@ -169,10 +172,20 @@ final class HttpRestClient implements RestClient {
   /// 실행 기록.
   final LogSink log;
 
+  /// 연결 뒤 응답 머리 · 본문을 각각 기다리는 상한.
+  final Duration responseTimeout;
+
   final HttpClient _http;
 
   /// 기본 클라이언트의 연결 제한 시간.
   static const Duration connectionTimeout = Duration(seconds: 30);
+
+  /// 응답 대기 상한의 기본값 — 연결 제한 시간은 TCP 연결까지만 막는다.
+  static const Duration defaultResponseTimeout = Duration(minutes: 2);
+
+  /// 응답 대기 상한을 넘겼을 때의 안내 머리.
+  static const String responseTimeoutMessage =
+      '  응답이 없어 요청을 중단했습니다 — 네트워크를 확인한 뒤 다시 시도하세요.';
 
   /// 민감 응답의 본문 대신 기록에 남기는 문구.
   static const String sensitiveResponseNotice = '(민감 응답 생략)';
@@ -193,11 +206,13 @@ final class HttpRestClient implements RestClient {
     }
 
     terminal.writeCommand(request.displayCurl());
+    HttpClientRequest? openedRequest;
     try {
       final HttpClientRequest httpRequest = await _http.openUrl(
         request.method,
         request.url,
       );
+      openedRequest = httpRequest;
       httpRequest.headers
         ..set(HttpHeaders.authorizationHeader, 'Bearer $token')
         ..set('x-goog-user-project', request.quotaProject);
@@ -208,10 +223,14 @@ final class HttpRestClient implements RestClient {
         httpRequest.contentLength = bytes.length;
         httpRequest.add(bytes);
       }
-      final HttpClientResponse response = await httpRequest.close();
+      // 연결 뒤 서버가 응답을 멈춰도 안내 없이 무한 대기하지 않게 상한을 건다.
+      final HttpClientResponse response = await httpRequest.close().timeout(
+        responseTimeout,
+      );
       final String text = await response
           .transform(const Utf8Decoder(allowMalformed: true))
-          .join();
+          .join()
+          .timeout(responseTimeout);
       log
         ..write('rest', '$target → ${response.statusCode}')
         ..write(
@@ -222,6 +241,14 @@ final class HttpRestClient implements RestClient {
     } on IOException catch (e) {
       terminal.writeLine('  요청하지 못했습니다 — $e');
       log.write('rest', '$target → 요청 실패 $e');
+      return const RestResponse(0, '');
+    } on TimeoutException {
+      openedRequest?.abort();
+      terminal.writeLine(responseTimeoutMessage);
+      log.write(
+        'rest',
+        '$target → 응답 없음 (${responseTimeout.inMilliseconds}ms)',
+      );
       return const RestResponse(0, '');
     }
   }
