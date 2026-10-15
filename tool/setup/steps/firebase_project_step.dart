@@ -17,7 +17,8 @@ import 'user_files_step.dart';
 /// 프로젝트 ID 의 진실원은 `config/dev.json` 의 `firebaseProjectId` 하나다. 그 값이
 /// 자리표시(빈 값 · example 값)가 아니면 묻지 않고 내 계정의 Firebase 프로젝트
 /// 목록에 있는지 본다. 목록에 없으면 `gcloud projects describe` 로 내 Google
-/// Cloud 프로젝트인지 보고, 맞으면 Firebase 추가만 남은 것으로 판정한다.
+/// Cloud 프로젝트인지 보고, 맞으면 Firebase 추가만 남은 것으로 판정해 확인 표 뒤에
+/// Firebase 를 추가한다.
 /// 자리표시면 새로 만들기 · 기존 프로젝트에서 고르기를 묻는다. 새로 만들기는
 /// 확인 표 뒤에 `gcloud projects create` 를 실행하고, Firebase 추가 **전에** 그
 /// ID 를 config 와 별칭에 쓴 뒤 `firebase projects:addfirebase` 를 실행한다.
@@ -97,11 +98,17 @@ final class FirebaseProjectStep implements Step {
   static const String idTakenGuidance =
       '이미 쓰이는 프로젝트 ID 입니다 — 다시 시도에서 다른 ID 를 입력하세요';
 
-  /// 처음 쓰는 계정의 약관 동의 안내.
-  static const String termsGuidance =
-      '처음 쓰는 Google 계정이면 console.cloud.google.com 과 '
-      'console.firebase.google.com 을 브라우저에서 한 번 열어 약관에 동의한 뒤 '
-      '다시 시도하세요';
+  /// 프로젝트 만들기가 실패했을 때(이미 쓰이는 ID 가 아님)의 Google Cloud 약관 안내.
+  static const String cloudTermsGuidance =
+      '처음 쓰는 Google 계정이면 브라우저에서 https://console.cloud.google.com/ 을 '
+      '열어 Google Cloud 약관에 동의한 뒤 다시 시도하세요';
+
+  /// Firebase 추가만 남은 프로젝트의 확인 표 제목.
+  static const String addFirebaseConfirmTitle = 'Firebase 추가 — 확인';
+
+  /// Firebase 추가 확인 표의 경고.
+  static const String addFirebaseIrreversibleWarning =
+      'Google Cloud 프로젝트에 Firebase 를 추가하면 되돌릴 수 없습니다.';
 
   /// Firebase 콘솔 주소 — Firebase 추가가 실패하면 여기서 마저 진행한다.
   static const String firebaseConsoleUrl =
@@ -234,8 +241,9 @@ final class FirebaseProjectStep implements Step {
         '(Firebase 추가가 실패하면 콘솔에서 할 일을 보이고 Enter 를 기다립니다)',
       ],
       _ProjectMode.addFirebase => <String>[
-        '(Firebase 콘솔에서 $_projectId 에 Firebase 를 추가하는 방법을 보이고 '
-            'Enter 를 기다립니다)',
+        buildAddFirebaseCommand(_projectId).render(),
+        '(이 Google Cloud 프로젝트에 Firebase 를 추가합니다 — 되돌릴 수 없어 실행 전에 '
+            '확인 표를 보이고, 실패하면 콘솔에서 할 일을 보입니다)',
       ],
       _ProjectMode.writeAliases => <String>[
         '($firebasercPath 의 default · dev 를 $_projectId 로 씀)',
@@ -255,9 +263,7 @@ final class FirebaseProjectStep implements Step {
       return switch (_mode) {
         _ProjectMode.choose => await _applyChoose(context),
         _ProjectMode.writeAliases => await _applyAliasesOnly(context),
-        _ProjectMode.addFirebase => WaitForUser(
-          buildAddFirebaseGuide(_projectId),
-        ),
+        _ProjectMode.addFirebase => await _applyAddFirebase(context),
         _ProjectMode.missing => Failed('$_reason — $accountPermissionGuidance'),
         _ProjectMode.listFailed => Failed(_reason, result: _listResult),
         _ProjectMode.unreadable => Failed(_reason),
@@ -280,6 +286,33 @@ final class FirebaseProjectStep implements Step {
     if (dirty != null) return dirty;
     _writeAliases(context, _projectId);
     return const Applied();
+  }
+
+  /// Firebase 추가만 남은 config 의 프로젝트에 확인 표 뒤 Firebase 를 추가한다.
+  ///
+  /// 위저드가 앞 실행에서 확정한 ID 인지 가릴 수 없으므로 실행 직전에 값 표를
+  /// 한 번 보인다(Enter · N · 입력 끝 = 실행 · 파일 변경 없이 멈춤). 별칭이 이미
+  /// 그 ID 면 `.firebaserc` 를 쓰지 않고 미커밋 변경도 검사하지 않는다. 다르면
+  /// 미커밋 변경 검사 → 표 → 별칭 쓰기 → 실행 순서다.
+  Future<StepOutcome> _applyAddFirebase(WizardContext context) async {
+    final bool hasAliases = _hasMatchingAliases(context, _projectId);
+    if (!hasAliases) {
+      final Failed? dirty = await _findDirtyFirebaserc(context);
+      if (dirty != null) return dirty;
+    }
+    if (!confirmSummary(
+      context.terminal,
+      title: addFirebaseConfirmTitle,
+      rows: <SummaryRow>[
+        SummaryRow('프로젝트 ID', _projectId),
+        const SummaryRow('하는 일', 'Google Cloud 프로젝트에 Firebase 추가'),
+      ],
+      warnings: const <String>[addFirebaseIrreversibleWarning],
+    )) {
+      return const Declined();
+    }
+    if (!hasAliases) _writeAliases(context, _projectId);
+    return _addFirebaseOrGuide(context, _projectId);
   }
 
   /// 새로 만들기 · 고르기를 묻고 고른 쪽을 진행한다.
@@ -330,7 +363,7 @@ final class FirebaseProjectStep implements Step {
         final String output = '${created.stdout}\n${created.stderr}';
         final String guidance = output.toLowerCase().contains('already exists')
             ? idTakenGuidance
-            : termsGuidance;
+            : cloudTermsGuidance;
         return Failed('프로젝트를 만들지 못했습니다 — $guidance', result: created);
       }
     }

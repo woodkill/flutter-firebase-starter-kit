@@ -518,10 +518,10 @@ void main() {
     },
   );
 
-  test('T-19-PROJ-10 만들기 실패(약관 미동의 모양)는 원문과 약관 안내를 함께 보인다', () async {
+  test('T-19-PROJ-10 만들기 실패(Cloud 약관 미동의)는 원문과 Cloud 콘솔 약관 안내만 보인다', () async {
     writeProjectFixture(root);
     const String terms =
-        'ERROR: (gcloud.projects.create) FAILED_PRECONDITION: '
+        'Operation [create_project.global.100200300] failed: 9: '
         'Callers must accept Terms of Service\n';
     final FakeCommandRunner runner = FakeCommandRunner()
       ..on(_gitStatusKey, _cleanTree)
@@ -539,13 +539,14 @@ void main() {
     final String output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains(terms));
-    expect(output, contains(FirebaseProjectStep.termsGuidance));
+    expect(output, contains(FirebaseProjectStep.cloudTermsGuidance));
     expect(
-      FirebaseProjectStep.termsGuidance,
-      contains(
-        'console.cloud.google.com 과 console.firebase.google.com 을 '
-        '브라우저에서 한 번 열어 약관에 동의한 뒤 다시 시도하세요',
-      ),
+      FirebaseProjectStep.cloudTermsGuidance,
+      contains('console.cloud.google.com'),
+    );
+    expect(
+      FirebaseProjectStep.cloudTermsGuidance,
+      isNot(contains('console.firebase.google.com')),
     );
     expect(runner.countCalls(RunMode.stream, addFirebaseKey(suggestedId)), 0);
     expect(readConfigProjectId(), 'your-project-dev');
@@ -628,6 +629,302 @@ void main() {
       expect(runner.countCalls(RunMode.capture, describeKey(suggestedId)), 2);
       expect(readConfigProjectId(), suggestedId);
       expect(readAliases()['dev'], suggestedId);
+    },
+  );
+
+  /// [output] 에서 확인 표 머리 줄 `── [title] ──` 의 수를 센다.
+  int countTitleLines(String output, String title) =>
+      RegExp(RegExp.escape('── $title ──')).allMatches(output).length;
+
+  /// config 와 `.firebaserc` 의 지금 바이트를 읽는다.
+  Map<String, String> readProjectFiles() => <String, String>{
+    for (final String path in <String>[
+      UserFilesStep.jsonUserPath,
+      '.firebaserc',
+    ])
+      path: File('$root/$path').readAsStringSync(),
+  };
+
+  /// Firebase 목록에는 없고 내 Cloud 프로젝트인 [existingId] 를 등록한다.
+  ///
+  /// [lists] 는 검사마다 차례로 돌려줄 목록 결과다(마지막 값은 되풀이).
+  FakeCommandRunner buildAddFirebaseRunner({
+    required List<CommandResult> lists,
+    CommandResult added = _ok,
+  }) {
+    final FakeCommandRunner runner = FakeCommandRunner()
+      ..on(describeKey(existingId), const CommandResult(0, '$existingId\n', ''))
+      ..on(addFirebaseKey(existingId), added);
+    registerQueue(runner, _projectsListKey, lists);
+    return runner;
+  }
+
+  final CommandResult listWithout = buildProjectsResult(const <String, String>{
+    'other-dev': 'Other',
+  });
+  final CommandResult listWith = buildProjectsResult(const <String, String>{
+    existingId: 'Acme Dev',
+  });
+  const Map<String, String> matchingAliases = <String, String>{
+    'default': existingId,
+    'dev': existingId,
+  };
+
+  group(
+    'T-19-PROJ-12 config ID 가 내 Cloud 프로젝트이고 Firebase 가 없으면 확인 표 뒤에만 Firebase 를 추가한다',
+    () {
+      test('별칭이 맞으면 미커밋 검사 없이 표 y → 추가 → ✓', () async {
+        writeProjectFixture(
+          root,
+          projectId: existingId,
+          aliases: matchingAliases,
+        );
+        final FakeCommandRunner runner = buildAddFirebaseRunner(
+          lists: <CommandResult>[listWithout, listWithout, listWith],
+        );
+        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+          'y',
+          'y',
+        ]);
+
+        final int code = await runProjectStep(runner, terminal);
+
+        final String output = terminal.output.toString();
+        expect(code, wizardExitDone);
+        expect(
+          RegExp(
+            '  ✗ ${RegExp.escape(FirebaseProjectStep.stepTitle)} — .*Firebase',
+          ).hasMatch(output),
+          isTrue,
+        );
+        expect(output, contains('  \$ ${addFirebaseKey(existingId)}'));
+        expect(
+          terminal.asks,
+          isNot(contains(FirebaseProjectStep.projectChoiceQuestion)),
+        );
+        expect(terminal.asks, isNot(contains(FirebaseProjectStep.idQuestion)));
+        expect(countTitleLines(output, FirebaseProjectStep.confirmTitle), 0);
+        expect(
+          countTitleLines(output, FirebaseProjectStep.addFirebaseConfirmTitle),
+          1,
+        );
+        expect(
+          RegExp('프로젝트 ID +${RegExp.escape(existingId)}').hasMatch(output),
+          isTrue,
+        );
+        expect(
+          output,
+          contains('  ! ${FirebaseProjectStep.addFirebaseIrreversibleWarning}'),
+        );
+        expect(
+          terminal.asks.where((String ask) => ask == summaryConfirmQuestion),
+          hasLength(1),
+        );
+        expect(runner.countCalls(RunMode.capture, _gitStatusKey), 0);
+        expect(listStreamKeys(runner), <String>[addFirebaseKey(existingId)]);
+        expect(output, contains('  ✓ ${FirebaseProjectStep.stepTitle} — '));
+      });
+
+      test('표에서 Enter(기본 N)면 추가 0 · 파일 그대로 · 멈춤', () async {
+        writeProjectFixture(
+          root,
+          projectId: existingId,
+          aliases: matchingAliases,
+        );
+        final Map<String, String> before = readProjectFiles();
+        final FakeCommandRunner runner = buildAddFirebaseRunner(
+          lists: <CommandResult>[listWithout],
+        );
+        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+          'y',
+          '',
+        ]);
+
+        final int code = await runProjectStep(runner, terminal);
+
+        expect(code, wizardExitStopped);
+        expect(
+          countTitleLines(
+            terminal.output.toString(),
+            FirebaseProjectStep.addFirebaseConfirmTitle,
+          ),
+          1,
+        );
+        expect(runner.countMode(RunMode.stream), 0);
+        expect(readProjectFiles(), before);
+      });
+
+      test('별칭이 다르고 .firebaserc 에 미커밋 변경이 있으면 표 없이 실패 · 추가 0', () async {
+        writeProjectFixture(root, projectId: existingId);
+        final Map<String, String> before = readProjectFiles();
+        final FakeCommandRunner runner = buildAddFirebaseRunner(
+          lists: <CommandResult>[listWithout],
+        )..on(_gitStatusKey, const CommandResult(0, ' M .firebaserc\n', ''));
+        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+          'y',
+        ]);
+
+        final int code = await runProjectStep(runner, terminal);
+
+        final String output = terminal.output.toString();
+        expect(code, wizardExitStopped);
+        expect(output, contains('    .firebaserc'));
+        expect(
+          countTitleLines(output, FirebaseProjectStep.addFirebaseConfirmTitle),
+          0,
+        );
+        expect(runner.countMode(RunMode.stream), 0);
+        expect(readProjectFiles(), before);
+      });
+
+      test('별칭이 다르고 깨끗하면 표 y 뒤 별칭을 먼저 쓰고 추가한다 · 표 거절이면 별칭도 그대로', () async {
+        // 표 y → 별칭 쓰기 → 추가 실패 → Enter 에서 입력 끝: 별칭은 이미 새 ID.
+        writeProjectFixture(root, projectId: existingId);
+        final FakeCommandRunner runner = buildAddFirebaseRunner(
+          lists: <CommandResult>[listWithout],
+          added: _addFirebaseFailed,
+        )..on(_gitStatusKey, _cleanTree);
+        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+          'y',
+          'y',
+        ]);
+
+        final int code = await runProjectStep(runner, terminal);
+
+        expect(code, wizardExitStopped);
+        expect(listStreamKeys(runner), <String>[addFirebaseKey(existingId)]);
+        expect(readAliases(), <String, Object?>{
+          'default': existingId,
+          'dev': existingId,
+        });
+
+        // 표 거절 — 별칭을 쓰지 않는다.
+        writeProjectFixture(root, projectId: existingId);
+        final Map<String, String> before = readProjectFiles();
+        final FakeCommandRunner declined = buildAddFirebaseRunner(
+          lists: <CommandResult>[listWithout],
+        )..on(_gitStatusKey, _cleanTree);
+        final ScriptedTerminal declinedTerminal = ScriptedTerminal(
+          const <String?>['y', 'n'],
+        );
+
+        final int declinedCode = await runProjectStep(
+          declined,
+          declinedTerminal,
+        );
+
+        expect(declinedCode, wizardExitStopped);
+        expect(declined.countMode(RunMode.stream), 0);
+        expect(readProjectFiles(), before);
+      });
+    },
+  );
+
+  test(
+    'T-19-PROJ-13 Firebase 추가가 실패해 멈춘 뒤 다시 실행하면 같은 ID 로 확인 표 → 추가 → ✓ (고르기 · ID 질문 0)',
+    () async {
+      writeProjectFixture(
+        root,
+        projectId: existingId,
+        aliases: matchingAliases,
+      );
+      final Map<String, String> before = readProjectFiles();
+      final FakeCommandRunner first = buildAddFirebaseRunner(
+        lists: <CommandResult>[listWithout],
+        added: _addFirebaseFailed,
+      );
+      final ScriptedTerminal firstTerminal = ScriptedTerminal(const <String?>[
+        'y',
+        'y',
+      ]);
+
+      final int firstCode = await runProjectStep(first, firstTerminal);
+
+      expect(firstCode, wizardExitStopped);
+      expect(
+        firstTerminal.output.toString(),
+        contains(FirebaseProjectStep.buildAddFirebaseGuide(existingId)),
+      );
+      expect(readProjectFiles(), before);
+
+      final FakeCommandRunner second = buildAddFirebaseRunner(
+        lists: <CommandResult>[listWithout, listWithout, listWith],
+      );
+      final ScriptedTerminal secondTerminal = ScriptedTerminal(const <String?>[
+        'y',
+        'y',
+      ]);
+
+      final int secondCode = await runProjectStep(second, secondTerminal);
+
+      final String output = secondTerminal.output.toString();
+      expect(secondCode, wizardExitDone);
+      expect(
+        secondTerminal.asks,
+        isNot(contains(FirebaseProjectStep.projectChoiceQuestion)),
+      );
+      expect(
+        secondTerminal.asks,
+        isNot(contains(FirebaseProjectStep.idQuestion)),
+      );
+      expect(
+        countTitleLines(output, FirebaseProjectStep.addFirebaseConfirmTitle),
+        1,
+      );
+      expect(listStreamKeys(second), <String>[addFirebaseKey(existingId)]);
+      expect(output, contains('  ✓ ${FirebaseProjectStep.stepTitle} — '));
+      expect(readConfigProjectId(), existingId);
+    },
+  );
+
+  test(
+    'T-19-PROJ-14 새로 만들기에서 이미 있는 ID 면 만들기 없이 Firebase 추가 → 실패 → 콘솔 안내 → Enter → ✓',
+    () async {
+      writeProjectFixture(root);
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(_gitStatusKey, _cleanTree)
+        ..on(
+          describeKey(suggestedId),
+          const CommandResult(0, '$suggestedId\n', ''),
+        )
+        ..on(addFirebaseKey(suggestedId), _addFirebaseFailed)
+        ..on(
+          _projectsListKey,
+          buildProjectsResult(const <String, String>{suggestedId: suggestedId}),
+        );
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+        'y',
+        '1',
+        '',
+        'y',
+        '',
+      ]);
+
+      final int code = await runProjectStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitDone);
+      expect(output, contains(FirebaseProjectStep.existingProjectNotice));
+      expect(
+        output,
+        contains(FirebaseProjectStep.buildAddFirebaseGuide(suggestedId)),
+      );
+      expect(runner.countCalls(RunMode.stream, createKey(suggestedId)), 0);
+      expect(listStreamKeys(runner), <String>[addFirebaseKey(suggestedId)]);
+      expect(
+        terminal.asks.where((String ask) => ask == summaryConfirmQuestion),
+        hasLength(1),
+      );
+      expect(
+        countTitleLines(output, FirebaseProjectStep.addFirebaseConfirmTitle),
+        0,
+      );
+      expect(
+        terminal.asks.where((String ask) => ask == waitForEnterMessage),
+        hasLength(1),
+      );
+      expect(output, contains('  ✓ ${FirebaseProjectStep.stepTitle} — '));
+      expect(readConfigProjectId(), suggestedId);
     },
   );
 
