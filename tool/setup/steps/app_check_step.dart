@@ -153,8 +153,8 @@ final class AppCheckStep implements Step {
         return _mark(
           _AppCheckMode.requestFailed,
           '${app.label} 앱의 디버그 토큰 목록을 읽지 못했습니다 — '
-          '${_describeStatus(response)}',
-          result: _toResult(context, response),
+          '${describeRestStatus(response)}',
+          result: toFailureResult(response, redactor: context.redactor),
         );
       }
       if (names.isEmpty) missing.add(app);
@@ -241,8 +241,8 @@ final class AppCheckStep implements Step {
       final List<String>? names = _parseWizardTokenNames(list);
       if (names == null) {
         return Failed(
-          '${app.label} 앱의 디버그 토큰 목록을 읽지 못했습니다 — ${_describeStatus(list)}',
-          result: _toResult(context, list),
+          '${app.label} 앱의 디버그 토큰 목록을 읽지 못했습니다 — ${describeRestStatus(list)}',
+          result: toFailureResult(list, redactor: context.redactor),
         );
       }
       for (final String name in names) {
@@ -252,8 +252,8 @@ final class AppCheckStep implements Step {
         if (!deleted.isOk) {
           return Failed(
             '${app.label} 앱의 옛 디버그 토큰을 지우지 못했습니다 — '
-            '${_describeStatus(deleted)}',
-            result: _toResult(context, deleted),
+            '${describeRestStatus(deleted)}',
+            result: toFailureResult(deleted, redactor: context.redactor),
           );
         }
       }
@@ -280,8 +280,8 @@ final class AppCheckStep implements Step {
       if (!response.isOk) {
         return Failed(
           '${app.label} 앱에 디버그 토큰을 등록하지 못했습니다 — '
-          '${_describeStatus(response)}',
-          result: _toResult(context, response),
+          '${describeRestStatus(response)}',
+          result: toFailureResult(response, redactor: context.redactor),
         );
       }
     }
@@ -334,18 +334,6 @@ final class AppCheckStep implements Step {
     _failedResult = result;
     return Todo(reason);
   }
-
-  /// 응답 상태를 한 줄로 적는다 — 상태 코드 0 은 요청하지 못한 경우다.
-  static String _describeStatus(RestResponse response) =>
-      response.statusCode == 0 ? '요청하지 못했습니다' : 'HTTP ${response.statusCode}';
-
-  /// 실패 응답 본문을 가린 뒤 위저드가 원문으로 보일 결과 모양으로 바꾼다.
-  static CommandResult? _toResult(
-    WizardContext context,
-    RestResponse response,
-  ) => response.body.isEmpty
-      ? null
-      : CommandResult(1, '', context.redactor.apply(response.body));
 }
 
 /// 토큰을 등록할 앱 하나.

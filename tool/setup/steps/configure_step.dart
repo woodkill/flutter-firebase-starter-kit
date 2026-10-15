@@ -257,7 +257,7 @@ final class ConfigureStep implements Step {
         result: result,
       );
     }
-    if (_findLastLine(result.stdout) != completeLine) {
+    if (findLastOutputLine(result.stdout) != completeLine) {
       return Failed(
         'configure 스크립트의 마지막 줄이 완료 줄($completeLine)이 아닙니다',
         result: result,
@@ -370,15 +370,6 @@ final class ConfigureStep implements Step {
       if (a[i] != b[i]) return false;
     }
     return true;
-  }
-
-  /// 표준 출력의 마지막 빈 줄 아닌 줄(앞뒤 공백 제외)을 찾는다 — 없으면 null.
-  static String? _findLastLine(String stdout) {
-    final List<String> lines = const LineSplitter()
-        .convert(stdout)
-        .where((String line) => line.trim().isNotEmpty)
-        .toList();
-    return lines.isEmpty ? null : lines.last.trim();
   }
 
   /// [mode] 판정과 사유를 두고 할 일 결과를 만든다.

@@ -88,6 +88,23 @@ final class RestResponse {
   }
 }
 
+/// [response] 의 상태를 한 줄로 적는다 — 상태 코드 0 은 요청하지 못한 경우다.
+String describeRestStatus(RestResponse response) =>
+    response.statusCode == 0 ? '요청하지 못했습니다' : 'HTTP ${response.statusCode}';
+
+/// 실패 응답 본문을 위저드가 원문으로 보일 결과 모양으로 바꾼다.
+///
+/// 본문이 비었으면 null. [redactor] 를 주면 본문을 가린 뒤 담는다 — 화면 ·
+/// 기록은 가림 터미널을 거치지만, 결과 자체에 등록 값이 남지 않아야 하는
+/// 단계가 쓴다.
+CommandResult? toFailureResult(RestResponse response, {Redactor? redactor}) {
+  if (response.body.isEmpty) return null;
+  final String body = redactor == null
+      ? response.body
+      : redactor.apply(response.body);
+  return CommandResult(1, '', body);
+}
+
 /// REST 요청 실행기 — 테스트는 가짜 구현을 주입한다.
 abstract interface class RestClient {
   /// [request] 를 보내고 응답을 돌려준다.

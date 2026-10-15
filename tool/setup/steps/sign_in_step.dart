@@ -139,8 +139,8 @@ final class SignInStep implements Step {
     }
     return _mark(
       _SignInMode.requestFailed,
-      '로그인 설정을 읽지 못했습니다 — ${_describeStatus(response)}',
-      result: _toResult(response),
+      '로그인 설정을 읽지 못했습니다 — ${describeRestStatus(response)}',
+      result: toFailureResult(response),
     );
   }
 
@@ -193,8 +193,8 @@ final class SignInStep implements Step {
     );
     if (!response.isOk) {
       return Failed(
-        '초기화 뒤에도 로그인 설정을 읽지 못했습니다 — ${_describeStatus(response)}',
-        result: _toResult(response),
+        '초기화 뒤에도 로그인 설정을 읽지 못했습니다 — ${describeRestStatus(response)}',
+        result: toFailureResult(response),
       );
     }
     final List<String>? disabled = _listDisabled(response);
@@ -210,8 +210,8 @@ final class SignInStep implements Step {
     );
     if (response.isOk) return const Applied();
     return Failed(
-      '로그인 수단을 켜지 못했습니다 — ${_describeStatus(response)}',
-      result: _toResult(response),
+      '로그인 수단을 켜지 못했습니다 — ${describeRestStatus(response)}',
+      result: toFailureResult(response),
     );
   }
 
@@ -259,14 +259,6 @@ final class SignInStep implements Step {
       );
     }
   }
-
-  /// 응답 상태를 한 줄로 적는다 — 상태 코드 0 은 요청하지 못한 경우다.
-  static String _describeStatus(RestResponse response) =>
-      response.statusCode == 0 ? '요청하지 못했습니다' : 'HTTP ${response.statusCode}';
-
-  /// 실패 응답 본문을 위저드가 원문으로 보일 결과 모양으로 바꾼다.
-  static CommandResult? _toResult(RestResponse response) =>
-      response.body.isEmpty ? null : CommandResult(1, '', response.body);
 }
 
 /// 직전 검사의 판정.

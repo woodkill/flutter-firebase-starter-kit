@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'command_runner.dart';
 import 'git_tree.dart';
+import 'gradle_identity.dart';
 import 'steps/identity_step.dart';
 import 'wizard.dart';
 
@@ -14,9 +15,6 @@ const String commitHintMessage = 'chore: 설정 위저드 결과 반영';
 
 /// Kotlin 소스 디렉터리의 앞부분 — 뒤에 패키지 경로가 붙는다.
 const String kotlinSourceRoot = 'android/app/src/main/kotlin';
-
-/// Gradle 의 `applicationId = "…"` 줄 — group 1 = 앱 ID.
-final RegExp _applicationIdPattern = RegExp(r'applicationId\s*=\s*"([^"]+)"');
 
 /// 모든 단계가 끝난 뒤 바뀐 추적 파일 목록과 커밋 명령을 보여 준다.
 ///
@@ -38,7 +36,7 @@ Future<void> showCommitHint(WizardContext context) async {
     context.terminal.writeLine('  $path');
   }
   context.terminal.writeCommand(
-    'git add ${paths.map(_quoteForShell).join(' ')} '
+    'git add ${paths.map(quoteForShellDisplay).join(' ')} '
     '&& git commit -m "$commitHintMessage"',
   );
 }
@@ -48,14 +46,12 @@ Future<void> showCommitHint(WizardContext context) async {
 /// 디렉터리는 Gradle 의 `applicationId` 를 `.` → `/` 로 바꾼 경로다. 파일 ·
 /// 줄 · 디렉터리가 없으면 빈 목록이다.
 Future<List<String>> _listMovedKotlinFiles(WizardContext context) async {
-  final File gradle = File(context.resolve(IdentityStep.gradlePath));
-  if (!gradle.existsSync()) return const <String>[];
-  final RegExpMatch? match = _applicationIdPattern.firstMatch(
-    gradle.readAsStringSync(),
+  final String? applicationId = readGradleApplicationId(
+    context.resolve(IdentityStep.gradlePath),
   );
-  if (match == null) return const <String>[];
+  if (applicationId == null) return const <String>[];
   final String directory =
-      '$kotlinSourceRoot/${match.group(1)!.replaceAll('.', '/')}';
+      '$kotlinSourceRoot/${applicationId.replaceAll('.', '/')}';
   if (!Directory(context.resolve(directory)).existsSync()) {
     return const <String>[];
   }
@@ -94,11 +90,3 @@ String _unquote(String path) =>
     path.length >= 2 && path.startsWith('"') && path.endsWith('"')
     ? path.substring(1, path.length - 1)
     : path;
-
-/// 셸 특수 문자가 있는 경로를 작은따옴표로 감싼다.
-String _quoteForShell(String path) {
-  if (path.isNotEmpty && !RegExp(r'''[\s'"\\$`*?;&|<>(){}]''').hasMatch(path)) {
-    return path;
-  }
-  return "'${path.replaceAll("'", r"'\''")}'";
-}

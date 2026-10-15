@@ -576,9 +576,9 @@ final class RunStep implements Step {
       );
       if (!response.isOk) {
         return _UserCountFailed(
-          '로그인 사용자 목록을 읽지 못했습니다 — ${_describeStatus(response)}',
+          '로그인 사용자 목록을 읽지 못했습니다 — ${describeRestStatus(response)}',
           // 실패 응답은 오류 설명뿐이라 원문을 보인다 — 사용자 목록이 아니다.
-          response.body.isEmpty ? null : CommandResult(1, '', response.body),
+          toFailureResult(response),
         );
       }
       final Object? decoded = response.decodeJson();
@@ -603,10 +603,6 @@ final class RunStep implements Step {
     _failedResult = result;
     return Todo(reason);
   }
-
-  /// 응답 상태를 한 줄로 적는다 — 상태 코드 0 은 요청하지 못한 경우다.
-  static String _describeStatus(RestResponse response) =>
-      response.statusCode == 0 ? '요청하지 못했습니다' : 'HTTP ${response.statusCode}';
 
   /// 실제로 [duration] 만큼 기다린다.
   static Future<void> _waitFor(Duration duration) =>

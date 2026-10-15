@@ -42,17 +42,35 @@ final class Command {
   String render() {
     final String? shown = display;
     if (shown != null) return shown;
-    return <String>[executable, ...arguments].map(_quoteForDisplay).join(' ');
+    return <String>[
+      executable,
+      ...arguments,
+    ].map(quoteForShellDisplay).join(' ');
   }
+}
 
-  /// 표시용으로 인자 하나를 감싼다.
-  static String _quoteForDisplay(String argument) {
-    if (argument.isNotEmpty &&
-        !RegExp(r'''[\s'"\\$`*?;&|<>(){}]''').hasMatch(argument)) {
-      return argument;
-    }
-    return "'${argument.replaceAll("'", r"'\''")}'";
+/// 표시용으로 셸 인자 하나를 감싼다.
+///
+/// 공백 · 따옴표 · 셸 특수 문자가 있거나 비었으면 작은따옴표로 감싸고, 안의
+/// 작은따옴표는 `'\''` 로 바꾼다. 화면에 보일 명령 줄을 만들 때만 쓴다 — 실제
+/// 실행은 셸 없이 인자 배열로 한다.
+String quoteForShellDisplay(String argument) {
+  if (argument.isNotEmpty &&
+      !RegExp(r'''[\s'"\\$`*?;&|<>(){}]''').hasMatch(argument)) {
+    return argument;
   }
+  return "'${argument.replaceAll("'", r"'\''")}'";
+}
+
+/// [output] 의 마지막 빈 줄 아닌 줄을 앞뒤 공백을 떼고 찾는다 — 없으면 null.
+///
+/// 스크립트의 마지막 줄 계약(`DEPLOY OK …` · `FAIL: …`)을 읽을 때 쓴다.
+String? findLastOutputLine(String output) {
+  final List<String> lines = const LineSplitter()
+      .convert(output)
+      .where((String line) => line.trim().isNotEmpty)
+      .toList();
+  return lines.isEmpty ? null : lines.last.trim();
 }
 
 /// 명령 실행 결과.

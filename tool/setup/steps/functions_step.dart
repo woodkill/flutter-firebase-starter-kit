@@ -587,7 +587,7 @@ final class FunctionsStep implements Step {
         result: result,
       );
     }
-    final String? lastLine = _findLastLine(result.stdout);
+    final String? lastLine = findLastOutputLine(result.stdout);
     if (lastLine == null || !deployOkPattern.hasMatch(lastLine)) {
       return Failed(
         '배포 스크립트의 마지막 줄이 배포 완료 줄'
@@ -644,15 +644,6 @@ final class FunctionsStep implements Step {
       FirestoreStep.functionsRegionKey,
     )?.trim();
     return value == null || value.isEmpty ? null : value;
-  }
-
-  /// 표준 출력의 마지막 빈 줄 아닌 줄(앞뒤 공백 제외)을 찾는다 — 없으면 null.
-  static String? _findLastLine(String stdout) {
-    final List<String> lines = const LineSplitter()
-        .convert(stdout)
-        .where((String line) => line.trim().isNotEmpty)
-        .toList();
-    return lines.isEmpty ? null : lines.last.trim();
   }
 
   /// 명령 결과의 첫 빈 줄 아닌 줄(오류 출력 먼저)을 찾는다 — 없으면 종료 코드.

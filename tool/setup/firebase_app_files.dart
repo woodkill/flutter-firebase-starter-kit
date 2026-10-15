@@ -2,15 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'config_files.dart';
+import 'gradle_identity.dart';
 import 'steps/identity_step.dart';
 import 'steps/user_files_step.dart';
 
 /// dev flavor 의 Android 패키지 접미사 — Gradle productFlavors 의
 /// `applicationIdSuffix` 와 같다.
 const String devPackageSuffix = '.dev';
-
-/// Gradle 의 `applicationId = "…"` 줄 — group 1 = 앱 ID.
-final RegExp _applicationIdPattern = RegExp(r'applicationId\s*=\s*"([^"]+)"');
 
 /// 사용자 xcconfig 에서 지금 앱 정체성의 dev iOS 번들 ID 를 읽는다.
 ///
@@ -30,13 +28,11 @@ String? readDevBundleId(String projectRoot) {
 ///
 /// 파일이 없거나 `applicationId` 줄이 없으면 null.
 String? readDevAndroidPackage(String projectRoot) {
-  final File file = File('$projectRoot/${IdentityStep.gradlePath}');
-  if (!file.existsSync()) return null;
-  final RegExpMatch? match = _applicationIdPattern.firstMatch(
-    file.readAsStringSync(),
+  final String? applicationId = readGradleApplicationId(
+    '$projectRoot/${IdentityStep.gradlePath}',
   );
-  if (match == null) return null;
-  return '${match.group(1)!}$devPackageSuffix';
+  if (applicationId == null) return null;
+  return '$applicationId$devPackageSuffix';
 }
 
 /// configure 스크립트가 만드는 dev 앱 설정 파일 3개에서 판정에 필요한 값만 읽는다.

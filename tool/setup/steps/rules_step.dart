@@ -224,7 +224,7 @@ final class RulesStep implements Step {
     }
     if (!release.isOk) {
       return _Comparison.failed(
-        '$label rules 릴리스를 읽지 못했습니다 — ${_describeStatus(release)}',
+        '$label rules 릴리스를 읽지 못했습니다 — ${describeRestStatus(release)}',
         release,
       );
     }
@@ -240,7 +240,7 @@ final class RulesStep implements Step {
     );
     if (!ruleset.isOk) {
       return _Comparison.failed(
-        '$label ruleset 을 읽지 못했습니다 — ${_describeStatus(ruleset)}',
+        '$label ruleset 을 읽지 못했습니다 — ${describeRestStatus(ruleset)}',
         ruleset,
       );
     }
@@ -283,10 +283,6 @@ final class RulesStep implements Step {
     _failedResult = result;
     return Todo(reason);
   }
-
-  /// 응답 상태를 한 줄로 적는다 — 상태 코드 0 은 요청하지 못한 경우다.
-  static String _describeStatus(RestResponse response) =>
-      response.statusCode == 0 ? '요청하지 못했습니다' : 'HTTP ${response.statusCode}';
 }
 
 /// 릴리스 하나의 비교 결과 — [problem] 이 비었으면 같다.
@@ -294,7 +290,7 @@ final class _Comparison {
   const _Comparison(this.problem) : result = null;
 
   _Comparison.failed(this.problem, RestResponse response)
-    : result = CommandResult(1, '', response.body);
+    : result = toFailureResult(response);
 
   /// 사유(같으면 빈 문자열).
   final String problem;

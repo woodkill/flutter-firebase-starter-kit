@@ -111,8 +111,8 @@ final class StorageStep implements Step {
     if (response.statusCode != 404) {
       return _markFailed(
         _StorageMode.requestFailed,
-        '기본 bucket 을 확인하지 못했습니다 — ${_describeStatus(response)}',
-        result: _toResult(response),
+        '기본 bucket 을 확인하지 못했습니다 — ${describeRestStatus(response)}',
+        result: toFailureResult(response),
       );
     }
     return _resolveLocation(context, projectId);
@@ -163,8 +163,8 @@ final class StorageStep implements Step {
     );
     if (response.isOk) return const Applied();
     return Failed(
-      '기본 bucket 을 만들지 못했습니다 — ${_describeStatus(response)}',
-      result: _toResult(response),
+      '기본 bucket 을 만들지 못했습니다 — ${describeRestStatus(response)}',
+      result: toFailureResult(response),
     );
   }
 
@@ -227,14 +227,6 @@ final class StorageStep implements Step {
     _failedResult = result;
     return Todo(reason);
   }
-
-  /// 응답 상태를 한 줄로 적는다 — 상태 코드 0 은 요청하지 못한 경우다.
-  static String _describeStatus(RestResponse response) =>
-      response.statusCode == 0 ? '요청하지 못했습니다' : 'HTTP ${response.statusCode}';
-
-  /// 실패 응답 본문을 위저드가 원문으로 보일 결과 모양으로 바꾼다.
-  static CommandResult? _toResult(RestResponse response) =>
-      response.body.isEmpty ? null : CommandResult(1, '', response.body);
 }
 
 /// 직전 검사의 판정.

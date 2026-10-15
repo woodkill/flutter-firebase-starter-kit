@@ -5,6 +5,7 @@ import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
 import '../git_tree.dart';
+import '../gradle_identity.dart';
 import '../step.dart';
 import '../terminal.dart';
 import '../wizard.dart';
@@ -87,11 +88,6 @@ final class IdentityStep implements Step {
   /// 표시 이름 규칙 — 영문 · 숫자 · 공백(앞뒤 공백은 뗀 뒤 검사).
   static final RegExp displayNamePattern = RegExp(r'^[A-Za-z0-9 ]+$');
 
-  /// Gradle 의 `applicationId = "…"` 줄 — group 1 = 앱 ID.
-  static final RegExp _applicationIdPattern = RegExp(
-    r'applicationId\s*=\s*"([^"]+)"',
-  );
-
   /// dev 표시 이름 접미사.
   static const String _devSuffix = ' Dev';
 
@@ -113,16 +109,15 @@ final class IdentityStep implements Step {
 
   @override
   Future<CheckResult> check(WizardContext context) async {
-    final File gradle = File(context.resolve(gradlePath));
-    final RegExpMatch? match = gradle.existsSync()
-        ? _applicationIdPattern.firstMatch(gradle.readAsStringSync())
-        : null;
-    if (match == null) {
+    final String? applicationId = readGradleApplicationId(
+      context.resolve(gradlePath),
+    );
+    if (applicationId == null) {
       _mode = _IdentityMode.unreadable;
       _reason = '$gradlePath 에서 applicationId 를 읽지 못했습니다';
       return Todo(_reason);
     }
-    _applicationId = match.group(1)!;
+    _applicationId = applicationId;
     if (_applicationId == rename.currentAndroidPackage) {
       _mode = _IdentityMode.full;
       _reason = 'Android 앱 ID 가 킷 기본값입니다 ($_applicationId)';
