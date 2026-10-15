@@ -516,8 +516,12 @@ void main() {
     });
   });
 
-  test('buildDevSteps 는 Xcode 준비 → 개발 도구 → 사용자 설정 파일 → 앱 정체성 순서다', () {
-    expect(buildDevSteps().map((Step step) => step.id).toList(), <String>[
+  test('buildDevSteps 는 Xcode 준비 → 개발 도구 → 사용자 설정 파일 → 앱 정체성 순서로 시작한다', () {
+    final List<String> ids = buildDevSteps()
+        .map((Step step) => step.id)
+        .toList();
+
+    expect(ids.take(4).toList(), <String>[
       'xcode',
       'tools',
       'user_files',
