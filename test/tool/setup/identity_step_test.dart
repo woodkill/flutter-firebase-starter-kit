@@ -82,6 +82,10 @@ Map<String, List<int>> snapshotTree(String root) => <String, List<int>>{
     file.path.substring(root.length + 1): file.readAsBytesSync(),
 };
 
+/// [terminal] 이 [question] 을 물은 횟수.
+int countAsks(ScriptedTerminal terminal, String question) =>
+    terminal.asks.where((String ask) => ask == question).length;
+
 void main() {
   late Directory tempDir;
   late String root;
@@ -513,6 +517,92 @@ void main() {
         () => findDirtyTrackedFiles(context, <String>['README.md']),
         throwsA(isA<GitTreeException>()),
       );
+    });
+  });
+
+  test('T-19-ID-10 org 는 맞고 name 만 틀리면 name 만 다시 묻는다', () async {
+    writeIdentityFixture(root);
+    final FakeCommandRunner runner = FakeCommandRunner()
+      ..on(_gitStatusKey, _cleanTree);
+    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'com.acme',
+      'MyApp',
+      'my_app',
+      '1',
+      'y',
+    ]);
+
+    final int code = await runIdentityStep(runner, terminal);
+
+    final String output = terminal.output.toString();
+    expect(code, wizardExitDone);
+    expect(countAsks(terminal, IdentityStep.orgQuestion), 1);
+    expect(countAsks(terminal, IdentityStep.nameQuestion), 2);
+    expect(IdentityStep.invalidNameMessage.allMatches(output).length, 1);
+    expect(IdentityStep.invalidOrgMessage.allMatches(output).length, 0);
+    expect(output, contains('  ✓ 앱 정체성 — Android 앱 ID com.acme.my_app'));
+    expect(
+      readFile(IdentityStep.gradlePath),
+      contains('applicationId = "com.acme.my_app"'),
+    );
+  });
+
+  group('T-19-ID-11 org 가 틀리면 org 부터 다시 묻고 시도 상한은 그대로다', () {
+    test('T-19-ID-11 org 가 틀리면 다음 시도는 org 부터 묻는다', () async {
+      writeIdentityFixture(root);
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(_gitStatusKey, _cleanTree);
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+        'y',
+        'Acme',
+        'my_app',
+        'com.acme',
+        'my_app',
+        '1',
+        'y',
+      ]);
+
+      final int code = await runIdentityStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitDone);
+      expect(countAsks(terminal, IdentityStep.orgQuestion), 2);
+      expect(countAsks(terminal, IdentityStep.nameQuestion), 2);
+      expect(IdentityStep.invalidOrgMessage.allMatches(output).length, 1);
+      expect(IdentityStep.invalidNameMessage.allMatches(output).length, 0);
+      expect(
+        readFile(IdentityStep.gradlePath),
+        contains('applicationId = "com.acme.my_app"'),
+      );
+    });
+
+    test('T-19-ID-11 name 이 상한까지 틀리면 실패하고 파일을 바꾸지 않는다', () async {
+      writeIdentityFixture(root);
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(_gitStatusKey, _cleanTree);
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+        'y',
+        'com.acme',
+        'MyApp',
+        '1app',
+        'my-app',
+      ]);
+      final Map<String, List<int>> before = snapshotTree(root);
+
+      final int code = await runIdentityStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(countAsks(terminal, IdentityStep.orgQuestion), 1);
+      expect(
+        countAsks(terminal, IdentityStep.nameQuestion),
+        IdentityStep.maxInputAttempts,
+      );
+      expect(IdentityStep.invalidOrgMessage.allMatches(output).length, 0);
+      expect(output, contains('org · name 형식이 맞지 않아 진행하지 않았습니다'));
+      expect(snapshotTree(root), before);
+      expect(runner.countCalls(RunMode.capture, _gitStatusKey), 0);
     });
   });
 

@@ -298,9 +298,14 @@ final class IdentityStep implements Step {
 
   /// org · name 을 묻는다 — 입력 끝이면 null, 형식이 [maxInputAttempts] 번 틀리면
   /// 빈 org 를 돌려준다.
+  ///
+  /// 맞다고 판정된 org 는 다음 시도로 들고 가 다시 묻지 않고 name 만 묻는다.
+  /// org 가 틀린 시도 뒤에는 org 부터 다시 묻는다. 시도는 org · name 을 묻든
+  /// name 만 묻든 한 번으로 센다.
   ({String org, String name})? _askOrgAndName(Terminal terminal) {
+    String? validOrg;
     for (int attempt = 0; attempt < maxInputAttempts; attempt++) {
-      final String? org = terminal.ask(orgQuestion);
+      final String? org = validOrg ?? terminal.ask(orgQuestion);
       if (org == null) return null;
       final String? name = terminal.ask(nameQuestion);
       if (name == null) return null;
@@ -309,6 +314,7 @@ final class IdentityStep implements Step {
       }
       // name 자리에 늘 맞는 값을 넣어 어느 쪽이 틀렸는지 가린다.
       final bool isOrgValid = rename.validateInputs(org, 'app').isValid;
+      validOrg = isOrgValid ? org : null;
       terminal.writeLine(isOrgValid ? invalidNameMessage : invalidOrgMessage);
     }
     return (org: '', name: '');
