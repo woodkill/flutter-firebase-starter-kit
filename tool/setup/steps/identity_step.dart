@@ -9,6 +9,7 @@ import '../gradle_identity.dart';
 import '../step.dart';
 import '../terminal.dart';
 import '../wizard.dart';
+import 'configure_step.dart';
 import 'user_files_step.dart';
 
 /// 앱 정체성 단계 — org · name 두 값으로 앱 ID · 번들 ID · 프로젝트 prefix ·
@@ -77,6 +78,17 @@ final class IdentityStep implements Step {
   /// 고칠 파일에 미커밋 변경이 있을 때의 안내.
   static const String dirtyTreeGuidance = '커밋하거나 되돌린 뒤 다시 시도하세요';
 
+  /// configure 스크립트의 Android 패키지 prefix 상수 이름.
+  static const String androidPrefixKey = 'ANDROID_PACKAGE_PREFIX';
+
+  /// configure 스크립트의 iOS 번들 ID prefix 상수 이름.
+  static const String iosPrefixKey = 'IOS_BUNDLE_ID_PREFIX';
+
+  /// Gradle 앱 ID 와 configure 스크립트 상수가 어긋났을 때의 안내.
+  static const String inconsistentGuidance =
+      '이름 바꾸기가 중간에 끊겼다면 git status 로 바뀐 파일을 확인하고 '
+      'git restore . 로 되돌린 뒤 다시 실행하세요';
+
   /// Kotlin 디렉토리 이동의 복사 검증이 어긋났을 때의 안내.
   static const String moveFailedGuidance =
       'Kotlin 디렉토리를 옮기지 못했습니다 — git status 로 바뀐 파일을 확인하고 '
@@ -123,6 +135,14 @@ final class IdentityStep implements Step {
       _reason = 'Android 앱 ID 가 킷 기본값입니다 ($_applicationId)';
       return Todo(_reason);
     }
+    // 이름 바꾸기는 Gradle 줄을 가장 먼저 쓰므로, 뒤에 쓰는 스크립트 상수까지
+    // 같은 정체성인지 봐야 중간에 끊긴 상태를 끝난 것으로 보지 않는다.
+    final String? mismatch = _findScriptMismatch(context, _applicationId);
+    if (mismatch != null) {
+      _mode = _IdentityMode.inconsistent;
+      _reason = '앱 정체성이 파일마다 다릅니다 — $mismatch. $inconsistentGuidance';
+      return Todo(_reason);
+    }
     if (_isDisplayNameDefault(context)) {
       _mode = _IdentityMode.displayNameOnly;
       _reason = '표시 이름이 킷 기본값입니다';
@@ -146,7 +166,9 @@ final class IdentityStep implements Step {
         ...displayNameLines,
       ],
       _IdentityMode.displayNameOnly => displayNameLines,
-      _IdentityMode.unreadable || _IdentityMode.done => const <String>[],
+      _IdentityMode.unreadable ||
+      _IdentityMode.inconsistent ||
+      _IdentityMode.done => const <String>[],
     };
   }
 
@@ -157,7 +179,8 @@ final class IdentityStep implements Step {
       return switch (_mode) {
         _IdentityMode.full => await _applyFull(context),
         _IdentityMode.displayNameOnly => _applyDisplayNameOnly(context),
-        _IdentityMode.unreadable => Failed(_reason),
+        _IdentityMode.unreadable ||
+        _IdentityMode.inconsistent => Failed(_reason),
         _IdentityMode.done => const Applied(),
       };
     } on GitTreeException catch (e) {
@@ -420,6 +443,42 @@ final class IdentityStep implements Step {
     replaceXcconfigValue(xcconfigPath, 'DISPLAY_NAME', displayName);
   }
 
+  /// configure 스크립트의 prefix 상수가 [applicationId] 와 같은 정체성인지 본다.
+  ///
+  /// `ANDROID_PACKAGE_PREFIX` 는 앱 ID 와 같고, `IOS_BUNDLE_ID_PREFIX` 는
+  /// org + name 의 lowerCamel 이어야 한다(이름 바꾸기 규칙). 어긋난 첫 상수를
+  /// 설명하는 문장을, 모두 같으면 null 을 돌려준다.
+  static String? _findScriptMismatch(
+    WizardContext context,
+    String applicationId,
+  ) {
+    final String scriptPath = ConfigureStep.scriptPath;
+    final File script = File(context.resolve(scriptPath));
+    if (!script.existsSync()) return '$scriptPath 이 없습니다';
+    final String content = script.readAsStringSync();
+    final int nameStart = applicationId.lastIndexOf('.');
+    final String expectedIos = nameStart < 0
+        ? applicationId
+        : '${applicationId.substring(0, nameStart)}.'
+              '${rename.toLowerCamelCase(applicationId.substring(nameStart + 1))}';
+    for (final (String key, String expected) in <(String, String)>[
+      (androidPrefixKey, applicationId),
+      (iosPrefixKey, expectedIos),
+    ]) {
+      final String? actual = _readScriptConstant(content, key);
+      if (actual != expected) {
+        return '$scriptPath 의 $key 가 ${actual ?? '(없음)'} 입니다(기대 $expected)';
+      }
+    }
+    return null;
+  }
+
+  /// 스크립트 본문에서 줄 머리가 `[key]="…"` 인 상수 값을 읽는다 — 없으면 null.
+  static String? _readScriptConstant(String content, String key) => RegExp(
+    '^${RegExp.escape(key)}="([^"]*)"',
+    multiLine: true,
+  ).firstMatch(content)?.group(1);
+
   /// 표시 이름이 킷 기본값(appName 이 킷 이름으로 시작 · DISPLAY_NAME 이 example 값)인지 본다.
   bool _isDisplayNameDefault(WizardContext context) {
     final String jsonPath = context.resolve(UserFilesStep.jsonUserPath);
@@ -453,6 +512,9 @@ enum _IdentityMode {
 
   /// Gradle 파일에서 앱 ID 를 읽지 못함.
   unreadable,
+
+  /// Gradle 앱 ID 와 configure 스크립트 상수가 다름 — 이름 바꾸기가 중간에 끊김.
+  inconsistent,
 
   /// 끝남.
   done,

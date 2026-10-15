@@ -21,6 +21,23 @@ final String kitKotlinDir =
     'android/app/src/main/kotlin/'
     '${rename.currentOrg.replaceAll('.', '/')}/${rename.currentPackageName}';
 
+/// 이름 바꾸기 규칙대로 [applicationId] 에서 iOS 번들 ID prefix 를 만든다.
+String buildIosBundleIdPrefix(String applicationId) {
+  final int nameStart = applicationId.lastIndexOf('.');
+  return '${applicationId.substring(0, nameStart)}.'
+      '${rename.toLowerCamelCase(applicationId.substring(nameStart + 1))}';
+}
+
+/// prefix 상수 3줄이 있는 configure 스크립트 fixture 본문을 만든다.
+String buildConfigureScript({
+  required String iosBundleIdPrefix,
+  required String androidPackagePrefix,
+}) =>
+    '#!/usr/bin/env bash\n'
+    'PROJECT_ID_PREFIX="${rename.currentProjectIdPrefix}"\n'
+    'IOS_BUNDLE_ID_PREFIX="$iosBundleIdPrefix"\n'
+    'ANDROID_PACKAGE_PREFIX="$androidPackagePrefix"\n';
+
 /// [root] 아래에 앱 정체성 단계가 읽고 고치는 파일 fixture 를 쓴다.
 ///
 /// 사용자 설정 파일은 추적되는 example 을 복사해 만든다.
@@ -54,10 +71,12 @@ void writeIdentityFixture(
   );
   writeFile(
     'scripts/firebase-configure.sh',
-    '#!/usr/bin/env bash\n'
-        'PROJECT_ID_PREFIX="${rename.currentProjectIdPrefix}"\n'
-        'IOS_BUNDLE_ID_PREFIX="${rename.currentIosBundleId}"\n'
-        'ANDROID_PACKAGE_PREFIX="${rename.currentAndroidPackage}"\n',
+    buildConfigureScript(
+      iosBundleIdPrefix: applicationId == rename.currentAndroidPackage
+          ? rename.currentIosBundleId
+          : buildIosBundleIdPrefix(applicationId),
+      androidPackagePrefix: applicationId,
+    ),
   );
   for (final String path in <String>[
     UserFilesStep.jsonExamplePath,
@@ -389,6 +408,44 @@ void main() {
         'My App Dev',
       );
     });
+  });
+
+  group('T-19-ID-13 Gradle 앱 ID 만 바뀌고 스크립트 상수가 남으면 끝난 것으로 보지 않는다', () {
+    for (final (String label, String iosPrefix, String androidPrefix)
+        in <(String, String, String)>[
+          ('Android 상수가 킷 값', 'com.acme.myApp', rename.currentAndroidPackage),
+          ('iOS 상수가 킷 값', rename.currentIosBundleId, 'com.acme.my_app'),
+        ]) {
+      test('T-19-ID-13 $label 이면 ✗ 사유 · 실행은 실패 · 파일 변경 0', () async {
+        writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+        replaceJsonString(
+          '$root/${UserFilesStep.jsonUserPath}',
+          'appName',
+          'My App Dev',
+        );
+        File('$root/scripts/firebase-configure.sh').writeAsStringSync(
+          buildConfigureScript(
+            iosBundleIdPrefix: iosPrefix,
+            androidPackagePrefix: androidPrefix,
+          ),
+        );
+        final Map<String, List<int>> before = snapshotTree(root);
+        final FakeCommandRunner runner = FakeCommandRunner();
+        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+          'y',
+        ]);
+
+        final int code = await runIdentityStep(runner, terminal);
+
+        final String output = terminal.output.toString();
+        expect(code, wizardExitStopped);
+        expect(output, contains('  ✗ 앱 정체성 — 앱 정체성이 파일마다 다릅니다'));
+        expect(output, contains(IdentityStep.inconsistentGuidance));
+        expect(output, contains('  실패 — '));
+        expect(snapshotTree(root), before);
+        expect(runner.calls, isEmpty);
+      });
+    }
   });
 
   test('T-19-ID-07 이미 끝난 저장소는 ✓ 이고 아무것도 묻지 않는다', () async {

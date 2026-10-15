@@ -293,6 +293,15 @@ void writeFinishedFixture(String root) {
     '$newKotlinDir/MainActivity.kt',
     'package $applicationId\n\nclass MainActivity\n',
   );
+  // 이름 바꾸기가 끝난 저장소의 configure 스크립트 prefix 상수.
+  writeFixture(
+    root,
+    ConfigureStep.scriptPath,
+    '#!/usr/bin/env bash\n'
+    'PROJECT_ID_PREFIX="${name.replaceAll('_', '-')}"\n'
+    'IOS_BUNDLE_ID_PREFIX="$org.myApp"\n'
+    'ANDROID_PACKAGE_PREFIX="$applicationId"\n',
+  );
   writeFixture(
     root,
     FirebaseProjectStep.firebasercPath,
