@@ -104,6 +104,22 @@ class FileChange {
 RegExp _exactLinePattern(String line) =>
     RegExp('^${RegExp.escape(line)}(?=\r?\$)', multiLine: true);
 
+/// 디렉토리 이동의 복사 검증(파일 개수 · 총 바이트)이 어긋났을 때 던지는 예외.
+///
+/// 라이브러리 경로(설정 위저드의 앱 정체성 단계)는 이 예외를 잡아 실패 안내로
+/// 바꾸고, CLI [main] 만 메시지를 stderr 에 쓴 뒤 exit 1 로 끝낸다. 예외가
+/// 나면 원본 디렉토리는 지워지지 않은 상태다.
+final class MoveVerificationException implements Exception {
+  /// [message] 로 이동 검증 실패를 만든다.
+  const MoveVerificationException(this.message);
+
+  /// 원본 · 대상의 파일 개수 · 바이트와 복구 방법을 담은 영어 메시지.
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// 입력 유효성 검증 결과.
 class ValidateResult {
   /// 유효성 검증 결과를 생성한다.
@@ -712,7 +728,8 @@ void printDryRun(
 ///
 /// [changes]에 포함된 모든 변경을 파일 시스템에 반영한다.
 /// [ChangeType.replace]는 파일 내용의 문자열을 치환하고,
-/// [ChangeType.move]는 디렉토리를 이동한다.
+/// [ChangeType.move]는 디렉토리를 이동한다. 이동의 복사 검증이 어긋나면
+/// [MoveVerificationException] 을 던진다 — 프로세스를 끝내지 않는다.
 void applyChanges(List<FileChange> changes) {
   for (final change in changes) {
     switch (change.type) {
@@ -740,7 +757,7 @@ void _applyReplace(FileChange change) {
 /// 디렉토리 이동을 적용한다.
 ///
 /// 복사 결과를 파일 개수와 총 바이트 수로 검증한 뒤에만 원본을 삭제한다.
-/// 검증 실패 시 원본을 보존하고 stderr에 에러를 출력한 뒤 exit 1로 종료한다.
+/// 검증 실패 시 원본을 보존하고 [MoveVerificationException] 을 던진다.
 void _applyMove(FileChange change) {
   final sourceDir = Directory(change.filePath);
   if (!sourceDir.existsSync()) return;
@@ -783,17 +800,14 @@ void _applyMove(FileChange change) {
   );
 
   if (targetCount != sourceCount || targetBytes != sourceBytes) {
-    stderr.writeln(
-      _red(
-        'Error: copy verification failed for ${sourceDir.path}\n'
-        '  source: $sourceCount files, $sourceBytes bytes\n'
-        '  target: $targetCount files, $targetBytes bytes\n'
-        'Source directory was NOT deleted. Run `git status` and\n'
-        '`git restore .` to recover, then re-run with corrected '
-        '--org/--name.',
-      ),
+    throw MoveVerificationException(
+      'Error: copy verification failed for ${sourceDir.path}\n'
+      '  source: $sourceCount files, $sourceBytes bytes\n'
+      '  target: $targetCount files, $targetBytes bytes\n'
+      'Source directory was NOT deleted. Run `git status` and\n'
+      '`git restore .` to recover, then re-run with corrected '
+      '--org/--name.',
     );
-    exit(1);
   }
 
   // 4. 검증 통과 — 원본 삭제
@@ -1025,7 +1039,13 @@ void main(List<String> arguments) {
 
   stdout.writeln('Applying changes...');
   stdout.writeln('');
-  applyChanges(changes);
+  try {
+    applyChanges(changes);
+  } on MoveVerificationException catch (e) {
+    // 프로세스 종료는 CLI 진입점에서만 — 라이브러리 경로는 예외를 그대로 받는다.
+    stderr.writeln(_red(e.message));
+    exit(1);
+  }
   stdout.writeln('${_green('Done!')} ${changes.length} changes applied.');
   stdout.writeln('');
   stdout.writeln('Next steps:');

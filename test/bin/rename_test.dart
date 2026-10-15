@@ -989,6 +989,56 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     });
   });
 
+  group('applyChanges 이동 검증', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('rename_move_');
+    });
+
+    tearDown(() {
+      tempDir.deleteSync(recursive: true);
+    });
+
+    test(
+      '복사 검증이 어긋나면 프로세스를 끝내지 않고 MoveVerificationException 을 던지며 원본을 남긴다',
+      () {
+        const oldPath = 'kotlin/com/old/app';
+        const newPath = 'kotlin/com/new/app';
+        final sourceFile = File('${tempDir.path}/$oldPath/MainActivity.kt')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync('package com.old.app\n');
+        // 대상에 미리 있는 파일이 대상 파일 수를 늘린다.
+        File('${tempDir.path}/$newPath/Extra.kt')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync('package com.new.app\n');
+        final change = FileChange(
+          filePath: '${tempDir.path}/$oldPath',
+          type: ChangeType.move,
+          description: 'Kotlin 디렉토리 이동',
+          oldValue: oldPath,
+          newValue: newPath,
+        );
+
+        expect(
+          () => applyChanges([change]),
+          throwsA(
+            isA<MoveVerificationException>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('copy verification failed'),
+                contains('source: 1 files'),
+                contains('target: 2 files'),
+              ),
+            ),
+          ),
+        );
+        expect(sourceFile.existsSync(), isTrue);
+      },
+    );
+  });
+
   group('CLI integration', () {
     late Directory tempDir;
     late String projectRoot;

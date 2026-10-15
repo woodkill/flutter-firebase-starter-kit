@@ -174,6 +174,37 @@ void main() {
     },
   );
 
+  test(
+    'T-19-ID-12 Kotlin 이동 검증이 어긋나면 프로세스를 끝내지 않고 실패 안내 · rename 원문 · 멈춤 줄을 보인다',
+    () async {
+      writeIdentityFixture(root);
+      // 이동 대상에 미리 있는 파일이 대상 파일 수를 늘려 복사 검증을 어긋나게 한다.
+      const String targetDir = 'android/app/src/main/kotlin/com/acme/my_app';
+      File('$root/$targetDir/Extra.kt')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('package com.acme.my_app\n');
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(_gitStatusKey, _cleanTree);
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+        'y',
+        'com.acme',
+        'my_app',
+        '1',
+        'y',
+      ]);
+
+      final int code = await runIdentityStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('  실패 — ${IdentityStep.moveFailedGuidance}'));
+      expect(output, contains('copy verification failed'));
+      expect(output, contains(stopLine));
+      // 검증 실패면 원본 디렉터리는 지우지 않는다.
+      expect(File('$root/$kitKotlinDir/MainActivity.kt').existsSync(), isTrue);
+    },
+  );
+
   test('T-19-ID-02 확인 표에서 Enter 면 진행하지 않고 파일을 하나도 바꾸지 않는다', () async {
     writeIdentityFixture(root);
     final Map<String, List<int>> before = snapshotTree(root);

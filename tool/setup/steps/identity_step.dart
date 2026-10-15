@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../../bin/rename.dart' as rename;
+import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
 import '../git_tree.dart';
@@ -74,6 +75,11 @@ final class IdentityStep implements Step {
 
   /// 고칠 파일에 미커밋 변경이 있을 때의 안내.
   static const String dirtyTreeGuidance = '커밋하거나 되돌린 뒤 다시 시도하세요';
+
+  /// Kotlin 디렉토리 이동의 복사 검증이 어긋났을 때의 안내.
+  static const String moveFailedGuidance =
+      'Kotlin 디렉토리를 옮기지 못했습니다 — git status 로 바뀐 파일을 확인하고 '
+      'git restore . 로 되돌린 뒤 다시 시도하세요';
 
   /// 같은 질문을 다시 묻는 최대 횟수.
   static const int maxInputAttempts = 3;
@@ -161,6 +167,13 @@ final class IdentityStep implements Step {
       };
     } on GitTreeException catch (e) {
       return Failed(e.message, result: e.result);
+    } on rename.MoveVerificationException catch (e) {
+      // 앞서 적용된 치환은 이미 파일에 써진 상태다 — 되돌린 뒤 다시 시도하게 하고,
+      // rename 의 원문은 결과로 넘겨 가림 터미널 · 실행 기록에 남긴다.
+      return Failed(
+        moveFailedGuidance,
+        result: CommandResult(1, '', e.message),
+      );
     } on FileSystemException catch (e) {
       return Failed('파일을 고치지 못했습니다 — $e');
     } on FormatException catch (e) {
