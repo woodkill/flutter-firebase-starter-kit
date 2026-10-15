@@ -96,6 +96,18 @@ final class RunStep implements Step {
       '실행할 iOS · Android 기기를 찾지 못했습니다 — iOS 시뮬레이터를 띄우지 못했거나 아직 '
       '켜지는 중입니다. 시뮬레이터가 켜진 뒤 다시 시도하세요';
 
+  /// 켤 iPhone 시뮬레이터를 고르지 못했을 때의 요약.
+  static const String noSimulatorSummary =
+      '쓸 수 있는 iPhone 시뮬레이터가 없습니다 — 「Xcode 준비」 단계가 받는 iOS '
+      '시뮬레이터 런타임이 있어야 합니다. 위저드를 다시 실행해 그 단계를 마치고, '
+      '그래도 이 안내가 나오면 Xcode 에서 iPhone 시뮬레이터를 하나 만든 뒤 다시 '
+      '시도하세요';
+
+  /// 시뮬레이터 화면 앱을 찾지 못했을 때의 요약.
+  static const String noScreenAppSummary =
+      '시뮬레이터 화면 앱을 찾지 못했습니다 — Xcode 를 한 번 열어 iOS 시뮬레이터를 '
+      '띄운 뒤 다시 시도하세요';
+
   /// 사용자가 없을 때의 할 일 사유.
   static const String noUserReason =
       '인증된 이메일 사용자가 없습니다 — 앱에서 가입 · 이메일 인증을 마쳐야 합니다';
@@ -245,7 +257,11 @@ final class RunStep implements Step {
   /// simctl 기기 목록 출력에서 켤 iPhone 시뮬레이터를 고른다 — 후보가 없거나
   /// 해석할 수 없으면 null.
   ///
-  /// iOS 런타임 아래의 쓸 수 있는 iPhone 만 후보로 보고 첫 후보를 고른다.
+  /// 런타임 키가 [iosRuntimeKeyPrefix] 로 시작하는 iOS 런타임만 보고, 그 아래
+  /// 쓸 수 있는(`isAvailable`) iPhone 만 후보로 둔다(iPad · watch 제외). 이미
+  /// 켜졌거나 켜지는 중인 iPhone 이 있으면 그 기기를 고르고, 없으면 판 번호가
+  /// 가장 높은 iOS 런타임의 첫 후보를 고른다 — JSON 키 순서는 판 순서가 아니므로
+  /// 판 번호를 숫자로 비교한다.
   static SimulatorPick? pickSimulator(String stdout) {
     final Object? decoded;
     try {
@@ -254,15 +270,17 @@ final class RunStep implements Step {
       return null;
     }
     if (decoded case {'devices': final Map<String, Object?> runtimes}) {
-      for (final MapEntry<String, Object?> runtime in runtimes.entries) {
-        if (!runtime.key.startsWith(iosRuntimeKeyPrefix)) continue;
-        final Object? devices = runtime.value;
-        if (devices is! List<Object?>) continue;
-        for (final Object? device in devices) {
-          final SimulatorPick? pick = _readIphone(device);
-          if (pick != null) return pick;
-        }
+      final List<_IosRuntime> iosRuntimes = <_IosRuntime>[
+        for (final MapEntry<String, Object?> entry in runtimes.entries)
+          if (_readIosRuntime(entry) case final _IosRuntime runtime) runtime,
+      ]..sort(_compareNewestFirst);
+      final List<SimulatorPick> candidates = <SimulatorPick>[
+        for (final _IosRuntime runtime in iosRuntimes) ...runtime.iphones,
+      ];
+      for (final SimulatorPick candidate in candidates) {
+        if (candidate.isBooted) return candidate;
       }
+      return candidates.isEmpty ? null : candidates.first;
     }
     return null;
   }
@@ -271,7 +289,8 @@ final class RunStep implements Step {
   /// 찾는다 — 있는 디렉터리가 없으면 null.
   ///
   /// 경로는 출력에서 만든다 — `<Xcode>.app/Contents/Developer` 의 한 단계 위
-  /// `Contents/Applications/DeviceHub.app` 을 본다.
+  /// `Contents/Applications/DeviceHub.app`(최신 Xcode), 그다음 개발자 디렉터리
+  /// 아래 `Applications/Simulator.app`(이전 Xcode) 순서로 처음 있는 디렉터리다.
   static String? findScreenAppPath(String developerDir) {
     String dir = developerDir.trim();
     while (dir.length > 1 && dir.endsWith('/')) {
@@ -279,9 +298,44 @@ final class RunStep implements Step {
     }
     final int cut = dir.lastIndexOf('/');
     if (!dir.startsWith('/') || cut <= 0) return null;
-    final String deviceHub =
-        '${dir.substring(0, cut)}/Applications/DeviceHub.app';
-    return Directory(deviceHub).existsSync() ? deviceHub : null;
+    for (final String candidate in <String>[
+      '${dir.substring(0, cut)}/Applications/DeviceHub.app',
+      '$dir/Applications/Simulator.app',
+    ]) {
+      if (Directory(candidate).existsSync()) return candidate;
+    }
+    return null;
+  }
+
+  /// simctl 목록의 런타임 하나가 iOS 런타임이면 판 번호와 iPhone 후보를 읽는다.
+  static _IosRuntime? _readIosRuntime(MapEntry<String, Object?> entry) {
+    if (!entry.key.startsWith(iosRuntimeKeyPrefix)) return null;
+    final List<int> version = <int>[];
+    for (final String part
+        in entry.key.substring(iosRuntimeKeyPrefix.length).split('-')) {
+      final int? number = int.tryParse(part);
+      if (number == null) break;
+      version.add(number);
+    }
+    final Object? devices = entry.value;
+    if (version.isEmpty || devices is! List<Object?>) return null;
+    return _IosRuntime(version, <SimulatorPick>[
+      for (final Object? device in devices)
+        if (_readIphone(device) case final SimulatorPick pick) pick,
+    ]);
+  }
+
+  /// 판 번호가 높은 런타임이 앞에 오게 비교한다.
+  static int _compareNewestFirst(_IosRuntime a, _IosRuntime b) {
+    final int length = a.version.length > b.version.length
+        ? a.version.length
+        : b.version.length;
+    for (int i = 0; i < length; i++) {
+      final int left = i < a.version.length ? a.version[i] : 0;
+      final int right = i < b.version.length ? b.version[i] : 0;
+      if (left != right) return right.compareTo(left);
+    }
+    return 0;
   }
 
   /// simctl 기기 항목 하나가 쓸 수 있는 iPhone 이면 고른 기기로 만든다.
@@ -293,10 +347,11 @@ final class RunStep implements Step {
     final Object? udid = device['udid'];
     if (type is! String || !type.contains(iphoneDeviceTypeMarker)) return null;
     if (name is! String || udid is! String || udid.isEmpty) return null;
+    final Object? state = device['state'];
     return SimulatorPick(
       name: name,
       udid: udid,
-      isBooted: device['state'] == 'Booted',
+      isBooted: state == 'Booted' || state == 'Booting',
     );
   }
 
@@ -353,9 +408,12 @@ final class RunStep implements Step {
       buildCodegenCommand().render(),
       buildDevicesCommand().render(),
       '(iOS · Android 기기만 보여 주고 고르게 합니다 — 기본값은 iOS 시뮬레이터입니다. '
-          '대상이 없으면 아래 목록에서 iPhone 시뮬레이터 하나를 켜고 화면 앱을 연 뒤 '
-          '다시 찾습니다)',
+          '대상이 없으면 아래 명령으로 쓸 수 있는 iPhone 시뮬레이터 하나를 켜고 화면 앱을 '
+          '연 뒤 다시 찾습니다 — 이미 켜진 iPhone 이 있으면 화면 앱만 엽니다)',
       simulatorListCommand.render(),
+      developerDirCommand.render(),
+      'xcrun simctl boot <고른 iPhone 시뮬레이터>',
+      'open -a <Xcode 의 시뮬레이터 화면 앱>',
       '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
       'fvm flutter run --flavor dev --dart-define-from-file=$devConfigPath '
           '-d <고른 기기>',
@@ -453,10 +511,7 @@ final class RunStep implements Step {
         ? pickSimulator(list.stdout)
         : null;
     if (pick == null) {
-      return Failed(
-        '쓸 수 있는 iPhone 시뮬레이터가 없습니다',
-        result: list.isSuccess ? null : list,
-      );
+      return Failed(noSimulatorSummary, result: list.isSuccess ? null : list);
     }
     final CommandResult developerDir = await context.runner.capture(
       developerDirCommand,
@@ -466,7 +521,7 @@ final class RunStep implements Step {
         : null;
     if (appPath == null) {
       return Failed(
-        '시뮬레이터 화면 앱을 찾지 못했습니다',
+        noScreenAppSummary,
         result: developerDir.isSuccess ? null : developerDir,
       );
     }
@@ -607,8 +662,19 @@ final class SimulatorPick {
   /// `simctl boot` 에 넘기는 UDID — 화면 안내에는 쓰지 않는다.
   final String udid;
 
-  /// 이미 켜져 있으면 true — 다시 켜지 않고 화면 앱만 연다.
+  /// 이미 켜졌거나 켜지는 중이면 true — 다시 켜지 않고 화면 앱만 연다.
   final bool isBooted;
+}
+
+/// simctl 목록의 iOS 런타임 하나 — 판 번호와 그 아래 iPhone 후보.
+final class _IosRuntime {
+  const _IosRuntime(this.version, this.iphones);
+
+  /// 런타임 키의 판 번호(`<주>-<부>` → [주, 부]).
+  final List<int> version;
+
+  /// 이 런타임 아래의 쓸 수 있는 iPhone(목록 순서).
+  final List<SimulatorPick> iphones;
 }
 
 /// 직전 검사의 판정.

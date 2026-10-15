@@ -106,6 +106,10 @@ const String otherIphoneUdid = '2B3C4D5E-6F70-4B8C-9DAE-1F2A3B4C5D6E';
 /// 가짜 iPad 시뮬레이터 UDID.
 const String ipadUdid = '3C4D5E6F-7081-4C9D-AEBF-2A3B4C5D6E7F';
 
+/// [n] 번째 가짜 시뮬레이터 UDID — 대문자 UUID 모양.
+String buildUdid(int n) =>
+    'ABCDEF01-2345-4678-9ABC-${n.toString().padLeft(12, '0')}';
+
 /// simctl iOS 런타임 키를 만든다(`…SimRuntime.iOS-<주>-<부>`).
 String buildIosRuntimeKey(int major, int minor) =>
     'com.apple.CoreSimulator.SimRuntime.iOS-$major-$minor';
@@ -866,6 +870,373 @@ void main() {
       expect(harness.delays, isEmpty);
       expect(harness.runner.countMode(RunMode.interactive), 0);
     }
+  });
+
+  test('T-19-RUN-07: 켜진 iPhone 이 있으면 boot 없이 화면 앱만 열고 재조회 뒤 진행', () async {
+    final _Harness harness = _Harness(root, const <String?>['y', '']);
+    harness.rest
+      ..on(
+        'GET',
+        harness.firstPageUrl,
+        buildPage(const <Map<String, Object?>>[]),
+      )
+      ..on(
+        'GET',
+        harness.firstPageUrl,
+        buildPage(const <Map<String, Object?>>[]),
+      )
+      ..on(
+        'GET',
+        harness.firstPageUrl,
+        buildPage(<Map<String, Object?>>[buildVerifiedUser('u1')]),
+      );
+    final String deviceHub = buildDeviceHubPath(root);
+    createScreenApp(deviceHub);
+    harness
+      ..registerPreparation()
+      ..registerDevices(
+        buildDevicesOutput(<Map<String, Object?>>[buildMacOs()]),
+      )
+      ..registerDevices(
+        buildDevicesOutput(<Map<String, Object?>>[
+          buildMacOs(),
+          buildSimulator(),
+        ]),
+      )
+      ..registerSimulatorList(
+        buildSimctlOutput(<String, List<Map<String, Object?>>>{
+          buildIosRuntimeKey(27, 0): <Map<String, Object?>>[
+            buildSimDevice(name: 'Sim iPhone New', udid: otherIphoneUdid),
+          ],
+          buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
+            buildSimDevice(
+              name: 'Sim iPhone Booted',
+              udid: iphoneUdid,
+              state: 'Booted',
+            ),
+          ],
+        }),
+      )
+      ..registerDeveloperDir(buildDeveloperDir(root))
+      ..registerOpen(deviceHub, const CommandResult(0, '', ''))
+      ..registerRun(simulatorId, 0);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone);
+    expect(harness.streamKeys, <String>[
+      'fvm flutter pub get',
+      'fvm dart run build_runner build --delete-conflicting-outputs',
+      'open -a $deviceHub',
+    ]);
+    expect(
+      harness.output,
+      contains('이미 켜진 iOS 시뮬레이터의 화면 앱을 엽니다 — Sim iPhone Booted'),
+    );
+    expect(harness.delays, hasLength(1));
+    expect(harness.output, contains('인증된 이메일 사용자 1명'));
+  });
+
+  test('T-19-RUN-08: 쓸 수 있는 iPhone 이 없거나 목록을 못 읽으면 boot · open 없이 '
+      '안내와 함께 실패', () async {
+    final Map<String, List<Map<String, Object?>>> noIphone =
+        <String, List<Map<String, Object?>>>{
+          buildWatchRuntimeKey(11, 0): <Map<String, Object?>>[
+            buildSimDevice(
+              name: 'Sim Watch',
+              udid: buildUdid(1),
+              deviceType: 'Apple-Watch-Series-11-46mm',
+            ),
+          ],
+          buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
+            buildSimDevice(
+              name: 'Sim iPad',
+              udid: ipadUdid,
+              deviceType: 'iPad-Air-11-inch-M3',
+            ),
+            buildSimDevice(
+              name: 'Sim iPhone Broken',
+              udid: iphoneUdid,
+              isAvailable: false,
+            ),
+          ],
+        };
+    for (final CommandResult list in <CommandResult>[
+      buildSimctlOutput(noIphone),
+      const CommandResult(1, '', 'simctl list error text\n'),
+    ]) {
+      final _Harness harness = _Harness(root, const <String?>['y', '']);
+      harness.rest.on(
+        'GET',
+        harness.firstPageUrl,
+        buildPage(const <Map<String, Object?>>[]),
+      );
+      harness
+        ..registerPreparation()
+        ..registerDevices(
+          buildDevicesOutput(<Map<String, Object?>>[buildMacOs()]),
+        )
+        ..registerSimulatorList(list);
+
+      final int code = await harness.run();
+
+      expect(code, wizardExitStopped);
+      expect(harness.output, contains('  실패 — ${RunStep.noSimulatorSummary}'));
+      expect(
+        RunStep.noSimulatorSummary,
+        startsWith('쓸 수 있는 iPhone 시뮬레이터가 없습니다'),
+      );
+      // 목록 명령 하나만 불렀다 — 개발자 디렉터리 · 켜기 · 열기 0.
+      expect(countSimulatorStartCalls(harness.runner), 1);
+      expect(harness.delays, isEmpty);
+      expect(harness.runner.countMode(RunMode.interactive), 0);
+      if (!list.isSuccess) {
+        expect(harness.output, contains('simctl list error text'));
+      }
+    }
+  });
+
+  test('T-19-RUN-09: 화면 앱 = DeviceHub.app → Simulator.app 순서 · 둘 다 없으면 '
+      'boot 없이 실패', () async {
+    final String both = '$root/both';
+    createScreenApp(buildDeviceHubPath(both));
+    createScreenApp(buildSimulatorAppPath(both));
+    expect(
+      RunStep.findScreenAppPath('${buildDeveloperDir(both)}\n'),
+      buildDeviceHubPath(both),
+    );
+    expect(
+      RunStep.findScreenAppPath('${buildDeveloperDir(both)}/'),
+      buildDeviceHubPath(both),
+    );
+    expect(RunStep.findScreenAppPath(''), isNull);
+    expect(RunStep.findScreenAppPath('Xcode.app/Contents/Developer'), isNull);
+
+    // 이전 Xcode — 개발자 디렉터리 아래 Simulator.app 만 있다.
+    final String old = '$root/old';
+    createScreenApp(buildSimulatorAppPath(old));
+    expect(
+      RunStep.findScreenAppPath(buildDeveloperDir(old)),
+      buildSimulatorAppPath(old),
+    );
+    final _Harness oldXcode = _Harness(root, const <String?>['y', '']);
+    oldXcode.rest
+      ..on(
+        'GET',
+        oldXcode.firstPageUrl,
+        buildPage(const <Map<String, Object?>>[]),
+      )
+      ..on(
+        'GET',
+        oldXcode.firstPageUrl,
+        buildPage(const <Map<String, Object?>>[]),
+      )
+      ..on(
+        'GET',
+        oldXcode.firstPageUrl,
+        buildPage(<Map<String, Object?>>[buildVerifiedUser('u1')]),
+      );
+    oldXcode
+      ..registerPreparation()
+      ..registerDevices(
+        buildDevicesOutput(<Map<String, Object?>>[buildMacOs()]),
+      )
+      ..registerDevices(
+        buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+      )
+      ..registerSimulatorList(
+        buildSimctlOutput(<String, List<Map<String, Object?>>>{
+          buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
+            buildSimDevice(name: 'Sim iPhone A', udid: iphoneUdid),
+          ],
+        }),
+      )
+      ..registerDeveloperDir(buildDeveloperDir(old))
+      ..registerBoot(iphoneUdid, const CommandResult(0, '', ''))
+      ..registerOpen(buildSimulatorAppPath(old), const CommandResult(0, '', ''))
+      ..registerRun(simulatorId, 0);
+    expect(await oldXcode.run(), wizardExitDone);
+    expect(oldXcode.streamKeys.last, 'open -a ${buildSimulatorAppPath(old)}');
+
+    // 화면 앱이 없다 — 켜지 않는다.
+    final String none = '$root/none';
+    final _Harness noApp = _Harness(root, const <String?>['y', '']);
+    noApp.rest.on(
+      'GET',
+      noApp.firstPageUrl,
+      buildPage(const <Map<String, Object?>>[]),
+    );
+    noApp
+      ..registerPreparation()
+      ..registerDevices(
+        buildDevicesOutput(<Map<String, Object?>>[buildMacOs()]),
+      )
+      ..registerSimulatorList(
+        buildSimctlOutput(<String, List<Map<String, Object?>>>{
+          buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
+            buildSimDevice(name: 'Sim iPhone A', udid: iphoneUdid),
+          ],
+        }),
+      )
+      ..registerDeveloperDir(buildDeveloperDir(none));
+    expect(await noApp.run(), wizardExitStopped);
+    expect(noApp.output, contains('  실패 — ${RunStep.noScreenAppSummary}'));
+    expect(
+      noApp.runner.calls.where(
+        (FakeCall call) =>
+            call.key.startsWith('xcrun simctl boot') ||
+            call.key.startsWith('open '),
+      ),
+      isEmpty,
+    );
+    expect(noApp.runner.countCalls(RunMode.capture, 'xcode-select -p'), 1);
+    expect(noApp.delays, isEmpty);
+    expect(noApp.runner.countMode(RunMode.interactive), 0);
+  });
+
+  test('T-19-RUN-10: pickSimulator — 켜진 iPhone 우선 · 가장 높은 iOS 판의 첫 '
+      '쓸 수 있는 iPhone · 해석 실패는 null', () {
+    // JSON 키 순서는 판 순서가 아니다 — 판 번호를 숫자로 비교한다.
+    final SimulatorPick? latest = RunStep.pickSimulator(
+      buildSimctlJson(<String, List<Map<String, Object?>>>{
+        buildWatchRuntimeKey(11, 0): <Map<String, Object?>>[
+          // watchOS 런타임 아래 항목은 보지 않는다(켜져 있어도).
+          buildSimDevice(
+            name: 'Sim Under Watch',
+            udid: buildUdid(1),
+            state: 'Booted',
+          ),
+        ],
+        buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
+          buildSimDevice(name: 'Sim iPhone 26.4', udid: buildUdid(2)),
+        ],
+        buildIosRuntimeKey(27, 0): <Map<String, Object?>>[
+          buildSimDevice(
+            name: 'Sim iPad 27',
+            udid: buildUdid(3),
+            deviceType: 'iPad-Pro-13-inch-M5',
+          ),
+          buildSimDevice(
+            name: 'Sim iPhone 27 Broken',
+            udid: buildUdid(4),
+            isAvailable: false,
+          ),
+          buildSimDevice(name: 'Sim iPhone 27', udid: buildUdid(5)),
+          buildSimDevice(name: 'Sim iPhone 27 Second', udid: buildUdid(6)),
+        ],
+        buildIosRuntimeKey(26, 5): <Map<String, Object?>>[
+          buildSimDevice(name: 'Sim iPhone 26.5', udid: buildUdid(7)),
+        ],
+      }),
+    );
+    expect(latest?.name, 'Sim iPhone 27');
+    expect(latest?.udid, buildUdid(5));
+    expect(latest?.isBooted, isFalse);
+
+    // 두 자리 판도 숫자로 비교한다(9 < 10).
+    expect(
+      RunStep.pickSimulator(
+        buildSimctlJson(<String, List<Map<String, Object?>>>{
+          buildIosRuntimeKey(9, 3): <Map<String, Object?>>[
+            buildSimDevice(name: 'Sim iPhone 9.3', udid: buildUdid(8)),
+          ],
+          buildIosRuntimeKey(10, 0): <Map<String, Object?>>[
+            buildSimDevice(name: 'Sim iPhone 10.0', udid: buildUdid(9)),
+          ],
+        }),
+      )?.name,
+      'Sim iPhone 10.0',
+    );
+
+    // 가장 높은 판에 iPhone 이 없으면 다음 판으로 내려간다.
+    expect(
+      RunStep.pickSimulator(
+        buildSimctlJson(<String, List<Map<String, Object?>>>{
+          buildIosRuntimeKey(27, 0): <Map<String, Object?>>[
+            buildSimDevice(
+              name: 'Sim iPad 27',
+              udid: buildUdid(10),
+              deviceType: 'iPad-Air-11-inch-M3',
+            ),
+          ],
+          buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
+            buildSimDevice(name: 'Sim iPhone 26.4', udid: buildUdid(11)),
+          ],
+        }),
+      )?.name,
+      'Sim iPhone 26.4',
+    );
+
+    // 켜진(또는 켜지는 중인) iPhone 은 낮은 판에 있어도 먼저 고른다.
+    for (final String state in <String>['Booted', 'Booting']) {
+      final SimulatorPick? running = RunStep.pickSimulator(
+        buildSimctlJson(<String, List<Map<String, Object?>>>{
+          buildIosRuntimeKey(27, 0): <Map<String, Object?>>[
+            buildSimDevice(name: 'Sim iPhone 27', udid: buildUdid(12)),
+          ],
+          buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
+            buildSimDevice(
+              name: 'Sim iPhone Running',
+              udid: buildUdid(13),
+              state: state,
+            ),
+          ],
+        }),
+      );
+      expect(running?.name, 'Sim iPhone Running');
+      expect(running?.isBooted, isTrue);
+    }
+
+    for (final String broken in <String>[
+      'not json',
+      '[]',
+      '{}',
+      '{"devices": []}',
+      buildSimctlJson(const <String, List<Map<String, Object?>>>{}),
+    ]) {
+      expect(RunStep.pickSimulator(broken), isNull, reason: broken);
+    }
+  });
+
+  test('계획 줄 — simctl 목록 · 개발자 디렉터리 · boot · 화면 앱 표시형 · '
+      'Flutter 에뮬레이터 명령 0 · UDID 0', () async {
+    final FakeRestClient rest = FakeRestClient()
+      ..on(
+        'GET',
+        RunStep.buildBatchGetRequest(projectId).url.toString(),
+        buildPage(const <Map<String, Object?>>[]),
+      );
+    final WizardContext context = buildTestContext(
+      projectRoot: root,
+      rest: rest,
+    );
+    final RunStep step = RunStep();
+
+    expect(await step.check(context), isA<Todo>());
+    final List<String> lines = step.plannedCommandLines(context);
+
+    expect(
+      lines,
+      containsAllInOrder(<String>[
+        'fvm flutter devices --machine',
+        'xcrun simctl list devices available -j',
+        'xcode-select -p',
+        'xcrun simctl boot <고른 iPhone 시뮬레이터>',
+        'open -a <Xcode 의 시뮬레이터 화면 앱>',
+      ]),
+    );
+    expect(
+      lines.where((String line) => line.contains('iPhone 시뮬레이터 하나를 켜고')),
+      hasLength(1),
+    );
+    expect(lines.where((String line) => line.contains('emulators')), isEmpty);
+    expect(
+      lines.where(
+        (String line) =>
+            Redactor.patterns.any((RegExp pattern) => pattern.hasMatch(line)),
+      ),
+      isEmpty,
+    );
   });
 
   test('T-19-RUN-05: flutter run exit 1 → 실패 「앱 실행이 실패했습니다」', () async {
