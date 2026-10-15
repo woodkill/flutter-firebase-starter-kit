@@ -1,7 +1,8 @@
 // 설정 위저드 진입 셸(setup.sh)의 분기를 PATH 스텁으로 실행해 고정한다.
 //
 // uname · brew · fvm 은 임시 디렉터리의 스텁만 쓴다 — 스텁은 받은 인자를 로그
-// 파일에 한 줄씩 덧붙이고 exit 0 이다. PATH 는 `<stub-bin>:/usr/bin:/bin` 으로만
+// 파일에 한 줄씩 덧붙이고 exit 0 이다(실패 스텁은 정한 인자에서만 원문 한 줄을
+// 표준 오류에 쓰고 정한 코드로 끝난다). PATH 는 `<stub-bin>:/usr/bin:/bin` 으로만
 // 두고 부모 환경을 물려받지 않아, 실제 brew · fvm 에 닿지 않는다. 표준 입력은
 // 터미널이 아니므로 설치 확인은 언제나 「아니요」 다.
 
@@ -18,6 +19,15 @@ const String _fvmrcMissingLine =
 
 /// `sed` 가 없는 파일을 읽으려 할 때의 오류 문구 — 출력에 나오면 안 된다.
 const String _missingFileError = 'No such file or directory';
+
+/// 패키지 받기가 실패했을 때 setup.sh 가 표준 오류에 더하는 안내(원문 그대로).
+const String _pubGetFailedLine = '패키지를 받지 못했습니다 — 위 출력을 확인한 뒤 같은 명령을 다시 실행하세요.';
+
+/// 실패 스텁이 패키지 받기에서 표준 오류에 쓰는 원문 한 줄.
+const String _pubGetErrorLine = 'stub pub error: 패키지 저장소에 닿지 못했습니다';
+
+/// 실패 스텁이 패키지 받기에서 돌려주는 종료 코드.
+const int _pubGetExitCode = 69;
 
 /// 스크립트가 있으면 `false`, 없으면 건너뛸 사유를 돌려준다.
 Object _skipUnlessScript() =>
@@ -44,6 +54,26 @@ final class _Sandbox {
   void writeRecorder(String name, File log) => _writeStub(
     name,
     '#!/bin/sh\nprintf \'%s\\n\' "\$*" >> \'${log.path}\'\nexit 0\n',
+  );
+
+  /// 받은 인자를 [log] 에 덧붙이는 [name] 스텁을 만든다 — 앞 두 인자가
+  /// [failWhenArgsStartWith] 와 같으면 표준 오류에 [stderrLine] 을 쓰고
+  /// [exitCode] 로 끝나며, 그 밖에는 exit 0 이다.
+  void writeFailingRecorder(
+    String name,
+    File log, {
+    required String failWhenArgsStartWith,
+    required int exitCode,
+    required String stderrLine,
+  }) => _writeStub(
+    name,
+    '#!/bin/sh\n'
+    'printf \'%s\\n\' "\$*" >> \'${log.path}\'\n'
+    'if [ "\$1 \$2" = \'$failWhenArgsStartWith\' ]; then\n'
+    '  printf \'%s\\n\' \'$stderrLine\' >&2\n'
+    '  exit $exitCode\n'
+    'fi\n'
+    'exit 0\n',
   );
 
   void _writeStub(String name, String body) {
@@ -75,6 +105,15 @@ ProcessResult _runSetup(_Sandbox sb, {String script = _scriptRel}) {
 /// 표준 출력 · 표준 오류를 이어 붙인다.
 String _combinedOutput(ProcessResult result) =>
     '${result.stdout}\n${result.stderr}';
+
+/// 저장소 루트 `.fvmrc` 가 고정한 Flutter 판을 읽는다.
+String _readFlutterVersion() {
+  final Object? fvmrc = jsonDecode(File('.fvmrc').readAsStringSync());
+  return switch (fvmrc) {
+    {'flutter': final String version} => version,
+    _ => fail('.fvmrc 에 flutter 판이 없다'),
+  };
+}
 
 void main() {
   late _Sandbox sb;
@@ -133,25 +172,25 @@ void main() {
       );
     });
 
-    test('T-19-SH-04 brew · fvm 이 있으면 .fvmrc 판을 명시해 설치한 뒤 위저드로 넘긴다', () {
-      sb
-        ..writeUname('Darwin')
-        ..writeRecorder('brew', sb.brewLog)
-        ..writeRecorder('fvm', sb.fvmLog);
-      final Object? fvmrc = jsonDecode(File('.fvmrc').readAsStringSync());
-      final String flutterVersion = switch (fvmrc) {
-        {'flutter': final String version} => version,
-        _ => fail('.fvmrc 에 flutter 판이 없다'),
-      };
+    test(
+      'T-19-SH-04 brew · fvm 이 있으면 .fvmrc 판을 명시해 설치하고 패키지를 받은 뒤 위저드로 넘긴다',
+      () {
+        sb
+          ..writeUname('Darwin')
+          ..writeRecorder('brew', sb.brewLog)
+          ..writeRecorder('fvm', sb.fvmLog);
+        final String flutterVersion = _readFlutterVersion();
 
-      final ProcessResult result = _runSetup(sb);
+        final ProcessResult result = _runSetup(sb);
 
-      expect(result.exitCode, 0, reason: _combinedOutput(result));
-      final List<String> lines = sb.readLines(sb.fvmLog);
-      expect(lines, hasLength(2));
-      expect(lines[0], 'install $flutterVersion');
-      expect(lines[1], 'dart run bin/setup.dart --probe');
-    });
+        expect(result.exitCode, 0, reason: _combinedOutput(result));
+        final List<String> lines = sb.readLines(sb.fvmLog);
+        expect(lines, hasLength(3));
+        expect(lines[0], 'install $flutterVersion');
+        expect(lines[1], 'flutter pub get');
+        expect(lines[2], 'dart run bin/setup.dart --probe');
+      },
+    );
 
     test('T-19-SH-05 셸 설정 파일로 리다이렉션하는 줄이 없다', () {
       final List<String> codeLines = File(_scriptRel)
@@ -183,6 +222,39 @@ void main() {
         sb
             .readLines(sb.fvmLog)
             .where((String line) => line.contains('install')),
+        isEmpty,
+      );
+    });
+
+    test('T-19-SH-07 패키지 받기가 실패하면 원문과 안내를 보이고 그 종료 코드로 끝나며 위저드를 부르지 않는다', () {
+      sb
+        ..writeUname('Darwin')
+        ..writeRecorder('brew', sb.brewLog)
+        ..writeFailingRecorder(
+          'fvm',
+          sb.fvmLog,
+          failWhenArgsStartWith: 'flutter pub',
+          exitCode: _pubGetExitCode,
+          stderrLine: _pubGetErrorLine,
+        );
+      final String flutterVersion = _readFlutterVersion();
+
+      final ProcessResult result = _runSetup(sb);
+
+      final String stderrText = result.stderr as String;
+      expect(result.exitCode, _pubGetExitCode, reason: _combinedOutput(result));
+      expect(_pubGetErrorLine.allMatches(_combinedOutput(result)).length, 1);
+      expect(_pubGetFailedLine.allMatches(stderrText).length, 1);
+      final List<String> lines = sb.readLines(sb.fvmLog);
+      expect(
+        lines,
+        containsAllInOrder(<String>[
+          'install $flutterVersion',
+          'flutter pub get',
+        ]),
+      );
+      expect(
+        lines.where((String line) => line.startsWith('dart run')),
         isEmpty,
       );
     });

@@ -3,7 +3,8 @@
 #
 # 순서: macOS 확인 → Homebrew 확인(없으면 안내 후 종료) → FVM 확인(없으면 설치
 # 명령을 보이고 입력이 터미널이고 y 를 받았을 때만 설치) → .fvmrc 가 고정한
-# Flutter 판 설치 → FVM 의 Dart 로 위저드(bin/setup.dart) 실행.
+# Flutter 판 설치 → 패키지 받기(fvm flutter pub get) → FVM 의 Dart 로
+# 위저드(bin/setup.dart) 실행.
 # 받은 인자는 위저드에 그대로 넘긴다. 셸 설정 파일은 고치지 않는다 — PATH 설정은
 # 안내만 한다.
 emulate -L zsh
@@ -66,5 +67,14 @@ if [[ -z "$flutter_version" ]]; then
   exit 1
 fi
 fvm install "$flutter_version"
+
+# 패키지 — 갓 설치한 SDK 캐시와 clone 직후 저장소에는 위저드가 쓸 패키지가 없다.
+# 출력은 그대로 화면에 흐른다. 실패하면 안내 한 줄을 더하고 같은 종료 코드로
+# 끝낸다 — 위저드는 부르지 않는다.
+fvm flutter pub get || {
+  pub_get_status=$?
+  print -r -- '패키지를 받지 못했습니다 — 위 출력을 확인한 뒤 같은 명령을 다시 실행하세요.' >&2
+  exit $pub_get_status
+}
 
 exec fvm dart run bin/setup.dart "$@"
