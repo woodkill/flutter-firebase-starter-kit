@@ -16,6 +16,7 @@ import '../../../tool/setup/uuid.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
+import 'firebase_options_fixture.dart';
 
 /// 테스트 프로젝트 ID.
 const String projectId = 'p';
@@ -103,17 +104,16 @@ void main() {
       ..writeAsStringSync(content);
   }
 
-  /// 앱 등록이 끝난 모양의 설정 파일 3개를 쓴다.
+  /// 앱 등록이 끝난 모양의 설정 파일 3개를 쓴다(Dart 설정 파일 = FlutterFire 생성본 모양).
   void writeAppFiles() {
     writeFixture(
       FirebaseAppFiles.optionsPath,
-      'class DefaultFirebaseOptions {\n'
-      '  static const FirebaseOptions ios = FirebaseOptions(\n'
-      "    apiKey: '$fakeApiKey',\n"
-      "    appId: '$iosAppId',\n"
-      "    projectId: '$projectId',\n"
-      '  );\n'
-      '}\n',
+      buildGeneratedOptionsSource(
+        projectId: projectId,
+        apiKey: fakeApiKey,
+        androidAppId: androidAppId,
+        iosAppId: iosAppId,
+      ),
     );
     writeFixture(
       FirebaseAppFiles.iosPlistPath,
@@ -468,6 +468,52 @@ void main() {
 
       expect(readToken(), generateUuidV4(Random(42)));
       expect(runner.calls, isEmpty);
+    },
+  );
+
+  test(
+    'T-19-APPCHECK-08 Dart 설정 파일이 실제 생성본 모양(예외 throw 5곳)이면 두 앱 ID 를 읽어 ✓ · POST 0 · 화면 · 기록에 앱 ID 0',
+    () async {
+      writeAppFiles();
+      final String written = File(
+        '$root/${FirebaseAppFiles.optionsPath}',
+      ).readAsStringSync();
+      expect('throw UnsupportedError('.allMatches(written), hasLength(5));
+      replaceJsonString(
+        config.path,
+        AppCheckStep.tokenKey,
+        generateUuidV4(Random(8)),
+      );
+      final FakeRestClient rest = FakeRestClient()
+        ..on(
+          'GET',
+          iosTokensUrl,
+          buildTokenList(iosTokensUrl, <String>['$wizardDisplayName:a1']),
+        )
+        ..on(
+          'GET',
+          androidTokensUrl,
+          buildTokenList(androidTokensUrl, <String>['$wizardDisplayName:b1']),
+        );
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+      final MemoryLogSink log = MemoryLogSink(Redactor());
+
+      final int code = await runAppCheckStep(rest, terminal, log: log);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitDone);
+      expect(output, contains('  ✓ ${AppCheckStep.stepTitle} — '));
+      expect(
+        rest.requests
+            .map((RestRequest request) => request.url.toString())
+            .toSet(),
+        <String>{iosTokensUrl, androidTokensUrl},
+      );
+      expect(listRequests(rest, 'POST'), isEmpty);
+      for (final String appId in <String>[iosAppId, androidAppId]) {
+        expect(output, isNot(contains(appId)));
+        expect(log.text, isNot(contains(appId)));
+      }
     },
   );
 

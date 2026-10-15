@@ -31,6 +31,7 @@ import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
+import 'firebase_options_fixture.dart';
 
 /// 흐름 fixture 의 프로젝트 ID(가짜).
 const String projectId = 'my-app-dev';
@@ -333,14 +334,13 @@ void writeFinishedFirebaseFiles(String root) {
   writeFixture(
     root,
     FirebaseAppFiles.optionsPath,
-    'const FirebaseOptions android = FirebaseOptions(\n'
-    "  apiKey: '$apiKey',\n"
-    "  projectId: '$projectId',\n"
-    ');\n'
-    'const FirebaseOptions ios = FirebaseOptions(\n'
-    "  apiKey: '$apiKey',\n"
-    "  projectId: '$projectId',\n"
-    ');\n',
+    buildGeneratedOptionsSource(
+      projectId: projectId,
+      apiKey: apiKey,
+      androidAppId: androidAppId,
+      iosAppId: iosAppId,
+      iosBundleId: devBundleId,
+    ),
   );
   writeFixture(
     root,

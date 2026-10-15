@@ -29,6 +29,7 @@ import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
+import 'firebase_options_fixture.dart';
 
 /// 흐름에서 앱 정체성 단계에 넣는 org.
 const String newOrg = 'com.acme';
@@ -630,10 +631,13 @@ void _runConfigureScriptEffect(_Fixture fixture) {
   fixture
     ..write(
       FirebaseAppFiles.optionsPath,
-      'const FirebaseOptions ios = FirebaseOptions(\n'
-      "  apiKey: '$apiKey',\n"
-      "  projectId: '$projectId',\n"
-      ');\n',
+      buildGeneratedOptionsSource(
+        projectId: projectId,
+        apiKey: apiKey,
+        androidAppId: androidAppId,
+        iosAppId: iosAppId,
+        iosBundleId: bundleId,
+      ),
     )
     ..write(
       FirebaseAppFiles.iosPlistPath,
