@@ -6,6 +6,7 @@ import 'firebase_project_step.dart';
 import 'firestore_step.dart';
 import 'identity_step.dart';
 import 'login_step.dart';
+import 'rules_step.dart';
 import 'sign_in_step.dart';
 import 'storage_step.dart';
 import 'tools_step.dart';
@@ -29,4 +30,5 @@ List<Step> buildDevSteps() => <Step>[
   StorageStep(),
   SignInStep(),
   ConfigureStep(),
+  RulesStep(),
 ];
