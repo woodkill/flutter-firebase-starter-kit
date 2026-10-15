@@ -1,5 +1,6 @@
 import '../step.dart';
 import 'apis_step.dart';
+import 'app_check_step.dart';
 import 'billing_step.dart';
 import 'configure_step.dart';
 import 'firebase_project_step.dart';
@@ -31,4 +32,5 @@ List<Step> buildDevSteps() => <Step>[
   SignInStep(),
   ConfigureStep(),
   RulesStep(),
+  AppCheckStep(),
 ];
