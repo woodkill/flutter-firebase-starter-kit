@@ -25,7 +25,7 @@ git clone <your-repo-url> && cd <your-repo>
 
 **위저드가 하는 일:** 개발 도구를 확인하고, 없는 도구는 확인을 받은 뒤 설치한다. 이어서 Xcode 를 준비하고, 앱 정체성을 정하고, CLI 에 로그인하고, Firebase 프로젝트를 만들거나 고르고, 결제 계정을 연결한다. Firestore · 기본 Storage bucket · 이메일 로그인 · 익명 로그인을 켜고, 앱을 등록해 설정 파일을 만들고, rules 를 배포하고, App Check 디버그 토큰을 등록하고, Cloud Functions 를 배포한다. 마지막으로 코드를 생성하고 dev flavor 앱을 실행해 로그인을 확인한다.
 
-**사용자가 하는 일:** 처음 `git clone` 때 Command Line Tools 설치 창을 확인하고, 브라우저에서 로그인하고, 결제 수단을 등록하고, Homebrew 와 Xcode 를 설치한다. sudo 비밀번호는 Xcode 준비 명령이 직접 묻는다 — 위저드는 비밀번호를 받지 않는다. 그 밖에는 위저드 질문에 답하고, 실행된 앱에서 가입한 뒤 인증 메일의 링크를 연다.
+**사용자가 하는 일:** 처음 `git clone` 때 Command Line Tools 설치 창을 확인하고, 브라우저에서 로그인하고, 처음 쓰는 Google 계정이면 위저드 안내대로 Google Cloud 콘솔에서 Google Cloud 약관에, Firebase 콘솔에서 프로젝트에 Firebase 를 추가하며 Firebase 약관에 동의하고, 결제 수단을 등록하고, Homebrew 와 Xcode 를 설치한다. sudo 비밀번호는 Xcode 준비 명령이 직접 묻는다 — 위저드는 비밀번호를 받지 않는다. 그 밖에는 위저드 질문에 답하고, 실행된 앱에서 가입한 뒤 인증 메일의 링크를 연다.
 
 - 위저드가 실행하는 명령은 화면에 그대로 보이고, 실행 기록은 `.setup/logs/` 에 남는다(비밀 값은 가린 채 남는다).
 - 비용이 들거나 되돌릴 수 없는 선택은 값 표를 보여 주고 `y` 를 받은 뒤에만 진행한다.
