@@ -270,26 +270,30 @@ void main() {
       expect(run.code, wizardExitStopped);
     });
 
-    test('T-19-WIZ-10 재검사가 ? 면 그 줄을 보이고 실행하지 않고 멈춘다', () async {
-      final _ScriptedStep a = _ScriptedStep(
-        'A',
-        checks: const <CheckResult>[Todo('a'), Todo('a'), Blocked('C')],
-        outcomes: const <StepOutcome>[
-          Failed('x', result: CommandResult(1, 'OUT', 'ERR')),
-        ],
-      );
+    test(
+      'T-19-WIZ-10 단계 check 가 Blocked 를 돌려주면 StateError 다(점검표 전용 판정)',
+      () async {
+        final _ScriptedStep a = _ScriptedStep(
+          'A',
+          checks: const <CheckResult>[Todo('a'), Todo('a'), Blocked('C')],
+          outcomes: const <StepOutcome>[
+            Failed('x', result: CommandResult(1, 'OUT', 'ERR')),
+          ],
+        );
 
-      final ({int code, ScriptedTerminal terminal}) run = await runSteps(
-        <Step>[a],
-        const <String?>['y', '1'],
-      );
-
-      final String output = run.terminal.output.toString();
-      expect(a.applyCount, 1);
-      expect(output, contains('  ? A — C 뒤에 검사합니다'));
-      expect(output, contains(_stopLine));
-      expect(run.code, wizardExitStopped);
-    });
+        await expectLater(
+          runSteps(<Step>[a], const <String?>['y', '1']),
+          throwsA(
+            isA<StateError>().having(
+              (StateError error) => error.message,
+              'message',
+              contains('A 단계의 check 가 Blocked'),
+            ),
+          ),
+        );
+        expect(a.applyCount, 1);
+      },
+    );
   });
 
   test('T-19-WIZ-11 실행 뒤 미완료에서 다시 시도 재검사가 ✓ 면 다시 실행하지 않는다', () async {

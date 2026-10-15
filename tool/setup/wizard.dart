@@ -250,18 +250,19 @@ final class Wizard {
   /// 넘어간다.
   Future<int?> _runStep(Step step) async {
     final CheckResult current = await _check(step);
-    if (current is Done) {
-      _terminal.writeLine(_formatCheckLine(step, current));
-      return null;
+    final String reason;
+    switch (current) {
+      case Done():
+        _terminal.writeLine(_formatCheckLine(step, current));
+        return null;
+      case Blocked():
+        throw _buildBlockedCheckError(step);
+      case Todo(reason: final String todoReason):
+        reason = todoReason;
     }
     _terminal.writeLine('');
     _terminal.writeLine('▶ ${step.title}');
-    if (current is Todo) {
-      _terminal.writeLine('  ${current.reason}');
-    } else if (current is Blocked) {
-      _terminal.writeLine(_formatCheckLine(step, current));
-      return _stop();
-    }
+    _terminal.writeLine('  $reason');
     _printPlannedLines(step);
     if (!_terminal.confirm(stepConfirmQuestion)) return _stop();
 
@@ -300,8 +301,7 @@ final class Wizard {
 
   /// 실패 뒤 다시 시도 · 멈춤을 고르게 하고, 다시 시도면 먼저 다시 검사한다.
   ///
-  /// 이미 끝났으면 ✓ 줄을 보이고 실행하지 않는다. 앞 단계를 기다리는 판정이면
-  /// 그 줄을 보이고 멈춘다(처음 진행할 때와 같다). 아직 할 일이면 다시 실행한다.
+  /// 이미 끝났으면 ✓ 줄을 보이고 실행하지 않는다. 아직 할 일이면 다시 실행한다.
   Future<_RetryDecision> _decideRetry(Step step) async {
     if (!_chooseRetry()) return _RetryDecision.stop;
     final CheckResult recheck = await _check(step);
@@ -310,12 +310,20 @@ final class Wizard {
         _terminal.writeLine(_formatCheckLine(step, recheck));
         return _RetryDecision.finished;
       case Blocked():
-        _terminal.writeLine(_formatCheckLine(step, recheck));
-        return _RetryDecision.stop;
+        throw _buildBlockedCheckError(step);
       case Todo():
         return _RetryDecision.rerun;
     }
   }
+
+  /// [step] 의 검사가 [Blocked] 를 돌려줬을 때의 프로그래밍 오류를 만든다.
+  ///
+  /// [Blocked] 는 점검표가 앞 단계를 기다리는 단계에만 붙이는 판정이다 —
+  /// [Step.check] 는 [Done] · [Todo] 만 돌려준다.
+  StateError _buildBlockedCheckError(Step step) => StateError(
+    '${step.id} 단계의 check 가 Blocked 를 돌려줬습니다 — '
+    'check 는 Done · Todo 만 돌려줍니다',
+  );
 
   /// 안내를 보이고 Enter 를 기다려 그 자리에서 다시 검사한다.
   ///

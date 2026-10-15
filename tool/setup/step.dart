@@ -26,6 +26,9 @@ final class Todo extends CheckResult {
 }
 
 /// 앞 단계가 끝나야 검사할 수 있는 단계.
+///
+/// 점검표가 끝나지 않은 앞 단계를 가진 단계에만 붙이는 판정이다 —
+/// [Step.check] 는 이 값을 돌려주지 않는다.
 final class Blocked extends CheckResult {
   /// [waitingFor] 단계가 끝나기를 기다린다.
   const Blocked(this.waitingFor);
@@ -96,7 +99,10 @@ abstract interface class Step {
   /// 비용이 들거나 되돌릴 수 없는 선택을 포함하면 true.
   bool get isCostlyOrIrreversible;
 
-  /// 읽기 전용으로 상태를 검사한다.
+  /// 읽기 전용으로 상태를 검사한다 — [Done] · [Todo] 만 돌려준다.
+  ///
+  /// [Blocked] 는 위저드의 점검표가 만드는 판정이라 여기서 돌려주면 위저드가
+  /// [StateError] 로 멈춘다.
   Future<CheckResult> check(WizardContext context);
 
   /// 실행 전에 보일 명령 줄 목록을 만든다.
