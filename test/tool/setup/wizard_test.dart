@@ -135,10 +135,10 @@ void main() {
     expect(run.code, wizardExitStopped);
   });
 
-  test('T-19-WIZ-03 실패하면 출력 원문을 보이고 다시 시도를 고르면 다시 실행한다', () async {
+  test('T-19-WIZ-03 실패하면 출력 원문을 보이고 다시 시도 재검사가 할 일이면 다시 실행한다', () async {
     final _ScriptedStep a = _ScriptedStep(
       'A',
-      checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
+      checks: const <CheckResult>[Todo('a'), Todo('a'), Todo('a'), Done('a 끝')],
       outcomes: const <StepOutcome>[
         Failed('x', result: CommandResult(1, 'OUT', 'ERR')),
         Applied(),
@@ -156,6 +156,79 @@ void main() {
     expect(output, contains('다시 시도'));
     expect(output, contains('멈춤'));
     expect(a.applyCount, 2);
+    expect(a.checkCount, 4);
+    expect(run.code, wizardExitDone);
+  });
+
+  group('T-19-WIZ-10 다시 시도는 먼저 다시 검사하고 끝났으면 실행하지 않는다', () {
+    test('T-19-WIZ-10 재검사가 ✓ 면 ✓ 줄을 보이고 다음 단계로 간다', () async {
+      final _ScriptedStep a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a'), Todo('a'), Done('밖에서 끝냄')],
+        outcomes: const <StepOutcome>[
+          Failed('x', result: CommandResult(1, 'OUT', 'ERR')),
+        ],
+      );
+      final _ScriptedStep b = _ScriptedStep(
+        'B',
+        checks: const <CheckResult>[Todo('b')],
+      );
+
+      final ({int code, ScriptedTerminal terminal}) run = await runSteps(
+        <Step>[a, b],
+        const <String?>['y', '1'],
+      );
+
+      final String output = run.terminal.output.toString();
+      expect(a.applyCount, 1);
+      expect(a.checkCount, 3);
+      expect(output, contains('  ✓ A — 밖에서 끝냄'));
+      expect(
+        output.indexOf('▶ B'),
+        greaterThan(output.indexOf('  ✓ A — 밖에서 끝냄')),
+      );
+      expect(b.applyCount, 0);
+      expect(run.code, wizardExitStopped);
+    });
+
+    test('T-19-WIZ-10 재검사가 ? 면 그 줄을 보이고 실행하지 않고 멈춘다', () async {
+      final _ScriptedStep a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a'), Todo('a'), Blocked('C')],
+        outcomes: const <StepOutcome>[
+          Failed('x', result: CommandResult(1, 'OUT', 'ERR')),
+        ],
+      );
+
+      final ({int code, ScriptedTerminal terminal}) run = await runSteps(
+        <Step>[a],
+        const <String?>['y', '1'],
+      );
+
+      final String output = run.terminal.output.toString();
+      expect(a.applyCount, 1);
+      expect(output, contains('  ? A — C 뒤에 검사합니다'));
+      expect(output, contains(_stopLine));
+      expect(run.code, wizardExitStopped);
+    });
+  });
+
+  test('T-19-WIZ-11 실행 뒤 미완료에서 다시 시도 재검사가 ✓ 면 다시 실행하지 않는다', () async {
+    final _ScriptedStep a = _ScriptedStep(
+      'A',
+      checks: const <CheckResult>[Todo('a'), Todo('a'), Todo('남음'), Done('끝')],
+    );
+
+    final ({int code, ScriptedTerminal terminal}) run = await runSteps(
+      <Step>[a],
+      const <String?>['y', '1'],
+    );
+
+    final String output = run.terminal.output.toString();
+    expect(output, contains('  실패 — 남음'));
+    expect(output.indexOf('  ✓ A — 끝'), greaterThan(output.indexOf('남음')));
+    expect(a.applyCount, 1);
+    expect(a.checkCount, 4);
     expect(run.code, wizardExitDone);
   });
 

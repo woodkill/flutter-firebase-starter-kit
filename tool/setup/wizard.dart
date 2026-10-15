@@ -99,6 +99,18 @@ final class WizardContext {
   }
 }
 
+/// 실패 고르기 뒤 위저드가 갈 길.
+enum _RetryDecision {
+  /// 멈춘다.
+  stop,
+
+  /// 다시 검사해 끝난 것을 확인했다 — 다음 단계로 간다.
+  finished,
+
+  /// 다시 실행한다.
+  rerun,
+}
+
 /// 점검표를 보이고 첫 할 일 단계부터 차례로 진행하는 위저드.
 final class Wizard {
   /// [context] 로 [steps] 를 순서대로 진행하는 위저드를 만든다.
@@ -227,6 +239,10 @@ final class Wizard {
   };
 
   /// 단계 하나를 진행한다 — 계속하면 null, 끝내야 하면 종료 코드를 돌려준다.
+  ///
+  /// 실패하거나 실행 뒤에도 끝나지 않으면 다시 시도 · 멈춤을 고르게 한다. 다시
+  /// 시도는 먼저 다시 검사한다 — 위저드 밖에서 이미 끝냈으면 실행하지 않고 ✓ 로
+  /// 넘어간다.
   Future<int?> _runStep(Step step) async {
     final CheckResult current = await _check(step);
     if (current is Done) {
@@ -254,7 +270,6 @@ final class Wizard {
             return null;
           }
           _printFailure(_describeIncomplete(after), null);
-          if (!_chooseRetry()) return _stop();
         case ExitForUser(:final String guide):
           _terminal.writeLine(guide);
           _terminal.writeLine(exitForUserTailLine);
@@ -263,10 +278,37 @@ final class Wizard {
           return _waitForUser(step, guide);
         case Failed(:final String summary, :final CommandResult? result):
           _printFailure(summary, result);
-          if (!_chooseRetry()) return _stop();
         case Declined():
           return _stop();
       }
+      // 여기에 오는 것은 실행 뒤 미완료 · 실패 두 갈래뿐이다.
+      switch (await _decideRetry(step)) {
+        case _RetryDecision.stop:
+          return _stop();
+        case _RetryDecision.finished:
+          return null;
+        case _RetryDecision.rerun:
+          continue;
+      }
+    }
+  }
+
+  /// 실패 뒤 다시 시도 · 멈춤을 고르게 하고, 다시 시도면 먼저 다시 검사한다.
+  ///
+  /// 이미 끝났으면 ✓ 줄을 보이고 실행하지 않는다. 앞 단계를 기다리는 판정이면
+  /// 그 줄을 보이고 멈춘다(처음 진행할 때와 같다). 아직 할 일이면 다시 실행한다.
+  Future<_RetryDecision> _decideRetry(Step step) async {
+    if (!_chooseRetry()) return _RetryDecision.stop;
+    final CheckResult recheck = await _check(step);
+    switch (recheck) {
+      case Done():
+        _terminal.writeLine(_formatCheckLine(step, recheck));
+        return _RetryDecision.finished;
+      case Blocked():
+        _terminal.writeLine(_formatCheckLine(step, recheck));
+        return _RetryDecision.stop;
+      case Todo():
+        return _RetryDecision.rerun;
     }
   }
 
