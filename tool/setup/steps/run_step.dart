@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import '../command_runner.dart';
 import '../rest_client.dart';
@@ -15,12 +16,13 @@ import 'user_files_step.dart';
 /// uid · 표시 이름은 화면 · 기록에 쓰지 않고 개수만 보인다.
 ///
 /// 실행은 패키지 받기 → 코드 생성 → 실행 대상 고르기(iOS · Android 만 · 기본값은
-/// iOS 시뮬레이터 · 대상이 없으면 iOS 시뮬레이터를 띄운 뒤 다시 찾음) → 할 일
-/// 안내 → 대화형 `flutter run` 이다. 실행이 끝나 돌아오면 위저드가 다시 검사한다.
+/// iOS 시뮬레이터) → 할 일 안내 → 대화형 `flutter run` 이다. 대상이 없으면
+/// `xcrun simctl` 로 iPhone 시뮬레이터 하나를 켜고 Xcode 의 시뮬레이터 화면 앱을
+/// 연 뒤 다시 찾는다. 실행이 끝나 돌아오면 위저드가 다시 검사한다.
 final class RunStep implements Step {
   /// 앱 실행 · 로그인 확인 단계를 만든다.
   ///
-  /// [delay] 는 iOS 시뮬레이터를 띄운 뒤 기기 목록을 다시 보기 전에 기다리는
+  /// [delay] 는 iOS 시뮬레이터를 켠 뒤 기기 목록을 다시 보기 전에 기다리는
   /// 함수다(기본 = 실제로 기다림 · 테스트는 기다리지 않는 함수를 넣는다).
   RunStep({Future<void> Function(Duration duration)? delay})
     : _delay = delay ?? _waitFor;
@@ -41,14 +43,32 @@ final class RunStep implements Step {
   /// 실행에 쓰는 dev config 파일(저장소 루트 기준).
   static const String devConfigPath = 'config/dev.json';
 
-  /// 대상이 없을 때 띄우는 Flutter 에뮬레이터 id.
-  static const String iosSimulatorEmulatorId = 'apple_ios_simulator';
-
-  /// iOS 시뮬레이터를 띄운 뒤 기기 목록을 다시 보는 간격.
+  /// iOS 시뮬레이터를 켠 뒤 기기 목록을 다시 보는 간격.
   static const Duration launchPollInterval = Duration(seconds: 3);
 
-  /// iOS 시뮬레이터를 띄운 뒤 기기 목록을 다시 보는 최대 횟수.
+  /// iOS 시뮬레이터를 켠 뒤 기기 목록을 다시 보는 최대 횟수.
   static const int maxLaunchPolls = 20;
+
+  /// simctl 기기 목록에서 iOS 런타임 키의 앞부분 — 뒤에 `<주>-<부>` 판 번호가 붙는다.
+  static const String iosRuntimeKeyPrefix =
+      'com.apple.CoreSimulator.SimRuntime.iOS-';
+
+  /// simctl 기기형 id 에서 iPhone 을 가리키는 부분.
+  static const String iphoneDeviceTypeMarker = 'SimDeviceType.iPhone';
+
+  /// 쓸 수 있는 시뮬레이터 목록을 JSON 으로 읽는 명령.
+  static const Command simulatorListCommand = Command('xcrun', <String>[
+    'simctl',
+    'list',
+    'devices',
+    'available',
+    '-j',
+  ]);
+
+  /// 선택된 Xcode 의 개발자 디렉터리(`<Xcode>.app/Contents/Developer`)를 읽는 명령.
+  static const Command developerDirCommand = Command('xcode-select', <String>[
+    '-p',
+  ]);
 
   /// 실행 대상을 고르는 질문.
   static const String targetChoiceQuestion = '앱을 실행할 기기를 고르세요';
@@ -104,14 +124,27 @@ final class RunStep implements Step {
     workingDirectory: workingDirectory,
   );
 
-  /// iOS 시뮬레이터를 띄우는 명령을 만든다.
-  static Command buildLaunchSimulatorCommand({String? workingDirectory}) =>
-      Command('fvm', const <String>[
-        'flutter',
-        'emulators',
-        '--launch',
-        'apple_ios_simulator',
-      ], workingDirectory: workingDirectory);
+  /// [udid] 시뮬레이터를 켜는 명령을 만든다.
+  ///
+  /// [udid] 는 simctl 목록의 값 그대로다 — 화면 · 기록의 명령 줄에서는 가림
+  /// 패턴(UUID)이 가린다.
+  static Command buildBootSimulatorCommand(
+    String udid, {
+    String? workingDirectory,
+  }) => Command('xcrun', <String>[
+    'simctl',
+    'boot',
+    udid,
+  ], workingDirectory: workingDirectory);
+
+  /// [appPath] 의 시뮬레이터 화면 앱을 여는 명령을 만든다(셸 없이 인자 배열).
+  static Command buildOpenScreenAppCommand(
+    String appPath, {
+    String? workingDirectory,
+  }) => Command('open', <String>[
+    '-a',
+    appPath,
+  ], workingDirectory: workingDirectory);
 
   /// [deviceId] 기기에서 dev 앱을 실행하는 명령을 만든다.
   static Command buildRunCommand(String deviceId, {String? workingDirectory}) =>
@@ -209,6 +242,64 @@ final class RunStep implements Step {
     return simulator < 0 ? 0 : simulator;
   }
 
+  /// simctl 기기 목록 출력에서 켤 iPhone 시뮬레이터를 고른다 — 후보가 없거나
+  /// 해석할 수 없으면 null.
+  ///
+  /// iOS 런타임 아래의 쓸 수 있는 iPhone 만 후보로 보고 첫 후보를 고른다.
+  static SimulatorPick? pickSimulator(String stdout) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(stdout);
+    } on FormatException {
+      return null;
+    }
+    if (decoded case {'devices': final Map<String, Object?> runtimes}) {
+      for (final MapEntry<String, Object?> runtime in runtimes.entries) {
+        if (!runtime.key.startsWith(iosRuntimeKeyPrefix)) continue;
+        final Object? devices = runtime.value;
+        if (devices is! List<Object?>) continue;
+        for (final Object? device in devices) {
+          final SimulatorPick? pick = _readIphone(device);
+          if (pick != null) return pick;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// `xcode-select -p` 출력(개발자 디렉터리)에서 시뮬레이터 화면 앱 경로를
+  /// 찾는다 — 있는 디렉터리가 없으면 null.
+  ///
+  /// 경로는 출력에서 만든다 — `<Xcode>.app/Contents/Developer` 의 한 단계 위
+  /// `Contents/Applications/DeviceHub.app` 을 본다.
+  static String? findScreenAppPath(String developerDir) {
+    String dir = developerDir.trim();
+    while (dir.length > 1 && dir.endsWith('/')) {
+      dir = dir.substring(0, dir.length - 1);
+    }
+    final int cut = dir.lastIndexOf('/');
+    if (!dir.startsWith('/') || cut <= 0) return null;
+    final String deviceHub =
+        '${dir.substring(0, cut)}/Applications/DeviceHub.app';
+    return Directory(deviceHub).existsSync() ? deviceHub : null;
+  }
+
+  /// simctl 기기 항목 하나가 쓸 수 있는 iPhone 이면 고른 기기로 만든다.
+  static SimulatorPick? _readIphone(Object? device) {
+    if (device is! Map<String, Object?>) return null;
+    if (device['isAvailable'] != true) return null;
+    final Object? type = device['deviceTypeIdentifier'];
+    final Object? name = device['name'];
+    final Object? udid = device['udid'];
+    if (type is! String || !type.contains(iphoneDeviceTypeMarker)) return null;
+    if (name is! String || udid is! String || udid.isEmpty) return null;
+    return SimulatorPick(
+      name: name,
+      udid: udid,
+      isBooted: device['state'] == 'Booted',
+    );
+  }
+
   final Future<void> Function(Duration duration) _delay;
   _RunMode _mode = _RunMode.unreadable;
   String _reason = '';
@@ -262,8 +353,9 @@ final class RunStep implements Step {
       buildCodegenCommand().render(),
       buildDevicesCommand().render(),
       '(iOS · Android 기기만 보여 주고 고르게 합니다 — 기본값은 iOS 시뮬레이터입니다. '
-          '대상이 없으면 아래 명령으로 iOS 시뮬레이터를 띄운 뒤 다시 찾습니다)',
-      buildLaunchSimulatorCommand().render(),
+          '대상이 없으면 아래 목록에서 iPhone 시뮬레이터 하나를 켜고 화면 앱을 연 뒤 '
+          '다시 찾습니다)',
+      simulatorListCommand.render(),
       '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
       'fvm flutter run --flavor dev --dart-define-from-file=$devConfigPath '
           '-d <고른 기기>',
@@ -328,29 +420,76 @@ final class RunStep implements Step {
     return const Applied();
   }
 
-  /// 실행 대상을 찾는다 — 없으면 iOS 시뮬레이터를 띄우고 기다리며 다시 찾는다.
+  /// 실행 대상을 찾는다 — 없으면 iPhone 시뮬레이터를 켜고 기다리며 다시 찾는다.
   ///
-  /// 시뮬레이터 띄우기 명령은 앱을 열지 못해도 종료 코드 0 을 낼 수 있으므로,
-  /// 띄운 뒤의 판정은 종료 코드가 아니라 기기 목록 재조회로 한다.
+  /// 켜진 시뮬레이터가 `flutter devices` 목록에 나타나기까지 시간이 걸리므로,
+  /// 켠 뒤의 판정은 명령 종료 코드가 아니라 기기 목록 재조회로 한다.
   Future<_TargetLookup> _findTargets(WizardContext context) async {
-    final String root = context.projectRoot;
     final _TargetLookup first = await _readTargets(context);
     if (first is! _TargetLookupOk || first.targets.isNotEmpty) return first;
 
-    final CommandResult launch = await context.runner.stream(
-      buildLaunchSimulatorCommand(workingDirectory: root),
-    );
-    if (!launch.isSuccess) {
-      return _TargetLookupFailed(
-        Failed('iOS 시뮬레이터를 띄우지 못했습니다', result: launch),
-      );
-    }
+    final Failed? startFailure = await _startSimulator(context);
+    if (startFailure != null) return _TargetLookupFailed(startFailure);
     for (int poll = 0; poll < maxLaunchPolls; poll++) {
       await _delay(launchPollInterval);
       final _TargetLookup next = await _readTargets(context);
       if (next is! _TargetLookupOk || next.targets.isNotEmpty) return next;
     }
     return const _TargetLookupFailed(Failed(noTargetSummary));
+  }
+
+  /// iPhone 시뮬레이터 하나를 골라 켜고 화면 앱을 연다 — 실패하면 실패 결과.
+  ///
+  /// 목록 · 개발자 디렉터리 읽기는 capture, 상태를 바꾸는 켜기 · 열기는 stream
+  /// 으로 실행한다. 이미 켜진 기기는 다시 켜지 않는다(켜진 기기에 boot 를 부르면
+  /// 오류다). 화면 앱이 없으면 켜지 않는다 — 화면 없이 켜진 시뮬레이터로는 가입 ·
+  /// 인증을 할 수 없다.
+  Future<Failed?> _startSimulator(WizardContext context) async {
+    final String root = context.projectRoot;
+    final CommandResult list = await context.runner.capture(
+      simulatorListCommand,
+    );
+    final SimulatorPick? pick = list.isSuccess
+        ? pickSimulator(list.stdout)
+        : null;
+    if (pick == null) {
+      return Failed(
+        '쓸 수 있는 iPhone 시뮬레이터가 없습니다',
+        result: list.isSuccess ? null : list,
+      );
+    }
+    final CommandResult developerDir = await context.runner.capture(
+      developerDirCommand,
+    );
+    final String? appPath = developerDir.isSuccess
+        ? findScreenAppPath(developerDir.stdout)
+        : null;
+    if (appPath == null) {
+      return Failed(
+        '시뮬레이터 화면 앱을 찾지 못했습니다',
+        result: developerDir.isSuccess ? null : developerDir,
+      );
+    }
+    context.terminal.writeLine(
+      pick.isBooted
+          ? '  이미 켜진 iOS 시뮬레이터의 화면 앱을 엽니다 — ${pick.name}'
+          : '  iOS 시뮬레이터를 켜고 화면 앱을 엽니다 — ${pick.name}',
+    );
+    if (!pick.isBooted) {
+      final CommandResult boot = await context.runner.stream(
+        buildBootSimulatorCommand(pick.udid, workingDirectory: root),
+      );
+      if (!boot.isSuccess) {
+        return Failed('iOS 시뮬레이터를 켜지 못했습니다', result: boot);
+      }
+    }
+    final CommandResult open = await context.runner.stream(
+      buildOpenScreenAppCommand(appPath, workingDirectory: root),
+    );
+    if (!open.isSuccess) {
+      return Failed('시뮬레이터 화면 앱을 열지 못했습니다', result: open);
+    }
+    return null;
   }
 
   /// 기기 목록을 한 번 읽어 실행 대상을 꺼낸다.
@@ -451,6 +590,25 @@ final class RunTarget {
     };
     return '$name ($kind)';
   }
+}
+
+/// simctl 목록에서 고른 iPhone 시뮬레이터 하나.
+final class SimulatorPick {
+  /// 기기 이름 · UDID · 켜짐 여부로 고른 기기를 만든다.
+  const SimulatorPick({
+    required this.name,
+    required this.udid,
+    required this.isBooted,
+  });
+
+  /// 기기 이름 — 화면 안내에 보이는 값.
+  final String name;
+
+  /// `simctl boot` 에 넘기는 UDID — 화면 안내에는 쓰지 않는다.
+  final String udid;
+
+  /// 이미 켜져 있으면 true — 다시 켜지 않고 화면 앱만 연다.
+  final bool isBooted;
 }
 
 /// 직전 검사의 판정.
