@@ -27,6 +27,7 @@ final class FakeCall {
     this.key,
     this.stdinText, {
     this.isOutputSensitive = false,
+    this.workingDirectory,
   });
 
   /// 실행 방식.
@@ -40,6 +41,9 @@ final class FakeCall {
 
   /// 명령이 민감 출력으로 실행됐으면 true.
   final bool isOutputSensitive;
+
+  /// 명령에 넘어간 작업 디렉터리 — 키에는 넣지 않으므로 cwd 회귀는 이 값으로 본다.
+  final String? workingDirectory;
 }
 
 /// 등록한 결과를 돌려주는 가짜 실행기 — 실제 프로세스를 띄우지 않는다.
@@ -78,6 +82,7 @@ final class FakeCommandRunner implements CommandRunner {
         key,
         command.stdinText,
         isOutputSensitive: command.isOutputSensitive,
+        workingDirectory: command.workingDirectory,
       ),
     );
     final List<CommandResult>? queue = _results[key];

@@ -965,6 +965,15 @@ int _countOccurrences(String text, String pattern) =>
 int _countAsks(_Run run, String question) =>
     run.screen.asks.where((String asked) => asked == question).length;
 
+/// 저장소 루트를 작업 디렉터리로 받아야 하는 명령 키의 앞부분.
+const List<String> cwdDependentPrefixes = <String>[
+  'bash scripts/',
+  'pnpm -C ',
+  'fvm flutter ',
+  'fvm dart run ',
+  'firebase deploy ',
+];
+
 void main() {
   late _Fixture fixture;
 
@@ -1057,6 +1066,20 @@ void main() {
       }
       expect(fixture.read(IdentityStep.gradlePath), contains(newApplicationId));
       expect(readDevBundleId(fixture.root), newDevBundleId);
+      // 작업 디렉터리에 기대는 명령(스크립트 · pnpm · fvm · 배포)은 저장소 루트에서
+      // 실행한다 — 가짜 실행기 키에는 cwd 가 없으므로 기록으로 따로 본다.
+      final List<FakeCall> rootBound = run.fake.calls
+          .where(
+            (FakeCall call) => cwdDependentPrefixes.any(call.key.startsWith),
+          )
+          .toList();
+      expect(
+        rootBound,
+        hasLength(greaterThanOrEqualTo(cwdDependentPrefixes.length)),
+      );
+      for (final FakeCall call in rootBound) {
+        expect(call.workingDirectory, fixture.root, reason: call.key);
+      }
     },
   );
 

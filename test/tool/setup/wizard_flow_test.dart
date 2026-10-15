@@ -831,6 +831,14 @@ void main() {
         expect(addLine, contains(oldKotlinFile));
         expect(addLine, contains(newKotlinFile));
         expect(addLine, contains('.firebaserc'));
+        // git 은 저장소 루트에서 실행한다 — 가짜 실행기 키에는 cwd 가 없다.
+        final List<FakeCall> gitCalls = h.runner.calls
+            .where((FakeCall call) => call.key.startsWith('git '))
+            .toList();
+        expect(gitCalls, isNotEmpty);
+        for (final FakeCall call in gitCalls) {
+          expect(call.workingDirectory, root, reason: call.key);
+        }
       },
     );
 
