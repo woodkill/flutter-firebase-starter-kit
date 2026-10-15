@@ -23,6 +23,14 @@ const CommandResult _notFound = CommandResult(
   'ERROR: (gcloud.projects.describe) NOT_FOUND: Project not found\n',
 );
 
+/// 처음 쓰는 계정에서 `firebase projects:addfirebase` 가 실패할 때 화면에 남는 한 줄.
+const CommandResult _addFirebaseFailed = CommandResult(
+  2,
+  '',
+  'Error: Failed to add Firebase to Google Cloud Platform project. '
+      'See firebase-debug.log for more info.\n',
+);
+
 /// 테스트 configure 상수의 프로젝트 prefix.
 const String fixturePrefix = 'my-app';
 
@@ -221,7 +229,8 @@ void main() {
         ..on(
           _projectsListKey,
           buildProjectsResult(const <String, String>{'other-dev': 'Other'}),
-        );
+        )
+        ..on(describeKey(existingId), _notFound);
       final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runProjectStep(runner, terminal);
@@ -541,6 +550,86 @@ void main() {
     expect(runner.countCalls(RunMode.stream, addFirebaseKey(suggestedId)), 0);
     expect(readConfigProjectId(), 'your-project-dev');
   });
+
+  test(
+    'T-19-PROJ-11 새로 만들기 뒤 Firebase 추가가 실패하면 ID 는 이미 기록돼 있고 콘솔 안내 → Enter 재검사(아직 → ✓)',
+    () async {
+      // 먼저 Enter 에서 입력이 끝나는 실행 — 실패 뒤에도 만든 ID 가 남아 있다.
+      writeProjectFixture(root);
+      final FakeCommandRunner stopped = FakeCommandRunner()
+        ..on(_gitStatusKey, _cleanTree)
+        ..on(describeKey(suggestedId), _notFound)
+        ..on(createKey(suggestedId), _ok)
+        ..on(addFirebaseKey(suggestedId), _addFirebaseFailed);
+      final ScriptedTerminal stoppedTerminal = ScriptedTerminal(const <String?>[
+        'y',
+        '1',
+        '',
+        'y',
+      ]);
+
+      final int stoppedCode = await runProjectStep(stopped, stoppedTerminal);
+
+      expect(stoppedCode, wizardExitStopped);
+      expect(listStreamKeys(stopped), <String>[
+        createKey(suggestedId),
+        addFirebaseKey(suggestedId),
+      ]);
+      expect(readConfigProjectId(), suggestedId);
+      expect(readAliases(), <String, Object?>{
+        'default': suggestedId,
+        'dev': suggestedId,
+      });
+
+      // 같은 처음 상태에서 Enter 두 번 — 아직 → 콘솔에서 끝낸 뒤 ✓.
+      writeProjectFixture(root);
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(_gitStatusKey, _cleanTree)
+        ..on(createKey(suggestedId), _ok)
+        ..on(addFirebaseKey(suggestedId), _addFirebaseFailed);
+      registerQueue(runner, describeKey(suggestedId), <CommandResult>[
+        _notFound,
+        const CommandResult(0, '$suggestedId\n', ''),
+      ]);
+      registerQueue(runner, _projectsListKey, <CommandResult>[
+        buildProjectsResult(const <String, String>{'other-dev': 'Other'}),
+        buildProjectsResult(const <String, String>{suggestedId: suggestedId}),
+      ]);
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+        'y',
+        '1',
+        '',
+        'y',
+        '',
+        '',
+      ]);
+
+      final int code = await runProjectStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      final String guide = FirebaseProjectStep.buildAddFirebaseGuide(
+        suggestedId,
+      );
+      int countAsks(String question) =>
+          terminal.asks.where((String ask) => ask == question).length;
+      expect(code, wizardExitDone);
+      expect(output, contains(guide));
+      expect(guide, contains('https://console.firebase.google.com/'));
+      expect(guide, contains(suggestedId));
+      expect(RegExp('아직 끝나지 않았습니다').allMatches(output).length, 1);
+      expect(output, contains('  ✓ ${FirebaseProjectStep.stepTitle} — '));
+      expect(countAsks(FirebaseProjectStep.projectChoiceQuestion), 1);
+      expect(countAsks(FirebaseProjectStep.idQuestion), 1);
+      expect(countAsks(summaryConfirmQuestion), 1);
+      expect(countAsks(waitForEnterMessage), 2);
+      expect(countAsks(failureChoiceQuestion), 0);
+      expect(runner.countCalls(RunMode.stream, createKey(suggestedId)), 1);
+      expect(runner.countCalls(RunMode.stream, addFirebaseKey(suggestedId)), 1);
+      expect(runner.countCalls(RunMode.capture, describeKey(suggestedId)), 2);
+      expect(readConfigProjectId(), suggestedId);
+      expect(readAliases()['dev'], suggestedId);
+    },
+  );
 
   test('buildDevSteps 는 로그인 다음에 프로젝트 단계를 둔다', () {
     final List<String> ids = buildDevSteps()

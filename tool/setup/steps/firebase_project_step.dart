@@ -16,10 +16,14 @@ import 'user_files_step.dart';
 ///
 /// 프로젝트 ID 의 진실원은 `config/dev.json` 의 `firebaseProjectId` 하나다. 그 값이
 /// 자리표시(빈 값 · example 값)가 아니면 묻지 않고 내 계정의 Firebase 프로젝트
-/// 목록에 있는지만 본다. 자리표시면 새로 만들기 · 기존 프로젝트에서 고르기를
-/// 묻는다. 새로 만들기는 확인 표 뒤에 `gcloud projects create` → `firebase
-/// projects:addfirebase` 를 실행한다(실패 원문이 그대로 보인다). 모든 명령은
-/// 프로젝트 ID 를 인자로 명시하고 CLI 의 전역 설정을 바꾸지 않는다.
+/// 목록에 있는지 본다. 목록에 없으면 `gcloud projects describe` 로 내 Google
+/// Cloud 프로젝트인지 보고, 맞으면 Firebase 추가만 남은 것으로 판정한다.
+/// 자리표시면 새로 만들기 · 기존 프로젝트에서 고르기를 묻는다. 새로 만들기는
+/// 확인 표 뒤에 `gcloud projects create` 를 실행하고, Firebase 추가 **전에** 그
+/// ID 를 config 와 별칭에 쓴 뒤 `firebase projects:addfirebase` 를 실행한다.
+/// Firebase 추가가 실패하면 Firebase 콘솔에서 할 일을 보이고 Enter 를 기다려
+/// 다시 검사한다. 모든 명령은 프로젝트 ID 를 인자로 명시하고 CLI 의 전역 설정을
+/// 바꾸지 않는다.
 final class FirebaseProjectStep implements Step {
   /// Firebase 프로젝트 단계를 만든다.
   FirebaseProjectStep();
@@ -99,6 +103,10 @@ final class FirebaseProjectStep implements Step {
       'console.firebase.google.com 을 브라우저에서 한 번 열어 약관에 동의한 뒤 '
       '다시 시도하세요';
 
+  /// Firebase 콘솔 주소 — Firebase 추가가 실패하면 여기서 마저 진행한다.
+  static const String firebaseConsoleUrl =
+      'https://console.firebase.google.com/';
+
   /// 내 계정에 이미 있는 프로젝트라 만들기를 건너뛸 때의 줄.
   static const String existingProjectNotice =
       '  내 계정에 이미 있는 프로젝트입니다 — 만들기를 건너뛰고 Firebase 만 추가합니다';
@@ -140,6 +148,27 @@ final class FirebaseProjectStep implements Step {
   static Command buildAddFirebaseCommand(String projectId) =>
       Command('firebase', <String>['projects:addfirebase', projectId]);
 
+  /// Firebase 추가가 실패했을 때 Firebase 콘솔에서 할 일을 안내한다.
+  ///
+  /// 처음 쓰는 Google 계정은 콘솔에서 프로젝트에 Firebase 를 추가하는 흐름
+  /// 중간에서 약관에 동의해야 명령이 통한다. 위저드는 이 안내 뒤 Enter 를
+  /// 기다려 그 자리에서 다시 검사한다. 콘솔 라벨은 「」 로 감싼 화면 원문이다.
+  static String buildAddFirebaseGuide(String projectId) => <String>[
+    '  Firebase 를 추가하지 못했습니다 — 처음 쓰는 Google 계정이면 Firebase 콘솔에서 '
+        '이 프로젝트에 Firebase 를 추가하면서 약관에 동의해야 합니다.',
+    '  브라우저에서 아래를 차례로 진행하세요:',
+    '    1. $firebaseConsoleUrl 을 엽니다',
+    '    2. 「Firebase 프로젝트를 설정하여 시작하기」 를 누르고, 기존 Google Cloud '
+        '프로젝트에 Firebase 를 추가하는 메뉴로 갑니다',
+    '    3. 프로젝트 목록에서 $projectId 를 고르고 약관에 동의합니다',
+    '    4. 「Google Cloud 프로젝트에 Firebase를 추가할 때 유의해야 할 사항」 화면에서 '
+        '「계속」 을 누릅니다',
+    '    5. 「Firebase 프로젝트를 위한 Google 애널리틱스」 화면은 켜든 끄든 위저드 '
+        '진행과 관계없습니다',
+    '    6. 「Firebase 프로젝트가 준비되었습니다.」 가 보일 때까지 진행합니다',
+    '  다 끝내고 Enter 를 누르면 위저드가 $projectId 를 다시 확인합니다.',
+  ].join('\n');
+
   @override
   Future<CheckResult> check(WizardContext context) async {
     final String configPath = context.resolve(UserFilesStep.jsonUserPath);
@@ -169,6 +198,15 @@ final class FirebaseProjectStep implements Step {
       return Todo(_reason);
     }
     if (!projects.any((_ProjectEntry entry) => entry.projectId == _projectId)) {
+      // Firebase 목록에 없어도 내 Google Cloud 프로젝트면 Firebase 추가만 남았다.
+      final CommandResult described = await context.runner.capture(
+        buildDescribeCommand(_projectId),
+      );
+      if (described.isSuccess && described.stdout.trim() == _projectId) {
+        _mode = _ProjectMode.addFirebase;
+        _reason = '$_projectId 에 아직 Firebase 가 추가되지 않았습니다';
+        return Todo(_reason);
+      }
       _mode = _ProjectMode.missing;
       _reason = '$_projectId 가 내 계정의 Firebase 프로젝트 목록에 없습니다';
       return Todo(_reason);
@@ -193,6 +231,11 @@ final class FirebaseProjectStep implements Step {
         'gcloud projects create <프로젝트 ID> --name=<프로젝트 ID>',
         'firebase projects:addfirebase <프로젝트 ID>',
         aliasLine,
+        '(Firebase 추가가 실패하면 콘솔에서 할 일을 보이고 Enter 를 기다립니다)',
+      ],
+      _ProjectMode.addFirebase => <String>[
+        '(Firebase 콘솔에서 $_projectId 에 Firebase 를 추가하는 방법을 보이고 '
+            'Enter 를 기다립니다)',
       ],
       _ProjectMode.writeAliases => <String>[
         '($firebasercPath 의 default · dev 를 $_projectId 로 씀)',
@@ -212,6 +255,9 @@ final class FirebaseProjectStep implements Step {
       return switch (_mode) {
         _ProjectMode.choose => await _applyChoose(context),
         _ProjectMode.writeAliases => await _applyAliasesOnly(context),
+        _ProjectMode.addFirebase => WaitForUser(
+          buildAddFirebaseGuide(_projectId),
+        ),
         _ProjectMode.missing => Failed('$_reason — $accountPermissionGuidance'),
         _ProjectMode.listFailed => Failed(_reason, result: _listResult),
         _ProjectMode.unreadable => Failed(_reason),
@@ -249,7 +295,7 @@ final class FirebaseProjectStep implements Step {
     return choice == 0 ? _applyCreate(context) : _applyPick(context);
   }
 
-  /// 새 ID 를 받아 확인 표 뒤에 프로젝트를 만들고 Firebase 를 추가한 뒤 기록한다.
+  /// 새 ID 를 받아 확인 표 뒤에 프로젝트를 만들고, 기록한 뒤 Firebase 를 추가한다.
   Future<StepOutcome> _applyCreate(WizardContext context) async {
     final Terminal terminal = context.terminal;
     final String? suggested = _readSuggestedId(context);
@@ -289,14 +335,24 @@ final class FirebaseProjectStep implements Step {
       }
     }
 
+    // Firebase 추가가 막혀도 Enter 재검사 · 다시 실행이 같은 ID 로 이어지게 먼저 쓴다.
+    _writeProjectId(context, projectId);
+    return _addFirebaseOrGuide(context, projectId);
+  }
+
+  /// [projectId] 에 Firebase 를 추가한다 — 실패하면 콘솔 안내 뒤 Enter 를 기다린다.
+  ///
+  /// 실패 출력 원문은 실행 중에 이미 화면에 흘렀으므로 다시 싣지 않는다. 출력
+  /// 문자열이 아니라 실패 자체로 안내한다.
+  Future<StepOutcome> _addFirebaseOrGuide(
+    WizardContext context,
+    String projectId,
+  ) async {
     final CommandResult added = await context.runner.stream(
       buildAddFirebaseCommand(projectId),
     );
-    if (!added.isSuccess) {
-      return Failed('Firebase 를 추가하지 못했습니다 — $termsGuidance', result: added);
-    }
-    _writeProjectId(context, projectId);
-    return const Applied();
+    if (added.isSuccess) return const Applied();
+    return WaitForUser(buildAddFirebaseGuide(projectId));
   }
 
   /// 내 계정의 Firebase 프로젝트 목록에서 하나를 고르게 하고 기록한다.
@@ -463,7 +519,10 @@ enum _ProjectMode {
   /// 프로젝트는 맞고 `.firebaserc` 별칭만 다르다.
   writeAliases,
 
-  /// config 의 ID 가 내 목록에 없다.
+  /// config 의 ID 가 내 Google Cloud 프로젝트인데 Firebase 가 아직 추가되지 않았다.
+  addFirebase,
+
+  /// config 의 ID 가 내 Firebase 목록에도, 내 Google Cloud 프로젝트에도 없다.
   missing,
 
   /// 프로젝트 목록 명령이 실패했다.
