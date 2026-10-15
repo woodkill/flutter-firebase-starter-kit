@@ -1,5 +1,6 @@
 import '../step.dart';
 import 'identity_step.dart';
+import 'login_step.dart';
 import 'tools_step.dart';
 import 'user_files_step.dart';
 import 'xcode_step.dart';
@@ -13,4 +14,5 @@ List<Step> buildDevSteps() => <Step>[
   ToolsStep(),
   UserFilesStep(),
   IdentityStep(),
+  LoginStep(),
 ];
