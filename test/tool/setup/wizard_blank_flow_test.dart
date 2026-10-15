@@ -711,16 +711,30 @@ void _runConfigureScriptEffect(_Fixture fixture) {
   }
 }
 
+/// configure 스크립트가 설정 파일을 다 쓰고도 비0 으로 끝난 결과.
+const CommandResult configureExitFailure = CommandResult(
+  1,
+  'FlutterFire configure\n',
+  'configure: unexpected exit\n',
+);
+
 /// configure ~ 앱 실행 단계를 「처음 할 일 → 실행 → 끝남」 순서로 등록한다.
-void _registerAppSteps(_Run run) {
+///
+/// [configureResults] 가 있으면 configure 스크립트의 결과만 그것으로 바꾼다 —
+/// 설정 파일을 쓰는 효과는 그대로 실행 순간에 일어난다.
+void _registerAppSteps(_Run run, {List<CommandResult>? configureResults}) {
   final String apiKey = buildFakeApiKey();
   run
-    ..onCommand(ConfigureStep.buildConfigureCommand(), <CommandResult>[
-      ok(
-        'FlutterFire configure (apiKey: $apiKey)\n'
-        '${ConfigureStep.completeLine}\n',
-      ),
-    ])
+    ..onCommand(
+      ConfigureStep.buildConfigureCommand(),
+      configureResults ??
+          <CommandResult>[
+            ok(
+              'FlutterFire configure (apiKey: $apiKey)\n'
+              '${ConfigureStep.completeLine}\n',
+            ),
+          ],
+    )
     ..onEffect(
       ConfigureStep.buildConfigureCommand(),
       () => _runConfigureScriptEffect(run.fixture),
@@ -1188,6 +1202,188 @@ void main() {
         output.substring(hintStart),
         contains('\n  ${FirebaseProjectStep.firebasercPath}\n'),
       );
+      for (final String text in <String>[output, run.log.text]) {
+        expect(text, isNot(contains(buildFakeAccessToken())));
+        expect(text, isNot(contains(buildFakeApiKey())));
+      }
+    },
+  );
+
+  test(
+    'T-19-FLOW-09: Firebase 추가 실패 뒤 멈추면 다시 실행이 같은 ID 에 확인 표 뒤 Firebase 를 추가해 끝까지 간다',
+    () async {
+      final _Run first = _Run(fixture, <String?>[
+        ...earlyInputs,
+        'y', // 로그인
+        ...projectCreateInputs,
+        // Enter 자리에서 입력이 끝난다.
+      ]);
+      _registerEarlySteps(first, isResumed: false);
+      _registerCloudSteps(
+        first,
+        describeResults: <CommandResult>[fail('NOT_FOUND')],
+        addFirebaseResults: <CommandResult>[buildAddFirebaseFailure()],
+        listResults: <CommandResult>[buildProjectsList(hasProject: false)],
+      );
+
+      expect(await first.run(), wizardExitStopped, reason: first.output);
+      expect(first.screen.asks.last, waitForEnterMessage);
+      // 자리표시 check 두 번 · Enter 없이 멈춤이라 목록은 한 번도 부르지 않는다.
+      expect(
+        first.fake.countCalls(
+          RunMode.capture,
+          FakeCommandRunner.buildKey(FirebaseProjectStep.projectsListCommand),
+        ),
+        0,
+      );
+      expect(
+        jsonDecode(fixture.read(UserFilesStep.jsonUserPath)),
+        containsPair(FirebaseProjectStep.projectIdKey, projectId),
+      );
+      expect(
+        const LineSplitter().convert(
+          fixture.runGitChecked(<String>['status', '--porcelain']),
+        ),
+        contains(' M ${FirebaseProjectStep.firebasercPath}'),
+      );
+
+      final _Run second = _Run(fixture, <String?>[
+        'y', // 프로젝트
+        'y', // Firebase 추가 확인 표
+        ...afterProjectInputs,
+        ...appInputs,
+      ]);
+      _registerEarlySteps(second, isResumed: true);
+      // config 의 ID 가 실제 값이라 점검표 · 단계 머리 check 도 목록을 부른다 —
+      // 목록 = 점검표(없음) → 단계 머리(없음) → 실행 뒤(있음).
+      _registerCloudSteps(
+        second,
+        describeResults: <CommandResult>[ok('$projectId\n')],
+        addFirebaseResults: <CommandResult>[ok()],
+        listResults: <CommandResult>[
+          buildProjectsList(hasProject: false),
+          buildProjectsList(hasProject: false),
+          buildProjectsList(hasProject: true),
+        ],
+      );
+      _registerAppSteps(second);
+
+      final int code = await second.run();
+      final String output = second.output;
+
+      expect(code, wizardExitDone, reason: output);
+      final List<String> checklist = const LineSplitter()
+          .convert(output)
+          .takeWhile((String line) => !line.startsWith('▶ '))
+          .toList();
+      final String projectLinePrefix =
+          '  ✗ ${FirebaseProjectStep.stepTitle} — ';
+      final String projectLine = checklist.singleWhere(
+        (String line) => line.startsWith(projectLinePrefix),
+      );
+      final String reason = projectLine.substring(projectLinePrefix.length);
+      expect(reason, contains('Firebase'));
+      expect(reason, contains(projectId));
+      for (final String title in <String>[
+        'Xcode 준비',
+        '개발 도구',
+        '사용자 설정 파일',
+        '앱 정체성',
+        LoginStep.stepTitle,
+      ]) {
+        expect(
+          checklist.where((String line) => line.startsWith('  ✓ $title — ')),
+          hasLength(1),
+        );
+      }
+      expect(_countAsks(second, FirebaseProjectStep.projectChoiceQuestion), 0);
+      expect(_countAsks(second, FirebaseProjectStep.idQuestion), 0);
+      expect(_countAsks(second, failureChoiceQuestion), 0);
+      expect(
+        _countOccurrences(
+          output,
+          '── ${FirebaseProjectStep.addFirebaseConfirmTitle} ──',
+        ),
+        1,
+      );
+      expect(
+        _countOccurrences(output, '── ${FirebaseProjectStep.confirmTitle} ──'),
+        0,
+      );
+      expect(
+        second.fake.countCalls(
+          RunMode.stream,
+          FakeCommandRunner.buildKey(
+            FirebaseProjectStep.buildAddFirebaseCommand(projectId),
+          ),
+        ),
+        1,
+      );
+      expect(
+        second.fake.countCalls(
+          RunMode.stream,
+          FakeCommandRunner.buildKey(
+            FirebaseProjectStep.buildCreateCommand(projectId),
+          ),
+        ),
+        0,
+      );
+      expect(output, isNot(contains('고칠 파일에 커밋하지 않은 변경이 있습니다')));
+      expect(output, contains(allDoneLine));
+      final int hintStart = output.indexOf(commitHintHeading);
+      expect(hintStart, greaterThan(output.indexOf(allDoneLine)));
+      expect(
+        output.substring(hintStart),
+        contains('\n  ${FirebaseProjectStep.firebasercPath}\n'),
+      );
+    },
+  );
+
+  test(
+    'T-19-FLOW-10: configure 스크립트가 파일을 다 쓰고 비0 으로 끝나면 다시 시도가 재검사 ✓ 로 넘어간다',
+    () async {
+      final _Run run = _Run(fixture, <String?>[
+        ...earlyInputs,
+        'y', // 로그인
+        ...cloudInputs,
+        'y', // 앱 등록
+        '1', // 실패 뒤 다시 시도
+        'y', // rules
+        'y', // App Check
+        'y', // Functions
+        'y', // 앱 실행
+        '', // 기본 실행 대상
+      ]);
+      _registerEarlySteps(run, isResumed: false);
+      _registerCloudSteps(run);
+      _registerAppSteps(
+        run,
+        configureResults: const <CommandResult>[configureExitFailure],
+      );
+
+      final int code = await run.run();
+      final String output = run.output;
+
+      expect(code, wizardExitDone, reason: output);
+      expect(
+        run.fake.countCalls(
+          RunMode.stream,
+          FakeCommandRunner.buildKey(ConfigureStep.buildConfigureCommand()),
+        ),
+        1,
+      );
+      expect(_countAsks(run, failureChoiceQuestion), 1);
+      final List<String> lines = const LineSplitter().convert(output);
+      final int failureLine = lines.indexWhere(
+        (String line) => line.startsWith('  실패 — configure 스크립트가 실패했습니다'),
+      );
+      expect(failureLine, isNonNegative);
+      final int doneLine = lines.indexWhere(
+        (String line) => line.startsWith('  ✓ ${ConfigureStep.stepTitle} — '),
+      );
+      expect(doneLine, greaterThan(failureLine));
+      expect(output, isNot(contains('되돌리지 못했습니다')));
+      expect(output, contains(allDoneLine));
       for (final String text in <String>[output, run.log.text]) {
         expect(text, isNot(contains(buildFakeAccessToken())));
         expect(text, isNot(contains(buildFakeApiKey())));
