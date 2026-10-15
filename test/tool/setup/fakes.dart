@@ -144,7 +144,7 @@ final class ScriptedTerminal implements Terminal {
   }
 
   @override
-  int? choose(String question, List<String> options, {int defaultIndex = 0}) {
+  int? choose(String question, List<String> options, {int? defaultIndex = 0}) {
     asks.add(question);
     output.writeln(question);
     for (int i = 0; i < options.length; i++) {

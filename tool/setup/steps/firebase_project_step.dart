@@ -400,9 +400,10 @@ final class FirebaseProjectStep implements Step {
     if (projects.isEmpty) {
       return const Failed('내 계정에 Firebase 프로젝트가 없습니다 — 다시 시도에서 새로 만들기를 고르세요');
     }
+    // 결제 · 위치가 뒤따르는 선택이라 Enter 만으로 고르지 않는다(기본값 없음).
     final int? index = context.terminal.choose(pickQuestion, <String>[
       for (final _ProjectEntry entry in projects) entry.label,
-    ]);
+    ], defaultIndex: null);
     if (index == null) return const Declined();
     _writeProjectId(context, projects[index].projectId);
     return const Applied();

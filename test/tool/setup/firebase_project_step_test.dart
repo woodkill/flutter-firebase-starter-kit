@@ -928,6 +928,56 @@ void main() {
     },
   );
 
+  test(
+    'T-19-PROJ-15 기존 프로젝트 고르기는 기본값이 없어 Enter 만으로 고르지 않고 번호를 직접 받는다',
+    () async {
+      CommandResult buildPickList() => buildProjectsResult(
+        const <String, String>{'demo-dev': '데모 프로젝트', 'mine-dev': 'Mine'},
+      );
+
+      // 빈 답 3번 — 고르지 않고 멈추며 파일은 그대로다.
+      writeProjectFixture(root);
+      final Map<String, String> before = readProjectFiles();
+      final FakeCommandRunner stopped = FakeCommandRunner()
+        ..on(_gitStatusKey, _cleanTree)
+        ..on(_projectsListKey, buildPickList());
+      final ScriptedTerminal stoppedTerminal = ScriptedTerminal(const <String?>[
+        'y',
+        '2',
+        '',
+        '',
+        '',
+      ]);
+
+      final int stoppedCode = await runProjectStep(stopped, stoppedTerminal);
+
+      expect(stoppedCode, wizardExitStopped);
+      expect(stoppedTerminal.asks, contains(FirebaseProjectStep.pickQuestion));
+      expect(readProjectFiles(), before);
+
+      // 빈 답 한 번 뒤 2 — 둘째 프로젝트를 기록한다.
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(_gitStatusKey, _cleanTree)
+        ..on(_projectsListKey, buildPickList());
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+        'y',
+        '2',
+        '',
+        '2',
+      ]);
+
+      final int code = await runProjectStep(runner, terminal);
+
+      expect(code, wizardExitDone);
+      expect(readConfigProjectId(), 'mine-dev');
+      expect(readAliases()['default'], 'mine-dev');
+      expect(
+        terminal.output.toString(),
+        contains('  ✓ ${FirebaseProjectStep.stepTitle} — mine-dev'),
+      );
+    },
+  );
+
   test('buildDevSteps 는 로그인 다음에 프로젝트 단계를 둔다', () {
     final List<String> ids = buildDevSteps()
         .map((Step step) => step.id)

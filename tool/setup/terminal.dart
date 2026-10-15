@@ -22,7 +22,10 @@ abstract interface class Terminal {
   String? ask(String question, {String? defaultValue});
 
   /// 번호로 고르게 한다 — 고른 0부터의 위치, 입력 끝이나 계속 틀리면 null.
-  int? choose(String question, List<String> options, {int defaultIndex = 0});
+  ///
+  /// 빈 답은 [defaultIndex] 를 고른다. [defaultIndex] 가 null 이면 기본값이 없어
+  /// 빈 답도 잘못된 답처럼 다시 묻는다.
+  int? choose(String question, List<String> options, {int? defaultIndex = 0});
 
   /// Enter 를 기다린다 — 입력 끝이면 false.
   bool waitForEnter(String message);
@@ -37,12 +40,12 @@ bool parseYesAnswer(String? answer) {
 
 /// 번호 고르기 답을 해석한다.
 ///
-/// 빈 답은 [defaultIndex], 1부터 [optionCount] 사이의 숫자는 0부터의 위치,
-/// 그 밖은 null 이다.
+/// 빈 답은 [defaultIndex](null 이면 기본값 없음 = null), 1부터 [optionCount]
+/// 사이의 숫자는 0부터의 위치, 그 밖은 null 이다.
 int? parseChoiceAnswer(
   String answer, {
   required int optionCount,
-  required int defaultIndex,
+  required int? defaultIndex,
 }) {
   final String trimmed = answer.trim();
   if (trimmed.isEmpty) return defaultIndex;
@@ -98,13 +101,15 @@ final class StdioTerminal implements Terminal {
   }
 
   @override
-  int? choose(String question, List<String> options, {int defaultIndex = 0}) {
+  int? choose(String question, List<String> options, {int? defaultIndex = 0}) {
     _output.writeln(question);
     for (int i = 0; i < options.length; i++) {
       _output.writeln('  ${i + 1}) ${options[i]}');
     }
     for (int attempt = 0; attempt < maxChoiceAttempts; attempt++) {
-      _output.write('번호를 고르세요 [${defaultIndex + 1}]: ');
+      // 기본값이 없으면 대괄호 안내를 빼서 Enter 로 고를 수 없음을 보인다.
+      final String hint = defaultIndex == null ? '' : ' [${defaultIndex + 1}]';
+      _output.write('번호를 고르세요$hint: ');
       final String? answer = _readLine();
       if (answer == null) {
         _output.writeln();
@@ -204,7 +209,7 @@ final class RedactingTerminal implements Terminal {
   }
 
   @override
-  int? choose(String question, List<String> options, {int defaultIndex = 0}) {
+  int? choose(String question, List<String> options, {int? defaultIndex = 0}) {
     final String shown = redactor.apply(question);
     final List<String> shownOptions = options
         .map(redactor.apply)
