@@ -11,13 +11,18 @@ import 'firestore_step.dart';
 import 'user_files_step.dart';
 
 /// Cloud Functions 단계 — 의존성을 설치하고, 코드가 선언한 secret 가운데 없는
-/// 것만 자리표시 값으로 만든 뒤 저장소의 배포 스크립트로 함수를 배포한다.
+/// 것만 자리표시 값으로 만든 뒤 저장소의 배포 스크립트로 함수를 배포하고, 앱이
+/// 함수를 부를 수 있게 공개 호출(invoker)까지 확인한다.
 ///
 /// 검사는 의존성 설치 표시 파일([modulesMarkerPath]) · 선언된 secret 전부 존재 ·
-/// [manifestPath] 의 공통 함수 전부 배포 순서로 본다. 의존성 · secret 이 빠졌으면
-/// 함수 목록을 읽지 않는다. 배포는 [deployScriptPath] 를 프로세스로 실행하고
-/// 종료 코드 0 과 표준 출력의 마지막 줄([deployOkPattern])로만 성공을 판정한다 —
-/// 배포할 함수 목록은 위저드가 따로 계산하지 않는다.
+/// [manifestPath] 의 공통 함수 전부 배포 · 그 함수들의 Cloud Run 서비스 IAM 에
+/// [invokerRole] + [invokerMember] 순서로 본다. 의존성 · secret 이 빠졌으면 함수
+/// 목록을, 함수가 빠졌으면 IAM 을 읽지 않는다. 배포는 [deployScriptPath] 를
+/// 프로세스로 실행하고 종료 코드 0 과 표준 출력의 마지막 줄([deployOkPattern])로만
+/// 성공을 판정한다 — 배포할 함수 목록은 위저드가 따로 계산하지 않는다.
+///
+/// 조직 정책이 공개 호출을 막으면([invokerBlockedMarker] · [isOrgPolicyRejection])
+/// 원문 뒤에 [orgPolicyGuidance] 를 보이고 IAM 정책을 우회하려 하지 않는다.
 ///
 /// secret 값은 인자에 싣지 않고 표준 입력으로만 넘기며, 이미 있는 secret 의 값은
 /// 읽거나 바꾸지 않는다. 프로젝트 ID · 리전은 매번 `config/dev.json` 에서 읽는다.
@@ -51,6 +56,46 @@ final class FunctionsStep implements Step {
   static final RegExp deployOkPattern = RegExp(
     r'^DEPLOY OK dev functions=[0-9]+ batches=[0-9]+$',
   );
+
+  /// 공개 호출을 허용하는 Cloud Run 역할.
+  static const String invokerRole = 'roles/run.invoker';
+
+  /// 공개 호출 주체 — 로그인하지 않은 호출자 전부.
+  static const String invokerMember = 'allUsers';
+
+  /// Firebase CLI 가 함수 공개 호출 설정에 실패했을 때 배포 출력에 쓰는 문장.
+  static const String invokerBlockedMarker =
+      'Unable to set the invoker for the IAM policy';
+
+  /// gcloud 가 조직 정책으로 IAM 정책 변경을 거절할 때의 상태 이름.
+  static const String failedPreconditionMarker = 'FAILED_PRECONDITION';
+
+  /// gcloud 가 조직 정책으로 구성원을 거절할 때의 문장 조각.
+  static const String permittedCustomerMarker = 'permitted customer';
+
+  /// Firebase CLI 가 비대화형에서 컨테이너 이미지 정리 정책을 정하지 못했을 때
+  /// 배포 출력에 쓰는 문장 조각.
+  static const String cleanupPolicyMarker = 'could not set up cleanup policy';
+
+  /// 조직 정책이 공개 호출을 막을 때의 안내.
+  static const String orgPolicyGuidance =
+      '조직 정책이 함수를 공개 호출(allUsers)할 수 없게 막고 있습니다. '
+      '조직 관리자에게 이 프로젝트의 예외를 요청하거나, 조직에 속하지 않은 개인 '
+      'Google 계정으로 만든 프로젝트를 쓰세요. 예외가 생긴 뒤 같은 명령을 다시 '
+      '실행하면 이어집니다.';
+
+  /// 조직 정책(도메인 제한 공유) 공식 문서.
+  static const String orgPolicyDocUrl =
+      'https://cloud.google.com/organization-policy/restrict-domains';
+
+  /// 정리 정책을 만들고 한 번 더 배포하기 전에 보이는 줄.
+  static const String cleanupPolicyNotice =
+      '  함수는 배포됐지만 컨테이너 이미지 정리 정책이 없어 배포 명령이 실패로 '
+      '끝났습니다 — 정책을 만들고 한 번 더 배포합니다.';
+
+  /// 조직 정책 안내를 실패 요약으로 쓸 때의 문장(문서 링크 포함).
+  static const String orgPolicyFailureSummary =
+      '$orgPolicyGuidance\n    $orgPolicyDocUrl';
 
   /// 저장소 루트 [workingDirectory] 에서 Functions 의존성을 설치하는 명령 —
   /// 커밋된 lockfile 그대로 설치한다.
@@ -104,6 +149,58 @@ final class FunctionsStep implements Step {
     workingDirectory: workingDirectory,
   );
 
+  /// [region] 의 Cloud Run 서비스 [service] IAM 정책을 JSON 으로 읽는 명령.
+  static Command buildIamPolicyCommand(
+    String service,
+    String region,
+    String projectId,
+  ) => Command('gcloud', <String>[
+    'run',
+    'services',
+    'get-iam-policy',
+    service,
+    '--region',
+    region,
+    '--project',
+    projectId,
+    '--format=json',
+  ]);
+
+  /// [region] 의 Cloud Run 서비스 [service] 에 공개 호출을 붙이는 명령.
+  static Command buildInvokerBindingCommand(
+    String service,
+    String region,
+    String projectId,
+  ) => Command('gcloud', <String>[
+    'run',
+    'services',
+    'add-iam-policy-binding',
+    service,
+    '--region',
+    region,
+    '--member=$invokerMember',
+    '--role=$invokerRole',
+    '--project',
+    projectId,
+  ]);
+
+  /// [region] 의 함수 컨테이너 이미지 저장소에 정리 정책을 만드는 명령.
+  ///
+  /// 보관 기간은 Firebase CLI 기본값(대화형 배포가 Enter 기본값으로 묻는 값)을
+  /// 쓴다. 비대화형이라 확인 질문은 기본값(진행)으로 넘어간다.
+  static Command buildCleanupPolicyCommand(
+    String projectId,
+    String region, {
+    String? workingDirectory,
+  }) => Command('firebase', <String>[
+    'functions:artifacts:setpolicy',
+    '--project',
+    projectId,
+    '--location',
+    region,
+    '--non-interactive',
+  ], workingDirectory: workingDirectory);
+
   /// [projectRoot] 의 함수 목록 파일에서 공통 함수 이름을 읽는다.
   ///
   /// 파일이 없거나 JSON · 모양이 다르면 null.
@@ -126,11 +223,46 @@ final class FunctionsStep implements Step {
     return names.length == common.length ? names : null;
   }
 
+  /// IAM 정책 결과에 [invokerRole] + [invokerMember] 바인딩이 있는지 판정한다.
+  ///
+  /// 바인딩이 없는 정책(`{}` · etag 만)은 false. 명령 실패 · JSON 아님은 null.
+  static bool? hasPublicInvoker(CommandResult result) {
+    if (!result.isSuccess) return null;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(result.stdout);
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! Map<String, Object?>) return null;
+    final Object? bindings = decoded['bindings'];
+    if (bindings is! List<Object?>) return false;
+    for (final Object? binding in bindings) {
+      if (binding is! Map<String, Object?>) continue;
+      if (binding['role'] != invokerRole) continue;
+      final Object? members = binding['members'];
+      if (members is List<Object?> && members.contains(invokerMember)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// 공개 호출 추가 결과가 조직 정책 거절인지 판정한다.
+  static bool isOrgPolicyRejection(CommandResult result) {
+    final String output = '${result.stdout}\n${result.stderr}';
+    return output.contains(failedPreconditionMarker) &&
+        output.contains(permittedCustomerMarker);
+  }
+
   _FunctionsMode _mode = _FunctionsMode.unreadable;
   String _reason = '';
   String _projectId = '';
+  String _region = '';
+  List<String> _common = const <String>[];
   bool _isModuleMissing = false;
   List<String> _missingSecrets = const <String>[];
+  List<String> _lackingServices = const <String>[];
   CommandResult? _failedResult;
 
   @override
@@ -183,6 +315,8 @@ final class FunctionsStep implements Step {
       );
     }
     _projectId = projectId;
+    _region = region;
+    _common = common;
     _isModuleMissing = !File(context.resolve(modulesMarkerPath)).existsSync();
 
     final CommandResult listed = await context.runner.capture(
@@ -235,9 +369,16 @@ final class FunctionsStep implements Step {
         '배포되지 않은 함수가 있습니다 (${notDeployed.join(' · ')})',
       );
     }
+
+    final CheckResult? invokerProblem = await _inspectInvokers(
+      context,
+      deployed,
+    );
+    if (invokerProblem != null) return invokerProblem;
     _mode = _FunctionsMode.done;
     return Done(
-      '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 배포 확인',
+      '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 배포 · '
+      '공개 호출 확인',
     );
   }
 
@@ -253,9 +394,21 @@ final class FunctionsStep implements Step {
       buildDeployCommand().render(),
       '(배포 대상은 $manifestPath 의 공통 함수와 ${UserFilesStep.jsonUserPath} 의 '
           'enabledAuthProviders 가 켠 로그인 수단의 함수입니다)',
+      '(함수는 배포됐는데 컨테이너 이미지 정리 정책이 없어 배포 명령이 실패로 끝나면 '
+          '정책을 만들고(보관 기간은 Firebase CLI 기본값) 한 번 더 배포합니다)',
+      '(배포 뒤 공개 호출($invokerMember · $invokerRole)이 빠진 공통 함수가 있으면 '
+          '붙입니다 — 조직 정책이 막으면 안내합니다)',
+    ],
+    _FunctionsMode.bind => <String>[
+      '(앱이 함수를 부를 수 있게 공개 호출($invokerMember · $invokerRole)을 '
+          '붙입니다 — 로그인 · App Check 는 함수 안에서 따로 검사합니다)',
+      for (final String service in _lackingServices)
+        buildInvokerBindingCommand(service, _region, _projectId).render(),
     ],
     _FunctionsMode.listFailed => <String>['(명령 원문을 보입니다)'],
-    _FunctionsMode.unreadable || _FunctionsMode.done => const <String>[],
+    _FunctionsMode.unverifiable ||
+    _FunctionsMode.unreadable ||
+    _FunctionsMode.done => const <String>[],
   };
 
   @override
@@ -263,13 +416,15 @@ final class FunctionsStep implements Step {
     // 위저드는 실행 직전에 check 를 부르므로 그 판정(_mode)을 그대로 쓴다.
     return switch (_mode) {
       _FunctionsMode.deploy => await _applyDeploy(context),
+      _FunctionsMode.bind => await _applyBindings(context),
       _FunctionsMode.listFailed => Failed(_reason, result: _failedResult),
+      _FunctionsMode.unverifiable ||
       _FunctionsMode.unreadable => Failed(_reason),
       _FunctionsMode.done => const Applied(),
     };
   }
 
-  /// 의존성 설치 → 없는 secret 만들기 → 배포 스크립트 실행 → 마지막 줄 판정.
+  /// 의존성 설치 → 없는 secret 만들기 → 배포 → 공개 호출 확인.
   Future<StepOutcome> _applyDeploy(WizardContext context) async {
     if (_isModuleMissing) {
       final CommandResult installed = await context.runner.stream(
@@ -294,10 +449,134 @@ final class FunctionsStep implements Step {
         );
       }
     }
-    final CommandResult deployed = await context.runner.stream(
+    final StepOutcome deployed = await _runDeploy(
+      context,
+      isCleanupRetryAllowed: true,
+    );
+    if (deployed is! Applied) return deployed;
+    return _bindAfterDeploy(context);
+  }
+
+  /// 배포 스크립트를 실행하고 결과를 분류한다.
+  ///
+  /// 출력에 공개 호출 설정 실패([invokerBlockedMarker])가 있으면 조직 정책 안내로
+  /// 끝낸다 — 원문은 실행 중에 이미 화면에 흘렀으므로 안내만 뒤에 보인다. 그 밖에
+  /// 정리 정책 실패([cleanupPolicyMarker])면 [isCleanupRetryAllowed] 일 때 한 번만
+  /// 정책을 만들고 다시 배포한다.
+  Future<StepOutcome> _runDeploy(
+    WizardContext context, {
+    required bool isCleanupRetryAllowed,
+  }) async {
+    final CommandResult result = await context.runner.stream(
       buildDeployCommand(workingDirectory: context.projectRoot),
     );
-    return judgeDeployResult(deployed);
+    final StepOutcome judged = judgeDeployResult(result);
+    if (judged is! Failed) return judged;
+    final String output = '${result.stdout}\n${result.stderr}';
+    if (output.contains(invokerBlockedMarker)) {
+      return const Failed(orgPolicyFailureSummary);
+    }
+    if (isCleanupRetryAllowed && output.contains(cleanupPolicyMarker)) {
+      context.terminal.writeLine(cleanupPolicyNotice);
+      final CommandResult policy = await context.runner.stream(
+        buildCleanupPolicyCommand(
+          _projectId,
+          _region,
+          workingDirectory: context.projectRoot,
+        ),
+      );
+      if (!policy.isSuccess) {
+        return Failed(
+          '컨테이너 이미지 정리 정책을 만들지 못했습니다 (종료 코드 ${policy.exitCode})',
+          result: policy,
+        );
+      }
+      return _runDeploy(context, isCleanupRetryAllowed: false);
+    }
+    return judged;
+  }
+
+  /// 배포 뒤 공통 함수의 공개 호출을 다시 읽어 빠진 서비스에만 붙인다.
+  ///
+  /// 목록 · 정책을 읽지 못하면 그대로 끝내고 실행 뒤 재검사가 사유를 보인다.
+  Future<StepOutcome> _bindAfterDeploy(WizardContext context) async {
+    final CommandResult functions = await context.runner.capture(
+      buildFunctionsListCommand(_projectId),
+    );
+    final Map<String, String?>? deployed = parseDeployedFunctions(
+      functions,
+      _region,
+    );
+    if (deployed == null || !_common.every(deployed.containsKey)) {
+      return const Applied();
+    }
+    await _inspectInvokers(context, deployed);
+    if (_mode != _FunctionsMode.bind) return const Applied();
+    return _applyBindings(context);
+  }
+
+  /// 공개 호출이 빠진 서비스마다 바인딩을 더한다.
+  ///
+  /// 조직 정책 거절이면 안내로 끝내고 남은 서비스에 같은 명령을 더 시도하지
+  /// 않는다.
+  Future<StepOutcome> _applyBindings(WizardContext context) async {
+    for (final String service in _lackingServices) {
+      final CommandResult result = await context.runner.stream(
+        buildInvokerBindingCommand(service, _region, _projectId),
+      );
+      if (result.isSuccess) continue;
+      if (isOrgPolicyRejection(result)) {
+        return const Failed(orgPolicyFailureSummary);
+      }
+      return Failed(
+        '$service 서비스에 공개 호출을 붙이지 못했습니다 (종료 코드 ${result.exitCode})',
+        result: result,
+      );
+    }
+    return const Applied();
+  }
+
+  /// 공통 함수들의 Cloud Run 서비스 IAM 을 읽어 공개 호출이 빠진 것을 찾는다.
+  ///
+  /// 모두 있으면 null, 아니면 판정을 두고 할 일 결과를 돌려준다. 서비스 이름은
+  /// 함수 목록의 `runServiceId` 를 그대로 쓴다.
+  Future<CheckResult?> _inspectInvokers(
+    WizardContext context,
+    Map<String, String?> deployed,
+  ) async {
+    final List<String> lackingNames = <String>[];
+    final List<String> lackingServices = <String>[];
+    for (final String name in _common) {
+      final String? service = deployed[name];
+      if (service == null || service.isEmpty) {
+        return _mark(
+          _FunctionsMode.unverifiable,
+          '$name 의 Cloud Run 서비스 이름을 읽지 못해 공개 호출을 확인할 수 없습니다 — '
+          '2세대(v2) 함수로 배포됐는지 확인하세요',
+        );
+      }
+      final CommandResult policy = await context.runner.capture(
+        buildIamPolicyCommand(service, _region, _projectId),
+      );
+      final bool? isPublic = hasPublicInvoker(policy);
+      if (isPublic == null) {
+        return _mark(
+          _FunctionsMode.listFailed,
+          '$service 서비스의 IAM 정책을 읽지 못했습니다',
+          result: policy,
+        );
+      }
+      if (!isPublic) {
+        lackingNames.add(name);
+        lackingServices.add(service);
+      }
+    }
+    _lackingServices = lackingServices;
+    if (lackingServices.isEmpty) return null;
+    return _mark(
+      _FunctionsMode.bind,
+      '공개 호출이 막힌 함수가 있습니다 (${lackingNames.join(' · ')})',
+    );
   }
 
   /// 배포 스크립트 결과를 종료 코드와 마지막 줄 계약으로 판정한다.
@@ -404,8 +683,14 @@ enum _FunctionsMode {
   /// 의존성 설치 · secret 만들기 · 배포가 필요하다.
   deploy,
 
-  /// secret 목록을 읽지 못했다.
+  /// 배포된 공통 함수 가운데 공개 호출이 빠진 서비스가 있다.
+  bind,
+
+  /// secret 목록 · IAM 정책을 읽지 못했다.
   listFailed,
+
+  /// 함수의 Cloud Run 서비스 이름이 없어 공개 호출을 확인할 수 없다.
+  unverifiable,
 
   /// 프로젝트 ID · 리전 · 함수 목록 파일 · secret 선언을 읽지 못했다.
   unreadable,

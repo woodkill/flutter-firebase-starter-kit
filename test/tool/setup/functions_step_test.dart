@@ -60,6 +60,50 @@ String buildIamKey(String service) =>
 /// [functionId] 의 Cloud Run 서비스 이름(가짜 — 소문자).
 String buildServiceId(String functionId) => functionId.toLowerCase();
 
+/// [service] 에 공개 호출을 붙이는 명령 키.
+String buildBindKey(String service) =>
+    'gcloud run services add-iam-policy-binding $service --region $region '
+    '--member=allUsers --role=roles/run.invoker --project $projectId';
+
+/// 컨테이너 이미지 정리 정책을 만드는 명령 키.
+const String cleanupKey =
+    'firebase functions:artifacts:setpolicy --project $projectId '
+    '--location $region --non-interactive';
+
+/// firebase-tools 원문 fixture — 조직 정책이 공개 호출을 막은 배포 출력.
+const String invokerBlockedFixturePath =
+    'test/tool/setup/fixtures/deploy_invoker_blocked.txt';
+
+/// 배포 스크립트가 묶음 실패 때 표준 오류에 쓰는 줄.
+const String batchFailLine = 'FAIL: 1번째 묶음 배포 실패 (1개 중) — 앞 묶음은 이미 배포됐다';
+
+/// firebase-tools 가 비대화형에서 정리 정책을 묻지 못할 때의 오류 줄(색 없음).
+const String cleanupPolicyErrorLine =
+    'Error: Functions successfully deployed but could not set up cleanup '
+    'policy in location $region. Pass the --force option to automatically '
+    "set up a cleanup policy or run 'firebase functions:artifacts:setpolicy' "
+    'to manually set up a cleanup policy.';
+
+/// gcloud 가 조직 정책으로 공개 호출 추가를 거절할 때의 오류 줄.
+const String permittedCustomerErrorLine =
+    'ERROR: (gcloud.run.services.add-iam-policy-binding) FAILED_PRECONDITION: '
+    'One or more users named in the policy do not belong to a permitted '
+    'customer.';
+
+/// 공개 호출이 없는 IAM 정책 응답(바인딩 없음).
+const CommandResult emptyPolicy = CommandResult(0, '{}', '');
+
+/// 공개 호출이 없는 IAM 정책 응답(다른 역할만 있음).
+const CommandResult privatePolicy = CommandResult(
+  0,
+  '{"bindings":[{"members":["user:owner"],"role":"roles/run.admin"}],'
+      '"etag":"BwYfake"}',
+  '',
+);
+
+/// [text] 에서 [needle] 이 나온 횟수를 센다.
+int countText(String text, String needle) => needle.allMatches(text).length;
+
 const CommandResult _ok = CommandResult(0, '', '');
 
 /// 공개 호출이 붙은 IAM 정책 응답.
@@ -418,7 +462,9 @@ void main() {
     expect(harness.output, contains('  실패 — '));
     expect(harness.output, contains(errorLine));
     expect(harness.output, contains(failLine));
-    expect(harness.output, isNot(contains('조직 정책')));
+    // 계획 줄의 「조직 정책이 막으면 안내합니다」 는 남고, 안내 본문은 나오지 않는다.
+    expect(harness.output, isNot(contains(FunctionsStep.orgPolicyGuidance)));
+    expect(harness.output, isNot(contains('조직 관리자에게')));
     expect(harness.output, isNot(contains('restrict-domains')));
   });
 
@@ -540,6 +586,341 @@ void main() {
       contains('[stdout] ${ProcessCommandRunner.sensitiveOutputNotice}'),
     );
     expect(realLog.lines, isNot(contains('[stdout] unset')));
+  });
+
+  /// fixture 원문을 배포 스크립트 결과로 만든다 — `FAIL:` 줄은 표준 오류, 나머지는
+  /// 표준 출력이다.
+  CommandResult buildFixtureDeployResult() {
+    final List<String> lines = File(
+      invokerBlockedFixturePath,
+    ).readAsLinesSync();
+    return CommandResult(
+      1,
+      lines.where((String line) => !line.startsWith('FAIL:')).join('\n'),
+      '${lines.where((String line) => line.startsWith('FAIL:')).join('\n')}\n',
+    );
+  }
+
+  /// 점검표의 Functions 단계 사유를 꺼낸다.
+  String readChecklistReason(String output) => output
+      .split('\n')
+      .firstWhere(
+        (String line) => line.startsWith('  ✗ ${FunctionsStep.stepTitle} — '),
+      )
+      .substring('  ✗ ${FunctionsStep.stepTitle} — '.length);
+
+  /// 모든 공개 호출 추가 명령의 호출 수.
+  int countBindings(FakeCommandRunner fake) => fake.calls
+      .where(
+        (FakeCall call) =>
+            call.key.startsWith('gcloud run services add-iam-policy-binding'),
+      )
+      .length;
+
+  test('T-19-FN-07: 배포됨 · 한 서비스만 공개 호출 없음 → 그 서비스만 보정 → 재검사 ✓', () async {
+    writeModulesMarker();
+    final String lackingService = buildServiceId('deleteUserAccount');
+    final _Harness harness = _Harness(root, const <String?>['y']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(commonFunctions))
+      // 점검표 · 단계 시작 검사는 공개 호출 없음, 실행 뒤 재검사는 있음.
+      ..on(buildIamKey(lackingService), privatePolicy)
+      ..on(buildIamKey(lackingService), privatePolicy)
+      ..on(buildIamKey(lackingService), publicPolicy)
+      ..on(buildBindKey(lackingService), _ok);
+    for (final String id in commonFunctions) {
+      if (buildServiceId(id) == lackingService) continue;
+      harness.fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
+    }
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone);
+    expect(readChecklistReason(harness.output), contains('공개 호출이 막힌 함수'));
+    expect(readChecklistReason(harness.output), contains('deleteUserAccount'));
+    expect(
+      harness.fake.countCalls(RunMode.stream, buildBindKey(lackingService)),
+      1,
+    );
+    expect(countBindings(harness.fake), 1);
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 0);
+    expect(harness.output, contains('  \$ ${buildBindKey(lackingService)}'));
+    expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
+  });
+
+  test('배포 뒤 공개 호출이 빠진 서비스는 같은 확인 안에서 붙인다', () async {
+    writeModulesMarker();
+    final String lackingService = buildServiceId('mirrorAccountEmail');
+    final _Harness harness = _Harness(root, const <String?>['y']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(functionsListKey, buildFunctionsList(commonFunctions))
+      ..on(deployKey, buildDeployOutput(commonFunctions))
+      // 배포 직후 확인은 공개 호출 없음, 실행 뒤 재검사는 있음.
+      ..on(buildIamKey(lackingService), emptyPolicy)
+      ..on(buildIamKey(lackingService), publicPolicy)
+      ..on(buildBindKey(lackingService), _ok);
+    for (final String id in commonFunctions) {
+      if (buildServiceId(id) == lackingService) continue;
+      harness.fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
+    }
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone);
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
+    expect(
+      harness.fake.countCalls(RunMode.stream, buildBindKey(lackingService)),
+      1,
+    );
+    expect(countBindings(harness.fake), 1);
+    expect(harness.screen.asks, <String>[stepConfirmQuestion]);
+    expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
+  });
+
+  test('T-19-FN-08: 배포 출력이 조직 정책 원문이면 원문 뒤에 안내 · 공개 호출 추가 0', () async {
+    writeModulesMarker();
+    final _Harness harness = _Harness(root, const <String?>['y', '2']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(deployKey, buildFixtureDeployResult());
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitStopped);
+    final String output = harness.output;
+    for (final String line in File(
+      invokerBlockedFixturePath,
+    ).readAsLinesSync()) {
+      if (line.trim().isEmpty) continue;
+      expect(output, contains(line));
+    }
+    expect(output, contains(FunctionsStep.orgPolicyGuidance));
+    expect(output, contains(FunctionsStep.orgPolicyDocUrl));
+    expect(
+      output.indexOf(FunctionsStep.orgPolicyGuidance),
+      greaterThan(output.lastIndexOf('Unable to set the invoker')),
+    );
+    expect(
+      output.indexOf(FunctionsStep.orgPolicyGuidance),
+      greaterThan(output.lastIndexOf(batchFailLine)),
+    );
+    expect(countText(output, 'Unable to set the invoker'), 1);
+    expect(countBindings(harness.fake), 0);
+    expect(harness.fake.countCalls(RunMode.stream, cleanupKey), 0);
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
+  });
+
+  test('T-19-FN-09: 공개 호출 추가가 permitted customer 로 실패하면 안내 · 같은 명령 '
+      '재시도 0', () async {
+    writeModulesMarker();
+    final String first = buildServiceId('deleteUserAccount');
+    final String second = buildServiceId('sendTestPush');
+    final _Harness harness = _Harness(root, const <String?>['y', '2']);
+    harness.fake.on(secretsListKey, buildSecretsList(declaredSecrets));
+    harness.fake.on(functionsListKey, buildFunctionsList(commonFunctions));
+    for (final String id in commonFunctions) {
+      final String service = buildServiceId(id);
+      harness.fake.on(
+        buildIamKey(service),
+        service == first || service == second ? emptyPolicy : publicPolicy,
+      );
+    }
+    harness.fake
+      ..on(
+        buildBindKey(first),
+        const CommandResult(1, '', '$permittedCustomerErrorLine\n'),
+      )
+      ..on(buildBindKey(second), _ok);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitStopped);
+    expect(harness.fake.countCalls(RunMode.stream, buildBindKey(first)), 1);
+    expect(countBindings(harness.fake), 1);
+    final String output = harness.output;
+    expect(output, contains(permittedCustomerErrorLine));
+    expect(output, contains(FunctionsStep.orgPolicyGuidance));
+    expect(output, contains(FunctionsStep.orgPolicyDocUrl));
+    expect(
+      output.indexOf(FunctionsStep.orgPolicyGuidance),
+      greaterThan(output.lastIndexOf(permittedCustomerErrorLine)),
+    );
+    expect(countText(output, permittedCustomerErrorLine), 1);
+    expect(harness.screen.asks, <String>[
+      stepConfirmQuestion,
+      failureChoiceQuestion,
+    ]);
+  });
+
+  test('T-19-FN-10: 바인딩 없는 정책({})은 공개 호출 없음으로 판정', () async {
+    expect(FunctionsStep.hasPublicInvoker(emptyPolicy), isFalse);
+    expect(
+      FunctionsStep.hasPublicInvoker(
+        const CommandResult(0, '{"etag":"BwYfake"}', ''),
+      ),
+      isFalse,
+    );
+    expect(FunctionsStep.hasPublicInvoker(privatePolicy), isFalse);
+    expect(FunctionsStep.hasPublicInvoker(publicPolicy), isTrue);
+    expect(
+      FunctionsStep.hasPublicInvoker(const CommandResult(1, '', 'ERROR')),
+      isNull,
+    );
+    expect(
+      FunctionsStep.hasPublicInvoker(const CommandResult(0, 'not json', '')),
+      isNull,
+    );
+
+    writeModulesMarker();
+    final String service = buildServiceId('ping');
+    final _Harness harness = _Harness(root, const <String?>[]);
+    harness.fake.on(secretsListKey, buildSecretsList(declaredSecrets));
+    harness.fake.on(functionsListKey, buildFunctionsList(commonFunctions));
+    for (final String id in commonFunctions) {
+      harness.fake.on(
+        buildIamKey(buildServiceId(id)),
+        buildServiceId(id) == service ? emptyPolicy : publicPolicy,
+      );
+    }
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitStopped);
+    expect(readChecklistReason(harness.output), contains('공개 호출이 막힌 함수'));
+    expect(readChecklistReason(harness.output), contains('ping'));
+    expect(countBindings(harness.fake), 0);
+  });
+
+  test('T-19-FN-11: fixture 에 이메일 · 실제 프로젝트 ID 모양 문자열이 없다', () {
+    final String fixture = File(invokerBlockedFixturePath).readAsStringSync();
+
+    expect(
+      RegExp(
+        r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',
+      ).hasMatch(fixture),
+      isFalse,
+    );
+    expect(fixture, isNot(contains('slimpumpkin')));
+    final Set<String> projects = <String>{
+      for (final RegExpMatch match in RegExp(
+        r'projects/([^/\s]+)',
+      ).allMatches(fixture))
+        match.group(1)!,
+      for (final RegExpMatch match in RegExp(
+        r'--project (\S+)',
+      ).allMatches(fixture))
+        match.group(1)!,
+    };
+    expect(projects, <String>{projectId});
+    expect(fixture, contains('\tping($region)'));
+    expect(
+      countText(
+        fixture,
+        'Unable to set the invoker for the IAM policy on the following '
+        'functions:',
+      ),
+      1,
+    );
+    expect(countText(fixture, 'There was an error deploying functions'), 1);
+  });
+
+  group('T-19-FN-12: 정리 정책이 없어 배포가 실패로 끝날 때', () {
+    /// 정리 정책 오류로 끝난 첫 배포 결과.
+    CommandResult buildCleanupFailure({String extraLines = ''}) =>
+        buildDeployOutput(
+          commonFunctions,
+          exitCode: 1,
+          lastLine: '$extraLines$cleanupPolicyErrorLine',
+          stderr: '$batchFailLine\n',
+        );
+
+    test('정책을 만들고(강제 옵션 없이) 한 번 더 배포 → DEPLOY OK → 재검사 ✓', () async {
+      writeModulesMarker();
+      final _Harness harness = _Harness(root, const <String?>['y']);
+      harness.fake
+        ..on(secretsListKey, buildSecretsList(declaredSecrets))
+        ..on(functionsListKey, buildFunctionsList(const <String>[]))
+        ..on(functionsListKey, buildFunctionsList(const <String>[]))
+        ..on(functionsListKey, buildFunctionsList(commonFunctions))
+        ..on(deployKey, buildCleanupFailure())
+        ..on(deployKey, buildDeployOutput(commonFunctions))
+        ..on(cleanupKey, _ok);
+      for (final String id in commonFunctions) {
+        harness.fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
+      }
+
+      final int code = await harness.run();
+
+      expect(code, wizardExitDone);
+      expect(harness.fake.countCalls(RunMode.stream, cleanupKey), 1);
+      expect(harness.fake.countCalls(RunMode.stream, deployKey), 2);
+      expect(
+        harness.fake.calls.where(
+          (FakeCall call) => call.key.contains('--force'),
+        ),
+        isEmpty,
+      );
+      final List<String> streamed = harness.fake.calls
+          .where((FakeCall call) => call.mode == RunMode.stream)
+          .map((FakeCall call) => call.key)
+          .toList();
+      expect(streamed, <String>[deployKey, cleanupKey, deployKey]);
+      expect(harness.runner.workingDirectories[cleanupKey], root);
+      expect(harness.output, contains(cleanupPolicyErrorLine));
+      expect(harness.output, contains('  \$ $cleanupKey'));
+      expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
+      expect(countBindings(harness.fake), 0);
+    });
+
+    test('출력에 공개 호출 실패 줄도 있으면 조직 정책 안내 · 정책 명령 0', () async {
+      writeModulesMarker();
+      final _Harness harness = _Harness(root, const <String?>['y', '2']);
+      harness.fake
+        ..on(secretsListKey, buildSecretsList(declaredSecrets))
+        ..on(functionsListKey, buildFunctionsList(const <String>[]))
+        ..on(
+          deployKey,
+          buildCleanupFailure(
+            extraLines:
+                'Unable to set the invoker for the IAM policy on the '
+                'following functions:\n\tping($region)\n',
+          ),
+        );
+
+      final int code = await harness.run();
+
+      expect(code, wizardExitStopped);
+      expect(harness.fake.countCalls(RunMode.stream, cleanupKey), 0);
+      expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
+      expect(harness.output, contains(FunctionsStep.orgPolicyGuidance));
+    });
+
+    test('정책 명령이 exit 1 이면 원문과 함께 실패 · 둘째 배포 0', () async {
+      writeModulesMarker();
+      const String policyError =
+          'Error: Failed to set up artifact registry '
+          'cleanup policy';
+      final _Harness harness = _Harness(root, const <String?>['y', '2']);
+      harness.fake
+        ..on(secretsListKey, buildSecretsList(declaredSecrets))
+        ..on(functionsListKey, buildFunctionsList(const <String>[]))
+        ..on(deployKey, buildCleanupFailure())
+        ..on(cleanupKey, const CommandResult(1, '', '$policyError\n'));
+
+      final int code = await harness.run();
+
+      expect(code, wizardExitStopped);
+      expect(harness.fake.countCalls(RunMode.stream, cleanupKey), 1);
+      expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
+      expect(harness.output, contains('  실패 — '));
+      expect(harness.output, contains(policyError));
+      expect(harness.output, isNot(contains(FunctionsStep.orgPolicyGuidance)));
+    });
   });
 
   test('config 의 프로젝트 ID 가 자리표시면 명령 없이 할 일 · 사유', () async {
