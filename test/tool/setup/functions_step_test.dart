@@ -199,24 +199,33 @@ final class _Harness {
   String get output => screen.output.toString();
 
   /// 앞 단계(끝남) · Functions 단계로 위저드를 돌린다.
-  Future<int> run() => runWizard(
-    WizardContext(
-      projectRoot: root,
-      runner: runner,
-      terminal: terminal,
-      redactor: log.redactor,
-      log: log,
-      rest: FakeRestClient(),
-      random: Random(fixedTestRandomSeed),
-      now: () => fixedTestNow,
-    ),
-    <Step>[
-      _FinishedStep('configure', '앱 등록 · 설정 파일'),
-      _FinishedStep('apis', '필요한 Google Cloud API'),
-      _FinishedStep('firestore', '위치 · Firestore'),
-      FunctionsStep(),
-    ],
-  );
+  ///
+  /// [enabledProviders] 를 주면 그 로그인 수단 단계(끝남)를 앞에 두고 Functions
+  /// 단계가 그 함수까지 확인한다.
+  Future<int> run({Set<String> enabledProviders = const <String>{}}) =>
+      runWizard(
+        WizardContext(
+          projectRoot: root,
+          runner: runner,
+          terminal: terminal,
+          redactor: log.redactor,
+          log: log,
+          rest: FakeRestClient(),
+          random: Random(fixedTestRandomSeed),
+          now: () => fixedTestNow,
+        ),
+        <Step>[
+          _FinishedStep('configure', '앱 등록 · 설정 파일'),
+          _FinishedStep('apis', '필요한 Google Cloud API'),
+          _FinishedStep('firestore', '위치 · Firestore'),
+          for (final String token in enabledProviders)
+            _FinishedStep(token, token),
+          FunctionsStep(
+            enabledProviders: enabledProviders,
+            providerStepIds: enabledProviders.toList(),
+          ),
+        ],
+      );
 }
 
 /// `gcloud secrets list --format=value(name)` 출력을 만든다(전체 자원 이름).
@@ -955,4 +964,51 @@ void main() {
     expect(step.title, FunctionsStep.stepTitle);
     expect(step.dependsOn, <String>['configure', 'apis', 'firestore']);
   });
+
+  test(
+    'T-20-FUNC-01: Kakao 를 켜고 Kakao 함수 1개가 배포되지 않았으면 ✗ · 계획 줄에 배포 스크립트',
+    () async {
+      writeModulesMarker();
+      final List<String> kakaoFunctions = FunctionsStep.readProviderFunctions(
+        root,
+        'kakao',
+      )!;
+      expect(kakaoFunctions, isNotEmpty);
+      final List<String> deployed = <String>[
+        ...commonFunctions,
+        ...kakaoFunctions.skip(1),
+      ];
+      final _Harness harness = _Harness(root, const <String?>[]);
+      harness.fake
+        ..on(secretsListKey, buildSecretsList(declaredSecrets))
+        ..on(functionsListKey, buildFunctionsList(deployed));
+      for (final String id in deployed) {
+        harness.fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
+      }
+
+      final int code = await harness.run(
+        enabledProviders: const <String>{'kakao'},
+      );
+
+      expect(code, wizardExitStopped);
+      expect(
+        readChecklistReason(harness.output),
+        contains('배포되지 않은 함수가 있습니다 (${kakaoFunctions.first})'),
+      );
+      expect(harness.output, contains('  \$ $deployKey'));
+      expect(harness.fake.countMode(RunMode.stream), 0);
+      expect(
+        FunctionsStep(
+          enabledProviders: const <String>{'kakao'},
+          providerStepIds: const <String>['kakao'],
+        ).dependsOn,
+        <String>['configure', 'apis', 'firestore', 'kakao'],
+      );
+      expect(FunctionsStep().dependsOn, <String>[
+        'configure',
+        'apis',
+        'firestore',
+      ]);
+    },
+  );
 }
