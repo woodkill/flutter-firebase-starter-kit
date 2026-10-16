@@ -1036,10 +1036,11 @@ void main() {
       expect(analyticsLines, hasLength(1));
       expect(lines[analyticsLines.single], contains('켜든 끄든 위저드 진행과 관계없습니다'));
 
-      // 약관 체크 단계는 한 줄에 조건 · 화면 · 체크 · 버튼을 담는다.
+      // 약관 체크 단계는 6단계 한 줄에 조건 · 화면 · 체크 · 버튼을 담는다.
       final List<int> termsLines = findLabelLines(_analyticsTermsLabel);
       expect(termsLines, hasLength(1));
       final String termsLine = lines[termsLines.single];
+      expect(termsLine, startsWith('    6. '));
       expect(termsLine, contains('「이 프로젝트에서 Google 애널리틱스 사용 설정」'));
       expect(termsLine, contains('켜 둔 채'));
       expect(termsLine, contains('「Google 애널리틱스 구성」'));
