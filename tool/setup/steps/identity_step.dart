@@ -457,10 +457,14 @@ final class IdentityStep implements Step {
     if (!script.existsSync()) return '$scriptPath 이 없습니다';
     final String content = script.readAsStringSync();
     final int nameStart = applicationId.lastIndexOf('.');
+    // 점이 없는 앱 ID 는 org 가 없다 — 그때는 앱 ID 를 그대로 기대한다.
+    final String org = nameStart < 0
+        ? ''
+        : applicationId.substring(0, nameStart);
+    final String name = applicationId.substring(nameStart + 1);
     final String expectedIos = nameStart < 0
         ? applicationId
-        : '${applicationId.substring(0, nameStart)}.'
-              '${rename.toLowerCamelCase(applicationId.substring(nameStart + 1))}';
+        : '$org.${rename.toLowerCamelCase(name)}';
     for (final (String key, String expected) in <(String, String)>[
       (androidPrefixKey, applicationId),
       (iosPrefixKey, expectedIos),
