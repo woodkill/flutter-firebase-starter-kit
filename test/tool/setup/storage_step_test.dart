@@ -338,16 +338,21 @@ void main() {
     });
 
     test('T-19-BUCKET-08 요청 실패 전용 모드는 안내가 붙지 않는다', () async {
+      const RestResponse failure = RestResponse(500, '{"error":"boom"}');
       final FakeRestClient rest = FakeRestClient()
-        ..on('GET', bucketUrl, const RestResponse(500, '{"error":"boom"}'));
+        ..on('GET', bucketUrl, failure);
       final FakeCommandRunner runner = FakeCommandRunner();
       final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runStorageStep(runner, rest, terminal);
 
       final String output = terminal.output.toString();
+      final String reason =
+          '기본 bucket 을 확인하지 못했습니다 — ${describeRestStatus(failure)}';
       expect(code, wizardExitStopped);
-      expect(output, contains('▶ ${StorageStep.stepTitle}'));
+      // 단계 머리 사유가 제목의 모드를 고정한다 — 안내 없는 다른 모드로
+      // 바뀌어도 통과하지 않게 한다.
+      expect(output, contains('▶ ${StorageStep.stepTitle}\n  $reason'));
       expect(output.contains('    $costlyStepNotice'), isFalse);
     });
   });

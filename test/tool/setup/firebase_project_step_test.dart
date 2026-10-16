@@ -1099,8 +1099,11 @@ void main() {
       final int code = await runProjectStep(runner, terminal);
 
       final String output = terminal.output.toString();
+      const String reason = '$existingId 가 내 계정의 Firebase 프로젝트 목록에 없습니다';
       expect(code, wizardExitStopped);
-      expect(output, contains('▶ ${FirebaseProjectStep.stepTitle}'));
+      // 단계 머리 사유가 제목의 모드를 고정한다 — 안내 없는 다른 모드로
+      // 바뀌어도 통과하지 않게 한다.
+      expect(output, contains('▶ ${FirebaseProjectStep.stepTitle}\n  $reason'));
       expect(output.contains('    $costlyStepNotice'), isFalse);
     });
   });
