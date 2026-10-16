@@ -152,8 +152,8 @@ final class HttpRestClient implements RestClient {
   /// [tokens] 로 토큰을 읽고 [terminal] · [log] 에 요청을 남기는 실행기를 만든다.
   ///
   /// [httpClient] 를 주지 않으면 연결 제한 시간 [connectionTimeout] 의 새
-  /// 클라이언트를 쓴다. [responseTimeout] 은 연결 뒤 응답 머리 · 본문을 각각
-  /// 기다리는 상한이다.
+  /// 클라이언트를 쓴다. [responseTimeout] 은 연결 뒤 응답 머리를 기다리는
+  /// 상한이자 본문 조각 사이 간격의 상한이다.
   HttpRestClient({
     required this.tokens,
     required this.terminal,
@@ -172,7 +172,10 @@ final class HttpRestClient implements RestClient {
   /// 실행 기록.
   final LogSink log;
 
-  /// 연결 뒤 응답 머리 · 본문을 각각 기다리는 상한.
+  /// 연결 뒤 응답 머리를 기다리는 상한이자 본문 조각 사이 간격의 상한.
+  ///
+  /// 본문은 전체 시간이 아니라 조각이 올 때마다 다시 잰다 — 느리게라도 계속
+  /// 오는 본문은 끊지 않고, 조각이 이 시간만큼 오지 않으면 끊는다.
   final Duration responseTimeout;
 
   final HttpClient _http;
@@ -227,10 +230,12 @@ final class HttpRestClient implements RestClient {
       final HttpClientResponse response = await httpRequest.close().timeout(
         responseTimeout,
       );
+      // 본문 상한은 스트림에 건다 — 상한에서 들어온 오류로 join 이 구독을
+      // 취소해 응답 연결이 닫힌다. 머리를 받은 뒤라 abort() 는 효과가 없다.
       final String text = await response
           .transform(const Utf8Decoder(allowMalformed: true))
-          .join()
-          .timeout(responseTimeout);
+          .timeout(responseTimeout)
+          .join();
       log
         ..write('rest', '$target → ${response.statusCode}')
         ..write(
@@ -243,6 +248,7 @@ final class HttpRestClient implements RestClient {
       log.write('rest', '$target → 요청 실패 $e');
       return const RestResponse(0, '');
     } on TimeoutException {
+      // 머리 단계 상한이면 연결을 끊는다 — 본문 단계는 구독 취소로 이미 닫혔다.
       openedRequest?.abort();
       terminal.writeLine(responseTimeoutMessage);
       log.write(

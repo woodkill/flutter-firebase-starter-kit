@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -24,6 +25,15 @@ const String tokenExpression = r'$(gcloud auth print-access-token)';
 /// [haystack] 에서 [needle] 이 나타나는 횟수를 센다.
 int countText(String haystack, String needle) =>
     haystack.split(needle).length - 1;
+
+/// 머리와 본문 앞 조각(chunked)만 보내고 나머지를 멈춘 응답 원문.
+const String stalledBodyResponse =
+    'HTTP/1.1 200 OK\r\n'
+    'content-type: application/json\r\n'
+    'transfer-encoding: chunked\r\n'
+    '\r\n'
+    '5\r\n'
+    '{"a":\r\n';
 
 /// 로컬 서버가 받은 요청 한 건.
 final class ReceivedRequest {
@@ -249,6 +259,72 @@ void main() {
       contains(HttpRestClient.responseTimeoutMessage),
     );
     expect(log.lines, contains('[rest] GET $url → 응답 없음 (200ms)'));
+  });
+
+  test('T-19-REST-07: 머리 뒤 본문이 멈추면 상한에서 끊고 응답 연결을 닫는다', () async {
+    // HttpServer 는 응답을 쥔 처리기가 있으면 클라이언트 쪽 닫힘을 연결 수에
+    // 바로 반영하지 않는다 — 원시 소켓 서버로 연결이 닫히는 순간을 직접 본다.
+    final ServerSocket rawServer = await ServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final Completer<void> clientClosed = Completer<void>();
+    final List<Socket> accepted = <Socket>[];
+    rawServer.listen((Socket socket) {
+      accepted.add(socket);
+      socket.done.ignore();
+      bool isResponseSent = false;
+      socket.listen(
+        (List<int> data) {
+          if (isResponseSent) return;
+          isResponseSent = true;
+          socket.write(stalledBodyResponse);
+        },
+        onDone: () {
+          if (!clientClosed.isCompleted) clientClosed.complete();
+        },
+        onError: (Object error) {
+          if (!clientClosed.isCompleted) clientClosed.complete();
+        },
+      );
+    });
+    addTearDown(() async {
+      for (final Socket socket in accepted) {
+        socket.destroy();
+      }
+      await rawServer.close();
+    });
+    runner.on(
+      tokenCommandKey,
+      CommandResult(0, '${buildFakeAccessToken()}\n', ''),
+    );
+    final HttpRestClient slowClient = HttpRestClient(
+      tokens: AccessTokenSource(runner, redactor),
+      terminal: terminal,
+      log: log,
+      responseTimeout: const Duration(milliseconds: 200),
+    );
+    addTearDown(slowClient.close);
+    final String host = '${rawServer.address.address}:${rawServer.port}';
+    final Uri url = Uri.parse('http://$host/v1/projects/demo-p/stalled-body');
+
+    final RestResponse response = await slowClient.send(
+      RestRequest(method: 'GET', url: url, quotaProject: 'demo-p'),
+    );
+
+    expect(response.statusCode, 0);
+    expect(response.body, isEmpty);
+    expect(
+      screen.output.toString(),
+      contains(HttpRestClient.responseTimeoutMessage),
+    );
+    expect(log.lines, contains('[rest] GET $url → 응답 없음 (200ms)'));
+    // 클라이언트를 닫기 전에 연결이 닫혀야 한다 — 상한 뒤에도 본문 구독이
+    // 남으면 연결은 클라이언트를 닫을 때까지 열려 있다.
+    await expectLater(
+      clientClosed.future.timeout(const Duration(seconds: 2)),
+      completes,
+    );
   });
 
   test('T-19-REST-05: FakeRestClient 는 등록 안 된 요청에 StateError', () async {
