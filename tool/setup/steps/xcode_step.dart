@@ -79,8 +79,8 @@ final class XcodeStep implements Step {
     if (_state.isRestUnchecked) {
       return const Todo('Xcode 선택 필요(선택 뒤 나머지를 검사합니다)');
     }
+    // isRestUnchecked 가 아니면 _inspect 가 선택된 상태만 돌려준다.
     final List<String> missing = <String>[
-      if (!_state.isSelected) 'Xcode 선택 필요',
       if (!_state.isLicenseAccepted) '라이선스 동의 필요',
       if (!_state.isFirstLaunchDone) '첫 실행 준비 필요',
       if (!_state.hasIosRuntime) 'iOS 시뮬레이터 런타임 없음',
