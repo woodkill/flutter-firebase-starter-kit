@@ -1066,6 +1066,45 @@ void main() {
     },
   );
 
+  group('T-19-PROJ-17 값 표 재확인 안내는 확인 표를 보이는 모드에서만 붙는다', () {
+    test('T-19-PROJ-17 Firebase 추가 모드는 안내가 붙는다', () async {
+      writeProjectFixture(
+        root,
+        projectId: existingId,
+        aliases: matchingAliases,
+      );
+      final FakeCommandRunner runner = buildAddFirebaseRunner(
+        lists: <CommandResult>[listWithout],
+      );
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['n']);
+
+      final int code = await runProjectStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('▶ ${FirebaseProjectStep.stepTitle}'));
+      expect(output.contains('    $costlyStepNotice'), isTrue);
+    });
+
+    test('T-19-PROJ-17 내 목록에 없는 실패 전용 모드는 안내가 붙지 않는다', () async {
+      writeProjectFixture(root, projectId: existingId);
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(
+          _projectsListKey,
+          buildProjectsResult(const <String, String>{'other-dev': 'Other'}),
+        )
+        ..on(describeKey(existingId), _notFound);
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+
+      final int code = await runProjectStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('▶ ${FirebaseProjectStep.stepTitle}'));
+      expect(output.contains('    $costlyStepNotice'), isFalse);
+    });
+  });
+
   test('buildDevSteps 는 로그인 다음에 프로젝트 단계를 둔다', () {
     final List<String> ids = buildDevSteps()
         .map((Step step) => step.id)

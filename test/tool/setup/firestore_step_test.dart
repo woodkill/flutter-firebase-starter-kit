@@ -382,6 +382,38 @@ void main() {
     expect(runner.countMode(RunMode.stream), 0);
   });
 
+  group('T-19-LOC-09 값 표 재확인 안내는 확인 표를 보이는 모드에서만 붙는다', () {
+    test('T-19-LOC-09 데이터베이스 만들기 모드는 안내가 붙는다', () async {
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(describeKey, notFound);
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['n']);
+
+      final int code = await runFirestoreStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('▶ ${FirestoreStep.stepTitle}'));
+      expect(output.contains('    $costlyStepNotice'), isTrue);
+    });
+
+    test('T-19-LOC-09 리전 맞추기 모드는 표 없이 고르기만 하므로 안내가 붙지 않는다', () async {
+      // region.ts 값을 config 와 다르게 만들어 세 곳 불일치 상태를 만든다.
+      regionTs.writeAsStringSync('export const REGION = "us-central1";\n');
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(describeKey, buildLocation('asia-northeast3'));
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['n']);
+
+      final int code = await runFirestoreStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('▶ ${FirestoreStep.stepTitle}'));
+      expect(output, contains('Functions 리전을 골라 세 파일에 같은 값을 씁니다'));
+      expect(output.contains('    $costlyStepNotice'), isFalse);
+      expect(runner.countMode(RunMode.stream), 0);
+    });
+  });
+
   test('describe 가 「없음」 밖의 이유로 실패하면 첫 줄을 사유로 보이고 만들지 않는다', () async {
     const String denied =
         'ERROR: (gcloud.firestore.databases.describe) PERMISSION_DENIED: '

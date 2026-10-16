@@ -24,6 +24,8 @@ final String kitKotlinDir =
 /// 이름 바꾸기 규칙대로 [applicationId] 에서 iOS 번들 ID prefix 를 만든다.
 String buildIosBundleIdPrefix(String applicationId) {
   final int nameStart = applicationId.lastIndexOf('.');
+  // 점이 없는 앱 ID 는 org 가 없어 그대로 쓴다.
+  if (nameStart < 0) return applicationId;
   return '${applicationId.substring(0, nameStart)}.'
       '${rename.toLowerCamelCase(applicationId.substring(nameStart + 1))}';
 }
@@ -586,6 +588,70 @@ void main() {
         expect(output.contains('    $costlyStepNotice'), hasNotice);
       });
     }
+  });
+
+  group('T-19-ID-15 점 없는 앱 ID 는 예외 없이 스크립트 상수만 대조하고 잔여 대조는 건너뛴다', () {
+    const String dotlessId = 'myapp';
+    const String stgPlaceholder = 'android/app/src/stg/google-services.json';
+
+    /// 표시 이름까지 바뀐 점 없는 앱 ID 저장소와 킷 값 placeholder 잔여를 만든다.
+    void writeDotlessFixture() {
+      writeIdentityFixture(root, applicationId: dotlessId);
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        'appName',
+        'My App Dev',
+      );
+      replaceXcconfigValue(
+        '$root/${UserFilesStep.xcconfigUserPath}',
+        'DISPLAY_NAME',
+        'My App Dev',
+      );
+      File(stgPlaceholder).copySync(
+        (File(
+          '$root/$stgPlaceholder',
+        )..parent.createSync(recursive: true)).path,
+      );
+    }
+
+    test('T-19-ID-15 상수가 앱 ID 와 같으면 잔여가 있어도 ✓', () async {
+      writeDotlessFixture();
+      expect(
+        readFile(stgPlaceholder),
+        contains('"package_name": "${rename.currentAndroidPackage}.stg"'),
+      );
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+
+      final int code = await runIdentityStep(FakeCommandRunner(), terminal);
+
+      expect(code, wizardExitDone);
+      expect(
+        terminal.output.toString(),
+        contains('  ✓ 앱 정체성 — Android 앱 ID $dotlessId'),
+      );
+      expect(terminal.asks, isEmpty);
+    });
+
+    test('T-19-ID-15 iOS prefix 상수가 앱 ID 와 다르면 기대값이 앱 ID 인 사유로 ✗', () async {
+      writeDotlessFixture();
+      File('$root/scripts/firebase-configure.sh').writeAsStringSync(
+        buildConfigureScript(
+          iosBundleIdPrefix: 'com.other.app',
+          androidPackagePrefix: dotlessId,
+        ),
+      );
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+
+      final int code = await runIdentityStep(FakeCommandRunner(), terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('앱 정체성이 파일마다 다릅니다'));
+      expect(
+        output,
+        contains('IOS_BUNDLE_ID_PREFIX 가 com.other.app 입니다(기대 $dotlessId)'),
+      );
+    });
   });
 
   group('T-19-ID-09 이동할 Kotlin 디렉터리 안의 변경', () {

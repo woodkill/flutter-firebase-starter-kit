@@ -320,6 +320,38 @@ void main() {
     expect(output, contains('x-goog-user-project: $projectId'));
   });
 
+  group('T-19-BUCKET-08 값 표 재확인 안내는 확인 표를 보이는 모드에서만 붙는다', () {
+    test('T-19-BUCKET-08 bucket 만들기 모드는 안내가 붙는다', () async {
+      final FakeRestClient rest = FakeRestClient()
+        ..on('GET', bucketUrl, bucketMissing);
+      final FakeCommandRunner runner = FakeCommandRunner()
+        ..on(describeKey, buildLocation('asia-northeast3'));
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['n']);
+
+      final int code = await runStorageStep(runner, rest, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('▶ ${StorageStep.stepTitle}'));
+      expect(output.contains('    $costlyStepNotice'), isTrue);
+      expect(rest.countRequests('POST', bucketUrl), 0);
+    });
+
+    test('T-19-BUCKET-08 요청 실패 전용 모드는 안내가 붙지 않는다', () async {
+      final FakeRestClient rest = FakeRestClient()
+        ..on('GET', bucketUrl, const RestResponse(500, '{"error":"boom"}'));
+      final FakeCommandRunner runner = FakeCommandRunner();
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+
+      final int code = await runStorageStep(runner, rest, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('▶ ${StorageStep.stepTitle}'));
+      expect(output.contains('    $costlyStepNotice'), isFalse);
+    });
+  });
+
   test('buildDevSteps 는 위치 · Firestore 다음에 기본 bucket 단계를 둔다', () {
     final List<String> ids = buildDevSteps()
         .map((Step step) => step.id)
