@@ -96,7 +96,12 @@ abstract interface class Step {
   /// 이 단계보다 먼저 끝나야 하는 단계의 [id] 목록.
   List<String> get dependsOn;
 
-  /// 비용이 들거나 되돌릴 수 없는 선택을 포함하면 true.
+  /// 직전 [check] 판정(현재 모드)으로 실행하면 비용이 들거나 되돌릴 수 없는
+  /// 선택의 값 표(확인 표)를 보일 수 있으면 true.
+  ///
+  /// 위저드는 이 값이 true 일 때 계획 줄 끝에 값 표 재확인 안내를 붙인다. 같은
+  /// 단계라도 값 표 없이 끝나는 모드(실패 전용 · 표시 이름만 쓰기 등)에서는
+  /// false 를 돌려준다 — 보인 안내와 실제 실행이 어긋나지 않게 한다.
   bool get isCostlyOrIrreversible;
 
   /// 읽기 전용으로 상태를 검사한다 — [Done] · [Todo] 만 돌려준다.

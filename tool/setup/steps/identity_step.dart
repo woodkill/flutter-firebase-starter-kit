@@ -116,8 +116,10 @@ final class IdentityStep implements Step {
   @override
   List<String> get dependsOn => const <String>['user_files'];
 
+  // 확인 표는 org · name 부터 진행하는 모드에서만 보인다 — 표시 이름만 쓰는
+  // 모드 · 실패 전용 모드에는 안내가 붙지 않는다.
   @override
-  bool get isCostlyOrIrreversible => true;
+  bool get isCostlyOrIrreversible => _mode == _IdentityMode.full;
 
   @override
   Future<CheckResult> check(WizardContext context) async {

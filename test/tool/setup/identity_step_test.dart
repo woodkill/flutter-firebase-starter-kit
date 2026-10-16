@@ -503,6 +503,36 @@ void main() {
     );
   });
 
+  group('T-19-ID-14 값 표 재확인 안내는 org · name 부터 진행할 때만 붙는다', () {
+    for (final (
+          String label,
+          String applicationId,
+          String reason,
+          bool hasNotice,
+        )
+        in <(String, String, String, bool)>[
+          (
+            '앱 ID 가 킷 기본값',
+            rename.currentAndroidPackage,
+            'Android 앱 ID 가 킷 기본값입니다',
+            true,
+          ),
+          ('표시 이름만 기본값', 'com.acme.my_app', '표시 이름이 킷 기본값입니다', false),
+        ]) {
+      test('T-19-ID-14 $label', () async {
+        writeIdentityFixture(root, applicationId: applicationId);
+        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+
+        final int code = await runIdentityStep(FakeCommandRunner(), terminal);
+
+        final String output = terminal.output.toString();
+        expect(code, wizardExitStopped);
+        expect(output, contains('▶ 앱 정체성\n  $reason'));
+        expect(output.contains('    $costlyStepNotice'), hasNotice);
+      });
+    }
+  });
+
   group('T-19-ID-09 이동할 Kotlin 디렉터리 안의 변경', () {
     test('T-19-ID-09 디렉터리 안 파일이 바뀌어 있으면 그 경로를 보이고 멈춘다', () async {
       writeIdentityFixture(root);

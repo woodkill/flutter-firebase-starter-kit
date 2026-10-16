@@ -278,6 +278,27 @@ void main() {
     expect(runner.countMode(RunMode.stream), 0);
   });
 
+  group('T-19-BILL-07 값 표 재확인 안내는 확인 표를 보이는 모드에서만 붙는다', () {
+    for (final (String label, CommandResult info, bool hasNotice)
+        in <(String, CommandResult, bool)>[
+          ('결제 계정 연결', buildBillingInfo(isEnabled: false), true),
+          ('결제 정보 읽기 실패', const CommandResult(1, '', 'ERROR: denied'), false),
+        ]) {
+      test('T-19-BILL-07 $label', () async {
+        final FakeCommandRunner runner = FakeCommandRunner()
+          ..on(_billingInfoKey, info);
+        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+
+        final int code = await runBillingStep(runner, terminal);
+
+        final String output = terminal.output.toString();
+        expect(code, wizardExitStopped);
+        expect(output, contains('▶ ${BillingStep.stepTitle}'));
+        expect(output.contains('    $costlyStepNotice'), hasNotice);
+      });
+    }
+  });
+
   test('T-19-BILL-05 연결 실패 출력에 quota 가 있으면 원문과 한도 안내 링크를 보인다', () async {
     const String quota =
         'ERROR: (gcloud.billing.projects.link) FAILED_PRECONDITION: '

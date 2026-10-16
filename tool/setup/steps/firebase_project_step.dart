@@ -142,8 +142,11 @@ final class FirebaseProjectStep implements Step {
   @override
   List<String> get dependsOn => const <String>['login', 'identity'];
 
+  // 확인 표는 새로 만들기(고르기 모드 안) · Firebase 추가에서만 보인다 — 별칭
+  // 쓰기 · 실패 전용 모드에는 안내가 붙지 않는다.
   @override
-  bool get isCostlyOrIrreversible => true;
+  bool get isCostlyOrIrreversible =>
+      _mode == _ProjectMode.choose || _mode == _ProjectMode.addFirebase;
 
   /// [value] 가 프로젝트 ID 규칙에 맞으면 true.
   static bool isValidProjectId(String value) =>

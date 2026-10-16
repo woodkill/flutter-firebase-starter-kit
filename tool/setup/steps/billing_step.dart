@@ -111,8 +111,9 @@ final class BillingStep implements Step {
   @override
   List<String> get dependsOn => const <String>['firebase_project'];
 
+  // 확인 표는 결제 계정 연결에서만 보인다 — 실패 전용 모드에는 안내가 붙지 않는다.
   @override
-  bool get isCostlyOrIrreversible => true;
+  bool get isCostlyOrIrreversible => _mode == _BillingMode.link;
 
   @override
   Future<CheckResult> check(WizardContext context) async {

@@ -175,8 +175,10 @@ final class FirestoreStep implements Step {
   @override
   List<String> get dependsOn => const <String>['apis'];
 
+  // 확인 표는 데이터베이스 만들기에서만 보인다 — 리전 맞추기는 위치를 바꾸지
+  // 않아 표 없이 고르기만 하고, 실패 전용 모드에는 안내가 붙지 않는다.
   @override
-  bool get isCostlyOrIrreversible => true;
+  bool get isCostlyOrIrreversible => _mode == _FirestoreMode.create;
 
   @override
   Future<CheckResult> check(WizardContext context) async {
