@@ -18,7 +18,8 @@ import 'user_files_step.dart';
 /// 계산 · 검증 · 변경은 `bin/rename.dart` 의 공개 함수를 그대로 부른다. 확인은
 /// 단계 진행 확인과 값 요약 표 한 번으로 끝나고 rename 도구 자체의 확인 질문은
 /// 거치지 않는다. 표시 이름은 rename 뒤 사용자 파일의 `appName` · `DISPLAY_NAME`
-/// 에 위저드가 직접 쓴다.
+/// 에 위저드가 직접 쓴다. 앱 ID 가 이미 바뀐 저장소에서 사용자 xcconfig 에 남은
+/// 킷 번들 ID 는 묻지 않고 앱 ID 에 맞춘다.
 final class IdentityStep implements Step {
   /// 앱 정체성 단계를 만든다.
   IdentityStep();
@@ -107,6 +108,9 @@ final class IdentityStep implements Step {
   String _reason = '';
   String _applicationId = '';
 
+  /// 직전 검사가 모은 사용자 xcconfig 의 킷 번들 ID 줄 변경.
+  List<rename.FileChange> _xcconfigResidue = const <rename.FileChange>[];
+
   @override
   String get id => 'identity';
 
@@ -117,12 +121,14 @@ final class IdentityStep implements Step {
   List<String> get dependsOn => const <String>['user_files'];
 
   // 확인 표는 org · name 부터 진행하는 모드에서만 보인다 — 표시 이름만 쓰는
-  // 모드 · 실패 전용 모드에는 안내가 붙지 않는다.
+  // 모드 · 번들 ID 만 맞추는 모드 · 실패 전용 모드에는 안내가 붙지 않는다.
   @override
   bool get isCostlyOrIrreversible => _mode == _IdentityMode.full;
 
   @override
   Future<CheckResult> check(WizardContext context) async {
+    // 이전 검사의 잔여를 들고 가지 않는다 — 아래 판정이 다시 채운다.
+    _xcconfigResidue = const <rename.FileChange>[];
     final String? applicationId = readGradleApplicationId(
       context.resolve(gradlePath),
     );
@@ -140,17 +146,30 @@ final class IdentityStep implements Step {
     // 이름 바꾸기는 Gradle 줄을 가장 먼저 쓰므로, 뒤에 쓰는 스크립트 상수와
     // 마지막에 쓰는 placeholder 까지 같은 정체성인지 봐야 중간에 끊긴 상태를
     // 끝난 것으로 보지 않는다.
+    final String? scriptMismatch = _findScriptMismatch(context, _applicationId);
+    final _RenameResidue residue = scriptMismatch == null
+        ? _collectRenameResidue(context, _applicationId)
+        : _noRenameResidue;
     final String? mismatch =
-        _findScriptMismatch(context, _applicationId) ??
-        _findRenameResidue(context, _applicationId);
+        scriptMismatch ?? _describeTrackedResidue(context, residue.tracked);
     if (mismatch != null) {
       _mode = _IdentityMode.inconsistent;
       _reason = '앱 정체성이 파일마다 다릅니다 — $mismatch. $inconsistentGuidance';
       return Todo(_reason);
     }
+    _xcconfigResidue = residue.userXcconfig;
     if (_isDisplayNameDefault(context)) {
       _mode = _IdentityMode.displayNameOnly;
       _reason = '표시 이름이 킷 기본값입니다';
+      return Todo(_reason);
+    }
+    if (_xcconfigResidue.isNotEmpty) {
+      final String paths = _listTargetPaths(
+        context,
+        _xcconfigResidue,
+      ).join(' · ');
+      _mode = _IdentityMode.bundleIdOnly;
+      _reason = '$paths 의 번들 ID 가 킷 기본값입니다';
       return Todo(_reason);
     }
     _mode = _IdentityMode.done;
@@ -163,6 +182,10 @@ final class IdentityStep implements Step {
       '(${UserFilesStep.jsonUserPath} 의 appName 을 표시 이름으로 바꿈)',
       '(${UserFilesStep.xcconfigUserPath} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
     ];
+    final List<String> bundleIdLines = <String>[
+      for (final String path in _listTargetPaths(context, _xcconfigResidue))
+        '($path 의 PRODUCT_BUNDLE_IDENTIFIER 를 앱 ID 에 맞춤)',
+    ];
     return switch (_mode) {
       _IdentityMode.full => <String>[
         '(org · name 을 묻고 미리보기와 확인 표를 보인 뒤 아래와 같은 일을 합니다)',
@@ -170,7 +193,11 @@ final class IdentityStep implements Step {
             '--project-prefix <prefix> --apply --yes',
         ...displayNameLines,
       ],
-      _IdentityMode.displayNameOnly => displayNameLines,
+      _IdentityMode.displayNameOnly => <String>[
+        ...bundleIdLines,
+        ...displayNameLines,
+      ],
+      _IdentityMode.bundleIdOnly => bundleIdLines,
       _IdentityMode.unreadable ||
       _IdentityMode.inconsistent ||
       _IdentityMode.done => const <String>[],
@@ -184,6 +211,7 @@ final class IdentityStep implements Step {
       return switch (_mode) {
         _IdentityMode.full => await _applyFull(context),
         _IdentityMode.displayNameOnly => _applyDisplayNameOnly(context),
+        _IdentityMode.bundleIdOnly => _applyBundleIdOnly(),
         _IdentityMode.unreadable ||
         _IdentityMode.inconsistent => Failed(_reason),
         _IdentityMode.done => const Applied(),
@@ -299,7 +327,11 @@ final class IdentityStep implements Step {
     return const Applied();
   }
 
-  /// 표시 이름만 묻고 두 사용자 파일에 쓴다 — rename 은 부르지 않는다.
+  /// 표시 이름만 묻고 두 사용자 파일에 쓴다 — 추적 파일 이름 바꾸기는 하지
+  /// 않는다.
+  ///
+  /// 직전 검사가 모은 사용자 xcconfig 의 킷 번들 ID 도 표시 이름이 정해진 뒤
+  /// 함께 맞춘다 — 거절하면 아무 파일도 바꾸지 않는다.
   StepOutcome _applyDisplayNameOnly(WizardContext context) {
     final String jsonPath = context.resolve(UserFilesStep.jsonUserPath);
     final String xcconfigPath = context.resolve(UserFilesStep.xcconfigUserPath);
@@ -322,7 +354,17 @@ final class IdentityStep implements Step {
     if (displayName.isEmpty) {
       return const Failed('표시 이름 형식이 맞지 않아 진행하지 않았습니다');
     }
+    rename.applyChanges(_xcconfigResidue);
     _writeDisplayName(jsonPath, xcconfigPath, displayName);
+    return const Applied();
+  }
+
+  /// 직전 검사가 모은 사용자 xcconfig 의 킷 번들 ID 줄만 앱 ID 에 맞춘다.
+  ///
+  /// 값은 앱 ID 에서 정해지므로 묻지 않는다. gitignored 사용자 파일이라 깨끗함
+  /// 검사도 하지 않는다.
+  StepOutcome _applyBundleIdOnly() {
+    rename.applyChanges(_xcconfigResidue);
     return const Applied();
   }
 
@@ -482,39 +524,55 @@ final class IdentityStep implements Step {
     return null;
   }
 
-  /// 이름 바꾸기 대상 가운데 아직 킷 옛 값을 담은 추적 파일을 찾는다.
+  /// 이름 바꾸기 대상 가운데 아직 킷 옛 값을 담은 곳을 추적 파일 몫과 사용자
+  /// xcconfig 몫으로 나눠 모은다.
   ///
-  /// [applicationId] 를 org · name 으로 나눠 `rename.collectChanges` 를 부르면
-  /// 각 수집기가 옛 값이 남은 대상만 돌려준다 — 끝난 저장소는 빈 목록이다.
-  /// gitignored 사용자 파일(config appName · xcconfig 번들 ID)은 거른다 —
-  /// appName 수집은 옛 값과 관계없이 표시 이름이 다르면 늘 등록하고, xcconfig
-  /// 는 example 에서 새로 만든 파일이면 킷 번들 ID 를 담는데 git restore 로
-  /// 되돌릴 수 없다. 두 파일은 스크립트 상수보다 먼저 쓰므로 그 사이 끊김은
-  /// [_findScriptMismatch] 가 잡는다. 프로젝트 prefix 는 사용자가 고른 값이라
-  /// 킷 값을 넘겨 변경 없음으로 빠지게 한다. 남은 파일을 설명하는 문장을,
-  /// 없으면 null 을 돌려준다.
-  String? _findRenameResidue(WizardContext context, String applicationId) {
+  /// [applicationId] 를 org · name 으로 나눠 `rename.collectChanges` 를 한 번
+  /// 부르면 각 수집기가 옛 값이 남은 대상만 돌려준다 — 끝난 저장소는 둘 다
+  /// 빈 목록이다. 사용자 config appName 은 옛 값과 관계없이 표시 이름이 다르면
+  /// 늘 등록하므로 버린다(표시 이름은 [_isDisplayNameDefault] 가 따로 본다).
+  /// 사용자 xcconfig 번들 ID 는 추적 파일 몫에서 빼서 따로 돌려준다 — 사용자
+  /// 파일 잔여는 위저드가 직접 맞춘다. 있는 파일만 수집되므로 없는 stg · prod
+  /// 사용자 파일은 건너뛴다. 프로젝트 prefix 는 사용자가 고른 값이라 킷 값을
+  /// 넘겨 변경 없음으로 빠지게 한다.
+  _RenameResidue _collectRenameResidue(
+    WizardContext context,
+    String applicationId,
+  ) {
     final int nameStart = applicationId.lastIndexOf('.');
     // org 가 없는 앱 ID 는 이름 바꾸기 규칙 밖이라 대조하지 않는다.
-    if (nameStart <= 0) return null;
-    final Set<String> userFilePaths = <String>{
+    if (nameStart <= 0) return _noRenameResidue;
+    final Set<String> configPaths = <String>{
       for (final String fileName in rename.userConfigFileNames)
         context.resolve('config/$fileName'),
+    };
+    final Set<String> xcconfigPaths = <String>{
       for (final String fileName in rename.userXcconfigFileNames)
         context.resolve('ios/Flutter/$fileName'),
     };
-    final List<rename.FileChange> residue = rename
-        .collectChanges(
-          context.projectRoot,
-          applicationId.substring(0, nameStart),
-          applicationId.substring(nameStart + 1),
-          projectIdPrefix: rename.currentProjectIdPrefix,
-        )
-        .where(
-          (rename.FileChange change) =>
-              !userFilePaths.contains(change.filePath),
-        )
-        .toList();
+    final List<rename.FileChange> tracked = <rename.FileChange>[];
+    final List<rename.FileChange> userXcconfig = <rename.FileChange>[];
+    for (final rename.FileChange change in rename.collectChanges(
+      context.projectRoot,
+      applicationId.substring(0, nameStart),
+      applicationId.substring(nameStart + 1),
+      projectIdPrefix: rename.currentProjectIdPrefix,
+    )) {
+      if (configPaths.contains(change.filePath)) continue;
+      if (xcconfigPaths.contains(change.filePath)) {
+        userXcconfig.add(change);
+      } else {
+        tracked.add(change);
+      }
+    }
+    return (tracked: tracked, userXcconfig: userXcconfig);
+  }
+
+  /// 추적 파일 잔여 [residue] 를 설명하는 문장을 만든다 — 없으면 null.
+  String? _describeTrackedResidue(
+    WizardContext context,
+    List<rename.FileChange> residue,
+  ) {
     if (residue.isEmpty) return null;
     final String paths = _listTargetPaths(context, residue).join(' · ');
     return '옛 앱 ID 가 남은 파일: $paths';
@@ -554,8 +612,12 @@ enum _IdentityMode {
   /// 앱 ID 가 킷 기본값 — org · name 부터 진행.
   full,
 
-  /// 앱 ID 는 바뀌었고 표시 이름만 기본값.
+  /// 앱 ID 는 바뀌었고 표시 이름이 기본값 — 사용자 xcconfig 의 킷 번들 ID 가
+  /// 남았으면 함께 맞춘다.
   displayNameOnly,
+
+  /// 앱 ID · 표시 이름은 바뀌었고 사용자 xcconfig 의 번들 ID 만 킷 값.
+  bundleIdOnly,
 
   /// Gradle 파일에서 앱 ID 를 읽지 못함.
   unreadable,
@@ -567,3 +629,15 @@ enum _IdentityMode {
   /// 끝남.
   done,
 }
+
+/// 이름 바꾸기 잔여 — 추적 파일 몫과 사용자 xcconfig 번들 ID 몫.
+typedef _RenameResidue = ({
+  List<rename.FileChange> tracked,
+  List<rename.FileChange> userXcconfig,
+});
+
+/// 대조하지 않았거나 남은 것이 없는 잔여.
+const _RenameResidue _noRenameResidue = (
+  tracked: <rename.FileChange>[],
+  userXcconfig: <rename.FileChange>[],
+);

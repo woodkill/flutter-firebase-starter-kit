@@ -401,10 +401,31 @@ void main() {
         ),
         'Acme Studio',
       );
-      // rename 을 부르지 않았다 — 앱 ID 파일 · 상수가 그대로이고 git 검사도 없다.
+      // 추적 파일 이름 바꾸기는 하지 않았다 — 앱 ID 파일 · 상수가 그대로이고
+      // git 검사도 없다.
       expect(readFile(IdentityStep.gradlePath), gradleBefore);
       expect(readFile('scripts/firebase-configure.sh'), configureBefore);
       expect(runner.calls, isEmpty);
+      // example 에서 복사한 사용자 xcconfig 의 킷 번들 ID 는 앱 ID 에 맞춘다.
+      expect(
+        readXcconfigValue(
+          '$root/${UserFilesStep.xcconfigUserPath}',
+          'PRODUCT_BUNDLE_IDENTIFIER',
+        ),
+        'com.acme.myApp.dev',
+      );
+    });
+
+    test('T-19-ID-06 표시 이름 입력이 끝나면 번들 ID 도 바꾸지 않는다', () async {
+      writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+      final Map<String, List<int>> before = snapshotTree(root);
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+
+      final int code = await runIdentityStep(FakeCommandRunner(), terminal);
+
+      expect(code, wizardExitStopped);
+      expect(countAsks(terminal, IdentityStep.displayNameQuestion), 1);
+      expect(snapshotTree(root), before);
     });
 
     test('T-19-ID-06 Enter 면 앱 ID 에서 계산한 표시 이름을 쓴다', () async {
@@ -420,6 +441,115 @@ void main() {
       expect(
         readJsonString('$root/${UserFilesStep.jsonUserPath}', 'appName'),
         'My App Dev',
+      );
+    });
+  });
+
+  group('T-19-ID-16 표시 이름은 이미 바뀌고 사용자 xcconfig 번들 ID 만 킷 값', () {
+    const String stgUserPath = 'ios/Flutter/stg.xcconfig';
+    const String prodUserPath = 'ios/Flutter/prod.xcconfig';
+
+    /// 표시 이름까지 바뀐 저장소에 example 복사본 사용자 xcconfig 를 둔다.
+    void writeBundleIdOnlyFixture() {
+      writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        'appName',
+        'My App Dev',
+      );
+      replaceXcconfigValue(
+        '$root/${UserFilesStep.xcconfigUserPath}',
+        'DISPLAY_NAME',
+        'My App Dev',
+      );
+    }
+
+    String? readBundleId(String relativePath) =>
+        readXcconfigValue('$root/$relativePath', 'PRODUCT_BUNDLE_IDENTIFIER');
+
+    test('T-19-ID-16 묻지 않고 있는 파일의 번들 ID 만 맞춘 뒤 다시 검사하면 ✓', () async {
+      writeBundleIdOnlyFixture();
+      File('ios/Flutter/stg.example.xcconfig').copySync('$root/$stgUserPath');
+      // 전제: dev · stg 는 킷 번들 ID 이고 prod 사용자 파일은 없다.
+      expect(
+        readBundleId(UserFilesStep.xcconfigUserPath),
+        '${rename.currentIosBundleId}.dev',
+      );
+      expect(readBundleId(stgUserPath), '${rename.currentIosBundleId}.stg');
+      expect(File('$root/$prodUserPath').existsSync(), isFalse);
+      final FakeCommandRunner runner = FakeCommandRunner();
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+      final WizardContext context = buildTestContext(
+        projectRoot: root,
+        runner: runner,
+        terminal: terminal,
+      );
+      final IdentityStep step = IdentityStep();
+
+      final CheckResult before = await step.check(context);
+
+      expect(
+        before,
+        isA<Todo>().having(
+          (Todo todo) => todo.reason,
+          'reason',
+          '${UserFilesStep.xcconfigUserPath} · $stgUserPath '
+              '의 번들 ID 가 킷 기본값입니다',
+        ),
+      );
+      expect(step.isCostlyOrIrreversible, isFalse);
+      final List<String> lines = step.plannedCommandLines(context);
+      expect(lines, hasLength(2));
+      expect(
+        lines.every(
+          (String line) => line.contains('PRODUCT_BUNDLE_IDENTIFIER'),
+        ),
+        isTrue,
+      );
+
+      final StepOutcome outcome = await step.apply(context);
+
+      expect(outcome, isA<Applied>());
+      expect(terminal.asks, isEmpty);
+      expect(runner.calls, isEmpty);
+      expect(
+        readBundleId(UserFilesStep.xcconfigUserPath),
+        'com.acme.myApp.dev',
+      );
+      expect(readBundleId(stgUserPath), 'com.acme.myApp.stg');
+      expect(File('$root/$prodUserPath').existsSync(), isFalse);
+      // 번들 ID 줄 밖은 그대로다.
+      expect(
+        readXcconfigValue(
+          '$root/${UserFilesStep.xcconfigUserPath}',
+          'DISPLAY_NAME',
+        ),
+        'My App Dev',
+      );
+      expect(await step.check(context), isA<Done>());
+    });
+
+    test('T-19-ID-16 위저드에서는 단계 진행 확인만 묻고 실행 뒤 재검사가 ✓', () async {
+      writeBundleIdOnlyFixture();
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+
+      final int code = await runIdentityStep(FakeCommandRunner(), terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitDone);
+      expect(terminal.asks, <String>[stepConfirmQuestion]);
+      expect(
+        output,
+        contains(
+          '▶ 앱 정체성\n'
+          '  ${UserFilesStep.xcconfigUserPath} 의 번들 ID 가 킷 기본값입니다',
+        ),
+      );
+      expect(output.contains('    $costlyStepNotice'), isFalse);
+      expect(output, contains('  ✓ 앱 정체성 — Android 앱 ID com.acme.my_app'));
+      expect(
+        readBundleId(UserFilesStep.xcconfigUserPath),
+        'com.acme.myApp.dev',
       );
     });
   });
@@ -514,6 +644,11 @@ void main() {
       'DISPLAY_NAME',
       'My App Dev',
     );
+    replaceXcconfigValue(
+      '$root/${UserFilesStep.xcconfigUserPath}',
+      'PRODUCT_BUNDLE_IDENTIFIER',
+      'com.acme.myApp.dev',
+    );
     final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runIdentityStep(FakeCommandRunner(), terminal);
@@ -557,6 +692,12 @@ void main() {
     expect(
       displayNameLines.where((String line) => line.contains('appName')),
       isNotEmpty,
+    );
+    expect(
+      displayNameLines.where(
+        (String line) => line.contains('PRODUCT_BUNDLE_IDENTIFIER'),
+      ),
+      hasLength(1),
     );
   });
 
