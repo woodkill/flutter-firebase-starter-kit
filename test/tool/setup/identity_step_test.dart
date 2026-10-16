@@ -40,7 +40,9 @@ String buildConfigureScript({
 
 /// [root] 아래에 앱 정체성 단계가 읽고 고치는 파일 fixture 를 쓴다.
 ///
-/// 사용자 설정 파일은 추적되는 example 을 복사해 만든다.
+/// 사용자 설정 파일은 추적되는 example 을 복사해 만든다. [applicationId] 가 킷
+/// 기본값이 아니면 이름 바꾸기가 끝난 추적 파일 모양(Kotlin 디렉터리 이동 ·
+/// pbxproj 번들 ID · 스크립트 상수)으로 쓰고, 킷 Kotlin 디렉터리는 지운다.
 void writeIdentityFixture(
   String root, {
   String applicationId = rename.currentAndroidPackage,
@@ -49,6 +51,18 @@ void writeIdentityFixture(
     File('$root/$relativePath')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync(content);
+  }
+
+  final bool isKitDefault = applicationId == rename.currentAndroidPackage;
+  final String iosBundleIdPrefix = isKitDefault
+      ? rename.currentIosBundleId
+      : buildIosBundleIdPrefix(applicationId);
+  final String kotlinDir = isKitDefault
+      ? kitKotlinDir
+      : 'android/app/src/main/kotlin/${applicationId.replaceAll('.', '/')}';
+  final Directory kitKotlin = Directory('$root/$kitKotlinDir');
+  if (!isKitDefault && kitKotlin.existsSync()) {
+    kitKotlin.deleteSync(recursive: true);
   }
 
   writeFile(
@@ -62,19 +76,17 @@ void writeIdentityFixture(
     '}\n',
   );
   writeFile(
-    '$kitKotlinDir/MainActivity.kt',
-    'package ${rename.currentAndroidPackage}\n\nclass MainActivity\n',
+    '$kotlinDir/MainActivity.kt',
+    'package $applicationId\n\nclass MainActivity\n',
   );
   writeFile(
     'ios/Runner.xcodeproj/project.pbxproj',
-    'PRODUCT_BUNDLE_IDENTIFIER = ${rename.currentIosBundleId}.dev;\n',
+    'PRODUCT_BUNDLE_IDENTIFIER = $iosBundleIdPrefix.dev;\n',
   );
   writeFile(
     'scripts/firebase-configure.sh',
     buildConfigureScript(
-      iosBundleIdPrefix: applicationId == rename.currentAndroidPackage
-          ? rename.currentIosBundleId
-          : buildIosBundleIdPrefix(applicationId),
+      iosBundleIdPrefix: iosBundleIdPrefix,
       androidPackagePrefix: applicationId,
     ),
   );
@@ -446,6 +458,46 @@ void main() {
         expect(runner.calls, isEmpty);
       });
     }
+
+    test('T-19-ID-13 스크립트 상수는 바뀌고 stg placeholder 만 옛 package_name '
+        '이면 ✗ 사유 · 실행은 실패 · 파일 변경 0', () async {
+      const String stgPlaceholder = 'android/app/src/stg/google-services.json';
+      writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        'appName',
+        'My App Dev',
+      );
+      replaceXcconfigValue(
+        '$root/${UserFilesStep.xcconfigUserPath}',
+        'DISPLAY_NAME',
+        'My App Dev',
+      );
+      // 추적 placeholder 원본은 킷 앱 ID 를 담는다 — 6번 쓰기 전에 끊긴 모양.
+      File(stgPlaceholder).copySync(
+        (File(
+          '$root/$stgPlaceholder',
+        )..parent.createSync(recursive: true)).path,
+      );
+      expect(
+        readFile(stgPlaceholder),
+        contains('"package_name": "${rename.currentAndroidPackage}.stg"'),
+      );
+      final Map<String, List<int>> before = snapshotTree(root);
+      final FakeCommandRunner runner = FakeCommandRunner();
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+
+      final int code = await runIdentityStep(runner, terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(output, contains('  ✗ 앱 정체성 — 앱 정체성이 파일마다 다릅니다'));
+      expect(output, contains('옛 앱 ID 가 남은 파일: $stgPlaceholder.'));
+      expect(output, contains(IdentityStep.inconsistentGuidance));
+      expect(output, contains('  실패 — '));
+      expect(snapshotTree(root), before);
+      expect(runner.calls, isEmpty);
+    });
   });
 
   test('T-19-ID-07 이미 끝난 저장소는 ✓ 이고 아무것도 묻지 않는다', () async {
@@ -492,14 +544,17 @@ void main() {
       isNotEmpty,
     );
 
-    // 표시 이름만 남은 저장소는 rename 명령 줄이 없다.
+    // 표시 이름만 남은 저장소는 rename 명령 줄 없이 표시 이름 쓰기 줄만 있다.
     writeIdentityFixture(root, applicationId: 'com.acme.my_app');
     await step.check(context);
+    final List<String> displayNameLines = step.plannedCommandLines(context);
     expect(
-      step
-          .plannedCommandLines(context)
-          .where((String line) => line.contains('bin/rename.dart')),
+      displayNameLines.where((String line) => line.contains('bin/rename.dart')),
       isEmpty,
+    );
+    expect(
+      displayNameLines.where((String line) => line.contains('appName')),
+      isNotEmpty,
     );
   });
 

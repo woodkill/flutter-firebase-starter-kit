@@ -84,7 +84,7 @@ final class IdentityStep implements Step {
   /// configure 스크립트의 iOS 번들 ID prefix 상수 이름.
   static const String iosPrefixKey = 'IOS_BUNDLE_ID_PREFIX';
 
-  /// Gradle 앱 ID 와 configure 스크립트 상수가 어긋났을 때의 안내.
+  /// Gradle 앱 ID 와 configure 스크립트 상수 · 추적 파일이 어긋났을 때의 안내.
   static const String inconsistentGuidance =
       '이름 바꾸기가 중간에 끊겼다면 git status 로 바뀐 파일을 확인하고 '
       'git restore . 로 되돌린 뒤 다시 실행하세요';
@@ -137,9 +137,12 @@ final class IdentityStep implements Step {
       _reason = 'Android 앱 ID 가 킷 기본값입니다 ($_applicationId)';
       return Todo(_reason);
     }
-    // 이름 바꾸기는 Gradle 줄을 가장 먼저 쓰므로, 뒤에 쓰는 스크립트 상수까지
-    // 같은 정체성인지 봐야 중간에 끊긴 상태를 끝난 것으로 보지 않는다.
-    final String? mismatch = _findScriptMismatch(context, _applicationId);
+    // 이름 바꾸기는 Gradle 줄을 가장 먼저 쓰므로, 뒤에 쓰는 스크립트 상수와
+    // 마지막에 쓰는 placeholder 까지 같은 정체성인지 봐야 중간에 끊긴 상태를
+    // 끝난 것으로 보지 않는다.
+    final String? mismatch =
+        _findScriptMismatch(context, _applicationId) ??
+        _findRenameResidue(context, _applicationId);
     if (mismatch != null) {
       _mode = _IdentityMode.inconsistent;
       _reason = '앱 정체성이 파일마다 다릅니다 — $mismatch. $inconsistentGuidance';
@@ -479,6 +482,44 @@ final class IdentityStep implements Step {
     return null;
   }
 
+  /// 이름 바꾸기 대상 가운데 아직 킷 옛 값을 담은 추적 파일을 찾는다.
+  ///
+  /// [applicationId] 를 org · name 으로 나눠 `rename.collectChanges` 를 부르면
+  /// 각 수집기가 옛 값이 남은 대상만 돌려준다 — 끝난 저장소는 빈 목록이다.
+  /// gitignored 사용자 파일(config appName · xcconfig 번들 ID)은 거른다 —
+  /// appName 수집은 옛 값과 관계없이 표시 이름이 다르면 늘 등록하고, xcconfig
+  /// 는 example 에서 새로 만든 파일이면 킷 번들 ID 를 담는데 git restore 로
+  /// 되돌릴 수 없다. 두 파일은 스크립트 상수보다 먼저 쓰므로 그 사이 끊김은
+  /// [_findScriptMismatch] 가 잡는다. 프로젝트 prefix 는 사용자가 고른 값이라
+  /// 킷 값을 넘겨 변경 없음으로 빠지게 한다. 남은 파일을 설명하는 문장을,
+  /// 없으면 null 을 돌려준다.
+  String? _findRenameResidue(WizardContext context, String applicationId) {
+    final int nameStart = applicationId.lastIndexOf('.');
+    // org 가 없는 앱 ID 는 이름 바꾸기 규칙 밖이라 대조하지 않는다.
+    if (nameStart <= 0) return null;
+    final Set<String> userFilePaths = <String>{
+      for (final String fileName in rename.userConfigFileNames)
+        context.resolve('config/$fileName'),
+      for (final String fileName in rename.userXcconfigFileNames)
+        context.resolve('ios/Flutter/$fileName'),
+    };
+    final List<rename.FileChange> residue = rename
+        .collectChanges(
+          context.projectRoot,
+          applicationId.substring(0, nameStart),
+          applicationId.substring(nameStart + 1),
+          projectIdPrefix: rename.currentProjectIdPrefix,
+        )
+        .where(
+          (rename.FileChange change) =>
+              !userFilePaths.contains(change.filePath),
+        )
+        .toList();
+    if (residue.isEmpty) return null;
+    final String paths = _listTargetPaths(context, residue).join(' · ');
+    return '옛 앱 ID 가 남은 파일: $paths';
+  }
+
   /// 스크립트 본문에서 줄 머리가 `[key]="…"` 인 상수 값을 읽는다 — 없으면 null.
   static String? _readScriptConstant(String content, String key) => RegExp(
     '^${RegExp.escape(key)}="([^"]*)"',
@@ -519,7 +560,8 @@ enum _IdentityMode {
   /// Gradle 파일에서 앱 ID 를 읽지 못함.
   unreadable,
 
-  /// Gradle 앱 ID 와 configure 스크립트 상수가 다름 — 이름 바꾸기가 중간에 끊김.
+  /// Gradle 앱 ID 와 configure 스크립트 상수 · 추적 파일이 다름 — 이름 바꾸기가
+  /// 중간에 끊김.
   inconsistent,
 
   /// 끝남.
