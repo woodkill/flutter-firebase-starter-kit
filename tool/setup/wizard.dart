@@ -206,6 +206,10 @@ final class Wizard {
   }
 
   /// 단계 하나를 검사하고 판정을 기록에 남긴다 — 검사 중 예외는 할 일로 본다.
+  ///
+  /// [Step.check] 가 [Blocked] 를 돌려주면 계약 위반이라 [StateError] 를
+  /// 던진다 — 단계 검사는 모두 여기를 거치므로 돌려준 값은 [Done] · [Todo]
+  /// 뿐이다. 점검표의 [Blocked] 는 [_checkAll] 이 이 함수를 거치지 않고 만든다.
   Future<CheckResult> _check(Step step) async {
     CheckResult result;
     try {
@@ -213,6 +217,7 @@ final class Wizard {
     } on Exception catch (e) {
       result = Todo('검사하지 못했습니다 — $e');
     }
+    if (result is Blocked) throw _buildBlockedCheckError(step);
     _logCheck(step, result);
     return result;
   }
@@ -250,19 +255,14 @@ final class Wizard {
   /// 넘어간다.
   Future<int?> _runStep(Step step) async {
     final CheckResult current = await _check(step);
-    final String reason;
-    switch (current) {
-      case Done():
-        _terminal.writeLine(_formatCheckLine(step, current));
-        return null;
-      case Blocked():
-        throw _buildBlockedCheckError(step);
-      case Todo(reason: final String todoReason):
-        reason = todoReason;
+    // _check 는 Done · Todo 만 돌려주므로 Todo 가 아니면 끝난 것이다.
+    if (current is! Todo) {
+      _terminal.writeLine(_formatCheckLine(step, current));
+      return null;
     }
     _terminal.writeLine('');
     _terminal.writeLine('▶ ${step.title}');
-    _terminal.writeLine('  $reason');
+    _terminal.writeLine('  ${current.reason}');
     _printPlannedLines(step);
     if (!_terminal.confirm(stepConfirmQuestion)) return _stop();
 
@@ -271,11 +271,11 @@ final class Wizard {
       switch (outcome) {
         case Applied():
           final CheckResult after = await _check(step);
-          if (after is Done) {
+          if (after is! Todo) {
             _terminal.writeLine(_formatCheckLine(step, after));
             return null;
           }
-          _printFailure(_describeIncomplete(after), null);
+          _printFailure(after.reason, null);
         case ExitForUser(:final String guide):
           _terminal.writeLine(guide);
           _terminal.writeLine(exitForUserTailLine);
@@ -305,15 +305,9 @@ final class Wizard {
   Future<_RetryDecision> _decideRetry(Step step) async {
     if (!_chooseRetry()) return _RetryDecision.stop;
     final CheckResult recheck = await _check(step);
-    switch (recheck) {
-      case Done():
-        _terminal.writeLine(_formatCheckLine(step, recheck));
-        return _RetryDecision.finished;
-      case Blocked():
-        throw _buildBlockedCheckError(step);
-      case Todo():
-        return _RetryDecision.rerun;
-    }
+    if (recheck is Todo) return _RetryDecision.rerun;
+    _terminal.writeLine(_formatCheckLine(step, recheck));
+    return _RetryDecision.finished;
   }
 
   /// [step] 의 검사가 [Blocked] 를 돌려줬을 때의 프로그래밍 오류를 만든다.
@@ -334,11 +328,11 @@ final class Wizard {
       _terminal.writeLine(guide);
       if (!_terminal.waitForEnter(waitForEnterMessage)) return _stop();
       final CheckResult after = await _check(step);
-      if (after is Done) {
+      if (after is! Todo) {
         _terminal.writeLine(_formatCheckLine(step, after));
         return null;
       }
-      _terminal.writeLine('  아직 끝나지 않았습니다 — ${_describeIncomplete(after)}');
+      _terminal.writeLine('  아직 끝나지 않았습니다 — ${after.reason}');
     }
   }
 
@@ -376,13 +370,6 @@ final class Wizard {
       _terminal.writeLine('    $costlyStepNotice');
     }
   }
-
-  /// 실행 뒤에도 끝나지 않은 상태를 한 줄로 설명한다.
-  String _describeIncomplete(CheckResult result) => switch (result) {
-    Done(:final String summary) => summary,
-    Todo(:final String reason) => reason,
-    Blocked(:final String waitingFor) => '$waitingFor 단계가 끝나지 않았습니다',
-  };
 
   /// 실패 요약과 명령 출력 원문을 그대로 보인다.
   ///

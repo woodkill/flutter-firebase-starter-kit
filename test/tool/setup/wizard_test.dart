@@ -296,6 +296,55 @@ void main() {
     );
   });
 
+  group('T-19-WIZ-14 단계 check 의 Blocked 는 어느 검사 자리에서든 StateError 다', () {
+    /// [step] 을 [inputs] 답으로 돌렸을 때 Blocked 계약 오류가 나는지 본다.
+    Future<void> expectBlockedCheckError(
+      _ScriptedStep step,
+      List<String?> inputs,
+    ) => expectLater(
+      runSteps(<Step>[step], inputs),
+      throwsA(
+        isA<StateError>().having(
+          (StateError error) => error.message,
+          'message',
+          contains('${step.id} 단계의 check 가 Blocked'),
+        ),
+      ),
+    );
+
+    test('T-19-WIZ-14 점검표 검사', () async {
+      final _ScriptedStep a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Blocked('C')],
+      );
+
+      await expectBlockedCheckError(a, const <String?>[]);
+      expect(a.checkCount, 1);
+      expect(a.applyCount, 0);
+    });
+
+    test('T-19-WIZ-14 실행 뒤 재검사', () async {
+      final _ScriptedStep a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a'), Todo('a'), Blocked('C')],
+      );
+
+      await expectBlockedCheckError(a, const <String?>['y']);
+      expect(a.applyCount, 1);
+    });
+
+    test('T-19-WIZ-14 Enter 대기 뒤 재검사', () async {
+      final _ScriptedStep a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a'), Todo('a'), Blocked('C')],
+        outcomes: const <StepOutcome>[WaitForUser('안내')],
+      );
+
+      await expectBlockedCheckError(a, const <String?>['y', '']);
+      expect(a.applyCount, 1);
+    });
+  });
+
   test('T-19-WIZ-11 실행 뒤 미완료에서 다시 시도 재검사가 ✓ 면 다시 실행하지 않는다', () async {
     final _ScriptedStep a = _ScriptedStep(
       'A',
