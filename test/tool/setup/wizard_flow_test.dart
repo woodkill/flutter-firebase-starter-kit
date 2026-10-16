@@ -7,10 +7,16 @@ import 'package:test/test.dart';
 import '../../../bin/rename.dart' as rename;
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/completion.dart';
+import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/firebase_app_files.dart';
+import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/git_tree.dart';
+import '../../../tool/setup/providers/keyed_provider_step.dart';
+import '../../../tool/setup/providers/provider_catalog.dart';
+import '../../../tool/setup/providers/provider_selection.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
+import '../../../tool/setup/secret_store.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/apis_step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
@@ -19,8 +25,10 @@ import '../../../tool/setup/steps/configure_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
 import '../../../tool/setup/steps/firebase_project_step.dart';
 import '../../../tool/setup/steps/firestore_step.dart';
+import '../../../tool/setup/steps/flavor_steps.dart';
 import '../../../tool/setup/steps/functions_step.dart';
 import '../../../tool/setup/steps/identity_step.dart';
+import '../../../tool/setup/steps/kakao_step.dart';
 import '../../../tool/setup/steps/login_step.dart';
 import '../../../tool/setup/steps/rules_step.dart';
 import '../../../tool/setup/steps/run_step.dart';
@@ -72,6 +80,19 @@ const List<String> commonFunctions = <String>['ping', 'echo'];
 /// 선언된 secret 이름(가짜 functions 소스).
 const String declaredSecret = 'KIT_SAMPLE_SECRET';
 
+/// Kakao 로그인 수단의 함수 목록(가짜 manifest).
+const List<String> kakaoFunctions = <String>[
+  'kakaoCustomToken',
+  'linkKakaoProvider',
+  'disconnectKakaoProvider',
+];
+
+/// Secret Manager 의 Kakao 네이티브 앱 키 이름.
+const String kakaoNativeSecret = 'KAKAO_NATIVE_APP_KEY';
+
+/// Secret Manager 의 Kakao 어드민 키 이름.
+const String kakaoAdminSecret = 'KAKAO_ADMIN_KEY';
+
 /// 끝 요약 git 상태 명령 키.
 const String gitStatusKey = 'git status --porcelain --untracked-files=no';
 
@@ -95,6 +116,16 @@ String buildFakeAccessToken() => 'ya29.${'A' * 40}';
 
 /// 실행 시점에 조립하는 가짜 API 키 — 리터럴로 두지 않는다.
 String buildFakeApiKey() => 'AIza${'x' * 35}';
+
+/// 실행 시점에 조립하는 가짜 Kakao 네이티브 앱 키(소문자 16진수 32자).
+String buildFakeKakaoNativeKey() => 'a' * 32;
+
+/// 실행 시점에 조립하는 가짜 Kakao 어드민 키(16진수 32자).
+String buildFakeKakaoAdminKey() => 'b' * 32;
+
+/// 화면 · 기록에서 [needle] 이 나온 횟수를 센다.
+int countText(String haystack, String needle) =>
+    haystack.split(needle).length - 1;
 
 /// 실행 기록 · 화면에 실제 실행기처럼 쓰는 실행기 — 결과는 가짜 실행기가 준다.
 ///
@@ -174,6 +205,24 @@ final class _LoggingRest implements RestClient {
     }
     return response;
   }
+
+  @override
+  Future<RestResponse> sendExternal(ExternalRequest request) async {
+    final RestResponse response = await inner.sendExternal(request);
+    log.write(
+      'rest',
+      '${request.method} ${request.url} → ${response.statusCode}',
+    );
+    if (response.body.isNotEmpty) {
+      log.write(
+        'rest',
+        request.isResponseSensitive
+            ? HttpRestClient.sensitiveResponseNotice
+            : response.body,
+      );
+    }
+    return response;
+  }
 }
 
 /// 흐름 한 번에 쓰는 가짜 실행기 · REST · 화면 · 기록 묶음.
@@ -218,9 +267,21 @@ final class _Harness {
   void onRest(RestRequest request, RestResponse response) =>
       rest.on(request.method, request.url.toString(), response);
 
-  /// 16단계 목록으로 위저드를 돌린다.
+  /// config 의 켠 로그인 수단으로 만든 단계 목록(로그인 수단 0개면 기본 17단계)
+  /// 으로 위저드를 돌린다 — 로그인 수단이 바뀌면 같은 함수로 목록을 다시 만든다.
   Future<int> run({Future<void> Function(WizardContext)? onCompleted}) =>
-      runWizard(context, buildDevSteps(), onCompleted: onCompleted);
+      runWizard(
+        context,
+        buildCurrentSteps(),
+        onCompleted: onCompleted,
+        rebuildSteps: buildCurrentSteps,
+      );
+
+  /// config 를 다시 읽어 단계 목록을 만든다.
+  List<Step> buildCurrentSteps() => buildSteps(
+    flavor: Flavor.dev,
+    enabledProviders: readEnabledProviders(context.resolve(context.paths.json)),
+  );
 
   /// 화면에서 진행 질문 수를 센다.
   int countStepQuestions() => screen.asks
@@ -419,10 +480,78 @@ String buildVerifiedUsersBody() => jsonEncode(<String, Object?>{
 /// Cloud Run 서비스 이름(함수 이름 그대로).
 String buildServiceId(String function) => function;
 
+/// 배포된 함수 목록 응답(공통 + [extra]).
+CommandResult buildFunctionsListResult({
+  List<String> extra = const <String>[],
+}) => ok(
+  jsonEncode(<String, Object?>{
+    'status': 'success',
+    'result': <Object?>[
+      for (final String function in <String>[...commonFunctions, ...extra])
+        <String, Object?>{
+          'id': function,
+          'region': region,
+          'runServiceId': buildServiceId(function),
+        },
+    ],
+  }),
+);
+
+/// 공개 호출이 붙은 IAM 정책 결과.
+CommandResult buildPublicPolicyResult() => ok(
+  jsonEncode(<String, Object?>{
+    'bindings': <Object?>[
+      <String, Object?>{
+        'role': FunctionsStep.invokerRole,
+        'members': <String>[FunctionsStep.invokerMember],
+      },
+    ],
+  }),
+);
+
+/// Firebase CLI 가 없는 secret 을 읽을 때의 결과 — 오류가 표준 출력에 나온다.
+CommandResult buildSecretMissingResult(String name) => CommandResult(
+  1,
+  '\nError: Request to https://secretmanager.googleapis.com/v1/projects/'
+      '$projectId/secrets/$name/versions/latest:access had HTTP Error: 404, '
+      'Secret [projects/000000000000/secrets/$name] not found or has no '
+      'versions.\n',
+  '',
+);
+
+/// Kakao 로그인 수단의 함수가 있는 함수 목록 파일을 쓴다.
+void writeKakaoManifest(String root) => writeFixture(
+  root,
+  FunctionsStep.manifestPath,
+  '${jsonEncode(<String, Object?>{
+    'common': commonFunctions,
+    'providers': <String, Object?>{'kakao': kakaoFunctions},
+  })}\n',
+);
+
+/// Kakao 함수의 Cloud Run 서비스 IAM 정책(공개 호출 붙음)을 등록한다.
+void _registerKakaoPolicies(_Harness h) {
+  for (final String function in kakaoFunctions) {
+    h.onCommand(
+      FunctionsStep.buildIamPolicyCommand(
+        buildServiceId(function),
+        region,
+        projectId,
+      ),
+      buildPublicPolicyResult(),
+    );
+  }
+}
+
 /// 모든 단계의 「끝남」 응답을 등록한다.
 ///
 /// [noise] 가 있으면 민감하지 않은 출력 몇 곳에 섞는다(가림 확인용).
-void _registerFinished(_Harness h, {String noise = ''}) {
+/// [deployedExtra] 는 배포된 함수 목록에 공통 함수 뒤로 더할 함수다.
+void _registerFinished(
+  _Harness h, {
+  String noise = '',
+  List<String> deployedExtra = const <String>[],
+}) {
   final String token = buildFakeAccessToken();
   // 1. Xcode 준비
   h
@@ -495,7 +624,7 @@ void _registerFinished(_Harness h, {String noise = ''}) {
     )
     // 9. Firestore
     ..onCommand(FirestoreStep.buildDescribeCommand(projectId), ok('$region\n'))
-    // 12. 앱 등록
+    // 13. 앱 등록
     ..onCommand(
       ConfigureStep.buildAppsListCommand(projectId),
       ok(
@@ -508,26 +637,14 @@ void _registerFinished(_Harness h, {String noise = ''}) {
         }),
       ),
     )
-    // 15. Functions
+    // 16. Functions
     ..onCommand(
       FunctionsStep.buildSecretsListCommand(projectId),
       ok('projects/000000000000/secrets/$declaredSecret\n'),
     )
     ..onCommand(
       FunctionsStep.buildFunctionsListCommand(projectId),
-      ok(
-        jsonEncode(<String, Object?>{
-          'status': 'success',
-          'result': <Object?>[
-            for (final String function in commonFunctions)
-              <String, Object?>{
-                'id': function,
-                'region': region,
-                'runServiceId': buildServiceId(function),
-              },
-          ],
-        }),
-      ),
+      buildFunctionsListResult(extra: deployedExtra),
     );
   for (final String function in commonFunctions) {
     h.onCommand(
@@ -536,30 +653,21 @@ void _registerFinished(_Harness h, {String noise = ''}) {
         region,
         projectId,
       ),
-      ok(
-        jsonEncode(<String, Object?>{
-          'bindings': <Object?>[
-            <String, Object?>{
-              'role': FunctionsStep.invokerRole,
-              'members': <String>[FunctionsStep.invokerMember],
-            },
-          ],
-        }),
-      ),
+      buildPublicPolicyResult(),
     );
   }
 
-  // 10. Storage · 13. rules 의 bucket 이름
+  // 10. Storage · 14. rules 의 bucket 이름
   h.onRest(
     StorageStep.buildGetRequest(projectId),
     RestResponse(200, buildBucketBody(echo: noise)),
   );
-  // 11. 로그인 수단
+  // 11. 로그인 수단(이메일 · 익명) — 12. 로그인 수단 고르기는 config 만 읽는다.
   h.onRest(
     SignInStep.buildGetRequest(projectId),
     RestResponse(200, buildSignInBody()),
   );
-  // 13. rules
+  // 14. rules
   final String firestoreRuleset = 'projects/$projectId/rulesets/fs';
   final String storageRuleset = 'projects/$projectId/rulesets/st';
   h
@@ -588,7 +696,7 @@ void _registerFinished(_Harness h, {String noise = ''}) {
       RulesStep.buildRulesetRequest(projectId, storageRuleset),
       RestResponse(200, buildRulesetBody(storageRules)),
     );
-  // 14. App Check
+  // 15. App Check
   for (final String appId in <String>[iosAppId, androidAppId]) {
     h.onRest(
       AppCheckStep.buildListRequest(projectId, appId),
@@ -605,7 +713,7 @@ void _registerFinished(_Harness h, {String noise = ''}) {
       ),
     );
   }
-  // 16. 앱 실행 · 로그인 확인
+  // 17. 앱 실행 · 로그인 확인
   h.onRest(
     RunStep.buildBatchGetRequest(projectId),
     RestResponse(200, buildVerifiedUsersBody()),
@@ -645,7 +753,7 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  test('T-19-FLOW-01: buildDevSteps() id 순서가 16단계 그대로다', () {
+  test('T-19-FLOW-01: buildDevSteps() id 순서가 17단계 그대로다', () {
     expect(
       <String>[for (final Step step in buildDevSteps()) step.id],
       <String>[
@@ -660,6 +768,7 @@ void main() {
         'firestore',
         'storage',
         'sign_in',
+        'providers',
         'configure',
         'rules',
         'app_check',
@@ -669,7 +778,7 @@ void main() {
     );
   });
 
-  test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 16줄 · 질문 · 쓰기 0', () async {
+  test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 17줄 · 질문 · 쓰기 0', () async {
     final _Harness h = _Harness(root, const <String?>[]);
     _registerFinished(h);
 
@@ -679,7 +788,7 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(16),
+      hasLength(17),
     );
     expect(lines.where((String line) => line.startsWith('  ✗ ')), isEmpty);
     expect(h.output, contains(allDoneLine));
@@ -867,5 +976,220 @@ void main() {
         throwsA(isA<GitTreeException>()),
       );
     });
+  });
+
+  test(
+    'T-20-FLOW-01: --providers 로 Kakao 를 고르면 같은 실행에서 Kakao 키를 받아 네 자리에 쓰고 Kakao 함수까지 배포한다',
+    () async {
+      final String nativeKey = buildFakeKakaoNativeKey();
+      final String adminKey = buildFakeKakaoAdminKey();
+      writeKakaoManifest(root);
+      final _Harness h = _Harness(root, <String?>[
+        'y', // 로그인 수단 단계
+        '4', // 체크 목록 — Kakao
+        'y', // 값 표
+        'y', // Kakao 단계(다시 짠 뒤)
+        '1', // 콘솔에서 키를 받았다
+        nativeKey,
+        adminKey,
+        'y', // Functions 단계
+      ]);
+      h.context.session.isProviderSelectionRequested = true;
+      // 큐 세기 — Secret Manager 읽기는 이름마다 [다시 짠 점검표 · Kakao 단계 머리
+      // 재검사 · 실행 뒤 재검사] 3회(다시 짜기 전 목록에는 Kakao 단계가 없다).
+      // functions:list 는 [다시 짜기 전 점검표 · Functions 단계 머리 재검사 ·
+      // 배포 뒤 공개 호출 확인 · 실행 뒤 재검사(마지막 응답 반복)] — 다시 짠
+      // 점검표에서 Functions 는 Kakao 를 기다리는 ? 라 부르지 않는다.
+      _registerFinished(h);
+      h
+        ..onCommand(
+          FunctionsStep.buildFunctionsListCommand(projectId),
+          buildFunctionsListResult(),
+        )
+        ..onCommand(
+          FunctionsStep.buildFunctionsListCommand(projectId),
+          buildFunctionsListResult(extra: kakaoFunctions),
+        );
+      _registerKakaoPolicies(h);
+      for (final (String name, String value) in <(String, String)>[
+        (kakaoNativeSecret, nativeKey),
+        (kakaoAdminSecret, adminKey),
+      ]) {
+        final Command read = buildSecretReadCommand(name, projectId);
+        h
+          ..onCommand(read, buildSecretMissingResult(name))
+          ..onCommand(read, buildSecretMissingResult(name))
+          ..onCommand(read, ok('$value\n'))
+          ..onCommand(
+            buildSecretWriteCommand(
+              name,
+              projectId,
+              value: value,
+              valueLabel: '',
+            ),
+            ok(),
+          );
+      }
+      h
+        ..onCommand(
+          FunctionsStep.buildDeployCommand(),
+          // 배포 출력에 어드민 키를 섞어 가림을 확인한다.
+          ok(
+            'i  secret check $adminKey\nDEPLOY OK dev functions=5 batches=1\n',
+          ),
+        )
+        ..on(gitStatusKey, ok())
+        ..on(untrackedKey, ok());
+      h.rest.onExternal(
+        'GET',
+        KakaoStep.adminKeyCheckUrl,
+        const RestResponse(200, '{"elements":[1]}'),
+      );
+
+      final int code = await h.run(onCompleted: showCompletionSummary);
+      final String output = h.output;
+
+      expect(code, wizardExitDone, reason: output);
+      final String configPath = '$root/${UserFilesStep.jsonUserPath}';
+      expect(readJsonString(configPath, enabledProvidersKey), 'kakao');
+      expect(readJsonString(configPath, 'kakaoNativeAppKey'), nativeKey);
+      expect(
+        readXcconfigValue(
+          '$root/${UserFilesStep.xcconfigUserPath}',
+          'KAKAO_NATIVE_APP_KEY',
+        ),
+        nativeKey,
+      );
+      final List<FakeCall> writes = <FakeCall>[
+        for (final FakeCall call in h.runner.calls)
+          if (call.key.startsWith('firebase functions:secrets:set ')) call,
+      ];
+      expect(writes.map((FakeCall call) => call.key), <String>[
+        'firebase functions:secrets:set $kakaoNativeSecret --project '
+            '$projectId --data-file -',
+        'firebase functions:secrets:set $kakaoAdminSecret --project '
+            '$projectId --data-file -',
+      ]);
+      expect(writes.map((FakeCall call) => call.stdinText), <String>[
+        nativeKey,
+        adminKey,
+      ]);
+      expect(writes.every((FakeCall call) => call.isOutputSensitive), isTrue);
+      for (final String name in <String>[kakaoNativeSecret, kakaoAdminSecret]) {
+        expect(
+          h.runner.countCalls(
+            RunMode.capture,
+            FakeCommandRunner.buildKey(buildSecretReadCommand(name, projectId)),
+          ),
+          3,
+          reason: name,
+        );
+      }
+      expect(
+        h.runner.countCalls(
+          RunMode.capture,
+          FakeCommandRunner.buildKey(
+            FunctionsStep.buildFunctionsListCommand(projectId),
+          ),
+        ),
+        4,
+      );
+      expect(h.rest.externalRequests, hasLength(1));
+      final ExternalRequest check = h.rest.externalRequests.single;
+      expect(check.headers['Authorization'], 'KakaoAK $adminKey');
+      expect(check.url.query, isNot(contains(adminKey)));
+      expect(check.displayCurl(), contains('KakaoAK <Kakao 어드민 키>'));
+      expect(
+        h.runner.countCalls(
+          RunMode.stream,
+          FakeCommandRunner.buildKey(FunctionsStep.buildDeployCommand()),
+        ),
+        1,
+      );
+      for (final String text in <String>[output, h.log.text]) {
+        expect(countText(text, adminKey), 0);
+        expect(countText(text, Redactor.mask), greaterThanOrEqualTo(1));
+      }
+      expect(h.log.text, contains('(비밀 값 32자)'));
+      expect(h.screen.secretAsks, hasLength(1));
+      expect(h.screen.asks, contains(consoleReadyQuestion));
+      expect(h.screen.asks, contains(providerChoiceQuestion));
+      final List<String> lines = const LineSplitter().convert(output);
+      final List<int> checklists = <int>[
+        for (int i = 0; i < lines.length; i++)
+          if (lines[i] == checklistHeading) i,
+      ];
+      expect(checklists, hasLength(2));
+      expect(output, contains(replanLine));
+      expect(
+        lines
+            .skip(checklists.last)
+            .any(
+              (String line) => line.startsWith('  ✗ ${KakaoStep.stepTitle} — '),
+            ),
+        isTrue,
+      );
+      expect(
+        lines
+            .take(checklists.last)
+            .any((String line) => line.contains(KakaoStep.stepTitle)),
+        isFalse,
+      );
+      expect(output, contains(providersHintLine));
+    },
+  );
+
+  test('T-20-FLOW-02: Kakao 를 켠 저장소를 다시 실행하면 Kakao 질문 · 쓰기가 0 이다', () async {
+    final String nativeKey = buildFakeKakaoNativeKey();
+    final String adminKey = buildFakeKakaoAdminKey();
+    writeKakaoManifest(root);
+    final String configPath = '$root/${UserFilesStep.jsonUserPath}';
+    replaceJsonString(configPath, enabledProvidersKey, 'kakao');
+    replaceJsonString(configPath, 'kakaoNativeAppKey', nativeKey);
+    replaceXcconfigValue(
+      '$root/${UserFilesStep.xcconfigUserPath}',
+      'KAKAO_NATIVE_APP_KEY',
+      nativeKey,
+    );
+    final _Harness h = _Harness(root, const <String?>[]);
+    _registerFinished(h, deployedExtra: kakaoFunctions);
+    _registerKakaoPolicies(h);
+    h
+      ..onCommand(
+        buildSecretReadCommand(kakaoNativeSecret, projectId),
+        ok('$nativeKey\n'),
+      )
+      ..onCommand(
+        buildSecretReadCommand(kakaoAdminSecret, projectId),
+        ok('$adminKey\n'),
+      );
+
+    final int code = await h.run();
+
+    expect(code, wizardExitDone, reason: h.output);
+    final List<String> lines = const LineSplitter().convert(h.output);
+    expect(
+      lines.where((String line) => line.startsWith('  ✓ ')),
+      hasLength(18),
+    );
+    expect(
+      lines.where(
+        (String line) => line.startsWith('  ✓ ${KakaoStep.stepTitle} — '),
+      ),
+      hasLength(1),
+    );
+    expect(h.output, isNot(contains(replanLine)));
+    expect(h.screen.asks, isEmpty);
+    expect(h.screen.secretAsks, isEmpty);
+    expect(
+      h.runner.calls.where(
+        (FakeCall call) =>
+            call.key.startsWith('firebase functions:secrets:set'),
+      ),
+      isEmpty,
+    );
+    expect(h.rest.externalRequests, isEmpty);
+    expect(h.runner.countMode(RunMode.stream), 0);
+    expect(countWriteRequests(h.rest), 0);
   });
 }

@@ -390,6 +390,24 @@ final class _LoggingRest implements RestClient {
     }
     return response;
   }
+
+  @override
+  Future<RestResponse> sendExternal(ExternalRequest request) async {
+    final RestResponse response = await inner.sendExternal(request);
+    log.write(
+      'rest',
+      '${request.method} ${request.url} → ${response.statusCode}',
+    );
+    if (response.body.isNotEmpty) {
+      log.write(
+        'rest',
+        request.isResponseSensitive
+            ? HttpRestClient.sensitiveResponseNotice
+            : response.body,
+      );
+    }
+    return response;
+  }
 }
 
 /// 위저드 한 번 실행 묶음.
@@ -447,7 +465,7 @@ final class _Run {
   void onEffect(Command command, void Function() effect) =>
       runner.effects[FakeCommandRunner.buildKey(command)] = effect;
 
-  /// 16단계 · 끝 요약으로 위저드를 돌린다.
+  /// 17단계 · 끝 요약으로 위저드를 돌린다.
   Future<int> run() =>
       runWizard(context, buildDevSteps(), onCompleted: showCommitHint);
 
@@ -985,7 +1003,7 @@ void main() {
   tearDown(() => fixture.delete());
 
   test(
-    'T-19-FLOW-06: 백지 → 16단계 끝까지 · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
+    'T-19-FLOW-06: 백지 → 17단계 끝까지 · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
     () async {
       final _Run run = _Run(fixture, <String?>[
         ...earlyInputs,
@@ -1143,7 +1161,7 @@ void main() {
   );
 
   test(
-    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 16단계 끝까지',
+    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 17단계 끝까지',
     () async {
       final _Run run = _Run(fixture, <String?>[
         ...earlyInputs,

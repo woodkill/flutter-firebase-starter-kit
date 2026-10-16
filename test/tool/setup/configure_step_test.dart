@@ -686,11 +686,11 @@ void main() {
     expect(readDevAndroidPackage(root), '$applicationId.dev');
   });
 
-  test('buildDevSteps 는 로그인 수단 다음에 앱 등록 단계를 둔다', () {
+  test('buildDevSteps 는 로그인 수단 단계 다음에 앱 등록 단계를 둔다', () {
     final List<String> ids = buildDevSteps()
         .map((Step step) => step.id)
         .toList();
 
-    expect(ids.indexOf('configure'), ids.indexOf('sign_in') + 1);
+    expect(ids.indexOf('configure'), ids.indexOf('providers') + 1);
   });
 }

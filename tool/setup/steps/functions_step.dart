@@ -3,7 +3,9 @@ import 'dart:io';
 
 import '../command_runner.dart';
 import '../config_files.dart';
+import '../providers/provider_catalog.dart';
 import '../secret_names.dart';
+import '../secret_store.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
@@ -15,7 +17,8 @@ import 'user_files_step.dart';
 /// 함수를 부를 수 있게 공개 호출(invoker)까지 확인한다.
 ///
 /// 검사는 의존성 설치 표시 파일([modulesMarkerPath]) · 선언된 secret 전부 존재 ·
-/// [manifestPath] 의 공통 함수 전부 배포 · 그 함수들의 Cloud Run 서비스 IAM 에
+/// [manifestPath] 의 공통 함수와 켠 로그인 수단([enabledProviders])의 함수 전부
+/// 배포 · 그 함수들의 Cloud Run 서비스 IAM 에
 /// [invokerRole] + [invokerMember] 순서로 본다. 의존성 · secret 이 빠졌으면 함수
 /// 목록을, 함수가 빠졌으면 IAM 을 읽지 않는다. 배포는 [deployScriptPath] 를
 /// 프로세스로 실행하고 종료 코드 0 과 표준 출력의 마지막 줄([deployOkPattern])로만
@@ -28,7 +31,18 @@ import 'user_files_step.dart';
 /// 읽거나 바꾸지 않는다. 프로젝트 ID · 리전은 매번 `config/dev.json` 에서 읽는다.
 final class FunctionsStep implements Step {
   /// Cloud Functions 단계를 만든다.
-  FunctionsStep();
+  ///
+  /// [enabledProviders] 는 켠 로그인 수단 토큰이고, 그 수단의 함수까지 배포 ·
+  /// 공개 호출 확인 대상에 더한다. [providerStepIds] 는 켠 로그인 수단 단계의
+  /// id 로, 그 단계가 모두 끝나야 이 단계를 검사한다.
+  FunctionsStep({
+    Set<String> enabledProviders = const <String>{},
+    List<String> providerStepIds = const <String>[],
+  }) : _enabledProviders = <String>[
+         for (final ProviderEntry entry in providerCatalog)
+           if (enabledProviders.contains(entry.token)) entry.token,
+       ],
+       _providerStepIds = List<String>.unmodifiable(providerStepIds);
 
   /// 단계 제목.
   static const String stepTitle = 'Cloud Functions 배포';
@@ -45,12 +59,15 @@ final class FunctionsStep implements Step {
   /// 함수 목록 파일에서 공통 함수 배열의 키.
   static const String manifestCommonKey = 'common';
 
+  /// 함수 목록 파일에서 로그인 수단별 함수 객체의 키.
+  static const String manifestProvidersKey = 'providers';
+
   /// 의존성 설치가 끝나면 생기는 표시 파일(저장소 상대 경로).
   static const String modulesMarkerPath =
       'functions/node_modules/.modules.yaml';
 
   /// 없는 secret 을 만들 때 표준 입력으로 넘기는 자리표시 값.
-  static const String secretPlaceholder = 'unset';
+  static const String secretPlaceholder = secretPlaceholderValue;
 
   /// 배포 스크립트 성공 시 표준 출력의 마지막 줄.
   static final RegExp deployOkPattern = RegExp(
@@ -205,6 +222,25 @@ final class FunctionsStep implements Step {
   ///
   /// 파일이 없거나 JSON · 모양이 다르면 null.
   static List<String>? readCommonFunctions(String projectRoot) {
+    final Map<String, Object?>? manifest = _readManifest(projectRoot);
+    if (manifest == null) return null;
+    return _readNames(manifest[manifestCommonKey]);
+  }
+
+  /// [projectRoot] 의 함수 목록 파일에서 로그인 수단 [token] 의 함수 이름을 읽는다.
+  ///
+  /// 파일이 없거나 JSON · 모양이 다르거나 그 토큰이 없으면 null. 함수가 없는
+  /// 로그인 수단은 빈 목록이다.
+  static List<String>? readProviderFunctions(String projectRoot, String token) {
+    final Map<String, Object?>? manifest = _readManifest(projectRoot);
+    if (manifest == null) return null;
+    final Object? providers = manifest[manifestProvidersKey];
+    if (providers is! Map<String, Object?>) return null;
+    return _readNames(providers[token]);
+  }
+
+  /// 함수 목록 파일을 JSON 객체로 읽는다 — 없거나 모양이 다르면 null.
+  static Map<String, Object?>? _readManifest(String projectRoot) {
     final File file = File('$projectRoot/$manifestPath');
     if (!file.existsSync()) return null;
     final Object? decoded;
@@ -213,14 +249,17 @@ final class FunctionsStep implements Step {
     } on FormatException {
       return null;
     }
-    if (decoded is! Map<String, Object?>) return null;
-    final Object? common = decoded[manifestCommonKey];
-    if (common is! List<Object?>) return null;
+    return decoded is Map<String, Object?> ? decoded : null;
+  }
+
+  /// [value] 가 빈 문자열 없는 문자열 배열이면 그 목록, 아니면 null.
+  static List<String>? _readNames(Object? value) {
+    if (value is! List<Object?>) return null;
     final List<String> names = <String>[
-      for (final Object? name in common)
+      for (final Object? name in value)
         if (name is String && name.isNotEmpty) name,
     ];
-    return names.length == common.length ? names : null;
+    return names.length == value.length ? names : null;
   }
 
   /// IAM 정책 결과에 [invokerRole] + [invokerMember] 바인딩이 있는지 판정한다.
@@ -255,11 +294,14 @@ final class FunctionsStep implements Step {
         output.contains(permittedCustomerMarker);
   }
 
+  final List<String> _enabledProviders;
+  final List<String> _providerStepIds;
   _FunctionsMode _mode = _FunctionsMode.unreadable;
   String _reason = '';
   String _projectId = '';
   String _region = '';
-  List<String> _common = const <String>[];
+  // 배포 · 공개 호출 확인 대상 — 공통 함수 뒤에 켠 로그인 수단의 함수.
+  List<String> _targets = const <String>[];
   bool _isModuleMissing = false;
   List<String> _missingSecrets = const <String>[];
   List<String> _lackingServices = const <String>[];
@@ -272,10 +314,11 @@ final class FunctionsStep implements Step {
   String get title => stepTitle;
 
   @override
-  List<String> get dependsOn => const <String>[
+  List<String> get dependsOn => <String>[
     'configure',
     'apis',
     'firestore',
+    ..._providerStepIds,
   ];
 
   @override
@@ -305,6 +348,20 @@ final class FunctionsStep implements Step {
         '$manifestPath 에서 공통 함수 목록을 읽지 못했습니다',
       );
     }
+    final List<String> providerFunctions = <String>[];
+    for (final String token in _enabledProviders) {
+      final List<String>? names = readProviderFunctions(
+        context.projectRoot,
+        token,
+      );
+      if (names == null) {
+        return _mark(
+          _FunctionsMode.unreadable,
+          '$manifestPath 에서 로그인 수단 $token 의 함수 목록을 읽지 못했습니다',
+        );
+      }
+      providerFunctions.addAll(names);
+    }
     final List<String> declared;
     try {
       declared = extractDeclaredSecretNames(context.projectRoot);
@@ -316,7 +373,7 @@ final class FunctionsStep implements Step {
     }
     _projectId = projectId;
     _region = region;
-    _common = common;
+    _targets = <String>[...common, ...providerFunctions];
     _isModuleMissing = !File(context.resolve(modulesMarkerPath)).existsSync();
 
     final CommandResult listed = await context.runner.capture(
@@ -360,7 +417,7 @@ final class FunctionsStep implements Step {
       );
     }
     final List<String> notDeployed = <String>[
-      for (final String name in common)
+      for (final String name in _targets)
         if (!deployed.containsKey(name)) name,
     ];
     if (notDeployed.isNotEmpty) {
@@ -376,9 +433,15 @@ final class FunctionsStep implements Step {
     );
     if (invokerProblem != null) return invokerProblem;
     _mode = _FunctionsMode.done;
+    if (providerFunctions.isEmpty) {
+      return Done(
+        '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 배포 · '
+        '공개 호출 확인',
+      );
+    }
     return Done(
-      '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 배포 · '
-      '공개 호출 확인',
+      '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 · '
+      '로그인 수단 함수 ${providerFunctions.length}개 배포 · 공개 호출 확인',
     );
   }
 
@@ -496,7 +559,7 @@ final class FunctionsStep implements Step {
     return judged;
   }
 
-  /// 배포 뒤 공통 함수의 공개 호출을 다시 읽어 빠진 서비스에만 붙인다.
+  /// 배포 뒤 대상 함수의 공개 호출을 다시 읽어 빠진 서비스에만 붙인다.
   ///
   /// 목록 · 정책을 읽지 못하면 그대로 끝내고 실행 뒤 재검사가 사유를 보인다.
   Future<StepOutcome> _bindAfterDeploy(WizardContext context) async {
@@ -507,7 +570,7 @@ final class FunctionsStep implements Step {
       functions,
       _region,
     );
-    if (deployed == null || !_common.every(deployed.containsKey)) {
+    if (deployed == null || !_targets.every(deployed.containsKey)) {
       return const Applied();
     }
     await _inspectInvokers(context, deployed);
@@ -536,7 +599,7 @@ final class FunctionsStep implements Step {
     return const Applied();
   }
 
-  /// 공통 함수들의 Cloud Run 서비스 IAM 을 읽어 공개 호출이 빠진 것을 찾는다.
+  /// 대상 함수들의 Cloud Run 서비스 IAM 을 읽어 공개 호출이 빠진 것을 찾는다.
   ///
   /// 모두 있으면 null, 아니면 판정을 두고 할 일 결과를 돌려준다. 서비스 이름은
   /// 함수 목록의 `runServiceId` 를 그대로 쓴다.
@@ -546,7 +609,7 @@ final class FunctionsStep implements Step {
   ) async {
     final List<String> lackingNames = <String>[];
     final List<String> lackingServices = <String>[];
-    for (final String name in _common) {
+    for (final String name in _targets) {
       final String? service = deployed[name];
       if (service == null || service.isEmpty) {
         return _mark(

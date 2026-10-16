@@ -85,6 +85,15 @@ final class Declined extends StepOutcome {
   const Declined();
 }
 
+/// 실행이 단계 목록을 바꿨다 — 위저드가 목록을 다시 만들고 점검표부터 다시 돈다.
+///
+/// 목록을 다시 만들 수 없는 위저드(다시 만드는 함수가 없음 · 횟수 상한)는
+/// [Applied] 와 같이 다시 검사만 한다.
+final class Replan extends StepOutcome {
+  /// 다시 짜기 결과를 만든다.
+  const Replan();
+}
+
 /// 위저드 단계 하나 — 검사 · 실행할 명령 · 실행을 같은 모양으로 갖는다.
 abstract interface class Step {
   /// 다른 단계가 [dependsOn] 으로 가리키는 고유 이름.

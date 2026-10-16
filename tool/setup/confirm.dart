@@ -15,17 +15,15 @@ final class SummaryRow {
   final String value;
 }
 
-/// 비용이 들거나 되돌릴 수 없는 선택 직전에 값 요약 표를 보이고 한 번 묻는다.
+/// 값 요약 표를 질문 없이 보인다.
 ///
-/// `── <title> ──` 머리 줄, 라벨을 화면 폭 기준으로 맞춘 값 행, 경고마다
-/// `  ! <경고>` 줄을 보인 뒤 [summaryConfirmQuestion] 을 묻는다. `y` · `yes` 만
-/// true 이고 Enter · 그 밖의 답 · 입력 끝은 false 다. 진행하지 않아도 값을 다시
-/// 입력받지 않는다 — 호출한 단계가 멈춘다. 단계 진행 확인과는 별개의 질문이다.
-bool confirmSummary(
+/// `── <title> ──` 머리 줄, 라벨을 화면 폭 기준으로 맞춘 값 행, [notes] 마다
+/// `  · <note>` 줄을 쓴다.
+void writeSummary(
   Terminal terminal, {
   required String title,
   required List<SummaryRow> rows,
-  List<String> warnings = const <String>[],
+  List<String> notes = const <String>[],
 }) {
   terminal.writeLine('── $title ──');
   final int labelWidth = rows.fold<int>(0, (int widest, SummaryRow row) {
@@ -36,6 +34,24 @@ bool confirmSummary(
     final int padding = labelWidth - measureDisplayWidth(row.label);
     terminal.writeLine('  ${row.label}${' ' * padding}  ${row.value}');
   }
+  for (final String note in notes) {
+    terminal.writeLine('  · $note');
+  }
+}
+
+/// 비용이 들거나 되돌릴 수 없는 선택 직전에 값 요약 표를 보이고 한 번 묻는다.
+///
+/// [writeSummary] 의 표 뒤에 경고마다 `  ! <경고>` 줄을 보인 뒤
+/// [summaryConfirmQuestion] 을 묻는다. `y` · `yes` 만 true 이고 Enter · 그 밖의
+/// 답 · 입력 끝은 false 다. 진행하지 않아도 값을 다시 입력받지 않는다 — 호출한
+/// 단계가 멈춘다. 단계 진행 확인과는 별개의 질문이다.
+bool confirmSummary(
+  Terminal terminal, {
+  required String title,
+  required List<SummaryRow> rows,
+  List<String> warnings = const <String>[],
+}) {
+  writeSummary(terminal, title: title, rows: rows);
   for (final String warning in warnings) {
     terminal.writeLine('  ! $warning');
   }

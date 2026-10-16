@@ -120,6 +120,9 @@ final class ScriptedTerminal implements Terminal {
   /// 사용자에게 던진 질문 · 기다림 문구(순서대로).
   final List<String> asks = <String>[];
 
+  /// 숨김 입력으로 던진 질문(순서대로) — [asks] 에도 함께 남는다.
+  final List<String> secretAsks = <String>[];
+
   String? _next() => _inputs.isEmpty ? null : _inputs.removeAt(0);
 
   @override
@@ -146,6 +149,15 @@ final class ScriptedTerminal implements Terminal {
     if (answer == null) return null;
     final String trimmed = answer.trim();
     return trimmed.isEmpty ? (defaultValue ?? '') : trimmed;
+  }
+
+  @override
+  String? askSecret(String question) {
+    asks.add(question);
+    secretAsks.add(question);
+    // 화면에는 질문만 쓴다 — 숨김 입력이라 답은 보이지 않는다.
+    output.writeln(question);
+    return _next()?.trim();
   }
 
   @override

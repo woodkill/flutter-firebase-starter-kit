@@ -16,6 +16,19 @@ const String commitHintMessage = 'chore: 설정 위저드 결과 반영';
 /// Kotlin 소스 디렉터리의 앞부분 — 뒤에 패키지 경로가 붙는다.
 const String kotlinSourceRoot = 'android/app/src/main/kotlin';
 
+/// 끝 요약에서 로그인 수단을 바꾸는 방법을 알리는 줄.
+const String providersHintLine = '로그인 수단을 바꾸려면: ./setup.sh --providers';
+
+/// 모든 단계가 끝난 뒤의 끝 요약 — 로그인 수단을 바꾸는 방법과 커밋 안내를 보인다.
+///
+/// 빈 줄 · [providersHintLine] 뒤에 [showCommitHint] 를 부른다.
+Future<void> showCompletionSummary(WizardContext context) async {
+  context.terminal
+    ..writeLine('')
+    ..writeLine(providersHintLine);
+  await showCommitHint(context);
+}
+
 /// 모든 단계가 끝난 뒤 바뀐 추적 파일 목록과 커밋 명령을 보여 준다.
 ///
 /// 목록은 추적 파일의 미커밋 변경(삭제 · 이름 바꾸기 포함)에 앱 정체성 단계가

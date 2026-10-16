@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'command_runner.dart';
+import 'flavor.dart';
 import 'log_sink.dart';
 import 'redactor.dart';
 import 'rest_client.dart';
@@ -54,13 +55,31 @@ typedef WizardCompletion = Future<void> Function(WizardContext context);
 /// 끝난 뒤 함수가 실패했을 때의 안내 머리 — 종료 코드는 바꾸지 않는다.
 const String completionFailedPrefix = '끝 요약을 보이지 못했습니다 — ';
 
+/// 단계 목록을 다시 만들기 직전에 보이는 줄.
+const String replanLine = '로그인 수단이 바뀌었습니다 — 단계 목록을 다시 만듭니다.';
+
+/// 한 실행 안에서 단계 목록을 다시 만드는 최대 횟수 — 넘으면 다시 검사만 한다.
+const int maxReplans = 3;
+
+/// 단계 목록을 다시 만드는 함수 — 바뀐 설정 파일을 다시 읽어 새 목록을 돌려준다.
+typedef StepListBuilder = List<Step> Function();
+
+/// 한 실행 안에서만 유지하는 메모리 상태 — 파일로 남기지 않는다.
+final class WizardSession {
+  /// 로그인 수단 체크 목록을 열어 달라는 요청(`--providers`)이 남아 있으면 true.
+  ///
+  /// 로그인 수단 단계가 체크 목록을 마치면 끈다.
+  bool isProviderSelectionRequested = false;
+}
+
 /// 단계 실행에 필요한 공용 문맥.
 final class WizardContext {
   /// 저장소 루트 · 실행기 · 터미널 · 가림 함수 · 실행 기록 · REST 실행기로
   /// 문맥을 만든다.
   ///
   /// [random] 을 주지 않으면 암호학적으로 안전한 난수를, [now] 를 주지 않으면
-  /// 시스템 시각을 쓴다(테스트는 고정값을 넣는다).
+  /// 시스템 시각을 쓴다(테스트는 고정값을 넣는다). [flavor] 의 기본값은 dev 이고
+  /// [session] 을 주지 않으면 빈 세션을 만든다.
   WizardContext({
     required this.projectRoot,
     required this.runner,
@@ -68,9 +87,12 @@ final class WizardContext {
     required this.redactor,
     required this.log,
     required this.rest,
+    this.flavor = Flavor.dev,
+    WizardSession? session,
     Random? random,
     DateTime Function()? now,
-  }) : random = random ?? Random.secure(),
+  }) : session = session ?? WizardSession(),
+       random = random ?? Random.secure(),
        now = now ?? DateTime.now;
 
   /// 저장소 루트의 절대 경로.
@@ -90,6 +112,15 @@ final class WizardContext {
 
   /// REST 실행기 — 토큰은 프로세스 안에만 두고 화면에는 curl 표시형을 보인다.
   final RestClient rest;
+
+  /// 이번 실행이 준비하는 flavor.
+  final Flavor flavor;
+
+  /// 한 실행 안의 메모리 상태.
+  final WizardSession session;
+
+  /// [flavor] 의 사용자 파일 · 설정 파일 경로.
+  FlavorPaths get paths => FlavorPaths(flavor);
 
   /// 비밀 값 · 식별자를 만들 때 쓰는 난수.
   final Random random;
@@ -121,35 +152,77 @@ final class Wizard {
   /// [context] 로 [steps] 를 순서대로 진행하는 위저드를 만든다.
   ///
   /// [onCompleted] 는 모든 단계가 끝났을 때(종료 코드 0 직전)에만 부른다.
-  Wizard(this.context, this.steps, {this.onCompleted});
+  /// [rebuildSteps] 는 단계가 [Replan] 을 돌려줬을 때 새 목록을 만든다 — null 이면
+  /// [Replan] 은 [Applied] 와 같다.
+  Wizard(this.context, this.steps, {this.onCompleted, this.rebuildSteps})
+    : _steps = steps;
 
   /// 공용 문맥.
   final WizardContext context;
 
-  /// 순서대로 진행할 단계 목록.
+  /// 처음 받은 단계 목록.
   final List<Step> steps;
 
   /// 모든 단계가 끝났을 때 부를 함수. null 이면 부르지 않는다.
   final WizardCompletion? onCompleted;
 
+  /// 단계 목록을 다시 만드는 함수. null 이면 다시 만들지 않는다.
+  final StepListBuilder? rebuildSteps;
+
+  // 지금 진행 중인 단계 목록 — 다시 짜기마다 바뀐다.
+  List<Step> _steps;
+
+  // 이번 실행에서 다시 짠 횟수.
+  int _replanCount = 0;
+
+  // 방금 진행한 단계가 목록 다시 짜기를 요청했으면 true.
+  bool _isReplanPending = false;
+
   Terminal get _terminal => context.terminal;
 
   /// 위저드를 실행하고 종료 코드를 돌려준다.
+  ///
+  /// 단계가 목록 다시 짜기를 요청하면 새 목록으로 점검표부터 다시 돈다.
   Future<int> run() async {
-    final Map<String, CheckResult> results = await _checkAll();
-    _printChecklist(results);
-    if (results.values.every((CheckResult result) => result is Done)) {
+    while (true) {
+      final Map<String, CheckResult> results = await _checkAll();
+      _printChecklist(results);
+      if (results.values.every((CheckResult result) => result is Done)) {
+        _terminal.writeLine(allDoneLine);
+        return _complete();
+      }
+      bool isReplanned = false;
+      for (final Step step in _steps) {
+        if (results[step.id] is Done) continue;
+        final int? code = await _runStep(step);
+        if (code != null) return code;
+        if (_isReplanPending) {
+          _isReplanPending = false;
+          isReplanned = true;
+          break;
+        }
+      }
+      if (isReplanned) continue;
+      _terminal.writeLine('');
       _terminal.writeLine(allDoneLine);
       return _complete();
     }
-    for (final Step step in steps) {
-      if (results[step.id] is Done) continue;
-      final int? code = await _runStep(step);
-      if (code != null) return code;
-    }
-    _terminal.writeLine('');
-    _terminal.writeLine(allDoneLine);
-    return _complete();
+  }
+
+  /// [Replan] 을 받았을 때 목록을 다시 만들 수 있으면 다시 만들고 true 를 돌려준다.
+  ///
+  /// 다시 만드는 함수가 없거나 [maxReplans] 를 넘었으면 false — 호출한 쪽이
+  /// [Applied] 처럼 다시 검사만 한다.
+  bool _replan() {
+    final StepListBuilder? builder = rebuildSteps;
+    if (builder == null || _replanCount >= maxReplans) return false;
+    _replanCount++;
+    _terminal
+      ..writeLine('')
+      ..writeLine(replanLine);
+    _steps = builder();
+    _isReplanPending = true;
+    return true;
   }
 
   /// 끝난 뒤 함수를 부르고 끝남 종료 코드를 돌려준다.
@@ -172,7 +245,7 @@ final class Wizard {
   /// 않고 [Blocked] 로 적는다 — 앞 단계 없이 실패하는 검사 명령을 부르지 않는다.
   Future<Map<String, CheckResult>> _checkAll() async {
     final Map<String, CheckResult> results = <String, CheckResult>{};
-    for (final Step step in steps) {
+    for (final Step step in _steps) {
       final String? waitingFor = _findUnfinishedDependency(step, results);
       if (waitingFor == null) {
         results[step.id] = await _check(step);
@@ -199,7 +272,7 @@ final class Wizard {
 
   /// [id] 단계의 제목을 찾는다 — 목록에 없으면 [id] 그대로.
   String _findTitle(String id) {
-    for (final Step step in steps) {
+    for (final Step step in _steps) {
       if (step.id == id) return step.title;
     }
     return id;
@@ -235,7 +308,7 @@ final class Wizard {
   /// 점검표를 한 번 출력한다.
   void _printChecklist(Map<String, CheckResult> results) {
     _terminal.writeLine(checklistHeading);
-    for (final Step step in steps) {
+    for (final Step step in _steps) {
       _terminal.writeLine(_formatCheckLine(step, results[step.id]!));
     }
   }
@@ -269,7 +342,11 @@ final class Wizard {
     while (true) {
       final StepOutcome outcome = await _apply(step);
       switch (outcome) {
-        case Applied():
+        // 목록을 다시 만들 수 있으면 다음 바퀴의 점검표로 간다. 다시 만들 수
+        // 없으면 아래 갈래에서 실행을 마친 것처럼 다시 검사한다.
+        case Replan() when _replan():
+          return null;
+        case Applied() || Replan():
           final CheckResult after = await _check(step);
           if (after is! Todo) {
             _terminal.writeLine(_formatCheckLine(step, after));
@@ -394,9 +471,16 @@ final class Wizard {
 /// [steps] 를 [context] 로 진행하고 종료 코드(0 · 1 · 3)를 돌려준다.
 ///
 /// [onCompleted] 는 모든 단계가 끝났을 때(종료 코드 0 직전)에만 부른다 — 이미
-/// 모든 단계가 끝난 저장소의 재실행도 포함한다.
+/// 모든 단계가 끝난 저장소의 재실행도 포함한다. 단계가 [Replan] 을 돌려주면
+/// [rebuildSteps] 로 새 목록을 받아 점검표부터 다시 돈다([maxReplans] 회까지).
 Future<int> runWizard(
   WizardContext context,
   List<Step> steps, {
   WizardCompletion? onCompleted,
-}) => Wizard(context, steps, onCompleted: onCompleted).run();
+  StepListBuilder? rebuildSteps,
+}) => Wizard(
+  context,
+  steps,
+  onCompleted: onCompleted,
+  rebuildSteps: rebuildSteps,
+).run();

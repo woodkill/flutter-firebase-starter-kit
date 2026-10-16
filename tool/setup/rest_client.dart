@@ -64,6 +64,66 @@ final class RestRequest {
   }
 }
 
+/// Google API 가 아닌 외부(로그인 수단 제공자) 요청 하나 — 화면에는 [displayCurl]
+/// 만 보인다.
+///
+/// Google 액세스 토큰 · `x-goog-user-project` 헤더를 붙이지 않는다. 비밀 값은
+/// [headers] · [formBody] 에만 싣고 URL 쿼리에 넣지 않는다 — 실행 기록에
+/// `<METHOD> <url>` 줄이 남는다.
+final class ExternalRequest {
+  /// [method] 로 [url] 을 부르는 외부 요청을 만든다.
+  ///
+  /// 화면 · 기록에는 [headers] · [formBody] 대신 [headerDisplay] · [formDisplay]
+  /// 를 보인다. 응답은 기본으로 민감 응답이다.
+  const ExternalRequest({
+    required this.method,
+    required this.url,
+    this.headers = const <String, String>{},
+    this.headerDisplay = const <String, String>{},
+    this.formBody,
+    this.formDisplay,
+    this.isResponseSensitive = true,
+  });
+
+  /// HTTP 메서드.
+  final String method;
+
+  /// 요청 주소 — 비밀 값을 쿼리에 넣지 않는다.
+  final Uri url;
+
+  /// 실제로 보내는 헤더(비밀 값이 실릴 수 있다).
+  final Map<String, String> headers;
+
+  /// 화면 · 기록에 보일 헤더 — 값 자리에는 자리 이름을 쓴다.
+  final Map<String, String> headerDisplay;
+
+  /// `application/x-www-form-urlencoded` 로 보낼 본문. null 이면 본문 없음.
+  final Map<String, String>? formBody;
+
+  /// 화면 · 기록에 보일 form 본문. null 이면 본문을 보이지 않는다.
+  final String? formDisplay;
+
+  /// 응답 본문에 사용자 정보 · 비밀 값이 섞일 수 있으면 true.
+  final bool isResponseSensitive;
+
+  /// 같은 요청을 터미널에서 다시 실행할 수 있는 curl 표시형을 만든다.
+  ///
+  /// [headerDisplay] · [formDisplay] 만 쓰고 실제 [headers] · [formBody] 값은
+  /// 쓰지 않는다. 본문의 작은따옴표는 셸 관례대로 `'\''` 로 바꾼다.
+  String displayCurl() {
+    final StringBuffer buffer = StringBuffer()
+      ..write('curl -s -X $method "$url"');
+    for (final MapEntry<String, String> header in headerDisplay.entries) {
+      buffer.write(' -H "${header.key}: ${header.value}"');
+    }
+    final String? shownBody = formDisplay;
+    if (shownBody != null) {
+      buffer.write(" -d '${shownBody.replaceAll("'", r"'\''")}'");
+    }
+    return buffer.toString();
+  }
+}
+
 /// REST 응답 — 상태 코드 0 은 요청하지 못했다는 뜻이다.
 final class RestResponse {
   /// 상태 코드와 본문으로 응답을 만든다.
@@ -110,6 +170,9 @@ CommandResult? toFailureResult(RestResponse response, {Redactor? redactor}) {
 abstract interface class RestClient {
   /// [request] 를 보내고 응답을 돌려준다.
   Future<RestResponse> send(RestRequest request);
+
+  /// 외부 [request] 를 보내고 응답을 돌려준다 — Google 토큰을 싣지 않는다.
+  Future<RestResponse> sendExternal(ExternalRequest request);
 }
 
 /// gcloud 의 액세스 토큰을 읽는다 — 값은 프로세스 안에만 둔다.
@@ -209,24 +272,63 @@ final class HttpRestClient implements RestClient {
     }
 
     terminal.writeCommand(request.displayCurl());
+    final String? body = request.body;
+    return _exchange(
+      method: request.method,
+      url: request.url,
+      headers: <String, String>{
+        HttpHeaders.authorizationHeader: 'Bearer $token',
+        'x-goog-user-project': request.quotaProject,
+      },
+      body: body == null ? null : utf8.encode(body),
+      contentType: ContentType.json,
+      isResponseSensitive: request.isResponseSensitive,
+    );
+  }
+
+  /// 외부 요청을 보낸다 — 시간 제한 · 오류 처리 · 기록은 [send] 와 같다.
+  ///
+  /// form 본문은 `application/x-www-form-urlencoded` 로 보낸다.
+  @override
+  Future<RestResponse> sendExternal(ExternalRequest request) async {
+    terminal.writeCommand(request.displayCurl());
+    final Map<String, String>? form = request.formBody;
+    return _exchange(
+      method: request.method,
+      url: request.url,
+      headers: request.headers,
+      body: form == null ? null : utf8.encode(Uri(queryParameters: form).query),
+      contentType: ContentType(
+        'application',
+        'x-www-form-urlencoded',
+        charset: 'utf-8',
+      ),
+      isResponseSensitive: request.isResponseSensitive,
+    );
+  }
+
+  /// 요청 하나를 보내고 응답을 읽는다 — 기록에는 `<METHOD> <url> → <상태>` 와
+  /// 본문(민감 응답이면 [sensitiveResponseNotice])을 남긴다.
+  Future<RestResponse> _exchange({
+    required String method,
+    required Uri url,
+    required Map<String, String> headers,
+    required List<int>? body,
+    required ContentType contentType,
+    required bool isResponseSensitive,
+  }) async {
+    final String target = '$method $url';
     HttpClientRequest? openedRequest;
     // 머리를 받은 뒤에만 채운다 — 상한에 걸린 단계를 기록에서 가른다.
     int? statusCode;
     try {
-      final HttpClientRequest httpRequest = await _http.openUrl(
-        request.method,
-        request.url,
-      );
+      final HttpClientRequest httpRequest = await _http.openUrl(method, url);
       openedRequest = httpRequest;
-      httpRequest.headers
-        ..set(HttpHeaders.authorizationHeader, 'Bearer $token')
-        ..set('x-goog-user-project', request.quotaProject);
-      final String? body = request.body;
+      headers.forEach(httpRequest.headers.set);
       if (body != null) {
-        final List<int> bytes = utf8.encode(body);
-        httpRequest.headers.contentType = ContentType.json;
-        httpRequest.contentLength = bytes.length;
-        httpRequest.add(bytes);
+        httpRequest.headers.contentType = contentType;
+        httpRequest.contentLength = body.length;
+        httpRequest.add(body);
       }
       // 연결 뒤 서버가 응답을 멈춰도 안내 없이 무한 대기하지 않게 상한을 건다.
       final HttpClientResponse response = await httpRequest.close().timeout(
@@ -241,10 +343,7 @@ final class HttpRestClient implements RestClient {
           .join();
       log
         ..write('rest', '$target → ${response.statusCode}')
-        ..write(
-          'rest',
-          request.isResponseSensitive ? sensitiveResponseNotice : text,
-        );
+        ..write('rest', isResponseSensitive ? sensitiveResponseNotice : text);
       return RestResponse(response.statusCode, text);
     } on IOException catch (e) {
       terminal.writeLine('  요청하지 못했습니다 — $e');

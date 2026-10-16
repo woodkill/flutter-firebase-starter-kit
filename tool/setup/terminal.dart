@@ -21,6 +21,9 @@ abstract interface class Terminal {
   /// 값을 묻는다 — Enter 면 [defaultValue], 입력 끝이면 null.
   String? ask(String question, {String? defaultValue});
 
+  /// 비밀 값을 화면에 보이지 않게 묻는다 — 앞뒤 공백을 뗀 답, 입력 끝이면 null.
+  String? askSecret(String question);
+
   /// 번호로 고르게 한다 — 고른 0부터의 위치, 입력 끝이나 계속 틀리면 null.
   ///
   /// 빈 답은 [defaultIndex] 를 고른다. [defaultIndex] 가 null 이면 기본값이 없어
@@ -98,6 +101,28 @@ final class StdioTerminal implements Terminal {
     }
     final String trimmed = answer.trim();
     return trimmed.isEmpty ? (defaultValue ?? '') : trimmed;
+  }
+
+  @override
+  String? askSecret(String question) {
+    _output.write('$question: ');
+    // 터미널이 아니면 에코를 바꿀 수 없다 — 그때는 그대로 읽는다.
+    bool? restoreEchoMode;
+    try {
+      final bool current = stdin.echoMode;
+      stdin.echoMode = false;
+      restoreEchoMode = current;
+    } on StdinException {
+      restoreEchoMode = null;
+    }
+    try {
+      return _readLine()?.trim();
+    } finally {
+      final bool? before = restoreEchoMode;
+      if (before != null) stdin.echoMode = before;
+      // 에코가 꺼져 Enter 의 줄바꿈이 보이지 않으므로 직접 한 줄 내린다.
+      _output.writeln();
+    }
   }
 
   @override
@@ -207,6 +232,26 @@ final class RedactingTerminal implements Terminal {
     log.write('in', answer == null ? endOfInputRecord : redactor.apply(answer));
     return answer;
   }
+
+  /// 받은 비밀 값은 바로 가림 함수에 등록하고, 실행 기록에는 값 대신
+  /// `(비밀 값 <n>자)` 만 남긴다.
+  @override
+  String? askSecret(String question) {
+    final String shown = redactor.apply(question);
+    log.write('out', shown);
+    final String? answer = inner.askSecret(shown);
+    if (answer == null) {
+      log.write('in', endOfInputRecord);
+      return null;
+    }
+    redactor.register(answer);
+    log.write('in', describeSecretInput(answer));
+    return answer;
+  }
+
+  /// 비밀 값 입력을 실행 기록에 남길 모양 — 값 없이 글자 수만.
+  static String describeSecretInput(String answer) =>
+      '(비밀 값 ${answer.length}자)';
 
   @override
   int? choose(String question, List<String> options, {int? defaultIndex = 0}) {

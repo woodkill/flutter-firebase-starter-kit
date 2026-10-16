@@ -4,10 +4,13 @@ import 'package:args/args.dart';
 
 import '../tool/setup/command_runner.dart';
 import '../tool/setup/completion.dart';
+import '../tool/setup/flavor.dart';
 import '../tool/setup/log_sink.dart';
+import '../tool/setup/providers/provider_catalog.dart';
 import '../tool/setup/redactor.dart';
 import '../tool/setup/rest_client.dart';
-import '../tool/setup/steps/dev_steps.dart';
+import '../tool/setup/step.dart';
+import '../tool/setup/steps/flavor_steps.dart';
 import '../tool/setup/terminal.dart';
 import '../tool/setup/wizard.dart';
 
@@ -35,7 +38,12 @@ const String logOpenFailedPrefix = '실행 기록 파일을 만들지 못했습�
 /// 작업 안내 후 종료)이다.
 Future<void> main(List<String> arguments) async {
   final ArgParser parser = ArgParser()
-    ..addFlag('help', abbr: 'h', help: '사용법을 보여 줍니다.', negatable: false);
+    ..addFlag('help', abbr: 'h', help: '사용법을 보여 줍니다.', negatable: false)
+    ..addFlag(
+      'providers',
+      help: '로그인 수단 체크 목록을 엽니다 — 켜고 끌 수단을 고릅니다.',
+      negatable: false,
+    );
 
   final ArgResults results;
   try {
@@ -123,11 +131,20 @@ Future<void> main(List<String> arguments) async {
       log: log,
       rest: rest,
     );
+    context.session.isProviderSelectionRequested = results.flag('providers');
+    // 로그인 수단을 바꾸면 위저드가 config 를 다시 읽어 단계 목록을 새로 만든다.
+    List<Step> buildCurrentSteps() => buildSteps(
+      flavor: Flavor.dev,
+      enabledProviders: readEnabledProviders(
+        context.resolve(context.paths.json),
+      ),
+    );
     try {
       code = await runWizard(
         context,
-        buildDevSteps(),
-        onCompleted: showCommitHint,
+        buildCurrentSteps(),
+        onCompleted: showCompletionSummary,
+        rebuildSteps: buildCurrentSteps,
       );
     } finally {
       rest.close();

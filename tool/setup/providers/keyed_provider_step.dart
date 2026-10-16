@@ -1,0 +1,465 @@
+import 'dart:io';
+
+import '../command_runner.dart';
+import '../config_files.dart';
+import '../confirm.dart';
+import '../secret_store.dart';
+import '../step.dart';
+import '../steps/billing_step.dart';
+import '../wizard.dart';
+import 'key_formats.dart';
+import 'provider_catalog.dart';
+
+/// 콘솔 작업을 마쳤는지 묻는 질문.
+const String consoleReadyQuestion = '콘솔에서 키를 받았나요?';
+
+/// 콘솔 질문의 진행 선택지.
+const String consoleReadyOption = '네 — 키를 입력합니다';
+
+/// 콘솔 질문의 나중 선택지.
+const String consoleLaterOption = '아니요 — 끝내고 콘솔 작업 뒤 다시 실행';
+
+/// 형식 · 서버 확인이 틀렸을 때 다시 묻는 최대 횟수.
+const int maxKeyAttempts = 3;
+
+/// 숨김 입력 질문 뒤에 붙는 안내 — 입력한 글자가 화면에 보이지 않는다.
+const String hiddenInputHint = '(붙여 넣은 뒤 Enter — 입력이 화면에 보이지 않습니다)';
+
+/// 키 값 하나와 그 값이 들어가는 모든 자리.
+///
+/// config 키 · xcconfig 변수 · Secret Manager 이름 여러 개를 한 항목에 묶는다.
+/// config 키가 없는 값(서버 전용 secret)은 [secretNames] 만 갖는다.
+final class KeyField {
+  /// 화면 이름 [label] · 형식 [format] 과 값이 들어갈 자리로 만든다.
+  const KeyField({
+    required this.label,
+    required this.format,
+    this.configKey,
+    this.xcconfigVar,
+    this.secretNames = const <String>[],
+    this.isHidden = false,
+  });
+
+  /// 화면에 보일 값 이름.
+  final String label;
+
+  /// 입력 즉시 검사할 형식.
+  final KeyFormat format;
+
+  /// `config/<flavor>.json` 의 키 — 없으면 null.
+  final String? configKey;
+
+  /// `ios/Flutter/<flavor>.xcconfig` 의 변수 — 없으면 null.
+  final String? xcconfigVar;
+
+  /// 같은 값이 들어갈 Secret Manager 이름.
+  final List<String> secretNames;
+
+  /// 비밀 값이라 숨김 입력으로 받으면 true.
+  final bool isHidden;
+
+  /// Secret Manager 쓰기 표시형의 값 자리(`<label>`).
+  String get valueLabel => '<$label>';
+}
+
+/// 키 짝 서버 확인 결과.
+sealed class PairCheck {
+  /// 하위 클래스만 만든다.
+  const PairCheck();
+}
+
+/// 서버가 키를 받아들였다.
+final class PairOk extends PairCheck {
+  /// 맞음 결과를 만든다.
+  const PairOk();
+}
+
+/// 서버가 [field] 값을 받아들이지 않았다 — 그 값만 다시 묻는다.
+final class PairMismatch extends PairCheck {
+  /// 틀린 [field] 와 화면에 보일 [reason] 으로 만든다.
+  const PairMismatch(this.field, this.reason);
+
+  /// 다시 물을 값.
+  final KeyField field;
+
+  /// 화면에 보일 이유(상태만 — 응답 본문은 넣지 않는다).
+  final String reason;
+}
+
+/// 서버 확인이 없는 로그인 수단 · 확인할 값이 이번에 없다.
+final class PairNotAvailable extends PairCheck {
+  /// 확인 없음 결과를 만든다.
+  const PairNotAvailable();
+}
+
+/// 서버 확인을 하지 못했다 — 아무것도 쓰지 않고 실패로 끝낸다.
+final class PairFailed extends PairCheck {
+  /// 실패 [reason] 으로 만든다.
+  const PairFailed(this.reason);
+
+  /// 실패 요약.
+  final String reason;
+}
+
+/// 콘솔에서 받은 키를 한 번 입력받아 모든 자리에 쓰는 로그인 수단 단계의 공통 뼈대.
+///
+/// 검사는 config 값(자리표시가 아니고 형식에 맞음) · xcconfig 값 = config 값 ·
+/// Secret Manager 값(config 키가 있으면 config 값과 같음, 서버 전용이면 없음 ·
+/// 자리표시가 아님)을 본다. config 가 진실원이라 자리표시가 아닌 config 값은 묻지
+/// 않고, 어긋난 xcconfig · Secret Manager 값은 config 값으로 맞춘다. 검사 한 번에
+/// Secret Manager 를 이름마다 정확히 한 번 읽는다.
+///
+/// 실행은 값 표(콘솔에 넣을 값 · 콘솔 주소 · 할 일 · 매뉴얼 절)를 보인 뒤, 물을
+/// 값이 있으면 콘솔 작업을 마쳤는지 묻고 그 값만 받는다(비밀 값은 숨김 입력).
+/// 형식 · 서버 확인이 틀리면 그 값만 [maxKeyAttempts] 회까지 다시 묻는다. 기록은
+/// config → xcconfig → Secret Manager(표준 입력) 순서다.
+abstract class KeyedProviderStep implements Step {
+  /// 하위 클래스만 만든다.
+  KeyedProviderStep();
+
+  /// 이 단계가 다루는 로그인 수단의 표 행.
+  ProviderEntry get entry;
+
+  /// 입력받아 기록할 값 목록(물을 순서).
+  List<KeyField> get fields;
+
+  /// 콘솔에 넣을 값 표의 행(패키지명 · 번들 ID 등 — 비밀 값은 넣지 않는다).
+  List<SummaryRow> buildValueRows(WizardContext context);
+
+  /// 콘솔에서 할 일 — 기능 이름으로 쓴 3 ~ 5줄.
+  List<String> get todoLines;
+
+  /// 입력받은 [values] 를 서버로 확인한다 — 확인이 없으면 [PairNotAvailable].
+  Future<PairCheck> verifyPair(
+    WizardContext context,
+    Map<KeyField, String> values,
+  );
+
+  _KeyedMode _mode = _KeyedMode.unreadable;
+  String _reason = '';
+  CommandResult? _failedResult;
+  String _projectId = '';
+  List<KeyField> _askFields = const <KeyField>[];
+  Map<KeyField, String> _knownValues = const <KeyField, String>{};
+  List<KeyField> _xcconfigFixes = const <KeyField>[];
+  Map<KeyField, List<String>> _secretWrites = const <KeyField, List<String>>{};
+
+  @override
+  bool get isCostlyOrIrreversible => false;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async {
+    final String? projectId = readConfiguredProjectId(context);
+    if (projectId == null) {
+      return _mark(
+        _KeyedMode.unreadable,
+        '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
+      );
+    }
+    final String jsonPath = context.resolve(context.paths.json);
+    final String xcconfigPath = context.resolve(context.paths.xcconfig);
+    final List<KeyField> askFields = <KeyField>[];
+    final Map<KeyField, String> knownValues = <KeyField, String>{};
+    final List<KeyField> xcconfigFixes = <KeyField>[];
+    final Map<KeyField, List<String>> secretWrites = <KeyField, List<String>>{};
+    final List<String> pending = <String>[];
+    int secretCount = 0;
+
+    for (final KeyField field in fields) {
+      bool needsInput = false;
+      String? configValue;
+      final String? configKey = field.configKey;
+      if (configKey != null) {
+        final String? raw = readJsonString(jsonPath, configKey)?.trim();
+        if (raw == null ||
+            _isPlaceholder(context, raw, configKey) ||
+            !field.format.matches(raw)) {
+          needsInput = true;
+          pending.add('${context.paths.json} $configKey');
+        } else {
+          configValue = raw;
+        }
+      }
+      final String? xcconfigVar = field.xcconfigVar;
+      if (xcconfigVar != null) {
+        if (!File(xcconfigPath).existsSync()) {
+          return _mark(
+            _KeyedMode.unreadable,
+            '${context.paths.xcconfig} 이 없습니다',
+          );
+        }
+        final String? current = readXcconfigValue(xcconfigPath, xcconfigVar);
+        if (current == null) {
+          return _mark(
+            _KeyedMode.unreadable,
+            '${context.paths.xcconfig} 에 $xcconfigVar 변수가 없습니다',
+          );
+        }
+        if (needsInput || current != configValue) {
+          xcconfigFixes.add(field);
+          pending.add('${context.paths.xcconfig} $xcconfigVar');
+        }
+      }
+      final List<String> mismatchedSecrets = <String>[];
+      for (final String name in field.secretNames) {
+        secretCount++;
+        final SecretRead read = await readSecret(context, name, projectId);
+        switch (read) {
+          case SecretReadFailed(
+            :final String reason,
+            :final CommandResult result,
+          ):
+            return _mark(_KeyedMode.failed, reason, result: result);
+          case SecretFound(:final String value) when configKey != null:
+            if (needsInput || value != configValue) mismatchedSecrets.add(name);
+          case SecretFound(:final String value):
+            if (value.isEmpty || value == secretPlaceholderValue) {
+              needsInput = true;
+            }
+          case SecretMissing():
+            if (configKey != null) {
+              mismatchedSecrets.add(name);
+            } else {
+              needsInput = true;
+            }
+        }
+      }
+      final List<String> writeNames = needsInput
+          ? field.secretNames
+          : mismatchedSecrets;
+      if (writeNames.isNotEmpty) {
+        secretWrites[field] = writeNames;
+        pending.addAll(<String>[
+          for (final String name in writeNames) 'Secret Manager $name',
+        ]);
+      }
+      if (needsInput) {
+        askFields.add(field);
+      } else if (configValue != null) {
+        knownValues[field] = configValue;
+      }
+    }
+
+    _projectId = projectId;
+    _askFields = askFields;
+    _knownValues = knownValues;
+    _xcconfigFixes = xcconfigFixes;
+    _secretWrites = secretWrites;
+    if (pending.isEmpty) {
+      _mode = _KeyedMode.done;
+      return Done('키 · secret $secretCount개 · iOS 쪽 맞음');
+    }
+    return _mark(_KeyedMode.fill, '채울 자리: ${pending.join(' · ')}');
+  }
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
+    _KeyedMode.fill => <String>[
+      '(${entry.displayName} 콘솔에 넣을 값 · 할 일을 보입니다)',
+      if (_askFields.isNotEmpty)
+        '(콘솔에서 받은 키를 묻습니다 — 비밀 값은 화면에 보이지 않게 받고, '
+            '형식 · 서버 확인 뒤에 기록합니다)',
+      for (final KeyField field in fields)
+        if (field.configKey != null && _askFields.contains(field))
+          '(${context.paths.json} ${field.configKey} 에 씁니다)',
+      for (final KeyField field in _xcconfigFixes)
+        '(${context.paths.xcconfig} ${field.xcconfigVar} 에 씁니다)',
+      for (final MapEntry<KeyField, List<String>> write
+          in _secretWrites.entries)
+        for (final String name in write.value)
+          buildSecretWriteCommand(
+            name,
+            _projectId,
+            value: '',
+            valueLabel: write.key.valueLabel,
+          ).render(),
+    ],
+    _KeyedMode.failed => <String>['(명령 원문을 보입니다)'],
+    _KeyedMode.unreadable || _KeyedMode.done => const <String>[],
+  };
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async {
+    // 위저드는 실행 직전에 check 를 부르므로 그 판정을 그대로 쓴다.
+    return switch (_mode) {
+      _KeyedMode.fill => await _applyFill(context),
+      _KeyedMode.failed => Failed(_reason, result: _failedResult),
+      _KeyedMode.unreadable => Failed(_reason),
+      _KeyedMode.done => const Applied(),
+    };
+  }
+
+  /// 값 표 → 콘솔 질문 → 물을 값 입력 · 형식 · 서버 확인 → 모든 자리 기록.
+  Future<StepOutcome> _applyFill(WizardContext context) async {
+    writeSummary(
+      context.terminal,
+      title: '${entry.displayName} 콘솔에 넣을 값 — ${context.flavor.name}',
+      rows: buildValueRows(context),
+      notes: <String>[
+        '콘솔: ${entry.consoleUrl}',
+        ...todoLines,
+        '자세한 절차: ${formatManualReference(entry.manualSectionPrefix)}',
+      ],
+    );
+    final Map<KeyField, String> values = Map<KeyField, String>.of(_knownValues);
+    if (_askFields.isNotEmpty) {
+      final int? choice = context.terminal.choose(
+        consoleReadyQuestion,
+        const <String>[consoleReadyOption, consoleLaterOption],
+        defaultIndex: null,
+      );
+      if (choice == null) return const Declined();
+      if (choice == 1) return ExitForUser(_buildLaterGuide());
+      for (final KeyField field in _askFields) {
+        final String? value = _askValue(context, field);
+        if (value == null) return const Declined();
+        values[field] = value;
+      }
+      final StepOutcome? rejected = await _verifyValues(context, values);
+      if (rejected != null) return rejected;
+    }
+    return _writeValues(context, values);
+  }
+
+  /// 콘솔 작업이 남았을 때의 위저드 밖 작업 안내.
+  String _buildLaterGuide() =>
+      '  ${entry.displayName} 콘솔에서 위 할 일을 마치고 키를 받은 뒤 다시 실행하세요 — '
+      '${formatManualReference(entry.manualSectionPrefix)}\n'
+      '  급하면 ./setup.sh --providers 로 ${entry.displayName} 로그인을 잠시 끌 수 '
+      '있습니다.';
+
+  /// [field] 값을 형식에 맞을 때까지 묻는다 — 입력 끝 · [maxKeyAttempts] 회
+  /// 틀림이면 null.
+  ///
+  /// 비밀 값은 숨김 입력으로 받아 바로 가림 함수에 등록하고, 받은 뒤에는 글자 수 ·
+  /// 형식 판정만 보인다.
+  String? _askValue(WizardContext context, KeyField field) {
+    for (int attempt = 0; attempt < maxKeyAttempts; attempt++) {
+      final String? answer = field.isHidden
+          ? context.terminal.askSecret('${field.label} $hiddenInputHint')
+          : context.terminal.ask(field.label);
+      if (answer == null) return null;
+      if (field.isHidden) context.redactor.register(answer);
+      if (field.format.matches(answer)) {
+        context.terminal.writeLine(
+          '  ${field.label} — ${answer.length}자 · 형식 맞음',
+        );
+        return answer;
+      }
+      context.terminal.writeLine(
+        '  ${field.label} 형식이 맞지 않습니다 — ${answer.length}자 · '
+        '규칙: ${field.format.description}',
+      );
+    }
+    return null;
+  }
+
+  /// 서버 확인을 하고, 틀린 값만 [maxKeyAttempts] 회까지 다시 묻는다.
+  ///
+  /// 통과하면 null, 아니면 단계 결과(거절 · 실패)를 돌려준다.
+  Future<StepOutcome?> _verifyValues(
+    WizardContext context,
+    Map<KeyField, String> values,
+  ) async {
+    for (int attempt = 0; attempt < maxKeyAttempts; attempt++) {
+      final PairCheck result = await verifyPair(context, values);
+      switch (result) {
+        case PairOk() || PairNotAvailable():
+          return null;
+        case PairFailed(:final String reason):
+          return Failed(reason);
+        case PairMismatch(:final KeyField field, :final String reason):
+          context.terminal.writeLine('  $reason');
+          if (!_askFields.contains(field)) return Failed(reason);
+          if (attempt == maxKeyAttempts - 1) return const Declined();
+          final String? value = _askValue(context, field);
+          if (value == null) return const Declined();
+          values[field] = value;
+      }
+    }
+    return const Declined();
+  }
+
+  /// config → xcconfig → Secret Manager 순서로 값을 쓴다.
+  Future<StepOutcome> _writeValues(
+    WizardContext context,
+    Map<KeyField, String> values,
+  ) async {
+    final String jsonPath = context.resolve(context.paths.json);
+    final String xcconfigPath = context.resolve(context.paths.xcconfig);
+    try {
+      for (final KeyField field in _askFields) {
+        final String? configKey = field.configKey;
+        if (configKey == null) continue;
+        replaceJsonString(jsonPath, configKey, values[field]!);
+      }
+      for (final KeyField field in _xcconfigFixes) {
+        replaceXcconfigValue(xcconfigPath, field.xcconfigVar!, values[field]!);
+      }
+    } on FileSystemException catch (e) {
+      return Failed('${entry.displayName} 키를 파일에 쓰지 못했습니다 — $e');
+    } on FormatException catch (e) {
+      return Failed('${entry.displayName} 키를 파일에 쓰지 못했습니다 — $e');
+    } on StateError catch (e) {
+      return Failed('${entry.displayName} 키를 파일에 쓰지 못했습니다 — ${e.message}');
+    }
+    for (final MapEntry<KeyField, List<String>> write
+        in _secretWrites.entries) {
+      final String? value = values[write.key];
+      if (value == null) continue;
+      for (final String name in write.value) {
+        final Command command = buildSecretWriteCommand(
+          name,
+          _projectId,
+          value: value,
+          valueLabel: write.key.valueLabel,
+        );
+        context.terminal.writeCommand(command.render());
+        final CommandResult written = await context.runner.capture(command);
+        if (!written.isSuccess) {
+          // 민감 출력이라 표준 출력은 버리고 오류 원문만 보인다.
+          return Failed(
+            'Secret Manager 의 $name 을 쓰지 못했습니다 (종료 코드 ${written.exitCode})',
+            result: written.withoutStdout(),
+          );
+        }
+      }
+    }
+    return const Applied();
+  }
+
+  /// [raw] 가 그 flavor example config 의 같은 키 값(자리표시)이거나 빈 값이면 true.
+  static bool _isPlaceholder(
+    WizardContext context,
+    String raw,
+    String configKey,
+  ) {
+    if (raw.isEmpty) return true;
+    final String examplePath = context.resolve(context.paths.jsonExample);
+    if (!File(examplePath).existsSync()) return false;
+    return readJsonString(examplePath, configKey)?.trim() == raw;
+  }
+
+  /// [mode] 판정과 사유를 두고 할 일 결과를 만든다.
+  CheckResult _mark(_KeyedMode mode, String reason, {CommandResult? result}) {
+    _mode = mode;
+    _reason = reason;
+    _failedResult = result;
+    return Todo(reason);
+  }
+}
+
+/// 직전 검사의 판정.
+enum _KeyedMode {
+  /// 물을 값 · 맞출 자리가 있다.
+  fill,
+
+  /// Secret Manager 를 읽지 못했다.
+  failed,
+
+  /// 프로젝트 ID · xcconfig 를 읽지 못했다.
+  unreadable,
+
+  /// 끝남.
+  done,
+}
