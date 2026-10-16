@@ -31,6 +31,22 @@ const CommandResult _addFirebaseFailed = CommandResult(
       'See firebase-debug.log for more info.\n',
 );
 
+/// Firebase 추가 콘솔 안내가 「」 로 감싸 옮기는 Firebase 콘솔 화면 라벨 원문(등장 순서).
+const List<String> _consoleGuideLabels = <String>[
+  'Firebase 프로젝트를 설정하여 시작하기',
+  'Google Cloud 프로젝트에 Firebase를 추가할 때 유의해야 할 사항',
+  '계속',
+  'Firebase 프로젝트를 위한 Google 애널리틱스',
+  '이 프로젝트에서 Google 애널리틱스 사용 설정',
+  'Google 애널리틱스 구성',
+  'Google 애널리틱스 약관에 동의합니다.',
+  'Firebase 추가',
+  'Firebase 프로젝트가 준비되었습니다.',
+];
+
+/// 애널리틱스를 켜 둔 채 진행하면 체크해야 하는 Firebase 콘솔 체크박스 라벨 원문.
+const String _analyticsTermsLabel = 'Google 애널리틱스 약관에 동의합니다.';
+
 /// 테스트 configure 상수의 프로젝트 prefix.
 const String fixturePrefix = 'my-app';
 
@@ -625,6 +641,7 @@ void main() {
           terminal.asks.where((String ask) => ask == question).length;
       expect(code, wizardExitDone);
       expect(output, contains(guide));
+      expect(output, contains(_analyticsTermsLabel));
       expect(guide, contains('https://console.firebase.google.com/'));
       expect(guide, contains(suggestedId));
       expect(RegExp('아직 끝나지 않았습니다').allMatches(output).length, 1);
@@ -985,6 +1002,66 @@ void main() {
         terminal.output.toString(),
         contains('  ✓ ${FirebaseProjectStep.stepTitle} — mine-dev'),
       );
+    },
+  );
+
+  test(
+    'T-19-PROJ-16 Firebase 추가 콘솔 안내는 화면 원문 라벨만 순서대로 쓰고 애널리틱스를 켜 둔 경우의 약관 체크를 6단계로 알린다',
+    () {
+      final String guide = FirebaseProjectStep.buildAddFirebaseGuide(
+        suggestedId,
+      );
+      final List<String> lines = guide.split('\n');
+      final List<String> labels = RegExp(
+        '「([^」]+)」',
+      ).allMatches(guide).map((RegExpMatch match) => match.group(1)!).toList();
+      final List<int> stepNumbers = RegExp(r'^ +([0-9]+)\. ', multiLine: true)
+          .allMatches(guide)
+          .map((RegExpMatch match) => int.parse(match.group(1)!))
+          .toList();
+      // 「[label]」 이 든 안내 줄의 위치를 모두 찾는다.
+      List<int> findLabelLines(String label) => <int>[
+        for (int index = 0; index < lines.length; index++)
+          if (lines[index].contains('「$label」')) index,
+      ];
+
+      // 라벨은 화면 원문 목록과 순서까지 같고, 단계 번호는 1 ~ 7 연속이다.
+      expect(labels, _consoleGuideLabels);
+      expect(stepNumbers, <int>[1, 2, 3, 4, 5, 6, 7]);
+
+      // 애널리틱스 화면 단계는 켜든 끄든 위저드 진행과 관계없다는 사실을 남긴다.
+      final List<int> analyticsLines = findLabelLines(
+        'Firebase 프로젝트를 위한 Google 애널리틱스',
+      );
+      expect(analyticsLines, hasLength(1));
+      expect(lines[analyticsLines.single], contains('켜든 끄든 위저드 진행과 관계없습니다'));
+
+      // 약관 체크 단계는 한 줄에 조건 · 화면 · 체크 · 버튼을 담는다.
+      final List<int> termsLines = findLabelLines(_analyticsTermsLabel);
+      expect(termsLines, hasLength(1));
+      final String termsLine = lines[termsLines.single];
+      expect(termsLine, contains('「이 프로젝트에서 Google 애널리틱스 사용 설정」'));
+      expect(termsLine, contains('켜 둔 채'));
+      expect(termsLine, contains('「Google 애널리틱스 구성」'));
+      expect(termsLine, contains('체크해야'));
+      expect(termsLine, contains('「Firebase 추가」'));
+
+      // 줄 순서: 애널리틱스 화면 < 약관 체크 < 준비 완료.
+      final List<int> readyLines = findLabelLines('Firebase 프로젝트가 준비되었습니다.');
+      expect(readyLines, hasLength(1));
+      expect(analyticsLines.single, lessThan(termsLines.single));
+      expect(termsLines.single, lessThan(readyLines.single));
+
+      // 첫 줄 · 콘솔 주소 · 프로젝트 ID · 끝 줄은 그대로다.
+      expect(
+        lines.first,
+        '  Firebase 를 추가하지 못했습니다 — 처음 쓰는 Google 계정이면 '
+        'Firebase 콘솔에서 이 프로젝트에 Firebase 를 추가하면서 약관에 동의해야 '
+        '합니다.',
+      );
+      expect(guide, contains('https://console.firebase.google.com/'));
+      expect(guide, contains(suggestedId));
+      expect(lines.last, '  다 끝내고 Enter 를 누르면 위저드가 $suggestedId 를 다시 확인합니다.');
     },
   );
 

@@ -170,6 +170,7 @@ final class FirebaseProjectStep implements Step {
   /// 처음 쓰는 Google 계정은 콘솔에서 프로젝트에 Firebase 를 추가하는 흐름
   /// 중간에서 약관에 동의해야 명령이 통한다. 위저드는 이 안내 뒤 Enter 를
   /// 기다려 그 자리에서 다시 검사한다. 콘솔 라벨은 「」 로 감싼 화면 원문이다.
+  /// 애널리틱스를 켜 둔 채 진행할 때 나오는 약관 체크도 함께 안내한다.
   static String buildAddFirebaseGuide(String projectId) => <String>[
     '  Firebase 를 추가하지 못했습니다 — 처음 쓰는 Google 계정이면 Firebase 콘솔에서 '
         '이 프로젝트에 Firebase 를 추가하면서 약관에 동의해야 합니다.',
@@ -182,7 +183,11 @@ final class FirebaseProjectStep implements Step {
         '「계속」 을 누릅니다',
     '    5. 「Firebase 프로젝트를 위한 Google 애널리틱스」 화면은 켜든 끄든 위저드 '
         '진행과 관계없습니다',
-    '    6. 「Firebase 프로젝트가 준비되었습니다.」 가 보일 때까지 진행합니다',
+    '    6. 「이 프로젝트에서 Google 애널리틱스 사용 설정」 을 켜 둔 채(기본값) '
+        '진행하면 「Google 애널리틱스 구성」 화면에서 '
+        '「Google 애널리틱스 약관에 동의합니다.」 를 체크해야 「Firebase 추가」 를 '
+        '누를 수 있습니다',
+    '    7. 「Firebase 프로젝트가 준비되었습니다.」 가 보일 때까지 진행합니다',
     '  다 끝내고 Enter 를 누르면 위저드가 $projectId 를 다시 확인합니다.',
   ].join('\n');
 
