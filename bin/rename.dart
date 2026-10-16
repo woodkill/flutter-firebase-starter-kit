@@ -323,9 +323,12 @@ void _collectGradleChanges(
   final file = File('$projectRoot/android/app/build.gradle.kts');
   if (!file.existsSync()) return;
 
-  // 실제로 치환 대상 문자열이 존재할 때만 변경을 등록한다.
+  // 따옴표 안의 값 전체가 킷 앱 ID 일 때만 변경을 등록한다. 부분 문자열로
+  // 보면 킷 앱 ID 를 앞부분으로 갖는 새 앱 ID(예: `…flutter_starter_kit2`)를
+  // 끝난 뒤에도 옛 값으로 잡는다. 적용도 이 자리만 바꾼다.
   final content = file.readAsStringSync();
-  if (!content.contains(currentAndroidPackage)) return;
+  final pattern = RegExp('(?<=")${RegExp.escape(currentAndroidPackage)}(?=")');
+  if (!pattern.hasMatch(content)) return;
 
   changes.add(
     FileChange(
@@ -334,6 +337,7 @@ void _collectGradleChanges(
       description: 'Android namespace + applicationId',
       oldValue: currentAndroidPackage,
       newValue: newAndroidPackage,
+      pattern: pattern,
     ),
   );
 }

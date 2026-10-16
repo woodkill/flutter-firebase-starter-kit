@@ -407,6 +407,33 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(allNew, contains('com.example.my_app'));
     });
 
+    test('킷 앱 ID 를 앞부분으로 갖는 앱 ID 로 끝난 Gradle 은 수집하지 않는다', () {
+      const String renamedPackage = 'com.slimpumpkin.flutter_starter_kit2';
+      final File gradle = File('${tempDir.path}/android/app/build.gradle.kts');
+      gradle.writeAsStringSync(
+        gradle.readAsStringSync().replaceAll(
+          '"com.slimpumpkin.flutter_starter_kit"',
+          '"$renamedPackage"',
+        ),
+      );
+      // 전제: 두 줄 모두 새 앱 ID 이고 킷 앱 ID 는 부분 문자열로만 남는다.
+      expect(
+        '"$renamedPackage"'.allMatches(gradle.readAsStringSync()),
+        hasLength(2),
+      );
+
+      final changes = collectChanges(
+        tempDir.path,
+        'com.slimpumpkin',
+        'flutter_starter_kit2',
+      );
+
+      expect(
+        changes.where((c) => c.filePath.endsWith('build.gradle.kts')),
+        isEmpty,
+      );
+    });
+
     test('project.pbxproj의 모든 PRODUCT_BUNDLE_IDENTIFIER를 변경한다', () {
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
       final pbxprojChanges = changes
