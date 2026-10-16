@@ -434,6 +434,31 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       );
     });
 
+    test('Gradle 적용은 따옴표 안 킷 앱 ID 만 바꾸고 주석 · 비슷한 값은 그대로 둔다', () {
+      final File gradle = File('${tempDir.path}/android/app/build.gradle.kts');
+      const String comment = '// 킷 앱 ID com.slimpumpkin.flutter_starter_kit 참고';
+      const String prefixLike =
+          'val a = "com.slimpumpkin.flutter_starter_kit2"';
+      const String suffixLike =
+          'val b = "com.slimpumpkin.flutter_starter_kit.debug"';
+      final String original = gradle.readAsStringSync();
+      gradle.writeAsStringSync('$original$comment\n$prefixLike\n$suffixLike\n');
+
+      final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
+      applyChanges(
+        changes.where((c) => c.filePath.endsWith('build.gradle.kts')).toList(),
+      );
+
+      final String expected = original.replaceAll(
+        '"com.slimpumpkin.flutter_starter_kit"',
+        '"com.example.my_app"',
+      );
+      expect(
+        gradle.readAsStringSync(),
+        '$expected$comment\n$prefixLike\n$suffixLike\n',
+      );
+    });
+
     test('project.pbxproj의 모든 PRODUCT_BUNDLE_IDENTIFIER를 변경한다', () {
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
       final pbxprojChanges = changes

@@ -428,6 +428,31 @@ void main() {
       expect(snapshotTree(root), before);
     });
 
+    test('T-19-ID-06 표시 이름 형식이 상한까지 틀리면 번들 ID 도 바꾸지 않는다', () async {
+      writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+      final Map<String, List<int>> before = snapshotTree(root);
+      final ScriptedTerminal terminal = ScriptedTerminal(<String?>[
+        'y',
+        for (int i = 0; i < IdentityStep.maxInputAttempts; i++) 'My-App!',
+      ]);
+
+      final int code = await runIdentityStep(FakeCommandRunner(), terminal);
+
+      final String output = terminal.output.toString();
+      expect(code, wizardExitStopped);
+      expect(
+        countAsks(terminal, IdentityStep.displayNameQuestion),
+        IdentityStep.maxInputAttempts,
+      );
+      expect(
+        IdentityStep.invalidDisplayNameMessage.allMatches(output),
+        hasLength(IdentityStep.maxInputAttempts),
+      );
+      expect(output, contains('표시 이름 형식이 맞지 않아 진행하지 않았습니다'));
+      // 사용자 xcconfig 의 킷 번들 ID 를 포함해 어떤 파일도 바뀌지 않는다.
+      expect(snapshotTree(root), before);
+    });
+
     test('T-19-ID-06 Enter 면 앱 ID 에서 계산한 표시 이름을 쓴다', () async {
       writeIdentityFixture(root, applicationId: 'com.acme.my_app');
       final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
