@@ -1073,10 +1073,14 @@ void main() {
             (FakeCall call) => cwdDependentPrefixes.any(call.key.startsWith),
           )
           .toList();
-      expect(
-        rootBound,
-        hasLength(greaterThanOrEqualTo(cwdDependentPrefixes.length)),
-      );
+      // 접두어마다 호출이 하나 이상 있어야 그 접두어의 cwd 단언이 공허하지 않다.
+      for (final String prefix in cwdDependentPrefixes) {
+        expect(
+          rootBound.any((FakeCall call) => call.key.startsWith(prefix)),
+          isTrue,
+          reason: '$prefix 명령이 흐름에 없다',
+        );
+      }
       for (final FakeCall call in rootBound) {
         expect(call.workingDirectory, fixture.root, reason: call.key);
       }
