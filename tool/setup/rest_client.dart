@@ -210,6 +210,8 @@ final class HttpRestClient implements RestClient {
 
     terminal.writeCommand(request.displayCurl());
     HttpClientRequest? openedRequest;
+    // 머리를 받은 뒤에만 채운다 — 상한에 걸린 단계를 기록에서 가른다.
+    int? statusCode;
     try {
       final HttpClientRequest httpRequest = await _http.openUrl(
         request.method,
@@ -230,6 +232,7 @@ final class HttpRestClient implements RestClient {
       final HttpClientResponse response = await httpRequest.close().timeout(
         responseTimeout,
       );
+      statusCode = response.statusCode;
       // 본문 상한은 스트림에 건다 — 상한에서 들어온 오류로 join 이 구독을
       // 취소해 응답 연결이 닫힌다. 머리를 받은 뒤라 abort() 는 효과가 없다.
       final String text = await response
@@ -251,9 +254,12 @@ final class HttpRestClient implements RestClient {
       // 머리 단계 상한이면 연결을 끊는다 — 본문 단계는 구독 취소로 이미 닫혔다.
       openedRequest?.abort();
       terminal.writeLine(responseTimeoutMessage);
+      final String limit = '${responseTimeout.inMilliseconds}ms';
       log.write(
         'rest',
-        '$target → 응답 없음 (${responseTimeout.inMilliseconds}ms)',
+        statusCode == null
+            ? '$target → 응답 없음 ($limit)'
+            : '$target → $statusCode 뒤 본문 끊김 ($limit)',
       );
       return const RestResponse(0, '');
     }

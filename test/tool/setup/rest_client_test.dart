@@ -318,7 +318,7 @@ void main() {
       screen.output.toString(),
       contains(HttpRestClient.responseTimeoutMessage),
     );
-    expect(log.lines, contains('[rest] GET $url → 응답 없음 (200ms)'));
+    expect(log.lines, contains('[rest] GET $url → 200 뒤 본문 끊김 (200ms)'));
     // 클라이언트를 닫기 전에 연결이 닫혀야 한다 — 상한 뒤에도 본문 구독이
     // 남으면 연결은 클라이언트를 닫을 때까지 열려 있다.
     await expectLater(
