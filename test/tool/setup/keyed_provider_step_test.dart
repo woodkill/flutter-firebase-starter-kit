@@ -427,6 +427,8 @@ void main() {
     final String devKey = buildNativeKey();
     final String newKey = buildNativeKey('d');
     prepareFlavorFiles(Flavor.stg);
+    // stg 문맥은 stg config 의 프로젝트 ID 를 읽는다.
+    replaceJsonString(configPathOf(Flavor.stg), 'firebaseProjectId', projectId);
     setConfigNativeKey(Flavor.dev, devKey);
     setXcconfigNativeKey(Flavor.dev, devKey);
     setConfigNativeKey(Flavor.stg, devKey);
@@ -481,6 +483,12 @@ void main() {
     test('3회 같으면 쓰지 않고 멈춘다', () async {
       final String devKey = buildNativeKey();
       prepareFlavorFiles(Flavor.stg);
+      // stg 문맥은 stg config 의 프로젝트 ID 를 읽는다.
+      replaceJsonString(
+        configPathOf(Flavor.stg),
+        'firebaseProjectId',
+        projectId,
+      );
       setConfigNativeKey(Flavor.dev, devKey);
       final String stgConfigBefore = File(
         configPathOf(Flavor.stg),
@@ -531,6 +539,12 @@ void main() {
       final String devKey = buildNativeKey();
       final String newKey = buildNativeKey('e');
       prepareFlavorFiles(Flavor.stg);
+      // stg 문맥은 stg config 의 프로젝트 ID 를 읽는다.
+      replaceJsonString(
+        configPathOf(Flavor.stg),
+        'firebaseProjectId',
+        projectId,
+      );
       setConfigNativeKey(Flavor.dev, devKey);
       final _Harness h = _Harness(root, <String?>[
         'y',
