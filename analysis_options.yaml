@@ -5,10 +5,8 @@
 # IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
 # invoked from the command line by running `flutter analyze`.
 
-# The following line activates a set of recommended lints for Flutter apps,
-# packages, and plugins designed to encourage good coding practices.
-# include: package:flutter_lints/flutter.yaml
-include: package:woody_lints/analysis_options.yaml
+# woody_lints 묶음 — 기본 규칙 · riverpod_lint plugin · 코드 생성 설정. 끄는 법은 docs/manual.md 「정적 분석」 절.
+include: package:woody_lints/recommended.yaml
 
 analyzer:
   exclude:
