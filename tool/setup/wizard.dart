@@ -4,6 +4,7 @@ import 'dart:math';
 import 'command_runner.dart';
 import 'flavor.dart';
 import 'log_sink.dart';
+import 'providers/apple_key_input.dart';
 import 'providers/fingerprints.dart';
 import 'redactor.dart';
 import 'rest_client.dart';
@@ -86,6 +87,20 @@ final class WizardSession {
   ///
   /// 「계산할 수 없음」 도 담는다 — keytool 을 한 실행 안에서 다시 부르지 않는다.
   DebugFingerprints? debugFingerprints;
+
+  /// 이번 실행에서 받은 Apple 키 — 자리(용도)마다 따로 두고, 같은 키면 두
+  /// 자리가 같은 값을 가리킨다.
+  ///
+  /// `.p8` 내용만 담고 파일 경로는 담지 않는다.
+  final Map<AppleKeyUse, AppleKey> appleKeys = <AppleKeyUse, AppleKey>{};
+
+  /// 이번 실행에서 정한 Apple Team ID — 아직 정하지 않았으면 null.
+  String? appleTeamId;
+
+  /// 이번 실행에서 DeviceCheck 키를 Firebase 에 넣었으면 true.
+  ///
+  /// DeviceCheck 단계가 실행 끝에 켜고, APNs 안내가 읽는다.
+  bool hasEnteredDeviceCheckKey = false;
 }
 
 /// 단계 실행에 필요한 공용 문맥.
