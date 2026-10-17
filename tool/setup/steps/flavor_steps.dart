@@ -3,6 +3,8 @@ import '../providers/provider_catalog.dart';
 import '../step.dart';
 import 'apis_step.dart';
 import 'app_check_step.dart';
+import 'apple_android_step.dart';
+import 'apple_step.dart';
 import 'billing_step.dart';
 import 'configure_step.dart';
 import 'facebook_step.dart';
@@ -35,12 +37,15 @@ import 'xcode_step.dart';
 /// 끝난 뒤에 검사한다. 콘솔형 로그인 수단은 그 단계 바로 뒤에 Android 쪽 줄을
 /// 끼운다 — 함수 배포는 Android 쪽 줄을 기다리지 않는다. Google 은 설정 파일을
 /// 다시 받아야 하므로 로그인 수단 단계 다음 · 앱 등록 앞에 두고, iOS · Android
-/// 쪽 줄은 앱 등록 다음에 둔다. 새 단계는 진행 순서에 맞는 자리에 끼운다.
+/// 쪽 줄은 앱 등록 다음에 둔다. Apple 은 iOS · Android 쪽 줄을 App Check 다음 ·
+/// 다른 로그인 수단 앞에 두고, 함수 배포는 iOS 쪽 줄만 기다린다. 새 단계는 진행
+/// 순서에 맞는 자리에 끼운다.
 List<Step> buildSteps({
   required Flavor flavor,
   required Set<String> enabledProviders,
 }) {
   final bool isGoogleEnabled = enabledProviders.contains(GoogleStep.token);
+  final bool isAppleEnabled = enabledProviders.contains(AppleStep.token);
   final providerSteps = <Step>[
     if (enabledProviders.contains(FacebookStep.token)) FacebookStep(),
     if (enabledProviders.contains(KakaoStep.token)) KakaoStep(),
@@ -49,6 +54,7 @@ List<Step> buildSteps({
   ];
   return <Step>[
     ..._buildCommonSteps(isGoogleEnabled: isGoogleEnabled),
+    if (isAppleEnabled) ...<Step>[AppleStep(), AppleAndroidStep()],
     for (final Step step in providerSteps) ...<Step>[
       step,
       ...?_buildAndroidSideSteps(step.id),
@@ -58,6 +64,8 @@ List<Step> buildSteps({
       providerStepIds: <String>[
         // Google 은 Android 쪽 줄(SHA-1 등록)을 기다리지 않는다.
         if (isGoogleEnabled) ...<String>[GoogleStep.token, 'google_ios'],
+        // Apple 은 Android 쪽 줄(코드 흐름 설정)을 기다리지 않는다.
+        if (isAppleEnabled) AppleStep.token,
         for (final Step step in providerSteps) step.id,
       ],
     ),
