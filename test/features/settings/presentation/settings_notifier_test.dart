@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-06 Task 6.1 — SettingsNotifier 단위 테스트.
 //
 // 검증 surface (16-07 ec7e13d 이후 성공 path = signOutAndResetOnboarding):

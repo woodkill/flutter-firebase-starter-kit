@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 17.1 Plan 17.1-06 — 계정 정보 화면(AccountScreen) widget test.
 //
 // Task 1 (T-171-ACCOUNT-01~04):

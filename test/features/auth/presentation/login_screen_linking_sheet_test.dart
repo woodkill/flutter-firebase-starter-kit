@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-08 Task 2 — login/signup catch path 의 AccountLinkingSheet
 // wiring + sheet link action 검증.
 //

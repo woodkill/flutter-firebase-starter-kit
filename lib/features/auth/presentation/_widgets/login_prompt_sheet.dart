@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -129,12 +131,13 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
         existingProvider: err.existingProvider!,
         pendingCredential: err.pendingCredential,
       );
-      // ignore: discarded_futures
-      linkResult.then((linked) {
-        if (linked != true) return;
-        if (!mounted) return;
-        if (navigator.canPop()) navigator.pop();
-      });
+      unawaited(
+        linkResult.then((linked) {
+          if (linked != true) return;
+          if (!mounted) return;
+          if (navigator.canPop()) navigator.pop();
+        }),
+      );
     });
   }
 

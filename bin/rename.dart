@@ -1,3 +1,4 @@
+// 명령줄 도구라 안내 · 결과를 print 로 표준 출력에 쓴다.
 // ignore_for_file: avoid_print
 
 import 'dart:io';

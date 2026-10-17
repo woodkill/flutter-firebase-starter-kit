@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.10 plan 07 — 탈퇴 진행 화면 (WithdrawalDisconnectScreen) widget 테스트.
 //
 // 행 상태는 fake step 결과로 도달시킨다(Completer 제어). 스피너가 있는 상태에서는

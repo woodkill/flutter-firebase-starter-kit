@@ -85,10 +85,12 @@ class _MockFirestore extends Mock implements FirebaseFirestore {}
 class _MockCollection extends Mock
     implements CollectionReference<Map<String, dynamic>> {}
 
+// cloud_firestore 의 sealed 타입을 mocktail mock 으로 대신하는 시험 전용 우회다.
 // ignore: subtype_of_sealed_class
 class _MockDoc extends Mock
     implements DocumentReference<Map<String, dynamic>> {}
 
+// cloud_firestore 의 sealed 타입을 mocktail mock 으로 대신하는 시험 전용 우회다.
 // ignore: subtype_of_sealed_class
 class _MockSnapshot extends Mock
     implements DocumentSnapshot<Map<String, dynamic>> {}

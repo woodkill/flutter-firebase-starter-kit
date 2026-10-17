@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-14 — G-16-A9-1 gap closure.
 //
 // Custom Token callable payload 의 `termsAcceptanceSnapshot` 계약 테스트.

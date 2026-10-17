@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-09 Task 2 → Plan 16-19 Task 3 갱신 —
 // AccountLinkingSheet 의 **hook seam 계약** 검증.
 //

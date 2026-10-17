@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // quick 260910-uff — LoginPromptSheet(Surface D) 소셜 실패 피드백 회귀 가드.
 //
 // 4 behavior:

@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.10 plan 07 — 탈퇴 진행 notifier (WithdrawalDisconnect) 단위 테스트.
 //
 // fake step 은 run 호출마다 Completer 를 쌓는다 — 테스트가 결과를 직접 완료해

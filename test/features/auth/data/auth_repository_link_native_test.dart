@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-08 Task 1 — native reactive account linking.
 //
 // pendingCredential 보존 (`_mapAuthException` arm) + `linkPendingNativeCredential`

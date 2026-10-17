@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-10 Task 3 — proactive account linking (native + Custom Token 재사용).
 //
 // logged-in user 가 Settings "계정 연결" 섹션 (Surface D) 에서 소셜 provider 를

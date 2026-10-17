@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-09 Task 1 — reactive Custom Token account linking.
 //
 // `linkCustomTokenProviderArm({required AccountProvider targetProvider})` 검증.

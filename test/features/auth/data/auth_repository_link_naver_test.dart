@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.9 Plan 16.9-02 Task 2 — Naver proactive account linking
 // (`AuthRepository.linkNaverProviderArm()`) 단위 테스트 (D-04).
 //

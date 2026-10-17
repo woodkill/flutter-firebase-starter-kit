@@ -131,7 +131,8 @@ void main() {
   // 교체 경로가 없었다.
   group('T-03-IN-02: seedColor 를 인자로 주입할 수 있다', () {
     test('seedColor 는 MaterialColor 로 명시 타입이다', () {
-      // ignore: unnecessary_type_check — public API 명시 타입 계약 고정.
+      // public API 의 명시 타입 계약을 고정하려는 검사라 늘 참이어도 둔다.
+      // ignore: unnecessary_type_check
       expect(AppTheme.seedColor is MaterialColor, isTrue);
     });
 

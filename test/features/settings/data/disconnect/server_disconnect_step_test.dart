@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.10 plan 05 Task 1 — 서버 행 끊기 step (Kakao · Facebook) 과 공용
 // callable 거부 매핑 · 레지스트리 계약.
 //

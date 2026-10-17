@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // debug reauth-login-auto-merge (2026-09-17) — 재인증 전용 repository 경로.
 //
 // 재인증 로그인 화면(/login?reauth=1)은 일반 로그인(signInWith… ·

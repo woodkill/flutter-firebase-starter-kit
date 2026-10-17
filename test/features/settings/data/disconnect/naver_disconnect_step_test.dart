@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.10 plan 06 Task 2 — Naver 재로그인 끊기 step.
 //
 //   NV1: 1-tap 탈퇴 — payload {accessToken} · 재로그인 끊기 timeout(WR-03) · 순서

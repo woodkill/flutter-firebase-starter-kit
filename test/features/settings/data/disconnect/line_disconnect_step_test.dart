@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.10 plan 06 — LINE 재로그인 끊기 step.
 //
 //   LN1: 탈퇴 — payload · callable → signInWithCustomToken → logout 순서

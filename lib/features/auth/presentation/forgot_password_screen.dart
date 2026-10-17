@@ -124,11 +124,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         final popped = Navigator.of(context).maybePop();
         // Navigator 로도 pop 이 불가한 경우 사용자가 dead-end 에 갇히지
         // 않도록 성공 상태를 되돌려 재제출을 허용한다.
-        // ignore: discarded_futures
-        popped.then((didPop) {
-          if (!mounted || didPop) return;
-          setState(() => _sentSuccessfully = false);
-        });
+        unawaited(
+          popped.then((didPop) {
+            if (!mounted || didPop) return;
+            setState(() => _sentSuccessfully = false);
+          }),
+        );
       }
     });
   }

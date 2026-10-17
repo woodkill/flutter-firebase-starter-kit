@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.10 plan 05 Task 2 — Apple 재로그인 끊기 step (플랫폼 분기 revoke).
 //
 //   AP1: iOS — authorizationCode → revokeTokenWithAuthorizationCode 1 · revokeAccessToken 0 → Done

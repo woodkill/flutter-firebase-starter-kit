@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.10 plan 05 Task 2 — Google 재로그인 끊기 step.
 //
 //   G1: 연결 계정 · 탈퇴 — authenticate → reauthenticate → disconnect 순서 → Done

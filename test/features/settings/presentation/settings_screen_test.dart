@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 17.1 Plan 17.1-06 Task 2 — 계정 기능이 계정 정보 화면으로 옮겨 가
 //   (D-02 · D-22) 아래 이력의 SS1~SS14 · 16.7 · 16.8 · fp6 · T-17-PHOTO-09
 //   그룹은 account_screen_test.dart 로 이전했다. 이 파일에는 T-17-NOTIF-12 와

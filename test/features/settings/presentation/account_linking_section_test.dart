@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-11 Task 1 — AccountLinkingSection widget test (AL1~AL8).
 //
 // 검증 surface (Surface D mockup — email EXCLUDE / 활성 소셜 - linked 규칙):

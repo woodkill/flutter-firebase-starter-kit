@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16.8 Plan 16.8-04 Task 2 — UnlinkConfirmationDialog widget test
 // (UD1~UD8 · D-07 · UI-SPEC §Surface U).
 //

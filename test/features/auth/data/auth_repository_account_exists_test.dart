@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-04 Task 4.3 — auth_repository.dart 의 catch path
 // account-exists provider enrichment (D-12 wiring) + client cache (Pitfall 5)
 // + PII invariant (R7) 검증.
@@ -12,7 +10,8 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
-// ignore: unused_import -- 16-13 Custom Token group 의 Failure<User> 캐스트용.
+// Custom Token group 의 Failure<User> 캐스트용.
+// ignore: unused_import
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';

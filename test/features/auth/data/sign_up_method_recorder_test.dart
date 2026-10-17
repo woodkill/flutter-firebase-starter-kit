@@ -1,3 +1,4 @@
+// 이 파일은 cloud_firestore 의 sealed 타입을 mocktail mock 으로 대신한다(시험 전용).
 // ignore_for_file: subtype_of_sealed_class
 //
 // cloud_firestore 의 CollectionReference / DocumentReference / DocumentSnapshot

@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-19 Task 1 — AuthRepository.signInWithExistingProvider
 // (reactive AccountLinkingSheet step 1 디스패처).
 //

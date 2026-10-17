@@ -1,5 +1,3 @@
-// ignore_for_file: lines_longer_than_80_chars
-//
 // Phase 16 Plan 16-19 Task 2/3 — AccountLinkingSheet 2단계 reactive 플로우
 // 회귀 테스트 (**hook 미주입 · 실제 repository 경로**).
 //

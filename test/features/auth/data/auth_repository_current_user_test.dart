@@ -1,3 +1,4 @@
+// 이 파일은 cloud_firestore 의 sealed 타입을 mocktail mock 으로 대신한다(시험 전용).
 // ignore_for_file: subtype_of_sealed_class
 //
 // 본 테스트는 cloud_firestore 의 일부 sealed class (Query / DocumentReference /
@@ -69,10 +70,10 @@ Future<void> _settle() async {
 /// 구독되지 않을 수 있다. listener 를 명시적으로 등록하여 stream subscription
 /// 을 기동한다.
 ProviderContainer _makeContainer({required List<Object> overrides}) {
-  // ignore: argument_type_not_assignable — flutter_riverpod 의 Override 타입은
-  // 외부 노출 미지원이라 List<Object> 로 받고 ProviderContainer 가 sub-type
-  // 동적 캐스팅한다. 호출부는 모두 *.overrideWith / *.overrideWithValue 의
-  // 결과만 전달하므로 안전.
+  // flutter_riverpod 의 Override 타입은 외부 노출 미지원이라 List<Object> 로
+  // 받고 ProviderContainer 가 sub-type 동적 캐스팅한다. 호출부는 모두
+  // *.overrideWith / *.overrideWithValue 의 결과만 전달하므로 안전.
+  // ignore: argument_type_not_assignable
   final container = ProviderContainer(overrides: overrides.cast());
   // currentUserProvider listener — Stream subscription 활성화 + 안정화.
   container.listen(currentUserProvider, (_, _) {}, fireImmediately: true);
