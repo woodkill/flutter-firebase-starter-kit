@@ -4,13 +4,13 @@ import '../../../bin/rename.dart' as rename;
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
+import '../flavor.dart';
 import '../git_tree.dart';
 import '../gradle_identity.dart';
 import '../step.dart';
 import '../terminal.dart';
 import '../wizard.dart';
 import 'configure_step.dart';
-import 'user_files_step.dart';
 
 /// 앱 정체성 단계 — org · name 두 값으로 앱 ID · 번들 ID · 프로젝트 prefix ·
 /// 표시 이름을 한 번의 확인으로 바꾼다.
@@ -20,6 +20,11 @@ import 'user_files_step.dart';
 /// 거치지 않는다. 표시 이름은 rename 뒤 사용자 파일의 `appName` · `DISPLAY_NAME`
 /// 에 위저드가 직접 쓴다. 앱 ID 가 이미 바뀐 저장소에서 사용자 xcconfig 에 남은
 /// 킷 번들 ID 는 묻지 않고 앱 ID 에 맞춘다.
+///
+/// 경로 · 표시 이름 접미사는 고른 flavor 를 따른다. 앱 ID 는 flavor 가 함께
+/// 쓰므로 이름 바꾸기는 모든 flavor 를 바꾸지만, 표시 이름은 그 flavor 의
+/// 사용자 파일에만 쓴다. dev 가 아닌 flavor 는 그 flavor 의 사용자 xcconfig
+/// 번들 ID 만 맞춘다 — 다른 flavor 의 사용자 파일은 건드리지 않는다.
 final class IdentityStep implements Step {
   /// 앱 정체성 단계를 만든다.
   IdentityStep();
@@ -101,9 +106,6 @@ final class IdentityStep implements Step {
   /// 표시 이름 규칙 — 영문 · 숫자 · 공백(앞뒤 공백은 뗀 뒤 검사).
   static final RegExp displayNamePattern = RegExp(r'^[A-Za-z0-9 ]+$');
 
-  /// dev 표시 이름 접미사.
-  static const String _devSuffix = ' Dev';
-
   _IdentityMode _mode = _IdentityMode.unreadable;
   String _reason = '';
   String _applicationId = '';
@@ -178,9 +180,10 @@ final class IdentityStep implements Step {
 
   @override
   List<String> plannedCommandLines(WizardContext context) {
-    const List<String> displayNameLines = <String>[
-      '(${UserFilesStep.jsonUserPath} 의 appName 을 표시 이름으로 바꿈)',
-      '(${UserFilesStep.xcconfigUserPath} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
+    final FlavorPaths paths = context.paths;
+    final List<String> displayNameLines = <String>[
+      '(${paths.json} 의 appName 을 표시 이름으로 바꿈)',
+      '(${paths.xcconfig} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
     ];
     final List<String> bundleIdLines = <String>[
       for (final String path in _listTargetPaths(context, _xcconfigResidue))
@@ -228,7 +231,7 @@ final class IdentityStep implements Step {
     } on FileSystemException catch (e) {
       return Failed('파일을 고치지 못했습니다 — $e');
     } on FormatException catch (e) {
-      return Failed('${UserFilesStep.jsonUserPath} 을 고치지 못했습니다 — $e');
+      return Failed('${context.paths.json} 을 고치지 못했습니다 — $e');
     } on StateError catch (e) {
       return Failed('표시 이름을 쓰지 못했습니다 — ${e.message}');
     }
@@ -246,9 +249,17 @@ final class IdentityStep implements Step {
     }
 
     String prefix = name.replaceAll('_', '-');
-    String displayName = '${rename.toTitleCase(name)}$_devSuffix';
+    final Flavor flavor = context.flavor;
+    String displayName =
+        '${rename.toTitleCase(name)}${flavor.displayNameSuffix}';
     while (true) {
-      final List<SummaryRow> rows = _buildRows(org, name, prefix, displayName);
+      final List<SummaryRow> rows = _buildRows(
+        org,
+        name,
+        prefix,
+        displayName,
+        flavor,
+      );
       _writePreview(terminal, rows);
       final int? choice = terminal.choose(previewChoiceQuestion, const <String>[
         proceedOption,
@@ -297,12 +308,7 @@ final class IdentityStep implements Step {
       break;
     }
 
-    final String jsonPath = context.resolve(UserFilesStep.jsonUserPath);
-    final String xcconfigPath = context.resolve(UserFilesStep.xcconfigUserPath);
-    final String? missingTarget = _findMissingDisplayNameTarget(
-      jsonPath,
-      xcconfigPath,
-    );
+    final String? missingTarget = _findMissingDisplayNameTarget(context);
     if (missingTarget != null) return Failed(missingTarget);
 
     final List<rename.FileChange> changes = rename.collectChanges(
@@ -323,7 +329,7 @@ final class IdentityStep implements Step {
     }
 
     rename.applyChanges(changes);
-    _writeDisplayName(jsonPath, xcconfigPath, displayName);
+    _writeDisplayName(context, displayName);
     return const Applied();
   }
 
@@ -333,16 +339,12 @@ final class IdentityStep implements Step {
   /// 직전 검사가 모은 사용자 xcconfig 의 킷 번들 ID 도 표시 이름이 정해진 뒤
   /// 함께 맞춘다 — 거절하면 아무 파일도 바꾸지 않는다.
   StepOutcome _applyDisplayNameOnly(WizardContext context) {
-    final String jsonPath = context.resolve(UserFilesStep.jsonUserPath);
-    final String xcconfigPath = context.resolve(UserFilesStep.xcconfigUserPath);
-    final String? missingTarget = _findMissingDisplayNameTarget(
-      jsonPath,
-      xcconfigPath,
-    );
+    final String? missingTarget = _findMissingDisplayNameTarget(context);
     if (missingTarget != null) return Failed(missingTarget);
 
     final String suggested =
-        '${rename.toTitleCase(_applicationId.split('.').last)}$_devSuffix';
+        '${rename.toTitleCase(_applicationId.split('.').last)}'
+        '${context.flavor.displayNameSuffix}';
     final String? displayName = _askValid(
       context.terminal,
       question: displayNameQuestion,
@@ -355,7 +357,7 @@ final class IdentityStep implements Step {
       return const Failed('표시 이름 형식이 맞지 않아 진행하지 않았습니다');
     }
     rename.applyChanges(_xcconfigResidue);
-    _writeDisplayName(jsonPath, xcconfigPath, displayName);
+    _writeDisplayName(context, displayName);
     return const Applied();
   }
 
@@ -418,20 +420,25 @@ final class IdentityStep implements Step {
     return '';
   }
 
-  /// 미리보기 · 확인 표의 값 행을 만든다.
+  /// 미리보기 · 확인 표의 값 행을 만든다 — 앱 ID 뒤에 [flavor] 접미사를
+  /// 괄호로 붙인다(접미사가 없는 flavor 는 붙이지 않는다).
   List<SummaryRow> _buildRows(
     String org,
     String name,
     String prefix,
     String displayName,
-  ) => <SummaryRow>[
-    SummaryRow('org', org),
-    SummaryRow('name', name),
-    SummaryRow('Android 앱 ID', '$org.$name(.dev)'),
-    SummaryRow('iOS 번들 ID', '$org.${rename.toLowerCamelCase(name)}(.dev)'),
-    SummaryRow('프로젝트 prefix', prefix),
-    SummaryRow('표시 이름', displayName),
-  ];
+    Flavor flavor,
+  ) {
+    final String suffix = flavor.suffix.isEmpty ? '' : '(${flavor.suffix})';
+    return <SummaryRow>[
+      SummaryRow('org', org),
+      SummaryRow('name', name),
+      SummaryRow('Android 앱 ID', '$org.$name$suffix'),
+      SummaryRow('iOS 번들 ID', '$org.${rename.toLowerCamelCase(name)}$suffix'),
+      SummaryRow('프로젝트 prefix', prefix),
+      SummaryRow('표시 이름', displayName),
+    ];
+  }
 
   /// 미리보기 표를 보인다 — 라벨은 화면 폭 기준으로 맞춘다.
   void _writePreview(Terminal terminal, List<SummaryRow> rows) {
@@ -468,26 +475,34 @@ final class IdentityStep implements Step {
   }
 
   /// 표시 이름을 쓸 키 · 변수가 없으면 그 사유를 돌려준다 — 모두 있으면 null.
-  String? _findMissingDisplayNameTarget(String jsonPath, String xcconfigPath) {
+  String? _findMissingDisplayNameTarget(WizardContext context) {
+    final FlavorPaths paths = context.paths;
+    final String jsonPath = context.resolve(paths.json);
+    final String xcconfigPath = context.resolve(paths.xcconfig);
     if (!File(jsonPath).existsSync() ||
         readJsonString(jsonPath, 'appName') == null) {
-      return '${UserFilesStep.jsonUserPath} 에 appName 문자열 값이 없습니다';
+      return '${paths.json} 에 appName 문자열 값이 없습니다';
     }
     if (!File(xcconfigPath).existsSync() ||
         readXcconfigValue(xcconfigPath, 'DISPLAY_NAME') == null) {
-      return '${UserFilesStep.xcconfigUserPath} 에 DISPLAY_NAME 이 없습니다';
+      return '${paths.xcconfig} 에 DISPLAY_NAME 이 없습니다';
     }
     return null;
   }
 
-  /// 표시 이름을 사용자 JSON 의 `appName` · xcconfig 의 `DISPLAY_NAME` 에 쓴다.
-  void _writeDisplayName(
-    String jsonPath,
-    String xcconfigPath,
-    String displayName,
-  ) {
-    replaceJsonString(jsonPath, 'appName', displayName);
-    replaceXcconfigValue(xcconfigPath, 'DISPLAY_NAME', displayName);
+  /// 표시 이름을 고른 flavor 의 사용자 JSON `appName` · xcconfig
+  /// `DISPLAY_NAME` 에 쓴다.
+  void _writeDisplayName(WizardContext context, String displayName) {
+    replaceJsonString(
+      context.resolve(context.paths.json),
+      'appName',
+      displayName,
+    );
+    replaceXcconfigValue(
+      context.resolve(context.paths.xcconfig),
+      'DISPLAY_NAME',
+      displayName,
+    );
   }
 
   /// configure 스크립트의 prefix 상수가 [applicationId] 와 같은 정체성인지 본다.
@@ -533,8 +548,10 @@ final class IdentityStep implements Step {
   /// 늘 등록하므로 버린다(표시 이름은 [_isDisplayNameDefault] 가 따로 본다).
   /// 사용자 xcconfig 번들 ID 는 추적 파일 몫에서 빼서 따로 돌려준다 — 사용자
   /// 파일 잔여는 위저드가 직접 맞춘다. 있는 파일만 수집되므로 없는 stg · prod
-  /// 사용자 파일은 건너뛴다. 프로젝트 prefix 는 사용자가 고른 값이라 킷 값을
-  /// 넘겨 변경 없음으로 빠지게 한다.
+  /// 사용자 파일은 건너뛴다. dev 실행은 있는 모든 flavor 의 사용자 xcconfig 를,
+  /// 다른 flavor 실행은 그 flavor 의 사용자 xcconfig 만 맞추고 나머지는 버린다.
+  /// 프로젝트 prefix 는 사용자가 고른 값이라 킷 값을 넘겨 변경 없음으로 빠지게
+  /// 한다.
   _RenameResidue _collectRenameResidue(
     WizardContext context,
     String applicationId,
@@ -550,6 +567,8 @@ final class IdentityStep implements Step {
       for (final String fileName in rename.userXcconfigFileNames)
         context.resolve('ios/Flutter/$fileName'),
     };
+    final String ownXcconfigPath = context.resolve(context.paths.xcconfig);
+    final bool isDevFlavor = context.flavor == Flavor.dev;
     final List<rename.FileChange> tracked = <rename.FileChange>[];
     final List<rename.FileChange> userXcconfig = <rename.FileChange>[];
     for (final rename.FileChange change in rename.collectChanges(
@@ -560,7 +579,9 @@ final class IdentityStep implements Step {
     )) {
       if (configPaths.contains(change.filePath)) continue;
       if (xcconfigPaths.contains(change.filePath)) {
-        userXcconfig.add(change);
+        if (isDevFlavor || change.filePath == ownXcconfigPath) {
+          userXcconfig.add(change);
+        }
       } else {
         tracked.add(change);
       }
@@ -586,11 +607,10 @@ final class IdentityStep implements Step {
 
   /// 표시 이름이 킷 기본값(appName 이 킷 이름으로 시작 · DISPLAY_NAME 이 example 값)인지 본다.
   bool _isDisplayNameDefault(WizardContext context) {
-    final String jsonPath = context.resolve(UserFilesStep.jsonUserPath);
-    final String xcconfigPath = context.resolve(UserFilesStep.xcconfigUserPath);
-    final String examplePath = context.resolve(
-      UserFilesStep.xcconfigExamplePath,
-    );
+    final FlavorPaths paths = context.paths;
+    final String jsonPath = context.resolve(paths.json);
+    final String xcconfigPath = context.resolve(paths.xcconfig);
+    final String examplePath = context.resolve(paths.xcconfigExample);
     final String? appName = File(jsonPath).existsSync()
         ? readJsonString(jsonPath, 'appName')
         : null;

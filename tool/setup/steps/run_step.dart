@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../command_runner.dart';
+import '../flavor.dart';
 import '../rest_client.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
-import 'user_files_step.dart';
 
 /// 앱 실행 · 로그인 확인 단계 — 위저드의 마지막 단계다.
 ///
@@ -39,9 +39,6 @@ final class RunStep implements Step {
 
   /// 사용자 목록을 끝까지 읽을 때의 최대 페이지 수 — 응답이 끝나지 않는 경우를 막는다.
   static const int maxPages = 1000;
-
-  /// 실행에 쓰는 dev config 파일(저장소 루트 기준).
-  static const String devConfigPath = 'config/dev.json';
 
   /// iOS 시뮬레이터를 켠 뒤 기기 목록을 다시 보는 간격.
   static const Duration launchPollInterval = Duration(seconds: 3);
@@ -158,17 +155,21 @@ final class RunStep implements Step {
     appPath,
   ], workingDirectory: workingDirectory);
 
-  /// [deviceId] 기기에서 dev 앱을 실행하는 명령을 만든다.
-  static Command buildRunCommand(String deviceId, {String? workingDirectory}) =>
-      Command('fvm', <String>[
-        'flutter',
-        'run',
-        '--flavor',
-        'dev',
-        '--dart-define-from-file=config/dev.json',
-        '-d',
-        deviceId,
-      ], workingDirectory: workingDirectory);
+  /// [deviceId] 기기에서 [flavor] 앱을 그 flavor 의 config 로 실행하는 명령을
+  /// 만든다(기본 dev).
+  static Command buildRunCommand(
+    String deviceId, {
+    String? workingDirectory,
+    Flavor flavor = Flavor.dev,
+  }) => Command('fvm', <String>[
+    'flutter',
+    'run',
+    '--flavor',
+    flavor.name,
+    '--dart-define-from-file=${FlavorPaths(flavor).json}',
+    '-d',
+    deviceId,
+  ], workingDirectory: workingDirectory);
 
   /// [projectId] 의 사용자 목록 한 페이지를 읽는 요청을 만든다.
   ///
@@ -385,7 +386,7 @@ final class RunStep implements Step {
     if (projectId == null) {
       return _mark(
         _RunMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
+        '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
       );
     }
     _projectId = projectId;
@@ -415,8 +416,8 @@ final class RunStep implements Step {
       'xcrun simctl boot <고른 iPhone 시뮬레이터>',
       'open -a <Xcode 의 시뮬레이터 화면 앱>',
       '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
-      'fvm flutter run --flavor dev --dart-define-from-file=$devConfigPath '
-          '-d <고른 기기>',
+      'fvm flutter run --flavor ${context.flavor.name} '
+          '--dart-define-from-file=${context.paths.json} -d <고른 기기>',
       '(실행이 끝나면 아래 요청으로 인증된 이메일 사용자를 다시 셉니다 — 개수만 보입니다)',
       buildBatchGetRequest(_projectId).displayCurl(),
     ],
@@ -470,7 +471,11 @@ final class RunStep implements Step {
       context.terminal.writeLine(line);
     }
     final int code = await context.runner.interactive(
-      buildRunCommand(target.id, workingDirectory: root),
+      buildRunCommand(
+        target.id,
+        workingDirectory: root,
+        flavor: context.flavor,
+      ),
     );
     if (code != 0) {
       return Failed('$runFailedSummary (종료 코드 $code)');

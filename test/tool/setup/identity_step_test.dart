@@ -1,16 +1,21 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:test/test.dart';
 
 import '../../../bin/rename.dart' as rename;
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
+import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/git_tree.dart';
+import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
 import '../../../tool/setup/steps/identity_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
+import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
+import 'fake_rest_client.dart';
 import 'fakes.dart';
 
 const String _gitStatusKey = 'git status --porcelain --untracked-files=no';
@@ -1022,5 +1027,134 @@ void main() {
       'user_files',
       'identity',
     ]);
+  });
+  group('flavor 문맥', () {
+    /// 이름 바꾸기가 끝난 저장소의 앱 ID(가짜).
+    const String renamedApplicationId = 'com.acme.my_app';
+    late ScriptedTerminal screen;
+
+    /// [flavor] 문맥을 만든다 — 화면은 가림 터미널로 감싼다.
+    WizardContext buildFlavorContext(Flavor flavor, List<String?> inputs) {
+      final MemoryLogSink log = MemoryLogSink(Redactor());
+      screen = ScriptedTerminal(inputs);
+      return WizardContext(
+        projectRoot: root,
+        runner: FakeCommandRunner(),
+        terminal: RedactingTerminal(screen, log.redactor, log),
+        redactor: log.redactor,
+        log: log,
+        rest: FakeRestClient(),
+        flavor: flavor,
+        random: Random(fixedTestRandomSeed),
+        now: () => fixedTestNow,
+      );
+    }
+
+    /// [flavor] 의 example 두 파일과 그 복사본 사용자 파일을 둔다.
+    void writeFlavorUserFiles(Flavor flavor) {
+      final FlavorPaths paths = FlavorPaths(flavor);
+      for (final (String example, String user) in <(String, String)>[
+        (paths.jsonExample, paths.json),
+        (paths.xcconfigExample, paths.xcconfig),
+      ]) {
+        File(example).copySync('$root/$example');
+        File(example).copySync('$root/$user');
+      }
+    }
+
+    for (final Flavor flavor in <Flavor>[Flavor.stg, Flavor.prod]) {
+      test(
+        'T-20-FLAVOR-07: ${flavor.name} 문맥 · 앱 ID 가 바뀐 저장소는 org · name 을 묻지 않고 '
+        '그 flavor 파일의 번들 ID · 표시 이름만 맞춘다',
+        () async {
+          writeIdentityFixture(root, applicationId: renamedApplicationId);
+          writeFlavorUserFiles(flavor);
+          final FlavorPaths paths = FlavorPaths(flavor);
+          final Map<String, List<int>> devBefore = <String, List<int>>{
+            for (final String path in <String>[
+              UserFilesStep.jsonUserPath,
+              UserFilesStep.xcconfigUserPath,
+            ])
+              path: File('$root/$path').readAsBytesSync(),
+          };
+          final WizardContext context = buildFlavorContext(
+            flavor,
+            const <String?>[''],
+          );
+          final IdentityStep step = IdentityStep();
+
+          final CheckResult before = await step.check(context);
+          final List<String> lines = step.plannedCommandLines(context);
+          final StepOutcome outcome = await step.apply(context);
+
+          final String expectedName =
+              '${rename.toTitleCase('my_app')}${flavor.displayNameSuffix}';
+          expect(
+            before,
+            isA<Todo>().having(
+              (Todo todo) => todo.reason,
+              'reason',
+              '표시 이름이 킷 기본값입니다',
+            ),
+          );
+          expect(lines, <String>[
+            '(${paths.xcconfig} 의 PRODUCT_BUNDLE_IDENTIFIER 를 앱 ID 에 맞춤)',
+            '(${paths.json} 의 appName 을 표시 이름으로 바꿈)',
+            '(${paths.xcconfig} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
+          ]);
+          expect(outcome, isA<Applied>());
+          expect(screen.asks, <String>[IdentityStep.displayNameQuestion]);
+          expect(
+            readXcconfigValue(
+              '$root/${paths.xcconfig}',
+              'PRODUCT_BUNDLE_IDENTIFIER',
+            ),
+            '${buildIosBundleIdPrefix(renamedApplicationId)}${flavor.suffix}',
+          );
+          expect(
+            readXcconfigValue('$root/${paths.xcconfig}', 'DISPLAY_NAME'),
+            expectedName,
+          );
+          expect(
+            readJsonString('$root/${paths.json}', 'appName'),
+            expectedName,
+          );
+          // dev 사용자 파일은 킷 번들 ID 가 남아 있어도 건드리지 않는다.
+          for (final MapEntry<String, List<int>> entry in devBefore.entries) {
+            expect(
+              File('$root/${entry.key}').readAsBytesSync(),
+              entry.value,
+              reason: entry.key,
+            );
+          }
+          expect(await step.check(context), isA<Done>());
+        },
+      );
+    }
+
+    test('T-20-FLAVOR-10: dev 문맥 정체성 단계의 계획 줄 · 표시 이름 제안은 그대로다', () async {
+      writeIdentityFixture(root, applicationId: renamedApplicationId);
+      final WizardContext context = buildFlavorContext(
+        Flavor.dev,
+        const <String?>[''],
+      );
+      final IdentityStep step = IdentityStep();
+
+      await step.check(context);
+      final List<String> lines = step.plannedCommandLines(context);
+      await step.apply(context);
+
+      expect(
+        lines,
+        containsAllInOrder(<String>[
+          '(config/dev.json 의 appName 을 표시 이름으로 바꿈)',
+          '(ios/Flutter/dev.xcconfig 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
+        ]),
+      );
+      expect(
+        readJsonString('$root/${UserFilesStep.jsonUserPath}', 'appName'),
+        'My App Dev',
+      );
+    });
   });
 }

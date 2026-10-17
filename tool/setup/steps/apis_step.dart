@@ -2,7 +2,6 @@ import '../command_runner.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
-import 'user_files_step.dart';
 
 /// 필요한 Google Cloud API 단계 — 킷이 쓰는 API 가 켜져 있는지 보고 꺼진 것만 켠다.
 ///
@@ -73,7 +72,7 @@ final class ApisStep implements Step {
     final String? projectId = readConfiguredProjectId(context);
     if (projectId == null) {
       _mode = _ApisMode.unreadable;
-      _reason = '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다';
+      _reason = '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다';
       return Todo(_reason);
     }
     _projectId = projectId;

@@ -8,14 +8,13 @@ import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
 import 'firestore_step.dart';
-import 'user_files_step.dart';
 
 /// 기본 Storage bucket 단계 — 프로젝트의 기본 Cloud Storage bucket 을 Firestore 와
 /// 같은 위치에 만든다.
 ///
 /// 검사는 Cloud Storage for Firebase 관리 API 의 기본 bucket GET 이다. 없으면(404)
 /// Firestore 위치를 읽어 같은 위치로 만들고, Firestore 가 단일 리전 목록 밖(다중
-/// 리전 등)이면 `config/dev.json` 의 `functionsRegion` 을 쓴다. 위치가
+/// 리전 등)이면 고른 flavor 의 `config/<flavor>.json` `functionsRegion` 을 쓴다. 위치가
 /// [alwaysFreeRegions] 밖이면 무료 사용량이 없다는 경고를 확인 표에 보인다.
 /// 만들기는 확인 표 뒤에만 REST POST 로 요청한다.
 final class StorageStep implements Step {
@@ -94,7 +93,7 @@ final class StorageStep implements Step {
     if (projectId == null) {
       return _markFailed(
         _StorageMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
+        '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
       );
     }
     _projectId = projectId;
@@ -185,14 +184,14 @@ final class StorageStep implements Step {
         _locationNote = '위치 $locationId — Firestore 와 같은 위치';
       case FirestoreFound(:final String locationId):
         final String? region = readJsonString(
-          context.resolve(UserFilesStep.jsonUserPath),
+          context.resolve(context.paths.json),
           FirestoreStep.functionsRegionKey,
         )?.trim();
         if (region == null || region.isEmpty) {
           return _markFailed(
             _StorageMode.locationUnknown,
             'Firestore 위치 $locationId 는 단일 리전이 아니고 '
-            '${UserFilesStep.jsonUserPath} 에서 ${FirestoreStep.functionsRegionKey} '
+            '${context.paths.json} 에서 ${FirestoreStep.functionsRegionKey} '
             '를 읽지 못했습니다',
           );
         }

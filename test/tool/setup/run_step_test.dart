@@ -1,15 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
+import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
+import '../../../tool/setup/steps/apis_step.dart';
+import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
 import '../../../tool/setup/steps/run_step.dart';
+import '../../../tool/setup/steps/storage_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
+import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
@@ -1370,5 +1376,285 @@ void main() {
     expect(await harness.run(), wizardExitStopped);
     expect(harness.output, contains('에서 프로젝트 ID 를 읽지 못했습니다'));
     expect(harness.rest.requests, isEmpty);
+  });
+
+  group('flavor 문맥', () {
+    /// stg config 의 프로젝트 ID(가짜) — dev 와 다르다.
+    const String stgProjectId = 'demo-stg';
+    late FakeCommandRunner runner;
+    late FakeRestClient rest;
+    late ScriptedTerminal screen;
+
+    /// [projectIdValue] 를 담은 [flavor] 사용자 config 를 쓴다.
+    void writeFlavorConfig(Flavor flavor, String projectIdValue) {
+      File('$root/${FlavorPaths(flavor).json}').writeAsStringSync(
+        '${jsonEncode(<String, Object?>{'firebaseProjectId': projectIdValue, 'enabledAuthProviders': ''})}\n',
+      );
+    }
+
+    /// [flavor] 문맥을 만든다 — 화면은 가림 터미널로 감싼다.
+    WizardContext buildFlavorContext(
+      Flavor flavor, [
+      List<String?> inputs = const <String?>[],
+    ]) {
+      final MemoryLogSink log = MemoryLogSink(Redactor());
+      screen = ScriptedTerminal(inputs);
+      return WizardContext(
+        projectRoot: root,
+        runner: runner,
+        terminal: RedactingTerminal(screen, log.redactor, log),
+        redactor: log.redactor,
+        log: log,
+        rest: rest,
+        flavor: flavor,
+        random: Random(fixedTestRandomSeed),
+        now: () => fixedTestNow,
+      );
+    }
+
+    setUp(() {
+      runner = FakeCommandRunner();
+      rest = FakeRestClient();
+      writeFlavorConfig(Flavor.stg, stgProjectId);
+    });
+
+    test(
+      'T-20-FLAVOR-08: stg 실행 단계는 stg config 의 프로젝트로 사용자를 세고 stg flavor 로 앱을 띄운다',
+      () async {
+        final String stgPageUrl = RunStep.buildBatchGetRequest(
+          stgProjectId,
+        ).url.toString();
+        rest
+          ..on('GET', stgPageUrl, buildPage(const <Map<String, Object?>>[]))
+          ..on('GET', stgPageUrl, buildPage(const <Map<String, Object?>>[]))
+          ..on(
+            'GET',
+            stgPageUrl,
+            buildPage(<Map<String, Object?>>[buildVerifiedUser('u1')]),
+          );
+        runner
+          ..on(
+            FakeCommandRunner.buildKey(RunStep.buildPubGetCommand()),
+            const CommandResult(0, '', ''),
+          )
+          ..on(
+            FakeCommandRunner.buildKey(RunStep.buildCodegenCommand()),
+            const CommandResult(0, '', ''),
+          )
+          ..on(
+            FakeCommandRunner.buildKey(RunStep.buildDevicesCommand()),
+            buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+          )
+          // stg 키만 등록한다 — dev 명령을 부르면 StateError 로 실패한다.
+          ..on(
+            FakeCommandRunner.buildKey(
+              RunStep.buildRunCommand(simulatorId, flavor: Flavor.stg),
+            ),
+            const CommandResult(0, '', ''),
+          );
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>['y', ''],
+        );
+
+        final int code = await runWizard(context, <Step>[
+          _FinishedStep('configure', '앱 등록 · 설정 파일'),
+          _FinishedStep('sign_in', '로그인 수단 (이메일 · 익명)'),
+          _FinishedStep('rules', 'Firestore · Storage rules'),
+          _FinishedStep('app_check', 'App Check 디버그 토큰'),
+          _FinishedStep('functions', 'Cloud Functions 배포'),
+          RunStep(delay: (Duration duration) async {}),
+        ]);
+
+        final String output = screen.output.toString();
+        expect(code, wizardExitDone);
+        expect(
+          runner.countCalls(
+            RunMode.interactive,
+            'fvm flutter run --flavor stg '
+            '--dart-define-from-file=config/stg.json -d $simulatorId',
+          ),
+          1,
+        );
+        expect(
+          output,
+          contains(
+            'fvm flutter run --flavor stg '
+            '--dart-define-from-file=config/stg.json -d <고른 기기>',
+          ),
+        );
+        expect(output, isNot(contains('--flavor dev')));
+        expect(output, isNot(contains('config/dev.json')));
+        expect(rest.countRequests('GET', stgPageUrl), 3);
+        expect(
+          rest.requests.every(
+            (RestRequest request) =>
+                request.url.toString() == stgPageUrl &&
+                request.quotaProject == stgProjectId,
+          ),
+          isTrue,
+        );
+        expect(output, contains('  ✓ 앱 실행 · 로그인 확인 — 인증된 이메일 사용자 1명'));
+      },
+    );
+
+    test(
+      'T-20-FLAVOR-08: stg 계획 줄 · 명령 키는 stg flavor 와 stg config 를 쓴다',
+      () async {
+        rest.on(
+          'GET',
+          RunStep.buildBatchGetRequest(stgProjectId).url.toString(),
+          buildPage(const <Map<String, Object?>>[]),
+        );
+        final WizardContext context = buildFlavorContext(Flavor.stg);
+        final RunStep step = RunStep();
+
+        expect(await step.check(context), isA<Todo>());
+        final List<String> lines = step.plannedCommandLines(context);
+
+        expect(
+          lines,
+          contains(
+            'fvm flutter run --flavor stg '
+            '--dart-define-from-file=config/stg.json -d <고른 기기>',
+          ),
+        );
+        expect(
+          lines,
+          contains(RunStep.buildBatchGetRequest(stgProjectId).displayCurl()),
+        );
+        expect(
+          FakeCommandRunner.buildKey(
+            RunStep.buildRunCommand('x', flavor: Flavor.prod),
+          ),
+          'fvm flutter run --flavor prod '
+          '--dart-define-from-file=config/prod.json -d x',
+        );
+      },
+    );
+
+    test(
+      'T-20-FLAVOR-09: stg 결제 · API 단계는 stg config 의 프로젝트 ID 로만 명령을 만든다',
+      () async {
+        runner
+          ..on(
+            FakeCommandRunner.buildKey(
+              BillingStep.billingInfoCommand(stgProjectId),
+            ),
+            const CommandResult(0, '{"billingEnabled": false}', ''),
+          )
+          ..on(
+            FakeCommandRunner.buildKey(
+              ApisStep.buildEnabledListCommand(stgProjectId),
+            ),
+            const CommandResult(0, 'firestore.googleapis.com\n', ''),
+          );
+        final WizardContext context = buildFlavorContext(Flavor.stg);
+        final BillingStep billing = BillingStep();
+        final ApisStep apis = ApisStep();
+
+        expect(await billing.check(context), isA<Todo>());
+        expect(await apis.check(context), isA<Todo>());
+        final List<String> lines = <String>[
+          ...billing.plannedCommandLines(context),
+          ...apis.plannedCommandLines(context),
+        ];
+
+        expect(
+          lines,
+          contains(
+            'gcloud billing projects link $stgProjectId '
+            '--billing-account=<결제 계정 ID>',
+          ),
+        );
+        expect(
+          lines,
+          contains(
+            ApisStep.buildEnableCommand(
+              stgProjectId,
+              ApisStep.requiredServices.skip(1).toList(),
+            ).render(),
+          ),
+        );
+        expect(lines.where((String line) => line.contains(projectId)), isEmpty);
+        expect(
+          runner.calls.every(
+            (FakeCall call) =>
+                call.key.contains(stgProjectId) &&
+                !call.key.contains(' $projectId'),
+          ),
+          isTrue,
+        );
+        expect(runner.calls, hasLength(2));
+      },
+    );
+
+    test(
+      'T-20-FLAVOR-09: stg config 가 자리표시면 결제 · API · Storage · 실행 단계는 stg 경로로 할 일을 알리고 요청하지 않는다',
+      () async {
+        writeFlavorConfig(Flavor.stg, Flavor.stg.placeholderProjectId);
+        final WizardContext context = buildFlavorContext(Flavor.stg);
+
+        for (final Step step in <Step>[
+          BillingStep(),
+          ApisStep(),
+          StorageStep(),
+          RunStep(),
+        ]) {
+          expect(
+            await step.check(context),
+            isA<Todo>().having(
+              (Todo todo) => todo.reason,
+              'reason',
+              'config/stg.json 에서 프로젝트 ID 를 읽지 못했습니다',
+            ),
+            reason: step.id,
+          );
+        }
+        expect(runner.calls, isEmpty);
+        expect(rest.requests, isEmpty);
+      },
+    );
+
+    test('T-20-FLAVOR-10: dev 문맥의 실행 명령 · 계획 줄 · 자리표시 판정은 그대로다', () async {
+      expect(
+        FakeCommandRunner.buildKey(RunStep.buildRunCommand('x')),
+        'fvm flutter run --flavor dev '
+        '--dart-define-from-file=config/dev.json -d x',
+      );
+      rest.on(
+        'GET',
+        RunStep.buildBatchGetRequest(projectId).url.toString(),
+        buildPage(const <Map<String, Object?>>[]),
+      );
+      final WizardContext context = buildFlavorContext(Flavor.dev);
+      final RunStep step = RunStep();
+
+      expect(await step.check(context), isA<Todo>());
+      expect(
+        step.plannedCommandLines(context),
+        contains(
+          'fvm flutter run --flavor dev '
+          '--dart-define-from-file=config/dev.json -d <고른 기기>',
+        ),
+      );
+
+      writeFlavorConfig(Flavor.dev, 'your-project-dev');
+      for (final Step placeholderStep in <Step>[
+        BillingStep(),
+        ApisStep(),
+        StorageStep(),
+      ]) {
+        expect(
+          await placeholderStep.check(context),
+          isA<Todo>().having(
+            (Todo todo) => todo.reason,
+            'reason',
+            'config/dev.json 에서 프로젝트 ID 를 읽지 못했습니다',
+          ),
+          reason: placeholderStep.id,
+        );
+      }
+    });
   });
 }

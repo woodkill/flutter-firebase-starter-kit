@@ -8,14 +8,13 @@ import '../step.dart';
 import '../terminal.dart';
 import '../wizard.dart';
 import 'firebase_project_step.dart';
-import 'user_files_step.dart';
 
-/// `config/dev.json` 의 `firebaseProjectId` 를 읽는다 — 파일 · 키가 없거나
-/// 자리표시(빈 값 · example 값)면 null.
+/// 고른 flavor 의 사용자 config(`config/<flavor>.json`) `firebaseProjectId` 를
+/// 읽는다 — 파일 · 키가 없거나 자리표시(빈 값 · 그 flavor 의 example 값)면 null.
 ///
 /// 프로젝트 ID 의 진실원은 이 값 하나라 프로젝트 뒤 단계는 매번 여기서 읽는다.
 String? readConfiguredProjectId(WizardContext context) {
-  final String path = context.resolve(UserFilesStep.jsonUserPath);
+  final String path = context.resolve(context.paths.json);
   if (!File(path).existsSync()) return null;
   final String? value = readJsonString(
     path,
@@ -23,7 +22,7 @@ String? readConfiguredProjectId(WizardContext context) {
   )?.trim();
   if (value == null ||
       value.isEmpty ||
-      value == FirebaseProjectStep.placeholderProjectId) {
+      value == context.flavor.placeholderProjectId) {
     return null;
   }
   return value;
@@ -120,7 +119,7 @@ final class BillingStep implements Step {
     final String? projectId = readConfiguredProjectId(context);
     if (projectId == null) {
       _mode = _BillingMode.unreadable;
-      _reason = '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다';
+      _reason = '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다';
       return Todo(_reason);
     }
     _projectId = projectId;
