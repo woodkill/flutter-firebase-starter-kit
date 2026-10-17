@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-import '../../../bin/setup.dart' show handleInterrupt, interruptExitCode;
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/terminal.dart';
 import 'fakes.dart';
@@ -220,33 +219,6 @@ void main() {
     terminal.askSecret(secretQuestion);
 
     expect(recorder.writes, <bool>[false, false]);
-  });
-
-  test('T-20-SECRET-05: Ctrl-C 처리는 에코 복구 → 기록 닫기 → 130 종료 순서다', () async {
-    final List<String> events = <String>[];
-    await handleInterrupt(
-      writeEchoMode: (bool isEnabled) => events.add('echo $isEnabled'),
-      echoBefore: true,
-      closeLog: () async => events.add('close'),
-      exitProcess: (int code) => events.add('exit $code'),
-    );
-
-    expect(interruptExitCode, 130);
-    expect(events, <String>['echo true', 'close', 'exit 130']);
-
-    // 기록 닫기가 실패해도 에코 복구와 종료는 일어난다.
-    final List<String> failing = <String>[];
-    await handleInterrupt(
-      writeEchoMode: (bool isEnabled) => failing.add('echo $isEnabled'),
-      echoBefore: false,
-      closeLog: () async {
-        failing.add('close');
-        throw const FileSystemException('기록 닫기 실패');
-      },
-      exitProcess: (int code) => failing.add('exit $code'),
-    );
-
-    expect(failing, <String>['echo false', 'close', 'exit 130']);
   });
 
   test('T-20-SECRET-07: 표준 입력이 터미널이 아니면 에코를 건드리지 않고 그대로 읽는다', () {

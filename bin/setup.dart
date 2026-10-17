@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -31,18 +30,15 @@ const String logPathLinePrefix = '실행 기록: ';
 /// 실행 기록 파일을 만들지 못했을 때의 안내 머리.
 const String logOpenFailedPrefix = '실행 기록 파일을 만들지 못했습니다 — ';
 
-/// Ctrl-C 로 끝날 때의 종료 코드(셸 관례 128 + SIGINT 2).
-const int interruptExitCode = 130;
-
-/// Ctrl-C 처리 중 실행 기록을 닫지 못했을 때의 안내 머리.
-const String interruptLogCloseFailedPrefix = '실행 기록을 닫지 못했습니다 — ';
-
 /// 설정 위저드 진입점 — `./setup.sh` 가 FVM 의 Dart 로 실행한다.
 ///
 /// 점검표를 먼저 보이고 첫 할 일 단계부터 차례로 진행한다. 실행마다
 /// `.setup/logs/` 에 기록 파일 하나를 남기고 마지막 줄에 그 경로를 보인다. 종료
 /// 코드는 0(모든 단계 끝) · 1(멈춤 · 거절 · 입력 끝 · 인자 오류) · 3(위저드 밖
 /// 작업 안내 후 종료)이다.
+///
+/// Ctrl-C 는 신호 처리 없이 바로 끝난다 — 질문이 동기 읽기로 기다리는 동안에는
+/// 처리기가 돌 수 없어서다. 터미널 상태 복구는 `setup.sh` 가 맡는다.
 Future<void> main(List<String> arguments) async {
   final ArgParser parser = ArgParser()
     ..addFlag('help', abbr: 'h', help: '사용법을 보여 줍니다.', negatable: false)
@@ -129,62 +125,43 @@ Future<void> main(List<String> arguments) async {
       return;
     }
 
-    // 숨김 입력 중 Ctrl-C 로 끝나도 사용자의 셸이 에코 꺼진 채 남지 않게 한다 —
-    // Dart VM 은 종료할 때 터미널 에코를 되돌리지 않는다.
-    final bool echoBefore = readStdinEchoMode();
-    final StreamSubscription<ProcessSignal> interruptSubscription =
-        ProcessSignal.sigint.watch().listen((ProcessSignal signal) {
-          unawaited(
-            handleInterrupt(
-              writeEchoMode: writeStdinEchoMode,
-              echoBefore: echoBefore,
-              closeLog: log.close,
-              exitProcess: exit,
-            ),
-          );
-        });
+    final ProcessCommandRunner runner = ProcessCommandRunner(
+      terminal,
+      log: log,
+    );
+    final HttpRestClient rest = HttpRestClient(
+      tokens: AccessTokenSource(runner, redactor),
+      terminal: terminal,
+      log: log,
+    );
+    final WizardContext context = WizardContext(
+      projectRoot: projectRoot,
+      runner: runner,
+      terminal: terminal,
+      redactor: redactor,
+      log: log,
+      rest: rest,
+      flavor: flavor,
+    );
+    context.session.isProviderSelectionRequested = results.flag('providers');
+    // 로그인 수단을 바꾸면 위저드가 config 를 다시 읽어 단계 목록을 새로 만든다.
+    List<Step> buildCurrentSteps() => buildSteps(
+      flavor: flavor,
+      enabledProviders: readEnabledProviders(
+        context.resolve(context.paths.json),
+      ),
+    );
     try {
-      final ProcessCommandRunner runner = ProcessCommandRunner(
-        terminal,
-        log: log,
+      code = await runWizard(
+        context,
+        buildCurrentSteps(),
+        onCompleted: showCompletionSummary,
+        rebuildSteps: buildCurrentSteps,
       );
-      final HttpRestClient rest = HttpRestClient(
-        tokens: AccessTokenSource(runner, redactor),
-        terminal: terminal,
-        log: log,
-      );
-      final WizardContext context = WizardContext(
-        projectRoot: projectRoot,
-        runner: runner,
-        terminal: terminal,
-        redactor: redactor,
-        log: log,
-        rest: rest,
-        flavor: flavor,
-      );
-      context.session.isProviderSelectionRequested = results.flag('providers');
-      // 로그인 수단을 바꾸면 위저드가 config 를 다시 읽어 단계 목록을 새로 만든다.
-      List<Step> buildCurrentSteps() => buildSteps(
-        flavor: flavor,
-        enabledProviders: readEnabledProviders(
-          context.resolve(context.paths.json),
-        ),
-      );
-      try {
-        code = await runWizard(
-          context,
-          buildCurrentSteps(),
-          onCompleted: showCompletionSummary,
-          rebuildSteps: buildCurrentSteps,
-        );
-      } finally {
-        rest.close();
-      }
-      terminal.writeLine('$logPathLinePrefix${log.path}');
     } finally {
-      // 신호 구독이 남아 있으면 Dart VM 이 끝나지 않는다.
-      await interruptSubscription.cancel();
+      rest.close();
     }
+    terminal.writeLine('$logPathLinePrefix${log.path}');
   } finally {
     await log.close();
     exitCode = code;
@@ -199,29 +176,6 @@ void writeArgumentError(ArgParser parser, String message) {
     ..writeln('사용법: ./setup.sh [옵션]')
     ..writeln(parser.usage);
   exitCode = wizardExitStopped;
-}
-
-/// Ctrl-C 를 받았을 때 터미널을 되돌리고 끝낸다.
-///
-/// 순서: [writeEchoMode] 로 에코를 [echoBefore] 로 되돌림 → [closeLog] 로 실행
-/// 기록 닫기(실패하면 표준 오류에 한 줄 남기고 넘어간다) → [exitProcess] 에
-/// [interruptExitCode]. 에코 복구가 실패해도 종료는 일어난다.
-Future<void> handleInterrupt({
-  required EchoModeWriter writeEchoMode,
-  required bool echoBefore,
-  required Future<void> Function() closeLog,
-  required void Function(int code) exitProcess,
-}) async {
-  try {
-    writeEchoMode(echoBefore);
-  } finally {
-    try {
-      await closeLog();
-    } on Exception catch (e) {
-      stderr.writeln('$interruptLogCloseFailedPrefix$e');
-    }
-    exitProcess(interruptExitCode);
-  }
 }
 
 /// 표준 입력이 사용자가 답할 수 있는 터미널인지 확인한다.
