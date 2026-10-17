@@ -43,6 +43,13 @@ String? readDevAndroidPackage(String projectRoot) {
 final class FirebaseAppFiles {
   FirebaseAppFiles._(this._options, this._plist, this._googleServices);
 
+  /// [projectRoot] 아래 설정 파일 3개를 읽는다.
+  factory FirebaseAppFiles.read(String projectRoot) => FirebaseAppFiles._(
+    _readText('$projectRoot/$optionsPath'),
+    _readText('$projectRoot/$iosPlistPath'),
+    _decodeObject(_readText('$projectRoot/$androidJsonPath')),
+  );
+
   /// FlutterFire 가 만드는 Dart 설정 파일(저장소 상대 경로).
   static const String optionsPath =
       'lib/core/firebase/firebase_options_dev.dart';
@@ -67,13 +74,6 @@ final class FirebaseAppFiles {
   final String? _options;
   final String? _plist;
   final Map<String, Object?>? _googleServices;
-
-  /// [projectRoot] 아래 설정 파일 3개를 읽는다.
-  static FirebaseAppFiles read(String projectRoot) => FirebaseAppFiles._(
-    _readText('$projectRoot/$optionsPath'),
-    _readText('$projectRoot/$iosPlistPath'),
-    _decodeObject(_readText('$projectRoot/$androidJsonPath')),
-  );
 
   /// Dart 설정 파일이 없거나 저장소 자리표시면 true.
   ///

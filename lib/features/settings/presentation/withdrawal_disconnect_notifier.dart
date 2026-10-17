@@ -451,9 +451,10 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
     state = WithdrawalDisconnectState(
       rows: normalizeDisconnectRows(<DisconnectRow>[
         for (final row in state.rows)
-          reloginProviders.contains(row.provider)
-              ? row.copyWith(status: DisconnectRowStatus.waiting)
-              : row,
+          if (reloginProviders.contains(row.provider))
+            row.copyWith(status: DisconnectRowStatus.waiting)
+          else
+            row,
       ]),
       userTriggered: state.userTriggered,
       load: state.load,
@@ -490,14 +491,15 @@ class WithdrawalDisconnect extends _$WithdrawalDisconnect {
   }) {
     return normalizeDisconnectRows(<DisconnectRow>[
       for (final row in state.rows)
-        row.provider == provider
-            ? row.copyWith(
-                status: status,
-                wasDisconnected: wasDisconnected,
-                freshnessRefreshed: freshnessRefreshed,
-                failure: failure,
-              )
-            : row,
+        if (row.provider == provider)
+          row.copyWith(
+            status: status,
+            wasDisconnected: wasDisconnected,
+            freshnessRefreshed: freshnessRefreshed,
+            failure: failure,
+          )
+        else
+          row,
     ]);
   }
 

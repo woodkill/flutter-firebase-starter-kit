@@ -129,8 +129,7 @@ class LocalNotificationsService {
   int _nextNotificationId() {
     final now = DateTime.now().millisecondsSinceEpoch % _kMaxNotificationId;
     final next = now > _lastNotificationId ? now : _lastNotificationId + 1;
-    _lastNotificationId = next % _kMaxNotificationId;
-    return _lastNotificationId;
+    return _lastNotificationId = next % _kMaxNotificationId;
   }
 
   /// Android 에서만 [call] 을 실행하고 실패하면 조용히 접는다.

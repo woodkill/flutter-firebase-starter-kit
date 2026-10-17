@@ -652,7 +652,7 @@ void main() {
   );
 
   test('FirebaseAppFiles 는 파일이 없으면 null · 자리표시로 본다', () {
-    final FirebaseAppFiles files = FirebaseAppFiles.read(root);
+    final files = FirebaseAppFiles.read(root);
 
     expect(files.isOptionsPlaceholder, isTrue);
     expect(files.optionsProjectId, isNull);
@@ -666,7 +666,7 @@ void main() {
   test('FirebaseAppFiles 는 실 값 모양 파일에서 프로젝트 · 번들 · 앱 ID 를 읽는다', () {
     writeRealFiles();
 
-    final FirebaseAppFiles files = FirebaseAppFiles.read(root);
+    final files = FirebaseAppFiles.read(root);
 
     expect(files.isOptionsPlaceholder, isFalse);
     expect(files.optionsProjectId, projectId);

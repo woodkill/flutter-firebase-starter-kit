@@ -158,7 +158,7 @@ final class ConfigureStep implements Step {
       );
     }
 
-    final FirebaseAppFiles files = FirebaseAppFiles.read(context.projectRoot);
+    final files = FirebaseAppFiles.read(context.projectRoot);
     final String? fileProblem = _findFileProblem(
       files,
       projectId,

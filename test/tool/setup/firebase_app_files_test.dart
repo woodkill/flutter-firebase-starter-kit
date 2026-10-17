@@ -53,7 +53,7 @@ void main() {
     expect(placeholder, contains('UnsupportedError'));
     writeOptions(placeholder);
 
-    final FirebaseAppFiles files = FirebaseAppFiles.read(root);
+    final files = FirebaseAppFiles.read(root);
 
     expect(files.isOptionsPlaceholder, isTrue);
     expect(files.optionsProjectId, isNull);
@@ -67,7 +67,7 @@ void main() {
       expect('throw UnsupportedError('.allMatches(generated), hasLength(5));
       writeOptions(generated);
 
-      final FirebaseAppFiles files = FirebaseAppFiles.read(root);
+      final files = FirebaseAppFiles.read(root);
 
       expect(files.isOptionsPlaceholder, isFalse);
       expect(files.optionsProjectId, projectId);

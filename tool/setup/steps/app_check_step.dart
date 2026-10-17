@@ -291,7 +291,7 @@ final class AppCheckStep implements Step {
   static List<_App>? _readApps(WizardContext context) {
     final String? packageName = readDevAndroidPackage(context.projectRoot);
     if (packageName == null) return null;
-    final FirebaseAppFiles files = FirebaseAppFiles.read(context.projectRoot);
+    final files = FirebaseAppFiles.read(context.projectRoot);
     if (files.isOptionsPlaceholder) return null;
     final String? iosAppId = files.iosAppId;
     final String? androidAppId = files.androidAppIdFor(packageName);

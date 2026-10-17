@@ -52,9 +52,47 @@ sealed class AppException implements Exception {
     final causeSummary = cause == null
         ? ''
         : ', cause: ${_summarizeCause(cause!)}';
-    return '$runtimeType($userMessage$causeSummary)';
+    return '${_typeNameOf(this)}($userMessage$causeSummary)';
   }
 }
+
+/// [exception] 의 구체 타입 이름 — [AppException.toString] 의 머리에 쓴다.
+///
+/// `runtimeType` 문자열 대신 sealed 계층의 exhaustive switch 로 이름을 고른다.
+/// 하위 타입을 더하면 이 switch 가 컴파일 오류로 빈 갈래를 알린다.
+String _typeNameOf(AppException exception) => switch (exception) {
+  ConnectionTimeout() => 'ConnectionTimeout',
+  NoInternetConnection() => 'NoInternetConnection',
+  RequestTimeout() => 'RequestTimeout',
+  InvalidCredentials() => 'InvalidCredentials',
+  UserNotFound() => 'UserNotFound',
+  EmailAlreadyInUse() => 'EmailAlreadyInUse',
+  WeakPassword() => 'WeakPassword',
+  SessionExpired() => 'SessionExpired',
+  InvalidEmail() => 'InvalidEmail',
+  UserDisabled() => 'UserDisabled',
+  TooManyRequests() => 'TooManyRequests',
+  AccountExistsWithDifferentCredential() =>
+    'AccountExistsWithDifferentCredential',
+  AccountAlreadyLinked() => 'AccountAlreadyLinked',
+  ProviderAlreadyLinkedToThisAccount() => 'ProviderAlreadyLinkedToThisAccount',
+  ProviderNotLinked() => 'ProviderNotLinked',
+  UnlinkLastCredentialRejected() => 'UnlinkLastCredentialRejected',
+  ReauthenticationRequiredException() => 'ReauthenticationRequiredException',
+  UnauthenticatedException() => 'UnauthenticatedException',
+  ReauthUserMismatch() => 'ReauthUserMismatch',
+  ReauthMethodUnavailable() => 'ReauthMethodUnavailable',
+  InternalServerError() => 'InternalServerError',
+  ServiceUnavailable() => 'ServiceUnavailable',
+  AppCheckFailedException() => 'AppCheckFailedException',
+  ProviderMisconfigured() => 'ProviderMisconfigured',
+  InvalidInput() => 'InvalidInput',
+  NotificationSettingsUpdateException() =>
+    'NotificationSettingsUpdateException',
+  ProfilePhotoUploadException() => 'ProfilePhotoUploadException',
+  ProfilePhotoRemoveException() => 'ProfilePhotoRemoveException',
+  UnknownException() => 'UnknownException',
+};
 
 /// 이메일 주소 패턴 — [_summarizeCause] 의 redaction 대상.
 final RegExp _kEmailPattern = RegExp(
