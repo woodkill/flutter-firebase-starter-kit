@@ -167,7 +167,7 @@ final class UserFilesStep implements Step {
       return Failed('$jsonPath 에 로그인 수단을 쓰지 못했습니다 — ${e.message}');
     } on FormatException catch (e) {
       return Failed('$jsonPath 에 로그인 수단을 쓰지 못했습니다 — ${e.message}');
-    } on StateError catch (e) {
+    } on ConfigEditException catch (e) {
       return Failed('$jsonPath 에 로그인 수단을 쓰지 못했습니다 — ${e.message}');
     }
     return chosen.isEmpty ? const Applied() : const Replan();

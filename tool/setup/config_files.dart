@@ -1,6 +1,22 @@
 import 'dart:convert';
 import 'dart:io';
 
+/// 설정 파일에서 고칠 자리를 찾지 못해 쓰지 않았음을 알리는 예외.
+///
+/// 키 · 변수 · 값 자리가 없거나 하나로 정해지지 않으면 파일을 그대로 두고 이
+/// 예외를 던진다. 단계는 [message] 를 실패 사유로 그대로 보인다 — 버그로 난
+/// [Error] 와 섞이지 않게 [Exception] 으로 둔다.
+final class ConfigEditException implements Exception {
+  /// [message] 를 사유로 예외를 만든다.
+  const ConfigEditException(this.message);
+
+  /// 실패 사유 — 고치려던 파일 경로와 찾지 못한 자리.
+  final String message;
+
+  @override
+  String toString() => 'ConfigEditException: $message';
+}
+
 /// xcconfig 변수 줄을 알아보는 정규식 — group 1 = 변수 이름.
 final RegExp _xcconfigVariablePattern = RegExp(
   r'^\s*([A-Z_][A-Z0-9_]*)\s*=',
@@ -93,13 +109,13 @@ String? readJsonString(String path, String key) {
 /// [path] JSON 의 [key] 문자열 값만 [value] 로 바꾼다 — 나머지 바이트는 그대로다.
 ///
 /// 키 · 구분자 · 따옴표는 원래 글자를 남기고 값 본문만 `jsonEncode` 로 이스케이프해
-/// 넣는다. 키가 없으면 [StateError] 를 던진다. 쓴 뒤 다시 파싱해 실패하면 원본을
+/// 넣는다. 키가 없으면 [ConfigEditException] 을 던진다. 쓴 뒤 다시 파싱해 실패하면 원본을
 /// 되돌리고 [FormatException] 을 던진다.
 void replaceJsonString(String path, String key, String value) {
   final String original = File(path).readAsStringSync();
   final RegExpMatch? match = _jsonStringPattern(key).firstMatch(original);
   if (match == null) {
-    throw StateError('$path 에 "$key" 문자열 값이 없습니다');
+    throw ConfigEditException('$path 에 "$key" 문자열 값이 없습니다');
   }
   final String encoded = jsonEncode(value);
   final String body = encoded.substring(1, encoded.length - 1);
@@ -178,7 +194,7 @@ String? readXcconfigValue(String path, String name) {
 /// [path] xcconfig 의 [name] 변수 줄 값만 [value] 로 바꾼다 — 다른 줄은 그대로다.
 ///
 /// 변수 이름 · `=` 와 그 뒤 공백은 원래 글자를 남긴다. 값이 비어 있던 줄
-/// (`NAME =`)에는 공백 하나를 두고 쓴다. 변수가 없으면 [StateError], 값에 줄바꿈이
+/// (`NAME =`)에는 공백 하나를 두고 쓴다. 변수가 없으면 [ConfigEditException], 값에 줄바꿈이
 /// 있으면 [ArgumentError] 를 던진다.
 void replaceXcconfigValue(String path, String name, String value) {
   if (value.contains('\n') || value.contains('\r')) {
@@ -187,7 +203,7 @@ void replaceXcconfigValue(String path, String name, String value) {
   final String original = File(path).readAsStringSync();
   final RegExpMatch? match = _xcconfigValuePattern(name).firstMatch(original);
   if (match == null) {
-    throw StateError('$path 에 $name 변수가 없습니다');
+    throw ConfigEditException('$path 에 $name 변수가 없습니다');
   }
   final String spacing = match.group(2)!.isEmpty && value.isNotEmpty
       ? ' '

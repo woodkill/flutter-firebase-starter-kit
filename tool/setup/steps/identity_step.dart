@@ -231,7 +231,7 @@ final class IdentityStep implements Step {
       return Failed('파일을 고치지 못했습니다 — $e');
     } on FormatException catch (e) {
       return Failed('${context.paths.json} 을 고치지 못했습니다 — $e');
-    } on StateError catch (e) {
+    } on ConfigEditException catch (e) {
       return Failed('표시 이름을 쓰지 못했습니다 — ${e.message}');
     }
   }

@@ -92,7 +92,7 @@ ProviderChoice parseProviderChoice(String answer) {
 /// [jsonPath] config 의 켠 로그인 수단 목록을 [tokens] 로 바꾼다.
 ///
 /// 표 순서의 CSV 로 그 값만 바꾸고 다른 바이트는 그대로 둔다. 키가 없으면
-/// [StateError] 를 던진다.
+/// [ConfigEditException] 을 던진다.
 void writeEnabledProviders(String jsonPath, Set<String> tokens) =>
     replaceJsonString(jsonPath, enabledProvidersKey, formatProviderCsv(tokens));
 

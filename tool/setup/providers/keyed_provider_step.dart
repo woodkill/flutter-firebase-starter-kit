@@ -538,7 +538,7 @@ abstract class KeyedProviderStep implements Step {
       return Failed('${entry.displayName} 키를 파일에 쓰지 못했습니다 — $e');
     } on FormatException catch (e) {
       return Failed('${entry.displayName} 키를 파일에 쓰지 못했습니다 — $e');
-    } on StateError catch (e) {
+    } on ConfigEditException catch (e) {
       return Failed('${entry.displayName} 키를 파일에 쓰지 못했습니다 — ${e.message}');
     }
     for (final MapEntry<KeyField, List<String>> write

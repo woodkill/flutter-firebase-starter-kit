@@ -210,7 +210,13 @@ void main() {
     expect(readJsonString(userPath, 'noSuchKey'), isNull);
     expect(
       () => replaceJsonString(userPath, 'noSuchKey', 'x'),
-      throwsStateError,
+      throwsA(
+        isA<ConfigEditException>().having(
+          (ConfigEditException e) => e.message,
+          'message',
+          '$userPath 에 "noSuchKey" 문자열 값이 없습니다',
+        ),
+      ),
     );
 
     // 따옴표 · 역슬래시는 JSON 이스케이프로 들어가 다시 읽어도 같은 값이다.
@@ -233,7 +239,13 @@ void main() {
     expect(readXcconfigValue(xcconfigPath, 'DISPLAY_NAME'), 'My App Dev');
     expect(
       () => replaceXcconfigValue(xcconfigPath, 'NO_SUCH_VAR', 'x'),
-      throwsStateError,
+      throwsA(
+        isA<ConfigEditException>().having(
+          (ConfigEditException e) => e.message,
+          'message',
+          '$xcconfigPath 에 NO_SUCH_VAR 변수가 없습니다',
+        ),
+      ),
     );
 
     // 값이 빈 줄(`NAME =`)에도 공백 하나를 두고 값을 쓴다.

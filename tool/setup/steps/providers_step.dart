@@ -143,7 +143,7 @@ final class ProvidersStep implements Step {
       return Failed('${context.paths.json} 을 쓰지 못했습니다 — ${e.message}');
     } on FormatException catch (e) {
       return Failed('${context.paths.json} 을 쓰지 못했습니다 — ${e.message}');
-    } on StateError catch (e) {
+    } on ConfigEditException catch (e) {
       return Failed('${context.paths.json} 을 쓰지 못했습니다 — ${e.message}');
     }
     context.session.isProviderSelectionRequested = false;

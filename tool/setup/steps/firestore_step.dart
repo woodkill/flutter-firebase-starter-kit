@@ -318,7 +318,7 @@ final class FirestoreStep implements Step {
       return Failed('리전 파일을 고치지 못했습니다 — $e');
     } on FormatException catch (e) {
       return Failed('${context.paths.json} 을 고치지 못했습니다 — $e');
-    } on StateError catch (e) {
+    } on ConfigEditException catch (e) {
       return Failed('리전 값을 쓰지 못했습니다 — ${e.message}');
     }
   }
@@ -535,12 +535,12 @@ final class FirestoreStep implements Step {
 
   /// [path] 에서 [pattern] 의 값 그룹만 [region] 으로 바꿔 쓴다.
   ///
-  /// 일치가 정확히 한 곳이 아니면 쓰지 않고 [StateError] 를 던진다.
+  /// 일치가 정확히 한 곳이 아니면 쓰지 않고 [ConfigEditException] 을 던진다.
   static void _replaceRegionValue(String path, RegExp pattern, String region) {
     final String original = File(path).readAsStringSync();
     final List<RegExpMatch> matches = pattern.allMatches(original).toList();
     if (matches.length != 1) {
-      throw StateError('$path 에서 리전 값 자리를 하나로 찾지 못했습니다');
+      throw ConfigEditException('$path 에서 리전 값 자리를 하나로 찾지 못했습니다');
     }
     final RegExpMatch match = matches.single;
     writeFileAtomically(

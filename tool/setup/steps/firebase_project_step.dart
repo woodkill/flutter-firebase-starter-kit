@@ -309,7 +309,7 @@ final class FirebaseProjectStep implements Step {
       return Failed('파일을 고치지 못했습니다 — $e');
     } on FormatException catch (e) {
       return Failed('설정 파일을 고치지 못했습니다 — $e');
-    } on StateError catch (e) {
+    } on ConfigEditException catch (e) {
       return Failed('프로젝트 ID 를 쓰지 못했습니다 — ${e.message}');
     }
   }

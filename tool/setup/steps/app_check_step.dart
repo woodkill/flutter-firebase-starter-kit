@@ -211,7 +211,7 @@ final class AppCheckStep implements Step {
       return Failed('${UserFilesStep.jsonUserPath} 에 토큰을 쓰지 못했습니다 — $e');
     } on FormatException catch (e) {
       return Failed('${UserFilesStep.jsonUserPath} 에 토큰을 쓰지 못했습니다 — $e');
-    } on StateError catch (e) {
+    } on ConfigEditException catch (e) {
       return Failed(
         '${UserFilesStep.jsonUserPath} 에 토큰을 쓰지 못했습니다 — ${e.message}',
       );
