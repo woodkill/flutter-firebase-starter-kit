@@ -196,7 +196,7 @@ void main() {
     Future<StepOutcome> runStep(WizardContext context) async {
       final step = UserFilesStep();
       await step.check(context);
-      return step.apply(context);
+      return await step.apply(context);
     }
 
     test(

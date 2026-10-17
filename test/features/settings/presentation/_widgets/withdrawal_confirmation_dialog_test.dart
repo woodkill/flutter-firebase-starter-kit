@@ -141,7 +141,9 @@ Future<_DialogHandle> _pumpAndShowDialog(
           serverProviderIdsReaderProvider.overrideWithValue(() async {
             if (serverReads != null) serverReads[0] += 1;
             final error = serverReadError;
-            if (error != null) throw error;
+            if (error != null) {
+              Error.throwWithStackTrace(error, StackTrace.current);
+            }
             return serverProviderIds ?? providerIds ?? const <String>[];
           }),
         ...extraOverrides,

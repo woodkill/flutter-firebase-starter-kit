@@ -185,7 +185,7 @@ void main() {
       );
 
       expect(result, isA<Success<dynamic>>());
-      final user = (result as Success).data;
+      final user = (result as Success<User>).data;
       expect(user.uid, 'uid-full');
       expect(user.email, 'full@example.com');
       expect(user.emailVerified, isTrue);
@@ -213,7 +213,7 @@ void main() {
         password: 'pw12345678',
       );
 
-      final user = (result as Success).data;
+      final user = (result as Success<User>).data;
       expect(user.email, isNull);
       expect(user.displayName, isNull);
       expect(user.photoUrl, isNull);
@@ -240,7 +240,7 @@ void main() {
       );
       final after = DateTime.now();
 
-      final user = (result as Success).data;
+      final user = (result as Success<User>).data;
       expect(
         user.createdAt.isAfter(before.subtract(const Duration(seconds: 1))),
         isTrue,
@@ -267,7 +267,7 @@ void main() {
       );
 
       expect(result, isA<Success<dynamic>>());
-      final user = (result as Success).data;
+      final user = (result as Success<User>).data;
       expect(user.uid, 'uid-test');
       expect(user.email, 'test@example.com');
     });
@@ -549,7 +549,7 @@ void main() {
         final result = await repository.signInWithGoogle();
 
         expect(result, isA<Success<dynamic>>());
-        final user = (result! as Success).data;
+        final user = (result! as Success<User>).data;
         expect(user.uid, 'uid-test');
         expect(user.providerIds, ['google.com']);
       },
@@ -792,7 +792,7 @@ void main() {
         password: 'password123',
       );
 
-      final user = (result as Success).data;
+      final user = (result as Success<User>).data;
       expect(user.providerIds, ['google.com', 'password']);
     });
 
@@ -811,7 +811,7 @@ void main() {
         password: 'password123',
       );
 
-      final user = (result as Success).data;
+      final user = (result as Success<User>).data;
       expect(user.providerIds, isEmpty);
     });
   });
@@ -1029,7 +1029,7 @@ void main() {
       final result = await repository.signInWithFacebook();
 
       expect(result, isA<Success<dynamic>>());
-      final user = (result! as Success).data;
+      final user = (result! as Success<User>).data;
       expect(user.uid, 'uid-test');
       expect(user.providerIds, ['facebook.com']);
     });

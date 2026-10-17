@@ -3,6 +3,7 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
@@ -129,7 +130,7 @@ void main() {
       expect(result, isA<Success<dynamic>>());
       verify(() => mockAnonUser.linkWithCredential(any())).called(1);
       verifyNever(() => mockAuth.signInWithCredential(any()));
-      expect((result! as Success).data.uid, 'anon-uid');
+      expect((result! as Success<User>).data.uid, 'anon-uid');
     });
 
     test('Test G2: 익명 currentUser 없음 시 signInWithCredential 호출, '
@@ -181,7 +182,7 @@ void main() {
       verify(() => mockAnonUser.linkWithProvider(any())).called(1);
       verifyNever(() => mockAuth.signInWithProvider(any()));
       // mockLinkedCred.user == mockResultUser 가 _mapFirebaseUser 로 전달됨.
-      expect((result! as Success).data.uid, 'reg-uid');
+      expect((result! as Success<User>).data.uid, 'reg-uid');
     });
 
     test('Test A2: 비익명 경로 — signInWithProvider 호출', () async {
@@ -343,7 +344,7 @@ void main() {
       );
 
       expect(result, isA<Success<dynamic>>());
-      expect((result as Success).data.uid, mockResultUser.uid);
+      expect((result as Success<User>).data.uid, mockResultUser.uid);
       verify(() => mockAnonUser.linkWithCredential(any())).called(1);
       verifyNever(
         () => mockAuth.createUserWithEmailAndPassword(

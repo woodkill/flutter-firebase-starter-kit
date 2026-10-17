@@ -217,5 +217,6 @@ class FixedLocaleNotifier extends LocaleNotifier {
   Locale build() => initial;
 
   /// 저장 없이 앱 언어를 [locale] 로 바꾼다.
-  void select(Locale locale) => state = locale;
+  @override
+  Future<void> setLocale(Locale locale) async => state = locale;
 }

@@ -45,7 +45,7 @@ void main() {
     });
 
     test('_crashlytics=null + isEnabled=false 조합도 안전하게 no-op', () async {
-      const nullService = CrashlyticsService(null, isEnabled: false);
+      const nullService = CrashlyticsService.disabled;
       await nullService.recordError(Exception('x'), null);
       await nullService.setUserId('u');
       await nullService.setCustomKey('k', 'v');
@@ -199,7 +199,7 @@ void main() {
 
     test('isEnabled=false 여도 타입 계약은 먼저 검사한다', () {
       // 미초기화 환경에서만 테스트한 코드가 프로덕션에서 터지는 것을 막는다.
-      const disabled = CrashlyticsService(null, isEnabled: false);
+      const disabled = CrashlyticsService.disabled;
       expect(
         () => disabled.setCustomKey('obj', Object()),
         throwsA(isA<AssertionError>()),

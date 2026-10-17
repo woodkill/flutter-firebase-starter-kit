@@ -297,8 +297,9 @@ void main() {
           notifier: _FakeNotificationSettings(
             initial: () async {
               builds++;
-              if (builds == 1)
+              if (builds == 1) {
                 throw const NotificationSettingsUpdateException();
+              }
               return false;
             },
           ),

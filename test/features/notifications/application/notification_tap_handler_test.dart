@@ -350,7 +350,7 @@ void main() {
         (name: '일반 알림', description: '이 앱에서 보내는 알림입니다.'),
       ]);
 
-      h.locale.select(const Locale('ja'));
+      await h.locale.setLocale(const Locale('ja'));
       await pumpEventQueue();
 
       expect(h.local.channels, <RegisteredChannel>[

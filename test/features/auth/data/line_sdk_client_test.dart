@@ -48,7 +48,7 @@ Future<LoginResult> _buildLoginResult({
         }
         return null;
       });
-  return LineSDK.instance.login();
+  return await LineSDK.instance.login();
 }
 
 void main() {
@@ -60,7 +60,7 @@ void main() {
       final client = LineSdkClient.forTest(
         login: ({required scopes, required option}) async {
           capturedNonce = option.idTokenNonce;
-          return _buildLoginResult(
+          return await _buildLoginResult(
             idTokenRaw: 'JWT',
             nonce: option.idTokenNonce,
           );
@@ -91,7 +91,7 @@ void main() {
         final client = LineSdkClient.forTest(
           login: ({required scopes, required option}) async {
             capturedScopes = scopes;
-            return _buildLoginResult(
+            return await _buildLoginResult(
               idTokenRaw: 'JWT',
               nonce: option.idTokenNonce,
             );
@@ -115,7 +115,7 @@ void main() {
         final client = LineSdkClient.forTest(
           login: ({required scopes, required option}) async {
             generatedNonce = option.idTokenNonce;
-            return _buildLoginResult(
+            return await _buildLoginResult(
               idTokenRaw: idToken,
               nonce: option.idTokenNonce,
             );
@@ -218,7 +218,7 @@ void main() {
         'ServiceUnavailable throw', () async {
       final client = LineSdkClient.forTest(
         login: ({required scopes, required option}) async {
-          return _buildLoginResult(idTokenRaw: null);
+          return await _buildLoginResult(idTokenRaw: null);
         },
         logout: () async {},
       );
@@ -234,7 +234,7 @@ void main() {
       () async {
         final client = LineSdkClient.forTest(
           login: ({required scopes, required option}) async {
-            return _buildLoginResult(idTokenRaw: '');
+            return await _buildLoginResult(idTokenRaw: '');
           },
           logout: () async {},
         );

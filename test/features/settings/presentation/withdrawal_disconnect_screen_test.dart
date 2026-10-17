@@ -383,7 +383,7 @@ Future<GoRouter> _pumpScreen(
     final index = count[0];
     count[0] = index + 1;
     final answer = index < answers.length ? answers[index] : null;
-    if (answer != null) throw answer;
+    if (answer != null) Error.throwWithStackTrace(answer, StackTrace.current);
   });
   return (repo: repo, count: count);
 }

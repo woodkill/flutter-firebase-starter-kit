@@ -312,7 +312,7 @@ final class _FlowRunner implements CommandRunner {
       );
     }
     effects[key]?.call();
-    return switch (mode) {
+    return await switch (mode) {
       RunMode.capture => fake.capture(command),
       RunMode.stream => fake.stream(command),
       RunMode.interactive => CommandResult(

@@ -38,7 +38,7 @@ class _LoadingOnboardingNotifier extends OnboardingNotifier {
   FutureOr<bool> build() async {
     // 의도적으로 never-resolving future 를 반환하여 AsyncLoading 유지.
     final completer = Completer<bool>();
-    return completer.future;
+    return await completer.future;
   }
 }
 
@@ -636,7 +636,7 @@ void main() {
       );
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(location);
-      return _callAuthRedirect(container, mockState);
+      return await _callAuthRedirect(container, mockState);
     }
 
     test('WR-07: 두 분기는 정확히 같은 전제에서만 발동한다 (전제 매트릭스)', () async {
@@ -1045,7 +1045,7 @@ void main() {
       );
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(location);
-      return _callAuthRedirect(container, mockState);
+      return await _callAuthRedirect(container, mockState);
     }
 
     test('WR-02-A: 완료 사용자가 /terms/* 를 열람할 수 있다 (홈으로 튕기지 않음)', () async {
@@ -1105,7 +1105,7 @@ void main() {
       final container = makeContainer(isInitialized: true);
       addTearDown(container.dispose);
       when(() => mockState.matchedLocation).thenReturn(location);
-      return _callAuthRedirect(container, mockState);
+      return await _callAuthRedirect(container, mockState);
     }
 
     test('WR-01-A: _unauthRoutes 원소여도 분기 (2) 는 /onboarding 으로 보낸다', () async {
@@ -1158,7 +1158,7 @@ void main() {
         );
         addTearDown(container.dispose);
         stubLocation(location);
-        return _callAuthRedirect(container, mockState);
+        return await _callAuthRedirect(container, mockState);
       }
 
       test('RB-1: 완료 사용자의 재인증 표시 /login 은 튕기지 않는다', () async {
@@ -1291,7 +1291,7 @@ void main() {
       );
       addTearDown(container.dispose);
       stubLocation(location);
-      return _callAuthRedirect(container, mockState);
+      return await _callAuthRedirect(container, mockState);
     }
 
     test('RN-1: 익명 사용자의 재인증 표시 /login 은 표시 없는 /login 으로 간다', () async {

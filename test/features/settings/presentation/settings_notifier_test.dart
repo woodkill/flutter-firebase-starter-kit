@@ -99,7 +99,7 @@ class _FixedStep extends DisconnectStep {
   }) async {
     relogins.add(reloginForFreshness);
     final thrown = error;
-    if (thrown != null) throw thrown;
+    if (thrown != null) Error.throwWithStackTrace(thrown, StackTrace.current);
     return outcome;
   }
 }

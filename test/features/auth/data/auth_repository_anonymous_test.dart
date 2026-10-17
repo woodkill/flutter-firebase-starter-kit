@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -71,7 +72,7 @@ void main() {
       final result = await repository.signInAnonymously();
 
       expect(result, isA<Success<dynamic>>());
-      final user = (result as Success).data;
+      final user = (result as Success<User>).data;
       expect(user.uid, 'anon-uid');
       expect(user.email, isNull);
       expect(user.emailVerified, isFalse);

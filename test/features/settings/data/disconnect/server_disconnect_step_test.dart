@@ -56,10 +56,7 @@ class _MockHttpsCallableResult extends Mock
 class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
 /// 기록을 남기지 않는 Crashlytics — 매퍼 직접 호출(S6m)용.
-const CrashlyticsService _kNoopCrashlytics = CrashlyticsService(
-  null,
-  isEnabled: false,
-);
+const CrashlyticsService _kNoopCrashlytics = CrashlyticsService.disabled;
 
 const ServerDisconnectStep _kakaoStep = ServerDisconnectStep(
   provider: AccountProvider.kakao,

@@ -65,11 +65,7 @@ class _FakeFirebaseAuth extends Fake implements fb.FirebaseAuth {
     : _stream = stream.asBroadcastStream(),
       _currentUser = currentUser;
   final Stream<fb.User?> _stream;
-  fb.User? _currentUser;
-
-  void setCurrentUser(fb.User? user) {
-    _currentUser = user;
-  }
+  final fb.User? _currentUser;
 
   @override
   fb.User? get currentUser => _currentUser;

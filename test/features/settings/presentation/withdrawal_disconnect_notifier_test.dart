@@ -136,8 +136,8 @@ class _UserHolder extends Notifier<User?> {
   @override
   User? build() => null;
 
-  /// 현재 사용자를 [user] 로 바꾼다.
-  void setUser(User? user) => state = user;
+  /// 현재 사용자를 [providerIds] 로 연결된 시험 사용자로 바꾼다.
+  void signInWith(List<String> providerIds) => state = _userWith(providerIds);
 }
 
 final _userHolderProvider = NotifierProvider<_UserHolder, User?>(
@@ -224,7 +224,9 @@ void main() {
           serverProviderIdsReaderProvider.overrideWithValue(() async {
             if (serverReads != null) serverReads[0] += 1;
             final error = serverReadError;
-            if (error != null) throw error;
+            if (error != null) {
+              Error.throwWithStackTrace(error, StackTrace.current);
+            }
             return serverProviderIds ?? providerIds;
           }),
         disconnectStepsProvider.overrideWithValue(fakes.all),
@@ -240,9 +242,7 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    container
-        .read(_userHolderProvider.notifier)
-        .setUser(_userWith(providerIds));
+    container.read(_userHolderProvider.notifier).signInWith(providerIds);
     container
       ..listen(withdrawalDisconnectProvider, (_, _) {})
       ..listen(settingsProvider, (_, _) {});
@@ -573,9 +573,9 @@ void main() {
       final before = statusesOf(container);
 
       // 재로그인(signInWithCustomToken 등)이 user 를 재방출한 상황.
-      container
-          .read(_userHolderProvider.notifier)
-          .setUser(_userWith(<String>['naver']));
+      container.read(_userHolderProvider.notifier).signInWith(<String>[
+        'naver',
+      ]);
       await _flush();
 
       expect(

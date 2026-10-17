@@ -116,12 +116,12 @@ void main() {
     );
   }
 
-  /// sheet 결과 Future 를 캡슐화한 wrapper — async 함수의 자동 Future unwrap 이
-  /// sheet pop 까지 await 하여 hang 되는 함정 회피.
+  /// sheet 결과 Future 를 record 로 감싸 돌려준다 — Future 를 그대로 돌려주면
+  /// await 해야 하는 꼴이 되어 sheet pop 까지 기다리며 hang 되는 함정을 피한다.
   ///
   /// [AccountLinkingSheet.show] 를 seam 파라미터와 함께 직접 호출하는 harness
   /// (LoginScreen 은 hook 을 주입하지 않으므로 seam 검증은 직접 show 로 한다).
-  Future<Future<bool?>?> showSeamSheet(
+  Future<({Future<bool?>? sheetResult})> showSeamSheet(
     WidgetTester tester, {
     required AccountProvider existingProvider,
     ExistingProviderSignInCallback? onExistingProviderSignIn,
@@ -168,7 +168,7 @@ void main() {
     await tester.tap(find.text('open-sheet'));
     await settleSheetEntrance(tester);
     expect(find.byType(AccountLinkingSheet), findsOneWidget);
-    return sheetResult;
+    return (sheetResult: sheetResult);
   }
 
   /// 시트 안 CTA 를 탭한다 (form-tail 좌표 hit-test 회피 — ensureVisible 명시).
@@ -271,7 +271,7 @@ void main() {
       await usePortraitSurface(tester);
       var called = false;
 
-      final sheetResult = await showSeamSheet(
+      final (:sheetResult) = await showSeamSheet(
         tester,
         existingProvider: AccountProvider.kakao,
         onExistingProviderSignIn: (provider) async {

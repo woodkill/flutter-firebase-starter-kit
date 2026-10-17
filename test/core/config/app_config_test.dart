@@ -341,14 +341,17 @@ void main() {
     });
 
     test('실패 메시지는 알려진 슬러그 목록을 함께 제시한다 (조치 가능성)', () {
-      try {
-        AppConfig.parseEnabledProviders('gogle');
-        fail('미지 슬러그인데 통과했다');
-      } on StateError catch (e) {
-        for (final id in kAllProviderIds) {
-          expect(e.message, contains(id), reason: '알려진 슬러그 $id 가 안내에 없다');
-        }
-      }
+      expect(
+        () => AppConfig.parseEnabledProviders('gogle'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(<Matcher>[for (final id in kAllProviderIds) contains(id)]),
+          ),
+        ),
+        reason: '미지 슬러그는 알려진 슬러그를 모두 안내하는 StateError 로 실패한다',
+      );
     });
 
     test('authProviders 는 parseEnabledProviders 와 동일한 결과를 반환한다', () {

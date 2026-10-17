@@ -290,7 +290,7 @@ Future<_Raster> _renderLabel(
     ),
   );
   await tester.pumpAndSettle();
-  return _captureBoundary(tester, boundaryKey, label);
+  return await _captureBoundary(tester, boundaryKey, label);
 }
 
 /// [boundaryKey] 가 붙은 `RepaintBoundary` 를 [_dpr] 배로 찍는다.
