@@ -1,16 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/confirm.dart';
+import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
 import '../../../tool/setup/steps/firebase_project_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
+import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
+import 'fake_rest_client.dart';
 import 'fakes.dart';
 
 const String _gitStatusKey = 'git status --porcelain --untracked-files=no';
@@ -1114,5 +1119,254 @@ void main() {
         .toList();
 
     expect(ids.indexOf('firebase_project'), ids.indexOf('login') + 1);
+  });
+
+  group('flavor 문맥', () {
+    /// stg 프로젝트 ID(가짜).
+    const String stgId = 'acme-stg';
+    late FakeCommandRunner runner;
+    late ScriptedTerminal screen;
+
+    /// [flavor] 문맥을 만든다 — 화면은 가림 터미널로 감싼다.
+    WizardContext buildFlavorContext(Flavor flavor, List<String?> inputs) {
+      final MemoryLogSink log = MemoryLogSink(Redactor());
+      screen = ScriptedTerminal(inputs);
+      return WizardContext(
+        projectRoot: root,
+        runner: runner,
+        terminal: RedactingTerminal(screen, log.redactor, log),
+        redactor: log.redactor,
+        log: log,
+        rest: FakeRestClient(),
+        flavor: flavor,
+        random: Random(fixedTestRandomSeed),
+        now: () => fixedTestNow,
+      );
+    }
+
+    /// stg config 를 example 에서 만들고 [projectId] 가 있으면 그 값으로 둔다.
+    void writeStgConfig({String? projectId}) {
+      final FlavorPaths paths = const FlavorPaths(Flavor.stg);
+      File(paths.jsonExample).copySync('$root/${paths.json}');
+      if (projectId != null) {
+        replaceJsonString(
+          '$root/${paths.json}',
+          'firebaseProjectId',
+          projectId,
+        );
+      }
+    }
+
+    /// stg config 의 프로젝트 ID.
+    String readStgProjectId() => readJsonString(
+      '$root/${const FlavorPaths(Flavor.stg).json}',
+      'firebaseProjectId',
+    )!;
+
+    setUp(() {
+      runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+    });
+
+    test(
+      'T-20-FLAVOR-11: stg 프로젝트를 고르면 .firebaserc 에 stg 별칭만 더하고 default · dev 와 다른 별칭은 그대로다',
+      () async {
+        writeProjectFixture(
+          root,
+          projectId: existingId,
+          aliases: const <String, String>{
+            'default': existingId,
+            'dev': existingId,
+            'qa': 'acme-qa',
+          },
+        );
+        writeStgConfig();
+        final List<int> devConfigBefore = File(
+          '$root/${UserFilesStep.jsonUserPath}',
+        ).readAsBytesSync();
+        runner.on(
+          _projectsListKey,
+          buildProjectsResult(const <String, String>{
+            existingId: 'Acme Dev',
+            stgId: 'Acme Stg',
+          }),
+        );
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>['2', '2'],
+        );
+        final FirebaseProjectStep step = FirebaseProjectStep();
+
+        expect(await step.check(context), isA<Todo>());
+        final List<String> lines = step.plannedCommandLines(context);
+        final StepOutcome outcome = await step.apply(context);
+
+        expect(
+          lines,
+          contains(
+            '(config/stg.json 의 firebaseProjectId · .firebaserc 의 '
+            'stg 를 정한 ID 로 씀)',
+          ),
+        );
+        expect(outcome, isA<Applied>());
+        expect(readStgProjectId(), stgId);
+        expect(readAliases(), <String, Object?>{
+          'default': existingId,
+          'dev': existingId,
+          'qa': 'acme-qa',
+          'stg': stgId,
+        });
+        expect(
+          File('$root/${UserFilesStep.jsonUserPath}').readAsBytesSync(),
+          devConfigBefore,
+        );
+        // 재검사는 stg 별칭만 본다.
+        expect(
+          await step.check(context),
+          isA<Done>().having((Done done) => done.summary, 'summary', stgId),
+        );
+      },
+    );
+
+    test(
+      'T-20-FLAVOR-11: stg config 의 ID 가 목록에 있고 stg 별칭만 없으면 stg 별칭만 쓰는 할 일이다',
+      () async {
+        writeProjectFixture(
+          root,
+          projectId: existingId,
+          aliases: const <String, String>{
+            'default': existingId,
+            'dev': existingId,
+          },
+        );
+        writeStgConfig(projectId: stgId);
+        runner.on(
+          _projectsListKey,
+          buildProjectsResult(const <String, String>{stgId: 'Acme Stg'}),
+        );
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>[],
+        );
+        final FirebaseProjectStep step = FirebaseProjectStep();
+
+        final CheckResult before = await step.check(context);
+        final List<String> lines = step.plannedCommandLines(context);
+        final StepOutcome outcome = await step.apply(context);
+
+        expect(
+          before,
+          isA<Todo>().having(
+            (Todo todo) => todo.reason,
+            'reason',
+            '.firebaserc 의 stg 가 $stgId 가 아닙니다',
+          ),
+        );
+        expect(lines, <String>['(.firebaserc 의 stg 를 $stgId 로 씀)']);
+        expect(outcome, isA<Applied>());
+        expect(readAliases(), <String, Object?>{
+          'default': existingId,
+          'dev': existingId,
+          'stg': stgId,
+        });
+        expect(await step.check(context), isA<Done>());
+        expect(screen.asks, isEmpty);
+      },
+    );
+
+    test(
+      'T-20-FLAVOR-12: stg 문맥에서 .firebaserc 가 없으면 stg 별칭 하나만 담아 만들고 default 는 만들지 않는다',
+      () async {
+        writeProjectFixture(root, projectId: existingId);
+        File('$root/.firebaserc').deleteSync();
+        writeStgConfig(projectId: stgId);
+        runner.on(
+          _projectsListKey,
+          buildProjectsResult(const <String, String>{stgId: 'Acme Stg'}),
+        );
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>[],
+        );
+        final FirebaseProjectStep step = FirebaseProjectStep();
+
+        expect(await step.check(context), isA<Todo>());
+        expect(await step.apply(context), isA<Applied>());
+
+        expect(readAliases(), <String, Object?>{'stg': stgId});
+        expect(await step.check(context), isA<Done>());
+      },
+    );
+
+    test('T-20-FLAVOR-13: stg 자리표시는 미설정이고 새로 만들기 제안 ID 는 -stg 로 끝난다', () async {
+      writeProjectFixture(root, projectId: existingId);
+      writeStgConfig();
+      final List<int> firebasercBefore = File(
+        '$root/.firebaserc',
+      ).readAsBytesSync();
+      final WizardContext context = buildFlavorContext(
+        Flavor.stg,
+        const <String?>['1', '', 'n'],
+      );
+      final FirebaseProjectStep step = FirebaseProjectStep();
+
+      final CheckResult before = await step.check(context);
+      final StepOutcome outcome = await step.apply(context);
+
+      expect(readStgProjectId(), Flavor.stg.placeholderProjectId);
+      expect(
+        before,
+        isA<Todo>().having(
+          (Todo todo) => todo.reason,
+          'reason',
+          'Firebase 프로젝트가 아직 정해지지 않았습니다',
+        ),
+      );
+      expect(outcome, isA<Declined>());
+      expect(screen.asks, <String>[
+        FirebaseProjectStep.projectChoiceQuestion,
+        FirebaseProjectStep.idQuestion,
+        summaryConfirmQuestion,
+      ]);
+      const String suggested = '$fixturePrefix-stg';
+      expect(suggested, endsWith(Flavor.stg.projectIdSuffix));
+      expect(screen.output.toString(), contains(suggested));
+      // 목록을 읽지 않았고 거절 뒤 어떤 파일도 바뀌지 않았다.
+      expect(runner.countCalls(RunMode.capture, _projectsListKey), 0);
+      expect(readStgProjectId(), Flavor.stg.placeholderProjectId);
+      expect(File('$root/.firebaserc').readAsBytesSync(), firebasercBefore);
+    });
+
+    test('T-20-FLAVOR-15: dev 문맥의 자리표시 · 제안 접미사 · 안내문 · 별칭 줄은 그대로다', () async {
+      expect(FirebaseProjectStep.placeholderProjectId, 'your-project-dev');
+      expect(FirebaseProjectStep.devSuffix, '-dev');
+      expect(
+        FirebaseProjectStep.accountPermissionGuidance,
+        '로그인한 계정이 이 프로젝트에 접근할 수 있는지(계정 · 권한) 확인하세요 — '
+        '다른 프로젝트를 쓰려면 config/dev.json 의 firebaseProjectId 를 고친 뒤 '
+        '다시 실행하세요',
+      );
+      writeProjectFixture(root, projectId: existingId);
+      runner.on(
+        _projectsListKey,
+        buildProjectsResult(const <String, String>{existingId: 'Acme Dev'}),
+      );
+      final WizardContext context = buildFlavorContext(
+        Flavor.dev,
+        const <String?>[],
+      );
+      final FirebaseProjectStep step = FirebaseProjectStep();
+
+      expect(
+        await step.check(context),
+        isA<Todo>().having(
+          (Todo todo) => todo.reason,
+          'reason',
+          '.firebaserc 의 default · dev 가 $existingId 가 아닙니다',
+        ),
+      );
+      expect(step.plannedCommandLines(context), <String>[
+        '(.firebaserc 의 default · dev 를 $existingId 로 씀)',
+      ]);
+    });
   });
 }

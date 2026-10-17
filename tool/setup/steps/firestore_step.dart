@@ -3,13 +3,13 @@ import 'dart:io';
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
+import '../flavor.dart';
 import '../git_tree.dart';
 import '../step.dart';
 import '../terminal.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
 import 'identity_step.dart';
-import 'user_files_step.dart';
 
 /// Firestore `(default)` 데이터베이스 위치를 읽은 결과.
 sealed class FirestoreLookup {
@@ -72,8 +72,14 @@ Future<FirestoreLookup> readFirestoreLocation(
 }
 
 /// 위치 · Firestore 단계 — 위치를 한 번 골라 Firestore 를 만들고 Functions 리전
-/// 세 곳(`config/dev.json` · `functions/src/shared/region.ts` ·
+/// 세 곳(`config/<flavor>.json` · `functions/src/shared/region.ts` ·
 /// `lib/core/config/app_config.dart`)에 같은 값을 쓴다.
+///
+/// Functions 리전은 모든 flavor 가 함께 쓰는 추적 상수다. 그래서 dev 가 아닌
+/// flavor 는 위치 · 리전을 묻지 않고 `region.ts` 의 값을 값 표로 보인 뒤 그
+/// 위치로 만들며, 추적 리전 파일은 쓰지 않고 그 flavor config 의 리전만 맞춘다.
+/// 추적 리전 두 곳이 서로 다르거나 고를 수 있는 목록 밖이면 dev 실행에서 먼저
+/// 맞추라고 알리고 멈춘다.
 ///
 /// 이미 있는 Firestore 의 위치는 바꾸지 않고 보여 주기만 하며, 세 리전 값이 서로
 /// 다를 때만 Functions 리전을 고르게 한다. 고르기는 [singleRegions] 의 단일 리전만
@@ -131,10 +137,23 @@ final class FirestoreStep implements Step {
   static const String locationImmutableWarning =
       'Firestore 위치는 만든 뒤 바꿀 수 없습니다.';
 
-  /// 리전 세 곳을 함께 바꾼다는 안내.
-  static const String regionFilesNotice =
-      'Functions 리전을 바꾸면 config/dev.json · functions/src/shared/region.ts · '
-      'lib/core/config/app_config.dart 세 곳이 함께 바뀝니다.';
+  /// dev 기본값 — 리전 세 곳을 함께 바꾼다는 안내.
+  static final String regionFilesNotice = describeRegionFilesNotice(
+    const FlavorPaths(Flavor.dev).json,
+  );
+
+  /// [jsonPath] config 와 추적 리전 파일 두 곳을 함께 바꾼다는 안내를 만든다.
+  static String describeRegionFilesNotice(String jsonPath) =>
+      'Functions 리전을 바꾸면 $jsonPath · $regionTsPath · '
+      '$appConfigPath 세 곳이 함께 바뀝니다.';
+
+  /// dev 가 아닌 flavor 의 값 표 앞에 보이는 안내 한 줄.
+  static const String sharedRegionNotice =
+      'dev 와 같은 위치 — Functions 리전은 모든 flavor 가 함께 씁니다.';
+
+  /// 추적 리전을 dev 실행에서 먼저 맞추라는 안내.
+  static const String alignInDevGuidance =
+      'dev 실행에서 Functions 리전을 먼저 맞춘 뒤 다시 실행하세요';
 
   /// [projectId] 의 `(default)` 데이터베이스 위치를 읽는 명령을 만든다.
   static Command buildDescribeCommand(String projectId) =>
@@ -178,26 +197,41 @@ final class FirestoreStep implements Step {
   // 확인 표는 데이터베이스 만들기에서만 보인다 — 리전 맞추기는 위치를 바꾸지
   // 않아 표 없이 고르기만 하고, 실패 전용 모드에는 안내가 붙지 않는다.
   @override
-  bool get isCostlyOrIrreversible => _mode == _FirestoreMode.create;
+  bool get isCostlyOrIrreversible =>
+      _mode == _FirestoreMode.create || _mode == _FirestoreMode.createShared;
 
   @override
   Future<CheckResult> check(WizardContext context) async {
     final String? projectId = readConfiguredProjectId(context);
     if (projectId == null) {
-      return _markUnreadable(
-        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
-      );
+      return _markUnreadable('${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다');
     }
     _projectId = projectId;
     final String? unreadable = _readRegions(context);
     if (unreadable != null) return _markUnreadable(unreadable);
     final _RegionValues regions = _regions!;
+    final bool isDevFlavor = context.flavor == Flavor.dev;
+    if (!isDevFlavor && regions.regionTs != regions.appConfig) {
+      return _markShared(
+        _FirestoreMode.sharedMismatch,
+        'Functions 리전 값이 추적 파일 두 곳에서 다릅니다 — '
+        'region.ts ${regions.regionTs} · app_config.dart ${regions.appConfig}. '
+        '$alignInDevGuidance',
+      );
+    }
 
     final FirestoreLookup lookup = await readFirestoreLocation(
       context,
       projectId,
     );
     switch (lookup) {
+      case FirestoreMissing() when !isDevFlavor:
+        if (!singleRegions.containsKey(regions.regionTs)) {
+          return _markUnsupportedRegion(regions.regionTs);
+        }
+        _mode = _FirestoreMode.createShared;
+        _reason = '$projectId 에 Firestore 데이터베이스가 없습니다';
+        return Todo(_reason);
       case FirestoreMissing():
         _mode = _FirestoreMode.create;
         _reason = '$projectId 에 Firestore 데이터베이스가 없습니다';
@@ -215,10 +249,20 @@ final class FirestoreStep implements Step {
             '${_describeLocation(locationId)} · Functions 리전: ${regions.config}',
           );
         }
+        if (!isDevFlavor) {
+          if (!singleRegions.containsKey(regions.regionTs)) {
+            return _markUnsupportedRegion(regions.regionTs);
+          }
+          _mode = _FirestoreMode.alignConfigOnly;
+          _reason =
+              '${context.paths.json} 의 $functionsRegionKey ${regions.config} 가 '
+              '추적 리전 ${regions.regionTs} 와 다릅니다';
+          return Todo(_reason);
+        }
         _mode = _FirestoreMode.alignRegion;
         _reason =
             'Functions 리전 값이 세 곳에서 다릅니다 — '
-            '${UserFilesStep.jsonUserPath} ${regions.config} · '
+            '${context.paths.json} ${regions.config} · '
             'region.ts ${regions.regionTs} · '
             'app_config.dart ${regions.appConfig}';
         return Todo(_reason);
@@ -236,10 +280,25 @@ final class FirestoreStep implements Step {
     _FirestoreMode.alignRegion => <String>[
       '(Firestore 는 그대로 두고 Functions 리전을 골라 세 파일에 같은 값을 씁니다)',
     ],
+    _FirestoreMode.createShared => <String>[
+      '(위치를 묻지 않고 $regionTsPath 의 REGION ${_regions!.regionTs} 을 '
+          '씁니다 — 확인 표 뒤에 아래 명령을 실행합니다)',
+      buildCreateCommand(_regions!.regionTs, _projectId).render(),
+      if (_regions!.config != _regions!.regionTs)
+        '(${context.paths.json} 의 $functionsRegionKey 를 '
+            '${_regions!.regionTs} 로 씀)',
+    ],
+    _FirestoreMode.alignConfigOnly => <String>[
+      '(${context.paths.json} 의 $functionsRegionKey 을 ${_regions!.regionTs} 로 '
+          '씀 — Firestore · 추적 리전 파일은 그대로)',
+    ],
     _FirestoreMode.lookupFailed => <String>[
       '(${buildDescribeCommand(_projectId).render()} 의 오류를 보입니다)',
     ],
-    _FirestoreMode.unreadable || _FirestoreMode.done => const <String>[],
+    _FirestoreMode.sharedMismatch ||
+    _FirestoreMode.unsupportedRegion ||
+    _FirestoreMode.unreadable ||
+    _FirestoreMode.done => const <String>[],
   };
 
   @override
@@ -249,6 +308,10 @@ final class FirestoreStep implements Step {
       return switch (_mode) {
         _FirestoreMode.create => await _applyCreate(context),
         _FirestoreMode.alignRegion => await _applyAlign(context),
+        _FirestoreMode.createShared => await _applyCreateShared(context),
+        _FirestoreMode.alignConfigOnly => _applyAlignConfigOnly(context),
+        _FirestoreMode.sharedMismatch ||
+        _FirestoreMode.unsupportedRegion => Failed(_reason),
         _FirestoreMode.lookupFailed => Failed(_reason, result: _failedResult),
         _FirestoreMode.unreadable => Failed(_reason),
         _FirestoreMode.done => const Applied(),
@@ -258,7 +321,7 @@ final class FirestoreStep implements Step {
     } on FileSystemException catch (e) {
       return Failed('리전 파일을 고치지 못했습니다 — $e');
     } on FormatException catch (e) {
-      return Failed('${UserFilesStep.jsonUserPath} 을 고치지 못했습니다 — $e');
+      return Failed('${context.paths.json} 을 고치지 못했습니다 — $e');
     } on StateError catch (e) {
       return Failed('리전 값을 쓰지 못했습니다 — ${e.message}');
     }
@@ -268,14 +331,18 @@ final class FirestoreStep implements Step {
   Future<StepOutcome> _applyCreate(WizardContext context) async {
     final Terminal terminal = context.terminal;
     final _RegionValues regions = _regions!;
-    terminal.writeLine('  $regionFilesNotice');
+    terminal.writeLine('  ${describeRegionFilesNotice(context.paths.json)}');
     final String? location = _chooseRegion(
       terminal,
       locationChoiceQuestion,
       preferred: regions.config,
     );
     if (location == null) return const Declined();
-    final List<String> changedPaths = _listChangedPaths(regions, location);
+    final List<String> changedPaths = _listChangedPaths(
+      context,
+      regions,
+      location,
+    );
     if (!confirmSummary(
       terminal,
       title: confirmTitle,
@@ -315,7 +382,7 @@ final class FirestoreStep implements Step {
     final _RegionValues regions = _regions!;
     terminal
       ..writeLine('  ${_describeLocation(_firestoreLocation)}')
-      ..writeLine('  $regionFilesNotice');
+      ..writeLine('  ${describeRegionFilesNotice(context.paths.json)}');
     final String? region = _chooseRegion(
       terminal,
       regionChoiceQuestion,
@@ -329,6 +396,73 @@ final class FirestoreStep implements Step {
     _writeRegions(context, regions, region);
     return const Applied();
   }
+
+  /// 추적 리전 그대로 값 표 뒤에 데이터베이스를 만들고 flavor config 만 맞춘다.
+  ///
+  /// 위치 · 리전은 묻지 않는다. 추적 리전 파일은 쓰지 않으므로 미커밋 검사도
+  /// 하지 않는다.
+  Future<StepOutcome> _applyCreateShared(WizardContext context) async {
+    final Terminal terminal = context.terminal;
+    final _RegionValues regions = _regions!;
+    final String region = regions.regionTs;
+    final bool isConfigChanged = regions.config != region;
+    terminal.writeLine('  $sharedRegionNotice');
+    if (!confirmSummary(
+      terminal,
+      title: confirmTitle,
+      rows: <SummaryRow>[
+        SummaryRow('프로젝트 ID', _projectId),
+        SummaryRow('Firestore 위치', region),
+        SummaryRow('Functions 리전', region),
+        SummaryRow(
+          '바꿀 파일',
+          isConfigChanged ? context.paths.json : '없음 (지금 값과 같음)',
+        ),
+      ],
+      warnings: const <String>[locationImmutableWarning],
+    )) {
+      return const Declined();
+    }
+    final CommandResult created = await context.runner.stream(
+      buildCreateCommand(region, _projectId),
+    );
+    if (!created.isSuccess) {
+      return Failed('Firestore 데이터베이스를 만들지 못했습니다', result: created);
+    }
+    if (isConfigChanged) _writeConfigRegion(context, region);
+    return const Applied();
+  }
+
+  /// 이미 있는 Firestore 는 그대로 두고 flavor config 의 리전만 추적 리전에
+  /// 맞춘다 — 값 표 뒤에만 쓴다.
+  StepOutcome _applyAlignConfigOnly(WizardContext context) {
+    final Terminal terminal = context.terminal;
+    final _RegionValues regions = _regions!;
+    terminal
+      ..writeLine('  ${_describeLocation(_firestoreLocation)}')
+      ..writeLine('  $sharedRegionNotice');
+    if (!confirmSummary(
+      terminal,
+      title: confirmTitle,
+      rows: <SummaryRow>[
+        SummaryRow('프로젝트 ID', _projectId),
+        SummaryRow('Functions 리전', regions.regionTs),
+        SummaryRow('바꿀 파일', context.paths.json),
+      ],
+    )) {
+      return const Declined();
+    }
+    _writeConfigRegion(context, regions.regionTs);
+    return const Applied();
+  }
+
+  /// 고른 flavor config 의 Functions 리전 값만 [region] 으로 쓴다.
+  void _writeConfigRegion(WizardContext context, String region) =>
+      replaceJsonString(
+        context.resolve(context.paths.json),
+        functionsRegionKey,
+        region,
+      );
 
   /// 단일 리전 목록에서 하나를 고르게 한다 — 입력 끝이면 null.
   ///
@@ -347,12 +481,15 @@ final class FirestoreStep implements Step {
   }
 
   /// [region] 으로 바꿀 때 값이 달라지는 파일의 저장소 상대 경로를 모은다.
-  List<String> _listChangedPaths(_RegionValues regions, String region) =>
-      <String>[
-        if (regions.config != region) UserFilesStep.jsonUserPath,
-        if (regions.regionTs != region) regionTsPath,
-        if (regions.appConfig != region) appConfigPath,
-      ];
+  List<String> _listChangedPaths(
+    WizardContext context,
+    _RegionValues regions,
+    String region,
+  ) => <String>[
+    if (regions.config != region) context.paths.json,
+    if (regions.regionTs != region) regionTsPath,
+    if (regions.appConfig != region) appConfigPath,
+  ];
 
   /// 고칠 추적 파일(region.ts · app_config.dart 가운데 값이 바뀌는 것)에 커밋하지
   /// 않은 변경이 있으면 실패를 돌려준다 — 고칠 추적 파일이 없으면 git 을 부르지 않는다.
@@ -383,13 +520,7 @@ final class FirestoreStep implements Step {
     _RegionValues regions,
     String region,
   ) {
-    if (regions.config != region) {
-      replaceJsonString(
-        context.resolve(UserFilesStep.jsonUserPath),
-        functionsRegionKey,
-        region,
-      );
-    }
+    if (regions.config != region) _writeConfigRegion(context, region);
     if (regions.regionTs != region) {
       _replaceRegionValue(
         context.resolve(regionTsPath),
@@ -428,13 +559,13 @@ final class FirestoreStep implements Step {
 
   /// 세 곳의 리전 값을 읽는다 — 읽지 못하면 사유를, 읽으면 null 을 돌려준다.
   String? _readRegions(WizardContext context) {
-    final String configPath = context.resolve(UserFilesStep.jsonUserPath);
+    final String configPath = context.resolve(context.paths.json);
     final String? config = readJsonString(
       configPath,
       functionsRegionKey,
     )?.trim();
     if (config == null || config.isEmpty) {
-      return '${UserFilesStep.jsonUserPath} 에서 $functionsRegionKey 를 읽지 못했습니다';
+      return '${context.paths.json} 에서 $functionsRegionKey 를 읽지 못했습니다';
     }
     final String? regionTs = _readRegionValue(
       context.resolve(regionTsPath),
@@ -466,6 +597,20 @@ final class FirestoreStep implements Step {
     return matches.length == 1 ? matches.single.group(2) : null;
   }
 
+  /// dev 가 아닌 flavor 의 멈춤 판정 [mode] 를 두고 할 일 결과를 만든다.
+  CheckResult _markShared(_FirestoreMode mode, String reason) {
+    _mode = mode;
+    _reason = reason;
+    return Todo(reason);
+  }
+
+  /// 추적 리전 [region] 이 고를 수 있는 목록 밖이라는 판정을 둔다.
+  CheckResult _markUnsupportedRegion(String region) => _markShared(
+    _FirestoreMode.unsupportedRegion,
+    '$regionTsPath 의 REGION $region 은 고를 수 있는 단일 리전 목록 밖입니다 — '
+    '$alignInDevGuidance',
+  );
+
   /// 판정을 「읽지 못함」 으로 두고 할 일 결과를 만든다.
   CheckResult _markUnreadable(String reason) {
     _mode = _FirestoreMode.unreadable;
@@ -486,7 +631,7 @@ final class _RegionValues {
     required this.appConfig,
   });
 
-  /// `config/dev.json` 의 값.
+  /// 고른 flavor config 의 값.
   final String config;
 
   /// `region.ts` 의 값.
@@ -506,6 +651,18 @@ enum _FirestoreMode {
 
   /// 데이터베이스는 있고 리전 값이 서로 다르다 — Functions 리전만 맞춘다.
   alignRegion,
+
+  /// dev 가 아닌 flavor · 데이터베이스가 없다 — 추적 리전으로 묻지 않고 만든다.
+  createShared,
+
+  /// dev 가 아닌 flavor · 데이터베이스는 있고 config 리전만 추적 리전과 다르다.
+  alignConfigOnly,
+
+  /// dev 가 아닌 flavor · 추적 리전 두 곳이 서로 다르다 — dev 에서 먼저 맞춘다.
+  sharedMismatch,
+
+  /// dev 가 아닌 flavor · 추적 리전이 고를 수 있는 목록 밖이다.
+  unsupportedRegion,
 
   /// 위치를 읽지 못했다.
   lookupFailed,

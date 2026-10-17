@@ -4,17 +4,19 @@ import 'dart:io';
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
+import '../flavor.dart';
 import '../git_tree.dart';
 import '../step.dart';
 import '../terminal.dart';
 import '../wizard.dart';
 import 'identity_step.dart';
-import 'user_files_step.dart';
 
-/// Firebase 프로젝트 단계 — dev 프로젝트를 정하고 `config/dev.json` 의
-/// `firebaseProjectId` 와 `.firebaserc` 의 `default` · `dev` 별칭에 쓴다.
+/// Firebase 프로젝트 단계 — 고른 flavor 의 프로젝트를 정하고
+/// `config/<flavor>.json` 의 `firebaseProjectId` 와 `.firebaserc` 별칭에 쓴다.
 ///
-/// 프로젝트 ID 의 진실원은 `config/dev.json` 의 `firebaseProjectId` 하나다. 그 값이
+/// 별칭은 dev 면 `default` · `dev`, stg · prod 면 그 flavor 이름 하나만 쓰고 다른
+/// 별칭은 그대로 둔다. 프로젝트 ID 의 진실원은 그 config 의 `firebaseProjectId`
+/// 하나다. 그 값이
 /// 자리표시(빈 값 · example 값)가 아니면 묻지 않고 내 계정의 Firebase 프로젝트
 /// 목록에 있는지 본다. 목록에 없으면 `gcloud projects describe` 로 내 Google
 /// Cloud 프로젝트인지 보고, 맞으면 Firebase 추가만 남은 것으로 판정해 확인 표 뒤에
@@ -35,8 +37,9 @@ final class FirebaseProjectStep implements Step {
   /// 프로젝트 ID 를 읽고 쓰는 사용자 설정 키.
   static const String projectIdKey = 'firebaseProjectId';
 
-  /// `config/dev.example.json` 의 자리표시 프로젝트 ID.
-  static const String placeholderProjectId = 'your-project-dev';
+  /// dev 기본값 — dev example config 의 자리표시 프로젝트 ID. 단계는
+  /// `context.flavor.placeholderProjectId` 를 쓴다.
+  static final String placeholderProjectId = Flavor.dev.placeholderProjectId;
 
   /// firebase CLI 별칭 파일(추적 파일).
   static const String firebasercPath = '.firebaserc';
@@ -44,8 +47,9 @@ final class FirebaseProjectStep implements Step {
   /// 프로젝트 prefix 상수를 읽는 스크립트(앱 정체성 단계가 이 값을 바꾼다).
   static const String configureScriptPath = 'scripts/firebase-configure.sh';
 
-  /// 새 dev 프로젝트 ID 제안의 접미사.
-  static const String devSuffix = '-dev';
+  /// dev 기본값 — 새 dev 프로젝트 ID 제안의 접미사. 단계는
+  /// `context.flavor.projectIdSuffix` 를 쓴다.
+  static final String devSuffix = Flavor.dev.projectIdSuffix;
 
   /// 같은 질문을 다시 묻는 최대 횟수.
   static const int maxInputAttempts = 3;
@@ -89,10 +93,21 @@ final class FirebaseProjectStep implements Step {
   static const String permanentIdWarning =
       '프로젝트 ID 는 만든 뒤 바꿀 수 없고, 지운 뒤에도 다시 쓸 수 없습니다.';
 
-  /// config 의 ID 가 내 목록에 없을 때의 안내.
-  static const String accountPermissionGuidance =
+  /// dev 기본값 — config 의 ID 가 내 목록에 없을 때의 안내.
+  static final String accountPermissionGuidance =
+      describeAccountPermissionGuidance(const FlavorPaths(Flavor.dev).json);
+
+  /// [jsonPath] config 의 ID 가 내 목록에 없을 때의 안내를 만든다.
+  static String describeAccountPermissionGuidance(String jsonPath) =>
       '로그인한 계정이 이 프로젝트에 접근할 수 있는지(계정 · 권한) 확인하세요 — '
-      '다른 프로젝트를 쓰려면 config/dev.json 의 firebaseProjectId 를 고친 뒤 다시 실행하세요';
+      '다른 프로젝트를 쓰려면 $jsonPath 의 firebaseProjectId 를 고친 뒤 다시 실행하세요';
+
+  /// [flavor] 실행이 `.firebaserc` 에 쓰는 별칭 — dev 는 `default` · `dev`,
+  /// 다른 flavor 는 그 이름 하나다.
+  static List<String> listAliasNames(Flavor flavor) => <String>[
+    if (flavor == Flavor.dev) 'default',
+    flavor.name,
+  ];
 
   /// gcloud 가 ID 충돌(HTTP 409)을 자기 문구로 바꿔 보이는 조각(소문자).
   ///
@@ -196,17 +211,18 @@ final class FirebaseProjectStep implements Step {
 
   @override
   Future<CheckResult> check(WizardContext context) async {
-    final String configPath = context.resolve(UserFilesStep.jsonUserPath);
+    final String configPath = context.resolve(context.paths.json);
     final String? configured = File(configPath).existsSync()
         ? readJsonString(configPath, projectIdKey)
         : null;
     if (configured == null) {
       _mode = _ProjectMode.unreadable;
-      _reason = '${UserFilesStep.jsonUserPath} 에서 $projectIdKey 를 읽지 못했습니다';
+      _reason = '${context.paths.json} 에서 $projectIdKey 를 읽지 못했습니다';
       return Todo(_reason);
     }
     _projectId = configured.trim();
-    if (_projectId.isEmpty || _projectId == placeholderProjectId) {
+    if (_projectId.isEmpty ||
+        _projectId == context.flavor.placeholderProjectId) {
       _mode = _ProjectMode.choose;
       _reason = 'Firebase 프로젝트가 아직 정해지지 않았습니다';
       return Todo(_reason);
@@ -238,7 +254,8 @@ final class FirebaseProjectStep implements Step {
     }
     if (!_hasMatchingAliases(context, _projectId)) {
       _mode = _ProjectMode.writeAliases;
-      _reason = '$firebasercPath 의 default · dev 가 $_projectId 가 아닙니다';
+      _reason =
+          '$firebasercPath 의 ${_describeAliases(context)} 가 $_projectId 가 아닙니다';
       return Todo(_reason);
     }
     _mode = _ProjectMode.done;
@@ -247,9 +264,13 @@ final class FirebaseProjectStep implements Step {
 
   @override
   List<String> plannedCommandLines(WizardContext context) {
+    final String aliases = _describeAliases(context);
+    final String guidance = describeAccountPermissionGuidance(
+      context.paths.json,
+    );
     final String aliasLine =
-        '(${UserFilesStep.jsonUserPath} 의 $projectIdKey · $firebasercPath 의 '
-        'default · dev 를 정한 ID 로 씀)';
+        '(${context.paths.json} 의 $projectIdKey · $firebasercPath 의 '
+        '$aliases 를 정한 ID 로 씀)';
     return switch (_mode) {
       _ProjectMode.choose => <String>[
         '(새로 만들기 / 기존 프로젝트에서 고르기를 묻습니다 — 새로 만들면 확인 표 뒤에 아래 명령을 실행합니다)',
@@ -264,9 +285,9 @@ final class FirebaseProjectStep implements Step {
             '확인 표를 보이고, 실패하면 콘솔에서 할 일을 보입니다)',
       ],
       _ProjectMode.writeAliases => <String>[
-        '($firebasercPath 의 default · dev 를 $_projectId 로 씀)',
+        '($firebasercPath 의 $aliases 를 $_projectId 로 씀)',
       ],
-      _ProjectMode.missing => <String>['($accountPermissionGuidance)'],
+      _ProjectMode.missing => <String>['($guidance)'],
       _ProjectMode.listFailed => <String>[
         '(${projectsListCommand.render()} 의 출력을 보입니다)',
       ],
@@ -282,7 +303,10 @@ final class FirebaseProjectStep implements Step {
         _ProjectMode.choose => await _applyChoose(context),
         _ProjectMode.writeAliases => await _applyAliasesOnly(context),
         _ProjectMode.addFirebase => await _applyAddFirebase(context),
-        _ProjectMode.missing => Failed('$_reason — $accountPermissionGuidance'),
+        _ProjectMode.missing => Failed(
+          '$_reason — '
+          '${describeAccountPermissionGuidance(context.paths.json)}',
+        ),
         _ProjectMode.listFailed => Failed(_reason, result: _listResult),
         _ProjectMode.unreadable => Failed(_reason),
         _ProjectMode.done => const Applied(),
@@ -444,7 +468,8 @@ final class FirebaseProjectStep implements Step {
     return '';
   }
 
-  /// configure 스크립트의 `PROJECT_ID_PREFIX="…"` 줄로 `<prefix>-dev` 를 제안한다.
+  /// configure 스크립트의 `PROJECT_ID_PREFIX="…"` 줄로 `<prefix>-<flavor>` 를
+  /// 제안한다.
   ///
   /// 줄 머리가 `PROJECT_ID_PREFIX=` 인 줄만 읽는다(주석 · 들여쓴 계산 줄 제외).
   /// 파일 · 줄이 없거나 제안값이 규칙에 맞지 않으면 null.
@@ -456,7 +481,8 @@ final class FirebaseProjectStep implements Step {
       multiLine: true,
     ).firstMatch(script.readAsStringSync());
     if (match == null) return null;
-    final String suggested = '${match.group(1)}$devSuffix';
+    final String suggested =
+        '${match.group(1)}${context.flavor.projectIdSuffix}';
     return isValidProjectId(suggested) ? suggested : null;
   }
 
@@ -476,17 +502,18 @@ final class FirebaseProjectStep implements Step {
   /// config 의 프로젝트 ID 와 `.firebaserc` 별칭을 [projectId] 로 쓴다.
   void _writeProjectId(WizardContext context, String projectId) {
     replaceJsonString(
-      context.resolve(UserFilesStep.jsonUserPath),
+      context.resolve(context.paths.json),
       projectIdKey,
       projectId,
     );
     _writeAliases(context, projectId);
   }
 
-  /// `.firebaserc` 의 `projects.default` · `projects.dev` 를 [projectId] 로 쓴다.
+  /// `.firebaserc` 에서 고른 flavor 의 별칭([listAliasNames])을 [projectId] 로
+  /// 쓴다.
   ///
   /// 다른 키 · 별칭은 그대로 두고 2칸 들여쓰기 + 끝 개행으로 원자적으로 쓴다.
-  /// 파일이 없으면 두 별칭만 담아 만든다.
+  /// 파일이 없으면 그 flavor 의 별칭만 담아 만든다.
   void _writeAliases(WizardContext context, String projectId) {
     final File file = File(context.resolve(firebasercPath));
     final Map<String, Object?> root = file.existsSync()
@@ -496,8 +523,9 @@ final class FirebaseProjectStep implements Step {
     final Map<String, Object?> projects = existing is Map<String, Object?>
         ? existing
         : <String, Object?>{};
-    projects['default'] = projectId;
-    projects['dev'] = projectId;
+    for (final String alias in listAliasNames(context.flavor)) {
+      projects[alias] = projectId;
+    }
     root['projects'] = projects;
     writeFileAtomically(
       file.path,
@@ -505,7 +533,7 @@ final class FirebaseProjectStep implements Step {
     );
   }
 
-  /// `.firebaserc` 의 `default` · `dev` 가 모두 [projectId] 면 true.
+  /// `.firebaserc` 에서 고른 flavor 의 별칭이 모두 [projectId] 면 true.
   bool _hasMatchingAliases(WizardContext context, String projectId) {
     final File file = File(context.resolve(firebasercPath));
     if (!file.existsSync()) return false;
@@ -517,9 +545,14 @@ final class FirebaseProjectStep implements Step {
     }
     final Object? projects = root['projects'];
     return projects is Map<String, Object?> &&
-        projects['default'] == projectId &&
-        projects['dev'] == projectId;
+        listAliasNames(
+          context.flavor,
+        ).every((String alias) => projects[alias] == projectId);
   }
+
+  /// 고른 flavor 의 별칭을 화면 표기(`default · dev` · `stg`)로 잇는다.
+  static String _describeAliases(WizardContext context) =>
+      listAliasNames(context.flavor).join(' · ');
 
   /// [content] 를 JSON 객체로 읽는다 — 객체가 아니면 [FormatException].
   static Map<String, Object?> _decodeObject(String content) {

@@ -1,15 +1,20 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/confirm.dart';
+import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
 import '../../../tool/setup/steps/firestore_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
+import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
+import 'fake_rest_client.dart';
 import 'fakes.dart';
 
 /// 테스트 프로젝트 ID.
@@ -441,5 +446,266 @@ void main() {
         .toList();
 
     expect(ids.indexOf('firestore'), ids.indexOf('apis') + 1);
+  });
+
+  group('flavor 문맥', () {
+    /// stg 프로젝트 ID(가짜).
+    const String stgProjectId = 'p-stg';
+    late FakeCommandRunner runner;
+    late ScriptedTerminal screen;
+    late File stgConfig;
+    late String sharedRegion;
+    late String otherRegion;
+
+    /// stg 프로젝트의 Firestore 위치를 읽는 가짜 실행기 키.
+    final String stgDescribeKey = FakeCommandRunner.buildKey(
+      FirestoreStep.buildDescribeCommand(stgProjectId),
+    );
+
+    /// [flavor] 문맥을 만든다 — 화면은 가림 터미널로 감싼다.
+    WizardContext buildFlavorContext(Flavor flavor, List<String?> inputs) {
+      final MemoryLogSink log = MemoryLogSink(Redactor());
+      screen = ScriptedTerminal(inputs);
+      return WizardContext(
+        projectRoot: root,
+        runner: runner,
+        terminal: RedactingTerminal(screen, log.redactor, log),
+        redactor: log.redactor,
+        log: log,
+        rest: FakeRestClient(),
+        flavor: flavor,
+        random: Random(fixedTestRandomSeed),
+        now: () => fixedTestNow,
+      );
+    }
+
+    /// 추적 리전 파일 두 곳 · dev config 의 바이트 사본.
+    Map<String, List<int>> snapshotSharedFiles() => <String, List<int>>{
+      for (final File file in <File>[regionTs, appConfig, config])
+        file.path: file.readAsBytesSync(),
+    };
+
+    setUp(() {
+      runner = FakeCommandRunner();
+      final FlavorPaths paths = const FlavorPaths(Flavor.stg);
+      stgConfig = File('$root/${paths.json}');
+      File(paths.jsonExample).copySync(stgConfig.path);
+      replaceJsonString(stgConfig.path, 'firebaseProjectId', stgProjectId);
+      // 기대 리전은 저장소의 region.ts 에서 읽는다.
+      sharedRegion = regionTsReadPattern
+          .firstMatch(File(FirestoreStep.regionTsPath).readAsStringSync())!
+          .group(1)!;
+      otherRegion = FirestoreStep.singleRegions.keys.firstWhere(
+        (String region) => region != sharedRegion,
+      );
+      replaceJsonString(
+        stgConfig.path,
+        FirestoreStep.functionsRegionKey,
+        otherRegion,
+      );
+    });
+
+    test(
+      'T-20-FLAVOR-14: stg 에 Firestore 가 없으면 묻지 않고 region.ts 의 리전으로 값 표 뒤 만들고 stg config 만 맞춘다',
+      () async {
+        final Map<String, List<int>> sharedBefore = snapshotSharedFiles();
+        runner
+          ..on(stgDescribeKey, notFound)
+          ..on(
+            FakeCommandRunner.buildKey(
+              FirestoreStep.buildCreateCommand(sharedRegion, stgProjectId),
+            ),
+            _ok,
+          );
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>['y'],
+        );
+        final FirestoreStep step = FirestoreStep();
+
+        expect(await step.check(context), isA<Todo>());
+        expect(step.isCostlyOrIrreversible, isTrue);
+        final List<String> lines = step.plannedCommandLines(context);
+        final StepOutcome outcome = await step.apply(context);
+
+        final String output = screen.output.toString();
+        expect(
+          lines,
+          contains(
+            FirestoreStep.buildCreateCommand(
+              sharedRegion,
+              stgProjectId,
+            ).render(),
+          ),
+        );
+        expect(outcome, isA<Applied>());
+        expect(screen.asks, <String>[summaryConfirmQuestion]);
+        expect(output, contains(FirestoreStep.sharedRegionNotice));
+        expect(
+          FirestoreStep.sharedRegionNotice,
+          contains('Functions 리전은 모든 flavor 가 함께 씁니다'),
+        );
+        expect(
+          output,
+          contains('  ! ${FirestoreStep.locationImmutableWarning}'),
+        );
+        expect(output, contains('Firestore 위치'));
+        expect(output, contains(sharedRegion));
+        expect(listStreamKeys(runner), <String>[
+          FakeCommandRunner.buildKey(
+            FirestoreStep.buildCreateCommand(sharedRegion, stgProjectId),
+          ),
+        ]);
+        expect(
+          readJsonString(stgConfig.path, FirestoreStep.functionsRegionKey),
+          sharedRegion,
+        );
+        // 추적 리전 파일 · dev config 는 그대로고 git 을 부르지 않는다.
+        for (final MapEntry<String, List<int>> entry in sharedBefore.entries) {
+          expect(
+            File(entry.key).readAsBytesSync(),
+            entry.value,
+            reason: entry.key,
+          );
+        }
+        expect(runner.countCalls(RunMode.capture, gitStatusKey), 0);
+      },
+    );
+
+    test('T-20-FLAVOR-14: 값 표에서 N 이면 만들기 · 쓰기 0', () async {
+      final Map<String, List<int>> sharedBefore = snapshotSharedFiles();
+      final List<int> stgBefore = stgConfig.readAsBytesSync();
+      runner.on(stgDescribeKey, notFound);
+      final WizardContext context = buildFlavorContext(
+        Flavor.prod,
+        const <String?>['n'],
+      );
+      // prod 문맥도 같은 갈래다 — prod config 를 만든다.
+      final FlavorPaths prodPaths = const FlavorPaths(Flavor.prod);
+      stgConfig.copySync('$root/${prodPaths.json}');
+      final FirestoreStep step = FirestoreStep();
+
+      expect(await step.check(context), isA<Todo>());
+      expect(await step.apply(context), isA<Declined>());
+
+      expect(screen.asks, <String>[summaryConfirmQuestion]);
+      expect(listStreamKeys(runner), isEmpty);
+      expect(File('$root/${prodPaths.json}').readAsBytesSync(), stgBefore);
+      for (final MapEntry<String, List<int>> entry in sharedBefore.entries) {
+        expect(File(entry.key).readAsBytesSync(), entry.value);
+      }
+    });
+
+    test(
+      'T-20-FLAVOR-16: stg · Firestore 있음 · 추적 리전 두 곳이 다르면 묻지 않고 실패한다',
+      () async {
+        appConfig.writeAsStringSync(
+          appConfigFixture.replaceFirst("'asia-northeast3'", "'$otherRegion'"),
+        );
+        final Map<String, List<int>> sharedBefore = snapshotSharedFiles();
+        final List<int> stgBefore = stgConfig.readAsBytesSync();
+        runner.on(stgDescribeKey, buildLocation(sharedRegion));
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>[],
+        );
+        final FirestoreStep step = FirestoreStep();
+
+        expect(await step.check(context), isA<Todo>());
+        final StepOutcome outcome = await step.apply(context);
+
+        expect(
+          outcome,
+          isA<Failed>().having(
+            (Failed failed) => failed.summary,
+            'summary',
+            contains('dev 실행에서 Functions 리전을 먼저 맞춘 뒤 다시 실행하세요'),
+          ),
+        );
+        expect(screen.asks, isEmpty);
+        expect(stgConfig.readAsBytesSync(), stgBefore);
+        for (final MapEntry<String, List<int>> entry in sharedBefore.entries) {
+          expect(File(entry.key).readAsBytesSync(), entry.value);
+        }
+      },
+    );
+
+    test(
+      'T-20-FLAVOR-16: stg · Firestore 있음 · 추적 리전이 같으면 값 표 뒤 stg config 리전만 맞춘다',
+      () async {
+        final Map<String, List<int>> sharedBefore = snapshotSharedFiles();
+        runner.on(stgDescribeKey, buildLocation(sharedRegion));
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>['y'],
+        );
+        final FirestoreStep step = FirestoreStep();
+
+        expect(await step.check(context), isA<Todo>());
+        expect(step.plannedCommandLines(context), <String>[
+          '(config/stg.json 의 functionsRegion 을 $sharedRegion 로 씀 — '
+              'Firestore · 추적 리전 파일은 그대로)',
+        ]);
+        expect(await step.apply(context), isA<Applied>());
+
+        expect(screen.asks, <String>[summaryConfirmQuestion]);
+        expect(
+          readJsonString(stgConfig.path, FirestoreStep.functionsRegionKey),
+          sharedRegion,
+        );
+        for (final MapEntry<String, List<int>> entry in sharedBefore.entries) {
+          expect(File(entry.key).readAsBytesSync(), entry.value);
+        }
+        expect(await step.check(context), isA<Done>());
+      },
+    );
+
+    test('T-20-FLAVOR-16: stg · 추적 리전이 고를 수 있는 목록 밖이면 묻지 않고 실패한다', () async {
+      const String outsideRegion = 'southamerica-east1';
+      expect(FirestoreStep.singleRegions, isNot(contains(outsideRegion)));
+      regionTs.writeAsStringSync(
+        regionTs.readAsStringSync().replaceFirst(
+          '"$sharedRegion"',
+          '"$outsideRegion"',
+        ),
+      );
+      appConfig.writeAsStringSync(
+        appConfigFixture.replaceFirst("'asia-northeast3'", "'$outsideRegion'"),
+      );
+      runner.on(stgDescribeKey, notFound);
+      final WizardContext context = buildFlavorContext(
+        Flavor.stg,
+        const <String?>[],
+      );
+      final FirestoreStep step = FirestoreStep();
+
+      expect(await step.check(context), isA<Todo>());
+      expect(await step.apply(context), isA<Failed>());
+      expect(screen.asks, isEmpty);
+      expect(listStreamKeys(runner), isEmpty);
+    });
+
+    test('T-20-FLAVOR-15: dev 문맥의 위치 단계는 위치를 묻고 세 곳 안내 · 계획 줄이 그대로다', () async {
+      runner.on(describeKey, notFound);
+      final WizardContext context = buildFlavorContext(
+        Flavor.dev,
+        const <String?>[null],
+      );
+      final FirestoreStep step = FirestoreStep();
+
+      expect(await step.check(context), isA<Todo>());
+      expect(step.plannedCommandLines(context), <String>[
+        '(위치를 고르고 확인 표 뒤에 아래 명령을 실행합니다)',
+        'gcloud firestore databases create --location=<위치> '
+            '--project $projectId',
+        '(고른 위치가 지금 Functions 리전과 다르면 세 파일의 리전 값을 함께 바꿉니다)',
+      ]);
+      expect(await step.apply(context), isA<Declined>());
+      expect(screen.asks, <String>[FirestoreStep.locationChoiceQuestion]);
+      expect(
+        screen.output.toString(),
+        contains('  ${FirestoreStep.regionFilesNotice}'),
+      );
+    });
   });
 }
