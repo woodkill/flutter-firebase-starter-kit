@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -197,7 +199,7 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
                   if (context.canPop()) {
                     context.pop();
                   } else {
-                    context.push(AppRoutes.emailLogin);
+                    unawaited(context.push(AppRoutes.emailLogin));
                   }
                 },
                 child: Text(l10n.authSignupHasAccount),

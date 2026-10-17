@@ -7,6 +7,8 @@
 //   진행한다 — fake_async 로 시간을 당긴다.
 // - cleanup 이 throw 해도 signOut 은 1회 · 메서드는 throw 0.
 
+import 'dart:async';
+
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,13 +74,15 @@ void main() {
         });
         var isDone = false;
         Object? error;
-        repo.signOutAndResetOnboarding().then<void>(
-          (_) {
-            isDone = true;
-          },
-          onError: (Object e) {
-            error = e;
-          },
+        unawaited(
+          repo.signOutAndResetOnboarding().then<void>(
+            (_) {
+              isDone = true;
+            },
+            onError: (Object e) {
+              error = e;
+            },
+          ),
         );
 
         async.elapse(const Duration(milliseconds: 2900));

@@ -221,7 +221,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
     // invalidate 가 다음 frame 에 적용되도록 한 frame 양보 후 _runInit 재실행.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _runInit();
+      if (mounted) unawaited(_runInit());
     });
   }
 
@@ -405,7 +405,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           setState(() => _hasFailure = false);
-          _runInit();
+          unawaited(_runInit());
         });
       case _SplashFailureAction.offline:
       case null:

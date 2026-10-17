@@ -351,6 +351,6 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
   /// 임의 쿼리 주입으로 UI 동작을 바꿀 표면 자체가 없다 (T-16.1-02).
   void _handleContinueWithEmail(BuildContext context) {
     Navigator.of(context).pop();
-    context.push(AppRoutes.emailLogin);
+    unawaited(context.push(AppRoutes.emailLogin));
   }
 }

@@ -2,6 +2,8 @@
 // Phase 13.3 — see ROADMAP.md (R6 caller-side breaking change — theme/style
 //             parameter 폐기 흡수, Wave 3 D-117)
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -83,7 +85,7 @@ class SocialButton extends ConsumerWidget {
             if (pressedOverride != null) {
               pressedOverride(strategy);
             } else {
-              strategy.signIn(ref);
+              unawaited(strategy.signIn(ref));
             }
           };
 

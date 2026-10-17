@@ -74,7 +74,7 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
           return;
         }
 
-        pollOnce();
+        unawaited(pollOnce());
       },
     );
   }

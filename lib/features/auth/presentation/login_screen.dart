@@ -81,10 +81,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _showAccountLinkingSheet(AccountExistsWithDifferentCredential err) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      AccountLinkingSheet.show(
-        context,
-        existingProvider: err.existingProvider!,
-        pendingCredential: err.pendingCredential,
+      unawaited(
+        AccountLinkingSheet.show(
+          context,
+          existingProvider: err.existingProvider!,
+          pendingCredential: err.pendingCredential,
+        ),
       );
     });
   }
@@ -277,7 +279,7 @@ class _ReauthChooserState extends ConsumerState<_ReauthChooser> {
   void _onStrategyPressed(AuthStrategy strategy) {
     final provider = AccountProvider.tryParse(strategy.providerId);
     if (provider == null) return;
-    ref.read(socialReauthProvider.notifier).reauthenticate(provider);
+    unawaited(ref.read(socialReauthProvider.notifier).reauthenticate(provider));
   }
 
   /// 비밀번호 재인증 화면을 열고, 성공(`true`) 으로 돌아오면 완료 처리한다.

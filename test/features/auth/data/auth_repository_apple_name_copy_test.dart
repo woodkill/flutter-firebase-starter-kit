@@ -360,10 +360,12 @@ void main() {
         ).thenAnswer((_) => pending.future);
         Result<User>? result;
         var isDone = false;
-        repository.signInWithApple().then<void>((value) {
-          result = value;
-          isDone = true;
-        });
+        unawaited(
+          repository.signInWithApple().then<void>((value) {
+            result = value;
+            isDone = true;
+          }),
+        );
 
         async.elapse(const Duration(milliseconds: 4900));
         expect(isDone, isFalse);
