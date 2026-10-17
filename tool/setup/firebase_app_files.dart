@@ -2,19 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'config_files.dart';
+import 'flavor.dart';
 import 'gradle_identity.dart';
 import 'steps/identity_step.dart';
-import 'steps/user_files_step.dart';
 
 /// dev flavor 의 Android 패키지 접미사 — Gradle productFlavors 의
-/// `applicationIdSuffix` 와 같다.
-const String devPackageSuffix = '.dev';
+/// `applicationIdSuffix` 와 같다([Flavor.suffix] 의 dev 값).
+final String devPackageSuffix = Flavor.dev.suffix;
 
-/// 사용자 xcconfig 에서 지금 앱 정체성의 dev iOS 번들 ID 를 읽는다.
+/// [flavor] 의 사용자 xcconfig 에서 지금 앱 정체성의 iOS 번들 ID 를 읽는다.
 ///
 /// 파일이 없거나 값이 비었으면 null.
-String? readDevBundleId(String projectRoot) {
-  final file = File('$projectRoot/${UserFilesStep.xcconfigUserPath}');
+String? readBundleId(String projectRoot, Flavor flavor) {
+  final file = File('$projectRoot/${FlavorPaths(flavor).xcconfig}');
   if (!file.existsSync()) return null;
   final String? value = readXcconfigValue(
     file.path,
@@ -23,19 +23,28 @@ String? readDevBundleId(String projectRoot) {
   return value == null || value.isEmpty ? null : value;
 }
 
-/// Gradle 파일의 `applicationId` 에 [devPackageSuffix] 를 붙여 dev Android
-/// 패키지를 만든다.
+/// Gradle 파일의 `applicationId` 에 [flavor] 의 [Flavor.suffix] 를 붙여 그
+/// flavor 의 Android 패키지를 만든다(prod 는 `applicationId` 그대로).
 ///
 /// 파일이 없거나 `applicationId` 줄이 없으면 null.
-String? readDevAndroidPackage(String projectRoot) {
+String? readAndroidPackage(String projectRoot, Flavor flavor) {
   final String? applicationId = readGradleApplicationId(
     '$projectRoot/${IdentityStep.gradlePath}',
   );
   if (applicationId == null) return null;
-  return '$applicationId$devPackageSuffix';
+  return '$applicationId${flavor.suffix}';
 }
 
-/// configure 스크립트가 만드는 dev 앱 설정 파일 3개에서 판정에 필요한 값만 읽는다.
+/// dev 사용자 xcconfig 의 iOS 번들 ID — [readBundleId] 의 dev 판.
+String? readDevBundleId(String projectRoot) =>
+    readBundleId(projectRoot, Flavor.dev);
+
+/// dev Android 패키지 — [readAndroidPackage] 의 dev 판.
+String? readDevAndroidPackage(String projectRoot) =>
+    readAndroidPackage(projectRoot, Flavor.dev);
+
+/// configure 스크립트가 만드는 flavor 하나의 앱 설정 파일 3개에서 판정에 필요한
+/// 값만 읽는다.
 ///
 /// 파일에는 API 키 · 앱 ID 같은 값이 들어 있으므로 원문을 밖으로 내지 않고,
 /// 단계가 비교에 쓰는 값만 getter 로 돌려준다. 호출한 쪽도 이 값을 화면 · 기록에
@@ -43,23 +52,29 @@ String? readDevAndroidPackage(String projectRoot) {
 final class FirebaseAppFiles {
   FirebaseAppFiles._(this._options, this._plist, this._googleServices);
 
-  /// [projectRoot] 아래 설정 파일 3개를 읽는다.
-  factory FirebaseAppFiles.read(String projectRoot) => FirebaseAppFiles._(
-    _readText('$projectRoot/$optionsPath'),
-    _readText('$projectRoot/$iosPlistPath'),
-    _decodeObject(_readText('$projectRoot/$androidJsonPath')),
-  );
+  /// [projectRoot] 아래 [flavor] 의 설정 파일 3개([FlavorPaths] 경로)를 읽는다.
+  factory FirebaseAppFiles.read(
+    String projectRoot, {
+    Flavor flavor = Flavor.dev,
+  }) {
+    final paths = FlavorPaths(flavor);
+    return FirebaseAppFiles._(
+      _readText('$projectRoot/${paths.dartOptions}'),
+      _readText('$projectRoot/${paths.iosPlist}'),
+      _decodeObject(_readText('$projectRoot/${paths.androidJson}')),
+    );
+  }
 
-  /// FlutterFire 가 만드는 Dart 설정 파일(저장소 상대 경로).
-  static const String optionsPath =
-      'lib/core/firebase/firebase_options_dev.dart';
+  /// FlutterFire 가 만드는 dev Dart 설정 파일(저장소 상대 경로).
+  static final String optionsPath = const FlavorPaths(Flavor.dev).dartOptions;
 
-  /// iOS 설정 파일(저장소 상대 경로).
-  static const String iosPlistPath = 'ios/config/dev/GoogleService-Info.plist';
+  /// dev iOS 설정 파일(저장소 상대 경로).
+  static final String iosPlistPath = const FlavorPaths(Flavor.dev).iosPlist;
 
-  /// Android 설정 파일(저장소 상대 경로).
-  static const String androidJsonPath =
-      'android/app/src/dev/google-services.json';
+  /// dev Android 설정 파일(저장소 상대 경로).
+  static final String androidJsonPath = const FlavorPaths(
+    Flavor.dev,
+  ).androidJson;
 
   // 커밋 훅의 생성본 가드와 같은 문자열임을 한 줄로 대조할 수 있게 줄을 나누지 않는다.
   // dart format off

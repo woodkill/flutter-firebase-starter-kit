@@ -87,11 +87,11 @@ final class KakaoStep extends KeyedProviderStep {
   List<SummaryRow> buildValueRows(WizardContext context) => <SummaryRow>[
     SummaryRow(
       'Android 패키지명',
-      readDevAndroidPackage(context.projectRoot) ?? '(읽지 못했습니다)',
+      readAndroidPackage(context.projectRoot, context.flavor) ?? '(읽지 못했습니다)',
     ),
     SummaryRow(
       'iOS 번들 ID',
-      readDevBundleId(context.projectRoot) ?? '(읽지 못했습니다)',
+      readBundleId(context.projectRoot, context.flavor) ?? '(읽지 못했습니다)',
     ),
   ];
 

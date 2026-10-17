@@ -3,18 +3,18 @@ import 'dart:io';
 
 import '../command_runner.dart';
 import '../firebase_app_files.dart';
+import '../flavor.dart';
 import '../git_tree.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
 import 'identity_step.dart';
-import 'user_files_step.dart';
 
-/// 앱 등록 · 설정 파일 단계 — Firebase 에 dev iOS · Android 앱을 등록하고 설정
-/// 파일 3개를 만든다.
+/// 앱 등록 · 설정 파일 단계 — Firebase 에 고른 flavor 의 iOS · Android 앱을
+/// 등록하고 그 flavor 의 설정 파일 3개를 만든다.
 ///
-/// 실행은 저장소의 configure 스크립트를 그대로 부르고, 종료 코드 0 과 표준 출력의
-/// 마지막 줄([completeLine])로만 성공을 판정한다. 검사는 설정 파일 3개가 지금
+/// 실행은 저장소의 configure 스크립트에 flavor 이름을 넘겨 그대로 부르고, 종료
+/// 코드 0 과 표준 출력의 마지막 줄([buildCompleteLine])로만 성공을 판정한다. 검사는 설정 파일 3개가 지금
 /// 프로젝트 · 앱 정체성과 맞고 두 앱 ID 가 프로젝트 앱 목록에 있는지다. 파일의
 /// 키 · 앱 ID 값은 화면 · 기록에 쓰지 않는다.
 ///
@@ -32,11 +32,12 @@ final class ConfigureStep implements Step {
   /// 실행하는 configure 스크립트(저장소 상대 경로).
   static const String scriptPath = 'scripts/firebase-configure.sh';
 
-  /// 스크립트에 넘기는 flavor.
-  static const String flavor = 'dev';
+  /// dev 실행에서 스크립트 성공 시 표준 출력의 마지막 줄.
+  static final String completeLine = buildCompleteLine(Flavor.dev);
 
-  /// 스크립트 성공 시 표준 출력의 마지막 줄.
-  static const String completeLine = '✓ Firebase configure complete for dev';
+  /// [flavor] 실행에서 스크립트 성공 시 표준 출력의 마지막 줄.
+  static String buildCompleteLine(Flavor flavor) =>
+      '✓ Firebase configure complete for ${flavor.name}';
 
   /// 스크립트가 함께 바꿨다가 되돌리는 Xcode 프로젝트 파일.
   static const String pbxprojPath = 'ios/Runner.xcodeproj/project.pbxproj';
@@ -56,12 +57,15 @@ final class ConfigureStep implements Step {
     isOutputSensitive: true,
   );
 
-  /// 저장소 루트 [workingDirectory] 에서 configure 스크립트를 실행하는 명령.
-  static Command buildConfigureCommand({String? workingDirectory}) => Command(
-    'bash',
-    const <String>[scriptPath, flavor],
-    workingDirectory: workingDirectory,
-  );
+  /// 저장소 루트 [workingDirectory] 에서 [flavor] 의 configure 스크립트를
+  /// 실행하는 명령.
+  static Command buildConfigureCommand({
+    Flavor flavor = Flavor.dev,
+    String? workingDirectory,
+  }) => Command('bash', <String>[
+    scriptPath,
+    flavor.name,
+  ], workingDirectory: workingDirectory);
 
   /// pbxproj 의 원문 줄 diff 를 읽는 명령.
   ///
@@ -83,12 +87,15 @@ final class ConfigureStep implements Step {
   ///
   /// 바뀐 줄(첫 `@@` 앞의 `---` · `+++` 머리를 뺀 `+` · `-` 줄)이 1개 이상이고
   /// 그 가운데 `+` 줄이 1개 이상이며, 모든 바뀐 줄이 번들 ID 줄이고 `+` 줄의 값이
-  /// 모두 [bundleBase] · `<bundleBase>.dev` · `<bundleBase>.RunnerTests` 가운데
-  /// 하나일 때만 true 다. 바뀐 줄이 없는 diff(모드만 바뀜 등)는 false 다.
+  /// 모두 [bundleBase] · `<bundleBase>` + dev 접미사 · `<bundleBase>.RunnerTests`
+  /// 가운데 하나일 때만 true 다. 바뀐 줄이 없는 diff(모드만 바뀜 등)는 false 다.
+  ///
+  /// pbxproj 의 번들 ID 줄은 dev 빌드 설정 · 테스트 대상 · 접미사 없는 값뿐이라
+  /// 어느 flavor 실행이든 허용 집합은 같다.
   static bool isIdentityOnlyDiff(String diff, String bundleBase) {
     final allowed = <String>{
       bundleBase,
-      '$bundleBase.dev',
+      '$bundleBase${Flavor.dev.suffix}',
       '$bundleBase.RunnerTests',
     };
     var isInHunk = false;
@@ -140,17 +147,20 @@ final class ConfigureStep implements Step {
     if (projectId == null) {
       return _mark(
         _ConfigureMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
+        '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
       );
     }
-    final String? bundleId = readDevBundleId(context.projectRoot);
+    final String? bundleId = readBundleId(context.projectRoot, context.flavor);
     if (bundleId == null) {
       return _mark(
         _ConfigureMode.unreadable,
-        '${UserFilesStep.xcconfigUserPath} 에서 번들 ID 를 읽지 못했습니다',
+        '${context.paths.xcconfig} 에서 번들 ID 를 읽지 못했습니다',
       );
     }
-    final String? packageName = readDevAndroidPackage(context.projectRoot);
+    final String? packageName = readAndroidPackage(
+      context.projectRoot,
+      context.flavor,
+    );
     if (packageName == null) {
       return _mark(
         _ConfigureMode.unreadable,
@@ -158,7 +168,10 @@ final class ConfigureStep implements Step {
       );
     }
 
-    final files = FirebaseAppFiles.read(context.projectRoot);
+    final files = FirebaseAppFiles.read(
+      context.projectRoot,
+      flavor: context.flavor,
+    );
     final String? fileProblem = _findFileProblem(
       files,
       projectId,
@@ -191,7 +204,7 @@ final class ConfigureStep implements Step {
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _ConfigureMode.run => <String>[
       '(실행 전에 $pbxprojPath · $firebaseJsonPath 의 커밋하지 않은 변경을 봅니다 — 앱 정체성 단계가 바꾼 번들 ID 줄만 있으면 그대로 진행합니다)',
-      buildConfigureCommand().render(),
+      buildConfigureCommand(flavor: context.flavor).render(),
       '(FlutterFire CLI 가 Firebase 에 iOS · Android 앱을 등록하고 설정 파일 3개를 만듭니다 — 생성 파일은 skip-worktree 로 커밋 대상에서 빠집니다)',
     ],
     _ConfigureMode.listFailed => <String>['(명령의 오류 원문을 보입니다)'],
@@ -231,7 +244,10 @@ final class ConfigureStep implements Step {
 
     final Map<String, List<int>?> before = _readBytes(context);
     final CommandResult result = await context.runner.stream(
-      buildConfigureCommand(workingDirectory: context.projectRoot),
+      buildConfigureCommand(
+        flavor: context.flavor,
+        workingDirectory: context.projectRoot,
+      ),
     );
     final Map<String, List<int>?> after = _readBytes(context);
 
@@ -256,6 +272,7 @@ final class ConfigureStep implements Step {
         result: result,
       );
     }
+    final String completeLine = buildCompleteLine(context.flavor);
     if (findLastOutputLine(result.stdout) != completeLine) {
       return Failed(
         'configure 스크립트의 마지막 줄이 완료 줄($completeLine)이 아닙니다',
@@ -266,6 +283,9 @@ final class ConfigureStep implements Step {
   }
 
   /// pbxproj 변경이 앞 단계 모양인지 본다 — 아니면 실패 결과, 맞으면 null.
+  ///
+  /// 기준 값([isIdentityOnlyDiff] 의 `bundleBase`)은 이번 flavor 의 번들 ID 에서
+  /// 그 flavor 접미사를 뗀 값이다(prod 는 접미사가 없어 그대로).
   Future<StepOutcome?> _checkPbxprojDiff(
     WizardContext context,
     List<String> dirty,
@@ -276,14 +296,13 @@ final class ConfigureStep implements Step {
     if (!diff.isSuccess) {
       return Failed('$pbxprojPath 의 변경을 읽지 못했습니다', result: diff);
     }
-    final String? bundleId = readDevBundleId(context.projectRoot);
+    final String? bundleId = readBundleId(context.projectRoot, context.flavor);
     if (bundleId == null) {
-      return const Failed(
-        '${UserFilesStep.xcconfigUserPath} 에서 번들 ID 를 읽지 못했습니다',
-      );
+      return Failed('${context.paths.xcconfig} 에서 번들 ID 를 읽지 못했습니다');
     }
-    final String bundleBase = bundleId.endsWith('.dev')
-        ? bundleId.substring(0, bundleId.length - '.dev'.length)
+    final String suffix = context.flavor.suffix;
+    final String bundleBase = suffix.isNotEmpty && bundleId.endsWith(suffix)
+        ? bundleId.substring(0, bundleId.length - suffix.length)
         : bundleId;
     if (isIdentityOnlyDiff(diff.stdout, bundleBase)) return null;
     return _failDirty(dirty);

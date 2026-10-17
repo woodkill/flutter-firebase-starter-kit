@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../tool/setup/firebase_app_files.dart';
+import '../../../tool/setup/flavor.dart';
 import 'firebase_options_fixture.dart';
 
 /// 저장소에 tracked 된 dev Dart 설정 자리표시 본문의 바이트 사본(저장소 상대 경로).
@@ -91,4 +92,48 @@ void main() {
       contains(FirebaseAppFiles.optionsGeneratedMarker),
     );
   });
+
+  test(
+    'T-20-STG-01: 저장소의 stg · prod 자리표시 설정 파일은 그 flavor 경로에서 읽혀 미등록(옵션 자리표시 · 프로젝트 불일치)으로 본다',
+    () {
+      for (final flavor in <Flavor>[Flavor.stg, Flavor.prod]) {
+        final paths = FlavorPaths(flavor);
+        // 저장소에 tracked 된 자리표시 파일을 그대로 복사한다 — 값을 소스에 박지 않는다.
+        for (final path in <String>[
+          paths.dartOptions,
+          paths.iosPlist,
+          paths.androidJson,
+        ]) {
+          final copy = File('$root/$path')..parent.createSync(recursive: true);
+          File(path).copySync(copy.path);
+        }
+
+        final files = FirebaseAppFiles.read(root, flavor: flavor);
+
+        expect(files.isOptionsPlaceholder, isTrue, reason: flavor.name);
+        expect(files.optionsProjectId, isNull, reason: flavor.name);
+        // 자리표시 파일이 그 flavor 경로에서 읽혔다 — 비어 있지 않고 설정 프로젝트와 다르다.
+        expect(files.iosProjectId, isNotNull, reason: flavor.name);
+        expect(files.iosProjectId, isNot(projectId), reason: flavor.name);
+        expect(files.androidProjectId, isNotNull, reason: flavor.name);
+        expect(files.androidProjectId, isNot(projectId), reason: flavor.name);
+        // stg 는 `.stg` 접미사 · prod 는 접미사 없음.
+        expect(
+          files.iosBundleId,
+          flavor == Flavor.prod
+              ? allOf(
+                  isNot(endsWith(Flavor.dev.suffix)),
+                  isNot(endsWith(Flavor.stg.suffix)),
+                )
+              : endsWith(flavor.suffix),
+          reason: flavor.name,
+        );
+      }
+
+      // dev 경로에는 아무 파일도 없다 — stg · prod 파일을 dev 로 읽지 않는다.
+      final devFiles = FirebaseAppFiles.read(root);
+      expect(devFiles.iosProjectId, isNull);
+      expect(devFiles.androidProjectId, isNull);
+    },
+  );
 }
