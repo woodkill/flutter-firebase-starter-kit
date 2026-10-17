@@ -107,16 +107,31 @@ final class PairOk extends PairCheck {
   const PairOk();
 }
 
-/// 서버가 [field] 값을 받아들이지 않았다 — 그 값만 다시 묻는다.
+/// 서버가 [field] 값(과 [alsoFields])을 받아들이지 않았다 — 가리킨 값만 다시
+/// 묻는다.
+///
+/// 서버가 어느 값이 틀렸는지 알려 주지 않으면 함께 다시 물을 값을 [alsoFields]
+/// 에 둔다.
 final class PairMismatch extends PairCheck {
-  /// 틀린 [field] 와 화면에 보일 [reason] 으로 만든다.
-  const PairMismatch(this.field, this.reason);
+  /// 틀린 [field] 와 화면에 보일 [reason] 으로 만든다 — 함께 다시 물을 값은
+  /// [alsoFields].
+  const PairMismatch(
+    this.field,
+    this.reason, {
+    this.alsoFields = const <KeyField>[],
+  });
 
   /// 다시 물을 값.
   final KeyField field;
 
+  /// [field] 와 함께 다시 물을 값(순서대로).
+  final List<KeyField> alsoFields;
+
   /// 화면에 보일 이유(상태만 — 응답 본문은 넣지 않는다).
   final String reason;
+
+  /// 가리킨 값 전체 — [field] 뒤에 [alsoFields] 순서, 같은 값은 한 번만.
+  List<KeyField> get pointedFields => <KeyField>{field, ...alsoFields}.toList();
 }
 
 /// 서버 확인이 없는 로그인 수단 · 확인할 값이 이번에 없다.
@@ -171,6 +186,12 @@ abstract class KeyedProviderStep implements Step {
     WizardContext context,
     Map<KeyField, String> values,
   );
+
+  /// 보이는 값 [field] 를 물을 때 Enter 로 고를 제안 기본값 — 없으면 null.
+  ///
+  /// 기본은 제안이 없다. 숨김 값에는 이 값을 쓰지 않는다(숨김 입력은 기본값을
+  /// 받지 않는다).
+  String? suggestValue(WizardContext context, KeyField field) => null;
 
   _KeyedMode _mode = _KeyedMode.unreadable;
   String _reason = '';
@@ -434,18 +455,24 @@ abstract class KeyedProviderStep implements Step {
     switch (result) {
       case PairFailed(:final String reason):
         return Failed(reason);
-      case PairMismatch(:final KeyField field, :final String reason):
-        final String? configKey = field.configKey;
-        final String place = configKey == null
-            ? field.label
-            : '${context.paths.json} $configKey';
+      case PairMismatch(:final String reason) && final PairMismatch mismatch:
+        final String places = <String>[
+          for (final KeyField field in mismatch.pointedFields)
+            _describeFieldPlace(context, field),
+        ].join(' · ');
         return Failed(
-          '$reason — $place 값을 고치거나, 자리표시로 되돌린 뒤 다시 실행해 새로 '
+          '$reason — $places 값을 고치거나, 자리표시로 되돌린 뒤 다시 실행해 새로 '
           '입력하세요',
         );
       case PairOk() || PairNotAvailable():
         return await _writeValues(context, values);
     }
+  }
+
+  /// [field] 를 고칠 자리 — config 키가 있으면 `<config 경로> <키>`, 없으면 이름.
+  static String _describeFieldPlace(WizardContext context, KeyField field) {
+    final String? configKey = field.configKey;
+    return configKey == null ? field.label : '${context.paths.json} $configKey';
   }
 
   /// 콘솔 작업이 남았을 때의 위저드 밖 작업 안내 — [heading] 절을 가리킨다.
@@ -460,12 +487,16 @@ abstract class KeyedProviderStep implements Step {
   ///
   /// 비밀 값은 숨김 입력으로 받아 바로 가림 함수에 등록하고, 받은 뒤에는 글자 수 ·
   /// 형식 판정만 보인다. 형식에 맞아도 다른 flavor 의 config 값과 같으면 그
-  /// flavor 를 알리고 다시 묻는다(같은 횟수 상한).
+  /// flavor 를 알리고 다시 묻는다(같은 횟수 상한). 보이는 값은 [suggestValue]
+  /// 가 있으면 그 값을 Enter 기본값으로 둔다.
   String? _askValue(WizardContext context, KeyField field) {
+    final String? suggestion = field.isHidden
+        ? null
+        : suggestValue(context, field);
     for (var attempt = 0; attempt < maxKeyAttempts; attempt++) {
       final String? answer = field.isHidden
           ? context.terminal.askSecret('${field.label} $hiddenInputHint')
-          : context.terminal.ask(field.label);
+          : context.terminal.ask(field.label, defaultValue: suggestion);
       if (answer == null) return null;
       if (field.isHidden) context.redactor.register(answer);
       if (field.format.matches(answer)) {
@@ -494,7 +525,9 @@ abstract class KeyedProviderStep implements Step {
 
   /// 서버 확인을 하고, 틀린 값만 [maxKeyAttempts] 회까지 다시 묻는다.
   ///
-  /// 통과하면 null, 아니면 단계 결과(거절 · 실패)를 돌려준다.
+  /// 불일치가 가리킨 값([PairMismatch.pointedFields]) 가운데 이번에 물은 값만
+  /// 순서대로 다시 묻는다 — 하나도 없으면 실패로 끝낸다. 통과하면 null, 아니면
+  /// 단계 결과(거절 · 실패)를 돌려준다.
   Future<StepOutcome?> _verifyValues(
     WizardContext context,
     Map<KeyField, String> values,
@@ -506,13 +539,19 @@ abstract class KeyedProviderStep implements Step {
           return null;
         case PairFailed(:final String reason):
           return Failed(reason);
-        case PairMismatch(:final KeyField field, :final String reason):
+        case PairMismatch(:final String reason) && final PairMismatch mismatch:
           context.terminal.writeLine('  $reason');
-          if (!_askFields.contains(field)) return Failed(reason);
+          final retryFields = <KeyField>[
+            for (final KeyField field in mismatch.pointedFields)
+              if (_askFields.contains(field)) field,
+          ];
+          if (retryFields.isEmpty) return Failed(reason);
           if (attempt == maxKeyAttempts - 1) return const Declined();
-          final String? value = _askValue(context, field);
-          if (value == null) return const Declined();
-          values[field] = value;
+          for (final field in retryFields) {
+            final String? value = _askValue(context, field);
+            if (value == null) return const Declined();
+            values[field] = value;
+          }
       }
     }
     return const Declined();

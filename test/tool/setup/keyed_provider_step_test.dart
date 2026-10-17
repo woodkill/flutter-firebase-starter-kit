@@ -653,4 +653,343 @@ void main() {
       expect(h.output, isNot(contains('의 키와 같습니다')));
     });
   });
+
+  group('T-20-BASE-08: 보이는 값은 제안 기본값을 받고 숨김 값은 기본값을 받지 않는다', () {
+    test('Enter 면 제안값을 기록하고 숨김 값은 빈 답을 형식 오류로 다시 묻는다', () async {
+      final String suggestion = buildNativeKey('9');
+      final String adminKey = buildAdminKey();
+      final h = _Harness(root, <String?>['y', '1', '', '', adminKey]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          buildSecretMissing(nativeSecret),
+          buildSecretMissing(nativeSecret),
+          ok('$suggestion\n'),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[
+          buildSecretMissing(adminSecret),
+          buildSecretMissing(adminSecret),
+          ok('$adminKey\n'),
+        ])
+        ..onSecretWrite(nativeSecret)
+        ..onSecretWrite(adminSecret);
+
+      final int code = await h.run(_SuggestingStep(suggestion));
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(readConfigNativeKey(Flavor.dev), suggestion);
+      expect(readXcconfigNativeKey(Flavor.dev), suggestion);
+      expect(countQuestions(h, KakaoStep.nativeAppKeyField.label), 1);
+      expect(h.screen.secretAsks, hasLength(2));
+      expect(
+        h.output,
+        contains('${KakaoStep.adminKeyField.label} 형식이 맞지 않습니다 — 0자'),
+      );
+      expect(h.secretWrites.map((FakeCall call) => call.stdinText), <String>[
+        suggestion,
+        adminKey,
+      ]);
+      expect(countText(h.output, adminKey), 0);
+      expect(countText(h.log.text, adminKey), 0);
+    });
+
+    test('값을 입력하면 제안값이 아니라 입력값을 기록한다', () async {
+      final String suggestion = buildNativeKey('9');
+      final String typed = buildNativeKey('7');
+      final String adminKey = buildAdminKey();
+      final h = _Harness(root, <String?>['y', '1', typed, adminKey]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          buildSecretMissing(nativeSecret),
+          buildSecretMissing(nativeSecret),
+          ok('$typed\n'),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[
+          buildSecretMissing(adminSecret),
+          buildSecretMissing(adminSecret),
+          ok('$adminKey\n'),
+        ])
+        ..onSecretWrite(nativeSecret)
+        ..onSecretWrite(adminSecret);
+
+      final int code = await h.run(_SuggestingStep(suggestion));
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(readConfigNativeKey(Flavor.dev), typed);
+      expect(readXcconfigNativeKey(Flavor.dev), typed);
+      expect(h.secretWrites.first.stdinText, typed);
+      expect(h.screen.secretAsks, hasLength(1));
+    });
+
+    test('제안 훅이 없는 단계는 Enter 를 빈 값으로 받아 형식 오류로 다시 묻는다', () async {
+      final String nativeKey = buildNativeKey();
+      final step = _PairCheckedStep(const <KeyField>[
+        KakaoStep.nativeAppKeyField,
+      ], const PairOk());
+      final h = _Harness(root, <String?>['y', '1', '', nativeKey]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          buildSecretMissing(nativeSecret),
+          buildSecretMissing(nativeSecret),
+          ok('$nativeKey\n'),
+        ])
+        ..onSecretWrite(nativeSecret);
+
+      final int code = await h.run(step);
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(
+        h.output,
+        contains('${KakaoStep.nativeAppKeyField.label} 형식이 맞지 않습니다 — 0자'),
+      );
+      expect(countQuestions(h, KakaoStep.nativeAppKeyField.label), 2);
+      expect(readConfigNativeKey(Flavor.dev), nativeKey);
+    });
+  });
+
+  group('T-20-BASE-09: 짝 불일치가 여러 값을 가리키면 이번에 물은 값만 순서대로 다시 묻는다', () {
+    test('두 값을 가리키면 두 값을 다시 묻고 두 번째 확인이 맞으면 기록한다', () async {
+      final String firstNative = buildNativeKey('1');
+      final String firstAdmin = buildAdminKey('2');
+      final String secondNative = buildNativeKey('3');
+      final String secondAdmin = buildAdminKey('4');
+      final adminQuestion = '${KakaoStep.adminKeyField.label} $hiddenInputHint';
+      final step = _ScriptedPairStep(
+        const <KeyField>[KakaoStep.nativeAppKeyField, KakaoStep.adminKeyField],
+        const <PairCheck>[
+          PairMismatch(
+            KakaoStep.nativeAppKeyField,
+            '짝이 맞지 않습니다',
+            alsoFields: <KeyField>[KakaoStep.adminKeyField],
+          ),
+          PairOk(),
+        ],
+      );
+      final h = _Harness(root, <String?>[
+        'y',
+        '1',
+        firstNative,
+        firstAdmin,
+        secondNative,
+        secondAdmin,
+      ]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          buildSecretMissing(nativeSecret),
+          buildSecretMissing(nativeSecret),
+          ok('$secondNative\n'),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[
+          buildSecretMissing(adminSecret),
+          buildSecretMissing(adminSecret),
+          ok('$secondAdmin\n'),
+        ])
+        ..onSecretWrite(nativeSecret)
+        ..onSecretWrite(adminSecret);
+
+      final int code = await h.run(step);
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(h.screen.asks, <String>[
+        stepConfirmQuestion,
+        consoleReadyQuestion,
+        KakaoStep.nativeAppKeyField.label,
+        adminQuestion,
+        KakaoStep.nativeAppKeyField.label,
+        adminQuestion,
+      ]);
+      expect(countText(h.output, '  짝이 맞지 않습니다'), 1);
+      expect(step.verifiedValues, hasLength(2));
+      expect(step.verifiedValues.last, <KeyField, String>{
+        KakaoStep.nativeAppKeyField: secondNative,
+        KakaoStep.adminKeyField: secondAdmin,
+      });
+      expect(readConfigNativeKey(Flavor.dev), secondNative);
+      expect(readXcconfigNativeKey(Flavor.dev), secondNative);
+      expect(h.secretWrites.map((FakeCall call) => call.stdinText), <String>[
+        secondNative,
+        secondAdmin,
+      ]);
+      for (final text in <String>[h.output, h.log.text]) {
+        expect(countText(text, firstAdmin), 0);
+        expect(countText(text, secondAdmin), 0);
+      }
+    });
+
+    test('가리킨 값이 모두 이번에 묻지 않은 값이면 쓰지 않고 실패로 끝난다', () async {
+      final String nativeKey = buildNativeKey();
+      final String adminKey = buildAdminKey();
+      setConfigNativeKey(Flavor.dev, nativeKey);
+      setXcconfigNativeKey(Flavor.dev, nativeKey);
+      final step = _ScriptedPairStep(
+        const <KeyField>[KakaoStep.nativeAppKeyField, KakaoStep.adminKeyField],
+        const <PairCheck>[
+          PairMismatch(
+            KakaoStep.nativeAppKeyField,
+            '짝이 맞지 않습니다',
+            alsoFields: <KeyField>[looseField],
+          ),
+        ],
+      );
+      final h = _Harness(root, <String?>['y', '1', adminKey, '2']);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')])
+        ..onSecretReads(adminSecret, <CommandResult>[
+          buildSecretMissing(adminSecret),
+        ]);
+
+      final int code = await h.run(step);
+
+      expect(code, wizardExitStopped, reason: h.output);
+      expect(countQuestions(h, KakaoStep.nativeAppKeyField.label), 0);
+      expect(h.screen.secretAsks, hasLength(1));
+      expect(step.verifiedValues, hasLength(1));
+      expect(h.output, contains('짝이 맞지 않습니다'));
+      expect(h.screen.asks.last, failureChoiceQuestion);
+      expect(h.secretWrites, isEmpty);
+      expect(countText(h.output, adminKey), 0);
+    });
+
+    test('맞춤 실행의 불일치 문장은 가리킨 값의 자리를 모두 적는다', () async {
+      final String nativeKey = buildNativeKey();
+      const secondValue = 'abc123';
+      setConfigNativeKey(Flavor.dev, nativeKey);
+      replaceJsonString(
+        configPathOf(Flavor.dev),
+        secondLooseField.configKey!,
+        secondValue,
+      );
+      final String xcconfigBefore = File(
+        xcconfigPathOf(Flavor.dev),
+      ).readAsStringSync();
+      final step = _ScriptedPairStep(
+        const <KeyField>[KakaoStep.nativeAppKeyField, secondLooseField],
+        const <PairCheck>[
+          PairMismatch(
+            KakaoStep.nativeAppKeyField,
+            '짝이 맞지 않습니다',
+            alsoFields: <KeyField>[secondLooseField],
+          ),
+        ],
+      );
+      final h = _Harness(root, const <String?>['y', '2']);
+      h.onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')]);
+
+      final int code = await h.run(step);
+
+      expect(code, wizardExitStopped, reason: h.output);
+      expect(
+        h.output,
+        contains(
+          '짝이 맞지 않습니다 — config/dev.json kakaoNativeAppKey · '
+          'config/dev.json naverClientId 값을 고치거나',
+        ),
+      );
+      expect(step.verifiedValues.single, <KeyField, String>{
+        KakaoStep.nativeAppKeyField: nativeKey,
+        secondLooseField: secondValue,
+      });
+      expect(h.screen.secretAsks, isEmpty);
+      expect(h.secretWrites, isEmpty);
+      expect(
+        File(xcconfigPathOf(Flavor.dev)).readAsStringSync(),
+        xcconfigBefore,
+      );
+    });
+  });
+}
+
+/// 맞춤 실행의 여러 값 불일치를 보려고 쓰는 둘째 느슨한 값 — config 에만 있다.
+const KeyField secondLooseField = KeyField(
+  label: '느슨한 둘째 키',
+  format: KeyFormat(label: '느슨한 둘째 키', pattern: r'^.+$', description: '아무 글자'),
+  configKey: 'naverClientId',
+);
+
+/// 모든 값에 같은 제안 기본값을 주는 시험용 로그인 수단 — 짝 확인은 늘 맞다.
+///
+/// 숨김 값에도 제안을 돌려줘 숨김 입력이 기본값을 받지 않는지 본다.
+final class _SuggestingStep extends KeyedProviderStep {
+  _SuggestingStep(this.suggestion);
+
+  /// 모든 값에 돌려줄 제안.
+  final String suggestion;
+
+  @override
+  String get id => 'suggesting';
+
+  @override
+  String get title => '제안 수단';
+
+  @override
+  List<String> get dependsOn => const <String>['providers'];
+
+  @override
+  ProviderEntry get entry => findProvider(KakaoStep.token)!;
+
+  @override
+  List<KeyField> get fields => const <KeyField>[
+    KakaoStep.nativeAppKeyField,
+    KakaoStep.adminKeyField,
+  ];
+
+  @override
+  List<SummaryRow> buildValueRows(WizardContext context) =>
+      const <SummaryRow>[];
+
+  @override
+  List<String> get todoLines => const <String>[];
+
+  @override
+  String? suggestValue(WizardContext context, KeyField field) => suggestion;
+
+  @override
+  Future<PairCheck> verifyPair(
+    WizardContext context,
+    Map<KeyField, String> values,
+  ) async => const PairOk();
+}
+
+/// 정한 결과를 차례로 돌려주는 시험용 로그인 수단 — 마지막 결과는 되풀이한다.
+final class _ScriptedPairStep extends KeyedProviderStep {
+  _ScriptedPairStep(this.fieldList, List<PairCheck> results)
+    : _results = List<PairCheck>.of(results);
+
+  /// 다룰 값 목록.
+  final List<KeyField> fieldList;
+
+  final List<PairCheck> _results;
+
+  /// 서버 확인에 넘어온 값(부를 때마다 한 묶음).
+  final List<Map<KeyField, String>> verifiedValues = <Map<KeyField, String>>[];
+
+  @override
+  String get id => 'scripted_pair';
+
+  @override
+  String get title => '차례 짝 확인 수단';
+
+  @override
+  List<String> get dependsOn => const <String>['providers'];
+
+  @override
+  ProviderEntry get entry => findProvider(KakaoStep.token)!;
+
+  @override
+  List<KeyField> get fields => fieldList;
+
+  @override
+  List<SummaryRow> buildValueRows(WizardContext context) =>
+      const <SummaryRow>[];
+
+  @override
+  List<String> get todoLines => const <String>[];
+
+  @override
+  Future<PairCheck> verifyPair(
+    WizardContext context,
+    Map<KeyField, String> values,
+  ) async {
+    verifiedValues.add(Map<KeyField, String>.of(values));
+    return _results.length > 1 ? _results.removeAt(0) : _results.first;
+  }
 }
