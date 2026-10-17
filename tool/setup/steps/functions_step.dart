@@ -4,6 +4,7 @@ import 'dart:io';
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../providers/provider_catalog.dart';
+import '../rest_client.dart';
 import '../secret_names.dart';
 import '../secret_store.dart';
 import '../step.dart';
@@ -11,6 +12,9 @@ import '../wizard.dart';
 import 'billing_step.dart';
 import 'firestore_step.dart';
 import 'user_files_step.dart';
+
+/// 배포된 함수가 쓰는 secret 하나 — Secret Manager 이름과 배포 때 고정된 버전.
+typedef DeployedSecret = ({String secret, String version});
 
 /// Cloud Functions 단계 — 의존성을 설치하고, 코드가 선언한 secret 가운데 없는
 /// 것만 자리표시 값으로 만든 뒤 저장소의 배포 스크립트로 함수를 배포하고, 앱이
@@ -20,7 +24,10 @@ import 'user_files_step.dart';
 /// [manifestPath] 의 공통 함수와 켠 로그인 수단([enabledProviders])의 함수 전부
 /// 배포 · 그 함수들의 Cloud Run 서비스 IAM 에
 /// [invokerRole] + [invokerMember] 순서로 본다. 의존성 · secret 이 빠졌으면 함수
-/// 목록을, 함수가 빠졌으면 IAM 을 읽지 않는다. 배포는 [deployScriptPath] 를
+/// 목록을, 함수가 빠졌으면 IAM 을 읽지 않는다. 켠 로그인 수단의 함수는 공개 호출
+/// 전에 배포 때 고정된 secret 버전을 Secret Manager 최신 버전과 비교해, 옛 버전을
+/// 쓰는 함수가 있으면 다시 배포한다(배포가 최신 버전을 잡는다) — 최신 버전을 읽지
+/// 못하면 끝남으로 보지 않는다. 배포는 [deployScriptPath] 를
 /// 프로세스로 실행하고 종료 코드 0 과 표준 출력의 마지막 줄([deployOkPattern])로만
 /// 성공을 판정한다 — 배포할 함수 목록은 위저드가 따로 계산하지 않는다.
 ///
@@ -55,6 +62,16 @@ final class FunctionsStep implements Step {
 
   /// 배포 대상 함수 목록 파일(저장소 상대 경로) — 배포 스크립트도 이 파일을 읽는다.
   static const String manifestPath = 'scripts/functions_manifest.json';
+
+  /// 켠 로그인 수단 함수가 옛 secret 버전을 쓸 때의 사유 머리(뒤에 `<n>개`).
+  static const String staleSecretReasonPrefix =
+      'secret 새 값이 함수에 반영되지 않았습니다 — 함수 ';
+
+  /// 옛 secret 버전을 쓰는 함수를 다시 배포할 때의 계획 줄 안내.
+  static const String redeployNote = '(배포하면 함수가 secret 최신 값을 씁니다)';
+
+  /// 배포 버전 자리에 번호 대신 올 수 있는 「항상 최신」 표시.
+  static const String latestVersionAlias = 'latest';
 
   /// 함수 목록 파일에서 공통 함수 배열의 키.
   static const String manifestCommonKey = 'common';
@@ -427,6 +444,13 @@ final class FunctionsStep implements Step {
       );
     }
 
+    final CheckResult? staleProblem = await _inspectSecretVersions(
+      context,
+      functions,
+      providerFunctions,
+    );
+    if (staleProblem != null) return staleProblem;
+
     final CheckResult? invokerProblem = await _inspectInvokers(
       context,
       deployed,
@@ -462,6 +486,10 @@ final class FunctionsStep implements Step {
       '(배포 뒤 공개 호출($invokerMember · $invokerRole)이 빠진 공통 함수가 있으면 '
           '붙입니다 — 조직 정책이 막으면 안내합니다)',
     ],
+    _FunctionsMode.redeploy => <String>[
+      buildDeployCommand().render(),
+      redeployNote,
+    ],
     _FunctionsMode.bind => <String>[
       '(앱이 함수를 부를 수 있게 공개 호출($invokerMember · $invokerRole)을 '
           '붙입니다 — 로그인 · App Check 는 함수 안에서 따로 검사합니다)',
@@ -478,7 +506,8 @@ final class FunctionsStep implements Step {
   Future<StepOutcome> apply(WizardContext context) async {
     // 위저드는 실행 직전에 check 를 부르므로 그 판정(_mode)을 그대로 쓴다.
     return switch (_mode) {
-      _FunctionsMode.deploy => await _applyDeploy(context),
+      _FunctionsMode.deploy ||
+      _FunctionsMode.redeploy => await _applyDeploy(context),
       _FunctionsMode.bind => await _applyBindings(context),
       _FunctionsMode.listFailed => Failed(_reason, result: _failedResult),
       _FunctionsMode.unverifiable ||
@@ -599,6 +628,65 @@ final class FunctionsStep implements Step {
     return const Applied();
   }
 
+  /// 켠 로그인 수단 함수 [providerFunctions] 의 배포 secret 버전을 최신 버전과
+  /// 비교한다.
+  ///
+  /// [functions] (`functions:list --json` 결과)에 `secretEnvironmentVariables` 가
+  /// 있는 함수만 보고, secret 마다 최신 버전을 한 번만 읽는다. 모두 최신이면
+  /// null, 옛 버전을 쓰는 함수가 있으면 다시 배포할 할 일, 최신 버전을 읽지
+  /// 못하면 상태를 사유에 넣은 할 일(실행은 응답 원문을 보이는 실패)이다.
+  Future<CheckResult?> _inspectSecretVersions(
+    WizardContext context,
+    CommandResult functions,
+    List<String> providerFunctions,
+  ) async {
+    if (providerFunctions.isEmpty) return null;
+    final Map<String, List<DeployedSecret>> deployedSecrets =
+        parseDeployedSecrets(functions, _region) ??
+        const <String, List<DeployedSecret>>{};
+    final Map<String, int> latestVersions = <String, int>{};
+    int staleCount = 0;
+    for (final String name in providerFunctions) {
+      bool isStale = false;
+      for (final DeployedSecret used
+          in deployedSecrets[name] ?? const <DeployedSecret>[]) {
+        int? latest = latestVersions[used.secret];
+        if (latest == null) {
+          final RestResponse response = await context.rest.send(
+            buildLatestVersionRequest(_projectId, used.secret),
+          );
+          latest = parseVersionNumber(response);
+          if (latest == null) {
+            return _mark(
+              _FunctionsMode.listFailed,
+              'secret ${used.secret} 의 최신 버전을 읽지 못했습니다 — '
+              '${describeRestStatus(response)}',
+              result: toFailureResult(response),
+            );
+          }
+          latestVersions[used.secret] = latest;
+        }
+        if (isOlderVersion(used.version, latest)) isStale = true;
+      }
+      if (isStale) staleCount++;
+    }
+    if (staleCount == 0) return null;
+    return _mark(
+      _FunctionsMode.redeploy,
+      '$staleSecretReasonPrefix$staleCount개',
+    );
+  }
+
+  /// 배포 때 고정된 [deployed] 버전이 [latest] 보다 옛것이면 true.
+  ///
+  /// [latestVersionAlias] 는 항상 최신이라 false, 번호가 아닌 그 밖의 값은 다시
+  /// 배포하면 번호로 고정되므로 true 다.
+  static bool isOlderVersion(String deployed, int latest) {
+    if (deployed == latestVersionAlias) return false;
+    final int? number = int.tryParse(deployed);
+    return number == null || number < latest;
+  }
+
   /// 대상 함수들의 Cloud Run 서비스 IAM 을 읽어 공개 호출이 빠진 것을 찾는다.
   ///
   /// 모두 있으면 null, 아니면 판정을 두고 할 일 결과를 돌려준다. 서비스 이름은
@@ -677,16 +765,8 @@ final class FunctionsStep implements Step {
     CommandResult result,
     String region,
   ) {
-    if (!result.isSuccess) return null;
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(result.stdout);
-    } on FormatException {
-      return null;
-    }
-    if (decoded is! Map<String, Object?>) return null;
-    final Object? items = decoded['result'];
-    if (items is! List<Object?>) return null;
+    final List<Object?>? items = _decodeFunctionItems(result);
+    if (items == null) return null;
     return <String, String?>{
       for (final Object? item in items)
         if (item is Map<String, Object?> &&
@@ -696,6 +776,53 @@ final class FunctionsStep implements Step {
               ? item['runServiceId']! as String
               : null,
     };
+  }
+
+  /// `firebase functions:list --json` 결과에서 [region] 의 함수마다 쓰는 secret 과
+  /// 배포 때 고정된 버전을 모은다.
+  ///
+  /// 함수 이름 → `secretEnvironmentVariables` 의 `secret` · `version`(숫자만 든
+  /// 문자열). 그 필드가 없는 함수는 넣지 않는다. 실패 · 모양이 다르면 null.
+  static Map<String, List<DeployedSecret>>? parseDeployedSecrets(
+    CommandResult result,
+    String region,
+  ) {
+    final List<Object?>? items = _decodeFunctionItems(result);
+    if (items == null) return null;
+    final Map<String, List<DeployedSecret>> secrets =
+        <String, List<DeployedSecret>>{};
+    for (final Object? item in items) {
+      if (item is! Map<String, Object?> || item['region'] != region) continue;
+      final Object? id = item['id'];
+      final Object? variables = item['secretEnvironmentVariables'];
+      if (id is! String || variables is! List<Object?>) continue;
+      secrets[id] = <DeployedSecret>[
+        for (final Object? variable in variables)
+          if (variable is Map<String, Object?> &&
+              variable['secret'] is String &&
+              (variable['version'] is String || variable['version'] is int))
+            (
+              secret: variable['secret']! as String,
+              version: '${variable['version']}',
+            ),
+      ];
+    }
+    return secrets;
+  }
+
+  /// `firebase functions:list --json` 성공 결과의 `result` 배열 — 실패 · 모양이
+  /// 다르면 null.
+  static List<Object?>? _decodeFunctionItems(CommandResult result) {
+    if (!result.isSuccess) return null;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(result.stdout);
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! Map<String, Object?>) return null;
+    final Object? items = decoded['result'];
+    return items is List<Object?> ? items : null;
   }
 
   /// config 의 Functions 리전을 읽는다 — 없거나 빈 값이면 null.
@@ -736,6 +863,9 @@ final class FunctionsStep implements Step {
 enum _FunctionsMode {
   /// 의존성 설치 · secret 만들기 · 배포가 필요하다.
   deploy,
+
+  /// 켠 로그인 수단 함수가 옛 secret 버전을 써서 다시 배포해야 한다.
+  redeploy,
 
   /// 배포된 공통 함수 가운데 공개 호출이 빠진 서비스가 있다.
   bind,

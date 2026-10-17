@@ -7,6 +7,8 @@ import 'package:test/test.dart';
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/redactor.dart';
+import '../../../tool/setup/rest_client.dart';
+import '../../../tool/setup/secret_store.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
 import '../../../tool/setup/steps/functions_step.dart';
@@ -73,6 +75,11 @@ const String cleanupKey =
 /// firebase-tools 원문 fixture — 조직 정책이 공개 호출을 막은 배포 출력.
 const String invokerBlockedFixturePath =
     'test/tool/setup/fixtures/deploy_invoker_blocked.txt';
+
+/// `functions:list --json` 원문 모양 fixture — 로그인 수단 함수 · 확장 함수가 쓰는
+/// secret 과 배포 때 고정된 버전(모두 `1`)이 든 함수 목록(가짜 프로젝트).
+const String providerSecretsFixturePath =
+    'test/tool/setup/fixtures/functions_list_provider_secrets.json';
 
 /// 배포 스크립트가 묶음 실패 때 표준 오류에 쓰는 줄.
 const String batchFailLine = 'FAIL: 1번째 묶음 배포 실패 (1개 중) — 앞 묶음은 이미 배포됐다';
@@ -182,6 +189,7 @@ final class _EchoingRunner implements CommandRunner {
 final class _Harness {
   _Harness(this.root, List<String?> inputs, {void Function()? onInstall})
     : fake = FakeCommandRunner(),
+      rest = FakeRestClient(),
       screen = ScriptedTerminal(inputs),
       log = MemoryLogSink(Redactor()) {
     terminal = RedactingTerminal(screen, log.redactor, log);
@@ -190,6 +198,7 @@ final class _Harness {
 
   final String root;
   final FakeCommandRunner fake;
+  final FakeRestClient rest;
   final ScriptedTerminal screen;
   final MemoryLogSink log;
   late final RedactingTerminal terminal;
@@ -210,7 +219,7 @@ final class _Harness {
           terminal: terminal,
           redactor: log.redactor,
           log: log,
-          rest: FakeRestClient(),
+          rest: rest,
           random: Random(fixedTestRandomSeed),
           now: () => fixedTestNow,
         ),
@@ -255,6 +264,71 @@ CommandResult buildFunctionsList(Iterable<String> functionIds) => CommandResult(
     ],
   }),
   '',
+);
+
+/// 공통 함수(secret 없음) 뒤에 [providerSecretsFixturePath] 의 함수를 이어 붙인
+/// `functions:list --json` 출력을 만든다.
+///
+/// [versions] 는 함수 이름 → 그 함수가 쓰는 secret 전부의 배포 버전이다(없으면
+/// fixture 값 그대로).
+CommandResult buildFunctionsListWithSecrets(
+  Iterable<String> commonIds, {
+  Map<String, String> versions = const <String, String>{},
+}) {
+  final Map<String, Object?> common =
+      jsonDecode(buildFunctionsList(commonIds).stdout)! as Map<String, Object?>;
+  final Map<String, Object?> fixture =
+      jsonDecode(File(providerSecretsFixturePath).readAsStringSync())!
+          as Map<String, Object?>;
+  return CommandResult(
+    0,
+    jsonEncode(<String, Object?>{
+      'status': 'success',
+      'result': <Object?>[
+        ...common['result']! as List<Object?>,
+        for (final Object? item in fixture['result']! as List<Object?>)
+          replaceSecretVersion(item! as Map<String, Object?>, versions),
+      ],
+    }),
+    '',
+  );
+}
+
+/// [item] 함수의 secret 버전을 [versions] 의 값으로 바꾼 사본을 만든다.
+Map<String, Object?> replaceSecretVersion(
+  Map<String, Object?> item,
+  Map<String, String> versions,
+) {
+  final String? version = versions[item['id']];
+  if (version == null) return item;
+  return <String, Object?>{
+    ...item,
+    'secretEnvironmentVariables': <Object?>[
+      for (final Object? variable
+          in item['secretEnvironmentVariables']! as List<Object?>)
+        <String, Object?>{
+          ...variable! as Map<String, Object?>,
+          'version': version,
+        },
+    ],
+  };
+}
+
+/// [name] 의 Secret Manager 최신 버전 메타데이터 요청 주소.
+String buildLatestUrl(String name) =>
+    buildLatestVersionRequest(projectId, name).url.toString();
+
+/// Secret Manager 최신 버전 메타데이터 응답(값 없음)을 만든다 — 이름은 프로젝트
+/// 번호로 온다.
+RestResponse buildLatestResponse(String name, int version) => RestResponse(
+  200,
+  jsonEncode(<String, Object?>{
+    'name': 'projects/000000000000/secrets/$name/versions/$version',
+    'createTime': 'fixed',
+    'state': 'ENABLED',
+    'replicationStatus': <String, Object?>{'automatic': <String, Object?>{}},
+    'etag': '"e0"',
+  }),
 );
 
 /// 배포 스크립트의 실행 출력을 만든다 — [lastLine] 이 마지막 줄이다.
@@ -1011,4 +1085,202 @@ void main() {
       ]);
     },
   );
+
+  /// Kakao 함수 · 공통 함수 모두의 공개 호출을 등록한다.
+  void registerPublicPolicies(FakeCommandRunner fake, List<String> ids) {
+    for (final String id in ids) {
+      fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
+    }
+  }
+
+  /// Kakao 함수 이름(함수 목록 파일 순서).
+  List<String> readKakaoFunctions() =>
+      FunctionsStep.readProviderFunctions(root, 'kakao')!;
+
+  test('T-20-FUNC-02: Kakao 켬 · kakaoCustomToken 의 네이티브 앱 키 버전 1 · 최신 2 → ✗ '
+      '함수 1개 · 배포 스크립트 1회 · 재검사 ✓', () async {
+    writeModulesMarker();
+    final List<String> kakaoFunctions = readKakaoFunctions();
+    final _Harness harness = _Harness(root, const <String?>['y']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(
+        functionsListKey,
+        buildFunctionsListWithSecrets(
+          commonFunctions,
+          versions: const <String, String>{'linkKakaoProvider': '2'},
+        ),
+      )
+      ..on(
+        functionsListKey,
+        buildFunctionsListWithSecrets(
+          commonFunctions,
+          versions: const <String, String>{'linkKakaoProvider': '2'},
+        ),
+      )
+      ..on(
+        functionsListKey,
+        buildFunctionsListWithSecrets(
+          commonFunctions,
+          versions: const <String, String>{
+            'kakaoCustomToken': '2',
+            'linkKakaoProvider': '2',
+          },
+        ),
+      )
+      ..on(
+        deployKey,
+        buildDeployOutput(<String>[...commonFunctions, ...kakaoFunctions]),
+      );
+    registerPublicPolicies(harness.fake, <String>[
+      ...commonFunctions,
+      ...kakaoFunctions,
+    ]);
+    harness.rest
+      ..on(
+        'GET',
+        buildLatestUrl('KAKAO_NATIVE_APP_KEY'),
+        buildLatestResponse('KAKAO_NATIVE_APP_KEY', 2),
+      )
+      ..on(
+        'GET',
+        buildLatestUrl('KAKAO_ADMIN_KEY'),
+        buildLatestResponse('KAKAO_ADMIN_KEY', 1),
+      );
+
+    final int code = await harness.run(
+      enabledProviders: const <String>{'kakao'},
+    );
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(
+      readChecklistReason(harness.output),
+      'secret 새 값이 함수에 반영되지 않았습니다 — 함수 1개',
+    );
+    expect(harness.output, contains('  \$ $deployKey'));
+    expect(harness.output, contains('(배포하면 함수가 secret 최신 값을 씁니다)'));
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
+    // 점검표 · 단계 머리 재검사 · 실행 뒤 재검사에서 secret 마다 한 번씩.
+    expect(
+      harness.rest.countRequests('GET', buildLatestUrl('KAKAO_NATIVE_APP_KEY')),
+      3,
+    );
+    expect(
+      harness.rest.countRequests('GET', buildLatestUrl('KAKAO_ADMIN_KEY')),
+      3,
+    );
+    expect(harness.rest.requests, hasLength(6));
+    expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
+  });
+
+  test('T-20-FUNC-03: 켠 수단 함수의 secret 버전이 모두 최신이면 ✓ · 배포 0', () async {
+    writeModulesMarker();
+    final List<String> kakaoFunctions = readKakaoFunctions();
+    final _Harness harness = _Harness(root, const <String?>[]);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(
+        functionsListKey,
+        buildFunctionsListWithSecrets(
+          commonFunctions,
+          versions: const <String, String>{
+            'kakaoCustomToken': '2',
+            'linkKakaoProvider': '2',
+          },
+        ),
+      );
+    registerPublicPolicies(harness.fake, <String>[
+      ...commonFunctions,
+      ...kakaoFunctions,
+    ]);
+    harness.rest
+      ..on(
+        'GET',
+        buildLatestUrl('KAKAO_NATIVE_APP_KEY'),
+        buildLatestResponse('KAKAO_NATIVE_APP_KEY', 2),
+      )
+      ..on(
+        'GET',
+        buildLatestUrl('KAKAO_ADMIN_KEY'),
+        buildLatestResponse('KAKAO_ADMIN_KEY', 1),
+      );
+
+    final int code = await harness.run(
+      enabledProviders: const <String>{'kakao'},
+    );
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
+    expect(harness.fake.countMode(RunMode.stream), 0);
+    expect(harness.screen.asks, isEmpty);
+    expect(harness.rest.requests, hasLength(2));
+  });
+
+  group('T-20-FUNC-04: 최신 버전을 읽지 못하면 ✓ 가 아니고 실행은 원문을 보이는 실패다', () {
+    for (final (int status, String body, String shown) in <(int, String, String)>[
+      (
+        403,
+        '{"error":{"code":403,"status":"PERMISSION_DENIED","message":"denied"}}',
+        'HTTP 403',
+      ),
+      (0, '', '요청하지 못했습니다'),
+    ]) {
+      test('상태 $status', () async {
+        writeModulesMarker();
+        final _Harness harness = _Harness(root, const <String?>['y', '2']);
+        harness.fake
+          ..on(secretsListKey, buildSecretsList(declaredSecrets))
+          ..on(
+            functionsListKey,
+            buildFunctionsListWithSecrets(commonFunctions),
+          );
+        harness.rest.on(
+          'GET',
+          buildLatestUrl('KAKAO_NATIVE_APP_KEY'),
+          RestResponse(status, body),
+        );
+
+        final int code = await harness.run(
+          enabledProviders: const <String>{'kakao'},
+        );
+
+        expect(code, wizardExitStopped, reason: harness.output);
+        final String reason = readChecklistReason(harness.output);
+        expect(reason, contains('KAKAO_NATIVE_APP_KEY'));
+        expect(reason, contains(shown));
+        expect(
+          harness.output,
+          isNot(contains('  ✓ ${FunctionsStep.stepTitle} — ')),
+        );
+        expect(harness.screen.asks.last, failureChoiceQuestion);
+        expect(harness.fake.countMode(RunMode.stream), 0);
+        if (body.isNotEmpty) {
+          expect(harness.output, contains('PERMISSION_DENIED'));
+        }
+      });
+    }
+  });
+
+  test('T-20-FUNC-05: 켠 수단이 없으면 함수에 secret 이 있어도 최신 버전 요청 0 · '
+      '판정 문장 그대로', () async {
+    writeModulesMarker();
+    final _Harness harness = _Harness(root, const <String?>[]);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsListWithSecrets(commonFunctions));
+    registerPublicPolicies(harness.fake, commonFunctions);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(harness.rest.requests, isEmpty);
+    expect(
+      harness.output,
+      contains(
+        '  ✓ ${FunctionsStep.stepTitle} — 의존성 · secret '
+        '${declaredSecrets.length}개 · 공통 함수 ${commonFunctions.length}개 배포 · '
+        '공개 호출 확인',
+      ),
+    );
+  });
 }
