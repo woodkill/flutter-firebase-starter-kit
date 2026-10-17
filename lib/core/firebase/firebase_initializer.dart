@@ -44,9 +44,15 @@ Future<bool> initializeFirebase() async {
 
     await Firebase.initializeApp(options: options);
     return true;
+    // flavor 오류(StateError)는 Error 지만 끝의 on Object 가 false 로 삼키지
+    // 않도록 이 자리에서 잡아 그대로 다시 던진다.
+    // ignore: avoid_catching_errors
   } on StateError {
     // flavor 설정 오류는 placeholder 미연결과 구분해 전파한다.
     rethrow;
+    // placeholder · FlutterFire 생성 옵션은 「Firebase 미연결」 을
+    // UnsupportedError 로 알린다 — 그 계약을 받아 false 로 바꾼다.
+    // ignore: avoid_catching_errors
   } on UnsupportedError catch (e) {
     // 설계된 경로: placeholder — 앱은 Firebase 없이 정상 실행한다.
     if (kDebugMode) {
