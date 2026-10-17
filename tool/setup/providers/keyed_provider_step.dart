@@ -3,6 +3,7 @@ import 'dart:io';
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
+import '../flavor.dart';
 import '../secret_store.dart';
 import '../step.dart';
 import '../steps/billing_step.dart';
@@ -24,6 +25,38 @@ const int maxKeyAttempts = 3;
 
 /// 숨김 입력 질문 뒤에 붙는 안내 — 입력한 글자가 화면에 보이지 않는다.
 const String hiddenInputHint = '(붙여 넣은 뒤 Enter — 입력이 화면에 보이지 않습니다)';
+
+/// 맞춤 실행에서 자리 이름 표의 머리 뒤쪽(`<표시 이름> — <이 말>`).
+const String alignSummarySuffix = 'config 값으로 맞출 자리';
+
+/// 자리표시가 아닌 config 값과 다른 자리만 남았을 때의 사유 머리.
+const String alignReasonPrefix = 'config 와 다른 자리: ';
+
+/// 입력한 키가 다른 flavor 의 키와 같을 때 덧붙이는 안내.
+const String duplicateInputHint = 'flavor 마다 새 콘솔 앱의 키를 넣으세요';
+
+/// 로그인 수단 토큰 → 매뉴얼에서 flavor 마다 새 콘솔 앱을 만드는 절 머리의 앞부분.
+///
+/// 표에 없는 수단은 그 수단의 기본 절([ProviderEntry.manualSectionPrefix])을
+/// 가리킨다.
+const Map<String, String> flavorAppManualHeadings = <String, String>{
+  'kakao': '## Kakao 검수',
+  'naver': '## Naver 검수',
+};
+
+/// [entry] 의 flavor 별 새 앱 절 머리를 찾는다 — 표에 없으면 그 수단의 기본 절.
+String findFlavorAppManualHeading(ProviderEntry entry) =>
+    flavorAppManualHeadings[entry.token] ?? entry.manualSectionPrefix;
+
+/// [flavor] 의 키와 같다는 문장을 만든다(`<flavor> 의 키와 같습니다 — <detail>`).
+String buildDuplicateMessage(Flavor flavor, String detail) =>
+    '${flavor.name} 의 키와 같습니다 — $detail';
+
+/// 값이 들어가는 자리 하나 — 파일 경로(또는 `Secret Manager`)와 키 · 변수 이름.
+typedef _Place = ({String location, String name});
+
+/// 자리 하나를 화면 표시형(`<location> <name>`)으로 쓴다.
+String _describePlace(_Place place) => '${place.location} ${place.name}';
 
 /// 키 값 하나와 그 값이 들어가는 모든 자리.
 ///
@@ -103,16 +136,20 @@ final class PairFailed extends PairCheck {
 
 /// 콘솔에서 받은 키를 한 번 입력받아 모든 자리에 쓰는 로그인 수단 단계의 공통 뼈대.
 ///
-/// 검사는 config 값(자리표시가 아니고 형식에 맞음) · xcconfig 값 = config 값 ·
-/// Secret Manager 값(config 키가 있으면 config 값과 같음, 서버 전용이면 없음 ·
-/// 자리표시가 아님)을 본다. config 가 진실원이라 자리표시가 아닌 config 값은 묻지
-/// 않고, 어긋난 xcconfig · Secret Manager 값은 config 값으로 맞춘다. 검사 한 번에
-/// Secret Manager 를 이름마다 정확히 한 번 읽는다.
+/// 검사 순서는 프로젝트 ID → config 값(자리표시가 아니고 형식에 맞음) → 다른
+/// flavor 의 config 와 같은 값인지 → xcconfig 값 = config 값 · Secret Manager 값
+/// (config 키가 있으면 config 값과 같음) → 서버 전용 secret 이 있음(자리표시가
+/// 아님)이다. config 가 진실원이라 자리표시가 아닌 config 값은 묻지 않고, 어긋난
+/// xcconfig · Secret Manager 값은 config 값으로 맞춘다(화면에는 자리 이름만).
+/// 다른 flavor 와 같은 값은 자리표시처럼 새로 묻는다 — 다른 flavor 파일은 읽기만
+/// 한다. 검사 한 번에 Secret Manager 를 이름마다 정확히 한 번 읽는다.
 ///
-/// 실행은 값 표(콘솔에 넣을 값 · 콘솔 주소 · 할 일 · 매뉴얼 절)를 보인 뒤, 물을
-/// 값이 있으면 콘솔 작업을 마쳤는지 묻고 그 값만 받는다(비밀 값은 숨김 입력).
-/// 형식 · 서버 확인이 틀리면 그 값만 [maxKeyAttempts] 회까지 다시 묻는다. 기록은
-/// config → xcconfig → Secret Manager(표준 입력) 순서다.
+/// 물을 값이 있으면 실행은 값 표(콘솔에 넣을 값 · 콘솔 주소 · 할 일 · 매뉴얼 절)를
+/// 보인 뒤 콘솔 작업을 마쳤는지 묻고 그 값만 받는다(비밀 값은 숨김 입력). 형식 ·
+/// 다른 flavor 중복 · 서버 확인이 틀리면 그 값만 [maxKeyAttempts] 회까지 다시
+/// 묻는다. 물을 값이 없으면(맞춤) 고칠 자리 이름 표만 보이고, 서버 확인이 있는
+/// 수단은 config 값으로 짝을 먼저 확인한 뒤 쓴다. 기록은 config → xcconfig →
+/// Secret Manager(표준 입력) 순서다.
 abstract class KeyedProviderStep implements Step {
   /// 하위 클래스만 만든다.
   KeyedProviderStep();
@@ -143,6 +180,9 @@ abstract class KeyedProviderStep implements Step {
   Map<KeyField, String> _knownValues = const <KeyField, String>{};
   List<KeyField> _xcconfigFixes = const <KeyField>[];
   Map<KeyField, List<String>> _secretWrites = const <KeyField, List<String>>{};
+  List<_Place> _places = const <_Place>[];
+  Map<KeyField, Map<Flavor, String>> _otherFlavorValues =
+      const <KeyField, Map<Flavor, String>>{};
 
   @override
   bool get isCostlyOrIrreversible => false;
@@ -162,7 +202,10 @@ abstract class KeyedProviderStep implements Step {
     final Map<KeyField, String> knownValues = <KeyField, String>{};
     final List<KeyField> xcconfigFixes = <KeyField>[];
     final Map<KeyField, List<String>> secretWrites = <KeyField, List<String>>{};
-    final List<String> pending = <String>[];
+    final List<_Place> pending = <_Place>[];
+    final List<String> duplicates = <String>[];
+    final Map<KeyField, Map<Flavor, String>> otherFlavorValues =
+        <KeyField, Map<Flavor, String>>{};
     int secretCount = 0;
 
     for (final KeyField field in fields) {
@@ -170,12 +213,25 @@ abstract class KeyedProviderStep implements Step {
       String? configValue;
       final String? configKey = field.configKey;
       if (configKey != null) {
+        final Map<Flavor, String> others = _readOtherFlavorValues(
+          context,
+          configKey,
+        );
+        if (others.isNotEmpty) otherFlavorValues[field] = others;
         final String? raw = readJsonString(jsonPath, configKey)?.trim();
+        final Flavor? sameFlavor = raw == null
+            ? null
+            : _findSameFlavor(others, raw);
         if (raw == null ||
             _isPlaceholder(context, raw, configKey) ||
             !field.format.matches(raw)) {
           needsInput = true;
-          pending.add('${context.paths.json} $configKey');
+          pending.add((location: context.paths.json, name: configKey));
+        } else if (sameFlavor != null) {
+          // 다른 flavor 와 같은 키는 진실원으로 쓰지 않고 새로 묻는다.
+          needsInput = true;
+          duplicates.add(buildDuplicateMessage(sameFlavor, field.label));
+          pending.add((location: context.paths.json, name: configKey));
         } else {
           configValue = raw;
         }
@@ -197,7 +253,7 @@ abstract class KeyedProviderStep implements Step {
         }
         if (needsInput || current != configValue) {
           xcconfigFixes.add(field);
-          pending.add('${context.paths.xcconfig} $xcconfigVar');
+          pending.add((location: context.paths.xcconfig, name: xcconfigVar));
         }
       }
       final List<String> mismatchedSecrets = <String>[];
@@ -229,8 +285,9 @@ abstract class KeyedProviderStep implements Step {
           : mismatchedSecrets;
       if (writeNames.isNotEmpty) {
         secretWrites[field] = writeNames;
-        pending.addAll(<String>[
-          for (final String name in writeNames) 'Secret Manager $name',
+        pending.addAll(<_Place>[
+          for (final String name in writeNames)
+            (location: 'Secret Manager', name: name),
         ]);
       }
       if (needsInput) {
@@ -245,44 +302,64 @@ abstract class KeyedProviderStep implements Step {
     _knownValues = knownValues;
     _xcconfigFixes = xcconfigFixes;
     _secretWrites = secretWrites;
+    _places = pending;
+    _otherFlavorValues = otherFlavorValues;
     if (pending.isEmpty) {
       _mode = _KeyedMode.done;
       return Done('키 · secret $secretCount개 · iOS 쪽 맞음');
     }
-    return _mark(_KeyedMode.fill, '채울 자리: ${pending.join(' · ')}');
+    final String places = pending.map(_describePlace).join(' · ');
+    if (duplicates.isNotEmpty) {
+      return _mark(_KeyedMode.duplicate, duplicates.join(' · '));
+    }
+    if (askFields.isNotEmpty) {
+      return _mark(_KeyedMode.fill, '채울 자리: $places');
+    }
+    return _mark(_KeyedMode.align, '$alignReasonPrefix$places');
   }
 
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
-    _KeyedMode.fill => <String>[
+    _KeyedMode.fill || _KeyedMode.duplicate => <String>[
       '(${entry.displayName} 콘솔에 넣을 값 · 할 일을 보입니다)',
       if (_askFields.isNotEmpty)
         '(콘솔에서 받은 키를 묻습니다 — 비밀 값은 화면에 보이지 않게 받고, '
             '형식 · 서버 확인 뒤에 기록합니다)',
-      for (final KeyField field in fields)
-        if (field.configKey != null && _askFields.contains(field))
-          '(${context.paths.json} ${field.configKey} 에 씁니다)',
-      for (final KeyField field in _xcconfigFixes)
-        '(${context.paths.xcconfig} ${field.xcconfigVar} 에 씁니다)',
-      for (final MapEntry<KeyField, List<String>> write
-          in _secretWrites.entries)
-        for (final String name in write.value)
-          buildSecretWriteCommand(
-            name,
-            _projectId,
-            value: '',
-            valueLabel: write.key.valueLabel,
-          ).render(),
+      ..._buildWriteLines(context),
+    ],
+    _KeyedMode.align => <String>[
+      '(${entry.displayName} — config 값으로 맞출 자리 이름을 보입니다 · '
+          '키는 묻지 않습니다)',
+      ..._buildWriteLines(context),
     ],
     _KeyedMode.failed => <String>['(명령 원문을 보입니다)'],
     _KeyedMode.unreadable || _KeyedMode.done => const <String>[],
   };
+
+  /// 기록할 자리마다 계획 줄 하나 — 값은 넣지 않는다.
+  List<String> _buildWriteLines(WizardContext context) => <String>[
+    for (final KeyField field in fields)
+      if (field.configKey != null && _askFields.contains(field))
+        '(${context.paths.json} ${field.configKey} 에 씁니다)',
+    for (final KeyField field in _xcconfigFixes)
+      '(${context.paths.xcconfig} ${field.xcconfigVar} 에 씁니다)',
+    for (final MapEntry<KeyField, List<String>> write in _secretWrites.entries)
+      for (final String name in write.value)
+        buildSecretWriteCommand(
+          name,
+          _projectId,
+          value: '',
+          valueLabel: write.key.valueLabel,
+        ).render(),
+  ];
 
   @override
   Future<StepOutcome> apply(WizardContext context) async {
     // 위저드는 실행 직전에 check 를 부르므로 그 판정을 그대로 쓴다.
     return switch (_mode) {
       _KeyedMode.fill => await _applyFill(context),
+      _KeyedMode.duplicate => await _applyFill(context, isDuplicate: true),
+      _KeyedMode.align => await _applyAlign(context),
       _KeyedMode.failed => Failed(_reason, result: _failedResult),
       _KeyedMode.unreadable => Failed(_reason),
       _KeyedMode.done => const Applied(),
@@ -290,14 +367,24 @@ abstract class KeyedProviderStep implements Step {
   }
 
   /// 값 표 → 콘솔 질문 → 물을 값 입력 · 형식 · 서버 확인 → 모든 자리 기록.
-  Future<StepOutcome> _applyFill(WizardContext context) async {
+  ///
+  /// [isDuplicate] 면 다른 flavor 와 같은 키라는 사유와 flavor 별 새 앱 절을 함께
+  /// 보인다.
+  Future<StepOutcome> _applyFill(
+    WizardContext context, {
+    bool isDuplicate = false,
+  }) async {
+    final String newAppHeading = findFlavorAppManualHeading(entry);
     writeSummary(
       context.terminal,
       title: '${entry.displayName} 콘솔에 넣을 값 — ${context.flavor.name}',
       rows: buildValueRows(context),
       notes: <String>[
+        if (isDuplicate) _reason,
         '콘솔: ${entry.consoleUrl}',
         ...todoLines,
+        if (isDuplicate)
+          'flavor 마다 새 앱 만들기: ${formatManualReference(newAppHeading)}',
         '자세한 절차: ${formatManualReference(entry.manualSectionPrefix)}',
       ],
     );
@@ -309,7 +396,13 @@ abstract class KeyedProviderStep implements Step {
         defaultIndex: null,
       );
       if (choice == null) return const Declined();
-      if (choice == 1) return ExitForUser(_buildLaterGuide());
+      if (choice == 1) {
+        return ExitForUser(
+          _buildLaterGuide(
+            isDuplicate ? newAppHeading : entry.manualSectionPrefix,
+          ),
+        );
+      }
       for (final KeyField field in _askFields) {
         final String? value = _askValue(context, field);
         if (value == null) return const Declined();
@@ -321,10 +414,47 @@ abstract class KeyedProviderStep implements Step {
     return _writeValues(context, values);
   }
 
-  /// 콘솔 작업이 남았을 때의 위저드 밖 작업 안내.
-  String _buildLaterGuide() =>
+  /// 고칠 자리 이름 표 → (서버 확인이 있으면) config 값으로 짝 확인 → 기록.
+  ///
+  /// 키는 묻지 않는다. 서버 확인에는 config 에서 읽은 값만 넘긴다 — 묻지 않은 서버
+  /// 전용 secret 의 Secret Manager 값은 넘기지 않는다. 짝이 틀리거나 확인하지
+  /// 못하면 아무것도 쓰지 않고 실패로 끝낸다.
+  Future<StepOutcome> _applyAlign(WizardContext context) async {
+    writeSummary(
+      context.terminal,
+      title: '${entry.displayName} — $alignSummarySuffix',
+      rows: <SummaryRow>[
+        for (final _Place place in _places)
+          SummaryRow(place.location, place.name),
+      ],
+      notes: <String>['${context.paths.json} 의 값으로 씁니다 — 값은 화면에 보이지 않습니다'],
+    );
+    final Map<KeyField, String> values = Map<KeyField, String>.of(_knownValues);
+    final PairCheck result = await verifyPair(
+      context,
+      Map<KeyField, String>.of(values),
+    );
+    switch (result) {
+      case PairFailed(:final String reason):
+        return Failed(reason);
+      case PairMismatch(:final KeyField field, :final String reason):
+        final String? configKey = field.configKey;
+        final String place = configKey == null
+            ? field.label
+            : '${context.paths.json} $configKey';
+        return Failed(
+          '$reason — $place 값을 고치거나, 자리표시로 되돌린 뒤 다시 실행해 새로 '
+          '입력하세요',
+        );
+      case PairOk() || PairNotAvailable():
+        return _writeValues(context, values);
+    }
+  }
+
+  /// 콘솔 작업이 남았을 때의 위저드 밖 작업 안내 — [heading] 절을 가리킨다.
+  String _buildLaterGuide(String heading) =>
       '  ${entry.displayName} 콘솔에서 위 할 일을 마치고 키를 받은 뒤 다시 실행하세요 — '
-      '${formatManualReference(entry.manualSectionPrefix)}\n'
+      '${formatManualReference(heading)}\n'
       '  급하면 ./setup.sh --providers 로 ${entry.displayName} 로그인을 잠시 끌 수 '
       '있습니다.';
 
@@ -332,7 +462,8 @@ abstract class KeyedProviderStep implements Step {
   /// 틀림이면 null.
   ///
   /// 비밀 값은 숨김 입력으로 받아 바로 가림 함수에 등록하고, 받은 뒤에는 글자 수 ·
-  /// 형식 판정만 보인다.
+  /// 형식 판정만 보인다. 형식에 맞아도 다른 flavor 의 config 값과 같으면 그
+  /// flavor 를 알리고 다시 묻는다(같은 횟수 상한).
   String? _askValue(WizardContext context, KeyField field) {
     for (int attempt = 0; attempt < maxKeyAttempts; attempt++) {
       final String? answer = field.isHidden
@@ -341,6 +472,16 @@ abstract class KeyedProviderStep implements Step {
       if (answer == null) return null;
       if (field.isHidden) context.redactor.register(answer);
       if (field.format.matches(answer)) {
+        final Flavor? sameFlavor = _findSameFlavor(
+          _otherFlavorValues[field] ?? const <Flavor, String>{},
+          answer,
+        );
+        if (sameFlavor != null) {
+          context.terminal.writeLine(
+            '  ${buildDuplicateMessage(sameFlavor, duplicateInputHint)}',
+          );
+          continue;
+        }
         context.terminal.writeLine(
           '  ${field.label} — ${answer.length}자 · 형식 맞음',
         );
@@ -433,11 +574,55 @@ abstract class KeyedProviderStep implements Step {
     WizardContext context,
     String raw,
     String configKey,
+  ) => _isPlaceholderIn(context, context.paths.jsonExample, raw, configKey);
+
+  /// [raw] 가 [exampleRelativePath] example config 의 같은 키 값이거나 빈 값이면
+  /// true.
+  static bool _isPlaceholderIn(
+    WizardContext context,
+    String exampleRelativePath,
+    String raw,
+    String configKey,
   ) {
     if (raw.isEmpty) return true;
-    final String examplePath = context.resolve(context.paths.jsonExample);
+    final String examplePath = context.resolve(exampleRelativePath);
     if (!File(examplePath).existsSync()) return false;
     return readJsonString(examplePath, configKey)?.trim() == raw;
+  }
+
+  /// 지금 flavor 밖 flavor 들의 config(파일이 있을 때만)에서 [configKey] 의
+  /// 자리표시가 아닌 값을 읽는다 — 읽기만 하고, 읽지 못한 파일은 건너뛴다.
+  static Map<Flavor, String> _readOtherFlavorValues(
+    WizardContext context,
+    String configKey,
+  ) {
+    final Map<Flavor, String> values = <Flavor, String>{};
+    for (final Flavor other in Flavor.values) {
+      if (other == context.flavor) continue;
+      final FlavorPaths paths = FlavorPaths(other);
+      final String path = context.resolve(paths.json);
+      if (!File(path).existsSync()) continue;
+      final String? raw;
+      try {
+        raw = readJsonString(path, configKey)?.trim();
+      } on FileSystemException {
+        continue;
+      }
+      if (raw == null ||
+          _isPlaceholderIn(context, paths.jsonExample, raw, configKey)) {
+        continue;
+      }
+      values[other] = raw;
+    }
+    return values;
+  }
+
+  /// [others] 가운데 값이 [value] 와 같은 첫 flavor — 없으면 null.
+  static Flavor? _findSameFlavor(Map<Flavor, String> others, String value) {
+    for (final MapEntry<Flavor, String> other in others.entries) {
+      if (other.value == value) return other.key;
+    }
+    return null;
   }
 
   /// [mode] 판정과 사유를 두고 할 일 결과를 만든다.
@@ -453,6 +638,12 @@ abstract class KeyedProviderStep implements Step {
 enum _KeyedMode {
   /// 물을 값 · 맞출 자리가 있다.
   fill,
+
+  /// 다른 flavor 와 같은 키가 있다 — 그 값을 새로 묻는다.
+  duplicate,
+
+  /// 물을 값은 없고 config 값으로 맞출 자리만 있다.
+  align,
 
   /// Secret Manager 를 읽지 못했다.
   failed,
