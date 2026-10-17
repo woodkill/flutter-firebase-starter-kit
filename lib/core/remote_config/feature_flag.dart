@@ -61,10 +61,13 @@ class FeatureFlagValues {
   const FeatureFlagValues(this._values);
 
   /// 모든 flag 가 기본값인 묶음 — Firebase 미초기화 · 가져오기 전 상태다.
-  static FeatureFlagValues get defaults =>
-      FeatureFlagValues(<FeatureFlag, Object>{
-        for (final flag in FeatureFlag.values) flag: flag.defaultValue,
-      });
+  ///
+  /// 불변 값이라 한 인스턴스를 같이 쓴다(처음 읽을 때 만든다).
+  static final FeatureFlagValues defaults = FeatureFlagValues(
+    <FeatureFlag, Object>{
+      for (final flag in FeatureFlag.values) flag: flag.defaultValue,
+    },
+  );
 
   final Map<FeatureFlag, Object> _values;
 
