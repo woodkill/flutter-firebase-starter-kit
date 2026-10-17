@@ -229,7 +229,7 @@ final class Wizard {
         _terminal.writeLine(allDoneLine);
         return _complete();
       }
-      bool isReplanned = false;
+      var isReplanned = false;
       for (final Step step in _steps) {
         if (_checklist[step.id] is Done) continue;
         final int? code = await _runStep(step);
@@ -299,13 +299,13 @@ final class Wizard {
   /// 의존 단계 가운데 이번 점검에서 끝나지 않은 것이 있으면 그 단계는 검사하지
   /// 않고 [Blocked] 로 적는다 — 앞 단계 없이 실패하는 검사 명령을 부르지 않는다.
   Future<Map<String, CheckResult>> _checkAll() async {
-    final Map<String, CheckResult> results = <String, CheckResult>{};
+    final results = <String, CheckResult>{};
     for (final Step step in _steps) {
       final String? waitingFor = _findUnfinishedDependency(step, results);
       if (waitingFor == null) {
         results[step.id] = await _check(step);
       } else {
-        final Blocked blocked = Blocked(waitingFor);
+        final blocked = Blocked(waitingFor);
         _logCheck(step, blocked);
         results[step.id] = blocked;
       }
@@ -394,7 +394,7 @@ final class Wizard {
   Future<int?> _runStep(Step step) async {
     final String? waitingFor = _findUnfinishedDependency(step, _results);
     if (waitingFor != null) {
-      final Blocked blocked = Blocked(waitingFor);
+      final blocked = Blocked(waitingFor);
       _logCheck(step, blocked);
       _settle(step, blocked, shouldSkipSameKind: true);
       return null;
@@ -609,7 +609,7 @@ final class Wizard {
   void _printFailure(String summary, CommandResult? result) {
     _terminal.writeLine('  실패 — $summary');
     if (result == null || result.isOutputShown) return;
-    for (final String text in <String>[result.stdout, result.stderr]) {
+    for (final text in <String>[result.stdout, result.stderr]) {
       if (text.isEmpty) continue;
       _terminal.writeRaw(text.endsWith('\n') ? text : '$text\n');
     }

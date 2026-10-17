@@ -268,7 +268,7 @@ final class FirebaseProjectStep implements Step {
     final String guidance = describeAccountPermissionGuidance(
       context.paths.json,
     );
-    final String aliasLine =
+    final aliasLine =
         '(${context.paths.json} 의 $projectIdKey · $firebasercPath 의 '
         '$aliases 를 정한 ID 로 씀)';
     return switch (_mode) {
@@ -458,7 +458,7 @@ final class FirebaseProjectStep implements Step {
   ///
   /// 입력 끝이면 null, 끝까지 틀리면 빈 문자열을 돌려준다.
   String? _askProjectId(Terminal terminal, String? suggested) {
-    for (int attempt = 0; attempt < maxInputAttempts; attempt++) {
+    for (var attempt = 0; attempt < maxInputAttempts; attempt++) {
       final String? answer = terminal.ask(idQuestion, defaultValue: suggested);
       if (answer == null) return null;
       final String trimmed = answer.trim();
@@ -474,15 +474,14 @@ final class FirebaseProjectStep implements Step {
   /// 줄 머리가 `PROJECT_ID_PREFIX=` 인 줄만 읽는다(주석 · 들여쓴 계산 줄 제외).
   /// 파일 · 줄이 없거나 제안값이 규칙에 맞지 않으면 null.
   String? _readSuggestedId(WizardContext context) {
-    final File script = File(context.resolve(configureScriptPath));
+    final script = File(context.resolve(configureScriptPath));
     if (!script.existsSync()) return null;
     final RegExpMatch? match = RegExp(
       r'^PROJECT_ID_PREFIX="([^"]*)"',
       multiLine: true,
     ).firstMatch(script.readAsStringSync());
     if (match == null) return null;
-    final String suggested =
-        '${match.group(1)}${context.flavor.projectIdSuffix}';
+    final suggested = '${match.group(1)}${context.flavor.projectIdSuffix}';
     return isValidProjectId(suggested) ? suggested : null;
   }
 
@@ -515,7 +514,7 @@ final class FirebaseProjectStep implements Step {
   /// 다른 키 · 별칭은 그대로 두고 2칸 들여쓰기 + 끝 개행으로 원자적으로 쓴다.
   /// 파일이 없으면 그 flavor 의 별칭만 담아 만든다.
   void _writeAliases(WizardContext context, String projectId) {
-    final File file = File(context.resolve(firebasercPath));
+    final file = File(context.resolve(firebasercPath));
     final Map<String, Object?> root = file.existsSync()
         ? _decodeObject(file.readAsStringSync())
         : <String, Object?>{};
@@ -535,7 +534,7 @@ final class FirebaseProjectStep implements Step {
 
   /// `.firebaserc` 에서 고른 flavor 의 별칭이 모두 [projectId] 면 true.
   bool _hasMatchingAliases(WizardContext context, String projectId) {
-    final File file = File(context.resolve(firebasercPath));
+    final file = File(context.resolve(firebasercPath));
     if (!file.existsSync()) return false;
     final Map<String, Object?> root;
     try {

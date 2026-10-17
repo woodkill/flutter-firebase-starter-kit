@@ -75,7 +75,7 @@ void registerQueue(
   String key,
   List<CommandResult> results,
 ) {
-  for (final CommandResult result in results) {
+  for (final result in results) {
     runner.on(key, result);
   }
 }
@@ -88,7 +88,7 @@ List<String> listInteractiveKeys(FakeCommandRunner runner) => runner.calls
 
 /// [path] 에 표준 출력으로 [stdoutText] 를 내는 실행 스크립트를 쓴다.
 File writeStubScript(String path, String stdoutText) {
-  final File stub = File(path)
+  final stub = File(path)
     ..writeAsStringSync("#!/bin/sh\ncat <<'STUB_EOF'\n$stdoutText\nSTUB_EOF\n");
   Process.runSync('chmod', <String>['+x', stub.path]);
   return stub;
@@ -135,21 +135,21 @@ void main() {
     'T-19-LOGIN-01 firebase 계정 · gcloud 토큰 · 두 계정이 같으면(대소문자 무시) ✓ 이고 이메일을 보이지 않는다',
     () async {
       final String upperEmail = fakeEmail.toUpperCase();
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_firebaseAccountsKey, buildAccountsResult(<String>[upperEmail]))
         ..on(_tokenKey, CommandResult(0, '$fakeToken\n', ''))
         ..on(_gcloudAccountKey, CommandResult(0, '$fakeEmail\n', ''));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>[]);
+      final log = MemoryLogSink(Redactor());
 
       final int code = await runLoginStep(runner, terminal, log);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✓ ${LoginStep.stepTitle} — '));
       expect(runner.countMode(RunMode.interactive), 0);
       expect(terminal.asks, isEmpty);
-      for (final String text in <String>[output, log.text]) {
+      for (final text in <String>[output, log.text]) {
         expect(text.toLowerCase(), isNot(contains(fakeEmail)));
       }
     },
@@ -158,7 +158,7 @@ void main() {
   test(
     'T-19-LOGIN-02 firebase 계정이 없으면 ✗ · y 뒤 firebase login 을 대화형으로 실행하고 재검사로 ✓',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_tokenKey, CommandResult(0, '$fakeToken\n', ''))
         ..on(_gcloudAccountKey, CommandResult(0, '$fakeEmail\n', ''))
         ..on(_firebaseLoginKey, _ok);
@@ -168,12 +168,12 @@ void main() {
         buildAccountsResult(const <String>[]),
         buildAccountsResult(<String>[fakeEmail]),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>['y']);
+      final log = MemoryLogSink(Redactor());
 
       final int code = await runLoginStep(runner, terminal, log);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(
         output,
@@ -188,14 +188,14 @@ void main() {
   test(
     'T-19-LOGIN-03 액세스 토큰 갱신이 실패하면(재인증 실패 원문) ✗ · gcloud auth login 을 실행하고 계정 목록 명령은 부르지 않는다',
     () async {
-      const CommandResult reauthFailed = CommandResult(
+      const reauthFailed = CommandResult(
         1,
         '',
         'ERROR: (gcloud.auth.print-access-token) There was a problem '
             'refreshing your current auth tokens: Reauthentication failed. '
             'cannot prompt during non-interactive execution.\n',
       );
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_firebaseAccountsKey, buildAccountsResult(<String>[fakeEmail]))
         ..on(_gcloudAccountKey, CommandResult(0, '$fakeEmail\n', ''))
         ..on(_gcloudLoginKey, _ok);
@@ -204,12 +204,12 @@ void main() {
         reauthFailed,
         CommandResult(0, '$fakeToken\n', ''),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>['y']);
+      final log = MemoryLogSink(Redactor());
 
       final int code = await runLoginStep(runner, terminal, log);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(
         output,
@@ -230,7 +230,7 @@ void main() {
   test(
     'T-19-LOGIN-04 두 CLI 의 계정이 다르면 ✗ 사유가 다른 계정이고 y 뒤 같은 계정 안내와 함께 gcloud auth login',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_firebaseAccountsKey, buildAccountsResult(<String>[fakeEmail]))
         ..on(_tokenKey, CommandResult(0, '$fakeToken\n', ''))
         ..on(_gcloudLoginKey, _ok);
@@ -239,12 +239,12 @@ void main() {
         CommandResult(0, '$otherEmail\n', ''),
         CommandResult(0, '$fakeEmail\n', ''),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>['y']);
+      final log = MemoryLogSink(Redactor());
 
       final int code = await runLoginStep(runner, terminal, log);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(LoginStep.accountMismatchReason, contains('다른 계정'));
       expect(
@@ -259,7 +259,7 @@ void main() {
         'gcloud 로그인 브라우저 창에서 firebase 에 로그인한 계정과 같은 계정을 고르세요.',
       );
       expect(listInteractiveKeys(runner), <String>[_gcloudLoginKey]);
-      for (final String text in <String>[output, log.text]) {
+      for (final text in <String>[output, log.text]) {
         expect(text, isNot(contains(fakeEmail)));
         expect(text, isNot(contains(otherEmail)));
       }
@@ -269,19 +269,19 @@ void main() {
   test(
     'T-19-LOGIN-05 토큰 · 계정 capture 는 민감 출력으로 실행하고 토큰 값은 화면 · 기록에 없다',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_firebaseAccountsKey, buildAccountsResult(<String>[fakeEmail]))
         ..on(_tokenKey, CommandResult(0, '$fakeToken\n', ''))
         ..on(_gcloudAccountKey, CommandResult(0, '$fakeEmail\n', ''));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>[]);
+      final log = MemoryLogSink(Redactor());
 
       await runLoginStep(runner, terminal, log);
 
       final List<FakeCall> captures = runner.calls
           .where((FakeCall call) => call.mode == RunMode.capture)
           .toList();
-      for (final String key in <String>[
+      for (final key in <String>[
         _firebaseAccountsKey,
         _tokenKey,
         _gcloudAccountKey,
@@ -327,8 +327,8 @@ void main() {
         (LoginStep.firebaseAccountsCommand, accountsStub),
         (LoginStep.gcloudAccountCommand, accountStub),
       ]) {
-        final MemoryLogSink log = MemoryLogSink(Redactor());
-        final ProcessCommandRunner runner = ProcessCommandRunner(
+        final log = MemoryLogSink(Redactor());
+        final runner = ProcessCommandRunner(
           ScriptedTerminal(const <String?>[]),
           log: log,
         );
@@ -343,8 +343,8 @@ void main() {
         expect(log.text, contains(ProcessCommandRunner.sensitiveOutputNotice));
 
         // 대조군 — 같은 스텁을 민감 표시 없이 실행하면 기록에 본문이 남는다.
-        final MemoryLogSink controlLog = MemoryLogSink(Redactor());
-        final ProcessCommandRunner controlRunner = ProcessCommandRunner(
+        final controlLog = MemoryLogSink(Redactor());
+        final controlRunner = ProcessCommandRunner(
           ScriptedTerminal(const <String?>[]),
           log: controlLog,
         );

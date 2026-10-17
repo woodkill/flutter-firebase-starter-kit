@@ -21,8 +21,8 @@ void main() {
   );
 
   test('T-19-UUID-02 Random.secure() 로 1000번 만들면 중복이 없다', () {
-    final Random random = Random.secure();
-    final Set<String> values = <String>{
+    final random = Random.secure();
+    final values = <String>{
       for (int i = 0; i < 1000; i++) generateUuidV4(random),
     };
 

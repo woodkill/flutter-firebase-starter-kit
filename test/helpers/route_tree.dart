@@ -15,7 +15,7 @@ import 'package:go_router/go_router.dart';
 /// [GoRoute] 가 아닌 [RouteBase](ShellRoute 등)는 내보내지 않지만 그 하위
 /// `routes` 는 따라 내려간다. Test 2 · 3 의 재귀 개수 · name 수집에 쓴다.
 Iterable<GoRoute> collectGoRoutes(List<RouteBase> routes) sync* {
-  for (final RouteBase route in routes) {
+  for (final route in routes) {
     if (route is GoRoute) {
       yield route;
     }
@@ -70,8 +70,8 @@ List<RouteBase> buildRoutesWithoutNamed(
   List<RouteBase> routes,
   String dropName,
 ) {
-  final List<RouteBase> copied = <RouteBase>[];
-  for (final RouteBase route in routes) {
+  final copied = <RouteBase>[];
+  for (final route in routes) {
     if (route is! GoRoute) {
       fail(
         'GoRoute 밖 RouteBase(${route.runtimeType}) 는 복사 규칙이 없다 — '

@@ -164,11 +164,11 @@ final class ScriptedTerminal implements Terminal {
   int? choose(String question, List<String> options, {int? defaultIndex = 0}) {
     asks.add(question);
     output.writeln(question);
-    for (int i = 0; i < options.length; i++) {
+    for (var i = 0; i < options.length; i++) {
       output.writeln('  ${i + 1}) ${options[i]}');
     }
     for (
-      int attempt = 0;
+      var attempt = 0;
       attempt < StdioTerminal.maxChoiceAttempts;
       attempt++
     ) {

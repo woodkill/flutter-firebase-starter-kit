@@ -84,7 +84,7 @@ void registerResponses(
   String url,
   List<RestResponse> responses,
 ) {
-  for (final RestResponse response in responses) {
+  for (final response in responses) {
     rest.on(method, url, response);
   }
 }
@@ -100,7 +100,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('storage_step_test_');
     root = tempDir.path;
-    final File config = File('$root/${UserFilesStep.jsonUserPath}')
+    final config = File('$root/${UserFilesStep.jsonUserPath}')
       ..parent.createSync(recursive: true);
     File(UserFilesStep.jsonExamplePath).copySync(config.path);
     replaceJsonString(config.path, 'firebaseProjectId', projectId);
@@ -129,8 +129,7 @@ void main() {
 
   /// 없음 → 없음 → 있음 순서로 GET 을, 성공으로 POST 를 등록한 가짜 REST 를 만든다.
   FakeRestClient buildCreatingRest() {
-    final FakeRestClient rest = FakeRestClient()
-      ..on('POST', bucketUrl, bucketFound);
+    final rest = FakeRestClient()..on('POST', bucketUrl, bucketFound);
     registerResponses(rest, 'GET', bucketUrl, <RestResponse>[
       bucketMissing,
       bucketMissing,
@@ -140,10 +139,9 @@ void main() {
   }
 
   test('T-19-BUCKET-01 기본 bucket 이 있으면 ✓ · 만들기 요청 0', () async {
-    final FakeRestClient rest = FakeRestClient()
-      ..on('GET', bucketUrl, bucketFound);
-    final FakeCommandRunner runner = FakeCommandRunner();
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final rest = FakeRestClient()..on('GET', bucketUrl, bucketFound);
+    final runner = FakeCommandRunner();
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runStorageStep(runner, rest, terminal);
 
@@ -161,16 +159,13 @@ void main() {
     'T-19-BUCKET-02 없으면 Firestore 와 같은 asia-northeast3 · Always Free 경고 · y 뒤 POST · 재검사 ✓',
     () async {
       final FakeRestClient rest = buildCreatingRest();
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(describeKey, buildLocation('asia-northeast3'));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        'y',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', 'y']);
 
       final int code = await runStorageStep(runner, rest, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ ${StorageStep.stepTitle} — '));
       expect(output, contains('── ${StorageStep.confirmTitle} ──'));
@@ -197,16 +192,13 @@ void main() {
     'T-19-BUCKET-03 Firestore 가 us-central1 이면 Always Free 경고 줄이 없다',
     () async {
       final FakeRestClient rest = buildCreatingRest();
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(describeKey, buildLocation('us-central1'));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        'y',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', 'y']);
 
       final int code = await runStorageStep(runner, rest, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('── ${StorageStep.confirmTitle} ──'));
       expect(output, isNot(contains(StorageStep.alwaysFreeWarning)));
@@ -222,14 +214,10 @@ void main() {
   );
 
   test('T-19-BUCKET-04 확인 표에서 N 이면 만들기 요청 0', () async {
-    final FakeRestClient rest = FakeRestClient()
-      ..on('GET', bucketUrl, bucketMissing);
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final rest = FakeRestClient()..on('GET', bucketUrl, bucketMissing);
+    final runner = FakeCommandRunner()
       ..on(describeKey, buildLocation('asia-northeast3'));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-      'y',
-      'n',
-    ]);
+    final terminal = ScriptedTerminal(const <String?>['y', 'n']);
 
     final int code = await runStorageStep(runner, rest, terminal);
 
@@ -240,18 +228,15 @@ void main() {
 
   test('T-19-BUCKET-05 POST 가 400 이면 실패 · 상태 코드와 응답 원문(가림 적용)을 보인다', () async {
     final String fakeToken = <String>['ya29', '.not-a-real', '-token'].join();
-    final String errorBody =
+    final errorBody =
         '{"error":{"code":400,"message":"Invalid location ($fakeToken)",'
         '"status":"INVALID_ARGUMENT"}}';
-    final FakeRestClient rest = FakeRestClient()
+    final rest = FakeRestClient()
       ..on('GET', bucketUrl, bucketMissing)
       ..on('POST', bucketUrl, RestResponse(400, errorBody));
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(describeKey, buildLocation('asia-northeast3'));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-      'y',
-      'y',
-    ]);
+    final terminal = ScriptedTerminal(const <String?>['y', 'y']);
 
     final int code = await runStorageStep(
       runner,
@@ -260,7 +245,7 @@ void main() {
       redactor: Redactor(),
     );
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — '));
     expect(output, contains('HTTP 400'));
@@ -274,16 +259,13 @@ void main() {
     'T-19-BUCKET-06 Firestore 가 다중 리전 nam5 면 config 의 functionsRegion(asia-northeast3)을 위치로 쓴다',
     () async {
       final FakeRestClient rest = buildCreatingRest();
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(describeKey, buildLocation('nam5'));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        'y',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', 'y']);
 
       final int code = await runStorageStep(runner, rest, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('nam5'));
       expect(
@@ -298,16 +280,13 @@ void main() {
 
   test('T-19-BUCKET-07 화면에 만들기 요청의 curl 표시형이 한 번 보인다', () async {
     final FakeRestClient rest = buildCreatingRest();
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(describeKey, buildLocation('asia-northeast3'));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-      'y',
-      'y',
-    ]);
+    final terminal = ScriptedTerminal(const <String?>['y', 'y']);
 
     await runStorageStep(runner, rest, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(
       countOccurrences(
         output,
@@ -322,15 +301,14 @@ void main() {
 
   group('T-19-BUCKET-08 값 표 재확인 안내는 확인 표를 보이는 모드에서만 붙는다', () {
     test('T-19-BUCKET-08 bucket 만들기 모드는 안내가 붙는다', () async {
-      final FakeRestClient rest = FakeRestClient()
-        ..on('GET', bucketUrl, bucketMissing);
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final rest = FakeRestClient()..on('GET', bucketUrl, bucketMissing);
+      final runner = FakeCommandRunner()
         ..on(describeKey, buildLocation('asia-northeast3'));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['n']);
+      final terminal = ScriptedTerminal(const <String?>['n']);
 
       final int code = await runStorageStep(runner, rest, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('▶ ${StorageStep.stepTitle}'));
       expect(output.contains('    $costlyStepNotice'), isTrue);
@@ -338,17 +316,15 @@ void main() {
     });
 
     test('T-19-BUCKET-08 요청 실패 전용 모드는 안내가 붙지 않는다', () async {
-      const RestResponse failure = RestResponse(500, '{"error":"boom"}');
-      final FakeRestClient rest = FakeRestClient()
-        ..on('GET', bucketUrl, failure);
-      final FakeCommandRunner runner = FakeCommandRunner();
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      const failure = RestResponse(500, '{"error":"boom"}');
+      final rest = FakeRestClient()..on('GET', bucketUrl, failure);
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runStorageStep(runner, rest, terminal);
 
-      final String output = terminal.output.toString();
-      final String reason =
-          '기본 bucket 을 확인하지 못했습니다 — ${describeRestStatus(failure)}';
+      final output = terminal.output.toString();
+      final reason = '기본 bucket 을 확인하지 못했습니다 — ${describeRestStatus(failure)}';
       expect(code, wizardExitStopped);
       // 단계 머리 사유가 제목의 모드를 고정한다 — 안내 없는 다른 모드로
       // 바뀌어도 통과하지 않게 한다.

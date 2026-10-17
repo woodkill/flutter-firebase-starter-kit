@@ -87,7 +87,7 @@ void main() {
       expect(File(_listenerDefinitionPath).existsSync(), isTrue);
       expect(File(_homeScreenPath).existsSync(), isTrue);
 
-      final RegExp creation = RegExp(r'PendingNotificationRouteListener\s*\(');
+      final creation = RegExp(r'PendingNotificationRouteListener\s*\(');
       final List<String> creators = _listDartFiles('lib')
           .where((String path) => path != _listenerDefinitionPath)
           .where(
@@ -120,13 +120,13 @@ void main() {
         reason: 'import 줄 추출이 비어 부재 단언이 공허해졌다',
       );
 
-      const List<String> bannedImports = <String>[
+      const bannedImports = <String>[
         'pending_notification_route_listener.dart',
         'announcement_bar.dart',
         'app_routes.dart',
         'theme_provider.dart',
       ];
-      for (final String banned in bannedImports) {
+      for (final banned in bannedImports) {
         expect(
           importLines.where((String line) => line.contains(banned)),
           isEmpty,
@@ -202,7 +202,7 @@ void main() {
 
       // 집합 D — 확인 다이얼로그 정의. 정의 형태(`BuildContext` 매개변수)만
       // 잡는다 — 호출 `(context, ref)` 는 제외.
-      final RegExp confirmDialogDefinition = RegExp(
+      final confirmDialogDefinition = RegExp(
         r'\b_?confirmSignOut\w*\s*\(\s*BuildContext\b',
       );
       final List<String> dialogOwners = libFiles
@@ -226,7 +226,7 @@ void main() {
           .map((String part) => part.toLowerCase())
           .join('_');
 
-      final List<String> scannedFiles = <String>[
+      final scannedFiles = <String>[
         ..._listDartFiles('lib'),
         ..._listDartFiles('test'),
       ];

@@ -100,7 +100,7 @@ void registerQueue(
   String key,
   List<CommandResult> results,
 ) {
-  for (final CommandResult result in results) {
+  for (final result in results) {
     runner.on(key, result);
   }
 }
@@ -113,7 +113,7 @@ List<String> listStreamKeys(FakeCommandRunner runner) => runner.calls
 
 /// [path] 에 표준 출력으로 [stdoutText] 를 내는 실행 스크립트를 쓴다.
 File writeStubScript(String path, String stdoutText) {
-  final File stub = File(path)
+  final stub = File(path)
     ..writeAsStringSync("#!/bin/sh\ncat <<'STUB_EOF'\n$stdoutText\nSTUB_EOF\n");
   Process.runSync('chmod', <String>['+x', stub.path]);
   return stub;
@@ -126,7 +126,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('billing_step_test_');
     root = tempDir.path;
-    final File config = File('$root/${UserFilesStep.jsonUserPath}')
+    final config = File('$root/${UserFilesStep.jsonUserPath}')
       ..parent.createSync(recursive: true);
     File(UserFilesStep.jsonExamplePath).copySync(config.path);
     replaceJsonString(config.path, 'firebaseProjectId', projectId);
@@ -155,9 +155,9 @@ void main() {
   );
 
   test('T-19-BILL-01 결제가 켜져 있으면 묻지 않고 ✓', () async {
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(_billingInfoKey, buildBillingInfo(isEnabled: true));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runBillingStep(runner, terminal);
 
@@ -173,7 +173,7 @@ void main() {
   test(
     'T-19-BILL-02 열린 결제 계정이 1개면 기본값 · 확인 표에 결제 계정과 Blaze 경고 · y 뒤 연결 1회 → 재검사 ✓',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(
           _openAccountsKey,
           buildAccounts(<String, String>{fakeAccountId: fakeAccountName}),
@@ -184,15 +184,11 @@ void main() {
         buildBillingInfo(isEnabled: false),
         buildBillingInfo(isEnabled: true),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        '',
-        'y',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', '', 'y']);
 
       final int code = await runBillingStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ ${BillingStep.stepTitle} — '));
       expect(terminal.asks, contains(BillingStep.accountChoiceQuestion));
@@ -211,8 +207,7 @@ void main() {
   test(
     'T-19-BILL-03 열린 결제 계정이 0개면 만들기 링크 · Enter 뒤 다시 목록을 읽어 진행하고, 입력 끝이면 거절',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(linkKey(fakeAccountId), _ok);
+      final runner = FakeCommandRunner()..on(linkKey(fakeAccountId), _ok);
       registerQueue(runner, _openAccountsKey, <CommandResult>[
         buildAccounts(const <String, String>{}),
         buildAccounts(<String, String>{fakeAccountId: fakeAccountName}),
@@ -222,16 +217,11 @@ void main() {
         buildBillingInfo(isEnabled: false),
         buildBillingInfo(isEnabled: true),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        '',
-        '',
-        'y',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', '', '', 'y']);
 
       final int code = await runBillingStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains(BillingStep.createAccountUrl));
       expect(
@@ -243,14 +233,14 @@ void main() {
       expect(listStreamKeys(runner), <String>[linkKey(fakeAccountId)]);
 
       // 입력 끝 — 링크를 보인 뒤 Enter 대신 입력이 끝나면 거절로 멈춘다.
-      final FakeCommandRunner emptyRunner = FakeCommandRunner()
+      final emptyRunner = FakeCommandRunner()
         ..on(_billingInfoKey, buildBillingInfo(isEnabled: false))
         ..on(_openAccountsKey, buildAccounts(const <String, String>{}));
       final WizardContext context = buildTestContext(
         projectRoot: root,
         runner: emptyRunner,
       );
-      final BillingStep step = BillingStep();
+      final step = BillingStep();
       await step.check(context);
 
       expect(await step.apply(context), isA<Declined>());
@@ -259,17 +249,13 @@ void main() {
   );
 
   test('T-19-BILL-04 확인 표에서 N 이면 연결하지 않는다', () async {
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(_billingInfoKey, buildBillingInfo(isEnabled: false))
       ..on(
         _openAccountsKey,
         buildAccounts(<String, String>{fakeAccountId: fakeAccountName}),
       );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-      'y',
-      '',
-      'n',
-    ]);
+    final terminal = ScriptedTerminal(const <String?>['y', '', 'n']);
 
     final int code = await runBillingStep(runner, terminal);
 
@@ -285,13 +271,12 @@ void main() {
           ('결제 정보 읽기 실패', const CommandResult(1, '', 'ERROR: denied'), false),
         ]) {
       test('T-19-BILL-07 $label', () async {
-        final FakeCommandRunner runner = FakeCommandRunner()
-          ..on(_billingInfoKey, info);
-        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+        final runner = FakeCommandRunner()..on(_billingInfoKey, info);
+        final terminal = ScriptedTerminal(const <String?>[]);
 
         final int code = await runBillingStep(runner, terminal);
 
-        final String output = terminal.output.toString();
+        final output = terminal.output.toString();
         expect(code, wizardExitStopped);
         expect(output, contains('▶ ${BillingStep.stepTitle}'));
         expect(output.contains('    $costlyStepNotice'), hasNotice);
@@ -300,25 +285,21 @@ void main() {
   });
 
   test('T-19-BILL-05 연결 실패 출력에 quota 가 있으면 원문과 한도 안내 링크를 보인다', () async {
-    const String quota =
+    const quota =
         'ERROR: (gcloud.billing.projects.link) FAILED_PRECONDITION: '
         'Precondition check failed. Cloud billing quota exceeded\n';
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(_billingInfoKey, buildBillingInfo(isEnabled: false))
       ..on(
         _openAccountsKey,
         buildAccounts(<String, String>{fakeAccountId: fakeAccountName}),
       )
       ..on(linkKey(fakeAccountId), const CommandResult(1, '', quota));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-      'y',
-      '',
-      'y',
-    ]);
+    final terminal = ScriptedTerminal(const <String?>['y', '', 'y']);
 
     final int code = await runBillingStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains(quota));
     expect(output, contains(BillingStep.quotaHelpUrl));
@@ -345,12 +326,12 @@ void main() {
         ]),
       );
 
-      for (final Command constant in <Command>[
+      for (final constant in <Command>[
         BillingStep.openAccountsCommand,
         infoCommand,
       ]) {
-        final MemoryLogSink log = MemoryLogSink(Redactor());
-        final ProcessCommandRunner runner = ProcessCommandRunner(
+        final log = MemoryLogSink(Redactor());
+        final runner = ProcessCommandRunner(
           ScriptedTerminal(const <String?>[]),
           log: log,
         );
@@ -370,7 +351,7 @@ void main() {
         expect(log.text, contains(ProcessCommandRunner.sensitiveOutputNotice));
 
         // 대조군 — 같은 스텁을 민감 표시 없이 실행하면 기록에 본문이 남는다.
-        final MemoryLogSink controlLog = MemoryLogSink(Redactor());
+        final controlLog = MemoryLogSink(Redactor());
         await ProcessCommandRunner(
           ScriptedTerminal(const <String?>[]),
           log: controlLog,
@@ -383,7 +364,7 @@ void main() {
 
   test('T-19-API-01 필요한 API 6개가 모두 켜져 있으면 ✓', () async {
     expect(ApisStep.requiredServices, hasLength(6));
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(
         _servicesListKey,
         buildEnabledServices(<String>[
@@ -391,7 +372,7 @@ void main() {
           ...ApisStep.requiredServices,
         ]),
       );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runApisStep(runner, terminal);
 
@@ -405,13 +386,13 @@ void main() {
   });
 
   test('T-19-API-02 2개가 꺼져 있으면 그 2개만 켜는 명령을 보이고 y 뒤 한 번 실행한다', () async {
-    const List<String> missing = <String>[
+    const missing = <String>[
       'firebaserules.googleapis.com',
       'secretmanager.googleapis.com',
     ];
-    final String enableKey =
+    final enableKey =
         'gcloud services enable ${missing.join(' ')} --project $projectId';
-    final FakeCommandRunner runner = FakeCommandRunner()..on(enableKey, _ok);
+    final runner = FakeCommandRunner()..on(enableKey, _ok);
     registerQueue(runner, _servicesListKey, <CommandResult>[
       buildEnabledServices(
         ApisStep.requiredServices
@@ -425,11 +406,11 @@ void main() {
       ),
       buildEnabledServices(ApisStep.requiredServices),
     ]);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runApisStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitDone);
     expect(output, contains('  \$ $enableKey'));
     expect(listStreamKeys(runner), <String>[enableKey]);
@@ -437,20 +418,20 @@ void main() {
   });
 
   test('T-19-API-03 켜기가 실패하면 원문과 함께 실패 경로로 간다', () async {
-    final String enableKey =
+    final enableKey =
         'gcloud services enable ${ApisStep.requiredServices.join(' ')} '
         '--project $projectId';
-    const String denied =
+    const denied =
         'ERROR: (gcloud.services.enable) PERMISSION_DENIED: '
         'Permission denied to enable service\n';
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(_servicesListKey, buildEnabledServices(const <String>[]))
       ..on(enableKey, const CommandResult(1, '', denied));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runApisStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — '));
     expect(output, contains(denied));

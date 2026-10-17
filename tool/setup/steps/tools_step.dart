@@ -112,7 +112,7 @@ final class ToolsStep implements Step {
   @override
   Future<CheckResult> check(WizardContext context) async {
     _state = await _inspect(context);
-    final List<String> problems = <String>[
+    final problems = <String>[
       for (final _ToolStatus tool in _state.tools)
         if (tool.problem != null) tool.problem!,
     ];
@@ -151,7 +151,7 @@ final class ToolsStep implements Step {
 
   /// 일곱 도구를 읽기 전용 명령으로 검사하고, 빠진 도구의 설치 명령을 정한다.
   Future<_ToolsState> _inspect(WizardContext context) async {
-    final List<_ToolStatus> tools = <_ToolStatus>[
+    final tools = <_ToolStatus>[
       await _inspectVersioned(
         context,
         name: 'Node',
@@ -229,7 +229,7 @@ final class ToolsStep implements Step {
     }
     final int? major =
         parseMajorVersion(result.stdout) ?? parseMajorVersion(result.stderr);
-    final String summary = major == null ? name : '$name $major';
+    final summary = major == null ? name : '$name $major';
     if (minMajor == null) return _ToolStatus(summary: summary);
     if (major == null) {
       return _ToolStatus(

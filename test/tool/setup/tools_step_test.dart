@@ -56,7 +56,7 @@ void registerPassingTools(
   FakeCommandRunner runner, {
   Set<String> skip = const <String>{},
 }) {
-  final Map<String, CommandResult> passing = <String, CommandResult>{
+  final passing = <String, CommandResult>{
     _nodeKey: const CommandResult(0, 'v26.11.1\n', ''),
     _pnpmKey: const CommandResult(0, '10.33.2\n', ''),
     _firebaseKey: const CommandResult(0, '15.29.0\n', ''),
@@ -85,7 +85,7 @@ void registerQueue(
   String key,
   List<CommandResult> results,
 ) {
-  for (final CommandResult result in results) {
+  for (final result in results) {
     runner.on(key, result);
   }
 }
@@ -121,13 +121,13 @@ void main() {
   );
 
   test('T-19-TOOLS-01 일곱 검사가 모두 통과하면 ✓ 이고 이름 · 주 버전만 보이며 설치하지 않는다', () async {
-    final FakeCommandRunner runner = FakeCommandRunner();
+    final runner = FakeCommandRunner();
     registerPassingTools(runner);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runToolsStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitDone);
     expect(
       output,
@@ -146,7 +146,7 @@ void main() {
   test(
     'T-19-TOOLS-02 Node 가 최소 판보다 낮으면 ✗ 사유에 Node 가 있고 brew install node 를 계획한다',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_nodeKey, const CommandResult(0, 'v20.11.0\n', ''))
         ..on(_brewPrefixKey, _homebrewPrefix);
       registerPassingTools(runner, skip: const <String>{_nodeKey});
@@ -154,7 +154,7 @@ void main() {
         projectRoot: tempDir.path,
         runner: runner,
       );
-      final ToolsStep step = ToolsStep();
+      final step = ToolsStep();
 
       final CheckResult result = await step.check(context);
 
@@ -169,7 +169,7 @@ void main() {
   test(
     'T-19-TOOLS-03 Firebase CLI · jq 가 없으면 y 뒤 Homebrew 설치를 차례로 실행하고 재검사 통과로 0',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_brewPrefixKey, _homebrewPrefix)
         ..on('brew install firebase-cli', _ok)
         ..on('brew install jq', _ok);
@@ -185,11 +185,11 @@ void main() {
         _notFound,
         CommandResult(0, 'jq-1.8.1\n', ''),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runToolsStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ 개발 도구 — Firebase CLI 없음 · jq 없음'));
       expect(output, contains(r'  $ brew install firebase-cli'));
@@ -206,12 +206,12 @@ void main() {
   group(
     'T-19-TOOLS-04 xcodeproj 가 없고 ruby 가 시스템 ruby 면 sudo 없이 Homebrew ruby 로 설치한다',
     () {
-      for (final String systemRuby in <String>[
+      for (final systemRuby in <String>[
         '/usr/bin/ruby',
         '/System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/bin/ruby',
       ]) {
         test('T-19-TOOLS-04 $systemRuby', () async {
-          final FakeCommandRunner runner = FakeCommandRunner()
+          final runner = FakeCommandRunner()
             ..on(_xcodeprojKey, _noXcodeproj)
             ..on(_rubyPathKey, CommandResult(0, systemRuby, ''))
             ..on(_brewPrefixKey, _homebrewPrefix)
@@ -222,7 +222,7 @@ void main() {
             projectRoot: tempDir.path,
             runner: runner,
           );
-          final ToolsStep step = ToolsStep();
+          final step = ToolsStep();
 
           final CheckResult result = await step.check(context);
 
@@ -234,9 +234,7 @@ void main() {
           ]);
 
           // 설치 뒤에도 PATH 의 ruby 가 시스템 ruby 면 셸 설정 안내를 사유로 낸다.
-          final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-            'y',
-          ]);
+          final terminal = ScriptedTerminal(const <String?>['y']);
           final int code = await runToolsStep(runner, terminal);
 
           expect(code, wizardExitStopped);
@@ -258,7 +256,7 @@ void main() {
       test(
         'T-19-TOOLS-04 Homebrew 등 사용자 ruby 면 그 ruby 의 gem 으로 설치한다',
         () async {
-          final FakeCommandRunner runner = FakeCommandRunner()
+          final runner = FakeCommandRunner()
             ..on(_xcodeprojKey, _noXcodeproj)
             ..on(
               _rubyPathKey,
@@ -273,7 +271,7 @@ void main() {
             projectRoot: tempDir.path,
             runner: runner,
           );
-          final ToolsStep step = ToolsStep();
+          final step = ToolsStep();
 
           await step.check(context);
 
@@ -287,16 +285,16 @@ void main() {
   );
 
   test('T-19-TOOLS-05 설치 명령이 실패하면 실패 경로(다시 시도 · 멈춤)로 간다', () async {
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(_brewPrefixKey, _homebrewPrefix)
       ..on(_jqKey, _notFound)
       ..on('brew install jq', const CommandResult(1, '', ''));
     registerPassingTools(runner, skip: const <String>{_jqKey});
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runToolsStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — brew install jq'));
     expect(output, contains('종료 코드 1'));
@@ -307,15 +305,15 @@ void main() {
   test(
     'T-19-TOOLS-06 Homebrew 를 찾지 못하면 설치하지 않고 ./setup.sh 로 실행하라고 안내한다',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_brewPrefixKey, _notFound)
         ..on(_jqKey, _notFound);
       registerPassingTools(runner, skip: const <String>{_jqKey});
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runToolsStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('  실패 — ${ToolsStep.homebrewMissingGuidance}'));
       expect(ToolsStep.homebrewMissingGuidance, contains('./setup.sh'));
@@ -327,7 +325,7 @@ void main() {
   test(
     'T-19-TOOLS-07 FlutterFire CLI 가 없으면 fvm dart pub global activate 로 설치한다',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on('fvm dart pub global activate flutterfire_cli', _ok);
       registerPassingTools(runner, skip: const <String>{_pubGlobalKey});
       registerQueue(runner, _pubGlobalKey, const <CommandResult>[
@@ -335,11 +333,11 @@ void main() {
         CommandResult(0, 'devtools 2.40.0\n', ''),
         CommandResult(0, 'devtools 2.40.0\nflutterfire_cli 1.3.2\n', ''),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runToolsStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ 개발 도구 — FlutterFire CLI 없음'));
       expect(

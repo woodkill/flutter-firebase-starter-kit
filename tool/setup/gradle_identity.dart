@@ -11,7 +11,7 @@ final RegExp _applicationIdPattern = RegExp(r'applicationId\s*=\s*"([^"]+)"');
 /// 파일이 없거나 `applicationId` 줄이 없으면 null. 읽기 실패는
 /// [FileSystemException] 으로 그대로 던진다.
 String? readGradleApplicationId(String gradleFilePath) {
-  final File file = File(gradleFilePath);
+  final file = File(gradleFilePath);
   if (!file.existsSync()) return null;
   return _applicationIdPattern.firstMatch(file.readAsStringSync())?.group(1);
 }

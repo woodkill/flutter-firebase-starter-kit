@@ -153,7 +153,7 @@ void main() {
     List<Step> steps,
     List<String?> inputs,
   ) async {
-    final ScriptedTerminal terminal = ScriptedTerminal(inputs);
+    final terminal = ScriptedTerminal(inputs);
     final int code = await runWizard(
       buildTestContext(projectRoot: tempDir.path, terminal: terminal),
       steps,
@@ -170,8 +170,8 @@ void main() {
     List<String?> inputs, {
     StepListBuilder? rebuildSteps,
   }) async {
-    final ScriptedTerminal terminal = ScriptedTerminal(inputs);
-    int completions = 0;
+    final terminal = ScriptedTerminal(inputs);
+    var completions = 0;
     final int code = await runWizard(
       buildTestContext(projectRoot: tempDir.path, terminal: terminal),
       steps,
@@ -185,11 +185,8 @@ void main() {
   }
 
   test('T-19-WIZ-01 앞 단계가 끝나지 않은 단계는 검사하지 않고 ? 로 보인다', () async {
-    final _ScriptedStep a = _ScriptedStep(
-      'A',
-      checks: const <CheckResult>[Todo('할 일')],
-    );
-    final _ScriptedStep b = _ScriptedStep(
+    final a = _ScriptedStep('A', checks: const <CheckResult>[Todo('할 일')]);
+    final b = _ScriptedStep(
       'B',
       checks: const <CheckResult>[Done('끝')],
       dependsOn: const <String>['A'],
@@ -200,7 +197,7 @@ void main() {
       b,
     ], const <String?>[]);
 
-    final String output = run.terminal.output.toString();
+    final output = run.terminal.output.toString();
     expect(output, contains('  ✗ A — 할 일'));
     expect(output, contains('  ? B — A 뒤에 검사합니다'));
     expect(b.checkCount, 0);
@@ -208,11 +205,11 @@ void main() {
   });
 
   test('T-19-WIZ-13 비용 · 되돌릴 수 없는 단계만 계획 줄 끝에 값 표 재확인 안내를 한 줄 보인다', () async {
-    final _ScriptedStep plain = _ScriptedStep(
+    final plain = _ScriptedStep(
       'A',
       checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
     );
-    final _ScriptedStep costly = _ScriptedStep(
+    final costly = _ScriptedStep(
       'B',
       checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
       isCostlyOrIrreversible: true,
@@ -223,8 +220,8 @@ void main() {
       const <String?>['y', 'y'],
     );
 
-    final String output = run.terminal.output.toString();
-    final String noticeLine = '    $costlyStepNotice';
+    final output = run.terminal.output.toString();
+    const noticeLine = '    $costlyStepNotice';
     expect(run.code, wizardExitDone);
     expect(_countExactLines(output, noticeLine), 1);
     expect(output.indexOf(noticeLine), greaterThan(output.indexOf('▶ B')));
@@ -235,25 +232,19 @@ void main() {
   });
 
   test('T-19-WIZ-02 점검표 뒤 첫 ✗ 단계부터 진행하고 ✓ 단계는 실행하지 않는다', () async {
-    final _ScriptedStep a = _ScriptedStep(
-      'A',
-      checks: const <CheckResult>[Done('끝')],
-    );
-    final _ScriptedStep b = _ScriptedStep(
+    final a = _ScriptedStep('A', checks: const <CheckResult>[Done('끝')]);
+    final b = _ScriptedStep(
       'B',
       checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
     );
-    final _ScriptedStep c = _ScriptedStep(
-      'C',
-      checks: const <CheckResult>[Todo('c')],
-    );
+    final c = _ScriptedStep('C', checks: const <CheckResult>[Todo('c')]);
 
     final ({int code, ScriptedTerminal terminal}) run = await runSteps(
       <Step>[a, b, c],
       const <String?>['y'],
     );
 
-    final String output = run.terminal.output.toString();
+    final output = run.terminal.output.toString();
     expect(output.indexOf('▶ B'), greaterThanOrEqualTo(0));
     expect(output.indexOf('▶ C'), greaterThan(output.indexOf('▶ B')));
     expect(output, isNot(contains('▶ A')));
@@ -264,7 +255,7 @@ void main() {
   });
 
   test('T-19-WIZ-03 실패하면 출력 원문을 보이고 다시 시도 재검사가 할 일이면 다시 실행한다', () async {
-    final _ScriptedStep a = _ScriptedStep(
+    final a = _ScriptedStep(
       'A',
       checks: const <CheckResult>[Todo('a'), Todo('a'), Todo('a'), Done('a 끝')],
       outcomes: const <StepOutcome>[
@@ -278,7 +269,7 @@ void main() {
       const <String?>['y', '1'],
     );
 
-    final String output = run.terminal.output.toString();
+    final output = run.terminal.output.toString();
     expect(output, contains('OUT'));
     expect(output, contains('ERR'));
     expect(output, contains('다시 시도'));
@@ -290,24 +281,21 @@ void main() {
 
   group('T-19-WIZ-10 다시 시도는 먼저 다시 검사하고 끝났으면 실행하지 않는다', () {
     test('T-19-WIZ-10 재검사가 ✓ 면 ✓ 줄을 보이고 다음 단계로 간다', () async {
-      final _ScriptedStep a = _ScriptedStep(
+      final a = _ScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a'), Todo('a'), Done('밖에서 끝냄')],
         outcomes: const <StepOutcome>[
           Failed('x', result: CommandResult(1, 'OUT', 'ERR')),
         ],
       );
-      final _ScriptedStep b = _ScriptedStep(
-        'B',
-        checks: const <CheckResult>[Todo('b')],
-      );
+      final b = _ScriptedStep('B', checks: const <CheckResult>[Todo('b')]);
 
       final ({int code, ScriptedTerminal terminal}) run = await runSteps(
         <Step>[a, b],
         const <String?>['y', '1'],
       );
 
-      final String output = run.terminal.output.toString();
+      final output = run.terminal.output.toString();
       expect(a.applyCount, 1);
       expect(a.checkCount, 3);
       expect(output, contains('  ✓ A — 밖에서 끝냄'));
@@ -322,7 +310,7 @@ void main() {
     test(
       'T-19-WIZ-10 단계 check 가 Blocked 를 돌려주면 StateError 다(점검표 전용 판정)',
       () async {
-        final _ScriptedStep a = _ScriptedStep(
+        final a = _ScriptedStep(
           'A',
           checks: const <CheckResult>[Todo('a'), Todo('a'), Blocked('C')],
           outcomes: const <StepOutcome>[
@@ -362,10 +350,7 @@ void main() {
     );
 
     test('T-19-WIZ-14 점검표 검사', () async {
-      final _ScriptedStep a = _ScriptedStep(
-        'A',
-        checks: const <CheckResult>[Blocked('C')],
-      );
+      final a = _ScriptedStep('A', checks: const <CheckResult>[Blocked('C')]);
 
       await expectBlockedCheckError(a, const <String?>[]);
       expect(a.checkCount, 1);
@@ -373,7 +358,7 @@ void main() {
     });
 
     test('T-19-WIZ-14 실행 뒤 재검사', () async {
-      final _ScriptedStep a = _ScriptedStep(
+      final a = _ScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a'), Todo('a'), Blocked('C')],
       );
@@ -383,7 +368,7 @@ void main() {
     });
 
     test('T-19-WIZ-14 Enter 대기 뒤 재검사', () async {
-      final _ScriptedStep a = _ScriptedStep(
+      final a = _ScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a'), Todo('a'), Blocked('C')],
         outcomes: const <StepOutcome>[WaitForUser('안내')],
@@ -395,7 +380,7 @@ void main() {
   });
 
   test('T-19-WIZ-11 실행 뒤 미완료에서 다시 시도 재검사가 ✓ 면 다시 실행하지 않는다', () async {
-    final _ScriptedStep a = _ScriptedStep(
+    final a = _ScriptedStep(
       'A',
       checks: const <CheckResult>[Todo('a'), Todo('a'), Todo('남음'), Done('끝')],
     );
@@ -405,7 +390,7 @@ void main() {
       const <String?>['y', '1'],
     );
 
-    final String output = run.terminal.output.toString();
+    final output = run.terminal.output.toString();
     expect(output, contains('  실패 — 남음'));
     expect(output.indexOf('  ✓ A — 끝'), greaterThan(output.indexOf('남음')));
     expect(a.applyCount, 1);
@@ -414,13 +399,12 @@ void main() {
   });
 
   group('T-19-WIZ-04 실패 뒤 멈춤 · 입력 끝이면 자동 재시도 없이 1 로 끝난다', () {
-    for (final ({String label, List<String?> inputs}) answer
-        in <({String label, List<String?> inputs})>[
-          (label: '멈춤', inputs: <String?>['y', '2']),
-          (label: '입력 끝(EOF)', inputs: <String?>['y']),
-        ]) {
+    for (final answer in <({String label, List<String?> inputs})>[
+      (label: '멈춤', inputs: <String?>['y', '2']),
+      (label: '입력 끝(EOF)', inputs: <String?>['y']),
+    ]) {
       test('T-19-WIZ-04 ${answer.label}', () async {
-        final _ScriptedStep a = _ScriptedStep(
+        final a = _ScriptedStep(
           'A',
           checks: const <CheckResult>[Todo('a')],
           outcomes: const <StepOutcome>[
@@ -441,7 +425,7 @@ void main() {
   });
 
   test('T-19-WIZ-05 실행 뒤 재검사가 여전히 할 일이면 사유를 보이고 실패 고르기로 간다', () async {
-    final _ScriptedStep a = _ScriptedStep(
+    final a = _ScriptedStep(
       'A',
       checks: const <CheckResult>[Todo('a'), Todo('a'), Todo('남음')],
     );
@@ -451,7 +435,7 @@ void main() {
       const <String?>['y', '2'],
     );
 
-    final String output = run.terminal.output.toString();
+    final output = run.terminal.output.toString();
     expect(output, contains('남음'));
     expect(output, contains('다시 시도'));
     expect(run.terminal.asks.length, 2);
@@ -462,7 +446,7 @@ void main() {
 
   group('T-19-WIZ-06 위저드 밖 짧은 작업은 Enter 뒤 그 자리에서 다시 검사한다', () {
     test('T-19-WIZ-06 다시 검사가 ✗ 면 다시 안내하고 ✓ 면 다음 단계로 간다', () async {
-      final _ScriptedStep a = _ScriptedStep(
+      final a = _ScriptedStep(
         'A',
         checks: const <CheckResult>[
           Todo('a'),
@@ -472,7 +456,7 @@ void main() {
         ],
         outcomes: const <StepOutcome>[WaitForUser('안내')],
       );
-      final _ScriptedStep b = _ScriptedStep(
+      final b = _ScriptedStep(
         'B',
         checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
       );
@@ -482,7 +466,7 @@ void main() {
         const <String?>['y', '', '', 'y'],
       );
 
-      final String output = run.terminal.output.toString();
+      final output = run.terminal.output.toString();
       expect('안내'.allMatches(output).length, 2);
       expect(output, contains('아직'));
       expect(
@@ -496,7 +480,7 @@ void main() {
     });
 
     test('T-19-WIZ-06 기다리는 중 입력 끝이면 1 로 멈춘다', () async {
-      final _ScriptedStep a = _ScriptedStep(
+      final a = _ScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a')],
         outcomes: const <StepOutcome>[WaitForUser('안내')],
@@ -514,7 +498,7 @@ void main() {
   });
 
   test('T-19-WIZ-07 단계 안의 확인에서 거절하면 1 로 멈춘다', () async {
-    final _ScriptedStep a = _ScriptedStep(
+    final a = _ScriptedStep(
       'A',
       checks: const <CheckResult>[Todo('a')],
       outcomes: const <StepOutcome>[Declined()],
@@ -531,11 +515,8 @@ void main() {
   });
 
   test('T-19-WIZ-08 모든 단계가 ✓ 면 묻지 않고 실행하지 않고 0 으로 끝난다', () async {
-    final _ScriptedStep a = _ScriptedStep(
-      'A',
-      checks: const <CheckResult>[Done('a 끝')],
-    );
-    final _ScriptedStep b = _ScriptedStep(
+    final a = _ScriptedStep('A', checks: const <CheckResult>[Done('a 끝')]);
+    final b = _ScriptedStep(
       'B',
       checks: const <CheckResult>[Done('b 끝')],
       dependsOn: const <String>['A'],
@@ -553,16 +534,15 @@ void main() {
   });
 
   group('T-19-WIZ-09 단계 확인은 y · yes 만 진행한다', () {
-    for (final ({String answer, bool proceeds}) entry
-        in <({String answer, bool proceeds})>[
-          (answer: 'yes', proceeds: true),
-          (answer: 'Y', proceeds: true),
-          (answer: 'n', proceeds: false),
-          (answer: '', proceeds: false),
-          (answer: 'ok', proceeds: false),
-        ]) {
+    for (final entry in <({String answer, bool proceeds})>[
+      (answer: 'yes', proceeds: true),
+      (answer: 'Y', proceeds: true),
+      (answer: 'n', proceeds: false),
+      (answer: '', proceeds: false),
+      (answer: 'ok', proceeds: false),
+    ]) {
       test('T-19-WIZ-09 답 "${entry.answer}"', () async {
-        final _ScriptedStep a = _ScriptedStep(
+        final a = _ScriptedStep(
           'A',
           checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
         );
@@ -589,11 +569,7 @@ void main() {
       redactor = Redactor();
       log = MemoryLogSink(redactor);
       screen = ScriptedTerminal(const <String?>['y']);
-      final RedactingTerminal terminal = RedactingTerminal(
-        screen,
-        redactor,
-        log,
-      );
+      final terminal = RedactingTerminal(screen, redactor, log);
       runner = ProcessCommandRunner(terminal, log: log);
       context = WizardContext(
         projectRoot: tempDir.path,
@@ -612,7 +588,7 @@ void main() {
         ),
       ]);
 
-      final String shown = screen.output.toString();
+      final shown = screen.output.toString();
       expect(_countExactLines(shown, _markerLine), 1);
       expect(_countExactLines(shown, '  실패 — $_commandFailureSummary'), 1);
       expect(
@@ -633,7 +609,7 @@ void main() {
         ),
       ]);
 
-      final String shown = screen.output.toString();
+      final shown = screen.output.toString();
       expect(_countExactLines(shown, _markerLine), 1);
       expect(_countExactLines(shown, '  실패 — $_commandFailureSummary'), 1);
       expect(log.lines, contains('[exit] 3'));
@@ -663,16 +639,13 @@ void main() {
   test(
     'T-20-ENGINE-01: 할 수 없는 단계는 ✗ 로 보이고 실행하지 않고 다음 단계로 가며 끝 목록에 남는다',
     () async {
-      const String deferredLine = '  ✗ B — 지문이 없습니다';
-      final _ScriptedStep a = _ScriptedStep(
-        'A',
-        checks: const <CheckResult>[Done('a 끝')],
-      );
-      final _ScriptedStep b = _ScriptedStep(
+      const deferredLine = '  ✗ B — 지문이 없습니다';
+      final a = _ScriptedStep('A', checks: const <CheckResult>[Done('a 끝')]);
+      final b = _ScriptedStep(
         'B',
         checks: const <CheckResult>[Deferred('지문이 없습니다')],
       );
-      final _ScriptedStep c = _ScriptedStep(
+      final c = _ScriptedStep(
         'C',
         checks: const <CheckResult>[Todo('c'), Todo('c'), Done('c 끝')],
       );
@@ -680,7 +653,7 @@ void main() {
       final ({int code, ScriptedTerminal terminal, int completions}) run =
           await runStepsWithCompletion(<Step>[a, b, c], const <String?>['y']);
 
-      final String output = run.terminal.output.toString();
+      final output = run.terminal.output.toString();
       expect(run.code, wizardExitDone);
       expect(run.completions, 1);
       expect(b.applyCount, 0);
@@ -702,8 +675,8 @@ void main() {
   test(
     'T-20-ENGINE-02: 확인할 수 없는 단계는 ? 로 보이고 묻지도 실행하지도 않으며 ✓ 가 되지 않는다',
     () async {
-      const String unverifiableLine = '  ? A — 콘솔 업로드 — 확인은 실기기 알림';
-      final _ScriptedStep a = _ScriptedStep(
+      const unverifiableLine = '  ? A — 콘솔 업로드 — 확인은 실기기 알림';
+      final a = _ScriptedStep(
         'A',
         checks: const <CheckResult>[Unverifiable('콘솔 업로드 — 확인은 실기기 알림')],
       );
@@ -711,7 +684,7 @@ void main() {
       final ({int code, ScriptedTerminal terminal, int completions}) run =
           await runStepsWithCompletion(<Step>[a], const <String?>[]);
 
-      final String output = run.terminal.output.toString();
+      final output = run.terminal.output.toString();
       expect(run.code, wizardExitDone);
       expect(run.completions, 1);
       expect(a.applyCount, 0);
@@ -730,12 +703,12 @@ void main() {
 
   group('T-20-ENGINE-03: 미룰 수 있는 할 일은 진행 · 미루기 · 멈춤을 고른다', () {
     test('T-20-ENGINE-03: 미루면 ✗ 줄을 보이고 다음 단계로 가며 끝 목록에 남는다', () async {
-      const String deferredLine = '  ✗ A — $_deferLabel';
-      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+      const deferredLine = '  ✗ A — $_deferLabel';
+      final a = _DeferrableScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a 할 일')],
       );
-      final _ScriptedStep b = _ScriptedStep(
+      final b = _ScriptedStep(
         'B',
         checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
       );
@@ -743,7 +716,7 @@ void main() {
       final ({int code, ScriptedTerminal terminal, int completions}) run =
           await runStepsWithCompletion(<Step>[a, b], const <String?>['2', 'y']);
 
-      final String output = run.terminal.output.toString();
+      final output = run.terminal.output.toString();
       expect(run.terminal.asks, <String>[
         failureChoiceQuestion,
         _confirmQuestion,
@@ -766,15 +739,12 @@ void main() {
     });
 
     test('T-20-ENGINE-03: 미룸은 저장하지 않아 같은 문맥으로 다시 돌리면 다시 ✗ 다', () async {
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        '2',
-        '2',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['2', '2']);
       final WizardContext context = buildTestContext(
         projectRoot: tempDir.path,
         terminal: terminal,
       );
-      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+      final a = _DeferrableScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a 할 일')],
       );
@@ -782,7 +752,7 @@ void main() {
       final int first = await runWizard(context, <Step>[a]);
       final int second = await runWizard(context, <Step>[a]);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(first, wizardExitDone);
       expect(second, wizardExitDone);
       expect(_countExactLines(output, '  ✗ A — a 할 일'), 2);
@@ -795,17 +765,17 @@ void main() {
     });
 
     test('T-20-ENGINE-03: 같은 실행에서 단계 목록을 다시 짜도 미룬 단계는 다시 묻지 않는다', () async {
-      const String deferredLine = '  ✗ A — $_deferLabel';
-      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+      const deferredLine = '  ✗ A — $_deferLabel';
+      final a = _DeferrableScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a 할 일')],
       );
-      final _ScriptedStep b = _ScriptedStep(
+      final b = _ScriptedStep(
         'B',
         checks: const <CheckResult>[Todo('b')],
         outcomes: const <StepOutcome>[Replan()],
       );
-      final _ScriptedStep rebuiltB = _ScriptedStep(
+      final rebuiltB = _ScriptedStep(
         'B',
         checks: const <CheckResult>[Done('b 끝')],
       );
@@ -817,7 +787,7 @@ void main() {
             rebuildSteps: () => <Step>[a, rebuiltB],
           );
 
-      final String output = run.terminal.output.toString();
+      final output = run.terminal.output.toString();
       expect(output, contains(replanLine));
       expect(
         run.terminal.asks.where((String ask) => ask == failureChoiceQuestion),
@@ -837,25 +807,21 @@ void main() {
   });
 
   group('T-20-ENGINE-04: 미루기 고르기는 기본값이 없고 멈춤 · 입력 끝이면 1 로 멈춘다', () {
-    for (final ({String label, List<String?> inputs}) answer
-        in <({String label, List<String?> inputs})>[
-          (label: 'Enter 뒤 멈춤', inputs: <String?>['', '3']),
-          (label: '입력 끝(EOF)', inputs: <String?>[]),
-        ]) {
+    for (final answer in <({String label, List<String?> inputs})>[
+      (label: 'Enter 뒤 멈춤', inputs: <String?>['', '3']),
+      (label: '입력 끝(EOF)', inputs: <String?>[]),
+    ]) {
       test('T-20-ENGINE-04: ${answer.label}', () async {
-        final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+        final a = _DeferrableScriptedStep(
           'A',
           checks: const <CheckResult>[Todo('a 할 일')],
         );
-        final _ScriptedStep b = _ScriptedStep(
-          'B',
-          checks: const <CheckResult>[Todo('b')],
-        );
+        final b = _ScriptedStep('B', checks: const <CheckResult>[Todo('b')]);
 
         final ({int code, ScriptedTerminal terminal, int completions}) run =
             await runStepsWithCompletion(<Step>[a, b], answer.inputs);
 
-        final String output = run.terminal.output.toString();
+        final output = run.terminal.output.toString();
         expect(run.code, wizardExitStopped);
         expect(output, contains(_stopLine));
         expect(output, isNot(contains('▶ B')));
@@ -865,7 +831,7 @@ void main() {
     }
 
     test('T-20-ENGINE-04: Enter 는 고르지 않은 것이라 다시 묻는다', () async {
-      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+      final a = _DeferrableScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a 할 일')],
       );
@@ -882,7 +848,7 @@ void main() {
   test(
     'T-20-ENGINE-05: 미룰 수 있는 단계에서 진행을 고르면 실행하고 재검사 ✓ 면 모든 단계가 끝난다',
     () async {
-      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+      final a = _DeferrableScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
       );
@@ -890,7 +856,7 @@ void main() {
       final ({int code, ScriptedTerminal terminal, int completions}) run =
           await runStepsWithCompletion(<Step>[a], const <String?>['1']);
 
-      final String output = run.terminal.output.toString();
+      final output = run.terminal.output.toString();
       expect(a.applyCount, 1);
       expect(run.code, wizardExitDone);
       expect(run.completions, 1);
@@ -901,13 +867,13 @@ void main() {
   );
 
   test('T-20-ENGINE-06: 실행이 나중에로 끝나면 ✗ 줄을 보이고 다음 단계로 가며 0 으로 끝난다', () async {
-    const String deferredLine = '  ✗ A — 나중에';
-    final _ScriptedStep a = _ScriptedStep(
+    const deferredLine = '  ✗ A — 나중에';
+    final a = _ScriptedStep(
       'A',
       checks: const <CheckResult>[Todo('a')],
       outcomes: const <StepOutcome>[DeferredByUser('나중에')],
     );
-    final _ScriptedStep b = _ScriptedStep(
+    final b = _ScriptedStep(
       'B',
       checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
     );
@@ -915,7 +881,7 @@ void main() {
     final ({int code, ScriptedTerminal terminal, int completions}) run =
         await runStepsWithCompletion(<Step>[a, b], const <String?>['y', 'y']);
 
-    final String output = run.terminal.output.toString();
+    final output = run.terminal.output.toString();
     expect(a.applyCount, 1);
     expect(b.applyCount, 1);
     expect(output.indexOf(deferredLine), lessThan(output.indexOf('▶ B')));
@@ -985,8 +951,7 @@ void main() {
   group(
     'T-20-ENGINE-08: 앞 단계가 이번 실행에서 ✓ 로 끝나지 않으면 뒤 단계는 검사 · 실행하지 않고 ? 로 남는다',
     () {
-      for (final ({String label, Step a, List<String?> inputs, String aLine})
-          entry
+      for (final entry
           in <({String label, Step a, List<String?> inputs, String aLine})>[
             (
               label: '사용자가 미룸',
@@ -1017,13 +982,13 @@ void main() {
             ),
           ]) {
         test('T-20-ENGINE-08: ${entry.label}', () async {
-          const String blockedLine = '  ? B — A 뒤에 검사합니다';
-          final _ScriptedStep b = _ScriptedStep(
+          const blockedLine = '  ? B — A 뒤에 검사합니다';
+          final b = _ScriptedStep(
             'B',
             checks: const <CheckResult>[Done('b 끝')],
             dependsOn: const <String>['A'],
           );
-          final _ScriptedStep c = _ScriptedStep(
+          final c = _ScriptedStep(
             'C',
             checks: const <CheckResult>[Todo('c'), Todo('c'), Done('c 끝')],
           );
@@ -1031,7 +996,7 @@ void main() {
           final ({int code, ScriptedTerminal terminal, int completions}) run =
               await runStepsWithCompletion(<Step>[entry.a, b, c], entry.inputs);
 
-          final String output = run.terminal.output.toString();
+          final output = run.terminal.output.toString();
           expect(b.checkCount, 0);
           expect(b.applyCount, 0);
           expect(c.applyCount, 1);
@@ -1054,12 +1019,12 @@ void main() {
   test(
     'T-20-ENGINE-09: 점검표에서 기다리던 단계는 앞 단계가 이번 실행에서 ✓ 가 되면 검사 · 실행한다',
     () async {
-      const String blockedLine = '  ? B — A 뒤에 검사합니다';
-      final _ScriptedStep a = _ScriptedStep(
+      const blockedLine = '  ? B — A 뒤에 검사합니다';
+      final a = _ScriptedStep(
         'A',
         checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
       );
-      final _ScriptedStep b = _ScriptedStep(
+      final b = _ScriptedStep(
         'B',
         checks: const <CheckResult>[Todo('b'), Done('b 끝')],
         dependsOn: const <String>['A'],
@@ -1068,7 +1033,7 @@ void main() {
       final ({int code, ScriptedTerminal terminal, int completions}) run =
           await runStepsWithCompletion(<Step>[a, b], const <String?>['y', 'y']);
 
-      final String output = run.terminal.output.toString();
+      final output = run.terminal.output.toString();
       expect(_countExactLines(output, blockedLine), 1);
       expect(output.indexOf('▶ B'), greaterThan(output.indexOf('  ✓ A — a 끝')));
       expect(b.checkCount, 2);
@@ -1079,33 +1044,26 @@ void main() {
   );
 
   group('T-20-ENGINE-10: 점검표와 같은 종류로 다시 판정된 줄은 진행 중에 다시 쓰지 않는다', () {
-    for (final ({String label, CheckResult result, String line}) entry
-        in <({String label, CheckResult result, String line})>[
-          (
-            label: '할 수 없음',
-            result: const Deferred('지문이 없습니다'),
-            line: '  ✗ A — 지문이 없습니다',
-          ),
-          (
-            label: '확인할 수 없음',
-            result: const Unverifiable('확인은 실기기 알림'),
-            line: '  ? A — 확인은 실기기 알림',
-          ),
-        ]) {
+    for (final entry in <({String label, CheckResult result, String line})>[
+      (
+        label: '할 수 없음',
+        result: const Deferred('지문이 없습니다'),
+        line: '  ✗ A — 지문이 없습니다',
+      ),
+      (
+        label: '확인할 수 없음',
+        result: const Unverifiable('확인은 실기기 알림'),
+        line: '  ? A — 확인은 실기기 알림',
+      ),
+    ]) {
       test('T-20-ENGINE-10: ${entry.label}', () async {
-        final _ScriptedStep a = _ScriptedStep(
-          'A',
-          checks: <CheckResult>[entry.result],
-        );
-        final _ScriptedStep b = _ScriptedStep(
-          'B',
-          checks: const <CheckResult>[Done('b 끝')],
-        );
+        final a = _ScriptedStep('A', checks: <CheckResult>[entry.result]);
+        final b = _ScriptedStep('B', checks: const <CheckResult>[Done('b 끝')]);
 
         final ({int code, ScriptedTerminal terminal, int completions}) run =
             await runStepsWithCompletion(<Step>[a, b], const <String?>[]);
 
-        final String output = run.terminal.output.toString();
+        final output = run.terminal.output.toString();
         expect(a.checkCount, 2);
         expect(_countExactLines(output, entry.line), 2);
         expect(run.code, wizardExitDone);
@@ -1123,8 +1081,8 @@ void main() {
     'T-20-ENGINE-11: 진행 중 다시 판정한 결과가 새로 할 수 없음 · 확인할 수 없음이면 한 번 보이고 끝 목록에 든다',
     () {
       test('T-20-ENGINE-11: 점검표 할 일 → 단계 머리 재검사 할 수 없음', () async {
-        const String deferredLine = '  ✗ A — 지문이 없습니다';
-        final _ScriptedStep a = _ScriptedStep(
+        const deferredLine = '  ✗ A — 지문이 없습니다';
+        final a = _ScriptedStep(
           'A',
           checks: const <CheckResult>[Todo('a 할 일'), Deferred('지문이 없습니다')],
         );
@@ -1132,7 +1090,7 @@ void main() {
         final ({int code, ScriptedTerminal terminal, int completions}) run =
             await runStepsWithCompletion(<Step>[a], const <String?>[]);
 
-        final String output = run.terminal.output.toString();
+        final output = run.terminal.output.toString();
         expect(_countExactLines(output, '  ✗ A — a 할 일'), 1);
         expect(_countExactLines(output, deferredLine), 2);
         expect(output, isNot(contains('▶ A')));
@@ -1146,14 +1104,7 @@ void main() {
         );
       });
 
-      for (final ({
-            String label,
-            CheckResult after,
-            StepOutcome outcome,
-            List<String?> inputs,
-            String line,
-          })
-          entry
+      for (final entry
           in <
             ({
               String label,
@@ -1189,7 +1140,7 @@ void main() {
             ),
           ]) {
         test('T-20-ENGINE-11: ${entry.label}', () async {
-          final _ScriptedStep a = _ScriptedStep(
+          final a = _ScriptedStep(
             'A',
             checks: <CheckResult>[
               const Todo('a'),
@@ -1198,7 +1149,7 @@ void main() {
             ],
             outcomes: <StepOutcome>[entry.outcome],
           );
-          final _ScriptedStep b = _ScriptedStep(
+          final b = _ScriptedStep(
             'B',
             checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
           );
@@ -1206,7 +1157,7 @@ void main() {
           final ({int code, ScriptedTerminal terminal, int completions}) run =
               await runStepsWithCompletion(<Step>[a, b], entry.inputs);
 
-          final String output = run.terminal.output.toString();
+          final output = run.terminal.output.toString();
           expect(a.applyCount, 1);
           expect(b.applyCount, 1);
           expect(_countExactLines(output, entry.line), 2);

@@ -16,8 +16,7 @@ void main() {
       'T-174-SKIP-01: ROADMAP.md 없는 작업 디렉터리에서 check_phase_refs.sh 는 [SKIP] 후 exit 0',
       () {
         final String root = Directory.current.path;
-        final Directory build = Directory('$root/build')
-          ..createSync(recursive: true);
+        final build = Directory('$root/build')..createSync(recursive: true);
         final Directory work = build.createTempSync('test-publish-kit-skip-');
         addTearDown(() => work.deleteSync(recursive: true));
         expect(
@@ -44,7 +43,7 @@ void main() {
       () {
         expect(skipUnlessPlanningDocsExist(<String>['pubspec.yaml']), isFalse);
 
-        const String missing = 'no/such/planning-doc.md';
+        const missing = 'no/such/planning-doc.md';
         final Object reason = skipUnlessPlanningDocsExist(<String>[
           'pubspec.yaml',
           missing,

@@ -91,10 +91,7 @@ void main() {
 
   test('T-19-REDACT-01: capture 출력의 액세스 토큰은 화면 · 로그에서 가려진다', () async {
     final String token = buildFakeAccessToken();
-    final ProcessCommandRunner runner = ProcessCommandRunner(
-      terminal,
-      log: log,
-    );
+    final runner = ProcessCommandRunner(terminal, log: log);
 
     final CommandResult result = await runner.capture(
       Command('cat', const <String>[], stdinText: '$token\n'),
@@ -110,14 +107,11 @@ void main() {
   });
 
   test('T-19-REDACT-02: 등록한 값은 stream 줄 · 명령 줄에서 가려진다', () async {
-    final String registered = 'kit${'Q' * 10}';
+    final registered = 'kit${'Q' * 10}';
     redactor
       ..register(fakeDebugToken)
       ..register(registered);
-    final ProcessCommandRunner runner = ProcessCommandRunner(
-      terminal,
-      log: log,
-    );
+    final runner = ProcessCommandRunner(terminal, log: log);
 
     final CommandResult result = await runner.stream(
       Command('printf', <String>[
@@ -128,8 +122,8 @@ void main() {
     );
 
     expect(result.exitCode, 0);
-    final String shown = screen.output.toString();
-    for (final String secret in <String>[fakeDebugToken, registered]) {
+    final shown = screen.output.toString();
+    for (final secret in <String>[fakeDebugToken, registered]) {
       expect(countText(shown, secret), 0, reason: '화면: $secret');
       expect(countText(log.text, secret), 0, reason: '로그: $secret');
     }
@@ -142,7 +136,7 @@ void main() {
   test('T-19-REDACT-03: 실패 원문 경로의 API 키 · 토큰도 화면 · 로그에서 가려진다', () async {
     final String apiKey = buildFakeApiKey();
     final String token = buildFakeAccessToken();
-    final ScriptedTerminal answers = ScriptedTerminal(const <String?>['y']);
+    final answers = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runWizard(
       buildTestContext(
@@ -160,8 +154,8 @@ void main() {
     );
 
     expect(code, wizardExitStopped);
-    final String shown = answers.output.toString();
-    for (final String secret in <String>[apiKey, token]) {
+    final shown = answers.output.toString();
+    for (final secret in <String>[apiKey, token]) {
       expect(countText(shown, secret), 0, reason: '화면: $secret');
       expect(countText(log.text, secret), 0, reason: '로그: $secret');
     }
@@ -175,11 +169,8 @@ void main() {
 
   test('T-19-REDACT-04: 민감 capture 는 로그에 본문 대신 생략 표시 · 화면 출력 0', () async {
     // 패턴에도 걸리지 않고 등록하지도 않은 값 — 생략 표시만이 본문을 막는다.
-    final String secret = 'plain-${'s' * 12}-value';
-    final ProcessCommandRunner runner = ProcessCommandRunner(
-      terminal,
-      log: log,
-    );
+    final secret = 'plain-${'s' * 12}-value';
+    final runner = ProcessCommandRunner(terminal, log: log);
 
     final CommandResult result = await runner.capture(
       Command(
@@ -202,7 +193,7 @@ void main() {
 
   group('T-19-REDACT-05: FileLogSink', () {
     late Directory root;
-    final DateTime fixedNow = DateTime(2030, 1, 2, 3, 4, 5);
+    final fixedNow = DateTime(2030, 1, 2, 3, 4, 5);
 
     setUp(() {
       root = Directory.systemTemp.createTempSync('redaction_test_');
@@ -277,7 +268,7 @@ void main() {
       ..register('')
       ..register('dev')
       ..register('abc1234');
-    const String sentence = 'dev 프로젝트 abc1234 를 검사합니다';
+    const sentence = 'dev 프로젝트 abc1234 를 검사합니다';
     expect(redactor.apply(sentence), sentence);
 
     redactor.register('abcd1234');
@@ -286,8 +277,8 @@ void main() {
 
   test('RedactingTerminal 은 사용자 답을 가린 뒤 로그에 남긴다', () {
     final String token = buildFakeAccessToken();
-    final ScriptedTerminal answers = ScriptedTerminal(<String?>['y', token]);
-    final RedactingTerminal wrapped = RedactingTerminal(answers, redactor, log);
+    final answers = ScriptedTerminal(<String?>['y', token]);
+    final wrapped = RedactingTerminal(answers, redactor, log);
 
     expect(wrapped.confirm('계속할까요?'), isTrue);
     expect(wrapped.ask('값을 입력하세요'), token);
@@ -300,8 +291,8 @@ void main() {
 
   test('T-20-SECRET-06: 숨김 입력은 기록에 글자 수 판정만 남기고 값을 가림에 등록한다', () {
     final String secret = 'k' * 32;
-    final ScriptedTerminal answers = ScriptedTerminal(<String?>[secret]);
-    final RedactingTerminal wrapped = RedactingTerminal(answers, redactor, log);
+    final answers = ScriptedTerminal(<String?>[secret]);
+    final wrapped = RedactingTerminal(answers, redactor, log);
 
     expect(wrapped.askSecret('어드민 키를 붙여 넣으세요'), secret);
     wrapped.writeLine('받은 값 $secret');
@@ -314,22 +305,18 @@ void main() {
     expect(countText(log.text, secret), 0);
     expect(countText(answers.output.toString(), '받은 값 ${Redactor.mask}'), 1);
 
-    final ScriptedTerminal ended = ScriptedTerminal(const <String?>[]);
-    final RedactingTerminal endedWrapped = RedactingTerminal(
-      ended,
-      redactor,
-      log,
-    );
+    final ended = ScriptedTerminal(const <String?>[]);
+    final endedWrapped = RedactingTerminal(ended, redactor, log);
 
     expect(endedWrapped.askSecret('어드민 키를 붙여 넣으세요'), isNull);
     expect(log.lines.last, '[in] ${RedactingTerminal.endOfInputRecord}');
   });
 
   test('T-20-PEM-01: 등록하지 않은 PEM 개인 키 블록은 머리부터 끝 줄까지 가려진다', () {
-    for (final String kind in <String>['', 'EC ']) {
+    for (final kind in <String>['', 'EC ']) {
       final String header = buildPemLine('BEGIN', kind: kind);
       // 줄바꿈 그대로인 블록과 JSON 응답처럼 `\n` 이 글자로 든 블록 둘 다.
-      for (final String separator in <String>['\n', r'\n']) {
+      for (final separator in <String>['\n', r'\n']) {
         final String pem = buildFakePem(kind: kind, separator: separator);
         final String shown = redactor.apply('응답 {"privateKey":"$pem"} 끝');
 
@@ -346,7 +333,7 @@ void main() {
   });
 
   test('T-20-PEM-02: 머리 줄만 있는 문자열도 머리가 가려진다', () {
-    for (final String kind in <String>['', 'EC ']) {
+    for (final kind in <String>['', 'EC ']) {
       final String header = buildPemLine('BEGIN', kind: kind);
       final String shown = redactor.apply('키 파일 첫 줄: $header');
 

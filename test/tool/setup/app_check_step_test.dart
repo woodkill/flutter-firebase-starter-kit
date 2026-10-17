@@ -212,7 +212,7 @@ void main() {
         AppCheckStep.tokenKey,
         generateUuidV4(Random(7)),
       );
-      final FakeRestClient rest = FakeRestClient()
+      final rest = FakeRestClient()
         ..on(
           'GET',
           iosTokensUrl,
@@ -226,7 +226,7 @@ void main() {
             '$wizardDisplayName:b1',
           ]),
         );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+      final terminal = ScriptedTerminal(const <String?>[]);
 
       final int code = await runAppCheckStep(rest, terminal);
 
@@ -287,7 +287,7 @@ void main() {
       'T-19-APPCHECK-02 빈 토큰 → y 뒤 config 에 UUID4 · 두 앱 옛 고정 이름 항목 DELETE · POST 본문에 새 토큰 · 재검사 ✓',
       () {
         final String token = readToken();
-        final String output = terminal.output.toString();
+        final output = terminal.output.toString();
         expect(code, wizardExitDone);
         expect(isUuidV4(token), isTrue);
         expect(rest.countRequests('DELETE', '$iosTokensUrl/old1'), 1);
@@ -297,7 +297,7 @@ void main() {
           posts.map((RestRequest request) => request.url.toString()).toSet(),
           <String>{iosTokensUrl, androidTokensUrl},
         );
-        for (final RestRequest post in posts) {
+        for (final post in posts) {
           expect(jsonDecode(post.body!), <String, Object?>{
             'displayName': wizardDisplayName,
             'token': token,
@@ -326,7 +326,7 @@ void main() {
       'T-19-APPCHECK-03 화면 · 기록 · 실행기 인자에 토큰 0 · 화면은 표시형 · 토큰은 POST 본문에만',
       () {
         final String token = readToken();
-        final String output = terminal.output.toString();
+        final output = terminal.output.toString();
         expect(token.length, 36);
         expect(output, isNot(contains(token)));
         expect(output, isNot(contains(token.toUpperCase())));
@@ -351,7 +351,7 @@ void main() {
           ).every((RestRequest request) => request.body!.contains(token)),
           isTrue,
         );
-        for (final String secret in <String>[iosAppId, androidAppId]) {
+        for (final secret in <String>[iosAppId, androidAppId]) {
           expect(output, isNot(contains(secret)));
           expect(log.text, isNot(contains(secret)));
         }
@@ -365,7 +365,7 @@ void main() {
       writeAppFiles();
       final String token = generateUuidV4(Random(8));
       replaceJsonString(config.path, AppCheckStep.tokenKey, token);
-      final FakeRestClient rest = FakeRestClient()
+      final rest = FakeRestClient()
         ..on(
           'GET',
           iosTokensUrl,
@@ -379,7 +379,7 @@ void main() {
           buildTokenList(androidTokensUrl, <String>['$wizardDisplayName:b1']),
         )
         ..on('POST', androidTokensUrl, const RestResponse(200, '{}'));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runAppCheckStep(rest, terminal);
 
@@ -407,19 +407,19 @@ void main() {
 
   test('T-19-APPCHECK-05 POST 400(한도) 면 실패 · 상태 코드 · 응답 원문', () async {
     writeAppFiles();
-    const String limitBody =
+    const limitBody =
         '{"error":{"code":400,"message":"An app can have at most 20 debug tokens.",'
         '"status":"FAILED_PRECONDITION"}}';
-    final FakeRestClient rest = FakeRestClient()
+    final rest = FakeRestClient()
       ..on('GET', iosTokensUrl, buildTokenList(iosTokensUrl, []))
       ..on('GET', androidTokensUrl, buildTokenList(androidTokensUrl, []))
       ..on('POST', iosTokensUrl, const RestResponse(400, limitBody));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
-    final MemoryLogSink log = MemoryLogSink(Redactor());
+    final terminal = ScriptedTerminal(const <String?>['y']);
+    final log = MemoryLogSink(Redactor());
 
     final int code = await runAppCheckStep(rest, terminal, log: log);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     final String token = readToken();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — '));
@@ -433,7 +433,7 @@ void main() {
     'T-19-APPCHECK-09 옛 항목 DELETE 가 403 이면 config 토큰은 빈 값 그대로 · 다시 시도의 재검사가 create 로 다시 지운 뒤 등록한다',
     () async {
       writeAppFiles();
-      final FakeRestClient rest = FakeRestClient()
+      final rest = FakeRestClient()
         ..on(
           'GET',
           iosTokensUrl,
@@ -460,15 +460,12 @@ void main() {
         ..on('POST', iosTokensUrl, const RestResponse(200, '{}'))
         ..on('POST', androidTokensUrl, const RestResponse(200, '{}'));
       // y → DELETE 403 실패 → 1(다시 시도).
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        '1',
-      ]);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>['y', '1']);
+      final log = MemoryLogSink(Redactor());
 
       final int code = await runAppCheckStep(rest, terminal, log: log);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       final int firstPostAt = rest.requests.indexWhere(
         (RestRequest request) => request.method == 'POST',
       );
@@ -510,12 +507,12 @@ void main() {
   );
 
   test('T-19-APPCHECK-06 앱 등록 파일이 없으면 ✗ 사유 · 적용하지 않고 실패 · 요청 0', () async {
-    final FakeRestClient rest = FakeRestClient();
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final rest = FakeRestClient();
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runAppCheckStep(rest, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     final String reason = output
         .split('\n')
         .firstWhere(
@@ -532,12 +529,12 @@ void main() {
     'T-19-APPCHECK-07 토큰은 context.random 으로만 만든다 — 같은 씨앗이면 같은 값 · 외부 명령 0',
     () async {
       writeAppFiles();
-      final FakeRestClient rest = FakeRestClient()
+      final rest = FakeRestClient()
         ..on('GET', iosTokensUrl, buildTokenList(iosTokensUrl, []))
         ..on('GET', androidTokensUrl, buildTokenList(androidTokensUrl, []))
         ..on('POST', iosTokensUrl, const RestResponse(200, '{}'))
         ..on('POST', androidTokensUrl, const RestResponse(200, '{}'));
-      final FakeCommandRunner runner = FakeCommandRunner();
+      final runner = FakeCommandRunner();
 
       await runAppCheckStep(
         rest,
@@ -564,7 +561,7 @@ void main() {
         AppCheckStep.tokenKey,
         generateUuidV4(Random(8)),
       );
-      final FakeRestClient rest = FakeRestClient()
+      final rest = FakeRestClient()
         ..on(
           'GET',
           iosTokensUrl,
@@ -575,12 +572,12 @@ void main() {
           androidTokensUrl,
           buildTokenList(androidTokensUrl, <String>['$wizardDisplayName:b1']),
         );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>[]);
+      final log = MemoryLogSink(Redactor());
 
       final int code = await runAppCheckStep(rest, terminal, log: log);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✓ ${AppCheckStep.stepTitle} — '));
       expect(
@@ -590,7 +587,7 @@ void main() {
         <String>{iosTokensUrl, androidTokensUrl},
       );
       expect(listRequests(rest, 'POST'), isEmpty);
-      for (final String appId in <String>[iosAppId, androidAppId]) {
+      for (final appId in <String>[iosAppId, androidAppId]) {
         expect(output, isNot(contains(appId)));
         expect(log.text, isNot(contains(appId)));
       }

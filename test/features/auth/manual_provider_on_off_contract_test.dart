@@ -221,9 +221,9 @@ void main() {
     _sectionHeading,
     maxLevel: 2,
   );
-  final Map<String, Object?> manifest =
+  final manifest =
       jsonDecode(readTrackedFile(_manifestPath)) as Map<String, Object?>;
-  final Map<String, Object?> exampleConfig =
+  final exampleConfig =
       jsonDecode(readTrackedFile(_exampleConfigPath)) as Map<String, Object?>;
   final String exampleXcconfig = readTrackedFile(_exampleXcconfigPath);
 
@@ -268,7 +268,7 @@ void main() {
           .allMatches(section)
           .toList();
       expect(pairs, isNotEmpty, reason: '절에 JSON 예시가 없다(양성 대조)');
-      for (final RegExpMatch pair in pairs) {
+      for (final pair in pairs) {
         final String key = pair.group(1)!;
         final String value = pair.group(2)!;
         expect(
@@ -310,9 +310,8 @@ void main() {
     });
 
     test('T-173-DOCS-04: 배포 함수 · secret · 배포 명령 · 토큰이 절에 있다', () {
-      final Map<String, Object?> providers =
-          manifest['providers']! as Map<String, Object?>;
-      final List<String> providerFunctions = <String>[
+      final providers = manifest['providers']! as Map<String, Object?>;
+      final providerFunctions = <String>[
         for (final Object? list in providers.values)
           ...(list! as List<Object?>).cast<String>(),
       ];
@@ -323,10 +322,7 @@ void main() {
       );
       final List<String> commonFunctions =
           (manifest['common']! as List<Object?>).cast<String>();
-      for (final String name in <String>[
-        ...providerFunctions,
-        ...commonFunctions,
-      ]) {
+      for (final name in <String>[...providerFunctions, ...commonFunctions]) {
         expect(
           section,
           contains('`$name`'),
@@ -416,7 +412,7 @@ void main() {
           .where((String key) => key != 'flavor')
           .toList();
       expect(keys, hasLength(18), reason: 'example 키 수(flavor 제외)가 18 이 아니다');
-      for (final String key in keys) {
+      for (final key in keys) {
         expect(
           table.where((String line) => line.startsWith('| `$key` |')).length,
           1,
@@ -475,7 +471,7 @@ void main() {
       );
 
       final String maintainerDoc = readTrackedFile(_maintainerDocPath);
-      for (final String heading in <String>['## 추가 가이드', '## 제거 가이드']) {
+      for (final heading in <String>['## 추가 가이드', '## 제거 가이드']) {
         expect(
           countExactLines(maintainerDoc, heading),
           1,
@@ -524,7 +520,7 @@ void main() {
         );
 
         final List<String> bodyLines = body.split('\n');
-        final List<String> unitLines = <String>[];
+        final unitLines = <String>[];
         for (final String head in _correctedUnitHeads) {
           final List<String> selected = bodyLines
               .where((String line) => line.trimLeft().startsWith(head))

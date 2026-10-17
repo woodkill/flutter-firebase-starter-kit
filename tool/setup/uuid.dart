@@ -10,7 +10,7 @@ final RegExp _uuidV4Pattern = RegExp(
 ///
 /// 비밀 값으로 쓸 때는 `Random.secure()` 를 넘긴다. 외부 프로세스를 부르지 않는다.
 String generateUuidV4(Random random) {
-  final List<int> bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
   // 버전 4 와 variant 10 비트를 정해진 자리에 둔다.
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;

@@ -110,8 +110,8 @@ class ConfigureSandbox {
   ///
   /// 부모 PATH 에서 찾지 못한 도구가 있으면 테스트를 실패시킨다.
   String createToolDir(List<String> tools, {required String name}) {
-    final Directory bin = Directory('$root/$name')..createSync();
-    for (final String tool in tools) {
+    final bin = Directory('$root/$name')..createSync();
+    for (final tool in tools) {
       final String? target = findToolOnPath(tool);
       expect(target, isNotNull, reason: '부모 PATH 에 $tool 이 있어야 한다');
       Link('${bin.path}/$tool').createSync(target!);
@@ -121,7 +121,7 @@ class ConfigureSandbox {
 
   /// `DRY_RUN=1 bash scripts/firebase-configure.sh dev` 를 [toolDir] 만 PATH 로 실행한다.
   ProcessResult runDryRun(String toolDir) {
-    final Directory home = Directory('$root/home')..createSync();
+    final home = Directory('$root/home')..createSync();
     return Process.runSync(
       '/bin/bash',
       <String>[_scriptPath, 'dev'],
@@ -139,7 +139,7 @@ class ConfigureSandbox {
 
   /// 임시 디렉터리를 지운다.
   void dispose() {
-    final Directory dir = Directory(root);
+    final dir = Directory(root);
     if (dir.existsSync()) {
       dir.deleteSync(recursive: true);
     }
@@ -148,7 +148,7 @@ class ConfigureSandbox {
 
 /// [output] 에서 `<label>:` 줄의 값을 돌려준다(앞뒤 공백 제거). 없으면 `null`.
 String? readLabeledValue(String output, String label) {
-  final RegExp pattern = RegExp(
+  final pattern = RegExp(
     '^\\s*${RegExp.escape(label)}:\\s*(.*?)\\s*\$',
     multiLine: true,
   );
@@ -165,7 +165,7 @@ String readLastLine(String output) {
 }
 
 void main() {
-  final bool hasJq = findToolOnPath('jq') != null;
+  final hasJq = findToolOnPath('jq') != null;
   late ConfigureSandbox sandbox;
 
   setUp(() {
@@ -186,7 +186,7 @@ void main() {
       ], name: 'tools');
 
       final ProcessResult result = sandbox.runDryRun(toolDir);
-      final String stdout = result.stdout as String;
+      final stdout = result.stdout as String;
 
       expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');
       expect(readLabeledValue(stdout, 'project'), 'acme-app-dev');
@@ -207,7 +207,7 @@ void main() {
       ], name: 'tools');
 
       final ProcessResult result = sandbox.runDryRun(toolDir);
-      final String stdout = result.stdout as String;
+      final stdout = result.stdout as String;
 
       expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');
       expect(readLabeledValue(stdout, 'project'), '$prefix-dev');
@@ -228,7 +228,7 @@ void main() {
       ], name: 'tools-no-jq');
 
       final ProcessResult result = sandbox.runDryRun(toolDir);
-      final String stdout = result.stdout as String;
+      final stdout = result.stdout as String;
 
       expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');
       expect(readLabeledValue(stdout, 'project'), 'acme-renamed-dev');
@@ -246,11 +246,11 @@ void main() {
         'jq',
       ], name: 'tools');
 
-      for (final String invalid in <String>['-oops', 'Acme-Dev']) {
+      for (final invalid in <String>['-oops', 'Acme-Dev']) {
         sandbox.writeDevConfig(invalid);
 
         final ProcessResult result = sandbox.runDryRun(toolDir);
-        final String stderr = result.stderr as String;
+        final stderr = result.stderr as String;
 
         expect(result.exitCode, 1, reason: '값 $invalid 는 거부해야 한다');
         expect(stderr, contains('firebaseProjectId'));

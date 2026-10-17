@@ -64,21 +64,21 @@ void main() {
     List<CommandResult> runtimes = const <CommandResult>[_iosRuntime],
   }) {
     runner.on(_selectKey, _selectedResult(xcodeAppPath));
-    for (final CommandResult result in license) {
+    for (final result in license) {
       runner.on(_licenseKey, result);
     }
-    for (final CommandResult result in firstLaunch) {
+    for (final result in firstLaunch) {
       runner.on(_firstLaunchKey, result);
     }
-    for (final CommandResult result in runtimes) {
+    for (final result in runtimes) {
       runner.on(_runtimesKey, result);
     }
   }
 
   test('T-19-XCODE-01 네 검사가 모두 통과하면 점검표에 ✓ 이고 아무것도 실행하지 않는다', () async {
-    final FakeCommandRunner runner = FakeCommandRunner();
+    final runner = FakeCommandRunner();
     registerSelectedChecks(runner);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runWizard(
       buildTestContext(
@@ -100,9 +100,8 @@ void main() {
   test(
     'T-19-XCODE-02 Xcode 가 없으면 ✗ 이고 y 뒤 App Store 안내와 함께 3 으로 끝난다',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(_selectKey, _cltSelected);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final runner = FakeCommandRunner()..on(_selectKey, _cltSelected);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runWizard(
         buildTestContext(
@@ -115,7 +114,7 @@ void main() {
         ],
       );
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitForUser);
       expect(output, contains('  ✗ Xcode 준비 — Xcode 가 설치돼 있지 않습니다'));
       expect(output, contains('https://apps.apple.com/app/xcode/id497799835'));
@@ -129,14 +128,13 @@ void main() {
   test(
     'T-19-XCODE-03 라이선스만 미동의면 y 뒤 sudo 라이선스 동의를 한 번 실행하고 0 으로 끝난다',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(_licenseAcceptKey, _ok);
+      final runner = FakeCommandRunner()..on(_licenseAcceptKey, _ok);
       // 점검표 · 단계 시작 검사는 미동의, 실행 뒤 재검사는 동의.
       registerSelectedChecks(
         runner,
         license: const <CommandResult>[_fail, _fail, _ok],
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runWizard(
         buildTestContext(
@@ -147,7 +145,7 @@ void main() {
         <XcodeStep>[XcodeStep(xcodeAppPath: xcodeAppPath)],
       );
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ Xcode 준비 — 라이선스 동의 필요'));
       expect(output, contains('  \$ sudo xcodebuild -license accept'));
@@ -158,16 +156,14 @@ void main() {
   );
 
   group('T-19-XCODE-04 단계 확인에서 y 가 아니면 실행하지 않고 1 로 끝난다', () {
-    for (final ({String label, List<String?> inputs}) answer
-        in <({String label, List<String?> inputs})>[
-          (label: 'Enter(빈 줄)', inputs: <String?>['']),
-          (label: '입력 끝(EOF)', inputs: <String?>[]),
-        ]) {
+    for (final answer in <({String label, List<String?> inputs})>[
+      (label: 'Enter(빈 줄)', inputs: <String?>['']),
+      (label: '입력 끝(EOF)', inputs: <String?>[]),
+    ]) {
       test('T-19-XCODE-04 ${answer.label}', () async {
-        final FakeCommandRunner runner = FakeCommandRunner()
-          ..on(_licenseAcceptKey, _ok);
+        final runner = FakeCommandRunner()..on(_licenseAcceptKey, _ok);
         registerSelectedChecks(runner, license: const <CommandResult>[_fail]);
-        final ScriptedTerminal terminal = ScriptedTerminal(answer.inputs);
+        final terminal = ScriptedTerminal(answer.inputs);
 
         final int code = await runWizard(
           buildTestContext(
@@ -189,13 +185,13 @@ void main() {
   test(
     'T-19-XCODE-05 iOS 런타임이 없으면 크기 안내와 내려받기 명령을 보이고 stream 으로 한 번 실행한다',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_downloadKey, const CommandResult(0, 'Downloading iOS\n', ''));
       registerSelectedChecks(
         runner,
         runtimes: const <CommandResult>[_noRuntime, _noRuntime, _iosRuntime],
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runWizard(
         buildTestContext(
@@ -206,7 +202,7 @@ void main() {
         <XcodeStep>[XcodeStep(xcodeAppPath: xcodeAppPath)],
       );
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  \$ xcodebuild -downloadPlatform iOS'));
       expect(output, contains('수 GB'));
@@ -214,7 +210,7 @@ void main() {
       expect(runner.countMode(RunMode.interactive), 0);
 
       // 실행 전 표시 목록에도 안내 줄과 명령이 함께 들어 있다.
-      final FakeCommandRunner checkRunner = FakeCommandRunner();
+      final checkRunner = FakeCommandRunner();
       registerSelectedChecks(
         checkRunner,
         runtimes: const <CommandResult>[_noRuntime],
@@ -223,7 +219,7 @@ void main() {
         projectRoot: tempDir.path,
         runner: checkRunner,
       );
-      final XcodeStep step = XcodeStep(xcodeAppPath: xcodeAppPath);
+      final step = XcodeStep(xcodeAppPath: xcodeAppPath);
       await step.check(context);
       final List<String> planned = step.plannedCommandLines(context);
       expect(planned, contains('xcodebuild -downloadPlatform iOS'));
@@ -235,9 +231,9 @@ void main() {
     'T-19-XCODE-07 Command Line Tools 선택 상태면 선택 명령 · 재검사 안내만 보이고 선택 뒤 필요한 것만 보인 뒤 실행한다',
     () async {
       Directory(xcodeAppPath).createSync(recursive: true);
-      final String selectRunKey =
+      final selectRunKey =
           'sudo xcode-select -s $xcodeAppPath/Contents/Developer';
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         // 점검표 · 단계 시작은 Command Line Tools, 선택 뒤에는 Xcode.
         ..on(_selectKey, _cltSelected)
         ..on(_selectKey, _cltSelected)
@@ -248,7 +244,7 @@ void main() {
         ..on(_runtimesKey, _iosRuntime)
         ..on(selectRunKey, _ok)
         ..on(_firstLaunchRunKey, _ok);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runWizard(
         buildTestContext(
@@ -259,7 +255,7 @@ void main() {
         <XcodeStep>[XcodeStep(xcodeAppPath: xcodeAppPath)],
       );
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       final int askAt = output.indexOf('이 단계를 진행할까요?');
       final String planned = output.substring(0, askAt);
       final String applied = output.substring(askAt);
@@ -292,9 +288,9 @@ void main() {
 
   test('T-19-XCODE-06 sudo 명령은 비밀번호를 묻거나 표준 입력으로 넘기지 않는다', () async {
     Directory(xcodeAppPath).createSync(recursive: true);
-    final String selectRunKey =
+    final selectRunKey =
         'sudo xcode-select -s $xcodeAppPath/Contents/Developer';
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       // 점검표 · 단계 시작은 Command Line Tools, 선택 뒤에는 Xcode.
       ..on(_selectKey, _cltSelected)
       ..on(_selectKey, _cltSelected)
@@ -307,7 +303,7 @@ void main() {
       ..on(selectRunKey, _ok)
       ..on(_licenseAcceptKey, _ok)
       ..on(_firstLaunchRunKey, _ok);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runWizard(
       buildTestContext(
@@ -327,7 +323,7 @@ void main() {
       _licenseAcceptKey,
       _firstLaunchRunKey,
     ]);
-    for (final FakeCall call in sudoCalls) {
+    for (final call in sudoCalls) {
       expect(call.mode, RunMode.interactive);
       expect(call.stdinText, isNull);
     }

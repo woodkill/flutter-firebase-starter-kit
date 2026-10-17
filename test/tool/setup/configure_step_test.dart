@@ -243,7 +243,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('configure_step_test_');
     root = tempDir.path;
-    final File config = File('$root/${UserFilesStep.jsonUserPath}')
+    final config = File('$root/${UserFilesStep.jsonUserPath}')
       ..parent.createSync(recursive: true);
     File(UserFilesStep.jsonExamplePath).copySync(config.path);
     replaceJsonString(config.path, 'firebaseProjectId', projectId);
@@ -285,7 +285,7 @@ void main() {
   }) {
     final Redactor redactor = log?.redactor ?? Redactor();
     final MemoryLogSink usedLog = log ?? MemoryLogSink(redactor);
-    final WizardContext context = WizardContext(
+    final context = WizardContext(
       projectRoot: root,
       runner: runner,
       terminal: RedactingTerminal(terminal, redactor, usedLog),
@@ -313,9 +313,9 @@ void main() {
 
   test('T-19-CONF-01 설정 파일 3개가 실 값 모양이고 앱 목록에 두 앱이 있으면 ✓ · 실행 0', () async {
     writeRealFiles();
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(appsListKey, buildAppsList(<String>[androidAppId, iosAppId]));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runConfigureStep(runner, terminal);
 
@@ -341,18 +341,18 @@ void main() {
       writePlaceholderOptions();
       final List<int> pbxprojBefore = pbxproj.readAsBytesSync();
       final List<int> firebaseJsonBefore = firebaseJson.readAsBytesSync();
-      final _ConfigureCallbackRunner runner = _ConfigureCallbackRunner(
+      final runner = _ConfigureCallbackRunner(
         FakeCommandRunner()
           ..on(statusKey, _ok)
           ..on(configureKey, const CommandResult(0, configureSuccessStdout, ''))
           ..on(appsListKey, buildAppsList(<String>[iosAppId, androidAppId])),
         writeRealFiles,
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runConfigureStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(readChecklistReason(output), contains('자리표시'));
       expect(output, contains('\$ $configureKey'));
@@ -367,7 +367,7 @@ void main() {
 
   test('T-19-CONF-03 exit 0 이어도 마지막 줄이 완료 줄이 아니면 실패', () async {
     writePlaceholderOptions();
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(statusKey, _ok)
       ..on(
         configureKey,
@@ -377,11 +377,11 @@ void main() {
           '',
         ),
       );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runConfigureStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — '));
     expect(output, contains(ConfigureStep.completeLine));
@@ -390,20 +390,20 @@ void main() {
   });
 
   test('T-19-CONF-04 exit 1 이면 실패 · stderr 원문을 그대로 보인다', () async {
-    const String rubyError =
+    const rubyError =
         "✗ ruby 의 'xcodeproj' gem 을 찾을 수 없다 (ruby: /usr/bin/ruby).\n"
         '\n'
         '  해결 (둘 중 하나):\n'
         '    1) gem install xcodeproj\n';
     writePlaceholderOptions();
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(statusKey, _ok)
       ..on(configureKey, const CommandResult(1, '', rubyError));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runConfigureStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — '));
     expect(output, contains(rubyError));
@@ -414,7 +414,7 @@ void main() {
     () async {
       writePlaceholderOptions();
       final List<int> pbxprojBefore = pbxproj.readAsBytesSync();
-      final _ConfigureCallbackRunner runner = _ConfigureCallbackRunner(
+      final runner = _ConfigureCallbackRunner(
         FakeCommandRunner()
           ..on(statusKey, _ok)
           ..on(configureKey, const CommandResult(0, configureSuccessStdout, ''))
@@ -424,11 +424,11 @@ void main() {
           firebaseJson.writeAsStringSync('{"flutter":{"changed":true}}\n');
         },
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runConfigureStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       final String failureLine = output
           .split('\n')
           .firstWhere((String line) => line.startsWith('  실패 — '));
@@ -447,7 +447,7 @@ void main() {
     () async {
       writePlaceholderOptions();
       final List<int> pbxprojBefore = pbxproj.readAsBytesSync();
-      const String identityDiff =
+      const identityDiff =
           'diff --git a/$pbxprojPath b/$pbxprojPath\n'
           'index 1111111..2222222 100644\n'
           '--- a/$pbxprojPath\n'
@@ -461,8 +461,8 @@ void main() {
           '@@ -30 +30 @@\n'
           '-\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;\n'
           '+\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = $bundleBase;\n';
-      final List<List<int>> duringRun = <List<int>>[];
-      final _ConfigureCallbackRunner runner = _ConfigureCallbackRunner(
+      final duringRun = <List<int>>[];
+      final runner = _ConfigureCallbackRunner(
         FakeCommandRunner()
           ..on(statusKey, const CommandResult(0, ' M $pbxprojPath\n', ''))
           ..on(diffKey, const CommandResult(0, identityDiff, ''))
@@ -476,11 +476,11 @@ void main() {
           pbxproj.writeAsBytesSync(pbxprojBefore);
         },
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runConfigureStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(runner.inner.countCalls(RunMode.capture, diffKey), 1);
       expect(runner.inner.countCalls(RunMode.stream, configureKey), 1);
@@ -492,12 +492,12 @@ void main() {
   );
 
   group('T-19-CONF-08 pbxproj 변경이 앞 단계 모양이 아니면 실행하지 않고 멈춘다', () {
-    const String header =
+    const header =
         'diff --git a/$pbxprojPath b/$pbxprojPath\n'
         'index 1111111..2222222 100644\n'
         '--- a/$pbxprojPath\n'
         '+++ b/$pbxprojPath\n';
-    const Map<String, String> diffs = <String, String>{
+    const diffs = <String, String>{
       '(a) 번들 ID 밖 줄이 함께 바뀜':
           '$header'
           '@@ -10 +10 @@\n'
@@ -523,16 +523,14 @@ void main() {
     for (final MapEntry<String, String> entry in diffs.entries) {
       test(entry.key, () async {
         writePlaceholderOptions();
-        final FakeCommandRunner runner = FakeCommandRunner()
+        final runner = FakeCommandRunner()
           ..on(statusKey, const CommandResult(0, ' M $pbxprojPath\n', ''))
           ..on(diffKey, CommandResult(0, entry.value, ''));
-        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-          'y',
-        ]);
+        final terminal = ScriptedTerminal(const <String?>['y']);
 
         final int code = await runConfigureStep(runner, terminal);
 
-        final String output = terminal.output.toString();
+        final output = terminal.output.toString();
         final String failureLine = output
             .split('\n')
             .firstWhere((String line) => line.startsWith('  실패 — '));
@@ -547,16 +545,16 @@ void main() {
 
   test('T-19-CONF-09 firebase.json 에 미커밋 변경이 있으면 실패 · 실행 0 · diff 0', () async {
     writePlaceholderOptions();
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(
         statusKey,
         const CommandResult(0, ' M firebase.json\n M $pbxprojPath\n', ''),
       );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runConfigureStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('    firebase.json'));
     expect(runner.countMode(RunMode.stream), 0);
@@ -565,19 +563,19 @@ void main() {
 
   test('T-19-CONF-11 앱 목록 명령이 실패하면 오류 원문만 보이고 민감 출력(표준 출력)은 보이지 않는다', () async {
     writeRealFiles();
-    const String stdoutMarker = 'apps-list-stdout-marker';
-    const String stderrLine = 'Error: Failed to list Firebase apps.';
-    final FakeCommandRunner runner = FakeCommandRunner()
+    const stdoutMarker = 'apps-list-stdout-marker';
+    const stderrLine = 'Error: Failed to list Firebase apps.';
+    final runner = FakeCommandRunner()
       ..on(
         appsListKey,
         const CommandResult(1, '{"status":"$stdoutMarker"}', '$stderrLine\n'),
       );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
-    final MemoryLogSink log = MemoryLogSink(Redactor());
+    final terminal = ScriptedTerminal(const <String?>['y']);
+    final log = MemoryLogSink(Redactor());
 
     final int code = await runConfigureStep(runner, terminal, log: log);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — '));
     expect(output, contains(stderrLine));
@@ -592,17 +590,17 @@ void main() {
       writeRealOptions();
       writePlist(project: 'someone-else');
       writeGoogleServices();
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(appsListKey, buildAppsList(<String>[iosAppId, androidAppId]));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>[]);
+      final log = MemoryLogSink(Redactor());
 
       final int code = await runConfigureStep(runner, terminal, log: log);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(readChecklistReason(output), contains('다른 프로젝트'));
-      for (final String secret in <String>[
+      for (final secret in <String>[
         fakeApiKey,
         iosAppId,
         androidAppId,
@@ -619,19 +617,19 @@ void main() {
     'T-19-CONF-10 configure 스크립트가 실제 생성본 모양(예외 throw 5곳)을 쓰면 재검사 ✓ · 스크립트 1회 · 재검사에 자리표시 사유 0 · 화면 · 기록에 키 · 앱 ID 0',
     () async {
       writePlaceholderOptions();
-      final _ConfigureCallbackRunner runner = _ConfigureCallbackRunner(
+      final runner = _ConfigureCallbackRunner(
         FakeCommandRunner()
           ..on(statusKey, _ok)
           ..on(configureKey, const CommandResult(0, configureSuccessStdout, ''))
           ..on(appsListKey, buildAppsList(<String>[iosAppId, androidAppId])),
         writeRealFiles,
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final terminal = ScriptedTerminal(const <String?>['y']);
+      final log = MemoryLogSink(Redactor());
 
       final int code = await runConfigureStep(runner, terminal, log: log);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       final String written = File(
         '$root/${FirebaseAppFiles.optionsPath}',
       ).readAsStringSync();
@@ -646,11 +644,7 @@ void main() {
       );
       expect(afterRun, isNot(contains('저장소 자리표시')));
       expect(output, isNot(contains('  실패 — ')));
-      for (final String secret in <String>[
-        fakeApiKey,
-        iosAppId,
-        androidAppId,
-      ]) {
+      for (final secret in <String>[fakeApiKey, iosAppId, androidAppId]) {
         expect(output, isNot(contains(secret)));
         expect(log.text, isNot(contains(secret)));
       }

@@ -24,7 +24,7 @@ void main() {
         'android/app/build.gradle.kts',
       ).readAsStringSync();
       for (final Flavor flavor in Flavor.values) {
-        final FlavorPaths paths = FlavorPaths(flavor);
+        final paths = FlavorPaths(flavor);
         expect(
           flavor.placeholderProjectId,
           readExampleJson(flavor, 'firebaseProjectId'),
@@ -78,7 +78,7 @@ void main() {
         expect(paths.dartOptions, endsWith('_${flavor.name}.dart'));
       }
       // 세 flavor 의 경로는 서로 겹치지 않는다.
-      final Set<String> jsonPaths = <String>{
+      final jsonPaths = <String>{
         for (final Flavor flavor in Flavor.values) FlavorPaths(flavor).json,
       };
       expect(jsonPaths, hasLength(Flavor.values.length));

@@ -75,7 +75,7 @@ void main() {
 
     test('T-174-TEAM-02: example xcconfig 3 flavor 에 빈 자리표시 1줄 · 값 0', () {
       for (final String flavor in _flavors) {
-        final String path = 'ios/Flutter/$flavor.example.xcconfig';
+        final path = 'ios/Flutter/$flavor.example.xcconfig';
         final String source = stripSlashComments(readTrackedFile(path));
 
         expect(

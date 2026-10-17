@@ -652,7 +652,7 @@ void main() {
           ),
         );
 
-        const Map<String, String> exactlyOnce = <String, String>{
+        const exactlyOnce = <String, String>{
           'class WebAuthCallbackActivity : Activity()':
               'relay 는 플랫폼 Activity 하나로 선언한다.',
           'FlutterWebAuth2Plugin.callbacks.remove(':
@@ -684,7 +684,7 @@ void main() {
               'G-16.5-2: relay 는 라이브러리 인증 관리 Activity 를 직접 띄우지 '
               '않는다 — 그 같은 task 전용 재기동이 이 gap 의 원인이다.',
         );
-        for (final String logCall in <String>['Log.', 'println']) {
+        for (final logCall in <String>['Log.', 'println']) {
           expect(
             countOccurrences(kotlin, logCall),
             0,
@@ -1203,8 +1203,8 @@ void main() {
 /// `NaverHostChannel.kt` 도 이 디렉터리에 있다. `MainActivity.kt` 가 0개 또는
 /// 2개 이상이면 어느 패키지를 볼지 모호하므로 테스트를 실패시킨다.
 String _findKotlinPackageDir() {
-  const String kotlinBase = 'android/app/src/main/kotlin';
-  final Directory base = Directory(kotlinBase);
+  const kotlinBase = 'android/app/src/main/kotlin';
+  final base = Directory(kotlinBase);
   if (!base.existsSync()) {
     fail('Kotlin 소스 루트 부재: $kotlinBase');
   }

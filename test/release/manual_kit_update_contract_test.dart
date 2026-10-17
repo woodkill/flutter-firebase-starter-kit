@@ -243,7 +243,7 @@ String _sliceReadmeHead(String readme) {
 
 /// [text] 의 ```` ```bash ```` 블록마다 본문 줄 목록을 모은다.
 List<List<String>> _collectBashBlocks(String text) {
-  final List<List<String>> blocks = <List<String>>[];
+  final blocks = <List<String>>[];
   List<String>? current;
   for (final String line in text.split('\n')) {
     if (current == null) {
@@ -391,7 +391,7 @@ void main() {
       expect(rows, hasLength(_surfaceTableRowCount));
 
       final List<String> grades = rows.map(_readLikelihoodGrade).toList();
-      for (int i = 0; i < rows.length; i++) {
+      for (var i = 0; i < rows.length; i++) {
         expect(
           _likelihoodGrades,
           contains(grades[i]),

@@ -158,7 +158,7 @@ final class _Fixture {
 
   /// 두 임시 디렉터리를 지운다.
   void delete() {
-    for (final Directory directory in <Directory>[repo, home]) {
+    for (final directory in <Directory>[repo, home]) {
       if (directory.existsSync()) directory.deleteSync(recursive: true);
     }
   }
@@ -357,7 +357,7 @@ final class _FlowRunner implements CommandRunner {
     terminal.writeCommand(command.render());
     log.write('cmd', command.render());
     final CommandResult result = await _execute(RunMode.stream, command);
-    for (final String text in <String>[result.stdout, result.stderr]) {
+    for (final text in <String>[result.stdout, result.stderr]) {
       if (text.isEmpty) continue;
       terminal.writeRaw(text.endsWith('\n') ? text : '$text\n');
     }
@@ -445,7 +445,7 @@ final class _Run {
 
   /// [key] 의 결과 큐에 [results] 를 차례로 더한다.
   void on(String key, List<CommandResult> results) {
-    for (final CommandResult result in results) {
+    for (final result in results) {
       fake.on(key, result);
     }
   }
@@ -456,7 +456,7 @@ final class _Run {
 
   /// [request] 의 응답 큐에 [responses] 를 차례로 더한다.
   void onRest(RestRequest request, List<RestResponse> responses) {
-    for (final RestResponse response in responses) {
+    for (final response in responses) {
       rest.on(request.method, request.url.toString(), response);
     }
   }
@@ -714,11 +714,11 @@ void _runConfigureScriptEffect(_Fixture fixture) {
       FirebaseAppFiles.optionsPath,
       FirebaseAppFiles.iosPlistPath,
     ]);
-  for (final String path in <String>[
+  for (final path in <String>[
     ConfigureStep.pbxprojPath,
     ConfigureStep.firebaseJsonPath,
   ]) {
-    final File file = File('${fixture.root}/$path');
+    final file = File('${fixture.root}/$path');
     final List<int> before = file.readAsBytesSync();
     file
       ..writeAsStringSync(
@@ -770,8 +770,8 @@ void _registerAppSteps(_Run run, {List<CommandResult>? configureResults}) {
     ]);
 
   // rules: 배포 안 됨 → 배포 → 저장소 파일과 같음.
-  final String firestoreRuleset = 'projects/$projectId/rulesets/fs';
-  final String storageRuleset = 'projects/$projectId/rulesets/st';
+  const firestoreRuleset = 'projects/$projectId/rulesets/fs';
+  const storageRuleset = 'projects/$projectId/rulesets/st';
   run
     ..onRest(
       RulesStep.buildReleaseRequest(projectId, RulesStep.firestoreRelease),
@@ -807,7 +807,7 @@ void _registerAppSteps(_Run run, {List<CommandResult>? configureResults}) {
     ..onCommand(RulesStep.buildDeployCommand(projectId), <CommandResult>[ok()]);
 
   // App Check: 토큰 없음 → 만들기(목록 비었음 · 등록) → 등록됨.
-  for (final String appId in <String>[iosAppId, androidAppId]) {
+  for (final appId in <String>[iosAppId, androidAppId]) {
     run
       ..onRest(AppCheckStep.buildListRequest(projectId, appId), <RestResponse>[
         const RestResponse(200, '{}'),
@@ -887,7 +887,7 @@ void _registerAppSteps(_Run run, {List<CommandResult>? configureResults}) {
   }
 
   // 앱 실행 · 로그인 확인: 0명 → 실행 → 1명.
-  final String simulatorId = '0A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D';
+  const simulatorId = '0A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D';
   run
     ..onCommand(RunStep.buildPubGetCommand(), <CommandResult>[ok()])
     ..onCommand(RunStep.buildCodegenCommand(), <CommandResult>[ok()])
@@ -1005,7 +1005,7 @@ void main() {
   test(
     'T-19-FLOW-06: 백지 → 17단계 끝까지 · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
     () async {
-      final _Run run = _Run(fixture, <String?>[
+      final run = _Run(fixture, <String?>[
         ...earlyInputs,
         'y', // 로그인
         ...cloudInputs,
@@ -1058,7 +1058,7 @@ void main() {
       final int hintStart = output.indexOf(commitHintHeading);
       expect(hintStart, greaterThan(output.indexOf(allDoneLine)));
       final String hint = output.substring(hintStart);
-      for (final String path in <String>[
+      for (final path in <String>[
         ConfigureStep.pbxprojPath,
         FirebaseProjectStep.firebasercPath,
         '$oldKotlinDir/MainActivity.kt',
@@ -1078,7 +1078,7 @@ void main() {
         expect(key, isNot(startsWith('git add')));
         expect(key, isNot(startsWith('git commit')));
       }
-      for (final String text in <String>[output, run.log.text]) {
+      for (final text in <String>[output, run.log.text]) {
         expect(text, isNot(contains(buildFakeAccessToken())));
         expect(text, isNot(contains(buildFakeApiKey())));
       }
@@ -1099,7 +1099,7 @@ void main() {
           reason: '$prefix 명령이 흐름에 없다',
         );
       }
-      for (final FakeCall call in rootBound) {
+      for (final call in rootBound) {
         expect(call.workingDirectory, fixture.root, reason: call.key);
       }
     },
@@ -1108,7 +1108,7 @@ void main() {
   test(
     'T-19-FLOW-07: 사용자가 pbxproj 의 번들 ID 밖 줄을 고쳐 두면 configure 에서 멈춘다',
     () async {
-      final _Run first = _Run(fixture, <String?>[...earlyInputs]);
+      final first = _Run(fixture, <String?>[...earlyInputs]);
       _registerEarlySteps(first, isResumed: false);
       expect(await first.run(), wizardExitStopped);
       expect(first.screen.asks.last, stepConfirmQuestion);
@@ -1118,7 +1118,7 @@ void main() {
         '${fixture.root}/${ConfigureStep.pbxprojPath}',
       ).writeAsStringSync('$localEditLine\n', mode: FileMode.append);
 
-      final _Run second = _Run(fixture, <String?>[
+      final second = _Run(fixture, <String?>[
         ...cloudInputs,
         'y', // 앱 등록
         '', // 실패 뒤 기본 = 멈춤
@@ -1135,12 +1135,7 @@ void main() {
           .convert(output)
           .takeWhile((String line) => !line.startsWith('▶ '))
           .toList();
-      for (final String title in <String>[
-        'Xcode 준비',
-        '개발 도구',
-        '사용자 설정 파일',
-        '앱 정체성',
-      ]) {
+      for (final title in <String>['Xcode 준비', '개발 도구', '사용자 설정 파일', '앱 정체성']) {
         expect(
           checklist.where((String line) => line.startsWith('  ✓ $title — ')),
           hasLength(1),
@@ -1163,7 +1158,7 @@ void main() {
   test(
     'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 17단계 끝까지',
     () async {
-      final _Run run = _Run(fixture, <String?>[
+      final run = _Run(fixture, <String?>[
         ...earlyInputs,
         'y', // 로그인
         ...projectCreateInputs,
@@ -1211,7 +1206,7 @@ void main() {
         ),
         0,
       );
-      for (final Command command in <Command>[
+      for (final command in <Command>[
         FirebaseProjectStep.buildCreateCommand(projectId),
         FirebaseProjectStep.buildAddFirebaseCommand(projectId),
       ]) {
@@ -1223,7 +1218,7 @@ void main() {
           1,
         );
       }
-      for (final Command command in <Command>[
+      for (final command in <Command>[
         FirebaseProjectStep.buildDescribeCommand(projectId),
         FirebaseProjectStep.projectsListCommand,
       ]) {
@@ -1247,7 +1242,7 @@ void main() {
         output.substring(hintStart),
         contains('\n  ${FirebaseProjectStep.firebasercPath}\n'),
       );
-      for (final String text in <String>[output, run.log.text]) {
+      for (final text in <String>[output, run.log.text]) {
         expect(text, isNot(contains(buildFakeAccessToken())));
         expect(text, isNot(contains(buildFakeApiKey())));
       }
@@ -1257,7 +1252,7 @@ void main() {
   test(
     'T-19-FLOW-09: Firebase 추가 실패 뒤 멈추면 다시 실행이 같은 ID 에 확인 표 뒤 Firebase 를 추가해 끝까지 간다',
     () async {
-      final _Run first = _Run(fixture, <String?>[
+      final first = _Run(fixture, <String?>[
         ...earlyInputs,
         'y', // 로그인
         ...projectCreateInputs,
@@ -1292,7 +1287,7 @@ void main() {
         contains(' M ${FirebaseProjectStep.firebasercPath}'),
       );
 
-      final _Run second = _Run(fixture, <String?>[
+      final second = _Run(fixture, <String?>[
         'y', // 프로젝트
         'y', // Firebase 추가 확인 표
         ...afterProjectInputs,
@@ -1321,15 +1316,14 @@ void main() {
           .convert(output)
           .takeWhile((String line) => !line.startsWith('▶ '))
           .toList();
-      final String projectLinePrefix =
-          '  ✗ ${FirebaseProjectStep.stepTitle} — ';
+      const projectLinePrefix = '  ✗ ${FirebaseProjectStep.stepTitle} — ';
       final String projectLine = checklist.singleWhere(
         (String line) => line.startsWith(projectLinePrefix),
       );
       final String reason = projectLine.substring(projectLinePrefix.length);
       expect(reason, contains('Firebase'));
       expect(reason, contains(projectId));
-      for (final String title in <String>[
+      for (final title in <String>[
         'Xcode 준비',
         '개발 도구',
         '사용자 설정 파일',
@@ -1387,7 +1381,7 @@ void main() {
   test(
     'T-19-FLOW-10: configure 스크립트가 파일을 다 쓰고 비0 으로 끝나면 다시 시도가 재검사 ✓ 로 넘어간다',
     () async {
-      final _Run run = _Run(fixture, <String?>[
+      final run = _Run(fixture, <String?>[
         ...earlyInputs,
         'y', // 로그인
         ...cloudInputs,
@@ -1429,7 +1423,7 @@ void main() {
       expect(doneLine, greaterThan(failureLine));
       expect(output, isNot(contains('되돌리지 못했습니다')));
       expect(output, contains(allDoneLine));
-      for (final String text in <String>[output, run.log.text]) {
+      for (final text in <String>[output, run.log.text]) {
         expect(text, isNot(contains(buildFakeAccessToken())));
         expect(text, isNot(contains(buildFakeApiKey())));
       }

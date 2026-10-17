@@ -68,7 +68,7 @@ int compareVersions(String a, String b) {
   final List<int> left = parseVersionComponents(a);
   final List<int> right = parseVersionComponents(b);
   final int length = left.length > right.length ? left.length : right.length;
-  for (int i = 0; i < length; i++) {
+  for (var i = 0; i < length; i++) {
     final int l = i < left.length ? left[i] : 0;
     final int r = i < right.length ? right[i] : 0;
     if (l != r) {
@@ -160,10 +160,8 @@ void main() {
 
   group('검출 로직 — 수정 전 커밋(7866f8cd) fixture', () {
     // 7866f8cd 의 Runner pbxproj 대입 줄(탭 4개 들여쓰기) 과 값만 15.6 으로 바꾼 줄.
-    const String legacyTargetLine =
-        '\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;';
-    const String alignedTargetLine =
-        '\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 15.6;';
+    const legacyTargetLine = '\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;';
+    const alignedTargetLine = '\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 15.6;';
 
     test('수정 전 13.0 값을 불일치로 검출한다', () {
       final List<String> targets = collectPbxprojDeploymentTargets(

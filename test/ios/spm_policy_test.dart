@@ -109,8 +109,8 @@ List<String> listTrackedXcconfigFiles(String directory) {
 /// 못 찾으면 `fail()` 한다 — 오타 난 identity 가 조용히 skip 되지 않고
 /// 시끄럽게 죽어야 한다.
 Map<String, Object?> findPin(List<Object?> pins, String identity) {
-  for (final Object? pin in pins) {
-    final Map<String, Object?> map = pin! as Map<String, Object?>;
+  for (final pin in pins) {
+    final map = pin! as Map<String, Object?>;
     if (map['identity'] == identity) {
       return map;
     }
@@ -134,8 +134,8 @@ final RegExp _shellScriptValue = RegExp(r'shellScript = "((?:\\.|[^"\\])*)";');
 
 /// pbxproj 문자열 리터럴 [raw] 의 이스케이프를 풀어 실제 셸 스크립트로 되돌린다.
 String _decodePbxprojString(String raw) {
-  final StringBuffer out = StringBuffer();
-  for (int i = 0; i < raw.length; i++) {
+  final out = StringBuffer();
+  for (var i = 0; i < raw.length; i++) {
     final String ch = raw[i];
     if (ch != r'\' || i + 1 >= raw.length) {
       out.write(ch);
@@ -242,8 +242,8 @@ void main() {
 
   group('두 Package.resolved 의 바이트 동일 (16.3 ② · 리뷰 WR-05)', () {
     test('T-16.3-SPM-03 workspace 와 xcodeproj 의 핀이 바이트 동일하다', () {
-      final File workspace = File(_workspaceResolvedPath);
-      final File project = File(_projectResolvedPath);
+      final workspace = File(_workspaceResolvedPath);
+      final project = File(_projectResolvedPath);
 
       expect(
         workspace.existsSync(),
@@ -418,7 +418,7 @@ void main() {
               '하지 않는다 — 목록 또는 파일 내용이 깨졌다.',
         );
 
-        for (final String path in xcconfigFiles) {
+        for (final path in xcconfigFiles) {
           expect(
             countOccurrences(readTrackedFile(path), 'Target Support Files'),
             0,
@@ -460,35 +460,34 @@ void main() {
     /// 손으로 값을 바꾸거나 명시 고정한 5개 identity — 16.3-02-SUMMARY.md
     /// 「② 고정한 identity」 표가 진실원이다. LINE 은 하드코딩하지 않고
     /// 결정 파일에서 읽으므로 이 표에 없다.
-    const Map<String, ({String version, String revision})> expectedPins =
-        <String, ({String version, String revision})>{
-          'facebook-ios-sdk': (
-            version: '18.0.2',
-            revision: '32da5bdef917ccd845fcf319c5fb67c654459d27',
-          ),
-          'googlesignin-ios': (
-            version: '9.1.0',
-            revision: '913b4005ea26aebe1c97d54e35ad82a515924c71',
-          ),
-          'firebase-ios-sdk': (
-            version: '12.19.0',
-            revision: '27eaab3918e0bf78711cf1abf240577176326432',
-          ),
-          'appauth-ios': (
-            version: '2.0.0',
-            revision: '145104f5ea9d58ae21b60add007c33c1cc0c948e',
-          ),
-          'naveridlogin-sdk-ios-swift': (
-            version: '5.2.1',
-            revision: '70f0cecb996768b3f6df88ec72567e3c5dee1035',
-          ),
-        };
+    const expectedPins = <String, ({String version, String revision})>{
+      'facebook-ios-sdk': (
+        version: '18.0.2',
+        revision: '32da5bdef917ccd845fcf319c5fb67c654459d27',
+      ),
+      'googlesignin-ios': (
+        version: '9.1.0',
+        revision: '913b4005ea26aebe1c97d54e35ad82a515924c71',
+      ),
+      'firebase-ios-sdk': (
+        version: '12.19.0',
+        revision: '27eaab3918e0bf78711cf1abf240577176326432',
+      ),
+      'appauth-ios': (
+        version: '2.0.0',
+        revision: '145104f5ea9d58ae21b60add007c33c1cc0c948e',
+      ),
+      'naveridlogin-sdk-ios-swift': (
+        version: '5.2.1',
+        revision: '70f0cecb996768b3f6df88ec72567e3c5dee1035',
+      ),
+    };
 
     test('T-16.3-SPM-10 6개 SDK 의 identity 별 핀이 기준선 값을 유지한다', () {
-      final Map<String, Object?> resolved =
+      final resolved =
           jsonDecode(readTrackedFile(_workspaceResolvedPath))
               as Map<String, Object?>;
-      final List<Object?> pins = resolved['pins']! as List<Object?>;
+      final pins = resolved['pins']! as List<Object?>;
 
       // 양성 대조 — pins 목록이 비면 아래 5개 identity 검사 전부가
       // findPin() 의 fail() 로 죽지만, threat T-16.3-13(Package.resolved
@@ -505,8 +504,7 @@ void main() {
       for (final MapEntry<String, ({String version, String revision})> entry
           in expectedPins.entries) {
         final Map<String, Object?> pin = findPin(pins, entry.key);
-        final Map<String, Object?> state =
-            pin['state']! as Map<String, Object?>;
+        final state = pin['state']! as Map<String, Object?>;
 
         expect(
           state['version'],
@@ -535,12 +533,12 @@ void main() {
         _linePinDecisionPath,
       );
 
-      final Map<String, Object?> resolved =
+      final resolved =
           jsonDecode(readTrackedFile(_workspaceResolvedPath))
               as Map<String, Object?>;
-      final List<Object?> pins = resolved['pins']! as List<Object?>;
+      final pins = resolved['pins']! as List<Object?>;
       final Map<String, Object?> pin = findPin(pins, 'line-sdk-ios-swift');
-      final Map<String, Object?> state = pin['state']! as Map<String, Object?>;
+      final state = pin['state']! as Map<String, Object?>;
 
       expect(
         state['version'],

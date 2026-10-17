@@ -55,7 +55,7 @@ void main() {
     test('Failure의 exception 타입이 AppException으로 제한', () {
       const result = Result<int>.failure(SessionExpired());
 
-      final failure = result as Failure<int>;
+      const failure = result as Failure<int>;
       expect(failure.exception, isA<AppException>());
 
       // AppException의 하위 타입들도 허용

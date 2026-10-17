@@ -27,12 +27,11 @@ void main() {
           readTrackedFile('scripts/functions_manifest.json'),
         );
         expect(decoded, isA<Map<String, Object?>>());
-        final Map<String, Object?> manifest = decoded! as Map<String, Object?>;
+        final manifest = decoded! as Map<String, Object?>;
 
         final Object? providersRaw = manifest['providers'];
         expect(providersRaw, isA<Map<String, Object?>>());
-        final Map<String, Object?> providers =
-            providersRaw! as Map<String, Object?>;
+        final providers = providersRaw! as Map<String, Object?>;
 
         expect(
           providers.keys.toList(),
@@ -47,9 +46,9 @@ void main() {
         // emailDelivery=kit 일 때만 배포). 이름 중복 검사에 함께 넣는다.
         final Object? emailRaw = manifest['email'];
         expect(emailRaw, isA<Map<String, Object?>>());
-        final Map<String, Object?> email = emailRaw! as Map<String, Object?>;
+        final email = emailRaw! as Map<String, Object?>;
 
-        final List<String> names = <String>[
+        final names = <String>[
           ..._readNames(manifest['common'], 'common'),
           for (final MapEntry<String, Object?> entry in providers.entries)
             ..._readNames(entry.value, 'providers.${entry.key}'),

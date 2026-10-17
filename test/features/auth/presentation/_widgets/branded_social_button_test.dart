@@ -196,11 +196,11 @@ double _readScaledFontSize(WidgetTester tester, String text) {
 ///
 /// 엔진이 실제 시간으로 글꼴을 읽으므로 `tester.runAsync` 안에서 부른다.
 Future<void> _loadFontFile(String family, String path) async {
-  final File file = File(path);
+  final file = File(path);
   if (!file.existsSync()) {
     fail('글꼴 파일 부재: $path');
   }
-  final FontLoader loader = FontLoader(family)
+  final loader = FontLoader(family)
     ..addFont(
       Future<ByteData>.value(ByteData.sublistView(file.readAsBytesSync())),
     );
@@ -257,9 +257,9 @@ Future<void> _expectSkin(
   _SkinExpectation want,
 ) async {
   for (final Brightness brightness in Brightness.values) {
-    final bool isDark = brightness == Brightness.dark;
+    final isDark = brightness == Brightness.dark;
     await _pumpButton(tester, provider, brightness: brightness);
-    final String where = '${provider.name} · ${brightness.name}';
+    final where = '${provider.name} · ${brightness.name}';
 
     final Material surface = tester.widget<Material>(_findSurface());
     expect(
@@ -406,11 +406,11 @@ void main() {
   group('공통 골격 — 버튼 6개에 같은 값', () {
     testWidgets('T-177-SKEL-01: 버튼 6개가 밝은 · 어두운 테마에서 '
         '같은 높이 · 같은 모서리 반지름으로 그려진다', (tester) async {
-      final BorderRadius radius = BorderRadius.circular(kBrandButtonRadius);
+      final radius = BorderRadius.circular(kBrandButtonRadius);
       for (final _ProviderCase provider in _cases) {
         for (final Brightness brightness in Brightness.values) {
           await _pumpButton(tester, provider, brightness: brightness);
-          final String where = '${provider.name} · ${brightness.name}';
+          final where = '${provider.name} · ${brightness.name}';
 
           final SizedBox box = tester.widget<SizedBox>(
             _findInButton(
@@ -588,9 +588,9 @@ void main() {
     testWidgets('T-177-SKEL-05: 비활성 버튼 6개가 한 값의 투명도로 '
         '그려진다', (tester) async {
       for (final _ProviderCase provider in _cases) {
-        for (final bool isEnabled in <bool>[false, true]) {
+        for (final isEnabled in <bool>[false, true]) {
           await _pumpButton(tester, provider, isEnabled: isEnabled);
-          final String where = '${provider.name} · ${isEnabled ? '활성' : '비활성'}';
+          final where = '${provider.name} · ${isEnabled ? '활성' : '비활성'}';
 
           expect(
             tester.widget<Opacity>(_findInButton(find.byType(Opacity))).opacity,
@@ -901,7 +901,7 @@ void main() {
           EdgeInsets.zero,
           EdgeInsets.only(top: _approvedIosLabelTopInset),
         );
-        final Map<String, (Object?, Object?)> want = provider.name == 'google'
+        final want = provider.name == 'google'
             ? <String, (Object?, Object?)>{
                 'labelTopInset': topInset,
                 // 자기 글꼴 라벨의 줄 상자를 시스템 글꼴 줄 상자로 받친다.
@@ -941,8 +941,8 @@ void main() {
       });
       // 한글 대체 글꼴은 올리지 않는다 — 기기에서도 두 라벨이 같은 한글 글꼴을
       // 쓰므로 차이는 라틴 글꼴의 줄 상자와 위 여백에서만 난다.
-      const String googleLabel = 'Google로 로그인';
-      const String appleLabel = 'Apple로 로그인';
+      const googleLabel = 'Google로 로그인';
+      const appleLabel = 'Apple로 로그인';
 
       // 대조 — 대역 글꼴과 Google Sans 의 줄 위쪽 높이가 달라야 한다. 같으면
       // 글꼴이 올라가지 않은 것이라 아래 단언은 빈 통과다.

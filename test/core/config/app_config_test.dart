@@ -380,7 +380,7 @@ void main() {
 
     test('config/*.example.json 이 functionsRegion · brandColor · '
         'emailDelivery 키를 노출한다', () {
-      final Set<Object?> regions = <Object?>{};
+      final regions = <Object?>{};
       for (final flavor in const <String>['dev', 'stg', 'prod']) {
         final file = File('config/$flavor.example.json');
         final json =
@@ -505,12 +505,11 @@ void main() {
   });
 
   group('emailDelivery — 발송 모드 레버 (D-09)', () {
-    const Map<String, EmailDeliveryMode> validCases =
-        <String, EmailDeliveryMode>{
-          '': EmailDeliveryMode.firebase,
-          'firebase': EmailDeliveryMode.firebase,
-          'kit': EmailDeliveryMode.kit,
-        };
+    const validCases = <String, EmailDeliveryMode>{
+      '': EmailDeliveryMode.firebase,
+      'firebase': EmailDeliveryMode.firebase,
+      'kit': EmailDeliveryMode.kit,
+    };
     for (final MapEntry<String, EmailDeliveryMode> entry
         in validCases.entries) {
       test('parseEmailDeliveryMode("${entry.key}") → ${entry.value.name}', () {
@@ -519,7 +518,7 @@ void main() {
     }
 
     // 배포 스크립트와 같은 정확 일치 — 대소문자 · 공백 변환 없이 거부한다.
-    for (final String invalid in const <String>['Kit', 'smtp', ' kit']) {
+    for (final invalid in const <String>['Kit', 'smtp', ' kit']) {
       test('parseEmailDeliveryMode("$invalid") 는 debug 에서 StateError', () {
         expect(
           () => AppConfig.parseEmailDeliveryMode(invalid),

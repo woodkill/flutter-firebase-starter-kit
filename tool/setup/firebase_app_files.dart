@@ -14,7 +14,7 @@ const String devPackageSuffix = '.dev';
 ///
 /// 파일이 없거나 값이 비었으면 null.
 String? readDevBundleId(String projectRoot) {
-  final File file = File('$projectRoot/${UserFilesStep.xcconfigUserPath}');
+  final file = File('$projectRoot/${UserFilesStep.xcconfigUserPath}');
   if (!file.existsSync()) return null;
   final String? value = readXcconfigValue(
     file.path,
@@ -90,7 +90,7 @@ final class FirebaseAppFiles {
   String? get optionsProjectId {
     final String? options = _options;
     if (options == null) return null;
-    final Set<String> values = <String>{
+    final values = <String>{
       for (final RegExpMatch match in RegExp(
         r"projectId:\s*'([^']+)'",
       ).allMatches(options))
@@ -147,7 +147,7 @@ final class FirebaseAppFiles {
 
   /// 파일을 읽는다 — 없거나 읽지 못하면 null.
   static String? _readText(String path) {
-    final File file = File(path);
+    final file = File(path);
     if (!file.existsSync()) return null;
     try {
       return file.readAsStringSync();

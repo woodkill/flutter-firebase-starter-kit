@@ -164,14 +164,14 @@ void expectBrandButtonLabelsCapped(
     greaterThanOrEqualTo(minButtons),
     reason: '$where: 화면에 그려진 소셜 버튼이 $minButtons개보다 적다',
   );
-  for (final double size in labelSizes) {
+  for (final size in labelSizes) {
     expect(
       size,
       closeTo(_cappedLabelSize, 0.001),
       reason: '$where: 버튼 라벨이 글자 배율 상한에서 멈춰야 한다',
     );
   }
-  for (final double height in heights) {
+  for (final height in heights) {
     expect(height, kBrandButtonHeight, reason: '$where: 버튼 높이는 글자 배율을 따르지 않는다');
   }
   expect(errors.fromButtons, isEmpty, reason: '$where: 버튼에서 비롯된 layout 오류가 있다');

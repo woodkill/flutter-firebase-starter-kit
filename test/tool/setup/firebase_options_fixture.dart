@@ -18,7 +18,7 @@ String buildGeneratedOptionsSource({
   required String iosAppId,
   String? iosBundleId,
 }) {
-  final String iosBundleLine = iosBundleId == null
+  final iosBundleLine = iosBundleId == null
       ? ''
       : "    iosBundleId: '$iosBundleId',\n";
   return '''

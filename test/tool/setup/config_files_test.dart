@@ -75,7 +75,7 @@ void main() {
     final String updated = File(userPath).readAsStringSync();
     final List<String> originalLines = original.split('\n');
     final int closeIndex = originalLines.lastIndexOf('}');
-    final List<String> expectedLines = <String>[
+    final expectedLines = <String>[
       ...originalLines.sublist(0, closeIndex - 1),
       '${originalLines[closeIndex - 1]},',
       '  "brandColor": "#673AB7",',
@@ -87,7 +87,7 @@ void main() {
     final Object? decoded = jsonDecode(updated);
     final Object? exampleDecoded = jsonDecode(example);
     expect(decoded, isA<Map<String, Object?>>());
-    final Map<String, Object?> merged = decoded! as Map<String, Object?>;
+    final merged = decoded! as Map<String, Object?>;
     expect(merged['firebaseProjectId'], 'acme-real-dev');
     expect(merged['brandColor'], '#673AB7');
     expect(merged['appCheckDebugToken'], '');
@@ -120,7 +120,7 @@ void main() {
   });
 
   test('T-19-CFG-03 사용자 JSON 이 깨지면 FormatException 이고 파일은 그대로다', () {
-    const String broken = '{\n  "flavor": "dev",\n';
+    const broken = '{\n  "flavor": "dev",\n';
     File(userPath).writeAsStringSync(broken);
 
     expect(
@@ -142,8 +142,8 @@ void main() {
   });
 
   test('T-19-CFG-04 빠진 xcconfig 변수는 바로 위 주석 묶음과 함께 파일 끝에 붙는다', () {
-    final String smallExamplePath = '${tempDir.path}/small.example.xcconfig';
-    final String smallUserPath = '${tempDir.path}/small.xcconfig';
+    final smallExamplePath = '${tempDir.path}/small.example.xcconfig';
+    final smallUserPath = '${tempDir.path}/small.xcconfig';
     File(smallExamplePath).writeAsStringSync(smallXcconfigExample);
     // 끝 개행이 없는 사용자 파일 — 붙이기 전에 개행을 보장해야 한다.
     File(smallUserPath).writeAsStringSync('ALPHA = mine');
@@ -175,8 +175,8 @@ void main() {
     expect(readXcconfigValue(smallUserPath, 'MISSING'), isNull);
 
     // 추적되는 example 그대로인 사용자 파일은 빠진 변수가 없고 바뀌지 않는다.
-    final String trackedExamplePath = '${tempDir.path}/dev.example.xcconfig';
-    final String trackedUserPath = '${tempDir.path}/dev.xcconfig';
+    final trackedExamplePath = '${tempDir.path}/dev.example.xcconfig';
+    final trackedUserPath = '${tempDir.path}/dev.xcconfig';
     File(trackedXcconfigExample).copySync(trackedExamplePath);
     File(trackedXcconfigExample).copySync(trackedUserPath);
     final List<int> before = File(trackedUserPath).readAsBytesSync();
@@ -219,7 +219,7 @@ void main() {
     expect((decoded! as Map<String, Object?>)['appName'], r'A "q" \ b');
     expect(readJsonString(userPath, 'appName'), r'A "q" \ b');
 
-    final String xcconfigPath = '${tempDir.path}/dev.xcconfig';
+    final xcconfigPath = '${tempDir.path}/dev.xcconfig';
     File(trackedXcconfigExample).copySync(xcconfigPath);
     final String xcconfigOriginal = File(xcconfigPath).readAsStringSync();
     replaceXcconfigValue(xcconfigPath, 'DISPLAY_NAME', 'My App Dev');

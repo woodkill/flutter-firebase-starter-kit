@@ -131,8 +131,8 @@ const List<String> _contributingTokens = <String>['발행본', 'PR', 'Issues', '
 /// 항목 경계는 `  - type: ` 로 시작하는 줄이다. `id` 가 없는 항목(markdown)은 뺀다.
 /// 같은 `id` 가 두 번 나오면 테스트를 실패시킨다(GitHub 양식은 `id` 가 고유해야 한다).
 Map<String, String> _splitFormFields(String yaml, String path) {
-  final Map<String, String> fields = <String, String>{};
-  final RegExp idLine = RegExp(r'^    id: (\S+)$', multiLine: true);
+  final fields = <String, String>{};
+  final idLine = RegExp(r'^    id: (\S+)$', multiLine: true);
   for (final String block
       in yaml.split(RegExp(r'^  - type: ', multiLine: true)).skip(1)) {
     final RegExpMatch? match = idLine.firstMatch(block);
@@ -253,7 +253,7 @@ void main() {
       final List<String> releaseHeadings = sectionHeadings
           .where((String line) => line != '## [Unreleased]')
           .toList();
-      for (final String heading in releaseHeadings) {
+      for (final heading in releaseHeadings) {
         expect(
           _releaseHeading.hasMatch(heading),
           isTrue,
@@ -274,12 +274,12 @@ void main() {
         reason: 'CHANGELOG 머리에는 `###` 헤딩이 없어야 한다',
       );
 
-      for (final String heading in sectionHeadings) {
+      for (final heading in sectionHeadings) {
         final List<String> typeHeadings = linesStartingWith(
           sliceMarkdownSection(changelog, heading, maxLevel: 2),
           '### ',
         ).map((String line) => line.substring(4)).toList();
-        for (final String type in typeHeadings) {
+        for (final type in typeHeadings) {
           expect(
             _allowedChangeTypes.contains(type),
             isTrue,
@@ -296,7 +296,7 @@ void main() {
         }
       }
 
-      final File kitVersionFile = File(_kitVersionPath);
+      final kitVersionFile = File(_kitVersionPath);
       if (kitVersionFile.existsSync()) {
         final String raw = kitVersionFile.readAsStringSync();
         final RegExpMatch? match = _kitVersionContent.firstMatch(raw);
@@ -316,11 +316,10 @@ void main() {
           version,
           reason: '첫 판 절 번호가 KIT_VERSION 과 다르다 — $_releaseCutRule',
         );
-        final String compareLine =
+        final compareLine =
             '[Unreleased]: $_publicRepoUrl/compare/v$version...HEAD';
-        final String tagLine =
-            '[$version]: $_publicRepoUrl/releases/tag/v$version';
-        for (final String link in <String>[compareLine, tagLine]) {
+        final tagLine = '[$version]: $_publicRepoUrl/releases/tag/v$version';
+        for (final link in <String>[compareLine, tagLine]) {
           expect(
             lines.where((String line) => line == link).length,
             1,
@@ -348,7 +347,7 @@ void main() {
         0,
         reason: 'git ls-files assets 실패 — git 이 PATH 에 없거나 저장소 밖에서 실행됐다.',
       );
-      final RegExp licenseName = RegExp('licen|ofl', caseSensitive: false);
+      final licenseName = RegExp('licen|ofl', caseSensitive: false);
       final Set<String> tracked = (result.stdout as String)
           .split('\n')
           .where((String path) => path.isNotEmpty)
@@ -373,7 +372,7 @@ void main() {
             'tracked 자산 라이선스 파일과 LICENSE 제3자 절 목록이 다르다 — 자산을 더하거나 '
             '뺐다면 LICENSE 도 같이 고친다',
       );
-      for (final String path in listed) {
+      for (final path in listed) {
         expect(
           File(path).existsSync(),
           isTrue,
@@ -505,7 +504,7 @@ void main() {
       );
 
       final String prTemplate = readTrackedFile(_prTemplatePath);
-      for (final String token in <String>['반영하지 않', 'Issues']) {
+      for (final token in <String>['반영하지 않', 'Issues']) {
         expect(
           countOccurrences(prTemplate, token),
           greaterThanOrEqualTo(1),
@@ -515,7 +514,7 @@ void main() {
 
       // 양성 대조: 금지 패턴 정규식이 동작한다(ART-04 와 같은 대조).
       expect(_findForbidden('Phase 9'), isNotEmpty);
-      final Map<String, String> texts = <String, String>{
+      final texts = <String, String>{
         _issueConfigPath: config,
         _bugFormPath: bug,
         _proposalFormPath: proposal,

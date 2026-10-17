@@ -49,7 +49,7 @@ final class RestRequest {
   /// 토큰 자리에는 [accessTokenExpression] 을 쓰고 `x-goog-user-project` 헤더를
   /// 항상 붙인다. 본문의 작은따옴표는 셸 관례대로 `'\''` 로 바꾼다.
   String displayCurl() {
-    final StringBuffer buffer = StringBuffer()
+    final buffer = StringBuffer()
       ..write('curl -s -X $method "$url"')
       ..write(' -H "Authorization: Bearer $accessTokenExpression"')
       ..write(' -H "x-goog-user-project: $quotaProject"');
@@ -111,8 +111,7 @@ final class ExternalRequest {
   /// [headerDisplay] · [formDisplay] 만 쓰고 실제 [headers] · [formBody] 값은
   /// 쓰지 않는다. 본문의 작은따옴표는 셸 관례대로 `'\''` 로 바꾼다.
   String displayCurl() {
-    final StringBuffer buffer = StringBuffer()
-      ..write('curl -s -X $method "$url"');
+    final buffer = StringBuffer()..write('curl -s -X $method "$url"');
     for (final MapEntry<String, String> header in headerDisplay.entries) {
       buffer.write(' -H "${header.key}: ${header.value}"');
     }
@@ -263,7 +262,7 @@ final class HttpRestClient implements RestClient {
 
   @override
   Future<RestResponse> send(RestRequest request) async {
-    final String target = '${request.method} ${request.url}';
+    final target = '${request.method} ${request.url}';
     final String? token = await tokens.read();
     if (token == null) {
       terminal.writeLine(tokenUnavailableMessage);
@@ -317,7 +316,7 @@ final class HttpRestClient implements RestClient {
     required ContentType contentType,
     required bool isResponseSensitive,
   }) async {
-    final String target = '$method $url';
+    final target = '$method $url';
     HttpClientRequest? openedRequest;
     // 머리를 받은 뒤에만 채운다 — 상한에 걸린 단계를 기록에서 가른다.
     int? statusCode;
@@ -353,7 +352,7 @@ final class HttpRestClient implements RestClient {
       // 머리 단계 상한이면 연결을 끊는다 — 본문 단계는 구독 취소로 이미 닫혔다.
       openedRequest?.abort();
       terminal.writeLine(responseTimeoutMessage);
-      final String limit = '${responseTimeout.inMilliseconds}ms';
+      final limit = '${responseTimeout.inMilliseconds}ms';
       log.write(
         'rest',
         statusCode == null

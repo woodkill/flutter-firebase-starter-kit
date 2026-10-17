@@ -16,10 +16,10 @@ final RegExp defineSecretPattern = RegExp(
 /// 선언한 secret 전부를 확인하므로, 이 목록이 배포 전에 있어야 하는 secret 이다.
 /// 소스 디렉터리가 없으면 빈 목록이다.
 List<String> extractDeclaredSecretNames(String projectRoot) {
-  final Directory source = Directory('$projectRoot/$functionsSourceDirectory');
+  final source = Directory('$projectRoot/$functionsSourceDirectory');
   if (!source.existsSync()) return <String>[];
-  final String prefix = '${source.path}/';
-  final Set<String> names = <String>{};
+  final prefix = '${source.path}/';
+  final names = <String>{};
   for (final FileSystemEntity entity in source.listSync(
     recursive: true,
     followLinks: false,

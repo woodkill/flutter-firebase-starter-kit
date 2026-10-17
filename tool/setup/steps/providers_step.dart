@@ -111,12 +111,12 @@ final class ProvidersStep implements Step {
       context.session.isProviderSelectionRequested = false;
       return const Applied();
     }
-    final List<String> removed = <String>[
+    final removed = <String>[
       for (final ProviderEntry entry in providerCatalog)
         if (current.contains(entry.token) && !chosen.contains(entry.token))
           entry.displayName,
     ];
-    final List<String> added = <String>[
+    final added = <String>[
       for (final ProviderEntry entry in providerCatalog)
         if (!current.contains(entry.token) && chosen.contains(entry.token))
           entry.displayName,

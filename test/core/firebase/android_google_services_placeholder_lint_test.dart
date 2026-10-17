@@ -200,27 +200,27 @@ Map<String, dynamic> readPlaceholderJson(String path) {
 /// [json] 의 `client[0].client_info.android_client_info.package_name` 을
 /// 돌려준다.
 String readPackageName(Map<String, dynamic> json) {
-  final List<dynamic> clients = json['client'] as List<dynamic>;
-  final Map<String, dynamic> clientInfo =
+  final clients = json['client'] as List<dynamic>;
+  final clientInfo =
       (clients.first as Map<String, dynamic>)['client_info']
           as Map<String, dynamic>;
-  final Map<String, dynamic> androidClientInfo =
+  final androidClientInfo =
       clientInfo['android_client_info'] as Map<String, dynamic>;
   return androidClientInfo['package_name'] as String;
 }
 
 /// [json] 의 `client[0].api_key[0].current_key` 를 돌려준다.
 String readCurrentKey(Map<String, dynamic> json) {
-  final List<dynamic> clients = json['client'] as List<dynamic>;
-  final List<dynamic> apiKeys =
+  final clients = json['client'] as List<dynamic>;
+  final apiKeys =
       (clients.first as Map<String, dynamic>)['api_key'] as List<dynamic>;
   return (apiKeys.first as Map<String, dynamic>)['current_key'] as String;
 }
 
 /// [json] 의 `client[0].client_info.mobilesdk_app_id` 를 돌려준다.
 String readMobilesdkAppId(Map<String, dynamic> json) {
-  final List<dynamic> clients = json['client'] as List<dynamic>;
-  final Map<String, dynamic> clientInfo =
+  final clients = json['client'] as List<dynamic>;
+  final clientInfo =
       (clients.first as Map<String, dynamic>)['client_info']
           as Map<String, dynamic>;
   return clientInfo['mobilesdk_app_id'] as String;
@@ -266,11 +266,7 @@ void expectCommittedIosPlaceholderPlist({
         '커밋된 $path 의 GCM_SENDER_ID 가 placeholder 가 아니다 — 실제 '
         'Firebase 프로젝트 번호가 커밋되려 한다. $hint',
   );
-  for (final String key in <String>[
-    'API_KEY',
-    'CLIENT_ID',
-    'REVERSED_CLIENT_ID',
-  ]) {
+  for (final key in <String>['API_KEY', 'CLIENT_ID', 'REVERSED_CLIENT_ID']) {
     expect(
       readPlistString(plist, key) == _placeholderApiKey,
       isTrue,
@@ -297,8 +293,7 @@ void main() {
     () {
       test('stg placeholder 의 project_info 가 placeholder 어휘를 유지한다', () {
         final Map<String, dynamic> json = readPlaceholderJson(_stgJsonPath);
-        final Map<String, dynamic> projectInfo =
-            json['project_info'] as Map<String, dynamic>;
+        final projectInfo = json['project_info'] as Map<String, dynamic>;
 
         expect(
           projectInfo['project_number'],
@@ -354,7 +349,7 @@ void main() {
       });
 
       test('stg/prod placeholder 어느 쪽에도 실제 Google API 키가 없다', () {
-        for (final String path in <String>[_stgJsonPath, _prodJsonPath]) {
+        for (final path in <String>[_stgJsonPath, _prodJsonPath]) {
           final Map<String, dynamic> json = readPlaceholderJson(path);
           final String raw = readCommittedText(path);
 
@@ -384,7 +379,7 @@ void main() {
       });
 
       test('.gitignore 가 stg/prod placeholder 2종을 negation 으로 되살린다', () {
-        final File gitignoreFile = File(_gitignorePath);
+        final gitignoreFile = File(_gitignorePath);
         expect(
           gitignoreFile.existsSync(),
           isTrue,
@@ -397,10 +392,7 @@ void main() {
             .where((String line) => line.isNotEmpty && !line.startsWith('#'))
             .toList();
 
-        for (final String negation in <String>[
-          _stgNegationLine,
-          _prodNegationLine,
-        ]) {
+        for (final negation in <String>[_stgNegationLine, _prodNegationLine]) {
           expect(
             lines,
             contains(negation),
@@ -442,7 +434,7 @@ void main() {
     });
 
     test('커밋된 iOS plist 3종에 실 키도 ANDROID_CLIENT_ID 도 없다', () {
-      for (final String path in <String>[
+      for (final path in <String>[
         _devPlistPath,
         _stgPlistPath,
         _prodPlistPath,
@@ -470,7 +462,7 @@ void main() {
     });
 
     test('워킹트리에 iOS plist 3종이 모두 존재한다 (Xcode copy 빌드 단계 게이트)', () {
-      for (final String path in <String>[
+      for (final path in <String>[
         _devPlistPath,
         _stgPlistPath,
         _prodPlistPath,

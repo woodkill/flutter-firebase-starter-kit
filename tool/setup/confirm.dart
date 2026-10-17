@@ -30,11 +30,11 @@ void writeSummary(
     final int width = measureDisplayWidth(row.label);
     return width > widest ? width : widest;
   });
-  for (final SummaryRow row in rows) {
+  for (final row in rows) {
     final int padding = labelWidth - measureDisplayWidth(row.label);
     terminal.writeLine('  ${row.label}${' ' * padding}  ${row.value}');
   }
-  for (final String note in notes) {
+  for (final note in notes) {
     terminal.writeLine('  · $note');
   }
 }
@@ -52,7 +52,7 @@ bool confirmSummary(
   List<String> warnings = const <String>[],
 }) {
   writeSummary(terminal, title: title, rows: rows);
-  for (final String warning in warnings) {
+  for (final warning in warnings) {
     terminal.writeLine('  ! $warning');
   }
   return terminal.confirm(summaryConfirmQuestion);
@@ -60,7 +60,7 @@ bool confirmSummary(
 
 /// [text] 가 고정폭 터미널에서 차지하는 칸 수를 센다 — 한글 · 한자 · 전각 문자는 2칸.
 int measureDisplayWidth(String text) {
-  int width = 0;
+  var width = 0;
   for (final int rune in text.runes) {
     width += _isWideRune(rune) ? 2 : 1;
   }

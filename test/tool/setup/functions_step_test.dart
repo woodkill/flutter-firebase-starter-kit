@@ -177,7 +177,7 @@ final class _EchoingRunner implements CommandRunner {
     if (key == installKey) onInstall?.call();
     terminal.writeCommand(command.render());
     final CommandResult result = await inner.stream(command);
-    for (final String text in <String>[result.stdout, result.stderr]) {
+    for (final text in <String>[result.stdout, result.stderr]) {
       if (text.isEmpty) continue;
       terminal.writeRaw(text.endsWith('\n') ? text : '$text\n');
     }
@@ -275,9 +275,9 @@ CommandResult buildFunctionsListWithSecrets(
   Iterable<String> commonIds, {
   Map<String, String> versions = const <String, String>{},
 }) {
-  final Map<String, Object?> common =
+  final common =
       jsonDecode(buildFunctionsList(commonIds).stdout)! as Map<String, Object?>;
-  final Map<String, Object?> fixture =
+  final fixture =
       jsonDecode(File(providerSecretsFixturePath).readAsStringSync())!
           as Map<String, Object?>;
   return CommandResult(
@@ -386,7 +386,7 @@ void main() {
   /// 배포됨 · 공개 호출 상태를 가짜 실행기에 등록한다.
   void registerDeployed(FakeCommandRunner fake) {
     fake.on(functionsListKey, buildFunctionsList(commonFunctions));
-    for (final String id in commonFunctions) {
+    for (final id in commonFunctions) {
       fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
     }
   }
@@ -394,7 +394,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('functions_step_test_');
     root = tempDir.path;
-    final File config = File('$root/${UserFilesStep.jsonUserPath}')
+    final config = File('$root/${UserFilesStep.jsonUserPath}')
       ..parent.createSync(recursive: true);
     File(UserFilesStep.jsonExamplePath).copySync(config.path);
     replaceJsonString(config.path, 'firebaseProjectId', projectId);
@@ -418,7 +418,7 @@ void main() {
     'T-19-FN-01: 모듈 · secret 전부 · common 전부 배포 · 공개 호출이면 ✓ · 흘리는 실행 0',
     () async {
       writeModulesMarker();
-      final _Harness harness = _Harness(root, const <String?>[]);
+      final harness = _Harness(root, const <String?>[]);
       harness.fake.on(secretsListKey, buildSecretsList(declaredSecrets));
       registerDeployed(harness.fake);
 
@@ -433,7 +433,7 @@ void main() {
 
   test('T-19-FN-02: 모듈 없음 · secret 3개 없음 · 함수 없음 → 설치 · 없는 secret 만 stdin '
       '생성 · 배포 · DEPLOY OK → 재검사 ✓', () async {
-    const List<String> missing = <String>[
+    const missing = <String>[
       'FACEBOOK_APP_SECRET',
       'KAKAO_ADMIN_KEY',
       'NAVER_CLIENT_ID',
@@ -441,7 +441,7 @@ void main() {
     final List<String> present = declaredSecrets
         .where((String name) => !missing.contains(name))
         .toList();
-    final _Harness harness = _Harness(root, const <String?>[
+    final harness = _Harness(root, const <String?>[
       'y',
     ], onInstall: writeModulesMarker);
     harness.fake
@@ -450,7 +450,7 @@ void main() {
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(installKey, _ok)
       ..on(deployKey, buildDeployOutput(commonFunctions));
-    for (final String name in missing) {
+    for (final name in missing) {
       harness.fake.on(buildSetKey(name), _ok);
     }
     registerDeployed(harness.fake);
@@ -460,7 +460,7 @@ void main() {
     expect(code, wizardExitDone);
     expect(harness.fake.countCalls(RunMode.stream, installKey), 1);
     expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
-    for (final String name in missing) {
+    for (final name in missing) {
       final List<FakeCall> sets = harness.fake.calls
           .where((FakeCall call) => call.key == buildSetKey(name))
           .toList();
@@ -469,7 +469,7 @@ void main() {
       expect(sets.single.stdinText, FunctionsStep.secretPlaceholder);
       expect(sets.single.key, isNot(contains('unset')));
     }
-    for (final String name in present) {
+    for (final name in present) {
       expect(
         harness.fake.calls.where(
           (FakeCall call) => call.key == buildSetKey(name),
@@ -499,7 +499,7 @@ void main() {
 
   test('T-19-FN-03: 배포 exit 0 이지만 마지막 줄이 DRY-RUN OK 면 실패', () async {
     writeModulesMarker();
-    final _Harness harness = _Harness(root, const <String?>['y', '2']);
+    final harness = _Harness(root, const <String?>['y', '2']);
     harness.fake
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(functionsListKey, buildFunctionsList(const <String>[]))
@@ -522,10 +522,10 @@ void main() {
 
   test('T-19-FN-04: 배포 exit 1 · 일반 실패 원문은 그대로 · 조직 정책 문구 0', () async {
     writeModulesMarker();
-    const String errorLine =
+    const errorLine =
         'Error: HTTP Error: 403, The caller does not have permission';
-    const String failLine = 'FAIL: 1번째 묶음 배포 실패 (1개 중) — 앞 묶음은 이미 배포됐다';
-    final _Harness harness = _Harness(root, const <String?>['y', '2']);
+    const failLine = 'FAIL: 1번째 묶음 배포 실패 (1개 중) — 앞 묶음은 이미 배포됐다';
+    final harness = _Harness(root, const <String?>['y', '2']);
     harness.fake
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(functionsListKey, buildFunctionsList(const <String>[]))
@@ -553,9 +553,8 @@ void main() {
 
   test('T-19-FN-05: secret 생성이 exit 1 이면 실패 · 배포 0', () async {
     writeModulesMarker();
-    const String errorLine =
-        'Error: HTTP Error: 403, Permission denied on secret';
-    final _Harness harness = _Harness(root, const <String?>['y', '2']);
+    const errorLine = 'Error: HTTP Error: 403, Permission denied on secret';
+    final harness = _Harness(root, const <String?>['y', '2']);
     harness.fake
       ..on(
         secretsListKey,
@@ -585,13 +584,10 @@ void main() {
 
   test('T-19-FN-06: 화면에는 printf 표시형 · secret 생성은 민감 출력으로 실행', () async {
     writeModulesMarker();
-    const List<String> missing = <String>[
-      'FACEBOOK_APP_ID',
-      'LINE_CHANNEL_SECRET',
-    ];
-    const String createdLine =
+    const missing = <String>['FACEBOOK_APP_ID', 'LINE_CHANNEL_SECRET'];
+    const createdLine =
         'Created a new secret version projects/000000000000/secrets/X/versions/1';
-    final _Harness harness = _Harness(root, const <String?>['y']);
+    final harness = _Harness(root, const <String?>['y']);
     harness.fake
       ..on(
         secretsListKey,
@@ -607,7 +603,7 @@ void main() {
       )
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(deployKey, buildDeployOutput(commonFunctions));
-    for (final String name in missing) {
+    for (final name in missing) {
       harness.fake.on(
         buildSetKey(name),
         const CommandResult(0, createdLine, ''),
@@ -618,7 +614,7 @@ void main() {
     final int code = await harness.run();
 
     expect(code, wizardExitDone);
-    for (final String name in missing) {
+    for (final name in missing) {
       expect(
         harness.output,
         contains(
@@ -640,9 +636,9 @@ void main() {
       'FACEBOOK_APP_ID',
       projectId,
     );
-    final MemoryLogSink realLog = MemoryLogSink(Redactor());
-    final ScriptedTerminal realScreen = ScriptedTerminal(const <String?>[]);
-    final ProcessCommandRunner real = ProcessCommandRunner(
+    final realLog = MemoryLogSink(Redactor());
+    final realScreen = ScriptedTerminal(const <String?>[]);
+    final real = ProcessCommandRunner(
       RedactingTerminal(realScreen, realLog.redactor, realLog),
       log: realLog,
     );
@@ -703,7 +699,7 @@ void main() {
   test('T-19-FN-07: 배포됨 · 한 서비스만 공개 호출 없음 → 그 서비스만 보정 → 재검사 ✓', () async {
     writeModulesMarker();
     final String lackingService = buildServiceId('deleteUserAccount');
-    final _Harness harness = _Harness(root, const <String?>['y']);
+    final harness = _Harness(root, const <String?>['y']);
     harness.fake
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(functionsListKey, buildFunctionsList(commonFunctions))
@@ -712,7 +708,7 @@ void main() {
       ..on(buildIamKey(lackingService), privatePolicy)
       ..on(buildIamKey(lackingService), publicPolicy)
       ..on(buildBindKey(lackingService), _ok);
-    for (final String id in commonFunctions) {
+    for (final id in commonFunctions) {
       if (buildServiceId(id) == lackingService) continue;
       harness.fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
     }
@@ -735,7 +731,7 @@ void main() {
   test('배포 뒤 공개 호출이 빠진 서비스는 같은 확인 안에서 붙인다', () async {
     writeModulesMarker();
     final String lackingService = buildServiceId('mirrorAccountEmail');
-    final _Harness harness = _Harness(root, const <String?>['y']);
+    final harness = _Harness(root, const <String?>['y']);
     harness.fake
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(functionsListKey, buildFunctionsList(const <String>[]))
@@ -746,7 +742,7 @@ void main() {
       ..on(buildIamKey(lackingService), emptyPolicy)
       ..on(buildIamKey(lackingService), publicPolicy)
       ..on(buildBindKey(lackingService), _ok);
-    for (final String id in commonFunctions) {
+    for (final id in commonFunctions) {
       if (buildServiceId(id) == lackingService) continue;
       harness.fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
     }
@@ -766,7 +762,7 @@ void main() {
 
   test('T-19-FN-08: 배포 출력이 조직 정책 원문이면 원문 뒤에 안내 · 공개 호출 추가 0', () async {
     writeModulesMarker();
-    final _Harness harness = _Harness(root, const <String?>['y', '2']);
+    final harness = _Harness(root, const <String?>['y', '2']);
     harness.fake
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(functionsListKey, buildFunctionsList(const <String>[]))
@@ -803,10 +799,10 @@ void main() {
     writeModulesMarker();
     final String first = buildServiceId('deleteUserAccount');
     final String second = buildServiceId('sendTestPush');
-    final _Harness harness = _Harness(root, const <String?>['y', '2']);
+    final harness = _Harness(root, const <String?>['y', '2']);
     harness.fake.on(secretsListKey, buildSecretsList(declaredSecrets));
     harness.fake.on(functionsListKey, buildFunctionsList(commonFunctions));
-    for (final String id in commonFunctions) {
+    for (final id in commonFunctions) {
       final String service = buildServiceId(id);
       harness.fake.on(
         buildIamKey(service),
@@ -861,10 +857,10 @@ void main() {
 
     writeModulesMarker();
     final String service = buildServiceId('ping');
-    final _Harness harness = _Harness(root, const <String?>[]);
+    final harness = _Harness(root, const <String?>[]);
     harness.fake.on(secretsListKey, buildSecretsList(declaredSecrets));
     harness.fake.on(functionsListKey, buildFunctionsList(commonFunctions));
-    for (final String id in commonFunctions) {
+    for (final id in commonFunctions) {
       harness.fake.on(
         buildIamKey(buildServiceId(id)),
         buildServiceId(id) == service ? emptyPolicy : publicPolicy,
@@ -889,7 +885,7 @@ void main() {
       isFalse,
     );
     expect(fixture, isNot(contains('slimpumpkin')));
-    final Set<String> projects = <String>{
+    final projects = <String>{
       for (final RegExpMatch match in RegExp(
         r'projects/([^/\s]+)',
       ).allMatches(fixture))
@@ -924,7 +920,7 @@ void main() {
 
     test('정책을 만들고(강제 옵션 없이) 한 번 더 배포 → DEPLOY OK → 재검사 ✓', () async {
       writeModulesMarker();
-      final _Harness harness = _Harness(root, const <String?>['y']);
+      final harness = _Harness(root, const <String?>['y']);
       harness.fake
         ..on(secretsListKey, buildSecretsList(declaredSecrets))
         ..on(functionsListKey, buildFunctionsList(const <String>[]))
@@ -933,7 +929,7 @@ void main() {
         ..on(deployKey, buildCleanupFailure())
         ..on(deployKey, buildDeployOutput(commonFunctions))
         ..on(cleanupKey, _ok);
-      for (final String id in commonFunctions) {
+      for (final id in commonFunctions) {
         harness.fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
       }
 
@@ -962,7 +958,7 @@ void main() {
 
     test('출력에 공개 호출 실패 줄도 있으면 조직 정책 안내 · 정책 명령 0', () async {
       writeModulesMarker();
-      final _Harness harness = _Harness(root, const <String?>['y', '2']);
+      final harness = _Harness(root, const <String?>['y', '2']);
       harness.fake
         ..on(secretsListKey, buildSecretsList(declaredSecrets))
         ..on(functionsListKey, buildFunctionsList(const <String>[]))
@@ -985,10 +981,10 @@ void main() {
 
     test('정책 명령이 exit 1 이면 원문과 함께 실패 · 둘째 배포 0', () async {
       writeModulesMarker();
-      const String policyError =
+      const policyError =
           'Error: Failed to set up artifact registry '
           'cleanup policy';
-      final _Harness harness = _Harness(root, const <String?>['y', '2']);
+      final harness = _Harness(root, const <String?>['y', '2']);
       harness.fake
         ..on(secretsListKey, buildSecretsList(declaredSecrets))
         ..on(functionsListKey, buildFunctionsList(const <String>[]))
@@ -1012,7 +1008,7 @@ void main() {
       'firebaseProjectId',
       'your-project-dev',
     );
-    final _Harness harness = _Harness(root, const <String?>[]);
+    final harness = _Harness(root, const <String?>[]);
 
     final int code = await harness.run();
 
@@ -1048,15 +1044,12 @@ void main() {
         'kakao',
       )!;
       expect(kakaoFunctions, isNotEmpty);
-      final List<String> deployed = <String>[
-        ...commonFunctions,
-        ...kakaoFunctions.skip(1),
-      ];
-      final _Harness harness = _Harness(root, const <String?>[]);
+      final deployed = <String>[...commonFunctions, ...kakaoFunctions.skip(1)];
+      final harness = _Harness(root, const <String?>[]);
       harness.fake
         ..on(secretsListKey, buildSecretsList(declaredSecrets))
         ..on(functionsListKey, buildFunctionsList(deployed));
-      for (final String id in deployed) {
+      for (final id in deployed) {
         harness.fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
       }
 
@@ -1088,7 +1081,7 @@ void main() {
 
   /// Kakao 함수 · 공통 함수 모두의 공개 호출을 등록한다.
   void registerPublicPolicies(FakeCommandRunner fake, List<String> ids) {
-    for (final String id in ids) {
+    for (final id in ids) {
       fake.on(buildIamKey(buildServiceId(id)), publicPolicy);
     }
   }
@@ -1101,7 +1094,7 @@ void main() {
       '함수 1개 · 배포 스크립트 1회 · 재검사 ✓', () async {
     writeModulesMarker();
     final List<String> kakaoFunctions = readKakaoFunctions();
-    final _Harness harness = _Harness(root, const <String?>['y']);
+    final harness = _Harness(root, const <String?>['y']);
     harness.fake
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(
@@ -1176,7 +1169,7 @@ void main() {
   test('T-20-FUNC-03: 켠 수단 함수의 secret 버전이 모두 최신이면 ✓ · 배포 0', () async {
     writeModulesMarker();
     final List<String> kakaoFunctions = readKakaoFunctions();
-    final _Harness harness = _Harness(root, const <String?>[]);
+    final harness = _Harness(root, const <String?>[]);
     harness.fake
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(
@@ -1227,7 +1220,7 @@ void main() {
     ]) {
       test('상태 $status', () async {
         writeModulesMarker();
-        final _Harness harness = _Harness(root, const <String?>['y', '2']);
+        final harness = _Harness(root, const <String?>['y', '2']);
         harness.fake
           ..on(secretsListKey, buildSecretsList(declaredSecrets))
           ..on(
@@ -1264,7 +1257,7 @@ void main() {
   test('T-20-FUNC-05: 켠 수단이 없으면 함수에 secret 이 있어도 최신 버전 요청 0 · '
       '판정 문장 그대로', () async {
     writeModulesMarker();
-    final _Harness harness = _Harness(root, const <String?>[]);
+    final harness = _Harness(root, const <String?>[]);
     harness.fake
       ..on(secretsListKey, buildSecretsList(declaredSecrets))
       ..on(functionsListKey, buildFunctionsListWithSecrets(commonFunctions));

@@ -143,7 +143,7 @@ final class AppCheckStep implements Step {
     context.redactor.register(token);
     _token = token;
 
-    final List<_App> missing = <_App>[];
+    final missing = <_App>[];
     for (final _App app in apps) {
       final RestResponse response = await context.rest.send(
         buildListRequest(projectId, app.appId),
@@ -273,7 +273,7 @@ final class AppCheckStep implements Step {
     List<_App> apps,
     String token,
   ) async {
-    for (final _App app in apps) {
+    for (final app in apps) {
       final RestResponse response = await context.rest.send(
         buildCreateRequest(_projectId, app.appId, token),
       );

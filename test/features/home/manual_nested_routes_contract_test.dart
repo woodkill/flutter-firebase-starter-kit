@@ -80,7 +80,7 @@ String _sliceFromHeading(String manual, String heading) =>
 /// 역순 범위(`NN~MM` 에서 MM < NN)는 매뉴얼 오타로 보고 test 를 실패시킨다 —
 /// 그대로 펼치면 ID 를 하나도 모으지 않아 검사가 조용히 빈다.
 Set<String> _collectTest172Ids(String text) {
-  final Set<String> ids = <String>{};
+  final ids = <String>{};
   for (final RegExpMatch match in RegExp(
     r'(T-172-[A-Z]+-)(\d\d)(?:~(\d\d))?',
   ).allMatches(text)) {
@@ -92,7 +92,7 @@ Set<String> _collectTest172Ids(String text) {
       isTrue,
       reason: '범위 표기 `${match.group(0)}` 가 역순이다 — NN~MM 은 NN <= MM 이어야 한다',
     );
-    for (int number = first; number <= last; number++) {
+    for (var number = first; number <= last; number++) {
       ids.add('$prefix${number.toString().padLeft(2, '0')}');
     }
   }
@@ -125,7 +125,7 @@ void main() {
       expect(bullets, hasLength(1), reason: '결과 스택 bullet 이 없거나 중복이다');
       final String bullet = bullets.single;
       expect(bullet.length, greaterThan(_stackBulletPrefix.length));
-      for (final String token in <String>['홈 → (설정) → 대상', 'T-172-STACK-01']) {
+      for (final token in <String>['홈 → (설정) → 대상', 'T-172-STACK-01']) {
         expect(
           bullet.contains(token),
           isTrue,
@@ -140,7 +140,7 @@ void main() {
         _customizationRowPrefix,
       );
       expect(rows, hasLength(1), reason: '「알림 탭으로 열 화면」 행이 없거나 중복이다');
-      for (final String token in <String>[
+      for (final token in <String>[
         'routes',
         'T-172-ROUTER-01',
         'T-17-PUSH-01',
@@ -173,7 +173,7 @@ void main() {
     test('T-172-DOCS-04: GA4 안내 4항이 알림으로 연 화면의 2건을 적는다 (SC4)', () {
       expect(ga4.trim(), isNotEmpty, reason: 'GA4 슬라이스가 비었다');
       expect(countOccurrences(ga4, _ga4Heading), 1);
-      for (final String token in <String>[
+      for (final token in <String>[
         'Phase 17.2',
         '`settings`',
         '`account`',
@@ -186,7 +186,7 @@ void main() {
     test('T-172-DOCS-05: ② 에 6번째 배선(routes:)이 있다 (SC4)', () {
       expect(replaceSection.trim(), isNotEmpty, reason: '② 슬라이스가 비었다');
       expect(countOccurrences(replaceSection, _replaceHeading), 1);
-      for (final String token in <String>['routes:', 'T-172-ROUTER-01']) {
+      for (final token in <String>['routes:', 'T-172-ROUTER-01']) {
         expect(
           replaceSection.contains(token),
           isTrue,
@@ -200,10 +200,7 @@ void main() {
       expect(demoSection.trim(), isNotEmpty, reason: '③ 슬라이스가 비었다');
       expect(countOccurrences(demoSection, _demoHeading), 1);
       final String demoSegment = _demoSegmentParts.join();
-      for (final String token in <String>[
-        demoSegment,
-        'buildRoutesWithoutNamed',
-      ]) {
+      for (final token in <String>[demoSegment, 'buildRoutesWithoutNamed']) {
         expect(
           demoSection.contains(token),
           isTrue,
@@ -232,7 +229,7 @@ void main() {
         manual,
         _customizationRowPrefix,
       ).join();
-      final Set<String> cited = <String>{
+      final cited = <String>{
         ..._collectTest172Ids(bullet),
         ..._collectTest172Ids(row),
         ..._collectTest172Ids(ga4),
@@ -264,7 +261,7 @@ void main() {
           .toList();
       expect(testSources, isNotEmpty, reason: 'test/ 파일을 못 찾았다');
 
-      for (final String id in cited) {
+      for (final id in cited) {
         expect(
           testSources.any((String src) => _declaresTestName(src, id)),
           isTrue,
@@ -273,7 +270,7 @@ void main() {
       }
 
       // 매뉴얼이 app_router_nesting_test.dart 의 것이라고 한 ID 는 그 파일에 있다.
-      for (final String id in <String>[
+      for (final id in <String>[
         'T-172-STACK-01',
         'T-172-LISTENER-01',
         'T-172-ROUTER-01',

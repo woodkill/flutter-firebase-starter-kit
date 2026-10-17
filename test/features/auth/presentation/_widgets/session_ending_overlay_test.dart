@@ -363,23 +363,20 @@ void main() {
       await tester.pump();
     });
 
-    for (final ({String name, ThemeData theme}) fixture
-        in <({String name, ThemeData theme})>[
-          (name: '킷 기본 테마', theme: AppTheme.light()),
-          (
-            // 타이포그래피 기하가 조상 스타일을 상속(`inherit: true`)하는 테마 —
-            // Material 조상 없이 그리면 글자 굵기가 달라진다.
-            name: '상속형 타이포그래피 테마',
-            theme: AppTheme.light().copyWith(
-              typography: Typography.material2021(
-                platform: TargetPlatform.android,
-                englishLike: const TextTheme(
-                  bodyMedium: TextStyle(fontSize: 14),
-                ),
-              ),
-            ),
+    for (final fixture in <({String name, ThemeData theme})>[
+      (name: '킷 기본 테마', theme: AppTheme.light()),
+      (
+        // 타이포그래피 기하가 조상 스타일을 상속(`inherit: true`)하는 테마 —
+        // Material 조상 없이 그리면 글자 굵기가 달라진다.
+        name: '상속형 타이포그래피 테마',
+        theme: AppTheme.light().copyWith(
+          typography: Typography.material2021(
+            platform: TargetPlatform.android,
+            englishLike: const TextTheme(bodyMedium: TextStyle(fontSize: 14)),
           ),
-        ]) {
+        ),
+      ),
+    ]) {
       testWidgets('E6C-HOST-05: 최상위 라벨의 해석된 TextStyle 이 Scaffold 안 '
           '오버레이의 것과 같다 (${fixture.name})', (tester) async {
         const locale = Locale('en');

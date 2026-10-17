@@ -567,7 +567,7 @@ Stream<void> authUserObserver(Ref ref) async* {
   bool? prevIsAnonymous;
   String? prevUid;
   bool? prevEmailVerified;
-  bool isFirstEmit = true;
+  var isFirstEmit = true;
 
   // WR-03: 스트림 에러를 흡수한다. `await for` 는 에러가 올라오면 그대로
   // throw 하여 generator 를 종료시키고, 재구독 경로가 없으므로 observer 가

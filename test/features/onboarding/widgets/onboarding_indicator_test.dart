@@ -44,11 +44,11 @@ void main() {
         final scheme = Theme.of(context).colorScheme;
 
         final firstDecoration =
-            tester.widget<Container>(dots.at(0)).decoration as BoxDecoration;
+            tester.widget<Container>(dots.at(0)).decoration! as BoxDecoration;
         final secondDecoration =
-            tester.widget<Container>(dots.at(1)).decoration as BoxDecoration;
+            tester.widget<Container>(dots.at(1)).decoration! as BoxDecoration;
         final thirdDecoration =
-            tester.widget<Container>(dots.at(2)).decoration as BoxDecoration;
+            tester.widget<Container>(dots.at(2)).decoration! as BoxDecoration;
 
         expect(firstDecoration.color, scheme.primary);
         expect(
@@ -73,7 +73,7 @@ void main() {
 
       final dots = find.byType(Container);
       final secondDecoration =
-          tester.widget<Container>(dots.at(1)).decoration as BoxDecoration;
+          tester.widget<Container>(dots.at(1)).decoration! as BoxDecoration;
       expect(secondDecoration.color, scheme.primary);
     });
 

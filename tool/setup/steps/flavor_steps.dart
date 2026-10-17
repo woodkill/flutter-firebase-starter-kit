@@ -29,7 +29,7 @@ List<Step> buildSteps({
   required Flavor flavor,
   required Set<String> enabledProviders,
 }) {
-  final List<Step> providerSteps = <Step>[
+  final providerSteps = <Step>[
     if (enabledProviders.contains(KakaoStep.token)) KakaoStep(),
   ];
   return <Step>[

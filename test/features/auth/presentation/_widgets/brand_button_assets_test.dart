@@ -192,7 +192,7 @@ typedef _GStats = ({double mean, double max, int over16});
 
 /// 파일 바이트의 sha256 16진 문자열을 돌려준다.
 String _computeSha256OfFile(String path) {
-  final File file = File(path);
+  final file = File(path);
   if (!file.existsSync()) {
     fail('자산 파일 부재: $path');
   }
@@ -205,15 +205,13 @@ String _computeSha256OfFile(String path) {
 /// 빈 목록이다.
 List<String> _extractFontFamilyBlock(String source, String family) {
   final List<String> lines = stripHashComments(source).split('\n');
-  final RegExp target = RegExp(
-    '^\\s*-\\s*family:\\s*${RegExp.escape(family)}\\s*\$',
-  );
-  final RegExp anyFamily = RegExp(r'^\s*-\s*family:\s*\S');
+  final target = RegExp('^\\s*-\\s*family:\\s*${RegExp.escape(family)}\\s*\$');
+  final anyFamily = RegExp(r'^\s*-\s*family:\s*\S');
   final int start = lines.indexWhere(target.hasMatch);
   if (start == -1) {
     return <String>[];
   }
-  final List<String> block = <String>[];
+  final block = <String>[];
   for (int i = start + 1; i < lines.length; i++) {
     if (anyFamily.hasMatch(lines[i]) || lines[i].trim().isEmpty) {
       break;
@@ -225,7 +223,7 @@ List<String> _extractFontFamilyBlock(String source, String family) {
 
 /// [block] 에서 `- asset: <경로>` 줄의 경로만 모은다.
 List<String> _collectFontAssets(List<String> block) {
-  final RegExp asset = RegExp(r'^\s*-\s*asset:\s*(\S+)\s*$');
+  final asset = RegExp(r'^\s*-\s*asset:\s*(\S+)\s*$');
   return block
       .map(asset.firstMatch)
       .whereType<RegExpMatch>()
@@ -239,12 +237,12 @@ int _countWeightLines(List<String> block) =>
 
 /// [path] 의 글꼴 파일을 [family] 이름으로 올린다.
 Future<void> _loadFontFile(String family, String path) async {
-  final File file = File(path);
+  final file = File(path);
   if (!file.existsSync()) {
     fail('글꼴 파일 부재: $path');
   }
   final Uint8List bytes = file.readAsBytesSync();
-  final FontLoader loader = FontLoader(family)
+  final loader = FontLoader(family)
     ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
   await loader.load();
 }
@@ -331,8 +329,8 @@ Future<_Raster> _captureBoundary(
 
 /// [raster] 에서 불투명한(alpha 255) 픽셀 수를 센다.
 int _countOpaquePixels(_Raster raster) {
-  int count = 0;
-  for (int i = 3; i < raster.rgba.length; i += 4) {
+  var count = 0;
+  for (var i = 3; i < raster.rgba.length; i += 4) {
     if (raster.rgba[i] == 255) {
       count++;
     }
@@ -358,9 +356,9 @@ String _extractSvgPathData(String source, String path) {
 int _countDifferentPixels(_Raster a, _Raster b) {
   final int width = a.width > b.width ? a.width : b.width;
   final int height = a.height > b.height ? a.height : b.height;
-  int count = 0;
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
+  var count = 0;
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
       final bool isInA = x < a.width && y < a.height;
       final bool isInB = x < b.width && y < b.height;
       if (!isInA || !isInB) {
@@ -392,11 +390,11 @@ List<ui.FontVariation> _buildOriginalAxes(double weight) => <ui.FontVariation>[
   Uint8List bytes,
   String path,
 ) {
-  const List<int> signature = <int>[137, 80, 78, 71, 13, 10, 26, 10];
+  const signature = <int>[137, 80, 78, 71, 13, 10, 26, 10];
   if (bytes.length < 26) {
     fail('PNG 가 아니다(너무 짧다): $path');
   }
-  for (int i = 0; i < signature.length; i++) {
+  for (var i = 0; i < signature.length; i++) {
     if (bytes[i] != signature[i]) {
       fail('PNG 서명이 아니다: $path');
     }
@@ -404,7 +402,7 @@ List<ui.FontVariation> _buildOriginalAxes(double weight) => <ui.FontVariation>[
   if (String.fromCharCodes(bytes.sublist(12, 16)) != 'IHDR') {
     fail('첫 chunk 가 IHDR 이 아니다: $path');
   }
-  final ByteData data = ByteData.sublistView(bytes);
+  final data = ByteData.sublistView(bytes);
   return (
     width: data.getUint32(16),
     height: data.getUint32(20),
@@ -417,7 +415,7 @@ List<ui.FontVariation> _buildOriginalAxes(double weight) => <ui.FontVariation>[
 ///
 /// 엔진 디코더가 실제 시간으로 돌므로 `tester.runAsync` 안에서 부른다.
 Future<_Raster> _decodePngFile(String path) async {
-  final File file = File(path);
+  final file = File(path);
   if (!file.existsSync()) {
     fail('PNG 파일 부재: $path');
   }
@@ -443,7 +441,7 @@ Future<_Raster> _decodePngFile(String path) async {
 
 /// 공식 버튼 그림(Android + Web · 글자 없음 · Square)의 [scale] 배 PNG 경로.
 String _buildOfficialButtonPath(String theme, int scale) {
-  final String suffix = scale == 1 ? '' : '@${scale}x';
+  final suffix = scale == 1 ? '' : '@${scale}x';
   return '$_gDir/Android + Web/PNG @${scale}x/$theme/'
       'Theme=$theme, Show text=No, Shape=Square, Platform=Android+Web$suffix.png';
 }
@@ -468,14 +466,14 @@ _GStats _compareWithOfficialCell(
   }
   double sum = 0;
   double max = 0;
-  int over16 = 0;
-  for (int y = 0; y < logo.height; y++) {
-    for (int x = 0; x < logo.width; x++) {
+  var over16 = 0;
+  for (var y = 0; y < logo.height; y++) {
+    for (var x = 0; x < logo.width; x++) {
       final int il = (y * logo.width + x) * 4;
       final int io = ((y + offset) * official.width + (x + offset)) * 4;
       final double alpha = logo.rgba[il + 3] / 255;
       double pixelMax = 0;
-      for (int c = 0; c < 3; c++) {
+      for (var c = 0; c < 3; c++) {
         final double composed =
             logo.rgba[il + c] * alpha + background[c] * (1 - alpha);
         final double diff = (composed - official.rgba[io + c]).abs();
@@ -516,7 +514,7 @@ Set<String> _listTrackedFiles(String directory) {
 ///
 /// 주석 줄은 세지 않는다.
 List<String> _collectFontFamilies(String source) {
-  final RegExp family = RegExp(r'^\s+-\s*family:\s*(.+?)\s*$');
+  final family = RegExp(r'^\s+-\s*family:\s*(.+?)\s*$');
   return <String>[
     for (final String line in const LineSplitter().convert(source))
       if (!line.trimLeft().startsWith('#'))
@@ -552,7 +550,7 @@ void main() {
         reason: '추출 방법이 Roboto 블록을 찾지 못한다',
       );
       // 양성 대조 2: weight 줄이 있으면 같은 계수가 센다.
-      const String sample =
+      const sample =
           'fonts:\n'
           '  - family: Sample\n'
           '    fonts:\n'
@@ -590,10 +588,10 @@ void main() {
         tester.view.devicePixelRatio = _dpr;
         addTearDown(tester.view.resetDevicePixelRatio);
 
-        int diffTotal = 0;
-        int controlTotal = 0;
-        final List<int> controls = <int>[];
-        for (int i = 0; i < _gsansLabels.length; i++) {
+        var diffTotal = 0;
+        var controlTotal = 0;
+        final controls = <int>[];
+        for (var i = 0; i < _gsansLabels.length; i++) {
           final String label = _gsansLabels[i];
           final _Raster subset = await _renderLabel(
             tester,
@@ -704,15 +702,15 @@ void main() {
     testWidgets('T-177-ASSET-06: G PNG 가 공식 버튼 그림의 G 칸과 기준 안에서 같다', (
       WidgetTester tester,
     ) async {
-      final List<String> lines = <String>[];
-      final List<String> failures = <String>[];
+      final lines = <String>[];
+      final failures = <String>[];
       await tester.runAsync<void>(() async {
         for (final ({int scale, String path, String sha256}) variant
             in _gVariants) {
           final int n = variant.scale;
           final int side = 20 * n;
           final _Raster logo = await _decodePngFile(variant.path);
-          final StringBuffer line = StringBuffer('GOOGLE_G scale=$n px=$side');
+          final line = StringBuffer('GOOGLE_G scale=$n px=$side');
           for (final ({String label, String theme, List<int> background}) theme
               in _gThemes) {
             final _Raster official = await _decodePngFile(
@@ -796,7 +794,7 @@ void main() {
         reason: 'path 가 바뀌었다 — 공식 path 는 좌표를 손대지 않고 그대로 쓴다',
       );
 
-      final RegExp pathFill = RegExp(r'<path\s+fill="(#[0-9A-Fa-f]{6})"');
+      final pathFill = RegExp(r'<path\s+fill="(#[0-9A-Fa-f]{6})"');
       expect(pathFill.firstMatch(black)?.group(1), '#000000');
       expect(pathFill.firstMatch(white)?.group(1), '#FFFFFF');
     });
@@ -823,8 +821,8 @@ void main() {
       );
 
       // SVG 는 비동기로 올라온다 — 그려질 때까지 실제 시간으로 잠깐씩 기다린다.
-      int opaque = 0;
-      for (int attempt = 0; attempt < 20 && opaque == 0; attempt++) {
+      var opaque = 0;
+      for (var attempt = 0; attempt < 20 && opaque == 0; attempt++) {
         await tester.runAsync<void>(
           () => Future<void>.delayed(const Duration(milliseconds: 100)),
         );

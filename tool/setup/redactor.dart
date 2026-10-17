@@ -60,7 +60,7 @@ final class Redactor {
 
   /// [text] 의 등록 값을 먼저, 그다음 패턴에 걸리는 값을 [mask] 로 바꾼다.
   String apply(String text) {
-    String result = text;
+    var result = text;
     for (final String secret in _secrets) {
       result = result.replaceAll(secret, mask);
     }

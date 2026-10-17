@@ -118,10 +118,10 @@ final class _Sandbox {
   /// [_sttySaveErrorLine] 을 표준 오류에 쓰고 1 이다. 그 밖(복원)은
   /// [canRestore] 면 0, 아니면 [_sttyRestoreErrorLine] 을 쓰고 1 이다.
   void writeStty(File log, {bool canSave = true, bool canRestore = true}) {
-    final String saveBranch = canSave
+    final saveBranch = canSave
         ? "  printf '%s\\n' '$_savedSttyState'\n  exit 0\n"
         : "  printf '%s\\n' '$_sttySaveErrorLine' >&2\n  exit 1\n";
-    final String restoreBranch = canRestore
+    final restoreBranch = canRestore
         ? 'exit 0\n'
         : "printf '%s\\n' '$_sttyRestoreErrorLine' >&2\nexit 1\n";
     _writeStub(
@@ -158,7 +158,7 @@ final class _Sandbox {
       );
 
   void _writeStub(String name, String body) {
-    final File stub = File('${stubBin.path}/$name')..writeAsStringSync(body);
+    final stub = File('${stubBin.path}/$name')..writeAsStringSync(body);
     Process.runSync('chmod', <String>['+x', stub.path]);
   }
 
@@ -278,7 +278,7 @@ void main() {
           .readAsLinesSync()
           .where((String line) => !line.trimLeft().startsWith('#'))
           .toList();
-      final RegExp rcRedirect = RegExp(
+      final rcRedirect = RegExp(
         r'''>>?\s*["']?\S*(\.zshrc|\.zprofile|\.bash_profile)''',
       );
 
@@ -290,12 +290,12 @@ void main() {
         ..writeUname('Darwin')
         ..writeRecorder('brew', sb.brewLog)
         ..writeRecorder('fvm', sb.fvmLog);
-      final Directory copy = Directory('${sb.dir.path}/copy')..createSync();
+      final copy = Directory('${sb.dir.path}/copy')..createSync();
       final File script = File(_scriptRel).copySync('${copy.path}/setup.sh');
 
       final ProcessResult result = _runSetup(sb, script: script.path);
 
-      final String stderrText = result.stderr as String;
+      final stderrText = result.stderr as String;
       expect(result.exitCode, 1);
       expect(_fvmrcMissingLine.allMatches(stderrText).length, 1);
       expect(_combinedOutput(result), isNot(contains(_missingFileError)));
@@ -322,7 +322,7 @@ void main() {
 
       final ProcessResult result = _runSetup(sb);
 
-      final String stderrText = result.stderr as String;
+      final stderrText = result.stderr as String;
       expect(result.exitCode, _pubGetExitCode, reason: _combinedOutput(result));
       expect(_pubGetErrorLine.allMatches(_combinedOutput(result)).length, 1);
       expect(_pubGetFailedLine.allMatches(stderrText).length, 1);
@@ -415,7 +415,7 @@ void main() {
 
       final ProcessResult result = _runSetup(sb);
 
-      final String stderrText = result.stderr as String;
+      final stderrText = result.stderr as String;
       expect(result.exitCode, 3, reason: _combinedOutput(result));
       expect(sb.readLines(sb.callLog).last, 'stty $_savedSttyState');
       expect(_sttyRestoreErrorLine.allMatches(stderrText).length, 1);

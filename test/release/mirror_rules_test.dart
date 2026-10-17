@@ -196,11 +196,8 @@ void main() {
         final int begin = scriptLines.indexOf(_recipeBegin);
         final int end = scriptLines.indexOf(_recipeEnd);
         expect(end, greaterThan(begin));
-        final String recipe =
-            '${scriptLines.sublist(begin, end + 1).join('\n')}\n';
-        final String recipeHash = sha256
-            .convert(utf8.encode(recipe))
-            .toString();
+        final recipe = '${scriptLines.sublist(begin, end + 1).join('\n')}\n';
+        final recipeHash = sha256.convert(utf8.encode(recipe)).toString();
 
         final String expected = <String>[
           '${_sha256OfFile(_excludePath)}  $_excludePath',

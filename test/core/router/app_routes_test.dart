@@ -59,7 +59,7 @@ void main() {
     // guard · 알림 허용 목록 · GA4 screen name 키가 되는 값은 그대로여야 한다.
     group('Phase 17.2 경로 · name 값 고정 (todo 결정 5 — 조각 조합 전후 불변)', () {
       test('T-172-ROUTES-01: 전체 경로 상수 14개 값이 그대로다', () {
-        const List<(String, String)> paths = <(String, String)>[
+        const paths = <(String, String)>[
           (AppRoutes.home, '/'),
           (AppRoutes.login, '/login'),
           (AppRoutes.splash, '/splash'),
@@ -82,7 +82,7 @@ void main() {
       });
 
       test('T-172-ROUTES-02: GoRoute name 상수 14개 값이 그대로다', () {
-        const List<(String, String)> names = <(String, String)>[
+        const names = <(String, String)>[
           (AppRoutes.homeName, 'home'),
           (AppRoutes.loginName, 'login'),
           (AppRoutes.splashName, 'splash'),
@@ -112,7 +112,7 @@ void main() {
       // 경로(T-172-ROUTES-01) 둘 다 리터럴로 고정돼 있어 조합식을 다시 쓴 단언은
       // 새로 잠그는 것이 없다 (17.2 review IN-05).
       test('T-172-ROUTES-03: 조각 상수 6개 값이 그대로다', () {
-        const List<(String, String)> segments = <(String, String)>[
+        const segments = <(String, String)>[
           (AppRoutes.settingsSegment, 'settings'),
           (AppRoutes.accountSegment, 'account'),
           (AppRoutes.withdrawalDisconnectSegment, 'withdraw'),

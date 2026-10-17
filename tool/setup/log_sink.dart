@@ -60,16 +60,16 @@ final class FileLogSink implements LogSink {
     required DateTime now,
     required Redactor redactor,
   }) async {
-    final Directory setupDir = Directory('$projectRoot/.setup');
-    final Directory logDir = Directory('$projectRoot/$logDirectory');
+    final setupDir = Directory('$projectRoot/.setup');
+    final logDir = Directory('$projectRoot/$logDirectory');
     await logDir.create(recursive: true);
     _restrictMode(setupDir.path, '700');
     _restrictMode(logDir.path, '700');
 
     final String stamp = formatLogTimestamp(now);
-    for (int attempt = 1; attempt <= maxNameAttempts; attempt++) {
-      final String suffix = attempt == 1 ? '' : '-$attempt';
-      final File file = File('${logDir.path}/setup-$stamp$suffix.log');
+    for (var attempt = 1; attempt <= maxNameAttempts; attempt++) {
+      final suffix = attempt == 1 ? '' : '-$attempt';
+      final file = File('${logDir.path}/setup-$stamp$suffix.log');
       try {
         // exclusive — 같은 이름의 파일이 있으면 실패하므로 기존 기록을 덮지 않는다.
         file.createSync(exclusive: true);
@@ -106,7 +106,7 @@ final class FileLogSink implements LogSink {
   void write(String kind, String text) {
     if (_isClosed) return;
     final String redacted = _redactor.apply(text);
-    final StringBuffer buffer = StringBuffer();
+    final buffer = StringBuffer();
     for (final String line in formatLogLines(kind, redacted)) {
       buffer.writeln(line);
     }

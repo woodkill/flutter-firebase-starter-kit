@@ -50,11 +50,11 @@ List<String> listDartFiles(String directory) =>
 /// [paths] 의 줄 가운데 [patterns] 에 걸리는 곳을 `<경로>:<줄>: <패턴>` 으로 모은다.
 List<String> findViolations(List<String> paths, List<String> patterns) {
   final List<RegExp> expressions = patterns.map(RegExp.new).toList();
-  final List<String> violations = <String>[];
-  for (final String path in paths) {
+  final violations = <String>[];
+  for (final path in paths) {
     final List<String> lines = File(path).readAsLinesSync();
-    for (int i = 0; i < lines.length; i++) {
-      for (final RegExp expression in expressions) {
+    for (var i = 0; i < lines.length; i++) {
+      for (final expression in expressions) {
         if (expression.hasMatch(lines[i])) {
           violations.add('$path:${i + 1}: ${expression.pattern}');
         }
@@ -66,7 +66,7 @@ List<String> findViolations(List<String> paths, List<String> patterns) {
 
 void main() {
   test('T-19-COPY-01: 위저드 소스 전문에 작업 기록 표기 · 날짜 · 내부 도구 이름이 없다', () {
-    final List<String> sources = <String>[
+    final sources = <String>[
       'setup.sh',
       'bin/setup.dart',
       ...listDartFiles('tool/setup'),
@@ -95,7 +95,7 @@ void main() {
   test('금지 패턴은 실제로 걸리는 문장을 잡는다', () {
     final Directory temp = Directory.systemTemp.createTempSync('lock_test_');
     addTearDown(() => temp.deleteSync(recursive: true));
-    final File sample = File('${temp.path}/sample.dart')
+    final sample = File('${temp.path}/sample.dart')
       ..writeAsStringSync(
         '// Phase 1 · D-12 · .planning\n'
         '// 2030-01-02 · UAT · memory\n'

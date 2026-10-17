@@ -118,7 +118,7 @@ final class StdioTerminal implements Terminal {
 
   @override
   String? ask(String question, {String? defaultValue}) {
-    final String hint = defaultValue == null ? '' : ' [$defaultValue]';
+    final hint = defaultValue == null ? '' : ' [$defaultValue]';
     _output.write('$question$hint: ');
     final String? answer = _readLine();
     if (answer == null) {
@@ -161,12 +161,12 @@ final class StdioTerminal implements Terminal {
   @override
   int? choose(String question, List<String> options, {int? defaultIndex = 0}) {
     _output.writeln(question);
-    for (int i = 0; i < options.length; i++) {
+    for (var i = 0; i < options.length; i++) {
       _output.writeln('  ${i + 1}) ${options[i]}');
     }
-    for (int attempt = 0; attempt < maxChoiceAttempts; attempt++) {
+    for (var attempt = 0; attempt < maxChoiceAttempts; attempt++) {
       // 기본값이 없으면 대괄호 안내를 빼서 Enter 로 고를 수 없음을 보인다.
-      final String hint = defaultIndex == null ? '' : ' [${defaultIndex + 1}]';
+      final hint = defaultIndex == null ? '' : ' [${defaultIndex + 1}]';
       _output.write('번호를 고르세요$hint: ');
       final String? answer = _readLine();
       if (answer == null) {
@@ -293,7 +293,7 @@ final class RedactingTerminal implements Terminal {
         .map(redactor.apply)
         .toList(growable: false);
     log.write('out', shown);
-    for (int i = 0; i < shownOptions.length; i++) {
+    for (var i = 0; i < shownOptions.length; i++) {
       log.write('out', '  ${i + 1}) ${shownOptions[i]}');
     }
     final int? index = inner.choose(

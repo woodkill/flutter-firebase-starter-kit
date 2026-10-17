@@ -25,7 +25,7 @@ void main() {
   group('T-13.3-IOS-GOLDEN-GITIGNORE-LINT-01: Apple Font License lint guard', () {
     test('_ios.png golden fixtures 모두 .gitignore 에 명시 (memory '
         'feedback_apple_font_license_rasterized_risk.md 권고 패턴)', () {
-      final Directory dir = Directory(_goldensDir);
+      final dir = Directory(_goldensDir);
       if (!dir.existsSync()) {
         // golden 디렉토리 자체 부재 시 검증 대상 0 — fail 아님 (CI 환경 등).
         return;
@@ -47,7 +47,7 @@ void main() {
       }
 
       // .gitignore 본문 읽기 — line-by-line 매칭 위함.
-      final File gitignoreFile = File(_gitignorePath);
+      final gitignoreFile = File(_gitignorePath);
       expect(
         gitignoreFile.existsSync(),
         isTrue,
@@ -60,8 +60,8 @@ void main() {
           .toList();
 
       // 각 _ios.png 파일이 .gitignore 의 entry 와 매칭되는지 검증.
-      final List<String> missingEntries = <String>[];
-      for (final File golden in iosGoldens) {
+      final missingEntries = <String>[];
+      for (final golden in iosGoldens) {
         // Dart File.path 가 working dir relative path 인 경우, fully-
         // qualified path (`test/features/.../goldens/xxx_ios.png`) 로
         // 표준화. golden.path 가 이미 그 형식이지만 명시적으로 변환.

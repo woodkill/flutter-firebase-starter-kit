@@ -132,7 +132,7 @@ Future<SecretRead> readSecret(
     context.redactor.register(value);
     return SecretFound(value);
   }
-  final String output = '${result.stdout}\n${result.stderr}';
+  final output = '${result.stdout}\n${result.stderr}';
   if (output.contains(secretNotFoundStatusMarker) &&
       output.contains(secretNotFoundTextMarker)) {
     return const SecretMissing();

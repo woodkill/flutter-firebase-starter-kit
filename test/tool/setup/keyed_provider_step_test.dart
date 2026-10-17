@@ -159,7 +159,7 @@ final class _Harness {
 
   /// [name] 읽기 결과 큐에 [results] 를 차례로 더한다.
   void onSecretReads(String name, List<CommandResult> results) {
-    for (final CommandResult result in results) {
+    for (final result in results) {
       runner.on(
         FakeCommandRunner.buildKey(buildSecretReadCommand(name, projectId)),
         result,
@@ -227,7 +227,7 @@ void main() {
 
   /// [flavor] 의 example 두 파일과 사용자 파일 두 개를 example 복사로 만든다.
   void prepareFlavorFiles(Flavor flavor) {
-    final FlavorPaths paths = FlavorPaths(flavor);
+    final paths = FlavorPaths(flavor);
     copyTracked(paths.jsonExample, paths.jsonExample);
     copyTracked(paths.xcconfigExample, paths.xcconfigExample);
     copyTracked(paths.jsonExample, paths.json);
@@ -305,7 +305,7 @@ void main() {
     final String configBefore = File(
       configPathOf(Flavor.dev),
     ).readAsStringSync();
-    final _Harness h = _Harness(root, const <String?>['y']);
+    final h = _Harness(root, const <String?>['y']);
     h
       ..onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')])
       ..onSecretReads(adminSecret, <CommandResult>[ok('$adminKey\n')]);
@@ -330,7 +330,7 @@ void main() {
     expect(File(configPathOf(Flavor.dev)).readAsStringSync(), configBefore);
     expect(h.secretWrites, isEmpty);
     expect(h.rest.externalRequests, isEmpty);
-    for (final String text in <String>[h.output, h.log.text]) {
+    for (final text in <String>[h.output, h.log.text]) {
       expect(countText(text, nativeKey), 0);
       expect(countText(text, adminKey), 0);
     }
@@ -344,7 +344,7 @@ void main() {
     final String adminKey = buildAdminKey();
     setConfigNativeKey(Flavor.dev, nativeKey);
     setXcconfigNativeKey(Flavor.dev, nativeKey);
-    final _Harness h = _Harness(root, const <String?>['y']);
+    final h = _Harness(root, const <String?>['y']);
     h
       ..onSecretReads(nativeSecret, <CommandResult>[
         ok('$oldKey\n'),
@@ -366,7 +366,7 @@ void main() {
     expect(h.secretWrites.single.stdinText, nativeKey);
     expect(h.secretWrites.single.isOutputSensitive, isTrue);
     expect(h.rest.externalRequests, isEmpty);
-    for (final String text in <String>[h.output, h.log.text]) {
+    for (final text in <String>[h.output, h.log.text]) {
       expect(countText(text, oldKey), 0);
       expect(countText(text, nativeKey), 0);
     }
@@ -377,7 +377,7 @@ void main() {
       final String nativeKey = buildNativeKey();
       final String adminKey = buildAdminKey();
       setConfigNativeKey(Flavor.dev, nativeKey);
-      final _Harness h = _Harness(root, const <String?>['y']);
+      final h = _Harness(root, const <String?>['y']);
       h
         ..onSecretReads(nativeSecret, <CommandResult>[
           ok('$secretPlaceholderValue\n'),
@@ -405,7 +405,7 @@ void main() {
       final String nativeKey = buildNativeKey();
       setConfigNativeKey(Flavor.dev, nativeKey);
       setXcconfigNativeKey(Flavor.dev, nativeKey);
-      final _Harness h = _Harness(root, const <String?>[]);
+      final h = _Harness(root, const <String?>[]);
       h
         ..onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')])
         ..onSecretReads(adminSecret, <CommandResult>[
@@ -438,11 +438,7 @@ void main() {
     final String devXcconfigBefore = File(
       xcconfigPathOf(Flavor.dev),
     ).readAsStringSync();
-    final _Harness h = _Harness(root, <String?>[
-      'y',
-      '1',
-      newKey,
-    ], flavor: Flavor.stg);
+    final h = _Harness(root, <String?>['y', '1', newKey], flavor: Flavor.stg);
     h
       ..onSecretReads(nativeSecret, <CommandResult>[
         buildSecretMissing(nativeSecret),
@@ -499,7 +495,7 @@ void main() {
       final String devConfigBefore = File(
         configPathOf(Flavor.dev),
       ).readAsStringSync();
-      final _Harness h = _Harness(root, <String?>[
+      final h = _Harness(root, <String?>[
         'y',
         '1',
         devKey,
@@ -546,7 +542,7 @@ void main() {
         projectId,
       );
       setConfigNativeKey(Flavor.dev, devKey);
-      final _Harness h = _Harness(root, <String?>[
+      final h = _Harness(root, <String?>[
         'y',
         '1',
         devKey,
@@ -580,10 +576,10 @@ void main() {
     final String xcconfigBefore = File(
       xcconfigPathOf(Flavor.dev),
     ).readAsStringSync();
-    final _PairCheckedStep step = _PairCheckedStep(const <KeyField>[
+    final step = _PairCheckedStep(const <KeyField>[
       KakaoStep.nativeAppKeyField,
     ], const PairMismatch(KakaoStep.nativeAppKeyField, '짝이 맞지 않습니다'));
-    final _Harness h = _Harness(root, const <String?>['y', '2']);
+    final h = _Harness(root, const <String?>['y', '2']);
     h.onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')]);
 
     final int code = await h.run(step);
@@ -607,7 +603,7 @@ void main() {
       final String nativeKey = buildNativeKey();
       setConfigNativeKey(Flavor.dev, nativeKey);
       setXcconfigNativeKey(Flavor.dev, nativeKey);
-      final _Harness h = _Harness(root, const <String?>[]);
+      final h = _Harness(root, const <String?>[]);
       h
         ..onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')])
         ..onSecretReads(adminSecret, <CommandResult>[
@@ -625,10 +621,10 @@ void main() {
       prepareFlavorFiles(Flavor.stg);
       final String stgPlaceholder = readConfigNativeKey(Flavor.stg)!;
       setConfigNativeKey(Flavor.dev, stgPlaceholder);
-      final _PairCheckedStep step = _PairCheckedStep(const <KeyField>[
+      final step = _PairCheckedStep(const <KeyField>[
         looseField,
       ], const PairOk());
-      final _Harness h = _Harness(root, const <String?>[]);
+      final h = _Harness(root, const <String?>[]);
 
       final int code = await h.run(step);
 
@@ -644,7 +640,7 @@ void main() {
       setConfigNativeKey(Flavor.stg, buildNativeKey('f'));
       setConfigNativeKey(Flavor.dev, nativeKey);
       setXcconfigNativeKey(Flavor.dev, nativeKey);
-      final _Harness h = _Harness(root, const <String?>[]);
+      final h = _Harness(root, const <String?>[]);
       h
         ..onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')])
         ..onSecretReads(adminSecret, <CommandResult>[

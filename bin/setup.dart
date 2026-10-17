@@ -40,7 +40,7 @@ const String logOpenFailedPrefix = '실행 기록 파일을 만들지 못했습�
 /// Ctrl-C 는 신호 처리 없이 바로 끝난다 — 질문이 동기 읽기로 기다리는 동안에는
 /// 처리기가 돌 수 없어서다. 터미널 상태 복구는 `setup.sh` 가 맡는다.
 Future<void> main(List<String> arguments) async {
-  final ArgParser parser = ArgParser()
+  final parser = ArgParser()
     ..addFlag('help', abbr: 'h', help: '사용법을 보여 줍니다.', negatable: false)
     ..addFlag(
       'providers',
@@ -86,7 +86,7 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final Redactor redactor = Redactor();
+  final redactor = Redactor();
   final FileLogSink log;
   try {
     log = await FileLogSink.open(
@@ -105,16 +105,12 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final RedactingTerminal terminal = RedactingTerminal(
-    StdioTerminal(),
-    redactor,
-    log,
-  );
+  final terminal = RedactingTerminal(StdioTerminal(), redactor, log);
   int code = wizardExitStopped;
   try {
     if (!hasInteractiveTerminal()) {
       // 안내는 표준 오류로 내보내되, 같은 가림 · 기록 경로를 거친다.
-      final RedactingTerminal errorTerminal = RedactingTerminal(
+      final errorTerminal = RedactingTerminal(
         StdioTerminal(output: stderr),
         redactor,
         log,
@@ -125,16 +121,13 @@ Future<void> main(List<String> arguments) async {
       return;
     }
 
-    final ProcessCommandRunner runner = ProcessCommandRunner(
-      terminal,
-      log: log,
-    );
-    final HttpRestClient rest = HttpRestClient(
+    final runner = ProcessCommandRunner(terminal, log: log);
+    final rest = HttpRestClient(
       tokens: AccessTokenSource(runner, redactor),
       terminal: terminal,
       log: log,
     );
-    final WizardContext context = WizardContext(
+    final context = WizardContext(
       projectRoot: projectRoot,
       runner: runner,
       terminal: terminal,

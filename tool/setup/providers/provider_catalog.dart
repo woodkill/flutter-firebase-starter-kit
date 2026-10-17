@@ -96,8 +96,8 @@ ProviderEntry? findProvider(String token) {
 ///
 /// 앞뒤 공백을 떼고 빈 토큰은 버리며 중복은 한 번만 센다.
 ({List<String> known, List<String> unknown}) parseProviderCsv(String csv) {
-  final Set<String> seen = <String>{};
-  final List<String> unknown = <String>[];
+  final seen = <String>{};
+  final unknown = <String>[];
   for (final String raw in csv.split(',')) {
     final String token = raw.trim();
     if (token.isEmpty || !seen.add(token)) continue;
@@ -124,7 +124,7 @@ String formatProviderCsv(Iterable<String> tokens) {
 /// 켠 로그인 수단을 한 줄로 적는다 — `이메일만` 또는 `이메일 + Google · Kakao`.
 String describeProviders(Iterable<String> tokens) {
   final Set<String> wanted = tokens.toSet();
-  final List<String> names = <String>[
+  final names = <String>[
     for (final ProviderEntry entry in providerCatalog)
       if (wanted.contains(entry.token)) entry.displayName,
   ];
@@ -136,7 +136,7 @@ String describeProviders(Iterable<String> tokens) {
 /// 파일이 없거나 읽지 못하거나 키가 없으면 빈 집합이다. 모르는 토큰은 뺀다 —
 /// 로그인 수단 단계가 따로 알린다.
 Set<String> readEnabledProviders(String jsonPath) {
-  final File file = File(jsonPath);
+  final file = File(jsonPath);
   if (!file.existsSync()) return const <String>{};
   final String? csv;
   try {

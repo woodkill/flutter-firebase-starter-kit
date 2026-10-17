@@ -146,8 +146,8 @@ String _sliceWarningBox(String spmSection) {
   if (start == -1) {
     return '';
   }
-  final List<String> boxLines = <String>[];
-  for (int i = start; i < lines.length && lines[i].startsWith('>'); i++) {
+  final boxLines = <String>[];
+  for (var i = start; i < lines.length && lines[i].startsWith('>'); i++) {
     boxLines.add(lines[i].replaceFirst(RegExp(r'^> ?'), ''));
   }
   return boxLines.join('\n');
@@ -216,9 +216,9 @@ void main() {
           isNot(-1),
           reason: '「$_currentValuesLabel」 뒤에 표가 없다',
         );
-        final List<String> table = <String>[];
+        final table = <String>[];
         for (
-          int i = headerIndex;
+          var i = headerIndex;
           i < lines.length && lines[i].startsWith('|');
           i++
         ) {
@@ -226,9 +226,9 @@ void main() {
         }
         final List<List<String>> rows = _collectDataRows(table);
 
-        int wrapperRows = 0;
-        int pluginRows = 0;
-        for (final List<String> cells in rows) {
+        var wrapperRows = 0;
+        var pluginRows = 0;
+        for (final cells in rows) {
           final String kitValue = cells[1].replaceAll('`', '');
           final List<String> pointer = _collectBackticked(cells[2]);
           expect(
@@ -311,8 +311,8 @@ void main() {
         );
         expect(rows, isNotEmpty, reason: '⑤ 에서 「$_keepTableHeader」 표를 찾지 못했다');
 
-        final Set<String> files = <String>{};
-        for (final List<String> cells in rows) {
+        final files = <String>{};
+        for (final cells in rows) {
           final List<String> quoted = _collectBackticked(cells[0]);
           expect(
             quoted,
@@ -374,7 +374,7 @@ void main() {
         reason: '⑤ 에서 계약 test ID 추출이 실패했다: $cited',
       );
 
-      for (final String id in cited) {
+      for (final id in cited) {
         expect(
           _findTestDeclaration(source, id),
           isNot(-1),
@@ -393,10 +393,7 @@ void main() {
             '단언이 그 test 본문에 없다',
       );
       final String body03 = _sliceTestBody(source, 'T-176-ANDROID-03');
-      for (final String key in <String>[
-        'android.builtInKotlin=',
-        'android.newDsl=',
-      ]) {
+      for (final key in <String>['android.builtInKotlin=', 'android.newDsl=']) {
         expect(
           body03,
           contains(key),
@@ -506,7 +503,7 @@ void main() {
               '매뉴얼 본문에서 「`flutter_line_sdk` X.Y.Z」 인용을 3곳 이상 찾지 '
               '못했다',
         );
-        for (final RegExpMatch mention in pluginMentions) {
+        for (final mention in pluginMentions) {
           expect(
             mention.group(1),
             pubspecVersion,
@@ -536,7 +533,7 @@ void main() {
           reason: 'SPM ② 핀 표에 `$_lineIdentity` 행이 정확히 1개여야 한다',
         );
         final List<String> lineRow = lineRows.single;
-        final RegExp pluginMention = RegExp(r'`flutter_line_sdk` \d');
+        final pluginMention = RegExp(r'`flutter_line_sdk` \d');
         expect(
           pluginMention.hasMatch(box),
           isTrue,
@@ -548,7 +545,7 @@ void main() {
           reason: '핀 표 `$_lineIdentity` 행에 `flutter_line_sdk` 버전 인용이 없다',
         );
 
-        final Map<String, Object?> resolved =
+        final resolved =
             jsonDecode(readTrackedFile(_packageResolvedPath))
                 as Map<String, Object?>;
         final List<Map<String, Object?>> linePins =
@@ -563,7 +560,7 @@ void main() {
           hasLength(1),
           reason: '$_packageResolvedPath 에 $_lineIdentity 핀이 정확히 1개여야 한다',
         );
-        final String pinVersion =
+        final pinVersion =
             (linePins.single['state']! as Map<String, Object?>)['version']!
                 as String;
         expect(
@@ -580,7 +577,7 @@ void main() {
           isNotEmpty,
           reason: '경고 박스에서 굵은 핀 버전 **X.Y.Z** 를 찾지 못했다',
         );
-        for (final String boldPin in boldPins) {
+        for (final boldPin in boldPins) {
           expect(
             boldPin,
             pinVersion,

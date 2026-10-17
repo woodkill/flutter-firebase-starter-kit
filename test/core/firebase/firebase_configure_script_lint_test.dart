@@ -42,7 +42,7 @@ const String _scriptPath = 'scripts/firebase-configure.sh';
 ///
 /// [path] 는 저장소 루트 기준 상대 경로다 (`flutter test` 의 CWD = 프로젝트 루트).
 List<String> readExecutableLines(String path) {
-  final File file = File(path);
+  final file = File(path);
   expect(file.existsSync(), isTrue, reason: '$path 가 존재해야 한다');
   return file
       .readAsLinesSync()
@@ -60,7 +60,7 @@ void main() {
 
   group('firebase-configure.sh 비대화형 계약', () {
     test('flutterfire 호출에 flavor 별 --ios-build-config 이 전달된다', () {
-      const String flag = r'--ios-build-config="Debug-${FLAVOR}"';
+      const flag = r'--ios-build-config="Debug-${FLAVOR}"';
       expect(
         lines.where((String line) => line.contains(flag)).length,
         1,
@@ -69,7 +69,7 @@ void main() {
     });
 
     test('flutterfire 호출 전에 ruby xcodeproj 전제조건을 검사한다', () {
-      const String guard = r'''ruby -e "require 'xcodeproj'" >/dev/null''';
+      const guard = r'''ruby -e "require 'xcodeproj'" >/dev/null''';
       expect(
         lines.where((String line) => line.contains(guard)).length,
         1,
@@ -104,15 +104,14 @@ void main() {
 
   group('firebase-configure.sh 부수효과 복원 계약', () {
     test('변형 대상 2종을 스냅샷할 상수로 들고 있고 mktemp/cp 로 떠 둔다', () {
-      const String pbxproj =
+      const pbxproj =
           r'CLI_TOUCHED_PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"';
-      const String firebaseJson = r'CLI_TOUCHED_FIREBASE_JSON="firebase.json"';
-      const String mktemp =
-          r'mktemp -d "${TMPDIR:-/tmp}/firebase-configure-XXXXXX"';
-      const String snapshotCopy =
+      const firebaseJson = r'CLI_TOUCHED_FIREBASE_JSON="firebase.json"';
+      const mktemp = r'mktemp -d "${TMPDIR:-/tmp}/firebase-configure-XXXXXX"';
+      const snapshotCopy =
           r'cp "$SNAP_SRC" "${SNAP_DIR}/$(basename "$SNAP_SRC")"';
 
-      for (final String literal in <String>[
+      for (final literal in <String>[
         pbxproj,
         firebaseJson,
         mktemp,
@@ -150,7 +149,7 @@ void main() {
     });
 
     test('생성된 dart options 에 포맷을 적용한다', () {
-      const String format = r'fvm dart format "$OUT_DART"';
+      const format = r'fvm dart format "$OUT_DART"';
       expect(
         lines.where((String line) => line.contains(format)).length,
         1,
@@ -195,9 +194,8 @@ void main() {
   // firebase_configure_project_source_test.dart 가 DRY_RUN 으로 고정하고, 여기서는
   // 읽기 줄의 위치(DRY_RUN 분기 앞 계산부)와 마지막 줄 계약을 실행 라인 기준으로 본다.
   group('firebase-configure.sh 프로젝트 ID 출처 계약', () {
-    const String configRead = "jq -r '.firebaseProjectId";
-    const String completeLine =
-        r'echo "✓ Firebase configure complete for ${FLAVOR}"';
+    const configRead = "jq -r '.firebaseProjectId";
+    const completeLine = r'echo "✓ Firebase configure complete for ${FLAVOR}"';
 
     test('config 의 firebaseProjectId 를 읽는 실행 줄이 1개다', () {
       expect(

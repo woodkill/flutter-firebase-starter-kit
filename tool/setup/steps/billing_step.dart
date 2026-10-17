@@ -210,7 +210,7 @@ final class BillingStep implements Step {
     );
     if (linked.isSuccess) return const Applied();
     final String output = '${linked.stdout}\n${linked.stderr}'.toLowerCase();
-    final String summary = output.contains('quota')
+    final summary = output.contains('quota')
         ? '결제 계정을 연결하지 못했습니다 — 결제 계정당 연결할 수 있는 프로젝트 수 한도일 수 '
               '있습니다. 한도 · 증액 요청: $quotaHelpUrl'
         : '결제 계정을 연결하지 못했습니다';
@@ -232,7 +232,7 @@ final class BillingStep implements Step {
     if (!result.isSuccess) return null;
     final Object? decoded = _tryDecode(result.stdout);
     if (decoded is! List<Object?>) return null;
-    final List<_BillingAccount> accounts = <_BillingAccount>[];
+    final accounts = <_BillingAccount>[];
     for (final Object? item in decoded) {
       if (item is! Map<String, Object?> || item['open'] == false) continue;
       final Object? name = item['name'];

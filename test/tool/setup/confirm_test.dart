@@ -22,7 +22,7 @@ int countText(String haystack, String needle) =>
 
 void main() {
   test('T-19-CONFIRM-01: 제목 · 정렬된 값 행 · 경고 줄 · 질문 한 번을 보인다', () {
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final bool isConfirmed = confirmSummary(
       terminal,
@@ -49,16 +49,16 @@ void main() {
   });
 
   group('T-19-CONFIRM-02: y · yes 만 진행하고 기본은 진행하지 않는다', () {
-    for (final String answer in <String>['y', 'yes', 'Y', ' yes ']) {
+    for (final answer in <String>['y', 'yes', 'Y', ' yes ']) {
       test('「$answer」 → 진행', () {
-        final ScriptedTerminal terminal = ScriptedTerminal(<String?>[answer]);
+        final terminal = ScriptedTerminal(<String?>[answer]);
         expect(confirmSummary(terminal, title: '확인', rows: sampleRows), isTrue);
       });
     }
 
-    for (final String? answer in <String?>['', 'n', 'N', '네', 'ok', null]) {
+    for (final answer in <String?>['', 'n', 'N', '네', 'ok', null]) {
       test('「${answer ?? '입력 끝'}」 → 진행 안 함', () {
-        final ScriptedTerminal terminal = ScriptedTerminal(<String?>[answer]);
+        final terminal = ScriptedTerminal(<String?>[answer]);
         expect(
           confirmSummary(terminal, title: '확인', rows: sampleRows),
           isFalse,
@@ -68,11 +68,7 @@ void main() {
   });
 
   test('T-19-CONFIRM-03: 진행하지 않아도 값을 다시 묻지 않는다', () {
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-      '',
-      'demo-other',
-      'y',
-    ]);
+    final terminal = ScriptedTerminal(const <String?>['', 'demo-other', 'y']);
 
     final bool isConfirmed = confirmSummary(
       terminal,
@@ -86,7 +82,7 @@ void main() {
   });
 
   test('경고가 없으면 경고 줄 없이 표와 질문만 보인다', () {
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['n']);
+    final terminal = ScriptedTerminal(const <String?>['n']);
 
     confirmSummary(
       terminal,

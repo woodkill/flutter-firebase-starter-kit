@@ -210,7 +210,7 @@ final class FirestoreStep implements Step {
     final String? unreadable = _readRegions(context);
     if (unreadable != null) return _markUnreadable(unreadable);
     final _RegionValues regions = _regions!;
-    final bool isDevFlavor = context.flavor == Flavor.dev;
+    final isDevFlavor = context.flavor == Flavor.dev;
     if (!isDevFlavor && regions.regionTs != regions.appConfig) {
       return _markShared(
         _FirestoreMode.sharedMismatch,
@@ -405,7 +405,7 @@ final class FirestoreStep implements Step {
     final Terminal terminal = context.terminal;
     final _RegionValues regions = _regions!;
     final String region = regions.regionTs;
-    final bool isConfigChanged = regions.config != region;
+    final isConfigChanged = regions.config != region;
     terminal.writeLine('  $sharedRegionNotice');
     if (!confirmSummary(
       terminal,
@@ -498,7 +498,7 @@ final class FirestoreStep implements Step {
     _RegionValues regions,
     String region,
   ) async {
-    final List<String> trackedTargets = <String>[
+    final trackedTargets = <String>[
       if (regions.regionTs != region) regionTsPath,
       if (regions.appConfig != region) appConfigPath,
     ];
@@ -589,7 +589,7 @@ final class FirestoreStep implements Step {
 
   /// [path] 에서 [pattern] 이 정확히 한 곳에 맞으면 값 그룹을 돌려준다.
   static String? _readRegionValue(String path, RegExp pattern) {
-    final File file = File(path);
+    final file = File(path);
     if (!file.existsSync()) return null;
     final List<RegExpMatch> matches = pattern
         .allMatches(file.readAsStringSync())

@@ -64,8 +64,8 @@ class DemoScreen extends ConsumerWidget {
     // 표시값도 [AppConfig] 를 단일 진실원으로 읽는다 — 화면이 자체
     // defaultValue 로 'dev' 를 보여주면 dart-define 누락을 화면에서 검출할
     // 수 없다. 미주입 시 빈 문자열이므로 경고 chip 으로 노출한다.
-    final flavor = AppConfig.flavor;
-    final appName = AppConfig.appName;
+    const flavor = AppConfig.flavor;
+    const appName = AppConfig.appName;
     const firebaseProjectId = String.fromEnvironment(
       'firebaseProjectId',
       defaultValue: '-',

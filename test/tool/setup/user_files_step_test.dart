@@ -47,11 +47,11 @@ void main() {
   test(
     'T-19-FILES-01 사용자 파일이 둘 다 없으면 ✗ 이고 y 뒤 example 과 같은 두 파일이 생긴다',
     () async {
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runUserFilesStep(terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ 사용자 설정 파일 — '));
       expect(
@@ -91,11 +91,11 @@ void main() {
       userFile(
         UserFilesStep.xcconfigExamplePath,
       ).copySync(userFile(UserFilesStep.xcconfigUserPath).path);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runUserFilesStep(terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       final String updated = userFile(
         UserFilesStep.jsonUserPath,
       ).readAsStringSync();
@@ -121,7 +121,7 @@ void main() {
     userFile(
       UserFilesStep.xcconfigExamplePath,
     ).copySync(userFile(UserFilesStep.xcconfigUserPath).path);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runUserFilesStep(terminal);
 
@@ -131,13 +131,13 @@ void main() {
   });
 
   test('T-19-FILES-04 사용자 JSON 이 깨지면 ✗ 이고 y 뒤 실패하며 원본은 그대로다', () async {
-    const String broken = '{\n  "flavor": "dev",\n  "appName": \n';
+    const broken = '{\n  "flavor": "dev",\n  "appName": \n';
     userFile(UserFilesStep.jsonUserPath).writeAsStringSync(broken);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runUserFilesStep(terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(
       output,
@@ -156,8 +156,8 @@ void main() {
 
     setUp(() {
       // stg · prod example 도 임시 저장소로 복사한다.
-      for (final Flavor flavor in <Flavor>[Flavor.stg, Flavor.prod]) {
-        final FlavorPaths paths = FlavorPaths(flavor);
+      for (final flavor in <Flavor>[Flavor.stg, Flavor.prod]) {
+        final paths = FlavorPaths(flavor);
         File(paths.jsonExample).copySync(userFile(paths.jsonExample).path);
         File(
           paths.xcconfigExample,
@@ -194,7 +194,7 @@ void main() {
 
     /// 체크 목록 단계를 한 번 실행한다 — 위저드처럼 검사 뒤 실행한다.
     Future<StepOutcome> runStep(WizardContext context) async {
-      final UserFilesStep step = UserFilesStep();
+      final step = UserFilesStep();
       await step.check(context);
       return step.apply(context);
     }
@@ -204,18 +204,18 @@ void main() {
       () async {
         final File devJson = writeDevConfig('google,kakao');
         final List<int> devBytes = devJson.readAsBytesSync();
-        final FlavorPaths stgPaths = const FlavorPaths(Flavor.stg);
+        const stgPaths = FlavorPaths(Flavor.stg);
         final WizardContext context = buildFlavorContext(
           Flavor.stg,
           const <String?>[''],
         );
 
-        final UserFilesStep step = UserFilesStep();
+        final step = UserFilesStep();
         await step.check(context);
         final List<String> planned = step.plannedCommandLines(context);
         final StepOutcome outcome = await step.apply(context);
 
-        final String output = screen.output.toString();
+        final output = screen.output.toString();
         expect(planned, <String>[
           'cp ${stgPaths.jsonExample} ${stgPaths.json}',
           'cp ${stgPaths.xcconfigExample} ${stgPaths.xcconfig}',
@@ -286,7 +286,7 @@ void main() {
 
         final StepOutcome outcome = await runStep(context);
 
-        final FlavorPaths prodPaths = const FlavorPaths(Flavor.prod);
+        const prodPaths = FlavorPaths(Flavor.prod);
         expect(outcome, isA<Applied>());
         expect(
           userFile(prodPaths.json).readAsBytesSync(),
@@ -300,7 +300,7 @@ void main() {
       'T-20-FLAVOR-05: stg config 가 이미 있으면 체크 목록을 열지 않고 빠진 키만 채운다',
       () async {
         writeDevConfig('google,kakao');
-        final FlavorPaths stgPaths = const FlavorPaths(Flavor.stg);
+        const stgPaths = FlavorPaths(Flavor.stg);
         final String withoutToken = userFile(
           stgPaths.jsonExample,
         ).readAsStringSync().replaceFirst(',\n  "appCheckDebugToken": ""', '');
@@ -328,16 +328,16 @@ void main() {
     test(
       'T-20-FLAVOR-05: dev CSV 가 비었거나 dev config 가 없으면 체크 목록을 열지 않는다',
       () async {
-        for (final bool hasDevConfig in <bool>[true, false]) {
+        for (final hasDevConfig in <bool>[true, false]) {
           final File devJson = userFile(const FlavorPaths(Flavor.dev).json);
           if (hasDevConfig) {
             writeDevConfig('');
           } else if (devJson.existsSync()) {
             devJson.deleteSync();
           }
-          for (final Flavor flavor in <Flavor>[Flavor.stg, Flavor.prod]) {
-            final FlavorPaths paths = FlavorPaths(flavor);
-            for (final String path in <String>[paths.json, paths.xcconfig]) {
+          for (final flavor in <Flavor>[Flavor.stg, Flavor.prod]) {
+            final paths = FlavorPaths(flavor);
+            for (final path in <String>[paths.json, paths.xcconfig]) {
               if (userFile(path).existsSync()) userFile(path).deleteSync();
             }
             final WizardContext context = buildFlavorContext(
@@ -368,7 +368,7 @@ void main() {
           const <String?>[],
         );
 
-        final UserFilesStep step = UserFilesStep();
+        final step = UserFilesStep();
         final CheckResult result = await step.check(context);
         final List<String> planned = step.plannedCommandLines(context);
         final StepOutcome outcome = await step.apply(context);

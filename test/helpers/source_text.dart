@@ -26,7 +26,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// 없어야 한다」 는 검사를 할 수 없다. 그 경우는 `File(path).existsSync()` 를 직접
 /// 쓰고, 같은 API 가 실제로 매칭한다는 양성 대조를 함께 세운다.
 String readTrackedFile(String path) {
-  final File file = File(path);
+  final file = File(path);
   if (!file.existsSync()) {
     fail('tracked 파일 부재: $path');
   }
@@ -65,7 +65,7 @@ int countOccurrences(String haystack, String needle) {
   if (needle.isEmpty) {
     return 0;
   }
-  int count = 0;
+  var count = 0;
   int index = haystack.indexOf(needle);
   while (index != -1) {
     count++;
@@ -115,7 +115,7 @@ String sliceTocBlock(String manual) {
   if (start == -1) {
     return '';
   }
-  final List<String> block = <String>[];
+  final block = <String>[];
   for (int i = start + 1; i < lines.length; i++) {
     if (lines[i] == '---') {
       break;
@@ -133,8 +133,8 @@ List<String> collectTableLines(String text, String header) {
   if (start == -1) {
     return <String>[];
   }
-  final List<String> table = <String>[];
-  for (int i = start; i < lines.length && lines[i].startsWith('|'); i++) {
+  final table = <String>[];
+  for (var i = start; i < lines.length && lines[i].startsWith('|'); i++) {
     table.add(lines[i]);
   }
   return table;

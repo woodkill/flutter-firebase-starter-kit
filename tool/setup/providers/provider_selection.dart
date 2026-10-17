@@ -29,13 +29,13 @@ Set<String>? chooseProviders(
   required Set<String> current,
 }) {
   terminal.writeLine(providerChecklistHeading);
-  for (int i = 0; i < providerCatalog.length; i++) {
+  for (var i = 0; i < providerCatalog.length; i++) {
     final ProviderEntry entry = providerCatalog[i];
-    final String mark = current.contains(entry.token) ? 'x' : ' ';
+    final mark = current.contains(entry.token) ? 'x' : ' ';
     terminal.writeLine('  ${i + 1}) [$mark] ${entry.displayName}');
   }
   final String defaultAnswer = _formatNumbers(current);
-  for (int attempt = 0; attempt < maxProviderChoiceAttempts; attempt++) {
+  for (var attempt = 0; attempt < maxProviderChoiceAttempts; attempt++) {
     final String? answer = terminal.ask(
       providerChoiceQuestion,
       defaultValue: defaultAnswer,
@@ -62,8 +62,8 @@ ProviderChoice parseProviderChoice(String answer) {
   if (parts.isEmpty) {
     return (tokens: null, error: '번호를 입력하세요 — 이메일만 쓰려면 0 입니다.');
   }
-  final List<int> numbers = <int>[];
-  for (final String part in parts) {
+  final numbers = <int>[];
+  for (final part in parts) {
     final int? number = int.tryParse(part);
     if (number == null) {
       return (tokens: null, error: '숫자만 띄어 써서 입력하세요 — 「$part」 는 번호가 아닙니다.');
@@ -76,8 +76,8 @@ ProviderChoice parseProviderChoice(String answer) {
     }
     return (tokens: null, error: '0(이메일만)은 다른 번호와 함께 쓸 수 없습니다.');
   }
-  final Set<String> tokens = <String>{};
-  for (final int number in numbers) {
+  final tokens = <String>{};
+  for (final number in numbers) {
     if (number < 1 || number > providerCatalog.length) {
       return (
         tokens: null,
@@ -98,7 +98,7 @@ void writeEnabledProviders(String jsonPath, Set<String> tokens) =>
 
 /// [tokens] 의 체크 목록 번호를 띄어 쓴 문자열로 만든다 — 비었으면 `0`.
 String _formatNumbers(Set<String> tokens) {
-  final List<String> numbers = <String>[
+  final numbers = <String>[
     for (int i = 0; i < providerCatalog.length; i++)
       if (tokens.contains(providerCatalog[i].token)) '${i + 1}',
   ];

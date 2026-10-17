@@ -355,7 +355,7 @@ void main() {
   });
 
   test('단계 모양 · 목록 위치 — functions 바로 뒤 · 마지막', () {
-    final RunStep step = RunStep();
+    final step = RunStep();
     expect(step.id, 'run');
     expect(step.title, '앱 실행 · 로그인 확인');
     expect(
@@ -368,7 +368,7 @@ void main() {
         'configure',
       ]),
     );
-    final List<String> ids = <String>[
+    final ids = <String>[
       for (final Step devStep in buildDevSteps()) devStep.id,
     ];
     expect(ids.indexOf('run'), ids.indexOf('functions') + 1);
@@ -420,7 +420,7 @@ void main() {
   });
 
   test('T-19-RUN-01: 인증 password 1 · 미인증 1 · 익명 1 → ✓ 1명 · 실행 0', () async {
-    final _Harness harness = _Harness(root, const <String?>[]);
+    final harness = _Harness(root, const <String?>[]);
     harness.rest.on(
       'GET',
       harness.firstPageUrl,
@@ -445,7 +445,7 @@ void main() {
   });
 
   test('T-19-RUN-01 보강: 인증됐어도 password provider 가 없으면 세지 않는다', () async {
-    final _Harness harness = _Harness(root, const <String?>[null]);
+    final harness = _Harness(root, const <String?>[null]);
     harness.rest.on(
       'GET',
       harness.firstPageUrl,
@@ -466,8 +466,8 @@ void main() {
   });
 
   test('T-19-RUN-02: nextPageToken 두 페이지 → 두 페이지 모두 요청 · 합계', () async {
-    final _Harness harness = _Harness(root, const <String?>[]);
-    const String token = 'page/2+=';
+    final harness = _Harness(root, const <String?>[]);
+    const token = 'page/2+=';
     harness.rest
       ..on(
         'GET',
@@ -508,7 +508,7 @@ void main() {
 
   test('T-19-RUN-03: 0명 → y → pub get → 코드 생성 → iOS 만 고르기 · 기본 1번 → '
       '할 일 → interactive 실행 → 1명 ✓', () async {
-    final _Harness harness = _Harness(root, const <String?>['y', '']);
+    final harness = _Harness(root, const <String?>['y', '']);
     harness.rest
       ..on(
         'GET',
@@ -541,7 +541,7 @@ void main() {
 
     expect(code, wizardExitDone);
     expect(output, contains('  ✗ 앱 실행 · 로그인 확인 — 인증된 이메일 사용자가 없습니다'));
-    final List<String> streamKeys = <String>[
+    final streamKeys = <String>[
       for (final FakeCall call in harness.runner.calls)
         if (call.mode == RunMode.stream) call.key,
     ];
@@ -581,7 +581,7 @@ void main() {
   });
 
   test('T-19-RUN-03 변형: 기본값 = 목록의 첫 iOS 시뮬레이터 · iOS 실기기만 있으면 1번', () async {
-    final _Harness mixed = _Harness(root, const <String?>['y', '']);
+    final mixed = _Harness(root, const <String?>['y', '']);
     mixed.rest
       ..on('GET', mixed.firstPageUrl, buildPage(const <Map<String, Object?>>[]))
       ..on('GET', mixed.firstPageUrl, buildPage(const <Map<String, Object?>>[]))
@@ -642,7 +642,7 @@ void main() {
       ..writeAsStringSync(
         '${jsonEncode(<String, Object?>{'firebaseProjectId': projectId})}\n',
       );
-    final _Harness deviceOnly = _Harness(other.path, const <String?>['y', '']);
+    final deviceOnly = _Harness(other.path, const <String?>['y', '']);
     deviceOnly.rest
       ..on(
         'GET',
@@ -690,7 +690,7 @@ void main() {
 
   test('T-19-RUN-04: 대상 0 → simctl 목록 → iPhone 켜기 → 화면 앱 열기 → 기다린 뒤 '
       '재조회 → 대상 1 → 진행', () async {
-    final _Harness harness = _Harness(root, const <String?>['y', '']);
+    final harness = _Harness(root, const <String?>['y', '']);
     harness.rest
       ..on(
         'GET',
@@ -773,14 +773,14 @@ void main() {
     expect(output, contains('  1) iPhone 17 (iOS 시뮬레이터)'));
     expect(output, contains('인증된 이메일 사용자 1명'));
     // 시뮬레이터 UDID 는 화면에 쓰지 않는다(가려진 자리표시도 없다).
-    for (final String udid in <String>[iphoneUdid, otherIphoneUdid, ipadUdid]) {
+    for (final udid in <String>[iphoneUdid, otherIphoneUdid, ipadUdid]) {
       expect(output, isNot(contains(udid)));
     }
     expect(output, isNot(contains(Redactor.mask)));
   });
 
   test('T-19-RUN-04 보강: 켜고 화면 앱을 연 뒤에도 대상이 끝내 없으면 실패 · 실행 0', () async {
-    final _Harness harness = _Harness(root, const <String?>['y', '']);
+    final harness = _Harness(root, const <String?>['y', '']);
     harness.rest.on(
       'GET',
       harness.firstPageUrl,
@@ -821,8 +821,8 @@ void main() {
   });
 
   test('시뮬레이터 켜기 · 화면 앱 열기 실패 → 그 결과 원문과 함께 실패 · 재조회 · 실행 0', () async {
-    for (final bool isBootFailing in <bool>[true, false]) {
-      final _Harness harness = _Harness(root, const <String?>['y', '']);
+    for (final isBootFailing in <bool>[true, false]) {
+      final harness = _Harness(root, const <String?>['y', '']);
       harness.rest.on(
         'GET',
         harness.firstPageUrl,
@@ -879,7 +879,7 @@ void main() {
   });
 
   test('T-19-RUN-07: 켜진 iPhone 이 있으면 boot 없이 화면 앱만 열고 재조회 뒤 진행', () async {
-    final _Harness harness = _Harness(root, const <String?>['y', '']);
+    final harness = _Harness(root, const <String?>['y', '']);
     harness.rest
       ..on(
         'GET',
@@ -945,33 +945,32 @@ void main() {
 
   test('T-19-RUN-08: 쓸 수 있는 iPhone 이 없거나 목록을 못 읽으면 boot · open 없이 '
       '안내와 함께 실패', () async {
-    final Map<String, List<Map<String, Object?>>> noIphone =
-        <String, List<Map<String, Object?>>>{
-          buildWatchRuntimeKey(11, 0): <Map<String, Object?>>[
-            buildSimDevice(
-              name: 'Sim Watch',
-              udid: buildUdid(1),
-              deviceType: 'Apple-Watch-Series-11-46mm',
-            ),
-          ],
-          buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
-            buildSimDevice(
-              name: 'Sim iPad',
-              udid: ipadUdid,
-              deviceType: 'iPad-Air-11-inch-M3',
-            ),
-            buildSimDevice(
-              name: 'Sim iPhone Broken',
-              udid: iphoneUdid,
-              isAvailable: false,
-            ),
-          ],
-        };
-    for (final CommandResult list in <CommandResult>[
+    final noIphone = <String, List<Map<String, Object?>>>{
+      buildWatchRuntimeKey(11, 0): <Map<String, Object?>>[
+        buildSimDevice(
+          name: 'Sim Watch',
+          udid: buildUdid(1),
+          deviceType: 'Apple-Watch-Series-11-46mm',
+        ),
+      ],
+      buildIosRuntimeKey(26, 4): <Map<String, Object?>>[
+        buildSimDevice(
+          name: 'Sim iPad',
+          udid: ipadUdid,
+          deviceType: 'iPad-Air-11-inch-M3',
+        ),
+        buildSimDevice(
+          name: 'Sim iPhone Broken',
+          udid: iphoneUdid,
+          isAvailable: false,
+        ),
+      ],
+    };
+    for (final list in <CommandResult>[
       buildSimctlOutput(noIphone),
       const CommandResult(1, '', 'simctl list error text\n'),
     ]) {
-      final _Harness harness = _Harness(root, const <String?>['y', '']);
+      final harness = _Harness(root, const <String?>['y', '']);
       harness.rest.on(
         'GET',
         harness.firstPageUrl,
@@ -1004,7 +1003,7 @@ void main() {
 
   test('T-19-RUN-09: 화면 앱 = DeviceHub.app → Simulator.app 순서 · 둘 다 없으면 '
       'boot 없이 실패', () async {
-    final String both = '$root/both';
+    final both = '$root/both';
     createScreenApp(buildDeviceHubPath(both));
     createScreenApp(buildSimulatorAppPath(both));
     expect(
@@ -1019,13 +1018,13 @@ void main() {
     expect(RunStep.findScreenAppPath('Xcode.app/Contents/Developer'), isNull);
 
     // 이전 Xcode — 개발자 디렉터리 아래 Simulator.app 만 있다.
-    final String old = '$root/old';
+    final old = '$root/old';
     createScreenApp(buildSimulatorAppPath(old));
     expect(
       RunStep.findScreenAppPath(buildDeveloperDir(old)),
       buildSimulatorAppPath(old),
     );
-    final _Harness oldXcode = _Harness(root, const <String?>['y', '']);
+    final oldXcode = _Harness(root, const <String?>['y', '']);
     oldXcode.rest
       ..on(
         'GET',
@@ -1065,8 +1064,8 @@ void main() {
     expect(oldXcode.streamKeys.last, 'open -a ${buildSimulatorAppPath(old)}');
 
     // 화면 앱이 없다 — 켜지 않는다.
-    final String none = '$root/none';
-    final _Harness noApp = _Harness(root, const <String?>['y', '']);
+    final none = '$root/none';
+    final noApp = _Harness(root, const <String?>['y', '']);
     noApp.rest.on(
       'GET',
       noApp.firstPageUrl,
@@ -1174,7 +1173,7 @@ void main() {
     );
 
     // 켜진(또는 켜지는 중인) iPhone 은 낮은 판에 있어도 먼저 고른다.
-    for (final String state in <String>['Booted', 'Booting']) {
+    for (final state in <String>['Booted', 'Booting']) {
       final SimulatorPick? running = RunStep.pickSimulator(
         buildSimctlJson(<String, List<Map<String, Object?>>>{
           buildIosRuntimeKey(27, 0): <Map<String, Object?>>[
@@ -1193,7 +1192,7 @@ void main() {
       expect(running?.isBooted, isTrue);
     }
 
-    for (final String broken in <String>[
+    for (final broken in <String>[
       'not json',
       '[]',
       '{}',
@@ -1206,7 +1205,7 @@ void main() {
 
   test('계획 줄 — simctl 목록 · 개발자 디렉터리 · boot · 화면 앱 표시형 · '
       'Flutter 에뮬레이터 명령 0 · UDID 0', () async {
-    final FakeRestClient rest = FakeRestClient()
+    final rest = FakeRestClient()
       ..on(
         'GET',
         RunStep.buildBatchGetRequest(projectId).url.toString(),
@@ -1216,7 +1215,7 @@ void main() {
       projectRoot: root,
       rest: rest,
     );
-    final RunStep step = RunStep();
+    final step = RunStep();
 
     expect(await step.check(context), isA<Todo>());
     final List<String> lines = step.plannedCommandLines(context);
@@ -1246,7 +1245,7 @@ void main() {
   });
 
   test('T-19-RUN-05: flutter run exit 1 → 실패 「앱 실행이 실패했습니다」', () async {
-    final _Harness harness = _Harness(root, const <String?>['y', '', '']);
+    final harness = _Harness(root, const <String?>['y', '', '']);
     harness.rest.on(
       'GET',
       harness.firstPageUrl,
@@ -1269,7 +1268,7 @@ void main() {
   });
 
   test('T-19-RUN-05 보강: 코드 생성 실패 → 실패 · 기기 조회 · 실행 0', () async {
-    final _Harness harness = _Harness(root, const <String?>['y', '']);
+    final harness = _Harness(root, const <String?>['y', '']);
     harness.rest.on(
       'GET',
       harness.firstPageUrl,
@@ -1298,10 +1297,10 @@ void main() {
   });
 
   test('T-19-RUN-06: 응답의 이메일 · uid · 표시 이름이 화면 · 기록에 0', () async {
-    const String email = 'kit-person@example.invalid';
-    const String uid = 'Xk3uidValue0123456789abcd';
-    const String displayName = 'Kit Person Name';
-    final _Harness harness = _Harness(root, const <String?>['y', '']);
+    const email = 'kit-person@example.invalid';
+    const uid = 'Xk3uidValue0123456789abcd';
+    const displayName = 'Kit Person Name';
+    final harness = _Harness(root, const <String?>['y', '']);
     final RestResponse sensitive = buildPage(<Map<String, Object?>>[
       buildUser(
         localId: uid,
@@ -1345,7 +1344,7 @@ void main() {
       ..registerRun(simulatorId, 0);
 
     expect(await harness.run(), wizardExitDone);
-    for (final String text in <String>[harness.output, harness.logText]) {
+    for (final text in <String>[harness.output, harness.logText]) {
       expect(text, isNot(contains(email)));
       expect(text, isNot(contains(uid)));
       expect(text, isNot(contains(displayName)));
@@ -1355,7 +1354,7 @@ void main() {
   });
 
   test('요청 실패 → 할 일 사유 · 실행은 원문과 함께 실패(앱 실행 0)', () async {
-    final _Harness harness = _Harness(root, const <String?>['y', '']);
+    final harness = _Harness(root, const <String?>['y', '']);
     harness.rest.on(
       'GET',
       harness.firstPageUrl,
@@ -1371,7 +1370,7 @@ void main() {
 
   test('프로젝트 ID 를 읽지 못하면 할 일 · 요청 0', () async {
     File('$root/${UserFilesStep.jsonUserPath}').deleteSync();
-    final _Harness harness = _Harness(root, const <String?>[null]);
+    final harness = _Harness(root, const <String?>[null]);
 
     expect(await harness.run(), wizardExitStopped);
     expect(harness.output, contains('에서 프로젝트 ID 를 읽지 못했습니다'));
@@ -1380,7 +1379,7 @@ void main() {
 
   group('flavor 문맥', () {
     /// stg config 의 프로젝트 ID(가짜) — dev 와 다르다.
-    const String stgProjectId = 'demo-stg';
+    const stgProjectId = 'demo-stg';
     late FakeCommandRunner runner;
     late FakeRestClient rest;
     late ScriptedTerminal screen;
@@ -1397,7 +1396,7 @@ void main() {
       Flavor flavor, [
       List<String?> inputs = const <String?>[],
     ]) {
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final log = MemoryLogSink(Redactor());
       screen = ScriptedTerminal(inputs);
       return WizardContext(
         projectRoot: root,
@@ -1421,7 +1420,7 @@ void main() {
     test(
       'T-20-FLAVOR-08: stg 실행 단계는 stg config 의 프로젝트로 사용자를 세고 stg flavor 로 앱을 띄운다',
       () async {
-        final String stgPageUrl = RunStep.buildBatchGetRequest(
+        final stgPageUrl = RunStep.buildBatchGetRequest(
           stgProjectId,
         ).url.toString();
         rest
@@ -1466,7 +1465,7 @@ void main() {
           RunStep(delay: (Duration duration) async {}),
         ]);
 
-        final String output = screen.output.toString();
+        final output = screen.output.toString();
         expect(code, wizardExitDone);
         expect(
           runner.countCalls(
@@ -1507,7 +1506,7 @@ void main() {
           buildPage(const <Map<String, Object?>>[]),
         );
         final WizardContext context = buildFlavorContext(Flavor.stg);
-        final RunStep step = RunStep();
+        final step = RunStep();
 
         expect(await step.check(context), isA<Todo>());
         final List<String> lines = step.plannedCommandLines(context);
@@ -1550,12 +1549,12 @@ void main() {
             const CommandResult(0, 'firestore.googleapis.com\n', ''),
           );
         final WizardContext context = buildFlavorContext(Flavor.stg);
-        final BillingStep billing = BillingStep();
-        final ApisStep apis = ApisStep();
+        final billing = BillingStep();
+        final apis = ApisStep();
 
         expect(await billing.check(context), isA<Todo>());
         expect(await apis.check(context), isA<Todo>());
-        final List<String> lines = <String>[
+        final lines = <String>[
           ...billing.plannedCommandLines(context),
           ...apis.plannedCommandLines(context),
         ];
@@ -1595,7 +1594,7 @@ void main() {
         writeFlavorConfig(Flavor.stg, Flavor.stg.placeholderProjectId);
         final WizardContext context = buildFlavorContext(Flavor.stg);
 
-        for (final Step step in <Step>[
+        for (final step in <Step>[
           BillingStep(),
           ApisStep(),
           StorageStep(),
@@ -1628,7 +1627,7 @@ void main() {
         buildPage(const <Map<String, Object?>>[]),
       );
       final WizardContext context = buildFlavorContext(Flavor.dev);
-      final RunStep step = RunStep();
+      final step = RunStep();
 
       expect(await step.check(context), isA<Todo>());
       expect(
@@ -1640,7 +1639,7 @@ void main() {
       );
 
       writeFlavorConfig(Flavor.dev, 'your-project-dev');
-      for (final Step placeholderStep in <Step>[
+      for (final placeholderStep in <Step>[
         BillingStep(),
         ApisStep(),
         StorageStep(),

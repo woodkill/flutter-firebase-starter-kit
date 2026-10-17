@@ -75,7 +75,7 @@ void main() {
     test('T-177-DOCS-01: 매뉴얼이 인용한 kBrand 상수 이름은 모두 위젯 파일에 '
         '선언돼 있다', () {
       // 세는 방법의 양성 대조 — 선언 줄만 세고 주석 · 사용처는 세지 않는다.
-      const String sample = '''
+      const sample = '''
 /// `kBrandCommentOnly` 는 문서 주석 속 이름이다.
 const double kBrandSampleDeclared = 48;
 final double used = kBrandSampleUsedOnly + 1;

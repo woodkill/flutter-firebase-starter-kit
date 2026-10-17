@@ -99,8 +99,7 @@ void main() {
           matching: find.byType(Container),
         ),
       );
-      final BoxDecoration beforeDecoration =
-          beforeFocus.decoration! as BoxDecoration;
+      final beforeDecoration = beforeFocus.decoration! as BoxDecoration;
       expect(
         beforeDecoration.border,
         isA<Border>().having(
@@ -123,9 +122,8 @@ void main() {
           matching: find.byType(Container),
         ),
       );
-      final BoxDecoration afterDecoration =
-          afterFocus.decoration! as BoxDecoration;
-      final Border afterBorder = afterDecoration.border! as Border;
+      final afterDecoration = afterFocus.decoration! as BoxDecoration;
+      final afterBorder = afterDecoration.border! as Border;
       // light theme — outline 검정 hardcode (Color(0xFF000000)).
       // dark theme — outline 흰 hardcode (Color(0xFFFFFFFF)).
       // outline 두께 2dp + corner radius button + 4 (offset).
@@ -296,7 +294,7 @@ void main() {
           matching: find.byType(Container),
         ),
       );
-      final BoxDecoration decoration = container.decoration! as BoxDecoration;
+      final decoration = container.decoration! as BoxDecoration;
       return (decoration.border! as Border).top.color;
     }
 

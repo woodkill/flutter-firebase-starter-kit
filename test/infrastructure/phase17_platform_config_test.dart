@@ -31,9 +31,9 @@ void main() {
   group('Phase 17 플랫폼 설정 계약 (T-17-PLATFORM)', () {
     test('T-17-PLATFORM-01 manifest 에 FCM 기본 알림 meta-data 3개가 킷 값으로 있다', () {
       final String manifest = stripXmlComments(readTrackedFile(_manifestPath));
-      const String prefix = 'com.google.firebase.messaging.';
+      const prefix = 'com.google.firebase.messaging.';
 
-      for (final String key in <String>[
+      for (final key in <String>[
         'default_notification_icon',
         'default_notification_color',
         'default_notification_channel_id',

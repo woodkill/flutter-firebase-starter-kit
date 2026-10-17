@@ -135,7 +135,7 @@ void registerResponses(
   String url,
   List<RestResponse> responses,
 ) {
-  for (final RestResponse response in responses) {
+  for (final response in responses) {
     rest.on(method, url, response);
   }
 }
@@ -150,7 +150,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('sign_in_step_test_');
     root = tempDir.path;
-    final File config = File('$root/${UserFilesStep.jsonUserPath}')
+    final config = File('$root/${UserFilesStep.jsonUserPath}')
       ..parent.createSync(recursive: true);
     File(UserFilesStep.jsonExamplePath).copySync(config.path);
     replaceJsonString(config.path, 'firebaseProjectId', projectId);
@@ -169,9 +169,9 @@ void main() {
     FakeRestClient rest,
     ScriptedTerminal terminal,
   ) {
-    final Redactor redactor = Redactor();
-    final MemoryLogSink log = MemoryLogSink(redactor);
-    final WizardContext context = WizardContext(
+    final redactor = Redactor();
+    final log = MemoryLogSink(redactor);
+    final context = WizardContext(
       projectRoot: root,
       runner: runner,
       terminal: RedactingTerminal(terminal, redactor, log),
@@ -195,10 +195,9 @@ void main() {
   test(
     'T-19-SIGNIN-01 이메일 · 비밀번호 · 익명이 모두 켜져 있으면 ✓ · PATCH 0 · 초기화 0',
     () async {
-      final FakeRestClient rest = FakeRestClient()
-        ..on('GET', configUrl, buildConfig());
-      final FakeCommandRunner runner = FakeCommandRunner();
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+      final rest = FakeRestClient()..on('GET', configUrl, buildConfig());
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(const <String?>[]);
 
       final int code = await runSignInStep(runner, rest, terminal);
 
@@ -218,19 +217,18 @@ void main() {
     'T-19-SIGNIN-02 익명만 꺼져 있으면 사유에 익명 · y 뒤 updateMask PATCH 1회 · 재검사 ✓',
     () async {
       expect(Uri.parse(patchUrl).toString(), patchUrl);
-      final FakeRestClient rest = FakeRestClient()
-        ..on('PATCH', patchUrl, buildConfig());
+      final rest = FakeRestClient()..on('PATCH', patchUrl, buildConfig());
       registerResponses(rest, 'GET', configUrl, <RestResponse>[
         buildConfig(isAnonymousEnabled: false),
         buildConfig(isAnonymousEnabled: false),
         buildConfig(),
       ]);
-      final FakeCommandRunner runner = FakeCommandRunner();
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runSignInStep(runner, rest, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       final String checklistLine = output
           .split('\n')
           .firstWhere(
@@ -254,21 +252,21 @@ void main() {
   test(
     'T-19-SIGNIN-03 404 CONFIGURATION_NOT_FOUND 면 Web 앱 안내 뒤 임시 설정으로 초기화하고 파일을 지운 다음 재검사 ✓',
     () async {
-      final FakeRestClient rest = FakeRestClient();
+      final rest = FakeRestClient();
       registerResponses(rest, 'GET', configUrl, <RestResponse>[
         notInitialized,
         notInitialized,
         buildConfig(),
       ]);
-      final _DeploySnapshotRunner runner = _DeploySnapshotRunner(
+      final runner = _DeploySnapshotRunner(
         FakeCommandRunner()..on(deployKey, _ok),
         authConfig,
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runSignInStep(runner, rest, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('초기화되지 않았습니다'));
       expect(
@@ -289,19 +287,18 @@ void main() {
   );
 
   test('T-19-SIGNIN-04 초기화 명령이 실패해도 원문을 보이고 임시 파일을 지운다', () async {
-    const String deployError = 'Error: Failed to provision Firebase app.\n';
-    final FakeRestClient rest = FakeRestClient()
-      ..on('GET', configUrl, notInitialized);
-    final _DeploySnapshotRunner runner = _DeploySnapshotRunner(
+    const deployError = 'Error: Failed to provision Firebase app.\n';
+    final rest = FakeRestClient()..on('GET', configUrl, notInitialized);
+    final runner = _DeploySnapshotRunner(
       FakeCommandRunner()
         ..on(deployKey, const CommandResult(1, '', deployError)),
       authConfig,
     );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runSignInStep(runner, rest, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — '));
     expect(output, contains(deployError));
@@ -311,19 +308,18 @@ void main() {
   });
 
   test('T-19-SIGNIN-05 초기화 뒤 익명이 꺼져 있으면 PATCH 1회로 마무리한다', () async {
-    final FakeRestClient rest = FakeRestClient()
-      ..on('PATCH', patchUrl, buildConfig());
+    final rest = FakeRestClient()..on('PATCH', patchUrl, buildConfig());
     registerResponses(rest, 'GET', configUrl, <RestResponse>[
       notInitialized,
       notInitialized,
       buildConfig(isAnonymousEnabled: false),
       buildConfig(),
     ]);
-    final _DeploySnapshotRunner runner = _DeploySnapshotRunner(
+    final runner = _DeploySnapshotRunner(
       FakeCommandRunner()..on(deployKey, _ok),
       authConfig,
     );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runSignInStep(runner, rest, terminal);
 
@@ -339,17 +335,17 @@ void main() {
   });
 
   test('T-19-SIGNIN-06 GET 이 403 이면 사유 HTTP 403 · y 뒤 실패 · 초기화 경로 0', () async {
-    const String denied =
+    const denied =
         '{"error":{"code":403,"message":"The caller does not have permission",'
         '"status":"PERMISSION_DENIED"}}';
-    final FakeRestClient rest = FakeRestClient()
+    final rest = FakeRestClient()
       ..on('GET', configUrl, const RestResponse(403, denied));
-    final FakeCommandRunner runner = FakeCommandRunner();
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final runner = FakeCommandRunner();
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runSignInStep(runner, rest, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  ✗ ${SignInStep.stepTitle} — '));
     expect(output, contains('HTTP 403'));
@@ -364,11 +360,10 @@ void main() {
   test(
     'T-19-SIGNIN-07 어느 경로에서도 로그인 설정 주소 밖 요청 0 · 초기화 API 요청 0 · firebase.json 바이트 불변',
     () async {
-      final List<RestRequest> allRequests = <RestRequest>[];
+      final allRequests = <RestRequest>[];
 
       // 켜기 경로.
-      final FakeRestClient patchRest = FakeRestClient()
-        ..on('PATCH', patchUrl, buildConfig());
+      final patchRest = FakeRestClient()..on('PATCH', patchUrl, buildConfig());
       registerResponses(patchRest, 'GET', configUrl, <RestResponse>[
         buildConfig(isEmailEnabled: false, isAnonymousEnabled: false),
         buildConfig(isEmailEnabled: false, isAnonymousEnabled: false),
@@ -382,11 +377,11 @@ void main() {
       allRequests.addAll(patchRest.requests);
 
       // 초기화 경로(성공 · 실패).
-      for (final CommandResult deployResult in <CommandResult>[
+      for (final deployResult in <CommandResult>[
         _ok,
         const CommandResult(1, '', 'Error: deploy failed\n'),
       ]) {
-        final FakeRestClient initRest = FakeRestClient();
+        final initRest = FakeRestClient();
         registerResponses(initRest, 'GET', configUrl, <RestResponse>[
           notInitialized,
           notInitialized,
@@ -401,8 +396,8 @@ void main() {
       }
 
       expect(allRequests, isNotEmpty);
-      for (final RestRequest request in allRequests) {
-        final String url = request.url.toString();
+      for (final request in allRequests) {
+        final url = request.url.toString();
         expect(url, startsWith(configUrl));
         expect(url, isNot(contains('initializeAuth')));
         expect(url, isNot(contains('identityPlatform')));

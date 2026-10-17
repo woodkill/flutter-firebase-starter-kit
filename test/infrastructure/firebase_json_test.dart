@@ -43,7 +43,7 @@ Map<String, Object?> readObject(Map<String, Object?> map, String key) {
 /// 저장소 루트의 `firebase.json` 을 파싱해 최상위 object 를 돌려준다.
 Map<String, Object?> readFirebaseJson() {
   final Object? decoded = jsonDecode(readTrackedFile(_firebaseJsonPath));
-  return decoded as Map<String, Object?>;
+  return decoded! as Map<String, Object?>;
 }
 
 /// [path] 가 git 에 tracked 된 파일인지 확인한다 (`git ls-files --error-unmatch`).
@@ -138,7 +138,7 @@ void main() {
     test('T-175-FBJSON-02: 확장 env 는 공유 값 · 예시만 추적되고 '
         '프로젝트별 실 값 · secret 은 gitignore 된다', () {
       // check-ignore 종료 코드 — 0 = 무시됨 · 1 = 무시 안 됨.
-      const Map<String, bool> expectedIgnored = <String, bool>{
+      const expectedIgnored = <String, bool>{
         '$_mailEnvBase.env': false,
         '$_mailEnvBase.env.example': false,
         '$_mailEnvBase.env.your-project-dev': true,

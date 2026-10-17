@@ -92,9 +92,9 @@ void main() {
         reason: '제외 경로가 실제로 걸러낸 파일이 있어야 한다(양성 대조)',
       );
 
-      final List<String> offenders = <String>[];
-      for (final String path in published) {
-        final File file = File(path);
+      final offenders = <String>[];
+      for (final path in published) {
+        final file = File(path);
         if (!file.existsSync()) {
           continue;
         }
@@ -155,7 +155,7 @@ void main() {
           'non_fast_forward',
           'update',
         ]);
-        final Map<String, dynamic> update =
+        final update =
             (ruleset['rules'] as List<dynamic>)
                     .cast<Map<String, dynamic>>()
                     .firstWhere(

@@ -60,14 +60,14 @@ void writeIdentityFixture(
       ..writeAsStringSync(content);
   }
 
-  final bool isKitDefault = applicationId == rename.currentAndroidPackage;
+  final isKitDefault = applicationId == rename.currentAndroidPackage;
   final String iosBundleIdPrefix = isKitDefault
       ? rename.currentIosBundleId
       : buildIosBundleIdPrefix(applicationId);
   final String kotlinDir = isKitDefault
       ? kitKotlinDir
       : 'android/app/src/main/kotlin/${applicationId.replaceAll('.', '/')}';
-  final Directory kitKotlin = Directory('$root/$kitKotlinDir');
+  final kitKotlin = Directory('$root/$kitKotlinDir');
   if (!isKitDefault && kitKotlin.existsSync()) {
     kitKotlin.deleteSync(recursive: true);
   }
@@ -97,7 +97,7 @@ void writeIdentityFixture(
       androidPackagePrefix: applicationId,
     ),
   );
-  for (final String path in <String>[
+  for (final path in <String>[
     UserFilesStep.jsonExamplePath,
     UserFilesStep.xcconfigExamplePath,
   ]) {
@@ -153,9 +153,8 @@ void main() {
     'T-19-ID-01 org · name 두 값과 확인 한 번으로 앱 ID · 번들 ID · prefix · 표시 이름이 바뀐다',
     () async {
       writeIdentityFixture(root);
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(_gitStatusKey, _cleanTree);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+      final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+      final terminal = ScriptedTerminal(const <String?>[
         'y',
         'com.acme',
         'my_app',
@@ -165,7 +164,7 @@ void main() {
 
       final int code = await runIdentityStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ 앱 정체성 — '));
       expect(output, contains('── ${IdentityStep.confirmTitle} ──'));
@@ -217,13 +216,12 @@ void main() {
     () async {
       writeIdentityFixture(root);
       // 이동 대상에 미리 있는 파일이 대상 파일 수를 늘려 복사 검증을 어긋나게 한다.
-      const String targetDir = 'android/app/src/main/kotlin/com/acme/my_app';
+      const targetDir = 'android/app/src/main/kotlin/com/acme/my_app';
       File('$root/$targetDir/Extra.kt')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('package com.acme.my_app\n');
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(_gitStatusKey, _cleanTree);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+      final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+      final terminal = ScriptedTerminal(const <String?>[
         'y',
         'com.acme',
         'my_app',
@@ -233,7 +231,7 @@ void main() {
 
       final int code = await runIdentityStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('  실패 — ${IdentityStep.moveFailedGuidance}'));
       expect(output, contains('copy verification failed'));
@@ -246,9 +244,8 @@ void main() {
   test('T-19-ID-02 확인 표에서 Enter 면 진행하지 않고 파일을 하나도 바꾸지 않는다', () async {
     writeIdentityFixture(root);
     final Map<String, List<int>> before = snapshotTree(root);
-    final FakeCommandRunner runner = FakeCommandRunner()
-      ..on(_gitStatusKey, _cleanTree);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+    final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+    final terminal = ScriptedTerminal(const <String?>[
       'y',
       'com.acme',
       'my_app',
@@ -265,9 +262,8 @@ void main() {
 
   test('T-19-ID-03 프로젝트 prefix 를 고칠 수 있고 잘못된 prefix 는 오류 뒤 다시 묻는다', () async {
     writeIdentityFixture(root);
-    final FakeCommandRunner runner = FakeCommandRunner()
-      ..on(_gitStatusKey, _cleanTree);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+    final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+    final terminal = ScriptedTerminal(const <String?>[
       'y',
       'com.acme',
       'my_app',
@@ -280,7 +276,7 @@ void main() {
 
     final int code = await runIdentityStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitDone);
     expect(output, contains(IdentityStep.invalidPrefixMessage));
     expect(
@@ -295,9 +291,8 @@ void main() {
 
   test('T-19-ID-04 표시 이름은 영숫자 · 공백만 받는다', () async {
     writeIdentityFixture(root);
-    final FakeCommandRunner runner = FakeCommandRunner()
-      ..on(_gitStatusKey, _cleanTree);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+    final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+    final terminal = ScriptedTerminal(const <String?>[
       'y',
       'com.acme',
       'my_app',
@@ -332,12 +327,12 @@ void main() {
     test('T-19-ID-05 고칠 파일이 바뀌어 있으면 그 경로를 보이고 멈춘다', () async {
       writeIdentityFixture(root);
       final Map<String, List<int>> before = snapshotTree(root);
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(
           _gitStatusKey,
           const CommandResult(0, ' M android/app/build.gradle.kts\n', ''),
         );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+      final terminal = ScriptedTerminal(const <String?>[
         'y',
         'com.acme',
         'my_app',
@@ -347,7 +342,7 @@ void main() {
 
       final int code = await runIdentityStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('  실패 — '));
       expect(output, contains('    android/app/build.gradle.kts'));
@@ -357,9 +352,9 @@ void main() {
 
     test('T-19-ID-05 고칠 파일 밖의 변경은 막지 않는다', () async {
       writeIdentityFixture(root);
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(_gitStatusKey, const CommandResult(0, ' M README.md\n', ''));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+      final terminal = ScriptedTerminal(const <String?>[
         'y',
         'com.acme',
         'my_app',
@@ -382,11 +377,8 @@ void main() {
       writeIdentityFixture(root, applicationId: 'com.acme.my_app');
       final String gradleBefore = readFile(IdentityStep.gradlePath);
       final String configureBefore = readFile('scripts/firebase-configure.sh');
-      final FakeCommandRunner runner = FakeCommandRunner();
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        'Acme Studio',
-      ]);
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(const <String?>['y', 'Acme Studio']);
 
       final int code = await runIdentityStep(runner, terminal);
 
@@ -424,7 +416,7 @@ void main() {
     test('T-19-ID-06 표시 이름 입력이 끝나면 번들 ID 도 바꾸지 않는다', () async {
       writeIdentityFixture(root, applicationId: 'com.acme.my_app');
       final Map<String, List<int>> before = snapshotTree(root);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
@@ -436,14 +428,14 @@ void main() {
     test('T-19-ID-06 표시 이름 형식이 상한까지 틀리면 번들 ID 도 바꾸지 않는다', () async {
       writeIdentityFixture(root, applicationId: 'com.acme.my_app');
       final Map<String, List<int>> before = snapshotTree(root);
-      final ScriptedTerminal terminal = ScriptedTerminal(<String?>[
+      final terminal = ScriptedTerminal(<String?>[
         'y',
         for (int i = 0; i < IdentityStep.maxInputAttempts; i++) 'My-App!',
       ]);
 
       final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(
         countAsks(terminal, IdentityStep.displayNameQuestion),
@@ -460,10 +452,7 @@ void main() {
 
     test('T-19-ID-06 Enter 면 앱 ID 에서 계산한 표시 이름을 쓴다', () async {
       writeIdentityFixture(root, applicationId: 'com.acme.my_app');
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        '',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', '']);
 
       final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
@@ -476,8 +465,8 @@ void main() {
   });
 
   group('T-19-ID-16 표시 이름은 이미 바뀌고 사용자 xcconfig 번들 ID 만 킷 값', () {
-    const String stgUserPath = 'ios/Flutter/stg.xcconfig';
-    const String prodUserPath = 'ios/Flutter/prod.xcconfig';
+    const stgUserPath = 'ios/Flutter/stg.xcconfig';
+    const prodUserPath = 'ios/Flutter/prod.xcconfig';
 
     /// 표시 이름까지 바뀐 저장소에 example 복사본 사용자 xcconfig 를 둔다.
     void writeBundleIdOnlyFixture() {
@@ -507,14 +496,14 @@ void main() {
       );
       expect(readBundleId(stgUserPath), '${rename.currentIosBundleId}.stg');
       expect(File('$root/$prodUserPath').existsSync(), isFalse);
-      final FakeCommandRunner runner = FakeCommandRunner();
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(const <String?>[]);
       final WizardContext context = buildTestContext(
         projectRoot: root,
         runner: runner,
         terminal: terminal,
       );
-      final IdentityStep step = IdentityStep();
+      final step = IdentityStep();
 
       final CheckResult before = await step.check(context);
 
@@ -561,11 +550,11 @@ void main() {
 
     test('T-19-ID-16 위저드에서는 단계 진행 확인만 묻고 실행 뒤 재검사가 ✓', () async {
       writeBundleIdOnlyFixture();
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(terminal.asks, <String>[stepConfirmQuestion]);
       expect(
@@ -604,14 +593,12 @@ void main() {
           ),
         );
         final Map<String, List<int>> before = snapshotTree(root);
-        final FakeCommandRunner runner = FakeCommandRunner();
-        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-          'y',
-        ]);
+        final runner = FakeCommandRunner();
+        final terminal = ScriptedTerminal(const <String?>['y']);
 
         final int code = await runIdentityStep(runner, terminal);
 
-        final String output = terminal.output.toString();
+        final output = terminal.output.toString();
         expect(code, wizardExitStopped);
         expect(output, contains('  ✗ 앱 정체성 — 앱 정체성이 파일마다 다릅니다'));
         expect(output, contains(IdentityStep.inconsistentGuidance));
@@ -623,7 +610,7 @@ void main() {
 
     test('T-19-ID-13 스크립트 상수는 바뀌고 stg placeholder 만 옛 package_name '
         '이면 ✗ 사유 · 실행은 실패 · 파일 변경 0', () async {
-      const String stgPlaceholder = 'android/app/src/stg/google-services.json';
+      const stgPlaceholder = 'android/app/src/stg/google-services.json';
       writeIdentityFixture(root, applicationId: 'com.acme.my_app');
       replaceJsonString(
         '$root/${UserFilesStep.jsonUserPath}',
@@ -646,12 +633,12 @@ void main() {
         contains('"package_name": "${rename.currentAndroidPackage}.stg"'),
       );
       final Map<String, List<int>> before = snapshotTree(root);
-      final FakeCommandRunner runner = FakeCommandRunner();
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runIdentityStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('  ✗ 앱 정체성 — 앱 정체성이 파일마다 다릅니다'));
       expect(output, contains('옛 앱 ID 가 남은 파일: $stgPlaceholder.'));
@@ -679,7 +666,7 @@ void main() {
       'PRODUCT_BUNDLE_IDENTIFIER',
       'com.acme.myApp.dev',
     );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
@@ -694,7 +681,7 @@ void main() {
   test('T-19-ID-08 계획 줄에 같은 일을 하는 rename 명령과 표시 이름 쓰기 줄이 있다', () async {
     writeIdentityFixture(root);
     final WizardContext context = buildTestContext(projectRoot: root);
-    final IdentityStep step = IdentityStep();
+    final step = IdentityStep();
 
     await step.check(context);
     final List<String> lines = step.plannedCommandLines(context);
@@ -749,11 +736,11 @@ void main() {
         ]) {
       test('T-19-ID-14 $label', () async {
         writeIdentityFixture(root, applicationId: applicationId);
-        final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+        final terminal = ScriptedTerminal(const <String?>[]);
 
         final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
-        final String output = terminal.output.toString();
+        final output = terminal.output.toString();
         expect(code, wizardExitStopped);
         expect(output, contains('▶ 앱 정체성\n  $reason'));
         expect(output.contains('    $costlyStepNotice'), hasNotice);
@@ -762,8 +749,8 @@ void main() {
   });
 
   group('T-19-ID-15 점 없는 앱 ID 는 예외 없이 스크립트 상수만 대조하고 잔여 대조는 건너뛴다', () {
-    const String dotlessId = 'myapp';
-    const String stgPlaceholder = 'android/app/src/stg/google-services.json';
+    const dotlessId = 'myapp';
+    const stgPlaceholder = 'android/app/src/stg/google-services.json';
 
     /// 표시 이름까지 바뀐 점 없는 앱 ID 저장소와 킷 값 placeholder 잔여를 만든다.
     void writeDotlessFixture() {
@@ -791,7 +778,7 @@ void main() {
         readFile(stgPlaceholder),
         contains('"package_name": "${rename.currentAndroidPackage}.stg"'),
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+      final terminal = ScriptedTerminal(const <String?>[]);
 
       final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
@@ -811,11 +798,11 @@ void main() {
           androidPackagePrefix: dotlessId,
         ),
       );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('앱 정체성이 파일마다 다릅니다'));
       expect(
@@ -829,12 +816,12 @@ void main() {
     test('T-19-ID-09 디렉터리 안 파일이 바뀌어 있으면 그 경로를 보이고 멈춘다', () async {
       writeIdentityFixture(root);
       final Map<String, List<int>> before = snapshotTree(root);
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(
           _gitStatusKey,
           CommandResult(0, ' M $kitKotlinDir/MainActivity.kt\n', ''),
         );
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+      final terminal = ScriptedTerminal(const <String?>[
         'y',
         'com.acme',
         'my_app',
@@ -844,14 +831,14 @@ void main() {
 
       final int code = await runIdentityStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('    $kitKotlinDir/MainActivity.kt'));
       expect(snapshotTree(root), before);
     });
 
     test('T-19-ID-09 디렉터리 항목은 그 아래 파일만 잡고 앞부분만 같은 형제는 잡지 않는다', () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(
           _gitStatusKey,
           CommandResult(
@@ -880,7 +867,7 @@ void main() {
 
   group('git 작업 트리 읽기', () {
     test('이름 바꾸기 줄은 양쪽 경로를 · 따옴표 경로는 풀어서 본다', () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(
           _gitStatusKey,
           const CommandResult(
@@ -913,7 +900,7 @@ void main() {
     });
 
     test('git 이 실패하면 GitTreeException 을 던진다', () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(
           _gitStatusKey,
           const CommandResult(128, '', 'fatal: not a git repository'),
@@ -932,9 +919,8 @@ void main() {
 
   test('T-19-ID-10 org 는 맞고 name 만 틀리면 name 만 다시 묻는다', () async {
     writeIdentityFixture(root);
-    final FakeCommandRunner runner = FakeCommandRunner()
-      ..on(_gitStatusKey, _cleanTree);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+    final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+    final terminal = ScriptedTerminal(const <String?>[
       'y',
       'com.acme',
       'MyApp',
@@ -945,7 +931,7 @@ void main() {
 
     final int code = await runIdentityStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitDone);
     expect(countAsks(terminal, IdentityStep.orgQuestion), 1);
     expect(countAsks(terminal, IdentityStep.nameQuestion), 2);
@@ -961,9 +947,8 @@ void main() {
   group('T-19-ID-11 org 가 틀리면 org 부터 다시 묻고 시도 상한은 그대로다', () {
     test('T-19-ID-11 org 가 틀리면 다음 시도는 org 부터 묻는다', () async {
       writeIdentityFixture(root);
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(_gitStatusKey, _cleanTree);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+      final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+      final terminal = ScriptedTerminal(const <String?>[
         'y',
         'Acme',
         'my_app',
@@ -975,7 +960,7 @@ void main() {
 
       final int code = await runIdentityStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(countAsks(terminal, IdentityStep.orgQuestion), 2);
       expect(countAsks(terminal, IdentityStep.nameQuestion), 2);
@@ -989,9 +974,8 @@ void main() {
 
     test('T-19-ID-11 name 이 상한까지 틀리면 실패하고 파일을 바꾸지 않는다', () async {
       writeIdentityFixture(root);
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(_gitStatusKey, _cleanTree);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+      final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+      final terminal = ScriptedTerminal(const <String?>[
         'y',
         'com.acme',
         'MyApp',
@@ -1002,7 +986,7 @@ void main() {
 
       final int code = await runIdentityStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(countAsks(terminal, IdentityStep.orgQuestion), 1);
       expect(
@@ -1030,12 +1014,12 @@ void main() {
   });
   group('flavor 문맥', () {
     /// 이름 바꾸기가 끝난 저장소의 앱 ID(가짜).
-    const String renamedApplicationId = 'com.acme.my_app';
+    const renamedApplicationId = 'com.acme.my_app';
     late ScriptedTerminal screen;
 
     /// [flavor] 문맥을 만든다 — 화면은 가림 터미널로 감싼다.
     WizardContext buildFlavorContext(Flavor flavor, List<String?> inputs) {
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final log = MemoryLogSink(Redactor());
       screen = ScriptedTerminal(inputs);
       return WizardContext(
         projectRoot: root,
@@ -1052,7 +1036,7 @@ void main() {
 
     /// [flavor] 의 example 두 파일과 그 복사본 사용자 파일을 둔다.
     void writeFlavorUserFiles(Flavor flavor) {
-      final FlavorPaths paths = FlavorPaths(flavor);
+      final paths = FlavorPaths(flavor);
       for (final (String example, String user) in <(String, String)>[
         (paths.jsonExample, paths.json),
         (paths.xcconfigExample, paths.xcconfig),
@@ -1062,15 +1046,15 @@ void main() {
       }
     }
 
-    for (final Flavor flavor in <Flavor>[Flavor.stg, Flavor.prod]) {
+    for (final flavor in <Flavor>[Flavor.stg, Flavor.prod]) {
       test(
         'T-20-FLAVOR-07: ${flavor.name} 문맥 · 앱 ID 가 바뀐 저장소는 org · name 을 묻지 않고 '
         '그 flavor 파일의 번들 ID · 표시 이름만 맞춘다',
         () async {
           writeIdentityFixture(root, applicationId: renamedApplicationId);
           writeFlavorUserFiles(flavor);
-          final FlavorPaths paths = FlavorPaths(flavor);
-          final Map<String, List<int>> devBefore = <String, List<int>>{
+          final paths = FlavorPaths(flavor);
+          final devBefore = <String, List<int>>{
             for (final String path in <String>[
               UserFilesStep.jsonUserPath,
               UserFilesStep.xcconfigUserPath,
@@ -1081,13 +1065,13 @@ void main() {
             flavor,
             const <String?>[''],
           );
-          final IdentityStep step = IdentityStep();
+          final step = IdentityStep();
 
           final CheckResult before = await step.check(context);
           final List<String> lines = step.plannedCommandLines(context);
           final StepOutcome outcome = await step.apply(context);
 
-          final String expectedName =
+          final expectedName =
               '${rename.toTitleCase('my_app')}${flavor.displayNameSuffix}';
           expect(
             before,
@@ -1138,7 +1122,7 @@ void main() {
         Flavor.dev,
         const <String?>[''],
       );
-      final IdentityStep step = IdentityStep();
+      final step = IdentityStep();
 
       await step.check(context);
       final List<String> lines = step.plannedCommandLines(context);

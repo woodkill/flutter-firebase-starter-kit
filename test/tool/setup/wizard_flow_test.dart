@@ -172,7 +172,7 @@ final class _LoggingRunner implements CommandRunner {
     terminal.writeCommand(command.render());
     log.write('cmd', command.render());
     final CommandResult result = await inner.stream(command);
-    for (final String text in <String>[result.stdout, result.stderr]) {
+    for (final text in <String>[result.stdout, result.stderr]) {
       if (text.isEmpty) continue;
       terminal.writeRaw(text.endsWith('\n') ? text : '$text\n');
     }
@@ -312,8 +312,7 @@ void writeFinishedFixture(String root) {
   writeFixture(root, UserFilesStep.jsonExamplePath, jsonExample);
   writeFixture(root, UserFilesStep.xcconfigExamplePath, xcconfigExample);
 
-  final Map<String, Object?> config =
-      jsonDecode(jsonExample)! as Map<String, Object?>;
+  final config = jsonDecode(jsonExample)! as Map<String, Object?>;
   config
     ..[FirebaseProjectStep.projectIdKey] = projectId
     ..['appName'] = displayName
@@ -668,8 +667,8 @@ void _registerFinished(
     RestResponse(200, buildSignInBody()),
   );
   // 14. rules
-  final String firestoreRuleset = 'projects/$projectId/rulesets/fs';
-  final String storageRuleset = 'projects/$projectId/rulesets/st';
+  const firestoreRuleset = 'projects/$projectId/rulesets/fs';
+  const storageRuleset = 'projects/$projectId/rulesets/st';
   h
     ..onRest(
       RulesStep.buildReleaseRequest(projectId, RulesStep.firestoreRelease),
@@ -697,7 +696,7 @@ void _registerFinished(
       RestResponse(200, buildRulesetBody(storageRules)),
     );
   // 15. App Check
-  for (final String appId in <String>[iosAppId, androidAppId]) {
+  for (final appId in <String>[iosAppId, androidAppId]) {
     h.onRest(
       AppCheckStep.buildListRequest(projectId, appId),
       RestResponse(
@@ -779,7 +778,7 @@ void main() {
   });
 
   test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 17줄 · 질문 · 쓰기 0', () async {
-    final _Harness h = _Harness(root, const <String?>[]);
+    final h = _Harness(root, const <String?>[]);
     _registerFinished(h);
 
     final int code = await h.run();
@@ -800,8 +799,8 @@ void main() {
   });
 
   test('T-19-FLOW-03: 익명 로그인만 꺼짐 → 그 단계 하나만 묻고 PATCH 1회', () async {
-    final _Harness h = _Harness(root, const <String?>['y']);
-    final RestResponse anonymousOff = RestResponse(
+    final h = _Harness(root, const <String?>['y']);
+    final anonymousOff = RestResponse(
       200,
       buildSignInBody(isAnonymousEnabled: false),
     );
@@ -818,7 +817,7 @@ void main() {
     final int code = await h.run();
 
     expect(code, wizardExitDone);
-    final List<String> todoLines = <String>[
+    final todoLines = <String>[
       for (final String line in const LineSplitter().convert(h.output))
         if (line.startsWith('  ✗ ')) line,
     ];
@@ -841,14 +840,14 @@ void main() {
   test('T-19-FLOW-04: 가짜 출력 · 응답의 토큰 · API 키 · 디버그 토큰이 화면 · 기록에 0', () async {
     final String token = buildFakeAccessToken();
     final String apiKey = buildFakeApiKey();
-    final String noise = 'token=$token key=$apiKey debug=$debugToken';
-    final _Harness h = _Harness(root, const <String?>[]);
+    final noise = 'token=$token key=$apiKey debug=$debugToken';
+    final h = _Harness(root, const <String?>[]);
     _registerFinished(h, noise: noise);
 
     final int code = await h.run();
 
     expect(code, wizardExitDone);
-    for (final String text in <String>[h.output, h.log.text]) {
+    for (final text in <String>[h.output, h.log.text]) {
       expect(text, isNot(contains(token)));
       expect(text, isNot(contains(apiKey)));
       expect(text, isNot(contains(debugToken)));
@@ -862,7 +861,7 @@ void main() {
 
   group('T-19-FLOW-05: 끝 요약(showCommitHint)', () {
     test('바뀐 추적 파일 두 개 → 경로 · git add 명령 줄 · git 쓰기 실행 0', () async {
-      final _Harness h = _Harness(root, const <String?>[]);
+      final h = _Harness(root, const <String?>[]);
       _registerFinished(h);
       h
         ..on(
@@ -889,7 +888,7 @@ void main() {
         output.indexOf(allDoneLine),
         lessThan(output.indexOf(commitHintHeading)),
       );
-      final List<String> gitKeys = <String>[
+      final gitKeys = <String>[
         for (final FakeCall call in h.runner.calls)
           if (call.key.startsWith('git ')) call.key,
       ];
@@ -905,7 +904,7 @@ void main() {
     });
 
     test('변경 0 → 안내 절 0 · 종료 코드 0', () async {
-      final _Harness h = _Harness(root, const <String?>[]);
+      final h = _Harness(root, const <String?>[]);
       _registerFinished(h);
       h
         ..on(gitStatusKey, ok())
@@ -919,12 +918,12 @@ void main() {
     test(
       'Kotlin 패키지 이동 → 옛 경로 삭제 · 새 경로 untracked 가 목록과 git add 줄에 모두',
       () async {
-        final String oldKotlinFile =
+        final oldKotlinFile =
             'android/app/src/main/kotlin/'
             '${rename.currentOrg.replaceAll('.', '/')}/'
             '${rename.currentPackageName}/MainActivity.kt';
-        const String newKotlinFile = '$newKotlinDir/MainActivity.kt';
-        final _Harness h = _Harness(root, const <String?>[]);
+        const newKotlinFile = '$newKotlinDir/MainActivity.kt';
+        final h = _Harness(root, const <String?>[]);
         _registerFinished(h);
         h
           ..on(gitStatusKey, ok(' M .firebaserc\n D $oldKotlinFile\n'))
@@ -945,14 +944,14 @@ void main() {
             .where((FakeCall call) => call.key.startsWith('git '))
             .toList();
         expect(gitCalls, isNotEmpty);
-        for (final FakeCall call in gitCalls) {
+        for (final call in gitCalls) {
           expect(call.workingDirectory, root, reason: call.key);
         }
       },
     );
 
     test('git 상태를 읽지 못하면 한 줄 안내 · 종료 코드 0 그대로', () async {
-      final _Harness h = _Harness(root, const <String?>[]);
+      final h = _Harness(root, const <String?>[]);
       _registerFinished(h);
       h.on(
         gitStatusKey,
@@ -965,7 +964,7 @@ void main() {
     });
 
     test('showCommitHint 단독 — git 실패는 GitTreeException', () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(gitStatusKey, const CommandResult(1, '', 'boom\n'));
       final WizardContext context = buildTestContext(
         projectRoot: root,
@@ -984,7 +983,7 @@ void main() {
       final String nativeKey = buildFakeKakaoNativeKey();
       final String adminKey = buildFakeKakaoAdminKey();
       writeKakaoManifest(root);
-      final _Harness h = _Harness(root, <String?>[
+      final h = _Harness(root, <String?>[
         'y', // 로그인 수단 단계
         '4', // 체크 목록 — Kakao
         'y', // 값 표
@@ -1050,7 +1049,7 @@ void main() {
       final String output = h.output;
 
       expect(code, wizardExitDone, reason: output);
-      final String configPath = '$root/${UserFilesStep.jsonUserPath}';
+      final configPath = '$root/${UserFilesStep.jsonUserPath}';
       expect(readJsonString(configPath, enabledProvidersKey), 'kakao');
       expect(readJsonString(configPath, 'kakaoNativeAppKey'), nativeKey);
       expect(
@@ -1060,7 +1059,7 @@ void main() {
         ),
         nativeKey,
       );
-      final List<FakeCall> writes = <FakeCall>[
+      final writes = <FakeCall>[
         for (final FakeCall call in h.runner.calls)
           if (call.key.startsWith('firebase functions:secrets:set ')) call,
       ];
@@ -1075,7 +1074,7 @@ void main() {
         adminKey,
       ]);
       expect(writes.every((FakeCall call) => call.isOutputSensitive), isTrue);
-      for (final String name in <String>[kakaoNativeSecret, kakaoAdminSecret]) {
+      for (final name in <String>[kakaoNativeSecret, kakaoAdminSecret]) {
         expect(
           h.runner.countCalls(
             RunMode.capture,
@@ -1106,7 +1105,7 @@ void main() {
         ),
         1,
       );
-      for (final String text in <String>[output, h.log.text]) {
+      for (final text in <String>[output, h.log.text]) {
         expect(countText(text, adminKey), 0);
         expect(countText(text, Redactor.mask), greaterThanOrEqualTo(1));
       }
@@ -1115,7 +1114,7 @@ void main() {
       expect(h.screen.asks, contains(consoleReadyQuestion));
       expect(h.screen.asks, contains(providerChoiceQuestion));
       final List<String> lines = const LineSplitter().convert(output);
-      final List<int> checklists = <int>[
+      final checklists = <int>[
         for (int i = 0; i < lines.length; i++)
           if (lines[i] == checklistHeading) i,
       ];
@@ -1143,7 +1142,7 @@ void main() {
     final String nativeKey = buildFakeKakaoNativeKey();
     final String adminKey = buildFakeKakaoAdminKey();
     writeKakaoManifest(root);
-    final String configPath = '$root/${UserFilesStep.jsonUserPath}';
+    final configPath = '$root/${UserFilesStep.jsonUserPath}';
     replaceJsonString(configPath, enabledProvidersKey, 'kakao');
     replaceJsonString(configPath, 'kakaoNativeAppKey', nativeKey);
     replaceXcconfigValue(
@@ -1151,7 +1150,7 @@ void main() {
       'KAKAO_NATIVE_APP_KEY',
       nativeKey,
     );
-    final _Harness h = _Harness(root, const <String?>[]);
+    final h = _Harness(root, const <String?>[]);
     _registerFinished(h, deployedExtra: kakaoFunctions);
     _registerKakaoPolicies(h);
     h

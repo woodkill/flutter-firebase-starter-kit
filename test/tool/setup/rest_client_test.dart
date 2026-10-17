@@ -111,7 +111,7 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((HttpRequest request) async {
       final String body = await utf8.decodeStream(request);
-      final Map<String, String> headers = <String, String>{};
+      final headers = <String, String>{};
       request.headers.forEach((String name, List<String> values) {
         headers[name] = values.join(',');
       });
@@ -177,7 +177,7 @@ void main() {
     expect(runner.countCalls(RunMode.capture, tokenCommandKey), 1);
     expect(runner.calls.single.isOutputSensitive, isTrue);
 
-    final String shown = screen.output.toString();
+    final shown = screen.output.toString();
     expect(countText(shown, tokenExpression), 1);
     expect(shown, contains('-H "x-goog-user-project: demo-p"'));
     expect(countText(shown, token), 0);
@@ -212,8 +212,8 @@ void main() {
 
   test('T-19-REST-03: 화면 · 기록에는 bodyDisplay 만, 서버는 body 를 받는다', () async {
     runner.on(tokenCommandKey, CommandResult(0, buildFakeAccessToken(), ''));
-    const String body = '{"value":"real-value-0123456789"}';
-    const String bodyDisplay = '{"value":"<새 값>"}';
+    const body = '{"value":"real-value-0123456789"}';
+    const bodyDisplay = '{"value":"<새 값>"}';
     final Uri url = buildLocalUrl('/v1/projects/demo-p/things');
 
     await client.send(
@@ -229,7 +229,7 @@ void main() {
     expect(received.single.method, 'POST');
     expect(received.single.body, body);
     expect(received.single.contentType, startsWith('application/json'));
-    final String shown = screen.output.toString();
+    final shown = screen.output.toString();
     expect(shown, contains("-d '$bodyDisplay'"));
     expect(shown, contains('-H "Content-Type: application/json"'));
     expect(countText(shown, 'real-value-0123456789'), 0);
@@ -256,7 +256,7 @@ void main() {
     expect(response.statusCode, 0);
     expect(response.body, isEmpty);
     expect(response.isOk, isFalse);
-    final String shown = screen.output.toString();
+    final shown = screen.output.toString();
     expect(countText(shown, HttpRestClient.tokenUnavailableMessage), 1);
     expect(countText(shown, 'curl '), 0);
   });
@@ -267,7 +267,7 @@ void main() {
       tokenCommandKey,
       CommandResult(0, '${buildFakeAccessToken()}\n', ''),
     );
-    final HttpRestClient slowClient = HttpRestClient(
+    final slowClient = HttpRestClient(
       tokens: AccessTokenSource(runner, redactor),
       terminal: terminal,
       log: log,
@@ -297,12 +297,12 @@ void main() {
       InternetAddress.loopbackIPv4,
       0,
     );
-    final Completer<void> clientClosed = Completer<void>();
-    final List<Socket> accepted = <Socket>[];
+    final clientClosed = Completer<void>();
+    final accepted = <Socket>[];
     rawServer.listen((Socket socket) {
       accepted.add(socket);
       socket.done.ignore();
-      bool isResponseSent = false;
+      var isResponseSent = false;
       socket.listen(
         (List<int> data) {
           if (isResponseSent) return;
@@ -318,7 +318,7 @@ void main() {
       );
     });
     addTearDown(() async {
-      for (final Socket socket in accepted) {
+      for (final socket in accepted) {
         socket.destroy();
       }
       await rawServer.close();
@@ -327,14 +327,14 @@ void main() {
       tokenCommandKey,
       CommandResult(0, '${buildFakeAccessToken()}\n', ''),
     );
-    final HttpRestClient slowClient = HttpRestClient(
+    final slowClient = HttpRestClient(
       tokens: AccessTokenSource(runner, redactor),
       terminal: terminal,
       log: log,
       responseTimeout: const Duration(milliseconds: 200),
     );
     addTearDown(slowClient.close);
-    final String host = '${rawServer.address.address}:${rawServer.port}';
+    final host = '${rawServer.address.address}:${rawServer.port}';
     final Uri url = Uri.parse('http://$host/v1/projects/demo-p/stalled-body');
 
     final RestResponse response = await slowClient.send(
@@ -357,7 +357,7 @@ void main() {
   });
 
   test('T-19-REST-05: FakeRestClient 는 등록 안 된 요청에 StateError', () async {
-    final FakeRestClient fake = FakeRestClient()
+    final fake = FakeRestClient()
       ..on(
         'GET',
         'https://example.test/v1/a',
@@ -387,7 +387,7 @@ void main() {
   });
 
   test('RestRequest.displayCurl 은 quota 헤더를 항상 붙이고 작은따옴표를 이스케이프한다', () {
-    final RestRequest request = RestRequest(
+    final request = RestRequest(
       method: 'PATCH',
       url: Uri.parse('https://example.test/v2/p?updateMask=a,b'),
       quotaProject: 'demo-p',
@@ -461,9 +461,9 @@ void main() {
         log.lines,
         contains('[rest] ${HttpRestClient.sensitiveResponseNotice}'),
       );
-      final String shown = screen.output.toString();
+      final shown = screen.output.toString();
       expect(shown, contains(request.displayCurl()));
-      for (final String secret in <String>[
+      for (final secret in <String>[
         buildFakeProviderKey(),
         buildFakeClientSecret(),
       ]) {
@@ -500,7 +500,7 @@ void main() {
     );
 
     isResponseHeld = true;
-    final HttpRestClient slowClient = HttpRestClient(
+    final slowClient = HttpRestClient(
       tokens: AccessTokenSource(runner, redactor),
       terminal: terminal,
       log: log,

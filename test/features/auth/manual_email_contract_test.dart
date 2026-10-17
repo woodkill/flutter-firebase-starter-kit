@@ -337,13 +337,13 @@ String _readLineStartingWith(String text, String prefix) => text
 
 /// `firebase.json` Hosting 헤더에서 [key] 의 값들을 모은다.
 List<String> _collectHostingHeaderValues(String key) {
-  final Map<String, Object?> root =
+  final root =
       jsonDecode(readTrackedFile(_firebaseJsonPath)) as Map<String, Object?>;
-  final Map<String, Object?> hosting = root['hosting']! as Map<String, Object?>;
-  final List<String> values = <String>[];
-  for (final Object? rule in hosting['headers']! as List<Object?>) {
+  final hosting = root['hosting']! as Map<String, Object?>;
+  final values = <String>[];
+  for (final rule in hosting['headers']! as List<Object?>) {
     if (rule case {'headers': final List<Object?> headers}) {
-      for (final Object? header in headers) {
+      for (final header in headers) {
         if (header case {
           'key': final String k,
           'value': final String v,
@@ -528,7 +528,7 @@ void main() {
         );
       }
 
-      final Map<String, Object?> example =
+      final example =
           jsonDecode(readTrackedFile(_exampleConfigPath))
               as Map<String, Object?>;
       expect(
@@ -592,7 +592,7 @@ void main() {
         _kitUpdateHeading,
       ].map((String heading) => _indexOfHeading(manual, heading)).toList();
       expect(bodyOrder.first, greaterThanOrEqualTo(0), reason: '본문 헤딩을 찾지 못했다');
-      for (int i = 1; i < bodyOrder.length; i++) {
+      for (var i = 1; i < bodyOrder.length; i++) {
         expect(
           bodyOrder[i],
           greaterThan(bodyOrder[i - 1]),
@@ -616,7 +616,7 @@ void main() {
     test('T-175-DOCS-04: kit 함수 문장 · 금지 0 · 명령 · 링크 · 예시 일치가 있다', () {
       // 「로그인 수단 켜고 끄기」 「켜기」 ⑤ — kit 모드 메일 함수 목록 문장.
       expect(providerSection.trim(), isNotEmpty, reason: '로그인 수단 절을 찾지 못했다');
-      final Map<String, Object?> manifest =
+      final manifest =
           jsonDecode(readTrackedFile(_functionsManifestPath))
               as Map<String, Object?>;
       final List<String> kitFunctions =
@@ -624,7 +624,7 @@ void main() {
                   as List<Object?>)
               .cast<String>();
       expect(kitFunctions, isNotEmpty, reason: 'manifest 의 kit 함수를 읽지 못했다');
-      for (final String name in kitFunctions) {
+      for (final name in kitFunctions) {
         expect(
           countOccurrences(providerSection, '`$name`'),
           greaterThanOrEqualTo(1),
@@ -723,7 +723,7 @@ void main() {
           .where((String line) => RegExp(r'^[A-Z_]+=').hasMatch(line))
           .toList();
       expect(envLines, hasLength(4), reason: '확장 값 example 의 키 줄이 4개가 아니다');
-      for (final String line in envLines) {
+      for (final line in envLines) {
         expect(
           countExactLines(delivery, line),
           1,
@@ -743,7 +743,7 @@ void main() {
         ),
         1,
       );
-      final Map<String, String> sources = <String, String>{
+      final sources = <String, String>{
         _manualPath: manual,
         _changelogPath: readTrackedFile(_changelogPath),
       };
@@ -812,7 +812,7 @@ void main() {
       );
 
       // ④ 매뉴얼 「켜기」 ⑤ ~ ⑧ 단계 머리 — 각 1개 · 순서 그대로.
-      int previousHead = -1;
+      var previousHead = -1;
       for (final String head in _deliveryLateStepHeads) {
         expect(
           countOccurrences(delivery, head),
@@ -898,7 +898,7 @@ void main() {
       );
 
       final String readme = readTrackedFile(_configReadmePath);
-      final Map<String, String> regions = <String, String>{
+      final regions = <String, String>{
         '매뉴얼 키 표 행': _readLineStartingWith(manual, _webApiKeyRowPrefix),
         '매뉴얼 문제 해결 항목': _readLineStartingWith(
           _sliceLinesBetween(resultPage, '### 문제 해결', '### 되돌리기'),
@@ -1002,8 +1002,7 @@ void main() {
         final String buildScript = readTrackedFile(_hostingBuildScriptPath);
 
         // (b) 다섯 영역 — 경로 · 키 이름(+ 영역별 확인 토큰) · 금지 패턴 0.
-        final Map<String, (String, List<String>)>
-        regions = <String, (String, List<String>)>{
+        final regions = <String, (String, List<String>)>{
           '매뉴얼 키 표 행': (
             _readLineStartingWith(manual, _webApiKeyRowPrefix),
             <String>[
@@ -1051,7 +1050,7 @@ void main() {
           final (String body, List<String> tokens) = region.value;
           expect(body.trim(), isNotEmpty, reason: '${region.key} 를 찾지 못했다');
           final String flat = _normalizeWhitespace(body);
-          for (final String token in tokens) {
+          for (final token in tokens) {
             expect(
               countOccurrences(flat, token),
               greaterThanOrEqualTo(1),
@@ -1097,7 +1096,7 @@ void main() {
 
         // (d) 네 파일 전체 — 키 이름 양성 대조 뒤 옛 구절 꼴 0 · 「API 및 서비스」 ·
         // 「사용자 인증 정보」 영문 괄호 표기 한 가지 · `→` 영문 단독 표기 0.
-        final Map<String, String> files = <String, String>{
+        final files = <String, String>{
           _manualPath: manual,
           _configReadmePath: readme,
           _changelogPath: changelog,

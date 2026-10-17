@@ -32,7 +32,7 @@ void main() {
   group('App Check 디버그 토큰 주입 (T-19-APPCHECK-APP)', () {
     test('T-19-APPCHECK-APP-01: appCheckDebugToken 은 dart-define 값이고 '
         '빈 값이면 OrNull 이 null 이다', () {
-      const String defined = String.fromEnvironment('appCheckDebugToken');
+      const defined = String.fromEnvironment('appCheckDebugToken');
       expect(AppConfig.appCheckDebugToken, defined);
       if (defined.isEmpty) {
         expect(AppConfig.appCheckDebugTokenOrNull, isNull);
@@ -126,10 +126,9 @@ void main() {
 
     test('T-19-APPCHECK-APP-04: example 3종의 appCheckDebugToken 은 빈 문자열이고 '
         '마지막 키다', () {
-      for (final String flavor in const <String>['dev', 'stg', 'prod']) {
-        final String path = 'config/$flavor.example.json';
-        final Map<String, Object?> json =
-            jsonDecode(readTrackedFile(path)) as Map<String, Object?>;
+      for (final flavor in const <String>['dev', 'stg', 'prod']) {
+        final path = 'config/$flavor.example.json';
+        final json = jsonDecode(readTrackedFile(path)) as Map<String, Object?>;
         expect(
           json['appCheckDebugToken'],
           '',

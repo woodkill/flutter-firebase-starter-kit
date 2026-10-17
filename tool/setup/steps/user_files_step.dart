@@ -60,7 +60,7 @@ final class UserFilesStep implements Step {
   Future<CheckResult> check(WizardContext context) async {
     _state = _inspect(context);
     final FlavorPaths paths = context.paths;
-    final List<String> problems = <String>[
+    final problems = <String>[
       if (_state.missingExamples.isNotEmpty)
         '킷 example 없음: ${_state.missingExamples.join(', ')}',
       if (_state.isJsonUnreadable) describeUnreadableJson(paths.json),
@@ -180,7 +180,7 @@ final class UserFilesStep implements Step {
   /// 두 사용자 파일의 존재 · 빠진 키 · 변수를 읽기 전용으로 살핀다.
   _UserFilesState _inspect(WizardContext context) {
     final FlavorPaths paths = context.paths;
-    final List<String> missingExamples = <String>[
+    final missingExamples = <String>[
       for (final String path in <String>[
         paths.jsonExample,
         paths.xcconfigExample,
@@ -195,8 +195,8 @@ final class UserFilesStep implements Step {
       context.resolve(paths.xcconfig),
     ).existsSync();
 
-    Set<String> missingJsonKeys = const <String>{};
-    bool isJsonUnreadable = false;
+    var missingJsonKeys = const <String>{};
+    var isJsonUnreadable = false;
     if (hasJsonUser) {
       try {
         missingJsonKeys = findMissingJsonKeys(

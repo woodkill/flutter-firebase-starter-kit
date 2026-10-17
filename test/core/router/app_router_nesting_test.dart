@@ -262,7 +262,7 @@ void main() {
     testWidgets('T-172-STACK-03: 알림 → 약관 2개 = 각 2장 · ← 1회면 홈', (tester) async {
       final app = await _pumpProductionApp(tester);
 
-      for (final String route in <String>[
+      for (final route in <String>[
         AppRoutes.termsService,
         AppRoutes.termsPrivacy,
       ]) {
@@ -337,7 +337,7 @@ void main() {
         // splash → home 착지까지의 발신을 비운다.
         app.drainScreenNames();
 
-        const String measured =
+        const measured =
             '2026-10-05 실측(17.2-RESEARCH §R-01) · todo 결정 4 — '
             '커스텀 observer 로 1건으로 줄이지 않는다';
 

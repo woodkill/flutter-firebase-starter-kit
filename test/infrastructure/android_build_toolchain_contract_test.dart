@@ -48,7 +48,7 @@ void main() {
         stripSlashComments(readTrackedFile(_appGradlePath)),
       );
       // 옛 DSL 이름이 이 소스에 통째로 남지 않게 조각을 이어 만든다.
-      const String legacyKotlinBlock =
+      const legacyKotlinBlock =
           'kotlin'
           'Options {';
 
@@ -77,7 +77,7 @@ void main() {
       );
       // 같은 플러그인의 정식 id · Kotlin DSL 접근자로도 적용하지 않는다.
       // settings 의 `apply false` 선언은 T-176-ANDROID-03 이 다른 파일에서 센다.
-      for (final String alias in <String>[
+      for (final alias in <String>[
         'id("org.jetbrains.kotlin.android")',
         'kotlin("android")',
       ]) {

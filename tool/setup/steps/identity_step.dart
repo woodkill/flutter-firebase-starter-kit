@@ -181,11 +181,11 @@ final class IdentityStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) {
     final FlavorPaths paths = context.paths;
-    final List<String> displayNameLines = <String>[
+    final displayNameLines = <String>[
       '(${paths.json} 의 appName 을 표시 이름으로 바꿈)',
       '(${paths.xcconfig} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
     ];
-    final List<String> bundleIdLines = <String>[
+    final bundleIdLines = <String>[
       for (final String path in _listTargetPaths(context, _xcconfigResidue))
         '($path 의 PRODUCT_BUNDLE_IDENTIFIER 를 앱 ID 에 맞춤)',
     ];
@@ -250,8 +250,7 @@ final class IdentityStep implements Step {
 
     String prefix = name.replaceAll('_', '-');
     final Flavor flavor = context.flavor;
-    String displayName =
-        '${rename.toTitleCase(name)}${flavor.displayNameSuffix}';
+    var displayName = '${rename.toTitleCase(name)}${flavor.displayNameSuffix}';
     while (true) {
       final List<SummaryRow> rows = _buildRows(
         org,
@@ -342,7 +341,7 @@ final class IdentityStep implements Step {
     final String? missingTarget = _findMissingDisplayNameTarget(context);
     if (missingTarget != null) return Failed(missingTarget);
 
-    final String suggested =
+    final suggested =
         '${rename.toTitleCase(_applicationId.split('.').last)}'
         '${context.flavor.displayNameSuffix}';
     final String? displayName = _askValid(
@@ -384,7 +383,7 @@ final class IdentityStep implements Step {
   /// name 만 묻든 한 번으로 센다.
   ({String org, String name})? _askOrgAndName(Terminal terminal) {
     String? validOrg;
-    for (int attempt = 0; attempt < maxInputAttempts; attempt++) {
+    for (var attempt = 0; attempt < maxInputAttempts; attempt++) {
       final String? org = validOrg ?? terminal.ask(orgQuestion);
       if (org == null) return null;
       final String? name = terminal.ask(nameQuestion);
@@ -410,7 +409,7 @@ final class IdentityStep implements Step {
     required String invalidMessage,
     String? defaultValue,
   }) {
-    for (int attempt = 0; attempt < maxInputAttempts; attempt++) {
+    for (var attempt = 0; attempt < maxInputAttempts; attempt++) {
       final String? answer = terminal.ask(question, defaultValue: defaultValue);
       if (answer == null) return null;
       final String trimmed = answer.trim();
@@ -429,7 +428,7 @@ final class IdentityStep implements Step {
     String displayName,
     Flavor flavor,
   ) {
-    final String suffix = flavor.suffix.isEmpty ? '' : '(${flavor.suffix})';
+    final suffix = flavor.suffix.isEmpty ? '' : '(${flavor.suffix})';
     return <SummaryRow>[
       SummaryRow('org', org),
       SummaryRow('name', name),
@@ -447,7 +446,7 @@ final class IdentityStep implements Step {
       return width > widest ? width : widest;
     });
     terminal.writeLine('앱 정체성 — 미리보기');
-    for (final SummaryRow row in rows) {
+    for (final row in rows) {
       final int padding = labelWidth - measureDisplayWidth(row.label);
       terminal.writeLine('  ${row.label}${' ' * padding}  ${row.value}');
     }
@@ -461,10 +460,10 @@ final class IdentityStep implements Step {
     WizardContext context,
     List<rename.FileChange> changes,
   ) {
-    final String rootPrefix = '${context.projectRoot}/';
-    final List<String> paths = <String>[];
-    for (final rename.FileChange change in changes) {
-      final bool isMove = change.type == rename.ChangeType.move;
+    final rootPrefix = '${context.projectRoot}/';
+    final paths = <String>[];
+    for (final change in changes) {
+      final isMove = change.type == rename.ChangeType.move;
       if (!isMove && !File(change.filePath).existsSync()) continue;
       final String relative = change.filePath.startsWith(rootPrefix)
           ? change.filePath.substring(rootPrefix.length)
@@ -514,8 +513,8 @@ final class IdentityStep implements Step {
     WizardContext context,
     String applicationId,
   ) {
-    final String scriptPath = ConfigureStep.scriptPath;
-    final File script = File(context.resolve(scriptPath));
+    const String scriptPath = ConfigureStep.scriptPath;
+    final script = File(context.resolve(scriptPath));
     if (!script.existsSync()) return '$scriptPath 이 없습니다';
     final String content = script.readAsStringSync();
     final int nameStart = applicationId.lastIndexOf('.');
@@ -524,7 +523,7 @@ final class IdentityStep implements Step {
         ? ''
         : applicationId.substring(0, nameStart);
     final String name = applicationId.substring(nameStart + 1);
-    final String expectedIos = nameStart < 0
+    final expectedIos = nameStart < 0
         ? applicationId
         : '$org.${rename.toLowerCamelCase(name)}';
     for (final (String key, String expected) in <(String, String)>[
@@ -559,18 +558,18 @@ final class IdentityStep implements Step {
     final int nameStart = applicationId.lastIndexOf('.');
     // org 가 없는 앱 ID 는 이름 바꾸기 규칙 밖이라 대조하지 않는다.
     if (nameStart <= 0) return _noRenameResidue;
-    final Set<String> configPaths = <String>{
+    final configPaths = <String>{
       for (final String fileName in rename.userConfigFileNames)
         context.resolve('config/$fileName'),
     };
-    final Set<String> xcconfigPaths = <String>{
+    final xcconfigPaths = <String>{
       for (final String fileName in rename.userXcconfigFileNames)
         context.resolve('ios/Flutter/$fileName'),
     };
     final String ownXcconfigPath = context.resolve(context.paths.xcconfig);
-    final bool isDevFlavor = context.flavor == Flavor.dev;
-    final List<rename.FileChange> tracked = <rename.FileChange>[];
-    final List<rename.FileChange> userXcconfig = <rename.FileChange>[];
+    final isDevFlavor = context.flavor == Flavor.dev;
+    final tracked = <rename.FileChange>[];
+    final userXcconfig = <rename.FileChange>[];
     for (final rename.FileChange change in rename.collectChanges(
       context.projectRoot,
       applicationId.substring(0, nameStart),

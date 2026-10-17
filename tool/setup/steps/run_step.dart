@@ -179,7 +179,7 @@ final class RunStep implements Step {
     String projectId, {
     String? pageToken,
   }) {
-    final StringBuffer url = StringBuffer()
+    final url = StringBuffer()
       ..write('$usersUrlPrefix$projectId/accounts:batchGet')
       ..write('?maxResults=$pageSize');
     if (pageToken != null) {
@@ -224,7 +224,7 @@ final class RunStep implements Step {
       return null;
     }
     if (decoded is! List<Object?>) return null;
-    final List<RunTarget> targets = <RunTarget>[];
+    final targets = <RunTarget>[];
     for (final Object? item in decoded) {
       if (item is! Map<String, Object?>) continue;
       final Object? name = item['name'];
@@ -271,14 +271,14 @@ final class RunStep implements Step {
       return null;
     }
     if (decoded case {'devices': final Map<String, Object?> runtimes}) {
-      final List<_IosRuntime> iosRuntimes = <_IosRuntime>[
+      final iosRuntimes = <_IosRuntime>[
         for (final MapEntry<String, Object?> entry in runtimes.entries)
           if (_readIosRuntime(entry) case final _IosRuntime runtime) runtime,
       ]..sort(_compareNewestFirst);
-      final List<SimulatorPick> candidates = <SimulatorPick>[
+      final candidates = <SimulatorPick>[
         for (final _IosRuntime runtime in iosRuntimes) ...runtime.iphones,
       ];
-      for (final SimulatorPick candidate in candidates) {
+      for (final candidate in candidates) {
         if (candidate.isBooted) return candidate;
       }
       return candidates.isEmpty ? null : candidates.first;
@@ -299,7 +299,7 @@ final class RunStep implements Step {
     }
     final int cut = dir.lastIndexOf('/');
     if (!dir.startsWith('/') || cut <= 0) return null;
-    for (final String candidate in <String>[
+    for (final candidate in <String>[
       '${dir.substring(0, cut)}/Applications/DeviceHub.app',
       '$dir/Applications/Simulator.app',
     ]) {
@@ -311,7 +311,7 @@ final class RunStep implements Step {
   /// simctl 목록의 런타임 하나가 iOS 런타임이면 판 번호와 iPhone 후보를 읽는다.
   static _IosRuntime? _readIosRuntime(MapEntry<String, Object?> entry) {
     if (!entry.key.startsWith(iosRuntimeKeyPrefix)) return null;
-    final List<int> version = <int>[];
+    final version = <int>[];
     for (final String part
         in entry.key.substring(iosRuntimeKeyPrefix.length).split('-')) {
       final int? number = int.tryParse(part);
@@ -331,7 +331,7 @@ final class RunStep implements Step {
     final int length = a.version.length > b.version.length
         ? a.version.length
         : b.version.length;
-    for (int i = 0; i < length; i++) {
+    for (var i = 0; i < length; i++) {
       final int left = i < a.version.length ? a.version[i] : 0;
       final int right = i < b.version.length ? b.version[i] : 0;
       if (left != right) return right.compareTo(left);
@@ -493,7 +493,7 @@ final class RunStep implements Step {
 
     final Failed? startFailure = await _startSimulator(context);
     if (startFailure != null) return _TargetLookupFailed(startFailure);
-    for (int poll = 0; poll < maxLaunchPolls; poll++) {
+    for (var poll = 0; poll < maxLaunchPolls; poll++) {
       await _delay(launchPollInterval);
       final _TargetLookup next = await _readTargets(context);
       if (next is! _TargetLookupOk || next.targets.isNotEmpty) return next;
@@ -573,9 +573,9 @@ final class RunStep implements Step {
     WizardContext context,
     String projectId,
   ) async {
-    int verified = 0;
+    var verified = 0;
     String? pageToken;
-    for (int page = 0; page < maxPages; page++) {
+    for (var page = 0; page < maxPages; page++) {
       final RestResponse response = await context.rest.send(
         buildBatchGetRequest(projectId, pageToken: pageToken),
       );

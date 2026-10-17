@@ -51,7 +51,7 @@ class _Sandbox {
 
   /// 임시 디렉터리를 만든다.
   factory _Sandbox.create() {
-    final Directory build = Directory('${Directory.current.path}/build')
+    final build = Directory('${Directory.current.path}/build')
       ..createSync(recursive: true);
     return _Sandbox._(build.createTempSync('test-publish-kit-').path);
   }
@@ -73,7 +73,7 @@ class _Sandbox {
 
   /// 임시 디렉터리를 지운다(자기 산출물만).
   void dispose() {
-    final Directory d = Directory(dir);
+    final d = Directory(dir);
     if (d.existsSync()) {
       d.deleteSync(recursive: true);
     }
@@ -164,9 +164,8 @@ void _writeStamp(_Sandbox sb, String step, String hash) {
 
 /// 가짜 gitleaks 를 [sb] 의 stub-bin 에 만들고 그 디렉터리를 돌려준다.
 String _writeGitleaksStub(_Sandbox sb, {required bool findings}) {
-  final Directory bin = Directory('${sb.dir}/stub-bin')
-    ..createSync(recursive: true);
-  final File stub = File('${bin.path}/gitleaks');
+  final bin = Directory('${sb.dir}/stub-bin')..createSync(recursive: true);
+  final stub = File('${bin.path}/gitleaks');
   if (findings) {
     stub.writeAsStringSync(
       '#!/bin/sh\n'
@@ -222,14 +221,14 @@ ProcessResult _runKit(
       reason: '--apply 는 인자 파서가 인자 수로 거부하는 모양으로만 넘긴다: $args',
     );
   }
-  final Map<String, String> env = <String, String>{
+  final env = <String, String>{
     ..._gitEnv(),
     'KIT_PUBLISH_ORIGIN': origin ?? sb.origin,
     'KIT_PUBLISH_PUBLIC': publicRepo ?? sb.publicRepo,
     'KIT_PUBLISH_WORK': work ?? sb.work,
     'KIT_PUBLISH_REPO': repo,
   };
-  for (final String key in <String>[
+  for (final key in <String>[
     'KIT_PUBLISH_ORIGIN',
     'KIT_PUBLISH_PUBLIC',
     'KIT_PUBLISH_WORK',
@@ -237,10 +236,7 @@ ProcessResult _runKit(
   ]) {
     expect(env[key], isNotEmpty, reason: '$key 가 비어 있다');
   }
-  for (final String key in <String>[
-    'KIT_PUBLISH_ORIGIN',
-    'KIT_PUBLISH_PUBLIC',
-  ]) {
+  for (final key in <String>['KIT_PUBLISH_ORIGIN', 'KIT_PUBLISH_PUBLIC']) {
     final String value = env[key]!;
     expect(value.startsWith('/'), isTrue, reason: '$key 는 로컬 절대경로여야 한다');
     expect(value.contains('@') || value.contains('://'), isFalse);
@@ -299,7 +295,7 @@ String _buildKitMirror(
     'KIT_VERSION': versionFile,
     'CHANGELOG.md': changelog ?? _defaultChangelog(_version),
   }, 'chore: 릴리스 컷 ${DateTime.now().microsecondsSinceEpoch}');
-  for (final String step in stamps) {
+  for (final step in stamps) {
     _writeStamp(sb, step, hash);
   }
   return hash;
@@ -324,7 +320,7 @@ void main() {
 
   group('인자 처리 · WORK 가드 (D-29, 두 트리 공통)', () {
     test('T-174-PUB-01: 알 수 없는 서브커맨드 · 잘못된 인자는 exit 2 + stderr usage', () {
-      for (final List<String> args in <List<String>>[
+      for (final args in <List<String>>[
         <String>['bogus'],
         <String>['scan', 'extra'],
         <String>['push', '--force'],
@@ -370,11 +366,11 @@ void main() {
     }, skip: skipScript);
 
     test('T-174-PUB-04: 공개 트리 모사 — 무인자는 안내, scan 은 유지보수자 전용 FAIL', () {
-      final String tree = '${sb.dir}/tree';
+      final tree = '${sb.dir}/tree';
       Directory('$tree/scripts').createSync(recursive: true);
       File(_scriptRel).copySync('$tree/scripts/publish_kit.sh');
-      final String work = '$tree/build/work';
-      final String script = '$tree/scripts/publish_kit.sh';
+      final work = '$tree/build/work';
+      final script = '$tree/scripts/publish_kit.sh';
 
       final ProcessResult status = _runKit(
         <String>[],
@@ -416,14 +412,14 @@ void main() {
   });
 
   group('scan 불변식 (D-16, 유지보수자 트리)', () {
-    final String secret = '${<String>['AI', 'za'].join()}${'x' * 35}';
+    final secret = '${<String>['AI', 'za'].join()}${'x' * 35}';
     final String sessionLine = <String>[
       'Claude',
       '-Session: https://example.invalid/s',
     ].join();
 
     // jq 없는 PATH 를 꾸릴 때 링크하는 도구(T-174-PUB-26) — jq 확인 전에 스크립트가 쓰는 외부 명령.
-    const List<String> jqlessTools = <String>['bash', 'git', 'dirname', 'rm'];
+    const jqlessTools = <String>['bash', 'git', 'dirname', 'rm'];
 
     ProcessResult runScan({bool findings = false}) => _runKit(
       <String>['scan'],
@@ -432,10 +428,7 @@ void main() {
     );
 
     void expectNoLeak(ProcessResult result) {
-      for (final String stream in <String>[
-        result.stdout as String,
-        _err(result),
-      ]) {
+      for (final stream in <String>[result.stdout as String, _err(result)]) {
         expect(stream.contains(secret), isFalse, reason: '키 모양 값이 출력됐다');
         expect(stream.contains('example.invalid/s'), isFalse);
       }
@@ -500,7 +493,7 @@ void main() {
       _git(sb.mirror, <String>['add', 'f.txt']);
       _git(sb.mirror, <String>['commit', '-q', '-m', 'merge side']);
       // 두 부모 어디에도 값이 없다 — 병합 결과에만 있다.
-      for (final String parent in <String>['HEAD^1', 'HEAD^2']) {
+      for (final parent in <String>['HEAD^1', 'HEAD^2']) {
         expect(
           _git(sb.mirror, <String>['show', '$parent:f.txt']),
           isNot(contains(secret)),
@@ -541,7 +534,7 @@ void main() {
       // jq 는 두지 않는다. 가짜 gitleaks 는 결과를 내므로, jq 확인이 없으면 jq length
       // 단계까지 가서 다른 사유로 멈춘다.
       final String bin = _writeGitleaksStub(sb, findings: true);
-      for (final String tool in jqlessTools) {
+      for (final tool in jqlessTools) {
         final String? path = _findToolOnPath(tool);
         if (path == null) {
           fail('$tool 이 PATH 에 없다 — fixture 를 만들 수 없다');
@@ -583,7 +576,7 @@ void main() {
 
     test('T-174-PUB-12: PUBLIC 저장소 이름이 ORIGIN 과 같으면 경로가 달라도 FAIL (WR-03)', () {
       _initMirror(sb);
-      final String clone = '${sb.dir}/other/flutter_starter_kit.git';
+      final clone = '${sb.dir}/other/flutter_starter_kit.git';
       _initBare(clone);
       final ProcessResult result = _runKit(
         <String>['check'],
@@ -632,7 +625,7 @@ void main() {
     test('T-174-PUB-16: 공개 main 이 조상이 아니면 FAIL · 낡은 check.ok 삭제 · ref 정리', () {
       final String main = _initMirror(sb);
       _writeStamp(sb, 'check', main);
-      final String other = '${sb.dir}/unrelated';
+      final other = '${sb.dir}/unrelated';
       _initRepo(other);
       final String foreign = _commit(other, <String, String>{
         'z.txt': 'z\n',
@@ -649,7 +642,7 @@ void main() {
     test('T-174-PUB-17: 공개 v* 태그가 조상이 아닌 커밋이면 FAIL', () {
       final String c1 = _initMirror(sb);
       _commit(sb.mirror, <String, String>{'lib/b.dart': 'b\n'}, 'feat: 둘째');
-      final String other = '${sb.dir}/unrelated';
+      final other = '${sb.dir}/unrelated';
       _initRepo(other);
       final String foreign = _commit(other, <String, String>{
         'z.txt': 'z\n',
@@ -675,7 +668,7 @@ void main() {
       expect(none.exitCode, 1);
       expect(_err(none), contains('먼저 통과해야'));
 
-      for (final String step in <String>['mirror', 'scan', 'verify']) {
+      for (final step in <String>['mirror', 'scan', 'verify']) {
         _writeStamp(sb, step, _git(sb.mirror, <String>['rev-parse', 'HEAD']));
       }
       _writeStamp(sb, 'check', 'b' * 40);
@@ -702,11 +695,7 @@ void main() {
 
     test('T-174-PUB-20: KIT_VERSION 모양이 틀리거나 한 줄이 아니면 FAIL', () {
       _initBare(sb.publicRepo);
-      for (final String bad in <String>[
-        '1.0\n',
-        'v1.0.0\n',
-        '1.0.0\n2.0.0\n',
-      ]) {
+      for (final bad in <String>['1.0\n', 'v1.0.0\n', '1.0.0\n2.0.0\n']) {
         _buildKitMirror(sb, versionFile: bad);
         final ProcessResult result = _runKit(<String>['push'], sb);
         expect(result.exitCode, 1, reason: bad);
@@ -762,7 +751,7 @@ void main() {
       );
       final ProcessResult result = _runKit(<String>['release'], sb);
       expect(result.exitCode, 0, reason: _err(result));
-      final String out = result.stdout as String;
+      final out = result.stdout as String;
       expect(out, contains('command: gh release create v$_version'));
       expect(out, contains('--prerelease'));
       expect(out, contains('--repo example-owner/public-kit'));

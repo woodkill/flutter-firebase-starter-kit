@@ -45,7 +45,7 @@ Future<List<String>> listChangedTrackedFiles(WizardContext context) async {
       result: result,
     );
   }
-  final List<String> paths = <String>[];
+  final paths = <String>[];
   for (final String line in const LineSplitter().convert(result.stdout)) {
     for (final String path in _parseStatusPaths(line)) {
       if (!paths.contains(path)) paths.add(path);
@@ -64,7 +64,7 @@ Future<List<String>> findDirtyTrackedFiles(
   WizardContext context,
   List<String> relativePaths,
 ) async {
-  final List<String> targets = <String>[
+  final targets = <String>[
     for (final String path in relativePaths)
       if (_normalizeTarget(path).isNotEmpty) _normalizeTarget(path),
   ];
@@ -98,7 +98,7 @@ List<String> _parseStatusPaths(String line) {
   final bool isRenameOrCopy = status.contains('R') || status.contains('C');
   if (!isRenameOrCopy) return <String>[_unquotePath(rest)];
 
-  const String arrow = ' -> ';
+  const arrow = ' -> ';
   if (rest.startsWith('"')) {
     final int close = _findClosingQuote(rest);
     if (close < 0) return <String>[_unquotePath(rest)];
@@ -120,7 +120,7 @@ List<String> _parseStatusPaths(String line) {
 
 /// 여는 따옴표 뒤에서 이스케이프되지 않은 닫는 따옴표의 위치를 찾는다 — 없으면 -1.
 int _findClosingQuote(String text) {
-  for (int i = 1; i < text.length; i++) {
+  for (var i = 1; i < text.length; i++) {
     if (text[i] == r'\') {
       i++;
     } else if (text[i] == '"') {
@@ -136,8 +136,8 @@ String _unquotePath(String token) {
     return token;
   }
   final String inner = token.substring(1, token.length - 1);
-  final List<int> bytes = <int>[];
-  const Map<String, int> escapes = <String, int>{
+  final bytes = <int>[];
+  const escapes = <String, int>{
     'a': 7,
     'b': 8,
     't': 9,
@@ -148,7 +148,7 @@ String _unquotePath(String token) {
     '"': 34,
     r'\': 92,
   };
-  for (int i = 0; i < inner.length; i++) {
+  for (var i = 0; i < inner.length; i++) {
     final String char = inner[i];
     if (char != r'\' || i + 1 >= inner.length) {
       bytes.addAll(utf8.encode(char));

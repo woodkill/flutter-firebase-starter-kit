@@ -86,14 +86,14 @@ final class ConfigureStep implements Step {
   /// 모두 [bundleBase] · `<bundleBase>.dev` · `<bundleBase>.RunnerTests` 가운데
   /// 하나일 때만 true 다. 바뀐 줄이 없는 diff(모드만 바뀜 등)는 false 다.
   static bool isIdentityOnlyDiff(String diff, String bundleBase) {
-    final Set<String> allowed = <String>{
+    final allowed = <String>{
       bundleBase,
       '$bundleBase.dev',
       '$bundleBase.RunnerTests',
     };
-    bool isInHunk = false;
-    int changed = 0;
-    int added = 0;
+    var isInHunk = false;
+    var changed = 0;
+    var added = 0;
     for (final String line in const LineSplitter().convert(diff)) {
       if (line.startsWith('@@')) {
         isInHunk = true;
@@ -237,7 +237,7 @@ final class ConfigureStep implements Step {
     );
     final Map<String, List<int>?> after = _readBytes(context);
 
-    final List<String> notRestored = <String>[
+    final notRestored = <String>[
       for (final String path in before.keys)
         if (!_isSameBytes(before[path], after[path])) path,
     ];
@@ -367,7 +367,7 @@ final class ConfigureStep implements Step {
   static bool _isSameBytes(List<int>? a, List<int>? b) {
     if (a == null || b == null) return a == null && b == null;
     if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
+    for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
     }
     return true;

@@ -172,7 +172,7 @@ final class SignInStep implements Step {
 
   /// 임시 설정 파일로 로그인 설정을 초기화한 뒤 다시 읽어 꺼진 수단을 켠다.
   Future<StepOutcome> _applyInitialize(WizardContext context) async {
-    final File file = File(context.resolve(authConfigPath));
+    final file = File(context.resolve(authConfigPath));
     try {
       file.parent.createSync(recursive: true);
       writeFileAtomically(file.path, authConfigContent);

@@ -198,18 +198,17 @@ abstract class KeyedProviderStep implements Step {
     }
     final String jsonPath = context.resolve(context.paths.json);
     final String xcconfigPath = context.resolve(context.paths.xcconfig);
-    final List<KeyField> askFields = <KeyField>[];
-    final Map<KeyField, String> knownValues = <KeyField, String>{};
-    final List<KeyField> xcconfigFixes = <KeyField>[];
-    final Map<KeyField, List<String>> secretWrites = <KeyField, List<String>>{};
-    final List<_Place> pending = <_Place>[];
-    final List<String> duplicates = <String>[];
-    final Map<KeyField, Map<Flavor, String>> otherFlavorValues =
-        <KeyField, Map<Flavor, String>>{};
-    int secretCount = 0;
+    final askFields = <KeyField>[];
+    final knownValues = <KeyField, String>{};
+    final xcconfigFixes = <KeyField>[];
+    final secretWrites = <KeyField, List<String>>{};
+    final pending = <_Place>[];
+    final duplicates = <String>[];
+    final otherFlavorValues = <KeyField, Map<Flavor, String>>{};
+    var secretCount = 0;
 
     for (final KeyField field in fields) {
-      bool needsInput = false;
+      var needsInput = false;
       String? configValue;
       final String? configKey = field.configKey;
       if (configKey != null) {
@@ -256,7 +255,7 @@ abstract class KeyedProviderStep implements Step {
           pending.add((location: context.paths.xcconfig, name: xcconfigVar));
         }
       }
-      final List<String> mismatchedSecrets = <String>[];
+      final mismatchedSecrets = <String>[];
       for (final String name in field.secretNames) {
         secretCount++;
         final SecretRead read = await readSecret(context, name, projectId);
@@ -388,7 +387,7 @@ abstract class KeyedProviderStep implements Step {
         '자세한 절차: ${formatManualReference(entry.manualSectionPrefix)}',
       ],
     );
-    final Map<KeyField, String> values = Map<KeyField, String>.of(_knownValues);
+    final values = Map<KeyField, String>.of(_knownValues);
     if (_askFields.isNotEmpty) {
       final int? choice = context.terminal.choose(
         consoleReadyQuestion,
@@ -429,7 +428,7 @@ abstract class KeyedProviderStep implements Step {
       ],
       notes: <String>['${context.paths.json} 의 값으로 씁니다 — 값은 화면에 보이지 않습니다'],
     );
-    final Map<KeyField, String> values = Map<KeyField, String>.of(_knownValues);
+    final values = Map<KeyField, String>.of(_knownValues);
     final PairCheck result = await verifyPair(
       context,
       Map<KeyField, String>.of(values),
@@ -465,7 +464,7 @@ abstract class KeyedProviderStep implements Step {
   /// 형식 판정만 보인다. 형식에 맞아도 다른 flavor 의 config 값과 같으면 그
   /// flavor 를 알리고 다시 묻는다(같은 횟수 상한).
   String? _askValue(WizardContext context, KeyField field) {
-    for (int attempt = 0; attempt < maxKeyAttempts; attempt++) {
+    for (var attempt = 0; attempt < maxKeyAttempts; attempt++) {
       final String? answer = field.isHidden
           ? context.terminal.askSecret('${field.label} $hiddenInputHint')
           : context.terminal.ask(field.label);
@@ -502,7 +501,7 @@ abstract class KeyedProviderStep implements Step {
     WizardContext context,
     Map<KeyField, String> values,
   ) async {
-    for (int attempt = 0; attempt < maxKeyAttempts; attempt++) {
+    for (var attempt = 0; attempt < maxKeyAttempts; attempt++) {
       final PairCheck result = await verifyPair(context, values);
       switch (result) {
         case PairOk() || PairNotAvailable():
@@ -596,10 +595,10 @@ abstract class KeyedProviderStep implements Step {
     WizardContext context,
     String configKey,
   ) {
-    final Map<Flavor, String> values = <Flavor, String>{};
+    final values = <Flavor, String>{};
     for (final Flavor other in Flavor.values) {
       if (other == context.flavor) continue;
-      final FlavorPaths paths = FlavorPaths(other);
+      final paths = FlavorPaths(other);
       final String path = context.resolve(paths.json);
       if (!File(path).existsSync()) continue;
       final String? raw;

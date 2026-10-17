@@ -85,7 +85,7 @@ final class ApisStep implements Step {
       _failedResult = result;
       return Todo(_reason);
     }
-    final Set<String> enabled = <String>{
+    final enabled = <String>{
       for (final String line in result.stdout.split('\n'))
         if (line.trim().isNotEmpty) line.trim(),
     };

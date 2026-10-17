@@ -76,7 +76,7 @@ void main() {
 
     test('T-171-DOCS-02: 절 본문이 비어 있지 않고 필수 토큰을 담는다 (SC5)', () {
       expect(section.trim(), isNotEmpty, reason: '절 슬라이스가 비었다');
-      const List<String> required = <String>[
+      const required = <String>[
         'home_body.dart',
         'home_screen.dart',
         'PendingNotificationRouteListener',
@@ -90,7 +90,7 @@ void main() {
         'release',
         'appName',
       ];
-      for (final String token in required) {
+      for (final token in required) {
         expect(
           section.contains(token),
           isTrue,
@@ -138,7 +138,7 @@ void main() {
       final String legacyFileStem = _legacyParts
           .map((String part) => part.toLowerCase())
           .join('_');
-      final List<String> banned = <String>[
+      final banned = <String>[
         legacyClassName,
         legacyFileStem,
         '홈 계정정보 카드',
@@ -146,7 +146,7 @@ void main() {
         'buildNotFoundScreen',
         '설정 「내 계정」',
       ];
-      for (final String token in banned) {
+      for (final token in banned) {
         expect(
           countOccurrences(body, token),
           0,
@@ -161,7 +161,7 @@ void main() {
         countOccurrences(body, '/settings/account'),
         greaterThanOrEqualTo(2),
       );
-      for (final String token in <String>[
+      for (final token in <String>[
         'NotFoundScreen',
         'account_screen.dart',
         'demo_screen.dart',

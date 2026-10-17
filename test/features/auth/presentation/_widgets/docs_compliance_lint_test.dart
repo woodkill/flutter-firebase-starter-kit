@@ -329,7 +329,7 @@ void main() {
       expect(files, isNotEmpty, reason: 'lib/ + test/ Dart 파일 0건');
 
       // self-invalidating 회피 분리 — interpolation 으로 source literal 부재.
-      final needle = '${'Buttons'}.${'facebookNew'}';
+      const needle = '${'Buttons'}.${'facebookNew'}';
 
       // Act — comment 제외 substring 카운트 (자가 invalidating 회피).
       final hits = <String>[];
@@ -367,7 +367,7 @@ void main() {
       expect(files, isNotEmpty, reason: 'lib/ + test/ Dart 파일 0건');
 
       // self-invalidating 회피 분리 — interpolation 으로 source literal 부재.
-      final needle = '${'package:'}${'sign_in_'}button';
+      const needle = '${'package:'}${'sign_in_'}button';
 
       // Act — comment 제외 substring 카운트.
       final hits = <String>[];

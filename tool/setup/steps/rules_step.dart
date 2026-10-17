@@ -117,7 +117,7 @@ final class RulesStep implements Step {
     }
 
     final String bucket = await _readBucketName(context, projectId);
-    final List<_Comparison> comparisons = <_Comparison>[
+    final comparisons = <_Comparison>[
       await _compare(
         context,
         projectId,
@@ -133,7 +133,7 @@ final class RulesStep implements Step {
         storageLocal,
       ),
     ];
-    final List<_Comparison> failed = <_Comparison>[
+    final failed = <_Comparison>[
       for (final _Comparison comparison in comparisons)
         if (comparison.result != null) comparison,
     ];
@@ -144,7 +144,7 @@ final class RulesStep implements Step {
         result: failed.first.result,
       );
     }
-    final List<String> problems = <String>[
+    final problems = <String>[
       for (final _Comparison comparison in comparisons)
         if (comparison.problem.isNotEmpty) comparison.problem,
     ];
@@ -196,7 +196,7 @@ final class RulesStep implements Step {
     final RestResponse response = await context.rest.send(
       StorageStep.buildGetRequest(projectId),
     );
-    final String fallback = '$projectId$defaultBucketSuffix';
+    final fallback = '$projectId$defaultBucketSuffix';
     if (!response.isOk) return fallback;
     final Object? decoded = response.decodeJson();
     if (decoded is! Map<String, Object?>) return fallback;
@@ -267,7 +267,7 @@ final class RulesStep implements Step {
 
   /// 저장소 파일을 읽는다 — 없거나 읽지 못하면 null.
   static String? _readLocal(WizardContext context, String relativePath) {
-    final File file = File(context.resolve(relativePath));
+    final file = File(context.resolve(relativePath));
     if (!file.existsSync()) return null;
     try {
       return file.readAsStringSync();

@@ -86,7 +86,7 @@ final class LoginStep implements Step {
   @override
   Future<CheckResult> check(WizardContext context) async {
     _state = await _inspect(context);
-    final List<String> problems = <String>[
+    final problems = <String>[
       if (!_state.hasFirebaseAccount) noFirebaseReason,
       if (!_state.hasToken) noTokenReason,
       if (_state.hasFirebaseAccount && _state.hasToken && !_state.isSameAccount)

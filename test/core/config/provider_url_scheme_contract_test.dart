@@ -110,7 +110,7 @@ void main() {
       final String plist = stripXmlComments(rawPlist);
 
       // 키가 비면 `:default=` 의 앱 고유 자리표시로, 값이 있으면 그 값 그대로.
-      const Map<String, int> expectedSubstitutions = <String, int>{
+      const expectedSubstitutions = <String, int>{
         r'<string>$(REVERSED_CLIENT_ID:default=unset.google.$(PRODUCT_BUNDLE_IDENTIFIER))</string>':
             1,
         r'<string>fb$(FACEBOOK_APP_ID:default=unset.$(PRODUCT_BUNDLE_IDENTIFIER))</string>':
@@ -133,13 +133,13 @@ void main() {
       }
 
       // 옛 꼴은 키가 비면 빈 값 · fb · kakao 를 그대로 등록한다.
-      const List<String> legacyForms = <String>[
+      const legacyForms = <String>[
         r'<string>$(REVERSED_CLIENT_ID)</string>',
         r'<string>fb$(FACEBOOK_APP_ID)</string>',
         r'<string>kakao$(KAKAO_NATIVE_APP_KEY)</string>',
         r'<string>$(NAVER_URL_SCHEME)</string>',
       ];
-      for (final String legacy in legacyForms) {
+      for (final legacy in legacyForms) {
         expect(
           countOccurrences(plist, legacy),
           0,

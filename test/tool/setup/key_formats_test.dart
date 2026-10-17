@@ -17,10 +17,10 @@ void expectFormat(
   expect(format.description, isNotEmpty);
   expect(valid, isNotEmpty);
   expect(invalid.length, greaterThanOrEqualTo(2));
-  for (final String value in valid) {
+  for (final value in valid) {
     expect(format.matches(value), isTrue, reason: '맞는 예: $value');
   }
-  for (final String value in invalid) {
+  for (final value in invalid) {
     expect(format.matches(value), isFalse, reason: '틀린 예: $value');
   }
 }
@@ -132,7 +132,7 @@ void main() {
   });
 
   test('T-20-FMT-11: Google Web client ID 는 숫자 12자-영숫자 32자.apps 주소', () {
-    const String domain = '.apps.googleusercontent.com';
+    const domain = '.apps.googleusercontent.com';
     expectFormat(
       googleWebClientId,
       valid: <String>['${buildClientIdBody()}$domain'],
@@ -148,7 +148,7 @@ void main() {
   });
 
   test('T-20-FMT-12: REVERSED_CLIENT_ID 는 com.googleusercontent.apps 로 시작', () {
-    const String prefix = 'com.googleusercontent.apps.';
+    const prefix = 'com.googleusercontent.apps.';
     expectFormat(
       reversedClientId,
       valid: <String>['$prefix${buildClientIdBody()}'],

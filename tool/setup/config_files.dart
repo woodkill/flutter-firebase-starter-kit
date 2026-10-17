@@ -36,7 +36,7 @@ void addMissingJsonKeys({
   final Map<String, Object?> example = _readJsonObject(examplePath);
   final String original = File(userPath).readAsStringSync();
   final Map<String, Object?> user = _decodeJsonObject(original, userPath);
-  final List<String> missing = <String>[
+  final missing = <String>[
     for (final String key in example.keys)
       if (!user.containsKey(key)) key,
   ];
@@ -52,7 +52,7 @@ void addMissingJsonKeys({
   final String indent = isEmptyObject
       ? '  '
       : _readLineIndent(original, lastValueIndex);
-  final List<String> addedLines = <String>[
+  final addedLines = <String>[
     for (final String key in missing)
       '\n$indent${jsonEncode(key)}: ${jsonEncode(example[key])}',
   ];
@@ -145,13 +145,13 @@ void addMissingXcconfigVars({
   final List<String> exampleLines = const LineSplitter().convert(
     File(examplePath).readAsStringSync(),
   );
-  final StringBuffer appended = StringBuffer();
-  for (int i = 0; i < exampleLines.length; i++) {
+  final appended = StringBuffer();
+  for (var i = 0; i < exampleLines.length; i++) {
     final RegExpMatch? match = _xcconfigVariablePattern.firstMatch(
       exampleLines[i],
     );
     if (match == null || !missing.contains(match.group(1))) continue;
-    int commentStart = i;
+    var commentStart = i;
     while (commentStart > 0 &&
         exampleLines[commentStart - 1].trimLeft().startsWith('//')) {
       commentStart--;
@@ -162,9 +162,7 @@ void addMissingXcconfigVars({
   }
 
   final String original = File(userPath).readAsStringSync();
-  final String separator = original.isEmpty || original.endsWith('\n')
-      ? ''
-      : '\n';
+  final separator = original.isEmpty || original.endsWith('\n') ? '' : '\n';
   writeFileAtomically(userPath, '$original$separator$appended');
 }
 
@@ -209,7 +207,7 @@ void replaceXcconfigValue(String path, String name, String value) {
 /// 쓰기 도중 실패해도 [path] 의 원래 내용이 반쯤 쓰인 채 남지 않는다. 실패하면
 /// 임시 파일을 지우고 예외를 다시 던진다.
 void writeFileAtomically(String path, String content) {
-  final File temporary = File('$path.setup-tmp');
+  final temporary = File('$path.setup-tmp');
   try {
     temporary.writeAsStringSync(content, flush: true);
     temporary.renameSync(path);

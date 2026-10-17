@@ -408,8 +408,8 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     });
 
     test('킷 앱 ID 를 앞부분으로 갖는 앱 ID 로 끝난 Gradle 은 수집하지 않는다', () {
-      const String renamedPackage = 'com.slimpumpkin.flutter_starter_kit2';
-      final File gradle = File('${tempDir.path}/android/app/build.gradle.kts');
+      const renamedPackage = 'com.slimpumpkin.flutter_starter_kit2';
+      final gradle = File('${tempDir.path}/android/app/build.gradle.kts');
       gradle.writeAsStringSync(
         gradle.readAsStringSync().replaceAll(
           '"com.slimpumpkin.flutter_starter_kit"',
@@ -435,12 +435,10 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     });
 
     test('Gradle 적용은 따옴표 안 킷 앱 ID 만 바꾸고 주석 · 비슷한 값은 그대로 둔다', () {
-      final File gradle = File('${tempDir.path}/android/app/build.gradle.kts');
-      const String comment = '// 킷 앱 ID com.slimpumpkin.flutter_starter_kit 참고';
-      const String prefixLike =
-          'val a = "com.slimpumpkin.flutter_starter_kit2"';
-      const String suffixLike =
-          'val b = "com.slimpumpkin.flutter_starter_kit.debug"';
+      final gradle = File('${tempDir.path}/android/app/build.gradle.kts');
+      const comment = '// 킷 앱 ID com.slimpumpkin.flutter_starter_kit 참고';
+      const prefixLike = 'val a = "com.slimpumpkin.flutter_starter_kit2"';
+      const suffixLike = 'val b = "com.slimpumpkin.flutter_starter_kit.debug"';
       final String original = gradle.readAsStringSync();
       gradle.writeAsStringSync('$original$comment\n$prefixLike\n$suffixLike\n');
 

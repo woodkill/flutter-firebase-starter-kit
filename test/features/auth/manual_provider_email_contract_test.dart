@@ -108,7 +108,7 @@ String _slugifyHeading(String line) => line
 
 /// 매뉴얼 [manual] 의 헤딩 줄을 앵커로 바꿔 앵커마다 등장 횟수를 센다.
 Map<String, int> _countHeadingAnchors(String manual) {
-  final Map<String, int> counts = <String, int>{};
+  final counts = <String, int>{};
   for (final String line in manual.split('\n')) {
     if (!_headingLinePattern.hasMatch(line)) {
       continue;
@@ -162,7 +162,7 @@ void main() {
     test('C5C-DOCS-02: 금지 패턴 · 연락 채널 가정 단어 0 건 · 소절이 템플릿 순서다', () {
       expect(section.trim(), isNotEmpty, reason: '절 슬라이스가 비었다');
 
-      final RegExp forbidden = RegExp(kUserDocForbiddenPatternSource);
+      final forbidden = RegExp(kUserDocForbiddenPatternSource);
       // 양성 대조: 금지 패턴 정규식이 실제로 phase 번호를 잡는다.
       expect(forbidden.hasMatch('Phase 9'), isTrue);
       final List<String> hits = forbidden
@@ -187,7 +187,7 @@ void main() {
     });
 
     test('C5C-DOCS-03: provider 표가 배포 함수 목록의 provider 마다 한 줄이다', () {
-      final Map<String, Object?> manifest =
+      final manifest =
           jsonDecode(readTrackedFile(_manifestPath)) as Map<String, Object?>;
       final List<String> providerKeys =
           (manifest['providers']! as Map<String, Object?>).keys.toList();
@@ -225,7 +225,7 @@ void main() {
       expect(anchors, isNotEmpty, reason: '절에 내부 링크가 없다');
 
       final Map<String, int> headingAnchors = _countHeadingAnchors(manual);
-      for (final String anchor in anchors) {
+      for (final anchor in anchors) {
         expect(
           headingAnchors[anchor] ?? 0,
           1,

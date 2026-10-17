@@ -99,7 +99,7 @@ final class _Harness {
 
   /// [name] 읽기 결과 큐에 [results] 를 차례로 더한다.
   void onSecretReads(String name, List<CommandResult> results) {
-    for (final CommandResult result in results) {
+    for (final result in results) {
       runner.on(
         FakeCommandRunner.buildKey(buildSecretReadCommand(name, projectId)),
         result,
@@ -117,7 +117,7 @@ final class _Harness {
 
   /// 어드민 키 서버 확인 응답 큐에 [responses] 를 더한다.
   void onAdminCheck(List<RestResponse> responses) {
-    for (final RestResponse response in responses) {
+    for (final response in responses) {
       rest.onExternal('GET', KakaoStep.adminKeyCheckUrl, response);
     }
   }
@@ -233,7 +233,7 @@ void main() {
   test('T-20-KAKAO-01: 네이티브 앱 키 형식이 틀리면 그 값만 다시 묻고 맞는 값으로 진행한다', () async {
     final String nativeKey = buildNativeKey();
     final String adminKey = buildAdminKey();
-    final _Harness h = _Harness(root, <String?>[
+    final h = _Harness(root, <String?>[
       'y',
       '1',
       'a' * 31,
@@ -267,7 +267,7 @@ void main() {
       final String nativeKey = buildNativeKey();
       final String wrongAdmin = buildAdminKey('c');
       final String adminKey = buildAdminKey();
-      final _Harness h = _Harness(root, <String?>[
+      final h = _Harness(root, <String?>[
         'y',
         '1',
         nativeKey,
@@ -298,7 +298,7 @@ void main() {
         <String>['KakaoAK $wrongAdmin', 'KakaoAK $adminKey'],
       );
       expect(h.secretWrites.last.stdinText, adminKey);
-      for (final String text in <String>[h.output, h.log.text]) {
+      for (final text in <String>[h.output, h.log.text]) {
         expect(countText(text, wrongAdmin), 0);
         expect(countText(text, adminKey), 0);
       }
@@ -310,7 +310,7 @@ void main() {
     final String adminKey = buildAdminKey();
     final String configBefore = File(configPath).readAsStringSync();
     final String xcconfigBefore = File(xcconfigPath).readAsStringSync();
-    final _Harness h = _Harness(root, <String?>[
+    final h = _Harness(root, <String?>[
       'y',
       '1',
       nativeKey,
@@ -333,7 +333,7 @@ void main() {
   test(
     'T-20-KAKAO-04: 콘솔 질문에 아니요면 위저드 밖 작업 안내로 끝나고 입력 질문 · 쓰기가 0 이다',
     () async {
-      final _Harness h = _Harness(root, const <String?>['y', '2']);
+      final h = _Harness(root, const <String?>['y', '2']);
       registerFreshSecrets(h, buildNativeKey(), buildAdminKey());
 
       final int code = await h.run();
@@ -353,13 +353,7 @@ void main() {
 
   group('T-20-KAKAO-05: 입력이 끝까지 맞지 않으면 쓰지 않고 멈춘다', () {
     test('형식이 3회 틀림', () async {
-      final _Harness h = _Harness(root, <String?>[
-        'y',
-        '1',
-        'zz',
-        'a' * 31,
-        'A' * 32,
-      ]);
+      final h = _Harness(root, <String?>['y', '1', 'zz', 'a' * 31, 'A' * 32]);
       registerFreshSecrets(h, buildNativeKey(), buildAdminKey());
 
       final int code = await h.run();
@@ -372,7 +366,7 @@ void main() {
     });
 
     test('숨김 입력 중 입력 끝', () async {
-      final _Harness h = _Harness(root, <String?>['y', '1', buildNativeKey()]);
+      final h = _Harness(root, <String?>['y', '1', buildNativeKey()]);
       registerFreshSecrets(h, buildNativeKey(), buildAdminKey());
 
       final int code = await h.run();
@@ -392,7 +386,7 @@ void main() {
     final String adminKey = buildAdminKey();
     replaceJsonString(configPath, 'kakaoNativeAppKey', nativeKey);
     final String configBefore = File(configPath).readAsStringSync();
-    final _Harness h = _Harness(root, const <String?>['y']);
+    final h = _Harness(root, const <String?>['y']);
     h
       ..onSecretReads(nativeSecret, <CommandResult>[
         ok('$secretPlaceholderValue\n'),
@@ -422,7 +416,7 @@ void main() {
       '결정 ID 모양은 없다', () async {
     final String nativeKey = buildNativeKey();
     final String adminKey = buildAdminKey();
-    final _Harness h = _Harness(root, <String?>['y', '1', nativeKey, adminKey]);
+    final h = _Harness(root, <String?>['y', '1', nativeKey, adminKey]);
     registerFreshSecrets(h, nativeKey, adminKey);
     h.onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
 
@@ -436,7 +430,7 @@ void main() {
     expect(output, contains('https://developers.kakao.com/console/app'));
     expect(output, contains('매뉴얼 「Kakao Login」'));
     expect(output, contains('매뉴얼 「로그인 수단에서 이메일 받기」'));
-    for (final String text in <String>[output, h.log.text]) {
+    for (final text in <String>[output, h.log.text]) {
       expect(countText(text, adminKey), 0);
       expect(RegExp(r'\bD-[0-9]{2}\b').hasMatch(text), isFalse);
       expect(RegExp('Phase [0-9]').hasMatch(text), isFalse);

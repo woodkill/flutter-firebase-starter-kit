@@ -45,7 +45,7 @@ Future<void> showCommitHint(WizardContext context) async {
   context.terminal
     ..writeLine('')
     ..writeLine(commitHintHeading);
-  for (final String path in paths) {
+  for (final path in paths) {
     context.terminal.writeLine('  $path');
   }
   context.terminal.writeCommand(
@@ -63,8 +63,7 @@ Future<List<String>> _listMovedKotlinFiles(WizardContext context) async {
     context.resolve(IdentityStep.gradlePath),
   );
   if (applicationId == null) return const <String>[];
-  final String directory =
-      '$kotlinSourceRoot/${applicationId.replaceAll('.', '/')}';
+  final directory = '$kotlinSourceRoot/${applicationId.replaceAll('.', '/')}';
   if (!Directory(context.resolve(directory)).existsSync()) {
     return const <String>[];
   }

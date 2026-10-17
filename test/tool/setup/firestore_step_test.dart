@@ -99,7 +99,7 @@ void registerQueue(
   String key,
   List<CommandResult> results,
 ) {
-  for (final CommandResult result in results) {
+  for (final result in results) {
     runner.on(key, result);
   }
 }
@@ -160,13 +160,13 @@ void main() {
   ];
 
   test('T-19-LOC-01 위치가 asia-northeast3 이고 세 리전 값이 같으면 묻지 않고 ✓', () async {
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(describeKey, buildLocation('asia-northeast3'));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runFirestoreStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitDone);
     expect(output, contains('  ✓ ${FirestoreStep.stepTitle} — '));
     expect(output, contains('Firestore 위치: asia-northeast3 (바꿀 수 없음)'));
@@ -178,22 +178,17 @@ void main() {
     'T-19-LOC-02 데이터베이스가 없으면 기본(지금 config 값)을 골라 확인 표 y 뒤 만들고, 같은 값이라 세 파일은 그대로',
     () async {
       final List<String> before = readRegionFiles();
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(createKey('asia-northeast3'), _ok);
+      final runner = FakeCommandRunner()..on(createKey('asia-northeast3'), _ok);
       registerQueue(runner, describeKey, <CommandResult>[
         notFound,
         notFound,
         buildLocation('asia-northeast3'),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        '',
-        'y',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', '', 'y']);
 
       final int code = await runFirestoreStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ ${FirestoreStep.stepTitle} — '));
       expect(terminal.asks, contains(FirestoreStep.locationChoiceQuestion));
@@ -215,7 +210,7 @@ void main() {
     'T-19-LOC-03 us-central1 을 고르면 세 파일이 함께 바뀌고 다른 바이트는 그대로 · 두 정규식으로 다시 읽어도 같은 값',
     () async {
       final List<String> before = readRegionFiles();
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(gitStatusKey, _ok)
         ..on(createKey('us-central1'), _ok);
       registerQueue(runner, describeKey, <CommandResult>[
@@ -223,15 +218,11 @@ void main() {
         notFound,
         buildLocation('us-central1'),
       ]);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        '3',
-        'y',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', '3', 'y']);
 
       final int code = await runFirestoreStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains(FirestoreStep.regionFilesNotice));
       expect(
@@ -260,13 +251,8 @@ void main() {
 
   test('T-19-LOC-04 확인 표에서 N 이면 만들지 않고 파일도 그대로', () async {
     final List<String> before = readRegionFiles();
-    final FakeCommandRunner runner = FakeCommandRunner()
-      ..on(describeKey, notFound);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-      'y',
-      '3',
-      'n',
-    ]);
+    final runner = FakeCommandRunner()..on(describeKey, notFound);
+    final terminal = ScriptedTerminal(const <String?>['y', '3', 'n']);
 
     final int code = await runFirestoreStep(runner, terminal);
 
@@ -280,13 +266,13 @@ void main() {
   test(
     'T-19-LOC-05 Firestore 가 다중 리전 nam5 로 있고 세 값이 같으면 위치를 묻지 않고 ✓',
     () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(describeKey, buildLocation('nam5'));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+      final terminal = ScriptedTerminal(const <String?>[]);
 
       final int code = await runFirestoreStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('Firestore 위치: nam5 (바꿀 수 없음)'));
       expect(terminal.asks, isEmpty);
@@ -303,17 +289,14 @@ void main() {
           'europe-west1',
         ),
       );
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(describeKey, buildLocation('asia-northeast3'))
         ..on(gitStatusKey, _ok);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-        'y',
-        '',
-      ]);
+      final terminal = ScriptedTerminal(const <String?>['y', '']);
 
       final int code = await runFirestoreStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ ${FirestoreStep.stepTitle} — '));
       expect(output, contains('다릅니다'));
@@ -332,21 +315,17 @@ void main() {
 
   test('T-19-LOC-07 region.ts 에 커밋하지 않은 변경이 있으면 리전을 바꾸지 않고 실패', () async {
     final List<String> before = readRegionFiles();
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(describeKey, notFound)
       ..on(
         gitStatusKey,
         const CommandResult(0, ' M functions/src/shared/region.ts\n', ''),
       );
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
-      'y',
-      '3',
-      'y',
-    ]);
+    final terminal = ScriptedTerminal(const <String?>['y', '3', 'y']);
 
     final int code = await runFirestoreStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — 고칠 파일에 커밋하지 않은 변경이 있습니다'));
     expect(output, contains('    functions/src/shared/region.ts'));
@@ -363,13 +342,12 @@ void main() {
       'us-west1',
       'europe-west1',
     ]);
-    final FakeCommandRunner runner = FakeCommandRunner()
-      ..on(describeKey, notFound);
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final runner = FakeCommandRunner()..on(describeKey, notFound);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runFirestoreStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     final List<String> optionLines = output
         .split('\n')
         .where((String line) => RegExp(r'^  [0-9]+\) ').hasMatch(line))
@@ -389,13 +367,12 @@ void main() {
 
   group('T-19-LOC-09 값 표 재확인 안내는 확인 표를 보이는 모드에서만 붙는다', () {
     test('T-19-LOC-09 데이터베이스 만들기 모드는 안내가 붙는다', () async {
-      final FakeCommandRunner runner = FakeCommandRunner()
-        ..on(describeKey, notFound);
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['n']);
+      final runner = FakeCommandRunner()..on(describeKey, notFound);
+      final terminal = ScriptedTerminal(const <String?>['n']);
 
       final int code = await runFirestoreStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('▶ ${FirestoreStep.stepTitle}'));
       expect(output.contains('    $costlyStepNotice'), isTrue);
@@ -404,13 +381,13 @@ void main() {
     test('T-19-LOC-09 리전 맞추기 모드는 표 없이 고르기만 하므로 안내가 붙지 않는다', () async {
       // region.ts 값을 config 와 다르게 만들어 세 곳 불일치 상태를 만든다.
       regionTs.writeAsStringSync('export const REGION = "us-central1";\n');
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(describeKey, buildLocation('asia-northeast3'));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['n']);
+      final terminal = ScriptedTerminal(const <String?>['n']);
 
       final int code = await runFirestoreStep(runner, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitStopped);
       expect(output, contains('▶ ${FirestoreStep.stepTitle}'));
       expect(output, contains('Functions 리전을 골라 세 파일에 같은 값을 씁니다'));
@@ -420,16 +397,16 @@ void main() {
   });
 
   test('describe 가 「없음」 밖의 이유로 실패하면 첫 줄을 사유로 보이고 만들지 않는다', () async {
-    const String denied =
+    const denied =
         'ERROR: (gcloud.firestore.databases.describe) PERMISSION_DENIED: '
         'The caller does not have permission\nsecond line\n';
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(describeKey, const CommandResult(1, '', denied));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runFirestoreStep(runner, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('PERMISSION_DENIED: The caller does not have'));
     expect(output, contains(denied));
@@ -450,7 +427,7 @@ void main() {
 
   group('flavor 문맥', () {
     /// stg 프로젝트 ID(가짜).
-    const String stgProjectId = 'p-stg';
+    const stgProjectId = 'p-stg';
     late FakeCommandRunner runner;
     late ScriptedTerminal screen;
     late File stgConfig;
@@ -464,7 +441,7 @@ void main() {
 
     /// [flavor] 문맥을 만든다 — 화면은 가림 터미널로 감싼다.
     WizardContext buildFlavorContext(Flavor flavor, List<String?> inputs) {
-      final MemoryLogSink log = MemoryLogSink(Redactor());
+      final log = MemoryLogSink(Redactor());
       screen = ScriptedTerminal(inputs);
       return WizardContext(
         projectRoot: root,
@@ -487,7 +464,7 @@ void main() {
 
     setUp(() {
       runner = FakeCommandRunner();
-      final FlavorPaths paths = const FlavorPaths(Flavor.stg);
+      const paths = FlavorPaths(Flavor.stg);
       stgConfig = File('$root/${paths.json}');
       File(paths.jsonExample).copySync(stgConfig.path);
       replaceJsonString(stgConfig.path, 'firebaseProjectId', stgProjectId);
@@ -521,14 +498,14 @@ void main() {
           Flavor.stg,
           const <String?>['y'],
         );
-        final FirestoreStep step = FirestoreStep();
+        final step = FirestoreStep();
 
         expect(await step.check(context), isA<Todo>());
         expect(step.isCostlyOrIrreversible, isTrue);
         final List<String> lines = step.plannedCommandLines(context);
         final StepOutcome outcome = await step.apply(context);
 
-        final String output = screen.output.toString();
+        final output = screen.output.toString();
         expect(
           lines,
           contains(
@@ -581,9 +558,9 @@ void main() {
         const <String?>['n'],
       );
       // prod 문맥도 같은 갈래다 — prod config 를 만든다.
-      final FlavorPaths prodPaths = const FlavorPaths(Flavor.prod);
+      const prodPaths = FlavorPaths(Flavor.prod);
       stgConfig.copySync('$root/${prodPaths.json}');
-      final FirestoreStep step = FirestoreStep();
+      final step = FirestoreStep();
 
       expect(await step.check(context), isA<Todo>());
       expect(await step.apply(context), isA<Declined>());
@@ -609,7 +586,7 @@ void main() {
           Flavor.stg,
           const <String?>[],
         );
-        final FirestoreStep step = FirestoreStep();
+        final step = FirestoreStep();
 
         expect(await step.check(context), isA<Todo>());
         final StepOutcome outcome = await step.apply(context);
@@ -639,7 +616,7 @@ void main() {
           Flavor.stg,
           const <String?>['y'],
         );
-        final FirestoreStep step = FirestoreStep();
+        final step = FirestoreStep();
 
         expect(await step.check(context), isA<Todo>());
         expect(step.plannedCommandLines(context), <String>[
@@ -661,7 +638,7 @@ void main() {
     );
 
     test('T-20-FLAVOR-16: stg · 추적 리전이 고를 수 있는 목록 밖이면 묻지 않고 실패한다', () async {
-      const String outsideRegion = 'southamerica-east1';
+      const outsideRegion = 'southamerica-east1';
       expect(FirestoreStep.singleRegions, isNot(contains(outsideRegion)));
       regionTs.writeAsStringSync(
         regionTs.readAsStringSync().replaceFirst(
@@ -677,7 +654,7 @@ void main() {
         Flavor.stg,
         const <String?>[],
       );
-      final FirestoreStep step = FirestoreStep();
+      final step = FirestoreStep();
 
       expect(await step.check(context), isA<Todo>());
       expect(await step.apply(context), isA<Failed>());
@@ -691,7 +668,7 @@ void main() {
         Flavor.dev,
         const <String?>[null],
       );
-      final FirestoreStep step = FirestoreStep();
+      final step = FirestoreStep();
 
       expect(await step.check(context), isA<Todo>());
       expect(step.plannedCommandLines(context), <String>[

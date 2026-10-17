@@ -217,7 +217,7 @@ final class ProcessCommandRunner implements CommandRunner {
   /// 캡처 실행의 종료 코드와 출력을 기록에 남긴다.
   void _logResult(Command command, CommandResult result) {
     log.write('exit', '${result.exitCode}');
-    final Map<String, String> outputs = <String, String>{
+    final outputs = <String, String>{
       'stdout': result.stdout,
       'stderr': result.stderr,
     };
@@ -263,7 +263,7 @@ final class ProcessCommandRunner implements CommandRunner {
     Stream<List<int>> source,
     void Function(String line)? onLine,
   ) async {
-    final StringBuffer buffer = StringBuffer();
+    final buffer = StringBuffer();
     await for (final String line
         in source
             .transform(const Utf8Decoder(allowMalformed: true))

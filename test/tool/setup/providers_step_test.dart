@@ -104,11 +104,7 @@ void main() {
       '다른 config 바이트는 그대로', () async {
     replaceJsonString(configPath, enabledProvidersKey, 'google,kakao');
     final String before = File(configPath).readAsStringSync();
-    final _Harness h = _Harness(root, const <String?>[
-      'y',
-      '0',
-      'y',
-    ], isRequested: true);
+    final h = _Harness(root, const <String?>['y', '0', 'y'], isRequested: true);
 
     final int code = await h.run();
 
@@ -130,7 +126,7 @@ void main() {
 
   test('T-20-PROV-02: 잘못된 번호는 이유 한 줄 뒤 다시 묻고 3회 넘으면 멈춘다 · CSV 그대로', () async {
     final String before = File(configPath).readAsStringSync();
-    final _Harness h = _Harness(root, const <String?>[
+    final h = _Harness(root, const <String?>[
       'y',
       '9',
       '1 x',
@@ -151,10 +147,7 @@ void main() {
   test('T-20-PROV-03: Enter 면 CSV 그대로 · 다시 짜기 없이 같은 실행의 재검사가 ✓ 다', () async {
     replaceJsonString(configPath, enabledProvidersKey, 'kakao');
     final String before = File(configPath).readAsStringSync();
-    final _Harness h = _Harness(root, const <String?>[
-      'y',
-      '',
-    ], isRequested: true);
+    final h = _Harness(root, const <String?>['y', ''], isRequested: true);
 
     final int code = await h.run();
 
@@ -177,7 +170,7 @@ void main() {
     'T-20-PROV-04: CSV 에 모르는 토큰이 있으면 점검표 ✗ · 고른 결과로 고쳐 써 모르는 토큰을 지운다',
     () async {
       replaceJsonString(configPath, enabledProvidersKey, 'kakao,wechat');
-      final _Harness h = _Harness(root, const <String?>['y', '', 'y']);
+      final h = _Harness(root, const <String?>['y', '', 'y']);
 
       final int code = await h.run();
 
@@ -198,7 +191,7 @@ void main() {
 
   group('T-20-PROV-05: 플래그 · 값 표 확인', () {
     test('플래그 없는 실행은 체크 목록을 열지 않고 ✓ 줄에 바꾸는 방법을 보인다', () async {
-      final _Harness h = _Harness(root, const <String?>[]);
+      final h = _Harness(root, const <String?>[]);
 
       final int code = await h.run();
 
@@ -215,7 +208,7 @@ void main() {
 
     test('값 표에서 아니요면 CSV 를 바꾸지 않고 멈춘다', () async {
       final String before = File(configPath).readAsStringSync();
-      final _Harness h = _Harness(root, const <String?>[
+      final h = _Harness(root, const <String?>[
         'y',
         '4',
         'n',

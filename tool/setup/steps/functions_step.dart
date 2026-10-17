@@ -258,7 +258,7 @@ final class FunctionsStep implements Step {
 
   /// 함수 목록 파일을 JSON 객체로 읽는다 — 없거나 모양이 다르면 null.
   static Map<String, Object?>? _readManifest(String projectRoot) {
-    final File file = File('$projectRoot/$manifestPath');
+    final file = File('$projectRoot/$manifestPath');
     if (!file.existsSync()) return null;
     final Object? decoded;
     try {
@@ -272,7 +272,7 @@ final class FunctionsStep implements Step {
   /// [value] 가 빈 문자열 없는 문자열 배열이면 그 목록, 아니면 null.
   static List<String>? _readNames(Object? value) {
     if (value is! List<Object?>) return null;
-    final List<String> names = <String>[
+    final names = <String>[
       for (final Object? name in value)
         if (name is String && name.isNotEmpty) name,
     ];
@@ -306,7 +306,7 @@ final class FunctionsStep implements Step {
 
   /// 공개 호출 추가 결과가 조직 정책 거절인지 판정한다.
   static bool isOrgPolicyRejection(CommandResult result) {
-    final String output = '${result.stdout}\n${result.stderr}';
+    final output = '${result.stdout}\n${result.stderr}';
     return output.contains(failedPreconditionMarker) &&
         output.contains(permittedCustomerMarker);
   }
@@ -365,7 +365,7 @@ final class FunctionsStep implements Step {
         '$manifestPath 에서 공통 함수 목록을 읽지 못했습니다',
       );
     }
-    final List<String> providerFunctions = <String>[];
+    final providerFunctions = <String>[];
     for (final String token in _enabledProviders) {
       final List<String>? names = readProviderFunctions(
         context.projectRoot,
@@ -433,7 +433,7 @@ final class FunctionsStep implements Step {
         '배포된 함수 목록을 읽지 못했습니다 — ${_describeFirstLine(functions)}',
       );
     }
-    final List<String> notDeployed = <String>[
+    final notDeployed = <String>[
       for (final String name in _targets)
         if (!deployed.containsKey(name)) name,
     ];
@@ -564,7 +564,7 @@ final class FunctionsStep implements Step {
     );
     final StepOutcome judged = judgeDeployResult(result);
     if (judged is! Failed) return judged;
-    final String output = '${result.stdout}\n${result.stderr}';
+    final output = '${result.stdout}\n${result.stderr}';
     if (output.contains(invokerBlockedMarker)) {
       return const Failed(orgPolicyFailureSummary);
     }
@@ -644,10 +644,10 @@ final class FunctionsStep implements Step {
     final Map<String, List<DeployedSecret>> deployedSecrets =
         parseDeployedSecrets(functions, _region) ??
         const <String, List<DeployedSecret>>{};
-    final Map<String, int> latestVersions = <String, int>{};
-    int staleCount = 0;
-    for (final String name in providerFunctions) {
-      bool isStale = false;
+    final latestVersions = <String, int>{};
+    var staleCount = 0;
+    for (final name in providerFunctions) {
+      var isStale = false;
       for (final DeployedSecret used
           in deployedSecrets[name] ?? const <DeployedSecret>[]) {
         int? latest = latestVersions[used.secret];
@@ -695,8 +695,8 @@ final class FunctionsStep implements Step {
     WizardContext context,
     Map<String, String?> deployed,
   ) async {
-    final List<String> lackingNames = <String>[];
-    final List<String> lackingServices = <String>[];
+    final lackingNames = <String>[];
+    final lackingServices = <String>[];
     for (final String name in _targets) {
       final String? service = deployed[name];
       if (service == null || service.isEmpty) {
@@ -789,8 +789,7 @@ final class FunctionsStep implements Step {
   ) {
     final List<Object?>? items = _decodeFunctionItems(result);
     if (items == null) return null;
-    final Map<String, List<DeployedSecret>> secrets =
-        <String, List<DeployedSecret>>{};
+    final secrets = <String, List<DeployedSecret>>{};
     for (final Object? item in items) {
       if (item is! Map<String, Object?> || item['region'] != region) continue;
       final Object? id = item['id'];
@@ -838,7 +837,7 @@ final class FunctionsStep implements Step {
 
   /// 명령 결과의 첫 빈 줄 아닌 줄(오류 출력 먼저)을 찾는다 — 없으면 종료 코드.
   static String _describeFirstLine(CommandResult result) {
-    for (final String text in <String>[result.stderr, result.stdout]) {
+    for (final text in <String>[result.stderr, result.stdout]) {
       for (final String line in const LineSplitter().convert(text)) {
         if (line.trim().isNotEmpty) return line.trim();
       }

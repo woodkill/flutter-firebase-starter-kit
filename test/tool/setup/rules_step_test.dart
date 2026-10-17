@@ -127,7 +127,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('rules_step_test_');
     root = tempDir.path;
-    final File config = File('$root/${UserFilesStep.jsonUserPath}')
+    final config = File('$root/${UserFilesStep.jsonUserPath}')
       ..parent.createSync(recursive: true);
     File(UserFilesStep.jsonExamplePath).copySync(config.path);
     replaceJsonString(config.path, 'firebaseProjectId', projectId);
@@ -184,7 +184,7 @@ void main() {
 
   /// 점검표의 rules 단계 사유를 꺼낸다.
   String readChecklistReason(String output) {
-    final String prefix = '  ✗ ${RulesStep.stepTitle} — ';
+    const prefix = '  ✗ ${RulesStep.stepTitle} — ';
     return output
         .split('\n')
         .firstWhere((String line) => line.startsWith(prefix))
@@ -193,8 +193,8 @@ void main() {
 
   test('T-19-RULES-01 두 릴리스의 ruleset 원문이 저장소 파일과 같으면 ✓ · 배포 0', () async {
     final FakeRestClient rest = buildMatchingRest();
-    final FakeCommandRunner runner = FakeCommandRunner();
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final runner = FakeCommandRunner();
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runRulesStep(runner, rest, terminal);
 
@@ -218,7 +218,7 @@ void main() {
     'T-19-RULES-02 Firestore 릴리스가 404 면 ✗ 「배포되지 않았습니다」 · y 뒤 배포 1회 · 재검사 ✓',
     () async {
       // 점검표 · 단계 시작 검사는 404, 배포 뒤 재검사는 릴리스가 있다.
-      final FakeRestClient rest = FakeRestClient()
+      final rest = FakeRestClient()
         ..on('GET', firestoreReleaseUrl, notFound)
         ..on('GET', firestoreReleaseUrl, notFound)
         ..on(
@@ -242,13 +242,13 @@ void main() {
           storageRulesetUrl,
           buildRuleset('storage.rules', storageRules),
         );
-      final FakeCommandRunner runner = FakeCommandRunner()
+      final runner = FakeCommandRunner()
         ..on(deployKey, const CommandResult(0, '+  Deploy complete!\n', ''));
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+      final terminal = ScriptedTerminal(const <String?>['y']);
 
       final int code = await runRulesStep(runner, rest, terminal);
 
-      final String output = terminal.output.toString();
+      final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(readChecklistReason(output), contains('배포되지 않았습니다'));
       expect(output, contains('\$ $deployKey'));
@@ -258,7 +258,7 @@ void main() {
   );
 
   test('T-19-RULES-03 Storage ruleset 원문이 다르면 ✗ 「저장소 파일과 다릅니다」', () async {
-    final FakeRestClient rest = FakeRestClient()
+    final rest = FakeRestClient()
       ..on('GET', bucketUrl, buildBucket())
       ..on(
         'GET',
@@ -283,8 +283,8 @@ void main() {
           "rules_version = '2';\nservice firebase.storage {}\n",
         ),
       );
-    final FakeCommandRunner runner = FakeCommandRunner();
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final runner = FakeCommandRunner();
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runRulesStep(runner, rest, terminal);
 
@@ -297,7 +297,7 @@ void main() {
   });
 
   test('T-19-RULES-04 양쪽 끝 개행 · 공백 차이만 있으면 같은 것으로 본다', () async {
-    final FakeRestClient rest = FakeRestClient()
+    final rest = FakeRestClient()
       ..on('GET', bucketUrl, buildBucket())
       ..on(
         'GET',
@@ -320,8 +320,8 @@ void main() {
         buildRuleset('storage.rules', '\n$storageRules\n\n  '),
       );
     expect(firestoreRules.endsWith('\n'), isTrue);
-    final FakeCommandRunner runner = FakeCommandRunner();
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+    final runner = FakeCommandRunner();
+    final terminal = ScriptedTerminal(const <String?>[]);
 
     final int code = await runRulesStep(runner, rest, terminal);
 
@@ -333,9 +333,9 @@ void main() {
   });
 
   test('T-19-RULES-05 배포가 exit 1 이면 실패 · 원문을 그대로 보인다', () async {
-    const String deployError =
+    const deployError =
         'Error: Request to https://firebaserules.googleapis.com had HTTP Error: 403\n';
-    final FakeRestClient rest = FakeRestClient()
+    final rest = FakeRestClient()
       ..on('GET', bucketUrl, buildBucket())
       ..on('GET', firestoreReleaseUrl, notFound)
       ..on(
@@ -348,13 +348,13 @@ void main() {
         storageRulesetUrl,
         buildRuleset('storage.rules', storageRules),
       );
-    final FakeCommandRunner runner = FakeCommandRunner()
+    final runner = FakeCommandRunner()
       ..on(deployKey, const CommandResult(1, '', deployError));
-    final ScriptedTerminal terminal = ScriptedTerminal(const <String?>['y']);
+    final terminal = ScriptedTerminal(const <String?>['y']);
 
     final int code = await runRulesStep(runner, rest, terminal);
 
-    final String output = terminal.output.toString();
+    final output = terminal.output.toString();
     expect(code, wizardExitStopped);
     expect(output, contains('  실패 — '));
     expect(output, contains(deployError));
@@ -364,9 +364,9 @@ void main() {
   test(
     'T-19-RULES-06 bucket 응답에 이름이 없으면 <p>.firebasestorage.app 릴리스를 찾는다',
     () async {
-      const String fallbackReleaseUrl =
+      const fallbackReleaseUrl =
           'https://firebaserules.googleapis.com/v1/projects/$projectId/releases/firebase.storage/$projectId.firebasestorage.app';
-      final FakeRestClient rest = FakeRestClient()
+      final rest = FakeRestClient()
         ..on(
           'GET',
           bucketUrl,
@@ -395,8 +395,8 @@ void main() {
           storageRulesetUrl,
           buildRuleset('storage.rules', storageRules),
         );
-      final FakeCommandRunner runner = FakeCommandRunner();
-      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[]);
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(const <String?>[]);
 
       final int code = await runRulesStep(runner, rest, terminal);
 

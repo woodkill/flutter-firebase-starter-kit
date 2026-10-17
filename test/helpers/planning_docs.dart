@@ -20,7 +20,7 @@ Object skipUnlessPlanningDocsExist(List<String> paths) {
   if (paths.isEmpty) {
     throw ArgumentError.value(paths, 'paths', '확인할 경로가 최소 1개 필요하다');
   }
-  for (final String path in paths) {
+  for (final path in paths) {
     if (!File(path).existsSync()) {
       return '비공개 작업 일지($path)가 없는 트리(공개 mirror) — 유지보수자 검사 건너뜀';
     }
