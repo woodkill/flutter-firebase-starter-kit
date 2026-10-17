@@ -158,7 +158,12 @@ void main() {
     });
 
     test('인자를 생략하면 기본 seedColor 와 동일한 테마다', () {
-      expect(AppTheme.light() == AppTheme.light(), isTrue);
+      // 기본값과 같은 색을 상수가 아닌 값으로 넘겨 「생략 = 기본 seed」 를 견준다.
+      final explicitSeed = Color(AppTheme.seedColor.toARGB32());
+      expect(
+        AppTheme.light() == AppTheme.light(seedColor: explicitSeed),
+        isTrue,
+      );
     });
   });
 }
