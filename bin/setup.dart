@@ -50,18 +50,26 @@ Future<void> main(List<String> arguments) async {
       'providers',
       help: '로그인 수단 체크 목록을 엽니다 — 켜고 끌 수단을 고릅니다.',
       negatable: false,
+    )
+    ..addOption(
+      'flavor',
+      allowed: <String>[for (final Flavor flavor in Flavor.values) flavor.name],
+      defaultsTo: Flavor.dev.name,
+      help: '설정할 flavor — 그 flavor 의 Firebase 프로젝트에 같은 흐름을 적용합니다.',
     );
 
   final ArgResults results;
   try {
     results = parser.parse(arguments);
   } on FormatException catch (e) {
-    stderr
-      ..writeln('인자 오류: ${e.message}')
-      ..writeln('')
-      ..writeln('사용법: ./setup.sh [옵션]')
-      ..writeln(parser.usage);
-    exitCode = wizardExitStopped;
+    writeArgumentError(parser, e.message);
+    return;
+  }
+  // 허용 값은 parser 가 이미 걸렀다 — 그래도 읽지 못하면 인자 오류로 끝낸다.
+  final String flavorName = results.option('flavor') ?? Flavor.dev.name;
+  final Flavor? flavor = Flavor.tryParse(flavorName);
+  if (flavor == null) {
+    writeArgumentError(parser, '"$flavorName" 은 flavor 가 아닙니다.');
     return;
   }
 
@@ -152,11 +160,12 @@ Future<void> main(List<String> arguments) async {
         redactor: redactor,
         log: log,
         rest: rest,
+        flavor: flavor,
       );
       context.session.isProviderSelectionRequested = results.flag('providers');
       // 로그인 수단을 바꾸면 위저드가 config 를 다시 읽어 단계 목록을 새로 만든다.
       List<Step> buildCurrentSteps() => buildSteps(
-        flavor: Flavor.dev,
+        flavor: flavor,
         enabledProviders: readEnabledProviders(
           context.resolve(context.paths.json),
         ),
@@ -180,6 +189,16 @@ Future<void> main(List<String> arguments) async {
     await log.close();
     exitCode = code;
   }
+}
+
+/// 인자 오류 [message] 와 사용법을 표준 오류에 쓰고 종료 코드를 멈춤(1)으로 둔다.
+void writeArgumentError(ArgParser parser, String message) {
+  stderr
+    ..writeln('인자 오류: $message')
+    ..writeln('')
+    ..writeln('사용법: ./setup.sh [옵션]')
+    ..writeln(parser.usage);
+  exitCode = wizardExitStopped;
 }
 
 /// Ctrl-C 를 받았을 때 터미널을 되돌리고 끝낸다.

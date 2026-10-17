@@ -17,6 +17,21 @@ enum Flavor {
     Flavor.prod => '',
   };
 
+  /// 아직 설정하지 않은 config 의 자리표시 Firebase 프로젝트 ID — example 의
+  /// `firebaseProjectId`(`your-project-<flavor>`)와 같다.
+  String get placeholderProjectId => 'your-project-$name';
+
+  /// 새 Firebase 프로젝트 ID 를 제안할 때 끝에 붙이는 접미사(`-<flavor>`).
+  String get projectIdSuffix => '-$name';
+
+  /// 앱 표시 이름에 붙는 접미사 — example 의 `appName` 꼴과 같다(prod 는 빈
+  /// 문자열).
+  String get displayNameSuffix => switch (this) {
+    Flavor.dev => ' Dev',
+    Flavor.stg => ' Stg',
+    Flavor.prod => '',
+  };
+
   /// [value] 를 flavor 로 읽는다 — 모르는 이름이면 null.
   static Flavor? tryParse(String value) {
     for (final Flavor flavor in Flavor.values) {
