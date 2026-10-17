@@ -620,8 +620,7 @@ void main() {
 
         expect(await step.check(context), isA<Todo>());
         expect(step.plannedCommandLines(context), <String>[
-          '(config/stg.json 의 functionsRegion 을 $sharedRegion 로 씀 — '
-              'Firestore · 추적 리전 파일은 그대로)',
+          '(config/stg.json 의 functionsRegion 을 $sharedRegion 로 씀 — Firestore · 추적 리전 파일은 그대로)',
         ]);
         expect(await step.apply(context), isA<Applied>());
 
@@ -673,8 +672,7 @@ void main() {
       expect(await step.check(context), isA<Todo>());
       expect(step.plannedCommandLines(context), <String>[
         '(위치를 고르고 확인 표 뒤에 아래 명령을 실행합니다)',
-        'gcloud firestore databases create --location=<위치> '
-            '--project $projectId',
+        'gcloud firestore databases create --location=<위치> --project $projectId',
         '(고른 위치가 지금 Functions 리전과 다르면 세 파일의 리전 값을 함께 바꿉니다)',
       ]);
       expect(await step.apply(context), isA<Declined>());

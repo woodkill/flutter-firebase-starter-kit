@@ -442,8 +442,7 @@ Future<_Raster> _decodePngFile(String path) async {
 /// 공식 버튼 그림(Android + Web · 글자 없음 · Square)의 [scale] 배 PNG 경로.
 String _buildOfficialButtonPath(String theme, int scale) {
   final suffix = scale == 1 ? '' : '@${scale}x';
-  return '$_gDir/Android + Web/PNG @${scale}x/$theme/'
-      'Theme=$theme, Show text=No, Shape=Square, Platform=Android+Web$suffix.png';
+  return '$_gDir/Android + Web/PNG @${scale}x/$theme/Theme=$theme, Show text=No, Shape=Square, Platform=Android+Web$suffix.png';
 }
 
 /// [logo] 를 [background] 위에 합성한 그림과 [official] 의 한 칸을 대조한다.
@@ -566,8 +565,7 @@ void main() {
         _countWeightLines(block),
         0,
         reason:
-            '$_gsansFamily 는 굵기 가변 파일 하나다 — weight 줄을 두지 않는다'
-            '(굵기는 파일의 wght 축이 정한다)',
+            '$_gsansFamily 는 굵기 가변 파일 하나다 — weight 줄을 두지 않는다(굵기는 파일의 wght 축이 정한다)',
       );
     });
 

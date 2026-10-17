@@ -76,10 +76,8 @@ final class RunStep implements Step {
   /// 앱을 실행하기 전에 보이는 할 일 안내(마지막 줄은 [quitLine]).
   static const List<String> signUpGuideLines = <String>[
     '  앱에서 할 일 (화면 문구는 기기 언어가 한국어일 때의 문구 · 괄호 안은 영어):',
-    '    1. 첫 안내 화면을 넘기고(「건너뛰기」 Skip) 약관에 동의한 뒤(「전체 동의」 Accept all) '
-        '「시작하기」(Get started)',
-    '    2. 홈 오른쪽 위 「로그인」(Sign in) → 「계정이 없으신가요? 가입하기」'
-        '(No account? Create one) → 이름 · 이메일 · 비밀번호를 넣고 「가입하기」(Create account)',
+    '    1. 첫 안내 화면을 넘기고(「건너뛰기」 Skip) 약관에 동의한 뒤(「전체 동의」 Accept all) 「시작하기」(Get started)',
+    '    2. 홈 오른쪽 위 「로그인」(Sign in) → 「계정이 없으신가요? 가입하기」(No account? Create one) → 이름 · 이메일 · 비밀번호를 넣고 「가입하기」(Create account)',
     '    3. 받은 메일의 인증 링크를 엽니다 — 메일이 보이지 않으면 스팸함을 확인하세요',
     "    4. 앱으로 돌아와 「인증 확인」(I've verified my email)",
     '  $quitLine',
@@ -408,16 +406,13 @@ final class RunStep implements Step {
       buildPubGetCommand().render(),
       buildCodegenCommand().render(),
       buildDevicesCommand().render(),
-      '(iOS · Android 기기만 보여 주고 고르게 합니다 — 기본값은 iOS 시뮬레이터입니다. '
-          '대상이 없으면 아래 명령으로 쓸 수 있는 iPhone 시뮬레이터 하나를 켜고 화면 앱을 '
-          '연 뒤 다시 찾습니다 — 이미 켜진 iPhone 이 있으면 화면 앱만 엽니다)',
+      '(iOS · Android 기기만 보여 주고 고르게 합니다 — 기본값은 iOS 시뮬레이터입니다. 대상이 없으면 아래 명령으로 쓸 수 있는 iPhone 시뮬레이터 하나를 켜고 화면 앱을 연 뒤 다시 찾습니다 — 이미 켜진 iPhone 이 있으면 화면 앱만 엽니다)',
       simulatorListCommand.render(),
       developerDirCommand.render(),
       'xcrun simctl boot <고른 iPhone 시뮬레이터>',
       'open -a <Xcode 의 시뮬레이터 화면 앱>',
       '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
-      'fvm flutter run --flavor ${context.flavor.name} '
-          '--dart-define-from-file=${context.paths.json} -d <고른 기기>',
+      'fvm flutter run --flavor ${context.flavor.name} --dart-define-from-file=${context.paths.json} -d <고른 기기>',
       '(실행이 끝나면 아래 요청으로 인증된 이메일 사용자를 다시 셉니다 — 개수만 보입니다)',
       buildBatchGetRequest(_projectId).displayCurl(),
     ],

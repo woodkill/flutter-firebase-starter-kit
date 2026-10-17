@@ -158,8 +158,7 @@ final class RulesStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _RulesMode.deploy => <String>[
-      '($firestoreRulesPath · firestore.indexes.json · $storageRulesPath 를 '
-          '배포합니다 — 색인도 같은 명령으로 함께 배포됩니다)',
+      '($firestoreRulesPath · firestore.indexes.json · $storageRulesPath 를 배포합니다 — 색인도 같은 명령으로 함께 배포됩니다)',
       buildDeployCommand(_projectId).render(),
     ],
     _RulesMode.requestFailed => <String>['(응답 원문을 보입니다)'],

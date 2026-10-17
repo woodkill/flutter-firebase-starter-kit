@@ -408,8 +408,7 @@ void main() {
   test('T-19-APPCHECK-05 POST 400(한도) 면 실패 · 상태 코드 · 응답 원문', () async {
     writeAppFiles();
     const limitBody =
-        '{"error":{"code":400,"message":"An app can have at most 20 debug tokens.",'
-        '"status":"FAILED_PRECONDITION"}}';
+        '{"error":{"code":400,"message":"An app can have at most 20 debug tokens.","status":"FAILED_PRECONDITION"}}';
     final rest = FakeRestClient()
       ..on('GET', iosTokensUrl, buildTokenList(iosTokensUrl, []))
       ..on('GET', androidTokensUrl, buildTokenList(androidTokensUrl, []))

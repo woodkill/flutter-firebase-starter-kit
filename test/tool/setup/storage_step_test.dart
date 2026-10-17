@@ -229,8 +229,7 @@ void main() {
   test('T-19-BUCKET-05 POST 가 400 이면 실패 · 상태 코드와 응답 원문(가림 적용)을 보인다', () async {
     final String fakeToken = <String>['ya29', '.not-a-real', '-token'].join();
     final errorBody =
-        '{"error":{"code":400,"message":"Invalid location ($fakeToken)",'
-        '"status":"INVALID_ARGUMENT"}}';
+        '{"error":{"code":400,"message":"Invalid location ($fakeToken)","status":"INVALID_ARGUMENT"}}';
     final rest = FakeRestClient()
       ..on('GET', bucketUrl, bucketMissing)
       ..on('POST', bucketUrl, RestResponse(400, errorBody));
@@ -290,8 +289,7 @@ void main() {
     expect(
       countOccurrences(
         output,
-        'curl -s -X POST "https://firebasestorage.googleapis.com/v1alpha/'
-        'projects/p/defaultBucket"',
+        'curl -s -X POST "https://firebasestorage.googleapis.com/v1alpha/projects/p/defaultBucket"',
       ),
       1,
     );

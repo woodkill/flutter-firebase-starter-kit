@@ -192,8 +192,7 @@ final class IdentityStep implements Step {
     return switch (_mode) {
       _IdentityMode.full => <String>[
         '(org · name 을 묻고 미리보기와 확인 표를 보인 뒤 아래와 같은 일을 합니다)',
-        'fvm dart run bin/rename.dart --org <org> --name <name> '
-            '--project-prefix <prefix> --apply --yes',
+        'fvm dart run bin/rename.dart --org <org> --name <name> --project-prefix <prefix> --apply --yes',
         ...displayNameLines,
       ],
       _IdentityMode.displayNameOnly => <String>[

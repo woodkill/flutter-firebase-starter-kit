@@ -354,8 +354,7 @@ final class FunctionsStep implements Step {
     if (region == null) {
       return _mark(
         _FunctionsMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 Functions 리전'
-        '(${FirestoreStep.functionsRegionKey})을 읽지 못했습니다',
+        '${UserFilesStep.jsonUserPath} 에서 Functions 리전(${FirestoreStep.functionsRegionKey})을 읽지 못했습니다',
       );
     }
     final List<String>? common = readCommonFunctions(context.projectRoot);
@@ -414,8 +413,7 @@ final class FunctionsStep implements Step {
         <String>[
           if (_isModuleMissing) 'Functions 의존성이 설치되지 않았습니다',
           if (_missingSecrets.isNotEmpty)
-            'secret ${_missingSecrets.length}개가 없습니다 '
-                '(${_missingSecrets.join(' · ')})',
+            'secret ${_missingSecrets.length}개가 없습니다 (${_missingSecrets.join(' · ')})',
         ].join(' · '),
       );
     }
@@ -474,25 +472,20 @@ final class FunctionsStep implements Step {
     _FunctionsMode.deploy => <String>[
       if (_isModuleMissing) buildInstallCommand().render(),
       if (_missingSecrets.isNotEmpty)
-        '(없는 secret 만 자리표시 값 $secretPlaceholder 으로 만듭니다 — 이미 있는 '
-            'secret 의 값은 읽거나 바꾸지 않습니다)',
+        '(없는 secret 만 자리표시 값 $secretPlaceholder 으로 만듭니다 — 이미 있는 secret 의 값은 읽거나 바꾸지 않습니다)',
       for (final String name in _missingSecrets)
         buildSecretSetCommand(name, _projectId).render(),
       buildDeployCommand().render(),
-      '(배포 대상은 $manifestPath 의 공통 함수와 ${UserFilesStep.jsonUserPath} 의 '
-          'enabledAuthProviders 가 켠 로그인 수단의 함수입니다)',
-      '(함수는 배포됐는데 컨테이너 이미지 정리 정책이 없어 배포 명령이 실패로 끝나면 '
-          '정책을 만들고(보관 기간은 Firebase CLI 기본값) 한 번 더 배포합니다)',
-      '(배포 뒤 공개 호출($invokerMember · $invokerRole)이 빠진 공통 함수가 있으면 '
-          '붙입니다 — 조직 정책이 막으면 안내합니다)',
+      '(배포 대상은 $manifestPath 의 공통 함수와 ${UserFilesStep.jsonUserPath} 의 enabledAuthProviders 가 켠 로그인 수단의 함수입니다)',
+      '(함수는 배포됐는데 컨테이너 이미지 정리 정책이 없어 배포 명령이 실패로 끝나면 정책을 만들고(보관 기간은 Firebase CLI 기본값) 한 번 더 배포합니다)',
+      '(배포 뒤 공개 호출($invokerMember · $invokerRole)이 빠진 공통 함수가 있으면 붙입니다 — 조직 정책이 막으면 안내합니다)',
     ],
     _FunctionsMode.redeploy => <String>[
       buildDeployCommand().render(),
       redeployNote,
     ],
     _FunctionsMode.bind => <String>[
-      '(앱이 함수를 부를 수 있게 공개 호출($invokerMember · $invokerRole)을 '
-          '붙입니다 — 로그인 · App Check 는 함수 안에서 따로 검사합니다)',
+      '(앱이 함수를 부를 수 있게 공개 호출($invokerMember · $invokerRole)을 붙입니다 — 로그인 · App Check 는 함수 안에서 따로 검사합니다)',
       for (final String service in _lackingServices)
         buildInvokerBindingCommand(service, _region, _projectId).render(),
     ],
@@ -741,8 +734,7 @@ final class FunctionsStep implements Step {
     final String? lastLine = findLastOutputLine(result.stdout);
     if (lastLine == null || !deployOkPattern.hasMatch(lastLine)) {
       return Failed(
-        '배포 스크립트의 마지막 줄이 배포 완료 줄'
-        '(DEPLOY OK dev functions=<개수> batches=<묶음 수>)이 아닙니다',
+        '배포 스크립트의 마지막 줄이 배포 완료 줄(DEPLOY OK dev functions=<개수> batches=<묶음 수>)이 아닙니다',
         result: result,
       );
     }

@@ -336,8 +336,7 @@ void main() {
 
   test('T-19-SIGNIN-06 GET 이 403 이면 사유 HTTP 403 · y 뒤 실패 · 초기화 경로 0', () async {
     const denied =
-        '{"error":{"code":403,"message":"The caller does not have permission",'
-        '"status":"PERMISSION_DENIED"}}';
+        '{"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}';
     final rest = FakeRestClient()
       ..on('GET', configUrl, const RestResponse(403, denied));
     final runner = FakeCommandRunner();

@@ -1064,10 +1064,8 @@ void main() {
           if (call.key.startsWith('firebase functions:secrets:set ')) call,
       ];
       expect(writes.map((FakeCall call) => call.key), <String>[
-        'firebase functions:secrets:set $kakaoNativeSecret --project '
-            '$projectId --data-file -',
-        'firebase functions:secrets:set $kakaoAdminSecret --project '
-            '$projectId --data-file -',
+        'firebase functions:secrets:set $kakaoNativeSecret --project $projectId --data-file -',
+        'firebase functions:secrets:set $kakaoAdminSecret --project $projectId --data-file -',
       ]);
       expect(writes.map((FakeCall call) => call.stdinText), <String>[
         nativeKey,

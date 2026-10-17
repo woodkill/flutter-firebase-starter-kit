@@ -190,11 +190,9 @@ final class ConfigureStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _ConfigureMode.run => <String>[
-      '(실행 전에 $pbxprojPath · $firebaseJsonPath 의 커밋하지 않은 변경을 봅니다 — '
-          '앱 정체성 단계가 바꾼 번들 ID 줄만 있으면 그대로 진행합니다)',
+      '(실행 전에 $pbxprojPath · $firebaseJsonPath 의 커밋하지 않은 변경을 봅니다 — 앱 정체성 단계가 바꾼 번들 ID 줄만 있으면 그대로 진행합니다)',
       buildConfigureCommand().render(),
-      '(FlutterFire CLI 가 Firebase 에 iOS · Android 앱을 등록하고 설정 파일 3개를 '
-          '만듭니다 — 생성 파일은 skip-worktree 로 커밋 대상에서 빠집니다)',
+      '(FlutterFire CLI 가 Firebase 에 iOS · Android 앱을 등록하고 설정 파일 3개를 만듭니다 — 생성 파일은 skip-worktree 로 커밋 대상에서 빠집니다)',
     ],
     _ConfigureMode.listFailed => <String>['(명령의 오류 원문을 보입니다)'],
     _ConfigureMode.unreadable || _ConfigureMode.done => const <String>[],

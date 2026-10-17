@@ -300,9 +300,7 @@ void main() {
       });
 
       testWidgets(
-        'T-16.4-NAVER-BANNER-02: Naver 로그인 취소(null, D-45 silent cancel) '
-        '시 FormErrorBanner.exception 은 null — 이 테스트는 실기기 취소 측정'
-        '(WINDOWS.md row 6)을 대체하지 않는 방어 계층이다',
+        'T-16.4-NAVER-BANNER-02: Naver 로그인 취소(null, D-45 silent cancel) 시 FormErrorBanner.exception 은 null — 이 테스트는 실기기 취소 측정(WINDOWS.md row 6)을 대체하지 않는 방어 계층이다',
         (tester) async {
           when(() => mockRepo.signInWithNaver()).thenAnswer((_) async => null);
 

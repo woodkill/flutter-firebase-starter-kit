@@ -190,21 +190,14 @@ final class FirebaseProjectStep implements Step {
   /// 기다려 그 자리에서 다시 검사한다. 콘솔 라벨은 「」 로 감싼 화면 원문이다.
   /// 애널리틱스를 켜 둔 채 진행할 때 나오는 약관 체크도 함께 안내한다.
   static String buildAddFirebaseGuide(String projectId) => <String>[
-    '  Firebase 를 추가하지 못했습니다 — 처음 쓰는 Google 계정이면 Firebase 콘솔에서 '
-        '이 프로젝트에 Firebase 를 추가하면서 약관에 동의해야 합니다.',
+    '  Firebase 를 추가하지 못했습니다 — 처음 쓰는 Google 계정이면 Firebase 콘솔에서 이 프로젝트에 Firebase 를 추가하면서 약관에 동의해야 합니다.',
     '  브라우저에서 아래를 차례로 진행하세요:',
     '    1. $firebaseConsoleUrl 을 엽니다',
-    '    2. 「Firebase 프로젝트를 설정하여 시작하기」 를 누르고, 기존 Google Cloud '
-        '프로젝트에 Firebase 를 추가하는 메뉴로 갑니다',
+    '    2. 「Firebase 프로젝트를 설정하여 시작하기」 를 누르고, 기존 Google Cloud 프로젝트에 Firebase 를 추가하는 메뉴로 갑니다',
     '    3. 프로젝트 목록에서 $projectId 를 고르고 약관에 동의합니다',
-    '    4. 「Google Cloud 프로젝트에 Firebase를 추가할 때 유의해야 할 사항」 화면에서 '
-        '「계속」 을 누릅니다',
-    '    5. 「Firebase 프로젝트를 위한 Google 애널리틱스」 화면은 켜든 끄든 위저드 '
-        '진행과 관계없습니다',
-    '    6. 「이 프로젝트에서 Google 애널리틱스 사용 설정」 을 켜 둔 채(기본값) '
-        '진행하면 「Google 애널리틱스 구성」 화면에서 '
-        '「Google 애널리틱스 약관에 동의합니다.」 를 체크해야 「Firebase 추가」 를 '
-        '누를 수 있습니다',
+    '    4. 「Google Cloud 프로젝트에 Firebase를 추가할 때 유의해야 할 사항」 화면에서 「계속」 을 누릅니다',
+    '    5. 「Firebase 프로젝트를 위한 Google 애널리틱스」 화면은 켜든 끄든 위저드 진행과 관계없습니다',
+    '    6. 「이 프로젝트에서 Google 애널리틱스 사용 설정」 을 켜 둔 채(기본값) 진행하면 「Google 애널리틱스 구성」 화면에서 「Google 애널리틱스 약관에 동의합니다.」 를 체크해야 「Firebase 추가」 를 누를 수 있습니다',
     '    7. 「Firebase 프로젝트가 준비되었습니다.」 가 보일 때까지 진행합니다',
     '  다 끝내고 Enter 를 누르면 위저드가 $projectId 를 다시 확인합니다.',
   ].join('\n');
@@ -281,8 +274,7 @@ final class FirebaseProjectStep implements Step {
       ],
       _ProjectMode.addFirebase => <String>[
         buildAddFirebaseCommand(_projectId).render(),
-        '(이 Google Cloud 프로젝트에 Firebase 를 추가합니다 — 되돌릴 수 없어 실행 전에 '
-            '확인 표를 보이고, 실패하면 콘솔에서 할 일을 보입니다)',
+        '(이 Google Cloud 프로젝트에 Firebase 를 추가합니다 — 되돌릴 수 없어 실행 전에 확인 표를 보이고, 실패하면 콘솔에서 할 일을 보입니다)',
       ],
       _ProjectMode.writeAliases => <String>[
         '($firebasercPath 의 $aliases 를 $_projectId 로 씀)',

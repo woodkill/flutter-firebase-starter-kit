@@ -72,30 +72,31 @@ void main() {
       },
     );
 
-    test('Test 2: GoRoute 14개 등록 · 최상위 8 (home/splash/onboarding/login/'
-        'emailLogin/signup/forgotPassword/verifyEmail/termsService/termsPrivacy/'
-        'settings/withdrawalDisconnect/account/developerDemo)', () {
-      final container = makeContainer();
-      addTearDown(container.dispose);
+    test(
+      'Test 2: GoRoute 14개 등록 · 최상위 8 (home/splash/onboarding/login/emailLogin/signup/forgotPassword/verifyEmail/termsService/termsPrivacy/settings/withdrawalDisconnect/account/developerDemo)',
+      () {
+        final container = makeContainer();
+        addTearDown(container.dispose);
 
-      final router = container.read(appRouterProvider);
-      // Phase 16 D-05 — /settings route 추가로 9 → 10.
-      // Phase 16.1 — /login/email route 추가로 10 → 11.
-      // Phase 16.10 — /settings/withdraw 추가로 11 → 12.
-      // Phase 17.1 — /settings/account 추가로 12 → 13.
-      // Phase 17.1 — /settings/developer(!kReleaseMode) 추가로 13 → 14 (release 빌드는 13).
-      // Phase 17.2 — 홈 하위 중첩(todo 결정 1): 최상위 14 → 8 · 재귀 14 (release 빌드는 재귀 13).
-      expect(
-        router.configuration.routes.length,
-        8,
-        reason: '최상위 = home + 흐름 화면 7 (설정 · 약관은 홈 하위)',
-      );
-      expect(
-        collectGoRoutes(router.configuration.routes).length,
-        14,
-        reason: '재귀 14',
-      );
-    });
+        final router = container.read(appRouterProvider);
+        // Phase 16 D-05 — /settings route 추가로 9 → 10.
+        // Phase 16.1 — /login/email route 추가로 10 → 11.
+        // Phase 16.10 — /settings/withdraw 추가로 11 → 12.
+        // Phase 17.1 — /settings/account 추가로 12 → 13.
+        // Phase 17.1 — /settings/developer(!kReleaseMode) 추가로 13 → 14 (release 빌드는 13).
+        // Phase 17.2 — 홈 하위 중첩(todo 결정 1): 최상위 14 → 8 · 재귀 14 (release 빌드는 재귀 13).
+        expect(
+          router.configuration.routes.length,
+          8,
+          reason: '최상위 = home + 흐름 화면 7 (설정 · 약관은 홈 하위)',
+        );
+        expect(
+          collectGoRoutes(router.configuration.routes).length,
+          14,
+          reason: '재귀 14',
+        );
+      },
+    );
 
     test('Test 3: 모든 GoRoute 에 name 이 설정됨 (Pitfall 1)', () {
       final container = makeContainer();

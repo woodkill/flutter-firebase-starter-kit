@@ -426,9 +426,7 @@ void main() {
         triggerRecorder.count,
         greaterThanOrEqualTo(1),
         reason:
-            'Issue #7 C-3 — reloadForUser 완료 후 authRefreshProvider.'
-            'triggerRedirect() 가 최소 1회 호출되어야 GoRouter 가 stale '
-            '가드를 벗어날 수 있다',
+            'Issue #7 C-3 — reloadForUser 완료 후 authRefreshProvider.triggerRedirect() 가 최소 1회 호출되어야 GoRouter 가 stale 가드를 벗어날 수 있다',
       );
     });
 

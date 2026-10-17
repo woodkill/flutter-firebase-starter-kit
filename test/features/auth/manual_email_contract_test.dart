@@ -151,15 +151,13 @@ const List<String> _deliverySubsections = <String>[
 
 /// 「인증 메일 발송 모드 켜고 끄기」 절에 정확한 줄로 있어야 하는 명령.
 const List<String> _deliveryCommandLines = <String>[
-  'cp extensions/firestore-send-email.env.example '
-      'extensions/firestore-send-email.env.<your-project-id>',
+  'cp extensions/firestore-send-email.env.example extensions/firestore-send-email.env.<your-project-id>',
   'bash scripts/deploy_email.sh dev kit',
   'bash scripts/deploy_email.sh dev kit --apply',
   'bash scripts/deploy_functions.sh dev',
   _functionsApplyCommandLine,
   'fvm flutter run --flavor dev --dart-define-from-file=config/dev.json',
-  'firebase functions:delete sendVerificationMail sendPasswordResetMail '
-      '--region asia-northeast3 --project <your-project-id>',
+  'firebase functions:delete sendVerificationMail sendPasswordResetMail --region asia-northeast3 --project <your-project-id>',
 ];
 
 /// mail 컬렉션 TTL 정책 명령 — 매뉴얼 전체에 정확히 한 줄이다.

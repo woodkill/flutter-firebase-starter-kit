@@ -322,13 +322,11 @@ abstract class KeyedProviderStep implements Step {
     _KeyedMode.fill || _KeyedMode.duplicate => <String>[
       '(${entry.displayName} 콘솔에 넣을 값 · 할 일을 보입니다)',
       if (_askFields.isNotEmpty)
-        '(콘솔에서 받은 키를 묻습니다 — 비밀 값은 화면에 보이지 않게 받고, '
-            '형식 · 서버 확인 뒤에 기록합니다)',
+        '(콘솔에서 받은 키를 묻습니다 — 비밀 값은 화면에 보이지 않게 받고, 형식 · 서버 확인 뒤에 기록합니다)',
       ..._buildWriteLines(context),
     ],
     _KeyedMode.align => <String>[
-      '(${entry.displayName} — config 값으로 맞출 자리 이름을 보입니다 · '
-          '키는 묻지 않습니다)',
+      '(${entry.displayName} — config 값으로 맞출 자리 이름을 보입니다 · 키는 묻지 않습니다)',
       ..._buildWriteLines(context),
     ],
     _KeyedMode.failed => <String>['(명령 원문을 보입니다)'],

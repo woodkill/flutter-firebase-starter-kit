@@ -273,24 +273,20 @@ final class FirestoreStep implements Step {
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _FirestoreMode.create => <String>[
       '(위치를 고르고 확인 표 뒤에 아래 명령을 실행합니다)',
-      'gcloud firestore databases create --location=<위치> '
-          '--project $_projectId',
+      'gcloud firestore databases create --location=<위치> --project $_projectId',
       '(고른 위치가 지금 Functions 리전과 다르면 세 파일의 리전 값을 함께 바꿉니다)',
     ],
     _FirestoreMode.alignRegion => <String>[
       '(Firestore 는 그대로 두고 Functions 리전을 골라 세 파일에 같은 값을 씁니다)',
     ],
     _FirestoreMode.createShared => <String>[
-      '(위치를 묻지 않고 $regionTsPath 의 REGION ${_regions!.regionTs} 을 '
-          '씁니다 — 확인 표 뒤에 아래 명령을 실행합니다)',
+      '(위치를 묻지 않고 $regionTsPath 의 REGION ${_regions!.regionTs} 을 씁니다 — 확인 표 뒤에 아래 명령을 실행합니다)',
       buildCreateCommand(_regions!.regionTs, _projectId).render(),
       if (_regions!.config != _regions!.regionTs)
-        '(${context.paths.json} 의 $functionsRegionKey 를 '
-            '${_regions!.regionTs} 로 씀)',
+        '(${context.paths.json} 의 $functionsRegionKey 를 ${_regions!.regionTs} 로 씀)',
     ],
     _FirestoreMode.alignConfigOnly => <String>[
-      '(${context.paths.json} 의 $functionsRegionKey 을 ${_regions!.regionTs} 로 '
-          '씀 — Firestore · 추적 리전 파일은 그대로)',
+      '(${context.paths.json} 의 $functionsRegionKey 을 ${_regions!.regionTs} 로 씀 — Firestore · 추적 리전 파일은 그대로)',
     ],
     _FirestoreMode.lookupFailed => <String>[
       '(${buildDescribeCommand(_projectId).render()} 의 오류를 보입니다)',

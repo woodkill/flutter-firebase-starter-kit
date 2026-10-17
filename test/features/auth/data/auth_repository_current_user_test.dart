@@ -221,42 +221,44 @@ void main() {
       expect(container.read(currentUserProvider), isNull);
     });
 
-    test('2. Firebase providerData=[google.com] + Firestore linkedProviders='
-        '[{kakao}, {google.com}] → providerIds 합집합 + 중복 제거', () async {
-      const uid = 'uid-merge';
-      final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
-      final snap = _buildSnapshot(
-        exists: true,
-        data: <String, dynamic>{
-          'linkedProviders': <Map<String, dynamic>>[
-            {'providerId': 'kakao', 'providerUserId': '12345'},
-            {'providerId': 'google.com', 'providerUserId': 'gid'},
+    test(
+      '2. Firebase providerData=[google.com] + Firestore linkedProviders=[{kakao}, {google.com}] → providerIds 합집합 + 중복 제거',
+      () async {
+        const uid = 'uid-merge';
+        final fbUser = _buildFbUser(uid: uid, providerIds: ['google.com']);
+        final snap = _buildSnapshot(
+          exists: true,
+          data: <String, dynamic>{
+            'linkedProviders': <Map<String, dynamic>>[
+              {'providerId': 'kakao', 'providerUserId': '12345'},
+              {'providerId': 'google.com', 'providerUserId': 'gid'},
+            ],
+          },
+        );
+        final firestore = _buildFirestore(
+          uid: uid,
+          snapshots: Stream<_MockDocumentSnapshot>.value(snap),
+        );
+
+        final container = _makeContainer(
+          overrides: [
+            authStateProvider.overrideWith(
+              (ref) => Stream<fb.User?>.value(fbUser),
+            ),
+            firebaseFirestoreProvider.overrideWithValue(firestore),
           ],
-        },
-      );
-      final firestore = _buildFirestore(
-        uid: uid,
-        snapshots: Stream<_MockDocumentSnapshot>.value(snap),
-      );
+        );
+        addTearDown(container.dispose);
 
-      final container = _makeContainer(
-        overrides: [
-          authStateProvider.overrideWith(
-            (ref) => Stream<fb.User?>.value(fbUser),
-          ),
-          firebaseFirestoreProvider.overrideWithValue(firestore),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await _settle();
-      final user = container.read(currentUserProvider);
-      expect(user, isNotNull);
-      // 합집합: google.com (Firebase) ∪ {kakao, google.com} (Firestore)
-      // → {google.com, kakao} (Set 기반 중복 제거).
-      expect(user!.providerIds.toSet(), {'google.com', 'kakao'});
-      expect(user.providerIds.length, 2, reason: '중복 제거 검증');
-    });
+        await _settle();
+        final user = container.read(currentUserProvider);
+        expect(user, isNotNull);
+        // 합집합: google.com (Firebase) ∪ {kakao, google.com} (Firestore)
+        // → {google.com, kakao} (Set 기반 중복 제거).
+        expect(user!.providerIds.toSet(), {'google.com', 'kakao'});
+        expect(user.providerIds.length, 2, reason: '중복 제거 검증');
+      },
+    );
 
     test(
       '3. Firestore 문서 미존재 (exists=false) → Firebase providerData 만 사용',

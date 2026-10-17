@@ -70,21 +70,9 @@ const String _thirdPartyTitle =
 
 /// MIT 본문 3단락 (GitHub 라이선스 템플릿 원문 그대로 · 80열 줄바꿈).
 const List<String> _mitParagraphs = <String>[
-  'Permission is hereby granted, free of charge, to any person obtaining a copy\n'
-      'of this software and associated documentation files (the "Software"), to deal\n'
-      'in the Software without restriction, including without limitation the rights\n'
-      'to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n'
-      'copies of the Software, and to permit persons to whom the Software is\n'
-      'furnished to do so, subject to the following conditions:',
-  'The above copyright notice and this permission notice shall be included in all\n'
-      'copies or substantial portions of the Software.',
-  'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
-      'IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n'
-      'FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n'
-      'AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n'
-      'LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n'
-      'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n'
-      'SOFTWARE.',
+  'Permission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the "Software"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:',
+  'The above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.',
+  'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.',
 ];
 
 /// MIT 본문 단락마다 첫 문구 (등장 횟수 단언용).

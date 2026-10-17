@@ -81,8 +81,7 @@ final class ProvidersStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _ProvidersMode.choose => <String>[
-      '(체크 목록에서 고른 결과를 ${context.paths.json} 의 $enabledProvidersKey 에 '
-          '씁니다 — 바뀌면 단계 목록을 다시 만듭니다)',
+      '(체크 목록에서 고른 결과를 ${context.paths.json} 의 $enabledProvidersKey 에 씁니다 — 바뀌면 단계 목록을 다시 만듭니다)',
     ],
     _ProvidersMode.unreadable || _ProvidersMode.done => const <String>[],
   };

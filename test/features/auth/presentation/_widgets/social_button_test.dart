@@ -207,8 +207,7 @@ void main() {
     // assertion 을 "Opacity.opacity 가 모두 1.0" 으로 정정하여 두 개념을
     // 양립.
     testWidgets(
-      'T-13.2-FACEBOOK-DELEGATION-01: Facebook 분기 → BrandedSocialButton'
-      '.facebook 위임 + 활성 시 caller-side dim 0 (R7 acceptance)',
+      'T-13.2-FACEBOOK-DELEGATION-01: Facebook 분기 → BrandedSocialButton.facebook 위임 + 활성 시 caller-side dim 0 (R7 acceptance)',
       (tester) async {
         const strategy = _FakeStrategy(
           kProviderIdFacebook,
@@ -242,9 +241,7 @@ void main() {
             op.opacity,
             1.0,
             reason:
-                'Phase 13.2 R7 — 활성 상태에서 caller-side 또는 widget-'
-                'internal dim 0. CR-01 fix 의 disabled cue Opacity 는 '
-                'isDisabled=true 시에만 < 1.0.',
+                'Phase 13.2 R7 — 활성 상태에서 caller-side 또는 widget-internal dim 0. CR-01 fix 의 disabled cue Opacity 는 isDisabled=true 시에만 < 1.0.',
           );
         }
         final ignorePointerFinder = find.descendant(

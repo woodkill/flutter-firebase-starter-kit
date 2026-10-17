@@ -123,8 +123,7 @@ const List<String> _subsectionHeadings = <String>[
 
 /// `### 확인 방법` 소절에 있어야 하는 키를 비운 빌드 확인 명령 · 성공 줄.
 const List<String> _placeholderBuildPhrases = <String>[
-  'bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> '
-      '[off|google|all]',
+  'bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|google|all]',
   'PLACEHOLDER-BUILD-OK <platform> <flavor> <case>',
 ];
 
@@ -134,9 +133,7 @@ const List<String> _requiredSectionPhrases = <String>[
   '자동 서명이면 Xcode 가 켠다',
   'com.apple.developer.applesignin',
   '시뮬레이터 빌드에는 영향이 없다',
-  'Apps that use a third-party or social login service (such as Facebook '
-      'Login, Google Sign-In, Log in with X, Sign In with LinkedIn, Login '
-      'with Amazon, or WeChat Login) to set up or authenticate the user',
+  'Apps that use a third-party or social login service (such as Facebook Login, Google Sign-In, Log in with X, Sign In with LinkedIn, Login with Amazon, or WeChat Login) to set up or authenticate the user',
   'the login service limits data collection to the user',
   'https://developer.apple.com/app-store/review/guidelines/#login-services',
   'RC Kill Switch 운영 절차',

@@ -174,12 +174,9 @@ final class AppCheckStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _AppCheckMode.create => <String>[
-      '(UUID4 디버그 토큰을 위저드 안에서 만들고, 두 앱의 옛 항목을 지운 뒤 '
-          '${UserFilesStep.jsonUserPath} 의 $tokenKey 에 씁니다 — '
-          '외부 명령을 부르지 않습니다)',
+      '(UUID4 디버그 토큰을 위저드 안에서 만들고, 두 앱의 옛 항목을 지운 뒤 ${UserFilesStep.jsonUserPath} 의 $tokenKey 에 씁니다 — 외부 명령을 부르지 않습니다)',
       for (final _App app in _apps) ...<String>[
-        '(${app.label} 앱: 목록에서 표시 이름 $displayName 인 옛 항목을 지운 뒤 '
-            '새 토큰을 등록합니다)',
+        '(${app.label} 앱: 목록에서 표시 이름 $displayName 인 옛 항목을 지운 뒤 새 토큰을 등록합니다)',
         buildListRequest(_projectId, app.appId).displayCurl(),
         buildCreateRequest(_projectId, app.appId, '').displayCurl(),
       ],

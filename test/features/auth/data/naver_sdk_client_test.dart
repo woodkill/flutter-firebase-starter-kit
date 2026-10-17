@@ -368,8 +368,7 @@ void main() {
         // iOS SDK 원문 — 플러그인이 감싸기 전의 문자열.
         'User canceled the request.',
         // 네트워크 오류(-999 cancelled) 가 섞여 들어오는 경로.
-        'Network error. Detailed error description: '
-            'Error Domain=NSURLErrorDomain Code=-999 "cancelled"',
+        'Network error. Detailed error description: Error Domain=NSURLErrorDomain Code=-999 "cancelled"',
       ];
 
       for (final message in nonCancelMessages) {

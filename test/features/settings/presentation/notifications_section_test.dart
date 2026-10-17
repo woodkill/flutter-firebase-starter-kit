@@ -288,43 +288,46 @@ void main() {
       expect(find.byType(SwitchListTile), findsOneWidget);
     });
 
-    testWidgets('T-17-NOTIF-05: E4 error — 읽기 실패 시 오류 배너'
-        '(errorNotificationsUpdateFailed) + 「재시도」 → 다시 읽는다', (tester) async {
-      var builds = 0;
-      await _pumpSettings(
-        tester,
-        notifier: _FakeNotificationSettings(
-          initial: () async {
-            builds++;
-            if (builds == 1) throw const NotificationSettingsUpdateException();
-            return false;
-          },
-        ),
-      );
+    testWidgets(
+      'T-17-NOTIF-05: E4 error — 읽기 실패 시 오류 배너(errorNotificationsUpdateFailed) + 「재시도」 → 다시 읽는다',
+      (tester) async {
+        var builds = 0;
+        await _pumpSettings(
+          tester,
+          notifier: _FakeNotificationSettings(
+            initial: () async {
+              builds++;
+              if (builds == 1)
+                throw const NotificationSettingsUpdateException();
+              return false;
+            },
+          ),
+        );
 
-      expect(find.byType(ErrorBanner), findsOneWidget);
-      expect(find.text(l10n.errorNotificationsUpdateFailed), findsOneWidget);
-      expect(find.byType(SwitchListTile), findsNothing);
-      // UI-SPEC §(N) — 오류 표시(배너 · 재시도)만 좌우 lg 안쪽 (리뷰 IN-17 —
-      // errorPadding 으로 옮겨도 기하가 같다).
-      final section = tester.getRect(find.byType(NotificationsSection));
-      final banner = tester.getRect(find.byType(ErrorBanner));
-      final retryButton = tester.getRect(find.byType(TextButton));
-      final lg = const AppSpacing().lg;
-      expect(banner.left - section.left, lg);
-      expect(section.right - banner.right, lg);
-      expect(retryButton.left - section.left, lg);
+        expect(find.byType(ErrorBanner), findsOneWidget);
+        expect(find.text(l10n.errorNotificationsUpdateFailed), findsOneWidget);
+        expect(find.byType(SwitchListTile), findsNothing);
+        // UI-SPEC §(N) — 오류 표시(배너 · 재시도)만 좌우 lg 안쪽 (리뷰 IN-17 —
+        // errorPadding 으로 옮겨도 기하가 같다).
+        final section = tester.getRect(find.byType(NotificationsSection));
+        final banner = tester.getRect(find.byType(ErrorBanner));
+        final retryButton = tester.getRect(find.byType(TextButton));
+        final lg = const AppSpacing().lg;
+        expect(banner.left - section.left, lg);
+        expect(section.right - banner.right, lg);
+        expect(retryButton.left - section.left, lg);
 
-      final retry = find.text(l10n.commonRetry);
-      await tester.ensureVisible(retry);
-      await tester.pumpAndSettle();
-      await tester.tap(retry);
-      await tester.pumpAndSettle();
+        final retry = find.text(l10n.commonRetry);
+        await tester.ensureVisible(retry);
+        await tester.pumpAndSettle();
+        await tester.tap(retry);
+        await tester.pumpAndSettle();
 
-      expect(builds, 2);
-      expect(find.byType(ErrorBanner), findsNothing);
-      expect(find.byType(SwitchListTile), findsOneWidget);
-    });
+        expect(builds, 2);
+        expect(find.byType(ErrorBanner), findsNothing);
+        expect(find.byType(SwitchListTile), findsOneWidget);
+      },
+    );
   });
 
   group('Phase 17.1 게스트 설정 알림 숨김 (T-171-SETTINGS-09)', () {

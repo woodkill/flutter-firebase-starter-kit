@@ -35,8 +35,7 @@ final class UserFilesStep implements Step {
 
   /// 새 flavor 의 체크 목록 앞에 보이는 안내 한 줄.
   static const String newFlavorProvidersNotice =
-      'dev 에서 켠 로그인 수단을 미리 골라 두었습니다 — 키는 복사하지 않습니다'
-      '(flavor 마다 새 콘솔 앱).';
+      'dev 에서 켠 로그인 수단을 미리 골라 두었습니다 — 키는 복사하지 않습니다(flavor 마다 새 콘솔 앱).';
 
   /// [jsonPath] 사용자 JSON 을 읽지 못했을 때의 사유를 만든다.
   static String describeUnreadableJson(String jsonPath) =>
@@ -69,8 +68,7 @@ final class UserFilesStep implements Step {
       if (_state.missingJsonKeys.isNotEmpty)
         '${paths.json} 에 빠진 키: ${_state.missingJsonKeys.join(', ')}',
       if (_state.missingXcconfigVars.isNotEmpty)
-        '${paths.xcconfig} 에 빠진 변수: '
-            '${_state.missingXcconfigVars.join(', ')}',
+        '${paths.xcconfig} 에 빠진 변수: ${_state.missingXcconfigVars.join(', ')}',
     ];
     if (problems.isEmpty) {
       return Done('${paths.json} · ${paths.xcconfig} 에 example 의 키가 모두 있음');
@@ -89,11 +87,9 @@ final class UserFilesStep implements Step {
       if (!_state.hasXcconfigUser)
         'cp ${paths.xcconfigExample} ${paths.xcconfig}',
       if (_state.missingJsonKeys.isNotEmpty)
-        '(${paths.json} 에 빠진 키 추가 (example 값): '
-            '${_state.missingJsonKeys.join(', ')})',
+        '(${paths.json} 에 빠진 키 추가 (example 값): ${_state.missingJsonKeys.join(', ')})',
       if (_state.missingXcconfigVars.isNotEmpty)
-        '(${paths.xcconfig} 에 빠진 변수 추가 (example 값): '
-            '${_state.missingXcconfigVars.join(', ')})',
+        '(${paths.xcconfig} 에 빠진 변수 추가 (example 값): ${_state.missingXcconfigVars.join(', ')})',
     ];
   }
 

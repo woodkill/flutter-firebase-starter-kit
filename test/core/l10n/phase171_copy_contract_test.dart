@@ -56,8 +56,7 @@ final List<_CopyRow> _kPhase171Rows = <_CopyRow>[
     'home_body.dart 만 고치면 돼요. 이 안내와 데모 화면은 release 빌드에 없어요.',
     'Edit only home_body.dart. This note and the demo screen '
         "don't appear in release builds.",
-    'home_body.dart だけを編集してください。'
-        'この案内とデモ画面はリリースビルドには表示されません。',
+    'home_body.dart だけを編集してください。この案内とデモ画面はリリースビルドには表示されません。',
   ),
   _CopyRow(
     'homeDevGuideOpenDemo',

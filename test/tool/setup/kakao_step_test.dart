@@ -404,8 +404,7 @@ void main() {
     expect(readXcconfigNativeKey(), nativeKey);
     expect(File(configPath).readAsStringSync(), configBefore);
     expect(h.secretWrites.map((FakeCall call) => call.key), <String>[
-      'firebase functions:secrets:set $nativeSecret --project $projectId '
-          '--data-file -',
+      'firebase functions:secrets:set $nativeSecret --project $projectId --data-file -',
     ]);
     expect(h.secretWrites.single.stdinText, nativeKey);
     expect(h.rest.externalRequests, isEmpty);
