@@ -200,6 +200,12 @@ final class Wizard {
   // 방금 진행한 단계가 목록 다시 짜기를 요청했으면 true.
   bool _isReplanPending = false;
 
+  // 이번 바퀴 점검표의 판정 — 진행 중 다시 판정한 줄을 다시 쓸지 정할 때 비교한다.
+  Map<String, CheckResult> _checklist = <String, CheckResult>{};
+
+  // 이번 바퀴의 최신 판정 — 점검표에서 시작해 단계를 마무리할 때마다 갱신한다.
+  Map<String, CheckResult> _results = <String, CheckResult>{};
+
   // 이번 바퀴의 끝 목록 줄(진행 순서) — 바퀴마다 새로 모은다.
   final List<String> _remainingLines = <String>[];
 
@@ -215,16 +221,17 @@ final class Wizard {
   /// 새 바퀴의 판정으로 다시 모은다.
   Future<int> run() async {
     while (true) {
-      final Map<String, CheckResult> results = await _checkAll();
+      _checklist = await _checkAll();
+      _results = Map<String, CheckResult>.of(_checklist);
       _remainingLines.clear();
-      _printChecklist(results);
-      if (results.values.every((CheckResult result) => result is Done)) {
+      _printChecklist();
+      if (_checklist.values.every((CheckResult result) => result is Done)) {
         _terminal.writeLine(allDoneLine);
         return _complete();
       }
       bool isReplanned = false;
       for (final Step step in _steps) {
-        if (results[step.id] is Done) continue;
+        if (_checklist[step.id] is Done) continue;
         final int? code = await _runStep(step);
         if (code != null) return code;
         if (_isReplanPending) {
@@ -356,11 +363,11 @@ final class Wizard {
     context.log.write('check', '${step.id} $line');
   }
 
-  /// 점검표를 한 번 출력한다.
-  void _printChecklist(Map<String, CheckResult> results) {
+  /// 이번 바퀴의 점검표를 한 번 출력한다.
+  void _printChecklist() {
     _terminal.writeLine(checklistHeading);
     for (final Step step in _steps) {
-      _terminal.writeLine(_formatCheckLine(step, results[step.id]!));
+      _terminal.writeLine(_formatCheckLine(step, _checklist[step.id]!));
     }
   }
 
@@ -380,10 +387,21 @@ final class Wizard {
   /// 시도는 먼저 다시 검사한다 — 위저드 밖에서 이미 끝냈으면 실행하지 않고 ✓ 로
   /// 넘어간다. 검사 · 재검사가 할 수 없음 · 확인할 수 없음이거나 사용자가 미루면
   /// 그 줄을 끝 목록에 모으고 다음 단계로 간다(멈춤이 아니다).
+  ///
+  /// 의존 단계 가운데 이번 실행에서 ✓ 로 끝나지 않은 것이 있으면 검사 · 실행하지
+  /// 않고 앞 단계 대기로 끝 목록에 넣는다. 단계 머리에서 점검표와 같은 종류로 다시
+  /// 판정된 줄은 다시 쓰지 않는다 — 끝 목록에만 한 번 더 보인다.
   Future<int?> _runStep(Step step) async {
+    final String? waitingFor = _findUnfinishedDependency(step, _results);
+    if (waitingFor != null) {
+      final Blocked blocked = Blocked(waitingFor);
+      _logCheck(step, blocked);
+      _settle(step, blocked, shouldSkipSameKind: true);
+      return null;
+    }
     final CheckResult current = await _check(step);
     if (current is! Todo) {
-      _settle(step, current);
+      _settle(step, current, shouldSkipSameKind: true);
       return null;
     }
     final String? userDeferral = _userDeferrals[step.id];
@@ -458,10 +476,16 @@ final class Wizard {
 
   /// 할 일이 아닌 판정 [result] 로 [step] 을 마무리하고 진행 줄을 보인다.
   ///
-  /// 끝나지 않은 판정([Deferred] · [Unverifiable] · [Blocked])은 끝 목록에도
-  /// 모은다. [Todo] 는 호출한 쪽이 먼저 갈라 실행으로 가므로 여기 오면
+  /// 이번 바퀴의 최신 판정에 적어 뒤 단계의 의존 판정이 쓰게 한다. 끝나지 않은
+  /// 판정([Deferred] · [Unverifiable] · [Blocked])은 끝 목록에도 모은다 —
+  /// [shouldSkipSameKind] 가 true 이고 점검표 판정과 같은 종류면 진행 줄은 쓰지
+  /// 않는다. [Todo] 는 호출한 쪽이 먼저 갈라 실행으로 가므로 여기 오면
   /// 프로그래밍 오류다.
-  void _settle(Step step, CheckResult result) {
+  void _settle(
+    Step step,
+    CheckResult result, {
+    bool shouldSkipSameKind = false,
+  }) {
     final String line = _formatCheckLine(step, result);
     switch (result) {
       case Todo():
@@ -469,10 +493,22 @@ final class Wizard {
       case Done():
         _terminal.writeLine(line);
       case Deferred() || Unverifiable() || Blocked():
-        _terminal.writeLine(line);
+        if (!shouldSkipSameKind || !_isSameKind(_checklist[step.id], result)) {
+          _terminal.writeLine(line);
+        }
         _remainingLines.add(line);
     }
+    _results[step.id] = result;
   }
+
+  /// [before] 와 [after] 가 같은 종류의 끝나지 않은 판정이면 true.
+  bool _isSameKind(CheckResult? before, CheckResult after) =>
+      switch ((before, after)) {
+        (Deferred(), Deferred()) ||
+        (Unverifiable(), Unverifiable()) ||
+        (Blocked(), Blocked()) => true,
+        _ => false,
+      };
 
   /// [step] 을 사용자가 [note] 사유로 미룬 것으로 마무리한다.
   ///

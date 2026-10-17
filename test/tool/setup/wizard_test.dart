@@ -981,4 +981,246 @@ void main() {
       );
     });
   });
+
+  group(
+    'T-20-ENGINE-08: 앞 단계가 이번 실행에서 ✓ 로 끝나지 않으면 뒤 단계는 검사 · 실행하지 않고 ? 로 남는다',
+    () {
+      for (final ({String label, Step a, List<String?> inputs, String aLine})
+          entry
+          in <({String label, Step a, List<String?> inputs, String aLine})>[
+            (
+              label: '사용자가 미룸',
+              a: _DeferrableScriptedStep(
+                'A',
+                checks: const <CheckResult>[Todo('a 할 일')],
+              ),
+              inputs: <String?>['2', 'y'],
+              aLine: '  ✗ A — $_deferLabel',
+            ),
+            (
+              label: '할 수 없음',
+              a: _ScriptedStep(
+                'A',
+                checks: const <CheckResult>[Deferred('지문이 없습니다')],
+              ),
+              inputs: <String?>['y'],
+              aLine: '  ✗ A — 지문이 없습니다',
+            ),
+            (
+              label: '확인할 수 없음',
+              a: _ScriptedStep(
+                'A',
+                checks: const <CheckResult>[Unverifiable('확인은 실기기 알림')],
+              ),
+              inputs: <String?>['y'],
+              aLine: '  ? A — 확인은 실기기 알림',
+            ),
+          ]) {
+        test('T-20-ENGINE-08: ${entry.label}', () async {
+          const String blockedLine = '  ? B — A 뒤에 검사합니다';
+          final _ScriptedStep b = _ScriptedStep(
+            'B',
+            checks: const <CheckResult>[Done('b 끝')],
+            dependsOn: const <String>['A'],
+          );
+          final _ScriptedStep c = _ScriptedStep(
+            'C',
+            checks: const <CheckResult>[Todo('c'), Todo('c'), Done('c 끝')],
+          );
+
+          final ({int code, ScriptedTerminal terminal, int completions}) run =
+              await runStepsWithCompletion(<Step>[entry.a, b, c], entry.inputs);
+
+          final String output = run.terminal.output.toString();
+          expect(b.checkCount, 0);
+          expect(b.applyCount, 0);
+          expect(c.applyCount, 1);
+          expect(_countExactLines(output, blockedLine), 2);
+          expect(output, isNot(contains('  ✓ B')));
+          expect(run.code, wizardExitDone);
+          expect(run.completions, 1);
+          expect(
+            output,
+            endsWith(
+              '${_buildRemainingTail(<String>[entry.aLine, blockedLine])}'
+              '$_completionLine\n',
+            ),
+          );
+        });
+      }
+    },
+  );
+
+  test(
+    'T-20-ENGINE-09: 점검표에서 기다리던 단계는 앞 단계가 이번 실행에서 ✓ 가 되면 검사 · 실행한다',
+    () async {
+      const String blockedLine = '  ? B — A 뒤에 검사합니다';
+      final _ScriptedStep a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
+      );
+      final _ScriptedStep b = _ScriptedStep(
+        'B',
+        checks: const <CheckResult>[Todo('b'), Done('b 끝')],
+        dependsOn: const <String>['A'],
+      );
+
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(<Step>[a, b], const <String?>['y', 'y']);
+
+      final String output = run.terminal.output.toString();
+      expect(_countExactLines(output, blockedLine), 1);
+      expect(output.indexOf('▶ B'), greaterThan(output.indexOf('  ✓ A — a 끝')));
+      expect(b.checkCount, 2);
+      expect(b.applyCount, 1);
+      expect(run.code, wizardExitDone);
+      expect(output, endsWith('\n\n$allDoneLine\n$_completionLine\n'));
+    },
+  );
+
+  group('T-20-ENGINE-10: 점검표와 같은 종류로 다시 판정된 줄은 진행 중에 다시 쓰지 않는다', () {
+    for (final ({String label, CheckResult result, String line}) entry
+        in <({String label, CheckResult result, String line})>[
+          (
+            label: '할 수 없음',
+            result: const Deferred('지문이 없습니다'),
+            line: '  ✗ A — 지문이 없습니다',
+          ),
+          (
+            label: '확인할 수 없음',
+            result: const Unverifiable('확인은 실기기 알림'),
+            line: '  ? A — 확인은 실기기 알림',
+          ),
+        ]) {
+      test('T-20-ENGINE-10: ${entry.label}', () async {
+        final _ScriptedStep a = _ScriptedStep(
+          'A',
+          checks: <CheckResult>[entry.result],
+        );
+        final _ScriptedStep b = _ScriptedStep(
+          'B',
+          checks: const <CheckResult>[Done('b 끝')],
+        );
+
+        final ({int code, ScriptedTerminal terminal, int completions}) run =
+            await runStepsWithCompletion(<Step>[a, b], const <String?>[]);
+
+        final String output = run.terminal.output.toString();
+        expect(a.checkCount, 2);
+        expect(_countExactLines(output, entry.line), 2);
+        expect(run.code, wizardExitDone);
+        expect(
+          output,
+          endsWith(
+            '${_buildRemainingTail(<String>[entry.line])}$_completionLine\n',
+          ),
+        );
+      });
+    }
+  });
+
+  group(
+    'T-20-ENGINE-11: 진행 중 다시 판정한 결과가 새로 할 수 없음 · 확인할 수 없음이면 한 번 보이고 끝 목록에 든다',
+    () {
+      test('T-20-ENGINE-11: 점검표 할 일 → 단계 머리 재검사 할 수 없음', () async {
+        const String deferredLine = '  ✗ A — 지문이 없습니다';
+        final _ScriptedStep a = _ScriptedStep(
+          'A',
+          checks: const <CheckResult>[Todo('a 할 일'), Deferred('지문이 없습니다')],
+        );
+
+        final ({int code, ScriptedTerminal terminal, int completions}) run =
+            await runStepsWithCompletion(<Step>[a], const <String?>[]);
+
+        final String output = run.terminal.output.toString();
+        expect(_countExactLines(output, '  ✗ A — a 할 일'), 1);
+        expect(_countExactLines(output, deferredLine), 2);
+        expect(output, isNot(contains('▶ A')));
+        expect(a.applyCount, 0);
+        expect(run.code, wizardExitDone);
+        expect(
+          output,
+          endsWith(
+            '${_buildRemainingTail(<String>[deferredLine])}$_completionLine\n',
+          ),
+        );
+      });
+
+      for (final ({
+            String label,
+            CheckResult after,
+            StepOutcome outcome,
+            List<String?> inputs,
+            String line,
+          })
+          entry
+          in <
+            ({
+              String label,
+              CheckResult after,
+              StepOutcome outcome,
+              List<String?> inputs,
+              String line,
+            })
+          >[
+            (
+              label: '실행 뒤 재검사',
+              after: const Deferred('Android 쪽이 남았습니다'),
+              outcome: const Applied(),
+              inputs: <String?>['y', 'y'],
+              line: '  ✗ A — Android 쪽이 남았습니다',
+            ),
+            (
+              label: 'Enter 대기 뒤 재검사',
+              after: const Unverifiable('확인은 실기기 알림'),
+              outcome: const WaitForUser('안내'),
+              inputs: <String?>['y', '', 'y'],
+              line: '  ? A — 확인은 실기기 알림',
+            ),
+            (
+              label: '다시 시도 재검사',
+              after: const Deferred('지문이 없습니다'),
+              outcome: const Failed(
+                'x',
+                result: CommandResult(1, 'OUT', 'ERR'),
+              ),
+              inputs: <String?>['y', '1', 'y'],
+              line: '  ✗ A — 지문이 없습니다',
+            ),
+          ]) {
+        test('T-20-ENGINE-11: ${entry.label}', () async {
+          final _ScriptedStep a = _ScriptedStep(
+            'A',
+            checks: <CheckResult>[
+              const Todo('a'),
+              const Todo('a'),
+              entry.after,
+            ],
+            outcomes: <StepOutcome>[entry.outcome],
+          );
+          final _ScriptedStep b = _ScriptedStep(
+            'B',
+            checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
+          );
+
+          final ({int code, ScriptedTerminal terminal, int completions}) run =
+              await runStepsWithCompletion(<Step>[a, b], entry.inputs);
+
+          final String output = run.terminal.output.toString();
+          expect(a.applyCount, 1);
+          expect(b.applyCount, 1);
+          expect(_countExactLines(output, entry.line), 2);
+          expect(output.indexOf(entry.line), lessThan(output.indexOf('▶ B')));
+          expect(output, isNot(contains(_stopLine)));
+          expect(run.code, wizardExitDone);
+          expect(
+            output,
+            endsWith(
+              '${_buildRemainingTail(<String>[entry.line])}$_completionLine\n',
+            ),
+          );
+        });
+      }
+    },
+  );
 }
