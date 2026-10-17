@@ -45,6 +45,7 @@ final class ReceivedRequest {
     required this.quotaProject,
     required this.contentType,
     required this.body,
+    this.headers = const <String, String>{},
   });
 
   /// HTTP 메서드.
@@ -64,7 +65,30 @@ final class ReceivedRequest {
 
   /// 요청 본문.
   final String body;
+
+  /// 받은 헤더 전부 — 이름은 소문자, 여러 값은 쉼표로 이었다.
+  final Map<String, String> headers;
 }
+
+/// 외부 요청 테스트의 가짜 provider 키 — 등록하지 않아 가림 패턴에도 걸리지 않는다.
+String buildFakeProviderKey() => 'k' * 32;
+
+/// 외부 요청 테스트의 가짜 client secret.
+String buildFakeClientSecret() => 's' * 24;
+
+/// 가짜 키 · secret 을 헤더 · form 에 싣고 표시형에는 자리 이름만 둔 외부 요청.
+ExternalRequest buildExternalRequest(Uri url) => ExternalRequest(
+  method: 'POST',
+  url: url,
+  headers: <String, String>{'x-provider-key': buildFakeProviderKey()},
+  headerDisplay: const <String, String>{'x-provider-key': '<어드민 키>'},
+  formBody: <String, String>{
+    'grant_type': 'client_credentials',
+    'client_secret': buildFakeClientSecret(),
+    'note': 'a b&c',
+  },
+  formDisplay: 'grant_type=client_credentials&client_secret=<Client Secret>',
+);
 
 void main() {
   late HttpServer server;
@@ -87,6 +111,10 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((HttpRequest request) async {
       final String body = await utf8.decodeStream(request);
+      final Map<String, String> headers = <String, String>{};
+      request.headers.forEach((String name, List<String> values) {
+        headers[name] = values.join(',');
+      });
       received.add(
         ReceivedRequest(
           method: request.method,
@@ -95,6 +123,7 @@ void main() {
           quotaProject: request.headers.value('x-goog-user-project'),
           contentType: request.headers.value('content-type'),
           body: body,
+          headers: headers,
         ),
       );
       // 응답을 멈춘 서버를 흉내 낸다 — tearDown 의 강제 종료가 연결을 끊는다.
@@ -381,5 +410,118 @@ void main() {
     expect(const RestResponse(200, '[1,2]').decodeJson(), <Object?>[1, 2]);
     expect(const RestResponse(299, '').isOk, isTrue);
     expect(const RestResponse(300, '').isOk, isFalse);
+  });
+
+  test('T-20-EXT-01: 외부 요청 표시형에는 자리 이름만 있고 실제 값 · Google 헤더가 없다', () {
+    final ExternalRequest request = buildExternalRequest(
+      Uri.parse('https://provider.example.test/v1/token'),
+    );
+
+    final String shown = request.displayCurl();
+
+    expect(
+      shown,
+      'curl -s -X POST "https://provider.example.test/v1/token" '
+      '-H "x-provider-key: <어드민 키>" '
+      "-d 'grant_type=client_credentials&client_secret=<Client Secret>'",
+    );
+    expect(countText(shown, buildFakeProviderKey()), 0);
+    expect(countText(shown, buildFakeClientSecret()), 0);
+    expect(countText(shown, 'Bearer'), 0);
+    expect(countText(shown, 'x-goog-user-project'), 0);
+  });
+
+  test(
+    'T-20-EXT-02: 외부 요청은 실제 헤더 · form 본문을 보내고 기록에는 상태와 생략 표시만 남긴다',
+    () async {
+      final Uri url = buildLocalUrl('/v1/token');
+      final ExternalRequest request = buildExternalRequest(url);
+      // 응답 본문에 비밀 값이 섞여도 민감 응답이라 기록에 남지 않는다.
+      responseBody = '{"access_token":"${buildFakeClientSecret()}"}';
+
+      final RestResponse response = await client.sendExternal(request);
+
+      expect(response.statusCode, 200);
+      expect(received, hasLength(1));
+      final ReceivedRequest got = received.single;
+      expect(got.method, 'POST');
+      expect(
+        ContentType.parse(got.contentType ?? '').mimeType,
+        'application/x-www-form-urlencoded',
+      );
+      expect(got.body, Uri(queryParameters: request.formBody).query);
+      expect(Uri.splitQueryString(got.body), request.formBody);
+      expect(got.headers['x-provider-key'], buildFakeProviderKey());
+      expect(got.authorization, isNull);
+      expect(got.quotaProject, isNull);
+      expect(runner.countCalls(RunMode.capture, tokenCommandKey), 0);
+
+      expect(log.lines, contains('[rest] POST $url → 200'));
+      expect(
+        log.lines,
+        contains('[rest] ${HttpRestClient.sensitiveResponseNotice}'),
+      );
+      final String shown = screen.output.toString();
+      expect(shown, contains(request.displayCurl()));
+      for (final String secret in <String>[
+        buildFakeProviderKey(),
+        buildFakeClientSecret(),
+      ]) {
+        expect(countText(shown, secret), 0, reason: '화면');
+        expect(countText(log.text, secret), 0, reason: '기록');
+      }
+    },
+  );
+
+  test('T-20-EXT-03: 연결 실패 · 응답 지연은 상태 0 과 안내 한 줄이다', () async {
+    // 닫힌 포트 — 잡았다 바로 놓은 포트로 연결이 거절된다.
+    final ServerSocket probe = await ServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final int closedPort = probe.port;
+    await probe.close();
+    final Uri refusedUrl = Uri.parse(
+      'http://${InternetAddress.loopbackIPv4.address}:$closedPort/v1/token',
+    );
+
+    final RestResponse refused = await client.sendExternal(
+      buildExternalRequest(refusedUrl),
+    );
+
+    expect(refused.statusCode, 0);
+    expect(refused.body, isEmpty);
+    expect(countText(screen.output.toString(), '  요청하지 못했습니다 — '), 1);
+    expect(
+      log.lines.where(
+        (String line) => line.startsWith('[rest] POST $refusedUrl → 요청 실패'),
+      ),
+      hasLength(1),
+    );
+
+    isResponseHeld = true;
+    final HttpRestClient slowClient = HttpRestClient(
+      tokens: AccessTokenSource(runner, redactor),
+      terminal: terminal,
+      log: log,
+      responseTimeout: const Duration(milliseconds: 200),
+    );
+    addTearDown(slowClient.close);
+    final Uri slowUrl = buildLocalUrl('/v1/slow-token');
+
+    final RestResponse slow = await slowClient.sendExternal(
+      buildExternalRequest(slowUrl),
+    );
+
+    expect(slow.statusCode, 0);
+    expect(slow.body, isEmpty);
+    expect(
+      countText(
+        screen.output.toString(),
+        HttpRestClient.responseTimeoutMessage,
+      ),
+      1,
+    );
+    expect(log.lines, contains('[rest] POST $slowUrl → 응답 없음 (200ms)'));
   });
 }

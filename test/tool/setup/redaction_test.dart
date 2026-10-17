@@ -26,6 +26,20 @@ const String fakeDebugToken = '0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0';
 int countText(String haystack, String needle) =>
     haystack.split(needle).length - 1;
 
+/// 가짜 PEM 개인 키의 머리 · 끝 줄을 조각으로 조립한다.
+///
+/// [edge] 는 `BEGIN` · `END`, [kind] 는 `EC ` 처럼 앞에 붙는 키 종류다.
+String buildPemLine(String edge, {String kind = ''}) =>
+    <String>['-----', edge, ' ', kind, 'PRIVATE', ' KEY-----'].join();
+
+/// 머리 · 본문 두 줄 · 끝 줄을 [separator] 로 이은 가짜 PEM 개인 키를 만든다.
+String buildFakePem({String kind = '', String separator = '\n'}) => <String>[
+  buildPemLine('BEGIN', kind: kind),
+  'A' * 64,
+  'B' * 20,
+  buildPemLine('END', kind: kind),
+].join(separator);
+
 /// 검사는 할 일 · 실행은 비밀 값이 담긴 실패 결과를 돌려주는 단계.
 final class SecretFailureStep implements Step {
   /// [checkReason] 을 검사 사유로, [result] 를 실패 원문으로 쓰는 단계를 만든다.
@@ -309,5 +323,45 @@ void main() {
 
     expect(endedWrapped.askSecret('어드민 키를 붙여 넣으세요'), isNull);
     expect(log.lines.last, '[in] ${RedactingTerminal.endOfInputRecord}');
+  });
+
+  test('T-20-PEM-01: 등록하지 않은 PEM 개인 키 블록은 머리부터 끝 줄까지 가려진다', () {
+    for (final String kind in <String>['', 'EC ']) {
+      final String header = buildPemLine('BEGIN', kind: kind);
+      // 줄바꿈 그대로인 블록과 JSON 응답처럼 `\n` 이 글자로 든 블록 둘 다.
+      for (final String separator in <String>['\n', r'\n']) {
+        final String pem = buildFakePem(kind: kind, separator: separator);
+        final String shown = redactor.apply('응답 {"privateKey":"$pem"} 끝');
+
+        expect(shown, '응답 {"privateKey":"${Redactor.mask}"} 끝');
+        expect(countText(shown, header), 0, reason: kind);
+        expect(countText(shown, 'A' * 64), 0, reason: kind);
+      }
+    }
+
+    // 화면 · 기록 두 버퍼에도 머리가 남지 않는다.
+    terminal.writeLine(buildFakePem());
+    expect(countText(screen.output.toString(), buildPemLine('BEGIN')), 0);
+    expect(countText(log.text, buildPemLine('BEGIN')), 0);
+  });
+
+  test('T-20-PEM-02: 머리 줄만 있는 문자열도 머리가 가려진다', () {
+    for (final String kind in <String>['', 'EC ']) {
+      final String header = buildPemLine('BEGIN', kind: kind);
+      final String shown = redactor.apply('키 파일 첫 줄: $header');
+
+      expect(shown, '키 파일 첫 줄: ${Redactor.mask}');
+      expect(countText(shown, header), 0);
+    }
+  });
+
+  test('T-20-PEM-03: 여러 줄 값을 등록하면 8자 이상인 각 줄도 따로 가려진다', () {
+    final String bodyLine = 'C' * 64;
+    redactor.register('short\n  $bodyLine  \r\n${'D' * 8}\nabc');
+
+    expect(redactor.apply('출력 줄 $bodyLine'), '출력 줄 ${Redactor.mask}');
+    expect(redactor.apply('D' * 8), Redactor.mask);
+    expect(redactor.apply('short'), 'short');
+    expect(redactor.apply('abc'), 'abc');
   });
 }
