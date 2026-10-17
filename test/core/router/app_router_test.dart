@@ -4,10 +4,6 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/analytics/analytics_observer.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_router.dart';
@@ -17,6 +13,9 @@ import 'package:flutter_starter_kit/core/router/auth_refresh.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/email_login_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_screen.dart';
 import 'package:flutter_starter_kit/features/not_found/presentation/not_found_screen.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../helpers/route_tree.dart';
 

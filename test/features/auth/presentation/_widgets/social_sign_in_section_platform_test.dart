@@ -17,9 +17,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
@@ -31,6 +28,8 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_sign_in_section.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 /// [AuthRepository]를 mocktail로 대체하기 위한 Mock.
 class _MockAuthRepository extends Mock implements AuthRepository {}

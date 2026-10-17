@@ -1,8 +1,7 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-
-import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
 
 class _MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 

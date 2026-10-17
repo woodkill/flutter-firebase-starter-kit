@@ -25,9 +25,6 @@
 // 각 notifier 가 `kDebugMode` 아래에서 예외 **타입만** 찍는다 (PII 표면 0).
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/apple_sign_in_notifier.dart';
@@ -36,6 +33,8 @@ import 'package:flutter_starter_kit/features/auth/presentation/google_sign_in_no
 import 'package:flutter_starter_kit/features/auth/presentation/kakao_sign_in_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/line_sign_in_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/naver_sign_in_notifier.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 /// provider **생성** 실패 축의 sentinel 문구 (첫 번째 축).
 ///

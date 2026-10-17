@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_starter_kit/app.dart';
 import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/features/home/presentation/home_screen.dart';
@@ -7,8 +8,6 @@ import 'package:flutter_starter_kit/features/notifications/presentation/pending_
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:flutter_starter_kit/app.dart';
 
 /// Phase 10 Plan 05 이후: GoRouter.initialLocation 이 `/splash` 로 변경되었고
 /// SplashScreen 이 최소 대기 후 [context.go] 를 호출하여 resolveAuthRedirect 가 최종

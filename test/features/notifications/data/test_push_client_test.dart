@@ -5,13 +5,12 @@
 // 검증한다. FirebaseFunctions · HttpsCallable 은 mocktail mock 이다.
 
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/functions/callable_rejection.dart';
 import 'package:flutter_starter_kit/features/notifications/data/test_push_client.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 

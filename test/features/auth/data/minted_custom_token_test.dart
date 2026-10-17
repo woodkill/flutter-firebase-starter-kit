@@ -6,10 +6,9 @@
 //   MT4: customToken 빈 문자열 → UnknownException
 //   MT5: uid 가 문자열이 아님 → UnknownException
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/minted_custom_token.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('requireMintedCustomToken', () {

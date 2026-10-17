@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Phase 16 Task 4.1 — `AccountExistsWithDifferentCredential.existingProvider`
 /// 필드 (D-12 wiring 후 채워짐) 검증.

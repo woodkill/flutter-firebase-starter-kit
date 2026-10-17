@@ -34,11 +34,6 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.dart';
@@ -54,6 +49,10 @@ import 'package:flutter_starter_kit/features/settings/data/settings_repository.d
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/unlink_confirmation_dialog.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mocktail/mocktail.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 

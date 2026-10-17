@@ -13,9 +13,8 @@
 
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/source_text.dart';
 

@@ -1,11 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
+import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
-
-import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
-import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 
 /// 쓰기만 실패하는 SharedPreferences 스토어 (10-REVIEW CR-03 회귀 재현용).
 ///

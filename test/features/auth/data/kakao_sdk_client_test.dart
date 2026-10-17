@@ -1,9 +1,8 @@
 import 'package:flutter/services.dart' show PlatformException;
-import 'package:flutter_test/flutter_test.dart';
-import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/kakao_sdk_client.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 /// Kakao SDK [OAuthToken] fake — `idToken` 값만 통제.
 ///

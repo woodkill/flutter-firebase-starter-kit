@@ -4,12 +4,11 @@
 // T-171-ROUTER-01 이 잠그고, 이 파일은 404 본문(locale · 280dp · 가로 모드 ·
 // a11y · 소스 가드)을 맡는다.
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
 import 'package:flutter_starter_kit/features/not_found/presentation/not_found_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/source_text.dart';
 

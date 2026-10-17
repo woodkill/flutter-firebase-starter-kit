@@ -5,9 +5,6 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
@@ -17,6 +14,8 @@ import 'package:flutter_starter_kit/core/router/auth_refresh.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_acceptance.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 class _MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 

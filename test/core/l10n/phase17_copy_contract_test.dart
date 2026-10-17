@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/l10n/exception_l10n.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // Phase 17 — see ROADMAP.md (D-42 · UI-SPEC §Copywriting Q5 LOCK).
 // 기대 문자열은 17-UI-SPEC.md 「ARB 신설」 표의 셀을 그대로 복사한 상수다.

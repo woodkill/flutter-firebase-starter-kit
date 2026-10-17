@@ -6,23 +6,24 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_starter_kit/app.dart';
-import 'package:flutter_starter_kit/core/auth/provider_id.dart';
-import 'package:flutter_starter_kit/core/config/app_config.dart';
-import 'package:flutter_starter_kit/core/error/error_widget_builder.dart';
-import 'package:flutter_starter_kit/core/firebase/firebase_initializer.dart';
-import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
-import 'package:flutter_starter_kit/core/remote_config/feature_flag.dart';
-import 'package:flutter_starter_kit/features/notifications/data/firebase_messaging_background_handler.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:intl/date_symbol_data_local.dart';
 // Phase 14 — see ROADMAP.md (LINE Login SDK init).
 import 'package:flutter_line_sdk/flutter_line_sdk.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:intl/date_symbol_data_local.dart';
 // kakao_flutter_sdk_user 가 kakao_flutter_sdk_auth 를 통해 transitive 로
 // kakao_flutter_sdk_common 을 re-export 하므로 직접 의존성 import 1개로 충분.
 // pubspec.yaml 의 직접 의존성 (`kakao_flutter_sdk_user`)과 일관 — depend_on_referenced_packages 통과.
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+
+import '../app.dart';
+import '../features/notifications/data/firebase_messaging_background_handler.dart';
+import 'auth/provider_id.dart';
+import 'config/app_config.dart';
+import 'error/error_widget_builder.dart';
+import 'firebase/firebase_initializer.dart';
+import 'providers/firebase_providers.dart';
+import 'remote_config/feature_flag.dart';
 
 /// FCM 백그라운드 · 종료 상태 메시지 핸들러를 등록한다 (Phase 17 D-01).
 ///

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter_starter_kit/core/bootstrap.dart';
+import 'core/bootstrap.dart';
 
 /// 앱 엔트리포인트.
 ///

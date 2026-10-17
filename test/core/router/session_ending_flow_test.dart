@@ -21,9 +21,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/app.dart' show App;
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart'
     show activeStrategiesProvider;
@@ -54,6 +51,8 @@ import 'package:flutter_starter_kit/features/settings/presentation/account_scree
     show AccountScreen;
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart'
     show AppLocalizations;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../helpers/router_harness.dart'
     show ProductionApp, pumpProductionApp;

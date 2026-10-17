@@ -4,11 +4,6 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:flutter_starter_kit/core/analytics/analytics_observer.dart'
     show analyticsObserverProvider;
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
@@ -19,6 +14,10 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/demo/presentation/demo_screen.dart';
 import 'package:flutter_starter_kit/features/not_found/presentation/not_found_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/route_tree.dart';
 import '../../helpers/router_harness.dart' show pumpProductionApp;

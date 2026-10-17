@@ -9,10 +9,9 @@
 // 말고 원인을 먼저 찾는다.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/features/not_found/presentation/not_found_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../settings/presentation/settings_golden_harness.dart';
 

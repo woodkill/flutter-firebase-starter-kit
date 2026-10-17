@@ -10,11 +10,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/theme/brand_focus_wrapper.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // 승인판에서 고른 값 — 바꾸려면 버튼 외관을 다시 승인받는다.
 

@@ -4,9 +4,8 @@
 // 진단 정보)를 따른다.
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AppIconSizes', () {

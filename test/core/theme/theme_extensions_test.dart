@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
 import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
 import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
@@ -8,6 +6,7 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
 import 'package:flutter_starter_kit/core/theme/theme_extensions.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ThemeX', () {

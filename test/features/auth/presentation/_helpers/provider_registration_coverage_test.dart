@@ -30,8 +30,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -39,6 +37,7 @@ import 'package:flutter_starter_kit/features/auth/presentation/_helpers/social_p
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/social_button.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// 등록 커버리지 검증 전용 [AuthStrategy] 대역.
 ///

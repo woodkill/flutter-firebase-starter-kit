@@ -5,13 +5,12 @@
 // T-18-HELPER-03 은 로그아웃 경로로 관측되는 인자가 생성자에 실제로 닿는지
 // 직접 잠근다. 나머지 인자의 전달은 그 인자를 쓰는 suite 가 잠근다.
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/config/app_config.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'auth_mocks.dart';
 

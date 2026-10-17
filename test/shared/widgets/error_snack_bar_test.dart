@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_snack_bar.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// 버튼 탭 시 [onTap] 으로 SnackBar 헬퍼를 호출하는 화면을 pump 한다.
 Future<void> pumpTrigger(

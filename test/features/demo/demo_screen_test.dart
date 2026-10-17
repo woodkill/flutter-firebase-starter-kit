@@ -13,11 +13,6 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_router.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
@@ -30,6 +25,10 @@ import 'package:flutter_starter_kit/features/home/presentation/_widgets/announce
 import 'package:flutter_starter_kit/features/home/presentation/_widgets/guest_banner.dart';
 import 'package:flutter_starter_kit/features/notifications/presentation/pending_notification_route_listener.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/route_tree.dart';
 import '../../helpers/source_text.dart';

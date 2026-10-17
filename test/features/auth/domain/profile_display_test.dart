@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/features/auth/domain/profile_display.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Phase 17 D-27 — [resolveProfileValue] 표시 규칙 단위 테스트.
 ///

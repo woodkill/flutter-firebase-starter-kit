@@ -21,14 +21,13 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/services.dart'
     show MethodCall, MethodChannel, MissingPluginException, PlatformException;
 import 'package:flutter/widgets.dart' show AppLifecycleState;
-import 'package:flutter_test/flutter_test.dart';
-import 'package:naver_login_flutter/naver_login_flutter.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_host_channel.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sdk_client.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_web_auth_client.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:naver_login_flutter/naver_login_flutter.dart';
 
 /// 테스트용 [NaverToken] — [accessToken] 만 통제하고 나머지는 빈 문자열.
 NaverToken buildToken(String accessToken) => NaverToken(

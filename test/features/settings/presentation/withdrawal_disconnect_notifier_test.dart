@@ -38,10 +38,6 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/apple_auth_strategy.dart';
@@ -57,6 +53,9 @@ import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_notifier.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/withdrawal_disconnect_notifier.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mocktail/mocktail.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 

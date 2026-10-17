@@ -4,11 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:flutter_starter_kit/core/config/auth_retry_config.dart';
 import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
@@ -20,9 +15,13 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_error_code.dart';
-import 'package:flutter_starter_kit/features/splash/presentation/splash_screen.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_initializer.dart';
+import 'package:flutter_starter_kit/features/splash/presentation/splash_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 

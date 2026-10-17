@@ -1,8 +1,7 @@
 import 'package:flutter/widgets.dart' show Locale;
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/l10n/locale_display_names.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   // WR-04 (Phase 04 리뷰) — kLocaleEndonyms 는 손으로 유지되는 맵이고

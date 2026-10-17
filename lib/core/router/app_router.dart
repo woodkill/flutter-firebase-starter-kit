@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../features/auth/presentation/_widgets/session_ending_arrival.dart';
 import '../../features/auth/presentation/email_login_screen.dart';
 import '../../features/auth/presentation/email_signup_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
-import '../../features/auth/presentation/_widgets/session_ending_arrival.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/demo/presentation/demo_screen.dart';

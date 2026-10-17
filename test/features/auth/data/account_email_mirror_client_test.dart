@@ -7,10 +7,9 @@
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_starter_kit/features/auth/data/account_email_mirror_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-
-import 'package:flutter_starter_kit/features/auth/data/account_email_mirror_client.dart';
 
 class _MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
 

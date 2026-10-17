@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/error/error_widget_builder.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_fallback.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../features/settings/presentation/settings_golden_harness.dart';
 import '../../helpers/source_text.dart';

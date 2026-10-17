@@ -16,10 +16,9 @@
 // 옛 홈 이름은 리터럴 없이 조각을 이어 만든다 — home_listener_source_guard_test 의
 // T-171-HOME-17 부재 grep 에 이 파일이 걸리지 않게 하기 위해서다.
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/features/notifications/application/notification_route.dart'
     show kNotificationRoutableRoutes;
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/source_text.dart';
 

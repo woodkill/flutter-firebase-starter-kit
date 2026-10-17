@@ -15,11 +15,10 @@
 // 실 client_id · scheme 리터럴을 쓰지 않는다 (plan 04 prohibition).
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show PlatformException;
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_sign_in_result.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_web_auth_client.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const String _fakeClientId = 'fake-client-id';
 const String _fakeScheme = 'probe-scheme';

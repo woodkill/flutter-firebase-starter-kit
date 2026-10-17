@@ -2,9 +2,6 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
@@ -13,6 +10,8 @@ import 'package:flutter_starter_kit/features/auth/application/session_ending.dar
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_state.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 // --- Mocks ---
 

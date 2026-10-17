@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
@@ -10,6 +8,7 @@ import 'package:flutter_starter_kit/features/auth/presentation/verify_email_noti
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_state.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// 테스트용 기본 사용자.
 final _testUser = User(

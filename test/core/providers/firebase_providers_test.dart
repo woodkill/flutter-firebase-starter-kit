@@ -3,10 +3,9 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-
-import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
 

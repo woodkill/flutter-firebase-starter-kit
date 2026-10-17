@@ -17,14 +17,13 @@
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../../helpers/auth_mocks.dart';
 import 'auth_test_fakes.dart';

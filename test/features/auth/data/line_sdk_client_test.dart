@@ -7,10 +7,9 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 import 'package:flutter_line_sdk/flutter_line_sdk.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/features/auth/data/line_sdk_client.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// LoginResult 는 private ctor (`LoginResult._`) 이라 직접 생성 불가 →
 /// `LineLoginFn` stub 이 [Future<LoginResult>] 를 합성하려면 SDK 가 실제로

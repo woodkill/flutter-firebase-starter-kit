@@ -10,11 +10,6 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:flutter_starter_kit/app.dart' show App;
 import 'package:flutter_starter_kit/core/analytics/analytics_observer.dart'
     show analyticsObserverProvider;
@@ -26,6 +21,10 @@ import 'package:flutter_starter_kit/core/providers/firebase_providers.dart'
     show firebaseAuthProvider, isFirebaseInitializedProvider;
 import 'package:flutter_starter_kit/core/router/app_router.dart'
     show appRouterProvider;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 

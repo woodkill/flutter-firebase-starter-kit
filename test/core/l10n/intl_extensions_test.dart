@@ -1,9 +1,8 @@
 import 'dart:io';
 
+import 'package:flutter_starter_kit/core/l10n/intl_extensions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-
-import 'package:flutter_starter_kit/core/l10n/intl_extensions.dart';
 
 void main() {
   setUpAll(() async {

@@ -19,10 +19,9 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-
-import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 

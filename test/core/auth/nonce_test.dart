@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/auth/nonce.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// IN-05 (Phase 7 review) — Kakao / LINE 에 2중 복제되어 있던
 /// nonce 생성 알고리즘을 단일 helper 로 추출한 뒤의 계약 회귀 가드.

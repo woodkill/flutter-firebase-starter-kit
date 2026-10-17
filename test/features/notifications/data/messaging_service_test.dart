@@ -3,10 +3,9 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_starter_kit/features/notifications/data/messaging_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-
-import 'package:flutter_starter_kit/features/notifications/data/messaging_service.dart';
 
 class _MockFirebaseMessaging extends Mock implements FirebaseMessaging {}
 

@@ -1,8 +1,7 @@
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-
-import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
 
 class _MockFirebaseCrashlytics extends Mock implements FirebaseCrashlytics {}
 

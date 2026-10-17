@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_field.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/password_field.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// EmailField 를 Form 안에서 pump 하고 그 안의 [TextFormField] 를 추출한다.
 Future<TextFormField> pumpEmailField(WidgetTester tester) async {

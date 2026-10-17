@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/async_value_view.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// [child] 를 ko 로케일 · 앱 테마로 pump 하는 헬퍼.
 Future<void> pumpKo(WidgetTester tester, Widget child) async {

@@ -13,10 +13,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart'
     show activeStrategiesProvider;
 import 'package:flutter_starter_kit/core/auth/auth_strategy.dart'
@@ -52,6 +48,9 @@ import 'package:flutter_starter_kit/features/settings/presentation/settings_scre
     show SettingsScreen;
 import 'package:flutter_starter_kit/features/terms/presentation/terms_detail_screen.dart'
     show TermsDetailScreen;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../helpers/route_tree.dart'
     show describeRouteNotUnderHome, readMatchedLocations;

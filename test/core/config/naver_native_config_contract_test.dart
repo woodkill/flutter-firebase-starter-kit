@@ -18,10 +18,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/features/auth/data/naver_host_channel.dart';
 import 'package:flutter_starter_kit/features/auth/data/naver_web_auth_client.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/source_text.dart';
 

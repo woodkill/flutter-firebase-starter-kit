@@ -25,10 +25,9 @@
 
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/features/notifications/application/notification_route.dart'
     show kNotificationRoutableRoutes;
+import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/route_tree.dart' show describeRouteNotUnderHome;
 import '../../helpers/source_text.dart';

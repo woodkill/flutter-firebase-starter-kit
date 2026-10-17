@@ -13,9 +13,8 @@
 // 것을 막는다.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/features/auth/data/naver_host_channel.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// 테스트 대상 플랫폼 — D-01 대칭.
 const List<TargetPlatform> _platforms = <TargetPlatform>[

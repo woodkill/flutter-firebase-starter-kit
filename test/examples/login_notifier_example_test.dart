@@ -5,14 +5,13 @@
 // 이 파일을 복사해 내 notifier 테스트를 만드는 방법은 `test/README.md` 에 있다.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/login_notifier.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 /// 로그인 notifier 가 읽는 [AuthRepository] 를 대신하는 mock.
 class _MockAuthRepository extends Mock implements AuthRepository {}

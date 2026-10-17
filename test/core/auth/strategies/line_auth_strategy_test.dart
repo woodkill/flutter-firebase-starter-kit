@@ -5,12 +5,11 @@
 // invariant (T-11-RACE-01 등가) 회귀 가드.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/features/auth/application/social_link_in_progress.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/line_sign_in_notifier.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// stub notifier 들의 호출 횟수를 notifier 밖에서 기록하는 recorder.
 ///

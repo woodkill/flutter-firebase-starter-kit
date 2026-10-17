@@ -1,7 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:flutter_starter_kit/core/config/auth_retry_config.dart';
 import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
@@ -10,6 +7,8 @@ import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_initializer.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 

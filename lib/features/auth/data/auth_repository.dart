@@ -17,8 +17,8 @@ import '../../../core/auth/provider_id.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/crashlytics/crashlytics_service.dart';
 import '../../../core/error/app_exception.dart';
-import '../../../core/functions/callable_rejection.dart';
 import '../../../core/error/result.dart';
+import '../../../core/functions/callable_rejection.dart';
 import '../../../core/providers/firebase_providers.dart';
 // Phase 17.5 D-15: authRepository factory provider 의 로케일 콜백 주입 전용
 // import. AuthRepository 클래스 본체는 본 provider 를 참조하지 않는다 (D-A2).

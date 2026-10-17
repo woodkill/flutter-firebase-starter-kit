@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
-import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_ja.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_ko.dart';
+import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Phase 16 Task 4.1 — AccountProvider enum 7값 + arbKey getter 매핑 검증.
 ///

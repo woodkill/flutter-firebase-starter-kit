@@ -32,9 +32,9 @@ import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
-import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/account_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 

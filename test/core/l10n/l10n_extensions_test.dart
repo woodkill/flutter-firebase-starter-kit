@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_starter_kit/core/l10n/l10n_extensions.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// [BuildContext.l10n] 을 한 번 호출하고 결과를 그리는 최소 위젯.
 class _L10nProbe extends StatelessWidget {
