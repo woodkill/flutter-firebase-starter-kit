@@ -6,12 +6,16 @@ import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
+import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/secret_store.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
 import '../../../tool/setup/steps/functions_step.dart';
+import '../../../tool/setup/steps/rules_step.dart';
+import '../../../tool/setup/steps/sign_in_step.dart';
+import '../../../tool/setup/steps/storage_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
 import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
@@ -49,6 +53,25 @@ const String functionsListKey =
 
 /// 배포 스크립트 명령 키.
 const String deployKey = 'bash scripts/deploy_functions.sh dev --apply';
+
+/// stg 테스트 프로젝트 ID(가짜).
+const String stgProjectId = 'demo-s';
+
+/// stg 문맥 배포 스크립트 명령 키.
+const String stgDeployKey = 'bash scripts/deploy_functions.sh stg --apply';
+
+/// stg 문맥 secret 목록 명령 키.
+const String stgSecretsListKey =
+    'gcloud secrets list --project $stgProjectId --format=value(name)';
+
+/// stg 문맥 배포된 함수 목록 명령 키.
+const String stgFunctionsListKey =
+    'firebase functions:list --json --project $stgProjectId';
+
+/// stg 문맥 [service] 의 IAM 정책을 읽는 명령 키.
+String buildStgIamKey(String service) =>
+    'gcloud run services get-iam-policy $service --region $region '
+    '--project $stgProjectId --format=json';
 
 /// [name] secret 을 만드는 명령 키.
 String buildSetKey(String name) =>
@@ -210,8 +233,23 @@ final class _Harness {
   /// 앞 단계(끝남) · Functions 단계로 위저드를 돌린다.
   ///
   /// [enabledProviders] 를 주면 그 로그인 수단 단계(끝남)를 앞에 두고 Functions
-  /// 단계가 그 함수까지 확인한다.
-  Future<int> run({Set<String> enabledProviders = const <String>{}}) =>
+  /// 단계가 그 함수까지 확인한다. [flavor] 는 이번 실행의 flavor 다.
+  Future<int> run({
+    Set<String> enabledProviders = const <String>{},
+    Flavor flavor = Flavor.dev,
+  }) => runSteps(<Step>[
+    _FinishedStep('configure', '앱 등록 · 설정 파일'),
+    _FinishedStep('apis', '필요한 Google Cloud API'),
+    _FinishedStep('firestore', '위치 · Firestore'),
+    for (final String token in enabledProviders) _FinishedStep(token, token),
+    FunctionsStep(
+      enabledProviders: enabledProviders,
+      providerStepIds: enabledProviders.toList(),
+    ),
+  ], flavor: flavor);
+
+  /// [steps] 를 [flavor] 문맥으로 돌린다.
+  Future<int> runSteps(List<Step> steps, {Flavor flavor = Flavor.dev}) =>
       runWizard(
         WizardContext(
           projectRoot: root,
@@ -220,20 +258,11 @@ final class _Harness {
           redactor: log.redactor,
           log: log,
           rest: rest,
+          flavor: flavor,
           random: Random(fixedTestRandomSeed),
           now: () => fixedTestNow,
         ),
-        <Step>[
-          _FinishedStep('configure', '앱 등록 · 설정 파일'),
-          _FinishedStep('apis', '필요한 Google Cloud API'),
-          _FinishedStep('firestore', '위치 · Firestore'),
-          for (final String token in enabledProviders)
-            _FinishedStep(token, token),
-          FunctionsStep(
-            enabledProviders: enabledProviders,
-            providerStepIds: enabledProviders.toList(),
-          ),
-        ],
+        steps,
       );
 }
 
@@ -337,20 +366,22 @@ CommandResult buildDeployOutput(
   int exitCode = 0,
   String? lastLine,
   String stderr = '',
+  String flavorName = 'dev',
+  String project = projectId,
 }) {
   final String only = functionIds.map((String id) => 'functions:$id').join(',');
   return CommandResult(
     exitCode,
-    'flavor: dev\n'
-    'project: $projectId\n'
+    'flavor: $flavorName\n'
+    'project: $project\n'
     'mode: firebase\n'
     'enabled: (없음)\n'
     'functions (${functionIds.length}):\n'
     '${functionIds.map((String id) => '  - $id\n').join()}'
-    'command: firebase deploy --project $projectId --only $only\n'
-    'running: firebase deploy --project $projectId --only $only\n'
+    'command: firebase deploy --project $project --only $only\n'
+    'running: firebase deploy --project $project --only $only\n'
     '\n'
-    '${lastLine ?? 'DEPLOY OK dev functions=${functionIds.length} batches=1'}\n',
+    '${lastLine ?? 'DEPLOY OK $flavorName functions=${functionIds.length} batches=1'}\n',
     stderr,
   );
 }
@@ -1276,4 +1307,214 @@ void main() {
       ),
     );
   });
+
+  /// stg config(example 복사 · stg 프로젝트 ID)를 쓴다.
+  void writeStgConfig() {
+    const paths = FlavorPaths(Flavor.stg);
+    final config = File('$root/${paths.json}')
+      ..parent.createSync(recursive: true);
+    File(paths.jsonExample).copySync(config.path);
+    replaceJsonString(config.path, 'firebaseProjectId', stgProjectId);
+  }
+
+  group('T-20-STG-07: stg 문맥 Functions 배포 — 명령 키 · 마지막 줄 계약이 stg', () {
+    setUp(() {
+      writeStgConfig();
+      writeModulesMarker();
+    });
+
+    test('마지막 줄이 DEPLOY OK dev … 면 실패 · 사유에 stg 완료 줄', () async {
+      final harness = _Harness(root, const <String?>['y', '2']);
+      harness.fake
+        ..on(stgSecretsListKey, buildSecretsList(declaredSecrets))
+        ..on(stgFunctionsListKey, buildFunctionsList(const <String>[]))
+        ..on(
+          stgDeployKey,
+          buildDeployOutput(
+            commonFunctions,
+            project: stgProjectId,
+            lastLine: 'DEPLOY OK dev functions=7 batches=1',
+          ),
+        );
+
+      final int code = await harness.run(flavor: Flavor.stg);
+
+      expect(code, wizardExitStopped);
+      expect(harness.fake.countCalls(RunMode.stream, stgDeployKey), 1);
+      expect(harness.output, contains('  실패 — '));
+      expect(harness.output, contains('DEPLOY OK stg functions=<개수>'));
+      expect(harness.output, isNot(contains('  ✓ ${FunctionsStep.stepTitle}')));
+    });
+
+    test(
+      'DEPLOY OK stg … 면 성공 · 실행 키 deploy_functions.sh stg · 모든 명령이 stg 프로젝트',
+      () async {
+        final harness = _Harness(root, const <String?>['y']);
+        harness.fake
+          ..on(stgSecretsListKey, buildSecretsList(declaredSecrets))
+          ..on(stgFunctionsListKey, buildFunctionsList(const <String>[]))
+          ..on(stgFunctionsListKey, buildFunctionsList(const <String>[]))
+          ..on(stgFunctionsListKey, buildFunctionsList(commonFunctions))
+          ..on(
+            stgDeployKey,
+            buildDeployOutput(
+              commonFunctions,
+              flavorName: 'stg',
+              project: stgProjectId,
+            ),
+          );
+        for (final id in commonFunctions) {
+          harness.fake.on(buildStgIamKey(buildServiceId(id)), publicPolicy);
+        }
+
+        final int code = await harness.run(flavor: Flavor.stg);
+
+        expect(code, wizardExitDone);
+        expect(harness.fake.countCalls(RunMode.stream, stgDeployKey), 1);
+        expect(harness.runner.workingDirectories[stgDeployKey], root);
+        expect(harness.output, contains('  \$ $stgDeployKey'));
+        expect(harness.output, isNot(contains(deployKey)));
+        expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
+        for (final FakeCall call in harness.fake.calls) {
+          if (!call.key.contains('--project')) continue;
+          expect(call.key, contains('--project $stgProjectId'));
+        }
+      },
+    );
+  });
+
+  test(
+    'T-20-STG-08: stg 문맥 로그인(이메일 · 익명) · rules 단계가 stg config 의 프로젝트 ID 로 요청 · 명령을 만든다',
+    () async {
+      writeStgConfig();
+      const firestoreRules = 'rules_version = "2"; // firestore fixture\n';
+      const storageRules = 'rules_version = "2"; // storage fixture\n';
+      writeFixture(RulesStep.firestoreRulesPath, firestoreRules);
+      writeFixture(RulesStep.storageRulesPath, storageRules);
+      const storageRelease =
+          '${RulesStep.storageReleasePrefix}/$stgProjectId'
+          '${RulesStep.defaultBucketSuffix}';
+
+      /// ruleset 응답(파일 하나)을 만든다.
+      RestResponse buildRuleset(String content) => RestResponse(
+        200,
+        jsonEncode(<String, Object?>{
+          'source': <String, Object?>{
+            'files': <Object?>[
+              <String, Object?>{'name': 'rules', 'content': content},
+            ],
+          },
+        }),
+      );
+
+      final harness = _Harness(root, const <String?>['y', 'y']);
+      void onRest(RestRequest request, RestResponse response) =>
+          harness.rest.on(request.method, request.url.toString(), response);
+
+      const notFound = RestResponse(
+        404,
+        '{"error":{"code":404,"message":"CONFIGURATION_NOT_FOUND"}}',
+      );
+      final RestRequest signInGet = SignInStep.buildGetRequest(stgProjectId);
+      onRest(signInGet, notFound);
+      onRest(signInGet, notFound);
+      onRest(
+        signInGet,
+        const RestResponse(
+          200,
+          '{"signIn":{"email":{"enabled":true,"passwordRequired":true}}}',
+        ),
+      );
+      onRest(
+        signInGet,
+        const RestResponse(
+          200,
+          '{"signIn":{"email":{"enabled":true,"passwordRequired":true},'
+          '"anonymous":{"enabled":true}}}',
+        ),
+      );
+      onRest(
+        SignInStep.buildPatchRequest(stgProjectId),
+        const RestResponse(200, '{}'),
+      );
+      onRest(
+        StorageStep.buildGetRequest(stgProjectId),
+        const RestResponse(404, '{}'),
+      );
+      for (final MapEntry<String, String> release in <String, String>{
+        RulesStep.firestoreRelease: 'f1',
+        storageRelease: 's1',
+      }.entries) {
+        final RestRequest get = RulesStep.buildReleaseRequest(
+          stgProjectId,
+          release.key,
+        );
+        onRest(get, const RestResponse(404, '{}'));
+        onRest(get, const RestResponse(404, '{}'));
+        onRest(
+          get,
+          RestResponse(
+            200,
+            jsonEncode(<String, Object?>{
+              'rulesetName': 'projects/$stgProjectId/rulesets/${release.value}',
+            }),
+          ),
+        );
+      }
+      onRest(
+        RulesStep.buildRulesetRequest(
+          stgProjectId,
+          'projects/$stgProjectId/rulesets/f1',
+        ),
+        buildRuleset(firestoreRules),
+      );
+      onRest(
+        RulesStep.buildRulesetRequest(
+          stgProjectId,
+          'projects/$stgProjectId/rulesets/s1',
+        ),
+        buildRuleset(storageRules),
+      );
+      final String signInDeployKey = FakeCommandRunner.buildKey(
+        SignInStep.buildDeployCommand(stgProjectId),
+      );
+      final String rulesDeployKey = FakeCommandRunner.buildKey(
+        RulesStep.buildDeployCommand(stgProjectId),
+      );
+      harness.fake
+        ..on(signInDeployKey, _ok)
+        ..on(rulesDeployKey, _ok);
+
+      final int code = await harness.runSteps(<Step>[
+        _FinishedStep('apis', '필요한 Google Cloud API'),
+        _FinishedStep('firestore', '위치 · Firestore'),
+        _FinishedStep('storage', 'Storage'),
+        SignInStep(),
+        RulesStep(),
+      ], flavor: Flavor.stg);
+
+      expect(code, wizardExitDone);
+      expect(harness.fake.countCalls(RunMode.stream, signInDeployKey), 1);
+      expect(harness.fake.countCalls(RunMode.stream, rulesDeployKey), 1);
+      expect(
+        harness.rest.countRequests(
+          'PATCH',
+          SignInStep.buildPatchRequest(stgProjectId).url.toString(),
+        ),
+        1,
+      );
+      expect(harness.rest.requests, isNotEmpty);
+      for (final RestRequest request in harness.rest.requests) {
+        expect(request.quotaProject, stgProjectId);
+        expect(request.url.toString(), contains(stgProjectId));
+        expect(
+          request.url.toString(),
+          isNot(contains('/projects/$projectId/')),
+        );
+      }
+      for (final FakeCall call in harness.fake.calls) {
+        expect(call.key, contains('--project $stgProjectId'));
+      }
+    },
+  );
 }

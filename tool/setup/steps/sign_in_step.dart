@@ -6,7 +6,6 @@ import '../rest_client.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
-import 'user_files_step.dart';
 
 /// 로그인 수단 단계 — 이메일/비밀번호 로그인과 익명 로그인을 함께 켠다.
 ///
@@ -112,7 +111,7 @@ final class SignInStep implements Step {
     if (projectId == null) {
       return _mark(
         _SignInMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
+        '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
       );
     }
     _projectId = projectId;

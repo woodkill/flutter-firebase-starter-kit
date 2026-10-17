@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../command_runner.dart';
 import '../config_files.dart';
+import '../flavor.dart';
 import '../providers/provider_catalog.dart';
 import '../rest_client.dart';
 import '../secret_names.dart';
@@ -11,7 +12,6 @@ import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
 import 'firestore_step.dart';
-import 'user_files_step.dart';
 
 /// 배포된 함수가 쓰는 secret 하나 — Secret Manager 이름과 배포 때 고정된 버전.
 typedef DeployedSecret = ({String secret, String version});
@@ -27,15 +27,17 @@ typedef DeployedSecret = ({String secret, String version});
 /// 목록을, 함수가 빠졌으면 IAM 을 읽지 않는다. 켠 로그인 수단의 함수는 공개 호출
 /// 전에 배포 때 고정된 secret 버전을 Secret Manager 최신 버전과 비교해, 옛 버전을
 /// 쓰는 함수가 있으면 다시 배포한다(배포가 최신 버전을 잡는다) — 최신 버전을 읽지
-/// 못하면 끝남으로 보지 않는다. 배포는 [deployScriptPath] 를
-/// 프로세스로 실행하고 종료 코드 0 과 표준 출력의 마지막 줄([deployOkPattern])로만
-/// 성공을 판정한다 — 배포할 함수 목록은 위저드가 따로 계산하지 않는다.
+/// 못하면 끝남으로 보지 않는다. 배포는 [deployScriptPath] 에 이번 flavor 이름을
+/// 넘겨 프로세스로 실행하고 종료 코드 0 과 표준 출력의 마지막 줄
+/// ([buildDeployOkPattern])로만 성공을 판정한다 — 배포할 함수 목록은 위저드가
+/// 따로 계산하지 않는다.
 ///
 /// 조직 정책이 공개 호출을 막으면([invokerBlockedMarker] · [isOrgPolicyRejection])
 /// 원문 뒤에 [orgPolicyGuidance] 를 보이고 IAM 정책을 우회하려 하지 않는다.
 ///
 /// secret 값은 인자에 싣지 않고 표준 입력으로만 넘기며, 이미 있는 secret 의 값은
-/// 읽거나 바꾸지 않는다. 프로젝트 ID · 리전은 매번 `config/dev.json` 에서 읽는다.
+/// 읽거나 바꾸지 않는다. 프로젝트 ID · 리전은 매번 이번 flavor 의 config 에서
+/// 읽는다.
 final class FunctionsStep implements Step {
   /// Cloud Functions 단계를 만든다.
   ///
@@ -56,9 +58,6 @@ final class FunctionsStep implements Step {
 
   /// 실행하는 배포 스크립트(저장소 상대 경로).
   static const String deployScriptPath = 'scripts/deploy_functions.sh';
-
-  /// 배포 스크립트에 넘기는 flavor.
-  static const String flavor = 'dev';
 
   /// 배포 대상 함수 목록 파일(저장소 상대 경로) — 배포 스크립트도 이 파일을 읽는다.
   static const String manifestPath = 'scripts/functions_manifest.json';
@@ -86,9 +85,13 @@ final class FunctionsStep implements Step {
   /// 없는 secret 을 만들 때 표준 입력으로 넘기는 자리표시 값.
   static const String secretPlaceholder = secretPlaceholderValue;
 
-  /// 배포 스크립트 성공 시 표준 출력의 마지막 줄.
-  static final RegExp deployOkPattern = RegExp(
-    r'^DEPLOY OK dev functions=[0-9]+ batches=[0-9]+$',
+  /// dev 실행에서 배포 스크립트 성공 시 표준 출력의 마지막 줄.
+  static final RegExp deployOkPattern = buildDeployOkPattern(Flavor.dev);
+
+  /// [flavor] 실행에서 배포 스크립트 성공 시 표준 출력의 마지막 줄.
+  static RegExp buildDeployOkPattern(Flavor flavor) => RegExp(
+    '^DEPLOY OK ${RegExp.escape(flavor.name)} '
+    r'functions=[0-9]+ batches=[0-9]+$',
   );
 
   /// 공개 호출을 허용하는 Cloud Run 역할.
@@ -176,12 +179,16 @@ final class FunctionsStep implements Step {
     <String>['functions:list', '--json', '--project', projectId],
   );
 
-  /// 저장소 루트 [workingDirectory] 에서 배포 스크립트를 실행 모드로 부르는 명령.
-  static Command buildDeployCommand({String? workingDirectory}) => Command(
-    'bash',
-    const <String>[deployScriptPath, flavor, '--apply'],
-    workingDirectory: workingDirectory,
-  );
+  /// 저장소 루트 [workingDirectory] 에서 [flavor] 의 배포 스크립트를 실행 모드로
+  /// 부르는 명령.
+  static Command buildDeployCommand({
+    Flavor flavor = Flavor.dev,
+    String? workingDirectory,
+  }) => Command('bash', <String>[
+    deployScriptPath,
+    flavor.name,
+    '--apply',
+  ], workingDirectory: workingDirectory);
 
   /// [region] 의 Cloud Run 서비스 [service] IAM 정책을 JSON 으로 읽는 명령.
   static Command buildIamPolicyCommand(
@@ -347,14 +354,14 @@ final class FunctionsStep implements Step {
     if (projectId == null) {
       return _mark(
         _FunctionsMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
+        '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
       );
     }
     final String? region = _readRegion(context);
     if (region == null) {
       return _mark(
         _FunctionsMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 Functions 리전(${FirestoreStep.functionsRegionKey})을 읽지 못했습니다',
+        '${context.paths.json} 에서 Functions 리전(${FirestoreStep.functionsRegionKey})을 읽지 못했습니다',
       );
     }
     final List<String>? common = readCommonFunctions(context.projectRoot);
@@ -475,13 +482,13 @@ final class FunctionsStep implements Step {
         '(없는 secret 만 자리표시 값 $secretPlaceholder 으로 만듭니다 — 이미 있는 secret 의 값은 읽거나 바꾸지 않습니다)',
       for (final String name in _missingSecrets)
         buildSecretSetCommand(name, _projectId).render(),
-      buildDeployCommand().render(),
-      '(배포 대상은 $manifestPath 의 공통 함수와 ${UserFilesStep.jsonUserPath} 의 enabledAuthProviders 가 켠 로그인 수단의 함수입니다)',
+      buildDeployCommand(flavor: context.flavor).render(),
+      '(배포 대상은 $manifestPath 의 공통 함수와 ${context.paths.json} 의 enabledAuthProviders 가 켠 로그인 수단의 함수입니다)',
       '(함수는 배포됐는데 컨테이너 이미지 정리 정책이 없어 배포 명령이 실패로 끝나면 정책을 만들고(보관 기간은 Firebase CLI 기본값) 한 번 더 배포합니다)',
       '(배포 뒤 공개 호출($invokerMember · $invokerRole)이 빠진 공통 함수가 있으면 붙입니다 — 조직 정책이 막으면 안내합니다)',
     ],
     _FunctionsMode.redeploy => <String>[
-      buildDeployCommand().render(),
+      buildDeployCommand(flavor: context.flavor).render(),
       redeployNote,
     ],
     _FunctionsMode.bind => <String>[
@@ -553,9 +560,15 @@ final class FunctionsStep implements Step {
     required bool isCleanupRetryAllowed,
   }) async {
     final CommandResult result = await context.runner.stream(
-      buildDeployCommand(workingDirectory: context.projectRoot),
+      buildDeployCommand(
+        flavor: context.flavor,
+        workingDirectory: context.projectRoot,
+      ),
     );
-    final StepOutcome judged = judgeDeployResult(result);
+    final StepOutcome judged = judgeDeployResult(
+      result,
+      flavor: context.flavor,
+    );
     if (judged is! Failed) return judged;
     final output = '${result.stdout}\n${result.stderr}';
     if (output.contains(invokerBlockedMarker)) {
@@ -723,8 +736,11 @@ final class FunctionsStep implements Step {
     );
   }
 
-  /// 배포 스크립트 결과를 종료 코드와 마지막 줄 계약으로 판정한다.
-  static StepOutcome judgeDeployResult(CommandResult result) {
+  /// [flavor] 배포 스크립트 결과를 종료 코드와 마지막 줄 계약으로 판정한다.
+  static StepOutcome judgeDeployResult(
+    CommandResult result, {
+    Flavor flavor = Flavor.dev,
+  }) {
     if (!result.isSuccess) {
       return Failed(
         'Functions 배포 스크립트가 실패했습니다 (종료 코드 ${result.exitCode})',
@@ -732,9 +748,9 @@ final class FunctionsStep implements Step {
       );
     }
     final String? lastLine = findLastOutputLine(result.stdout);
-    if (lastLine == null || !deployOkPattern.hasMatch(lastLine)) {
+    if (lastLine == null || !buildDeployOkPattern(flavor).hasMatch(lastLine)) {
       return Failed(
-        '배포 스크립트의 마지막 줄이 배포 완료 줄(DEPLOY OK dev functions=<개수> batches=<묶음 수>)이 아닙니다',
+        '배포 스크립트의 마지막 줄이 배포 완료 줄(DEPLOY OK ${flavor.name} functions=<개수> batches=<묶음 수>)이 아닙니다',
         result: result,
       );
     }
@@ -818,7 +834,7 @@ final class FunctionsStep implements Step {
 
   /// config 의 Functions 리전을 읽는다 — 없거나 빈 값이면 null.
   static String? _readRegion(WizardContext context) {
-    final String path = context.resolve(UserFilesStep.jsonUserPath);
+    final String path = context.resolve(context.paths.json);
     if (!File(path).existsSync()) return null;
     final String? value = readJsonString(
       path,

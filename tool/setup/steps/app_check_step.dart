@@ -4,25 +4,26 @@ import 'dart:io';
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../firebase_app_files.dart';
+import '../flavor.dart';
 import '../rest_client.dart';
 import '../step.dart';
 import '../uuid.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
-import 'user_files_step.dart';
 
-/// App Check 디버그 토큰 단계 — debug 빌드가 쓸 토큰을 만들어 config 에 두고 dev
-/// 의 iOS · Android 앱에 등록한다.
+/// App Check 디버그 토큰 단계 — debug 빌드가 쓸 토큰을 만들어 고른 flavor 의
+/// config 에 두고 그 flavor 의 iOS · Android 앱에 등록한다.
 ///
 /// 토큰은 위저드가 `context.random`(실행 때는 `Random.secure()`)으로 만든 UUID4 다.
-/// `config/dev.json` 의 [tokenKey] 에 쓰고, 같은 값을 두 앱 모두에 App Check REST
-/// 로 등록한다(표시 이름 = [displayName]). 다음 빌드가 `--dart-define-from-file`
-/// 로 이 값을 앱에 넣는다. 재검사는 두 앱의 디버그 토큰 목록에 [displayName]
-/// 항목이 있는지다 — 목록 응답은 토큰 값을 주지 않는다. 토큰을 새로 만들 때는
-/// 같은 표시 이름의 옛 항목을 먼저 지운다(앱마다 20개 한도).
+/// `config/<flavor>.json` 의 [tokenKey] 에 쓰고, 같은 값을 두 앱 모두에 App Check
+/// REST 로 등록한다(표시 이름 = [buildDisplayName]). 다음 빌드가
+/// `--dart-define-from-file` 로 이 값을 앱에 넣는다. 재검사는 두 앱의 디버그 토큰
+/// 목록에 그 flavor 표시 이름의 항목이 있는지다 — 목록 응답은 토큰 값을 주지
+/// 않고, 다른 flavor 이름의 항목은 판정 · 삭제에 쓰지 않는다. 토큰을 새로 만들
+/// 때는 같은 표시 이름의 옛 항목을 먼저 지운다(앱마다 20개 한도).
 ///
 /// 토큰과 앱 ID 는 가림 함수에 등록해 화면 · 기록에 나가지 않는다. 화면의 요청
-/// 표시형에는 토큰 대신 [tokenDisplay] 를 보인다.
+/// 표시형에는 토큰 대신 [buildTokenDisplay] 를 보인다.
 final class AppCheckStep implements Step {
   /// App Check 디버그 토큰 단계를 만든다.
   AppCheckStep();
@@ -30,14 +31,22 @@ final class AppCheckStep implements Step {
   /// 단계 제목.
   static const String stepTitle = 'App Check 디버그 토큰';
 
-  /// 위저드가 등록하는 디버그 토큰의 고정 표시 이름 — 재검사 술어다.
-  static const String displayName = 'setup-wizard-dev';
-
   /// 토큰을 두는 config 키.
   static const String tokenKey = 'appCheckDebugToken';
 
-  /// 화면 · 기록의 요청 본문에서 토큰 자리에 보이는 표시형.
-  static const String tokenDisplay = '<config/dev.json 의 appCheckDebugToken>';
+  /// dev 실행이 등록하는 디버그 토큰의 표시 이름.
+  static final String displayName = buildDisplayName(Flavor.dev);
+
+  /// dev 실행의 요청 본문에서 토큰 자리에 보이는 표시형.
+  static final String tokenDisplay = buildTokenDisplay(Flavor.dev);
+
+  /// [flavor] 실행이 등록하는 디버그 토큰의 고정 표시 이름 — 재검사 술어다.
+  static String buildDisplayName(Flavor flavor) =>
+      'setup-wizard-${flavor.name}';
+
+  /// [flavor] 실행의 화면 · 기록 요청 본문에서 토큰 자리에 보이는 표시형.
+  static String buildTokenDisplay(Flavor flavor) =>
+      '<${FlavorPaths(flavor).json} 의 $tokenKey>';
 
   /// App Check API 주소의 앞부분 — 뒤에 자원 이름이 붙는다.
   static const String appCheckApiPrefix =
@@ -59,24 +68,25 @@ final class AppCheckStep implements Step {
         quotaProject: projectId,
       );
 
-  /// [appId] 앱에 [token] 을 [displayName] 으로 등록하는 요청을 만든다.
+  /// [appId] 앱에 [token] 을 [flavor] 의 표시 이름으로 등록하는 요청을 만든다.
   ///
-  /// 화면 · 기록에는 토큰 대신 [tokenDisplay] 가 든 본문을 보인다.
+  /// 화면 · 기록에는 토큰 대신 [buildTokenDisplay] 가 든 본문을 보인다.
   static RestRequest buildCreateRequest(
     String projectId,
     String appId,
-    String token,
-  ) => RestRequest(
+    String token, {
+    Flavor flavor = Flavor.dev,
+  }) => RestRequest(
     method: 'POST',
     url: buildTokensUrl(projectId, appId),
     quotaProject: projectId,
     body: jsonEncode(<String, String>{
-      'displayName': displayName,
+      'displayName': buildDisplayName(flavor),
       'token': token,
     }),
     bodyDisplay: jsonEncode(<String, String>{
-      'displayName': displayName,
-      'token': tokenDisplay,
+      'displayName': buildDisplayName(flavor),
+      'token': buildTokenDisplay(flavor),
     }),
   );
 
@@ -115,7 +125,7 @@ final class AppCheckStep implements Step {
     if (projectId == null) {
       return _mark(
         _AppCheckMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
+        '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
       );
     }
     _projectId = projectId;
@@ -130,25 +140,28 @@ final class AppCheckStep implements Step {
     _apps = apps;
 
     final String token =
-        readJsonString(context.resolve(UserFilesStep.jsonUserPath), tokenKey) ??
-        '';
+        readJsonString(context.resolve(context.paths.json), tokenKey) ?? '';
     if (!isUuidV4(token)) {
       _token = '';
       return _mark(
         _AppCheckMode.create,
-        '${UserFilesStep.jsonUserPath} 에 디버그 토큰이 없습니다 — '
+        '${context.paths.json} 에 디버그 토큰이 없습니다 — '
         '새로 만들어 iOS · Android 앱에 등록합니다',
       );
     }
     context.redactor.register(token);
     _token = token;
 
+    final String flavorDisplayName = buildDisplayName(context.flavor);
     final missing = <_App>[];
     for (final _App app in apps) {
       final RestResponse response = await context.rest.send(
         buildListRequest(projectId, app.appId),
       );
-      final List<String>? names = _parseWizardTokenNames(response);
+      final List<String>? names = _parseWizardTokenNames(
+        response,
+        flavorDisplayName,
+      );
       if (names == null) {
         return _mark(
           _AppCheckMode.requestFailed,
@@ -168,23 +181,33 @@ final class AppCheckStep implements Step {
       );
     }
     _mode = _AppCheckMode.done;
-    return const Done('iOS · Android 앱에 디버그 토큰 등록됨 ($displayName)');
+    return Done('iOS · Android 앱에 디버그 토큰 등록됨 ($flavorDisplayName)');
   }
 
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _AppCheckMode.create => <String>[
-      '(UUID4 디버그 토큰을 위저드 안에서 만들고, 두 앱의 옛 항목을 지운 뒤 ${UserFilesStep.jsonUserPath} 의 $tokenKey 에 씁니다 — 외부 명령을 부르지 않습니다)',
+      '(UUID4 디버그 토큰을 위저드 안에서 만들고, 두 앱의 옛 항목을 지운 뒤 ${context.paths.json} 의 $tokenKey 에 씁니다 — 외부 명령을 부르지 않습니다)',
       for (final _App app in _apps) ...<String>[
-        '(${app.label} 앱: 목록에서 표시 이름 $displayName 인 옛 항목을 지운 뒤 새 토큰을 등록합니다)',
+        '(${app.label} 앱: 목록에서 표시 이름 ${buildDisplayName(context.flavor)} 인 옛 항목을 지운 뒤 새 토큰을 등록합니다)',
         buildListRequest(_projectId, app.appId).displayCurl(),
-        buildCreateRequest(_projectId, app.appId, '').displayCurl(),
+        buildCreateRequest(
+          _projectId,
+          app.appId,
+          '',
+          flavor: context.flavor,
+        ).displayCurl(),
       ],
     ],
     _AppCheckMode.register => <String>[
       for (final _App app in _missingApps) ...<String>[
         '(${app.label} 앱에 config 의 토큰을 등록합니다)',
-        buildCreateRequest(_projectId, app.appId, '').displayCurl(),
+        buildCreateRequest(
+          _projectId,
+          app.appId,
+          '',
+          flavor: context.flavor,
+        ).displayCurl(),
       ],
     ],
     _AppCheckMode.requestFailed => <String>['(응답 원문을 보입니다)'],
@@ -208,13 +231,11 @@ final class AppCheckStep implements Step {
         _AppCheckMode.done => const Applied(),
       };
     } on FileSystemException catch (e) {
-      return Failed('${UserFilesStep.jsonUserPath} 에 토큰을 쓰지 못했습니다 — $e');
+      return Failed('${context.paths.json} 에 토큰을 쓰지 못했습니다 — $e');
     } on FormatException catch (e) {
-      return Failed('${UserFilesStep.jsonUserPath} 에 토큰을 쓰지 못했습니다 — $e');
+      return Failed('${context.paths.json} 에 토큰을 쓰지 못했습니다 — $e');
     } on ConfigEditException catch (e) {
-      return Failed(
-        '${UserFilesStep.jsonUserPath} 에 토큰을 쓰지 못했습니다 — ${e.message}',
-      );
+      return Failed('${context.paths.json} 에 토큰을 쓰지 못했습니다 — ${e.message}');
     }
     if (outcome is Applied && _mode != _AppCheckMode.done) {
       context.terminal.writeLine('  $rebuildNotice');
@@ -235,7 +256,10 @@ final class AppCheckStep implements Step {
       final RestResponse list = await context.rest.send(
         buildListRequest(_projectId, app.appId),
       );
-      final List<String>? names = _parseWizardTokenNames(list);
+      final List<String>? names = _parseWizardTokenNames(
+        list,
+        buildDisplayName(context.flavor),
+      );
       if (names == null) {
         return Failed(
           '${app.label} 앱의 디버그 토큰 목록을 읽지 못했습니다 — ${describeRestStatus(list)}',
@@ -255,11 +279,7 @@ final class AppCheckStep implements Step {
         }
       }
     }
-    replaceJsonString(
-      context.resolve(UserFilesStep.jsonUserPath),
-      tokenKey,
-      token,
-    );
+    replaceJsonString(context.resolve(context.paths.json), tokenKey, token);
     _token = token;
     return await _registerAll(context, _apps, token);
   }
@@ -272,7 +292,12 @@ final class AppCheckStep implements Step {
   ) async {
     for (final app in apps) {
       final RestResponse response = await context.rest.send(
-        buildCreateRequest(_projectId, app.appId, token),
+        buildCreateRequest(
+          _projectId,
+          app.appId,
+          token,
+          flavor: context.flavor,
+        ),
       );
       if (!response.isOk) {
         return Failed(
@@ -285,13 +310,20 @@ final class AppCheckStep implements Step {
     return const Applied();
   }
 
-  /// 앱 등록 설정 파일에서 iOS · Android 앱 ID 를 읽고 가림 함수에 등록한다.
+  /// 이번 flavor 의 앱 등록 설정 파일에서 iOS · Android 앱 ID 를 읽고 가림
+  /// 함수에 등록한다.
   ///
   /// 하나라도 읽지 못하면 null.
   static List<_App>? _readApps(WizardContext context) {
-    final String? packageName = readDevAndroidPackage(context.projectRoot);
+    final String? packageName = readAndroidPackage(
+      context.projectRoot,
+      context.flavor,
+    );
     if (packageName == null) return null;
-    final files = FirebaseAppFiles.read(context.projectRoot);
+    final files = FirebaseAppFiles.read(
+      context.projectRoot,
+      flavor: context.flavor,
+    );
     if (files.isOptionsPlaceholder) return null;
     final String? iosAppId = files.iosAppId;
     final String? androidAppId = files.androidAppIdFor(packageName);
@@ -302,9 +334,12 @@ final class AppCheckStep implements Step {
     return <_App>[_App('iOS', iosAppId), _App('Android', androidAppId)];
   }
 
-  /// 목록 응답에서 [displayName] 항목의 자원 이름을 모은다 — 실패 · 모양이 다르면
-  /// null.
-  static List<String>? _parseWizardTokenNames(RestResponse response) {
+  /// 목록 응답에서 표시 이름이 [expectedName] 인 항목의 자원 이름을 모은다 —
+  /// 실패 · 모양이 다르면 null.
+  static List<String>? _parseWizardTokenNames(
+    RestResponse response,
+    String expectedName,
+  ) {
     if (!response.isOk) return null;
     final Object? decoded = response.decodeJson();
     if (decoded is! Map<String, Object?>) return null;
@@ -314,7 +349,7 @@ final class AppCheckStep implements Step {
     return <String>[
       for (final Object? item in tokens)
         if (item is Map<String, Object?> &&
-            item['displayName'] == displayName &&
+            item['displayName'] == expectedName &&
             item['name'] is String)
           item['name']! as String,
     ];

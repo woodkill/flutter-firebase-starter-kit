@@ -6,7 +6,6 @@ import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
 import 'storage_step.dart';
-import 'user_files_step.dart';
 
 /// Firestore · Storage rules 단계 — 저장소의 rules 파일을 프로젝트에 배포한다.
 ///
@@ -103,7 +102,7 @@ final class RulesStep implements Step {
     if (projectId == null) {
       return _mark(
         _RulesMode.unreadable,
-        '${UserFilesStep.jsonUserPath} 에서 프로젝트 ID 를 읽지 못했습니다',
+        '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
       );
     }
     _projectId = projectId;

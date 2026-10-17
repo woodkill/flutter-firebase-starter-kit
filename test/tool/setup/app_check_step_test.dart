@@ -6,12 +6,14 @@ import 'package:test/test.dart';
 
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/firebase_app_files.dart';
+import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
+import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/uuid.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
@@ -43,6 +45,29 @@ const String androidTokensUrl =
 
 /// 위저드가 쓰는 고정 표시 이름.
 const String wizardDisplayName = 'setup-wizard-dev';
+
+/// stg 테스트 프로젝트 ID.
+const String stgProjectId = 'p-stg';
+
+/// fixture stg iOS 앱 ID.
+const String stgIosAppId = '1:111:ios:stg';
+
+/// fixture stg Android 앱 ID.
+const String stgAndroidAppId = '1:111:android:stg';
+
+/// stg iOS 앱 디버그 토큰 목록 주소.
+const String stgIosTokensUrl =
+    '${appCheckPrefix}projects/$stgProjectId/apps/$stgIosAppId/debugTokens';
+
+/// stg Android 앱 디버그 토큰 목록 주소.
+const String stgAndroidTokensUrl =
+    '${appCheckPrefix}projects/$stgProjectId/apps/$stgAndroidAppId/debugTokens';
+
+/// stg 실행이 쓰는 표시 이름.
+const String stgDisplayName = 'setup-wizard-stg';
+
+/// stg 실행의 요청 표시형에서 토큰 자리에 보이는 글자.
+const String stgTokenDisplay = '<config/stg.json 의 appCheckDebugToken>';
 
 /// 실행 시점에 조립한 가짜 API 키 — 소스에 완형을 두지 않는다.
 final String fakeApiKey = 'AIza${'x' * 35}';
@@ -105,39 +130,47 @@ void main() {
   }
 
   /// 앱 등록이 끝난 모양의 설정 파일 3개를 쓴다(Dart 설정 파일 = FlutterFire 생성본 모양).
-  void writeAppFiles() {
+  ///
+  /// [flavor] 를 주면 그 flavor 경로에 [project] · [ios] · [android] 값으로 쓴다.
+  void writeAppFiles({
+    Flavor flavor = Flavor.dev,
+    String project = projectId,
+    String ios = iosAppId,
+    String android = androidAppId,
+  }) {
+    final paths = FlavorPaths(flavor);
     writeFixture(
-      FirebaseAppFiles.optionsPath,
+      paths.dartOptions,
       buildGeneratedOptionsSource(
-        projectId: projectId,
+        projectId: project,
         apiKey: fakeApiKey,
-        androidAppId: androidAppId,
-        iosAppId: iosAppId,
+        androidAppId: android,
+        iosAppId: ios,
       ),
     );
     writeFixture(
-      FirebaseAppFiles.iosPlistPath,
+      paths.iosPlist,
       '<plist version="1.0">\n'
       '<dict>\n'
       '\t<key>API_KEY</key>\n'
       '\t<string>$fakeApiKey</string>\n'
       '\t<key>PROJECT_ID</key>\n'
-      '\t<string>$projectId</string>\n'
+      '\t<string>$project</string>\n'
       '\t<key>GOOGLE_APP_ID</key>\n'
-      '\t<string>$iosAppId</string>\n'
+      '\t<string>$ios</string>\n'
       '</dict>\n'
       '</plist>\n',
     );
     writeFixture(
-      FirebaseAppFiles.androidJsonPath,
+      paths.androidJson,
       jsonEncode(<String, Object?>{
-        'project_info': <String, Object?>{'project_id': projectId},
+        'project_info': <String, Object?>{'project_id': project},
         'client': <Object?>[
           <String, Object?>{
             'client_info': <String, Object?>{
-              'mobilesdk_app_id': androidAppId,
+              'mobilesdk_app_id': android,
               'android_client_info': <String, Object?>{
-                'package_name': '$applicationId.dev',
+                'package_name': '$applicationId${flavor.suffix}',
               },
             },
             'api_key': <Object?>[
@@ -196,6 +229,49 @@ void main() {
       AppCheckStep(),
     ],
   );
+
+  /// stg config(example 복사 · stg 프로젝트 ID)와 stg 앱 설정 파일 3개를 쓴다.
+  File writeStgFixture() {
+    const paths = FlavorPaths(Flavor.stg);
+    final stgConfig = File('$root/${paths.json}')
+      ..parent.createSync(recursive: true);
+    File(paths.jsonExample).copySync(stgConfig.path);
+    replaceJsonString(stgConfig.path, 'firebaseProjectId', stgProjectId);
+    writeAppFiles(
+      flavor: Flavor.stg,
+      project: stgProjectId,
+      ios: stgIosAppId,
+      android: stgAndroidAppId,
+    );
+    return stgConfig;
+  }
+
+  /// 앞 단계(끝남) · App Check 단계를 stg 문맥으로 돌린다.
+  Future<int> runStgAppCheckStep(
+    FakeRestClient rest,
+    ScriptedTerminal terminal, {
+    MemoryLogSink? log,
+  }) {
+    final MemoryLogSink usedLog = log ?? MemoryLogSink(Redactor());
+    return runWizard(
+      WizardContext(
+        projectRoot: root,
+        runner: FakeCommandRunner(),
+        terminal: RedactingTerminal(terminal, usedLog.redactor, usedLog),
+        redactor: usedLog.redactor,
+        log: usedLog,
+        rest: rest,
+        flavor: Flavor.stg,
+        random: Random(fixedTestRandomSeed),
+        now: () => fixedTestNow,
+      ),
+      <Step>[
+        _FinishedStep('configure', '앱 등록 · 설정 파일'),
+        _FinishedStep('apis', '필요한 Google Cloud API'),
+        AppCheckStep(),
+      ],
+    );
+  }
 
   /// [method] 요청만 모은다.
   List<RestRequest> listRequests(FakeRestClient rest, String method) => rest
@@ -599,5 +675,175 @@ void main() {
         .toList();
 
     expect(ids.indexOf('app_check'), ids.indexOf('rules') + 1);
+  });
+
+  test(
+    'T-20-STG-05: stg · 토큰 없음 → config/stg.json 에 UUID · stg 두 앱에 setup-wizard-stg 생성 2개 · 표시형만 · 토큰 0회 · dev config 바이트 같음',
+    () async {
+      writeAppFiles();
+      replaceJsonString(
+        config.path,
+        AppCheckStep.tokenKey,
+        generateUuidV4(Random(3)),
+      );
+      final List<int> devBefore = config.readAsBytesSync();
+      final File stgConfig = writeStgFixture();
+      final rest = FakeRestClient()
+        ..on(
+          'GET',
+          stgIosTokensUrl,
+          buildTokenList(stgIosTokensUrl, <String>[
+            '$wizardDisplayName:devold',
+          ]),
+        )
+        ..on(
+          'GET',
+          stgIosTokensUrl,
+          buildTokenList(stgIosTokensUrl, <String>[
+            '$wizardDisplayName:devold',
+            '$stgDisplayName:new1',
+          ]),
+        )
+        ..on(
+          'GET',
+          stgAndroidTokensUrl,
+          buildTokenList(stgAndroidTokensUrl, []),
+        )
+        ..on(
+          'GET',
+          stgAndroidTokensUrl,
+          buildTokenList(stgAndroidTokensUrl, <String>['$stgDisplayName:new2']),
+        )
+        ..on('POST', stgIosTokensUrl, const RestResponse(200, '{}'))
+        ..on('POST', stgAndroidTokensUrl, const RestResponse(200, '{}'));
+      final terminal = ScriptedTerminal(const <String?>['y']);
+      final log = MemoryLogSink(Redactor());
+
+      final int code = await runStgAppCheckStep(rest, terminal, log: log);
+
+      final output = terminal.output.toString();
+      final String token =
+          readJsonString(stgConfig.path, AppCheckStep.tokenKey) ?? '';
+      expect(code, wizardExitDone);
+      expect(isUuidV4(token), isTrue);
+      expect(config.readAsBytesSync(), devBefore);
+      final List<RestRequest> posts = listRequests(rest, 'POST');
+      expect(
+        posts.map((RestRequest request) => request.url.toString()).toSet(),
+        <String>{stgIosTokensUrl, stgAndroidTokensUrl},
+      );
+      expect(posts, hasLength(2));
+      for (final post in posts) {
+        expect(jsonDecode(post.body!), <String, Object?>{
+          'displayName': stgDisplayName,
+          'token': token,
+        });
+        expect(jsonDecode(post.bodyDisplay!), <String, Object?>{
+          'displayName': stgDisplayName,
+          'token': stgTokenDisplay,
+        });
+        expect(post.quotaProject, stgProjectId);
+      }
+      // dev 이름의 항목은 stg 판정 · 삭제 대상이 아니다.
+      expect(listRequests(rest, 'DELETE'), isEmpty);
+      expect(output, contains('"token":"$stgTokenDisplay"'));
+      expect(output, contains('($stgDisplayName)'));
+      for (final text in <String>[output, log.text]) {
+        expect(text, isNot(contains(token)));
+        expect(text, isNot(contains(token.toUpperCase())));
+      }
+      for (final RestRequest request in rest.requests) {
+        expect(request.url.toString(), contains('/projects/$stgProjectId/'));
+        expect(
+          request.url.toString(),
+          isNot(contains('/projects/$projectId/')),
+        );
+      }
+    },
+  );
+
+  group('T-20-STG-06: stg 판정은 setup-wizard-stg 항목만 본다', () {
+    late File stgConfig;
+    late String token;
+
+    setUp(() {
+      writeAppFiles();
+      stgConfig = writeStgFixture();
+      token = generateUuidV4(Random(9));
+      replaceJsonString(stgConfig.path, AppCheckStep.tokenKey, token);
+    });
+
+    test('두 stg 앱에 setup-wizard-stg 가 있고 config 토큰도 있으면 ✓ · 쓰기 0', () async {
+      final List<int> stgBefore = stgConfig.readAsBytesSync();
+      final rest = FakeRestClient()
+        ..on(
+          'GET',
+          stgIosTokensUrl,
+          buildTokenList(stgIosTokensUrl, <String>['$stgDisplayName:a1']),
+        )
+        ..on(
+          'GET',
+          stgAndroidTokensUrl,
+          buildTokenList(stgAndroidTokensUrl, <String>[
+            '$wizardDisplayName:d1',
+            '$stgDisplayName:b1',
+          ]),
+        );
+      final terminal = ScriptedTerminal(const <String?>[]);
+
+      final int code = await runStgAppCheckStep(rest, terminal);
+
+      final output = terminal.output.toString();
+      expect(code, wizardExitDone);
+      expect(output, contains('  ✓ ${AppCheckStep.stepTitle} — '));
+      expect(output, contains('($stgDisplayName)'));
+      expect(terminal.asks, isEmpty);
+      expect(listRequests(rest, 'POST'), isEmpty);
+      expect(listRequests(rest, 'DELETE'), isEmpty);
+      expect(stgConfig.readAsBytesSync(), stgBefore);
+    });
+
+    test(
+      'iOS 앱에 setup-wizard-dev 항목만 있으면 미등록으로 보고 iOS 에만 stg 이름으로 등록',
+      () async {
+        final rest = FakeRestClient()
+          ..on(
+            'GET',
+            stgIosTokensUrl,
+            buildTokenList(stgIosTokensUrl, <String>['$wizardDisplayName:d1']),
+          )
+          ..on(
+            'GET',
+            stgIosTokensUrl,
+            buildTokenList(stgIosTokensUrl, <String>['$wizardDisplayName:d1']),
+          )
+          ..on(
+            'GET',
+            stgIosTokensUrl,
+            buildTokenList(stgIosTokensUrl, <String>[
+              '$wizardDisplayName:d1',
+              '$stgDisplayName:n1',
+            ]),
+          )
+          ..on(
+            'GET',
+            stgAndroidTokensUrl,
+            buildTokenList(stgAndroidTokensUrl, <String>['$stgDisplayName:b1']),
+          )
+          ..on('POST', stgIosTokensUrl, const RestResponse(200, '{}'));
+        final terminal = ScriptedTerminal(const <String?>['y']);
+
+        final int code = await runStgAppCheckStep(rest, terminal);
+
+        expect(code, wizardExitDone);
+        expect(rest.countRequests('POST', stgIosTokensUrl), 1);
+        expect(rest.countRequests('POST', stgAndroidTokensUrl), 0);
+        expect(listRequests(rest, 'DELETE'), isEmpty);
+        expect(
+          jsonDecode(listRequests(rest, 'POST').single.body!),
+          <String, Object?>{'displayName': stgDisplayName, 'token': token},
+        );
+      },
+    );
   });
 }
